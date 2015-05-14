@@ -1,6 +1,7 @@
-/* $Id: VBoxVersion.h $ */
 /** @file
- * VBox Qt GUI - VBoxVersion class declaration.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * VBoxVersion class declaration
  */
 
 /*

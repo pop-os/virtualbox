@@ -1,6 +1,8 @@
 /* $Id: UIPopupPaneButtonPane.cpp $ */
 /** @file
- * VBox Qt GUI - UIPopupPaneButtonPane class implementation.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * UIPopupPaneButtonPane class implementation
  */
 
 /*
@@ -15,23 +17,17 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 /* Qt includes: */
-# include <QApplication>
-# include <QHBoxLayout>
-# include <QVBoxLayout>
-# include <QKeyEvent>
+#include <QApplication>
+#include <QHBoxLayout>
+#include <QVBoxLayout>
+#include <QKeyEvent>
 
 /* GUI includes: */
-# include "UIPopupPaneButtonPane.h"
-# include "UIIconPool.h"
-# include "QIToolButton.h"
-# include "QIMessageBox.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
+#include "UIPopupPaneButtonPane.h"
+#include "UIIconPool.h"
+#include "QIToolButton.h"
+#include "QIMessageBox.h"
 
 UIPopupPaneButtonPane::UIPopupPaneButtonPane(QWidget *pParent /* = 0*/)
     : QWidget(pParent)

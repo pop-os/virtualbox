@@ -1,6 +1,7 @@
-/* $Id: UIGDetailsView.h $ */
 /** @file
- * VBox Qt GUI - UIGDetailsView class declaration.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * UIGDetailsView class declaration
  */
 
 /*

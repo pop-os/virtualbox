@@ -1,4 +1,3 @@
-/* $Id: splitBGRA.c $ */
 float vboxSplitBGRA(vec4 color, float coord)
 {
     int pix = int(coord);

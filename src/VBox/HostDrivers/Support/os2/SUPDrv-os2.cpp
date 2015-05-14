@@ -162,7 +162,7 @@ DECLASM(int) VBoxDrvOpen(uint16_t sfn)
         RTSpinlockAcquire(g_Spinlock);
         pSession->pNextHash = g_apSessionHashTab[iHash];
         g_apSessionHashTab[iHash] = pSession;
-        RTSpinlockRelease(g_Spinlock);
+        RTSpinlockReleaseNoInts(g_Spinlock);
     }
 
     Log(("VBoxDrvOpen: g_DevExt=%p pSession=%p rc=%d pid=%d\n", &g_DevExt, pSession, rc, (int)RTProcSelf()));
@@ -211,7 +211,7 @@ DECLASM(int) VBoxDrvClose(uint16_t sfn)
             }
         }
     }
-    RTSpinlockRelease(g_Spinlock);
+    RTSpinlockReleaseNoInts(g_Spinlock);
     if (!pSession)
     {
         OSDBGPRINT(("VBoxDrvIoctl: WHUT?!? pSession == NULL! This must be a mistake... pid=%d sfn=%d\n", (int)Process, sfn));
@@ -247,7 +247,7 @@ DECLASM(int) VBoxDrvIOCtlFast(uint16_t sfn, uint8_t iFunction)
         if (RT_LIKELY(pSession))
             supdrvSessionRetain(pSession);
     }
-    RTSpinlockRelease(g_Spinlock);
+    RTSpinlockReleaseNoInts(g_Spinlock);
     if (RT_UNLIKELY(!pSession))
     {
         OSDBGPRINT(("VBoxDrvIoctl: WHUT?!? pSession == NULL! This must be a mistake... pid=%d\n", (int)Process));
@@ -284,7 +284,7 @@ DECLASM(int) VBoxDrvIOCtl(uint16_t sfn, uint8_t iCat, uint8_t iFunction, void *p
         if (RT_LIKELY(pSession))
             supdrvSessionRetain(pSession);
     }
-    RTSpinlockRelease(g_Spinlock);
+    RTSpinlockReleaseNoInts(g_Spinlock);
     if (!pSession)
     {
         OSDBGPRINT(("VBoxDrvIoctl: WHUT?!? pSession == NULL! This must be a mistake... pid=%d\n", (int)Process));
@@ -406,19 +406,6 @@ bool VBOXCALL  supdrvOSGetForcedAsyncTscMode(PSUPDRVDEVEXT pDevExt)
 }
 
 
-bool VBOXCALL  supdrvOSAreCpusOfflinedOnSuspend(void)
-{
-    return false;
-}
-
-
-bool VBOXCALL  supdrvOSAreTscDeltasInSync(void)
-{
-    NOREF(pDevExt);
-    return false;
-}
-
-
 int  VBOXCALL   supdrvOSLdrOpen(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, const char *pszFilename)
 {
     NOREF(pDevExt); NOREF(pImage); NOREF(pszFilename);
@@ -450,31 +437,6 @@ void VBOXCALL   supdrvOSLdrUnload(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage)
 {
     NOREF(pDevExt); NOREF(pImage);
 }
-
-
-#ifdef SUPDRV_WITH_MSR_PROBER
-
-int VBOXCALL    supdrvOSMsrProberRead(uint32_t uMsr, RTCPUID idCpu, uint64_t *puValue)
-{
-    NOREF(uMsr); NOREF(idCpu); NOREF(puValue);
-    return VERR_NOT_SUPPORTED;
-}
-
-
-int VBOXCALL    supdrvOSMsrProberWrite(uint32_t uMsr, RTCPUID idCpu, uint64_t uValue)
-{
-    NOREF(uMsr); NOREF(idCpu); NOREF(uValue);
-    return VERR_NOT_SUPPORTED;
-}
-
-
-int VBOXCALL    supdrvOSMsrProberModify(RTCPUID idCpu, PSUPMSRPROBER pReq)
-{
-    NOREF(idCpu); NOREF(pReq);
-    return VERR_NOT_SUPPORTED;
-}
-
-#endif /* SUPDRV_WITH_MSR_PROBER */
 
 
 /**

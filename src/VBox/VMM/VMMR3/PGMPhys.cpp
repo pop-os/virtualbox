@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -52,6 +52,12 @@
 *******************************************************************************/
 /** The number of pages to free in one batch. */
 #define PGMPHYS_FREE_PAGE_BATCH_SIZE    128
+
+
+/*******************************************************************************
+*   Internal Functions                                                         *
+*******************************************************************************/
+static DECLCALLBACK(int) pgmR3PhysRomWriteHandler(PVM pVM, RTGCPHYS GCPhys, void *pvPhys, void *pvBuf, size_t cbBuf, PGMACCESSTYPE enmAccessType, void *pvUser);
 
 
 /*
@@ -1562,9 +1568,7 @@ static int pgmR3PhysRegisterHighRamChunk(PVM pVM, RTGCPHYS GCPhys, uint32_t cRam
     RTR0PTR      R0PtrChunk   = NIL_RTR0PTR;
     void        *pvChunk      = NULL;
     int rc = SUPR3PageAllocEx(cChunkPages, 0 /*fFlags*/, &pvChunk,
-#if defined(VBOX_WITH_MORE_RING0_MEM_MAPPINGS)
-                              &R0PtrChunk,
-#elif defined(VBOX_WITH_2X_4GB_ADDR_SPACE)
+#ifdef VBOX_WITH_2X_4GB_ADDR_SPACE
                               HMIsEnabled(pVM) ? &R0PtrChunk : NULL,
 #else
                               NULL,
@@ -1572,9 +1576,7 @@ static int pgmR3PhysRegisterHighRamChunk(PVM pVM, RTGCPHYS GCPhys, uint32_t cRam
                               paChunkPages);
     if (RT_SUCCESS(rc))
     {
-#if defined(VBOX_WITH_MORE_RING0_MEM_MAPPINGS)
-        Assert(R0PtrChunk != NIL_RTR0PTR);
-#elif defined(VBOX_WITH_2X_4GB_ADDR_SPACE)
+#ifdef VBOX_WITH_2X_4GB_ADDR_SPACE
         if (!HMIsEnabled(pVM))
             R0PtrChunk = NIL_RTR0PTR;
 #else
@@ -2165,14 +2167,19 @@ int pgmR3PhysRamTerm(PVM pVM)
  * @param   pVM             Pointer to the VM.
  * @param   GCPhys          The start of the MMIO region.
  * @param   cb              The size of the MMIO region.
- * @param   hType           The physical access handler type registration.
+ * @param   pfnHandlerR3    The address of the ring-3 handler. (IOMR3MMIOHandler)
  * @param   pvUserR3        The user argument for R3.
+ * @param   pfnHandlerR0    The address of the ring-0 handler. (IOMMMIOHandler)
  * @param   pvUserR0        The user argument for R0.
+ * @param   pfnHandlerRC    The address of the RC handler. (IOMMMIOHandler)
  * @param   pvUserRC        The user argument for RC.
  * @param   pszDesc         The description of the MMIO region.
  */
-VMMR3DECL(int) PGMR3PhysMMIORegister(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb, PGMPHYSHANDLERTYPE hType,
-                                     RTR3PTR pvUserR3, RTR0PTR pvUserR0, RTRCPTR pvUserRC, const char *pszDesc)
+VMMR3DECL(int) PGMR3PhysMMIORegister(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb,
+                                     R3PTRTYPE(PFNPGMR3PHYSHANDLER) pfnHandlerR3, RTR3PTR pvUserR3,
+                                     R0PTRTYPE(PFNPGMR0PHYSHANDLER) pfnHandlerR0, RTR0PTR pvUserR0,
+                                     RCPTRTYPE(PFNPGMRCPHYSHANDLER) pfnHandlerRC, RTRCPTR pvUserRC,
+                                     R3PTRTYPE(const char *) pszDesc)
 {
     /*
      * Assert on some assumption.
@@ -2182,7 +2189,6 @@ VMMR3DECL(int) PGMR3PhysMMIORegister(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb, PGMP
     AssertReturn(!(GCPhys & PAGE_OFFSET_MASK), VERR_INVALID_PARAMETER);
     AssertPtrReturn(pszDesc, VERR_INVALID_POINTER);
     AssertReturn(*pszDesc, VERR_INVALID_PARAMETER);
-    Assert(((PPGMPHYSHANDLERTYPEINT)MMHyperHeapOffsetToPtr(pVM, hType))->enmKind == PGMPHYSHANDLERKIND_MMIO);
 
     int rc = pgmLock(pVM);
     AssertRCReturn(rc, rc);
@@ -2295,7 +2301,10 @@ VMMR3DECL(int) PGMR3PhysMMIORegister(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb, PGMP
     /*
      * Register the access handler.
      */
-    rc = PGMHandlerPhysicalRegister(pVM, GCPhys, GCPhysLast, hType, pvUserR3, pvUserR0, pvUserRC, pszDesc);
+    rc = PGMHandlerPhysicalRegisterEx(pVM, PGMPHYSHANDLERTYPE_MMIO, GCPhys, GCPhysLast,
+                                      pfnHandlerR3, pvUserR3,
+                                      pfnHandlerR0, pvUserR0,
+                                      pfnHandlerRC, pvUserRC, pszDesc);
     if (    RT_FAILURE(rc)
         &&  !fRamExists)
     {
@@ -2467,7 +2476,7 @@ DECLINLINE(PPGMMMIO2RANGE) pgmR3PhysMMIO2Find(PVM pVM, PPDMDEVINS pDevIns, uint3
  * A MMIO2 range may overlap with base memory if a lot of RAM is configured for
  * the VM, in which case we'll drop the base memory pages.  Presently we will
  * make no attempt to preserve anything that happens to be present in the base
- * memory that is replaced, this is of course incorrect but it's too much
+ * memory that is replaced, this is of course incorrectly but it's too much
  * effort.
  *
  * @returns VBox status code.
@@ -2737,8 +2746,6 @@ VMMR3DECL(int) PGMR3PhysMMIO2Deregister(PVM pVM, PPDMDEVINS pDevIns, uint32_t iR
  *
  * @param   pVM             Pointer to the VM.
  * @param   pDevIns         The device instance owning the region.
- * @param   iRegion         The index of the registered region.
- * @param   GCPhys          The guest-physical address to be remapped.
  */
 VMMR3DECL(int) PGMR3PhysMMIO2Map(PVM pVM, PPDMDEVINS pDevIns, uint32_t iRegion, RTGCPHYS GCPhys)
 {
@@ -2832,8 +2839,6 @@ VMMR3DECL(int) PGMR3PhysMMIO2Map(PVM pVM, PPDMDEVINS pDevIns, uint32_t iRegion, 
             AssertLogRelRCReturn(rc, rc); /* We're done for if this goes wrong. */
 
             RTHCPHYS const HCPhys = PGM_PAGE_GET_HCPHYS(pPageSrc);
-            uint32_t const idPage = PGM_PAGE_GET_PAGEID(pPageSrc);
-            PGM_PAGE_SET_PAGEID(pVM, pPageDst, idPage);
             PGM_PAGE_SET_HCPHYS(pVM, pPageDst, HCPhys);
             PGM_PAGE_SET_TYPE(pVM, pPageDst, PGMPAGETYPE_MMIO2);
             PGM_PAGE_SET_STATE(pVM, pPageDst, PGM_PAGE_STATE_ALLOCATED);
@@ -3324,15 +3329,17 @@ static int pgmR3PhysRomRegister(PVM pVM, PPDMDEVINS pDevIns, RTGCPHYS GCPhys, RT
 #ifdef VBOX_WITH_REM
                 REMR3NotifyPhysRomRegister(pVM, GCPhys, cb, NULL, true /* fShadowed */);
 #endif
-                rc = PGMHandlerPhysicalRegister(pVM, GCPhys, GCPhysLast, pVM->pgm.s.hRomPhysHandlerType,
-                                                pRomNew, MMHyperCCToR0(pVM, pRomNew), MMHyperCCToRC(pVM, pRomNew),
-                                                pszDesc);
+                rc = PGMR3HandlerPhysicalRegister(pVM, PGMPHYSHANDLERTYPE_PHYSICAL_WRITE, GCPhys, GCPhysLast,
+                                                  pgmR3PhysRomWriteHandler, pRomNew,
+                                                  NULL, "pgmPhysRomWriteHandler", MMHyperCCToR0(pVM, pRomNew),
+                                                  NULL, "pgmPhysRomWriteHandler", MMHyperCCToRC(pVM, pRomNew), pszDesc);
             }
             else
             {
-                rc = PGMHandlerPhysicalRegister(pVM, GCPhys, GCPhysLast, pVM->pgm.s.hRomPhysHandlerType,
-                                                pRomNew, MMHyperCCToR0(pVM, pRomNew), MMHyperCCToRC(pVM, pRomNew),
-                                                pszDesc);
+                rc = PGMR3HandlerPhysicalRegister(pVM, PGMPHYSHANDLERTYPE_PHYSICAL_WRITE, GCPhys, GCPhysLast,
+                                                  pgmR3PhysRomWriteHandler, pRomNew,
+                                                  NULL, "pgmPhysRomWriteHandler", MMHyperCCToR0(pVM, pRomNew),
+                                                  NULL, "pgmPhysRomWriteHandler", MMHyperCCToRC(pVM, pRomNew), pszDesc);
 #ifdef VBOX_WITH_REM
                 REMR3NotifyPhysRomRegister(pVM, GCPhys, cb, NULL, false /* fShadowed */);
 #endif
@@ -3506,8 +3513,8 @@ VMMR3DECL(int) PGMR3PhysRomRegister(PVM pVM, PPDMDEVINS pDevIns, RTGCPHYS GCPhys
  * @param   enmAccessType   The access type.
  * @param   pvUser          User argument.
  */
-DECLCALLBACK(int) pgmR3PhysRomWriteHandler(PVM pVM, RTGCPHYS GCPhys, void *pvPhys, void *pvBuf, size_t cbBuf,
-                                           PGMACCESSTYPE enmAccessType, void *pvUser)
+static DECLCALLBACK(int) pgmR3PhysRomWriteHandler(PVM pVM, RTGCPHYS GCPhys, void *pvPhys, void *pvBuf, size_t cbBuf,
+                                                  PGMACCESSTYPE enmAccessType, void *pvUser)
 {
     PPGMROMRANGE    pRom     = (PPGMROMRANGE)pvUser;
     const uint32_t  iPage    = (GCPhys - pRom->GCPhys) >> PAGE_SHIFT;
@@ -4035,7 +4042,7 @@ static DECLCALLBACK(VBOXSTRICTRC) pgmR3PhysUnmapChunkRendezvous(PVM pVM, PVMCPU 
                 /*
                  * Flush dangling PGM pointers (R3 & R0 ptrs to GC physical addresses).
                  */
-                /** @todo We should not flush chunks which include cr3 mappings. */
+                /** todo: we should not flush chunks which include cr3 mappings. */
                 for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
                 {
                     PPGMCPU pPGM = &pVM->aCpus[idCpu].pgm.s;

@@ -27,6 +27,11 @@
 #define ___VBox_dbggui_h
 
 #include <VBox/types.h>
+#if defined(RT_OS_WINDOWS)
+# include <VirtualBox.h>
+#else
+# include <VirtualBox_XPCOM.h>
+#endif
 
 
 RT_C_DECLS_BEGIN
@@ -34,12 +39,6 @@ RT_C_DECLS_BEGIN
 /** @defgroup grp_dbggui    VirtualBox Debugger GUI
  * @{
  */
-
-#ifdef RT_OS_WINDOWS
-struct ISession;
-#else
-class ISession;
-#endif
 
 /** Pointer to the debugger GUI instance structure. */
 typedef struct DBGGUI *PDBGGUI;

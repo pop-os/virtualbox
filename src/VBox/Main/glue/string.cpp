@@ -134,33 +134,14 @@ Utf8Str& Utf8Str::stripPath()
     return *this;
 }
 
-Utf8Str& Utf8Str::stripSuffix()
+Utf8Str& Utf8Str::stripExt()
 {
     if (length())
     {
-        RTPathStripSuffix(m_psz);
+        RTPathStripExt(m_psz);
         jolt();
     }
     return *this;
-}
-
-size_t Utf8Str::parseKeyValue(Utf8Str &key, Utf8Str &value, size_t pos, const Utf8Str &pairSeparator, const Utf8Str &keyValueSeparator) const
-{
-    size_t start = pos;
-    while(start == (pos = find(pairSeparator.c_str(), pos)))
-        start = ++pos;
-
-    size_t kvSepPos = find(keyValueSeparator.c_str(), start);
-    if (kvSepPos < pos)
-    {
-        key = substr(start, kvSepPos - start);
-        value = substr(kvSepPos + 1, pos - kvSepPos - 1);
-    }
-    else
-    {
-        key = value = "";
-    }
-    return pos;
 }
 
 /**
@@ -178,17 +159,15 @@ size_t Utf8Str::parseKeyValue(Utf8Str &key, Utf8Str &value, size_t pos, const Ut
  *
  * @param   a_pbstr         The source string.  The caller guarantees that this
  *                          is valid UTF-16.
- * @param   a_cwcMax        The number of characters to be copied. If set to RTSTR_MAX,
- *                          the entire string will be copied.
  *
  * @sa      RTCString::copyFromN
  */
-void Utf8Str::copyFrom(CBSTR a_pbstr, size_t a_cwcMax)
+void Utf8Str::copyFrom(CBSTR a_pbstr)
 {
     if (a_pbstr && *a_pbstr)
     {
         int vrc = RTUtf16ToUtf8Ex((PCRTUTF16)a_pbstr,
-                                  a_cwcMax,        // size_t cwcString: translate entire string
+                                  RTSTR_MAX,        // size_t cwcString: translate entire string
                                   &m_psz,           // char **ppsz: output buffer
                                   0,                // size_t cch: if 0, func allocates buffer in *ppsz
                                   &m_cch);          // size_t *pcch: receives the size of the output string, excluding the terminator.

@@ -1,6 +1,5 @@
-/* $Id:  $ */
 /** @file
- * VBox Qt GUI - Common GUI Library - Darwin Keyboard routines.
+ * Common GUI Library - Darwin Keyboard routines.
  *
  * @todo Move this up somewhere so that the two SDL GUIs can use this code too.
  */

@@ -1,4 +1,3 @@
-/* $Id: resource.h $ */
 /** @file
  *
  * Resource definitions

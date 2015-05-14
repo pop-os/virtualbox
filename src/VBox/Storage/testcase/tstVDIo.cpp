@@ -971,7 +971,6 @@ static DECLCALLBACK(int) vdScriptHandlerIo(PVDSCRIPTARG paScriptArgs, void *pvUs
 
             tstVDIoTestDestroy(&IoTest);
         }
-        RTTestSubDone(pGlob->hTest);
     }
 
     return rc;
@@ -1758,7 +1757,7 @@ static DECLCALLBACK(int) vdScriptHandlerDumpFile(PVDSCRIPTARG paScriptArgs, void
     if (fFound)
     {
         RTPrintf("Dumping memory file %s to %s, this might take some time\n", pcszFile, pcszPathToDump);
-        rc = VDIoBackendDumpToFile(pIt->pIoStorage, pcszPathToDump);
+        //rc = VDMemDiskWriteToFile(pIt->pIo, pcszPathToDump);
         rc = VERR_NOT_IMPLEMENTED;
     }
     else
@@ -2694,10 +2693,9 @@ static int tstVDIoPatternGetBuffer(PVDPATTERN pPattern, void **ppv, size_t cb)
  * Executes the given script.
  *
  * @returns nothing.
- * @param   pszName      The script name.
  * @param   pszScript    The script to execute.
  */
-static void tstVDIoScriptExec(const char *pszName, const char *pszScript)
+static void tstVDIoScriptExec(const char *pszScript)
 {
     int rc = VINF_SUCCESS;
     VDTESTGLOB GlobTest;   /**< Global test data. */
@@ -2740,7 +2738,7 @@ static void tstVDIoScriptExec(const char *pszName, const char *pszScript)
                         &GlobTest, sizeof(VDINTERFACEIO), &GlobTest.pInterfacesImages);
     AssertRC(rc);
 
-    rc = RTTestCreate(pszName, &GlobTest.hTest);
+    rc = RTTestCreate("tstVDIo", &GlobTest.hTest);
     if (RT_SUCCESS(rc))
     {
         /* Init I/O backend. */
@@ -2797,7 +2795,7 @@ static void tstVDIoScriptRun(const char *pcszFilename)
         RTFileReadAllFree(pvFile, cbFile);
 
         AssertPtr(pszScript);
-        tstVDIoScriptExec(pcszFilename, pszScript);
+        tstVDIoScriptExec(pszScript);
         RTStrFree(pszScript);
     }
     else
@@ -2836,7 +2834,7 @@ static void tstVDIoRunBuiltinTests(void)
         char *pszScript = RTStrDupN((const char *)g_aVDIoTests[i].pch, g_aVDIoTests[i].cb);
 
         AssertPtr(pszScript);
-        tstVDIoScriptExec(g_aVDIoTests[i].pszName, pszScript);
+        tstVDIoScriptExec(pszScript);
     }
 #endif
 }

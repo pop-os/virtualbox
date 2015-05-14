@@ -21,7 +21,56 @@
 
 <xsl:strip-space elements="*"/>
 
-<xsl:include href="typemap-shared.inc.xsl"/>
+
+<!--
+//  helper definitions
+/////////////////////////////////////////////////////////////////////////////
+-->
+
+<!--
+ *  capitalizes the first letter
+-->
+<xsl:template name="capitalize">
+  <xsl:param name="str" select="."/>
+  <xsl:value-of select="
+    concat(
+      translate(substring($str,1,1),'abcdefghijklmnopqrstuvwxyz','ABCDEFGHIJKLMNOPQRSTUVWXYZ'),
+      substring($str,2)
+    )
+  "/>
+</xsl:template>
+
+<!--
+ *  uncapitalizes the first letter only if the second one is not capital
+ *  otherwise leaves the string unchanged
+-->
+<xsl:template name="uncapitalize">
+  <xsl:param name="str" select="."/>
+  <xsl:choose>
+    <xsl:when test="not(contains('ABCDEFGHIJKLMNOPQRSTUVWXYZ', substring($str,2,1)))">
+      <xsl:value-of select="
+        concat(
+          translate(substring($str,1,1),'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),
+          substring($str,2)
+        )
+      "/>
+    </xsl:when>
+    <xsl:otherwise>
+      <xsl:value-of select="string($str)"/>
+    </xsl:otherwise>
+  </xsl:choose>
+</xsl:template>
+
+<!--
+ *  translates the string to uppercase
+-->
+<xsl:template name="uppercase">
+  <xsl:param name="str" select="."/>
+  <xsl:value-of select="
+    translate($str,'abcdefghijklmnopqrstuvwxyz','ABCDEFGHIJKLMNOPQRSTUVWXYZ')
+  "/>
+</xsl:template>
+
 
 <!--
 //  templates
@@ -197,8 +246,7 @@
       <xsl:when test="@extends='$errorinfo'">nsIException</xsl:when>
       <xsl:otherwise><xsl:value-of select="@extends"/></xsl:otherwise>
   </xsl:choose>
-  <xsl:call-template name="xsltprocNewlineOutputHack"/>
-  <xsl:text>{&#x0A;</xsl:text>
+  <xsl:text>&#x0A;{&#x0A;</xsl:text>
   <!-- attributes (properties) -->
   <xsl:apply-templates select="attribute"/>
   <!-- methods -->
@@ -220,7 +268,7 @@
   <xsl:text>#define COM_FORWARD_</xsl:text>
   <xsl:value-of select="@name"/>
   <xsl:text>_TO(smth) NS_FORWARD_</xsl:text>
-  <xsl:call-template name="string-to-upper">
+  <xsl:call-template name="uppercase">
     <xsl:with-param name="str" select="@name"/>
   </xsl:call-template>
   <xsl:text> (smth)&#x0A;</xsl:text>
@@ -616,7 +664,7 @@
   <xsl:value-of select="@name"/>
   <xsl:text>:&#x0A;</xsl:text>
   <xsl:text>#define NS_</xsl:text>
-  <xsl:call-template name="string-to-upper">
+  <xsl:call-template name="uppercase">
     <xsl:with-param name="str" select="@name"/>
   </xsl:call-template>
   <xsl:text>_CID { \&#x0A;</xsl:text>
@@ -634,7 +682,7 @@
   <xsl:text>, 0x</xsl:text><xsl:value-of select="substring(@uuid,35,2)"/>
   <xsl:text> } \&#x0A;}&#x0A;</xsl:text>
   <xsl:text>#define NS_</xsl:text>
-  <xsl:call-template name="string-to-upper">
+  <xsl:call-template name="uppercase">
     <xsl:with-param name="str" select="@name"/>
   </xsl:call-template>
   <!-- Contract ID -->

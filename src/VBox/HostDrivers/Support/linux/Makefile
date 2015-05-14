@@ -72,10 +72,8 @@ override MODULE = vboxdrv
 OBJS   = \
 	linux/SUPDrv-linux.o \
 	SUPDrv.o \
-	SUPDrvGip.o \
 	SUPDrvSem.o \
 	SUPDrvTracer.o \
-	SUPLibAll.o \
 	r0drv/alloc-r0drv.o \
 	r0drv/initterm-r0drv.o \
 	r0drv/memobj-r0drv.o \
@@ -157,7 +155,7 @@ OBJS += math/gcc/divdi3.o \
 	math/gcc/moddi3.o \
 	math/gcc/qdivrem.o \
 	math/gcc/udivdi3.o \
-	math/gcc/divdi3.o \
+        math/gcc/divdi3.o \
 	math/gcc/umoddi3.o
 endif
 ifeq ($(BUILD_TARGET_ARCH),amd64)
@@ -243,9 +241,6 @@ ifndef INCL
  endif
  INCL    += $(addprefix -I$(KBUILD_EXTMOD),/ /include /r0drv/linux)
  INCL    += $(addprefix -I$(KBUILD_EXTMOD)/vboxdrv,/ /include /r0drv/linux)
- ifdef VBOX_WITH_NATIVE_DTRACE
-  INCL   += -I/usr/include/linux -I/usr/include
- endif
  export INCL
 endif
 ifneq ($(wildcard $(KBUILD_EXTMOD)/vboxdrv),)
@@ -255,7 +250,6 @@ else
 endif
 KFLAGS   := -D__KERNEL__ -DMODULE -DRT_OS_LINUX -DIN_RING0 -DIN_RT_R0 \
 	    -DIN_SUP_R0 -DVBOX -DRT_WITH_VBOX -DVBOX_WITH_HARDENING \
-           -DSUPDRV_WITH_RELEASE_LOGGER \
 	    -Wno-declaration-after-statement
 ifdef VBOX_REDHAT_KABI
  KFLAGS  += -DVBOX_REDHAT_KABI
@@ -277,9 +271,6 @@ ifeq ($(BUILD_TYPE),debug)
  KFLAGS  += -DDEBUG -DDEBUG_$(USER) -g
  # IPRT_DEBUG_SEMS indicates thread wrt sems state via the comm field.
  #KFLAGS  += -DIPRT_DEBUG_SEMS
-endif
-ifdef VBOX_WITH_TEXT_MODMEM_HACK
- KFLAGS += -DRTMEMALLOC_EXEC_HEAP -DVBOX_WITH_TEXT_MODMEM_HACK
 endif
 
 # 2.6 and later

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -300,48 +300,6 @@ static RTEXITCODE settingsPasswordFile(ComPtr<IVirtualBox> virtualBox, const cha
 
     return rcExit;
 }
-
-RTEXITCODE readPasswordFromConsole(com::Utf8Str *pPassword, const char *pszPrompt, ...)
-{
-    RTEXITCODE rcExit = RTEXITCODE_SUCCESS;
-    char aszPwdInput[_1K] = { 0 };
-    va_list vaArgs;
-
-    va_start(vaArgs, pszPrompt);
-    int vrc = RTStrmPrintfV(g_pStdOut, pszPrompt, vaArgs);
-    if (RT_SUCCESS(vrc))
-    {
-        bool fEchoOld = false;
-        vrc = RTStrmInputGetEchoChars(g_pStdIn, &fEchoOld);
-        if (RT_SUCCESS(vrc))
-        {
-            vrc = RTStrmInputSetEchoChars(g_pStdIn, false);
-            if (RT_SUCCESS(vrc))
-            {
-                vrc = RTStrmGetLine(g_pStdIn, &aszPwdInput[0], sizeof(aszPwdInput));
-                if (RT_SUCCESS(vrc))
-                    *pPassword = aszPwdInput;
-                else
-                    rcExit = RTMsgErrorExit(RTEXITCODE_FAILURE, "Failed read password from command line (%Rrc)", vrc);
-
-                int vrc2 = RTStrmInputSetEchoChars(g_pStdIn, fEchoOld);
-                AssertRC(vrc2);
-            }
-            else
-                rcExit = RTMsgErrorExit(RTEXITCODE_FAILURE, "Failed to disable echoing typed characters (%Rrc)", vrc);
-        }
-        else
-            rcExit = RTMsgErrorExit(RTEXITCODE_FAILURE, "Failed to retrieve echo setting (%Rrc)", vrc);
-
-        RTStrmPutStr(g_pStdOut, "\n");
-    }
-    else
-        rcExit = RTMsgErrorExit(RTEXITCODE_FAILURE, "Failed to print prompt (%Rrc)", vrc);
-    va_end(vaArgs);
-
-    return rcExit;
-}
-
 #endif
 
 int main(int argc, char *argv[])
@@ -521,19 +479,12 @@ int main(int argc, char *argv[])
             { "registervm",       USAGE_REGISTERVM,        handleRegisterVM },
             { "unregistervm",     USAGE_UNREGISTERVM,      handleUnregisterVM },
             { "clonevm",          USAGE_CLONEVM,           handleCloneVM },
-            { "mediumproperty",   USAGE_MEDIUMPROPERTY,    handleMediumProperty },
-            { "hdproperty",       USAGE_MEDIUMPROPERTY,    handleMediumProperty }, /* backward compatibility */
-            { "createmedium",     USAGE_CREATEMEDIUM,      handleCreateMedium },
-            { "createhd",         USAGE_CREATEMEDIUM,      handleCreateMedium }, /* backward compatibility */
-            { "createvdi",        USAGE_CREATEMEDIUM,      handleCreateMedium }, /* backward compatibility */
-            { "modifymedium",     USAGE_MODIFYMEDIUM,      handleModifyMedium },
-            { "modifyhd",         USAGE_MODIFYMEDIUM,      handleModifyMedium }, /* backward compatibility */
-            { "modifyvdi",        USAGE_MODIFYMEDIUM,      handleModifyMedium }, /* backward compatibility */
-            { "clonemedium",      USAGE_CLONEMEDIUM,       handleCloneMedium },
-            { "clonehd",          USAGE_CLONEMEDIUM,       handleCloneMedium }, /* backward compatibility */
-            { "clonevdi",         USAGE_CLONEMEDIUM,       handleCloneMedium }, /* backward compatibility */
-            { "encryptmedium",    USAGE_ENCRYPTMEDIUM,     handleEncryptMedium},
-            { "checkmediumpwd",   USAGE_MEDIUMENCCHKPWD,   handleCheckMediumPassword},
+            { "createhd",         USAGE_CREATEHD,          handleCreateHardDisk },
+            { "createvdi",        USAGE_CREATEHD,          handleCreateHardDisk }, /* backward compatibility */
+            { "modifyhd",         USAGE_MODIFYHD,          handleModifyHardDisk },
+            { "modifyvdi",        USAGE_MODIFYHD,          handleModifyHardDisk }, /* backward compatibility */
+            { "clonehd",          USAGE_CLONEHD,           handleCloneHardDisk },
+            { "clonevdi",         USAGE_CLONEHD,           handleCloneHardDisk }, /* backward compatibility */
             { "createvm",         USAGE_CREATEVM,          handleCreateVM },
             { "modifyvm",         USAGE_MODIFYVM,          handleModifyVM },
             { "startvm",          USAGE_STARTVM,           handleStartVM },
@@ -544,9 +495,8 @@ int main(int argc, char *argv[])
             { "closemedium",      USAGE_CLOSEMEDIUM,       handleCloseMedium },
             { "storageattach",    USAGE_STORAGEATTACH,     handleStorageAttach },
             { "storagectl",       USAGE_STORAGECONTROLLER, handleStorageController },
-            { "showmediuminfo",   USAGE_SHOWMEDIUMINFO,    handleShowMediumInfo },
-            { "showhdinfo",       USAGE_SHOWMEDIUMINFO,    handleShowMediumInfo }, /* backward compatibility */
-            { "showvdiinfo",      USAGE_SHOWMEDIUMINFO,    handleShowMediumInfo }, /* backward compatibility */
+            { "showhdinfo",       USAGE_SHOWHDINFO,        handleShowHardDiskInfo },
+            { "showvdiinfo",      USAGE_SHOWHDINFO,        handleShowHardDiskInfo }, /* backward compatibility */
             { "getextradata",     USAGE_GETEXTRADATA,      handleGetExtraData },
             { "setextradata",     USAGE_SETEXTRADATA,      handleSetExtraData },
             { "setproperty",      USAGE_SETPROPERTY,       handleSetProperty },

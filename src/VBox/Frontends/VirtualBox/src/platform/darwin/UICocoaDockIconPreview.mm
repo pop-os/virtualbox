@@ -1,6 +1,8 @@
 /* $Id: UICocoaDockIconPreview.mm $ */
 /** @file
- * VBox Qt GUI - Cocoa helper for the dock icon preview.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * Cocoa helper for the dock icon preview
  */
 
 /*

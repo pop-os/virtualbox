@@ -1,6 +1,7 @@
-/* $Id: UIPortForwardingTable.h $ */
 /** @file
- * VBox Qt GUI - UIPortForwardingTable class declaration.
+ *
+ * VBox frontends: Qt4 GUI ("VirtualBox"):
+ * UIPortForwardingTable class declaration
  */
 
 /*

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -252,7 +252,7 @@ VMMR3_INT_DECL(int) CSAMR3Init(PVM pVM)
     /*
      * Register save and load state notifiers.
      */
-    rc = SSMR3RegisterInternal(pVM, "CSAM", 0, CSAM_SAVED_STATE_VERSION, sizeof(pVM->csam.s) + PAGE_SIZE*16,
+    rc = SSMR3RegisterInternal(pVM, "CSAM", 0, CSAM_SSM_VERSION, sizeof(pVM->csam.s) + PAGE_SIZE*16,
                                NULL, NULL, NULL,
                                NULL, csamr3Save, NULL,
                                NULL, csamr3Load, NULL);
@@ -579,7 +579,7 @@ static DECLCALLBACK(int) csamr3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion,
     CSAM csamInfo;
 
     Assert(uPass == SSM_PASS_FINAL); NOREF(uPass);
-    if (uVersion != CSAM_SAVED_STATE_VERSION)
+    if (uVersion != CSAM_SSM_VERSION)
     {
         AssertMsgFailed(("csamR3Load: Invalid version uVersion=%d!\n", uVersion));
         return VERR_SSM_UNSUPPORTED_DATA_UNIT_VERSION;
@@ -2327,10 +2327,10 @@ VMMR3_INT_DECL(int) CSAMR3MarkCode(PVM pVM, RTRCPTR pInstr, uint32_t cbInstr, bo
  *
  * @returns VBox status code.
  * @param   pVM         Pointer to the VM.
- * @param   pCtx        Guest CPU context.
- * @param   pInstrGC    Instruction pointer.
+ * @param   pCtxCore    CPU context
+ * @param   pInstrGC    Instruction pointer
  */
-VMMR3_INT_DECL(int) CSAMR3CheckCodeEx(PVM pVM, PCPUMCTX pCtx, RTRCPTR pInstrGC)
+VMMR3_INT_DECL(int) CSAMR3CheckCodeEx(PVM pVM, PCPUMCTXCORE pCtxCore, RTRCPTR pInstrGC)
 {
     Assert(!HMIsEnabled(pVM));
     if (EMIsRawRing0Enabled(pVM) == false || PATMIsPatchGCAddr(pVM, pInstrGC) == true)
@@ -2344,7 +2344,7 @@ VMMR3_INT_DECL(int) CSAMR3CheckCodeEx(PVM pVM, PCPUMCTX pCtx, RTRCPTR pInstrGC)
         /* Assuming 32 bits code for now. */
         Assert(CPUMGetGuestCodeBits(VMMGetCpu0(pVM)) == 32);
 
-        pInstrGC = SELMToFlat(pVM, DISSELREG_CS, CPUMCTX2CORE(pCtx), pInstrGC);
+        pInstrGC = SELMToFlat(pVM, DISSELREG_CS, pCtxCore, pInstrGC);
         return CSAMR3CheckCode(pVM, pInstrGC);
     }
     return VINF_SUCCESS;

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -315,24 +315,6 @@ AssertCompileMemberAlignment(TMCPULOADSTATE, cNsPrevTotal, 8);
 /** Pointer to a CPU load data set. */
 typedef TMCPULOADSTATE *PTMCPULOADSTATE;
 
-
-/**
- * TSC mode.
- *
- * The main modes of how TM implements the TSC clock (TMCLOCK_TSC).
- */
-typedef enum TMTSCMODE
-{
-    /** The guest TSC is an emulated, virtual TSC. */
-    TMTSCMODE_VIRT_TSC_EMULATED = 1,
-    /** The guest TSC is an offset of the real TSC. */
-    TMTSCMODE_REAL_TSC_OFFSET,
-    /** The guest TSC is dynamically derived through emulating or offsetting. */
-    TMTSCMODE_DYNAMIC
-} TMTSCMODE;
-AssertCompileSize(TMTSCMODE, sizeof(uint32_t));
-
-
 /**
  * Converts a TM pointer into a VM pointer.
  * @returns Pointer to the VM structure the TM is part of.
@@ -351,30 +333,30 @@ typedef struct TM
      * See TM2VM(). */
     RTUINT                      offVM;
 
-    /** The current TSC mode of the VM.
-     *  Config variable: Mode (string). */
-    TMTSCMODE                   enmTSCMode;
-    /** The original TSC mode of the VM. */
-    TMTSCMODE                   enmOriginalTSCMode;
-    /** Alignment padding. */
-    uint32_t                    u32Alignment0;
+    /** Set if we fully virtualize the TSC, i.e. intercept all rdtsc instructions.
+     * Config variable: TSCVirtualized (bool) */
+    bool                        fTSCVirtualized;
+    /** Set if we use the real TSC as time source or if we use the virtual clock.
+     * If fTSCVirtualized is set we maintain a offset to the TSC and pausing/resuming the
+     * ticking. fTSCVirtualized = false implies fTSCUseRealTSC = true.
+     * Config variable: TSCUseRealTSC (bool) */
+    bool                        fTSCUseRealTSC;
+    /** Flag indicating that the host TSC is suitable for use in AMD-V and VT-x mode.
+     * Config variable: MaybeUseOffsettedHostTSC (boolean) */
+    bool                        fMaybeUseOffsettedHostTSC;
     /** Whether the TSC is tied to the execution of code.
      * Config variable: TSCTiedToExecution (bool) */
     bool                        fTSCTiedToExecution;
     /** Modifier for fTSCTiedToExecution which pauses the TSC while halting if true.
      * Config variable: TSCNotTiedToHalt (bool) */
     bool                        fTSCNotTiedToHalt;
-    /** Whether TM TSC mode switching is allowed at runtime. */
-    bool                        fTSCModeSwitchAllowed;
-    /** Whether the guest has enabled use of paravirtualized TSC. */
-    bool                        fParavirtTscEnabled;
+    bool                        afAlignment0[2]; /**< alignment padding */
     /** The ID of the virtual CPU that normally runs the timers. */
     VMCPUID                     idTimerCpu;
 
     /** The number of CPU clock ticks per second (TMCLOCK_TSC).
      * Config variable: TSCTicksPerSecond (64-bit unsigned int)
-     * The config variable implies @c enmTSCMode would be
-     * TMTSCMODE_VIRT_TSC_EMULATED. */
+     * The config variable implies fTSCVirtualized = true and fTSCUseRealTSC = false. */
     uint64_t                    cTSCTicksPerSecond;
     /** The TSC difference introduced by pausing the VM. */
     uint64_t                    offTSCPause;
@@ -391,8 +373,7 @@ typedef struct TM
     bool volatile               fVirtualSyncTicking;
     /** Virtual timer synchronous time catch-up active. */
     bool volatile               fVirtualSyncCatchUp;
-    /** Alignment padding. */
-    bool                        afAlignment1[1];
+    bool                        afAlignment1[1]; /**< alignment padding */
     /** WarpDrive percentage.
      * 100% is normal (fVirtualSyncNormal == true). When other than 100% we apply
      * this percentage to the raw time source for the period it's been valid in,
@@ -419,9 +400,9 @@ typedef struct TM
     RTTIMENANOTSDATARC          VirtualGetRawDataRC;
     /** Pointer to the ring-3 tmVirtualGetRawNanoTS worker function. */
     R3PTRTYPE(PFNTIMENANOTSINTERNAL) pfnVirtualGetRawR3;
-    /** Pointer to the ring-0 tmVirtualGetRawNanoTS worker function. */
+    /** Pointer to the ring-3 tmVirtualGetRawNanoTS worker function. */
     R0PTRTYPE(PFNTIMENANOTSINTERNAL) pfnVirtualGetRawR0;
-    /** Pointer to the raw-mode tmVirtualGetRawNanoTS worker function. */
+    /** Pointer to the ring-3 tmVirtualGetRawNanoTS worker function. */
     RCPTRTYPE(PFNTIMENANOTSINTERNAL) pfnVirtualGetRawRC;
     /** Alignment. */
     RTRCPTR                     AlignmentRCPtr;
@@ -464,24 +445,24 @@ typedef struct TM
     bool volatile               fHzHintNeedsUpdating;
     /** Alignment */
     bool                        afAlignment2[3];
-    /** @cfgm{/TM/HostHzMax, uint32_t, Hz, 0, UINT32_MAX, 20000}
+    /** @cfgm{TM/HostHzMax, uint32_t, Hz, 0, UINT32_MAX, 20000}
      * The max host Hz frequency hint returned by TMCalcHostTimerFrequency.  */
     uint32_t                    cHostHzMax;
-    /** @cfgm{/TM/HostHzFudgeFactorTimerCpu, uint32_t, Hz, 0, UINT32_MAX, 111}
+    /** @cfgm{TM/HostHzFudgeFactorTimerCpu, uint32_t, Hz, 0, UINT32_MAX, 111}
      * The number of Hz TMCalcHostTimerFrequency adds for the timer CPU.  */
     uint32_t                    cPctHostHzFudgeFactorTimerCpu;
-    /** @cfgm{/TM/HostHzFudgeFactorOtherCpu, uint32_t, Hz, 0, UINT32_MAX, 110}
+    /** @cfgm{TM/HostHzFudgeFactorOtherCpu, uint32_t, Hz, 0, UINT32_MAX, 110}
      * The number of Hz TMCalcHostTimerFrequency adds for the other CPUs. */
     uint32_t                    cPctHostHzFudgeFactorOtherCpu;
-    /** @cfgm{/TM/HostHzFudgeFactorCatchUp100, uint32_t, Hz, 0, UINT32_MAX, 300}
+    /** @cfgm{TM/HostHzFudgeFactorCatchUp100, uint32_t, Hz, 0, UINT32_MAX, 300}
      *  The fudge factor (expressed in percent) that catch-up percentages below
      * 100% is multiplied by. */
     uint32_t                    cPctHostHzFudgeFactorCatchUp100;
-    /** @cfgm{/TM/HostHzFudgeFactorCatchUp200, uint32_t, Hz, 0, UINT32_MAX, 250}
+    /** @cfgm{TM/HostHzFudgeFactorCatchUp200, uint32_t, Hz, 0, UINT32_MAX, 250}
      * The fudge factor (expressed in percent) that catch-up percentages
      * 100%-199% is multiplied by. */
     uint32_t                    cPctHostHzFudgeFactorCatchUp200;
-    /** @cfgm{/TM/HostHzFudgeFactorCatchUp400, uint32_t, Hz, 0, UINT32_MAX, 200}
+    /** @cfgm{TM/HostHzFudgeFactorCatchUp400, uint32_t, Hz, 0, UINT32_MAX, 200}
      * The fudge factor (expressed in percent) that catch-up percentages
      * 200%-399% is multiplied by. */
     uint32_t                    cPctHostHzFudgeFactorCatchUp400;
@@ -652,7 +633,6 @@ typedef struct TM
     STAMPROFILE                 StatVirtualSyncFF;
     /** The timer callback. */
     STAMCOUNTER                 StatTimerCallbackSetFF;
-    STAMCOUNTER                 StatTimerCallback;
 
     /** Calls to TMCpuTickSet. */
     STAMCOUNTER                 StatTSCSet;
@@ -691,8 +671,8 @@ typedef struct TMCPU
     bool                        fTSCTicking;
     bool                        afAlignment0[3]; /**< alignment padding */
 
-    /** The offset between the host tick (TSC/virtual depending on the TSC mode) and
-     *  the guest tick. */
+    /** The offset between the raw TSC source and the Guest TSC.
+     * Only valid if fTicking is set and and fTSCUseRealTSC is clear. */
     uint64_t                    offTSCRawSrc;
 
     /** The guest TSC when fTicking is cleared. */
@@ -758,7 +738,6 @@ void                    tmTimerQueueSchedule(PVM pVM, PTMTIMERQUEUE pQueue);
 void                    tmTimerQueuesSanityChecks(PVM pVM, const char *pszWhere);
 #endif
 
-uint64_t                tmR3CpuTickGetRawVirtualNoCheck(PVM pVM);
 int                     tmCpuTickPause(PVMCPU pVCpu);
 int                     tmCpuTickPauseLocked(PVM pVM, PVMCPU pVCpu);
 int                     tmCpuTickResume(PVM pVM, PVMCPU pVCpu);
@@ -766,14 +745,8 @@ int                     tmCpuTickResumeLocked(PVM pVM, PVMCPU pVCpu);
 
 int                     tmVirtualPauseLocked(PVM pVM);
 int                     tmVirtualResumeLocked(PVM pVM);
-DECLEXPORT(void)        tmVirtualNanoTSBadPrev(PRTTIMENANOTSDATA pData, uint64_t u64NanoTS,
-                                               uint64_t u64DeltaPrev, uint64_t u64PrevNanoTS);
+DECLEXPORT(void)        tmVirtualNanoTSBad(PRTTIMENANOTSDATA pData, uint64_t u64NanoTS, uint64_t u64DeltaPrev, uint64_t u64PrevNanoTS);
 DECLEXPORT(uint64_t)    tmVirtualNanoTSRediscover(PRTTIMENANOTSDATA pData);
-DECLEXPORT(uint64_t)    tmVirtualNanoTSBadCpuIndex(PRTTIMENANOTSDATA pData, uint16_t idApic, uint16_t iCpuSet, uint16_t iGipCpu);
-
-#ifdef IN_RING3
-static const char *     tmR3GetTSCModeNameEx(TMTSCMODE enmMode);
-#endif
 
 
 /**
@@ -806,6 +779,7 @@ static const char *     tmR3GetTSCModeNameEx(TMTSCMODE enmMode);
 /** Checks that the caller owns the timer lock.  */
 #define TM_ASSERT_TIMER_LOCK_OWNERSHIP(a_pVM) \
     Assert(PDMCritSectIsOwner(&(a_pVM)->tm.s.TimerCritSect))
+
 
 /** @} */
 

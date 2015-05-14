@@ -67,8 +67,7 @@
 *   Defined Constants And Macros                                               *
 *******************************************************************************/
 #define SERIAL_SAVED_STATE_VERSION_16450        3
-#define SERIAL_SAVED_STATE_VERSION_MISSING_BITS 4
-#define SERIAL_SAVED_STATE_VERSION              5
+#define SERIAL_SAVED_STATE_VERSION              4
 
 #define UART_LCR_DLAB       0x80        /* Divisor latch access bit */
 
@@ -930,17 +929,6 @@ static DECLCALLBACK(int) serialSaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
     SSMR3PutU32(pSSM, pThis->base);
     SSMR3PutBool(pSSM, pThis->msr_changed);
 
-    /* Version 5, safe everything that might be of importance.  Much better than
-       missing relevant bits! */
-    SSMR3PutU8(pSSM, pThis->thr);
-    SSMR3PutU8(pSSM, pThis->tsr);
-    SSMR3PutU8(pSSM, pThis->iir);
-    SSMR3PutS32(pSSM, pThis->timeout_ipending);
-    TMR3TimerSave(pThis->fifo_timeout_timer, pSSM);
-    TMR3TimerSave(pThis->transmit_timerR3, pSSM);
-    SSMR3PutU8(pSSM, pThis->recv_fifo.itl);
-    SSMR3PutU8(pSSM, pThis->xmit_fifo.itl);
-
     /* Don't store:
      *  - the content of the FIFO
      *  - tsr_retry
@@ -955,26 +943,18 @@ static DECLCALLBACK(int) serialSaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
  */
 static DECLCALLBACK(int) serialLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass)
 {
-    PDEVSERIAL  pThis = PDMINS_2_DATA(pDevIns, PDEVSERIAL);
-    int32_t     iIrq;
-    uint32_t    IOBase;
+    PDEVSERIAL pThis = PDMINS_2_DATA(pDevIns, PDEVSERIAL);
 
-    AssertMsgReturn(uVersion >= SERIAL_SAVED_STATE_VERSION_16450, ("%d\n", uVersion), VERR_SSM_UNSUPPORTED_DATA_UNIT_VERSION);
-
-    if (uPass != SSM_PASS_FINAL)
+    if (uVersion == SERIAL_SAVED_STATE_VERSION_16450)
     {
-        SSMR3GetS32(pSSM, &iIrq);
-        int rc = SSMR3GetU32(pSSM, &IOBase);
-        AssertRCReturn(rc, rc);
+        pThis->f16550AEnabled = false;
+        LogRel(("Serial#%d: falling back to 16450 mode from load state\n", pDevIns->iInstance));
     }
     else
-    {
-        if (uVersion == SERIAL_SAVED_STATE_VERSION_16450)
-        {
-            pThis->f16550AEnabled = false;
-            LogRel(("Serial#%d: falling back to 16450 mode from load state\n", pDevIns->iInstance));
-        }
+        AssertMsgReturn(uVersion == SERIAL_SAVED_STATE_VERSION, ("%d\n", uVersion), VERR_SSM_UNSUPPORTED_DATA_UNIT_VERSION);
 
+    if (uPass == SSM_PASS_FINAL)
+    {
         SSMR3GetU16(pSSM, &pThis->divider);
         SSMR3GetU8(pSSM, &pThis->rbr);
         SSMR3GetU8(pSSM, &pThis->ier);
@@ -984,28 +964,34 @@ static DECLCALLBACK(int) serialLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uin
         SSMR3GetU8(pSSM, &pThis->msr);
         SSMR3GetU8(pSSM, &pThis->scr);
         if (uVersion > SERIAL_SAVED_STATE_VERSION_16450)
+        {
             SSMR3GetU8(pSSM, &pThis->fcr);
+        }
         SSMR3GetS32(pSSM, &pThis->thr_ipending);
-        SSMR3GetS32(pSSM, &iIrq);
+    }
+
+    int32_t  iIrq;
+    SSMR3GetS32(pSSM, &iIrq);
+
+    if (uPass == SSM_PASS_FINAL)
         SSMR3GetS32(pSSM, &pThis->last_break_enable);
-        SSMR3GetU32(pSSM, &IOBase);
+
+    uint32_t IOBase;
+    int rc = SSMR3GetU32(pSSM, &IOBase);
+    AssertRCReturn(rc, rc);
+
+    if (    pThis->irq  != iIrq
+        ||  pThis->base != IOBase)
+        return SSMR3SetCfgError(pSSM, RT_SRC_POS,
+                                N_("Config mismatch - saved irq=%#x iobase=%#x; configured irq=%#x iobase=%#x"),
+                                iIrq, IOBase, pThis->irq, pThis->base);
+
+    if (uPass == SSM_PASS_FINAL)
+    {
         SSMR3GetBool(pSSM, &pThis->msr_changed);
 
-        if (uVersion > SERIAL_SAVED_STATE_VERSION_MISSING_BITS)
-        {
-            SSMR3GetU8(pSSM, &pThis->thr);
-            SSMR3GetU8(pSSM, &pThis->tsr);
-            SSMR3GetU8(pSSM, &pThis->iir);
-            SSMR3GetS32(pSSM, &pThis->timeout_ipending);
-            TMR3TimerLoad(pThis->fifo_timeout_timer, pSSM);
-            TMR3TimerLoad(pThis->transmit_timerR3, pSSM);
-            SSMR3GetU8(pSSM, &pThis->recv_fifo.itl);
-            SSMR3GetU8(pSSM, &pThis->xmit_fifo.itl);
-        }
-
-        /* the marker. */
         uint32_t u32;
-        int rc = SSMR3GetU32(pSSM, &u32);
+        rc = SSMR3GetU32(pSSM, &u32);
         if (RT_FAILURE(rc))
             return rc;
         AssertMsgReturn(u32 == ~0U, ("%#x\n", u32), VERR_SSM_DATA_UNIT_FORMAT_CHANGED);
@@ -1023,15 +1009,6 @@ static DECLCALLBACK(int) serialLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uin
         pThis->pDevInsR0 = PDMDEVINS_2_R0PTR(pDevIns);
         pThis->pDevInsRC = PDMDEVINS_2_RCPTR(pDevIns);
     }
-
-    /*
-     * Check the config.
-     */
-    if (    pThis->irq  != iIrq
-        ||  pThis->base != IOBase)
-        return SSMR3SetCfgError(pSSM, RT_SRC_POS,
-                                N_("Config mismatch - saved irq=%#x iobase=%#x; configured irq=%#x iobase=%#x"),
-                                iIrq, IOBase, pThis->irq, pThis->base);
 
     return VINF_SUCCESS;
 }

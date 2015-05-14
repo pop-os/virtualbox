@@ -1,6 +1,8 @@
 /* $Id: WinKeyboard.h $ */
 /** @file
- * VBox Qt GUI - Windows keyboard handling..
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * Windows keyboard handling.
  */
 
 /*

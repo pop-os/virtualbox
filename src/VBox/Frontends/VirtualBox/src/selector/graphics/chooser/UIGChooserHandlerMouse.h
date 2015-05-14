@@ -1,6 +1,7 @@
-/* $Id: UIGChooserHandlerMouse.h $ */
 /** @file
- * VBox Qt GUI - UIGChooserHandlerMouse class declaration.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * UIGChooserHandlerMouse class declaration
  */
 
 /*

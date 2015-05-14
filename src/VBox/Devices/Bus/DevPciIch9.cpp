@@ -99,7 +99,7 @@ typedef struct
     uint32_t            Alignment0;
 #endif
 
-    /** Value latched in Configuration Address Port (0CF8h) */
+     /** Config register. */
     uint32_t            uConfigReg;
 
     /** I/O APIC irq levels */
@@ -123,9 +123,6 @@ typedef struct
 } ICH9PCIGLOBALS, *PICH9PCIGLOBALS;
 
 
-/**
- * PCI configuration space address.
- */
 typedef struct
 {
     uint8_t  iBus;
@@ -232,22 +229,18 @@ PDMBOTHCBDECL(void) ich9pcibridgeSetIrq(PPDMDEVINS pDevIns, PPCIDEVICE pPciDev, 
     ich9pciSetIrqInternal(PCIROOTBUS_2_PCIGLOBALS(pBus), uDevFnBridge, pPciDev, iIrqPinBridge, iLevel, uTagSrc);
 }
 
-
 /**
  * Port I/O Handler for PCI address OUT operations.
  *
- * Emulates writes to Configuration Address Port at 0CF8h for
- * Configuration Mechanism #1.
- *
  * @returns VBox status code.
  *
- * @param   pDevIns     ICH9 device instance.
+ * @param   pDevIns     The device instance.
  * @param   pvUser      User argument - ignored.
  * @param   uPort       Port number used for the OUT operation.
  * @param   u32         The value to output.
  * @param   cb          The value size in bytes.
  */
-PDMBOTHCBDECL(int) ich9pciIOPortAddressWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb)
+PDMBOTHCBDECL(int)  ich9pciIOPortAddressWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb)
 {
     LogFlow(("ich9pciIOPortAddressWrite: Port=%#x u32=%#x cb=%d\n", Port, u32, cb));
     NOREF(pvUser);
@@ -255,67 +248,49 @@ PDMBOTHCBDECL(int) ich9pciIOPortAddressWrite(PPDMDEVINS pDevIns, void *pvUser, R
     {
         PICH9PCIGLOBALS pThis = PDMINS_2_DATA(pDevIns, PICH9PCIGLOBALS);
 
-        /*
-         * bits [1:0] are hard-wired, read-only and must return zeroes
-         * when read.
-         */
-        u32 &= ~3;
-
         PCI_LOCK(pDevIns, VINF_IOM_R3_IOPORT_WRITE);
-        pThis->uConfigReg = u32;
+        pThis->uConfigReg = u32 & ~3; /* Bits 0-1 are reserved and we silently clear them */
         PCI_UNLOCK(pDevIns);
     }
 
     return VINF_SUCCESS;
 }
 
-
 /**
  * Port I/O Handler for PCI address IN operations.
  *
- * Emulates reads from Configuration Address Port at 0CF8h for
- * Configuration Mechanism #1.
- *
  * @returns VBox status code.
  *
- * @param   pDevIns     ICH9 device instance.
+ * @param   pDevIns     The device instance.
  * @param   pvUser      User argument - ignored.
  * @param   uPort       Port number used for the IN operation.
  * @param   pu32        Where to store the result.
  * @param   cb          Number of bytes read.
  */
-PDMBOTHCBDECL(int) ich9pciIOPortAddressRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb)
+PDMBOTHCBDECL(int)  ich9pciIOPortAddressRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb)
 {
     NOREF(pvUser);
     if (cb == 4)
     {
         PICH9PCIGLOBALS pThis = PDMINS_2_DATA(pDevIns, PICH9PCIGLOBALS);
-
         PCI_LOCK(pDevIns, VINF_IOM_R3_IOPORT_READ);
         *pu32 = pThis->uConfigReg;
         PCI_UNLOCK(pDevIns);
-
         LogFlow(("ich9pciIOPortAddressRead: Port=%#x cb=%d -> %#x\n", Port, cb, *pu32));
         return VINF_SUCCESS;
     }
 
     Log(("ich9pciIOPortAddressRead: Port=%#x cb=%d VERR_IOM_IOPORT_UNUSED\n", Port, cb));
+
     return VERR_IOM_IOPORT_UNUSED;
 }
 
-
-/*
- * Perform configuration space write.
- */
 static int ich9pciDataWriteAddr(PICH9PCIGLOBALS pGlobals, PciAddress* pAddr,
                                 uint32_t val, int cb, int rcReschedule)
 {
     int rc = VINF_SUCCESS;
-#ifdef IN_RING3
-    NOREF(rcReschedule);
-#endif
 
-    if (pAddr->iBus != 0)       /* forward to subordinate bus */
+    if (pAddr->iBus != 0)
     {
         if (pGlobals->aPciBus.cBridges)
         {
@@ -327,17 +302,22 @@ static int ich9pciDataWriteAddr(PICH9PCIGLOBALS pGlobals, PciAddress* pAddr,
                 pBridgeDevice->Int.s.pfnBridgeConfigWrite(pBridgeDevice->pDevIns, pAddr->iBus, pAddr->iDeviceFunc,
                                                           pAddr->iRegister, val, cb);
             }
+            else
+            {
+                // do nothing, bridge not found
+            }
+            NOREF(rcReschedule);
 #else
             rc = rcReschedule;
 #endif
         }
     }
-    else                    /* forward to directly connected device */
+    else
     {
-        R3PTRTYPE(PCIDevice *) aDev = pGlobals->aPciBus.apDevices[pAddr->iDeviceFunc];
-        if (aDev)
+        if (pGlobals->aPciBus.apDevices[pAddr->iDeviceFunc])
         {
 #ifdef IN_RING3
+            R3PTRTYPE(PCIDevice *) aDev = pGlobals->aPciBus.apDevices[pAddr->iDeviceFunc];
             aDev->Int.s.pfnConfigWrite(aDev, pAddr->iRegister, val, cb);
 #else
             rc = rcReschedule;
@@ -348,67 +328,27 @@ static int ich9pciDataWriteAddr(PICH9PCIGLOBALS pGlobals, PciAddress* pAddr,
     Log2(("ich9pciDataWriteAddr: %02x:%02x:%02x reg %x(%d) %x %Rrc\n",
           pAddr->iBus, pAddr->iDeviceFunc >> 3, pAddr->iDeviceFunc & 0x7, pAddr->iRegister,
           cb, val, rc));
+
     return rc;
 }
 
-
-/*
- * Decode value latched in Configuration Address Port and perform
- * requsted write to the target configuration space register.
- *
- * XXX: This code should be probably moved to its only caller
- * (ich9pciIOPortDataWrite) to avoid prolifiration of confusingly
- * similarly named functions.
- */
 static int ich9pciDataWrite(PICH9PCIGLOBALS pGlobals, uint32_t addr, uint32_t val, int len)
 {
+    PciAddress aPciAddr;
+
     LogFlow(("ich9pciDataWrite: config=%08x val=%08x len=%d\n", pGlobals->uConfigReg, val, len));
 
-    /* Configuration space mapping enabled? */
     if (!(pGlobals->uConfigReg & (1 << 31)))
         return VINF_SUCCESS;
 
-    /* Decode target device and configuration space register */
-    PciAddress aPciAddr;
+    if ((pGlobals->uConfigReg & 0x3) != 0)
+        return VINF_SUCCESS;
+
+    /* Compute destination device */
     ich9pciStateToPciAddr(pGlobals, addr, &aPciAddr);
 
-    /* Perform configuration space write */
     return ich9pciDataWriteAddr(pGlobals, &aPciAddr, val, len, VINF_IOM_R3_IOPORT_WRITE);
 }
-
-
-/**
- * Port I/O Handler for PCI data OUT operations.
- *
- * Emulates writes to Configuration Data Port at 0CFCh for
- * Configuration Mechanism #1.
- *
- * @returns VBox status code.
- *
- * @param   pDevIns     ICH9 device instance.
- * @param   pvUser      User argument - ignored.
- * @param   uPort       Port number used for the OUT operation.
- * @param   u32         The value to output.
- * @param   cb          The value size in bytes.
- */
-PDMBOTHCBDECL(int) ich9pciIOPortDataWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb)
-{
-    LogFlow(("ich9pciIOPortDataWrite: Port=%#x u32=%#x cb=%d\n", Port, u32, cb));
-    NOREF(pvUser);
-    int rc = VINF_SUCCESS;
-    if (!(Port % cb))
-    {
-        PICH9PCIGLOBALS pThis = PDMINS_2_DATA(pDevIns, PICH9PCIGLOBALS);
-
-        PCI_LOCK(pDevIns, VINF_IOM_R3_IOPORT_WRITE);
-        rc = ich9pciDataWrite(pThis, Port, u32, cb);
-        PCI_UNLOCK(pDevIns);
-    }
-    else
-        AssertMsgFailed(("Unaligned write to port %#x u32=%#x cb=%d\n", Port, u32, cb));
-    return rc;
-}
-
 
 static void ich9pciNoMem(void* ptr, int cb)
 {
@@ -416,19 +356,39 @@ static void ich9pciNoMem(void* ptr, int cb)
         ((uint8_t*)ptr)[i] = 0xff;
 }
 
-
-/*
- * Perform configuration space read.
+/**
+ * Port I/O Handler for PCI data OUT operations.
+ *
+ * @returns VBox status code.
+ *
+ * @param   pDevIns     The device instance.
+ * @param   pvUser      User argument - ignored.
+ * @param   uPort       Port number used for the OUT operation.
+ * @param   u32         The value to output.
+ * @param   cb          The value size in bytes.
  */
+PDMBOTHCBDECL(int)  ich9pciIOPortDataWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb)
+{
+    LogFlow(("ich9pciIOPortDataWrite: Port=%#x u32=%#x cb=%d\n", Port, u32, cb));
+    NOREF(pvUser);
+    int rc = VINF_SUCCESS;
+    if (!(Port % cb))
+    {
+        PCI_LOCK(pDevIns, VINF_IOM_R3_IOPORT_WRITE);
+        rc = ich9pciDataWrite(PDMINS_2_DATA(pDevIns, PICH9PCIGLOBALS), Port, u32, cb);
+        PCI_UNLOCK(pDevIns);
+    }
+    else
+        AssertMsgFailed(("Unaligned write to port %#x u32=%#x cb=%d\n", Port, u32, cb));
+    return rc;
+}
+
 static int ich9pciDataReadAddr(PICH9PCIGLOBALS pGlobals, PciAddress* pPciAddr, int cb,
                                uint32_t *pu32, int rcReschedule)
 {
     int rc = VINF_SUCCESS;
-#ifdef IN_RING3
-    NOREF(rcReschedule);
-#endif
 
-    if (pPciAddr->iBus != 0)    /* forward to subordinate bus */
+    if (pPciAddr->iBus != 0)
     {
         if (pGlobals->aPciBus.cBridges)
         {
@@ -441,19 +401,19 @@ static int ich9pciDataReadAddr(PICH9PCIGLOBALS pGlobals, PciAddress* pPciAddr, i
             }
             else
                 ich9pciNoMem(pu32, cb);
+            NOREF(rcReschedule);
 #else
             rc = rcReschedule;
 #endif
-        }
-        else
+        } else
             ich9pciNoMem(pu32, cb);
     }
-    else                    /* forward to directly connected device */
+    else
     {
-        R3PTRTYPE(PCIDevice *) aDev = pGlobals->aPciBus.apDevices[pPciAddr->iDeviceFunc];
-        if (aDev)
+        if (pGlobals->aPciBus.apDevices[pPciAddr->iDeviceFunc])
         {
 #ifdef IN_RING3
+            R3PTRTYPE(PCIDevice *) aDev = pGlobals->aPciBus.apDevices[pPciAddr->iDeviceFunc];
             *pu32 = aDev->Int.s.pfnConfigRead(aDev, pPciAddr->iRegister, cb);
 #else
             rc = rcReschedule;
@@ -466,69 +426,55 @@ static int ich9pciDataReadAddr(PICH9PCIGLOBALS pGlobals, PciAddress* pPciAddr, i
     Log3(("ich9pciDataReadAddr: %02x:%02x:%02x reg %x(%d) gave %x %Rrc\n",
           pPciAddr->iBus, pPciAddr->iDeviceFunc >> 3, pPciAddr->iDeviceFunc & 0x7, pPciAddr->iRegister,
           cb, *pu32, rc));
+
     return rc;
 }
 
-
-/*
- * Decode value latched in Configuration Address Port and perform
- * requsted read from the target configuration space register.
- *
- * XXX: This code should be probably moved to its only caller
- * (ich9pciIOPortDataRead) to avoid prolifiration of confusingly
- * similarly named functions.
- */
 static int ich9pciDataRead(PICH9PCIGLOBALS pGlobals, uint32_t addr, int cb, uint32_t *pu32)
 {
+    PciAddress aPciAddr;
+
     LogFlow(("ich9pciDataRead: config=%x cb=%d\n",  pGlobals->uConfigReg, cb));
 
     *pu32 = 0xffffffff;
 
-    /* Configuration space mapping enabled? */
     if (!(pGlobals->uConfigReg & (1 << 31)))
         return VINF_SUCCESS;
 
-    /* Decode target device and configuration space register */
-    PciAddress aPciAddr;
+    if ((pGlobals->uConfigReg & 0x3) != 0)
+        return VINF_SUCCESS;
+
+    /* Compute destination device */
     ich9pciStateToPciAddr(pGlobals, addr, &aPciAddr);
 
-    /* Perform configuration space read */
     return ich9pciDataReadAddr(pGlobals, &aPciAddr, cb, pu32, VINF_IOM_R3_IOPORT_READ);
 }
-
 
 /**
  * Port I/O Handler for PCI data IN operations.
  *
- * Emulates reads from Configuration Data Port at 0CFCh for
- * Configuration Mechanism #1.
- *
  * @returns VBox status code.
  *
- * @param   pDevIns     ICH9 device instance.
+ * @param   pDevIns     The device instance.
  * @param   pvUser      User argument - ignored.
  * @param   uPort       Port number used for the IN operation.
  * @param   pu32        Where to store the result.
  * @param   cb          Number of bytes read.
  */
-PDMBOTHCBDECL(int) ich9pciIOPortDataRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb)
+PDMBOTHCBDECL(int)  ich9pciIOPortDataRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb)
 {
     NOREF(pvUser);
     if (!(Port % cb))
     {
-        PICH9PCIGLOBALS pThis = PDMINS_2_DATA(pDevIns, PICH9PCIGLOBALS);
-
         PCI_LOCK(pDevIns, VINF_IOM_R3_IOPORT_READ);
-        int rc = ich9pciDataRead(pThis, Port, cb, pu32);
+        int rc = ich9pciDataRead(PDMINS_2_DATA(pDevIns, PICH9PCIGLOBALS), Port, cb, pu32);
         PCI_UNLOCK(pDevIns);
-
         LogFlow(("ich9pciIOPortDataRead: Port=%#x cb=%#x -> %#x (%Rrc)\n", Port, cb, *pu32, rc));
         return rc;
     }
     AssertMsgFailed(("Unaligned read from port %#x cb=%d\n", Port, cb));
     return VERR_IOM_IOPORT_UNUSED;
 }
-
 
 /* Compute mapping of PCI slot and IRQ number to APIC interrupt line */
 DECLINLINE(int) ich9pciSlot2ApicIrq(uint8_t uSlot, int irq_num)
@@ -607,25 +553,22 @@ static void ich9pciApicSetIrq(PICH9PCIBUS pBus, uint8_t uDevFn, PCIDevice *pPciD
 static void ich9pciSetIrqInternal(PICH9PCIGLOBALS pGlobals, uint8_t uDevFn, PPCIDEVICE pPciDev,
                                   int iIrq, int iLevel, uint32_t uTagSrc)
 {
-    /* If MSI or MSI-X is enabled, PCI INTx# signals are disabled regardless of the PCI command
-     * register interrupt bit state.
-     * PCI 3.0 (section 6.8) forbids MSI and MSI-X to be enabled at the same time and makes
-     * that undefined behavior. We check for MSI first, then MSI-X.
-     */
-    if (MsiIsEnabled(pPciDev))
-    {
-        Assert(!MsixIsEnabled(pPciDev));    /* Not allowed -- see note above. */
-        LogFlowFunc(("PCI Dev %p : MSI\n", pPciDev));
-        PPDMDEVINS pDevIns = pGlobals->aPciBus.CTX_SUFF(pDevIns);
-        MsiNotify(pDevIns, pGlobals->aPciBus.CTX_SUFF(pPciHlp), pPciDev, iIrq, iLevel, uTagSrc);
-        return;
-    }
 
-    if (MsixIsEnabled(pPciDev))
+    if (PCIDevIsIntxDisabled(pPciDev))
     {
-        LogFlowFunc(("PCI Dev %p : MSI-X\n", pPciDev));
-        PPDMDEVINS pDevIns = pGlobals->aPciBus.CTX_SUFF(pDevIns);
-        MsixNotify(pDevIns, pGlobals->aPciBus.CTX_SUFF(pPciHlp), pPciDev, iIrq, iLevel, uTagSrc);
+        if (MsiIsEnabled(pPciDev))
+        {
+            LogFlowFunc(("PCI Dev %p : MSI\n", pPciDev));
+            PPDMDEVINS pDevIns = pGlobals->aPciBus.CTX_SUFF(pDevIns);
+            MsiNotify(pDevIns, pGlobals->aPciBus.CTX_SUFF(pPciHlp), pPciDev, iIrq, iLevel, uTagSrc);
+        }
+
+        if (MsixIsEnabled(pPciDev))
+        {
+            LogFlowFunc(("PCI Dev %p : MSI-X\n", pPciDev));
+            PPDMDEVINS pDevIns = pGlobals->aPciBus.CTX_SUFF(pDevIns);
+            MsixNotify(pDevIns, pGlobals->aPciBus.CTX_SUFF(pPciHlp), pPciDev, iIrq, iLevel, uTagSrc);
+        }
         return;
     }
 
@@ -653,24 +596,10 @@ static void ich9pciSetIrqInternal(PICH9PCIGLOBALS pGlobals, uint8_t uDevFn, PPCI
     }
 }
 
-
-/**
- * Memory mapped I/O Handler for write operations.
- *
- * Emulates writes to configuration space.
- *
- * @returns VBox status code.
- *
- * @param   pDevIns     The device instance.
- * @param   pvUser      User argument.
- * @param   GCPhysAddr  Physical address (in GC) where the read starts.
- * @param   pv          Where to fetch the result.
- * @param   cb          Number of bytes to write.
- * @remarks Caller enters the device critical section.
- */
-PDMBOTHCBDECL(int) ich9pciMcfgMMIOWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void const *pv, unsigned cb)
+PDMBOTHCBDECL(int)  ich9pciMcfgMMIOWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void const *pv, unsigned cb)
 {
     PICH9PCIGLOBALS pGlobals = PDMINS_2_DATA(pDevIns, PICH9PCIGLOBALS);
+    PciAddress aDest;
     uint32_t u32 = 0;
     NOREF(pvUser);
 
@@ -678,8 +607,6 @@ PDMBOTHCBDECL(int) ich9pciMcfgMMIOWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPH
 
     PCI_LOCK(pDevIns, VINF_IOM_R3_MMIO_WRITE);
 
-    /* Decode target device and configuration space register */
-    PciAddress aDest;
     ich9pciPhysToPciAddr(pGlobals, GCPhysAddr, &aDest);
 
     switch (cb)
@@ -697,32 +624,16 @@ PDMBOTHCBDECL(int) ich9pciMcfgMMIOWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPH
             Assert(false);
             break;
     }
-
-    /* Perform configuration space write */
     int rc = ich9pciDataWriteAddr(pGlobals, &aDest, u32, cb, VINF_IOM_R3_MMIO_WRITE);
     PCI_UNLOCK(pDevIns);
 
     return rc;
 }
 
-
-/**
- * Memory mapped I/O Handler for read operations.
- *
- * Emulates reads from configuration space.
- *
- * @returns VBox status code.
- *
- * @param   pDevIns     The device instance.
- * @param   pvUser      User argument.
- * @param   GCPhysAddr  Physical address (in GC) where the read starts.
- * @param   pv          Where to store the result.
- * @param   cb          Number of bytes read.
- * @remarks Caller enters the device critical section.
- */
-PDMBOTHCBDECL(int) ich9pciMcfgMMIORead (PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void *pv, unsigned cb)
+PDMBOTHCBDECL(int)  ich9pciMcfgMMIORead (PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void *pv, unsigned cb)
 {
     PICH9PCIGLOBALS pGlobals = PDMINS_2_DATA(pDevIns, PICH9PCIGLOBALS);
+    PciAddress  aDest;
     uint32_t    rv;
     NOREF(pvUser);
 
@@ -730,11 +641,8 @@ PDMBOTHCBDECL(int) ich9pciMcfgMMIORead (PPDMDEVINS pDevIns, void *pvUser, RTGCPH
 
     PCI_LOCK(pDevIns, VINF_IOM_R3_MMIO_READ);
 
-    /* Decode target device and configuration space register */
-    PciAddress aDest;
     ich9pciPhysToPciAddr(pGlobals, GCPhysAddr, &aDest);
 
-    /* Perform configuration space read */
     int rc = ich9pciDataReadAddr(pGlobals, &aDest, cb, &rv, VINF_IOM_R3_MMIO_READ);
 
     if (RT_SUCCESS(rc))
@@ -1443,7 +1351,7 @@ static DECLCALLBACK(int) ich9pciR3CommonLoadExec(PICH9PCIBUS pBus, PSSMHANDLE pS
             pDev = pBus->apDevices[i];
             if (pDev)
             {
-                LogRel(("PCI: New device in slot %#x, %s (vendor=%#06x device=%#06x)\n", i, pDev->name,
+                LogRel(("New device in slot %#x, %s (vendor=%#06x device=%#06x)\n", i, pDev->name,
                         PCIDevGetVendorId(pDev), PCIDevGetDeviceId(pDev)));
                 if (SSMR3HandleGetAfter(pSSM) != SSMAFTER_DEBUG_IT)
                 {
@@ -1487,7 +1395,7 @@ static DECLCALLBACK(int) ich9pciR3CommonLoadExec(PICH9PCIBUS pBus, PSSMHANDLE pS
         pDev = pBus->apDevices[i];
         if (!pDev)
         {
-            LogRel(("PCI: Device in slot %#x has been removed! vendor=%#06x device=%#06x\n", i,
+            LogRel(("Device in slot %#x has been removed! vendor=%#06x device=%#06x\n", i,
                     PCIDevGetVendorId(&DevTmp), PCIDevGetDeviceId(&DevTmp)));
             if (SSMR3HandleGetAfter(pSSM) != SSMAFTER_DEBUG_IT)
             {
@@ -1569,41 +1477,34 @@ static DECLCALLBACK(int) ich9pcibridgeR3LoadExec(PPDMDEVINS pDevIns, PSSMHANDLE 
     return ich9pciR3CommonLoadExec(pThis, pSSM, uVersion, uPass);
 }
 
-
-/*
- * Perform imeediate read of configuration space register.
- * Cannot be rescheduled, as already in R3.
- */
 static uint32_t ich9pciConfigRead(PICH9PCIGLOBALS pGlobals, uint8_t uBus, uint8_t uDevFn, uint32_t addr, uint32_t len)
 {
+    /* Will only work in LSB case */
+    uint32_t   u32Val;
     PciAddress aPciAddr;
+
     aPciAddr.iBus = uBus;
     aPciAddr.iDeviceFunc = uDevFn;
     aPciAddr.iRegister = addr;
 
-    uint32_t u32Val;
+    /* cannot be rescheduled, as already in R3 */
     int rc = ich9pciDataReadAddr(pGlobals, &aPciAddr, len, &u32Val, VERR_INTERNAL_ERROR);
     AssertRC(rc);
-
     return u32Val;
 }
 
-
-/*
- * Perform imeediate write to configuration space register.
- * Cannot be rescheduled, as already in R3.
- */
 static void ich9pciConfigWrite(PICH9PCIGLOBALS pGlobals, uint8_t uBus, uint8_t uDevFn, uint32_t addr, uint32_t val, uint32_t len)
 {
     PciAddress aPciAddr;
+
     aPciAddr.iBus = uBus;
     aPciAddr.iDeviceFunc = uDevFn;
     aPciAddr.iRegister = addr;
 
+    /* cannot be rescheduled, as already in R3 */
     int rc = ich9pciDataWriteAddr(pGlobals, &aPciAddr, val, len, VERR_INTERNAL_ERROR);
     AssertRC(rc);
 }
-
 
 static void ich9pciSetRegionAddress(PICH9PCIGLOBALS pGlobals, uint8_t uBus, uint8_t uDevFn, int iRegion, uint64_t addr)
 {
@@ -1940,16 +1841,11 @@ static DECLCALLBACK(int) ich9pciFakePCIBIOS(PPDMDEVINS pDevIns)
     return VINF_SUCCESS;
 }
 
-
-/*
- * Configuration space read callback (PCIDEVICEINT::pfnConfigRead) for
- * connected devices.
- */
 static DECLCALLBACK(uint32_t) ich9pciConfigReadDev(PCIDevice *aDev, uint32_t u32Address, unsigned len)
 {
     if ((u32Address + len) > 256 && (u32Address + len) < 4096)
     {
-        LogRel(("PCI: Read from extended register %d fallen back to generic code\n",
+        LogRel(("Read from extended register %d fallen back to generic code\n",
                 u32Address));
         return 0;
     }
@@ -1988,7 +1884,6 @@ static DECLCALLBACK(uint32_t) ich9pciConfigReadDev(PCIDevice *aDev, uint32_t u32
     }
 }
 
-
 DECLINLINE(void) ich9pciWriteBarByte(PCIDevice *aDev, int iRegion, int iOffset, uint8_t u8Val)
 {
     PCIIORegion * pRegion = &aDev->Int.s.aIORegions[iRegion];
@@ -1998,10 +1893,10 @@ DECLINLINE(void) ich9pciWriteBarByte(PCIDevice *aDev, int iRegion, int iOffset, 
          iRegion, iOffset, u8Val, iRegionSize));
 
     if (iOffset > 3)
-        Assert((pRegion->type & PCI_ADDRESS_SPACE_BAR64) != 0);
+        Assert((aDev->Int.s.aIORegions[iRegion].type & PCI_ADDRESS_SPACE_BAR64) != 0);
 
     /* Check if we're writing to upper part of 64-bit BAR. */
-    if (pRegion->type == 0xff)
+    if (aDev->Int.s.aIORegions[iRegion].type == 0xff)
     {
         ich9pciWriteBarByte(aDev, iRegion-1, iOffset+4, u8Val);
         return;
@@ -2032,13 +1927,9 @@ DECLINLINE(void) ich9pciWriteBarByte(PCIDevice *aDev, int iRegion, int iOffset, 
     PCIDevSetByte(aDev, uAddr, u8Val);
 }
 
-
 /**
- * Configuration space write callback (PCIDEVICEINT::pfnConfigWrite)
- * for connected devices.
- *
- * See paragraph 7.5 of PCI Express specification (p. 349) for
- * definition of registers and their writability policy.
+ * See paragraph 7.5 of PCI Express specification (p. 349) for definition of
+ * registers and their writability policy.
  */
 static DECLCALLBACK(void) ich9pciConfigWriteDev(PCIDevice *aDev, uint32_t u32Address,
                                                 uint32_t val, unsigned len)
@@ -2047,7 +1938,7 @@ static DECLCALLBACK(void) ich9pciConfigWriteDev(PCIDevice *aDev, uint32_t u32Add
 
     if ((u32Address + len) > 256 && (u32Address + len) < 4096)
     {
-        LogRel(("PCI: Write to extended register %d fallen back to generic code\n",
+        LogRel(("Write to extended register %d fallen back to generic code\n",
                 u32Address));
         return;
     }
@@ -2251,10 +2142,7 @@ static bool hasHardAssignedDevsInSlot(PICH9PCIBUS pBus, int iSlot)
 
 static int ich9pciRegisterInternal(PICH9PCIBUS pBus, int iDev, PPCIDEVICE pPciDev, const char *pszName)
 {
-    PciAddress aPosition;
-    aPosition.iBus = 0;
-    aPosition.iDeviceFunc = 0;
-    aPosition.iRegister = 0;
+    PciAddress aPosition = {0, 0, 0};
 
     /*
      * Find device position

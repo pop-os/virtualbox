@@ -1,4 +1,3 @@
-/* $Id: HGCM.cpp $ */
 /** @file
  *
  * HGCM (Host-Guest Communication Manager)
@@ -90,7 +89,7 @@ class HGCMService
         static int sm_cServices;
 
         HGCMTHREADHANDLE m_thread;
-        friend DECLCALLBACK(void) hgcmServiceThread(HGCMTHREADHANDLE ThreadHandle, void *pvUser);
+        friend DECLCALLBACK(void) hgcmServiceThread (HGCMTHREADHANDLE ThreadHandle, void *pvUser);
 
         uint32_t volatile m_u32RefCnt;
 
@@ -116,77 +115,75 @@ class HGCMService
 
         HGCMSVCEXTHANDLE m_hExtension;
 
-        int loadServiceDLL(void);
-        void unloadServiceDLL(void);
+        int loadServiceDLL (void);
+        void unloadServiceDLL (void);
 
         /*
          * Main HGCM thread methods.
          */
-        int instanceCreate(const char *pszServiceLibrary, const char *pszServiceName);
-        void instanceDestroy(void);
+        int instanceCreate (const char *pszServiceLibrary, const char *pszServiceName);
+        void instanceDestroy (void);
 
         int saveClientState(uint32_t u32ClientId, PSSMHANDLE pSSM);
         int loadClientState(uint32_t u32ClientId, PSSMHANDLE pSSM);
 
-        HGCMService();
-        ~HGCMService() {};
+        HGCMService ();
+        ~HGCMService () {};
 
-        static DECLCALLBACK(void) svcHlpCallComplete(VBOXHGCMCALLHANDLE callHandle, int32_t rc);
-        static DECLCALLBACK(void) svcHlpDisconnectClient(void *pvInstance, uint32_t u32ClientId);
+        static DECLCALLBACK(void) svcHlpCallComplete (VBOXHGCMCALLHANDLE callHandle, int32_t rc);
+        static DECLCALLBACK(void) svcHlpDisconnectClient (void *pvInstance, uint32_t u32ClientId);
 
     public:
 
         /*
          * Main HGCM thread methods.
          */
-        static int LoadService(const char *pszServiceLibrary, const char *pszServiceName);
-        void UnloadService(void);
+        static int LoadService (const char *pszServiceLibrary, const char *pszServiceName);
+        void UnloadService (void);
 
-        static void UnloadAll(void);
+        static void UnloadAll (void);
 
-        static int ResolveService(HGCMService **ppsvc, const char *pszServiceName);
-        void ReferenceService(void);
-        void ReleaseService(void);
+        static int ResolveService (HGCMService **ppsvc, const char *pszServiceName);
+        void ReferenceService (void);
+        void ReleaseService (void);
 
-        static void Reset(void);
+        static void Reset (void);
 
-        static int SaveState(PSSMHANDLE pSSM);
-        static int LoadState(PSSMHANDLE pSSM);
+        static int SaveState (PSSMHANDLE pSSM);
+        static int LoadState (PSSMHANDLE pSSM);
 
-        int CreateAndConnectClient(uint32_t *pu32ClientIdOut, uint32_t u32ClientIdIn);
-        int DisconnectClient(uint32_t u32ClientId, bool fFromService);
+        int CreateAndConnectClient (uint32_t *pu32ClientIdOut, uint32_t u32ClientIdIn);
+        int DisconnectClient (uint32_t u32ClientId, bool fFromService);
 
-        int HostCall(uint32_t u32Function, uint32_t cParms, VBOXHGCMSVCPARM *paParms);
+        int HostCall (uint32_t u32Function, uint32_t cParms, VBOXHGCMSVCPARM *paParms);
 
 #ifdef VBOX_WITH_CRHGSMI
         int HandleAcquired();
         int HandleReleased();
-        int HostFastCallAsync(uint32_t u32Function, VBOXHGCMSVCPARM *pParm, PHGCMHOSTFASTCALLCB pfnCompletion,
-                              void *pvCompletion);
+        int HostFastCallAsync (uint32_t u32Function, VBOXHGCMSVCPARM *pParm, PHGCMHOSTFASTCALLCB pfnCompletion, void *pvCompletion);
 #endif
 
-        uint32_t SizeOfClient(void) { return m_fntable.cbClient; };
+        uint32_t SizeOfClient (void) { return m_fntable.cbClient; };
 
-        int RegisterExtension(HGCMSVCEXTHANDLE handle, PFNHGCMSVCEXT pfnExtension, void *pvExtension);
-        void UnregisterExtension(HGCMSVCEXTHANDLE handle);
+        int RegisterExtension (HGCMSVCEXTHANDLE handle, PFNHGCMSVCEXT pfnExtension, void *pvExtension);
+        void UnregisterExtension (HGCMSVCEXTHANDLE handle);
 
         /*
          * The service thread methods.
          */
 
-        int GuestCall(PPDMIHGCMPORT pHGCMPort, PVBOXHGCMCMD pCmd, uint32_t u32ClientId,
-                      uint32_t u32Function, uint32_t cParms, VBOXHGCMSVCPARM aParms[]);
+        int GuestCall (PPDMIHGCMPORT pHGCMPort, PVBOXHGCMCMD pCmd, uint32_t u32ClientId, uint32_t u32Function, uint32_t cParms, VBOXHGCMSVCPARM aParms[]);
 };
 
 
 class HGCMClient: public HGCMObject
 {
     public:
-        HGCMClient() : HGCMObject(HGCMOBJ_CLIENT), pService(NULL),
+        HGCMClient () : HGCMObject(HGCMOBJ_CLIENT), pService(NULL),
                         pvData(NULL) {};
-        ~HGCMClient();
+        ~HGCMClient ();
 
-        int Init(HGCMService *pSvc);
+        int Init (HGCMService *pSvc);
 
         /** Service that the client is connected to. */
         HGCMService *pService;
@@ -195,19 +192,19 @@ class HGCMClient: public HGCMObject
         void *pvData;
 };
 
-HGCMClient::~HGCMClient()
+HGCMClient::~HGCMClient ()
 {
-    if (pService->SizeOfClient() > 0)
-        RTMemFree(pvData);
+    if (pService->SizeOfClient () > 0)
+        RTMemFree (pvData);
 }
 
-int HGCMClient::Init(HGCMService *pSvc)
+int HGCMClient::Init (HGCMService *pSvc)
 {
     pService = pSvc;
 
-    if (pService->SizeOfClient() > 0)
+    if (pService->SizeOfClient () > 0)
     {
-        pvData = RTMemAllocZ(pService->SizeOfClient());
+        pvData = RTMemAllocZ (pService->SizeOfClient ());
 
         if (!pvData)
         {
@@ -219,7 +216,7 @@ int HGCMClient::Init(HGCMService *pSvc)
 }
 
 
-#define HGCM_CLIENT_DATA(pService, pClient)(pClient->pvData)
+#define HGCM_CLIENT_DATA(pService, pClient) (pClient->pvData)
 
 
 
@@ -227,7 +224,7 @@ HGCMService *HGCMService::sm_pSvcListHead = NULL;
 HGCMService *HGCMService::sm_pSvcListTail = NULL;
 int HGCMService::sm_cServices = 0;
 
-HGCMService::HGCMService()
+HGCMService::HGCMService ()
     :
     m_thread     (0),
     m_u32RefCnt  (0),
@@ -286,8 +283,7 @@ int HGCMService::loadServiceDLL(void)
 
         if (RT_FAILURE(rc) || !m_pfnLoad)
         {
-            Log(("HGCMService::loadServiceDLL: Error resolving the service entry point %s, rc = %d, m_pfnLoad = %p\n",
-                 VBOX_HGCM_SVCLOAD_NAME, rc, m_pfnLoad));
+            Log(("HGCMService::loadServiceDLL: Error resolving the service entry point %s, rc = %d, m_pfnLoad = %p\n", VBOX_HGCM_SVCLOAD_NAME, rc, m_pfnLoad));
 
             if (RT_SUCCESS(rc))
             {
@@ -403,7 +399,7 @@ class HGCMMsgSvcDisconnect: public HGCMMsgCore
 class HGCMMsgHeader: public HGCMMsgCore
 {
     public:
-        HGCMMsgHeader() : pCmd(NULL), pHGCMPort(NULL) {};
+        HGCMMsgHeader () : pCmd (NULL), pHGCMPort (NULL) {};
 
         /* Command pointer/identifier. */
         PVBOXHGCMCMD pCmd;
@@ -479,23 +475,23 @@ class HGCMMsgHostFastCallAsyncSvc: public HGCMMsgCore
 };
 #endif
 
-static HGCMMsgCore *hgcmMessageAllocSvc(uint32_t u32MsgId)
+static HGCMMsgCore *hgcmMessageAllocSvc (uint32_t u32MsgId)
 {
     switch (u32MsgId)
     {
 #ifdef VBOX_WITH_CRHGSMI
-        case SVC_MSG_HOSTFASTCALLASYNC: return new HGCMMsgHostFastCallAsyncSvc();
+        case SVC_MSG_HOSTFASTCALLASYNC: return new HGCMMsgHostFastCallAsyncSvc ();
 #endif
-        case SVC_MSG_LOAD:        return new HGCMMsgSvcLoad();
-        case SVC_MSG_UNLOAD:      return new HGCMMsgSvcUnload();
-        case SVC_MSG_CONNECT:     return new HGCMMsgSvcConnect();
-        case SVC_MSG_DISCONNECT:  return new HGCMMsgSvcDisconnect();
-        case SVC_MSG_HOSTCALL:    return new HGCMMsgHostCallSvc();
-        case SVC_MSG_GUESTCALL:   return new HGCMMsgCall();
+        case SVC_MSG_LOAD:        return new HGCMMsgSvcLoad ();
+        case SVC_MSG_UNLOAD:      return new HGCMMsgSvcUnload ();
+        case SVC_MSG_CONNECT:     return new HGCMMsgSvcConnect ();
+        case SVC_MSG_DISCONNECT:  return new HGCMMsgSvcDisconnect ();
+        case SVC_MSG_HOSTCALL:    return new HGCMMsgHostCallSvc ();
+        case SVC_MSG_GUESTCALL:   return new HGCMMsgCall ();
         case SVC_MSG_LOADSTATE:
-        case SVC_MSG_SAVESTATE:   return new HGCMMsgLoadSaveStateClient();
-        case SVC_MSG_REGEXT:      return new HGCMMsgSvcRegisterExtension();
-        case SVC_MSG_UNREGEXT:    return new HGCMMsgSvcUnregisterExtension();
+        case SVC_MSG_SAVESTATE:   return new HGCMMsgLoadSaveStateClient ();
+        case SVC_MSG_REGEXT:      return new HGCMMsgSvcRegisterExtension ();
+        case SVC_MSG_UNREGEXT:    return new HGCMMsgSvcUnregisterExtension ();
         default:
             AssertReleaseMsgFailed(("Msg id = %08X\n", u32MsgId));
     }
@@ -506,7 +502,7 @@ static HGCMMsgCore *hgcmMessageAllocSvc(uint32_t u32MsgId)
 /*
  * The service thread. Loads the service library and calls the service entry points.
  */
-DECLCALLBACK(void) hgcmServiceThread(HGCMTHREADHANDLE ThreadHandle, void *pvUser)
+DECLCALLBACK(void) hgcmServiceThread (HGCMTHREADHANDLE ThreadHandle, void *pvUser)
 {
     HGCMService *pSvc = (HGCMService *)pvUser;
     AssertRelease(pSvc != NULL);
@@ -516,17 +512,17 @@ DECLCALLBACK(void) hgcmServiceThread(HGCMTHREADHANDLE ThreadHandle, void *pvUser
     while (!fQuit)
     {
         HGCMMsgCore *pMsgCore;
-        int rc = hgcmMsgGet(ThreadHandle, &pMsgCore);
+        int rc = hgcmMsgGet (ThreadHandle, &pMsgCore);
 
         if (RT_FAILURE(rc))
         {
             /* The error means some serious unrecoverable problem in the hgcmMsg/hgcmThread layer. */
-            AssertMsgFailed(("%Rrc\n", rc));
+            AssertMsgFailed (("%Rrc\n", rc));
             break;
         }
 
         /* Cache required information to avoid unnecessary pMsgCore access. */
-        uint32_t u32MsgId = pMsgCore->MsgId();
+        uint32_t u32MsgId = pMsgCore->MsgId ();
 
         switch (u32MsgId)
         {
@@ -537,13 +533,13 @@ DECLCALLBACK(void) hgcmServiceThread(HGCMTHREADHANDLE ThreadHandle, void *pvUser
 
                 LogFlowFunc(("SVC_MSG_HOSTFASTCALLASYNC u32Function = %d, pParm = %p\n", pMsg->u32Function, &pMsg->Param));
 
-                rc = pSvc->m_fntable.pfnHostCall(pSvc->m_fntable.pvService, pMsg->u32Function, 1, &pMsg->Param);
+                rc = pSvc->m_fntable.pfnHostCall (pSvc->m_fntable.pvService, pMsg->u32Function, 1, &pMsg->Param);
             } break;
 #endif
             case SVC_MSG_LOAD:
             {
                 LogFlowFunc(("SVC_MSG_LOAD\n"));
-                rc = pSvc->loadServiceDLL();
+                rc = pSvc->loadServiceDLL ();
             } break;
 
             case SVC_MSG_UNLOAD:
@@ -551,10 +547,10 @@ DECLCALLBACK(void) hgcmServiceThread(HGCMTHREADHANDLE ThreadHandle, void *pvUser
                 LogFlowFunc(("SVC_MSG_UNLOAD\n"));
                 if (pSvc->m_fntable.pfnUnload)
                 {
-                    pSvc->m_fntable.pfnUnload(pSvc->m_fntable.pvService);
+                    pSvc->m_fntable.pfnUnload (pSvc->m_fntable.pvService);
                 }
 
-                pSvc->unloadServiceDLL();
+                pSvc->unloadServiceDLL ();
                 fQuit = true;
             } break;
 
@@ -564,14 +560,13 @@ DECLCALLBACK(void) hgcmServiceThread(HGCMTHREADHANDLE ThreadHandle, void *pvUser
 
                 LogFlowFunc(("SVC_MSG_CONNECT u32ClientId = %d\n", pMsg->u32ClientId));
 
-                HGCMClient *pClient = (HGCMClient *)hgcmObjReference(pMsg->u32ClientId, HGCMOBJ_CLIENT);
+                HGCMClient *pClient = (HGCMClient *)hgcmObjReference (pMsg->u32ClientId, HGCMOBJ_CLIENT);
 
                 if (pClient)
                 {
-                    rc = pSvc->m_fntable.pfnConnect(pSvc->m_fntable.pvService, pMsg->u32ClientId,
-                                                    HGCM_CLIENT_DATA(pSvc, pClient));
+                    rc = pSvc->m_fntable.pfnConnect (pSvc->m_fntable.pvService, pMsg->u32ClientId, HGCM_CLIENT_DATA(pSvc, pClient));
 
-                    hgcmObjDereference(pClient);
+                    hgcmObjDereference (pClient);
                 }
                 else
                 {
@@ -585,14 +580,13 @@ DECLCALLBACK(void) hgcmServiceThread(HGCMTHREADHANDLE ThreadHandle, void *pvUser
 
                 LogFlowFunc(("SVC_MSG_DISCONNECT u32ClientId = %d\n", pMsg->u32ClientId));
 
-                HGCMClient *pClient = (HGCMClient *)hgcmObjReference(pMsg->u32ClientId, HGCMOBJ_CLIENT);
+                HGCMClient *pClient = (HGCMClient *)hgcmObjReference (pMsg->u32ClientId, HGCMOBJ_CLIENT);
 
                 if (pClient)
                 {
-                    rc = pSvc->m_fntable.pfnDisconnect(pSvc->m_fntable.pvService, pMsg->u32ClientId,
-                                                       HGCM_CLIENT_DATA(pSvc, pClient));
+                    rc = pSvc->m_fntable.pfnDisconnect (pSvc->m_fntable.pvService, pMsg->u32ClientId, HGCM_CLIENT_DATA(pSvc, pClient));
 
-                    hgcmObjDereference(pClient);
+                    hgcmObjDereference (pClient);
                 }
                 else
                 {
@@ -607,15 +601,13 @@ DECLCALLBACK(void) hgcmServiceThread(HGCMTHREADHANDLE ThreadHandle, void *pvUser
                 LogFlowFunc(("SVC_MSG_GUESTCALL u32ClientId = %d, u32Function = %d, cParms = %d, paParms = %p\n",
                              pMsg->u32ClientId, pMsg->u32Function, pMsg->cParms, pMsg->paParms));
 
-                HGCMClient *pClient = (HGCMClient *)hgcmObjReference(pMsg->u32ClientId, HGCMOBJ_CLIENT);
+                HGCMClient *pClient = (HGCMClient *)hgcmObjReference (pMsg->u32ClientId, HGCMOBJ_CLIENT);
 
                 if (pClient)
                 {
-                    pSvc->m_fntable.pfnCall(pSvc->m_fntable.pvService, (VBOXHGCMCALLHANDLE)pMsg, pMsg->u32ClientId,
-                                            HGCM_CLIENT_DATA(pSvc, pClient), pMsg->u32Function,
-                                            pMsg->cParms, pMsg->paParms);
+                    pSvc->m_fntable.pfnCall (pSvc->m_fntable.pvService, (VBOXHGCMCALLHANDLE)pMsg, pMsg->u32ClientId, HGCM_CLIENT_DATA(pSvc, pClient), pMsg->u32Function, pMsg->cParms, pMsg->paParms);
 
-                    hgcmObjDereference(pClient);
+                    hgcmObjDereference (pClient);
                 }
                 else
                 {
@@ -627,10 +619,9 @@ DECLCALLBACK(void) hgcmServiceThread(HGCMTHREADHANDLE ThreadHandle, void *pvUser
             {
                 HGCMMsgHostCallSvc *pMsg = (HGCMMsgHostCallSvc *)pMsgCore;
 
-                LogFlowFunc(("SVC_MSG_HOSTCALL u32Function = %d, cParms = %d, paParms = %p\n",
-                             pMsg->u32Function, pMsg->cParms, pMsg->paParms));
+                LogFlowFunc(("SVC_MSG_HOSTCALL u32Function = %d, cParms = %d, paParms = %p\n", pMsg->u32Function, pMsg->cParms, pMsg->paParms));
 
-                rc = pSvc->m_fntable.pfnHostCall(pSvc->m_fntable.pvService, pMsg->u32Function, pMsg->cParms, pMsg->paParms);
+                rc = pSvc->m_fntable.pfnHostCall (pSvc->m_fntable.pvService, pMsg->u32Function, pMsg->cParms, pMsg->paParms);
             } break;
 
             case SVC_MSG_LOADSTATE:
@@ -639,17 +630,16 @@ DECLCALLBACK(void) hgcmServiceThread(HGCMTHREADHANDLE ThreadHandle, void *pvUser
 
                 LogFlowFunc(("SVC_MSG_LOADSTATE\n"));
 
-                HGCMClient *pClient = (HGCMClient *)hgcmObjReference(pMsg->u32ClientId, HGCMOBJ_CLIENT);
+                HGCMClient *pClient = (HGCMClient *)hgcmObjReference (pMsg->u32ClientId, HGCMOBJ_CLIENT);
 
                 if (pClient)
                 {
                     if (pSvc->m_fntable.pfnLoadState)
                     {
-                        rc = pSvc->m_fntable.pfnLoadState(pSvc->m_fntable.pvService, pMsg->u32ClientId,
-                                                          HGCM_CLIENT_DATA(pSvc, pClient), pMsg->pSSM);
+                        rc = pSvc->m_fntable.pfnLoadState (pSvc->m_fntable.pvService, pMsg->u32ClientId, HGCM_CLIENT_DATA(pSvc, pClient), pMsg->pSSM);
                     }
 
-                    hgcmObjDereference(pClient);
+                    hgcmObjDereference (pClient);
                 }
                 else
                 {
@@ -663,7 +653,7 @@ DECLCALLBACK(void) hgcmServiceThread(HGCMTHREADHANDLE ThreadHandle, void *pvUser
 
                 LogFlowFunc(("SVC_MSG_SAVESTATE\n"));
 
-                HGCMClient *pClient = (HGCMClient *)hgcmObjReference(pMsg->u32ClientId, HGCMOBJ_CLIENT);
+                HGCMClient *pClient = (HGCMClient *)hgcmObjReference (pMsg->u32ClientId, HGCMOBJ_CLIENT);
 
                 rc = VINF_SUCCESS;
 
@@ -672,12 +662,11 @@ DECLCALLBACK(void) hgcmServiceThread(HGCMTHREADHANDLE ThreadHandle, void *pvUser
                     if (pSvc->m_fntable.pfnSaveState)
                     {
                         g_fSaveState = true;
-                        rc = pSvc->m_fntable.pfnSaveState(pSvc->m_fntable.pvService, pMsg->u32ClientId,
-                                                          HGCM_CLIENT_DATA(pSvc, pClient), pMsg->pSSM);
+                        rc = pSvc->m_fntable.pfnSaveState (pSvc->m_fntable.pvService, pMsg->u32ClientId, HGCM_CLIENT_DATA(pSvc, pClient), pMsg->pSSM);
                         g_fSaveState = false;
                     }
 
-                    hgcmObjDereference(pClient);
+                    hgcmObjDereference (pClient);
                 }
                 else
                 {
@@ -699,8 +688,7 @@ DECLCALLBACK(void) hgcmServiceThread(HGCMTHREADHANDLE ThreadHandle, void *pvUser
                 {
                     if (pSvc->m_fntable.pfnRegisterExtension)
                     {
-                        rc = pSvc->m_fntable.pfnRegisterExtension(pSvc->m_fntable.pvService, pMsg->pfnExtension,
-                                                                  pMsg->pvExtension);
+                        rc = pSvc->m_fntable.pfnRegisterExtension (pSvc->m_fntable.pvService, pMsg->pfnExtension, pMsg->pvExtension);
                     }
                     else
                     {
@@ -728,7 +716,7 @@ DECLCALLBACK(void) hgcmServiceThread(HGCMTHREADHANDLE ThreadHandle, void *pvUser
                 {
                     if (pSvc->m_fntable.pfnRegisterExtension)
                     {
-                        rc = pSvc->m_fntable.pfnRegisterExtension(pSvc->m_fntable.pvService, NULL, NULL);
+                        rc = pSvc->m_fntable.pfnRegisterExtension (pSvc->m_fntable.pvService, NULL, NULL);
                     }
                     else
                     {
@@ -756,7 +744,7 @@ DECLCALLBACK(void) hgcmServiceThread(HGCMTHREADHANDLE ThreadHandle, void *pvUser
     }
 }
 
-/* static */ DECLCALLBACK(void) HGCMService::svcHlpCallComplete(VBOXHGCMCALLHANDLE callHandle, int32_t rc)
+/* static */ DECLCALLBACK(void) HGCMService::svcHlpCallComplete (VBOXHGCMCALLHANDLE callHandle, int32_t rc)
 {
    HGCMMsgCore *pMsgCore = (HGCMMsgCore *)callHandle;
 
@@ -766,25 +754,25 @@ DECLCALLBACK(void) hgcmServiceThread(HGCMTHREADHANDLE ThreadHandle, void *pvUser
         * is called by the service, and the service does not get
         * any other messages.
         */
-       hgcmMsgComplete(pMsgCore, rc);
+       hgcmMsgComplete (pMsgCore, rc);
    }
    else
    {
-       AssertFailed();
+       AssertFailed ();
    }
 }
 
-/* static */ DECLCALLBACK(void) HGCMService::svcHlpDisconnectClient(void *pvInstance, uint32_t u32ClientId)
+/* static */ DECLCALLBACK(void) HGCMService::svcHlpDisconnectClient (void *pvInstance, uint32_t u32ClientId)
 {
      HGCMService *pService = static_cast <HGCMService *> (pvInstance);
 
      if (pService)
      {
-         pService->DisconnectClient(u32ClientId, true);
+         pService->DisconnectClient (u32ClientId, true);
      }
 }
 
-static DECLCALLBACK(void) hgcmMsgCompletionCallback(int32_t result, HGCMMsgCore *pMsgCore)
+static DECLCALLBACK(void) hgcmMsgCompletionCallback (int32_t result, HGCMMsgCore *pMsgCore)
 {
     /* Call the VMMDev port interface to issue IRQ notification. */
     HGCMMsgHeader *pMsgHdr = (HGCMMsgHeader *)pMsgCore;
@@ -793,7 +781,7 @@ static DECLCALLBACK(void) hgcmMsgCompletionCallback(int32_t result, HGCMMsgCore 
 
     if (pMsgHdr->pHGCMPort && !g_fResetting)
     {
-        pMsgHdr->pHGCMPort->pfnCompleted(pMsgHdr->pHGCMPort, g_fSaveState? VINF_HGCM_SAVE_STATE: result, pMsgHdr->pCmd);
+        pMsgHdr->pHGCMPort->pfnCompleted (pMsgHdr->pHGCMPort, g_fSaveState? VINF_HGCM_SAVE_STATE: result, pMsgHdr->pCmd);
     }
 }
 
@@ -801,32 +789,32 @@ static DECLCALLBACK(void) hgcmMsgCompletionCallback(int32_t result, HGCMMsgCore 
  * The main HGCM methods of the service.
  */
 
-int HGCMService::instanceCreate(const char *pszServiceLibrary, const char *pszServiceName)
+int HGCMService::instanceCreate (const char *pszServiceLibrary, const char *pszServiceName)
 {
     LogFlowFunc(("name %s, lib %s\n", pszServiceName, pszServiceLibrary));
 
     /* The maximum length of the thread name, allowed by the RT is 15. */
     char szThreadName[16];
-    if (!strncmp(pszServiceName, RT_STR_TUPLE("VBoxShared")))
-        RTStrPrintf(szThreadName, sizeof(szThreadName), "Sh%s", pszServiceName + 10);
-    else if (!strncmp(pszServiceName, RT_STR_TUPLE("VBox")))
-        RTStrCopy(szThreadName, sizeof(szThreadName), pszServiceName + 4);
+    if (!strncmp (pszServiceName, RT_STR_TUPLE("VBoxShared")))
+        RTStrPrintf (szThreadName, sizeof (szThreadName), "Sh%s", pszServiceName + 10);
+    else if (!strncmp (pszServiceName, RT_STR_TUPLE("VBox")))
+        RTStrCopy (szThreadName, sizeof (szThreadName), pszServiceName + 4);
     else
-        RTStrCopy(szThreadName, sizeof(szThreadName), pszServiceName);
+        RTStrCopy (szThreadName, sizeof (szThreadName), pszServiceName);
 
-    int rc = hgcmThreadCreate(&m_thread, szThreadName, hgcmServiceThread, this);
+    int rc = hgcmThreadCreate (&m_thread, szThreadName, hgcmServiceThread, this);
 
     if (RT_SUCCESS(rc))
     {
-        m_pszSvcName    = RTStrDup(pszServiceName);
-        m_pszSvcLibrary = RTStrDup(pszServiceLibrary);
+        m_pszSvcName    = RTStrDup (pszServiceName);
+        m_pszSvcLibrary = RTStrDup (pszServiceLibrary);
 
         if (!m_pszSvcName || !m_pszSvcLibrary)
         {
-            RTStrFree(m_pszSvcLibrary);
+            RTStrFree (m_pszSvcLibrary);
             m_pszSvcLibrary = NULL;
 
-            RTStrFree(m_pszSvcName);
+            RTStrFree (m_pszSvcName);
             m_pszSvcName = NULL;
 
             rc = VERR_NO_MEMORY;
@@ -840,45 +828,45 @@ int HGCMService::instanceCreate(const char *pszServiceLibrary, const char *pszSe
 
             /* Execute the load request on the service thread. */
             HGCMMSGHANDLE hMsg;
-            rc = hgcmMsgAlloc(m_thread, &hMsg, SVC_MSG_LOAD, hgcmMessageAllocSvc);
+            rc = hgcmMsgAlloc (m_thread, &hMsg, SVC_MSG_LOAD, hgcmMessageAllocSvc);
 
             if (RT_SUCCESS(rc))
             {
-                rc = hgcmMsgSend(hMsg);
+                rc = hgcmMsgSend (hMsg);
             }
         }
     }
 
     if (RT_FAILURE(rc))
     {
-        instanceDestroy();
+        instanceDestroy ();
     }
 
     LogFlowFunc(("rc = %Rrc\n", rc));
     return rc;
 }
 
-void HGCMService::instanceDestroy(void)
+void HGCMService::instanceDestroy (void)
 {
     LogFlowFunc(("%s\n", m_pszSvcName));
 
     HGCMMSGHANDLE hMsg;
-    int rc = hgcmMsgAlloc(m_thread, &hMsg, SVC_MSG_UNLOAD, hgcmMessageAllocSvc);
+    int rc = hgcmMsgAlloc (m_thread, &hMsg, SVC_MSG_UNLOAD, hgcmMessageAllocSvc);
 
     if (RT_SUCCESS(rc))
     {
-        rc = hgcmMsgSend(hMsg);
+        rc = hgcmMsgSend (hMsg);
 
         if (RT_SUCCESS(rc))
         {
-            hgcmThreadWait(m_thread);
+            hgcmThreadWait (m_thread);
         }
     }
 
-    RTStrFree(m_pszSvcLibrary);
+    RTStrFree (m_pszSvcLibrary);
     m_pszSvcLibrary = NULL;
 
-    RTStrFree(m_pszSvcName);
+    RTStrFree (m_pszSvcName);
     m_pszSvcName = NULL;
 }
 
@@ -887,44 +875,44 @@ int HGCMService::saveClientState(uint32_t u32ClientId, PSSMHANDLE pSSM)
     LogFlowFunc(("%s\n", m_pszSvcName));
 
     HGCMMSGHANDLE hMsg;
-    int rc = hgcmMsgAlloc(m_thread, &hMsg, SVC_MSG_SAVESTATE, hgcmMessageAllocSvc);
+    int rc = hgcmMsgAlloc (m_thread, &hMsg, SVC_MSG_SAVESTATE, hgcmMessageAllocSvc);
 
     if (RT_SUCCESS(rc))
     {
-        HGCMMsgLoadSaveStateClient *pMsg = (HGCMMsgLoadSaveStateClient *)hgcmObjReference(hMsg, HGCMOBJ_MSG);
+        HGCMMsgLoadSaveStateClient *pMsg = (HGCMMsgLoadSaveStateClient *)hgcmObjReference (hMsg, HGCMOBJ_MSG);
         AssertRelease(pMsg);
 
         pMsg->u32ClientId = u32ClientId;
         pMsg->pSSM        = pSSM;
 
-        hgcmObjDereference(pMsg);
+        hgcmObjDereference (pMsg);
 
-        rc = hgcmMsgSend(hMsg);
+        rc = hgcmMsgSend (hMsg);
     }
 
     LogFlowFunc(("rc = %Rrc\n", rc));
     return rc;
 }
 
-int HGCMService::loadClientState(uint32_t u32ClientId, PSSMHANDLE pSSM)
+int HGCMService::loadClientState (uint32_t u32ClientId, PSSMHANDLE pSSM)
 {
     LogFlowFunc(("%s\n", m_pszSvcName));
 
     HGCMMSGHANDLE hMsg;
-    int rc = hgcmMsgAlloc(m_thread, &hMsg, SVC_MSG_LOADSTATE, hgcmMessageAllocSvc);
+    int rc = hgcmMsgAlloc (m_thread, &hMsg, SVC_MSG_LOADSTATE, hgcmMessageAllocSvc);
 
     if (RT_SUCCESS(rc))
     {
-        HGCMMsgLoadSaveStateClient *pMsg = (HGCMMsgLoadSaveStateClient *)hgcmObjReference(hMsg, HGCMOBJ_MSG);
+        HGCMMsgLoadSaveStateClient *pMsg = (HGCMMsgLoadSaveStateClient *)hgcmObjReference (hMsg, HGCMOBJ_MSG);
 
         AssertRelease(pMsg);
 
         pMsg->u32ClientId = u32ClientId;
         pMsg->pSSM        = pSSM;
 
-        hgcmObjDereference(pMsg);
+        hgcmObjDereference (pMsg);
 
-        rc = hgcmMsgSend(hMsg);
+        rc = hgcmMsgSend (hMsg);
     }
 
     LogFlowFunc(("rc = %Rrc\n", rc));
@@ -939,25 +927,25 @@ int HGCMService::loadClientState(uint32_t u32ClientId, PSSMHANDLE pSSM)
  * @return VBox rc.
  * @thread main HGCM
  */
-/* static */ int HGCMService::LoadService(const char *pszServiceLibrary, const char *pszServiceName)
+/* static */ int HGCMService::LoadService (const char *pszServiceLibrary, const char *pszServiceName)
 {
     LogFlowFunc(("lib %s, name = %s\n", pszServiceLibrary, pszServiceName));
 
     /* Look at already loaded services to avoid double loading. */
 
     HGCMService *pSvc;
-    int rc = HGCMService::ResolveService(&pSvc, pszServiceName);
+    int rc = HGCMService::ResolveService (&pSvc, pszServiceName);
 
     if (RT_SUCCESS(rc))
     {
         /* The service is already loaded. */
-        pSvc->ReleaseService();
+        pSvc->ReleaseService ();
         rc = VERR_HGCM_SERVICE_EXISTS;
     }
     else
     {
         /* Create the new service. */
-        pSvc = new HGCMService();
+        pSvc = new HGCMService ();
 
         if (!pSvc)
         {
@@ -966,7 +954,7 @@ int HGCMService::loadClientState(uint32_t u32ClientId, PSSMHANDLE pSSM)
         else
         {
             /* Load the library and call the initialization entry point. */
-            rc = pSvc->instanceCreate(pszServiceLibrary, pszServiceName);
+            rc = pSvc->instanceCreate (pszServiceLibrary, pszServiceName);
 
             if (RT_SUCCESS(rc))
             {
@@ -988,8 +976,8 @@ int HGCMService::loadClientState(uint32_t u32ClientId, PSSMHANDLE pSSM)
                 sm_cServices++;
 
                 /* Reference the service (for first time) until it is unloaded on HGCM termination. */
-                AssertRelease(pSvc->m_u32RefCnt == 0);
-                pSvc->ReferenceService();
+                AssertRelease (pSvc->m_u32RefCnt == 0);
+                pSvc->ReferenceService ();
 
                 LogFlowFunc(("service %p\n", pSvc));
             }
@@ -1004,7 +992,7 @@ int HGCMService::loadClientState(uint32_t u32ClientId, PSSMHANDLE pSSM)
  *
  * @thread main HGCM
  */
-void HGCMService::UnloadService(void)
+void HGCMService::UnloadService (void)
 {
     LogFlowFunc(("name = %s\n", m_pszSvcName));
 
@@ -1031,21 +1019,21 @@ void HGCMService::UnloadService(void)
 
     /* The service must be unloaded only if all clients were disconnected. */
     LogFlowFunc(("m_u32RefCnt = %d\n", m_u32RefCnt));
-    AssertRelease(m_u32RefCnt == 1);
+    AssertRelease (m_u32RefCnt == 1);
 
     /* Now the service can be released. */
-    ReleaseService();
+    ReleaseService ();
 }
 
 /** The method unloads all services.
  *
  * @thread main HGCM
  */
-/* static */ void HGCMService::UnloadAll(void)
+/* static */ void HGCMService::UnloadAll (void)
 {
     while (sm_pSvcListHead)
     {
-        sm_pSvcListHead->UnloadService();
+        sm_pSvcListHead->UnloadService ();
     }
 }
 
@@ -1058,7 +1046,7 @@ void HGCMService::UnloadService(void)
  * @return VBox rc.
  * @thread main HGCM
  */
-/* static */ int HGCMService::ResolveService(HGCMService **ppSvc, const char *pszServiceName)
+/* static */ int HGCMService::ResolveService (HGCMService **ppSvc, const char *pszServiceName)
 {
     LogFlowFunc(("ppSvc = %p name = %s\n",
                  ppSvc, pszServiceName));
@@ -1072,7 +1060,7 @@ void HGCMService::UnloadService(void)
 
     while (pSvc)
     {
-        if (strcmp(pSvc->m_pszSvcName, pszServiceName) == 0)
+        if (strcmp (pSvc->m_pszSvcName, pszServiceName) == 0)
         {
             break;
         }
@@ -1088,7 +1076,7 @@ void HGCMService::UnloadService(void)
         return VERR_HGCM_SERVICE_NOT_FOUND;
     }
 
-    pSvc->ReferenceService();
+    pSvc->ReferenceService ();
 
     *ppSvc = pSvc;
 
@@ -1099,9 +1087,9 @@ void HGCMService::UnloadService(void)
  *
  * @thread main HGCM
  */
-void HGCMService::ReferenceService(void)
+void HGCMService::ReferenceService (void)
 {
-    ASMAtomicIncU32(&m_u32RefCnt);
+    ASMAtomicIncU32 (&m_u32RefCnt);
     LogFlowFunc(("[%s] m_u32RefCnt = %d\n", m_pszSvcName, m_u32RefCnt));
 }
 
@@ -1109,17 +1097,17 @@ void HGCMService::ReferenceService(void)
  *
  * @thread main HGCM
  */
-void HGCMService::ReleaseService(void)
+void HGCMService::ReleaseService (void)
 {
     LogFlowFunc(("m_u32RefCnt = %d\n", m_u32RefCnt));
-    uint32_t u32RefCnt = ASMAtomicDecU32(&m_u32RefCnt);
+    uint32_t u32RefCnt = ASMAtomicDecU32 (&m_u32RefCnt);
     AssertRelease(u32RefCnt != ~0U);
 
     LogFlowFunc(("u32RefCnt = %d, name %s\n", u32RefCnt, m_pszSvcName));
 
     if (u32RefCnt == 0)
     {
-        instanceDestroy();
+        instanceDestroy ();
         delete this;
     }
 }
@@ -1129,7 +1117,7 @@ void HGCMService::ReleaseService(void)
  *
  * @thread main HGCM
  */
-/* static */ void HGCMService::Reset(void)
+/* static */ void HGCMService::Reset (void)
 {
     g_fResetting = true;
 
@@ -1140,7 +1128,7 @@ void HGCMService::ReleaseService(void)
         while (pSvc->m_cClients && pSvc->m_paClientIds)
         {
             LogFlowFunc(("handle %d\n", pSvc->m_paClientIds[0]));
-            pSvc->DisconnectClient(pSvc->m_paClientIds[0], false);
+            pSvc->DisconnectClient (pSvc->m_paClientIds[0], false);
         }
 
 #ifdef VBOX_WITH_CRHGSMI
@@ -1148,8 +1136,8 @@ void HGCMService::ReleaseService(void)
         HGCMService *pNextSvc = pSvc->m_pSvcNext;
         while (pSvc->m_cHandleAcquires)
         {
-            pSvc->HandleReleased();
-            pSvc->ReleaseService();
+            pSvc->HandleReleased ();
+            pSvc->ReleaseService ();
         }
         pSvc = pNextSvc;
 #else
@@ -1166,7 +1154,7 @@ void HGCMService::ReleaseService(void)
  * @return VBox rc.
  * @thread main HGCM
  */
-/* static */ int HGCMService::SaveState(PSSMHANDLE pSSM)
+/* static */ int HGCMService::SaveState (PSSMHANDLE pSSM)
 {
     /* Save the current handle count and restore afterwards to avoid client id conflicts. */
     int rc = SSMR3PutU32(pSSM, hgcmObjQueryHandleCount());
@@ -1214,7 +1202,7 @@ void HGCMService::ReleaseService(void)
             AssertRCReturn(rc, rc);
 
             /* Call the service, so the operation is executed by the service thread. */
-            rc = pSvc->saveClientState(u32ClientId, pSSM);
+            rc = pSvc->saveClientState (u32ClientId, pSSM);
             AssertRCReturn(rc, rc);
         }
 
@@ -1230,7 +1218,7 @@ void HGCMService::ReleaseService(void)
  * @return VBox rc.
  * @thread main HGCM
  */
-/* static */ int HGCMService::LoadState(PSSMHANDLE pSSM)
+/* static */ int HGCMService::LoadState (PSSMHANDLE pSSM)
 {
     /* Restore handle count to avoid client id conflicts. */
     uint32_t u32;
@@ -1255,7 +1243,7 @@ void HGCMService::ReleaseService(void)
         AssertRCReturn(rc, rc);
         AssertReturn(u32 <= VBOX_HGCM_SVC_NAME_MAX_BYTES, VERR_SSM_UNEXPECTED_DATA);
 
-        char *pszServiceName = (char *)alloca(u32);
+        char *pszServiceName = (char *)alloca (u32);
 
         /* Get the service name. */
         rc = SSMR3GetStrZ(pSSM, pszServiceName, u32);
@@ -1265,7 +1253,7 @@ void HGCMService::ReleaseService(void)
 
         /* Resolve the service instance. */
         HGCMService *pSvc;
-        rc = ResolveService(&pSvc, pszServiceName);
+        rc = ResolveService (&pSvc, pszServiceName);
         AssertLogRelMsgReturn(pSvc, ("rc=%Rrc, %s\n", rc, pszServiceName), VERR_SSM_UNEXPECTED_DATA);
 
         /* Get the number of clients. */
@@ -1273,7 +1261,7 @@ void HGCMService::ReleaseService(void)
         rc = SSMR3GetU32(pSSM, &cClients);
         if (RT_FAILURE(rc))
         {
-            pSvc->ReleaseService();
+            pSvc->ReleaseService ();
             AssertFailed();
             return rc;
         }
@@ -1285,31 +1273,31 @@ void HGCMService::ReleaseService(void)
             rc = SSMR3GetU32(pSSM, &u32ClientId);
             if (RT_FAILURE(rc))
             {
-                pSvc->ReleaseService();
+                pSvc->ReleaseService ();
                 AssertFailed();
                 return rc;
             }
 
             /* Connect the client. */
-            rc = pSvc->CreateAndConnectClient(NULL, u32ClientId);
+            rc = pSvc->CreateAndConnectClient (NULL, u32ClientId);
             if (RT_FAILURE(rc))
             {
-                pSvc->ReleaseService();
+                pSvc->ReleaseService ();
                 AssertLogRelMsgFailed(("rc=%Rrc %s\n", rc, pszServiceName));
                 return rc;
             }
 
             /* Call the service, so the operation is executed by the service thread. */
-            rc = pSvc->loadClientState(u32ClientId, pSSM);
+            rc = pSvc->loadClientState (u32ClientId, pSSM);
             if (RT_FAILURE(rc))
             {
-                pSvc->ReleaseService();
+                pSvc->ReleaseService ();
                 AssertLogRelMsgFailed(("rc=%Rrc %s\n", rc, pszServiceName));
                 return rc;
             }
         }
 
-        pSvc->ReleaseService();
+        pSvc->ReleaseService ();
     }
 
     return VINF_SUCCESS;
@@ -1322,12 +1310,12 @@ void HGCMService::ReleaseService(void)
  * @param u32ClientIdIn   The handle for the client, when 'pu32ClientIdOut' is NULL.
  * @return VBox rc.
  */
-int HGCMService::CreateAndConnectClient(uint32_t *pu32ClientIdOut, uint32_t u32ClientIdIn)
+int HGCMService::CreateAndConnectClient (uint32_t *pu32ClientIdOut, uint32_t u32ClientIdIn)
 {
     LogFlowFunc(("pu32ClientIdOut = %p, u32ClientIdIn = %d\n", pu32ClientIdOut, u32ClientIdIn));
 
     /* Allocate a client information structure. */
-    HGCMClient *pClient = new HGCMClient();
+    HGCMClient *pClient = new HGCMClient ();
 
     if (!pClient)
     {
@@ -1339,11 +1327,11 @@ int HGCMService::CreateAndConnectClient(uint32_t *pu32ClientIdOut, uint32_t u32C
 
     if (pu32ClientIdOut != NULL)
     {
-        handle = hgcmObjGenerateHandle(pClient);
+        handle = hgcmObjGenerateHandle (pClient);
     }
     else
     {
-        handle = hgcmObjAssignHandle(pClient, u32ClientIdIn);
+        handle = hgcmObjAssignHandle (pClient, u32ClientIdIn);
     }
 
     LogFlowFunc(("client id = %d\n", handle));
@@ -1351,33 +1339,32 @@ int HGCMService::CreateAndConnectClient(uint32_t *pu32ClientIdOut, uint32_t u32C
     AssertRelease(handle);
 
     /* Initialize the HGCM part of the client. */
-    int rc = pClient->Init(this);
+    int rc = pClient->Init (this);
 
     if (RT_SUCCESS(rc))
     {
         /* Call the service. */
         HGCMMSGHANDLE hMsg;
 
-        rc = hgcmMsgAlloc(m_thread, &hMsg, SVC_MSG_CONNECT, hgcmMessageAllocSvc);
+        rc = hgcmMsgAlloc (m_thread, &hMsg, SVC_MSG_CONNECT, hgcmMessageAllocSvc);
 
         if (RT_SUCCESS(rc))
         {
-            HGCMMsgSvcConnect *pMsg = (HGCMMsgSvcConnect *)hgcmObjReference(hMsg, HGCMOBJ_MSG);
+            HGCMMsgSvcConnect *pMsg = (HGCMMsgSvcConnect *)hgcmObjReference (hMsg, HGCMOBJ_MSG);
             AssertRelease(pMsg);
 
             pMsg->u32ClientId = handle;
 
-            hgcmObjDereference(pMsg);
+            hgcmObjDereference (pMsg);
 
-            rc = hgcmMsgSend(hMsg);
+            rc = hgcmMsgSend (hMsg);
 
             if (RT_SUCCESS(rc))
             {
                 /* Add the client Id to the array. */
                 if (m_cClients == m_cClientsAllocated)
                 {
-                    m_paClientIds = (uint32_t *)RTMemRealloc(m_paClientIds, (m_cClientsAllocated + 64) *
-                                                             sizeof(m_paClientIds[0]));
+                    m_paClientIds = (uint32_t *)RTMemRealloc (m_paClientIds, (m_cClientsAllocated + 64) * sizeof (m_paClientIds[0]));
                     Assert(m_paClientIds);
                     m_cClientsAllocated += 64;
                 }
@@ -1390,7 +1377,7 @@ int HGCMService::CreateAndConnectClient(uint32_t *pu32ClientIdOut, uint32_t u32C
 
     if (RT_FAILURE(rc))
     {
-        hgcmObjDeleteHandle(handle);
+        hgcmObjDeleteHandle (handle);
     }
     else
     {
@@ -1399,7 +1386,7 @@ int HGCMService::CreateAndConnectClient(uint32_t *pu32ClientIdOut, uint32_t u32C
             *pu32ClientIdOut = handle;
         }
 
-        ReferenceService();
+        ReferenceService ();
     }
 
     LogFlowFunc(("rc = %Rrc\n", rc));
@@ -1411,7 +1398,7 @@ int HGCMService::CreateAndConnectClient(uint32_t *pu32ClientIdOut, uint32_t u32C
  * @param u32ClientId  The handle of the client.
  * @return VBox rc.
  */
-int HGCMService::DisconnectClient(uint32_t u32ClientId, bool fFromService)
+int HGCMService::DisconnectClient (uint32_t u32ClientId, bool fFromService)
 {
     int rc = VINF_SUCCESS;
 
@@ -1422,18 +1409,18 @@ int HGCMService::DisconnectClient(uint32_t u32ClientId, bool fFromService)
         /* Call the service. */
         HGCMMSGHANDLE hMsg;
 
-        rc = hgcmMsgAlloc(m_thread, &hMsg, SVC_MSG_DISCONNECT, hgcmMessageAllocSvc);
+        rc = hgcmMsgAlloc (m_thread, &hMsg, SVC_MSG_DISCONNECT, hgcmMessageAllocSvc);
 
         if (RT_SUCCESS(rc))
         {
-            HGCMMsgSvcDisconnect *pMsg = (HGCMMsgSvcDisconnect *)hgcmObjReference(hMsg, HGCMOBJ_MSG);
+            HGCMMsgSvcDisconnect *pMsg = (HGCMMsgSvcDisconnect *)hgcmObjReference (hMsg, HGCMOBJ_MSG);
             AssertRelease(pMsg);
 
             pMsg->u32ClientId = u32ClientId;
 
-            hgcmObjDereference(pMsg);
+            hgcmObjDereference (pMsg);
 
-            rc = hgcmMsgSend(hMsg);
+            rc = hgcmMsgSend (hMsg);
         }
         else
         {
@@ -1453,14 +1440,14 @@ int HGCMService::DisconnectClient(uint32_t u32ClientId, bool fFromService)
 
             if (m_cClients > i)
             {
-                memmove (&m_paClientIds[i], &m_paClientIds[i + 1], sizeof(m_paClientIds[0]) * (m_cClients - i));
+                memmove (&m_paClientIds[i], &m_paClientIds[i + 1], sizeof (m_paClientIds[0]) * (m_cClients - i));
             }
 
             /* Delete the client handle. */
-            hgcmObjDeleteHandle(u32ClientId);
+            hgcmObjDeleteHandle (u32ClientId);
 
             /* The service must be released. */
-            ReleaseService();
+            ReleaseService ();
 
             break;
         }
@@ -1470,50 +1457,50 @@ int HGCMService::DisconnectClient(uint32_t u32ClientId, bool fFromService)
     return rc;
 }
 
-int HGCMService::RegisterExtension(HGCMSVCEXTHANDLE handle,
-                                   PFNHGCMSVCEXT pfnExtension,
-                                   void *pvExtension)
+int HGCMService::RegisterExtension (HGCMSVCEXTHANDLE handle,
+                                    PFNHGCMSVCEXT pfnExtension,
+                                    void *pvExtension)
 {
     LogFlowFunc(("%s\n", handle->pszServiceName));
 
     /* Forward the message to the service thread. */
     HGCMMSGHANDLE hMsg = 0;
-    int rc = hgcmMsgAlloc(m_thread, &hMsg, SVC_MSG_REGEXT, hgcmMessageAllocSvc);
+    int rc = hgcmMsgAlloc (m_thread, &hMsg, SVC_MSG_REGEXT, hgcmMessageAllocSvc);
 
     if (RT_SUCCESS(rc))
     {
-        HGCMMsgSvcRegisterExtension *pMsg = (HGCMMsgSvcRegisterExtension *)hgcmObjReference(hMsg, HGCMOBJ_MSG);
+        HGCMMsgSvcRegisterExtension *pMsg = (HGCMMsgSvcRegisterExtension *)hgcmObjReference (hMsg, HGCMOBJ_MSG);
         AssertRelease(pMsg);
 
         pMsg->handle       = handle;
         pMsg->pfnExtension = pfnExtension;
         pMsg->pvExtension  = pvExtension;
 
-        hgcmObjDereference(pMsg);
+        hgcmObjDereference (pMsg);
 
-        rc = hgcmMsgSend(hMsg);
+        rc = hgcmMsgSend (hMsg);
     }
 
     LogFlowFunc(("rc = %Rrc\n", rc));
     return rc;
 }
 
-void HGCMService::UnregisterExtension(HGCMSVCEXTHANDLE handle)
+void HGCMService::UnregisterExtension (HGCMSVCEXTHANDLE handle)
 {
     /* Forward the message to the service thread. */
     HGCMMSGHANDLE hMsg = 0;
-    int rc = hgcmMsgAlloc(m_thread, &hMsg, SVC_MSG_UNREGEXT, hgcmMessageAllocSvc);
+    int rc = hgcmMsgAlloc (m_thread, &hMsg, SVC_MSG_UNREGEXT, hgcmMessageAllocSvc);
 
     if (RT_SUCCESS(rc))
     {
-        HGCMMsgSvcUnregisterExtension *pMsg = (HGCMMsgSvcUnregisterExtension *)hgcmObjReference(hMsg, HGCMOBJ_MSG);
+        HGCMMsgSvcUnregisterExtension *pMsg = (HGCMMsgSvcUnregisterExtension *)hgcmObjReference (hMsg, HGCMOBJ_MSG);
         AssertRelease(pMsg);
 
         pMsg->handle = handle;
 
-        hgcmObjDereference(pMsg);
+        hgcmObjDereference (pMsg);
 
-        rc = hgcmMsgSend(hMsg);
+        rc = hgcmMsgSend (hMsg);
     }
 
     LogFlowFunc(("rc = %Rrc\n", rc));
@@ -1529,18 +1516,17 @@ void HGCMService::UnregisterExtension(HGCMSVCEXTHANDLE handle)
  * @param paParms        Pointer to array of parameters.
  * @return VBox rc.
  */
-int HGCMService::GuestCall(PPDMIHGCMPORT pHGCMPort, PVBOXHGCMCMD pCmd, uint32_t u32ClientId, uint32_t u32Function,
-                           uint32_t cParms, VBOXHGCMSVCPARM paParms[])
+int HGCMService::GuestCall (PPDMIHGCMPORT pHGCMPort, PVBOXHGCMCMD pCmd, uint32_t u32ClientId, uint32_t u32Function, uint32_t cParms, VBOXHGCMSVCPARM paParms[])
 {
     HGCMMSGHANDLE hMsg = 0;
 
     LogFlow(("MAIN::HGCMService::Call\n"));
 
-    int rc = hgcmMsgAlloc(m_thread, &hMsg, SVC_MSG_GUESTCALL, hgcmMessageAllocSvc);
+    int rc = hgcmMsgAlloc (m_thread, &hMsg, SVC_MSG_GUESTCALL, hgcmMessageAllocSvc);
 
     if (RT_SUCCESS(rc))
     {
-        HGCMMsgCall *pMsg = (HGCMMsgCall *)hgcmObjReference(hMsg, HGCMOBJ_MSG);
+        HGCMMsgCall *pMsg = (HGCMMsgCall *)hgcmObjReference (hMsg, HGCMOBJ_MSG);
 
         AssertRelease(pMsg);
 
@@ -1552,9 +1538,9 @@ int HGCMService::GuestCall(PPDMIHGCMPORT pHGCMPort, PVBOXHGCMCMD pCmd, uint32_t 
         pMsg->cParms      = cParms;
         pMsg->paParms     = paParms;
 
-        hgcmObjDereference(pMsg);
+        hgcmObjDereference (pMsg);
 
-        rc = hgcmMsgPost(hMsg, hgcmMsgCompletionCallback);
+        rc = hgcmMsgPost (hMsg, hgcmMsgCompletionCallback);
     }
     else
     {
@@ -1572,26 +1558,26 @@ int HGCMService::GuestCall(PPDMIHGCMPORT pHGCMPort, PVBOXHGCMCMD pCmd, uint32_t 
  * @param paParms        Pointer to array of parameters.
  * @return VBox rc.
  */
-int HGCMService::HostCall(uint32_t u32Function, uint32_t cParms, VBOXHGCMSVCPARM *paParms)
+int HGCMService::HostCall (uint32_t u32Function, uint32_t cParms, VBOXHGCMSVCPARM *paParms)
 {
     LogFlowFunc(("%s u32Function = %d, cParms = %d, paParms = %p\n",
                  m_pszSvcName, u32Function, cParms, paParms));
 
     HGCMMSGHANDLE hMsg = 0;
-    int rc = hgcmMsgAlloc(m_thread, &hMsg, SVC_MSG_HOSTCALL, hgcmMessageAllocSvc);
+    int rc = hgcmMsgAlloc (m_thread, &hMsg, SVC_MSG_HOSTCALL, hgcmMessageAllocSvc);
 
     if (RT_SUCCESS(rc))
     {
-        HGCMMsgHostCallSvc *pMsg = (HGCMMsgHostCallSvc *)hgcmObjReference(hMsg, HGCMOBJ_MSG);
+        HGCMMsgHostCallSvc *pMsg = (HGCMMsgHostCallSvc *)hgcmObjReference (hMsg, HGCMOBJ_MSG);
         AssertRelease(pMsg);
 
         pMsg->u32Function      = u32Function;
         pMsg->cParms           = cParms;
         pMsg->paParms          = paParms;
 
-        hgcmObjDereference(pMsg);
+        hgcmObjDereference (pMsg);
 
-        rc = hgcmMsgSend(hMsg);
+        rc = hgcmMsgSend (hMsg);
     }
 
     LogFlowFunc(("rc = %Rrc\n", rc));
@@ -1599,7 +1585,7 @@ int HGCMService::HostCall(uint32_t u32Function, uint32_t cParms, VBOXHGCMSVCPARM
 }
 
 #ifdef VBOX_WITH_CRHGSMI
-static DECLCALLBACK(void) hgcmMsgFastCallCompletionCallback(int32_t result, HGCMMsgCore *pMsgCore)
+static DECLCALLBACK(void) hgcmMsgFastCallCompletionCallback (int32_t result, HGCMMsgCore *pMsgCore)
 {
     /* Call the VMMDev port interface to issue IRQ notification. */
     LogFlow(("MAIN::hgcmMsgFastCallCompletionCallback: message %p\n", pMsgCore));
@@ -1607,7 +1593,7 @@ static DECLCALLBACK(void) hgcmMsgFastCallCompletionCallback(int32_t result, HGCM
     HGCMMsgHostFastCallAsyncSvc *pMsg = (HGCMMsgHostFastCallAsyncSvc *)pMsgCore;
     if (pMsg->pfnCompletion)
     {
-        pMsg->pfnCompletion(result, pMsg->u32Function, &pMsg->Param, pMsg->pvCompletion);
+        pMsg->pfnCompletion (result, pMsg->u32Function, &pMsg->Param, pMsg->pvCompletion);
     }
 }
 
@@ -1628,18 +1614,17 @@ int HGCMService::HandleReleased()
     return VERR_INVALID_STATE;
 }
 
-int HGCMService::HostFastCallAsync(uint32_t u32Function, VBOXHGCMSVCPARM *pParm, PHGCMHOSTFASTCALLCB pfnCompletion,
-                                   void *pvCompletion)
+int HGCMService::HostFastCallAsync (uint32_t u32Function, VBOXHGCMSVCPARM *pParm, PHGCMHOSTFASTCALLCB pfnCompletion, void *pvCompletion)
 {
     LogFlowFunc(("%s u32Function = %d, pParm = %p\n",
                  m_pszSvcName, u32Function, pParm));
 
     HGCMMSGHANDLE hMsg = 0;
-    int rc = hgcmMsgAlloc(m_thread, &hMsg, SVC_MSG_HOSTFASTCALLASYNC, hgcmMessageAllocSvc);
+    int rc = hgcmMsgAlloc (m_thread, &hMsg, SVC_MSG_HOSTFASTCALLASYNC, hgcmMessageAllocSvc);
 
     if (RT_SUCCESS(rc))
     {
-        HGCMMsgHostFastCallAsyncSvc *pMsg = (HGCMMsgHostFastCallAsyncSvc *)hgcmObjReference(hMsg, HGCMOBJ_MSG);
+        HGCMMsgHostFastCallAsyncSvc *pMsg = (HGCMMsgHostFastCallAsyncSvc *)hgcmObjReference (hMsg, HGCMOBJ_MSG);
         AssertRelease(pMsg);
 
         pMsg->u32Function      = u32Function;
@@ -1647,7 +1632,7 @@ int HGCMService::HostFastCallAsync(uint32_t u32Function, VBOXHGCMSVCPARM *pParm,
         pMsg->pfnCompletion = pfnCompletion;
         pMsg->pvCompletion = pvCompletion;
 
-        hgcmObjDereference(pMsg);
+        hgcmObjDereference (pMsg);
 
         rc = hgcmMsgPost(hMsg, hgcmMsgFastCallCompletionCallback);
     }
@@ -1773,16 +1758,16 @@ static HGCMMsgCore *hgcmMainMessageAlloc (uint32_t u32MsgId)
 {
     switch (u32MsgId)
     {
-        case HGCM_MSG_CONNECT:    return new HGCMMsgMainConnect();
-        case HGCM_MSG_DISCONNECT: return new HGCMMsgMainDisconnect();
-        case HGCM_MSG_LOAD:       return new HGCMMsgMainLoad();
-        case HGCM_MSG_HOSTCALL:   return new HGCMMsgMainHostCall();
+        case HGCM_MSG_CONNECT:    return new HGCMMsgMainConnect ();
+        case HGCM_MSG_DISCONNECT: return new HGCMMsgMainDisconnect ();
+        case HGCM_MSG_LOAD:       return new HGCMMsgMainLoad ();
+        case HGCM_MSG_HOSTCALL:   return new HGCMMsgMainHostCall ();
         case HGCM_MSG_LOADSTATE:
-        case HGCM_MSG_SAVESTATE:  return new HGCMMsgMainLoadSaveState();
-        case HGCM_MSG_RESET:      return new HGCMMsgMainReset();
-        case HGCM_MSG_QUIT:       return new HGCMMsgMainQuit();
-        case HGCM_MSG_REGEXT:     return new HGCMMsgMainRegisterExtension();
-        case HGCM_MSG_UNREGEXT:   return new HGCMMsgMainUnregisterExtension();
+        case HGCM_MSG_SAVESTATE:  return new HGCMMsgMainLoadSaveState ();
+        case HGCM_MSG_RESET:      return new HGCMMsgMainReset ();
+        case HGCM_MSG_QUIT:       return new HGCMMsgMainQuit ();
+        case HGCM_MSG_REGEXT:     return new HGCMMsgMainRegisterExtension ();
+        case HGCM_MSG_UNREGEXT:   return new HGCMMsgMainUnregisterExtension ();
 #ifdef VBOX_WITH_CRHGSMI
         case HGCM_MSG_SVCAQUIRE: return new HGCMMsgMainSvcAcquire();
         case HGCM_MSG_SVCRELEASE: return new HGCMMsgMainSvcRelease();
@@ -1797,7 +1782,7 @@ static HGCMMsgCore *hgcmMainMessageAlloc (uint32_t u32MsgId)
 
 
 /* The main HGCM thread handler. */
-static DECLCALLBACK(void) hgcmThread(HGCMTHREADHANDLE ThreadHandle, void *pvUser)
+static DECLCALLBACK(void) hgcmThread (HGCMTHREADHANDLE ThreadHandle, void *pvUser)
 {
     LogFlowFunc(("ThreadHandle = %p, pvUser = %p\n",
                  ThreadHandle, pvUser));
@@ -1809,16 +1794,16 @@ static DECLCALLBACK(void) hgcmThread(HGCMTHREADHANDLE ThreadHandle, void *pvUser
     while (!fQuit)
     {
         HGCMMsgCore *pMsgCore;
-        int rc = hgcmMsgGet(ThreadHandle, &pMsgCore);
+        int rc = hgcmMsgGet (ThreadHandle, &pMsgCore);
 
         if (RT_FAILURE(rc))
         {
             /* The error means some serious unrecoverable problem in the hgcmMsg/hgcmThread layer. */
-            AssertMsgFailed(("%Rrc\n", rc));
+            AssertMsgFailed (("%Rrc\n", rc));
             break;
         }
 
-        uint32_t u32MsgId = pMsgCore->MsgId();
+        uint32_t u32MsgId = pMsgCore->MsgId ();
 
         switch (u32MsgId)
         {
@@ -1832,15 +1817,15 @@ static DECLCALLBACK(void) hgcmThread(HGCMTHREADHANDLE ThreadHandle, void *pvUser
                 /* Resolve the service name to the pointer to service instance.
                  */
                 HGCMService *pService;
-                rc = HGCMService::ResolveService(&pService, pMsg->pszServiceName);
+                rc = HGCMService::ResolveService (&pService, pMsg->pszServiceName);
 
                 if (RT_SUCCESS(rc))
                 {
                     /* Call the service instance method. */
-                    rc = pService->CreateAndConnectClient(pMsg->pu32ClientId, 0);
+                    rc = pService->CreateAndConnectClient (pMsg->pu32ClientId, 0);
 
                     /* Release the service after resolve. */
-                    pService->ReleaseService();
+                    pService->ReleaseService ();
                 }
             } break;
 
@@ -1851,7 +1836,7 @@ static DECLCALLBACK(void) hgcmThread(HGCMTHREADHANDLE ThreadHandle, void *pvUser
                 LogFlowFunc(("HGCM_MSG_DISCONNECT u32ClientId = %d\n",
                              pMsg->u32ClientId));
 
-                HGCMClient *pClient = (HGCMClient *)hgcmObjReference(pMsg->u32ClientId, HGCMOBJ_CLIENT);
+                HGCMClient *pClient = (HGCMClient *)hgcmObjReference (pMsg->u32ClientId, HGCMOBJ_CLIENT);
 
                 if (!pClient)
                 {
@@ -1863,9 +1848,9 @@ static DECLCALLBACK(void) hgcmThread(HGCMTHREADHANDLE ThreadHandle, void *pvUser
                 HGCMService *pService = pClient->pService;
 
                 /* Call the service instance to disconnect the client. */
-                rc = pService->DisconnectClient(pMsg->u32ClientId, false);
+                rc = pService->DisconnectClient (pMsg->u32ClientId, false);
 
-                hgcmObjDereference(pClient);
+                hgcmObjDereference (pClient);
             } break;
 
             case HGCM_MSG_LOAD:
@@ -1875,7 +1860,7 @@ static DECLCALLBACK(void) hgcmThread(HGCMTHREADHANDLE ThreadHandle, void *pvUser
                 LogFlowFunc(("HGCM_MSG_LOAD pszServiceName = %s, pMsg->pszServiceLibrary = %s\n",
                              pMsg->pszServiceName, pMsg->pszServiceLibrary));
 
-                rc = HGCMService::LoadService(pMsg->pszServiceLibrary, pMsg->pszServiceName);
+                rc = HGCMService::LoadService (pMsg->pszServiceLibrary, pMsg->pszServiceName);
             } break;
 
             case HGCM_MSG_HOSTCALL:
@@ -1887,13 +1872,13 @@ static DECLCALLBACK(void) hgcmThread(HGCMTHREADHANDLE ThreadHandle, void *pvUser
 
                 /* Resolve the service name to the pointer to service instance. */
                 HGCMService *pService;
-                rc = HGCMService::ResolveService(&pService, pMsg->pszServiceName);
+                rc = HGCMService::ResolveService (&pService, pMsg->pszServiceName);
 
                 if (RT_SUCCESS(rc))
                 {
-                    rc = pService->HostCall(pMsg->u32Function, pMsg->cParms, pMsg->paParms);
+                    rc = pService->HostCall (pMsg->u32Function, pMsg->cParms, pMsg->paParms);
 
-                    pService->ReleaseService();
+                    pService->ReleaseService ();
                 }
             } break;
 
@@ -1906,17 +1891,17 @@ static DECLCALLBACK(void) hgcmThread(HGCMTHREADHANDLE ThreadHandle, void *pvUser
 
                 /* Resolve the service name to the pointer to service instance. */
                 HGCMService *pService;
-                rc = HGCMService::ResolveService(&pService, pMsg->pszServiceName);
+                rc = HGCMService::ResolveService (&pService, pMsg->pszServiceName);
                 if (RT_SUCCESS(rc))
                 {
-                    rc = pService->HandleAcquired();
+                    rc = pService->HandleAcquired ();
                     if (RT_SUCCESS(rc))
                     {
                         pMsg->pService = pService;
                     }
                     else
                     {
-                        pService->ReleaseService();
+                        pService->ReleaseService ();
                     }
                 }
             } break;
@@ -1929,10 +1914,10 @@ static DECLCALLBACK(void) hgcmThread(HGCMTHREADHANDLE ThreadHandle, void *pvUser
 
                 /* Resolve the service name to the pointer to service instance. */
 
-                rc = pMsg->pService->HandleReleased();
+                rc = pMsg->pService->HandleReleased ();
                 if (RT_SUCCESS(rc))
                 {
-                    pMsg->pService->ReleaseService();
+                    pMsg->pService->ReleaseService ();
                 }
             } break;
 #endif
@@ -1941,7 +1926,7 @@ static DECLCALLBACK(void) hgcmThread(HGCMTHREADHANDLE ThreadHandle, void *pvUser
             {
                 LogFlowFunc(("HGCM_MSG_RESET\n"));
 
-                HGCMService::Reset();
+                HGCMService::Reset ();
             } break;
 
             case HGCM_MSG_LOADSTATE:
@@ -1950,7 +1935,7 @@ static DECLCALLBACK(void) hgcmThread(HGCMTHREADHANDLE ThreadHandle, void *pvUser
 
                 LogFlowFunc(("HGCM_MSG_LOADSTATE\n"));
 
-                rc = HGCMService::LoadState(pMsg->pSSM);
+                rc = HGCMService::LoadState (pMsg->pSSM);
             } break;
 
             case HGCM_MSG_SAVESTATE:
@@ -1959,14 +1944,14 @@ static DECLCALLBACK(void) hgcmThread(HGCMTHREADHANDLE ThreadHandle, void *pvUser
 
                 LogFlowFunc(("HGCM_MSG_SAVESTATE\n"));
 
-                rc = HGCMService::SaveState(pMsg->pSSM);
+                rc = HGCMService::SaveState (pMsg->pSSM);
             } break;
 
             case HGCM_MSG_QUIT:
             {
                 LogFlowFunc(("HGCM_MSG_QUIT\n"));
 
-                HGCMService::UnloadAll();
+                HGCMService::UnloadAll ();
 
                 fQuit = true;
             } break;
@@ -1978,9 +1963,9 @@ static DECLCALLBACK(void) hgcmThread(HGCMTHREADHANDLE ThreadHandle, void *pvUser
                 LogFlowFunc(("HGCM_MSG_REGEXT\n"));
 
                 /* Allocate the handle data. */
-                HGCMSVCEXTHANDLE handle = (HGCMSVCEXTHANDLE)RTMemAllocZ(sizeof(struct _HGCMSVCEXTHANDLEDATA)
-                                                                        + strlen(pMsg->pszServiceName)
-                                                                        + sizeof(char));
+                HGCMSVCEXTHANDLE handle = (HGCMSVCEXTHANDLE)RTMemAllocZ (sizeof (struct _HGCMSVCEXTHANDLEDATA)
+                                                                         + strlen (pMsg->pszServiceName)
+                                                                         + sizeof (char));
 
                 if (handle == NULL)
                 {
@@ -1988,22 +1973,22 @@ static DECLCALLBACK(void) hgcmThread(HGCMTHREADHANDLE ThreadHandle, void *pvUser
                 }
                 else
                 {
-                    handle->pszServiceName = (char *)((uint8_t *)handle + sizeof(struct _HGCMSVCEXTHANDLEDATA));
-                    strcpy(handle->pszServiceName, pMsg->pszServiceName);
+                    handle->pszServiceName = (char *)((uint8_t *)handle + sizeof (struct _HGCMSVCEXTHANDLEDATA));
+                    strcpy (handle->pszServiceName, pMsg->pszServiceName);
 
                     HGCMService *pService;
-                    rc = HGCMService::ResolveService(&pService, handle->pszServiceName);
+                    rc = HGCMService::ResolveService (&pService, handle->pszServiceName);
 
                     if (RT_SUCCESS(rc))
                     {
-                        pService->RegisterExtension(handle, pMsg->pfnExtension, pMsg->pvExtension);
+                        pService->RegisterExtension (handle, pMsg->pfnExtension, pMsg->pvExtension);
 
-                        pService->ReleaseService();
+                        pService->ReleaseService ();
                     }
 
                     if (RT_FAILURE(rc))
                     {
-                        RTMemFree(handle);
+                        RTMemFree (handle);
                     }
                     else
                     {
@@ -2019,16 +2004,16 @@ static DECLCALLBACK(void) hgcmThread(HGCMTHREADHANDLE ThreadHandle, void *pvUser
                 LogFlowFunc(("HGCM_MSG_UNREGEXT\n"));
 
                 HGCMService *pService;
-                rc = HGCMService::ResolveService(&pService, pMsg->handle->pszServiceName);
+                rc = HGCMService::ResolveService (&pService, pMsg->handle->pszServiceName);
 
                 if (RT_SUCCESS(rc))
                 {
-                    pService->UnregisterExtension(pMsg->handle);
+                    pService->UnregisterExtension (pMsg->handle);
 
-                    pService->ReleaseService();
+                    pService->ReleaseService ();
                 }
 
-                RTMemFree(pMsg->handle);
+                RTMemFree (pMsg->handle);
             } break;
 
             default:
@@ -2039,7 +2024,7 @@ static DECLCALLBACK(void) hgcmThread(HGCMTHREADHANDLE ThreadHandle, void *pvUser
         }
 
         /* Complete the message processing. */
-        hgcmMsgComplete(pMsgCore, rc);
+        hgcmMsgComplete (pMsgCore, rc);
 
         LogFlowFunc(("message processed %Rrc\n", rc));
     }
@@ -2067,8 +2052,8 @@ static HGCMTHREADHANDLE g_hgcmThread = 0;
  * @param pszServiceName     The name to be assigned to the service.
  * @return VBox rc.
  */
-int HGCMHostLoad(const char *pszServiceLibrary,
-                 const char *pszServiceName)
+int HGCMHostLoad (const char *pszServiceLibrary,
+                  const char *pszServiceName)
 {
     LogFlowFunc(("lib = %s, name = %s\n", pszServiceLibrary, pszServiceName));
 
@@ -2080,20 +2065,20 @@ int HGCMHostLoad(const char *pszServiceLibrary,
     /* Forward the request to the main hgcm thread. */
     HGCMMSGHANDLE hMsg = 0;
 
-    int rc = hgcmMsgAlloc(g_hgcmThread, &hMsg, HGCM_MSG_LOAD, hgcmMainMessageAlloc);
+    int rc = hgcmMsgAlloc (g_hgcmThread, &hMsg, HGCM_MSG_LOAD, hgcmMainMessageAlloc);
 
     if (RT_SUCCESS(rc))
     {
         /* Initialize the message. Since the message is synchronous, use the supplied pointers. */
-        HGCMMsgMainLoad *pMsg = (HGCMMsgMainLoad *)hgcmObjReference(hMsg, HGCMOBJ_MSG);
+        HGCMMsgMainLoad *pMsg = (HGCMMsgMainLoad *)hgcmObjReference (hMsg, HGCMOBJ_MSG);
         AssertRelease(pMsg);
 
         pMsg->pszServiceLibrary = pszServiceLibrary;
         pMsg->pszServiceName    = pszServiceName;
 
-        hgcmObjDereference(pMsg);
+        hgcmObjDereference (pMsg);
 
-        rc = hgcmMsgSend(hMsg);
+        rc = hgcmMsgSend (hMsg);
     }
 
     LogFlowFunc(("rc = %Rrc\n", rc));
@@ -2108,10 +2093,10 @@ int HGCMHostLoad(const char *pszServiceLibrary,
  * @param pvExtension        The extension pointer.
  * @return VBox rc.
  */
-int HGCMHostRegisterServiceExtension(HGCMSVCEXTHANDLE *pHandle,
-                                     const char *pszServiceName,
-                                     PFNHGCMSVCEXT pfnExtension,
-                                     void *pvExtension)
+int HGCMHostRegisterServiceExtension (HGCMSVCEXTHANDLE *pHandle,
+                                      const char *pszServiceName,
+                                      PFNHGCMSVCEXT pfnExtension,
+                                      void *pvExtension)
 {
     LogFlowFunc(("pHandle = %p, name = %s, pfn = %p, rv = %p\n", pHandle, pszServiceName, pfnExtension, pvExtension));
 
@@ -2123,12 +2108,12 @@ int HGCMHostRegisterServiceExtension(HGCMSVCEXTHANDLE *pHandle,
     /* Forward the request to the main hgcm thread. */
     HGCMMSGHANDLE hMsg = 0;
 
-    int rc = hgcmMsgAlloc(g_hgcmThread, &hMsg, HGCM_MSG_REGEXT, hgcmMainMessageAlloc);
+    int rc = hgcmMsgAlloc (g_hgcmThread, &hMsg, HGCM_MSG_REGEXT, hgcmMainMessageAlloc);
 
     if (RT_SUCCESS(rc))
     {
         /* Initialize the message. Since the message is synchronous, use the supplied pointers. */
-        HGCMMsgMainRegisterExtension *pMsg = (HGCMMsgMainRegisterExtension *)hgcmObjReference(hMsg, HGCMOBJ_MSG);
+        HGCMMsgMainRegisterExtension *pMsg = (HGCMMsgMainRegisterExtension *)hgcmObjReference (hMsg, HGCMOBJ_MSG);
         AssertRelease(pMsg);
 
         pMsg->pHandle        = pHandle;
@@ -2136,35 +2121,35 @@ int HGCMHostRegisterServiceExtension(HGCMSVCEXTHANDLE *pHandle,
         pMsg->pfnExtension   = pfnExtension;
         pMsg->pvExtension    = pvExtension;
 
-        hgcmObjDereference(pMsg);
+        hgcmObjDereference (pMsg);
 
-        rc = hgcmMsgSend(hMsg);
+        rc = hgcmMsgSend (hMsg);
     }
 
     LogFlowFunc(("*pHandle = %p, rc = %Rrc\n", *pHandle, rc));
     return rc;
 }
 
-void HGCMHostUnregisterServiceExtension(HGCMSVCEXTHANDLE handle)
+void HGCMHostUnregisterServiceExtension (HGCMSVCEXTHANDLE handle)
 {
     LogFlowFunc(("handle = %p\n", handle));
 
     /* Forward the request to the main hgcm thread. */
     HGCMMSGHANDLE hMsg = 0;
 
-    int rc = hgcmMsgAlloc(g_hgcmThread, &hMsg, HGCM_MSG_UNREGEXT, hgcmMainMessageAlloc);
+    int rc = hgcmMsgAlloc (g_hgcmThread, &hMsg, HGCM_MSG_UNREGEXT, hgcmMainMessageAlloc);
 
     if (RT_SUCCESS(rc))
     {
         /* Initialize the message. */
-        HGCMMsgMainUnregisterExtension *pMsg = (HGCMMsgMainUnregisterExtension *)hgcmObjReference(hMsg, HGCMOBJ_MSG);
+        HGCMMsgMainUnregisterExtension *pMsg = (HGCMMsgMainUnregisterExtension *)hgcmObjReference (hMsg, HGCMOBJ_MSG);
         AssertRelease(pMsg);
 
         pMsg->handle = handle;
 
-        hgcmObjDereference(pMsg);
+        hgcmObjDereference (pMsg);
 
-        rc = hgcmMsgSend(hMsg);
+        rc = hgcmMsgSend (hMsg);
     }
 
     LogFlowFunc(("rc = %Rrc\n", rc));
@@ -2179,10 +2164,10 @@ void HGCMHostUnregisterServiceExtension(HGCMSVCEXTHANDLE handle)
  * @param pu32ClientId   Where the store the created client handle.
  * @return VBox rc.
  */
-int HGCMGuestConnect(PPDMIHGCMPORT pHGCMPort,
-                     PVBOXHGCMCMD pCmd,
-                     const char *pszServiceName,
-                     uint32_t *pu32ClientId)
+int HGCMGuestConnect (PPDMIHGCMPORT pHGCMPort,
+                      PVBOXHGCMCMD pCmd,
+                      const char *pszServiceName,
+                      uint32_t *pu32ClientId)
 {
     LogFlowFunc(("pHGCMPort = %p, pCmd = %p, name = %s, pu32ClientId = %p\n",
                  pHGCMPort, pCmd, pszServiceName, pu32ClientId));
@@ -2195,7 +2180,7 @@ int HGCMGuestConnect(PPDMIHGCMPORT pHGCMPort,
     /* Forward the request to the main hgcm thread. */
     HGCMMSGHANDLE hMsg = 0;
 
-    int rc = hgcmMsgAlloc(g_hgcmThread, &hMsg, HGCM_MSG_CONNECT, hgcmMainMessageAlloc);
+    int rc = hgcmMsgAlloc (g_hgcmThread, &hMsg, HGCM_MSG_CONNECT, hgcmMainMessageAlloc);
 
     if (RT_SUCCESS(rc))
     {
@@ -2203,7 +2188,7 @@ int HGCMGuestConnect(PPDMIHGCMPORT pHGCMPort,
          * will not be deallocated by the caller until the message is completed,
          * use the supplied pointers.
          */
-        HGCMMsgMainConnect *pMsg = (HGCMMsgMainConnect *)hgcmObjReference(hMsg, HGCMOBJ_MSG);
+        HGCMMsgMainConnect *pMsg = (HGCMMsgMainConnect *)hgcmObjReference (hMsg, HGCMOBJ_MSG);
         AssertRelease(pMsg);
 
         pMsg->pHGCMPort      = pHGCMPort;
@@ -2211,9 +2196,9 @@ int HGCMGuestConnect(PPDMIHGCMPORT pHGCMPort,
         pMsg->pszServiceName = pszServiceName;
         pMsg->pu32ClientId   = pu32ClientId;
 
-        hgcmObjDereference(pMsg);
+        hgcmObjDereference (pMsg);
 
-        rc = hgcmMsgPost(hMsg, hgcmMsgCompletionCallback);
+        rc = hgcmMsgPost (hMsg, hgcmMsgCompletionCallback);
     }
 
     LogFlowFunc(("rc = %Rrc\n", rc));
@@ -2227,9 +2212,9 @@ int HGCMGuestConnect(PPDMIHGCMPORT pHGCMPort,
  * @param u32ClientId    The client handle to be disconnected and deleted.
  * @return VBox rc.
  */
-int HGCMGuestDisconnect(PPDMIHGCMPORT pHGCMPort,
-                        PVBOXHGCMCMD pCmd,
-                        uint32_t u32ClientId)
+int HGCMGuestDisconnect (PPDMIHGCMPORT pHGCMPort,
+                         PVBOXHGCMCMD pCmd,
+                         uint32_t u32ClientId)
 {
     LogFlowFunc(("pHGCMPort = %p, pCmd = %p, u32ClientId = %d\n",
                   pHGCMPort, pCmd, u32ClientId));
@@ -2242,21 +2227,21 @@ int HGCMGuestDisconnect(PPDMIHGCMPORT pHGCMPort,
     /* Forward the request to the main hgcm thread. */
     HGCMMSGHANDLE hMsg = 0;
 
-    int rc = hgcmMsgAlloc(g_hgcmThread, &hMsg, HGCM_MSG_DISCONNECT, hgcmMainMessageAlloc);
+    int rc = hgcmMsgAlloc (g_hgcmThread, &hMsg, HGCM_MSG_DISCONNECT, hgcmMainMessageAlloc);
 
     if (RT_SUCCESS(rc))
     {
         /* Initialize the message. */
-        HGCMMsgMainDisconnect *pMsg = (HGCMMsgMainDisconnect *)hgcmObjReference(hMsg, HGCMOBJ_MSG);
+        HGCMMsgMainDisconnect *pMsg = (HGCMMsgMainDisconnect *)hgcmObjReference (hMsg, HGCMOBJ_MSG);
         AssertRelease(pMsg);
 
         pMsg->pCmd        = pCmd;
         pMsg->pHGCMPort   = pHGCMPort;
         pMsg->u32ClientId = u32ClientId;
 
-        hgcmObjDereference(pMsg);
+        hgcmObjDereference (pMsg);
 
-        rc = hgcmMsgPost(hMsg, hgcmMsgCompletionCallback);
+        rc = hgcmMsgPost (hMsg, hgcmMsgCompletionCallback);
     }
 
     LogFlowFunc(("rc = %Rrc\n", rc));
@@ -2269,25 +2254,25 @@ int HGCMGuestDisconnect(PPDMIHGCMPORT pHGCMPort,
  * @param u32MsgId The message to be sent: HGCM_MSG_SAVESTATE or HGCM_MSG_LOADSTATE.
  * @return VBox rc.
  */
-static int hgcmHostLoadSaveState(PSSMHANDLE pSSM,
-                                 uint32_t u32MsgId)
+static int hgcmHostLoadSaveState (PSSMHANDLE pSSM,
+                                  uint32_t u32MsgId)
 {
     LogFlowFunc(("pSSM = %p, u32MsgId = %d\n", pSSM, u32MsgId));
 
     HGCMMSGHANDLE hMsg = 0;
 
-    int rc = hgcmMsgAlloc(g_hgcmThread, &hMsg, u32MsgId, hgcmMainMessageAlloc);
+    int rc = hgcmMsgAlloc (g_hgcmThread, &hMsg, u32MsgId, hgcmMainMessageAlloc);
 
     if (RT_SUCCESS(rc))
     {
-        HGCMMsgMainLoadSaveState *pMsg = (HGCMMsgMainLoadSaveState *)hgcmObjReference(hMsg, HGCMOBJ_MSG);
+        HGCMMsgMainLoadSaveState *pMsg = (HGCMMsgMainLoadSaveState *)hgcmObjReference (hMsg, HGCMOBJ_MSG);
         AssertRelease(pMsg);
 
         pMsg->pSSM = pSSM;
 
-        hgcmObjDereference(pMsg);
+        hgcmObjDereference (pMsg);
 
-        rc = hgcmMsgSend(hMsg);
+        rc = hgcmMsgSend (hMsg);
     }
 
     LogFlowFunc(("rc = %Rrc\n", rc));
@@ -2299,9 +2284,9 @@ static int hgcmHostLoadSaveState(PSSMHANDLE pSSM,
  * @param pSSM     The SSM handle.
  * @return VBox rc.
  */
-int HGCMHostSaveState(PSSMHANDLE pSSM)
+int HGCMHostSaveState (PSSMHANDLE pSSM)
 {
-    return hgcmHostLoadSaveState(pSSM, HGCM_MSG_SAVESTATE);
+    return hgcmHostLoadSaveState (pSSM, HGCM_MSG_SAVESTATE);
 }
 
 /* Load the state of services.
@@ -2309,9 +2294,9 @@ int HGCMHostSaveState(PSSMHANDLE pSSM)
  * @param pSSM     The SSM handle.
  * @return VBox rc.
  */
-int HGCMHostLoadState(PSSMHANDLE pSSM)
+int HGCMHostLoadState (PSSMHANDLE pSSM)
 {
-    return hgcmHostLoadSaveState(pSSM, HGCM_MSG_LOADSTATE);
+    return hgcmHostLoadSaveState (pSSM, HGCM_MSG_LOADSTATE);
 }
 
 /* The guest calls the service.
@@ -2324,12 +2309,12 @@ int HGCMHostLoadState(PSSMHANDLE pSSM)
  * @param paParms        Pointer to array of parameters.
  * @return VBox rc.
  */
-int HGCMGuestCall(PPDMIHGCMPORT pHGCMPort,
-                  PVBOXHGCMCMD pCmd,
-                  uint32_t u32ClientId,
-                  uint32_t u32Function,
-                  uint32_t cParms,
-                  VBOXHGCMSVCPARM *paParms)
+int HGCMGuestCall (PPDMIHGCMPORT pHGCMPort,
+                   PVBOXHGCMCMD pCmd,
+                   uint32_t u32ClientId,
+                   uint32_t u32Function,
+                   uint32_t cParms,
+                   VBOXHGCMSVCPARM *paParms)
 {
     LogFlowFunc(("pHGCMPort = %p, pCmd = %p, u32ClientId = %d, u32Function = %d, cParms = %d, paParms = %p\n",
                   pHGCMPort, pCmd, u32ClientId, u32Function, cParms, paParms));
@@ -2342,16 +2327,16 @@ int HGCMGuestCall(PPDMIHGCMPORT pHGCMPort,
     int rc = VERR_HGCM_INVALID_CLIENT_ID;
 
     /* Resolve the client handle to the client instance pointer. */
-    HGCMClient *pClient = (HGCMClient *)hgcmObjReference(u32ClientId, HGCMOBJ_CLIENT);
+    HGCMClient *pClient = (HGCMClient *)hgcmObjReference (u32ClientId, HGCMOBJ_CLIENT);
 
     if (pClient)
     {
         AssertRelease(pClient->pService);
 
         /* Forward the message to the service thread. */
-        rc = pClient->pService->GuestCall(pHGCMPort, pCmd, u32ClientId, u32Function, cParms, paParms);
+        rc = pClient->pService->GuestCall (pHGCMPort, pCmd, u32ClientId, u32Function, cParms, paParms);
 
-        hgcmObjDereference(pClient);
+        hgcmObjDereference (pClient);
     }
 
     LogFlowFunc(("rc = %Rrc\n", rc));
@@ -2366,10 +2351,10 @@ int HGCMGuestCall(PPDMIHGCMPORT pHGCMPort,
  * @param paParms        Pointer to array of parameters.
  * @return VBox rc.
  */
-int HGCMHostCall(const char *pszServiceName,
-                 uint32_t u32Function,
-                 uint32_t cParms,
-                 VBOXHGCMSVCPARM *paParms)
+int HGCMHostCall (const char *pszServiceName,
+                  uint32_t u32Function,
+                  uint32_t cParms,
+                  VBOXHGCMSVCPARM *paParms)
 {
     LogFlowFunc(("name = %s, u32Function = %d, cParms = %d, paParms = %p\n",
                  pszServiceName, u32Function, cParms, paParms));
@@ -2387,11 +2372,11 @@ int HGCMHostCall(const char *pszServiceName,
      * So it is slow but host calls are intended mostly for configuration and
      * other non-time-critical functions.
      */
-    int rc = hgcmMsgAlloc(g_hgcmThread, &hMsg, HGCM_MSG_HOSTCALL, hgcmMainMessageAlloc);
+    int rc = hgcmMsgAlloc (g_hgcmThread, &hMsg, HGCM_MSG_HOSTCALL, hgcmMainMessageAlloc);
 
     if (RT_SUCCESS(rc))
     {
-        HGCMMsgMainHostCall *pMsg = (HGCMMsgMainHostCall *)hgcmObjReference(hMsg, HGCMOBJ_MSG);
+        HGCMMsgMainHostCall *pMsg = (HGCMMsgMainHostCall *)hgcmObjReference (hMsg, HGCMOBJ_MSG);
         AssertRelease(pMsg);
 
         pMsg->pszServiceName = (char *)pszServiceName;
@@ -2399,9 +2384,9 @@ int HGCMHostCall(const char *pszServiceName,
         pMsg->cParms         = cParms;
         pMsg->paParms        = paParms;
 
-        hgcmObjDereference(pMsg);
+        hgcmObjDereference (pMsg);
 
-        rc = hgcmMsgSend(hMsg);
+        rc = hgcmMsgSend (hMsg);
     }
 
     LogFlowFunc(("rc = %Rrc\n", rc));
@@ -2409,7 +2394,7 @@ int HGCMHostCall(const char *pszServiceName,
 }
 
 #ifdef VBOX_WITH_CRHGSMI
-int HGCMHostSvcHandleCreate(const char *pszServiceName, HGCMCVSHANDLE * phSvc)
+int HGCMHostSvcHandleCreate (const char *pszServiceName, HGCMCVSHANDLE * phSvc)
 {
     LogFlowFunc(("name = %s\n", pszServiceName));
 
@@ -2431,31 +2416,31 @@ int HGCMHostSvcHandleCreate(const char *pszServiceName, HGCMCVSHANDLE * phSvc)
      * So it is slow but host calls are intended mostly for configuration and
      * other non-time-critical functions.
      */
-    int rc = hgcmMsgAlloc(g_hgcmThread, &hMsg, HGCM_MSG_SVCAQUIRE, hgcmMainMessageAlloc);
+    int rc = hgcmMsgAlloc (g_hgcmThread, &hMsg, HGCM_MSG_SVCAQUIRE, hgcmMainMessageAlloc);
 
     if (RT_SUCCESS(rc))
     {
-        HGCMMsgMainSvcAcquire *pMsg = (HGCMMsgMainSvcAcquire *)hgcmObjReference(hMsg, HGCMOBJ_MSG);
+        HGCMMsgMainSvcAcquire *pMsg = (HGCMMsgMainSvcAcquire *)hgcmObjReference (hMsg, HGCMOBJ_MSG);
         AssertRelease(pMsg);
 
         pMsg->pszServiceName = (char *)pszServiceName;
         pMsg->pService = NULL;
 
-        rc = hgcmMsgSend(hMsg);
+        rc = hgcmMsgSend (hMsg);
         if (RT_SUCCESS(rc))
         {
             /* for simplicity just use a svc ptr as handle for now */
             *phSvc = (HGCMCVSHANDLE)pMsg->pService;
         }
 
-        hgcmObjDereference(pMsg);
+        hgcmObjDereference (pMsg);
     }
 
     LogFlowFunc(("rc = %Rrc\n", rc));
     return rc;
 }
 
-int HGCMHostSvcHandleDestroy(HGCMCVSHANDLE hSvc)
+int HGCMHostSvcHandleDestroy (HGCMCVSHANDLE hSvc)
 {
     LogFlowFunc(("hSvc = %p\n", hSvc));
 
@@ -2472,26 +2457,25 @@ int HGCMHostSvcHandleDestroy(HGCMCVSHANDLE hSvc)
      * So it is slow but host calls are intended mostly for configuration and
      * other non-time-critical functions.
      */
-    int rc = hgcmMsgAlloc(g_hgcmThread, &hMsg, HGCM_MSG_SVCRELEASE, hgcmMainMessageAlloc);
+    int rc = hgcmMsgAlloc (g_hgcmThread, &hMsg, HGCM_MSG_SVCRELEASE, hgcmMainMessageAlloc);
 
     if (RT_SUCCESS(rc))
     {
-        HGCMMsgMainSvcRelease *pMsg = (HGCMMsgMainSvcRelease *)hgcmObjReference(hMsg, HGCMOBJ_MSG);
+        HGCMMsgMainSvcRelease *pMsg = (HGCMMsgMainSvcRelease *)hgcmObjReference (hMsg, HGCMOBJ_MSG);
         AssertRelease(pMsg);
 
         pMsg->pService = (HGCMService *)hSvc;
 
-        hgcmObjDereference(pMsg);
+        hgcmObjDereference (pMsg);
 
-        rc = hgcmMsgSend(hMsg);
+        rc = hgcmMsgSend (hMsg);
     }
 
     LogFlowFunc(("rc = %Rrc\n", rc));
     return rc;
 }
 
-int HGCMHostFastCallAsync(HGCMCVSHANDLE hSvc, uint32_t function, VBOXHGCMSVCPARM *pParm, PHGCMHOSTFASTCALLCB pfnCompletion,
-                          void *pvCompletion)
+int HGCMHostFastCallAsync (HGCMCVSHANDLE hSvc, uint32_t function, VBOXHGCMSVCPARM *pParm, PHGCMHOSTFASTCALLCB pfnCompletion, void *pvCompletion)
 {
     LogFlowFunc(("hSvc = %p, u32Function = %d, pParm = %p\n",
             hSvc, function, pParm));
@@ -2502,14 +2486,14 @@ int HGCMHostFastCallAsync(HGCMCVSHANDLE hSvc, uint32_t function, VBOXHGCMSVCPARM
     }
 
     HGCMService *pService = (HGCMService *)hSvc;
-    int rc = pService->HostFastCallAsync(function, pParm, pfnCompletion, pvCompletion);
+    int rc = pService->HostFastCallAsync (function, pParm, pfnCompletion, pvCompletion);
 
     LogFlowFunc(("rc = %Rrc\n", rc));
     return rc;
 }
 #endif
 
-int HGCMHostReset(void)
+int HGCMHostReset (void)
 {
     LogFlowFunc(("\n"));
 
@@ -2518,22 +2502,22 @@ int HGCMHostReset(void)
 
     HGCMMSGHANDLE hMsg = 0;
 
-    int rc = hgcmMsgAlloc(g_hgcmThread, &hMsg, HGCM_MSG_RESET, hgcmMainMessageAlloc);
+    int rc = hgcmMsgAlloc (g_hgcmThread, &hMsg, HGCM_MSG_RESET, hgcmMainMessageAlloc);
 
     if (RT_SUCCESS(rc))
     {
-        rc = hgcmMsgSend(hMsg);
+        rc = hgcmMsgSend (hMsg);
     }
 
     LogFlowFunc(("rc = %Rrc\n", rc));
     return rc;
 }
 
-int HGCMHostInit(void)
+int HGCMHostInit (void)
 {
     LogFlowFunc(("\n"));
 
-    int rc = hgcmThreadInit();
+    int rc = hgcmThreadInit ();
 
     if (RT_SUCCESS(rc))
     {
@@ -2541,7 +2525,7 @@ int HGCMHostInit(void)
          * Start main HGCM thread.
          */
 
-        rc = hgcmThreadCreate(&g_hgcmThread, "MainHGCMthread", hgcmThread, NULL);
+        rc = hgcmThreadCreate (&g_hgcmThread, "MainHGCMthread", hgcmThread, NULL);
 
         if (RT_FAILURE(rc))
         {
@@ -2553,7 +2537,7 @@ int HGCMHostInit(void)
     return rc;
 }
 
-int HGCMHostShutdown(void)
+int HGCMHostShutdown (void)
 {
     LogFlowFunc(("\n"));
 
@@ -2561,26 +2545,26 @@ int HGCMHostShutdown(void)
      * Do HGCMReset and then unload all services.
      */
 
-    int rc = HGCMHostReset();
+    int rc = HGCMHostReset ();
 
     if (RT_SUCCESS(rc))
     {
         /* Send the quit message to the main hgcmThread. */
         HGCMMSGHANDLE hMsg = 0;
 
-        rc = hgcmMsgAlloc(g_hgcmThread, &hMsg, HGCM_MSG_QUIT, hgcmMainMessageAlloc);
+        rc = hgcmMsgAlloc (g_hgcmThread, &hMsg, HGCM_MSG_QUIT, hgcmMainMessageAlloc);
 
         if (RT_SUCCESS(rc))
         {
-            rc = hgcmMsgSend(hMsg);
+            rc = hgcmMsgSend (hMsg);
 
             if (RT_SUCCESS(rc))
             {
                 /* Wait for the thread termination. */
-                hgcmThreadWait(g_hgcmThread);
+                hgcmThreadWait (g_hgcmThread);
                 g_hgcmThread = 0;
 
-                hgcmThreadUninit();
+                hgcmThreadUninit ();
             }
         }
     }

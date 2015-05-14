@@ -454,7 +454,6 @@ VMMDECL(int) PDMCritSectRwEnterShared(PPDMCRITSECTRW pThis, int rcBusy)
  */
 VMMDECL(int) PDMCritSectRwEnterSharedDebug(PPDMCRITSECTRW pThis, int rcBusy, RTHCUINTPTR uId, RT_SRC_POS_DECL)
 {
-    NOREF(uId); NOREF(pszFile); NOREF(iLine); NOREF(pszFunction);
 #if !defined(PDMCRITSECTRW_STRICT) || !defined(IN_RING3)
     return pdmCritSectRwEnterShared(pThis, rcBusy, false /*fTryOnly*/, NULL,    false /*fNoVal*/);
 #else
@@ -515,7 +514,6 @@ VMMDECL(int) PDMCritSectRwTryEnterShared(PPDMCRITSECTRW pThis)
  */
 VMMDECL(int) PDMCritSectRwTryEnterSharedDebug(PPDMCRITSECTRW pThis, RTHCUINTPTR uId, RT_SRC_POS_DECL)
 {
-    NOREF(uId); NOREF(pszFile); NOREF(iLine); NOREF(pszFunction);
 #if !defined(PDMCRITSECTRW_STRICT) || !defined(IN_RING3)
     return pdmCritSectRwEnterShared(pThis, VERR_SEM_BUSY, true /*fTryOnly*/, NULL,    false /*fNoVal*/);
 #else
@@ -996,7 +994,6 @@ VMMDECL(int) PDMCritSectRwEnterExcl(PPDMCRITSECTRW pThis, int rcBusy)
  */
 VMMDECL(int) PDMCritSectRwEnterExclDebug(PPDMCRITSECTRW pThis, int rcBusy, RTHCUINTPTR uId, RT_SRC_POS_DECL)
 {
-    NOREF(uId); NOREF(pszFile); NOREF(iLine); NOREF(pszFunction);
 #if !defined(PDMCRITSECTRW_STRICT) || !defined(IN_RING3)
     return pdmCritSectRwEnterExcl(pThis, rcBusy, false /*fTryAgain*/, NULL,    false /*fNoVal*/);
 #else
@@ -1053,7 +1050,6 @@ VMMDECL(int) PDMCritSectRwTryEnterExcl(PPDMCRITSECTRW pThis)
  */
 VMMDECL(int) PDMCritSectRwTryEnterExclDebug(PPDMCRITSECTRW pThis, RTHCUINTPTR uId, RT_SRC_POS_DECL)
 {
-    NOREF(uId); NOREF(pszFile); NOREF(iLine); NOREF(pszFunction);
 #if !defined(PDMCRITSECTRW_STRICT) || !defined(IN_RING3)
     return pdmCritSectRwEnterExcl(pThis, VERR_SEM_BUSY, true /*fTryAgain*/, NULL,    false /*fNoVal*/);
 #else

@@ -1,6 +1,7 @@
-/* $Id: UIWizardExportAppPageExpert.h $ */
 /** @file
- * VBox Qt GUI - UIWizardExportAppPageExpert class declaration.
+ *
+ * VBox frontends: Qt4 GUI ("VirtualBox"):
+ * UIWizardExportAppPageExpert class declaration
  */
 
 /*

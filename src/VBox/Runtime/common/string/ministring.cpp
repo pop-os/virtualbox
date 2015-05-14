@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2007-2014 Oracle Corporation
+ * Copyright (C) 2007-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -394,16 +394,14 @@ RTCString::split(const RTCString &a_rstrSep, SplitMode mode /* = RemoveEmptyPart
 
 /* static */
 RTCString
-RTCString::joinEx(const RTCList<RTCString, RTCString *> &a_rList,
-                  const RTCString &a_rstrPrefix /* = "" */,
-                  const RTCString &a_rstrSep /* = "" */)
+RTCString::join(const RTCList<RTCString, RTCString *> &a_rList,
+                const RTCString &a_rstrSep /* = "" */)
 {
     RTCString strRet;
     if (a_rList.size() > 1)
     {
         /* calc the required size */
         size_t cbNeeded = a_rstrSep.length() * (a_rList.size() - 1) + 1;
-        cbNeeded += a_rstrPrefix.length() * (a_rList.size() - 1) + 1;
         for (size_t i = 0; i < a_rList.size(); ++i)
             cbNeeded += a_rList.at(i).length();
         strRet.reserve(cbNeeded);
@@ -411,8 +409,6 @@ RTCString::joinEx(const RTCList<RTCString, RTCString *> &a_rList,
         /* do the appending. */
         for (size_t i = 0; i < a_rList.size() - 1; ++i)
         {
-            if (a_rstrPrefix.isNotEmpty())
-                strRet.append(a_rstrPrefix);
             strRet.append(a_rList.at(i));
             strRet.append(a_rstrSep);
         }
@@ -420,22 +416,9 @@ RTCString::joinEx(const RTCList<RTCString, RTCString *> &a_rList,
     }
     /* special case: one list item. */
     else if (a_rList.size() > 0)
-    {
-        if (a_rstrPrefix.isNotEmpty())
-            strRet.append(a_rstrPrefix);
         strRet.append(a_rList.last());
-    }
 
     return strRet;
-}
-
-/* static */
-RTCString
-RTCString::join(const RTCList<RTCString, RTCString *> &a_rList,
-                const RTCString &a_rstrSep /* = "" */)
-{
-    return RTCString::joinEx(a_rList,
-                             "" /* a_rstrPrefix */, a_rstrSep);
 }
 
 const RTCString operator+(const RTCString &a_rStr1, const RTCString &a_rStr2)

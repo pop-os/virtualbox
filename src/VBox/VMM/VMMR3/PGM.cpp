@@ -1401,62 +1401,44 @@ VMMR3DECL(int) PGMR3Init(PVM pVM)
     {
         pVM->pgm.s.pTreesR0 = MMHyperR3ToR0(pVM, pVM->pgm.s.pTreesR3);
         pVM->pgm.s.pTreesRC = MMHyperR3ToRC(pVM, pVM->pgm.s.pTreesR3);
-    }
 
-    /*
-     * Allocate the zero page.
-     */
-    if (RT_SUCCESS(rc))
-    {
+        /*
+         * Allocate the zero page.
+         */
         rc = MMHyperAlloc(pVM, PAGE_SIZE, PAGE_SIZE, MM_TAG_PGM, &pVM->pgm.s.pvZeroPgR3);
-        if (RT_SUCCESS(rc))
-        {
-            pVM->pgm.s.pvZeroPgRC = MMHyperR3ToRC(pVM, pVM->pgm.s.pvZeroPgR3);
-            pVM->pgm.s.pvZeroPgR0 = MMHyperR3ToR0(pVM, pVM->pgm.s.pvZeroPgR3);
-            pVM->pgm.s.HCPhysZeroPg = MMR3HyperHCVirt2HCPhys(pVM, pVM->pgm.s.pvZeroPgR3);
-            AssertRelease(pVM->pgm.s.HCPhysZeroPg != NIL_RTHCPHYS);
-        }
     }
-
-    /*
-     * Allocate the invalid MMIO page.
-     * (The invalid bits in HCPhysInvMmioPg are set later on init complete.)
-     */
     if (RT_SUCCESS(rc))
     {
+        pVM->pgm.s.pvZeroPgRC = MMHyperR3ToRC(pVM, pVM->pgm.s.pvZeroPgR3);
+        pVM->pgm.s.pvZeroPgR0 = MMHyperR3ToR0(pVM, pVM->pgm.s.pvZeroPgR3);
+        pVM->pgm.s.HCPhysZeroPg = MMR3HyperHCVirt2HCPhys(pVM, pVM->pgm.s.pvZeroPgR3);
+        AssertRelease(pVM->pgm.s.HCPhysZeroPg != NIL_RTHCPHYS);
+
+        /*
+         * Allocate the invalid MMIO page.
+         * (The invalid bits in HCPhysInvMmioPg are set later on init complete.)
+         */
         rc = MMHyperAlloc(pVM, PAGE_SIZE, PAGE_SIZE, MM_TAG_PGM, &pVM->pgm.s.pvMmioPgR3);
-        if (RT_SUCCESS(rc))
-        {
-            ASMMemFill32(pVM->pgm.s.pvMmioPgR3, PAGE_SIZE, 0xfeedface);
-            pVM->pgm.s.HCPhysMmioPg = MMR3HyperHCVirt2HCPhys(pVM, pVM->pgm.s.pvMmioPgR3);
-            AssertRelease(pVM->pgm.s.HCPhysMmioPg != NIL_RTHCPHYS);
-            pVM->pgm.s.HCPhysInvMmioPg = pVM->pgm.s.HCPhysMmioPg;
-        }
     }
-
-    /*
-     * Register the physical access handler protecting ROMs.
-     */
     if (RT_SUCCESS(rc))
-        rc = PGMR3HandlerPhysicalTypeRegister(pVM, PGMPHYSHANDLERKIND_WRITE,
-                                              pgmR3PhysRomWriteHandler,
-                                              NULL, "pgmPhysRomWriteHandler",
-                                              NULL, "pgmPhysRomWriteHandler",
-                                              "ROM write protection",
-                                              &pVM->pgm.s.hRomPhysHandlerType);
+    {
+        ASMMemFill32(pVM->pgm.s.pvMmioPgR3, PAGE_SIZE, 0xfeedface);
+        pVM->pgm.s.HCPhysMmioPg = MMR3HyperHCVirt2HCPhys(pVM, pVM->pgm.s.pvMmioPgR3);
+        AssertRelease(pVM->pgm.s.HCPhysMmioPg != NIL_RTHCPHYS);
+        pVM->pgm.s.HCPhysInvMmioPg = pVM->pgm.s.HCPhysMmioPg;
 
-    /*
-     * Init the paging.
-     */
-    if (RT_SUCCESS(rc))
+        /*
+         * Init the paging.
+         */
         rc = pgmR3InitPaging(pVM);
-
-    /*
-     * Init the page pool.
-     */
+    }
     if (RT_SUCCESS(rc))
+    {
+        /*
+         * Init the page pool.
+         */
         rc = pgmR3PoolInit(pVM);
-
+    }
     if (RT_SUCCESS(rc))
     {
         for (VMCPUID i = 0; i < pVM->cCpus; i++)
@@ -1635,7 +1617,7 @@ static int pgmR3InitPaging(PVM pVM)
             if (ARCH_BITS != 64)
             {
                 AssertMsgFailed(("Host mode %d (64-bit) is not supported by non-64bit builds\n", pVM->pgm.s.enmHostMode));
-                LogRel(("PGM: Host mode %d (64-bit) is not supported by non-64bit builds\n", pVM->pgm.s.enmHostMode));
+                LogRel(("Host mode %d (64-bit) is not supported by non-64bit builds\n", pVM->pgm.s.enmHostMode));
                 return VERR_PGM_UNSUPPORTED_HOST_PAGING_MODE;
             }
 #endif
@@ -1649,9 +1631,9 @@ static int pgmR3InitPaging(PVM pVM)
     {
         LogFlow(("pgmR3InitPaging: returns successfully\n"));
 #if HC_ARCH_BITS == 64
-        LogRel(("PGM: HCPhysInterPD=%RHp HCPhysInterPaePDPT=%RHp HCPhysInterPaePML4=%RHp\n",
+        LogRel(("Debug: HCPhysInterPD=%RHp HCPhysInterPaePDPT=%RHp HCPhysInterPaePML4=%RHp\n",
                 pVM->pgm.s.HCPhysInterPD, pVM->pgm.s.HCPhysInterPaePDPT, pVM->pgm.s.HCPhysInterPaePML4));
-        LogRel(("PGM: apInterPTs={%RHp,%RHp} apInterPaePTs={%RHp,%RHp} apInterPaePDs={%RHp,%RHp,%RHp,%RHp} pInterPaePDPT64=%RHp\n",
+        LogRel(("Debug: apInterPTs={%RHp,%RHp} apInterPaePTs={%RHp,%RHp} apInterPaePDs={%RHp,%RHp,%RHp,%RHp} pInterPaePDPT64=%RHp\n",
                 MMPage2Phys(pVM, pVM->pgm.s.apInterPTs[0]),    MMPage2Phys(pVM, pVM->pgm.s.apInterPTs[1]),
                 MMPage2Phys(pVM, pVM->pgm.s.apInterPaePTs[0]), MMPage2Phys(pVM, pVM->pgm.s.apInterPaePTs[1]),
                 MMPage2Phys(pVM, pVM->pgm.s.apInterPaePDs[0]), MMPage2Phys(pVM, pVM->pgm.s.apInterPaePDs[1]), MMPage2Phys(pVM, pVM->pgm.s.apInterPaePDs[2]), MMPage2Phys(pVM, pVM->pgm.s.apInterPaePDs[3]),
@@ -1676,7 +1658,7 @@ static int pgmR3InitPaging(PVM pVM)
             case SUPPAGINGMODE_AMD64_GLOBAL_NX:     pszHostMode = "AMD64+PGE+NX"; break;
             default:                                pszHostMode = "???"; break;
         }
-        LogRel(("PGM: Host paging mode: %s\n", pszHostMode));
+        LogRel(("Host paging mode: %s\n", pszHostMode));
 
         return VINF_SUCCESS;
     }
@@ -2231,7 +2213,7 @@ VMMR3DECL(int) PGMR3InitFinalize(PVM pVM)
      * Update: More recent intel manuals specifies 40 bits just like AMD.
      */
     uint32_t u32Dummy, u32Features;
-    CPUMGetGuestCpuId(VMMGetCpu(pVM), 1, 0, &u32Dummy, &u32Dummy, &u32Dummy, &u32Features);
+    CPUMGetGuestCpuId(VMMGetCpu(pVM), 1, &u32Dummy, &u32Dummy, &u32Dummy, &u32Features);
     if (u32Features & X86_CPUID_FEATURE_EDX_PSE36)
         pVM->pgm.s.GCPhys4MBPSEMask = RT_BIT_64(RT_MAX(36, cMaxPhysAddrWidth)) - 1;
     else
@@ -2243,7 +2225,7 @@ VMMR3DECL(int) PGMR3InitFinalize(PVM pVM)
     if (pVM->pgm.s.fRamPreAlloc)
         rc = pgmR3PhysRamPreAllocate(pVM);
 
-    LogRel(("PGM: PGMR3InitFinalize: 4 MB PSE mask %RGp\n", pVM->pgm.s.GCPhys4MBPSEMask));
+    LogRel(("PGMR3InitFinalize: 4 MB PSE mask %RGp\n", pVM->pgm.s.GCPhys4MBPSEMask));
     return rc;
 }
 
@@ -2408,14 +2390,6 @@ VMMR3DECL(void) PGMR3Relocate(PVM pVM, RTGCINTPTR offDelta)
      */
     RTAvlroGCPhysDoWithAll(&pVM->pgm.s.pTreesR3->PhysHandlers,     true, pgmR3RelocatePhysHandler,      &offDelta);
     pVM->pgm.s.pLastPhysHandlerRC = NIL_RTRCPTR;
-
-    PPGMPHYSHANDLERTYPEINT pCurPhysType;
-    RTListOff32ForEach(&pVM->pgm.s.pTreesR3->HeadPhysHandlerTypes, pCurPhysType, PGMPHYSHANDLERTYPEINT, ListNode)
-    {
-        if (pCurPhysType->pfnHandlerRC)
-            pCurPhysType->pfnHandlerRC += offDelta;
-    }
-
     RTAvlroGCPtrDoWithAll(&pVM->pgm.s.pTreesR3->VirtHandlers,      true, pgmR3RelocateVirtHandler,      &offDelta);
     RTAvlroGCPtrDoWithAll(&pVM->pgm.s.pTreesR3->HyperVirtHandlers, true, pgmR3RelocateHyperVirtHandler, &offDelta);
 
@@ -2447,6 +2421,8 @@ static DECLCALLBACK(int) pgmR3RelocatePhysHandler(PAVLROGCPHYSNODECORE pNode, vo
 {
     PPGMPHYSHANDLER pHandler = (PPGMPHYSHANDLER)pNode;
     RTGCINTPTR      offDelta = *(PRTGCINTPTR)pvUser;
+    if (pHandler->pfnHandlerRC)
+        pHandler->pfnHandlerRC += offDelta;
     if (pHandler->pvUserRC >= 0x10000)
         pHandler->pvUserRC += offDelta;
     return 0;
@@ -3601,7 +3577,7 @@ VMMR3DECL(int) PGMR3ChangeMode(PVM pVM, PVMCPU pVCpu, PGMMODE enmGuestMode)
         {
             uint32_t u32Dummy, u32Features;
 
-            CPUMGetGuestCpuId(pVCpu, 1, 0, &u32Dummy, &u32Dummy, &u32Dummy, &u32Features);
+            CPUMGetGuestCpuId(pVCpu, 1, &u32Dummy, &u32Dummy, &u32Dummy, &u32Features);
             if (!(u32Features & X86_CPUID_FEATURE_EDX_PAE))
                 return VMSetRuntimeError(pVM, VMSETRTERR_FLAGS_FATAL, "PAEmode",
                                          N_("The guest is trying to switch to the PAE mode which is currently disabled by default in VirtualBox. PAE support can be enabled using the VM settings (System/Processor)"));
@@ -4029,12 +4005,9 @@ static DECLCALLBACK(int) pgmR3CheckIntegrityPhysHandlerNode(PAVLROGCPHYSNODECORE
     PPGMCHECKINTARGS pArgs = (PPGMCHECKINTARGS)pvUser;
     PPGMPHYSHANDLER pCur = (PPGMPHYSHANDLER)pNode;
     AssertReleaseReturn(!((uintptr_t)pCur & 7), 1);
-    AssertReleaseMsg(pCur->Core.Key <= pCur->Core.KeyLast,
-                     ("pCur=%p %RGp-%RGp %s\n", pCur, pCur->Core.Key, pCur->Core.KeyLast, pCur->pszDesc));
+    AssertReleaseMsg(pCur->Core.Key <= pCur->Core.KeyLast,("pCur=%p %RGp-%RGp %s\n", pCur, pCur->Core.Key, pCur->Core.KeyLast, pCur->pszDesc));
     AssertReleaseMsg(   !pArgs->pPrevPhys
-                     || (  pArgs->fLeftToRight
-                         ? pArgs->pPrevPhys->Core.KeyLast < pCur->Core.Key
-                         : pArgs->pPrevPhys->Core.KeyLast > pCur->Core.Key),
+                     || (pArgs->fLeftToRight ? pArgs->pPrevPhys->Core.KeyLast < pCur->Core.Key : pArgs->pPrevPhys->Core.KeyLast > pCur->Core.Key),
                      ("pPrevPhys=%p %RGp-%RGp %s\n"
                       "     pCur=%p %RGp-%RGp %s\n",
                       pArgs->pPrevPhys, pArgs->pPrevPhys->Core.Key, pArgs->pPrevPhys->Core.KeyLast, pArgs->pPrevPhys->pszDesc,

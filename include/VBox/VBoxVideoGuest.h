@@ -228,8 +228,7 @@ RTDECL(int)      VBoxHGSMISendCapsInfo(PHGSMIGUESTCOMMANDCONTEXT pCtx,
 RTDECL(int)      VBoxHGSMISetupGuestContext(PHGSMIGUESTCOMMANDCONTEXT pCtx,
                                             void *pvGuestHeapMemory,
                                             uint32_t cbGuestHeapMemory,
-                                            uint32_t offVRAMGuestHeapMemory,
-                                            const HGSMIENV *pEnv);
+                                            uint32_t offVRAMGuestHeapMemory);
 RTDECL(void)     VBoxHGSMIGetHostAreaMapping(PHGSMIGUESTCOMMANDCONTEXT pCtx,
                                              uint32_t cbVRAM,
                                              uint32_t offVRAMBaseMapping,

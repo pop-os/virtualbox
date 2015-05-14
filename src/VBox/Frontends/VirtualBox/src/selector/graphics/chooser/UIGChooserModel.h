@@ -1,6 +1,7 @@
-/* $Id: UIGChooserModel.h $ */
 /** @file
- * VBox Qt GUI - UIGChooserModel class declaration.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * UIGChooserModel class declaration
  */
 
 /*
@@ -41,8 +42,6 @@ class QGraphicsSceneContextMenuEvent;
 class QTimer;
 class QPaintDevice;
 class UIVMItem;
-class UIGChooser;
-class UIActionPool;
 class UIGChooserHandlerMouse;
 class UIGChooserHandlerKeyboard;
 class CMachine;
@@ -87,17 +86,12 @@ signals:
 public:
 
     /* Constructor/destructor: */
-    UIGChooserModel(UIGChooser *pParent);
+    UIGChooserModel(QObject *pParent);
     ~UIGChooserModel();
 
     /* API: Prepare/cleanup stuff: */
     void prepare();
     void cleanup();
-
-    /** Returns the chooser reference. */
-    UIGChooser* chooser() const { return m_pChooser; }
-    /** Returns the action-pool reference. */
-    UIActionPool* actionPool() const;
 
     /* API: Scene stuff: */
     QGraphicsScene* scene() const;
@@ -276,9 +270,6 @@ private:
     void gatherGroupOrders(QMap<QString, QStringList> &groups, UIGChooserItem *pParentItem);
     void makeSureGroupDefinitionsSaveIsFinished();
     void makeSureGroupOrdersSaveIsFinished();
-
-    /** Holds the chooser reference. */
-    UIGChooser *m_pChooser;
 
     /* Variables: */
     QGraphicsScene *m_pScene;

@@ -1,6 +1,7 @@
-/* $Id: QIFileDialog.h $ */
 /** @file
- * VBox Qt GUI - Qt extensions: QIFileDialog class declarations.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * Qt extensions: QIFileDialog class declarations
  */
 
 /*

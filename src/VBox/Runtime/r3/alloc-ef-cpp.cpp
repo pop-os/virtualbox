@@ -57,11 +57,7 @@
 # ifdef _MSC_VER
 #  define RT_EF_THROWS_BAD_ALLOC
 # else
-#  ifdef _GLIBCXX_THROW
-#   define RT_EF_THROWS_BAD_ALLOC     _GLIBCXX_THROW(std::bad_alloc)
-#  else
-#   define RT_EF_THROWS_BAD_ALLOC     throw(std::bad_alloc)
-#  endif
+#  define RT_EF_THROWS_BAD_ALLOC     throw(std::bad_alloc)
 # endif
 #else  /* !RT_EXCEPTIONS_ENABLED */
 # define RT_EF_THROWS_BAD_ALLOC

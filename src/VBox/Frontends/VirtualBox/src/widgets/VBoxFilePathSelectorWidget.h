@@ -1,6 +1,7 @@
-/* $Id: VBoxFilePathSelectorWidget.h $ */
 /** @file
- * VBox Qt GUI - VirtualBox Qt extensions: VBoxFilePathSelectorWidget class declaration.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * VirtualBox Qt extensions: VBoxFilePathSelectorWidget class declaration
  */
 
 /*

@@ -1,6 +1,8 @@
 /* $Id: UIWizardPage.cpp $ */
 /** @file
- * VBox Qt GUI - UIWizardPage class implementation.
+ *
+ * VBox frontends: Qt4 GUI ("VirtualBox"):
+ * UIWizardPage class implementation
  */
 
 /*
@@ -15,20 +17,13 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Global includes: */
-# include <QAbstractButton>
+#include <QAbstractButton>
 
 /* Local includes: */
-# include "UIWizardPage.h"
-# include "UIWizard.h"
-# include "VBoxGlobal.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
+#include "UIWizardPage.h"
+#include "UIWizard.h"
+#include "VBoxGlobal.h"
 
 UIWizard* UIWizardPageBase::wizardImp()
 {

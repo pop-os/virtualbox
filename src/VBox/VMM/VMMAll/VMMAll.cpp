@@ -23,7 +23,6 @@
 #include <VBox/vmm/vmm.h>
 #include "VMMInternal.h"
 #include <VBox/vmm/vm.h>
-#include <VBox/vmm/hm.h>
 #include <VBox/vmm/vmcpuset.h>
 #include <VBox/param.h>
 #include <iprt/thread.h>
@@ -71,8 +70,6 @@ static DECLCALLBACK(size_t) vmmFormatTypeVmCpuSet(PFNRTSTROUTPUT pfnOutput, void
                                                   int cchWidth, int cchPrecision, unsigned fFlags,
                                                   void *pvUser)
 {
-    NOREF(pszType); NOREF(cchWidth); NOREF(cchPrecision); NOREF(fFlags);
-
     PCVMCPUSET  pSet   = (PCVMCPUSET)pvValue;
     uint32_t    cCpus  = 0;
     uint32_t    iCpu   = RT_ELEMENTS(pSet->au32Bitmap) * 32;
@@ -284,8 +281,7 @@ VMMDECL(PVMCPU) VMMGetCpu(PVM pVM)
     /* RTThreadGetNativeSelf had better be cheap. */
     RTNATIVETHREAD hThread = RTThreadNativeSelf();
 
-    /** @todo optimize for large number of VCPUs when that becomes more common.
-     * Use a map like GIP does that's indexed by the host CPU index.  */
+    /** @todo optimize for large number of VCPUs when that becomes more common. */
     for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
     {
         PVMCPU pVCpu = &pVM->aCpus[idCpu];
@@ -389,78 +385,5 @@ uint32_t vmmGetBuildType(void)
     uRet |= RT_BIT_32(1);
 #endif
     return uRet;
-}
-
-
-/**
- * Patches the instructions necessary for making a hypercall to the hypervisor.
- * Used by GIM.
- *
- * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
- * @param   pvBuf       The buffer in the hypercall page(s) to be patched.
- * @param   cbBuf       The size of the buffer.
- * @param   pcbWritten  Where to store the number of bytes patched. This
- *                      is reliably updated only when this function returns
- *                      VINF_SUCCESS.
- */
-VMM_INT_DECL(int) VMMPatchHypercall(PVM pVM, void *pvBuf, size_t cbBuf, size_t *pcbWritten)
-{
-    AssertReturn(pvBuf, VERR_INVALID_POINTER);
-    AssertReturn(pcbWritten, VERR_INVALID_POINTER);
-
-    if (ASMIsAmdCpu())
-    {
-        uint8_t abHypercall[] = { 0x0F, 0x01, 0xD9 };   /* VMMCALL */
-        if (RT_LIKELY(cbBuf >= sizeof(abHypercall)))
-        {
-            memcpy(pvBuf, abHypercall, sizeof(abHypercall));
-            *pcbWritten = sizeof(abHypercall);
-            return VINF_SUCCESS;
-        }
-        return VERR_BUFFER_OVERFLOW;
-    }
-    else
-    {
-        AssertReturn(ASMIsIntelCpu() || ASMIsViaCentaurCpu(), VERR_UNSUPPORTED_CPU);
-        uint8_t abHypercall[] = { 0x0F, 0x01, 0xC1 };   /* VMCALL */
-        if (RT_LIKELY(cbBuf >= sizeof(abHypercall)))
-        {
-            memcpy(pvBuf, abHypercall, sizeof(abHypercall));
-            *pcbWritten = sizeof(abHypercall);
-            return VINF_SUCCESS;
-        }
-        return VERR_BUFFER_OVERFLOW;
-    }
-}
-
-
-/**
- * Notifies VMM that paravirtualized hypercalls are now enabled.
- *
- * @param   pVCpu   Pointer to the VMCPU.
- */
-VMM_INT_DECL(void) VMMHypercallsEnable(PVMCPU pVCpu)
-{
-    /* If there is anything to do for raw-mode, do it here. */
-#ifndef IN_RC
-    if (HMIsEnabled(pVCpu->CTX_SUFF(pVM)))
-        HMHypercallsEnable(pVCpu);
-#endif
-}
-
-
-/**
- * Notifies VMM that paravirtualized hypercalls are now disabled.
- *
- * @param   pVCpu   Pointer to the VMCPU.
- */
-VMM_INT_DECL(void) VMMHypercallsDisable(PVMCPU pVCpu)
-{
-    /* If there is anything to do for raw-mode, do it here. */
-#ifndef IN_RC
-    if (HMIsEnabled(pVCpu->CTX_SUFF(pVM)))
-        HMHypercallsDisable(pVCpu);
-#endif
 }
 

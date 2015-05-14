@@ -1,6 +1,8 @@
 /* $Id: UIWizardNewVDPageExpert.cpp $ */
 /** @file
- * VBox Qt GUI - UIWizardNewVDPageExpert class implementation.
+ *
+ * VBox frontends: Qt4 GUI ("VirtualBox"):
+ * UIWizardNewVDPageExpert class implementation
  */
 
 /*
@@ -15,37 +17,30 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QGridLayout>
-# include <QVBoxLayout>
-# include <QRegExpValidator>
-# include <QGroupBox>
-# include <QRadioButton>
-# include <QCheckBox>
-# include <QButtonGroup>
-# include <QLineEdit>
-# include <QSlider>
-# include <QLabel>
+#include <QGridLayout>
+#include <QVBoxLayout>
+#include <QRegExpValidator>
+#include <QGroupBox>
+#include <QRadioButton>
+#include <QCheckBox>
+#include <QButtonGroup>
+#include <QLineEdit>
+#include <QSlider>
+#include <QLabel>
 
 /* GUI includes: */
-# include "UIWizardNewVDPageExpert.h"
-# include "UIWizardNewVD.h"
-# include "VBoxGlobal.h"
-# include "UIMessageCenter.h"
-# include "UIIconPool.h"
-# include "QIRichTextLabel.h"
-# include "QIToolButton.h"
-# include "QILineEdit.h"
+#include "UIWizardNewVDPageExpert.h"
+#include "UIWizardNewVD.h"
+#include "VBoxGlobal.h"
+#include "UIMessageCenter.h"
+#include "UIIconPool.h"
+#include "QIRichTextLabel.h"
+#include "QIToolButton.h"
+#include "QILineEdit.h"
 
 /* COM includes: */
-# include "CSystemProperties.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
+#include "CSystemProperties.h"
 
 UIWizardNewVDPageExpert::UIWizardNewVDPageExpert(const QString &strDefaultName, const QString &strDefaultPath, qulonglong uDefaultSize)
     : UIWizardNewVDPage3(strDefaultName, strDefaultPath)

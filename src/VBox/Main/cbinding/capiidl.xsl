@@ -7,7 +7,7 @@
  *  works on Windows, by using the C bindings header created by the MS COM IDL
  *  compiler (which simultaneously supports C and C++, unlike XPCOM).
 
-    Copyright (C) 2008-2015 Oracle Corporation
+    Copyright (C) 2008-2014 Oracle Corporation
 
     This file is part of VirtualBox Open Source Edition (OSE), as
     available from http://www.virtualbox.org. This file is free software;
@@ -24,14 +24,65 @@
 <xsl:strip-space elements="*"/>
 
 
-<xsl:include href="../idl/typemap-shared.inc.xsl"/>
-
 <!--
-//  Keys for more efficiently looking up of types.
+//  helper definitions
 /////////////////////////////////////////////////////////////////////////////
 -->
 
-<xsl:key name="G_keyInterfacesByName" match="//interface[@name]" use="@name"/>
+<!--
+ *  capitalizes the first letter
+-->
+<xsl:template name="capitalize">
+  <xsl:param name="str" select="."/>
+  <xsl:value-of select="
+    concat(
+      translate(substring($str,1,1),'abcdefghijklmnopqrstuvwxyz','ABCDEFGHIJKLMNOPQRSTUVWXYZ'),
+      substring($str,2)
+    )
+  "/>
+</xsl:template>
+
+<!--
+ *  uncapitalizes the first letter only if the second one is not capital
+ *  otherwise leaves the string unchanged
+-->
+<xsl:template name="uncapitalize">
+  <xsl:param name="str" select="."/>
+  <xsl:choose>
+    <xsl:when test="not(contains('ABCDEFGHIJKLMNOPQRSTUVWXYZ', substring($str,2,1)))">
+      <xsl:value-of select="
+        concat(
+          translate(substring($str,1,1),'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),
+          substring($str,2)
+        )
+      "/>
+    </xsl:when>
+    <xsl:otherwise>
+      <xsl:value-of select="string($str)"/>
+    </xsl:otherwise>
+  </xsl:choose>
+</xsl:template>
+
+<!--
+ *  translates the string to uppercase
+-->
+<xsl:template name="uppercase">
+  <xsl:param name="str" select="."/>
+  <xsl:value-of select="
+    translate($str,'abcdefghijklmnopqrstuvwxyz','ABCDEFGHIJKLMNOPQRSTUVWXYZ')
+  "/>
+</xsl:template>
+
+
+<!--
+ *  translates the string to lowercase
+-->
+<xsl:template name="lowercase">
+  <xsl:param name="str" select="."/>
+  <xsl:value-of select="
+    translate($str,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz')
+  "/>
+</xsl:template>
 
 
 <!--
@@ -72,7 +123,7 @@
  */
 
 /*
- * Copyright (C) 2008-2015 Oracle Corporation
+ * Copyright (C) 2008-2014 Oracle Corporation
  *
  * This file is part of a free software library; you can redistribute
  * it and/or modify it under the terms of the GNU Lesser General
@@ -1206,8 +1257,8 @@ interface nsIEventQueue
     CONST_VTBL struct nsIEventQueueVtbl *lpVtbl;
 #endif /* !VBOX_WITH_GLUE */
 };
+
 </xsl:text>
- <xsl:call-template name="xsltprocNewlineOutputHack"/>
  <xsl:apply-templates/>
  <xsl:text>
 
@@ -1605,18 +1656,17 @@ typedef PCVBOXCAPI (*PFNVBOXGETXPCOMCFUNCTIONS)(unsigned uVersion);
 -->
 <xsl:template match="library">
   <!-- result codes -->
-  <xsl:call-template name="xsltprocNewlineOutputHack"/>
+  <xsl:text>&#x0A;</xsl:text>
   <xsl:for-each select="result">
     <xsl:apply-templates select="."/>
   </xsl:for-each>
-  <xsl:call-template name="xsltprocNewlineOutputHack"/>
-  <xsl:call-template name="xsltprocNewlineOutputHack"/>
+  <xsl:text>&#x0A;&#x0A;</xsl:text>
   <!-- forward declarations -->
   <xsl:apply-templates select="interface | if/interface" mode="forward"/>
-  <xsl:call-template name="xsltprocNewlineOutputHack"/>
+  <xsl:text>&#x0A;</xsl:text>
   <!-- typedef'ing the struct declarations -->
   <xsl:apply-templates select="interface | if/interface" mode="typedef"/>
-  <xsl:call-template name="xsltprocNewlineOutputHack"/>
+  <xsl:text>&#x0A;</xsl:text>
   <!-- all enums go first -->
   <xsl:apply-templates select="enum | if/enum"/>
   <!-- everything else but result codes and enums -->
@@ -1749,7 +1799,7 @@ typedef PCVBOXCAPI (*PFNVBOXGETXPCOMCFUNCTIONS)(unsigned uVersion);
       <xsl:text>_ToString(p, retval) ((p)->lpVtbl->ToString(p, retval))&#x0A;</xsl:text>
     </xsl:when>
     <xsl:otherwise>
-      <xsl:apply-templates select="key('G_keyInterfacesByName', $extends)" mode="cobjmacro">
+      <xsl:apply-templates select="//interface[@name=$extends]" mode="cobjmacro">
         <xsl:with-param name="iface" select="$iface"/>
       </xsl:apply-templates>
     </xsl:otherwise>
@@ -1826,7 +1876,7 @@ typedef PCVBOXCAPI (*PFNVBOXGETXPCOMCFUNCTIONS)(unsigned uVersion);
       <xsl:text> *pThis, PRUnichar **_retval);&#x0A;</xsl:text>
     </xsl:when>
     <xsl:otherwise>
-      <xsl:apply-templates select="key('G_keyInterfacesByName', $extends)" mode="vtab_flat">
+      <xsl:apply-templates select="//interface[@name=$extends]" mode="vtab_flat">
         <xsl:with-param name="iface" select="$iface"/>
       </xsl:apply-templates>
     </xsl:otherwise>
@@ -1851,13 +1901,13 @@ typedef PCVBOXCAPI (*PFNVBOXGETXPCOMCFUNCTIONS)(unsigned uVersion);
     <xsl:value-of select="@name"/>
     <xsl:text> declaration */&#x0A;</xsl:text>
     <xsl:text>#define </xsl:text>
-    <xsl:call-template name="string-to-upper">
+    <xsl:call-template name="uppercase">
       <xsl:with-param name="str" select="@name"/>
     </xsl:call-template>
     <xsl:value-of select="concat('_IID_STR &quot;',@uuid,'&quot;')"/>
     <xsl:text>&#x0A;</xsl:text>
     <xsl:text>#define </xsl:text>
-    <xsl:call-template name="string-to-upper">
+    <xsl:call-template name="uppercase">
       <xsl:with-param name="str" select="@name"/>
     </xsl:call-template>
     <xsl:text>_IID { \&#x0A;</xsl:text>
@@ -1890,7 +1940,7 @@ typedef PCVBOXCAPI (*PFNVBOXGETXPCOMCFUNCTIONS)(unsigned uVersion);
         <xsl:text>struct </xsl:text>
         <xsl:value-of select="@extends"/>
         <xsl:text>_vtbl </xsl:text>
-        <xsl:call-template name="string-to-lower">
+        <xsl:call-template name="lowercase">
           <xsl:with-param name="str" select="@extends"/>
         </xsl:call-template>
         <xsl:text>;</xsl:text>
@@ -1932,8 +1982,7 @@ typedef PCVBOXCAPI (*PFNVBOXGETXPCOMCFUNCTIONS)(unsigned uVersion);
     <xsl:text>};&#x0A;</xsl:text>
     <xsl:text>/* End of struct </xsl:text>
     <xsl:value-of select="@name"/>
-    <xsl:text> declaration */&#x0A;&#x0A;</xsl:text>
-    <xsl:call-template name="xsltprocNewlineOutputHack"/>
+    <xsl:text> declaration */&#x0A;&#x0A;&#x0A;</xsl:text>
   </xsl:if>
 </xsl:template>
 
@@ -2201,7 +2250,7 @@ typedef PCVBOXCAPI (*PFNVBOXGETXPCOMCFUNCTIONS)(unsigned uVersion);
   <!-- class and contract id -->
   <xsl:text>&#x0A;</xsl:text>
   <xsl:text>#define NS_</xsl:text>
-  <xsl:call-template name="string-to-upper">
+  <xsl:call-template name="uppercase">
     <xsl:with-param name="str" select="@name"/>
   </xsl:call-template>
   <xsl:text>_CID { \&#x0A;</xsl:text>
@@ -2219,7 +2268,7 @@ typedef PCVBOXCAPI (*PFNVBOXGETXPCOMCFUNCTIONS)(unsigned uVersion);
   <xsl:text>, 0x</xsl:text><xsl:value-of select="substring(@uuid,35,2)"/>
   <xsl:text> } \&#x0A;}&#x0A;</xsl:text>
   <xsl:text>#define NS_</xsl:text>
-  <xsl:call-template name="string-to-upper">
+  <xsl:call-template name="uppercase">
     <xsl:with-param name="str" select="@name"/>
   </xsl:call-template>
   <!-- Contract ID -->
@@ -2245,13 +2294,13 @@ typedef PCVBOXCAPI (*PFNVBOXGETXPCOMCFUNCTIONS)(unsigned uVersion);
   <xsl:value-of select="@name"/>
   <xsl:text> declaration */&#x0A;</xsl:text>
   <xsl:text>#define </xsl:text>
-  <xsl:call-template name="string-to-upper">
+  <xsl:call-template name="uppercase">
     <xsl:with-param name="str" select="@name"/>
   </xsl:call-template>
   <xsl:value-of select="concat('_IID_STR &quot;',@uuid,'&quot;')"/>
   <xsl:text>&#x0A;</xsl:text>
   <xsl:text>#define </xsl:text>
-  <xsl:call-template name="string-to-upper">
+  <xsl:call-template name="uppercase">
     <xsl:with-param name="str" select="@name"/>
   </xsl:call-template>
   <xsl:text>_IID { \&#x0A;</xsl:text>

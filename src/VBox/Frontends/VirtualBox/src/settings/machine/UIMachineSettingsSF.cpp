@@ -1,6 +1,8 @@
 /* $Id: UIMachineSettingsSF.cpp $ */
 /** @file
- * VBox Qt GUI - UIMachineSettingsSF class implementation.
+ *
+ * VBox frontends: Qt4 GUI ("VirtualBox"):
+ * UIMachineSettingsSF class implementation
  */
 
 /*
@@ -15,24 +17,17 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Local includes */
-# include "UIIconPool.h"
-# include "VBoxGlobal.h"
-# include "UIMessageCenter.h"
-# include "VBoxUtils.h"
-# include "UIMachineSettingsSF.h"
-# include "UIMachineSettingsSFDetails.h"
+#include "UIIconPool.h"
+#include "VBoxGlobal.h"
+#include "UIMessageCenter.h"
+#include "VBoxUtils.h"
+#include "UIMachineSettingsSF.h"
+#include "UIMachineSettingsSFDetails.h"
 
 /* Global includes */
-# include <QHeaderView>
-# include <QTimer>
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
+#include <QHeaderView>
+#include <QTimer>
 
 class SFTreeViewItem : public QTreeWidgetItem
 {
@@ -192,6 +187,7 @@ UIMachineSettingsSF::UIMachineSettingsSF()
                                             ":/sf_remove_disabled_16px.png"));
 
     /* Prepare tool-bar: */
+    m_pFoldersToolBar->setUsesTextLabel(false);
     m_pFoldersToolBar->setIconSize(QSize(16, 16));
     m_pFoldersToolBar->setOrientation(Qt::Vertical);
     m_pFoldersToolBar->addAction(mNewAction);
@@ -662,7 +658,7 @@ bool UIMachineSettingsSF::isSharedFolderTypeSupported(UISharedFolderType sharedF
             fIsSharedFolderTypeSupported = isMachineInValidMode();
             break;
         case ConsoleType:
-            fIsSharedFolderTypeSupported = isMachineOnline();
+            fIsSharedFolderTypeSupported = isMachineSaved() || isMachineOnline();
             break;
         default:
             break;
@@ -857,4 +853,3 @@ bool UIMachineSettingsSF::createSharedFolder(const UICacheSettingsSharedFolder &
     }
     return true;
 }
-

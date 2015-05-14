@@ -1,4 +1,4 @@
-/* $Id: VBoxGuestR0LibSharedFolders.c $ */
+/* $Revision: 97149 $ */
 /** @file
  * VBoxGuestR0LibSharedFolders - Ring 0 Shared Folders calls.
  */

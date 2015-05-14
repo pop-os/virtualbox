@@ -1,10 +1,12 @@
 /* $Id: main.cpp $ */
 /** @file
- * VBox Qt GUI - The main() function.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * The main() function
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -16,49 +18,44 @@
  */
 
 #ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-# ifdef Q_WS_MAC
-#  include "UICocoaApplication.h"
-# endif /* Q_WS_MAC */
+#include "precomp.h"
+#ifdef Q_WS_MAC
+# include "UICocoaApplication.h"
+#endif /* Q_WS_MAC */
 #else /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "VBoxGlobal.h"
+#include "UIMessageCenter.h"
+#include "UISelectorWindow.h"
+#include "VBoxUtils.h"
+#include "UIModalWindowManager.h"
+#ifdef Q_WS_MAC
+# include "UICocoaApplication.h"
+#endif
 
-# include "VBoxGlobal.h"
-# include "UIMessageCenter.h"
-# include "UISelectorWindow.h"
-# include "UIMachine.h"
-# include "VBoxUtils.h"
-# include "UIModalWindowManager.h"
-# include "UIExtraDataManager.h"
-# ifdef Q_WS_MAC
-#  include "UICocoaApplication.h"
-# endif
-
-# ifdef Q_WS_X11
-#  include <iprt/env.h>
-# endif
-
-# include <QMessageBox>
-# include <QLocale>
-# include <QTranslator>
-
-# include <iprt/buildconfig.h>
-# include <iprt/initterm.h>
-# include <iprt/process.h>
-# include <iprt/stream.h>
-# include <VBox/version.h>
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
-#include <VBox/err.h>
+#ifdef Q_WS_X11
+#include <QFontDatabase>
+#include <iprt/env.h>
+#endif
 
 #include <QCleanlooksStyle>
 #include <QPlastiqueStyle>
+#include <QMessageBox>
+#include <QLocale>
+#include <QTranslator>
 
 #ifdef Q_WS_X11
-# include <QFontDatabase>
 # include <X11/Xlib.h>
 # include <dlfcn.h>
 #endif
+
+#include <iprt/buildconfig.h>
+#include <iprt/err.h>
+#include <iprt/initterm.h>
+#include <iprt/process.h>
+#include <iprt/stream.h>
+#include <VBox/err.h>
+#include <VBox/version.h>
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 #ifdef VBOX_WITH_HARDENING
 # include <VBox/sup.h>
@@ -69,7 +66,6 @@
 #endif
 
 #include <cstdio>
-
 
 /* XXX Temporarily. Don't rely on the user to hack the Makefile himself! */
 QString g_QStrHintLinuxNoMemory = QApplication::tr(
@@ -226,22 +222,37 @@ static void QtMessageOutput (QtMsgType type, const char *msg)
  */
 static void showHelp()
 {
+    QString mode = "", dflt = "";
+#ifdef VBOX_GUI_USE_QIMAGE
+    if (!mode.isEmpty())
+        mode += "|";
+    mode += "image";
+#endif /* VBOX_GUI_USE_QIMAGE */
+#ifdef VBOX_GUI_USE_QUARTZ2D
+    if (!mode.isEmpty())
+        mode += "|";
+    mode += "quartz2d";
+#endif /* VBOX_GUI_USE_QUARTZ2D */
+#if defined(Q_WS_MAC) && defined(VBOX_GUI_USE_QUARTZ2D)
+    dflt = "quartz2d";
+#elif defined(VBOX_GUI_USE_QIMAGE)
+    dflt = "image";
+#else
+# error "Cannot determine the default render mode!"
+#endif
+
     RTPrintf(VBOX_PRODUCT " Manager %s\n"
             "(C) 2005-" VBOX_C_YEAR " " VBOX_VENDOR "\n"
             "All rights reserved.\n"
             "\n"
             "Usage:\n"
             "  --startvm <vmname|UUID>    start a VM by specifying its UUID or name\n"
-            "  --separate                 start a separate VM process\n"
-            "  --normal                   keep normal (windowed) mode during startup\n"
-            "  --fullscreen               switch to fullscreen mode during startup\n"
             "  --seamless                 switch to seamless mode during startup\n"
-            "  --scale                    switch to scale mode during startup\n"
+            "  --fullscreen               switch to fullscreen mode during startup\n"
+            "  --rmode %-18s select different render mode (default is %s)\n"
             "  --no-startvm-errormsgbox   do not show a message box for VM start errors\n"
             "  --restore-current          restore the current snapshot before starting\n"
             "  --no-aggressive-caching    delays caching media info in VM processes\n"
-            "  --fdc <image|none>         Mount the specified floppy image\n"
-            "  --dvd <image|none>         Mount the specified DVD image\n"
 # ifdef VBOX_GUI_WITH_PIDFILE
             "  --pidfile <file>           create a pidfile file when a VM is up and running\n"
 # endif
@@ -275,7 +286,9 @@ static void showHelp()
             "  VBOX_GUI_NO_DEBUGGER       disable the GUI debug menu and debug windows\n"
 # endif
             "\n",
-            RTBldCfgVersion());
+            RTBldCfgVersion(),
+            mode.toLatin1().constData(),
+            dflt.toLatin1().constData());
     /** @todo Show this as a dialog on windows. */
 }
 
@@ -305,7 +318,7 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char ** /*envp*/)
 #ifdef Q_WS_X11
     if (!VBoxXInitThreads())
         return 1;
-#endif /* Q_WS_X11 */
+#endif
 
     /* Simulate try-catch block: */
     do
@@ -351,13 +364,9 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char ** /*envp*/)
 #endif
 
 #ifdef Q_WS_MAC
-        /* Font fixes: */
-        switch (VBoxGlobal::osRelease())
-        {
-            case MacOSXRelease_Mavericks: QFont::insertSubstitution(".Lucida Grande UI", "Lucida Grande"); break;
-            case MacOSXRelease_Yosemite:  QFont::insertSubstitution(".Helvetica Neue DeskInterface", "Helvetica Neue"); break;
-            default: break;
-        }
+        /* Mavericks font fix: */
+        if (VBoxGlobal::osRelease() == MacOSXRelease_Mavericks)
+            QFont::insertSubstitution(".Lucida Grande UI", "Lucida Grande");
 # ifdef QT_MAC_USE_COCOA
         /* Instantiate our NSApplication derivative before QApplication
          * forces NSApplication to be instantiated. */
@@ -368,16 +377,45 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char ** /*envp*/)
         /* Install Qt console message handler: */
         qInstallMsgHandler(QtMessageOutput);
 
-        /* Create application: */
+#ifdef Q_WS_X11
+        /* Qt has a complex algorithm for selecting the right visual which
+         * doesn't always seem to work. So we naively choose a visual - the
+         * default one - ourselves and pass that to Qt. This means that we
+         * also have to open the display ourselves.
+         * We check the Qt parameter list and handle Qt's -display argument
+         * ourselves, since we open the display connection. We also check the
+         * to see if the user has passed Qt's -visual parameter, and if so we
+         * assume that the user wants Qt to handle visual selection after all,
+         * and don't supply a visual. */
+        char *pszDisplay = NULL;
+        bool useDefaultVisual = true;
+        for (int i = 0; i < argc; ++i)
+        {
+            if (!::strcmp(argv[i], "-display") && (i + 1 < argc))
+            /* What if it isn't? Rely on QApplication to complain? */
+            {
+                pszDisplay = argv[i + 1];
+                ++i;
+            }
+            else if (!::strcmp(argv[i], "-visual"))
+                useDefaultVisual = false;
+        }
+        Display *pDisplay = XOpenDisplay(pszDisplay);
+        if (!pDisplay)
+        {
+            RTPrintf(pszDisplay ? "Failed to open the X11 display \"%s\"!\n"
+                                : "Failed to open the X11 display!\n",
+                     pszDisplay);
+            break;
+        }
+        Visual *pVisual =   useDefaultVisual
+                          ? DefaultVisual(pDisplay, DefaultScreen(pDisplay))
+                          : NULL;
+        /* Now create the application object: */
+        QApplication a(pDisplay, argc, argv, (Qt::HANDLE)pVisual);
+#else /* Q_WS_X11 */
         QApplication a(argc, argv);
-
-#ifdef Q_WS_MAC
-# ifdef VBOX_GUI_WITH_HIDPI
-        /* Enable HiDPI icons. For this we require a patched version of Qt 4.x with
-         * the changes from https://codereview.qt-project.org/#change,54636 applied. */
-        qApp->setAttribute(Qt::AA_UseHighDpiPixmaps);
-# endif /* VBOX_GUI_WITH_HIDPI */
-#endif /* Q_WS_MAC */
+#endif /* Q_WS_X11 */
 
 #ifdef Q_OS_SOLARIS
         /* Use plastique look&feel for Solaris instead of the default motif (Qt 4.7.x): */
@@ -430,7 +468,7 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char ** /*envp*/)
                                               .arg(VBoxGlobal::qtRTVersionString());
             QMessageBox::critical(0, QApplication::tr("Incompatible Qt Library Error"),
                                   strMsg, QMessageBox::Abort, 0);
-            qFatal("%s", strMsg.toUtf8().constData());
+            qFatal("%s", strMsg.toAscii().constData());
             break;
         }
 #endif /* Q_WS_X11 */
@@ -464,7 +502,7 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char ** /*envp*/)
             if (vboxGlobal().isVMConsoleProcess())
             {
                 /* Make sure VM is started: */
-                if (!UIMachine::startMachine(vboxGlobal().managedVMUuid()))
+                if (!vboxGlobal().startMachine(vboxGlobal().managedVMUuid()))
                     break;
 
                 /* Start application: */
@@ -481,14 +519,18 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char ** /*envp*/)
                 }
 
 #ifdef VBOX_BLEEDING_EDGE
-                msgCenter().showExperimentalBuildWarning();
+                msgCenter().showBEBWarning();
 #else /* VBOX_BLEEDING_EDGE */
 # ifndef DEBUG
                 /* Check for BETA version: */
-                const QString vboxVersion(vboxGlobal().virtualBox().GetVersion());
-                if (   vboxVersion.contains("BETA")
-                    && gEDataManager->preventBetaBuildWarningForVersion() != vboxVersion)
-                    msgCenter().showBetaBuildWarning();
+                QString vboxVersion(vboxGlobal().virtualBox().GetVersion());
+                if (vboxVersion.contains("BETA"))
+                {
+                    /* Allow to prevent this message: */
+                    QString str = vboxGlobal().virtualBox().GetExtraData(GUI_PreventBetaWarning);
+                    if (str != vboxVersion)
+                        msgCenter().showBETAWarning();
+                }
 # endif /* !DEBUG */
 #endif /* !VBOX_BLEEDING_EDGE*/
 
@@ -521,17 +563,15 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char ** /*envp*/)
 
 int main(int argc, char **argv, char **envp)
 {
+    /* Initialize VBox Runtime.
+     * Initialize the SUPLib as well only if we are really about to start a VM.
+     * Don't do this if we are only starting the selector window. */
+    bool fInitSUPLib = false;
 #ifdef Q_WS_X11
     if (!VBoxXInitThreads())
         return 1;
-#endif /* Q_WS_X11 */
-
-    /* Initialize VBox Runtime.
-     * Initialize the SUPLib as well only if we are really about to start a VM.
-     * Don't do this if we are only starting the selector window or a separate VM process. */
-    bool fStartVM = false;
-    bool fSeparateProcess = false;
-    for (int i = 1; i < argc && !(fStartVM && fSeparateProcess); ++i)
+#endif
+    for (int i = 1; i < argc; ++i)
     {
         /* NOTE: the check here must match the corresponding check for the
          * options to start a VM in hardenedmain.cpp and VBoxGlobal.cpp exactly,
@@ -539,18 +579,11 @@ int main(int argc, char **argv, char **envp)
         if (   !::strcmp(argv[i], "--startvm")
             || !::strcmp(argv[i], "-startvm"))
         {
-            fStartVM = true;
-        }
-        else if (   !::strcmp(argv[i], "--separate")
-                 || !::strcmp(argv[i], "-separate"))
-        {
-            fSeparateProcess = true;
+            fInitSUPLib = true;
+            break;
         }
     }
-
-    uint32_t fFlags = fStartVM && !fSeparateProcess ? RTR3INIT_FLAGS_SUPLIB : 0;
-
-    int rc = RTR3InitExe(argc, &argv, fFlags);
+    int rc = RTR3InitExe(argc, &argv, fInitSUPLib ? RTR3INIT_FLAGS_SUPLIB : 0);
 
     /* Initialization failed: */
     if (RT_FAILURE(rc))
@@ -558,8 +591,6 @@ int main(int argc, char **argv, char **envp)
         /* We have to create QApplication anyway
          * just to show the only one error-message: */
         QApplication a(argc, &argv[0]);
-        Q_UNUSED(a);
-
 #ifdef Q_OS_SOLARIS
         /* Use plastique look&feel for Solaris instead of the default motif (Qt 4.7.x): */
         QApplication::setStyle(new QPlastiqueStyle);
@@ -678,7 +709,7 @@ extern "C" DECLEXPORT(void) TrustedError(const char *pszWhere, SUPINITOP enmWhat
 
     QMessageBox::critical(0 /* parent */, strTitle, strText,
                           QMessageBox::Abort /* 1st button */, 0 /* 2nd button */);
-    qFatal("%s", strText.toUtf8().constData());
+    qFatal("%s", strText.toAscii().constData());
 }
 
 #endif /* VBOX_WITH_HARDENING */

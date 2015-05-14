@@ -1,6 +1,7 @@
-/* $Id: UIGlobalSettingsExtension.h $ */
 /** @file
- * VBox Qt GUI - UIGlobalSettingsExtension class declaration.
+ *
+ * VBox frontends: Qt4 GUI ("VirtualBox"):
+ * UIGlobalSettingsExtension class declaration
  */
 
 /*

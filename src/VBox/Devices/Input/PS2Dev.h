@@ -1,4 +1,3 @@
-/* $Id: PS2Dev.h $ */
 /** @file
  * PS/2 devices - Internal header file.
  */
@@ -68,7 +67,6 @@ void PS2MReset(PPS2M pThis);
 void PS2MRelocate(PPS2M pThis, RTGCINTPTR offDelta, PPDMDEVINS pDevIns);
 void PS2MSaveState(PPS2M pThis, PSSMHANDLE pSSM);
 int  PS2MLoadState(PPS2M pThis, PSSMHANDLE pSSM, uint32_t uVersion);
-void PS2MFixupState(PPS2M pThis, uint8_t u8State, uint8_t u8Rate, uint8_t u8Proto);
 
 PS2M *KBDGetPS2MFromDevIns(PPDMDEVINS pDevIns);
 

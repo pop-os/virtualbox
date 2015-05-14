@@ -1,6 +1,7 @@
-/* $Id: UIHostComboEditor.h $ */
 /** @file
- * VBox Qt GUI - VirtualBox Qt extensions: UIHostComboEditor class declaration.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * VirtualBox Qt extensions: UIHostComboEditor class declaration
  */
 
 /*

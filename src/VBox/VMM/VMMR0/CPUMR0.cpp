@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -79,8 +79,8 @@ static CPUMHOSTLAPIC g_aLApics[RTCPUSET_MAX_CPUS];
 static struct
 {
     uint32_t uLeaf;  /**< Leaf to check. */
-    uint32_t uEcx;   /**< which bits in ecx to unify between CPUs. */
-    uint32_t uEdx;   /**< which bits in edx to unify between CPUs. */
+    uint32_t ecx;    /**< which bits in ecx to unify between CPUs. */
+    uint32_t edx;    /**< which bits in edx to unify between CPUs. */
 }
 const g_aCpuidUnifyBits[] =
 {
@@ -157,20 +157,20 @@ static DECLCALLBACK(void) cpumR0CheckCpuid(RTCPUID idCpu, void *pvUser1, void *p
 
         uint32_t   uLeaf = g_aCpuidUnifyBits[i].uLeaf;
         PCPUMCPUID pLegacyLeaf;
-        if (uLeaf < RT_ELEMENTS(pVM->cpum.s.aGuestCpuIdPatmStd))
-            pLegacyLeaf = &pVM->cpum.s.aGuestCpuIdPatmStd[uLeaf];
-        else if (uLeaf - UINT32_C(0x80000000) < RT_ELEMENTS(pVM->cpum.s.aGuestCpuIdPatmExt))
-            pLegacyLeaf = &pVM->cpum.s.aGuestCpuIdPatmExt[uLeaf - UINT32_C(0x80000000)];
-        else if (uLeaf - UINT32_C(0xc0000000) < RT_ELEMENTS(pVM->cpum.s.aGuestCpuIdPatmCentaur))
-            pLegacyLeaf = &pVM->cpum.s.aGuestCpuIdPatmCentaur[uLeaf - UINT32_C(0xc0000000)];
+        if (uLeaf < RT_ELEMENTS(pVM->cpum.s.aGuestCpuIdStd))
+            pLegacyLeaf = &pVM->cpum.s.aGuestCpuIdStd[uLeaf];
+        else if (uLeaf - UINT32_C(0x80000000) < RT_ELEMENTS(pVM->cpum.s.aGuestCpuIdExt))
+            pLegacyLeaf = &pVM->cpum.s.aGuestCpuIdExt[uLeaf - UINT32_C(0x80000000)];
+        else if (uLeaf - UINT32_C(0xc0000000) < RT_ELEMENTS(pVM->cpum.s.aGuestCpuIdCentaur))
+            pLegacyLeaf = &pVM->cpum.s.aGuestCpuIdCentaur[uLeaf - UINT32_C(0xc0000000)];
         else
             continue;
 
         uint32_t eax, ebx, ecx, edx;
         ASMCpuIdExSlow(uLeaf, 0, 0, 0, &eax, &ebx, &ecx, &edx);
 
-        ASMAtomicAndU32(&pLegacyLeaf->uEcx, ecx | ~g_aCpuidUnifyBits[i].uEcx);
-        ASMAtomicAndU32(&pLegacyLeaf->uEdx, edx | ~g_aCpuidUnifyBits[i].uEdx);
+        ASMAtomicAndU32(&pLegacyLeaf->ecx, ecx | ~g_aCpuidUnifyBits[i].ecx);
+        ASMAtomicAndU32(&pLegacyLeaf->edx, edx | ~g_aCpuidUnifyBits[i].edx);
     }
 }
 
@@ -285,23 +285,22 @@ VMMR0_INT_DECL(int) CPUMR0InitVM(PVM pVM)
 
         for (uint32_t i = 0; i < RT_ELEMENTS(g_aCpuidUnifyBits); i++)
         {
-            bool            fIgnored;
             uint32_t        uLeaf = g_aCpuidUnifyBits[i].uLeaf;
-            PCPUMCPUIDLEAF  pLeaf = cpumCpuIdGetLeafEx(pVM, uLeaf, 0, &fIgnored);
+            PCPUMCPUIDLEAF  pLeaf = cpumCpuIdGetLeaf(pVM, uLeaf, 0);
             if (pLeaf)
             {
                 PCPUMCPUID pLegacyLeaf;
-                if (uLeaf < RT_ELEMENTS(pVM->cpum.s.aGuestCpuIdPatmStd))
-                    pLegacyLeaf = &pVM->cpum.s.aGuestCpuIdPatmStd[uLeaf];
-                else if (uLeaf - UINT32_C(0x80000000) < RT_ELEMENTS(pVM->cpum.s.aGuestCpuIdPatmExt))
-                    pLegacyLeaf = &pVM->cpum.s.aGuestCpuIdPatmExt[uLeaf - UINT32_C(0x80000000)];
-                else if (uLeaf - UINT32_C(0xc0000000) < RT_ELEMENTS(pVM->cpum.s.aGuestCpuIdPatmCentaur))
-                    pLegacyLeaf = &pVM->cpum.s.aGuestCpuIdPatmCentaur[uLeaf - UINT32_C(0xc0000000)];
+                if (uLeaf < RT_ELEMENTS(pVM->cpum.s.aGuestCpuIdStd))
+                    pLegacyLeaf = &pVM->cpum.s.aGuestCpuIdStd[uLeaf];
+                else if (uLeaf - UINT32_C(0x80000000) < RT_ELEMENTS(pVM->cpum.s.aGuestCpuIdExt))
+                    pLegacyLeaf = &pVM->cpum.s.aGuestCpuIdExt[uLeaf - UINT32_C(0x80000000)];
+                else if (uLeaf - UINT32_C(0xc0000000) < RT_ELEMENTS(pVM->cpum.s.aGuestCpuIdCentaur))
+                    pLegacyLeaf = &pVM->cpum.s.aGuestCpuIdCentaur[uLeaf - UINT32_C(0xc0000000)];
                 else
                     continue;
 
-                pLeaf->uEcx = pLegacyLeaf->uEcx;
-                pLeaf->uEdx = pLegacyLeaf->uEdx;
+                pLeaf->uEcx = pLegacyLeaf->ecx;
+                pLeaf->uEdx = pLegacyLeaf->edx;
             }
         }
 
@@ -338,8 +337,8 @@ VMMR0_INT_DECL(int) CPUMR0InitVM(PVM pVM)
  */
 VMMR0_INT_DECL(int) CPUMR0Trap07Handler(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
 {
-    Assert(pVM->cpum.s.HostFeatures.fFxSaveRstor);
-    Assert(ASMGetCR4() & X86_CR4_OSFXSR);
+    Assert(pVM->cpum.s.CPUFeatures.edx.u1FXSR);
+    Assert(ASMGetCR4() & X86_CR4_OSFSXR);
 
     /* If the FPU state has already been loaded, then it's a guest trap. */
     if (CPUMIsGuestFPUStateActive(pVCpu))
@@ -413,7 +412,6 @@ VMMR0_INT_DECL(int) CPUMR0LoadGuestFPU(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
     else
 #endif
     {
-        NOREF(pCtx);
         Assert(!(pVCpu->cpum.s.fUseFlags & CPUM_USED_MANUAL_XMM_RESTORE));
         /** @todo Move the FFXR handling down into
          *        cpumR0SaveHostRestoreGuestFPUState to optimize the
@@ -421,11 +419,8 @@ VMMR0_INT_DECL(int) CPUMR0LoadGuestFPU(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
         /* Clear MSR_K6_EFER_FFXSR or else we'll be unable to save/restore the XMM state with fxsave/fxrstor. */
         uint64_t uHostEfer    = 0;
         bool     fRestoreEfer = false;
-        if (pVM->cpum.s.HostFeatures.fLeakyFxSR)
+        if (pVM->cpum.s.CPUFeaturesExt.edx & X86_CPUID_AMD_FEATURE_EDX_FFXSR)
         {
-            /** @todo r=ramshankar: Can't we used a cached value here
-             *        instead of reading the MSR? host EFER doesn't usually
-             *        change. */
             uHostEfer = ASMRdMsr(MSR_K6_EFER);
             if (uHostEfer & MSR_K6_EFER_FFXSR)
             {
@@ -458,10 +453,10 @@ VMMR0_INT_DECL(int) CPUMR0LoadGuestFPU(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
  */
 VMMR0_INT_DECL(int) CPUMR0SaveGuestFPU(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
 {
-    Assert(pVM->cpum.s.HostFeatures.fFxSaveRstor);
-    Assert(ASMGetCR4() & X86_CR4_OSFXSR);
+    Assert(pVM->cpum.s.CPUFeatures.edx.u1FXSR);
+    Assert(ASMGetCR4() & X86_CR4_OSFSXR);
     AssertReturn((pVCpu->cpum.s.fUseFlags & CPUM_USED_FPU), VINF_SUCCESS);
-    NOREF(pVM); NOREF(pCtx);
+    NOREF(pCtx);
 
 #if HC_ARCH_BITS == 32 && defined(VBOX_WITH_64_BITS_GUESTS) && !defined(VBOX_WITH_HYBRID_32BIT_KERNEL)
     if (CPUMIsGuestInLongModeEx(pCtx))
@@ -486,7 +481,7 @@ VMMR0_INT_DECL(int) CPUMR0SaveGuestFPU(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
          *        I'm not able to test such an optimization tonight.
          *        We could just all this in assembly. */
         uint128_t aGuestXmmRegs[16];
-        memcpy(&aGuestXmmRegs[0], &pVCpu->cpum.s.Guest.CTX_SUFF(pXState)->x87.aXMM[0], sizeof(aGuestXmmRegs));
+        memcpy(&aGuestXmmRegs[0], &pVCpu->cpum.s.Guest.fpu.aXMM[0], sizeof(aGuestXmmRegs));
 #endif
 
         /* Clear MSR_K6_EFER_FFXSR or else we'll be unable to save/restore the XMM state with fxsave/fxrstor. */
@@ -509,7 +504,7 @@ VMMR0_INT_DECL(int) CPUMR0SaveGuestFPU(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
             ASMWrMsr(MSR_K6_EFER, uHostEfer | MSR_K6_EFER_FFXSR);
 
 #ifdef VBOX_WITH_KERNEL_USING_XMM
-        memcpy(&pVCpu->cpum.s.Guest.CTX_SUFF(pXState)->x87.aXMM[0], &aGuestXmmRegs[0], sizeof(aGuestXmmRegs));
+        memcpy(&pVCpu->cpum.s.Guest.fpu.aXMM[0], &aGuestXmmRegs[0], sizeof(aGuestXmmRegs));
 #endif
     }
 
@@ -842,8 +837,6 @@ static DECLCALLBACK(void) cpumR0MapLocalApicCpuProber(RTCPUID idCpu, void *pvUse
  */
 static DECLCALLBACK(void) cpumR0MapLocalApicCpuChecker(RTCPUID idCpu, void *pvUser1, void *pvUser2)
 {
-    NOREF(pvUser1); NOREF(pvUser2);
-
     int iCpu = RTMpCpuIdToSetIndex(idCpu);
     AssertReturnVoid(iCpu >= 0 && (unsigned)iCpu < RT_ELEMENTS(g_aLApics));
     if (!g_aLApics[iCpu].fEnabled)
@@ -865,31 +858,15 @@ static DECLCALLBACK(void) cpumR0MapLocalApicCpuChecker(RTCPUID idCpu, void *pvUs
 
 #if 0 /* enable if you need it. */
         if (g_aLApics[iCpu].fX2Apic)
-            SUPR0Printf("CPUM: X2APIC %02u - ver %#010x, lint0=%#07x lint1=%#07x pc=%#07x thmr=%#07x cmci=%#07x\n",
+            SUPR0Printf("CPUM: X2APIC %02u - ver %#010x, lint0=%#07x lint1=%#07x pc=%#07x thmr=%#07x\n",
                         iCpu, uApicVersion,
                         ApicX2RegRead32(APIC_REG_LVT_LINT0), ApicX2RegRead32(APIC_REG_LVT_LINT1),
-                        ApicX2RegRead32(APIC_REG_LVT_PC), ApicX2RegRead32(APIC_REG_LVT_THMR),
-                        ApicX2RegRead32(APIC_REG_LVT_CMCI));
+                        ApicX2RegRead32(APIC_REG_LVT_PC), ApicX2RegRead32(APIC_REG_LVT_THMR) );
         else
-        {
-            SUPR0Printf("CPUM: APIC %02u at %RGp (mapped at %p) - ver %#010x, lint0=%#07x lint1=%#07x pc=%#07x thmr=%#07x cmci=%#07x\n",
+            SUPR0Printf("CPUM: APIC %02u at %RGp (mapped at %p) - ver %#010x, lint0=%#07x lint1=%#07x pc=%#07x thmr=%#07x\n",
                         iCpu, g_aLApics[iCpu].PhysBase, g_aLApics[iCpu].pv, uApicVersion,
                         ApicRegRead(g_aLApics[iCpu].pv, APIC_REG_LVT_LINT0), ApicRegRead(g_aLApics[iCpu].pv, APIC_REG_LVT_LINT1),
-                        ApicRegRead(g_aLApics[iCpu].pv, APIC_REG_LVT_PC), ApicRegRead(g_aLApics[iCpu].pv, APIC_REG_LVT_THMR),
-                        ApicRegRead(g_aLApics[iCpu].pv, APIC_REG_LVT_CMCI));
-            if (uApicVersion & 0x80000000)
-            {
-                uint32_t uExtFeatures = ApicRegRead(g_aLApics[iCpu].pv, 0x400);
-                uint32_t cEiLvt = (uExtFeatures >> 16) & 0xff;
-                SUPR0Printf("CPUM: APIC %02u: ExtSpace available. extfeat=%08x eilvt[0..3]=%08x %08x %08x %08x\n",
-                            iCpu,
-                            ApicRegRead(g_aLApics[iCpu].pv, 0x400),
-                            cEiLvt >= 1 ? ApicRegRead(g_aLApics[iCpu].pv, 0x500) : 0,
-                            cEiLvt >= 2 ? ApicRegRead(g_aLApics[iCpu].pv, 0x510) : 0,
-                            cEiLvt >= 3 ? ApicRegRead(g_aLApics[iCpu].pv, 0x520) : 0,
-                            cEiLvt >= 4 ? ApicRegRead(g_aLApics[iCpu].pv, 0x530) : 0);
-            }
-        }
+                        ApicRegRead(g_aLApics[iCpu].pv, APIC_REG_LVT_PC), ApicRegRead(g_aLApics[iCpu].pv, APIC_REG_LVT_THMR) );
 #endif
     }
     else
@@ -1008,13 +985,13 @@ static void cpumR0UnmapLocalApics(void)
  *
  * @param   pVCpu       Pointer to the cross context CPU structure of the
  *                      calling EMT.
- * @param   iHostCpuSet The CPU set index of the current host CPU.
+ * @param   idHostCpu   The ID of the current host CPU.
  */
-VMMR0_INT_DECL(void) CPUMR0SetLApic(PVMCPU pVCpu, uint32_t iHostCpuSet)
+VMMR0_INT_DECL(void) CPUMR0SetLApic(PVMCPU pVCpu, RTCPUID idHostCpu)
 {
-    Assert(iHostCpuSet <= RT_ELEMENTS(g_aLApics));
-    pVCpu->cpum.s.pvApicBase = g_aLApics[iHostCpuSet].pv;
-    pVCpu->cpum.s.fX2Apic    = g_aLApics[iHostCpuSet].fX2Apic;
+    int idxCpu = RTMpCpuIdToSetIndex(idHostCpu);
+    pVCpu->cpum.s.pvApicBase = g_aLApics[idxCpu].pv;
+    pVCpu->cpum.s.fX2Apic    = g_aLApics[idxCpu].fX2Apic;
 //    Log6(("CPUMR0SetLApic: pvApicBase=%p fX2Apic=%d\n", g_aLApics[idxCpu].pv, g_aLApics[idxCpu].fX2Apic));
 }
 

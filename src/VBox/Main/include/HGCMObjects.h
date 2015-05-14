@@ -1,4 +1,3 @@
-/* $Id: HGCMObjects.h $ */
 /** @file
  *
  * HGCMObjects - Host-Guest Communication Manager objects header.

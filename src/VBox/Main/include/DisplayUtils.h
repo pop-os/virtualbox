@@ -1,4 +1,3 @@
-/* $Id: DisplayUtils.h $ */
 /** @file
  * Display helper declarations
  */

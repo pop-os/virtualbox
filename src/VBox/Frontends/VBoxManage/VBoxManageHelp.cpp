@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -128,7 +128,7 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
 #endif
                      "                            hostinfo|hostcpuids|hddbackends|hdds|dvds|floppies|\n"
                      "                            usbhost|usbfilters|systemproperties|extpacks|\n"
-                     "                            groups|webcams|screenshotformats\n"
+                     "                            groups|webcams\n"
                      "\n", SEP);
 
     if (fCategory & USAGE_SHOWVMINFO)
@@ -179,8 +179,6 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
                      "                            [--ioapic on|off]\n"
                      "                            [--hpet on|off]\n"
                      "                            [--triplefaultreset on|off]\n"
-                     "                            [--paravirtprovider none|default|legacy|minimal|\n"
-                     "                                                hyperv|kvm]\n"
                      "                            [--hwvirtex on|off]\n"
                      "                            [--nestedpaging on|off]\n"
                      "                            [--largepages on|off]\n"
@@ -188,7 +186,7 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
                      "                            [--vtxux on|off]\n"
                      "                            [--pae on|off]\n"
                      "                            [--longmode on|off]\n"
-                     "                            [--cpuid-portability-level <0..3>\n"
+                     "                            [--synthcpu on|off]\n"
                      "                            [--cpuidset <leaf> <eax> <ebx> <ecx> <edx>]\n"
                      "                            [--cpuidremove <leaf>]\n"
                      "                            [--cpuidremoveall]\n"
@@ -272,8 +270,6 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
                      "                            [--uartmode<1-N> disconnected|\n"
                      "                                             server <pipe>|\n"
                      "                                             client <pipe>|\n"
-                     "                                             tcpserver <port>|\n"
-                     "                                             tcpclient <hostname:port>|\n"
                      "                                             file <file>|\n"
                      "                                             <devicename>]\n"
 #if defined(RT_OS_LINUX) || defined(RT_OS_WINDOWS)
@@ -332,7 +328,7 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
                      "                            [--audiocontroller ac97|hda|sb16]\n"
                      "                            [--clipboard disabled|hosttoguest|guesttohost|\n"
                      "                                         bidirectional]\n"
-                     "                            [--draganddrop disabled|hosttoguest]\n");
+                     "                            [--draganddrop disabled|hosttoguest\n");
         RTStrmPrintf(pStrm,
                      "                            [--vrde on|off]\n"
                      "                            [--vrdeextpack default|<name>\n"
@@ -348,7 +344,6 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
         RTStrmPrintf(pStrm,
                      "                            [--usb on|off]\n"
                      "                            [--usbehci on|off]\n"
-                     "                            [--usbxhci on|off]\n"
                      "                            [--snapshotfolder default|<path>]\n"
                      "                            [--teleporter on|off]\n"
                      "                            [--teleporterport <port>]\n"
@@ -374,20 +369,18 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
 #endif
                      "                            [--autostart-enabled on|off]\n"
                      "                            [--autostart-delay <seconds>]\n"
-#if 0
+#if 0 /* Disabled until the feature is implemented. */
                      "                            [--autostop-type disabled|savestate|poweroff|\n"
                      "                                             acpishutdown]\n"
 #endif
 #ifdef VBOX_WITH_VPX
-                     "                            [--videocap on|off]\n"
-                     "                            [--videocapscreens all|<screen ID> [<screen ID> ...]]\n"
-                     "                            [--videocapfile <filename>]\n"
-                     "                            [--videocapres <width> <height>]\n"
-                     "                            [--videocaprate <rate>]\n"
-                     "                            [--videocapfps <fps>]\n"
-                     "                            [--videocapmaxtime <time>]\n"
-                     "                            [--videocapmaxsize <MB>]\n"
-                     "                            [--videocapopts <key=value> [<key=value> ...]]\n"
+                     "                            [--vcpenabled on|off]\n"
+                     "                            [--vcpscreens [<display>],...\n"
+                     "                            [--vcpfile <filename>]\n"
+                     "                            [--vcpwidth <width>]\n"
+                     "                            [--vcpheight <height>]\n"
+                     "                            [--vcprate <rate>]\n"
+                     "                            [--vcpfps <fps>]\n"
 #endif
                      "                            [--defaultfrontend default|<name>]\n"
                      "\n");
@@ -411,7 +404,7 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
         RTStrmPrintf(pStrm,
                            "%s import %s          <ovfname/ovaname>\n"
                      "                            [--dry-run|-n]\n"
-                     "                            [--options keepallmacs|keepnatmacs|importtovdi]\n"
+                     "                            [--options keepallmacs|keepnatmacs]\n"
                      "                            [more options]\n"
                      "                            (run with -n to have options displayed\n"
                      "                             for a particular OVF)\n\n", SEP);
@@ -441,7 +434,7 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
                      "                            [--type gui", SEP);
         if (fVBoxSDL)
             RTStrmPrintf(pStrm, "|sdl");
-        RTStrmPrintf(pStrm, "|headless|separate]\n");
+        RTStrmPrintf(pStrm, "|headless]\n");
         RTStrmPrintf(pStrm,
                      "\n");
     }
@@ -469,8 +462,7 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
                      "                                        <hostport>,[<guestip>],<guestport> |\n"
                      "                            natpf<1-N> delete <rulename> |\n"
                      "                            guestmemoryballoon <balloonsize in MB> |\n"
-                     "                            usbattach <uuid>|<address>\n"
-                     "                                      [--capturefile <filename>] |\n"
+                     "                            usbattach <uuid>|<address> |\n"
                      "                            usbdetach <uuid>|<address> |\n"
                      "                            clipboard disabled|hosttoguest|guesttohost|\n"
                      "                                      bidirectional |\n"
@@ -497,11 +489,6 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
                      "                            unplugcpu <id> |\n"
                      "                            cpuexecutioncap <1-100>\n"
                      "                            webcam <attach [path [settings]]> | <detach [path]> | <list>\n"
-                     "                            addencpassword <id>\n"
-                     "                                           <password>\n"
-                     "                                           [--removeonsuspend <yes|no>]\n"
-                     "                            removeencpassword <id>\n"
-                     "                            removeallencpasswords\n"
                      "\n", SEP);
     }
 
@@ -531,7 +518,7 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
 
     if (fCategory & USAGE_CLOSEMEDIUM)
         RTStrmPrintf(pStrm,
-                           "%s closemedium %s     [disk|dvd|floppy] <uuid|filename>\n"
+                           "%s closemedium %s     disk|dvd|floppy <uuid|filename>\n"
                      "                            [--delete]\n"
                      "\n", SEP);
 
@@ -553,7 +540,6 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
                      "                            [--tempeject on|off]\n"
                      "                            [--nonrotational on|off]\n"
                      "                            [--discard on|off]\n"
-                     "                            [--hotpluggable on|off]\n"
                      "                            [--bandwidthgroup <name>]\n"
                      "                            [--forceunmount]\n"
                      "                            [--server <name>|<ip>]\n"
@@ -574,7 +560,7 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
                      "                            [--add ide|sata|scsi|floppy|sas]\n"
                      "                            [--controller LSILogic|LSILogicSAS|BusLogic|\n"
                      "                                          IntelAHCI|PIIX3|PIIX4|ICH6|I82078]\n"
-                     "                            [--portcount <1-n>]\n"
+                     "                            [--portcount <1-30>]\n"
                      "                            [--hostiocache on|off]\n"
                      "                            [--bootable on|off]\n"
                      "                            [--remove]\n"
@@ -593,23 +579,23 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
                      "                                          K=kilobyte, M=megabyte, G=gigabyte)\n"
                      "\n", SEP);
 
-    if (fCategory & USAGE_SHOWMEDIUMINFO)
+    if (fCategory & USAGE_SHOWHDINFO)
         RTStrmPrintf(pStrm,
-                           "%s showmediuminfo %s  [disk|dvd|floppy] <uuid|filename>\n"
+                           "%s showhdinfo %s      <uuid|filename>\n"
                      "\n", SEP);
 
-    if (fCategory & USAGE_CREATEMEDIUM)
+    if (fCategory & USAGE_CREATEHD)
         RTStrmPrintf(pStrm,
-                           "%s createmedium %s    [disk|dvd|floppy] --filename <filename>\n"
+                           "%s createhd %s        --filename <filename>\n"
                      "                            [--size <megabytes>|--sizebyte <bytes>]\n"
                      "                            [--diffparent <uuid>|<filename>\n"
                      "                            [--format VDI|VMDK|VHD] (default: VDI)\n"
                      "                            [--variant Standard,Fixed,Split2G,Stream,ESX]\n"
                      "\n", SEP);
 
-    if (fCategory & USAGE_MODIFYMEDIUM)
+    if (fCategory & USAGE_MODIFYHD)
         RTStrmPrintf(pStrm,
-                           "%s modifymedium %s    [disk|dvd|floppy] <uuid|filename>\n"
+                           "%s modifyhd %s        <uuid|filename>\n"
                      "                            [--type normal|writethrough|immutable|shareable|\n"
                      "                                    readonly|multiattach]\n"
                      "                            [--autoreset on|off]\n"
@@ -618,39 +604,12 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
                      "                            [--resize <megabytes>|--resizebyte <bytes>]\n"
                      "\n", SEP);
 
-    if (fCategory & USAGE_CLONEMEDIUM)
+    if (fCategory & USAGE_CLONEHD)
         RTStrmPrintf(pStrm,
-                           "%s clonemedium %s     [disk|dvd|floppy] <uuid|inputfile> <uuid|outputfile>\n"
+                           "%s clonehd %s         <uuid|inputfile> <uuid|outputfile>\n"
                      "                            [--format VDI|VMDK|VHD|RAW|<other>]\n"
                      "                            [--variant Standard,Fixed,Split2G,Stream,ESX]\n"
                      "                            [--existing]\n"
-                     "\n", SEP);
-
-    if (fCategory & USAGE_MEDIUMPROPERTY)
-        RTStrmPrintf(pStrm,
-                           "%s mediumproperty %s  [disk|dvd|floppy] set <uuid|filename>\n"
-                     "                            <property> <value>\n"
-                     "\n"
-                     "                            [disk|dvd|floppy] get <uuid|filename>\n"
-                     "                            <property>\n"
-                     "\n"
-                     "                            [disk|dvd|floppy] delete <uuid|filename>\n"
-                     "                            <property>\n"
-                     "\n", SEP);
-
-    if (fCategory & USAGE_ENCRYPTMEDIUM)
-        RTStrmPrintf(pStrm,
-                           "%s encryptmedium %s   <uuid|filename>\n"
-                     "                            [--newpassword <file>|-]\n"
-                     "                            [--oldpassword <file>|-]\n"
-                     "                            [--cipher <cipher identifier>]\n"
-                     "                            [--newpasswordid <password identifier>]\n"
-                     "\n", SEP);
-
-    if (fCategory & USAGE_MEDIUMENCCHKPWD)
-        RTStrmPrintf(pStrm,
-                           "%s checkmediumpwd %s  <uuid|filename>\n"
-                     "                            <pwd file>|-\n"
                      "\n", SEP);
 
     if (fCategory & USAGE_CONVERTFROMRAW)
@@ -688,6 +647,7 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
                      "                            autostartdbpath null|<folder> |\n"
                      "                            loghistorycount <value>\n"
                      "                            defaultfrontend default|<name>\n"
+                     "                            logginglevel <log setting>\n"
                      "\n", SEP);
 
     if (fCategory & USAGE_USBFILTER_ADD)

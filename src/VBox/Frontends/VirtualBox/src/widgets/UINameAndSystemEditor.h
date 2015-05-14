@@ -1,6 +1,7 @@
-/* $Id: UINameAndSystemEditor.h $ */
 /** @file
- * VBox Qt GUI - UINameAndSystemEditor class declaration.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * UINameAndSystemEditor class declaration
  */
 
 /*

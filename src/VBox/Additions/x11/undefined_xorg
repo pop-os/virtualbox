@@ -125,8 +125,8 @@ strchr
 strcmp
 strcpy
 strlen
-strncat
 __strncat_chk
+strncat
 strncmp
 strncpy
 __strncpy_chk

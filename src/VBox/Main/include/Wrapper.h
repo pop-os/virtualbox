@@ -351,7 +351,9 @@ public:
     {
         if (mDst)
         {
-            com::SafeIfaceArray<A> outArray(mArray);
+            com::SafeIfaceArray<A> outArray(mArray.size());
+            for (size_t i = 0; i < mArray.size(); i++)
+                outArray[i] = mArray[i];
             outArray.detachTo(ComSafeArrayOutArg(mDst));
         }
     }

@@ -1,6 +1,7 @@
-/* $Id:  $ */
 /** @file
- * VBox Qt GUI - UIGlobalSettingsNetworkDetailsHost class declaration.
+ *
+ * VBox frontends: Qt4 GUI ("VirtualBox"):
+ * UIGlobalSettingsNetworkDetailsHost class declaration
  */
 
 /*

@@ -1,6 +1,7 @@
-/* $Id: UIVMLogViewer.h $ */
 /** @file
- * VBox Qt GUI - UIVMLogViewer class declaration.
+ *
+ * VBox frontends: Qt4 GUI ("VirtualBox"):
+ * UIVMLogViewer class declaration
  */
 
 /*

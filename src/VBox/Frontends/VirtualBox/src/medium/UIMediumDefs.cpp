@@ -1,6 +1,8 @@
 /* $Id: UIMediumDefs.cpp $ */
 /** @file
- * VBox Qt GUI - UIMedium related implementations.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * UIMedium related implementations
  */
 
 /*
@@ -15,15 +17,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* GUI includes: */
-# include "UIMediumDefs.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
+#include "UIMediumDefs.h"
 
 /* Convert global medium type (KDeviceType) to local (UIMediumType): */
 UIMediumType UIMediumDefs::mediumTypeToLocal(KDeviceType globalType)

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2008-2014 Oracle Corporation
+ * Copyright (C) 2008-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -47,25 +47,6 @@ RT_C_DECLS_BEGIN
  * @returns CPU Id.
  */
 RTDECL(RTCPUID) RTMpCpuId(void);
-
-/**
- * Get the CPU set index of the CPU executing the call.
- *
- * Same scheduling warnings as for RTMpCpuId().
- *
- * @returns CPU set index.
- */
-RTDECL(int) RTMpCurSetIndex(void);
-
-/**
- * Get the CPU set index and identifier of the CPU executing the call.
- *
- * Same scheduling warnings as for RTMpCpuId().
- *
- * @returns CPU set index.
- * @param   pidCpu      Where to return the CPU identifier. (not optional)
- */
-RTDECL(int) RTMpCurSetIndexAndId(PRTCPUID pidCpu);
 
 /**
  * Converts a CPU identifier to a CPU set index.
@@ -234,8 +215,7 @@ RTDECL(uint32_t) RTMpGetMaxFrequency(RTCPUID idCpu);
  * The CPU must be online.
  *
  * @returns IPRT status code.
- * @param   idCpu       The identifier of the CPU.  NIL_RTCPUID can be used to
- *                      indicate the current CPU.
+ * @param   idCpu       The identifier of the CPU.
  * @param   pszBuf      The output buffer.
  * @param   cbBuf       The size of the output buffer.
  */
@@ -263,30 +243,6 @@ RTDECL(bool) RTMpIsCpuWorkPending(void);
 typedef DECLCALLBACK(void) FNRTMPWORKER(RTCPUID idCpu, void *pvUser1, void *pvUser2);
 /** Pointer to a FNRTMPWORKER. */
 typedef FNRTMPWORKER *PFNRTMPWORKER;
-
-/** @name RTMPON_F_XXX - RTMpOn flags.
- * @{ */
-/** Caller doesn't care if pfnWorker is executed at the same time on the
- *  specified CPUs or not, as long as it gets executed. */
-#define RTMPON_F_WHATEVER_EXEC      0
-/** The caller insists on pfnWorker being executed more or less concurrently
- * on the specified CPUs. */
-#define RTMPON_F_CONCURRENT_EXEC    RT_BIT_32(1)
-/** Mask of valid bits. */
-#define RTMPON_F_VALID_MASK         UINT32_C(0x00000001)
-/** @}*/
-
-/**
- * Checks if the RTMpOnAll() is safe with regards to all threads executing
- * concurrently.
- *
- * If for instance, the RTMpOnAll() is implemented in a way where the threads
- * might cause a classic deadlock, it is considered -not- concurrent safe.
- * Windows currently is one such platform where it isn't safe.
- *
- * @returns true if RTMpOnAll() is concurrent safe, false otherwise.
- */
-RTDECL(bool) RTMpOnAllIsConcurrentSafe(void);
 
 /**
  * Executes a function on each (online) CPU in the system.
@@ -340,40 +296,6 @@ RTDECL(int) RTMpOnOthers(PFNRTMPWORKER pfnWorker, void *pvUser1, void *pvUser2);
 RTDECL(int) RTMpOnSpecific(RTCPUID idCpu, PFNRTMPWORKER pfnWorker, void *pvUser1, void *pvUser2);
 
 /**
- * Executes a function on two specific CPUs in the system.
- *
- * @returns IPRT status code.
- * @retval  VINF_SUCCESS on success.
- * @retval  VERR_NOT_SUPPORTED if this kind of operation isn't supported by the
- *          system or if the specified modifier flag isn't supported.
- * @retval  VERR_CPU_OFFLINE if one or more of the CPUs are offline (see
- *          remarks).
- * @retval  VERR_CPU_NOT_FOUND if on or both of the CPUs weren't found.
- * @retval  VERR_NOT_ALL_CPUS_SHOWED if one of the CPUs didn't show.
- *
- * @param   idCpu1          The id of the first CPU.
- * @param   idCpu2          The id of the second CPU.
- * @param   fFlags          Combination of RTMPON_F_XXX flags.
- * @param   pfnWorker       The worker function.
- * @param   pvUser1         The first user argument for the worker.
- * @param   pvUser2         The second user argument for the worker.
- *
- * @remarks There is a possible race between one (or both) of the CPUs going
- *          offline while setting up the call.  The worker function must take
- *          this into account.
- */
-RTDECL(int) RTMpOnPair(RTCPUID idCpu1, RTCPUID idCpu2, uint32_t fFlags, PFNRTMPWORKER pfnWorker, void *pvUser1, void *pvUser2);
-
-/**
- * Indicates whether RTMpOnPair supports running the pfnWorker concurrently on
- * both CPUs using RTMPON_F_CONCURRENT_EXEC.
- *
- * @returns true if supported, false if not.
- */
-RTDECL(bool) RTMpOnPairIsConcurrentExecSupported(void);
-
-
-/**
  * Pokes the specified CPU.
  *
  * This should cause the execution on the CPU to be interrupted and forcing it
@@ -408,20 +330,8 @@ typedef enum RTMPEVENT
 /**
  * Notification callback.
  *
- * The context this is called in differs a bit from platform to platform, so be
- * careful while in here.
- *
- * On Windows we're running with IRQL=PASSIVE_LEVEL (reschedulable) according to
- * the KeRegisterProcessorChangeCallback documentation - unrestricted API
- * access. Probably not being called on the onlined/offlined CPU...
- *
- * On Solaris we're holding the cpu_lock, IPL/SPL/PIL is not yet known, however
- * we will most likely -not- be firing on the CPU going offline/online.
- *
- * On Linux it looks like we're called with preemption enabled on any CPU and
- * not necessarily on the CPU going offline/online.
- *
- * There is no callbacks for darwin at the moment, due to lack of suitable KPI.
+ * The context this is called in differs a bit from platform to
+ * platform, so be careful while in here.
  *
  * @param   idCpu       The CPU this applies to.
  * @param   enmEvent    The event.

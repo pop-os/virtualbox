@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -70,40 +70,6 @@
     } while (0)
 #else
 # define TMTIMER_ASSERT_CRITSECT(pTimer) do { } while (0)
-#endif
-
-/** @def TMTIMER_ASSERT_SYNC_CRITSECT_ORDER
- * Checks for lock order trouble between the timer critsect and the critical
- * section critsect.  The virtual sync critsect must always be entered before
- * the one associated with the timer (see TMR3TimerQueuesDo).  It is OK if there
- * isn't any critical section associated with the timer or if the calling thread
- * doesn't own it, ASSUMING of course that the thread using this macro is going
- * to enter the virtual sync critical section anyway.
- *
- * @remarks This is a sligtly relaxed timer locking attitude compared to
- *          TMTIMER_ASSERT_CRITSECT, however, the calling device/whatever code
- *          should know what it's doing if it's stopping or starting a timer
- *          without taking the device lock.
- */
-#ifdef VBOX_STRICT
-# define TMTIMER_ASSERT_SYNC_CRITSECT_ORDER(pVM, pTimer) \
-    do { \
-        if ((pTimer)->pCritSect) \
-        { \
-            VMSTATE      enmState; \
-            PPDMCRITSECT pCritSect = (PPDMCRITSECT)MMHyperR3ToCC(pVM, (pTimer)->pCritSect); \
-            AssertMsg(   pCritSect \
-                      && (   !PDMCritSectIsOwner(pCritSect) \
-                          || PDMCritSectIsOwner(&pVM->tm.s.VirtualSyncLock) \
-                          || (enmState = (pVM)->enmVMState) == VMSTATE_CREATING \
-                          || enmState == VMSTATE_RESETTING \
-                          || enmState == VMSTATE_RESETTING_LS ),\
-                      ("pTimer=%p (%s) pCritSect=%p (%s)\n", pTimer, R3STRING(pTimer->pszDesc), \
-                       (pTimer)->pCritSect, R3STRING(PDMR3CritSectName((pTimer)->pCritSect)) )); \
-        } \
-    } while (0)
-#else
-# define TMTIMER_ASSERT_SYNC_CRITSECT_ORDER(pVM, pTimer) do { } while (0)
 #endif
 
 
@@ -516,7 +482,6 @@ DECLINLINE(void) tmTimerQueueScheduleOne(PTMTIMERQUEUE pQueue, PTMTIMER pTimer)
 void tmTimerQueueSchedule(PVM pVM, PTMTIMERQUEUE pQueue)
 {
     TM_ASSERT_TIMER_LOCK_OWNERSHIP(pVM);
-    NOREF(pVM);
 
     /*
      * Dequeue the scheduling list and iterate it.
@@ -745,7 +710,7 @@ DECL_FORCE_INLINE(uint64_t) tmTimerPollReturnOtherCpu(PVM pVM, uint64_t u64Now, 
 DECL_FORCE_INLINE(uint64_t) tmTimerPollReturnHit(PVM pVM, PVMCPU pVCpu, PVMCPU pVCpuDst, uint64_t u64Now,
                                                  uint64_t *pu64Delta, PSTAMCOUNTER pCounter)
 {
-    STAM_COUNTER_INC(pCounter); NOREF(pCounter);
+    STAM_COUNTER_INC(pCounter);
     if (pVCpuDst != pVCpu)
         return tmTimerPollReturnOtherCpu(pVM, u64Now, pu64Delta);
     *pu64Delta = 0;
@@ -1163,7 +1128,7 @@ static int tmTimerVirtualSyncSet(PVM pVM, PTMTIMER pTimer, uint64_t u64Expire)
 {
     STAM_PROFILE_START(&pVM->tm.s.CTX_SUFF_Z(StatTimerSetVs), a);
     VM_ASSERT_EMT(pVM);
-    TMTIMER_ASSERT_SYNC_CRITSECT_ORDER(pVM, pTimer);
+    Assert(PDMCritSectIsOwner(&pVM->tm.s.VirtualSyncLock));
     int rc = PDMCritSectEnter(&pVM->tm.s.VirtualSyncLock, VINF_SUCCESS);
     AssertRCReturn(rc, rc);
 
@@ -1462,7 +1427,7 @@ static int tmTimerVirtualSyncSetRelative(PVM pVM, PTMTIMER pTimer, uint64_t cTic
 {
     STAM_PROFILE_START(pVM->tm.s.CTX_SUFF_Z(StatTimerSetRelativeVs), a);
     VM_ASSERT_EMT(pVM);
-    TMTIMER_ASSERT_SYNC_CRITSECT_ORDER(pVM, pTimer);
+    Assert(PDMCritSectIsOwner(&pVM->tm.s.VirtualSyncLock));
     int rc = PDMCritSectEnter(&pVM->tm.s.VirtualSyncLock, VINF_SUCCESS);
     AssertRCReturn(rc, rc);
 
@@ -1789,7 +1754,7 @@ static int tmTimerVirtualSyncStop(PVM pVM, PTMTIMER pTimer)
 {
     STAM_PROFILE_START(&pVM->tm.s.CTX_SUFF_Z(StatTimerStopVs), a);
     VM_ASSERT_EMT(pVM);
-    TMTIMER_ASSERT_SYNC_CRITSECT_ORDER(pVM, pTimer);
+    Assert(PDMCritSectIsOwner(&pVM->tm.s.VirtualSyncLock));
     int rc = PDMCritSectEnter(&pVM->tm.s.VirtualSyncLock, VINF_SUCCESS);
     AssertRCReturn(rc, rc);
 
@@ -2574,16 +2539,3 @@ VMM_INT_DECL(uint32_t) TMCalcHostTimerFrequency(PVM pVM, PVMCPU pVCpu)
 
     return uHz;
 }
-
-
-/**
- * Whether the guest virtual clock is ticking.
- *
- * @returns true if ticking, false otherwise.
- * @param   pVM     Pointer to the VM.
- */
-VMM_INT_DECL(bool) TMVirtualIsTicking(PVM pVM)
-{
-    return RT_BOOL(pVM->tm.s.cVirtualTicking);
-}
-

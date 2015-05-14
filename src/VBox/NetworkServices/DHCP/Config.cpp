@@ -1050,11 +1050,19 @@ static int parseDhcpOptionText(const char *pszText,
 }
 
 
+/*
+ * XXX: Since encoding info is "smuggled" through the API and is not
+ * exposed properly we don't have a common definition we can use here.
+ *
+ * TODO: We can define the encodings enum in the IDL without breaking
+ * backward compatibility.  This will provide the authoritative
+ * definition.
+ */
 static int fillDhcpOption(RawOption &opt, const std::string &OptText, int OptEncoding)
 {
     int rc;
  
-    if (OptEncoding == DhcpOptEncoding_Hex)
+    if (OptEncoding == /* HEX */ 1)
     {
         if (OptText.empty())
             return VERR_INVALID_PARAMETER;
@@ -1063,7 +1071,7 @@ static int fillDhcpOption(RawOption &opt, const std::string &OptText, int OptEnc
         char *pszNext = const_cast<char *>(OptText.c_str());
         while (*pszNext != '\0')
         {
-            if (cbRawOpt >= RT_ELEMENTS(opt.au8RawOpt))
+            if (cbRawOpt == 256)
                 return VERR_INVALID_PARAMETER;
 
             uint8_t u8Byte;
@@ -1081,7 +1089,7 @@ static int fillDhcpOption(RawOption &opt, const std::string &OptText, int OptEnc
         }
         opt.cbRawOpt = (uint8_t)cbRawOpt;
     }
-    else if (OptEncoding == DhcpOptEncoding_Legacy)
+    else if (OptEncoding == /* LEGACY */ 0)
     {
         /*
          * XXX: TODO: encode "known" option opt.u8OptId
@@ -1093,7 +1101,7 @@ static int fillDhcpOption(RawOption &opt, const std::string &OptText, int OptEnc
 }
 
 
-int NetworkManager::processParameterReqList(const Client& client, const uint8_t *pu8ReqList,
+int NetworkManager::processParameterReqList(const Client& client, const uint8_t *pu8ReqList, 
                                             int cReqList, std::vector<RawOption>& extra)
 {
     int rc;

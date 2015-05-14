@@ -26,3 +26,4 @@
 #define RTASN1TMPL_PASS RTASN1TMPL_PASS_CHECK_SANITY
 #include <iprt/asn1-generator-pass.h>
 
+

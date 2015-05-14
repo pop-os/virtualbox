@@ -35,7 +35,6 @@
 
 #include <VBox/vmm/gvmm.h>
 #include <VBox/vmm/gmm.h>
-#include <VBox/vmm/gim.h>
 #include <VBox/intnet.h>
 #include <VBox/vmm/hm.h>
 #include <VBox/param.h>
@@ -228,7 +227,6 @@ DECLEXPORT(int) ModuleInit(void *hMod)
  */
 DECLEXPORT(void) ModuleTerm(void *hMod)
 {
-    NOREF(hMod);
     LogFlow(("ModuleTerm:\n"));
 
     /*
@@ -379,20 +377,16 @@ static int vmmR0InitVM(PVM pVM, uint32_t uSvnRev, uint32_t uBuildType)
 #endif
                     if (RT_SUCCESS(rc))
                     {
-                        rc = GIMR0InitVM(pVM);
-                        if (RT_SUCCESS(rc))
-                        {
-                            GVMMR0DoneInitVM(pVM);
-                            return rc;
-                        }
-
-                        /* bail out*/
-#ifdef VBOX_WITH_PCI_PASSTHROUGH
-                        PciRawR0TermVM(pVM);
-#endif
+                        GVMMR0DoneInitVM(pVM);
+                        return rc;
                     }
                 }
+
+                /* bail out */
             }
+#ifdef VBOX_WITH_PCI_PASSTHROUGH
+            PciRawR0TermVM(pVM);
+#endif
             HMR0TermVM(pVM);
         }
     }
@@ -416,7 +410,7 @@ static int vmmR0InitVM(PVM pVM, uint32_t uSvnRev, uint32_t uBuildType)
  * @param   pGVM        Pointer to the global VM structure. Optional.
  * @thread  EMT or session clean up thread.
  */
-VMMR0_INT_DECL(int) VMMR0TermVM(PVM pVM, PGVM pGVM)
+VMMR0DECL(int) VMMR0TermVM(PVM pVM, PGVM pGVM)
 {
 #ifdef VBOX_WITH_PCI_PASSTHROUGH
     PciRawR0TermVM(pVM);
@@ -427,8 +421,6 @@ VMMR0_INT_DECL(int) VMMR0TermVM(PVM pVM, PGVM pGVM)
      */
     if (GVMMR0DoingTermVM(pVM, pGVM))
     {
-        GIMR0TermVM(pVM);
-
         /** @todo I wish to call PGMR0PhysFlushHandyPages(pVM, &pVM->aCpus[idCpu])
          *        here to make sure we don't leak any shared pages if we crash... */
 #ifdef VBOX_WITH_2X_4GB_ADDR_SPACE
@@ -453,7 +445,7 @@ VMMR0_INT_DECL(int) VMMR0TermVM(PVM pVM, PGVM pGVM)
  *
  * @thread  EMT(pVCpu)
  */
-VMMR0_INT_DECL(int) VMMR0ThreadCtxHooksCreate(PVMCPU pVCpu)
+VMMR0DECL(int) VMMR0ThreadCtxHooksCreate(PVMCPU pVCpu)
 {
     VMCPU_ASSERT_EMT(pVCpu);
     Assert(pVCpu->vmm.s.hR0ThreadCtx == NIL_RTTHREADCTX);
@@ -477,7 +469,7 @@ VMMR0_INT_DECL(int) VMMR0ThreadCtxHooksCreate(PVMCPU pVCpu)
  * @param   pVCpu       Pointer to the VMCPU.
  * @remarks Can be called from any thread.
  */
-VMMR0_INT_DECL(void) VMMR0ThreadCtxHooksRelease(PVMCPU pVCpu)
+VMMR0DECL(void) VMMR0ThreadCtxHooksRelease(PVMCPU pVCpu)
 {
     RTThreadCtxHooksRelease(pVCpu->vmm.s.hR0ThreadCtx);
 }
@@ -492,7 +484,7 @@ VMMR0_INT_DECL(void) VMMR0ThreadCtxHooksRelease(PVMCPU pVCpu)
  *
  * @thread  EMT(pVCpu)
  */
-VMMR0_INT_DECL(int) VMMR0ThreadCtxHooksRegister(PVMCPU pVCpu, PFNRTTHREADCTXHOOK pfnThreadHook)
+VMMR0DECL(int) VMMR0ThreadCtxHooksRegister(PVMCPU pVCpu, PFNRTTHREADCTXHOOK pfnThreadHook)
 {
     VMCPU_ASSERT_EMT(pVCpu);
     return RTThreadCtxHooksRegister(pVCpu->vmm.s.hR0ThreadCtx, pfnThreadHook, pVCpu);
@@ -502,21 +494,14 @@ VMMR0_INT_DECL(int) VMMR0ThreadCtxHooksRegister(PVMCPU pVCpu, PFNRTTHREADCTXHOOK
 /**
  * Deregisters the thread-context hook for this VCPU.
  *
+ * @returns VBox status code.
  * @param   pVCpu       Pointer to the VMCPU.
  *
  * @thread  EMT(pVCpu)
  */
-VMMR0_INT_DECL(void) VMMR0ThreadCtxHooksDeregister(PVMCPU pVCpu)
+VMMR0DECL(int) VMMR0ThreadCtxHooksDeregister(PVMCPU pVCpu)
 {
-    /* Clear the VCPU <-> host CPU mapping as we've left HM context. See @bugref{7726} comment #19. */
-    ASMAtomicWriteU32(&pVCpu->idHostCpu, NIL_RTCPUID);
-
-    if (pVCpu->vmm.s.hR0ThreadCtx != NIL_RTTHREADCTX)
-    {
-        Assert(!RTThreadPreemptIsEnabled(NIL_RTTHREAD));
-        int rc = RTThreadCtxHooksDeregister(pVCpu->vmm.s.hR0ThreadCtx);
-        AssertRC(rc);
-    }
+    return RTThreadCtxHooksDeregister(pVCpu->vmm.s.hR0ThreadCtx);
 }
 
 
@@ -527,7 +512,7 @@ VMMR0_INT_DECL(void) VMMR0ThreadCtxHooksDeregister(PVMCPU pVCpu)
  * @returns true if the hooks are created, false otherwise.
  * @param   pVCpu       Pointer to the VMCPU.
  */
-VMMR0_INT_DECL(bool) VMMR0ThreadCtxHooksAreCreated(PVMCPU pVCpu)
+VMMR0DECL(bool) VMMR0ThreadCtxHooksAreCreated(PVMCPU pVCpu)
 {
     return pVCpu->vmm.s.hR0ThreadCtx != NIL_RTTHREADCTX;
 }
@@ -539,7 +524,7 @@ VMMR0_INT_DECL(bool) VMMR0ThreadCtxHooksAreCreated(PVMCPU pVCpu)
  * @returns true if registered, false otherwise.
  * @param   pVCpu       Pointer to the VMCPU.
  */
-VMMR0_INT_DECL(bool) VMMR0ThreadCtxHooksAreRegistered(PVMCPU pVCpu)
+VMMR0DECL(bool) VMMR0ThreadCtxHooksAreRegistered(PVMCPU pVCpu)
 {
     return RTThreadCtxHooksAreRegistered(pVCpu->vmm.s.hR0ThreadCtx);
 }
@@ -564,31 +549,22 @@ static DECLCALLBACK(void) vmmR0ThreadCtxCallback(RTTHREADCTXEVENT enmEvent, void
     {
         case RTTHREADCTXEVENT_RESUMED:
         {
-            /*
-             * Linux may call us with preemption enabled (really!) but technically we
+            /** @todo Linux may call us with preemption enabled (really!) but technically we
              * cannot get preempted here, otherwise we end up in an infinite recursion
-             * scenario (i.e. preempted in resume hook -> preempt hook -> resume hook...
-             * ad infinitum). Let's just disable preemption for now...
+             * scenario (i.e. preempted in resume hook -> preempt hook -> resume hook... ad
+             * infinitum). Let's just disable preemption for now...
              */
-            HM_DISABLE_PREEMPT();
+            HM_DISABLE_PREEMPT_IF_NEEDED();
 
             /* We need to update the VCPU <-> host CPU mapping. */
-            RTCPUID idHostCpu;
-            uint32_t iHostCpuSet = RTMpCurSetIndexAndId(&idHostCpu);
-            pVCpu->iHostCpuSet   = iHostCpuSet;
+            RTCPUID idHostCpu = RTMpCpuId();
             ASMAtomicWriteU32(&pVCpu->idHostCpu, idHostCpu);
-
-            /* In the very unlikely event that the GIP delta for the CPU we're
-               rescheduled needs calculating, try force a return to ring-3.
-               We unfortunately cannot do the measurements right here. */
-            if (RT_UNLIKELY(SUPIsTscDeltaAvailableForCpuSetIndex(iHostCpuSet)))
-                VMCPU_FF_SET(pVCpu, VMCPU_FF_TO_R3);
 
             /* Invoke the HM-specific thread-context callback. */
             HMR0ThreadCtxCallback(enmEvent, pvUser);
 
             /* Restore preemption. */
-            HM_RESTORE_PREEMPT();
+            HM_RESTORE_PREEMPT_IF_NEEDED();
             break;
         }
 
@@ -601,7 +577,6 @@ static DECLCALLBACK(void) vmmR0ThreadCtxCallback(RTTHREADCTXEVENT enmEvent, void
              * Sigh. See VMMGetCpu() used by VMCPU_ASSERT_EMT(). We cannot let several VCPUs
              * have the same host CPU associated with it.
              */
-            pVCpu->iHostCpuSet = UINT32_MAX;
             ASMAtomicWriteU32(&pVCpu->idHostCpu, NIL_RTCPUID);
             break;
         }
@@ -672,12 +647,6 @@ static void vmmR0RecordRC(PVM pVM, PVMCPU pVCpu, int rc)
             break;
         case VINF_PATM_HC_MMIO_PATCH_WRITE:
             STAM_COUNTER_INC(&pVM->vmm.s.StatRZRetMMIOPatchWrite);
-            break;
-        case VINF_CPUM_R3_MSR_READ:
-            STAM_COUNTER_INC(&pVM->vmm.s.StatRZRetMSRRead);
-            break;
-        case VINF_CPUM_R3_MSR_WRITE:
-            STAM_COUNTER_INC(&pVM->vmm.s.StatRZRetMSRWrite);
             break;
         case VINF_EM_RAW_EMULATE_INSTR:
             STAM_COUNTER_INC(&pVM->vmm.s.StatRZRetEmulate);
@@ -847,18 +816,10 @@ VMMR0DECL(int) VMMR0EntryInt(PVM pVM, VMMR0OPERATION enmOperation, void *pvArg)
  */
 VMMR0DECL(void) VMMR0EntryFast(PVM pVM, VMCPUID idCpu, VMMR0OPERATION enmOperation)
 {
-    /*
-     * Validation.
-     */
     if (RT_UNLIKELY(idCpu >= pVM->cCpus))
         return;
     PVMCPU pVCpu = &pVM->aCpus[idCpu];
-    if (RT_UNLIKELY(pVCpu->hNativeThreadR0 != RTThreadNativeSelf()))
-        return;
 
-    /*
-     * Perform requested operation.
-     */
     switch (enmOperation)
     {
         /*
@@ -876,111 +837,58 @@ VMMR0DECL(void) VMMR0EntryFast(PVM pVM, VMCPUID idCpu, VMMR0OPERATION enmOperati
             }
 #endif
 
-            /*
-             * Disable preemption.
-             */
+            /* Disable preemption and update the periodic preemption timer. */
             RTTHREADPREEMPTSTATE PreemptState = RTTHREADPREEMPTSTATE_INITIALIZER;
             RTThreadPreemptDisable(&PreemptState);
-
-            /*
-             * Get the host CPU identifiers, make sure they are valid and that
-             * we've got a TSC delta for the CPU.
-             */
-            RTCPUID  idHostCpu;
-            uint32_t iHostCpuSet = RTMpCurSetIndexAndId(&idHostCpu);
-            if (RT_LIKELY(   iHostCpuSet < RTCPUSET_MAX_CPUS
-                          && SUPIsTscDeltaAvailableForCpuSetIndex(iHostCpuSet)))
-            {
-                /*
-                 * Commit the CPU identifiers and update the periodict preemption timer if it's active.
-                 */
+            RTCPUID idHostCpu = RTMpCpuId();
 #ifdef VBOX_WITH_VMMR0_DISABLE_LAPIC_NMI
-                CPUMR0SetLApic(pVCpu, iHostCpuSet);
+            CPUMR0SetLApic(pVCpu, idHostCpu);
 #endif
-                pVCpu->iHostCpuSet = iHostCpuSet;
-                ASMAtomicWriteU32(&pVCpu->idHostCpu, idHostCpu);
+            ASMAtomicWriteU32(&pVCpu->idHostCpu, idHostCpu);
+            if (pVM->vmm.s.fUsePeriodicPreemptionTimers)
+                GVMMR0SchedUpdatePeriodicPreemptionTimer(pVM, pVCpu->idHostCpu, TMCalcHostTimerFrequency(pVM, pVCpu));
 
-                if (pVM->vmm.s.fUsePeriodicPreemptionTimers)
-                    GVMMR0SchedUpdatePeriodicPreemptionTimer(pVM, pVCpu->idHostCpu, TMCalcHostTimerFrequency(pVM, pVCpu));
+            /* We might need to disable VT-x if the active switcher turns off paging. */
+            bool fVTxDisabled;
+            int rc = HMR0EnterSwitcher(pVM, pVM->vmm.s.enmSwitcher, &fVTxDisabled);
+            if (RT_SUCCESS(rc))
+            {
+                RTCCUINTREG uFlags = ASMIntDisableFlags();
 
-                /*
-                 * We might need to disable VT-x if the active switcher turns off paging.
-                  */
-                bool fVTxDisabled;
-                int rc = HMR0EnterSwitcher(pVM, pVM->vmm.s.enmSwitcher, &fVTxDisabled);
-                if (RT_SUCCESS(rc))
+                for (;;)
                 {
-                    /*
-                     * Disable interrupts and run raw-mode code.  The loop is for efficiently
-                     * dispatching tracepoints that fired in raw-mode context.
-                     */
-                    RTCCUINTREG uFlags = ASMIntDisableFlags();
+                    VMCPU_SET_STATE(pVCpu, VMCPUSTATE_STARTED_EXEC);
+                    TMNotifyStartOfExecution(pVCpu);
 
-                    for (;;)
-                    {
-                        VMCPU_SET_STATE(pVCpu, VMCPUSTATE_STARTED_EXEC);
-                        TMNotifyStartOfExecution(pVCpu);
-
-                        rc = pVM->vmm.s.pfnR0ToRawMode(pVM);
-                        pVCpu->vmm.s.iLastGZRc = rc;
-
-                        TMNotifyEndOfExecution(pVCpu);
-                        VMCPU_SET_STATE(pVCpu, VMCPUSTATE_STARTED);
-
-                        if (rc != VINF_VMM_CALL_TRACER)
-                            break;
-                        SUPR0TracerUmodProbeFire(pVM->pSession, &pVCpu->vmm.s.TracerCtx);
-                    }
-
-                    /*
-                     * Re-enable VT-x before we dispatch any pending host interrupts and
-                     * re-enables interrupts.
-                     */
-                    HMR0LeaveSwitcher(pVM, fVTxDisabled);
-
-                    if (    rc == VINF_EM_RAW_INTERRUPT
-                        ||  rc == VINF_EM_RAW_INTERRUPT_HYPER)
-                        TRPMR0DispatchHostInterrupt(pVM);
-
-                    ASMSetFlags(uFlags);
-
-                    /* Fire dtrace probe and collect statistics. */
-                    VBOXVMM_R0_VMM_RETURN_TO_RING3_RC(pVCpu, CPUMQueryGuestCtxPtr(pVCpu), rc);
-#ifdef VBOX_WITH_STATISTICS
-                    STAM_COUNTER_INC(&pVM->vmm.s.StatRunRC);
-                    vmmR0RecordRC(pVM, pVCpu, rc);
-#endif
-                }
-                else
+                    rc = pVM->vmm.s.pfnR0ToRawMode(pVM);
                     pVCpu->vmm.s.iLastGZRc = rc;
 
-                /*
-                 * Invalidate the host CPU identifiers as we restore preemption.
-                 */
-                pVCpu->iHostCpuSet = UINT32_MAX;
-                ASMAtomicWriteU32(&pVCpu->idHostCpu, NIL_RTCPUID);
+                    TMNotifyEndOfExecution(pVCpu);
+                    VMCPU_SET_STATE(pVCpu, VMCPUSTATE_STARTED);
 
-                RTThreadPreemptRestore(&PreemptState);
-            }
-            /*
-             * Invalid CPU set index or TSC delta in need of measuring.
-             */
-            else
-            {
-                RTThreadPreemptRestore(&PreemptState);
-                if (iHostCpuSet < RTCPUSET_MAX_CPUS)
-                {
-                    int rc = SUPR0TscDeltaMeasureBySetIndex(pVM->pSession, iHostCpuSet, 0 /*fFlags*/,
-                                                            2 /*cMsWaitRetry*/, 5*RT_MS_1SEC /*cMsWaitThread*/,
-                                                            0 /*default cTries*/);
-                    if (RT_SUCCESS(rc) || rc == VERR_CPU_OFFLINE)
-                        pVCpu->vmm.s.iLastGZRc = VINF_EM_RAW_TO_R3;
-                    else
-                        pVCpu->vmm.s.iLastGZRc = rc;
+                    if (rc != VINF_VMM_CALL_TRACER)
+                        break;
+                    SUPR0TracerUmodProbeFire(pVM->pSession, &pVCpu->vmm.s.TracerCtx);
                 }
-                else
-                    pVCpu->vmm.s.iLastGZRc = VERR_INVALID_CPU_INDEX;
+
+                /* Re-enable VT-x if previously turned off. */
+                HMR0LeaveSwitcher(pVM, fVTxDisabled);
+
+                if (    rc == VINF_EM_RAW_INTERRUPT
+                    ||  rc == VINF_EM_RAW_INTERRUPT_HYPER)
+                    TRPMR0DispatchHostInterrupt(pVM);
+
+                ASMSetFlags(uFlags);
+
+#ifdef VBOX_WITH_STATISTICS
+                STAM_COUNTER_INC(&pVM->vmm.s.StatRunRC);
+                vmmR0RecordRC(pVM, pVCpu, rc);
+#endif
             }
+            else
+                pVCpu->vmm.s.iLastGZRc = rc;
+            ASMAtomicWriteU32(&pVCpu->idHostCpu, NIL_RTCPUID);
+            RTThreadPreemptRestore(&PreemptState);
             break;
         }
 
@@ -989,152 +897,94 @@ VMMR0DECL(void) VMMR0EntryFast(PVM pVM, VMCPUID idCpu, VMMR0OPERATION enmOperati
          */
         case VMMR0_DO_HM_RUN:
         {
-            /*
-             * Disable preemption.
-             */
             Assert(!VMMR0ThreadCtxHooksAreRegistered(pVCpu));
             RTTHREADPREEMPTSTATE PreemptState = RTTHREADPREEMPTSTATE_INITIALIZER;
             RTThreadPreemptDisable(&PreemptState);
 
-            /*
-             * Get the host CPU identifiers, make sure they are valid and that
-             * we've got a TSC delta for the CPU.
-             */
-            RTCPUID  idHostCpu;
-            uint32_t iHostCpuSet = RTMpCurSetIndexAndId(&idHostCpu);
-            if (RT_LIKELY(   iHostCpuSet < RTCPUSET_MAX_CPUS
-                          && SUPIsTscDeltaAvailableForCpuSetIndex(iHostCpuSet)))
-            {
-                pVCpu->iHostCpuSet = iHostCpuSet;
-                ASMAtomicWriteU32(&pVCpu->idHostCpu, idHostCpu);
-
-                /*
-                 * Update the periodic preemption timer if it's active.
-                 */
-                if (pVM->vmm.s.fUsePeriodicPreemptionTimers)
-                    GVMMR0SchedUpdatePeriodicPreemptionTimer(pVM, pVCpu->idHostCpu, TMCalcHostTimerFrequency(pVM, pVCpu));
-
+            /* Update the VCPU <-> host CPU mapping before doing anything else. */
+            ASMAtomicWriteU32(&pVCpu->idHostCpu, RTMpCpuId());
+            if (pVM->vmm.s.fUsePeriodicPreemptionTimers)
+                GVMMR0SchedUpdatePeriodicPreemptionTimer(pVM, pVCpu->idHostCpu, TMCalcHostTimerFrequency(pVM, pVCpu));
 #ifdef LOG_ENABLED
-                /*
-                 * Ugly: Lazy registration of ring 0 loggers.
-                 */
-                if (pVCpu->idCpu > 0)
+            if (pVCpu->idCpu > 0)
+            {
+                /* Lazy registration of ring 0 loggers. */
+                PVMMR0LOGGER pR0Logger = pVCpu->vmm.s.pR0LoggerR0;
+                if (    pR0Logger
+                    &&  !pR0Logger->fRegistered)
                 {
-                    PVMMR0LOGGER pR0Logger = pVCpu->vmm.s.pR0LoggerR0;
-                    if (   pR0Logger
-                        && RT_UNLIKELY(!pR0Logger->fRegistered))
-                    {
-                        RTLogSetDefaultInstanceThread(&pR0Logger->Logger, (uintptr_t)pVM->pSession);
-                        pR0Logger->fRegistered = true;
-                    }
+                    RTLogSetDefaultInstanceThread(&pR0Logger->Logger, (uintptr_t)pVM->pSession);
+                    pR0Logger->fRegistered = true;
                 }
-#endif
-
-                int  rc;
-                bool fPreemptRestored = false;
-                if (!HMR0SuspendPending())
-                {
-                    /*
-                     * Register thread-context hooks if required.
-                     */
-                    if (    VMMR0ThreadCtxHooksAreCreated(pVCpu)
-                        && !VMMR0ThreadCtxHooksAreRegistered(pVCpu))
-                    {
-                        rc = VMMR0ThreadCtxHooksRegister(pVCpu, vmmR0ThreadCtxCallback);
-                        AssertRC(rc);
-                    }
-
-                    /*
-                     * Enter HM context.
-                     */
-                    rc = HMR0Enter(pVM, pVCpu);
-                    if (RT_SUCCESS(rc))
-                    {
-                        VMCPU_SET_STATE(pVCpu, VMCPUSTATE_STARTED_HM);
-
-                        /*
-                         * When preemption hooks are in place, enable preemption now that
-                         * we're in HM context.
-                         */
-                        if (VMMR0ThreadCtxHooksAreRegistered(pVCpu))
-                        {
-                            fPreemptRestored = true;
-                            RTThreadPreemptRestore(&PreemptState);
-                        }
-
-                        /*
-                         * Setup the longjmp machinery and execute guest code (calls HMR0RunGuestCode).
-                         */
-                        rc = vmmR0CallRing3SetJmp(&pVCpu->vmm.s.CallRing3JmpBufR0, HMR0RunGuestCode, pVM, pVCpu);
-
-                        /*
-                         * Assert sanity on the way out.  Using manual assertions code here as normal
-                         * assertions are going to panic the host since we're outside the setjmp/longjmp zone.
-                         */
-                        if (RT_UNLIKELY(   VMCPU_GET_STATE(pVCpu) != VMCPUSTATE_STARTED_HM
-                                        && RT_SUCCESS_NP(rc)  && rc !=  VINF_VMM_CALL_HOST ))
-                        {
-                            pVM->vmm.s.szRing0AssertMsg1[0] = '\0';
-                            RTStrPrintf(pVM->vmm.s.szRing0AssertMsg2, sizeof(pVM->vmm.s.szRing0AssertMsg2),
-                                        "Got VMCPU state %d expected %d.\n", VMCPU_GET_STATE(pVCpu), VMCPUSTATE_STARTED_HM);
-                            rc = VERR_VMM_WRONG_HM_VMCPU_STATE;
-                        }
-                        else if (RT_UNLIKELY(VMMR0ThreadCtxHooksAreRegistered(pVCpu)))
-                        {
-                            pVM->vmm.s.szRing0AssertMsg1[0] = '\0';
-                            RTStrPrintf(pVM->vmm.s.szRing0AssertMsg2, sizeof(pVM->vmm.s.szRing0AssertMsg2),
-                                        "Thread-context hooks still registered! VCPU=%p Id=%u rc=%d.\n", pVCpu, pVCpu->idCpu, rc);
-                            rc = VERR_INVALID_STATE;
-                        }
-
-                        VMCPU_SET_STATE(pVCpu, VMCPUSTATE_STARTED);
-                    }
-                    STAM_COUNTER_INC(&pVM->vmm.s.StatRunRC);
-                }
-                /*
-                 * The system is about to go into suspend mode; go back to ring 3.
-                 */
-                else
-                    rc = VINF_EM_RAW_INTERRUPT;
-
-                /*
-                 * Invalidate the host CPU identifiers as we restore preemption.
-                 */
-                pVCpu->iHostCpuSet = UINT32_MAX;
-                ASMAtomicWriteU32(&pVCpu->idHostCpu, NIL_RTCPUID);
-
-                if (!fPreemptRestored)
-                    RTThreadPreemptRestore(&PreemptState);
-
-                pVCpu->vmm.s.iLastGZRc = rc;
-
-                /* Fire dtrace probe and collect statistics. */
-                VBOXVMM_R0_VMM_RETURN_TO_RING3_HM(pVCpu, CPUMQueryGuestCtxPtr(pVCpu), rc);
-#ifdef VBOX_WITH_STATISTICS
-                vmmR0RecordRC(pVM, pVCpu, rc);
-#endif
             }
-            /*
-             * Invalid CPU set index or TSC delta in need of measuring.
-             */
+#endif
+
+            int  rc;
+            bool fPreemptRestored = false;
+            if (!HMR0SuspendPending())
+            {
+                /* Register thread-context hooks if required. */
+                if (    VMMR0ThreadCtxHooksAreCreated(pVCpu)
+                    && !VMMR0ThreadCtxHooksAreRegistered(pVCpu))
+                {
+                    rc = VMMR0ThreadCtxHooksRegister(pVCpu, vmmR0ThreadCtxCallback);
+                    AssertRC(rc);
+                }
+
+                /* Enter HM context. */
+                rc = HMR0Enter(pVM, pVCpu);
+                if (RT_SUCCESS(rc))
+                {
+                    VMCPU_SET_STATE(pVCpu, VMCPUSTATE_STARTED_HM);
+
+                    /* When preemption hooks are in place, enable preemption now that we're in HM context. */
+                    if (VMMR0ThreadCtxHooksAreRegistered(pVCpu))
+                    {
+                        fPreemptRestored = true;
+                        RTThreadPreemptRestore(&PreemptState);
+                    }
+
+                    /* Setup the longjmp machinery and execute guest code. */
+                    rc = vmmR0CallRing3SetJmp(&pVCpu->vmm.s.CallRing3JmpBufR0, HMR0RunGuestCode, pVM, pVCpu);
+
+                    /* Manual assert as normal assertions are going to crash in this case. */
+                    if (RT_UNLIKELY(   VMCPU_GET_STATE(pVCpu) != VMCPUSTATE_STARTED_HM
+                                    && RT_SUCCESS_NP(rc)  && rc !=  VINF_VMM_CALL_HOST ))
+                    {
+                        pVM->vmm.s.szRing0AssertMsg1[0] = '\0';
+                        RTStrPrintf(pVM->vmm.s.szRing0AssertMsg2, sizeof(pVM->vmm.s.szRing0AssertMsg2),
+                                    "Got VMCPU state %d expected %d.\n", VMCPU_GET_STATE(pVCpu), VMCPUSTATE_STARTED_HM);
+                        rc = VERR_VMM_WRONG_HM_VMCPU_STATE;
+                    }
+                    else if (RT_UNLIKELY(VMMR0ThreadCtxHooksAreRegistered(pVCpu)))
+                    {
+                        pVM->vmm.s.szRing0AssertMsg1[0] = '\0';
+                        RTStrPrintf(pVM->vmm.s.szRing0AssertMsg2, sizeof(pVM->vmm.s.szRing0AssertMsg2),
+                                    "Thread-context hooks still registered! VCPU=%p Id=%u rc=%d.\n", pVCpu, pVCpu->idCpu, rc);
+                        rc = VERR_INVALID_STATE;
+                    }
+
+                    VMCPU_SET_STATE(pVCpu, VMCPUSTATE_STARTED);
+                }
+                STAM_COUNTER_INC(&pVM->vmm.s.StatRunRC);
+            }
             else
             {
-                pVCpu->iHostCpuSet = UINT32_MAX;
-                ASMAtomicWriteU32(&pVCpu->idHostCpu, NIL_RTCPUID);
-                RTThreadPreemptRestore(&PreemptState);
-                if (iHostCpuSet < RTCPUSET_MAX_CPUS)
-                {
-                    int rc = SUPR0TscDeltaMeasureBySetIndex(pVM->pSession, iHostCpuSet, 0 /*fFlags*/,
-                                                            2 /*cMsWaitRetry*/, 5*RT_MS_1SEC /*cMsWaitThread*/,
-                                                            0 /*default cTries*/);
-                    if (RT_SUCCESS(rc) || rc == VERR_CPU_OFFLINE)
-                        pVCpu->vmm.s.iLastGZRc = VINF_EM_RAW_TO_R3;
-                    else
-                        pVCpu->vmm.s.iLastGZRc = rc;
-                }
-                else
-                    pVCpu->vmm.s.iLastGZRc = VERR_INVALID_CPU_INDEX;
+                /* System is about to go into suspend mode; go back to ring 3. */
+                rc = VINF_EM_RAW_INTERRUPT;
             }
+            pVCpu->vmm.s.iLastGZRc = rc;
+
+            /* Clear the VCPU <-> host CPU mapping as we've left HM context. */
+            ASMAtomicWriteU32(&pVCpu->idHostCpu, NIL_RTCPUID);
+
+            if (!fPreemptRestored)
+                RTThreadPreemptRestore(&PreemptState);
+
+#ifdef VBOX_WITH_STATISTICS
+            vmmR0RecordRC(pVM, pVCpu, rc);
+#endif
+            /* No special action required for external interrupts, just return. */
             break;
         }
 
@@ -1314,81 +1164,32 @@ static int vmmR0EntryExWorker(PVM pVM, VMCPUID idCpu, VMMR0OPERATION enmOperatio
          */
         case VMMR0_DO_CALL_HYPERVISOR:
         {
-            /*
-             * Validate input / context.
-             */
-            if (RT_UNLIKELY(idCpu != 0))
-                return VERR_INVALID_CPU_ID;
-            if (RT_UNLIKELY(pVM->cCpus != 1))
-                return VERR_INVALID_PARAMETER;
-            PVMCPU pVCpu = &pVM->aCpus[idCpu];
+            int rc;
+            bool fVTxDisabled;
+
 #ifndef VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0
-            if (RT_UNLIKELY(!PGMGetHyperCR3(pVCpu)))
+            if (RT_UNLIKELY(!PGMGetHyperCR3(VMMGetCpu0(pVM))))
                 return VERR_PGM_NO_CR3_SHADOW_ROOT;
 #endif
 
-            /*
-             * Disable interrupts.
-             */
             RTCCUINTREG fFlags = ASMIntDisableFlags();
 
-            /*
-             * Get the host CPU identifiers, make sure they are valid and that
-             * we've got a TSC delta for the CPU.
-             */
-            RTCPUID  idHostCpu;
-            uint32_t iHostCpuSet = RTMpCurSetIndexAndId(&idHostCpu);
-            if (RT_UNLIKELY(iHostCpuSet >= RTCPUSET_MAX_CPUS))
-            {
-                ASMSetFlags(fFlags);
-                return VERR_INVALID_CPU_INDEX;
-            }
-            if (RT_UNLIKELY(!SUPIsTscDeltaAvailableForCpuSetIndex(iHostCpuSet)))
-            {
-                ASMSetFlags(fFlags);
-                int rc = SUPR0TscDeltaMeasureBySetIndex(pVM->pSession, iHostCpuSet, 0 /*fFlags*/,
-                                                        2 /*cMsWaitRetry*/, 5*RT_MS_1SEC /*cMsWaitThread*/,
-                                                        0 /*default cTries*/);
-                if (RT_FAILURE(rc) && rc != VERR_CPU_OFFLINE)
-                    return rc;
-            }
-
-            /*
-             * Commit the CPU identifiers.
-             */
 #ifdef VBOX_WITH_VMMR0_DISABLE_LAPIC_NMI
-            CPUMR0SetLApic(pVCpu, iHostCpuSet);
+            RTCPUID idHostCpu = RTMpCpuId();
+            CPUMR0SetLApic(&pVM->aCpus[0], idHostCpu);
 #endif
-            pVCpu->iHostCpuSet = iHostCpuSet;
-            ASMAtomicWriteU32(&pVCpu->idHostCpu, idHostCpu);
 
-            /*
-             * We might need to disable VT-x if the active switcher turns off paging.
-             */
-            bool fVTxDisabled;
-            int rc = HMR0EnterSwitcher(pVM, pVM->vmm.s.enmSwitcher, &fVTxDisabled);
-            if (RT_SUCCESS(rc))
-            {
-                /*
-                 * Go through the wormhole...
-                 */
-                rc = pVM->vmm.s.pfnR0ToRawMode(pVM);
+            /* We might need to disable VT-x if the active switcher turns off paging. */
+            rc = HMR0EnterSwitcher(pVM, pVM->vmm.s.enmSwitcher, &fVTxDisabled);
+            if (RT_FAILURE(rc))
+                return rc;
 
-                /*
-                 * Re-enable VT-x before we dispatch any pending host interrupts.
-                 */
-                HMR0LeaveSwitcher(pVM, fVTxDisabled);
+            rc = pVM->vmm.s.pfnR0ToRawMode(pVM);
 
-                if (   rc == VINF_EM_RAW_INTERRUPT
-                    || rc == VINF_EM_RAW_INTERRUPT_HYPER)
-                    TRPMR0DispatchHostInterrupt(pVM);
-            }
+            /* Re-enable VT-x if previously turned off. */
+            HMR0LeaveSwitcher(pVM, fVTxDisabled);
 
-            /*
-             * Invalidate the host CPU identifiers as we restore interrupts.
-             */
-            pVCpu->iHostCpuSet = UINT32_MAX;
-            ASMAtomicWriteU32(&pVCpu->idHostCpu, NIL_RTCPUID);
+            /** @todo dispatch interrupts? */
             ASMSetFlags(fFlags);
             return rc;
         }
@@ -1904,7 +1705,7 @@ VMMR0DECL(size_t) vmmR0LoggerPrefix(PRTLOGGER pLogger, char *pchBuf, size_t cchB
  *
  * @param   pVCpu       Pointer to the VMCPU.
  */
-VMMR0_INT_DECL(void) VMMR0LogFlushDisable(PVMCPU pVCpu)
+VMMR0DECL(void) VMMR0LogFlushDisable(PVMCPU pVCpu)
 {
     if (pVCpu->vmm.s.pR0LoggerR0)
         pVCpu->vmm.s.pR0LoggerR0->fFlushingDisabled = true;
@@ -1916,7 +1717,7 @@ VMMR0_INT_DECL(void) VMMR0LogFlushDisable(PVMCPU pVCpu)
  *
  * @param   pVCpu       Pointer to the VMCPU.
  */
-VMMR0_INT_DECL(void) VMMR0LogFlushEnable(PVMCPU pVCpu)
+VMMR0DECL(void) VMMR0LogFlushEnable(PVMCPU pVCpu)
 {
     if (pVCpu->vmm.s.pR0LoggerR0)
         pVCpu->vmm.s.pR0LoggerR0->fFlushingDisabled = false;
@@ -1928,7 +1729,7 @@ VMMR0_INT_DECL(void) VMMR0LogFlushEnable(PVMCPU pVCpu)
  *
  * @param   pVCpu       Pointer to the VMCPU.
  */
-VMMR0_INT_DECL(bool) VMMR0IsLogFlushDisabled(PVMCPU pVCpu)
+VMMR0DECL(bool) VMMR0IsLogFlushDisabled(PVMCPU pVCpu)
 {
     if (pVCpu->vmm.s.pR0LoggerR0)
         return pVCpu->vmm.s.pR0LoggerR0->fFlushingDisabled;

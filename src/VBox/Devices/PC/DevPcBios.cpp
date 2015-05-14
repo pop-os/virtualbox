@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -267,7 +267,7 @@ static DECLCALLBACK(int) pcbiosIOPortWrite(PPDMDEVINS pDevIns, void *pvUser, RTI
             if (pThis->iShutdown == 8)
             {
                 pThis->iShutdown = 0;
-                LogRel(("DevPcBios: 8900h shutdown request\n"));
+                LogRel(("DevPcBios: 8900h shutdown request.\n"));
                 return PDMDevHlpVMPowerOff(pDevIns);
             }
         }
@@ -587,7 +587,7 @@ static DECLCALLBACK(int) pcbiosInitComplete(PPDMDEVINS pDevIns)
     else
     {
         c64KBAbove4GB = (pThis->cbRam - offRamHole) / _64K;
-        /* Make sure it doesn't hit the limits of the current BIOS code. */
+        /* Make sure it doesn't hit the limits of the current BIOS code.   */
         AssertLogRelMsgReturn((c64KBAbove4GB >> (3 * 8)) < 255, ("%#RX64\n", c64KBAbove4GB), VERR_OUT_OF_RANGE);
     }
     pcbiosCmosWrite(pDevIns, 0x61,  c64KBAbove4GB        & 0xff);
@@ -1106,7 +1106,7 @@ static DECLCALLBACK(int)  pcbiosConstruct(PPDMDEVINS pDevIns, int iInstance, PCF
                                 N_("Configuration error: Querying \"McfgLength\" as integer failed"));
 
 
-    LogRel(("DevPcBios: [SMP] BIOS with %u CPUs\n", pThis->cCpus));
+    LogRel(("[SMP] BIOS with %u CPUs\n", pThis->cCpus));
 
     rc = CFGMR3QueryU8Def(pCfg, "IOAPIC", &pThis->u8IOAPIC, 1);
     if (RT_FAILURE (rc))
@@ -1396,11 +1396,8 @@ static DECLCALLBACK(int)  pcbiosConstruct(PPDMDEVINS pDevIns, int iInstance, PCF
     }
 
     if (pThis->u8IOAPIC)
-    {
         FwCommonPlantMpsTable(pDevIns, pThis->au8DMIPage + VBOX_DMI_TABLE_SIZE,
                               _4K - VBOX_DMI_TABLE_SIZE, pThis->cCpus);
-        LogRel(("DevPcBios: MPS table at %08x\n", VBOX_DMI_TABLE_BASE + VBOX_DMI_TABLE_SIZE));
-    }
 
     rc = PDMDevHlpROMRegister(pDevIns, VBOX_DMI_TABLE_BASE, _4K, pThis->au8DMIPage, _4K,
                               PGMPHYS_ROM_FLAGS_PERMANENT_BINARY, "DMI tables");

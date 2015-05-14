@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -569,8 +569,6 @@ typedef struct ISCSIIMAGE
     bool                fAutomaticInitiatorName;
     /** Flag whether to use the host IP stack or DevINIP. */
     bool                fHostIP;
-    /** Flag whether to dump malformed packets in the release log. */
-    bool                fDumpMalformedPackets;
 
     /** Head of request queue */
     PISCSICMD           pScsiReqQueue;
@@ -631,26 +629,22 @@ static const char *s_iscsiConfigDefaultWriteSplit = "262144";
 /** Default host IP stack. */
 static const char *s_iscsiConfigDefaultHostIPStack = "1";
 
-/** Default dump malformed packet configuration value. */
-static const char *s_iscsiConfigDefaultDumpMalformedPackets = "0";
-
 /** Description of all accepted config parameters. */
 static const VDCONFIGINFO s_iscsiConfigInfo[] =
 {
-    { "TargetName",           NULL,                                      VDCFGVALUETYPE_STRING,  VD_CFGKEY_MANDATORY },
+    { "TargetName",         NULL,                               VDCFGVALUETYPE_STRING,  VD_CFGKEY_MANDATORY },
     /* LUN is defined of string type to handle the "enc" prefix. */
-    { "LUN",                  s_iscsiConfigDefaultLUN,                   VDCFGVALUETYPE_STRING,  VD_CFGKEY_MANDATORY },
-    { "TargetAddress",        NULL,                                      VDCFGVALUETYPE_STRING,  VD_CFGKEY_MANDATORY },
-    { "InitiatorName",        NULL,                                      VDCFGVALUETYPE_STRING,  0 },
-    { "InitiatorUsername",    NULL,                                      VDCFGVALUETYPE_STRING,  0 },
-    { "InitiatorSecret",      NULL,                                      VDCFGVALUETYPE_BYTES,   0 },
-    { "TargetUsername",       NULL,                                      VDCFGVALUETYPE_STRING,  VD_CFGKEY_EXPERT },
-    { "TargetSecret",         NULL,                                      VDCFGVALUETYPE_BYTES,   VD_CFGKEY_EXPERT },
-    { "WriteSplit",           s_iscsiConfigDefaultWriteSplit,            VDCFGVALUETYPE_INTEGER, VD_CFGKEY_EXPERT },
-    { "Timeout",              s_iscsiConfigDefaultTimeout,               VDCFGVALUETYPE_INTEGER, VD_CFGKEY_EXPERT },
-    { "HostIPStack",          s_iscsiConfigDefaultHostIPStack,           VDCFGVALUETYPE_INTEGER, VD_CFGKEY_EXPERT },
-    { "DumpMalformedPackets", s_iscsiConfigDefaultDumpMalformedPackets,  VDCFGVALUETYPE_INTEGER, VD_CFGKEY_EXPERT },
-    { NULL,                   NULL,                                      VDCFGVALUETYPE_INTEGER, 0 }
+    { "LUN",                s_iscsiConfigDefaultLUN,            VDCFGVALUETYPE_STRING,  VD_CFGKEY_MANDATORY },
+    { "TargetAddress",      NULL,                               VDCFGVALUETYPE_STRING,  VD_CFGKEY_MANDATORY },
+    { "InitiatorName",      NULL,                               VDCFGVALUETYPE_STRING,  0 },
+    { "InitiatorUsername",  NULL,                               VDCFGVALUETYPE_STRING,  0 },
+    { "InitiatorSecret",    NULL,                               VDCFGVALUETYPE_BYTES,   0 },
+    { "TargetUsername",     NULL,                               VDCFGVALUETYPE_STRING,  VD_CFGKEY_EXPERT },
+    { "TargetSecret",       NULL,                               VDCFGVALUETYPE_BYTES,   VD_CFGKEY_EXPERT },
+    { "WriteSplit",         s_iscsiConfigDefaultWriteSplit,     VDCFGVALUETYPE_INTEGER, VD_CFGKEY_EXPERT },
+    { "Timeout",            s_iscsiConfigDefaultTimeout,        VDCFGVALUETYPE_INTEGER, VD_CFGKEY_EXPERT },
+    { "HostIPStack",        s_iscsiConfigDefaultHostIPStack,    VDCFGVALUETYPE_INTEGER, VD_CFGKEY_EXPERT },
+    { NULL,                 NULL,                               VDCFGVALUETYPE_INTEGER, 0 }
 };
 
 /*******************************************************************************
@@ -807,34 +801,6 @@ static PISCSICMD iscsiCmdRemoveAll(PISCSIIMAGE pImage)
     pImage->cCmdsWaiting = 0;
 
     return pIScsiCmdHead;
-}
-
-/**
- * Dumps an iSCSI packet if enabled.
- *
- * @returns nothing.
- * @param   pImage         The iSCSI image instance data.
- * @param   paISCSISegs    Pointer to the segments array.
- * @param   cnISCSISegs    Number of segments in the array.
- * @param   rc             Status code for this packet.
- * @param   fRequest       Flag whether this is request or response packet.
- */
-static void iscsiDumpPacket(PISCSIIMAGE pImage, PISCSIREQ paISCSISegs, unsigned cnISCSISegs, int rc, bool fRequest)
-{
-    if (pImage->fDumpMalformedPackets)
-    {
-        LogRel(("iSCSI{%s}: Dumping %s packet completed with status code %Rrc\n", pImage->pszTargetName, fRequest ? "request" : "response", rc));
-        for (unsigned i = 0; i < cnISCSISegs; i++)
-        {
-            if (paISCSISegs[i].cbSeg)
-            {
-                LogRel(("iSCSI{%s}: Segment %u, size %zu\n"
-                        "%.*Rhxd\n",
-                        pImage->pszTargetName, i, paISCSISegs[i].cbSeg,
-                        paISCSISegs[i].cbSeg, paISCSISegs[i].pcvSeg));
-            }
-        }
-    }
 }
 
 static int iscsiTransportConnect(PISCSIIMAGE pImage)
@@ -1688,16 +1654,6 @@ out:
     if (RT_FAILURE(rc))
     {
         /*
-         * Dump the last request and response of we are supposed to do so and there is a request
-         * or response.
-         */
-        if (cnISCSIReq)
-            iscsiDumpPacket(pImage, aISCSIReq, cnISCSIReq, VINF_SUCCESS, true /* fRequest */);
-
-        if (cnISCSIRes)
-            iscsiDumpPacket(pImage, (PISCSIREQ)aISCSIRes, cnISCSIRes, rc, false /* fRequest */);
-
-        /*
          * Close connection to target.
          */
         iscsiTransportClose(pImage);
@@ -1709,7 +1665,7 @@ out:
     RTSemMutexRelease(pImage->Mutex);
 
     LogFlowFunc(("returning %Rrc\n", rc));
-    LogRel(("iSCSI: login to target %s %s (%Rrc)\n", pImage->pszTargetName, RT_SUCCESS(rc) ? "successful" : "failed", rc));
+    LogRel(("iSCSI: login to target %s %s\n", pImage->pszTargetName, RT_SUCCESS(rc) ? "successful" : "failed"));
     return rc;
 }
 
@@ -2166,10 +2122,7 @@ static int iscsiRecvPDU(PISCSIIMAGE pImage, uint32_t itt, PISCSIRES paRes, uint3
              * the iSCSI connection/session. */
             rc = iscsiValidatePDU(&aResBuf, 1);
             if (RT_FAILURE(rc))
-            {
-                iscsiDumpPacket(pImage, (PISCSIREQ)&aResBuf, 1, rc, false /* fRequest */);
                 continue;
-            }
             cmd = (ISCSIOPCODE)(RT_N2H_U32(pcvResSeg[0]) & ISCSIOP_MASK);
             switch (cmd)
             {
@@ -2190,7 +2143,6 @@ static int iscsiRecvPDU(PISCSIIMAGE pImage, uint32_t itt, PISCSIRES paRes, uint3
                     break;
                 default:
                     rc = VERR_PARSE_ERROR;
-                    iscsiDumpPacket(pImage, (PISCSIREQ)&aResBuf, 1, rc, false /* fRequest */);
             }
             if (RT_FAILURE(rc))
                 continue;
@@ -2209,7 +2161,6 @@ static int iscsiRecvPDU(PISCSIIMAGE pImage, uint32_t itt, PISCSIRES paRes, uint3
                 else
                 {
                     rc = VERR_PARSE_ERROR;
-                    iscsiDumpPacket(pImage, (PISCSIREQ)&aResBuf, 1, rc, false /* fRequest */);
                     continue;
                 }
             }
@@ -2282,7 +2233,7 @@ static int iscsiRecvPDU(PISCSIIMAGE pImage, uint32_t itt, PISCSIRES paRes, uint3
         }
     }
 
-    LogFlowFunc(("returns rc=%Rrc\n", rc));
+    LogFlowFunc(("returns rc=%Rrc\n"));
     return rc;
 }
 
@@ -2494,7 +2445,6 @@ static int iscsiRecvPDUProcess(PISCSIIMAGE pImage, PISCSIRES paRes, uint32_t cnR
                     break;
                 default:
                     rc = VERR_PARSE_ERROR;
-                    iscsiDumpPacket(pImage, (PISCSIREQ)paRes, cnRes, rc, false /* fRequest */);
             }
 
             if (RT_FAILURE(rc))
@@ -2512,9 +2462,8 @@ static int iscsiRecvPDUProcess(PISCSIIMAGE pImage, PISCSIRES paRes, uint32_t cnR
                 }
                 else
                 {
-                    rc = VERR_PARSE_ERROR;
-                    iscsiDumpPacket(pImage, (PISCSIREQ)paRes, cnRes, rc, false /* fRequest */);
-                    break;
+                   rc = VERR_PARSE_ERROR;
+                   break;
                 }
             }
 
@@ -2585,8 +2534,6 @@ static int iscsiRecvPDUProcess(PISCSIIMAGE pImage, PISCSIRES paRes, uint32_t cnR
             }
         } while (0);
     }
-    else
-        iscsiDumpPacket(pImage, (PISCSIREQ)paRes, cnRes, rc, false /* fRequest */);
 
     return rc;
 }
@@ -2900,7 +2847,6 @@ static int iscsiRecvPDUUpdateRequest(PISCSIIMAGE pImage, PISCSIRES paRes, uint32
     if (RT_FAILURE(rc))
     {
         LogRel(("iSCSI: Received malformed PDU from target %s (rc=%Rrc), ignoring\n", pImage->pszTargetName, rc));
-        iscsiDumpPacket(pImage, (PISCSIREQ)paRes, cnRes, rc, false /* fRequest */);
         rc = VINF_SUCCESS;
     }
 
@@ -3595,7 +3541,7 @@ static int iscsiCommandSync(PISCSIIMAGE pImage, PSCSIREQ pScsiReq, bool fRetry, 
                 rc = IScsiCmdSync.rcCmd;
 
                 if (RT_FAILURE(rc) || pScsiReq->cbSense > 0)
-                    rc = rcSense;
+                        rc = rcSense;
             }
         }
 
@@ -3617,7 +3563,7 @@ static int iscsiCommandSync(PISCSIIMAGE pImage, PSCSIREQ pScsiReq, bool fRetry, 
         else
         {
             rc = iscsiCommand(pImage, pScsiReq);
-            if (RT_FAILURE(rc) || pScsiReq->cbSense > 0)
+            if (RT_SUCCESS(rc) && pScsiReq->cbSense > 0)
                 rc = rcSense;
         }
     }
@@ -3819,20 +3765,15 @@ static int iscsiOpenImage(PISCSIIMAGE pImage, unsigned uOpenFlags)
     bool fLunEncoded = false;
     uint32_t uWriteSplitDef = 0;
     uint32_t uTimeoutDef = 0;
-    uint64_t uCfgTmp = 0;
-    bool fHostIPDef = false;
-    bool fDumpMalformedPacketsDef = false;
+    uint64_t uHostIPTmp = 0;
+    bool fHostIPDef = 0;
     rc = RTStrToUInt32Full(s_iscsiConfigDefaultWriteSplit, 0, &uWriteSplitDef);
     AssertRC(rc);
     rc = RTStrToUInt32Full(s_iscsiConfigDefaultTimeout, 0, &uTimeoutDef);
     AssertRC(rc);
-    rc = RTStrToUInt64Full(s_iscsiConfigDefaultHostIPStack, 0, &uCfgTmp);
+    rc = RTStrToUInt64Full(s_iscsiConfigDefaultHostIPStack, 0, &uHostIPTmp);
     AssertRC(rc);
-    fHostIPDef = RT_BOOL(uCfgTmp);
-
-    rc = RTStrToUInt64Full(s_iscsiConfigDefaultDumpMalformedPackets, 0, &uCfgTmp);
-    AssertRC(rc);
-    fDumpMalformedPacketsDef = RT_BOOL(uCfgTmp);
+    fHostIPDef = !!uHostIPTmp;
 
     pImage->uOpenFlags      = uOpenFlags;
 
@@ -3900,8 +3841,7 @@ static int iscsiOpenImage(PISCSIIMAGE pImage, unsigned uOpenFlags)
                            "TargetSecret\0"
                            "WriteSplit\0"
                            "Timeout\0"
-                           "HostIPStack\0"
-                           "DumpMalformedPackets\0"))
+                           "HostIPStack\0"))
     {
         rc = vdIfError(pImage->pIfError, VERR_VD_UNKNOWN_CFG_VALUES, RT_SRC_POS, N_("iSCSI: configuration error: unknown configuration keys present"));
         goto out;
@@ -4060,15 +4000,6 @@ static int iscsiOpenImage(PISCSIIMAGE pImage, unsigned uOpenFlags)
     if (RT_FAILURE(rc))
     {
         rc = vdIfError(pImage->pIfError, rc, RT_SRC_POS, N_("iSCSI: configuration error: failed to read HostIPStack as boolean"));
-        goto out;
-    }
-
-    rc = VDCFGQueryBoolDef(pImage->pIfConfig,
-                           "DumpMalformedPackets", &pImage->fDumpMalformedPackets,
-                           fDumpMalformedPacketsDef);
-    if (RT_FAILURE(rc))
-    {
-        rc = vdIfError(pImage->pIfError, rc, RT_SRC_POS, N_("iSCSI: configuration error: failed to read DumpMalformedPackets as boolean"));
         goto out;
     }
 
@@ -4566,11 +4497,9 @@ static int iscsiOpen(const char *pszFilename, unsigned uOpenFlags,
                      PVDINTERFACE pVDIfsDisk, PVDINTERFACE pVDIfsImage,
                      VDTYPE enmType, void **ppBackendData)
 {
-    LogFlowFunc(("pszFilename=\"%s\" uOpenFlags=%#x pVDIfsDisk=%#p pVDIfsImage=%#p enmType=%u ppBackendData=%#p\n", pszFilename, uOpenFlags, pVDIfsDisk, pVDIfsImage, enmType, ppBackendData));
+    LogFlowFunc(("pszFilename=\"%s\" uOpenFlags=%#x pVDIfsDisk=%#p pVDIfsImage=%#p ppBackendData=%#p\n", pszFilename, uOpenFlags, pVDIfsDisk, pVDIfsImage, ppBackendData));
     int rc;
     PISCSIIMAGE pImage;
-
-    NOREF(enmType); /**< @todo r=klaus make use of the type info. */
 
     /* Check open flags. All valid flags are supported. */
     if (uOpenFlags & ~VD_OPEN_FLAGS_MASK)
@@ -4632,11 +4561,9 @@ static int iscsiCreate(const char *pszFilename, uint64_t cbSize,
                        PCRTUUID pUuid, unsigned uOpenFlags,
                        unsigned uPercentStart, unsigned uPercentSpan,
                        PVDINTERFACE pVDIfsDisk, PVDINTERFACE pVDIfsImage,
-                       PVDINTERFACE pVDIfsOperation, VDTYPE enmType,
-                       void **ppBackendData)
+                       PVDINTERFACE pVDIfsOperation, void **ppBackendData)
 {
-    LogFlowFunc(("pszFilename=\"%s\" cbSize=%llu uImageFlags=%#x pszComment=\"%s\" pPCHSGeometry=%#p pLCHSGeometry=%#p Uuid=%RTuuid uOpenFlags=%#x uPercentStart=%u uPercentSpan=%u pVDIfsDisk=%#p pVDIfsImage=%#p pVDIfsOperation=%#p enmType=%u ppBackendData=%#p",
-                 pszFilename, cbSize, uImageFlags, pszComment, pPCHSGeometry, pLCHSGeometry, pUuid, uOpenFlags, uPercentStart, uPercentSpan, pVDIfsDisk, pVDIfsImage, pVDIfsOperation, enmType, ppBackendData));
+    LogFlowFunc(("pszFilename=\"%s\" cbSize=%llu uImageFlags=%#x pszComment=\"%s\" pPCHSGeometry=%#p pLCHSGeometry=%#p Uuid=%RTuuid uOpenFlags=%#x uPercentStart=%u uPercentSpan=%u pVDIfsDisk=%#p pVDIfsImage=%#p pVDIfsOperation=%#p ppBackendData=%#p", pszFilename, cbSize, uImageFlags, pszComment, pPCHSGeometry, pLCHSGeometry, pUuid, uOpenFlags, uPercentStart, uPercentSpan, pVDIfsDisk, pVDIfsImage, pVDIfsOperation, ppBackendData));
     int rc = VERR_NOT_SUPPORTED;
 
     LogFlowFunc(("returns %Rrc (pBackendData=%#p)\n", rc, *ppBackendData));

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -161,9 +161,9 @@ void DumpMediumWithChildren(ComPtr<IMedium> &pCurrentStateMedium,
  * Handles the 'snapshot myvm list' sub-command.
  * @returns Exit code.
  * @param   pArgs           The handler argument package.
- * @param   pMachine        Reference to the VM (locked) we're operating on.
+ * @param   rptrMachine     Reference to the VM (locked) we're operating on.
  */
-static RTEXITCODE handleSnapshotList(HandlerArg *pArgs, ComPtr<IMachine> &pMachine)
+static RTEXITCODE handleSnapshotList(HandlerArg *pArgs, ComPtr<IMachine> &rptrMachine)
 {
     static const RTGETOPTDEF g_aOptions[] =
     {
@@ -187,18 +187,19 @@ static RTEXITCODE handleSnapshotList(HandlerArg *pArgs, ComPtr<IMachine> &pMachi
         }
     }
 
-    ComPtr<ISnapshot> pSnapshot;
-    HRESULT hrc = pMachine->FindSnapshot(Bstr().raw(), pSnapshot.asOutParam());
+    /* See showVMInfo. */
+    ComPtr<ISnapshot> ptrSnapshot;
+    HRESULT hrc = rptrMachine->FindSnapshot(Bstr().raw(), ptrSnapshot.asOutParam());
     if (FAILED(hrc))
     {
         RTPrintf("This machine does not have any snapshots\n");
         return RTEXITCODE_FAILURE;
     }
-    if (pSnapshot)
+    if (ptrSnapshot)
     {
-        ComPtr<ISnapshot> pCurrentSnapshot;
-        CHECK_ERROR2_RET(pMachine, COMGETTER(CurrentSnapshot)(pCurrentSnapshot.asOutParam()), RTEXITCODE_FAILURE);
-        hrc = showSnapshots(pSnapshot, pCurrentSnapshot, enmDetails);
+        ComPtr<ISnapshot> ptrCurrentSnapshot;
+        CHECK_ERROR2_RET(rptrMachine,COMGETTER(CurrentSnapshot)(ptrCurrentSnapshot.asOutParam()), RTEXITCODE_FAILURE);
+        hrc = showSnapshots(ptrSnapshot, ptrCurrentSnapshot, enmDetails);
         if (FAILED(hrc))
             return RTEXITCODE_FAILURE;
     }
@@ -274,19 +275,18 @@ int handleSnapshot(HandlerArg *a)
 
     /* the first argument must be the VM */
     Bstr bstrMachine(a->argv[0]);
-    ComPtr<IMachine> pMachine;
+    ComPtr<IMachine> ptrMachine;
     CHECK_ERROR(a->virtualBox, FindMachine(bstrMachine.raw(),
-                                           pMachine.asOutParam()));
-    if (!pMachine)
+                                           ptrMachine.asOutParam()));
+    if (!ptrMachine)
         return 1;
 
-    /* we have to open a session for this task (new or shared) */
-    CHECK_ERROR_RET(pMachine, LockMachine(a->session, LockType_Shared), 1);
     do
     {
-        /* replace the (read-only) IMachine object by a writable one */
-        ComPtr<IMachine> sessionMachine;
-        CHECK_ERROR_BREAK(a->session, COMGETTER(Machine)(sessionMachine.asOutParam()));
+        /* we have to open a session for this task (new or shared) */
+        rc = ptrMachine->LockMachine(a->session, LockType_Shared);
+        ComPtr<IConsole> console;
+        CHECK_ERROR_BREAK(a->session, COMGETTER(Console)(console.asOutParam()));
 
         /* switch based on the command */
         bool fDelete = false,
@@ -346,13 +346,35 @@ int handleSnapshot(HandlerArg *a)
             if (FAILED(rc))
                 break;
 
+            if (fPause)
+            {
+                MachineState_T machineState;
+                CHECK_ERROR_BREAK(console, COMGETTER(State)(&machineState));
+                if (machineState == MachineState_Running)
+                    CHECK_ERROR_BREAK(console, Pause());
+                else
+                    fPause = false;
+            }
+
             ComPtr<IProgress> progress;
-            CHECK_ERROR_BREAK(sessionMachine, TakeSnapshot(name.raw(), desc.raw(),
-                                                           fPause,
-                                                           progress.asOutParam()));
+            CHECK_ERROR_BREAK(console, TakeSnapshot(name.raw(), desc.raw(),
+                                                    progress.asOutParam()));
 
             rc = showProgress(progress);
             CHECK_PROGRESS_ERROR(progress, ("Failed to take snapshot"));
+
+            if (fPause)
+            {
+                MachineState_T machineState;
+                CHECK_ERROR_BREAK(console, COMGETTER(State)(&machineState));
+                if (machineState == MachineState_Paused)
+                {
+                    if (SUCCEEDED(rc))
+                        CHECK_ERROR_BREAK(console, Resume());
+                    else
+                        console->Resume();
+                }
+            }
         }
         else if (    (fDelete = !strcmp(a->argv[1], "delete"))
                   || (fRestore = !strcmp(a->argv[1], "restore"))
@@ -382,12 +404,12 @@ int handleSnapshot(HandlerArg *a)
 
             if (fRestoreCurrent)
             {
-                CHECK_ERROR_BREAK(sessionMachine, COMGETTER(CurrentSnapshot)(pSnapshot.asOutParam()));
+                CHECK_ERROR_BREAK(ptrMachine, COMGETTER(CurrentSnapshot)(pSnapshot.asOutParam()));
             }
             else
             {
                 // restore or delete snapshot: then resolve cmd line argument to snapshot instance
-                CHECK_ERROR_BREAK(sessionMachine, FindSnapshot(Bstr(a->argv[2]).raw(),
+                CHECK_ERROR_BREAK(ptrMachine, FindSnapshot(Bstr(a->argv[2]).raw(),
                                                          pSnapshot.asOutParam()));
             }
 
@@ -395,14 +417,14 @@ int handleSnapshot(HandlerArg *a)
 
             if (fDelete)
             {
-                CHECK_ERROR_BREAK(sessionMachine, DeleteSnapshot(bstrSnapGuid.raw(),
-                                                           pProgress.asOutParam()));
+                CHECK_ERROR_BREAK(console, DeleteSnapshot(bstrSnapGuid.raw(),
+                                                          pProgress.asOutParam()));
             }
             else
             {
                 // restore or restore current
                 RTPrintf("Restoring snapshot %ls\n", bstrSnapGuid.raw());
-                CHECK_ERROR_BREAK(sessionMachine, RestoreSnapshot(pSnapshot, pProgress.asOutParam()));
+                CHECK_ERROR_BREAK(console, RestoreSnapshot(pSnapshot, pProgress.asOutParam()));
             }
 
             rc = showProgress(pProgress);
@@ -417,17 +439,17 @@ int handleSnapshot(HandlerArg *a)
                 break;
             }
 
-            ComPtr<ISnapshot> pSnapshot;
+            ComPtr<ISnapshot> snapshot;
 
             if (   !strcmp(a->argv[2], "--current")
                 || !strcmp(a->argv[2], "-current"))
             {
-                CHECK_ERROR_BREAK(sessionMachine, COMGETTER(CurrentSnapshot)(pSnapshot.asOutParam()));
+                CHECK_ERROR_BREAK(ptrMachine, COMGETTER(CurrentSnapshot)(snapshot.asOutParam()));
             }
             else
             {
-                CHECK_ERROR_BREAK(sessionMachine, FindSnapshot(Bstr(a->argv[2]).raw(),
-                                                         pSnapshot.asOutParam()));
+                CHECK_ERROR_BREAK(ptrMachine, FindSnapshot(Bstr(a->argv[2]).raw(),
+                                                           snapshot.asOutParam()));
             }
 
             /* parse options */
@@ -444,7 +466,7 @@ int handleSnapshot(HandlerArg *a)
                         break;
                     }
                     i++;
-                    pSnapshot->COMSETTER(Name)(Bstr(a->argv[i]).raw());
+                    snapshot->COMSETTER(Name)(Bstr(a->argv[i]).raw());
                 }
                 else if (   !strcmp(a->argv[i], "--description")
                          || !strcmp(a->argv[i], "-description")
@@ -457,7 +479,7 @@ int handleSnapshot(HandlerArg *a)
                         break;
                     }
                     i++;
-                    pSnapshot->COMSETTER(Description)(Bstr(a->argv[i]).raw());
+                    snapshot->COMSETTER(Description)(Bstr(a->argv[i]).raw());
                 }
                 else
                 {
@@ -478,20 +500,20 @@ int handleSnapshot(HandlerArg *a)
                 break;
             }
 
-            ComPtr<ISnapshot> pSnapshot;
+            ComPtr<ISnapshot> snapshot;
 
-            CHECK_ERROR_BREAK(sessionMachine, FindSnapshot(Bstr(a->argv[2]).raw(),
-                                                           pSnapshot.asOutParam()));
+            CHECK_ERROR_BREAK(ptrMachine, FindSnapshot(Bstr(a->argv[2]).raw(),
+                                                       snapshot.asOutParam()));
 
             /* get the machine of the given snapshot */
-            ComPtr<IMachine> pMachine2;
-            pSnapshot->COMGETTER(Machine)(pMachine2.asOutParam());
-            showVMInfo(a->virtualBox, pMachine2, NULL, VMINFO_NONE);
+            ComPtr<IMachine> ptrMachine2;
+            snapshot->COMGETTER(Machine)(ptrMachine2.asOutParam());
+            showVMInfo(a->virtualBox, ptrMachine2, VMINFO_NONE, console);
         }
         else if (!strcmp(a->argv[1], "list"))
-            rc = handleSnapshotList(a, sessionMachine) == RTEXITCODE_SUCCESS ? S_OK : E_FAIL;
+            rc = handleSnapshotList(a, ptrMachine) == RTEXITCODE_SUCCESS ? S_OK : E_FAIL;
         else if (!strcmp(a->argv[1], "dump"))          // undocumented parameter to debug snapshot info
-            DumpSnapshot(sessionMachine);
+            DumpSnapshot(ptrMachine);
         else
         {
             errorSyntax(USAGE_SNAPSHOT, "Invalid parameter '%s'", Utf8Str(a->argv[1]).c_str());

@@ -1,6 +1,8 @@
 /* $Id: UIUpdateManager.cpp $ */
 /** @file
- * VBox Qt GUI - UIUpdateManager class implementation.
+ *
+ * VBox frontends: Qt4 GUI ("VirtualBox"):
+ * UIUpdateManager class implementation
  */
 
 /*
@@ -15,41 +17,33 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QTimer>
-# include <QDir>
-# include <QPointer>
-# include <VBox/version.h>
+#include <QTimer>
+#include <QDir>
+#include <QPointer>
+#include <VBox/version.h>
 
 /* GUI includes: */
-# include "UIUpdateDefs.h"
-# include "UIUpdateManager.h"
-# include "UINetworkManager.h"
-# include "UINetworkCustomer.h"
-# include "UINetworkRequest.h"
-# include "VBoxGlobal.h"
-# include "UIMessageCenter.h"
-# include "UIExtraDataManager.h"
-# include "UIModalWindowManager.h"
-# include "VBoxUtils.h"
-# include "UIDownloaderExtensionPack.h"
-# include "UIGlobalSettingsExtension.h"
-# include "QIProcess.h"
+#include "UIUpdateDefs.h"
+#include "UIUpdateManager.h"
+#include "UINetworkManager.h"
+#include "UINetworkCustomer.h"
+#include "UINetworkRequest.h"
+#include "VBoxGlobal.h"
+#include "UIMessageCenter.h"
+#include "UIModalWindowManager.h"
+#include "VBoxUtils.h"
+#include "UIDownloaderExtensionPack.h"
+#include "UIGlobalSettingsExtension.h"
+#include "QIProcess.h"
 
 /* COM includes: */
-# include "CExtPack.h"
-# include "CExtPackManager.h"
+#include "CExtPack.h"
+#include "CExtPackManager.h"
 
 /* Other VBox includes: */
-# include <iprt/path.h>
-# include <iprt/system.h>
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
+#include <iprt/path.h>
+#include <iprt/system.h>
 
 /* Forward declarations: */
 class UIUpdateStep;
@@ -166,6 +160,16 @@ private:
     /* Prepare network request: */
     void prepareNetworkRequest()
     {
+        /* Calculate the count of checks left: */
+        int cCount = 1;
+        QString strCount = vboxGlobal().virtualBox().GetExtraData(GUI_UpdateCheckCount);
+        if (!strCount.isEmpty())
+        {
+            bool ok = false;
+            int c = strCount.toLongLong(&ok);
+            if (ok) cCount = c;
+        }
+
         /* Compose query: */
         QUrl url(m_url);
         url.addQueryItem("platform", vboxGlobal().virtualBox().GetPackageType());
@@ -184,8 +188,8 @@ private:
             url.addQueryItem("version", QString("%1_%2").arg(vboxGlobal().virtualBox().GetVersion())
                                                         .arg(vboxGlobal().virtualBox().GetRevision()));
         }
-        url.addQueryItem("count", QString::number(gEDataManager->applicationUpdateCheckCounter()));
-        url.addQueryItem("branch", VBoxUpdateData(gEDataManager->applicationUpdateData()).branchName());
+        url.addQueryItem("count", QString::number(cCount));
+        url.addQueryItem("branch", VBoxUpdateData(vboxGlobal().virtualBox().GetExtraData(GUI_UpdateDate)).branchName());
         QString strUserAgent(QString("VirtualBox %1 <%2>").arg(vboxGlobal().virtualBox().GetVersion()).arg(platformInfo()));
 
         /* Send GET request: */
@@ -209,7 +213,7 @@ private:
         QString strResponseData(pReply->readAll());
 
         /* Newer version of necessary package found: */
-        if (strResponseData.indexOf(QRegExp("^\\d+\\.\\d+\\.\\d+ \\S+$")) == 0)
+        if (strResponseData.indexOf(QRegExp("^\\d+\\.\\d+\\.\\d+(_[0-9A-Z]+)? \\S+$")) == 0)
         {
             QStringList response = strResponseData.split(" ", QString::SkipEmptyParts);
             msgCenter().showUpdateSuccess(response[0], response[1]);
@@ -221,8 +225,16 @@ private:
                 msgCenter().showUpdateNotFound();
         }
 
-        /* Increment update check counter: */
-        gEDataManager->incrementApplicationUpdateCheckCounter();
+        /* Save left count of checks: */
+        int cCount = 1;
+        QString strCount = vboxGlobal().virtualBox().GetExtraData(GUI_UpdateCheckCount);
+        if (!strCount.isEmpty())
+        {
+            bool ok = false;
+            int c = strCount.toLongLong(&ok);
+            if (ok) cCount = c;
+        }
+        vboxGlobal().virtualBox().SetExtraData(GUI_UpdateCheckCount, QString("%1").arg((qulonglong)cCount + 1));
 
         /* Notify about step completion: */
         emit sigStepComplete();
@@ -446,7 +458,9 @@ UIUpdateManager::UIUpdateManager()
 
 #ifdef VBOX_WITH_UPDATE_REQUEST
     /* Ask updater to check for the first time: */
-    if (gEDataManager->applicationUpdateEnabled() && !vboxGlobal().isVMConsoleProcess())
+    CVirtualBox vbox = vboxGlobal().virtualBox();
+    if (VBoxGlobal::shouldWeAllowApplicationUpdate(vbox) &&
+        !vboxGlobal().isVMConsoleProcess())
         QTimer::singleShot(0, this, SLOT(sltCheckIfUpdateIsNecessary()));
 #endif /* VBOX_WITH_UPDATE_REQUEST */
 }
@@ -476,7 +490,7 @@ void UIUpdateManager::sltCheckIfUpdateIsNecessary(bool fForceCall /* = false */)
     m_fIsRunning = true;
 
     /* Load/decode curent update data: */
-    VBoxUpdateData currentData(gEDataManager->applicationUpdateData());
+    VBoxUpdateData currentData(vboxGlobal().virtualBox().GetExtraData(GUI_UpdateDate));
 
     /* If update is really necessary: */
     if (fForceCall || currentData.isNeedToCheck())
@@ -494,10 +508,10 @@ void UIUpdateManager::sltCheckIfUpdateIsNecessary(bool fForceCall /* = false */)
 void UIUpdateManager::sltHandleUpdateFinishing()
 {
     /* Load/decode curent update data: */
-    VBoxUpdateData currentData(gEDataManager->applicationUpdateData());
+    VBoxUpdateData currentData(vboxGlobal().virtualBox().GetExtraData(GUI_UpdateDate));
     /* Encode/save new update data: */
     VBoxUpdateData newData(currentData.periodIndex(), currentData.branchIndex());
-    gEDataManager->setApplicationUpdateData(newData.data());
+    vboxGlobal().virtualBox().SetExtraData(GUI_UpdateDate, newData.data());
 
 #ifdef VBOX_WITH_UPDATE_REQUEST
     /* Ask updater to check for the next time: */

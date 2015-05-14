@@ -1,4 +1,5 @@
 /* $Id: OpenGLTestDarwin.cpp $ */
+
 /** @file
  * VBox host opengl support test
  */
@@ -16,54 +17,73 @@
  */
 
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
-#include <VBox/VBoxOGL.h>
-
 #include <IOKit/IOKitLib.h>
 #include <OpenGL/OpenGL.h>
 #include <ApplicationServices/ApplicationServices.h>
 #include <OpenGL/gl.h>
 #ifdef VBOX_WITH_COCOA_QT
 # include <OpenGL/glu.h>
-#endif
-
+# include <iprt/log.h>
+#endif /* VBOX_WITH_COCOA_QT */
 #include <iprt/env.h>
 #include <iprt/log.h>
-#include <iprt/once.h>
 
+#include <iprt/asm.h>
+#include <iprt/thread.h>
 
+#include <VBox/VBoxOGLTest.h>
 
-/**
- * @callback_method_impl{FNRTONCE,
- *  For determining the cached VBoxOglIsOfflineRenderingAppropriate result.}
- */
-static DECLCALLBACK(int32_t) vboxOglIsOfflineRenderingAppropriateOnce(void *pvUser)
+bool RTCALL VBoxOglIsOfflineRenderingAppropriate()
 {
-    bool *pfAppropriate = (bool *)pvUser;
-
     /* It is assumed that it is makes sense to enable offline rendering
        only in case if host has more than one GPU installed. This routine
        counts all the PCI devices in IORegistry which have IOName property
-       set to "display". If the number of such devices is greater than one,
-       it sets pfAppropriate to TRUE, otherwise to FALSE. */
+       set to "display". If the amount of such devices if greater than one,
+       it returns TRUE or FALSE otherwise. */
 
-    CFStringRef apKeyStrings[]   = { CFSTR(kIOProviderClassKey), CFSTR(kIONameMatchKey) };
-    CFStringRef apValueStrings[] = { CFSTR("IOPCIDevice"),       CFSTR("display") };
-    Assert(RT_ELEMENTS(apKeyStrings) == RT_ELEMENTS(apValueStrings));
+    kern_return_t   krc;
+    io_iterator_t   matchingServices;
+    CFDictionaryRef pMatchingDictionary;
+    static bool     fAppropriate = false;
 
-    CFDictionaryRef pMatchingDictionary = CFDictionaryCreate(kCFAllocatorDefault,
-                                                             (const void **)apKeyStrings,
-                                                             (const void **)apValueStrings,
-                                                             RT_ELEMENTS(apKeyStrings),
-                                                             &kCFTypeDictionaryKeyCallBacks,
-                                                             &kCFTypeDictionaryValueCallBacks);
+    /* In order to do not slowdown 3D engine which can ask about offline rendering several times,
+       let's cache the result and assume that renderers amount value is constant. Also prevent threads race
+       on startup. */
+
+#define VBOX_OGL_CHECK_UNINITIALIZED    (0)
+#define VBOX_OGL_CHECK_INITIALIZING     (1)
+#define VBOX_OGL_CHECK_INITIALIZED      (2)
+
+    /* Transition VBOX_OGL_CHECK_UNINITIALIZED -> VBOX_OGL_CHECK_INITIALIZING means the current thread
+       is the first one who entered the routine. In this case, it should detect number of GPUs, cache result
+       and return it. If it's not TRUE, then fInitialized is VBOX_OGL_CHECK_INITIALIZING (another thread is performing
+       the check; current thread should wait till result will be cached and return it) or VBOX_OGL_CHECK_INITIALIZED
+       (result is already cached; just return it.) */
+
+    static uint32_t volatile fInitialized = VBOX_OGL_CHECK_UNINITIALIZED;
+    if (!ASMAtomicCmpXchgU32(&fInitialized, VBOX_OGL_CHECK_INITIALIZING, VBOX_OGL_CHECK_UNINITIALIZED))
+    {
+        while (ASMAtomicReadU32(&fInitialized) != VBOX_OGL_CHECK_INITIALIZED)
+            RTThreadSleep(5);
+
+        return fAppropriate;
+    }
+
+#define VBOX_OGL_RENDERER_MATCH_KEYS_NUM    (2)
+
+    CFStringRef ppDictionaryKeys[VBOX_OGL_RENDERER_MATCH_KEYS_NUM] = { CFSTR(kIOProviderClassKey), CFSTR(kIONameMatchKey) };
+    CFStringRef ppDictionaryVals[VBOX_OGL_RENDERER_MATCH_KEYS_NUM] = { CFSTR("IOPCIDevice"),       CFSTR("display") };
+
+    pMatchingDictionary = CFDictionaryCreate(kCFAllocatorDefault,
+                                             (const void **)ppDictionaryKeys,
+                                             (const void **)ppDictionaryVals,
+                                             VBOX_OGL_RENDERER_MATCH_KEYS_NUM,
+                                             &kCFTypeDictionaryKeyCallBacks,
+                                             &kCFTypeDictionaryValueCallBacks);
     if (pMatchingDictionary)
     {
         /* The reference to pMatchingDictionary is consumed by the function below => no IORelease(pMatchingDictionary)! */
-        io_iterator_t matchingServices;
-        kern_return_t krc = IOServiceGetMatchingServices(kIOMasterPortDefault, pMatchingDictionary, &matchingServices);
+        krc = IOServiceGetMatchingServices(kIOMasterPortDefault, pMatchingDictionary, &matchingServices);
         if (krc == kIOReturnSuccess)
         {
             io_object_t matchingService;
@@ -75,31 +95,21 @@ static DECLCALLBACK(int32_t) vboxOglIsOfflineRenderingAppropriateOnce(void *pvUs
                 IOObjectRelease(matchingService);
             }
 
-            *pfAppropriate = cMatchingServices > 1;
+            fAppropriate = (cMatchingServices > 1);
 
             IOObjectRelease(matchingServices);
         }
+
     }
 
-    LogRel(("OpenGL: Offline rendering support is %s (pid=%d)\n", *pfAppropriate ? "ON" : "OFF", (int)getpid()));
-    return VINF_SUCCESS;
+    LogRel(("OpenGL: Offline rendering support is %s (PID=%d)\n", fAppropriate ? "ON" : "OFF", (int)getpid()));
+
+    ASMAtomicWriteU32(&fInitialized, VBOX_OGL_CHECK_INITIALIZED);
+
+    return fAppropriate;
 }
 
-
-bool RTCALL VBoxOglIsOfflineRenderingAppropriate(void)
-{
-    /* In order to do not slowdown 3D engine which can ask about offline rendering several times,
-       let's cache the result and assume that renderers amount value is constant. Use the IPRT
-       execute once construct to make sure there aren't any threading issues. */
-    static RTONCE s_Once = RTONCE_INITIALIZER;
-    static bool   s_fCached = false;
-    int rc = RTOnce(&s_Once, vboxOglIsOfflineRenderingAppropriateOnce, &s_fCached);
-    AssertRC(rc);
-    return s_fCached;
-}
-
-
-bool RTCALL VBoxOglIs3DAccelerationSupported(void)
+bool RTCALL VBoxOglIs3DAccelerationSupported()
 {
     if (RTEnvExist("VBOX_CROGL_FORCE_SUPPORTED"))
     {
@@ -107,9 +117,13 @@ bool RTCALL VBoxOglIs3DAccelerationSupported(void)
         return true;
     }
 
-    CGOpenGLDisplayMask     cglDisplayMask = CGDisplayIDToOpenGLDisplayMask(CGMainDisplayID());
-    CGLPixelFormatAttribute aAttribs[] =
-    {
+    CGDirectDisplayID   display = CGMainDisplayID ();
+    CGOpenGLDisplayMask cglDisplayMask = CGDisplayIDToOpenGLDisplayMask (display);
+    CGLPixelFormatObj   pixelFormat = NULL;
+    GLint numPixelFormats = 0;
+    CGLError            rcCgl;
+
+    CGLPixelFormatAttribute attribs[] = {
         kCGLPFADisplayMask,
         (CGLPixelFormatAttribute)cglDisplayMask,
         kCGLPFAAccelerated,
@@ -117,20 +131,21 @@ bool RTCALL VBoxOglIs3DAccelerationSupported(void)
         VBoxOglIsOfflineRenderingAppropriate() ? kCGLPFAAllowOfflineRenderers : (CGLPixelFormatAttribute)NULL,
         (CGLPixelFormatAttribute)NULL
     };
-    CGLPixelFormatObj pPixelFormat = NULL;
-    GLint             cPixelFormatsIgnored = 0;
-    CGLError rcCgl = CGLChoosePixelFormat(aAttribs, &pPixelFormat, &cPixelFormatsIgnored);
+
+    display = CGMainDisplayID();
+    cglDisplayMask = CGDisplayIDToOpenGLDisplayMask(display);
+    rcCgl = CGLChoosePixelFormat(attribs, &pixelFormat, &numPixelFormats);
     if (rcCgl != kCGLNoError)
     {
         LogRel(("OpenGL Info: 3D test unable to choose pixel format (rcCgl=0x%X)\n", rcCgl));
         return false;
     }
 
-    if (pPixelFormat)
+    if (pixelFormat)
     {
-        CGLContextObj pCglContext = 0;
-        rcCgl = CGLCreateContext(pPixelFormat, NULL, &pCglContext);
-        CGLDestroyPixelFormat(pPixelFormat);
+        CGLContextObj cglContext = 0;
+        rcCgl = CGLCreateContext(pixelFormat, NULL, &cglContext);
+        CGLDestroyPixelFormat(pixelFormat);
 
         if (rcCgl != kCGLNoError)
         {
@@ -138,38 +153,35 @@ bool RTCALL VBoxOglIs3DAccelerationSupported(void)
             return false;
         }
 
-        if (pCglContext)
+        if (cglContext)
         {
             GLboolean isSupported = GL_TRUE;
-
 #ifdef VBOX_WITH_COCOA_QT
-            /*
-             * In the Cocoa port we depend on the GL_EXT_framebuffer_object &
+            /* On the Cocoa port we depend on the GL_EXT_framebuffer_object &
              * the GL_EXT_texture_rectangle extension. If they are not
-             * available, disable 3D support.
-             */
-            CGLSetCurrentContext(pCglContext);
-            const GLubyte *pszExts = glGetString(GL_EXTENSIONS);
-            isSupported = gluCheckExtension((const GLubyte *)"GL_EXT_framebuffer_object", pszExts);
+             * available, disable 3D support. */
+            CGLSetCurrentContext(cglContext);
+            const GLubyte* strExt;
+            strExt = glGetString(GL_EXTENSIONS);
+            isSupported = gluCheckExtension((const GLubyte*)"GL_EXT_framebuffer_object", strExt);
             if (isSupported)
             {
-                isSupported = gluCheckExtension((const GLubyte *)"GL_EXT_texture_rectangle", pszExts);
+                isSupported = gluCheckExtension((const GLubyte*)"GL_EXT_texture_rectangle", strExt);
                 if (!isSupported)
-                    LogRel(("OpenGL Info: 3D test found that GL_EXT_texture_rectangle extension not supported.\n"));
+                    LogRel(("OpenGL Info: 3D test found that GL_EXT_texture_rectangle extension not supported\n"));
             }
             else
-                LogRel(("OpenGL Info: 3D test found that GL_EXT_framebuffer_object extension not supported.\n"));
+                LogRel(("OpenGL Info: 3D test found that GL_EXT_framebuffer_object extension not supported\n"));
 #endif /* VBOX_WITH_COCOA_QT */
-
-            CGLDestroyContext(pCglContext);
+            CGLDestroyContext(cglContext);
             LogRel(("OpenGL Info: 3D test %spassed\n", isSupported == GL_TRUE ? "" : "not "));
-            return isSupported == GL_TRUE;
+            return isSupported == GL_TRUE ? true : false;
         }
-
-        LogRel(("OpenGL Info: 3D test unable to create context (internal error).\n"));
+        else
+            LogRel(("OpenGL Info: 3D test unable to create context (internal error)\n"));
     }
     else
-        LogRel(("OpenGL Info: 3D test unable to choose pixel format (internal error).\n"));
+        LogRel(("OpenGL Info: 3D test unable to choose pixel format (internal error)\n"));
 
     return false;
 }

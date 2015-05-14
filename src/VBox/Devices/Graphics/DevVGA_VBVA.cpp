@@ -1315,7 +1315,7 @@ int vbvaVHWACommandCompleteAsync(PPDMIDISPLAYVBVACALLBACKS pInterface, PVBOXVHWA
 
             if(RT_SUCCESS(rc))
             {
-                rc = HGSMIHostCommandSubmitAndFreeAsynch(pIns, pHostCmd, RT_BOOL(pCmd->Flags & VBOXVHWACMD_FLAG_GH_ASYNCH_IRQ));
+                rc = HGSMIHostCommandProcessAndFreeAsynch(pIns, pHostCmd, (pCmd->Flags & VBOXVHWACMD_FLAG_GH_ASYNCH_IRQ) != 0);
                 AssertRC(rc);
                 if(RT_SUCCESS(rc))
                 {
@@ -1858,13 +1858,15 @@ int vboxVBVALoadStateExec (PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t u32Vers
 
             if (u32Version > VGA_SAVEDSTATE_VERSION_WDDM)
             {
+#define VBOX_VHWA_SOLARIS_ARCH "solaris."
+
                 bool fLoadCommands;
 
                 if (u32Version < VGA_SAVEDSTATE_VERSION_FIXED_PENDVHWA)
                 {
                     const char *pcszOsArch = SSMR3HandleHostOSAndArch(pSSM);
                     Assert(pcszOsArch);
-                    fLoadCommands = !pcszOsArch || RTStrNCmp(pcszOsArch, RT_STR_TUPLE("solaris"));
+                    fLoadCommands = !pcszOsArch || RTStrNCmp(pcszOsArch, VBOX_VHWA_SOLARIS_ARCH, sizeof (VBOX_VHWA_SOLARIS_ARCH) - 1);
                 }
                 else
                     fLoadCommands = true;
@@ -2065,7 +2067,6 @@ int VBVAGetInfoViewAndScreen(PVGASTATE pVGAState, uint32_t u32ViewIndex, VBVAINF
     return VINF_SUCCESS;
 }
 
-
 /*
  *
  * New VBVA uses a new interface id: #define VBE_DISPI_ID_VBOX_VIDEO         0xBE01
@@ -2191,7 +2192,7 @@ static DECLCALLBACK(int) vbvaChannelHandler (void *pvHandler, uint16_t u16Channe
             }
             else if (pConf32->u32Index == VBOX_VBVA_CONF32_SCREEN_FLAGS)
             {
-                pConf32->u32Value = VBVA_SCREEN_F_ACTIVE | VBVA_SCREEN_F_DISABLED | VBVA_SCREEN_F_BLANK;
+                pConf32->u32Value = VBVA_SCREEN_F_ACTIVE | VBVA_SCREEN_F_DISABLED;
             }
             else
             {
@@ -2272,7 +2273,7 @@ static DECLCALLBACK(int) vbvaChannelHandler (void *pvHandler, uint16_t u16Channe
             LogFlowFunc(("VBVA_INFO_HEAP: offset 0x%x, size 0x%x\n",
                          pHeap->u32HeapOffset, pHeap->u32HeapSize));
 
-            rc = HGSMIHostHeapSetup(pIns, pHeap->u32HeapOffset, pHeap->u32HeapSize);
+            rc = HGSMISetupHostHeap (pIns, pHeap->u32HeapOffset, pHeap->u32HeapSize);
         } break;
 
         case VBVA_FLUSH:

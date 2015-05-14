@@ -36,8 +36,7 @@ RT_C_DECLS_END
     do { \
         if (off != RT_OFFSETOF(type, m)) \
         { \
-            printf("error! %#010x %s  Off by %d!! (expected off=%#x)\n", \
-                   RT_OFFSETOF(type, m), #type "." #m, off - RT_OFFSETOF(type, m), (int)off); \
+            printf("error! %#010x %s  Off by %d!! (off=%#x)\n", RT_OFFSETOF(type, m), #type "." #m, off - RT_OFFSETOF(type, m), off); \
             rc++; \
         } \
         /*else */ \
@@ -53,8 +52,7 @@ RT_C_DECLS_END
     do { \
         if (size != sizeof(type)) \
         { \
-            printf("error! sizeof(%s): %#x (%d)  Off by %d!! (expected %#x)\n", \
-                   #type, (int)sizeof(type), (int)sizeof(type), (int)(sizeof(type) - size), (int)size); \
+            printf("error! sizeof(%s): %#x (%d)  Off by %d!!\n", #type, (int)sizeof(type), (int)sizeof(type), (int)(sizeof(type) - size)); \
             rc++; \
         } \
         else \

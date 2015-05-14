@@ -21,7 +21,10 @@
       <attribute name="title">
        <string>&amp;NAT Networks</string>
       </attribute>
-      <layout class="QHBoxLayout" name="m_pLayoutNAT">
+      <layout class="QHBoxLayout">
+       <property name="margin">
+        <number>0</number>
+       </property>
        <property name="spacing">
         <number>3</number>
        </property>
@@ -56,7 +59,10 @@
       <attribute name="title">
        <string>&amp;Host-only Networks</string>
       </attribute>
-      <layout class="QHBoxLayout" name="m_pLayoutHostOnly">
+      <layout class="QHBoxLayout">
+       <property name="margin">
+        <number>0</number>
+       </property>
        <property name="spacing">
         <number>3</number>
        </property>

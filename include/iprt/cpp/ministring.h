@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2007-2014 Oracle Corporation
+ * Copyright (C) 2007-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -854,19 +854,6 @@ public:
                                           SplitMode a_enmMode = RemoveEmptyParts) const;
 
     /**
-     * Joins a list of strings together using the provided separator and
-     * an optional prefix for each item in the list.
-     *
-     * @param   a_rList         The list to join.
-     * @param   a_rstrPrefix    The prefix used for appending to each item.
-     * @param   a_rstrSep       The separator used for joining.
-     * @returns joined string.
-     */
-    static RTCString joinEx(const RTCList<RTCString, RTCString *> &a_rList,
-                            const RTCString &a_rstrPrefix /* = "" */,
-                            const RTCString &a_rstrSep /* = "" */);
-
-    /**
      * Joins a list of strings together using the provided separator.
      *
      * @param   a_rList     The list to join.
@@ -875,28 +862,6 @@ public:
      */
     static RTCString join(const RTCList<RTCString, RTCString *> &a_rList,
                           const RTCString &a_rstrSep = "");
-
-    /**
-     * Swaps two strings in a fast way.
-     *
-     * Exception safe.
-     *
-     * @param   a_rThat  The string to swap with.
-     */
-    inline void swap(RTCString &a_rThat) throw()
-    {
-        char   *pszTmp         = m_psz;
-        size_t  cchTmp         = m_cch;
-        size_t  cbAllocatedTmp = m_cbAllocated;
-
-        m_psz                  = a_rThat.m_psz;
-        m_cch                  = a_rThat.m_cch;
-        m_cbAllocated          = a_rThat.m_cbAllocated;
-
-        a_rThat.m_psz          = pszTmp;
-        a_rThat.m_cch          = cchTmp;
-        a_rThat.m_cbAllocated  = cbAllocatedTmp;
-    }
 
 protected:
 

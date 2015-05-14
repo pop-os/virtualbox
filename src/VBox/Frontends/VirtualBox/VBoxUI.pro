@@ -21,9 +21,11 @@ TEMPLATE	= app
 LANGUAGE	= C++
 
 FORMS = \
+    src/VBoxVMInformationDlg.ui \
     src/VBoxSnapshotDetailsDlg.ui \
     src/VBoxTakeSnapshotDlg.ui \
     src/UIVMLogViewer.ui \
+    src/medium/UIMediumManager.ui \
     src/settings/UISettingsDialog.ui \
     src/settings/global/UIGlobalSettingsGeneral.ui \
     src/settings/global/UIGlobalSettingsInput.ui \
@@ -47,7 +49,6 @@ FORMS = \
     src/settings/machine/UIMachineSettingsUSBFilterDetails.ui \
     src/settings/machine/UIMachineSettingsSF.ui \
     src/settings/machine/UIMachineSettingsSFDetails.ui \
-    src/settings/machine/UIMachineSettingsInterface.ui \
     src/widgets/UIApplianceEditorWidget.ui \
     src/selector/VBoxSnapshotsWgt.ui
 

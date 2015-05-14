@@ -1,10 +1,10 @@
 /* $Id: GuestImpl.cpp $ */
 /** @file
- * VirtualBox COM class implementation: Guest features.
+ * VirtualBox COM class implementation: Guest
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -16,14 +16,13 @@
  */
 
 #include "GuestImpl.h"
-#ifdef VBOX_WITH_GUEST_CONTROL
-# include "GuestSessionImpl.h"
-#endif
+#include "GuestSessionImpl.h"
+
 #include "Global.h"
 #include "ConsoleImpl.h"
 #include "ProgressImpl.h"
 #ifdef VBOX_WITH_DRAG_AND_DROP
-# include "GuestDnDPrivate.h"
+# include "GuestDnDImpl.h"
 #endif
 #include "VMMDev.h"
 
@@ -81,14 +80,14 @@ HRESULT Guest::init(Console *aParent)
     autoInitSpan.setSucceeded();
 
     ULONG aMemoryBalloonSize;
-    HRESULT hr = mParent->i_machine()->COMGETTER(MemoryBalloonSize)(&aMemoryBalloonSize);
+    HRESULT hr = mParent->machine()->COMGETTER(MemoryBalloonSize)(&aMemoryBalloonSize);
     if (hr == S_OK) /** @todo r=andy SUCCEEDED? */
         mMemoryBalloonSize = aMemoryBalloonSize;
     else
         mMemoryBalloonSize = 0; /* Default is no ballooning */
 
     BOOL fPageFusionEnabled;
-    hr = mParent->i_machine()->COMGETTER(PageFusionEnabled)(&fPageFusionEnabled);
+    hr = mParent->machine()->COMGETTER(PageFusionEnabled)(&fPageFusionEnabled);
     if (hr == S_OK) /** @todo r=andy SUCCEEDED? */
         mfPageFusionEnabled = fPageFusionEnabled;
     else
@@ -106,36 +105,29 @@ HRESULT Guest::init(Console *aParent)
 
     mMagic = GUEST_MAGIC;
     int vrc = RTTimerLRCreate(&mStatTimer, 1000 /* ms */,
-                              &Guest::i_staticUpdateStats, this);
+                              &Guest::staticUpdateStats, this);
     AssertMsgRC(vrc, ("Failed to create guest statistics update timer (%Rrc)\n", vrc));
 
+#ifdef VBOX_WITH_GUEST_CONTROL
     hr = unconst(mEventSource).createObject();
     if (SUCCEEDED(hr))
         hr = mEventSource->init();
+#else
+    hr = S_OK;
+#endif
 
-#ifdef VBOX_WITH_DRAG_AND_DROP
     try
     {
-        GuestDnD::createInstance(this /* pGuest */);
-        hr = unconst(mDnDSource).createObject();
-        if (SUCCEEDED(hr))
-            hr = mDnDSource->init(this /* pGuest */);
-        if (SUCCEEDED(hr))
-        {
-            hr = unconst(mDnDTarget).createObject();
-            if (SUCCEEDED(hr))
-                hr = mDnDTarget->init(this /* pGuest */);
-        }
-
-        LogFlowFunc(("Drag and drop initializied with hr=%Rhrc\n", hr));
+#ifdef VBOX_WITH_DRAG_AND_DROP
+        m_pGuestDnD = new GuestDnD(this);
+        AssertPtr(m_pGuestDnD);
+#endif
     }
-    catch (std::bad_alloc &)
+    catch(std::bad_alloc &)
     {
         hr = E_OUTOFMEMORY;
     }
-#endif
 
-    LogFlowFunc(("hr=%Rhrc\n", hr));
     return hr;
 }
 
@@ -164,11 +156,11 @@ void Guest::uninit()
     GuestSessions::iterator itSessions = mData.mGuestSessions.begin();
     while (itSessions != mData.mGuestSessions.end())
     {
-# ifdef DEBUG
+#ifdef DEBUG
         ULONG cRefs = itSessions->second->AddRef();
         LogFlowThisFunc(("sessionID=%RU32, cRefs=%RU32\n", itSessions->first, cRefs > 1 ? cRefs - 1 : 0));
         itSessions->second->Release();
-# endif
+#endif
         itSessions->second->uninit();
         itSessions++;
     }
@@ -176,32 +168,36 @@ void Guest::uninit()
 #endif
 
 #ifdef VBOX_WITH_DRAG_AND_DROP
-    GuestDnD::destroyInstance();
-    unconst(mDnDSource).setNull();
-    unconst(mDnDTarget).setNull();
+    if (m_pGuestDnD)
+    {
+        delete m_pGuestDnD;
+        m_pGuestDnD = NULL;
+    }
 #endif
 
+#ifdef VBOX_WITH_GUEST_CONTROL
     unconst(mEventSource).setNull();
+#endif
     unconst(mParent) = NULL;
 
     LogFlowFuncLeave();
 }
 
 /* static */
-DECLCALLBACK(void) Guest::i_staticUpdateStats(RTTIMERLR hTimerLR, void *pvUser, uint64_t iTick)
+DECLCALLBACK(void) Guest::staticUpdateStats(RTTIMERLR hTimerLR, void *pvUser, uint64_t iTick)
 {
     AssertReturnVoid(pvUser != NULL);
     Guest *guest = static_cast<Guest *>(pvUser);
     Assert(guest->mMagic == GUEST_MAGIC);
     if (guest->mMagic == GUEST_MAGIC)
-        guest->i_updateStats(iTick);
+        guest->updateStats(iTick);
 
     NOREF(hTimerLR);
 }
 
 /* static */
-int Guest::i_staticEnumStatsCallback(const char *pszName, STAMTYPE enmType, void *pvSample, STAMUNIT enmUnit,
-                                     STAMVISIBILITY enmVisiblity, const char *pszDesc, void *pvUser)
+int Guest::staticEnumStatsCallback(const char *pszName, STAMTYPE enmType, void *pvSample, STAMUNIT enmUnit,
+                                   STAMVISIBILITY enmVisiblity, const char *pszDesc, void *pvUser)
 {
     AssertLogRelMsgReturn(enmType == STAMTYPE_COUNTER, ("Unexpected sample type %d ('%s')\n", enmType, pszName), VINF_SUCCESS);
     AssertLogRelMsgReturn(enmUnit == STAMUNIT_BYTES, ("Unexpected sample unit %d ('%s')\n", enmUnit, pszName), VINF_SUCCESS);
@@ -249,7 +245,7 @@ int Guest::i_staticEnumStatsCallback(const char *pszName, STAMTYPE enmType, void
     return VINF_SUCCESS;
 }
 
-void Guest::i_updateStats(uint64_t iTick)
+void Guest::updateStats(uint64_t iTick)
 {
     uint64_t cbFreeTotal      = 0;
     uint64_t cbAllocTotal     = 0;
@@ -307,7 +303,7 @@ void Guest::i_updateStats(uint64_t iTick)
         uint64_t uRxPrev = mNetStatRx;
         uint64_t uTxPrev = mNetStatTx;
         mNetStatRx = mNetStatTx = 0;
-        rc = STAMR3Enum(ptrVM.rawUVM(), "/Public/Net/*/Bytes*", i_staticEnumStatsCallback, this);
+        rc = STAMR3Enum(ptrVM.rawUVM(), "/Public/Net/*/Bytes*", staticEnumStatsCallback, this);
         AssertRC(rc);
 
         uint64_t uTsNow = RTTimeNanoTS();
@@ -331,232 +327,240 @@ void Guest::i_updateStats(uint64_t iTick)
         }
     }
 
-    mParent->i_reportVmStatistics(validStats,
-                                  aGuestStats[GUESTSTATTYPE_CPUUSER],
-                                  aGuestStats[GUESTSTATTYPE_CPUKERNEL],
-                                  aGuestStats[GUESTSTATTYPE_CPUIDLE],
-                                  /* Convert the units for RAM usage stats: page (4K) -> 1KB units */
-                                  mCurrentGuestStat[GUESTSTATTYPE_MEMTOTAL] * (_4K/_1K),
-                                  mCurrentGuestStat[GUESTSTATTYPE_MEMFREE] * (_4K/_1K),
-                                  mCurrentGuestStat[GUESTSTATTYPE_MEMBALLOON] * (_4K/_1K),
-                                  (ULONG)(cbSharedMem / _1K), /* bytes -> KB */
-                                  mCurrentGuestStat[GUESTSTATTYPE_MEMCACHE] * (_4K/_1K),
-                                  mCurrentGuestStat[GUESTSTATTYPE_PAGETOTAL] * (_4K/_1K),
-                                  (ULONG)(cbAllocTotal / _1K), /* bytes -> KB */
-                                  (ULONG)(cbFreeTotal / _1K),
-                                  (ULONG)(cbBalloonedTotal / _1K),
-                                  (ULONG)(cbSharedTotal / _1K),
-                                  uNetStatRx,
-                                  uNetStatTx);
+    mParent->reportVmStatistics(validStats,
+                                aGuestStats[GUESTSTATTYPE_CPUUSER],
+                                aGuestStats[GUESTSTATTYPE_CPUKERNEL],
+                                aGuestStats[GUESTSTATTYPE_CPUIDLE],
+                                /* Convert the units for RAM usage stats: page (4K) -> 1KB units */
+                                mCurrentGuestStat[GUESTSTATTYPE_MEMTOTAL] * (_4K/_1K),
+                                mCurrentGuestStat[GUESTSTATTYPE_MEMFREE] * (_4K/_1K),
+                                mCurrentGuestStat[GUESTSTATTYPE_MEMBALLOON] * (_4K/_1K),
+                                (ULONG)(cbSharedMem / _1K), /* bytes -> KB */
+                                mCurrentGuestStat[GUESTSTATTYPE_MEMCACHE] * (_4K/_1K),
+                                mCurrentGuestStat[GUESTSTATTYPE_PAGETOTAL] * (_4K/_1K),
+                                (ULONG)(cbAllocTotal / _1K), /* bytes -> KB */
+                                (ULONG)(cbFreeTotal / _1K),
+                                (ULONG)(cbBalloonedTotal / _1K),
+                                (ULONG)(cbSharedTotal / _1K),
+                                uNetStatRx,
+                                uNetStatTx);
 }
 
 // IGuest properties
 /////////////////////////////////////////////////////////////////////////////
 
-HRESULT Guest::getOSTypeId(com::Utf8Str &aOSTypeId)
+STDMETHODIMP Guest::COMGETTER(OSTypeId)(BSTR *a_pbstrOSTypeId)
 {
-    HRESULT hrc = S_OK;
-    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-    if (!mData.mInterfaceVersion.isEmpty())
-        aOSTypeId = mData.mOSTypeId;
-    else
+    CheckComArgOutPointerValid(a_pbstrOSTypeId);
+
+    AutoCaller autoCaller(this);
+    HRESULT hrc = autoCaller.rc();
+    if (SUCCEEDED(hrc))
     {
-        /* Redirect the call to IMachine if no additions are installed. */
-        ComPtr<IMachine> ptrMachine(mParent->i_machine());
-        alock.release();
-        BSTR bstr;
-        hrc = ptrMachine->COMGETTER(OSTypeId)(&bstr);
-        aOSTypeId = bstr;
+        AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+        if (!mData.mInterfaceVersion.isEmpty())
+            mData.mOSTypeId.cloneTo(a_pbstrOSTypeId);
+        else
+        {
+            /* Redirect the call to IMachine if no additions are installed. */
+            ComPtr<IMachine> ptrMachine(mParent->machine());
+            alock.release();
+            hrc = ptrMachine->COMGETTER(OSTypeId)(a_pbstrOSTypeId);
+        }
     }
     return hrc;
 }
 
-HRESULT Guest::getAdditionsRunLevel(AdditionsRunLevelType_T *aAdditionsRunLevel)
+STDMETHODIMP Guest::COMGETTER(AdditionsRunLevel)(AdditionsRunLevelType_T *aRunLevel)
 {
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    *aAdditionsRunLevel = mData.mAdditionsRunLevel;
+    *aRunLevel = mData.mAdditionsRunLevel;
 
     return S_OK;
 }
 
-HRESULT Guest::getAdditionsVersion(com::Utf8Str &aAdditionsVersion)
+STDMETHODIMP Guest::COMGETTER(AdditionsVersion)(BSTR *a_pbstrAdditionsVersion)
 {
-    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-    HRESULT hrc = S_OK;
+    CheckComArgOutPointerValid(a_pbstrAdditionsVersion);
 
-    /*
-     * Return the ReportGuestInfo2 version info if available.
-     */
-    if (   !mData.mAdditionsVersionNew.isEmpty()
-         || mData.mAdditionsRunLevel <= AdditionsRunLevelType_None)
-        aAdditionsVersion = mData.mAdditionsVersionNew;
-    else
+    AutoCaller autoCaller(this);
+    HRESULT hrc = autoCaller.rc();
+    if (SUCCEEDED(hrc))
     {
+        AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
         /*
-         * If we're running older guest additions (< 3.2.0) try get it from
-         * the guest properties.  Detected switched around Version and
-         * Revision in early 3.1.x releases (see r57115).
+         * Return the ReportGuestInfo2 version info if available.
          */
-        ComPtr<IMachine> ptrMachine = mParent->i_machine();
-        alock.release(); /* No need to hold this during the IPC fun. */
-
-        Bstr bstr;
-        hrc = ptrMachine->GetGuestPropertyValue(Bstr("/VirtualBox/GuestAdd/Version").raw(), bstr.asOutParam());
-        if (   SUCCEEDED(hrc)
-            && !bstr.isEmpty())
-        {
-            Utf8Str str(bstr);
-            if (str.count('.') == 0)
-                hrc = ptrMachine->GetGuestPropertyValue(Bstr("/VirtualBox/GuestAdd/Revision").raw(), bstr.asOutParam());
-            str = bstr;
-            if (str.count('.') != 2)
-                hrc = E_FAIL;
-        }
-
-        if (SUCCEEDED(hrc))
-            aAdditionsVersion = bstr;
+        if (   !mData.mAdditionsVersionNew.isEmpty()
+            || mData.mAdditionsRunLevel <= AdditionsRunLevelType_None)
+            mData.mAdditionsVersionNew.cloneTo(a_pbstrAdditionsVersion);
         else
         {
-            /* Returning 1.4 is better than nothing. */
-            alock.acquire();
-            aAdditionsVersion = mData.mInterfaceVersion;
-            hrc = S_OK;
-        }
-    }
-    return hrc;
-}
+            /*
+             * If we're running older guest additions (< 3.2.0) try get it from
+             * the guest properties.  Detected switched around Version and
+             * Revision in early 3.1.x releases (see r57115).
+             */
+            ComPtr<IMachine> ptrMachine = mParent->machine();
+            alock.release(); /* No need to hold this during the IPC fun. */
 
-HRESULT Guest::getAdditionsRevision(ULONG *aAdditionsRevision)
-{
-    HRESULT hrc = S_OK;
-    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    /*
-     * Return the ReportGuestInfo2 version info if available.
-     */
-    if (   !mData.mAdditionsVersionNew.isEmpty()
-        || mData.mAdditionsRunLevel <= AdditionsRunLevelType_None)
-        *aAdditionsRevision = mData.mAdditionsRevision;
-    else
-    {
-        /*
-         * If we're running older guest additions (< 3.2.0) try get it from
-         * the guest properties. Detected switched around Version and
-         * Revision in early 3.1.x releases (see r57115).
-         */
-        ComPtr<IMachine> ptrMachine = mParent->i_machine();
-        alock.release(); /* No need to hold this during the IPC fun. */
-
-        Bstr bstr;
-        hrc = ptrMachine->GetGuestPropertyValue(Bstr("/VirtualBox/GuestAdd/Revision").raw(), bstr.asOutParam());
-        if (SUCCEEDED(hrc))
-        {
-            Utf8Str str(bstr);
-            uint32_t uRevision;
-            int vrc = RTStrToUInt32Full(str.c_str(), 0, &uRevision);
-            if (vrc != VINF_SUCCESS && str.count('.') == 2)
+            Bstr bstr;
+            hrc = ptrMachine->GetGuestPropertyValue(Bstr("/VirtualBox/GuestAdd/Version").raw(), bstr.asOutParam());
+            if (   SUCCEEDED(hrc)
+                && !bstr.isEmpty())
             {
-                hrc = ptrMachine->GetGuestPropertyValue(Bstr("/VirtualBox/GuestAdd/Version").raw(), bstr.asOutParam());
-                if (SUCCEEDED(hrc))
-                {
-                    str = bstr;
-                    vrc = RTStrToUInt32Full(str.c_str(), 0, &uRevision);
-                }
+                Utf8Str str(bstr);
+                if (str.count('.') == 0)
+                    hrc = ptrMachine->GetGuestPropertyValue(Bstr("/VirtualBox/GuestAdd/Revision").raw(), bstr.asOutParam());
+                str = bstr;
+                if (str.count('.') != 2)
+                    hrc = E_FAIL;
             }
-            if (vrc == VINF_SUCCESS)
-                *aAdditionsRevision = uRevision;
+
+            if (SUCCEEDED(hrc))
+                bstr.detachTo(a_pbstrAdditionsVersion);
             else
-                hrc = VBOX_E_IPRT_ERROR;
-        }
-        if (FAILED(hrc))
-        {
-            /* Return 0 if we don't know. */
-            *aAdditionsRevision = 0;
-            hrc = S_OK;
+            {
+                /* Returning 1.4 is better than nothing. */
+                alock.acquire();
+                mData.mInterfaceVersion.cloneTo(a_pbstrAdditionsVersion);
+                hrc = S_OK;
+            }
         }
     }
     return hrc;
 }
 
-HRESULT Guest::getDnDSource(ComPtr<IGuestDnDSource> &aDnDSource)
+STDMETHODIMP Guest::COMGETTER(AdditionsRevision)(ULONG *a_puAdditionsRevision)
 {
-#ifndef VBOX_WITH_DRAG_AND_DROP
+    CheckComArgOutPointerValid(a_puAdditionsRevision);
+
+    AutoCaller autoCaller(this);
+    HRESULT hrc = autoCaller.rc();
+    if (SUCCEEDED(hrc))
+    {
+        AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+        /*
+         * Return the ReportGuestInfo2 version info if available.
+         */
+        if (   !mData.mAdditionsVersionNew.isEmpty()
+            || mData.mAdditionsRunLevel <= AdditionsRunLevelType_None)
+            *a_puAdditionsRevision = mData.mAdditionsRevision;
+        else
+        {
+            /*
+             * If we're running older guest additions (< 3.2.0) try get it from
+             * the guest properties. Detected switched around Version and
+             * Revision in early 3.1.x releases (see r57115).
+             */
+            ComPtr<IMachine> ptrMachine = mParent->machine();
+            alock.release(); /* No need to hold this during the IPC fun. */
+
+            Bstr bstr;
+            hrc = ptrMachine->GetGuestPropertyValue(Bstr("/VirtualBox/GuestAdd/Revision").raw(), bstr.asOutParam());
+            if (SUCCEEDED(hrc))
+            {
+                Utf8Str str(bstr);
+                uint32_t uRevision;
+                int vrc = RTStrToUInt32Full(str.c_str(), 0, &uRevision);
+                if (vrc != VINF_SUCCESS && str.count('.') == 2)
+                {
+                    hrc = ptrMachine->GetGuestPropertyValue(Bstr("/VirtualBox/GuestAdd/Version").raw(), bstr.asOutParam());
+                    if (SUCCEEDED(hrc))
+                    {
+                        str = bstr;
+                        vrc = RTStrToUInt32Full(str.c_str(), 0, &uRevision);
+                    }
+                }
+                if (vrc == VINF_SUCCESS)
+                    *a_puAdditionsRevision = uRevision;
+                else
+                    hrc = VBOX_E_IPRT_ERROR;
+            }
+            if (FAILED(hrc))
+            {
+                /* Return 0 if we don't know. */
+                *a_puAdditionsRevision = 0;
+                hrc = S_OK;
+            }
+        }
+    }
+    return hrc;
+}
+
+STDMETHODIMP Guest::COMGETTER(EventSource)(IEventSource ** aEventSource)
+{
+#ifndef VBOX_WITH_GUEST_CONTROL
     ReturnComNotImplemented();
 #else
     LogFlowThisFuncEnter();
 
-    /* No need to lock - lifetime constant. */
-    HRESULT hr = mDnDSource.queryInterfaceTo(aDnDSource.asOutParam());
+    CheckComArgOutPointerValid(aEventSource);
 
-    LogFlowFuncLeaveRC(hr);
-    return hr;
-#endif /* VBOX_WITH_DRAG_AND_DROP */
-}
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-HRESULT Guest::getDnDTarget(ComPtr<IGuestDnDTarget> &aDnDTarget)
-{
-#ifndef VBOX_WITH_DRAG_AND_DROP
-    ReturnComNotImplemented();
-#else
-    LogFlowThisFuncEnter();
-
-    /* No need to lock - lifetime constant. */
-    HRESULT hr = mDnDTarget.queryInterfaceTo(aDnDTarget.asOutParam());
-
-    LogFlowFuncLeaveRC(hr);
-    return hr;
-#endif /* VBOX_WITH_DRAG_AND_DROP */
-}
-
-HRESULT Guest::getEventSource(ComPtr<IEventSource> &aEventSource)
-{
-    LogFlowThisFuncEnter();
-
-    /* No need to lock - lifetime constant. */
-    mEventSource.queryInterfaceTo(aEventSource.asOutParam());
+    // no need to lock - lifetime constant
+    mEventSource.queryInterfaceTo(aEventSource);
 
     LogFlowFuncLeaveRC(S_OK);
     return S_OK;
+#endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-HRESULT Guest::getFacilities(std::vector<ComPtr<IAdditionsFacility> > &aFacilities)
+STDMETHODIMP Guest::COMGETTER(Facilities)(ComSafeArrayOut(IAdditionsFacility *, aFacilities))
 {
+    CheckComArgOutSafeArrayPointerValid(aFacilities);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    aFacilities.resize(mData.mFacilityMap.size());
-    size_t i = 0;
-    for (FacilityMapIter it = mData.mFacilityMap.begin(); it != mData.mFacilityMap.end(); ++it, ++i)
-        it->second.queryInterfaceTo(aFacilities[i].asOutParam());
+    SafeIfaceArray<IAdditionsFacility> fac(mData.mFacilityMap);
+    fac.detachTo(ComSafeArrayOutArg(aFacilities));
 
     return S_OK;
 }
 
-HRESULT Guest::getSessions(std::vector<ComPtr<IGuestSession> > &aSessions)
+STDMETHODIMP Guest::COMGETTER(Sessions)(ComSafeArrayOut(IGuestSession *, aSessions))
 {
-#ifdef VBOX_WITH_GUEST_CONTROL
+    CheckComArgOutSafeArrayPointerValid(aSessions);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    aSessions.resize(mData.mGuestSessions.size());
-    size_t i = 0;
-    for (GuestSessions::iterator it = mData.mGuestSessions.begin(); it != mData.mGuestSessions.end(); ++it, ++i)
-        it->second.queryInterfaceTo(aSessions[i].asOutParam());
+    SafeIfaceArray<IGuestSession> collection(mData.mGuestSessions);
+    collection.detachTo(ComSafeArrayOutArg(aSessions));
 
     return S_OK;
-#else
-    ReturnComNotImplemented();
-#endif
 }
 
-BOOL Guest::i_isPageFusionEnabled()
+BOOL Guest::isPageFusionEnabled()
 {
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return false;
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     return mfPageFusionEnabled;
 }
 
-HRESULT Guest::getMemoryBalloonSize(ULONG *aMemoryBalloonSize)
+STDMETHODIMP Guest::COMGETTER(MemoryBalloonSize)(ULONG *aMemoryBalloonSize)
 {
+    CheckComArgOutPointerValid(aMemoryBalloonSize);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     *aMemoryBalloonSize = mMemoryBalloonSize;
@@ -564,18 +568,21 @@ HRESULT Guest::getMemoryBalloonSize(ULONG *aMemoryBalloonSize)
     return S_OK;
 }
 
-HRESULT Guest::setMemoryBalloonSize(ULONG aMemoryBalloonSize)
+STDMETHODIMP Guest::COMSETTER(MemoryBalloonSize)(ULONG aMemoryBalloonSize)
 {
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     /* We must be 100% sure that IMachine::COMSETTER(MemoryBalloonSize)
      * does not call us back in any way! */
-    HRESULT ret = mParent->i_machine()->COMSETTER(MemoryBalloonSize)(aMemoryBalloonSize);
+    HRESULT ret = mParent->machine()->COMSETTER(MemoryBalloonSize)(aMemoryBalloonSize);
     if (ret == S_OK)
     {
         mMemoryBalloonSize = aMemoryBalloonSize;
         /* forward the information to the VMM device */
-        VMMDev *pVMMDev = mParent->i_getVMMDev();
+        VMMDev *pVMMDev = mParent->getVMMDev();
         /* MUST release all locks before calling VMM device as its critsect
          * has higher lock order than anything in Main. */
         alock.release();
@@ -590,32 +597,40 @@ HRESULT Guest::setMemoryBalloonSize(ULONG aMemoryBalloonSize)
     return ret;
 }
 
-HRESULT Guest::getStatisticsUpdateInterval(ULONG *aStatisticsUpdateInterval)
+STDMETHODIMP Guest::COMGETTER(StatisticsUpdateInterval)(ULONG *aUpdateInterval)
 {
+    CheckComArgOutPointerValid(aUpdateInterval);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    *aStatisticsUpdateInterval = mStatUpdateInterval;
+    *aUpdateInterval = mStatUpdateInterval;
     return S_OK;
 }
 
-HRESULT Guest::setStatisticsUpdateInterval(ULONG aStatisticsUpdateInterval)
+STDMETHODIMP Guest::COMSETTER(StatisticsUpdateInterval)(ULONG aUpdateInterval)
 {
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     if (mStatUpdateInterval)
-        if (aStatisticsUpdateInterval == 0)
+        if (aUpdateInterval == 0)
             RTTimerLRStop(mStatTimer);
         else
-            RTTimerLRChangeInterval(mStatTimer, aStatisticsUpdateInterval);
+            RTTimerLRChangeInterval(mStatTimer, aUpdateInterval);
     else
-        if (aStatisticsUpdateInterval != 0)
+        if (aUpdateInterval != 0)
         {
-            RTTimerLRChangeInterval(mStatTimer, aStatisticsUpdateInterval);
+            RTTimerLRChangeInterval(mStatTimer, aUpdateInterval);
             RTTimerLRStart(mStatTimer, 0);
         }
-    mStatUpdateInterval = aStatisticsUpdateInterval;
+    mStatUpdateInterval = aUpdateInterval;
     /* forward the information to the VMM device */
-    VMMDev *pVMMDev = mParent->i_getVMMDev();
+    VMMDev *pVMMDev = mParent->getVMMDev();
     /* MUST release all locks before calling VMM device as its critsect
      * has higher lock order than anything in Main. */
     alock.release();
@@ -623,19 +638,34 @@ HRESULT Guest::setStatisticsUpdateInterval(ULONG aStatisticsUpdateInterval)
     {
         PPDMIVMMDEVPORT pVMMDevPort = pVMMDev->getVMMDevPort();
         if (pVMMDevPort)
-            pVMMDevPort->pfnSetStatisticsInterval(pVMMDevPort, aStatisticsUpdateInterval);
+            pVMMDevPort->pfnSetStatisticsInterval(pVMMDevPort, aUpdateInterval);
     }
 
     return S_OK;
 }
 
-
-HRESULT Guest::internalGetStatistics(ULONG *aCpuUser, ULONG *aCpuKernel, ULONG *aCpuIdle,
-                                     ULONG *aMemTotal, ULONG *aMemFree, ULONG *aMemBalloon,
-                                     ULONG *aMemShared, ULONG *aMemCache, ULONG *aPageTotal,
-                                     ULONG *aMemAllocTotal, ULONG *aMemFreeTotal,
-                                     ULONG *aMemBalloonTotal, ULONG *aMemSharedTotal)
+STDMETHODIMP Guest::InternalGetStatistics(ULONG *aCpuUser, ULONG *aCpuKernel, ULONG *aCpuIdle,
+                                          ULONG *aMemTotal, ULONG *aMemFree, ULONG *aMemBalloon, ULONG *aMemShared,
+                                          ULONG *aMemCache, ULONG *aPageTotal,
+                                          ULONG *aMemAllocTotal, ULONG *aMemFreeTotal, ULONG *aMemBalloonTotal, ULONG *aMemSharedTotal)
 {
+    CheckComArgOutPointerValid(aCpuUser);
+    CheckComArgOutPointerValid(aCpuKernel);
+    CheckComArgOutPointerValid(aCpuIdle);
+    CheckComArgOutPointerValid(aMemTotal);
+    CheckComArgOutPointerValid(aMemFree);
+    CheckComArgOutPointerValid(aMemBalloon);
+    CheckComArgOutPointerValid(aMemShared);
+    CheckComArgOutPointerValid(aMemCache);
+    CheckComArgOutPointerValid(aPageTotal);
+    CheckComArgOutPointerValid(aMemAllocTotal);
+    CheckComArgOutPointerValid(aMemFreeTotal);
+    CheckComArgOutPointerValid(aMemBalloonTotal);
+    CheckComArgOutPointerValid(aMemSharedTotal);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     *aCpuUser    = mCurrentGuestStat[GUESTSTATTYPE_CPUUSER];
@@ -680,7 +710,7 @@ HRESULT Guest::internalGetStatistics(ULONG *aCpuUser, ULONG *aCpuKernel, ULONG *
     return S_OK;
 }
 
-HRESULT Guest::i_setStatistic(ULONG aCpuId, GUESTSTATTYPE enmType, ULONG aVal)
+HRESULT Guest::setStatistic(ULONG aCpuId, GUESTSTATTYPE enmType, ULONG aVal)
 {
     static ULONG indexToPerfMask[] =
     {
@@ -714,19 +744,24 @@ HRESULT Guest::i_setStatistic(ULONG aCpuId, GUESTSTATTYPE enmType, ULONG aVal)
  * @param   aType           Facility to get the status from.
  * @param   aTimestamp      Timestamp of last facility status update in ms (optional).
  */
-HRESULT Guest::getFacilityStatus(AdditionsFacilityType_T aFacility, LONG64 *aTimestamp, AdditionsFacilityStatus_T *aStatus)
+STDMETHODIMP Guest::GetFacilityStatus(AdditionsFacilityType_T aType, LONG64 *aTimestamp, AdditionsFacilityStatus_T *aStatus)
 {
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
+    CheckComArgNotNull(aStatus);
     /* Not checking for aTimestamp is intentional; it's optional. */
-    FacilityMapIterConst it = mData.mFacilityMap.find(aFacility);
+
+    FacilityMapIterConst it = mData.mFacilityMap.find(aType);
     if (it != mData.mFacilityMap.end())
     {
         AdditionsFacility *pFacility = it->second;
         ComAssert(pFacility);
-        *aStatus = pFacility->i_getStatus();
+        *aStatus = pFacility->getStatus();
         if (aTimestamp)
-            *aTimestamp = pFacility->i_getLastUpdated();
+            *aTimestamp = pFacility->getLastUpdated();
     }
     else
     {
@@ -741,8 +776,11 @@ HRESULT Guest::getFacilityStatus(AdditionsFacilityType_T aFacility, LONG64 *aTim
     return S_OK;
 }
 
-HRESULT Guest::getAdditionsStatus(AdditionsRunLevelType_T aLevel, BOOL *aActive)
+STDMETHODIMP Guest::GetAdditionsStatus(AdditionsRunLevelType_T aLevel, BOOL *aActive)
 {
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     HRESULT rc = S_OK;
@@ -768,21 +806,25 @@ HRESULT Guest::getAdditionsStatus(AdditionsRunLevelType_T aLevel, BOOL *aActive)
 
     return rc;
 }
-HRESULT Guest::setCredentials(const com::Utf8Str &aUserName, const com::Utf8Str &aPassword,
-                              const com::Utf8Str &aDomain, BOOL aAllowInteractiveLogon)
+
+STDMETHODIMP Guest::SetCredentials(IN_BSTR aUserName, IN_BSTR aPassword,
+                                   IN_BSTR aDomain, BOOL aAllowInteractiveLogon)
 {
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     /* Check for magic domain names which are used to pass encryption keys to the disk. */
     if (Utf8Str(aDomain) == "@@disk")
-        return mParent->i_setDiskEncryptionKeys(aPassword);
+        return mParent->setDiskEncryptionKeys(Utf8Str(aPassword));
     else if (Utf8Str(aDomain) == "@@mem")
     {
         /** @todo */
-        return E_NOTIMPL;
+        return E_NOTIMPL;    
     }
     else
     {
         /* forward the information to the VMM device */
-        VMMDev *pVMMDev = mParent->i_getVMMDev();
+        VMMDev *pVMMDev = mParent->getVMMDev();
         if (pVMMDev)
         {
             PPDMIVMMDEVPORT pVMMDevPort = pVMMDev->getVMMDevPort();
@@ -791,11 +833,11 @@ HRESULT Guest::setCredentials(const com::Utf8Str &aUserName, const com::Utf8Str 
                 uint32_t u32Flags = VMMDEV_SETCREDENTIALS_GUESTLOGON;
                 if (!aAllowInteractiveLogon)
                     u32Flags = VMMDEV_SETCREDENTIALS_NOLOCALLOGON;
-
+    
                 pVMMDevPort->pfnSetCredentials(pVMMDevPort,
-                                               aUserName.c_str(),
-                                               aPassword.c_str(),
-                                               aDomain.c_str(),
+                                               Utf8Str(aUserName).c_str(),
+                                               Utf8Str(aPassword).c_str(),
+                                               Utf8Str(aDomain).c_str(),
                                                u32Flags);
                 return S_OK;
             }
@@ -804,6 +846,135 @@ HRESULT Guest::setCredentials(const com::Utf8Str &aUserName, const com::Utf8Str 
 
     return setError(VBOX_E_VM_ERROR,
                     tr("VMM device is not available (is the VM running?)"));
+}
+
+STDMETHODIMP Guest::DragHGEnter(ULONG uScreenId, ULONG uX, ULONG uY, DragAndDropAction_T defaultAction, ComSafeArrayIn(DragAndDropAction_T, allowedActions), ComSafeArrayIn(IN_BSTR, formats), DragAndDropAction_T *pResultAction)
+{
+    /* Input validation */
+    CheckComArgSafeArrayNotNull(allowedActions);
+    CheckComArgSafeArrayNotNull(formats);
+    CheckComArgOutPointerValid(pResultAction);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+#ifdef VBOX_WITH_DRAG_AND_DROP
+    return m_pGuestDnD->dragHGEnter(uScreenId, uX, uY, defaultAction, ComSafeArrayInArg(allowedActions), ComSafeArrayInArg(formats), pResultAction);
+#else /* VBOX_WITH_DRAG_AND_DROP */
+    ReturnComNotImplemented();
+#endif /* !VBOX_WITH_DRAG_AND_DROP */
+}
+
+STDMETHODIMP Guest::DragHGMove(ULONG uScreenId, ULONG uX, ULONG uY, DragAndDropAction_T defaultAction, ComSafeArrayIn(DragAndDropAction_T, allowedActions), ComSafeArrayIn(IN_BSTR, formats), DragAndDropAction_T *pResultAction)
+{
+    /* Input validation */
+    CheckComArgSafeArrayNotNull(allowedActions);
+    CheckComArgSafeArrayNotNull(formats);
+    CheckComArgOutPointerValid(pResultAction);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+#ifdef VBOX_WITH_DRAG_AND_DROP
+    return m_pGuestDnD->dragHGMove(uScreenId, uX, uY, defaultAction, ComSafeArrayInArg(allowedActions), ComSafeArrayInArg(formats), pResultAction);
+#else /* VBOX_WITH_DRAG_AND_DROP */
+    ReturnComNotImplemented();
+#endif /* !VBOX_WITH_DRAG_AND_DROP */
+}
+
+STDMETHODIMP Guest::DragHGLeave(ULONG uScreenId)
+{
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+#ifdef VBOX_WITH_DRAG_AND_DROP
+    return m_pGuestDnD->dragHGLeave(uScreenId);
+#else /* VBOX_WITH_DRAG_AND_DROP */
+    ReturnComNotImplemented();
+#endif /* !VBOX_WITH_DRAG_AND_DROP */
+}
+
+STDMETHODIMP Guest::DragHGDrop(ULONG uScreenId, ULONG uX, ULONG uY, DragAndDropAction_T defaultAction, ComSafeArrayIn(DragAndDropAction_T, allowedActions), ComSafeArrayIn(IN_BSTR, formats), BSTR *pstrFormat, DragAndDropAction_T *pResultAction)
+{
+    /* Input validation */
+    CheckComArgSafeArrayNotNull(allowedActions);
+    CheckComArgSafeArrayNotNull(formats);
+    CheckComArgOutPointerValid(pstrFormat);
+    CheckComArgOutPointerValid(pResultAction);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+#ifdef VBOX_WITH_DRAG_AND_DROP
+    return m_pGuestDnD->dragHGDrop(uScreenId, uX, uY, defaultAction, ComSafeArrayInArg(allowedActions), ComSafeArrayInArg(formats), pstrFormat, pResultAction);
+#else /* VBOX_WITH_DRAG_AND_DROP */
+    ReturnComNotImplemented();
+#endif /* !VBOX_WITH_DRAG_AND_DROP */
+}
+
+STDMETHODIMP Guest::DragHGPutData(ULONG uScreenId, IN_BSTR bstrFormat, ComSafeArrayIn(BYTE, data), IProgress **ppProgress)
+{
+    /* Input validation */
+    CheckComArgStrNotEmptyOrNull(bstrFormat);
+    CheckComArgSafeArrayNotNull(data);
+    CheckComArgOutPointerValid(ppProgress);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+#ifdef VBOX_WITH_DRAG_AND_DROP
+    return m_pGuestDnD->dragHGPutData(uScreenId, bstrFormat, ComSafeArrayInArg(data), ppProgress);
+#else /* VBOX_WITH_DRAG_AND_DROP */
+    ReturnComNotImplemented();
+#endif /* !VBOX_WITH_DRAG_AND_DROP */
+}
+
+STDMETHODIMP Guest::DragGHPending(ULONG uScreenId, ComSafeArrayOut(BSTR, formats), ComSafeArrayOut(DragAndDropAction_T, allowedActions), DragAndDropAction_T *pDefaultAction)
+{
+    /* Input validation */
+    CheckComArgSafeArrayNotNull(formats);
+    CheckComArgSafeArrayNotNull(allowedActions);
+    CheckComArgOutPointerValid(pDefaultAction);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+#if defined(VBOX_WITH_DRAG_AND_DROP) && defined(VBOX_WITH_DRAG_AND_DROP_GH)
+    return m_pGuestDnD->dragGHPending(uScreenId, ComSafeArrayOutArg(formats), ComSafeArrayOutArg(allowedActions), pDefaultAction);
+#else /* VBOX_WITH_DRAG_AND_DROP */
+    ReturnComNotImplemented();
+#endif /* !VBOX_WITH_DRAG_AND_DROP */
+}
+
+STDMETHODIMP Guest::DragGHDropped(IN_BSTR bstrFormat, DragAndDropAction_T action, IProgress **ppProgress)
+{
+    /* Input validation */
+    CheckComArgStrNotEmptyOrNull(bstrFormat);
+    CheckComArgOutPointerValid(ppProgress);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+#if defined(VBOX_WITH_DRAG_AND_DROP) && defined(VBOX_WITH_DRAG_AND_DROP_GH)
+    return m_pGuestDnD->dragGHDropped(bstrFormat, action, ppProgress);
+#else /* VBOX_WITH_DRAG_AND_DROP */
+    ReturnComNotImplemented();
+#endif /* !VBOX_WITH_DRAG_AND_DROP */
+}
+
+STDMETHODIMP Guest::DragGHGetData(ComSafeArrayOut(BYTE, data))
+{
+    /* Input validation */
+    CheckComArgSafeArrayNotNull(data);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+#if defined(VBOX_WITH_DRAG_AND_DROP) && defined(VBOX_WITH_DRAG_AND_DROP_GH)
+    return m_pGuestDnD->dragGHGetData(ComSafeArrayOutArg(data));
+#else /* VBOX_WITH_DRAG_AND_DROP */
+    ReturnComNotImplemented();
+#endif /* !VBOX_WITH_DRAG_AND_DROP */
 }
 
 // public methods only for internal purposes
@@ -817,7 +988,7 @@ HRESULT Guest::setCredentials(const com::Utf8Str &aUserName, const com::Utf8Str 
  * @param aInterfaceVersion
  * @param aOsType
  */
-void Guest::i_setAdditionsInfo(com::Utf8Str aInterfaceVersion, VBOXOSTYPE aOsType)
+void Guest::setAdditionsInfo(Bstr aInterfaceVersion, VBOXOSTYPE aOsType)
 {
     RTTIMESPEC TimeSpecTS;
     RTTimeNow(&TimeSpecTS);
@@ -862,7 +1033,7 @@ void Guest::i_setAdditionsInfo(com::Utf8Str aInterfaceVersion, VBOXOSTYPE aOsTyp
              * "graphics" (feature) facility to active as soon as we got the Guest Additions
              * interface version.
              */
-            i_facilityUpdate(VBoxGuestFacilityType_Graphics, VBoxGuestFacilityStatus_Active,  0 /*fFlags*/, &TimeSpecTS);
+            facilityUpdate(VBoxGuestFacilityType_Graphics, VBoxGuestFacilityStatus_Active,  0 /*fFlags*/, &TimeSpecTS);
         }
     }
 
@@ -882,17 +1053,16 @@ void Guest::i_setAdditionsInfo(com::Utf8Str aInterfaceVersion, VBOXOSTYPE aOsTyp
      * PS. There is the VMMDEV_GUEST_SUPPORTS_GRAPHICS capability* report... It
      * should come in pretty quickly after this update, normally.
      */
-    i_facilityUpdate(VBoxGuestFacilityType_Graphics,
-                     i_facilityIsActive(VBoxGuestFacilityType_VBoxGuestDriver)
-                     ? VBoxGuestFacilityStatus_Active : VBoxGuestFacilityStatus_Inactive,
-                     0 /*fFlags*/, &TimeSpecTS); /** @todo the timestamp isn't gonna be right here on saved state restore. */
+    facilityUpdate(VBoxGuestFacilityType_Graphics,
+                   facilityIsActive(VBoxGuestFacilityType_VBoxGuestDriver)
+                   ? VBoxGuestFacilityStatus_Active : VBoxGuestFacilityStatus_Inactive,
+                   0 /*fFlags*/, &TimeSpecTS); /** @todo the timestamp isn't gonna be right here on saved state restore. */
 
     /*
      * Note! There is a race going on between setting mAdditionsRunLevel and
      * mSupportsGraphics here and disabling/enabling it later according to
      * its real status when using new(er) Guest Additions.
      */
-    mData.mOSType = aOsType;
     mData.mOSTypeId = Global::OSTypeId(aOsType);
 }
 
@@ -915,17 +1085,20 @@ void Guest::i_setAdditionsInfo(com::Utf8Str aInterfaceVersion, VBOXOSTYPE aOsTyp
  * @param   a_uRevision             See VBoxGuestInfo2::additionsRevision.
  * @param   a_fFeatures             See VBoxGuestInfo2::additionsFeatures.
  */
-void Guest::i_setAdditionsInfo2(uint32_t a_uFullVersion, const char *a_pszName, uint32_t a_uRevision, uint32_t a_fFeatures)
+void Guest::setAdditionsInfo2(uint32_t a_uFullVersion, const char *a_pszName, uint32_t a_uRevision, uint32_t a_fFeatures)
 {
+    AutoCaller autoCaller(this);
+    AssertComRCReturnVoid(autoCaller.rc());
+
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     if (a_uFullVersion)
     {
-        mData.mAdditionsVersionNew  = Utf8StrFmt(*a_pszName ? "%u.%u.%u_%s" : "%u.%u.%u",
-                                                 VBOX_FULL_VERSION_GET_MAJOR(a_uFullVersion),
-                                                 VBOX_FULL_VERSION_GET_MINOR(a_uFullVersion),
-                                                 VBOX_FULL_VERSION_GET_BUILD(a_uFullVersion),
-                                                 a_pszName);
+        mData.mAdditionsVersionNew  = BstrFmt(*a_pszName ? "%u.%u.%u_%s" : "%u.%u.%u",
+                                              VBOX_FULL_VERSION_GET_MAJOR(a_uFullVersion),
+                                              VBOX_FULL_VERSION_GET_MINOR(a_uFullVersion),
+                                              VBOX_FULL_VERSION_GET_BUILD(a_uFullVersion),
+                                              a_pszName);
         mData.mAdditionsVersionFull = a_uFullVersion;
         mData.mAdditionsRevision    = a_uRevision;
         mData.mAdditionsFeatures    = a_fFeatures;
@@ -940,20 +1113,20 @@ void Guest::i_setAdditionsInfo2(uint32_t a_uFullVersion, const char *a_pszName, 
     }
 }
 
-bool Guest::i_facilityIsActive(VBoxGuestFacilityType enmFacility)
+bool Guest::facilityIsActive(VBoxGuestFacilityType enmFacility)
 {
     Assert(enmFacility < INT32_MAX);
     FacilityMapIterConst it = mData.mFacilityMap.find((AdditionsFacilityType_T)enmFacility);
     if (it != mData.mFacilityMap.end())
     {
         AdditionsFacility *pFac = it->second;
-        return (pFac->i_getStatus() == AdditionsFacilityStatus_Active);
+        return (pFac->getStatus() == AdditionsFacilityStatus_Active);
     }
     return false;
 }
 
-void Guest::i_facilityUpdate(VBoxGuestFacilityType a_enmFacility, VBoxGuestFacilityStatus a_enmStatus,
-                             uint32_t a_fFlags, PCRTTIMESPEC a_pTimeSpecTS)
+void Guest::facilityUpdate(VBoxGuestFacilityType a_enmFacility, VBoxGuestFacilityStatus a_enmStatus,
+                           uint32_t a_fFlags, PCRTTIMESPEC a_pTimeSpecTS)
 {
     AssertReturnVoid(   a_enmFacility < VBoxGuestFacilityType_All
                      && a_enmFacility > VBoxGuestFacilityType_Unknown);
@@ -962,7 +1135,7 @@ void Guest::i_facilityUpdate(VBoxGuestFacilityType a_enmFacility, VBoxGuestFacil
     if (it != mData.mFacilityMap.end())
     {
         AdditionsFacility *pFac = it->second;
-        pFac->i_update((AdditionsFacilityStatus_T)a_enmStatus, a_fFlags, a_pTimeSpecTS);
+        pFac->update((AdditionsFacilityStatus_T)a_enmStatus, a_fFlags, a_pTimeSpecTS);
     }
     else
     {
@@ -991,11 +1164,11 @@ void Guest::i_facilityUpdate(VBoxGuestFacilityType a_enmFacility, VBoxGuestFacil
  * @param   aUser               Guest user name.
  * @param   aDomain             Domain of guest user account. Optional.
  * @param   enmState            New state to indicate.
- * @param   pbDetails           Pointer to state details. Optional.
+ * @param   puDetails           Pointer to state details. Optional.
  * @param   cbDetails           Size (in bytes) of state details. Pass 0 if not used.
  */
-void Guest::i_onUserStateChange(Bstr aUser, Bstr aDomain, VBoxGuestUserState enmState,
-                                const uint8_t *pbDetails, uint32_t cbDetails)
+void Guest::onUserStateChange(Bstr aUser, Bstr aDomain, VBoxGuestUserState enmState,
+                              const uint8_t *puDetails, uint32_t cbDetails)
 {
     LogFlowThisFunc(("\n"));
 
@@ -1023,8 +1196,8 @@ void Guest::i_onUserStateChange(Bstr aUser, Bstr aDomain, VBoxGuestUserState enm
  * @sa      PDMIVMMDEVCONNECTOR::pfnUpdateGuestStatus, vmmdevUpdateGuestStatus
  * @thread  The emulation thread.
  */
-void Guest::i_setAdditionsStatus(VBoxGuestFacilityType a_enmFacility, VBoxGuestFacilityStatus a_enmStatus,
-                                 uint32_t a_fFlags, PCRTTIMESPEC a_pTimeSpecTS)
+void Guest::setAdditionsStatus(VBoxGuestFacilityType a_enmFacility, VBoxGuestFacilityStatus a_enmStatus,
+                               uint32_t a_fFlags, PCRTTIMESPEC a_pTimeSpecTS)
 {
     Assert(   a_enmFacility > VBoxGuestFacilityType_Unknown
            && a_enmFacility <= VBoxGuestFacilityType_All); /* Paranoia, VMMDev checks for this. */
@@ -1039,18 +1212,18 @@ void Guest::i_setAdditionsStatus(VBoxGuestFacilityType a_enmFacility, VBoxGuestF
      */
     if (a_enmFacility == VBoxGuestFacilityType_All)
         for (FacilityMapIter it = mData.mFacilityMap.begin(); it != mData.mFacilityMap.end(); ++it)
-            i_facilityUpdate((VBoxGuestFacilityType)it->first, a_enmStatus, a_fFlags, a_pTimeSpecTS);
+            facilityUpdate((VBoxGuestFacilityType)it->first, a_enmStatus, a_fFlags, a_pTimeSpecTS);
     else /* Update one facility only. */
-        i_facilityUpdate(a_enmFacility, a_enmStatus, a_fFlags, a_pTimeSpecTS);
+        facilityUpdate(a_enmFacility, a_enmStatus, a_fFlags, a_pTimeSpecTS);
 
     /*
      * Recalc the runlevel.
      */
-    if (i_facilityIsActive(VBoxGuestFacilityType_VBoxTrayClient))
+    if (facilityIsActive(VBoxGuestFacilityType_VBoxTrayClient))
         mData.mAdditionsRunLevel = AdditionsRunLevelType_Desktop;
-    else if (i_facilityIsActive(VBoxGuestFacilityType_VBoxService))
+    else if (facilityIsActive(VBoxGuestFacilityType_VBoxService))
         mData.mAdditionsRunLevel = AdditionsRunLevelType_Userland;
-    else if (i_facilityIsActive(VBoxGuestFacilityType_VBoxGuestDriver))
+    else if (facilityIsActive(VBoxGuestFacilityType_VBoxGuestDriver))
         mData.mAdditionsRunLevel = AdditionsRunLevelType_System;
     else
         mData.mAdditionsRunLevel = AdditionsRunLevelType_None;
@@ -1061,7 +1234,7 @@ void Guest::i_setAdditionsStatus(VBoxGuestFacilityType a_enmFacility, VBoxGuestF
  *
  * @param   fCaps       Guest capability bit mask (VMMDEV_GUEST_SUPPORTS_XXX).
  */
-void Guest::i_setSupportedFeatures(uint32_t aCaps)
+void Guest::setSupportedFeatures(uint32_t aCaps)
 {
     AutoCaller autoCaller(this);
     AssertComRCReturnVoid(autoCaller.rc());
@@ -1074,9 +1247,9 @@ void Guest::i_setSupportedFeatures(uint32_t aCaps)
     RTTIMESPEC TimeSpecTS;
     RTTimeNow(&TimeSpecTS);
 
-    i_facilityUpdate(VBoxGuestFacilityType_Seamless,
-                     aCaps & VMMDEV_GUEST_SUPPORTS_SEAMLESS ? VBoxGuestFacilityStatus_Active : VBoxGuestFacilityStatus_Inactive,
-                     0 /*fFlags*/, &TimeSpecTS);
+    facilityUpdate(VBoxGuestFacilityType_Seamless,
+                   aCaps & VMMDEV_GUEST_SUPPORTS_SEAMLESS ? VBoxGuestFacilityStatus_Active : VBoxGuestFacilityStatus_Inactive,
+                   0 /*fFlags*/, &TimeSpecTS);
     /** @todo Add VMMDEV_GUEST_SUPPORTS_GUEST_HOST_WINDOW_MAPPING */
 }
 

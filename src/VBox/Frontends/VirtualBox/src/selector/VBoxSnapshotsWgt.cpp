@@ -1,10 +1,12 @@
 /* $Id: VBoxSnapshotsWgt.cpp $ */
 /** @file
- * VBox Qt GUI - VBoxSnapshotsWgt class implementation.
+ *
+ * VBox frontends: Qt4 GUI ("VirtualBox"):
+ * VBoxSnapshotsWgt class implementation
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -16,36 +18,34 @@
  */
 
 #ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
+# include "precomp.h"
 #else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 /* Qt includes: */
-# include <QDateTime>
-# include <QHeaderView>
-# include <QMenu>
-# include <QScrollBar>
-# include <QWindowsStyle>
-# include <QPointer>
-# include <QApplication>
+#include <QDateTime>
+#include <QHeaderView>
+#include <QMenu>
+#include <QScrollBar>
+#include <QWindowsStyle>
+#include <QPointer>
+#include <QApplication>
 
 /* GUI includes: */
-# include "UIIconPool.h"
-# include "UIMessageCenter.h"
-# include "VBoxSnapshotDetailsDlg.h"
-# include "VBoxSnapshotsWgt.h"
-# include "VBoxTakeSnapshotDlg.h"
-# include "UIWizardCloneVM.h"
-# include "UIToolBar.h"
-# include "UIVirtualBoxEventHandler.h"
-# include "UIConverter.h"
-# include "UIModalWindowManager.h"
-# include "UIExtraDataManager.h"
+#include "UIIconPool.h"
+#include "UIMessageCenter.h"
+#include "VBoxSnapshotDetailsDlg.h"
+#include "VBoxSnapshotsWgt.h"
+#include "VBoxTakeSnapshotDlg.h"
+#include "UIWizardCloneVM.h"
+#include "UIToolBar.h"
+#include "UIVirtualBoxEventHandler.h"
+#include "UIConverter.h"
+#include "UIModalWindowManager.h"
 
 /* COM includes: */
-# include "CConsole.h"
+#include "CConsole.h"
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 
 /**
  *  QTreeWidgetItem subclass for snapshots items
@@ -57,27 +57,24 @@ public:
     enum { ItemType = QTreeWidgetItem::UserType + 1 };
 
     /* Normal snapshot item (child of tree-widget) */
-    SnapshotWgtItem (VBoxSnapshotsWgt *pSnapshotWidget, QTreeWidget *aTreeWidget, const CSnapshot &aSnapshot)
+    SnapshotWgtItem (QTreeWidget *aTreeWidget, const CSnapshot &aSnapshot)
         : QTreeWidgetItem (aTreeWidget, ItemType)
-        , m_pSnapshotWidget(pSnapshotWidget)
         , mIsCurrentState (false)
         , mSnapshot (aSnapshot)
     {
     }
 
     /* Normal snapshot item (child of tree-widget-item) */
-    SnapshotWgtItem (VBoxSnapshotsWgt *pSnapshotWidget, QTreeWidgetItem *aRootItem, const CSnapshot &aSnapshot)
+    SnapshotWgtItem (QTreeWidgetItem *aRootItem, const CSnapshot &aSnapshot)
         : QTreeWidgetItem (aRootItem, ItemType)
-        , m_pSnapshotWidget(pSnapshotWidget)
         , mIsCurrentState (false)
         , mSnapshot (aSnapshot)
     {
     }
 
     /* Current state item (child of tree-widget) */
-    SnapshotWgtItem (VBoxSnapshotsWgt *pSnapshotWidget, QTreeWidget *aTreeWidget, const CMachine &aMachine)
+    SnapshotWgtItem (QTreeWidget *aTreeWidget, const CMachine &aMachine)
         : QTreeWidgetItem (aTreeWidget, ItemType)
-        , m_pSnapshotWidget(pSnapshotWidget)
         , mIsCurrentState (true)
         , mMachine (aMachine)
     {
@@ -85,9 +82,8 @@ public:
     }
 
     /* Current state item (child of tree-widget-item) */
-    SnapshotWgtItem (VBoxSnapshotsWgt *pSnapshotWidget, QTreeWidgetItem *aRootItem, const CMachine &aMachine)
+    SnapshotWgtItem (QTreeWidgetItem *aRootItem, const CMachine &aMachine)
         : QTreeWidgetItem (aRootItem, ItemType)
-        , m_pSnapshotWidget(pSnapshotWidget)
         , mIsCurrentState (true)
         , mMachine (aMachine)
     {
@@ -173,7 +169,7 @@ public:
             mId = mSnapshot.GetId();
             setText (0, mSnapshot.GetName());
             mOnline = mSnapshot.GetOnline();
-            setIcon(0, m_pSnapshotWidget->snapshotItemIcon(mOnline));
+            setIcon (0, vboxGlobal().snapshotIcon (mOnline));
             mDesc = mSnapshot.GetDescription();
             mTimestamp.setTime_t (mSnapshot.GetTimeStamp() / 1000);
             mCurStateModified = false;
@@ -195,7 +191,7 @@ public:
         if (mMachine.isNull())
             return;
 
-        setIcon(0, gpConverter->toIcon(aState));
+        setIcon (0, gpConverter->toPixmap (aState));
         mMachineState = aState;
         mTimestamp.setTime_t (mMachine.GetLastStateChange() / 1000);
     }
@@ -298,9 +294,6 @@ private:
         setToolTip (0, toolTip);
     }
 
-    /** Holds pointer to snapshot-widget 'this' item belongs to. */
-    QPointer<VBoxSnapshotsWgt> m_pSnapshotWidget;
-
     bool mIsCurrentState;
 
     CSnapshot mSnapshot;
@@ -371,12 +364,9 @@ VBoxSnapshotsWgt::VBoxSnapshotsWgt (QWidget *aParent)
     connect (mTreeWidget, SIGNAL (destroyed (QObject *)), treeWidgetStyle, SLOT (deleteLater()));
 // #endif
 
-    /* Cache pixmaps: */
-    m_offlineSnapshotIcon = UIIconPool::iconSet(":/snapshot_offline_16px.png");
-    m_onlineSnapshotIcon = UIIconPool::iconSet(":/snapshot_online_16px.png");
-
     /* ToolBar creation */
     UIToolBar *toolBar = new UIToolBar (this);
+    toolBar->setUsesTextLabel (false);
     toolBar->setIconSize (QSize (22, 22));
     toolBar->setSizePolicy (QSizePolicy::Fixed, QSizePolicy::Fixed);
 
@@ -392,18 +382,23 @@ VBoxSnapshotsWgt::VBoxSnapshotsWgt (QWidget *aParent)
 
     /* Setup actions */
     mRestoreSnapshotAction->setIcon(UIIconPool::iconSetFull(
+        QSize (22, 22), QSize (16, 16),
         ":/snapshot_restore_22px.png", ":/snapshot_restore_16px.png",
         ":/snapshot_restore_disabled_22px.png", ":/snapshot_restore_disabled_16px.png"));
     mDeleteSnapshotAction->setIcon(UIIconPool::iconSetFull(
+        QSize (22, 22), QSize (16, 16),
         ":/snapshot_delete_22px.png", ":/snapshot_delete_16px.png",
         ":/snapshot_delete_disabled_22px.png", ":/snapshot_delete_disabled_16px.png"));
     mShowSnapshotDetailsAction->setIcon(UIIconPool::iconSetFull(
+        QSize (22, 22), QSize (16, 16),
         ":/snapshot_show_details_22px.png", ":/snapshot_show_details_16px.png",
         ":/snapshot_show_details_disabled_22px.png", ":/snapshot_details_show_disabled_16px.png"));
     mTakeSnapshotAction->setIcon(UIIconPool::iconSetFull(
+        QSize (22, 22), QSize (16, 16),
         ":/snapshot_take_22px.png", ":/snapshot_take_16px.png",
         ":/snapshot_take_disabled_22px.png", ":/snapshot_take_disabled_16px.png"));
     mCloneSnapshotAction->setIcon(UIIconPool::iconSetFull(
+        QSize (22, 22), QSize (16, 16),
         ":/vm_clone_22px.png", ":/vm_clone_16px.png",
         ":/vm_clone_disabled_22px.png", ":/vm_clone_disabled_16px.png"));
 
@@ -457,7 +452,7 @@ void VBoxSnapshotsWgt::setMachine (const CMachine &aMachine)
     {
         mMachineId = aMachine.GetId();
         mSessionState = aMachine.GetSessionState();
-        m_fShapshotOperationsAllowed = gEDataManager->machineSnapshotOperationsEnabled(mMachineId);
+        m_fShapshotOperationsAllowed = vboxGlobal().shouldWeAllowSnapshotOperations(mMachine);
     }
 
     refreshAll();
@@ -640,16 +635,16 @@ void VBoxSnapshotsWgt::sltRestoreSnapshot(bool fSuppressNonCriticalWarnings /* =
         return;
 
     /* Restore chosen snapshot: */
-    CMachine machine = session.GetMachine();
-    CProgress progress = machine.RestoreSnapshot(snapshot);
-    if (machine.isOk())
+    CConsole console = session.GetConsole();
+    CProgress progress = console.RestoreSnapshot(snapshot);
+    if (console.isOk())
     {
         msgCenter().showModalProgressDialog(progress, mMachine.GetName(), ":/progress_snapshot_restore_90px.png");
         if (progress.GetResultCode() != 0)
             msgCenter().cannotRestoreSnapshot(progress, snapshot.GetName(), mMachine.GetName());
     }
     else
-        msgCenter().cannotRestoreSnapshot(machine, snapshot.GetName(), mMachine.GetName());
+        msgCenter().cannotRestoreSnapshot(console, snapshot.GetName(), mMachine.GetName());
 
     /* Unlock machine finally: */
     session.UnlockMachine();
@@ -687,10 +682,9 @@ void VBoxSnapshotsWgt::sltDeleteSnapshot()
     if (session.isNull())
         return;
 
-    /* Remove chosen snapshot: */
-    CMachine machine = session.GetMachine();
-    CProgress progress = machine.DeleteSnapshot(snapId);
-    if (machine.isOk())
+    CConsole console = session.GetConsole();
+    CProgress progress = console.DeleteSnapshot (snapId);
+    if (console.isOk())
     {
         /* Show the progress dialog */
         msgCenter().showModalProgressDialog(progress, mMachine.GetName(), ":/progress_snapshot_discard_90px.png");
@@ -699,7 +693,7 @@ void VBoxSnapshotsWgt::sltDeleteSnapshot()
             msgCenter().cannotRemoveSnapshot(progress,  snapshot.GetName(), mMachine.GetName());
     }
     else
-        msgCenter().cannotRemoveSnapshot(machine,  snapshot.GetName(), mMachine.GetName());
+        msgCenter().cannotRemoveSnapshot(console,  snapshot.GetName(), mMachine.GetName());
 
     session.UnlockMachine();
 }
@@ -829,71 +823,103 @@ bool VBoxSnapshotsWgt::takeSnapshot()
 
     if (fIsValid)
     {
-        /* Get corresponding machine object also: */
-        CMachine machine = session.GetMachine();
+        /* Get corresponding console object also: */
+        CConsole console = session.GetConsole();
+        /* Remember runtime state: */
+        bool fAtRuntime = mMachine.GetState() == KMachineState_Running;
+        /* Remember paused state: */
+        bool fWasPaused = mMachine.GetState() == KMachineState_Paused ||
+                          mMachine.GetState() == KMachineState_TeleportingPausedVM;
 
-        /* Create take-snapshot dialog: */
-        QWidget *pDlgParent = windowManager().realParentWindow(this);
-        QPointer<VBoxTakeSnapshotDlg> pDlg = new VBoxTakeSnapshotDlg(pDlgParent, mMachine);
-        windowManager().registerNewParent(pDlg, pDlgParent);
-
-        /* Assign corresponding icon: */
-        pDlg->mLbIcon->setPixmap(vboxGlobal().vmGuestOSTypeIcon(mMachine.GetOSTypeId()));
-
-        /* Search for the max available snapshot index: */
-        int iMaxSnapShotIndex = 0;
-        QString snapShotName = tr("Snapshot %1");
-        QRegExp regExp(QString("^") + snapShotName.arg("([0-9]+)") + QString("$"));
-        QTreeWidgetItemIterator iterator(mTreeWidget);
-        while (*iterator)
+        /* Pause VM if necessary: */
+        if (fIsValid && fAtRuntime && !fWasPaused)
         {
-            QString snapShot = static_cast<SnapshotWgtItem*>(*iterator)->text(0);
-            int pos = regExp.indexIn(snapShot);
-            if (pos != -1)
-                iMaxSnapShotIndex = regExp.cap(1).toInt() > iMaxSnapShotIndex ? regExp.cap(1).toInt() : iMaxSnapShotIndex;
-            ++iterator;
-        }
-        pDlg->mLeName->setText(snapShotName.arg(iMaxSnapShotIndex + 1));
-
-        /* Exec the dialog: */
-        bool fDialogAccepted = pDlg->exec() == QDialog::Accepted;
-
-        /* Is the dialog still valid? */
-        if (pDlg)
-        {
-            /* Acquire variables: */
-            QString strSnapshotName = pDlg->mLeName->text().trimmed();
-            QString strSnapshotDescription = pDlg->mTeDescription->toPlainText();
-
-            /* Destroy dialog early: */
-            delete pDlg;
-
-            /* Was the dialog accepted? */
-            if (fDialogAccepted)
+            /* Pausing VM: */
+            console.Pause();
+            if (!console.isOk())
             {
-                /* Prepare the take-snapshot progress: */
-                CProgress progress = machine.TakeSnapshot(strSnapshotName, strSnapshotDescription, true);
-                if (machine.isOk())
+                msgCenter().cannotPauseMachine(console);
+                fIsValid = false;
+            }
+        }
+
+        if (fIsValid)
+        {
+            /* Create take-snapshot dialog: */
+            QWidget *pDlgParent = windowManager().realParentWindow(this);
+            QPointer<VBoxTakeSnapshotDlg> pDlg = new VBoxTakeSnapshotDlg(pDlgParent, mMachine);
+            windowManager().registerNewParent(pDlg, pDlgParent);
+
+            /* Assign corresponding icon: */
+            pDlg->mLbIcon->setPixmap(vboxGlobal().vmGuestOSTypeIcon(mMachine.GetOSTypeId()));
+
+            /* Search for the max available snapshot index: */
+            int iMaxSnapShotIndex = 0;
+            QString snapShotName = tr("Snapshot %1");
+            QRegExp regExp(QString("^") + snapShotName.arg("([0-9]+)") + QString("$"));
+            QTreeWidgetItemIterator iterator(mTreeWidget);
+            while (*iterator)
+            {
+                QString snapShot = static_cast<SnapshotWgtItem*>(*iterator)->text(0);
+                int pos = regExp.indexIn(snapShot);
+                if (pos != -1)
+                    iMaxSnapShotIndex = regExp.cap(1).toInt() > iMaxSnapShotIndex ? regExp.cap(1).toInt() : iMaxSnapShotIndex;
+                ++iterator;
+            }
+            pDlg->mLeName->setText(snapShotName.arg(iMaxSnapShotIndex + 1));
+
+            /* Exec the dialog: */
+            bool fDialogAccepted = pDlg->exec() == QDialog::Accepted;
+
+            /* Is the dialog still valid? */
+            if (pDlg)
+            {
+                /* Acquire variables: */
+                QString strSnapshotName = pDlg->mLeName->text().trimmed();
+                QString strSnapshotDescription = pDlg->mTeDescription->toPlainText();
+
+                /* Destroy dialog early: */
+                delete pDlg;
+
+                /* Was the dialog accepted? */
+                if (fDialogAccepted)
                 {
-                    /* Show the take-snapshot progress: */
-                    msgCenter().showModalProgressDialog(progress, mMachine.GetName(), ":/progress_snapshot_create_90px.png");
-                    if (!progress.isOk() || progress.GetResultCode() != 0)
+                    /* Prepare the take-snapshot progress: */
+                    CProgress progress = console.TakeSnapshot(strSnapshotName, strSnapshotDescription);
+                    if (console.isOk())
                     {
-                        msgCenter().cannotTakeSnapshot(progress, mMachine.GetName());
+                        /* Show the take-snapshot progress: */
+                        msgCenter().showModalProgressDialog(progress, mMachine.GetName(), ":/progress_snapshot_create_90px.png");
+                        if (!progress.isOk() || progress.GetResultCode() != 0)
+                        {
+                            msgCenter().cannotTakeSnapshot(progress, mMachine.GetName());
+                            fIsValid = false;
+                        }
+                    }
+                    else
+                    {
+                        msgCenter().cannotTakeSnapshot(console, mMachine.GetName());
                         fIsValid = false;
                     }
                 }
                 else
-                {
-                    msgCenter().cannotTakeSnapshot(machine, mMachine.GetName());
                     fIsValid = false;
-                }
             }
             else
                 fIsValid = false;
         }
-        else
-            fIsValid = false;
+
+        /* Resume VM if necessary: */
+        if (fIsValid && fAtRuntime && !fWasPaused)
+        {
+            /* Resuming VM: */
+            console.Resume();
+            if (!console.isOk())
+            {
+                msgCenter().cannotResumeMachine(console);
+                fIsValid = false;
+            }
+        }
 
         /* Unlock machine finally: */
         session.UnlockMachine();
@@ -934,7 +960,7 @@ void VBoxSnapshotsWgt::refreshAll()
         Assert (mCurSnapshotItem);
 
         /* Add the "current state" item */
-        SnapshotWgtItem *csi = new SnapshotWgtItem(this, mCurSnapshotItem, mMachine);
+        SnapshotWgtItem *csi = new SnapshotWgtItem (mCurSnapshotItem, mMachine);
         csi->setBold (true);
         csi->recache();
 
@@ -953,7 +979,7 @@ void VBoxSnapshotsWgt::refreshAll()
         mCurSnapshotItem = 0;
 
         /* Add the "current state" item */
-        SnapshotWgtItem *csi = new SnapshotWgtItem(this, mTreeWidget, mMachine);
+        SnapshotWgtItem *csi = new SnapshotWgtItem (mTreeWidget, mMachine);
         csi->setBold (true);
         csi->recache();
 
@@ -991,8 +1017,8 @@ SnapshotWgtItem *VBoxSnapshotsWgt::curStateItem()
 
 void VBoxSnapshotsWgt::populateSnapshots (const CSnapshot &aSnapshot, QTreeWidgetItem *aItem)
 {
-    SnapshotWgtItem *item = aItem ? new SnapshotWgtItem(this, aItem, aSnapshot) :
-                                    new SnapshotWgtItem(this, mTreeWidget, aSnapshot);
+    SnapshotWgtItem *item = aItem ? new SnapshotWgtItem (aItem, aSnapshot) :
+                                    new SnapshotWgtItem (mTreeWidget, aSnapshot);
     item->recache();
 
     CSnapshot curSnapshot = mMachine.GetCurrentSnapshot();

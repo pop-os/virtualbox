@@ -1,14 +1,13 @@
-/* $Id: tstVBoxAPIXPCOM.cpp $ */
 /** @file
  *
- * tstVBoxAPIXPCOM - sample program to illustrate the VirtualBox
- *                   XPCOM API for machine management.
+ * tstVBoxAPILinux - sample program to illustrate the VirtualBox
+ *                   XPCOM API for machine management on Linux.
  *                   It only uses standard C/C++ and XPCOM semantics,
  *                   no additional VBox classes/macros/helpers.
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -53,7 +52,7 @@
  * and where to search for VirtualBox shared libraries. Therefore, you need to
  * use the following (or similar) command to execute it:
  *
- *   $ env VBOX_XPCOM_HOME=../../.. LD_LIBRARY_PATH=../../.. ./tstVBoxAPIXPCOM
+ *   $ env VBOX_XPCOM_HOME=../../.. LD_LIBRARY_PATH=../../.. ./tstVBoxAPILinux
  *
  * The above command assumes that VBoxRT.so, VBoxXPCOM.so and others reside in
  * the directory ../../..
@@ -73,6 +72,18 @@
 #include <nsEventQueueUtils.h>
 
 #include <nsIExceptionService.h>
+
+#include <VBox/com/com.h>
+#include <VBox/com/string.h>
+#include <VBox/com/array.h>
+#include <VBox/com/Guid.h>
+#include <VBox/com/ErrorInfo.h>
+#include <VBox/com/errorprint.h>
+
+#include <VBox/com/VirtualBox.h>
+
+#include <iprt/stream.h>
+
 
 /*
  * VirtualBox XPCOM interface. This header is generated
@@ -97,8 +108,8 @@ void listVMs(IVirtualBox *virtualBox)
 {
     nsresult rc;
 
-    printf("----------------------------------------------------\n");
-    printf("VM List:\n\n");
+    RTPrintf("----------------------------------------------------\n");
+    RTPrintf("VM List:\n\n");
 
     /*
      * Get the list of all registered VMs
@@ -125,18 +136,18 @@ void listVMs(IVirtualBox *virtualBox)
                     nsXPIDLString machineName;
                     machine->GetName(getter_Copies(machineName));
                     char *machineNameAscii = ToNewCString(machineName);
-                    printf("\tName:        %s\n", machineNameAscii);
+                    RTPrintf("\tName:        %s\n", machineNameAscii);
                     free(machineNameAscii);
                 }
                 else
                 {
-                    printf("\tName:        <inaccessible>\n");
+                    RTPrintf("\tName:        <inaccessible>\n");
                 }
 
                 nsXPIDLString iid;
                 machine->GetId(getter_Copies(iid));
                 const char *uuidString = ToNewCString(iid);
-                printf("\tUUID:        %s\n", uuidString);
+                RTPrintf("\tUUID:        %s\n", uuidString);
                 free((void*)uuidString);
 
                 if (isAccessible)
@@ -144,21 +155,21 @@ void listVMs(IVirtualBox *virtualBox)
                     nsXPIDLString configFile;
                     machine->GetSettingsFilePath(getter_Copies(configFile));
                     char *configFileAscii = ToNewCString(configFile);
-                    printf("\tConfig file: %s\n", configFileAscii);
+                    RTPrintf("\tConfig file: %s\n", configFileAscii);
                     free(configFileAscii);
 
                     PRUint32 memorySize;
                     machine->GetMemorySize(&memorySize);
-                    printf("\tMemory size: %uMB\n", memorySize);
+                    RTPrintf("\tMemory size: %uMB\n", memorySize);
 
                     nsXPIDLString typeId;
                     machine->GetOSTypeId(getter_Copies(typeId));
                     IGuestOSType *osType = nsnull;
-                    virtualBox->GetGuestOSType(typeId.get(), &osType);
+                    virtualBox->GetGuestOSType (typeId.get(), &osType);
                     nsXPIDLString osName;
                     osType->GetDescription(getter_Copies(osName));
                     char *osNameAscii = ToNewCString(osName);
-                    printf("\tGuest OS:    %s\n\n", osNameAscii);
+                    RTPrintf("\tGuest OS:    %s\n\n", osNameAscii);
                     free(osNameAscii);
                     osType->Release();
                 }
@@ -168,7 +179,7 @@ void listVMs(IVirtualBox *virtualBox)
             }
         }
     }
-    printf("----------------------------------------------------\n\n");
+    RTPrintf("----------------------------------------------------\n\n");
 }
 
 /**
@@ -192,7 +203,7 @@ void createVM(IVirtualBox *virtualBox)
                                    getter_AddRefs(machine));
     if (NS_FAILED(rc))
     {
-        printf("Error: could not create machine! rc=%#x\n", rc);
+        RTPrintf("Error: could not create machine! rc=%Rhrc\n", rc);
         return;
     }
 
@@ -218,11 +229,11 @@ void createVM(IVirtualBox *virtualBox)
                                     getter_AddRefs(osType));
     if (NS_FAILED(rc))
     {
-        printf("Error: could not find guest OS type! rc=%#x\n", rc);
+        RTPrintf("Error: could not find guest OS type! rc=%Rhrc\n", rc);
     }
     else
     {
-        machine->SetOSTypeId(NS_LITERAL_STRING("Windows2000").get());
+        machine->SetOSTypeId (NS_LITERAL_STRING("Windows2000").get());
     }
 
     /*
@@ -236,7 +247,7 @@ void createVM(IVirtualBox *virtualBox)
     rc = virtualBox->RegisterMachine(machine);
     if (NS_FAILED(rc))
     {
-        printf("Error: could not register machine! rc=%#x\n", rc);
+        RTPrintf("Error: could not register machine! rc=%Rhrc\n", rc);
         printErrorInfo();
         return;
     }
@@ -251,26 +262,26 @@ void createVM(IVirtualBox *virtualBox)
     nsCOMPtr<IMachine> sessionMachine;
     {
         nsCOMPtr<nsIComponentManager> manager;
-        rc = NS_GetComponentManager(getter_AddRefs(manager));
+        rc = NS_GetComponentManager (getter_AddRefs (manager));
         if (NS_FAILED(rc))
         {
-            printf("Error: could not get component manager! rc=%#x\n", rc);
+            RTPrintf("Error: could not get component manager! rc=%Rhrc\n", rc);
             return;
         }
-        rc = manager->CreateInstanceByContractID(NS_SESSION_CONTRACTID,
-                                                 nsnull,
-                                                 NS_GET_IID(ISession),
-                                                 getter_AddRefs(session));
+        rc = manager->CreateInstanceByContractID (NS_SESSION_CONTRACTID,
+                                                  nsnull,
+                                                  NS_GET_IID(ISession),
+                                                  getter_AddRefs(session));
         if (NS_FAILED(rc))
         {
-            printf("Error, could not instantiate session object! rc=%#x\n", rc);
+            RTPrintf("Error, could not instantiate session object! rc=%Rhrc\n", rc);
             return;
         }
 
         rc = machine->LockMachine(session, LockType_Write);
         if (NS_FAILED(rc))
         {
-            printf("Error, could not lock the machine for the session! rc=%#x\n", rc);
+            RTPrintf("Error, could not lock the machine for the session! rc=%Rhrc\n", rc);
             return;
         }
 
@@ -282,7 +293,7 @@ void createVM(IVirtualBox *virtualBox)
         rc = session->GetMachine(getter_AddRefs(sessionMachine));
         if (NS_FAILED(rc))
         {
-            printf("Error, could not get machine session! rc=%#x\n", rc);
+            RTPrintf("Error, could not get machine session! rc=%Rhrc\n", rc);
             return;
         }
     }
@@ -291,13 +302,12 @@ void createVM(IVirtualBox *virtualBox)
      * Create a virtual harddisk
      */
     nsCOMPtr<IMedium> hardDisk = 0;
-    rc = virtualBox->CreateMedium(NS_LITERAL_STRING("VDI").get(),
-                                  NS_LITERAL_STRING("/tmp/TestHardDisk.vdi").get(),
-                                  AccessMode_ReadWrite, DeviceType_HardDisk,
-                                  getter_AddRefs(hardDisk));
+    rc = virtualBox->CreateHardDisk(NS_LITERAL_STRING("VDI").get(),
+                                    NS_LITERAL_STRING("TestHardDisk.vdi").get(),
+                                    getter_AddRefs(hardDisk));
     if (NS_FAILED(rc))
     {
-        printf("Failed creating a hard disk object! rc=%#x\n", rc);
+        RTPrintf("Failed creating a hard disk object! rc=%Rhrc\n", rc);
     }
     else
     {
@@ -306,15 +316,15 @@ void createVM(IVirtualBox *virtualBox)
          * because none of its properties has been set so far. Let's continue creating
          * a dynamically expanding image.
          */
-        nsCOMPtr<IProgress> progress;
-        MediumVariant_T mediumVariants[] =
-            { MediumVariant_Standard };
-        rc = hardDisk->CreateBaseStorage(100 * 1024 * 1024,                  // size in bytes
-                                         sizeof(mediumVariants) / sizeof(mediumVariants[0]), mediumVariants,
+        nsCOMPtr <IProgress> progress;
+        com::SafeArray<MediumVariant_T> mediumVariant;
+        mediumVariant.push_back(MediumVariant_Standard);
+        rc = hardDisk->CreateBaseStorage(100,                                // size in megabytes
+                                         ComSafeArrayAsInParam(mediumVariant),
                                          getter_AddRefs(progress));          // optional progress object
         if (NS_FAILED(rc))
         {
-            printf("Failed creating hard disk image! rc=%#x\n", rc);
+            RTPrintf("Failed creating hard disk image! rc=%Rhrc\n", rc);
         }
         else
         {
@@ -328,7 +338,7 @@ void createVM(IVirtualBox *virtualBox)
             progress->GetResultCode(&resultCode);
             if (NS_FAILED(rc) || NS_FAILED(resultCode))
             {
-                printf("Error: could not create hard disk! rc=%#x\n",
+                RTPrintf("Error: could not create hard disk! rc=%Rhrc\n",
                        NS_FAILED(rc) ? rc : resultCode);
             }
             else
@@ -344,7 +354,7 @@ void createVM(IVirtualBox *virtualBox)
                                            hardDisk);
                 if (NS_FAILED(rc))
                 {
-                    printf("Error: could not attach hard disk! rc=%#x\n", rc);
+                    RTPrintf("Error: could not attach hard disk! rc=%Rhrc\n", rc);
                 }
             }
         }
@@ -363,7 +373,7 @@ void createVM(IVirtualBox *virtualBox)
                                 false /* fForceNewUuid */,
                                 getter_AddRefs(dvdImage));
     if (NS_FAILED(rc))
-        printf("Error: could not open CD image! rc=%#x\n", rc);
+        RTPrintf("Error: could not open CD image! rc=%Rhrc\n", rc);
     else
     {
         /*
@@ -377,17 +387,17 @@ void createVM(IVirtualBox *virtualBox)
                                   PR_FALSE);                      // aForce
         if (NS_FAILED(rc))
         {
-            printf("Error: could not mount ISO image! rc=%#x\n", rc);
+            RTPrintf("Error: could not mount ISO image! rc=%Rhrc\n", rc);
         }
         else
         {
             /*
              * Last step: tell the VM to boot from the CD.
              */
-            rc = sessionMachine->SetBootOrder(1, DeviceType::DVD);
+            rc = sessionMachine->SetBootOrder (1, DeviceType::DVD);
             if (NS_FAILED(rc))
             {
-                printf("Could not set boot device! rc=%#x\n", rc);
+                RTPrintf("Could not set boot device! rc=%Rhrc\n", rc);
             }
         }
     }
@@ -397,7 +407,7 @@ void createVM(IVirtualBox *virtualBox)
      */
     rc = sessionMachine->SaveSettings();
     if (NS_FAILED(rc))
-        printf("Could not save machine settings! rc=%#x\n", rc);
+        RTPrintf("Could not save machine settings! rc=%Rhrc\n", rc);
 
     /*
      * It is always important to close the open session when it becomes not
@@ -405,26 +415,25 @@ void createVM(IVirtualBox *virtualBox)
      */
     session->UnlockMachine();
 
-    IMedium **aMedia;
-    PRUint32 cMedia;
+    com::SafeIfaceArray<IMedium> aMedia;
     rc = machine->Unregister((CleanupMode_T)CleanupMode_DetachAllReturnHardDisksOnly,
-                             &cMedia, &aMedia);
+                             ComSafeArrayAsOutParam(aMedia));
     if (NS_FAILED(rc))
-        printf("Unregistering the machine failed! rc=%#x\n", rc);
+        RTPrintf("Unregistering the machine failed! rc=%Rhrc\n", rc);
     else
     {
-        nsCOMPtr<IProgress> pProgress;
-        rc = machine->DeleteConfig(cMedia, aMedia, getter_AddRefs(pProgress));
+        ComPtr<IProgress> pProgress;
+        rc = machine->DeleteConfig(ComSafeArrayAsInParam(aMedia), pProgress.asOutParam());
         if (NS_FAILED(rc))
-            printf("Deleting of machine failed! rc=%#x\n", rc);
+            RTPrintf("Deleting of machine failed! rc=%Rhrc\n", rc);
         else
         {
             rc = pProgress->WaitForCompletion(-1);
             PRInt32 resultCode;
             pProgress->GetResultCode(&resultCode);
             if (NS_FAILED(rc) || NS_FAILED(resultCode))
-                printf("Failed to delete the machine! rc=%#x\n",
-                       NS_FAILED(rc) ? rc : resultCode);
+                RTPrintf("Failed to delete the machine! rc=%Rhrc\n",
+                         NS_FAILED(rc) ? rc : resultCode);
         }
     }
 }
@@ -443,7 +452,7 @@ int main(int argc, char *argv[])
      */
     if (sizeof(PRUnichar) != sizeof(wchar_t))
     {
-        printf("Error: sizeof(PRUnichar) {%lu} != sizeof(wchar_t) {%lu}!\n"
+        RTPrintf("Error: sizeof(PRUnichar) {%lu} != sizeof(wchar_t) {%lu}!\n"
                "Probably, you forgot the -fshort-wchar compiler option.\n",
                (unsigned long) sizeof(PRUnichar),
                (unsigned long) sizeof(wchar_t));
@@ -466,7 +475,7 @@ int main(int argc, char *argv[])
         rc = NS_InitXPCOM2(getter_AddRefs(serviceManager), nsnull, nsnull);
         if (NS_FAILED(rc))
         {
-            printf("Error: XPCOM could not be initialized! rc=%#x\n", rc);
+            RTPrintf("Error: XPCOM could not be initialized! rc=%Rhrc\n", rc);
             return -1;
         }
 
@@ -479,7 +488,7 @@ int main(int argc, char *argv[])
         nsCOMPtr<nsIComponentRegistrar> registrar = do_QueryInterface(serviceManager);
         if (!registrar)
         {
-            printf("Error: could not query nsIComponentRegistrar interface!\n");
+            RTPrintf("Error: could not query nsIComponentRegistrar interface!\n");
             return -1;
         }
         registrar->AutoRegister(nsnull);
@@ -494,10 +503,10 @@ int main(int argc, char *argv[])
          * operations so it doesn't run the event loop.
          */
         nsCOMPtr<nsIEventQueue> eventQ;
-        rc = NS_GetMainEventQ(getter_AddRefs(eventQ));
+        rc = NS_GetMainEventQ(getter_AddRefs (eventQ));
         if (NS_FAILED(rc))
         {
-            printf("Error: could not get main event queue! rc=%#x\n", rc);
+            RTPrintf("Error: could not get main event queue! rc=%Rhrc\n", rc);
             return -1;
         }
 
@@ -510,24 +519,24 @@ int main(int argc, char *argv[])
          * counting and freeing.
          */
         nsCOMPtr<nsIComponentManager> manager;
-        rc = NS_GetComponentManager(getter_AddRefs(manager));
+        rc = NS_GetComponentManager (getter_AddRefs (manager));
         if (NS_FAILED(rc))
         {
-            printf("Error: could not get component manager! rc=%#x\n", rc);
+            RTPrintf("Error: could not get component manager! rc=%Rhrc\n", rc);
             return -1;
         }
 
         nsCOMPtr<IVirtualBox> virtualBox;
-        rc = manager->CreateInstanceByContractID(NS_VIRTUALBOX_CONTRACTID,
-                                                 nsnull,
-                                                 NS_GET_IID(IVirtualBox),
-                                                 getter_AddRefs(virtualBox));
+        rc = manager->CreateInstanceByContractID (NS_VIRTUALBOX_CONTRACTID,
+                                                  nsnull,
+                                                  NS_GET_IID(IVirtualBox),
+                                                  getter_AddRefs(virtualBox));
         if (NS_FAILED(rc))
         {
-            printf("Error, could not instantiate VirtualBox object! rc=%#x\n", rc);
+            RTPrintf("Error, could not instantiate VirtualBox object! rc=%Rhrc\n", rc);
             return -1;
         }
-        printf("VirtualBox object created\n");
+        RTPrintf("VirtualBox object created\n");
 
         ////////////////////////////////////////////////////////////////////////////////
         ////////////////////////////////////////////////////////////////////////////////
@@ -557,7 +566,7 @@ int main(int argc, char *argv[])
      * Perform the standard XPCOM shutdown procedure.
      */
     NS_ShutdownXPCOM(nsnull);
-    printf("Done!\n");
+    RTPrintf("Done!\n");
     return 0;
 }
 
@@ -578,7 +587,7 @@ char *nsIDToString(nsID *guid)
 
     if (res != NULL)
     {
-        snprintf(res, 39, "{%08x-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x}",
+        RTStrPrintf(res, 39, "{%08x-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x}",
                  guid->m0, (PRUint32)guid->m1, (PRUint32)guid->m2,
                  (PRUint32)guid->m3[0], (PRUint32)guid->m3[1], (PRUint32)guid->m3[2],
                  (PRUint32)guid->m3[3], (PRUint32)guid->m3[4], (PRUint32)guid->m3[5],
@@ -596,48 +605,48 @@ void printErrorInfo()
 {
     nsresult rc;
 
-    nsCOMPtr<nsIExceptionService> es;
-    es = do_GetService(NS_EXCEPTIONSERVICE_CONTRACTID, &rc);
+    nsCOMPtr <nsIExceptionService> es;
+    es = do_GetService (NS_EXCEPTIONSERVICE_CONTRACTID, &rc);
     if (NS_SUCCEEDED(rc))
     {
-        nsCOMPtr<nsIExceptionManager> em;
-        rc = es->GetCurrentExceptionManager(getter_AddRefs(em));
+        nsCOMPtr <nsIExceptionManager> em;
+        rc = es->GetCurrentExceptionManager (getter_AddRefs (em));
         if (NS_SUCCEEDED(rc))
         {
             nsCOMPtr<nsIException> ex;
-            rc = em->GetCurrentException(getter_AddRefs(ex));
+            rc = em->GetCurrentException (getter_AddRefs (ex));
             if (NS_SUCCEEDED(rc) && ex)
             {
-                nsCOMPtr<IVirtualBoxErrorInfo> info;
+                nsCOMPtr <IVirtualBoxErrorInfo> info;
                 info = do_QueryInterface(ex, &rc);
                 if (NS_SUCCEEDED(rc) && info)
                 {
                     /* got extended error info */
-                    printf("Extended error info (IVirtualBoxErrorInfo):\n");
+                    RTPrintf ("Extended error info (IVirtualBoxErrorInfo):\n");
                     PRInt32 resultCode = NS_OK;
-                    info->GetResultCode(&resultCode);
-                    printf("  resultCode=%08X\n", resultCode);
+                    info->GetResultCode (&resultCode);
+                    RTPrintf ("  resultCode=%08X\n", resultCode);
                     nsXPIDLString component;
-                    info->GetComponent(getter_Copies(component));
-                    printf("  component=%s\n", NS_ConvertUTF16toUTF8(component).get());
+                    info->GetComponent (getter_Copies (component));
+                    RTPrintf ("  component=%s\n", NS_ConvertUTF16toUTF8(component).get());
                     nsXPIDLString text;
-                    info->GetText(getter_Copies(text));
-                    printf("  text=%s\n", NS_ConvertUTF16toUTF8(text).get());
+                    info->GetText (getter_Copies (text));
+                    RTPrintf ("  text=%s\n", NS_ConvertUTF16toUTF8(text).get());
                 }
                 else
                 {
                     /* got basic error info */
-                    printf("Basic error info (nsIException):\n");
+                    RTPrintf ("Basic error info (nsIException):\n");
                     nsresult resultCode = NS_OK;
-                    ex->GetResult(&resultCode);
-                    printf("  resultCode=%08X\n", resultCode);
+                    ex->GetResult (&resultCode);
+                    RTPrintf ("  resultCode=%08X\n", resultCode);
                     nsXPIDLCString message;
-                    ex->GetMessage(getter_Copies(message));
-                    printf("  message=%s\n", message.get());
+                    ex->GetMessage (getter_Copies (message));
+                    RTPrintf ("  message=%s\n", message.get());
                 }
 
                 /* reset the exception to NULL to indicate we've processed it */
-                em->SetCurrentException(NULL);
+                em->SetCurrentException (NULL);
 
                 rc = NS_OK;
             }

@@ -100,7 +100,7 @@ HRESULT USBController::init(Machine *aParent, const Utf8Str &aName, USBControlle
 
     ComAssertRet(aParent && !aName.isEmpty(), E_INVALIDARG);
     if (   (enmType <= USBControllerType_Null)
-        || (enmType >  USBControllerType_XHCI))
+        || (enmType >  USBControllerType_EHCI))
         return setError(E_INVALIDARG,
                         tr("Invalid USB controller type"));
 
@@ -233,18 +233,28 @@ void USBController::uninit()
 }
 
 
-// Wrapped IUSBController properties
+// IUSBController properties
 /////////////////////////////////////////////////////////////////////////////
-HRESULT USBController::getName(com::Utf8Str &aName)
+STDMETHODIMP USBController::COMGETTER(Name) (BSTR *aName)
 {
+    CheckComArgOutPointerValid(aName);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     /* strName is constant during life time, no need to lock */
-    aName = m->bd->strName;
+    m->bd->strName.cloneTo(aName);
 
     return S_OK;
 }
 
-HRESULT USBController::getType(USBControllerType_T *aType)
+STDMETHODIMP USBController::COMGETTER(Type)(USBControllerType_T *aType)
 {
+    CheckComArgOutPointerValid(aType);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     *aType = m->bd->enmType;
@@ -252,8 +262,13 @@ HRESULT USBController::getType(USBControllerType_T *aType)
     return S_OK;
 }
 
-HRESULT USBController::getUSBStandard(USHORT *aUSBStandard)
+STDMETHODIMP USBController::COMGETTER(USBStandard)(USHORT *aUSBStandard)
 {
+    CheckComArgOutPointerValid(aUSBStandard);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     switch (m->bd->enmType)
@@ -262,9 +277,6 @@ HRESULT USBController::getUSBStandard(USHORT *aUSBStandard)
             *aUSBStandard = 0x0101;
             break;
         case USBControllerType_EHCI:
-            *aUSBStandard = 0x0200;
-            break;
-        case USBControllerType_XHCI:
             *aUSBStandard = 0x0200;
             break;
         default:
@@ -279,7 +291,7 @@ HRESULT USBController::getUSBStandard(USHORT *aUSBStandard)
 /////////////////////////////////////////////////////////////////////////////
 
 /** @note Locks objects for writing! */
-void USBController::i_rollback()
+void USBController::rollback()
 {
     AutoCaller autoCaller(this);
     AssertComRCReturnVoid(autoCaller.rc());
@@ -297,7 +309,7 @@ void USBController::i_rollback()
  *  @note Locks this object for writing, together with the peer object (also
  *  for writing) if there is one.
  */
-void USBController::i_commit()
+void USBController::commit()
 {
     /* sanity */
     AutoCaller autoCaller(this);
@@ -327,7 +339,7 @@ void USBController::i_commit()
  *  @note Locks this object for writing, together with the peer object
  *  represented by @a aThat (locked for reading).
  */
-void USBController::i_copyFrom(USBController *aThat)
+void USBController::copyFrom(USBController *aThat)
 {
     AssertReturnVoid(aThat != NULL);
 
@@ -361,7 +373,7 @@ void USBController::i_copyFrom(USBController *aThat)
  *  @note Locks this object for writing, together with the peer object
  *  represented by @a aThat (locked for reading).
  */
-void USBController::i_unshare()
+void USBController::unshare()
 {
     /* sanity */
     AutoCaller autoCaller(this);
@@ -387,20 +399,21 @@ void USBController::i_unshare()
     unconst(m->pPeer) = NULL;
 }
 
-const Utf8Str &USBController::i_getName() const
+const Utf8Str& USBController::getName() const
 {
     return m->bd->strName;
 }
 
-const USBControllerType_T &USBController::i_getControllerType() const
+USBControllerType_T USBController::getControllerType() const
 {
     return m->bd->enmType;
 }
 
-ComObjPtr<USBController> USBController::i_getPeer()
+ComObjPtr<USBController> USBController::getPeer()
 {
     return m->pPeer;
 }
 
+// private methods
 /////////////////////////////////////////////////////////////////////////////
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

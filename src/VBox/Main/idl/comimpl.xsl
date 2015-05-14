@@ -13,7 +13,7 @@
         rather trivial container classes for their read-only attributes.
         Further extension to other interfaces is possible and anticipated.
 
-    Copyright (C) 2010-2014 Oracle Corporation
+    Copyright (C) 2010-2013 Oracle Corporation
 
     This file is part of VirtualBox Open Source Edition (OSE), as
     available from http://www.virtualbox.org. This file is free software;
@@ -35,17 +35,6 @@
 <!-- $G_kind contains what kind of COM class implementation we generate -->
 <xsl:variable name="G_xsltFilename" select="'autogen.xsl'" />
 
-
-<!-- - - - - - - - - - - - - - - - - - - - - - -
-  Keys for more efficiently looking up of types.
- - - - - - - - - - - - - - - - - - - - - - - -->
-
-<xsl:key name="G_keyEnumsByName" match="//enum[@name]" use="@name"/>
-<xsl:key name="G_keyInterfacesByName" match="//interface[@name]" use="@name"/>
-
-<!-- - - - - - - - - - - - - - - - - - - - - - -
- - - - - - - - - - - - - - - - - - - - - - - -->
-
 <xsl:template name="fileheader">
   <xsl:param name="name" />
   <xsl:text>/** @file </xsl:text>
@@ -57,7 +46,7 @@
  */
 
 /*
- * Copyright (C) 2010-2015 Oracle Corporation
+ * Copyright (C) 2010-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -74,7 +63,7 @@
 <xsl:template name="genComEntry">
   <xsl:param name="name" />
   <xsl:variable name="extends">
-    <xsl:value-of select="key('G_keyInterfacesByName', $name)/@extends" />
+    <xsl:value-of select="//interface[@name=$name]/@extends" />
   </xsl:variable>
 
   <xsl:value-of select="concat('        COM_INTERFACE_ENTRY(', $name, ')&#10;')" />
@@ -82,7 +71,7 @@
     <xsl:when test="$extends='$unknown'">
       <!-- Reached base -->
     </xsl:when>
-    <xsl:when test="count(key('G_keyInterfacesByName', $extends)) > 0">
+    <xsl:when test="//interface[@name=$extends]">
       <xsl:call-template name="genComEntry">
         <xsl:with-param name="name" select="$extends" />
       </xsl:call-template>
@@ -141,10 +130,10 @@
             </xsl:otherwise>
           </xsl:choose>
         </xsl:when>
-        <xsl:when test="count(key('G_keyEnumsByName', $type)) > 0">
+        <xsl:when test="//enum[@name=$type]">
           <xsl:value-of select="concat($type,'_T')"/>
         </xsl:when>
-        <xsl:when test="count(key('G_keyInterfacesByName', $type)) > 0">
+        <xsl:when test="//interface[@name=$type]">
           <xsl:choose>
             <xsl:when test="$param">
               <xsl:value-of select="concat($type,'*')"/>
@@ -243,7 +232,7 @@
         <xsl:when test="($type='wstring') or ($type = 'uuid')">
           <xsl:value-of select="concat('         ', $member, '.cloneTo(', $param, ');&#10;')"/>
         </xsl:when>
-        <xsl:when test="count(key('G_keyInterfacesByName', $type)) > 0">
+        <xsl:when test="//interface[@name=$type]">
           <xsl:value-of select="concat('         ', $member, '.queryInterfaceTo(', $param, ');&#10;')"/>
         </xsl:when>
         <xsl:otherwise>
@@ -258,7 +247,7 @@
   <xsl:param name="name" />
   <xsl:param name="obj" />
   <xsl:variable name="extends">
-    <xsl:value-of select="key('G_keyInterfacesByName', $name)/@extends" />
+    <xsl:value-of select="//interface[@name=$name]/@extends" />
   </xsl:variable>
 
   <xsl:choose>
@@ -266,7 +255,7 @@
     </xsl:when>
     <xsl:when test="$extends='IReusableEvent'">
     </xsl:when>
-    <xsl:when test="count(key('G_keyInterfacesByName', $extends)) > 0">
+    <xsl:when test="//interface[@name=$extends]">
       <xsl:call-template name="genAttrInitCode">
         <xsl:with-param name="name" select="$extends" />
         <xsl:with-param name="obj" select="$obj" />
@@ -279,7 +268,7 @@
     </xsl:otherwise>
   </xsl:choose>
 
-  <xsl:for-each select="key('G_keyInterfacesByName', $name)/attribute[@name != 'midlDoesNotLikeEmptyInterfaces']">
+  <xsl:for-each select="//interface[@name=$name]/attribute">
     <xsl:variable name="aName" select="concat('a_',@name)"/>
     <xsl:variable name="aTypeName">
       <xsl:call-template name="typeIdl2Back">
@@ -334,7 +323,7 @@
   <xsl:param name="parents" />
 
   <xsl:variable name="extends">
-    <xsl:value-of select="key('G_keyInterfacesByName', $name)/@extends" />
+    <xsl:value-of select="//interface[@name=$name]/@extends" />
   </xsl:variable>
 
   <xsl:choose>
@@ -344,7 +333,7 @@
       <xsl:value-of select="concat('NS_IMPL_THREADSAFE_ISUPPORTS',$depth,'_CI(', $impl, $parents, ', IEvent)&#10;')" />
       <xsl:value-of select="       '#endif&#10;&#10;'"/>
     </xsl:when>
-    <xsl:when test="count(key('G_keyInterfacesByName', $extends)) > 0">
+    <xsl:when test="//interface[@name=$extends]">
       <xsl:call-template name="genImplList">
         <xsl:with-param name="impl" select="$impl" />
         <xsl:with-param name="name" select="$extends" />
@@ -366,10 +355,10 @@
   <xsl:param name="parents" />
 
   <xsl:variable name="extends">
-    <xsl:value-of select="key('G_keyInterfacesByName', $name)/@extends" />
+    <xsl:value-of select="//interface[@name=$name]/@extends" />
   </xsl:variable>
 
-  <xsl:for-each select="key('G_keyInterfacesByName', $name)/attribute">
+  <xsl:for-each select="//interface[@name=$name]/attribute">
     <xsl:variable name="mName">
       <xsl:value-of select="concat('m_', @name)" />
     </xsl:variable>
@@ -459,7 +448,7 @@
      <xsl:when test="$extends='IVetoEvent'">
       <xsl:value-of select="   '    // skipping IVetoEvent attributes &#10;'" />
     </xsl:when>
-    <xsl:when test="count(key('G_keyInterfacesByName', $extends)) > 0">
+    <xsl:when test="//interface[@name=$extends]">
       <xsl:call-template name="genAttrCode">
         <xsl:with-param name="name" select="$extends" />
         <xsl:with-param name="depth" select="$depth+1" />
@@ -506,25 +495,25 @@
         mEvent->FinalRelease();
         BaseFinalRelease();
     }
-    STDMETHOD(COMGETTER(Type))(VBoxEventType_T *aType)
+    STDMETHOD(COMGETTER(Type)) (VBoxEventType_T *aType)
     {
-        return mEvent->COMGETTER(Type)(aType);
+        return ((VBoxEvent*)mEvent)->COMGETTER(Type) (aType);
     }
-    STDMETHOD(COMGETTER(Source))(IEventSource * *aSource)
+    STDMETHOD(COMGETTER(Source)) (IEventSource * *aSource)
     {
-        return mEvent->COMGETTER(Source)(aSource);
+        return ((VBoxEvent*)mEvent)->COMGETTER(Source) (aSource);
     }
-    STDMETHOD(COMGETTER(Waitable))(BOOL *aWaitable)
+    STDMETHOD(COMGETTER(Waitable)) (BOOL *aWaitable)
     {
-        return mEvent->COMGETTER(Waitable)(aWaitable);
+        return ((VBoxEvent*)mEvent)->COMGETTER(Waitable) (aWaitable);
     }
     STDMETHOD(SetProcessed)()
     {
-       return mEvent->SetProcessed();
+       return ((VBoxEvent*)mEvent)->SetProcessed();
     }
     STDMETHOD(WaitProcessed)(LONG aTimeout, BOOL *aResult)
     {
-        return mEvent->WaitProcessed(aTimeout, aResult);
+        return ((VBoxEvent*)mEvent)->WaitProcessed(aTimeout, aResult);
     }
     void uninit()
     {
@@ -555,18 +544,6 @@
     {
        return mEvent->GetVetos(ComSafeArrayOutArg(aVetos));
     }
-    STDMETHOD(AddApproval)(IN_BSTR aReason)
-    {
-        return mEvent->AddApproval(aReason);
-    }
-    STDMETHOD(IsApproved)(BOOL *aResult)
-    {
-       return mEvent->IsApproved(aResult);
-    }
-    STDMETHOD(GetApprovals)(ComSafeArrayOut(BSTR, aReasons))
-    {
-       return mEvent->GetApprovals(ComSafeArrayOutArg(aReasons));
-    }
 private:
     ComObjPtr<VBoxVetoEvent>      mEvent;
 ]]></xsl:text>
@@ -579,12 +556,12 @@ private:
         mGeneration = 1;
         return mEvent->init(aSource, aType, aWaitable);
     }
-    STDMETHOD(COMGETTER(Generation))(ULONG *aGeneration)
+    STDMETHOD(COMGETTER(Generation)) (ULONG *aGeneration)
     {
       *aGeneration = mGeneration;
       return S_OK;
     }
-    STDMETHOD(Reuse)()
+    STDMETHOD(Reuse) ()
     {
        ASMAtomicIncU32((volatile uint32_t*)&mGeneration);
        return S_OK;
@@ -605,14 +582,6 @@ private:
 ]]></xsl:text>
     </xsl:otherwise>
   </xsl:choose>
-
-  <!-- Before we generate attribute code, we check and make sure there are attributes here. -->
-  <xsl:if test="count(attribute) = 0 and @name != 'INATNetworkAlterEvent'">
-    <xsl:call-template name="fatalError">
-      <xsl:with-param name="msg">error: <xsl:value-of select="@name"/> has no attributes</xsl:with-param>
-    </xsl:call-template>
-  </xsl:if>
-
   <xsl:call-template name="genAttrCode">
     <xsl:with-param name="name" select="@name" />
   </xsl:call-template>
@@ -683,8 +652,7 @@ private:
 
   <!-- Interfaces -->
   <xsl:for-each select="//interface[@autogen=$G_kind]">
-    <xsl:value-of select="concat('// ', @name,  ' implementation code')" />
-    <xsl:call-template name="xsltprocNewlineOutputHack"/>
+    <xsl:value-of select="concat('// ', @name,  ' implementation code &#10;')" />
     <xsl:variable name="implName">
       <xsl:value-of select="substring(@name, 2)" />
     </xsl:variable>
@@ -711,7 +679,7 @@ private:
   </xsl:for-each>
 
   <xsl:text><![CDATA[
-HRESULT VBoxEventDesc::init(IEventSource *aSource, VBoxEventType_T aType, ...)
+HRESULT VBoxEventDesc::init(IEventSource* aSource, VBoxEventType_T aType, ...)
 {
     va_list args;
 
@@ -778,7 +746,7 @@ HRESULT VBoxEventDesc::reinit(VBoxEventType_T aType, ...)
 <xsl:template name="genFormalParams">
   <xsl:param name="name" />
   <xsl:variable name="extends">
-    <xsl:value-of select="key('G_keyInterfacesByName', $name)/@extends" />
+    <xsl:value-of select="//interface[@name=$name]/@extends" />
   </xsl:variable>
 
   <xsl:choose>
@@ -786,7 +754,7 @@ HRESULT VBoxEventDesc::reinit(VBoxEventType_T aType, ...)
     </xsl:when>
     <xsl:when test="$extends='IReusableEvent'">
     </xsl:when>
-    <xsl:when test="count(key('G_keyInterfacesByName', $extends)) > 0">
+    <xsl:when test="//interface[@name=$extends]">
       <xsl:call-template name="genFormalParams">
         <xsl:with-param name="name" select="$extends" />
       </xsl:call-template>
@@ -798,7 +766,7 @@ HRESULT VBoxEventDesc::reinit(VBoxEventType_T aType, ...)
     </xsl:otherwise>
   </xsl:choose>
 
-  <xsl:for-each select="key('G_keyInterfacesByName', $name)/attribute[@name != 'midlDoesNotLikeEmptyInterfaces']">
+  <xsl:for-each select="//interface[@name=$name]/attribute">
     <xsl:variable name="aName" select="concat('a_',@name)"/>
     <xsl:variable name="aTypeName">
       <xsl:call-template name="typeIdl2Back">
@@ -816,7 +784,7 @@ HRESULT VBoxEventDesc::reinit(VBoxEventType_T aType, ...)
 <xsl:template name="genFactParams">
   <xsl:param name="name" />
   <xsl:variable name="extends">
-    <xsl:value-of select="key('G_keyInterfacesByName', $name)/@extends" />
+    <xsl:value-of select="//interface[@name=$name]/@extends" />
   </xsl:variable>
 
   <xsl:choose>
@@ -824,7 +792,7 @@ HRESULT VBoxEventDesc::reinit(VBoxEventType_T aType, ...)
     </xsl:when>
     <xsl:when test="$extends='IReusableEvent'">
     </xsl:when>
-    <xsl:when test="count(key('G_keyInterfacesByName', $extends)) > 0">
+    <xsl:when test="//interface[@name=$extends]">
       <xsl:call-template name="genFactParams">
         <xsl:with-param name="name" select="$extends" />
       </xsl:call-template>
@@ -836,7 +804,7 @@ HRESULT VBoxEventDesc::reinit(VBoxEventType_T aType, ...)
     </xsl:otherwise>
   </xsl:choose>
 
-  <xsl:for-each select="key('G_keyInterfacesByName', $name)/attribute[@name != 'midlDoesNotLikeEmptyInterfaces']">
+  <xsl:for-each select="//interface[@name=$name]/attribute">
     <xsl:variable name="aName" select="concat('a_',@name)"/>
     <xsl:choose>
       <xsl:when test="@safearray='yes'">

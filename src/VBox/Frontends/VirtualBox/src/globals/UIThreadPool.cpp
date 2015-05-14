@@ -15,23 +15,19 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QThread>
+#include <QThread>
 
 /* GUI includes: */
-# include "COMDefs.h"
-# include "UIThreadPool.h"
-# include "UIDefs.h"
+#include "COMDefs.h"
+#include "UIThreadPool.h"
+
+/* Other VBox defines: */
+#define LOG_GROUP LOG_GROUP_GUI
 
 /* Other VBox includes: */
-#include <iprt/assert.h>
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
+#include <VBox/log.h>
+#include <VBox/sup.h>
 
 /**
  * COM capable worker thread for the UIThreadPool.

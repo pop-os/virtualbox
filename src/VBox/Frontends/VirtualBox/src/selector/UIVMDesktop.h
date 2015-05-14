@@ -1,4 +1,3 @@
-/* $Id: UIVMDesktop.h $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):

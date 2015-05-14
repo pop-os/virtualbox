@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -612,28 +612,22 @@ static void rtProcWinUserLogoff(HANDLE hToken)
 
 
 /**
- * Creates an environment block out of a handed-in Unicode and
- * RTENV block. The RTENV block can overwrite entries already
- * present in the Unicode block.
+ * Creates an environment block out of a handed in Unicode and RTENV block.
+ * The RTENV block can overwrite entries already present in the Unicode block.
  *
  * @return  IPRT status code.
  *
- * @param   pvEnvBlock          Unicode block (array) of environment entries;
- *                              in form of "FOO=BAR\0BAR=BAZ".
- * @param   hEnv                Handle of an existing RTENV block to use.
- * @param   fOverwriteExisting  Whether to overwrite existing values of hEnv
- *                              with the ones defined in pvEnvBlock.
- * @param   ppwszBlock          Pointer to the final output.
+ * @param   pvBlock         Unicode block (array) of environment entries; name=value
+ * @param   hEnv            Handle of an existing RTENV block to use.
+ * @param   ppwszBlock      Pointer to the final output.
  */
-static int rtProcWinEnvironmentCreateInternal(VOID *pvEnvBlock, RTENV hEnv,
-                                              bool fOverwriteExisting,
-                                              PRTUTF16 *ppwszBlock)
+static int rtProcWinEnvironmentCreateInternal(VOID *pvBlock, RTENV hEnv, PRTUTF16 *ppwszBlock)
 {
     RTENV hEnvTemp;
     int rc = RTEnvClone(&hEnvTemp, hEnv);
     if (RT_SUCCESS(rc))
     {
-        PCRTUTF16 pwch = (PCRTUTF16)pvEnvBlock;
+        PCRTUTF16 pwch = (PCRTUTF16)pvBlock;
         while (   pwch
                && RT_SUCCESS(rc))
         {
@@ -643,31 +637,10 @@ static int rtProcWinEnvironmentCreateInternal(VOID *pvEnvBlock, RTENV hEnv,
                 rc = RTUtf16ToUtf8(pwch, &pszEntry);
                 if (RT_SUCCESS(rc))
                 {
-                    const char *pszEq = strchr(pszEntry, '=');
-                    if (   !pszEq
-                        && fOverwriteExisting)
-                    {
-                        rc = RTEnvUnset(pszEntry);
-                    }
-                    else if (pszEq)
-                    {
-                        const char *pszValue = pszEq + 1;
-                        size_t cchVar = pszEq - pszEntry;
-                        char *pszVar = (char *)RTMemAlloc(cchVar + 1);
-                        if (pszVar)
-                        {
-                            memcpy(pszVar, pszEntry, cchVar);
-                            pszVar[cchVar] = '\0';
-                            if (   !RTEnvExistEx(hEnv, pszVar)
-                                || fOverwriteExisting)
-                            {
-                                rc = RTEnvSetEx(hEnvTemp, pszVar, pszValue);
-                            }
-                            RTMemFree(pszVar);
-                        }
-                        else
-                            rc = VERR_NO_MEMORY;
-                    }
+                    /* Don't overwrite values which we already have set to a custom value
+                     * specified in hEnv ... */
+                    if (!RTEnvExistEx(hEnv, pszEntry))
+                        rc = RTEnvPutEx(hEnvTemp, pszEntry);
                     RTStrFree(pszEntry);
                 }
             }
@@ -720,9 +693,7 @@ static int rtProcWinCreateEnvFromToken(HANDLE hToken, RTENV hEnv, PRTUTF16 *ppws
                 LPVOID pvEnvBlockProfile = NULL;
                 if (pfnCreateEnvironmentBlock(&pvEnvBlockProfile, hToken, FALSE /* Don't inherit from parent. */))
                 {
-                    rc = rtProcWinEnvironmentCreateInternal(pvEnvBlockProfile, hEnv,
-                                                            false /* fOverwriteExisting */,
-                                                            ppwszBlock);
+                    rc = rtProcWinEnvironmentCreateInternal(pvEnvBlockProfile, hEnv, ppwszBlock);
                     pfnDestroyEnvironmentBlock(pvEnvBlockProfile);
                 }
                 else
@@ -845,13 +816,13 @@ static int rtProcWinCreateAsUser2(PRTUTF16 pwszUser, PRTUTF16 pwszPassword, PRTU
                 dwErr = NO_ERROR;
 
                 PSID pSid = (PSID)RTMemAlloc(cbSid * sizeof(wchar_t)); /** @todo r=bird: What's the relationship between wchar_t and PSID? */
-                AssertReturn(pSid, VERR_NO_MEMORY); /** @todo r=bird: Leaking token handles when we're out of memory...  */
+                AssertPtrReturn(pSid, VERR_NO_MEMORY); /** @todo r=bird: Leaking token handles when we're out of memory...  */
 
                 PRTUTF16 pwszDomain = NULL;
                 if (cchDomain > 0)
                 {
                     pwszDomain = (PRTUTF16)RTMemAlloc(cchDomain * sizeof(RTUTF16));
-                    AssertReturn(pwszDomain, VERR_NO_MEMORY); /** @todo r=bird: Leaking token handles when we're out of memory...  */
+                    AssertPtrReturn(pwszDomain, VERR_NO_MEMORY); /** @todo r=bird: Leaking token handles when we're out of memory...  */
                 }
 
                 /* Note: Also supports FQDNs! */

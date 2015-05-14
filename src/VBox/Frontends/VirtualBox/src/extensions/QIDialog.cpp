@@ -1,6 +1,8 @@
 /* $Id: QIDialog.cpp $ */
 /** @file
- * VBox Qt GUI - VirtualBox Qt extensions: QIDialog class implementation.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * VirtualBox Qt extensions: QIDialog class implementation
  */
 
 /*
@@ -15,16 +17,9 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* GUI includes: */
-# include "QIDialog.h"
-# include "VBoxGlobal.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
+#include "QIDialog.h"
+#include "VBoxGlobal.h"
 
 QIDialog::QIDialog(QWidget *pParent /* = 0 */, Qt::WindowFlags flags /* = 0 */)
     : QDialog(pParent, flags)
@@ -44,27 +39,25 @@ void QIDialog::setVisible(bool fVisible)
     /* Call to base-class: */
     QDialog::setVisible(fVisible);
 
-    /* Exit from the event-loop if there is any and
-     * we are changing our state from visible to hidden. */
+    /* Exit from the event-loop if
+     * 1. there is any and
+     * 2. we are changing our state from visible to invisible: */
     if (m_pEventLoop && !fVisible)
         m_pEventLoop->exit();
 }
 
-int QIDialog::exec(bool fShow /* = true */, bool fApplicationModal /* = false */)
+int QIDialog::exec(bool fShow /* = true */, bool fApplicationModal /* = false*/)
 {
-    /* Check for the recursive run: */
-    AssertMsgReturn(!m_pEventLoop, ("QIDialog::exec() is called recursively!\n"), QDialog::Rejected);
-
     /* Reset the result-code: */
     setResult(QDialog::Rejected);
 
     /* Should we delete ourself on close in theory? */
-    const bool fOldDeleteOnClose = testAttribute(Qt::WA_DeleteOnClose);
+    bool fOldDeleteOnClose = testAttribute(Qt::WA_DeleteOnClose);
     /* For the exec() time, set this attribute to 'false': */
     setAttribute(Qt::WA_DeleteOnClose, false);
 
     /* Which is the current window-modality? */
-    const Qt::WindowModality oldModality = windowModality();
+    Qt::WindowModality oldModality = windowModality();
     /* For the exec() time, set this attribute to 'window-modal' or 'application-modal': */
     setWindowModality(!fApplicationModal ? Qt::WindowModal : Qt::ApplicationModal);
 
@@ -92,7 +85,7 @@ int QIDialog::exec(bool fShow /* = true */, bool fApplicationModal /* = false */
     }
 
     /* Save the result-code early (we can delete ourself on close): */
-    const int iResultCode = result();
+    int iResultCode = result();
 
     /* Return old modality: */
     setWindowModality(oldModality);

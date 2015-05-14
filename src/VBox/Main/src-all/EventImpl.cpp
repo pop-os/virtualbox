@@ -82,8 +82,6 @@ struct VBoxEvent::Data
     ComPtr<IEventSource>    mSource;
 };
 
-DEFINE_EMPTY_CTOR_DTOR(VBoxEvent)
-
 HRESULT VBoxEvent::FinalConstruct()
 {
     m = new Data;
@@ -96,9 +94,9 @@ void VBoxEvent::FinalRelease()
     {
         uninit();
         delete m;
-        m = NULL;
+        m = 0;
+        BaseFinalRelease();
     }
-    BaseFinalRelease();
 }
 
 HRESULT VBoxEvent::init(IEventSource *aSource, VBoxEventType_T aType, BOOL aWaitable)
@@ -137,10 +135,6 @@ HRESULT VBoxEvent::init(IEventSource *aSource, VBoxEventType_T aType, BOOL aWait
 
 void VBoxEvent::uninit()
 {
-    AutoUninitSpan autoUninitSpan(this);
-    if (autoUninitSpan.uninitDone())
-        return;
-
     if (!m)
         return;
 
@@ -156,28 +150,51 @@ void VBoxEvent::uninit()
     }
 }
 
-HRESULT VBoxEvent::getType(VBoxEventType_T *aType)
+STDMETHODIMP VBoxEvent::COMGETTER(Type)(VBoxEventType_T *aType)
 {
+    CheckComArgNotNull(aType);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc()))
+        return autoCaller.rc();
+
     // never changes while event alive, no locking
     *aType = m->mType;
     return S_OK;
 }
 
-HRESULT VBoxEvent::getSource(ComPtr<IEventSource> &aSource)
+STDMETHODIMP VBoxEvent::COMGETTER(Source)(IEventSource **aSource)
 {
-    m->mSource.queryInterfaceTo(aSource.asOutParam());
+    CheckComArgOutPointerValid(aSource);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc()))
+        return autoCaller.rc();
+
+    m->mSource.queryInterfaceTo(aSource);
     return S_OK;
 }
 
-HRESULT VBoxEvent::getWaitable(BOOL *aWaitable)
+STDMETHODIMP VBoxEvent::COMGETTER(Waitable)(BOOL *aWaitable)
 {
+    CheckComArgNotNull(aWaitable);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc()))
+        return autoCaller.rc();
+
     // never changes while event alive, no locking
     *aWaitable = m->mWaitable;
     return S_OK;
 }
 
-HRESULT VBoxEvent::setProcessed()
+
+STDMETHODIMP VBoxEvent::SetProcessed()
 {
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc()))
+        return autoCaller.rc();
+
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     if (m->mProcessed)
@@ -191,20 +208,28 @@ HRESULT VBoxEvent::setProcessed()
     return S_OK;
 }
 
-HRESULT VBoxEvent::waitProcessed(LONG aTimeout, BOOL *aResult)
+STDMETHODIMP VBoxEvent::WaitProcessed(LONG aTimeout, BOOL *aResult)
 {
-    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+    CheckComArgNotNull(aResult);
 
-    if (m->mProcessed)
-    {
-        *aResult = TRUE;
-        return S_OK;
-    }
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc()))
+        return autoCaller.rc();
 
-    if (aTimeout == 0)
     {
-        *aResult = m->mProcessed;
-        return S_OK;
+        AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+        if (m->mProcessed)
+        {
+            *aResult = TRUE;
+            return S_OK;
+        }
+
+        if (aTimeout == 0)
+        {
+            *aResult = m->mProcessed;
+            return S_OK;
+        }
     }
 
     /* @todo: maybe while loop for spurious wakeups? */
@@ -226,25 +251,21 @@ HRESULT VBoxEvent::waitProcessed(LONG aTimeout, BOOL *aResult)
     return S_OK;
 }
 
-typedef std::list<Utf8Str> VetoList;
-typedef std::list<Utf8Str> ApprovalList;
+typedef std::list<Bstr> VetoList;
 struct VBoxVetoEvent::Data
 {
     Data() :
         mVetoed(FALSE)
     {}
-    ComObjPtr<VBoxEvent>    mEvent;
     BOOL                    mVetoed;
     VetoList                mVetoList;
-    ApprovalList            mApprovalList;
 };
 
 HRESULT VBoxVetoEvent::FinalConstruct()
 {
+    VBoxEvent::FinalConstruct();
     m = new Data;
-    HRESULT rc = m->mEvent.createObject();
-    BaseFinalConstruct();
-    return rc;
+    return S_OK;
 }
 
 void VBoxVetoEvent::FinalRelease()
@@ -253,129 +274,88 @@ void VBoxVetoEvent::FinalRelease()
     {
         uninit();
         delete m;
-        m = NULL;
+        m = 0;
     }
-    BaseFinalRelease();
+    VBoxEvent::FinalRelease();
 }
 
-DEFINE_EMPTY_CTOR_DTOR(VBoxVetoEvent)
 
 HRESULT VBoxVetoEvent::init(IEventSource *aSource, VBoxEventType_T aType)
 {
     HRESULT rc = S_OK;
     // all veto events are waitable
-    rc = m->mEvent->init(aSource, aType, TRUE);
+    rc = VBoxEvent::init(aSource, aType, TRUE);
     if (FAILED(rc))
         return rc;
 
-    AutoInitSpan autoInitSpan(this);
-    AssertReturn(autoInitSpan.isOk(), E_FAIL);
-
     m->mVetoed = FALSE;
     m->mVetoList.clear();
-    m->mApprovalList.clear();
 
-    /* Confirm a successful initialization */
-    autoInitSpan.setSucceeded();
-
-    return S_OK;
+    return rc;
 }
 
 void VBoxVetoEvent::uninit()
 {
-    AutoUninitSpan autoUninitSpan(this);
-    if (autoUninitSpan.uninitDone())
-        return;
-
+    VBoxEvent::uninit();
     if (!m)
         return;
-
     m->mVetoed = FALSE;
-    if (!m->mEvent.isNull())
-    {
-        m->mEvent->uninit();
-        m->mEvent.setNull();
-    }
 }
 
-HRESULT VBoxVetoEvent::getType(VBoxEventType_T *aType)
+STDMETHODIMP VBoxVetoEvent::AddVeto(IN_BSTR aVeto)
 {
-    return m->mEvent->COMGETTER(Type)(aType);
-}
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc()))
+        return autoCaller.rc();
 
-HRESULT VBoxVetoEvent::getSource(ComPtr<IEventSource> &aSource)
-{
-    return m->mEvent->COMGETTER(Source)(aSource.asOutParam());
-}
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-HRESULT VBoxVetoEvent::getWaitable(BOOL *aWaitable)
-{
-    return m->mEvent->COMGETTER(Waitable)(aWaitable);
-}
-
-HRESULT VBoxVetoEvent::setProcessed()
-{
-    return m->mEvent->SetProcessed();
-}
-
-HRESULT VBoxVetoEvent::waitProcessed(LONG aTimeout, BOOL *aResult)
-{
-    return m->mEvent->WaitProcessed(aTimeout, aResult);
-}
-
-HRESULT VBoxVetoEvent::addVeto(const com::Utf8Str &aReason)
-{
-    // AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-    if (aReason.length())
-        m->mVetoList.push_back(aReason);
+    if (aVeto)
+        m->mVetoList.push_back(aVeto);
 
     m->mVetoed = TRUE;
 
     return S_OK;
 }
 
-HRESULT VBoxVetoEvent::isVetoed(BOOL *aResult)
+STDMETHODIMP VBoxVetoEvent::IsVetoed(BOOL *aResult)
 {
-    // AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+    CheckComArgOutPointerValid(aResult);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc()))
+        return autoCaller.rc();
+
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
     *aResult = m->mVetoed;
 
     return S_OK;
 }
 
-HRESULT VBoxVetoEvent::getVetos(std::vector<com::Utf8Str> &aResult)
+STDMETHODIMP VBoxVetoEvent::GetVetos(ComSafeArrayOut(BSTR, aVetos))
 {
-    // AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-    aResult.resize(m->mVetoList.size());
-    size_t i = 0;
-    for (VetoList::const_iterator it = m->mVetoList.begin(); it != m->mVetoList.end(); ++it, ++i)
-        aResult[i] = (*it);
+    if (ComSafeArrayOutIsNull(aVetos))
+        return E_POINTER;
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc()))
+        return autoCaller.rc();
+
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+    com::SafeArray<BSTR> vetos(m->mVetoList.size());
+    int i = 0;
+    for (VetoList::const_iterator it = m->mVetoList.begin();
+         it != m->mVetoList.end();
+         ++it, ++i)
+    {
+        const Bstr &str = *it;
+        str.cloneTo(&vetos[i]);
+    }
+    vetos.detachTo(ComSafeArrayOutArg(aVetos));
 
     return S_OK;
 
-}
-
-HRESULT VBoxVetoEvent::addApproval(const com::Utf8Str &aReason)
-{
-    // AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-    m->mApprovalList.push_back(aReason);
-    return S_OK;
-}
-
-HRESULT VBoxVetoEvent::isApproved(BOOL *aResult)
-{
-    // AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-    *aResult = !m->mApprovalList.empty();
-    return S_OK;
-}
-
-HRESULT VBoxVetoEvent::getApprovals(std::vector<com::Utf8Str> &aResult)
-{
-    // AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-    aResult.resize(m->mApprovalList.size());
-    size_t i = 0;
-    for (ApprovalList::const_iterator it = m->mApprovalList.begin(); it != m->mApprovalList.end(); ++it, ++i)
-        aResult[i] = (*it);
-    return S_OK;
 }
 
 static const int FirstEvent = (int)VBoxEventType_LastWildcard + 1;
@@ -1025,69 +1005,91 @@ void EventSource::uninit()
     // m->mEvMap shall be cleared at this point too by destructors, assert?
 }
 
-HRESULT EventSource::registerListener(const ComPtr<IEventListener> &aListener,
-                                      const std::vector<VBoxEventType_T> &aInteresting,
-                                      BOOL aActive)
+STDMETHODIMP EventSource::RegisterListener(IEventListener *aListener,
+                                           ComSafeArrayIn(VBoxEventType_T, aInterested),
+                                           BOOL aActive)
 {
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+    CheckComArgNotNull(aListener);
+    CheckComArgSafeArrayNotNull(aInterested);
 
-    if (m->fShutdown)
-        return setError(VBOX_E_INVALID_OBJECT_STATE,
-                        tr("This event source is already shut down"));
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc()))
+        return autoCaller.rc();
 
-    Listeners::const_iterator it = m->mListeners.find(aListener);
-    if (it != m->mListeners.end())
-        return setError(E_INVALIDARG,
-                        tr("This listener already registered"));
+    {
+        AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    com::SafeArray<VBoxEventType_T> interested(aInteresting);
-    RecordHolder<ListenerRecord> lrh(new ListenerRecord(aListener, interested, aActive, this));
-    m->mListeners.insert(Listeners::value_type((IEventListener *)aListener, lrh));
+        if (m->fShutdown)
+            return setError(VBOX_E_INVALID_OBJECT_STATE,
+                            tr("This event source is already shut down"));
+
+        Listeners::const_iterator it = m->mListeners.find(aListener);
+        if (it != m->mListeners.end())
+            return setError(E_INVALIDARG,
+                            tr("This listener already registered"));
+
+        com::SafeArray<VBoxEventType_T> interested(ComSafeArrayInArg(aInterested));
+        RecordHolder<ListenerRecord> lrh(new ListenerRecord(aListener, interested, aActive, this));
+        m->mListeners.insert(Listeners::value_type(aListener, lrh));
+    }
 
     VBoxEventDesc evDesc;
-    evDesc.init(this, VBoxEventType_OnEventSourceChanged, (IEventListener *)aListener, TRUE);
+    evDesc.init(this, VBoxEventType_OnEventSourceChanged, aListener, TRUE);
     evDesc.fire(0);
 
     return S_OK;
 }
 
-HRESULT EventSource::unregisterListener(const ComPtr<IEventListener> &aListener)
+STDMETHODIMP EventSource::UnregisterListener(IEventListener *aListener)
 {
-    HRESULT rc = S_OK;;
+    CheckComArgNotNull(aListener);
 
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc()))
+        return autoCaller.rc();
 
-    Listeners::iterator it = m->mListeners.find(aListener);
-
-    if (it != m->mListeners.end())
+    HRESULT rc;
     {
-        it->second.obj()->shutdown();
-        m->mListeners.erase(it);
-        // destructor removes refs from the event map
-        rc = S_OK;
-    }
-    else
-    {
-        rc = setError(VBOX_E_OBJECT_NOT_FOUND,
-                      tr("Listener was never registered"));
+        AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+        Listeners::iterator it = m->mListeners.find(aListener);
+
+        if (it != m->mListeners.end())
+        {
+            it->second.obj()->shutdown();
+            m->mListeners.erase(it);
+            // destructor removes refs from the event map
+            rc = S_OK;
+        }
+        else
+        {
+            rc = setError(VBOX_E_OBJECT_NOT_FOUND,
+                          tr("Listener was never registered"));
+        }
     }
 
     if (SUCCEEDED(rc))
     {
         VBoxEventDesc evDesc;
-        evDesc.init(this, VBoxEventType_OnEventSourceChanged, (IEventListener *)aListener, FALSE);
+        evDesc.init(this, VBoxEventType_OnEventSourceChanged, aListener, FALSE);
         evDesc.fire(0);
     }
 
     return rc;
 }
 
-HRESULT EventSource::fireEvent(const ComPtr<IEvent> &aEvent,
-                               LONG aTimeout,
-                               BOOL *aResult)
+STDMETHODIMP EventSource::FireEvent(IEvent *aEvent,
+                                    LONG aTimeout,
+                                    BOOL *aProcessed)
 {
+    CheckComArgNotNull(aEvent);
+    CheckComArgOutPointerValid(aProcessed);
 
-    HRESULT hrc = S_OK;
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc()))
+        return autoCaller.rc();
+
+    HRESULT hrc;
     BOOL aWaitable = FALSE;
     aEvent->COMGETTER(Waitable)(&aWaitable);
 
@@ -1155,17 +1157,25 @@ HRESULT EventSource::fireEvent(const ComPtr<IEvent> &aEvent,
     /* We leave the lock here */
 
     if (aWaitable)
-        hrc = aEvent->WaitProcessed(aTimeout, aResult);
+        hrc = aEvent->WaitProcessed(aTimeout, aProcessed);
     else
-        *aResult = TRUE;
+        *aProcessed = TRUE;
 
     return hrc;
 }
 
-HRESULT EventSource::getEvent(const ComPtr<IEventListener> &aListener,
-                              LONG aTimeout,
-                              ComPtr<IEvent> &aEvent)
+
+STDMETHODIMP EventSource::GetEvent(IEventListener *aListener,
+                                   LONG aTimeout,
+                                   IEvent **aEvent)
 {
+
+    CheckComArgNotNull(aListener);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc()))
+        return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     if (m->fShutdown)
@@ -1173,10 +1183,10 @@ HRESULT EventSource::getEvent(const ComPtr<IEventListener> &aListener,
                         tr("This event source is already shut down"));
 
     Listeners::iterator it = m->mListeners.find(aListener);
-    HRESULT rc = S_OK;
+    HRESULT rc;
 
     if (it != m->mListeners.end())
-        rc = it->second.obj()->dequeue(aEvent.asOutParam(), aTimeout, alock);
+        rc = it->second.obj()->dequeue(aEvent, aTimeout, alock);
     else
         rc = setError(VBOX_E_OBJECT_NOT_FOUND,
                       tr("Listener was never registered"));
@@ -1187,9 +1197,16 @@ HRESULT EventSource::getEvent(const ComPtr<IEventListener> &aListener,
     return rc;
 }
 
-HRESULT EventSource::eventProcessed(const ComPtr<IEventListener> &aListener,
-                                    const ComPtr<IEvent> &aEvent)
+STDMETHODIMP EventSource::EventProcessed(IEventListener *aListener,
+                                         IEvent *aEvent)
 {
+    CheckComArgNotNull(aListener);
+    CheckComArgNotNull(aEvent);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc()))
+        return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     if (m->fShutdown)
@@ -1373,7 +1390,7 @@ public:
     }
 
     // internal public
-    HRESULT init(const std::vector<ComPtr<IEventSource> >  aSourcesIn);
+    HRESULT init(ComSafeArrayIn(IEventSource *, aSources));
 
     // IEventSource methods
     STDMETHOD(CreateListener)(IEventListener **aListener);
@@ -1405,40 +1422,59 @@ NS_DECL_CLASSINFO(ProxyEventListener)
 NS_IMPL_THREADSAFE_ISUPPORTS1_CI(ProxyEventListener, IEventListener)
 NS_DECL_CLASSINFO(PassiveEventListener)
 NS_IMPL_THREADSAFE_ISUPPORTS1_CI(PassiveEventListener, IEventListener)
+NS_DECL_CLASSINFO(VBoxEvent)
+NS_IMPL_THREADSAFE_ISUPPORTS1_CI(VBoxEvent, IEvent)
+NS_DECL_CLASSINFO(VBoxVetoEvent)
+NS_IMPL_ISUPPORTS_INHERITED1(VBoxVetoEvent, VBoxEvent, IVetoEvent)
+NS_DECL_CLASSINFO(EventSource)
+NS_IMPL_THREADSAFE_ISUPPORTS1_CI(EventSource, IEventSource)
 NS_DECL_CLASSINFO(EventSourceAggregator)
 NS_IMPL_THREADSAFE_ISUPPORTS1_CI(EventSourceAggregator, IEventSource)
 #endif
 
 
-HRESULT EventSource::createListener(ComPtr<IEventListener> &aListener)
+STDMETHODIMP EventSource::CreateListener(IEventListener **aListener)
 {
+    CheckComArgOutPointerValid(aListener);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc()))
+        return autoCaller.rc();
+
     ComObjPtr<PassiveEventListener> listener;
 
     HRESULT rc = listener.createObject();
     ComAssertMsgRet(SUCCEEDED(rc), ("Could not create wrapper object (%Rhrc)", rc),
                     E_FAIL);
-    listener.queryInterfaceTo(aListener.asOutParam());
+    listener.queryInterfaceTo(aListener);
     return S_OK;
 }
 
-HRESULT EventSource::createAggregator(const std::vector<ComPtr<IEventSource> > &aSubordinates,
-                                      ComPtr<IEventSource> &aResult)
+
+STDMETHODIMP EventSource::CreateAggregator(ComSafeArrayIn(IEventSource *, aSubordinates),
+                                           IEventSource **aResult)
 {
+    CheckComArgOutPointerValid(aResult);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc()))
+        return autoCaller.rc();
+
     ComObjPtr<EventSourceAggregator> agg;
 
     HRESULT rc = agg.createObject();
     ComAssertMsgRet(SUCCEEDED(rc), ("Could not create aggregator (%Rhrc)", rc),
                     E_FAIL);
 
-    rc = agg->init(aSubordinates);
+    rc = agg->init(ComSafeArrayInArg(aSubordinates));
     if (FAILED(rc))
         return rc;
 
-    agg.queryInterfaceTo(aResult.asOutParam());
+    agg.queryInterfaceTo(aResult);
     return S_OK;
 }
 
-HRESULT EventSourceAggregator::init(const std::vector<ComPtr<IEventSource> >  aSourcesIn)
+HRESULT EventSourceAggregator::init(ComSafeArrayIn(IEventSource *, aSourcesIn))
 {
     HRESULT rc;
 
@@ -1452,10 +1488,14 @@ HRESULT EventSourceAggregator::init(const std::vector<ComPtr<IEventSource> >  aS
     ComAssertMsgRet(SUCCEEDED(rc), ("Could not init source (%Rhrc)", rc),
                     E_FAIL);
 
-    for (size_t i = 0; i < aSourcesIn.size(); i++)
+    com::SafeIfaceArray<IEventSource> aSources(ComSafeArrayInArg (aSourcesIn));
+
+    size_t cSize = aSources.size();
+
+    for (size_t i = 0; i < cSize; i++)
     {
-        if (aSourcesIn[i] != NULL)
-            mEventSources.push_back(aSourcesIn[i]);
+        if (aSources[i] != NULL)
+            mEventSources.push_back(aSources[i]);
     }
 
     /* Confirm a successful initialization */

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2015 Oracle Corporation
+ * Copyright (C) 2012-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,7 +20,7 @@
  *
  * VirtualBox Guest Additions for Haiku.
  * Copyright (c) 2011 Mike Smith <mike@scgtrp.net>
- *                    FranÃ§ois Revol <revol@free.fr>
+ *                    François Revol <revol@free.fr>
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -67,7 +67,7 @@
 
 struct vboxguest_module_info *g_VBoxGuest;
 
-RTDECL(size_t) RTLogBackdoorPrintf(const char *pszFormat, ...)
+size_t RTLogBackdoorPrintf(const char *pszFormat, ...)
 {
     va_list args;
     size_t cb;
@@ -78,277 +78,277 @@ RTDECL(size_t) RTLogBackdoorPrintf(const char *pszFormat, ...)
 
     return cb;
 }
-RTDECL(size_t) RTLogBackdoorPrintfV(const char *pszFormat, va_list args)
+size_t RTLogBackdoorPrintfV(const char *pszFormat, va_list args)
 {
     return g_VBoxGuest->_RTLogBackdoorPrintfV(pszFormat, args);
 }
-RTDECL(int) RTLogSetDefaultInstanceThread(PRTLOGGER pLogger, uintptr_t uKey)
+int RTLogSetDefaultInstanceThread(PRTLOGGER pLogger, uintptr_t uKey)
 {
     return g_VBoxGuest->_RTLogSetDefaultInstanceThread(pLogger, uKey);
 }
-RTDECL(int) RTMemAllocExTag(size_t cb, size_t cbAlignment, uint32_t fFlags, const char *pszTag, void **ppv)
+int RTMemAllocExTag(size_t cb, size_t cbAlignment, uint32_t fFlags, const char *pszTag, void **ppv)
 {
     return g_VBoxGuest->_RTMemAllocExTag(cb, cbAlignment, fFlags, pszTag, ppv);
 }
-RTR0DECL(void*) RTMemContAlloc(PRTCCPHYS pPhys, size_t cb)
+void* RTMemContAlloc(PRTCCPHYS pPhys, size_t cb)
 {
     return g_VBoxGuest->_RTMemContAlloc(pPhys, cb);
 }
-RTR0DECL(void) RTMemContFree(void *pv, size_t cb)
+void RTMemContFree(void *pv, size_t cb)
 {
     g_VBoxGuest->_RTMemContFree(pv, cb);
 }
-RTDECL(void) RTMemFreeEx(void *pv, size_t cb)
+void RTMemFreeEx(void *pv, size_t cb)
 {
     g_VBoxGuest->_RTMemFreeEx(pv, cb);
 }
-RTDECL(bool) RTMpIsCpuPossible(RTCPUID idCpu)
+bool RTMpIsCpuPossible(RTCPUID idCpu)
 {
     return g_VBoxGuest->_RTMpIsCpuPossible(idCpu);
 }
-RTDECL(int) RTMpNotificationDeregister(PFNRTMPNOTIFICATION pfnCallback, void *pvUser)
+int RTMpNotificationDeregister(PFNRTMPNOTIFICATION pfnCallback, void *pvUser)
 {
     return g_VBoxGuest->_RTMpNotificationDeregister(pfnCallback, pvUser);
 }
-RTDECL(int) RTMpNotificationRegister(PFNRTMPNOTIFICATION pfnCallback, void *pvUser)
+int RTMpNotificationRegister(PFNRTMPNOTIFICATION pfnCallback, void *pvUser)
 {
     return g_VBoxGuest->_RTMpNotificationRegister(pfnCallback, pvUser);
 }
-RTDECL(int) RTMpOnAll(PFNRTMPWORKER pfnWorker, void *pvUser1, void *pvUser2)
+int RTMpOnAll(PFNRTMPWORKER pfnWorker, void *pvUser1, void *pvUser2)
 {
     return g_VBoxGuest->_RTMpOnAll(pfnWorker, pvUser1, pvUser2);
 }
-RTDECL(int) RTMpOnOthers(PFNRTMPWORKER pfnWorker, void *pvUser1, void *pvUser2)
+int RTMpOnOthers(PFNRTMPWORKER pfnWorker, void *pvUser1, void *pvUser2)
 {
     return g_VBoxGuest->_RTMpOnOthers(pfnWorker, pvUser1, pvUser2);
 }
-RTDECL(int) RTMpOnSpecific(RTCPUID idCpu, PFNRTMPWORKER pfnWorker, void *pvUser1, void *pvUser2)
+int RTMpOnSpecific(RTCPUID idCpu, PFNRTMPWORKER pfnWorker, void *pvUser1, void *pvUser2)
 {
     return g_VBoxGuest->_RTMpOnSpecific(idCpu, pfnWorker, pvUser1, pvUser2);
 }
-RTDECL(int) RTPowerNotificationDeregister(PFNRTPOWERNOTIFICATION pfnCallback, void *pvUser)
+int RTPowerNotificationDeregister(PFNRTPOWERNOTIFICATION pfnCallback, void *pvUser)
 {
     return g_VBoxGuest->_RTPowerNotificationDeregister(pfnCallback, pvUser);
 }
-RTDECL(int) RTPowerNotificationRegister(PFNRTPOWERNOTIFICATION pfnCallback, void *pvUser)
+int RTPowerNotificationRegister(PFNRTPOWERNOTIFICATION pfnCallback, void *pvUser)
 {
     return g_VBoxGuest->_RTPowerNotificationRegister(pfnCallback, pvUser);
 }
-RTDECL(int) RTPowerSignalEvent(RTPOWEREVENT enmEvent)
+int RTPowerSignalEvent(RTPOWEREVENT enmEvent)
 {
     return g_VBoxGuest->_RTPowerSignalEvent(enmEvent);
 }
-RTR0DECL(void) RTR0AssertPanicSystem(void)
+void RTR0AssertPanicSystem(void)
 {
     g_VBoxGuest->_RTR0AssertPanicSystem();
 }
-RTR0DECL(int) RTR0Init(unsigned fReserved)
+int RTR0Init(unsigned fReserved)
 {
     return g_VBoxGuest->_RTR0Init(fReserved);
 }
-RTR0DECL(void*) RTR0MemObjAddress(RTR0MEMOBJ MemObj)
+void* RTR0MemObjAddress(RTR0MEMOBJ MemObj)
 {
     return g_VBoxGuest->_RTR0MemObjAddress(MemObj);
 }
-RTR0DECL(RTR3PTR) RTR0MemObjAddressR3(RTR0MEMOBJ MemObj)
+RTR3PTR RTR0MemObjAddressR3(RTR0MEMOBJ MemObj)
 {
     return g_VBoxGuest->_RTR0MemObjAddressR3(MemObj);
 }
-RTR0DECL(int) RTR0MemObjAllocContTag(PRTR0MEMOBJ pMemObj, size_t cb, bool fExecutable, const char *pszTag)
+int RTR0MemObjAllocContTag(PRTR0MEMOBJ pMemObj, size_t cb, bool fExecutable, const char *pszTag)
 {
     return g_VBoxGuest->_RTR0MemObjAllocContTag(pMemObj, cb, fExecutable, pszTag);
 }
-RTR0DECL(int) RTR0MemObjAllocLowTag(PRTR0MEMOBJ pMemObj, size_t cb, bool fExecutable, const char *pszTag)
+int RTR0MemObjAllocLowTag(PRTR0MEMOBJ pMemObj, size_t cb, bool fExecutable, const char *pszTag)
 {
     return g_VBoxGuest->_RTR0MemObjAllocLowTag(pMemObj, cb, fExecutable, pszTag);
 }
-RTR0DECL(int) RTR0MemObjAllocPageTag(PRTR0MEMOBJ pMemObj, size_t cb, bool fExecutable, const char *pszTag)
+int RTR0MemObjAllocPageTag(PRTR0MEMOBJ pMemObj, size_t cb, bool fExecutable, const char *pszTag)
 {
     return g_VBoxGuest->_RTR0MemObjAllocPageTag(pMemObj, cb, fExecutable, pszTag);
 }
-RTR0DECL(int) RTR0MemObjAllocPhysExTag(PRTR0MEMOBJ pMemObj, size_t cb, RTHCPHYS PhysHighest, size_t uAlignment, const char *pszTag)
+int RTR0MemObjAllocPhysExTag(PRTR0MEMOBJ pMemObj, size_t cb, RTHCPHYS PhysHighest, size_t uAlignment, const char *pszTag)
 {
     return g_VBoxGuest->_RTR0MemObjAllocPhysExTag(pMemObj, cb, PhysHighest, uAlignment, pszTag);
 }
-RTR0DECL(int) RTR0MemObjAllocPhysNCTag(PRTR0MEMOBJ pMemObj, size_t cb, RTHCPHYS PhysHighest, const char *pszTag)
+int RTR0MemObjAllocPhysNCTag(PRTR0MEMOBJ pMemObj, size_t cb, RTHCPHYS PhysHighest, const char *pszTag)
 {
     return g_VBoxGuest->_RTR0MemObjAllocPhysNCTag(pMemObj, cb, PhysHighest, pszTag);
 }
-RTR0DECL(int) RTR0MemObjAllocPhysTag(PRTR0MEMOBJ pMemObj, size_t cb, RTHCPHYS PhysHighest, const char *pszTag)
+int RTR0MemObjAllocPhysTag(PRTR0MEMOBJ pMemObj, size_t cb, RTHCPHYS PhysHighest, const char *pszTag)
 {
     return g_VBoxGuest->_RTR0MemObjAllocPhysTag(pMemObj, cb, PhysHighest, pszTag);
 }
-RTR0DECL(int) RTR0MemObjEnterPhysTag(PRTR0MEMOBJ pMemObj, RTHCPHYS Phys, size_t cb, uint32_t uCachePolicy, const char *pszTag)
+int RTR0MemObjEnterPhysTag(PRTR0MEMOBJ pMemObj, RTHCPHYS Phys, size_t cb, uint32_t uCachePolicy, const char *pszTag)
 {
     return g_VBoxGuest->_RTR0MemObjEnterPhysTag(pMemObj, Phys, cb, uCachePolicy, pszTag);
 }
-RTR0DECL(int) RTR0MemObjFree(RTR0MEMOBJ MemObj, bool fFreeMappings)
+int RTR0MemObjFree(RTR0MEMOBJ MemObj, bool fFreeMappings)
 {
     return g_VBoxGuest->_RTR0MemObjFree(MemObj, fFreeMappings);
 }
-RTR0DECL(RTHCPHYS) RTR0MemObjGetPagePhysAddr(RTR0MEMOBJ MemObj, size_t iPage)
+RTHCPHYS RTR0MemObjGetPagePhysAddr(RTR0MEMOBJ MemObj, size_t iPage)
 {
     return g_VBoxGuest->_RTR0MemObjGetPagePhysAddr(MemObj, iPage);
 }
-RTR0DECL(bool) RTR0MemObjIsMapping(RTR0MEMOBJ MemObj)
+bool RTR0MemObjIsMapping(RTR0MEMOBJ MemObj)
 {
     return g_VBoxGuest->_RTR0MemObjIsMapping(MemObj);
 }
-RTR0DECL(int) RTR0MemObjLockKernelTag(PRTR0MEMOBJ pMemObj, void *pv, size_t cb, uint32_t fAccess, const char *pszTag)
+int RTR0MemObjLockKernelTag(PRTR0MEMOBJ pMemObj, void *pv, size_t cb, uint32_t fAccess, const char *pszTag)
 {
     return g_VBoxGuest->_RTR0MemObjLockKernelTag(pMemObj, pv, cb, fAccess, pszTag);
 }
-RTR0DECL(int) RTR0MemObjLockUserTag(PRTR0MEMOBJ pMemObj, RTR3PTR R3Ptr, size_t cb, uint32_t fAccess, RTR0PROCESS R0Process, const char *pszTag)
+int RTR0MemObjLockUserTag(PRTR0MEMOBJ pMemObj, RTR3PTR R3Ptr, size_t cb, uint32_t fAccess, RTR0PROCESS R0Process, const char *pszTag)
 {
     return g_VBoxGuest->_RTR0MemObjLockUserTag(pMemObj, R3Ptr, cb, fAccess, R0Process, pszTag);
 }
-RTR0DECL(int) RTR0MemObjMapKernelExTag(PRTR0MEMOBJ pMemObj, RTR0MEMOBJ MemObjToMap, void *pvFixed, size_t uAlignment, unsigned fProt, size_t offSub, size_t cbSub, const char *pszTag)
+int RTR0MemObjMapKernelExTag(PRTR0MEMOBJ pMemObj, RTR0MEMOBJ MemObjToMap, void *pvFixed, size_t uAlignment, unsigned fProt, size_t offSub, size_t cbSub, const char *pszTag)
 {
     return g_VBoxGuest->_RTR0MemObjMapKernelExTag(pMemObj, MemObjToMap, pvFixed, uAlignment, fProt, offSub, cbSub, pszTag);
 }
-RTR0DECL(int) RTR0MemObjMapKernelTag(PRTR0MEMOBJ pMemObj, RTR0MEMOBJ MemObjToMap, void *pvFixed, size_t uAlignment, unsigned fProt, const char *pszTag)
+int RTR0MemObjMapKernelTag(PRTR0MEMOBJ pMemObj, RTR0MEMOBJ MemObjToMap, void *pvFixed, size_t uAlignment, unsigned fProt, const char *pszTag)
 {
     return g_VBoxGuest->_RTR0MemObjMapKernelTag(pMemObj, MemObjToMap, pvFixed, uAlignment, fProt, pszTag);
 }
-RTR0DECL(int) RTR0MemObjMapUserTag(PRTR0MEMOBJ pMemObj, RTR0MEMOBJ MemObjToMap, RTR3PTR R3PtrFixed, size_t uAlignment, unsigned fProt, RTR0PROCESS R0Process, const char *pszTag)
+int RTR0MemObjMapUserTag(PRTR0MEMOBJ pMemObj, RTR0MEMOBJ MemObjToMap, RTR3PTR R3PtrFixed, size_t uAlignment, unsigned fProt, RTR0PROCESS R0Process, const char *pszTag)
 {
     return g_VBoxGuest->_RTR0MemObjMapUserTag(pMemObj, MemObjToMap, R3PtrFixed, uAlignment, fProt, R0Process, pszTag);
 }
-RTR0DECL(int) RTR0MemObjProtect(RTR0MEMOBJ hMemObj, size_t offSub, size_t cbSub, uint32_t fProt)
+int RTR0MemObjProtect(RTR0MEMOBJ hMemObj, size_t offSub, size_t cbSub, uint32_t fProt)
 {
     return g_VBoxGuest->_RTR0MemObjProtect(hMemObj, offSub, cbSub, fProt);
 }
-RTR0DECL(int) RTR0MemObjReserveKernelTag(PRTR0MEMOBJ pMemObj, void *pvFixed, size_t cb, size_t uAlignment, const char *pszTag)
+int RTR0MemObjReserveKernelTag(PRTR0MEMOBJ pMemObj, void *pvFixed, size_t cb, size_t uAlignment, const char *pszTag)
 {
     return g_VBoxGuest->_RTR0MemObjReserveKernelTag(pMemObj, pvFixed, cb, uAlignment, pszTag);
 }
-RTR0DECL(int) RTR0MemObjReserveUserTag(PRTR0MEMOBJ pMemObj, RTR3PTR R3PtrFixed, size_t cb, size_t uAlignment, RTR0PROCESS R0Process, const char *pszTag)
+int RTR0MemObjReserveUserTag(PRTR0MEMOBJ pMemObj, RTR3PTR R3PtrFixed, size_t cb, size_t uAlignment, RTR0PROCESS R0Process, const char *pszTag)
 {
     return g_VBoxGuest->_RTR0MemObjReserveUserTag(pMemObj, R3PtrFixed, cb, uAlignment, R0Process, pszTag);
 }
-RTR0DECL(size_t) RTR0MemObjSize(RTR0MEMOBJ MemObj)
+size_t RTR0MemObjSize(RTR0MEMOBJ MemObj)
 {
     return g_VBoxGuest->_RTR0MemObjSize(MemObj);
 }
-RTR0DECL(RTR0PROCESS) RTR0ProcHandleSelf(void)
+RTR0PROCESS RTR0ProcHandleSelf(void)
 {
     return g_VBoxGuest->_RTR0ProcHandleSelf();
 }
-RTR0DECL(void) RTR0Term(void)
+void RTR0Term(void)
 {
     g_VBoxGuest->_RTR0Term();
 }
-RTR0DECL(void) RTR0TermForced(void)
+void RTR0TermForced(void)
 {
     g_VBoxGuest->_RTR0TermForced();
 }
-RTDECL(RTPROCESS) RTProcSelf(void)
+RTPROCESS RTProcSelf(void)
 {
     return g_VBoxGuest->_RTProcSelf();
 }
-RTDECL(uint32_t) RTSemEventGetResolution(void)
+uint32_t RTSemEventGetResolution(void)
 {
     return g_VBoxGuest->_RTSemEventGetResolution();
 }
-RTDECL(uint32_t) RTSemEventMultiGetResolution(void)
+uint32_t RTSemEventMultiGetResolution(void)
 {
     return g_VBoxGuest->_RTSemEventMultiGetResolution();
 }
-RTDECL(int) RTSemEventMultiWaitEx(RTSEMEVENTMULTI hEventMultiSem, uint32_t fFlags, uint64_t uTimeout)
+int RTSemEventMultiWaitEx(RTSEMEVENTMULTI hEventMultiSem, uint32_t fFlags, uint64_t uTimeout)
 {
     return g_VBoxGuest->_RTSemEventMultiWaitEx(hEventMultiSem, fFlags, uTimeout);
 }
-RTDECL(int) RTSemEventMultiWaitExDebug(RTSEMEVENTMULTI hEventMultiSem, uint32_t fFlags, uint64_t uTimeout, RTHCUINTPTR uId, RT_SRC_POS_DECL)
+int RTSemEventMultiWaitExDebug(RTSEMEVENTMULTI hEventMultiSem, uint32_t fFlags, uint64_t uTimeout, RTHCUINTPTR uId, RT_SRC_POS_DECL)
 {
     return g_VBoxGuest->_RTSemEventMultiWaitExDebug(hEventMultiSem, fFlags, uTimeout, uId, pszFile, iLine, pszFunction);
 }
-RTDECL(int) RTSemEventWaitEx(RTSEMEVENT hEventSem, uint32_t fFlags, uint64_t uTimeout)
+int RTSemEventWaitEx(RTSEMEVENT hEventSem, uint32_t fFlags, uint64_t uTimeout)
 {
     return g_VBoxGuest->_RTSemEventWaitEx(hEventSem, fFlags, uTimeout);
 }
-RTDECL(int) RTSemEventWaitExDebug(RTSEMEVENT hEventSem, uint32_t fFlags, uint64_t uTimeout, RTHCUINTPTR uId, RT_SRC_POS_DECL)
+int RTSemEventWaitExDebug(RTSEMEVENT hEventSem, uint32_t fFlags, uint64_t uTimeout, RTHCUINTPTR uId, RT_SRC_POS_DECL)
 {
     return g_VBoxGuest->_RTSemEventWaitExDebug(hEventSem, fFlags, uTimeout, uId, pszFile, iLine, pszFunction);
 }
-RTDECL(bool) RTThreadIsInInterrupt(RTTHREAD hThread)
+bool RTThreadIsInInterrupt(RTTHREAD hThread)
 {
     return g_VBoxGuest->_RTThreadIsInInterrupt(hThread);
 }
-RTDECL(void) RTThreadPreemptDisable(PRTTHREADPREEMPTSTATE pState)
+void RTThreadPreemptDisable(PRTTHREADPREEMPTSTATE pState)
 {
     g_VBoxGuest->_RTThreadPreemptDisable(pState);
 }
-RTDECL(bool) RTThreadPreemptIsEnabled(RTTHREAD hThread)
+bool RTThreadPreemptIsEnabled(RTTHREAD hThread)
 {
     return g_VBoxGuest->_RTThreadPreemptIsEnabled(hThread);
 }
-RTDECL(bool) RTThreadPreemptIsPending(RTTHREAD hThread)
+bool RTThreadPreemptIsPending(RTTHREAD hThread)
 {
     return g_VBoxGuest->_RTThreadPreemptIsPending(hThread);
 }
-RTDECL(bool) RTThreadPreemptIsPendingTrusty(void)
+bool RTThreadPreemptIsPendingTrusty(void)
 {
     return g_VBoxGuest->_RTThreadPreemptIsPendingTrusty();
 }
-RTDECL(bool) RTThreadPreemptIsPossible(void)
+bool RTThreadPreemptIsPossible(void)
 {
     return g_VBoxGuest->_RTThreadPreemptIsPossible();
 }
-RTDECL(void) RTThreadPreemptRestore(PRTTHREADPREEMPTSTATE pState)
+void RTThreadPreemptRestore(PRTTHREADPREEMPTSTATE pState)
 {
     g_VBoxGuest->_RTThreadPreemptRestore(pState);
 }
-RTDECL(uint32_t) RTTimerGetSystemGranularity(void)
+uint32_t RTTimerGetSystemGranularity(void)
 {
     return g_VBoxGuest->_RTTimerGetSystemGranularity();
 }
-RTDECL(int) RTTimerReleaseSystemGranularity(uint32_t u32Granted)
+int RTTimerReleaseSystemGranularity(uint32_t u32Granted)
 {
     return g_VBoxGuest->_RTTimerReleaseSystemGranularity(u32Granted);
 }
-RTDECL(int) RTTimerRequestSystemGranularity(uint32_t u32Request, uint32_t *pu32Granted)
+int RTTimerRequestSystemGranularity(uint32_t u32Request, uint32_t *pu32Granted)
 {
     return g_VBoxGuest->_RTTimerRequestSystemGranularity(u32Request, pu32Granted);
 }
-RTDECL(void) RTSpinlockAcquire(RTSPINLOCK Spinlock)
+void RTSpinlockAcquire(RTSPINLOCK Spinlock)
 {
     g_VBoxGuest->_RTSpinlockAcquire(Spinlock);
 }
-RTDECL(void) RTSpinlockRelease(RTSPINLOCK Spinlock)
+void RTSpinlockRelease(RTSPINLOCK Spinlock)
 {
     g_VBoxGuest->_RTSpinlockRelease(Spinlock);
 }
-RTDECL(void*) RTMemTmpAllocTag(size_t cb, const char *pszTag)
+void* RTMemTmpAllocTag(size_t cb, const char *pszTag)
 {
     return g_VBoxGuest->_RTMemTmpAllocTag(cb, pszTag);
 }
-RTDECL(void) RTMemTmpFree(void *pv)
+void RTMemTmpFree(void *pv)
 {
     g_VBoxGuest->_RTMemTmpFree(pv);
 }
-RTDECL(PRTLOGGER) RTLogDefaultInstance(void)
+PRTLOGGER RTLogDefaultInstance(void)
 {
     return g_VBoxGuest->_RTLogDefaultInstance();
 }
-RTDECL(PRTLOGGER) RTLogRelDefaultInstance(void)
+PRTLOGGER RTLogRelDefaultInstance(void)
 {
     return g_VBoxGuest->_RTLogRelDefaultInstance();
 }
-RTDECL(int) RTErrConvertToErrno(int iErr)
+int RTErrConvertToErrno(int iErr)
 {
     return g_VBoxGuest->_RTErrConvertToErrno(iErr);
 }
-int VbgdCommonIoCtl(unsigned iFunction, PVBOXGUESTDEVEXT pDevExt, PVBOXGUESTSESSION pSession, void *pvData, size_t cbData, size_t *pcbDataReturned)
+int VBoxGuestCommonIOCtl(unsigned iFunction, PVBOXGUESTDEVEXT pDevExt, PVBOXGUESTSESSION pSession, void *pvData, size_t cbData, size_t *pcbDataReturned)
 {
-    return g_VBoxGuest->_VbgdCommonIoCtl(iFunction, pDevExt, pSession, pvData, cbData, pcbDataReturned);
+    return g_VBoxGuest->_VBoxGuestCommonIOCtl(iFunction, pDevExt, pSession, pvData, cbData, pcbDataReturned);
 }
-int VbgdCommonCreateUserSession(PVBOXGUESTDEVEXT pDevExt, PVBOXGUESTSESSION *ppSession)
+int VBoxGuestCreateUserSession(PVBOXGUESTDEVEXT pDevExt, PVBOXGUESTSESSION *ppSession)
 {
-    return g_VBoxGuest->_VbgdCommonCreateUserSession(pDevExt, ppSession);
+    return g_VBoxGuest->_VBoxGuestCreateUserSession(pDevExt, ppSession);
 }
-void VbgdCommonCloseSession(PVBOXGUESTDEVEXT pDevExt, PVBOXGUESTSESSION pSession)
+void VBoxGuestCloseSession(PVBOXGUESTDEVEXT pDevExt, PVBOXGUESTSESSION pSession)
 {
-    g_VBoxGuest->_VbgdCommonCloseSession(pDevExt, pSession);
+    g_VBoxGuest->_VBoxGuestCloseSession(pDevExt, pSession);
 }
 void* VBoxGuestIDCOpen(uint32_t *pu32Version)
 {
@@ -362,54 +362,54 @@ int VBoxGuestIDCCall(void *pvSession, unsigned iCmd, void *pvData, size_t cbData
 {
     return g_VBoxGuest->_VBoxGuestIDCCall(pvSession, iCmd, pvData, cbData, pcbDataReturned);
 }
-RTDECL(void) RTAssertMsg1Weak(const char *pszExpr, unsigned uLine, const char *pszFile, const char *pszFunction)
+void RTAssertMsg1Weak(const char *pszExpr, unsigned uLine, const char *pszFile, const char *pszFunction)
 {
     g_VBoxGuest->_RTAssertMsg1Weak(pszExpr, uLine, pszFile, pszFunction);
 }
-RTDECL(void) RTAssertMsg2Weak(const char *pszFormat, ...)
+void RTAssertMsg2Weak(const char *pszFormat, ...)
 {
     va_list va;
     va_start(va, pszFormat);
     RTAssertMsg2WeakV(pszFormat, va);
     va_end(va);
 }
-RTDECL(void) RTAssertMsg2WeakV(const char *pszFormat, va_list va)
+void RTAssertMsg2WeakV(const char *pszFormat, va_list va)
 {
     g_VBoxGuest->_RTAssertMsg2WeakV(pszFormat, va);
 }
-RTDECL(bool) RTAssertShouldPanic(void)
+bool RTAssertShouldPanic(void)
 {
     return g_VBoxGuest->_RTAssertShouldPanic();
 }
-RTDECL(int) RTSemFastMutexCreate(PRTSEMFASTMUTEX phFastMtx)
+int RTSemFastMutexCreate(PRTSEMFASTMUTEX phFastMtx)
 {
     return g_VBoxGuest->_RTSemFastMutexCreate(phFastMtx);
 }
-RTDECL(int) RTSemFastMutexDestroy(RTSEMFASTMUTEX hFastMtx)
+int RTSemFastMutexDestroy(RTSEMFASTMUTEX hFastMtx)
 {
     return g_VBoxGuest->_RTSemFastMutexDestroy(hFastMtx);
 }
-RTDECL(int) RTSemFastMutexRelease(RTSEMFASTMUTEX hFastMtx)
+int RTSemFastMutexRelease(RTSEMFASTMUTEX hFastMtx)
 {
     return g_VBoxGuest->_RTSemFastMutexRelease(hFastMtx);
 }
-RTDECL(int) RTSemFastMutexRequest(RTSEMFASTMUTEX hFastMtx)
+int RTSemFastMutexRequest(RTSEMFASTMUTEX hFastMtx)
 {
     return g_VBoxGuest->_RTSemFastMutexRequest(hFastMtx);
 }
-RTDECL(int) RTSemMutexCreate(PRTSEMMUTEX phFastMtx)
+int RTSemMutexCreate(PRTSEMMUTEX phFastMtx)
 {
     return g_VBoxGuest->_RTSemMutexCreate(phFastMtx);
 }
-RTDECL(int) RTSemMutexDestroy(RTSEMMUTEX hFastMtx)
+int RTSemMutexDestroy(RTSEMMUTEX hFastMtx)
 {
     return g_VBoxGuest->_RTSemMutexDestroy(hFastMtx);
 }
-RTDECL(int) RTSemMutexRelease(RTSEMMUTEX hFastMtx)
+int RTSemMutexRelease(RTSEMMUTEX hFastMtx)
 {
     return g_VBoxGuest->_RTSemMutexRelease(hFastMtx);
 }
-RTDECL(int) RTSemMutexRequest(RTSEMMUTEX hFastMtx, RTMSINTERVAL cMillies)
+int RTSemMutexRequest(RTSEMMUTEX hFastMtx, RTMSINTERVAL cMillies)
 {
     return g_VBoxGuest->_RTSemMutexRequest(hFastMtx, cMillies);
 }

@@ -1,10 +1,11 @@
-/* $Id: UIActionPoolSelector.h $ */
 /** @file
- * VBox Qt GUI - UIActionPoolSelector class declaration.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * UIActionPoolSelector class declaration
  */
 
 /*
- * Copyright (C) 2010-2014 Oracle Corporation
+ * Copyright (C) 2010-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,117 +16,85 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___UIActionPoolSelector_h___
-#define ___UIActionPoolSelector_h___
+#ifndef __UIActionPoolSelector_h__
+#define __UIActionPoolSelector_h__
 
-/* GUI includes: */
+/* Local includes: */
 #include "UIActionPool.h"
 
-/** Runtime action-pool index enum.
-  * Naming convention is following:
-  * 1. Every menu index prepended with 'M',
-  * 2. Every simple-action index prepended with 'S',
-  * 3. Every toggle-action index presended with 'T',
-  * 4. Every polymorphic-action index presended with 'P',
-  * 5. Every sub-index contains full parent-index name. */
-enum UIActionIndexST
+/* Action keys: */
+enum UIActionIndexSelector
 {
     /* 'File' menu actions: */
-    UIActionIndexST_M_File = UIActionIndex_Max + 1,
-    UIActionIndexST_M_File_S_ShowMediumManager,
-    UIActionIndexST_M_File_S_ImportAppliance,
-    UIActionIndexST_M_File_S_ExportAppliance,
-#ifdef DEBUG
-    UIActionIndexST_M_File_S_ShowExtraDataManager,
-#endif /* DEBUG */
-    UIActionIndexST_M_File_S_Close,
+    UIActionIndexSelector_Menu_File = UIActionIndex_Max + 1,
+    UIActionIndexSelector_Simple_File_MediumManagerDialog,
+    UIActionIndexSelector_Simple_File_ImportApplianceWizard,
+    UIActionIndexSelector_Simple_File_ExportApplianceWizard,
+    UIActionIndexSelector_Simple_File_PreferencesDialog,
+    UIActionIndexSelector_Simple_File_Exit,
 
     /* 'Group' menu actions: */
-    UIActionIndexST_M_Group,
-    UIActionIndexST_M_Group_S_New,
-    UIActionIndexST_M_Group_S_Add,
-    UIActionIndexST_M_Group_S_Rename,
-    UIActionIndexST_M_Group_S_Remove,
-    UIActionIndexST_M_Group_M_StartOrShow,
-    UIActionIndexST_M_Group_M_StartOrShow_S_StartNormal,
-    UIActionIndexST_M_Group_M_StartOrShow_S_StartHeadless,
-    UIActionIndexST_M_Group_M_StartOrShow_S_StartDetachable,
-    UIActionIndexST_M_Group_T_Pause,
-    UIActionIndexST_M_Group_S_Reset,
-    UIActionIndexST_M_Group_M_Close,
-    UIActionIndexST_M_Group_M_Close_S_SaveState,
-    UIActionIndexST_M_Group_M_Close_S_Shutdown,
-    UIActionIndexST_M_Group_M_Close_S_PowerOff,
-    UIActionIndexST_M_Group_S_Discard,
-    UIActionIndexST_M_Group_S_ShowLogDialog,
-    UIActionIndexST_M_Group_S_Refresh,
-    UIActionIndexST_M_Group_S_ShowInFileManager,
-    UIActionIndexST_M_Group_S_CreateShortcut,
-    UIActionIndexST_M_Group_S_Sort,
+    UIActionIndexSelector_Menu_Group,
+    UIActionIndexSelector_Simple_Group_New,
+    UIActionIndexSelector_Simple_Group_Add,
+    UIActionIndexSelector_Simple_Group_Rename,
+    UIActionIndexSelector_Simple_Group_Remove,
+    UIActionIndexSelector_Simple_Group_Sort,
+    UIActionIndexSelector_Menu_Group_Close,
+    UIActionIndexSelector_Simple_Group_Close_Save,
+    UIActionIndexSelector_Simple_Group_Close_ACPIShutdown,
+    UIActionIndexSelector_Simple_Group_Close_PowerOff,
 
     /* 'Machine' menu actions: */
-    UIActionIndexST_M_Machine,
-    UIActionIndexST_M_Machine_S_New,
-    UIActionIndexST_M_Machine_S_Add,
-    UIActionIndexST_M_Machine_S_Settings,
-    UIActionIndexST_M_Machine_S_Clone,
-    UIActionIndexST_M_Machine_S_Remove,
-    UIActionIndexST_M_Machine_S_AddGroup,
-    UIActionIndexST_M_Machine_M_StartOrShow,
-    UIActionIndexST_M_Machine_M_StartOrShow_S_StartNormal,
-    UIActionIndexST_M_Machine_M_StartOrShow_S_StartHeadless,
-    UIActionIndexST_M_Machine_M_StartOrShow_S_StartDetachable,
-    UIActionIndexST_M_Machine_T_Pause,
-    UIActionIndexST_M_Machine_S_Reset,
-    UIActionIndexST_M_Machine_M_Close,
-    UIActionIndexST_M_Machine_M_Close_S_SaveState,
-    UIActionIndexST_M_Machine_M_Close_S_Shutdown,
-    UIActionIndexST_M_Machine_M_Close_S_PowerOff,
-    UIActionIndexST_M_Machine_S_Discard,
-    UIActionIndexST_M_Machine_S_ShowLogDialog,
-    UIActionIndexST_M_Machine_S_Refresh,
-    UIActionIndexST_M_Machine_S_ShowInFileManager,
-    UIActionIndexST_M_Machine_S_CreateShortcut,
-    UIActionIndexST_M_Machine_S_SortParent,
+    UIActionIndexSelector_Menu_Machine,
+    UIActionIndexSelector_Simple_Machine_New,
+    UIActionIndexSelector_Simple_Machine_Add,
+    UIActionIndexSelector_Simple_Machine_Settings,
+    UIActionIndexSelector_Simple_Machine_Clone,
+    UIActionIndexSelector_Simple_Machine_Remove,
+    UIActionIndexSelector_Simple_Machine_AddGroup,
+    UIActionIndexSelector_Simple_Machine_SortParent,
+    UIActionIndexSelector_Menu_Machine_Close,
+    UIActionIndexSelector_Simple_Machine_Close_Save,
+    UIActionIndexSelector_Simple_Machine_Close_ACPIShutdown,
+    UIActionIndexSelector_Simple_Machine_Close_PowerOff,
+
+    /* Common 'Group' / 'Machine' menu actions: */
+    UIActionIndexSelector_State_Common_StartOrShow,
+    UIActionIndexSelector_Toggle_Common_PauseAndResume,
+    UIActionIndexSelector_Simple_Common_Reset,
+    UIActionIndexSelector_Simple_Common_Discard,
+    UIActionIndexSelector_Simple_Common_Refresh,
+    UIActionIndexSelector_Simple_Common_ShowInFileManager,
+    UIActionIndexSelector_Simple_Common_CreateShortcut,
 
     /* Maximum index: */
-    UIActionIndexST_Max
+    UIActionIndexSelector_Max
 };
 
-/** UIActionPool extension
-  * representing action-pool singleton for Selector UI. */
+/* Singleton runtime action pool: */
 class UIActionPoolSelector : public UIActionPool
 {
     Q_OBJECT;
 
-protected:
-
-    /** Constructor,
-      * @param fTemporary is used to determine whether this action-pool is temporary,
-      *                   which can be created to re-initialize shortcuts-pool. */
-    UIActionPoolSelector(bool fTemporary = false);
-
-    /** Prepare pool routine. */
-    virtual void preparePool();
-    /** Prepare connections routine. */
-    virtual void prepareConnections();
-
-    /** Update menus routine. */
-    virtual void updateMenus();
-
-    /** Translation handler. */
-    virtual void retranslateUi();
-
-    /** Returns extra-data ID to save keyboard shortcuts under. */
-    virtual QString shortcutsExtraDataID() const;
-
-    /** Returns the list of Selector UI main menus. */
-    virtual QList<QMenu*> menus() const { return QList<QMenu*>(); }
-
 private:
 
-    /* Enable factory in base-class: */
+    /* Constructor: */
+    UIActionPoolSelector();
+
+    /** Translation handler. */
+    void retranslateUi();
+
+    /* Helper: Shortcuts stuff: */
+    QString shortcutsExtraDataID() const;
+
+    /* Helpers: Prepare stuff: */
+    void createActions();
+    void createMenus();
+
+    /* Friend zone: */
     friend class UIActionPool;
 };
 
-#endif /* !___UIActionPoolSelector_h___ */
+#endif // __UIActionPoolSelector_h__
+

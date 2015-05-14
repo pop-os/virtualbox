@@ -1,6 +1,8 @@
 /* $Id: UIUpdateDefs.cpp $ */
 /** @file
- * VBox Qt GUI - Update routine related implementations.
+ *
+ * VBox frontends: Qt4 GUI ("VirtualBox"):
+ * Update routine related implementations
  */
 
 /*
@@ -15,20 +17,13 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Global includes: */
-# include <QCoreApplication>
-# include <QStringList>
+#include <QCoreApplication>
+#include <QStringList>
 
 /* Local includes: */
-# include "UIUpdateDefs.h"
-# include "VBoxGlobal.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
+#include "UIUpdateDefs.h"
+#include "VBoxGlobal.h"
 
 /* static: */
 VBoxUpdateDayList VBoxUpdateData::m_dayList = VBoxUpdateDayList();

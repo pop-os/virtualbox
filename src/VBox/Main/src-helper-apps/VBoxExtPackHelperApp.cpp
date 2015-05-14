@@ -294,7 +294,7 @@ static RTEXITCODE SetExtPackPermissions(const char *pszDir)
      if (RT_FAILURE(rc))
          return RTMsgErrorExit(RTEXITCODE_FAILURE, "Failed to set directory permissions: %Rrc ('%s')", rc, pszDir);
 #else
-     /** @todo TrustedInstaller? */
+        /** @todo  */
 #endif
 
     return RTEXITCODE_SUCCESS;

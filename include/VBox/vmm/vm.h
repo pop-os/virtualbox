@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -116,12 +116,9 @@ typedef struct VMCPU
     /** Which host CPU ID is this EMT running on.
      * Only valid when in RC or HMR0 with scheduling disabled. */
     RTCPUID volatile        idHostCpu;                              /* 56 / 36 */
-    /** The CPU set index corresponding to idHostCpu, UINT32_MAX if not valid.
-     * @remarks Best to make sure iHostCpuSet shares cache line with idHostCpu! */
-    uint32_t volatile       iHostCpuSet;                            /* 60 / 40 */
 
     /** Trace groups enable flags.  */
-    uint32_t                fTraceGroups;                           /* 64 / 44 */
+    uint32_t                fTraceGroups;                           /* 60 / 40 */
     /** Align the structures below bit on a 64-byte boundary and make sure it starts
      * at the same offset in both 64-bit and 32-bit builds.
      *
@@ -130,11 +127,20 @@ typedef struct VMCPU
      *          data could be lumped together at the end with a < 64 byte padding
      *          following it (to grow into and align the struct size).
      *   */
-    uint8_t                 abAlignment1[HC_ARCH_BITS == 64 ? 56 : 12+64];
+    uint8_t                 abAlignment1[HC_ARCH_BITS == 64 ? 60 : 16+64];
     /** State data for use by ad hoc profiling. */
     uint32_t                uAdHoc;
     /** Profiling samples for use by ad hoc profiling. */
     STAMPROFILEADV          aStatAdHoc[8];                          /* size: 40*8 = 320 */
+
+    /** CPUM part. */
+    union
+    {
+#ifdef ___CPUMInternal_h
+        struct CPUMCPU      s;
+#endif
+        uint8_t             padding[3584];      /* multiple of 64 */
+    } cpum;
 
     /** HM part. */
     union
@@ -142,7 +148,7 @@ typedef struct VMCPU
 #ifdef ___HMInternal_h
         struct HMCPU    s;
 #endif
-        uint8_t             padding[5760];      /* multiple of 64 */
+        uint8_t             padding[5568];      /* multiple of 64 */
     } hm;
 
     /** EM part. */
@@ -151,7 +157,7 @@ typedef struct VMCPU
 #ifdef ___EMInternal_h
         struct EMCPU        s;
 #endif
-        uint8_t             padding[1408];      /* multiple of 64 */
+        uint8_t             padding[1472];      /* multiple of 64 */
     } em;
 
     /** IEM part. */
@@ -218,17 +224,8 @@ typedef struct VMCPU
         uint8_t             padding[64];        /* multiple of 64 */
     } dbgf;
 
-    /** GIM part. */
-    union
-    {
-#ifdef ___GIMInternal_h
-        struct GIMCPU s;
-#endif
-        uint8_t             padding[64];      /* multiple of 64 */
-    } gim;
-
     /** Align the following members on page boundary. */
-    uint8_t                 abAlignment2[3584];
+    uint8_t                 abAlignment2[192];
 
     /** PGM part. */
     union
@@ -238,15 +235,6 @@ typedef struct VMCPU
 #endif
         uint8_t             padding[4096];      /* multiple of 4096 */
     } pgm;
-
-    /** CPUM part. */
-    union
-    {
-#ifdef ___CPUMInternal_h
-        struct CPUMCPU      s;
-#endif
-        uint8_t             padding[4096];      /* multiple of 4096 */
-    } cpum;
 
 } VMCPU;
 
@@ -370,8 +358,6 @@ typedef struct VMCPU
 #define VMCPU_FF_INTERRUPT_SMI              RT_BIT_32(VMCPU_FF_INTERRUPT_SMI_BIT)
 /** PDM critical section unlocking is pending, process promptly upon return to R3. */
 #define VMCPU_FF_PDM_CRITSECT               RT_BIT_32(5)
-/** This action forces the VCPU out of the halted state. */
-#define VMCPU_FF_UNHALT                     RT_BIT_32(6)
 /** This action forces the VM to service pending requests from other
  * thread or requests which must be executed in another context. */
 #define VMCPU_FF_REQUEST                    RT_BIT_32(9)
@@ -409,8 +395,6 @@ typedef struct VMCPU
 #endif /* VBOX_WITH_RAW_MODE */
 /** Inhibit interrupts pending. See EMGetInhibitInterruptsPC(). */
 #define VMCPU_FF_INHIBIT_INTERRUPTS         RT_BIT_32(24)
-/** Block injection of non-maskable interrupts to the guest. */
-#define VMCPU_FF_BLOCK_NMIS                 RT_BIT_32(25)
 #ifdef VBOX_WITH_RAW_MODE
 /** CSAM needs to scan the page that's being executed */
 # define VMCPU_FF_CSAM_SCAN_PAGE            RT_BIT_32(26)
@@ -430,8 +414,7 @@ typedef struct VMCPU
                                                  | VM_FF_PDM_QUEUES | VM_FF_PDM_DMA | VM_FF_EMT_RENDEZVOUS)
 /** Externally forced VMCPU actions. Used to quit the idle/wait loop. */
 #define VMCPU_FF_EXTERNAL_HALTED_MASK           (  VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC | VMCPU_FF_REQUEST \
-                                                 | VMCPU_FF_INTERRUPT_NMI  | VMCPU_FF_INTERRUPT_SMI | VMCPU_FF_UNHALT \
-                                                 | VMCPU_FF_TIMER)
+                                                 | VMCPU_FF_INTERRUPT_NMI  | VMCPU_FF_INTERRUPT_SMI | VMCPU_FF_TIMER)
 
 /** High priority VM pre-execution actions. */
 #define VM_FF_HIGH_PRIORITY_PRE_MASK            (  VM_FF_CHECK_VM_STATE | VM_FF_DBGF | VM_FF_TM_VIRTUAL_SYNC \
@@ -468,7 +451,7 @@ typedef struct VMCPU
 #define VM_FF_NORMAL_PRIORITY_MASK              (  VM_FF_REQUEST | VM_FF_PDM_QUEUES | VM_FF_PDM_DMA | VM_FF_REM_HANDLER_NOTIFY \
                                                  | VM_FF_EMT_RENDEZVOUS)
 /** Normal priority VMCPU actions. */
-#define VMCPU_FF_NORMAL_PRIORITY_MASK           (VMCPU_FF_REQUEST | VMCPU_FF_UNHALT)
+#define VMCPU_FF_NORMAL_PRIORITY_MASK           (VMCPU_FF_REQUEST)
 
 /** Flags to clear before resuming guest execution. */
 #define VMCPU_FF_RESUME_GUEST_MASK              (VMCPU_FF_TO_R3)
@@ -672,9 +655,10 @@ typedef struct VMCPU
                                                       RTThreadNativeSelf(), (pVCpu) ? (pVCpu)->hNativeThreadR0 : 0, \
                                                       (pVCpu) ? (pVCpu)->idCpu : 0))
 #else
-# define VMCPU_ASSERT_EMT(pVCpu)            AssertMsg(VMCPU_IS_EMT(pVCpu), \
-                                                      ("Not emulation thread! Thread=%RTnthrd ThreadEMT=%RTnthrd idCpu=%#x\n", \
-                                                      RTThreadNativeSelf(), (pVCpu)->hNativeThread, (pVCpu)->idCpu))
+# define VMCPU_ASSERT_EMT(pVCpu) \
+    AssertMsg(VMCPU_IS_EMT(pVCpu), \
+              ("Not emulation thread! Thread=%RTnthrd ThreadEMT=%RTnthrd idCpu=%#x\n", \
+              RTThreadNativeSelf(), (pVCpu)->hNativeThread, (pVCpu)->idCpu))
 #endif
 
 /** @def VM_ASSERT_EMT_RETURN
@@ -977,18 +961,6 @@ typedef struct VM
 #ifdef ___CPUMInternal_h
         struct CPUM s;
 #endif
-#ifdef ___VBox_vmm_cpum_h
-        /** Read only info exposed about the host and guest CPUs.   */
-        struct
-        {
-            /** Padding for hidden fields. */
-            uint8_t                 abHidden0[64];
-            /** Host CPU feature information. */
-            CPUMFEATURES            HostFeatures;
-            /** Guest CPU feature information. */
-            CPUMFEATURES            GuestFeatures;
-        } const ro;
-#endif
         uint8_t     padding[1536];      /* multiple of 64 */
     } cpum;
 
@@ -1136,14 +1108,6 @@ typedef struct VM
         uint8_t     padding[0x11100];   /* multiple of 64 */
     } rem;
 
-    union
-    {
-#ifdef ___GIMInternal_h
-        struct GIM s;
-#endif
-        uint8_t     padding[256];        /* multiple of 64 */
-    } gim;
-
     /* ---- begin small stuff ---- */
 
     /** VM part. */
@@ -1166,7 +1130,7 @@ typedef struct VM
 
 
     /** Padding for aligning the cpu array on a page boundary. */
-    uint8_t         abAlignment2[94];
+    uint8_t         abAlignment2[350];
 
     /* ---- end small stuff ---- */
 

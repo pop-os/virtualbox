@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -28,13 +28,9 @@
 
 #include <VBox/cdefs.h>
 #include <VBox/types.h>
-#include <VBox/err.h>
 #include <iprt/assert.h>
 #include <iprt/stdarg.h>
 #include <iprt/cpuset.h>
-#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
-# include <iprt/asm-amd64-x86.h>
-#endif
 
 RT_C_DECLS_BEGIN
 
@@ -96,7 +92,7 @@ typedef enum SUPPAGINGMODE
 } SUPPAGINGMODE;
 
 
-/** @name Flags returned by SUPR0GetKernelFeatures().
+/** Flags returned by SUPR0GetKernelFeatures().
  * @{
  */
 /** GDT is read-only. */
@@ -173,34 +169,6 @@ typedef SUPDRVTRACERUSRCTX *PSUPDRVTRACERUSRCTX;
 typedef SUPDRVTRACERUSRCTX const *PCSUPDRVTRACERUSRCTX;
 
 /**
- * The result of a modification operation (SUPMSRPROBEROP_MODIFY or
- * SUPMSRPROBEROP_MODIFY_FASTER).
- */
-typedef struct SUPMSRPROBERMODIFYRESULT
-{
-    /** The MSR value prior to the modifications.  Valid if fBeforeGp is false */
-    uint64_t        uBefore;
-    /** The value that was written.  Valid if fBeforeGp is false */
-    uint64_t        uWritten;
-    /** The MSR value after the modifications. Valid if AfterGp is false. */
-    uint64_t        uAfter;
-    /** Set if we GPed reading the MSR before the modification. */
-    bool            fBeforeGp;
-    /** Set if we GPed while trying to write the modified value.
-     * This is set when fBeforeGp is true. */
-    bool            fModifyGp;
-    /** Set if we GPed while trying to read the MSR after the modification.
-     * This is set when fBeforeGp is true. */
-    bool            fAfterGp;
-    /** Set if we GPed while trying to restore the MSR after the modification.
-     * This is set when fBeforeGp is true. */
-    bool            fRestoreGp;
-    /** Structure size alignment padding. */
-    bool            afReserved[4];
-} SUPMSRPROBERMODIFYRESULT, *PSUPMSRPROBERMODIFYRESULT;
-
-
-/**
  * The CPU state.
  */
 typedef enum SUPGIPCPUSTATE
@@ -239,8 +207,6 @@ typedef struct SUPGIPCPU
     volatile uint64_t   u64TSC;
     /** Current CPU Frequency. */
     volatile uint64_t   u64CpuHz;
-    /** The TSC delta with reference to the master TSC, subtract from RDTSC. */
-    volatile int64_t    i64TSCDelta;
     /** Number of errors during updating.
      * Typical errors are under/overflows. */
     volatile uint32_t   cErrors;
@@ -255,13 +221,7 @@ typedef struct SUPGIPCPU
     volatile uint32_t   u32PrevUpdateIntervalNS;
 
     /** Reserved for future per processor data. */
-    volatile uint32_t   au32Reserved0[5];
-
-    /** The TSC value read while doing TSC delta measurements across CPUs. */
-    volatile uint64_t   u64TSCSample;
-
-    /** Reserved for future per processor data. */
-    volatile uint32_t   au32Reserved1[1];
+    volatile uint32_t   au32Reserved[5+5];
 
     /** @todo Add topology/NUMA info. */
     /** The CPU state. */
@@ -282,59 +242,6 @@ AssertCompileMemberAlignment(SUPGIPCPU, u64TSC, 8);
  * @remark there is no const version of this typedef, see g_pSUPGlobalInfoPage for details. */
 typedef SUPGIPCPU *PSUPGIPCPU;
 
-
-/**
- * The rules concerning the applicability of SUPGIPCPU::i64TscDelta.
- */
-typedef enum SUPGIPUSETSCDELTA
-{
-    /** Value for SUPGIPMODE_ASYNC_TSC. */
-    SUPGIPUSETSCDELTA_NOT_APPLICABLE = 0,
-    /** The OS specific part of SUPDrv (or the user) claims the TSC is as
-     * good as zero. */
-    SUPGIPUSETSCDELTA_ZERO_CLAIMED,
-    /** The differences in RDTSC output between the CPUs/cores/threads should
-     * be considered zero for all practical purposes. */
-    SUPGIPUSETSCDELTA_PRACTICALLY_ZERO,
-    /** The differences in RDTSC output between the CPUs/cores/threads are a few
-     * hundred ticks or less.  (Probably not worth calling ASMGetApicId two times
-     * just to apply deltas.) */
-    SUPGIPUSETSCDELTA_ROUGHLY_ZERO,
-    /** Significant differences in RDTSC output between the CPUs/cores/threads,
-     * deltas must be applied. */
-    SUPGIPUSETSCDELTA_NOT_ZERO,
-    /** End of valid values (exclusive). */
-    SUPGIPUSETSCDELTA_END,
-    /** Make sure the type is 32-bit sized. */
-    SUPGIPUSETSCDELTA_32BIT_HACK = 0x7fffffff
-} SUPGIPUSETSCDELTA;
-
-
-/** @name SUPGIPGETCPU_XXX - methods that aCPUs can be indexed.
- * @{
- */
-/** Use ASMGetApicId (or equivalent) and translate the result via
- *  aiCpuFromApicId. */
-#define SUPGIPGETCPU_APIC_ID                        RT_BIT_32(0)
-/** Use RDTSCP and translate the first RTCPUSET_MAX_CPUS of ECX via
- * aiCpuFromCpuSetIdx.
- *
- * Linux stores the RTMpCpuId() value in ECX[11:0] and NUMA node number in
- * ECX[12:31].  Solaris only stores RTMpCpuId() in ECX.  On both systems
- * RTMpCpuId() == RTMpCpuIdToSetIndex(RTMpCpuId()).  RTCPUSET_MAX_CPUS is
- * currently 64, 256 or 1024 in size, which lower than
- * 4096, so there shouldn't be any range issues. */
-#define SUPGIPGETCPU_RDTSCP_MASK_MAX_SET_CPUS       RT_BIT_32(1)
-/** Subtract the max IDT size from IDTR.LIMIT, extract the
- * first RTCPUSET_MAX_CPUS and translate it via aiCpuFromCpuSetIdx.
- *
- * Darwin stores the RTMpCpuId() (== RTMpCpuIdToSetIndex(RTMpCpuId()))
- * value in the IDT limit.  The masking is a precaution against what linux
- * does with RDTSCP. */
-#define SUPGIPGETCPU_IDTR_LIMIT_MASK_MAX_SET_CPUS   RT_BIT_32(2)
-/* Linux also offers information via selector 0x78, but we'll settle for
-   RDTSCP for now. */
-/** @} */
 
 
 /**
@@ -364,8 +271,6 @@ typedef struct SUPGLOBALINFOPAGE
     volatile uint32_t   u32UpdateIntervalNS;
     /** The timestamp of the last time we update the update frequency. */
     volatile uint64_t   u64NanoTSLastUpdateHz;
-    /** The TSC frequency of the system. */
-    uint64_t            u64CpuHz;
     /** The set of online CPUs. */
     RTCPUSET            OnlineCpuSet;
     /** The set of present CPUs. */
@@ -378,17 +283,13 @@ typedef struct SUPGLOBALINFOPAGE
     volatile uint16_t   cPresentCpus;
     /** The highest number of CPUs possible. */
     uint16_t            cPossibleCpus;
+    /** The highest number of CPUs possible. */
     uint16_t            u16Padding0;
     /** The max CPU ID (RTMpGetMaxCpuId). */
     RTCPUID             idCpuMax;
-    /** The applicability of SUPGIPCPU::i64TscDelta. */
-    SUPGIPUSETSCDELTA   enmUseTscDelta;
-    /** Mask of SUPGIPGETCPU_XXX values that indicates different ways that aCPU
-     * can be accessed from ring-3 and raw-mode context. */
-    uint32_t            fGetGipCpu;
 
     /** Padding / reserved space for future data. */
-    uint32_t            au32Padding1[25];
+    uint32_t            au32Padding1[29];
 
     /** Table indexed by the CPU APIC ID to get the CPU table index. */
     uint16_t            aiCpuFromApicId[256];
@@ -398,10 +299,9 @@ typedef struct SUPGLOBALINFOPAGE
     /** Array of per-cpu data.
      * This is index by ApicId via the aiCpuFromApicId table.
      *
-     * The clock and frequency information is updated for all CPUs if @c u32Mode
-     * is SUPGIPMODE_ASYNC_TSC. If @c u32Mode is SUPGIPMODE_SYNC_TSC only the first
-     * entry is updated. If @c u32Mode is SUPGIPMODE_SYNC_TSC the TSC frequency in
-     * @c u64CpuHz is copied to all CPUs. */
+     * The clock and frequency information is updated for all CPUs if u32Mode
+     * is SUPGIPMODE_ASYNC_TSC, otherwise (SUPGIPMODE_SYNC_TSC) only the first
+     * entry is updated. */
     SUPGIPCPU           aCPUs[1];
 } SUPGLOBALINFOPAGE;
 AssertCompileMemberAlignment(SUPGLOBALINFOPAGE, u64NanoTSLastUpdateHz, 8);
@@ -421,7 +321,7 @@ typedef SUPGLOBALINFOPAGE *PSUPGLOBALINFOPAGE;
 /** The GIP version.
  * Upper 16 bits is the major version. Major version is only changed with
  * incompatible changes in the GIP. */
-#define SUPGLOBALINFOPAGE_VERSION   0x00060000
+#define SUPGLOBALINFOPAGE_VERSION   0x00030000
 
 /**
  * SUPGLOBALINFOPAGE::u32Mode values.
@@ -434,10 +334,6 @@ typedef enum SUPGIPMODE
     SUPGIPMODE_SYNC_TSC,
     /** Each core has it's own TSC. */
     SUPGIPMODE_ASYNC_TSC,
-    /** The TSC of the cores are non-stop and have a constant frequency. */
-    SUPGIPMODE_INVARIANT_TSC,
-    /** End of valid GIP mode values (exclusive). */
-    SUPGIPMODE_END,
     /** The usual 32-bit hack. */
     SUPGIPMODE_32BIT_HACK = 0x7fffffff
 } SUPGIPMODE;
@@ -454,7 +350,7 @@ typedef enum SUPGIPMODE
  *          thinking that values doesn't change even if members are marked
  *          as volatile. Thus, there is no PCSUPGLOBALINFOPAGE type.
  */
-#if defined(IN_SUP_R3) || defined(IN_SUP_R0)
+#if defined(IN_SUP_R0) || defined(IN_SUP_R3) || defined(IN_SUP_RC)
 extern DECLEXPORT(PSUPGLOBALINFOPAGE)   g_pSUPGlobalInfoPage;
 
 #elif !defined(IN_RING0) || defined(RT_OS_WINDOWS) || defined(RT_OS_SOLARIS)
@@ -488,232 +384,32 @@ extern DECLIMPORT(SUPGLOBALINFOPAGE)    g_SUPGlobalInfoPage;
  */
 SUPDECL(PSUPGLOBALINFOPAGE)             SUPGetGIP(void);
 
-
-/** @internal  */
-SUPDECL(uint64_t) SUPGetCpuHzFromGipForAsyncMode(PSUPGLOBALINFOPAGE pGip);
-
+#ifdef ___iprt_asm_amd64_x86_h
 /**
  * Gets the TSC frequency of the calling CPU.
  *
- * @returns TSC frequency, UINT64_MAX on failure (asserted).
+ * @returns TSC frequency, UINT64_MAX on failure.
  * @param   pGip        The GIP pointer.
  */
-DECLINLINE(uint64_t) SUPGetCpuHzFromGip(PSUPGLOBALINFOPAGE pGip)
+DECLINLINE(uint64_t) SUPGetCpuHzFromGIP(PSUPGLOBALINFOPAGE pGip)
 {
-    if (RT_LIKELY(   pGip
-                  && pGip->u32Magic == SUPGLOBALINFOPAGE_MAGIC))
+    unsigned iCpu;
+
+    if (RT_UNLIKELY(!pGip || pGip->u32Magic != SUPGLOBALINFOPAGE_MAGIC))
+        return UINT64_MAX;
+
+    if (pGip->u32Mode != SUPGIPMODE_ASYNC_TSC)
+        iCpu = 0;
+    else
     {
-        switch (pGip->u32Mode)
-        {
-            case SUPGIPMODE_INVARIANT_TSC:
-            case SUPGIPMODE_SYNC_TSC:
-                return pGip->aCPUs[0].u64CpuHz;
-            case SUPGIPMODE_ASYNC_TSC:
-                return SUPGetCpuHzFromGipForAsyncMode(pGip);
-            default: break; /* shut up gcc */
-        }
+        iCpu = pGip->aiCpuFromApicId[ASMGetApicId()];
+        if (iCpu >= pGip->cCpus)
+            return UINT64_MAX;
     }
-    AssertFailed();
-    return UINT64_MAX;
-}
 
-
-/**
- * Gets the TSC frequency of the specified CPU.
- *
- * @returns TSC frequency, UINT64_MAX on failure (asserted).
- * @param   pGip        The GIP pointer.
- * @param   iCpuSet     The CPU set index of the CPU in question.
- */
-DECLINLINE(uint64_t) SUPGetCpuHzFromGipBySetIndex(PSUPGLOBALINFOPAGE pGip, uint32_t iCpuSet)
-{
-    if (RT_LIKELY(   pGip
-                  && pGip->u32Magic == SUPGLOBALINFOPAGE_MAGIC))
-    {
-        switch (pGip->u32Mode)
-        {
-            case SUPGIPMODE_INVARIANT_TSC:
-            case SUPGIPMODE_SYNC_TSC:
-                return pGip->aCPUs[0].u64CpuHz;
-            case SUPGIPMODE_ASYNC_TSC:
-                if (RT_LIKELY(iCpuSet < RT_ELEMENTS(pGip->aiCpuFromCpuSetIdx)))
-                {
-                    uint16_t iCpu = pGip->aiCpuFromCpuSetIdx[iCpuSet];
-                    if (RT_LIKELY(iCpu < pGip->cCpus))
-                        return pGip->aCPUs[iCpu].u64CpuHz;
-                }
-                break;
-            default: break; /* shut up gcc */
-        }
-    }
-    AssertFailed();
-    return UINT64_MAX;
-}
-
-
-#if 0 /* Not used anywhere.  Unsure where this would be useful. */
-/**
- * Checks if the provided TSC frequency is close enough to the computed TSC
- * frequency of the host.
- *
- * @returns true if it's compatible, false otherwise.
- */
-DECLINLINE(bool) SUPIsTscFreqCompatible(uint64_t u64CpuHz)
-{
-    PSUPGLOBALINFOPAGE pGip = g_pSUPGlobalInfoPage;
-    if (   pGip
-        && pGip->u32Mode == SUPGIPMODE_INVARIANT_TSC)
-    {
-        if (pGip->u64CpuHz != u64CpuHz)
-        {
-            /* Arbitrary tolerance threshold, tweak later if required, perhaps
-               more tolerance on lower frequencies and less tolerance on higher. */
-            uint64_t uLo = (pGip->u64CpuHz << 10) / 1025;
-            uint64_t uHi = pGip->u64CpuHz + (pGip->u64CpuHz - uLo);
-            if (   u64CpuHz < uLo
-                || u64CpuHz > uHi)
-                return false;
-        }
-        return true;
-    }
-    return false;
+    return pGip->aCPUs[iCpu].u64CpuHz;
 }
 #endif
-
-#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
-
-/** @internal */
-SUPDECL(uint64_t) SUPReadTscWithDelta(PSUPGLOBALINFOPAGE pGip);
-
-/**
- * Read the host TSC value and applies the TSC delta if appropriate.
- *
- * @returns the TSC value.
- * @remarks Requires GIP to be initialized and valid.
- */
-DECLINLINE(uint64_t) SUPReadTsc(void)
-{
-    PSUPGLOBALINFOPAGE pGip = g_pSUPGlobalInfoPage;
-    if (pGip->enmUseTscDelta <= SUPGIPUSETSCDELTA_ROUGHLY_ZERO)
-        return ASMReadTSC();
-    return SUPReadTscWithDelta(pGip);
-}
-
-#endif /* X86 || AMD64 */
-
-/** @internal */
-SUPDECL(uint64_t) SUPGetTscDeltaSlow(PSUPGLOBALINFOPAGE pGip);
-
-/**
- * Gets the TSC delta for the current CPU.
- *
- * @returns The TSC delta value (will not return the special INT64_MAX value).
- * @remarks Requires GIP to be initialized and valid.
- */
-DECLINLINE(int64_t) SUPGetTscDelta(void)
-{
-    PSUPGLOBALINFOPAGE pGip = g_pSUPGlobalInfoPage;
-    if (pGip->enmUseTscDelta <= SUPGIPUSETSCDELTA_ROUGHLY_ZERO)
-        return 0;
-    return SUPGetTscDeltaSlow(pGip);
-}
-
-
-/**
- * Gets the TSC delta for a given CPU.
- *
- * @returns The TSC delta value (will not return the special INT64_MAX value).
- * @param   iCpuSet         The CPU set index of the CPU which TSC delta we want.
- * @remarks Requires GIP to be initialized and valid.
- */
-DECLINLINE(int64_t) SUPGetTscDeltaByCpuSetIndex(uint32_t iCpuSet)
-{
-    PSUPGLOBALINFOPAGE pGip = g_pSUPGlobalInfoPage;
-    if (pGip->enmUseTscDelta <= SUPGIPUSETSCDELTA_ROUGHLY_ZERO)
-        return 0;
-    if (RT_LIKELY(iCpuSet < RT_ELEMENTS(pGip->aiCpuFromCpuSetIdx)))
-    {
-        uint16_t iCpu = pGip->aiCpuFromCpuSetIdx[iCpuSet];
-        if (RT_LIKELY(iCpu < pGip->cCpus))
-        {
-            int64_t iTscDelta = pGip->aCPUs[iCpu].i64TSCDelta;
-            if (iTscDelta != INT64_MAX)
-                return iTscDelta;
-        }
-    }
-    AssertFailed();
-    return 0;
-}
-
-
-/**
- * Checks if the TSC delta is available for a given CPU (if TSC-deltas are
- * relevant).
- *
- * @returns true if it's okay to read the TSC, false otherwise.
- *
- * @param   iCpuSet   The CPU set index of the CPU which TSC delta we check.
- * @remarks Requires GIP to be initialized and valid.
- */
-DECLINLINE(bool) SUPIsTscDeltaAvailableForCpuSetIndex(uint32_t iCpuSet)
-{
-    PSUPGLOBALINFOPAGE pGip = g_pSUPGlobalInfoPage;
-    if (pGip->enmUseTscDelta <= SUPGIPUSETSCDELTA_ROUGHLY_ZERO)
-        return true;
-    if (RT_LIKELY(iCpuSet < RT_ELEMENTS(pGip->aiCpuFromCpuSetIdx)))
-    {
-        uint16_t iCpu = pGip->aiCpuFromCpuSetIdx[iCpuSet];
-        if (RT_LIKELY(iCpu < pGip->cCpus))
-        {
-            int64_t iTscDelta = pGip->aCPUs[iCpu].i64TSCDelta;
-            if (iTscDelta != INT64_MAX)
-                return true;
-        }
-    }
-    return false;
-}
-
-
-/**
- * Gets the descriptive GIP mode name.
- *
- * @returns The name.
- * @param   pGip      Pointer to the GIP.
- */
-DECLINLINE(const char *) SUPGetGIPModeName(PSUPGLOBALINFOPAGE pGip)
-{
-    AssertReturn(pGip, NULL);
-    switch (pGip->u32Mode)
-    {
-        case SUPGIPMODE_INVARIANT_TSC:  return "Invariant";
-        case SUPGIPMODE_SYNC_TSC:       return "Synchronous";
-        case SUPGIPMODE_ASYNC_TSC:      return "Asynchronous";
-        case SUPGIPMODE_INVALID:        return "Invalid";
-        default:                        return "???";
-    }
-}
-
-
-/**
- * Gets the descriptive TSC-delta enum name.
- *
- * @returns The name.
- * @param   pGip      Pointer to the GIP.
- */
-DECLINLINE(const char *) SUPGetGIPTscDeltaModeName(PSUPGLOBALINFOPAGE pGip)
-{
-    AssertReturn(pGip, NULL);
-    switch (pGip->enmUseTscDelta)
-    {
-        case SUPGIPUSETSCDELTA_NOT_APPLICABLE:   return "Not Applicable";
-        case SUPGIPUSETSCDELTA_ZERO_CLAIMED:     return "Zero Claimed";
-        case SUPGIPUSETSCDELTA_PRACTICALLY_ZERO: return "Pratically Zero";
-        case SUPGIPUSETSCDELTA_ROUGHLY_ZERO:     return "Roughly Zero";
-        case SUPGIPUSETSCDELTA_NOT_ZERO:         return "Not Zero";
-        default:                                 return "???";
-    }
-}
-
 
 /**
  * Request for generic VMMR0Entry calls.
@@ -737,7 +433,7 @@ typedef SUPVMMR0REQHDR *PSUPVMMR0REQHDR;
 /** @see VMMR0_DO_RAW_RUN. */
 #define SUP_VMMR0_DO_RAW_RUN    0
 /** @see VMMR0_DO_HM_RUN. */
-#define SUP_VMMR0_DO_HM_RUN     1
+#define SUP_VMMR0_DO_HM_RUN  1
 /** @see VMMR0_DO_NOP */
 #define SUP_VMMR0_DO_NOP        2
 /** @} */
@@ -745,14 +441,9 @@ typedef SUPVMMR0REQHDR *PSUPVMMR0REQHDR;
 /** SUPR3QueryVTCaps capability flags
  * @{
  */
-/** AMD-V support. */
-#define SUPVTCAPS_AMD_V                     RT_BIT(0)
-/** VT-x support. */
-#define SUPVTCAPS_VT_X                      RT_BIT(1)
-/** Nested paging is supported. */
-#define SUPVTCAPS_NESTED_PAGING             RT_BIT(2)
-/** VT-x: Unrestricted guest execution is supported. */
-#define SUPVTCAPS_VTX_UNRESTRICTED_GUEST    RT_BIT(3)
+#define SUPVTCAPS_AMD_V             RT_BIT(0)
+#define SUPVTCAPS_VT_X              RT_BIT(1)
+#define SUPVTCAPS_NESTED_PAGING     RT_BIT(2)
 /** @} */
 
 /**
@@ -965,6 +656,7 @@ SUPDECL(uint32_t) SUPSemEventMultiGetResolution(PSUPDRVSESSION pSession);
 #ifdef IN_RING3
 
 /** @defgroup   grp_sup_r3     SUP Host Context Ring-3 API
+ * @ingroup grp_sup
  * @{
  */
 
@@ -1651,65 +1343,6 @@ SUPR3DECL(int) SUPR3TracerDeregisterModule(struct VTGOBJHDR *pVtgHdr);
  */
 SUPDECL(void)  SUPTracerFireProbe(struct VTGPROBELOC *pVtgProbeLoc, uintptr_t uArg0, uintptr_t uArg1, uintptr_t uArg2,
                                   uintptr_t uArg3, uintptr_t uArg4);
-
-
-/**
- * Attempts to read the value of an MSR.
- *
- * @returns VBox status code.
- * @param   uMsr                The MSR to read.
- * @param   idCpu               The CPU to read it on, NIL_RTCPUID if it doesn't
- *                              matter which CPU.
- * @param   puValue             Where to return the value.
- * @param   pfGp                Where to store the \#GP indicator for the read
- *                              operation.
- */
-SUPR3DECL(int) SUPR3MsrProberRead(uint32_t uMsr, RTCPUID idCpu, uint64_t *puValue, bool *pfGp);
-
-/**
- * Attempts to write to an MSR.
- *
- * @returns VBox status code.
- * @param   uMsr                The MSR to write to.
- * @param   idCpu               The CPU to wrtie it on, NIL_RTCPUID if it
- *                              doesn't matter which CPU.
- * @param   uValue              The value to write.
- * @param   pfGp                Where to store the \#GP indicator for the write
- *                              operation.
- */
-SUPR3DECL(int) SUPR3MsrProberWrite(uint32_t uMsr, RTCPUID idCpu, uint64_t uValue, bool *pfGp);
-
-/**
- * Attempts to modify the value of an MSR.
- *
- * @returns VBox status code.
- * @param   uMsr                The MSR to modify.
- * @param   idCpu               The CPU to modify it on, NIL_RTCPUID if it
- *                              doesn't matter which CPU.
- * @param   fAndMask            The bits to keep in the current MSR value.
- * @param   fOrMask             The bits to set before writing.
- * @param   pResult             The result buffer.
- */
-SUPR3DECL(int) SUPR3MsrProberModify(uint32_t uMsr, RTCPUID idCpu, uint64_t fAndMask, uint64_t fOrMask,
-                                    PSUPMSRPROBERMODIFYRESULT pResult);
-
-/**
- * Attempts to modify the value of an MSR, extended version.
- *
- * @returns VBox status code.
- * @param   uMsr                The MSR to modify.
- * @param   idCpu               The CPU to modify it on, NIL_RTCPUID if it
- *                              doesn't matter which CPU.
- * @param   fAndMask            The bits to keep in the current MSR value.
- * @param   fOrMask             The bits to set before writing.
- * @param   fFaster             If set to @c true some cache/tlb invalidation is
- *                              skipped, otherwise behave like
- *                              SUPR3MsrProberModify.
- * @param   pResult             The result buffer.
- */
-SUPR3DECL(int) SUPR3MsrProberModifyEx(uint32_t uMsr, RTCPUID idCpu, uint64_t fAndMask, uint64_t fOrMask, bool fFaster,
-                                      PSUPMSRPROBERMODIFYRESULT pResult);
-
 /**
  * Resume built-in keyboard on MacBook Air and Pro hosts.
  *
@@ -1717,36 +1350,8 @@ SUPR3DECL(int) SUPR3MsrProberModifyEx(uint32_t uMsr, RTCPUID idCpu, uint64_t fAn
  */
 SUPR3DECL(int) SUPR3ResumeSuspendedKeyboards(void);
 
-
-/**
- * Measure the TSC-delta for the specified CPU.
- *
- * @returns VBox status code.
- * @param   idCpu               The CPU to measure the TSC-delta for.
- * @param   fAsync              Whether the measurement is asynchronous, returns
- *                              immediately after signalling a measurement
- *                              request.
- * @param   fForce              Whether to perform a measurement even if the
- *                              specified CPU has a (possibly) valid TSC delta.
- * @param   cRetries            Number of times to retry failed delta
- *                              measurements.
- * @param   cMsWaitRetry        Number of milliseconds to wait between retries.
- */
-SUPR3DECL(int) SUPR3TscDeltaMeasure(RTCPUID idCpu, bool fAsync, bool fForce, uint8_t cRetries, uint8_t cMsWaitRetry);
-
-/**
- * Reads the delta-adjust TSC value.
- *
- * @returns VBox status code.
- * @param   puTsc           Where to store the read TSC value.
- * @param   pidApic         Where to store the APIC ID of the CPU where the TSC
- *                          was read (optional, can be NULL).
- */
-SUPR3DECL(int) SUPR3ReadTsc(uint64_t *puTsc, uint16_t *pidApic);
-
 /** @} */
 #endif /* IN_RING3 */
-
 
 /** @name User mode module flags (SUPR3TracerRegisterModule & SUP_IOCTL_TRACER_UMOD_REG).
  * @{ */
@@ -1761,6 +1366,7 @@ SUPR3DECL(int) SUPR3ReadTsc(uint64_t *puTsc, uint16_t *pidApic);
 
 #ifdef IN_RING0
 /** @defgroup   grp_sup_r0     SUP Host Context Ring-0 API
+ * @ingroup grp_sup
  * @{
  */
 
@@ -1821,8 +1427,6 @@ SUPR0DECL(int) SUPR0PageMapKernel(PSUPDRVSESSION pSession, RTR3PTR pvR3, uint32_
 SUPR0DECL(int) SUPR0PageProtect(PSUPDRVSESSION pSession, RTR3PTR pvR3, RTR0PTR pvR0, uint32_t offSub, uint32_t cbSub, uint32_t fProt);
 SUPR0DECL(int) SUPR0PageFree(PSUPDRVSESSION pSession, RTR3PTR pvR3);
 SUPR0DECL(int) SUPR0GipMap(PSUPDRVSESSION pSession, PRTR3PTR ppGipR3, PRTHCPHYS pHCPhysGip);
-SUPR0DECL(int) SUPR0GetSvmUsability(bool fInitSvm);
-SUPR0DECL(int) SUPR0GetVmxUsability(bool *pfIsSmxModeAmbiguous);
 SUPR0DECL(int) SUPR0QueryVTCaps(PSUPDRVSESSION pSession, uint32_t *pfCaps);
 SUPR0DECL(int) SUPR0GipUnmap(PSUPDRVSESSION pSession);
 SUPR0DECL(int) SUPR0Printf(const char *pszFormat, ...);
@@ -1832,11 +1436,6 @@ SUPR0DECL(RTCCUINTREG) SUPR0ChangeCR4(RTCCUINTREG fOrMask, RTCCUINTREG fAndMask)
 SUPR0DECL(int) SUPR0EnableVTx(bool fEnable);
 SUPR0DECL(bool) SUPR0SuspendVTxOnCpu(void);
 SUPR0DECL(void) SUPR0ResumeVTxOnCpu(bool fSuspended);
-#define SUP_TSCDELTA_MEASURE_F_FORCE        RT_BIT_32(0)
-#define SUP_TSCDELTA_MEASURE_F_ASYNC        RT_BIT_32(1)
-#define SUP_TSCDELTA_MEASURE_F_VALID_MASK   UINT32_C(0x00000003)
-SUPR0DECL(int) SUPR0TscDeltaMeasureBySetIndex(PSUPDRVSESSION pSession, uint32_t iCpuSet, uint32_t fFlags,
-                                              RTMSINTERVAL cMsWaitRetry, RTMSINTERVAL cMsWaitThread, uint32_t cTries);
 
 /** @name Absolute symbols
  * Take the address of these, don't try call them.
@@ -2163,6 +1762,7 @@ typedef R0PTRTYPE(FNSUPR0SERVICEREQHANDLER *) PFNSUPR0SERVICEREQHANDLER;
 
 
 /** @defgroup   grp_sup_r0_idc  The IDC Interface
+ * @ingroup grp_sup_r0
  * @{
  */
 

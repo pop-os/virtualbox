@@ -1,6 +1,8 @@
 /* $Id: VBoxGuestRAMSlider.cpp $ */
 /** @file
- * VBox Qt GUI - VirtualBox Qt extensions: VBoxGuestRAMSlider class implementation.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * VirtualBox Qt extensions: VBoxGuestRAMSlider class implementation
  */
 
 /*
@@ -15,19 +17,12 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* GUI includes: */
-# include "VBoxGuestRAMSlider.h"
-# include "VBoxGlobal.h"
+#include "VBoxGuestRAMSlider.h"
+#include "VBoxGlobal.h"
 
 /* COM includes: */
-# include "CSystemProperties.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
+#include "CSystemProperties.h"
 
 VBoxGuestRAMSlider::VBoxGuestRAMSlider (QWidget *aParent /* = 0 */)
   : QIAdvancedSlider (aParent)

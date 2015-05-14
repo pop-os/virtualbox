@@ -1,6 +1,8 @@
 /* $Id: UIGMachinePreview.cpp $ */
 /** @file
- * VBox Qt GUI - UIGMachinePreview class implementation.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * UIGMachinePreview class implementation
  */
 
 /*
@@ -15,89 +17,75 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QGraphicsSceneContextMenuEvent>
-# include <QMenu>
-# include <QPainter>
-# include <QTimer>
+#include <QGraphicsSceneContextMenuEvent>
+#include <QMenu>
+#include <QPainter>
+#include <QTimer>
 
 /* GUI includes: */
-# include "UIGMachinePreview.h"
-# include "UIVirtualBoxEventHandler.h"
-# include "UIExtraDataManager.h"
-# include "UIImageTools.h"
-# include "UIConverter.h"
-# include "UIIconPool.h"
-# include "VBoxGlobal.h"
+#include "UIGMachinePreview.h"
+#include "UIVirtualBoxEventHandler.h"
+#include "UIImageTools.h"
+#include "VBoxGlobal.h"
 
 /* COM includes: */
-# include "CConsole.h"
-# include "CDisplay.h"
+#include "CConsole.h"
+#include "CDisplay.h"
 
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
-/* VirtualBox interface declarations: */
-#ifndef VBOX_WITH_XPCOM
-# include "VirtualBox.h"
-#else /* !VBOX_WITH_XPCOM */
-# include "VirtualBox_XPCOM.h"
-#endif /* VBOX_WITH_XPCOM */
+UpdateIntervalMap CreateUpdateIntervalMap()
+{
+    UpdateIntervalMap map;
+    map[UpdateInterval_Disabled] = "disabled";
+    map[UpdateInterval_500ms]    = "500";
+    map[UpdateInterval_1000ms]   = "1000";
+    map[UpdateInterval_2000ms]   = "2000";
+    map[UpdateInterval_5000ms]   = "5000";
+    map[UpdateInterval_10000ms]  = "10000";
+    return map;
+}
+UpdateIntervalMap UIGMachinePreview::m_intervals = CreateUpdateIntervalMap();
 
 UIGMachinePreview::UIGMachinePreview(QIGraphicsWidget *pParent)
     : QIWithRetranslateUI4<QIGraphicsWidget>(pParent)
     , m_pUpdateTimer(new QTimer(this))
     , m_pUpdateTimerMenu(0)
     , m_iMargin(0)
-    , m_preset(AspectRatioPreset_16x9)
+    , m_pbgEmptyImage(0)
+    , m_pbgFullImage(0)
     , m_pPreviewImg(0)
 {
+    /* Setup contents: */
+    setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+
     /* Create session instance: */
     m_session.createInstance(CLSID_Session);
 
-    /* Cache aspect-ratio preset settings: */
-    const QIcon empty16x10 = UIIconPool::iconSet(":/preview_empty_16to10_242x167px.png");
-    const QIcon empty16x9 = UIIconPool::iconSet(":/preview_empty_16to9_242x155px.png");
-    const QIcon empty4x3 = UIIconPool::iconSet(":/preview_empty_4to3_242x192px.png");
-    const QIcon full16x10 = UIIconPool::iconSet(":/preview_full_16to10_242x167px.png");
-    const QIcon full16x9 = UIIconPool::iconSet(":/preview_full_16to9_242x155px.png");
-    const QIcon full4x3 = UIIconPool::iconSet(":/preview_full_4to3_242x192px.png");
-    m_sizes.insert(AspectRatioPreset_16x10, empty16x10.availableSizes().first());
-    m_sizes.insert(AspectRatioPreset_16x9, empty16x9.availableSizes().first());
-    m_sizes.insert(AspectRatioPreset_4x3, empty4x3.availableSizes().first());
-    m_ratios.insert(AspectRatioPreset_16x10, (double)16/10);
-    m_ratios.insert(AspectRatioPreset_16x9, (double)16/9);
-    m_ratios.insert(AspectRatioPreset_4x3, (double)4/3);
-    m_emptyPixmaps.insert(AspectRatioPreset_16x10, new QPixmap(empty16x10.pixmap(m_sizes.value(AspectRatioPreset_16x10))));
-    m_emptyPixmaps.insert(AspectRatioPreset_16x9, new QPixmap(empty16x9.pixmap(m_sizes.value(AspectRatioPreset_16x9))));
-    m_emptyPixmaps.insert(AspectRatioPreset_4x3, new QPixmap(empty4x3.pixmap(m_sizes.value(AspectRatioPreset_4x3))));
-    m_fullPixmaps.insert(AspectRatioPreset_16x10, new QPixmap(full16x10.pixmap(m_sizes.value(AspectRatioPreset_16x10))));
-    m_fullPixmaps.insert(AspectRatioPreset_16x9, new QPixmap(full16x9.pixmap(m_sizes.value(AspectRatioPreset_16x9))));
-    m_fullPixmaps.insert(AspectRatioPreset_4x3, new QPixmap(full4x3.pixmap(m_sizes.value(AspectRatioPreset_4x3))));
-
-    /* Setup contents (depends on presets above!): */
-    setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    /* Create bg images: */
+    m_pbgEmptyImage = new QPixmap(":/preview_empty_228x168px.png");
+    m_pbgFullImage = new QPixmap(":/preview_full_228x168px.png");
 
     /* Create the context menu: */
     m_pUpdateTimerMenu = new QMenu;
     QActionGroup *pUpdateTimeG = new QActionGroup(this);
     pUpdateTimeG->setExclusive(true);
-    for(int i = 0; i < PreviewUpdateIntervalType_Max; ++i)
+    for(int i = 0; i < UpdateInterval_Max; ++i)
     {
         QAction *pUpdateTime = new QAction(pUpdateTimeG);
         pUpdateTime->setData(i);
         pUpdateTime->setCheckable(true);
         pUpdateTimeG->addAction(pUpdateTime);
         m_pUpdateTimerMenu->addAction(pUpdateTime);
-        m_actions[static_cast<PreviewUpdateIntervalType>(i)] = pUpdateTime;
+        m_actions[static_cast<UpdateInterval>(i)] = pUpdateTime;
     }
-    m_pUpdateTimerMenu->insertSeparator(m_actions[static_cast<PreviewUpdateIntervalType>(PreviewUpdateIntervalType_500ms)]);
+    m_pUpdateTimerMenu->insertSeparator(m_actions[static_cast<UpdateInterval>(UpdateInterval_500ms)]);
 
+    /* Load preview update interval: */
+    QString strInterval = vboxGlobal().virtualBox().GetExtraData(GUI_PreviewUpdate);
+    /* Parse loaded value: */
+    UpdateInterval interval = m_intervals.key(strInterval, UpdateInterval_1000ms);
     /* Initialize with the new update interval: */
-    setUpdateInterval(gEDataManager->selectorWindowPreviewUpdateInterval(), false);
+    setUpdateInterval(interval, false);
 
     /* Setup connections: */
     connect(m_pUpdateTimer, SIGNAL(timeout()), this, SLOT(sltRecreatePreview()));
@@ -113,24 +101,10 @@ UIGMachinePreview::~UIGMachinePreview()
     /* Close any open session: */
     if (m_session.GetState() == KSessionState_Locked)
         m_session.UnlockMachine();
-
-    /* Destroy background images: */
-    foreach (const AspectRatioPreset &preset, m_emptyPixmaps.keys())
-    {
-        delete m_emptyPixmaps.value(preset);
-        m_emptyPixmaps.remove(preset);
-    }
-    foreach (const AspectRatioPreset &preset, m_fullPixmaps.keys())
-    {
-        delete m_fullPixmaps.value(preset);
-        m_fullPixmaps.remove(preset);
-    }
-
-    /* Destroy preview image: */
+    delete m_pbgEmptyImage;
+    delete m_pbgFullImage;
     if (m_pPreviewImg)
         delete m_pPreviewImg;
-
-    /* Destroy update timer: */
     if (m_pUpdateTimerMenu)
         delete m_pUpdateTimerMenu;
 }
@@ -170,145 +144,99 @@ void UIGMachinePreview::sltMachineStateChange(QString strId)
 
 void UIGMachinePreview::sltRecreatePreview()
 {
-    /* Skip invisible preview: */
+    /* Only do this if we are visible: */
     if (!isVisible())
         return;
 
-    /* Cleanup previous image: */
+    /* Cleanup preview first: */
     if (m_pPreviewImg)
     {
         delete m_pPreviewImg;
         m_pPreviewImg = 0;
     }
 
-    /* Fetch actual machine-state: */
-    const KMachineState machineState = m_machine.isNull() ? KMachineState_Null : m_machine.GetState();
+    /* Fetch the latest machine-state: */
+    KMachineState machineState = m_machine.isNull() ? KMachineState_Null : m_machine.GetState();
 
     /* We are creating preview only for assigned and accessible VMs: */
     if (!m_machine.isNull() && machineState != KMachineState_Null &&
         m_vRect.width() > 0 && m_vRect.height() > 0)
     {
-        /* Prepare image: */
-        QImage image;
+        QImage image(size().toSize(), QImage::Format_ARGB32);
+        image.fill(Qt::transparent);
+        QPainter painter(&image);
+        bool fDone = false;
 
-        /* Use 10x9 as the aspect-ratio preset by default: */
-        AspectRatioPreset preset = AspectRatioPreset_16x9;
-
-        /* Preview update enabled? */
+        /* Preview enabled? */
         if (m_pUpdateTimer->interval() > 0)
         {
-            /* Depending on machine state: */
-            switch (machineState)
+            /* Use the image which may be included in the save state. */
+            if (machineState == KMachineState_Saved || machineState == KMachineState_Restoring)
             {
-                /* If machine is in SAVED/RESTORING state: */
-                case KMachineState_Saved:
-                case KMachineState_Restoring:
+                ULONG width = 0, height = 0;
+                QVector<BYTE> screenData = m_machine.ReadSavedScreenshotPNGToArray(0, width, height);
+                if (screenData.size() != 0)
                 {
-                    /* Use the screenshot from saved-state if possible: */
-                    ULONG uGuestWidth = 0, uGuestHeight = 0;
-                    QVector<BYTE> screenData = m_machine.ReadSavedScreenshotPNGToArray(0, uGuestWidth, uGuestHeight);
-
-                    /* Make sure screen-data is OK: */
-                    if (!m_machine.isOk() || screenData.isEmpty())
-                        break;
-
-                    /* Calculate aspect-ratio: */
-                    double dAspectRatio = (double)uGuestWidth / uGuestHeight;
-                    /* Look for the best aspect-ratio preset: */
-                    preset = bestAspectRatioPreset(dAspectRatio, m_ratios);
-
-                    /* Create image based on shallow copy or screenshot data,
-                     * scale image down if necessary to the size possible to reflect: */
-                    image = QImage::fromData(screenData.data(), screenData.size(), "PNG")
-                            .scaled(imageAspectRatioSize(m_vRect.size(), QSize(uGuestWidth, uGuestHeight)),
-                                    Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
-                    /* And detach that copy to make it deep: */
-                    image.detach();
-                    /* Dim image to give it required look: */
-                    dimImage(image);
-                    break;
+                    QImage shot = QImage::fromData(screenData.data(), screenData.size(), "PNG")
+                                  .scaled(m_vRect.size(), Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+                    dimImage(shot);
+                    painter.drawImage(m_vRect.x(), m_vRect.y(), shot);
+                    fDone = true;
                 }
-                /* If machine is in RUNNING/PAUSED state: */
-                case KMachineState_Running:
-                case KMachineState_Paused:
+            }
+            /* Use the current VM output. */
+            else if (machineState == KMachineState_Running || machineState == KMachineState_Paused)
+            {
+                if (m_session.GetState() == KSessionState_Locked)
                 {
-                    /* Make sure session state is Locked: */
-                    if (m_session.GetState() != KSessionState_Locked)
-                        break;
-
-                    /* Make sure console is OK: */
-                    CConsole console = m_session.GetConsole();
-                    if (!m_session.isOk() || console.isNull())
-                        break;
-                    /* Make sure display is OK: */
-                    CDisplay display = console.GetDisplay();
-                    if (!console.isOk() || display.isNull())
-                        break;
-
-                    /* Calculate aspect-ratio: */
-                    LONG iOriginX, iOriginY;
-                    ULONG uGuestWidth, uGuestHeight, uBpp;
-                    KGuestMonitorStatus monitorStatus = KGuestMonitorStatus_Enabled;
-                    display.GetScreenResolution(0, uGuestWidth, uGuestHeight, uBpp, iOriginX, iOriginY, monitorStatus);
-                    double dAspectRatio = (double)uGuestWidth / uGuestHeight;
-                    /* Look for the best aspect-ratio preset preset: */
-                    preset = bestAspectRatioPreset(dAspectRatio, m_ratios);
-
-                    /* Calculate size corresponding to aspect-ratio: */
-                    const QSize size = imageAspectRatioSize(m_vRect.size(), QSize(uGuestWidth, uGuestHeight));
-
-                    /* Use direct VM content: */
-                    QVector<BYTE> screenData = display.TakeScreenShotToArray(0, size.width(), size.height(), KBitmapFormat_BGR0);
-
-                    /* Make sure screen-data is OK: */
-                    if (!display.isOk() || screenData.isEmpty())
-                        break;
-
-                    /* Make sure screen-data size is valid: */
-                    const int iExpectedSize = size.width() * size.height() * 4;
-                    const int iActualSize = screenData.size();
-                    if (iActualSize != iExpectedSize)
+                    CVirtualBox vbox = vboxGlobal().virtualBox();
+                    if (vbox.isOk())
                     {
-                        AssertMsgFailed(("Invalid screen-data size '%d', should be '%d'!\n", iActualSize, iExpectedSize));
-                        break;
-                    }
+                        const CConsole& console = m_session.GetConsole();
+                        if (!console.isNull())
+                        {
+                            CDisplay display = console.GetDisplay();
+                            /* Todo: correct aspect radio */
+//                            ULONG w, h, bpp;
+//                            LONG xOrigin, yOrigin;
+//                            display.GetScreenResolution(0, w, h, bpp, xOrigin, yOrigin);
+//                            QImage shot = QImage(w, h, QImage::Format_RGB32);
+//                            shot.fill(Qt::black);
+//                            display.TakeScreenShot(0, shot.bits(), shot.width(), shot.height());
+                            QVector<BYTE> screenData = display.TakeScreenShotToArray(0, m_vRect.width(), m_vRect.height());
+                            if (display.isOk() && screenData.size() != 0)
+                            {
+                                /* Unfortunately we have to reorder the pixel
+                                 * data, cause the VBox API returns RGBA data,
+                                 * which is not a format QImage understand.
+                                 * Todo: check for 32bit alignment, for both
+                                 * the data and the scanlines. Maybe we need to
+                                 * copy the data in any case. */
+                                uint32_t *d = (uint32_t*)screenData.data();
+                                for (int i = 0; i < screenData.size() / 4; ++i)
+                                {
+                                    uint32_t e = d[i];
+                                    d[i] = RT_MAKE_U32_FROM_U8(RT_BYTE3(e), RT_BYTE2(e), RT_BYTE1(e), RT_BYTE4(e));
+                                }
 
-                    /* Create image based on shallow copy of acquired data: */
-                    QImage tempImage(screenData.data(), size.width(), size.height(), QImage::Format_RGB32);
-                    image = tempImage;
-                    /* And detach that copy to make it deep: */
-                    image.detach();
-                    /* Dim image to give it required look for PAUSED state: */
-                    if (machineState == KMachineState_Paused)
-                        dimImage(image);
-                    break;
+                                QImage shot = QImage((uchar*)d, m_vRect.width(), m_vRect.height(), QImage::Format_RGB32);
+
+                                if (machineState == KMachineState_Paused)
+                                    dimImage(shot);
+                                painter.drawImage(m_vRect.x(), m_vRect.y(), shot);
+                                fDone = true;
+                            }
+                        }
+                    }
                 }
-                default:
-                    break;
             }
         }
 
-        /* If image initialized: */
-        if (!image.isNull())
-        {
-            /* Shallow copy that image: */
+        if (fDone)
             m_pPreviewImg = new QImage(image);
-            /* And detach that copy to make it deep: */
-            m_pPreviewImg->detach();
-        }
-
-        /* If preset changed: */
-        if (m_preset != preset)
-        {
-            /* Save new preset: */
-            m_preset = preset;
-            /* And update geometry: */
-            updateGeometry();
-            emit sigSizeHintChanged();
-        }
     }
 
-    /* Redraw preview in any case: */
+    /* Redraw preview in any case! */
     update();
 }
 
@@ -336,7 +264,7 @@ void UIGMachinePreview::contextMenuEvent(QGraphicsSceneContextMenuEvent *pEvent)
     QAction *pReturn = m_pUpdateTimerMenu->exec(pEvent->screenPos(), 0);
     if (pReturn)
     {
-        PreviewUpdateIntervalType interval = static_cast<PreviewUpdateIntervalType>(pReturn->data().toInt());
+        UpdateInterval interval = static_cast<UpdateInterval>(pReturn->data().toInt());
         setUpdateInterval(interval, true);
         restart();
     }
@@ -344,28 +272,19 @@ void UIGMachinePreview::contextMenuEvent(QGraphicsSceneContextMenuEvent *pEvent)
 
 void UIGMachinePreview::retranslateUi()
 {
-    m_actions.value(PreviewUpdateIntervalType_Disabled)->setText(tr("Update disabled"));
-    m_actions.value(PreviewUpdateIntervalType_500ms)->setText(tr("Every 0.5 s"));
-    m_actions.value(PreviewUpdateIntervalType_1000ms)->setText(tr("Every 1 s"));
-    m_actions.value(PreviewUpdateIntervalType_2000ms)->setText(tr("Every 2 s"));
-    m_actions.value(PreviewUpdateIntervalType_5000ms)->setText(tr("Every 5 s"));
-    m_actions.value(PreviewUpdateIntervalType_10000ms)->setText(tr("Every 10 s"));
+    m_actions.value(UpdateInterval_Disabled)->setText(tr("Update disabled"));
+    m_actions.value(UpdateInterval_500ms)->setText(tr("Every 0.5 s"));
+    m_actions.value(UpdateInterval_1000ms)->setText(tr("Every 1 s"));
+    m_actions.value(UpdateInterval_2000ms)->setText(tr("Every 2 s"));
+    m_actions.value(UpdateInterval_5000ms)->setText(tr("Every 5 s"));
+    m_actions.value(UpdateInterval_10000ms)->setText(tr("Every 10 s"));
 }
 
 QSizeF UIGMachinePreview::sizeHint(Qt::SizeHint which, const QSizeF &constraint /* = QSizeF() */) const
 {
     if (which == Qt::MinimumSize)
-    {
-        AssertReturn(m_emptyPixmaps.contains(m_preset),
-                     QIGraphicsWidget::sizeHint(which, constraint));
-        QSize size = m_sizes.value(m_preset);
-        if (m_iMargin != 0)
-        {
-            size.setWidth(size.width() - 2 * m_iMargin);
-            size.setHeight(size.height() - 2 * m_iMargin);
-        }
-        return size;
-    }
+        return QSize(228 /* pixmap width */ + 2 * m_iMargin,
+                     168 /* pixmap height */ + 2 * m_iMargin);
     return QIGraphicsWidget::sizeHint(which, constraint);
 }
 
@@ -379,19 +298,16 @@ void UIGMachinePreview::paint(QPainter *pPainter, const QStyleOptionGraphicsItem
     /* If there is a preview image available: */
     if (m_pPreviewImg)
     {
-        /* Draw empty monitor frame: */
-        pPainter->drawPixmap(cr.x() + m_iMargin, cr.y() + m_iMargin, *m_emptyPixmaps.value(m_preset));
+        /* Draw empty background: */
+        pPainter->drawPixmap(cr.x() + m_iMargin, cr.y() + m_iMargin, *m_pbgEmptyImage);
 
-        /* Move image to viewport center: */
-        QRect imageRect(QPoint(0, 0), m_pPreviewImg->size());
-        imageRect.moveCenter(m_vRect.center());
-        /* Draw preview image: */
-        pPainter->drawImage(imageRect.topLeft(), *m_pPreviewImg);
+        /* Draw that image: */
+        pPainter->drawImage(0, 0, *m_pPreviewImg);
     }
     else
     {
-        /* Draw full monitor frame: */
-        pPainter->drawPixmap(cr.x() + m_iMargin, cr.y() + m_iMargin, *m_fullPixmaps.value(m_preset));
+        /* Draw full background: */
+        pPainter->drawPixmap(cr.x() + m_iMargin, cr.y() + m_iMargin, *m_pbgFullImage);
 
         /* Paint preview name: */
         QFont font = pPainter->font();
@@ -415,40 +331,58 @@ void UIGMachinePreview::paint(QPainter *pPainter, const QStyleOptionGraphicsItem
     }
 }
 
-void UIGMachinePreview::setUpdateInterval(PreviewUpdateIntervalType interval, bool fSave)
+void UIGMachinePreview::setUpdateInterval(UpdateInterval interval, bool fSave)
 {
     switch (interval)
     {
-        case PreviewUpdateIntervalType_Disabled:
+        case UpdateInterval_Disabled:
         {
-            /* Stop the timer: */
+            m_pUpdateTimer->setInterval(0);
             m_pUpdateTimer->stop();
-            /* And continue with other cases: */
-        }
-        case PreviewUpdateIntervalType_500ms:
-        case PreviewUpdateIntervalType_1000ms:
-        case PreviewUpdateIntervalType_2000ms:
-        case PreviewUpdateIntervalType_5000ms:
-        case PreviewUpdateIntervalType_10000ms:
-        {
-            /* Set the timer interval: */
-            m_pUpdateTimer->setInterval(gpConverter->toInternalInteger(interval));
-            /* Check corresponding action: */
             m_actions[interval]->setChecked(true);
             break;
         }
-        case PreviewUpdateIntervalType_Max:
+        case UpdateInterval_500ms:
+        {
+            m_pUpdateTimer->setInterval(500);
+            m_actions[interval]->setChecked(true);
             break;
+        }
+        case UpdateInterval_1000ms:
+        {
+            m_pUpdateTimer->setInterval(1000);
+            m_actions[interval]->setChecked(true);
+            break;
+        }
+        case UpdateInterval_2000ms:
+        {
+            m_pUpdateTimer->setInterval(2000);
+            m_actions[interval]->setChecked(true);
+            break;
+        }
+        case UpdateInterval_5000ms:
+        {
+            m_pUpdateTimer->setInterval(5000);
+            m_actions[interval]->setChecked(true);
+            break;
+        }
+        case UpdateInterval_10000ms:
+        {
+            m_pUpdateTimer->setInterval(10000);
+            m_actions[interval]->setChecked(true);
+            break;
+        }
+        case UpdateInterval_Max: break;
     }
-    if (fSave)
-        gEDataManager->setSelectorWindowPreviewUpdateInterval(interval);
+    if (fSave && m_intervals.contains(interval))
+        vboxGlobal().virtualBox().SetExtraData(GUI_PreviewUpdate, m_intervals[interval]);
 }
 
 void UIGMachinePreview::recalculatePreviewRectangle()
 {
     /* Contents rectangle: */
     QRect cr = contentsRect().toRect();
-    m_vRect = cr.adjusted(21 + m_iMargin, 21 + m_iMargin, -21 - m_iMargin, -21 - m_iMargin);
+    m_vRect = cr.adjusted(21 + m_iMargin, 17 + m_iMargin, -21 - m_iMargin, -20 - m_iMargin);
 }
 
 void UIGMachinePreview::restart()
@@ -481,64 +415,5 @@ void UIGMachinePreview::stop()
 {
     /* Stop the timer: */
     m_pUpdateTimer->stop();
-}
-
-/* static */
-UIGMachinePreview::AspectRatioPreset UIGMachinePreview::bestAspectRatioPreset(const double dAspectRatio,
-                                                                              const QMap<AspectRatioPreset, double> &ratios)
-{
-    /* Use 16x9 preset as the 'best' by 'default': */
-    AspectRatioPreset bestPreset = AspectRatioPreset_16x9;
-    /* Calculate minimum diff based on 'default' preset: */
-    double dMinimumDiff = qAbs(dAspectRatio - ratios.value(bestPreset));
-    /* Now look for the 'best' aspect-ratio preset among existing: */
-    for (AspectRatioPreset currentPreset = AspectRatioPreset_16x10;
-         currentPreset <= AspectRatioPreset_4x3;
-         currentPreset = (AspectRatioPreset)(currentPreset + 1))
-    {
-        /* Calculate current diff based on 'current' preset: */
-        const double dDiff = qAbs(dAspectRatio - ratios.value(currentPreset));
-        /* If new 'best' preset found: */
-        if (dDiff < dMinimumDiff)
-        {
-            /* Remember new diff: */
-            dMinimumDiff = dDiff;
-            /* And new preset: */
-            bestPreset = currentPreset;
-        }
-    }
-    /* Return 'best' preset: */
-    return bestPreset;
-}
-
-/* static */
-QSize UIGMachinePreview::imageAspectRatioSize(const QSize &hostSize, const QSize &guestSize)
-{
-    /* Calculate host/guest aspect-ratio: */
-    const double dHostAspectRatio = (double)hostSize.width() / hostSize.height();
-    const double dGuestAspectRatio = (double)guestSize.width() / guestSize.height();
-    int iWidth = 0, iHeight = 0;
-    /* Guest-screen more thin by vertical than host-screen: */
-    if (dGuestAspectRatio >= dHostAspectRatio)
-    {
-        /* Get host width: */
-        iWidth = hostSize.width();
-        /* And calculate height based on guest aspect ratio: */
-        iHeight = (double)iWidth / dGuestAspectRatio;
-        /* But no more than host height: */
-        iHeight = qMin(iHeight, hostSize.height());
-    }
-    /* Host-screen more thin by vertical than guest-screen: */
-    else
-    {
-        /* Get host height: */
-        iHeight = hostSize.height();
-        /* And calculate width based on guest aspect ratio: */
-        iWidth = (double)iHeight * dGuestAspectRatio;
-        /* But no more than host width: */
-        iWidth = qMin(iWidth, hostSize.width());
-    }
-    /* Return actual size: */
-    return QSize(iWidth, iHeight);
 }
 

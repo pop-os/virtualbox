@@ -1,4 +1,3 @@
-/* $Id: DevVGA_VDMA.cpp $ */
 /** @file
  * Video DMA (VDMA) support.
  */
@@ -16,7 +15,6 @@
  */
 #include <VBox/VMMDev.h>
 #include <VBox/vmm/pdmdev.h>
-#include <VBox/vmm/pgm.h>
 #include <VBox/VBoxVideo.h>
 #include <iprt/semaphore.h>
 #include <iprt/thread.h>
@@ -1150,7 +1148,7 @@ static int vdmaVBVACtlDisableSync(PVBOXVDMAHOST pVdma)
         return rc;
     }
 
-    vgaUpdateDisplayAll(pVdma->pVGAState, /* fFailOnResize = */ false);
+    vgaUpdateDisplayAll(pVdma->pVGAState);
 
     return VINF_SUCCESS;
 }
@@ -1616,8 +1614,7 @@ static int vboxVDMACrGuestCtlProcess(struct VBOXVDMAHOST *pVdma, VBVAEXHOSTCTL *
             }
 
             /* do vgaUpdateDisplayAll right away */
-            VMR3ReqCallNoWait(PDMDevHlpGetVM(pVdma->pVGAState->pDevInsR3), VMCPUID_ANY,
-                              (PFNRT)vgaUpdateDisplayAll, 2, pVdma->pVGAState, /* fFailOnResize = */ false);
+            vgaUpdateDisplayAll(pVdma->pVGAState);
 
             return VBoxVDMAThreadTerm(&pVdma->Thread, NULL, NULL, false);
         }
@@ -2757,8 +2754,6 @@ int vboxVDMAReset(struct VBOXVDMAHOST *pVdma)
 
 int vboxVDMADestruct(struct VBOXVDMAHOST *pVdma)
 {
-    if (!pVdma)
-        return VINF_SUCCESS;
 #ifdef VBOX_WITH_CRHGSMI
     vdmaVBVACtlDisableSync(pVdma);
     VBoxVDMAThreadCleanup(&pVdma->Thread);

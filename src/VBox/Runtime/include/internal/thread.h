@@ -75,10 +75,6 @@ typedef struct RTTHREADINT
      * This is not valid before rtThreadMain has been called by the new thread.  */
     pid_t                   tid;
 #endif
-#if defined(RT_OS_SOLARIS) && defined(IN_RING0)
-    /** Debug thread ID needed for thread_join. */
-    uint64_t                tid;
-#endif
     /** The user event semaphore. */
     RTSEMEVENTMULTI         EventUser;
     /** The terminated event semaphore. */
@@ -179,17 +175,6 @@ DECLHIDDEN(int) rtThreadNativeAdopt(PRTTHREADINT pThread);
  */
 DECLHIDDEN(void) rtThreadNativeDestroy(PRTTHREADINT pThread);
 
-#ifdef IN_RING0
-/**
- * Called from rtThreadWait when the last thread has completed in order to make
- * sure it's all the way out of IPRT before RTR0Term is called.
- *
- * @param   pThread     The thread structure.
- */
-DECLHIDDEN(void) rtThreadNativeWaitKludge(PRTTHREADINT pThread);
-#endif
-
-
 /**
  * Sets the priority of the thread according to the thread type
  * and current process priority.
@@ -213,14 +198,8 @@ DECLHIDDEN(int) rtThreadNativeSetPriority(PRTTHREADINT pThread, RTTHREADTYPE enm
  * threads properly.
  */
 DECLHIDDEN(void) rtThreadNativeDetach(void);
-
-/**
- * Internal function for informing the debugger about a thread.
- * @param   pThread     The thread. May differ from the calling thread.
- */
-DECLHIDDEN(void) rtThreadNativeInformDebugger(PRTTHREADINT pThread);
 # endif
-#endif /* IN_RING3 */
+#endif /* !IN_RING0 */
 
 
 /* thread.cpp */

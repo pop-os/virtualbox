@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2014 Oracle Corporation
+ * Copyright (C) 2010-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -34,7 +34,7 @@
 #include <iprt/filesystem.h>
 #include <iprt/vfs.h>
 
-static const char *g_pszProgName = "";
+const char *g_pszProgName = "";
 static void printUsage(PRTSTREAM pStrm)
 {
     RTStrmPrintf(pStrm,
@@ -44,13 +44,6 @@ static void printUsage(PRTSTREAM pStrm)
                  "                [--uuid <uuid>]\n"
                  "                [--parentuuid <uuid>]\n"
                  "                [--zeroparentuuid]\n"
-                 "\n"
-                 "   geometry     --filename <filename>\n"
-                 "                [--format VDI|VMDK|VHD|...]\n"
-                 "                [--clearchs]\n"
-                 "                [--cylinders <number>]\n"
-                 "                [--heads <number>]\n"
-                 "                [--sectors <number>]\n"
                  "\n"
                  "   convert      --srcfilename <filename>\n"
                  "                --dstfilename <filename>\n"
@@ -81,7 +74,7 @@ static void printUsage(PRTSTREAM pStrm)
                  g_pszProgName);
 }
 
-static void showLogo(PRTSTREAM pStrm)
+void showLogo(PRTSTREAM pStrm)
 {
     static bool s_fShown; /* show only once */
 
@@ -102,7 +95,7 @@ struct HandlerArg
     char **argv;
 };
 
-static PVDINTERFACE pVDIfs;
+PVDINTERFACE pVDIfs;
 
 static DECLCALLBACK(void) handleVDError(void *pvUser, int rc, RT_SRC_POS_DECL,
                                         const char *pszFormat, va_list va)
@@ -122,7 +115,7 @@ static int handleVDMessage(void *pvUser, const char *pszFormat, va_list va)
 /**
  * Print a usage synopsis and the syntax error message.
  */
-static int errorSyntax(const char *pszFormat, ...)
+int errorSyntax(const char *pszFormat, ...)
 {
     va_list args;
     showLogo(g_pStdErr); // show logo even if suppressed
@@ -133,7 +126,7 @@ static int errorSyntax(const char *pszFormat, ...)
     return 1;
 }
 
-static int errorRuntime(const char *pszFormat, ...)
+int errorRuntime(const char *pszFormat, ...)
 {
     va_list args;
 
@@ -191,7 +184,7 @@ static int parseDiskVariant(const char *psz, unsigned *puImageFlags)
 }
 
 
-static int handleSetUUID(HandlerArg *a)
+int handleSetUUID(HandlerArg *a)
 {
     const char *pszFilename = NULL;
     char *pszFormat = NULL;
@@ -309,141 +302,6 @@ static int handleSetUUID(HandlerArg *a)
             return errorRuntime("Cannot set parent UUID of virtual disk image \"%s\": %Rrc\n",
                                 pszFilename, rc);
     }
-
-    VDDestroy(pVD);
-
-    if (pszFormat)
-    {
-        RTStrFree(pszFormat);
-        pszFormat = NULL;
-    }
-
-    return 0;
-}
-
-
-static int handleGeometry(HandlerArg *a)
-{
-    const char *pszFilename = NULL;
-    char *pszFormat = NULL;
-    VDTYPE enmType = VDTYPE_INVALID;
-    uint16_t cCylinders = 0;
-    uint8_t cHeads = 0;
-    uint8_t cSectors = 0;
-    bool fCylinders = false;
-    bool fHeads = false;
-    bool fSectors = false;
-    int rc;
-
-    /* Parse the command line. */
-    static const RTGETOPTDEF s_aOptions[] =
-    {
-        { "--filename", 'f', RTGETOPT_REQ_STRING },
-        { "--format", 'o', RTGETOPT_REQ_STRING },
-        { "--clearchs", 'C', RTGETOPT_REQ_NOTHING },
-        { "--cylinders", 'c', RTGETOPT_REQ_UINT16 },
-        { "--heads", 'e', RTGETOPT_REQ_UINT8 },
-        { "--sectors", 's', RTGETOPT_REQ_UINT8 }
-    };
-    int ch;
-    RTGETOPTUNION ValueUnion;
-    RTGETOPTSTATE GetState;
-    RTGetOptInit(&GetState, a->argc, a->argv, s_aOptions, RT_ELEMENTS(s_aOptions), 0, 0 /* fFlags */);
-    while ((ch = RTGetOpt(&GetState, &ValueUnion)))
-    {
-        switch (ch)
-        {
-            case 'f':   // --filename
-                pszFilename = ValueUnion.psz;
-                break;
-            case 'o':   // --format
-                pszFormat = RTStrDup(ValueUnion.psz);
-                break;
-            case 'C':   // --clearchs
-                cCylinders = 0;
-                cHeads = 0;
-                cSectors = 0;
-                fCylinders = true;
-                fHeads = true;
-                fSectors = true;
-                break;
-            case 'c':   // --cylinders
-                cCylinders = ValueUnion.u16;
-                fCylinders = true;
-                break;
-            case 'e':   // --heads
-                cHeads = ValueUnion.u8;
-                fHeads = true;
-                break;
-            case 's':   // --sectors
-                cSectors = ValueUnion.u8;
-                fSectors = true;
-                break;
-
-            default:
-                ch = RTGetOptPrintError(ch, &ValueUnion);
-                printUsage(g_pStdErr);
-                return ch;
-        }
-    }
-
-    /* Check for mandatory parameters. */
-    if (!pszFilename)
-        return errorSyntax("Mandatory --filename option missing\n");
-
-    /* Autodetect image format. */
-    if (!pszFormat)
-    {
-        /* Don't pass error interface, as that would triggers error messages
-         * because some backends fail to open the image. */
-        rc = VDGetFormat(NULL, NULL, pszFilename, &pszFormat, &enmType);
-        if (RT_FAILURE(rc))
-            return errorRuntime("Format autodetect failed: %Rrc\n", rc);
-    }
-
-    PVBOXHDD pVD = NULL;
-    rc = VDCreate(pVDIfs, enmType, &pVD);
-    if (RT_FAILURE(rc))
-        return errorRuntime("Cannot create the virtual disk container: %Rrc\n", rc);
-
-    /* Open in info mode to be able to open diff images without their parent. */
-    rc = VDOpen(pVD, pszFormat, pszFilename, VD_OPEN_FLAGS_INFO, NULL);
-    if (RT_FAILURE(rc))
-        return errorRuntime("Cannot open the virtual disk image \"%s\": %Rrc\n",
-                            pszFilename, rc);
-
-    VDGEOMETRY oldLCHSGeometry;
-    rc = VDGetLCHSGeometry(pVD, VD_LAST_IMAGE, &oldLCHSGeometry);
-    if (rc == VERR_VD_GEOMETRY_NOT_SET)
-    {
-        memset(&oldLCHSGeometry, 0, sizeof(oldLCHSGeometry));
-        rc = VINF_SUCCESS;
-    }
-    if (RT_FAILURE(rc))
-        return errorRuntime("Cannot get LCHS geometry of virtual disk image \"%s\": %Rrc\n",
-                            pszFilename, rc);
-
-    VDGEOMETRY newLCHSGeometry = oldLCHSGeometry;
-    if (fCylinders)
-        newLCHSGeometry.cCylinders = cCylinders;
-    if (fHeads)
-        newLCHSGeometry.cHeads = cHeads;
-    if (fSectors)
-        newLCHSGeometry.cSectors = cSectors;
-
-    if (fCylinders || fHeads || fSectors)
-    {
-        RTPrintf("Old image LCHS: %u/%u/%u\n", oldLCHSGeometry.cCylinders, oldLCHSGeometry.cHeads, oldLCHSGeometry.cSectors);
-        RTPrintf("New image LCHS: %u/%u/%u\n", newLCHSGeometry.cCylinders, newLCHSGeometry.cHeads, newLCHSGeometry.cSectors);
-
-        rc = VDSetLCHSGeometry(pVD, VD_LAST_IMAGE, &newLCHSGeometry);
-        if (RT_FAILURE(rc))
-            return errorRuntime("Cannot set LCHS geometry of virtual disk image \"%s\": %Rrc\n",
-                                pszFilename, rc);
-    }
-    else
-        RTPrintf("Current image LCHS: %u/%u/%u\n", oldLCHSGeometry.cCylinders, oldLCHSGeometry.cHeads, oldLCHSGeometry.cSectors);
-
 
     VDDestroy(pVD);
 
@@ -829,7 +687,7 @@ static int convOutFlush(void *pvUser, void *pStorage)
     return VINF_SUCCESS;
 }
 
-static int handleConvert(HandlerArg *a)
+int handleConvert(HandlerArg *a)
 {
     const char *pszSrcFilename = NULL;
     const char *pszDstFilename = NULL;
@@ -1055,7 +913,7 @@ static int handleConvert(HandlerArg *a)
 }
 
 
-static int handleInfo(HandlerArg *a)
+int handleInfo(HandlerArg *a)
 {
     int rc = VINF_SUCCESS;
     PVBOXHDD pDisk = NULL;
@@ -1204,7 +1062,7 @@ typedef struct VBOXIMGVFS
     RTVFS              hVfs;
 } VBOXIMGVFS, *PVBOXIMGVFS;
 
-static int handleCompact(HandlerArg *a)
+int handleCompact(HandlerArg *a)
 {
     int rc = VINF_SUCCESS;
     PVBOXHDD pDisk = NULL;
@@ -1385,7 +1243,7 @@ static int handleCompact(HandlerArg *a)
 }
 
 
-static int handleCreateCache(HandlerArg *a)
+int handleCreateCache(HandlerArg *a)
 {
     int rc = VINF_SUCCESS;
     PVBOXHDD pDisk = NULL;
@@ -1480,7 +1338,7 @@ static DECLCALLBACK(int) vdIfCfgCreateBaseQuery(void *pvUser, const char *pszNam
 
 }
 
-static int handleCreateBase(HandlerArg *a)
+int handleCreateBase(HandlerArg *a)
 {
     int rc = VINF_SUCCESS;
     PVBOXHDD pDisk = NULL;
@@ -1494,8 +1352,8 @@ static int handleCreateBase(HandlerArg *a)
     PVDINTERFACE pVDIfsOperation = NULL;
     VDINTERFACECONFIG vdIfCfg;
 
-    memset(&LCHSGeometry, 0, sizeof(LCHSGeometry));
-    memset(&PCHSGeometry, 0, sizeof(PCHSGeometry));
+    memset(&LCHSGeometry, 0, sizeof(VDGEOMETRY));
+    memset(&PCHSGeometry, 0, sizeof(VDGEOMETRY));
 
     /* Parse the command line. */
     static const RTGETOPTDEF s_aOptions[] =
@@ -1582,7 +1440,7 @@ static int handleCreateBase(HandlerArg *a)
 }
 
 
-static int handleRepair(HandlerArg *a)
+int handleRepair(HandlerArg *a)
 {
     int rc = VINF_SUCCESS;
     PVBOXHDD pDisk = NULL;
@@ -1649,7 +1507,7 @@ static int handleRepair(HandlerArg *a)
 }
 
 
-static int handleClearComment(HandlerArg *a)
+int handleClearComment(HandlerArg *a)
 {
     int rc = VINF_SUCCESS;
     PVBOXHDD pDisk = NULL;
@@ -1790,7 +1648,6 @@ int main(int argc, char *argv[])
     } s_commandHandlers[] =
     {
         { "setuuid",      handleSetUUID      },
-        { "geometry",     handleGeometry     },
         { "convert",      handleConvert      },
         { "info",         handleInfo         },
         { "compact",      handleCompact      },

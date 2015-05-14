@@ -1,6 +1,7 @@
-/* $Id: XKeyboard.h $ */
 /** @file
- * VBox Qt GUI - Declarations of Linux-specific keyboard functions.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * Declarations of Linux-specific keyboard functions
  */
 
 /*

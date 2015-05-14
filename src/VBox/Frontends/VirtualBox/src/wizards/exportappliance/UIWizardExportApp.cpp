@@ -1,6 +1,8 @@
 /* $Id: UIWizardExportApp.cpp $ */
 /** @file
- * VBox Qt GUI - UIWizardExportApp class implementation.
+ *
+ * VBox frontends: Qt4 GUI ("VirtualBox"):
+ * UIWizardExportApp class implementation
  */
 
 /*
@@ -15,35 +17,26 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QVariant>
-# include <QFileInfo>
+#include <QVariant>
+#include <QFileInfo>
 
 /* GUI includes: */
-# include "UIWizardExportApp.h"
-# include "UIWizardExportAppDefs.h"
-# include "UIWizardExportAppPageBasic1.h"
-# include "UIWizardExportAppPageBasic2.h"
-# include "UIWizardExportAppPageBasic3.h"
-# include "UIWizardExportAppPageBasic4.h"
-# include "UIWizardExportAppPageExpert.h"
-# include "UIAddDiskEncryptionPasswordDialog.h"
-# include "UIMessageCenter.h"
+#include "UIWizardExportApp.h"
+#include "UIWizardExportAppDefs.h"
+#include "UIWizardExportAppPageBasic1.h"
+#include "UIWizardExportAppPageBasic2.h"
+#include "UIWizardExportAppPageBasic3.h"
+#include "UIWizardExportAppPageBasic4.h"
+#include "UIWizardExportAppPageExpert.h"
+#include "UIMessageCenter.h"
 
 /* COM includes: */
-# include "CAppliance.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
+#include "CAppliance.h"
 #include "CVFSExplorer.h"
 
-
 UIWizardExportApp::UIWizardExportApp(QWidget *pParent, const QStringList &selectedVMNames)
-    : UIWizard(pParent, WizardType_ExportAppliance)
+    : UIWizard(pParent, UIWizardType_ExportAppliance)
     , m_selectedVMNames(selectedVMNames)
 {
 #ifndef Q_WS_MAC
@@ -93,7 +86,7 @@ bool UIWizardExportApp::exportAppliance()
     {
         /* Show some progress, so the user know whats going on: */
         msgCenter().showModalProgressDialog(progress, QApplication::translate("UIWizardExportApp", "Checking files ..."),
-                                            ":/progress_refresh_90px.png", this);
+                                            ":/refresh_32px.png", this);
         if (progress.GetCanceled())
             return false;
         if (!progress.isOk() || progress.GetResultCode() != 0)
@@ -115,7 +108,7 @@ bool UIWizardExportApp::exportAppliance()
         {
             /* Show some progress, so the user know whats going on: */
             msgCenter().showModalProgressDialog(progress1, QApplication::translate("UIWizardExportApp", "Removing files ..."),
-                                                ":/progress_delete_90px.png", this);
+                                                ":/vm_delete_32px.png", this);
             if (progress1.GetCanceled())
                 return false;
             if (!progress1.isOk() || progress1.GetResultCode() != 0)
@@ -127,64 +120,23 @@ bool UIWizardExportApp::exportAppliance()
     }
 
     /* Export the VMs, on success we are finished: */
-    return exportVMs(*pAppliance);
+    if (exportVMs(*pAppliance))
+    {
+#if 0
+        /* Save attributes to GUI extra data: */
+        StorageType storageType = field("storageType").value<StorageType>();
+        vboxGlobal().virtualBox().SetExtraData(GUI_Export_StorageType, QString::number(storageType));
+        vboxGlobal().virtualBox().SetExtraData(GUI_Export_Username, m_pLeUsername->text());
+        vboxGlobal().virtualBox().SetExtraData(GUI_Export_Hostname, m_pLeHostname->text());
+        vboxGlobal().virtualBox().SetExtraData(GUI_Export_Bucket, m_pLeBucket->text());
+#endif
+        return true;
+    }
+    return false;
 }
 
 bool UIWizardExportApp::exportVMs(CAppliance &appliance)
 {
-    /* Get the map of the password IDs: */
-    EncryptedMediumMap encryptedMediums;
-    foreach (const QString &strPasswordId, appliance.GetPasswordIds())
-        foreach (const QString &strMediumId, appliance.GetMediumIdsForPasswordId(strPasswordId))
-            encryptedMediums.insert(strPasswordId, strMediumId);
-
-    /* Ask for the disk encryption passwords if necessary: */
-    if (!encryptedMediums.isEmpty())
-    {
-        /* Create corresponding dialog: */
-        QPointer<UIAddDiskEncryptionPasswordDialog> pDlg =
-             new UIAddDiskEncryptionPasswordDialog(this,
-                                                   window()->windowTitle(),
-                                                   encryptedMediums);
-
-        /* Execute the dialog: */
-        if (pDlg->exec() == QDialog::Accepted)
-        {
-            /* Acquire the passwords provided: */
-            const EncryptionPasswordMap encryptionPasswords = pDlg->encryptionPasswords();
-
-            /* Delete the dialog: */
-            delete pDlg;
-
-            /* Make sure the passwords were really provided: */
-            AssertReturn(!encryptionPasswords.isEmpty(), false);
-
-            /* Provide appliance with passwords if possible: */
-            appliance.AddPasswords(encryptionPasswords.keys().toVector(),
-                                   encryptionPasswords.values().toVector());
-            if (!appliance.isOk())
-            {
-                /* Warn the user about failure: */
-                msgCenter().cannotAddDiskEncryptionPassword(appliance);
-
-                return false;
-            }
-        }
-        else
-        {
-            /* Any modal dialog can be destroyed in own event-loop
-             * as a part of application termination procedure..
-             * We have to check if the dialog still valid. */
-            if (pDlg)
-            {
-                /* Delete the dialog: */
-                delete pDlg;
-            }
-
-            return false;
-        }
-    }
-
     /* Write the appliance: */
     QVector<KExportOptions> options;
     if (field("manifestSelected").toBool())
@@ -260,8 +212,8 @@ void UIWizardExportApp::sltCurrentIdChanged(int iId)
     /* Call to base-class: */
     UIWizard::sltCurrentIdChanged(iId);
     /* Enable 2nd button (Reset to Defaults) for 4th and Expert pages only! */
-    setOption(QWizard::HaveCustomButton2, (mode() == WizardMode_Basic && iId == Page4) ||
-                                          (mode() == WizardMode_Expert && iId == PageExpert));
+    setOption(QWizard::HaveCustomButton2, (mode() == UIWizardMode_Basic && iId == Page4) ||
+                                          (mode() == UIWizardMode_Expert && iId == PageExpert));
 }
 
 void UIWizardExportApp::sltCustomButtonClicked(int iId)
@@ -296,7 +248,7 @@ void UIWizardExportApp::prepare()
     /* Create corresponding pages: */
     switch (mode())
     {
-        case WizardMode_Basic:
+        case UIWizardMode_Basic:
         {
             setPage(Page1, new UIWizardExportAppPageBasic1(m_selectedVMNames));
             setPage(Page2, new UIWizardExportAppPageBasic2);
@@ -304,7 +256,7 @@ void UIWizardExportApp::prepare()
             setPage(Page4, new UIWizardExportAppPageBasic4);
             break;
         }
-        case WizardMode_Expert:
+        case UIWizardMode_Expert:
         {
             setPage(PageExpert, new UIWizardExportAppPageExpert(m_selectedVMNames));
             break;

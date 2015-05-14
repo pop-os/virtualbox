@@ -1,6 +1,7 @@
-/* $Id: UIMediumTypeChangeDialog.h $ */
 /** @file
- * VBox Qt GUI - UIMediumTypeChangeDialog class declaration.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * UIMediumTypeChangeDialog class declaration
  */
 
 /*

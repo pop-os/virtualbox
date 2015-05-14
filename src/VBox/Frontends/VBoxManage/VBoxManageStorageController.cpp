@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -54,7 +54,6 @@ static const RTGETOPTDEF g_aStorageAttachOptions[] =
     { "--tempeject",        'e', RTGETOPT_REQ_STRING },
     { "--nonrotational",    'n', RTGETOPT_REQ_STRING },
     { "--discard",          'u', RTGETOPT_REQ_STRING },
-    { "--hotpluggable",     'o', RTGETOPT_REQ_STRING },
     { "--bandwidthgroup",   'b', RTGETOPT_REQ_STRING },
     { "--forceunmount",     'f', RTGETOPT_REQ_NOTHING },
     { "--comment",          'C', RTGETOPT_REQ_STRING },
@@ -82,7 +81,7 @@ int handleStorageAttach(HandlerArg *a)
     bool fSetMediumType = false;
     bool fSetNewUuid = false;
     bool fSetNewParentUuid = false;
-    MediumType_T enmMediumType = MediumType_Normal;
+    MediumType_T mediumType = MediumType_Normal;
     Bstr bstrComment;
     const char *pszCtl  = NULL;
     DeviceType_T devTypeRequested = DeviceType_Null;
@@ -91,7 +90,6 @@ int handleStorageAttach(HandlerArg *a)
     const char *pszTempEject = NULL;
     const char *pszNonRotational = NULL;
     const char *pszDiscard = NULL;
-    const char *pszHotPluggable = NULL;
     const char *pszBandwidthGroup = NULL;
     Bstr bstrNewUuid;
     Bstr bstrNewParentUuid;
@@ -205,15 +203,6 @@ int handleStorageAttach(HandlerArg *a)
                 break;
             }
 
-            case 'o':   // hotpluggable <on|off>
-            {
-                if (ValueUnion.psz)
-                    pszHotPluggable = ValueUnion.psz;
-                else
-                    rc = E_FAIL;
-                break;
-            }
-
             case 'b':   // bandwidthgroup <name>
             {
                 if (ValueUnion.psz)
@@ -290,9 +279,9 @@ int handleStorageAttach(HandlerArg *a)
 
             case 'M':   // --type
             {
-                int vrc = parseMediumType(ValueUnion.psz, &enmMediumType);
+                int vrc = parseDiskType(ValueUnion.psz, &mediumType);
                 if (RT_FAILURE(vrc))
-                    return errorArgument("Invalid medium type '%s'", ValueUnion.psz);
+                    return errorArgument("Invalid hard disk type '%s'", ValueUnion.psz);
                 fSetMediumType = true;
                 break;
             }
@@ -551,7 +540,7 @@ int handleStorageAttach(HandlerArg *a)
 
             // find the medium given
             /* host drive? */
-            if (!RTStrNICmp(pszMedium, RT_STR_TUPLE("host:")))
+            if (!RTStrNICmp(pszMedium, "host:", 5))
             {
                 ComPtr<IHost> host;
                 CHECK_ERROR(a->virtualBox, COMGETTER(Host)(host.asOutParam()));
@@ -600,11 +589,9 @@ int handleStorageAttach(HandlerArg *a)
                 else
                     bstrISCSIMedium = BstrFmt("%ls|%ls|%ls", bstrServer.raw(), bstrTarget.raw(), bstrLun.raw());
 
-                CHECK_ERROR(a->virtualBox, CreateMedium(Bstr("iSCSI").raw(),
-                                                        bstrISCSIMedium.raw(),
-                                                        AccessMode_ReadWrite,
-                                                        DeviceType_HardDisk,
-                                                        pMedium2Mount.asOutParam()));
+                CHECK_ERROR(a->virtualBox, CreateHardDisk(Bstr("iSCSI").raw(),
+                                                          bstrISCSIMedium.raw(),
+                                                          pMedium2Mount.asOutParam()));
                 if (FAILED(rc)) goto leave;
                 if (!bstrPort.isEmpty())
                     bstrServer = BstrFmt("%ls:%ls", bstrServer.raw(), bstrPort.raw());
@@ -688,7 +675,7 @@ int handleStorageAttach(HandlerArg *a)
             // set medium type, if so desired
             if (pMedium2Mount && fSetMediumType)
             {
-                CHECK_ERROR(pMedium2Mount, COMSETTER(Type)(enmMediumType));
+                CHECK_ERROR(pMedium2Mount, COMSETTER(Type)(mediumType));
                 if (FAILED(rc))
                     throw  Utf8Str("Failed to set the medium type");
             }
@@ -865,31 +852,6 @@ int handleStorageAttach(HandlerArg *a)
                 throw Utf8StrFmt("Couldn't find the controller attachment for the controller '%s'\n", pszCtl);
         }
 
-        if (   pszHotPluggable
-            && (SUCCEEDED(rc)))
-        {
-            ComPtr<IMediumAttachment> mattach;
-            CHECK_ERROR(machine, GetMediumAttachment(Bstr(pszCtl).raw(), port,
-                                                     device, mattach.asOutParam()));
-
-            if (SUCCEEDED(rc))
-            {
-                if (!RTStrICmp(pszHotPluggable, "on"))
-                {
-                    CHECK_ERROR(machine, SetHotPluggableForDevice(Bstr(pszCtl).raw(),
-                                                                  port, device, TRUE));
-                }
-                else if (!RTStrICmp(pszHotPluggable, "off"))
-                {
-                    CHECK_ERROR(machine, SetHotPluggableForDevice(Bstr(pszCtl).raw(),
-                                                                  port, device, FALSE));
-                }
-                else
-                    throw Utf8StrFmt("Invalid --hotpluggable argument '%s'", pszHotPluggable);
-            }
-            else
-                throw Utf8StrFmt("Couldn't find the controller attachment for the controller '%s'\n", pszCtl);
-        }
 
         if (   pszBandwidthGroup
             && !fRunTime
@@ -1099,12 +1061,6 @@ int handleStorageController(HandlerArg *a)
                                                           StorageBus_SAS,
                                                           ctl.asOutParam()));
             }
-            else if (!RTStrICmp(pszBusType, "usb"))
-            {
-                CHECK_ERROR(machine, AddStorageController(Bstr(pszCtl).raw(),
-                                                          StorageBus_USB,
-                                                          ctl.asOutParam()));
-            }
             else
             {
                 errorArgument("Invalid --add argument '%s'", pszBusType);
@@ -1153,10 +1109,6 @@ int handleStorageController(HandlerArg *a)
                 else if (!RTStrICmp(pszCtlType, "lsilogicsas"))
                 {
                     CHECK_ERROR(ctl, COMSETTER(ControllerType)(StorageControllerType_LsiLogicSas));
-                }
-                else if (!RTStrICmp(pszCtlType, "usb"))
-                {
-                    CHECK_ERROR(ctl, COMSETTER(ControllerType)(StorageControllerType_USB));
                 }
                 else
                 {

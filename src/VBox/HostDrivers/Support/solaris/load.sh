@@ -5,7 +5,7 @@
 #
 
 #
-# Copyright (C) 2006-2015 Oracle Corporation
+# Copyright (C) 2006-2012 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -44,10 +44,7 @@ SUDO=sudo
 #set -x
 
 # Disable the zone access service.
-servicefound=`svcs -H "virtualbox/zoneaccess" 2>/dev/null | grep '^online'`
-if test ! -z "$servicefound"; then
-    $SUDO svcadm disable svc:/application/virtualbox/zoneaccess:default
-fi
+$SUDO svcadm disable svc:/application/virtualbox/zoneaccess:default
 
 # Unload driver that may depend on the driver we're going to (re-)load
 # as well as the driver itself.
@@ -94,10 +91,6 @@ if $SUDO add_drv -v $DRVNAME; then
         echo "load.sh: successfully loaded the driver"
         modinfo | grep -w "$DRVNAME"
         MY_RC=0
-        if test ! -h "/dev/vboxdrv"; then
-            $SUDO ln -sf "/devices/pseudo/vboxdrv@0:vboxdrv" /dev/vboxdrv
-            $SUDO chmod 0666 /dev/vboxdrv
-        fi
     else
         dmesg | tail
         echo "load.sh: modload failed"

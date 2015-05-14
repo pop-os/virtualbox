@@ -1,6 +1,8 @@
 /* $Id: QIFileDialog.cpp $ */
 /** @file
- * VBox Qt GUI - Qt extensions: QIFileDialog class implementation.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * Qt extensions: QIFileDialog class implementation
  */
 
 /*
@@ -15,30 +17,28 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* VBox includes */
-# include "VBoxGlobal.h"
-# include "UIModalWindowManager.h"
-# include "UIMessageCenter.h"
-# include "QIFileDialog.h"
+#include "VBoxGlobal.h"
+#include "UIModalWindowManager.h"
+#include "UIMessageCenter.h"
+#include "QIFileDialog.h"
 
-# ifdef Q_WS_WIN
+#if defined Q_WS_WIN
+
+/// @todo bird: Use (U)INT_PTR, (U)LONG_PTR, DWORD_PTR, or (u)intptr_t.
+#if defined Q_OS_WIN64
+typedef unsigned __int64 Q_ULONG;   /* word up to 64 bit unsigned */
+#else
+typedef unsigned long Q_ULONG;      /* word up to 64 bit unsigned */
+#endif
+
 /* Qt includes */
-#  include <QEvent>
-#  include <QEventLoop>
-#  include <QThread>
+#include <QEvent>
+#include <QEventLoop>
+#include <QThread>
 
 /* WinAPI includes */
-#  include "shlobj.h"
-# endif /* !Q_WS_WIN */
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
-
-#ifdef Q_WS_WIN
+#include "shlobj.h"
 
 static QString extractFilter (const QString &aRawFilter)
 {
@@ -140,7 +140,7 @@ static int __stdcall winGetExistDirCallbackProc (HWND hwnd, UINT uMsg,
         QString *initDir = (QString *)(lpData);
         if (!initDir->isEmpty())
         {
-            SendMessage (hwnd, BFFM_SETSELECTION, TRUE, uintptr_t(
+            SendMessage (hwnd, BFFM_SETSELECTION, TRUE, Q_ULONG (
                 initDir->isNull() ? 0 : initDir->utf16()));
         }
     }
@@ -153,7 +153,7 @@ static int __stdcall winGetExistDirCallbackProc (HWND hwnd, UINT uMsg,
             SendMessage (hwnd, BFFM_ENABLEOK, 1, 1);
         else
             SendMessage (hwnd, BFFM_ENABLEOK, 0, 0);
-        SendMessage (hwnd, BFFM_SETSTATUSTEXT, 1, uintptr_t(path));
+        SendMessage (hwnd, BFFM_SETSTATUSTEXT, 1, Q_ULONG (path));
     }
     return 0;
 }
@@ -281,7 +281,7 @@ QString QIFileDialog::getExistingDirectory (const QString &aDir,
             bi.pszDisplayName = initPath;
             bi.ulFlags = BIF_RETURNONLYFSDIRS | BIF_STATUSTEXT | BIF_NEWDIALOGSTYLE;
             bi.lpfn = winGetExistDirCallbackProc;
-            bi.lParam = uintptr_t(&mDir);
+            bi.lParam = Q_ULONG (&mDir);
 
             LPITEMIDLIST itemIdList = SHBrowseForFolder (&bi);
             if (itemIdList)
@@ -344,23 +344,25 @@ QString QIFileDialog::getExistingDirectory (const QString &aDir,
     return dlg.exec() ? dlg.selectedFiles() [0] : QString::null;
 #elif defined (Q_WS_MAC) && (QT_VERSION >= 0x040600)
 
-    /* After 4.5 exec ignores the Qt::Sheet flag.
-     * See "New Ways of Using Dialogs" in http://doc.trolltech.com/qq/QtQuarterly30.pdf why.
-     * We want the old behavior for file-save dialog. Unfortunately there is a bug in Qt 4.5.x
-     * which result in showing the native & the Qt dialog at the same time. */
-    QFileDialog dlg(aParent);
-    dlg.setWindowTitle(aCaption);
-    dlg.setDirectory(aDir);
-    dlg.setResolveSymlinks(aResolveSymlinks);
-    dlg.setFileMode(aDirOnly ? QFileDialog::DirectoryOnly : QFileDialog::Directory);
+    /* After 4.5 exec ignores the Qt::Sheet flag. See "New Ways of Using
+     * Dialogs" in http://doc.trolltech.com/qq/QtQuarterly30.pdf why. Because
+     * we are lazy, we recreate the old behavior. Unfortunately there is a bug
+     * in Qt 4.5.x which result in showing the native & the Qt dialog at the
+     * same time. */
+    QFileDialog dlg (aParent, Qt::Sheet);
+    dlg.setWindowTitle (aCaption);
+    dlg.setDirectory (aDir);
+    dlg.setResolveSymlinks (aResolveSymlinks);
+    dlg.setFileMode (aDirOnly ? QFileDialog::DirectoryOnly : QFileDialog::Directory);
 
     QEventLoop eventLoop;
     QObject::connect(&dlg, SIGNAL(finished(int)),
                      &eventLoop, SLOT(quit()));
+    /* Use the new open call. */
     dlg.open();
     eventLoop.exec();
 
-    return dlg.result() == QDialog::Accepted ? dlg.selectedFiles().value(0, QString()) : QString();
+    return dlg.result() == QDialog::Accepted ? dlg.selectedFiles() [0] : QString::null;
 
 #else
 
@@ -565,38 +567,30 @@ QString QIFileDialog::getSaveFileName (const QString &aStartWith,
 
 #elif defined (Q_WS_MAC) && (QT_VERSION >= 0x040600)
 
-    /* After 4.5 exec ignores the Qt::Sheet flag.
-     * See "New Ways of Using Dialogs" in http://doc.trolltech.com/qq/QtQuarterly30.pdf why.
-     * We want the old behavior for file-save dialog. Unfortunately there is a bug in Qt 4.5.x
-     * which result in showing the native & the Qt dialog at the same time. */
-    QFileDialog dlg(aParent);
-    dlg.setWindowTitle(aCaption);
-
-    /* Some predictive algorithm which seems missed in native code. */
-    QDir dir(aStartWith);
-    while (!dir.isRoot() && !dir.exists())
-        dir = QDir(QFileInfo(dir.absolutePath()).absolutePath());
-    const QString strDirectory = dir.absolutePath();
-    if (!strDirectory.isNull())
-        dlg.setDirectory(strDirectory);
-    if (strDirectory != aStartWith)
-        dlg.selectFile(QFileInfo(aStartWith).absoluteFilePath());
-
-    dlg.setNameFilter(aFilters);
-    dlg.setFileMode(QFileDialog::AnyFile);
-    dlg.setAcceptMode(QFileDialog::AcceptSave);
+    /* After 4.5 exec ignores the Qt::Sheet flag. See "New Ways of Using
+     * Dialogs" in http://doc.trolltech.com/qq/QtQuarterly30.pdf why. Because
+     * we are lazy, we recreate the old behavior. Unfortunately there is a bug
+     * in Qt 4.5.x which result in showing the native & the Qt dialog at the
+     * same time. */
+    QFileDialog dlg (aParent);
+    dlg.setWindowTitle (aCaption);
+    dlg.setDirectory (aStartWith);
+    dlg.setFilter (aFilters);
+    dlg.setFileMode (QFileDialog::QFileDialog::AnyFile);
+    dlg.setAcceptMode (QFileDialog::AcceptSave);
     if (aSelectedFilter)
-        dlg.selectFilter(*aSelectedFilter);
-    dlg.setResolveSymlinks(aResolveSymlinks);
-    dlg.setConfirmOverwrite(fConfirmOverwrite);
+        dlg.selectFilter (*aSelectedFilter);
+    dlg.setResolveSymlinks (aResolveSymlinks);
+    dlg.setConfirmOverwrite (fConfirmOverwrite);
 
     QEventLoop eventLoop;
     QObject::connect(&dlg, SIGNAL(finished(int)),
                      &eventLoop, SLOT(quit()));
+    /* Use the new open call. */
     dlg.open();
     eventLoop.exec();
 
-    return dlg.result() == QDialog::Accepted ? dlg.selectedFiles().value(0, QString()) : QString();
+    return dlg.result() == QDialog::Accepted ? dlg.selectedFiles().value (0, "") : QString::null;
 
 #else
 
@@ -822,39 +816,31 @@ QStringList QIFileDialog::getOpenFileNames (const QString &aStartWith,
 
 #elif defined (Q_WS_MAC) && (QT_VERSION >= 0x040600)
 
-    /* After 4.5 exec ignores the Qt::Sheet flag.
-     * See "New Ways of Using Dialogs" in http://doc.trolltech.com/qq/QtQuarterly30.pdf why.
-     * We want the old behavior for file-save dialog. Unfortunately there is a bug in Qt 4.5.x
-     * which result in showing the native & the Qt dialog at the same time. */
-    QFileDialog dlg(aParent);
-    dlg.setWindowTitle(aCaption);
-
-    /* Some predictive algorithm which seems missed in native code. */
-    QDir dir(aStartWith);
-    while (!dir.isRoot() && !dir.exists())
-        dir = QDir(QFileInfo(dir.absolutePath()).absolutePath());
-    const QString strDirectory = dir.absolutePath();
-    if (!strDirectory.isNull())
-        dlg.setDirectory(strDirectory);
-    if (strDirectory != aStartWith)
-        dlg.selectFile(QFileInfo(aStartWith).absoluteFilePath());
-
-    dlg.setNameFilter(aFilters);
+    /* After 4.5 exec ignores the Qt::Sheet flag. See "New Ways of Using
+     * Dialogs" in http://doc.trolltech.com/qq/QtQuarterly30.pdf why. Because
+     * we are lazy, we recreate the old behavior. Unfortunately there is a bug
+     * in Qt 4.5.x which result in showing the native & the Qt dialog at the
+     * same time. */
+    QFileDialog dlg (aParent, Qt::Sheet);
+    dlg.setWindowTitle (aCaption);
+    dlg.setDirectory (aStartWith);
+    dlg.setNameFilter (aFilters);
     if (aSingleFile)
-        dlg.setFileMode(QFileDialog::ExistingFile);
+        dlg.setFileMode (QFileDialog::ExistingFile);
     else
-        dlg.setFileMode(QFileDialog::ExistingFiles);
+        dlg.setFileMode (QFileDialog::ExistingFiles);
     if (aSelectedFilter)
-        dlg.selectFilter(*aSelectedFilter);
-    dlg.setResolveSymlinks(aResolveSymlinks);
+        dlg.selectFilter (*aSelectedFilter);
+    dlg.setResolveSymlinks (aResolveSymlinks);
 
     QEventLoop eventLoop;
     QObject::connect(&dlg, SIGNAL(finished(int)),
                      &eventLoop, SLOT(quit()));
+    /* Use the new open call. */
     dlg.open();
     eventLoop.exec();
 
-    return dlg.result() == QDialog::Accepted ? dlg.selectedFiles() : QStringList() << QString();
+    return dlg.result() == QDialog::Accepted ? dlg.selectedFiles() : QStringList() << QString::null;
 
 #else
 

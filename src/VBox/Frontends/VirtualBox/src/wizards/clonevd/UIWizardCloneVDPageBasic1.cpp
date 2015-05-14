@@ -1,6 +1,8 @@
 /* $Id: UIWizardCloneVDPageBasic1.cpp $ */
 /** @file
- * VBox Qt GUI - UIWizardCloneVDPageBasic1 class implementation.
+ *
+ * VBox frontends: Qt4 GUI ("VirtualBox"):
+ * UIWizardCloneVDPageBasic1 class implementation
  */
 
 /*
@@ -15,25 +17,18 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Global includes: */
-# include <QVBoxLayout>
-# include <QHBoxLayout>
+#include <QVBoxLayout>
+#include <QHBoxLayout>
 
 /* Local includes: */
-# include "UIWizardCloneVDPageBasic1.h"
-# include "UIWizardCloneVD.h"
-# include "UIIconPool.h"
-# include "QIRichTextLabel.h"
-# include "VBoxMediaComboBox.h"
-# include "QIToolButton.h"
-# include "UIMedium.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
+#include "UIWizardCloneVDPageBasic1.h"
+#include "UIWizardCloneVD.h"
+#include "UIIconPool.h"
+#include "QIRichTextLabel.h"
+#include "VBoxMediaComboBox.h"
+#include "QIToolButton.h"
+#include "UIMedium.h"
 
 UIWizardCloneVDPage1::UIWizardCloneVDPage1()
 {

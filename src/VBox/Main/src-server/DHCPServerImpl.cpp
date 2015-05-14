@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -155,7 +155,7 @@ HRESULT DHCPServer::init(VirtualBox *aVirtualBox,
 }
 
 
-HRESULT DHCPServer::i_saveSettings(settings::DHCPServer &data)
+HRESULT DHCPServer::saveSettings(settings::DHCPServer &data)
 {
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
@@ -181,17 +181,27 @@ HRESULT DHCPServer::i_saveSettings(settings::DHCPServer &data)
 }
 
 
-HRESULT DHCPServer::getNetworkName(com::Utf8Str &aName)
+STDMETHODIMP DHCPServer::COMGETTER(NetworkName) (BSTR *aName)
 {
+    CheckComArgOutPointerValid(aName);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    aName = mName;
+    mName.cloneTo(aName);
     return S_OK;
 }
 
 
-HRESULT DHCPServer::getEnabled(BOOL *aEnabled)
+STDMETHODIMP DHCPServer::COMGETTER(Enabled) (BOOL *aEnabled)
 {
+    CheckComArgOutPointerValid(aEnabled);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     *aEnabled = m->enabled;
@@ -199,69 +209,92 @@ HRESULT DHCPServer::getEnabled(BOOL *aEnabled)
 }
 
 
-HRESULT DHCPServer::setEnabled(BOOL aEnabled)
+STDMETHODIMP DHCPServer::COMSETTER(Enabled) (BOOL aEnabled)
 {
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
     m->enabled = aEnabled;
 
     // save the global settings; for that we should hold only the VirtualBox lock
     alock.release();
     AutoWriteLock vboxLock(mVirtualBox COMMA_LOCKVAL_SRC_POS);
-    HRESULT rc = mVirtualBox->i_saveSettings();
+    HRESULT rc = mVirtualBox->saveSettings();
 
     return rc;
 }
 
 
-HRESULT DHCPServer::getIPAddress(com::Utf8Str &aIPAddress)
+STDMETHODIMP DHCPServer::COMGETTER(IPAddress) (BSTR *aIPAddress)
 {
+    CheckComArgOutPointerValid(aIPAddress);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    aIPAddress = Utf8Str(m->IPAddress);
+    m->IPAddress.cloneTo(aIPAddress);
     return S_OK;
 }
 
 
-HRESULT DHCPServer::getNetworkMask(com::Utf8Str &aNetworkMask)
+STDMETHODIMP DHCPServer::COMGETTER(NetworkMask) (BSTR *aNetworkMask)
 {
+    CheckComArgOutPointerValid(aNetworkMask);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    aNetworkMask = m->GlobalDhcpOptions[DhcpOpt_SubnetMask].text;
+    m->GlobalDhcpOptions[DhcpOpt_SubnetMask].text.cloneTo(aNetworkMask);
     return S_OK;
 }
 
 
-HRESULT DHCPServer::getLowerIP(com::Utf8Str &aIPAddress)
+STDMETHODIMP DHCPServer::COMGETTER(LowerIP) (BSTR *aIPAddress)
 {
+    CheckComArgOutPointerValid(aIPAddress);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    aIPAddress = Utf8Str(m->lowerIP);
+    m->lowerIP.cloneTo(aIPAddress);
     return S_OK;
 }
 
 
-HRESULT DHCPServer::getUpperIP(com::Utf8Str &aIPAddress)
+STDMETHODIMP DHCPServer::COMGETTER(UpperIP) (BSTR *aIPAddress)
 {
+    CheckComArgOutPointerValid(aIPAddress);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    aIPAddress = Utf8Str(m->upperIP);
+    m->upperIP.cloneTo(aIPAddress);
     return S_OK;
 }
 
 
-HRESULT DHCPServer::setConfiguration(const com::Utf8Str &aIPAddress,
-                                     const com::Utf8Str &aNetworkMask,
-                                     const com::Utf8Str &aLowerIP,
-                                     const com::Utf8Str &aUpperIP)
+STDMETHODIMP DHCPServer::SetConfiguration (IN_BSTR aIPAddress, IN_BSTR aNetworkMask, IN_BSTR aLowerIP, IN_BSTR aUpperIP)
 {
-    AssertReturn(!aIPAddress.isEmpty(), E_INVALIDARG);
-    AssertReturn(!aNetworkMask.isEmpty(), E_INVALIDARG);
-    AssertReturn(!aLowerIP.isEmpty(), E_INVALIDARG);
-    AssertReturn(!aUpperIP.isEmpty(), E_INVALIDARG);
+    AssertReturn(aIPAddress != NULL, E_INVALIDARG);
+    AssertReturn(aNetworkMask != NULL, E_INVALIDARG);
+    AssertReturn(aLowerIP != NULL, E_INVALIDARG);
+    AssertReturn(aUpperIP != NULL, E_INVALIDARG);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
     m->IPAddress = aIPAddress;
-    m->GlobalDhcpOptions[DhcpOpt_SubnetMask] = aNetworkMask;
+    m->GlobalDhcpOptions[DhcpOpt_SubnetMask] = DhcpOptValue(aNetworkMask);
 
     m->lowerIP = aLowerIP;
     m->upperIP = aUpperIP;
@@ -269,7 +302,7 @@ HRESULT DHCPServer::setConfiguration(const com::Utf8Str &aIPAddress,
     // save the global settings; for that we should hold only the VirtualBox lock
     alock.release();
     AutoWriteLock vboxLock(mVirtualBox COMMA_LOCKVAL_SRC_POS);
-    return mVirtualBox->i_saveSettings();
+    return mVirtualBox->saveSettings();
 }
 
 
@@ -385,8 +418,13 @@ int DHCPServer::addOption(DhcpOptionMap &aMap,
 }
 
 
-HRESULT DHCPServer::addGlobalOption(DhcpOpt_T aOption, const com::Utf8Str &aValue)
+STDMETHODIMP DHCPServer::AddGlobalOption(DhcpOpt_T aOption, IN_BSTR aValue)
 {
+    CheckComArgStr(aValue);
+    /* store global option */
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     int rc = addOption(m->GlobalDhcpOptions, aOption, aValue);
@@ -403,50 +441,73 @@ HRESULT DHCPServer::addGlobalOption(DhcpOpt_T aOption, const com::Utf8Str &aValu
     alock.release();
 
     AutoWriteLock vboxLock(mVirtualBox COMMA_LOCKVAL_SRC_POS);
-    return mVirtualBox->i_saveSettings();
+    return mVirtualBox->saveSettings();
 }
 
 
-HRESULT DHCPServer::getGlobalOptions(std::vector<com::Utf8Str> &aValues)
+STDMETHODIMP DHCPServer::COMGETTER(GlobalOptions)(ComSafeArrayOut(BSTR, aValues))
 {
+    CheckComArgOutSafeArrayPointerValid(aValues);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-    aValues.resize(m->GlobalDhcpOptions.size());
-    DhcpOptionMap::const_iterator it;
-    size_t i = 0;
-    for (it = m->GlobalDhcpOptions.begin(); it != m->GlobalDhcpOptions.end(); ++it, ++i)
+
+    SafeArray<BSTR> sf(m->GlobalDhcpOptions.size());
+    int i = 0;
+
+    for (DhcpOptIterator it = m->GlobalDhcpOptions.begin();
+         it != m->GlobalDhcpOptions.end(); ++it)
     {
         uint32_t OptCode = (*it).first;
         const DhcpOptValue &OptValue = (*it).second;
 
-        encodeOption(aValues[i], OptCode, OptValue);
+        com::Utf8Str value;
+        encodeOption(value, OptCode, OptValue);
+        Bstr(value).detachTo(&sf[i]);
+        i++;
     }
+
+    sf.detachTo(ComSafeArrayOutArg(aValues));
 
     return S_OK;
 }
 
-HRESULT DHCPServer::getVmConfigs(std::vector<com::Utf8Str> &aValues)
+
+STDMETHODIMP DHCPServer::COMGETTER(VmConfigs)(ComSafeArrayOut(BSTR, aValues))
 {
+    CheckComArgOutSafeArrayPointerValid(aValues);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-    aValues.resize(m->VmSlot2Options.size());
-    VmSlot2OptionsMap::const_iterator it;
-    size_t i = 0;
-    for (it = m->VmSlot2Options.begin(); it != m->VmSlot2Options.end(); ++it, ++i)
+
+    SafeArray<BSTR> sf(m->VmSlot2Options.size());
+    VmSlot2OptionsIterator it = m->VmSlot2Options.begin();
+    int i = 0;
+    for (;it != m->VmSlot2Options.end(); ++it)
     {
-        aValues[i] = Utf8StrFmt("[%s]:%d", it->first.VmName.c_str(), it->first.Slot);
+        Bstr(Utf8StrFmt("[%s]:%d",
+                        it->first.VmName.c_str(),
+                        it->first.Slot)).detachTo(&sf[i]);
+        i++;
     }
+
+    sf.detachTo(ComSafeArrayOutArg(aValues));
 
     return S_OK;
 }
 
 
-HRESULT DHCPServer::addVmSlotOption(const com::Utf8Str &aVmName,
-                                    LONG aSlot,
-                                    DhcpOpt_T aOption,
-                                    const com::Utf8Str &aValue)
+STDMETHODIMP DHCPServer::AddVmSlotOption(IN_BSTR aVmName, LONG aSlot, DhcpOpt_T aOption, IN_BSTR aValue)
 {
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    DhcpOptionMap &map = m->VmSlot2Options[VmNameSlotKey(aVmName, aSlot)];
+    DhcpOptionMap &map = m->VmSlot2Options[VmNameSlotKey(com::Utf8Str(aVmName), aSlot)];
     int rc = addOption(map, aOption, aValue);
     if (!RT_SUCCESS(rc))
         return E_INVALIDARG;
@@ -454,56 +515,82 @@ HRESULT DHCPServer::addVmSlotOption(const com::Utf8Str &aVmName,
     alock.release();
 
     AutoWriteLock vboxLock(mVirtualBox COMMA_LOCKVAL_SRC_POS);
-    return mVirtualBox->i_saveSettings();
+    return mVirtualBox->saveSettings();
 }
 
 
-HRESULT DHCPServer::removeVmSlotOptions(const com::Utf8Str &aVmName, LONG aSlot)
+STDMETHODIMP DHCPServer::RemoveVmSlotOptions(IN_BSTR aVmName, LONG aSlot)
 {
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-    DhcpOptionMap& map = i_findOptMapByVmNameSlot(aVmName, aSlot);
+
+    DhcpOptionMap& map = findOptMapByVmNameSlot(com::Utf8Str(aVmName), aSlot);
+
     map.clear();
 
     alock.release();
 
     AutoWriteLock vboxLock(mVirtualBox COMMA_LOCKVAL_SRC_POS);
-    return mVirtualBox->i_saveSettings();
+    return mVirtualBox->saveSettings();
 }
+
 
 /**
  * this is mapping (vm, slot)
  */
-HRESULT DHCPServer::getVmSlotOptions(const com::Utf8Str &aVmName,
-                                     LONG aSlot,
-                                     std::vector<com::Utf8Str> &aValues)
+STDMETHODIMP DHCPServer::GetVmSlotOptions(IN_BSTR aVmName,
+                                          LONG aSlot,
+                                          ComSafeArrayOut(BSTR, aValues))
 {
+    CheckComArgOutSafeArrayPointerValid(aValues);
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-    DhcpOptionMap& map = i_findOptMapByVmNameSlot(aVmName, aSlot);
-    aValues.resize(map.size());
-    size_t i = 0;
-    DhcpOptionMap::const_iterator it;
-    for (it = map.begin(); it != map.end(); ++it, ++i)
+
+    DhcpOptionMap& map = findOptMapByVmNameSlot(com::Utf8Str(aVmName), aSlot);
+
+    SafeArray<BSTR> sf(map.size());
+    int i = 0;
+
+    for (DhcpOptIterator it = map.begin();
+         it != map.end(); ++it)
     {
         uint32_t OptCode = (*it).first;
         const DhcpOptValue &OptValue = (*it).second;
 
-        encodeOption(aValues[i], OptCode, OptValue);
+        com::Utf8Str value;
+        encodeOption(value, OptCode, OptValue);
+        Bstr(value).detachTo(&sf[i]);
+        i++;
     }
+
+    sf.detachTo(ComSafeArrayOutArg(aValues));
 
     return S_OK;
 }
 
 
-HRESULT DHCPServer::getMacOptions(const com::Utf8Str &aMAC, std::vector<com::Utf8Str> &aOption)
+STDMETHODIMP DHCPServer::GetMacOptions(IN_BSTR aMAC, ComSafeArrayOut(BSTR, aValues))
 {
+    CheckComArgOutSafeArrayPointerValid(aValues);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
     HRESULT hrc = S_OK;
+
     ComPtr<IMachine> machine;
     ComPtr<INetworkAdapter> nic;
+
     VmSlot2OptionsIterator it;
-    for(it = m->VmSlot2Options.begin(); it != m->VmSlot2Options.end(); ++it)
+    for(it = m->VmSlot2Options.begin();
+        it != m->VmSlot2Options.end();
+        ++it)
     {
+
         alock.release();
         hrc = mVirtualBox->FindMachine(Bstr(it->first.VmName).raw(), machine.asOutParam());
         alock.acquire();
@@ -526,37 +613,38 @@ HRESULT DHCPServer::getMacOptions(const com::Utf8Str &aMAC, std::vector<com::Utf
 
         if (FAILED(hrc)) /* no MAC address ??? */
             break;
-        if (!RTStrICmp(com::Utf8Str(mac).c_str(), aMAC.c_str()))
-            return getVmSlotOptions(it->first.VmName,
+
+        if (!RTStrICmp(com::Utf8Str(mac).c_str(), com::Utf8Str(aMAC).c_str()))
+            return GetVmSlotOptions(Bstr(it->first.VmName).raw(),
                                     it->first.Slot,
-                                    aOption);
+                                    ComSafeArrayOutArg(aValues));
     } /* end of for */
 
     return hrc;
 }
 
-HRESULT DHCPServer::getEventSource(ComPtr<IEventSource> &aEventSource)
+
+STDMETHODIMP DHCPServer::COMGETTER(EventSource)(IEventSource **aEventSource)
 {
     NOREF(aEventSource);
     ReturnComNotImplemented();
 }
 
 
-HRESULT DHCPServer::start(const com::Utf8Str &aNetworkName,
-                          const com::Utf8Str &aTrunkName,
-                          const com::Utf8Str &aTrunkType)
+STDMETHODIMP DHCPServer::Start(IN_BSTR aNetworkName, IN_BSTR aTrunkName, IN_BSTR aTrunkType)
 {
     /* Silently ignore attempts to run disabled servers. */
     if (!m->enabled)
         return S_OK;
 
     /* Commmon Network Settings */
-    m->dhcp.setOption(NetworkServiceRunner::kNsrKeyNetwork, aNetworkName.c_str());
+    m->dhcp.setOption(NetworkServiceRunner::kNsrKeyNetwork, Utf8Str(aNetworkName).c_str());
 
-    if (!aTrunkName.isEmpty())
-        m->dhcp.setOption(NetworkServiceRunner::kNsrTrunkName, aTrunkName.c_str());
+    Bstr tmp(aTrunkName);
 
-    m->dhcp.setOption(NetworkServiceRunner::kNsrKeyTrunkType, aTrunkType.c_str());
+    if (!tmp.isEmpty())
+        m->dhcp.setOption(NetworkServiceRunner::kNsrTrunkName, Utf8Str(tmp).c_str());
+    m->dhcp.setOption(NetworkServiceRunner::kNsrKeyTrunkType, Utf8Str(aTrunkType).c_str());
 
     /* XXX: should this MAC default initialization moved to NetworkServiceRunner? */
     char strMAC[32];
@@ -578,14 +666,16 @@ HRESULT DHCPServer::start(const com::Utf8Str &aNetworkName,
 }
 
 
-HRESULT DHCPServer::stop (void)
+STDMETHODIMP DHCPServer::Stop (void)
 {
     return RT_FAILURE(m->dhcp.stop()) ? E_FAIL : S_OK;
 }
 
 
-DhcpOptionMap& DHCPServer::i_findOptMapByVmNameSlot(const com::Utf8Str& aVmName,
+DhcpOptionMap& DHCPServer::findOptMapByVmNameSlot(const com::Utf8Str& aVmName,
                                                   LONG aSlot)
 {
-    return m->VmSlot2Options[settings::VmNameSlotKey(aVmName, aSlot)];
+    return m->VmSlot2Options[settings::VmNameSlotKey(
+          com::Utf8Str(aVmName),
+          aSlot)];
 }

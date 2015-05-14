@@ -1,6 +1,8 @@
 /* $Id: QIListView.cpp $ */
 /** @file
- * VBox Qt GUI - QIListView, QIItemDelegate class implementation.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * QIListView, QIItemDelegate class implementation
  */
 
 /*
@@ -15,25 +17,15 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
-/* Qt includes: */
-# if MAC_LEOPARD_STYLE
-#  include <QPainter>
-#  include <QApplication>
-# endif /* MAC_LEOPARD_STYLE */
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 #if MAC_LEOPARD_STYLE
+/* Qt includes: */
+# include <QPainter>
+# include <QApplication>
 # include <qmacstyle_mac.h>
 #endif /* MAC_LEOPARD_STYLE */
 
 /* GUI includes: */
 #include "QIListView.h"
-
 
 QIListView::QIListView (QWidget *aParent /* = 0 */)
     :QListView (aParent)

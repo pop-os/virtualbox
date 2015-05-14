@@ -21,7 +21,6 @@
 #include <iprt/assert.h>
 #include <iprt/semaphore.h>
 #include <iprt/thread.h>
-#include <iprt/time.h>
 
 #include <VBox/com/VirtualBox.h>
 #include <VBox/com/com.h>
@@ -59,7 +58,7 @@ static uint32_t g_enmState = VIDREC_UNINITIALIZED;
 typedef struct VIDEORECSTREAM
 {
     /* container context */
-    WebMWriter          Ebml;
+    EbmlGlobal          Ebml;
     /* VPX codec context */
     vpx_codec_ctx_t     VpxCodec;
     /* VPX configuration */
@@ -92,8 +91,6 @@ typedef struct VIDEORECSTREAM
     uint64_t            u64LastTimeStamp;
     /* time stamp of the current frame */
     uint64_t            u64TimeStamp;
-    /* encoder deadline */
-    unsigned int        uEncoderDeadline;
 } VIDEORECSTREAM;
 
 typedef struct VIDEORECCONTEXT
@@ -108,10 +105,6 @@ typedef struct VIDEORECCONTEXT
     RTTHREAD            Thread;
     /* number of stream contexts */
     uint32_t            cScreens;
-    /* maximal time stamp */
-    uint64_t            u64MaxTimeStamp;
-    /* maximal file size in MB */
-    uint32_t            uMaxFileSize;
     /* video recording stream contexts */
     VIDEORECSTREAM      Strm[1];
 } VIDEORECCONTEXT;
@@ -442,12 +435,7 @@ int VideoRecContextCreate(PVIDEORECCONTEXT *ppCtx, uint32_t cScreens)
 
     pCtx->cScreens = cScreens;
     for (unsigned uScreen = 0; uScreen < cScreens; uScreen++)
-    {
-        /* Since we allocate without using standard C++ new mechanism
-         * it is required to call placement new for correct initialization
-         * of the object. */
-        new (&pCtx->Strm[uScreen] + RT_OFFSETOF(VIDEORECSTREAM, Ebml)) WebMWriter();
-    }
+        pCtx->Strm[uScreen].Ebml.last_pts_ms = -1;
 
     int rc = RTSemEventCreate(&pCtx->WaitEvent);
     AssertRCReturn(rc, rc);
@@ -474,27 +462,22 @@ int VideoRecContextCreate(PVIDEORECCONTEXT *ppCtx, uint32_t cScreens)
  * @param   uTargetHeight       Height of the target image in video recording file.
  */
 int VideoRecStrmInit(PVIDEORECCONTEXT pCtx, uint32_t uScreen, const char *pszFile,
-                     uint32_t uWidth, uint32_t uHeight, uint32_t uRate, uint32_t uFps,
-                     uint32_t uMaxTime, uint32_t uMaxFileSize, const char *pszOptions)
+                     uint32_t uWidth, uint32_t uHeight, uint32_t uRate, uint32_t uFps)
 {
     AssertPtrReturn(pCtx, VERR_INVALID_PARAMETER);
     AssertReturn(uScreen < pCtx->cScreens, VERR_INVALID_PARAMETER);
-
-    pCtx->u64MaxTimeStamp = (uMaxTime > 0 ? RTTimeProgramMilliTS() + uMaxTime * 1000 : 0);
-    pCtx->uMaxFileSize = uMaxFileSize;
 
     PVIDEORECSTREAM pStrm = &pCtx->Strm[uScreen];
     pStrm->uTargetWidth  = uWidth;
     pStrm->uTargetHeight = uHeight;
     pStrm->pu8RgbBuf = (uint8_t *)RTMemAllocZ(uWidth * uHeight * 4);
     AssertReturn(pStrm->pu8RgbBuf, VERR_NO_MEMORY);
-    pStrm->uEncoderDeadline = VPX_DL_REALTIME;
 
     /* Play safe: the file must not exist, overwriting is potentially
      * hazardous as nothing prevents the user from picking a file name of some
      * other important file, causing unintentional data loss. */
-
-    int rc = pStrm->Ebml.create(pszFile);
+    int rc = RTFileOpen(&pStrm->Ebml.file, pszFile,
+                        RTFILE_O_CREATE | RTFILE_O_WRITE | RTFILE_O_DENY_NONE);
     if (RT_FAILURE(rc))
     {
         LogRel(("Failed to create the video capture output file \"%s\" (%Rrc)\n", pszFile, rc));
@@ -507,38 +490,6 @@ int VideoRecStrmInit(PVIDEORECCONTEXT pCtx, uint32_t uScreen, const char *pszFil
         LogFlow(("Failed to configure codec\n", vpx_codec_err_to_string(rcv)));
         return VERR_INVALID_PARAMETER;
     }
-
-    com::Utf8Str options(pszOptions);
-    size_t pos = 0;
-
-    do {
-
-        com::Utf8Str key, value;
-        pos = options.parseKeyValue(key, value, pos);
-
-        if (key == "quality")
-        {
-            if (value == "realtime")
-            {
-                pStrm->uEncoderDeadline = VPX_DL_REALTIME;
-            }
-            else if (value == "good")
-            {
-                pStrm->uEncoderDeadline = 1000000 / uFps;
-            }
-            else if (value == "best")
-            {
-                pStrm->uEncoderDeadline = VPX_DL_BEST_QUALITY;
-            }
-            else
-            {
-                LogRel(("Settings quality deadline to = %s\n", value.c_str()));
-                pStrm->uEncoderDeadline = value.toUInt32();
-            }
-        }
-        else LogRel(("Getting unknown option: %s=%s\n", key.c_str(), value.c_str()));
-
-    } while(pos != com::Utf8Str::npos);
 
     /* target bitrate in kilobits per second */
     pStrm->VpxConfig.rc_target_bitrate = uRate;
@@ -554,8 +505,8 @@ int VideoRecStrmInit(PVIDEORECCONTEXT pCtx, uint32_t uScreen, const char *pszFil
 
     pStrm->uDelay = 1000 / uFps;
 
-    struct vpx_rational arg_framerate = { (int)uFps, 1 };
-    rc = pStrm->Ebml.writeHeader(&pStrm->VpxConfig, &arg_framerate);
+    struct vpx_rational arg_framerate = { 30, 1 };
+    rc = Ebml_WriteWebMFileHeader(&pStrm->Ebml, &pStrm->VpxConfig, &arg_framerate);
     AssertRCReturn(rc, rc);
 
     /* Initialize codec */
@@ -612,17 +563,24 @@ void VideoRecContextClose(PVIDEORECCONTEXT pCtx)
         PVIDEORECSTREAM pStrm = &pCtx->Strm[uScreen];
         if (pStrm->fEnabled)
         {
-            int rc = pStrm->Ebml.writeFooter(0);
-            AssertRC(rc);
-            pStrm->Ebml.close();
+            if (pStrm->Ebml.file != NIL_RTFILE)
+            {
+                int rc = Ebml_WriteWebMFileFooter(&pStrm->Ebml, 0);
+                AssertRC(rc);
+                RTFileClose(pStrm->Ebml.file);
+                pStrm->Ebml.file = NIL_RTFILE;
+            }
+            if (pStrm->Ebml.cue_list)
+            {
+                RTMemFree(pStrm->Ebml.cue_list);
+                pStrm->Ebml.cue_list = NULL;
+            }
             vpx_img_free(&pStrm->VpxRawImage);
             vpx_codec_err_t rcv = vpx_codec_destroy(&pStrm->VpxCodec);
             Assert(rcv == VPX_CODEC_OK);
             RTMemFree(pStrm->pu8RgbBuf);
             pStrm->pu8RgbBuf = NULL;
         }
-        /* Explicitly deinitilize Ebml object since it was created using placement new. */
-        pStrm->Ebml.~WebMWriter();
     }
 
     RTMemFree(pCtx);
@@ -672,41 +630,6 @@ bool VideoRecIsReady(PVIDEORECCONTEXT pCtx, uint32_t uScreen, uint64_t u64TimeSt
 }
 
 /**
- * VideoRec utility function to check if the file size has reached
- * specified limits (if any).
- *
- * @returns true if any limit has been reached
- * @param   pCtx Pointer to video recording context
- * @param   uScreen screen id
- * @param   u64TimeStamp current time stamp
- */
-
-bool VideoRecIsFull(PVIDEORECCONTEXT pCtx, uint32_t uScreen, uint64_t u64TimeStamp)
-{
-    PVIDEORECSTREAM pStrm = &pCtx->Strm[uScreen];
-    if(!pStrm->fEnabled)
-        return false;
-
-    if(pCtx->u64MaxTimeStamp > 0 && u64TimeStamp >= pCtx->u64MaxTimeStamp)
-        return true;
-
-    if (pCtx->uMaxFileSize > 0)
-    {
-        uint64_t sizeInMB = pStrm->Ebml.getFileSize() / (1024 * 1024);
-        if(sizeInMB >= pCtx->uMaxFileSize)
-            return true;
-    }
-    /* Check for available free disk space */
-    if (pStrm->Ebml.getAvailableSpace() < 0x100000)
-    {
-        LogRel(("Storage has not enough free space available, stopping video capture\n"));
-        return true;
-    }
-
-    return false;
-}
-
-/**
  * VideoRec utility function to encode the source image and write the encoded
  * image to target file.
  *
@@ -722,9 +645,9 @@ static int videoRecEncodeAndWrite(PVIDEORECSTREAM pStrm)
     vpx_codec_err_t rcv = vpx_codec_encode(&pStrm->VpxCodec,
                                            &pStrm->VpxRawImage,
                                            pts /* time stamp */,
-                                           pStrm->uDelay  /* how long to show this frame */,
+                                           10  /* how long to show this frame */,
                                            0   /* flags */,
-                                           pStrm->uEncoderDeadline /* quality setting */);
+                                           VPX_DL_REALTIME /* deadline */);
     if (rcv != VPX_CODEC_OK)
     {
         LogFlow(("Failed to encode:%s\n", vpx_codec_err_to_string(rcv)));
@@ -741,7 +664,7 @@ static int videoRecEncodeAndWrite(PVIDEORECSTREAM pStrm)
         switch (pkt->kind)
         {
             case VPX_CODEC_CX_FRAME_PKT:
-                rc = pStrm->Ebml.writeBlock(&pStrm->VpxConfig, pkt);
+                rc = Ebml_WriteWebMBlock(&pStrm->Ebml, &pStrm->VpxConfig, pkt);
                 break;
             default:
                 LogFlow(("Unexpected CODEC Packet.\n"));
@@ -899,7 +822,7 @@ int VideoRecCopyToIntBuf(PVIDEORECCONTEXT pCtx, uint32_t uScreen, uint32_t x, ui
 
         /* Calculate bytes per pixel */
         uint32_t bpp = 1;
-        if (uPixelFormat == BitmapFormat_BGR)
+        if (uPixelFormat == FramebufferPixelFormat_FOURCC_RGB)
         {
             switch (uBitsPerPixel)
             {

@@ -1,7 +1,8 @@
-/* $Id: CocoaEventHelper.h $ */
 /** @file
- * VBox Qt GUI - Declarations of utility functions for handling Darwin Cocoa
- * specific event handling tasks.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * Declarations of utility functions for handling Darwin Cocoa specific event
+ * handling tasks
  */
 
 /*

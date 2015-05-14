@@ -1,6 +1,8 @@
 /* $Id: UIWizardCloneVDPageExpert.cpp $ */
 /** @file
- * VBox Qt GUI - UIWizardCloneVDPageExpert class implementation.
+ *
+ * VBox frontends: Qt4 GUI ("VirtualBox"):
+ * UIWizardCloneVDPageExpert class implementation
  */
 
 /*
@@ -15,33 +17,26 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QGridLayout>
-# include <QVBoxLayout>
-# include <QHBoxLayout>
-# include <QButtonGroup>
-# include <QGroupBox>
-# include <QRadioButton>
-# include <QCheckBox>
-# include <QLineEdit>
+#include <QGridLayout>
+#include <QVBoxLayout>
+#include <QHBoxLayout>
+#include <QButtonGroup>
+#include <QGroupBox>
+#include <QRadioButton>
+#include <QCheckBox>
+#include <QLineEdit>
 
 /* GUI includes: */
-# include "UIWizardCloneVDPageExpert.h"
-# include "UIWizardCloneVD.h"
-# include "UIMessageCenter.h"
-# include "UIIconPool.h"
-# include "VBoxMediaComboBox.h"
-# include "QIToolButton.h"
+#include "UIWizardCloneVDPageExpert.h"
+#include "UIWizardCloneVD.h"
+#include "UIMessageCenter.h"
+#include "UIIconPool.h"
+#include "VBoxMediaComboBox.h"
+#include "QIToolButton.h"
 
 /* COM includes: */
-# include "CSystemProperties.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
+#include "CSystemProperties.h"
 
 UIWizardCloneVDPageExpert::UIWizardCloneVDPageExpert(const CMedium &sourceVirtualDisk)
 {

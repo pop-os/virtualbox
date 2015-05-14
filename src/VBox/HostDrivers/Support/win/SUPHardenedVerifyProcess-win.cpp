@@ -223,7 +223,7 @@ static const char *g_apszSupNtVpAllowedVmExes[] =
     "tstCFGM.exe",
     "tstIntNet-1.exe",
     "tstMMHyperHeap.exe",
-    "tstRTR0ThreadPreemptionDriver.exe",
+    "tstR0ThreadPreemptionDriver.exe",
     "tstRTR0MemUserKernelDriver.exe",
     "tstRTR0SemMutexDriver.exe",
     "tstRTR0TimerDriver.exe",
@@ -1724,7 +1724,7 @@ static bool supHardNtVpFreeOrReplacePrivateExecMemory(PSUPHNTVPSTATE pThis, HAND
             {
                 uintptr_t cbAdj = (uintptr_t)pbDst - uCopySrc;
                 pbSrc += cbAdj;
-                cbSrc -= cbSrc;
+                cbSrc -= cbAdj;
             }
             else
             {

@@ -1,6 +1,6 @@
 /* $Id: UIAbstractDockIconPreview.cpp $ */
 /** @file
- * VBox Qt GUI - Realtime Dock Icon Preview
+ * Qt GUI - Realtime Dock Icon Preview
  */
 
 /*
@@ -15,19 +15,12 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* VBox includes */
-# include "UIAbstractDockIconPreview.h"
-# include "UIFrameBuffer.h"
-# include "UIMachineLogic.h"
-# include "UIMachineView.h"
-# include "UISession.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
+#include "UIAbstractDockIconPreview.h"
+#include "UIFrameBuffer.h"
+#include "UIMachineLogic.h"
+#include "UIMachineView.h"
+#include "UISession.h"
 
 UIAbstractDockIconPreview::UIAbstractDockIconPreview(UISession * /* pSession */, const QPixmap& /* overlayImage */)
 {

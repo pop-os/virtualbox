@@ -1,6 +1,7 @@
-/* $Id: UIMachineSettingsSystem.h $ */
 /** @file
- * VBox Qt GUI - UIMachineSettingsSystem class declaration.
+ *
+ * VBox frontends: Qt4 GUI ("VirtualBox"):
+ * UIMachineSettingsSystem class declaration
  */
 
 /*
@@ -61,7 +62,6 @@ struct UIDataSettingsMachineSystem
         , m_iCPUExecCap(-1)
         , m_fEnabledPAE(false)
         /* Acceleration data: */
-        , m_paravirtProvider(KParavirtProvider_None)
         , m_fEnabledHwVirtEx(false)
         , m_fEnabledNestedPaging(false)
     {}
@@ -85,7 +85,6 @@ struct UIDataSettingsMachineSystem
                (m_iCPUExecCap == other.m_iCPUExecCap) &&
                (m_fEnabledPAE == other.m_fEnabledPAE) &&
                 /* Acceleration data: */
-               (m_paravirtProvider == other.m_paravirtProvider) &&
                (m_fEnabledHwVirtEx == other.m_fEnabledHwVirtEx) &&
                (m_fEnabledNestedPaging == other.m_fEnabledNestedPaging);
     }
@@ -111,7 +110,6 @@ struct UIDataSettingsMachineSystem
     int m_iCPUExecCap;
     bool m_fEnabledPAE;
     /* Variables: Acceleration data: */
-    KParavirtProvider m_paravirtProvider;
     bool m_fEnabledHwVirtEx;
     bool m_fEnabledNestedPaging;
 };
@@ -132,7 +130,7 @@ public:
     bool isHWVirtExEnabled() const;
     bool isHIDEnabled() const;
     KChipsetType chipsetType() const;
-    void setUSBEnabled(bool fEnabled);
+    void setOHCIEnabled(bool fEnabled);
 
 protected:
 
@@ -186,16 +184,14 @@ private:
     void prepare();
     void prepareTabMotherboard();
     void prepareTabProcessor();
-    void prepareTabAcceleration();
     void prepareValidation();
 
     /* Helper: Pointing HID type combo stuff: */
     void repopulateComboPointingHIDType();
 
     /* Helpers: Translation stuff: */
-    void retranslateComboChipsetType();
+    void retranslateComboPointingChipsetType();
     void retranslateComboPointingHIDType();
-    void retranslateComboParavirtProvider();
 
     /* Helper: Boot-table stuff: */
     void adjustBootOrderTWSize();
@@ -214,7 +210,7 @@ private:
     uint m_uMaxGuestCPUExecCap;
 
     /* Variable: Correlation stuff: */
-    bool m_fIsUSBEnabled;
+    bool m_fOHCIEnabled;
 
     /* Cache: */
     UICacheSettingsMachineSystem m_cache;

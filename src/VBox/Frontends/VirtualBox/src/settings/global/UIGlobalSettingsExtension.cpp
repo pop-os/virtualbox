@@ -1,6 +1,8 @@
 /* $Id: UIGlobalSettingsExtension.cpp $ */
 /** @file
- * VBox Qt GUI - UIGlobalSettingsExtension class implementation.
+ *
+ * VBox frontends: Qt4 GUI ("VirtualBox"):
+ * UIGlobalSettingsExtension class implementation
  */
 
 /*
@@ -15,28 +17,21 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QHeaderView>
+#include <QHeaderView>
 
 /* GUI includes: */
-# include "UIGlobalSettingsExtension.h"
-# include "UIIconPool.h"
-# include "QIFileDialog.h"
-# include "VBoxGlobal.h"
-# include "UIMessageCenter.h"
-# include "VBoxLicenseViewer.h"
+#include "UIGlobalSettingsExtension.h"
+#include "UIIconPool.h"
+#include "QIFileDialog.h"
+#include "VBoxGlobal.h"
+#include "UIMessageCenter.h"
+#include "VBoxLicenseViewer.h"
 
 /* COM includes: */
-# include "CExtPackManager.h"
-# include "CExtPack.h"
-# include "CExtPackFile.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
+#include "CExtPackManager.h"
+#include "CExtPack.h"
+#include "CExtPackFile.h"
 
 /* Extension package item: */
 class UIExtensionPackageItem : public QTreeWidgetItem
@@ -106,6 +101,7 @@ UIGlobalSettingsExtension::UIGlobalSettingsExtension()
             this, SLOT(sltShowContextMenu(const QPoint&)));
 
     /* Setup tool-bar: */
+    m_pPackagesToolbar->setUsesTextLabel(false);
     m_pPackagesToolbar->setIconSize(QSize(16, 16));
     m_pPackagesToolbar->setOrientation(Qt::Vertical);
     m_pActionAdd = m_pPackagesToolbar->addAction(UIIconPool::iconSet(":/extension_pack_install_16px.png",

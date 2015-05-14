@@ -1,4 +1,3 @@
-/* $Id: UIMachineLogicSeamless.h $ */
 /** @file
  * VBox Qt GUI - UIMachineLogicSeamless class declaration.
  */
@@ -67,36 +66,22 @@ private slots:
     /** Handles host-screen count change. */
     virtual void sltHostScreenCountChange();
 
-#ifndef RT_OS_DARWIN
-    /** Invokes popup-menu. */
-    void sltInvokePopupMenu();
-#endif /* !RT_OS_DARWIN */
-
 private:
 
     /* Prepare helpers: */
     void prepareActionGroups();
     void prepareActionConnections();
     void prepareMachineWindows();
-#ifndef Q_WS_MAC
     void prepareMenu();
-#endif /* !Q_WS_MAC */
 
     /* Cleanup helpers: */
-#ifndef Q_WS_MAC
-    void cleanupMenu();
-#endif /* !Q_WS_MAC */
+    //void cleanupMenu() {}
     void cleanupMachineWindows();
     void cleanupActionConnections();
     void cleanupActionGroups();
 
     /* Variables: */
     UIMultiScreenLayout *m_pScreenLayout;
-
-#ifndef RT_OS_DARWIN
-    /** Holds the popup-menu instance. */
-    QMenu *m_pPopupMenu;
-#endif /* !RT_OS_DARWIN */
 
     /* Friend classes: */
     friend class UIMachineLogic;

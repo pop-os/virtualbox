@@ -223,14 +223,6 @@ int emR3HmHandleRC(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int rc)
             rc = emR3ExecuteInstruction(pVM, pVCpu, "MMIO");
             break;
 
-        /*
-         * Machine specific register access - emulate the instruction.
-         */
-        case VINF_CPUM_R3_MSR_READ:
-        case VINF_CPUM_R3_MSR_WRITE:
-            rc = emR3ExecuteInstruction(pVM, pVCpu, "MSR");
-            break;
-
 #ifdef EMHANDLERC_WITH_HM
         /*
          * (MM)IO intensive code block detected; fall back to the recompiler for better performance
@@ -281,19 +273,6 @@ int emR3HmHandleRC(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int rc)
         case VINF_EM_RAW_EMULATE_INSTR:
             rc = emR3ExecuteInstruction(pVM, pVCpu, "EMUL: ");
             break;
-
-        case VINF_EM_RAW_INJECT_TRPM_EVENT:
-#ifdef VBOX_WITH_FIRST_IEM_STEP
-            rc = VBOXSTRICTRC_VAL(IEMInjectTrpmEvent(pVCpu));
-            /* The following condition should be removed when IEM_IMPLEMENTS_TASKSWITCH becomes true. */
-            if (rc == VERR_IEM_ASPECT_NOT_IMPLEMENTED)
-                rc = emR3ExecuteInstruction(pVM, pVCpu, "EVENT: ");
-#else
-            /* Do the same thing as VINF_EM_RAW_EMULATE_INSTR. */
-            rc = emR3ExecuteInstruction(pVM, pVCpu, "EVENT: ");
-#endif
-            break;
-
 
 #ifdef EMHANDLERC_WITH_PATM
         /*

@@ -1,6 +1,8 @@
 /* $Id: UIMediumTypeChangeDialog.cpp $ */
 /** @file
- * VBox Qt GUI - UIMediumTypeChangeDialog class implementation.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * UIMediumTypeChangeDialog class implementation
  */
 
 /*
@@ -14,10 +16,6 @@
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
-
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 /* Qt includes: */
 #include <QVBoxLayout>
@@ -33,9 +31,6 @@
 #include "QIDialogButtonBox.h"
 #include "UIConverter.h"
 #include "UIMedium.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 
 /* Constructor: */
 UIMediumTypeChangeDialog::UIMediumTypeChangeDialog(QWidget *pParent, const QString &strMediumId)

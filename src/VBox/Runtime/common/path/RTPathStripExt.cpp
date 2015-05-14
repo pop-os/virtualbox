@@ -1,10 +1,10 @@
 /* $Id: RTPathStripExt.cpp $ */
 /** @file
- * IPRT - RTPathStripSuffix
+ * IPRT - RTPathStripExt
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -34,10 +34,37 @@
 
 
 
-RTDECL(void) RTPathStripSuffix(char *pszPath)
+/**
+ * Strips the extension from a path.
+ *
+ * @param   pszPath     Path which extension should be stripped.
+ */
+RTDECL(void) RTPathStripExt(char *pszPath)
 {
-    char *pszSuffix = RTPathSuffix(pszPath);
-    if (pszSuffix)
-        *pszSuffix = '\0';
+    char *pszDot = NULL;
+    for (;; pszPath++)
+    {
+        switch (*pszPath)
+        {
+            /* handle separators. */
+#if defined(RT_OS_WINDOWS) || defined(RT_OS_OS2)
+            case ':':
+            case '\\':
+#endif
+            case '/':
+                pszDot = NULL;
+                break;
+            case '.':
+                pszDot = pszPath;
+                break;
+
+            /* the end */
+            case '\0':
+                if (pszDot)
+                    *pszDot = '\0';
+                return;
+        }
+    }
+    /* will never get here */
 }
 

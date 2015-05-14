@@ -245,7 +245,8 @@ int netPfStrToPf(const char *pcszStrPortForward, int fIPv6, PPORTFORWARDRULE pPf
     AssertReturn(cbRaw > 14, VERR_INVALID_PARAMETER);
 
     pszRaw = RTStrDup(pcszStrPortForward);
-    AssertReturn(pszRaw, VERR_NO_MEMORY);
+
+    AssertPtrReturn(pszRaw, VERR_NO_MEMORY);
 
     pszRawBegin = pszRaw;
 

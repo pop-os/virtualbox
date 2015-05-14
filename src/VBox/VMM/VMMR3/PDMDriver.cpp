@@ -825,8 +825,7 @@ int pdmR3DrvDetach(PPDMDRVINS pDrvIns, uint32_t fFlags)
     if (pDrvIns->Internal.s.fDetaching)
     {
         AssertMsgFailed(("Recursive detach! '%s'/%d\n", pDrvIns->pReg->szName, pDrvIns->iInstance));
-        return VINF_SUCCESS;
-    }
+        return VINF_SUCCESS;           }
 
     /*
      * Check that we actually can detach this instance.
@@ -920,7 +919,8 @@ void pdmR3DrvDestroyChain(PPDMDRVINS pDrvIns, uint32_t fFlags)
                     if (pLun->pUsbIns->pReg->pfnDriverDetach)
                     {
                         /** @todo USB device locking? */
-                        pLun->pUsbIns->pReg->pfnDriverDetach(pLun->pUsbIns, pLun->iLun, fFlags);
+                        /** @todo add flags to pfnDriverDetach. */
+                        pLun->pUsbIns->pReg->pfnDriverDetach(pLun->pUsbIns, pLun->iLun);
                     }
                 }
             }

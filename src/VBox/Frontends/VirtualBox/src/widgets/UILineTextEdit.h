@@ -1,6 +1,7 @@
-/* $Id: UILineTextEdit.h $ */
 /** @file
- * VBox Qt GUI - UILineTextEdit class declaration.
+ *
+ * VBox frontends: Qt4 GUI ("VirtualBox"):
+ * UILineTextEdit class declaration
  */
 
 /*

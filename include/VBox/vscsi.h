@@ -86,8 +86,6 @@ typedef enum VSCSILUNTYPE
     VSCSILUNTYPE_SBC,
     /** CD/DVD drive (MMC) */
     VSCSILUNTYPE_MMC,
-    /** Tape drive (SSC) */
-    VSCSILUNTYPE_SSC,
     /** Last value to indicate an invalid device */
     VSCSILUNTYPE_LAST,
     /** 32bit hack */

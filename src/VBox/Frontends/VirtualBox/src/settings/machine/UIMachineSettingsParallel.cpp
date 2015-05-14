@@ -1,6 +1,8 @@
 /* $Id: UIMachineSettingsParallel.cpp $ */
 /** @file
- * VBox Qt GUI - UIMachineSettingsParallel class implementation.
+ *
+ * VBox frontends: Qt4 GUI ("VirtualBox"):
+ * UIMachineSettingsParallel class implementation
  */
 
 /*
@@ -15,24 +17,17 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QDir>
+#include <QDir>
 
 /* GUI includes: */
-# include "UIMachineSettingsParallel.h"
-# include "QIWidgetValidator.h"
-# include "VBoxGlobal.h"
-# include "QITabWidget.h"
+#include "UIMachineSettingsParallel.h"
+#include "QIWidgetValidator.h"
+#include "VBoxGlobal.h"
+#include "QITabWidget.h"
 
 /* COM includes: */
-# include "CParallelPort.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
+#include "CParallelPort.h"
 
 /* UIMachineSettingsParallel stuff */
 UIMachineSettingsParallel::UIMachineSettingsParallel(UIMachineSettingsParallelPage *pParent)

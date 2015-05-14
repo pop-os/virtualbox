@@ -1,4 +1,3 @@
-/* $Id: VMMDev.cpp $ */
 /** @file
  * VBoxGuestLibR0 - VMMDev device related functions.
  */

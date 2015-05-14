@@ -1,6 +1,7 @@
-/* $Id: UIGMachinePreview.h $ */
 /** @file
- * VBox Qt GUI - UIGMachinePreview class declaration.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * UIGMachinePreview class declaration
  */
 
 /*
@@ -22,9 +23,8 @@
 #include <QHash>
 
 /* GUI includes: */
-#include "QIWithRetranslateUI.h"
 #include "UIGDetailsItem.h"
-#include "UIExtraDataDefs.h"
+#include "QIWithRetranslateUI.h"
 
 /* COM includes: */
 #include "COMEnums.h"
@@ -38,15 +38,23 @@ class QPixmap;
 class QMenu;
 class QTimer;
 
+/* Update interval type: */
+enum UpdateInterval
+{
+    UpdateInterval_Disabled,
+    UpdateInterval_500ms,
+    UpdateInterval_1000ms,
+    UpdateInterval_2000ms,
+    UpdateInterval_5000ms,
+    UpdateInterval_10000ms,
+    UpdateInterval_Max
+};
+typedef QMap<UpdateInterval, QString> UpdateIntervalMap;
+
 /* Preview window class: */
 class UIGMachinePreview : public QIWithRetranslateUI4<QIGraphicsWidget>
 {
     Q_OBJECT;
-
-signals:
-
-    /** Notifies about size-hint changes. */
-    void sigSizeHintChanged();
 
 public:
 
@@ -72,14 +80,6 @@ private slots:
 
 private:
 
-    /** Aspect ratio presets. */
-    enum AspectRatioPreset
-    {
-        AspectRatioPreset_16x10,
-        AspectRatioPreset_16x9,
-        AspectRatioPreset_4x3,
-    };
-
     /* Helpers: Event handlers: */
     void resizeEvent(QGraphicsSceneResizeEvent *pEvent);
     void showEvent(QShowEvent *pEvent);
@@ -96,31 +96,24 @@ private:
     void paint(QPainter *pPainter, const QStyleOptionGraphicsItem *pOption, QWidget *pWidget = 0);
 
     /* Helpers: Update stuff: */
-    void setUpdateInterval(PreviewUpdateIntervalType interval, bool fSave);
+    void setUpdateInterval(UpdateInterval interval, bool fSave);
     void recalculatePreviewRectangle();
     void restart();
     void stop();
-
-    /** Looks for the best aspect-ratio preset for the passed @a dAspectRatio among all the passed @a ratios. */
-    static AspectRatioPreset bestAspectRatioPreset(const double dAspectRatio, const QMap<AspectRatioPreset, double> &ratios);
-    /** Calculates image size suitable to passed @a hostSize and @a guestSize. */
-    static QSize imageAspectRatioSize(const QSize &hostSize, const QSize &guestSize);
 
     /* Variables: */
     CSession m_session;
     CMachine m_machine;
     QTimer *m_pUpdateTimer;
     QMenu *m_pUpdateTimerMenu;
-    QHash<PreviewUpdateIntervalType, QAction*> m_actions;
+    QHash<UpdateInterval, QAction*> m_actions;
     const int m_iMargin;
     QRect m_vRect;
-    AspectRatioPreset m_preset;
-    QMap<AspectRatioPreset, QSize> m_sizes;
-    QMap<AspectRatioPreset, double> m_ratios;
-    QMap<AspectRatioPreset, QPixmap*> m_emptyPixmaps;
-    QMap<AspectRatioPreset, QPixmap*> m_fullPixmaps;
+    QPixmap *m_pbgEmptyImage;
+    QPixmap *m_pbgFullImage;
     QImage *m_pPreviewImg;
     QString m_strPreviewName;
+    static UpdateIntervalMap m_intervals;
 };
 
 #endif /* !__UIGMachinePreview_h__ */

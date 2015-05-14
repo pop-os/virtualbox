@@ -1,4 +1,3 @@
-/* $Id: AudioSnifferInterface.h $ */
 /** @file
  * VirtualBox Driver interface to Audio Sniffer device
  */

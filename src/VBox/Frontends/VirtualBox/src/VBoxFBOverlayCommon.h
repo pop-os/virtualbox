@@ -1,6 +1,7 @@
-/* $Id:  $ */
 /** @file
- * VBox Qt GUI - VBoxFrameBuffer Overlay classes declarations.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * VBoxFrameBuffer Overly classes declarations
  */
 
 /*

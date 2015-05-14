@@ -1,6 +1,7 @@
-/* $Id: UIWindowMenuManager.h $ */
 /** @file
- * VBox Qt GUI - UIWindowMenuManager class declaration.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * UIWindowMenuManager class declaration
  */
 
 /*

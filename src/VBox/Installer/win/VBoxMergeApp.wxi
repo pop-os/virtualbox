@@ -30,13 +30,13 @@
     <Directory Id="dir_VBoxAppDrivers" Name="drivers">
         <Directory Id="dir_VBoxAppVBoxDrv" Name="vboxdrv">
             <Component Id="cp_VBoxDrv" Guid="D3E2F2BB-569F-46A2-836C-BDF30FF1EDF8" Win64="$(var.Property_Win64)">
-                <difxapp:Driver AddRemovePrograms="no" ForceInstall="yes" DeleteFiles="yes"
-                      Legacy="$(var.Property_DriverLegacy)" Sequence="2" PlugAndPlayPrompt="no"/>
+                <difxapp:Driver AddRemovePrograms="no" ForceInstall="yes"
+                                Legacy="$(var.Property_DriverLegacy)" Sequence="2" PlugAndPlayPrompt="no"/>
                 <File Id="file_VBoxDrv.sys" Name="VBoxDrv.sys" KeyPath="yes"
                       Source="$(env.PATH_OUT)\bin\VBoxDrv.sys"/>
                 <File Id="file_VBoxDrv.inf" Name="VBoxDrv.inf"
                       Source="$(env.PATH_OUT)\bin\VBoxDrv.inf" />
-<?if $(env.VBOX_SIGNING_MODE)!= none ?>
+<?if $(env.VBOX_SIGNING_MODE) != none ?>
                 <File Id="file_VBoxDrv.cat" Name="VBoxDrv.cat"
                       Source="$(env.PATH_OUT)\bin\VBoxDrv.cat" />
 <?endif ?>
@@ -75,9 +75,6 @@
         <?include $(env.PATH_TARGET)\VirtualBox_TypeLib.wxi ?>
 
     </Component>
-
-    <?include $(env.PATH_TARGET)\DirComponentsAndFiles_DTrace.wxi ?>
-
 
     <!--
 
@@ -164,8 +161,6 @@
 <?endif ?>
         <File Id="file_VBoxBalloonCtrl.exe" Name="VBoxBalloonCtrl.exe"
               Source="$(env.PATH_OUT)\bin\VBoxBalloonCtrl.exe"/>
-        <File Id="file_vbox_img.exe" Name="vbox-img.exe"
-              Source="$(env.PATH_OUT)\bin\vbox-img.exe"/>
 
         <!-- Misc tools -->
         <File Id="file_VBoxNetDHCP.exe" Name="VBoxNetDHCP.exe"
@@ -185,9 +180,6 @@
 <?if $(env.VBOX_WITH_EXTPACK) = "yes" ?>
         <File Id="file_VBoxExtPackHelperApp.exe" Name="VBoxExtPackHelperApp.exe"
               Source="$(env.PATH_OUT)\bin\VBoxExtPackHelperApp.exe"/>
-<?endif ?>
-<?if $(env.VBOX_WITH_DTRACE) = "yes" ?>
-	 <File Id="file_VBoxDTrace.exe" Name="VBoxDTrace.exe" Source="$(env.PATH_OUT)\bin\VBoxDTrace.exe" />
 <?endif ?>
         <!-- VBox DLL files -->
         <File Id="file_VBoxDD.dll" Name="VBoxDD.dll"

@@ -31,6 +31,7 @@ endif
 # symbol namespace pollution, causing trouble with system libraries.
 XPCOM_C_NAMESPACE_MAP = $(VBOX_PATH_XPCOM_SRC)/xpcom-namespace-cleanup.map
 ifdef VBOX_WITH_XPCOM_NAMESPACE_CLEANUP
+ VBOX_NM = nm$(HOSTSUFF_EXE)
  # At the moment, only Solaris uses the generated map file. GNU ld is smart
  # enough to handle symbol wildcards itself.
  if1of ($(KBUILD_TARGET), solaris)
@@ -1434,11 +1435,11 @@ $(PATH_TARGET)/xpcom-namespace-cleanup.map foo.map: $$(VBoxXPCOM_LIBS) $$(VBoxXP
 		-e 's/\<_init$$/&;/p' \
 		--append $@
 	$(QUIET)$(APPEND) $@ '};'
-#ifeq ($(KBUILD_TARGET),solaris)
-# # Temporary gcc 4.5.2 hack on Solaris which emits unknown mangled symbols for ctors/dtors for certain objects. See @bugref{5838}.
-# if $(VBOX_GCC_VERSION_CXX) == 40502
-#	$(QUIET)$(SED) -re '/^_Z.*[C-D]5E/d' $@ > $@-sedtmp
-#	$(QUIET)$(MV) $@-sedtmp $@
-# endif
-#endif
+ifeq ($(KBUILD_TARGET),solaris)
+ # Temporary gcc 4.5.2 hack on Solaris which emits unknown mangled symbols for ctors/dtors for certain objects. See @bugref{5838}.
+ if $(VBOX_GCC_VERSION_CXX) == 40502
+	$(QUIET)$(SED) -re '/^_Z.*[C-D]5E/d' $@ > $@-sedtmp
+	$(QUIET)$(MV) $@-sedtmp $@
+ endif
+endif
 

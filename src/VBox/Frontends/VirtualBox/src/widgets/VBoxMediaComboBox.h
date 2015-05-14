@@ -1,6 +1,7 @@
-/* $Id: VBoxMediaComboBox.h $ */
 /** @file
- * VBox Qt GUI - VBoxMediaComboBox class declaration.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * VBoxMediaComboBox class declaration
  */
 
 /*

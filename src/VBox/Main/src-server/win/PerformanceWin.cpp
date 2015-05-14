@@ -268,8 +268,7 @@ int CollectorWin::getHostCpuMHz(ULONG *mhz)
 {
     uint64_t uTotalMhz   = 0;
     RTCPUID  nProcessors = RTMpGetCount();
-    PPROCESSOR_POWER_INFORMATION ppi = (PPROCESSOR_POWER_INFORMATION)
-                                       RTMemAllocZ(nProcessors * sizeof(PROCESSOR_POWER_INFORMATION));
+    PPROCESSOR_POWER_INFORMATION ppi = (PPROCESSOR_POWER_INFORMATION)RTMemAllocZ(nProcessors * sizeof(PROCESSOR_POWER_INFORMATION));
 
     if (!ppi)
         return VERR_NO_MEMORY;

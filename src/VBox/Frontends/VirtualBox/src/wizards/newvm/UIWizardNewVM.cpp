@@ -1,6 +1,8 @@
 /* $Id: UIWizardNewVM.cpp $ */
 /** @file
- * VBox Qt GUI - UIWizardNewVM class implementation.
+ *
+ * VBox frontends: Qt4 GUI ("VirtualBox"):
+ * UIWizardNewVM class implementation
  */
 
 /*
@@ -15,35 +17,25 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* GUI includes: */
-# include "VBoxGlobal.h"
-# include "UIWizardNewVM.h"
-# include "UIWizardNewVMPageBasic1.h"
-# include "UIWizardNewVMPageBasic2.h"
-# include "UIWizardNewVMPageBasic3.h"
-# include "UIWizardNewVMPageExpert.h"
-# include "UIMessageCenter.h"
-# include "UIMedium.h"
+#include "VBoxGlobal.h"
+#include "UIWizardNewVM.h"
+#include "UIWizardNewVMPageBasic1.h"
+#include "UIWizardNewVMPageBasic2.h"
+#include "UIWizardNewVMPageBasic3.h"
+#include "UIWizardNewVMPageExpert.h"
+#include "UIMessageCenter.h"
+#include "UIMedium.h"
 
 /* COM includes: */
-# include "CAudioAdapter.h"
-# include "CUSBController.h"
-# include "CUSBDeviceFilters.h"
-# include "CExtPackManager.h"
-# include "CStorageController.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
-/* Namespaces: */
-using namespace UIExtraDataDefs;
-
+#include "CAudioAdapter.h"
+#include "CUSBController.h"
+#include "CUSBDeviceFilters.h"
+#include "CExtPackManager.h"
+#include "CStorageController.h"
 
 UIWizardNewVM::UIWizardNewVM(QWidget *pParent, const QString &strGroup /* = QString() */)
-    : UIWizard(pParent, WizardType_NewVM)
+    : UIWizard(pParent, UIWizardType_NewVM)
     , m_strGroup(strGroup)
     , m_iIDECount(0)
     , m_iSATACount(0)
@@ -82,11 +74,8 @@ bool UIWizardNewVM::createVM()
             return false;
         }
 
-        /* The First RUN Wizard is to be shown:
-         * 1. if we don't attach any virtual hard-drive
-         * 2. or attach a new (empty) one.
-         * Usually we are assigning extra-data values through UIExtraDataManager,
-         * but in that special case VM was not registered yet, so UIExtraDataManager is unaware of it. */
+        /* The FirstRun wizard is to be shown only when we don't attach any virtual hard drive or attach a new (empty) one.
+         * Selecting an existing virtual hard drive will cancel the FirstRun wizard. */
         if (field("virtualDiskId").toString().isNull() || !field("virtualDisk").value<CMedium>().isNull())
             m_machine.SetExtraData(GUI_FirstRun, "yes");
     }
@@ -171,9 +160,6 @@ bool UIWizardNewVM::createVM()
     /* Turn on PAE, if recommended: */
     m_machine.SetCPUProperty(KCPUPropertyType_PAE, type.GetRecommendedPAE());
 
-    /* Set the recommended triple fault behavior: */
-    m_machine.SetCPUProperty(KCPUPropertyType_TripleFaultReset, type.GetRecommendedTFReset());
-
     /* Set recommended firmware type: */
     KFirmwareType fwType = type.GetRecommendedFirmware();
     m_machine.SetFirmwareType(fwType);
@@ -236,7 +222,7 @@ bool UIWizardNewVM::createVM()
                                                    StorageSlot(ctrHDBus, 0, 0), this);
             }
 
-            /* Attach empty optical drive: */
+            /* Attach empty CD/DVD ROM Device */
             machine.AttachDevice(strDVDName, 1, 0, KDeviceType_DVD, CMedium());
             if (!machine.isOk())
                 msgCenter().cannotAttachDevice(machine, UIMediumType_DVD, QString(), StorageSlot(strDVDBus, 1, 0), this);
@@ -296,14 +282,14 @@ void UIWizardNewVM::prepare()
     /* Create corresponding pages: */
     switch (mode())
     {
-        case WizardMode_Basic:
+        case UIWizardMode_Basic:
         {
             setPage(Page1, new UIWizardNewVMPageBasic1(m_strGroup));
             setPage(Page2, new UIWizardNewVMPageBasic2);
             setPage(Page3, new UIWizardNewVMPageBasic3);
             break;
         }
-        case WizardMode_Expert:
+        case UIWizardMode_Expert:
         {
             setPage(PageExpert, new UIWizardNewVMPageExpert(m_strGroup));
             break;

@@ -1,10 +1,10 @@
 ; $Id: VMMRC0.asm $
 ;; @file
-; VMMRC0 - The first object module in the link.
+; VMMGC0 - The first object module in the link.
 ;
 
 ;
-; Copyright (C) 2006-2015 Oracle Corporation
+; Copyright (C) 2006-2010 Oracle Corporation
 ;
 ; This file is part of VirtualBox Open Source Edition (OSE), as
 ; available from http://www.virtualbox.org. This file is free software;
@@ -33,8 +33,4 @@ GLOBALNAME g_aTrap0dHandlers
 VMMR0_SEG Trap0e
 GLOBALNAME g_aTrap0eHandlers
 
-;;
-; Start the patch helper segment
-BEGIN_PATCH_HLP_SEG
-EXPORTEDNAME g_PatchHlpBegin
 

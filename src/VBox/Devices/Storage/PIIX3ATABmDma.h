@@ -1,4 +1,3 @@
-/* $Id:  $ */
 /** @file
  *
  * VBox storage devices:

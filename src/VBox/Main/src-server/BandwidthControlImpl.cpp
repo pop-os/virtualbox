@@ -1,11 +1,10 @@
-/* $Id: BandwidthControlImpl.cpp $ */
 /** @file
  *
  * VirtualBox COM class implementation
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -32,10 +31,29 @@
 // defines
 /////////////////////////////////////////////////////////////////////////////
 
+typedef std::list< ComObjPtr<BandwidthGroup> > BandwidthGroupList;
+
+struct BandwidthControl::Data
+{
+    Data(Machine *pMachine)
+        : pParent(pMachine)
+    { }
+
+    ~Data()
+    {};
+
+    Machine * const                 pParent;
+
+    // peer machine's bandwidth control
+    const ComObjPtr<BandwidthControl>  pPeer;
+
+    // the following fields need special backup/rollback/commit handling,
+    // so they cannot be a part of BackupableData
+    Backupable<BandwidthGroupList>    llBandwidthGroups;
+};
+
 // constructor / destructor
 /////////////////////////////////////////////////////////////////////////////
-DEFINE_EMPTY_CTOR_DTOR(BandwidthControl)
-
 
 HRESULT BandwidthControl::FinalConstruct()
 {
@@ -112,15 +130,14 @@ HRESULT BandwidthControl::init(Machine *aParent,
 
     /* create copies of all groups */
     m->llBandwidthGroups.allocate();
-    BandwidthGroupList::const_iterator it;
-    for (it = aThat->m->llBandwidthGroups->begin();
-         it != aThat->m->llBandwidthGroups->end();
-         ++it)
+    BandwidthGroupList::const_iterator it = aThat->m->llBandwidthGroups->begin();
+    while (it != aThat->m->llBandwidthGroups->end())
     {
         ComObjPtr<BandwidthGroup> group;
         group.createObject();
         group->init(this, *it);
         m->llBandwidthGroups->push_back(group);
+        ++ it;
     }
 
     /* Confirm successful initialization */
@@ -154,15 +171,14 @@ HRESULT BandwidthControl::initCopy(Machine *aParent, BandwidthControl *aThat)
 
     /* create copies of all groups */
     m->llBandwidthGroups.allocate();
-    BandwidthGroupList::const_iterator it;
-    for (it = aThat->m->llBandwidthGroups->begin();
-         it != aThat->m->llBandwidthGroups->end();
-         ++it)
+    BandwidthGroupList::const_iterator it = aThat->m->llBandwidthGroups->begin();
+    while (it != aThat->m->llBandwidthGroups->end())
     {
         ComObjPtr<BandwidthGroup> group;
         group.createObject();
         group->initCopy(this, *it);
         m->llBandwidthGroups->push_back(group);
+        ++ it;
     }
 
     /* Confirm a successful initialization */
@@ -176,23 +192,23 @@ HRESULT BandwidthControl::initCopy(Machine *aParent, BandwidthControl *aThat)
  *  @note Locks this object for writing, together with the peer object
  *  represented by @a aThat (locked for reading).
  */
-void BandwidthControl::i_copyFrom(BandwidthControl *aThat)
+void BandwidthControl::copyFrom (BandwidthControl *aThat)
 {
-    AssertReturnVoid(aThat != NULL);
+    AssertReturnVoid (aThat != NULL);
 
     /* sanity */
     AutoCaller autoCaller(this);
-    AssertComRCReturnVoid(autoCaller.rc());
+    AssertComRCReturnVoid (autoCaller.rc());
 
     /* sanity too */
-    AutoCaller thatCaller(aThat);
-    AssertComRCReturnVoid(thatCaller.rc());
+    AutoCaller thatCaller (aThat);
+    AssertComRCReturnVoid (thatCaller.rc());
 
     /* even more sanity */
     AutoAnyStateDependency adep(m->pParent);
-    AssertComRCReturnVoid(adep.rc());
+    AssertComRCReturnVoid (adep.rc());
     /* Machine::copyFrom() may not be called when the VM is running */
-    AssertReturnVoid(!Global::IsOnline(adep.machineState()));
+    AssertReturnVoid (!Global::IsOnline (adep.machineState()));
 
     /* peer is not modified, lock it for reading (aThat is "master" so locked
      * first) */
@@ -202,20 +218,19 @@ void BandwidthControl::i_copyFrom(BandwidthControl *aThat)
     /* create private copies of all bandwidth groups */
     m->llBandwidthGroups.backup();
     m->llBandwidthGroups->clear();
-    BandwidthGroupList::const_iterator it;
-    for (it = aThat->m->llBandwidthGroups->begin();
-         it != aThat->m->llBandwidthGroups->end();
-         ++it)
+    for (BandwidthGroupList::const_iterator it = aThat->m->llBandwidthGroups->begin();
+        it != aThat->m->llBandwidthGroups->end();
+        ++ it)
     {
         ComObjPtr<BandwidthGroup> group;
         group.createObject();
-        group->initCopy(this, *it);
-        m->llBandwidthGroups->push_back(group);
+        group->initCopy (this, *it);
+        m->llBandwidthGroups->push_back (group);
     }
 }
 
 /** @note Locks objects for writing! */
-void BandwidthControl::i_rollback()
+void BandwidthControl::rollback()
 {
     AutoCaller autoCaller(this);
     AssertComRCReturnVoid(autoCaller.rc());
@@ -225,21 +240,23 @@ void BandwidthControl::i_rollback()
     AssertComRCReturnVoid(adep.rc());
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-    BandwidthGroupList::const_iterator it;
 
     if (!m->llBandwidthGroups.isNull())
     {
         if (m->llBandwidthGroups.isBackedUp())
         {
             /* unitialize all new groups (absent in the backed up list). */
+            BandwidthGroupList::const_iterator it = m->llBandwidthGroups->begin();
             BandwidthGroupList *backedList = m->llBandwidthGroups.backedUpData();
-            for (it  = m->llBandwidthGroups->begin();
-                 it != m->llBandwidthGroups->end();
-                 ++it)
+            while (it != m->llBandwidthGroups->end())
             {
                 if (   std::find(backedList->begin(), backedList->end(), *it)
-                    == backedList->end())
+                    == backedList->end()
+                   )
+                {
                     (*it)->uninit();
+                }
+                ++it;
             }
 
             /* restore the list */
@@ -247,17 +264,18 @@ void BandwidthControl::i_rollback()
         }
 
         /* rollback any changes to groups after restoring the list */
-        for (it = m->llBandwidthGroups->begin();
-             it != m->llBandwidthGroups->end();
-             ++it)
-            (*it)->i_rollback();
+        BandwidthGroupList::const_iterator it = m->llBandwidthGroups->begin();
+        while (it != m->llBandwidthGroups->end())
+        {
+            (*it)->rollback();
+            ++it;
+        }
     }
 }
 
-void BandwidthControl::i_commit()
+void BandwidthControl::commit()
 {
     bool commitBandwidthGroups = false;
-    BandwidthGroupList::const_iterator it;
 
     if (m->llBandwidthGroups.isBackedUp())
     {
@@ -270,14 +288,13 @@ void BandwidthControl::i_commit()
             /* Commit all changes to new groups (this will reshare data with
              * peers for those who have peers) */
             BandwidthGroupList *newList = new BandwidthGroupList();
-            for (it = m->llBandwidthGroups->begin();
-                 it != m->llBandwidthGroups->end();
-                 ++it)
+            BandwidthGroupList::const_iterator it = m->llBandwidthGroups->begin();
+            while (it != m->llBandwidthGroups->end())
             {
-                (*it)->i_commit();
+                (*it)->commit();
 
                 /* look if this group has a peer group */
-                ComObjPtr<BandwidthGroup> peer = (*it)->i_getPeer();
+                ComObjPtr<BandwidthGroup> peer = (*it)->getPeer();
                 if (!peer)
                 {
                     /* no peer means the device is a newly created one;
@@ -292,13 +309,17 @@ void BandwidthControl::i_commit()
                 }
                 /* and add it to the new list */
                 newList->push_back(peer);
+
+                ++it;
             }
 
             /* uninit old peer's groups that are left */
-            for (it = m->pPeer->m->llBandwidthGroups->begin();
-                 it != m->pPeer->m->llBandwidthGroups->end();
-                 ++it)
+            it = m->pPeer->m->llBandwidthGroups->begin();
+            while (it != m->pPeer->m->llBandwidthGroups->end())
+            {
                 (*it)->uninit();
+                ++it;
+            }
 
             /* attach new list of groups to our peer */
             m->pPeer->m->llBandwidthGroups.attach(newList);
@@ -319,10 +340,12 @@ void BandwidthControl::i_commit()
 
     if (commitBandwidthGroups)
     {
-        for (it = m->llBandwidthGroups->begin();
-             it != m->llBandwidthGroups->end();
-             ++it)
-            (*it)->i_commit();
+        BandwidthGroupList::const_iterator it = m->llBandwidthGroups->begin();
+        while (it != m->llBandwidthGroups->end())
+        {
+            (*it)->commit();
+            ++it;
+        }
     }
 }
 
@@ -341,8 +364,7 @@ void BandwidthControl::uninit()
 
     // uninit all groups on the list (it's a standard std::list not an ObjectsList
     // so we must uninit() manually)
-    BandwidthGroupList::iterator it;
-    for (it = m->llBandwidthGroups->begin();
+    for (BandwidthGroupList::iterator it = m->llBandwidthGroups->begin();
          it != m->llBandwidthGroups->end();
          ++it)
         (*it)->uninit();
@@ -363,9 +385,9 @@ void BandwidthControl::uninit()
  *  @param aBandwidthGroup where to return the found bandwidth group
  *  @param aSetError             true to set extended error info on failure
  */
-HRESULT BandwidthControl::i_getBandwidthGroupByName(const com::Utf8Str &aName,
-                                                    ComObjPtr<BandwidthGroup> &aBandwidthGroup,
-                                                    bool aSetError /* = false */)
+HRESULT BandwidthControl::getBandwidthGroupByName(const Utf8Str &aName,
+                                                  ComObjPtr<BandwidthGroup> &aBandwidthGroup,
+                                                  bool aSetError /* = false */)
 {
     AssertReturn(!aName.isEmpty(), E_INVALIDARG);
 
@@ -373,7 +395,7 @@ HRESULT BandwidthControl::i_getBandwidthGroupByName(const com::Utf8Str &aName,
          it != m->llBandwidthGroups->end();
          ++it)
     {
-        if ((*it)->i_getName() == aName)
+        if ((*it)->getName() == aName)
         {
             aBandwidthGroup = (*it);
             return S_OK;
@@ -386,63 +408,69 @@ HRESULT BandwidthControl::i_getBandwidthGroupByName(const com::Utf8Str &aName,
                         aName.c_str());
     return VBOX_E_OBJECT_NOT_FOUND;
 }
-// To do
-HRESULT BandwidthControl::createBandwidthGroup(const com::Utf8Str &aName,
-                                               BandwidthGroupType_T aType,
-                                               LONG64 aMaxBytesPerSec)
+
+STDMETHODIMP BandwidthControl::CreateBandwidthGroup(IN_BSTR aName, BandwidthGroupType_T aType, LONG64 aMaxBytesPerSec)
 {
     if (aMaxBytesPerSec < 0)
         return setError(E_INVALIDARG,
                         tr("Bandwidth group limit cannot be negative"));
 
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     /* the machine needs to be mutable */
-    AutoMutableOrSavedStateDependency adep(m->pParent);
+    AutoMutableStateDependency adep(m->pParent);
     if (FAILED(adep.rc())) return adep.rc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     /* try to find one with the name first. */
     ComObjPtr<BandwidthGroup> group;
-    HRESULT rc = i_getBandwidthGroupByName(aName, group, false /* aSetError */);
 
+    HRESULT rc = getBandwidthGroupByName(aName, group, false /* aSetError */);
     if (SUCCEEDED(rc))
         return setError(VBOX_E_OBJECT_IN_USE,
-                        tr("Bandwidth group named '%s' already exists"),
-                        aName.c_str());
+                        tr("Bandwidth group named '%ls' already exists"),
+                        aName);
 
     group.createObject();
 
     rc = group->init(this, aName, aType, aMaxBytesPerSec);
     if (FAILED(rc)) return rc;
 
-    m->pParent->i_setModified(Machine::IsModified_BandwidthControl);
+    m->pParent->setModified(Machine::IsModified_BandwidthControl);
     m->llBandwidthGroups.backup();
     m->llBandwidthGroups->push_back(group);
 
     return S_OK;
 }
 
-HRESULT BandwidthControl::deleteBandwidthGroup(const com::Utf8Str &aName)
+STDMETHODIMP BandwidthControl::DeleteBandwidthGroup(IN_BSTR aName)
 {
+    CheckComArgStrNotEmptyOrNull(aName);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     /* the machine needs to be mutable */
-    AutoMutableOrSavedStateDependency adep(m->pParent);
+    AutoMutableStateDependency adep(m->pParent);
     if (FAILED(adep.rc())) return adep.rc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     ComObjPtr<BandwidthGroup> group;
-    HRESULT rc = i_getBandwidthGroupByName(aName, group, true /* aSetError */);
+    HRESULT rc = getBandwidthGroupByName(aName, group, true /* aSetError */);
     if (FAILED(rc)) return rc;
 
-    if (group->i_getReferences() != 0)
+    if (group->getReferences() != 0)
         return setError(VBOX_E_OBJECT_IN_USE,
-                        tr("The bandwidth group '%s' is still in use"), aName.c_str());
+                        tr("The bandwidth group '%ls' is still in use"), aName);
 
     /* We can remove it now. */
-    m->pParent->i_setModified(Machine::IsModified_BandwidthControl);
+    m->pParent->setModified(Machine::IsModified_BandwidthControl);
     m->llBandwidthGroups.backup();
 
-    group->i_unshare();
+    group->unshare();
 
     m->llBandwidthGroups->remove(group);
 
@@ -453,78 +481,91 @@ HRESULT BandwidthControl::deleteBandwidthGroup(const com::Utf8Str &aName)
     return S_OK;
 }
 
-HRESULT BandwidthControl::getNumGroups(ULONG *aNumGroups)
+STDMETHODIMP BandwidthControl::COMGETTER(NumGroups)(ULONG *aGroups)
 {
+    CheckComArgNotNull(aGroups);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    *aNumGroups = (ULONG)m->llBandwidthGroups->size();
+    *aGroups = m->llBandwidthGroups->size();
 
     return S_OK;
 }
 
-HRESULT BandwidthControl::getBandwidthGroup(const com::Utf8Str &aName, ComPtr<IBandwidthGroup> &aBandwidthGroup)
+STDMETHODIMP BandwidthControl::GetBandwidthGroup(IN_BSTR aName, IBandwidthGroup **aBandwidthGroup)
 {
+    CheckComArgStrNotEmptyOrNull(aName);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     ComObjPtr<BandwidthGroup> group;
-    HRESULT rc = i_getBandwidthGroupByName(aName, group, true /* aSetError */);
 
+    HRESULT rc = getBandwidthGroupByName(aName, group, true /* aSetError */);
     if (SUCCEEDED(rc))
-        group.queryInterfaceTo(aBandwidthGroup.asOutParam());
+        group.queryInterfaceTo(aBandwidthGroup);
 
     return rc;
 }
 
-HRESULT BandwidthControl::getAllBandwidthGroups(std::vector<ComPtr<IBandwidthGroup> > &aBandwidthGroups)
+STDMETHODIMP BandwidthControl::GetAllBandwidthGroups(ComSafeArrayOut(IBandwidthGroup *, aBandwidthGroups))
 {
+    CheckComArgOutSafeArrayPointerValid(aBandwidthGroups);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-    aBandwidthGroups.resize(0);
-    BandwidthGroupList::const_iterator it;
-    for (it = m->llBandwidthGroups->begin();
-         it != m->llBandwidthGroups->end();
-         ++it)
-        aBandwidthGroups.push_back(*it);
+
+    SafeIfaceArray<IBandwidthGroup> collection (*m->llBandwidthGroups.data());
+    collection.detachTo(ComSafeArrayOutArg(aBandwidthGroups));
 
     return S_OK;
 }
 
-HRESULT BandwidthControl::i_loadSettings(const settings::IOSettings &data)
+HRESULT BandwidthControl::loadSettings(const settings::IOSettings &data)
 {
     HRESULT rc = S_OK;
 
     AutoCaller autoCaller(this);
     AssertComRCReturnRC(autoCaller.rc());
-    settings::BandwidthGroupList::const_iterator it;
-    for (it = data.llBandwidthGroups.begin();
-         it != data.llBandwidthGroups.end();
-         ++it)
+
+    for (settings::BandwidthGroupList::const_iterator it = data.llBandwidthGroups.begin();
+        it != data.llBandwidthGroups.end();
+        ++it)
     {
         const settings::BandwidthGroup &gr = *it;
-        rc = createBandwidthGroup(gr.strName, gr.enmType, gr.cMaxBytesPerSec);
+        rc = CreateBandwidthGroup(Bstr(gr.strName).raw(), gr.enmType, gr.cMaxBytesPerSec);
         if (FAILED(rc)) break;
     }
 
     return rc;
 }
 
-HRESULT BandwidthControl::i_saveSettings(settings::IOSettings &data)
+HRESULT BandwidthControl::saveSettings(settings::IOSettings &data)
 {
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
     data.llBandwidthGroups.clear();
-    BandwidthGroupList::const_iterator it;
-    for (it = m->llBandwidthGroups->begin();
+
+    for (BandwidthGroupList::const_iterator it = m->llBandwidthGroups->begin();
          it != m->llBandwidthGroups->end();
          ++it)
     {
         AutoWriteLock groupLock(*it COMMA_LOCKVAL_SRC_POS);
         settings::BandwidthGroup group;
 
-        group.strName      = (*it)->i_getName();
-        group.enmType      = (*it)->i_getType();
-        group.cMaxBytesPerSec = (*it)->i_getMaxBytesPerSec();
+        group.strName      = (*it)->getName();
+        group.enmType      = (*it)->getType();
+        group.cMaxBytesPerSec = (*it)->getMaxBytesPerSec();
 
         data.llBandwidthGroups.push_back(group);
     }
@@ -532,7 +573,7 @@ HRESULT BandwidthControl::i_saveSettings(settings::IOSettings &data)
     return S_OK;
 }
 
-Machine * BandwidthControl::i_getMachine() const
+Machine * BandwidthControl::getMachine() const
 {
     return m->pParent;
 }

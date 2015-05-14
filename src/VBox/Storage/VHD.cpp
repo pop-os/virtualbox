@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -341,8 +341,7 @@ static int vhdLocatorUpdate(PVHDIMAGE pImage, PVHDPLE pLocator, const char *pszF
                 }
                 memcpy(pvBuf, pszFilename, cb);
             }
-            if (RT_SUCCESS(rc))
-                pLocator->u32DataLength = RT_H2BE_U32(cb);
+            pLocator->u32DataLength = RT_H2BE_U32(cb);
             break;
         }
         case VHD_PLATFORM_CODE_WI2K:
@@ -1296,11 +1295,9 @@ static int vhdOpen(const char *pszFilename, unsigned uOpenFlags,
                    PVDINTERFACE pVDIfsDisk, PVDINTERFACE pVDIfsImage,
                    VDTYPE enmType, void **ppBackendData)
 {
-    LogFlowFunc(("pszFilename=\"%s\" uOpenFlags=%#x pVDIfsDisk=%#p pVDIfsImage=%#p enmType=%u ppBackendData=%#p\n", pszFilename, uOpenFlags, pVDIfsDisk, pVDIfsImage, enmType, ppBackendData));
+    LogFlowFunc(("pszFilename=\"%s\" uOpenFlags=%#x pVDIfsDisk=%#p pVDIfsImage=%#p ppBackendData=%#p\n", pszFilename, uOpenFlags, pVDIfsDisk, pVDIfsImage, ppBackendData));
     int rc = VINF_SUCCESS;
     PVHDIMAGE pImage;
-
-    NOREF(enmType); /**< @todo r=klaus make use of the type info. */
 
     /* Check open flags. All valid flags are supported. */
     if (uOpenFlags & ~VD_OPEN_FLAGS_MASK)
@@ -1347,11 +1344,9 @@ static int vhdCreate(const char *pszFilename, uint64_t cbSize,
                      PCRTUUID pUuid, unsigned uOpenFlags,
                      unsigned uPercentStart, unsigned uPercentSpan,
                      PVDINTERFACE pVDIfsDisk, PVDINTERFACE pVDIfsImage,
-                     PVDINTERFACE pVDIfsOperation, VDTYPE enmType,
-                     void **ppBackendData)
+                     PVDINTERFACE pVDIfsOperation, void **ppBackendData)
 {
-    LogFlowFunc(("pszFilename=\"%s\" cbSize=%llu uImageFlags=%#x pszComment=\"%s\" pPCHSGeometry=%#p pLCHSGeometry=%#p Uuid=%RTuuid uOpenFlags=%#x uPercentStart=%u uPercentSpan=%u pVDIfsDisk=%#p pVDIfsImage=%#p pVDIfsOperation=%#p enmType=%u ppBackendData=%#p",
-                 pszFilename, cbSize, uImageFlags, pszComment, pPCHSGeometry, pLCHSGeometry, pUuid, uOpenFlags, uPercentStart, uPercentSpan, pVDIfsDisk, pVDIfsImage, pVDIfsOperation, enmType, ppBackendData));
+    LogFlowFunc(("pszFilename=\"%s\" cbSize=%llu uImageFlags=%#x pszComment=\"%s\" pPCHSGeometry=%#p pLCHSGeometry=%#p Uuid=%RTuuid uOpenFlags=%#x uPercentStart=%u uPercentSpan=%u pVDIfsDisk=%#p pVDIfsImage=%#p pVDIfsOperation=%#p ppBackendData=%#p", pszFilename, cbSize, uImageFlags, pszComment, pPCHSGeometry, pLCHSGeometry, pUuid, uOpenFlags, uPercentStart, uPercentSpan, pVDIfsDisk, pVDIfsImage, pVDIfsOperation, ppBackendData));
     int rc = VINF_SUCCESS;
     PVHDIMAGE pImage;
 
@@ -1362,13 +1357,6 @@ static int vhdCreate(const char *pszFilename, uint64_t cbSize,
     {
         pfnProgress = pIfProgress->pfnProgress;
         pvUser = pIfProgress->Core.pvUser;
-    }
-
-    /* Check the VD container type. */
-    if (enmType != VDTYPE_HDD)
-    {
-        rc = VERR_VD_INVALID_TYPE;
-        goto out;
     }
 
     /* Check open flags. All valid flags are supported. */
@@ -1645,8 +1633,7 @@ static int vhdWrite(void *pBackendData, uint64_t uOffset, size_t cbWrite,
         if (pImage->pBlockAllocationTable[cBlockAllocationTableEntry] == ~0U)
         {
             /* Check if the block allocation should be suppressed. */
-            if (   (fWrite & VD_WRITE_NO_ALLOC)
-                || (cbWrite != pImage->cbDataBlock))
+            if (fWrite & VD_WRITE_NO_ALLOC)
             {
                 *pcbPreRead = cBATEntryIndex * VHD_SECTOR_SIZE;
                 *pcbPostRead = pImage->cSectorsPerDataBlock * VHD_SECTOR_SIZE - cbWrite - *pcbPreRead;
@@ -2472,10 +2459,10 @@ static int vhdCompact(void *pBackendData, unsigned uPercentStart,
         if (pfnParentRead)
         {
             pvParent = RTMemTmpAlloc(pImage->cbDataBlock);
-            AssertBreakStmt(pvParent, rc = VERR_NO_MEMORY);
+            AssertBreakStmt(VALID_PTR(pvParent), rc = VERR_NO_MEMORY);
         }
         pvBuf = RTMemTmpAlloc(pImage->cbDataBlock);
-        AssertBreakStmt(pvBuf, rc = VERR_NO_MEMORY);
+        AssertBreakStmt(VALID_PTR(pvBuf), rc = VERR_NO_MEMORY);
 
         unsigned cBlocksAllocated = 0;
         unsigned cBlocksToMove    = 0;
@@ -2500,7 +2487,7 @@ static int vhdCompact(void *pBackendData, unsigned uPercentStart,
         }
 
         paBlocks = (uint32_t *)RTMemTmpAllocZ(cBlocksAllocated * sizeof(uint32_t));
-        AssertBreakStmt(paBlocks, rc = VERR_NO_MEMORY);
+        AssertBreakStmt(VALID_PTR(paBlocks), rc = VERR_NO_MEMORY);
 
         /* Invalidate the back resolving array. */
         for (unsigned i = 0; i < cBlocksAllocated; i++)
@@ -2582,7 +2569,7 @@ static int vhdCompact(void *pBackendData, unsigned uPercentStart,
             /* Allocate data buffer to hold the data block and allocation bitmap in front of the actual data. */
             RTMemTmpFree(pvBuf);
             pvBuf = RTMemTmpAllocZ(cbBlock);
-            AssertBreakStmt(pvBuf, rc = VERR_NO_MEMORY);
+            AssertBreakStmt(VALID_PTR(pvBuf), rc = VERR_NO_MEMORY);
 
             for (unsigned i = 0; i < cBlocksAllocated; i++)
             {

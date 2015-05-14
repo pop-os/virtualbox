@@ -806,7 +806,7 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
                 return 1;
 
             case 'V':
-                RTPrintf("$Revision: 94786 $\n");
+                RTPrintf("$Revision: 94787 $\n");
                 return 0;
 
             default:

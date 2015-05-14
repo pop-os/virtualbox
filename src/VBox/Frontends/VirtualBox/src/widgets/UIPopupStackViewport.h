@@ -1,6 +1,7 @@
-/* $Id: UIPopupStackViewport.h $ */
 /** @file
- * VBox Qt GUI - UIPopupStackViewport class declaration.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * UIPopupStackViewport class declaration
  */
 
 /*

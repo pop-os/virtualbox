@@ -1,4 +1,3 @@
-/* $Id: VBoxComEvents.cpp $ */
 /** @file
  *
  *  COM Events Helper routines.

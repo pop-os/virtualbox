@@ -20,15 +20,26 @@
 #ifndef ____H_PCIDEVICEATTACHMENTIMPL
 #define ____H_PCIDEVICEATTACHMENTIMPL
 
-#include "PCIDeviceAttachmentWrap.h"
+#include "VirtualBoxBase.h"
 #include <VBox/settings.h>
 
 class ATL_NO_VTABLE PCIDeviceAttachment :
-    public PCIDeviceAttachmentWrap
+    public VirtualBoxBase,
+    VBOX_SCRIPTABLE_IMPL(IPCIDeviceAttachment)
 {
 public:
+    VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT(PCIDeviceAttachment, IPCIDeviceAttachment)
 
-    DECLARE_EMPTY_CTOR_DTOR(PCIDeviceAttachment)
+    DECLARE_NOT_AGGREGATABLE(PCIDeviceAttachment)
+
+    DECLARE_PROTECT_FINAL_CONSTRUCT()
+
+    BEGIN_COM_MAP(PCIDeviceAttachment)
+        VBOX_DEFAULT_INTERFACE_ENTRIES(IPCIDeviceAttachment)
+    END_COM_MAP()
+
+    PCIDeviceAttachment() { }
+    ~PCIDeviceAttachment() { }
 
     // public initializer/uninitializer for internal purposes only
     HRESULT init(IMachine *    aParent,
@@ -40,21 +51,20 @@ public:
     void uninit();
 
     // settings
-    HRESULT i_loadSettings(IMachine * aParent,
-                           const settings::HostPCIDeviceAttachment& aHpda);
-    HRESULT i_saveSettings(settings::HostPCIDeviceAttachment &data);
+    HRESULT loadSettings(IMachine * aParent,
+                         const settings::HostPCIDeviceAttachment& aHpda);
+    HRESULT saveSettings(settings::HostPCIDeviceAttachment &data);
 
     HRESULT FinalConstruct();
     void FinalRelease();
 
+    // IPCIDeviceAttachment properties
+    STDMETHOD(COMGETTER(Name))(BSTR * aName);
+    STDMETHOD(COMGETTER(IsPhysicalDevice))(BOOL * aPhysical);
+    STDMETHOD(COMGETTER(HostAddress))(LONG  * hostAddress);
+    STDMETHOD(COMGETTER(GuestAddress))(LONG * guestAddress);
+
 private:
-
-    // wrapped IPCIDeviceAttachment properties
-    HRESULT getName(com::Utf8Str &aName);
-    HRESULT getIsPhysicalDevice(BOOL *aIsPhysicalDevice);
-    HRESULT getHostAddress(LONG *aHostAddress);
-    HRESULT getGuestAddress(LONG *aGuestAddress);
-
     struct Data;
     Data*  m;
 };

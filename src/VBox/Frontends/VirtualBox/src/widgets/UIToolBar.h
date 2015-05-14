@@ -1,10 +1,11 @@
-/* $Id: UIToolBar.h $ */
 /** @file
- * VBox Qt GUI - UIToolBar class declaration.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * UIToolBar class declaration
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,36 +25,27 @@
 /* Forward declarations: */
 class QMainWindow;
 
-/** QToolBar extension
-  * with few settings presets. */
+/* UI tool-bar prototype class: */
 class UIToolBar : public QToolBar
 {
-    Q_OBJECT;
-
 public:
 
-    /** Constructor, passes @a pParent to the QToolBar constructor. */
+    /* Constructor: */
     UIToolBar(QWidget *pParent = 0);
 
-    /** Defines whether tool-bar should use text-labels.
-      * Default value if @a false. */
-    void setUseTextLabels(bool fEnable);
+    /* API: Text-label stuff: */
+    void setUsesTextLabel(bool fEnable);
 
 #ifdef Q_WS_MAC
-    /** Mac OS X: Defines whether native tool-bar should be used. */
-    void enableMacToolbar();
-    /** Mac OS X: Defines whether native tool-bar button should be shown. */
+    /* API: Mac toolbar stuff: */
+    void setMacToolbar();
     void setShowToolBarButton(bool fShow);
-    /** Mac OS X: Updates native tool-bar layout. */
     void updateLayout();
 #endif /* Q_WS_MAC */
 
 private:
 
-    /** Prepare routine. */
-    void prepare();
-
-    /** Holds the parent main-window isntance. */
+    /* Variables: */
     QMainWindow *m_pMainWindow;
 };
 

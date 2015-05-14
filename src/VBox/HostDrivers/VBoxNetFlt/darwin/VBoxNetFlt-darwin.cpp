@@ -51,7 +51,6 @@
 #include <sys/conf.h>
 #include <sys/errno.h>
 #include <sys/ioccom.h>
-#include <sys/filio.h>
 #include <sys/malloc.h>
 #include <sys/proc.h>
 #include <sys/socket.h>
@@ -62,13 +61,7 @@ RT_C_DECLS_BEGIN /* Buggy 10.4 headers, fixed in 10.5. */
 #include <sys/kpi_mbuf.h>
 #include <net/kpi_interfacefilter.h>
 RT_C_DECLS_END
-
-#include <sys/kpi_socket.h>
 #include <net/if.h>
-#include <net/if_var.h>
-#include <netinet/in.h>
-#include <netinet/in_var.h>
-#include <netinet6/in6_var.h>
 
 #define VBOXNETFLT_OS_SPECFIC 1
 #include "../VBoxNetFltInternal.h"
@@ -93,8 +86,6 @@ RT_C_DECLS_END
 RT_C_DECLS_BEGIN
 static kern_return_t    VBoxNetFltDarwinStart(struct kmod_info *pKModInfo, void *pvData);
 static kern_return_t    VBoxNetFltDarwinStop(struct kmod_info *pKModInfo, void *pvData);
-
-static void vboxNetFltDarwinSysSockUpcall(socket_t pSysSock, void *pvData, int fWait);
 RT_C_DECLS_END
 
 
@@ -327,7 +318,7 @@ DECLINLINE(ifnet_t) vboxNetFltDarwinRetainIfNet(PVBOXNETFLTINS pThis)
         if (pIfNet)
             ifnet_reference(pIfNet);
     }
-    RTSpinlockRelease(pThis->hSpinlock);
+    RTSpinlockReleaseNoInts(pThis->hSpinlock);
 
     return pIfNet;
 }
@@ -757,7 +748,7 @@ static void vboxNetFltDarwinIffDetached(void *pvThis, ifnet_t pIfNet)
     ASMAtomicUoWriteBool(&pThis->fRediscoveryPending, false);
     ASMAtomicWriteBool(&pThis->fDisconnectedFromHost, true);
 
-    RTSpinlockRelease(pThis->hSpinlock);
+    RTSpinlockReleaseNoInts(pThis->hSpinlock);
 
     if (pIfNet)
         ifnet_release(pIfNet);
@@ -1039,7 +1030,7 @@ static int vboxNetFltDarwinAttachToInterface(PVBOXNETFLTINS pThis, bool fRedisco
 
     RTSpinlockAcquire(pThis->hSpinlock);
     ASMAtomicUoWritePtr(&pThis->u.s.pIfNet, pIfNet);
-    RTSpinlockRelease(pThis->hSpinlock);
+    RTSpinlockReleaseNoInts(pThis->hSpinlock);
 
     /* Adjust g_offIfNetPCount as it varies for different versions of xnu. */
     vboxNetFltDarwinDetectPCountOffset(pIfNet);
@@ -1077,7 +1068,7 @@ static int vboxNetFltDarwinAttachToInterface(PVBOXNETFLTINS pThis, bool fRedisco
             ASMAtomicUoWritePtr(&pThis->u.s.pIfFilter, pIfFilter);
             pIfNet = NULL; /* don't dereference it */
         }
-        RTSpinlockRelease(pThis->hSpinlock);
+        RTSpinlockReleaseNoInts(pThis->hSpinlock);
 
         /* Report capabilities. */
         if (   !pIfNet
@@ -1298,266 +1289,17 @@ void vboxNetFltOsDeleteInstance(PVBOXNETFLTINS pThis)
     pIfFilter = ASMAtomicUoReadPtrT(&pThis->u.s.pIfFilter, interface_filter_t);
     if (pIfFilter)
         ASMAtomicUoWriteNullPtr(&pThis->u.s.pIfFilter);
-    RTSpinlockRelease(pThis->hSpinlock);
+    RTSpinlockReleaseNoInts(pThis->hSpinlock);
 
     if (pIfFilter)
         iflt_detach(pIfFilter);
-
-    if (pThis->u.s.pSysSock != NULL)
-    {
-        sock_close(pThis->u.s.pSysSock);
-        pThis->u.s.pSysSock = NULL;
-    }
 }
 
 
 int  vboxNetFltOsInitInstance(PVBOXNETFLTINS pThis, void *pvContext)
 {
     NOREF(pvContext);
-
-    int rc = vboxNetFltDarwinAttachToInterface(pThis, false /* fRediscovery */);
-    if (RT_FAILURE(rc))
-        return rc;
-
-    if (pThis->pSwitchPort->pfnNotifyHostAddress == NULL)
-        return rc;
-
-    /*
-     * XXX: uwe
-     *
-     * Learn host's IP addresses and set up notifications for changes.
-     * To avoid racing, set up notifications first.
-     *
-     * XXX: This should probably be global, since the only thing
-     * specific to ifnet here is its IPv6 link-local address.
-     */
-    errno_t error;
-
-    error = sock_socket(PF_SYSTEM, SOCK_RAW, SYSPROTO_EVENT,
-                        vboxNetFltDarwinSysSockUpcall, pThis,
-                        &pThis->u.s.pSysSock);
-    if (error != 0)
-    {
-        LogRel(("sock_socket(SYSPROTO_EVENT): error %d\n", error));
-        return rc;
-    }
-
-    int nbio = 1;
-    error = sock_ioctl(pThis->u.s.pSysSock, FIONBIO, &nbio);
-    if (error != 0)
-    {
-        LogRel(("FIONBIO: error %d\n", error));
-        sock_close(pThis->u.s.pSysSock);
-        return rc;
-    }
-
-    if (!sock_isnonblocking(pThis->u.s.pSysSock))
-    {
-        LogRel(("FIONBIO ok, but socket is blocking?!\n"));
-        sock_close(pThis->u.s.pSysSock);
-        return rc;        
-    }
-
-    struct kev_request req;
-    req.vendor_code = KEV_VENDOR_APPLE;
-    req.kev_class = KEV_NETWORK_CLASS;
-    req.kev_subclass = KEV_ANY_SUBCLASS; /* need both INET and INET6, so have to request all */
-
-    error = sock_ioctl(pThis->u.s.pSysSock, SIOCSKEVFILT, &req);
-    if (error != 0)
-    {
-        LogRel(("SIOCSKEVFILT: error %d\n", error));
-        sock_close(pThis->u.s.pSysSock);
-        return rc;
-    }
-
-    ifnet_t pIfNet = pThis->u.s.pIfNet; /* already retained */
-
-    ifaddr_t *pIfAddrList;
-    error = ifnet_get_address_list(/* all interfaces*/ NULL, &pIfAddrList);
-    if (error != 0)
-    {
-        LogRel(("ifnet_get_address_list: error %d\n", error));
-        return rc;
-    }
-
-    for (ifaddr_t *pIfAddr = pIfAddrList; *pIfAddr != NULL; ++pIfAddr)
-    {
-        ifaddr_t ifa = *pIfAddr;
-        sa_family_t family = ifaddr_address_family(ifa);
-        struct sockaddr_storage ss;
-
-        error = ifaddr_address(ifa, (struct sockaddr *)&ss, sizeof(ss));
-        if (error != 0)
-        {
-            LogRel(("getting address family %d: error %d\n", family, error));
-            continue;
-        }
-
-        if (family == AF_INET)
-        {
-            struct sockaddr_in *sin = (struct sockaddr_in *)&ss;
-            u_int32_t u32Addr = ntohl(sin->sin_addr.s_addr);
-
-            if ((u32Addr >> IN_CLASSA_NSHIFT) == IN_LOOPBACKNET)
-                continue;
-
-            Log(("> inet %RTnaipv4\n", sin->sin_addr.s_addr));
-            pThis->pSwitchPort->pfnNotifyHostAddress(pThis->pSwitchPort,
-                /* :fAdded */ true, kIntNetAddrType_IPv4, &sin->sin_addr);
-        }
-        else if (family == AF_INET6)
-        {
-            struct sockaddr_in6 *sin6 = (struct sockaddr_in6 *)&ss;
-
-            if (IN6_IS_ADDR_LOOPBACK(&sin6->sin6_addr))
-                continue;
-
-            /* link-local from other interfaces are out of scope */
-            if (IN6_IS_ADDR_LINKLOCAL(&sin6->sin6_addr) && ifaddr_ifnet(ifa) != pIfNet)
-                continue;
-
-            Log(("> inet6 %RTnaipv6\n", &sin6->sin6_addr));
-            pThis->pSwitchPort->pfnNotifyHostAddress(pThis->pSwitchPort,
-                /* :fAdded */ true, kIntNetAddrType_IPv6, &sin6->sin6_addr);
-        }
-    }
-
-    ifnet_free_address_list(pIfAddrList);
-
-    /*
-     * Now that we've got current addresses, check for events that
-     * might have happened while we were working.
-     */
-    vboxNetFltDarwinSysSockUpcall(pThis->u.s.pSysSock, pThis, MBUF_DONTWAIT);
-
-    return rc;
-}
-
-
-static void vboxNetFltDarwinSysSockUpcall(socket_t pSysSock, void *pvData, int fWait)
-{
-    PVBOXNETFLTINS pThis = (PVBOXNETFLTINS)pvData;
-    errno_t error;
-
-    NOREF(fWait);
-
-    if (RT_UNLIKELY(pSysSock != pThis->u.s.pSysSock))
-    {
-        Log(("vboxNetFltDarwinSysSockUpcall: %p != %p?\n",
-             pSysSock, pThis->u.s.pSysSock));
-        return;
-    }
-
-    for (;;) {
-        mbuf_t m;
-        size_t len = sizeof(struct kern_event_msg) - sizeof(u_int32_t)
-            + sizeof(struct kev_in6_data);
-
-        error = sock_receivembuf(pSysSock, NULL, &m, 0, &len);
-        if (error == EWOULDBLOCK)
-        {
-            Log(("vboxNetFltDarwinSysSockUpcall: EWOULDBLOCK - we are done\n"));
-            error = 0;
-            break;
-        }
-        else if (error != 0)
-        {
-            Log(("sock_receivembuf: error %d\n", error));
-            break;
-        }
-
-        if (len < sizeof(struct kern_event_msg) - sizeof(u_int32_t))
-        {
-            Log(("vboxNetFltDarwinSysSockUpcall: %u bytes is too short\n",
-                 (unsigned int)len));
-            mbuf_freem(m);
-            return;
-        }
-
-        struct kern_event_msg *msg = (struct kern_event_msg *)mbuf_data(m);
-        if (msg->kev_subclass == KEV_INET_SUBCLASS)
-        {
-            if (len - (sizeof(struct kern_event_msg) - sizeof(u_int32_t)) < sizeof(struct kev_in_data))
-            {
-                Log(("vboxNetFltDarwinSysSockUpcall: %u bytes is too short for KEV_INET_SUBCLASS\n",
-                     (unsigned int)len));
-                mbuf_freem(m);
-                return;
-            }
-
-            struct kev_in_data *iev = (struct kev_in_data *)msg->event_data;
-            PCRTNETADDRU pAddr = (PCRTNETADDRU)&iev->ia_addr;
-            switch (msg->event_code)
-            {
-                case KEV_INET_NEW_ADDR:
-                    Log(("KEV_INET_NEW_ADDR %RTnaipv4\n", pAddr->IPv4));
-                    pThis->pSwitchPort->pfnNotifyHostAddress(pThis->pSwitchPort,
-                        /* :fAdded */ true, kIntNetAddrType_IPv4, pAddr);
-                    break;
-
-                case KEV_INET_ADDR_DELETED:
-                    Log(("KEV_INET_ADDR_DELETED %RTnaipv4\n", pAddr->IPv4));
-                    pThis->pSwitchPort->pfnNotifyHostAddress(pThis->pSwitchPort,
-                        /* :fAdded */ false, kIntNetAddrType_IPv4, &iev->ia_addr);
-                    break;
-
-                default:
-                    Log(("KEV INET event %u addr %RTnaipv4\n", msg->event_code, pAddr->IPv4));
-                    break;
-            }
-        }
-        else if (msg->kev_subclass == KEV_INET6_SUBCLASS)
-        {
-            if (len - (sizeof(struct kern_event_msg) - sizeof(u_int32_t)) < sizeof(struct kev_in6_data))
-            {
-                Log(("vboxNetFltDarwinSysSockUpcall: %u bytes is too short for KEV_INET6_SUBCLASS\n",
-                        (unsigned int)len));
-                mbuf_freem(m);
-                return;
-            }
-
-            struct kev_in6_data *iev6 = (struct kev_in6_data *)msg->event_data;
-            PCRTNETADDRU pAddr = (PCRTNETADDRU)&iev6->ia_addr.sin6_addr;
-            switch (msg->event_code)
-            {
-                case KEV_INET6_NEW_USER_ADDR:
-                    Log(("KEV_INET6_NEW_USER_ADDR: %RTnaipv6\n", pAddr));
-                    goto kev_inet6_new;
-
-                case KEV_INET6_NEW_LL_ADDR:
-                    Log(("KEV_INET6_NEW_LL_ADDR: %RTnaipv6\n", pAddr));
-                    /* XXX: uwe: TODO: only interface we are attached to */
-                    goto kev_inet6_new;
-
-                case KEV_INET6_NEW_RTADV_ADDR:
-                    Log(("KEV_INET6_NEW_RTADV_ADDR: %RTnaipv6\n", pAddr));
-                    goto kev_inet6_new;
-
-                kev_inet6_new:
-                    pThis->pSwitchPort->pfnNotifyHostAddress(pThis->pSwitchPort,
-                        /* :fAdded */ true, kIntNetAddrType_IPv6, pAddr);
-                    break;
-
-                case KEV_INET6_ADDR_DELETED:
-                    Log(("KEV_INET6_ADDR_DELETED: %RTnaipv6\n", pAddr));
-                    pThis->pSwitchPort->pfnNotifyHostAddress(pThis->pSwitchPort,
-                        /* :fAdded */ false, kIntNetAddrType_IPv6, pAddr);
-                    break;
-
-                default:
-                    Log(("KEV INET6 event %u addr %RTnaipv6\n", msg->event_code, pAddr));
-                    break;
-            }
-        }
-        else
-        {
-            Log(("vboxNetFltDarwinSysSockUpcall: subclass %u ignored\n",
-                 (unsigned)msg->kev_subclass));
-        }
-
-        mbuf_freem(m);
-    }
+    return vboxNetFltDarwinAttachToInterface(pThis, false /* fRediscovery */);
 }
 
 
@@ -1571,7 +1313,6 @@ int  vboxNetFltOsPreInitInstance(PVBOXNETFLTINS pThis)
     pThis->u.s.fSetPromiscuous = false;
     pThis->u.s.fNeedSetPromiscuous = false;
     //pThis->u.s.MacAddr = {0};
-    pThis->u.s.pSysSock = NULL;
 
     return VINF_SUCCESS;
 }

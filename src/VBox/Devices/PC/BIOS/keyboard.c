@@ -468,23 +468,12 @@ void BIOSCALL int09_function(uint16_t ES, uint16_t DI, uint16_t SI, uint16_t BP,
         break;
 
     case 0x53: /* Del press */
-        if ((shift_flags & 0x0c) == 0x0c) {
-            /* Indicate a warm boot. */
-            write_word(0x0040,0x0072, 0x1234);
+        if ((shift_flags & 0x0c) == 0x0c)
             jmp_post();
-        }
         /* fall through */
 
     default:
         if (scancode & 0x80) {
-            /* Set ack/resend flags if appropriate. */
-            if (scancode == 0xFA) {
-                flag = read_byte(0x0040, 0x97) | 0x10;
-                write_byte(0x0040, 0x97, flag);
-            } else if (scancode == 0xFE) {
-                flag = read_byte(0x0040, 0x97) | 0x20;
-                write_byte(0x0040, 0x97, flag);
-            }
             break; /* toss key releases ... */
         }
         if (scancode > MAX_SCAN_CODE) {
@@ -599,7 +588,7 @@ void BIOSCALL int16_function(volatile kbd_regs_t r)
         outb(0x60, 0xed);
         while ((inb(0x64) & 0x01) == 0) outb(0x80, 0x21);
         if ((inb(0x60) == 0xfa)) {
-            led_flags &= 0xc8;
+            led_flags &= 0xf8;
             led_flags |= ((shift_flags >> 4) & 0x07);
             outb(0x60, led_flags & 0x07);
             while ((inb(0x64) & 0x01) == 0)

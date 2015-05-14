@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2014 Oracle Corporation
+ * Copyright (C) 2010-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -147,10 +147,15 @@ void VirtualBoxClient::uninit()
  * @returns COM status code
  * @param   aVirtualBox Address of result variable.
  */
-HRESULT VirtualBoxClient::getVirtualBox(ComPtr<IVirtualBox> &aVirtualBox)
+STDMETHODIMP VirtualBoxClient::COMGETTER(VirtualBox)(IVirtualBox **aVirtualBox)
 {
+    CheckComArgOutPointerValid(aVirtualBox);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-    aVirtualBox = mData.m_pVirtualBox;
+    mData.m_pVirtualBox.queryInterfaceTo(aVirtualBox);
     return S_OK;
 }
 
@@ -160,13 +165,20 @@ HRESULT VirtualBoxClient::getVirtualBox(ComPtr<IVirtualBox> &aVirtualBox)
  * @returns COM status code
  * @param   aSession    Address of result variable.
  */
-HRESULT VirtualBoxClient::getSession(ComPtr<ISession> &aSession)
+STDMETHODIMP VirtualBoxClient::COMGETTER(Session)(ISession **aSession)
 {
+    HRESULT rc;
+    CheckComArgOutPointerValid(aSession);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     /* this is not stored in this object, no need to lock */
     ComPtr<ISession> pSession;
-    HRESULT rc = pSession.createInprocObject(CLSID_Session);
+    rc = pSession.createInprocObject(CLSID_Session);
     if (SUCCEEDED(rc))
-        aSession = pSession;
+        pSession.queryInterfaceTo(aSession);
+
     return rc;
 }
 
@@ -176,15 +188,18 @@ HRESULT VirtualBoxClient::getSession(ComPtr<ISession> &aSession)
  * @returns COM status code
  * @param   aEventSource    Address of result variable.
  */
-HRESULT VirtualBoxClient::getEventSource(ComPtr<IEventSource> &aEventSource)
+STDMETHODIMP VirtualBoxClient::COMGETTER(EventSource)(IEventSource **aEventSource)
 {
-    /* this is const, no need to lock */
-    aEventSource = mData.m_pEventSource;
-    return aEventSource.isNull() ? E_FAIL : S_OK;
-}
+    CheckComArgOutPointerValid(aEventSource);
 
-// IVirtualBoxClient methods
-/////////////////////////////////////////////////////////////////////////////
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    /* this is const, no need to lock */
+    mData.m_pEventSource.queryInterfaceTo(aEventSource);
+
+    return mData.m_pEventSource.isNull() ? E_FAIL : S_OK;
+}
 
 /**
  * Checks a Machine object for any pending errors.
@@ -192,10 +207,13 @@ HRESULT VirtualBoxClient::getEventSource(ComPtr<IEventSource> &aEventSource)
  * @returns COM status code
  * @param   aMachine    Machine object to check.
  */
-HRESULT VirtualBoxClient::checkMachineError(const ComPtr<IMachine> &aMachine)
+STDMETHODIMP VirtualBoxClient::CheckMachineError(IMachine *aMachine)
 {
+    HRESULT rc;
+    CheckComArgNotNull(aMachine);
+
     BOOL fAccessible = FALSE;
-    HRESULT rc = aMachine->COMGETTER(Accessible)(&fAccessible);
+    rc = aMachine->COMGETTER(Accessible)(&fAccessible);
     if (FAILED(rc))
         return setError(rc, tr("Could not check the accessibility status of the VM"));
     else if (!fAccessible)
@@ -263,8 +281,8 @@ DECLCALLBACK(int) VirtualBoxClient::SVCWatcherThread(RTTHREAD ThreadSelf,
                  * this fails use an increased waiting time as very frequent
                  * restart attempts in some wedged config can cause high CPU
                  * and disk load. */
-                ComPtr<IVirtualBox> pVirtualBox;
-                rc = pVirtualBox.createLocalObject(CLSID_VirtualBox);
+                ComPtr<IVirtualBox> pVBox;
+                rc = pVBox.createLocalObject(CLSID_VirtualBox);
                 if (FAILED(rc))
                     cMillies = 3 * VBOXCLIENT_DEFAULT_INTERVAL;
                 else
@@ -274,7 +292,7 @@ DECLCALLBACK(int) VirtualBoxClient::SVCWatcherThread(RTTHREAD ThreadSelf,
                         AutoWriteLock alock(pThis COMMA_LOCKVAL_SRC_POS);
                         /* Update the VirtualBox reference, there's a working
                          * VBoxSVC again from now on. */
-                        pThis->mData.m_pVirtualBox = pVirtualBox;
+                        pThis->mData.m_pVirtualBox = pVBox;
                     }
                     fireVBoxSVCAvailabilityChangedEvent(pThis->mData.m_pEventSource, TRUE);
                     cMillies = VBOXCLIENT_DEFAULT_INTERVAL;

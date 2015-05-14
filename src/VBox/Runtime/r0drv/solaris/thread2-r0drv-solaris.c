@@ -37,8 +37,7 @@
 #include <iprt/err.h>
 #include "internal/thread.h"
 
-#define SOL_THREAD_ID_PTR           ((uint64_t *)((char *)curthread + g_offrtSolThreadId))
-#define SOL_THREAD_LOCKP_PTR        ((disp_lock_t **)((char *)curthread + g_offrtSolThreadLock))
+
 
 DECLHIDDEN(int) rtThreadNativeInit(void)
 {
@@ -55,7 +54,6 @@ RTDECL(RTTHREAD) RTThreadSelf(void)
 DECLHIDDEN(int) rtThreadNativeSetPriority(PRTTHREADINT pThread, RTTHREADTYPE enmType)
 {
     int iPriority;
-    disp_lock_t **ppDispLock;
     switch (enmType)
     {
         case RTTHREADTYPE_INFREQUENT_POLLER:    iPriority = 60;             break;
@@ -69,18 +67,11 @@ DECLHIDDEN(int) rtThreadNativeSetPriority(PRTTHREADINT pThread, RTTHREADTYPE enm
             return VERR_INVALID_PARAMETER;
     }
 
-    Assert(curthread);
-    thread_lock(curthread);
-    thread_change_pri(curthread, iPriority, 0);
-
-    /*
-     * thread_unlock() is a macro calling disp_lock_exit() with the thread's dispatcher lock.
-     * We need to dereference the offset manually here (for S10, S11 compatibility) rather than
-     * using the macro.
-     */
-    ppDispLock = SOL_THREAD_LOCKP_PTR;
-    disp_lock_exit(*ppDispLock);
-
+    kthread_t *pCurThread = curthread;
+    Assert(pCurThread);
+    thread_lock(pCurThread);
+    thread_change_pri(pCurThread, iPriority, 0);
+    thread_unlock(pCurThread);
     return VINF_SUCCESS;
 }
 
@@ -91,12 +82,6 @@ DECLHIDDEN(int) rtThreadNativeAdopt(PRTTHREADINT pThread)
     /* There is nothing special that needs doing here, but the
        user really better know what he's cooking. */
     return VINF_SUCCESS;
-}
-
-
-DECLHIDDEN(void) rtThreadNativeWaitKludge(PRTTHREADINT pThread)
-{
-    thread_join(pThread->tid);
 }
 
 
@@ -115,9 +100,6 @@ static void rtThreadNativeMain(void *pvThreadInt)
 {
     PRTTHREADINT pThreadInt = (PRTTHREADINT)pvThreadInt;
 
-    AssertCompile(sizeof(kt_did_t) == sizeof(pThreadInt->tid));
-    uint64_t *pu64ThrId = SOL_THREAD_ID_PTR;
-    pThreadInt->tid = *pu64ThrId;
     rtThreadMain(pThreadInt, RTThreadNativeSelf(), &pThreadInt->szName[0]);
     thread_exit();
 }
@@ -125,20 +107,16 @@ static void rtThreadNativeMain(void *pvThreadInt)
 
 DECLHIDDEN(int) rtThreadNativeCreate(PRTTHREADINT pThreadInt, PRTNATIVETHREAD pNativeThread)
 {
-    kthread_t *pThread;
     RT_ASSERT_PREEMPTIBLE();
-
-    pThreadInt->tid = UINT64_MAX;
-
-    pThread = thread_create(NULL,                            /* Stack, use base */
-                            0,                               /* Stack size */
-                            rtThreadNativeMain,              /* Thread function */
-                            pThreadInt,                      /* Function data */
-                            0,                               /* Data size */
-                            &p0,                             /* Process 0 handle */
-                            TS_RUN,                          /* Ready to run */
-                            minclsyspri                      /* Priority */
-                            );
+    kthread_t *pThread = thread_create(NULL,                            /* Stack, use base */
+                                       0,                               /* Stack size */
+                                       rtThreadNativeMain,              /* Thread function */
+                                       pThreadInt,                      /* Function data */
+                                       0,                               /* Data size */
+                                       (proc_t *)RTR0ProcHandleSelf(),  /* Process handle */
+                                       TS_RUN,                          /* Ready to run */
+                                       minclsyspri                      /* Priority */
+                                       );
     if (RT_LIKELY(pThread))
     {
         *pNativeThread = (RTNATIVETHREAD)pThread;

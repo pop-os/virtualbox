@@ -1,6 +1,8 @@
 /* $Id: VBoxGlobalSettings.cpp $ */
 /** @file
- * VBox Qt GUI - VBoxGlobalSettingsData, VBoxGlobalSettings class implementation.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * VBoxGlobalSettingsData, VBoxGlobalSettings class implementation
  */
 
 /*
@@ -16,31 +18,24 @@
  */
 
 #ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
+# include "precomp.h"
 #else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 /* Qt includes: */
-# include <QString>
-# include <QRegExp>
-# include <QVariant>
+#include <QString>
+#include <QRegExp>
+#include <QVariant>
 
 /* GUI includes: */
-# include "UIDefs.h"
-# include "UIExtraDataDefs.h"
-# include "VBoxGlobalSettings.h"
-# include "UIHostComboEditor.h"
+#include "UIDefs.h"
+#include "VBoxGlobalSettings.h"
+#include "UIHostComboEditor.h"
 
 /* COM includes: */
-# include "COMEnums.h"
-# include "CVirtualBox.h"
-
-# ifdef Q_WS_MAC
-/* Namespaces: */
-using namespace UIExtraDataDefs;
-# endif /* Q_WS_MAC */
+#include "COMEnums.h"
+#include "CVirtualBox.h"
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 
 /** @class VBoxGlobalSettingsData
  *
@@ -66,6 +61,7 @@ VBoxGlobalSettingsData::VBoxGlobalSettingsData()
     maxGuestRes = "auto";
     remapScancodes = QString::null;
     proxySettings = QString::null;
+    presentationModeEnabled = false;
     hostScreenSaverDisabled = false;
 }
 
@@ -78,6 +74,7 @@ VBoxGlobalSettingsData::VBoxGlobalSettingsData (const VBoxGlobalSettingsData &th
     maxGuestRes = that.maxGuestRes;
     remapScancodes = that.remapScancodes;
     proxySettings = that.proxySettings;
+    presentationModeEnabled = that.presentationModeEnabled;
     hostScreenSaverDisabled = that.hostScreenSaverDisabled;
 }
 
@@ -95,6 +92,7 @@ bool VBoxGlobalSettingsData::operator== (const VBoxGlobalSettingsData &that) con
          maxGuestRes == that.maxGuestRes &&
          remapScancodes == that.remapScancodes &&
          proxySettings == that.proxySettings &&
+         presentationModeEnabled == that.presentationModeEnabled &&
          hostScreenSaverDisabled == that.hostScreenSaverDisabled
         );
 }
@@ -124,6 +122,9 @@ gPropertyMap[] =
     { "GUI/MaxGuestResolution",                    "maxGuestRes",             "\\d*[1-9]\\d*,\\d*[1-9]\\d*|any|auto", true },
     { "GUI/RemapScancodes",                        "remapScancodes",          "(\\d+=\\d+,)*\\d+=\\d+", true },
     { "GUI/ProxySettings",                         "proxySettings",           "[\\s\\S]*", true },
+#ifdef Q_WS_MAC
+    { GUI_PresentationModeEnabled,                 "presentationModeEnabled", "true|false", true },
+#endif /* Q_WS_MAC */
     { "GUI/HostScreenSaverDisabled",               "hostScreenSaverDisabled", "true|false", true }
 };
 

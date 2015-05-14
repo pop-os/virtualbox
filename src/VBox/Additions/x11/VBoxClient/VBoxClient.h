@@ -1,4 +1,3 @@
-/* $Id: VBoxClient.h $ */
 /** @file
  *
  * VirtualBox additions user session daemon.
