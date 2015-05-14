@@ -3,6 +3,10 @@ virtualbox (4.3.28-dfsg-1) unstable; urgency=medium
   * New upstream release.
     - patch refresh.
     - remove d/p/37-diff_smap_4.patch.
+  * Remove MAKE=kmk on virtualbox{,-guest}-source.files/rules
+    (Closes: #785161).
+    Upstream doesn't recommend using kmk to build kernel modules.
+    this reverts 63fa6b7b86035b53e8d053b894814eccac9ce595
 
  -- Gianfranco Costamagna <costamagnagianfranco@yahoo.it>  Thu, 14 May 2015 09:36:52 +0200
 
