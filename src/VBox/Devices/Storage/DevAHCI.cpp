@@ -80,7 +80,7 @@
 
 #define AHCI_MAX_ALLOC_TOO_MUCH 20
 
-/** The current saved state version. */
+ /** The current saved state version. */
 #define AHCI_SAVED_STATE_VERSION                        8
 /** The saved state version before changing the port reset logic in an incompatible way. */
 #define AHCI_SAVED_STATE_VERSION_PRE_PORT_RESET_CHANGES 7
@@ -275,7 +275,6 @@ typedef enum AHCITXSTATE
     /** 32bit hack. */
     AHCITXSTATE_32BIT_HACK = 0x7fffffff
 } AHCITXSTATE, *PAHCITXSTATE;
-AssertCompileSize(AHCITXSTATE, sizeof(uint32_t));
 
 /** Task encountered a buffer overflow. */
 #define AHCI_REQ_OVERFLOW   RT_BIT_32(0)
@@ -421,12 +420,16 @@ typedef struct AHCIPort
     /** Command Issue. */
     uint32_t                        regCI;
 
-    /** Current number of active tasks. */
-    volatile uint32_t               cTasksActive;
+#if HC_ARCH_BITS == 64
+    uint32_t                        Alignment1;
+#endif
+
     /** Command List Base Address */
     volatile RTGCPHYS               GCPhysAddrClb;
     /** FIS Base Address */
     volatile RTGCPHYS               GCPhysAddrFb;
+    /** Current number of active tasks. */
+    volatile uint32_t               cTasksActive;
 
     /** Device is powered on. */
     bool                            fPoweredOn;
@@ -446,14 +449,10 @@ typedef struct AHCIPort
     bool                            fAsyncInterface;
     /** Flag if we are in a device reset. */
     bool                            fResetDevice;
-    /** Flag whether this port is hot plug capable. */
-    bool                            fHotpluggable;
     /** Flag whether the port is in redo task mode. */
     volatile bool                   fRedo;
     /** Flag whether the worker thread is sleeping. */
     volatile bool                   fWrkThreadSleeping;
-
-    bool                            afAlignment[3];
 
     /** Number of total sectors. */
     uint64_t                        cTotalSectors;
@@ -518,7 +517,9 @@ typedef struct AHCIPort
     /** The status LED state for this drive. */
     PDMLED                          Led;
 
+#if HC_ARCH_BITS == 64
     uint32_t                        u32Alignment3;
+#endif
 
     /** Async IO Thread. */
     R3PTRTYPE(PPDMTHREAD)           pAsyncIOThread;
@@ -704,6 +705,8 @@ typedef struct AHCI
 
     /** Flag whether we have written the first 4bytes in an 8byte MMIO write successfully. */
     volatile bool                   f8ByteMMIO4BytesWrittenSuccessfully;
+    /** Flag whether whether hotplugging is enabled for the controller. */
+    bool                            fPortsHotpluggable;
 
 #if HC_ARCH_BITS == 64
     uint32_t                        Alignment7;
@@ -2020,8 +2023,7 @@ static void ahciPortSwReset(PAHCIPort pAhciPort)
                          AHCI_PORT_CMD_SUD  | /* Device has spun up. */
                          AHCI_PORT_CMD_POD;   /* Port is powered on. */
 
-    /* Hotplugging supported?. */
-    if (pAhciPort->fHotpluggable)
+    if (pAhciPort->CTX_SUFF(pAhci)->fPortsHotpluggable)
         pAhciPort->regCMD |= AHCI_PORT_CMD_HPCP;
 
     pAhciPort->regTFD  = (1 << 8) | ATA_STAT_SEEK | ATA_STAT_WRERR;
@@ -5703,7 +5705,8 @@ static bool ahciCancelActiveTasks(PAHCIPort pAhciPort, PAHCIREQ pAhciReqExcept)
         if (   VALID_PTR(pAhciReq)
             && pAhciReq != pAhciReqExcept)
         {
-            bool fXchg = ASMAtomicCmpXchgU32((volatile uint32_t *)&pAhciReq->enmTxState, AHCITXSTATE_CANCELED, AHCITXSTATE_ACTIVE);
+            bool fXchg = false;
+            ASMAtomicCmpXchgSize(&pAhciReq->enmTxState, AHCITXSTATE_CANCELED, AHCITXSTATE_ACTIVE, fXchg);
 
             if (fXchg)
             {
@@ -5951,7 +5954,7 @@ static bool ahciTransferComplete(PAHCIPort pAhciPort, PAHCIREQ pAhciReq, int rcR
     LogFlowFunc(("pAhciPort=%p pAhciReq=%p rcReq=%d fFreeReq=%RTbool\n",
                  pAhciPort, pAhciReq, rcReq, fFreeReq));
 
-    enmTxState = (AHCITXSTATE)ASMAtomicReadU32((volatile uint32_t *)&pAhciReq->enmTxState);
+    ASMAtomicReadSize(&pAhciReq->enmTxState, &enmTxState);
     VBOXDD_AHCI_REQ_COMPLETED(pAhciReq, rcReq, enmTxState, pAhciReq->uOffset, pAhciReq->cbTransfer);
     VBOXDD_AHCI_REQ_COMPLETED_TIMESTAMP(pAhciReq, tsNow);
 
@@ -5986,7 +5989,7 @@ static bool ahciTransferComplete(PAHCIPort pAhciPort, PAHCIREQ pAhciReq, int rcR
     }
 
     bool fPortReset = ASMAtomicReadBool(&pAhciPort->fPortReset);
-    fXchg = ASMAtomicCmpXchgU32((volatile uint32_t *)&pAhciReq->enmTxState, AHCITXSTATE_FREE, AHCITXSTATE_ACTIVE);
+    ASMAtomicCmpXchgSize(&pAhciReq->enmTxState, AHCITXSTATE_FREE, AHCITXSTATE_ACTIVE, fXchg);
 
     if (fXchg && !fPortReset)
     {
@@ -6119,7 +6122,7 @@ static bool ahciTransferComplete(PAHCIPort pAhciPort, PAHCIREQ pAhciReq, int rcR
         }
 
         fCanceled = true;
-        ASMAtomicXchgU32((volatile uint32_t *)&pAhciReq->enmTxState, AHCITXSTATE_FREE);
+        ASMAtomicXchgSize(&pAhciReq->enmTxState, AHCITXSTATE_FREE);
 
         if (pAhciReq->enmTxDir == AHCITXDIR_TRIM)
             ahciTrimRangesDestroy(pAhciReq);
@@ -6474,7 +6477,7 @@ static AHCITXDIR ahciProcessCmd(PAHCIPort pAhciPort, PAHCIREQ pAhciReq, uint8_t 
             pAhciReq->uATARegStatus = ATA_STAT_READY | ATA_STAT_ERR;
             break;
         default: /* For debugging purposes. */
-            AssertMsgFailed(("Unknown command issued (%#x)\n", pCmdFis[AHCI_CMDFIS_CMD]));
+            AssertMsgFailed(("Unknown command issued\n"));
             pAhciReq->uATARegError = ABRT_ERR;
             pAhciReq->uATARegStatus = ATA_STAT_READY | ATA_STAT_ERR;
     }
@@ -6685,7 +6688,8 @@ static DECLCALLBACK(int) ahciAsyncIOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
             else
                 pAhciReq = pAhciPort->aCachedTasks[idx];
 
-            bool fXchg = ASMAtomicCmpXchgU32((volatile uint32_t *)&pAhciReq->enmTxState, AHCITXSTATE_ACTIVE, AHCITXSTATE_FREE);
+            bool fXchg;
+            ASMAtomicCmpXchgSize(&pAhciReq->enmTxState, AHCITXSTATE_ACTIVE, AHCITXSTATE_FREE, fXchg);
             AssertMsg(fXchg, ("Task is already active\n"));
 
             pAhciReq->tsStart = RTTimeMilliTS();
@@ -6708,7 +6712,7 @@ static DECLCALLBACK(int) ahciAsyncIOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
                  * Do the same here and ignore any corrupt FIS types, after all
                  * the guest messed up everything and this behavior is undefined.
                  */
-                fXchg = ASMAtomicCmpXchgU32((volatile uint32_t *)&pAhciReq->enmTxState, AHCITXSTATE_FREE, AHCITXSTATE_ACTIVE);
+                ASMAtomicCmpXchgSize(&pAhciReq->enmTxState, AHCITXSTATE_FREE, AHCITXSTATE_ACTIVE, fXchg);
                 Assert(fXchg);
                 u32Tasks &= ~RT_BIT_32(idx); /* Clear task bit. */
                 idx = ASMBitFirstSetU32(u32Tasks);
@@ -6736,7 +6740,7 @@ static DECLCALLBACK(int) ahciAsyncIOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
                 else /* We are not in a reset state update the control registers. */
                     AssertMsgFailed(("%s: Update the control register\n", __FUNCTION__));
 
-                fXchg = ASMAtomicCmpXchgU32((volatile uint32_t *)&pAhciReq->enmTxState, AHCITXSTATE_FREE, AHCITXSTATE_ACTIVE);
+                ASMAtomicCmpXchgSize(&pAhciReq->enmTxState, AHCITXSTATE_FREE, AHCITXSTATE_ACTIVE, fXchg);
                 AssertMsg(fXchg, ("Task is not active\n"));
                 break;
             }
@@ -7031,7 +7035,7 @@ static DECLCALLBACK(int) ahciR3LiveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uin
     for (uint32_t i = 0; i < AHCI_MAX_NR_PORTS_IMPL; i++)
     {
         SSMR3PutBool(pSSM, pThis->ahciPort[i].pDrvBase != NULL);
-        SSMR3PutBool(pSSM, pThis->ahciPort[i].fHotpluggable);
+        SSMR3PutBool(pSSM, true); /* For the hotpluggable flag. */
         SSMR3PutStrZ(pSSM, pThis->ahciPort[i].szSerialNumber);
         SSMR3PutStrZ(pSSM, pThis->ahciPort[i].szFirmwareRevision);
         SSMR3PutStrZ(pSSM, pThis->ahciPort[i].szModelNumber);
@@ -7249,13 +7253,11 @@ static DECLCALLBACK(int) ahciR3LoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uin
                 bool fHotpluggable;
                 rc = SSMR3GetBool(pSSM, &fHotpluggable);
                 AssertRCReturn(rc, rc);
-                if (fHotpluggable != pThis->ahciPort[i].fHotpluggable)
+                if (!fHotpluggable)
                     return SSMR3SetCfgError(pSSM, RT_SRC_POS,
                                             N_("AHCI: Port %u config mismatch: Hotplug flag - saved=%RTbool config=%RTbool\n"),
-                                            i, fHotpluggable, pThis->ahciPort[i].fHotpluggable);
+                                            i, fHotpluggable, true);
             }
-            else
-                Assert(pThis->ahciPort[i].fHotpluggable);
 
             char szSerialNumber[AHCI_SERIAL_NUMBER_LENGTH+1];
             rc = SSMR3GetStrZ(pSSM, szSerialNumber,     sizeof(szSerialNumber));
@@ -7860,10 +7862,6 @@ static DECLCALLBACK(void) ahciR3Detach(PPDMDEVINS pDevIns, unsigned iLUN, uint32
     Log(("%s:\n", __FUNCTION__));
 
     AssertMsg(iLUN < pAhci->cPortsImpl, ("iLUN=%u", iLUN));
-    AssertMsgReturnVoid(   pAhciPort->fHotpluggable
-                        || (fFlags & PDM_TACH_FLAGS_NOT_HOT_PLUG),
-                        ("AHCI: Port %d is not marked hotpluggable\n", pAhciPort->iLUN));
-
 
     if (pAhciPort->pAsyncIOThread)
     {
@@ -7938,11 +7936,6 @@ static DECLCALLBACK(int)  ahciR3Attach(PPDMDEVINS pDevIns, unsigned iLUN, uint32
     AssertRelease(!pAhciPort->pDrvBlockAsync);
     Assert(pAhciPort->iLUN == iLUN);
 
-    AssertMsgReturn(   pAhciPort->fHotpluggable
-                    || (fFlags & PDM_TACH_FLAGS_NOT_HOT_PLUG),
-                    ("AHCI: Port %d is not marked hotpluggable\n", pAhciPort->iLUN),
-                    VERR_INVALID_PARAMETER);
-
     /*
      * Try attach the block device and get the interfaces,
      * required as well as optional.
@@ -7998,10 +7991,6 @@ static DECLCALLBACK(int)  ahciR3Attach(PPDMDEVINS pDevIns, unsigned iLUN, uint32
         if (   RT_SUCCESS(rc)
             && !(fFlags & PDM_TACH_FLAGS_NOT_HOT_PLUG))
         {
-            AssertMsgReturn(pAhciPort->fHotpluggable,
-                            ("AHCI: Port %d is not marked hotpluggable\n", pAhciPort->iLUN),
-                            VERR_NOT_SUPPORTED);
-
             /*
              * Initialize registers
              */
@@ -8168,7 +8157,8 @@ static DECLCALLBACK(int) ahciR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFG
                                     "PortCount\0"
                                     "UseAsyncInterfaceIfAvailable\0"
                                     "Bootable\0"
-                                    "CmdSlotsAvail\0"))
+                                    "CmdSlotsAvail\0"
+                                    "PortsHotpluggable\0"))
         return PDMDEV_SET_ERROR(pDevIns, VERR_PDM_DEVINS_UNKNOWN_CFG_VALUES,
                                 N_("AHCI configuration error: unknown option specified"));
 
@@ -8221,6 +8211,11 @@ static DECLCALLBACK(int) ahciR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFG
         return PDMDevHlpVMSetError(pDevIns, VERR_INVALID_PARAMETER, RT_SRC_POS,
                                    N_("AHCI configuration error: CmdSlotsAvail=%u should be at least 1"),
                                    pThis->cCmdSlotsAvail);
+
+    rc = CFGMR3QueryBoolDef(pCfg, "PortsHotpluggable", &pThis->fPortsHotpluggable, true);
+    if (RT_FAILURE(rc))
+        return PDMDEV_SET_ERROR(pDevIns, rc,
+                                N_("AHCI configuration error: failed to read \"PortsHotpluggable\" as boolean"));
 
     /*
      * Initialize the instance data (everything touched by the destructor need
@@ -8283,7 +8278,6 @@ static DECLCALLBACK(int) ahciR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFG
         pAhciPort->pDrvBase             = NULL;
         pAhciPort->pAsyncIOThread       = NULL;
         pAhciPort->hEvtProcess          = NIL_SUPSEMEVENT;
-        pAhciPort->fHotpluggable        = true;
     }
 
     /*
@@ -8426,16 +8420,6 @@ static DECLCALLBACK(int) ahciR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFG
         pAhciPort->IMountNotify.pfnMountNotify          = ahciR3MountNotify;
         pAhciPort->IMountNotify.pfnUnmountNotify        = ahciR3UnmountNotify;
         pAhciPort->fWrkThreadSleeping                   = true;
-
-        /* Query per port configuration options if available. */
-        PCFGMNODE pCfgPort = CFGMR3GetChild(pDevIns->pCfg, szName);
-        if (pCfgPort)
-        {
-            rc = CFGMR3QueryBoolDef(pCfgPort, "Hotpluggable", &pAhciPort->fHotpluggable, true);
-            if (RT_FAILURE(rc))
-                return PDMDEV_SET_ERROR(pDevIns, rc,
-                                        N_("AHCI configuration error: failed to read Hotpluggable as boolean"));
-        }
 
         /*
          * Attach the block driver

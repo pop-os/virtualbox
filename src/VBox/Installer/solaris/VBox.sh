@@ -1,10 +1,8 @@
 #!/bin/sh
-## @file
+#
 # Oracle VM VirtualBox startup script, Solaris hosts.
 #
-
-#
-# Copyright (C) 2006-2015 Oracle Corporation
+# Copyright (C) 2006-2012 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -42,17 +40,11 @@ case "$APP" in
     VBoxAutostart|vboxautostart)
         exec "$INSTALL_DIR/VBoxAutostart" "$@"
         ;;
-    VBoxDTrace|vboxdtrace)
-        exec "$INSTALL_DIR/VBoxDTrace" "$@"
-        ;;
     vboxwebsrv)
         exec "$INSTALL_DIR/vboxwebsrv" "$@"
         ;;
     VBoxQtconfig)
         exec "$INSTALL_DIR/VBoxQtconfig" "$@"
-        ;;
-    vbox-img)
-        exec "$INSTALL_DIR/vbox-img" "$0"
         ;;
     *)
         echo "Unknown application - $APP"
@@ -60,4 +52,3 @@ case "$APP" in
         ;;
 esac
 exit 0
-

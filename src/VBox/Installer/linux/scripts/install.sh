@@ -142,9 +142,6 @@ while test "${#}" -gt 0; do
     --no-helpers)
         NO_HELPERS="true"
         ;;
-    --no-vbox-img)
-        NO_VBOX_IMG="true"
-        ;;
     --python-command)
         test "${#}" -gt 1 ||
         {
@@ -222,12 +219,8 @@ test -n "${NO_QT}" &&
     test ! -r "${INSTALL_SOURCE}/VirtualBox"
 test -n "${NO_WEB_SERVICE}" &&
     test ! -r "${INSTALL_SOURCE}/vboxwebsrv"
-test -n "${NO_VBOX_IMG}" &&
-    test ! -r "${INSTALL_SOURCE}/vbox-img"
 test -n "${NO_WEB_SERVICE}" &&
     test ! -r "${INSTALL_SOURCE}/webtest"
-test -r "${INSTALL_SOURCE}/VBoxDTrace" &&
-    mv "${INSTALL_SOURCE}/VBoxDTrace" "${PREFIX}/bin"
 mv "${INSTALL_SOURCE}/VBoxTunctl" "${PREFIX}/bin"
 test -n "${OSE}" || test -n "${NO_QT}" &&
     test ! -r ${INSTALL_SOURCE}/kchmviewer
@@ -264,8 +257,6 @@ ln -sf "VBox" "${PREFIX}/bin/vboxballoonctrl"
 ln -s "VBox" "${PREFIX}/bin/VBoxAutostart"
 ln -s "VBox" "${PREFIX}/bin/vboxautostart"
 test -z "${NO_WEB_SERVICE}" && ln -s "VBox" "${PREFIX}/bin/vboxwebsrv"
-echo "NO_VBOX_IMG = ${NO_VBOX_IMG}"
-test -z "${NO_VBOX_IMG}" && ln -sv "${RELATIVE_PREFIX}${INSTALL_FOLDER}/vbox-img" "${PREFIX}/bin/vbox-img"
 rmdir ${INSTALL_SOURCE}/additions
 rm "${INSTALL_SOURCE}/scripts/install.sh"
 ## @todo Move this to a make file.

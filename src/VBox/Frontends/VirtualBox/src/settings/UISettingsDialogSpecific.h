@@ -1,6 +1,7 @@
-/* $Id: UISettingsDialogSpecific.h $ */
 /** @file
- * VBox Qt GUI - UISettingsDialogSpecific class declaration.
+ *
+ * VBox frontends: Qt4 GUI ("VirtualBox"):
+ * UISettingsDialogSpecific class declaration
  */
 
 /*
@@ -34,22 +35,16 @@ class UISettingsDialogGlobal : public UISettingsDialog
 
 public:
 
-    UISettingsDialogGlobal(QWidget *pParent,
-                           const QString &strCategory = QString(),
-                           const QString &strControl = QString());
+    UISettingsDialogGlobal(QWidget *pParent);
+    ~UISettingsDialogGlobal();
 
 protected:
 
-    /** Loads the data from the corresponding source. */
-    void loadOwnData();
-    /** Saves the data to the corresponding source. */
-    void saveOwnData();
+    void loadData();
+    void saveData();
 
     void retranslateUi();
 
-    /** Returns the dialog title extension. */
-    QString titleExtension() const;
-    /** Returns the dialog title. */
     QString title() const;
 
 private:
@@ -66,19 +61,15 @@ public:
 
     UISettingsDialogMachine(QWidget *pParent, const QString &strMachineId,
                             const QString &strCategory, const QString &strControl);
+    ~UISettingsDialogMachine();
 
 protected:
 
-    /** Loads the data from the corresponding source. */
-    void loadOwnData();
-    /** Saves the data to the corresponding source. */
-    void saveOwnData();
+    void loadData();
+    void saveData();
 
     void retranslateUi();
 
-    /** Returns the dialog title extension. */
-    QString titleExtension() const;
-    /** Returns the dialog title. */
     QString title() const;
 
     void recorrelate(UISettingsPage *pSettingsPage);
@@ -92,15 +83,14 @@ private slots:
     void sltMachineDataChanged(QString strMachineId);
     void sltCategoryChanged(int cId);
     void sltAllowResetFirstRunFlag();
+    void sltSetFirstRunFlag();
     void sltResetFirstRunFlag();
 
 private:
 
     bool isPageAvailable(int iPageId);
     bool isSettingsChanged();
-
-    /* Recalculates configuration access level. */
-    void updateConfigurationAccessLevel();
+    void updateDialogType();
 
     QString m_strMachineId;
     KSessionState m_sessionState;

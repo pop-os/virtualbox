@@ -1,6 +1,8 @@
 /* $Id: UIWizardCloneVMPageBasic1.cpp $ */
 /** @file
- * VBox Qt GUI - UIWizardCloneVMPageBasic1 class implementation.
+ *
+ * VBox frontends: Qt4 GUI ("VirtualBox"):
+ * UIWizardCloneVMPageBasic1 class implementation
  */
 
 /*
@@ -15,22 +17,15 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QVBoxLayout>
-# include <QLineEdit>
-# include <QCheckBox>
+#include <QVBoxLayout>
+#include <QLineEdit>
+#include <QCheckBox>
 
 /* GUI includes: */
-# include "UIWizardCloneVMPageBasic1.h"
-# include "UIWizardCloneVM.h"
-# include "QIRichTextLabel.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
+#include "UIWizardCloneVMPageBasic1.h"
+#include "UIWizardCloneVM.h"
+#include "QIRichTextLabel.h"
 
 UIWizardCloneVMPage1::UIWizardCloneVMPage1(const QString &strOriginalName)
     : m_strOriginalName(strOriginalName)

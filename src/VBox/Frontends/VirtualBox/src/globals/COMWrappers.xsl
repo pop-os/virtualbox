@@ -22,14 +22,51 @@
 <xsl:output method="text"/>
 <xsl:strip-space elements="*"/>
 
-<xsl:include href="../../../../Main/idl/typemap-shared.inc.xsl" />
+
+<!--
+ *  Capitalizes the first letter:
+-->
+<xsl:template name="capitalize">
+  <xsl:param name="str" select="."/>
+  <xsl:value-of select="
+    concat(
+      translate(substring($str,1,1),'abcdefghijklmnopqrstuvwxyz','ABCDEFGHIJKLMNOPQRSTUVWXYZ'),
+      substring($str,2)
+    )
+  "/>
+</xsl:template>
+
+<!--
+ *  Uncapitalizes the first letter only if the second one is not capital
+ *  otherwise leaves the string unchanged:
+-->
+<xsl:template name="uncapitalize">
+  <xsl:param name="str" select="."/>
+  <xsl:choose>
+    <xsl:when test="not(contains('ABCDEFGHIJKLMNOPQRSTUVWXYZ', substring($str,2,1)))">
+      <xsl:value-of select="
+        concat(
+          translate(substring($str,1,1),'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),
+          substring($str,2)
+        )
+      "/>
+    </xsl:when>
+    <xsl:otherwise>
+      <xsl:value-of select="string($str)"/>
+    </xsl:otherwise>
+  </xsl:choose>
+</xsl:template>
 
 
 <!--
- * Keys for more efficiently looking up of types.
+ *  Translates the string to uppercase:
 -->
-<xsl:key name="G_keyEnumsByName" match="//enum[@name]" use="@name"/>
-<xsl:key name="G_keyInterfacesByName" match="//interface[@name]" use="@name"/>
+<xsl:template name="uppercase">
+  <xsl:param name="str" select="."/>
+  <xsl:value-of select="
+    translate($str,'abcdefghijklmnopqrstuvwxyz','ABCDEFGHIJKLMNOPQRSTUVWXYZ')
+  "/>
+</xsl:template>
 
 
 <!--
@@ -45,8 +82,7 @@
 -->
 <xsl:template name="endFile">
   <xsl:param name="file" />
-  <xsl:call-template name="xsltprocNewlineOutputHack"/>
-  <xsl:value-of select="concat('// ##### ENDFILE &quot;', $file, '&quot;&#10;&#10;')" />
+  <xsl:value-of select="concat('&#10;// ##### ENDFILE &quot;', $file, '&quot;&#10;&#10;')" />
 </xsl:template>
 
 
@@ -177,7 +213,7 @@
     <xsl:text>#ifndef ___COMEnums_h___&#x0A;</xsl:text>
     <xsl:text>#define ___COMEnums_h___&#x0A;&#x0A;</xsl:text>
     <xsl:text>/* GUI includes: */&#x0A;</xsl:text>
-    <xsl:text>#include "QMetaType"&#x0A;&#x0A;</xsl:text>
+    <xsl:text>#include "COMDefs.h"&#x0A;&#x0A;</xsl:text>
 
     <!-- Enumerate all enums: -->
     <xsl:for-each select="enum">
@@ -190,8 +226,8 @@
         <xsl:for-each select="const">
             <xsl:text>    </xsl:text>
             <xsl:value-of select="concat('K',../@name,'_',@name)"/>
-            <xsl:text> = </xsl:text>
-            <xsl:value-of select="@value"/>
+            <xsl:text> = ::</xsl:text>
+            <xsl:value-of select="concat(../@name,'_',@name)"/>
             <xsl:text>,&#x0A;</xsl:text>
         </xsl:for-each>
         <xsl:text>    </xsl:text>
@@ -238,12 +274,6 @@
     <xsl:text> * Source    : src/VBox/Main/idl/VirtualBox.xidl&#x0A;</xsl:text>
     <xsl:text> * Generator : src/VBox/Frontends/VirtualBox/include/COMWrappers.xsl&#x0A;</xsl:text>
     <xsl:text> */&#x0A;&#x0A;</xsl:text>
-    <xsl:text>/* VirtualBox interface declarations: */&#x0A;</xsl:text>
-    <xsl:text>#ifndef VBOX_WITH_XPCOM&#x0A;</xsl:text>
-    <xsl:text># include "VirtualBox.h"&#x0A;</xsl:text>
-    <xsl:text>#else /* !VBOX_WITH_XPCOM */&#x0A;</xsl:text>
-    <xsl:text># include "VirtualBox_XPCOM.h"&#x0A;</xsl:text>
-    <xsl:text>#endif /* VBOX_WITH_XPCOM */&#x0A;&#x0A;</xsl:text>
     <xsl:text>/* COM includes: */&#x0A;</xsl:text>
     <xsl:text>#include "COMEnums.h"&#x0A;</xsl:text>
 
@@ -300,14 +330,8 @@
     </xsl:for-each>
     <xsl:text>&#x0A;</xsl:text>
 
-    <!-- Interface forward declaration: -->
-    <xsl:text>/* Interface forward declaration: */&#x0A;</xsl:text>
-    <xsl:text>struct I</xsl:text>
-    <xsl:value-of select="substring(@name,2)"/>
-    <xsl:text>;&#x0A;&#x0A;</xsl:text>
-
-    <!-- Interface wrapper declaration: -->
-    <xsl:text>/* Interface wrapper declaration: */&#x0A;</xsl:text>
+    <!-- Interface declaration: -->
+    <xsl:text>/* Interface declaration: */&#x0A;</xsl:text>
     <xsl:text>class C</xsl:text>
     <xsl:value-of select="substring(@name,2)"/>
     <xsl:text> : public CInterface&lt;</xsl:text>
@@ -341,7 +365,7 @@
     <xsl:text>/* Let QMetaType know about generated interface: */&#x0A;</xsl:text>
     <xsl:text>Q_DECLARE_METATYPE(</xsl:text>
     <xsl:value-of select="concat('C',substring(@name,2))"/>
-    <xsl:text>);&#x0A;&#x0A;</xsl:text>
+    <xsl:text>)&#x0A;&#x0A;</xsl:text>
 
     <!-- Declare safe-array -->
     <xsl:if test="
@@ -477,11 +501,7 @@
   <!-- default constructor -->
   <xsl:text>    C</xsl:text>
   <xsl:value-of select="substring(@name,2)"/>
-  <xsl:text>();&#x0A;</xsl:text>
-  <!-- default destructor -->
-  <xsl:text>    ~C</xsl:text>
-  <xsl:value-of select="substring(@name,2)"/>
-  <xsl:text>();&#x0A;&#x0A;</xsl:text>
+  <xsl:text>() {}&#x0A;&#x0A;</xsl:text>
   <!-- constructor taking CWhatever -->
   <xsl:text>    template&lt;class OI, class OB&gt; explicit C</xsl:text>
   <xsl:value-of select="substring(@name,2)"/>
@@ -501,7 +521,7 @@
   <xsl:value-of select="substring(@name,2)"/>
   <xsl:text>(const C</xsl:text>
   <xsl:value-of select="substring(@name,2)"/>
-  <xsl:text> &amp; that);&#x0A;&#x0A;</xsl:text>
+  <xsl:text> &amp; that) : Base(that) {}&#x0A;&#x0A;</xsl:text>
   <!-- constructor taking a raw iface pointer -->
   <xsl:text>    template&lt;class OI&gt; explicit C</xsl:text>
   <xsl:value-of select="substring(@name,2)"/>
@@ -511,7 +531,7 @@
   <xsl:value-of select="substring(@name,2)"/>
   <xsl:text>(</xsl:text>
   <xsl:value-of select="@name"/>
-  <xsl:text> * aIface);&#x0A;&#x0A;</xsl:text>
+  <xsl:text> * aIface) : Base(aIface) {}&#x0A;&#x0A;</xsl:text>
   <!-- assignment taking CWhatever -->
   <xsl:text>    template&lt;class OI, class OB&gt; C</xsl:text>
   <xsl:value-of select="substring(@name,2)"/>
@@ -532,7 +552,12 @@
   <xsl:value-of select="substring(@name,2)"/>
   <xsl:text> &amp; operator=(const C</xsl:text>
   <xsl:value-of select="substring(@name,2)"/>
-<xsl:text> &amp; that);&#x0A;</xsl:text>
+<xsl:text> &amp; that)
+    {
+        Base::operator=(that);
+        return *this;
+    }
+</xsl:text>
   <xsl:text>&#x0A;</xsl:text>
   <!-- assignment taking a raw iface pointer -->
   <xsl:text>    template&lt;class OI&gt; C</xsl:text>
@@ -549,7 +574,12 @@
   <xsl:value-of select="substring(@name,2)"/>
   <xsl:text> &amp; operator=(</xsl:text>
   <xsl:value-of select="@name"/>
-<xsl:text> * aIface);&#x0A;</xsl:text>
+<xsl:text> * aIface)
+    {
+        Base::operator=(aIface);
+        return *this;
+    }
+</xsl:text>
   <xsl:text>&#x0A;</xsl:text>
 
   <xsl:text>    /* Attributes (properties): */&#x0A;</xsl:text>
@@ -651,80 +681,11 @@
 
   <xsl:text>// </xsl:text>
   <xsl:value-of select="@name"/>
-  <xsl:text> wrapper&#x0A;</xsl:text>
-  <xsl:call-template name="xsltprocNewlineOutputHack"/>
+  <xsl:text> wrapper&#x0A;&#x0A;</xsl:text>
 
   <xsl:if test="name()='interface'">
     <xsl:call-template name="defineMembers"/>
   </xsl:if>
-
-</xsl:template>
-
-<xsl:template name="defineConstructors">
-
-  <!-- default constructor -->
-  <xsl:text>C</xsl:text>
-  <xsl:value-of select="substring(@name,2)"/>
-  <xsl:text>::C</xsl:text>
-  <xsl:value-of select="substring(@name,2)"/>
-  <xsl:text>() {}&#x0A;&#x0A;</xsl:text>
-
-  <!-- default destructor -->
-  <xsl:text>C</xsl:text>
-  <xsl:value-of select="substring(@name,2)"/>
-  <xsl:text>::~C</xsl:text>
-  <xsl:value-of select="substring(@name,2)"/>
-  <xsl:text>() {}&#x0A;&#x0A;</xsl:text>
-
-  <!-- copy constructor -->
-  <xsl:text>C</xsl:text>
-  <xsl:value-of select="substring(@name,2)"/>
-  <xsl:text>::C</xsl:text>
-  <xsl:value-of select="substring(@name,2)"/>
-  <xsl:text>(const C</xsl:text>
-  <xsl:value-of select="substring(@name,2)"/>
-  <xsl:text> &amp;that) : Base(that) {}&#x0A;&#x0A;</xsl:text>
-
-  <!-- copy constructor taking interface pointer -->
-  <xsl:text>C</xsl:text>
-  <xsl:value-of select="substring(@name,2)"/>
-  <xsl:text>::C</xsl:text>
-  <xsl:value-of select="substring(@name,2)"/>
-  <xsl:text>(</xsl:text>
-  <xsl:value-of select="@name"/>
-  <xsl:text> *pIface) : Base(pIface) {}&#x0A;&#x0A;</xsl:text>
-
-  <!-- operator= -->
-  <xsl:text>C</xsl:text>
-  <xsl:value-of select="substring(@name,2)"/>
-  <xsl:text>&amp; </xsl:text>
-  <xsl:text>C</xsl:text>
-  <xsl:value-of select="substring(@name,2)"/>
-  <xsl:text>::operator=(const C</xsl:text>
-  <xsl:value-of select="substring(@name,2)"/>
-<xsl:text> &amp;that)
-{
-    Base::operator=(that);
-    return *this;
-}
-</xsl:text>
-  <xsl:text>&#x0A;</xsl:text>
-
-  <!-- operator= taking interface pointer -->
-  <xsl:text>C</xsl:text>
-  <xsl:value-of select="substring(@name,2)"/>
-  <xsl:text>&amp; </xsl:text>
-  <xsl:text>C</xsl:text>
-  <xsl:value-of select="substring(@name,2)"/>
-  <xsl:text>::operator=(</xsl:text>
-  <xsl:value-of select="@name"/>
-<xsl:text> *pIface)
-{
-    Base::operator=(pIface);
-    return *this;
-}
-</xsl:text>
-  <xsl:text>&#x0A;</xsl:text>
 
 </xsl:template>
 
@@ -967,9 +928,6 @@
 </xsl:template>
 
 <xsl:template name="defineMembers">
-  <xsl:call-template name="defineConstructors">
-    <xsl:with-param name="iface" select="."/>
-  </xsl:call-template>
   <xsl:call-template name="defineAttributes">
     <xsl:with-param name="iface" select="."/>
   </xsl:call-template>
@@ -1274,7 +1232,6 @@
   <xsl:text>#ifdef RT_OS_WINDOWS&#x0A;</xsl:text>
   <xsl:text>    Assert(mRC != RPC_E_WRONG_THREAD);&#x0A;</xsl:text>
   <xsl:text>    Assert(mRC != CO_E_NOTINITIALIZED);&#x0A;</xsl:text>
-  <xsl:text>    Assert(mRC != RPC_E_CANTCALLOUT_ININPUTSYNCCALL);&#x0A;</xsl:text>
   <xsl:text>#endif&#x0A;</xsl:text>
 
   <!-- apply 'post-call' hooks -->
@@ -1309,12 +1266,10 @@
 -->
 <xsl:template name="tryComposeFetchErrorInfo">
   <xsl:param name="mode" select="''"/>
-
   <xsl:variable name="ifaceSupportsErrorInfo" select="
     ancestor-or-self::interface[1]/@supportsErrorInfo
   "/>
   <xsl:variable name="librarySupportsErrorInfo" select="ancestor::library/@supportsErrorInfo"/>
-
   <xsl:choose>
     <xsl:when test="$ifaceSupportsErrorInfo">
       <xsl:call-template name="composeFetchErrorInfo">
@@ -1334,7 +1289,6 @@
 <xsl:template name="composeFetchErrorInfo">
   <xsl:param name="supports" select="''"/>
   <xsl:param name="mode" select="''"/>
-
   <xsl:choose>
     <xsl:when test="$mode='getBaseClassName'">
       <xsl:if test="$supports='strict' or $supports='yes'">
@@ -1356,8 +1310,11 @@
 </xsl:template>
 
 <xsl:template name="composeMethodCallParam">
+
   <xsl:param name="isIn" select="@dir='in'"/>
   <xsl:param name="isOut" select="@dir='out' or @dir='return'"/>
+
+  <xsl:variable name="self_target" select="current()/ancestor::if/@target"/>
 
   <xsl:choose>
     <!-- safearrays -->
@@ -1395,7 +1352,10 @@
       </xsl:choose>
     </xsl:when>
     <!-- enum types -->
-    <xsl:when test="count(key('G_keyEnumsByName', current()/@type)) > 0">
+    <xsl:when test="
+      (ancestor::library/enum[@name=current()/@type]) or
+      (ancestor::library/if[@target=$self_target]/enum[@name=current()/@type])
+    ">
       <xsl:choose>
         <xsl:when test="$isIn">
           <xsl:text>(</xsl:text>
@@ -1419,7 +1379,12 @@
       </xsl:choose>
     </xsl:when>
     <!-- interface types -->
-    <xsl:when test="@type='$unknown' or (count(key('G_keyInterfacesByName', current()/@type)) > 0)">
+    <xsl:when test="
+      @type='$unknown' or
+      ((ancestor::library/interface[@name=current()/@type]) or
+       (ancestor::library/if[@target=$self_target]/interface[@name=current()/@type])
+      )
+    ">
       <xsl:choose>
         <xsl:when test="$isIn">
           <xsl:text>a</xsl:text>
@@ -1466,6 +1431,8 @@
  *  attribute/parameter type conversion (returns plain Qt type name)
 -->
 <xsl:template match="attribute/@type | param/@type">
+  <xsl:variable name="self_target" select="current()/ancestor::if/@target"/>
+
   <xsl:choose>
     <!-- modifiers -->
     <xsl:when test="name(current())='type' and ../@mod">
@@ -1554,17 +1521,31 @@
         <xsl:when test=".='uuid'">QUuid</xsl:when>
         <!-- system interface types -->
         <xsl:when test=".='$unknown'">CUnknown</xsl:when>
-        <!-- enum types -->
-        <xsl:when test="count(key('G_keyEnumsByName', current())) > 0">
-          <xsl:value-of select="concat('K',string(.))"/>
-        </xsl:when>
-        <!-- custom interface types -->
-        <xsl:when test="count(key('G_keyInterfacesByName', current())) > 0">
-          <xsl:value-of select="concat('C',substring(.,2))"/>
-        </xsl:when>
-        <!-- other types -->
         <xsl:otherwise>
-          <xsl:message terminate="yes"><xsl:text>Unknown parameter type: </xsl:text><xsl:value-of select="."/></xsl:message>
+          <xsl:choose>
+            <!-- enum types -->
+            <xsl:when test="
+              (ancestor::library/enum[@name=current()]) or
+              (ancestor::library/if[@target=$self_target]/enum[@name=current()])
+            ">
+              <xsl:value-of select="concat('K',string(.))"/>
+            </xsl:when>
+            <!-- custom interface types -->
+            <xsl:when test="
+              ((ancestor::library/interface[@name=current()]) or
+               (ancestor::library/if[@target=$self_target]/interface[@name=current()])
+              )
+            ">
+              <xsl:value-of select="concat('C',substring(.,2))"/>
+            </xsl:when>
+            <!-- other types -->
+            <xsl:otherwise>
+              <xsl:message terminate="yes">
+                <xsl:text>Unknown parameter type: </xsl:text>
+                <xsl:value-of select="."/>
+              </xsl:message>
+            </xsl:otherwise>
+          </xsl:choose>
         </xsl:otherwise>
       </xsl:choose>
       <xsl:if test="../@safearray">
@@ -1581,6 +1562,9 @@
  *  types.
 -->
 <xsl:template match="attribute/@type | param/@type" mode="initializer">
+
+  <xsl:variable name="self_target" select="current()/ancestor::if/@target"/>
+
   <xsl:choose>
     <!-- safearrays don't need initializers -->
     <xsl:when test="../@safearray">
@@ -1652,10 +1636,17 @@
         <xsl:when test=".='char'"> = 0</xsl:when>
         <xsl:when test=".='string'"> = NULL</xsl:when>
         <xsl:when test=".='wchar'"> = 0</xsl:when>
-        <!-- enum types initialized with 0 -->
-        <xsl:when test="count(key('G_keyEnumsByName', current())) > 0">
-          <xsl:value-of select="concat(' = (K',string(.),') 0')"/>
-        </xsl:when>
+        <xsl:otherwise>
+          <xsl:choose>
+            <!-- enum types initialized with 0 -->
+            <xsl:when test="
+              (ancestor::library/enum[@name=current()]) or
+              (ancestor::library/if[@target=$self_target]/enum[@name=current()])
+            ">
+              <xsl:value-of select="concat(' = (K',string(.),') 0')"/>
+            </xsl:when>
+          </xsl:choose>
+        </xsl:otherwise>
       </xsl:choose>
     </xsl:otherwise>
   </xsl:choose>
@@ -1666,15 +1657,22 @@
  *  attribute/parameter type conversion (for method declaration)
 -->
 <xsl:template match="attribute/@type | param/@type" mode="param">
+
+  <xsl:variable name="self_target" select="current()/ancestor::if/@target"/>
+
   <xsl:choose>
     <!-- class types -->
     <xsl:when test="
-         . = 'string'
-      or . = 'wstring'
-      or . = '$unknown'
-      or ../@safearray = 'yes'
-      or (count(key('G_keyEnumsByName',      current())) > 0)
-      or (count(key('G_keyInterfacesByName', current())) > 0)
+      .='string' or
+      .='wstring' or
+      ../@safearray='yes' or
+      ((ancestor::library/enum[@name=current()]) or
+       (ancestor::library/if[@target=$self_target]/enum[@name=current()])
+      ) or
+      .='$unknown' or
+      ((ancestor::library/interface[@name=current()]) or
+       (ancestor::library/if[@target=$self_target]/interface[@name=current()])
+      )
     ">
       <xsl:choose>
         <!-- <attribute> context -->
@@ -1727,6 +1725,9 @@
  *  (basically, copied from midl.xsl)
 -->
 <xsl:template match="attribute/@type | param/@type" mode="com">
+
+  <xsl:variable name="self_target" select="current()/ancestor::if/@target"/>
+
   <xsl:choose>
     <!-- modifiers -->
     <xsl:when test="name(current())='type' and ../@mod">
@@ -1800,20 +1801,31 @@
         <xsl:when test=".='uuid'">GUID</xsl:when>
         <!-- system interface types -->
         <xsl:when test=".='$unknown'">IUnknown *</xsl:when>
-        <!-- enum types -->
-        <xsl:when test="count(key('G_keyEnumsByName', current())) > 0">
-          <xsl:value-of select="."/>
-        </xsl:when>
-        <!-- custom interface types -->
-        <xsl:when test="count(key('G_keyInterfacesByName', current())) > 0">
-          <xsl:value-of select="."/><xsl:text> *</xsl:text>
-        </xsl:when>
-        <!-- other types -->
         <xsl:otherwise>
-          <xsl:message terminate="yes">
-            <xsl:text>Unknown parameter type: </xsl:text>
-            <xsl:value-of select="."/>
-          </xsl:message>
+          <xsl:choose>
+            <!-- enum types -->
+            <xsl:when test="
+              (ancestor::library/enum[@name=current()]) or
+              (ancestor::library/if[@target=$self_target]/enum[@name=current()])
+            ">
+              <xsl:value-of select="."/>
+            </xsl:when>
+            <!-- custom interface types -->
+            <xsl:when test="
+              ((ancestor::library/interface[@name=current()]) or
+               (ancestor::library/if[@target=$self_target]/interface[@name=current()])
+              )
+            ">
+              <xsl:value-of select="."/><xsl:text> *</xsl:text>
+            </xsl:when>
+            <!-- other types -->
+            <xsl:otherwise>
+              <xsl:message terminate="yes">
+                <xsl:text>Unknown parameter type: </xsl:text>
+                <xsl:value-of select="."/>
+              </xsl:message>
+            </xsl:otherwise>
+          </xsl:choose>
         </xsl:otherwise>
       </xsl:choose>
     </xsl:otherwise>
@@ -1833,10 +1845,23 @@
  *                  call.
 -->
 <xsl:template name="hooks">
+
   <xsl:param name="when" select="''"/>
   <xsl:param name="isSetter" select="''"/>
 
-  <xsl:variable name="is_iface" select="count(key('G_keyInterfacesByName', current()/@type)) > 0"/>
+  <xsl:variable name="self_target" select="current()/ancestor::if/@target"/>
+
+  <xsl:variable name="is_iface" select="(
+    ((ancestor::library/interface[@name=current()/@type]) or
+     (ancestor::library/if[@target=$self_target]/interface[@name=current()/@type])
+    )
+  )"/>
+
+  <xsl:variable name="is_enum" select="(
+    (ancestor::library/enum[@name=current()/@type]) or
+    (ancestor::library/if[@target=$self_target]/enum[@name=current()/@type])
+  )"/>
+
   <xsl:variable name="is_out" select="(
       (name()='attribute' and not($isSetter)) or
       (name()='param' and (@dir='out' or @dir='return'))
@@ -1844,7 +1869,6 @@
 
   <xsl:choose>
     <xsl:when test="$when='pre-call'">
-      <xsl:variable name="is_enum" select="count(key('G_keyEnumsByName', current()/@type)) > 0"/>
       <xsl:choose>
         <xsl:when test="@safearray='yes'">
           <!-- declare a SafeArray variable -->

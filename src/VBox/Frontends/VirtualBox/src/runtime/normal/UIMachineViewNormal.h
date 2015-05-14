@@ -1,6 +1,7 @@
-/* $Id: UIMachineViewNormal.h $ */
 /** @file
- * VBox Qt GUI - UIMachineViewNormal class declaration.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * UIMachineViewNormal class declaration
  */
 
 /*

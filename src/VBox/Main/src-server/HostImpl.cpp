@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2004-2015 Oracle Corporation
+ * Copyright (C) 2004-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -107,8 +107,6 @@ typedef struct SOLARISDVD
 /** Pointer to a Solaris DVD descriptor. */
 typedef SOLARISDVD *PSOLARISDVD;
 
-
-
 #endif /* RT_OS_SOLARIS */
 
 #ifdef RT_OS_WINDOWS
@@ -130,7 +128,7 @@ typedef SOLARISDVD *PSOLARISDVD;
 #endif
 
 #ifdef VBOX_WITH_CROGL
-#include <VBox/VBoxOGL.h>
+#include <VBox/VBoxOGLTest.h>
 #endif /* VBOX_WITH_CROGL */
 
 #include <iprt/asm-amd64-x86.h>
@@ -214,7 +212,6 @@ struct Host::Data
     /** Object with information about host drives */
     VBoxMainDriveInfo       hostDrives;
 #endif
-
     /** @name Features that can be queried with GetProcessorFeature.
      * @{ */
     bool                    fVTSupported,
@@ -233,13 +230,11 @@ struct Host::Data
     HostDnsMonitorProxy     hostDnsMonitorProxy;
 };
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 // Constructor / destructor
 //
 ////////////////////////////////////////////////////////////////////////////////
-DEFINE_EMPTY_CTOR_DTOR(Host)
 
 HRESULT Host::FinalConstruct()
 {
@@ -274,17 +269,17 @@ HRESULT Host::init(VirtualBox *aParent)
     /*
      * Create and initialize the USB Proxy Service.
      */
-# if defined(RT_OS_DARWIN)
+# if defined (RT_OS_DARWIN)
     m->pUSBProxyService = new USBProxyServiceDarwin(this);
-# elif defined(RT_OS_LINUX)
+# elif defined (RT_OS_LINUX)
     m->pUSBProxyService = new USBProxyServiceLinux(this);
-# elif defined(RT_OS_OS2)
+# elif defined (RT_OS_OS2)
     m->pUSBProxyService = new USBProxyServiceOs2(this);
-# elif defined(RT_OS_SOLARIS)
+# elif defined (RT_OS_SOLARIS)
     m->pUSBProxyService = new USBProxyServiceSolaris(this);
-# elif defined(RT_OS_WINDOWS)
+# elif defined (RT_OS_WINDOWS)
     m->pUSBProxyService = new USBProxyServiceWindows(this);
-# elif defined(RT_OS_FREEBSD)
+# elif defined (RT_OS_FREEBSD)
     m->pUSBProxyService = new USBProxyServiceFreeBSD(this);
 # else
     m->pUSBProxyService = new USBProxyService(this);
@@ -294,18 +289,16 @@ HRESULT Host::init(VirtualBox *aParent)
 #endif /* VBOX_WITH_USB */
 
 #ifdef VBOX_WITH_RESOURCE_USAGE_API
-    i_registerMetrics(aParent->i_performanceCollector());
+    registerMetrics(aParent->performanceCollector());
 #endif /* VBOX_WITH_RESOURCE_USAGE_API */
     /* Create the list of network interfaces so their metrics get registered. */
-    i_updateNetIfList();
+    updateNetIfList();
 
     m->hostDnsMonitorProxy.init(HostDnsMonitor::getHostDnsMonitor(m->pParent), m->pParent);
 
-#if defined(RT_OS_WINDOWS)
+#if defined (RT_OS_WINDOWS)
     m->pHostPowerService = new HostPowerServiceWin(m->pParent);
-#elif defined(RT_OS_LINUX) && defined(VBOX_WITH_DBUS)
-    m->pHostPowerService = new HostPowerServiceLinux(m->pParent);
-#elif defined(RT_OS_DARWIN)
+#elif defined (RT_OS_DARWIN)
     m->pHostPowerService = new HostPowerServiceDarwin(m->pParent);
 #else
     m->pHostPowerService = new HostPowerService(m->pParent);
@@ -415,7 +408,7 @@ HRESULT Host::init(VirtualBox *aParent)
     m->f3DAccelerationSupported = false;
 #endif
 
-#if defined(RT_OS_LINUX) || defined(RT_OS_DARWIN) || defined(RT_OS_FREEBSD)
+#if defined (RT_OS_LINUX) || defined(RT_OS_DARWIN) || defined(RT_OS_FREEBSD)
     /* Extract the list of configured host-only interfaces */
     std::set<Utf8Str> aConfiguredNames;
     SafeArray<BSTR> aGlobalExtraDataKeys;
@@ -449,7 +442,7 @@ HRESULT Host::init(VirtualBox *aParent)
             LogRel(("failed to create %s, error (0x%x)\n", it->c_str(), r));
     }
 
-#endif /* defined(RT_OS_LINUX) || defined(RT_OS_DARWIN) || defined(RT_OS_FREEBSD) */
+#endif /* defined (RT_OS_LINUX) || defined(RT_OS_DARWIN) || defined(RT_OS_FREEBSD) */
 
     /* Confirm a successful initialization */
     autoInitSpan.setSucceeded();
@@ -471,22 +464,15 @@ void Host::uninit()
         return;
 
 #ifdef VBOX_WITH_RESOURCE_USAGE_API
-    PerformanceCollector *aCollector = m->pParent->i_performanceCollector();
-    i_unregisterMetrics(aCollector);
+    PerformanceCollector *aCollector = m->pParent->performanceCollector();
+    unregisterMetrics (aCollector);
 #endif /* VBOX_WITH_RESOURCE_USAGE_API */
     /*
      * Note that unregisterMetrics() has unregistered all metrics associated
      * with Host including network interface ones. We can destroy network
-     * interface objects now. Don't forget the uninit call, otherwise this
-     * causes a race with crashing API clients getting their stale references
-     * cleaned up and VirtualBox shutting down.
+     * interface objects now.
      */
-    while (!m->llNetIfs.empty())
-    {
-        ComObjPtr<HostNetworkInterface> &pNet = m->llNetIfs.front();
-        pNet->uninit();
-        m->llNetIfs.pop_front();
-    }
+    m->llNetIfs.clear();
 
 #ifdef VBOX_WITH_USB
     /* wait for USB proxy service to terminate before we uninit all USB
@@ -501,34 +487,16 @@ void Host::uninit()
 
 #ifdef VBOX_WITH_USB
     /* uninit all USB device filters still referenced by clients
-     * Note! HostUSBDeviceFilter::uninit() will modify llChildren.
-     * This list should be already empty, but better be safe than sorry. */
+     * Note! HostUSBDeviceFilter::uninit() will modify llChildren. */
     while (!m->llChildren.empty())
     {
         ComObjPtr<HostUSBDeviceFilter> &pChild = m->llChildren.front();
-        pChild->uninit();
         m->llChildren.pop_front();
+        pChild->uninit();
     }
 
-    /* No need to uninit these, as either Machine::uninit() or the above loop
-     * already covered them all. Subset of llChildren. */
     m->llUSBDeviceFilters.clear();
 #endif
-
-    /* uninit all host DVD medium objects */
-    while (!m->llDVDDrives.empty())
-    {
-        ComObjPtr<Medium> &pMedium = m->llDVDDrives.front();
-        pMedium->uninit();
-        m->llDVDDrives.pop_front();
-    }
-    /* uninit all host floppy medium objects */
-    while (!m->llFloppyDrives.empty())
-    {
-        ComObjPtr<Medium> &pMedium = m->llFloppyDrives.front();
-        pMedium->uninit();
-        m->llFloppyDrives.pop_front();
-    }
 
     delete m;
     m = NULL;
@@ -536,7 +504,7 @@ void Host::uninit()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-// IHost public methods
+// ISnapshot public methods
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -546,22 +514,24 @@ void Host::uninit()
  * @returns COM status code
  * @param drives address of result pointer
  */
-
-HRESULT Host::getDVDDrives(std::vector<ComPtr<IMedium> > &aDVDDrives)
+STDMETHODIMP Host::COMGETTER(DVDDrives)(ComSafeArrayOut(IMedium *, aDrives))
 {
-    AutoWriteLock treeLock(m->pParent->i_getMediaTreeLockHandle() COMMA_LOCKVAL_SRC_POS);
+    CheckComArgOutSafeArrayPointerValid(aDrives);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoWriteLock treeLock(m->pParent->getMediaTreeLockHandle() COMMA_LOCKVAL_SRC_POS);
 
     MediaList *pList;
-    HRESULT rc = i_getDrives(DeviceType_DVD, true /* fRefresh */, pList, treeLock);
-    if (FAILED(rc))
-        return rc;
+    HRESULT rc = getDrives(DeviceType_DVD, true /* fRefresh */, pList, treeLock);
+    if (SUCCEEDED(rc))
+    {
+        SafeIfaceArray<IMedium> array(*pList);
+        array.detachTo(ComSafeArrayOutArg(aDrives));
+    }
 
-    aDVDDrives.resize(pList->size());
-    size_t i = 0;
-    for (MediaList::const_iterator it = pList->begin(); it != pList->end(); ++it, ++i)
-        (*it).queryInterfaceTo(aDVDDrives[i].asOutParam());
-
-    return S_OK;
+    return rc;
 }
 
 /**
@@ -570,21 +540,24 @@ HRESULT Host::getDVDDrives(std::vector<ComPtr<IMedium> > &aDVDDrives)
  * @returns COM status code
  * @param drives address of result pointer
  */
-HRESULT Host::getFloppyDrives(std::vector<ComPtr<IMedium> > &aFloppyDrives)
+STDMETHODIMP Host::COMGETTER(FloppyDrives)(ComSafeArrayOut(IMedium *, aDrives))
 {
-    AutoWriteLock treeLock(m->pParent->i_getMediaTreeLockHandle() COMMA_LOCKVAL_SRC_POS);
+    CheckComArgOutPointerValid(aDrives);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoWriteLock treeLock(m->pParent->getMediaTreeLockHandle() COMMA_LOCKVAL_SRC_POS);
 
     MediaList *pList;
-    HRESULT rc = i_getDrives(DeviceType_Floppy, true /* fRefresh */, pList, treeLock);
-    if (FAILED(rc))
-        return rc;
+    HRESULT rc = getDrives(DeviceType_Floppy, true /* fRefresh */, pList, treeLock);
+    if (SUCCEEDED(rc))
+    {
+        SafeIfaceArray<IMedium> collection(*pList);
+        collection.detachTo(ComSafeArrayOutArg(aDrives));
+    }
 
-    aFloppyDrives.resize(pList->size());
-    size_t i = 0;
-    for (MediaList::const_iterator it = pList->begin(); it != pList->end(); ++it, ++i)
-        (*it).queryInterfaceTo(aFloppyDrives[i].asOutParam());
-
-    return S_OK;
+    return rc;
 }
 
 
@@ -594,8 +567,8 @@ HRESULT Host::getFloppyDrives(std::vector<ComPtr<IMedium> > &aFloppyDrives)
 static int vboxNetWinAddComponent(std::list< ComObjPtr<HostNetworkInterface> > *pPist,
                                   INetCfgComponent *pncc)
 {
-    LPWSTR lpszName;
-    GUID IfGuid;
+    LPWSTR              lpszName;
+    GUID                IfGuid;
     HRESULT hr;
     int rc = VERR_GENERAL_FAILURE;
 
@@ -613,7 +586,7 @@ static int vboxNetWinAddComponent(std::list< ComObjPtr<HostNetworkInterface> > *
             ComObjPtr<HostNetworkInterface> iface;
             iface.createObject();
             /* remove the curly bracket at the end */
-            if (SUCCEEDED(iface->init(name, name, Guid(IfGuid), HostNetworkInterfaceType_Bridged)))
+            if (SUCCEEDED(iface->init (name, name, Guid (IfGuid), HostNetworkInterfaceType_Bridged)))
             {
 //                iface->setVirtualBox(m->pParent);
                 pPist->push_back(iface);
@@ -637,25 +610,28 @@ static int vboxNetWinAddComponent(std::list< ComObjPtr<HostNetworkInterface> > *
  * @returns COM status code
  * @param drives address of result pointer
  */
-HRESULT Host::getNetworkInterfaces(std::vector<ComPtr<IHostNetworkInterface> > &aNetworkInterfaces)
+STDMETHODIMP Host::COMGETTER(NetworkInterfaces)(ComSafeArrayOut(IHostNetworkInterface*, aNetworkInterfaces))
 {
-#if defined(RT_OS_WINDOWS) || defined(VBOX_WITH_NETFLT) /*|| defined(RT_OS_OS2)*/
+#if defined(RT_OS_WINDOWS) ||  defined(VBOX_WITH_NETFLT) /*|| defined(RT_OS_OS2)*/
+    if (ComSafeArrayOutIsNull(aNetworkInterfaces))
+        return E_POINTER;
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 # ifdef VBOX_WITH_HOSTNETIF_API
-    HRESULT rc = i_updateNetIfList();
-    if (FAILED(rc))
+    int rc = updateNetIfList();
+    if (rc)
     {
-        Log(("Failed to update host network interface list with rc=%Rhrc\n", rc));
-        return rc;
+        Log(("Failed to get host network interface list with rc=%Rrc\n", rc));
     }
 
-    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    aNetworkInterfaces.resize(m->llNetIfs.size());
-    size_t i = 0;
-    for (HostNetworkInterfaceList::iterator it = m->llNetIfs.begin(); it != m->llNetIfs.end(); ++it, ++i)
-        (*it).queryInterfaceTo(aNetworkInterfaces[i].asOutParam());
+    SafeIfaceArray<IHostNetworkInterface> networkInterfaces (m->llNetIfs);
+    networkInterfaces.detachTo(ComSafeArrayOutArg(aNetworkInterfaces));
 
     return S_OK;
+
 # else
     std::list<ComObjPtr<HostNetworkInterface> > list;
 
@@ -700,13 +676,8 @@ HRESULT Host::getNetworkInterfaces(std::vector<ComPtr<IHostNetworkInterface> > &
         /* for the protocol-based approach for now we just get all miniports the MS_TCPIP protocol binds to */
         hr = pNc->FindComponent(L"MS_TCPIP", &pTcpIpNcc);
 #    else
-        /* for the filter-based approach we get all miniports our filter (oracle_VBoxNetLwf)is bound to */
-        hr = pNc->FindComponent(L"oracle_VBoxNetLwf", &pTcpIpNcc);
-        if (hr != S_OK)
-        {
-            /* fall back to NDIS5 miniport lookup (sun_VBoxNetFlt) */
-            hr = pNc->FindComponent(L"sun_VBoxNetFlt", &pTcpIpNcc);
-        }
+        /* for the filter-based approach we get all miniports our filter (sun_VBoxNetFlt)is bound to */
+        hr = pNc->FindComponent(L"sun_VBoxNetFlt", &pTcpIpNcc);
 #     ifndef VBOX_WITH_HARDENING
         if (hr != S_OK)
         {
@@ -770,7 +741,7 @@ HRESULT Host::getNetworkInterfaces(std::vector<ComPtr<IHostNetworkInterface> > &
         }
         else
         {
-            LogRel(("failed to get the oracle_VBoxNetLwf(sun_VBoxNetFlt) component, error (0x%x)\n", hr));
+            LogRel(("failed to get the sun_VBoxNetFlt component, error (0x%x)\n", hr));
         }
 
         VBoxNetCfgWinReleaseINetCfg(pNc, FALSE);
@@ -810,12 +781,11 @@ HRESULT Host::getNetworkInterfaces(std::vector<ComPtr<IHostNetworkInterface> > &
     }
 #  endif /* RT_OS_LINUX */
 
-    aNetworkInterfaces.resize(list.size());
-    size_t i = 0;
-    for (std::list<ComObjPtr<HostNetworkInterface> >::const_iterator it = list.begin(); it != list.end(); ++it, ++i)
-        aNetworkInterfaces[i] = *it;
+    SafeIfaceArray<IHostNetworkInterface> networkInterfaces (list);
+    networkInterfaces.detachTo(ComSafeArrayOutArg(aNetworkInterfaces));
 
     return S_OK;
+
 # endif
 #else
     /* Not implemented / supported on this platform. */
@@ -823,71 +793,96 @@ HRESULT Host::getNetworkInterfaces(std::vector<ComPtr<IHostNetworkInterface> > &
 #endif
 }
 
-HRESULT Host::getUSBDevices(std::vector<ComPtr<IHostUSBDevice> > &aUSBDevices)
+STDMETHODIMP Host::COMGETTER(USBDevices)(ComSafeArrayOut(IHostUSBDevice*, aUSBDevices))
 {
 #ifdef VBOX_WITH_USB
+    CheckComArgOutSafeArrayPointerValid(aUSBDevices);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    MultiResult rc = i_checkUSBProxyService();
-    if (FAILED(rc))
-        return rc;
+    HRESULT rc = checkUSBProxyService();
+    if (FAILED(rc)) return rc;
 
-    return m->pUSBProxyService->getDeviceCollection(aUSBDevices);
+    return m->pUSBProxyService->getDeviceCollection(ComSafeArrayOutArg(aUSBDevices));
+
 #else
     /* Note: The GUI depends on this method returning E_NOTIMPL with no
      * extended error info to indicate that USB is simply not available
      * (w/o treating it as a failure), for example, as in OSE. */
     NOREF(aUSBDevices);
 # ifndef RT_OS_WINDOWS
-    NOREF(aUSBDevices);
+    NOREF(aUSBDevicesSize);
 # endif
     ReturnComNotImplemented();
 #endif
 }
 
+
 /**
  * This method return the list of registered name servers
  */
-HRESULT Host::getNameServers(std::vector<com::Utf8Str> &aNameServers)
+STDMETHODIMP Host::COMGETTER(NameServers)(ComSafeArrayOut(BSTR, aNameServers))
 {
+    CheckComArgOutSafeArrayPointerValid(aNameServers);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-    return m->hostDnsMonitorProxy.GetNameServers(aNameServers);
+
+    return m->hostDnsMonitorProxy.GetNameServers(ComSafeArrayOutArg(aNameServers));
 }
 
 
 /**
  * This method returns the domain name of the host
  */
-HRESULT Host::getDomainName(com::Utf8Str &aDomainName)
+STDMETHODIMP Host::COMGETTER(DomainName)(BSTR *aDomainName)
 {
     /* XXX: note here should be synchronization with thread polling state
      * changes in name resoving system on host */
-    return m->hostDnsMonitorProxy.GetDomainName(&aDomainName);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    return m->hostDnsMonitorProxy.GetDomainName(aDomainName);
 }
 
 
 /**
  * This method returns the search string.
  */
-HRESULT Host::getSearchStrings(std::vector<com::Utf8Str> &aSearchStrings)
+STDMETHODIMP Host::COMGETTER(SearchStrings)(ComSafeArrayOut(BSTR, aSearchStrings))
 {
+    CheckComArgOutSafeArrayPointerValid(aSearchStrings);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-    return m->hostDnsMonitorProxy.GetSearchStrings(aSearchStrings);
+
+    return m->hostDnsMonitorProxy.GetSearchStrings(ComSafeArrayOutArg(aSearchStrings));
 }
 
-HRESULT Host::getUSBDeviceFilters(std::vector<ComPtr<IHostUSBDeviceFilter> > &aUSBDeviceFilters)
+
+STDMETHODIMP Host::COMGETTER(USBDeviceFilters)(ComSafeArrayOut(IHostUSBDeviceFilter*, aUSBDeviceFilters))
 {
 #ifdef VBOX_WITH_USB
+    CheckComArgOutSafeArrayPointerValid(aUSBDeviceFilters);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    MultiResult rc = i_checkUSBProxyService();
-    if (FAILED(rc))
-        return rc;
+    HRESULT rc = checkUSBProxyService();
+    if (FAILED(rc)) return rc;
 
-    aUSBDeviceFilters.resize(m->llUSBDeviceFilters.size());
-    size_t i = 0;
-    for (USBDeviceFilterList::iterator it = m->llUSBDeviceFilters.begin(); it != m->llUSBDeviceFilters.end(); ++it, ++i)
-        (*it).queryInterfaceTo(aUSBDeviceFilters[i].asOutParam());
+    SafeIfaceArray<IHostUSBDeviceFilter> collection(m->llUSBDeviceFilters);
+    collection.detachTo(ComSafeArrayOutArg(aUSBDeviceFilters));
 
     return rc;
 #else
@@ -896,7 +891,7 @@ HRESULT Host::getUSBDeviceFilters(std::vector<ComPtr<IHostUSBDeviceFilter> > &aU
      * (w/o treating it as a failure), for example, as in OSE. */
     NOREF(aUSBDeviceFilters);
 # ifndef RT_OS_WINDOWS
-    NOREF(aUSBDeviceFilters);
+    NOREF(aUSBDeviceFiltersSize);
 # endif
     ReturnComNotImplemented();
 #endif
@@ -908,9 +903,9 @@ HRESULT Host::getUSBDeviceFilters(std::vector<ComPtr<IHostUSBDeviceFilter> > &aU
  * @returns COM status code
  * @param   count address of result variable
  */
-
-HRESULT Host::getProcessorCount(ULONG *aCount)
+STDMETHODIMP Host::COMGETTER(ProcessorCount)(ULONG *aCount)
 {
+    CheckComArgOutPointerValid(aCount);
     // no locking required
 
     *aCount = RTMpGetPresentCount();
@@ -923,8 +918,9 @@ HRESULT Host::getProcessorCount(ULONG *aCount)
  * @returns COM status code
  * @param   count address of result variable
  */
-HRESULT Host::getProcessorOnlineCount(ULONG *aCount)
+STDMETHODIMP Host::COMGETTER(ProcessorOnlineCount)(ULONG *aCount)
 {
+    CheckComArgOutPointerValid(aCount);
     // no locking required
 
     *aCount = RTMpGetOnlineCount();
@@ -937,8 +933,9 @@ HRESULT Host::getProcessorOnlineCount(ULONG *aCount)
  * @returns COM status code
  * @param   count address of result variable
  */
-HRESULT Host::getProcessorCoreCount(ULONG *aCount)
+STDMETHODIMP Host::COMGETTER(ProcessorCoreCount)(ULONG *aCount)
 {
+    CheckComArgOutPointerValid(aCount);
     // no locking required
 
     *aCount = RTMpGetPresentCoreCount();
@@ -951,8 +948,9 @@ HRESULT Host::getProcessorCoreCount(ULONG *aCount)
  * @returns COM status code
  * @param   count address of result variable
  */
-HRESULT Host::getProcessorOnlineCoreCount(ULONG *aCount)
+STDMETHODIMP Host::COMGETTER(ProcessorOnlineCoreCount)(ULONG *aCount)
 {
+    CheckComArgOutPointerValid(aCount);
     // no locking required
 
     *aCount = RTMpGetOnlineCoreCount();
@@ -966,9 +964,9 @@ HRESULT Host::getProcessorOnlineCoreCount(ULONG *aCount)
  * @param   cpu id to get info for.
  * @param   speed address of result variable, speed is 0 if unknown or aCpuId is invalid.
  */
-HRESULT Host::getProcessorSpeed(ULONG aCpuId,
-                                ULONG *aSpeed)
+STDMETHODIMP Host::GetProcessorSpeed(ULONG aCpuId, ULONG *aSpeed)
 {
+    CheckComArgOutPointerValid(aSpeed);
     // no locking required
 
     *aSpeed = RTMpGetMaxFrequency(aCpuId);
@@ -982,18 +980,16 @@ HRESULT Host::getProcessorSpeed(ULONG aCpuId,
  * @param   cpu id to get info for.
  * @param   description address of result variable, empty string if not known or aCpuId is invalid.
  */
-HRESULT Host::getProcessorDescription(ULONG aCpuId, com::Utf8Str &aDescription)
+STDMETHODIMP Host::GetProcessorDescription(ULONG aCpuId, BSTR *aDescription)
 {
+    CheckComArgOutPointerValid(aDescription);
     // no locking required
 
     char szCPUModel[80];
-    szCPUModel[0] = 0;
     int vrc = RTMpGetDescription(aCpuId, szCPUModel, sizeof(szCPUModel));
     if (RT_FAILURE(vrc))
         return E_FAIL; /** @todo error reporting? */
-
-    aDescription = Utf8Str(szCPUModel);
-
+    Bstr (szCPUModel).cloneTo(aDescription);
     return S_OK;
 }
 
@@ -1004,9 +1000,10 @@ HRESULT Host::getProcessorDescription(ULONG aCpuId, com::Utf8Str &aDescription)
  * @param   Feature to query.
  * @param   address of supported bool result variable
  */
-HRESULT Host::getProcessorFeature(ProcessorFeature_T aFeature, BOOL *aSupported)
+STDMETHODIMP Host::GetProcessorFeature(ProcessorFeature_T aFeature, BOOL *aSupported)
 {
     /* Validate input. */
+    CheckComArgOutPointerValid(aSupported);
     switch (aFeature)
     {
         case ProcessorFeature_HWVirtEx:
@@ -1095,9 +1092,13 @@ HRESULT Host::getProcessorFeature(ProcessorFeature_T aFeature, BOOL *aSupported)
  * @param   aValECX             Where to return ECX.
  * @param   aValEDX             Where to return EDX.
  */
-HRESULT Host::getProcessorCPUIDLeaf(ULONG aCpuId, ULONG aLeaf, ULONG aSubLeaf,
-                                    ULONG *aValEAX, ULONG *aValEBX, ULONG *aValECX, ULONG *aValEDX)
+STDMETHODIMP Host::GetProcessorCPUIDLeaf(ULONG aCpuId, ULONG aLeaf, ULONG aSubLeaf,
+                                         ULONG *aValEAX, ULONG *aValEBX, ULONG *aValECX, ULONG *aValEDX)
 {
+    CheckComArgOutPointerValid(aValEAX);
+    CheckComArgOutPointerValid(aValEBX);
+    CheckComArgOutPointerValid(aValECX);
+    CheckComArgOutPointerValid(aValEDX);
     // no locking required
 
     /* Check that the CPU is online. */
@@ -1123,8 +1124,9 @@ HRESULT Host::getProcessorCPUIDLeaf(ULONG aCpuId, ULONG aLeaf, ULONG aSubLeaf,
  * @returns COM status code
  * @param   size address of result variable
  */
-HRESULT Host::getMemorySize(ULONG *aSize)
+STDMETHODIMP Host::COMGETTER(MemorySize)(ULONG *aSize)
 {
+    CheckComArgOutPointerValid(aSize);
     // no locking required
 
     uint64_t cb;
@@ -1141,8 +1143,9 @@ HRESULT Host::getMemorySize(ULONG *aSize)
  * @returns COM status code
  * @param   available address of result variable
  */
-HRESULT Host::getMemoryAvailable(ULONG *aAvailable)
+STDMETHODIMP Host::COMGETTER(MemoryAvailable)(ULONG *aAvailable)
 {
+    CheckComArgOutPointerValid(aAvailable);
     // no locking required
 
     uint64_t cb;
@@ -1159,15 +1162,16 @@ HRESULT Host::getMemoryAvailable(ULONG *aAvailable)
  * @returns COM status code
  * @param   os address of result variable
  */
-HRESULT Host::getOperatingSystem(com::Utf8Str &aOperatingSystem)
+STDMETHODIMP Host::COMGETTER(OperatingSystem)(BSTR *aOs)
 {
+    CheckComArgOutPointerValid(aOs);
     // no locking required
 
     char szOSName[80];
     int vrc = RTSystemQueryOSInfo(RTSYSOSINFO_PRODUCT, szOSName, sizeof(szOSName));
     if (RT_FAILURE(vrc))
         return E_FAIL; /** @todo error reporting? */
-    aOperatingSystem = Utf8Str(szOSName);
+    Bstr (szOSName).cloneTo(aOs);
     return S_OK;
 }
 
@@ -1177,8 +1181,9 @@ HRESULT Host::getOperatingSystem(com::Utf8Str &aOperatingSystem)
  * @returns COM status code
  * @param   os address of result variable
  */
-HRESULT Host::getOSVersion(com::Utf8Str &aVersion)
+STDMETHODIMP Host::COMGETTER(OSVersion)(BSTR *aVersion)
 {
+    CheckComArgOutPointerValid(aVersion);
     // no locking required
 
     /* Get the OS release. Reserve some buffer space for the service pack. */
@@ -1202,7 +1207,7 @@ HRESULT Host::getOSVersion(com::Utf8Str &aVersion)
         RTStrPrintf(psz, &szOSRelease[sizeof(szOSRelease)] - psz, "sp%s", szOSServicePack);
     }
 
-    aVersion = szOSRelease;
+    Bstr(szOSRelease).cloneTo(aVersion);
     return S_OK;
 }
 
@@ -1212,8 +1217,9 @@ HRESULT Host::getOSVersion(com::Utf8Str &aVersion)
  * @returns COM status code
  * @param   time address of result variable
  */
-HRESULT Host::getUTCTime(LONG64 *aUTCTime)
+STDMETHODIMP Host::COMGETTER(UTCTime)(LONG64 *aUTCTime)
 {
+    CheckComArgOutPointerValid(aUTCTime);
     // no locking required
 
     RTTIMESPEC now;
@@ -1222,27 +1228,30 @@ HRESULT Host::getUTCTime(LONG64 *aUTCTime)
     return S_OK;
 }
 
-
-HRESULT Host::getAcceleration3DAvailable(BOOL *aSupported)
+STDMETHODIMP Host::COMGETTER(Acceleration3DAvailable)(BOOL *aSupported)
 {
-    HRESULT hrc = S_OK;
-    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-    if (m->f3DAccelerationSupported != -1)
-        *aSupported = m->f3DAccelerationSupported;
-    else
+    CheckComArgOutPointerValid(aSupported);
+    AutoCaller autoCaller(this);
+    HRESULT hrc = autoCaller.rc();
+    if (SUCCEEDED(hrc))
     {
-        alock.release();
-
+        AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+        if (m->f3DAccelerationSupported != -1)
+            *aSupported = m->f3DAccelerationSupported;
+        else
+        {
+            alock.release();
 #ifdef VBOX_WITH_CROGL
-        bool fSupported = VBoxOglIs3DAccelerationSupported();
+            bool fSupported = VBoxOglIs3DAccelerationSupported();
 #else
-        bool fSupported = false; /* shoudn't get here, but just in case. */
+            bool fSupported = false; /* shoudn't get here, but just in case. */
 #endif
-        AutoWriteLock alock2(this COMMA_LOCKVAL_SRC_POS);
+            AutoWriteLock alock2(this COMMA_LOCKVAL_SRC_POS);
+            m->f3DAccelerationSupported = fSupported;
+            alock2.release();
 
-        m->f3DAccelerationSupported = fSupported;
-        alock2.release();
-        *aSupported = fSupported;
+            *aSupported = fSupported;
+        }
     }
 
 #ifdef DEBUG_misha
@@ -1252,29 +1261,34 @@ HRESULT Host::getAcceleration3DAvailable(BOOL *aSupported)
     return hrc;
 }
 
-HRESULT Host::createHostOnlyNetworkInterface(ComPtr<IHostNetworkInterface> &aHostInterface,
-                                             ComPtr<IProgress> &aProgress)
-
+STDMETHODIMP Host::CreateHostOnlyNetworkInterface(IHostNetworkInterface **aHostNetworkInterface,
+                                                  IProgress **aProgress)
 {
+    CheckComArgOutPointerValid(aHostNetworkInterface);
+    CheckComArgOutPointerValid(aProgress);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
 #ifdef VBOX_WITH_HOSTNETIF_API
     /* No need to lock anything. If there ever will - watch out, the function
      * called below grabs the VirtualBox lock. */
 
-    int r = NetIfCreateHostOnlyNetworkInterface(m->pParent, aHostInterface.asOutParam(), aProgress.asOutParam());
+    int r = NetIfCreateHostOnlyNetworkInterface(m->pParent, aHostNetworkInterface, aProgress);
     if (RT_SUCCESS(r))
     {
-        if (aHostInterface.isNull())
+        if (!*aHostNetworkInterface)
             return setError(E_FAIL,
                             tr("Unable to create a host network interface"));
 
 #if !defined(RT_OS_WINDOWS)
         Bstr tmpAddr, tmpMask, tmpName;
         HRESULT hrc;
-        hrc = aHostInterface->COMGETTER(Name)(tmpName.asOutParam());
+        hrc = (*aHostNetworkInterface)->COMGETTER(Name)(tmpName.asOutParam());
         ComAssertComRCRet(hrc, hrc);
-        hrc = aHostInterface->COMGETTER(IPAddress)(tmpAddr.asOutParam());
+        hrc = (*aHostNetworkInterface)->COMGETTER(IPAddress)(tmpAddr.asOutParam());
         ComAssertComRCRet(hrc, hrc);
-        hrc = aHostInterface->COMGETTER(NetworkMask)(tmpMask.asOutParam());
+        hrc = (*aHostNetworkInterface)->COMGETTER(NetworkMask)(tmpMask.asOutParam());
         ComAssertComRCRet(hrc, hrc);
         /*
          * We need to write the default IP address and mask to extra data now,
@@ -1285,12 +1299,12 @@ HRESULT Host::createHostOnlyNetworkInterface(ComPtr<IHostNetworkInterface> &aHos
          */
         hrc = m->pParent->SetExtraData(BstrFmt("HostOnly/%ls/IPAddress",
                                                tmpName.raw()).raw(),
-                                               tmpAddr.raw());
+                                       tmpAddr.raw());
         ComAssertComRCRet(hrc, hrc);
 
         hrc = m->pParent->SetExtraData(BstrFmt("HostOnly/%ls/IPNetMask",
                                                tmpName.raw()).raw(),
-                                               tmpMask.raw());
+                                       tmpMask.raw());
         ComAssertComRCRet(hrc, hrc);
 #endif
     }
@@ -1301,10 +1315,14 @@ HRESULT Host::createHostOnlyNetworkInterface(ComPtr<IHostNetworkInterface> &aHos
 #endif
 }
 
-HRESULT Host::removeHostOnlyNetworkInterface(const com::Guid &aId,
-                                             ComPtr<IProgress> &aProgress)
-
+STDMETHODIMP Host::RemoveHostOnlyNetworkInterface(IN_BSTR aId,
+                                                  IProgress **aProgress)
 {
+    CheckComArgOutPointerValid(aProgress);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
 #ifdef VBOX_WITH_HOSTNETIF_API
     /* No need to lock anything, the code below does not touch the state
      * of the host object. If that ever changes then check for lock order
@@ -1316,16 +1334,16 @@ HRESULT Host::removeHostOnlyNetworkInterface(const com::Guid &aId,
     /* first check whether an interface with the given name already exists */
     {
         ComPtr<IHostNetworkInterface> iface;
-        rc = findHostNetworkInterfaceById(aId, iface);
-        if (FAILED(rc))
+        if (FAILED(FindHostNetworkInterfaceById(aId,
+                                                iface.asOutParam())))
             return setError(VBOX_E_OBJECT_NOT_FOUND,
                             tr("Host network interface with UUID {%RTuuid} does not exist"),
-                            Guid(aId).raw());
+                            Guid (aId).raw());
         rc = iface->COMGETTER(Name)(name.asOutParam());
         ComAssertComRCRet(rc, rc);
     }
 
-    int r = NetIfRemoveHostOnlyNetworkInterface(m->pParent, Guid(aId).ref(), aProgress.asOutParam());
+    int r = NetIfRemoveHostOnlyNetworkInterface(m->pParent, Guid(aId).ref(), aProgress);
     if (RT_SUCCESS(r))
     {
         /* Drop configuration parameters for removed interface */
@@ -1343,18 +1361,23 @@ HRESULT Host::removeHostOnlyNetworkInterface(const com::Guid &aId,
 #endif
 }
 
-HRESULT Host::createUSBDeviceFilter(const com::Utf8Str &aName,
-                                    ComPtr<IHostUSBDeviceFilter> &aFilter)
+STDMETHODIMP Host::CreateUSBDeviceFilter(IN_BSTR aName,
+                                         IHostUSBDeviceFilter **aFilter)
 {
 #ifdef VBOX_WITH_USB
+    CheckComArgStrNotEmptyOrNull(aName);
+    CheckComArgOutPointerValid(aFilter);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     ComObjPtr<HostUSBDeviceFilter> filter;
     filter.createObject();
-    HRESULT rc = filter->init(this, Bstr(aName).raw());
+    HRESULT rc = filter->init(this, aName);
     ComAssertComRCRet(rc, rc);
-    rc = filter.queryInterfaceTo(aFilter.asOutParam());
+    rc = filter.queryInterfaceTo(aFilter);
     AssertComRCReturn(rc, rc);
     return S_OK;
 #else
@@ -1367,17 +1390,21 @@ HRESULT Host::createUSBDeviceFilter(const com::Utf8Str &aName,
 #endif
 }
 
-HRESULT Host::insertUSBDeviceFilter(ULONG aPosition,
-                                    const ComPtr<IHostUSBDeviceFilter> &aFilter)
+STDMETHODIMP Host::InsertUSBDeviceFilter(ULONG aPosition,
+                                         IHostUSBDeviceFilter *aFilter)
 {
 #ifdef VBOX_WITH_USB
+    CheckComArgNotNull(aFilter);
+
     /* Note: HostUSBDeviceFilter and USBProxyService also uses this lock. */
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    MultiResult rc = i_checkUSBProxyService();
-    if (FAILED(rc))
-        return rc;
+    clearError();
+    MultiResult rc = checkUSBProxyService();
+    if (FAILED(rc)) return rc;
 
     ComObjPtr<HostUSBDeviceFilter> pFilter;
     for (USBDeviceFilterList::iterator it = m->llChildren.begin();
@@ -1407,18 +1434,17 @@ HRESULT Host::insertUSBDeviceFilter(ULONG aPosition,
 
     /* notify the proxy (only when the filter is active) */
     if (    m->pUSBProxyService->isActive()
-         && pFilter->i_getData().mActive)
+         && pFilter->getData().mActive)
     {
-        ComAssertRet(pFilter->i_getId() == NULL, E_FAIL);
-        pFilter->i_getId() = m->pUSBProxyService->insertFilter(&pFilter->i_getData().mUSBFilter);
+        ComAssertRet(pFilter->getId() == NULL, E_FAIL);
+        pFilter->getId() = m->pUSBProxyService->insertFilter(&pFilter->getData().mUSBFilter);
     }
 
     // save the global settings; for that we should hold only the VirtualBox lock
     alock.release();
     AutoWriteLock vboxLock(m->pParent COMMA_LOCKVAL_SRC_POS);
-    return rc = m->pParent->i_saveSettings();
+    return rc = m->pParent->saveSettings();
 #else
-
     /* Note: The GUI depends on this method returning E_NOTIMPL with no
      * extended error info to indicate that USB is simply not available
      * (w/o treating it as a failure), for example, as in OSE. */
@@ -1428,16 +1454,19 @@ HRESULT Host::insertUSBDeviceFilter(ULONG aPosition,
 #endif
 }
 
-HRESULT Host::removeUSBDeviceFilter(ULONG aPosition)
+STDMETHODIMP Host::RemoveUSBDeviceFilter(ULONG aPosition)
 {
 #ifdef VBOX_WITH_USB
 
     /* Note: HostUSBDeviceFilter and USBProxyService also uses this lock. */
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    MultiResult rc = i_checkUSBProxyService();
-    if (FAILED(rc))
-        return rc;
+    clearError();
+    MultiResult rc = checkUSBProxyService();
+    if (FAILED(rc)) return rc;
 
     if (!m->llUSBDeviceFilters.size())
         return setError(E_INVALIDARG,
@@ -1452,7 +1481,7 @@ HRESULT Host::removeUSBDeviceFilter(ULONG aPosition)
     {
         /* iterate to the position... */
         USBDeviceFilterList::iterator it = m->llUSBDeviceFilters.begin();
-        std::advance(it, aPosition);
+        std::advance (it, aPosition);
         /* ...get an element from there... */
         filter = *it;
         /* ...and remove */
@@ -1461,17 +1490,17 @@ HRESULT Host::removeUSBDeviceFilter(ULONG aPosition)
     }
 
     /* notify the proxy (only when the filter is active) */
-    if (m->pUSBProxyService->isActive() && filter->i_getData().mActive)
+    if (m->pUSBProxyService->isActive() && filter->getData().mActive)
     {
-        ComAssertRet(filter->i_getId() != NULL, E_FAIL);
-        m->pUSBProxyService->removeFilter(filter->i_getId());
-        filter->i_getId() = NULL;
+        ComAssertRet(filter->getId() != NULL, E_FAIL);
+        m->pUSBProxyService->removeFilter(filter->getId());
+        filter->getId() = NULL;
     }
 
     // save the global settings; for that we should hold only the VirtualBox lock
     alock.release();
     AutoWriteLock vboxLock(m->pParent COMMA_LOCKVAL_SRC_POS);
-    return rc = m->pParent->i_saveSettings();
+    return rc = m->pParent->saveSettings();
 #else
     /* Note: The GUI depends on this method returning E_NOTIMPL with no
      * extended error info to indicate that USB is simply not available
@@ -1481,55 +1510,60 @@ HRESULT Host::removeUSBDeviceFilter(ULONG aPosition)
 #endif
 }
 
-HRESULT Host::findHostDVDDrive(const com::Utf8Str &aName,
-                               ComPtr<IMedium> &aDrive)
+STDMETHODIMP Host::FindHostDVDDrive(IN_BSTR aName, IMedium **aDrive)
 {
-    ComObjPtr<Medium> medium;
-    HRESULT rc = i_findHostDriveByNameOrId(DeviceType_DVD, aName, medium);
-    if (SUCCEEDED(rc))
-        rc = medium.queryInterfaceTo(aDrive.asOutParam());
-    else
-        rc = setError(rc, Medium::tr("The host DVD drive named '%s' could not be found"), aName.c_str());
-    return rc;
-}
-
-HRESULT Host::findHostFloppyDrive(const com::Utf8Str &aName, ComPtr<IMedium> &aDrive)
-{
-    aDrive = NULL;
+    CheckComArgStrNotEmptyOrNull(aName);
+    CheckComArgOutPointerValid(aDrive);
 
     ComObjPtr<Medium>medium;
-
-    HRESULT rc = i_findHostDriveByNameOrId(DeviceType_Floppy, aName, medium);
+    HRESULT rc = findHostDriveByNameOrId(DeviceType_DVD, Utf8Str(aName), medium);
     if (SUCCEEDED(rc))
-        return medium.queryInterfaceTo(aDrive.asOutParam());
+        return medium.queryInterfaceTo(aDrive);
     else
-        return setError(rc, Medium::tr("The host floppy drive named '%s' could not be found"), aName.c_str());
+        return setError(rc, Medium::tr("The host DVD drive named '%ls' could not be found"), aName);
 }
 
-HRESULT Host::findHostNetworkInterfaceByName(const com::Utf8Str &aName,
-                                             ComPtr<IHostNetworkInterface> &aNetworkInterface)
+STDMETHODIMP Host::FindHostFloppyDrive(IN_BSTR aName, IMedium **aDrive)
+{
+    CheckComArgStrNotEmptyOrNull(aName);
+    CheckComArgOutPointerValid(aDrive);
+
+    *aDrive = NULL;
+
+    ComObjPtr<Medium>medium;
+    HRESULT rc = findHostDriveByNameOrId(DeviceType_Floppy, Utf8Str(aName), medium);
+    if (SUCCEEDED(rc))
+        return medium.queryInterfaceTo(aDrive);
+    else
+        return setError(rc, Medium::tr("The host floppy drive named '%ls' could not be found"), aName);
+}
+
+STDMETHODIMP Host::FindHostNetworkInterfaceByName(IN_BSTR name, IHostNetworkInterface **networkInterface)
 {
 #ifndef VBOX_WITH_HOSTNETIF_API
     return E_NOTIMPL;
 #else
-    if (!aName.length())
+    if (!name)
         return E_INVALIDARG;
+    if (!networkInterface)
+        return E_POINTER;
 
-    HRESULT rc = i_updateNetIfList();
-    if (FAILED(rc))
-    {
-        Log(("Failed to update host network interface list with rc=%Rhrc\n", rc));
-        return rc;
-    }
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-
+    *networkInterface = NULL;
     ComObjPtr<HostNetworkInterface> found;
-    for (HostNetworkInterfaceList::iterator it = m->llNetIfs.begin(); it != m->llNetIfs.end(); ++it)
+    int rc = updateNetIfList();
+    if (RT_FAILURE(rc))
+    {
+        Log(("Failed to get host network interface list with rc=%Rrc\n", rc));
+        return E_FAIL;
+    }
+    HostNetworkInterfaceList::iterator it;
+    for (it = m->llNetIfs.begin(); it != m->llNetIfs.end(); ++it)
     {
         Bstr n;
-        (*it)->COMGETTER(Name)(n.asOutParam());
-        if (n == aName)
+        (*it)->COMGETTER(Name) (n.asOutParam());
+        if (n == name)
             found = *it;
     }
 
@@ -1537,75 +1571,73 @@ HRESULT Host::findHostNetworkInterfaceByName(const com::Utf8Str &aName,
         return setError(E_INVALIDARG,
                         HostNetworkInterface::tr("The host network interface with the given name could not be found"));
 
-    return found.queryInterfaceTo(aNetworkInterface.asOutParam());
+    return found.queryInterfaceTo(networkInterface);
 #endif
 }
 
-HRESULT Host::findHostNetworkInterfaceById(const com::Guid &aId,
-                                           ComPtr<IHostNetworkInterface> &aNetworkInterface)
+STDMETHODIMP Host::FindHostNetworkInterfaceById(IN_BSTR id, IHostNetworkInterface **networkInterface)
 {
 #ifndef VBOX_WITH_HOSTNETIF_API
     return E_NOTIMPL;
 #else
-    if (!aId.isValid())
+    if (!Guid(id).isValid())
         return E_INVALIDARG;
+    if (!networkInterface)
+        return E_POINTER;
 
-    HRESULT rc = i_updateNetIfList();
-    if (FAILED(rc))
-    {
-        Log(("Failed to update host network interface list with rc=%Rhrc\n", rc));
-        return rc;
-    }
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-
+    *networkInterface = NULL;
     ComObjPtr<HostNetworkInterface> found;
-    for (HostNetworkInterfaceList::iterator it = m->llNetIfs.begin(); it != m->llNetIfs.end(); ++it)
+    int rc = updateNetIfList();
+    if (RT_FAILURE(rc))
+    {
+        Log(("Failed to get host network interface list with rc=%Rrc\n", rc));
+        return E_FAIL;
+    }
+    HostNetworkInterfaceList::iterator it;
+    for (it = m->llNetIfs.begin(); it != m->llNetIfs.end(); ++it)
     {
         Bstr g;
-        (*it)->COMGETTER(Id)(g.asOutParam());
-        if (Guid(g) == aId)
+        (*it)->COMGETTER(Id) (g.asOutParam());
+        if (g == id)
             found = *it;
     }
 
     if (!found)
         return setError(E_INVALIDARG,
                         HostNetworkInterface::tr("The host network interface with the given GUID could not be found"));
-    return found.queryInterfaceTo(aNetworkInterface.asOutParam());
 
+    return found.queryInterfaceTo(networkInterface);
 #endif
 }
 
-HRESULT Host::findHostNetworkInterfacesOfType(HostNetworkInterfaceType_T aType,
-                                              std::vector<ComPtr<IHostNetworkInterface> > &aNetworkInterfaces)
+STDMETHODIMP Host::FindHostNetworkInterfacesOfType(HostNetworkInterfaceType_T type,
+                                                   ComSafeArrayOut(IHostNetworkInterface *, aNetworkInterfaces))
 {
 #ifdef VBOX_WITH_HOSTNETIF_API
-    HRESULT rc = i_updateNetIfList();
-    if (FAILED(rc))
-    {
-        Log(("Failed to update host network interface list with rc=%Rhrc\n", rc));
-        return rc;
-    }
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+    int rc = updateNetIfList();
+    if (RT_FAILURE(rc))
+        return E_FAIL;
 
     HostNetworkInterfaceList resultList;
-    for (HostNetworkInterfaceList::iterator it = m->llNetIfs.begin(); it != m->llNetIfs.end(); ++it)
+
+    HostNetworkInterfaceList::iterator it;
+    for (it = m->llNetIfs.begin(); it != m->llNetIfs.end(); ++it)
     {
         HostNetworkInterfaceType_T t;
         HRESULT hr = (*it)->COMGETTER(InterfaceType)(&t);
         if (FAILED(hr))
             return hr;
 
-        if (t == aType)
-            resultList.push_back(*it);
+        if (t == type)
+            resultList.push_back (*it);
     }
-    aNetworkInterfaces.resize(resultList.size());
-    size_t i = 0;
-    for (HostNetworkInterfaceList::iterator it = resultList.begin(); it != resultList.end(); ++it, ++i)
-    {
-        (*it).queryInterfaceTo(aNetworkInterfaces[i].asOutParam());
-    }
+
+    SafeIfaceArray<IHostNetworkInterface> filteredNetworkInterfaces (resultList);
+    filteredNetworkInterfaces.detachTo(ComSafeArrayOutArg(aNetworkInterfaces));
 
     return S_OK;
 #else
@@ -1613,32 +1645,33 @@ HRESULT Host::findHostNetworkInterfacesOfType(HostNetworkInterfaceType_T aType,
 #endif
 }
 
-HRESULT Host::findUSBDeviceByAddress(const com::Utf8Str &aName,
-                                     ComPtr<IHostUSBDevice> &aDevice)
+STDMETHODIMP Host::FindUSBDeviceByAddress(IN_BSTR aAddress,
+                                          IHostUSBDevice **aDevice)
 {
 #ifdef VBOX_WITH_USB
+    CheckComArgStrNotEmptyOrNull(aAddress);
+    CheckComArgOutPointerValid(aDevice);
 
-    aDevice = NULL;
+    *aDevice = NULL;
+
     SafeIfaceArray<IHostUSBDevice> devsvec;
-    HRESULT rc = COMGETTER(USBDevices)(ComSafeArrayAsOutParam(devsvec));
-    if (FAILED(rc))
-        return rc;
+    HRESULT rc = COMGETTER(USBDevices) (ComSafeArrayAsOutParam(devsvec));
+    if (FAILED(rc)) return rc;
 
     for (size_t i = 0; i < devsvec.size(); ++i)
     {
         Bstr address;
-        rc = devsvec[i]->COMGETTER(Address)(address.asOutParam());
-        if (FAILED(rc))
-            return rc;
-        if (address == aName)
+        rc = devsvec[i]->COMGETTER(Address) (address.asOutParam());
+        if (FAILED(rc)) return rc;
+        if (address == aAddress)
         {
-            return (ComPtr<IHostUSBDevice>(devsvec[i]).queryInterfaceTo(aDevice.asOutParam()));
+            return ComObjPtr<IHostUSBDevice> (devsvec[i]).queryInterfaceTo(aDevice);
         }
     }
 
     return setErrorNoLog(VBOX_E_OBJECT_NOT_FOUND,
-                         tr("Could not find a USB device with address '%s'"),
-                         aName.c_str());
+                         tr("Could not find a USB device with address '%ls'"),
+                         aAddress);
 
 #else   /* !VBOX_WITH_USB */
     NOREF(aAddress);
@@ -1646,34 +1679,34 @@ HRESULT Host::findUSBDeviceByAddress(const com::Utf8Str &aName,
     return E_NOTIMPL;
 #endif  /* !VBOX_WITH_USB */
 }
-HRESULT Host::findUSBDeviceById(const com::Guid &aId,
-                                ComPtr<IHostUSBDevice> &aDevice)
+
+STDMETHODIMP Host::FindUSBDeviceById(IN_BSTR aId,
+                                     IHostUSBDevice **aDevice)
 {
 #ifdef VBOX_WITH_USB
-    if (!aId.isValid())
-        return E_INVALIDARG;
+    CheckComArgExpr(aId, Guid (aId).isValid());
+    CheckComArgOutPointerValid(aDevice);
 
-    aDevice = NULL;
+    *aDevice = NULL;
 
     SafeIfaceArray<IHostUSBDevice> devsvec;
-    HRESULT rc = COMGETTER(USBDevices)(ComSafeArrayAsOutParam(devsvec));
-    if (FAILED(rc))
-        return rc;
+    HRESULT rc = COMGETTER(USBDevices) (ComSafeArrayAsOutParam(devsvec));
+    if (FAILED(rc)) return rc;
 
     for (size_t i = 0; i < devsvec.size(); ++i)
     {
         Bstr id;
-        rc = devsvec[i]->COMGETTER(Id)(id.asOutParam());
-        if (FAILED(rc))
-            return rc;
-        if (Guid(id) == aId)
+        rc = devsvec[i]->COMGETTER(Id) (id.asOutParam());
+        if (FAILED(rc)) return rc;
+        if (id == aId)
         {
-            return (ComPtr<IHostUSBDevice>(devsvec[i]).queryInterfaceTo(aDevice.asOutParam()));
+            return ComObjPtr<IHostUSBDevice> (devsvec[i]).queryInterfaceTo(aDevice);
         }
     }
-    return setErrorNoLog(VBOX_E_OBJECT_NOT_FOUND,
-                         tr("Could not find a USB device with uuid {%RTuuid}"),
-                         aId.raw());
+
+    return setErrorNoLog (VBOX_E_OBJECT_NOT_FOUND, tr (
+        "Could not find a USB device with uuid {%RTuuid}"),
+        Guid (aId).raw());
 
 #else   /* !VBOX_WITH_USB */
     NOREF(aId);
@@ -1682,10 +1715,13 @@ HRESULT Host::findUSBDeviceById(const com::Guid &aId,
 #endif  /* !VBOX_WITH_USB */
 }
 
-HRESULT Host::generateMACAddress(com::Utf8Str &aAddress)
+STDMETHODIMP Host::GenerateMACAddress(BSTR *aAddress)
 {
+    CheckComArgOutPointerValid(aAddress);
     // no locking required
-    i_generateMACAddress(aAddress);
+    Utf8Str mac;
+    generateMACAddress(mac);
+    Bstr(mac).cloneTo(aAddress);
     return S_OK;
 }
 
@@ -1695,33 +1731,37 @@ HRESULT Host::generateMACAddress(com::Utf8Str &aAddress)
  * @returns COM status code
  * @param aVideoInputDevices Array of interface pointers to be filled.
  */
-HRESULT Host::getVideoInputDevices(std::vector<ComPtr<IHostVideoInputDevice> > &aVideoInputDevices)
+STDMETHODIMP Host::COMGETTER(VideoInputDevices)(ComSafeArrayOut(IHostVideoInputDevice*, aVideoInputDevices))
 {
+    if (ComSafeArrayOutIsNull(aVideoInputDevices))
+        return E_POINTER;
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
     HostVideoInputDeviceList list;
 
-    HRESULT rc = HostVideoInputDevice::queryHostDevices(m->pParent, &list);
-    if (FAILED(rc))
-        return rc;
+    HRESULT hr = HostVideoInputDevice::queryHostDevices(m->pParent, &list);
 
-    aVideoInputDevices.resize(list.size());
-    size_t i = 0;
-    for (HostVideoInputDeviceList::const_iterator it = list.begin(); it != list.end(); ++it, ++i)
-        (*it).queryInterfaceTo(aVideoInputDevices[i].asOutParam());
+    if (SUCCEEDED(hr))
+    {
+        SafeIfaceArray<IHostVideoInputDevice> devices(list);
+        devices.detachTo(ComSafeArrayOutArg(aVideoInputDevices));
+    }
 
-    return S_OK;
+    return hr;
 }
 
 // public methods only for internal purposes
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT Host::i_loadSettings(const settings::Host &data)
+HRESULT Host::loadSettings(const settings::Host &data)
 {
     HRESULT rc = S_OK;
 #ifdef VBOX_WITH_USB
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc()))
-        return autoCaller.rc();
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -1733,17 +1773,16 @@ HRESULT Host::i_loadSettings(const settings::Host &data)
         ComObjPtr<HostUSBDeviceFilter> pFilter;
         pFilter.createObject();
         rc = pFilter->init(this, f);
-        if (FAILED(rc))
-            break;
+        if (FAILED(rc)) break;
 
         m->llUSBDeviceFilters.push_back(pFilter);
         pFilter->mInList = true;
 
         /* notify the proxy (only when the filter is active) */
-        if (pFilter->i_getData().mActive)
+        if (pFilter->getData().mActive)
         {
             HostUSBDeviceFilter *flt = pFilter; /* resolve ambiguity */
-            flt->i_getId() = m->pUSBProxyService->insertFilter(&pFilter->i_getData().mUSBFilter);
+            flt->getId() = m->pUSBProxyService->insertFilter(&pFilter->getData().mUSBFilter);
         }
     }
 #else
@@ -1752,12 +1791,11 @@ HRESULT Host::i_loadSettings(const settings::Host &data)
     return rc;
 }
 
-HRESULT Host::i_saveSettings(settings::Host &data)
+HRESULT Host::saveSettings(settings::Host &data)
 {
 #ifdef VBOX_WITH_USB
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc()))
-        return autoCaller.rc();
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -1769,7 +1807,7 @@ HRESULT Host::i_saveSettings(settings::Host &data)
     {
         ComObjPtr<HostUSBDeviceFilter> pFilter = *it;
         settings::USBDeviceFilter f;
-        pFilter->i_saveSettings(f);
+        pFilter->saveSettings(f);
         data.llUSBDeviceFilters.push_back(f);
     }
 #else
@@ -1795,15 +1833,15 @@ HRESULT Host::i_saveSettings(settings::Host &data)
  * @param fRefresh Whether to refresh the host drives list even if this is not the first call.
  * @param pll Caller's pointer which gets set to the static list of host drives.
  * @param treeLock Reference to media tree lock, need to drop it temporarily.
- * @returns COM status code
+ * @return
  */
-HRESULT Host::i_getDrives(DeviceType_T mediumType,
-                          bool fRefresh,
-                          MediaList *&pll,
-                          AutoWriteLock &treeLock)
+HRESULT Host::getDrives(DeviceType_T mediumType,
+                        bool fRefresh,
+                        MediaList *&pll,
+                        AutoWriteLock &treeLock)
 {
     HRESULT rc = S_OK;
-    Assert(m->pParent->i_getMediaTreeLockHandle().isWriteLockOnCurrentThread());
+    Assert(m->pParent->getMediaTreeLockHandle().isWriteLockOnCurrentThread());
 
     MediaList llNew;
     MediaList *pllCached;
@@ -1814,7 +1852,7 @@ HRESULT Host::i_getDrives(DeviceType_T mediumType,
         case DeviceType_DVD:
             if (!m->fDVDDrivesListBuilt || fRefresh)
             {
-                rc = i_buildDVDDrivesList(llNew);
+                rc = buildDVDDrivesList(llNew);
                 if (FAILED(rc))
                     return rc;
                 pfListBuilt = &m->fDVDDrivesListBuilt;
@@ -1825,7 +1863,7 @@ HRESULT Host::i_getDrives(DeviceType_T mediumType,
         case DeviceType_Floppy:
             if (!m->fFloppyDrivesListBuilt || fRefresh)
             {
-                rc = i_buildFloppyDrivesList(llNew);
+                rc = buildFloppyDrivesList(llNew);
                 if (FAILED(rc))
                     return rc;
                 pfListBuilt = &m->fFloppyDrivesListBuilt;
@@ -1857,14 +1895,14 @@ HRESULT Host::i_getDrives(DeviceType_T mediumType,
                  /*nothing */)
             {
                 Medium *pCached = *itCached;
-                const Utf8Str strLocationCached = pCached->i_getLocationFull();
+                const Utf8Str strLocationCached = pCached->getLocationFull();
                 bool fFound = false;
                 for (MediaList::iterator itNew = llNew.begin();
                      itNew != llNew.end();
                      ++itNew)
                 {
                     Medium *pNew = *itNew;
-                    const Utf8Str strLocationNew = pNew->i_getLocationFull();
+                    const Utf8Str strLocationNew = pNew->getLocationFull();
                     if (strLocationNew == strLocationCached)
                     {
                         fFound = true;
@@ -1872,10 +1910,7 @@ HRESULT Host::i_getDrives(DeviceType_T mediumType,
                     }
                 }
                 if (!fFound)
-                {
-                    pCached->uninit();
                     itCached = pllCached->erase(itCached);
-                }
                 else
                     ++itCached;
             }
@@ -1886,14 +1921,14 @@ HRESULT Host::i_getDrives(DeviceType_T mediumType,
                  ++itNew)
             {
                 Medium *pNew = *itNew;
-                const Utf8Str strLocationNew = pNew->i_getLocationFull();
+                const Utf8Str strLocationNew = pNew->getLocationFull();
                 bool fFound = false;
                 for (MediaList::iterator itCached = pllCached->begin();
                      itCached != pllCached->end();
                      ++itCached)
                 {
                     Medium *pCached = *itCached;
-                    const Utf8Str strLocationCached = pCached->i_getLocationFull();
+                    const Utf8Str strLocationCached = pCached->getLocationFull();
                     if (strLocationNew == strLocationCached)
                     {
                         fFound = true;
@@ -1932,15 +1967,15 @@ HRESULT Host::i_getDrives(DeviceType_T mediumType,
  * @param pMedium Medium object, if found...
  * @return VBOX_E_OBJECT_NOT_FOUND if not found, or S_OK if found, or errors from getDrives().
  */
-HRESULT Host::i_findHostDriveById(DeviceType_T mediumType,
-                                  const Guid &uuid,
-                                  bool fRefresh,
-                                  ComObjPtr<Medium> &pMedium)
+HRESULT Host::findHostDriveById(DeviceType_T mediumType,
+                                const Guid &uuid,
+                                bool fRefresh,
+                                ComObjPtr<Medium> &pMedium)
 {
     MediaList *pllMedia;
 
-    AutoWriteLock treeLock(m->pParent->i_getMediaTreeLockHandle() COMMA_LOCKVAL_SRC_POS);
-    HRESULT rc = i_getDrives(mediumType, fRefresh, pllMedia, treeLock);
+    AutoWriteLock treeLock(m->pParent->getMediaTreeLockHandle() COMMA_LOCKVAL_SRC_POS);
+    HRESULT rc = getDrives(mediumType, fRefresh, pllMedia, treeLock);
     if (SUCCEEDED(rc))
     {
         for (MediaList::iterator it = pllMedia->begin();
@@ -1950,7 +1985,7 @@ HRESULT Host::i_findHostDriveById(DeviceType_T mediumType,
             Medium *pThis = *it;
             AutoCaller mediumCaller(pThis);
             AutoReadLock mediumLock(pThis COMMA_LOCKVAL_SRC_POS);
-            if (pThis->i_getId() == uuid)
+            if (pThis->getId() == uuid)
             {
                 pMedium = pThis;
                 return S_OK;
@@ -1969,18 +2004,18 @@ HRESULT Host::i_findHostDriveById(DeviceType_T mediumType,
  * @param mediumType Must be DeviceType_DVD or DeviceType_Floppy.
  * @param strLocationFull Name (path) of host drive to look for.
  * @param fRefresh Whether to refresh the host drives list (see getDrives())
- * @param pMedium Medium object, if found
+ * @param pMedium Medium object, if found...
  * @return VBOX_E_OBJECT_NOT_FOUND if not found, or S_OK if found, or errors from getDrives().
  */
-HRESULT Host::i_findHostDriveByName(DeviceType_T mediumType,
-                                    const Utf8Str &strLocationFull,
-                                    bool fRefresh,
-                                    ComObjPtr<Medium> &pMedium)
+HRESULT Host::findHostDriveByName(DeviceType_T mediumType,
+                                  const Utf8Str &strLocationFull,
+                                  bool fRefresh,
+                                  ComObjPtr<Medium> &pMedium)
 {
     MediaList *pllMedia;
 
-    AutoWriteLock treeLock(m->pParent->i_getMediaTreeLockHandle() COMMA_LOCKVAL_SRC_POS);
-    HRESULT rc = i_getDrives(mediumType, fRefresh, pllMedia, treeLock);
+    AutoWriteLock treeLock(m->pParent->getMediaTreeLockHandle() COMMA_LOCKVAL_SRC_POS);
+    HRESULT rc = getDrives(mediumType, fRefresh, pllMedia, treeLock);
     if (SUCCEEDED(rc))
     {
         for (MediaList::iterator it = pllMedia->begin();
@@ -1990,7 +2025,7 @@ HRESULT Host::i_findHostDriveByName(DeviceType_T mediumType,
             Medium *pThis = *it;
             AutoCaller mediumCaller(pThis);
             AutoReadLock mediumLock(pThis COMMA_LOCKVAL_SRC_POS);
-            if (pThis->i_getLocationFull() == strLocationFull)
+            if (pThis->getLocationFull() == strLocationFull)
             {
                 pMedium = pThis;
                 return S_OK;
@@ -2011,18 +2046,18 @@ HRESULT Host::i_findHostDriveByName(DeviceType_T mediumType,
  * @param pMedium     Medium object, if found...
  * @return VBOX_E_OBJECT_NOT_FOUND if not found, or S_OK if found, or errors from getDrives().
  */
-HRESULT Host::i_findHostDriveByNameOrId(DeviceType_T mediumType,
-                                        const Utf8Str &strNameOrId,
-                                        ComObjPtr<Medium> &pMedium)
+HRESULT Host::findHostDriveByNameOrId(DeviceType_T mediumType,
+                                      const Utf8Str &strNameOrId,
+                                      ComObjPtr<Medium> &pMedium)
 {
-    AutoWriteLock wlock(m->pParent->i_getMediaTreeLockHandle() COMMA_LOCKVAL_SRC_POS);
+    AutoWriteLock wlock(m->pParent->getMediaTreeLockHandle() COMMA_LOCKVAL_SRC_POS);
 
     Guid uuid(strNameOrId);
     if (uuid.isValid() && !uuid.isZero())
-        return i_findHostDriveById(mediumType, uuid, true /* fRefresh */, pMedium);
+        return findHostDriveById(mediumType, uuid, true /* fRefresh */, pMedium);
 
     // string is not a syntactically valid UUID: try a name then
-    return i_findHostDriveByName(mediumType, strNameOrId, true /* fRefresh */, pMedium);
+    return findHostDriveByName(mediumType, strNameOrId, true /* fRefresh */, pMedium);
 }
 
 /**
@@ -2030,11 +2065,11 @@ HRESULT Host::i_findHostDriveByNameOrId(DeviceType_T mediumType,
  * @param pll
  * @return
  */
-HRESULT Host::i_buildDVDDrivesList(MediaList &list)
+HRESULT Host::buildDVDDrivesList(MediaList &list)
 {
     HRESULT rc = S_OK;
 
-    Assert(m->pParent->i_getMediaTreeLockHandle().isWriteLockOnCurrentThread());
+    Assert(m->pParent->getMediaTreeLockHandle().isWriteLockOnCurrentThread());
 
     try
     {
@@ -2061,10 +2096,10 @@ HRESULT Host::i_buildDVDDrivesList(MediaList &list)
 
 #elif defined(RT_OS_SOLARIS)
 # ifdef VBOX_USE_LIBHAL
-        if (!i_getDVDInfoFromHal(list))
+        if (!getDVDInfoFromHal(list))
 # endif
         {
-            i_getDVDInfoFromDevTree(list);
+            getDVDInfoFromDevTree(list);
         }
 
 #elif defined(RT_OS_LINUX) || defined(RT_OS_FREEBSD)
@@ -2112,11 +2147,11 @@ HRESULT Host::i_buildDVDDrivesList(MediaList &list)
  * @param list
  * @return
  */
-HRESULT Host::i_buildFloppyDrivesList(MediaList &list)
+HRESULT Host::buildFloppyDrivesList(MediaList &list)
 {
     HRESULT rc = S_OK;
 
-    Assert(m->pParent->i_getMediaTreeLockHandle().isWriteLockOnCurrentThread());
+    Assert(m->pParent->getMediaTreeLockHandle().isWriteLockOnCurrentThread());
 
     try
     {
@@ -2169,16 +2204,15 @@ HRESULT Host::i_buildFloppyDrivesList(MediaList &list)
 }
 
 #ifdef VBOX_WITH_USB
-USBProxyService* Host::i_usbProxyService()
+USBProxyService* Host::usbProxyService()
 {
     return m->pUSBProxyService;
 }
 
-HRESULT Host::i_addChild(HostUSBDeviceFilter *pChild)
+HRESULT Host::addChild(HostUSBDeviceFilter *pChild)
 {
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc()))
-        return autoCaller.rc();
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -2187,11 +2221,10 @@ HRESULT Host::i_addChild(HostUSBDeviceFilter *pChild)
     return S_OK;
 }
 
-HRESULT Host::i_removeChild(HostUSBDeviceFilter *pChild)
+HRESULT Host::removeChild(HostUSBDeviceFilter *pChild)
 {
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc()))
-        return autoCaller.rc();
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -2209,7 +2242,7 @@ HRESULT Host::i_removeChild(HostUSBDeviceFilter *pChild)
     return S_OK;
 }
 
-VirtualBox* Host::i_parent()
+VirtualBox* Host::parent()
 {
     return m->pParent;
 }
@@ -2217,12 +2250,11 @@ VirtualBox* Host::i_parent()
 /**
  *  Called by setter methods of all USB device filters.
  */
-HRESULT Host::i_onUSBDeviceFilterChange(HostUSBDeviceFilter *aFilter,
-                                        BOOL aActiveChanged /* = FALSE */)
+HRESULT Host::onUSBDeviceFilterChange(HostUSBDeviceFilter *aFilter,
+                                      BOOL aActiveChanged /* = FALSE */)
 {
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc()))
-        return autoCaller.rc();
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -2231,26 +2263,26 @@ HRESULT Host::i_onUSBDeviceFilterChange(HostUSBDeviceFilter *aFilter,
         if (aActiveChanged)
         {
             // insert/remove the filter from the proxy
-            if (aFilter->i_getData().mActive)
+            if (aFilter->getData().mActive)
             {
-                ComAssertRet(aFilter->i_getId() == NULL, E_FAIL);
-                aFilter->i_getId() = m->pUSBProxyService->insertFilter(&aFilter->i_getData().mUSBFilter);
+                ComAssertRet(aFilter->getId() == NULL, E_FAIL);
+                aFilter->getId() = m->pUSBProxyService->insertFilter(&aFilter->getData().mUSBFilter);
             }
             else
             {
-                ComAssertRet(aFilter->i_getId() != NULL, E_FAIL);
-                m->pUSBProxyService->removeFilter(aFilter->i_getId());
-                aFilter->i_getId() = NULL;
+                ComAssertRet(aFilter->getId() != NULL, E_FAIL);
+                m->pUSBProxyService->removeFilter(aFilter->getId());
+                aFilter->getId() = NULL;
             }
         }
         else
         {
-            if (aFilter->i_getData().mActive)
+            if (aFilter->getData().mActive)
             {
                 // update the filter in the proxy
-                ComAssertRet(aFilter->i_getId() != NULL, E_FAIL);
-                m->pUSBProxyService->removeFilter(aFilter->i_getId());
-                aFilter->i_getId() = m->pUSBProxyService->insertFilter(&aFilter->i_getData().mUSBFilter);
+                ComAssertRet(aFilter->getId() != NULL, E_FAIL);
+                m->pUSBProxyService->removeFilter(aFilter->getId());
+                aFilter->getId() = m->pUSBProxyService->insertFilter(&aFilter->getData().mUSBFilter);
             }
         }
 
@@ -2258,7 +2290,7 @@ HRESULT Host::i_onUSBDeviceFilterChange(HostUSBDeviceFilter *aFilter,
         // for that we should hold only the VirtualBox lock
         alock.release();
         AutoWriteLock vboxLock(m->pParent COMMA_LOCKVAL_SRC_POS);
-        return m->pParent->i_saveSettings();
+        return m->pParent->saveSettings();
     }
 
     return S_OK;
@@ -2272,7 +2304,7 @@ HRESULT Host::i_onUSBDeviceFilterChange(HostUSBDeviceFilter *aFilter,
  * @param   aGlobalFilters      Where to put the global filter list copy.
  * @param   aMachines           Where to put the machine vector.
  */
-void Host::i_getUSBFilters(Host::USBDeviceFilterList *aGlobalFilters)
+void Host::getUSBFilters(Host::USBDeviceFilterList *aGlobalFilters)
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -2389,8 +2421,7 @@ static int solarisWalkDeviceNodeForDVD(di_node_t Node, void *pvArg)
                                     PSOLARISDVD pDrive = (PSOLARISDVD)RTMemAllocZ(sizeof(SOLARISDVD));
                                     if (RT_LIKELY(pDrive))
                                     {
-                                        RTStrPrintf(pDrive->szDescription, sizeof(pDrive->szDescription),
-                                                    "%s %s", pszVendor, pszProduct);
+                                        RTStrPrintf(pDrive->szDescription, sizeof(pDrive->szDescription), "%s %s", pszVendor, pszProduct);
                                         RTStrCopy(pDrive->szRawDiskPath, sizeof(pDrive->szRawDiskPath), pszDevLinkPath);
                                         if (*ppDrives)
                                             pDrive->pNext = *ppDrives;
@@ -2417,7 +2448,7 @@ static int solarisWalkDeviceNodeForDVD(di_node_t Node, void *pvArg)
  * Solaris specific function to enumerate CD/DVD drives via the device tree.
  * Works on Solaris 10 as well as OpenSolaris without depending on libhal.
  */
-void Host::i_getDVDInfoFromDevTree(std::list<ComObjPtr<Medium> > &list)
+void Host::getDVDInfoFromDevTree(std::list<ComObjPtr<Medium> > &list)
 {
     PSOLARISDVD pDrives = NULL;
     di_node_t RootNode = di_init("/", DINFOCPYALL);
@@ -2448,20 +2479,20 @@ void Host::i_getDVDInfoFromDevTree(std::list<ComObjPtr<Medium> > &list)
  * @returns true if information was successfully obtained, false otherwise
  * @retval  list drives found will be attached to this list
  */
-bool Host::i_getDVDInfoFromHal(std::list<ComObjPtr<Medium> > &list)
+bool Host::getDVDInfoFromHal(std::list<ComObjPtr<Medium> > &list)
 {
     bool halSuccess = false;
     DBusError dbusError;
     if (!gLibHalCheckPresence())
         return false;
-    gDBusErrorInit(&dbusError);
+    gDBusErrorInit (&dbusError);
     DBusConnection *dbusConnection = gDBusBusGet(DBUS_BUS_SYSTEM, &dbusError);
     if (dbusConnection != 0)
     {
         LibHalContext *halContext = gLibHalCtxNew();
         if (halContext != 0)
         {
-            if (gLibHalCtxSetDBusConnection(halContext, dbusConnection))
+            if (gLibHalCtxSetDBusConnection (halContext, dbusConnection))
             {
                 if (gLibHalCtxInit(halContext, &dbusError))
                 {
@@ -2501,8 +2532,8 @@ bool Host::i_getDVDInfoFromHal(std::list<ComObjPtr<Medium> > &list)
                                     {
                                         if ((vendor != 0) && (vendor[0] != 0))
                                         {
-                                            description = Utf8StrFmt("%s %s",
-                                                                     vendor, product);
+                                            description = Utf8StrFmt ("%s %s",
+                                                                      vendor, product);
                                         }
                                         else
                                         {
@@ -2512,7 +2543,7 @@ bool Host::i_getDVDInfoFromHal(std::list<ComObjPtr<Medium> > &list)
                                         hostDVDDriveObj.createObject();
                                         hostDVDDriveObj->init(m->pParent, DeviceType_DVD,
                                                               Bstr(devNode), Bstr(description));
-                                        list.push_back(hostDVDDriveObj);
+                                        list.push_back (hostDVDDriveObj);
                                     }
                                     else
                                     {
@@ -2526,7 +2557,7 @@ bool Host::i_getDVDInfoFromHal(std::list<ComObjPtr<Medium> > &list)
                                         hostDVDDriveObj.createObject();
                                         hostDVDDriveObj->init(m->pParent, DeviceType_DVD,
                                                               Bstr(devNode));
-                                        list.push_back(hostDVDDriveObj);
+                                        list.push_back (hostDVDDriveObj);
                                     }
                                     if (vendor != 0)
                                     {
@@ -2563,15 +2594,13 @@ bool Host::i_getDVDInfoFromHal(std::list<ComObjPtr<Medium> > &list)
                     }
                     if (!gLibHalCtxShutdown(halContext, &dbusError))  /* what now? */
                     {
-                        LogRel(("Host::COMGETTER(DVDDrives): failed to shutdown the libhal context.  dbus error: %s (%s)\n",
-                                dbusError.name, dbusError.message));
+                        LogRel(("Host::COMGETTER(DVDDrives): failed to shutdown the libhal context.  dbus error: %s (%s)\n", dbusError.name, dbusError.message));
                         gDBusErrorFree(&dbusError);
                     }
                 }
                 else
                 {
-                    LogRel(("Host::COMGETTER(DVDDrives): failed to initialise libhal context.  dbus error: %s (%s)\n",
-                            dbusError.name, dbusError.message));
+                    LogRel(("Host::COMGETTER(DVDDrives): failed to initialise libhal context.  dbus error: %s (%s)\n", dbusError.name, dbusError.message));
                     gDBusErrorFree(&dbusError);
                 }
                 gLibHalCtxFree(halContext);
@@ -2589,8 +2618,7 @@ bool Host::i_getDVDInfoFromHal(std::list<ComObjPtr<Medium> > &list)
     }
     else
     {
-        LogRel(("Host::COMGETTER(DVDDrives): failed to connect to dbus.  dbus error: %s (%s)\n",
-                dbusError.name, dbusError.message));
+        LogRel(("Host::COMGETTER(DVDDrives): failed to connect to dbus.  dbus error: %s (%s)\n", dbusError.name, dbusError.message));
         gDBusErrorFree(&dbusError);
     }
     return halSuccess;
@@ -2604,20 +2632,20 @@ bool Host::i_getDVDInfoFromHal(std::list<ComObjPtr<Medium> > &list)
  * @returns true if information was successfully obtained, false otherwise
  * @retval  list drives found will be attached to this list
  */
-bool Host::i_getFloppyInfoFromHal(std::list< ComObjPtr<Medium> > &list)
+bool Host::getFloppyInfoFromHal(std::list< ComObjPtr<Medium> > &list)
 {
     bool halSuccess = false;
     DBusError dbusError;
     if (!gLibHalCheckPresence())
         return false;
-    gDBusErrorInit(&dbusError);
+    gDBusErrorInit (&dbusError);
     DBusConnection *dbusConnection = gDBusBusGet(DBUS_BUS_SYSTEM, &dbusError);
     if (dbusConnection != 0)
     {
         LibHalContext *halContext = gLibHalCtxNew();
         if (halContext != 0)
         {
-            if (gLibHalCtxSetDBusConnection(halContext, dbusConnection))
+            if (gLibHalCtxSetDBusConnection (halContext, dbusConnection))
             {
                 if (gLibHalCtxInit(halContext, &dbusError))
                 {
@@ -2667,8 +2695,8 @@ bool Host::i_getFloppyInfoFromHal(std::list< ComObjPtr<Medium> > &list)
                                     {
                                         if ((vendor != 0) && (vendor[0] != 0))
                                         {
-                                            description = Utf8StrFmt("%s %s",
-                                                                     vendor, product);
+                                            description = Utf8StrFmt ("%s %s",
+                                                                      vendor, product);
                                         }
                                         else
                                         {
@@ -2678,7 +2706,7 @@ bool Host::i_getFloppyInfoFromHal(std::list< ComObjPtr<Medium> > &list)
                                         hostFloppyDrive.createObject();
                                         hostFloppyDrive->init(m->pParent, DeviceType_DVD,
                                                               Bstr(devNode), Bstr(description));
-                                        list.push_back(hostFloppyDrive);
+                                        list.push_back (hostFloppyDrive);
                                     }
                                     else
                                     {
@@ -2692,7 +2720,7 @@ bool Host::i_getFloppyInfoFromHal(std::list< ComObjPtr<Medium> > &list)
                                         hostFloppyDrive.createObject();
                                         hostFloppyDrive->init(m->pParent, DeviceType_DVD,
                                                               Bstr(devNode));
-                                        list.push_back(hostFloppyDrive);
+                                        list.push_back (hostFloppyDrive);
                                     }
                                     if (vendor != 0)
                                     {
@@ -2725,15 +2753,13 @@ bool Host::i_getFloppyInfoFromHal(std::list< ComObjPtr<Medium> > &list)
                     }
                     if (!gLibHalCtxShutdown(halContext, &dbusError))  /* what now? */
                     {
-                        LogRel(("Host::COMGETTER(FloppyDrives): failed to shutdown the libhal context.  dbus error: %s (%s)\n",
-                                dbusError.name, dbusError.message));
+                        LogRel(("Host::COMGETTER(FloppyDrives): failed to shutdown the libhal context.  dbus error: %s (%s)\n", dbusError.name, dbusError.message));
                         gDBusErrorFree(&dbusError);
                     }
                 }
                 else
                 {
-                    LogRel(("Host::COMGETTER(FloppyDrives): failed to initialise libhal context.  dbus error: %s (%s)\n",
-                            dbusError.name, dbusError.message));
+                    LogRel(("Host::COMGETTER(FloppyDrives): failed to initialise libhal context.  dbus error: %s (%s)\n", dbusError.name, dbusError.message));
                     gDBusErrorFree(&dbusError);
                 }
                 gLibHalCtxFree(halContext);
@@ -2751,8 +2777,7 @@ bool Host::i_getFloppyInfoFromHal(std::list< ComObjPtr<Medium> > &list)
     }
     else
     {
-        LogRel(("Host::COMGETTER(FloppyDrives): failed to connect to dbus.  dbus error: %s (%s)\n",
-                dbusError.name, dbusError.message));
+        LogRel(("Host::COMGETTER(FloppyDrives): failed to connect to dbus.  dbus error: %s (%s)\n", dbusError.name, dbusError.message));
         gDBusErrorFree(&dbusError);
     }
     return halSuccess;
@@ -2765,7 +2790,7 @@ bool Host::i_getFloppyInfoFromHal(std::list< ComObjPtr<Medium> > &list)
 /**
  * Helper function to parse the given mount file and add found entries
  */
-void Host::i_parseMountTable(char *mountTable, std::list< ComObjPtr<Medium> > &list)
+void Host::parseMountTable(char *mountTable, std::list< ComObjPtr<Medium> > &list)
 {
 #ifdef RT_OS_LINUX
     FILE *mtab = setmntent(mountTable, "r");
@@ -2813,7 +2838,7 @@ void Host::i_parseMountTable(char *mountTable, std::list< ComObjPtr<Medium> > &l
             if (strstr(mnt_type, "iso9660") == 0)
             {
                 /** @todo check whether we've already got the drive in our list! */
-                if (i_validateDevice(mnt_dev, true))
+                if (validateDevice(mnt_dev, true))
                 {
                     ComObjPtr<Medium> hostDVDDriveObj;
                     hostDVDDriveObj.createObject();
@@ -2839,20 +2864,18 @@ void Host::i_parseMountTable(char *mountTable, std::list< ComObjPtr<Medium> > &l
             if (mountName && mountPoint && mountFSType)
             {
                 // skip devices we are not interested in
-                if ((*mountName && mountName[0] == '/') &&                      // skip 'fake' devices (like -hosts,
-                                                                                // proc, fd, swap)
-                    (*mountFSType && (strncmp(mountFSType, RT_STR_TUPLE("devfs")) != 0 &&  // skip devfs
-                                                                                           // (i.e. /devices)
+                if ((*mountName && mountName[0] == '/') &&                      // skip 'fake' devices (like -hosts, proc, fd, swap)
+                    (*mountFSType && (strncmp(mountFSType, RT_STR_TUPLE("devfs")) != 0 &&  // skip devfs (i.e. /devices)
                                       strncmp(mountFSType, RT_STR_TUPLE("dev")) != 0 &&    // skip dev (i.e. /dev)
                                       strncmp(mountFSType, RT_STR_TUPLE("lofs")) != 0)))   // skip loop-back file-system (lofs)
                 {
                     char *rawDevName = getfullrawname((char *)mountName);
-                    if (i_validateDevice(rawDevName, true))
+                    if (validateDevice(rawDevName, true))
                     {
                         ComObjPtr<Medium> hostDVDDriveObj;
                         hostDVDDriveObj.createObject();
                         hostDVDDriveObj->init(m->pParent, DeviceType_DVD, Bstr(rawDevName));
-                        list.push_back(hostDVDDriveObj);
+                        list.push_back (hostDVDDriveObj);
                     }
                     free(rawDevName);
                 }
@@ -2867,7 +2890,7 @@ void Host::i_parseMountTable(char *mountTable, std::list< ComObjPtr<Medium> > &l
 /**
  * Helper function to check whether the given device node is a valid drive
  */
-bool Host::i_validateDevice(const char *deviceNode, bool isCDROM)
+bool Host::validateDevice(const char *deviceNode, bool isCDROM)
 {
     struct stat statInfo;
     bool retValue = false;
@@ -2941,11 +2964,10 @@ bool Host::i_validateDevice(const char *deviceNode, bool isCDROM)
  *
  *  @note Locks this object for reading.
  */
-HRESULT Host::i_checkUSBProxyService()
+HRESULT Host::checkUSBProxyService()
 {
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc()))
-        return autoCaller.rc();
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -2970,9 +2992,9 @@ HRESULT Host::i_checkUSBProxyService()
                 return setWarning(E_FAIL,
                                   tr("The USB Proxy Service has not yet been ported to this host"));
             default:
-                return setWarning(E_FAIL, "%s: %Rrc",
-                                  tr("Could not load the Host USB Proxy service"),
-                                  m->pUSBProxyService->getLastError());
+                return setWarning (E_FAIL, "%s: %Rrc",
+                                   tr ("Could not load the Host USB Proxy service"),
+                                   m->pUSBProxyService->getLastError());
         }
     }
 
@@ -2980,46 +3002,38 @@ HRESULT Host::i_checkUSBProxyService()
 }
 #endif /* VBOX_WITH_USB */
 
-HRESULT Host::i_updateNetIfList()
+HRESULT Host::updateNetIfList()
 {
 #ifdef VBOX_WITH_HOSTNETIF_API
-    AssertReturn(!isWriteLockOnCurrentThread(), E_FAIL);
+    AssertReturn(AutoCaller(this).state() == InInit ||
+                 isWriteLockOnCurrentThread(), E_FAIL);
 
-    /** @todo r=klaus it would save lots of clock cycles if for concurrent
-     * threads executing this code we'd only do one interface enumeration
-     * and update, and let the other threads use the result as is. However
-     * if there's a constant hammering of this method, we don't want this
-     * to cause update starvation. */
-    HostNetworkInterfaceList list;
+    HostNetworkInterfaceList list, listCopy;
     int rc = NetIfList(list);
     if (rc)
     {
         Log(("Failed to get host network interface list with rc=%Rrc\n", rc));
         return E_FAIL;
     }
-
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-
     AssertReturn(m->pParent, E_FAIL);
     /* Make a copy as the original may be partially destroyed later. */
-    HostNetworkInterfaceList listCopy(list);
+    listCopy = list;
     HostNetworkInterfaceList::iterator itOld, itNew;
 # ifdef VBOX_WITH_RESOURCE_USAGE_API
-    PerformanceCollector *aCollector = m->pParent->i_performanceCollector();
+    PerformanceCollector *aCollector = m->pParent->performanceCollector();
 # endif
     for (itOld = m->llNetIfs.begin(); itOld != m->llNetIfs.end(); ++itOld)
     {
         bool fGone = true;
         Bstr nameOld;
-        (*itOld)->COMGETTER(Name)(nameOld.asOutParam());
+        (*itOld)->COMGETTER(Name) (nameOld.asOutParam());
         for (itNew = listCopy.begin(); itNew != listCopy.end(); ++itNew)
         {
             Bstr nameNew;
-            (*itNew)->COMGETTER(Name)(nameNew.asOutParam());
+            (*itNew)->COMGETTER(Name) (nameNew.asOutParam());
             if (nameNew == nameOld)
             {
                 fGone = false;
-                (*itNew)->uninit();
                 listCopy.erase(itNew);
                 break;
             }
@@ -3027,8 +3041,7 @@ HRESULT Host::i_updateNetIfList()
         if (fGone)
         {
 # ifdef VBOX_WITH_RESOURCE_USAGE_API
-            (*itOld)->i_unregisterMetrics(aCollector, this);
-            (*itOld)->uninit();
+            (*itOld)->unregisterMetrics(aCollector, this);
 # endif
         }
     }
@@ -3037,22 +3050,22 @@ HRESULT Host::i_updateNetIfList()
      * (see @bugref{6439}).
      */
     for (itNew = list.begin(); itNew != list.end(); ++itNew)
-        (*itNew)->i_setVirtualBox(m->pParent);
+        (*itNew)->setVirtualBox(m->pParent);
     /* At this point listCopy will contain newly discovered interfaces only. */
     for (itNew = listCopy.begin(); itNew != listCopy.end(); ++itNew)
     {
         HostNetworkInterfaceType_T t;
-        HRESULT hrc = (*itNew)->COMGETTER(InterfaceType)(&t);
-        if (FAILED(hrc))
+        HRESULT hr = (*itNew)->COMGETTER(InterfaceType)(&t);
+        if (FAILED(hr))
         {
             Bstr n;
-            (*itNew)->COMGETTER(Name)(n.asOutParam());
+            (*itNew)->COMGETTER(Name) (n.asOutParam());
             LogRel(("Host::updateNetIfList: failed to get interface type for %ls\n", n.raw()));
         }
         else if (t == HostNetworkInterfaceType_Bridged)
         {
 # ifdef VBOX_WITH_RESOURCE_USAGE_API
-            (*itNew)->i_registerMetrics(aCollector, this);
+            (*itNew)->registerMetrics(aCollector, this);
 # endif
         }
     }
@@ -3065,7 +3078,7 @@ HRESULT Host::i_updateNetIfList()
 
 #ifdef VBOX_WITH_RESOURCE_USAGE_API
 
-void Host::i_registerDiskMetrics(PerformanceCollector *aCollector)
+void Host::registerDiskMetrics(PerformanceCollector *aCollector)
 {
     pm::CollectorHAL *hal = aCollector->getHAL();
     /* Create sub metrics */
@@ -3083,7 +3096,7 @@ void Host::i_registerDiskMetrics(PerformanceCollector *aCollector)
                                                               fsRootUsageTotal,
                                                               fsRootUsageUsed,
                                                               fsRootUsageFree);
-    aCollector->registerBaseMetric(fsRootUsage);
+    aCollector->registerBaseMetric (fsRootUsage);
 
     aCollector->registerMetric(new pm::Metric(fsRootUsage, fsRootUsageTotal, 0));
     aCollector->registerMetric(new pm::Metric(fsRootUsage, fsRootUsageTotal,
@@ -3122,7 +3135,7 @@ void Host::i_registerDiskMetrics(PerformanceCollector *aCollector)
             "Percentage of time disk was busy serving I/O requests.");
         pm::BaseMetric *fsLoad  = new pm::HostDiskLoadRaw(hal, this, strName + "/Load",
                                                          *it, fsLoadUtil);
-        aCollector->registerBaseMetric(fsLoad);
+        aCollector->registerBaseMetric (fsLoad);
 
         aCollector->registerMetric(new pm::Metric(fsLoad, fsLoadUtil, 0));
         aCollector->registerMetric(new pm::Metric(fsLoad, fsLoadUtil,
@@ -3139,7 +3152,7 @@ void Host::i_registerDiskMetrics(PerformanceCollector *aCollector)
             "Disk size.");
         pm::BaseMetric *fsUsage = new pm::HostDiskUsage(hal, this, strName + "/Usage",
                                                         *it, fsUsageTotal);
-        aCollector->registerBaseMetric(fsUsage);
+        aCollector->registerBaseMetric (fsUsage);
 
         aCollector->registerMetric(new pm::Metric(fsUsage, fsUsageTotal, 0));
         aCollector->registerMetric(new pm::Metric(fsUsage, fsUsageTotal,
@@ -3151,7 +3164,7 @@ void Host::i_registerDiskMetrics(PerformanceCollector *aCollector)
     }
 }
 
-void Host::i_registerMetrics(PerformanceCollector *aCollector)
+void Host::registerMetrics(PerformanceCollector *aCollector)
 {
     pm::CollectorHAL *hal = aCollector->getHAL();
     /* Create sub metrics */
@@ -3182,20 +3195,20 @@ void Host::i_registerMetrics(PerformanceCollector *aCollector)
     /* Create and register base metrics */
     pm::BaseMetric *cpuLoad = new pm::HostCpuLoadRaw(hal, this, cpuLoadUser, cpuLoadKernel,
                                           cpuLoadIdle);
-    aCollector->registerBaseMetric(cpuLoad);
+    aCollector->registerBaseMetric (cpuLoad);
     pm::BaseMetric *cpuMhz = new pm::HostCpuMhz(hal, this, cpuMhzSM);
-    aCollector->registerBaseMetric(cpuMhz);
+    aCollector->registerBaseMetric (cpuMhz);
     pm::BaseMetric *ramUsage = new pm::HostRamUsage(hal, this,
                                                     ramUsageTotal,
                                                     ramUsageUsed,
                                                     ramUsageFree);
-    aCollector->registerBaseMetric(ramUsage);
+    aCollector->registerBaseMetric (ramUsage);
     pm::BaseMetric *ramVmm = new pm::HostRamVmm(aCollector->getGuestManager(), this,
                                                 ramVMMUsed,
                                                 ramVMMFree,
                                                 ramVMMBallooned,
                                                 ramVMMShared);
-    aCollector->registerBaseMetric(ramVmm);
+    aCollector->registerBaseMetric (ramVmm);
 
     aCollector->registerMetric(new pm::Metric(cpuLoad, cpuLoadUser, 0));
     aCollector->registerMetric(new pm::Metric(cpuLoad, cpuLoadUser,
@@ -3284,10 +3297,10 @@ void Host::i_registerMetrics(PerformanceCollector *aCollector)
                                               new pm::AggregateMin()));
     aCollector->registerMetric(new pm::Metric(ramVmm, ramVMMShared,
                                               new pm::AggregateMax()));
-    i_registerDiskMetrics(aCollector);
+    registerDiskMetrics(aCollector);
 }
 
-void Host::i_unregisterMetrics(PerformanceCollector *aCollector)
+void Host::unregisterMetrics (PerformanceCollector *aCollector)
 {
     aCollector->unregisterMetricsFor(this);
     aCollector->unregisterBaseMetricsFor(this);
@@ -3297,7 +3310,7 @@ void Host::i_unregisterMetrics(PerformanceCollector *aCollector)
 
 
 /* static */
-void Host::i_generateMACAddress(Utf8Str &mac)
+void Host::generateMACAddress(Utf8Str &mac)
 {
     /*
      * Our strategy is as follows: the first three bytes are our fixed

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -38,8 +38,7 @@
 /*******************************************************************************
 *   Internal Functions                                                         *
 *******************************************************************************/
-static DECLCALLBACK(bool) mmR3HyperRelocateCallback(PVM pVM, RTGCPTR GCPtrOld, RTGCPTR GCPtrNew, PGMRELOCATECALL enmMode,
-                                                    void *pvUser);
+static DECLCALLBACK(bool) mmR3HyperRelocateCallback(PVM pVM, RTGCPTR GCPtrOld, RTGCPTR GCPtrNew, PGMRELOCATECALL enmMode, void *pvUser);
 static int mmR3HyperMap(PVM pVM, const size_t cb, const char *pszDesc, PRTGCPTR pGCPtr, PMMLOOKUPHYPER *ppLookup);
 static int mmR3HyperHeapCreate(PVM pVM, const size_t cb, PMMHYPERHEAP *ppHeap, PRTR0PTR pR0PtrHeap);
 static int mmR3HyperHeapMap(PVM pVM, PMMHYPERHEAP pHeap, PRTGCPTR ppHeapGC);
@@ -52,7 +51,7 @@ static DECLCALLBACK(void) mmR3HyperInfoHma(PVM pVM, PCDBGFINFOHLP pHlp, const ch
  * @returns The heap size in bytes.
  * @param   pVM     Pointer to the VM.
  */
-static uint32_t mmR3HyperComputeHeapSize(PVM pVM)
+static uint32_t mmR3ComputeHyperHeapSize(PVM pVM)
 {
     /*
      * Gather parameters.
@@ -124,7 +123,7 @@ int mmR3HyperInit(PVM pVM)
      */
     PCFGMNODE pMM = CFGMR3GetChild(CFGMR3GetRoot(pVM), "MM");
     uint32_t cbHyperHeap;
-    int rc = CFGMR3QueryU32Def(pMM, "cbHyperHeap", &cbHyperHeap, mmR3HyperComputeHeapSize(pVM));
+    int rc = CFGMR3QueryU32Def(pMM, "cbHyperHeap", &cbHyperHeap, mmR3ComputeHyperHeapSize(pVM));
     AssertLogRelRCReturn(rc, rc);
 
     cbHyperHeap = RT_ALIGN_32(cbHyperHeap, PAGE_SIZE);
@@ -149,8 +148,7 @@ int mmR3HyperInit(PVM pVM)
          */
         AssertRelease(pVM->cbSelf == RT_UOFFSETOF(VM, aCpus[pVM->cCpus]));
         RTGCPTR GCPtr;
-        rc = MMR3HyperMapPages(pVM, pVM, pVM->pVMR0, RT_ALIGN_Z(pVM->cbSelf, PAGE_SIZE) >> PAGE_SHIFT, pVM->paVMPagesR3, "VM",
-                               &GCPtr);
+        rc = MMR3HyperMapPages(pVM, pVM, pVM->pVMR0, RT_ALIGN_Z(pVM->cbSelf, PAGE_SIZE) >> PAGE_SHIFT, pVM->paVMPagesR3, "VM", &GCPtr);
         if (RT_SUCCESS(rc))
         {
             pVM->pVMRC = (RTRCPTR)GCPtr;
@@ -353,8 +351,7 @@ static DECLCALLBACK(bool) mmR3HyperRelocateCallback(PVM pVM, RTGCPTR GCPtrOld, R
             /*
              * Accepted!
              */
-            AssertMsg(GCPtrOld == pVM->mm.s.pvHyperAreaGC,
-                      ("GCPtrOld=%RGv pVM->mm.s.pvHyperAreaGC=%RGv\n", GCPtrOld, pVM->mm.s.pvHyperAreaGC));
+            AssertMsg(GCPtrOld == pVM->mm.s.pvHyperAreaGC, ("GCPtrOld=%RGv pVM->mm.s.pvHyperAreaGC=%RGv\n", GCPtrOld, pVM->mm.s.pvHyperAreaGC));
             Log(("Relocating the hypervisor from %RGv to %RGv\n", GCPtrOld, GCPtrNew));
 
             /*
@@ -414,11 +411,9 @@ VMMR3DECL(int) MMR3LockCall(PVM pVM)
  * @param   pszDesc     Description.
  * @param   pGCPtr      Where to store the GC address.
  */
-VMMR3DECL(int) MMR3HyperMapHCPhys(PVM pVM, void *pvR3, RTR0PTR pvR0, RTHCPHYS HCPhys, size_t cb,
-                                  const char *pszDesc, PRTGCPTR pGCPtr)
+VMMR3DECL(int) MMR3HyperMapHCPhys(PVM pVM, void *pvR3, RTR0PTR pvR0, RTHCPHYS HCPhys, size_t cb, const char *pszDesc, PRTGCPTR pGCPtr)
 {
-    LogFlow(("MMR3HyperMapHCPhys: pvR3=%p pvR0=%p HCPhys=%RHp cb=%d pszDesc=%p:{%s} pGCPtr=%p\n",
-             pvR3, pvR0, HCPhys, (int)cb, pszDesc, pszDesc, pGCPtr));
+    LogFlow(("MMR3HyperMapHCPhys: pvR3=%p pvR0=%p HCPhys=%RHp cb=%d pszDesc=%p:{%s} pGCPtr=%p\n", pvR3, pvR0, HCPhys, (int)cb, pszDesc, pszDesc, pGCPtr));
 
     /*
      * Validate input.
@@ -618,8 +613,7 @@ VMMR3DECL(int) MMR3HyperMapMMIO2(PVM pVM, PPDMDEVINS pDevIns, uint32_t iRegion, 
  * @param   pszDesc     Mapping description.
  * @param   pGCPtr      Where to store the GC address corresponding to pvR3.
  */
-VMMR3DECL(int) MMR3HyperMapPages(PVM pVM, void *pvR3, RTR0PTR pvR0, size_t cPages, PCSUPPAGE paPages,
-                                 const char *pszDesc, PRTGCPTR pGCPtr)
+VMMR3DECL(int) MMR3HyperMapPages(PVM pVM, void *pvR3, RTR0PTR pvR0, size_t cPages, PCSUPPAGE paPages, const char *pszDesc, PRTGCPTR pGCPtr)
 {
     LogFlow(("MMR3HyperMapPages: pvR3=%p pvR0=%p cPages=%zu paPages=%p pszDesc=%p:{%s} pGCPtr=%p\n",
              pvR3, pvR0, cPages, paPages, pszDesc, pszDesc, pGCPtr));
@@ -651,9 +645,7 @@ VMMR3DECL(int) MMR3HyperMapPages(PVM pVM, void *pvR3, RTR0PTR pvR0, size_t cPage
         {
             for (size_t i = 0; i < cPages; i++)
             {
-                AssertReleaseMsgReturn(   paPages[i].Phys != 0
-                                       && paPages[i].Phys != NIL_RTHCPHYS
-                                       && !(paPages[i].Phys & PAGE_OFFSET_MASK),
+                AssertReleaseMsgReturn(paPages[i].Phys != 0 && paPages[i].Phys != NIL_RTHCPHYS && !(paPages[i].Phys & PAGE_OFFSET_MASK),
                                        ("i=%#zx Phys=%RHp %s\n", i, paPages[i].Phys, pszDesc),
                                        VERR_INTERNAL_ERROR);
                 paHCPhysPages[i] = paPages[i].Phys;
@@ -815,7 +807,7 @@ static int mmR3HyperHeapCreate(PVM pVM, const size_t cb, PMMHYPERHEAP *ppHeap, P
     int rc = SUPR3PageAllocEx(cPages,
                               0 /*fFlags*/,
                               &pv,
-#if defined(VBOX_WITH_2X_4GB_ADDR_SPACE) || defined(VBOX_WITH_MORE_RING0_MEM_MAPPINGS)
+#ifdef VBOX_WITH_2X_4GB_ADDR_SPACE
                               &pvR0,
 #else
                               NULL,
@@ -823,7 +815,7 @@ static int mmR3HyperHeapCreate(PVM pVM, const size_t cb, PMMHYPERHEAP *ppHeap, P
                               paPages);
     if (RT_SUCCESS(rc))
     {
-#if !defined(VBOX_WITH_2X_4GB_ADDR_SPACE) && !defined(VBOX_WITH_MORE_RING0_MEM_MAPPINGS)
+#ifndef VBOX_WITH_2X_4GB_ADDR_SPACE
         pvR0 = (uintptr_t)pv;
 #endif
         memset(pv, 0, cbAligned);
@@ -1011,23 +1003,15 @@ VMMR3DECL(int) MMR3HyperAllocOnceNoRelEx(PVM pVM, size_t cb, unsigned uAlignment
     int rc = SUPR3PageAllocEx(cPages,
                               0 /*fFlags*/,
                               &pvPages,
-#ifdef VBOX_WITH_MORE_RING0_MEM_MAPPINGS
-                              &pvR0,
-#else
                               fFlags & MMHYPER_AONR_FLAGS_KERNEL_MAPPING ? &pvR0 : NULL,
-#endif
                               paPages);
     if (RT_SUCCESS(rc))
     {
-#ifdef VBOX_WITH_MORE_RING0_MEM_MAPPINGS
-        Assert(pvR0 != NIL_RTR0PTR);
-#else
         if (!(fFlags & MMHYPER_AONR_FLAGS_KERNEL_MAPPING))
-# ifdef VBOX_WITH_2X_4GB_ADDR_SPACE
+#ifdef VBOX_WITH_2X_4GB_ADDR_SPACE
             pvR0 = NIL_RTR0PTR;
-# else
+#else
             pvR0 = (RTR0PTR)pvPages;
-# endif
 #endif
 
         memset(pvPages, 0, cbAligned);
@@ -1443,63 +1427,3 @@ static DECLCALLBACK(void) mmR3HyperInfoHma(PVM pVM, PCDBGFINFOHLP pHlp, const ch
         pLookup = (PMMLOOKUPHYPER)((uint8_t *)pLookup + pLookup->offNext);
     }
 }
-
-
-/**
- * Re-allocates memory from the hyper heap.
- *
- * @returns VBox status code.
- * @param   pVM             Pointer to the VM.
- * @param   pvOld           The existing block of memory in the hyper heap to
- *                          re-allocate (can be NULL).
- * @param   cbOld           Size of the existing block.
- * @param   uAlignmentNew   Required memory alignment in bytes. Values are
- *                          0,8,16,32 and PAGE_SIZE. 0 -> default alignment,
- *                          i.e. 8 bytes.
- * @param   enmTagNew       The statistics tag.
- * @param   cbNew           The required size of the new block.
- * @param   ppv             Where to store the address to the re-allocated
- *                          block.
- *
- * @remarks This does not work like normal realloc() on failure, the memory
- *          pointed to by @a pvOld is lost if there isn't sufficient space on
- *          the hyper heap for the re-allocation to succeed.
-*/
-VMMR3DECL(int) MMR3HyperRealloc(PVM pVM, void *pvOld, size_t cbOld, unsigned uAlignmentNew, MMTAG enmTagNew, size_t cbNew,
-                                void **ppv)
-{
-    if (!pvOld)
-        return MMHyperAlloc(pVM, cbNew, uAlignmentNew, enmTagNew, ppv);
-
-    if (!cbNew && pvOld)
-        return MMHyperFree(pVM, pvOld);
-
-    if (cbOld == cbNew)
-        return VINF_SUCCESS;
-
-    size_t cbData = RT_MIN(cbNew, cbOld);
-    void *pvTmp = RTMemTmpAlloc(cbData);
-    if (RT_UNLIKELY(!pvTmp))
-    {
-        MMHyperFree(pVM, pvOld);
-        return VERR_NO_TMP_MEMORY;
-    }
-    memcpy(pvTmp, pvOld, cbData);
-
-    int rc = MMHyperFree(pVM, pvOld);
-    if (RT_SUCCESS(rc))
-    {
-        rc = MMHyperAlloc(pVM, cbNew, uAlignmentNew, enmTagNew, ppv);
-        if (RT_SUCCESS(rc))
-        {
-            Assert(cbData <= cbNew);
-            memcpy(*ppv, pvTmp, cbData);
-        }
-    }
-    else
-        AssertMsgFailed(("Failed to free hyper heap block pvOld=%p cbOld=%u\n", pvOld, cbOld));
-
-    RTMemTmpFree(pvTmp);
-    return rc;
-}
-

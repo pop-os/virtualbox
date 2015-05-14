@@ -1,6 +1,8 @@
 /* $Id: UIWizard.cpp $ */
 /** @file
- * VBox Qt GUI - UIWizard class implementation.
+ *
+ * VBox frontends: Qt4 GUI ("VirtualBox"):
+ * UIWizard class implementation
  */
 
 /*
@@ -15,25 +17,16 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Global includes: */
-# include <QAbstractButton>
-# include <QLayout>
-
-/* Local includes: */
-# include "UIWizard.h"
-# include "UIWizardPage.h"
-# include "VBoxGlobal.h"
-# include "QIRichTextLabel.h"
-# include "UIExtraDataManager.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
+#include <QAbstractButton>
+#include <QLayout>
 #include <qmath.h>
 
+/* Local includes: */
+#include "UIWizard.h"
+#include "UIWizardPage.h"
+#include "VBoxGlobal.h"
+#include "QIRichTextLabel.h"
 
 void UIWizard::sltCurrentIdChanged(int iId)
 {
@@ -43,7 +36,7 @@ void UIWizard::sltCurrentIdChanged(int iId)
     if (iId == 0)
         fIsHideShowDescriptionButtonAvailable = true;
     /* But first-run wizard has no such button anyway: */
-    if (m_type == WizardType_FirstRun)
+    if (m_type == UIWizardType_FirstRun)
         fIsHideShowDescriptionButtonAvailable = false;
     /* Set a flag for hide/show description button finally: */
     setOption(QWizard::HaveCustomButton1, fIsHideShowDescriptionButtonAvailable);
@@ -57,25 +50,47 @@ void UIWizard::sltCustomButtonClicked(int iId)
         /* Cleanup: */
         cleanup();
 
-        /* Toggle mode: */
+        /* Compose wizard's name: */
+        QString strWizardName = nameForType(m_type);
+        /* Load mode settings: */
+        QStringList wizards = vboxGlobal().virtualBox().GetExtraDataStringList(GUI_HideDescriptionForWizards);
+
+        /* Switch mode: */
         switch (m_mode)
         {
-            case WizardMode_Basic:  m_mode = WizardMode_Expert; break;
-            case WizardMode_Expert: m_mode = WizardMode_Basic;  break;
-            default: AssertMsgFailed(("Invalid mode: %d", m_mode)); break;
+            case UIWizardMode_Basic:
+            {
+                m_mode = UIWizardMode_Expert;
+                if (!wizards.contains(strWizardName))
+                    wizards << strWizardName;
+                break;
+            }
+            case UIWizardMode_Expert:
+            {
+                m_mode = UIWizardMode_Basic;
+                if (wizards.contains(strWizardName))
+                    wizards.removeAll(strWizardName);
+                break;
+            }
+            default:
+            {
+                AssertMsgFailed(("Invalid mode: %d", m_mode));
+                break;
+            }
         }
-        /* Save mode: */
-        gEDataManager->setModeForWizardType(m_type, m_mode);
+
+        /* Save mode settings: */
+        vboxGlobal().virtualBox().SetExtraDataStringList(GUI_HideDescriptionForWizards, wizards);
 
         /* Prepare: */
         prepare();
     }
 }
 
-UIWizard::UIWizard(QWidget *pParent, WizardType type, WizardMode mode /* = WizardMode_Auto */)
+UIWizard::UIWizard(QWidget *pParent, UIWizardType type, UIWizardMode mode)
     : QIWithRetranslateUI<QWizard>(pParent)
     , m_type(type)
-    , m_mode(mode == WizardMode_Auto ? gEDataManager->modeForWizardType(m_type) : mode)
+    , m_mode(mode == UIWizardMode_Auto ? loadModeForType(m_type) : mode)
 {
 #ifdef Q_WS_WIN
     /* Hide window icon: */
@@ -105,14 +120,8 @@ void UIWizard::retranslateUi()
     /* Translate basic/expert button: */
     switch (m_mode)
     {
-        case WizardMode_Basic:
-            setButtonText(QWizard::CustomButton1, tr("&Expert Mode"));
-            button(QWizard::CustomButton1)->setToolTip(tr("Switch to <nobr><b>Expert Mode</b></nobr>, a one-page dialog for experienced users."));
-            break;
-        case WizardMode_Expert:
-            setButtonText(QWizard::CustomButton1, tr("&Guided Mode"));
-            button(QWizard::CustomButton1)->setToolTip(tr("Switch to <nobr><b>Guided Mode</b></nobr>, a step-by-step dialog with detailed explanations."));
-            break;
+        case UIWizardMode_Basic: setButtonText(QWizard::CustomButton1, tr("Hide Description")); break;
+        case UIWizardMode_Expert: setButtonText(QWizard::CustomButton1, tr("Show Description")); break;
         default: AssertMsgFailed(("Invalid mode: %d", m_mode)); break;
     }
 }
@@ -179,7 +188,7 @@ void UIWizard::cleanup()
 void UIWizard::resizeToGoldenRatio()
 {
     /* Check if wizard is in basic or expert mode: */
-    if (m_mode == WizardMode_Expert)
+    if (m_mode == UIWizardMode_Expert)
     {
         /* Unfortunately QWizard hides some of useful API in private part,
          * and also have few layouting bugs which could be easy fixed
@@ -395,17 +404,17 @@ double UIWizard::ratio()
 
     switch (m_type)
     {
-        case WizardType_CloneVM:
+        case UIWizardType_CloneVM:
             dRatio -= 0.4;
             break;
-        case WizardType_NewVD:
-        case WizardType_CloneVD:
+        case UIWizardType_NewVD:
+        case UIWizardType_CloneVD:
             dRatio += 0.1;
             break;
-        case WizardType_ExportAppliance:
+        case UIWizardType_ExportAppliance:
             dRatio += 0.3;
             break;
-        case WizardType_FirstRun:
+        case UIWizardType_FirstRun:
             dRatio += 0.3;
             break;
         default:
@@ -432,7 +441,7 @@ int UIWizard::proposedWatermarkHeight()
 
     /* Acquire wizard-layout top-margin: */
     int iTopMargin = 0;
-    if (m_mode == WizardMode_Basic)
+    if (m_mode == UIWizardMode_Basic)
     {
         if (wizardStyle() == QWizard::ModernStyle)
             iTopMargin = pStyle->pixelMetric(QStyle::PM_LayoutTopMargin);
@@ -440,7 +449,7 @@ int UIWizard::proposedWatermarkHeight()
 
     /* Acquire wizard-header height: */
     int iTitleHeight = 0;
-    if (m_mode == WizardMode_Basic)
+    if (m_mode == UIWizardMode_Basic)
     {
         /* We have no direct access to QWizardHeader inside QWizard private data...
          * From Qt sources it seems title font is hardcoded as current font point-size + 4: */
@@ -452,7 +461,7 @@ int UIWizard::proposedWatermarkHeight()
 
     /* Acquire spacing between wizard-header and wizard-page: */
     int iMarginBetweenTitleAndPage = 0;
-    if (m_mode == WizardMode_Basic)
+    if (m_mode == UIWizardMode_Basic)
     {
         /* We have no direct access to margin between QWizardHeader and wizard-pages...
          * From Qt sources it seems its hardcoded as just 7 pixels: */
@@ -516,4 +525,35 @@ void UIWizard::assignWatermarkHelper()
     setPixmap(QWizard::WatermarkPixmap, pixWatermarkNew);
 }
 #endif /* !Q_WS_MAC */
+
+/* static */
+QString UIWizard::nameForType(UIWizardType type)
+{
+    QString strName;
+    switch (type)
+    {
+        case UIWizardType_NewVM: strName = "NewVM"; break;
+        case UIWizardType_CloneVM: strName = "CloneVM"; break;
+        case UIWizardType_ExportAppliance: strName = "ExportAppliance"; break;
+        case UIWizardType_ImportAppliance: strName = "ImportAppliance"; break;
+        case UIWizardType_FirstRun: strName = "FirstRun"; break;
+        case UIWizardType_NewVD: strName = "NewVD"; break;
+        case UIWizardType_CloneVD: strName = "CloneVD"; break;
+    }
+    return strName;
+}
+
+/* static */
+UIWizardMode UIWizard::loadModeForType(UIWizardType type)
+{
+    /* Some wizard use only basic mode: */
+    if (type == UIWizardType_FirstRun)
+        return UIWizardMode_Basic;
+    /* Get mode from extra-data: */
+    QStringList wizards = vboxGlobal().virtualBox().GetExtraDataStringList(GUI_HideDescriptionForWizards);
+    if (wizards.contains(nameForType(type)))
+        return UIWizardMode_Expert;
+    /* Return mode: */
+    return UIWizardMode_Basic;
+}
 

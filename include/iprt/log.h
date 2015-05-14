@@ -255,7 +255,7 @@ typedef FNRTLOGPREFIX *PFNRTLOGPREFIX;
 
 
 /**
- * Logger instance structure for raw-mode context (RC).
+ * Logger instance structure for GC.
  */
 struct RTLOGGERRC
 {
@@ -457,8 +457,6 @@ typedef enum RTLOGDEST
     RTLOGDEST_DEBUGGER      = 0x00000008,
     /** Log to com port. */
     RTLOGDEST_COM           = 0x00000010,
-    /** Log a memory ring buffer. */
-    RTLOGDEST_RINGBUF       = 0x00000020,
     /** Just a dummy flag to be used when no other flag applies. */
     RTLOGDEST_DUMMY         = 0x20000000,
     /** Log to a user defined output stream. */
@@ -1130,7 +1128,7 @@ RTDECL(void) RTLogPrintfEx(void *pvInstance, unsigned fFlags, unsigned iGroup, c
  */
 #ifdef LOG_USE_C99
 # define LogRelFunc(a) \
-    _LogRelIt(LOG_REL_INSTANCE, RTLOGGRPFLAGS_LEVEL_1, LOG_GROUP, LOG_FN_FMT ": %M", RT_GCC_EXTENSION __PRETTY_FUNCTION__, _LogRemoveParentheseis a )
+    _LogRelIt(LOG_REL_INSTANCE, RTLOGGRPFLAGS_LEVEL_1, LOG_GROUP, LOG_FN_FMT ": %M", __PRETTY_FUNCTION__, _LogRemoveParentheseis a )
 # define LogFunc(a) \
            _LogIt(LOG_INSTANCE, RTLOGGRPFLAGS_LEVEL_1, LOG_GROUP, LOG_FN_FMT ": %M", __PRETTY_FUNCTION__, _LogRemoveParentheseis a )
 #else

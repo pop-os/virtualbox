@@ -1,6 +1,8 @@
 /* $Id: UISettingsPage.cpp $ */
 /** @file
- * VBox Qt GUI - UISettingsPage class implementation.
+ *
+ * VBox frontends: Qt4 GUI ("VirtualBox"):
+ * UISettingsPage class implementation
  */
 
 /*
@@ -15,22 +17,15 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* GUI includes: */
-# include "UIConverter.h"
-# include "UISettingsPage.h"
-# include "QIWidgetValidator.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
+#include "UIConverter.h"
+#include "UISettingsPage.h"
+#include "QIWidgetValidator.h"
 
 /* Settings page constructor, hidden: */
 UISettingsPage::UISettingsPage(UISettingsPageType pageType)
     : m_pageType(pageType)
-    , m_configurationAccessLevel(ConfigurationAccessLevel_Null)
+    , m_dialogType(SettingsDialogType_Wrong)
     , m_cId(-1)
     , m_fProcessed(false)
     , m_fFailed(false)

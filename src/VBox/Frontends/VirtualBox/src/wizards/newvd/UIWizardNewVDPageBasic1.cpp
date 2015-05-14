@@ -1,6 +1,8 @@
 /* $Id: UIWizardNewVDPageBasic1.cpp $ */
 /** @file
- * VBox Qt GUI - UIWizardNewVDPageBasic1 class implementation.
+ *
+ * VBox frontends: Qt4 GUI ("VirtualBox"):
+ * UIWizardNewVDPageBasic1 class implementation
  */
 
 /*
@@ -15,26 +17,19 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QVBoxLayout>
-# include <QButtonGroup>
-# include <QRadioButton>
+#include <QVBoxLayout>
+#include <QButtonGroup>
+#include <QRadioButton>
 
 /* GUI includes: */
-# include "UIWizardNewVDPageBasic1.h"
-# include "UIWizardNewVD.h"
-# include "VBoxGlobal.h"
-# include "QIRichTextLabel.h"
+#include "UIWizardNewVDPageBasic1.h"
+#include "UIWizardNewVD.h"
+#include "VBoxGlobal.h"
+#include "QIRichTextLabel.h"
 
 /* COM includes: */
-# include "CSystemProperties.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
+#include "CSystemProperties.h"
 
 UIWizardNewVDPage1::UIWizardNewVDPage1()
 {
@@ -49,8 +44,8 @@ void UIWizardNewVDPage1::addFormatButton(QWidget *pParent, QVBoxLayout *pFormatL
     for (int i = 0; i < capabilities.size(); i++)
         uFormatCapabilities |= capabilities[i];
 
-    if (!(uFormatCapabilities & KMediumFormatCapabilities_CreateFixed ||
-          uFormatCapabilities & KMediumFormatCapabilities_CreateDynamic))
+    if (!(uFormatCapabilities & MediumFormatCapabilities_CreateFixed ||
+          uFormatCapabilities & MediumFormatCapabilities_CreateDynamic))
         return;
 
     /* Check that medium format supports creation of virtual hard-disks: */

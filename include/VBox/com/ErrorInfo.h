@@ -31,8 +31,8 @@
 #include "VBox/com/Guid.h"
 #include "VBox/com/assert.h"
 
-COM_STRUCT_OR_CLASS(IProgress);
-COM_STRUCT_OR_CLASS(IVirtualBoxErrorInfo);
+struct IProgress;
+struct IVirtualBoxErrorInfo;
 
 namespace com
 {

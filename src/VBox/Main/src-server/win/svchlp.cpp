@@ -1,4 +1,3 @@
-/* $Id: svchlp.cpp $ */
 /** @file
  * Definition of SVC Helper Process control routines.
  */

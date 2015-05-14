@@ -396,11 +396,11 @@ static int handleOp(HandlerArg *a, OPCODE enmCode, int iStart, int *pcProcessed)
                      ++it)
                 {
                     std::string address, strOffset;
-                    size_t pos = it->find('=');
+                    int pos = it->find('=');
                     LONG lOffset = 0;
                     Bstr bstrAddress;
 
-                    AssertReturn(pos != std::string::npos, errorArgument("invalid loopback string"));
+                    AssertReturn(pos != -1, errorArgument("invalid loopback string"));
 
                     address = it->substr(0, pos);
                     strOffset = it->substr(pos + 1);

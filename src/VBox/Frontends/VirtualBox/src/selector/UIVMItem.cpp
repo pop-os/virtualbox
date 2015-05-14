@@ -1,6 +1,8 @@
 /* $Id: UIVMItem.cpp $ */
 /** @file
- * VBox Qt GUI - UIVMItem class implementation.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * UIVMItem class implementation
  */
 
 /*
@@ -16,27 +18,25 @@
  */
 
 #ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
+# include "precomp.h"
 #else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 /* Qt includes: */
-# include <QFileInfo>
-# include <QIcon>
+#include <QFileInfo>
+#include <QIcon>
 
 /* GUI includes: */
-# include "UIVMItem.h"
-# include "VBoxGlobal.h"
-# include "UIConverter.h"
-# include "UIExtraDataManager.h"
-# ifdef Q_WS_MAC
-#  include <ApplicationServices/ApplicationServices.h>
-# endif /* Q_WS_MAC */
+#include "UIVMItem.h"
+#include "VBoxGlobal.h"
+#include "UIConverter.h"
+#ifdef Q_WS_MAC
+# include <ApplicationServices/ApplicationServices.h>
+#endif /* Q_WS_MAC */
 
 /* COM includes: */
-# include "CSnapshot.h"
+#include "CSnapshot.h"
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 
 // Helpers
 ////////////////////////////////////////////////////////////////////////////////
@@ -152,10 +152,10 @@ UIVMItem::~UIVMItem()
 // public members
 ////////////////////////////////////////////////////////////////////////////////
 
-QPixmap UIVMItem::osPixmap(QSize *pLogicalSize /* = 0 */) const
+QIcon UIVMItem::osIcon() const
 {
-    return m_fAccessible ? vboxGlobal().vmGuestOSTypeIcon(m_strOSTypeId, pLogicalSize) :
-                           vboxGlobal().vmGuestOSTypeIcon("Other", pLogicalSize);
+    return m_fAccessible ? vboxGlobal().vmGuestOSTypeIcon(m_strOSTypeId) :
+                           QPixmap(":/os_other.png");
 }
 
 QString UIVMItem::machineStateName() const
@@ -166,8 +166,8 @@ QString UIVMItem::machineStateName() const
 
 QIcon UIVMItem::machineStateIcon() const
 {
-    return m_fAccessible ? gpConverter->toIcon(m_machineState) :
-                           gpConverter->toIcon(KMachineState_Aborted);
+    return m_fAccessible ? gpConverter->toPixmap(m_machineState) :
+                           QPixmap(":/state_aborted_16px.png");
 }
 
 QString UIVMItem::sessionStateName() const
@@ -256,15 +256,12 @@ bool UIVMItem::recache()
 #endif
         }
 
-        /* Determine configuration access level: */
-        m_configurationAccessLevel = ::configurationAccessLevel(m_sessionState, m_machineState);
-        /* Also take restrictions into account: */
-        if (   m_configurationAccessLevel != ConfigurationAccessLevel_Null
-            && !gEDataManager->machineReconfigurationEnabled(m_strId))
-            m_configurationAccessLevel = ConfigurationAccessLevel_Null;
+        /* Should we allow reconfiguration for this item? */
+        m_fReconfigurable = m_machineState != KMachineState_Stuck &&
+                            VBoxGlobal::shouldWeAllowMachineReconfiguration(m_machine);
 
         /* Should we show details for this item? */
-        m_fHasDetails = gEDataManager->showMachineInSelectorDetails(m_strId);
+        m_fHasDetails = VBoxGlobal::shouldWeShowDetails(m_machine);
     }
     else
     {
@@ -289,8 +286,8 @@ bool UIVMItem::recache()
         mWinId = (WId) ~0;
 #endif
 
-        /* Set configuration access level to NULL: */
-        m_configurationAccessLevel = ConfigurationAccessLevel_Null;
+        /* Should we allow reconfiguration for this item? */
+        m_fReconfigurable = false;
 
         /* Should we show details for this item? */
         m_fHasDetails = true;
@@ -433,28 +430,29 @@ bool UIVMItem::switchTo()
 /* static */
 bool UIVMItem::isItemEditable(UIVMItem *pItem)
 {
-    return pItem &&
-           pItem->accessible() &&
+    return pItem->accessible() &&
            pItem->sessionState() == KSessionState_Unlocked;
 }
 
 /* static */
 bool UIVMItem::isItemSaved(UIVMItem *pItem)
 {
-    return pItem &&
-           pItem->accessible() &&
-           pItem->machineState() == KMachineState_Saved;
+    if (pItem->accessible() &&
+        pItem->machineState() == KMachineState_Saved)
+        return true;
+    return false;
 }
 
 /* static */
 bool UIVMItem::isItemPoweredOff(UIVMItem *pItem)
 {
-    return pItem &&
-           pItem->accessible() &&
-           (pItem->machineState() == KMachineState_PoweredOff ||
-            pItem->machineState() == KMachineState_Saved ||
-            pItem->machineState() == KMachineState_Teleported ||
-            pItem->machineState() == KMachineState_Aborted);
+    if (pItem->accessible() &&
+        (pItem->machineState() == KMachineState_PoweredOff ||
+         pItem->machineState() == KMachineState_Saved ||
+         pItem->machineState() == KMachineState_Teleported ||
+         pItem->machineState() == KMachineState_Aborted))
+        return true;
+    return false;
 }
 
 /* static */
@@ -466,49 +464,32 @@ bool UIVMItem::isItemStarted(UIVMItem *pItem)
 /* static */
 bool UIVMItem::isItemRunning(UIVMItem *pItem)
 {
-    return pItem &&
-           pItem->accessible() &&
-           (pItem->machineState() == KMachineState_Running ||
-            pItem->machineState() == KMachineState_Teleporting ||
-            pItem->machineState() == KMachineState_LiveSnapshotting);
-}
-
-/* static */
-bool UIVMItem::isItemRunningHeadless(UIVMItem *pItem)
-{
-    if (isItemRunning(pItem))
-    {
-        /* Open session to determine which frontend VM is started with: */
-        CSession session = vboxGlobal().openExistingSession(pItem->id());
-        if (!session.isNull())
-        {
-            /* Acquire the session type: */
-            const QString strSessionType = session.GetMachine().GetSessionType();
-            /* Close the session early: */
-            session.UnlockMachine();
-            /* Check whether we are in 'headless' session type: */
-            if (strSessionType.compare("headless", Qt::CaseInsensitive) == 0)
-                return true;
-        }
-    }
+    if (pItem->accessible() &&
+        (pItem->machineState() == KMachineState_Running ||
+         pItem->machineState() == KMachineState_Teleporting ||
+         pItem->machineState() == KMachineState_LiveSnapshotting))
+        return true;
     return false;
 }
 
 /* static */
 bool UIVMItem::isItemPaused(UIVMItem *pItem)
 {
-    return pItem &&
-           pItem->accessible() &&
-           (pItem->machineState() == KMachineState_Paused ||
-            pItem->machineState() == KMachineState_TeleportingPausedVM);
+    if (pItem->accessible() &&
+        (pItem->machineState() == KMachineState_Paused ||
+         pItem->machineState() == KMachineState_TeleportingPausedVM))
+        return true;
+    return false;
+
 }
 
 /* static */
 bool UIVMItem::isItemStuck(UIVMItem *pItem)
 {
-    return pItem &&
-           pItem->accessible() &&
-           pItem->machineState() == KMachineState_Stuck;
+    if (pItem->accessible() &&
+        pItem->machineState() == KMachineState_Stuck)
+        return true;
+    return false;
 }
 
 QString UIVMItemMimeData::m_type = "application/org.virtualbox.gui.vmselector.uivmitem";

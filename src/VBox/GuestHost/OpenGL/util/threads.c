@@ -28,10 +28,10 @@ void crInitTSDF(CRtsd *tsd, void (*destructor)(void *))
     }
     (void) destructor;
 #else
-    if (pthread_key_create(&tsd->key, destructor) != 0)
-        crDebug("crServer: failed to allocate TLS key.");
-    else
-        crDebug("crServer: TLS key %d allocated.", tsd->key);
+    if (pthread_key_create(&tsd->key, destructor) != 0) {
+        perror(INIT_TSD_ERROR);
+        crError("crInitTSD failed!");
+    }
 #endif
     tsd->initMagic = INIT_MAGIC;
 }
@@ -52,9 +52,10 @@ void crFreeTSD(CRtsd *tsd)
     }
 #else
     if (pthread_key_delete(tsd->key) != 0)
-        crDebug("crServer: failed to delete TLS key %d.", tsd->key);
-    else
-        crDebug("crServer: TLS key %d deleted.", tsd->key);
+    {
+//        perror(FREE_TSD_ERROR);
+//        crError("crFreeTSD failed!");
+    }
 #endif
     tsd->initMagic = 0x0;
 }

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2015 Oracle Corporation
+ * Copyright (C) 2008-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -72,8 +72,7 @@ int CollectorHAL::getRawHostDiskLoad(const char * /* name */, uint64_t * /* disk
     return VERR_NOT_IMPLEMENTED;
 }
 
-int CollectorHAL::getRawProcessCpuLoad(RTPROCESS  /* process */, uint64_t * /* user */,
-                                       uint64_t * /* kernel */, uint64_t * /* total */)
+int CollectorHAL::getRawProcessCpuLoad(RTPROCESS  /* process */, uint64_t * /* user */, uint64_t * /* kernel */, uint64_t * /* total */)
 {
     return VERR_NOT_IMPLEMENTED;
 }
@@ -83,8 +82,7 @@ int CollectorHAL::getHostMemoryUsage(ULONG * /* total */, ULONG * /* used */, UL
     return VERR_NOT_IMPLEMENTED;
 }
 
-int CollectorHAL::getHostFilesystemUsage(const char * /* name */, ULONG * /* total */, ULONG * /* used */,
-                                         ULONG * /* available */)
+int CollectorHAL::getHostFilesystemUsage(const char * /* name */, ULONG * /* total */, ULONG * /* used */, ULONG * /* available */)
 {
     return VERR_NOT_IMPLEMENTED;
 }
@@ -259,7 +257,7 @@ int CollectorGuest::enableVMMStats(bool mCollectVMMStats)
 
         ComPtr<IInternalSessionControl> directControl;
 
-        ret = mMachine->i_getDirectControl(&directControl);
+        ret = mMachine->getDirectControl(&directControl);
         if (ret != S_OK)
             return ret;
 
@@ -301,16 +299,16 @@ HRESULT CollectorGuest::enableInternal(ULONG mask)
         AutoCaller autoCaller(mMachine);
         if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-        mMachineName = mMachine->i_getName();
+        mMachineName = mMachine->getName();
 
         ComPtr<IInternalSessionControl> directControl;
 
-        ret = mMachine->i_getDirectControl(&directControl);
+        ret = mMachine->getDirectControl(&directControl);
         if (ret != S_OK)
             return ret;
 
         /* get the associated console; this is a remote call (!) */
-        ret = directControl->COMGETTER(RemoteConsole)(mConsole.asOutParam());
+        ret = directControl->GetRemoteConsole(mConsole.asOutParam());
         if (ret != S_OK)
             return ret;
 
@@ -1102,7 +1100,7 @@ void MachineDiskUsage::collect()
 
         AutoReadLock local_alock(pMedium COMMA_LOCKVAL_SRC_POS);
 
-        used += (ULONG)(pMedium->i_getSize() / _1M);
+        used += (ULONG)(pMedium->getSize() / _1M);
     }
 
     mUsed->put(used);

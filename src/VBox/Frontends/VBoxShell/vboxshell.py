@@ -20,7 +20,7 @@ P.S. Our apologies for the code quality.
 
 __copyright__ = \
 """
-Copyright (C) 2009-2015 Oracle Corporation
+Copyright (C) 2009-2013 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -30,7 +30,7 @@ Foundation, in version 2 as it comes in the "COPYING" file of the
 VirtualBox OSE distribution. VirtualBox OSE is distributed in the
 hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
 """
-__version__ = "$Revision: 99520 $"
+__version__ = "$Revision: 92173 $"
 
 
 import os, sys
@@ -249,13 +249,9 @@ def removeVm(ctx, mach):
     uuid = mach.id
     print "removing machine ", mach.name, "with UUID", uuid
     cmdClosedVm(ctx, mach, detachVmDevice, ["ALL"])
-    disks = mach.unregister(ctx['global'].constants.CleanupMode_Full)
+    mach = mach.unregister(ctx['global'].constants.CleanupMode_Full)
     if mach:
-        progress = mach.deleteConfig(disks)
-        if progressBar(ctx, progress, 100) and int(progress.resultCode) == 0:
-            print "Success!"
-        else:
-            reportError(ctx, progress)
+        mach.deleteSettings()
     # update cache
     getMachines(ctx, True)
 
@@ -318,7 +314,7 @@ def asFlag(var):
 def getFacilityStatus(ctx, guest, facilityType):
     (status, _timestamp) = guest.getFacilityStatus(facilityType)
     return asEnumElem(ctx, 'AdditionsFacilityStatus', status)
-
+        
 def perfStats(ctx, mach):
     if not ctx['perf']:
         return
@@ -381,7 +377,7 @@ def monitorSource(ctx, eventSource, active, dur):
             if mtev:
                 printMultiTouchEvent(ctx, mtev)
 
-    class EventListener(object):
+    class EventListener:
         def __init__(self, arg):
             pass
 
@@ -548,7 +544,7 @@ def takeScreenshotOld(_ctx, console, args):
         screen = int(args[3])
     else:
         screen = 0
-    (fbw, fbh, _fbbpp, fbx, fby, _) = display.getScreenResolution(screen)
+    (fbw, fbh, _fbbpp, fbx, fby) = display.getScreenResolution(screen)
     if len(args) > 1:
         w = int(args[1])
     else:
@@ -559,7 +555,7 @@ def takeScreenshotOld(_ctx, console, args):
         h = fbh
 
     print "Saving screenshot (%d x %d) screen %d in %s..." % (w, h, screen, f)
-    data = display.takeScreenShotToArray(screen, w, h, ctx['const'].BitmapFormat_RGBA)
+    data = display.takeScreenShotToArray(screen, w, h)
     size = (w, h)
     mode = "RGBA"
     im = Image.frombuffer(mode, size, str(data), "raw", mode, 0, 1)
@@ -575,7 +571,7 @@ def takeScreenshot(_ctx, console, args):
         screen = int(args[3])
     else:
         screen = 0
-    (fbw, fbh, _fbbpp, fbx, fby, _) = display.getScreenResolution(screen)
+    (fbw, fbh, _fbbpp, fbx, fby) = display.getScreenResolution(screen)
     if len(args) > 1:
         w = int(args[1])
     else:
@@ -586,7 +582,7 @@ def takeScreenshot(_ctx, console, args):
         h = fbh
 
     print "Saving screenshot (%d x %d) screen %d in %s..." % (w, h, screen, f)
-    data = display.takeScreenShotToArray(screen, w, h, ctx['const'].BitmapFormat_PNG)
+    data = display.takeScreenShotPNGToArray(screen, w, h)
     pngfile = open(f, 'wb')
     pngfile.write(data)
     pngfile.close()
@@ -721,7 +717,7 @@ def cmdExistingVm(ctx, mach, cmd, args):
            'guest':           lambda: guestExec(ctx, mach, console, args),
            'ginfo':           lambda: ginfo(ctx, console, args),
            'guestlambda':     lambda: args[0](ctx, mach, console, args[1:]),
-           'save':            lambda: progressBar(ctx, session.machine.saveState()),
+           'save':            lambda: progressBar(ctx, console.saveState()),
            'screenshot':      lambda: takeScreenshot(ctx, console, args),
            'teleport':        lambda: teleport(ctx, session, console, args),
            'gueststats':      lambda: guestStats(ctx, console, args),
@@ -2212,7 +2208,7 @@ def createHddCmd(ctx, args):
     else:
         fmt = "vdi"
 
-    hdd = ctx['vb'].createMedium(format, loc, ctx['global'].constants.AccessMode_ReadWrite, ctx['global'].constants.DeviceType_HardDisk)
+    hdd = ctx['vb'].createHardDisk(format, loc)
     progress = hdd.createBaseStorage(size, (ctx['global'].constants.MediumVariant_Standard, ))
     if progressBar(ctx,progress) and hdd.id:
         print "created HDD at %s as %s" % (colPath(ctx,hdd.location), hdd.id)
@@ -2634,7 +2630,7 @@ def snapshotCmd(ctx, args):
             desc = args[4]
         else:
             desc = ""
-        cmdAnyVm(ctx, mach, lambda ctx, mach, console, args: progressBar(ctx, mach.takeSnapshot(name, desc, true)))
+        cmdAnyVm(ctx, mach, lambda ctx, mach, console, args: progressBar(ctx, console.takeSnapshot(name, desc)))
         return 0
 
     if cmd == 'restore':
@@ -2643,7 +2639,7 @@ def snapshotCmd(ctx, args):
             return 0
         name = args[3]
         snap = mach.findSnapshot(name)
-        cmdAnyVm(ctx, mach, lambda ctx, mach, console, args: progressBar(ctx, mach.restoreSnapshot(snap)))
+        cmdAnyVm(ctx, mach, lambda ctx, mach, console, args: progressBar(ctx, console.restoreSnapshot(snap)))
         return 0
 
     if cmd == 'restorecurrent':
@@ -2651,7 +2647,7 @@ def snapshotCmd(ctx, args):
             print "usage: snapshot vm restorecurrent"
             return 0
         snap = mach.currentSnapshot()
-        cmdAnyVm(ctx, mach, lambda ctx, mach, console, args: progressBar(ctx, mach.restoreSnapshot(snap)))
+        cmdAnyVm(ctx, mach, lambda ctx, mach, console, args: progressBar(ctx, console.restoreSnapshot(snap)))
         return 0
 
     if cmd == 'delete':
@@ -2660,7 +2656,7 @@ def snapshotCmd(ctx, args):
             return 0
         name = args[3]
         snap = mach.findSnapshot(name)
-        cmdAnyVm(ctx, mach, lambda ctx, mach, console, args: progressBar(ctx, mach.deleteSnapshot(snap.id)))
+        cmdAnyVm(ctx, mach, lambda ctx, mach, console, args: progressBar(ctx, console.deleteSnapshot(snap.id)))
         return 0
 
     print "Command '%s' is unknown" % (cmd)
@@ -3560,7 +3556,6 @@ def main(argv):
         if sPath is None:
             for sCurLoc in asLocations:
                 if os.path.isfile(os.path.join(sCurLoc, "sdk", "bindings", "VirtualBox.xidl")):
-                    sCurLoc = os.path.join(sCurLoc, "sdk");
                     print "Autodetected VBOX_SDK_PATH as", sCurLoc
                     os.environ["VBOX_SDK_PATH"] = sCurLoc
                     sPath = sCurLoc;

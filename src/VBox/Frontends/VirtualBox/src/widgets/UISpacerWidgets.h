@@ -1,6 +1,7 @@
-/* $Id: UISpacerWidgets.h $ */
 /** @file
- * VBox Qt GUI - UISpacerWidgets declarations.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * UISpacerWidgets declarations
  */
 
 /*

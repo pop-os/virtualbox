@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -18,15 +18,10 @@
 #ifndef DEV_CODEC_H
 #define DEV_CODEC_H
 
-/** The ICH HDA (Intel) controller. */
-typedef struct HDASTATE *PHDASTATE;
 /** The ICH HDA (Intel) codec state. */
-typedef struct HDACODEC HDACODEC, *PHDACODEC;
-/** The HDA host driver backend. */
-typedef struct HDADRIVER HDADRIVER, *PHDADRIVER;
-typedef struct PDMIAUDIOCONNECTOR *PPDMIAUDIOCONNECTOR;
-typedef struct PDMAUDIOGSTSTRMOUT *PPDMAUDIOGSTSTRMOUT;
-typedef struct PDMAUDIOGSTSTRMIN  *PPDMAUDIOGSTSTRMIN;
+typedef struct HDACODEC HDACODEC;
+/** Pointer to the Intel ICH HDA codec state. */
+typedef HDACODEC *PHDACODEC;
 
 /**
  * Verb processor method.
@@ -68,6 +63,7 @@ typedef enum
     LAST_INDEX
 } ENMSOUNDSOURCE;
 
+
 typedef struct HDACODEC
 {
     uint16_t                id;
@@ -75,11 +71,6 @@ typedef struct HDACODEC
     uint16_t                u16DeviceId;
     uint8_t                 u8BSKU;
     uint8_t                 u8AssemblyId;
-    /* List of assigned HDA drivers to this codec.
-     * A driver only can be assigned to one codec
-     * at a time. */
-    RTLISTANCHOR            lstDrv;
-
 #ifndef VBOX_WITH_HDA_CODEC_EMU
     CODECVERB const        *paVerbs;
     int                     cVerbs;
@@ -87,62 +78,47 @@ typedef struct HDACODEC
     PCODECEMU               pCodecBackend;
 #endif
     PCODECNODE              paNodes;
-    /** Pointer to HDA state (controller) this
-     *  codec is assigned to. */
-    PHDASTATE               pHDAState;
+    QEMUSoundCard           card;
+    /** PCM in */
+    SWVoiceIn               *SwVoiceIn;
+    /** PCM out */
+    SWVoiceOut              *SwVoiceOut;
+    void                   *pvHDAState;
     bool                    fInReset;
 #ifndef VBOX_WITH_HDA_CODEC_EMU
     const uint8_t           cTotalNodes;
-    const uint8_t          *au8Ports;
-    const uint8_t          *au8Dacs;
-    const uint8_t          *au8AdcVols;
-    const uint8_t          *au8Adcs;
-    const uint8_t          *au8AdcMuxs;
-    const uint8_t          *au8Pcbeeps;
-    const uint8_t          *au8SpdifIns;
-    const uint8_t          *au8SpdifOuts;
-    const uint8_t          *au8DigInPins;
-    const uint8_t          *au8DigOutPins;
-    const uint8_t          *au8Cds;
-    const uint8_t          *au8VolKnobs;
-    const uint8_t          *au8Reserveds;
+    const uint8_t           *au8Ports;
+    const uint8_t           *au8Dacs;
+    const uint8_t           *au8AdcVols;
+    const uint8_t           *au8Adcs;
+    const uint8_t           *au8AdcMuxs;
+    const uint8_t           *au8Pcbeeps;
+    const uint8_t           *au8SpdifIns;
+    const uint8_t           *au8SpdifOuts;
+    const uint8_t           *au8DigInPins;
+    const uint8_t           *au8DigOutPins;
+    const uint8_t           *au8Cds;
+    const uint8_t           *au8VolKnobs;
+    const uint8_t           *au8Reserveds;
     const uint8_t           u8AdcVolsLineIn;
     const uint8_t           u8DacLineOut;
 #endif
-#ifdef VBOX_WITH_PDM_AUDIO_DRIVER
-    /* Callbacks to the HDA controller, mostly used for multiplexing to the various host backends. */
-    DECLR3CALLBACKMEMBER(void, pfnCloseIn, (PHDASTATE pThis, PDMAUDIORECSOURCE enmRecSource));
-    DECLR3CALLBACKMEMBER(void, pfnCloseOut, (PHDASTATE pThis));
-    DECLR3CALLBACKMEMBER(int, pfnOpenIn, (PHDASTATE pThis, const char *pszName, PDMAUDIORECSOURCE enmRecSource, PPDMAUDIOSTREAMCFG pCfg));
-    DECLR3CALLBACKMEMBER(int, pfnOpenOut, (PHDASTATE pThis, const char *pszName, PPDMAUDIOSTREAMCFG pCfg));
-    DECLR3CALLBACKMEMBER(int, pfnSetVolume, (PHDASTATE pThis, ENMSOUNDSOURCE enmSource, bool fMute, uint8_t uVolLeft, uint8_t uVolRight));
-#else
-    QEMUSoundCard           card;
-    /** PCM in */
-    SWVoiceIn              *SwVoiceIn;
-    /** PCM out */
-    SWVoiceOut             *SwVoiceOut;
-    /* Callbacks for host driver backends. */
-    DECLR3CALLBACKMEMBER(int, pfnTransfer, (PHDACODEC pCodec, ENMSOUNDSOURCE enmSource, uint32_t cbAvail));
-#endif /* VBOX_WITH_PDM_AUDIO_DRIVER */
-    /* Callbacks by codec implementation. */
+    DECLR3CALLBACKMEMBER(int, pfnProcess, (PHDACODEC pCodec));
+    DECLR3CALLBACKMEMBER(void, pfnTransfer, (PHDACODEC pCodec, ENMSOUNDSOURCE, int avail));
+    /* These callbacks are set by Codec implementation. */
     DECLR3CALLBACKMEMBER(int, pfnLookup, (PHDACODEC pThis, uint32_t verb, PPFNHDACODECVERBPROCESSOR));
     DECLR3CALLBACKMEMBER(int, pfnReset, (PHDACODEC pThis));
     DECLR3CALLBACKMEMBER(int, pfnCodecNodeReset, (PHDACODEC pThis, uint8_t, PCODECNODE));
-    /* Callbacks by codec implementation to answer debugger requests. */
+    /* These callbacks are set by codec implementation to answer debugger requests. */
     DECLR3CALLBACKMEMBER(void, pfnCodecDbgListNodes, (PHDACODEC pThis, PCDBGFINFOHLP pHlp, const char *pszArgs));
     DECLR3CALLBACKMEMBER(void, pfnCodecDbgSelector, (PHDACODEC pThis, PCDBGFINFOHLP pHlp, const char *pszArgs));
 } CODECState;
 
-int hdaCodecConstruct(PPDMDEVINS pDevIns, PHDACODEC pThis, uint16_t uLUN, PCFGMNODE pCfg);
+int hdaCodecConstruct(PPDMDEVINS pDevIns, PHDACODEC pThis, PCFGMNODE pCfg);
 int hdaCodecDestruct(PHDACODEC pThis);
 int hdaCodecSaveState(PHDACODEC pThis, PSSMHANDLE pSSM);
 int hdaCodecLoadState(PHDACODEC pThis, PSSMHANDLE pSSM, uint32_t uVersion);
-#ifdef VBOX_WITH_PDM_AUDIO_DRIVER
-int hdaCodecOpenStream(PHDACODEC pThis, PDMAUDIORECSOURCE enmRecSource, PDMAUDIOSTREAMCFG *pAudioSettings);
-#else
 int hdaCodecOpenVoice(PHDACODEC pThis, ENMSOUNDSOURCE enmSoundSource, audsettings_t *pAudioSettings);
-#endif /* VBOX_WITH_PDM_AUDIO_DRIVER */
 
 #define HDA_SSM_VERSION   4
 #define HDA_SSM_VERSION_1 1
@@ -159,4 +135,3 @@ struct CODECEMU
 };
 # endif
 #endif
-

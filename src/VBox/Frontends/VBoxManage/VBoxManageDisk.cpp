@@ -1,10 +1,10 @@
 /* $Id: VBoxManageDisk.cpp $ */
 /** @file
- * VBoxManage - The disk/medium related commands.
+ * VBoxManage - The disk related commands.
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -51,10 +51,11 @@ static DECLCALLBACK(void) handleVDError(void *pvUser, int rc, RT_SRC_POS_DECL, c
     RTMsgError("Error code %Rrc at %s(%u) in function %s", rc, RT_SRC_POS_ARGS);
 }
 
-static int parseMediumVariant(const char *psz, MediumVariant_T *pMediumVariant)
+
+static int parseDiskVariant(const char *psz, MediumVariant_T *pDiskVariant)
 {
     int rc = VINF_SUCCESS;
-    unsigned uMediumVariant = (unsigned)(*pMediumVariant);
+    unsigned DiskVariant = (unsigned)(*pDiskVariant);
     while (psz && *psz && RT_SUCCESS(rc))
     {
         size_t len;
@@ -68,19 +69,19 @@ static int parseMediumVariant(const char *psz, MediumVariant_T *pMediumVariant)
             // Parsing is intentionally inconsistent: "standard" resets the
             // variant, whereas the other flags are cumulative.
             if (!RTStrNICmp(psz, "standard", len))
-                uMediumVariant = MediumVariant_Standard;
+                DiskVariant = MediumVariant_Standard;
             else if (   !RTStrNICmp(psz, "fixed", len)
                      || !RTStrNICmp(psz, "static", len))
-                uMediumVariant |= MediumVariant_Fixed;
+                DiskVariant |= MediumVariant_Fixed;
             else if (!RTStrNICmp(psz, "Diff", len))
-                uMediumVariant |= MediumVariant_Diff;
+                DiskVariant |= MediumVariant_Diff;
             else if (!RTStrNICmp(psz, "split2g", len))
-                uMediumVariant |= MediumVariant_VmdkSplit2G;
+                DiskVariant |= MediumVariant_VmdkSplit2G;
             else if (   !RTStrNICmp(psz, "stream", len)
                      || !RTStrNICmp(psz, "streamoptimized", len))
-                uMediumVariant |= MediumVariant_VmdkStreamOptimized;
+                DiskVariant |= MediumVariant_VmdkStreamOptimized;
             else if (!RTStrNICmp(psz, "esx", len))
-                uMediumVariant |= MediumVariant_VmdkESX;
+                DiskVariant |= MediumVariant_VmdkESX;
             else
                 rc = VERR_PARSE_ERROR;
         }
@@ -91,31 +92,31 @@ static int parseMediumVariant(const char *psz, MediumVariant_T *pMediumVariant)
     }
 
     if (RT_SUCCESS(rc))
-        *pMediumVariant = (MediumVariant_T)uMediumVariant;
+        *pDiskVariant = (MediumVariant_T)DiskVariant;
     return rc;
 }
 
-int parseMediumType(const char *psz, MediumType_T *penmMediumType)
+int parseDiskType(const char *psz, MediumType_T *pDiskType)
 {
     int rc = VINF_SUCCESS;
-    MediumType_T enmMediumType = MediumType_Normal;
+    MediumType_T DiskType = MediumType_Normal;
     if (!RTStrICmp(psz, "normal"))
-        enmMediumType = MediumType_Normal;
+        DiskType = MediumType_Normal;
     else if (!RTStrICmp(psz, "immutable"))
-        enmMediumType = MediumType_Immutable;
+        DiskType = MediumType_Immutable;
     else if (!RTStrICmp(psz, "writethrough"))
-        enmMediumType = MediumType_Writethrough;
+        DiskType = MediumType_Writethrough;
     else if (!RTStrICmp(psz, "shareable"))
-        enmMediumType = MediumType_Shareable;
+        DiskType = MediumType_Shareable;
     else if (!RTStrICmp(psz, "readonly"))
-        enmMediumType = MediumType_Readonly;
+        DiskType = MediumType_Readonly;
     else if (!RTStrICmp(psz, "multiattach"))
-        enmMediumType = MediumType_MultiAttach;
+        DiskType = MediumType_MultiAttach;
     else
         rc = VERR_PARSE_ERROR;
 
     if (RT_SUCCESS(rc))
-        *penmMediumType = enmMediumType;
+        *pDiskType = DiskType;
     return rc;
 }
 
@@ -185,9 +186,8 @@ HRESULT openMedium(HandlerArg *a, const char *pszFilenameOrUuid,
     return rc;
 }
 
-static HRESULT createMedium(HandlerArg *a, const char *pszFormat,
-                            const char *pszFilename, DeviceType_T enmDevType,
-                            AccessMode_T enmAccessMode, ComPtr<IMedium> &pMedium)
+static HRESULT createHardDisk(HandlerArg *a, const char *pszFormat,
+                              const char *pszFilename, ComPtr<IMedium> &pMedium)
 {
     HRESULT rc;
     char szFilenameAbs[RTPATH_MAX] = "";
@@ -204,19 +204,14 @@ static HRESULT createMedium(HandlerArg *a, const char *pszFormat,
         pszFilename = szFilenameAbs;
     }
 
-    CHECK_ERROR(a->virtualBox, CreateMedium(Bstr(pszFormat).raw(),
-                                            Bstr(pszFilename).raw(),
-                                            enmAccessMode,
-                                            enmDevType,
-                                            pMedium.asOutParam()));
+    CHECK_ERROR(a->virtualBox, CreateHardDisk(Bstr(pszFormat).raw(),
+                                              Bstr(pszFilename).raw(),
+                                              pMedium.asOutParam()));
     return rc;
 }
 
-static const RTGETOPTDEF g_aCreateMediumOptions[] =
+static const RTGETOPTDEF g_aCreateHardDiskOptions[] =
 {
-    { "disk",           'H', RTGETOPT_REQ_NOTHING },
-    { "dvd",            'D', RTGETOPT_REQ_NOTHING },
-    { "floppy",         'L', RTGETOPT_REQ_NOTHING },
     { "--filename",     'f', RTGETOPT_REQ_STRING },
     { "-filename",      'f', RTGETOPT_REQ_STRING },     // deprecated
     { "--diffparent",   'd', RTGETOPT_REQ_STRING },
@@ -231,51 +226,27 @@ static const RTGETOPTDEF g_aCreateMediumOptions[] =
     { "-variant",       'm', RTGETOPT_REQ_STRING },     // deprecated
 };
 
-int handleCreateMedium(HandlerArg *a)
+int handleCreateHardDisk(HandlerArg *a)
 {
     HRESULT rc;
     int vrc;
     const char *filename = NULL;
     const char *diffparent = NULL;
     uint64_t size = 0;
-    enum {
-        CMD_NONE,
-        CMD_DISK,
-        CMD_DVD,
-        CMD_FLOPPY
-    } cmd = CMD_NONE;
     const char *format = NULL;
     bool fBase = true;
-    MediumVariant_T enmMediumVariant = MediumVariant_Standard;
+    MediumVariant_T DiskVariant = MediumVariant_Standard;
 
     int c;
     RTGETOPTUNION ValueUnion;
     RTGETOPTSTATE GetState;
     // start at 0 because main() has hacked both the argc and argv given to us
-    RTGetOptInit(&GetState, a->argc, a->argv, g_aCreateMediumOptions, RT_ELEMENTS(g_aCreateMediumOptions),
+    RTGetOptInit(&GetState, a->argc, a->argv, g_aCreateHardDiskOptions, RT_ELEMENTS(g_aCreateHardDiskOptions),
                  0, RTGETOPTINIT_FLAGS_NO_STD_OPTS);
     while ((c = RTGetOpt(&GetState, &ValueUnion)))
     {
         switch (c)
         {
-            case 'H':   // disk
-                if (cmd != CMD_NONE)
-                    return errorSyntax(USAGE_CREATEMEDIUM, "Only one command can be specified: '%s'", ValueUnion.psz);
-                cmd = CMD_DISK;
-                break;
-
-            case 'D':   // DVD
-                if (cmd != CMD_NONE)
-                    return errorSyntax(USAGE_CREATEMEDIUM, "Only one command can be specified: '%s'", ValueUnion.psz);
-                cmd = CMD_DVD;
-                break;
-
-            case 'L':   // floppy
-                if (cmd != CMD_NONE)
-                    return errorSyntax(USAGE_CREATEMEDIUM, "Only one command can be specified: '%s'", ValueUnion.psz);
-                cmd = CMD_FLOPPY;
-                break;
-
             case 'f':   // --filename
                 filename = ValueUnion.psz;
                 break;
@@ -299,73 +270,59 @@ int handleCreateMedium(HandlerArg *a)
 
             case 'F':   // --static ("fixed"/"flat")
             {
-                unsigned uMediumVariant = (unsigned)enmMediumVariant;
-                uMediumVariant |= MediumVariant_Fixed;
-                enmMediumVariant = (MediumVariant_T)uMediumVariant;
+                unsigned uDiskVariant = (unsigned)DiskVariant;
+                uDiskVariant |= MediumVariant_Fixed;
+                DiskVariant = (MediumVariant_T)uDiskVariant;
                 break;
             }
 
             case 'm':   // --variant
-                vrc = parseMediumVariant(ValueUnion.psz, &enmMediumVariant);
+                vrc = parseDiskVariant(ValueUnion.psz, &DiskVariant);
                 if (RT_FAILURE(vrc))
-                    return errorArgument("Invalid medium variant '%s'", ValueUnion.psz);
+                    return errorArgument("Invalid hard disk variant '%s'", ValueUnion.psz);
                 break;
 
             case VINF_GETOPT_NOT_OPTION:
-                return errorSyntax(USAGE_CREATEMEDIUM, "Invalid parameter '%s'", ValueUnion.psz);
+                return errorSyntax(USAGE_CREATEHD, "Invalid parameter '%s'", ValueUnion.psz);
 
             default:
                 if (c > 0)
                 {
                     if (RT_C_IS_PRINT(c))
-                        return errorSyntax(USAGE_CREATEMEDIUM, "Invalid option -%c", c);
+                        return errorSyntax(USAGE_CREATEHD, "Invalid option -%c", c);
                     else
-                        return errorSyntax(USAGE_CREATEMEDIUM, "Invalid option case %i", c);
+                        return errorSyntax(USAGE_CREATEHD, "Invalid option case %i", c);
                 }
                 else if (c == VERR_GETOPT_UNKNOWN_OPTION)
-                    return errorSyntax(USAGE_CREATEMEDIUM, "unknown option: %s\n", ValueUnion.psz);
+                    return errorSyntax(USAGE_CREATEHD, "unknown option: %s\n", ValueUnion.psz);
                 else if (ValueUnion.pDef)
-                    return errorSyntax(USAGE_CREATEMEDIUM, "%s: %Rrs", ValueUnion.pDef->pszLong, c);
+                    return errorSyntax(USAGE_CREATEHD, "%s: %Rrs", ValueUnion.pDef->pszLong, c);
                 else
-                    return errorSyntax(USAGE_CREATEMEDIUM, "error: %Rrs", c);
+                    return errorSyntax(USAGE_CREATEHD, "error: %Rrs", c);
         }
     }
 
     /* check the outcome */
-    if (cmd == CMD_NONE)
-        cmd = CMD_DISK;
-    ComPtr<IMedium> pParentMedium;
+    ComPtr<IMedium> parentHardDisk;
     if (fBase)
     {
         if (   !filename
             || !*filename
             || size == 0)
-            return errorSyntax(USAGE_CREATEMEDIUM, "Parameters --filename and --size are required");
+            return errorSyntax(USAGE_CREATEHD, "Parameters --filename and --size are required");
         if (!format || !*format)
-        {
-            if (cmd == CMD_DISK)
-                format = "VDI";
-            else if (cmd == CMD_DVD || cmd == CMD_FLOPPY)
-            {
-                format = "RAW";
-                unsigned uMediumVariant = (unsigned)enmMediumVariant;
-                uMediumVariant |= MediumVariant_Fixed;
-                enmMediumVariant = (MediumVariant_T)uMediumVariant;
-            }
-        }
+            format = "VDI";
     }
     else
     {
         if (   !filename
             || !*filename)
-            return errorSyntax(USAGE_CREATEMEDIUM, "Parameters --filename is required");
+            return errorSyntax(USAGE_CREATEHD, "Parameters --filename is required");
         size = 0;
-        if (cmd != CMD_DISK)
-            return errorSyntax(USAGE_CREATEMEDIUM, "Creating a differencing medium is only supported for hard disks");
-        enmMediumVariant = MediumVariant_Diff;
+        DiskVariant = MediumVariant_Diff;
         if (!format || !*format)
         {
-            const char *pszExt = RTPathSuffix(filename);
+            const char *pszExt = RTPathExt(filename);
             /* Skip over . if there is an extension. */
             if (pszExt)
                 pszExt++;
@@ -375,22 +332,22 @@ int handleCreateMedium(HandlerArg *a)
                 format = pszExt;
         }
         rc = openMedium(a, diffparent, DeviceType_HardDisk,
-                        AccessMode_ReadWrite, pParentMedium,
+                        AccessMode_ReadWrite, parentHardDisk,
                         false /* fForceNewUuidOnOpen */, false /* fSilent */);
         if (FAILED(rc))
             return 1;
-        if (pParentMedium.isNull())
+        if (parentHardDisk.isNull())
         {
             RTMsgError("Invalid parent hard disk reference, avoiding crash");
             return 1;
         }
         MediumState_T state;
-        CHECK_ERROR(pParentMedium, COMGETTER(State)(&state));
+        CHECK_ERROR(parentHardDisk, COMGETTER(State)(&state));
         if (FAILED(rc))
             return 1;
         if (state == MediumState_Inaccessible)
         {
-            CHECK_ERROR(pParentMedium, RefreshState(&state));
+            CHECK_ERROR(parentHardDisk, RefreshState(&state));
             if (FAILED(rc))
                 return 1;
         }
@@ -398,76 +355,55 @@ int handleCreateMedium(HandlerArg *a)
     /* check for filename extension */
     /** @todo use IMediumFormat to cover all extensions generically */
     Utf8Str strName(filename);
-    if (!RTPathHasSuffix(strName.c_str()))
+    if (!RTPathHaveExt(strName.c_str()))
     {
         Utf8Str strFormat(format);
-        if (cmd == CMD_DISK)
-        {
-            if (strFormat.compare("vmdk", RTCString::CaseInsensitive) == 0)
-                strName.append(".vmdk");
-            else if (strFormat.compare("vhd", RTCString::CaseInsensitive) == 0)
-                strName.append(".vhd");
-            else
-                strName.append(".vdi");
-        } else if (cmd == CMD_DVD)
-            strName.append(".iso");
-        else if (cmd == CMD_FLOPPY)
-            strName.append(".img");
+        if (strFormat.compare("vmdk", RTCString::CaseInsensitive) == 0)
+            strName.append(".vmdk");
+        else if (strFormat.compare("vhd", RTCString::CaseInsensitive) == 0)
+            strName.append(".vhd");
+        else
+            strName.append(".vdi");
         filename = strName.c_str();
     }
 
-    ComPtr<IMedium> pMedium;
-    if (cmd == CMD_DISK)
-        rc = createMedium(a, format, filename, DeviceType_HardDisk,
-                          AccessMode_ReadWrite, pMedium);
-    else if (cmd == CMD_DVD)
-        rc = createMedium(a, format, filename, DeviceType_DVD,
-                          AccessMode_ReadOnly, pMedium);
-    else if (cmd == CMD_FLOPPY)
-        rc = createMedium(a, format, filename, DeviceType_Floppy,
-                        AccessMode_ReadWrite, pMedium);
-    else
-        rc = E_INVALIDARG; /* cannot happen but make gcc happy */
-
-    if (SUCCEEDED(rc) && pMedium)
+    ComPtr<IMedium> hardDisk;
+    rc = createHardDisk(a, format, filename, hardDisk);
+    if (SUCCEEDED(rc) && hardDisk)
     {
-        ComPtr<IProgress> pProgress;
+        ComPtr<IProgress> progress;
         com::SafeArray<MediumVariant_T> l_variants(sizeof(MediumVariant_T)*8);
 
         for (ULONG i = 0; i < l_variants.size(); ++i)
         {
-            ULONG temp = enmMediumVariant;
+            ULONG temp = DiskVariant;
             temp &= 1<<i;
             l_variants [i] = (MediumVariant_T)temp;
         }
 
         if (fBase)
-            CHECK_ERROR(pMedium, CreateBaseStorage(size, ComSafeArrayAsInParam(l_variants), pProgress.asOutParam()));
+            CHECK_ERROR(hardDisk, CreateBaseStorage(size, ComSafeArrayAsInParam(l_variants), progress.asOutParam()));
         else
-            CHECK_ERROR(pParentMedium, CreateDiffStorage(pMedium, ComSafeArrayAsInParam(l_variants), pProgress.asOutParam()));
-        if (SUCCEEDED(rc) && pProgress)
+            CHECK_ERROR(parentHardDisk, CreateDiffStorage(hardDisk, ComSafeArrayAsInParam(l_variants), progress.asOutParam()));
+        if (SUCCEEDED(rc) && progress)
         {
-            rc = showProgress(pProgress);
-            CHECK_PROGRESS_ERROR(pProgress, ("Failed to create medium"));
+            rc = showProgress(progress);
+            CHECK_PROGRESS_ERROR(progress, ("Failed to create hard disk"));
+            if (SUCCEEDED(rc))
+            {
+                Bstr uuid;
+                CHECK_ERROR(hardDisk, COMGETTER(Id)(uuid.asOutParam()));
+                RTPrintf("Disk image created. UUID: %s\n", Utf8Str(uuid).c_str());
+            }
         }
-    }
 
-    if (SUCCEEDED(rc) && pMedium)
-    {
-        Bstr uuid;
-        CHECK_ERROR(pMedium, COMGETTER(Id)(uuid.asOutParam()));
-        RTPrintf("Medium created. UUID: %s\n", Utf8Str(uuid).c_str());
-
-        //CHECK_ERROR(pMedium, Close());
+        CHECK_ERROR(hardDisk, Close());
     }
     return SUCCEEDED(rc) ? 0 : 1;
 }
 
-static const RTGETOPTDEF g_aModifyMediumOptions[] =
+static const RTGETOPTDEF g_aModifyHardDiskOptions[] =
 {
-    { "disk",           'H', RTGETOPT_REQ_NOTHING },
-    { "dvd",            'D', RTGETOPT_REQ_NOTHING },
-    { "floppy",         'L', RTGETOPT_REQ_NOTHING },
     { "--type",         't', RTGETOPT_REQ_STRING },
     { "-type",          't', RTGETOPT_REQ_STRING },     // deprecated
     { "settype",        't', RTGETOPT_REQ_STRING },     // deprecated
@@ -482,62 +418,38 @@ static const RTGETOPTDEF g_aModifyMediumOptions[] =
     { "--resizebyte",   'R', RTGETOPT_REQ_UINT64 }
 };
 
-int handleModifyMedium(HandlerArg *a)
+int handleModifyHardDisk(HandlerArg *a)
 {
     HRESULT rc;
     int vrc;
-    enum {
-        CMD_NONE,
-        CMD_DISK,
-        CMD_DVD,
-        CMD_FLOPPY
-    } cmd = CMD_NONE;
-    ComPtr<IMedium> pMedium;
-    MediumType_T enmMediumType;
+    ComPtr<IMedium> hardDisk;
+    MediumType_T DiskType;
     bool AutoReset = false;
     SafeArray<BSTR> mediumPropNames;
     SafeArray<BSTR> mediumPropValues;
-    bool fModifyMediumType = false;
+    bool fModifyDiskType = false;
     bool fModifyAutoReset = false;
     bool fModifyProperties = false;
     bool fModifyCompact = false;
     bool fModifyResize = false;
     uint64_t cbResize = 0;
-    const char *pszFilenameOrUuid = NULL;
+    const char *FilenameOrUuid = NULL;
 
     int c;
     RTGETOPTUNION ValueUnion;
     RTGETOPTSTATE GetState;
     // start at 0 because main() has hacked both the argc and argv given to us
-    RTGetOptInit(&GetState, a->argc, a->argv, g_aModifyMediumOptions, RT_ELEMENTS(g_aModifyMediumOptions),
+    RTGetOptInit(&GetState, a->argc, a->argv, g_aModifyHardDiskOptions, RT_ELEMENTS(g_aModifyHardDiskOptions),
                  0, RTGETOPTINIT_FLAGS_NO_STD_OPTS);
     while ((c = RTGetOpt(&GetState, &ValueUnion)))
     {
         switch (c)
         {
-            case 'H':   // disk
-                if (cmd != CMD_NONE)
-                    return errorSyntax(USAGE_MODIFYMEDIUM, "Only one command can be specified: '%s'", ValueUnion.psz);
-                cmd = CMD_DISK;
-                break;
-
-            case 'D':   // DVD
-                if (cmd != CMD_NONE)
-                    return errorSyntax(USAGE_MODIFYMEDIUM, "Only one command can be specified: '%s'", ValueUnion.psz);
-                cmd = CMD_DVD;
-                break;
-
-            case 'L':   // floppy
-                if (cmd != CMD_NONE)
-                    return errorSyntax(USAGE_MODIFYMEDIUM, "Only one command can be specified: '%s'", ValueUnion.psz);
-                cmd = CMD_FLOPPY;
-                break;
-
             case 't':   // --type
-                vrc = parseMediumType(ValueUnion.psz, &enmMediumType);
+                vrc = parseDiskType(ValueUnion.psz, &DiskType);
                 if (RT_FAILURE(vrc))
-                    return errorArgument("Invalid medium type '%s'", ValueUnion.psz);
-                fModifyMediumType = true;
+                    return errorArgument("Invalid hard disk type '%s'", ValueUnion.psz);
+                fModifyDiskType = true;
                 break;
 
             case 'z':   // --autoreset
@@ -594,124 +506,107 @@ int handleModifyMedium(HandlerArg *a)
                 break;
 
             case VINF_GETOPT_NOT_OPTION:
-                if (!pszFilenameOrUuid)
-                    pszFilenameOrUuid = ValueUnion.psz;
+                if (!FilenameOrUuid)
+                    FilenameOrUuid = ValueUnion.psz;
                 else
-                    return errorSyntax(USAGE_MODIFYMEDIUM, "Invalid parameter '%s'", ValueUnion.psz);
+                    return errorSyntax(USAGE_MODIFYHD, "Invalid parameter '%s'", ValueUnion.psz);
                 break;
 
             default:
                 if (c > 0)
                 {
                     if (RT_C_IS_PRINT(c))
-                        return errorSyntax(USAGE_MODIFYMEDIUM, "Invalid option -%c", c);
+                        return errorSyntax(USAGE_MODIFYHD, "Invalid option -%c", c);
                     else
-                        return errorSyntax(USAGE_MODIFYMEDIUM, "Invalid option case %i", c);
+                        return errorSyntax(USAGE_MODIFYHD, "Invalid option case %i", c);
                 }
                 else if (c == VERR_GETOPT_UNKNOWN_OPTION)
-                    return errorSyntax(USAGE_MODIFYMEDIUM, "unknown option: %s\n", ValueUnion.psz);
+                    return errorSyntax(USAGE_MODIFYHD, "unknown option: %s\n", ValueUnion.psz);
                 else if (ValueUnion.pDef)
-                    return errorSyntax(USAGE_MODIFYMEDIUM, "%s: %Rrs", ValueUnion.pDef->pszLong, c);
+                    return errorSyntax(USAGE_MODIFYHD, "%s: %Rrs", ValueUnion.pDef->pszLong, c);
                 else
-                    return errorSyntax(USAGE_MODIFYMEDIUM, "error: %Rrs", c);
+                    return errorSyntax(USAGE_MODIFYHD, "error: %Rrs", c);
         }
     }
 
-    if (cmd == CMD_NONE)
-        cmd = CMD_DISK;
+    if (!FilenameOrUuid)
+        return errorSyntax(USAGE_MODIFYHD, "Disk name or UUID required");
 
-    if (!pszFilenameOrUuid)
-        return errorSyntax(USAGE_MODIFYMEDIUM, "Medium name or UUID required");
-
-    if (!fModifyMediumType && !fModifyAutoReset && !fModifyProperties && !fModifyCompact && !fModifyResize)
-        return errorSyntax(USAGE_MODIFYMEDIUM, "No operation specified");
+    if (!fModifyDiskType && !fModifyAutoReset && !fModifyProperties && !fModifyCompact && !fModifyResize)
+        return errorSyntax(USAGE_MODIFYHD, "No operation specified");
 
     /* Always open the medium if necessary, there is no other way. */
-    if (cmd == CMD_DISK)
-        rc = openMedium(a, pszFilenameOrUuid, DeviceType_HardDisk,
-                        AccessMode_ReadWrite, pMedium,
-                        false /* fForceNewUuidOnOpen */, false /* fSilent */);
-    else if (cmd == CMD_DVD)
-        rc = openMedium(a, pszFilenameOrUuid, DeviceType_DVD,
-                        AccessMode_ReadOnly, pMedium,
-                        false /* fForceNewUuidOnOpen */, false /* fSilent */);
-    else if (cmd == CMD_FLOPPY)
-        rc = openMedium(a, pszFilenameOrUuid, DeviceType_Floppy,
-                        AccessMode_ReadWrite, pMedium,
-                        false /* fForceNewUuidOnOpen */, false /* fSilent */);
-    else
-        rc = E_INVALIDARG; /* cannot happen but make gcc happy */
+    rc = openMedium(a, FilenameOrUuid, DeviceType_HardDisk,
+                    AccessMode_ReadWrite, hardDisk,
+                    false /* fForceNewUuidOnOpen */, false /* fSilent */);
     if (FAILED(rc))
         return 1;
-    if (pMedium.isNull())
+    if (hardDisk.isNull())
     {
-        RTMsgError("Invalid medium reference, avoiding crash");
+        RTMsgError("Invalid hard disk reference, avoiding crash");
         return 1;
     }
 
-    if (fModifyMediumType)
+    if (fModifyDiskType)
     {
-        MediumType_T enmCurrMediumType;
-        CHECK_ERROR(pMedium, COMGETTER(Type)(&enmCurrMediumType));
+        MediumType_T hddType;
+        CHECK_ERROR(hardDisk, COMGETTER(Type)(&hddType));
 
-        if (enmCurrMediumType != enmMediumType)
-            CHECK_ERROR(pMedium, COMSETTER(Type)(enmMediumType));
+        if (hddType != DiskType)
+            CHECK_ERROR(hardDisk, COMSETTER(Type)(DiskType));
     }
 
     if (fModifyAutoReset)
     {
-        CHECK_ERROR(pMedium, COMSETTER(AutoReset)(AutoReset));
+        CHECK_ERROR(hardDisk, COMSETTER(AutoReset)(AutoReset));
     }
 
     if (fModifyProperties)
     {
-        CHECK_ERROR(pMedium, SetProperties(ComSafeArrayAsInParam(mediumPropNames), ComSafeArrayAsInParam(mediumPropValues)));
+        CHECK_ERROR(hardDisk, SetProperties(ComSafeArrayAsInParam(mediumPropNames), ComSafeArrayAsInParam(mediumPropValues)));
     }
 
     if (fModifyCompact)
     {
-        ComPtr<IProgress> pProgress;
-        CHECK_ERROR(pMedium, Compact(pProgress.asOutParam()));
+        ComPtr<IProgress> progress;
+        CHECK_ERROR(hardDisk, Compact(progress.asOutParam()));
         if (SUCCEEDED(rc))
-            rc = showProgress(pProgress);
+            rc = showProgress(progress);
         if (FAILED(rc))
         {
             if (rc == E_NOTIMPL)
-                RTMsgError("Compact medium operation is not implemented!");
+                RTMsgError("Compact hard disk operation is not implemented!");
             else if (rc == VBOX_E_NOT_SUPPORTED)
-                RTMsgError("Compact medium operation for this format is not implemented yet!");
-            else if (!pProgress.isNull())
-                CHECK_PROGRESS_ERROR(pProgress, ("Failed to compact medium"));
+                RTMsgError("Compact hard disk operation for this format is not implemented yet!");
+            else if (!progress.isNull())
+                CHECK_PROGRESS_ERROR(progress, ("Failed to compact hard disk"));
             else
-                RTMsgError("Failed to compact medium!");
+                RTMsgError("Failed to compact hard disk!");
         }
     }
 
     if (fModifyResize)
     {
-        ComPtr<IProgress> pProgress;
-        CHECK_ERROR(pMedium, Resize(cbResize, pProgress.asOutParam()));
+        ComPtr<IProgress> progress;
+        CHECK_ERROR(hardDisk, Resize(cbResize, progress.asOutParam()));
         if (SUCCEEDED(rc))
-            rc = showProgress(pProgress);
+            rc = showProgress(progress);
         if (FAILED(rc))
         {
             if (rc == E_NOTIMPL)
-                RTMsgError("Resize medium operation is not implemented!");
+                RTMsgError("Resize hard disk operation is not implemented!");
             else if (rc == VBOX_E_NOT_SUPPORTED)
-                RTMsgError("Resize medium operation for this format is not implemented yet!");
+                RTMsgError("Resize hard disk operation for this format is not implemented yet!");
             else
-                CHECK_PROGRESS_ERROR(pProgress, ("Failed to resize medium"));
+                CHECK_PROGRESS_ERROR(progress, ("Failed to resize hard disk"));
         }
     }
 
     return SUCCEEDED(rc) ? 0 : 1;
 }
 
-static const RTGETOPTDEF g_aCloneMediumOptions[] =
+static const RTGETOPTDEF g_aCloneHardDiskOptions[] =
 {
-    { "disk",           'd', RTGETOPT_REQ_NOTHING },
-    { "dvd",            'D', RTGETOPT_REQ_NOTHING },
-    { "floppy",         'f', RTGETOPT_REQ_NOTHING },
     { "--format",       'o', RTGETOPT_REQ_STRING },
     { "-format",        'o', RTGETOPT_REQ_STRING },
     { "--static",       'F', RTGETOPT_REQ_NOTHING },
@@ -721,59 +616,35 @@ static const RTGETOPTDEF g_aCloneMediumOptions[] =
     { "-variant",       'm', RTGETOPT_REQ_STRING },
 };
 
-int handleCloneMedium(HandlerArg *a)
+int handleCloneHardDisk(HandlerArg *a)
 {
     HRESULT rc;
     int vrc;
-    enum {
-        CMD_NONE,
-        CMD_DISK,
-        CMD_DVD,
-        CMD_FLOPPY
-    } cmd = CMD_NONE;
     const char *pszSrc = NULL;
     const char *pszDst = NULL;
     Bstr format;
-    MediumVariant_T enmMediumVariant = MediumVariant_Standard;
+    MediumVariant_T DiskVariant = MediumVariant_Standard;
     bool fExisting = false;
 
     int c;
     RTGETOPTUNION ValueUnion;
     RTGETOPTSTATE GetState;
     // start at 0 because main() has hacked both the argc and argv given to us
-    RTGetOptInit(&GetState, a->argc, a->argv, g_aCloneMediumOptions, RT_ELEMENTS(g_aCloneMediumOptions),
+    RTGetOptInit(&GetState, a->argc, a->argv, g_aCloneHardDiskOptions, RT_ELEMENTS(g_aCloneHardDiskOptions),
                  0, RTGETOPTINIT_FLAGS_NO_STD_OPTS);
     while ((c = RTGetOpt(&GetState, &ValueUnion)))
     {
         switch (c)
         {
-            case 'd':   // disk
-                if (cmd != CMD_NONE)
-                    return errorSyntax(USAGE_CLONEMEDIUM, "Only one command can be specified: '%s'", ValueUnion.psz);
-                cmd = CMD_DISK;
-                break;
-
-            case 'D':   // DVD
-                if (cmd != CMD_NONE)
-                    return errorSyntax(USAGE_CLONEMEDIUM, "Only one command can be specified: '%s'", ValueUnion.psz);
-                cmd = CMD_DVD;
-                break;
-
-            case 'f':   // floppy
-                if (cmd != CMD_NONE)
-                    return errorSyntax(USAGE_CLONEMEDIUM, "Only one command can be specified: '%s'", ValueUnion.psz);
-                cmd = CMD_FLOPPY;
-                break;
-
             case 'o':   // --format
                 format = ValueUnion.psz;
                 break;
 
             case 'F':   // --static
             {
-                unsigned uMediumVariant = (unsigned)enmMediumVariant;
-                uMediumVariant |= MediumVariant_Fixed;
-                enmMediumVariant = (MediumVariant_T)uMediumVariant;
+                unsigned uDiskVariant = (unsigned)DiskVariant;
+                uDiskVariant |= MediumVariant_Fixed;
+                DiskVariant = (MediumVariant_T)uDiskVariant;
                 break;
             }
 
@@ -782,9 +653,9 @@ int handleCloneMedium(HandlerArg *a)
                 break;
 
             case 'm':   // --variant
-                vrc = parseMediumVariant(ValueUnion.psz, &enmMediumVariant);
+                vrc = parseDiskVariant(ValueUnion.psz, &DiskVariant);
                 if (RT_FAILURE(vrc))
-                    return errorArgument("Invalid medium variant '%s'", ValueUnion.psz);
+                    return errorArgument("Invalid hard disk variant '%s'", ValueUnion.psz);
                 break;
 
             case VINF_GETOPT_NOT_OPTION:
@@ -793,112 +664,88 @@ int handleCloneMedium(HandlerArg *a)
                 else if (!pszDst)
                     pszDst = ValueUnion.psz;
                 else
-                    return errorSyntax(USAGE_CLONEMEDIUM, "Invalid parameter '%s'", ValueUnion.psz);
+                    return errorSyntax(USAGE_CLONEHD, "Invalid parameter '%s'", ValueUnion.psz);
                 break;
 
             default:
                 if (c > 0)
                 {
                     if (RT_C_IS_GRAPH(c))
-                        return errorSyntax(USAGE_CLONEMEDIUM, "unhandled option: -%c", c);
+                        return errorSyntax(USAGE_CLONEHD, "unhandled option: -%c", c);
                     else
-                        return errorSyntax(USAGE_CLONEMEDIUM, "unhandled option: %i", c);
+                        return errorSyntax(USAGE_CLONEHD, "unhandled option: %i", c);
                 }
                 else if (c == VERR_GETOPT_UNKNOWN_OPTION)
-                    return errorSyntax(USAGE_CLONEMEDIUM, "unknown option: %s", ValueUnion.psz);
+                    return errorSyntax(USAGE_CLONEHD, "unknown option: %s", ValueUnion.psz);
                 else if (ValueUnion.pDef)
-                    return errorSyntax(USAGE_CLONEMEDIUM, "%s: %Rrs", ValueUnion.pDef->pszLong, c);
+                    return errorSyntax(USAGE_CLONEHD, "%s: %Rrs", ValueUnion.pDef->pszLong, c);
                 else
-                    return errorSyntax(USAGE_CLONEMEDIUM, "error: %Rrs", c);
+                    return errorSyntax(USAGE_CLONEHD, "error: %Rrs", c);
         }
     }
 
-    if (cmd == CMD_NONE)
-        cmd = CMD_DISK;
     if (!pszSrc)
-        return errorSyntax(USAGE_CLONEMEDIUM, "Mandatory UUID or input file parameter missing");
+        return errorSyntax(USAGE_CLONEHD, "Mandatory UUID or input file parameter missing");
     if (!pszDst)
-        return errorSyntax(USAGE_CLONEMEDIUM, "Mandatory output file parameter missing");
-    if (fExisting && (!format.isEmpty() || enmMediumVariant != MediumType_Normal))
-        return errorSyntax(USAGE_CLONEMEDIUM, "Specified options which cannot be used with --existing");
+        return errorSyntax(USAGE_CLONEHD, "Mandatory output file parameter missing");
+    if (fExisting && (!format.isEmpty() || DiskVariant != MediumType_Normal))
+        return errorSyntax(USAGE_CLONEHD, "Specified options which cannot be used with --existing");
 
-    ComPtr<IMedium> pSrcMedium;
-    ComPtr<IMedium> pDstMedium;
+    ComPtr<IMedium> srcDisk;
+    ComPtr<IMedium> dstDisk;
 
-    if (cmd == CMD_DISK)
-        rc = openMedium(a, pszSrc, DeviceType_HardDisk, AccessMode_ReadOnly, pSrcMedium,
-                        false /* fForceNewUuidOnOpen */, false /* fSilent */);
-    else if (cmd == CMD_DVD)
-        rc = openMedium(a, pszSrc, DeviceType_DVD, AccessMode_ReadOnly, pSrcMedium,
-                        false /* fForceNewUuidOnOpen */, false /* fSilent */);
-    else if (cmd == CMD_FLOPPY)
-        rc = openMedium(a, pszSrc, DeviceType_Floppy, AccessMode_ReadOnly, pSrcMedium,
-                        false /* fForceNewUuidOnOpen */, false /* fSilent */);
-    else
-        rc = E_INVALIDARG; /* cannot happen but make gcc happy */
+    rc = openMedium(a, pszSrc, DeviceType_HardDisk, AccessMode_ReadOnly,
+                    srcDisk, false /* fForceNewUuidOnOpen */,
+                    false /* fSilent */);
     if (FAILED(rc))
         return 1;
 
     do
     {
-        /* open/create destination medium */
+        /* open/create destination hard disk */
         if (fExisting)
         {
-            if (cmd == CMD_DISK)
-                rc = openMedium(a, pszDst, DeviceType_HardDisk, AccessMode_ReadWrite, pDstMedium,
-                                false /* fForceNewUuidOnOpen */, false /* fSilent */);
-            else if (cmd == CMD_DVD)
-                rc = openMedium(a, pszDst, DeviceType_DVD, AccessMode_ReadOnly, pDstMedium,
-                                false /* fForceNewUuidOnOpen */, false /* fSilent */);
-            else if (cmd == CMD_FLOPPY)
-                rc = openMedium(a, pszDst, DeviceType_Floppy, AccessMode_ReadWrite, pDstMedium,
-                                false /* fForceNewUuidOnOpen */, false /* fSilent */);
+            rc = openMedium(a, pszDst, DeviceType_HardDisk,
+                            AccessMode_ReadWrite, dstDisk,
+                            false /* fForceNewUuidOnOpen */,
+                            false /* fSilent */);
             if (FAILED(rc))
                 break;
 
             /* Perform accessibility check now. */
             MediumState_T state;
-            CHECK_ERROR_BREAK(pDstMedium, RefreshState(&state));
-            CHECK_ERROR_BREAK(pDstMedium, COMGETTER(Format)(format.asOutParam()));
+            CHECK_ERROR_BREAK(dstDisk, RefreshState(&state));
+            CHECK_ERROR_BREAK(dstDisk, COMGETTER(Format)(format.asOutParam()));
         }
         else
         {
-            /* use the format of the source medium if unspecified */
+            /* use the format of the source hard disk if unspecified */
             if (format.isEmpty())
-                CHECK_ERROR_BREAK(pSrcMedium, COMGETTER(Format)(format.asOutParam()));
-            Utf8Str strFormat(format);
-            if (cmd == CMD_DISK)
-                rc = createMedium(a, strFormat.c_str(), pszDst, DeviceType_HardDisk,
-                                  AccessMode_ReadWrite, pDstMedium);
-            else if (cmd == CMD_DVD)
-                rc = createMedium(a, strFormat.c_str(), pszDst, DeviceType_DVD,
-                                  AccessMode_ReadOnly, pDstMedium);
-            else if (cmd == CMD_FLOPPY)
-                rc = createMedium(a, strFormat.c_str(), pszDst, DeviceType_Floppy,
-                                  AccessMode_ReadWrite, pDstMedium);
+                CHECK_ERROR_BREAK(srcDisk, COMGETTER(Format)(format.asOutParam()));
+            rc = createHardDisk(a, Utf8Str(format).c_str(), pszDst, dstDisk);
             if (FAILED(rc))
                 break;
         }
 
-        ComPtr<IProgress> pProgress;
+        ComPtr<IProgress> progress;
         com::SafeArray<MediumVariant_T> l_variants(sizeof(MediumVariant_T)*8);
 
         for (ULONG i = 0; i < l_variants.size(); ++i)
         {
-            ULONG temp = enmMediumVariant;
+            ULONG temp = DiskVariant;
             temp &= 1<<i;
             l_variants [i] = (MediumVariant_T)temp;
         }
 
-        CHECK_ERROR_BREAK(pSrcMedium, CloneTo(pDstMedium, ComSafeArrayAsInParam(l_variants), NULL, pProgress.asOutParam()));
+        CHECK_ERROR_BREAK(srcDisk, CloneTo(dstDisk, ComSafeArrayAsInParam(l_variants), NULL, progress.asOutParam()));
 
-        rc = showProgress(pProgress);
-        CHECK_PROGRESS_ERROR_BREAK(pProgress, ("Failed to clone medium"));
+        rc = showProgress(progress);
+        CHECK_PROGRESS_ERROR_BREAK(progress, ("Failed to clone hard disk"));
 
         Bstr uuid;
-        CHECK_ERROR_BREAK(pDstMedium, COMGETTER(Id)(uuid.asOutParam()));
+        CHECK_ERROR_BREAK(dstDisk, COMGETTER(Id)(uuid.asOutParam()));
 
-        RTPrintf("Clone medium created in format '%ls'. UUID: %s\n",
+        RTPrintf("Clone hard disk created in format '%ls'. UUID: %s\n",
                  format.raw(), Utf8Str(uuid).c_str());
     }
     while (0);
@@ -951,12 +798,12 @@ RTEXITCODE handleConvertFromRaw(int argc, char *argv[])
 
             case 'm':   // --variant
             {
-                MediumVariant_T enmMediumVariant = MediumVariant_Standard;
-                rc = parseMediumVariant(ValueUnion.psz, &enmMediumVariant);
+                MediumVariant_T DiskVariant = MediumVariant_Standard;
+                rc = parseDiskVariant(ValueUnion.psz, &DiskVariant);
                 if (RT_FAILURE(rc))
-                    return errorArgument("Invalid medium variant '%s'", ValueUnion.psz);
+                    return errorArgument("Invalid hard disk variant '%s'", ValueUnion.psz);
                 /// @todo cleaner solution than assuming 1:1 mapping?
-                uImageFlags = (unsigned)enmMediumVariant;
+                uImageFlags = (unsigned)DiskVariant;
                 break;
             }
             case VINF_GETOPT_NOT_OPTION:
@@ -1178,7 +1025,7 @@ HRESULT showMediumInfo(const ComPtr<IVirtualBox> &pVirtualBox,
         }
         RTPrintf("Type:           %s\n", typeStr);
 
-        /* print out information specific for differencing media */
+        /* print out information specific for differencing hard disks */
         if (fOptLong && pszParentUUID && Guid(pszParentUUID).isValid())
         {
             BOOL autoReset = FALSE;
@@ -1237,21 +1084,6 @@ HRESULT showMediumInfo(const ComPtr<IVirtualBox> &pVirtualBox,
             RTPrintf("Size on disk:   %lld MBytes\n", actualSize >> 20);
         }
 
-        Bstr strCipher;
-        Bstr strPasswordId;
-        HRESULT rc2 = pMedium->GetEncryptionSettings(strCipher.asOutParam(), strPasswordId.asOutParam());
-        if (SUCCEEDED(rc2))
-        {
-            RTPrintf("Encryption:     enabled\n");
-            if (fOptLong)
-            {
-                RTPrintf("Cipher:         %ls\n", strCipher.raw());
-                RTPrintf("Password ID:    %ls\n", strPasswordId.raw());
-            }
-        }
-        else
-            RTPrintf("Encryption:     disabled\n");
-
         if (fOptLong)
         {
             com::SafeArray<BSTR> names;
@@ -1278,13 +1110,13 @@ HRESULT showMediumInfo(const ComPtr<IVirtualBox> &pVirtualBox,
             pMedium->COMGETTER(MachineIds)(ComSafeArrayAsOutParam(machineIds));
             for (size_t i = 0; i < machineIds.size(); i++)
             {
-                ComPtr<IMachine> pMachine;
-                CHECK_ERROR(pVirtualBox, FindMachine(machineIds[i], pMachine.asOutParam()));
-                if (pMachine)
+                ComPtr<IMachine> machine;
+                CHECK_ERROR(pVirtualBox, FindMachine(machineIds[i], machine.asOutParam()));
+                if (machine)
                 {
                     Bstr name;
-                    pMachine->COMGETTER(Name)(name.asOutParam());
-                    pMachine->COMGETTER(Id)(uuid.asOutParam());
+                    machine->COMGETTER(Name)(name.asOutParam());
+                    machine->COMGETTER(Id)(uuid.asOutParam());
                     RTPrintf("%s%ls (UUID: %ls)",
                              fFirst ? "In use by VMs:  " : "                ",
                              name.raw(), machineIds[i]);
@@ -1294,12 +1126,12 @@ HRESULT showMediumInfo(const ComPtr<IVirtualBox> &pVirtualBox,
                                             ComSafeArrayAsOutParam(snapshotIds));
                     for (size_t j = 0; j < snapshotIds.size(); j++)
                     {
-                        ComPtr<ISnapshot> pSnapshot;
-                        pMachine->FindSnapshot(snapshotIds[j], pSnapshot.asOutParam());
-                        if (pSnapshot)
+                        ComPtr<ISnapshot> snapshot;
+                        machine->FindSnapshot(snapshotIds[j], snapshot.asOutParam());
+                        if (snapshot)
                         {
                             Bstr snapshotName;
-                            pSnapshot->COMGETTER(Name)(snapshotName.asOutParam());
+                            snapshot->COMGETTER(Name)(snapshotName.asOutParam());
                             RTPrintf(" [%ls (UUID: %ls)]", snapshotName.raw(), snapshotIds[j]);
                         }
                     }
@@ -1333,110 +1165,72 @@ HRESULT showMediumInfo(const ComPtr<IVirtualBox> &pVirtualBox,
     return rc;
 }
 
-static const RTGETOPTDEF g_aShowMediumInfoOptions[] =
+static const RTGETOPTDEF g_aShowHardDiskInfoOptions[] =
 {
-    { "disk",           'd', RTGETOPT_REQ_NOTHING },
-    { "dvd",            'D', RTGETOPT_REQ_NOTHING },
-    { "floppy",         'f', RTGETOPT_REQ_NOTHING },
+    { "--dummy",    256, RTGETOPT_REQ_NOTHING },   // placeholder for C++
 };
 
-int handleShowMediumInfo(HandlerArg *a)
+int handleShowHardDiskInfo(HandlerArg *a)
 {
     HRESULT rc;
-    enum {
-        CMD_NONE,
-        CMD_DISK,
-        CMD_DVD,
-        CMD_FLOPPY
-    } cmd = CMD_NONE;
-    const char *pszFilenameOrUuid = NULL;
+    const char *FilenameOrUuid = NULL;
 
     int c;
     RTGETOPTUNION ValueUnion;
     RTGETOPTSTATE GetState;
     // start at 0 because main() has hacked both the argc and argv given to us
-    RTGetOptInit(&GetState, a->argc, a->argv, g_aShowMediumInfoOptions, RT_ELEMENTS(g_aShowMediumInfoOptions),
+    RTGetOptInit(&GetState, a->argc, a->argv, g_aShowHardDiskInfoOptions, RT_ELEMENTS(g_aShowHardDiskInfoOptions),
                  0, RTGETOPTINIT_FLAGS_NO_STD_OPTS);
     while ((c = RTGetOpt(&GetState, &ValueUnion)))
     {
         switch (c)
         {
-            case 'd':   // disk
-                if (cmd != CMD_NONE)
-                    return errorSyntax(USAGE_SHOWMEDIUMINFO, "Only one command can be specified: '%s'", ValueUnion.psz);
-                cmd = CMD_DISK;
-                break;
-
-            case 'D':   // DVD
-                if (cmd != CMD_NONE)
-                    return errorSyntax(USAGE_SHOWMEDIUMINFO, "Only one command can be specified: '%s'", ValueUnion.psz);
-                cmd = CMD_DVD;
-                break;
-
-            case 'f':   // floppy
-                if (cmd != CMD_NONE)
-                    return errorSyntax(USAGE_SHOWMEDIUMINFO, "Only one command can be specified: '%s'", ValueUnion.psz);
-                cmd = CMD_FLOPPY;
-                break;
-
             case VINF_GETOPT_NOT_OPTION:
-                if (!pszFilenameOrUuid)
-                    pszFilenameOrUuid = ValueUnion.psz;
+                if (!FilenameOrUuid)
+                    FilenameOrUuid = ValueUnion.psz;
                 else
-                    return errorSyntax(USAGE_SHOWMEDIUMINFO, "Invalid parameter '%s'", ValueUnion.psz);
+                    return errorSyntax(USAGE_SHOWHDINFO, "Invalid parameter '%s'", ValueUnion.psz);
                 break;
 
             default:
                 if (c > 0)
                 {
                     if (RT_C_IS_PRINT(c))
-                        return errorSyntax(USAGE_SHOWMEDIUMINFO, "Invalid option -%c", c);
+                        return errorSyntax(USAGE_SHOWHDINFO, "Invalid option -%c", c);
                     else
-                        return errorSyntax(USAGE_SHOWMEDIUMINFO, "Invalid option case %i", c);
+                        return errorSyntax(USAGE_SHOWHDINFO, "Invalid option case %i", c);
                 }
                 else if (c == VERR_GETOPT_UNKNOWN_OPTION)
-                    return errorSyntax(USAGE_SHOWMEDIUMINFO, "unknown option: %s\n", ValueUnion.psz);
+                    return errorSyntax(USAGE_SHOWHDINFO, "unknown option: %s\n", ValueUnion.psz);
                 else if (ValueUnion.pDef)
-                    return errorSyntax(USAGE_SHOWMEDIUMINFO, "%s: %Rrs", ValueUnion.pDef->pszLong, c);
+                    return errorSyntax(USAGE_SHOWHDINFO, "%s: %Rrs", ValueUnion.pDef->pszLong, c);
                 else
-                    return errorSyntax(USAGE_SHOWMEDIUMINFO, "error: %Rrs", c);
+                    return errorSyntax(USAGE_SHOWHDINFO, "error: %Rrs", c);
         }
     }
 
-    if (cmd == CMD_NONE)
-        cmd = CMD_DISK;
-
     /* check for required options */
-    if (!pszFilenameOrUuid)
-        return errorSyntax(USAGE_SHOWMEDIUMINFO, "Medium name or UUID required");
+    if (!FilenameOrUuid)
+        return errorSyntax(USAGE_SHOWHDINFO, "Disk name or UUID required");
 
-    ComPtr<IMedium> pMedium;
-    if (cmd == CMD_DISK)
-        rc = openMedium(a, pszFilenameOrUuid, DeviceType_HardDisk,
-                        AccessMode_ReadOnly, pMedium,
-                        false /* fForceNewUuidOnOpen */, false /* fSilent */);
-    else if (cmd == CMD_DVD)
-        rc = openMedium(a, pszFilenameOrUuid, DeviceType_DVD,
-                        AccessMode_ReadOnly, pMedium,
-                        false /* fForceNewUuidOnOpen */, false /* fSilent */);
-    else if (cmd == CMD_FLOPPY)
-        rc = openMedium(a, pszFilenameOrUuid, DeviceType_Floppy,
-                        AccessMode_ReadOnly, pMedium,
-                        false /* fForceNewUuidOnOpen */, false /* fSilent */);
+    ComPtr<IMedium> hardDisk;
+    rc = openMedium(a, FilenameOrUuid, DeviceType_HardDisk,
+                    AccessMode_ReadOnly, hardDisk,
+                    false /* fForceNewUuidOnOpen */, false /* fSilent */);
     if (FAILED(rc))
         return 1;
 
     Utf8Str strParentUUID("base");
-    ComPtr<IMedium> pParent;
-    pMedium->COMGETTER(Parent)(pParent.asOutParam());
-    if (!pParent.isNull())
+    ComPtr<IMedium> parent;
+    hardDisk->COMGETTER(Parent)(parent.asOutParam());
+    if (!parent.isNull())
     {
         Bstr bstrParentUUID;
-        pParent->COMGETTER(Id)(bstrParentUUID.asOutParam());
+        parent->COMGETTER(Id)(bstrParentUUID.asOutParam());
         strParentUUID = bstrParentUUID;
     }
 
-    rc = showMediumInfo(a->virtualBox, pMedium, strParentUUID.c_str(), true);
+    rc = showMediumInfo(a->virtualBox, hardDisk, strParentUUID.c_str(), true);
 
     return SUCCEEDED(rc) ? 0 : 1;
 }
@@ -1458,7 +1252,7 @@ int handleCloseMedium(HandlerArg *a)
         CMD_DVD,
         CMD_FLOPPY
     } cmd = CMD_NONE;
-    const char *pszFilenameOrUuid = NULL;
+    const char *FilenameOrUuid = NULL;
     bool fDelete = false;
 
     int c;
@@ -1494,8 +1288,8 @@ int handleCloseMedium(HandlerArg *a)
                 break;
 
             case VINF_GETOPT_NOT_OPTION:
-                if (!pszFilenameOrUuid)
-                    pszFilenameOrUuid = ValueUnion.psz;
+                if (!FilenameOrUuid)
+                    FilenameOrUuid = ValueUnion.psz;
                 else
                     return errorSyntax(USAGE_CLOSEMEDIUM, "Invalid parameter '%s'", ValueUnion.psz);
                 break;
@@ -1519,337 +1313,42 @@ int handleCloseMedium(HandlerArg *a)
 
     /* check for required options */
     if (cmd == CMD_NONE)
-        cmd = CMD_DISK;
-    if (!pszFilenameOrUuid)
-        return errorSyntax(USAGE_CLOSEMEDIUM, "Medium name or UUID required");
+        return errorSyntax(USAGE_CLOSEMEDIUM, "Command variant disk/dvd/floppy required");
+    if (!FilenameOrUuid)
+        return errorSyntax(USAGE_CLOSEMEDIUM, "Disk name or UUID required");
 
-    ComPtr<IMedium> pMedium;
+    ComPtr<IMedium> medium;
+
     if (cmd == CMD_DISK)
-        rc = openMedium(a, pszFilenameOrUuid, DeviceType_HardDisk,
-                        AccessMode_ReadWrite, pMedium,
+        rc = openMedium(a, FilenameOrUuid, DeviceType_HardDisk,
+                        AccessMode_ReadWrite, medium,
                         false /* fForceNewUuidOnOpen */, false /* fSilent */);
     else if (cmd == CMD_DVD)
-        rc = openMedium(a, pszFilenameOrUuid, DeviceType_DVD,
-                        AccessMode_ReadOnly, pMedium,
+        rc = openMedium(a, FilenameOrUuid, DeviceType_DVD,
+                        AccessMode_ReadOnly, medium,
                         false /* fForceNewUuidOnOpen */, false /* fSilent */);
     else if (cmd == CMD_FLOPPY)
-        rc = openMedium(a, pszFilenameOrUuid, DeviceType_Floppy,
-                        AccessMode_ReadWrite, pMedium,
+        rc = openMedium(a, FilenameOrUuid, DeviceType_Floppy,
+                        AccessMode_ReadWrite, medium,
                         false /* fForceNewUuidOnOpen */, false /* fSilent */);
 
-    if (SUCCEEDED(rc) && pMedium)
+    if (SUCCEEDED(rc) && medium)
     {
         if (fDelete)
         {
-            ComPtr<IProgress> pProgress;
-            CHECK_ERROR(pMedium, DeleteStorage(pProgress.asOutParam()));
+            ComPtr<IProgress> progress;
+            CHECK_ERROR(medium, DeleteStorage(progress.asOutParam()));
             if (SUCCEEDED(rc))
             {
-                rc = showProgress(pProgress);
-                CHECK_PROGRESS_ERROR(pProgress, ("Failed to delete medium"));
+                rc = showProgress(progress);
+                CHECK_PROGRESS_ERROR(progress, ("Failed to delete medium"));
             }
             else
                 RTMsgError("Failed to delete medium. Error code %Rrc", rc);
         }
-        CHECK_ERROR(pMedium, Close());
+        CHECK_ERROR(medium, Close());
     }
 
     return SUCCEEDED(rc) ? 0 : 1;
 }
-
-int handleMediumProperty(HandlerArg *a)
-{
-    HRESULT rc = S_OK;
-    const char *pszCmd = NULL;
-    enum {
-        CMD_NONE,
-        CMD_DISK,
-        CMD_DVD,
-        CMD_FLOPPY
-    } cmd = CMD_NONE;
-    const char *pszAction = NULL;
-    const char *pszFilenameOrUuid = NULL;
-    const char *pszProperty = NULL;
-    ComPtr<IMedium> pMedium;
-
-    pszCmd = (a->argc > 0) ? a->argv[0] : "";
-    if (   !RTStrICmp(pszCmd, "disk")
-        || !RTStrICmp(pszCmd, "dvd")
-        || !RTStrICmp(pszCmd, "floppy"))
-    {
-        if (!RTStrICmp(pszCmd, "disk"))
-            cmd = CMD_DISK;
-        else if (!RTStrICmp(pszCmd, "dvd"))
-            cmd = CMD_DVD;
-        else if (!RTStrICmp(pszCmd, "floppy"))
-            cmd = CMD_FLOPPY;
-        else
-        {
-            AssertMsgFailed(("unexpected parameter %s\n", pszCmd));
-            cmd = CMD_DISK;
-        }
-        a->argv++;
-        a->argc--;
-    }
-    else
-    {
-        pszCmd = NULL;
-        cmd = CMD_DISK;
-    }
-
-    if (a->argc == 0)
-        return errorSyntax(USAGE_MEDIUMPROPERTY, "Missing action");
-
-    pszAction = a->argv[0];
-    if (   RTStrICmp(pszAction, "set")
-        && RTStrICmp(pszAction, "get")
-        && RTStrICmp(pszAction, "delete"))
-        return errorSyntax(USAGE_MEDIUMPROPERTY, "Invalid action given: %s", pszAction);
-
-    if (   (   !RTStrICmp(pszAction, "set")
-            && a->argc != 4)
-        || (   RTStrICmp(pszAction, "set")
-            && a->argc != 3))
-        return errorSyntax(USAGE_MEDIUMPROPERTY, "Invalid number of arguments given for action: %s", pszAction);
-
-    pszFilenameOrUuid = a->argv[1];
-    pszProperty       = a->argv[2];
-
-    if (cmd == CMD_DISK)
-        rc = openMedium(a, pszFilenameOrUuid, DeviceType_HardDisk,
-                        AccessMode_ReadWrite, pMedium,
-                        false /* fForceNewUuidOnOpen */, false /* fSilent */);
-    else if (cmd == CMD_DVD)
-        rc = openMedium(a, pszFilenameOrUuid, DeviceType_DVD,
-                        AccessMode_ReadOnly, pMedium,
-                        false /* fForceNewUuidOnOpen */, false /* fSilent */);
-    else if (cmd == CMD_FLOPPY)
-        rc = openMedium(a, pszFilenameOrUuid, DeviceType_Floppy,
-                        AccessMode_ReadWrite, pMedium,
-                        false /* fForceNewUuidOnOpen */, false /* fSilent */);
-    if (SUCCEEDED(rc) && !pMedium.isNull())
-    {
-        if (!RTStrICmp(pszAction, "set"))
-        {
-            const char *pszValue = a->argv[3];
-            CHECK_ERROR(pMedium, SetProperty(Bstr(pszProperty).raw(), Bstr(pszValue).raw()));
-        }
-        else if (!RTStrICmp(pszAction, "get"))
-        {
-            Bstr strVal;
-            CHECK_ERROR(pMedium, GetProperty(Bstr(pszProperty).raw(), strVal.asOutParam()));
-            if (SUCCEEDED(rc))
-                RTPrintf("%s=%ls\n", pszProperty, strVal.raw());
-        }
-        else if (!RTStrICmp(pszAction, "delete"))
-        {
-            const char *pszValue = a->argv[3];
-            CHECK_ERROR(pMedium, SetProperty(Bstr(pszProperty).raw(), Bstr().raw()));
-            /** @todo */
-        }
-    }
-
-    return SUCCEEDED(rc) ? 0 : 1;
-}
-
-static const RTGETOPTDEF g_aEncryptMediumOptions[] =
-{
-    { "--newpassword",   'n', RTGETOPT_REQ_STRING },
-    { "--oldpassword",   'o', RTGETOPT_REQ_STRING },
-    { "--cipher",        'c', RTGETOPT_REQ_STRING },
-    { "--newpasswordid", 'i', RTGETOPT_REQ_STRING }
-};
-
-int handleEncryptMedium(HandlerArg *a)
-{
-    HRESULT rc;
-    ComPtr<IMedium> hardDisk;
-    const char *pszPasswordNew = NULL;
-    const char *pszPasswordOld = NULL;
-    const char *pszCipher = NULL;
-    const char *pszFilenameOrUuid = NULL;
-    const char *pszNewPasswordId = NULL;
-    Utf8Str strPasswordNew;
-    Utf8Str strPasswordOld;
-
-    int c;
-    RTGETOPTUNION ValueUnion;
-    RTGETOPTSTATE GetState;
-    // start at 0 because main() has hacked both the argc and argv given to us
-    RTGetOptInit(&GetState, a->argc, a->argv, g_aEncryptMediumOptions, RT_ELEMENTS(g_aEncryptMediumOptions),
-                 0, RTGETOPTINIT_FLAGS_NO_STD_OPTS);
-    while ((c = RTGetOpt(&GetState, &ValueUnion)))
-    {
-        switch (c)
-        {
-            case 'n':   // --newpassword
-                pszPasswordNew = ValueUnion.psz;
-                break;
-
-            case 'o':   // --oldpassword
-                pszPasswordOld = ValueUnion.psz;
-                break;
-
-            case 'c':   // --cipher
-                pszCipher = ValueUnion.psz;
-                break;
-
-            case 'i':   // --newpasswordid
-                pszNewPasswordId = ValueUnion.psz;
-                break;
-
-            case VINF_GETOPT_NOT_OPTION:
-                if (!pszFilenameOrUuid)
-                    pszFilenameOrUuid = ValueUnion.psz;
-                else
-                    return errorSyntax(USAGE_ENCRYPTMEDIUM, "Invalid parameter '%s'", ValueUnion.psz);
-                break;
-
-            default:
-                if (c > 0)
-                {
-                    if (RT_C_IS_PRINT(c))
-                        return errorSyntax(USAGE_ENCRYPTMEDIUM, "Invalid option -%c", c);
-                    else
-                        return errorSyntax(USAGE_ENCRYPTMEDIUM, "Invalid option case %i", c);
-                }
-                else if (c == VERR_GETOPT_UNKNOWN_OPTION)
-                    return errorSyntax(USAGE_ENCRYPTMEDIUM, "unknown option: %s\n", ValueUnion.psz);
-                else if (ValueUnion.pDef)
-                    return errorSyntax(USAGE_ENCRYPTMEDIUM, "%s: %Rrs", ValueUnion.pDef->pszLong, c);
-                else
-                    return errorSyntax(USAGE_ENCRYPTMEDIUM, "error: %Rrs", c);
-        }
-    }
-
-    if (!pszFilenameOrUuid)
-        return errorSyntax(USAGE_ENCRYPTMEDIUM, "Disk name or UUID required");
-
-    if (!pszPasswordNew && !pszPasswordOld)
-        return errorSyntax(USAGE_ENCRYPTMEDIUM, "No password specified");
-
-    if (   (pszPasswordNew && !pszNewPasswordId)
-        || (!pszPasswordNew && pszNewPasswordId))
-        return errorSyntax(USAGE_ENCRYPTMEDIUM, "A new password must always have a valid identifier set at the same time");
-
-    if (pszPasswordNew)
-    {
-        if (!RTStrCmp(pszPasswordNew, "-"))
-        {
-            /* Get password from console. */
-            RTEXITCODE rcExit = readPasswordFromConsole(&strPasswordNew, "Enter new password:");
-            if (rcExit == RTEXITCODE_FAILURE)
-                return rcExit;
-        }
-        else
-        {
-            RTEXITCODE rcExit = readPasswordFile(pszPasswordNew, &strPasswordNew);
-            if (rcExit == RTEXITCODE_FAILURE)
-            {
-                RTMsgError("Failed to read new password from file");
-                return rcExit;
-            }
-        }
-    }
-
-    if (pszPasswordOld)
-    {
-        if (!RTStrCmp(pszPasswordOld, "-"))
-        {
-            /* Get password from console. */
-            RTEXITCODE rcExit = readPasswordFromConsole(&strPasswordOld, "Enter old password:");
-            if (rcExit == RTEXITCODE_FAILURE)
-                return rcExit;
-        }
-        else
-        {
-            RTEXITCODE rcExit = readPasswordFile(pszPasswordOld, &strPasswordOld);
-            if (rcExit == RTEXITCODE_FAILURE)
-            {
-                RTMsgError("Failed to read old password from file");
-                return rcExit;
-            }
-        }
-    }
-
-    /* Always open the medium if necessary, there is no other way. */
-    rc = openMedium(a, pszFilenameOrUuid, DeviceType_HardDisk,
-                    AccessMode_ReadWrite, hardDisk,
-                    false /* fForceNewUuidOnOpen */, false /* fSilent */);
-    if (FAILED(rc))
-        return 1;
-    if (hardDisk.isNull())
-    {
-        RTMsgError("Invalid hard disk reference, avoiding crash");
-        return 1;
-    }
-
-    ComPtr<IProgress> progress;
-    CHECK_ERROR(hardDisk, ChangeEncryption(Bstr(strPasswordOld).raw(), Bstr(pszCipher).raw(),
-                                           Bstr(strPasswordNew).raw(), Bstr(pszNewPasswordId).raw(),
-                                           progress.asOutParam()));
-    if (SUCCEEDED(rc))
-        rc = showProgress(progress);
-    if (FAILED(rc))
-    {
-        if (rc == E_NOTIMPL)
-            RTMsgError("Encrypt hard disk operation is not implemented!");
-        else if (rc == VBOX_E_NOT_SUPPORTED)
-            RTMsgError("Encrypt hard disk operation for this cipher is not implemented yet!");
-        else if (!progress.isNull())
-            CHECK_PROGRESS_ERROR(progress, ("Failed to encrypt hard disk"));
-        else
-            RTMsgError("Failed to encrypt hard disk!");
-    }
-
-    return SUCCEEDED(rc) ? 0 : 1;
-}
-
-int handleCheckMediumPassword(HandlerArg *a)
-{
-    HRESULT rc;
-    ComPtr<IMedium> hardDisk;
-    const char *pszFilenameOrUuid = NULL;
-    Utf8Str strPassword;
-
-    if (a->argc != 2)
-        return errorSyntax(USAGE_MEDIUMENCCHKPWD, "Invalid number of arguments: %d", a->argc);
-
-    pszFilenameOrUuid = a->argv[0];
-
-    if (!RTStrCmp(a->argv[1], "-"))
-    {
-        /* Get password from console. */
-        RTEXITCODE rcExit = readPasswordFromConsole(&strPassword, "Enter password:");
-        if (rcExit == RTEXITCODE_FAILURE)
-            return rcExit;
-    }
-    else
-    {
-        RTEXITCODE rcExit = readPasswordFile(a->argv[1], &strPassword);
-        if (rcExit == RTEXITCODE_FAILURE)
-        {
-            RTMsgError("Failed to read password from file");
-            return rcExit;
-        }
-    }
-
-    /* Always open the medium if necessary, there is no other way. */
-    rc = openMedium(a, pszFilenameOrUuid, DeviceType_HardDisk,
-                    AccessMode_ReadWrite, hardDisk,
-                    false /* fForceNewUuidOnOpen */, false /* fSilent */);
-    if (FAILED(rc))
-        return 1;
-    if (hardDisk.isNull())
-    {
-        RTMsgError("Invalid hard disk reference, avoiding crash");
-        return 1;
-    }
-
-    CHECK_ERROR(hardDisk, CheckEncryptionPassword(Bstr(strPassword).raw()));
-    if (SUCCEEDED(rc))
-        RTPrintf("The given password is correct\n");
-    return SUCCEEDED(rc) ? 0 : 1;
-}
-
 #endif /* !VBOX_ONLY_DOCS */

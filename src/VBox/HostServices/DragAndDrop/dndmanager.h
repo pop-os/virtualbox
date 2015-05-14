@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2011-2015 Oracle Corporation
+ * Copyright (C) 2011-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,14 +17,13 @@
 #ifndef ___VBox_HostService_DnD_dndmanager_h
 #define ___VBox_HostService_DnD_dndmanager_h
 
-#include <VBox/GuestHost/DragAndDrop.h>
 #include <VBox/HostServices/Service.h>
 #include <VBox/HostServices/DragAndDropSvc.h>
 
 #include <iprt/cpp/ministring.h>
 #include <iprt/cpp/list.h>
 
-typedef DECLCALLBACK(int) FNDNDPROGRESS(uint32_t uState, uint32_t uPercentage, int rc, void *pvUser);
+typedef DECLCALLBACK(int) FNDNDPROGRESS(unsigned uPercentage, uint32_t uState, void *pvUser);
 typedef FNDNDPROGRESS *PFNDNDPROGRESS;
 
 /**
@@ -34,22 +33,19 @@ typedef FNDNDPROGRESS *PFNDNDPROGRESS;
 class DnDMessage
 {
 public:
-
-    DnDMessage(void)
-        : m_pNextMsg(NULL)
+    DnDMessage()
+      : m_pNextMsg(NULL)
     {
     }
-
-    virtual ~DnDMessage(void)
+    virtual ~DnDMessage()
     {
         clearNextMsg();
     }
 
-    virtual HGCM::Message* nextHGCMMessage(void)
+    virtual HGCM::Message* nextHGCMMessage()
     {
         return m_pNextMsg;
     }
-
     virtual int currentMessageInfo(uint32_t *puMsg, uint32_t *pcParms)
     {
         AssertPtrReturn(puMsg, VERR_INVALID_POINTER);
@@ -63,9 +59,7 @@ public:
 
         return VINF_SUCCESS;
     }
-
-    virtual int currentMessage(uint32_t uMsg, uint32_t cParms,
-                               VBOXHGCMSVCPARM paParms[])
+    virtual int currentMessage(uint32_t uMsg, uint32_t cParms, VBOXHGCMSVCPARM paParms[])
     {
         if (!m_pNextMsg)
             return VERR_NO_DATA;
@@ -76,8 +70,7 @@ public:
 
         return rc;
     }
-
-    virtual void clearNextMsg(void)
+    virtual void clearNextMsg()
     {
         if (m_pNextMsg)
         {
@@ -86,10 +79,9 @@ public:
         }
     }
 
-    virtual bool isMessageWaiting(void) const { return m_pNextMsg != NULL; }
+    virtual bool isMessageWaiting() const { return m_pNextMsg != NULL; }
 
 protected:
-
     HGCM::Message *m_pNextMsg;
 };
 
@@ -107,17 +99,58 @@ public:
 };
 
 /**
- * DnD message class for informing the guest to cancel any current (and pending) activities.
+ * DnD message class for informing the guest about a new drop data event.
+ */
+class DnDHGSendDataMessage: public DnDMessage
+{
+public:
+    DnDHGSendDataMessage(uint32_t uMsg, uint32_t cParms, VBOXHGCMSVCPARM paParms[], PFNDNDPROGRESS pfnProgressCallback, void *pvProgressUser);
+    ~DnDHGSendDataMessage();
+
+    HGCM::Message* nextHGCMMessage();
+    int currentMessageInfo(uint32_t *puMsg, uint32_t *pcParms);
+    int currentMessage(uint32_t uMsg, uint32_t cParms, VBOXHGCMSVCPARM paParms[]);
+
+    bool isMessageWaiting() const { return !!m_pNextPathMsg; }
+
+protected:
+    struct PathEntry
+    {
+        PathEntry(const RTCString &strHostPath, const RTCString &strGuestPath, uint32_t fMode, uint64_t cbSize)
+          : m_strHostPath(strHostPath)
+          , m_strGuestPath(strGuestPath)
+          , m_fMode(fMode)
+          , m_cbSize(cbSize) {}
+        RTCString m_strHostPath;
+        RTCString m_strGuestPath;
+        uint32_t  m_fMode;
+        uint64_t  m_cbSize;
+    };
+
+    bool hasFileUrls(const char *pcszFormat, size_t cbMax) const;
+    int buildFileTree(const char *pcszPath, size_t cbBaseLen);
+    static DECLCALLBACK(int) progressCallback(size_t cbDone, void *pvUser);
+
+    RTCList<PathEntry>  m_uriList;
+    DnDMessage         *m_pNextPathMsg;
+
+    /* Progress stuff */
+    size_t              m_cbAll;
+    size_t              m_cbTransfered;
+    PFNDNDPROGRESS      m_pfnProgressCallback;
+    void               *m_pvProgressUser;
+};
+
+/**
+ * DnD message class for informing the guest to cancel any currently and
+ * pending activities.
  */
 class DnDHGCancelMessage: public DnDMessage
 {
 public:
-
-    DnDHGCancelMessage(void)
+    DnDHGCancelMessage()
     {
-        m_pNextMsg
-            = new HGCM::Message(DragAndDropSvc::HOST_DND_HG_EVT_CANCEL,
-                                0 /* cParms */, 0 /* aParms */);
+        m_pNextMsg = new HGCM::Message(DragAndDropSvc::HOST_DND_HG_EVT_CANCEL, 0, 0);
     }
 };
 
@@ -128,34 +161,37 @@ public:
 class DnDManager
 {
 public:
-
     DnDManager(PFNDNDPROGRESS pfnProgressCallback, void *pvProgressUser)
-        : m_pCurMsg(NULL)
-        , m_pfnProgressCallback(pfnProgressCallback)
-        , m_pvProgressUser(pvProgressUser)
+      : m_pCurMsg(0)
+      , m_fOpInProcess(false)
+      , m_pfnProgressCallback(pfnProgressCallback)
+      , m_pvProgressUser(pvProgressUser)
     {}
-
-    virtual ~DnDManager(void)
+    ~DnDManager()
     {
         clear();
     }
 
-    int addMessage(uint32_t uMsg, uint32_t cParms, VBOXHGCMSVCPARM paParms[], bool fAppend = true);
+    int addMessage(uint32_t uMsg, uint32_t cParms, VBOXHGCMSVCPARM paParms[]);
 
-    HGCM::Message *nextHGCMMessage(void);
+    HGCM::Message *nextHGCMMessage();
     int nextMessageInfo(uint32_t *puMsg, uint32_t *pcParms);
     int nextMessage(uint32_t uMsg, uint32_t cParms, VBOXHGCMSVCPARM paParms[]);
 
-    void clear(void);
-    int doReschedule(void);
+    void clear();
+
+    bool hasActiveOperation() const { return m_fOpInProcess; }
 
 private:
     DnDMessage           *m_pCurMsg;
     RTCList<DnDMessage*>  m_dndMessageQueue;
 
+    bool                  m_fOpInProcess;
+
     /* Progress stuff */
     PFNDNDPROGRESS        m_pfnProgressCallback;
     void                 *m_pvProgressUser;
 };
+
 #endif /* ___VBox_HostService_DnD_dndmanager_h */
 

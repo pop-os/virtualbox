@@ -7,7 +7,6 @@
 #include "cr_error.h"
 #include "cr_spu.h"
 #include "cr_environment.h"
-#include "cr_mem.h"
 #include "stub.h"
 
 /* I *know* most of the parameters are unused, dammit. */
@@ -354,7 +353,7 @@ DECLEXPORT(BOOL) WINAPI wglShareLists_prox( HGLRC hglrc1, HGLRC hglrc2 )
 
 DECLEXPORT(HGLRC) WINAPI VBoxCreateContext( HDC hdc, struct VBOXUHGSMI *pHgsmi )
 {
-    char *dpyName;
+    char dpyName[MAX_DPY_NAME];
     ContextInfo *context;
 
     CR_DDI_PROLOGUE();
@@ -363,12 +362,7 @@ DECLEXPORT(HGLRC) WINAPI VBoxCreateContext( HDC hdc, struct VBOXUHGSMI *pHgsmi )
 
     CRASSERT(stub.contextTable);
 
-    dpyName = crCalloc(MAX_DPY_NAME);
-    if (dpyName)
-    {
-        crMemset(dpyName, 0, MAX_DPY_NAME);
-        sprintf(dpyName, "%d", hdc);
-    }
+    sprintf(dpyName, "%d", hdc);
 #ifndef VBOX_CROGL_USE_VBITS_SUPERSET
     if (stub.haveNativeOpenGL)
         desiredVisual |= ComputeVisBits( hdc );
@@ -381,9 +375,6 @@ DECLEXPORT(HGLRC) WINAPI VBoxCreateContext( HDC hdc, struct VBOXUHGSMI *pHgsmi )
         , NULL
 #endif
             );
-    /* Not needed any more. */
-    crFree(dpyName);
-
     if (!context)
         return 0;
 

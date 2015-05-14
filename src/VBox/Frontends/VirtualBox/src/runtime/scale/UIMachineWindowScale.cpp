@@ -1,6 +1,8 @@
 /* $Id: UIMachineWindowScale.cpp $ */
 /** @file
- * VBox Qt GUI - UIMachineWindowScale class implementation.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * UIMachineWindowScale class implementation
  */
 
 /*
@@ -15,35 +17,40 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QDesktopWidget>
-# include <QMenu>
-# include <QTimer>
-# include <QSpacerItem>
-# include <QResizeEvent>
+#include <QDesktopWidget>
+#include <QMenu>
+#include <QTimer>
+#include <QSpacerItem>
+#include <QResizeEvent>
 
 /* GUI includes: */
-# include "VBoxGlobal.h"
-# include "UIExtraDataManager.h"
-# include "UISession.h"
-# include "UIMachineLogic.h"
-# include "UIMachineWindowScale.h"
+#include "VBoxGlobal.h"
+#include "UISession.h"
+#include "UIMachineLogic.h"
+#include "UIMachineWindowScale.h"
+#ifdef Q_WS_WIN
 # include "UIMachineView.h"
-# ifdef Q_WS_MAC
-#  include "VBoxUtils.h"
-#  include "UIImageTools.h"
-# endif /* Q_WS_MAC */
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
+#endif /* Q_WS_WIN */
+#ifdef Q_WS_MAC
+# include "VBoxUtils.h"
+# include "UIImageTools.h"
+#endif /* Q_WS_MAC */
 
 UIMachineWindowScale::UIMachineWindowScale(UIMachineLogic *pMachineLogic, ulong uScreenId)
     : UIMachineWindow(pMachineLogic, uScreenId)
+    , m_pMainMenu(0)
 {
+}
+
+void UIMachineWindowScale::sltPopupMainMenu()
+{
+    /* Popup main-menu if present: */
+    if (m_pMainMenu && !m_pMainMenu->isEmpty())
+    {
+        m_pMainMenu->popup(geometry().center());
+        QTimer::singleShot(0, m_pMainMenu, SLOT(sltHighlightFirstAction()));
+    }
 }
 
 void UIMachineWindowScale::prepareMainLayout()
@@ -58,12 +65,26 @@ void UIMachineWindowScale::prepareMainLayout()
     m_pRightSpacer->changeSize(0, 0, QSizePolicy::Fixed, QSizePolicy::Fixed);
 }
 
+void UIMachineWindowScale::prepareMenu()
+{
+    /* Call to base-class: */
+    UIMachineWindow::prepareMenu();
+
+    /* Prepare menu: */
+    CMachine machine = session().GetMachine();
+    RuntimeMenuType restrictedMenus = VBoxGlobal::restrictedRuntimeMenuTypes(machine);
+    RuntimeMenuType allowedMenus = static_cast<RuntimeMenuType>(RuntimeMenuType_All ^ restrictedMenus);
+    m_pMainMenu = uisession()->newMenu(allowedMenus);
+}
+
 #ifdef Q_WS_MAC
 void UIMachineWindowScale::prepareVisualState()
 {
     /* Call to base-class: */
     UIMachineWindow::prepareVisualState();
 
+    /* Install the resize delegate for keeping the aspect ratio. */
+    ::darwinInstallResizeDelegate(this);
     /* Beta label? */
     if (vboxGlobal().isBeta())
     {
@@ -78,36 +99,54 @@ void UIMachineWindowScale::loadSettings()
     /* Call to base-class: */
     UIMachineWindow::loadSettings();
 
+    /* Load scale window settings: */
+    CMachine m = machine();
+
     /* Load extra-data settings: */
     {
-        /* Load extra-data: */
-        QRect geo = gEDataManager->machineWindowGeometry(machineLogic()->visualStateType(),
-                                                         m_uScreenId, vboxGlobal().managedVMUuid());
+        QString strPositionAddress = m_uScreenId == 0 ? QString("%1").arg(GUI_LastScaleWindowPosition) :
+                                     QString("%1%2").arg(GUI_LastScaleWindowPosition).arg(m_uScreenId);
+        QStringList strPositionSettings = m.GetExtraDataStringList(strPositionAddress);
 
-        /* If we do have proper geometry: */
-        if (!geo.isNull())
+        bool ok = !strPositionSettings.isEmpty(), max = false;
+        int x = 0, y = 0, w = 0, h = 0;
+
+        if (ok && strPositionSettings.size() > 0)
+            x = strPositionSettings[0].toInt(&ok);
+        else ok = false;
+        if (ok && strPositionSettings.size() > 1)
+            y = strPositionSettings[1].toInt(&ok);
+        else ok = false;
+        if (ok && strPositionSettings.size() > 2)
+            w = strPositionSettings[2].toInt(&ok);
+        else ok = false;
+        if (ok && strPositionSettings.size() > 3)
+            h = strPositionSettings[3].toInt(&ok);
+        else ok = false;
+        if (ok && strPositionSettings.size() > 4)
+            max = strPositionSettings[4] == GUI_LastWindowState_Max;
+
+        QRect ar = ok ? QApplication::desktop()->availableGeometry(QPoint(x, y)) :
+                        QApplication::desktop()->availableGeometry(this);
+
+        /* If previous parameters were read correctly: */
+        if (ok)
         {
-            /* Restore window geometry: */
-            m_normalGeometry = geo;
+            /* Restore window size and position: */
+            m_normalGeometry = QRect(x, y, w, h);
             setGeometry(m_normalGeometry);
-
-            /* Maximize (if necessary): */
-            if (gEDataManager->machineWindowShouldBeMaximized(machineLogic()->visualStateType(),
-                                                              m_uScreenId, vboxGlobal().managedVMUuid()))
+            /* Maximize if needed: */
+            if (max)
                 setWindowState(windowState() | Qt::WindowMaximized);
         }
-        /* If we do NOT have proper geometry: */
         else
         {
-            /* Get available geometry, for screen with (x,y) coords if possible: */
-            QRect availableGeo = !geo.isNull() ? QApplication::desktop()->availableGeometry(QPoint(geo.x(), geo.y())) :
-                                                 QApplication::desktop()->availableGeometry(this);
-
             /* Resize to default size: */
             resize(640, 480);
-            /* Move newly created window to the screen-center: */
+            qApp->processEvents();
+            /* Move newly created window to the screen center: */
             m_normalGeometry = geometry();
-            m_normalGeometry.moveCenter(availableGeo.center());
+            m_normalGeometry.moveCenter(ar.center());
             setGeometry(m_normalGeometry);
         }
     }
@@ -115,15 +154,44 @@ void UIMachineWindowScale::loadSettings()
 
 void UIMachineWindowScale::saveSettings()
 {
-    /* Save window geometry: */
+    /* Get machine: */
+    CMachine m = machine();
+
+    /* Save extra-data settings: */
     {
-        gEDataManager->setMachineWindowGeometry(machineLogic()->visualStateType(),
-                                                m_uScreenId, m_normalGeometry,
-                                                isMaximizedChecked(), vboxGlobal().managedVMUuid());
+        QString strWindowPosition = QString("%1,%2,%3,%4")
+                                    .arg(m_normalGeometry.x()).arg(m_normalGeometry.y())
+                                    .arg(m_normalGeometry.width()).arg(m_normalGeometry.height());
+        if (isMaximizedChecked())
+            strWindowPosition += QString(",%1").arg(GUI_LastWindowState_Max);
+        QString strPositionAddress = m_uScreenId == 0 ? QString("%1").arg(GUI_LastScaleWindowPosition) :
+                                     QString("%1%2").arg(GUI_LastScaleWindowPosition).arg(m_uScreenId);
+        m.SetExtraData(strPositionAddress, strWindowPosition);
     }
 
     /* Call to base-class: */
     UIMachineWindow::saveSettings();
+}
+
+#ifdef Q_WS_MAC
+void UIMachineWindowScale::cleanupVisualState()
+{
+    /* Uninstall the resize delegate for keeping the aspect ratio. */
+    ::darwinUninstallResizeDelegate(this);
+
+    /* Call to base-class: */
+    UIMachineWindow::cleanupVisualState();
+}
+#endif /* Q_WS_MAC */
+
+void UIMachineWindowScale::cleanupMenu()
+{
+    /* Cleanup menu: */
+    delete m_pMainMenu;
+    m_pMainMenu = 0;
+
+    /* Call to base-class: */
+    UIMachineWindow::cleanupMenu();
 }
 
 void UIMachineWindowScale::showInNecessaryMode()
@@ -138,9 +206,6 @@ void UIMachineWindowScale::showInNecessaryMode()
 
     /* Show in normal mode: */
     show();
-
-    /* Make sure machine-view have focus: */
-    m_pMachineView->setFocus();
 }
 
 bool UIMachineWindowScale::event(QEvent *pEvent)
@@ -185,8 +250,7 @@ bool UIMachineWindowScale::winEvent(MSG *pMessage, long *pResult)
      * 1. machine view exists and 2. event-type is WM_SIZING and 3. shift key is NOT pressed: */
     if (machineView() && pMessage->message == WM_SIZING && !(QApplication::keyboardModifiers() & Qt::ShiftModifier))
     {
-        double dAspectRatio = machineView()->aspectRatio();
-        if (dAspectRatio)
+        if (double dAspectRatio = machineView()->aspectRatio())
         {
             RECT *pRect = reinterpret_cast<RECT*>(pMessage->lParam);
             switch (pMessage->wParam)

@@ -15,87 +15,56 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
-/* Qt includes: */
-# ifndef Q_WS_MAC
-#  include <QTimer>
-# endif /* !Q_WS_MAC */
-
 /* GUI includes: */
-# include "VBoxGlobal.h"
-# include "UIMessageCenter.h"
-# include "UISession.h"
-# include "UIActionPoolRuntime.h"
-# include "UIMachineLogicScale.h"
-# include "UIMachineWindow.h"
-# include "UIShortcutPool.h"
-# ifndef Q_WS_MAC
-#  include "QIMenu.h"
-# else  /* Q_WS_MAC */
-#  include "VBoxUtils.h"
-# endif /* Q_WS_MAC */
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
+#include "VBoxGlobal.h"
+#include "UIMessageCenter.h"
+#include "UISession.h"
+#include "UIActionPoolRuntime.h"
+#include "UIMachineLogicScale.h"
+#include "UIMachineWindow.h"
+#ifdef Q_WS_MAC
+#include "VBoxUtils.h"
+#endif /* Q_WS_MAC */
 
 UIMachineLogicScale::UIMachineLogicScale(QObject *pParent, UISession *pSession)
     : UIMachineLogic(pParent, pSession, UIVisualStateType_Scale)
-#ifndef Q_WS_MAC
-    , m_pPopupMenu(0)
-#endif /* !Q_WS_MAC */
 {
 }
 
 bool UIMachineLogicScale::checkAvailability()
 {
+    /* Take the toggle hot key from the menu item.
+     * Since VBoxGlobal::extractKeyFromActionText gets exactly
+     * the linked key without the 'Host+' part we are adding it here. */
+    QString strHotKey = QString("Host+%1")
+        .arg(VBoxGlobal::extractKeyFromActionText(gActionPool->action(UIActionIndexRuntime_Toggle_Scale)->text()));
+    Assert(!strHotKey.isEmpty());
+
     /* Show the info message. */
-    const UIShortcut &shortcut =
-            gShortcutPool->shortcut(actionPool()->shortcutsExtraDataID(),
-                                    actionPool()->action(UIActionIndexRT_M_View_T_Scale)->shortcutExtraDataID());
-    const QString strHotKey = QString("Host+%1").arg(shortcut.toString());
     if (!msgCenter().confirmGoingScale(strHotKey))
         return false;
 
     return true;
 }
 
-#ifndef Q_WS_MAC
-void UIMachineLogicScale::sltInvokePopupMenu()
-{
-    /* Popup main-menu if present: */
-    if (m_pPopupMenu && !m_pPopupMenu->isEmpty())
-    {
-        m_pPopupMenu->popup(activeMachineWindow()->geometry().center());
-        QTimer::singleShot(0, m_pPopupMenu, SLOT(sltHighlightFirstAction()));
-    }
-}
-#endif /* !Q_WS_MAC */
-
 void UIMachineLogicScale::prepareActionGroups()
 {
     /* Call to base-class: */
     UIMachineLogic::prepareActionGroups();
 
-    /* Restrict 'Adjust Window', 'Guest Autoresize', 'Status Bar' and 'Resize' actions for 'View' menu: */
-    actionPool()->toRuntime()->setRestrictionForMenuView(UIActionRestrictionLevel_Logic,
-                                                         (UIExtraDataMetaDefs::RuntimeMenuViewActionType)
-                                                         (UIExtraDataMetaDefs::RuntimeMenuViewActionType_AdjustWindow |
-                                                          UIExtraDataMetaDefs::RuntimeMenuViewActionType_GuestAutoresize |
-                                                          UIExtraDataMetaDefs::RuntimeMenuViewActionType_MenuBar |
-                                                          UIExtraDataMetaDefs::RuntimeMenuViewActionType_StatusBar |
-                                                          UIExtraDataMetaDefs::RuntimeMenuViewActionType_Resize |
-                                                          UIExtraDataMetaDefs::RuntimeMenuViewActionType_ScaleFactor));
+    /* Guest auto-resize isn't allowed in scale-mode: */
+    gActionPool->action(UIActionIndexRuntime_Toggle_GuestAutoresize)->setVisible(false);
+    /* Adjust-window isn't allowed in scale-mode: */
+    gActionPool->action(UIActionIndexRuntime_Simple_AdjustWindow)->setVisible(false);
 
     /* Take care of view-action toggle state: */
-    UIAction *pActionScale = actionPool()->action(UIActionIndexRT_M_View_T_Scale);
+    UIAction *pActionScale = gActionPool->action(UIActionIndexRuntime_Toggle_Scale);
     if (!pActionScale->isChecked())
     {
         pActionScale->blockSignals(true);
         pActionScale->setChecked(true);
         pActionScale->blockSignals(false);
+        pActionScale->update();
     }
 }
 
@@ -104,12 +73,12 @@ void UIMachineLogicScale::prepareActionConnections()
     /* Call to base-class: */
     UIMachineLogic::prepareActionConnections();
 
-    /* Prepare 'View' actions connections: */
-    connect(actionPool()->action(UIActionIndexRT_M_View_T_Scale), SIGNAL(triggered(bool)),
+    /* "View" actions connections: */
+    connect(gActionPool->action(UIActionIndexRuntime_Toggle_Scale), SIGNAL(triggered(bool)),
             this, SLOT(sltChangeVisualStateToNormal()));
-    connect(actionPool()->action(UIActionIndexRT_M_View_T_Fullscreen), SIGNAL(triggered(bool)),
+    connect(gActionPool->action(UIActionIndexRuntime_Toggle_Fullscreen), SIGNAL(triggered(bool)),
             this, SLOT(sltChangeVisualStateToFullscreen()));
-    connect(actionPool()->action(UIActionIndexRT_M_View_T_Seamless), SIGNAL(triggered(bool)),
+    connect(gActionPool->action(UIActionIndexRuntime_Toggle_Seamless), SIGNAL(triggered(bool)),
             this, SLOT(sltChangeVisualStateToSeamless()));
 }
 
@@ -126,7 +95,7 @@ void UIMachineLogicScale::prepareMachineWindows()
 #endif /* Q_WS_MAC */
 
     /* Get monitors count: */
-    ulong uMonitorCount = machine().GetMonitorCount();
+    ulong uMonitorCount = session().GetMachine().GetMonitorCount();
     /* Create machine window(s): */
     for (ulong uScreenId = 0; uScreenId < uMonitorCount; ++ uScreenId)
         addMachineWindow(UIMachineWindow::create(this, uScreenId));
@@ -134,38 +103,9 @@ void UIMachineLogicScale::prepareMachineWindows()
     for (ulong uScreenId = uMonitorCount; uScreenId > 0; -- uScreenId)
         machineWindows()[uScreenId - 1]->raise();
 
-    /* Listen for frame-buffer resize: */
-    foreach (UIMachineWindow *pMachineWindow, machineWindows())
-        connect(pMachineWindow, SIGNAL(sigFrameBufferResize()),
-                this, SIGNAL(sigFrameBufferResize()));
-    emit sigFrameBufferResize();
-
     /* Mark machine-window(s) created: */
     setMachineWindowsCreated(true);
 }
-
-#ifndef Q_WS_MAC
-void UIMachineLogicScale::prepareMenu()
-{
-    /* Prepare popup-menu: */
-    m_pPopupMenu = new QIMenu;
-    AssertPtrReturnVoid(m_pPopupMenu);
-    {
-        /* Prepare popup-menu: */
-        foreach (QMenu *pMenu, actionPool()->menus())
-            m_pPopupMenu->addMenu(pMenu);
-    }
-}
-#endif /* !Q_WS_MAC */
-
-#ifndef Q_WS_MAC
-void UIMachineLogicScale::cleanupMenu()
-{
-    /* Cleanup popup-menu: */
-    delete m_pPopupMenu;
-    m_pPopupMenu = 0;
-}
-#endif /* !Q_WS_MAC */
 
 void UIMachineLogicScale::cleanupMachineWindows()
 {
@@ -184,11 +124,11 @@ void UIMachineLogicScale::cleanupMachineWindows()
 void UIMachineLogicScale::cleanupActionConnections()
 {
     /* "View" actions disconnections: */
-    disconnect(actionPool()->action(UIActionIndexRT_M_View_T_Scale), SIGNAL(triggered(bool)),
+    disconnect(gActionPool->action(UIActionIndexRuntime_Toggle_Scale), SIGNAL(triggered(bool)),
                this, SLOT(sltChangeVisualStateToNormal()));
-    disconnect(actionPool()->action(UIActionIndexRT_M_View_T_Fullscreen), SIGNAL(triggered(bool)),
+    disconnect(gActionPool->action(UIActionIndexRuntime_Toggle_Fullscreen), SIGNAL(triggered(bool)),
                this, SLOT(sltChangeVisualStateToFullscreen()));
-    disconnect(actionPool()->action(UIActionIndexRT_M_View_T_Seamless), SIGNAL(triggered(bool)),
+    disconnect(gActionPool->action(UIActionIndexRuntime_Toggle_Seamless), SIGNAL(triggered(bool)),
                this, SLOT(sltChangeVisualStateToSeamless()));
 
     /* Call to base-class: */
@@ -199,17 +139,19 @@ void UIMachineLogicScale::cleanupActionConnections()
 void UIMachineLogicScale::cleanupActionGroups()
 {
     /* Take care of view-action toggle state: */
-    UIAction *pActionScale = actionPool()->action(UIActionIndexRT_M_View_T_Scale);
+    UIAction *pActionScale = gActionPool->action(UIActionIndexRuntime_Toggle_Scale);
     if (pActionScale->isChecked())
     {
         pActionScale->blockSignals(true);
         pActionScale->setChecked(false);
         pActionScale->blockSignals(false);
+        pActionScale->update();
     }
 
-    /* Allow 'Adjust Window', 'Guest Autoresize', 'Status Bar' and 'Resize' actions for 'View' menu: */
-    actionPool()->toRuntime()->setRestrictionForMenuView(UIActionRestrictionLevel_Logic,
-                                                         UIExtraDataMetaDefs::RuntimeMenuViewActionType_Invalid);
+    /* Reenable guest-autoresize action: */
+    gActionPool->action(UIActionIndexRuntime_Toggle_GuestAutoresize)->setVisible(true);
+    /* Reenable adjust-window action: */
+    gActionPool->action(UIActionIndexRuntime_Simple_AdjustWindow)->setVisible(true);
 
     /* Call to base-class: */
     UIMachineLogic::cleanupActionGroups();

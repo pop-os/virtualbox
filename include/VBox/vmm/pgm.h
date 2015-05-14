@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -76,18 +76,18 @@ typedef FNPGMRELOCATE *PFNPGMRELOCATE;
 
 
 /**
- * Physical page access handler kind.
+ * Physical page access handler type.
  */
-typedef enum PGMPHYSHANDLERKIND
+typedef enum PGMPHYSHANDLERTYPE
 {
     /** MMIO range. Pages are not present, all access is done in interpreter or recompiler. */
-    PGMPHYSHANDLERKIND_MMIO = 1,
+    PGMPHYSHANDLERTYPE_MMIO = 1,
     /** Handler all write access to a physical page range. */
-    PGMPHYSHANDLERKIND_WRITE,
+    PGMPHYSHANDLERTYPE_PHYSICAL_WRITE,
     /** Handler all access to a physical page range. */
-    PGMPHYSHANDLERKIND_ALL
+    PGMPHYSHANDLERTYPE_PHYSICAL_ALL
 
-} PGMPHYSHANDLERKIND;
+} PGMPHYSHANDLERTYPE;
 
 /**
  * \#PF Handler callback for physical access handler ranges in RC.
@@ -347,24 +347,18 @@ VMMDECL(PGMMODE)    PGMGetHostMode(PVM pVM);
 VMMDECL(const char *) PGMGetModeName(PGMMODE enmMode);
 VMM_INT_DECL(void)  PGMNotifyNxeChanged(PVMCPU pVCpu, bool fNxe);
 VMMDECL(bool)       PGMHasDirtyPages(PVM pVM);
-
-/** PGM physical access handler type registration handle (heap offset, valid
- * cross contexts without needing fixing up).  Callbacks and handler type is
- * associated with this and it is shared by all handler registrations. */
-typedef uint32_t PGMPHYSHANDLERTYPE;
-/** Pointer to a PGM physical handler type registration handle. */
-typedef PGMPHYSHANDLERTYPE *PPGMPHYSHANDLERTYPE;
-/** NIL value for PGM physical access handler type handle. */
-#define NIL_PGMPHYSHANDLERTYPE  UINT32_MAX
-VMMDECL(uint32_t)   PGMHandlerPhysicalTypeRelease(PVM pVM, PGMPHYSHANDLERTYPE hCallbacks);
-VMMDECL(uint32_t)   PGMHandlerPhysicalTypeRetain(PVM pVM, PGMPHYSHANDLERTYPE hCallbacks);
-
-VMMDECL(int)        PGMHandlerPhysicalRegister(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS GCPhysLast, PGMPHYSHANDLERTYPE hType,
-                                               RTR3PTR pvUserR3, RTR0PTR pvUserR0, RTRCPTR pvUserRC, 
-                                               R3PTRTYPE(const char *) pszDesc);
+VMMDECL(int)        PGMHandlerPhysicalRegisterEx(PVM pVM, PGMPHYSHANDLERTYPE enmType, RTGCPHYS GCPhys, RTGCPHYS GCPhysLast,
+                                                 R3PTRTYPE(PFNPGMR3PHYSHANDLER) pfnHandlerR3, RTR3PTR pvUserR3,
+                                                 R0PTRTYPE(PFNPGMR0PHYSHANDLER) pfnHandlerR0, RTR0PTR pvUserR0,
+                                                 RCPTRTYPE(PFNPGMRCPHYSHANDLER) pfnHandlerRC, RTRCPTR pvUserRC,
+                                                 R3PTRTYPE(const char *) pszDesc);
 VMMDECL(int)        PGMHandlerPhysicalModify(PVM pVM, RTGCPHYS GCPhysCurrent, RTGCPHYS GCPhys, RTGCPHYS GCPhysLast);
 VMMDECL(int)        PGMHandlerPhysicalDeregister(PVM pVM, RTGCPHYS GCPhys);
-VMMDECL(int)        PGMHandlerPhysicalChangeUserArgs(PVM pVM, RTGCPHYS GCPhys, RTR3PTR pvUserR3, RTR0PTR pvUserR0, RTRCPTR pvUserRC);
+VMMDECL(int)        PGMHandlerPhysicalChangeCallbacks(PVM pVM, RTGCPHYS GCPhys,
+                                                      R3PTRTYPE(PFNPGMR3PHYSHANDLER) pfnHandlerR3, RTR3PTR pvUserR3,
+                                                      R0PTRTYPE(PFNPGMR0PHYSHANDLER) pfnHandlerR0, RTR0PTR pvUserR0,
+                                                      RCPTRTYPE(PFNPGMRCPHYSHANDLER) pfnHandlerRC, RTRCPTR pvUserRC,
+                                                      R3PTRTYPE(const char *) pszDesc);
 VMMDECL(int)        PGMHandlerPhysicalSplit(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS GCPhysSplit);
 VMMDECL(int)        PGMHandlerPhysicalJoin(PVM pVM, RTGCPHYS GCPhys1, RTGCPHYS GCPhys2);
 VMMDECL(int)        PGMHandlerPhysicalPageTempOff(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS GCPhysPage);
@@ -420,6 +414,7 @@ VMMDECL(int)        PGMSetLargePageUsage(PVM pVM, bool fUseLargePages);
 
 #ifdef IN_RC
 /** @defgroup grp_pgm_gc  The PGM Guest Context API
+ * @ingroup grp_pgm
  * @{
  */
 VMMRCDECL(int)      PGMRCDynMapInit(PVM pVM);
@@ -429,6 +424,7 @@ VMMRCDECL(int)      PGMRCDynMapInit(PVM pVM);
 
 #ifdef IN_RING0
 /** @defgroup grp_pgm_r0  The PGM Host Context Ring-0 API
+ * @ingroup grp_pgm
  * @{
  */
 VMMR0_INT_DECL(int) PGMR0PhysAllocateHandyPages(PVM pVM, PVMCPU pVCpu);
@@ -454,6 +450,7 @@ VMMR0DECL(void)     PGMR0DynMapMigrateAutoSet(PVMCPU pVCpu);
 
 #ifdef IN_RING3
 /** @defgroup grp_pgm_r3  The PGM Host Context Ring-3 API
+ * @ingroup grp_pgm
  * @{
  */
 VMMR3DECL(int)      PGMR3Init(PVM pVM);
@@ -478,8 +475,11 @@ VMMR3DECL(int)      PGMR3PhysGetRange(PVM pVM, uint32_t iRange, PRTGCPHYS pGCPhy
 VMMR3DECL(int)      PGMR3QueryMemoryStats(PUVM pUVM, uint64_t *pcbTotalMem, uint64_t *pcbPrivateMem, uint64_t *pcbSharedMem, uint64_t *pcbZeroMem);
 VMMR3DECL(int)      PGMR3QueryGlobalMemoryStats(PUVM pUVM, uint64_t *pcbAllocMem, uint64_t *pcbFreeMem, uint64_t *pcbBallonedMem, uint64_t *pcbSharedMem);
 
-VMMR3DECL(int)      PGMR3PhysMMIORegister(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb, PGMPHYSHANDLERTYPE hType,
-                                          RTR3PTR pvUserR3, RTR0PTR pvUserR0, RTRCPTR pvUserRC, const char *pszDesc);
+VMMR3DECL(int)      PGMR3PhysMMIORegister(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb,
+                                          R3PTRTYPE(PFNPGMR3PHYSHANDLER) pfnHandlerR3, RTR3PTR pvUserR3,
+                                          R0PTRTYPE(PFNPGMR0PHYSHANDLER) pfnHandlerR0, RTR0PTR pvUserR0,
+                                          RCPTRTYPE(PFNPGMRCPHYSHANDLER) pfnHandlerRC, RTRCPTR pvUserRC,
+                                          R3PTRTYPE(const char *) pszDesc);
 VMMR3DECL(int)      PGMR3PhysMMIODeregister(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb);
 VMMR3DECL(int)      PGMR3PhysMMIO2Register(PVM pVM, PPDMDEVINS pDevIns, uint32_t iRegion, RTGCPHYS cb, uint32_t fFlags, void **ppv, const char *pszDesc);
 VMMR3DECL(int)      PGMR3PhysMMIO2Deregister(PVM pVM, PPDMDEVINS pDevIns, uint32_t iRegion);
@@ -520,16 +520,10 @@ VMMR3DECL(int)      PGMR3MapIntermediate(PVM pVM, RTUINTPTR Addr, RTHCPHYS HCPhy
 #endif
 VMMR3DECL(int)      PGMR3MapRead(PVM pVM, void *pvDst, RTGCPTR GCPtrSrc, size_t cb);
 
-VMM_INT_DECL(int)   PGMR3HandlerPhysicalTypeRegisterEx(PVM pVM, PGMPHYSHANDLERKIND enmKind,
-                                                       PFNPGMR3PHYSHANDLER pfnHandlerR3,
-                                                       R0PTRTYPE(PFNPGMR0PHYSHANDLER) pfnHandlerR0,
-                                                       RCPTRTYPE(PFNPGMRCPHYSHANDLER) pfnHandlerRC,
-                                                       const char *pszDesc, PPGMPHYSHANDLERTYPE phType);
-VMMR3DECL(int)      PGMR3HandlerPhysicalTypeRegister(PVM pVM, PGMPHYSHANDLERKIND enmKind,
-                                                     R3PTRTYPE(PFNPGMR3PHYSHANDLER) pfnHandlerR3,
-                                                     const char *pszModR0, const char *pszHandlerR0,
-                                                     const char *pszModRC, const char *pszHandlerRC, const char *pszDesc,
-                                                     PPGMPHYSHANDLERTYPE phType);
+VMMR3DECL(int)      PGMR3HandlerPhysicalRegister(PVM pVM, PGMPHYSHANDLERTYPE enmType, RTGCPHYS GCPhys, RTGCPHYS GCPhysLast,
+                                                 PFNPGMR3PHYSHANDLER pfnHandlerR3, void *pvUserR3,
+                                                 const char *pszModR0, const char *pszHandlerR0, RTR0PTR pvUserR0,
+                                                 const char *pszModRC, const char *pszHandlerRC, RTRCPTR pvUserRC, const char *pszDesc);
 VMMDECL(int)        PGMR3HandlerVirtualRegisterEx(PVM pVM, PGMVIRTHANDLERTYPE enmType, RTGCPTR GCPtr, RTGCPTR GCPtrLast,
                                                   R3PTRTYPE(PFNPGMR3VIRTINVALIDATE) pfnInvalidateR3,
                                                   R3PTRTYPE(PFNPGMR3VIRTHANDLER) pfnHandlerR3,

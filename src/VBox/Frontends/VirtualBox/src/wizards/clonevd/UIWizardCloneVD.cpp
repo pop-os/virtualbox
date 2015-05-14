@@ -1,10 +1,12 @@
 /* $Id: UIWizardCloneVD.cpp $ */
 /** @file
- * VBox Qt GUI - UIWizardCloneVD class implementation.
+ *
+ * VBox frontends: Qt4 GUI ("VirtualBox"):
+ * UIWizardCloneVD class implementation
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,31 +17,24 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QVariant>
+#include <QVariant>
 
 /* GUI includes: */
-# include "UIWizardCloneVD.h"
-# include "UIWizardCloneVDPageBasic1.h"
-# include "UIWizardCloneVDPageBasic2.h"
-# include "UIWizardCloneVDPageBasic3.h"
-# include "UIWizardCloneVDPageBasic4.h"
-# include "UIWizardCloneVDPageExpert.h"
-# include "VBoxGlobal.h"
-# include "UIMessageCenter.h"
+#include "UIWizardCloneVD.h"
+#include "UIWizardCloneVDPageBasic1.h"
+#include "UIWizardCloneVDPageBasic2.h"
+#include "UIWizardCloneVDPageBasic3.h"
+#include "UIWizardCloneVDPageBasic4.h"
+#include "UIWizardCloneVDPageExpert.h"
+#include "VBoxGlobal.h"
+#include "UIMessageCenter.h"
 
 /* COM includes: */
-# include "CMediumFormat.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
+#include "CMediumFormat.h"
 
 UIWizardCloneVD::UIWizardCloneVD(QWidget *pParent, const CMedium &sourceVirtualDisk)
-    : UIWizard(pParent, WizardType_CloneVD)
+    : UIWizard(pParent, UIWizardType_CloneVD)
     , m_sourceVirtualDisk(sourceVirtualDisk)
 {
 #ifndef Q_WS_MAC
@@ -67,7 +62,7 @@ bool UIWizardCloneVD::copyVirtualDisk()
     CVirtualBox vbox = vboxGlobal().virtualBox();
 
     /* Create new virtual hard-disk: */
-    CMedium virtualDisk = vbox.CreateMedium(mediumFormat.GetName(), strMediumPath, KAccessMode_ReadWrite, KDeviceType_HardDisk);
+    CMedium virtualDisk = vbox.CreateHardDisk(mediumFormat.GetName(), strMediumPath);
     if (!vbox.isOk())
     {
         msgCenter().cannotCreateHardDiskStorage(vbox, strMediumPath, this);
@@ -125,7 +120,7 @@ void UIWizardCloneVD::prepare()
     /* Create corresponding pages: */
     switch (mode())
     {
-        case WizardMode_Basic:
+        case UIWizardMode_Basic:
         {
             setPage(Page1, new UIWizardCloneVDPageBasic1(m_sourceVirtualDisk));
             setPage(Page2, new UIWizardCloneVDPageBasic2);
@@ -133,7 +128,7 @@ void UIWizardCloneVD::prepare()
             setPage(Page4, new UIWizardCloneVDPageBasic4);
             break;
         }
-        case WizardMode_Expert:
+        case UIWizardMode_Expert:
         {
             setPage(PageExpert, new UIWizardCloneVDPageExpert(m_sourceVirtualDisk));
             break;

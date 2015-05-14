@@ -1,3 +1,4 @@
+
 /* $Id: GuestSessionImpl.h $ */
 /** @file
  * VirtualBox Main - Guest session handling.
@@ -18,7 +19,7 @@
 #ifndef ____H_GUESTSESSIONIMPL
 #define ____H_GUESTSESSIONIMPL
 
-#include "GuestSessionWrap.h"
+#include "VirtualBoxBase.h"
 #include "EventImpl.h"
 
 #include "GuestCtrlImplPrivate.h"
@@ -51,7 +52,7 @@ public:
 protected:
 
     int getGuestProperty(const ComObjPtr<Guest> &pGuest,
-                           const Utf8Str &strPath, Utf8Str &strValue);
+                         const Utf8Str &strPath, Utf8Str &strValue);
     int setProgress(ULONG uPercent);
     int setProgressSuccess(void);
     HRESULT setProgressErrorMsg(HRESULT hr, const Utf8Str &strMsg);
@@ -203,7 +204,7 @@ protected:
               fFlags(aFlags),
               mProcInfo(startupInfo)
         {
-            mProcInfo.mExecutable = strDest;
+            mProcInfo.mCommand = strDest;
             if (mProcInfo.mName.isEmpty())
                 mProcInfo.mName = strDest;
         }
@@ -219,12 +220,12 @@ protected:
         GuestProcessStartupInfo mProcInfo;
     };
 
-    int i_addProcessArguments(ProcessArguments &aArgumentsDest,
-                              const ProcessArguments &aArgumentsSource);
-    int i_copyFileToGuest(GuestSession *pSession, PRTISOFSFILE pISO,
-                          Utf8Str const &strFileSource, const Utf8Str &strFileDest,
-                          bool fOptional, uint32_t *pcbSize);
-    int i_runFileOnGuest(GuestSession *pSession, GuestProcessStartupInfo &procInfo);
+    int addProcessArguments(ProcessArguments &aArgumentsDest,
+                            const ProcessArguments &aArgumentsSource);
+    int copyFileToGuest(GuestSession *pSession, PRTISOFSFILE pISO,
+                        Utf8Str const &strFileSource, const Utf8Str &strFileDest,
+                        bool fOptional, uint32_t *pcbSize);
+    int runFileOnGuest(GuestSession *pSession, GuestProcessStartupInfo &procInfo);
 
     /** Files to handle. */
     std::vector<InstallerFile> mFiles;
@@ -241,12 +242,19 @@ protected:
  * Guest session implementation.
  */
 class ATL_NO_VTABLE GuestSession :
-    public GuestSessionWrap,
-    public GuestBase
+    public VirtualBoxBase,
+    public GuestBase,
+    VBOX_SCRIPTABLE_IMPL(IGuestSession)
 {
 public:
     /** @name COM and internal init/term/mapping cruft.
      * @{ */
+    VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT(GuestSession, IGuestSession)
+    DECLARE_NOT_AGGREGATABLE(GuestSession)
+    DECLARE_PROTECT_FINAL_CONSTRUCT()
+    BEGIN_COM_MAP(GuestSession)
+        VBOX_DEFAULT_INTERFACE_ENTRIES(IGuestSession)
+    END_COM_MAP()
     DECLARE_EMPTY_CTOR_DTOR(GuestSession)
 
     int     init(Guest *pGuest, const GuestSessionStartupInfo &ssInfo, const GuestCredentials &guestCreds);
@@ -255,157 +263,68 @@ public:
     void    FinalRelease(void);
     /** @}  */
 
+    /** @name IGuestSession properties.
+     * @{ */
+    STDMETHOD(COMGETTER(User))(BSTR *aName);
+    STDMETHOD(COMGETTER(Domain))(BSTR *aDomain);
+    STDMETHOD(COMGETTER(Name))(BSTR *aName);
+    STDMETHOD(COMGETTER(Id))(ULONG *aId);
+    STDMETHOD(COMGETTER(Status))(GuestSessionStatus_T *aStatus);
+    STDMETHOD(COMGETTER(Timeout))(ULONG *aTimeout);
+    STDMETHOD(COMSETTER(Timeout))(ULONG aTimeout);
+    STDMETHOD(COMGETTER(ProtocolVersion))(ULONG *aVersion);
+    STDMETHOD(COMGETTER(Environment))(ComSafeArrayOut(BSTR, aEnvironment));
+    STDMETHOD(COMSETTER(Environment))(ComSafeArrayIn(IN_BSTR, aEnvironment));
+    STDMETHOD(COMGETTER(Processes))(ComSafeArrayOut(IGuestProcess *, aProcesses));
+    STDMETHOD(COMGETTER(Directories))(ComSafeArrayOut(IGuestDirectory *, aDirectories));
+    STDMETHOD(COMGETTER(Files))(ComSafeArrayOut(IGuestFile *, aFiles));
+    STDMETHOD(COMGETTER(EventSource))(IEventSource ** aEventSource);
+    /** @}  */
+
+    /** @name IGuestSession methods.
+     * @{ */
+    STDMETHOD(Close)(void);
+    STDMETHOD(CopyFrom)(IN_BSTR aSource, IN_BSTR aDest, ComSafeArrayIn(CopyFileFlag_T, aFlags), IProgress **aProgress);
+    STDMETHOD(CopyTo)(IN_BSTR aSource, IN_BSTR aDest, ComSafeArrayIn(CopyFileFlag_T, aFlags), IProgress **aProgress);
+    STDMETHOD(DirectoryCreate)(IN_BSTR aPath, ULONG aMode, ComSafeArrayIn(DirectoryCreateFlag_T, aFlags));
+    STDMETHOD(DirectoryCreateTemp)(IN_BSTR aTemplate, ULONG aMode, IN_BSTR aPath, BOOL aSecure, BSTR *aDirectory);
+    STDMETHOD(DirectoryExists)(IN_BSTR aPath, BOOL *aExists);
+    STDMETHOD(DirectoryOpen)(IN_BSTR aPath, IN_BSTR aFilter, ComSafeArrayIn(DirectoryOpenFlag_T, aFlags), IGuestDirectory **aDirectory);
+    STDMETHOD(DirectoryQueryInfo)(IN_BSTR aPath, IGuestFsObjInfo **aInfo);
+    STDMETHOD(DirectoryRemove)(IN_BSTR aPath);
+    STDMETHOD(DirectoryRemoveRecursive)(IN_BSTR aPath, ComSafeArrayIn(DirectoryRemoveRecFlag_T, aFlags), IProgress **aProgress);
+    STDMETHOD(DirectoryRename)(IN_BSTR aSource, IN_BSTR aDest, ComSafeArrayIn(PathRenameFlag_T, aFlags));
+    STDMETHOD(DirectorySetACL)(IN_BSTR aPath, IN_BSTR aACL);
+    STDMETHOD(EnvironmentClear)(void);
+    STDMETHOD(EnvironmentGet)(IN_BSTR aName, BSTR *aValue);
+    STDMETHOD(EnvironmentSet)(IN_BSTR aName, IN_BSTR aValue);
+    STDMETHOD(EnvironmentUnset)(IN_BSTR aName);
+    STDMETHOD(FileCreateTemp)(IN_BSTR aTemplate, ULONG aMode, IN_BSTR aPath, BOOL aSecure, IGuestFile **aFile);
+    STDMETHOD(FileExists)(IN_BSTR aPath, BOOL *aExists);
+    STDMETHOD(FileRemove)(IN_BSTR aPath);
+    STDMETHOD(FileOpen)(IN_BSTR aPath, IN_BSTR aOpenMode, IN_BSTR aDisposition, ULONG aCreationMode, IGuestFile **aFile);
+    STDMETHOD(FileOpenEx)(IN_BSTR aPath, IN_BSTR aOpenMode, IN_BSTR aDisposition, IN_BSTR aSharingMode, ULONG aCreationMode, LONG64 aOffset, IGuestFile **aFile);
+    STDMETHOD(FileQueryInfo)(IN_BSTR aPath, IGuestFsObjInfo **aInfo);
+    STDMETHOD(FileQuerySize)(IN_BSTR aPath, LONG64 *aSize);
+    STDMETHOD(FileRename)(IN_BSTR aSource, IN_BSTR aDest, ComSafeArrayIn(PathRenameFlag_T, aFlags));
+    STDMETHOD(FileSetACL)(IN_BSTR aPath, IN_BSTR aACL);
+    STDMETHOD(ProcessCreate)(IN_BSTR aCommand, ComSafeArrayIn(IN_BSTR, aArguments), ComSafeArrayIn(IN_BSTR, aEnvironment),
+                             ComSafeArrayIn(ProcessCreateFlag_T, aFlags), ULONG aTimeoutMS, IGuestProcess **aProcess);
+    STDMETHOD(ProcessCreateEx)(IN_BSTR aCommand, ComSafeArrayIn(IN_BSTR, aArguments), ComSafeArrayIn(IN_BSTR, aEnvironment),
+                               ComSafeArrayIn(ProcessCreateFlag_T, aFlags), ULONG aTimeoutMS,
+                               ProcessPriority_T aPriority, ComSafeArrayIn(LONG, aAffinity),
+                               IGuestProcess **aProcess);
+    STDMETHOD(ProcessGet)(ULONG aPID, IGuestProcess **aProcess);
+    STDMETHOD(SymlinkCreate)(IN_BSTR aSource, IN_BSTR aTarget, SymlinkType_T aType);
+    STDMETHOD(SymlinkExists)(IN_BSTR aSymlink, BOOL *aExists);
+    STDMETHOD(SymlinkRead)(IN_BSTR aSymlink, ComSafeArrayIn(SymlinkReadFlag_T, aFlags), BSTR *aTarget);
+    STDMETHOD(SymlinkRemoveDirectory)(IN_BSTR aPath);
+    STDMETHOD(SymlinkRemoveFile)(IN_BSTR aFile);
+    STDMETHOD(WaitFor)(ULONG aWaitFlags, ULONG aTimeoutMS, GuestSessionWaitResult_T *aReason);
+    STDMETHOD(WaitForArray)(ComSafeArrayIn(GuestSessionWaitForFlag_T, aFlags), ULONG aTimeoutMS, GuestSessionWaitResult_T *aReason);
+    /** @}  */
+
 private:
-
-    /** Wrapped @name IGuestSession properties.
-     * @{ */
-    HRESULT getUser(com::Utf8Str &aUser);
-    HRESULT getDomain(com::Utf8Str &aDomain);
-    HRESULT getName(com::Utf8Str &aName);
-    HRESULT getId(ULONG *aId);
-    HRESULT getTimeout(ULONG *aTimeout);
-    HRESULT setTimeout(ULONG aTimeout);
-    HRESULT getProtocolVersion(ULONG *aProtocolVersion);
-    HRESULT getStatus(GuestSessionStatus_T *aStatus);
-    HRESULT getEnvironmentChanges(std::vector<com::Utf8Str> &aEnvironmentChanges);
-    HRESULT setEnvironmentChanges(const std::vector<com::Utf8Str> &aEnvironmentChanges);
-    HRESULT getEnvironmentBase(std::vector<com::Utf8Str> &aEnvironmentBase);
-    HRESULT getProcesses(std::vector<ComPtr<IGuestProcess> > &aProcesses);
-    HRESULT getPathStyle(PathStyle_T *aPathStyle);
-    HRESULT getCurrentDirectory(com::Utf8Str &aCurrentDirectory);
-    HRESULT setCurrentDirectory(const com::Utf8Str &aCurrentDirectory);
-    HRESULT getDirectories(std::vector<ComPtr<IGuestDirectory> > &aDirectories);
-    HRESULT getFiles(std::vector<ComPtr<IGuestFile> > &aFiles);
-    HRESULT getEventSource(ComPtr<IEventSource> &aEventSource);
-    /** @}  */
-
-    /** Wrapped @name IGuestSession methods.
-     * @{ */
-    HRESULT close();
-
-    HRESULT directoryCopy(const com::Utf8Str &aSource,
-                          const com::Utf8Str &aDestination,
-                          const std::vector<DirectoryCopyFlags_T> &aFlags,
-                          ComPtr<IProgress> &aProgress);
-    HRESULT directoryCopyFromGuest(const com::Utf8Str &aSource,
-                                   const com::Utf8Str &aDestination,
-                                   const std::vector<DirectoryCopyFlags_T> &aFlags,
-                                   ComPtr<IProgress> &aProgress);
-    HRESULT directoryCopyToGuest(const com::Utf8Str &aSource,
-                                 const com::Utf8Str &aDestination,
-                                 const std::vector<DirectoryCopyFlags_T> &aFlags,
-                                 ComPtr<IProgress> &aProgress);
-    HRESULT directoryCreate(const com::Utf8Str &aPath,
-                            ULONG aMode,
-                            const std::vector<DirectoryCreateFlag_T> &aFlags);
-    HRESULT directoryCreateTemp(const com::Utf8Str &aTemplateName,
-                                ULONG aMode,
-                                const com::Utf8Str &aPath,
-                                BOOL aSecure,
-                                com::Utf8Str &aDirectory);
-    HRESULT directoryExists(const com::Utf8Str &aPath,
-                            BOOL aFollowSymlinks,
-                            BOOL *aExists);
-    HRESULT directoryOpen(const com::Utf8Str &aPath,
-                          const com::Utf8Str &aFilter,
-                          const std::vector<DirectoryOpenFlag_T> &aFlags,
-                          ComPtr<IGuestDirectory> &aDirectory);
-    HRESULT directoryRemove(const com::Utf8Str &aPath);
-    HRESULT directoryRemoveRecursive(const com::Utf8Str &aPath,
-                                     const std::vector<DirectoryRemoveRecFlag_T> &aFlags,
-                                     ComPtr<IProgress> &aProgress);
-    HRESULT environmentScheduleSet(const com::Utf8Str &aName,
-                                   const com::Utf8Str &aValue);
-    HRESULT environmentScheduleUnset(const com::Utf8Str &aName);
-    HRESULT environmentGetBaseVariable(const com::Utf8Str &aName,
-                                       com::Utf8Str &aValue);
-    HRESULT environmentDoesBaseVariableExist(const com::Utf8Str &aName,
-                                             BOOL *aExists);
-
-    HRESULT fileCopy(const com::Utf8Str &aSource,
-                     const com::Utf8Str &aDestination,
-                     const std::vector<FileCopyFlag_T> &aFlags,
-                     ComPtr<IProgress> &aProgress);
-    HRESULT fileCopyToGuest(const com::Utf8Str &aSource,
-                            const com::Utf8Str &aDestination,
-                            const std::vector<FileCopyFlag_T> &aFlags,
-                            ComPtr<IProgress> &aProgress);
-    HRESULT fileCopyFromGuest(const com::Utf8Str &aSource,
-                              const com::Utf8Str &aDestination,
-                              const std::vector<FileCopyFlag_T> &aFlags,
-                              ComPtr<IProgress> &aProgress);
-    HRESULT fileCreateTemp(const com::Utf8Str &aTemplateName,
-                           ULONG aMode,
-                           const com::Utf8Str &aPath,
-                           BOOL aSecure,
-                           ComPtr<IGuestFile> &aFile);
-    HRESULT fileExists(const com::Utf8Str &aPath,
-                       BOOL aFollowSymlinks,
-                       BOOL *aExists);
-    HRESULT fileOpen(const com::Utf8Str &aPath,
-                     FileAccessMode_T aAccessMode,
-                     FileOpenAction_T aOpenAction,
-                     ULONG aCreationMode,
-                     ComPtr<IGuestFile> &aFile);
-    HRESULT fileOpenEx(const com::Utf8Str &aPath,
-                       FileAccessMode_T aAccessMode,
-                       FileOpenAction_T aOpenAction,
-                       FileSharingMode_T aSharingMode,
-                       ULONG aCreationMode,
-                       const std::vector<FileOpenExFlags_T> &aFlags,
-                       ComPtr<IGuestFile> &aFile);
-    HRESULT fileQuerySize(const com::Utf8Str &aPath,
-                          BOOL aFollowSymlinks,
-                          LONG64 *aSize);
-    HRESULT fsObjExists(const com::Utf8Str &aPath,
-                        BOOL aFollowSymlinks,
-                        BOOL *pfExists);
-    HRESULT fsObjQueryInfo(const com::Utf8Str &aPath,
-                           BOOL aFollowSymlinks,
-                           ComPtr<IGuestFsObjInfo> &aInfo);
-    HRESULT fsObjRemove(const com::Utf8Str &aPath);
-    HRESULT fsObjRename(const com::Utf8Str &aOldPath,
-                        const com::Utf8Str &aNewPath,
-                        const std::vector<FsObjRenameFlag_T> &aFlags);
-    HRESULT fsObjMove(const com::Utf8Str &aSource,
-                      const com::Utf8Str &aDestination,
-                      const std::vector<FsObjMoveFlags_T> &aFlags,
-                      ComPtr<IProgress> &aProgress);
-    HRESULT fsObjSetACL(const com::Utf8Str &aPath,
-                        BOOL aFollowSymlinks,
-                        const com::Utf8Str &aAcl,
-                        ULONG aMode);
-    HRESULT processCreate(const com::Utf8Str &aCommand,
-                          const std::vector<com::Utf8Str> &aArguments,
-                          const std::vector<com::Utf8Str> &aEnvironment,
-                          const std::vector<ProcessCreateFlag_T> &aFlags,
-                          ULONG aTimeoutMS,
-                          ComPtr<IGuestProcess> &aGuestProcess);
-    HRESULT processCreateEx(const com::Utf8Str &aCommand,
-                            const std::vector<com::Utf8Str> &aArguments,
-                            const std::vector<com::Utf8Str> &aEnvironment,
-                            const std::vector<ProcessCreateFlag_T> &aFlags,
-                            ULONG aTimeoutMS,
-                            ProcessPriority_T aPriority,
-                            const std::vector<LONG> &aAffinity,
-                            ComPtr<IGuestProcess> &aGuestProcess);
-    HRESULT processGet(ULONG aPid,
-                       ComPtr<IGuestProcess> &aGuestProcess);
-    HRESULT symlinkCreate(const com::Utf8Str &aSource,
-                          const com::Utf8Str &aTarget,
-                          SymlinkType_T aType);
-    HRESULT symlinkExists(const com::Utf8Str &aSymlink,
-                          BOOL *aExists);
-    HRESULT symlinkRead(const com::Utf8Str &aSymlink,
-                        const std::vector<SymlinkReadFlag_T> &aFlags,
-                        com::Utf8Str &aTarget);
-    HRESULT waitFor(ULONG aWaitFor,
-                    ULONG aTimeoutMS,
-                    GuestSessionWaitResult_T *aReason);
-    HRESULT waitForArray(const std::vector<GuestSessionWaitForFlag_T> &aWaitFor,
-                         ULONG aTimeoutMS,
-                         GuestSessionWaitResult_T *aReason);
-    /** @}  */
 
     /** Map of guest directories. The key specifies the internal directory ID. */
     typedef std::map <uint32_t, ComObjPtr<GuestDirectory> > SessionDirectories;
@@ -417,60 +336,55 @@ private:
 
 public:
     /** @name Public internal methods.
-     * @todo r=bird: Most of these are public for no real reason...
      * @{ */
-    int                     i_closeSession(uint32_t uFlags, uint32_t uTimeoutMS, int *pGuestRc);
-    inline bool             i_directoryExists(uint32_t uDirID, ComObjPtr<GuestDirectory> *pDir);
-    int                     i_directoryRemoveFromList(GuestDirectory *pDirectory);
-    int                     i_directoryRemoveInternal(const Utf8Str &strPath, uint32_t uFlags, int *pGuestRc);
-    int                     i_directoryCreateInternal(const Utf8Str &strPath, uint32_t uMode, uint32_t uFlags, int *pGuestRc);
-    int                     i_objectCreateTempInternal(const Utf8Str &strTemplate, const Utf8Str &strPath, bool fDirectory,
-                                                       Utf8Str &strName, int *pGuestRc);
-    int                     i_directoryOpenInternal(const GuestDirectoryOpenInfo &openInfo,
-                                                    ComObjPtr<GuestDirectory> &pDirectory, int *pGuestRc);
-    int                     i_directoryQueryInfoInternal(const Utf8Str &strPath, bool fFollowSymlinks, GuestFsObjData &objData, int *pGuestRc);
-    int                     i_dispatchToDirectory(PVBOXGUESTCTRLHOSTCBCTX pCtxCb, PVBOXGUESTCTRLHOSTCALLBACK pSvcCb);
-    int                     i_dispatchToFile(PVBOXGUESTCTRLHOSTCBCTX pCtxCb, PVBOXGUESTCTRLHOSTCALLBACK pSvcCb);
-    int                     i_dispatchToObject(PVBOXGUESTCTRLHOSTCBCTX pCtxCb, PVBOXGUESTCTRLHOSTCALLBACK pSvcCb);
-    int                     i_dispatchToProcess(PVBOXGUESTCTRLHOSTCBCTX pCtxCb, PVBOXGUESTCTRLHOSTCALLBACK pSvcCb);
-    int                     i_dispatchToThis(PVBOXGUESTCTRLHOSTCBCTX pCtxCb, PVBOXGUESTCTRLHOSTCALLBACK pSvcCb);
-    inline bool             i_fileExists(uint32_t uFileID, ComObjPtr<GuestFile> *pFile);
-    int                     i_fileRemoveFromList(GuestFile *pFile);
-    int                     i_fileRemoveInternal(const Utf8Str &strPath, int *pGuestRc);
-    int                     i_fileOpenInternal(const GuestFileOpenInfo &openInfo, ComObjPtr<GuestFile> &pFile, int *pGuestRc);
-    int                     i_fileQueryInfoInternal(const Utf8Str &strPath, bool fFollowSymlinks, GuestFsObjData &objData, int *pGuestRc);
-    int                     i_fileQuerySizeInternal(const Utf8Str &strPath, bool fFollowSymlinks, int64_t *pllSize, int *pGuestRc);
-    int                     i_fsQueryInfoInternal(const Utf8Str &strPath, bool fFollowSymlinks, GuestFsObjData &objData, int *pGuestRc);
-    const GuestCredentials &i_getCredentials(void);
-    EventSource            *i_getEventSource(void) { return mEventSource; }
-    Utf8Str                 i_getName(void);
-    ULONG                   i_getId(void) { return mData.mSession.mID; }
-    static Utf8Str          i_guestErrorToString(int guestRc);
-    HRESULT                 i_isReadyExternal(void);
-    int                     i_onRemove(void);
-    int                     i_onSessionStatusChange(PVBOXGUESTCTRLHOSTCBCTX pCbCtx, PVBOXGUESTCTRLHOSTCALLBACK pSvcCbData);
-    int                     i_startSessionInternal(int *pGuestRc);
-    int                     i_startSessionAsync(void);
+    int                     closeSession(uint32_t uFlags, uint32_t uTimeoutMS, int *pGuestRc);
+    inline bool             directoryExists(uint32_t uDirID, ComObjPtr<GuestDirectory> *pDir);
+    int                     directoryRemoveFromList(GuestDirectory *pDirectory);
+    int                     directoryRemoveInternal(const Utf8Str &strPath, uint32_t uFlags, int *pGuestRc);
+    int                     directoryCreateInternal(const Utf8Str &strPath, uint32_t uMode, uint32_t uFlags, int *pGuestRc);
+    int                     objectCreateTempInternal(const Utf8Str &strTemplate, const Utf8Str &strPath, bool fDirectory, Utf8Str &strName, int *pGuestRc);
+    int                     directoryOpenInternal(const GuestDirectoryOpenInfo &openInfo, ComObjPtr<GuestDirectory> &pDirectory, int *pGuestRc);
+    int                     directoryQueryInfoInternal(const Utf8Str &strPath, GuestFsObjData &objData, int *pGuestRc);
+    int                     dispatchToDirectory(PVBOXGUESTCTRLHOSTCBCTX pCtxCb, PVBOXGUESTCTRLHOSTCALLBACK pSvcCb);
+    int                     dispatchToFile(PVBOXGUESTCTRLHOSTCBCTX pCtxCb, PVBOXGUESTCTRLHOSTCALLBACK pSvcCb);
+    int                     dispatchToObject(PVBOXGUESTCTRLHOSTCBCTX pCtxCb, PVBOXGUESTCTRLHOSTCALLBACK pSvcCb);
+    int                     dispatchToProcess(PVBOXGUESTCTRLHOSTCBCTX pCtxCb, PVBOXGUESTCTRLHOSTCALLBACK pSvcCb);
+    int                     dispatchToThis(PVBOXGUESTCTRLHOSTCBCTX pCtxCb, PVBOXGUESTCTRLHOSTCALLBACK pSvcCb);
+    inline bool             fileExists(uint32_t uFileID, ComObjPtr<GuestFile> *pFile);
+    int                     fileRemoveFromList(GuestFile *pFile);
+    int                     fileRemoveInternal(const Utf8Str &strPath, int *pGuestRc);
+    int                     fileOpenInternal(const GuestFileOpenInfo &openInfo, ComObjPtr<GuestFile> &pFile, int *pGuestRc);
+    int                     fileQueryInfoInternal(const Utf8Str &strPath, GuestFsObjData &objData, int *pGuestRc);
+    int                     fileQuerySizeInternal(const Utf8Str &strPath, int64_t *pllSize, int *pGuestRc);
+    int                     fsQueryInfoInternal(const Utf8Str &strPath, GuestFsObjData &objData, int *pGuestRc);
+    const GuestCredentials &getCredentials(void);
+    const GuestEnvironment &getEnvironment(void);
+    EventSource            *getEventSource(void) { return mEventSource; }
+    Utf8Str                 getName(void);
+    ULONG                   getId(void) { return mData.mSession.mID; }
+    static Utf8Str          guestErrorToString(int guestRc);
+    HRESULT                 isReadyExternal(void);
+    int                     onRemove(void);
+    int                     onSessionStatusChange(PVBOXGUESTCTRLHOSTCBCTX pCbCtx, PVBOXGUESTCTRLHOSTCALLBACK pSvcCbData);
+    int                     startSessionInternal(int *pGuestRc);
+    int                     startSessionAsync(void);
     static DECLCALLBACK(int)
-                            i_startSessionThread(RTTHREAD Thread, void *pvUser);
-    Guest                  *i_getParent(void) { return mParent; }
-    uint32_t                i_getProtocolVersion(void) { return mData.mProtocolVersion; }
-    int                     i_pathRenameInternal(const Utf8Str &strSource, const Utf8Str &strDest, uint32_t uFlags,
-                                                 int *pGuestRc);
-    int                     i_processRemoveFromList(GuestProcess *pProcess);
-    int                     i_processCreateExInternal(GuestProcessStartupInfo &procInfo, ComObjPtr<GuestProcess> &pProgress);
-    inline bool             i_processExists(uint32_t uProcessID, ComObjPtr<GuestProcess> *pProcess);
-    inline int              i_processGetByPID(ULONG uPID, ComObjPtr<GuestProcess> *pProcess);
-    int                     i_sendCommand(uint32_t uFunction, uint32_t uParms, PVBOXHGCMSVCPARM paParms);
-    static HRESULT          i_setErrorExternal(VirtualBoxBase *pInterface, int guestRc);
-    int                     i_setSessionStatus(GuestSessionStatus_T sessionStatus, int sessionRc);
-    int                     i_signalWaiters(GuestSessionWaitResult_T enmWaitResult, int rc /*= VINF_SUCCESS */);
-    int                     i_startTaskAsync(const Utf8Str &strTaskDesc, GuestSessionTask *pTask,
-                                             ComObjPtr<Progress> &pProgress);
-    int                     i_determineProtocolVersion(void);
-    int                     i_waitFor(uint32_t fWaitFlags, ULONG uTimeoutMS, GuestSessionWaitResult_T &waitResult, int *pGuestRc);
-    int                     i_waitForStatusChange(GuestWaitEvent *pEvent, uint32_t fWaitFlags, uint32_t uTimeoutMS,
-                                                  GuestSessionStatus_T *pSessionStatus, int *pGuestRc);
+                            startSessionThread(RTTHREAD Thread, void *pvUser);
+    Guest                  *getParent(void) { return mParent; }
+    uint32_t                getProtocolVersion(void) { return mData.mProtocolVersion; }
+    int                     pathRenameInternal(const Utf8Str &strSource, const Utf8Str &strDest, uint32_t uFlags, int *pGuestRc);
+    int                     processRemoveFromList(GuestProcess *pProcess);
+    int                     processCreateExInteral(GuestProcessStartupInfo &procInfo, ComObjPtr<GuestProcess> &pProgress);
+    inline bool             processExists(uint32_t uProcessID, ComObjPtr<GuestProcess> *pProcess);
+    inline int              processGetByPID(ULONG uPID, ComObjPtr<GuestProcess> *pProcess);
+    int                     sendCommand(uint32_t uFunction, uint32_t uParms, PVBOXHGCMSVCPARM paParms);
+    static HRESULT          setErrorExternal(VirtualBoxBase *pInterface, int guestRc);
+    int                     setSessionStatus(GuestSessionStatus_T sessionStatus, int sessionRc);
+    int                     signalWaiters(GuestSessionWaitResult_T enmWaitResult, int rc /*= VINF_SUCCESS */);
+    int                     startTaskAsync(const Utf8Str &strTaskDesc, GuestSessionTask *pTask, ComObjPtr<Progress> &pProgress);
+    int                     queryInfo(void);
+    int                     waitFor(uint32_t fWaitFlags, ULONG uTimeoutMS, GuestSessionWaitResult_T &waitResult, int *pGuestRc);
+    int                     waitForStatusChange(GuestWaitEvent *pEvent, uint32_t fWaitFlags, uint32_t uTimeoutMS, GuestSessionStatus_T *pSessionStatus, int *pGuestRc);
     /** @}  */
 
 private:
@@ -496,13 +410,9 @@ private:
         GuestSessionStartupInfo     mSession;
         /** The session's current status. */
         GuestSessionStatus_T        mStatus;
-        /** The set of environment changes for the session for use when
-         *  creating new guest processes. */
-        GuestEnvironmentChanges     mEnvironmentChanges;
-        /** Pointer to the immutable base environment for the session.
-         * @note This is not allocated until the guest reports it to the host. It is
-         *       also shared with child processes. */
-        GuestEnvironment const     *mpBaseEnvironment;
+        /** The session's environment block. Can be
+         *  overwritten/extended by ProcessCreate(Ex). */
+        GuestEnvironment            mEnvironment;
         /** Directory objects bound to this session. */
         SessionDirectories          mDirectories;
         /** File objects bound to this session. */
@@ -521,32 +431,6 @@ private:
         /** The last returned session status
          *  returned from the guest side. */
         int                         mRC;
-
-        Data(void)
-            : mpBaseEnvironment(NULL)
-        { }
-        Data(const Data &rThat)
-            : mCredentials(rThat.mCredentials)
-            , mSession(rThat.mSession)
-            , mStatus(rThat.mStatus)
-            , mEnvironmentChanges(rThat.mEnvironmentChanges)
-            , mpBaseEnvironment(NULL)
-            , mDirectories(rThat.mDirectories)
-            , mFiles(rThat.mFiles)
-            , mProcesses(rThat.mProcesses)
-            , mProtocolVersion(rThat.mProtocolVersion)
-            , mTimeout(rThat.mTimeout)
-            , mNumObjects(rThat.mNumObjects)
-            , mRC(rThat.mRC)
-        { }
-        ~Data(void)
-        {
-            if (mpBaseEnvironment)
-            {
-                mpBaseEnvironment->releaseConst();
-                mpBaseEnvironment = NULL;
-            }
-        }
     } mData;
 };
 

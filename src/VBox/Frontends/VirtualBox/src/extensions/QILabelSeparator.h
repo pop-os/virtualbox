@@ -1,6 +1,7 @@
-/* $Id: QILabelSeparator.h $ */
 /** @file
- * VBox Qt GUI - Qt extensions: QILabelSeparator class declaration.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * VirtualBox Qt extensions: QILabelSeparator class declaration
  */
 
 /*

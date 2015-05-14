@@ -1066,12 +1066,12 @@ IEM_CIMPL_DEF_1(RT_CONCAT4(iemCImpl_ins_op,OP_SIZE,_addr,ADDR_SIZE), bool, fIoCh
                 pCtx->ADDR_rDI -= OP_SIZE / 8;
             iemRegAddToRipAndClearRF(pIemCpu, cbInstr);
         }
-        /* iemMemMap already checked permissions, so this may only be real errors
-           or access handlers meddling. The access handler case is going to
+        /* iemMemMap already check permissions, so this may only be real errors
+           or access handlers medling. The access handler case is going to
            cause misbehavior if the instruction is re-interpreted or smth. So,
            we fail with an internal error here instead. */
         else
-            AssertLogRelMsgFailedReturn(("rcStrict2=%Rrc\n", VBOXSTRICTRC_VAL(rcStrict2)), VERR_IEM_IPE_1);
+            AssertLogRelFailedReturn(VERR_IEM_IPE_1);
     }
     return rcStrict;
 }
@@ -1227,8 +1227,7 @@ IEM_CIMPL_DEF_1(RT_CONCAT4(iemCImpl_rep_ins_op,OP_SIZE,_addr,ADDR_SIZE), bool, f
 
             *puMem = (OP_TYPE)u32Value;
             VBOXSTRICTRC rcStrict2 = iemMemCommitAndUnmap(pIemCpu, puMem, IEM_ACCESS_DATA_W);
-            AssertLogRelMsgReturn(rcStrict2 == VINF_SUCCESS, ("rcStrict2=%Rrc\n", VBOXSTRICTRC_VAL(rcStrict2)),
-                                  VERR_IEM_IPE_1); /* See non-rep version. */
+            AssertLogRelReturn(rcStrict2 == VINF_SUCCESS, VERR_IEM_IPE_1); /* See non-rep version. */
 
             pCtx->ADDR_rDI = uAddrReg += cbIncr;
             pCtx->ADDR_rCX = --uCounterReg;

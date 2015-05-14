@@ -1,4 +1,3 @@
-/* $Id: UISession.h $ */
 /** @file
  * VBox Qt GUI - UISession class declaration.
  */
@@ -25,32 +24,23 @@
 #include <QMap>
 
 /* GUI includes: */
-#include "UIExtraDataDefs.h"
-#include "UIMediumDefs.h"
+#include "UIDefs.h"
 
 /* COM includes: */
 #include "COMEnums.h"
-#include "CSession.h"
-#include "CMachine.h"
-#include "CConsole.h"
-#include "CDisplay.h"
-#include "CGuest.h"
-#include "CMouse.h"
-#include "CKeyboard.h"
-#include "CMachineDebugger.h"
 
 /* Forward declarations: */
 class QMenu;
+class QMenuBar;
 class UIFrameBuffer;
 class UIMachine;
 class UIMachineLogic;
-class UIActionPool;
+class UIMachineMenuBar;
+class CSession;
 class CUSBDevice;
 class CNetworkAdapter;
 class CMediumAttachment;
-#ifdef Q_WS_MAC
-class QMenuBar;
-#else /* !Q_WS_MAC */
+#ifndef Q_WS_MAC
 class QIcon;
 #endif /* !Q_WS_MAC */
 
@@ -85,45 +75,25 @@ class UISession : public QObject
 
 public:
 
-    /** Factory constructor. */
-    static bool create(UISession *&pSession, UIMachine *pMachine);
-    /** Factory destructor. */
-    static void destroy(UISession *&pSession);
+    /* Machine uisession constructor/destructor: */
+    UISession(UIMachine *pMachine, CSession &session);
+    virtual ~UISession();
 
     /* API: Runtime UI stuff: */
-    bool initialize();
-    bool powerUp();
+    void powerUp();
     bool saveState();
     bool shutdown();
     bool powerOff(bool fIncludingDiscard, bool &fServerCrashed);
-    bool restoreCurrentSnapshot();
     void closeRuntimeUI();
 
-    /** Returns the session instance. */
+    /* Common getters: */
     CSession& session() { return m_session; }
-    /** Returns the session's machine instance. */
-    CMachine& machine() { return m_machine; }
-    /** Returns the session's console instance. */
-    CConsole& console() { return m_console; }
-    /** Returns the console's display instance. */
-    CDisplay& display() { return m_display; }
-    /** Returns the console's guest instance. */
-    CGuest& guest() { return m_guest; }
-    /** Returns the console's mouse instance. */
-    CMouse& mouse() { return m_mouse; }
-    /** Returns the console's keyboard instance. */
-    CKeyboard& keyboard() { return m_keyboard; }
-    /** Returns the console's debugger instance. */
-    CMachineDebugger& debugger() { return m_debugger; }
-
-    /** Returns the machine name. */
-    const QString& machineName() const { return m_strMachineName; }
-
-    UIActionPool* actionPool() const { return m_pActionPool; }
     KMachineState machineStatePrevious() const { return m_machineStatePrevious; }
     KMachineState machineState() const { return m_machineState; }
     UIMachineLogic* machineLogic() const;
     QWidget* mainMachineWindow() const;
+    QMenu* newMenu(RuntimeMenuType fOptions = RuntimeMenuType_All);
+    QMenuBar* newMenuBar(RuntimeMenuType fOptions = RuntimeMenuType_All);
     QCursor cursor() const { return m_cursor; }
 
 #ifndef Q_WS_MAC
@@ -136,10 +106,42 @@ public:
     /** @} */
 #endif /* !Q_WS_MAC */
 
-    /** @name Host-screen configuration variables.
+    /** @name Runtime workflow stuff.
      ** @{ */
-    /** Returns the list of host-screen geometries we currently have. */
-    QList<QRect> hostScreens() const { return m_hostScreens; }
+    /** Returns the mouse-capture policy. */
+    MouseCapturePolicy mouseCapturePolicy() const { return m_mouseCapturePolicy; }
+    /** Returns Guru Meditation handler type. */
+    GuruMeditationHandlerType guruMeditationHandlerType() const { return m_guruMeditationHandlerType; }
+    /** Returns HiDPI optimization type. */
+    HiDPIOptimizationType hiDPIOptimizationType() const { return m_hiDPIOptimizationType; }
+    /** Returns whether hovered machine-window should be activated. */
+    bool activateHoveredMachineWindow() const { return m_fActivateHoveredMachineWindow; }
+    /** @} */
+
+    /** @name Extension Pack stuff.
+     ** @{ */
+    /** Determines whether extension pack installed and usable. */
+    bool isExtensionPackUsable() const { return m_fIsExtensionPackUsable; }
+    /** @} */
+
+    /** @name Runtime menus configuration stuff.
+     ** @{ */
+#ifdef Q_WS_MAC
+    /** Determines Application menu allowed actions. */
+    RuntimeMenuApplicationActionType allowedActionsMenuApplication() const { return m_allowedActionsMenuApplication; }
+#endif /* Q_WS_MAC */
+    /** Determines Machine menu allowed actions. */
+    RuntimeMenuMachineActionType allowedActionsMenuMachine() const { return m_allowedActionsMenuMachine; }
+    /** Determines View menu allowed actions. */
+    RuntimeMenuViewActionType allowedActionsMenuView() const { return m_allowedActionsMenuView; }
+    /** Determines Devices menu allowed actions. */
+    RuntimeMenuDevicesActionType allowedActionsMenuDevices() const { return m_allowedActionsMenuDevices; }
+#ifdef VBOX_WITH_DEBUGGER_GUI
+    /** Determines Debugger menu allowed actions. */
+    RuntimeMenuDebuggerActionType allowedActionsMenuDebugger() const { return m_allowedActionsMenuDebugger; }
+#endif /* VBOX_WITH_DEBUGGER_GUI */
+    /** Determines Help menu allowed actions. */
+    RuntimeMenuHelpActionType allowedActionsMenuHelp() const { return m_allowedActionsMenuHelp; }
     /** @} */
 
     /** @name Application Close configuration stuff.
@@ -152,8 +154,16 @@ public:
     bool isAllCloseActionsRestricted() const { return m_fAllCloseActionsRestricted; }
     /** @} */
 
-    /** Returns whether visual @a state is allowed. */
-    bool isVisualStateAllowed(UIVisualStateType state) const;
+    /** @name Snapshot Operations configuration stuff.
+     * @{ */
+    /** Returns whether we should allow snapshot operations. */
+    bool isSnapshotOperationsAllowed() const { return m_fSnapshotOperationsAllowed; }
+    /** @} */
+
+    /* API: Visual-state stuff: */
+    bool isVisualStateAllowedFullscreen() const;
+    bool isVisualStateAllowedSeamless() const;
+    bool isVisualStateAllowedScale() const;
     /** Requests visual-state change. */
     void changeVisualState(UIVisualStateType visualStateType);
     /** Requests visual-state to be entered when possible. */
@@ -174,21 +184,20 @@ public:
     bool isStuck() const { return machineState() == KMachineState_Stuck; }
     bool wasPaused() const { return machineStatePrevious() == KMachineState_Paused ||
                                     machineStatePrevious() == KMachineState_TeleportingPausedVM; }
-    bool isInitialized() const { return m_fInitialized; }
+    bool isStarted() const { return m_fIsStarted; }
     bool isFirstTimeStarted() const { return m_fIsFirstTimeStarted; }
+    bool isIgnoreRuntimeMediumsChanging() const { return m_fIsIgnoreRuntimeMediumsChanging; }
     bool isGuestResizeIgnored() const { return m_fIsGuestResizeIgnored; }
     bool isAutoCaptureDisabled() const { return m_fIsAutoCaptureDisabled; }
 
     /* Guest additions state getters: */
-    bool isGuestAdditionsActive() const { return (m_ulGuestAdditionsRunLevel > KAdditionsRunLevelType_None); }
+    bool isGuestAdditionsActive() const { return (m_ulGuestAdditionsRunLevel > AdditionsRunLevelType_None); }
     bool isGuestSupportsGraphics() const { return m_fIsGuestSupportsGraphics; }
     /* The double check below is correct, even though it is an implementation
      * detail of the Additions which the GUI should not ideally have to know. */
     bool isGuestSupportsSeamless() const { return isGuestSupportsGraphics() && m_fIsGuestSupportsSeamless; }
 
     /* Keyboard getters: */
-    /** Returns keyboard-state. */
-    int keyboardState() const { return m_iKeyboardState; }
     bool isNumLock() const { return m_fNumLock; }
     bool isCapsLock() const { return m_fCapsLock; }
     bool isScrollLock() const { return m_fScrollLock; }
@@ -196,8 +205,6 @@ public:
     uint capsLockAdaptionCnt() const { return m_uCapsLockAdaptionCnt; }
 
     /* Mouse getters: */
-    /** Returns mouse-state. */
-    int mouseState() const { return m_iMouseState; }
     bool isMouseSupportsAbsolute() const { return m_fIsMouseSupportsAbsolute; }
     bool isMouseSupportsRelative() const { return m_fIsMouseSupportsRelative; }
     bool isMouseSupportsMultiTouch() const { return m_fIsMouseSupportsMultiTouch; }
@@ -233,12 +240,9 @@ public:
     /* Sets framebuffer for the given screen-number;
      * Ignores (asserts) if screen-number attribute is out of bounds: */
     void setFrameBuffer(ulong uScreenId, UIFrameBuffer* pFrameBuffer);
-    /** Returns existing frame-buffer vector. */
-    const QVector<UIFrameBuffer*>& frameBuffers() const { return m_frameBufferVector; }
 
-    /** Updates VRDE Server action state. */
+    /* Temporary API: */
     void updateStatusVRDE() { sltVRDEChange(); }
-    /** Updates Video Capture action state. */
     void updateStatusVideoCapture() { sltVideoCaptureChange(); }
 
 signals:
@@ -246,14 +250,7 @@ signals:
     /* Notifier: Close Runtime UI stuff: */
     void sigCloseRuntimeUI();
 
-    /** Notifies about frame-buffer resize. */
-    void sigFrameBufferResize();
-
     /* Console callback signals: */
-    /** Notifies listeners about keyboard state-change. */
-    void sigKeyboardStateChange(int iState);
-    /** Notifies listeners about mouse state-change. */
-    void sigMouseStateChange(int iState);
     void sigMousePointerShapeChange();
     void sigMouseCapabilityChange();
     void sigKeyboardLedsChange();
@@ -282,30 +279,19 @@ signals:
     void sigHostScreenAvailableAreaChange();
 
     /* Session signals: */
-    void sigInitialized();
+    void sigStarted();
 
 public slots:
 
     void sltInstallGuestAdditionsFrom(const QString &strSource);
 
-    /** Defines @a iKeyboardState. */
-    void setKeyboardState(int iKeyboardState) { m_iKeyboardState = iKeyboardState; emit sigKeyboardStateChange(m_iKeyboardState); }
-
-    /** Defines @a iMouseState. */
-    void setMouseState(int iMouseState) { m_iMouseState = iMouseState; emit sigMouseStateChange(m_iMouseState); }
-
 private slots:
 
     /** Marks machine started. */
-    void sltMarkInitialized() { m_fInitialized = true; }
+    void sltMarkStarted() { m_fIsStarted = true; }
 
     /* Handler: Close Runtime UI stuff: */
     void sltCloseRuntimeUI();
-
-#ifdef RT_OS_DARWIN
-    /** Mac OS X: Handles menu-bar configuration-change. */
-    void sltHandleMenuBarConfigurationChange(const QString &strMachineID);
-#endif /* RT_OS_DARWIN */
 
     /* Console events slots */
     void sltMousePointerShapeChange(bool fVisible, bool fAlpha, QPoint hotCorner, QSize size, QVector<uint8_t> shape);
@@ -332,80 +318,45 @@ private slots:
 
 private:
 
-    /** Constructor. */
-    UISession(UIMachine *pMachine);
-    /** Destructor. */
-    ~UISession();
-
     /* Private getters: */
     UIMachine* uimachine() const { return m_pMachine; }
 
     /* Prepare helpers: */
-    bool prepare();
-    bool prepareSession();
-    void prepareActions();
     void prepareConnections();
     void prepareConsoleEventHandlers();
     void prepareScreens();
     void prepareFramebuffers();
+    void prepareMenuPool();
     void loadSessionSettings();
 
     /* Cleanup helpers: */
     void saveSessionSettings();
+    void cleanupMenuPool();
     void cleanupFramebuffers();
     //void cleanupScreens() {}
     void cleanupConsoleEventHandlers();
     void cleanupConnections();
-    void cleanupActions();
-    void cleanupSession();
-    void cleanup();
 
-#ifdef Q_WS_MAC
-    /** Mac OS X: Updates menu-bar content. */
-    void updateMenu();
-#endif /* Q_WS_MAC */
+    /* Update helpers: */
+    void updateSessionSettings();
 
     /* Common helpers: */
     WId winId() const;
     void setPointerShape(const uchar *pShapeData, bool fHasAlpha, uint uXHot, uint uYHot, uint uWidth, uint uHeight);
-    bool preprocessInitialization();
-    bool mountAdHocImage(KDeviceType enmDeviceType, UIMediumType enmMediumType, const QString &strImage);
-    bool postprocessInitialization();
+    void reinitMenuPool();
+    bool preparePowerUp();
     int countOfVisibleWindows();
 
-    /** Update host-screen data. */
-    void updateHostScreenData();
+#ifdef Q_WS_MAC
+    /* Helper: Display reconfiguration stuff: */
+    void recacheDisplayData();
+#endif /* Q_WS_MAC */
 
     /* Private variables: */
     UIMachine *m_pMachine;
+    CSession &m_session;
 
-    /** Holds the session instance. */
-    CSession m_session;
-    /** Holds the session's machine instance. */
-    CMachine m_machine;
-    /** Holds the session's console instance. */
-    CConsole m_console;
-    /** Holds the console's display instance. */
-    CDisplay m_display;
-    /** Holds the console's guest instance. */
-    CGuest m_guest;
-    /** Holds the console's mouse instance. */
-    CMouse m_mouse;
-    /** Holds the console's keyboard instance. */
-    CKeyboard m_keyboard;
-    /** Holds the console's debugger instance. */
-    CMachineDebugger m_debugger;
-
-    /** Holds the machine name. */
-    QString m_strMachineName;
-
-    /** Holds the action-pool instance. */
-    UIActionPool *m_pActionPool;
-
-#ifdef Q_WS_MAC
-    /** Holds the menu-bar instance. */
-    QMenuBar *m_pMenuBar;
-#endif /* Q_WS_MAC */
+    UIMachineMenuBar *m_pMenuPool;
 
     /* Screen visibility vector: */
     QVector<bool> m_monitorVisibilityVector;
@@ -428,6 +379,44 @@ private:
     /** @} */
 #endif /* !Q_WS_MAC */
 
+    /** @name Runtime workflow variables.
+     ** @{ */
+    /** Holds the mouse-capture policy. */
+    MouseCapturePolicy m_mouseCapturePolicy;
+    /** Holds Guru Meditation handler type. */
+    GuruMeditationHandlerType m_guruMeditationHandlerType;
+    /** Holds HiDPI optimization type. */
+    HiDPIOptimizationType m_hiDPIOptimizationType;
+    /** Holds whether hovered machine-window should be activated. */
+    bool m_fActivateHoveredMachineWindow;
+    /** @} */
+
+    /** @name Extension Pack variables.
+     ** @{ */
+    /** Determines whether extension pack installed and usable. */
+    bool m_fIsExtensionPackUsable;
+    /** @} */
+
+    /** @name Runtime menus configuration variables.
+     ** @{ */
+#ifdef Q_WS_MAC
+    /** Determines Application menu allowed actions. */
+    RuntimeMenuApplicationActionType m_allowedActionsMenuApplication;
+#endif /* Q_WS_MAC */
+    /** Determines Machine menu allowed actions. */
+    RuntimeMenuMachineActionType m_allowedActionsMenuMachine;
+    /** Determines View menu allowed actions. */
+    RuntimeMenuViewActionType m_allowedActionsMenuView;
+    /** Determines Devices menu allowed actions. */
+    RuntimeMenuDevicesActionType m_allowedActionsMenuDevices;
+#ifdef VBOX_WITH_DEBUGGER_GUI
+    /** Determines Debugger menu allowed actions. */
+    RuntimeMenuDebuggerActionType m_allowedActionsMenuDebugger;
+#endif /* VBOX_WITH_DEBUGGER_GUI */
+    /** Determines Help menu allowed actions. */
+    RuntimeMenuHelpActionType m_allowedActionsMenuHelp;
+    /** @} */
+
     /** @name Visual-state configuration variables.
      ** @{ */
     /** Determines which visual-state should be entered when possible. */
@@ -438,15 +427,15 @@ private:
     HCURSOR m_alphaCursor;
 #endif
 
-    /** @name Host-screen configuration variables.
-     * @{ */
-    /** Holds the list of host-screen geometries we currently have. */
-    QList<QRect> m_hostScreens;
 #ifdef Q_WS_MAC
-    /** Mac OS X: Watchdog timer looking for display reconfiguration. */
+    /** @name MacOS X: Display reconfiguration variables.
+     * @{ */
+    /** MacOS X: Watchdog timer looking for display reconfiguration. */
     QTimer *m_pWatchdogDisplayChange;
-#endif /* Q_WS_MAC */
+    /** MacOS X: A list of display geometries we currently have. */
+    QList<QRect> m_screens;
     /** @} */
+#endif /* Q_WS_MAC */
 
     /** @name Application Close configuration variables.
      * @{ */
@@ -458,11 +447,19 @@ private:
     bool m_fAllCloseActionsRestricted;
     /** @} */
 
+    /** @name Snapshot Operations configuration variables.
+     * @{ */
+    /** Determines whether we should allow snapshot operations. */
+    bool m_fSnapshotOperationsAllowed;
+    /** @} */
+
     /* Common flags: */
-    bool m_fInitialized : 1;
+    bool m_fIsStarted : 1;
     bool m_fIsFirstTimeStarted : 1;
+    bool m_fIsIgnoreRuntimeMediumsChanging : 1;
     bool m_fIsGuestResizeIgnored : 1;
     bool m_fIsAutoCaptureDisabled : 1;
+    bool m_fReconfigurable : 1;
 
     /* Guest additions flags: */
     ULONG m_ulGuestAdditionsRunLevel;
@@ -470,8 +467,6 @@ private:
     bool  m_fIsGuestSupportsSeamless : 1;
 
     /* Keyboard flags: */
-    /** Holds the keyboard-state. */
-    int m_iKeyboardState;
     bool m_fNumLock : 1;
     bool m_fCapsLock : 1;
     bool m_fScrollLock : 1;
@@ -479,8 +474,6 @@ private:
     uint m_uCapsLockAdaptionCnt;
 
     /* Mouse flags: */
-    /** Holds the mouse-state. */
-    int m_iMouseState;
     bool m_fIsMouseSupportsAbsolute : 1;
     bool m_fIsMouseSupportsRelative : 1;
     bool m_fIsMouseSupportsMultiTouch: 1;

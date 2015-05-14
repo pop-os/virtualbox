@@ -97,10 +97,7 @@ int main()
                      u64OSElapsedTS, u64RTElapsedTS, u64OSElapsedTS - u64RTElapsedTS);
     else
     {
-        if (u64OSElapsedTS >= u64RTElapsedTS)
-            RTTestValue(hTest, "Total time delta", u64OSElapsedTS - u64RTElapsedTS, RTTESTUNIT_NS);
-        else
-            RTTestValue(hTest, "Total time delta", u64RTElapsedTS - u64OSElapsedTS, RTTESTUNIT_NS);
+        RTTestValue(hTest, "Total time delta", u64OSElapsedTS - u64RTElapsedTS, RTTESTUNIT_NS);
         RTTestPrintf(hTest, RTTESTLVL_INFO, "total time difference: u64OSElapsedTS=%#llx u64RTElapsedTS=%#llx delta=%lld\n",
                      u64OSElapsedTS, u64RTElapsedTS, u64OSElapsedTS - u64RTElapsedTS);
     }

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -89,12 +89,12 @@ HRESULT SystemProperties::init(VirtualBox *aParent)
 
     unconst(mParent) = aParent;
 
-    i_setDefaultMachineFolder(Utf8Str::Empty);
-    i_setLoggingLevel(Utf8Str::Empty);
-    i_setDefaultHardDiskFormat(Utf8Str::Empty);
+    setDefaultMachineFolder(Utf8Str::Empty);
+    setLoggingLevel(Utf8Str::Empty);
+    setDefaultHardDiskFormat(Utf8Str::Empty);
 
-    i_setVRDEAuthLibrary(Utf8Str::Empty);
-    i_setDefaultVRDEExtPack(Utf8Str::Empty);
+    setVRDEAuthLibrary(Utf8Str::Empty);
+    setDefaultVRDEExtPack(Utf8Str::Empty);
 
     m->ulLogHistoryCount = 3;
 
@@ -159,12 +159,17 @@ void SystemProperties::uninit()
     unconst(mParent) = NULL;
 }
 
-// wrapped ISystemProperties properties
+// ISystemProperties properties
 /////////////////////////////////////////////////////////////////////////////
 
-HRESULT SystemProperties::getMinGuestRAM(ULONG *minRAM)
 
+STDMETHODIMP SystemProperties::COMGETTER(MinGuestRAM)(ULONG *minRAM)
 {
+    CheckComArgOutPointerValid(minRAM);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     /* no need to lock, this is const */
     AssertCompile(MM_RAM_MIN_IN_MB >= SchemaDefs::MinGuestRAM);
     *minRAM = MM_RAM_MIN_IN_MB;
@@ -172,8 +177,13 @@ HRESULT SystemProperties::getMinGuestRAM(ULONG *minRAM)
     return S_OK;
 }
 
-HRESULT SystemProperties::getMaxGuestRAM(ULONG *maxRAM)
+STDMETHODIMP SystemProperties::COMGETTER(MaxGuestRAM)(ULONG *maxRAM)
 {
+    CheckComArgOutPointerValid(maxRAM);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     /* no need to lock, this is const */
     AssertCompile(MM_RAM_MAX_IN_MB <= SchemaDefs::MaxGuestRAM);
     ULONG maxRAMSys = MM_RAM_MAX_IN_MB;
@@ -183,40 +193,64 @@ HRESULT SystemProperties::getMaxGuestRAM(ULONG *maxRAM)
     return S_OK;
 }
 
-HRESULT SystemProperties::getMinGuestVRAM(ULONG *minVRAM)
+STDMETHODIMP SystemProperties::COMGETTER(MinGuestVRAM)(ULONG *minVRAM)
 {
+    CheckComArgOutPointerValid(minVRAM);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     /* no need to lock, this is const */
     *minVRAM = SchemaDefs::MinGuestVRAM;
 
     return S_OK;
 }
 
-HRESULT SystemProperties::getMaxGuestVRAM(ULONG *maxVRAM)
+STDMETHODIMP SystemProperties::COMGETTER(MaxGuestVRAM)(ULONG *maxVRAM)
 {
+    CheckComArgOutPointerValid(maxVRAM);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     /* no need to lock, this is const */
     *maxVRAM = SchemaDefs::MaxGuestVRAM;
 
     return S_OK;
 }
 
-HRESULT SystemProperties::getMinGuestCPUCount(ULONG *minCPUCount)
+STDMETHODIMP SystemProperties::COMGETTER(MinGuestCPUCount)(ULONG *minCPUCount)
 {
+    CheckComArgOutPointerValid(minCPUCount);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     /* no need to lock, this is const */
     *minCPUCount = SchemaDefs::MinCPUCount; // VMM_MIN_CPU_COUNT
 
     return S_OK;
 }
 
-HRESULT SystemProperties::getMaxGuestCPUCount(ULONG *maxCPUCount)
+STDMETHODIMP SystemProperties::COMGETTER(MaxGuestCPUCount)(ULONG *maxCPUCount)
 {
+    CheckComArgOutPointerValid(maxCPUCount);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     /* no need to lock, this is const */
     *maxCPUCount = SchemaDefs::MaxCPUCount; // VMM_MAX_CPU_COUNT
 
     return S_OK;
 }
 
-HRESULT SystemProperties::getMaxGuestMonitors(ULONG *maxMonitors)
+STDMETHODIMP SystemProperties::COMGETTER(MaxGuestMonitors)(ULONG *maxMonitors)
 {
+    CheckComArgOutPointerValid(maxMonitors);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     /* no need to lock, this is const */
     *maxMonitors = SchemaDefs::MaxGuestMonitors;
@@ -224,9 +258,13 @@ HRESULT SystemProperties::getMaxGuestMonitors(ULONG *maxMonitors)
     return S_OK;
 }
 
-
-HRESULT SystemProperties::getInfoVDSize(LONG64 *infoVDSize)
+STDMETHODIMP SystemProperties::COMGETTER(InfoVDSize)(LONG64 *infoVDSize)
 {
+    CheckComArgOutPointerValid(infoVDSize);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     /*
      * The BIOS supports currently 32 bit LBA numbers (implementing the full
      * 48 bit range is in theory trivial, but the crappy compiler makes things
@@ -248,27 +286,39 @@ HRESULT SystemProperties::getInfoVDSize(LONG64 *infoVDSize)
     return S_OK;
 }
 
-
-HRESULT SystemProperties::getSerialPortCount(ULONG *count)
+STDMETHODIMP SystemProperties::COMGETTER(SerialPortCount)(ULONG *count)
 {
+    CheckComArgOutPointerValid(count);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     /* no need to lock, this is const */
     *count = SchemaDefs::SerialPortCount;
 
     return S_OK;
 }
 
-
-HRESULT SystemProperties::getParallelPortCount(ULONG *count)
+STDMETHODIMP SystemProperties::COMGETTER(ParallelPortCount)(ULONG *count)
 {
+    CheckComArgOutPointerValid(count);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     /* no need to lock, this is const */
     *count = SchemaDefs::ParallelPortCount;
 
     return S_OK;
 }
 
-
-HRESULT SystemProperties::getMaxBootPosition(ULONG *aMaxBootPosition)
+STDMETHODIMP SystemProperties::COMGETTER(MaxBootPosition)(ULONG *aMaxBootPosition)
 {
+    CheckComArgOutPointerValid(aMaxBootPosition);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     /* no need to lock, this is const */
     *aMaxBootPosition = SchemaDefs::MaxBootPosition;
 
@@ -276,8 +326,13 @@ HRESULT SystemProperties::getMaxBootPosition(ULONG *aMaxBootPosition)
 }
 
 
-HRESULT SystemProperties::getExclusiveHwVirt(BOOL *aExclusiveHwVirt)
+STDMETHODIMP SystemProperties::COMGETTER(ExclusiveHwVirt)(BOOL *aExclusiveHwVirt)
 {
+    CheckComArgOutPointerValid(aExclusiveHwVirt);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     *aExclusiveHwVirt = m->fExclusiveHwVirt;
@@ -285,31 +340,46 @@ HRESULT SystemProperties::getExclusiveHwVirt(BOOL *aExclusiveHwVirt)
     return S_OK;
 }
 
-HRESULT SystemProperties::setExclusiveHwVirt(BOOL aExclusiveHwVirt)
+STDMETHODIMP SystemProperties::COMSETTER(ExclusiveHwVirt)(BOOL aExclusiveHwVirt)
 {
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
     m->fExclusiveHwVirt = !!aExclusiveHwVirt;
     alock.release();
 
-    // VirtualBox::i_saveSettings() needs vbox write lock
+    // VirtualBox::saveSettings() needs vbox write lock
     AutoWriteLock vboxLock(mParent COMMA_LOCKVAL_SRC_POS);
-    HRESULT rc = mParent->i_saveSettings();
+    HRESULT rc = mParent->saveSettings();
 
     return rc;
 }
 
-HRESULT SystemProperties::getMaxNetworkAdapters(ChipsetType_T aChipset, ULONG *aMaxNetworkAdapters)
+STDMETHODIMP SystemProperties::GetMaxNetworkAdapters(ChipsetType_T aChipset, ULONG *count)
 {
+    CheckComArgOutPointerValid(count);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     /* no need for locking, no state */
     uint32_t uResult = Global::getMaxNetworkAdapters(aChipset);
     if (uResult == 0)
         AssertMsgFailed(("Invalid chipset type %d\n", aChipset));
-    *aMaxNetworkAdapters = uResult;
+
+    *count = uResult;
+
     return S_OK;
 }
 
-HRESULT SystemProperties::getMaxNetworkAdaptersOfType(ChipsetType_T aChipset, NetworkAttachmentType_T aType, ULONG *count)
+STDMETHODIMP SystemProperties::GetMaxNetworkAdaptersOfType(ChipsetType_T aChipset, NetworkAttachmentType_T aType, ULONG *count)
 {
+    CheckComArgOutPointerValid(count);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     /* no need for locking, no state */
     uint32_t uResult = Global::getMaxNetworkAdapters(aChipset);
     if (uResult == 0)
@@ -338,16 +408,20 @@ HRESULT SystemProperties::getMaxNetworkAdaptersOfType(ChipsetType_T aChipset, Ne
 }
 
 
-HRESULT SystemProperties::getMaxDevicesPerPortForStorageBus(StorageBus_T aBus,
-                                                            ULONG *aMaxDevicesPerPort)
+STDMETHODIMP SystemProperties::GetMaxDevicesPerPortForStorageBus(StorageBus_T aBus,
+                                                                 ULONG *aMaxDevicesPerPort)
 {
+    CheckComArgOutPointerValid(aMaxDevicesPerPort);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     /* no need to lock, this is const */
     switch (aBus)
     {
         case StorageBus_SATA:
         case StorageBus_SCSI:
         case StorageBus_SAS:
-        case StorageBus_USB:
         {
             /* SATA and both SCSI controllers only support one device per port. */
             *aMaxDevicesPerPort = 1;
@@ -368,14 +442,18 @@ HRESULT SystemProperties::getMaxDevicesPerPortForStorageBus(StorageBus_T aBus,
     return S_OK;
 }
 
-HRESULT SystemProperties::getMinPortCountForStorageBus(StorageBus_T aBus,
-                                                       ULONG *aMinPortCount)
+STDMETHODIMP SystemProperties::GetMinPortCountForStorageBus(StorageBus_T aBus,
+                                                            ULONG *aMinPortCount)
 {
+    CheckComArgOutPointerValid(aMinPortCount);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     /* no need to lock, this is const */
     switch (aBus)
     {
         case StorageBus_SATA:
-        case StorageBus_SAS:
         {
             *aMinPortCount = 1;
             break;
@@ -395,7 +473,7 @@ HRESULT SystemProperties::getMinPortCountForStorageBus(StorageBus_T aBus,
             *aMinPortCount = 1;
             break;
         }
-        case StorageBus_USB:
+        case StorageBus_SAS:
         {
             *aMinPortCount = 8;
             break;
@@ -407,9 +485,14 @@ HRESULT SystemProperties::getMinPortCountForStorageBus(StorageBus_T aBus,
     return S_OK;
 }
 
-HRESULT SystemProperties::getMaxPortCountForStorageBus(StorageBus_T aBus,
-                                                       ULONG *aMaxPortCount)
+STDMETHODIMP SystemProperties::GetMaxPortCountForStorageBus(StorageBus_T aBus,
+                                                            ULONG *aMaxPortCount)
 {
+    CheckComArgOutPointerValid(aMaxPortCount);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     /* no need to lock, this is const */
     switch (aBus)
     {
@@ -435,11 +518,6 @@ HRESULT SystemProperties::getMaxPortCountForStorageBus(StorageBus_T aBus,
         }
         case StorageBus_SAS:
         {
-            *aMaxPortCount = 255;
-            break;
-        }
-        case StorageBus_USB:
-        {
             *aMaxPortCount = 8;
             break;
         }
@@ -450,10 +528,15 @@ HRESULT SystemProperties::getMaxPortCountForStorageBus(StorageBus_T aBus,
     return S_OK;
 }
 
-HRESULT SystemProperties::getMaxInstancesOfStorageBus(ChipsetType_T aChipset,
-                                                      StorageBus_T  aBus,
-                                                      ULONG *aMaxInstances)
+STDMETHODIMP SystemProperties::GetMaxInstancesOfStorageBus(ChipsetType_T aChipset,
+                                                           StorageBus_T  aBus,
+                                                           ULONG *aMaxInstances)
 {
+    CheckComArgOutPointerValid(aMaxInstances);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     ULONG cCtrs = 0;
 
     /* no need to lock, this is const */
@@ -464,7 +547,6 @@ HRESULT SystemProperties::getMaxInstancesOfStorageBus(ChipsetType_T aChipset,
         case StorageBus_SAS:
             cCtrs = aChipset == ChipsetType_ICH9 ? 8 : 1;
             break;
-        case StorageBus_USB:
         case StorageBus_IDE:
         case StorageBus_Floppy:
         {
@@ -480,10 +562,13 @@ HRESULT SystemProperties::getMaxInstancesOfStorageBus(ChipsetType_T aChipset,
     return S_OK;
 }
 
-HRESULT SystemProperties::getDeviceTypesForStorageBus(StorageBus_T aBus,
-                                                      std::vector<DeviceType_T> &aDeviceTypes)
+STDMETHODIMP SystemProperties::GetDeviceTypesForStorageBus(StorageBus_T aBus,
+                                                           ComSafeArrayOut(DeviceType_T, aDeviceTypes))
 {
-    aDeviceTypes.resize(0);
+    CheckComArgOutSafeArrayPointerValid(aDeviceTypes);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     /* no need to lock, this is const */
     switch (aBus)
@@ -492,17 +577,18 @@ HRESULT SystemProperties::getDeviceTypesForStorageBus(StorageBus_T aBus,
         case StorageBus_SATA:
         case StorageBus_SCSI:
         case StorageBus_SAS:
-        case StorageBus_USB:
         {
-            aDeviceTypes.resize(2);
-            aDeviceTypes[0] = DeviceType_DVD;
-            aDeviceTypes[1] = DeviceType_HardDisk;
+            com::SafeArray<DeviceType_T> saDeviceTypes(2);
+            saDeviceTypes[0] = DeviceType_DVD;
+            saDeviceTypes[1] = DeviceType_HardDisk;
+            saDeviceTypes.detachTo(ComSafeArrayOutArg(aDeviceTypes));
             break;
         }
         case StorageBus_Floppy:
         {
-            aDeviceTypes.resize(1);
-            aDeviceTypes[0] = DeviceType_Floppy;
+            com::SafeArray<DeviceType_T> saDeviceTypes(1);
+            saDeviceTypes[0] = DeviceType_Floppy;
+            saDeviceTypes.detachTo(ComSafeArrayOutArg(aDeviceTypes));
             break;
         }
         default:
@@ -512,9 +598,13 @@ HRESULT SystemProperties::getDeviceTypesForStorageBus(StorageBus_T aBus,
     return S_OK;
 }
 
-HRESULT SystemProperties::getDefaultIoCacheSettingForStorageController(StorageControllerType_T aControllerType,
-                                                                       BOOL *aEnabled)
+STDMETHODIMP SystemProperties::GetDefaultIoCacheSettingForStorageController(StorageControllerType_T aControllerType, BOOL *aEnabled)
 {
+    CheckComArgOutPointerValid(aEnabled);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     /* no need to lock, this is const */
     switch (aControllerType)
     {
@@ -522,7 +612,6 @@ HRESULT SystemProperties::getDefaultIoCacheSettingForStorageController(StorageCo
         case StorageControllerType_BusLogic:
         case StorageControllerType_IntelAhci:
         case StorageControllerType_LsiLogicSas:
-        case StorageControllerType_USB:
             *aEnabled = false;
             break;
         case StorageControllerType_PIIX3:
@@ -537,36 +626,16 @@ HRESULT SystemProperties::getDefaultIoCacheSettingForStorageController(StorageCo
     return S_OK;
 }
 
-HRESULT SystemProperties::getStorageControllerHotplugCapable(StorageControllerType_T aControllerType,
-                                                             BOOL *aHotplugCapable)
-{
-    switch (aControllerType)
-    {
-        case StorageControllerType_IntelAhci:
-        case StorageControllerType_USB:
-            *aHotplugCapable = true;
-            break;
-        case StorageControllerType_LsiLogic:
-        case StorageControllerType_LsiLogicSas:
-        case StorageControllerType_BusLogic:
-        case StorageControllerType_PIIX3:
-        case StorageControllerType_PIIX4:
-        case StorageControllerType_ICH6:
-        case StorageControllerType_I82078:
-            *aHotplugCapable = false;
-            break;
-        default:
-            AssertMsgFailedReturn(("Invalid controller type %d\n", aControllerType), E_FAIL);
-    }
-
-    return S_OK;
-}
-
-HRESULT SystemProperties::getMaxInstancesOfUSBControllerType(ChipsetType_T aChipset,
-                                                             USBControllerType_T aType,
-                                                             ULONG *aMaxInstances)
+STDMETHODIMP SystemProperties::GetMaxInstancesOfUSBControllerType(ChipsetType_T aChipset,
+                                                                  USBControllerType_T aType,
+                                                                  ULONG *aMaxInstances)
 {
     NOREF(aChipset);
+    CheckComArgOutPointerValid(aMaxInstances);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     ULONG cCtrs = 0;
 
     /* no need to lock, this is const */
@@ -574,7 +643,6 @@ HRESULT SystemProperties::getMaxInstancesOfUSBControllerType(ChipsetType_T aChip
     {
         case USBControllerType_OHCI:
         case USBControllerType_EHCI:
-        case USBControllerType_XHCI:
         {
             cCtrs = 1;
             break;
@@ -588,265 +656,336 @@ HRESULT SystemProperties::getMaxInstancesOfUSBControllerType(ChipsetType_T aChip
     return S_OK;
 }
 
-HRESULT SystemProperties::getDefaultMachineFolder(com::Utf8Str &aDefaultMachineFolder)
+STDMETHODIMP SystemProperties::COMGETTER(DefaultMachineFolder)(BSTR *aDefaultMachineFolder)
 {
+    CheckComArgOutPointerValid(aDefaultMachineFolder);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-    aDefaultMachineFolder = m->strDefaultMachineFolder;
+
+    m->strDefaultMachineFolder.cloneTo(aDefaultMachineFolder);
+
     return S_OK;
 }
 
-HRESULT SystemProperties::setDefaultMachineFolder(const com::Utf8Str &aDefaultMachineFolder)
+STDMETHODIMP SystemProperties::COMSETTER(DefaultMachineFolder)(IN_BSTR aDefaultMachineFolder)
 {
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-    HRESULT rc = i_setDefaultMachineFolder(aDefaultMachineFolder);
+    HRESULT rc = setDefaultMachineFolder(aDefaultMachineFolder);
     alock.release();
+
     if (SUCCEEDED(rc))
     {
-        // VirtualBox::i_saveSettings() needs vbox write lock
+        // VirtualBox::saveSettings() needs vbox write lock
         AutoWriteLock vboxLock(mParent COMMA_LOCKVAL_SRC_POS);
-        rc = mParent->i_saveSettings();
+        rc = mParent->saveSettings();
     }
 
     return rc;
 }
 
-HRESULT SystemProperties::getLoggingLevel(com::Utf8Str &aLoggingLevel)
+STDMETHODIMP SystemProperties::COMGETTER(LoggingLevel)(BSTR *aLoggingLevel)
 {
+    CheckComArgOutPointerValid(aLoggingLevel);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    aLoggingLevel = m->strLoggingLevel;
+    Utf8Str useLoggingLevel(m->strLoggingLevel);
+    if (useLoggingLevel.isEmpty())
+        useLoggingLevel = VBOXSVC_LOG_DEFAULT;
 
-    if (aLoggingLevel.isEmpty())
-        aLoggingLevel = VBOXSVC_LOG_DEFAULT;
-
+    useLoggingLevel.cloneTo(aLoggingLevel);
     return S_OK;
 }
 
 
-HRESULT SystemProperties::setLoggingLevel(const com::Utf8Str &aLoggingLevel)
+STDMETHODIMP SystemProperties::COMSETTER(LoggingLevel)(IN_BSTR aLoggingLevel)
 {
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-    HRESULT rc = i_setLoggingLevel(aLoggingLevel);
+    HRESULT rc = setLoggingLevel(aLoggingLevel);
     alock.release();
 
     if (SUCCEEDED(rc))
     {
         AutoWriteLock vboxLock(mParent COMMA_LOCKVAL_SRC_POS);
-        rc = mParent->i_saveSettings();
+        rc = mParent->saveSettings();
     }
     else
-        LogRel(("Cannot set passed logging level=%s, or the default one - Error=%Rhrc \n", aLoggingLevel.c_str(), rc));
+        LogRel(("Cannot set passed logging level=%ls, or the default one - Error=%Rhrc \n", aLoggingLevel, rc));
 
     return rc;
 }
 
-HRESULT SystemProperties::getMediumFormats(std::vector<ComPtr<IMediumFormat> > &aMediumFormats)
+STDMETHODIMP SystemProperties::COMGETTER(MediumFormats)(ComSafeArrayOut(IMediumFormat *, aMediumFormats))
 {
-    MediumFormatList mediumFormats(m_llMediumFormats);
-    aMediumFormats.resize(mediumFormats.size());
-    size_t i = 0;
-    for (MediumFormatList::const_iterator it = mediumFormats.begin(); it != mediumFormats.end(); ++it, ++i)
-        (*it).queryInterfaceTo(aMediumFormats[i].asOutParam());
-    return S_OK;
-}
+    CheckComArgOutSafeArrayPointerValid(aMediumFormats);
 
-HRESULT SystemProperties::getDefaultHardDiskFormat(com::Utf8Str &aDefaultHardDiskFormat)
-{
-    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-    aDefaultHardDiskFormat = m->strDefaultHardDiskFormat;
-    return S_OK;
-}
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-
-HRESULT SystemProperties::setDefaultHardDiskFormat(const com::Utf8Str &aDefaultHardDiskFormat)
-{
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-    HRESULT rc = i_setDefaultHardDiskFormat(aDefaultHardDiskFormat);
-    alock.release();
-    if (SUCCEEDED(rc))
-    {
-        // VirtualBox::i_saveSettings() needs vbox write lock
-        AutoWriteLock vboxLock(mParent COMMA_LOCKVAL_SRC_POS);
-        rc = mParent->i_saveSettings();
-    }
-
-    return rc;
-}
-
-HRESULT SystemProperties::getFreeDiskSpaceWarning(LONG64 *aFreeSpace)
-{
-    NOREF(aFreeSpace);
-    ReturnComNotImplemented();
-}
-
-HRESULT SystemProperties::setFreeDiskSpaceWarning(LONG64 /* aFreeSpace */)
-{
-    ReturnComNotImplemented();
-}
-
-HRESULT SystemProperties::getFreeDiskSpacePercentWarning(ULONG *aFreeSpacePercent)
-{
-    NOREF(aFreeSpacePercent);
-    ReturnComNotImplemented();
-}
-
-HRESULT SystemProperties::setFreeDiskSpacePercentWarning(ULONG /* aFreeSpacePercent */)
-{
-    ReturnComNotImplemented();
-}
-
-HRESULT SystemProperties::getFreeDiskSpaceError(LONG64 *aFreeSpace)
-{
-    NOREF(aFreeSpace);
-    ReturnComNotImplemented();
-}
-
-HRESULT SystemProperties::setFreeDiskSpaceError(LONG64 /* aFreeSpace */)
-{
-    ReturnComNotImplemented();
-}
-
-HRESULT SystemProperties::getFreeDiskSpacePercentError(ULONG *aFreeSpacePercent)
-{
-    NOREF(aFreeSpacePercent);
-    ReturnComNotImplemented();
-}
-
-HRESULT SystemProperties::setFreeDiskSpacePercentError(ULONG /* aFreeSpacePercent */)
-{
-    ReturnComNotImplemented();
-}
-
-HRESULT SystemProperties::getVRDEAuthLibrary(com::Utf8Str &aVRDEAuthLibrary)
-{
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    aVRDEAuthLibrary = m->strVRDEAuthLibrary;
+    SafeIfaceArray<IMediumFormat> mediumFormats(m_llMediumFormats);
+    mediumFormats.detachTo(ComSafeArrayOutArg(aMediumFormats));
 
     return S_OK;
 }
 
-HRESULT SystemProperties::setVRDEAuthLibrary(const com::Utf8Str &aVRDEAuthLibrary)
+STDMETHODIMP SystemProperties::COMGETTER(DefaultHardDiskFormat)(BSTR *aDefaultHardDiskFormat)
 {
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-    HRESULT rc = i_setVRDEAuthLibrary(aVRDEAuthLibrary);
-    alock.release();
-    if (SUCCEEDED(rc))
-    {
-        // VirtualBox::i_saveSettings() needs vbox write lock
-        AutoWriteLock vboxLock(mParent COMMA_LOCKVAL_SRC_POS);
-        rc = mParent->i_saveSettings();
-    }
+    CheckComArgOutPointerValid(aDefaultHardDiskFormat);
 
-    return rc;
-}
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-HRESULT SystemProperties::getWebServiceAuthLibrary(com::Utf8Str &aWebServiceAuthLibrary)
-{
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    aWebServiceAuthLibrary = m->strWebServiceAuthLibrary;
+    m->strDefaultHardDiskFormat.cloneTo(aDefaultHardDiskFormat);
 
     return S_OK;
 }
 
-HRESULT SystemProperties::setWebServiceAuthLibrary(const com::Utf8Str &aWebServiceAuthLibrary)
+STDMETHODIMP SystemProperties::COMSETTER(DefaultHardDiskFormat)(IN_BSTR aDefaultHardDiskFormat)
 {
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-    HRESULT rc = i_setWebServiceAuthLibrary(aWebServiceAuthLibrary);
+    HRESULT rc = setDefaultHardDiskFormat(aDefaultHardDiskFormat);
     alock.release();
 
     if (SUCCEEDED(rc))
     {
-        // VirtualBox::i_saveSettings() needs vbox write lock
+        // VirtualBox::saveSettings() needs vbox write lock
         AutoWriteLock vboxLock(mParent COMMA_LOCKVAL_SRC_POS);
-        rc = mParent->i_saveSettings();
+        rc = mParent->saveSettings();
     }
 
     return rc;
 }
 
-HRESULT SystemProperties::getDefaultVRDEExtPack(com::Utf8Str &aExtPack)
+STDMETHODIMP SystemProperties::COMGETTER(FreeDiskSpaceWarning)(LONG64 *aFreeSpace)
 {
-    HRESULT hrc = S_OK;
+    CheckComArgOutPointerValid(aFreeSpace);
+
+    ReturnComNotImplemented();
+}
+
+STDMETHODIMP SystemProperties::COMSETTER(FreeDiskSpaceWarning)(LONG64 /* aFreeSpace */)
+{
+    ReturnComNotImplemented();
+}
+
+STDMETHODIMP SystemProperties::COMGETTER(FreeDiskSpacePercentWarning)(ULONG *aFreeSpacePercent)
+{
+    CheckComArgOutPointerValid(aFreeSpacePercent);
+
+    ReturnComNotImplemented();
+}
+
+STDMETHODIMP SystemProperties::COMSETTER(FreeDiskSpacePercentWarning)(ULONG /* aFreeSpacePercent */)
+{
+    ReturnComNotImplemented();
+}
+
+STDMETHODIMP SystemProperties::COMGETTER(FreeDiskSpaceError)(LONG64 *aFreeSpace)
+{
+    CheckComArgOutPointerValid(aFreeSpace);
+
+    ReturnComNotImplemented();
+}
+
+STDMETHODIMP SystemProperties::COMSETTER(FreeDiskSpaceError)(LONG64 /* aFreeSpace */)
+{
+    ReturnComNotImplemented();
+}
+
+STDMETHODIMP SystemProperties::COMGETTER(FreeDiskSpacePercentError)(ULONG *aFreeSpacePercent)
+{
+    CheckComArgOutPointerValid(aFreeSpacePercent);
+
+    ReturnComNotImplemented();
+}
+
+STDMETHODIMP SystemProperties::COMSETTER(FreeDiskSpacePercentError)(ULONG /* aFreeSpacePercent */)
+{
+    ReturnComNotImplemented();
+}
+
+STDMETHODIMP SystemProperties::COMGETTER(VRDEAuthLibrary)(BSTR *aVRDEAuthLibrary)
+{
+    CheckComArgOutPointerValid(aVRDEAuthLibrary);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-    Utf8Str strExtPack(m->strDefaultVRDEExtPack);
-    if (strExtPack.isNotEmpty())
+
+    m->strVRDEAuthLibrary.cloneTo(aVRDEAuthLibrary);
+
+    return S_OK;
+}
+
+STDMETHODIMP SystemProperties::COMSETTER(VRDEAuthLibrary)(IN_BSTR aVRDEAuthLibrary)
+{
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+    HRESULT rc = setVRDEAuthLibrary(aVRDEAuthLibrary);
+    alock.release();
+
+    if (SUCCEEDED(rc))
     {
-        if (strExtPack.equals(VBOXVRDP_KLUDGE_EXTPACK_NAME))
-            hrc = S_OK;
-        else
-#ifdef VBOX_WITH_EXTPACK
-            hrc = mParent->i_getExtPackManager()->i_checkVrdeExtPack(&strExtPack);
-#else
-            hrc = setError(E_FAIL, tr("The extension pack '%s' does not exist"), strExtPack.c_str());
-#endif
+        // VirtualBox::saveSettings() needs vbox write lock
+        AutoWriteLock vboxLock(mParent COMMA_LOCKVAL_SRC_POS);
+        rc = mParent->saveSettings();
     }
-    else
+
+    return rc;
+}
+
+STDMETHODIMP SystemProperties::COMGETTER(WebServiceAuthLibrary)(BSTR *aWebServiceAuthLibrary)
+{
+    CheckComArgOutPointerValid(aWebServiceAuthLibrary);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    m->strWebServiceAuthLibrary.cloneTo(aWebServiceAuthLibrary);
+
+    return S_OK;
+}
+
+STDMETHODIMP SystemProperties::COMSETTER(WebServiceAuthLibrary)(IN_BSTR aWebServiceAuthLibrary)
+{
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+    HRESULT rc = setWebServiceAuthLibrary(aWebServiceAuthLibrary);
+    alock.release();
+
+    if (SUCCEEDED(rc))
     {
-#ifdef VBOX_WITH_EXTPACK
-        hrc = mParent->i_getExtPackManager()->i_getDefaultVrdeExtPack(&strExtPack);
-#endif
-        if (strExtPack.isEmpty())
+        // VirtualBox::saveSettings() needs vbox write lock
+        AutoWriteLock vboxLock(mParent COMMA_LOCKVAL_SRC_POS);
+        rc = mParent->saveSettings();
+    }
+
+    return rc;
+}
+
+STDMETHODIMP SystemProperties::COMGETTER(DefaultVRDEExtPack)(BSTR *aExtPack)
+{
+    CheckComArgOutPointerValid(aExtPack);
+
+    AutoCaller autoCaller(this);
+    HRESULT hrc = autoCaller.rc();
+    if (SUCCEEDED(hrc))
+    {
+        AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+        Utf8Str strExtPack(m->strDefaultVRDEExtPack);
+        if (strExtPack.isNotEmpty())
         {
-            /*
-            * Klugde - check if VBoxVRDP.dll/.so/.dylib is installed.
-            * This is hardcoded uglyness, sorry.
-            */
-            char szPath[RTPATH_MAX];
-            int vrc = RTPathAppPrivateArch(szPath, sizeof(szPath));
-            if (RT_SUCCESS(vrc))
-                vrc = RTPathAppend(szPath, sizeof(szPath), "VBoxVRDP");
-            if (RT_SUCCESS(vrc))
-                vrc = RTStrCat(szPath, sizeof(szPath), RTLdrGetSuff());
-            if (RT_SUCCESS(vrc) && RTFileExists(szPath))
+            if (strExtPack.equals(VBOXVRDP_KLUDGE_EXTPACK_NAME))
+                hrc = S_OK;
+            else
+#ifdef VBOX_WITH_EXTPACK
+                hrc = mParent->getExtPackManager()->checkVrdeExtPack(&strExtPack);
+#else
+                hrc = setError(E_FAIL, tr("The extension pack '%s' does not exist"), strExtPack.c_str());
+#endif
+        }
+        else
+        {
+#ifdef VBOX_WITH_EXTPACK
+            hrc = mParent->getExtPackManager()->getDefaultVrdeExtPack(&strExtPack);
+#endif
+            if (strExtPack.isEmpty())
             {
-                /* Illegal extpack name, so no conflict. */
-                strExtPack = VBOXVRDP_KLUDGE_EXTPACK_NAME;
+                /*
+                 * Klugde - check if VBoxVRDP.dll/.so/.dylib is installed.
+                 * This is hardcoded uglyness, sorry.
+                 */
+                char szPath[RTPATH_MAX];
+                int vrc = RTPathAppPrivateArch(szPath, sizeof(szPath));
+                if (RT_SUCCESS(vrc))
+                    vrc = RTPathAppend(szPath, sizeof(szPath), "VBoxVRDP");
+                if (RT_SUCCESS(vrc))
+                    vrc = RTStrCat(szPath, sizeof(szPath), RTLdrGetSuff());
+                if (RT_SUCCESS(vrc) && RTFileExists(szPath))
+                {
+                    /* Illegal extpack name, so no conflict. */
+                    strExtPack = VBOXVRDP_KLUDGE_EXTPACK_NAME;
+                }
             }
         }
-    }
 
-    if (SUCCEEDED(hrc))
-          aExtPack = strExtPack;
+        if (SUCCEEDED(hrc))
+            strExtPack.cloneTo(aExtPack);
+    }
 
     return S_OK;
 }
 
-
-HRESULT SystemProperties::setDefaultVRDEExtPack(const com::Utf8Str &aExtPack)
+STDMETHODIMP SystemProperties::COMSETTER(DefaultVRDEExtPack)(IN_BSTR aExtPack)
 {
-    HRESULT hrc = S_OK;
-    if (aExtPack.isNotEmpty())
-    {
-        if (aExtPack.equals(VBOXVRDP_KLUDGE_EXTPACK_NAME))
-            hrc = S_OK;
-        else
-#ifdef VBOX_WITH_EXTPACK
-            hrc = mParent->i_getExtPackManager()->i_checkVrdeExtPack(&aExtPack);
-#else
-            hrc = setError(E_FAIL, tr("The extension pack '%s' does not exist"), aExtPack.c_str());
-#endif
-    }
+    CheckComArgNotNull(aExtPack);
+    Utf8Str strExtPack(aExtPack);
+
+    AutoCaller autoCaller(this);
+    HRESULT hrc = autoCaller.rc();
     if (SUCCEEDED(hrc))
     {
-        AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-        hrc = i_setDefaultVRDEExtPack(aExtPack);
+        if (strExtPack.isNotEmpty())
+        {
+            if (strExtPack.equals(VBOXVRDP_KLUDGE_EXTPACK_NAME))
+                hrc = S_OK;
+            else
+#ifdef VBOX_WITH_EXTPACK
+                hrc = mParent->getExtPackManager()->checkVrdeExtPack(&strExtPack);
+#else
+                hrc = setError(E_FAIL, tr("The extension pack '%s' does not exist"), strExtPack.c_str());
+#endif
+        }
         if (SUCCEEDED(hrc))
         {
-            /* VirtualBox::i_saveSettings() needs the VirtualBox write lock. */
-            alock.release();
-            AutoWriteLock vboxLock(mParent COMMA_LOCKVAL_SRC_POS);
-            hrc = mParent->i_saveSettings();
+            AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+            hrc = setDefaultVRDEExtPack(aExtPack);
+            if (SUCCEEDED(hrc))
+            {
+                /* VirtualBox::saveSettings() needs the VirtualBox write lock. */
+                alock.release();
+                AutoWriteLock vboxLock(mParent COMMA_LOCKVAL_SRC_POS);
+                hrc = mParent->saveSettings();
+            }
         }
     }
 
     return hrc;
 }
 
-
-HRESULT SystemProperties::getLogHistoryCount(ULONG *count)
+STDMETHODIMP SystemProperties::COMGETTER(LogHistoryCount)(ULONG *count)
 {
+    CheckComArgOutPointerValid(count);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     *count = m->ulLogHistoryCount;
@@ -854,22 +993,29 @@ HRESULT SystemProperties::getLogHistoryCount(ULONG *count)
     return S_OK;
 }
 
-
-HRESULT SystemProperties::setLogHistoryCount(ULONG count)
+STDMETHODIMP SystemProperties::COMSETTER(LogHistoryCount)(ULONG count)
 {
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
     m->ulLogHistoryCount = count;
     alock.release();
 
-    // VirtualBox::i_saveSettings() needs vbox write lock
+    // VirtualBox::saveSettings() needs vbox write lock
     AutoWriteLock vboxLock(mParent COMMA_LOCKVAL_SRC_POS);
-    HRESULT rc = mParent->i_saveSettings();
+    HRESULT rc = mParent->saveSettings();
 
     return rc;
 }
 
-HRESULT SystemProperties::getDefaultAudioDriver(AudioDriverType_T *aAudioDriver)
+STDMETHODIMP SystemProperties::COMGETTER(DefaultAudioDriver)(AudioDriverType_T *aAudioDriver)
 {
+    CheckComArgOutPointerValid(aAudioDriver);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     *aAudioDriver = settings::MachineConfigFile::getHostDefaultAudioDriver();
@@ -877,33 +1023,46 @@ HRESULT SystemProperties::getDefaultAudioDriver(AudioDriverType_T *aAudioDriver)
     return S_OK;
 }
 
-HRESULT SystemProperties::getAutostartDatabasePath(com::Utf8Str &aAutostartDbPath)
+STDMETHODIMP SystemProperties::COMGETTER(AutostartDatabasePath)(BSTR *aAutostartDbPath)
 {
+    CheckComArgOutPointerValid(aAutostartDbPath);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    aAutostartDbPath = m->strAutostartDatabasePath;
+    m->strAutostartDatabasePath.cloneTo(aAutostartDbPath);
 
     return S_OK;
 }
 
-HRESULT SystemProperties::setAutostartDatabasePath(const com::Utf8Str &aAutostartDbPath)
+STDMETHODIMP SystemProperties::COMSETTER(AutostartDatabasePath)(IN_BSTR aAutostartDbPath)
 {
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-    HRESULT rc = i_setAutostartDatabasePath(aAutostartDbPath);
+    HRESULT rc = setAutostartDatabasePath(aAutostartDbPath);
     alock.release();
 
     if (SUCCEEDED(rc))
     {
-        // VirtualBox::i_saveSettings() needs vbox write lock
+        // VirtualBox::saveSettings() needs vbox write lock
         AutoWriteLock vboxLock(mParent COMMA_LOCKVAL_SRC_POS);
-        rc = mParent->i_saveSettings();
+        rc = mParent->saveSettings();
     }
 
     return rc;
 }
 
-HRESULT SystemProperties::getDefaultAdditionsISO(com::Utf8Str &aDefaultAdditionsISO)
+STDMETHODIMP SystemProperties::COMGETTER(DefaultAdditionsISO)(BSTR *aDefaultAdditionsISO)
 {
+    CheckComArgOutPointerValid(aDefaultAdditionsISO);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     if (m->strDefaultAdditionsISO.isEmpty())
@@ -917,13 +1076,16 @@ HRESULT SystemProperties::getDefaultAdditionsISO(com::Utf8Str &aDefaultAdditions
         }
         alock.acquire();
     }
-    aDefaultAdditionsISO = m->strDefaultAdditionsISO;
+    m->strDefaultAdditionsISO.cloneTo(aDefaultAdditionsISO);
 
     return S_OK;
 }
 
-HRESULT SystemProperties::setDefaultAdditionsISO(const com::Utf8Str &aDefaultAdditionsISO)
+STDMETHODIMP SystemProperties::COMSETTER(DefaultAdditionsISO)(IN_BSTR aDefaultAdditionsISO)
 {
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     /** @todo not yet implemented, settings handling is missing */
     ReturnComNotImplemented();
 
@@ -933,23 +1095,32 @@ HRESULT SystemProperties::setDefaultAdditionsISO(const com::Utf8Str &aDefaultAdd
 
     if (SUCCEEDED(rc))
     {
-        // VirtualBox::i_saveSettings() needs vbox write lock
+        // VirtualBox::saveSettings() needs vbox write lock
         AutoWriteLock vboxLock(mParent COMMA_LOCKVAL_SRC_POS);
-        rc = mParent->i_saveSettings();
+        rc = mParent->saveSettings();
     }
 
     return rc;
 }
 
-HRESULT SystemProperties::getDefaultFrontend(com::Utf8Str &aDefaultFrontend)
+STDMETHODIMP SystemProperties::COMGETTER(DefaultFrontend)(BSTR *aDefaultFrontend)
 {
+    CheckComArgOutPointerValid(aDefaultFrontend);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-    aDefaultFrontend = m->strDefaultFrontend;
+    m->strDefaultFrontend.cloneTo(aDefaultFrontend);
+
     return S_OK;
 }
 
-HRESULT SystemProperties::setDefaultFrontend(const com::Utf8Str &aDefaultFrontend)
+STDMETHODIMP SystemProperties::COMSETTER(DefaultFrontend)(IN_BSTR aDefaultFrontend)
 {
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
     if (m->strDefaultFrontend == Utf8Str(aDefaultFrontend))
         return S_OK;
@@ -958,71 +1129,64 @@ HRESULT SystemProperties::setDefaultFrontend(const com::Utf8Str &aDefaultFronten
 
     if (SUCCEEDED(rc))
     {
-        // VirtualBox::i_saveSettings() needs vbox write lock
+        // VirtualBox::saveSettings() needs vbox write lock
         AutoWriteLock vboxLock(mParent COMMA_LOCKVAL_SRC_POS);
-        rc = mParent->i_saveSettings();
+        rc = mParent->saveSettings();
     }
 
     return rc;
 }
 
-HRESULT SystemProperties::getScreenShotFormats(std::vector<BitmapFormat_T> &aBitmapFormats)
-{
-    aBitmapFormats.push_back(BitmapFormat_BGR0);
-    aBitmapFormats.push_back(BitmapFormat_BGRA);
-    aBitmapFormats.push_back(BitmapFormat_RGBA);
-    aBitmapFormats.push_back(BitmapFormat_PNG);
-    return S_OK;
-}
-
 // public methods only for internal purposes
 /////////////////////////////////////////////////////////////////////////////
 
-HRESULT SystemProperties::i_loadSettings(const settings::SystemProperties &data)
+HRESULT SystemProperties::loadSettings(const settings::SystemProperties &data)
 {
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
     HRESULT rc = S_OK;
-    rc = i_setDefaultMachineFolder(data.strDefaultMachineFolder);
+
+    rc = setDefaultMachineFolder(data.strDefaultMachineFolder);
     if (FAILED(rc)) return rc;
 
-    rc = i_setLoggingLevel(data.strLoggingLevel);
+    rc = setLoggingLevel(data.strLoggingLevel);
     if (FAILED(rc)) return rc;
 
-    rc = i_setDefaultHardDiskFormat(data.strDefaultHardDiskFormat);
+    rc = setDefaultHardDiskFormat(data.strDefaultHardDiskFormat);
     if (FAILED(rc)) return rc;
 
-    rc = i_setVRDEAuthLibrary(data.strVRDEAuthLibrary);
+    rc = setVRDEAuthLibrary(data.strVRDEAuthLibrary);
     if (FAILED(rc)) return rc;
 
-    rc = i_setWebServiceAuthLibrary(data.strWebServiceAuthLibrary);
+    rc = setWebServiceAuthLibrary(data.strWebServiceAuthLibrary);
     if (FAILED(rc)) return rc;
 
-    rc = i_setDefaultVRDEExtPack(data.strDefaultVRDEExtPack);
+    rc = setDefaultVRDEExtPack(data.strDefaultVRDEExtPack);
     if (FAILED(rc)) return rc;
 
     m->ulLogHistoryCount = data.ulLogHistoryCount;
     m->fExclusiveHwVirt  = data.fExclusiveHwVirt;
 
-    rc = i_setAutostartDatabasePath(data.strAutostartDatabasePath);
+    rc = setAutostartDatabasePath(data.strAutostartDatabasePath);
     if (FAILED(rc)) return rc;
 
     {
         /* must ignore errors signalled here, because the guest additions
          * file may not exist, and in this case keep the empty string */
         ErrorInfoKeeper eik;
-        (void)i_setDefaultAdditionsISO(data.strDefaultAdditionsISO);
+        (void)setDefaultAdditionsISO(data.strDefaultAdditionsISO);
     }
 
-    rc = i_setDefaultFrontend(data.strDefaultFrontend);
+    rc = setDefaultFrontend(data.strDefaultFrontend);
     if (FAILED(rc)) return rc;
 
     return S_OK;
 }
 
-HRESULT SystemProperties::i_saveSettings(settings::SystemProperties &data)
+HRESULT SystemProperties::saveSettings(settings::SystemProperties &data)
 {
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
@@ -1042,7 +1206,7 @@ HRESULT SystemProperties::i_saveSettings(settings::SystemProperties &data)
  *
  * @return ComObjPtr<MediumFormat>
  */
-ComObjPtr<MediumFormat> SystemProperties::i_mediumFormat(const Utf8Str &aFormat)
+ComObjPtr<MediumFormat> SystemProperties::mediumFormat(const Utf8Str &aFormat)
 {
     ComObjPtr<MediumFormat> format;
 
@@ -1075,7 +1239,7 @@ ComObjPtr<MediumFormat> SystemProperties::i_mediumFormat(const Utf8Str &aFormat)
  *
  * @return ComObjPtr<MediumFormat>
  */
-ComObjPtr<MediumFormat> SystemProperties::i_mediumFormatFromExtension(const Utf8Str &aExt)
+ComObjPtr<MediumFormat> SystemProperties::mediumFormatFromExtension(const Utf8Str &aExt)
 {
     ComObjPtr<MediumFormat> format;
 
@@ -1111,7 +1275,7 @@ ComObjPtr<MediumFormat> SystemProperties::i_mediumFormatFromExtension(const Utf8
 /**
  * VD plugin load
  */
-int SystemProperties::i_loadVDPlugin(const char *pszPluginLibrary)
+int SystemProperties::loadVDPlugin(const char *pszPluginLibrary)
 {
     return VDPluginLoadFromFilename(pszPluginLibrary);
 }
@@ -1119,7 +1283,7 @@ int SystemProperties::i_loadVDPlugin(const char *pszPluginLibrary)
 /**
  * VD plugin unload
  */
-int SystemProperties::i_unloadVDPlugin(const char *pszPluginLibrary)
+int SystemProperties::unloadVDPlugin(const char *pszPluginLibrary)
 {
     return VDPluginUnloadFromFilename(pszPluginLibrary);
 }
@@ -1132,7 +1296,7 @@ int SystemProperties::i_unloadVDPlugin(const char *pszPluginLibrary)
  * @param strPath
  * @return
  */
-HRESULT SystemProperties::i_getUserHomeDirectory(Utf8Str &strPath)
+HRESULT SystemProperties::getUserHomeDirectory(Utf8Str &strPath)
 {
     char szHome[RTPATH_MAX];
     int vrc = RTPathUserHome(szHome, sizeof(szHome));
@@ -1152,7 +1316,7 @@ HRESULT SystemProperties::i_getUserHomeDirectory(Utf8Str &strPath)
  * @param aPath
  * @return
  */
-HRESULT SystemProperties::i_setDefaultMachineFolder(const Utf8Str &strPath)
+HRESULT SystemProperties::setDefaultMachineFolder(const Utf8Str &strPath)
 {
     Utf8Str path(strPath);      // make modifiable
     if (    path.isEmpty()          // used by API calls to reset the default
@@ -1162,7 +1326,7 @@ HRESULT SystemProperties::i_setDefaultMachineFolder(const Utf8Str &strPath)
        )
     {
         // new default with VirtualBox 4.0: "$HOME/VirtualBox VMs"
-        HRESULT rc = i_getUserHomeDirectory(path);
+        HRESULT rc = getUserHomeDirectory(path);
         if (FAILED(rc)) return rc;
         path += RTPATH_SLASH_STR "VirtualBox VMs";
     }
@@ -1177,9 +1341,11 @@ HRESULT SystemProperties::i_setDefaultMachineFolder(const Utf8Str &strPath)
     return S_OK;
 }
 
-HRESULT SystemProperties::i_setLoggingLevel(const com::Utf8Str &aLoggingLevel)
+HRESULT SystemProperties::setLoggingLevel(const Utf8Str &aLoggingLevel)
 {
     Utf8Str useLoggingLevel(aLoggingLevel);
+    if (useLoggingLevel.isEmpty())
+        useLoggingLevel = VBOXSVC_LOG_DEFAULT;
     int rc = RTLogGroupSettings(RTLogRelDefaultInstance(), useLoggingLevel.c_str());
     //  If failed and not the default logging level - try to use the default logging level.
     if (RT_FAILURE(rc))
@@ -1202,7 +1368,7 @@ HRESULT SystemProperties::i_setLoggingLevel(const com::Utf8Str &aLoggingLevel)
     return RT_SUCCESS(rc) ? S_OK : E_FAIL;
 }
 
-HRESULT SystemProperties::i_setDefaultHardDiskFormat(const com::Utf8Str &aFormat)
+HRESULT SystemProperties::setDefaultHardDiskFormat(const Utf8Str &aFormat)
 {
     if (!aFormat.isEmpty())
         m->strDefaultHardDiskFormat = aFormat;
@@ -1212,7 +1378,7 @@ HRESULT SystemProperties::i_setDefaultHardDiskFormat(const com::Utf8Str &aFormat
     return S_OK;
 }
 
-HRESULT SystemProperties::i_setVRDEAuthLibrary(const com::Utf8Str &aPath)
+HRESULT SystemProperties::setVRDEAuthLibrary(const Utf8Str &aPath)
 {
     if (!aPath.isEmpty())
         m->strVRDEAuthLibrary = aPath;
@@ -1222,7 +1388,7 @@ HRESULT SystemProperties::i_setVRDEAuthLibrary(const com::Utf8Str &aPath)
     return S_OK;
 }
 
-HRESULT SystemProperties::i_setWebServiceAuthLibrary(const com::Utf8Str &aPath)
+HRESULT SystemProperties::setWebServiceAuthLibrary(const Utf8Str &aPath)
 {
     if (!aPath.isEmpty())
         m->strWebServiceAuthLibrary = aPath;
@@ -1232,17 +1398,17 @@ HRESULT SystemProperties::i_setWebServiceAuthLibrary(const com::Utf8Str &aPath)
     return S_OK;
 }
 
-HRESULT SystemProperties::i_setDefaultVRDEExtPack(const com::Utf8Str &aExtPack)
+HRESULT SystemProperties::setDefaultVRDEExtPack(const Utf8Str &aExtPack)
 {
     m->strDefaultVRDEExtPack = aExtPack;
 
     return S_OK;
 }
 
-HRESULT SystemProperties::i_setAutostartDatabasePath(const com::Utf8Str &aPath)
+HRESULT SystemProperties::setAutostartDatabasePath(const Utf8Str &aPath)
 {
     HRESULT rc = S_OK;
-    AutostartDb *autostartDb = this->mParent->i_getAutostartDb();
+    AutostartDb *autostartDb = this->mParent->getAutostartDb();
 
     if (!aPath.isEmpty())
     {
@@ -1269,9 +1435,9 @@ HRESULT SystemProperties::i_setAutostartDatabasePath(const com::Utf8Str &aPath)
     return rc;
 }
 
-HRESULT SystemProperties::i_setDefaultAdditionsISO(const com::Utf8Str &aPath)
+HRESULT SystemProperties::setDefaultAdditionsISO(const Utf8Str &aPath)
 {
-    com::Utf8Str path(aPath);
+    Utf8Str path(aPath);
     if (path.isEmpty())
     {
         char strTemp[RTPATH_MAX];
@@ -1285,7 +1451,7 @@ HRESULT SystemProperties::i_setDefaultAdditionsISO(const com::Utf8Str &aPath)
 
         vrc = RTPathUserHome(strTemp, sizeof(strTemp));
         AssertRC(vrc);
-        Utf8Str strSrc3 = Utf8StrFmt("%s/VBoxGuestAdditions_%s.iso", strTemp, VirtualBox::i_getVersionNormalized().c_str());
+        Utf8Str strSrc3 = Utf8StrFmt("%s/VBoxGuestAdditions_%ls.iso", strTemp, VirtualBox::getVersionNormalized().raw());
 
         /* Check the standard image locations */
         if (RTFileExists(strSrc1.c_str()))
@@ -1314,7 +1480,7 @@ HRESULT SystemProperties::i_setDefaultAdditionsISO(const com::Utf8Str &aPath)
     return S_OK;
 }
 
-HRESULT SystemProperties::i_setDefaultFrontend(const com::Utf8Str &aDefaultFrontend)
+HRESULT SystemProperties::setDefaultFrontend(const Utf8Str &aDefaultFrontend)
 {
     m->strDefaultFrontend = aDefaultFrontend;
 

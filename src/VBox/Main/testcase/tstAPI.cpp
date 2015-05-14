@@ -1,4 +1,3 @@
-/* $Id: tstAPI.cpp $ */
 /** @file
  *
  * tstAPI - test program for our COM/XPCOM interface

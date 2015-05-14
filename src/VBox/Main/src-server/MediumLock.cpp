@@ -1,4 +1,3 @@
-/* $Id: MediumLock.cpp $ */
 /** @file
  *
  * Medium lock management helper classes
@@ -96,7 +95,7 @@ HRESULT MediumLock::Lock(bool aIgnoreLockedMedia)
     MediumState_T state;
     {
         AutoReadLock alock(mMedium COMMA_LOCKVAL_SRC_POS);
-        state = mMedium->i_getState();
+        state = mMedium->getState();
     }
     switch (state)
     {

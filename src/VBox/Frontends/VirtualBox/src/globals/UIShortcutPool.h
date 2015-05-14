@@ -1,6 +1,7 @@
-/* $Id: UIShortcutPool.h $ */
 /** @file
- * VBox Qt GUI - UIShortcutPool class declaration.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * UIShortcutPool class declaration
  */
 
 /*

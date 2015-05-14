@@ -714,31 +714,30 @@ GLboolean crStateEnableDiffOnMakeCurrent(GLboolean fEnable)
 void crStateMakeCurrent( CRContext *ctx )
 {
     CRContext *current = GetCurrentContext();
-    CRContext *pLocalCtx = ctx;
 
-    if (pLocalCtx == NULL)
-        pLocalCtx = defaultContext;
+    if (ctx == NULL)
+        ctx = defaultContext;
 
-    if (current == pLocalCtx)
+    if (current == ctx)
         return; /* no-op */
 
-    CRASSERT(pLocalCtx);
+    CRASSERT(ctx);
 
     if (g_bVBoxEnableDiffOnMakeCurrent && current) {
         /* Check to see if the differencer exists first,
            we may not have one, aka the packspu */
         if (diff_api.AlphaFunc)
-            crStateSwitchContext( current, pLocalCtx );
+            crStateSwitchContext( current, ctx );
     }
 
 #ifdef CHROMIUM_THREADSAFE
-    SetCurrentContext(pLocalCtx);
+    SetCurrentContext(ctx);
 #else
-    __currentContext = pLocalCtx;
+    __currentContext = ctx;
 #endif
 
     /* ensure matrix state is also current */
-    crStateMatrixMode(pLocalCtx->transform.matrixMode);
+    crStateMatrixMode(ctx->transform.matrixMode);
 }
 
 
@@ -748,24 +747,23 @@ void crStateMakeCurrent( CRContext *ctx )
 static void crStateSetCurrentEx( CRContext *ctx, GLboolean fCleanupDefault )
 {
     CRContext *current = GetCurrentContext();
-    CRContext *pLocalCtx = ctx;
 
-    if (pLocalCtx == NULL && !fCleanupDefault)
-        pLocalCtx = defaultContext;
+    if (ctx == NULL && !fCleanupDefault)
+        ctx = defaultContext;
 
-    if (current == pLocalCtx)
+    if (current == ctx)
         return; /* no-op */
 
 #ifdef CHROMIUM_THREADSAFE
-    SetCurrentContext(pLocalCtx);
+    SetCurrentContext(ctx);
 #else
-    __currentContext = pLocalCtx;
+    __currentContext = ctx;
 #endif
 
-    if (pLocalCtx)
+    if (ctx)
     {
         /* ensure matrix state is also current */
-        crStateMatrixMode(pLocalCtx->transform.matrixMode);
+        crStateMatrixMode(ctx->transform.matrixMode);
     }
 }
 

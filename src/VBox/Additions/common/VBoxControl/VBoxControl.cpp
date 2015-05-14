@@ -21,7 +21,6 @@
 #include <iprt/alloca.h>
 #include <iprt/cpp/autores.h>
 #include <iprt/buildconfig.h>
-#include <iprt/getopt.h>
 #include <iprt/initterm.h>
 #include <iprt/mem.h>
 #include <iprt/message.h>
@@ -91,7 +90,6 @@ enum VBoxControlUsage
 #if !defined(VBOX_CONTROL_TEST)
     WRITE_CORE_DUMP,
 #endif
-    WRITE_LOG,
     TAKE_SNAPSHOT,
     SAVE_STATE,
     SUSPEND,
@@ -101,7 +99,7 @@ enum VBoxControlUsage
     USAGE_ALL = UINT32_MAX
 };
 
-static RTEXITCODE usage(enum VBoxControlUsage eWhich = USAGE_ALL)
+static void usage(enum VBoxControlUsage eWhich = USAGE_ALL)
 {
     RTPrintf("Usage:\n\n");
     doUsage("print version number and exit", g_pszProgName, "[-V|--version]");
@@ -149,8 +147,6 @@ static RTEXITCODE usage(enum VBoxControlUsage eWhich = USAGE_ALL)
     if (eWhich == WRITE_CORE_DUMP || eWhich == USAGE_ALL)
         doUsage("", g_pszProgName, "writecoredump");
 #endif
-    if (eWhich == WRITE_LOG || eWhich == USAGE_ALL)
-        doUsage("", g_pszProgName, "writelog [-n|--no-newline] [--] <msg>");
     if (eWhich == TAKE_SNAPSHOT || eWhich == USAGE_ALL)
         doUsage("", g_pszProgName, "takesnapshot");
     if (eWhich == SAVE_STATE || eWhich == USAGE_ALL)
@@ -163,24 +159,9 @@ static RTEXITCODE usage(enum VBoxControlUsage eWhich = USAGE_ALL)
         doUsage("[command]", g_pszProgName, "help");
     if (eWhich == VERSION   || eWhich == USAGE_ALL)
         doUsage("", g_pszProgName, "version");
-
-    return RTEXITCODE_SUCCESS;
 }
 
 /** @} */
-
-
-/**
- * Implementation of the '--version' option.
- *
- * @returns RTEXITCODE_SUCCESS
- */
-static RTEXITCODE printVersion(void)
-{
-    RTPrintf("%sr%u\n", VBOX_VERSION_STRING, RTBldCfgRevision());
-    return RTEXITCODE_SUCCESS;
-}
-
 
 /**
  * Displays an error message.
@@ -191,26 +172,11 @@ static RTEXITCODE printVersion(void)
  */
 static RTEXITCODE VBoxControlError(const char *pszFormat, ...)
 {
-    /** @todo prefix with current command. */
     va_list va;
     va_start(va, pszFormat);
     RTMsgErrorV(pszFormat, va);
     va_end(va);
     return RTEXITCODE_FAILURE;
-}
-
-
-/**
- * Displays a getopt error.
- *
- * @returns RTEXITCODE_FAILURE.
- * @param   ch          The RTGetOpt return value.
- * @param   pValueUnion The RTGetOpt return data.
- */
-static RTEXITCODE VBoxCtrlGetOptError(int ch, PCRTGETOPTUNION pValueUnion)
-{
-    /** @todo prefix with current command. */
-    return RTGetOptPrintError(ch, pValueUnion);
 }
 
 
@@ -223,7 +189,6 @@ static RTEXITCODE VBoxCtrlGetOptError(int ch, PCRTGETOPTUNION pValueUnion)
  */
 static RTEXITCODE VBoxControlSyntaxError(const char *pszFormat, ...)
 {
-    /** @todo prefix with current command. */
     va_list va;
     va_start(va, pszFormat);
     RTMsgErrorV(pszFormat, va);
@@ -987,10 +952,10 @@ void getCustomModes(HKEY hkeyVideo)
 
         /* check if the mode is OK */
         if (   (xres > (1 << 16))
-            && (yres > (1 << 16))
-            && (   (bpp != 16)
-                || (bpp != 24)
-                || (bpp != 32)))
+            || (yres > (1 << 16))
+            || (   (bpp != 16)
+                && (bpp != 24)
+                && (bpp != 32)))
             break;
 
         /* add mode to table */
@@ -1098,10 +1063,10 @@ static RTEXITCODE handleAddCustomMode(int argc, char *argv[])
 
     /** @todo better check including xres mod 8 = 0! */
     if (   (xres > (1 << 16))
-        && (yres > (1 << 16))
-        && (   (bpp != 16)
-            || (bpp != 24)
-            || (bpp != 32)))
+        || (yres > (1 << 16))
+        || (   (bpp != 16)
+            && (bpp != 24)
+            && (bpp != 32)))
     {
         VBoxControlError("invalid mode specified!\n");
         return RTEXITCODE_FAILURE;
@@ -1758,69 +1723,6 @@ static RTEXITCODE handleDpc(int argc, char *argv[])
 
 
 /**
- * @callback_method_impl{FNVBOXCTRLCMDHANDLER, Command: writelog}
- */
-static RTEXITCODE handleWriteLog(int argc, char *argv[])
-{
-    static const RTGETOPTDEF s_aOptions[] =
-    {
-        { "--no-newline", 'n', RTGETOPT_REQ_NOTHING },
-    };
-    bool fNoNewline = false;
-
-    RTGETOPTSTATE GetOptState;
-    int rc = RTGetOptInit(&GetOptState, argc, argv, s_aOptions, RT_ELEMENTS(s_aOptions),
-                          0 /*iFirst*/, RTGETOPTINIT_FLAGS_OPTS_FIRST);
-    if (RT_SUCCESS(rc))
-    {
-        RTGETOPTUNION   ValueUnion;
-        int             ch;
-        while ((ch = RTGetOpt(&GetOptState, &ValueUnion)) != 0)
-        {
-            switch (ch)
-            {
-                case VINF_GETOPT_NOT_OPTION:
-                {
-                    size_t cch = strlen(ValueUnion.psz);
-                    if (   fNoNewline
-                        || (cch > 0 && ValueUnion.psz[cch - 1] == '\n') )
-                        rc = VbglR3WriteLog(ValueUnion.psz, cch);
-                    else
-                    {
-                        char *pszDup = (char *)RTMemDupEx(ValueUnion.psz, cch, 2);
-                        if (RT_SUCCESS(rc))
-                        {
-                            pszDup[cch++] = '\n';
-                            pszDup[cch]   = '\0';
-                            rc = VbglR3WriteLog(pszDup, cch);
-                            RTMemFree(pszDup);
-                        }
-                        else
-                            rc = VERR_NO_MEMORY;
-                    }
-                    if (RT_FAILURE(rc))
-                        return VBoxControlError("VbglR3WriteLog: %Rrc", rc);
-                    break;
-                }
-
-                case 'n':
-                    fNoNewline = true;
-                    break;
-
-                case 'h': return usage(WRITE_LOG);
-                case 'V': return printVersion();
-                default:
-                    return VBoxCtrlGetOptError(ch, &ValueUnion);
-            }
-        }
-    }
-    else
-        return VBoxControlError("RTGetOptInit: %Rrc", rc);
-    return RTEXITCODE_SUCCESS;
-}
-
-
-/**
  * @callback_method_impl{FNVBOXCTRLCMDHANDLER, Command: takesnapshot}
  */
 static RTEXITCODE handleTakeSnapshot(int argc, char *argv[])
@@ -1863,7 +1765,8 @@ static RTEXITCODE handleVersion(int argc, char *argv[])
 {
     if (argc)
         return VBoxControlSyntaxError("getversion does not take any arguments");
-    return printVersion();
+    RTPrintf("%sr%u\n", VBOX_VERSION_STRING, RTBldCfgRevision());
+    return RTEXITCODE_SUCCESS;
 }
 
 /**
@@ -1909,7 +1812,6 @@ struct COMMANDHANDLER
 #ifdef VBOX_WITH_DPC_LATENCY_CHECKER
     { "dpc",                    handleDpc },
 #endif
-    { "writelog",               handleWriteLog },
     { "takesnapshot",           handleTakeSnapshot },
     { "savestate",              handleSaveState },
     { "suspend",                handleSuspend },
@@ -1955,7 +1857,7 @@ int main(int argc, char **argv)
            )
         {
             /* Print version number, and do nothing else. */
-            printVersion();
+            RTPrintf("%sr%u\n", VBOX_VERSION_STRING, RTBldCfgRevision());
             fOnlyInfo = true;
             fShowLogo = false;
             done = true;

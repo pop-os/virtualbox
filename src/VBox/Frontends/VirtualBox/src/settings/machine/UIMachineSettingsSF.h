@@ -1,6 +1,7 @@
-/* $Id: UIMachineSettingsSF.h $ */
 /** @file
- * VBox Qt GUI - UIMachineSettingsSF class declaration.
+ *
+ * VBox frontends: Qt4 GUI ("VirtualBox"):
+ * UIMachineSettingsSF class declaration
  */
 
 /*

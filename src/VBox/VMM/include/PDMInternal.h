@@ -580,8 +580,6 @@ typedef struct PDMAPIC
                                                      uint8_t iVector, uint8_t u8Polarity, uint8_t u8TriggerMode, uint32_t uTagSrc));
     /** @copydoc PDMAPICREG::pfnLocalInterruptR3 */
     DECLR3CALLBACKMEMBER(int,       pfnLocalInterruptR3,(PPDMDEVINS pDevIns, uint8_t u8Pin, uint8_t u8Level));
-    /** @copydoc PDMAPICREG::pfnGetTimerFreqR3 */
-    DECLR3CALLBACKMEMBER(uint64_t,  pfnGetTimerFreqR3,(PPDMDEVINS pDevIns));
 
     /** Pointer to the APIC device instance - R0 Ptr. */
     PPDMDEVINSR0                    pDevInsR0;
@@ -606,8 +604,6 @@ typedef struct PDMAPIC
                                                      uint8_t iVector, uint8_t u8Polarity, uint8_t u8TriggerMode, uint32_t uTagSrc));
     /** @copydoc PDMAPICREG::pfnLocalInterruptR3 */
     DECLR0CALLBACKMEMBER(int,       pfnLocalInterruptR0,(PPDMDEVINS pDevIns, uint8_t u8Pin, uint8_t u8Level));
-    /** @copydoc PDMAPICREG::pfnGetTimerFreqR3 */
-    DECLR0CALLBACKMEMBER(uint64_t,  pfnGetTimerFreqR0,(PPDMDEVINS pDevIns));
 
     /** Pointer to the APIC device instance - RC Ptr. */
     PPDMDEVINSRC                    pDevInsRC;
@@ -632,8 +628,8 @@ typedef struct PDMAPIC
                                                      uint8_t iVector, uint8_t u8Polarity, uint8_t u8TriggerMode, uint32_t uTagSrc));
     /** @copydoc PDMAPICREG::pfnLocalInterruptR3 */
     DECLRCCALLBACKMEMBER(int,       pfnLocalInterruptRC,(PPDMDEVINS pDevIns, uint8_t u8Pin, uint8_t u8Level));
-    /** @copydoc PDMAPICREG::pfnGetTimerFreqR3 */
-    DECLRCCALLBACKMEMBER(uint64_t,  pfnGetTimerFreqRC,(PPDMDEVINS pDevIns));
+    RTRCPTR                         RCPtrAlignment;
+
 } PDMAPIC;
 
 
@@ -1275,6 +1271,7 @@ DECLCALLBACK(bool) pdmR3DevHlpQueueConsumer(PVM pVM, PPDMQUEUEITEMCORE pItem);
 int         pdmR3UsbLoadModules(PVM pVM);
 int         pdmR3UsbInstantiateDevices(PVM pVM);
 PPDMUSB     pdmR3UsbLookup(PVM pVM, const char *pszName);
+int         pdmR3UsbFindLun(PVM pVM, const char *pszDevice, unsigned iInstance, unsigned iLun, PPDMLUN *ppLun);
 int         pdmR3UsbRegisterHub(PVM pVM, PPDMDRVINS pDrvIns, uint32_t fVersions, uint32_t cPorts, PCPDMUSBHUBREG pUsbHubReg, PPCPDMUSBHUBHLP ppUsbHubHlp);
 int         pdmR3UsbVMInitComplete(PVM pVM);
 

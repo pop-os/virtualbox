@@ -1,6 +1,6 @@
 /* $Id: UICocoaApplication.mm $ */
 /** @file
- * VBox Qt GUI - UICocoaApplication - C++ interface to NSApplication for handling -sendEvent.
+ * UICocoaApplication - C++ interface to NSApplication for handling -sendEvent.
  */
 
 /*

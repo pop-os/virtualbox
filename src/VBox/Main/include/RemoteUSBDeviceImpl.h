@@ -64,7 +64,6 @@ public:
     STDMETHOD(COMGETTER(Port)) (USHORT *aPort);
     STDMETHOD(COMGETTER(Version)) (USHORT *aVersion);
     STDMETHOD(COMGETTER(PortVersion)) (USHORT *aPortVersion);
-    STDMETHOD(COMGETTER(Speed)) (USBConnectionSpeed_T *aSpeed);
     STDMETHOD(COMGETTER(Remote)) (BOOL *aRemote);
 
     // IHostUSBDevice properties
@@ -97,7 +96,7 @@ private:
     struct Data
     {
         Data() : vendorId (0), productId (0), revision (0), port (0), version (1),
-                 portVersion (1), speed (USBConnectionSpeed_Null), dirty (FALSE), devId (0), clientId (0) {}
+                 portVersion (1), dirty (FALSE), devId (0), clientId (0) {}
 
         const Guid id;
 
@@ -114,7 +113,6 @@ private:
         const uint16_t port;
         const uint16_t version;
         const uint16_t portVersion;
-        const USBConnectionSpeed_T speed;
 
         USBDeviceState_T state;
         bool dirty;

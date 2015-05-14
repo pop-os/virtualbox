@@ -3995,74 +3995,74 @@ Please choose a different file name.</source>
     <name>QUnicodeControlCharacterMenu</name>
     <message>
         <source>LRM Left-to-right mark</source>
-        <translation>LRM Маркер от ляво надясно</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>RLM Right-to-left mark</source>
-        <translation>LRM Маркер от дясно наляво</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>ZWJ Zero width joiner</source>
-        <translation>ZWJ Свързване с нулева ширина</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>ZWNJ Zero width non-joiner</source>
-        <translation>ZWNJ Несвързване с нулева ширина</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>ZWSP Zero width space</source>
-        <translation>ZWSP Интервал с нулева ширина</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>LRE Start of left-to-right embedding</source>
-        <translation>LRE Начало на вмъкване от ляво надясно</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>RLE Start of right-to-left embedding</source>
-        <translation>RLE Начало на вмъкване от дясно наляво</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>LRO Start of left-to-right override</source>
-        <translation>LRO Начало на презапис от ляво надясно</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>RLO Start of right-to-left override</source>
-        <translation>RLO Начало на презапис от дясно наляво</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>PDF Pop directional formatting</source>
-        <translation>PDF Прекъсване на посочно форматиране</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Insert Unicode control character</source>
-        <translation>Вмъкване на Уникод контролен символ</translation>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
     <name>QWebFrame</name>
     <message>
         <source>Request cancelled</source>
-        <translation>Заявката е отказана</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Request blocked</source>
-        <translation>Заявката е блокирана</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Cannot show URL</source>
-        <translation>Не може да се покаже URL</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Frame load interruped by policy change</source>
-        <translation>Зареждането на кадри е прекъснато от промяна в политиката</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Cannot show mimetype</source>
-        <translation>Не може да се покаже mime тип</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>File does not exist</source>
-        <translation>Файлът не съществува</translation>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -4313,7 +4313,7 @@ Please choose a different file name.</source>
     </message>
     <message>
         <source>Web Inspector - %2</source>
-        <translation>Уеб инспектор - %2</translation>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -4444,819 +4444,817 @@ Please choose a different file name.</source>
     </message>
     <message>
         <source>error triggered by consumer</source>
-        <translation>грешка, предизвикана от потребител</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>unexpected end of file</source>
-        <translation>неочакван край на файл</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>more than one document type definition</source>
-        <translation>повече от една дефиниция за тип на документ</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>error occurred while parsing element</source>
-        <translation>възникнала грешка при изчитане на елемент</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>tag mismatch</source>
-        <translation>пропуск на таг</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>error occurred while parsing content</source>
-        <translation>възникнала грешка при изчитане на съдържание</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>unexpected character</source>
-        <translation>неочакван символ</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>invalid name for processing instruction</source>
-        <translation>невалидно име за изпълнение на инструкция</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>version expected while reading the XML declaration</source>
-        <translation>очаква се версия при четенето на XML декларация</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>wrong value for standalone declaration</source>
-        <translation>грешна стойност на самостоятелна декларация</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>encoding declaration or standalone declaration expected while reading the XML declaration</source>
-        <translation>очаква се декларация за кодировка или самостоятелна декларация при четенето на XML декларация</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>standalone declaration expected while reading the XML declaration</source>
-        <translation>очаква се самостоятелна декларация при четенето на XML декларация</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>error occurred while parsing document type definition</source>
-        <translation>възникнала грешка при изчитането на дефиницията за тип на документа</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>letter is expected</source>
-        <translation>очаква се буква</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>error occurred while parsing comment</source>
-        <translation>възникнала грешка при изчитане на коментар</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>error occurred while parsing reference</source>
-        <translation>възникнала грешка при изчитане на справка</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>internal general entity reference not allowed in DTD</source>
-        <translation>справка от вътрешен общ обхват не е позволена в DTD</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>external parsed general entity reference not allowed in attribute value</source>
-        <translation>справка от външен общ изчетен обект не е позволена в стойност на атрибут</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>external parsed general entity reference not allowed in DTD</source>
-        <translation>справка от външен общ изчетен обект не е позволена в DTD</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>unparsed entity reference in wrong context</source>
-        <translation>неизчетена справка за обект в грешен контекст</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>recursive entities</source>
-        <translation>рекурсивни обекти</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>error in the text declaration of an external entity</source>
-        <translation>грешка в текстовата декларация на външен обект</translation>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
     <name>QXmlStream</name>
     <message>
         <source>Extra content at end of document.</source>
-        <translation>Допълнително съдържание в края на документа.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Invalid entity value.</source>
-        <translation>Невалидна стойност на обект.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Invalid XML character.</source>
-        <translation>Невалиден XML символ.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Sequence &apos;]]&gt;&apos; not allowed in content.</source>
-        <translation>Последователността &apos;]]&gt;&apos; не е позволена в съдържанието.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Namespace prefix &apos;%1&apos; not declared</source>
-        <translation>Префикс &apos;%1&apos; в пространство от имена не е указан</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Attribute redefined.</source>
-        <translation>Преуказан атрибут.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Unexpected character &apos;%1&apos; in public id literal.</source>
-        <translation>Неочакван символ &apos;%1&apos; в публичен id literal.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Invalid XML version string.</source>
-        <translation>Невалиден стринг за XML версия.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Unsupported XML version.</source>
-        <translation>Неподдържана XML версия.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>%1 is an invalid encoding name.</source>
-        <translation>%1 е невалидно име за кодировка.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Encoding %1 is unsupported</source>
-        <translation>Кодировката %1 не се поддържа</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Standalone accepts only yes or no.</source>
-        <translation>Самостоятелният приема само да и не.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Invalid attribute in XML declaration.</source>
-        <translation>Невалиден атрибут в XML декларация.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Premature end of document.</source>
-        <translation>Преждевременен край на документ.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Invalid document.</source>
-        <translation>Невалиден документ.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Expected </source>
-        <translation>Очаквано </translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>, but got &apos;</source>
-        <translation>, но получено &apos;</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Unexpected &apos;</source>
-        <translation>Неочаквано &apos;</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Expected character data.</source>
-        <translation>Очаквани символни данни.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Recursive entity detected.</source>
-        <translation>Засечен е рекурсивен обект.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Start tag expected.</source>
-        <translation>Очаква се начален таг.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>XML declaration not at start of document.</source>
-        <translation>XML декларацията не е в началото на документа.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>NDATA in parameter entity declaration.</source>
-        <translation>NDATA в декларацията на параметрите на обект.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>%1 is an invalid processing instruction name.</source>
-        <translation>%1 е невалидно име за инструкция за обработка.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Invalid processing instruction name.</source>
-        <translation>Невалидно име за инструкция за обработка.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Illegal namespace declaration.</source>
-        <translation>Непозволена декларация за пространство от имена.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Invalid XML name.</source>
-        <translation>Невалидно XML име.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Opening and ending tag mismatch.</source>
-        <translation>Пропуснати отварящ и затварящ тагове.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Reference to unparsed entity &apos;%1&apos;.</source>
-        <translation>Препратка към неизчетен обект &apos;%1&apos;.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Entity &apos;%1&apos; not declared.</source>
-        <translation>Обектът &apos;%1&apos; не е деклариран.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Reference to external entity &apos;%1&apos; in attribute value.</source>
-        <translation>Препратка към външен обект &apos;%1&apos; в стойност на атрибут.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Invalid character reference.</source>
-        <translation>Невалидна препратка към символ.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Encountered incorrectly encoded content.</source>
-        <translation>Намерено некоректно кодирано съдържание.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>The standalone pseudo attribute must appear after the encoding.</source>
-        <translation>Самостоятелният псевдо атрибут трябва да се появи преди кодировката.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>%1 is an invalid PUBLIC identifier.</source>
-        <translation>%1 е невалиден ПУБЛИЧЕН указател.</translation>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
     <name>QtXmlPatterns</name>
     <message>
         <source>An %1-attribute with value %2 has already been declared.</source>
-        <translation>Атрибут %1 със стойност %2 вече е деклариран.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>An %1-attribute must have a valid %2 as value, which %3 isn&apos;t.</source>
-        <translation>Атрибут %1 трябва да има валиден %2 като стойност, а %3 не е.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Network timeout.</source>
-        <translation>Просрочено мрежово време.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Element %1 can&apos;t be serialized because it appears outside the document element.</source>
-        <translation>Елемент %1 не може да се сериализира, тъй като е извън документовия елемент.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Attribute %1 can&apos;t be serialized because it appears at the top level.</source>
-        <translation>Атрибут %1 не може да се сериализира, защото е в горното ниво.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Year %1 is invalid because it begins with %2.</source>
-        <translation>Година %1 е невалидна, защото започва с %2.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Day %1 is outside the range %2..%3.</source>
-        <translation>Ден %1 е извън обхвата %2..%3.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Month %1 is outside the range %2..%3.</source>
-        <translation>Месец %1 е извън обхвата %2..%3.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Overflow: Can&apos;t represent date %1.</source>
-        <translation>Препълване: Не може да се покаже дата %1.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Day %1 is invalid for month %2.</source>
-        <translation>Ден %1 е невалиден за месец %2.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Time 24:%1:%2.%3 is invalid. Hour is 24, but minutes, seconds, and milliseconds are not all 0; </source>
-        <translation>Време 24:%1:%2.%3 е невалидно. Часът е 24, но не всички минути, секунди и милисекунди са 0; </translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Time %1:%2:%3.%4 is invalid.</source>
-        <translation>Време %1:%2:%3.%4 е невалидно.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Overflow: Date can&apos;t be represented.</source>
-        <translation>Препълване: Не може да се покаже датата.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>At least one component must be present.</source>
-        <translation>Поне един компонент трябва да е наличен.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>At least one time component must appear after the %1-delimiter.</source>
-        <translation>Поне един времеви компонент трябва да е след ограничението %1.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>No operand in an integer division, %1, can be %2.</source>
-        <translation>Няма операнда в целочислено деление, %1, може да е %2.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>The first operand in an integer division, %1, cannot be infinity (%2).</source>
-        <translation>Първата операнда е целочислено деление, %1, не може да е безкрайност (%2).</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>The second operand in a division, %1, cannot be zero (%2).</source>
-        <translation>Втората операнда в делението, %1, не може да е нула (%2).</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>%1 is not a valid value of type %2.</source>
-        <translation>%1 не е валидна стойност от тип %2.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>When casting to %1 from %2, the source value cannot be %3.</source>
-        <translation>Когато се разпределя към %1 от %2 входящата стойност не може да е %3.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Integer division (%1) by zero (%2) is undefined.</source>
-        <translation>Целочисленото деление (%1) на нула (%2) не е дефинирано.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Division (%1) by zero (%2) is undefined.</source>
-        <translation>Делението (%1) на нула (%2) не е дефинирано.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Modulus division (%1) by zero (%2) is undefined.</source>
-        <translation>Модулното деление (%1) на нула (%2) не е дефинирано.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Dividing a value of type %1 by %2 (not-a-number) is not allowed.</source>
-        <translation>Делението на стойност от тип %1 на %2 (не е число) не е позволено.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Dividing a value of type %1 by %2 or %3 (plus or minus zero) is not allowed.</source>
-        <translation>Делението на стойност от тип %1 на %2 или %3 (плюс или минус нула) не е позволено.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Multiplication of a value of type %1 by %2 or %3 (plus or minus infinity) is not allowed.</source>
-        <translation>Умножението на стойност от тип %1 с %2 или %3 (плюс или минус безкрайност) не е позволено.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>A value of type %1 cannot have an Effective Boolean Value.</source>
-        <translation>Стойност от тип %1 не може да има Ефективна Булева Стойност.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Effective Boolean Value cannot be calculated for a sequence containing two or more atomic values.</source>
-        <translation>Ефективна Булева Стойност не може да се изчисли за поредица, съдържаща две или повече атомични стойности.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Value %1 of type %2 exceeds maximum (%3).</source>
-        <translation>Стойност %1 от тип %2 надвишава максимума (%3).</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Value %1 of type %2 is below minimum (%3).</source>
-        <translation>Стойност %1 от тип %2 е под минимума (%3).</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>A value of type %1 must contain an even number of digits. The value %2 does not.</source>
-        <translation>Стойност от тип %1 трябва да съдържа четен брой цифри. Стойността %2 не съдържа.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>%1 is not valid as a value of type %2.</source>
-        <translation>%1 не е валидна като стойност от тип %2.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Operator %1 cannot be used on type %2.</source>
-        <translation>Оператор %1 не може да се използва върху тип %2.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Operator %1 cannot be used on atomic values of type %2 and %3.</source>
-        <translation>Оператор %1 не може да се използва върху атомични стойности от тип %2 и %3.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>The namespace URI in the name for a computed attribute cannot be %1.</source>
-        <translation>Именното URI пространство в името за изчислен атрибут не може да е %1.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>The name for a computed attribute cannot have the namespace URI %1 with the local name %2.</source>
-        <translation>Името за изчислен атрибут не може да има именно URI пространство %1 с локално име %2.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Type error in cast, expected %1, received %2.</source>
-        <translation>Печатна грешка в изчислението, очаквано %1, получено %2.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>When casting to %1 or types derived from it, the source value must be of the same type, or it must be a string literal. Type %2 is not allowed.</source>
-        <translation>Когато се изчислява към %1 или типове, изхождащи от него, входящата стойност трябва да бъде от същия тип или трябва да е буквен низ. Тип %2 не е позволен.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>No casting is possible with %1 as the target type.</source>
-        <translation>Не е възможно изчисление с %1 като целеви тип.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>It is not possible to cast from %1 to %2.</source>
-        <translation>Не е възможно изчисление от %1 към %2.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Casting to %1 is not possible because it is an abstract type, and can therefore never be instantiated.</source>
-        <translation>Изчисление към %1 не е възможно, защото е абстрактен тип, и в този случай никога няма да се представи.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>It&apos;s not possible to cast the value %1 of type %2 to %3</source>
-        <translation>Не е възможно изчисление на стойност %1 от тип %2 към %3</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Failure when casting from %1 to %2: %3</source>
-        <translation>Неуспешно изчисление от %1 към %2: %3</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>A comment cannot contain %1</source>
-        <translation>Коментарът не може да съдържа %1</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>A comment cannot end with a %1.</source>
-        <translation>Коментарът не може да завърша с %1.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>No comparisons can be done involving the type %1.</source>
-        <translation>Не може да се прави сравнение при използване на тип %1.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Operator %1 is not available between atomic values of type %2 and %3.</source>
-        <translation>Оператор %1 не е наличен между атомични стойности от тип %2 и %3.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>An attribute node cannot be a child of a document node. Therefore, the attribute %1 is out of place.</source>
-        <translation>Атрибутен възел не може да е дете на документен възел. Следователно атрибутът %1 не е на мястото си.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>A library module cannot be evaluated directly. It must be imported from a main module.</source>
-        <translation>Библиотечен модул не може да се прилага директно. Трябва да е вмъкнат от основен модул.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>A value of type %1 cannot be a predicate. A predicate must have either a numeric type or an Effective Boolean Value type.</source>
-        <translation>Стойност от тип %1 не може да е предикат. Предикатът трябва да има или числов тип, или тип Ефективна Булева Стойност.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>A positional predicate must evaluate to a single numeric value.</source>
-        <translation>Позиционен предикат трябва да се прилага към единична числова стойност.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>The target name in a processing instruction cannot be %1 in any combination of upper and lower case. Therefore, is %2 invalid.</source>
-        <translation>Целевото име в изпълняваната инструкция не може да е %1 в каквато и да е комбинация от големи и малки букви. Следователно %2 не е валидно.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>%1 is not a valid target name in a processing instruction. It must be a %2 value, e.g. %3.</source>
-        <translation>%1 не е валидно целево име в изпълняваната инструкция. Трябва да е стойност %2, например %3.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>The last step in a path must contain either nodes or atomic values. It cannot be a mixture between the two.</source>
-        <translation>Последната стъпка в пътя трябва да съдържа или възли, или атомични стойности. Не може да е смес от двете.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>The data of a processing instruction cannot contain the string %1</source>
-        <translation>Данните на изпълняваната инструкция не може да съдържат низ %1</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>No namespace binding exists for the prefix %1</source>
-        <translation>Няма указано пространство от имена за префикс %1</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>No namespace binding exists for the prefix %1 in %2</source>
-        <translation>Няма указано пространство от имена за префикс %1 в %2</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>%1 is an invalid %2</source>
-        <translation>%1 не е валидно %2</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message numerus="yes">
         <source>%1 takes at most %n argument(s). %2 is therefore invalid.</source>
-        <translation>
-            <numerusform>%1 поема най-много %n аргумент. Следователно %2 не е валидно.</numerusform>
-            <numerusform>%1 поема най-много %n аргумента. Следователно %2 не е валидно.</numerusform>
+        <translation type="unfinished">
+            <numerusform></numerusform>
         </translation>
     </message>
     <message numerus="yes">
         <source>%1 requires at least %n argument(s). %2 is therefore invalid.</source>
-        <translation>
-            <numerusform>%1 изисква поне %n аргумент. Следователно %2 не е валидно.</numerusform>
-            <numerusform>%1 изисква поне %n аргумента. Следователно %2 не е валидно.</numerusform>
+        <translation type="unfinished">
+            <numerusform></numerusform>
         </translation>
     </message>
     <message>
         <source>The first argument to %1 cannot be of type %2. It must be a numeric type, xs:yearMonthDuration or xs:dayTimeDuration.</source>
-        <translation>Първият аргумент към %1 не може да е от тип %2. Трябва да е числов тип, xs:yearMonthDuration или xs:dayTimeDuration.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>The first argument to %1 cannot be of type %2. It must be of type %3, %4, or %5.</source>
-        <translation>Първият аргумент към %1 не може да е от тип %2. Трябва да е от тип %3, %4 или %5.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>The second argument to %1 cannot be of type %2. It must be of type %3, %4, or %5.</source>
-        <translation>Вторият аргумент към %1 не може да е от тип %2. Трябва да е от тип %3, %4 или %5.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>%1 is not a valid XML 1.0 character.</source>
-        <translation>%1 не е валиден XML 1.0 символ.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>The first argument to %1 cannot be of type %2.</source>
-        <translation>Първият аргумент към %1 не може да е от тип %2.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>If both values have zone offsets, they must have the same zone offset. %1 and %2 are not the same.</source>
-        <translation>Ако и двете стойности имат зоново отместване, те трябва да имат еднакво зоново отместване. %1 и %2 не са еднакви.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>%1 was called.</source>
-        <translation>Повикан е %1.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>%1 must be followed by %2 or %3, not at the end of the replacement string.</source>
-        <translation>%1 трябва да е следван от %2 или %3, не в края на заместващия низ.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>In the replacement string, %1 must be followed by at least one digit when not escaped.</source>
-        <translation>В заместващия низ, %1 трябва да е следван от поне една цифра, когато не е ескейпнат.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>In the replacement string, %1 can only be used to escape itself or %2, not %3</source>
-        <translation>В заместващия низ, %1 може да се използва само за ескейпване на себе си или %2, не %3</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>%1 matches newline characters</source>
-        <translation>%1 съвпада със символи за нов ред</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>%1 and %2 match the start and end of a line.</source>
-        <translation>%1 и %2 съвпадат с начало и край на линия.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Matches are case insensitive</source>
-        <translation>Съвпаденията са нечувсвтителни към регистъра</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Whitespace characters are removed, except when they appear in character classes</source>
-        <translation>Празните символи са премахнати, освен участващите в символни класове</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>%1 is an invalid regular expression pattern: %2</source>
-        <translation>%1 е невалиден модел за регулярен израз: %2</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>%1 is an invalid flag for regular expressions. Valid flags are:</source>
-        <translation>%1 е невалиден флаг за регулярен израз. Валидните флагове са:</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>If the first argument is the empty sequence or a zero-length string (no namespace), a prefix cannot be specified. Prefix %1 was specified.</source>
-        <translation>Ако първият аргумент е празна поредица или низ с нулева дължина (без пространство от имена), не може да бъде указан префикс. Указан е префик %1.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>It will not be possible to retrieve %1.</source>
-        <translation>Няма да е възможно получаването на %1.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>The root node of the second argument to function %1 must be a document node. %2 is not a document node.</source>
-        <translation>Кореновият възел на втория аргумент към функция %1 трябва да е документен възел. %2 не е документен възел.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>The default collection is undefined</source>
-        <translation>Не е дефинирана колецията по подразбиране</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>%1 cannot be retrieved</source>
-        <translation>%1 не може да се получи</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>The normalization form %1 is unsupported. The supported forms are %2, %3, %4, and %5, and none, i.e. the empty string (no normalization).</source>
-        <translation>Нормализационната форма %1 не се поддържа. Поддържаните форми са %2, %3, %4 и %5, и без, например празен низ (без нормализация).</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>A zone offset must be in the range %1..%2 inclusive. %3 is out of range.</source>
-        <translation>Зоновото отместване трябва да е в обхвата %1..%2 включително. %3 е извън обхвата.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>%1 is not a whole number of minutes.</source>
-        <translation>%1 не е цяло число от минути.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Required cardinality is %1; got cardinality %2.</source>
-        <translation>Изискваната кардиналност е %1, получена кардиналност %2.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>The item %1 did not match the required type %2.</source>
-        <translation>Елементът %1 не съвпада с изисквания тип %2.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>%1 is an unknown schema type.</source>
-        <translation>%1 не е тип схема.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Only one %1 declaration can occur in the query prolog.</source>
-        <translation>Само една %1 декларация може да присъства в пролога на заявката.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>The initialization of variable %1 depends on itself</source>
-        <translation>Инициализирането на променлива %1 зависи от себе си</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>No variable by name %1 exists</source>
-        <translation>Променлива с име %1 не съществува</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>The variable %1 is unused</source>
-        <translation>Променливата %1 не се използва</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Version %1 is not supported. The supported XQuery version is 1.0.</source>
-        <translation>Версия %1 е неподдържана. Поддържаната XQuery версия е 1.0.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>The encoding %1 is invalid. It must contain Latin characters only, must not contain whitespace, and must match the regular expression %2.</source>
-        <translation>Кодировката %1 е невалидна. Трябва да съдържа само латински символи, трябва да не съдържа празни символи и трябва да съвпада с регулярния израз %2.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>No function with signature %1 is available</source>
-        <translation>Функция с подпис %1 не е налична</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>A default namespace declaration must occur before function, variable, and option declarations.</source>
-        <translation>Декларацията за пространство от имена по подразбиране трябва да е преди функция, променлива и допълнителни декларации.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Namespace declarations must occur before function, variable, and option declarations.</source>
-        <translation>Декларациите за пространство от имена трябва да са преди функция, променлива и допълнителни декларации.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Module imports must occur before function, variable, and option declarations.</source>
-        <translation>Внасянето на модули трябва да е преди функция, променлива и допълнителни декларации.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>It is not possible to redeclare prefix %1.</source>
-        <translation>Не е възможно предекларирането на префикс %1.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Only the prefix %1 can be declared to bind the namespace %2. By default, it is already bound to the prefix %1.</source>
-        <translation>Само префиксът %1 може да се декларира за указване на пространство от имена %2. По подразбиране вече е указано към префикс %1.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Prefix %1 is already declared in the prolog.</source>
-        <translation>Префикс %1 вече е деклариран в пролога.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>The name of an option must have a prefix. There is no default namespace for options.</source>
-        <translation>Името на опцията трябва да има префикс. По подразбиране няма пространство от имена за опции.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>The Schema Import feature is not supported, and therefore %1 declarations cannot occur.</source>
-        <translation>Функцията Внасяне на схема не се поддържа, следователно %1 декларации не може да има.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>The target namespace of a %1 cannot be empty.</source>
-        <translation>Целевото пространство от имена от %1 не може да е празно.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>The module import feature is not supported</source>
-        <translation>Функцията за внадяне на модул не се поддържа</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>A variable by name %1 has already been declared in the prolog.</source>
-        <translation>Променлива с име %1 вече е декларирана в пролога.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>No value is available for the external variable by name %1.</source>
-        <translation>Не е налична стойност за външната променлива с име %1.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>The namespace for a user defined function cannot be empty (try the predefined prefix %1 which exists for cases like this)</source>
-        <translation>Пространството от имена за потребителски дефинирана функция не може да е празно (опитайте предефинирания префикс %1, който съществува за случаи като този)</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>The namespace %1 is reserved; therefore user defined functions may not use it. Try the predefined prefix %2, which exists for these cases.</source>
-        <translation>Пространството от имена %1 е запазено, следователно потребителски дефинираните функции не могат да го ползват. Опитайте предефинирания префикс %2, който съществува за случаи като този.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>The namespace of a user defined function in a library module must be equivalent to the module namespace. In other words, it should be %1 instead of %2</source>
-        <translation>Пространството от имена за потребителски дефинирана функция в библиотечен модул трябва да е еквивалентен на модула за пространство от имена, трябва да е %1 вместо %2</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>A function already exists with the signature %1.</source>
-        <translation>Вече съществува функция с подпис %1.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>No external functions are supported. All supported functions can be used directly, without first declaring them as external</source>
-        <translation>Не се поддържат външни функции. Всички поддържани функции могат да се използват директно, без да се декларират предварително като външни</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>An argument by name %1 has already been declared. Every argument name must be unique.</source>
-        <translation>Аргумент с име %1 вече е деклариран. Имената на аргументите трябва да са уникални.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>The name of a variable bound in a for-expression must be different from the positional variable. Hence, the two variables named %1 collide.</source>
-        <translation>Името на променлива, указана за израз, трябва да е различна от позиционална променлива. Следователно променливите с имена %1 си противоречат.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>The Schema Validation Feature is not supported. Hence, %1-expressions may not be used.</source>
-        <translation>Функцията за валидация на схеми не се поддържа. Следователно %1 изрази не могат да се ползват.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>None of the pragma expressions are supported. Therefore, a fallback expression must be present</source>
-        <translation>Никой от прагма изразите не се поддържа. Следователно трябва да има наличен авариен израз</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>The %1-axis is unsupported in XQuery</source>
-        <translation>Оста %1 не се поддържа в XQuery</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>%1 is not a valid numeric literal.</source>
-        <translation>%1 не е валиден числов литерал.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>No function by name %1 is available.</source>
-        <translation>Няма налична функция с име %1.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>The namespace URI cannot be the empty string when binding to a prefix, %1.</source>
-        <translation>URI пространството от имена не може да е празен низ, когато се указва към префикс, %1.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>%1 is an invalid namespace URI.</source>
-        <translation>%1 е невалидно URI пространство от имена.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>It is not possible to bind to the prefix %1</source>
-        <translation>Не може да се укаже към префикс %1</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Namespace %1 can only be bound to %2 (and it is, in either case, pre-declared).</source>
-        <translation>Пространство от имена %1 може да се укаже само към %2 (и то е във всеки случай предекларирано).</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Prefix %1 can only be bound to %2 (and it is, in either case, pre-declared).</source>
-        <translation>Префикс %1 може да се укаже само към %2 (и той е във всеки случай предеклариран).</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Two namespace declaration attributes have the same name: %1.</source>
-        <translation>Два атрибута за декларации на пространство от имена имат едно и също име: %1.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>The namespace URI must be a constant and cannot use enclosed expressions.</source>
-        <translation>URI пространството от имена трябва да е константа или не може да използва заградени изрази.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>An attribute by name %1 has already appeared on this element.</source>
-        <translation>Атрибут с име %1 вече има към този елемент.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>A direct element constructor is not well-formed. %1 is ended with %2.</source>
-        <translation>Директен конструктор на елементи не е формиран добре. %1 завършва с %2.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>The name %1 does not refer to any schema type.</source>
-        <translation>Името %1 не води към никой тип схема.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>%1 is an complex type. Casting to complex types is not possible. However, casting to atomic types such as %2 works.</source>
-        <translation>%1 е комплексен тип. Изчисление към комплесни типове е невъзможно. Следователно изчисление към атомични типове като %2 работи.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>%1 is not an atomic type. Casting is only possible to atomic types.</source>
-        <translation>%1 не е атомичен тип. Възможно е изчисление само към атомични типове.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>%1 is not a valid name for a processing-instruction. Therefore this name test will never match.</source>
-        <translation>%1 не е валидно име за изпълняваната инструкция. Следователно тази проба на името никога няма да съвпадне.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>%1 is not in the in-scope attribute declarations. Note that the schema import feature is not supported.</source>
-        <translation>%1 не е в обхватните атрибутни декларации. Имайте предвид, че функцията за внасяне на схема не се поддържа.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>The name of an extension expression must be in a namespace.</source>
-        <translation>Името на разширителен израз трябва да е в пространство от имена.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>empty</source>
-        <translation>празно</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>zero or one</source>
-        <translation>нула или едно</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>exactly one</source>
-        <translation>точно едно</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>one or more</source>
-        <translation>едно или повече</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>zero or more</source>
-        <translation>нула или повече</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Required type is %1, but %2 was found.</source>
-        <translation>Изисква се тип %1, но %2 е намерен.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Promoting %1 to %2 may cause loss of precision.</source>
-        <translation>Указването на %1 към %2 може да предизвика загуба на точност.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>The focus is undefined.</source>
-        <translation>Фокусът не е дефиниран.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>It&apos;s not possible to add attributes after any other kind of node.</source>
-        <translation>Не е възможно добавянето на атрибути след всеки друг вид възли.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>An attribute by name %1 has already been created.</source>
-        <translation>Атрибут с име %1 вече е създаден.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Only the Unicode Codepoint Collation is supported(%1). %2 is unsupported.</source>
-        <translation>Поддържа се само Уникод Кодова Съпоставка(%1). %2 не се поддържа.</translation>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>

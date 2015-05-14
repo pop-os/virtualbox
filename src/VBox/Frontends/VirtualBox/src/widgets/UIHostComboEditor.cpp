@@ -1,6 +1,8 @@
 /* $Id: UIHostComboEditor.cpp $ */
 /** @file
- * VBox Qt GUI - VirtualBox Qt extensions: UIHostComboEditor class implementation.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * VirtualBox Qt extensions: UIHostComboEditor class implementation
  */
 
 /*
@@ -15,25 +17,18 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QApplication>
-# include <QStyleOption>
-# include <QStylePainter>
-# include <QKeyEvent>
-# include <QTimer>
+#include <QApplication>
+#include <QStyleOption>
+#include <QStylePainter>
+#include <QKeyEvent>
+#include <QTimer>
 
 /* GUI includes: */
-# include "UIHostComboEditor.h"
-# include "UIExtraDataDefs.h"
-# include "UIIconPool.h"
-# include "QIToolButton.h"
-# include "VBoxGlobal.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "UIHostComboEditor.h"
+#include "VBoxGlobal.h"
+#include "QIToolButton.h"
+#include "UIIconPool.h"
 
 #ifdef Q_WS_WIN
 # undef LOWORD
@@ -64,9 +59,6 @@
 # include "VBoxUtils.h"
 # include <Carbon/Carbon.h>
 #endif /* Q_WS_MAC */
-
-/* Namespaces: */
-using namespace UIExtraDataDefs;
 
 
 #ifdef Q_WS_X11

@@ -1146,7 +1146,7 @@ int main(int argc, char **argv)
                 break;
 
             case 'V':
-                RTPrintf("$Revision: 92621 $");
+                RTPrintf("$Revision: 92629 $");
                 break;
 
             case 'h':

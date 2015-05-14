@@ -1,6 +1,8 @@
 /* $Id: UIMachineSettingsSystem.cpp $ */
 /** @file
- * VBox Qt GUI - UIMachineSettingsSystem class implementation.
+ *
+ * VBox frontends: Qt4 GUI ("VirtualBox"):
+ * UIMachineSettingsSystem class implementation
  */
 
 /*
@@ -15,33 +17,26 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QHeaderView>
+#include <QHeaderView>
 
 /* GUI includes: */
-# include "QIWidgetValidator.h"
-# include "UIIconPool.h"
-# include "VBoxGlobal.h"
-# include "UIMachineSettingsSystem.h"
-# include "UIConverter.h"
+#include "QIWidgetValidator.h"
+#include "UIIconPool.h"
+#include "VBoxGlobal.h"
+#include "UIMachineSettingsSystem.h"
+#include "UIConverter.h"
 
 /* COM includes: */
-# include "CBIOSSettings.h"
+#include "CBIOSSettings.h"
 
 /* Other VBox includes: */
-# include <iprt/cdefs.h>
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
+#include <iprt/cdefs.h>
 
 UIMachineSettingsSystem::UIMachineSettingsSystem()
     : m_uMinGuestCPU(0), m_uMaxGuestCPU(0)
     , m_uMinGuestCPUExecCap(0), m_uMedGuestCPUExecCap(0), m_uMaxGuestCPUExecCap(0)
-    , m_fIsUSBEnabled(false)
+    , m_fOHCIEnabled(false)
 {
     /* Prepare: */
     prepare();
@@ -62,14 +57,14 @@ KChipsetType UIMachineSettingsSystem::chipsetType() const
     return (KChipsetType)m_pComboChipsetType->itemData(m_pComboChipsetType->currentIndex()).toInt();
 }
 
-void UIMachineSettingsSystem::setUSBEnabled(bool fEnabled)
+void UIMachineSettingsSystem::setOHCIEnabled(bool fEnabled)
 {
-    /* Make sure USB status has changed: */
-    if (m_fIsUSBEnabled == fEnabled)
+    /* Make sure OHCI status has changed: */
+    if (m_fOHCIEnabled == fEnabled)
         return;
 
-    /* Update USB status value: */
-    m_fIsUSBEnabled = fEnabled;
+    /* Update OHCI status value: */
+    m_fOHCIEnabled = fEnabled;
 
     /* Revalidate: */
     revalidate();
@@ -133,7 +128,6 @@ void UIMachineSettingsSystem::loadToCacheFrom(QVariant &data)
     systemData.m_fEnabledPAE = m_machine.GetCPUProperty(KCPUPropertyType_PAE);
 
     /* Load acceleration data: */
-    systemData.m_paravirtProvider = m_machine.GetParavirtProvider();
     systemData.m_fEnabledHwVirtEx = m_machine.GetHWVirtExProperty(KHWVirtExPropertyType_Enabled);
     systemData.m_fEnabledNestedPaging = m_machine.GetHWVirtExProperty(KHWVirtExPropertyType_NestedPaging);
 
@@ -184,8 +178,6 @@ void UIMachineSettingsSystem::getFromCache()
     m_pCheckBoxPAE->setChecked(systemData.m_fEnabledPAE);
 
     /* Load acceleration data to page: */
-    int iParavirtProviderPosition = m_pComboParavirtProvider->findData(systemData.m_paravirtProvider);
-    m_pComboParavirtProvider->setCurrentIndex(iParavirtProviderPosition == -1 ? 0 : iParavirtProviderPosition);
     m_pCheckBoxVirtualization->setChecked(systemData.m_fEnabledHwVirtEx);
     m_pCheckBoxNestedPaging->setChecked(systemData.m_fEnabledNestedPaging);
 
@@ -229,7 +221,6 @@ void UIMachineSettingsSystem::putToCache()
     systemData.m_fEnabledPAE = m_pCheckBoxPAE->isChecked();
 
     /* Gather acceleration data: */
-    systemData.m_paravirtProvider = (KParavirtProvider)m_pComboParavirtProvider->itemData(m_pComboParavirtProvider->currentIndex()).toInt();
     systemData.m_fEnabledHwVirtEx = m_pCheckBoxVirtualization->checkState() == Qt::Checked || m_pSliderCPUCount->value() > 1;
     systemData.m_fEnabledNestedPaging = m_pCheckBoxNestedPaging->isChecked();
 
@@ -279,7 +270,6 @@ void UIMachineSettingsSystem::saveFromCacheTo(QVariant &data)
             m_machine.SetCPUProperty(KCPUPropertyType_PAE, systemData.m_fEnabledPAE);
 
             /* Acceleration tab: */
-            m_machine.SetParavirtProvider(systemData.m_paravirtProvider);
             m_machine.SetHWVirtExProperty(KHWVirtExPropertyType_Enabled, systemData.m_fEnabledHwVirtEx);
             m_machine.SetHWVirtExProperty(KHWVirtExPropertyType_NestedPaging, systemData.m_fEnabledNestedPaging);
         }
@@ -330,16 +320,16 @@ bool UIMachineSettingsSystem::validate(QList<UIValidationMessage> &messages)
         {
             message.second << tr(
                 "The I/O APIC feature is not currently enabled in the Motherboard section of the System page. "
-                "This is needed in order to support a chip set of type ICH9 you have enabled for this VM. "
+                "This is needed in order to support a chip set of type ICH9. "
                 "It will be done automatically if you confirm your changes.");
         }
 
-        /* HID vs USB test: */
-        if (isHIDEnabled() && !m_fIsUSBEnabled)
+        /* HID vs OHCI test: */
+        if (isHIDEnabled() && !m_fOHCIEnabled)
         {
             message.second << tr(
                 "USB controller emulation is not currently enabled on the USB page. "
-                "This is needed to support an emulated USB input device you have enabled for this VM. "
+                "This is needed to support an emulated USB input device. "
                 "It will be done automatically if you confirm your changes.");
         }
 
@@ -377,7 +367,7 @@ bool UIMachineSettingsSystem::validate(QList<UIValidationMessage> &messages)
         {
             message.second << tr(
                 "The I/O APIC feature is not currently enabled in the Motherboard section of the System page. "
-                "This is needed in order to support more than one virtual processor you have chosen for this VM. "
+                "This is needed in order to support more than one virtual processor. "
                 "It will be done automatically if you confirm your changes.");
         }
 
@@ -386,7 +376,7 @@ bool UIMachineSettingsSystem::validate(QList<UIValidationMessage> &messages)
         {
             message.second << tr(
                 "Hardware virtualization is not currently enabled in the Acceleration section of the System page. "
-                "This is needed in order to support more than one virtual processor you have chosen for this VM. "
+                "This is needed in order to support more than one virtual processor. "
                 "It will be done automatically if you confirm your changes.");
         }
 
@@ -426,10 +416,9 @@ void UIMachineSettingsSystem::setOrderAfter(QWidget *pWidget)
     setTabOrder(m_pSliderCPUCount, m_pEditorCPUCount);
     setTabOrder(m_pEditorCPUCount, m_pSliderCPUExecCap);
     setTabOrder(m_pSliderCPUExecCap, m_pEditorCPUExecCap);
-    setTabOrder(m_pEditorCPUExecCap, m_pComboParavirtProvider);
+    setTabOrder(m_pEditorCPUExecCap, m_pCheckBoxPAE);
 
     /* Configure navigation for 'acceleration' tab: */
-    setTabOrder(m_pComboParavirtProvider, m_pCheckBoxPAE);
     setTabOrder(m_pCheckBoxPAE, m_pCheckBoxVirtualization);
     setTabOrder(m_pCheckBoxVirtualization, m_pCheckBoxNestedPaging);
 }
@@ -455,9 +444,8 @@ void UIMachineSettingsSystem::retranslateUi()
     m_pLabelCPUExecCapMax->setText(tr("<qt>%1%</qt>", "Max CPU execution cap in %").arg(m_uMaxGuestCPUExecCap));
 
     /* Retranslate combo-boxes: */
-    retranslateComboChipsetType();
+    retranslateComboPointingChipsetType();
     retranslateComboPointingHIDType();
-    retranslateComboParavirtProvider();
 }
 
 void UIMachineSettingsSystem::polishPage()
@@ -501,8 +489,6 @@ void UIMachineSettingsSystem::polishPage()
 
     /* Acceleration tab: */
     m_pTabWidgetSystem->setTabEnabled(2, systemData.m_fSupportedHwVirtEx);
-    m_pLabelParavirtProvider->setEnabled(isMachineOffline());
-    m_pComboParavirtProvider->setEnabled(isMachineOffline());
     m_pLabelVirtualization->setEnabled(isMachineOffline());
     m_pCheckBoxVirtualization->setEnabled(isMachineOffline());
     m_pCheckBoxNestedPaging->setEnabled(isMachineOffline() && m_pCheckBoxVirtualization->isChecked());
@@ -594,7 +580,6 @@ void UIMachineSettingsSystem::prepare()
     /* Prepare tabs: */
     prepareTabMotherboard();
     prepareTabProcessor();
-    prepareTabAcceleration();
 
     /* Prepare validation: */
     prepareValidation();
@@ -718,17 +703,6 @@ void UIMachineSettingsSystem::prepareTabProcessor()
     connect(m_pEditorCPUExecCap, SIGNAL(valueChanged(int)), this, SLOT(sltHandleCPUExecCapEditorChange()));
 }
 
-void UIMachineSettingsSystem::prepareTabAcceleration()
-{
-    /* Populate 'paravirt provider' combo: */
-    m_pComboParavirtProvider->addItem(gpConverter->toString(KParavirtProvider_None), QVariant(KParavirtProvider_None));
-    m_pComboParavirtProvider->addItem(gpConverter->toString(KParavirtProvider_Default), QVariant(KParavirtProvider_Default));
-    m_pComboParavirtProvider->addItem(gpConverter->toString(KParavirtProvider_Legacy), QVariant(KParavirtProvider_Legacy));
-    m_pComboParavirtProvider->addItem(gpConverter->toString(KParavirtProvider_Minimal), QVariant(KParavirtProvider_Minimal));
-    m_pComboParavirtProvider->addItem(gpConverter->toString(KParavirtProvider_HyperV), QVariant(KParavirtProvider_HyperV));
-    m_pComboParavirtProvider->addItem(gpConverter->toString(KParavirtProvider_KVM), QVariant(KParavirtProvider_KVM));
-}
-
 void UIMachineSettingsSystem::prepareValidation()
 {
     /* Prepare validation: */
@@ -781,9 +755,9 @@ void UIMachineSettingsSystem::repopulateComboPointingHIDType()
     }
 }
 
-void UIMachineSettingsSystem::retranslateComboChipsetType()
+void UIMachineSettingsSystem::retranslateComboPointingChipsetType()
 {
-    /* For each the element in KChipsetType enum: */
+    /* For each the element in KPointingHIDType enum: */
     for (int iIndex = (int)KChipsetType_Null; iIndex < (int)KChipsetType_Max; ++iIndex)
     {
         /* Cast to the corresponding type: */
@@ -808,21 +782,6 @@ void UIMachineSettingsSystem::retranslateComboPointingHIDType()
         /* Re-translate if corresponding item was found: */
         if (iCorrespondingIndex != -1)
             m_pComboPointingHIDType->setItemText(iCorrespondingIndex, gpConverter->toString(type));
-    }
-}
-
-void UIMachineSettingsSystem::retranslateComboParavirtProvider()
-{
-    /* For each the element in KParavirtProvider enum: */
-    for (int iIndex = (int)KParavirtProvider_None; iIndex < (int)KParavirtProvider_Max; ++iIndex)
-    {
-        /* Cast to the corresponding type: */
-        KParavirtProvider type = (KParavirtProvider)iIndex;
-        /* Look for the corresponding item: */
-        int iCorrespondingIndex = m_pComboParavirtProvider->findData((int)type);
-        /* Re-translate if corresponding item was found: */
-        if (iCorrespondingIndex != -1)
-            m_pComboParavirtProvider->setItemText(iCorrespondingIndex, gpConverter->toString(type));
     }
 }
 

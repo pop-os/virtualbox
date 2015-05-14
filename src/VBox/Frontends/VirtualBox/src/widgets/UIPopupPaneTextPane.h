@@ -1,6 +1,7 @@
-/* $Id: UIPopupPaneTextPane.h $ */
 /** @file
- * VBox Qt GUI - UIPopupPaneTextPane class declaration.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * UIPopupPaneTextPane class declaration
  */
 
 /*

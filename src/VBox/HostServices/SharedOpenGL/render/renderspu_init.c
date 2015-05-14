@@ -186,7 +186,6 @@ renderSPUInit( int id, SPU *child, SPU *self,
 
 #ifdef CHROMIUM_THREADSAFE
     crDebug("Render SPU: thread-safe");
-    crInitTSD(&_RenderTSD);
 #endif
 
     crMemZero(&render_spu, sizeof(render_spu));
@@ -619,5 +618,4 @@ int SPULoad( char **name, char **super, SPUInitFuncPtr *init,
 DECLEXPORT(void) renderspuSetWindowId(uint64_t winId)
 {
     render_spu_parent_window_id = winId;
-    crDebug("Set new parent window %p (no actual reparent performed)", winId);
 }

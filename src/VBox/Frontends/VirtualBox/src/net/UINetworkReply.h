@@ -1,6 +1,7 @@
-/* $Id: UINetworkReply.h $ */
 /** @file
- * VBox Qt GUI - UINetworkReply stuff declaration.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * UINetworkReply stuff declaration
  */
 
 /*

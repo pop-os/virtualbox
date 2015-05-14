@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2015 Oracle Corporation
+ * Copyright (C) 2007-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -74,7 +74,6 @@ static int VBoxGuestSolarisPoll(dev_t Dev, short fEvents, int fAnyYet, short *pR
 static int VBoxGuestSolarisGetInfo(dev_info_t *pDip, ddi_info_cmd_t enmCmd, void *pArg, void **ppResult);
 static int VBoxGuestSolarisAttach(dev_info_t *pDip, ddi_attach_cmd_t enmCmd);
 static int VBoxGuestSolarisDetach(dev_info_t *pDip, ddi_detach_cmd_t enmCmd);
-static int VBoxGuestSolarisQuiesce(dev_info_t *pDip);
 
 static int VBoxGuestSolarisAddIRQ(dev_info_t *pDip);
 static void VBoxGuestSolarisRemoveIRQ(dev_info_t *pDip);
@@ -122,8 +121,7 @@ static struct dev_ops g_VBoxGuestSolarisDevOps =
     nodev,                  /* reset */
     &g_VBoxGuestSolarisCbOps,
     (struct bus_ops *)0,
-    nodev,                  /* power */
-    VBoxGuestSolarisQuiesce
+    nodev                   /* power */
 };
 
 /**
@@ -328,13 +326,13 @@ static int VBoxGuestSolarisAttach(dev_info_t *pDip, ddi_attach_cmd_t enmCmd)
                                 /*
                                  * Call the common device extension initializer.
                                  */
-                                rc = VbgdCommonInitDevExt(&g_DevExt, g_uIOPortBase, g_pMMIOBase, g_cbMMIO,
+                                rc = VBoxGuestInitDevExt(&g_DevExt, g_uIOPortBase, g_pMMIOBase, g_cbMMIO,
 #if ARCH_BITS == 64
-                                                          VBOXOSTYPE_Solaris_x64,
+                                                         VBOXOSTYPE_Solaris_x64,
 #else
-                                                          VBOXOSTYPE_Solaris,
+                                                         VBOXOSTYPE_Solaris,
 #endif
-                                                          VMMDEV_EVENT_MOUSE_POSITION_CHANGED);
+                                                         VMMDEV_EVENT_MOUSE_POSITION_CHANGED);
                                 if (RT_SUCCESS(rc))
                                 {
                                     rc = ddi_create_minor_node(pDip, DEVICE_NAME, S_IFCHR, instance, DDI_PSEUDO, 0 /* fFlags */);
@@ -346,10 +344,10 @@ static int VBoxGuestSolarisAttach(dev_info_t *pDip, ddi_attach_cmd_t enmCmd)
                                     }
 
                                     LogRel((DEVICE_NAME "::Attach: ddi_create_minor_node failed.\n"));
-                                    VbgdCommonDeleteDevExt(&g_DevExt);
+                                    VBoxGuestDeleteDevExt(&g_DevExt);
                                 }
                                 else
-                                    LogRel((DEVICE_NAME "::Attach: VbgdCommonInitDevExt failed.\n"));
+                                    LogRel((DEVICE_NAME "::Attach: VBoxGuestInitDevExt failed.\n"));
                                 VBoxGuestSolarisRemoveIRQ(pDip);
                             }
                             else
@@ -403,7 +401,7 @@ static int VBoxGuestSolarisDetach(dev_info_t *pDip, ddi_detach_cmd_t enmCmd)
             ddi_regs_map_free(&g_PciIOHandle);
             ddi_regs_map_free(&g_PciMMIOHandle);
             ddi_remove_minor_node(pDip, NULL);
-            VbgdCommonDeleteDevExt(&g_DevExt);
+            VBoxGuestDeleteDevExt(&g_DevExt);
             g_pDip = NULL;
             return DDI_SUCCESS;
         }
@@ -417,29 +415,6 @@ static int VBoxGuestSolarisDetach(dev_info_t *pDip, ddi_detach_cmd_t enmCmd)
         default:
             return DDI_FAILURE;
     }
-}
-
-
-/**
- * Quiesce entry point, called by solaris kernel for disabling the device from
- * generating any interrupts or doing in-bound DMA.
- *
- * @param   pDip            The module structure instance.
- *
- * @return  corresponding solaris error code.
- */
-static int VBoxGuestSolarisQuiesce(dev_info_t *pDip)
-{
-    for (int i = 0; i < g_cIntrAllocated; i++)
-    {
-        int rc = ddi_intr_disable(g_pIntr[i]);
-        if (rc != DDI_SUCCESS)
-            return DDI_FAILURE;
-    }
-
-    /** @todo What about HGCM/HGSMI touching guest-memory? */
-
-    return DDI_SUCCESS;
 }
 
 
@@ -514,7 +489,7 @@ static int VBoxGuestSolarisOpen(dev_t *pDev, int fFlag, int fType, cred_t *pCred
     /*
      * Create a new session.
      */
-    rc = VbgdCommonCreateUserSession(&g_DevExt, &pSession);
+    rc = VBoxGuestCreateUserSession(&g_DevExt, &pSession);
     if (RT_SUCCESS(rc))
     {
         pState->pvProcRef = proc_ref();
@@ -527,7 +502,7 @@ static int VBoxGuestSolarisOpen(dev_t *pDev, int fFlag, int fType, cred_t *pCred
     /* Failed, clean up. */
     ddi_soft_state_free(g_pVBoxGuestSolarisState, iOpenInstance);
 
-    LogRel((DEVICE_NAME "::Open: VbgdCommonCreateUserSession failed. rc=%d\n", rc));
+    LogRel((DEVICE_NAME "::Open: VBoxGuestCreateUserSession failed. rc=%d\n", rc));
     return EFAULT;
 }
 
@@ -558,7 +533,7 @@ static int VBoxGuestSolarisClose(dev_t Dev, int flag, int fType, cred_t *pCred)
     /*
      * Close the session.
      */
-    VbgdCommonCloseSession(&g_DevExt, pSession);
+    VBoxGuestCloseSession(&g_DevExt, pSession);
     return 0;
 }
 
@@ -693,7 +668,7 @@ static int VBoxGuestSolarisIOCtl(dev_t Dev, int Cmd, intptr_t pArg, int Mode, cr
      * Process the IOCtl.
      */
     size_t cbDataReturned = 0;
-    rc = VbgdCommonIoCtl(Cmd, &g_DevExt, pSession, pvBuf, ReqWrap.cbData, &cbDataReturned);
+    rc = VBoxGuestCommonIOCtl(Cmd, &g_DevExt, pSession, pvBuf, ReqWrap.cbData, &cbDataReturned);
     if (RT_SUCCESS(rc))
     {
         rc = 0;
@@ -720,7 +695,7 @@ static int VBoxGuestSolarisIOCtl(dev_t Dev, int Cmd, intptr_t pArg, int Mode, cr
          * VBOXGUEST_IOCTL_CANCEL_ALL_EVENTS can return VERR_INTERRUPTED and possibly more in the future;
          * which are not really failures that require logging.
          */
-        Log((DEVICE_NAME "::IOCtl: VbgdCommonIoCtl failed. Cmd=%#x rc=%d\n", Cmd, rc));
+        Log((DEVICE_NAME "::IOCtl: VBoxGuestCommonIOCtl failed. Cmd=%#x rc=%d\n", Cmd, rc));
         if (rc == VERR_PERMISSION_DENIED)   /* RTErrConvertToErrno() below will ring-0 debug assert if we don't do this. */
             rc = VERR_ACCESS_DENIED;
         rc = RTErrConvertToErrno(rc);
@@ -893,14 +868,14 @@ static uint_t VBoxGuestSolarisISR(caddr_t Arg)
     LogFlow((DEVICE_NAME "::ISR:\n"));
 
     mutex_enter(&g_IrqMtx);
-    bool fOurIRQ = VbgdCommonISR(&g_DevExt);
+    bool fOurIRQ = VBoxGuestCommonISR(&g_DevExt);
     mutex_exit(&g_IrqMtx);
 
     return fOurIRQ ? DDI_INTR_CLAIMED : DDI_INTR_UNCLAIMED;
 }
 
 
-void VbgdNativeISRMousePollEvent(PVBOXGUESTDEVEXT pDevExt)
+void VBoxGuestNativeISRMousePollEvent(PVBOXGUESTDEVEXT pDevExt)
 {
     LogFlow((DEVICE_NAME "::NativeISRMousePollEvent:\n"));
 

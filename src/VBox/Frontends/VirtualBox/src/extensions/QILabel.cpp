@@ -1,6 +1,8 @@
 /* $Id: QILabel.cpp $ */
 /** @file
- * VBox Qt GUI - VirtualBox Qt extensions: QILabel class implementation.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * VirtualBox Qt extensions: QILabel class implementation
  */
 
 /*
@@ -19,26 +21,19 @@
  * This class is based on the original QLabel implementation.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Global includes */
-# include <QApplication>
-# include <QClipboard>
-# include <QContextMenuEvent>
-# include <QFocusEvent>
-# include <QMenu>
-# include <QMimeData>
-# include <QMouseEvent>
-# include <QPainter>
-# include <QStyleOptionFocusRect>
+#include <QApplication>
+#include <QClipboard>
+#include <QContextMenuEvent>
+#include <QFocusEvent>
+#include <QMenu>
+#include <QMimeData>
+#include <QMouseEvent>
+#include <QPainter>
+#include <QStyleOptionFocusRect>
 
 /* Local includes */
-# include "QILabel.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
+#include "QILabel.h"
 
 /* Some constant regular expressions */
 const QRegExp QILabel::mCopyRegExp = QRegExp ("<[^>]*>");

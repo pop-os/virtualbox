@@ -1,6 +1,7 @@
-/* $Id: COMDefs.h $ */
 /** @file
- * VBox Qt GUI - Various COM definitions and COM wrapper class declarations.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * Various COM definitions and COM wrapper class declarations
  *
  * This header is used in conjunction with the header generated from
  * XIDL expressed interface definitions to provide cross-platform Qt-based
@@ -96,6 +97,14 @@
 
 class XPCOMEventQSocketListener;
 
+#endif /* !defined(VBOX_WITH_XPCOM) */
+
+
+/* VirtualBox interfaces declarations */
+#if !defined(VBOX_WITH_XPCOM)
+    #include <VirtualBox.h>
+#else /* !defined(VBOX_WITH_XPCOM) */
+    #include <VirtualBox_XPCOM.h>
 #endif /* !defined(VBOX_WITH_XPCOM) */
 
 /////////////////////////////////////////////////////////////////////////////
@@ -629,14 +638,14 @@ public:
     {
         clear();
         mIface = that.mIface;
-        this->addref((IUnknown*)ptr());
+        this->addref(ptr());
     }
 
     CInterface(I *aIface)
     {
         clear();
         setPtr(aIface);
-        this->addref((IUnknown*)aIface);
+        this->addref(aIface);
     }
 
     virtual ~CInterface()
@@ -689,13 +698,13 @@ public:
 #endif
         /* be aware of self assignment */
         I* amIface = ptr();
-        this->addref((IUnknown*)aIface);
-        this->release((IUnknown*)amIface);
+        this->addref(aIface);
+        this->release(amIface);
         if (aIface)
         {
             amIface = NULL;
             B::mRC = aIface->QueryInterface(COM_IIDOF(I), (void **)&amIface);
-            this->release((IUnknown*)aIface);
+            this->release(aIface);
             setPtr(amIface);
         }
         else
@@ -712,8 +721,8 @@ public:
         Assert(!mDead);
 #endif
         /* be aware of self assignment */
-        this->addref((IUnknown*)aIface);
-        this->release((IUnknown*)ptr());
+        this->addref(aIface);
+        this->release(ptr());
         setPtr(aIface);
         B::mRC = S_OK;
     };
@@ -724,7 +733,7 @@ public:
 #ifdef DEBUG
        Assert(!mDead);
 #endif
-       this->release((IUnknown*)ptr());
+       this->release(ptr());
        setPtr(NULL);
     }
 

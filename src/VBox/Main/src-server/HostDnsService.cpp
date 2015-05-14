@@ -40,39 +40,55 @@ static void dumpHostDnsInformation(const HostDnsInformation&);
 static void dumpHostDnsStrVector(const std::string&, const std::vector<std::string>&);
 
 
-bool HostDnsInformation::equals(const HostDnsInformation &info, bool fDNSOrderIgnore) const
+bool HostDnsInformation::equals(const HostDnsInformation &info, uint32_t fLaxComparison) const
 {
-    if (fDNSOrderIgnore)
+    bool fSameServers;
+    if ((fLaxComparison & IGNORE_SERVER_ORDER) == 0)
     {
-        std::set<std::string> l(servers.begin(), servers.end());
-        std::set<std::string> r(info.servers.begin(), info.servers.end());
-
-        return (l == r)
-            && (domain == info.domain)
-            && (searchList == info.searchList); // XXX: also ignore order?
+        fSameServers = (servers == info.servers);
     }
     else
     {
-        return (servers == info.servers)
-            && (domain == info.domain)
-            && (searchList == info.searchList);
+        std::set<std::string> l(servers.begin(), servers.end());
+        std::set<std::string> r(info.servers.begin(), info.servers.end());
+        
+        fSameServers = (l == r);
     }
+
+    bool fSameDomain, fSameSearchList;
+    if ((fLaxComparison & IGNORE_SUFFIXES) == 0)
+    {
+        fSameDomain = (domain == info.domain);
+        fSameSearchList = (searchList == info.searchList);
+    }
+    else
+    {
+        fSameDomain = fSameSearchList = true;
+    }
+
+    return fSameServers && fSameDomain && fSameSearchList;
 }
 
 inline static void detachVectorOfString(const std::vector<std::string>& v,
-                                        std::vector<com::Utf8Str> &aArray)
+                                        ComSafeArrayOut(BSTR, aBstrArray))
 {
-    aArray.resize(v.size());
-    size_t i = 0;
-    for (std::vector<std::string>::const_iterator it = v.begin(); it != v.end(); ++it, ++i)
-        aArray[i] = Utf8Str(it->c_str());
+    com::SafeArray<BSTR> aBstr(v.size());
+
+    std::vector<std::string>::const_iterator it;
+
+    int i = 0;
+    it = v.begin();
+    for (; it != v.end(); ++it, ++i)
+        Utf8Str(it->c_str()).cloneTo(&aBstr[i]);
+
+    aBstr.detachTo(ComSafeArrayOutArg(aBstrArray));
 }
 
 struct HostDnsMonitor::Data
 {
     Data(bool aThreaded)
       : uLastExtraDataPoll(0),
-        fDNSOrderIgnore(false),
+        fLaxComparison(0),
         fThreaded(aThreaded),
         virtualbox(NULL)
     {}
@@ -80,7 +96,7 @@ struct HostDnsMonitor::Data
     std::vector<PCHostDnsMonitorProxy> proxies;
     HostDnsInformation info;
     uint64_t uLastExtraDataPoll;
-    bool fDNSOrderIgnore;
+    uint32_t fLaxComparison;
     const bool fThreaded;
     RTTHREAD hMonitoringThread;
     RTSEMEVENT hDnsInitEvent;
@@ -200,12 +216,12 @@ void HostDnsMonitor::setInfo(const HostDnsInformation &info)
     LogRel(("HostDnsMonitor: new information\n"));
     dumpHostDnsInformation(info);
 
-    bool fIgnore = m->fDNSOrderIgnore && info.equals(m->info, m->fDNSOrderIgnore);
+    bool fIgnore = m->fLaxComparison && info.equals(m->info, m->fLaxComparison);
     m->info = info;
 
     if (fIgnore)
     {
-        LogRel(("HostDnsMonitor: order change only, not notifying\n"));
+        LogRel(("HostDnsMonitor: lax comparison %#x, not notifying\n", m->fLaxComparison));
         return;
     }
 
@@ -243,23 +259,50 @@ void HostDnsMonitor::pollGlobalExtraData()
     {
         m->uLastExtraDataPoll = uNow;
 
+        /*
+         * Should we ignore the order of DNS servers?
+         */
         const com::Bstr bstrHostDNSOrderIgnoreKey("VBoxInternal2/HostDNSOrderIgnore");
         com::Bstr bstrHostDNSOrderIgnore;
         m->virtualbox->GetExtraData(bstrHostDNSOrderIgnoreKey.raw(),
                                     bstrHostDNSOrderIgnore.asOutParam());
-        bool fDNSOrderIgnore = false;
+        uint32_t fDNSOrderIgnore = 0;
         if (bstrHostDNSOrderIgnore.isNotEmpty())
         {
             if (bstrHostDNSOrderIgnore != "0")
-                fDNSOrderIgnore = true;
+                fDNSOrderIgnore = HostDnsInformation::IGNORE_SERVER_ORDER;
         }
 
-        if (fDNSOrderIgnore != m->fDNSOrderIgnore)
+        if (fDNSOrderIgnore != (m->fLaxComparison & HostDnsInformation::IGNORE_SERVER_ORDER))
         {
-            m->fDNSOrderIgnore = fDNSOrderIgnore;
+
+            m->fLaxComparison ^= HostDnsInformation::IGNORE_SERVER_ORDER;
             LogRel(("HostDnsMonitor: %ls=%ls\n",
                     bstrHostDNSOrderIgnoreKey.raw(),
                     bstrHostDNSOrderIgnore.raw()));
+        }
+
+        /*
+         * Should we ignore changes to the domain name or the search list?
+         */
+        const com::Bstr bstrHostDNSSuffixesIgnoreKey("VBoxInternal2/HostDNSSuffixesIgnore");
+        com::Bstr bstrHostDNSSuffixesIgnore;
+        m->virtualbox->GetExtraData(bstrHostDNSSuffixesIgnoreKey.raw(),
+                                    bstrHostDNSSuffixesIgnore.asOutParam());
+        uint32_t fDNSSuffixesIgnore = 0;
+        if (bstrHostDNSSuffixesIgnore.isNotEmpty())
+        {
+            if (bstrHostDNSSuffixesIgnore != "0")
+                fDNSSuffixesIgnore = HostDnsInformation::IGNORE_SUFFIXES;
+        }
+
+        if (fDNSSuffixesIgnore != (m->fLaxComparison & HostDnsInformation::IGNORE_SUFFIXES))
+        {
+
+            m->fLaxComparison ^= HostDnsInformation::IGNORE_SUFFIXES;
+            LogRel(("HostDnsMonitor: %ls=%ls\n",
+                    bstrHostDNSSuffixesIgnoreKey.raw(),
+                    bstrHostDNSSuffixesIgnore.raw()));
         }
     }
 }
@@ -304,10 +347,10 @@ void HostDnsMonitorProxy::notify() const
 {
     LogRel(("HostDnsMonitorProxy::notify\n"));
     m->fModified = true;
-    m->virtualbox->i_onHostNameResolutionConfigurationChange();
+    m->virtualbox->onHostNameResolutionConfigurationChange();
 }
 
-HRESULT HostDnsMonitorProxy::GetNameServers(std::vector<com::Utf8Str> &aNameServers)
+HRESULT HostDnsMonitorProxy::GetNameServers(ComSafeArrayOut(BSTR, aNameServers))
 {
     AssertReturn(m && m->info, E_FAIL);
     RTCLock grab(m_LockMtx);
@@ -318,12 +361,12 @@ HRESULT HostDnsMonitorProxy::GetNameServers(std::vector<com::Utf8Str> &aNameServ
     LogRel(("HostDnsMonitorProxy::GetNameServers:\n"));
     dumpHostDnsStrVector("name server", m->info->servers);
 
-    detachVectorOfString(m->info->servers, aNameServers);
+    detachVectorOfString(m->info->servers, ComSafeArrayOutArg(aNameServers));
 
     return S_OK;
 }
 
-HRESULT HostDnsMonitorProxy::GetDomainName(com::Utf8Str *pDomainName)
+HRESULT HostDnsMonitorProxy::GetDomainName(BSTR *aDomainName)
 {
     AssertReturn(m && m->info, E_FAIL);
     RTCLock grab(m_LockMtx);
@@ -334,12 +377,12 @@ HRESULT HostDnsMonitorProxy::GetDomainName(com::Utf8Str *pDomainName)
     LogRel(("HostDnsMonitorProxy::GetDomainName: %s\n",
             m->info->domain.empty() ? "no domain set" : m->info->domain.c_str()));
 
-    *pDomainName = m->info->domain.c_str();
+    Utf8Str(m->info->domain.c_str()).cloneTo(aDomainName);
 
     return S_OK;
 }
 
-HRESULT HostDnsMonitorProxy::GetSearchStrings(std::vector<com::Utf8Str> &aSearchStrings)
+HRESULT HostDnsMonitorProxy::GetSearchStrings(ComSafeArrayOut(BSTR, aSearchStrings))
 {
     AssertReturn(m && m->info, E_FAIL);
     RTCLock grab(m_LockMtx);
@@ -350,7 +393,7 @@ HRESULT HostDnsMonitorProxy::GetSearchStrings(std::vector<com::Utf8Str> &aSearch
     LogRel(("HostDnsMonitorProxy::GetSearchStrings:\n"));
     dumpHostDnsStrVector("search string", m->info->searchList);
 
-    detachVectorOfString(m->info->searchList, aSearchStrings);
+    detachVectorOfString(m->info->searchList, ComSafeArrayOutArg(aSearchStrings));
 
     return S_OK;
 }

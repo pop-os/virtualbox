@@ -64,11 +64,6 @@ DECLHIDDEN(int) rtThreadNativeAdopt(PRTTHREADINT pThread)
     return VERR_NOT_IMPLEMENTED;
 }
 
-DECLHIDDEN(void) rtThreadNativeWaitKludge(PRTTHREADINT pThread)
-{
-    NOREF(pThread);
-}
-
 
 DECLHIDDEN(void) rtThreadNativeDestroy(PRTTHREADINT pThread)
 {

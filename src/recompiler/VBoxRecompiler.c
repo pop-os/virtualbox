@@ -49,7 +49,6 @@
 #include <VBox/err.h>
 
 #include <VBox/log.h>
-#include <iprt/alloca.h>
 #include <iprt/semaphore.h>
 #include <iprt/asm.h>
 #include <iprt/assert.h>
@@ -115,10 +114,9 @@ static void     remR3HandlerWriteU8(void *pvVM, target_phys_addr_t GCPhys, uint3
 static void     remR3HandlerWriteU16(void *pvVM, target_phys_addr_t GCPhys, uint32_t u32);
 static void     remR3HandlerWriteU32(void *pvVM, target_phys_addr_t GCPhys, uint32_t u32);
 
-static void remR3NotifyHandlerPhysicalDeregister(PVM pVM, PGMPHYSHANDLERKIND enmKind, RTGCPHYS GCPhys, RTGCPHYS cb, bool fHasHCHandler, bool fRestoreAsRAM);
-static void remR3NotifyHandlerPhysicalRegister(PVM pVM, PGMPHYSHANDLERKIND enmKind, RTGCPHYS GCPhys, RTGCPHYS cb, bool fHasHCHandler);
-static void remR3NotifyHandlerPhysicalModify(PVM pVM, PGMPHYSHANDLERKIND enmKind, RTGCPHYS GCPhysOld, RTGCPHYS GCPhysNew, RTGCPHYS cb, bool fHasHCHandler, bool fRestoreAsRAM);
-
+static void remR3NotifyHandlerPhysicalDeregister(PVM pVM, PGMPHYSHANDLERTYPE enmType, RTGCPHYS GCPhys, RTGCPHYS cb, bool fHasHCHandler, bool fRestoreAsRAM);
+static void remR3NotifyHandlerPhysicalRegister(PVM pVM, PGMPHYSHANDLERTYPE enmType, RTGCPHYS GCPhys, RTGCPHYS cb, bool fHasHCHandler);
+static void remR3NotifyHandlerPhysicalModify(PVM pVM, PGMPHYSHANDLERTYPE enmType, RTGCPHYS GCPhysOld, RTGCPHYS GCPhysNew, RTGCPHYS cb, bool fHasHCHandler, bool fRestoreAsRAM);
 
 /*******************************************************************************
 *   Global Variables                                                           *
@@ -199,7 +197,7 @@ CPUWriteMemoryFunc *g_apfnHandlerWrite[3] =
 };
 
 
-#ifdef VBOX_WITH_DEBUGGER
+#if defined(VBOX_WITH_DEBUGGER) && !(defined(RT_OS_WINDOWS) && defined(RT_ARCH_AMD64))
 /*
  * Debugger commands.
  */
@@ -322,8 +320,8 @@ REMR3DECL(int) REMR3Init(PVM pVM)
         return VERR_GENERAL_FAILURE;
     }
     PVMCPU pVCpu = VMMGetCpu(pVM);
-    CPUMGetGuestCpuId(pVCpu,          1, 0, &u32Dummy, &u32Dummy, &pVM->rem.s.Env.cpuid_ext_features, &pVM->rem.s.Env.cpuid_features);
-    CPUMGetGuestCpuId(pVCpu, 0x80000001, 0, &u32Dummy, &u32Dummy, &pVM->rem.s.Env.cpuid_ext3_features, &pVM->rem.s.Env.cpuid_ext2_features);
+    CPUMGetGuestCpuId(pVCpu,          1, &u32Dummy, &u32Dummy, &pVM->rem.s.Env.cpuid_ext_features, &pVM->rem.s.Env.cpuid_features);
+    CPUMGetGuestCpuId(pVCpu, 0x80000001, &u32Dummy, &u32Dummy, &pVM->rem.s.Env.cpuid_ext3_features, &pVM->rem.s.Env.cpuid_ext2_features);
 
     EMRemLock(pVM);
     cpu_reset(&pVM->rem.s.Env);
@@ -362,7 +360,7 @@ REMR3DECL(int) REMR3Init(PVM pVM)
     if (RT_FAILURE(rc))
         return rc;
 
-#ifdef VBOX_WITH_DEBUGGER
+#if defined(VBOX_WITH_DEBUGGER) && !(defined(RT_OS_WINDOWS) && defined(RT_ARCH_AMD64))
     /*
      * Debugger commands.
      */
@@ -736,8 +734,8 @@ static DECLCALLBACK(int) remR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, 
      * Get the CPUID features.
      */
     PVMCPU pVCpu = VMMGetCpu(pVM);
-    CPUMGetGuestCpuId(pVCpu,          1, 0, &u32Dummy, &u32Dummy, &pVM->rem.s.Env.cpuid_ext_features, &pVM->rem.s.Env.cpuid_features);
-    CPUMGetGuestCpuId(pVCpu, 0x80000001, 0, &u32Dummy, &u32Dummy, &u32Dummy, &pVM->rem.s.Env.cpuid_ext2_features);
+    CPUMGetGuestCpuId(pVCpu,          1, &u32Dummy, &u32Dummy, &pVM->rem.s.Env.cpuid_ext_features, &pVM->rem.s.Env.cpuid_features);
+    CPUMGetGuestCpuId(pVCpu, 0x80000001, &u32Dummy, &u32Dummy, &u32Dummy, &pVM->rem.s.Env.cpuid_ext2_features);
 
     /*
      * Stop ignoring ignorable notifications.
@@ -1390,12 +1388,7 @@ bool remR3CanExecuteRaw(CPUX86State *env, RTGCPTR eip, unsigned fFlags, int *piE
 
     if (HMIsEnabled(env->pVM))
     {
-#ifdef RT_OS_WINDOWS
-        PCPUMCTX pCtx = alloca(sizeof(*pCtx));
-#else
         CPUMCTX Ctx;
-        PCPUMCTX pCtx = &Ctx;
-#endif
 
         env->state |= CPU_RAW_HM;
 
@@ -1408,84 +1401,84 @@ bool remR3CanExecuteRaw(CPUX86State *env, RTGCPTR eip, unsigned fFlags, int *piE
         /*
          * Create partial context for HMR3CanExecuteGuest
          */
-        pCtx->cr0            = env->cr[0];
-        pCtx->cr3            = env->cr[3];
-        pCtx->cr4            = env->cr[4];
+        Ctx.cr0            = env->cr[0];
+        Ctx.cr3            = env->cr[3];
+        Ctx.cr4            = env->cr[4];
 
-        pCtx->tr.Sel         = env->tr.selector;
-        pCtx->tr.ValidSel    = env->tr.selector;
-        pCtx->tr.fFlags      = CPUMSELREG_FLAGS_VALID;
-        pCtx->tr.u64Base     = env->tr.base;
-        pCtx->tr.u32Limit    = env->tr.limit;
-        pCtx->tr.Attr.u      = (env->tr.flags >> SEL_FLAGS_SHIFT) & SEL_FLAGS_SMASK;
+        Ctx.tr.Sel         = env->tr.selector;
+        Ctx.tr.ValidSel    = env->tr.selector;
+        Ctx.tr.fFlags      = CPUMSELREG_FLAGS_VALID;
+        Ctx.tr.u64Base     = env->tr.base;
+        Ctx.tr.u32Limit    = env->tr.limit;
+        Ctx.tr.Attr.u      = (env->tr.flags >> SEL_FLAGS_SHIFT) & SEL_FLAGS_SMASK;
 
-        pCtx->ldtr.Sel       = env->ldt.selector;
-        pCtx->ldtr.ValidSel  = env->ldt.selector;
-        pCtx->ldtr.fFlags    = CPUMSELREG_FLAGS_VALID;
-        pCtx->ldtr.u64Base   = env->ldt.base;
-        pCtx->ldtr.u32Limit  = env->ldt.limit;
-        pCtx->ldtr.Attr.u    = (env->ldt.flags >> SEL_FLAGS_SHIFT) & SEL_FLAGS_SMASK;
+        Ctx.ldtr.Sel       = env->ldt.selector;
+        Ctx.ldtr.ValidSel  = env->ldt.selector;
+        Ctx.ldtr.fFlags    = CPUMSELREG_FLAGS_VALID;
+        Ctx.ldtr.u64Base   = env->ldt.base;
+        Ctx.ldtr.u32Limit  = env->ldt.limit;
+        Ctx.ldtr.Attr.u    = (env->ldt.flags >> SEL_FLAGS_SHIFT) & SEL_FLAGS_SMASK;
 
-        pCtx->idtr.cbIdt     = env->idt.limit;
-        pCtx->idtr.pIdt      = env->idt.base;
+        Ctx.idtr.cbIdt     = env->idt.limit;
+        Ctx.idtr.pIdt      = env->idt.base;
 
-        pCtx->gdtr.cbGdt     = env->gdt.limit;
-        pCtx->gdtr.pGdt      = env->gdt.base;
+        Ctx.gdtr.cbGdt     = env->gdt.limit;
+        Ctx.gdtr.pGdt      = env->gdt.base;
 
-        pCtx->rsp            = env->regs[R_ESP];
-        pCtx->rip            = env->eip;
+        Ctx.rsp            = env->regs[R_ESP];
+        Ctx.rip            = env->eip;
 
-        pCtx->eflags.u32     = env->eflags;
+        Ctx.eflags.u32     = env->eflags;
 
-        pCtx->cs.Sel         = env->segs[R_CS].selector;
-        pCtx->cs.ValidSel    = env->segs[R_CS].selector;
-        pCtx->cs.fFlags      = CPUMSELREG_FLAGS_VALID;
-        pCtx->cs.u64Base     = env->segs[R_CS].base;
-        pCtx->cs.u32Limit    = env->segs[R_CS].limit;
-        pCtx->cs.Attr.u      = (env->segs[R_CS].flags >> SEL_FLAGS_SHIFT) & SEL_FLAGS_SMASK;
+        Ctx.cs.Sel         = env->segs[R_CS].selector;
+        Ctx.cs.ValidSel    = env->segs[R_CS].selector;
+        Ctx.cs.fFlags      = CPUMSELREG_FLAGS_VALID;
+        Ctx.cs.u64Base     = env->segs[R_CS].base;
+        Ctx.cs.u32Limit    = env->segs[R_CS].limit;
+        Ctx.cs.Attr.u      = (env->segs[R_CS].flags >> SEL_FLAGS_SHIFT) & SEL_FLAGS_SMASK;
 
-        pCtx->ds.Sel         = env->segs[R_DS].selector;
-        pCtx->ds.ValidSel    = env->segs[R_DS].selector;
-        pCtx->ds.fFlags      = CPUMSELREG_FLAGS_VALID;
-        pCtx->ds.u64Base     = env->segs[R_DS].base;
-        pCtx->ds.u32Limit    = env->segs[R_DS].limit;
-        pCtx->ds.Attr.u      = (env->segs[R_DS].flags >> SEL_FLAGS_SHIFT) & SEL_FLAGS_SMASK;
+        Ctx.ds.Sel         = env->segs[R_DS].selector;
+        Ctx.ds.ValidSel    = env->segs[R_DS].selector;
+        Ctx.ds.fFlags      = CPUMSELREG_FLAGS_VALID;
+        Ctx.ds.u64Base     = env->segs[R_DS].base;
+        Ctx.ds.u32Limit    = env->segs[R_DS].limit;
+        Ctx.ds.Attr.u      = (env->segs[R_DS].flags >> SEL_FLAGS_SHIFT) & SEL_FLAGS_SMASK;
 
-        pCtx->es.Sel         = env->segs[R_ES].selector;
-        pCtx->es.ValidSel    = env->segs[R_ES].selector;
-        pCtx->es.fFlags      = CPUMSELREG_FLAGS_VALID;
-        pCtx->es.u64Base     = env->segs[R_ES].base;
-        pCtx->es.u32Limit    = env->segs[R_ES].limit;
-        pCtx->es.Attr.u      = (env->segs[R_ES].flags >> SEL_FLAGS_SHIFT) & SEL_FLAGS_SMASK;
+        Ctx.es.Sel         = env->segs[R_ES].selector;
+        Ctx.es.ValidSel    = env->segs[R_ES].selector;
+        Ctx.es.fFlags      = CPUMSELREG_FLAGS_VALID;
+        Ctx.es.u64Base     = env->segs[R_ES].base;
+        Ctx.es.u32Limit    = env->segs[R_ES].limit;
+        Ctx.es.Attr.u      = (env->segs[R_ES].flags >> SEL_FLAGS_SHIFT) & SEL_FLAGS_SMASK;
 
-        pCtx->fs.Sel         = env->segs[R_FS].selector;
-        pCtx->fs.ValidSel    = env->segs[R_FS].selector;
-        pCtx->fs.fFlags      = CPUMSELREG_FLAGS_VALID;
-        pCtx->fs.u64Base     = env->segs[R_FS].base;
-        pCtx->fs.u32Limit    = env->segs[R_FS].limit;
-        pCtx->fs.Attr.u      = (env->segs[R_FS].flags >> SEL_FLAGS_SHIFT) & SEL_FLAGS_SMASK;
+        Ctx.fs.Sel         = env->segs[R_FS].selector;
+        Ctx.fs.ValidSel    = env->segs[R_FS].selector;
+        Ctx.fs.fFlags      = CPUMSELREG_FLAGS_VALID;
+        Ctx.fs.u64Base     = env->segs[R_FS].base;
+        Ctx.fs.u32Limit    = env->segs[R_FS].limit;
+        Ctx.fs.Attr.u      = (env->segs[R_FS].flags >> SEL_FLAGS_SHIFT) & SEL_FLAGS_SMASK;
 
-        pCtx->gs.Sel         = env->segs[R_GS].selector;
-        pCtx->gs.ValidSel    = env->segs[R_GS].selector;
-        pCtx->gs.fFlags      = CPUMSELREG_FLAGS_VALID;
-        pCtx->gs.u64Base     = env->segs[R_GS].base;
-        pCtx->gs.u32Limit    = env->segs[R_GS].limit;
-        pCtx->gs.Attr.u      = (env->segs[R_GS].flags >> SEL_FLAGS_SHIFT) & SEL_FLAGS_SMASK;
+        Ctx.gs.Sel         = env->segs[R_GS].selector;
+        Ctx.gs.ValidSel    = env->segs[R_GS].selector;
+        Ctx.gs.fFlags      = CPUMSELREG_FLAGS_VALID;
+        Ctx.gs.u64Base     = env->segs[R_GS].base;
+        Ctx.gs.u32Limit    = env->segs[R_GS].limit;
+        Ctx.gs.Attr.u      = (env->segs[R_GS].flags >> SEL_FLAGS_SHIFT) & SEL_FLAGS_SMASK;
 
-        pCtx->ss.Sel         = env->segs[R_SS].selector;
-        pCtx->ss.ValidSel    = env->segs[R_SS].selector;
-        pCtx->ss.fFlags      = CPUMSELREG_FLAGS_VALID;
-        pCtx->ss.u64Base     = env->segs[R_SS].base;
-        pCtx->ss.u32Limit    = env->segs[R_SS].limit;
-        pCtx->ss.Attr.u      = (env->segs[R_SS].flags >> SEL_FLAGS_SHIFT) & SEL_FLAGS_SMASK;
+        Ctx.ss.Sel         = env->segs[R_SS].selector;
+        Ctx.ss.ValidSel    = env->segs[R_SS].selector;
+        Ctx.ss.fFlags      = CPUMSELREG_FLAGS_VALID;
+        Ctx.ss.u64Base     = env->segs[R_SS].base;
+        Ctx.ss.u32Limit    = env->segs[R_SS].limit;
+        Ctx.ss.Attr.u      = (env->segs[R_SS].flags >> SEL_FLAGS_SHIFT) & SEL_FLAGS_SMASK;
 
-        pCtx->msrEFER        = env->efer;
+        Ctx.msrEFER        = env->efer;
 
         /* Hardware accelerated raw-mode:
          *
          * Typically only 32-bits protected mode, with paging enabled, code is allowed here.
          */
-        if (HMR3CanExecuteGuest(env->pVM, pCtx) == true)
+        if (HMR3CanExecuteGuest(env->pVM, &Ctx) == true)
         {
             *piException = EXCP_EXECUTE_HM;
             return true;
@@ -2243,11 +2236,6 @@ REMR3DECL(int)  REMR3State(PVM pVM, PVMCPU pVCpu)
         }
     }
 
-    /* Update the inhibit NMI mask. */
-    pVM->rem.s.Env.hflags2 &= ~HF2_NMI_MASK;
-    if (VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_BLOCK_NMIS))
-        pVM->rem.s.Env.hflags2 |= HF2_NMI_MASK;
-
     /*
      * Sync the A20 gate.
      */
@@ -2352,13 +2340,13 @@ REMR3DECL(int)  REMR3State(PVM pVM, PVMCPU pVCpu)
             /*
              * Get the CPUID features.
              */
-            CPUMGetGuestCpuId(pVCpu,          1, 0, &u32Dummy, &u32Dummy, &pVM->rem.s.Env.cpuid_ext_features, &pVM->rem.s.Env.cpuid_features);
-            CPUMGetGuestCpuId(pVCpu, 0x80000001, 0, &u32Dummy, &u32Dummy, &u32Dummy, &pVM->rem.s.Env.cpuid_ext2_features);
+            CPUMGetGuestCpuId(pVCpu,          1, &u32Dummy, &u32Dummy, &pVM->rem.s.Env.cpuid_ext_features, &pVM->rem.s.Env.cpuid_features);
+            CPUMGetGuestCpuId(pVCpu, 0x80000001, &u32Dummy, &u32Dummy, &u32Dummy, &pVM->rem.s.Env.cpuid_ext2_features);
         }
 
         /* Sync FPU state after CR4, CPUID and EFER (!). */
         if (fFlags & CPUM_CHANGED_FPU_REM)
-            save_raw_fp_state(&pVM->rem.s.Env, (uint8_t *)&pCtx->pXStateR3->x87); /* 'save' is an excellent name. */
+            save_raw_fp_state(&pVM->rem.s.Env, (uint8_t *)&pCtx->fpu); /* 'save' is an excellent name. */
     }
 
     /*
@@ -2551,7 +2539,7 @@ REMR3DECL(int) REMR3StateBack(PVM pVM, PVMCPU pVCpu)
     /** @todo DS */
 
     /** @todo check if FPU/XMM was actually used in the recompiler */
-    restore_raw_fp_state(&pVM->rem.s.Env, (uint8_t *)&pCtx->pXStateR3->x87);
+    restore_raw_fp_state(&pVM->rem.s.Env, (uint8_t *)&pCtx->fpu);
 ////    dprintf2(("FPU state CW=%04X TT=%04X SW=%04X (%04X)\n", env->fpuc, env->fpstt, env->fpus, pVMCtx->fpu.FSW));
 
 #ifdef TARGET_X86_64
@@ -2736,18 +2724,6 @@ REMR3DECL(int) REMR3StateBack(PVM pVM, PVMCPU pVCpu)
         VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS);
     }
 
-    /* Inhibit NMI flag. */
-    if (pVM->rem.s.Env.hflags2 & HF2_NMI_MASK)
-    {
-        Log(("Settings VMCPU_FF_BLOCK_NMIS at %RGv (REM)\n", (RTGCPTR)pCtx->rip));
-        VMCPU_FF_SET(pVCpu, VMCPU_FF_BLOCK_NMIS);
-    }
-    else if (VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_BLOCK_NMIS))
-    {
-        Log(("Clearing VMCPU_FF_BLOCK_NMIS at %RGv (REM)\n", (RTGCPTR)pCtx->rip));
-        VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_BLOCK_NMIS);
-    }
-
     remR3TrapClear(pVM);
 
     /*
@@ -2816,18 +2792,17 @@ static void remR3StateUpdate(PVM pVM, PVMCPU pVCpu)
      * This is done in the order they are declared in the CPUMCTX structure.
      */
 
-    PX86FXSTATE pFpuCtx = &pCtx->pXStateR3->x87;
     /** @todo FOP */
     /** @todo FPUIP */
     /** @todo CS */
     /** @todo FPUDP */
     /** @todo DS */
     /** @todo Fix MXCSR support in QEMU so we don't overwrite MXCSR with 0 when we shouldn't! */
-    pFpuCtx->MXCSR       = 0;
-    pFpuCtx->MXCSR_MASK  = 0;
+    pCtx->fpu.MXCSR         = 0;
+    pCtx->fpu.MXCSR_MASK    = 0;
 
     /** @todo check if FPU/XMM was actually used in the recompiler */
-    restore_raw_fp_state(&pVM->rem.s.Env, (uint8_t *)pFpuCtx);
+    restore_raw_fp_state(&pVM->rem.s.Env, (uint8_t *)&pCtx->fpu);
 ////    dprintf2(("FPU state CW=%04X TT=%04X SW=%04X (%04X)\n", env->fpuc, env->fpstt, env->fpus, pVMCtx->fpu.FSW));
 
 #ifdef TARGET_X86_64
@@ -3090,7 +3065,7 @@ REMR3DECL(void) REMR3ReplayHandlerNotifications(PVM pVM)
             {
                 case REMHANDLERNOTIFICATIONKIND_PHYSICAL_REGISTER:
                     remR3NotifyHandlerPhysicalRegister(pVM,
-                                                       pCur->u.PhysicalRegister.enmKind,
+                                                       pCur->u.PhysicalRegister.enmType,
                                                        pCur->u.PhysicalRegister.GCPhys,
                                                        pCur->u.PhysicalRegister.cb,
                                                        pCur->u.PhysicalRegister.fHasHCHandler);
@@ -3098,7 +3073,7 @@ REMR3DECL(void) REMR3ReplayHandlerNotifications(PVM pVM)
 
                 case REMHANDLERNOTIFICATIONKIND_PHYSICAL_DEREGISTER:
                     remR3NotifyHandlerPhysicalDeregister(pVM,
-                                                         pCur->u.PhysicalDeregister.enmKind,
+                                                         pCur->u.PhysicalDeregister.enmType,
                                                          pCur->u.PhysicalDeregister.GCPhys,
                                                          pCur->u.PhysicalDeregister.cb,
                                                          pCur->u.PhysicalDeregister.fHasHCHandler,
@@ -3107,7 +3082,7 @@ REMR3DECL(void) REMR3ReplayHandlerNotifications(PVM pVM)
 
                 case REMHANDLERNOTIFICATIONKIND_PHYSICAL_MODIFY:
                     remR3NotifyHandlerPhysicalModify(pVM,
-                                                     pCur->u.PhysicalModify.enmKind,
+                                                     pCur->u.PhysicalModify.enmType,
                                                      pCur->u.PhysicalModify.GCPhysOld,
                                                      pCur->u.PhysicalModify.GCPhysNew,
                                                      pCur->u.PhysicalModify.cb,
@@ -3311,7 +3286,7 @@ REMR3DECL(void) REMR3NotifyPhysRamDeregister(PVM pVM, RTGCPHYS GCPhys, RTUINT cb
  * Notification about a successful PGMR3HandlerPhysicalRegister() call.
  *
  * @param   pVM             VM Handle.
- * @param   enmKind         Kind of access handler.
+ * @param   enmType         Handler type.
  * @param   GCPhys          Handler range address.
  * @param   cb              Size of the handler range.
  * @param   fHasHCHandler   Set if the handler has a HC callback function.
@@ -3319,11 +3294,10 @@ REMR3DECL(void) REMR3NotifyPhysRamDeregister(PVM pVM, RTGCPHYS GCPhys, RTUINT cb
  * @remark  MMR3PhysRomRegister assumes that this function will not apply the
  *          Handler memory type to memory which has no HC handler.
  */
-static void remR3NotifyHandlerPhysicalRegister(PVM pVM, PGMPHYSHANDLERKIND enmKind, RTGCPHYS GCPhys, RTGCPHYS cb,
-                                               bool fHasHCHandler)
+static void remR3NotifyHandlerPhysicalRegister(PVM pVM, PGMPHYSHANDLERTYPE enmType, RTGCPHYS GCPhys, RTGCPHYS cb, bool fHasHCHandler)
 {
-    Log(("REMR3NotifyHandlerPhysicalRegister: enmKind=%d GCPhys=%RGp cb=%RGp fHasHCHandler=%d\n",
-         enmKind, GCPhys, cb, fHasHCHandler));
+    Log(("REMR3NotifyHandlerPhysicalRegister: enmType=%d GCPhys=%RGp cb=%RGp fHasHCHandler=%d\n",
+          enmType, GCPhys, cb, fHasHCHandler));
 
     VM_ASSERT_EMT(pVM);
     Assert(RT_ALIGN_T(GCPhys, PAGE_SIZE, RTGCPHYS) == GCPhys);
@@ -3333,7 +3307,7 @@ static void remR3NotifyHandlerPhysicalRegister(PVM pVM, PGMPHYSHANDLERKIND enmKi
     ASMAtomicIncU32(&pVM->rem.s.cIgnoreAll);
 
     PDMCritSectEnter(&pVM->rem.s.CritSectRegister, VERR_SEM_BUSY);
-    if (enmKind == PGMPHYSHANDLERKIND_MMIO)
+    if (enmType == PGMPHYSHANDLERTYPE_MMIO)
         cpu_register_physical_memory_offset(GCPhys, cb, pVM->rem.s.iMMIOMemType, GCPhys);
     else if (fHasHCHandler)
         cpu_register_physical_memory_offset(GCPhys, cb, pVM->rem.s.iHandlerMemType, GCPhys);
@@ -3346,7 +3320,7 @@ static void remR3NotifyHandlerPhysicalRegister(PVM pVM, PGMPHYSHANDLERKIND enmKi
  * Notification about a successful PGMR3HandlerPhysicalRegister() call.
  *
  * @param   pVM             VM Handle.
- * @param   enmKind         Kind of access handler.
+ * @param   enmType         Handler type.
  * @param   GCPhys          Handler range address.
  * @param   cb              Size of the handler range.
  * @param   fHasHCHandler   Set if the handler has a HC callback function.
@@ -3354,29 +3328,27 @@ static void remR3NotifyHandlerPhysicalRegister(PVM pVM, PGMPHYSHANDLERKIND enmKi
  * @remark  MMR3PhysRomRegister assumes that this function will not apply the
  *          Handler memory type to memory which has no HC handler.
  */
-REMR3DECL(void) REMR3NotifyHandlerPhysicalRegister(PVM pVM, PGMPHYSHANDLERKIND enmKind, RTGCPHYS GCPhys, RTGCPHYS cb,
-                                                   bool fHasHCHandler)
+REMR3DECL(void) REMR3NotifyHandlerPhysicalRegister(PVM pVM, PGMPHYSHANDLERTYPE enmType, RTGCPHYS GCPhys, RTGCPHYS cb, bool fHasHCHandler)
 {
     REMR3ReplayHandlerNotifications(pVM);
 
-    remR3NotifyHandlerPhysicalRegister(pVM, enmKind, GCPhys, cb, fHasHCHandler);
+    remR3NotifyHandlerPhysicalRegister(pVM, enmType, GCPhys, cb, fHasHCHandler);
 }
 
 /**
  * Notification about a successful PGMR3HandlerPhysicalDeregister() operation.
  *
  * @param   pVM             VM Handle.
- * @param   enmKind         Kind of access handler.
+ * @param   enmType         Handler type.
  * @param   GCPhys          Handler range address.
  * @param   cb              Size of the handler range.
  * @param   fHasHCHandler   Set if the handler has a HC callback function.
  * @param   fRestoreAsRAM   Whether the to restore it as normal RAM or as unassigned memory.
  */
-static void remR3NotifyHandlerPhysicalDeregister(PVM pVM, PGMPHYSHANDLERKIND enmKind, RTGCPHYS GCPhys, RTGCPHYS cb,
-                                                 bool fHasHCHandler, bool fRestoreAsRAM)
+static void remR3NotifyHandlerPhysicalDeregister(PVM pVM, PGMPHYSHANDLERTYPE enmType, RTGCPHYS GCPhys, RTGCPHYS cb, bool fHasHCHandler, bool fRestoreAsRAM)
 {
-    Log(("REMR3NotifyHandlerPhysicalDeregister: enmKind=%d GCPhys=%RGp cb=%RGp fHasHCHandler=%RTbool fRestoreAsRAM=%RTbool RAM=%08x\n",
-         enmKind, GCPhys, cb, fHasHCHandler, fRestoreAsRAM, MMR3PhysGetRamSize(pVM)));
+    Log(("REMR3NotifyHandlerPhysicalDeregister: enmType=%d GCPhys=%RGp cb=%RGp fHasHCHandler=%RTbool fRestoreAsRAM=%RTbool RAM=%08x\n",
+          enmType, GCPhys, cb, fHasHCHandler, fRestoreAsRAM, MMR3PhysGetRamSize(pVM)));
     VM_ASSERT_EMT(pVM);
 
 
@@ -3384,7 +3356,7 @@ static void remR3NotifyHandlerPhysicalDeregister(PVM pVM, PGMPHYSHANDLERKIND enm
 
     PDMCritSectEnter(&pVM->rem.s.CritSectRegister, VERR_SEM_BUSY);
     /** @todo this isn't right, MMIO can (in theory) be restored as RAM. */
-    if (enmKind == PGMPHYSHANDLERKIND_MMIO)
+    if (enmType == PGMPHYSHANDLERTYPE_MMIO)
         cpu_register_physical_memory_offset(GCPhys, cb, IO_MEM_UNASSIGNED, GCPhys);
     else if (fHasHCHandler)
     {
@@ -3409,16 +3381,16 @@ static void remR3NotifyHandlerPhysicalDeregister(PVM pVM, PGMPHYSHANDLERKIND enm
  * Notification about a successful PGMR3HandlerPhysicalDeregister() operation.
  *
  * @param   pVM             VM Handle.
- * @param   enmKind         Kind of access handler.
+ * @param   enmType         Handler type.
  * @param   GCPhys          Handler range address.
  * @param   cb              Size of the handler range.
  * @param   fHasHCHandler   Set if the handler has a HC callback function.
  * @param   fRestoreAsRAM   Whether the to restore it as normal RAM or as unassigned memory.
  */
-REMR3DECL(void) REMR3NotifyHandlerPhysicalDeregister(PVM pVM, PGMPHYSHANDLERKIND enmKind, RTGCPHYS GCPhys, RTGCPHYS cb, bool fHasHCHandler, bool fRestoreAsRAM)
+REMR3DECL(void) REMR3NotifyHandlerPhysicalDeregister(PVM pVM, PGMPHYSHANDLERTYPE enmType, RTGCPHYS GCPhys, RTGCPHYS cb, bool fHasHCHandler, bool fRestoreAsRAM)
 {
     REMR3ReplayHandlerNotifications(pVM);
-    remR3NotifyHandlerPhysicalDeregister(pVM, enmKind, GCPhys, cb, fHasHCHandler, fRestoreAsRAM);
+    remR3NotifyHandlerPhysicalDeregister(pVM, enmType, GCPhys, cb, fHasHCHandler, fRestoreAsRAM);
 }
 
 
@@ -3426,19 +3398,19 @@ REMR3DECL(void) REMR3NotifyHandlerPhysicalDeregister(PVM pVM, PGMPHYSHANDLERKIND
  * Notification about a successful PGMR3HandlerPhysicalModify() call.
  *
  * @param   pVM             VM Handle.
- * @param   enmKind         Kind of access handler.
+ * @param   enmType         Handler type.
  * @param   GCPhysOld       Old handler range address.
  * @param   GCPhysNew       New handler range address.
  * @param   cb              Size of the handler range.
  * @param   fHasHCHandler   Set if the handler has a HC callback function.
  * @param   fRestoreAsRAM   Whether the to restore it as normal RAM or as unassigned memory.
  */
-static void remR3NotifyHandlerPhysicalModify(PVM pVM, PGMPHYSHANDLERKIND enmKind, RTGCPHYS GCPhysOld, RTGCPHYS GCPhysNew, RTGCPHYS cb, bool fHasHCHandler, bool fRestoreAsRAM)
+static void remR3NotifyHandlerPhysicalModify(PVM pVM, PGMPHYSHANDLERTYPE enmType, RTGCPHYS GCPhysOld, RTGCPHYS GCPhysNew, RTGCPHYS cb, bool fHasHCHandler, bool fRestoreAsRAM)
 {
-    Log(("REMR3NotifyHandlerPhysicalModify: enmKind=%d GCPhysOld=%RGp GCPhysNew=%RGp cb=%RGp fHasHCHandler=%RTbool fRestoreAsRAM=%RTbool\n",
-         enmKind, GCPhysOld, GCPhysNew, cb, fHasHCHandler, fRestoreAsRAM));
+    Log(("REMR3NotifyHandlerPhysicalModify: enmType=%d GCPhysOld=%RGp GCPhysNew=%RGp cb=%RGp fHasHCHandler=%RTbool fRestoreAsRAM=%RTbool\n",
+          enmType, GCPhysOld, GCPhysNew, cb, fHasHCHandler, fRestoreAsRAM));
     VM_ASSERT_EMT(pVM);
-    AssertReleaseMsg(enmKind != PGMPHYSHANDLERKIND_MMIO, ("enmKind=%d\n", enmKind));
+    AssertReleaseMsg(enmType != PGMPHYSHANDLERTYPE_MMIO, ("enmType=%d\n", enmType));
 
     if (fHasHCHandler)
     {
@@ -3474,18 +3446,18 @@ static void remR3NotifyHandlerPhysicalModify(PVM pVM, PGMPHYSHANDLERKIND enmKind
  * Notification about a successful PGMR3HandlerPhysicalModify() call.
  *
  * @param   pVM             VM Handle.
- * @param   enmKind         Kind of access handler.
+ * @param   enmType         Handler type.
  * @param   GCPhysOld       Old handler range address.
  * @param   GCPhysNew       New handler range address.
  * @param   cb              Size of the handler range.
  * @param   fHasHCHandler   Set if the handler has a HC callback function.
  * @param   fRestoreAsRAM   Whether the to restore it as normal RAM or as unassigned memory.
  */
-REMR3DECL(void) REMR3NotifyHandlerPhysicalModify(PVM pVM, PGMPHYSHANDLERKIND enmKind, RTGCPHYS GCPhysOld, RTGCPHYS GCPhysNew, RTGCPHYS cb, bool fHasHCHandler, bool fRestoreAsRAM)
+REMR3DECL(void) REMR3NotifyHandlerPhysicalModify(PVM pVM, PGMPHYSHANDLERTYPE enmType, RTGCPHYS GCPhysOld, RTGCPHYS GCPhysNew, RTGCPHYS cb, bool fHasHCHandler, bool fRestoreAsRAM)
 {
     REMR3ReplayHandlerNotifications(pVM);
 
-    remR3NotifyHandlerPhysicalModify(pVM, enmKind, GCPhysOld, GCPhysNew, cb, fHasHCHandler, fRestoreAsRAM);
+    remR3NotifyHandlerPhysicalModify(pVM, enmType, GCPhysOld, GCPhysNew, cb, fHasHCHandler, fRestoreAsRAM);
 }
 
 /**
@@ -3978,12 +3950,11 @@ REMR3DECL(int) REMR3DisasEnableStepping(PVM pVM, bool fEnable)
 }
 
 
-#ifdef VBOX_WITH_DEBUGGER
+#if defined(VBOX_WITH_DEBUGGER) && !(defined(RT_OS_WINDOWS) && defined(RT_ARCH_AMD64))
 /**
  * External Debugger Command: .remstep [on|off|1|0]
  */
-static DECLCALLBACK(int) remR3CmdDisasEnableStepping(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PUVM pUVM,
-                                                     PCDBGCVAR paArgs, unsigned cArgs)
+static DECLCALLBACK(int) remR3CmdDisasEnableStepping(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PUVM pUVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     int rc;
     PVM pVM = pUVM->pVM;
@@ -4014,7 +3985,7 @@ static DECLCALLBACK(int) remR3CmdDisasEnableStepping(PCDBGCCMD pCmd, PDBGCCMDHLP
     }
     return rc;
 }
-#endif /* VBOX_WITH_DEBUGGER */
+#endif /* VBOX_WITH_DEBUGGER && !win.amd64 */
 
 
 /**
@@ -4524,13 +4495,13 @@ void cpu_set_apic_base(CPUX86State *env, uint64_t val)
 uint64_t cpu_get_apic_base(CPUX86State *env)
 {
     uint64_t u64;
-    VBOXSTRICTRC rcStrict = CPUMQueryGuestMsr(env->pVCpu, MSR_IA32_APICBASE, &u64);
-    if (RT_SUCCESS(rcStrict))
+    int rc = CPUMQueryGuestMsr(env->pVCpu, MSR_IA32_APICBASE, &u64);
+    if (RT_SUCCESS(rc))
     {
         LogFlow(("cpu_get_apic_base: returns %#llx \n", u64));
         return u64;
     }
-    LogFlow(("cpu_get_apic_base: returns 0 (rc=%Rrc)\n", VBOXSTRICTRC_VAL(rcStrict)));
+    LogFlow(("cpu_get_apic_base: returns 0 (rc=%Rrc)\n", rc));
     return 0;
 }
 
@@ -4717,7 +4688,7 @@ void cpu_x86_cpuid(CPUX86State *env, uint32_t idx, uint32_t idxSub,
                    uint32_t *pEAX, uint32_t *pEBX, uint32_t *pECX, uint32_t *pEDX)
 {
     NOREF(idxSub);
-    CPUMGetGuestCpuId(env->pVCpu, idx, idxSub, pEAX, pEBX, pECX, pEDX);
+    CPUMGetGuestCpuId(env->pVCpu, idx, pEAX, pEBX, pECX, pEDX);
 }
 
 

@@ -1,6 +1,8 @@
 /* $Id: UIWizardNewVMPageExpert.cpp $ */
 /** @file
- * VBox Qt GUI - UIWizardNewVMPageExpert class implementation.
+ *
+ * VBox frontends: Qt4 GUI ("VirtualBox"):
+ * UIWizardNewVMPageExpert class implementation
  */
 
 /*
@@ -15,33 +17,26 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Global includes: */
-# include <QVBoxLayout>
-# include <QHBoxLayout>
-# include <QGroupBox>
-# include <QGridLayout>
-# include <QSpacerItem>
-# include <QLineEdit>
-# include <QLabel>
-# include <QSpinBox>
-# include <QRadioButton>
+#include <QVBoxLayout>
+#include <QHBoxLayout>
+#include <QGroupBox>
+#include <QGridLayout>
+#include <QSpacerItem>
+#include <QLineEdit>
+#include <QLabel>
+#include <QSpinBox>
+#include <QRadioButton>
 
 /* Local includes: */
-# include "UIWizardNewVMPageExpert.h"
-# include "UIWizardNewVM.h"
-# include "UIIconPool.h"
-# include "UINameAndSystemEditor.h"
-# include "VBoxGuestRAMSlider.h"
-# include "VBoxMediaComboBox.h"
-# include "QIToolButton.h"
-# include "UIMedium.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
+#include "UIWizardNewVMPageExpert.h"
+#include "UIWizardNewVM.h"
+#include "UIIconPool.h"
+#include "UINameAndSystemEditor.h"
+#include "VBoxGuestRAMSlider.h"
+#include "VBoxMediaComboBox.h"
+#include "QIToolButton.h"
+#include "UIMedium.h"
 
 UIWizardNewVMPageExpert::UIWizardNewVMPageExpert(const QString &strGroup)
     : UIWizardNewVMPage1(strGroup)

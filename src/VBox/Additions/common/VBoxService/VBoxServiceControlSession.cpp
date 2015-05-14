@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2013-2014 Oracle Corporation
+ * Copyright (C) 2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -141,9 +141,6 @@ static int gstcntlSessionHandleDirRemove(PVBOXSERVICECTRLSESSION pSession,
     {
         uint32_t uFlagsRemRec = 0;
         bool fRecursive = false;
-/** @todo r=bird: Unnecessary variable fRecursive.  You can check for
- * DIRREMOVE_FLAG_RECURSIVE directly in the flags when deciding which API to
- * call. */
 
         if (!(uFlags & ~DIRREMOVE_FLAG_VALID_MASK))
         {
@@ -153,11 +150,7 @@ static int gstcntlSessionHandleDirRemove(PVBOXSERVICECTRLSESSION pSession,
                  *       Play safe here. */
                 fRecursive = true;
             }
-/** @todo r=bird: Understand how APIs you use work (read docs, check constant,
- * check code). If you check the actual values of RTDIRRMREC_F_CONTENT_AND_DIR
- * and RTDIRRMREC_F_CONTENT_ONLY, you'd notice that the first one is 0 and the
- * second is 1.  This code is a little confused about how it all works, though
- * it ends up doing the right thing as if by accident almost. */
+
             if (uFlags & DIRREMOVE_FLAG_CONTENT_AND_DIR)
             {
                 /* Setting direct value is intentional. */
@@ -176,8 +169,6 @@ static int gstcntlSessionHandleDirRemove(PVBOXSERVICECTRLSESSION pSession,
         VBoxServiceVerbose(4, "[Dir %s]: Removing with uFlags=0x%x, fRecursive=%RTbool\n",
                            szDir, uFlags, fRecursive);
 
-/** @todo r=bird: Convoluted code flow. It would be shorter and easier to
- * read if you moved this code up and into the flags-are-valid if body. */
         if (RT_SUCCESS(rc))
         {
             /** @todo Add own recursive function (or a new IPRT function w/ callback?) to
@@ -1267,16 +1258,9 @@ static DECLCALLBACK(int) gstcntlSessionThread(RTTHREAD ThreadSelf, void *pvUser)
 
         if (!fProcessAlive)
         {
-            VBoxServiceVerbose(2, "Guest session process (ID=%RU32) terminated with rc=%Rrc, reason=%ld, status=%d\n",
+            VBoxServiceVerbose(2, "Guest session ID=%RU32 process terminated with rc=%Rrc, reason=%ld, status=%d\n",
                                uSessionID, rcWait,
                                ProcessStatus.enmReason, ProcessStatus.iStatus);
-            if (ProcessStatus.iStatus == RTEXITCODE_INIT)
-            {
-                VBoxServiceError("Guest session process (ID=%RU32) failed to initialize. Here some hints:\n",
-                                 uSessionID);
-                VBoxServiceError("- Is logging enabled and the output directory is read-only by the guest session user?\n");
-                /** @todo Add more here. */
-            }
         }
     }
 
@@ -1779,11 +1763,9 @@ int GstCntlSessionProcessStartAllowed(const PVBOXSERVICECTRLSESSION pSession,
 
 
 /**
- * Creates a guest session.
- *
- * This will spawn a new VBoxService.exe instance under behalf of the given user
- * which then will act as a session host. On successful open, the session will
- * be added to the given session thread list.
+ * Creates a guest session. This will spawn a new VBoxService.exe instance under
+ * behalf of the given user which then will act as a session host. On successful
+ * open, the session will be added to the given session thread list.
  *
  * @return  IPRT status code.
  * @param   pList                   Which list to use to store the session thread in.
@@ -1834,7 +1816,7 @@ int GstCntlSessionThreadCreate(PRTLISTANCHOR pList,
 
         /* Is this an anonymous session? */
         /* Anonymous sessions run with the same privileges as the main VBoxService executable. */
-        bool const fAnonymous = pSessionThread->StartupInfo.szUser[0] == '\0';
+        bool fAnonymous = !RT_BOOL(strlen(pSessionThread->StartupInfo.szUser));
         if (fAnonymous)
         {
             Assert(!strlen(pSessionThread->StartupInfo.szPassword));
@@ -1863,43 +1845,11 @@ int GstCntlSessionThreadCreate(PRTLISTANCHOR pList,
         rc = RTCritSectInit(&pSessionThread->CritSect);
         AssertRC(rc);
 
-        /*
-         * Spawn a child process for doing the actual session handling.
-         */
+        /* Fork child doing the actual session handling. */
         char szExeName[RTPATH_MAX];
         char *pszExeName = RTProcGetExecutablePath(szExeName, sizeof(szExeName));
         if (pszExeName)
         {
-/** @todo r=bird: A while back we had this variant in the guest props code:
- *  @code
- *      int rc = RTStrPrintf(....);
- *      if (RT_SUCCESS(rc))
- *  @endcode
- *
- *  Here we've got a new variant:
- *  @code
- *      if (!RTStrPrintf(szBuf, sizeof(szBuf),...))
- *         return VERR_BUFFER_OVERFLOW;
- *  @endcode
- *  ... which is just as pointless.
- *
- *  According to the doxygen docs in iprt/string.h, RTStrPrintf returns "The
- *  length of the returned string (in pszBuffer) excluding the terminator".
- *
- *  Which admittedly makes it a real bitch to check for buffer overflows, but is
- *  a great help preventing memory corruption by careless use of the returned
- *  value if it was outside the buffer range (negative error codes or required
- *  buffer size).  We should probably add a new string formatter which API which
- *  returns VERR_BUFFER_OVERFLOW on overflow and optionally a required buffer
- *  size that you can use here...
- *
- *  However in most cases you don't need to because you make things way to
- *  complicated (see the log file name mangling for instance).
- *
- *  Here, you just need to format two or three (#ifdef DEBUG) 32-bit numbers
- *  which are no brainers, while the szUser can be used as is.  The trick is to
- *  pass the and option and the option value separately.
- */
             char szParmUserName[GUESTPROCESS_MAX_USER_LEN + 32];
             if (!fAnonymous)
             {
@@ -1925,7 +1875,7 @@ int GstCntlSessionThreadCreate(PRTLISTANCHOR pList,
             {
                 rc = VERR_BUFFER_OVERFLOW;
             }
-#endif
+#endif /* DEBUG */
             if (RT_SUCCESS(rc))
             {
                 int iOptIdx = 0; /* Current index in argument vector. */
@@ -1937,7 +1887,7 @@ int GstCntlSessionThreadCreate(PRTLISTANCHOR pList,
                 papszArgs[iOptIdx++] = szParmSessionProto;
 #ifdef DEBUG
                 papszArgs[iOptIdx++] = szParmThreadId;
-#endif
+#endif /* DEBUG */
                 if (!fAnonymous)
                     papszArgs[iOptIdx++] = szParmUserName;
 
@@ -1964,21 +1914,20 @@ int GstCntlSessionThreadCreate(PRTLISTANCHOR pList,
                     char *pszLogFile = RTStrDup(g_szLogFile);
                     if (pszLogFile)
                     {
-                        char *pszLogSuff = NULL;
-                        if (RTPathHasSuffix(pszLogFile))
-                            pszLogSuff = RTStrDup(RTPathSuffix(pszLogFile));
-                        RTPathStripSuffix(pszLogFile);
-                        char *pszLogNewSuffix;
+                        char *pszLogExt = NULL;
+                        if (RTPathHasExt(pszLogFile))
+                            pszLogExt = RTStrDup(RTPathExt(pszLogFile));
+                        RTPathStripExt(pszLogFile);
+                        char *pszLogSuffix;
 #ifndef DEBUG
-                        if (RTStrAPrintf(&pszLogNewSuffix, "-%RU32-%s",
+                        if (RTStrAPrintf(&pszLogSuffix, "-%RU32-%s",
                                          pSessionStartupInfo->uSessionID,
                                          pSessionStartupInfo->szUser) < 0)
                         {
                             rc2 = VERR_NO_MEMORY;
                         }
-#else /* DEBUG */
-                        /* Include the session thread ID in the log file name. */
-                        if (RTStrAPrintf(&pszLogNewSuffix, "-%RU32-%RU32-%s",
+#else
+                        if (RTStrAPrintf(&pszLogSuffix, "-%RU32-%RU32-%s",
                                          pSessionStartupInfo->uSessionID,
                                          s_uCtrlSessionThread,
                                          pSessionStartupInfo->szUser) < 0)
@@ -1988,9 +1937,9 @@ int GstCntlSessionThreadCreate(PRTLISTANCHOR pList,
 #endif /* DEBUG */
                         else
                         {
-                            rc2 = RTStrAAppend(&pszLogFile, pszLogNewSuffix);
-                            if (RT_SUCCESS(rc2) && pszLogSuff)
-                                rc2 = RTStrAAppend(&pszLogFile, pszLogSuff);
+                            rc2 = RTStrAAppend(&pszLogFile, pszLogSuffix);
+                            if (RT_SUCCESS(rc2) && pszLogExt)
+                                rc2 = RTStrAAppend(&pszLogFile, pszLogExt);
                             if (RT_SUCCESS(rc2))
                             {
                                 if (!RTStrPrintf(szParmLogFile, sizeof(szParmLogFile),
@@ -1999,13 +1948,13 @@ int GstCntlSessionThreadCreate(PRTLISTANCHOR pList,
                                     rc2 = VERR_BUFFER_OVERFLOW;
                                 }
                             }
-                            RTStrFree(pszLogNewSuffix);
+                            RTStrFree(pszLogSuffix);
                         }
                         if (RT_FAILURE(rc2))
                             VBoxServiceError("Error building session logfile string for session %RU32 (user %s), rc=%Rrc\n",
                                              pSessionStartupInfo->uSessionID, pSessionStartupInfo->szUser, rc2);
-                        if (pszLogSuff)
-                            RTStrFree(pszLogSuff);
+                        if (pszLogExt)
+                            RTStrFree(pszLogExt);
                         RTStrFree(pszLogFile);
                     }
                     if (RT_SUCCESS(rc2))
@@ -2022,12 +1971,6 @@ int GstCntlSessionThreadCreate(PRTLISTANCHOR pList,
                 if (   RT_SUCCESS(rc)
                     && g_Session.uFlags & VBOXSERVICECTRLSESSION_FLAG_DUMPSTDOUT)
                 {
-/** @todo r=bird: This amazing code can be replaced by
- *  @code
- *    papszArgs[iOptIdx++] = "--dump-stdout";
- *  @endcode
- *  which doesn't even need braces.
- */
                     if (!RTStrPrintf(szParmDumpStdOut, sizeof(szParmDumpStdOut), "--dump-stdout"))
                         rc = VERR_BUFFER_OVERFLOW;
                     if (RT_SUCCESS(rc))
@@ -2057,19 +2000,6 @@ int GstCntlSessionThreadCreate(PRTLISTANCHOR pList,
                 uint32_t uProcFlags = RTPROC_FLAGS_SERVICE
                                     | RTPROC_FLAGS_HIDDEN; /** @todo More flags from startup info? */
 
-                /*
-                 * Create the session process' environment block.
-                 */
-                RTENV hEnv = NIL_RTENV;
-                if (RT_SUCCESS(rc))
-                {
-                    /** @todo At the moment a session process does not have the ability to use the
-                     *        per-session environment variables itself, only the session's guest
-                     *        processes do so. Implement that later, also needs tweaking of
-                     *        VbglR3GuestCtrlSessionGetOpen(). */
-                    rc = RTEnvClone(&hEnv, RTENV_DEFAULT);
-                }
-
 #if 0 /* Pipe handling not needed (yet). */
                 /* Setup pipes. */
                 rc = GstcntlProcessSetupPipe("|", 0 /*STDIN_FILENO*/,
@@ -2097,11 +2027,15 @@ int GstCntlSessionThreadCreate(PRTLISTANCHOR pList,
                         }
 
                         if (RT_SUCCESS(rc))
-                            rc = RTProcCreateEx(pszExeName, papszArgs, hEnv, uProcFlags,
+                        {
+                            /* Fork the thing. */
+                            /** @todo Do we need a custom environment block? */
+                            rc = RTProcCreateEx(pszExeName, papszArgs, RTENV_DEFAULT, uProcFlags,
                                                 pSession->StdIn.phChild, pSession->StdOut.phChild, pSession->StdErr.phChild,
                                                 !fAnonymous ? pSession->StartupInfo.szUser : NULL,
                                                 !fAnonymous ? pSession->StartupInfo.szPassword : NULL,
                                                 &pSession->hProcess);
+                        }
 
                         if (RT_SUCCESS(rc))
                         {
@@ -2131,7 +2065,8 @@ int GstCntlSessionThreadCreate(PRTLISTANCHOR pList,
                     {
                         hStdOutAndErr.enmType = RTHANDLETYPE_FILE;
 
-                        rc = RTProcCreateEx(pszExeName, papszArgs, hEnv, uProcFlags,
+                        /** @todo Set custom/cloned guest session environment block. */
+                        rc = RTProcCreateEx(pszExeName, papszArgs, RTENV_DEFAULT, uProcFlags,
                                             &hStdIn, &hStdOutAndErr, &hStdOutAndErr,
                                             !fAnonymous ? pSessionThread->StartupInfo.szUser : NULL,
                                             !fAnonymous ? pSessionThread->StartupInfo.szPassword : NULL,
@@ -2143,8 +2078,6 @@ int GstCntlSessionThreadCreate(PRTLISTANCHOR pList,
                     RTFileClose(hStdIn.u.hFile);
                 }
 #endif
-                if (hEnv != NIL_RTENV)
-                    RTEnvDestroy(hEnv);
             }
         }
         else
@@ -2275,9 +2208,8 @@ int GstCntlSessionThreadDestroy(PVBOXSERVICECTRLSESSIONTHREAD pThread, uint32_t 
 }
 
 /**
- * Close all open guest session threads.
- *
- * @note    Caller is responsible for locking!
+ * Close all formerly opened guest session threads.
+ * Note: Caller is responsible for locking!
  *
  * @return  IPRT status code.
  * @param   pList                   Which list to close the session threads for.
@@ -2293,13 +2225,13 @@ int GstCntlSessionThreadDestroyAll(PRTLISTANCHOR pList, uint32_t uFlags)
         if (RT_FAILURE(rc))
             VBoxServiceError("Cancelling pending waits failed; rc=%Rrc\n", rc);*/
 
-/** @todo r=bird: Why don't you use RTListForEachSafe here?? */
-    PVBOXSERVICECTRLSESSIONTHREAD pSessionThread = RTListGetFirst(pList, VBOXSERVICECTRLSESSIONTHREAD, Node);
+    PVBOXSERVICECTRLSESSIONTHREAD pSessionThread
+         = RTListGetFirst(pList, VBOXSERVICECTRLSESSIONTHREAD, Node);
     while (pSessionThread)
     {
         PVBOXSERVICECTRLSESSIONTHREAD pSessionThreadNext =
             RTListGetNext(pList, pSessionThread, VBOXSERVICECTRLSESSIONTHREAD, Node);
-        bool fLast = RTListNodeIsLast(pList, &pSessionThread->Node); /** @todo r=bird: This isn't necessary, pSessionThreadNext will be NULL! */
+        bool fLast = RTListNodeIsLast(pList, &pSessionThread->Node);
 
         int rc2 = GstCntlSessionThreadDestroy(pSessionThread, uFlags);
         if (RT_FAILURE(rc2))
@@ -2319,9 +2251,6 @@ int GstCntlSessionThreadDestroyAll(PRTLISTANCHOR pList, uint32_t uFlags)
     return rc;
 }
 
-/** @todo r=bird: This isn't a fork in the tranditional unix sense, so please
- * don't confuse any unix guys by using the term.
- * GstCntlSessionChildMain would be a good name.  */
 RTEXITCODE VBoxServiceControlSessionForkInit(int argc, char **argv)
 {
     static const RTGETOPTDEF s_aOptions[] =
@@ -2353,18 +2282,19 @@ RTEXITCODE VBoxServiceControlSessionForkInit(int argc, char **argv)
     g_Session.StartupInfo.uProtocol  = UINT32_MAX;
     g_Session.StartupInfo.uSessionID = UINT32_MAX;
 
-    while ((ch = RTGetOpt(&GetState, &ValueUnion)) != 0)
+    int rc = VINF_SUCCESS;
+
+    while (   (ch = RTGetOpt(&GetState, &ValueUnion))
+           && RT_SUCCESS(rc))
     {
         /* For options that require an argument, ValueUnion has received the value. */
         switch (ch)
         {
             case VBOXSERVICESESSIONOPT_LOG_FILE:
-            {
-                int rc = RTStrCopy(g_szLogFile, sizeof(g_szLogFile), ValueUnion.psz);
-                if (RT_FAILURE(rc))
-                    return RTMsgErrorExit(RTEXITCODE_FAILURE, "Error copying log file name: %Rrc", rc);
+                if (!RTStrPrintf(g_szLogFile, sizeof(g_szLogFile), "%s", ValueUnion.psz))
+                    return RTMsgErrorExit(RTEXITCODE_FAILURE, "Unable to set logfile name to '%s'",
+                                          ValueUnion.psz);
                 break;
-            }
 #ifdef DEBUG
             case VBOXSERVICESESSIONOPT_DUMP_STDOUT:
                 uSessionFlags |= VBOXSERVICECTRLSESSION_FLAG_DUMPSTDOUT;
@@ -2375,7 +2305,7 @@ RTEXITCODE VBoxServiceControlSessionForkInit(int argc, char **argv)
                 break;
 #endif
             case VBOXSERVICESESSIONOPT_USERNAME:
-                /* Information not needed right now, skip. */
+                /** @todo Information not needed right now, skip. */
                 break;
 
             case VBOXSERVICESESSIONOPT_SESSION_ID:
@@ -2388,7 +2318,7 @@ RTEXITCODE VBoxServiceControlSessionForkInit(int argc, char **argv)
 
 #ifdef DEBUG
             case VBOXSERVICESESSIONOPT_THREAD_ID:
-                /* Not handled. Mainly for processs listing. */
+                /* Not handled. */
                 break;
 #endif
             /** @todo Implement help? */
@@ -2399,15 +2329,17 @@ RTEXITCODE VBoxServiceControlSessionForkInit(int argc, char **argv)
 
             case VINF_GETOPT_NOT_OPTION:
                 /* Ignore; might be "guestsession" main command. */
-                /** @todo r=bird: We DO NOT ignore stuff on the command line! */
                 break;
 
             default:
                 return RTMsgErrorExit(RTEXITCODE_SYNTAX, "Unknown command '%s'", ValueUnion.psz);
+                break; /* Never reached. */
         }
     }
 
-    /* Check that we've got all the required options. */
+    if (RT_FAILURE(rc))
+        return RTMsgErrorExit(RTEXITCODE_FAILURE, "Initialization failed with rc=%Rrc", rc);
+
     if (g_Session.StartupInfo.uProtocol == UINT32_MAX)
         return RTMsgErrorExit(RTEXITCODE_SYNTAX, "No protocol version specified");
 
@@ -2415,14 +2347,14 @@ RTEXITCODE VBoxServiceControlSessionForkInit(int argc, char **argv)
         return RTMsgErrorExit(RTEXITCODE_SYNTAX, "No session ID specified");
 
     /* Init the session object. */
-    int rc = GstCntlSessionInit(&g_Session, uSessionFlags);
+    rc = GstCntlSessionInit(&g_Session, uSessionFlags);
     if (RT_FAILURE(rc))
-        return RTMsgErrorExit(RTEXITCODE_INIT, "Failed to initialize session object, rc=%Rrc\n", rc);
+        return RTMsgErrorExit(RTEXITCODE_FAILURE, "Failed to initialize session object, rc=%Rrc\n", rc);
 
-    rc = VBoxServiceLogCreate(g_szLogFile[0] ? g_szLogFile : NULL);
+    rc = VBoxServiceLogCreate(strlen(g_szLogFile) ? g_szLogFile : NULL);
     if (RT_FAILURE(rc))
-        return RTMsgErrorExit(RTEXITCODE_INIT, "Failed to create log file \"%s\", rc=%Rrc\n",
-                              g_szLogFile[0] ? g_szLogFile : "<None>", rc);
+        return RTMsgErrorExit(RTEXITCODE_FAILURE, "Failed to create release log (%s, %Rrc)",
+                              strlen(g_szLogFile) ? g_szLogFile : "<None>", rc);
 
     RTEXITCODE rcExit = gstcntlSessionForkWorker(&g_Session);
 

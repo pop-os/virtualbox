@@ -1,6 +1,8 @@
 /* $Id: UIWizardExportAppPageExpert.cpp $ */
 /** @file
- * VBox Qt GUI - UIWizardExportAppPageExpert class implementation.
+ *
+ * VBox frontends: Qt4 GUI ("VirtualBox"):
+ * UIWizardExportAppPageExpert class implementation
  */
 
 /*
@@ -15,31 +17,24 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Global includes: */
-# include <QVBoxLayout>
-# include <QGridLayout>
-# include <QListWidget>
-# include <QGroupBox>
-# include <QRadioButton>
-# include <QLineEdit>
-# include <QLabel>
-# include <QCheckBox>
-# include <QGroupBox>
+#include <QVBoxLayout>
+#include <QGridLayout>
+#include <QListWidget>
+#include <QGroupBox>
+#include <QRadioButton>
+#include <QLineEdit>
+#include <QLabel>
+#include <QCheckBox>
+#include <QGroupBox>
 
 /* Local includes: */
-# include "UIWizardExportAppPageExpert.h"
-# include "UIWizardExportApp.h"
-# include "UIWizardExportAppDefs.h"
-# include "VBoxGlobal.h"
-# include "VBoxFilePathSelectorWidget.h"
-# include "UIApplianceExportEditorWidget.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
+#include "UIWizardExportAppPageExpert.h"
+#include "UIWizardExportApp.h"
+#include "UIWizardExportAppDefs.h"
+#include "VBoxGlobal.h"
+#include "VBoxFilePathSelectorWidget.h"
+#include "UIApplianceExportEditorWidget.h"
 
 UIWizardExportAppPageExpert::UIWizardExportAppPageExpert(const QStringList &selectedVMNames)
 {

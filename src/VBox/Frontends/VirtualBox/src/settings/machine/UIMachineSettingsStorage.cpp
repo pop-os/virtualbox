@@ -1,6 +1,8 @@
 /* $Id: UIMachineSettingsStorage.cpp $ */
 /** @file
- * VBox Qt GUI - UIMachineSettingsStorage class implementation.
+ *
+ * VBox frontends: Qt4 GUI ("VirtualBox"):
+ * UIMachineSettingsStorage class implementation
  */
 
 /*
@@ -15,39 +17,30 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QHeaderView>
-# include <QItemEditorFactory>
-# include <QMouseEvent>
-# include <QScrollBar>
-# include <QStylePainter>
-# include <QTimer>
+#include <QHeaderView>
+#include <QItemEditorFactory>
+#include <QMetaProperty>
+#include <QMouseEvent>
+#include <QScrollBar>
+#include <QStylePainter>
+#include <QTimer>
+#include <QCommonStyle>
 
 /* GUI includes: */
-# include "QIWidgetValidator.h"
-# include "UIIconPool.h"
-# include "UIWizardNewVD.h"
-# include "VBoxGlobal.h"
-# include "QIFileDialog.h"
-# include "UIMessageCenter.h"
-# include "UIMachineSettingsStorage.h"
-# include "UIConverter.h"
-# include "UIMedium.h"
-# include "UIExtraDataManager.h"
+#include "QIWidgetValidator.h"
+#include "UIIconPool.h"
+#include "UIWizardNewVD.h"
+#include "VBoxGlobal.h"
+#include "QIFileDialog.h"
+#include "UIMessageCenter.h"
+#include "UIMachineSettingsStorage.h"
+#include "UIConverter.h"
+#include "UIMedium.h"
 
 /* COM includes: */
-# include "CStorageController.h"
-# include "CMediumAttachment.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
-#include <QCommonStyle>
-#include <QMetaProperty>
-
+#include "CStorageController.h"
+#include "CMediumAttachment.h"
 
 QString compressText (const QString &aText)
 {
@@ -55,200 +48,84 @@ QString compressText (const QString &aText)
 }
 
 
-/** UIIconPool interface extension used as Storage Settings page icon-pool. */
-class UIIconPoolStorageSettings : public UIIconPool
+/* Pixmap Storage */
+QPointer <PixmapPool> PixmapPool::mThis = 0;
+
+PixmapPool* PixmapPool::pool (QObject *aParent)
 {
-public:
-
-    /** Icon-pool instance access method. */
-    static UIIconPoolStorageSettings* instance();
-    /** Create icon-pool instance. */
-    static void create();
-    /** Destroy icon-pool instance. */
-    static void destroy();
-
-    /** Returns pixmap corresponding to passed @a pixmapType. */
-    QPixmap pixmap(PixmapType pixmapType) const;
-    /** Returns icon (probably merged) corresponding to passed @a pixmapType and @a pixmapDisabledType. */
-    QIcon icon(PixmapType pixmapType, PixmapType pixmapDisabledType = InvalidPixmap) const;
-
-private:
-
-    /** Icon-pool constructor. */
-    UIIconPoolStorageSettings();
-    /** Icon-pool destructor. */
-    ~UIIconPoolStorageSettings();
-
-    /** Icon-pool instance. */
-    static UIIconPoolStorageSettings *m_spInstance;
-    /** Icon-pool names cache. */
-    QMap<PixmapType, QString> m_names;
-    /** Icon-pool icons cache. */
-    mutable QMap<PixmapType, QIcon> m_icons;
-};
-UIIconPoolStorageSettings* iconPool() { return UIIconPoolStorageSettings::instance(); }
-
-/* static */
-UIIconPoolStorageSettings* UIIconPoolStorageSettings::m_spInstance = 0;
-UIIconPoolStorageSettings* UIIconPoolStorageSettings::instance() { return m_spInstance; }
-void UIIconPoolStorageSettings::create() { new UIIconPoolStorageSettings; }
-void UIIconPoolStorageSettings::destroy() { delete m_spInstance; }
-
-QPixmap UIIconPoolStorageSettings::pixmap(PixmapType pixmapType) const
-{
-    /* Prepare fallback pixmap: */
-    static QPixmap nullPixmap;
-
-    /* If we do NOT have that 'pixmap type' icon cached already: */
-    if (!m_icons.contains(pixmapType))
+    if (!mThis)
     {
-        /* Compose proper icon if we have that 'pixmap type' known: */
-        if (m_names.contains(pixmapType))
-            m_icons[pixmapType] = iconSet(m_names[pixmapType]);
-        /* Assign fallback icon if we do NOT have that 'pixmap type' known: */
-        else
-            m_icons[pixmapType] = iconSet(nullPixmap);
+        AssertMsg (aParent, ("This object must have parent!\n"));
+        mThis = new PixmapPool (aParent);
     }
-
-    /* Retrieve corresponding icon: */
-    const QIcon &icon = m_icons[pixmapType];
-    AssertMsgReturn(!icon.isNull(),
-                    ("Undefined icon for type '%d'.", (int)pixmapType),
-                    nullPixmap);
-
-    /* Retrieve available sizes for that icon: */
-    const QList<QSize> availableSizes = icon.availableSizes();
-    AssertMsgReturn(!availableSizes.isEmpty(),
-                    ("Undefined icon for type '%s'.", (int)pixmapType),
-                    nullPixmap);
-
-    /* Return pixmap of first available size: */
-    return icon.pixmap(availableSizes.first());
-}
-
-QIcon UIIconPoolStorageSettings::icon(PixmapType pixmapType,
-                                      PixmapType pixmapDisabledType /* = InvalidPixmap */) const
-{
-    /* Prepare fallback pixmap: */
-    static QPixmap nullPixmap;
-    /* Prepare fallback icon: */
-    static QIcon nullIcon;
-
-    /* If we do NOT have that 'pixmap type' icon cached already: */
-    if (!m_icons.contains(pixmapType))
+    else
     {
-        /* Compose proper icon if we have that 'pixmap type' known: */
-        if (m_names.contains(pixmapType))
-            m_icons[pixmapType] = iconSet(m_names[pixmapType]);
-        /* Assign fallback icon if we do NOT have that 'pixmap type' known: */
-        else
-            m_icons[pixmapType] = iconSet(nullPixmap);
+        AssertMsg (!aParent, ("Parent already set!\n"));
     }
-
-    /* Retrieve normal icon: */
-    const QIcon &icon = m_icons[pixmapType];
-    AssertMsgReturn(!icon.isNull(),
-                    ("Undefined icon for type '%d'.", (int)pixmapType),
-                    nullIcon);
-
-    /* If 'disabled' icon is invalid => just return 'normal' icon: */
-    if (pixmapDisabledType == InvalidPixmap)
-        return icon;
-
-    /* If we do NOT have that 'pixmap disabled type' icon cached already: */
-    if (!m_icons.contains(pixmapDisabledType))
-    {
-        /* Compose proper icon if we have that 'pixmap disabled type' known: */
-        if (m_names.contains(pixmapDisabledType))
-            m_icons[pixmapDisabledType] = iconSet(m_names[pixmapDisabledType]);
-        /* Assign fallback icon if we do NOT have that 'pixmap disabled type' known: */
-        else
-            m_icons[pixmapDisabledType] = iconSet(nullPixmap);
-    }
-
-    /* Retrieve disabled icon: */
-    const QIcon &iconDisabled = m_icons[pixmapDisabledType];
-    AssertMsgReturn(!iconDisabled.isNull(),
-                    ("Undefined icon for type '%d'.", (int)pixmapDisabledType),
-                    nullIcon);
-
-    /* Return icon composed on the basis of two above: */
-    QIcon resultIcon = icon;
-    foreach (const QSize &size, iconDisabled.availableSizes())
-        resultIcon.addPixmap(iconDisabled.pixmap(size), QIcon::Disabled);
-    return resultIcon;
+    return mThis;
 }
 
-UIIconPoolStorageSettings::UIIconPoolStorageSettings()
+PixmapPool::PixmapPool (QObject *aParent)
+    : QObject (aParent)
+    , mPool(MaxIndex)
 {
-    /* Connect instance: */
-    m_spInstance = this;
+    mPool [ControllerAddEn]          = QPixmap (":/controller_add_16px.png");
+    mPool [ControllerAddDis]         = QPixmap (":/controller_add_disabled_16px.png");
+    mPool [ControllerDelEn]          = QPixmap (":/controller_remove_16px.png");
+    mPool [ControllerDelDis]         = QPixmap (":/controller_remove_disabled_16px.png");
 
-    /* Controller file-names: */
-    m_names.insert(ControllerAddEn,          ":/controller_add_16px.png");
-    m_names.insert(ControllerAddDis,         ":/controller_add_disabled_16px.png");
-    m_names.insert(ControllerDelEn,          ":/controller_remove_16px.png");
-    m_names.insert(ControllerDelDis,         ":/controller_remove_disabled_16px.png");
-    /* Attachment file-names: */
-    m_names.insert(AttachmentAddEn,          ":/attachment_add_16px.png");
-    m_names.insert(AttachmentAddDis,         ":/attachment_add_disabled_16px.png");
-    m_names.insert(AttachmentDelEn,          ":/attachment_remove_16px.png");
-    m_names.insert(AttachmentDelDis,         ":/attachment_remove_disabled_16px.png");
-    /* Specific controller default/expand/collapse file-names: */
-    m_names.insert(IDEControllerNormal,      ":/ide_16px.png");
-    m_names.insert(IDEControllerExpand,      ":/ide_expand_16px.png");
-    m_names.insert(IDEControllerCollapse,    ":/ide_collapse_16px.png");
-    m_names.insert(SATAControllerNormal,     ":/sata_16px.png");
-    m_names.insert(SATAControllerExpand,     ":/sata_expand_16px.png");
-    m_names.insert(SATAControllerCollapse,   ":/sata_collapse_16px.png");
-    m_names.insert(SCSIControllerNormal,     ":/scsi_16px.png");
-    m_names.insert(SCSIControllerExpand,     ":/scsi_expand_16px.png");
-    m_names.insert(SCSIControllerCollapse,   ":/scsi_collapse_16px.png");
-    m_names.insert(USBControllerNormal,      ":/usb_16px.png");
-    m_names.insert(USBControllerExpand,      ":/usb_expand_16px.png");
-    m_names.insert(USBControllerCollapse,    ":/usb_collapse_16px.png");
-    m_names.insert(FloppyControllerNormal,   ":/floppy_16px.png");
-    m_names.insert(FloppyControllerExpand,   ":/floppy_expand_16px.png");
-    m_names.insert(FloppyControllerCollapse, ":/floppy_collapse_16px.png");
-    /* Specific controller add file-names: */
-    m_names.insert(IDEControllerAddEn,       ":/ide_add_16px.png");
-    m_names.insert(IDEControllerAddDis,      ":/ide_add_disabled_16px.png");
-    m_names.insert(SATAControllerAddEn,      ":/sata_add_16px.png");
-    m_names.insert(SATAControllerAddDis,     ":/sata_add_disabled_16px.png");
-    m_names.insert(SCSIControllerAddEn,      ":/scsi_add_16px.png");
-    m_names.insert(SCSIControllerAddDis,     ":/scsi_add_disabled_16px.png");
-    m_names.insert(USBControllerAddEn,       ":/usb_add_16px.png");
-    m_names.insert(USBControllerAddDis,      ":/usb_add_disabled_16px.png");
-    m_names.insert(FloppyControllerAddEn,    ":/floppy_add_16px.png");
-    m_names.insert(FloppyControllerAddDis,   ":/floppy_add_disabled_16px.png");
-    /* Specific attachment file-names: */
-    m_names.insert(HDAttachmentNormal,       ":/hd_16px.png");
-    m_names.insert(CDAttachmentNormal,       ":/cd_16px.png");
-    m_names.insert(FDAttachmentNormal,       ":/fd_16px.png");
-    /* Specific attachment add file-names: */
-    m_names.insert(HDAttachmentAddEn,        ":/hd_add_16px.png");
-    m_names.insert(HDAttachmentAddDis,       ":/hd_add_disabled_16px.png");
-    m_names.insert(CDAttachmentAddEn,        ":/cd_add_16px.png");
-    m_names.insert(CDAttachmentAddDis,       ":/cd_add_disabled_16px.png");
-    m_names.insert(FDAttachmentAddEn,        ":/fd_add_16px.png");
-    m_names.insert(FDAttachmentAddDis,       ":/fd_add_disabled_16px.png");
-    /* Specific attachment custom file-names: */
-    m_names.insert(ChooseExistingEn,         ":/select_file_16px.png");
-    m_names.insert(ChooseExistingDis,        ":/select_file_disabled_16px.png");
-    m_names.insert(HDNewEn,                  ":/hd_new_16px.png");
-    m_names.insert(HDNewDis,                 ":/hd_new_disabled_16px.png");
-    m_names.insert(CDUnmountEnabled,         ":/cd_unmount_16px.png");
-    m_names.insert(CDUnmountDisabled,        ":/cd_unmount_disabled_16px.png");
-    m_names.insert(FDUnmountEnabled,         ":/fd_unmount_16px.png");
-    m_names.insert(FDUnmountDisabled,        ":/fd_unmount_disabled_16px.png");
+    mPool [AttachmentAddEn]          = QPixmap (":/attachment_add_16px.png");
+    mPool [AttachmentAddDis]         = QPixmap (":/attachment_add_disabled_16px.png");
+    mPool [AttachmentDelEn]          = QPixmap (":/attachment_remove_16px.png");
+    mPool [AttachmentDelDis]         = QPixmap (":/attachment_remove_disabled_16px.png");
+
+    mPool [IDEControllerNormal]      = QPixmap (":/ide_16px.png");
+    mPool [IDEControllerExpand]      = QPixmap (":/ide_expand_16px.png");
+    mPool [IDEControllerCollapse]    = QPixmap (":/ide_collapse_16px.png");
+    mPool [SATAControllerNormal]     = QPixmap (":/sata_16px.png");
+    mPool [SATAControllerExpand]     = QPixmap (":/sata_expand_16px.png");
+    mPool [SATAControllerCollapse]   = QPixmap (":/sata_collapse_16px.png");
+    mPool [SCSIControllerNormal]     = QPixmap (":/scsi_16px.png");
+    mPool [SCSIControllerExpand]     = QPixmap (":/scsi_expand_16px.png");
+    mPool [SCSIControllerCollapse]   = QPixmap (":/scsi_collapse_16px.png");
+    mPool [FloppyControllerNormal]   = QPixmap (":/floppy_16px.png");
+    mPool [FloppyControllerExpand]   = QPixmap (":/floppy_expand_16px.png");
+    mPool [FloppyControllerCollapse] = QPixmap (":/floppy_collapse_16px.png");
+
+    mPool [IDEControllerAddEn]       = QPixmap (":/ide_add_16px.png");
+    mPool [IDEControllerAddDis]      = QPixmap (":/ide_add_disabled_16px.png");
+    mPool [SATAControllerAddEn]      = QPixmap (":/sata_add_16px.png");
+    mPool [SATAControllerAddDis]     = QPixmap (":/sata_add_disabled_16px.png");
+    mPool [SCSIControllerAddEn]      = QPixmap (":/scsi_add_16px.png");
+    mPool [SCSIControllerAddDis]     = QPixmap (":/scsi_add_disabled_16px.png");
+    mPool [FloppyControllerAddEn]    = QPixmap (":/floppy_add_16px.png");
+    mPool [FloppyControllerAddDis]   = QPixmap (":/floppy_add_disabled_16px.png");
+
+    mPool [HDAttachmentNormal]       = QPixmap (":/hd_16px.png");
+    mPool [CDAttachmentNormal]       = QPixmap (":/cd_16px.png");
+    mPool [FDAttachmentNormal]       = QPixmap (":/fd_16px.png");
+
+    mPool [HDAttachmentAddEn]        = QPixmap (":/hd_add_16px.png");
+    mPool [HDAttachmentAddDis]       = QPixmap (":/hd_add_disabled_16px.png");
+    mPool [CDAttachmentAddEn]        = QPixmap (":/cd_add_16px.png");
+    mPool [CDAttachmentAddDis]       = QPixmap (":/cd_add_disabled_16px.png");
+    mPool [FDAttachmentAddEn]        = QPixmap (":/fd_add_16px.png");
+    mPool [FDAttachmentAddDis]       = QPixmap (":/fd_add_disabled_16px.png");
+
+    mPool [ChooseExistingEn]         = QPixmap (":/select_file_16px.png");
+    mPool [ChooseExistingDis]        = QPixmap (":/select_file_disabled_16px.png");
+    mPool [HDNewEn]                  = QPixmap (":/hd_new_16px.png");
+    mPool [HDNewDis]                 = QPixmap (":/hd_new_disabled_16px.png");
+    mPool [CDUnmountEnabled]         = QPixmap (":/cd_unmount_16px.png");
+    mPool [CDUnmountDisabled]        = QPixmap (":/cd_unmount_dis_16px.png");
+    mPool [FDUnmountEnabled]         = QPixmap (":/fd_unmount_16px.png");
+    mPool [FDUnmountDisabled]        = QPixmap (":/fd_unmount_dis_16px.png");
 }
 
-UIIconPoolStorageSettings::~UIIconPoolStorageSettings()
+QPixmap PixmapPool::pixmap (PixmapType aType) const
 {
-    /* Disconnect instance: */
-    m_spInstance = 0;
+    return aType > InvalidPixmap && aType < MaxIndex ? mPool [aType] : 0;
 }
-
 
 /* Abstract Controller Type */
 AbstractControllerType::AbstractControllerType (KStorageBus aBusType, KStorageControllerType aCtrType)
@@ -260,31 +137,28 @@ AbstractControllerType::AbstractControllerType (KStorageBus aBusType, KStorageCo
 
     for (int i = 0; i < State_MAX; ++ i)
     {
-        mPixmaps << InvalidPixmap;
+        mPixmaps << PixmapPool::InvalidPixmap;
         switch (mBusType)
         {
             case KStorageBus_IDE:
-                mPixmaps [i] = (PixmapType)(IDEControllerNormal + i);
+                mPixmaps [i] = (PixmapPool::PixmapType) (PixmapPool::IDEControllerNormal + i);
                 break;
             case KStorageBus_SATA:
-                mPixmaps [i] = (PixmapType)(SATAControllerNormal + i);
+                mPixmaps [i] = (PixmapPool::PixmapType) (PixmapPool::SATAControllerNormal + i);
                 break;
             case KStorageBus_SCSI:
-                mPixmaps [i] = (PixmapType)(SCSIControllerNormal + i);
+                mPixmaps [i] = (PixmapPool::PixmapType) (PixmapPool::SCSIControllerNormal + i);
                 break;
             case KStorageBus_Floppy:
-                mPixmaps [i] = (PixmapType)(FloppyControllerNormal + i);
+                mPixmaps [i] = (PixmapPool::PixmapType) (PixmapPool::FloppyControllerNormal + i);
                 break;
             case KStorageBus_SAS:
-                mPixmaps [i] = (PixmapType)(SATAControllerNormal + i);
-                break;
-            case KStorageBus_USB:
-                mPixmaps [i] = (PixmapType)(USBControllerNormal + i);
+                mPixmaps [i] = (PixmapPool::PixmapType) (PixmapPool::SATAControllerNormal + i);
                 break;
             default:
                 break;
         }
-        AssertMsg (mPixmaps [i] != InvalidPixmap, ("Item state pixmap was not set!\n"));
+        AssertMsg (mPixmaps [i] != PixmapPool::InvalidPixmap, ("Item state pixmap was not set!\n"));
     }
 }
 
@@ -306,7 +180,7 @@ ControllerTypeList AbstractControllerType::ctrTypes() const
     return result;
 }
 
-PixmapType AbstractControllerType::pixmap(ItemState aState) const
+PixmapPool::PixmapType AbstractControllerType::pixmap (ItemState aState) const
 {
     return mPixmaps [aState];
 }
@@ -400,23 +274,6 @@ uint SASControllerType::size() const
 {
     return 1;
 }
-
-/* USB Controller Type */
-USBStorageControllerType::USBStorageControllerType (KStorageControllerType aSubType)
-    : AbstractControllerType (KStorageBus_USB, aSubType)
-{
-}
-
-KStorageControllerType USBStorageControllerType::first() const
-{
-    return KStorageControllerType_USB;
-}
-
-uint USBStorageControllerType::size() const
-{
-    return 1;
-}
-
 
 /* Abstract Item */
 AbstractItem::AbstractItem (AbstractItem *aParent)
@@ -558,10 +415,6 @@ ControllerItem::ControllerItem (AbstractItem *aParent, const QString &aName,
         case KStorageBus_SAS:
             mCtrType = new SASControllerType (aControllerType);
             break;
-        case KStorageBus_USB:
-            mCtrType = new USBStorageControllerType (aControllerType);
-            break;
-
         default:
             AssertMsgFailed (("Wrong Controller Type {%d}!\n", aBusType));
             break;
@@ -607,11 +460,6 @@ uint ControllerItem::portCount()
             mPortCount = (uint)pItem->attSlot().port + 1;
     }
     return mPortCount;
-}
-
-uint ControllerItem::maxPortCount()
-{
-    return (uint)vboxGlobal().virtualBox().GetSystemProperties().GetMaxPortCountForStorageBus(ctrBusType());
 }
 
 bool ControllerItem::ctrUseIoCache() const
@@ -708,7 +556,7 @@ QString ControllerItem::tip() const
 
 QPixmap ControllerItem::pixmap (ItemState aState)
 {
-    return iconPool()->pixmap(mCtrType->pixmap(aState));
+    return PixmapPool::pool()->pixmap (mCtrType->pixmap (aState));
 }
 
 void ControllerItem::addChild (AbstractItem *aItem)
@@ -729,7 +577,6 @@ AttachmentItem::AttachmentItem (AbstractItem *aParent, KDeviceType aDeviceType)
     , mAttIsPassthrough (false)
     , mAttIsTempEject (false)
     , mAttIsNonRotational (false)
-    , m_fIsHotPluggable(false)
 {
     /* Check for proper parent type */
     AssertMsg (mParent->rtti() == AbstractItem::Type_ControllerItem, ("Incorrect parent type!\n"));
@@ -793,11 +640,6 @@ bool AttachmentItem::attIsNonRotational() const
     return mAttIsNonRotational;
 }
 
-bool AttachmentItem::attIsHotPluggable() const
-{
-    return m_fIsHotPluggable;
-}
-
 void AttachmentItem::setAttSlot (const StorageSlot &aAttSlot)
 {
     mAttSlot = aAttSlot;
@@ -830,11 +672,6 @@ void AttachmentItem::setAttIsNonRotational (bool aIsAttNonRotational)
     mAttIsNonRotational = aIsAttNonRotational;
 }
 
-void AttachmentItem::setAttIsHotPluggable(bool fIsHotPluggable)
-{
-    m_fIsHotPluggable = fIsHotPluggable;
-}
-
 QString AttachmentItem::attSize() const
 {
     return mAttSize;
@@ -865,11 +702,6 @@ QString AttachmentItem::attUsage() const
     return mAttUsage;
 }
 
-QString AttachmentItem::attEncryptionPasswordID() const
-{
-    return m_strAttEncryptionPasswordID;
-}
-
 void AttachmentItem::cache()
 {
     UIMedium medium = vboxGlobal().medium(mAttMediumId);
@@ -884,7 +716,6 @@ void AttachmentItem::cache()
     mAttSize = medium.size (true);
     mAttLogicalSize = medium.logicalSize (true);
     mAttLocation = medium.location (true);
-    m_strAttEncryptionPasswordID = QString("--");
     if (medium.isNull())
     {
         mAttFormat = QString("--");
@@ -897,9 +728,6 @@ void AttachmentItem::cache()
             {
                 mAttFormat = QString("%1 (%2)").arg(medium.hardDiskType(true)).arg(medium.hardDiskFormat(true));
                 mAttDetails = medium.storageDetails();
-                const QString strAttEncryptionPasswordID = medium.encryptionPasswordID();
-                if (!strAttEncryptionPasswordID.isNull())
-                    m_strAttEncryptionPasswordID = strAttEncryptionPasswordID;
                 break;
             }
             case KDeviceType_DVD:
@@ -961,13 +789,13 @@ QPixmap AttachmentItem::pixmap (ItemState /* aState */)
         switch (mAttDeviceType)
         {
             case KDeviceType_HardDisk:
-                mAttPixmap = iconPool()->pixmap(HDAttachmentNormal);
+                mAttPixmap = PixmapPool::pool()->pixmap (PixmapPool::HDAttachmentNormal);
                 break;
             case KDeviceType_DVD:
-                mAttPixmap = iconPool()->pixmap(CDAttachmentNormal);
+                mAttPixmap = PixmapPool::pool()->pixmap (PixmapPool::CDAttachmentNormal);
                 break;
             case KDeviceType_Floppy:
-                mAttPixmap = iconPool()->pixmap(FDAttachmentNormal);
+                mAttPixmap = PixmapPool::pool()->pixmap (PixmapPool::FDAttachmentNormal);
                 break;
             default:
                 break;
@@ -990,7 +818,7 @@ StorageModel::StorageModel (QObject *aParent)
     , mRootItem (new RootItem)
     , mToolTipType (DefaultToolTip)
     , m_chipsetType(KChipsetType_PIIX3)
-    , m_configurationAccessLevel(ConfigurationAccessLevel_Null)
+    , m_dialogType(SettingsDialogType_Wrong)
 {
 }
 
@@ -1078,10 +906,10 @@ QVariant StorageModel::data (const QModelIndex &aIndex, int aRole) const
                             tip = UIMachineSettingsStorage::tr ("<nobr>Add&nbsp;Hard&nbsp;Disk</nobr>");
                             break;
                         case CDAdderToolTip:
-                            tip = UIMachineSettingsStorage::tr ("<nobr>Add&nbsp;Optical&nbsp;Drive</nobr>");
+                            tip = UIMachineSettingsStorage::tr ("<nobr>Add&nbsp;CD/DVD&nbsp;Device</nobr>");
                             break;
                         case FDAdderToolTip:
-                            tip = UIMachineSettingsStorage::tr ("<nobr>Add&nbsp;Floppy&nbsp;Drive</nobr>");
+                            tip = UIMachineSettingsStorage::tr ("<nobr>Add&nbsp;Floppy&nbsp;Device</nobr>");
                             break;
                         default:
                             break;
@@ -1160,39 +988,33 @@ QVariant StorageModel::data (const QModelIndex &aIndex, int aRole) const
         }
         case R_IsMoreIDEControllersPossible:
         {
-            return (m_configurationAccessLevel == ConfigurationAccessLevel_Full) &&
+            return (m_dialogType == SettingsDialogType_Offline) &&
                    (static_cast<RootItem*>(mRootItem)->childCount(KStorageBus_IDE) <
                     vboxGlobal().virtualBox().GetSystemProperties().GetMaxInstancesOfStorageBus(chipsetType(), KStorageBus_IDE));
         }
         case R_IsMoreSATAControllersPossible:
         {
-            return (m_configurationAccessLevel == ConfigurationAccessLevel_Full) &&
+            return (m_dialogType == SettingsDialogType_Offline) &&
                    (static_cast<RootItem*>(mRootItem)->childCount(KStorageBus_SATA) <
                     vboxGlobal().virtualBox().GetSystemProperties().GetMaxInstancesOfStorageBus(chipsetType(), KStorageBus_SATA));
         }
         case R_IsMoreSCSIControllersPossible:
         {
-            return (m_configurationAccessLevel == ConfigurationAccessLevel_Full) &&
+            return (m_dialogType == SettingsDialogType_Offline) &&
                    (static_cast<RootItem*>(mRootItem)->childCount(KStorageBus_SCSI) <
                     vboxGlobal().virtualBox().GetSystemProperties().GetMaxInstancesOfStorageBus(chipsetType(), KStorageBus_SCSI));
         }
         case R_IsMoreFloppyControllersPossible:
         {
-            return (m_configurationAccessLevel == ConfigurationAccessLevel_Full) &&
+            return (m_dialogType == SettingsDialogType_Offline) &&
                    (static_cast<RootItem*>(mRootItem)->childCount(KStorageBus_Floppy) <
                     vboxGlobal().virtualBox().GetSystemProperties().GetMaxInstancesOfStorageBus(chipsetType(), KStorageBus_Floppy));
         }
         case R_IsMoreSASControllersPossible:
         {
-            return (m_configurationAccessLevel == ConfigurationAccessLevel_Full) &&
+            return (m_dialogType == SettingsDialogType_Offline) &&
                    (static_cast<RootItem*>(mRootItem)->childCount(KStorageBus_SAS) <
                     vboxGlobal().virtualBox().GetSystemProperties().GetMaxInstancesOfStorageBus(chipsetType(), KStorageBus_SAS));
-        }
-        case R_IsMoreUSBControllersPossible:
-        {
-            return (m_configurationAccessLevel == ConfigurationAccessLevel_Full) &&
-                   (static_cast<RootItem*>(mRootItem)->childCount(KStorageBus_USB) <
-                    vboxGlobal().virtualBox().GetSystemProperties().GetMaxInstancesOfStorageBus(chipsetType(), KStorageBus_USB));
         }
         case R_IsMoreAttachmentsPossible:
         {
@@ -1202,15 +1024,9 @@ QVariant StorageModel::data (const QModelIndex &aIndex, int aRole) const
                 {
                     ControllerItem *ctr = static_cast <ControllerItem*> (item);
                     CSystemProperties sp = vboxGlobal().virtualBox().GetSystemProperties();
-                    switch (m_configurationAccessLevel)
-                    {
-                        case ConfigurationAccessLevel_Full: return ((uint)rowCount(aIndex) < sp.GetMaxPortCountForStorageBus(ctr->ctrBusType()) *
-                                                                                             sp.GetMaxDevicesPerPortForStorageBus(ctr->ctrBusType()));
-                        case ConfigurationAccessLevel_Runtime: return (ctr->ctrBusType() == KStorageBus_SATA) &&
-                                                                      ((uint)rowCount(aIndex) < ctr->portCount());
-                        default: break;
-                    }
-                    return false;
+                    return (m_dialogType == SettingsDialogType_Offline) &&
+                           ((uint)rowCount(aIndex) < sp.GetMaxPortCountForStorageBus(ctr->ctrBusType()) *
+                                                     sp.GetMaxDevicesPerPortForStorageBus(ctr->ctrBusType()));
                 }
             }
             return false;
@@ -1260,13 +1076,6 @@ QVariant StorageModel::data (const QModelIndex &aIndex, int aRole) const
             if (AbstractItem *item = static_cast <AbstractItem*> (aIndex.internalPointer()))
                 if (item->rtti() == AbstractItem::Type_ControllerItem)
                     return static_cast <ControllerItem*> (item)->portCount();
-            return 0;
-        }
-        case R_CtrMaxPortCount:
-        {
-            if (AbstractItem *item = static_cast <AbstractItem*> (aIndex.internalPointer()))
-                if (item->rtti() == AbstractItem::Type_ControllerItem)
-                    return static_cast <ControllerItem*> (item)->maxPortCount();
             return 0;
         }
         case R_CtrIoCache:
@@ -1336,13 +1145,6 @@ QVariant StorageModel::data (const QModelIndex &aIndex, int aRole) const
                     return static_cast <AttachmentItem*> (item)->attIsNonRotational();
             return false;
         }
-        case R_AttIsHotPluggable:
-        {
-            if (AbstractItem *item = static_cast<AbstractItem*>(aIndex.internalPointer()))
-                if (item->rtti() == AbstractItem::Type_AttachmentItem)
-                    return static_cast<AttachmentItem*>(item)->attIsHotPluggable();
-            return false;
-        }
         case R_AttSize:
         {
             if (AbstractItem *item = static_cast <AbstractItem*> (aIndex.internalPointer()))
@@ -1385,13 +1187,6 @@ QVariant StorageModel::data (const QModelIndex &aIndex, int aRole) const
                     return static_cast <AttachmentItem*> (item)->attUsage();
             return QString();
         }
-        case R_AttEncryptionPasswordID:
-        {
-            if (AbstractItem *pItem = static_cast<AbstractItem*>(aIndex.internalPointer()))
-                if (pItem->rtti() == AbstractItem::Type_AttachmentItem)
-                    return static_cast<AttachmentItem*>(pItem)->attEncryptionPasswordID();
-            return QString();
-        }
         case R_Margin:
         {
             return 4;
@@ -1407,40 +1202,40 @@ QVariant StorageModel::data (const QModelIndex &aIndex, int aRole) const
 
         case R_HDPixmapEn:
         {
-            return iconPool()->pixmap(HDAttachmentNormal);
+            return PixmapPool::pool()->pixmap (PixmapPool::HDAttachmentNormal);
         }
         case R_CDPixmapEn:
         {
-            return iconPool()->pixmap(CDAttachmentNormal);
+            return PixmapPool::pool()->pixmap (PixmapPool::CDAttachmentNormal);
         }
         case R_FDPixmapEn:
         {
-            return iconPool()->pixmap(FDAttachmentNormal);
+            return PixmapPool::pool()->pixmap (PixmapPool::FDAttachmentNormal);
         }
 
         case R_HDPixmapAddEn:
         {
-            return iconPool()->pixmap(HDAttachmentAddEn);
+            return PixmapPool::pool()->pixmap (PixmapPool::HDAttachmentAddEn);
         }
         case R_HDPixmapAddDis:
         {
-            return iconPool()->pixmap(HDAttachmentAddDis);
+            return PixmapPool::pool()->pixmap (PixmapPool::HDAttachmentAddDis);
         }
         case R_CDPixmapAddEn:
         {
-            return iconPool()->pixmap(CDAttachmentAddEn);
+            return PixmapPool::pool()->pixmap (PixmapPool::CDAttachmentAddEn);
         }
         case R_CDPixmapAddDis:
         {
-            return iconPool()->pixmap(CDAttachmentAddDis);
+            return PixmapPool::pool()->pixmap (PixmapPool::CDAttachmentAddDis);
         }
         case R_FDPixmapAddEn:
         {
-            return iconPool()->pixmap(FDAttachmentAddEn);
+            return PixmapPool::pool()->pixmap (PixmapPool::FDAttachmentAddEn);
         }
         case R_FDPixmapAddDis:
         {
-            return iconPool()->pixmap(FDAttachmentAddDis);
+            return PixmapPool::pool()->pixmap (PixmapPool::FDAttachmentAddDis);
         }
         case R_HDPixmapRect:
         {
@@ -1592,17 +1387,6 @@ bool StorageModel::setData (const QModelIndex &aIndex, const QVariant &aValue, i
                 }
             return false;
         }
-        case R_AttIsHotPluggable:
-        {
-            if (AbstractItem *item = static_cast<AbstractItem*>(aIndex.internalPointer()))
-                if (item->rtti() == AbstractItem::Type_AttachmentItem)
-                {
-                    static_cast<AttachmentItem*>(item)->setAttIsHotPluggable(aValue.toBool());
-                    emit dataChanged(aIndex, aIndex);
-                    return true;
-                }
-            return false;
-        }
         default:
             break;
     }
@@ -1637,7 +1421,6 @@ QModelIndex StorageModel::addAttachment (const QUuid &aCtrId, KDeviceType aDevic
         QModelIndex parentIndex = index (parentPosition, 0, root());
         beginInsertRows (parentIndex, parent->childCount(), parent->childCount());
         AttachmentItem *pItem = new AttachmentItem (parent, aDeviceType);
-        pItem->setAttIsHotPluggable(m_configurationAccessLevel != ConfigurationAccessLevel_Full);
         pItem->setAttMediumId(strMediumId);
         endInsertRows();
         return index (parent->childCount() - 1, 0, parentIndex);
@@ -1750,9 +1533,9 @@ void StorageModel::setChipsetType(KChipsetType type)
     m_chipsetType = type;
 }
 
-void StorageModel::setConfigurationAccessLevel(ConfigurationAccessLevel newConfigurationAccessLevel)
+void StorageModel::setDialogType(SettingsDialogType dialogType)
 {
-    m_configurationAccessLevel = newConfigurationAccessLevel;
+    m_dialogType = dialogType;
 }
 
 void StorageModel::clear()
@@ -1768,7 +1551,7 @@ void StorageModel::clear()
 QMap<KStorageBus, int> StorageModel::currentControllerTypes() const
 {
     QMap<KStorageBus, int> currentMap;
-    for (int iStorageBusType = KStorageBus_IDE; iStorageBusType <= KStorageBus_USB; ++iStorageBusType)
+    for (int iStorageBusType = KStorageBus_IDE; iStorageBusType <= KStorageBus_SAS; ++iStorageBusType)
     {
         currentMap.insert((KStorageBus)iStorageBusType,
                           static_cast<RootItem*>(mRootItem)->childCount((KStorageBus)iStorageBusType));
@@ -1779,7 +1562,7 @@ QMap<KStorageBus, int> StorageModel::currentControllerTypes() const
 QMap<KStorageBus, int> StorageModel::maximumControllerTypes() const
 {
     QMap<KStorageBus, int> maximumMap;
-    for (int iStorageBusType = KStorageBus_IDE; iStorageBusType <= KStorageBus_USB; ++iStorageBusType)
+    for (int iStorageBusType = KStorageBus_IDE; iStorageBusType <= KStorageBus_SAS; ++iStorageBusType)
     {
         maximumMap.insert((KStorageBus)iStorageBusType,
                           vboxGlobal().virtualBox().GetSystemProperties().GetMaxInstancesOfStorageBus(chipsetType(), (KStorageBus)iStorageBusType));
@@ -1938,7 +1721,7 @@ private:
 UIMachineSettingsStorage::UIMachineSettingsStorage()
     : mStorageModel(0)
     , mAddCtrAction(0), mDelCtrAction(0)
-    , mAddIDECtrAction(0), mAddSATACtrAction(0), mAddSCSICtrAction(0), mAddSASCtrAction(0), mAddFloppyCtrAction(0), mAddUSBCtrAction(0)
+    , mAddIDECtrAction(0), mAddSATACtrAction(0), mAddSCSICtrAction(0), mAddSASCtrAction(0), mAddFloppyCtrAction(0)
     , mAddAttAction(0), mDelAttAction(0)
     , mAddHDAttAction(0), mAddCDAttAction(0), mAddFDAttAction(0)
     , m_pMediumIdHolder(new UIMediumIDHolder(this))
@@ -1954,49 +1737,58 @@ UIMachineSettingsStorage::UIMachineSettingsStorage()
      * in a background thread. */
     vboxGlobal().startMediumEnumeration();
 
-    /* Create icon-pool: */
-    UIIconPoolStorageSettings::create();
+    /* Initialize pixmap pool */
+    PixmapPool::pool (this);
 
     /* Controller Actions */
     mAddCtrAction = new QAction (this);
-    mAddCtrAction->setIcon(iconPool()->icon(ControllerAddEn, ControllerAddDis));
+    mAddCtrAction->setIcon(UIIconPool::iconSet(PixmapPool::pool()->pixmap (PixmapPool::ControllerAddEn),
+                                               PixmapPool::pool()->pixmap (PixmapPool::ControllerAddDis)));
 
     mAddIDECtrAction = new QAction (this);
-    mAddIDECtrAction->setIcon(iconPool()->icon(IDEControllerAddEn, IDEControllerAddDis));
+    mAddIDECtrAction->setIcon(UIIconPool::iconSet(PixmapPool::pool()->pixmap (PixmapPool::IDEControllerAddEn),
+                                                  PixmapPool::pool()->pixmap (PixmapPool::IDEControllerAddDis)));
 
     mAddSATACtrAction = new QAction (this);
-    mAddSATACtrAction->setIcon(iconPool()->icon(SATAControllerAddEn, SATAControllerAddDis));
+    mAddSATACtrAction->setIcon(UIIconPool::iconSet(PixmapPool::pool()->pixmap (PixmapPool::SATAControllerAddEn),
+                                                   PixmapPool::pool()->pixmap (PixmapPool::SATAControllerAddDis)));
 
     mAddSCSICtrAction = new QAction (this);
-    mAddSCSICtrAction->setIcon(iconPool()->icon(SCSIControllerAddEn, SCSIControllerAddDis));
+    mAddSCSICtrAction->setIcon(UIIconPool::iconSet(PixmapPool::pool()->pixmap (PixmapPool::SCSIControllerAddEn),
+                                                   PixmapPool::pool()->pixmap (PixmapPool::SCSIControllerAddDis)));
 
     mAddFloppyCtrAction = new QAction (this);
-    mAddFloppyCtrAction->setIcon(iconPool()->icon(FloppyControllerAddEn, FloppyControllerAddDis));
+    mAddFloppyCtrAction->setIcon(UIIconPool::iconSet(PixmapPool::pool()->pixmap (PixmapPool::FloppyControllerAddEn),
+                                                     PixmapPool::pool()->pixmap (PixmapPool::FloppyControllerAddDis)));
 
     mAddSASCtrAction = new QAction (this);
-    mAddSASCtrAction->setIcon(iconPool()->icon(SATAControllerAddEn, SATAControllerAddDis));
-
-    mAddUSBCtrAction = new QAction (this);
-    mAddUSBCtrAction->setIcon(iconPool()->icon(USBControllerAddEn, USBControllerAddDis));
+    mAddSASCtrAction->setIcon(UIIconPool::iconSet(PixmapPool::pool()->pixmap (PixmapPool::SATAControllerAddEn),
+                                                  PixmapPool::pool()->pixmap (PixmapPool::SATAControllerAddDis)));
 
     mDelCtrAction = new QAction (this);
-    mDelCtrAction->setIcon(iconPool()->icon(ControllerDelEn, ControllerDelDis));
+    mDelCtrAction->setIcon(UIIconPool::iconSet(PixmapPool::pool()->pixmap (PixmapPool::ControllerDelEn),
+                                               PixmapPool::pool()->pixmap (PixmapPool::ControllerDelDis)));
 
     /* Attachment Actions */
     mAddAttAction = new QAction (this);
-    mAddAttAction->setIcon(iconPool()->icon(AttachmentAddEn, AttachmentAddDis));
+    mAddAttAction->setIcon(UIIconPool::iconSet(PixmapPool::pool()->pixmap (PixmapPool::AttachmentAddEn),
+                                               PixmapPool::pool()->pixmap (PixmapPool::AttachmentAddDis)));
 
     mAddHDAttAction = new QAction (this);
-    mAddHDAttAction->setIcon(iconPool()->icon(HDAttachmentAddEn, HDAttachmentAddDis));
+    mAddHDAttAction->setIcon(UIIconPool::iconSet(PixmapPool::pool()->pixmap (PixmapPool::HDAttachmentAddEn),
+                                                 PixmapPool::pool()->pixmap (PixmapPool::HDAttachmentAddDis)));
 
     mAddCDAttAction = new QAction (this);
-    mAddCDAttAction->setIcon(iconPool()->icon(CDAttachmentAddEn, CDAttachmentAddDis));
+    mAddCDAttAction->setIcon(UIIconPool::iconSet(PixmapPool::pool()->pixmap (PixmapPool::CDAttachmentAddEn),
+                                                 PixmapPool::pool()->pixmap (PixmapPool::CDAttachmentAddDis)));
 
     mAddFDAttAction = new QAction (this);
-    mAddFDAttAction->setIcon(iconPool()->icon(FDAttachmentAddEn, FDAttachmentAddDis));
+    mAddFDAttAction->setIcon(UIIconPool::iconSet(PixmapPool::pool()->pixmap (PixmapPool::FDAttachmentAddEn),
+                                                 PixmapPool::pool()->pixmap (PixmapPool::FDAttachmentAddDis)));
 
     mDelAttAction = new QAction (this);
-    mDelAttAction->setIcon(iconPool()->icon(AttachmentDelEn, AttachmentDelDis));
+    mDelAttAction->setIcon(UIIconPool::iconSet(PixmapPool::pool()->pixmap (PixmapPool::AttachmentDelEn),
+                                               PixmapPool::pool()->pixmap (PixmapPool::AttachmentDelDis)));
 
     /* Storage Model/View */
     mStorageModel = new StorageModel (mTwStorageTree);
@@ -2037,7 +1829,6 @@ UIMachineSettingsStorage::UIMachineSettingsStorage()
     mLbHDDetailsValue->setFullSizeSelection (true);
     mLbLocationValue->setFullSizeSelection (true);
     mLbUsageValue->setFullSizeSelection (true);
-    m_pLabelEncryptionValue->setFullSizeSelection(true);
 
     /* Setup connections: */
     connect(&vboxGlobal(), SIGNAL(sigMediumEnumerated(const QString&)),
@@ -2050,7 +1841,6 @@ UIMachineSettingsStorage::UIMachineSettingsStorage()
     connect (mAddSCSICtrAction, SIGNAL (triggered (bool)), this, SLOT (addSCSIController()));
     connect (mAddSASCtrAction, SIGNAL (triggered (bool)), this, SLOT (addSASController()));
     connect (mAddFloppyCtrAction, SIGNAL (triggered (bool)), this, SLOT (addFloppyController()));
-    connect (mAddUSBCtrAction, SIGNAL (triggered (bool)), this, SLOT (addUSBController()));
     connect (mDelCtrAction, SIGNAL (triggered (bool)), this, SLOT (delController()));
     connect (mAddAttAction, SIGNAL (triggered (bool)), this, SLOT (addAttachment()));
     connect (mAddHDAttAction, SIGNAL (triggered (bool)), this, SLOT (addHDAttachment()));
@@ -2084,7 +1874,6 @@ UIMachineSettingsStorage::UIMachineSettingsStorage()
     connect (mCbPassthrough, SIGNAL (stateChanged (int)), this, SLOT (setInformation()));
     connect (mCbTempEject, SIGNAL (stateChanged (int)), this, SLOT (setInformation()));
     connect (mCbNonRotational, SIGNAL (stateChanged (int)), this, SLOT (setInformation()));
-    connect(m_pCheckBoxHotPluggable, SIGNAL(stateChanged(int)), this, SLOT(setInformation()));
 
     /* Applying language settings */
     retranslateUi();
@@ -2092,12 +1881,6 @@ UIMachineSettingsStorage::UIMachineSettingsStorage()
     /* Initial setup */
     setMinimumWidth (500);
     mSplitter->setSizes (QList<int>() << (int) (0.45 * minimumWidth()) << (int) (0.55 * minimumWidth()));
-}
-
-UIMachineSettingsStorage::~UIMachineSettingsStorage()
-{
-    /* Destroy icon-pool: */
-    UIIconPoolStorageSettings::destroy();
 }
 
 void UIMachineSettingsStorage::setChipsetType(KChipsetType type)
@@ -2176,7 +1959,6 @@ void UIMachineSettingsStorage::loadToCacheFrom(QVariant &data)
                     storageAttachmentData.m_fAttachmentPassthrough = attachment.GetPassthrough();
                     storageAttachmentData.m_fAttachmentTempEject = attachment.GetTemporaryEject();
                     storageAttachmentData.m_fAttachmentNonRotational = attachment.GetNonRotational();
-                    storageAttachmentData.m_fAttachmentHotPluggable = attachment.GetHotPluggable();
                     const CMedium cmedium = attachment.GetMedium();
                     storageAttachmentData.m_strAttachmentMediumId = cmedium.isNull() ? UIMedium::nullID() : cmedium.GetId();
                 }
@@ -2237,7 +2019,6 @@ void UIMachineSettingsStorage::getFromCache()
             mStorageModel->setData(attachmentIndex, attachmentData.m_fAttachmentPassthrough, StorageModel::R_AttIsPassthrough);
             mStorageModel->setData(attachmentIndex, attachmentData.m_fAttachmentTempEject, StorageModel::R_AttIsTempEject);
             mStorageModel->setData(attachmentIndex, attachmentData.m_fAttachmentNonRotational, StorageModel::R_AttIsNonRotational);
-            mStorageModel->setData(attachmentIndex, attachmentData.m_fAttachmentHotPluggable, StorageModel::R_AttIsHotPluggable);
         }
     }
     /* Set the first controller as current if present */
@@ -2291,7 +2072,6 @@ void UIMachineSettingsStorage::putToCache()
             attachmentData.m_fAttachmentPassthrough = mStorageModel->data(attachmentIndex, StorageModel::R_AttIsPassthrough).toBool();
             attachmentData.m_fAttachmentTempEject = mStorageModel->data(attachmentIndex, StorageModel::R_AttIsTempEject).toBool();
             attachmentData.m_fAttachmentNonRotational = mStorageModel->data(attachmentIndex, StorageModel::R_AttIsNonRotational).toBool();
-            attachmentData.m_fAttachmentHotPluggable = mStorageModel->data(attachmentIndex, StorageModel::R_AttIsHotPluggable).toBool();
             attachmentData.m_strAttachmentMediumId = mStorageModel->data(attachmentIndex, StorageModel::R_AttMediumId).toString();
 
             /* Recache storage attachment data: */
@@ -2385,7 +2165,7 @@ bool UIMachineSettingsStorage::validate(QList<UIValidationMessage> &messages)
     QStringList excessiveList;
     QMap<KStorageBus, int> currentType = mStorageModel->currentControllerTypes();
     QMap<KStorageBus, int> maximumType = mStorageModel->maximumControllerTypes();
-    for (int iStorageBusType = KStorageBus_IDE; iStorageBusType <= KStorageBus_USB; ++iStorageBusType)
+    for (int iStorageBusType = KStorageBus_IDE; iStorageBusType <= KStorageBus_SAS; ++iStorageBusType)
     {
         if (currentType[(KStorageBus)iStorageBusType] > maximumType[(KStorageBus)iStorageBusType])
         {
@@ -2431,12 +2211,11 @@ void UIMachineSettingsStorage::retranslateUi()
     mAddSCSICtrAction->setText (tr ("Add SCSI Controller"));
     mAddSASCtrAction->setText (tr ("Add SAS Controller"));
     mAddFloppyCtrAction->setText (tr ("Add Floppy Controller"));
-    mAddUSBCtrAction->setText (tr ("Add USB Controller"));
     mDelCtrAction->setText (tr ("Remove Controller"));
     mAddAttAction->setText (tr ("Add Attachment"));
     mAddHDAttAction->setText (tr ("Add Hard Disk"));
-    mAddCDAttAction->setText (tr ("Add Optical Drive"));
-    mAddFDAttAction->setText (tr ("Add Floppy Drive"));
+    mAddCDAttAction->setText (tr ("Add CD/DVD Device"));
+    mAddFDAttAction->setText (tr ("Add Floppy Device"));
     mDelAttAction->setText (tr ("Remove Attachment"));
 
     mAddCtrAction->setWhatsThis (tr ("Adds a new controller to the end of the Storage Tree."));
@@ -2541,7 +2320,6 @@ void UIMachineSettingsStorage::addController()
     menu.addAction (mAddSCSICtrAction);
     menu.addAction (mAddSASCtrAction);
     menu.addAction (mAddFloppyCtrAction);
-    menu.addAction (mAddUSBCtrAction);
     menu.exec (QCursor::pos());
 }
 
@@ -2568,11 +2346,6 @@ void UIMachineSettingsStorage::addFloppyController()
 void UIMachineSettingsStorage::addSASController()
 {
     addControllerWrapper (generateUniqueName ("SAS"), KStorageBus_SAS, KStorageControllerType_LsiLogicSas);
-}
-
-void UIMachineSettingsStorage::addUSBController()
-{
-    addControllerWrapper (generateUniqueName ("USB"), KStorageBus_USB, KStorageControllerType_USB);
 }
 
 void UIMachineSettingsStorage::delController()
@@ -2697,11 +2470,9 @@ void UIMachineSettingsStorage::getInformation()
                 mCbType->setCurrentIndex (ctrPos == -1 ? 0 : ctrPos);
 
                 KStorageBus bus = mStorageModel->data (index, StorageModel::R_CtrBusType).value <KStorageBus>();
-                mLbPortCount->setVisible (bus == KStorageBus_SATA || bus == KStorageBus_SAS);
-                mSbPortCount->setVisible (bus == KStorageBus_SATA || bus == KStorageBus_SAS);
+                mLbPortCount->setVisible (bus == KStorageBus_SATA);
+                mSbPortCount->setVisible (bus == KStorageBus_SATA);
                 uint uPortCount = mStorageModel->data (index, StorageModel::R_CtrPortCount).toUInt();
-                uint uMaxPortCount = mStorageModel->data (index, StorageModel::R_CtrMaxPortCount).toUInt();
-                mSbPortCount->setMaximum(uMaxPortCount);
                 mSbPortCount->setValue (uPortCount);
 
                 bool isUseIoCache = mStorageModel->data (index, StorageModel::R_CtrIoCache).toBool();
@@ -2729,22 +2500,22 @@ void UIMachineSettingsStorage::getInformation()
                 {
                     case KDeviceType_HardDisk:
                         mLbMedium->setText(tr("Hard &Disk:"));
-                        mTbOpen->setIcon(iconPool()->icon(HDAttachmentNormal));
+                        mTbOpen->setIcon(UIIconPool::iconSet(PixmapPool::pool()->pixmap(PixmapPool::HDAttachmentNormal)));
                         mTbOpen->setWhatsThis(tr("Choose or create a virtual hard disk file. The virtual machine will see "
                                                  "the data in the file as the contents of the virtual hard disk."));
                         mTbOpen->setToolTip(tr("Set up the virtual hard disk"));
                         break;
                     case KDeviceType_DVD:
-                        mLbMedium->setText(tr("Optical &Drive:"));
-                        mTbOpen->setIcon(iconPool()->icon(CDAttachmentNormal));
-                        mTbOpen->setWhatsThis(tr("Choose a virtual optical disk or a physical drive to use with the virtual drive. "
+                        mLbMedium->setText(tr("CD/DVD &Drive:"));
+                        mTbOpen->setIcon(UIIconPool::iconSet(PixmapPool::pool()->pixmap(PixmapPool::CDAttachmentNormal)));
+                        mTbOpen->setWhatsThis(tr("Choose a virtual CD/DVD disk or a physical drive to use with the virtual drive. "
                                                  "The virtual machine will see a disk inserted into the drive with the data "
                                                  "in the file or on the disk in the physical drive as its contents."));
-                        mTbOpen->setToolTip(tr("Set up the virtual optical drive"));
+                        mTbOpen->setToolTip(tr("Set up the virtual CD/DVD drive"));
                         break;
                     case KDeviceType_Floppy:
                         mLbMedium->setText(tr("Floppy &Drive:"));
-                        mTbOpen->setIcon(iconPool()->icon(FDAttachmentNormal));
+                        mTbOpen->setIcon(UIIconPool::iconSet(PixmapPool::pool()->pixmap(PixmapPool::FDAttachmentNormal)));
                         mTbOpen->setWhatsThis(tr("Choose a virtual floppy disk or a physical drive to use with the virtual drive. "
                                                  "The virtual machine will see a disk inserted into the drive with the data "
                                                  "in the file or on the disk in the physical drive as its contents."));
@@ -2753,20 +2524,10 @@ void UIMachineSettingsStorage::getInformation()
                     default:
                         break;
                 }
-
-                /* Get hot-pluggable state: */
-                bool fIsHotPluggable = mStorageModel->data(index, StorageModel::R_AttIsHotPluggable).toBool();
-
-                /* Fetch device-type, medium-id: */
                 m_pMediumIdHolder->setType(mediumTypeToLocal(device));
                 m_pMediumIdHolder->setId(mStorageModel->data(index, StorageModel::R_AttMediumId).toString());
-
-                /* Get/fetch editable state: */
-                bool fIsEditable =    (isMachineOffline())
-                                   || (isMachineOnline() && device != KDeviceType_HardDisk)
-                                   || (isMachineOnline() && device == KDeviceType_HardDisk && fIsHotPluggable);
-                mLbMedium->setEnabled(fIsEditable);
-                mTbOpen->setEnabled(fIsEditable);
+                mLbMedium->setEnabled(isMachineOffline() || (isMachineOnline() && device != KDeviceType_HardDisk));
+                mTbOpen->setEnabled(isMachineOffline() || (isMachineOnline() && device != KDeviceType_HardDisk));
 
                 /* Getting Passthrough state */
                 bool isHostDrive = mStorageModel->data (index, StorageModel::R_AttIsHostDrive).toBool();
@@ -2781,10 +2542,6 @@ void UIMachineSettingsStorage::getInformation()
                 mCbNonRotational->setVisible (device == KDeviceType_HardDisk);
                 mCbNonRotational->setChecked (mStorageModel->data (index, StorageModel::R_AttIsNonRotational).toBool());
 
-                /* Fetch hot-pluggable state: */
-                m_pCheckBoxHotPluggable->setVisible(slt.bus == KStorageBus_SATA);
-                m_pCheckBoxHotPluggable->setChecked(fIsHotPluggable);
-
                 /* Update optional widgets visibility */
                 updateAdditionalObjects (device);
 
@@ -2797,7 +2554,6 @@ void UIMachineSettingsStorage::getInformation()
                 mLbHDDetailsValue->setText (compressText (mStorageModel->data (index, StorageModel::R_AttDetails).toString()));
                 mLbLocationValue->setText (compressText (mStorageModel->data (index, StorageModel::R_AttLocation).toString()));
                 mLbUsageValue->setText (compressText (mStorageModel->data (index, StorageModel::R_AttUsage).toString()));
-                m_pLabelEncryptionValue->setText(compressText(mStorageModel->data(index, StorageModel::R_AttEncryptionPasswordID).toString()));
 
                 /* Showing Attachment Page */
                 mSwRightPane->setCurrentIndex (2);
@@ -2866,10 +2622,6 @@ void UIMachineSettingsStorage::setInformation()
             {
                 mStorageModel->setData (index, mCbNonRotational->isChecked(), StorageModel::R_AttIsNonRotational);
             }
-            else if (sdr == m_pCheckBoxHotPluggable)
-            {
-                mStorageModel->setData(index, m_pCheckBoxHotPluggable->isChecked(), StorageModel::R_AttIsHotPluggable);
-            }
             break;
         }
         default:
@@ -2896,7 +2648,8 @@ void UIMachineSettingsStorage::sltPrepareOpenMediumMenu()
             {
                 /* Add "Create a new virtual hard disk" action: */
                 QAction *pCreateNewHardDisk = pOpenMediumMenu->addAction(tr("Create a new hard disk..."));
-                pCreateNewHardDisk->setIcon(iconPool()->icon(HDNewEn, HDNewDis));
+                pCreateNewHardDisk->setIcon(UIIconPool::iconSet(PixmapPool::pool()->pixmap(PixmapPool::HDNewEn),
+                                                                PixmapPool::pool()->pixmap(PixmapPool::HDNewDis)));
                 connect(pCreateNewHardDisk, SIGNAL(triggered(bool)), this, SLOT(sltCreateNewHardDisk()));
                 /* Add "Choose a virtual hard disk file" action: */
                 addChooseExistingMediumAction(pOpenMediumMenu, tr("Choose a virtual hard disk file..."));
@@ -2906,8 +2659,8 @@ void UIMachineSettingsStorage::sltPrepareOpenMediumMenu()
             }
             case UIMediumType_DVD:
             {
-                /* Add "Choose a virtual optical disk file" action: */
-                addChooseExistingMediumAction(pOpenMediumMenu, tr("Choose a virtual optical disk file..."));
+                /* Add "Choose a virtual CD/DVD disk file" action: */
+                addChooseExistingMediumAction(pOpenMediumMenu, tr("Choose a virtual CD/DVD disk file..."));
                 /* Add "Choose a physical drive" actions: */
                 addChooseHostDriveActions(pOpenMediumMenu);
                 /* Add recent mediums list: */
@@ -2916,7 +2669,8 @@ void UIMachineSettingsStorage::sltPrepareOpenMediumMenu()
                 pOpenMediumMenu->addSeparator();
                 QAction *pEjectCurrentMedium = pOpenMediumMenu->addAction(tr("Remove disk from virtual drive"));
                 pEjectCurrentMedium->setEnabled(!m_pMediumIdHolder->isNull());
-                pEjectCurrentMedium->setIcon(iconPool()->icon(CDUnmountEnabled, CDUnmountDisabled));
+                pEjectCurrentMedium->setIcon(UIIconPool::iconSet(PixmapPool::pool()->pixmap(PixmapPool::CDUnmountEnabled),
+                                                                 PixmapPool::pool()->pixmap(PixmapPool::CDUnmountDisabled)));
                 connect(pEjectCurrentMedium, SIGNAL(triggered(bool)), this, SLOT(sltUnmountDevice()));
                 break;
             }
@@ -2932,7 +2686,8 @@ void UIMachineSettingsStorage::sltPrepareOpenMediumMenu()
                 pOpenMediumMenu->addSeparator();
                 QAction *pEjectCurrentMedium = pOpenMediumMenu->addAction(tr("Remove disk from virtual drive"));
                 pEjectCurrentMedium->setEnabled(!m_pMediumIdHolder->isNull());
-                pEjectCurrentMedium->setIcon(iconPool()->icon(FDUnmountEnabled, FDUnmountDisabled));
+                pEjectCurrentMedium->setIcon(UIIconPool::iconSet(PixmapPool::pool()->pixmap(PixmapPool::FDUnmountEnabled),
+                                                                 PixmapPool::pool()->pixmap(PixmapPool::FDUnmountDisabled)));
                 connect(pEjectCurrentMedium, SIGNAL(triggered(bool)), this, SLOT(sltUnmountDevice()));
                 break;
             }
@@ -2997,36 +2752,25 @@ void UIMachineSettingsStorage::updateActionsState()
     bool isSCSIPossible = mStorageModel->data (index, StorageModel::R_IsMoreSCSIControllersPossible).toBool();
     bool isFloppyPossible = mStorageModel->data (index, StorageModel::R_IsMoreFloppyControllersPossible).toBool();
     bool isSASPossible = mStorageModel->data (index, StorageModel::R_IsMoreSASControllersPossible).toBool();
-    bool isUSBPossible = mStorageModel->data (index, StorageModel::R_IsMoreUSBControllersPossible).toBool();
 
     bool isController = mStorageModel->data (index, StorageModel::R_IsController).toBool();
     bool isAttachment = mStorageModel->data (index, StorageModel::R_IsAttachment).toBool();
     bool isAttachmentsPossible = mStorageModel->data (index, StorageModel::R_IsMoreAttachmentsPossible).toBool();
-    bool fIsAttachmentHotPluggable = mStorageModel->data(index, StorageModel::R_AttIsHotPluggable).toBool();
 
-    /* Configure "add controller" actions: */
-    mAddCtrAction->setEnabled (isIDEPossible || isSATAPossible || isSCSIPossible || isFloppyPossible || isSASPossible || isUSBPossible);
+    mAddCtrAction->setEnabled (isIDEPossible || isSATAPossible || isSCSIPossible || isFloppyPossible || isSASPossible);
     mAddIDECtrAction->setEnabled (isIDEPossible);
     mAddSATACtrAction->setEnabled (isSATAPossible);
     mAddSCSICtrAction->setEnabled (isSCSIPossible);
     mAddFloppyCtrAction->setEnabled (isFloppyPossible);
     mAddSASCtrAction->setEnabled (isSASPossible);
-    mAddUSBCtrAction->setEnabled (isUSBPossible);
 
-    /* Configure "add attachment" actions: */
     mAddAttAction->setEnabled (isController && isAttachmentsPossible);
     mAddHDAttAction->setEnabled (isController && isAttachmentsPossible);
     mAddCDAttAction->setEnabled (isController && isAttachmentsPossible);
     mAddFDAttAction->setEnabled (isController && isAttachmentsPossible);
 
-    /* Configure "delete controller" action: */
-    bool fControllerInSuitableState = isMachineOffline();
-    mDelCtrAction->setEnabled(isController && fControllerInSuitableState);
-
-    /* Configure "delete attachment" action: */
-    bool fAttachmentInSuitableState = isMachineOffline() ||
-                                      (isMachineOnline() && fIsAttachmentHotPluggable);
-    mDelAttAction->setEnabled(isAttachment && fAttachmentInSuitableState);
+    mDelCtrAction->setEnabled (isMachineOffline() && isController);
+    mDelAttAction->setEnabled (isMachineOffline() && isAttachment);
 }
 
 void UIMachineSettingsStorage::onRowInserted (const QModelIndex &aParent, int aPosition)
@@ -3303,9 +3047,6 @@ void UIMachineSettingsStorage::addControllerWrapper (const QString &aName, KStor
         case KStorageBus_Floppy:
             Assert (mStorageModel->data (index, StorageModel::R_IsMoreFloppyControllersPossible).toBool());
             break;
-        case KStorageBus_USB:
-            Assert (mStorageModel->data (index, StorageModel::R_IsMoreUSBControllersPossible).toBool());
-            break;
         default:
             break;
     }
@@ -3398,9 +3139,6 @@ void UIMachineSettingsStorage::updateAdditionalObjects (KDeviceType aType)
 
     mLbHDDetails->setVisible (aType == KDeviceType_HardDisk);
     mLbHDDetailsValue->setVisible (aType == KDeviceType_HardDisk);
-
-    m_pLabelEncryption->setVisible(aType == KDeviceType_HardDisk);
-    m_pLabelEncryptionValue->setVisible(aType == KDeviceType_HardDisk);
 }
 
 QString UIMachineSettingsStorage::generateUniqueName (const QString &aTemplate) const
@@ -3444,7 +3182,8 @@ uint32_t UIMachineSettingsStorage::deviceCount (KDeviceType aType) const
 void UIMachineSettingsStorage::addChooseExistingMediumAction(QMenu *pOpenMediumMenu, const QString &strActionName)
 {
     QAction *pChooseExistingMedium = pOpenMediumMenu->addAction(strActionName);
-    pChooseExistingMedium->setIcon(iconPool()->icon(ChooseExistingEn, ChooseExistingDis));
+    pChooseExistingMedium->setIcon(UIIconPool::iconSet(PixmapPool::pool()->pixmap(PixmapPool::ChooseExistingEn),
+                                                       PixmapPool::pool()->pixmap(PixmapPool::ChooseExistingDis)));
     connect(pChooseExistingMedium, SIGNAL(triggered(bool)), this, SLOT(sltChooseExistingMedium()));
 }
 
@@ -3464,15 +3203,24 @@ void UIMachineSettingsStorage::addChooseHostDriveActions(QMenu *pOpenMediumMenu)
 
 void UIMachineSettingsStorage::addRecentMediumActions(QMenu *pOpenMediumMenu, UIMediumType recentMediumType)
 {
-    /* Get recent-medium list: */
-    QStringList recentMediumList;
+    /* Compose recent-medium list address: */
+    QString strRecentMediumAddress;
     switch (recentMediumType)
     {
-        case UIMediumType_HardDisk: recentMediumList = gEDataManager->recentListOfHardDrives(); break;
-        case UIMediumType_DVD:      recentMediumList = gEDataManager->recentListOfOpticalDisks(); break;
-        case UIMediumType_Floppy:   recentMediumList = gEDataManager->recentListOfFloppyDisks(); break;
-        default: break;
+        case UIMediumType_HardDisk:
+            strRecentMediumAddress = GUI_RecentListHD;
+            break;
+        case UIMediumType_DVD:
+            strRecentMediumAddress = GUI_RecentListCD;
+            break;
+        case UIMediumType_Floppy:
+            strRecentMediumAddress = GUI_RecentListFD;
+            break;
+        default:
+            break;
     }
+    /* Get recent-medium list: */
+    QStringList recentMediumList = vboxGlobal().virtualBox().GetExtraData(strRecentMediumAddress).split(';');
     /* For every list-item: */
     for (int index = 0; index < recentMediumList.size(); ++index)
     {
@@ -3608,7 +3356,7 @@ bool UIMachineSettingsStorage::createStorageController(const UICacheSettingsMach
                 /* Set storage controller attributes: */
                 controller.SetControllerType(controllerType);
                 controller.SetUseHostIOCache(fUseHostIOCache);
-                if (controllerBus == KStorageBus_SATA || controllerBus == KStorageBus_SAS)
+                if (controllerBus == KStorageBus_SATA)
                 {
                     uPortCount = qMax(uPortCount, controller.GetMinPortCount());
                     uPortCount = qMin(uPortCount, controller.GetMaxPortCount());
@@ -3657,7 +3405,7 @@ bool UIMachineSettingsStorage::updateStorageController(const UICacheSettingsMach
             /* Set storage controller attributes: */
             controller.SetControllerType(controllerType);
             controller.SetUseHostIOCache(fUseHostIOCache);
-            if (controllerBus == KStorageBus_SATA || controllerBus == KStorageBus_SAS)
+            if (controllerBus == KStorageBus_SATA)
             {
                 uPortCount = qMax(uPortCount, controller.GetMinPortCount());
                 uPortCount = qMin(uPortCount, controller.GetMaxPortCount());
@@ -3743,7 +3491,6 @@ bool UIMachineSettingsStorage::createStorageAttachment(const UICacheSettingsMach
         bool fAttachmentPassthrough = attachmentData.m_fAttachmentPassthrough;
         bool fAttachmentTempEject = attachmentData.m_fAttachmentTempEject;
         bool fAttachmentNonRotational = attachmentData.m_fAttachmentNonRotational;
-        bool fAttachmentHotPluggable = attachmentData.m_fAttachmentHotPluggable;
         /* Get GUI medium object: */
         UIMedium vboxMedium = vboxGlobal().medium(strAttachmentMediumId);
         /* Get COM medium object: */
@@ -3764,13 +3511,13 @@ bool UIMachineSettingsStorage::createStorageAttachment(const UICacheSettingsMach
             {
                 if (attachmentDeviceType == KDeviceType_DVD)
                 {
-                    if (fSuccess && isMachineOffline())
+                    if (fSuccess)
                     {
                         m_machine.PassthroughDevice(strControllerName, iAttachmentPort, iAttachmentDevice, fAttachmentPassthrough);
                         /* Check that machine is OK: */
                         fSuccess = m_machine.isOk();
                     }
-                    if (fSuccess && isMachineInValidMode())
+                    if (fSuccess)
                     {
                         m_machine.TemporaryEjectDevice(strControllerName, iAttachmentPort, iAttachmentDevice, fAttachmentTempEject);
                         /* Check that machine is OK: */
@@ -3779,21 +3526,9 @@ bool UIMachineSettingsStorage::createStorageAttachment(const UICacheSettingsMach
                 }
                 else if (attachmentDeviceType == KDeviceType_HardDisk)
                 {
-                    if (fSuccess && isMachineOffline())
-                    {
-                        m_machine.NonRotationalDevice(strControllerName, iAttachmentPort, iAttachmentDevice, fAttachmentNonRotational);
-                        /* Check that machine is OK: */
-                        fSuccess = m_machine.isOk();
-                    }
-                }
-                if (controllerBus == KStorageBus_SATA)
-                {
-                    if (fSuccess && isMachineOffline())
-                    {
-                        m_machine.SetHotPluggableForDevice(strControllerName, iAttachmentPort, iAttachmentDevice, fAttachmentHotPluggable);
-                        /* Check that machine is OK: */
-                        fSuccess = m_machine.isOk();
-                    }
+                    m_machine.NonRotationalDevice(strControllerName, iAttachmentPort, iAttachmentDevice, fAttachmentNonRotational);
+                    /* Check that machine is OK: */
+                    fSuccess = m_machine.isOk();
                 }
             }
             else
@@ -3831,7 +3566,6 @@ bool UIMachineSettingsStorage::updateStorageAttachment(const UICacheSettingsMach
         bool fAttachmentPassthrough = attachmentData.m_fAttachmentPassthrough;
         bool fAttachmentTempEject = attachmentData.m_fAttachmentTempEject;
         bool fAttachmentNonRotational = attachmentData.m_fAttachmentNonRotational;
-        bool fAttachmentHotPluggable = attachmentData.m_fAttachmentHotPluggable;
         KDeviceType attachmentDeviceType = attachmentData.m_attachmentType;
 
         /* Check that storage attachment exists: */
@@ -3871,15 +3605,6 @@ bool UIMachineSettingsStorage::updateStorageAttachment(const UICacheSettingsMach
                     if (fSuccess && isMachineOffline())
                     {
                         m_machine.NonRotationalDevice(strControllerName, iAttachmentPort, iAttachmentDevice, fAttachmentNonRotational);
-                        /* Check that machine is OK: */
-                        fSuccess = m_machine.isOk();
-                    }
-                }
-                if (controllerBus == KStorageBus_SATA)
-                {
-                    if (fSuccess && isMachineOffline())
-                    {
-                        m_machine.SetHotPluggableForDevice(strControllerName, iAttachmentPort, iAttachmentDevice, fAttachmentHotPluggable);
                         /* Check that machine is OK: */
                         fSuccess = m_machine.isOk();
                     }
@@ -3930,12 +3655,12 @@ bool UIMachineSettingsStorage::isAttachmentCouldBeUpdated(const UICacheSettingsM
            (currentAttachmentDeviceType == KDeviceType_Floppy || currentAttachmentDeviceType == KDeviceType_DVD);
 }
 
-void UIMachineSettingsStorage::setConfigurationAccessLevel(ConfigurationAccessLevel newConfigurationAccessLevel)
+void UIMachineSettingsStorage::setDialogType(SettingsDialogType settingsDialogType)
 {
-    /* Update model 'configuration access level': */
-    mStorageModel->setConfigurationAccessLevel(newConfigurationAccessLevel);
-    /* Update 'configuration access level' of base class: */
-    UISettingsPageMachine::setConfigurationAccessLevel(newConfigurationAccessLevel);
+    /* Update model 'settings window type': */
+    mStorageModel->setDialogType(settingsDialogType);
+    /* Update 'settings window type' of base class: */
+    UISettingsPageMachine::setDialogType(settingsDialogType);
 }
 
 void UIMachineSettingsStorage::polishPage()
@@ -3967,7 +3692,6 @@ void UIMachineSettingsStorage::polishPage()
     mCbPassthrough->setEnabled(isMachineOffline());
     mCbTempEject->setEnabled(isMachineInValidMode());
     mCbNonRotational->setEnabled(isMachineOffline());
-    m_pCheckBoxHotPluggable->setEnabled(isMachineOffline());
     mLsInformation->setEnabled(isMachineInValidMode());
     mLbHDFormat->setEnabled(isMachineInValidMode());
     mLbHDFormatValue->setEnabled(isMachineInValidMode());
@@ -3985,12 +3709,10 @@ void UIMachineSettingsStorage::polishPage()
     mLbLocationValue->setEnabled(isMachineInValidMode());
     mLbUsage->setEnabled(isMachineInValidMode());
     mLbUsageValue->setEnabled(isMachineInValidMode());
-    m_pLabelEncryption->setEnabled(isMachineInValidMode());
-    m_pLabelEncryptionValue->setEnabled(isMachineInValidMode());
 
     /* Update action states: */
     updateActionsState();
 }
 
-# include "UIMachineSettingsStorage.moc"
+#include "UIMachineSettingsStorage.moc"
 

@@ -1,6 +1,7 @@
-/* $Id: UIMouseHandler.h $ */
 /** @file
- * VBox Qt GUI - UIMouseHandler class declaration.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * UIMouseHandler class declaration
  */
 
 /*
@@ -26,7 +27,7 @@
 #include <QPointer>
 
 /* GUI includes: */
-#include "UIExtraDataDefs.h"
+#include "UIDefs.h"
 
 /* Forward declarations: */
 class QWidget;
@@ -38,18 +39,12 @@ class UIMachineView;
 #ifdef Q_WS_X11
 typedef union  _XEvent XEvent;
 #endif /* Q_WS_X11 */
-class CDisplay;
-class CMouse;
+class CSession;
 
 /* Delegate to control VM mouse functionality: */
 class UIMouseHandler : public QObject
 {
     Q_OBJECT;
-
-signals:
-
-    /** Notifies listeners about state-change. */
-    void sigStateChange(int iState);
 
 public:
 
@@ -69,11 +64,16 @@ public:
     void setMouseIntegrationEnabled(bool fEnabled);
 
     /* Current mouse state: */
-    int state() const;
+    int mouseState() const;
 
 #ifdef Q_WS_X11
     bool x11EventFilter(XEvent *pEvent, ulong uScreenId);
 #endif /* Q_WS_X11 */
+
+signals:
+
+    /* Notifies listeners about mouse state-change: */
+    void mouseStateChanged(int iNewState);
 
 protected slots:
 
@@ -98,11 +98,7 @@ protected:
     /* Getters: */
     UIMachineLogic* machineLogic() const;
     UISession* uisession() const;
-
-    /** Returns the console's display reference. */
-    CDisplay& display() const;
-    /** Returns the console's mouse reference. */
-    CMouse& mouse() const;
+    CSession& session() const;
 
     /* Event handler for registered machine-view(s): */
     bool eventFilter(QObject *pWatched, QEvent *pEvent);

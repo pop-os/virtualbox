@@ -1,6 +1,8 @@
 /* $Id: UIMachineSettingsSFDetails.cpp $ */
 /** @file
- * VBox Qt GUI - UIMachineSettingsSFDetails class implementation.
+ *
+ * VBox frontends: Qt4 GUI ("VirtualBox"):
+ * UIMachineSettingsSFDetails class implementation
  */
 
 /*
@@ -15,20 +17,13 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes */
-# include <QDir>
-# include <QPushButton>
+#include <QDir>
+#include <QPushButton>
 
 /* Other includes */
-# include "UIMachineSettingsSFDetails.h"
-# include "VBoxGlobal.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
+#include "UIMachineSettingsSFDetails.h"
+#include "VBoxGlobal.h"
 
 UIMachineSettingsSFDetails::UIMachineSettingsSFDetails(DialogType type,
                                                        bool fEnableSelector, /* for "permanent" checkbox */

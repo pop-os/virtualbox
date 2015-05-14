@@ -1,6 +1,8 @@
 /* $Id: UIGChooserView.cpp $ */
 /** @file
- * VBox Qt GUI - UIGChooserView class implementation.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * UIGChooserView class implementation
  */
 
 /*
@@ -15,19 +17,12 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QScrollBar>
+#include <QScrollBar>
 
 /* GUI includes: */
-# include "UIGChooserView.h"
-# include "UIGChooserItem.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
+#include "UIGChooserView.h"
+#include "UIGChooserItem.h"
 
 UIGChooserView::UIGChooserView(QWidget *pParent)
     : QGraphicsView(pParent)

@@ -317,17 +317,7 @@ proxy_create_socket(int sdom, int stype)
         return INVALID_SOCKET;
     }
 
-#if defined(RT_OS_WINDOWS)
-    {
-        u_long mode = 1;
-        status = ioctlsocket(s, FIONBIO, &mode);
-        if (status == SOCKET_ERROR) {
-            DPRINTF(("FIONBIO: %R[sockerr]\n", SOCKERRNO()));
-            closesocket(s);
-            return INVALID_SOCKET;
-        }
-    }
-#elif !defined(SOCK_NONBLOCK)
+#if !defined(SOCK_NONBLOCK) && !defined(RT_OS_WINDOWS)
     {
         int sflags;
 
@@ -362,32 +352,13 @@ proxy_create_socket(int sdom, int stype)
 #endif
 
 #if defined(RT_OS_WINDOWS)
-    /*
-     * lwIP only holds one packet of "refused data" for us.  Proxy
-     * relies on OS socket send buffer and doesn't do its own
-     * buffering.  Unfortunately on Windows send buffer is very small
-     * (8K by default) and is not dynamically adpated by the OS it
-     * seems.  So a single large write will fill it up and that will
-     * make lwIP drop segments, causing guest TCP into pathologic
-     * resend patterns.  As a quick and dirty fix just bump it up.
-     */
-    if (stype == SOCK_STREAM) {
-        int sndbuf;
-        socklen_t optlen = sizeof(sndbuf);
-
-        status = getsockopt(s, SOL_SOCKET, SO_SNDBUF, (char *)&sndbuf, &optlen);
-        if (status == 0) {
-            if (sndbuf < 64 * 1024) {
-                sndbuf = 64 * 1024;
-                status = setsockopt(s, SOL_SOCKET, SO_SNDBUF,
-                                    (char *)&sndbuf, optlen);
-                if (status != 0) {
-                    DPRINTF(("SO_SNDBUF: setsockopt: %R[sockerr]\n", SOCKERRNO()));
-                }
-            }
-        }
-        else {
-            DPRINTF(("SO_SNDBUF: getsockopt: %R[sockerr]\n", SOCKERRNO()));
+    {
+        u_long mode = 1;
+        status = ioctlsocket(s, FIONBIO, &mode);
+        if (status == SOCKET_ERROR) {
+            DPRINTF(("FIONBIO: %R[sockerr]\n", SOCKERRNO()));
+            closesocket(s);
+            return INVALID_SOCKET;
         }
     }
 #endif
@@ -574,7 +545,7 @@ proxy_reset_socket(SOCKET s)
      * http://bugs.sun.com/bugdatabase/view_bug.do?bug_id=4468997
      */
     setsockopt(s, SOL_SOCKET, SO_LINGER, (char *)&linger, sizeof(linger));
-
+    
     closesocket(s);
 }
 

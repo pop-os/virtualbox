@@ -298,11 +298,11 @@ DECL_FORCE_INLINE(int) pdmCritSectEnter(PPDMCRITSECT pCritSect, int rcBusy, PCRT
             PVM     pVM   = pCritSect->s.CTX_SUFF(pVM);
             PVMCPU  pVCpu = VMMGetCpu(pVM);
             HMR0Leave(pVM, pVCpu);
-            RTThreadPreemptRestore(NIL_RTTHREAD, XXX);
+            RTThreadPreemptRestore(NIL_RTTHREAD, ????);
 
             rc = pdmR3R0CritSectEnterContended(pCritSect, hNativeSelf, pSrcPos);
 
-            RTThreadPreemptDisable(NIL_RTTHREAD, XXX);
+            RTThreadPreemptDisable(NIL_RTTHREAD, ????);
             HMR0Enter(pVM, pVCpu);
         }
         return rc;

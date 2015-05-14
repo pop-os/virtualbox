@@ -207,8 +207,6 @@ static void rtR0MemObjSolPageDestroy(page_t *pPage)
 }
 
 
-/* Currently not used on 32-bits, define it to shut up gcc. */
-#if HC_ARCH_BITS == 64
 /**
  * Allocates physical, non-contiguous memory of pages.
  *
@@ -279,7 +277,6 @@ static page_t **rtR0MemObjSolPagesAlloc(uint64_t *puPhys, size_t cb)
 
     return NULL;
 }
-#endif  /* HC_ARCH_BITS == 64 */
 
 
 /**

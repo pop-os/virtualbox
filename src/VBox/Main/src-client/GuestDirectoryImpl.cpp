@@ -1,10 +1,11 @@
+
 /* $Id: GuestDirectoryImpl.cpp $ */
 /** @file
  * VirtualBox Main - Guest directory handling.
  */
 
 /*
- * Copyright (C) 2012-2015 Oracle Corporation
+ * Copyright (C) 2012-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,9 +20,6 @@
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
-#ifndef VBOX_WITH_GUEST_CONTROL
-# error "VBOX_WITH_GUEST_CONTROL must defined in this file"
-#endif
 #include "GuestDirectoryImpl.h"
 #include "GuestSessionImpl.h"
 #include "GuestCtrlImplPrivate.h"
@@ -74,6 +72,10 @@ int GuestDirectory::init(Console *pConsole, GuestSession *pSession,
     AutoInitSpan autoInitSpan(this);
     AssertReturn(autoInitSpan.isOk(), E_FAIL);
 
+#ifndef VBOX_WITH_GUEST_CONTROL
+    autoInitSpan.setSucceeded();
+    return VINF_SUCCESS;
+#else
     int vrc = bindToSession(pConsole, pSession, uDirID /* Object ID */);
     if (RT_SUCCESS(vrc))
     {
@@ -88,7 +90,7 @@ int GuestDirectory::init(Console *pConsole, GuestSession *pSession,
         /* Start the directory process on the guest. */
         GuestProcessStartupInfo procInfo;
         procInfo.mName      = Utf8StrFmt(tr("Reading directory \"%s\""), openInfo.mPath.c_str());
-        procInfo.mExecutable= Utf8Str(VBOXSERVICE_TOOL_LS);
+        procInfo.mCommand   = Utf8Str(VBOXSERVICE_TOOL_LS);
         procInfo.mTimeoutMS = 5 * 60 * 1000; /* 5 minutes timeout. */
         procInfo.mFlags     = ProcessCreateFlag_WaitForStdOut;
 
@@ -121,6 +123,7 @@ int GuestDirectory::init(Console *pConsole, GuestSession *pSession,
         autoInitSpan.setFailed();
 
     return vrc;
+#endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
 /**
@@ -139,27 +142,37 @@ void GuestDirectory::uninit(void)
     LogFlowThisFuncLeave();
 }
 
-// implementation of private wrapped getters/setters for attributes
+// implementation of public getters/setters for attributes
 /////////////////////////////////////////////////////////////////////////////
 
-HRESULT GuestDirectory::getDirectoryName(com::Utf8Str &aDirectoryName)
+STDMETHODIMP GuestDirectory::COMGETTER(DirectoryName)(BSTR *aName)
 {
     LogFlowThisFuncEnter();
 
+    CheckComArgOutPointerValid(aName);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    aDirectoryName = mData.mOpenInfo.mPath;
+    mData.mOpenInfo.mPath.cloneTo(aName);
 
     return S_OK;
 }
 
-HRESULT GuestDirectory::getFilter(com::Utf8Str &aFilter)
+STDMETHODIMP GuestDirectory::COMGETTER(Filter)(BSTR *aFilter)
 {
     LogFlowThisFuncEnter();
 
+    CheckComArgOutPointerValid(aFilter);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    aFilter = mData.mOpenInfo.mFilter;
+    mData.mOpenInfo.mFilter.cloneTo(aFilter);
 
     return S_OK;
 }
@@ -167,7 +180,7 @@ HRESULT GuestDirectory::getFilter(com::Utf8Str &aFilter)
 // private methods
 /////////////////////////////////////////////////////////////////////////////
 
-int GuestDirectory::i_callbackDispatcher(PVBOXGUESTCTRLHOSTCBCTX pCbCtx, PVBOXGUESTCTRLHOSTCALLBACK pSvcCb)
+int GuestDirectory::callbackDispatcher(PVBOXGUESTCTRLHOSTCBCTX pCbCtx, PVBOXGUESTCTRLHOSTCALLBACK pSvcCb)
 {
     AssertPtrReturn(pCbCtx, VERR_INVALID_POINTER);
     AssertPtrReturn(pSvcCb, VERR_INVALID_POINTER);
@@ -215,7 +228,7 @@ int GuestDirectory::i_callbackDispatcher(PVBOXGUESTCTRLHOSTCBCTX pCbCtx, PVBOXGU
 }
 
 /* static */
-Utf8Str GuestDirectory::i_guestErrorToString(int guestRc)
+Utf8Str GuestDirectory::guestErrorToString(int guestRc)
 {
     Utf8Str strError;
 
@@ -238,7 +251,7 @@ Utf8Str GuestDirectory::i_guestErrorToString(int guestRc)
  * Called by IGuestSession right before this directory gets
  * removed from the public directory list.
  */
-int GuestDirectory::i_onRemove(void)
+int GuestDirectory::onRemove(void)
 {
     LogFlowThisFuncEnter();
 
@@ -249,18 +262,22 @@ int GuestDirectory::i_onRemove(void)
 }
 
 /* static */
-HRESULT GuestDirectory::i_setErrorExternal(VirtualBoxBase *pInterface, int guestRc)
+HRESULT GuestDirectory::setErrorExternal(VirtualBoxBase *pInterface, int guestRc)
 {
     AssertPtr(pInterface);
     AssertMsg(RT_FAILURE(guestRc), ("Guest rc does not indicate a failure when setting error\n"));
 
-    return pInterface->setError(VBOX_E_IPRT_ERROR, GuestDirectory::i_guestErrorToString(guestRc).c_str());
+    return pInterface->setError(VBOX_E_IPRT_ERROR, GuestDirectory::guestErrorToString(guestRc).c_str());
 }
 
 // implementation of public methods
 /////////////////////////////////////////////////////////////////////////////
-HRESULT GuestDirectory::close()
+
+STDMETHODIMP GuestDirectory::Close(void)
 {
+#ifndef VBOX_WITH_GUEST_CONTROL
+    ReturnComNotImplemented();
+#else
     LogFlowThisFuncEnter();
 
     AutoCaller autoCaller(this);
@@ -269,13 +286,13 @@ HRESULT GuestDirectory::close()
     HRESULT hr = S_OK;
 
     int guestRc;
-    int rc = mData.mProcessTool.i_terminate(30 * 1000, &guestRc);
+    int rc = mData.mProcessTool.Terminate(30 * 1000, &guestRc);
     if (RT_FAILURE(rc))
     {
         switch (rc)
         {
             case VERR_GSTCTL_GUEST_ERROR:
-                hr = GuestProcess::i_setErrorExternal(this, guestRc);
+                hr = GuestProcess::setErrorExternal(this, guestRc);
                 break;
 
             case VERR_NOT_SUPPORTED:
@@ -292,16 +309,20 @@ HRESULT GuestDirectory::close()
     }
 
     AssertPtr(mSession);
-    int rc2 = mSession->i_directoryRemoveFromList(this);
+    int rc2 = mSession->directoryRemoveFromList(this);
     if (RT_SUCCESS(rc))
         rc = rc2;
 
     LogFlowThisFunc(("Returning rc=%Rrc\n", rc));
     return hr;
+#endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-HRESULT GuestDirectory::read(ComPtr<IFsObjInfo> &aObjInfo)
+STDMETHODIMP GuestDirectory::Read(IFsObjInfo **aInfo)
 {
+#ifndef VBOX_WITH_GUEST_CONTROL
+    ReturnComNotImplemented();
+#else
     LogFlowThisFuncEnter();
 
     AutoCaller autoCaller(this);
@@ -310,17 +331,17 @@ HRESULT GuestDirectory::read(ComPtr<IFsObjInfo> &aObjInfo)
     GuestProcessStreamBlock curBlock;
     int guestRc;
 
-    int rc = mData.mProcessTool.i_waitEx(GUESTPROCESSTOOL_FLAG_STDOUT_BLOCK,
-                                         &curBlock, &guestRc);
+    int rc = mData.mProcessTool.WaitEx(GUESTPROCESSTOOL_FLAG_STDOUT_BLOCK,
+                                       &curBlock, &guestRc);
 
     /*
      * Note: The guest process can still be around to serve the next
      *       upcoming stream block next time.
      */
     if (   RT_SUCCESS(rc)
-        && !mData.mProcessTool.i_isRunning())
+        && !mData.mProcessTool.IsRunning())
     {
-        rc = mData.mProcessTool.i_terminatedOk(NULL /* Exit code */);
+        rc = mData.mProcessTool.TerminatedOk(NULL /* Exit code */);
         if (rc == VERR_NOT_EQUAL)
             rc = VERR_ACCESS_DENIED;
     }
@@ -348,7 +369,7 @@ HRESULT GuestDirectory::read(ComPtr<IFsObjInfo> &aObjInfo)
                 if (RT_SUCCESS(rc))
                 {
                     /* Return info object to the caller. */
-                    hr2 = pFsObjInfo.queryInterfaceTo(aObjInfo.asOutParam());
+                    hr2 = pFsObjInfo.queryInterfaceTo(aInfo);
                     if (FAILED(hr2))
                         rc = VERR_COM_UNEXPECTED;
                 }
@@ -368,7 +389,7 @@ HRESULT GuestDirectory::read(ComPtr<IFsObjInfo> &aObjInfo)
         switch (rc)
         {
             case VERR_GSTCTL_GUEST_ERROR:
-                hr = GuestProcess::i_setErrorExternal(this, guestRc);
+                hr = GuestProcess::setErrorExternal(this, guestRc);
                 break;
 
             case VERR_ACCESS_DENIED:
@@ -396,5 +417,6 @@ HRESULT GuestDirectory::read(ComPtr<IFsObjInfo> &aObjInfo)
 
     LogFlowThisFunc(("Returning rc=%Rrc\n", rc));
     return hr;
+#endif /* VBOX_WITH_GUEST_CONTROL */
 }
 

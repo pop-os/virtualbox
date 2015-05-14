@@ -1,6 +1,7 @@
-/* $Id: UISettingsDialog.h $ */
 /** @file
- * VBox Qt GUI - UISettingsDialog class declaration.
+ *
+ * VBox frontends: Qt4 GUI ("VirtualBox"):
+ * UISettingsDialog class declaration
  */
 
 /*
@@ -32,7 +33,6 @@ class QTimer;
 class UIWarningPane;
 class VBoxSettingsSelector;
 class UISettingsPage;
-class UISettingsSerializer;
 
 /* Using declarations: */
 using namespace UISettingsDefs;
@@ -53,9 +53,6 @@ public:
 
 protected slots:
 
-    /** Hides the modal dialog and sets the result code to Accepted. */
-    virtual void accept();
-
     /* Category-change slot: */
     virtual void sltCategoryChanged(int cId);
 
@@ -66,40 +63,28 @@ protected slots:
 
     /* Handlers for process bar: */
     void sltHandleProcessStarted();
-    void sltHandleProcessProgressChange(int iValue);
+    void sltHandlePageProcessed();
 
 protected:
 
-    /** Returns the serialize process instance. */
-    UISettingsSerializer* serializeProcess() const { return m_pSerializeProcess; }
-
-    /** Loads the @a data. */
-    void loadData(QVariant &data);
-    /** Wrapper for the method above.
-      * Loads the data from the corresponding source. */
-    virtual void loadOwnData() = 0;
-
-    /** Saves the @a data. */
-    void saveData(QVariant &data);
-    /** Wrapper for the method above.
-      * Saves the data to the corresponding source. */
-    virtual void saveOwnData() = 0;
+    /* Save/load API: */
+    virtual void loadData();
+    virtual void saveData();
 
     /* UI translator: */
     virtual void retranslateUi();
 
-    /** Returns configuration access level. */
-    ConfigurationAccessLevel configurationAccessLevel() { return m_configurationAccessLevel; }
-    /** Defines configuration access level. */
-    void setConfigurationAccessLevel(ConfigurationAccessLevel newConfigurationAccessLevel);
-
-    /** Returns the dialog title extension. */
-    virtual QString titleExtension() const = 0;
-    /** Returns the dialog title. */
+    /* Dialog type: */
+    SettingsDialogType dialogType() { return m_dialogType; }
+    void setDialogType(SettingsDialogType settingsDialogType);
+    /* Dialog title: */
     virtual QString title() const = 0;
+    /* Dialog title extension: */
+    virtual QString titleExtension() const;
 
     /* Add settings page: */
-    void addItem(const QString &strBigIcon, const QString &strMediumIcon, const QString &strSmallIcon,
+    void addItem(const QString &strBigIcon, const QString &strBigIconDisabled,
+                 const QString &strSmallIcon, const QString &strSmallIconDisabled,
                  int cId, const QString &strLink,
                  UISettingsPage* pSettingsPage = 0, int iParentId = -1);
 
@@ -134,14 +119,9 @@ private:
     /* Helper: Validation stuff: */
     void assignValidator(UISettingsPage *pPage);
 
-    /** Holds configuration access level. */
-    ConfigurationAccessLevel m_configurationAccessLevel;
-
     /* Global Flags: */
+    SettingsDialogType m_dialogType;
     bool m_fPolished;
-
-    /** Holds the serialize process instance. */
-    UISettingsSerializer *m_pSerializeProcess;
 
     /* Loading/saving stuff: */
     bool m_fLoaded;

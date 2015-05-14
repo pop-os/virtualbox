@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2014 Oracle Corporation
+ * Copyright (C) 2007-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -41,7 +41,6 @@
 #include <iprt/asm.h>
 #include <iprt/buildconfig.h>
 #include <iprt/initterm.h>
-#include <iprt/file.h>
 #ifdef DEBUG
 # include <iprt/memtracker.h>
 #endif
@@ -136,9 +135,6 @@ static struct
 #endif
 #ifdef VBOX_WITH_SHARED_FOLDERS
     { &g_AutoMount,     NIL_RTTHREAD, false, false, false, false, true },
-#endif
-#ifdef VBOXSERVICE_WITH_DISPLAY
-    { &g_Display,       NIL_RTTHREAD, false, false, false, false, true },
 #endif
 };
 
@@ -265,12 +261,7 @@ int VBoxServiceLogCreate(const char *pszLogFile)
 #endif
     char szError[RTPATH_MAX + 128] = "";
     int rc = RTLogCreateEx(&g_pLoggerRelease, fFlags, "all",
-#ifdef DEBUG
-                           "VBOXSERVICE_LOG",
-#else
-                           "VBOXSERVICE_RELEASE_LOG",
-#endif
-                           RT_ELEMENTS(s_apszGroups), s_apszGroups,
+                           "VBOXSERVICE_RELEASE_LOG", RT_ELEMENTS(s_apszGroups), s_apszGroups,
                            RTLOGDEST_STDOUT | RTLOGDEST_USER,
                            VBoxServiceLogHeaderFooter, g_cHistory, g_uHistoryFileSize, g_uHistoryFileTime,
                            szError, sizeof(szError), pszLogFile);
@@ -798,6 +789,7 @@ void VBoxServiceMainWait(void)
 int main(int argc, char **argv)
 {
     RTEXITCODE rcExit;
+    bool fUserSession = false;
 
     /*
      * Init globals and such.
@@ -822,7 +814,6 @@ int main(int argc, char **argv)
         return rcExit;
 #endif
 
-    bool fUserSession = false;
 #ifdef VBOX_WITH_GUEST_CONTROL
     /*
      * Check if we're the specially spawned VBoxService.exe process that
@@ -840,15 +831,20 @@ int main(int argc, char **argv)
      * do to some initial stuff with it.
      */
     if (fUserSession)
+    {
+        VBoxServiceVerbose(2, "Calling VbgR3InitUser()\n");
         rc = VbglR3InitUser();
+    }
     else
+    {
+        VBoxServiceVerbose(2, "Calling VbgR3Init()\n");
         rc = VbglR3Init();
-
+    }
     if (RT_FAILURE(rc))
     {
         if (rc == VERR_ACCESS_DENIED)
             return RTMsgErrorExit(RTEXITCODE_FAILURE, "Insufficient privileges to start %s! Please start with Administrator/root privileges!\n",
-                                  g_pszProgName);
+                                    g_pszProgName);
         return RTMsgErrorExit(RTEXITCODE_FAILURE, "VbglR3Init failed with rc=%Rrc\n", rc);
     }
 
@@ -1036,7 +1032,7 @@ int main(int argc, char **argv)
 
     rc = VBoxServiceLogCreate(strlen(g_szLogFile) ? g_szLogFile : NULL);
     if (RT_FAILURE(rc))
-        return RTMsgErrorExit(RTEXITCODE_FAILURE, "Failed to create release log \"%s\", rc=%Rrc\n",
+        return RTMsgErrorExit(RTEXITCODE_FAILURE, "Failed to create release log (%s, %Rrc)",
                               strlen(g_szLogFile) ? g_szLogFile : "<None>", rc);
 
     /* Call pre-init if we didn't do it already. */

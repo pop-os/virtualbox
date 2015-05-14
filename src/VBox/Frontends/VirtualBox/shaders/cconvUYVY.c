@@ -1,4 +1,3 @@
-/* $Id: cconvUYVY.c $ */
 #extension GL_ARB_texture_rectangle : enable
 uniform sampler2DRect uSrcTex;
 void vboxCConvApplyAYUV(vec4 color);

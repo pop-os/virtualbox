@@ -1,4 +1,3 @@
-/* $Id: seamless-x11.cpp $ */
 /** @file
  * X11 Seamless mode.
  */

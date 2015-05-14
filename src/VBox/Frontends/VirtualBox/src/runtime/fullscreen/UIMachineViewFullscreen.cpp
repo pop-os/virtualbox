@@ -1,6 +1,8 @@
 /* $Id: UIMachineViewFullscreen.cpp $ */
 /** @file
- * VBox Qt GUI - UIMachineViewFullscreen class implementation.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * UIMachineViewFullscreen class implementation
  */
 
 /*
@@ -15,35 +17,26 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
-/* Qt includes: */
-# include <QApplication>
-# include <QDesktopWidget>
-# include <QMainWindow>
-# include <QTimer>
-# ifdef Q_WS_MAC
-#  include <QMenuBar>
-# endif /* Q_WS_MAC */
-
-/* GUI includes: */
-# include "VBoxGlobal.h"
-# include "UISession.h"
-# include "UIActionPoolRuntime.h"
-# include "UIMachineLogicFullscreen.h"
-# include "UIMachineWindow.h"
-# include "UIMachineViewFullscreen.h"
-# include "UIFrameBuffer.h"
-# include "UIExtraDataManager.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
+/* Global includes */
+#include <QApplication>
+#include <QDesktopWidget>
+#include <QMainWindow>
+#include <QTimer>
+#ifdef Q_WS_MAC
+#include <QMenuBar>
+#endif
 #ifdef Q_WS_X11
-# include <limits.h>
-#endif /* Q_WS_X11 */
+#include <limits.h>
+#endif
 
+/* Local includes */
+#include "VBoxGlobal.h"
+#include "UISession.h"
+#include "UIActionPoolRuntime.h"
+#include "UIMachineLogicFullscreen.h"
+#include "UIMachineWindow.h"
+#include "UIMachineViewFullscreen.h"
+#include "UIFrameBuffer.h"
 
 UIMachineViewFullscreen::UIMachineViewFullscreen(  UIMachineWindow *pMachineWindow
                                                  , ulong uScreenId
@@ -57,7 +50,7 @@ UIMachineViewFullscreen::UIMachineViewFullscreen(  UIMachineWindow *pMachineWind
                     , bAccelerate2DVideo
 #endif
                     )
-    , m_bIsGuestAutoresizeEnabled(actionPool()->action(UIActionIndexRT_M_View_T_GuestAutoresize)->isChecked())
+    , m_bIsGuestAutoresizeEnabled(gActionPool->action(UIActionIndexRuntime_Toggle_GuestAutoresize)->isChecked())
 {
 }
 
@@ -144,15 +137,10 @@ void UIMachineViewFullscreen::setGuestAutoresizeEnabled(bool fEnabled)
 
 void UIMachineViewFullscreen::adjustGuestScreenSize()
 {
-    /* Acquire working-area size: */
-    const QSize workingAreaSize = workingArea().size();
-    /* Acquire frame-buffer size: */
-    QSize frameBufferSize(frameBuffer()->width(), frameBuffer()->height());
-    /* Take the scale-factor(s) into account: */
-    frameBufferSize = scaledForward(frameBufferSize);
     /* Check if we should adjust guest-screen to new size: */
     if (frameBuffer()->isAutoEnabled() ||
-        frameBufferSize != workingAreaSize)
+        (int)frameBuffer()->width() != workingArea().size().width() ||
+        (int)frameBuffer()->height() != workingArea().size().height())
         if (m_bIsGuestAutoresizeEnabled &&
             uisession()->isGuestSupportsGraphics() &&
             uisession()->isScreenVisible(screenId()))

@@ -487,15 +487,14 @@ static unsigned int crHash( unsigned long key )
 
 void crHashtableAdd( CRHashTable *h, unsigned long key, void *data )
 {
-    unsigned int index = crHash(key);
     CRHashNode *node = (CRHashNode *) crCalloc( sizeof( CRHashNode ) );
 #ifdef CHROMIUM_THREADSAFE
     crLockMutex(&h->mutex);
 #endif
     node->key = key;
     node->data = data;
-    node->next = h->buckets[index];
-    h->buckets[index] = node;
+    node->next = h->buckets[crHash( key )];
+    h->buckets[ crHash( key ) ] = node;
     h->num_elements++;
     crHashIdPoolAllocId (h->idPool, key);
 #ifdef CHROMIUM_THREADSAFE

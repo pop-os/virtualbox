@@ -1,6 +1,6 @@
 /* $Id: VBoxFBOverlay.cpp $ */
 /** @file
- * VBox Qt GUI - VBoxFBOverlay implementation.
+ * VBoxFBOverlay implementation
  */
 
 /*
@@ -14,56 +14,46 @@
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
-#if defined(VBOX_GUI_USE_QGL)
+#if defined (VBOX_GUI_USE_QGL)
 
 #ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
+# include "precomp.h"
 #else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
-# define LOG_GROUP LOG_GROUP_GUI
+#define LOG_GROUP LOG_GROUP_GUI
 
 /* Qt includes: */
-# include <QGLWidget>
-# include <QFile>
-# include <QTextStream>
+#include <QGLWidget>
+#include <QFile>
+#include <QTextStream>
 
 /* GUI includes: */
-# include "VBoxFBOverlay.h"
-# include "UIMessageCenter.h"
-# include "UIPopupCenter.h"
-# include "UIExtraDataManager.h"
-# include "VBoxGlobal.h"
+#include "VBoxFBOverlay.h"
+#include "UIMessageCenter.h"
+#include "UIPopupCenter.h"
+#include "VBoxGlobal.h"
 
 /* COM includes: */
-# include "CSession.h"
-# include "CConsole.h"
-# include "CMachine.h"
-# include "CDisplay.h"
+#include "CSession.h"
+#include "CConsole.h"
+#include "CMachine.h"
+#include "CDisplay.h"
 
 /* Other VBox includes: */
-# include <iprt/asm.h>
-# include <iprt/semaphore.h>
-
-# include <VBox/VBoxGL2D.h>
-
-#ifdef Q_WS_MAC
-# include "VBoxUtils-darwin.h"
-#endif /* Q_WS_MAC */
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
-/* Other VBox includes: */
+#include <iprt/asm.h>
+#include <iprt/semaphore.h>
 #include <iprt/memcache.h>
+
+#include <VBox/VBoxGL2D.h>
 #include <VBox/err.h>
 
 #ifdef VBOX_WITH_VIDEOHWACCEL
-# include <VBox/VBoxVideo.h>
-# include <VBox/vmm/ssm.h>
+#include <VBox/VBoxVideo.h>
+#include <VBox/types.h>
+#include <VBox/vmm/ssm.h>
 #endif /* VBOX_WITH_VIDEOHWACCEL */
 
-/* Other includes: */
-#include <math.h>
-
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 #ifdef VBOXQGL_PROF_BASE
 # ifdef VBOXQGL_DBG_SURF
@@ -221,6 +211,8 @@ private:
     RTMEMCACHE mVBoxCmdEntryCache;
 };
 
+static VBoxVHWAEntriesCache g_VBoxCmdEntriesCache;
+
 static struct VBOXVHWACMD * vhwaHHCmdCreate(VBOXVHWACMD_TYPE type, size_t size)
 {
     char *buf = (char*)malloc(VBOXVHWACMD_SIZE_FROMBODYSIZE(size));
@@ -319,7 +311,7 @@ uint32_t VBoxVHWAHandleTable::put(void * data)
     if(mcUsage == mcSize)
     {
         /* @todo: resize */
-        AssertFailed();
+        Assert(0);
     }
 
     Assert(mcUsage < mcSize);
@@ -341,7 +333,7 @@ uint32_t VBoxVHWAHandleTable::put(void * data)
         mCursor = 1; /* 0 is treated as invalid */
     }
 
-    AssertFailed();
+    Assert(0);
     return VBOXVHWA_SURFHANDLE_INVALID;
 }
 
@@ -493,7 +485,7 @@ int VBoxVHWAGlShaderComponent::init()
     QFile fi(mRcName);
     if (!fi.open(QIODevice::ReadOnly))
     {
-        AssertFailed();
+        Assert(0);
         return VERR_GENERAL_FAILURE;
     }
 
@@ -927,7 +919,7 @@ int VBoxVHWAGlProgramVHWA::init()
                 case FOURCC_AYUV:
                     break;
                 default:
-                    AssertFailed();
+                    Assert(0);
                     break;
             }
         }
@@ -965,7 +957,7 @@ int VBoxVHWAGlProgramVHWA::init()
     if(rc == VINF_SUCCESS)
         return VINF_SUCCESS;
 
-    AssertFailed();
+    Assert(0);
     VBoxVHWAGlProgram::uninit();
     return VERR_GENERAL_FAILURE;
 }
@@ -1114,7 +1106,7 @@ VBoxVHWAGlProgramVHWA * VBoxVHWAGlProgramMngr::createProgram(uint32_t type, uint
 
     if(type & VBOXVHWA_PROGRAM_SRCCOLORKEY)
     {
-        AssertFailed();
+        Assert(0);
         /* disabled for now, not really necessary for video overlaying */
     }
 
@@ -1367,7 +1359,7 @@ ulong VBoxVHWASurfaceBase::calcBytesPerPixel(GLenum format, GLenum type)
         numComponents = 2;
         break;
     default:
-        AssertFailed();
+        Assert(0);
         break;
     }
 
@@ -1389,7 +1381,7 @@ ulong VBoxVHWASurfaceBase::calcBytesPerPixel(GLenum format, GLenum type)
         componentSize = 4;
         break;
     default:
-        AssertFailed();
+        Assert(0);
         break;
     }
     return numComponents * componentSize;
@@ -1573,7 +1565,7 @@ void VBoxVHWATexture::dbgDump()
     );
     VBOXQGLDBGPRINT(("<?dml?><exec cmd=\"!vbvdbg.ms 0x%p 0n%d 0n%d\">texture info</exec>\n",
             pvBuf, mRect.width(), mRect.height()));
-    AssertFailed();
+    Assert(0);
 
     free(pvBuf);
 #endif
@@ -2212,7 +2204,7 @@ int VBoxVHWAImage::vhwaSurfaceCanCreate(struct VBOXVHWACMD_SURF_CANCREATE *pCmd)
 
     if(!(pCmd->SurfInfo.flags & VBOXVHWA_SD_CAPS))
     {
-        AssertFailed();
+        Assert(0);
         pCmd->u.out.ErrInfo = -1;
         return VINF_SUCCESS;
     }
@@ -2220,7 +2212,7 @@ int VBoxVHWAImage::vhwaSurfaceCanCreate(struct VBOXVHWACMD_SURF_CANCREATE *pCmd)
     if(pCmd->SurfInfo.surfCaps & VBOXVHWA_SCAPS_OFFSCREENPLAIN)
     {
 #ifdef DEBUGVHWASTRICT
-        AssertFailed();
+        Assert(0);
 #endif
         pCmd->u.out.ErrInfo = -1;
         return VINF_SUCCESS;
@@ -2232,7 +2224,7 @@ int VBoxVHWAImage::vhwaSurfaceCanCreate(struct VBOXVHWACMD_SURF_CANCREATE *pCmd)
         if(pCmd->SurfInfo.surfCaps & VBOXVHWA_SCAPS_COMPLEX)
         {
 #ifdef DEBUG_misha
-            AssertFailed();
+            Assert(0);
 #endif
             pCmd->u.out.ErrInfo = -1;
         }
@@ -2247,7 +2239,7 @@ int VBoxVHWAImage::vhwaSurfaceCanCreate(struct VBOXVHWACMD_SURF_CANCREATE *pCmd)
     if ((pCmd->SurfInfo.surfCaps & VBOXVHWA_SCAPS_OVERLAY) == 0)
     {
 #ifdef DEBUGVHWASTRICT
-        AssertFailed();
+        Assert (0);
 #endif
         pCmd->u.out.ErrInfo = -1;
         return VINF_SUCCESS;
@@ -2258,7 +2250,7 @@ int VBoxVHWAImage::vhwaSurfaceCanCreate(struct VBOXVHWACMD_SURF_CANCREATE *pCmd)
     {
         if (!(pCmd->SurfInfo.flags & VBOXVHWA_SD_PIXELFORMAT))
         {
-            AssertFailed();
+            Assert (0);
             pCmd->u.out.ErrInfo = -1;
             return VINF_SUCCESS;
         }
@@ -2268,7 +2260,7 @@ int VBoxVHWAImage::vhwaSurfaceCanCreate(struct VBOXVHWACMD_SURF_CANCREATE *pCmd)
             if (pCmd->SurfInfo.PixelFormat.c.rgbBitCount != 32
                     && pCmd->SurfInfo.PixelFormat.c.rgbBitCount != 24)
             {
-                AssertFailed();
+                Assert (0);
                 pCmd->u.out.ErrInfo = -1;
                 return VINF_SUCCESS;
             }
@@ -2292,7 +2284,7 @@ int VBoxVHWAImage::vhwaSurfaceCanCreate(struct VBOXVHWACMD_SURF_CANCREATE *pCmd)
         }
         else
         {
-            AssertFailed();
+            Assert (0);
             pCmd->u.out.ErrInfo = -1;
             return VINF_SUCCESS;
         }
@@ -2312,7 +2304,7 @@ int VBoxVHWAImage::vhwaSurfaceCreate (struct VBOXVHWACMD_SURF_CREATE *pCmd)
         handle = pCmd->SurfInfo.hSurf;
         if(mSurfHandleTable.get(handle))
         {
-            AssertFailed();
+            Assert(0);
             return VERR_GENERAL_FAILURE;
         }
     }
@@ -3238,7 +3230,7 @@ int VBoxVHWAImage::vhwaLoadSurface(VHWACommandList * pCmdList, struct SSMHANDLE 
         }
         else
         {
-            AssertFailed();
+            Assert(0);
         }
 
         if(cBackBuffers)
@@ -3785,7 +3777,7 @@ void VBoxVHWAImage::resize(const VBoxFBSizeInfo & size)
     bool bUsesGuestVram;
 
     /* check if we support the pixel format and can use the guest VRAM directly */
-    if (size.pixelFormat() == KBitmapFormat_BGR)
+    if (size.pixelFormat() == FramebufferPixelFormat_FOURCC_RGB)
     {
 
         bitsPerPixel = size.bitsPerPixel();
@@ -3798,19 +3790,19 @@ void VBoxVHWAImage::resize(const VBoxFBSizeInfo & size)
                 break;
             case 24:
 #ifdef DEBUG_misha
-                AssertFailed();
+                Assert(0);
 #endif
                 break;
             case 8:
 #ifdef DEBUG_misha
-                AssertFailed();
+                Assert(0);
 #endif
                 g = b = 0;
                 remind = true;
                 break;
             case 1:
 #ifdef DEBUG_misha
-                AssertFailed();
+                Assert(0);
 #endif
                 r = 1;
                 g = b = 0;
@@ -3818,7 +3810,7 @@ void VBoxVHWAImage::resize(const VBoxFBSizeInfo & size)
                 break;
             default:
 #ifdef DEBUG_misha
-                AssertFailed();
+                Assert(0);
 #endif
                 remind = true;
                 fallback = true;
@@ -3866,9 +3858,8 @@ void VBoxVHWAImage::resize(const VBoxFBSizeInfo & size)
     }
 
     ulong bytesPerPixel = bitsPerPixel/8;
-    const QSize scaledSize = size.scaledSize();
-    const ulong displayWidth = scaledSize.isValid() ? scaledSize.width() : bytesPerLine / bytesPerPixel;
-    const ulong displayHeight = scaledSize.isValid() ? scaledSize.height() : size.height();
+    ulong displayWidth = bytesPerLine/bytesPerPixel;
+    ulong displayHeight = size.height();
 
 #ifdef VBOXQGL_DBG_SURF
     for(int i = 0; i < RT_ELEMENTS(g_apSurf); i++)
@@ -4035,7 +4026,7 @@ void VBoxVHWAColorFormat::init (uint32_t fourcc)
             mWidthCompression = 4;
             break;
         default:
-            AssertFailed();
+            Assert(0);
             mBitsPerPixel = 0;
             mBitsPerPixelTex = 0;
             mWidthCompression = 0;
@@ -4060,7 +4051,7 @@ void VBoxVHWAColorFormat::init (uint32_t bitsPerPixel, uint32_t r, uint32_t g, u
             break;
         case 24:
 #ifdef DEBUG_misha
-            AssertFailed();
+            Assert(0);
 #endif
             mInternalFormat = 3;//GL_RGB;
             mFormat = GL_BGR_EXT;
@@ -4071,7 +4062,7 @@ void VBoxVHWAColorFormat::init (uint32_t bitsPerPixel, uint32_t r, uint32_t g, u
             break;
         case 16:
 #ifdef DEBUG_misha
-            AssertFailed();
+            Assert(0);
 #endif
             mInternalFormat = GL_RGB5;
             mFormat = GL_BGR_EXT;
@@ -4082,7 +4073,7 @@ void VBoxVHWAColorFormat::init (uint32_t bitsPerPixel, uint32_t r, uint32_t g, u
             break;
         case 8:
 #ifdef DEBUG_misha
-            AssertFailed();
+            Assert(0);
 #endif
             mInternalFormat = 1;//GL_RGB;
             mFormat = GL_RED;//GL_RGB;
@@ -4091,7 +4082,7 @@ void VBoxVHWAColorFormat::init (uint32_t bitsPerPixel, uint32_t r, uint32_t g, u
             break;
         case 1:
 #ifdef DEBUG_misha
-            AssertFailed();
+            Assert(0);
 #endif
             mInternalFormat = 1;
             mFormat = GL_COLOR_INDEX;
@@ -4100,7 +4091,7 @@ void VBoxVHWAColorFormat::init (uint32_t bitsPerPixel, uint32_t r, uint32_t g, u
             break;
         default:
 #ifdef DEBUG_misha
-            AssertFailed();
+            Assert(0);
 #endif
             mBitsPerPixel = 0;
             mBitsPerPixelTex = 0;
@@ -4156,9 +4147,9 @@ void VBoxVHWAColorFormat::pixel2Normalized (uint32_t pix, float *r, float *g, fl
     *b = mB.colorValNorm (pix);
 }
 
-VBoxQGLOverlay::VBoxQGLOverlay ()
+VBoxQGLOverlay::VBoxQGLOverlay (QWidget *pViewport,QObject *pPostEventObject,  CSession * aSession, uint32_t id)
     : mpOverlayWgt (NULL),
-      mpViewport (NULL),
+      mpViewport (pViewport),
       mGlOn (false),
       mOverlayWidgetVisible (false),
       mOverlayVisible (false),
@@ -4166,22 +4157,13 @@ VBoxQGLOverlay::VBoxQGLOverlay ()
       mProcessingCommands (false),
       mNeedOverlayRepaint (false),
       mNeedSetVisible (false),
-      mCmdPipe (),
-      mSettings (),
-      mpSession(),
+      mCmdPipe (pPostEventObject),
+      mSettings (*aSession),
+      mpSession(aSession),
       mpShareWgt (NULL),
-      m_id(0)
+      m_id(id)
 {
     /* postpone the gl widget initialization to avoid conflict with 3D on Mac */
-}
-
-void VBoxQGLOverlay::init(QWidget *pViewport, QObject *pPostEventObject,  CSession * aSession, uint32_t id)
-{
-    mpViewport = pViewport;
-    mpSession = aSession;
-    m_id = id;
-    mSettings.init(*aSession);
-    mCmdPipe.init(pPostEventObject);
 }
 
 class VBoxGLShareWgt : public QGLWidget
@@ -4414,49 +4396,14 @@ void VBoxQGLOverlay::onVHWACommandEvent(QEvent * pEvent)
     mGlCurrent = false;
 }
 
-bool VBoxQGLOverlay::onNotifyUpdate(ULONG uX, ULONG uY,
-                                    ULONG uW, ULONG uH)
+bool VBoxQGLOverlay::onNotifyUpdate(ULONG aX, ULONG aY,
+                         ULONG aW, ULONG aH)
 {
-    /* Prepare corresponding viewport part: */
-    QRect rect(uX, uY, uW, uH);
-
-    /* Take the scaling into account: */
-    const double dScaleFactor = mSizeInfo.scaleFactor();
-    const QSize scaledSize = mSizeInfo.scaledSize();
-    if (scaledSize.isValid())
-    {
-        /* Calculate corresponding scale-factors: */
-        const double xScaleFactor = mSizeInfo.visualState() == UIVisualStateType_Scale ?
-                                    (double)scaledSize.width()  / mSizeInfo.width()  : dScaleFactor;
-        const double yScaleFactor = mSizeInfo.visualState() == UIVisualStateType_Scale ?
-                                    (double)scaledSize.height() / mSizeInfo.height() : dScaleFactor;
-        /* Adjust corresponding viewport part: */
-        rect.moveTo(floor((double)rect.x() * xScaleFactor) - 1,
-                    floor((double)rect.y() * yScaleFactor) - 1);
-        rect.setSize(QSize(ceil((double)rect.width()  * xScaleFactor) + 2,
-                           ceil((double)rect.height() * yScaleFactor) + 2));
-    }
-
-#ifdef Q_WS_MAC
-    /* Take the backing-scale-factor into account: */
-    if (mSizeInfo.useUnscaledHiDPIOutput())
-    {
-        const double dBackingScaleFactor = darwinBackingScaleFactor(mpViewport->window());
-        if (dBackingScaleFactor > 1.0)
-        {
-            rect.moveTo(floor((double)rect.x() / dBackingScaleFactor) - 1,
-                        floor((double)rect.y() / dBackingScaleFactor) - 1);
-            rect.setSize(QSize(ceil((double)rect.width()  / dBackingScaleFactor) + 2,
-                               ceil((double)rect.height() / dBackingScaleFactor) + 2));
-        }
-    }
-#endif /* Q_WS_MAC */
-
     /* we do not to miss notify updates, because we have to update bg textures for it,
-     * so no not check for m_fUnused here,
+     * so no not check for m_fIsMarkedAsUnused here,
      * mOverlay will store the required info for us */
-    mCmdPipe.postCmd(VBOXVHWA_PIPECMD_PAINT, &rect);
-
+    QRect r(aX, aY, aW, aH);
+    mCmdPipe.postCmd(VBOXVHWA_PIPECMD_PAINT, &r);
     return true;
 }
 
@@ -4876,7 +4823,7 @@ void VBoxQGLOverlay::vboxDoVHWACmdExec(void *cmd)
         } break;
 #endif
         default:
-            AssertFailed();
+            Assert(0);
             pCmd->rc = VERR_NOT_IMPLEMENTED;
             break;
     }
@@ -4997,12 +4944,12 @@ void VBoxQGLOverlay::processCmd(VBoxVHWACommandElement * pCmd)
         }
 #endif
         default:
-            AssertFailed();
+            Assert(0);
     }
 }
 
-VBoxVHWACommandElementProcessor::VBoxVHWACommandElementProcessor() :
-    m_pNotifyObject(NULL),
+VBoxVHWACommandElementProcessor::VBoxVHWACommandElementProcessor(QObject *pNotifyObject) :
+    m_pNotifyObject(pNotifyObject),
     mpCurCmd(NULL),
     mbResetting(false),
     mcDisabled(0)
@@ -5011,13 +4958,6 @@ VBoxVHWACommandElementProcessor::VBoxVHWACommandElementProcessor() :
     AssertRC(rc);
 
     RTListInit(&mCommandList);
-
-    m_pCmdEntryCache = new VBoxVHWAEntriesCache;
-}
-
-void VBoxVHWACommandElementProcessor::init(QObject *pNotifyObject)
-{
-    m_pNotifyObject = pNotifyObject;
 }
 
 VBoxVHWACommandElementProcessor::~VBoxVHWACommandElementProcessor()
@@ -5026,8 +4966,6 @@ VBoxVHWACommandElementProcessor::~VBoxVHWACommandElementProcessor()
     RTListIsEmpty(&mCommandList);
 
     RTCritSectDelete(&mCritSect);
-
-    delete m_pCmdEntryCache;
 }
 
 void VBoxVHWACommandElementProcessor::postCmd(VBOXVHWA_PIPECMD_TYPE aType, void * pvData)
@@ -5039,7 +4977,7 @@ void VBoxVHWACommandElementProcessor::postCmd(VBOXVHWA_PIPECMD_TYPE aType, void 
     /* 1. lock*/
     RTCritSectEnter(&mCritSect);
 
-    VBoxVHWACommandElement * pCmd = m_pCmdEntryCache->alloc();
+    VBoxVHWACommandElement * pCmd = g_VBoxCmdEntriesCache.alloc();
     if(!pCmd)
     {
         VBOXQGLLOG(("!!!no more free elements!!!\n"));
@@ -5140,7 +5078,7 @@ void VBoxVHWACommandElementProcessor::doneCmd()
     RTCritSectLeave(&mCritSect);
 
     if (pEl)
-        m_pCmdEntryCache->free(pEl);
+        g_VBoxCmdEntriesCache.free(pEl);
 }
 
 VBoxVHWACommandElement * VBoxVHWACommandElementProcessor::getCmd()
@@ -5234,19 +5172,19 @@ void VBoxVHWACommandElementProcessor::reset(CDisplay *pDisplay)
             break;
         case VBOXVHWA_PIPECMD_FUNC:
             /* should not happen, don't handle this for now */
-            AssertFailed();
+            Assert(0);
             break;
 #endif
         case VBOXVHWA_PIPECMD_PAINT:
             break;
         default:
             /* should not happen, don't handle this for now */
-            AssertFailed();
+            Assert(0);
             break;
         }
 
         RTListNodeRemove(&pCur->ListNode);
-        m_pCmdEntryCache->free(pCur);
+        g_VBoxCmdEntriesCache.free(pCur);
     }
 
     RTCritSectEnter(&mCritSect);
@@ -5321,7 +5259,7 @@ int VBoxVHWACommandElementProcessor::loadExec (struct SSMHANDLE * pSSM, uint32_t
                             break;
                         }
                         default:
-                            AssertFailed();
+                            Assert(0);
                             break;
                     }
 
@@ -5367,7 +5305,7 @@ void VBoxVHWACommandElementProcessor::saveExec (struct SSMHANDLE * pSSM, void *p
                 break;
             }
             default:
-                AssertFailed();
+                Assert(0);
                 break;
         }
     }
@@ -5833,25 +5771,26 @@ int VBoxVHWATextureImage::setCKey (VBoxVHWAGlProgramVHWA * pProgram, const VBoxV
     return RT_SUCCESS(rcL) /*&& RT_SUCCESS(rcU)*/ ? VINF_SUCCESS: VERR_GENERAL_FAILURE;
 }
 
-VBoxVHWASettings::VBoxVHWASettings ()
+VBoxVHWASettings::VBoxVHWASettings (CSession &session)
 {
-}
+    CMachine machine = session.GetMachine();
 
-void VBoxVHWASettings::init(CSession &session)
-{
-    const QString strMachineID = session.GetMachine().GetId();
-
-    mStretchLinearEnabled = gEDataManager->useLinearStretch(strMachineID);
+    QString str = machine.GetExtraData (GUI_Accelerate2D_StretchLinear);
+    mStretchLinearEnabled = str != "off";
 
     uint32_t aFourccs[VBOXVHWA_NUMFOURCC];
     int num = 0;
-    if (gEDataManager->usePixelFormatAYUV(strMachineID))
+    str = machine.GetExtraData (GUI_Accelerate2D_PixformatAYUV);
+    if (str != "off")
         aFourccs[num++] = FOURCC_AYUV;
-    if (gEDataManager->usePixelFormatUYVY(strMachineID))
+    str = machine.GetExtraData (GUI_Accelerate2D_PixformatUYVY);
+    if (str != "off")
         aFourccs[num++] = FOURCC_UYVY;
-    if (gEDataManager->usePixelFormatYUY2(strMachineID))
+    str = machine.GetExtraData (GUI_Accelerate2D_PixformatYUY2);
+    if (str != "off")
         aFourccs[num++] = FOURCC_YUY2;
-    if (gEDataManager->usePixelFormatYV12(strMachineID))
+    str = machine.GetExtraData (GUI_Accelerate2D_PixformatYV12);
+    if (str != "off")
         aFourccs[num++] = FOURCC_YV12;
 
     mFourccEnabledCount = num;
@@ -5882,5 +5821,5 @@ int VBoxVHWASettings::calcIntersection (int c1, const uint32_t *a1, int c2, cons
     return cMatch;
 }
 
-#endif /* VBOX_GUI_USE_QGL */
+#endif
 

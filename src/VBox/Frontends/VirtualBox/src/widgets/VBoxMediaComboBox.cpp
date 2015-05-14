@@ -1,6 +1,8 @@
 /* $Id: VBoxMediaComboBox.cpp $ */
 /** @file
- * VBox Qt GUI - VBoxMediaComboBox class implementation.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * VBoxMediaComboBox class implementation
  */
 
 /*
@@ -15,21 +17,14 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QFileInfo>
-# include <QDir>
-# include <QAbstractItemView>
+#include <QFileInfo>
+#include <QDir>
+#include <QAbstractItemView>
 
 /* GUI includes: */
-# include "VBoxMediaComboBox.h"
-# include "UIMedium.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
+#include "VBoxMediaComboBox.h"
+#include "UIMedium.h"
 
 VBoxMediaComboBox::VBoxMediaComboBox (QWidget *aParent)
     : QComboBox (aParent)

@@ -1,6 +1,7 @@
-/* $Id: UIGlobalSettingsProxy.h $ */
 /** @file
- * VBox Qt GUI - UIGlobalSettingsProxy class declaration.
+ *
+ * VBox frontends: Qt4 GUI ("VirtualBox"):
+ * UIGlobalSettingsProxy class declaration
  */
 
 /*

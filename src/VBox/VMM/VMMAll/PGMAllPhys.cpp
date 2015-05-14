@@ -1011,7 +1011,6 @@ int pgmPhysPageMapByPageID(PVM pVM, uint32_t idPage, RTHCPHYS HCPhys, void **ppv
 static int pgmPhysPageMapCommon(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhys, PPPGMPAGEMAP ppMap, void **ppv)
 {
     PGM_LOCK_ASSERT_OWNER(pVM);
-    NOREF(GCPhys);
 
 #if defined(IN_RC) || defined(VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0)
     /*
@@ -1021,6 +1020,7 @@ static int pgmPhysPageMapCommon(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhys, PPPGMP
     RTHCPHYS HCPhys = PGM_PAGE_GET_HCPHYS(pPage);
     Assert(HCPhys != pVM->pgm.s.HCPhysZeroPg);
     pgmRZDynMapHCPageInlined(VMMGetCpu(pVM), HCPhys, ppv RTLOG_COMMA_SRC_POS);
+    NOREF(GCPhys);
     return VINF_SUCCESS;
 
 #else /* IN_RING3 || IN_RING0 */
@@ -1035,11 +1035,8 @@ static int pgmPhysPageMapCommon(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhys, PPPGMP
         /* Decode the page id to a page in a MMIO2 ram range. */
         uint8_t  idMmio2 = PGM_MMIO2_PAGEID_GET_MMIO2_ID(PGM_PAGE_GET_PAGEID(pPage));
         uint32_t iPage   = PGM_MMIO2_PAGEID_GET_IDX(PGM_PAGE_GET_PAGEID(pPage));
-        AssertLogRelMsgReturn((uint8_t)(idMmio2 - 1U) < RT_ELEMENTS(pVM->pgm.s.CTX_SUFF(apMmio2Ranges)),
-                              ("idMmio2=%u size=%u type=%u GCPHys=%#RGp Id=%u State=%u", idMmio2,
-                               RT_ELEMENTS(pVM->pgm.s.CTX_SUFF(apMmio2Ranges)), PGM_PAGE_GET_TYPE(pPage), GCPhys,
-                               pPage->s.idPage, pPage->s.uStateY),
-                              VERR_PGM_PHYS_PAGE_MAP_MMIO2_IPE);
+        AssertLogRelReturn((uint8_t)(idMmio2 - 1U)< RT_ELEMENTS(pVM->pgm.s.CTX_SUFF(apMmio2Ranges)),
+                            VERR_PGM_PHYS_PAGE_MAP_MMIO2_IPE);
         PPGMMMIO2RANGE pMmio2Range = pVM->pgm.s.CTX_SUFF(apMmio2Ranges)[idMmio2 - 1];
         AssertLogRelReturn(pMmio2Range, VERR_PGM_PHYS_PAGE_MAP_MMIO2_IPE);
         AssertLogRelReturn(pMmio2Range->idMmio2 == idMmio2, VERR_PGM_PHYS_PAGE_MAP_MMIO2_IPE);
@@ -2117,8 +2114,9 @@ static int pgmPhysReadHandler(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhys, void *pv
         Assert(GCPhys >= pPhys->Core.Key && GCPhys <= pPhys->Core.KeyLast);
         Assert((pPhys->Core.Key     & PAGE_OFFSET_MASK) == 0);
         Assert((pPhys->Core.KeyLast & PAGE_OFFSET_MASK) == PAGE_OFFSET_MASK);
+        Assert(pPhys->CTX_SUFF(pfnHandler));
 
-        PFNPGMR3PHYSHANDLER pfnHandler = PGMPHYSHANDLER_GET_TYPE(pVM, pPhys)->CTX_SUFF(pfnHandler); Assert(pfnHandler);
+        PFNPGMR3PHYSHANDLER pfnHandler = pPhys->CTX_SUFF(pfnHandler);
         void *pvUser = pPhys->CTX_SUFF(pvUser);
 
         Log5(("pgmPhysReadHandler: GCPhys=%RGp cb=%#x pPage=%R[pgmpage] phys %s\n", GCPhys, cb, pPage, R3STRING(pPhys->pszDesc) ));
@@ -2352,7 +2350,7 @@ static int pgmPhysWriteHandler(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhys, void co
         if (pCur)
         {
             Assert(GCPhys >= pCur->Core.Key && GCPhys <= pCur->Core.KeyLast);
-            Assert(PGMPHYSHANDLER_GET_TYPE(pVM, pCur)->CTX_SUFF(pfnHandler));
+            Assert(pCur->CTX_SUFF(pfnHandler));
 
             size_t cbRange = pCur->Core.KeyLast - GCPhys + 1;
             if (cbRange > cbWrite)
@@ -2365,15 +2363,14 @@ static int pgmPhysWriteHandler(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhys, void co
             return VERR_PGM_PHYS_WR_HIT_HANDLER;
 
 #else  /* IN_RING3 */
-            Log5(("pgmPhysWriteHandler: GCPhys=%RGp cbRange=%#x pPage=%R[pgmpage] phys %s\n",
-                  GCPhys, cbRange, pPage, R3STRING(pCur->pszDesc) ));
+            Log5(("pgmPhysWriteHandler: GCPhys=%RGp cbRange=%#x pPage=%R[pgmpage] phys %s\n", GCPhys, cbRange, pPage, R3STRING(pCur->pszDesc) ));
             if (!PGM_PAGE_IS_MMIO_OR_SPECIAL_ALIAS(pPage))
                 rc = pgmPhysGCPhys2CCPtrInternal(pVM, pPage, GCPhys, &pvDst, &PgMpLck);
             else
                 rc = VINF_SUCCESS;
             if (RT_SUCCESS(rc))
             {
-                PFNPGMR3PHYSHANDLER pfnHandler = PGMPHYSHANDLER_GET_TYPE(pVM, pCur)->CTX_SUFF(pfnHandler);
+                PFNPGMR3PHYSHANDLER pfnHandler = pCur->CTX_SUFF(pfnHandler);
                 void *pvUser = pCur->CTX_SUFF(pvUser);
 
                 STAM_PROFILE_START(&pCur->Stat, h);
@@ -2395,8 +2392,7 @@ static int pgmPhysWriteHandler(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhys, void co
                         memcpy(pvDst, pvBuf, cbRange);
                 }
                 else
-                    AssertLogRelMsg(rc == VINF_SUCCESS || rc == VINF_PGM_HANDLER_DO_DEFAULT,
-                                    ("rc=%Rrc GCPhys=%RGp pPage=%R[pgmpage] %s\n", rc, GCPhys, pPage, pCur ? pCur->pszDesc : ""));
+                    AssertLogRelMsg(rc == VINF_SUCCESS || rc == VINF_PGM_HANDLER_DO_DEFAULT, ("rc=%Rrc GCPhys=%RGp pPage=%R[pgmpage] %s\n", rc, GCPhys, pPage, (pCur) ? pCur->pszDesc : ""));
             }
             else
                 AssertLogRelMsgFailedReturn(("pgmPhysGCPhys2CCPtrInternal failed on %RGp / %R[pgmpage] -> %Rrc\n",
@@ -2595,7 +2591,7 @@ static int pgmPhysWriteHandler(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhys, void co
             if (cbRange > offVirt)
                 cbRange = offVirt;
 #ifdef IN_RING3
-            PFNPGMR3PHYSHANDLER pfnHandler = PGMPHYSHANDLER_GET_TYPE(pVM, pPhys)->CTX_SUFF(pfnHandler);
+            PFNPGMR3PHYSHANDLER pfnHandler = pPhys->CTX_SUFF(pfnHandler);
             void *pvUser = pPhys->CTX_SUFF(pvUser);
 
             Log5(("pgmPhysWriteHandler: GCPhys=%RGp cbRange=%#x pPage=%R[pgmpage] phys %s\n", GCPhys, cbRange, pPage, R3STRING(pPhys->pszDesc) ));
@@ -2667,7 +2663,7 @@ static int pgmPhysWriteHandler(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhys, void co
                 Log(("pgmPhysWriteHandler: overlapping phys and virt handlers at %RGp %R[pgmpage]; cbRange=%#x\n", GCPhys, pPage, cbRange));
             Log5(("pgmPhysWriteHandler: GCPhys=%RGp cbRange=%#x pPage=%R[pgmpage] phys/virt %s/%s\n", GCPhys, cbRange, pPage, R3STRING(pPhys->pszDesc), R3STRING(pVirt->pszDesc) ));
 
-            PFNPGMR3PHYSHANDLER pfnHandler = PGMPHYSHANDLER_GET_TYPE(pVM, pPhys)->CTX_SUFF(pfnHandler);
+            PFNPGMR3PHYSHANDLER pfnHandler = pPhys->CTX_SUFF(pfnHandler);
             void *pvUser = pPhys->CTX_SUFF(pvUser);
 
             STAM_PROFILE_START(&pPhys->Stat, h);

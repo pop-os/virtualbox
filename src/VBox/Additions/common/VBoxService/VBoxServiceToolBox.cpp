@@ -1090,44 +1090,37 @@ static RTEXITCODE VBoxServiceToolboxRm(int argc, char **argv)
     {
         for (int i = argc - cNonOptions; i < argc; ++i)
         {
-            RTFSOBJINFO Info;
-            int rc2 = RTPathQueryInfoEx(argv[i], &Info, RTFSOBJATTRADD_NOTHING, RTPATH_F_ON_LINK);
-            if (RT_SUCCESS(rc))
+            /* I'm sure this isn't the most effective way, but I hope it will
+             * be readable and reliable code. */
+            if (RTDirExists(argv[i]) && !RTSymlinkExists(argv[i]))
             {
-                if (RTFS_IS_SYMLINK(Info.Attr.fMode))
-                {
-                    rc2 = RTSymlinkDelete(argv[i], 0 /*fFlags*/);
-                    toolboxRmReport("", argv[i], RT_SUCCESS(rc2), rc2, fOutputFlags, NULL);
-                    toolboxRmReport("The following error occurred while removing symlink '%s': %Rrc.\n",
-                                    argv[i], RT_FAILURE(rc2), rc2, fOutputFlags, &rc);
-                }
-                else if (RTFS_IS_DIRECTORY(Info.Attr.fMode))
-                {
-                    if (!(fFlags & VBOXSERVICETOOLBOXRMFLAG_RECURSIVE))
-                        toolboxRmReport("Cannot remove directory '%s' as the '-R' option was not specified.\n",
-                                        argv[i], true, VERR_INVALID_PARAMETER, fOutputFlags, &rc);
-                    else
-                    {
-                        rc2 = RTDirRemoveRecursive(argv[i], RTDIRRMREC_F_CONTENT_AND_DIR);
-                        toolboxRmReport("", argv[i], RT_SUCCESS(rc2), rc2, fOutputFlags, NULL);
-                        toolboxRmReport("The following error occurred while removing directory '%s': %Rrc.\n",
-                                        argv[i], RT_FAILURE(rc2), rc2, fOutputFlags, &rc);
-                    }
-                }
+                if (!(fFlags & VBOXSERVICETOOLBOXRMFLAG_RECURSIVE))
+                    toolboxRmReport("Cannot remove directory '%s' as the '-R' option was not specified.\n",
+                                    argv[i], true, VERR_INVALID_PARAMETER,
+                                    fOutputFlags, &rc);
                 else
                 {
-                    rc2 = RTFileDelete(argv[i]);
-                    toolboxRmReport("", argv[i], RT_SUCCESS(rc2), rc2, fOutputFlags, NULL);
-                    toolboxRmReport("The following error occurred while removing file '%s': %Rrc.\n",
-                                    argv[i], RT_FAILURE(rc2), rc2, fOutputFlags, &rc);
+                    int rc2 = RTDirRemoveRecursive(argv[i],
+                                                   RTDIRRMREC_F_CONTENT_AND_DIR);
+                    toolboxRmReport("", argv[i], RT_SUCCESS(rc2), rc2,
+                                    fOutputFlags, NULL);
+                    toolboxRmReport("The following error occurred while removing directory '%s': %Rrc.\n",
+                                    argv[i], RT_FAILURE(rc2), rc2,
+                                    fOutputFlags, &rc);
                 }
             }
-            else if (   rc2 == VERR_FILE_NOT_FOUND
-                     || rc2 == VERR_PATH_NOT_FOUND)
-                toolboxRmReport("File '%s' does not exist (%Rrc).\n", argv[i], true, rc2, fOutputFlags, &rc);
+            else if (RTPathExists(argv[i]) || RTSymlinkExists(argv[i]))
+            {
+                int rc2 = RTFileDelete(argv[i]);
+                toolboxRmReport("", argv[i], RT_SUCCESS(rc2), rc2,
+                                fOutputFlags, NULL);
+                toolboxRmReport("The following error occurred while removing file '%s': %Rrc.\n",
+                                argv[i], RT_FAILURE(rc2), rc2, fOutputFlags,
+                                &rc);
+            }
             else
-                toolboxRmReport("The following error occurred while checkin '%s' before removal: %Rrc.\n",
-                                argv[i], true, rc2, fOutputFlags, &rc);
+                toolboxRmReport("File '%s' does not exist.\n", argv[i],
+                                true, VERR_FILE_NOT_FOUND, fOutputFlags, &rc);
         }
 
         if (fOutputFlags & VBOXSERVICETOOLBOXOUTPUTFLAG_PARSEABLE) /* Output termination. */
@@ -1526,7 +1519,6 @@ static RTEXITCODE VBoxServiceToolboxStat(int argc, char **argv)
     int rc = VINF_SUCCESS;
     bool fVerbose = false;
     uint32_t fOutputFlags = VBOXSERVICETOOLBOXOUTPUTFLAG_LONG; /* Use long mode by default. */
-    uint32_t fQueryInfoFlags = RTPATH_F_ON_LINK;
 
     /* Init file list. */
     RTLISTANCHOR fileList;
@@ -1539,13 +1531,9 @@ static RTEXITCODE VBoxServiceToolboxStat(int argc, char **argv)
         switch (ch)
         {
             case 'f':
+            case 'L':
                 RTMsgError("Sorry, option '%s' is not implemented yet!\n", ValueUnion.pDef->pszLong);
                 rc = VERR_INVALID_PARAMETER;
-                break;
-
-            case 'L':
-                fQueryInfoFlags &= ~RTPATH_F_ON_LINK;
-                fQueryInfoFlags |= RTPATH_F_FOLLOW_LINK;
                 break;
 
             case VBOXSERVICETOOLBOXOPT_MACHINE_READABLE:
@@ -1567,11 +1555,6 @@ static RTEXITCODE VBoxServiceToolboxStat(int argc, char **argv)
 
             case VINF_GETOPT_NOT_OPTION:
                 {
-/** @todo r=bird: The whole fileList is unecessary because you're using
- * RTGETOPTINIT_FLAGS_OPTS_FIRST.  You can obviously do the processing right
- * here, but you could also just drop down and rewind GetState.iNext by one and
- * continue there. */
-
                     /* Add file(s) to buffer. This enables processing multiple files
                      * at once.
                      *
@@ -1601,13 +1584,13 @@ static RTEXITCODE VBoxServiceToolboxStat(int argc, char **argv)
         RTListForEach(&fileList, pNodeIt, VBOXSERVICETOOLBOXPATHENTRY, Node)
         {
             RTFSOBJINFO objInfo;
-            int rc2 = RTPathQueryInfoEx(pNodeIt->pszName, &objInfo, RTFSOBJATTRADD_UNIX, fQueryInfoFlags);
+            int rc2 = RTPathQueryInfoEx(pNodeIt->pszName, &objInfo,
+                                        RTFSOBJATTRADD_UNIX, RTPATH_F_ON_LINK /* @todo Follow link? */);
             if (RT_FAILURE(rc2))
             {
-/** @todo r=bird: You can get a number of other errors here, like access denied. */
                 if (!(fOutputFlags & VBOXSERVICETOOLBOXOUTPUTFLAG_PARSEABLE))
-                    RTMsgError("Cannot stat for '%s': No such file or directory (%Rrc)\n",
-                               pNodeIt->pszName, rc);
+                    RTMsgError("Cannot stat for '%s': No such file or directory\n",
+                               pNodeIt->pszName);
                 rc = VERR_FILE_NOT_FOUND;
                 /* Do not break here -- process every element in the list
                  * and keep failing rc. */

@@ -50,16 +50,6 @@ typedef enum IEMMODE
 AssertCompileSize(IEMMODE, 4);
 
 
-/** @name IEM status codes.
- *
- * Not quite sure how this will play out in the end, just aliasing safe status
- * codes for now.
- *
- * @{ */
-#define VINF_IEM_RAISED_XCPT    VINF_EM_RESCHEDULE
-/** @} */
-
-
 VMMDECL(VBOXSTRICTRC)       IEMExecOne(PVMCPU pVCpu);
 VMMDECL(VBOXSTRICTRC)       IEMExecOneEx(PVMCPU pVCpu, PCPUMCTXCORE pCtxCore, uint32_t *pcbWritten);
 VMMDECL(VBOXSTRICTRC)       IEMExecOneWithPrefetchedByPC(PVMCPU pVCpu, PCPUMCTXCORE pCtxCore, uint64_t OpcodeBytesPC,
@@ -68,9 +58,7 @@ VMMDECL(VBOXSTRICTRC)       IEMExecOneBypassEx(PVMCPU pVCpu, PCPUMCTXCORE pCtxCo
 VMMDECL(VBOXSTRICTRC)       IEMExecOneBypassWithPrefetchedByPC(PVMCPU pVCpu, PCPUMCTXCORE pCtxCore, uint64_t OpcodeBytesPC,
                                                                const void *pvOpcodeBytes, size_t cbOpcodeBytes);
 VMMDECL(VBOXSTRICTRC)       IEMExecLots(PVMCPU pVCpu);
-VMMDECL(VBOXSTRICTRC)       IEMInjectTrpmEvent(PVMCPU pVCpu);
-VMM_INT_DECL(VBOXSTRICTRC)  IEMInjectTrap(PVMCPU pVCpu, uint8_t u8TrapNo, TRPMEVENT enmType, uint16_t uErrCode, RTGCPTR uCr2,
-                                          uint8_t cbInstr);
+VMM_INT_DECL(VBOXSTRICTRC)  IEMInjectTrap(PVMCPU pVCpu, uint8_t u8TrapNo, TRPMEVENT enmType, uint16_t uErrCode, RTGCPTR uCr2);
 
 VMM_INT_DECL(int)           IEMBreakpointSet(PVM pVM, RTGCPTR GCPtrBp);
 VMM_INT_DECL(int)           IEMBreakpointClear(PVM pVM, RTGCPTR GCPtrBp);
@@ -81,11 +69,6 @@ VMM_INT_DECL(VBOXSTRICTRC)  IEMExecStringIoWrite(PVMCPU pVCpu, uint8_t cbValue, 
                                                  bool fRepPrefix, uint8_t cbInstr, uint8_t iEffSeg);
 VMM_INT_DECL(VBOXSTRICTRC)  IEMExecStringIoRead(PVMCPU pVCpu, uint8_t cbValue, IEMMODE enmAddrMode,
                                                 bool fRepPrefix, uint8_t cbInstr);
-VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedMovCRxWrite(PVMCPU pVCpu, uint8_t cbInstr, uint8_t iCrReg, uint8_t iGReg);
-VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedMovCRxRead(PVMCPU pVCpu, uint8_t cbInstr, uint8_t iGReg, uint8_t iCrReg);
-VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedClts(PVMCPU pVCpu, uint8_t cbInstr);
-VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedLmsw(PVMCPU pVCpu, uint8_t cbInstr, uint16_t uValue);
-VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedXsetbv(PVMCPU pVCpu, uint8_t cbInstr);
 /** @}  */
 
 #if defined(IEM_VERIFICATION_MODE) && defined(IN_RING3)
@@ -98,7 +81,8 @@ VMM_INT_DECL(void)   IEMNotifyIOPortWriteString(PVM pVM, RTIOPORT Port, RTGCPTR 
 #endif
 
 
-/** @defgroup grp_iem_r3     The IEM Host Context Ring-3 API.
+/** @defgroup grp_em_r3     The IEM Host Context Ring-3 API.
+ * @ingroup grp_em
  * @{
  */
 VMMR3DECL(int)      IEMR3Init(PVM pVM);

@@ -1,10 +1,12 @@
 /* $Id: QIArrowButtonSwitch.cpp $ */
 /** @file
- * VBox Qt GUI - QIArrowButtonSwitch class implementation.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * VirtualBox Qt extensions: QIArrowButtonSwitch class implementation
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,60 +17,64 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+/* VBox includes */
+#include "QIArrowButtonSwitch.h"
+#include "UIIconPool.h"
 
-/* Qt includes: */
-# include <QKeyEvent>
-
-/* GUI includes: */
-# include "QIArrowButtonSwitch.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+/* Qt includes */
+#include <QKeyEvent>
 
 
-QIArrowButtonSwitch::QIArrowButtonSwitch(QWidget *pParent /* = 0 */)
-    : QIRichToolButton(pParent)
-    , m_buttonState(ButtonState_Collapsed)
+/** @class QIArrowButtonSwitch
+ *
+ *  The QIArrowButtonSwitch class is an arrow tool-button with text-label,
+ *  used as collaps/expand switch in QIMessageBox class.
+ *
+ */
+
+QIArrowButtonSwitch::QIArrowButtonSwitch (QWidget *aParent)
+    : QIRichToolButton (aParent)
+    , mIsExpanded (false)
 {
-    /* Update icon: */
     updateIcon();
 }
 
-void QIArrowButtonSwitch::setIconForButtonState(QIArrowButtonSwitch::ButtonState buttonState, const QIcon &icon)
+QIArrowButtonSwitch::QIArrowButtonSwitch (const QString &aName, QWidget *aParent)
+    : QIRichToolButton (aName, aParent)
+    , mIsExpanded (false)
 {
-    /* Assign icon: */
-    m_icons[buttonState] = icon;
-    /* Update icon: */
     updateIcon();
 }
 
-void QIArrowButtonSwitch::sltButtonClicked()
+void QIArrowButtonSwitch::buttonClicked()
 {
-    /* Toggle button-state: */
-    m_buttonState = m_buttonState == ButtonState_Collapsed ?
-                    ButtonState_Expanded : ButtonState_Collapsed;
-    /* Update icon: */
+    mIsExpanded = !mIsExpanded;
     updateIcon();
-}
-
-void QIArrowButtonSwitch::keyPressEvent(QKeyEvent *pEvent)
-{
-    /* Handle different keys: */
-    switch (pEvent->key())
-    {
-        /* Animate-click for the Space key: */
-        case Qt::Key_Minus: if (m_buttonState == ButtonState_Expanded) return animateClick(); break;
-        case Qt::Key_Plus: if (m_buttonState == ButtonState_Collapsed) return animateClick(); break;
-        default: break;
-    }
-    /* Call to base-class: */
-    QIRichToolButton::keyPressEvent(pEvent);
+    QIRichToolButton::buttonClicked();
 }
 
 void QIArrowButtonSwitch::updateIcon()
 {
-    setIcon(m_icons.value(m_buttonState));
+    mButton->setIcon(UIIconPool::iconSet(mIsExpanded ?
+                                         ":/arrow_down_10px.png" : ":/arrow_right_10px.png"));
+}
+
+bool QIArrowButtonSwitch::eventFilter (QObject *aObject, QEvent *aEvent)
+{
+    /* Process only QIArrowButtonSwitch or children */
+    if (!(aObject == this || children().contains (aObject)))
+        return QIRichToolButton::eventFilter (aObject, aEvent);
+
+    /* Process keyboard events */
+    if (aEvent->type() == QEvent::KeyPress)
+    {
+        QKeyEvent *kEvent = static_cast <QKeyEvent*> (aEvent);
+        if ((mIsExpanded && kEvent->key() == Qt::Key_Minus) ||
+            (!mIsExpanded && kEvent->key() == Qt::Key_Plus))
+            animateClick();
+    }
+
+    /* Default one handler */
+    return QIRichToolButton::eventFilter (aObject, aEvent);
 }
 

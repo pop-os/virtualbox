@@ -476,7 +476,8 @@ static DECLCALLBACK(void) stubContextDtor(void*pvContext)
  * CreateContext() function too.
  */
     ContextInfo *
-stubNewContext(char *dpyName, GLint visBits, ContextType type, unsigned long shareCtx
+stubNewContext( const char *dpyName, GLint visBits, ContextType type,
+    unsigned long shareCtx
 #if defined(VBOX_WITH_CRHGSMI) && defined(IN_GUEST)
         , struct VBOXUHGSMI *pHgsmi
 #endif
@@ -690,7 +691,7 @@ InstantiateNativeContext( WindowInfo *window, ContextInfo *context )
 #ifdef WINDOWS
 
 void
-stubGetWindowGeometry(WindowInfo *window, int *x, int *y,
+stubGetWindowGeometry(const WindowInfo *window, int *x, int *y,
                       unsigned int *w, unsigned int *h )
 {
     RECT rect;
@@ -1129,7 +1130,7 @@ GLboolean stubCtxCreate(ContextInfo *context)
         spuConnection = stub.spu->dispatch_table.VBoxConCreate(context->pHgsmi);
         if (!spuConnection)
         {
-            crError("VBoxConCreate failed");
+            crWarning("VBoxConCreate failed");
             return GL_FALSE;
         }
         context->spuConnection = spuConnection;
@@ -1391,10 +1392,10 @@ stubDestroyContext( unsigned long contextId )
     crHashtableLock(stub.contextTable);
 
     context = (ContextInfo *) crHashtableSearch(stub.contextTable, contextId);
-    if (context)
-        stubDestroyContextLocked(context);
-    else
-        crError("No context.");
+
+    CRASSERT(context);
+
+    stubDestroyContextLocked(context);
 
 #ifdef CHROMIUM_THREADSAFE
     if (stubGetCurrentContext() == context) {

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -66,7 +66,6 @@
 #include <VBox/vmm/ssm.h>
 #include <VBox/vmm/ftm.h>
 #include <VBox/vmm/hm.h>
-#include <VBox/vmm/gim.h>
 #include "VMInternal.h"
 #include <VBox/vmm/vm.h>
 #include <VBox/vmm/uvm.h>
@@ -985,48 +984,40 @@ static int vmR3InitRing3(PVM pVM, PUVM pUVM)
                                                                 rc = DBGFR3Init(pVM);
                                                                 if (RT_SUCCESS(rc))
                                                                 {
-                                                                    /* GIM must be init'd before PDM, gimdevR3Construct()
-                                                                       requires GIM provider to be setup. */
-                                                                    rc = GIMR3Init(pVM);
+                                                                    rc = PDMR3Init(pVM);
                                                                     if (RT_SUCCESS(rc))
                                                                     {
-                                                                        rc = PDMR3Init(pVM);
+                                                                        rc = PGMR3InitDynMap(pVM);
+                                                                        if (RT_SUCCESS(rc))
+                                                                            rc = MMR3HyperInitFinalize(pVM);
+#ifdef VBOX_WITH_RAW_MODE
+                                                                        if (RT_SUCCESS(rc))
+                                                                            rc = PATMR3InitFinalize(pVM);
+#endif
+                                                                        if (RT_SUCCESS(rc))
+                                                                            rc = PGMR3InitFinalize(pVM);
+                                                                        if (RT_SUCCESS(rc))
+                                                                            rc = SELMR3InitFinalize(pVM);
+                                                                        if (RT_SUCCESS(rc))
+                                                                            rc = TMR3InitFinalize(pVM);
+#ifdef VBOX_WITH_REM
+                                                                        if (RT_SUCCESS(rc))
+                                                                            rc = REMR3InitFinalize(pVM);
+#endif
                                                                         if (RT_SUCCESS(rc))
                                                                         {
-                                                                            rc = PGMR3InitDynMap(pVM);
-                                                                            if (RT_SUCCESS(rc))
-                                                                                rc = MMR3HyperInitFinalize(pVM);
-#ifdef VBOX_WITH_RAW_MODE
-                                                                            if (RT_SUCCESS(rc))
-                                                                                rc = PATMR3InitFinalize(pVM);
-#endif
-                                                                            if (RT_SUCCESS(rc))
-                                                                                rc = PGMR3InitFinalize(pVM);
-                                                                            if (RT_SUCCESS(rc))
-                                                                                rc = SELMR3InitFinalize(pVM);
-                                                                            if (RT_SUCCESS(rc))
-                                                                                rc = TMR3InitFinalize(pVM);
-#ifdef VBOX_WITH_REM
-                                                                            if (RT_SUCCESS(rc))
-                                                                                rc = REMR3InitFinalize(pVM);
-#endif
-                                                                            if (RT_SUCCESS(rc))
-                                                                            {
-                                                                                PGMR3MemSetup(pVM, false /*fAtReset*/);
-                                                                                PDMR3MemSetup(pVM, false /*fAtReset*/);
-                                                                            }
-                                                                            if (RT_SUCCESS(rc))
-                                                                                rc = vmR3InitDoCompleted(pVM, VMINITCOMPLETED_RING3);
-                                                                            if (RT_SUCCESS(rc))
-                                                                            {
-                                                                                LogFlow(("vmR3InitRing3: returns %Rrc\n", VINF_SUCCESS));
-                                                                                return VINF_SUCCESS;
-                                                                            }
-
-                                                                            int rc2 = PDMR3Term(pVM);
-                                                                            AssertRC(rc2);
+                                                                            PGMR3MemSetup(pVM, false /*fAtReset*/);
+                                                                            PDMR3MemSetup(pVM, false /*fAtReset*/);
                                                                         }
-                                                                        int rc2 = GIMR3Term(pVM);
+                                                                        if (RT_SUCCESS(rc))
+                                                                            rc = vmR3InitDoCompleted(pVM, VMINITCOMPLETED_RING3);
+                                                                        if (RT_SUCCESS(rc))
+                                                                        {
+                                                                            LogFlow(("vmR3InitRing3: returns %Rrc\n", VINF_SUCCESS));
+                                                                            return VINF_SUCCESS;
+                                                                        }
+
+                                                                        int rc2 = PDMR3Term(pVM);
                                                                         AssertRC(rc2);
                                                                     }
                                                                     int rc2 = DBGFR3Term(pVM);
@@ -1173,7 +1164,7 @@ static int vmR3InitDoCompleted(PVM pVM, VMINITCOMPLETED enmWhat)
     if (RT_SUCCESS(rc))
         rc = HMR3InitCompleted(pVM, enmWhat);
     if (RT_SUCCESS(rc))
-        rc = PGMR3InitCompleted(pVM, enmWhat);  /** @todo Why is this not inside VMMR3InitCompleted()? */
+        rc = PGMR3InitCompleted(pVM, enmWhat);
 #ifndef VBOX_WITH_RAW_MODE
     if (enmWhat == VMINITCOMPLETED_RING3)
     {
@@ -1249,7 +1240,7 @@ VMMR3_INT_DECL(void) VMR3Relocate(PVM pVM, RTGCINTPTR offDelta)
     SELMR3Relocate(pVM);                /* !hack! fix stack! */
     TRPMR3Relocate(pVM, offDelta);
 #ifdef VBOX_WITH_RAW_MODE
-    PATMR3Relocate(pVM, (RTRCINTPTR)offDelta);
+    PATMR3Relocate(pVM);
     CSAMR3Relocate(pVM, offDelta);
 #endif
     IOMR3Relocate(pVM, offDelta);
@@ -2796,7 +2787,6 @@ static DECLCALLBACK(VBOXSTRICTRC) vmR3Reset(PVM pVM, PVMCPU pVCpu, void *pvUser)
         PATMR3Reset(pVM);
         CSAMR3Reset(pVM);
 #endif
-        GIMR3Reset(pVM);                /* This must come *before* PDM and TM. */
         PDMR3Reset(pVM);
         PGMR3Reset(pVM);
         SELMR3Reset(pVM);
@@ -3308,7 +3298,7 @@ static bool vmR3ValidateStateTransition(VMSTATE enmStateOld, VMSTATE enmStateNew
  */
 static void vmR3DoAtState(PVM pVM, PUVM pUVM, VMSTATE enmStateNew, VMSTATE enmStateOld)
 {
-    LogRel(("Changing the VM state from '%s' to '%s'\n", VMR3GetStateName(enmStateOld),  VMR3GetStateName(enmStateNew)));
+    LogRel(("Changing the VM state from '%s' to '%s'.\n", VMR3GetStateName(enmStateOld),  VMR3GetStateName(enmStateNew)));
 
     for (PVMATSTATE pCur = pUVM->vm.s.pAtState; pCur; pCur = pCur->pNext)
     {

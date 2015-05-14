@@ -1,6 +1,8 @@
 /* $Id: UIWizardExportAppPageBasic1.cpp $ */
 /** @file
- * VBox Qt GUI - UIWizardExportAppPageBasic1 class implementation.
+ *
+ * VBox frontends: Qt4 GUI ("VirtualBox"):
+ * UIWizardExportAppPageBasic1 class implementation
  */
 
 /*
@@ -15,27 +17,20 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QVBoxLayout>
+#include <QVBoxLayout>
 
 /* Local includes: */
-# include "UIWizardExportAppPageBasic1.h"
-# include "UIWizardExportApp.h"
-# include "UIWizardExportAppDefs.h"
-# include "VBoxGlobal.h"
-# include "UIMessageCenter.h"
-# include "QILabelSeparator.h"
-# include "QIRichTextLabel.h"
+#include "UIWizardExportAppPageBasic1.h"
+#include "UIWizardExportApp.h"
+#include "UIWizardExportAppDefs.h"
+#include "VBoxGlobal.h"
+#include "UIMessageCenter.h"
+#include "QILabelSeparator.h"
+#include "QIRichTextLabel.h"
 
 /* COM includes: */
-# include "CMachine.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
+#include "CMachine.h"
 
 UIWizardExportAppPage1::UIWizardExportAppPage1()
 {

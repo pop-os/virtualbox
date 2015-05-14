@@ -48,12 +48,10 @@
     <String Id="VB_App">[ProductName] Hauptanwendung.</String>
     <String Id="VB_USBDriver">[ProductName] Treiber für USB Geräte-Unterstützung.</String>
     <String Id="VB_Network">[ProductName] Treiber für Netzwerk-Unterstützung.</String>
-    <String Id="VB_NetFltDriver">[ProductName] Treiber für Netzwerkbrücke.</String>
-    <String Id="VB_NetAdpDriver">[ProductName] Treiber für virtuellen Netzwerk-Adapter für Host-only Netzwerke.</String>
-    <String Id="VB_NetLwfDriver">[ProductName] Treiber für NDIS6-Netzwerkbrücke.</String>
-    <String Id="VB_NetAdp6Driver">[ProductName] Treiber für virtuellen Netzwerk-Adapter für NDIS6-Host-only-Netzwerke.</String>
+    <String Id="VB_NetFltDriver">[ProductName] Treiber für Bridged Networking.</String>
+    <String Id="VB_NetAdpDriver">[ProductName] Netzwerk-Adapter Treiber für Hostinterface-Networking.</String>
 
-  <String Id="VB_Python">Python-Support für VirtualBox.</String>
+    <String Id="VB_Python">Python-Support für VirtualBox.</String>
 
     <!---->
 
@@ -122,16 +120,6 @@
     <String Id="Customize2Dlg_CreateShortcut">Verknüpfung auf dem Desktop anlegen</String>
     <String Id="Customize2Dlg_CreateQuickLaunch">Verknüpfung in der Schnellstartleiste anlegen</String>
     <String Id="Customize2Dlg_RegisterFileExtensions">Dateizuordnungen registrieren</String>
-
-    <!---->
-
-    <String Id="SelectionNetworkTypeDlg_CommonDescription">Please choose which type of network drivers you will use:</String>
-    <String Id="SelectionNetworkTypeDlg_DescriptionNDIS5">NDIS5 network drivers.
-This is default for older versions of Windows (pre-Vista).</String>
-    <String Id="SelectionNetworkTypeDlg_DescriptionNDIS6">NDIS6 network drivers.
-This is default for newer versions of Windows (Vista and newer).</String>
-    <String Id="SelectionNetworkTypeDlg_RadioButtonNDIS5">Use NDIS5 network drivers.</String>
-    <String Id="SelectionNetworkTypeDlg_RadioButtonNDIS6">Use NDIS6 network drivers.</String>
 
     <!---->
 

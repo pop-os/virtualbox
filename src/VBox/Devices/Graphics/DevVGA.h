@@ -219,6 +219,9 @@ typedef struct _VBOX_VHWA_PENDINGCMD
 #define VMSVGA_FIFO_EXTCMD_LOADSTATE            3
 #define VMSVGA_FIFO_EXTCMD_RESET                4
 
+/** Size of the region to backup when switching into svga mode. */
+#define VMSVGA_FRAMEBUFFER_BACKUP_SIZE  (32*1024)
+
 typedef struct
 {
     PSSMHANDLE      pSSM;
@@ -314,12 +317,6 @@ typedef struct
     /** External command to be executed in the FIFO thread. */
     uint8_t                     u8FIFOExtCommand;
     bool                        Padding6;
-# if defined(DEBUG_GMR_ACCESS) || defined(DEBUG_FIFO_ACCESS)
-    /** GMR debug access handler type handle. */
-    PGMPHYSHANDLERTYPE          hGmrAccessHandlerType;
-    /** FIFO debug access handler type handle. */
-    PGMPHYSHANDLERTYPE          hFifoAccessHandlerType;
-# endif
 } VMSVGAState;
 #endif /* VBOX_WITH_VMSVGA */
 
@@ -402,24 +399,17 @@ typedef struct VGAState {
     PDMIBASE                    IBase;
     /** LUN\#0: The display port interface. */
     PDMIDISPLAYPORT             IPort;
+# if HC_ARCH_BITS == 32
+    uint32_t                    PaddingIPort;
+# endif
 # if defined(VBOX_WITH_HGSMI) && (defined(VBOX_WITH_VIDEOHWACCEL) || defined(VBOX_WITH_CRHGSMI))
     /** LUN\#0: VBVA callbacks interface */
     PDMIDISPLAYVBVACALLBACKS    IVBVACallbacks;
-# else
-    RTR3PTR                     Padding2;
 # endif
-    /** Status LUN\#0: Leds interface. */
-    PDMILEDPORTS                ILeds;
-
     /** Pointer to base interface of the driver. */
     R3PTRTYPE(PPDMIBASE)        pDrvBase;
     /** Pointer to display connector interface of the driver. */
     R3PTRTYPE(PPDMIDISPLAYCONNECTOR) pDrv;
-
-    /** Status LUN: Partner of ILeds. */
-    R3PTRTYPE(PPDMILEDCONNECTORS)   pLedsConnector;
-    /** Status LUN: Media Notifys. */
-    R3PTRTYPE(PPDMIMEDIANOTIFY)     pMediaNotify;
 
     /** Refresh timer handle - HC. */
     PTMTIMERR3                  RefreshTimer;
@@ -458,13 +448,10 @@ typedef struct VGAState {
 #ifdef VBOX_WITH_VMSVGA
     /* Whether the SVGA emulation is enabled or not. */
     bool                        fVMSVGAEnabled;
-    bool                        Padding1[1+4];
+    bool                        Padding1[1];
 #else
-    bool                        Padding1[2+4];
+    bool                        Padding1[2];
 #endif
-
-    /** Physical access type for the linear frame buffer dirty page tracking. */
-    PGMPHYSHANDLERTYPE          hLfbAccessHandlerType;
 
     /** The physical address the VRAM was assigned. */
     RTGCPHYS                    GCPhysVRAM;
@@ -696,7 +683,7 @@ int vboxVBVASaveStateExec (PPDMDEVINS pDevIns, PSSMHANDLE pSSM);
 int vboxVBVALoadStateExec (PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t u32Version);
 int vboxVBVALoadStateDone (PPDMDEVINS pDevIns, PSSMHANDLE pSSM);
 
-DECLCALLBACK(int) vgaUpdateDisplayAll(PVGASTATE pThis, bool fFailOnResize);
+int vgaUpdateDisplayAll(PVGASTATE pThis);
 DECLCALLBACK(int) vbvaPortSendModeHint(PPDMIDISPLAYPORT pInterface, uint32_t cx,
                                        uint32_t cy, uint32_t cBPP,
                                        uint32_t cDisplay, uint32_t dx,

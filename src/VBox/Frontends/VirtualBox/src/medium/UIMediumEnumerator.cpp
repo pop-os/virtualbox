@@ -15,27 +15,20 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QSet>
+#include <QSet>
 
 /* GUI includes: */
-# include "UIMediumEnumerator.h"
-# include "UIThreadPool.h"
-# include "UIVirtualBoxEventHandler.h"
-# include "VBoxGlobal.h"
+#include "UIMediumEnumerator.h"
+#include "UIThreadPool.h"
+#include "UIVirtualBoxEventHandler.h"
+#include "VBoxGlobal.h"
 
 /* COM includes: */
-# include "COMEnums.h"
-# include "CMachine.h"
-# include "CSnapshot.h"
-# include "CMediumAttachment.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
+#include "COMEnums.h"
+#include "CMachine.h"
+#include "CSnapshot.h"
+#include "CMediumAttachment.h"
 
 
 /* GUI task prototype: Medium enumeration.
@@ -80,7 +73,6 @@ UIMediumEnumerator::UIMediumEnumerator(ulong uWorkerCount /* = 3*/, ulong uWorke
     connect(gVBoxEvents, SIGNAL(sigSnapshotTake(QString, QString)), this, SLOT(sltHandleMachineUpdate(QString)));
     connect(gVBoxEvents, SIGNAL(sigSnapshotDelete(QString, QString)), this, SLOT(sltHandleSnapshotDeleted(QString, QString)));
     connect(gVBoxEvents, SIGNAL(sigSnapshotChange(QString, QString)), this, SLOT(sltHandleMachineUpdate(QString)));
-    connect(gVBoxEvents, SIGNAL(sigSnapshotRestore(QString, QString)), this, SLOT(sltHandleSnapshotDeleted(QString, QString)));
     connect(gVBoxEvents, SIGNAL(sigMachineRegistered(QString, bool)), this, SLOT(sltHandleMachineRegistration(QString, bool)));
 
     /* Prepare thread-pool: */
@@ -196,21 +188,23 @@ void UIMediumEnumerator::sltHandleMachineUpdate(QString strMachineID)
     LogRel(("UIMediumEnumerator:  New usage: %s\n",
             currentCMediumIDs.isEmpty() ? "<empty>" : currentCMediumIDs.join(", ").toAscii().constData()));
 
-    /* Determine excluded mediums: */
-    const QSet<QString> previousSet = previousUIMediumIDs.toSet();
-    const QSet<QString> currentSet = currentCMediumIDs.toSet();
-    const QSet<QString> excludedSet = previousSet - currentSet;
-    const QStringList excludedUIMediumIDs = excludedSet.toList();
-    if (!excludedUIMediumIDs.isEmpty())
-        LogRel(("UIMediumEnumerator:  Items excluded from usage: %s\n", excludedUIMediumIDs.join(", ").toAscii().constData()));
-    if (!currentCMediumIDs.isEmpty())
-        LogRel(("UIMediumEnumerator:  Items currently in usage: %s\n", currentCMediumIDs.join(", ").toAscii().constData()));
+    /* Determine excluded/included mediums: */
+    QSet<QString> oldSet = previousUIMediumIDs.toSet();
+    QSet<QString> newSet = currentCMediumIDs.toSet();
+    QSet<QString> excludedSet = oldSet - newSet;
+    QSet<QString> includedSet = newSet - oldSet;
+    QStringList excludedList = excludedSet.toList();
+    QStringList includedList = includedSet.toList();
+    if (!excludedList.isEmpty())
+        LogRel(("UIMediumEnumerator:  Items excluded from usage: %s\n", excludedList.join(", ").toAscii().constData()));
+    if (!includedList.isEmpty())
+        LogRel(("UIMediumEnumerator:  Items included into usage: %s\n", includedList.join(", ").toAscii().constData()));
 
     /* Update cache for excluded UIMediums: */
-    recacheFromCachedUsage(excludedUIMediumIDs);
+    recacheFromCachedUsage(excludedList);
 
-    /* Update cache for current CMediums: */
-    recacheFromActualUsage(currentCMediums, currentCMediumIDs);
+    /* Update cache for included CMediums: */
+    recacheFromActualUsage(currentCMediums, includedList);
 
     LogRel(("UIMediumEnumerator: Machine (or snapshot) event processed, ID = %s\n",
             strMachineID.toAscii().constData()));

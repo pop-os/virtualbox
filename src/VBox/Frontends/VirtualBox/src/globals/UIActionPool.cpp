@@ -1,10 +1,12 @@
 /* $Id: UIActionPool.cpp $ */
 /** @file
- * VBox Qt GUI - UIActionPool class implementation.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * UIActionPool class implementation
  */
 
 /*
- * Copyright (C) 2010-2014 Oracle Corporation
+ * Copyright (C) 2010-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,92 +17,38 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+/* Global includes: */
+#include <QHelpEvent>
+#include <QToolTip>
 
-/* Qt includes: */
-# include <QHelpEvent>
-# include <QToolTip>
+/* Local includes: */
+#include "UIActionPool.h"
+#include "UIActionPoolSelector.h"
+#include "UIActionPoolRuntime.h"
+#include "UIIconPool.h"
+#include "UIShortcutPool.h"
+#include "VBoxGlobal.h"
 
-/* GUI includes: */
-# include "UIActionPool.h"
-# include "UIActionPoolSelector.h"
-# include "UIActionPoolRuntime.h"
-# include "UIShortcutPool.h"
-# include "UIConverter.h"
-# include "UIIconPool.h"
-# include "VBoxGlobal.h"
-# include "UIMessageCenter.h"
-# ifdef VBOX_GUI_WITH_NETWORK_MANAGER
-#  include "UIExtraDataManager.h"
-#  include "UINetworkManager.h"
-#  include "UIUpdateManager.h"
-# endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
-
-
-/** QEvent extension
-  * representing action-activation event. */
+/* Action activation event: */
 class ActivateActionEvent : public QEvent
 {
 public:
 
-    /** Constructor. */
     ActivateActionEvent(QAction *pAction)
         : QEvent((QEvent::Type)ActivateActionEventType)
         , m_pAction(pAction) {}
-
-    /** Returns the action this event corresponding to. */
     QAction* action() const { return m_pAction; }
 
 private:
 
-    /** Ho0lds the action this event corresponding to. */
     QAction *m_pAction;
 };
 
-
-UIMenu::UIMenu()
-    : m_fShowToolTip(false)
-#ifdef Q_WS_MAC
-    , m_fConsumable(false)
-    , m_fConsumed(false)
-#endif /* Q_WS_MAC */
-{
-}
-
-bool UIMenu::event(QEvent *pEvent)
-{
-    /* Handle particular event-types: */
-    switch (pEvent->type())
-    {
-        /* Tool-tip request handler: */
-        case QEvent::ToolTip:
-        {
-            /* Get current help-event: */
-            QHelpEvent *pHelpEvent = static_cast<QHelpEvent*>(pEvent);
-            /* Get action which caused help-event: */
-            QAction *pAction = actionAt(pHelpEvent->pos());
-            /* If action present => show action's tool-tip if needed: */
-            if (pAction && m_fShowToolTip)
-                QToolTip::showText(pHelpEvent->globalPos(), pAction->toolTip());
-            break;
-        }
-        default:
-            break;
-    }
-    /* Call to base-class: */
-    return QMenu::event(pEvent);
-}
-
-
+/* UIAction stuff: */
 UIAction::UIAction(UIActionPool *pParent, UIActionType type)
     : QAction(pParent)
-    , m_type(type)
     , m_pActionPool(pParent)
+    , m_type(type)
     , m_actionPoolType(pParent->type())
     , m_fShortcutHidden(false)
 {
@@ -109,19 +57,9 @@ UIAction::UIAction(UIActionPool *pParent, UIActionType type)
     setMenuRole(QAction::NoRole);
 }
 
-UIMenu* UIAction::menu() const
+UIActionState* UIAction::toStateAction()
 {
-    return qobject_cast<UIMenu*>(QAction::menu());
-}
-
-UIActionPolymorphic* UIAction::toActionPolymorphic()
-{
-    return qobject_cast<UIActionPolymorphic*>(this);
-}
-
-UIActionPolymorphicMenu* UIAction::toActionPolymorphicMenu()
-{
-    return qobject_cast<UIActionPolymorphicMenu*>(this);
+    return qobject_cast<UIActionState*>(this);
 }
 
 void UIAction::setName(const QString &strName)
@@ -193,88 +131,118 @@ void UIAction::updateText()
     }
 }
 
+/* UIMenu stuff: */
+UIMenu::UIMenu()
+    : m_fShowToolTips(false)
+{
+}
 
-UIActionMenu::UIActionMenu(UIActionPool *pParent,
-                           const QString &strIcon, const QString &strIconDis)
-    : UIAction(pParent, UIActionType_Menu)
+bool UIMenu::event(QEvent *pEvent)
+{
+    /* Handle particular event-types: */
+    switch (pEvent->type())
+    {
+        /* Tool-tip request handler: */
+        case QEvent::ToolTip:
+        {
+            /* Get current help-event: */
+            QHelpEvent *pHelpEvent = static_cast<QHelpEvent*>(pEvent);
+            /* Get action which caused help-event: */
+            QAction *pAction = actionAt(pHelpEvent->pos());
+            /* If action present => show action's tool-tip if needed: */
+            if (pAction && m_fShowToolTips)
+                QToolTip::showText(pHelpEvent->globalPos(), pAction->toolTip());
+            break;
+        }
+        default:
+            break;
+    }
+    /* Base-class event-handler: */
+    return QMenu::event(pEvent);
+}
+
+/* UIActionSimple stuff: */
+UIActionSimple::UIActionSimple(UIActionPool *pParent,
+                               const QString &strIcon, const QString &strIconDis)
+    : UIAction(pParent, UIActionType_Simple)
 {
     if (!strIcon.isNull())
         setIcon(UIIconPool::iconSet(strIcon, strIconDis));
-    prepare();
-}
-
-UIActionMenu::UIActionMenu(UIActionPool *pParent,
-                           const QIcon &icon)
-    : UIAction(pParent, UIActionType_Menu)
-{
-    if (!icon.isNull())
-        setIcon(icon);
-    prepare();
-}
-
-void UIActionMenu::setShowToolTip(bool fShowToolTip)
-{
-    qobject_cast<UIMenu*>(menu())->setShowToolTip(fShowToolTip);
-}
-
-void UIActionMenu::prepare()
-{
-    /* Create menu: */
-    setMenu(new UIMenu);
-    AssertPtrReturnVoid(menu());
-    {
-        /* Prepare menu: */
-        connect(menu(), SIGNAL(aboutToShow()),
-                parent(), SLOT(sltHandleMenuPrepare()));
-    }
-}
-
-void UIActionMenu::updateText()
-{
-    setText(nameInMenu());
-}
-
-
-UIActionSimple::UIActionSimple(UIActionPool *pParent,
-                               const QString &strIcon /* = QString() */, const QString &strIconDisabled /* = QString() */)
-    : UIAction(pParent, UIActionType_Simple)
-{
-    if (!strIcon.isNull())
-        setIcon(UIIconPool::iconSet(strIcon, strIconDisabled));
 }
 
 UIActionSimple::UIActionSimple(UIActionPool *pParent,
-                               const QString &strIconNormal, const QString &strIconSmall,
-                               const QString &strIconNormalDisabled, const QString &strIconSmallDisabled)
+                               const QSize &normalSize, const QSize &smallSize,
+                               const QString &strNormalIcon, const QString &strSmallIcon,
+                               const QString &strNormalIconDis, const QString &strSmallIconDis)
     : UIAction(pParent, UIActionType_Simple)
 {
-    setIcon(UIIconPool::iconSetFull(strIconNormal, strIconSmall, strIconNormalDisabled, strIconSmallDisabled));
+    setIcon(UIIconPool::iconSetFull(normalSize, smallSize, strNormalIcon, strSmallIcon, strNormalIconDis, strSmallIconDis));
 }
 
 UIActionSimple::UIActionSimple(UIActionPool *pParent,
                                const QIcon& icon)
     : UIAction(pParent, UIActionType_Simple)
 {
-    setIcon(icon);
+    if (!icon.isNull())
+        setIcon(icon);
 }
 
+/* UIActionState stuff: */
+UIActionState::UIActionState(UIActionPool *pParent,
+                             const QString &strIcon, const QString &strIconDis)
+    : UIAction(pParent, UIActionType_State)
+    , m_iState(0)
+{
+    if (!strIcon.isNull())
+        setIcon(UIIconPool::iconSet(strIcon, strIconDis));
+}
 
+UIActionState::UIActionState(UIActionPool *pParent,
+                             const QSize &normalSize, const QSize &smallSize,
+                             const QString &strNormalIcon, const QString &strSmallIcon,
+                             const QString &strNormalIconDis, const QString &strSmallIconDis)
+    : UIAction(pParent, UIActionType_State)
+    , m_iState(0)
+{
+    setIcon(UIIconPool::iconSetFull(normalSize, smallSize, strNormalIcon, strSmallIcon, strNormalIconDis, strSmallIconDis));
+}
+
+UIActionState::UIActionState(UIActionPool *pParent,
+                             const QIcon& icon)
+    : UIAction(pParent, UIActionType_State)
+    , m_iState(0)
+{
+    if (!icon.isNull())
+        setIcon(icon);
+}
+
+/* UIActionToggle stuff: */
 UIActionToggle::UIActionToggle(UIActionPool *pParent,
-                               const QString &strIcon /* = QString() */, const QString &strIconDisabled /* = QString() */)
+                               const QString &strIcon, const QString &strIconDis)
     : UIAction(pParent, UIActionType_Toggle)
 {
     if (!strIcon.isNull())
-        setIcon(UIIconPool::iconSet(strIcon, strIconDisabled));
-    prepare();
+        setIcon(UIIconPool::iconSet(strIcon, strIconDis));
+    init();
 }
 
 UIActionToggle::UIActionToggle(UIActionPool *pParent,
-                               const QString &strIconOn, const QString &strIconOff,
-                               const QString &strIconOnDisabled, const QString &strIconOffDisabled)
+                               const QSize &normalSize, const QSize &smallSize,
+                               const QString &strNormalIcon, const QString &strSmallIcon,
+                               const QString &strNormalIconDis, const QString &strSmallIconDis)
     : UIAction(pParent, UIActionType_Toggle)
 {
-    setIcon(UIIconPool::iconSetOnOff(strIconOn, strIconOff, strIconOnDisabled, strIconOffDisabled));
-    prepare();
+    setIcon(UIIconPool::iconSetFull(normalSize, smallSize, strNormalIcon, strSmallIcon, strNormalIconDis, strSmallIconDis));
+    init();
+}
+
+UIActionToggle::UIActionToggle(UIActionPool *pParent,
+               const QString &strIconOn, const QString &strIconOff,
+               const QString &strIconOnDis, const QString &strIconOffDis)
+    : UIAction(pParent, UIActionType_Toggle)
+{
+    setIcon(UIIconPool::iconSetOnOff(strIconOn, strIconOff, strIconOnDis, strIconOffDis));
+    init();
 }
 
 UIActionToggle::UIActionToggle(UIActionPool *pParent,
@@ -283,252 +251,82 @@ UIActionToggle::UIActionToggle(UIActionPool *pParent,
 {
     if (!icon.isNull())
         setIcon(icon);
-    prepare();
+    init();
 }
 
-void UIActionToggle::prepare()
+void UIActionToggle::sltUpdate()
+{
+    retranslateUi();
+}
+
+void UIActionToggle::init()
 {
     setCheckable(true);
+    connect(this, SIGNAL(toggled(bool)), this, SLOT(sltUpdate()));
 }
 
-
-UIActionPolymorphic::UIActionPolymorphic(UIActionPool *pParent,
-                                         const QString &strIcon /* = QString() */, const QString &strIconDisabled /* = QString() */)
-    : UIAction(pParent, UIActionType_Polymorphic)
-    , m_iState(0)
+/* UIActionMenu stuff: */
+UIActionMenu::UIActionMenu(UIActionPool *pParent,
+                           const QString &strIcon, const QString &strIconDis)
+    : UIAction(pParent, UIActionType_Menu)
 {
     if (!strIcon.isNull())
-        setIcon(UIIconPool::iconSet(strIcon, strIconDisabled));
+        setIcon(UIIconPool::iconSet(strIcon, strIconDis));
+    setMenu(new UIMenu);
 }
 
-UIActionPolymorphic::UIActionPolymorphic(UIActionPool *pParent,
-                                         const QString &strIconNormal, const QString &strIconSmall,
-                                         const QString &strIconNormalDisabled, const QString &strIconSmallDisabled)
-    : UIAction(pParent, UIActionType_Polymorphic)
-    , m_iState(0)
-{
-    setIcon(UIIconPool::iconSetFull(strIconNormal, strIconSmall, strIconNormalDisabled, strIconSmallDisabled));
-}
-
-UIActionPolymorphic::UIActionPolymorphic(UIActionPool *pParent,
-                                         const QIcon& icon)
-    : UIAction(pParent, UIActionType_Polymorphic)
-    , m_iState(0)
+UIActionMenu::UIActionMenu(UIActionPool *pParent,
+                           const QIcon &icon)
+    : UIAction(pParent, UIActionType_Menu)
 {
     if (!icon.isNull())
         setIcon(icon);
+    setMenu(new UIMenu);
 }
 
-
-UIActionPolymorphicMenu::UIActionPolymorphicMenu(UIActionPool *pParent,
-                                                 const QString &strIcon, const QString &strIconDisabled)
-    : UIAction(pParent, UIActionType_PolymorphicMenu)
-    , m_pMenu(0)
-    , m_iState(0)
-{
-    if (!strIcon.isNull())
-        setIcon(UIIconPool::iconSet(strIcon, strIconDisabled));
-    prepare();
-}
-
-UIActionPolymorphicMenu::UIActionPolymorphicMenu(UIActionPool *pParent,
-                                                 const QString &strIconNormal, const QString &strIconSmall,
-                                                 const QString &strIconNormalDisabled, const QString &strIconSmallDisabled)
-    : UIAction(pParent, UIActionType_PolymorphicMenu)
-    , m_pMenu(0)
-    , m_iState(0)
-{
-    if (!strIconNormal.isNull())
-        setIcon(UIIconPool::iconSetFull(strIconNormal, strIconSmall, strIconNormalDisabled, strIconSmallDisabled));
-    prepare();
-}
-
-UIActionPolymorphicMenu::UIActionPolymorphicMenu(UIActionPool *pParent,
-                                                 const QIcon &icon)
-    : UIAction(pParent, UIActionType_PolymorphicMenu)
-    , m_pMenu(0)
-    , m_iState(0)
-{
-    if (!icon.isNull())
-        setIcon(icon);
-    prepare();
-}
-
-UIActionPolymorphicMenu::~UIActionPolymorphicMenu()
-{
-    /* Hide menu: */
-    hideMenu();
-    /* Delete menu: */
-    delete m_pMenu;
-    m_pMenu = 0;
-}
-
-void UIActionPolymorphicMenu::setShowToolTip(bool fShowToolTip)
-{
-    qobject_cast<UIMenu*>(menu())->setShowToolTip(fShowToolTip);
-}
-
-void UIActionPolymorphicMenu::showMenu()
-{
-    /* Show menu if necessary: */
-    if (!menu())
-        setMenu(m_pMenu);
-}
-
-void UIActionPolymorphicMenu::hideMenu()
-{
-    /* Hide menu if necessary: */
-    if (menu())
-        setMenu(0);
-}
-
-void UIActionPolymorphicMenu::prepare()
-{
-    /* Create menu: */
-    m_pMenu = new UIMenu;
-    AssertPtrReturnVoid(m_pMenu);
-    {
-        /* Prepare menu: */
-        connect(m_pMenu, SIGNAL(aboutToShow()),
-                parent(), SLOT(sltHandleMenuPrepare()));
-        /* Show menu: */
-        showMenu();
-    }
-}
-
-void UIActionPolymorphicMenu::updateText()
+void UIActionMenu::updateText()
 {
     setText(nameInMenu());
 }
 
 
-class UIActionMenuApplication : public UIActionMenu
+class UIActionSimpleLogDialog : public UIActionSimple
 {
     Q_OBJECT;
 
 public:
 
-    UIActionMenuApplication(UIActionPool *pParent)
-        : UIActionMenu(pParent)
+    UIActionSimpleLogDialog(UIActionPool *pParent)
+        : UIActionSimple(pParent, QSize(32, 32), QSize(16, 16),
+                         ":/vm_show_logs_32px.png", ":/vm_show_logs_16px.png",
+                         ":/vm_show_logs_disabled_32px.png", ":/vm_show_logs_disabled_16px.png")
     {
-#ifdef RT_OS_DARWIN
-        menu()->setConsumable(true);
-#endif /* RT_OS_DARWIN */
         retranslateUi();
     }
 
 protected:
 
-    /** Returns action extra-data ID. */
-    virtual int extraDataID() const { return UIExtraDataMetaDefs::MenuType_Application; }
-    /** Returns action extra-data key. */
-    virtual QString extraDataKey() const { return gpConverter->toInternalString(UIExtraDataMetaDefs::MenuType_Application); }
-    /** Returns whether action is allowed. */
-    virtual bool isAllowed() const { return actionPool()->isAllowedInMenuBar(UIExtraDataMetaDefs::MenuType_Application); }
-
-    void retranslateUi()
-    {
-#ifdef RT_OS_DARWIN
-        setName(QApplication::translate("UIActionPool", "&VirtualBox"));
-#else /* !RT_OS_DARWIN */
-        setName(QApplication::translate("UIActionPool", "&File"));
-#endif /* !RT_OS_DARWIN */
-    }
-};
-
-class UIActionSimplePerformClose : public UIActionSimple
-{
-    Q_OBJECT;
-
-public:
-
-    UIActionSimplePerformClose(UIActionPool *pParent)
-        : UIActionSimple(pParent, ":/exit_16px.png")
-    {
-        setMenuRole(QAction::QuitRole);
-    }
-
-protected:
-
-    /** Returns action extra-data ID. */
-    virtual int extraDataID() const { return UIExtraDataMetaDefs::MenuApplicationActionType_Close; }
-    /** Returns action extra-data key. */
-    virtual QString extraDataKey() const { return gpConverter->toInternalString(UIExtraDataMetaDefs::MenuApplicationActionType_Close); }
-    /** Returns whether action is allowed. */
-    virtual bool isAllowed() const { return actionPool()->isAllowedInMenuApplication(UIExtraDataMetaDefs::MenuApplicationActionType_Close); }
-
     QString shortcutExtraDataID() const
     {
-        return QString("Close");
+        return QString("ShowVMLog");
     }
 
-    QKeySequence defaultShortcut(UIActionPoolType) const
+    QKeySequence defaultShortcut(UIActionPoolType actionPoolType) const
     {
-        return QKeySequence("Q");
+        switch (actionPoolType)
+        {
+            case UIActionPoolType_Selector: return QKeySequence("Ctrl+L");
+            case UIActionPoolType_Runtime: break;
+        }
+        return QKeySequence();
     }
 
     void retranslateUi()
     {
-        setName(QApplication::translate("UIActionPool", "&Close..."));
-        setStatusTip(QApplication::translate("UIActionPool", "Close the virtual machine"));
+        setName(QApplication::translate("UIActionPool", "Show &Log..."));
+        setStatusTip(QApplication::translate("UIActionPool", "Show the log files of the selected virtual machine"));
     }
 };
-
-#ifdef RT_OS_DARWIN
-class UIActionMenuWindow : public UIActionMenu
-{
-    Q_OBJECT;
-
-public:
-
-    UIActionMenuWindow(UIActionPool *pParent)
-        : UIActionMenu(pParent) {}
-
-protected:
-
-    /** Returns action extra-data ID. */
-    virtual int extraDataID() const { return UIExtraDataMetaDefs::MenuType_Window; }
-    /** Returns action extra-data key. */
-    virtual QString extraDataKey() const { return gpConverter->toInternalString(UIExtraDataMetaDefs::MenuType_Window); }
-    /** Returns whether action is allowed. */
-    virtual bool isAllowed() const { return actionPool()->isAllowedInMenuBar(UIExtraDataMetaDefs::MenuType_Window); }
-
-    void retranslateUi()
-    {
-        setName(QApplication::translate("UIActionPool", "&Window"));
-    }
-};
-
-class UIActionSimpleMinimize : public UIActionSimple
-{
-    Q_OBJECT;
-
-public:
-
-    UIActionSimpleMinimize(UIActionPool *pParent)
-        : UIActionSimple(pParent) {}
-
-protected:
-
-    /** Returns action extra-data ID. */
-    virtual int extraDataID() const { return UIExtraDataMetaDefs::MenuWindowActionType_Minimize; }
-    /** Returns action extra-data key. */
-    virtual QString extraDataKey() const { return gpConverter->toInternalString(UIExtraDataMetaDefs::MenuWindowActionType_Minimize); }
-    /** Returns whether action is allowed. */
-    virtual bool isAllowed() const { return actionPool()->isAllowedInMenuWindow(UIExtraDataMetaDefs::MenuWindowActionType_Minimize); }
-
-    QString shortcutExtraDataID() const
-    {
-        return QString("Minimize");
-    }
-
-    void retranslateUi()
-    {
-        setName(QApplication::translate("UIActionPool", "&Minimize"));
-        setStatusTip(QApplication::translate("UIActionPool", "Minimize active machine-window"));
-    }
-};
-#endif /* RT_OS_DARWIN */
 
 class UIActionMenuHelp : public UIActionMenu
 {
@@ -544,13 +342,6 @@ public:
 
 protected:
 
-    /** Returns action extra-data ID. */
-    virtual int extraDataID() const { return UIExtraDataMetaDefs::MenuType_Help; }
-    /** Returns action extra-data key. */
-    virtual QString extraDataKey() const { return gpConverter->toInternalString(UIExtraDataMetaDefs::MenuType_Help); }
-    /** Returns whether action is allowed. */
-    virtual bool isAllowed() const { return actionPool()->isAllowedInMenuBar(UIExtraDataMetaDefs::MenuType_Help); }
-
     void retranslateUi()
     {
         setName(QApplication::translate("UIActionPool", "&Help"));
@@ -564,19 +355,12 @@ class UIActionSimpleContents : public UIActionSimple
 public:
 
     UIActionSimpleContents(UIActionPool *pParent)
-        : UIActionSimple(pParent, UIIconPool::defaultIcon(UIIconPool::UIDefaultIconType_DialogHelp))
+        : UIActionSimple(pParent, UIIconPool::defaultIcon(UIIconPool::DialogHelpIcon))
     {
         retranslateUi();
     }
 
 protected:
-
-    /** Returns action extra-data ID. */
-    virtual int extraDataID() const { return UIExtraDataMetaDefs::MenuHelpActionType_Contents; }
-    /** Returns action extra-data key. */
-    virtual QString extraDataKey() const { return gpConverter->toInternalString(UIExtraDataMetaDefs::MenuHelpActionType_Contents); }
-    /** Returns whether action is allowed. */
-    virtual bool isAllowed() const { return actionPool()->isAllowedInMenuHelp(UIExtraDataMetaDefs::MenuHelpActionType_Contents); }
 
     QString shortcutExtraDataID() const
     {
@@ -614,13 +398,6 @@ public:
 
 protected:
 
-    /** Returns action extra-data ID. */
-    virtual int extraDataID() const { return UIExtraDataMetaDefs::MenuHelpActionType_WebSite; }
-    /** Returns action extra-data key. */
-    virtual QString extraDataKey() const { return gpConverter->toInternalString(UIExtraDataMetaDefs::MenuHelpActionType_WebSite); }
-    /** Returns whether action is allowed. */
-    virtual bool isAllowed() const { return actionPool()->isAllowedInMenuHelp(UIExtraDataMetaDefs::MenuHelpActionType_WebSite); }
-
     QString shortcutExtraDataID() const
     {
         return QString("Web");
@@ -642,18 +419,10 @@ public:
     UIActionSimpleResetWarnings(UIActionPool *pParent)
         : UIActionSimple(pParent, ":/reset_warnings_16px.png")
     {
-        setMenuRole(QAction::ApplicationSpecificRole);
         retranslateUi();
     }
 
 protected:
-
-    /** Returns action extra-data ID. */
-    virtual int extraDataID() const { return UIExtraDataMetaDefs::MenuApplicationActionType_ResetWarnings; }
-    /** Returns action extra-data key. */
-    virtual QString extraDataKey() const { return gpConverter->toInternalString(UIExtraDataMetaDefs::MenuApplicationActionType_ResetWarnings); }
-    /** Returns whether action is allowed. */
-    virtual bool isAllowed() const { return actionPool()->isAllowedInMenuApplication(UIExtraDataMetaDefs::MenuApplicationActionType_ResetWarnings); }
 
     QString shortcutExtraDataID() const
     {
@@ -677,18 +446,10 @@ public:
     UIActionSimpleNetworkAccessManager(UIActionPool *pParent)
         : UIActionSimple(pParent, ":/nw_16px.png", ":/nw_disabled_16px.png")
     {
-        setMenuRole(QAction::ApplicationSpecificRole);
         retranslateUi();
     }
 
 protected:
-
-    /** Returns action extra-data ID. */
-    virtual int extraDataID() const { return UIExtraDataMetaDefs::MenuApplicationActionType_NetworkAccessManager; }
-    /** Returns action extra-data key. */
-    virtual QString extraDataKey() const { return gpConverter->toInternalString(UIExtraDataMetaDefs::MenuApplicationActionType_NetworkAccessManager); }
-    /** Returns whether action is allowed. */
-    virtual bool isAllowed() const { return actionPool()->isAllowedInMenuApplication(UIExtraDataMetaDefs::MenuApplicationActionType_NetworkAccessManager); }
 
     QString shortcutExtraDataID() const
     {
@@ -716,13 +477,6 @@ public:
     }
 
 protected:
-
-    /** Returns action extra-data ID. */
-    virtual int extraDataID() const { return UIExtraDataMetaDefs::MenuApplicationActionType_CheckForUpdates; }
-    /** Returns action extra-data key. */
-    virtual QString extraDataKey() const { return gpConverter->toInternalString(UIExtraDataMetaDefs::MenuApplicationActionType_CheckForUpdates); }
-    /** Returns whether action is allowed. */
-    virtual bool isAllowed() const { return actionPool()->isAllowedInMenuApplication(UIExtraDataMetaDefs::MenuApplicationActionType_CheckForUpdates); }
 
     QString shortcutExtraDataID() const
     {
@@ -752,34 +506,6 @@ public:
 
 protected:
 
-    /** Returns action extra-data ID. */
-    virtual int extraDataID() const
-    {
-#ifdef RT_OS_DARWIN
-        return UIExtraDataMetaDefs::MenuApplicationActionType_About;
-#else /* !RT_OS_DARWIN */
-        return UIExtraDataMetaDefs::MenuHelpActionType_About;
-#endif /* !RT_OS_DARWIN */
-    }
-    /** Returns action extra-data key. */
-    virtual QString extraDataKey() const
-    {
-#ifdef RT_OS_DARWIN
-        return gpConverter->toInternalString(UIExtraDataMetaDefs::MenuApplicationActionType_About);
-#else /* !RT_OS_DARWIN */
-        return gpConverter->toInternalString(UIExtraDataMetaDefs::MenuHelpActionType_About);
-#endif /* !RT_OS_DARWIN */
-    }
-    /** Returns whether action is allowed. */
-    virtual bool isAllowed() const
-    {
-#ifdef RT_OS_DARWIN
-        return actionPool()->isAllowedInMenuApplication(UIExtraDataMetaDefs::MenuApplicationActionType_About);
-#else /* !RT_OS_DARWIN */
-        return actionPool()->isAllowedInMenuHelp(UIExtraDataMetaDefs::MenuHelpActionType_About);
-#endif /* !RT_OS_DARWIN */
-    }
-
     QString shortcutExtraDataID() const
     {
         return QString("About");
@@ -792,294 +518,112 @@ protected:
     }
 };
 
-class UIActionSimplePreferences : public UIActionSimple
-{
-    Q_OBJECT;
 
-public:
-
-    UIActionSimplePreferences(UIActionPool *pParent)
-        : UIActionSimple(pParent, ":/global_settings_16px.png")
-    {
-        setMenuRole(QAction::PreferencesRole);
-        retranslateUi();
-    }
-
-protected:
-
-    /** Returns action extra-data ID. */
-    virtual int extraDataID() const { return UIExtraDataMetaDefs::MenuApplicationActionType_Preferences; }
-    /** Returns action extra-data key. */
-    virtual QString extraDataKey() const { return gpConverter->toInternalString(UIExtraDataMetaDefs::MenuApplicationActionType_Preferences); }
-    /** Returns whether action is allowed. */
-    virtual bool isAllowed() const { return actionPool()->isAllowedInMenuApplication(UIExtraDataMetaDefs::MenuApplicationActionType_Preferences); }
-
-    QString shortcutExtraDataID() const
-    {
-        return QString("Preferences");
-    }
-
-    QKeySequence defaultShortcut(UIActionPoolType) const
-    {
-        switch (actionPool()->type())
-        {
-            case UIActionPoolType_Selector: return QKeySequence("Ctrl+G");
-            case UIActionPoolType_Runtime: break;
-        }
-        return QKeySequence();
-    }
-
-    void retranslateUi()
-    {
-        setName(QApplication::translate("UIActionPool", "&Preferences...", "global settings"));
-        setStatusTip(QApplication::translate("UIActionPool", "Display the global settings window"));
-    }
-};
-
+/* UIActionPool stuff: */
+UIActionPool* UIActionPool::m_pInstance = 0;
 
 /* static */
-UIActionPool* UIActionPool::create(UIActionPoolType type)
+UIActionPool* UIActionPool::instance()
 {
-    UIActionPool *pActionPool = 0;
-    switch (type)
-    {
-        case UIActionPoolType_Selector: pActionPool = new UIActionPoolSelector; break;
-        case UIActionPoolType_Runtime: pActionPool = new UIActionPoolRuntime; break;
-        default: AssertFailedReturn(0);
-    }
-    AssertPtrReturn(pActionPool, 0);
-    pActionPool->prepare();
-    return pActionPool;
+    return m_pInstance;
 }
 
 /* static */
-void UIActionPool::destroy(UIActionPool *pActionPool)
+void UIActionPool::create(UIActionPoolType type)
 {
-    AssertPtrReturnVoid(pActionPool);
-    pActionPool->cleanup();
-    delete pActionPool;
+    /* Check that instance do NOT exists: */
+    if (m_pInstance)
+        return;
+
+    /* Create instance: */
+    switch (type)
+    {
+        case UIActionPoolType_Selector: new UIActionPoolSelector; break;
+        case UIActionPoolType_Runtime: new UIActionPoolRuntime; break;
+        default: break;
+    }
+
+    /* Prepare instance: */
+    m_pInstance->prepare();
+}
+
+/* static */
+void UIActionPool::destroy()
+{
+    /* Check that instance exists: */
+    if (!m_pInstance)
+        return;
+
+    /* Cleanup instance: */
+    m_pInstance->cleanup();
+
+    /* Delete instance: */
+    delete m_pInstance;
 }
 
 /* static */
 void UIActionPool::createTemporary(UIActionPoolType type)
 {
-    UIActionPool *pActionPool = 0;
+    UIActionPool *pHelperPool = 0;
     switch (type)
     {
-        case UIActionPoolType_Selector: pActionPool = new UIActionPoolSelector(true); break;
-        case UIActionPoolType_Runtime: pActionPool = new UIActionPoolRuntime(true); break;
-        default: AssertFailedReturnVoid();
+        case UIActionPoolType_Selector: pHelperPool = new UIActionPoolSelector; break;
+        case UIActionPoolType_Runtime: pHelperPool = new UIActionPoolRuntime; break;
+        default: break;
     }
-    AssertPtrReturnVoid(pActionPool);
-    pActionPool->prepare();
-    pActionPool->cleanup();
-    delete pActionPool;
+    if (pHelperPool)
+    {
+        pHelperPool->prepare();
+        pHelperPool->cleanup();
+        delete pHelperPool;
+    }
 }
 
-UIActionPool::UIActionPool(UIActionPoolType type, bool fTemporary /* = false */)
+UIActionPool::UIActionPool(UIActionPoolType type)
     : m_type(type)
-    , m_fTemporary(fTemporary)
 {
+    /* Prepare instance: */
+    if (!m_pInstance)
+        m_pInstance = this;
 }
 
-UIActionPoolRuntime* UIActionPool::toRuntime()
+UIActionPool::~UIActionPool()
 {
-    return qobject_cast<UIActionPoolRuntime*>(this);
-}
-
-UIActionPoolSelector* UIActionPool::toSelector()
-{
-    return qobject_cast<UIActionPoolSelector*>(this);
-}
-
-bool UIActionPool::isAllowedInMenuBar(UIExtraDataMetaDefs::MenuType type) const
-{
-    foreach (const UIExtraDataMetaDefs::MenuType &restriction, m_restrictedMenus.values())
-        if (restriction & type)
-            return false;
-    return true;
-}
-
-void UIActionPool::setRestrictionForMenuBar(UIActionRestrictionLevel level, UIExtraDataMetaDefs::MenuType restriction)
-{
-    m_restrictedMenus[level] = restriction;
-    updateMenus();
-}
-
-bool UIActionPool::isAllowedInMenuApplication(UIExtraDataMetaDefs::MenuApplicationActionType type) const
-{
-    foreach (const UIExtraDataMetaDefs::MenuApplicationActionType &restriction, m_restrictedActionsMenuApplication.values())
-        if (restriction & type)
-            return false;
-    return true;
-}
-
-void UIActionPool::setRestrictionForMenuApplication(UIActionRestrictionLevel level, UIExtraDataMetaDefs::MenuApplicationActionType restriction)
-{
-    m_restrictedActionsMenuApplication[level] = restriction;
-    m_invalidations << UIActionIndex_M_Application;
-}
-
-#ifdef Q_WS_MAC
-bool UIActionPool::isAllowedInMenuWindow(UIExtraDataMetaDefs::MenuWindowActionType type) const
-{
-    foreach (const UIExtraDataMetaDefs::MenuWindowActionType &restriction, m_restrictedActionsMenuWindow.values())
-        if (restriction & type)
-            return false;
-    return true;
-}
-
-void UIActionPool::setRestrictionForMenuWindow(UIActionRestrictionLevel level, UIExtraDataMetaDefs::MenuWindowActionType restriction)
-{
-    m_restrictedActionsMenuWindow[level] = restriction;
-    m_invalidations << UIActionIndex_M_Window;
-}
-#endif /* Q_WS_MAC */
-
-bool UIActionPool::isAllowedInMenuHelp(UIExtraDataMetaDefs::MenuHelpActionType type) const
-{
-    foreach (const UIExtraDataMetaDefs::MenuHelpActionType &restriction, m_restrictedActionsMenuHelp.values())
-        if (restriction & type)
-            return false;
-    return true;
-}
-
-void UIActionPool::setRestrictionForMenuHelp(UIActionRestrictionLevel level, UIExtraDataMetaDefs::MenuHelpActionType restriction)
-{
-    m_restrictedActionsMenuHelp[level] = restriction;
-    m_invalidations << UIActionIndex_Menu_Help;
-}
-
-void UIActionPool::sltHandleMenuPrepare()
-{
-    /* Make sure menu is valid: */
-    UIMenu *pMenu = qobject_cast<UIMenu*>(sender());
-    AssertPtrReturnVoid(pMenu);
-    /* Make sure action is valid: */
-    UIAction *pAction = qobject_cast<UIAction*>(pMenu->menuAction());
-    AssertPtrReturnVoid(pAction);
-
-    /* Determine action index: */
-    const int iIndex = m_pool.key(pAction);
-
-    /* Update menu if necessary: */
-    updateMenu(iIndex);
-
-    /* Notify listeners about menu prepared: */
-    emit sigNotifyAboutMenuPrepare(iIndex, pMenu);
+    /* Cleanup instance: */
+    if (m_pInstance == this)
+        m_pInstance = 0;
 }
 
 void UIActionPool::prepare()
 {
-    /* Prepare pool: */
-    preparePool();
-    /* Prepare connections: */
-    prepareConnections();
-    /* Update configuration: */
-    updateConfiguration();
-    /* Update shortcuts: */
-    updateShortcuts();
-}
-
-void UIActionPool::preparePool()
-{
-    /* Create 'Application' actions: */
-    m_pool[UIActionIndex_M_Application] = new UIActionMenuApplication(this);
-#ifdef RT_OS_DARWIN
-    m_pool[UIActionIndex_M_Application_S_About] = new UIActionSimpleAbout(this);
-#endif /* RT_OS_DARWIN */
-    m_pool[UIActionIndex_M_Application_S_Preferences] = new UIActionSimplePreferences(this);
-#ifdef VBOX_GUI_WITH_NETWORK_MANAGER
-    m_pool[UIActionIndex_M_Application_S_NetworkAccessManager] = new UIActionSimpleNetworkAccessManager(this);
-    m_pool[UIActionIndex_M_Application_S_CheckForUpdates] = new UIActionSimpleCheckForUpdates(this);
-#endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
-    m_pool[UIActionIndex_M_Application_S_ResetWarnings] = new UIActionSimpleResetWarnings(this);
-    m_pool[UIActionIndex_M_Application_S_Close] = new UIActionSimplePerformClose(this);
-
-#ifdef RT_OS_DARWIN
-    /* Create 'Window' actions: */
-    m_pool[UIActionIndex_M_Window] = new UIActionMenuWindow(this);
-    m_pool[UIActionIndex_M_Window_S_Minimize] = new UIActionSimpleMinimize(this);
-#endif /* RT_OS_DARWIN */
-
-    /* Create 'Help' actions: */
-    m_pool[UIActionIndex_Menu_Help] = new UIActionMenuHelp(this);
-    m_pool[UIActionIndex_Simple_Contents] = new UIActionSimpleContents(this);
-    m_pool[UIActionIndex_Simple_WebSite] = new UIActionSimpleWebSite(this);
-#ifndef RT_OS_DARWIN
-    m_pool[UIActionIndex_Simple_About] = new UIActionSimpleAbout(this);
-#endif /* !RT_OS_DARWIN */
-
-    /* Prepare update-handlers for known menus: */
-#ifdef RT_OS_DARWIN
-    m_menuUpdateHandlers[UIActionIndex_M_Application].ptf = &UIActionPool::updateMenuApplication;
-    m_menuUpdateHandlers[UIActionIndex_M_Window].ptf = &UIActionPool::updateMenuWindow;
-#endif /* RT_OS_DARWIN */
-    m_menuUpdateHandlers[UIActionIndex_Menu_Help].ptf = &UIActionPool::updateMenuHelp;
-
-    /* Invalidate all known menus: */
-    m_invalidations.unite(m_menuUpdateHandlers.keys().toSet());
-
-    /* Retranslate finally: */
-    retranslateUi();
-}
-
-void UIActionPool::prepareConnections()
-{
-    /* 'Application' menu connections: */
-#ifdef RT_OS_DARWIN
-    connect(action(UIActionIndex_M_Application_S_About), SIGNAL(triggered()),
-            &msgCenter(), SLOT(sltShowHelpAboutDialog()), Qt::UniqueConnection);
-#endif /* RT_OS_DARWIN */
-#ifdef VBOX_GUI_WITH_NETWORK_MANAGER
-    connect(action(UIActionIndex_M_Application_S_NetworkAccessManager), SIGNAL(triggered()),
-            gNetworkManager, SLOT(show()), Qt::UniqueConnection);
-    connect(action(UIActionIndex_M_Application_S_CheckForUpdates), SIGNAL(triggered()),
-            gUpdateManager, SLOT(sltForceCheck()), Qt::UniqueConnection);
-#endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
-    connect(action(UIActionIndex_M_Application_S_ResetWarnings), SIGNAL(triggered()),
-            &msgCenter(), SLOT(sltResetSuppressedMessages()), Qt::UniqueConnection);
-
-    /* 'Help' menu connections: */
-    connect(action(UIActionIndex_Simple_Contents), SIGNAL(triggered()),
-            &msgCenter(), SLOT(sltShowHelpHelpDialog()), Qt::UniqueConnection);
-    connect(action(UIActionIndex_Simple_WebSite), SIGNAL(triggered()),
-            &msgCenter(), SLOT(sltShowHelpWebDialog()), Qt::UniqueConnection);
-#ifndef RT_OS_DARWIN
-    connect(action(UIActionIndex_Simple_About), SIGNAL(triggered()),
-            &msgCenter(), SLOT(sltShowHelpAboutDialog()), Qt::UniqueConnection);
-#endif /* !RT_OS_DARWIN */
-}
-
-void UIActionPool::cleanupPool()
-{
-    /* Cleanup pool: */
-    qDeleteAll(m_pool);
+    /* Create actions: */
+    createActions();
+    /* Create menus: */
+    createMenus();
+    /* Apply shortcuts: */
+    sltApplyShortcuts();
 }
 
 void UIActionPool::cleanup()
 {
-    /* Cleanup pool: */
-    cleanupPool();
-}
-
-void UIActionPool::updateShortcuts()
-{
-    gShortcutPool->applyShortcuts(this);
+    /* Destroy pool: */
+    destroyPool();
 }
 
 bool UIActionPool::processHotKey(const QKeySequence &key)
 {
+    /* Get the list of keys: */
+    QList<int> keys = m_pool.keys();
     /* Iterate through the whole list of keys: */
-    foreach (const int &iKey, m_pool.keys())
+    for (int i = 0; i < keys.size(); ++i)
     {
         /* Get current action: */
-        UIAction *pAction = m_pool.value(iKey);
+        UIAction *pAction = m_pool[keys[i]];
         /* Skip menus/separators: */
         if (pAction->type() == UIActionType_Menu)
             continue;
-        /* Get the hot-key of the current action: */
-        const QString strHotKey = gShortcutPool->shortcut(this, pAction).toString();
+        /* Get the hot key of the current action: */
+        QString strHotKey = VBoxGlobal::extractKeyFromActionText(pAction->text());
         if (pAction->isEnabled() && pAction->isVisible() && !strHotKey.isEmpty())
         {
             if (key.matches(QKeySequence(strHotKey)) == QKeySequence::ExactMatch)
@@ -1099,154 +643,45 @@ bool UIActionPool::processHotKey(const QKeySequence &key)
     return false;
 }
 
-void UIActionPool::updateConfiguration()
+void UIActionPool::sltApplyShortcuts()
 {
-    /* Recache common action restrictions: */
-    // Nothing here for now..
+    gShortcutPool->applyShortcuts(this);
+}
 
+void UIActionPool::createActions()
+{
+    /* Various dialog actions: */
+    m_pool[UIActionIndex_Simple_LogDialog] = new UIActionSimpleLogDialog(this);
+    /* 'Help' actions: */
+    m_pool[UIActionIndex_Simple_Contents] = new UIActionSimpleContents(this);
+    m_pool[UIActionIndex_Simple_WebSite] = new UIActionSimpleWebSite(this);
+    m_pool[UIActionIndex_Simple_ResetWarnings] = new UIActionSimpleResetWarnings(this);
 #ifdef VBOX_GUI_WITH_NETWORK_MANAGER
-    /* Recache update action restrictions: */
-    bool fUpdateAllowed = gEDataManager->applicationUpdateEnabled();
-    if (!fUpdateAllowed)
-    {
-        m_restrictedActionsMenuApplication[UIActionRestrictionLevel_Base] = (UIExtraDataMetaDefs::MenuApplicationActionType)
-            (m_restrictedActionsMenuApplication[UIActionRestrictionLevel_Base] | UIExtraDataMetaDefs::MenuApplicationActionType_CheckForUpdates);
-    }
+    m_pool[UIActionIndex_Simple_NetworkAccessManager] = new UIActionSimpleNetworkAccessManager(this);
+    m_pool[UIActionIndex_Simple_CheckForUpdates] = new UIActionSimpleCheckForUpdates(this);
 #endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
-
-    /* Update menus: */
-    updateMenus();
+    m_pool[UIActionIndex_Simple_About] = new UIActionSimpleAbout(this);
 }
 
-void UIActionPool::updateMenu(int iIndex)
+void UIActionPool::createMenus()
 {
-    /* Update if menu with such index is invalidated and there is update-handler: */
-    if (m_invalidations.contains(iIndex) && m_menuUpdateHandlers.contains(iIndex))
-        (this->*(m_menuUpdateHandlers.value(iIndex).ptf))();
+    /* On Mac OS X, all QMenu's are consumed by Qt after they are added to another QMenu or a QMenuBar.
+     * This means we have to recreate all QMenus when creating a new QMenuBar.
+     * For simplicity we doing this on all platforms right now. */
+
+    /* 'Help' menu: */
+    if (m_pool[UIActionIndex_Menu_Help])
+        delete m_pool[UIActionIndex_Menu_Help];
+    m_pool[UIActionIndex_Menu_Help] = new UIActionMenuHelp(this);
 }
 
-void UIActionPool::updateMenuApplication()
+void UIActionPool::destroyPool()
 {
-    /* Get corresponding menu: */
-    UIMenu *pMenu = action(UIActionIndex_M_Application)->menu();
-    AssertPtrReturnVoid(pMenu);
-#ifdef RT_OS_DARWIN
-    AssertReturnVoid(pMenu->isConsumable());
-#endif /* RT_OS_DARWIN */
-    /* Clear contents: */
-#ifdef RT_OS_DARWIN
-    if (!pMenu->isConsumed())
-#endif /* RT_OS_DARWIN */
-        pMenu->clear();
-
-    /* Separator: */
-    bool fSeparator = false;
-
-#ifdef RT_OS_DARWIN
-    /* 'About' action: */
-    fSeparator = addAction(pMenu, action(UIActionIndex_M_Application_S_About)) || fSeparator;
-#endif /* RT_OS_DARWIN */
-
-    /* 'Preferences' action: */
-    fSeparator = addAction(pMenu, action(UIActionIndex_M_Application_S_Preferences)) || fSeparator;
-
-#ifndef RT_OS_DARWIN
-    /* Separator: */
-    if (fSeparator)
-    {
-        pMenu->addSeparator();
-        fSeparator = false;
-    }
-#endif /* !RT_OS_DARWIN */
-
-#ifdef VBOX_GUI_WITH_NETWORK_MANAGER
-    /* 'Network Manager' action: */
-    fSeparator = addAction(pMenu, action(UIActionIndex_M_Application_S_NetworkAccessManager)) || fSeparator;
-#endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
-    /* 'Reset Warnings' action: */
-    fSeparator = addAction(pMenu, action(UIActionIndex_M_Application_S_ResetWarnings)) || fSeparator;
-
-#ifndef RT_OS_DARWIN
-    /* Separator: */
-    if (fSeparator)
-    {
-        pMenu->addSeparator();
-        fSeparator = false;
-    }
-#endif /* !RT_OS_DARWIN */
-
-    /* 'Close' action: */
-    fSeparator = addAction(pMenu, action(UIActionIndex_M_Application_S_Close)) || fSeparator;
-
-    /* Mark menu as valid: */
-    m_invalidations.remove(UIActionIndex_M_Application);
-}
-
-#ifdef RT_OS_DARWIN
-void UIActionPool::updateMenuWindow()
-{
-    /* Get corresponding menu: */
-    UIMenu *pMenu = action(UIActionIndex_M_Window)->menu();
-    AssertPtrReturnVoid(pMenu);
-    /* Clear contents: */
-    pMenu->clear();
-
-    /* Separator: */
-    bool fSeparator = false;
-
-    /* 'Minimize' action: */
-    fSeparator = addAction(pMenu, action(UIActionIndex_M_Window_S_Minimize)) || fSeparator;
-
-    /* Separator: */
-    if (fSeparator)
-    {
-        pMenu->addSeparator();
-        fSeparator = false;
-    }
-
-    /* This menu always remains invalid.. */
-}
-#endif /* RT_OS_DARWIN */
-
-void UIActionPool::updateMenuHelp()
-{
-    /* Get corresponding menu: */
-    UIMenu *pMenu = action(UIActionIndex_Menu_Help)->menu();
-    AssertPtrReturnVoid(pMenu);
-    /* Clear contents: */
-    pMenu->clear();
-
-    /* Separator? */
-    bool fSeparator = false;
-
-    /* 'Contents' action: */
-    fSeparator = addAction(pMenu, action(UIActionIndex_Simple_Contents)) || fSeparator;;
-    /* 'Web Site' action: */
-    fSeparator = addAction(pMenu, action(UIActionIndex_Simple_WebSite)) || fSeparator;;
-
-    /* Separator? */
-    if (fSeparator)
-    {
-        pMenu->addSeparator();
-        fSeparator = false;
-    }
-
-#ifndef RT_OS_DARWIN
-    /* 'About' action: */
-    fSeparator = addAction(pMenu, action(UIActionIndex_Simple_About)) || fSeparator;;
-#endif /* !RT_OS_DARWIN */
-
-    /* Mark menu as valid: */
-    m_invalidations.remove(UIActionIndex_Menu_Help);
-}
-
-void UIActionPool::retranslateUi()
-{
-    /* Translate all the actions: */
-    foreach (const int iActionPoolKey, m_pool.keys())
-        m_pool[iActionPoolKey]->retranslateUi();
-    /* Update shortcuts: */
-    updateShortcuts();
+    /* Get the list of keys: */
+    QList<int> keys = m_pool.keys();
+    /* Delete all the items of the map: */
+    for (int i = 0; i < keys.size(); ++i)
+        delete m_pool[keys[i]];
 }
 
 bool UIActionPool::event(QEvent *pEvent)
@@ -1267,87 +702,6 @@ bool UIActionPool::event(QEvent *pEvent)
     }
     /* Pass to the base-class: */
     return QObject::event(pEvent);
-}
-
-bool UIActionPool::addAction(UIMenu *pMenu, UIAction *pAction, bool fReallyAdd /* = true */)
-{
-    /* Check if action is allowed: */
-    const bool fIsActionAllowed = pAction->isAllowed();
-
-#ifdef RT_OS_DARWIN
-    /* Check if menu is consumable: */
-    const bool fIsMenuConsumable = pMenu->isConsumable();
-    /* Check if menu is NOT yet consumed: */
-    const bool fIsMenuConsumed = pMenu->isConsumed();
-#endif /* RT_OS_DARWIN */
-
-    /* Make this action visible
-     * depending on clearance state. */
-    pAction->setVisible(fIsActionAllowed);
-
-#ifdef RT_OS_DARWIN
-    /* If menu is consumable: */
-    if (fIsMenuConsumable)
-    {
-        /* Add action only if menu was not yet consumed: */
-        if (!fIsMenuConsumed)
-            pMenu->addAction(pAction);
-    }
-    /* If menu is NOT consumable: */
-    else
-#endif /* RT_OS_DARWIN */
-    {
-        /* Add action only if is allowed: */
-        if (fIsActionAllowed && fReallyAdd)
-            pMenu->addAction(pAction);
-    }
-
-    /* Return if action is allowed: */
-    return fIsActionAllowed;
-}
-
-bool UIActionPool::addMenu(QList<QMenu*> &menuList, UIAction *pAction, bool fReallyAdd /* = true */)
-{
-    /* Check if action is allowed: */
-    const bool fIsActionAllowed = pAction->isAllowed();
-
-    /* Get action's menu: */
-    UIMenu *pMenu = pAction->menu();
-
-#ifdef RT_OS_DARWIN
-    /* Check if menu is consumable: */
-    const bool fIsMenuConsumable = pMenu->isConsumable();
-    /* Check if menu is NOT yet consumed: */
-    const bool fIsMenuConsumed = pMenu->isConsumed();
-#endif /* RT_OS_DARWIN */
-
-    /* Make this action visible
-     * depending on clearance state. */
-    pAction->setVisible(   fIsActionAllowed
-#ifdef RT_OS_DARWIN
-                        && !fIsMenuConsumable
-#endif /* RT_OS_DARWIN */
-                        );
-
-#ifdef RT_OS_DARWIN
-    /* If menu is consumable: */
-    if (fIsMenuConsumable)
-    {
-        /* Add action's menu only if menu was not yet consumed: */
-        if (!fIsMenuConsumed)
-            menuList << pMenu;
-    }
-    /* If menu is NOT consumable: */
-    else
-#endif /* RT_OS_DARWIN */
-    {
-        /* Add action only if is allowed: */
-        if (fIsActionAllowed && fReallyAdd)
-            menuList << pMenu;
-    }
-
-    /* Return if action is allowed: */
-    return fIsActionAllowed;
 }
 
 #include "UIActionPool.moc"

@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -53,12 +53,12 @@ VMMDECL(int)            PDMApicSetTPR(PVMCPU pVCpu, uint8_t u8TPR);
 VMMDECL(int)            PDMApicGetTPR(PVMCPU pVCpu, uint8_t *pu8TPR, bool *pfPending, uint8_t *pu8PendingIrq);
 VMM_INT_DECL(int)       PDMApicWriteMSR(PVM pVM, VMCPUID iCpu, uint32_t u32Reg, uint64_t u64Value);
 VMM_INT_DECL(int)       PDMApicReadMSR(PVM pVM, VMCPUID iCpu, uint32_t u32Reg, uint64_t *pu64Value);
-VMM_INT_DECL(int)       PDMApicGetTimerFreq(PVM pVM, uint64_t *pu64Value);
 VMM_INT_DECL(int)       PDMVmmDevHeapR3ToGCPhys(PVM pVM, RTR3PTR pv, RTGCPHYS *pGCPhys);
 VMM_INT_DECL(bool)      PDMVmmDevHeapIsEnabled(PVM pVM);
 
 
 /** @defgroup grp_pdm_r3    The PDM Host Context Ring-3 API
+ * @ingroup grp_pdm
  * @{
  */
 
@@ -163,6 +163,7 @@ VMMR3_INT_DECL(int)     PDMR3TracingQueryConfig(PVM pVM, char *pszConfig, size_t
 
 
 /** @defgroup grp_pdm_rc    The PDM Raw-Mode Context API
+ * @ingroup grp_pdm
  * @{
  */
 /** @} */
@@ -170,6 +171,7 @@ VMMR3_INT_DECL(int)     PDMR3TracingQueryConfig(PVM pVM, char *pszConfig, size_t
 
 
 /** @defgroup grp_pdm_r0    The PDM Ring-0 Context API
+ * @ingroup grp_pdm
  * @{
  */
 

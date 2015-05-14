@@ -1,6 +1,7 @@
-/* $Id: VBoxOSTypeSelectorButton.h $ */
 /** @file
- * VBox Qt GUI - VBoxOSTypeSelectorButton class declaration.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * VBoxOSTypeSelectorButton class declaration
  */
 
 /*

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2014 Oracle Corporation
+ * Copyright (C) 2008-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -54,18 +54,6 @@ RTDECL(bool) RTMpIsCpuWorkPending(void)
 RTDECL(RTCPUID) RTMpCpuId(void)
 {
     return CPU->cpu_id;
-}
-
-
-RTDECL(int) RTMpCurSetIndex(void)
-{
-    return CPU->cpu_id;
-}
-
-
-RTDECL(int) RTMpCurSetIndexAndId(PRTCPUID pidCpu)
-{
-    return *pidCpu = CPU->cpu_id;
 }
 
 
@@ -148,10 +136,11 @@ RTDECL(RTCPUID) RTMpGetOnlineCount(void)
 /**
  * Wrapper to Solaris IPI infrastructure.
  *
- * @returns Solaris error code.
  * @param   pCpuSet        Pointer to Solaris CPU set.
  * @param   pfnSolWorker   Function to execute on target CPU(s).
  * @param   pArgs          Pointer to RTMPARGS to pass to @a pfnSolWorker.
+ *
+ * @returns Solaris error code.
  */
 static void rtMpSolCrossCall(PRTSOLCPUSET pCpuSet, PFNRTMPSOLWORKER pfnSolWorker, PRTMPARGS pArgs)
 {
@@ -195,12 +184,11 @@ static void rtMpSolCrossCall(PRTSOLCPUSET pCpuSet, PFNRTMPSOLWORKER pfnSolWorker
  * Wrapper between the native solaris per-cpu callback and PFNRTWORKER
  * for the RTMpOnAll API.
  *
- * @returns Solaris error code.
  * @param   uArgs       Pointer to the RTMPARGS package.
- * @param   pvIgnored1  Ignored.
- * @param   pvIgnored2  Ignored.
+ * @param   uIgnored1   Ignored.
+ * @param   uIgnored2   Ignored.
  */
-static int rtMpSolOnAllCpuWrapper(void *uArg, void *pvIgnored1, void *pvIgnored2)
+static int rtMpSolOnAllCpuWrapper(void *uArg, void *uIgnored1, void *uIgnored2)
 {
     PRTMPARGS pArgs = (PRTMPARGS)(uArg);
 
@@ -213,8 +201,8 @@ static int rtMpSolOnAllCpuWrapper(void *uArg, void *pvIgnored1, void *pvIgnored2
 
     pArgs->pfnWorker(RTMpCpuId(), pArgs->pvUser1, pArgs->pvUser2);
 
-    NOREF(pvIgnored1);
-    NOREF(pvIgnored2);
+    NOREF(uIgnored1);
+    NOREF(uIgnored2);
     return 0;
 }
 
@@ -222,8 +210,6 @@ static int rtMpSolOnAllCpuWrapper(void *uArg, void *pvIgnored1, void *pvIgnored2
 RTDECL(int) RTMpOnAll(PFNRTMPWORKER pfnWorker, void *pvUser1, void *pvUser2)
 {
     RTMPARGS Args;
-    RTSOLCPUSET CpuSet;
-    RTTHREADPREEMPTSTATE PreemptState = RTTHREADPREEMPTSTATE_INITIALIZER;
     RT_ASSERT_INTS_ON();
 
     Args.pfnWorker = pfnWorker;
@@ -232,10 +218,12 @@ RTDECL(int) RTMpOnAll(PFNRTMPWORKER pfnWorker, void *pvUser1, void *pvUser2)
     Args.idCpu = NIL_RTCPUID;
     Args.cHits = 0;
 
+    RTTHREADPREEMPTSTATE PreemptState = RTTHREADPREEMPTSTATE_INITIALIZER;
+    RTThreadPreemptDisable(&PreemptState);
+
+    RTSOLCPUSET CpuSet;
     for (int i = 0; i < IPRT_SOL_SET_WORDS; i++)
         CpuSet.auCpus[i] = (ulong_t)-1L;
-
-    RTThreadPreemptDisable(&PreemptState);
 
     rtMpSolCrossCall(&CpuSet, rtMpSolOnAllCpuWrapper, &Args);
 
@@ -249,12 +237,11 @@ RTDECL(int) RTMpOnAll(PFNRTMPWORKER pfnWorker, void *pvUser1, void *pvUser2)
  * Wrapper between the native solaris per-cpu callback and PFNRTWORKER
  * for the RTMpOnOthers API.
  *
- * @returns Solaris error code.
  * @param   uArgs       Pointer to the RTMPARGS package.
- * @param   pvIgnored1  Ignored.
- * @param   pvIgnored2  Ignored.
+ * @param   uIgnored1   Ignored.
+ * @param   uIgnored2   Ignored.
  */
-static int rtMpSolOnOtherCpusWrapper(void *uArg, void *pvIgnored1, void *pvIgnored2)
+static int rtMpSolOnOtherCpusWrapper(void *uArg, void *uIgnored1, void *uIgnored2)
 {
     PRTMPARGS pArgs = (PRTMPARGS)(uArg);
     RTCPUID idCpu = RTMpCpuId();
@@ -262,8 +249,8 @@ static int rtMpSolOnOtherCpusWrapper(void *uArg, void *pvIgnored1, void *pvIgnor
     Assert(idCpu != pArgs->idCpu);
     pArgs->pfnWorker(idCpu, pArgs->pvUser1, pArgs->pvUser2);
 
-    NOREF(pvIgnored1);
-    NOREF(pvIgnored2);
+    NOREF(uIgnored1);
+    NOREF(uIgnored2);
     return 0;
 }
 
@@ -271,8 +258,6 @@ static int rtMpSolOnOtherCpusWrapper(void *uArg, void *pvIgnored1, void *pvIgnor
 RTDECL(int) RTMpOnOthers(PFNRTMPWORKER pfnWorker, void *pvUser1, void *pvUser2)
 {
     RTMPARGS Args;
-    RTSOLCPUSET CpuSet;
-    RTTHREADPREEMPTSTATE PreemptState = RTTHREADPREEMPTSTATE_INITIALIZER;
     RT_ASSERT_INTS_ON();
 
     Args.pfnWorker = pfnWorker;
@@ -282,8 +267,10 @@ RTDECL(int) RTMpOnOthers(PFNRTMPWORKER pfnWorker, void *pvUser1, void *pvUser2)
     Args.cHits = 0;
 
     /* The caller is supposed to have disabled preemption, but take no chances. */
+    RTTHREADPREEMPTSTATE PreemptState = RTTHREADPREEMPTSTATE_INITIALIZER;
     RTThreadPreemptDisable(&PreemptState);
 
+    RTSOLCPUSET CpuSet;
     for (int i = 0; i < IPRT_SOL_SET_WORDS; i++)
         CpuSet.auCpus[0] = (ulong_t)-1L;
     BT_CLEAR(CpuSet.auCpus, RTMpCpuId());
@@ -296,102 +283,17 @@ RTDECL(int) RTMpOnOthers(PFNRTMPWORKER pfnWorker, void *pvUser1, void *pvUser2)
 }
 
 
-
-/**
- * Wrapper between the native solaris per-cpu callback and PFNRTWORKER
- * for the RTMpOnPair API.
- *
- * @returns Solaris error code.
- * @param   uArgs       Pointer to the RTMPARGS package.
- * @param   pvIgnored1  Ignored.
- * @param   pvIgnored2  Ignored.
- */
-static int rtMpSolOnPairCpuWrapper(void *uArg, void *pvIgnored1, void *pvIgnored2)
-{
-    PRTMPARGS pArgs = (PRTMPARGS)(uArg);
-    RTCPUID idCpu = RTMpCpuId();
-
-    Assert(idCpu == pArgs->idCpu || idCpu == pArgs->idCpu2);
-    pArgs->pfnWorker(idCpu, pArgs->pvUser1, pArgs->pvUser2);
-    ASMAtomicIncU32(&pArgs->cHits);
-
-    NOREF(pvIgnored1);
-    NOREF(pvIgnored2);
-    return 0;
-}
-
-
-RTDECL(int) RTMpOnPair(RTCPUID idCpu1, RTCPUID idCpu2, uint32_t fFlags, PFNRTMPWORKER pfnWorker, void *pvUser1, void *pvUser2)
-{
-    int rc;
-    RTMPARGS Args;
-    RTSOLCPUSET CpuSet;
-    RTTHREADPREEMPTSTATE PreemptState = RTTHREADPREEMPTSTATE_INITIALIZER;
-
-    AssertReturn(idCpu1 != idCpu2, VERR_INVALID_PARAMETER);
-    AssertReturn(!(fFlags & RTMPON_F_VALID_MASK), VERR_INVALID_FLAGS);
-
-    Args.pfnWorker = pfnWorker;
-    Args.pvUser1   = pvUser1;
-    Args.pvUser2   = pvUser2;
-    Args.idCpu     = idCpu1;
-    Args.idCpu2    = idCpu2;
-    Args.cHits     = 0;
-
-    for (int i = 0; i < IPRT_SOL_SET_WORDS; i++)
-        CpuSet.auCpus[i] = 0;
-    BT_SET(CpuSet.auCpus, idCpu1);
-    BT_SET(CpuSet.auCpus, idCpu2);
-
-    /*
-     * Check that both CPUs are online before doing the broadcast call.
-     */
-    RTThreadPreemptDisable(&PreemptState);
-    if (   RTMpIsCpuOnline(idCpu1)
-        && RTMpIsCpuOnline(idCpu2))
-    {
-        rtMpSolCrossCall(&CpuSet, rtMpSolOnPairCpuWrapper, &Args);
-
-        Assert(Args.cHits <= 2);
-        if (Args.cHits == 2)
-            rc = VINF_SUCCESS;
-        else if (Args.cHits == 1)
-            rc = VERR_NOT_ALL_CPUS_SHOWED;
-        else if (Args.cHits == 0)
-            rc = VERR_CPU_OFFLINE;
-        else
-            rc = VERR_CPU_IPE_1;
-    }
-    /*
-     * A CPU must be present to be considered just offline.
-     */
-    else if (   RTMpIsCpuPresent(idCpu1)
-             && RTMpIsCpuPresent(idCpu2))
-        rc = VERR_CPU_OFFLINE;
-    else
-        rc = VERR_CPU_NOT_FOUND;
-
-    RTThreadPreemptRestore(&PreemptState);
-    return rc;
-}
-
-
-RTDECL(bool) RTMpOnPairIsConcurrentExecSupported(void)
-{
-    return true;
-}
-
-
 /**
  * Wrapper between the native solaris per-cpu callback and PFNRTWORKER
  * for the RTMpOnSpecific API.
  *
- * @returns Solaris error code.
  * @param   uArgs       Pointer to the RTMPARGS package.
- * @param   pvIgnored1  Ignored.
- * @param   pvIgnored2  Ignored.
+ * @param   uIgnored1   Ignored.
+ * @param   uIgnored2   Ignored.
+ *
+ * @returns Solaris error code.
  */
-static int rtMpSolOnSpecificCpuWrapper(void *uArg, void *pvIgnored1, void *pvIgnored2)
+static int rtMpSolOnSpecificCpuWrapper(void *uArg, void *uIgnored1, void *uIgnored2)
 {
     PRTMPARGS pArgs = (PRTMPARGS)(uArg);
     RTCPUID idCpu = RTMpCpuId();
@@ -400,8 +302,8 @@ static int rtMpSolOnSpecificCpuWrapper(void *uArg, void *pvIgnored1, void *pvIgn
     pArgs->pfnWorker(idCpu, pArgs->pvUser1, pArgs->pvUser2);
     ASMAtomicIncU32(&pArgs->cHits);
 
-    NOREF(pvIgnored1);
-    NOREF(pvIgnored2);
+    NOREF(uIgnored1);
+    NOREF(uIgnored2);
     return 0;
 }
 
@@ -409,8 +311,6 @@ static int rtMpSolOnSpecificCpuWrapper(void *uArg, void *pvIgnored1, void *pvIgn
 RTDECL(int) RTMpOnSpecific(RTCPUID idCpu, PFNRTMPWORKER pfnWorker, void *pvUser1, void *pvUser2)
 {
     RTMPARGS Args;
-    RTSOLCPUSET CpuSet;
-    RTTHREADPREEMPTSTATE PreemptState = RTTHREADPREEMPTSTATE_INITIALIZER;
     RT_ASSERT_INTS_ON();
 
     if (idCpu >= ncpus)
@@ -425,11 +325,13 @@ RTDECL(int) RTMpOnSpecific(RTCPUID idCpu, PFNRTMPWORKER pfnWorker, void *pvUser1
     Args.idCpu = idCpu;
     Args.cHits = 0;
 
+    RTTHREADPREEMPTSTATE PreemptState = RTTHREADPREEMPTSTATE_INITIALIZER;
+    RTThreadPreemptDisable(&PreemptState);
+
+    RTSOLCPUSET CpuSet;
     for (int i = 0; i < IPRT_SOL_SET_WORDS; i++)
         CpuSet.auCpus[i] = 0;
     BT_SET(CpuSet.auCpus, idCpu);
-
-    RTThreadPreemptDisable(&PreemptState);
 
     rtMpSolCrossCall(&CpuSet, rtMpSolOnSpecificCpuWrapper, &Args);
 
@@ -440,11 +342,5 @@ RTDECL(int) RTMpOnSpecific(RTCPUID idCpu, PFNRTMPWORKER pfnWorker, void *pvUser1
     return ASMAtomicUoReadU32(&Args.cHits) == 1
          ? VINF_SUCCESS
          : VERR_CPU_NOT_FOUND;
-}
-
-
-RTDECL(bool) RTMpOnAllIsConcurrentSafe(void)
-{
-    return true;
 }
 

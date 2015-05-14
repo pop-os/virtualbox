@@ -1,4 +1,3 @@
-/* $Id: Helper.cpp $ */
 /** @file
  *
  * VBox frontends: VBoxSDL (simple frontend based on SDL):

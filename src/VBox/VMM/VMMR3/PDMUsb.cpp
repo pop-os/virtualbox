@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -120,7 +120,7 @@ int pdmR3UsbRegisterHub(PVM pVM, PPDMDRVINS pDrvIns, uint32_t fVersions, uint32_
         LogRel(("pdmR3UsbRegisterHub: fClass=%#x expected %#x to be set\n", pDrvIns->pReg->fClass, PDM_DRVREG_CLASS_USB));
         return VERR_INVALID_PARAMETER;
     }
-    AssertMsgReturn(!(fVersions & ~(VUSB_STDVER_11 | VUSB_STDVER_20 | VUSB_STDVER_30)), ("%#x\n", fVersions), VERR_INVALID_PARAMETER);
+    AssertMsgReturn(!(fVersions & ~(VUSB_STDVER_11 | VUSB_STDVER_20)), ("%#x\n", fVersions), VERR_INVALID_PARAMETER);
     AssertPtrReturn(ppUsbHubHlp, VERR_INVALID_POINTER);
     AssertPtrReturn(pUsbHubReg, VERR_INVALID_POINTER);
     AssertReturn(pUsbHubReg->u32Version == PDM_USBHUBREG_VERSION, VERR_INVALID_MAGIC);
@@ -226,7 +226,7 @@ static DECLCALLBACK(int) pdmR3UsbReg_Register(PCPDMUSBREGCB pCallbacks, PCPDMUSB
                     &&  pdmR3IsValidName(pReg->szName),
                     ("Invalid name '%.s'\n", sizeof(pReg->szName), pReg->szName),
                     VERR_PDM_INVALID_USB_REGISTRATION);
-    AssertMsgReturn((pReg->fFlags & ~(PDM_USBREG_HIGHSPEED_CAPABLE | PDM_USBREG_SUPERSPEED_CAPABLE | PDM_USBREG_EMULATED_DEVICE)) == 0,
+    AssertMsgReturn((pReg->fFlags & ~(PDM_USBREG_HIGHSPEED_CAPABLE)) == 0,
                     ("fFlags=%#x\n", pReg->fFlags), VERR_PDM_INVALID_USB_REGISTRATION);
     AssertMsgReturn(pReg->cMaxInstances > 0,
                     ("Max instances %u! (USB Device %s)\n", pReg->cMaxInstances, pReg->szName),
@@ -439,17 +439,13 @@ static int pdmR3UsbFindHub(PVM pVM, uint32_t iUsbVersion, PPDMUSBHUB *ppHub)
         return VERR_PDM_NO_USB_HUBS;
 
     for (PPDMUSBHUB pCur = pVM->pdm.s.pUsbHubs; pCur; pCur = pCur->pNext)
-        if (pCur->cAvailablePorts > 0)
+        if (    pCur->cAvailablePorts > 0
+            &&  (   (pCur->fVersions & iUsbVersion)
+                 || pCur->fVersions == VUSB_STDVER_11))
         {
-            /* First check for an exact match. */
+            *ppHub = pCur;
             if (pCur->fVersions & iUsbVersion)
-            {
-                *ppHub = pCur;
                 break;
-            }
-            /* For high-speed USB 2.0 devices only, allow USB 1.1 fallback. */
-            if ((iUsbVersion & VUSB_STDVER_20) && (pCur->fVersions == VUSB_STDVER_11))
-                *ppHub = pCur;
         }
     if (*ppHub)
         return VINF_SUCCESS;
@@ -458,49 +454,23 @@ static int pdmR3UsbFindHub(PVM pVM, uint32_t iUsbVersion, PPDMUSBHUB *ppHub)
 
 
 /**
- * Translates a USB vesion (a bit-mask) to USB speed (enum). Picks
- * the highest available version.
- *
- * @returns VUSBSPEED enum
- *
- * @param   iUsbVersion     The USB version.
- *
- */
-static VUSBSPEED pdmR3UsbVer2Spd(uint32_t iUsbVersion)
-{
-    VUSBSPEED   enmSpd = VUSB_SPEED_UNKNOWN;
-    Assert(iUsbVersion);
-
-    if (iUsbVersion & VUSB_STDVER_30)
-        enmSpd = VUSB_SPEED_SUPER;
-    else if (iUsbVersion & VUSB_STDVER_20)
-        enmSpd = VUSB_SPEED_HIGH;
-    else if (iUsbVersion & VUSB_STDVER_11)
-        enmSpd = VUSB_SPEED_FULL;    /* Can't distinguish LS vs. FS. */
-
-    return enmSpd;
-}
-
-
-/**
  * Creates the device.
  *
  * @returns VBox status code.
- * @param   pVM                 Pointer to the VM.
- * @param   pUsbDev             The USB device emulation.
- * @param   iInstance           -1 if not called by pdmR3UsbInstantiateDevices().
- * @param   pUuid               The UUID for this device.
- * @param   ppInstanceNode      Pointer to the device instance pointer. This is set to NULL if inserted
- *                              into the tree or cleaned up.
+ * @param   pVM             Pointer to the VM.
+ * @param   pUsbDev         The USB device emulation.
+ * @param   iInstance       -1 if not called by pdmR3UsbInstantiateDevices().
+ * @param   pUuid           The UUID for this device.
+ * @param   ppInstanceNode  Pointer to the device instance pointer. This is set to NULL if inserted
+ *                          into the tree or cleaned up.
  *
- *                              In the pdmR3UsbInstantiateDevices() case (iInstance != -1) this is
- *                              the actual instance node and will not be cleaned up.
+ *                          In the pdmR3UsbInstantiateDevices() case (iInstance != -1) this is
+ *                          the actual instance node and will not be cleaned up.
  *
- * @param   enmSpeed            The speed the USB device is operating at.
- * @param   pszCaptureFilename  Path to the file for USB traffic capturing, optional.
+ * @parma   iUsbVersion     The USB version preferred by the device.
  */
 static int pdmR3UsbCreateDevice(PVM pVM, PPDMUSBHUB pHub, PPDMUSB pUsbDev, int iInstance, PCRTUUID pUuid,
-                                PCFGMNODE *ppInstanceNode, VUSBSPEED enmSpeed, const char *pszCaptureFilename)
+                                PCFGMNODE *ppInstanceNode, uint32_t iUsbVersion)
 {
     const bool fAtRuntime = iInstance == -1;
     int rc;
@@ -614,7 +584,7 @@ static int pdmR3UsbCreateDevice(PVM pVM, PPDMUSBHUB pHub, PPDMUSB pUsbDev, int i
     pUsbIns->pszName                        = RTStrDup(pUsbDev->pReg->szName);
     //pUsbIns->fTracing                       = 0;
     pUsbIns->idTracing                      = ++pVM->pdm.s.idTracingOther;
-    pUsbIns->enmSpeed                       = enmSpeed;
+    pUsbIns->iUsbHubVersion                 = iUsbVersion;
 
     /*
      * Link it into all the lists.
@@ -658,7 +628,7 @@ static int pdmR3UsbCreateDevice(PVM pVM, PPDMUSBHUB pHub, PPDMUSB pUsbDev, int i
          * Attach it to the hub.
          */
         Log(("PDM: Attaching it...\n"));
-        rc = pHub->Reg.pfnAttachDevice(pHub->pDrvIns, pUsbIns, pszCaptureFilename, &pUsbIns->Internal.s.iPort);
+        rc = pHub->Reg.pfnAttachDevice(pHub->pDrvIns, pUsbIns, &pUsbIns->Internal.s.iPort);
         if (RT_SUCCESS(rc))
         {
             pHub->cAvailablePorts--;
@@ -745,8 +715,6 @@ int pdmR3UsbInstantiateDevices(PVM pVM)
         uint32_t    u32Order;
         /** VBox instance number. */
         uint32_t    iInstance;
-        /** Device UUID. */
-        RTUUID      Uuid;
     } *paUsbDevs = (struct USBDEVORDER *)alloca(sizeof(paUsbDevs[0]) * (cUsbDevs + 1)); /* (One extra for swapping) */
     Assert(paUsbDevs);
     int rc;
@@ -785,23 +753,6 @@ int pdmR3UsbInstantiateDevices(PVM pVM)
             if (pInstanceNode == pGlobal)
                 continue;
 
-            /* Use the configured UUID if present, create our own otherwise. */
-            char *pszUuid = NULL;
-
-            RTUuidClear(&paUsbDevs[i].Uuid);
-            rc = CFGMR3QueryStringAlloc(pInstanceNode, "UUID", &pszUuid);
-            if (RT_SUCCESS(rc))
-            {
-                AssertPtr(pszUuid);
-
-                rc = RTUuidFromStr(&paUsbDevs[i].Uuid, pszUuid);
-                AssertMsgRCReturn(rc, ("Failed to convert UUID from string! rc=%Rrc\n", rc), rc);
-                MMR3HeapFree(pszUuid);
-            }
-            else if (rc == VERR_CFGM_VALUE_NOT_FOUND)
-                rc = RTUuidCreate(&paUsbDevs[i].Uuid);
-
-            AssertRCReturn(rc, rc);
             paUsbDevs[i].pNode = pInstanceNode;
             paUsbDevs[i].pUsbDev = pUsbDev;
             paUsbDevs[i].u32Order = u32Order;
@@ -856,15 +807,13 @@ int pdmR3UsbInstantiateDevices(PVM pVM)
         CFGMR3SetRestrictedRoot(pConfigNode);
 
         /*
-         * Every emulated device must support USB 1.x hubs; optionally, high-speed USB 2.0 hubs
+         * Every device must support USB 1.x hubs; optionally, high-speed USB 2.0 hubs
          * might be also supported. This determines where to attach the device.
          */
         uint32_t iUsbVersion = VUSB_STDVER_11;
 
         if (paUsbDevs[i].pUsbDev->pReg->fFlags & PDM_USBREG_HIGHSPEED_CAPABLE)
             iUsbVersion |= VUSB_STDVER_20;
-        if (paUsbDevs[i].pUsbDev->pReg->fFlags & PDM_USBREG_SUPERSPEED_CAPABLE)
-            iUsbVersion |= VUSB_STDVER_30;
 
         /*
          * Find a suitable hub with free ports.
@@ -886,8 +835,10 @@ int pdmR3UsbInstantiateDevices(PVM pVM)
         /*
          * Create and attach the device.
          */
-        rc = pdmR3UsbCreateDevice(pVM, pHub, paUsbDevs[i].pUsbDev, paUsbDevs[i].iInstance, &paUsbDevs[i].Uuid,
-                                  &paUsbDevs[i].pNode, pdmR3UsbVer2Spd(iUsbVersion), NULL);
+        RTUUID Uuid;
+        rc = RTUuidCreate(&Uuid);
+        AssertRCReturn(rc, rc);
+        rc = pdmR3UsbCreateDevice(pVM, pHub, paUsbDevs[i].pUsbDev, paUsbDevs[i].iInstance, &Uuid, &paUsbDevs[i].pNode, iUsbVersion);
         if (RT_FAILURE(rc))
             return rc;
     } /* for device instances */
@@ -903,16 +854,14 @@ int pdmR3UsbInstantiateDevices(PVM pVM)
  * and try instantiate the emulated device.
  *
  * @returns VBox status code.
- * @param   pUVM                The user mode VM handle.
- * @param   pszDeviceName       The name of the PDM device to instantiate.
- * @param   pInstanceNode       The instance CFGM node.
- * @param   pUuid               The UUID to be associated with the device.
- * @param   pszCaptureFilename  Path to the file for USB traffic capturing, optional.
+ * @param   pUVM            The user mode VM handle.
+ * @param   pszDeviceName   The name of the PDM device to instantiate.
+ * @param   pInstanceNode   The instance CFGM node.
+ * @param   pUuid           The UUID to be associated with the device.
  *
  * @thread EMT
  */
-VMMR3DECL(int) PDMR3UsbCreateEmulatedDevice(PUVM pUVM, const char *pszDeviceName, PCFGMNODE pInstanceNode, PCRTUUID pUuid,
-                                            const char *pszCaptureFilename)
+VMMR3DECL(int) PDMR3UsbCreateEmulatedDevice(PUVM pUVM, const char *pszDeviceName, PCFGMNODE pInstanceNode, PCRTUUID pUuid)
 {
     /*
      * Validate input.
@@ -941,8 +890,6 @@ VMMR3DECL(int) PDMR3UsbCreateEmulatedDevice(PUVM pUVM, const char *pszDeviceName
     uint32_t iUsbVersion = VUSB_STDVER_11;
     if (pUsbDev->pReg->fFlags & PDM_USBREG_HIGHSPEED_CAPABLE)
         iUsbVersion |= VUSB_STDVER_20;
-    if (pUsbDev->pReg->fFlags & PDM_USBREG_SUPERSPEED_CAPABLE)
-        iUsbVersion |= VUSB_STDVER_30;
 
     /*
      * Find a suitable hub with free ports.
@@ -964,8 +911,7 @@ VMMR3DECL(int) PDMR3UsbCreateEmulatedDevice(PUVM pUVM, const char *pszDeviceName
     /*
      * Create and attach the device.
      */
-    rc = pdmR3UsbCreateDevice(pVM, pHub, pUsbDev, -1, pUuid, &pInstanceNode,
-                              pdmR3UsbVer2Spd(iUsbVersion), pszCaptureFilename);
+    rc = pdmR3UsbCreateDevice(pVM, pHub, pUsbDev, -1, pUuid, &pInstanceNode, iUsbVersion);
     AssertRCReturn(rc, rc);
 
     return rc;
@@ -979,17 +925,16 @@ VMMR3DECL(int) PDMR3UsbCreateEmulatedDevice(PUVM pUVM, const char *pszDeviceName
  * and try instantiate the proxy device.
  *
  * @returns VBox status code.
- * @param   pUVM                The user mode VM handle.
- * @param   pUuid               The UUID to be associated with the device.
- * @param   fRemote             Whether it's a remove or local device.
- * @param   pszAddress          The address string.
- * @param   pvBackend           Pointer to the backend.
- * @param   iUsbVersion         The preferred USB version.
- * @param   fMaskedIfs          The interfaces to hide from the guest.
- * @param   pszCaptureFilename  Path to the file for USB traffic capturing, optional.
+ * @param   pUVM            The user mode VM handle.
+ * @param   pUuid           The UUID to be associated with the device.
+ * @param   fRemote         Whether it's a remove or local device.
+ * @param   pszAddress      The address string.
+ * @param   pvBackend       Pointer to the backend.
+ * @param   iUsbVersion     The preferred USB version.
+ * @param   fMaskedIfs      The interfaces to hide from the guest.
  */
 VMMR3DECL(int) PDMR3UsbCreateProxyDevice(PUVM pUVM, PCRTUUID pUuid, bool fRemote, const char *pszAddress, void *pvBackend,
-                                         uint32_t iUsbVersion, uint32_t fMaskedIfs, const char *pszCaptureFilename)
+                                         uint32_t iUsbVersion, uint32_t fMaskedIfs)
 {
     /*
      * Validate input.
@@ -1000,8 +945,7 @@ VMMR3DECL(int) PDMR3UsbCreateProxyDevice(PUVM pUVM, PCRTUUID pUuid, bool fRemote
     VM_ASSERT_EMT_RETURN(pVM, VERR_VM_THREAD_NOT_EMT);
     AssertPtrReturn(pUuid, VERR_INVALID_POINTER);
     AssertPtrReturn(pszAddress, VERR_INVALID_POINTER);
-    AssertReturn(    iUsbVersion == VUSB_STDVER_30
-                 ||  iUsbVersion == VUSB_STDVER_20
+    AssertReturn(    iUsbVersion == VUSB_STDVER_20
                  ||  iUsbVersion == VUSB_STDVER_11, VERR_INVALID_PARAMETER);
 
     /*
@@ -1051,12 +995,10 @@ VMMR3DECL(int) PDMR3UsbCreateProxyDevice(PUVM pUVM, PCRTUUID pUuid, bool fRemote
         return rc;
     }
 
-    VUSBSPEED enmSpeed = pdmR3UsbVer2Spd(iUsbVersion);
-
     /*
      * Finally, try to create it.
      */
-    rc = pdmR3UsbCreateDevice(pVM, pHub, pUsbDev, -1, pUuid, &pInstance, enmSpeed, pszCaptureFilename);
+    rc = pdmR3UsbCreateDevice(pVM, pHub, pUsbDev, -1, pUuid, &pInstance, iUsbVersion);
     if (RT_FAILURE(rc) && pInstance)
         CFGMR3RemoveNode(pInstance);
     return rc;
@@ -1102,7 +1044,7 @@ static void pdmR3UsbDestroyDevice(PVM pVM, PPDMUSBINS pUsbIns)
         pUsbIns->pReg->pfnDestruct(pUsbIns);
     }
     TMR3TimerDestroyUsb(pVM, pUsbIns);
-    SSMR3DeregisterUsb(pVM, pUsbIns, NULL, 0);
+    //SSMR3DeregisterUsb(pVM, pUsbIns, NULL, 0);
     pdmR3ThreadDestroyUsb(pVM, pUsbIns);
 #ifdef VBOX_WITH_PDM_ASYNC_COMPLETION
     pdmR3AsyncCompletionTemplateDestroyUsb(pVM, pUsbIns);
@@ -1228,253 +1170,6 @@ VMMR3DECL(bool) PDMR3UsbHasHub(PUVM pUVM)
     PVM pVM = pUVM->pVM;
     VM_ASSERT_VALID_EXT_RETURN(pVM, false);
     return pVM->pdm.s.pUsbHubs != NULL;
-}
-
-
-/**
- * Locates a LUN.
- *
- * @returns VBox status code.
- * @param   pVM             Pointer to the VM.
- * @param   pszDevice       Device name.
- * @param   iInstance       Device instance.
- * @param   iLun            The Logical Unit to obtain the interface of.
- * @param   ppLun           Where to store the pointer to the LUN if found.
- * @thread  Try only do this in EMT...
- */
-static int pdmR3UsbFindLun(PVM pVM, const char *pszDevice, unsigned iInstance, unsigned iLun, PPPDMLUN ppLun)
-{
-    /*
-     * Iterate registered devices looking for the device.
-     */
-    size_t cchDevice = strlen(pszDevice);
-    for (PPDMUSB pUsbDev = pVM->pdm.s.pUsbDevs; pUsbDev; pUsbDev = pUsbDev->pNext)
-    {
-        if (    pUsbDev->cchName == cchDevice
-            &&  !memcmp(pUsbDev->pReg->szName, pszDevice, cchDevice))
-        {
-            /*
-             * Iterate device instances.
-             */
-            for (PPDMUSBINS pUsbIns = pUsbDev->pInstances; pUsbIns; pUsbIns = pUsbIns->Internal.s.pPerDeviceNext)
-            {
-                if (pUsbIns->iInstance == iInstance)
-                {
-                    /*
-                     * Iterate luns.
-                     */
-                    for (PPDMLUN pLun = pUsbIns->Internal.s.pLuns; pLun; pLun = pLun->pNext)
-                    {
-                        if (pLun->iLun == iLun)
-                        {
-                            *ppLun = pLun;
-                            return VINF_SUCCESS;
-                        }
-                    }
-                    return VERR_PDM_LUN_NOT_FOUND;
-                }
-            }
-            return VERR_PDM_DEVICE_INSTANCE_NOT_FOUND;
-        }
-    }
-    return VERR_PDM_DEVICE_NOT_FOUND;
-}
-
-
-/**
- * Attaches a preconfigured driver to an existing device or driver instance.
- *
- * This is used to change drivers and suchlike at runtime.  The driver or device
- * at the end of the chain will be told to attach to whatever is configured
- * below it.
- *
- * @returns VBox status code.
- * @param   pUVM            The user mode VM handle.
- * @param   pszDevice       Device name.
- * @param   iInstance       Device instance.
- * @param   iLun            The Logical Unit to obtain the interface of.
- * @param   fFlags          Flags, combination of the PDM_TACH_FLAGS_* \#defines.
- * @param   ppBase          Where to store the base interface pointer. Optional.
- *
- * @thread  EMT
- */
-VMMR3DECL(int)  PDMR3UsbDriverAttach(PUVM pUVM, const char *pszDevice, unsigned iDevIns, unsigned iLun, uint32_t fFlags,
-                                     PPPDMIBASE ppBase)
-{
-    LogFlow(("PDMR3UsbDriverAttach: pszDevice=%p:{%s} iDevIns=%d iLun=%d fFlags=%#x ppBase=%p\n",
-             pszDevice, pszDevice, iDevIns, iLun, fFlags, ppBase));
-    UVM_ASSERT_VALID_EXT_RETURN(pUVM, VERR_INVALID_VM_HANDLE);
-    PVM pVM = pUVM->pVM;
-    VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
-    VM_ASSERT_EMT(pVM);
-
-    if (ppBase)
-        *ppBase = NULL;
-
-    /*
-     * Find the LUN in question.
-     */
-    PPDMLUN pLun;
-    int rc = pdmR3UsbFindLun(pVM, pszDevice, iDevIns, iLun, &pLun);
-    if (RT_SUCCESS(rc))
-    {
-        /*
-         * Anything attached to the LUN?
-         */
-        PPDMDRVINS pDrvIns = pLun->pTop;
-        if (!pDrvIns)
-        {
-            /* No, ask the device to attach to the new stuff. */
-            PPDMUSBINS pUsbIns = pLun->pUsbIns;
-            if (pUsbIns->pReg->pfnDriverAttach)
-            {
-                rc = pUsbIns->pReg->pfnDriverAttach(pUsbIns, iLun, fFlags);
-                if (RT_SUCCESS(rc) && ppBase)
-                    *ppBase = pLun->pTop ? &pLun->pTop->IBase : NULL;
-            }
-            else
-                rc = VERR_PDM_DEVICE_NO_RT_ATTACH;
-        }
-        else
-        {
-            /* Yes, find the bottom most driver and ask it to attach to the new stuff. */
-            while (pDrvIns->Internal.s.pDown)
-                pDrvIns = pDrvIns->Internal.s.pDown;
-            if (pDrvIns->pReg->pfnAttach)
-            {
-                rc = pDrvIns->pReg->pfnAttach(pDrvIns, fFlags);
-                if (RT_SUCCESS(rc) && ppBase)
-                    *ppBase = pDrvIns->Internal.s.pDown
-                            ? &pDrvIns->Internal.s.pDown->IBase
-                            : NULL;
-            }
-            else
-                rc = VERR_PDM_DRIVER_NO_RT_ATTACH;
-        }
-    }
-
-    if (ppBase)
-        LogFlow(("PDMR3UsbDriverAttach: returns %Rrc *ppBase=%p\n", rc, *ppBase));
-    else
-        LogFlow(("PDMR3UsbDriverAttach: returns %Rrc\n", rc));
-    return rc;
-}
-
-
-/**
- * Detaches the specified driver instance.
- *
- * This is used to replumb drivers at runtime for simulating hot plugging and
- * media changes.
- *
- * This method allows detaching drivers from
- * any driver or device by specifying the driver to start detaching at.  The
- * only prerequisite is that the driver or device above implements the
- * pfnDetach callback (PDMDRVREG / PDMUSBREG).
- *
- * @returns VBox status code.
- * @param   pUVM            The user mode VM handle.
- * @param   pszDevice       Device name.
- * @param   iDevIns         Device instance.
- * @param   iLun            The Logical Unit in which to look for the driver.
- * @param   pszDriver       The name of the driver which to detach.  If NULL
- *                          then the entire driver chain is detatched.
- * @param   iOccurance      The occurrence of that driver in the chain.  This is
- *                          usually 0.
- * @param   fFlags          Flags, combination of the PDM_TACH_FLAGS_* \#defines.
- * @thread  EMT
- */
-VMMR3DECL(int)  PDMR3UsbDriverDetach(PUVM pUVM, const char *pszDevice, unsigned iDevIns, unsigned iLun,
-                                     const char *pszDriver, unsigned iOccurance, uint32_t fFlags)
-{
-    LogFlow(("PDMR3UsbDriverDetach: pszDevice=%p:{%s} iDevIns=%u iLun=%u pszDriver=%p:{%s} iOccurance=%u fFlags=%#x\n",
-             pszDevice, pszDevice, iDevIns, iLun, pszDriver, iOccurance, fFlags));
-    UVM_ASSERT_VALID_EXT_RETURN(pUVM, VERR_INVALID_VM_HANDLE);
-    PVM pVM = pUVM->pVM;
-    VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
-    VM_ASSERT_EMT(pVM);
-    AssertPtr(pszDevice);
-    AssertPtrNull(pszDriver);
-    Assert(iOccurance == 0 || pszDriver);
-    Assert(!(fFlags & ~(PDM_TACH_FLAGS_NOT_HOT_PLUG)));
-
-    /*
-     * Find the LUN in question.
-     */
-    PPDMLUN pLun;
-    int rc = pdmR3UsbFindLun(pVM, pszDevice, iDevIns, iLun, &pLun);
-    if (RT_SUCCESS(rc))
-    {
-        /*
-         * Locate the driver.
-         */
-        PPDMDRVINS pDrvIns = pLun->pTop;
-        if (pDrvIns)
-        {
-            if (pszDriver)
-            {
-                while (pDrvIns)
-                {
-                    if (!strcmp(pDrvIns->pReg->szName, pszDriver))
-                    {
-                        if (iOccurance == 0)
-                            break;
-                        iOccurance--;
-                    }
-                    pDrvIns = pDrvIns->Internal.s.pDown;
-                }
-            }
-            if (pDrvIns)
-                rc = pdmR3DrvDetach(pDrvIns, fFlags);
-            else
-                rc = VERR_PDM_DRIVER_INSTANCE_NOT_FOUND;
-        }
-        else
-            rc = VINF_PDM_NO_DRIVER_ATTACHED_TO_LUN;
-    }
-
-    LogFlow(("PDMR3UsbDriverDetach: returns %Rrc\n", rc));
-    return rc;
-}
-
-
-/**
- * Query the interface of the top level driver on a LUN.
- *
- * @returns VBox status code.
- * @param   pUVM            The user mode VM handle.
- * @param   pszDevice       Device name.
- * @param   iInstance       Device instance.
- * @param   iLun            The Logical Unit to obtain the interface of.
- * @param   ppBase          Where to store the base interface pointer.
- * @remark  We're not doing any locking ATM, so don't try call this at times when the
- *          device chain is known to be updated.
- */
-VMMR3DECL(int)  PDMR3UsbQueryLun(PUVM pUVM, const char *pszDevice, unsigned iInstance, unsigned iLun, PPDMIBASE *ppBase)
-{
-    LogFlow(("PDMR3UsbQueryLun: pszDevice=%p:{%s} iInstance=%u iLun=%u ppBase=%p\n",
-             pszDevice, pszDevice, iInstance, iLun, ppBase));
-    UVM_ASSERT_VALID_EXT_RETURN(pUVM, VERR_INVALID_VM_HANDLE);
-    PVM pVM = pUVM->pVM;
-    VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
-
-    /*
-     * Find the LUN.
-     */
-    PPDMLUN pLun;
-    int rc = pdmR3UsbFindLun(pVM, pszDevice, iInstance, iLun, &pLun);
-    if (RT_SUCCESS(rc))
-    {
-        if (pLun->pTop)
-        {
-            *ppBase = &pLun->pTop->IBase;
-            LogFlow(("PDMR3UsbQueryLun: return %Rrc and *ppBase=%p\n", VINF_SUCCESS, *ppBase));
-            return VINF_SUCCESS;
-        }
-        rc = VERR_PDM_NO_DRIVER_ATTACHED_TO_LUN;
-    }
-    LogFlow(("PDMR3UsbQueryLun: returns %Rrc\n", rc));
-    return rc;
 }
 
 
@@ -1695,11 +1390,13 @@ static DECLCALLBACK(int) pdmR3UsbHlp_SSMRegister(PPDMUSBINS pUsbIns, uint32_t uV
              pfnSavePrep, pfnSaveExec, pfnSaveDone,
              pfnLoadPrep, pfnLoadExec, pfnLoadDone));
 
+    /** @todo
     int rc = SSMR3RegisterUsb(pUsbIns->Internal.s.pVM, pUsbIns, pUsbIns->pReg->szName, pUsbIns->iInstance,
                               uVersion, cbGuess,
                               pfnLivePrep, pfnLiveExec, pfnLiveVote,
                               pfnSavePrep, pfnSaveExec, pfnSaveDone,
-                              pfnLoadPrep, pfnLoadExec, pfnLoadDone);
+                              pfnLoadPrep, pfnLoadExec, pfnLoadDone); */
+    int rc = VERR_NOT_IMPLEMENTED; AssertFailed();
 
     LogFlow(("pdmR3UsbHlp_SSMRegister: caller='%s'/%d: returns %Rrc\n", pUsbIns->pReg->szName, pUsbIns->iInstance, rc));
     return rc;

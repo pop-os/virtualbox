@@ -2016,7 +2016,6 @@ static int CmdConvertToRaw(int argc, char **argv, ComPtr<IVirtualBox> aVirtualBo
                 break;
             offFile += cb;
         }
-        RTMemFree(pvBuf);
         if (RT_FAILURE(vrc))
         {
             VDCloseAll(pDisk);

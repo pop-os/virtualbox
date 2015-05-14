@@ -57,7 +57,7 @@ bool USBProxyService::isActive() { return true; }
 
 VBoxMainHotplugWaiter::VBoxMainHotplugWaiter(char const*) {}
 
-com::Utf8Str HostUSBDevice::i_getName()
+com::Utf8Str HostUSBDevice::getName()
 {
     return Utf8Str();
 }

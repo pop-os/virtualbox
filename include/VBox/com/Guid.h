@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -35,6 +35,10 @@
 # define __STDC_CONSTANT_MACROS
 #endif
 
+#if defined(VBOX_WITH_XPCOM)
+# include <nsMemory.h>
+#endif
+
 #include "VBox/com/string.h"
 
 #include <iprt/uuid.h>
@@ -43,12 +47,12 @@
 namespace com
 {
 
-typedef enum GuidState_t
-{
-    GUID_ZERO,
-    GUID_NORMAL,
-    GUID_INVALID
-} GuidState_t;
+typedef enum
+    {
+        ZERO_GUID,
+        NORMAL_GUID,
+        INVALID_GUID
+    }GuidState_t;
 
 /**
  *  Helper class that represents the UUID type and hides platform-specific
@@ -61,205 +65,156 @@ public:
     Guid()
     {
         ::RTUuidClear(&mUuid);
-        mGuidState = GUID_ZERO;
-        dbg_refresh();
+        refresh();
+        mGuidState = ZERO_GUID;
     }
 
     Guid(const Guid &that)
     {
         mUuid = that.mUuid;
-        mGuidState = that.mGuidState;
-        dbg_refresh();
+        refresh();
+        if (isEmpty())
+            mGuidState = ZERO_GUID;
+        else
+            mGuidState = NORMAL_GUID;
     }
 
     Guid(const RTUUID &that)
     {
-        mGuidState = GUID_NORMAL;
         mUuid = that;
-        if (isZero())
-            mGuidState = GUID_ZERO;
-        dbg_refresh();
+        refresh();
+        if (isEmpty())
+            mGuidState = ZERO_GUID;
+        else
+            mGuidState = NORMAL_GUID;
     }
 
     Guid(const GUID &that)
     {
         AssertCompileSize(GUID, sizeof(RTUUID));
         ::memcpy(&mUuid, &that, sizeof(GUID));
-        mGuidState = GUID_NORMAL;
-        if (isZero())
-            mGuidState = GUID_ZERO;
-        dbg_refresh();
+        refresh();
+        if (isEmpty())
+            mGuidState = ZERO_GUID;
+        else
+            mGuidState = NORMAL_GUID;
     }
 
     /**
      * Construct a GUID from a string.
      *
-     * @param   that        The UUID string. Can be with or without the curly
-     *                      brackets. Empty strings are translated to a zero
-     *                      GUID, and strings which are not confirming to
-     *                      valid GUID string representations are marked as
-     *                      invalid.
+     * Should the string be invalid, the object will be set to the null GUID
+     * (isEmpty() == true).
+     *
+     * @param   that        The UUID string.  We feed this to RTUuidFromStr(),
+     *                      so check it out for the exact format.
      */
     Guid(const char *that)
     {
-        initString(that);
+        mGuidState = NORMAL_GUID;
+
+        int rc = ::RTUuidFromStr(&mUuid, that);
+
+        if (RT_FAILURE(rc))
+        {
+            ::RTUuidClear(&mUuid);
+            mGuidState = INVALID_GUID;
+        }
+        else if(isEmpty())
+            mGuidState = ZERO_GUID;
+        refresh();
     }
 
     /**
      * Construct a GUID from a BSTR.
      *
-     * @param   that        The UUID BSTR. Can be with or without the curly
-     *                      brackets. Empty strings are translated to a zero
-     *                      GUID, and strings which are not confirming to
-     *                      valid GUID string representations are marked as
-     *                      invalid.
-     */
-    Guid(CBSTR that)
-    {
-        initBSTR(that);
-    }
-
-    /**
-     * Construct a GUID from a Utf8Str.
+     * Should the string be empty or invalid, the object will be set to the
+     * null GUID (isEmpty() == true).
      *
-     * @param   that        The UUID Utf8Str. Can be with or without the curly
-     *                      brackets. Empty strings are translated to a zero
-     *                      GUID, and strings which are not confirming to
-     *                      valid GUID string representations are marked as
-     */
-    Guid(const Utf8Str &that)
-    {
-        initString(that.c_str());
-    }
-
-    /**
-     * Construct a GUID from a RTCString.
-     *
-     * @param   that        The UUID RTCString. Can be with or without the curly
-     *                      brackets. Empty strings are translated to a zero
-     *                      GUID, and strings which are not confirming to
-     *                      valid GUID string representations are marked as
-     */
-    Guid(const RTCString &that)
-    {
-        initString(that.c_str());
-    }
-
-    /**
-     * Construct a GUID from a Bstr.
-     *
-     * @param   that        The UUID Bstr. Can be with or without the curly
-     *                      brackets. Empty strings are translated to a zero
-     *                      GUID, and strings which are not confirming to
-     *                      valid GUID string representations are marked as
+     * @param   that        The UUID BSTR.  We feed this to RTUuidFromUtf16(),
+     *                      so check it out for the exact format.
      */
     Guid(const Bstr &that)
     {
-        initBSTR(that.raw());
+        mGuidState = NORMAL_GUID;
+
+        if (that.isEmpty())
+        {
+            ::RTUuidClear(&mUuid);
+            mGuidState = ZERO_GUID;
+        }
+        else
+        {
+            int rc = ::RTUuidFromUtf16(&mUuid, that.raw());
+            if (RT_FAILURE(rc))
+            {
+                ::RTUuidClear(&mUuid);
+                mGuidState = INVALID_GUID;
+            }
+        }
+
+        refresh();
     }
 
     Guid& operator=(const Guid &that)
     {
-        mUuid = that.mUuid;
-        mGuidState = that.mGuidState;
-        dbg_refresh();
+        mGuidState = NORMAL_GUID;
+        ::memcpy(&mUuid, &that.mUuid, sizeof (RTUUID));
+        if (isEmpty())
+            mGuidState = ZERO_GUID;
+        refresh();
         return *this;
     }
-
-    Guid& operator=(const RTUUID &guid)
-    {
-        mUuid = guid;
-        mGuidState = GUID_NORMAL;
-        if (isZero())
-            mGuidState = GUID_ZERO;
-        dbg_refresh();
-        return *this;
-    }
-
     Guid& operator=(const GUID &guid)
     {
-        AssertCompileSize(GUID, sizeof(RTUUID));
-        ::memcpy(&mUuid, &guid, sizeof(GUID));
-        mGuidState = GUID_NORMAL;
-        if (isZero())
-            mGuidState = GUID_ZERO;
-        dbg_refresh();
+        mGuidState = NORMAL_GUID;
+        ::memcpy(&mUuid, &guid, sizeof (GUID));
+        if (isEmpty())
+            mGuidState = ZERO_GUID;
+        refresh();
         return *this;
     }
-
+    Guid& operator=(const RTUUID &guid)
+    {
+        mGuidState = NORMAL_GUID;
+        ::memcpy(&mUuid, &guid, sizeof (RTUUID));
+        if (isEmpty())
+            mGuidState = ZERO_GUID;
+        refresh();
+        return *this;
+    }
     Guid& operator=(const char *str)
     {
-        if (!str || !*str)
+        mGuidState = NORMAL_GUID;
+        int rc = ::RTUuidFromStr(&mUuid, str);
+
+        if (RT_FAILURE(rc))
         {
             ::RTUuidClear(&mUuid);
-            mGuidState = GUID_ZERO;
+            mGuidState = INVALID_GUID;
         }
         else
         {
-            mGuidState = GUID_NORMAL;
-            int rc = ::RTUuidFromStr(&mUuid, str);
-            if (RT_FAILURE(rc))
-            {
-                ::RTUuidClear(&mUuid);
-                mGuidState = GUID_INVALID;
-            }
-            else if (isZero())
-                mGuidState = GUID_ZERO;
+            if (isEmpty())
+            mGuidState = ZERO_GUID;
         }
-        dbg_refresh();
+
+        refresh();
+
         return *this;
-    }
-
-    Guid& operator=(CBSTR str)
-    {
-        if (!str || !*str)
-        {
-            ::RTUuidClear(&mUuid);
-            mGuidState = GUID_ZERO;
-        }
-        else
-        {
-            mGuidState = GUID_NORMAL;
-            int rc = ::RTUuidFromUtf16(&mUuid, str);
-            if (RT_FAILURE(rc))
-            {
-                ::RTUuidClear(&mUuid);
-                mGuidState = GUID_INVALID;
-            }
-            else if (isZero())
-                mGuidState = GUID_ZERO;
-        }
-        dbg_refresh();
-        return *this;
-    }
-
-    Guid& operator=(const Utf8Str &str)
-    {
-        return operator=(str.c_str());
-    }
-
-    Guid& operator=(const RTCString &str)
-    {
-        return operator=(str.c_str());
-    }
-
-    Guid& operator=(const Bstr &str)
-    {
-        return operator=(str.raw());
     }
 
     void create()
     {
         ::RTUuidCreate(&mUuid);
-        mGuidState = GUID_NORMAL;
-        dbg_refresh();
+        mGuidState = NORMAL_GUID;
+        refresh();
     }
-
     void clear()
     {
         ::RTUuidClear(&mUuid);
-        mGuidState = GUID_ZERO;
-        dbg_refresh();
+        mGuidState = ZERO_GUID;
+        refresh();
     }
 
     /**
@@ -270,15 +225,18 @@ public:
      */
     Utf8Str toString() const
     {
-        if (mGuidState == GUID_INVALID)
+        char buf[RTUUID_STR_LENGTH];
+
+        ::memset(buf,0,RTUUID_STR_LENGTH);
+
+        if (mGuidState == INVALID_GUID)
         {
             /* What to return in case of wrong Guid */
             return Utf8Str("00000000-0000-0000-0000-00000000000");
         }
 
-        char buf[RTUUID_STR_LENGTH];
-        ::memset(buf, '\0', sizeof(buf));
-        ::RTUuidToStr(&mUuid, buf, sizeof(buf));
+        ::RTUuidToStr(&mUuid, buf, RTUUID_STR_LENGTH);
+
 
         return Utf8Str(buf);
     }
@@ -291,17 +249,18 @@ public:
      */
     Utf8Str toStringCurly() const
     {
-        if (mGuidState == GUID_INVALID)
+
+        if (mGuidState == INVALID_GUID)
         {
             /* What to return in case of wrong Guid */
             return Utf8Str("{00000000-0000-0000-0000-00000000000}");
         }
 
-        char buf[RTUUID_STR_LENGTH + 2];
-        ::memset(buf, '\0', sizeof(buf));
-        ::RTUuidToStr(&mUuid, buf + 1, sizeof(buf) - 2);
-        buf[0] = '{';
+        char buf[RTUUID_STR_LENGTH + 2] = "{";
+
+        ::RTUuidToStr(&mUuid, buf + 1, RTUUID_STR_LENGTH);
         buf[sizeof(buf) - 2] = '}';
+        buf[sizeof(buf) - 1] = '\0';
 
         return Utf8Str(buf);
     }
@@ -314,38 +273,34 @@ public:
      */
     Bstr toUtf16() const
     {
-        if (mGuidState == GUID_INVALID)
-        {
-            /* What to return in case of wrong Guid */
+        if (mGuidState == INVALID_GUID)
           return Bstr("00000000-0000-0000-0000-00000000000");
-        }
 
         RTUTF16 buf[RTUUID_STR_LENGTH];
-        ::memset(buf, '\0', sizeof(buf));
-        ::RTUuidToUtf16(&mUuid, buf, RT_ELEMENTS(buf));
-
+        ::RTUuidToUtf16(&mUuid, buf, RTUUID_STR_LENGTH);
         return Bstr(buf);
     }
 
     bool isValid() const
     {
-        return mGuidState != GUID_INVALID;
+        bool res = true;
+        if (mGuidState == INVALID_GUID)
+            res = false;
+
+        return res;
     }
 
     bool isZero() const
     {
-        return mGuidState == GUID_ZERO;
+        return (::RTUuidIsNull(&mUuid) && mGuidState == ZERO_GUID);
     }
 
     bool operator==(const Guid &that) const { return ::RTUuidCompare(&mUuid, &that.mUuid)    == 0; }
-    bool operator==(const RTUUID &guid) const { return ::RTUuidCompare(&mUuid, &guid) == 0; }
     bool operator==(const GUID &guid) const { return ::RTUuidCompare(&mUuid, (PRTUUID)&guid) == 0; }
     bool operator!=(const Guid &that) const { return !operator==(that); }
     bool operator!=(const GUID &guid) const { return !operator==(guid); }
-    bool operator!=(const RTUUID &guid) const { return !operator==(guid); }
-    bool operator<(const Guid &that) const { return ::RTUuidCompare(&mUuid, &that.mUuid)    < 0; }
-    bool operator<(const GUID &guid) const { return ::RTUuidCompare(&mUuid, (PRTUUID)&guid) < 0; }
-    bool operator<(const RTUUID &guid) const { return ::RTUuidCompare(&mUuid, &guid) < 0; }
+    bool operator<( const Guid &that) const { return ::RTUuidCompare(&mUuid, &that.mUuid)    < 0; }
+    bool operator<( const GUID &guid) const { return ::RTUuidCompare(&mUuid, (PRTUUID)&guid) < 0; }
 
     /**
      * To directly copy the contents to a GUID, or for passing it as an input
@@ -395,7 +350,7 @@ public:
     /**
      * Internal helper class for asOutParam().
      *
-     * This takes a GUID reference in the constructor and copies the mUuid from
+     * This takes a GUID refrence in the constructor and copies the mUuid from
      * the method to that instance in its destructor.
      */
     class GuidOutParam
@@ -415,10 +370,10 @@ public:
         operator nsID**() { return &ptr; }
         ~GuidOutParam()
         {
-            if (ptr && outer.isZero())
+            if (ptr && outer.isEmpty())
             {
                 outer = *ptr;
-                outer.dbg_refresh();
+                outer.refresh();
                 nsMemory::Free(ptr);
             }
         }
@@ -430,56 +385,30 @@ public:
 
 #endif
 
+    /* to directly test IN_GUID interface method's parameters */
+    static bool isEmpty(const GUID &guid)
+    {
+        return ::RTUuidIsNull((PRTUUID)&guid);
+    }
+
     /**
-     *  Static immutable empty (zero) object. May be used for comparison purposes.
+     *  Static immutable empty object. May be used for comparison purposes.
      */
     static const Guid Empty;
 
+protected:
+
+    bool isEmpty() const
+    {
+        return ::RTUuidIsNull(&mUuid);
+    }
+
+    bool isNotEmpty() const
+    {
+        return !::RTUuidIsNull(&mUuid);
+    }
+
 private:
-    void initString(const char *that)
-    {
-        if (!that || !*that)
-        {
-            ::RTUuidClear(&mUuid);
-            mGuidState = GUID_ZERO;
-        }
-        else
-        {
-            mGuidState = GUID_NORMAL;
-            int rc = ::RTUuidFromStr(&mUuid, that);
-            if (RT_FAILURE(rc))
-            {
-                ::RTUuidClear(&mUuid);
-                mGuidState = GUID_INVALID;
-            }
-            else if (isZero())
-                mGuidState = GUID_ZERO;
-        }
-        dbg_refresh();
-    }
-
-    void initBSTR(CBSTR that)
-    {
-        if (!that || !*that)
-        {
-            ::RTUuidClear(&mUuid);
-            mGuidState = GUID_ZERO;
-        }
-        else
-        {
-            mGuidState = GUID_NORMAL;
-            int rc = ::RTUuidFromUtf16(&mUuid, that);
-            if (RT_FAILURE(rc))
-            {
-                ::RTUuidClear(&mUuid);
-                mGuidState = GUID_INVALID;
-            }
-            else if (isZero())
-                mGuidState = GUID_ZERO;
-        }
-        dbg_refresh();
-    }
-
     /**
      * Refresh the debug-only UUID string.
      *
@@ -487,21 +416,11 @@ private:
      * must be called every time the internal uuid changes; compiles to nothing
      * in release code.
      */
-    inline void dbg_refresh()
+    inline void refresh()
     {
 #ifdef DEBUG
-        switch (mGuidState)
-        {
-            case GUID_ZERO:
-            case GUID_NORMAL:
-                ::RTUuidToStr(&mUuid, mszUuid, RTUUID_STR_LENGTH);
-                break;
-            default:
-                ::memset(mszUuid, '\0', sizeof(mszUuid));
-                ::RTStrCopy(mszUuid, sizeof(mszUuid), "INVALID");
-                break;
-        }
-        m_pcszUUID = mszUuid;
+//        ::RTUuidToStr(&mUuid, mszUuid, RTUUID_STR_LENGTH);
+//        m_pcszUUID = mszUuid;
 #endif
     }
 
@@ -517,6 +436,19 @@ private:
     const char *m_pcszUUID;
 #endif
 };
+/*
+inline Bstr asGuidStr(const Bstr& str)
+{
+   Guid guid(str);
+   return guid.isEmpty() ? Bstr() : guid.toUtf16();
+}
+*/
+//inline bool isValidGuid(const Bstr& str)
+//{
+//   Guid guid(str);
+//   return guid.isValid();
+////   return !guid.isEmpty();
+//}
 
 } /* namespace com */
 

@@ -316,10 +316,6 @@ int slirp_init(PNATState *ppData, uint32_t u32NetAddr, uint32_t u32Netmask,
     pData->pvUser = pvUser;
     pData->netmask = u32Netmask;
 
-    rc = RTCritSectRwInit(&pData->CsRwHandlerChain);
-    if (RT_FAILURE(rc))
-        return rc;
-
     /* sockets & TCP defaults */
     pData->socket_rcv = 64 * _1K;
     pData->socket_snd = 64 * _1K;
@@ -494,7 +490,8 @@ void slirp_link_down(PNATState pData)
     if (link_up == 0)
         return;
 
-    slirpReleaseDnsSettings(pData);
+    if (!pData->fUseHostResolverPermanent)
+        slirpReleaseDnsSettings(pData);
 
     while ((so = tcb.so_next) != &tcb)
     {
@@ -532,6 +529,9 @@ void slirp_term(PNATState pData)
         return;
     icmp_finit(pData);
 
+    /* Signal to slirp_link_down() to release DNS data. */
+    pData->fUseHostResolverPermanent = 0;
+
     slirp_link_down(pData);
     ftp_alias_unload(pData);
     nbt_alias_unload(pData);
@@ -566,6 +566,7 @@ void slirp_term(PNATState pData)
 #ifdef RT_OS_WINDOWS
     WSACleanup();
 #endif
+#ifndef VBOX_WITH_SLIRP_BSD_SBUF
 #ifdef LOG_ENABLED
     Log(("\n"
          "NAT statistics\n"
@@ -581,7 +582,7 @@ void slirp_term(PNATState pData)
          "\n"
          "\n"));
 #endif
-    RTCritSectRwDelete(&pData->CsRwHandlerChain);
+#endif
     RTMemFree(pData);
 }
 

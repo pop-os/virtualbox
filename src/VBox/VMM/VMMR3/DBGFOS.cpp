@@ -35,65 +35,11 @@
 /*******************************************************************************
 *   Defined Constants And Macros                                               *
 *******************************************************************************/
+#define DBGF_OS_READ_LOCK(pUVM)      do { } while (0)
+#define DBGF_OS_READ_UNLOCK(pUVM)    do { } while (0)
 
-#define DBGF_OS_READ_LOCK(pUVM) \
-    do { int rcLock = RTCritSectRwEnterShared(&pUVM->dbgf.s.OSCritSect); AssertRC(rcLock); } while (0)
-#define DBGF_OS_READ_UNLOCK(pUVM) \
-    do { int rcLock = RTCritSectRwLeaveShared(&pUVM->dbgf.s.OSCritSect); AssertRC(rcLock); } while (0)
-
-#define DBGF_OS_WRITE_LOCK(pUVM) \
-    do { int rcLock = RTCritSectRwEnterExcl(&pUVM->dbgf.s.OSCritSect); AssertRC(rcLock); } while (0)
-#define DBGF_OS_WRITE_UNLOCK(pUVM) \
-    do { int rcLock = RTCritSectRwLeaveExcl(&pUVM->dbgf.s.OSCritSect); AssertRC(rcLock); } while (0)
-
-
-/*******************************************************************************
-*   Structures and Typedefs                                                    *
-*******************************************************************************/
-/**
- * EMT interface wrappers.
- *
- * The diggers expects to be called on an EMT.  To avoid the debugger+Main having
- *
- * Since the user (debugger/Main) shouldn't be calling directly into the digger code, but rather
- */
-typedef struct DBGFOSEMTWRAPPER
-{
-    /** Pointer to the next list entry. */
-    struct DBGFOSEMTWRAPPER    *pNext;
-    /** The interface type.   */
-    DBGFOSINTERFACE             enmIf;
-    /** The digger interface pointer. */
-    union
-    {
-        /** Generic void pointer. */
-        void                    *pv;
-        /** DBGFOSINTERFACE_DMESG.*/
-        PDBGFOSIDMESG           pDmesg;
-    } uDigger;
-    /** The user mode VM handle. */
-    PUVM                        pUVM;
-    /** The wrapper interface union (consult enmIf). */
-    union
-    {
-        /** DBGFOSINTERFACE_DMESG.*/
-        DBGFOSIDMESG            Dmesg;
-    } uWrapper;
-} DBGFOSEMTWRAPPER;
-/** Pointer to an EMT interface wrapper.   */
-typedef DBGFOSEMTWRAPPER *PDBGFOSEMTWRAPPER;
-
-
-/**
- * Internal init routine called by DBGFR3Init().
- *
- * @returns VBox status code.
- * @param   pUVM    The user mode VM handle.
- */
-int dbgfR3OSInit(PUVM pUVM)
-{
-    return RTCritSectRwInit(&pUVM->dbgf.s.OSCritSect);
-}
+#define DBGF_OS_WRITE_LOCK(pUVM)     do { } while (0)
+#define DBGF_OS_WRITE_UNLOCK(pUVM)   do { } while (0)
 
 
 /**
@@ -103,8 +49,6 @@ int dbgfR3OSInit(PUVM pUVM)
  */
 void dbgfR3OSTerm(PUVM pUVM)
 {
-    RTCritSectRwDelete(&pUVM->dbgf.s.OSCritSect);
-
     /*
      * Terminate the current one.
      */
@@ -123,15 +67,6 @@ void dbgfR3OSTerm(PUVM pUVM)
         pUVM->dbgf.s.pOSHead = pOS->pNext;
         if (pOS->pReg->pfnDestruct)
             pOS->pReg->pfnDestruct(pUVM, pOS->abData);
-
-        PDBGFOSEMTWRAPPER pFree = pOS->pWrapperHead;
-        while ((pFree = pOS->pWrapperHead) != NULL)
-        {
-            pOS->pWrapperHead = pFree->pNext;
-            pFree->pNext = NULL;
-            MMR3HeapFree(pFree);
-        }
-
         MMR3HeapFree(pOS);
     }
 }
@@ -156,7 +91,6 @@ static DECLCALLBACK(int) dbgfR3OSRegister(PUVM pUVM, PDBGFOSREG pReg)
             Log(("dbgfR3OSRegister: %s -> VERR_ALREADY_LOADED\n", pReg->szName));
             return VERR_ALREADY_LOADED;
         }
-    DBGF_OS_READ_UNLOCK(pUVM);
 
     /*
      * Allocate a new structure, call the constructor and link it into the list.
@@ -270,15 +204,6 @@ static DECLCALLBACK(int) dbgfR3OSDeregister(PUVM pUVM, PDBGFOSREG pReg)
         pOS->pReg->pfnTerm(pUVM, pOS->abData);
     if (pOS->pReg->pfnDestruct)
         pOS->pReg->pfnDestruct(pUVM, pOS->abData);
-
-    PDBGFOSEMTWRAPPER pFree = pOS->pWrapperHead;
-    while ((pFree = pOS->pWrapperHead) != NULL)
-    {
-        pOS->pWrapperHead = pFree->pNext;
-        pFree->pNext = NULL;
-        MMR3HeapFree(pFree);
-    }
-
     MMR3HeapFree(pOS);
 
     return VINF_SUCCESS;
@@ -310,7 +235,7 @@ VMMR3DECL(int)  DBGFR3OSDeregister(PUVM pUVM, PCDBGFOSREG pReg)
     for (pOS = pUVM->dbgf.s.pOSHead; pOS; pOS = pOS->pNext)
         if (pOS->pReg == pReg)
             break;
-    DBGF_OS_READ_UNLOCK(pUVM);
+    DBGF_OS_READ_LOCK(pUVM);
 
     if (!pOS)
     {
@@ -341,8 +266,6 @@ static DECLCALLBACK(int) dbgfR3OSDetect(PUVM pUVM, char *pszName, size_t cchName
     /*
      * Cycle thru the detection routines.
      */
-    DBGF_OS_WRITE_LOCK(pUVM);
-
     PDBGFOS const pOldOS = pUVM->dbgf.s.pCurOS;
     pUVM->dbgf.s.pCurOS = NULL;
 
@@ -361,16 +284,12 @@ static DECLCALLBACK(int) dbgfR3OSDetect(PUVM pUVM, char *pszName, size_t cchName
             }
             if (pszName && cchName)
                 strncat(pszName, pNewOS->pReg->szName, cchName);
-
-            DBGF_OS_WRITE_UNLOCK(pUVM);
             return rc;
         }
 
     /* not found */
     if (pOldOS)
         pOldOS->pReg->pfnTerm(pUVM, pOldOS->abData);
-
-    DBGF_OS_WRITE_UNLOCK(pUVM);
     return VINF_DBGF_OS_NOT_DETCTED;
 }
 
@@ -419,8 +338,6 @@ static DECLCALLBACK(int) dbgfR3OSQueryNameAndVersion(PUVM pUVM, char *pszName, s
     /*
      * Any known OS?
      */
-    DBGF_OS_READ_LOCK(pUVM);
-
     if (pUVM->dbgf.s.pCurOS)
     {
         int rc = VINF_SUCCESS;
@@ -443,12 +360,9 @@ static DECLCALLBACK(int) dbgfR3OSQueryNameAndVersion(PUVM pUVM, char *pszName, s
             if (RT_FAILURE(rc2) || rc == VINF_SUCCESS)
                 rc = rc2;
         }
-
-        DBGF_OS_READ_UNLOCK(pUVM);
         return rc;
     }
 
-    DBGF_OS_READ_UNLOCK(pUVM);
     return VERR_DBGF_OS_NOT_DETCTED;
 }
 
@@ -490,28 +404,6 @@ VMMR3DECL(int) DBGFR3OSQueryNameAndVersion(PUVM pUVM, char *pszName, size_t cchN
 
 
 /**
- * @interface_method_impl{DBGFOSIDMESG,pfnQueryKernelLog, Generic EMT wrapper.}
- */
-static DECLCALLBACK(int) dbgfR3OSEmtIDmesg_QueryKernelLog(PDBGFOSIDMESG pThis, PUVM pUVM, uint32_t fFlags, uint32_t cMessages,
-                                                          char *pszBuf, size_t cbBuf, size_t *pcbActual)
-{
-    PDBGFOSEMTWRAPPER pWrapper = RT_FROM_MEMBER(pThis, DBGFOSEMTWRAPPER, uWrapper.Dmesg);
-    UVM_ASSERT_VALID_EXT_RETURN(pUVM, VERR_INVALID_VM_HANDLE);
-    AssertReturn(pUVM == pWrapper->pUVM, VERR_INVALID_VM_HANDLE);
-    AssertReturn(!fFlags, VERR_INVALID_FLAGS);
-    AssertReturn(cMessages > 0, VERR_INVALID_PARAMETER);
-    if (cbBuf)
-        AssertPtrReturn(pszBuf, VERR_INVALID_POINTER);
-    AssertPtrNullReturn(pcbActual, VERR_INVALID_POINTER);
-
-    return VMR3ReqPriorityCallWaitU(pWrapper->pUVM, 0 /*idDstCpu*/,
-                                   (PFNRT)pWrapper->uDigger.pDmesg->pfnQueryKernelLog, 7,
-                                    pWrapper->uDigger.pDmesg, pUVM, fFlags, cMessages, pszBuf, cbBuf, pcbActual);
-
-}
-
-
-/**
  * EMT worker for DBGFR3OSQueryInterface.
  *
  * @param   pUVM            The user mode VM handle.
@@ -520,80 +412,17 @@ static DECLCALLBACK(int) dbgfR3OSEmtIDmesg_QueryKernelLog(PDBGFOSIDMESG pThis, P
  */
 static DECLCALLBACK(void) dbgfR3OSQueryInterface(PUVM pUVM, DBGFOSINTERFACE enmIf, void **ppvIf)
 {
-    AssertPtrReturnVoid(ppvIf);
-    *ppvIf = NULL;
-    AssertReturnVoid(enmIf > DBGFOSINTERFACE_INVALID && enmIf < DBGFOSINTERFACE_END);
-    UVM_ASSERT_VALID_EXT_RETURN_VOID(pUVM);
-
-    /*
-     * Forward the query to the current OS.
-     */
-    DBGF_OS_READ_LOCK(pUVM);
-    PDBGFOS pOS = pUVM->dbgf.s.pCurOS;
-    if (pOS)
+    if (pUVM->dbgf.s.pCurOS)
     {
-        void *pvDiggerIf;
-        pvDiggerIf = pOS->pReg->pfnQueryInterface(pUVM, pUVM->dbgf.s.pCurOS->abData, enmIf);
-        if (pvDiggerIf)
+        *ppvIf = pUVM->dbgf.s.pCurOS->pReg->pfnQueryInterface(pUVM, pUVM->dbgf.s.pCurOS->abData, enmIf);
+        if (*ppvIf)
         {
-            /*
-             * Do we have an EMT wrapper for this interface already?
-             *
-             * We ASSUME the interfaces are static and not dynamically allocated
-             * for each QueryInterface call.
-             */
-            PDBGFOSEMTWRAPPER pWrapper = pOS->pWrapperHead;
-            while (   pWrapper != NULL
-                   && (   pWrapper->uDigger.pv != pvDiggerIf
-                       && pWrapper->enmIf      != enmIf) )
-                pWrapper = pWrapper->pNext;
-            if (pWrapper)
-            {
-                *ppvIf = &pWrapper->uWrapper;
-                DBGF_OS_READ_UNLOCK(pUVM);
-                return;
-            }
-            DBGF_OS_READ_UNLOCK(pUVM);
-
-            /*
-             * Create a wrapper.
-             */
-            int rc = MMR3HeapAllocExU(pUVM, MM_TAG_DBGF_OS, sizeof(*pWrapper), (void **)&pWrapper);
-            if (RT_FAILURE(rc))
-                return;
-            pWrapper->uDigger.pv = pvDiggerIf;
-            pWrapper->pUVM       = pUVM;
-            pWrapper->enmIf      = enmIf;
-            switch (enmIf)
-            {
-                case DBGFOSINTERFACE_DMESG:
-                    pWrapper->uWrapper.Dmesg.u32Magic          = DBGFOSIDMESG_MAGIC;
-                    pWrapper->uWrapper.Dmesg.pfnQueryKernelLog = dbgfR3OSEmtIDmesg_QueryKernelLog;
-                    pWrapper->uWrapper.Dmesg.u32EndMagic       = DBGFOSIDMESG_MAGIC;
-                    break;
-                default:
-                    AssertFailed();
-                    MMR3HeapFree(pWrapper);
-                    return;
-            }
-
-            DBGF_OS_WRITE_LOCK(pUVM);
-            if (pUVM->dbgf.s.pCurOS == pOS)
-            {
-                pWrapper->pNext = pOS->pWrapperHead;
-                pOS->pWrapperHead = pWrapper;
-                *ppvIf = &pWrapper->uWrapper;
-                DBGF_OS_WRITE_UNLOCK(pUVM);
-            }
-            else
-            {
-                DBGF_OS_WRITE_UNLOCK(pUVM);
-                MMR3HeapFree(pWrapper);
-            }
-            return;
+            /** @todo Create EMT wrapper for the returned interface once we've defined one...
+             * Just keep a list of wrapper together with the OS instance. */
         }
     }
-    DBGF_OS_READ_UNLOCK(pUVM);
+    else
+        *ppvIf = NULL;
 }
 
 
@@ -617,5 +446,4 @@ VMMR3DECL(void *) DBGFR3OSQueryInterface(PUVM pUVM, DBGFOSINTERFACE enmIf)
     VMR3ReqPriorityCallVoidWaitU(pUVM, VMCPUID_ANY, (PFNRT)dbgfR3OSQueryInterface, 3, pUVM, enmIf, &pvIf);
     return pvIf;
 }
-
 

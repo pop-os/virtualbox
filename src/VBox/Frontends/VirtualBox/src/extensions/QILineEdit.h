@@ -1,6 +1,7 @@
-/* $Id: QILineEdit.h $ */
 /** @file
- * VBox Qt GUI - QILineEdit class declarations.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * QILineEdit class declarations
  */
 
 /*

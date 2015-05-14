@@ -109,33 +109,27 @@ BOOL APIENTRY DrvValidateVersion(DWORD version)
 //we're not going to change icdTable at runtime, so callback is unused
 PICDTABLE APIENTRY DrvSetContext(HDC hdc, HGLRC hglrc, void *callback)
 {
-    ContextInfo *pContext;
-    WindowInfo  *pWindowInfo;
-    BOOL ret = false;
+    ContextInfo *context;
+    WindowInfo *window;
+    BOOL ret;
 
     CR_DDI_PROLOGUE();
 
+    /*crDebug( "DrvSetContext called(0x%x, 0x%x)", hdc, hglrc );*/
     (void) (callback);
 
     crHashtableLock(stub.windowTable);
     crHashtableLock(stub.contextTable);
 
-    pContext = (ContextInfo *) crHashtableSearch(stub.contextTable, (unsigned long) hglrc);
-    if (pContext)
-    {
-        pWindowInfo = stubGetWindowInfo(hdc);
-        if (pWindowInfo)
-            ret = stubMakeCurrent(pWindowInfo, pContext);
-        else
-            crError("no window info available.");
-    }
-    else
-        crError("No context found.");
+    context = (ContextInfo *) crHashtableSearch(stub.contextTable, (unsigned long) hglrc);
+    window = stubGetWindowInfo(hdc);
+
+    ret = stubMakeCurrent(window, context);
 
     crHashtableUnlock(stub.contextTable);
     crHashtableUnlock(stub.windowTable);
 
-    return ret ? &icdTable : NULL;
+    return ret ? &icdTable:NULL;
 }
 
 BOOL APIENTRY DrvSetPixelFormat(HDC hdc, int iPixelFormat)

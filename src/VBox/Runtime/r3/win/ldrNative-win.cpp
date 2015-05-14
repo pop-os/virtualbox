@@ -57,7 +57,7 @@ int rtldrNativeLoad(const char *pszFilename, uintptr_t *phHandle, uint32_t fFlag
     /*
      * Do we need to add an extension?
      */
-    if (!RTPathHasSuffix(pszFilename))
+    if (!RTPathHaveExt(pszFilename))
     {
         size_t cch = strlen(pszFilename);
         char *psz = (char *)alloca(cch + sizeof(".DLL"));

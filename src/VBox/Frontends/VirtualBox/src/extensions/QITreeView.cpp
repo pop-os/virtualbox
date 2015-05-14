@@ -1,6 +1,8 @@
 /* $Id: QITreeView.cpp $ */
 /** @file
- * VBox Qt GUI - VirtualBox Qt extensions: QITreeView class implementation.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * VirtualBox Qt extensions: QITreeView class implementation
  */
 
 /*
@@ -15,19 +17,12 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Global includes */
-# include <QMouseEvent>
-# include <QPainter>
+#include <QMouseEvent>
+#include <QPainter>
 
 /* Local includes */
-# include "QITreeView.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
+#include "QITreeView.h"
 
 QITreeView::QITreeView (QWidget *aParent)
     : QTreeView (aParent)

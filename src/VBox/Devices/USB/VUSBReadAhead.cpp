@@ -257,12 +257,14 @@ static DECLCALLBACK(int) vusbDevReadAheadThread(RTTHREAD Thread, void *pvUser)
      * Free all still buffered URBs because another endpoint with a different packet size
      * and complete different data formats might be served later.
      */
+    int cFree = 0;
     while (pThis->pBuffUrbHead)
     {
         PVUSBURB pBufferedUrb = pThis->pBuffUrbHead;
 
         pThis->pBuffUrbHead = pBufferedUrb->Hci.pNext;
         pBufferedUrb->VUsb.pfnFree(pBufferedUrb);
+        cFree++;
     }
 
     RTCritSectLeave(&pThis->CritSectBuffUrbList);

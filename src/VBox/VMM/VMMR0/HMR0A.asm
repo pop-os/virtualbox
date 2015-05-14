@@ -4,7 +4,7 @@
 ;
 
 ;
-; Copyright (C) 2006-2015 Oracle Corporation
+; Copyright (C) 2006-2013 Oracle Corporation
 ;
 ; This file is part of VirtualBox Open Source Edition (OSE), as
 ; available from http://www.virtualbox.org. This file is free software;
@@ -22,7 +22,6 @@
 %include "VBox/err.mac"
 %include "VBox/vmm/hm_vmx.mac"
 %include "VBox/vmm/cpum.mac"
-%include "VBox/vmm/vm.mac"
 %include "iprt/x86.mac"
 %include "HMInternal.mac"
 
@@ -85,6 +84,39 @@
 ; @param 1  full width register name
 ; @param 2  16-bit register name for \a 1.
 
+%ifdef MAYBE_64_BIT
+  ; Save a host and load the corresponding guest MSR (trashes rdx & rcx)
+  %macro LOADGUESTMSR 2
+    mov     rcx, %1
+    rdmsr
+    push    rdx
+    push    rax
+    mov     edx, dword [xSI + %2 + 4]
+    mov     eax, dword [xSI + %2]
+    wrmsr
+  %endmacro
+
+  ; Save a guest and load the corresponding host MSR (trashes rdx & rcx)
+  ; Only really useful for gs kernel base as that one can be changed behind our back (swapgs)
+  %macro LOADHOSTMSREX 2
+    mov     rcx, %1
+    rdmsr
+    mov     dword [xSI + %2], eax
+    mov     dword [xSI + %2 + 4], edx
+    pop     rax
+    pop     rdx
+    wrmsr
+  %endmacro
+
+  ; Load the corresponding host MSR (trashes rdx & rcx)
+  %macro LOADHOSTMSR 1
+    mov     rcx, %1
+    pop     rax
+    pop     rdx
+    wrmsr
+  %endmacro
+%endif
+
 %ifdef ASM_CALL64_GCC
  %macro MYPUSHAD64 0
    push    r15
@@ -123,75 +155,75 @@
 %endif
 
 %ifdef VBOX_SKIP_RESTORE_SEG
- %macro MYPUSHSEGS64 2
- %endmacro
+%macro MYPUSHSEGS64 2
+%endmacro
 
- %macro MYPOPSEGS64 2
- %endmacro
-%else       ; !VBOX_SKIP_RESTORE_SEG
- ; trashes, rax, rdx & rcx
- %macro MYPUSHSEGS64 2
-  %ifndef HM_64_BIT_USE_NULL_SEL
+%macro MYPOPSEGS64 2
+%endmacro
+%else ; !VBOX_SKIP_RESTORE_SEG
+; trashes, rax, rdx & rcx
+%macro MYPUSHSEGS64 2
+ %ifndef HM_64_BIT_USE_NULL_SEL
    mov     %2, es
    push    %1
    mov     %2, ds
    push    %1
-  %endif
+ %endif
 
    ; Special case for FS; Windows and Linux either don't use it or restore it when leaving kernel mode, Solaris OTOH doesn't and we must save it.
    mov     ecx, MSR_K8_FS_BASE
    rdmsr
    push    rdx
    push    rax
-  %ifndef HM_64_BIT_USE_NULL_SEL
+ %ifndef HM_64_BIT_USE_NULL_SEL
    push    fs
-  %endif
+ %endif
 
    ; Special case for GS; OSes typically use swapgs to reset the hidden base register for GS on entry into the kernel. The same happens on exit
    mov     ecx, MSR_K8_GS_BASE
    rdmsr
    push    rdx
    push    rax
-  %ifndef HM_64_BIT_USE_NULL_SEL
+ %ifndef HM_64_BIT_USE_NULL_SEL
    push    gs
-  %endif
- %endmacro
+ %endif
+%endmacro
 
- ; trashes, rax, rdx & rcx
- %macro MYPOPSEGS64 2
+; trashes, rax, rdx & rcx
+%macro MYPOPSEGS64 2
    ; Note: do not step through this code with a debugger!
-  %ifndef HM_64_BIT_USE_NULL_SEL
+ %ifndef HM_64_BIT_USE_NULL_SEL
    xor     eax, eax
    mov     ds, ax
    mov     es, ax
    mov     fs, ax
    mov     gs, ax
-  %endif
+ %endif
 
-  %ifndef HM_64_BIT_USE_NULL_SEL
+ %ifndef HM_64_BIT_USE_NULL_SEL
    pop     gs
-  %endif
+ %endif
    pop     rax
    pop     rdx
    mov     ecx, MSR_K8_GS_BASE
    wrmsr
 
-  %ifndef HM_64_BIT_USE_NULL_SEL
+ %ifndef HM_64_BIT_USE_NULL_SEL
    pop     fs
-  %endif
+ %endif
    pop     rax
    pop     rdx
    mov     ecx, MSR_K8_FS_BASE
    wrmsr
    ; Now it's safe to step again
 
-  %ifndef HM_64_BIT_USE_NULL_SEL
+ %ifndef HM_64_BIT_USE_NULL_SEL
    pop     %1
    mov     ds, %2
    pop     %1
    mov     es, %2
-  %endif
- %endmacro
+ %endif
+%endmacro
 %endif ; VBOX_SKIP_RESTORE_SEG
 
 %macro MYPUSHAD32 0
@@ -1186,23 +1218,23 @@ ALIGNCODE(8)
 
         ; Load the full guest XMM register state.
         mov     r10, [xBP + 018h]       ; pCtx
-        mov     r10, [r10 + CPUMCTX.pXStateR0]
-        movdqa  xmm0,  [r10 + XMM_OFF_IN_X86FXSTATE + 000h]
-        movdqa  xmm1,  [r10 + XMM_OFF_IN_X86FXSTATE + 010h]
-        movdqa  xmm2,  [r10 + XMM_OFF_IN_X86FXSTATE + 020h]
-        movdqa  xmm3,  [r10 + XMM_OFF_IN_X86FXSTATE + 030h]
-        movdqa  xmm4,  [r10 + XMM_OFF_IN_X86FXSTATE + 040h]
-        movdqa  xmm5,  [r10 + XMM_OFF_IN_X86FXSTATE + 050h]
-        movdqa  xmm6,  [r10 + XMM_OFF_IN_X86FXSTATE + 060h]
-        movdqa  xmm7,  [r10 + XMM_OFF_IN_X86FXSTATE + 070h]
-        movdqa  xmm8,  [r10 + XMM_OFF_IN_X86FXSTATE + 080h]
-        movdqa  xmm9,  [r10 + XMM_OFF_IN_X86FXSTATE + 090h]
-        movdqa  xmm10, [r10 + XMM_OFF_IN_X86FXSTATE + 0a0h]
-        movdqa  xmm11, [r10 + XMM_OFF_IN_X86FXSTATE + 0b0h]
-        movdqa  xmm12, [r10 + XMM_OFF_IN_X86FXSTATE + 0c0h]
-        movdqa  xmm13, [r10 + XMM_OFF_IN_X86FXSTATE + 0d0h]
-        movdqa  xmm14, [r10 + XMM_OFF_IN_X86FXSTATE + 0e0h]
-        movdqa  xmm15, [r10 + XMM_OFF_IN_X86FXSTATE + 0f0h]
+        lea     r10, [r10 + XMM_OFF_IN_X86FXSTATE]
+        movdqa  xmm0,  [r10 + 000h]
+        movdqa  xmm1,  [r10 + 010h]
+        movdqa  xmm2,  [r10 + 020h]
+        movdqa  xmm3,  [r10 + 030h]
+        movdqa  xmm4,  [r10 + 040h]
+        movdqa  xmm5,  [r10 + 050h]
+        movdqa  xmm6,  [r10 + 060h]
+        movdqa  xmm7,  [r10 + 070h]
+        movdqa  xmm8,  [r10 + 080h]
+        movdqa  xmm9,  [r10 + 090h]
+        movdqa  xmm10, [r10 + 0a0h]
+        movdqa  xmm11, [r10 + 0b0h]
+        movdqa  xmm12, [r10 + 0c0h]
+        movdqa  xmm13, [r10 + 0d0h]
+        movdqa  xmm14, [r10 + 0e0h]
+        movdqa  xmm15, [r10 + 0f0h]
 
         ; Make the call (same as in the other case ).
         mov     r11, [xBP + 38h]        ; pfnStartVM
@@ -1216,23 +1248,23 @@ ALIGNCODE(8)
 
         ; Save the guest XMM registers.
         mov     r10, [xBP + 018h]       ; pCtx
-        mov     r10, [r10 + CPUMCTX.pXStateR0]
-        movdqa  [r10 + XMM_OFF_IN_X86FXSTATE + 000h], xmm0
-        movdqa  [r10 + XMM_OFF_IN_X86FXSTATE + 010h], xmm1
-        movdqa  [r10 + XMM_OFF_IN_X86FXSTATE + 020h], xmm2
-        movdqa  [r10 + XMM_OFF_IN_X86FXSTATE + 030h], xmm3
-        movdqa  [r10 + XMM_OFF_IN_X86FXSTATE + 040h], xmm4
-        movdqa  [r10 + XMM_OFF_IN_X86FXSTATE + 050h], xmm5
-        movdqa  [r10 + XMM_OFF_IN_X86FXSTATE + 060h], xmm6
-        movdqa  [r10 + XMM_OFF_IN_X86FXSTATE + 070h], xmm7
-        movdqa  [r10 + XMM_OFF_IN_X86FXSTATE + 080h], xmm8
-        movdqa  [r10 + XMM_OFF_IN_X86FXSTATE + 090h], xmm9
-        movdqa  [r10 + XMM_OFF_IN_X86FXSTATE + 0a0h], xmm10
-        movdqa  [r10 + XMM_OFF_IN_X86FXSTATE + 0b0h], xmm11
-        movdqa  [r10 + XMM_OFF_IN_X86FXSTATE + 0c0h], xmm12
-        movdqa  [r10 + XMM_OFF_IN_X86FXSTATE + 0d0h], xmm13
-        movdqa  [r10 + XMM_OFF_IN_X86FXSTATE + 0e0h], xmm14
-        movdqa  [r10 + XMM_OFF_IN_X86FXSTATE + 0f0h], xmm15
+        lea     r10, [r10 + XMM_OFF_IN_X86FXSTATE]
+        movdqa  [r10 + 000h], xmm0
+        movdqa  [r10 + 010h], xmm1
+        movdqa  [r10 + 020h], xmm2
+        movdqa  [r10 + 030h], xmm3
+        movdqa  [r10 + 040h], xmm4
+        movdqa  [r10 + 050h], xmm5
+        movdqa  [r10 + 060h], xmm6
+        movdqa  [r10 + 070h], xmm7
+        movdqa  [r10 + 080h], xmm8
+        movdqa  [r10 + 090h], xmm9
+        movdqa  [r10 + 0a0h], xmm10
+        movdqa  [r10 + 0b0h], xmm11
+        movdqa  [r10 + 0c0h], xmm12
+        movdqa  [r10 + 0d0h], xmm13
+        movdqa  [r10 + 0e0h], xmm14
+        movdqa  [r10 + 0f0h], xmm15
 
         ; Load the host XMM registers.
         movdqa  xmm6,  [rsp + 040h + 000h]
@@ -1314,23 +1346,23 @@ ALIGNCODE(8)
 
         ; Load the full guest XMM register state.
         mov     r10, [xBP + 020h]       ; pCtx
-        mov     r10, [r10 + CPUMCTX.pXStateR0]
-        movdqa  xmm0,  [r10 + XMM_OFF_IN_X86FXSTATE + 000h]
-        movdqa  xmm1,  [r10 + XMM_OFF_IN_X86FXSTATE + 010h]
-        movdqa  xmm2,  [r10 + XMM_OFF_IN_X86FXSTATE + 020h]
-        movdqa  xmm3,  [r10 + XMM_OFF_IN_X86FXSTATE + 030h]
-        movdqa  xmm4,  [r10 + XMM_OFF_IN_X86FXSTATE + 040h]
-        movdqa  xmm5,  [r10 + XMM_OFF_IN_X86FXSTATE + 050h]
-        movdqa  xmm6,  [r10 + XMM_OFF_IN_X86FXSTATE + 060h]
-        movdqa  xmm7,  [r10 + XMM_OFF_IN_X86FXSTATE + 070h]
-        movdqa  xmm8,  [r10 + XMM_OFF_IN_X86FXSTATE + 080h]
-        movdqa  xmm9,  [r10 + XMM_OFF_IN_X86FXSTATE + 090h]
-        movdqa  xmm10, [r10 + XMM_OFF_IN_X86FXSTATE + 0a0h]
-        movdqa  xmm11, [r10 + XMM_OFF_IN_X86FXSTATE + 0b0h]
-        movdqa  xmm12, [r10 + XMM_OFF_IN_X86FXSTATE + 0c0h]
-        movdqa  xmm13, [r10 + XMM_OFF_IN_X86FXSTATE + 0d0h]
-        movdqa  xmm14, [r10 + XMM_OFF_IN_X86FXSTATE + 0e0h]
-        movdqa  xmm15, [r10 + XMM_OFF_IN_X86FXSTATE + 0f0h]
+        lea     r10, [r10 + XMM_OFF_IN_X86FXSTATE]
+        movdqa  xmm0,  [r10 + 000h]
+        movdqa  xmm1,  [r10 + 010h]
+        movdqa  xmm2,  [r10 + 020h]
+        movdqa  xmm3,  [r10 + 030h]
+        movdqa  xmm4,  [r10 + 040h]
+        movdqa  xmm5,  [r10 + 050h]
+        movdqa  xmm6,  [r10 + 060h]
+        movdqa  xmm7,  [r10 + 070h]
+        movdqa  xmm8,  [r10 + 080h]
+        movdqa  xmm9,  [r10 + 090h]
+        movdqa  xmm10, [r10 + 0a0h]
+        movdqa  xmm11, [r10 + 0b0h]
+        movdqa  xmm12, [r10 + 0c0h]
+        movdqa  xmm13, [r10 + 0d0h]
+        movdqa  xmm14, [r10 + 0e0h]
+        movdqa  xmm15, [r10 + 0f0h]
 
         ; Make the call (same as in the other case ).
         mov     r11, [xBP + 38h]        ; pfnVMRun
@@ -1344,23 +1376,23 @@ ALIGNCODE(8)
 
         ; Save the guest XMM registers.
         mov     r10, [xBP + 020h]       ; pCtx
-        mov     r10, [r10 + CPUMCTX.pXStateR0]
-        movdqa  [r10 + XMM_OFF_IN_X86FXSTATE + 000h], xmm0
-        movdqa  [r10 + XMM_OFF_IN_X86FXSTATE + 010h], xmm1
-        movdqa  [r10 + XMM_OFF_IN_X86FXSTATE + 020h], xmm2
-        movdqa  [r10 + XMM_OFF_IN_X86FXSTATE + 030h], xmm3
-        movdqa  [r10 + XMM_OFF_IN_X86FXSTATE + 040h], xmm4
-        movdqa  [r10 + XMM_OFF_IN_X86FXSTATE + 050h], xmm5
-        movdqa  [r10 + XMM_OFF_IN_X86FXSTATE + 060h], xmm6
-        movdqa  [r10 + XMM_OFF_IN_X86FXSTATE + 070h], xmm7
-        movdqa  [r10 + XMM_OFF_IN_X86FXSTATE + 080h], xmm8
-        movdqa  [r10 + XMM_OFF_IN_X86FXSTATE + 090h], xmm9
-        movdqa  [r10 + XMM_OFF_IN_X86FXSTATE + 0a0h], xmm10
-        movdqa  [r10 + XMM_OFF_IN_X86FXSTATE + 0b0h], xmm11
-        movdqa  [r10 + XMM_OFF_IN_X86FXSTATE + 0c0h], xmm12
-        movdqa  [r10 + XMM_OFF_IN_X86FXSTATE + 0d0h], xmm13
-        movdqa  [r10 + XMM_OFF_IN_X86FXSTATE + 0e0h], xmm14
-        movdqa  [r10 + XMM_OFF_IN_X86FXSTATE + 0f0h], xmm15
+        lea     r10, [r10 + XMM_OFF_IN_X86FXSTATE]
+        movdqa  [r10 + 000h], xmm0
+        movdqa  [r10 + 010h], xmm1
+        movdqa  [r10 + 020h], xmm2
+        movdqa  [r10 + 030h], xmm3
+        movdqa  [r10 + 040h], xmm4
+        movdqa  [r10 + 050h], xmm5
+        movdqa  [r10 + 060h], xmm6
+        movdqa  [r10 + 070h], xmm7
+        movdqa  [r10 + 080h], xmm8
+        movdqa  [r10 + 090h], xmm9
+        movdqa  [r10 + 0a0h], xmm10
+        movdqa  [r10 + 0b0h], xmm11
+        movdqa  [r10 + 0c0h], xmm12
+        movdqa  [r10 + 0d0h], xmm13
+        movdqa  [r10 + 0e0h], xmm14
+        movdqa  [r10 + 0f0h], xmm15
 
         ; Load the host XMM registers.
         movdqa  xmm6,  [rsp + 040h + 000h]
@@ -1410,7 +1442,7 @@ ENDPROC   HMR0SVMRunWrapXMM
  ; restoring, but better safe than sorry...
  ;
 
-; DECLASM(int) VMXR0StartVM32(RTHCUINT fResume, PCPUMCTX pCtx, PVMCSCACHE pCache, PVM pVM, PVMCPU pVCpu);
+; DECLASM(int) VMXR0StartVM32(RTHCUINT fResume, PCPUMCTX pCtx, PVMCSCACHE pCache /*, PVM pVM, PVMCPU pVCpu*/);
 ALIGNCODE(16)
 BEGINPROC VMXR0StartVM32
     cmp     byte [NAME(g_fVMXIs64bitHost)], 0
@@ -1433,8 +1465,6 @@ BITS 64
     mov     edi, [rsp + 20h + 14h]      ; fResume
     mov     esi, [rsp + 20h + 18h]      ; pCtx
     mov     edx, [rsp + 20h + 1Ch]      ; pCache
-    mov     ecx, [rsp + 20h + 20h]      ; pVM
-    mov     r8,  [rsp + 20h + 24h]      ; pVCpu
     call    NAME(VMXR0StartVM32_64)
     add     esp, 20h
     jmp far [.fpthunk32 wrt rip]
@@ -1452,7 +1482,7 @@ ALIGNCODE(16)
 ENDPROC   VMXR0StartVM32
 
 
-; DECLASM(int) VMXR0StartVM64(RTHCUINT fResume, PCPUMCTX pCtx, PVMCSCACHE pCache, PVM pVM, PVMCPU pVCpu);
+; DECLASM(int) VMXR0StartVM64(RTHCUINT fResume, PCPUMCTX pCtx, PVMCSCACHE pCache /*, PVM pVM, PVMCPU pVCpu*/);
 ALIGNCODE(16)
 BEGINPROC VMXR0StartVM64
     cmp     byte [NAME(g_fVMXIs64bitHost)], 0
@@ -1475,8 +1505,6 @@ BITS 64
     mov     edi, [rsp + 20h + 14h]      ; fResume
     mov     esi, [rsp + 20h + 18h]      ; pCtx
     mov     edx, [rsp + 20h + 1Ch]      ; pCache
-    mov     ecx, [rsp + 20h + 20h]      ; pVM
-    mov     r8,  [rsp + 20h + 24h]      ; pVCpu
     call    NAME(VMXR0StartVM64_64)
     add     esp, 20h
     jmp far [.fpthunk32 wrt rip]
@@ -1493,11 +1521,11 @@ ALIGNCODE(16)
     ret
 
 .not_in_long_mode:
-    mov     eax, VERR_PGM_UNSUPPORTED_HOST_PAGING_MODE
+    mov     eax, VERR_PGM_UNSUPPORTED_SHADOW_PAGING_MODE
     ret
 ENDPROC   VMXR0StartVM64
 
-;DECLASM(int) SVMR0VMRun(RTHCPHYS pVMCBHostPhys, RTHCPHYS pVMCBPhys, PCPUMCTX pCtx, PVM pVM, PVMCPU pVCpu);
+;DECLASM(int) SVMR0VMRun(RTHCPHYS pVMCBHostPhys, RTHCPHYS pVMCBPhys, PCPUMCTX pCtx /*, PVM pVM, PVMCPU pVCpu*/);
 ALIGNCODE(16)
 BEGINPROC SVMR0VMRun
     cmp     byte [NAME(g_fVMXIs64bitHost)], 0
@@ -1520,8 +1548,6 @@ BITS 64
     mov     rdi, [rsp + 20h + 14h]      ; pVMCBHostPhys
     mov     rsi, [rsp + 20h + 1Ch]      ; pVMCBPhys
     mov     edx, [rsp + 20h + 24h]      ; pCtx
-    mov     ecx, [rsp + 20h + 28h]      ; pVM
-    mov     r8d, [rsp + 20h + 2Ch]      ; pVCpu
     call    NAME(SVMR0VMRun_64)
     add     esp, 20h
     jmp far [.fpthunk32 wrt rip]
@@ -1539,7 +1565,7 @@ ALIGNCODE(16)
 ENDPROC   SVMR0VMRun
 
 
-; DECLASM(int) SVMR0VMRun64(RTHCPHYS pVMCBHostPhys, RTHCPHYS pVMCBPhys, PCPUMCTX pCtx, PVM pVM, PVMCPU pVCpu);
+; DECLASM(int) SVMR0VMRun64(RTHCPHYS pVMCBHostPhys, RTHCPHYS pVMCBPhys, PCPUMCTX pCtx /*, PVM pVM, PVMCPU pVCpu*/);
 ALIGNCODE(16)
 BEGINPROC SVMR0VMRun64
     cmp     byte [NAME(g_fVMXIs64bitHost)], 0
@@ -1559,11 +1585,9 @@ ALIGNCODE(16)
 BITS 64
 .thunk64:
     sub     esp, 20h
-    mov     rdi, [rsp + 20h + 14h]      ; pVMCBHostPhys
-    mov     rsi, [rsp + 20h + 1Ch]      ; pVMCBPhys
-    mov     edx, [rsp + 20h + 24h]      ; pCtx
-    mov     ecx, [rsp + 20h + 28h]      ; pVM
-    mov     r8d, [rsp + 20h + 2Ch]      ; pVCpu
+    mov     rdi, [rbp + 20h + 14h]      ; pVMCBHostPhys
+    mov     rsi, [rbp + 20h + 1Ch]      ; pVMCBPhys
+    mov     edx, [rbp + 20h + 24h]      ; pCtx
     call    NAME(SVMR0VMRun64_64)
     add     esp, 20h
     jmp far [.fpthunk32 wrt rip]

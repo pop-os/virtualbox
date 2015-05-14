@@ -584,7 +584,7 @@ rtDbgModOpenDebugInfoExternalToImageCallback(RTLDRMOD hLdrMod, PCRTLDRDBGINFO pD
             if (psz)
             {
                 memcpy(psz, pArgs->pDbgMod->pszName, cchName + 1);
-                RTPathStripSuffix(psz);
+                RTPathStripExt(psz);
                 pszExtFile = strcat(psz, pszExt);
             }
         }
@@ -738,13 +738,7 @@ static int rtDbgModOpenDebugInfoExternalToImage2(PRTDBGMODINT pDbgMod, RTDBGCFG 
     {
         case RTLDRFMT_MACHO:
         {
-            RTUUID  Uuid;
-            PRTUUID pUuid = &Uuid;
-            rc = pDbgMod->pImgVt->pfnQueryProp(pDbgMod, RTLDRPROP_UUID, &Uuid, sizeof(Uuid));
-            if (RT_FAILURE(rc))
-                pUuid = NULL;
-
-            rc = RTDbgCfgOpenDsymBundle(hDbgCfg, pDbgMod->pszImgFile, pUuid,
+            rc = RTDbgCfgOpenDsymBundle(hDbgCfg, pDbgMod->pszImgFile, NULL /**@todo pUuid*/,
                                         rtDbgModExtDbgInfoOpenCallback2, pDbgMod, NULL /*pvUser2*/);
             if (RT_SUCCESS(rc))
                 return VINF_SUCCESS;
@@ -1187,30 +1181,25 @@ RT_EXPORT_SYMBOL(RTDbgModCreateFromPeImage);
  *
  */
 
-
-/**
- * Argument package used when opening Mach-O images and .dSYMs files.
- */
-typedef struct RTDBGMODMACHOARGS
+/** @callback_method_impl{FNRTDBGCFGOPEN} */
+static DECLCALLBACK(int)
+rtDbgModFromMachOImageOpenMachOCallback(RTDBGCFG hDbgCfg, const char *pszFilename, void *pvUser1, void *pvUser2)
 {
-    /** For use more internal use in file locator callbacks. */
-    RTLDRARCH           enmArch;
-    /** For use more internal use in file locator callbacks. */
-    PCRTUUID            pUuid;
-    /** For use more internal use in file locator callbacks. */
-    bool                fOpenImage;
-} RTDBGMODMACHOARGS;
-/** Pointer to a const segment package. */
-typedef RTDBGMODMACHOARGS const *PCRTDBGMODMACHOARGS;
+    PRTDBGMODINT        pDbgMod   = (PRTDBGMODINT)pvUser1;
+    PCRTDBGDWARFSEGPKG  pSegPkg   = (PCRTDBGDWARFSEGPKG)pvUser2;
 
+    /** @todo  */
+
+    return VERR_OPEN_FAILED;
+}
 
 
 /** @callback_method_impl{FNRTDBGCFGOPEN} */
 static DECLCALLBACK(int)
-rtDbgModFromMachOImageOpenDsymMachOCallback(RTDBGCFG hDbgCfg, const char *pszFilename, void *pvUser1, void *pvUser2)
+rtDbgModFromMachOImageOpenDsymCallback(RTDBGCFG hDbgCfg, const char *pszFilename, void *pvUser1, void *pvUser2)
 {
-    PRTDBGMODINT        pDbgMod = (PRTDBGMODINT)pvUser1;
-    PCRTDBGMODMACHOARGS pArgs   = (PCRTDBGMODMACHOARGS)pvUser2;
+    PRTDBGMODINT        pDbgMod   = (PRTDBGMODINT)pvUser1;
+    PCRTDBGDWARFSEGPKG  pSegPkg   = (PCRTDBGDWARFSEGPKG)pvUser2;
 
     Assert(!pDbgMod->pDbgVt);
     Assert(!pDbgMod->pvDbgPriv);
@@ -1240,7 +1229,7 @@ rtDbgModFromMachOImageOpenDsymMachOCallback(RTDBGCFG hDbgCfg, const char *pszFil
         {
             pDbgMod->pImgVt    = pImg->pVt;
             pDbgMod->pvImgPriv = NULL;
-            rc = pImg->pVt->pfnTryOpen(pDbgMod, pArgs->enmArch);
+            rc = pImg->pVt->pfnTryOpen(pDbgMod, pSegPkg->enmArch);
             if (RT_SUCCESS(rc))
                 break;
             pDbgMod->pImgVt    = NULL;
@@ -1252,13 +1241,13 @@ rtDbgModFromMachOImageOpenDsymMachOCallback(RTDBGCFG hDbgCfg, const char *pszFil
             /*
              * Check the UUID if one was given.
              */
-            if (pArgs->pUuid)
+            if (pSegPkg->pUuid)
             {
                 RTUUID UuidOpened;
                 rc = pDbgMod->pImgVt->pfnQueryProp(pDbgMod, RTLDRPROP_UUID, &UuidOpened, sizeof(UuidOpened));
                 if (RT_SUCCESS(rc))
                 {
-                    if (RTUuidCompare(&UuidOpened, pArgs->pUuid) != 0)
+                    if (RTUuidCompare(&UuidOpened, pSegPkg->pUuid) != 0)
                         rc = VERR_DBG_FILE_MISMATCH;
                 }
                 else if (rc == VERR_NOT_FOUND || rc == VERR_NOT_IMPLEMENTED)
@@ -1267,16 +1256,14 @@ rtDbgModFromMachOImageOpenDsymMachOCallback(RTDBGCFG hDbgCfg, const char *pszFil
             if (RT_SUCCESS(rc))
             {
                 /*
-                 * Pass it to the DWARF reader(s).  Careful to restrict this or
-                 * the dbghelp wrapper may end up being overly helpful.
+                 * Pass it to the DWARF reader(s).
                  */
                 for (PRTDBGMODREGDBG pDbg = g_pDbgHead; pDbg; pDbg = pDbg->pNext)
                 {
-                    if (pDbg->pVt->fSupports & (RT_DBGTYPE_DWARF | RT_DBGTYPE_STABS | RT_DBGTYPE_WATCOM))
-
+                    if (pDbg->pVt->fSupports & RT_DBGTYPE_DWARF)
                     {
                         pDbgMod->pDbgVt    = pDbg->pVt;
-                        pDbgMod->pvDbgPriv = NULL;
+                        pDbgMod->pvDbgPriv = pSegPkg->cSegs ? (void *)pSegPkg : NULL;
                         rc = pDbg->pVt->pfnTryOpen(pDbgMod, pDbgMod->pImgVt->pfnGetArch(pDbgMod));
                         if (RT_SUCCESS(rc))
                         {
@@ -1290,23 +1277,6 @@ rtDbgModFromMachOImageOpenDsymMachOCallback(RTDBGCFG hDbgCfg, const char *pszFil
                         }
                         pDbgMod->pDbgVt    = NULL;
                         Assert(pDbgMod->pvDbgPriv == NULL);
-                    }
-                }
-
-                /*
-                 * Likely fallback for when opening image.
-                 */
-                if (pArgs->fOpenImage)
-                {
-                    rc = rtDbgModCreateForExports(pDbgMod);
-                    if (RT_SUCCESS(rc))
-                    {
-                        /*
-                         * Done.
-                         */
-                        RTSemRWReleaseRead(g_hDbgModRWSem);
-                        RTStrCacheRelease(g_hDbgModStrCache, pszImgFileOrg);
-                        return VINF_CALLBACK_RETURN;
                     }
                 }
             }
@@ -1330,24 +1300,24 @@ rtDbgModFromMachOImageOpenDsymMachOCallback(RTDBGCFG hDbgCfg, const char *pszFil
 static int rtDbgModFromMachOImageWorker(PRTDBGMODINT pDbgMod, RTLDRARCH enmArch, uint32_t cbImage,
                                         uint32_t cSegs, PCRTDBGSEGMENT paSegs, PCRTUUID pUuid, RTDBGCFG hDbgCfg)
 {
-    RTDBGMODMACHOARGS Args;
-    Args.enmArch    = enmArch;
-    Args.pUuid      = pUuid && RTUuidIsNull(pUuid) ? pUuid : NULL;
-    Args.fOpenImage = false;
+    RTDBGDWARFSEGPKG SegPkg;
+    SegPkg.cSegs    = cSegs;
+    SegPkg.paSegs   = paSegs;
+    SegPkg.enmArch  = enmArch;
+    SegPkg.pUuid    = pUuid && RTUuidIsNull(pUuid) ? pUuid : NULL;
 
     /*
      * Search for the .dSYM bundle first, since that's generally all we need.
      */
     int rc = RTDbgCfgOpenDsymBundle(hDbgCfg, pDbgMod->pszImgFile, pUuid,
-                                    rtDbgModFromMachOImageOpenDsymMachOCallback, pDbgMod, &Args);
+                                    rtDbgModFromMachOImageOpenDsymCallback, pDbgMod, &SegPkg);
     if (RT_FAILURE(rc))
     {
         /*
          * If we cannot get at the .dSYM, try the executable image.
          */
-        Args.fOpenImage = true;
-        rc = RTDbgCfgOpenMachOImage(hDbgCfg, pDbgMod->pszImgFile, pUuid,
-                                    rtDbgModFromMachOImageOpenDsymMachOCallback, pDbgMod, &Args);
+        //rc = RTDbgCfgOpenMachOImage(hDbgCfg, pDbgMod->pszImgFile, pUuid,
+        //                            rtDbgModFromMachOImageOpenMachOCallback, pDbgMod, &SegPkg);
     }
     return rc;
 }
@@ -1421,7 +1391,6 @@ RTDECL(int) RTDbgModCreateFromMachOImage(PRTDBGMOD phDbgMod, const char *pszFile
                  * Load it immediately?
                  */
                 if (   !(fDbgCfg & RTDBGCFG_FLAGS_DEFERRED)
-                    || cSegs /* for the time being. */
                     || (!cbImage && !cSegs)
                     || (fFlags & RTDBGMOD_F_NOT_DEFERRED) )
                     rc = rtDbgModFromMachOImageWorker(pDbgMod, enmArch, cbImage, cSegs, paSegs, pUuid, hDbgCfg);
@@ -1430,8 +1399,18 @@ RTDECL(int) RTDbgModCreateFromMachOImage(PRTDBGMOD phDbgMod, const char *pszFile
                     /*
                      * Procrastinate.  Need image size atm.
                      */
+                    uint32_t uRvaMax = cbImage;
+                    if (!uRvaMax)
+                        for (uint32_t iSeg = 0; iSeg < cSegs; iSeg++)
+                        {
+                            if (   paSegs[iSeg].uRva > uRvaMax
+                                && paSegs[iSeg].uRva - uRvaMax < _1M)
+                                uRvaMax = paSegs[iSeg].uRva;
+                            uRvaMax += paSegs[iSeg].cb;
+                        }
+
                     PRTDBGMODDEFERRED pDeferred;
-                    rc = rtDbgModDeferredCreate(pDbgMod, rtDbgModFromMachOImageDeferredCallback, cbImage, hDbgCfg,
+                    rc = rtDbgModDeferredCreate(pDbgMod, rtDbgModFromMachOImageDeferredCallback, uRvaMax, hDbgCfg,
                                                 RT_OFFSETOF(RTDBGMODDEFERRED, u.MachO.aSegs[cSegs]),
                                                 &pDeferred);
                     if (RT_SUCCESS(rc))
@@ -1440,7 +1419,23 @@ RTDECL(int) RTDbgModCreateFromMachOImage(PRTDBGMOD phDbgMod, const char *pszFile
                         pDeferred->u.MachO.enmArch = enmArch;
                         pDeferred->u.MachO.cSegs   = cSegs;
                         if (cSegs)
+                        {
                             memcpy(&pDeferred->u.MachO.aSegs, paSegs, cSegs * sizeof(paSegs[0]));
+                            if (!cbImage)
+                            {
+                                /* If we calculated a cbImage above, do corresponding RVA adjustments. */
+                                uRvaMax = 0;
+                                for (uint32_t iSeg = 0; iSeg < cSegs; iSeg++)
+                                {
+                                    if (   paSegs[iSeg].uRva > uRvaMax
+                                        && paSegs[iSeg].uRva - uRvaMax < _1M)
+                                        uRvaMax = paSegs[iSeg].uRva;
+                                    else
+                                        pDeferred->u.MachO.aSegs[iSeg].uRva = uRvaMax;
+                                    uRvaMax += paSegs[iSeg].cb;
+                                }
+                            }
+                        }
                     }
                 }
                 if (RT_SUCCESS(rc))

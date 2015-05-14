@@ -1,4 +1,3 @@
-/* $Id: VBoxGuestLog.h $ */
 /** @file
  * VBoxGuestLibR0 - Guest Logging facility.
  */

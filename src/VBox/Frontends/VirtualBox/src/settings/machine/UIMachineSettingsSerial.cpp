@@ -1,10 +1,12 @@
 /* $Id: UIMachineSettingsSerial.cpp $ */
 /** @file
- * VBox Qt GUI - UIMachineSettingsSerial class implementation.
+ *
+ * VBox frontends: Qt4 GUI ("VirtualBox"):
+ * UIMachineSettingsSerial class implementation
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,25 +17,18 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QDir>
+#include <QDir>
 
 /* GUI includes: */
-# include "UIMachineSettingsSerial.h"
-# include "QIWidgetValidator.h"
-# include "VBoxGlobal.h"
-# include "QITabWidget.h"
-# include "UIConverter.h"
+#include "UIMachineSettingsSerial.h"
+#include "QIWidgetValidator.h"
+#include "VBoxGlobal.h"
+#include "QITabWidget.h"
+#include "UIConverter.h"
 
 /* COM includes: */
-# include "CSerialPort.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
+#include "CSerialPort.h"
 
 /* UIMachineSettingsSerial stuff */
 UIMachineSettingsSerial::UIMachineSettingsSerial(UIMachineSettingsSerialPage *pParent)
@@ -62,7 +57,6 @@ UIMachineSettingsSerial::UIMachineSettingsSerial(UIMachineSettingsSerialPage *pP
     mCbMode->addItem (""); /* KPortMode_HostPipe */
     mCbMode->addItem (""); /* KPortMode_HostDevice */
     mCbMode->addItem (""); /* KPortMode_RawFile */
-    mCbMode->addItem (""); /* KPortMode_TCP */
 
     /* Setup connections */
     connect (mGbSerial, SIGNAL (toggled (bool)),
@@ -94,8 +88,7 @@ void UIMachineSettingsSerial::polishTab()
     mLeIOPort->setEnabled(!fStd && m_pParent->isMachineOffline());
     mLbMode->setEnabled(m_pParent->isMachineOffline());
     mCbMode->setEnabled(m_pParent->isMachineOffline());
-    mCbPipe->setEnabled((mode == KPortMode_HostPipe || mode == KPortMode_TCP)
-      && m_pParent->isMachineOffline());
+    mCbPipe->setEnabled(mode == KPortMode_HostPipe && m_pParent->isMachineOffline());
     mLbPath->setEnabled(m_pParent->isMachineOffline());
     mLePath->setEnabled(mode != KPortMode_Disconnected && m_pParent->isMachineOffline());
 }
@@ -114,7 +107,7 @@ void UIMachineSettingsSerial::fetchPortData(const UICacheSettingsMachineSerialPo
     mLeIRQ->setText(QString::number(portData.m_uIRQ));
     mLeIOPort->setText("0x" + QString::number(portData.m_uIOBase, 16).toUpper());
     mCbMode->setCurrentIndex(mCbMode->findText(gpConverter->toString(portData.m_hostMode)));
-    mCbPipe->setChecked(!portData.m_fServer);
+    mCbPipe->setChecked(portData.m_fServer);
     mLePath->setText(portData.m_strPath);
 
     /* Ensure everything is up-to-date */
@@ -130,7 +123,7 @@ void UIMachineSettingsSerial::uploadPortData(UICacheSettingsMachineSerialPort &p
     portData.m_fPortEnabled = mGbSerial->isChecked();
     portData.m_uIRQ = mLeIRQ->text().toULong(NULL, 0);
     portData.m_uIOBase = mLeIOPort->text().toULong (NULL, 0);
-    portData.m_fServer = !mCbPipe->isChecked();
+    portData.m_fServer = mCbPipe->isChecked();
     portData.m_hostMode = gpConverter->fromString<KPortMode>(mCbMode->currentText());
     portData.m_strPath = QDir::toNativeSeparators(mLePath->text());
 
@@ -168,7 +161,6 @@ void UIMachineSettingsSerial::retranslateUi()
 
     mCbNumber->setItemText (mCbNumber->count() - 1, vboxGlobal().toCOMPortName (0, 0));
 
-    mCbMode->setItemText (4, gpConverter->toString (KPortMode_TCP));
     mCbMode->setItemText (3, gpConverter->toString (KPortMode_RawFile));
     mCbMode->setItemText (2, gpConverter->toString (KPortMode_HostDevice));
     mCbMode->setItemText (1, gpConverter->toString (KPortMode_HostPipe));
@@ -207,7 +199,7 @@ void UIMachineSettingsSerial::mCbNumberActivated (const QString &aText)
 void UIMachineSettingsSerial::mCbModeActivated (const QString &aText)
 {
     KPortMode mode = gpConverter->fromString<KPortMode> (aText);
-    mCbPipe->setEnabled (mode == KPortMode_HostPipe || mode == KPortMode_TCP);
+    mCbPipe->setEnabled (mode == KPortMode_HostPipe);
     mLePath->setEnabled (mode != KPortMode_Disconnected);
 
     /* Revalidate: */

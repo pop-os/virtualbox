@@ -1,6 +1,8 @@
 /* $Id: WinKeyboard.cpp $ */
 /** @file
- * VBox Qt GUI - Windows keyboard handling..
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * Windows keyboard handling.
  */
 
 /*
@@ -16,13 +18,12 @@
  */
 
 #define LOG_GROUP LOG_GROUP_GUI
-
+ 
 #include "WinKeyboard.h"
 #include <iprt/assert.h>
 #include <VBox/log.h>
 
 #include <stdio.h>
-
 
 /* Beautification of log output */
 #define VBOX_BOOL_TO_STR_STATE(x)   (x) ? "ON" : "OFF"
@@ -180,7 +181,7 @@ void WinHidDevicesBroadcastLeds(bool fNumLockOn, bool fCapsLockOn, bool fScrollL
   * early (it exits on the first iteration for my German layout). If there is
   * no AltGr key in the layout then it will run right through, but that should
   * hopefully not happen very often.
-  *
+  * 
   * In theory we could do this once and cache the result, but that involves
   * tracking layout switches to invalidate the cache, and I don't think that the
   * added complexity is worth the price. */
@@ -271,9 +272,9 @@ bool WinAltGrMonitor::isCurrentEventDefinitelyFake(unsigned iDownScanCode,
     if (!PeekMessage(&peekMsg, NULL, WM_KEYFIRST, WM_KEYLAST, PM_NOREMOVE))
         return false;
 
-        if (messageTime != peekMsg.time)
-            return false;
-        if (   fKeyDown
+	if (messageTime != peekMsg.time)
+	    return false;
+	if (   fKeyDown
         && (peekMsg.message != WM_KEYDOWN && peekMsg.message != WM_SYSKEYDOWN))
         return false;
     if (   !fKeyDown

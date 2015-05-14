@@ -1,6 +1,7 @@
-/* $Id: UIMachineSettingsUSB.h $ */
 /** @file
- * VBox Qt GUI - UIMachineSettingsUSB class declaration.
+ *
+ * VBox frontends: Qt4 GUI ("VirtualBox"):
+ * UIMachineSettingsUSB class declaration
  */
 
 /*
@@ -86,19 +87,19 @@ struct UIDataSettingsMachineUSB
     /* Default constructor: */
     UIDataSettingsMachineUSB()
         : m_fUSBEnabled(false)
-        , m_USBControllerType(KUSBControllerType_Null) {}
+        , m_fEHCIEnabled(false) {}
     /* Functions: */
     bool equal(const UIDataSettingsMachineUSB &other) const
     {
         return (m_fUSBEnabled == other.m_fUSBEnabled) &&
-               (m_USBControllerType == other.m_USBControllerType);
+               (m_fEHCIEnabled == other.m_fEHCIEnabled);
     }
     /* Operators: */
     bool operator==(const UIDataSettingsMachineUSB &other) const { return equal(other); }
     bool operator!=(const UIDataSettingsMachineUSB &other) const { return !equal(other); }
     /* Variables: */
     bool m_fUSBEnabled;
-    KUSBControllerType m_USBControllerType;
+    bool m_fEHCIEnabled;
 };
 typedef UISettingsCachePool<UIDataSettingsMachineUSB, UICacheSettingsMachineUSBFilter> UICacheSettingsMachineUSB;
 
@@ -119,7 +120,7 @@ public:
 
     UIMachineSettingsUSB();
 
-    bool isUSBEnabled() const;
+    bool isOHCIEnabled() const;
 
 protected:
 

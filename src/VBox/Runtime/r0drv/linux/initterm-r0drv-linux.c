@@ -49,8 +49,10 @@ static DECLARE_TASK_QUEUE(g_rtR0LnxWorkQueue);
 /*******************************************************************************
 *   Internal Functions                                                         *
 *******************************************************************************/
+#if defined(RT_ARCH_AMD64) && LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23)
 /* in alloc-r0drv0-linux.c */
 DECLHIDDEN(void) rtR0MemExecCleanup(void);
+#endif
 
 
 /**
@@ -95,11 +97,7 @@ DECLHIDDEN(void) rtR0LnxWorkqueueFlush(void)
 DECLHIDDEN(int) rtR0InitNative(void)
 {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 5, 41)
- #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 13)
-    g_prtR0LnxWorkQueue = create_workqueue("iprt-VBoxWQueue");
- #else
-    g_prtR0LnxWorkQueue = create_workqueue("iprt-VBoxQ");
- #endif
+    g_prtR0LnxWorkQueue = create_workqueue("iprt");
     if (!g_prtR0LnxWorkQueue)
         return VERR_NO_MEMORY;
 #endif
@@ -116,6 +114,8 @@ DECLHIDDEN(void) rtR0TermNative(void)
     g_prtR0LnxWorkQueue = NULL;
 #endif
 
+#if defined(RT_ARCH_AMD64) && LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23)
     rtR0MemExecCleanup();
+#endif
 }
 

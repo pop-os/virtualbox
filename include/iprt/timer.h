@@ -122,31 +122,28 @@ RTDECL(int) RTTimerCreateEx(PRTTIMER *ppTimer, uint64_t u64NanoInterval, uint32_
 /** Any CPU is fine. (Must be 0.) */
 #define RTTIMER_FLAGS_CPU_ANY       UINT32_C(0)
 /** One specific CPU */
-#define RTTIMER_FLAGS_CPU_SPECIFIC  RT_BIT(16)
+#define RTTIMER_FLAGS_CPU_SPECIFIC  RT_BIT(8)
 /** Omni timer, run on all online CPUs.
  * @remarks The timer callback isn't necessarily running at the time same time on each CPU. */
 #define RTTIMER_FLAGS_CPU_ALL       ( RTTIMER_FLAGS_CPU_MASK | RTTIMER_FLAGS_CPU_SPECIFIC )
 /** CPU mask. */
-#define RTTIMER_FLAGS_CPU_MASK      UINT32_C(0xffff)
+#define RTTIMER_FLAGS_CPU_MASK      UINT32_C(0xff)
 /** Desire a high resolution timer that works with RTTimerChangeInterval and
  * isn't subject to RTTimerGetSystemGranularity rounding.
  * @remarks This is quietly ignored if the feature isn't supported. */
-#define RTTIMER_FLAGS_HIGH_RES      RT_BIT(17)
+#define RTTIMER_FLAGS_HIGH_RES      RT_BIT(9)
 /** Convert a CPU set index (0-based) to RTTimerCreateEx flags.
  * This will automatically OR in the RTTIMER_FLAGS_CPU_SPECIFIC flag. */
 #define RTTIMER_FLAGS_CPU(iCpu)     ( (iCpu) | RTTIMER_FLAGS_CPU_SPECIFIC )
 /** Macro that validates the flags. */
 #define RTTIMER_FLAGS_ARE_VALID(fFlags) \
-    ( !((fFlags) & ~((fFlags) & RTTIMER_FLAGS_CPU_SPECIFIC ? UINT32_C(0x3ffff) : UINT32_C(0x30000))) )
+    ( !((fFlags) & ~((fFlags) & RTTIMER_FLAGS_CPU_SPECIFIC ? UINT32_C(0x3ff) : UINT32_C(0x300))) )
 /** @} */
 
 /**
  * Stops and destroys a running timer.
  *
  * @returns iprt status code.
- * @retval  VERR_INVALID_CONTEXT if executing at the wrong IRQL (windows), PIL
- *          (solaris), or similar.  Portable code does not destroy timers with
- *          preemption (or interrupts) disabled.
  * @param   pTimer      Timer to stop and destroy. NULL is ok.
  */
 RTDECL(int) RTTimerDestroy(PRTTIMER pTimer);
@@ -196,7 +193,6 @@ RTDECL(int) RTTimerStop(PRTTIMER pTimer);
  * @returns IPRT status code.
  * @retval  VERR_INVALID_HANDLE if pTimer isn't valid.
  * @retval  VERR_NOT_SUPPORTED if not supported.
- * @retval  VERR_INVALID_STATE if not a periodic timer.
  *
  * @param   pTimer              The timer to activate.
  * @param   u64NanoInterval     The interval between timer ticks specified in

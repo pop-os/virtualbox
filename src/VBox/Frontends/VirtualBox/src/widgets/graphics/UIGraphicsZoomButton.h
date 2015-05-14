@@ -1,6 +1,7 @@
-/* $Id: UIGraphicsZoomButton.h $ */
 /** @file
- * VBox Qt GUI - UIGraphicsZoomButton class declaration.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * UIGraphicsZoomButton class declaration
  */
 
 /*

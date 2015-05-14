@@ -1,6 +1,8 @@
 /* $Id: QIRichTextLabel.cpp $ */
 /** @file
- * VBox Qt GUI - VirtualBox Qt extensions: QIRichTextLabel class implementation.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * VirtualBox Qt extensions: QIRichTextLabel class implementation
  */
 
 /*
@@ -15,19 +17,12 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Global includes: */
-# include <QVBoxLayout>
-# include <QUrl>
+#include <QVBoxLayout>
+#include <QUrl>
 
 /* Local includes: */
-# include "QIRichTextLabel.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
+#include "QIRichTextLabel.h"
 
 /* Constructor: */
 QIRichTextLabel::QIRichTextLabel(QWidget *pParent)

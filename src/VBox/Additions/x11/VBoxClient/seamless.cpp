@@ -1,4 +1,3 @@
-/* $Id: seamless.cpp $ */
 /** @file
  * X11 Guest client - seamless mode: main logic, communication with the host and
  * wrapper interface for the main code of the VBoxClient deamon.  The
@@ -418,7 +417,7 @@ struct VBCLSERVICE vbclSeamlessInterface =
     run,
     pause,
     resume,
-    cleanup
+    cleanup    
 };
 
 struct VBCLSERVICE **VBClGetSeamlessService()

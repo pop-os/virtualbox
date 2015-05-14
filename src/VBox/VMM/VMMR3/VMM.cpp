@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -83,7 +83,6 @@
 #include <VBox/vmm/pdmcritsectrw.h>
 #include <VBox/vmm/pdmapi.h>
 #include <VBox/vmm/cpum.h>
-#include <VBox/vmm/gim.h>
 #include <VBox/vmm/mm.h>
 #include <VBox/vmm/iom.h>
 #include <VBox/vmm/trpm.h>
@@ -170,7 +169,7 @@ VMMR3_INT_DECL(int) VMMR3Init(PVM pVM)
     pVM->vmm.s.hEvtMulRendezvousDone            = NIL_RTSEMEVENTMULTI;
     pVM->vmm.s.hEvtRendezvousDoneCaller         = NIL_RTSEMEVENT;
 
-    /** @cfgm{/YieldEMTInterval, uint32_t, 1, UINT32_MAX, 23, ms}
+    /** @cfgm{YieldEMTInterval, uint32_t, 1, UINT32_MAX, 23, ms}
      * The EMT yield interval.  The EMT yielding is a hack we employ to play a
      * bit nicer with the rest of the system (like for instance the GUI).
      */
@@ -179,7 +178,7 @@ VMMR3_INT_DECL(int) VMMR3Init(PVM pVM)
     AssertMsgRCReturn(rc, ("Configuration error. Failed to query \"YieldEMTInterval\", rc=%Rrc\n", rc), rc);
 
 
-    /** @cfgm{/VMM/UsePeriodicPreemptionTimers, boolean, true}
+    /** @cfgm{VMM/UsePeriodicPreemptionTimers, boolean, true}
      * Controls whether we employ per-cpu preemption timers to limit the time
      * spent executing guest code.  This option is not available on all
      * platforms and we will silently ignore this setting then.  If we are
@@ -425,8 +424,6 @@ static void vmmR3InitRegisterStats(PVM pVM)
     STAM_REG(pVM, &pVM->vmm.s.StatRZRetMMIOReadWrite,       STAMTYPE_COUNTER, "/VMM/RZRet/MMIOReadWrite",       STAMUNIT_OCCURENCES, "Number of VINF_IOM_R3_MMIO_READ_WRITE returns.");
     STAM_REG(pVM, &pVM->vmm.s.StatRZRetMMIOPatchRead,       STAMTYPE_COUNTER, "/VMM/RZRet/MMIOPatchRead",       STAMUNIT_OCCURENCES, "Number of VINF_IOM_HC_MMIO_PATCH_READ returns.");
     STAM_REG(pVM, &pVM->vmm.s.StatRZRetMMIOPatchWrite,      STAMTYPE_COUNTER, "/VMM/RZRet/MMIOPatchWrite",      STAMUNIT_OCCURENCES, "Number of VINF_IOM_HC_MMIO_PATCH_WRITE returns.");
-    STAM_REG(pVM, &pVM->vmm.s.StatRZRetMSRRead,             STAMTYPE_COUNTER, "/VMM/RZRet/MSRRead",             STAMUNIT_OCCURENCES, "Number of VINF_CPUM_R3_MSR_READ returns.");
-    STAM_REG(pVM, &pVM->vmm.s.StatRZRetMSRWrite,            STAMTYPE_COUNTER, "/VMM/RZRet/MSRWrite",            STAMUNIT_OCCURENCES, "Number of VINF_CPUM_R3_MSR_WRITE returns.");
     STAM_REG(pVM, &pVM->vmm.s.StatRZRetLDTFault,            STAMTYPE_COUNTER, "/VMM/RZRet/LDTFault",            STAMUNIT_OCCURENCES, "Number of VINF_EM_EXECUTE_INSTRUCTION_GDT_FAULT returns.");
     STAM_REG(pVM, &pVM->vmm.s.StatRZRetGDTFault,            STAMTYPE_COUNTER, "/VMM/RZRet/GDTFault",            STAMUNIT_OCCURENCES, "Number of VINF_EM_EXECUTE_INSTRUCTION_LDT_FAULT returns.");
     STAM_REG(pVM, &pVM->vmm.s.StatRZRetIDTFault,            STAMTYPE_COUNTER, "/VMM/RZRet/IDTFault",            STAMUNIT_OCCURENCES, "Number of VINF_EM_EXECUTE_INSTRUCTION_IDT_FAULT returns.");
@@ -543,7 +540,7 @@ VMMR3_INT_DECL(int) VMMR3InitR0(PVM pVM)
     if (pVM->aCpus[0].vmm.s.hR0ThreadCtx != NIL_RTTHREADCTX)
         LogRel(("VMM: Thread-context hooks enabled!\n"));
     else
-        LogRel(("VMM: Thread-context hooks unavailable\n"));
+        LogRel(("VMM: Thread-context hooks unavailable.\n"));
 
     return rc;
 }
@@ -708,13 +705,6 @@ VMMR3_INT_DECL(int) VMMR3InitCompleted(PVM pVM, VMINITCOMPLETED enmWhat)
                 && HMR3IsVmxPreemptionTimerUsed(pVM))
                 pVM->vmm.s.fUsePeriodicPreemptionTimers = false;
             LogRel(("VMM: fUsePeriodicPreemptionTimers=%RTbool\n", pVM->vmm.s.fUsePeriodicPreemptionTimers));
-
-            /*
-             * Last chance for GIM to update its CPUID leaves if it requires
-             * knowledge/information from HM initialization.
-             */
-            rc = GIMR3InitCompleted(pVM);
-            AssertRCReturn(rc, rc);
 
             /*
              * CPUM's post-initialization (print CPUIDs).
@@ -1342,7 +1332,7 @@ VMMR3_INT_DECL(int) VMMR3RawRunGC(PVM pVM, PVMCPU pVCpu)
  */
 VMMR3_INT_DECL(int) VMMR3HmRunGC(PVM pVM, PVMCPU pVCpu)
 {
-    Log2(("VMMR3HmRunGC: (cs:rip=%04x:%RX64)\n", CPUMGetGuestCS(pVCpu), CPUMGetGuestRIP(pVCpu)));
+    Log2(("VMMR3HmRunGC: (cs:eip=%04x:%08x)\n", CPUMGetGuestCS(pVCpu), CPUMGetGuestEIP(pVCpu)));
 
     for (;;)
     {
@@ -1373,7 +1363,7 @@ VMMR3_INT_DECL(int) VMMR3HmRunGC(PVM pVM, PVMCPU pVCpu)
 #endif /* !LOG_ENABLED */
         if (rc != VINF_VMM_CALL_HOST)
         {
-            Log2(("VMMR3HmRunGC: returns %Rrc (cs:rip=%04x:%RX64)\n", rc, CPUMGetGuestCS(pVCpu), CPUMGetGuestRIP(pVCpu)));
+            Log2(("VMMR3HmRunGC: returns %Rrc (cs:eip=%04x:%08x)\n", rc, CPUMGetGuestCS(pVCpu), CPUMGetGuestEIP(pVCpu)));
             return rc;
         }
         rc = vmmR3ServiceCallRing3Request(pVM, pVCpu);
@@ -2412,19 +2402,11 @@ static DECLCALLBACK(void) vmmR3InfoFF(PVM pVM, PCDBGFINFOHLP pHlp, const char *p
         PRINT_FLAG(VMCPU_FF_,INTERRUPT_APIC);
         PRINT_FLAG(VMCPU_FF_,INTERRUPT_PIC);
         PRINT_FLAG(VMCPU_FF_,TIMER);
-        PRINT_FLAG(VMCPU_FF_,INTERRUPT_NMI);
-        PRINT_FLAG(VMCPU_FF_,INTERRUPT_SMI);
         PRINT_FLAG(VMCPU_FF_,PDM_CRITSECT);
-        PRINT_FLAG(VMCPU_FF_,UNHALT);
-        PRINT_FLAG(VMCPU_FF_,REQUEST);
-        PRINT_FLAG(VMCPU_FF_,HM_UPDATE_CR3);
-        PRINT_FLAG(VMCPU_FF_,HM_UPDATE_PAE_PDPES);
         PRINT_FLAG(VMCPU_FF_,PGM_SYNC_CR3);
         PRINT_FLAG(VMCPU_FF_,PGM_SYNC_CR3_NON_GLOBAL);
-        PRINT_FLAG(VMCPU_FF_,TLB_SHOOTDOWN);
         PRINT_FLAG(VMCPU_FF_,TLB_FLUSH);
         PRINT_FLAG(VMCPU_FF_,INHIBIT_INTERRUPTS);
-        PRINT_FLAG(VMCPU_FF_,BLOCK_NMIS);
         PRINT_FLAG(VMCPU_FF_,TO_R3);
 #ifdef VBOX_WITH_RAW_MODE
         PRINT_FLAG(VMCPU_FF_,TRPM_SYNC_IDT);

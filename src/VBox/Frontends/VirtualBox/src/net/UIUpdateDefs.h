@@ -1,6 +1,7 @@
-/* $Id: UIUpdateDefs.h $ */
 /** @file
- * VBox Qt GUI - Update routine related declarations.
+ *
+ * VBox frontends: Qt4 GUI ("VirtualBox"):
+ * Update routine related declarations
  */
 
 /*

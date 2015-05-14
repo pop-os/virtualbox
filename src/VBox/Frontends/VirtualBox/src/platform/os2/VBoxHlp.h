@@ -1,6 +1,6 @@
-/* $Id: VBoxHlp.h $ */
 /** @file
- * VBox Qt GUI - Declaration of OS/2-specific helpers that require to reside in a DLL.
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * Declaration of OS/2-specific helpers that require to reside in a DLL
  */
 
 /*

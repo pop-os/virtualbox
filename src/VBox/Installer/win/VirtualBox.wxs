@@ -29,10 +29,6 @@
         <?define Property_VBoxMergeNetworkFlt = "$(env.VBOX_WIN_INST_MERGE_NETFLT)" ?>
     <?endif ?>
     <?define Property_VBoxMergeNetworkAdp = "$(env.VBOX_WIN_INST_MERGE_NETADP)" ?>
-    <?if $(env.VBOX_WITH_NETFLT) = "yes" ?>
-        <?define Property_VBoxMergeNetworkLwf = "$(env.VBOX_WIN_INST_MERGE_NETLWF)" ?>
-    <?endif ?>
-    <?define Property_VBoxMergeNetworkAdp6 = "$(env.VBOX_WIN_INST_MERGE_NETADP6)" ?>
     <?if $(env.VBOX_WITH_PYTHON) = "yes" ?>
         <?define Property_VBoxMergePython = "$(env.VBOX_WIN_INST_MERGE_PYTHON)" ?>
     <?endif ?>
@@ -60,11 +56,6 @@
     <Property Id="ARPPRODUCTICON">IconVirtualBox</Property>
     <Property Id="ARPURLINFOABOUT">http://www.virtualbox.org</Property>
     <Property Id="ARPURLUPDATEINFO">http://www.virtualbox.org</Property>
-
-    <!-- Default property for network adapter type -->
-    <Property Id="NETWORKTYPE" Value="NDIS6" Secure="yes"/>
-    <!-- Force NDIS5 on pre-Vista -->
-    <SetProperty Id="NETWORKTYPE" After="CostFinalize" Value="NDIS5"><![CDATA[VersionNT < 600]]></SetProperty>
 
     <!-- Install the product for all users on the system -->
     <Property Id="ALLUSERS"><![CDATA[1]]></Property>
@@ -107,7 +98,6 @@
         NOT VBOXINNOTEK
     </Condition>
 
-    
     <!-- *************************** Upgrade packages only ******************************* -->
     <!-- Minimum and Maximum specify the range of versions we are supposed to update with this upgrade.
          IncludeMaximum and IncludeMinimum specify whether the bound value is actually included in the range or not
@@ -164,26 +154,6 @@
     <CustomAction Id="ca_UninstallTAPInstances" BinaryKey="VBoxInstallHelper"
                   DllEntry="UninstallTAPInstances" Execute="deferred" Return="check" Impersonate="no"/>
 
-    <Property Id="VBOXDEPENDENCY" Secure="yes">
-        <DirectorySearch Id="VBoxInstallDir" Path="[EXISTINGINSTALLDIR]">
-            <FileSearch Name="dependency.dep"/>
-        </DirectorySearch>
-    </Property>
-    
-    <!--
-                            install upgrade uninstall
-    VBOXDEPENDENCY             0      1/0      1/0
-    UPGRADINGPRODUCTCODE       0       1        0
-    final                      0       1        0
-    not final                  1       0        1
-    -->
-
-    <Condition Message="It was detected an application which has been using currently installed VirtualBox version. 
-    You must remove this application before continuing installation. 
-    See the file dependency.dep in the VirtualBox installation directory for details. ">
-        NOT (VBOXDEPENDENCY AND UPGRADINGPRODUCTCODE)
-    </Condition>
-    
     <!-- Detect old Sun installation -->
     <!-- Force a manual uninstall of an already installed Sun VirtualBox version first -->
     <!--<Property Id="VBOXSUN">
@@ -208,10 +178,8 @@
     <?endif ?>
     <?if $(env.VBOX_WITH_NETFLT) = "yes" ?>
         <?include VBoxMergeNetFltCA.wxi ?>
-        <?include VBoxMergeNetLwfCA.wxi ?>
     <?endif ?>
     <?include VBoxMergeNetAdpCA.wxi ?>
-    <?include VBoxMergeNetAdp6CA.wxi ?>
     <?include VBoxMergeUSBCA.wxi ?>
     <?if $(env.VBOX_WITH_PYTHON) = "yes" ?>
         <?include VBoxMergePythonCA.wxi ?>
@@ -263,27 +231,6 @@
 <?else ?>
                             <Directory Id="msm_VBoxNetworkAdpFolder" FileSource=".">
                                 <?include VBoxMergeNetAdp.wxi ?>
-                            </Directory>
-<?endif ?>
-                        </Directory>
-
-<?if $(env.VBOX_WITH_NETFLT) = "yes" ?>
-                        <Directory Id="dir_NetLwf" Name="netlwf">
-    <?if $(env.VBOX_WITH_MSM_INSTALL) = "yes" ?>
-                            <Merge Id="msm_VBoxNetworkLwf" Language="!(loc.LANG)" SourceFile="$(var.Property_VBoxMergeNetworkLwf)" DiskId="1" />
-    <?else ?>
-                            <Directory Id="msm_VBoxNetworkLwfFolder" FileSource=".">
-                                <?include VBoxMergeNetLwf.wxi ?>
-                            </Directory>
-    <?endif ?>
-                        </Directory>
-<?endif ?>
-                        <Directory Id="dir_NetAdp6" Name="netadp6">
-<?if $(env.VBOX_WITH_MSM_INSTALL) = "yes" ?>
-                            <Merge Id="msm_VBoxNetworkAdp6" Language="!(loc.LANG)" SourceFile="$(var.Property_VBoxMergeNetworkAdp6)" DiskId="1" />
-<?else ?>
-                            <Directory Id="msm_VBoxNetworkAdp6Folder" FileSource=".">
-                                <?include VBoxMergeNetAdp6.wxi ?>
                             </Directory>
 <?endif ?>
                         </Directory>
@@ -345,9 +292,9 @@
                     <RegistryValue Root="HKCU" Key="$(var.Property_RegKeyInstall)"
                                    Type="string" Value="installed" KeyPath="yes" />
                 </Component>
-                </Directory>
-            </Directory>
-        </Directory>
+                </Directory><!-- INSTALLDIR -->
+            </Directory><!-- $(env.VBOX_VENDOR_SHORT) -->
+        </Directory><!-- $(var.Property_ProgramFiles) -->
     </Directory> <!-- TARGETDIR -->
 
     <!-- Note: Feature IDs *must not* be renamed to use any prefixes or such,
@@ -427,7 +374,6 @@
                 <MergeRef Id="msm_VBoxNetworkFlt" />
     <?else ?>
                 <ComponentRef Id="cp_NetFltDriver" />
-                <ComponentRef Id="cp_NetLwfDriver" />
     <?endif ?>
             </Feature>
             <Feature Id="VBoxNetworkAdp" Title="VirtualBox Host-Only Networking" Level="1"
@@ -438,10 +384,8 @@
                 <MergeRef Id="msm_VBoxNetworkAdp" />
     <?else ?>
                 <ComponentRef Id="cp_NetAdpDriver" />
-                <ComponentRef Id="cp_NetAdp6Driver" />
     <?endif ?>
             </Feature>
-
         </Feature>
 <?endif ?>
 
@@ -503,7 +447,7 @@
         <!-- First install the new version and then remove the old version. This is more efficient -->
         <RemoveExistingProducts After="InstallValidate"><![CDATA[PREVIOUSVERSIONSINSTALLED OR NEWERVERSIONDETECTED]]></RemoveExistingProducts>
 
-        <Custom Action="ca_OriginalTargetDir" After="FileCost"><![CDATA[(NOT INSTALLDIR)]]></Custom>
+        <Custom Action="ca_OriginalTargetDir" After="FileCost"><![CDATA[NOT INSTALLDIR]]></Custom>
         <Custom Action="ca_DefaultTargetDir" Before="FileCost" ><![CDATA[NOT INSTALLDIR AND EXISTINGINSTALLDIR]]></Custom>
 
         <!-- Check + unininstall old TAP instances - we  don't need them anymore -->
@@ -523,10 +467,8 @@
         <?endif ?>
         <?if $(env.VBOX_WITH_NETFLT) = "yes" ?>
             <?include VBoxMergeNetFltSeq.wxi ?>
-            <?include VBoxMergeNetLwfSeq.wxi ?>
         <?endif ?>
         <?include VBoxMergeNetAdpSeq.wxi ?>
-        <?include VBoxMergeNetAdp6Seq.wxi ?>
         <?include VBoxMergeUSBSeq.wxi ?>
         <?if $(env.VBOX_WITH_PYTHON) = "yes" ?>
             <?include VBoxMergePythonSeq.wxi ?>

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -18,47 +18,36 @@
 #ifndef ____H_DISPLAYIMPL
 #define ____H_DISPLAYIMPL
 
+#include "VirtualBoxBase.h"
 #include "SchemaDefs.h"
 
 #include <iprt/semaphore.h>
 #include <VBox/vmm/pdmdrv.h>
 #include <VBox/VMMDev.h>
 #include <VBox/VBoxVideo.h>
-#include <VBox/vmm/pdmifs.h>
-#include "DisplayWrap.h"
 
 #ifdef VBOX_WITH_CROGL
 # include <VBox/HostServices/VBoxCrOpenGLSvc.h>
 #endif
 
-#include "DisplaySourceBitmapWrap.h"
-
 class Console;
 struct VIDEORECCONTEXT;
 
+enum
+{
+    ResizeStatus_Void,
+    ResizeStatus_InProgress,
+    ResizeStatus_UpdateDisplayData
+};
+
 typedef struct _DISPLAYFBINFO
 {
-    /* The following 3 fields (u32Offset, u32MaxFramebufferSize and u32InformationSize)
-     * are not used by the current HGSMI. They are needed for backward compatibility with
-     * pre-HGSMI additions.
-     */
     uint32_t u32Offset;
     uint32_t u32MaxFramebufferSize;
     uint32_t u32InformationSize;
 
     ComPtr<IFramebuffer> pFramebuffer;
-    com::Guid framebufferId;
-    ComPtr<IDisplaySourceBitmap> pSourceBitmap;
     bool fDisabled;
-
-    uint32_t u32Caps;
-
-    struct
-    {
-        ComPtr<IDisplaySourceBitmap> pSourceBitmap;
-        uint8_t *pu8Address;
-        uint32_t cbLine;
-    } updateImage;
 
     LONG xOrigin;
     LONG yOrigin;
@@ -72,15 +61,49 @@ typedef struct _DISPLAYFBINFO
 
     uint16_t flags;
 
+    /* for saving the rectangles arrived during fb resize is in progress. */
+    PRTRECT mpSavedVisibleRegion;
+    uint32_t mcSavedVisibleRegion;
+
     VBOXVIDEOINFOHOSTEVENTS *pHostEvents;
 
-    /** The framebuffer has default format and must be updates immediately. */
+    volatile uint32_t u32ResizeStatus;
+
+    /* The Framebuffer has default format and must be updates immediately. */
     bool fDefaultFormat;
+
+    struct
+    {
+        /* The rectangle that includes all dirty rectangles. */
+        int32_t xLeft;
+        int32_t xRight;
+        int32_t yTop;
+        int32_t yBottom;
+    } dirtyRect;
+
+    struct
+    {
+        bool fPending;
+        ULONG pixelFormat;
+        void *pvVRAM;
+        uint32_t bpp;
+        uint32_t cbLine;
+        uint32_t w;
+        uint32_t h;
+        uint16_t flags;
+    } pendingResize;
 
 #ifdef VBOX_WITH_HGSMI
     bool fVBVAEnabled;
-    bool fVBVAForceResize;
     bool fRenderThreadMode;
+    uint32_t cVBVASkipUpdate;
+    struct
+    {
+       int32_t xLeft;
+       int32_t yTop;
+       int32_t xRight;
+       int32_t yBottom;
+    } vbvaSkippedRect;
     PVBVAHOSTFLAGS pVBVAHostFlags;
 #endif /* VBOX_WITH_HGSMI */
 
@@ -96,34 +119,13 @@ typedef struct _DISPLAYFBINFO
 #endif /* VBOX_WITH_CROGL */
 } DISPLAYFBINFO;
 
-/* The legacy VBVA (VideoAccel) data.
- *
- * Backward compatibility with the guest additions 3.x or older.
- */
-typedef struct VIDEOACCEL
-{
-    VBVAMEMORY *pVbvaMemory;
-    bool        fVideoAccelEnabled;
-
-    uint8_t    *pu8VbvaPartial;
-    uint32_t    cbVbvaPartial;
-
-    /* Old guest additions (3.x and older) use both VMMDev and DevVGA refresh timer
-     * to process the VBVABUFFER memory. Therefore the legacy VBVA (VideoAccel) host
-     * code can be executed concurrently by VGA refresh timer and the guest VMMDev
-     * request in SMP VMs. The semaphore serialized this.
-     */
-    RTSEMXROADS hXRoadsVideoAccel;
-
-} VIDEOACCEL;
-
 class DisplayMouseInterface
 {
 public:
-    virtual HRESULT i_getScreenResolution(ULONG cScreen, ULONG *pcx,
-                                          ULONG *pcy, ULONG *pcBPP, LONG *pXOrigin, LONG *pYOrigin) = 0;
-    virtual void i_getFramebufferDimensions(int32_t *px1, int32_t *py1,
-                                            int32_t *px2, int32_t *py2) = 0;
+    virtual int getScreenResolution(uint32_t cScreen, ULONG *pcx,
+                                    ULONG *pcy, ULONG *pcBPP, LONG *pXOrigin, LONG *pYOrigin) = 0;
+    virtual void getFramebufferDimensions(int32_t *px1, int32_t *py1,
+                                          int32_t *px2, int32_t *py2) = 0;
     virtual HRESULT i_reportHostCursorCapabilities(uint32_t fCapabilitiesAdded, uint32_t fCapabilitiesRemoved) = 0;
     virtual HRESULT i_reportHostCursorPosition(int32_t x, int32_t y) = 0;
     virtual bool i_isInputMappingSet(void) = 0;
@@ -132,10 +134,23 @@ public:
 class VMMDev;
 
 class ATL_NO_VTABLE Display :
-    public DisplayWrap,
+    public VirtualBoxBase,
+    VBOX_SCRIPTABLE_IMPL(IEventListener),
+    VBOX_SCRIPTABLE_IMPL(IDisplay),
     public DisplayMouseInterface
 {
 public:
+
+    VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT(Display, IDisplay)
+
+    DECLARE_NOT_AGGREGATABLE(Display)
+
+    DECLARE_PROTECT_FINAL_CONSTRUCT()
+
+    BEGIN_COM_MAP(Display)
+        VBOX_DEFAULT_INTERFACE_ENTRIES(IDisplay)
+        COM_INTERFACE_ENTRY(IEventListener)
+    END_COM_MAP()
 
     DECLARE_EMPTY_CTOR_DTOR(Display)
 
@@ -145,65 +160,79 @@ public:
     // public initializer/uninitializer for internal purposes only
     HRESULT init(Console *aParent);
     void uninit();
-    int  i_registerSSM(PUVM pUVM);
+    int  registerSSM(PUVM pUVM);
 
     // public methods only for internal purposes
-    int  i_handleDisplayResize(unsigned uScreenId, uint32_t bpp, void *pvVRAM, uint32_t cbLine,
-                               uint32_t w, uint32_t h, uint16_t flags);
-    void i_handleDisplayUpdate(unsigned uScreenId, int x, int y, int w, int h);
+    int  handleDisplayResize(unsigned uScreenId, uint32_t bpp, void *pvVRAM, uint32_t cbLine, uint32_t w, uint32_t h, uint16_t flags);
+    void handleDisplayUpdateLegacy(int x, int y, int cx, int cy);
+    void handleDisplayUpdate(unsigned uScreenId, int x, int y, int w, int h);
     void i_handleUpdateVMMDevSupportsGraphics(bool fSupportsGraphics);
     void i_handleUpdateGuestVBVACapabilities(uint32_t fNewCapabilities);
     void i_handleUpdateVBVAInputMapping(int32_t xOrigin, int32_t yOrigin, uint32_t cx, uint32_t cy);
 #ifdef VBOX_WITH_VIDEOHWACCEL
-    int  i_handleVHWACommandProcess(PVBOXVHWACMD pCommand);
+    int handleVHWACommandProcess(PVBOXVHWACMD pCommand);
 #endif
 #ifdef VBOX_WITH_CRHGSMI
-    void i_handleCrHgsmiCommandCompletion(int32_t result, uint32_t u32Function, PVBOXHGCMSVCPARM pParam);
-    void i_handleCrHgsmiControlCompletion(int32_t result, uint32_t u32Function, PVBOXHGCMSVCPARM pParam);
-    void i_handleCrHgsmiCommandProcess(PVBOXVDMACMD_CHROMIUM_CMD pCmd, uint32_t cbCmd);
-    void i_handleCrHgsmiControlProcess(PVBOXVDMACMD_CHROMIUM_CTL pCtl, uint32_t cbCtl);
+    void handleCrHgsmiCommandCompletion(int32_t result, uint32_t u32Function, PVBOXHGCMSVCPARM pParam);
+    void handleCrHgsmiControlCompletion(int32_t result, uint32_t u32Function, PVBOXHGCMSVCPARM pParam);
+    void handleCrHgsmiCommandProcess(PVBOXVDMACMD_CHROMIUM_CMD pCmd, uint32_t cbCmd);
+    void handleCrHgsmiControlProcess(PVBOXVDMACMD_CHROMIUM_CTL pCtl, uint32_t cbCtl);
 #endif
 #if defined(VBOX_WITH_HGCM) && defined(VBOX_WITH_CROGL)
-    int  i_handleCrHgcmCtlSubmit(struct VBOXCRCMDCTL* pCmd, uint32_t cbCmd,
-                                 PFNCRCTLCOMPLETION pfnCompletion,
-                                 void *pvCompletion);
-    void  i_handleCrVRecScreenshotPerform(uint32_t uScreen,
-                                          uint32_t x, uint32_t y, uint32_t uPixelFormat, uint32_t uBitsPerPixel,
-                                          uint32_t uBytesPerLine, uint32_t uGuestWidth, uint32_t uGuestHeight,
-                                          uint8_t *pu8BufferAddress, uint64_t u64TimeStamp);
-    bool i_handleCrVRecScreenshotBegin(uint32_t uScreen, uint64_t u64TimeStamp);
-    void i_handleCrVRecScreenshotEnd(uint32_t uScreen, uint64_t u64TimeStamp);
-    void i_handleVRecCompletion();
+    int  handleCrHgcmCtlSubmit(struct VBOXCRCMDCTL* pCmd, uint32_t cbCmd,
+                                        PFNCRCTLCOMPLETION pfnCompletion,
+                                        void *pvCompletion);
+    void  handleCrVRecScreenshotPerform(uint32_t uScreen,
+                                        uint32_t x, uint32_t y, uint32_t uPixelFormat, uint32_t uBitsPerPixel,
+                                        uint32_t uBytesPerLine, uint32_t uGuestWidth, uint32_t uGuestHeight,
+                                        uint8_t *pu8BufferAddress, uint64_t u64TimeStamp);
+    bool handleCrVRecScreenshotBegin(uint32_t uScreen, uint64_t u64TimeStamp);
+    void handleCrVRecScreenshotEnd(uint32_t uScreen, uint64_t u64TimeStamp);
+    void handleVRecCompletion();
 #endif
 
-    int i_notifyCroglResize(const PVBVAINFOVIEW pView, const PVBVAINFOSCREEN pScreen, void *pvVRAM);
+    int notifyCroglResize(const PVBVAINFOVIEW pView, const PVBVAINFOSCREEN pScreen, void *pvVRAM);
 
-    int  i_handleSetVisibleRegion(uint32_t cRect, PRTRECT pRect);
-    int  i_handleQueryVisibleRegion(uint32_t *pcRect, PRTRECT pRect);
-
-    void i_VideoAccelVRDP(bool fEnable);
-
-    /* Legacy video acceleration requests coming from the VGA refresh timer. */
-    int  VideoAccelEnableVGA(bool fEnable, VBVAMEMORY *pVbvaMemory);
-
-    /* Legacy video acceleration requests coming from VMMDev. */
-    int  VideoAccelEnableVMMDev(bool fEnable, VBVAMEMORY *pVbvaMemory);
-    void VideoAccelFlushVMMDev(void);
-
-    int  i_VideoCaptureStart();
-    void i_VideoCaptureStop();
-    int  i_VideoCaptureEnableScreens(ComSafeArrayIn(BOOL, aScreens));
-
-    void i_notifyPowerDown(void);
-
-    // DisplayMouseInterface methods
-    virtual HRESULT i_getScreenResolution(ULONG cScreen, ULONG *pcx,
-                                          ULONG *pcy, ULONG *pcBPP, LONG *pXOrigin, LONG *pYOrigin)
+    IFramebuffer *getFramebuffer()
     {
-        return getScreenResolution(cScreen, pcx, pcy, pcBPP, pXOrigin, pYOrigin, NULL);
+        return maFramebuffers[VBOX_VIDEO_PRIMARY_SCREEN].pFramebuffer;
     }
-    virtual void i_getFramebufferDimensions(int32_t *px1, int32_t *py1,
-                                            int32_t *px2, int32_t *py2);
+    void getFramebufferDimensions(int32_t *px1, int32_t *py1, int32_t *px2, int32_t *py2);
+    int getScreenResolution(uint32_t cScreen, ULONG *pcx, ULONG *pcy,
+                            ULONG *pcBPP, LONG *pXOrigin, LONG *pYOrigin)
+    {
+        return GetScreenResolution(cScreen, pcx, pcy, pcBPP, pXOrigin, pYOrigin);
+    }
+
+    int  handleSetVisibleRegion(uint32_t cRect, PRTRECT pRect);
+    int  handleQueryVisibleRegion(uint32_t *pcRect, PRTRECT pRect);
+
+    int  VideoAccelEnable(bool fEnable, VBVAMEMORY *pVbvaMemory);
+    void VideoAccelFlush(void);
+    bool VideoAccelAllowed(void);
+    void VideoAccelVRDP(bool fEnable);
+
+    int  VideoCaptureStart();
+    void VideoCaptureStop();
+    int  VideoCaptureEnableScreens(ComSafeArrayIn(BOOL, aScreens));
+
+    // IEventListener methods
+    STDMETHOD(HandleEvent)(IEvent * aEvent);
+
+    // IDisplay methods
+    STDMETHOD(GetScreenResolution)(ULONG aScreenId, ULONG *aWidth, ULONG *aHeight, ULONG *aBitsPerPixel, LONG *aXOrigin, LONG *aYOrigin);
+    STDMETHOD(SetFramebuffer)(ULONG aScreenId, IFramebuffer *aFramebuffer);
+    STDMETHOD(GetFramebuffer)(ULONG aScreenId, IFramebuffer **aFramebuffer, LONG *aXOrigin, LONG *aYOrigin);
+    STDMETHOD(SetVideoModeHint)(ULONG aDisplay, BOOL aEnabled, BOOL aChangeOrigin, LONG aOriginX, LONG aOriginY, ULONG aWidth, ULONG aHeight, ULONG aBitsPerPixel);
+    STDMETHOD(TakeScreenShot)(ULONG aScreenId, BYTE *address, ULONG width, ULONG height);
+    STDMETHOD(TakeScreenShotToArray)(ULONG aScreenId, ULONG width, ULONG height, ComSafeArrayOut(BYTE, aScreenData));
+    STDMETHOD(TakeScreenShotPNGToArray)(ULONG aScreenId, ULONG width, ULONG height, ComSafeArrayOut(BYTE, aScreenData));
+    STDMETHOD(DrawToScreen)(ULONG aScreenId, BYTE *address, ULONG x, ULONG y, ULONG width, ULONG height);
+    STDMETHOD(InvalidateAndUpdate)();
+    STDMETHOD(ResizeCompleted)(ULONG aScreenId);
+    STDMETHOD(SetSeamlessMode)(BOOL enabled);
+
+    STDMETHOD(CompleteVHWACommand)(BYTE *pCommand);
     virtual HRESULT i_reportHostCursorCapabilities(uint32_t fCapabilitiesAdded, uint32_t fCapabilitiesRemoved);
     virtual HRESULT i_reportHostCursorPosition(int32_t x, int32_t y);
     virtual bool i_isInputMappingSet(void)
@@ -211,140 +240,63 @@ public:
         return cxInputMapping != 0 && cyInputMapping != 0;
     }
 
+    STDMETHOD(ViewportChanged)(ULONG aScreenId, ULONG x, ULONG y, ULONG width, ULONG height);
+
     static const PDMDRVREG  DrvReg;
 
 private:
-    // Wrapped IDisplay properties
 
-    // Wrapped IDisplay methods
-    virtual HRESULT getScreenResolution(ULONG aScreenId,
-                                        ULONG *aWidth,
-                                        ULONG *aHeight,
-                                        ULONG *aBitsPerPixel,
-                                        LONG *aXOrigin,
-                                        LONG *aYOrigin,
-                                        GuestMonitorStatus_T *aGuestMonitorStatus);
-    virtual HRESULT attachFramebuffer(ULONG aScreenId,
-                                      const ComPtr<IFramebuffer> &aFramebuffer,
-                                      com::Guid &aId);
-    virtual HRESULT detachFramebuffer(ULONG aScreenId,
-                                      const com::Guid &aId);
-    virtual HRESULT queryFramebuffer(ULONG aScreenId,
-                                     ComPtr<IFramebuffer> &aFramebuffer);
-    virtual HRESULT setVideoModeHint(ULONG aDisplay,
-                                     BOOL aEnabled,
-                                     BOOL aChangeOrigin,
-                                     LONG aOriginX,
-                                     LONG aOriginY,
-                                     ULONG aWidth,
-                                     ULONG aHeight,
-                                     ULONG aBitsPerPixel);
-    virtual HRESULT setSeamlessMode(BOOL aEnabled);
-    virtual HRESULT takeScreenShot(ULONG aScreenId,
-                                   BYTE *aAddress,
-                                   ULONG aWidth,
-                                   ULONG aHeight,
-                                   BitmapFormat_T aBitmapFormat);
-    virtual HRESULT takeScreenShotToArray(ULONG aScreenId,
-                                          ULONG aWidth,
-                                          ULONG aHeight,
-                                          BitmapFormat_T aBitmapFormat,
-                                          std::vector<BYTE> &aScreenData);
-    virtual HRESULT drawToScreen(ULONG aScreenId,
-                                 BYTE *aAddress,
-                                 ULONG aX,
-                                 ULONG aY,
-                                 ULONG aWidth,
-                                 ULONG aHeight);
-    virtual HRESULT invalidateAndUpdate();
-    virtual HRESULT invalidateAndUpdateScreen(ULONG aScreenId);
-    virtual HRESULT completeVHWACommand(BYTE *aCommand);
-    virtual HRESULT viewportChanged(ULONG aScreenId,
-                                    ULONG aX,
-                                    ULONG aY,
-                                    ULONG aWidth,
-                                    ULONG aHeight);
-    virtual HRESULT querySourceBitmap(ULONG aScreenId,
-                                      ComPtr<IDisplaySourceBitmap> &aDisplaySourceBitmap);
-    virtual HRESULT notifyScaleFactorChange(ULONG aScreenId,
-                                            ULONG aScaleFactorWMultiplied,
-                                            ULONG aScaleFactorHMultiplied);
-    virtual HRESULT notifyHiDPIOutputPolicyChange(BOOL fUnscaledHiDPI);
-
-    // Wrapped IEventListener properties
-
-    // Wrapped IEventListener methods
-    virtual HRESULT handleEvent(const ComPtr<IEvent> &aEvent);
-
-    // other internal methods
-    HRESULT takeScreenShotWorker(ULONG aScreenId,
-                                 BYTE *aAddress,
-                                 ULONG aWidth,
-                                 ULONG aHeight,
-                                 BitmapFormat_T aBitmapFormat,
-                                 ULONG *pcbOut);
+    int updateDisplayData(void);
 
 #ifdef VBOX_WITH_CRHGSMI
-    void i_setupCrHgsmiData(void);
-    void i_destructCrHgsmiData(void);
+    void setupCrHgsmiData(void);
+    void destructCrHgsmiData(void);
 #endif
 
 #if defined(VBOX_WITH_HGCM) && defined(VBOX_WITH_CROGL)
-    int i_crViewportNotify(ULONG aScreenId, ULONG x, ULONG y, ULONG width, ULONG height);
+    int crViewportNotify(ULONG aScreenId, ULONG x, ULONG y, ULONG width, ULONG height);
 #endif
 
-    static DECLCALLBACK(void*) i_drvQueryInterface(PPDMIBASE pInterface, const char *pszIID);
-    static DECLCALLBACK(int)   i_drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint32_t fFlags);
-    static DECLCALLBACK(void)  i_drvDestruct(PPDMDRVINS pDrvIns);
-    static DECLCALLBACK(int)   i_displayResizeCallback(PPDMIDISPLAYCONNECTOR pInterface, uint32_t bpp, void *pvVRAM,
-                                                       uint32_t cbLine, uint32_t cx, uint32_t cy);
-    static DECLCALLBACK(void)  i_displayUpdateCallback(PPDMIDISPLAYCONNECTOR pInterface,
-                                                       uint32_t x, uint32_t y, uint32_t cx, uint32_t cy);
-    static DECLCALLBACK(void)  i_displayRefreshCallback(PPDMIDISPLAYCONNECTOR pInterface);
-    static DECLCALLBACK(void)  i_displayResetCallback(PPDMIDISPLAYCONNECTOR pInterface);
-    static DECLCALLBACK(void)  i_displayLFBModeChangeCallback(PPDMIDISPLAYCONNECTOR pInterface, bool fEnabled);
-    static DECLCALLBACK(void)  i_displayProcessAdapterDataCallback(PPDMIDISPLAYCONNECTOR pInterface,
-                                                                   void *pvVRAM, uint32_t u32VRAMSize);
-    static DECLCALLBACK(void)  i_displayProcessDisplayDataCallback(PPDMIDISPLAYCONNECTOR pInterface,
-                                                                   void *pvVRAM, unsigned uScreenId);
+    static DECLCALLBACK(int)   changeFramebuffer(Display *that, IFramebuffer *aFB, unsigned uScreenId);
+
+    static DECLCALLBACK(void*) drvQueryInterface(PPDMIBASE pInterface, const char *pszIID);
+    static DECLCALLBACK(int)   drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint32_t fFlags);
+    static DECLCALLBACK(void)  drvDestruct(PPDMDRVINS pDrvIns);
+    static DECLCALLBACK(int)   displayResizeCallback(PPDMIDISPLAYCONNECTOR pInterface, uint32_t bpp, void *pvVRAM, uint32_t cbLine, uint32_t cx, uint32_t cy);
+    static DECLCALLBACK(void)  displayUpdateCallback(PPDMIDISPLAYCONNECTOR pInterface,
+                                                     uint32_t x, uint32_t y, uint32_t cx, uint32_t cy);
+    static DECLCALLBACK(void)  displayRefreshCallback(PPDMIDISPLAYCONNECTOR pInterface);
+    static DECLCALLBACK(void)  displayResetCallback(PPDMIDISPLAYCONNECTOR pInterface);
+    static DECLCALLBACK(void)  displayLFBModeChangeCallback(PPDMIDISPLAYCONNECTOR pInterface, bool fEnabled);
+    static DECLCALLBACK(void)  displayProcessAdapterDataCallback(PPDMIDISPLAYCONNECTOR pInterface, void *pvVRAM, uint32_t u32VRAMSize);
+    static DECLCALLBACK(void)  displayProcessDisplayDataCallback(PPDMIDISPLAYCONNECTOR pInterface, void *pvVRAM, unsigned uScreenId);
 
 #ifdef VBOX_WITH_VIDEOHWACCEL
-    static DECLCALLBACK(int)  i_displayVHWACommandProcess(PPDMIDISPLAYCONNECTOR pInterface, PVBOXVHWACMD pCommand);
+    static DECLCALLBACK(int)  displayVHWACommandProcess(PPDMIDISPLAYCONNECTOR pInterface, PVBOXVHWACMD pCommand);
 #endif
 
 #ifdef VBOX_WITH_CRHGSMI
-    static DECLCALLBACK(void)  i_displayCrHgsmiCommandProcess(PPDMIDISPLAYCONNECTOR pInterface,
-                                                              PVBOXVDMACMD_CHROMIUM_CMD pCmd, uint32_t cbCmd);
-    static DECLCALLBACK(void)  i_displayCrHgsmiControlProcess(PPDMIDISPLAYCONNECTOR pInterface, PVBOXVDMACMD_CHROMIUM_CTL pCtl,
-                                                              uint32_t cbCtl);
+    static DECLCALLBACK(void)  displayCrHgsmiCommandProcess(PPDMIDISPLAYCONNECTOR pInterface, PVBOXVDMACMD_CHROMIUM_CMD pCmd, uint32_t cbCmd);
+    static DECLCALLBACK(void)  displayCrHgsmiControlProcess(PPDMIDISPLAYCONNECTOR pInterface, PVBOXVDMACMD_CHROMIUM_CTL pCtl, uint32_t cbCtl);
 
-    static DECLCALLBACK(void)  i_displayCrHgsmiCommandCompletion(int32_t result, uint32_t u32Function, PVBOXHGCMSVCPARM pParam,
-                                                                 void *pvContext);
-    static DECLCALLBACK(void)  i_displayCrHgsmiControlCompletion(int32_t result, uint32_t u32Function, PVBOXHGCMSVCPARM pParam,
-                                                                 void *pvContext);
+    static DECLCALLBACK(void)  displayCrHgsmiCommandCompletion(int32_t result, uint32_t u32Function, PVBOXHGCMSVCPARM pParam, void *pvContext);
+    static DECLCALLBACK(void)  displayCrHgsmiControlCompletion(int32_t result, uint32_t u32Function, PVBOXHGCMSVCPARM pParam, void *pvContext);
 #endif
 #if defined(VBOX_WITH_HGCM) && defined(VBOX_WITH_CROGL)
-    static DECLCALLBACK(int)  i_displayCrHgcmCtlSubmit(PPDMIDISPLAYCONNECTOR pInterface,
-                                                       struct VBOXCRCMDCTL* pCmd, uint32_t cbCmd,
-                                                       PFNCRCTLCOMPLETION pfnCompletion,
-                                                       void *pvCompletion);
-    static DECLCALLBACK(void) i_displayCrHgcmCtlSubmitCompletion(int32_t result, uint32_t u32Function, PVBOXHGCMSVCPARM pParam,
-                                                                 void *pvContext);
+    static DECLCALLBACK(int)  displayCrHgcmCtlSubmit(PPDMIDISPLAYCONNECTOR pInterface,
+                                        struct VBOXCRCMDCTL* pCmd, uint32_t cbCmd,
+                                        PFNCRCTLCOMPLETION pfnCompletion,
+                                        void *pvCompletion);
+    static DECLCALLBACK(void)  displayCrHgcmCtlSubmitCompletion(int32_t result, uint32_t u32Function, PVBOXHGCMSVCPARM pParam, void *pvContext);
 #endif
 #ifdef VBOX_WITH_HGSMI
-    static DECLCALLBACK(int)   i_displayVBVAEnable(PPDMIDISPLAYCONNECTOR pInterface, unsigned uScreenId,
-                                                   PVBVAHOSTFLAGS pHostFlags, bool fRenderThreadMode);
-    static DECLCALLBACK(void)  i_displayVBVADisable(PPDMIDISPLAYCONNECTOR pInterface, unsigned uScreenId);
-    static DECLCALLBACK(void)  i_displayVBVAUpdateBegin(PPDMIDISPLAYCONNECTOR pInterface, unsigned uScreenId);
-    static DECLCALLBACK(void)  i_displayVBVAUpdateProcess(PPDMIDISPLAYCONNECTOR pInterface, unsigned uScreenId,
-                                                          const PVBVACMDHDR pCmd, size_t cbCmd);
-    static DECLCALLBACK(void)  i_displayVBVAUpdateEnd(PPDMIDISPLAYCONNECTOR pInterface, unsigned uScreenId, int32_t x, int32_t y,
-                                                      uint32_t cx, uint32_t cy);
-    static DECLCALLBACK(int)   i_displayVBVAResize(PPDMIDISPLAYCONNECTOR pInterface, const PVBVAINFOVIEW pView,
-                                                   const PVBVAINFOSCREEN pScreen, void *pvVRAM);
-    static DECLCALLBACK(int)   i_displayVBVAMousePointerShape(PPDMIDISPLAYCONNECTOR pInterface, bool fVisible, bool fAlpha,
-                                                              uint32_t xHot, uint32_t yHot, uint32_t cx, uint32_t cy,
-                                                              const void *pvShape);
+    static DECLCALLBACK(int)   displayVBVAEnable(PPDMIDISPLAYCONNECTOR pInterface, unsigned uScreenId, PVBVAHOSTFLAGS pHostFlags, bool fRenderThreadMode);
+    static DECLCALLBACK(void)  displayVBVADisable(PPDMIDISPLAYCONNECTOR pInterface, unsigned uScreenId);
+    static DECLCALLBACK(void)  displayVBVAUpdateBegin(PPDMIDISPLAYCONNECTOR pInterface, unsigned uScreenId);
+    static DECLCALLBACK(void)  displayVBVAUpdateProcess(PPDMIDISPLAYCONNECTOR pInterface, unsigned uScreenId, const PVBVACMDHDR pCmd, size_t cbCmd);
+    static DECLCALLBACK(void)  displayVBVAUpdateEnd(PPDMIDISPLAYCONNECTOR pInterface, unsigned uScreenId, int32_t x, int32_t y, uint32_t cx, uint32_t cy);
+    static DECLCALLBACK(int)   displayVBVAResize(PPDMIDISPLAYCONNECTOR pInterface, const PVBVAINFOVIEW pView, const PVBVAINFOSCREEN pScreen, void *pvVRAM);
+    static DECLCALLBACK(int)   displayVBVAMousePointerShape(PPDMIDISPLAYCONNECTOR pInterface, bool fVisible, bool fAlpha, uint32_t xHot, uint32_t yHot, uint32_t cx, uint32_t cy, const void *pvShape);
     static DECLCALLBACK(void)  i_displayVBVAGuestCapabilityUpdate(PPDMIDISPLAYCONNECTOR pInterface, uint32_t fCapabilities);
 
     static DECLCALLBACK(void)  i_displayVBVAInputMappingUpdate(PPDMIDISPLAYCONNECTOR pInterface, int32_t xOrigin, int32_t yOrigin,
@@ -352,26 +304,26 @@ private:
 #endif
 
 #if defined(VBOX_WITH_HGCM) && defined(VBOX_WITH_CROGL)
-    static DECLCALLBACK(void) i_displayCrVRecScreenshotPerform(void *pvCtx, uint32_t uScreen,
-                                                               uint32_t x, uint32_t y,
-                                                               uint32_t uBitsPerPixel, uint32_t uBytesPerLine,
-                                                               uint32_t uGuestWidth, uint32_t uGuestHeight,
-                                                               uint8_t *pu8BufferAddress, uint64_t u64TimeStamp);
-    static DECLCALLBACK(bool) i_displayCrVRecScreenshotBegin(void *pvCtx, uint32_t uScreen, uint64_t u64TimeStamp);
-    static DECLCALLBACK(void) i_displayCrVRecScreenshotEnd(void *pvCtx, uint32_t uScreen, uint64_t u64TimeStamp);
+    static DECLCALLBACK(void) displayCrVRecScreenshotPerform(void *pvCtx, uint32_t uScreen,
+                                                             uint32_t x, uint32_t y,
+                                                             uint32_t uBitsPerPixel, uint32_t uBytesPerLine,
+                                                             uint32_t uGuestWidth, uint32_t uGuestHeight,
+                                                             uint8_t *pu8BufferAddress, uint64_t u64TimeStamp);
+    static DECLCALLBACK(bool) displayCrVRecScreenshotBegin(void *pvCtx, uint32_t uScreen, uint64_t u64TimeStamp);
+    static DECLCALLBACK(void) displayCrVRecScreenshotEnd(void *pvCtx, uint32_t uScreen, uint64_t u64TimeStamp);
 
-    static DECLCALLBACK(void) i_displayVRecCompletion(struct VBOXCRCMDCTL* pCmd, uint32_t cbCmd, int rc, void *pvCompletion);
+    static DECLCALLBACK(void)  displayVRecCompletion(struct VBOXCRCMDCTL* pCmd, uint32_t cbCmd, int rc, void *pvCompletion);
 #endif
-    static DECLCALLBACK(void) i_displayCrCmdFree(struct VBOXCRCMDCTL* pCmd, uint32_t cbCmd, int rc, void *pvCompletion);
+    static DECLCALLBACK(void) displayCrCmdFree(struct VBOXCRCMDCTL* pCmd, uint32_t cbCmd, int rc, void *pvCompletion);
 
-    static DECLCALLBACK(void) i_displaySSMSaveScreenshot(PSSMHANDLE pSSM, void *pvUser);
-    static DECLCALLBACK(int)  i_displaySSMLoadScreenshot(PSSMHANDLE pSSM, void *pvUser, uint32_t uVersion, uint32_t uPass);
-    static DECLCALLBACK(void) i_displaySSMSave(PSSMHANDLE pSSM, void *pvUser);
-    static DECLCALLBACK(int)  i_displaySSMLoad(PSSMHANDLE pSSM, void *pvUser, uint32_t uVersion, uint32_t uPass);
+    static DECLCALLBACK(void)  displaySSMSaveScreenshot(PSSMHANDLE pSSM, void *pvUser);
+    static DECLCALLBACK(int)   displaySSMLoadScreenshot(PSSMHANDLE pSSM, void *pvUser, uint32_t uVersion, uint32_t uPass);
+    static DECLCALLBACK(void)  displaySSMSave(PSSMHANDLE pSSM, void *pvUser);
+    static DECLCALLBACK(int)   displaySSMLoad(PSSMHANDLE pSSM, void *pvUser, uint32_t uVersion, uint32_t uPass);
 
     Console * const         mParent;
     /** Pointer to the associated display driver. */
-    struct DRVMAINDISPLAY   *mpDrv;
+    struct DRVMAINDISPLAY  *mpDrv;
     /** Pointer to the device instance for the VMM Device. */
     PPDMDEVINS              mpVMMDev;
     /** Set after the first attempt to find the VMM Device. */
@@ -393,12 +345,24 @@ private:
     /** Mirror of the current host cursor capabilities. */
     uint32_t    mfHostCursorCapabilities;
 
-    bool mfSourceBitmapEnabled;
-    bool volatile fVGAResizing;
+    /* arguments of the last handleDisplayResize() call */
+    void       *mLastAddress;
+    uint32_t    mLastBytesPerLine;
+    uint32_t    mLastBitsPerPixel;
+    uint32_t    mLastWidth;
+    uint32_t    mLastHeight;
+    uint16_t    mLastFlags;
 
+    VBVAMEMORY *mpVbvaMemory;
+    bool        mfVideoAccelEnabled;
     bool        mfVideoAccelVRDP;
     uint32_t    mfu32SupportedOrders;
+
     int32_t volatile mcVideoAccelVRDPRefs;
+
+    VBVAMEMORY *mpPendingVbvaMemory;
+    bool        mfPendingVideoAccelEnable;
+    bool        mfMachineRunning;
 
     /** Accelerate3DEnabled = true && GraphicsControllerType == VBoxVGA. */
     bool        mfIsCr3DEnabled;
@@ -406,6 +370,9 @@ private:
 #ifdef VBOX_WITH_CROGL
     bool        mfCrOglDataHidden;
 #endif
+
+    uint8_t    *mpu8VbvaPartial;
+    uint32_t    mcbVbvaPartial;
 
 #ifdef VBOX_WITH_CRHGSMI
     /* for fast host hgcm calls */
@@ -419,37 +386,31 @@ private:
     VBOXCRCMDCTL_HGCM mCrOglScreenshotCtl;
 #endif
 
-    /* The legacy VBVA data and methods. */
-    VIDEOACCEL mVideoAccelLegacy;
+    bool vbvaFetchCmd(VBVACMDHDR **ppHdr, uint32_t *pcbCmd);
+    void vbvaReleaseCmd(VBVACMDHDR *pHdr, int32_t cbCmd);
 
-    int  i_VideoAccelEnable(bool fEnable, VBVAMEMORY *pVbvaMemory, PPDMIDISPLAYPORT pUpPort);
-    void i_VideoAccelFlush(PPDMIDISPLAYPORT pUpPort);
-    bool i_VideoAccelAllowed(void);
+    void handleResizeCompletedEMT(BOOL fResizeContext);
 
-    int  i_videoAccelRefreshProcess(PPDMIDISPLAYPORT pUpPort);
-    int  i_videoAccelEnable(bool fEnable, VBVAMEMORY *pVbvaMemory, PPDMIDISPLAYPORT pUpPort);
-    int  i_videoAccelFlush(PPDMIDISPLAYPORT pUpPort);
+    RTCRITSECT mVBVALock;
+    volatile uint32_t mfu32PendingVideoAccelDisable;
 
-    /* Legacy pre-HGSMI handlers. */
-    void processAdapterData(void *pvVRAM, uint32_t u32VRAMSize);
-    void processDisplayData(void *pvVRAM, unsigned uScreenId);
+    int  vbvaLock(void);
+    void vbvaUnlock(void);
 
-    /* Serializes access to mVideoAccelLegacy and mfVideoAccelVRDP, etc between VRDP and Display. */
-    RTCRITSECT mVideoAccelLock;
+    RTCRITSECT mSaveSeamlessRectLock;
+    int  SaveSeamlessRectLock(void);
+    void SaveSeamlessRectUnLock(void);
 
 public:
-
-    static int i_displayTakeScreenshotEMT(Display *pDisplay, ULONG aScreenId, uint8_t **ppu8Data, size_t *pcbData,
-                                          uint32_t *pu32Width, uint32_t *pu32Height);
+    static int  displayTakeScreenshotEMT(Display *pDisplay, ULONG aScreenId, uint8_t **ppu8Data, size_t *pcbData, uint32_t *pu32Width, uint32_t *pu32Height);
 
 #if defined(VBOX_WITH_HGCM) && defined(VBOX_WITH_CROGL)
-    static BOOL  i_displayCheckTakeScreenshotCrOgl(Display *pDisplay, ULONG aScreenId, uint8_t *pu8Data,
-                                                   uint32_t u32Width, uint32_t u32Height);
-    int i_crCtlSubmit(struct VBOXCRCMDCTL* pCmd, uint32_t cbCmd, PFNCRCTLCOMPLETION pfnCompletion, void *pvCompletion);
-    int i_crCtlSubmitSync(struct VBOXCRCMDCTL* pCmd, uint32_t cbCmd);
+    static BOOL  displayCheckTakeScreenshotCrOgl(Display *pDisplay, ULONG aScreenId, uint8_t *pu8Data, uint32_t u32Width, uint32_t u32Height);
+    int crCtlSubmit(struct VBOXCRCMDCTL* pCmd, uint32_t cbCmd, PFNCRCTLCOMPLETION pfnCompletion, void *pvCompletion);
+    int crCtlSubmitSync(struct VBOXCRCMDCTL* pCmd, uint32_t cbCmd);
     /* copies the given command and submits it asynchronously,
      * i.e. the pCmd data may be discarded right after the call returns */
-    int i_crCtlSubmitAsyncCmdCopy(struct VBOXCRCMDCTL* pCmd, uint32_t cbCmd);
+    int crCtlSubmitAsyncCmdCopy(struct VBOXCRCMDCTL* pCmd, uint32_t cbCmd);
     /* performs synchronous request processing if 3D backend has something to display
      * this is primarily to work-around 3d<->main thread deadlocks on OSX
      * in case of async completion, the command is coppied to the allocated buffer,
@@ -457,17 +418,23 @@ public:
      * can be used for "notification" commands, when client is not interested in command result,
      * that must synchronize with 3D backend only when some 3D data is displayed.
      * The routine does NOT provide any info on whether command is processed asynchronously or not */
-    int i_crCtlSubmitSyncIfHasDataForScreen(uint32_t u32ScreenID, struct VBOXCRCMDCTL* pCmd, uint32_t cbCmd);
+    int crCtlSubmitSyncIfHasDataForScreen(uint32_t u32ScreenID, struct VBOXCRCMDCTL* pCmd, uint32_t cbCmd);
 #endif
 
 private:
-    static int i_InvalidateAndUpdateEMT(Display *pDisplay, unsigned uId, bool fUpdateAll);
-    static int i_drawToScreenEMT(Display *pDisplay, ULONG aScreenId, BYTE *address, ULONG x, ULONG y, ULONG width, ULONG height);
+    static void InvalidateAndUpdateEMT(Display *pDisplay, unsigned uId, bool fUpdateAll);
+    static int  drawToScreenEMT(Display *pDisplay, ULONG aScreenId, BYTE *address, ULONG x, ULONG y, ULONG width, ULONG height);
+
+    int  videoAccelRefreshProcess(void);
+
+    /* Functions run under VBVA lock. */
+    int  videoAccelEnable(bool fEnable, VBVAMEMORY *pVbvaMemory);
+    void videoAccelFlush(void);
 
     void i_updateGuestGraphicsFacility(void);
 
 #if defined(VBOX_WITH_HGCM) && defined(VBOX_WITH_CROGL)
-    int i_crOglWindowsShow(bool fShow);
+    int crOglWindowsShow(bool fShow);
 #endif
 
 #ifdef VBOX_WITH_HGSMI
@@ -480,82 +447,16 @@ private:
 #endif
 };
 
-/* The legacy VBVA helpers. */
-int videoAccelConstruct(VIDEOACCEL *pVideoAccel);
-void videoAccelDestroy(VIDEOACCEL *pVideoAccel);
-void i_vbvaSetMemoryFlags(VBVAMEMORY *pVbvaMemory,
-                          bool fVideoAccelEnabled,
-                          bool fVideoAccelVRDP,
-                          uint32_t fu32SupportedOrders,
-                          DISPLAYFBINFO *paFBInfos,
-                          unsigned cFBInfos);
-int videoAccelEnterVGA(VIDEOACCEL *pVideoAccel);
-void videoAccelLeaveVGA(VIDEOACCEL *pVideoAccel);
-int videoAccelEnterVMMDev(VIDEOACCEL *pVideoAccel);
-void videoAccelLeaveVMMDev(VIDEOACCEL *pVideoAccel);
-
-
-/* helper function, code in DisplayResampleImage.cpp */
 void gdImageCopyResampled(uint8_t *dst, uint8_t *src,
-                            int dstX, int dstY, int srcX, int srcY,
-                            int dstW, int dstH, int srcW, int srcH);
+                          int dstX, int dstY, int srcX, int srcY,
+                          int dstW, int dstH, int srcW, int srcH);
 
 void BitmapScale32(uint8_t *dst, int dstW, int dstH,
                    const uint8_t *src, int iDeltaLine, int srcW, int srcH);
 
-/* helper function, code in DisplayPNGUtul.cpp */
 int DisplayMakePNG(uint8_t *pu8Data, uint32_t cx, uint32_t cy,
                    uint8_t **ppu8PNG, uint32_t *pcbPNG, uint32_t *pcxPNG, uint32_t *pcyPNG,
-                     uint8_t fLimitSize);
-
-class ATL_NO_VTABLE DisplaySourceBitmap:
-    public DisplaySourceBitmapWrap
-{
-public:
-
-    DECLARE_EMPTY_CTOR_DTOR(DisplaySourceBitmap)
-
-    HRESULT FinalConstruct();
-    void FinalRelease();
-
-    /* Public initializer/uninitializer for internal purposes only. */
-    HRESULT init(ComObjPtr<Display> pDisplay, unsigned uScreenId, DISPLAYFBINFO *pFBInfo);
-    void uninit();
-
-    bool i_usesVRAM(void) { return m.pu8Allocated == NULL; }
-
-private:
-    // wrapped IDisplaySourceBitmap properties
-    virtual HRESULT getScreenId(ULONG *aScreenId);
-
-    // wrapped IDisplaySourceBitmap methods
-    virtual HRESULT queryBitmapInfo(BYTE **aAddress,
-                                    ULONG *aWidth,
-                                    ULONG *aHeight,
-                                    ULONG *aBitsPerPixel,
-                                    ULONG *aBytesPerLine,
-                                    BitmapFormat_T *aBitmapFormat);
-
-    int initSourceBitmap(unsigned aScreenId, DISPLAYFBINFO *pFBInfo);
-
-    struct Data
-    {
-        ComObjPtr<Display> pDisplay;
-        unsigned uScreenId;
-        DISPLAYFBINFO *pFBInfo;
-
-        uint8_t *pu8Allocated;
-
-        uint8_t *pu8Address;
-        ULONG ulWidth;
-        ULONG ulHeight;
-        ULONG ulBitsPerPixel;
-        ULONG ulBytesPerLine;
-        BitmapFormat_T bitmapFormat;
-    };
-
-    Data m;
-};
+                   uint8_t fLimitSize);
 
 #endif // ____H_DISPLAYIMPL
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

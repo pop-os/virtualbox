@@ -48,7 +48,6 @@
 
 RTDECL(bool) RTEnvExistsBad(const char *pszVar)
 {
-    AssertReturn(strchr(pszVar, '=') == NULL, false);
     return RTEnvGetBad(pszVar) != NULL;
 }
 
@@ -61,8 +60,6 @@ RTDECL(bool) RTEnvExist(const char *pszVar)
 
 RTDECL(const char *) RTEnvGetBad(const char *pszVar)
 {
-    AssertReturn(strchr(pszVar, '=') == NULL, NULL);
-
     IPRT_ALIGNMENT_CHECKS_DISABLE(); /* glibc causes trouble */
     const char *pszValue = getenv(pszVar);
     IPRT_ALIGNMENT_CHECKS_ENABLE();
@@ -93,8 +90,6 @@ RTDECL(int) RTEnvPut(const char *pszVarEqualValue)
 
 RTDECL(int) RTEnvSetBad(const char *pszVar, const char *pszValue)
 {
-    AssertMsgReturn(strchr(pszVar, '=') == NULL, ("'%s'\n", pszVar), VERR_ENV_INVALID_VAR_NAME);
-
 #if defined(_MSC_VER)
     /* make a local copy and feed it to putenv. */
     const size_t cchVar = strlen(pszVar);
@@ -129,7 +124,7 @@ RTDECL(int) RTEnvSet(const char *pszVar, const char *pszValue)
 
 RTDECL(int) RTEnvUnsetBad(const char *pszVar)
 {
-    AssertReturn(strchr(pszVar, '=') == NULL, VERR_ENV_INVALID_VAR_NAME);
+    AssertReturn(!strchr(pszVar, '='), VERR_INVALID_PARAMETER);
 
     /*
      * Check that it exists first.

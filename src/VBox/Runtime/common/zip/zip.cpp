@@ -1964,7 +1964,7 @@ RTDECL(int) RTZipBlockDecompress(RTZIPTYPE enmType, uint32_t fFlags,
                 return zipErrConvertFromZlib(rc, false /*fCompressing*/);
 
             if (pcbSrcActual)
-                *pcbSrcActual = cbSrc - ZStrm.avail_in;
+                *pcbSrcActual = ZStrm.avail_in - cbSrc;
             if (pcbDstActual)
                 *pcbDstActual = ZStrm.total_out;
             break;

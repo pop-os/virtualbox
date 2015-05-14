@@ -132,7 +132,6 @@ protected:
     protected:
     /* VirtualBox instance */
     ComPtr<IVirtualBox> virtualbox;
-    ComPtr<IVirtualBoxClient> virtualboxClient;
 
     private:
     struct Data;

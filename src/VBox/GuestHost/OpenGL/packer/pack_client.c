@@ -34,7 +34,8 @@ static void crPackVertexAttrib(const CRVertexArrays *array, unsigned int attr, G
 #ifdef CR_ARB_vertex_buffer_object
     if (array->a[attr].buffer && array->a[attr].buffer->data)
     {
-        Assert(((uintptr_t)p) < array->a[attr].buffer->size);
+        Assert(((GLuint)p) < array->a[attr].buffer->size);
+        Assert(((GLint)p) >= 0);
         p = (unsigned char *)(array->a[attr].buffer->data) + (unsigned long)p;
     }
 #endif

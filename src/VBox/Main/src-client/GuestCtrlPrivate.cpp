@@ -1,10 +1,11 @@
 /* $Id: GuestCtrlPrivate.cpp $ */
 /** @file
+ *
  * Internal helpers/structures for guest control functionality.
  */
 
 /*
- * Copyright (C) 2011-2015 Oracle Corporation
+ * Copyright (C) 2011-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -18,9 +19,6 @@
 /******************************************************************************
  *   Header Files                                                             *
  ******************************************************************************/
-#ifndef VBOX_WITH_GUEST_CONTROL
-# error "VBOX_WITH_GUEST_CONTROL must defined in this file"
-#endif
 #include "GuestCtrlImplPrivate.h"
 #include "GuestSessionImpl.h"
 #include "VMMDev.h"
@@ -38,7 +36,258 @@
 #define LOG_GROUP LOG_GROUP_GUEST_CONTROL
 #include <VBox/log.h>
 
+/******************************************************************************
+ *   Structures and Typedefs                                                  *
+ ******************************************************************************/
 
+int GuestEnvironment::BuildEnvironmentBlock(void **ppvEnv, size_t *pcbEnv, uint32_t *pcEnvVars)
+{
+    AssertPtrReturn(ppvEnv, VERR_INVALID_POINTER);
+    /* Rest is optional. */
+
+    size_t cbEnv = 0;
+    uint32_t cEnvVars = 0;
+
+    int rc = VINF_SUCCESS;
+
+    size_t cEnv = mEnvironment.size();
+    if (cEnv)
+    {
+        std::map<Utf8Str, Utf8Str>::const_iterator itEnv = mEnvironment.begin();
+        for (; itEnv != mEnvironment.end() && RT_SUCCESS(rc); itEnv++)
+        {
+            char *pszEnv;
+            if (!RTStrAPrintf(&pszEnv, "%s=%s", itEnv->first.c_str(), itEnv->second.c_str()))
+            {
+                rc = VERR_NO_MEMORY;
+                break;
+            }
+            AssertPtr(pszEnv);
+            rc = appendToEnvBlock(pszEnv, ppvEnv, &cbEnv, &cEnvVars);
+            RTStrFree(pszEnv);
+        }
+        Assert(cEnv == cEnvVars);
+    }
+
+    if (pcbEnv)
+        *pcbEnv = cbEnv;
+    if (pcEnvVars)
+        *pcEnvVars = cEnvVars;
+
+    return rc;
+}
+
+void GuestEnvironment::Clear(void)
+{
+    mEnvironment.clear();
+}
+
+int GuestEnvironment::CopyFrom(const GuestEnvironmentArray &environment)
+{
+    int rc = VINF_SUCCESS;
+
+    for (GuestEnvironmentArray::const_iterator it = environment.begin();
+         it != environment.end() && RT_SUCCESS(rc);
+         ++it)
+    {
+        rc = Set((*it));
+    }
+
+    return rc;
+}
+
+int GuestEnvironment::CopyTo(GuestEnvironmentArray &environment)
+{
+    size_t s = 0;
+    for (std::map<Utf8Str, Utf8Str>::const_iterator it = mEnvironment.begin();
+         it != mEnvironment.end();
+         ++it, ++s)
+    {
+        environment[s] = Bstr(it->first + "=" + it->second).raw();
+    }
+
+    return VINF_SUCCESS;
+}
+
+/* static */
+void GuestEnvironment::FreeEnvironmentBlock(void *pvEnv)
+{
+    if (pvEnv)
+        RTMemFree(pvEnv);
+}
+
+Utf8Str GuestEnvironment::Get(size_t nPos)
+{
+    size_t curPos = 0;
+    std::map<Utf8Str, Utf8Str>::const_iterator it = mEnvironment.begin();
+    for (; it != mEnvironment.end() && curPos < nPos;
+         ++it, ++curPos) { }
+
+    if (it != mEnvironment.end())
+        return Utf8Str(it->first + "=" + it->second);
+
+    return Utf8Str("");
+}
+
+Utf8Str GuestEnvironment::Get(const Utf8Str &strKey)
+{
+    std::map <Utf8Str, Utf8Str>::const_iterator itEnv = mEnvironment.find(strKey);
+    Utf8Str strRet;
+    if (itEnv != mEnvironment.end())
+        strRet = itEnv->second;
+    return strRet;
+}
+
+bool GuestEnvironment::Has(const Utf8Str &strKey)
+{
+    std::map <Utf8Str, Utf8Str>::const_iterator itEnv = mEnvironment.find(strKey);
+    return (itEnv != mEnvironment.end());
+}
+
+int GuestEnvironment::Set(const Utf8Str &strKey, const Utf8Str &strValue)
+{
+    /** @todo Do some validation using regex. */
+    if (strKey.isEmpty())
+        return VERR_INVALID_PARAMETER;
+
+    int rc = VINF_SUCCESS;
+    const char *pszString = strKey.c_str();
+    while (*pszString != '\0' && RT_SUCCESS(rc))
+    {
+         if (   !RT_C_IS_ALNUM(*pszString)
+             && !RT_C_IS_GRAPH(*pszString))
+             rc = VERR_INVALID_PARAMETER;
+         *pszString++;
+    }
+
+    if (RT_SUCCESS(rc))
+        mEnvironment[strKey] = strValue;
+
+    return rc;
+}
+
+int GuestEnvironment::Set(const Utf8Str &strPair)
+{
+    RTCList<RTCString> listPair = strPair.split("=", RTCString::KeepEmptyParts);
+    /* Skip completely empty pairs. Note that we still need pairs with a valid
+     * (set) key and an empty value. */
+    if (listPair.size() <= 1)
+        return VINF_SUCCESS;
+
+    int rc = VINF_SUCCESS;
+    size_t p = 0;
+    while (p < listPair.size() && RT_SUCCESS(rc))
+    {
+        Utf8Str strKey = listPair.at(p++);
+        if (   strKey.isEmpty()
+            || strKey.equals("=")) /* Skip pairs with empty keys (e.g. "=FOO"). */
+        {
+            break;
+        }
+        Utf8Str strValue;
+        if (p < listPair.size()) /* Does the list also contain a value? */
+            strValue = listPair.at(p++);
+
+#ifdef DEBUG
+        LogFlowFunc(("strKey=%s, strValue=%s\n",
+                     strKey.c_str(), strValue.c_str()));
+#endif
+        rc = Set(strKey, strValue);
+    }
+
+    return rc;
+}
+
+size_t GuestEnvironment::Size(void)
+{
+    return mEnvironment.size();
+}
+
+int GuestEnvironment::Unset(const Utf8Str &strKey)
+{
+    std::map <Utf8Str, Utf8Str>::iterator itEnv = mEnvironment.find(strKey);
+    if (itEnv != mEnvironment.end())
+    {
+        mEnvironment.erase(itEnv);
+        return VINF_SUCCESS;
+    }
+
+    return VERR_NOT_FOUND;
+}
+
+GuestEnvironment& GuestEnvironment::operator=(const GuestEnvironmentArray &that)
+{
+    CopyFrom(that);
+    return *this;
+}
+
+GuestEnvironment& GuestEnvironment::operator=(const GuestEnvironment &that)
+{
+    for (std::map<Utf8Str, Utf8Str>::const_iterator it = that.mEnvironment.begin();
+         it != that.mEnvironment.end();
+         ++it)
+    {
+        mEnvironment[it->first] = it->second;
+    }
+
+    return *this;
+}
+
+/**
+ * Appends environment variables to the environment block.
+ *
+ * Each var=value pair is separated by the null character ('\\0').  The whole
+ * block will be stored in one blob and disassembled on the guest side later to
+ * fit into the HGCM param structure.
+ *
+ * @returns VBox status code.
+ *
+ * @param   pszEnvVar       The environment variable=value to append to the
+ *                          environment block.
+ * @param   ppvList         This is actually a pointer to a char pointer
+ *                          variable which keeps track of the environment block
+ *                          that we're constructing.
+ * @param   pcbList         Pointer to the variable holding the current size of
+ *                          the environment block.  (List is a misnomer, go
+ *                          ahead a be confused.)
+ * @param   pcEnvVars       Pointer to the variable holding count of variables
+ *                          stored in the environment block.
+ */
+int GuestEnvironment::appendToEnvBlock(const char *pszEnv, void **ppvList, size_t *pcbList, uint32_t *pcEnvVars)
+{
+    int rc = VINF_SUCCESS;
+    size_t cchEnv = strlen(pszEnv); Assert(cchEnv >= 2);
+    if (*ppvList)
+    {
+        size_t cbNewLen = *pcbList + cchEnv + 1; /* Include zero termination. */
+        char *pvTmp = (char *)RTMemRealloc(*ppvList, cbNewLen);
+        if (pvTmp == NULL)
+            rc = VERR_NO_MEMORY;
+        else
+        {
+            memcpy(pvTmp + *pcbList, pszEnv, cchEnv);
+            pvTmp[cbNewLen - 1] = '\0'; /* Add zero termination. */
+            *ppvList = (void **)pvTmp;
+        }
+    }
+    else
+    {
+        char *pszTmp;
+        if (RTStrAPrintf(&pszTmp, "%s", pszEnv) >= 0)
+        {
+            *ppvList = (void **)pszTmp;
+            /* Reset counters. */
+            *pcEnvVars = 0;
+            *pcbList = 0;
+        }
+    }
+    if (RT_SUCCESS(rc))
+    {
+        *pcbList += cchEnv + 1; /* Include zero termination. */
+        *pcEnvVars += 1;        /* Increase env variable count. */
+    }
+    return rc;
+}
 
 int GuestFsObjData::FromLs(const GuestProcessStreamBlock &strmBlk)
 {
@@ -62,7 +311,7 @@ int GuestFsObjData::FromLs(const GuestProcessStreamBlock &strmBlk)
             mType = FsObjType_Directory;
         /** @todo Add more types! */
         else
-            mType = FsObjType_Unknown;
+            mType = FsObjType_Undefined;
         /* Object size. */
         rc = strmBlk.GetInt64Ex("st_size", &mObjectSize);
         if (RT_FAILURE(rc)) throw rc;
@@ -128,7 +377,7 @@ int GuestFsObjData::FromStat(const GuestProcessStreamBlock &strmBlk)
             mType = FsObjType_Directory;
         /** @todo Add more types! */
         else
-            mType = FsObjType_Unknown;
+            mType = FsObjType_Undefined;
         /* Object size. */
         rc = strmBlk.GetInt64Ex("st_size", &mObjectSize);
         if (RT_FAILURE(rc)) throw rc;
@@ -976,7 +1225,7 @@ int GuestObject::registerWaitEvent(const GuestEventTypes &lstEvents,
                                    GuestWaitEvent **ppEvent)
 {
     AssertPtr(mSession);
-    return GuestBase::registerWaitEvent(mSession->i_getId(), mObjectID, lstEvents, ppEvent);
+    return GuestBase::registerWaitEvent(mSession->getId(), mObjectID, lstEvents, ppEvent);
 }
 
 int GuestObject::sendCommand(uint32_t uFunction,
@@ -989,7 +1238,7 @@ int GuestObject::sendCommand(uint32_t uFunction,
     int vrc = VERR_HGCM_SERVICE_NOT_FOUND;
 
     /* Forward the information to the VMM device. */
-    VMMDev *pVMMDev = pConsole->i_getVMMDev();
+    VMMDev *pVMMDev = pConsole->getVMMDev();
     if (pVMMDev)
     {
         LogFlowThisFunc(("uFunction=%RU32, uParms=%RU32\n", uFunction, uParms));

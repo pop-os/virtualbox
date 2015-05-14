@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2005-2013 Oracle Corporation
+ * Copyright (C) 2005-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,7 +20,7 @@
 #ifndef ____H_USBCONTROLLERIMPL
 #define ____H_USBCONTROLLERIMPL
 
-#include "USBControllerWrap.h"
+#include "VirtualBoxBase.h"
 
 class HostUSBDevice;
 class USBDeviceFilter;
@@ -31,9 +31,19 @@ namespace settings
 }
 
 class ATL_NO_VTABLE USBController :
-    public USBControllerWrap
+    public VirtualBoxBase,
+    VBOX_SCRIPTABLE_IMPL(IUSBController)
 {
 public:
+    VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT(USBController, IUSBController)
+
+    DECLARE_NOT_AGGREGATABLE(USBController)
+
+    DECLARE_PROTECT_FINAL_CONSTRUCT()
+
+    BEGIN_COM_MAP(USBController)
+        VBOX_DEFAULT_INTERFACE_ENTRIES(IUSBController)
+    END_COM_MAP()
 
     DECLARE_EMPTY_CTOR_DTOR(USBController)
 
@@ -46,22 +56,24 @@ public:
     HRESULT initCopy(Machine *aParent, USBController *aThat);
     void uninit();
 
-    // public methods only for internal purposes
-    void i_rollback();
-    void i_commit();
-    void i_copyFrom(USBController *aThat);
-    void i_unshare();
+    // IUSBController properties
+    STDMETHOD(COMGETTER(Name))(BSTR *aName);
+    STDMETHOD(COMGETTER(Type))(USBControllerType_T *enmType);
+    STDMETHOD(COMGETTER(USBStandard))(USHORT *aUSBStandard);
 
-    ComObjPtr<USBController> i_getPeer();
-    const Utf8Str &i_getName() const;
-    const USBControllerType_T &i_getControllerType() const;
+    // public methods only for internal purposes
+
+    void rollback();
+    void commit();
+    void copyFrom(USBController *aThat);
+    void unshare();
+
+    const Utf8Str &getName() const;
+    USBControllerType_T getControllerType() const;
+
+    ComObjPtr<USBController> getPeer();
 
 private:
-
-    // wrapped IUSBController properties
-    HRESULT getName(com::Utf8Str &aName);
-    HRESULT getType(USBControllerType_T *aType);
-    HRESULT getUSBStandard(USHORT *aUSBStandard);
 
     void printList();
 

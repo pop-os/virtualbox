@@ -54,10 +54,8 @@ static uint32_t g_cCpus = 1;
 /*******************************************************************************
 *   Internal Functions                                                         *
 *******************************************************************************/
-VMMR3DECL(int) VMMDoTest(PVM pVM);              /* Linked into VMM, see ../VMMTests.cpp. */
-VMMR3DECL(int) VMMDoBruteForceMsrs(PVM pVM);    /* Ditto. */
-VMMR3DECL(int) VMMDoKnownMsrs(PVM pVM);         /* Ditto. */
-VMMR3DECL(int) VMMDoMsrExperiments(PVM pVM);    /* Ditto. */
+VMMR3DECL(int) VMMDoTest(PVM pVM);    /* Linked into VMM, see ../VMMTests.cpp. */
+VMMR3DECL(int) VMMDoBruteForceMsrs(PVM pVM); /* Ditto. */
 
 
 /** Dummy timer callback. */
@@ -215,7 +213,7 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
     };
     enum
     {
-        kTstVMMTest_VMM,  kTstVMMTest_TM, kTstVMMTest_MSRs, kTstVMMTest_KnownMSRs, kTstVMMTest_MSRExperiments
+        kTstVMMTest_VMM,  kTstVMMTest_TM, kTstVMMTest_MSRs
     } enmTestOpt = kTstVMMTest_VMM;
 
     int ch;
@@ -237,10 +235,6 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
                     enmTestOpt = kTstVMMTest_TM;
                 else if (!strcmp("msr", ValueUnion.psz) || !strcmp("msrs", ValueUnion.psz))
                     enmTestOpt = kTstVMMTest_MSRs;
-                else if (!strcmp("known-msr", ValueUnion.psz) || !strcmp("known-msrs", ValueUnion.psz))
-                    enmTestOpt = kTstVMMTest_KnownMSRs;
-                else if (!strcmp("msr-experiments", ValueUnion.psz))
-                    enmTestOpt = kTstVMMTest_MSRExperiments;
                 else
                 {
                     RTPrintf("tstVMM: unknown test: '%s'\n", ValueUnion.psz);
@@ -249,11 +243,11 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
                 break;
 
             case 'h':
-                RTPrintf("usage: tstVMM [--cpus|-c cpus] [--test <vmm|tm|msrs|known-msrs>]\n");
+                RTPrintf("usage: tstVMM [--cpus|-c cpus] [--test <vmm|tm|msr>]\n");
                 return 1;
 
             case 'V':
-                RTPrintf("$Revision: 94786 $\n");
+                RTPrintf("$Revision: 94787 $\n");
                 return 0;
 
             default:
@@ -319,35 +313,6 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
                     RTTestFailed(hTest, "The MSR test can only be run with one VCpu!\n");
                 break;
             }
-
-            case kTstVMMTest_KnownMSRs:
-            {
-                RTTestSub(hTest, "Known MSRs");
-                if (g_cCpus == 1)
-                {
-                    rc = VMR3ReqCallWaitU(pUVM, 0 /*idDstCpu*/, (PFNRT)VMMDoKnownMsrs, 1, pVM);
-                    if (RT_FAILURE(rc))
-                        RTTestFailed(hTest, "VMMDoKnownMsrs failed: rc=%Rrc\n", rc);
-                }
-                else
-                    RTTestFailed(hTest, "The MSR test can only be run with one VCpu!\n");
-                break;
-            }
-
-            case kTstVMMTest_MSRExperiments:
-            {
-                RTTestSub(hTest, "MSR Experiments");
-                if (g_cCpus == 1)
-                {
-                    rc = VMR3ReqCallWaitU(pUVM, 0 /*idDstCpu*/, (PFNRT)VMMDoMsrExperiments, 1, pVM);
-                    if (RT_FAILURE(rc))
-                        RTTestFailed(hTest, "VMMDoMsrExperiments failed: rc=%Rrc\n", rc);
-                }
-                else
-                    RTTestFailed(hTest, "The MSR test can only be run with one VCpu!\n");
-                break;
-            }
-
         }
 
         /*

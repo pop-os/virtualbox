@@ -1,4 +1,3 @@
-/* $Id: cconvBGR.c $ */
 #extension GL_ARB_texture_rectangle : enable
 uniform sampler2DRect uSrcTex;
 void vboxCConv()

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -377,19 +377,12 @@ typedef struct PDMIMOUSECONNECTOR
      * Notifies the the downstream driver of changes to the reporting modes
      * supported by the driver
      *
-     * @param   pInterface      Pointer to this interface structure.
+     * @param   pInterface      Pointer to the this interface.
      * @param   fRelative       Whether relative mode is currently supported.
      * @param   fAbsolute       Whether absolute mode is currently supported.
      * @param   fAbsolute       Whether multi-touch mode is currently supported.
      */
     DECLR3CALLBACKMEMBER(void, pfnReportModes,(PPDMIMOUSECONNECTOR pInterface, bool fRelative, bool fAbsolute, bool fMultiTouch));
-
-    /**
-     * Flushes the mouse queue if it contains pending events.
-     *
-     * @param   pInterface      Pointer to this interface structure.
-     */
-    DECLR3CALLBACKMEMBER(void, pfnFlushQueue,(PPDMIMOUSECONNECTOR pInterface));
 
 } PDMIMOUSECONNECTOR;
 /** PDMIMOUSECONNECTOR interface ID.  */
@@ -405,7 +398,7 @@ typedef struct PDMIKEYBOARDPORT *PPDMIKEYBOARDPORT;
 typedef struct PDMIKEYBOARDPORT
 {
     /**
-     * Puts a scan code based keyboard event.
+     * Puts a keyboard event.
      *
      * This is called by the source of keyboard events. The event will be passed up
      * until the topmost driver, which then calls the registered event handler.
@@ -414,23 +407,9 @@ typedef struct PDMIKEYBOARDPORT
      *          event now and want it to be repeated at a later point.
      *
      * @param   pInterface          Pointer to this interface structure.
-     * @param   u8ScanCode          The scan code to queue.
+     * @param   u8KeyCode           The keycode to queue.
      */
-    DECLR3CALLBACKMEMBER(int, pfnPutEventScan,(PPDMIKEYBOARDPORT pInterface, uint8_t u8KeyCode));
-
-    /**
-     * Puts a USB HID usage ID based keyboard event.
-     *
-     * This is called by the source of keyboard events. The event will be passed up
-     * until the topmost driver, which then calls the registered event handler.
-     *
-     * @returns VBox status code.  Return VERR_TRY_AGAIN if you cannot process the
-     *          event now and want it to be repeated at a later point.
-     *
-     * @param   pInterface          Pointer to this interface structure.
-     * @param   u32UsageID          The HID usage code event to queue.
-     */
-    DECLR3CALLBACKMEMBER(int, pfnPutEventHid,(PPDMIKEYBOARDPORT pInterface, uint32_t u32UsageID));
+    DECLR3CALLBACKMEMBER(int, pfnPutEvent,(PPDMIKEYBOARDPORT pInterface, uint8_t u8KeyCode));
 } PDMIKEYBOARDPORT;
 /** PDMIKEYBOARDPORT interface ID. */
 #define PDMIKEYBOARDPORT_IID                    "2a0844f0-410b-40ab-a6ed-6575f3aa3e29"
@@ -462,7 +441,7 @@ typedef struct PDMIKEYBOARDCONNECTOR
     /**
      * Notifies the the downstream driver about an LED change initiated by the guest.
      *
-     * @param   pInterface      Pointer to this interface structure.
+     * @param   pInterface      Pointer to the this interface.
      * @param   enmLeds         The new led mask.
      */
     DECLR3CALLBACKMEMBER(void, pfnLedStatusChange,(PPDMIKEYBOARDCONNECTOR pInterface, PDMKEYBLEDS enmLeds));
@@ -470,17 +449,10 @@ typedef struct PDMIKEYBOARDCONNECTOR
     /**
      * Notifies the the downstream driver of changes in driver state.
      *
-     * @param   pInterface      Pointer to this interface structure.
+     * @param   pInterface      Pointer to the this interface.
      * @param   fActive         Whether interface wishes to get "focus".
      */
     DECLR3CALLBACKMEMBER(void, pfnSetActive,(PPDMIKEYBOARDCONNECTOR pInterface, bool fActive));
-
-    /**
-     * Flushes the keyboard queue if it contains pending events.
-     *
-     * @param   pInterface      Pointer to this interface structure.
-     */
-    DECLR3CALLBACKMEMBER(void, pfnFlushQueue,(PPDMIKEYBOARDCONNECTOR pInterface));
 
 } PDMIKEYBOARDCONNECTOR;
 /** PDMIKEYBOARDCONNECTOR interface ID. */
@@ -517,10 +489,9 @@ typedef struct PDMIDISPLAYPORT
      *
      * @returns VBox status code.
      * @param   pInterface          Pointer to this interface.
-     * @param   fFailOnResize       Fail is a resize is pending.
      * @thread  The emulation thread.
      */
-    DECLR3CALLBACKMEMBER(int, pfnUpdateDisplayAll,(PPDMIDISPLAYPORT pInterface, bool fFailOnResize));
+    DECLR3CALLBACKMEMBER(int, pfnUpdateDisplayAll,(PPDMIDISPLAYPORT pInterface));
 
     /**
      * Return the current guest color depth in bits per pixel (bpp).
@@ -716,7 +687,6 @@ typedef struct VBVAINFOVIEW *PVBVAINFOVIEW;
 typedef struct VBVAHOSTFLAGS *PVBVAHOSTFLAGS;
 struct VBOXVDMACMD_CHROMIUM_CMD; /* <- chromium [hgsmi] command */
 struct VBOXVDMACMD_CHROMIUM_CTL; /* <- chromium [hgsmi] command */
-
 
 /** Pointer to a display connector interface. */
 typedef struct PDMIDISPLAYCONNECTOR *PPDMIDISPLAYCONNECTOR;
@@ -1395,35 +1365,9 @@ typedef struct PDMISECKEY
      *        difficult like scrambling the memory buffer for instance.
      */
     DECLR3CALLBACKMEMBER(int, pfnKeyRelease, (PPDMISECKEY pInterface, const char *pszId));
-
-    /**
-     * Retains a password identified by the ID. The caller will only hold a reference
-     * to the password and must not modify the buffer in any way.
-     *
-     * @returns VBox status code.
-     * @param   pInterface      Pointer to this interface.
-     * @param   pszId           The alias/id for the password to retrieve.
-     * @param   ppszPassword    Where to store the pointer to the password on success.
-     */
-    DECLR3CALLBACKMEMBER(int, pfnPasswordRetain, (PPDMISECKEY pInterface, const char *pszId,
-                                                  const char **ppszPassword));
-
-    /**
-     * Releases one reference of the password identified by the given identifier.
-     * The caller must not access the password after calling this operation.
-     *
-     * @returns VBox status code.
-     * @param   pInterface      Pointer to this interface.
-     * @param   pszId           The alias/id for the password to release.
-     *
-     * @note: It is advised to release the password whenever it is not used anymore so the entity
-     *        storing the password can do anything to make retrieving the password from memory more
-     *        difficult like scrambling the memory buffer for instance.
-     */
-    DECLR3CALLBACKMEMBER(int, pfnPasswordRelease, (PPDMISECKEY pInterface, const char *pszId));
 } PDMISECKEY;
 /** PDMISECKEY interface ID. */
-#define PDMISECKEY_IID                           "3d698355-d995-453d-960f-31566a891df2"
+#define PDMISECKEY_IID                           "a7336c4a-2ca0-489d-ad2d-f740f215a1e6"
 
 /** Pointer to a secret key helper interface. */
 typedef struct PDMISECKEYHLP *PPDMISECKEYHLP;
@@ -2837,7 +2781,6 @@ typedef struct PDMIVMMDEVCONNECTOR
 #define PDMIVMMDEVCONNECTOR_IID                 "aff90240-a443-434e-9132-80c186ab97d4"
 
 
-#ifndef VBOX_WITH_PDM_AUDIO_DRIVER
 /** Pointer to a network connector interface */
 typedef struct PDMIAUDIOCONNECTOR *PPDMIAUDIOCONNECTOR;
 /**
@@ -2853,6 +2796,7 @@ typedef struct PDMIAUDIOCONNECTOR
 } PDMIAUDIOCONNECTOR;
 /** PDMIAUDIOCONNECTOR interface ID. */
 #define PDMIAUDIOCONNECTOR_IID                  "85d52af5-b3aa-4b3e-b176-4b5ebfc52f47"
+
 
 /** @todo r=bird: the two following interfaces are hacks to work around the missing audio driver
  * interface. This should be addressed rather than making more temporary hacks. */
@@ -3006,7 +2950,6 @@ typedef struct PDMIAUDIOSNIFFERCONNECTOR
 /** PDMIAUDIOSNIFFERCONNECTOR - The Audio Sniffer Driver connector interface. */
 #define PDMIAUDIOSNIFFERCONNECTOR_IID           "9d37f543-27af-45f8-8002-8ef7abac71e4"
 
-#endif /* VBOX_WITH_PDM_AUDIO_DRIVER */
 
 /**
  * Generic status LED core.

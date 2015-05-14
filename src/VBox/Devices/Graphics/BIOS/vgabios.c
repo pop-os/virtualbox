@@ -181,37 +181,8 @@ void init_bios_area(void)
     bda[BIOSMEM_CURRENT_MSR] = 0x09;
 }
 
-struct dcc {
-    uint8_t     n_ent;
-    uint8_t     version;
-    uint8_t     max_code;
-    uint8_t     reserved;
-    uint16_t    dccs[16];
-} dcc_table = {
-    16,
-    1,
-    7,
-    0
-};
-
-struct ssa {
-    uint16_t    size;
-    void __far  *dcc;
-    void __far  *sacs;
-    void __far  *pal;
-    void __far  *resvd[3];
-
-} secondary_save_area = {
-    sizeof(struct ssa),
-    &dcc_table
-};
-
 void __far *video_save_pointer_table[7] = {
-    &video_param_table,
-    0,
-    0,
-    0,
-    &secondary_save_area
+    &video_param_table
 };
 
 // ============================================================================================
@@ -661,11 +632,6 @@ void biosfn_set_video_mode(uint8_t mode)
 
  // The real mode
  mode=mode&0x7f;
-
- // Display switching is not supported, and mono monitors aren't either.
- // Requests to set mode 7 (mono) must set mode 0 instead (color).
- if (mode == 7)
-     mode = 0;
 
  // find the entry in the video modes
  line=find_vga_entry(mode);
@@ -1447,20 +1413,29 @@ static void biosfn_write_teletype(uint8_t car, uint8_t page, uint8_t attr, uint8
 
  switch(car)
   {
-   case '\a':   // ASCII 0x07, BEL
+   case 7:
     //FIXME should beep
     break;
 
-   case '\b':   // ASCII 0x08, BS
+   case 8:
     if(xcurs>0)xcurs--;
     break;
 
-   case '\n':   // ASCII 0x0A, LF
+   case '\r':
+    xcurs=0;
+    break;
+
+   case '\n':
     ycurs++;
     break;
 
-   case '\r':   // ASCII 0x0D, CR
-    xcurs=0;
+   case '\t':
+    do
+     {
+      biosfn_write_teletype(' ',page,attr,flag);
+      vga_get_cursor_pos(page,&dummy,&cursor);
+      xcurs=cursor&0x00ff;ycurs=(cursor&0xff00)>>8;
+     }while(xcurs%8==0);
     break;
 
    default:
@@ -1500,11 +1475,12 @@ static void biosfn_write_teletype(uint8_t car, uint8_t page, uint8_t attr, uint8
        }
      }
     xcurs++;
-    // Do we need to wrap ?
-    if(xcurs==nbcols)
-     {xcurs=0;
-      ycurs++;
-     }
+  }
+
+ // Do we need to wrap ?
+ if(xcurs==nbcols)
+  {xcurs=0;
+   ycurs++;
   }
 
  // Do we need to scroll ?

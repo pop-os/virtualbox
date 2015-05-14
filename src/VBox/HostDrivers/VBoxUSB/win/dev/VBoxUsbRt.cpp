@@ -1133,7 +1133,6 @@ static NTSTATUS vboxUsbRtUrbSendCompletion(PDEVICE_OBJECT pDevObj, IRP *pIrp, vo
                 Status = STATUS_SUCCESS;
                 break;
             case USBD_STATUS_DEV_NOT_RESPONDING:
-            case USBD_STATUS_DEVICE_GONE:
                 pUrbInfo->error = USBSUP_XFER_DNR;
                 Status = STATUS_SUCCESS;
                 break;

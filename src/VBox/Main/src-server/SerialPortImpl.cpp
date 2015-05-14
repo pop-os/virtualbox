@@ -1,11 +1,10 @@
-/* $Id: SerialPortImpl.cpp $ */
 /** @file
  *
  * VirtualBox COM class implementation
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,6 +28,27 @@
 #include "AutoStateDep.h"
 #include "AutoCaller.h"
 #include "Logging.h"
+
+////////////////////////////////////////////////////////////////////////////////
+//
+// SerialPort private data definition
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct SerialPort::Data
+{
+    Data()
+        : fModified(false),
+          pMachine(NULL)
+    { }
+
+    bool                                fModified;
+
+    Machine * const                     pMachine;
+    const ComObjPtr<SerialPort>         pPeer;
+
+    Backupable<settings::SerialPort>    bd;
+};
 
 // constructor / destructor
 /////////////////////////////////////////////////////////////////////////////
@@ -176,8 +196,13 @@ void SerialPort::uninit()
 // ISerialPort properties
 /////////////////////////////////////////////////////////////////////////////
 
-HRESULT SerialPort::getEnabled(BOOL *aEnabled)
+STDMETHODIMP SerialPort::COMGETTER(Enabled) (BOOL *aEnabled)
 {
+    CheckComArgOutPointerValid(aEnabled);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     *aEnabled = m->bd->fEnabled;
@@ -185,10 +210,12 @@ HRESULT SerialPort::getEnabled(BOOL *aEnabled)
     return S_OK;
 }
 
-
-HRESULT SerialPort::setEnabled(BOOL aEnabled)
+STDMETHODIMP SerialPort::COMSETTER(Enabled) (BOOL aEnabled)
 {
     LogFlowThisFunc(("aEnabled=%RTbool\n", aEnabled));
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     /* the machine needs to be mutable */
     AutoMutableStateDependency adep(m->pMachine);
@@ -206,18 +233,22 @@ HRESULT SerialPort::setEnabled(BOOL aEnabled)
         alock.release();
 
         AutoWriteLock mlock(m->pMachine COMMA_LOCKVAL_SRC_POS);
-        m->pMachine->i_setModified(Machine::IsModified_SerialPorts);
+        m->pMachine->setModified(Machine::IsModified_SerialPorts);
         mlock.release();
 
-        m->pMachine->i_onSerialPortChange(this);
+        m->pMachine->onSerialPortChange(this);
     }
 
     return S_OK;
 }
 
-
-HRESULT SerialPort::getHostMode(PortMode_T *aHostMode)
+STDMETHODIMP SerialPort::COMGETTER(HostMode) (PortMode_T *aHostMode)
 {
+    CheckComArgOutPointerValid(aHostMode);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     *aHostMode = m->bd->portMode;
@@ -225,10 +256,13 @@ HRESULT SerialPort::getHostMode(PortMode_T *aHostMode)
     return S_OK;
 }
 
-HRESULT SerialPort::setHostMode(PortMode_T aHostMode)
+STDMETHODIMP SerialPort::COMSETTER(HostMode) (PortMode_T aHostMode)
 {
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     /* the machine needs to be mutable */
-    AutoMutableOrSavedStateDependency adep(m->pMachine);
+    AutoMutableStateDependency adep(m->pMachine);
     if (FAILED(adep.rc())) return adep.rc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
@@ -258,13 +292,6 @@ HRESULT SerialPort::setHostMode(PortMode_T aHostMode)
                                        "because the device path is empty or null"),
                                     m->bd->ulSlot);
                 break;
-            case PortMode_TCP:
-                if (m->bd->strPath.isEmpty())
-                    return setError(E_INVALIDARG,
-                                    tr("Cannot set the host device mode of the serial port %d "
-                                       "because the server address or TCP port is invalid"),
-                                    m->bd->ulSlot);
-                break;
             case PortMode_Disconnected:
                 break;
         }
@@ -277,17 +304,22 @@ HRESULT SerialPort::setHostMode(PortMode_T aHostMode)
         alock.release();
 
         AutoWriteLock mlock(m->pMachine COMMA_LOCKVAL_SRC_POS);
-        m->pMachine->i_setModified(Machine::IsModified_SerialPorts);
+        m->pMachine->setModified(Machine::IsModified_SerialPorts);
         mlock.release();
 
-        m->pMachine->i_onSerialPortChange(this);
+        m->pMachine->onSerialPortChange(this);
     }
 
     return S_OK;
 }
 
-HRESULT SerialPort::getSlot(ULONG *aSlot)
+STDMETHODIMP SerialPort::COMGETTER(Slot) (ULONG *aSlot)
 {
+    CheckComArgOutPointerValid(aSlot);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     *aSlot = m->bd->ulSlot;
@@ -295,9 +327,13 @@ HRESULT SerialPort::getSlot(ULONG *aSlot)
     return S_OK;
 }
 
-
-HRESULT SerialPort::getIRQ(ULONG *aIRQ)
+STDMETHODIMP SerialPort::COMGETTER(IRQ) (ULONG *aIRQ)
 {
+    CheckComArgOutPointerValid(aIRQ);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     *aIRQ = m->bd->ulIRQ;
@@ -305,8 +341,7 @@ HRESULT SerialPort::getIRQ(ULONG *aIRQ)
     return S_OK;
 }
 
-
-HRESULT SerialPort::setIRQ(ULONG aIRQ)
+STDMETHODIMP SerialPort::COMSETTER(IRQ)(ULONG aIRQ)
 {
     /* check IRQ limits
      * (when changing this, make sure it corresponds to XML schema */
@@ -314,6 +349,9 @@ HRESULT SerialPort::setIRQ(ULONG aIRQ)
         return setError(E_INVALIDARG,
                         tr("Invalid IRQ number of the serial port %d: %lu (must be in range [0, %lu])"),
                         m->bd->ulSlot, aIRQ, 255);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     /* the machine needs to be mutable */
     AutoMutableStateDependency adep(m->pMachine);
@@ -331,18 +369,22 @@ HRESULT SerialPort::setIRQ(ULONG aIRQ)
         alock.release();
 
         AutoWriteLock mlock(m->pMachine COMMA_LOCKVAL_SRC_POS);
-        m->pMachine->i_setModified(Machine::IsModified_SerialPorts);
+        m->pMachine->setModified(Machine::IsModified_SerialPorts);
         mlock.release();
 
-        m->pMachine->i_onSerialPortChange(this);
+        m->pMachine->onSerialPortChange(this);
     }
 
     return S_OK;
 }
 
-
-HRESULT SerialPort::getIOBase(ULONG *aIOBase)
+STDMETHODIMP SerialPort::COMGETTER(IOBase) (ULONG *aIOBase)
 {
+    CheckComArgOutPointerValid(aIOBase);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     *aIOBase = m->bd->ulIOBase;
@@ -350,7 +392,7 @@ HRESULT SerialPort::getIOBase(ULONG *aIOBase)
     return S_OK;
 }
 
-HRESULT SerialPort::setIOBase(ULONG aIOBase)
+STDMETHODIMP SerialPort::COMSETTER(IOBase)(ULONG aIOBase)
 {
     /* check IOBase limits
      * (when changing this, make sure it corresponds to XML schema */
@@ -380,57 +422,74 @@ HRESULT SerialPort::setIOBase(ULONG aIOBase)
         alock.release();
 
         AutoWriteLock mlock(m->pMachine COMMA_LOCKVAL_SRC_POS);
-        m->pMachine->i_setModified(Machine::IsModified_SerialPorts);
+        m->pMachine->setModified(Machine::IsModified_SerialPorts);
         mlock.release();
 
-        m->pMachine->i_onSerialPortChange(this);
+        m->pMachine->onSerialPortChange(this);
     }
 
     return rc;
 }
 
-HRESULT SerialPort::getPath(com::Utf8Str &aPath)
+STDMETHODIMP SerialPort::COMGETTER(Path) (BSTR *aPath)
 {
+    CheckComArgOutPointerValid(aPath);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    aPath = m->bd->strPath;
+    m->bd->strPath.cloneTo(aPath);
 
     return S_OK;
 }
 
-
-HRESULT SerialPort::setPath(const com::Utf8Str &aPath)
+STDMETHODIMP SerialPort::COMSETTER(Path) (IN_BSTR aPath)
 {
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     /* the machine needs to be mutable */
-    AutoMutableOrSavedStateDependency adep(m->pMachine);
+    AutoMutableStateDependency adep(m->pMachine);
     if (FAILED(adep.rc())) return adep.rc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    if (aPath != m->bd->strPath)
+    /* we treat empty as null when e.g. saving to XML, do the same here */
+    if (aPath && *aPath == '\0')
+        aPath = NULL;
+
+    Utf8Str str(aPath);
+    if (str != m->bd->strPath)
     {
-        HRESULT rc = i_checkSetPath(aPath);
+        HRESULT rc = checkSetPath(str);
         if (FAILED(rc)) return rc;
 
         m->bd.backup();
-        m->bd->strPath = aPath;
+        m->bd->strPath = str;
 
         m->fModified = true;
         // leave the lock before informing callbacks
         alock.release();
 
         AutoWriteLock mlock(m->pMachine COMMA_LOCKVAL_SRC_POS);
-        m->pMachine->i_setModified(Machine::IsModified_SerialPorts);
+        m->pMachine->setModified(Machine::IsModified_SerialPorts);
         mlock.release();
 
-        m->pMachine->i_onSerialPortChange(this);
+        m->pMachine->onSerialPortChange(this);
     }
 
     return S_OK;
 }
 
-HRESULT SerialPort::getServer(BOOL *aServer)
+STDMETHODIMP SerialPort::COMGETTER(Server) (BOOL *aServer)
 {
+    CheckComArgOutPointerValid(aServer);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     *aServer = m->bd->fServer;
@@ -438,10 +497,13 @@ HRESULT SerialPort::getServer(BOOL *aServer)
     return S_OK;
 }
 
-HRESULT SerialPort::setServer(BOOL aServer)
+STDMETHODIMP SerialPort::COMSETTER(Server) (BOOL aServer)
 {
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     /* the machine needs to be mutable */
-    AutoMutableOrSavedStateDependency adep(m->pMachine);
+    AutoMutableStateDependency adep(m->pMachine);
     if (FAILED(adep.rc())) return adep.rc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
@@ -456,10 +518,10 @@ HRESULT SerialPort::setServer(BOOL aServer)
         alock.release();
 
         AutoWriteLock mlock(m->pMachine COMMA_LOCKVAL_SRC_POS);
-        m->pMachine->i_setModified(Machine::IsModified_SerialPorts);
+        m->pMachine->setModified(Machine::IsModified_SerialPorts);
         mlock.release();
 
-        m->pMachine->i_onSerialPortChange(this);
+        m->pMachine->onSerialPortChange(this);
     }
 
     return S_OK;
@@ -476,9 +538,8 @@ HRESULT SerialPort::setServer(BOOL aServer)
  *
  *  @note Locks this object for writing.
  */
-HRESULT SerialPort::i_loadSettings(const settings::SerialPort &data)
+HRESULT SerialPort::loadSettings(const settings::SerialPort &data)
 {
-
     AutoCaller autoCaller(this);
     AssertComRCReturnRC(autoCaller.rc());
 
@@ -499,7 +560,7 @@ HRESULT SerialPort::i_loadSettings(const settings::SerialPort &data)
  *
  *  @note Locks this object for reading.
  */
-HRESULT SerialPort::i_saveSettings(settings::SerialPort &data)
+HRESULT SerialPort::saveSettings(settings::SerialPort &data)
 {
     AutoCaller autoCaller(this);
     AssertComRCReturnRC(autoCaller.rc());
@@ -516,7 +577,7 @@ HRESULT SerialPort::i_saveSettings(settings::SerialPort &data)
  * Returns true if any setter method has modified settings of this instance.
  * @return
  */
-bool SerialPort::i_isModified()
+bool SerialPort::isModified()
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
     return m->fModified;
@@ -525,7 +586,7 @@ bool SerialPort::i_isModified()
 /**
  *  @note Locks this object for writing.
  */
-void SerialPort::i_rollback()
+void SerialPort::rollback()
 {
     /* sanity */
     AutoCaller autoCaller(this);
@@ -540,7 +601,7 @@ void SerialPort::i_rollback()
  *  @note Locks this object for writing, together with the peer object (also
  *  for writing) if there is one.
  */
-void SerialPort::i_commit()
+void SerialPort::commit()
 {
     /* sanity */
     AutoCaller autoCaller(this);
@@ -569,7 +630,7 @@ void SerialPort::i_commit()
  *  @note Locks this object for writing, together with the peer object
  *  represented by @a aThat (locked for reading).
  */
-void SerialPort::i_copyFrom (SerialPort *aThat)
+void SerialPort::copyFrom (SerialPort *aThat)
 {
     AssertReturnVoid (aThat != NULL);
 
@@ -590,7 +651,7 @@ void SerialPort::i_copyFrom (SerialPort *aThat)
     m->bd.assignCopy (aThat->m->bd);
 }
 
-void SerialPort::i_applyDefaults (GuestOSType *aOsType)
+void SerialPort::applyDefaults (GuestOSType *aOsType)
 {
     AssertReturnVoid (aOsType != NULL);
 
@@ -626,7 +687,7 @@ void SerialPort::i_applyDefaults (GuestOSType *aOsType)
         default: break;
     }
 
-    uint32_t numSerialEnabled = aOsType->i_numSerialEnabled();
+    uint32_t numSerialEnabled = aOsType->numSerialEnabled();
 
     /* Enable port if requested */
     if (m->bd->ulSlot < numSerialEnabled)
@@ -638,19 +699,18 @@ void SerialPort::i_applyDefaults (GuestOSType *aOsType)
 /**
  *  Validates COMSETTER(Path) arguments.
  */
-HRESULT SerialPort::i_checkSetPath(const Utf8Str &str)
+HRESULT SerialPort::checkSetPath(const Utf8Str &str)
 {
     AssertReturn(isWriteLockOnCurrentThread(), E_FAIL);
 
     if (    (    m->bd->portMode == PortMode_HostDevice
               || m->bd->portMode == PortMode_HostPipe
-              || m->bd->portMode == PortMode_TCP
               || m->bd->portMode == PortMode_RawFile
             ) && str.isEmpty()
        )
         return setError(E_INVALIDARG,
                         tr("Path of the serial port %d may not be empty or null in "
-                           "host pipe, host device or TCP mode"),
+                           "host pipe or host device mode"),
                         m->bd->ulSlot);
 
     return S_OK;

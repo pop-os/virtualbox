@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -43,6 +43,7 @@
  */
 
 /** @defgroup grp_rt_err_hlp        Status Code Helpers
+ * @ingroup grp_rt_err
  * @{
  */
 
@@ -802,7 +803,7 @@ RT_C_DECLS_END
 #define VERR_CODE_POINT_SURROGATE           (-60)
 /** A string claiming to be UTF-8 is incorrectly encoded. */
 #define VERR_INVALID_UTF8_ENCODING          (-61)
-/** A string claiming to be in UTF-16 is incorrectly encoded. */
+/** Ad string claiming to be in UTF-16 is incorrectly encoded. */
 #define VERR_INVALID_UTF16_ENCODING         (-62)
 /** Encountered a unicode code point which cannot be represented as UTF-16. */
 #define VERR_CANT_RECODE_AS_UTF16           (-63)
@@ -816,7 +817,7 @@ RT_C_DECLS_END
 #define VERR_MEMORY_BUSY                    (-67)
 /** The timer can't be started because it's already active. */
 #define VERR_TIMER_ACTIVE                   (-68)
-/** The timer can't be stopped because it's already suspended. */
+/** The timer can't be stopped because i's already suspended. */
 #define VERR_TIMER_SUSPENDED                (-69)
 /** The operation was cancelled by the user (copy) or another thread (local ipc). */
 #define VERR_CANCELLED                      (-70)
@@ -925,10 +926,6 @@ RT_C_DECLS_END
 #define VWRN_UNABLE_TO_SATISFY_REQUIREMENTS 22406
 /** The requested allocation is too big. */
 #define VERR_ALLOCATION_TOO_BIG             (-22407)
-/** Mismatch. */
-#define VERR_MISMATCH                       (-22408)
-/** Wrong type. */
-#define VERR_WRONG_TYPE                     (-22409)
 /** @} */
 
 
@@ -1197,7 +1194,7 @@ RT_C_DECLS_END
 #define VERR_SEM_LV_WRONG_ORDER             (-368)
 /** Wrong release order detected. */
 #define VERR_SEM_LV_WRONG_RELEASE_ORDER     (-369)
-/** Attempt to recursively enter a non-recursive lock. */
+/** Attempt to recursively enter a non-recurisve lock. */
 #define VERR_SEM_LV_NESTED                  (-370)
 /** Invalid parameters passed to the lock validator. */
 #define VERR_SEM_LV_INVALID_PARAMETER       (-371)
@@ -1599,12 +1596,6 @@ RT_C_DECLS_END
 /** Unable to translate all the variables in the default environment due to
  * codeset issues (LANG / LC_ALL / LC_CTYPE). */
 #define VWRN_ENV_NOT_FULLY_TRANSLATED           (751)
-/** Invalid environment variable name. */
-#define VERR_ENV_INVALID_VAR_NAME               (-752)
-/** The environment variable is an unset record. */
-#define VINF_ENV_VAR_UNSET                      (753)
-/** The environment variable has been recorded as being unset. */
-#define VERR_ENV_VAR_UNSET                      (-753)
 /** @} */
 
 /** @name Multiprocessor Status Codes.
@@ -1614,10 +1605,6 @@ RT_C_DECLS_END
 #define VERR_CPU_OFFLINE                        (-800)
 /** The specified cpu was not found. */
 #define VERR_CPU_NOT_FOUND                      (-801)
-/** Not all of the requested CPUs showed up in the PFNRTMPWORKER. */
-#define VERR_NOT_ALL_CPUS_SHOWED                (-802)
-/** Internal processing error in the RTMp code.*/
-#define VERR_CPU_IPE_1                          (-803)
 /** @} */
 
 /** @name RTGetOpt status codes
@@ -1814,9 +1801,9 @@ RT_C_DECLS_END
 #define VERR_VFS_CHAIN_EXPECTED_ELEMENT             (-22102)
 /** The VFS object type is not known. */
 #define VERR_VFS_CHAIN_UNKNOWN_TYPE                 (-22103)
-/** Expected a left parentheses. */
+/** Expected a left paranthese. */
 #define VERR_VFS_CHAIN_EXPECTED_LEFT_PARENTHESES    (-22104)
-/** Expected a right parentheses. */
+/** Expected a right paranthese. */
 #define VERR_VFS_CHAIN_EXPECTED_RIGHT_PARENTHESES   (-22105)
 /** Expected a provider name. */
 #define VERR_VFS_CHAIN_EXPECTED_PROVIDER_NAME       (-22106)
@@ -1893,7 +1880,7 @@ RT_C_DECLS_END
 #define VERR_XAR_TOC_XML_PARSE_ERROR                (-22710)
 /** The table of content XML document does not have a toc element. */
 #define VERR_XML_TOC_ELEMENT_MISSING                (-22711)
-/** The table of content XML element (toc) has siblings, we expected it to be
+/** The table of content XML element (toc) has sibilings, we expected it to be
  *  an only child or the root element (xar). */
 #define VERR_XML_TOC_ELEMENT_HAS_SIBLINGS           (-22712)
 /** The XAR table of content digest doesn't match. */
@@ -1955,31 +1942,6 @@ RT_C_DECLS_END
 #define VERR_XAR_ARCHIVED_AND_EXTRACTED_SIZES_MISMATCH (-22739)
 /** @} */
 
-/** @name RTX509 status codes
- * @{ */
-/** Error reading a certificate in PEM format from BIO. */
-#define VERR_X509_READING_CERT_FROM_BIO                  (-23100)
-/** Error extracting a public key from the certificate. */
-#define VERR_X509_EXTRACT_PUBKEY_FROM_CERT               (-23101)
-/** Error extracting RSA from the public key. */
-#define VERR_X509_EXTRACT_RSA_FROM_PUBLIC_KEY            (-23102)
-/** Signature verification failed. */
-#define VERR_X509_RSA_VERIFICATION_FUILURE               (-23103)
-/** Basic constraints were not found. */
-#define VERR_X509_NO_BASIC_CONSTARAINTS                  (-23104)
-/** Error getting extensions from the certificate. */
-#define VERR_X509_GETTING_EXTENSION_FROM_CERT            (-23105)
-/** Error getting a data from the extension. */
-#define VERR_X509_GETTING_DATA_FROM_EXTENSION            (-23106)
-/** Error formatting an extension. */
-#define VERR_X509_PRINT_EXTENSION_TO_BIO                 (-23107)
-/** X509 certificate verification error. */
-#define VERR_X509_CERTIFICATE_VERIFICATION_FAILURE       (-23108)
-/** X509 certificate isn't self signed. */
-#define VERR_X509_NOT_SELFSIGNED_CERTIFICATE             (-23109)
-/** Warning X509 certificate isn't self signed.  */
-#define VINF_X509_NOT_SELFSIGNED_CERTIFICATE             23109
-/** @} */
 
 /** @name RTAsn1 status codes
  * @{ */
@@ -2114,45 +2076,45 @@ RT_C_DECLS_END
 
 /** @name More RTLdr status codes.
  * @{ */
-/** Image Verification Failure: No Authenticode Signature. */
+/** Image Verficiation Failure: No Authenticode Signature. */
 #define VERR_LDRVI_NOT_SIGNED                       (-22900)
-/** Image Verification Warning: No Authenticode Signature, but on whitelist. */
+/** Image Verficiation Warning: No Authenticode Signature, but on whitelist. */
 #define VINF_LDRVI_NOT_SIGNED                       (22900)
-/** Image Verification Failure: Error reading image headers.  */
+/** Image Verficiation Failure: Error reading image headers.  */
 #define VERR_LDRVI_READ_ERROR_HDR                   (-22901)
-/** Image Verification Failure: Error reading section headers. */
+/** Image Verficiation Failure: Error reading section headers. */
 #define VERR_LDRVI_READ_ERROR_SHDRS                 (-22902)
-/** Image Verification Failure: Error reading authenticode signature data. */
+/** Image Verficiation Failure: Error reading authenticode signature data. */
 #define VERR_LDRVI_READ_ERROR_SIGNATURE             (-22903)
-/** Image Verification Failure: Error reading file for hashing. */
+/** Image Verficiation Failure: Error reading file for hashing. */
 #define VERR_LDRVI_READ_ERROR_HASH                  (-22904)
-/** Image Verification Failure: Error determining the file length. */
+/** Image Verficiation Failure: Error determining the file length. */
 #define VERR_LDRVI_FILE_LENGTH_ERROR                (-22905)
-/** Image Verification Failure: Error allocating memory for state data. */
+/** Image Verficiation Failure: Error allocating memory for state data. */
 #define VERR_LDRVI_NO_MEMORY_STATE                  (-22906)
-/** Image Verification Failure: Error allocating memory for authenticode
+/** Image Verficiation Failure: Error allocating memory for authenticode
  *  signature data. */
 #define VERR_LDRVI_NO_MEMORY_SIGNATURE              (-22907)
-/** Image Verification Failure: Error allocating memory for section headers. */
+/** Image Verficiation Failure: Error allocating memory for section headers. */
 #define VERR_LDRVI_NO_MEMORY_SHDRS                  (-22908)
-/** Image Verification Failure: Authenticode parsing output. */
+/** Image Verficiation Failure: Authenticode parsing output. */
 #define VERR_LDRVI_NO_MEMORY_PARSE_OUTPUT           (-22909)
-/** Image Verification Failure: Invalid security directory entry. */
+/** Image Verficiation Failure: Invalid security directory entry. */
 #define VERR_LDRVI_INVALID_SECURITY_DIR_ENTRY       (-22910)
-/** Image Verification Failure:  */
+/** Image Verficiation Failure:  */
 #define VERR_LDRVI_BAD_CERT_HDR_LENGTH              (-22911)
-/** Image Verification Failure:  */
+/** Image Verficiation Failure:  */
 #define VERR_LDRVI_BAD_CERT_HDR_REVISION            (-22912)
-/** Image Verification Failure:  */
+/** Image Verficiation Failure:  */
 #define VERR_LDRVI_BAD_CERT_HDR_TYPE                (-22913)
-/** Image Verification Failure: More than one certificate table entry.  */
+/** Image Verficiation Failure: More than one certificate table entry.  */
 #define VERR_LDRVI_BAD_CERT_MULTIPLE                (-22914)
 
-/** Image Verification Failure:  */
+/** Image Verficiation Failure:  */
 #define VERR_LDRVI_BAD_MZ_OFFSET                    (-22915)
-/** Image Verification Failure: Invalid section count. */
+/** Image Verficiation Failure: Invalid section count. */
 #define VERR_LDRVI_INVALID_SECTION_COUNT            (-22916)
-/** Image Verification Failure: Raw data offsets and sizes are out of range. */
+/** Image Verficiation Failure: Raw data offsets and sizes are out of range. */
 #define VERR_LDRVI_SECTION_RAW_DATA_VALUES          (-22917)
 /** Optional header magic and target machine does not match. */
 #define VERR_LDRVI_MACHINE_OPT_HDR_MAGIC_MISMATCH   (-22918)
@@ -2173,7 +2135,7 @@ RT_C_DECLS_END
 #define VERR_LDRVI_PAGE_HASH_TAB_TOO_LONG           (-22925)
 /** The page hash table is not strictly ordered by offset. */
 #define VERR_LDRVI_PAGE_HASH_TAB_NOT_STRICTLY_SORTED (-22926)
-/** The page hash table hashes data outside the defined and implicit sections. */
+/** The page hash table hashes data outside the defined and implict sections. */
 #define VERR_PAGE_HASH_TAB_HASHES_NON_SECTION_DATA  (-22927)
 /** Page hash mismatch. */
 #define VERR_LDRVI_PAGE_HASH_MISMATCH               (-22928)
@@ -2209,8 +2171,8 @@ RT_C_DECLS_END
 #define VERR_CR_X509_UNKNOWN_CERT_SIGN_ALGO         (-23005)
 /** Certificate signature algorithm mismatch. */
 #define VERR_CR_X509_CERT_SIGN_ALGO_MISMATCH        (-23006)
-/** The signature algorithm in the to-be-signed certificate part does not match
- * the one associated with the signature. */
+/** The signature algorithm in the to-be-signed certifcate part does not match
+ * the one assoicated with the signature. */
 #define VERR_CR_X509_CERT_TBS_SIGN_ALGO_MISMATCH    (-23007)
 /** Certificate extensions requires certificate version 3 or later.  */
 #define VERR_CR_X509_TBSCERT_EXTS_REQ_V3            (-23008)
@@ -2222,7 +2184,7 @@ RT_C_DECLS_END
 #define VERR_CR_X509_TBSCERT_UNSUPPORTED_VERSION    (-23011)
 /** Public key is too small. */
 #define VERR_CR_X509_PUBLIC_KEY_TOO_SMALL           (-23012)
-/** Invalid string tag for a X.509 name object. */
+/** Invalid strnig tag for a X.509 name object. */
 #define VERR_CR_X509_INVALID_NAME_STRING_TAG        (-23013)
 /** Empty string in X.509 name object. */
 #define VERR_CR_X509_NAME_EMPTY_STRING              (-23014)
@@ -2254,7 +2216,7 @@ RT_C_DECLS_END
 /** Certificate path validator: Intermediate certificate is not marked as a
  *  certificate authority (CA). */
 #define VERR_CR_X509_CPV_NOT_CA_CERT                (-23026)
-/** Certificate path validator: Intermediate certificate is not a version 3
+/** Certificate path validator: Intermeidate certificate is not a version 3
  *  certificate. */
 #define VERR_CR_X509_CPV_NOT_V3_CERT                (-23027)
 /** Certificate path validator: Invalid policy mapping (to/from anyPolicy). */
@@ -2271,7 +2233,7 @@ RT_C_DECLS_END
  *  match child issuer property. */
 #define VERR_CR_X509_CPV_ISSUER_MISMATCH            (-23032)
 /** Certificate path validator: The certificate is not valid at the
- *  specified time. */
+ *  specificed time. */
 #define VERR_CR_X509_CPV_NOT_VALID_AT_TIME          (-23033)
 /** Certificate path validator: Unexpected choice found in general subtree
  *  object (name constraints). */
@@ -2292,7 +2254,7 @@ RT_C_DECLS_END
  * @{ */
 /** Generic PKCS \#7 error. */
 #define VERR_CR_PKCS7_GENERIC_ERROR                             (-23300)
-/** Signed data verification failed because there are zero signer infos. */
+/** Signed data verfication failed because there are zero signer infos. */
 #define VERR_CR_PKCS7_NO_SIGNER_INFOS                           (-23301)
 /** Signed data certificate not found. */
 #define VERR_CR_PKCS7_SIGNED_DATA_CERT_NOT_FOUND                (-23302)
@@ -2338,7 +2300,7 @@ RT_C_DECLS_END
 #define VERR_CR_PKCS7_TOO_MANY_DIGEST_ALGORITHMS                (-22318)
 /** Error creating digest algorithm calculator. */
 #define VERR_CR_PKCS7_DIGEST_CREATE_ERROR                       (-22319)
-/** Error while calculating a digest for a PKCS \#7 verification operation. */
+/** Error while calculating a digest for a PKCS \#7 verficiation operation. */
 #define VERR_CR_PKCS7_DIGEST_CALC_ERROR                         (-22320)
 /** Unsupported PKCS \#7 signed data version. */
 #define VERR_CR_PKCS7_SIGNED_DATA_VERSION                       (-22350)
@@ -2381,7 +2343,7 @@ RT_C_DECLS_END
 #define VERR_CR_SPC_UNKNOWN_DIGEST_ALGO                         (-23405)
 /** The indirect data digest size does not match the digest algorithm. */
 #define VERR_CR_SPC_IND_DATA_DIGEST_SIZE_MISMATCH               (-23406)
-/** Expected PE image data inside indirect data object. */
+/** Exptected PE image data inside indirect data object. */
 #define VERR_CR_SPC_EXPECTED_PE_IMAGE_DATA                      (-23407)
 /** Internal SPC error: The PE image data is missing.  */
 #define VERR_CR_SPC_PEIMAGE_DATA_NOT_PRESENT                    (-23408)
@@ -2389,10 +2351,10 @@ RT_C_DECLS_END
 #define VERR_CR_SPC_BAD_MONIKER_UUID                            (-23409)
 /** Unknown SPC object moniker UUID. */
 #define VERR_CR_SPC_UNKNOWN_MONIKER_UUID                        (-23410)
-/** Internal SPC error: Bad object moniker choice value. */
+/** Internal SPC error: Bad object monker choice value. */
 #define VERR_CR_SPC_BAD_MONIKER_CHOICE                          (-23411)
 /** Internal SPC error: Bad object moniker data pointer. */
-#define VERR_CR_SPC_MONIKER_BAD_DATA                             (-23412)
+#define VERR_CR_SPC_MONIKER_BAD_DATA                            (-23412)
 /** Multiple PE image page hash tables. */
 #define VERR_CR_SPC_PEIMAGE_MULTIPLE_HASH_TABS                  (-23413)
 /** Unknown SPC PE image attribute. */
@@ -2427,7 +2389,7 @@ RT_C_DECLS_END
 #define VERR_CR_PKIX_SIGNATURE_MISMATCH             (-23509)
 /** PKIX cipher algorithm parameters are not implemented. */
 #define VERR_CR_PKIX_CIPHER_ALGO_PARAMS_NOT_IMPL    (-23510)
-/** Cipher algorithm is not known to us. */
+/** ipher algorithm is not known to us. */
 #define VERR_CR_PKIX_CIPHER_ALGO_NOT_KNOWN          (-23511)
 /** PKIX cipher algorithm is not known to OpenSSL. */
 #define VERR_CR_PKIX_OSSL_CIPHER_ALGO_NOT_KNOWN     (-23512)
@@ -2470,7 +2432,7 @@ RT_C_DECLS_END
  * @{ */
 /** OpenSSL failed to initialize the digest algorithm contextn. */
 #define VERR_CR_DIGEST_OSSL_DIGEST_INIT_ERROR       (-24200)
-/** OpenSSL failed to clone the digest algorithm context. */
+/** OpenSSL failed to clone the digest algorithm contextn. */
 #define VERR_CR_DIGEST_OSSL_DIGEST_CTX_COPY_ERROR   (-24201)
 /** @} */
 

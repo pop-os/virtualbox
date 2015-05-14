@@ -173,7 +173,7 @@ int pgmR3PoolInit(PVM pVM)
     cMaxPages = RT_ALIGN(cMaxPages, 16);
     if (cMaxPages > PGMPOOL_IDX_LAST)
         cMaxPages = PGMPOOL_IDX_LAST;
-    LogRel(("PGM: PGMPool: cMaxPages=%u (u64MaxPages=%llu)\n", cMaxPages, u64MaxPages));
+    LogRel(("PGMPool: cMaxPages=%u (u64MaxPages=%llu)\n", cMaxPages, u64MaxPages));
 
     /** todo:
      * We need to be much more careful with our allocation strategy here.
@@ -219,7 +219,7 @@ int pgmR3PoolInit(PVM pVM)
     rc = CFGMR3QueryBoolDef(pCfg, "CacheEnabled", &fCacheEnabled, true);
     AssertLogRelRCReturn(rc, rc);
 
-    LogRel(("PGM: pgmR3PoolInit: cMaxPages=%#RX16 cMaxUsers=%#RX16 cMaxPhysExts=%#RX16 fCacheEnable=%RTbool\n",
+    LogRel(("pgmR3PoolInit: cMaxPages=%#RX16 cMaxUsers=%#RX16 cMaxPhysExts=%#RX16 fCacheEnable=%RTbool\n",
              cMaxPages, cMaxUsers, cMaxPhysExts, fCacheEnabled));
 
     /*
@@ -279,16 +279,8 @@ int pgmR3PoolInit(PVM pVM)
     pPool->iAgeHead = NIL_PGMPOOL_IDX;
     pPool->iAgeTail = NIL_PGMPOOL_IDX;
     pPool->fCacheEnabled = fCacheEnabled;
-
-    pPool->hAccessHandlerType = NIL_PGMPHYSHANDLERTYPE;
-    rc = PGMR3HandlerPhysicalTypeRegister(pVM, PGMPHYSHANDLERKIND_WRITE,
-                                          pgmR3PoolAccessHandler,
-                                          NULL, "pgmPoolAccessHandler",
-                                          NULL, "pgmPoolAccessHandler",
-                                          "Guest Paging Access Handler",
-                                          &pPool->hAccessHandlerType);
-    AssertLogRelRCReturn(rc, rc);
-
+    pPool->pfnAccessHandlerR3 = pgmR3PoolAccessHandler;
+    pPool->pszAccessHandler = "Guest Paging Access Handler";
     pPool->HCPhysTree = 0;
 
     /*
@@ -418,6 +410,19 @@ void pgmR3PoolRelocate(PVM pVM)
     pVM->pgm.s.pPoolR3->pVMRC = pVM->pVMRC;
     pVM->pgm.s.pPoolR3->paUsersRC = MMHyperR3ToRC(pVM, pVM->pgm.s.pPoolR3->paUsersR3);
     pVM->pgm.s.pPoolR3->paPhysExtsRC = MMHyperR3ToRC(pVM, pVM->pgm.s.pPoolR3->paPhysExtsR3);
+
+    if (!HMIsEnabled(pVM))
+    {
+        int rc = PDMR3LdrGetSymbolRC(pVM, NULL, "pgmPoolAccessHandler", &pVM->pgm.s.pPoolR3->pfnAccessHandlerRC);
+        AssertReleaseRC(rc);
+    }
+
+    /* init order hack. */
+    if (!pVM->pgm.s.pPoolR3->pfnAccessHandlerR0)
+    {
+        int rc = PDMR3LdrGetSymbolR0(pVM, NULL, "pgmPoolAccessHandler", &pVM->pgm.s.pPoolR3->pfnAccessHandlerR0);
+        AssertReleaseRC(rc);
+    }
 }
 
 

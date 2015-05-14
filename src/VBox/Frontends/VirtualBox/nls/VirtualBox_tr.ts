@@ -285,7 +285,7 @@
     </message>
     <message>
         <source>Seam&amp;less Mode</source>
-        <translation>Ö&amp;zgün Kipi</translation>
+        <translation type="obsolete">Tam U&amp;yum Kipi</translation>
     </message>
     <message>
         <source>Switch to seamless desktop integration mode</source>
@@ -309,11 +309,11 @@
     </message>
     <message>
         <source>Disable &amp;Mouse Integration</source>
-        <translation type="obsolete">&amp;Fare Bütünleştirme etkisiz</translation>
+        <translation>&amp;Fare Bütünleştirme etkisiz</translation>
     </message>
     <message>
         <source>Temporarily disable host mouse pointer integration</source>
-        <translation type="obsolete">Anamakine fare işaretçisi bütünleştirme geçici olarak etkisiz</translation>
+        <translation>Anamakine fare işaretçisi bütünleştirme geçici olarak etkisiz</translation>
     </message>
     <message>
         <source>Enable &amp;Mouse Integration</source>
@@ -325,11 +325,11 @@
     </message>
     <message>
         <source>&amp;Insert Ctrl-Alt-Del</source>
-        <translation type="obsolete">Ctrl-Alt-Del &amp;Ekle</translation>
+        <translation>Ctrl-Alt-Del &amp;Ekle</translation>
     </message>
     <message>
         <source>Send the Ctrl-Alt-Del sequence to the virtual machine</source>
-        <translation type="obsolete">Sanal makineye Ctrl-Alt-Del sıralaması gönder</translation>
+        <translation>Sanal makineye Ctrl-Alt-Del sıralaması gönder</translation>
     </message>
     <message>
         <source>&amp;Insert Ctrl-Alt-Backspace</source>
@@ -337,7 +337,7 @@
     </message>
     <message>
         <source>Send the Ctrl-Alt-Backspace sequence to the virtual machine</source>
-        <translation type="obsolete">Sanal makineye Ctrl-Alt-Backspace sıralaması gönder</translation>
+        <translation>Sanal makineye Ctrl-Alt-Backspace sıralaması gönder</translation>
     </message>
     <message>
         <source>Take &amp;Snapshot...</source>
@@ -352,8 +352,8 @@
         <translation type="obsolete">Oturum &amp;Bilgileri Penceresi</translation>
     </message>
     <message>
-        <source>Show Session Information Dialog</source>
-        <translation type="obsolete">Oturum Bilgileri İletisi Göster</translation>
+        <source>Show Session Information Window</source>
+        <translation>Oturum Bilgisi Penceresi Göster</translation>
     </message>
     <message>
         <source>&amp;Pause</source>
@@ -409,15 +409,15 @@
     </message>
     <message>
         <source>&amp;CD/DVD Devices</source>
-        <translation type="obsolete">&amp;CD/DVD Aygıtları</translation>
+        <translation>&amp;CD/DVD Aygıtları</translation>
     </message>
     <message>
         <source>&amp;Floppy Devices</source>
-        <translation type="obsolete">&amp;Disket Aygıtları</translation>
+        <translation>&amp;Disket Aygıtları</translation>
     </message>
     <message>
         <source>&amp;USB Devices</source>
-        <translation type="obsolete">&amp;USB Aygıtları</translation>
+        <translation>&amp;USB Aygıtları</translation>
     </message>
     <message>
         <source>&amp;Network Adapters...</source>
@@ -440,12 +440,12 @@
         <translation type="obsolete">Bu makineye yapılan uzak masaüstü (RDP) bağlantılarını etkinleştir ya da pasifleştir</translation>
     </message>
     <message>
-        <source>&amp;Install Guest Additions...</source>
-        <translation type="obsolete">&amp;Misafir Eklentilerini Yükle...</translation>
+        <source>&amp;Insert Guest Additions CD image...</source>
+        <translation>Misafir Eklentileri CD kalıbını &amp;ekle...</translation>
     </message>
     <message>
-        <source>Mount the Guest Additions installation image</source>
-        <translation type="obsolete">Misafir Eklentileri kurulum kalıbını bağla</translation>
+        <source>Insert the Guest Additions disk file into the virtual drive</source>
+        <translation>Misafir Eklentileri diski dosyasını sanal sürücüye ekle</translation>
     </message>
     <message>
         <source>De&amp;bug</source>
@@ -464,7 +464,7 @@
     <message>
         <source>&amp;Logging...</source>
         <comment>debug action</comment>
-        <translation type="obsolete">Gün&amp;lükleniyor...</translation>
+        <translation>Gün&amp;lükleniyor...</translation>
     </message>
     <message>
         <source>&amp;Help</source>
@@ -493,15 +493,15 @@
     </message>
     <message>
         <source>Switch to &amp;Fullscreen</source>
-        <translation type="obsolete">&amp;Tam Ekrana değiştir</translation>
+        <translation>&amp;Tam Ekrana değiştir</translation>
     </message>
     <message>
         <source>Switch between normal and fullscreen mode</source>
-        <translation type="obsolete">Normal ve tam ekran kipi arasında değiştir</translation>
+        <translation>Normal ve tam ekran kipi arasında değiştir</translation>
     </message>
     <message>
         <source>Switch to Seam&amp;less Mode</source>
-        <translation type="obsolete">Ö&amp;zgün Kipine değiştir</translation>
+        <translation>Ö&amp;zgün Kipine değiştir</translation>
     </message>
     <message>
         <source>Switch between normal and seamless desktop integration mode</source>
@@ -509,7 +509,7 @@
     </message>
     <message>
         <source>Switch to &amp;Scaled Mode</source>
-        <translation type="obsolete">Küçültme Ki&amp;pine değiştir</translation>
+        <translation>Küçültme Ki&amp;pine değiştir</translation>
     </message>
     <message>
         <source>Switch between normal and scaled mode</source>
@@ -537,7 +537,7 @@
     </message>
     <message>
         <source>&amp;Contents...</source>
-        <translation>&amp;İçerikler...</translation>
+        <translation>İçin&amp;dekiler...</translation>
     </message>
     <message>
         <source>Show help contents</source>
@@ -549,7 +549,7 @@
     </message>
     <message>
         <source>Go back to showing all suppressed warnings and messages</source>
-        <translation>Gösterilen tüm önlenmiş uyarılara ve iletilere geri dön</translation>
+        <translation>Gösterilen tüm önlenmiş uyarılara ve mesajlara geri dön</translation>
     </message>
     <message>
         <source>&amp;Network Operations Manager...</source>
@@ -569,15 +569,15 @@
     </message>
     <message>
         <source>Show a window with product information</source>
-        <translation>Ürün bilgisinin olduğu bir pencere göster</translation>
+        <translation>Ürün bilgisinin olduğu bir ileti göster</translation>
     </message>
     <message>
         <source>Take Sn&amp;apshot...</source>
-        <translation>A&amp;nlık Görüntü Al...</translation>
+        <translation>A&amp;nlık görüntü al...</translation>
     </message>
     <message>
         <source>Take Screensh&amp;ot...</source>
-        <translation>Ekran Görüntü&amp;sü Al...</translation>
+        <translation>Ekran görüntü&amp;sü al...</translation>
     </message>
     <message>
         <source>Take a screenshot of the virtual machine</source>
@@ -585,7 +585,7 @@
     </message>
     <message>
         <source>Ins&amp;ert Ctrl-Alt-Backspace</source>
-        <translation type="obsolete">Ctrl-Alt-Backspace &amp;ekle</translation>
+        <translation>Ctrl-Alt-Backspace &amp;ekle</translation>
     </message>
     <message>
         <source>&amp;File</source>
@@ -603,7 +603,7 @@
     </message>
     <message>
         <source>Display the Virtual Media Manager window</source>
-        <translation>Sanal Ortam Yöneticisi penceresini görüntüle</translation>
+        <translation>Sanal Ortam Yöneticisi iletisini göster</translation>
     </message>
     <message>
         <source>&amp;Import Appliance...</source>
@@ -628,7 +628,7 @@
     </message>
     <message>
         <source>Display the global settings window</source>
-        <translation>Genel ayarlar penceresini görüntüle</translation>
+        <translation>Genel ayarlar iletisini göster</translation>
     </message>
     <message>
         <source>E&amp;xit</source>
@@ -640,7 +640,7 @@
     </message>
     <message>
         <source>&amp;Group</source>
-        <translation>&amp;Grupla</translation>
+        <translation>&amp;Grup</translation>
     </message>
     <message>
         <source>Create a new virtual machine</source>
@@ -848,7 +848,7 @@
     </message>
     <message>
         <source>Gro&amp;up</source>
-        <translation>Gr&amp;upla</translation>
+        <translation>Gr&amp;up</translation>
     </message>
     <message>
         <source>Sort the group of the first selected machine alphabetically</source>
@@ -860,7 +860,7 @@
     </message>
     <message>
         <source>Drag&apos;n&apos;Drop</source>
-        <translation type="obsolete">Sürükle&apos;v&apos;Bırak</translation>
+        <translation>Sürükle&apos;v&apos;Bırak</translation>
     </message>
     <message>
         <source>Save the machine state of the virtual machine</source>
@@ -907,232 +907,12 @@
         <translation>Açılır Menü</translation>
     </message>
     <message>
-        <source>Show Session Information Window</source>
-        <translation>Oturum Bilgisi Penceresini Göster</translation>
-    </message>
-    <message>
         <source>&amp;Webcams</source>
-        <translation>&amp;Web Kameraları</translation>
-    </message>
-    <message>
-        <source>&amp;Insert Guest Additions CD image...</source>
-        <translation>Misafir Eklentileri CD kalıbını &amp;yerleştir...</translation>
-    </message>
-    <message>
-        <source>Insert the Guest Additions disk file into the virtual drive</source>
-        <translation>Sanal sürücü içine Misafir Eklentileri disk dosyasını yerleştir</translation>
-    </message>
-    <message>
-        <source>&amp;VirtualBox</source>
-        <translation>&amp;VirtualBox</translation>
-    </message>
-    <message>
-        <source>&amp;Menu Bar</source>
-        <translation>&amp;Menü Çubuğu</translation>
-    </message>
-    <message>
-        <source>&amp;Menu Bar Settings...</source>
-        <translation>&amp;Menü Çubuğu Ayarları...</translation>
-    </message>
-    <message>
-        <source>Opens window to configure menu-bar</source>
-        <translation>Menü çubuğunu yapılandırmak için pencere açar</translation>
-    </message>
-    <message>
-        <source>Show Menu &amp;Bar</source>
-        <translation>Menü Çu&amp;buğunu Göster</translation>
-    </message>
-    <message>
-        <source>Toggle menu-bar visibility for this machine</source>
-        <translation>Bu makine için menü çubuğu görünürlüğünü değiştir</translation>
-    </message>
-    <message>
-        <source>&amp;Status Bar</source>
-        <translation>&amp;Durum Çubuğu</translation>
-    </message>
-    <message>
-        <source>&amp;Status Bar Settings...</source>
-        <translation>&amp;Durum Çubuğu Ayarları...</translation>
-    </message>
-    <message>
-        <source>Opens window to configure status-bar</source>
-        <translation>Durum çubuğunu yapılandırmak için pencere açar</translation>
-    </message>
-    <message>
-        <source>Show Status &amp;Bar</source>
-        <translation>Durum Çu&amp;buğunu Göster</translation>
-    </message>
-    <message>
-        <source>Toggle status-bar visibility for this machine</source>
-        <translation>Bu makine için durum çubuğu görünürlüğünü değiştir</translation>
-    </message>
-    <message>
-        <source>&amp;Input</source>
-        <translation>&amp;Girdi</translation>
-    </message>
-    <message>
-        <source>&amp;Keyboard</source>
-        <translation>&amp;Klavye</translation>
-    </message>
-    <message>
-        <source>&amp;Keyboard Settings...</source>
-        <translation>&amp;Klavye Ayarları...</translation>
-    </message>
-    <message>
-        <source>Display the global settings window to configure shortcuts</source>
-        <translation>Kısayolları yapılandırmak için genel ayarlar penceresini görüntüle</translation>
-    </message>
-    <message>
-        <source>&amp;Mouse</source>
-        <translation>&amp;Fare</translation>
-    </message>
-    <message>
-        <source>&amp;Hard Drives</source>
-        <translation>&amp;Sabit Sürücüler</translation>
-    </message>
-    <message>
-        <source>&amp;Hard Drive Settings...</source>
-        <translation>&amp;Sabit Sürücü Ayarları...</translation>
-    </message>
-    <message>
-        <source>Change the settings of hard drives</source>
-        <translation>Sabit sürücülerin ayarlarını değiştir</translation>
+        <translation>&amp;Web kameraları</translation>
     </message>
     <message>
         <source>Network</source>
         <translation>Ağ</translation>
-    </message>
-    <message>
-        <source>&amp;USB Settings...</source>
-        <translation>&amp;USB Ayarları...</translation>
-    </message>
-    <message>
-        <source>Change the settings of USB devices</source>
-        <translation>US aygıtların ayarlarını değiştir</translation>
-    </message>
-    <message>
-        <source>&amp;Shared Folders</source>
-        <translation>&amp;Paylaşılan Klasörler</translation>
-    </message>
-    <message>
-        <source>Show &amp;Log...</source>
-        <comment>debug action</comment>
-        <translation>Gün&amp;lüğü Göster...</translation>
-    </message>
-    <message>
-        <source>E&amp;xtra Data Manager...</source>
-        <translation>İla&amp;ve Veri Yöneticisi...</translation>
-    </message>
-    <message>
-        <source>Display the Extra Data Manager window</source>
-        <translation>İlave Veri Yöneticisi penceresini görünütüle</translation>
-    </message>
-    <message>
-        <source>&amp;File</source>
-        <translation>&amp;Dosya</translation>
-    </message>
-    <message>
-        <source>&amp;Window</source>
-        <translation>&amp;Pencere</translation>
-    </message>
-    <message>
-        <source>&amp;Minimize</source>
-        <translation>&amp;Simge Durumuna</translation>
-    </message>
-    <message>
-        <source>Minimize active machine-window</source>
-        <translation>Aktif makine penceresini simge durumuna küçült</translation>
-    </message>
-    <message>
-        <source>&amp;Full-screen Mode</source>
-        <translation>&amp;Tam Ekran Kipi</translation>
-    </message>
-    <message>
-        <source>Switch between normal and full-screen mode</source>
-        <translation>Normal ve tam ekran kipi arasında değiştir</translation>
-    </message>
-    <message>
-        <source>S&amp;caled Mode</source>
-        <translation>&amp;Küçültme Kipi</translation>
-    </message>
-    <message>
-        <source>S&amp;cale Factor</source>
-        <translation>&amp;Küçültme Etkeni</translation>
-    </message>
-    <message>
-        <source>&amp;Insert %1</source>
-        <translation>%1 &amp;Ekle</translation>
-    </message>
-    <message>
-        <source>Send the %1 sequence to the virtual machine</source>
-        <translation>Sanal makineye %1 sıralaması gönder</translation>
-    </message>
-    <message>
-        <source>&amp;Mouse Integration</source>
-        <translation>&amp;Fare Bütünleştirme</translation>
-    </message>
-    <message>
-        <source>Enable host mouse pointer integration</source>
-        <translation>Anamakine fare işaretçisi bütünleştirmesini etkinleştir</translation>
-    </message>
-    <message>
-        <source>&amp;Optical Drives</source>
-        <translation>&amp;Optik Sürücüler</translation>
-    </message>
-    <message>
-        <source>&amp;Floppy Drives</source>
-        <translation>&amp;Disket Sürücüler</translation>
-    </message>
-    <message>
-        <source>&amp;USB</source>
-        <translation>&amp;USB</translation>
-    </message>
-    <message>
-        <source>Drag and Drop</source>
-        <translation>Sürükle ve Bırak</translation>
-    </message>
-    <message>
-        <source>&amp;Logging</source>
-        <comment>debug action</comment>
-        <translation>&amp;Günlükleme</translation>
-    </message>
-    <message>
-        <source>&amp;Normal Start</source>
-        <translation>&amp;Normal Başlat</translation>
-    </message>
-    <message>
-        <source>&amp;Headless Start</source>
-        <translation>&amp;Başlıksız Başlat</translation>
-    </message>
-    <message>
-        <source>Start the selected virtual machines in the background</source>
-        <translation>Seçilen sanal makineleri arka planda başlat</translation>
-    </message>
-    <message>
-        <source>&amp;Detachable Start</source>
-        <translation>&amp;Ayrılabilir Başlat</translation>
-    </message>
-    <message>
-        <source>Start the selected virtual machines with the option of continuing them in the background</source>
-        <translation>Seçilen sanal makineleri arka planda devam ettiren seçenek ile başlatır</translation>
-    </message>
-</context>
-<context>
-    <name>UIActionPoolRuntime</name>
-    <message>
-        <source>Enable</source>
-        <comment>Virtual Screen</comment>
-        <translation>Etkinleştir</translation>
-    </message>
-    <message>
-        <source>Resize to %1x%2</source>
-        <comment>Virtual Screen</comment>
-        <translation>%1x%2 olarak yeniden boyutlandır</translation>
-    </message>
-    <message>
-        <source>%1%</source>
-        <comment>scale-factor</comment>
-        <translation>% %1</translation>
     </message>
 </context>
 <context>
@@ -1140,20 +920,6 @@
     <message>
         <source>Popup Menu</source>
         <translation type="obsolete">Açılır Menü</translation>
-    </message>
-</context>
-<context>
-    <name>UIAddDiskEncryptionPasswordDialog</name>
-    <message>
-        <source>%1 - Disk Encryption</source>
-        <translation>%1 - Disk Şifreleme</translation>
-    </message>
-    <message numerus="yes">
-        <source>This virtual machine is password protected. Please enter the %n encryption password(s) below.</source>
-        <comment>This text is never used with n == 0. Feel free to drop the %n where possible, we only included it because of problems with Qt Linguist (but the user can see how many passwords are in the list and doesn&apos;t need to be told).</comment>
-        <translation>
-            <numerusform>Bu sanal makine parola korumalıdır. Lütfen aşağıya %n şifreleme parolasını girin.</numerusform>
-        </translation>
     </message>
 </context>
 <context>
@@ -1232,7 +998,7 @@
     </message>
     <message>
         <source>USB Controller</source>
-        <translation>USB Denetleyicisi</translation>
+        <translation>USB Denetleyici</translation>
     </message>
     <message>
         <source>Sound Card</source>
@@ -1278,7 +1044,7 @@
     </message>
     <message>
         <source>When checked a new unique MAC address will assigned to all configured network cards.</source>
-        <translation>İşaretlendiğinde, yeni bir benzersiz MAC adresi tüm yapılandırılmış ağ kartlarına atanacak.</translation>
+        <translation>Yeni bir benzersiz MAC adresi işaretlendiğinde tüm yapılandırılmış ağ kartlarına atanacaktır.</translation>
     </message>
     <message>
         <source>&amp;Reinitialize the MAC address of all network cards</source>
@@ -1756,13 +1522,6 @@
     </message>
 </context>
 <context>
-    <name>UIDnDDrag</name>
-    <message>
-        <source>Retrieving data ...</source>
-        <translation>Veri alınıyor...</translation>
-    </message>
-</context>
-<context>
     <name>UIDnDHandler</name>
     <message>
         <source>Dropping data ...</source>
@@ -1773,7 +1532,7 @@
     <name>UIDnDMimeData</name>
     <message>
         <source>Dropping data ...</source>
-        <translation type="obsolete">Veri kaldırılıyor...</translation>
+        <translation>Veri kaldırılıyor...</translation>
     </message>
 </context>
 <context>
@@ -1866,31 +1625,6 @@
     <message>
         <source>VirtualBox User Manual</source>
         <translation>VirtualBox Kullanıcı Kılavuzu</translation>
-    </message>
-</context>
-<context>
-    <name>UIEncryptionDataModel</name>
-    <message>
-        <source>Status</source>
-        <comment>password table field</comment>
-        <translation>Durum</translation>
-    </message>
-    <message>
-        <source>ID</source>
-        <comment>password table field</comment>
-        <translation>KİMLİK</translation>
-    </message>
-    <message>
-        <source>Password</source>
-        <comment>password table field</comment>
-        <translation>Parola</translation>
-    </message>
-    <message numerus="yes">
-        <source>&lt;nobr&gt;Used by the following %n hard drive(s):&lt;/nobr&gt;&lt;br&gt;%1</source>
-        <comment>This text is never used with n == 0. Feel free to drop the %n where possible, we only included it because of problems with Qt Linguist (but the user can see how many hard drives are in the tool-tip and doesn&apos;t need to be told).</comment>
-        <translation>
-            <numerusform>&lt;nobr&gt;Aşağıdaki %n sabit sürücü(ler) tarafından kullanılır:&lt;/nobr&gt;&lt;br&gt;%1</numerusform>
-        </translation>
     </message>
 </context>
 <context>
@@ -2232,7 +1966,7 @@
     <message>
         <source>[CD/DVD]</source>
         <comment>details (storage)</comment>
-        <translation type="obsolete">[CD/DVD]</translation>
+        <translation>[CD/DVD]</translation>
     </message>
     <message>
         <source>Not attached</source>
@@ -2427,71 +2161,6 @@
     <message>
         <source>Frame Size: %1x%2, Frame Rate: %3fps, Bit Rate: %4kbps</source>
         <translation>Kare Boyutu: %1x%2, Kare Oranı: %3fps, Bit Oranı: %4kbps</translation>
-    </message>
-    <message>
-        <source>Minimal Paravirtualization</source>
-        <comment>details (system)</comment>
-        <translation>En Az Yarı Sanallaştırma</translation>
-    </message>
-    <message>
-        <source>Hyper-V Paravirtualization</source>
-        <comment>details (system)</comment>
-        <translation>Hyper-V Yarı Sanallaştırma</translation>
-    </message>
-    <message>
-        <source>KVM Paravirtualization</source>
-        <comment>details (system)</comment>
-        <translation>KVM Yarı Sanallaştırma</translation>
-    </message>
-    <message>
-        <source>[Optical Drive]</source>
-        <comment>details (storage)</comment>
-        <translation>[Optik Sürücü]</translation>
-    </message>
-    <message>
-        <source>USB Controller</source>
-        <comment>details (usb)</comment>
-        <translation>USB Denetleyicisi</translation>
-    </message>
-    <message>
-        <source>Scale-factor</source>
-        <comment>details (user interface)</comment>
-        <translation>Küçültme etkeni</translation>
-    </message>
-    <message>
-        <source>Unscaled HiDPI Video Output</source>
-        <comment>details (user interface)</comment>
-        <translation>Küçültülmemiş HiDPI Görüntü Çıktısı</translation>
-    </message>
-    <message>
-        <source>Enabled</source>
-        <comment>details (user interface/Unscaled HiDPI Video Output)</comment>
-        <translation>Etkinleştirildi</translation>
-    </message>
-    <message>
-        <source>Mini-toolbar Position</source>
-        <comment>details (user interface)</comment>
-        <translation>Küçük Araç Çubuğu Konumu</translation>
-    </message>
-    <message>
-        <source>Top</source>
-        <comment>details (user interface/mini-toolbar position)</comment>
-        <translation>Üstte</translation>
-    </message>
-    <message>
-        <source>Bottom</source>
-        <comment>details (user interface/mini-toolbar position)</comment>
-        <translation>Altta</translation>
-    </message>
-    <message>
-        <source>Mini-toolbar</source>
-        <comment>details (user interface)</comment>
-        <translation>Küçük Araç Çubuğu</translation>
-    </message>
-    <message>
-        <source>Disabled</source>
-        <comment>details (user interface/mini-toolbar)</comment>
-        <translation>Etkisizleştirildi</translation>
     </message>
 </context>
 <context>
@@ -2724,15 +2393,15 @@
     </message>
     <message>
         <source>Machine Windows:</source>
-        <translation>Makine Pencereleri:</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>If checked, machine windows will be raised when the mouse pointer moves over them.</source>
-        <translation>Eğer işaretlendiyse, fare işaretçisi üzerilerine hareket ettiğinde makine pencereleri öne gelecektir.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>&amp;Raise Window Under Mouse</source>
-        <translation>Fare Altındaki Pencereyi Öne &amp;Getir</translation>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -2790,11 +2459,11 @@
     </message>
     <message>
         <source>Holds the path to the default virtual machine folder. This folder is used, if not explicitly specified otherwise, when creating new virtual machines.</source>
-        <translation>Varsayılan sanal makine klasörü için yolu tutar. Eğer açıkça aksi hali belirtilmemişse, yeni sanal makineler oluşturulurken, bu klasör kullanılır.</translation>
+        <translation>Varsayılan sanal makine klasörüne yolu gösterir. Eğer açıkça aksi hali belirtilmemişse, yeni sanal makineler oluşturulurken, bu klasör kullanılır.</translation>
     </message>
     <message>
         <source>Holds the path to the library that provides authentication for Remote Display (VRDP) clients.</source>
-        <translation>Uzak Görüntü (VRDP) istemcilerine kimlik doğrulaması sağlayan kütüphane için yolu tutar.</translation>
+        <translation>Uzak Ekran (VRDP) istemcileri için kimlik doğrulaması sağlayan kütüphaneye yolu gösterir.</translation>
     </message>
     <message>
         <source>Default &amp;Hard Disk Folder:</source>
@@ -2834,15 +2503,15 @@
     </message>
     <message>
         <source>&amp;Dock and Menubar:</source>
-        <translation type="obsolete">&amp;Yapışık Alan ve Menü Çubuğu:</translation>
+        <translation>&amp;Yapışık Alan ve Menü Çubuğu:</translation>
     </message>
     <message>
         <source>Auto-Show in Fullscreen</source>
-        <translation type="obsolete">Tam Ekranda Otomatik Göster</translation>
+        <translation>Tam Ekranda Otomatik Göster</translation>
     </message>
     <message>
         <source>When checked, the host dock and menu bar will be shown when the virtual machine is in fullscreen mode.</source>
-        <translation type="obsolete">İşaretlendiğinde, anamakine yapışık alanı ve menü çubuğu, sanal makine tam ekran kipinde olduğunda gösterilecektir.</translation>
+        <translation>İşaretlendiğinde, anamakine yapışık alanı ve menü çubuğu, sanal makine tam ekran kipinde olduğunda gösterilecektir.</translation>
     </message>
     <message>
         <source>&amp;Host Screensaver:</source>
@@ -3949,12 +3618,12 @@
     <message>
         <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the CD/DVD devices:&lt;/nobr&gt;%1&lt;/p&gt;</source>
         <comment>CD/DVD tooltip</comment>
-        <translation type="obsolete">&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;CD/DVD aygıtlarının etkinliğini gösterir:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
+        <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;CD/DVD aygıtlarının etkinliğini gösterir:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the floppy devices:&lt;/nobr&gt;%1&lt;/p&gt;</source>
         <comment>FD tooltip</comment>
-        <translation type="obsolete">&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Disket aygıtlarının etkinliğini gösterir:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
+        <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Disket aygıtlarının etkinliğini gösterir:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the network interfaces:&lt;/nobr&gt;%1&lt;/p&gt;</source>
@@ -3994,7 +3663,7 @@
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;USB Controller is disabled&lt;/b&gt;&lt;/nobr&gt;</source>
         <comment>USB device tooltip</comment>
-        <translation type="obsolete">&lt;br&gt;&lt;nobr&gt;&lt;b&gt;USB Denetleyicisi etkisizleştirildi&lt;/b&gt;&lt;/nobr&gt;</translation>
+        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;USB Denetleyicisi etkisizleştirildi&lt;/b&gt;&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the machine&apos;s shared folders:&lt;/nobr&gt;%1&lt;/p&gt;</source>
@@ -4057,20 +3726,6 @@
         <comment>Virtualization Stuff LED</comment>
         <translation>İlave özellik durumu:&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%3:&lt;/b&gt;&amp;nbsp;%4&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%5:&lt;/b&gt;&amp;nbsp;%6&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%7:&lt;/b&gt;&amp;nbsp;%8%&lt;/nobr&gt;</translation>
     </message>
-    <message>
-        <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the display:&lt;/nobr&gt;%1&lt;/p&gt;</source>
-        <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Görüntünün etkinliğini gösterir:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the optical drives:&lt;/nobr&gt;%1&lt;/p&gt;</source>
-        <comment>CD tooltip</comment>
-        <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Optik sürücülerin etkinliğini gösterir:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the floppy drives:&lt;/nobr&gt;%1&lt;/p&gt;</source>
-        <comment>FD tooltip</comment>
-        <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Disket sürücülerin etkinliğini gösterir:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
-    </message>
 </context>
 <context>
     <name>UILineTextEdit</name>
@@ -4123,15 +3778,15 @@
     </message>
     <message>
         <source>No Webcams Connected</source>
-        <translation>Bağlı Web Kameraları Yok</translation>
+        <translation>Bağlanmış Web Kameraları Yok</translation>
     </message>
     <message>
         <source>No supported webcams connected to the host PC</source>
-        <translation>Anamakine PC&apos;ye bağlı desteklenen web kameraları yok</translation>
+        <translation>Anamakineye bağlanmış desteklenen web kameraları yok</translation>
     </message>
     <message>
         <source>Connect Network Adapter</source>
-        <translation>Ağ Bağdaştırıcısını Bağla</translation>
+        <translation>Ağ Bağdaştırıcısı Bağla</translation>
     </message>
     <message>
         <source>Connect Network Adapter %1</source>
@@ -4201,11 +3856,11 @@
     </message>
     <message>
         <source>Enable &amp;3D Acceleration</source>
-        <translation>&amp;3B Hızlandırmayı etkinleştir</translation>
+        <translation>&amp;3B Hızlandırma etkin</translation>
     </message>
     <message>
         <source>&amp;Remote Display</source>
-        <translation>&amp;Uzak Görüntü</translation>
+        <translation>&amp;Uzak Ekran</translation>
     </message>
     <message>
         <source>When checked, the VM will act as a Remote Desktop Protocol (RDP) server, allowing remote clients to connect and operate the VM (when it is running) using a standard RDP client.</source>
@@ -4249,7 +3904,7 @@
     </message>
     <message>
         <source>Enable &amp;2D Video Acceleration</source>
-        <translation>&amp;2B Görüntü Hızlandırmayı etkinleştir</translation>
+        <translation>&amp;2B Görüntü Hızlandırma etkin</translation>
     </message>
     <message>
         <source>The VRDP Server port number. You may specify &lt;tt&gt;0&lt;/tt&gt; (zero), to select port 3389, the standard port for RDP.</source>
@@ -4361,7 +4016,7 @@
     </message>
     <message>
         <source>The virtual machine is set up to use hardware graphics acceleration and the operating system hint is set to Windows Vista or later. For best performance you should set the machine&apos;s video memory to at least b&gt;%1&lt;/b&gt;.</source>
-        <translation type="obsolete">Sanal makine, donanım grafikleri hızlandırmasını kullanması için ayarlanır ve işletim sistemi ipucu, Windows Vista veya sonrasına ayarlıdır. En iyi performans için makinenin görüntü belleğini en az &lt;b&gt;%1&lt;/b&gt; olarak ayarlamalısınız.</translation>
+        <translation>Sanal makine, donanım grafikleri hızlandırmasını kullanması için ayarlanır ve işletim sistemi ipucu, Windows Vista veya sonrasına ayarlıdır. En iyi performans için makinenin görüntü belleğini en az &lt;b&gt;%1&lt;/b&gt; olarak ayarlamalısınız.</translation>
     </message>
     <message>
         <source>The virtual machine is set up to use Video Stream Acceleration. As this feature only works with Windows guest systems it will be disabled.</source>
@@ -4415,36 +4070,8 @@
         <translation>Ekran %1 için görüntü kaydını etkinleştir.</translation>
     </message>
     <message>
-        <source>Mini ToolBar:</source>
-        <translation type="obsolete">Küçük Araç Çubuğu:</translation>
-    </message>
-    <message>
-        <source>If checked, show the Mini ToolBar in Fullscreen and Seamless modes.</source>
-        <translation type="obsolete">Eğer işaretlenmişse, Tam Ekran ve Özgün kiplerinde Küçük Araç Çubuğunu gösterir.</translation>
-    </message>
-    <message>
-        <source>Show in &amp;Fullscreen/Seamless</source>
-        <translation type="obsolete">&amp;Tam Ekran/Özgün İçinde Göster</translation>
-    </message>
-    <message>
-        <source>If checked, show the Mini ToolBar at the top of the screen, rather than in its default position at the bottom of the screen.</source>
-        <translation type="obsolete">Eğer işaretlenmişse, ekranın en altındaki varsayılan konumu yerine, ekranın en üstünde Küçük Araç Çubuğunu gösterir.</translation>
-    </message>
-    <message>
-        <source>Show at &amp;Top of Screen</source>
-        <translation type="obsolete">Ekranın En Üstünde &amp;Göster</translation>
-    </message>
-    <message>
-        <source>&lt;i&gt;About %1MB per 5 minute video&lt;/i&gt;</source>
-        <translation>&lt;i&gt;5 dakikalık görüntü başına yaklaşık %1MB&lt;/i&gt;</translation>
-    </message>
-    <message>
-        <source>Remote Display is currently enabled for this virtual machine. However, this requires the &lt;i&gt;%1&lt;/i&gt; to be installed. Please install the Extension Pack from the VirtualBox download site as otherwise your VM will be started with Remote Display disabled.</source>
-        <translation>Uzak Görüntü bu sanal makine için şu an etkinleştirildi. Ancak bu, &lt;i&gt;%1&lt;/i&gt; yüklenmesini gerektirir. Lütfen VirtualBox indirme sitesinden Genişletme Paketini yükleyin aksi halde VM&apos;iniz Uzak Görüntü etkisizleştirilmiş olarak başlatılacaktır.</translation>
-    </message>
-    <message>
-        <source>The virtual machine is set up to use hardware graphics acceleration and the operating system hint is set to Windows Vista or later. For best performance you should set the machine&apos;s video memory to at least &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation>Sanal makine, donanım grafikleri hızlandırmasını kullanması için ayarlanır ve işletim sistemi ipucu, Windows Vista veya sonrasına ayarlıdır. En iyi performans için makinenin görüntü belleğini en az &lt;b&gt;%1&lt;/b&gt; olarak ayarlamalısınız.</translation>
+        <source>Remote Display is currently enabled for this virtual machine. However, this requires the &lt;b&gt;%1&lt;/b&gt; to be installed. Please install the Extension Pack from the VirtualBox download site as otherwise your VM will be started with Remote Display disabled.</source>
+        <translation>Uzak Görüntü bu sanal makine için şu an etkinleştirildi. Ancak bu, &lt;b&gt;%1&lt;/b&gt; yüklenmesini gerektirir. Lütfen VirtualBox indirme sayfasından Genişletme Paketini yükleyin aksi halde VM&apos;iniz etkisizleştirilmiş Uzak Görüntü ile başlatılacaktır.</translation>
     </message>
 </context>
 <context>
@@ -4455,10 +4082,10 @@
     </message>
     <message>
         <source>Holds the path where snapshots of this virtual machine will be stored. Be aware that snapshots can take quite a lot of disk space.</source>
-        <translation>Bu sanal makinenin anlık görüntülerinin saklanacağı yerin yolunu tutar. Anlık görüntülerin oldukça disk alanı kaplayabileceğinden haberiniz olsun.</translation>
+        <translation>Bu sanal makinenin anlık görüntülerinin saklanacağı yeri gösterir. Anlık görüntülerin oldukça disk alanı kaplayabileceğinden haberiniz olsun.</translation>
     </message>
     <message>
-        <source>Basi&amp;c</source>
+        <source>&amp;Basic</source>
         <translation>&amp;Temel</translation>
     </message>
     <message>
@@ -4506,7 +4133,7 @@
         <translation type="obsolete">Sanal makineye sağlanan video belleği miktarını kontrol eder.</translation>
     </message>
     <message>
-        <source>A&amp;dvanced</source>
+        <source>&amp;Advanced</source>
         <translation>&amp;Gelişmiş</translation>
     </message>
     <message>
@@ -4563,7 +4190,7 @@
     </message>
     <message>
         <source>Selects which clipboard data will be copied between the guest and the host OS. This feature requires Guest Additions to be installed in the guest OS.</source>
-        <translation>Misafir ve anamakine İS arasında kopyalanacak olan pano verisini seçer. Bu özellik misafir İS içinde Misafir Eklentilerinin yüklenmesini gerektirir.</translation>
+        <translation>Misafir ve anamakine İS arasında kopyalanacak olan pano verisini seçer. Bu özellik misafir İS içinde Misafir Eklentilerinin yüklü olmasını gerektirir.</translation>
     </message>
     <message>
         <source>&amp;IDE Controller Type:</source>
@@ -4574,12 +4201,12 @@
         <translation>A&amp;nlık Görüntü Klasörü:</translation>
     </message>
     <message>
-        <source>D&amp;escription</source>
+        <source>&amp;Description</source>
         <translation>&amp;Açıklama</translation>
     </message>
     <message>
         <source>Holds the description of the virtual machine. The description field is useful for commenting on configuration details of the installed guest OS.</source>
-        <translation>Sanal makinenin tanımını tutar. Açıklama alanı yüklü misafir İS&apos;nin yapılandırma ayrıntılarında yorum yapmak için faydalıdır.</translation>
+        <translation>Sanal makinenin tanımını gösterir. Açıklama alanı yüklü misafir İS&apos;nin yapılandırma ayrıntılarında yorum yapmak için faydalıdır.</translation>
     </message>
     <message>
         <source>&amp;Other</source>
@@ -4587,7 +4214,7 @@
     </message>
     <message>
         <source>If checked, any CD/DVD or floppy disks inserted into or removed from the virtual drives while the machine is running will be remembered.</source>
-        <translation type="obsolete">Eğer işaretlenmişse, makine çalışırken sanal sürücülerden kaldırılan ya da yerleştirilen herhangi bir CD/DVD disk ya da disket hatırlanacaktır.</translation>
+        <translation>Eğer işaretlenmişse, makine çalışırken sanal sürücülerden kaldırılan ya da yerleştirilen herhangi bir CD/DVD disk ya da disket hatırlanacaktır.</translation>
     </message>
     <message>
         <source>&amp;Remember Mounted Media</source>
@@ -4603,38 +4230,38 @@
     </message>
     <message>
         <source>Removable Media:</source>
-        <translation type="obsolete">Kaldırılabilir Ortam:</translation>
+        <translation>Kaldırılabilir Ortam:</translation>
     </message>
     <message>
         <source>&amp;Remember Runtime Changes</source>
-        <translation type="obsolete">Çalışma Zamanı Değişikliklerini &amp;Hatırla</translation>
+        <translation>Çalışma Zamanı Değişikliklerini &amp;hatırla</translation>
     </message>
     <message>
         <source>Mini ToolBar:</source>
-        <translation type="obsolete">Küçük Araç Çubuğu:</translation>
+        <translation>Küçük Araç Çubuğu:</translation>
     </message>
     <message>
         <source>If checked, show the Mini ToolBar in Fullscreen and Seamless modes.</source>
-        <translation type="obsolete">Eğer işaretlenmişse, Tam Ekran ve Özgün kiplerinde Küçük Araç Çubuğunu gösterir.</translation>
+        <translation>Eğer işaretlenmişse, Tam Ekran ve Özgün kiplerinde Küçük Araç Çubuğunu gösterir.</translation>
     </message>
     <message>
         <source>Show in &amp;Fullscreen/Seamless</source>
-        <translation type="obsolete">&amp;Tam Ekran/Özgün İçinde Göster</translation>
+        <translation>&amp;Tam Ekran/Özgün içinde göster</translation>
     </message>
     <message>
         <source>If checked, show the Mini ToolBar at the top of the screen, rather than in its default position at the bottom of the screen.</source>
-        <translation type="obsolete">Eğer işaretlenmişse, ekranın en altındaki varsayılan konumu yerine, ekranın en üstünde Küçük Araç Çubuğunu gösterir.</translation>
+        <translation>Eğer işaretlenmişse, ekranın en altındaki varsayılan konumu yerine, ekranın en üstünde Küçük Araç Çubuğunu gösterir.</translation>
     </message>
     <message>
         <source>Show at &amp;Top of Screen</source>
-        <translation type="obsolete">Ekranın En Üstünde &amp;Göster</translation>
+        <translation>Ekranın En Üstünde &amp;göster</translation>
     </message>
     <message>
         <source>you have selected a 64-bit guest OS type for this VM. As such guests require hardware virtualization (VT-x/AMD-V), this feature will be enabled automatically.</source>
         <translation type="obsolete">bu VM için 64-bit misafir İS türü seçtiniz. Bu gibi misafirler donanım sanallaştırma (VT-x/AMD-V) gerektirir, bu özellik otomatik olarak etkinleştirilecektir.</translation>
     </message>
     <message>
-        <source>D&amp;rag&apos;n&apos;Drop:</source>
+        <source>&amp;Drag&apos;n&apos;Drop:</source>
         <translation>&amp;Sürükle&apos;v&apos;Bırak:</translation>
     </message>
     <message>
@@ -4649,126 +4276,6 @@
         <source>The virtual machine operating system hint is set to a 64-bit type. 64-bit guest systems require hardware virtualization, so this will be enabled automatically if you confirm the changes.</source>
         <translation>Sanal makine işletim sistemi ipucu 64-bit türüne ayarlı. 64-bit misafir sistemleri donanım sanallaştırması gerektirir, bu yüzden eğer değişiklikleri onaylarsanız, bu otomatik olarak etkinleştirilecektir.</translation>
     </message>
-    <message>
-        <source>Enc&amp;ryption</source>
-        <translation>Şif&amp;releme</translation>
-    </message>
-    <message>
-        <source>When checked, enables encryption for this virtual machine.</source>
-        <translation>İşaretlendiğinde, bu sanal makine için şifrelemeyi etkinleştirir.</translation>
-    </message>
-    <message>
-        <source>En&amp;able Encryption</source>
-        <translation>Şifrelemeyi &amp;etkinleştir</translation>
-    </message>
-    <message>
-        <source>Encryption C&amp;ipher:</source>
-        <translation>Şifreleme Ş&amp;ifreleyici:</translation>
-    </message>
-    <message>
-        <source>Holds the cipher to be used for encrypting the virtual machine disks.</source>
-        <translation>Sanal makine disklerini şifrelemek için kullanılacak şifreleyiciyi tutar.</translation>
-    </message>
-    <message>
-        <source>E&amp;nter New Password:</source>
-        <translation>Yeni Parolayı Giri&amp;n:</translation>
-    </message>
-    <message>
-        <source>Holds the password to be assigned to the virtual machine.</source>
-        <translation>Sanal makineye atanacak olan parolayı tutar.</translation>
-    </message>
-    <message>
-        <source>C&amp;onfirm New Password:</source>
-        <translation>Yeni Parolayı &amp;Onaylayın:</translation>
-    </message>
-    <message>
-        <source>Confirms the password to be assigned to the virtual machine.</source>
-        <translation>Sanal makineye atanacak olan parolayı onaylar.</translation>
-    </message>
-    <message>
-        <source>You are trying to encrypt this virtual machine. However, this requires the &lt;i&gt;%1&lt;/i&gt; to be installed. Please install the Extension Pack from the VirtualBox download site.</source>
-        <translation>Bu sanal makineyi şifrelemeye çalışıyorsunuz. Ancak bu, &lt;i&gt;%1&lt;/i&gt; yüklenmesini gerektirir. Lütfen VirtualBox indirme sitesinden Genişletme Paketini yükleyin.</translation>
-    </message>
-    <message>
-        <source>Encryption cipher type not specified.</source>
-        <translation>Şifreleme şifreleyicisi türü belirlenmemiş.</translation>
-    </message>
-    <message>
-        <source>Encryption password empty.</source>
-        <translation>Şifreleme parolası boş.</translation>
-    </message>
-    <message>
-        <source>Encryption passwords do not match.</source>
-        <translation>Şifreleme parolaları eşleşmiyor.</translation>
-    </message>
-    <message>
-        <source>Leave Unchanged</source>
-        <comment>cipher type</comment>
-        <translation>Değiştirilmemiş Bırak</translation>
-    </message>
-</context>
-<context>
-    <name>UIMachineSettingsInterface</name>
-    <message>
-        <source>Allows to modify VM menu-bar contents.</source>
-        <translation>VM menü çubuğu içeriklerini değiştirmeye izin verir.</translation>
-    </message>
-    <message>
-        <source>Screen Scale Factor:</source>
-        <translation>Ekran Küçültme Etkeni:</translation>
-    </message>
-    <message>
-        <source>This setting determines the guest screen scale factor.</source>
-        <translation>Bu ayar misafir ekranı küçültme etkenini belirler.</translation>
-    </message>
-    <message>
-        <source>100%</source>
-        <translation>% 100</translation>
-    </message>
-    <message>
-        <source>200%</source>
-        <translation>% 200</translation>
-    </message>
-    <message>
-        <source>%</source>
-        <translation>%</translation>
-    </message>
-    <message>
-        <source>HiDPI:</source>
-        <translation>HiDPI:</translation>
-    </message>
-    <message>
-        <source>If checked, guest screen contents will not be scaled up to compensate for high host screen resolutions.</source>
-        <translation>Eğer işaretlendiyse, misafir ekranı içerikleri yüksek anamakine ekranı çözünürlüğüne karşılık gelene kadar küçültülmeyecektir.</translation>
-    </message>
-    <message>
-        <source>Use &amp;Unscaled HiDPI Output</source>
-        <translation>&amp;Küçültülmemiş HiDPI Çıktısı kullan</translation>
-    </message>
-    <message>
-        <source>Mini ToolBar:</source>
-        <translation>Küçük Araç Çubuğu:</translation>
-    </message>
-    <message>
-        <source>If checked, show the Mini ToolBar in Fullscreen and Seamless modes.</source>
-        <translation>Eğer işaretlendiyse, Tam Ekran ve Özgün kiplerinde Küçük Araç Çubuğunu gösterir.</translation>
-    </message>
-    <message>
-        <source>Show in &amp;Fullscreen/Seamless</source>
-        <translation>&amp;Tam Ekran/Özgün İçinde Göster</translation>
-    </message>
-    <message>
-        <source>If checked, show the Mini ToolBar at the top of the screen, rather than in its default position at the bottom of the screen.</source>
-        <translation>Eğer işaretlendiyse, ekranın en altındaki varsayılan konumu yerine, ekranın en üstünde Küçük Araç Çubuğunu gösterir.</translation>
-    </message>
-    <message>
-        <source>Show at &amp;Top of Screen</source>
-        <translation>Ekranın En Üstünde &amp;Göster</translation>
-    </message>
-    <message>
-        <source>Allows to modify VM status-bar contents.</source>
-        <translation>VM durum çubuğu içeriklerini değiştirmeye izin verir.</translation>
-    </message>
 </context>
 <context>
     <name>UIMachineSettingsNetwork</name>
@@ -4782,11 +4289,11 @@
     </message>
     <message>
         <source>When checked, plugs this virtual network adapter into the virtual machine.</source>
-        <translation>İşaretlendiğinde, bu sanal ağ bağdaştırıcısını sanal makineye bağlar.</translation>
+        <translation>Seçilirse bu sanal ağ bağdaştırıcısını sanal makineye bağlar.</translation>
     </message>
     <message>
         <source>&amp;Enable Network Adapter</source>
-        <translation>Ağ Bağdaştırıcısını &amp;etkinleştir</translation>
+        <translation>Ağ Bağdaştırıcısı &amp;etkin</translation>
     </message>
     <message>
         <source>A&amp;dapter Type:</source>
@@ -4814,7 +4321,7 @@
     </message>
     <message>
         <source>Holds the MAC address of this adapter. It contains exactly 12 characters chosen from {0-9,A-F}. Note that the second character must be an even digit.</source>
-        <translation>Bu bağdaştırıcının MAC adresini tutar. Bu, {0-9,A-F} grubundan seçilen tam olarak 12 karakteri içerir. İkinci karakterin her zaman bir çift rakam olmak zorunda olduğunu unutmayın.</translation>
+        <translation>Bu bağdaştırıcının MAC adresini gösterir. Bu, {0-9,A-F} grubundan seçilen tam olarak 12 karakteri içerir. İkinci karakterin her zaman bir çift rakam olmak zorunda olduğunu unutmayın.</translation>
     </message>
     <message>
         <source>Generates a new random MAC address.</source>
@@ -4917,7 +4424,7 @@
     </message>
     <message>
         <source>Opens a window to manage port forwarding rules.</source>
-        <translation>Bağlantı noktası yönlendirme kurallarını yönetmek için bir pencere açar.</translation>
+        <translation>Bağlantı noktası yönlendirme kurallarını yönetmek için ileti açar.</translation>
     </message>
     <message>
         <source>&amp;Port Forwarding</source>
@@ -4949,7 +4456,7 @@
     </message>
     <message>
         <source>Holds the name of the internal network that this network card will be connected to. You can create a new internal network by choosing a name which is not used by any other network cards in this virtual machine or others.</source>
-        <translation>Bu ağ kartının bağlanacak olduğu dahili ağın adını tutar. Bu sanal makinede ya da diğerlerinde herhangi bir başka ağ kartı tarafından kullanılmayan bir adı seçerek yeni bir dahili ağ oluşturabilirsiniz.</translation>
+        <translation>Bağlanacak olan bu ağ kartının dahili ağ adını girin. Bu sanal makinede ya da diğerlerinde kullanılmayan herhangi bir diğer ağ kartının adını seçerek yeni bir dahili ağ oluşturabilirsiniz.</translation>
     </message>
     <message>
         <source>Selects the virtual network adapter on the host system that traffic to and from this network card will go through. You can create and remove adapters using the global network settings in the virtual machine manager window.</source>
@@ -5043,7 +4550,7 @@
     </message>
     <message>
         <source>&amp;Enable Parallel Port</source>
-        <translation>&amp;Paralel B.Noktasını etkinleştir</translation>
+        <translation>&amp;Paralel B.Noktası etkin</translation>
     </message>
     <message>
         <source>Port &amp;Number:</source>
@@ -5051,7 +4558,7 @@
     </message>
     <message>
         <source>Holds the parallel port number. You can choose one of the standard parallel ports or select &lt;b&gt;User-defined&lt;/b&gt; and specify port parameters manually.</source>
-        <translation>Paralel bağlantı noktası numarasını tutar. Standart paralel bağlantı noktalarından birini seçebilir ya da &lt;b&gt;Kullanıcı-tanımlı&lt;/b&gt; seçebilirsiniz ve bağlantı noktası parametrelerini el ile belirleyebilirsiniz.</translation>
+        <translation>Paralel bağlantı noktası numarasını gösterir. Standart paralel bağlantı noktalarından birini seçebilir ya da &lt;b&gt;Kullanıcı-tanımlı&lt;/b&gt; seçebilirsiniz ve bağlantı noktası parametrelerini el ile belirleyebilirsiniz.</translation>
     </message>
     <message>
         <source>&amp;IRQ:</source>
@@ -5067,15 +4574,15 @@
     </message>
     <message>
         <source>Holds the host parallel device name.</source>
-        <translation>Anamakine paralel aygıt adını tutar.</translation>
+        <translation>Anamakine paralel aygıt adını gösterir.</translation>
     </message>
     <message>
         <source>Holds the IRQ number of this parallel port. This should be a whole number between &lt;tt&gt;0&lt;/tt&gt; and &lt;tt&gt;255&lt;/tt&gt;. Values greater than &lt;tt&gt;15&lt;/tt&gt; may only be used if the &lt;b&gt;I/O APIC&lt;/b&gt; setting is enabled for this virtual machine.</source>
-        <translation>Bu paralel bağlantı noktasının IRQ numarasını tutar. Bu &lt;tt&gt;0&lt;/tt&gt; ve &lt;tt&gt;255&lt;/tt&gt; arasında bütün bir numara olmalıdır. Eğer bu sanal makine için &lt;b&gt;I/O APIC&lt;/b&gt; ayarı etkinleştirilmişse sadece &lt;tt&gt;15&lt;/tt&gt;&apos;ten büyük değerler kullanılabilir.</translation>
+        <translation>Bu paralel bağlantı.noktasının IRQ numarasını gösterir. Bu &lt;tt&gt;0&lt;/tt&gt; ve &lt;tt&gt;255&lt;/tt&gt; arasında bütün bir numara olmalıdır. Eğer bu sanal makine için &lt;b&gt;I/O APIC&lt;/b&gt; ayarı etkinleştirilmişse sadece &lt;tt&gt;15&lt;/tt&gt;&apos;ten büyük değerler kullanılabilir.</translation>
     </message>
     <message>
         <source>Holds the base I/O port address of this parallel port. Valid values are integer numbers in range from &lt;tt&gt;0&lt;/tt&gt; to &lt;tt&gt;0xFFFF&lt;/tt&gt;.</source>
-        <translation>Bu paralel bağlantı noktasının temel G/Ç bağlantı noktası adresini tutar. Geçerli değerler &lt;tt&gt;0&lt;/tt&gt;&apos;dan&lt;tt&gt;0xFFFF&lt;/tt&gt; değerine kadar aralıktaki tam sayı numaralarıdır.</translation>
+        <translation>Bu paralel bağlantı.noktasının temel G/Ç bağlantı noktası adresini gösterir. Geçerli değerler &lt;tt&gt;0&lt;/tt&gt;&apos;dan&lt;tt&gt;0xFFFF&lt;/tt&gt; değerine kadar aralıktaki tam sayı numaralarıdır.</translation>
     </message>
 </context>
 <context>
@@ -5231,11 +4738,11 @@
     <name>UIMachineSettingsSFDetails</name>
     <message>
         <source>Add Share</source>
-        <translation>Paylaşım ekle</translation>
+        <translation>Paylaşım Ekle</translation>
     </message>
     <message>
         <source>Edit Share</source>
-        <translation>Paylaşımı düzenle</translation>
+        <translation>Paylaşımı Düzenle</translation>
     </message>
     <message>
         <source>Dialog</source>
@@ -5251,7 +4758,7 @@
     </message>
     <message>
         <source>Holds the name of the shared folder (as it will be seen by the guest OS).</source>
-        <translation>Paylaşılan klasörün adını tutar (misafir İS tarafından görüldüğü şekilde olacaktır).</translation>
+        <translation>Paylaşılan klasörün adını gösterir (misafir İS tarafından görüldüğü şekilde olacaktır).</translation>
     </message>
     <message>
         <source>When checked, the guest OS will not be able to write to the specified shared folder.</source>
@@ -5275,7 +4782,11 @@
     </message>
     <message>
         <source>If checked, this shared folder will be permanent.</source>
-        <translation>Eğer işaretlendiyse, bu paylaşılan klasör kalıcı olacaktır.</translation>
+        <translation>Eğer işaretlenmişse, bu paylaşılan klasör kalıcı olacaktır.</translation>
+    </message>
+    <message>
+        <source>Window</source>
+        <translation>Pencere</translation>
     </message>
 </context>
 <context>
@@ -5291,7 +4802,7 @@
     </message>
     <message>
         <source>&amp;Enable Serial Port</source>
-        <translation>S&amp;eri B.Noktasını etkinleştir</translation>
+        <translation>S&amp;eri B.Noktası etkin</translation>
     </message>
     <message>
         <source>Port &amp;Number:</source>
@@ -5327,11 +4838,11 @@
     </message>
     <message>
         <source>If checked, the pipe specified in the &lt;b&gt;Port Path&lt;/b&gt; field will be created by the virtual machine when it starts. Otherwise, the virtual machine will assume that the pipe exists and try to use it.</source>
-        <translation type="obsolete">Eğer işaretlenmişse, başlatılırken sanal makine tarafından &lt;b&gt;Bağlantı Noktası Yolu&lt;/b&gt; alanı içinde belirtilen hat oluşturulacaktır. Aksi taktirde, sanal makine hattın var olduğunu farzedecek ve bunu kullanmayı deneyecek.</translation>
+        <translation>Eğer işaretlenmişse, başlatılırken sanal makine tarafından &lt;b&gt;Bağlantı Noktası Yolu&lt;/b&gt; alanı içinde belirtilen hat oluşturulacaktır. Aksi taktirde, sanal makine hattın var olduğunu farzedecek ve bunu kullanmayı deneyecek.</translation>
     </message>
     <message>
         <source>&amp;Create Pipe</source>
-        <translation type="obsolete">&amp;Hat oluştur</translation>
+        <translation>&amp;Hat oluştur</translation>
     </message>
     <message>
         <source>Port &amp;Path:</source>
@@ -5339,35 +4850,19 @@
     </message>
     <message>
         <source>Holds the path to the serial port&apos;s pipe on the host when the port is working in &lt;b&gt;Host Pipe&lt;/b&gt; mode, or the host serial device name when the port is working in &lt;b&gt;Host Device&lt;/b&gt; mode.</source>
-        <translation type="obsolete">Bağlantı noktası &lt;b&gt;Anamakine Hattı&lt;/b&gt; kipinde çalışıyorken anamakine üzerindeki seri bağlantı noktasının hattına olan yolu gösterir ya da bağlantı noktası &lt;b&gt;Anamakine Aygıtı&lt;/b&gt; kipinde çalışıyorken anamakine seri aygıt adını gösterir.</translation>
+        <translation>Bağlantı noktası &lt;b&gt;Anamakine Hattı&lt;/b&gt; kipinde çalışıyorken anamakine üzerindeki seri bağlantı noktasının hattına olan yolu gösterir ya da bağlantı noktası &lt;b&gt;Anamakine Aygıtı&lt;/b&gt; kipinde çalışıyorken anamakine seri aygıt adını gösterir.</translation>
     </message>
     <message>
         <source>Port/File &amp;Path:</source>
-        <translation type="obsolete">B.Noktası/Dosya &amp;Yolu:</translation>
+        <translation>B.Noktası/Dosya &amp;Yolu:</translation>
     </message>
     <message>
         <source>Holds the IRQ number of this serial port. This should be a whole number between &lt;tt&gt;0&lt;/tt&gt; and &lt;tt&gt;255&lt;/tt&gt;. Values greater than &lt;tt&gt;15&lt;/tt&gt; may only be used if the &lt;b&gt;I/O APIC&lt;/b&gt; setting is enabled for this virtual machine.</source>
-        <translation>Bu seri bağlantı noktasının IRQ numarasını tutar. Bu &lt;tt&gt;0&lt;/tt&gt; ve &lt;tt&gt;255&lt;/tt&gt; arasında bütün bir numara olmalıdır. Eğer bu sanal makine için &lt;b&gt;I/O APIC&lt;/b&gt; ayarı etkinleştirilmişse sadece &lt;tt&gt;15&lt;/tt&gt;&apos;ten büyük değerler kullanılabilir.</translation>
+        <translation>Bu seri bağlantı noktasının IRQ numarasını gösterir. Bu &lt;tt&gt;0&lt;/tt&gt; ve &lt;tt&gt;255&lt;/tt&gt; arasında bütün bir numara olmalıdır. Eğer bu sanal makine için &lt;b&gt;I/O APIC&lt;/b&gt; ayarı etkinleştirilmişse sadece &lt;tt&gt;15&lt;/tt&gt;&apos;ten büyük değerler kullanılabilir.</translation>
     </message>
     <message>
         <source>Holds the base I/O port address of this serial port. Valid values are integer numbers in range from &lt;tt&gt;0&lt;/tt&gt; to &lt;tt&gt;0xFFFF&lt;/tt&gt;.</source>
-        <translation>Bu seri bağlantı noktasının temel G/Ç bağlantı noktası adresini tutar. Geçerli değerler &lt;tt&gt;0&lt;/tt&gt;&apos;dan&lt;tt&gt;0xFFFF&lt;/tt&gt; değerine kadar aralıktaki tam sayı numaralarıdır.</translation>
-    </message>
-    <message>
-        <source>If checked, the virtual machine will assume that the pipe or socket specified in the &lt;b&gt;Path/Address&lt;/b&gt; field exists and try to use it. Otherwise, the pipe or socket will be created by the virtual machine when it starts.</source>
-        <translation>Eğer işaretlendiyse, sanal makine &lt;b&gt;Yol/Adres&lt;/b&gt; alanında belirtilmiş hat ya da yuvanın mevcut olduğunu varsayacak ve kullanmaya çalışacak. Aksi halde hat ya da yuva sanal makine tarafından başlatıldığında oluşturulacaktır.</translation>
-    </message>
-    <message>
-        <source>&amp;Connect to existing pipe/socket</source>
-        <translation>Varolan hatta/yuvaya &amp;bağlan</translation>
-    </message>
-    <message>
-        <source>&amp;Path/Address:</source>
-        <translation>&amp;Yol/Adres:</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;In &lt;b&gt;Host Pipe&lt;/b&gt; mode: Holds the path to the serial port&apos;s pipe on the host. Examples: &quot;\\.\pipe\myvbox&quot; or &quot;/tmp/myvbox&quot;, for Windows and UNIX-like systems respectively.&lt;/p&gt;&lt;p&gt;In &lt;b&gt;Host Device&lt;/b&gt; mode: Holds the host serial device name. Examples: &quot;COM1&quot; or &quot;/dev/ttyS0&quot;.&lt;/p&gt;&lt;p&gt;In &lt;b&gt;Raw File&lt;/b&gt; mode: Holds the file-path on the host system, where the serial output will be dumped.&lt;/p&gt;&lt;p&gt;In &lt;b&gt;TCP&lt;/b&gt; mode: Holds the TCP &quot;port&quot; when in server mode, or &quot;hostname:port&quot; when in client mode.</source>
-        <translation>&lt;p&gt;&lt;b&gt;Anamakine Hattı&lt;/b&gt; kipinde: Anamakinedeki seri bağlantı noktasının hattı için yolu tutar. Örnek: &quot;\\.\pipe\myvbox&quot; veya &quot;/tmp/myvbox&quot;, ayrı ayrı Windows ve UNIX-gibi sistemler için.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Anamakine Aygıtı&lt;/b&gt; kipinde: Anamakine seri aygıt adını tutar. Örnek: &quot;COM1&quot; veya &quot;/dev/ttyS0&quot;.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Ham Dosya&lt;/b&gt; kipinde: Anamakine sistemindeki, seri çıktının dökümleneceği dosya yolunu tutar.&lt;/p&gt;&lt;p&gt;&lt;b&gt;TCP&lt;/b&gt; kipinde: sunucu kipindeyken TCP &quot;bağlantı noktası&quot;nı ya da istemci kipindeylen &quot;anamakine adı:bağlantı noktası&quot;nı tutar.</translation>
+        <translation>Bu seri bağlantı.noktasının temel G/Ç bağlantı noktası adresini gösterir. Geçerli değerler &lt;tt&gt;0&lt;/tt&gt;&apos;dan&lt;tt&gt;0xFFFF&lt;/tt&gt; değerine kadar aralıktaki tam sayı numaralarıdır.</translation>
     </message>
 </context>
 <context>
@@ -5449,11 +4944,11 @@
     </message>
     <message>
         <source>&lt;nobr&gt;Add&amp;nbsp;CD/DVD&amp;nbsp;Device&lt;/nobr&gt;</source>
-        <translation type="obsolete">&lt;nobr&gt;CD/DVD&amp;nbsp;Aygıtı&amp;nbsp;Ekle&lt;/nobr&gt;</translation>
+        <translation>&lt;nobr&gt;CD/DVD&amp;nbsp;Aygıtı&amp;nbsp;Ekle&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;Add&amp;nbsp;Floppy&amp;nbsp;Device&lt;/nobr&gt;</source>
-        <translation type="obsolete">&lt;nobr&gt;Disket&amp;nbsp;Aygıtı&amp;nbsp;Ekle&lt;/nobr&gt;</translation>
+        <translation>&lt;nobr&gt;Disket&amp;nbsp;Aygıtı&amp;nbsp;Ekle&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;i&gt;%1&lt;/i&gt; uses a medium that is already attached to &lt;i&gt;%2&lt;/i&gt;.</source>
@@ -5493,11 +4988,11 @@
     </message>
     <message>
         <source>Add CD/DVD Device</source>
-        <translation type="obsolete">CD/DVD Aygıtı ekle</translation>
+        <translation>CD/DVD Aygıtı ekle</translation>
     </message>
     <message>
         <source>Add Floppy Device</source>
-        <translation type="obsolete">Disket Aygıtı ekle</translation>
+        <translation>Disket Aygıtı ekle</translation>
     </message>
     <message>
         <source>Remove Attachment</source>
@@ -5645,19 +5140,19 @@
     </message>
     <message>
         <source>Set up the virtual hard disk</source>
-        <translation>Sanal sabit diski ayarla</translation>
+        <translation>Sanal sabit disk ayarla</translation>
     </message>
     <message>
         <source>CD/DVD &amp;Drive:</source>
-        <translation type="obsolete">CD/DVD &amp;Sürücü:</translation>
+        <translation>CD/DVD &amp;Sürücü:</translation>
     </message>
     <message>
         <source>Choose a virtual CD/DVD disk or a physical drive to use with the virtual drive. The virtual machine will see a disk inserted into the drive with the data in the file or on the disk in the physical drive as its contents.</source>
-        <translation type="obsolete">Sanal sürücü ile kullanmak için sanal bir CD/DVD disk ya da fiziksel bir sürücü seçin. Sanal makine, dosyadaki veriyle sürücüye yerleştirilen bir diski veya fiziksel sürücüdeki diski, içerikleri gibi görecek.</translation>
+        <translation>Sanal sürücü ile kullanmak için sanal bir CD/DVD disk ya da fiziksel bir sürücü seçin. Sanal makine, dosyadaki veriyle sürücüye yerleştirilen bir diski veya fiziksel sürücüdeki diski, içerikleri gibi görecek.</translation>
     </message>
     <message>
         <source>Set up the virtual CD/DVD drive</source>
-        <translation type="obsolete">Sanal CD/DVD sürücü ayarla</translation>
+        <translation>Sanal CD/DVD sürücü ayarla</translation>
     </message>
     <message>
         <source>Floppy &amp;Drive:</source>
@@ -5669,7 +5164,7 @@
     </message>
     <message>
         <source>Set up the virtual floppy drive</source>
-        <translation>Sanal disket sürücüyü ayarla</translation>
+        <translation>Sanal disket sürücü ayarla</translation>
     </message>
     <message>
         <source>Create a new hard disk...</source>
@@ -5681,7 +5176,7 @@
     </message>
     <message>
         <source>Choose a virtual CD/DVD disk file...</source>
-        <translation type="obsolete">Sanal bir CD/DVD disk dosyası seçin...</translation>
+        <translation>Sanal bir CD/DVD disk dosyası seçin...</translation>
     </message>
     <message>
         <source>Remove disk from virtual drive</source>
@@ -5701,7 +5196,7 @@
     </message>
     <message>
         <source>When checked the guest system will see the virtual disk as a solid state device.</source>
-        <translation>İşaretlendiğinde, misafir sistem sanal diski bir katı hal aygıtı (SSD) gibi görecek.</translation>
+        <translation>İşaretlendiğinde, misafir sistem sanal diski katı hal sürücüsü (SSD) gibi görecek.</translation>
     </message>
     <message>
         <source>&amp;Solid-state Drive</source>
@@ -5768,50 +5263,6 @@
     <message>
         <source>The machine currently has more storage controllers assigned than a %1 chipset supports. Please change the chipset type on the System settings page or reduce the number of the following storage controllers on the Storage settings page: %2</source>
         <translation>Makine şu anda %1 yonga setinin desteklediğinden daha fazla depolama denetleyicisine atanmış. Lütfen Sistem ayarları sayfasındaki yonga seti türünü değiştirin ya da Depolama ayarları sayfasında belirtilen depolama denetleyicilerinin sayısını azaltın: %2</translation>
-    </message>
-    <message>
-        <source>Add USB Controller</source>
-        <translation>USB Denetleyicisi ekle</translation>
-    </message>
-    <message>
-        <source>When checked the guest system will see the virtual disk as a hot-pluggable device.</source>
-        <translation>İşaretlendiğinde, misafir sistem sanal diski bir çalışırken-takılabilir aygıt gibi görecek.</translation>
-    </message>
-    <message>
-        <source>&amp;Hot-pluggable</source>
-        <translation>Çalışırken-&amp;takılabilir</translation>
-    </message>
-    <message>
-        <source>Choose a virtual optical disk file...</source>
-        <translation>Sanal bir optik disk dosyası seçin...</translation>
-    </message>
-    <message>
-        <source>&lt;nobr&gt;Add&amp;nbsp;Optical&amp;nbsp;Drive&lt;/nobr&gt;</source>
-        <translation>&lt;nobr&gt;Optik&amp;nbsp;Sürücü&amp;nbsp;Ekle&lt;/nobr&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;nobr&gt;Add&amp;nbsp;Floppy&amp;nbsp;Drive&lt;/nobr&gt;</source>
-        <translation>&lt;nobr&gt;Disket&amp;nbsp;Sürücü&amp;nbsp;Ekle&lt;/nobr&gt;</translation>
-    </message>
-    <message>
-        <source>Add Optical Drive</source>
-        <translation>Optik Sürücü ekle</translation>
-    </message>
-    <message>
-        <source>Add Floppy Drive</source>
-        <translation>Disket Sürücü ekle</translation>
-    </message>
-    <message>
-        <source>Optical &amp;Drive:</source>
-        <translation>Optik &amp;Sürücü:</translation>
-    </message>
-    <message>
-        <source>Choose a virtual optical disk or a physical drive to use with the virtual drive. The virtual machine will see a disk inserted into the drive with the data in the file or on the disk in the physical drive as its contents.</source>
-        <translation>Sanal sürücü ile kullanmak için sanal bir optik disk ya da fiziksel bir sürücü seçin. Sanal makine, dosyadaki veriyle sürücüye yerleştirilen bir diski veya fiziksel sürücüdeki diski, içerikleri gibi görecek.</translation>
-    </message>
-    <message>
-        <source>Set up the virtual optical drive</source>
-        <translation>Sanal optik sürücüyü ayarla</translation>
     </message>
 </context>
 <context>
@@ -5899,7 +5350,7 @@
     </message>
     <message>
         <source>Enable &amp;I/O APIC</source>
-        <translation>&amp;G/Ç APIC etkinleştir</translation>
+        <translation>&amp;G/Ç APIC etkin</translation>
     </message>
     <message>
         <source>&amp;Processor</source>
@@ -5915,7 +5366,7 @@
     </message>
     <message>
         <source>Enable PA&amp;E/NX</source>
-        <translation>PA&amp;E/NX etkinleştir</translation>
+        <translation>PA&amp;E/NX etkin</translation>
     </message>
     <message>
         <source>Acce&amp;leration</source>
@@ -5931,7 +5382,7 @@
     </message>
     <message>
         <source>Enable &amp;VT-x/AMD-V</source>
-        <translation>&amp;VT-x/AMD-V etkinleştir</translation>
+        <translation>&amp;VT-x/AMD-V etkin</translation>
     </message>
     <message>
         <source>When checked, the virtual machine will try to make use of the nested paging extension of Intel VT-x and AMD-V.</source>
@@ -5939,7 +5390,7 @@
     </message>
     <message>
         <source>Enable Nested Pa&amp;ging</source>
-        <translation>İçiçe Sa&amp;yfalamayı etkinleştir</translation>
+        <translation>İçiçe Sa&amp;yfalama etkin</translation>
     </message>
     <message>
         <source>&lt;qt&gt;%1&amp;nbsp;CPUs&lt;/qt&gt;</source>
@@ -5948,19 +5399,19 @@
     </message>
     <message>
         <source>When checked, the guest will support the Extended Firmware Interface (EFI), which is required to boot certain guest OSes. Non-EFI aware OSes will not be able to boot if this option is activated.</source>
-        <translation>İşaretlendiğinde misafir, belli misafir İS&apos;lerin önyüklemesini gerektiren Genişletilmiş Donanım Yazılımı Arayüzünü (EFI) destekleyecek. Eğer bu seçenek etkinleştirildiyse, EFI&apos;sız tanınan İS&apos;leri önyükleme yapılamayacaktır.</translation>
+        <translation>İşaretlendiğinde, misafir, belli misafir İS&apos;lerin önyüklemesini gerektiren Genişletilmiş Donanım Yazılımı Arayüzünü (EFI) destekleyecek. Eğer bu seçenek etkinleştirildiyse, EFI-olmamadan habersiz İS&apos;leri önyükleme yapılamayacaktır.</translation>
     </message>
     <message>
         <source>Enable &amp;EFI (special OSes only)</source>
-        <translation>&amp;EFI etkinleştir (sadece özel İS&apos;leri)</translation>
+        <translation>&amp;EFI (sadece özel İS&apos;leri) etkin</translation>
     </message>
     <message>
         <source>If checked, the RTC device will report the time in UTC, otherwise in local (host) time. Unix usually expects the hardware clock to be set to UTC.</source>
-        <translation>Eğer işaretlendiyse, RTC aygıtı zamanı UTC olarak, aksi takdirde yerel (anamakine) zamanı bildirecek. Unix genellikle donanım saatinin UTC&apos;ye ayarlanmasını bekler.</translation>
+        <translation>Eğer işaretlenmişse, RTC aygıtı UTC olarak zamanı, aksi takdirde yerel (anamakine) zamanı bildirecek. Unix genellikle donanım saatinin UTC&apos;ye ayarlanmasını bekler.</translation>
     </message>
     <message>
         <source>Hardware Clock in &amp;UTC Time</source>
-        <translation>&amp;UTC Zamanı olarak Donanım Saati</translation>
+        <translation>&amp;UTC zamanı olarak donanım saati</translation>
     </message>
     <message>
         <source>Controls the number of virtual CPUs in the virtual machine. You need hardware virtualization support on your host system to use more than one virtual CPU.</source>
@@ -5980,7 +5431,7 @@
     </message>
     <message>
         <source>Selects the chipset to be emulated in this virtual machine. Note that the ICH9 chipset emulation is experimental and not recommended except for guest systems (such as Mac OS X) which require it.</source>
-        <translation>Bu sanal makinede benzetilen yonga setini seçer. ICH9 yonga seti benzetiminin deneysel olduğunu ve gerektiren misafir sistemler (Mac OS X gibi) hariç, önerilmediğini unutmayın.</translation>
+        <translation>Bu sanal makinede uyarlanan yonga setini seçer. ICH9 yonga seti uyarlamasının deneysel olduğunu ve gerektiren misafir sistemler (Mac OS X gibi) hariç, önerilmediğini unutmayın.</translation>
     </message>
     <message>
         <source>&amp;Execution Cap:</source>
@@ -6018,7 +5469,7 @@
     </message>
     <message>
         <source>Determines whether the emulated pointing device is a standard PS/2 mouse, a USB tablet or a USB multi-touch tablet.</source>
-        <translation>Benzetilen işaretleme aygıtının bir standart PS/2 fare, bir USB tablet ya da bir USB çoklu-dokunmalı tablet olup olmadığını belirler.</translation>
+        <translation>Uyarlanan işaretleme aygıtının bir standart PS/2 fare, bir USB tablet ya da bir USB çoklu-dokunmalı tablet olup olmadığını belirler.</translation>
     </message>
     <message>
         <source>More than &lt;b&gt;%1%&lt;/b&gt; of the host computer&apos;s memory (&lt;b&gt;%2&lt;/b&gt;) is assigned to the virtual machine. Not enough memory is left for the host operating system. Please select a smaller amount.</source>
@@ -6030,11 +5481,11 @@
     </message>
     <message>
         <source>The I/O APIC feature is not currently enabled in the Motherboard section of the System page. This is needed in order to support a chip set of type ICH9. It will be done automatically if you confirm your changes.</source>
-        <translation type="obsolete">G/Ç APIC özelliği şu anda Sistem sayfasının Anakart bölümünde etkin değil. Bu, ICH9 türü bir yonga setini desteklemek için gereklidir. Eğer değişiklikleri onaylarsanız, bu otomatik olarak yapılacaktır.</translation>
+        <translation>G/Ç APIC özelliği şu anda Sistem sayfasının Anakart bölümünde etkin değil. Bu, ICH9 türü bir yonga setini desteklemek için gereklidir. Eğer değişiklikleri onaylarsanız, bu otomatik olarak yapılacaktır.</translation>
     </message>
     <message>
         <source>USB controller emulation is not currently enabled on the USB page. This is needed to support an emulated USB input device. It will be done automatically if you confirm your changes.</source>
-        <translation type="obsolete">USB denetleyicisi uyarlama şu anda USB sayfasında etkin değil. Bu, bir uyarlanmış USB girdi aygıtı desteklemek için gereklidir. Eğer değişiklikleri onaylarsanız, bu otomatik olarak yapılacaktır.</translation>
+        <translation>USB denetleyicisi uyarlama şu anda USB sayfasında etkin değil. Bu, bir uyarlanmış USB girdi aygıtı desteklemek için gereklidir. Eğer değişiklikleri onaylarsanız, bu otomatik olarak yapılacaktır.</translation>
     </message>
     <message>
         <source>For performance reasons, the number of virtual CPUs attached to the virtual machine may not be more than twice the number of physical CPUs on the host (&lt;b&gt;%1&lt;/b&gt;). Please reduce the number of virtual CPUs.</source>
@@ -6046,39 +5497,15 @@
     </message>
     <message>
         <source>The I/O APIC feature is not currently enabled in the Motherboard section of the System page. This is needed in order to support more than one virtual processor. It will be done automatically if you confirm your changes.</source>
-        <translation type="obsolete">G/Ç APIC özelliği şu anda Sistem sayfasının Anakart bölümünde etkin değil. Bu, birden fazla sanal işlemciyi desteklemek için gerelidir. Eğer değişiklikleri onaylarsanız, bu otomatik olarak yapılacaktır.</translation>
+        <translation>G/Ç APIC özelliği şu anda Sistem sayfasının Anakart bölümünde etkin değil. Bu, birden fazla sanal işlemciyi desteklemek için gerelidir. Eğer değişiklikleri onaylarsanız, bu otomatik olarak yapılacaktır.</translation>
     </message>
     <message>
         <source>Hardware virtualization is not currently enabled in the Acceleration section of the System page. This is needed in order to support more than one virtual processor. It will be done automatically if you confirm your changes.</source>
-        <translation type="obsolete">Donanım hızlandırma şu anda Sistem sayfasının Hızlandırma bölümünde etkin değil. Bu, birden fazla sanal işlemciyi desteklemek için gerelidir. Eğer değişiklikleri onaylarsanız, bu otomatik olarak yapılacaktır.</translation>
+        <translation>Donanım hızlandırma şu anda Sistem sayfasının Hızlandırma bölümünde etkin değil. Bu, birden fazla sanal işlemciyi desteklemek için gerelidir. Eğer değişiklikleri onaylarsanız, bu otomatik olarak yapılacaktır.</translation>
     </message>
     <message>
         <source>The processor execution cap is set to a low value. This may make the machine feel slow to respond.</source>
         <translation>İşlemci çalıştırılma üst sınırı düşük bir değere ayarlı. Bu, makinenin yavaş yanıt vermesini hissettirebilir.</translation>
-    </message>
-    <message>
-        <source>&amp;Paravirtualization Interface:</source>
-        <translation>&amp;Yarı Sanallaştırma Arayüzü:</translation>
-    </message>
-    <message>
-        <source>Selects the paravirtualization guest interface provider to be used by this virtual machine.</source>
-        <translation>Bu sanal makine tarafından kullanılacak yarı sanallaştırma misafir arayüzü sağlayıcısını seçer.</translation>
-    </message>
-    <message>
-        <source>The I/O APIC feature is not currently enabled in the Motherboard section of the System page. This is needed in order to support a chip set of type ICH9 you have enabled for this VM. It will be done automatically if you confirm your changes.</source>
-        <translation>G/Ç APIC özelliği şu an Sistem sayfasının Anakart bölümünde etkinleştirilmedi. Bu, sizin bu VM için etkinleştirdiğiniz ICH9 türü bir yonga setini desteklemek için gereklidir. Eğer değişikliklerinizi onaylarsanız, bu otomatik olarak yapılacaktır.</translation>
-    </message>
-    <message>
-        <source>USB controller emulation is not currently enabled on the USB page. This is needed to support an emulated USB input device you have enabled for this VM. It will be done automatically if you confirm your changes.</source>
-        <translation>USB denetleyicisi benzetimi şu an USB sayfasında etkinleştirilmedi. Bu, sizin bu VM için etkinleştirdiğiniz bir benzetilen USB girdi aygıtı desteklemek için gereklidir. Eğer değişikliklerinizi onaylarsanız, bu otomatik olarak yapılacaktır.</translation>
-    </message>
-    <message>
-        <source>The I/O APIC feature is not currently enabled in the Motherboard section of the System page. This is needed in order to support more than one virtual processor you have chosen for this VM. It will be done automatically if you confirm your changes.</source>
-        <translation>G/Ç APIC özelliği şu an Sistem sayfasının Anakart bölümünde etkinleştirilmedi. Bu, sizin bu VM için seçtiğiniz birden fazla sanal işlemciyi desteklemek için gereklidir. Eğer değişikliklerinizi onaylarsanız, bu otomatik olarak yapılacaktır.</translation>
-    </message>
-    <message>
-        <source>Hardware virtualization is not currently enabled in the Acceleration section of the System page. This is needed in order to support more than one virtual processor you have chosen for this VM. It will be done automatically if you confirm your changes.</source>
-        <translation>Donanım sanallaştırma şu an Sistem sayfasının Hızlandırma bölümünde etkinleştirilmedi. Bu, sizin bu VM için seçtiğiniz birden fazla sanal işlemciyi desteklemek için gereklidir. Eğer değişikliklerinizi onaylarsanız, bu otomatik olarak yapılacaktır.</translation>
     </message>
 </context>
 <context>
@@ -6142,7 +5569,7 @@
     </message>
     <message>
         <source>Enable &amp;USB Controller</source>
-        <translation>&amp;USB Denetleyicisini etkinleştir</translation>
+        <translation>&amp;USB Denetleyicisi etkin</translation>
     </message>
     <message>
         <source>When checked, enables the virtual USB EHCI controller of this machine. The USB EHCI controller provides USB 2.0 support.</source>
@@ -6150,7 +5577,7 @@
     </message>
     <message>
         <source>Enable USB 2.0 (E&amp;HCI) Controller</source>
-        <translation type="obsolete">USB 2.0 (E&amp;HCI) Denetleyicisi etkin</translation>
+        <translation>USB 2.0 (E&amp;HCI) Denetleyicisi etkin</translation>
     </message>
     <message>
         <source>USB Device &amp;Filters</source>
@@ -6210,31 +5637,7 @@
     </message>
     <message>
         <source>USB 2.0 is currently enabled for this virtual machine. However, this requires the &lt;b&gt;%1&lt;/b&gt; to be installed. Please install the Extension Pack from the VirtualBox download site or disable USB 2.0 to be able to start the machine.</source>
-        <translation type="obsolete">USB 2.0 şu anda bu sanal makine için etkinleştirildi. Ancak, bu &lt;b&gt;%1&lt;/b&gt; yüklenmesini gerektirir. Lütfen VirtualBox indirme sitesinden Genişletme Paketini yükleyin ya da makineyi başlatmak için USB 2.0&apos;ı etkisizleştirin.</translation>
-    </message>
-    <message>
-        <source>When checked, enables the virtual USB OHCI controller of this machine. The USB OHCI controller provides USB 1.0 support.</source>
-        <translation>İşaretlendiğinde, bu makinenin sanal USB OHCI denetleyicisini etkinleştirir. USB OHCI denetleyicisi USB 1.0 desteği sağlar.</translation>
-    </message>
-    <message>
-        <source>USB &amp;1.1 (OHCI) Controller</source>
-        <translation>USB &amp;1.1 (OHCI) Denetleyicisi</translation>
-    </message>
-    <message>
-        <source>USB &amp;2.0 (EHCI) Controller</source>
-        <translation>USB &amp;2.0 (EHCI) Denetleyicisi</translation>
-    </message>
-    <message>
-        <source>When checked, enables the virtual USB xHCI controller of this machine. The USB xHCI controller provides USB 3.0 support.</source>
-        <translation>İşaretlendiğinde, bu makinenin sanal USB xHCI denetleyicisini etkinleştirir. USB xHCI denetleyicisi USB 3.0 desteği sağlar.</translation>
-    </message>
-    <message>
-        <source>USB &amp;3.0 (xHCI) Controller</source>
-        <translation>USB &amp;3.0 (xHCI) Denetleyicisi</translation>
-    </message>
-    <message>
-        <source>USB 2.0/3.0 is currently enabled for this virtual machine. However, this requires the &lt;i&gt;%1&lt;/i&gt; to be installed. Please install the Extension Pack from the VirtualBox download site or disable USB 2.0/3.0 to be able to start the machine.</source>
-        <translation>USB 2.0/3.0 bu sanal makine için şu an etkinleştirildi. Ancak bu, &lt;b&gt;%1&lt;/b&gt; yüklenmesini gerektirir. Lütfen VirtualBox indirme sitesinden Genişletme Paketini yükleyin ya da makineyi başlatabilmek için USB 2.0/3.0&apos;ı etkisizleştirin.</translation>
+        <translation>USB 2.0 bu sanal makine için şu an etkinleştirildi. Ancak bu, &lt;b&gt;%1&lt;/b&gt; yüklenmesini gerektirir. Lütfen VirtualBox indirme sayfasından Genişletme Paketini yükleyin ya da makineyi başlatmak için USB 2.0&apos;ı etkisizleştirin.</translation>
     </message>
 </context>
 <context>
@@ -6260,7 +5663,7 @@
     </message>
     <message>
         <source>Holds the filter name.</source>
-        <translation>Süzgeç adını tutar.</translation>
+        <translation>Süzgeç adını gösterir.</translation>
     </message>
     <message>
         <source>&amp;Vendor ID:</source>
@@ -6324,7 +5727,7 @@
     </message>
     <message>
         <source>Defines whether this filter applies to USB devices attached locally to the host computer (&lt;i&gt;No&lt;/i&gt;), to a VRDP client&apos;s computer (&lt;i&gt;Yes&lt;/i&gt;), or both (&lt;i&gt;Any&lt;/i&gt;).</source>
-        <translation>Bu süzgecin anamakine bilgisayarına yerel olarak takılı USB aygıtlara (&lt;i&gt;Hayır&lt;/i&gt;), VRDP istemcilerinin bilgisayarlarına (&lt;i&gt;Evet&lt;/i&gt;) ya da her ikisine de (&lt;i&gt;Herhangi&lt;/i&gt;) uygulanıp uygulanmayacağını tanımlar.</translation>
+        <translation>Bu süzgecin anamakine bilgisayarına yerel olarak takılı USB aygıtlara (&lt;i&gt;Hayır&lt;/i&gt;), VRDP istemcilerinin bilgisayarlarına (&lt;i&gt;Evet&lt;/i&gt;) ya da her ikisinede (&lt;i&gt;Herhangi&lt;/i&gt;) uygulanıp uygulanmayacağını tanımlar.</translation>
     </message>
     <message>
         <source>&amp;Action:</source>
@@ -6350,14 +5753,14 @@
     <name>UIMachineWindowNormal</name>
     <message>
         <source>Shows the currently assigned Host key.&lt;br&gt;This key, when pressed alone, toggles the keyboard and mouse capture state. It can also be used in combination with other keys to quickly perform actions from the main menu.</source>
-        <translation>Şu anki atanmış Anamakine tuşunu gösterir.&lt;br&gt; Bu tuş, yalnız basıldığında, klavye ve fare yakalama durumunu değiştirir. Ayrıca eylemleri ana menüden daha hızlı gerçekleştirmek için diğer tuşlar ile birlikte kullanılabilir.</translation>
+        <translation>Şu andaki atanmış Anamakine tuşunu gösterir.&lt;br&gt; Bu tuş, yalnız basıldığında, klavye ve fare yakalama durumunu değiştirir. Ayrıca eylemleri ana menüden daha hızlı gerçekleştirmek için diğer tuşlar ile birlikte kullanılabilir.</translation>
     </message>
 </context>
 <context>
     <name>UIMediumManager</name>
     <message>
         <source>&amp;Hard drives</source>
-        <translation>Sa&amp;bit sürücüler</translation>
+        <translation>Sa&amp;bit diskler</translation>
     </message>
     <message>
         <source>&amp;Optical disks</source>
@@ -6373,11 +5776,7 @@
     </message>
     <message>
         <source>C&amp;lose</source>
-        <translation type="obsolete">K&amp;apat</translation>
-    </message>
-    <message>
-        <source>Removing medium...</source>
-        <translation>Ortam kaldırılıyor...</translation>
+        <translation>K&amp;apat</translation>
     </message>
 </context>
 <context>
@@ -6393,29 +5792,6 @@
     <message>
         <source>Choose mode:</source>
         <translation>Kipi seçin:</translation>
-    </message>
-</context>
-<context>
-    <name>UIMenuBarEditorWidget</name>
-    <message>
-        <source>Virtual Screen Resize</source>
-        <translation>Sanal Ekran Yeniden Boyutlandırma</translation>
-    </message>
-    <message>
-        <source>Virtual Screen Mapping</source>
-        <translation>Sanal Ekran Eşleme</translation>
-    </message>
-    <message>
-        <source>Close</source>
-        <translation>Kapat</translation>
-    </message>
-    <message>
-        <source>Switch</source>
-        <translation>Değiştir</translation>
-    </message>
-    <message>
-        <source>Enable Menu Bar</source>
-        <translation>Menü Çubuğunu etkinleştir</translation>
     </message>
 </context>
 <context>
@@ -6460,7 +5836,7 @@
     </message>
     <message>
         <source>&lt;p&gt;Failed to create the VirtualBox COM object.&lt;/p&gt;&lt;p&gt;The application will now terminate.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;VirtualBox COM nesnesini oluşturma başarısız.&lt;/p&gt;&lt;p&gt;Uygulama şimdi sonlandırılacak.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;VirtualBox COM nesnesini oluşturma başarısız.&lt;/p&gt;&lt;p&gt;Uygulama şimdi sonlandırılacak.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;Failed to load the global GUI configuration.&lt;/p&gt;&lt;p&gt;The application will now terminate.&lt;/p&gt;</source>
@@ -6637,7 +6013,7 @@
     </message>
     <message>
         <source>Failed to detach the USB device &lt;b&gt;%1&lt;/b&gt; from the virtual machine &lt;b&gt;%2&lt;/b&gt;.</source>
-        <translation>&lt;b&gt;%1&lt;/b&gt; USB aygıtını &lt;b&gt;%2&lt;/b&gt; sanal makinesinden ayırma başarısız.</translation>
+        <translation>&lt;b&gt;%1&lt;/b&gt; USB aygıtını &lt;b&gt;%2&lt;/b&gt; sanal makinesinden çıkartma başarısız.</translation>
     </message>
     <message>
         <source>Failed to create the shared folder &lt;b&gt;%1&lt;/b&gt; (pointing to &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;) for the virtual machine &lt;b&gt;%3&lt;/b&gt;.</source>
@@ -6649,7 +6025,7 @@
     </message>
     <message>
         <source>&lt;p&gt;The Virtual Machine reports that the guest OS does not support &lt;b&gt;mouse pointer integration&lt;/b&gt; in the current video mode. You need to capture the mouse (by clicking over the VM display or pressing the host key) in order to use the mouse inside the guest OS.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Sanal Makine misafir İS&apos;de şu anki görüntü kipinde &lt;b&gt;fare işaretçisi bütünleştirmeyi&lt;/b&gt; desteklemediğini bildiriyor. Misafir İS içerisinde farenizi kullanmak için farenizi yakalamanız (VM ekranı üzerine tıklayarak ya da anamakine tuşuna basarak) gerekli.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Sanal makine misafir İS&apos;de şu anki görüntü kipinde &lt;b&gt;fare işaretçisi bütünleştirme&lt;/b&gt; desteklemediğini bildiriyor. Misafir İS içerisinde farenizi kullanmak için farenizi yakalamanız (VM ekranı üzerine tıklayarak ya da anamakine tuşuna basarak) gerekli.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;The Virtual Machine is currently in the &lt;b&gt;Paused&lt;/b&gt; state and not able to see any keyboard or mouse input. If you want to continue to work inside the VM, you need to resume it by selecting the corresponding action from the menu bar.&lt;/p&gt;</source>
@@ -6686,7 +6062,7 @@
     </message>
     <message>
         <source>&lt;p&gt;A fatal error has occurred during virtual machine execution! The virtual machine will be powered off. Please copy the following error message using the clipboard to help diagnose the problem:&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Sanal makinenin çalıştırılması sırasında önemli bir hata meydana geldi! Sanal makine gücü kapatılacaktır. Lütfen sorunu teşhis etmede yardımcı olmak için panoyu kullanarak aşağıdaki hata iletisini kopyalayın:&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Sanal makinenin çalıştırılması sırasında önemli bir hata meydana geldi! Sanal makine gücü kapatılacaktır. Lütfen sorunu teşhis etmede yardımcı olmak için panoyu kullanarak aşağıdaki hata mesajını kopyalayın:&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;An error has occurred during virtual machine execution! The error details are shown below. You may try to correct the error and resume the virtual machine execution.&lt;/p&gt;</source>
@@ -6730,15 +6106,15 @@
         <translation type="obsolete">&lt;p&gt;&lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; dil dosyası yüklenemedi.&lt;/p&gt;&lt;p&gt;Dil geçici olarak varsayılan İngilizce (bütünleşik) diline sıfırlanacak. Lütfen VirtualBox ana penceresinin &lt;b&gt;Dosya&lt;/b&gt; menüsünden açabileceğiniz &lt;b&gt;Tercihler&lt;/b&gt; iletisine gidin ve &lt;b&gt;Dil&lt;/b&gt; sayfasındaki mecut dillerden birini seçin.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;The VirtualBox Guest Additions installed in the Guest OS are too old: the installed version is %1, the expected version is %2. Some features that require Guest Additions (mouse integration, guest display auto-resize) will most likely stop working properly.&lt;/p&gt;&lt;p&gt;Please update the Guest Additions to the current version by choosing &lt;b&gt;Install Guest Additions&lt;/b&gt; from the &lt;b&gt;Devices&lt;/b&gt; menu.&lt;/p&gt;</source>
+        <source>&lt;p&gt;The VirtualBox Guest Additions installed in the Guest OS are too old: the installed version is %1, the expected version is %2. Some features that require Guest Additions (mouse integration, guest display auto-resize) will most likely stop working properly.&lt;/p&gt;&lt;p&gt;Please update the Guest Additions to the current version by choosing &lt;b&gt;Insert Guest Additions CD image&lt;/b&gt; from the &lt;b&gt;Devices&lt;/b&gt; menu.&lt;/p&gt;</source>
         <translation type="obsolete">&lt;p&gt;Misafir işletim sistemine kurulan VirtualBox Guest Additions çok eski: kurulu sürüm %1, beklenen sürüm ise %2. Bazı Misafir Eklentileri özellikleri düzgün çalışmayabilir.&lt;/p&gt;&lt;p&gt;Lütfen &lt;b&gt;Aygıtlar&lt;/b&gt; menüsünden &lt;b&gt;Misafir Eklentilerini (Guest Additions) Yükle...&lt;/b&gt; ögesini seçerek Misafir Eklentilerini güncelleyin.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;The VirtualBox Guest Additions installed in the Guest OS are outdated: the installed version is %1, the expected version is %2. Some features that require Guest Additions (mouse integration, guest display auto-resize) may not work as expected.&lt;/p&gt;&lt;p&gt;It is recommended to update the Guest Additions to the current version  by choosing &lt;b&gt;Install Guest Additions&lt;/b&gt; from the &lt;b&gt;Devices&lt;/b&gt; menu.&lt;/p&gt;</source>
+        <source>&lt;p&gt;The VirtualBox Guest Additions installed in the Guest OS are outdated: the installed version is %1, the expected version is %2. Some features that require Guest Additions (mouse integration, guest display auto-resize) may not work as expected.&lt;/p&gt;&lt;p&gt;It is recommended to update the Guest Additions to the current version  by choosing &lt;b&gt;Insert Guest Additions CD image&lt;/b&gt; from the &lt;b&gt;Devices&lt;/b&gt; menu.&lt;/p&gt;</source>
         <translation type="obsolete">&lt;p&gt;Misafir işletim sistemine kurulan VirtualBox Guest Additions sürümü güncelliğini yitirmiş durumda: kurulu sürüm %1, beklenen sürüm ise %2. Bazı Misafir Eklentileri özellikleri düzgün çalışmayabilir.&lt;/p&gt;&lt;p&gt;Lütfen &lt;b&gt;Aygıtlar&lt;/b&gt; menüsünden &lt;b&gt;Misafir Eklentilerini (Guest Additions) Yükle...&lt;/b&gt; ögesini seçerek Misafir Eklentilerinin güncel sürümünü yükleyin.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;The VirtualBox Guest Additions installed in the Guest OS are too recent for this version of VirtualBox: the installed version is %1, the expected version is %2.&lt;/p&gt;&lt;p&gt;Using a newer version of Additions with an older version of VirtualBox is not supported. Please install the current version of the Guest Additions by choosing &lt;b&gt;Install Guest Additions&lt;/b&gt; from the &lt;b&gt;Devices&lt;/b&gt; menu.&lt;/p&gt;</source>
+        <source>&lt;p&gt;The VirtualBox Guest Additions installed in the Guest OS are too recent for this version of VirtualBox: the installed version is %1, the expected version is %2.&lt;/p&gt;&lt;p&gt;Using a newer version of Additions with an older version of VirtualBox is not supported. Please install the current version of the Guest Additions by choosing &lt;b&gt;Insert Guest Additions CD image&lt;/b&gt; from the &lt;b&gt;Devices&lt;/b&gt; menu.&lt;/p&gt;</source>
         <translation type="obsolete">&lt;p&gt;Misafir işletim sistemine kurulan VirtualBox Guest Additions sürümü çok yeni: kurulu sürüm %1, beklenen sürüm ise %2. Bazı Misafir Eklentileri özellikleri düzgün çalışmayabilir.&lt;/p&gt;&lt;p&gt;Lütfen &lt;b&gt;Aygıtlar&lt;/b&gt; menüsünden &lt;b&gt;Misafir Eklentilerini (Guest Additions) Yükle...&lt;/b&gt; ögesini seçerek Misafir Eklentilerinin güncel sürümünü yükleyin.&lt;/p&gt;</translation>
     </message>
     <message>
@@ -6858,9 +6234,9 @@
         <translation type="obsolete">İndir</translation>
     </message>
     <message>
-        <source>Mount</source>
+        <source>Insert</source>
         <comment>additions</comment>
-        <translation type="obsolete">Bağla</translation>
+        <translation>Ekle</translation>
     </message>
     <message>
         <source>&lt;p&gt;The host key is currently defined as &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;</source>
@@ -6953,11 +6329,11 @@
     </message>
     <message>
         <source>&lt;p&gt;You have the &lt;b&gt;Auto capture keyboard&lt;/b&gt; option turned on. This will cause the Virtual Machine to automatically &lt;b&gt;capture&lt;/b&gt; the keyboard every time the VM window is activated and make it unavailable to other applications running on your host machine: when the keyboard is captured, all keystrokes (including system ones like Alt-Tab) will be directed to the VM.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;host key&lt;/b&gt; at any time to &lt;b&gt;uncapture&lt;/b&gt; the keyboard and mouse (if it is captured) and return them to normal operation. The currently assigned host key is shown on the status bar at the bottom of the Virtual Machine window, next to the&amp;nbsp;&lt;img src=:/hostkey_16px.png/&gt;&amp;nbsp;icon. This icon, together with the mouse icon placed nearby, indicate the current keyboard and mouse capture state.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;&lt;b&gt;Klavyeyi otomatik yakala&lt;/b&gt; seçeneğiniz açılmış. Bu, VM penceresinin etkinleştirildiği her seferde Sanal Makinenin klavyenizi otomatik olarak &lt;b&gt;yakalamasına&lt;/b&gt; neden olacak ve anamakinenizde çalışan diğer uygulamar için kullanılamaz yapacak: klavye yakalandığında tüm tuşa basmalar (Alt-Tab gibi sistem için olanlar da dahil) VM&apos;eyönlendirilecektir.&lt;/p&gt;&lt;p&gt;İstediğiniz zaman klavyeyi ve fareyi (eğer yakalandıysa) &lt;i&gt;serbest bırakmak&lt;/i&gt; için &lt;b&gt;anamakine tuşuna&lt;/b&gt; basabilir ve normal işlevine döndürebilirsiniz. Şu anda atanmış anamakine tuşu Sanal Makine penceresinin en altında durum çubuğunda,&amp;nbsp;&lt;img src=:/hostkey_16px.png/&gt;&amp;nbsp;simgesinin yanında gösterilir. Bu simge, yanında yer alan fare simgesiyle birlikte, şu anki klavye ve fare yakalama durumunu gösterir.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;&lt;b&gt;Klavyeyi otomatik yakala&lt;/b&gt; seçeneğiniz açılmış. Bu, VM pencersinin etkinleştirildiği her seferde Sanal Makinenin klavyenizi otomatik olarak &lt;b&gt;yakalamasına&lt;/b&gt; neden olacak ve anamakinenizde çalışan diğer uygulamar için kullanılamaz yapacak: klavye yakalandığında tüm tuşa basmalar (Alt-Tab gibi sistem için olanlar da dahil) VM&apos;eyönlendirilecektir.&lt;/p&gt;&lt;p&gt;İstediğiniz zaman klavyeyi ve fareyi (eğer yakalandıysa) &lt;i&gt;serbest bırakmak&lt;/i&gt; için &lt;b&gt;anamakine tuşuna&lt;/b&gt; basabilir ve normal işlevine döndürebilirsiniz. Şu anda atanmış anamakine tuşu Sanal Makine penceresinin en altında durum çubuğunda,&amp;nbsp;&lt;img src=:/hostkey_16px.png/&gt;&amp;nbsp;simgesinin yanında gösterilir. Bu simge, yanında yer alan fare simgesiyle birlikte, şu anki klavye ve fare yakalama durumunu gösterir.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;The Virtual Machine reports that the guest OS supports &lt;b&gt;mouse pointer integration&lt;/b&gt;. This means that you do not need to &lt;i&gt;capture&lt;/i&gt; the mouse pointer to be able to use it in your guest OS -- all mouse actions you perform when the mouse pointer is over the Virtual Machine&apos;s display are directly sent to the guest OS. If the mouse is currently captured, it will be automatically uncaptured.&lt;/p&gt;&lt;p&gt;The mouse icon on the status bar will look like&amp;nbsp;&lt;img src=:/mouse_seamless_16px.png/&gt;&amp;nbsp;to inform you that mouse pointer integration is supported by the guest OS and is currently turned on.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Note&lt;/b&gt;: Some applications may behave incorrectly in mouse pointer integration mode. You can always disable it for the current session (and enable it again) by selecting the corresponding action from the menu bar.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Sanal Makine misafir İS&apos;nin &lt;b&gt;fare işaretçisi bütünleştirmeyi&lt;/b&gt; desteklediğini bildiriyor. Bu, fare işaretçisinin misafir İS&apos;niz içinde kullanılabilmesi için &lt;i&gt;yakalamanıza&lt;/i&gt; gerek olmadığı anlamına geliyor -- Sanal Makine ekranının üzerine fare işaretçisi geldiğinde gerçekleştirdiğiniz tüm fare eylemleri doğrudan misafir İS&apos;ne gönderilir. Eğer fare şu anda yakalanırsa, otomatik olarak serbest bırakılacaktır.&lt;/p&gt;&lt;p&gt;Durum çubuğundaki fare simgesi fare işaretçisi bütünleştirmesinin misafir İS tarafından desteklendiğini ve şu anda açık olduğunu size bildirmek için &amp;nbsp;&lt;img src=:/mouse_seamless_16px.png/&gt;&amp;nbsp;gibi görünecektir.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Not&lt;/b&gt;: Bazı uygulamalar fare işaretçisi bütünleştirme kipinde yanlış davranabilir. Menü çubuğundan ilgili eylemi seçerek şu anki oturum için her zaman bunu etkisizleştirebilirsiniz (ve tekrar etkinleştirebilirsiniz).&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Sanal Makine misafir İS&apos;nin &lt;b&gt;fare işaretçisi bütünleştirme&lt;/b&gt; desteklediğini bildiriyor. Bu, fare işaretçisinin misafir İS&apos;niz içinde kullanılabilmesi için &lt;i&gt;yaklamanıza&lt;/i&gt; gerek olmadığı anlamına geliyor -- Sanal Makine ekranının üzerine fare işaretçisi geldiğinde gerçekleştirdiğiniz tüm fare eylemleri doğrudan misafir İS&apos;ne gönderilir. Eğer fare şu anda yakalanırsa, otomatik olarak serbest bırakılacaktır.&lt;/p&gt;&lt;p&gt;Durum çubuğundaki fare simgesi fare işaretçisi bütünleştirmenin misafir İS tarafından desteklendiğini ve şu anda açık olduğunu size bildirmek için &amp;nbsp;&lt;img src=:/mouse_seamless_16px.png/&gt;&amp;nbsp;gibi görünecektir.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Not&lt;/b&gt;: Bazı uygulamalar fare işaretçisi bütünleştirme kipinde yanlış davranabilir. Menü çubuğundan ilgili eylemi seçerek şu anki oturum için her zaman bunu etkisizleştirebilirsiniz (ve tekrar etkinleştirebilirsiniz).&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&amp;Contents...</source>
@@ -7008,8 +6384,8 @@
         <translation type="obsolete">Ürün bilgilerini gösteren bir pencere aç</translation>
     </message>
     <message>
-        <source>&lt;p&gt;A new version of VirtualBox has been released! Version &lt;b&gt;%1&lt;/b&gt; is available at &lt;a href=&quot;http://www.virtualbox.org/&quot;&gt;virtualbox.org&lt;/a&gt;.&lt;/p&gt;&lt;p&gt;You can download this version using the link:&lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;VirtualBox&apos;ın yeni bir sürümü yayımlandı! Sürüm &lt;b&gt;%1&lt;/b&gt; &lt;a href=&quot;http://www.virtualbox.org/&quot;&gt;virtualbox.org&lt;/a&gt; adresinde mevcuttur.&lt;/p&gt;&lt;p&gt;Şu bağlantıyı kullanarak bu sürümü indirebilirsiniz:&lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</translation>
+        <source>&lt;p&gt;A new version of VirtualBox has been released! Version &lt;b&gt;%1&lt;/b&gt; is available at &lt;a href=&quot;https://www.virtualbox.org/&quot;&gt;virtualbox.org&lt;/a&gt;.&lt;/p&gt;&lt;p&gt;You can download this version using the link:&lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</source>
+        <translation>&lt;p&gt;VirtualBox&apos;ın yeni bir sürümü yayımlandı! Sürüm &lt;b&gt;%1&lt;/b&gt; &lt;a href=&quot;https://www.virtualbox.org/&quot;&gt;virtualbox.org&lt;/a&gt; adresinde mevcuttur.&lt;/p&gt;&lt;p&gt;Şu bağlantıyı kullanarak bu sürümü indirebilirsiniz:&lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;Are you sure you want to release the %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;?&lt;/p&gt;&lt;p&gt;This will detach it from the following virtual machine(s): &lt;b&gt;%3&lt;/b&gt;.&lt;/p&gt;</source>
@@ -7089,7 +6465,7 @@
     </message>
     <message>
         <source>&lt;p&gt;One or more virtual hard disks, CD/DVD or floppy disk image files are not currently accessible. As a result, you will not be able to operate virtual machines that use these files until they become accessible later.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;Check&lt;/b&gt; to open the Virtual Media Manager window and see which files are inaccessible, or press &lt;b&gt;Ignore&lt;/b&gt; to ignore this message.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Bir ya da daha fazla sanal sabit disk, CD/DVD veya disket kalıbı dosyası şu anda erişilebilir değil. Sonuç olarak, daha sonra erişilebilir olana kadar bu dosyaları kullanan sanal makineleri işletemeyceksiniz.&lt;/p&gt;&lt;p&gt;Sanal Ortam Yöneticisi penceresini açmak için &lt;b&gt;Kontrol et&lt;/b&gt; düğmesine basın ve hangi dosyaların erişilemez olduğunu görün, ya da bu mesajı yoksaymak için &lt;b&gt;Yoksay&lt;/b&gt; düğmesine basın.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Bir ya da daha fazla sanal sabit disk, CD/DVD veya disket kalıbı dosyası şu anda erişilebilir değil. Sonuç olarak, daha sonra erişilebilir olana kadar bu dosyaları kullanan sanal makineleri işletemeyceksiniz.&lt;/p&gt;&lt;p&gt;Sanal Ortam Yöneticisi penceresini açmak için &lt;b&gt;Kontrol et&lt;/b&gt; düğmesine basın ve hangi dosyaların erişilemez olduğunu görün, ya da bu mesajı yoksaymak için &lt;b&gt;Yoksay&lt;/b&gt; düğmesine basın.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&amp;More</source>
@@ -7107,8 +6483,8 @@
         <translation type="obsolete">&amp;Üzerine Yaz</translation>
     </message>
     <message>
-        <source>&lt;p&gt;A critical error has occurred while running the virtual machine and the machine execution has been stopped.&lt;/p&gt;&lt;p&gt;For help, please see the Community section on &lt;a href=http://www.virtualbox.org&gt;http://www.virtualbox.org&lt;/a&gt; or your support contract. Please provide the contents of the log file &lt;tt&gt;VBox.log&lt;/tt&gt; and the image file &lt;tt&gt;VBox.png&lt;/tt&gt;, which you can find in the &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; directory, as well as a description of what you were doing when this error happened. Note that you can also access the above files by selecting &lt;b&gt;Show Log&lt;/b&gt; from the &lt;b&gt;Machine&lt;/b&gt; menu of the main VirtualBox window.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;OK&lt;/b&gt; if you want to power off the machine or press &lt;b&gt;Ignore&lt;/b&gt; if you want to leave it as is for debugging. Please note that debugging requires special knowledge and tools, so it is recommended to press &lt;b&gt;OK&lt;/b&gt; now.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Sanal makine çalışırken ciddi bir hata meydana geldi ve makinenin çalışması durduruldu.&lt;/p&gt;&lt;p&gt;Yardım için lütfen &lt;a href=http://www.virtualbox.org&gt;http://www.virtualbox.org&lt;/a&gt; adresindeki Community bölümüne veya destek sözleşmenize bakın. Lütfen &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; dizininde bulabileceğiniz &lt;tt&gt;VBox.log&lt;/tt&gt; günlük dosyasının ve &lt;tt&gt;VBox.png&lt;/tt&gt; resim dosyasının içeriklerinin yanısıra bu hata olduğunda ne yapıyor olduğunuzun açıklamasını da verin. Ayrıca ana VirtualBox penceresinin &lt;b&gt;Makine&lt;/b&gt; menüsünden &lt;b&gt;Günlüğü Göster&lt;/b&gt;&apos;i seçerek aşağıdaki dosyalara erişebildiğinizi unutmayın.&lt;/p&gt;&lt;p&gt;Eğer makinenin gücünü kapatmak istiyorsanız &lt;b&gt;TAMAM&lt;/b&gt; düğmesine basın ya da hata ayıklama için olduğu gibi bırakmak istiyorsanız &lt;b&gt;Yoksay&lt;/b&gt; düğmesine basın. Lütfen hata ayıklamanın özel bilgi ve araçlar gerektirdiğini unutmayın, bu yüzden şimdi &lt;b&gt;TAMAM&lt;/b&gt; düğmesine basmanız önerilir.&lt;/p&gt;</translation>
+        <source>&lt;p&gt;A critical error has occurred while running the virtual machine and the machine execution has been stopped.&lt;/p&gt;&lt;p&gt;For help, please see the Community section on &lt;a href=https://www.virtualbox.org&gt;https://www.virtualbox.org&lt;/a&gt; or your support contract. Please provide the contents of the log file &lt;tt&gt;VBox.log&lt;/tt&gt; and the image file &lt;tt&gt;VBox.png&lt;/tt&gt;, which you can find in the &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; directory, as well as a description of what you were doing when this error happened. Note that you can also access the above files by selecting &lt;b&gt;Show Log&lt;/b&gt; from the &lt;b&gt;Machine&lt;/b&gt; menu of the main VirtualBox window.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;OK&lt;/b&gt; if you want to power off the machine or press &lt;b&gt;Ignore&lt;/b&gt; if you want to leave it as is for debugging. Please note that debugging requires special knowledge and tools, so it is recommended to press &lt;b&gt;OK&lt;/b&gt; now.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Sanal makine çalışırken ciddi bir hata meydana geldi ve makinenin çalıştırılması durdu.&lt;/p&gt;&lt;p&gt;Yardım için lütfen &lt;a href=https://www.virtualbox.org&gt;https://www.virtualbox.org&lt;/a&gt; adresindeki Community bölümüne veya destek sözleşmenize bakın. Lütfen &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; dizininde bulabileceğiniz &lt;tt&gt;VBox.log&lt;/tt&gt; günlük dosyasının ve &lt;tt&gt;VBox.png&lt;/tt&gt; resim dosyasının içeriklerinin yanısıra bu hata olduğunda ne yapıyor olduğunuzun açıklamasını da verin. Ayrıca ana VirtualBox penceresinin &lt;b&gt;Makine&lt;/b&gt; menüsünden &lt;b&gt;Günlüğü Göster&lt;/b&gt;&apos;i seçerek aşağıdaki dosyalara erişebildiğinizi unutmayın.&lt;/p&gt;&lt;p&gt;Eğer makinenin gücünü kapatmak istiyorsanız &lt;b&gt;TAMAM&lt;/b&gt; düğmesine basın ya da hata ayıklama için olduğu gibi bırakmak istiyorsanız &lt;b&gt;Yoksay&lt;/b&gt; düğmesine basın. Lütfen hata ayıklamanın özel bilgi ve araçlar gerektirdiğini unutmayın, bu yüzden şimdi &lt;b&gt;TAMAM&lt;/b&gt; düğmesine basmanız önerilir.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>hard disk</source>
@@ -7328,7 +6704,7 @@
     </message>
     <message>
         <source>&lt;p&gt;Are you sure you want to delete the CD/DVD device?&lt;/p&gt;&lt;p&gt;You will not be able to insert any CDs or ISO images or install the Guest Additions without it!&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;CD/DVD aygıtını silmek istediğinize emin misiniz?&lt;/p&gt;&lt;p&gt;Herhangi bir CD veya ISO kalıbını yerleştiremeyeceksiniz ya da onsuz Misafir Eklentilerini yükleyemeyeceksiniz!&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;CD/DVD aygıtını silmek istediğinize emin misiniz?&lt;/p&gt;&lt;p&gt;Herhangi bir CD veya ISO kalıbını yerleştiremeyeceksiniz ya da onsuz Misafir Eklentilerini yükleyemeyeceksiniz!&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&amp;Remove</source>
@@ -7415,7 +6791,7 @@
     </message>
     <message>
         <source>&lt;p&gt;You are about to add a new CD/DVD drive to controller &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Would you like to choose a virtual CD/DVD disk to put in the drive or to leave it empty for now?&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;&lt;b&gt;%1&lt;/b&gt; denetleyicisine yeni bir CD/DVD sürücü eklemek üzeresiniz.&lt;/p&gt;&lt;p&gt;Sürücüye koymak için sanal bir CD/DVD disk seçmek ya da şimdilik boş bırakmak ister misiniz?&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;&lt;b&gt;%1&lt;/b&gt; denetleyicisine yeni bir CD/DVD sürücü eklemek üzeresiniz.&lt;/p&gt;&lt;p&gt;Sürücüye koymak için sanal bir CD/DVD disk seçmek ya da şimdilik boş bırakmak ister misiniz?&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&amp;Choose disk</source>
@@ -7433,15 +6809,15 @@
     </message>
     <message>
         <source>Failed to detach the hard disk (&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;) from the slot &lt;i&gt;%2&lt;/i&gt; of the machine &lt;b&gt;%3&lt;/b&gt;.</source>
-        <translation>&lt;b&gt;%3&lt;/b&gt; makinesinin &lt;i&gt;%2&lt;/i&gt; yuvasından sabit diski (&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;) ayırma başarısız.</translation>
+        <translation>&lt;b&gt;%3&lt;/b&gt; makinesinin &lt;i&gt;%2&lt;/i&gt; yuvasından sabit diski (&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;) çıkartma başarısız.</translation>
     </message>
     <message>
         <source>Failed to detach the CD/DVD device (&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;) from the slot &lt;i&gt;%2&lt;/i&gt; of the machine &lt;b&gt;%3&lt;/b&gt;.</source>
-        <translation type="obsolete">&lt;b&gt;%3&lt;/b&gt; makinesinin &lt;i&gt;%2&lt;/i&gt; yuvasından CD/DVD aygıtını (&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;) çıkartma başarısız.</translation>
+        <translation>&lt;b&gt;%3&lt;/b&gt; makinesinin &lt;i&gt;%2&lt;/i&gt; yuvasından CD/DVD aygıtını (&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;) çıkartma başarısız.</translation>
     </message>
     <message>
         <source>Failed to detach the floppy device (&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;) from the slot &lt;i&gt;%2&lt;/i&gt; of the machine &lt;b&gt;%3&lt;/b&gt;.</source>
-        <translation type="obsolete">&lt;b&gt;%3&lt;/b&gt; makinesinin &lt;i&gt;%2&lt;/i&gt; yuvasından disket aygıtını (&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;) çıkartma başarısız.</translation>
+        <translation>&lt;b&gt;%3&lt;/b&gt; makinesinin &lt;i&gt;%2&lt;/i&gt; yuvasından disket aygıtını (&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;) çıkartma başarısız.</translation>
     </message>
     <message>
         <source>Failed to update Guest Additions. The Guest Additions disk image file will be inserted for user installation.</source>
@@ -7461,7 +6837,7 @@
     </message>
     <message>
         <source>The current port forwarding rules are not valid. None of the host or guest port values may be set to zero.</source>
-        <translation>Şu anki bağlantı noktası yönlendirme kuralları geçerli değil. Anamakine veya misafir bağlantı noktası değerlerinin hiçbiri sıfıra ayarlanmamış olabilir.</translation>
+        <translation>Şu anki bağlantı noktası yönlendirme kuralları geçerli değil. Anamakine veya misafir bağlantı noktası değerleri sıfıra ayarlanmış olabilir.</translation>
     </message>
     <message>
         <source>&lt;p&gt;There are unsaved changes in the port forwarding configuration.&lt;/p&gt;&lt;p&gt;If you proceed your changes will be discarded.&lt;/p&gt;</source>
@@ -7473,19 +6849,19 @@
     </message>
     <message>
         <source>Failed to attach the CD/DVD device (&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;) to the slot &lt;i&gt;%2&lt;/i&gt; of the machine &lt;b&gt;%3&lt;/b&gt;.</source>
-        <translation type="obsolete">&lt;b&gt;%3&lt;/b&gt; makinesinin &lt;i&gt;%2&lt;/i&gt; yuvasına CD/DVD aygıtını (&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;) takma başarısız.</translation>
+        <translation>&lt;b&gt;%3&lt;/b&gt; makinesinin &lt;i&gt;%2&lt;/i&gt; yuvasına CD/DVD aygıtını (&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;) takma başarısız.</translation>
     </message>
     <message>
         <source>Failed to attach the floppy device (&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;) to the slot &lt;i&gt;%2&lt;/i&gt; of the machine &lt;b&gt;%3&lt;/b&gt;.</source>
-        <translation type="obsolete">&lt;b&gt;%3&lt;/b&gt; makinesinin &lt;i&gt;%2&lt;/i&gt; yuvasına disket aygıtını (&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;) takma başarısız.</translation>
+        <translation>&lt;b&gt;%3&lt;/b&gt; makinesinin &lt;i&gt;%2&lt;/i&gt; yuvasına disket aygıtını (&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;) takma başarısız.</translation>
     </message>
     <message>
         <source>&lt;p&gt;Note that the storage unit of this medium will not be deleted and that it will be possible to use it later again.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Bu ortamın depolama biriminin silinmeyeceğini ve de daha sonra tekrar kullanmanın mümkün olacağını unutmayın.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;The VirtualBox Guest Additions do not appear to be available on this virtual machine, and shared folders cannot be used without them. To use shared folders inside the virtual machine, please install the Guest Additions if they are not installed, or re-install them if they are not working correctly, by selecting &lt;b&gt;Install Guest Additions&lt;/b&gt; from the &lt;b&gt;Devices&lt;/b&gt; menu. If they are installed but the machine is not yet fully started then shared folders will be available once it is.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;VirtualBox Misafir Eklentileri bu sanal makinede mevcut görünmüyor ve paylaşılan klasörler onlar olmadan kullanılamaz. Paylaşılan klasörleri sanal makine içerisinde kullanmak için lütfen &lt;b&gt;Aygıtlar&lt;/b&gt; menüsünden &lt;b&gt;Misafir Eklentilerini Yükle&lt;/b&gt;&apos;yi seçerek, yüklü değillerse Misafir Eklentilerini yükleyin veya düzgün olarak çalışmıyorlarsa, yeniden yükleyin. Eğer yüklü ama makine tam olarak henüz başlatılmadıysa o zaman paylaşılan klasörler o seferlik kullanılabilir olacaktır.&lt;/p&gt;</translation>
+        <source>&lt;p&gt;The VirtualBox Guest Additions do not appear to be available on this virtual machine, and shared folders cannot be used without them. To use shared folders inside the virtual machine, please install the Guest Additions if they are not installed, or re-install them if they are not working correctly, by selecting &lt;b&gt;Insert Guest Additions CD image&lt;/b&gt; from the &lt;b&gt;Devices&lt;/b&gt; menu. If they are installed but the machine is not yet fully started then shared folders will be available once it is.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;VirtualBox Misafir Eklentileri bu sanal makinede kullanılabilir görünmüyor ve paylaşılan klasörler onlar olmadan kullanılamaz. Paylaşılan klasörleri sanal makine içerisinde kullanmak için lütfen &lt;b&gt;Aygıtlar&lt;/b&gt; menüsünden &lt;b&gt;Misafir Eklentileri CD kalıbını ekle&lt;/b&gt;&apos;yi seçerek, yüklü değillerse Misafir Eklentilerini yükleyin veya düzgün olarak çalışmıyorlarsa, yeniden yükleyin. Eğer yüklü ama makine tam olarak henüz başlatılmadıysa o zaman paylaşılan klasörler o seferlik kullanılabilir olacaktır.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;The virtual machine window will be now switched to &lt;b&gt;fullscreen&lt;/b&gt; mode. You can go back to windowed mode at any time by pressing &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Note that the &lt;i&gt;Host&lt;/i&gt; key is currently defined as &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Note that the main menu bar is hidden in fullscreen mode. You can access it by pressing &lt;b&gt;Host+Home&lt;/b&gt;.&lt;/p&gt;</source>
@@ -7710,11 +7086,11 @@
     </message>
     <message>
         <source>You are about to create a new virtual machine without a hard drive. You will not be able to install an operating system on the machine until you add one. In the mean time you will only be able to start the machine using a virtual optical disk or from the network.</source>
-        <translation>Sabit sürücü olmayan yeni bir sanal makine oluşturmak üzeresiniz. Bir tane ekleyene kadar makine üzerine bir işletim sistemi yükleyemeyeceksiniz. Bu arada sadece sanal optik diski kullanarak veya ağdan makineyi başlatabileceksiniz.</translation>
+        <translation>Sabit diski olmayan yeni bir sanal makine oluşturmak üzeresiniz. Bir tane ekleyene kadar makine üzerine bir işletim sistemi yükleyemeyeceksiniz. Bu arada sadece sanal optik diski kullanarak veya ağdan makineyi başlatabileceksiniz.</translation>
     </message>
     <message>
         <source>Failed to drop data.</source>
-        <translation type="obsolete">Veriyi kaldırma başarısız.</translation>
+        <translation>Veriyi kaldırma başarısız.</translation>
     </message>
     <message>
         <source>&lt;p&gt;Could not find the VirtualBox Guest Additions disk image file file.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Do you wish to download this disk image file from the Internet?&lt;/p&gt;</source>
@@ -7818,7 +7194,7 @@
     </message>
     <message>
         <source>&amp;Choose existing disk</source>
-        <translation>Mevcut diski &amp;seç</translation>
+        <translation>Mevcut diski &amp;seçin</translation>
     </message>
     <message>
         <source>Leave &amp;empty</source>
@@ -7826,7 +7202,7 @@
     </message>
     <message>
         <source>&amp;Choose disk</source>
-        <translation>&amp;Disk seç</translation>
+        <translation>&amp;Disk seçin</translation>
     </message>
     <message>
         <source>&lt;p&gt;Are you sure you want to release the virtual hard disk &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;?&lt;/p&gt;&lt;p&gt;This will detach it from the following virtual machine(s): &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;</source>
@@ -7949,11 +7325,11 @@
     </message>
     <message>
         <source>&lt;p&gt;The &lt;b&gt;VirtualBox Guest Additions&lt;/b&gt; disk image file has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; and saved locally as &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Do you wish to register this disk image file and insert it into the virtual CD/DVD drive?&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;&lt;b&gt;VirtualBox Misafir Eklentileri&lt;/b&gt; disk kalıbı dosyası &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; adresinden başarılı olarak indirildi ve &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; ile yerel olarak kaydedildi.&lt;/p&gt;&lt;p&gt;Bu disk kalıbı dosyasını kaydettirmek ve sanal CD/DVD sürücüsüne yerleştirmek ister misiniz?&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;&lt;b&gt;VirtualBox Misafir Eklentileri&lt;/b&gt; disk kalıbı dosyası &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; adresinden başarılı olarak indirildi ve &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; ile yerel olarak kaydedildi.&lt;/p&gt;&lt;p&gt;Bu disk kalıbı dosyasını kaydettirmek ve sanal CD/DVD sürücüsüne yerleştirmek ister misiniz?&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;Could not insert the &lt;b&gt;VirtualBox Guest Additions&lt;/b&gt; disk image file into the virtual machine &lt;b&gt;%1&lt;/b&gt;, as the machine has no CD/DVD drives. Please add a drive using the storage page of the virtual machine settings window.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;b&gt;%1&lt;/b&gt; sanal makinesi içine &lt;b&gt;VirtualBox Misafir Eklentileri&lt;/b&gt; disk kalıbı dosyası yerleştirilemedi, makine CD/DVD sürücülere sahip değil gibi. Lütfen sanal makine ayarları penceresinin depolama sayfasını kullanarak bir sürücü ekleyin.&lt;/p&gt;</translation>
+        <translation>&lt;b&gt;%1&lt;/b&gt; sanal makinesi içine &lt;b&gt;VirtualBox Misafir Eklentileri&lt;/b&gt; disk kalıbı dosyası yerleştirilemedi, makine CD/DVD sürücülere sahip değil gibi. Lütfen sanal makine ayarları penceresinin depolama sayfasını kullanarak bir sürücü ekleyin.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;Could not find the &lt;b&gt;VirtualBox User Manual&lt;/b&gt; &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Do you wish to download this file from the Internet?&lt;/p&gt;</source>
@@ -7988,141 +7364,26 @@
         <translation>&lt;p&gt;&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; NAT ağını kaldırmak istiyor musunuz?&lt;/p&gt;&lt;p&gt;Eğer bu ağ bir ya da daha fazla sanal makine ağ bağdaştırıcıları tarafından kullanımdaysa, bu bağdaştırıcılar, siz ya farklı bir ağ adı ya da farklı bir bağdaştırıcı ekleme türü seçerek ayarlarını düzeltene kadar artık kullanılabilir olmayacak.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>Failed to attach the webcam &lt;b&gt;%1&lt;/b&gt; to the virtual machine &lt;b&gt;%2&lt;/b&gt;.</source>
-        <translation>&lt;b&gt;%1&lt;/b&gt; web kamerasını &lt;b&gt;%2&lt;/b&gt; sanal makinesine takma başarısız.</translation>
-    </message>
-    <message>
-        <source>Failed to detach the webcam &lt;b&gt;%1&lt;/b&gt; from the virtual machine &lt;b&gt;%2&lt;/b&gt;.</source>
-        <translation>&lt;b&gt;%1&lt;/b&gt; web kamerasını &lt;b&gt;%2&lt;/b&gt; sanal makinesinden ayırma başarısız.</translation>
-    </message>
-    <message>
         <source>&lt;p&gt;The VirtualBox Guest Additions do not appear to be available on this virtual machine, and shared folders cannot be used without them. To use shared folders inside the virtual machine, please install the Guest Additions if they are not installed, or re-install them if they are not working correctly, by selecting &lt;b&gt;Insert Guest Additions CD image&lt;/b&gt; from the &lt;b&gt;Devices&lt;/b&gt; menu. If they are installed but the machine is not yet fully started then shared folders will be available once it is.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;VirtualBox Misafir Eklentileri bu sanal makinede mevcut görünmüyor ve paylaşılan klasörler onlar olmadan kullanılamaz. Paylaşılan klasörleri sanal makine içerisinde kullanmak için lütfen &lt;b&gt;Aygıtlar&lt;/b&gt; menüsünden &lt;b&gt;Misafir Eklentileri CD kalıbını yerleştir&lt;/b&gt;&apos;i seçerek, yüklü değillerse Misafir Eklentilerini yükleyin veya düzgün olarak çalışmıyorlarsa, yeniden yükleyin. Eğer yüklü ama makine tam olarak henüz başlatılmadıysa o zaman paylaşılan klasörler o seferlik kullanılabilir olacaktır.&lt;/p&gt;</translation>
+        <comment>new</comment>
+        <translation type="obsolete">&lt;p&gt;VirtualBox Misafir Eklentileri bu sanal makinede mevcut görünmüyor ve paylaşılan klasörler onlar olmadan kullanılamaz. Paylaşılan klasörleri sanal makine içerisinde kullanmak için lütfen &lt;b&gt;Aygıtlar&lt;/b&gt; menüsünden &lt;b&gt;Misafir Eklentilerini Yükle&lt;/b&gt;&apos;yi seçerek, yüklü değillerse Misafir Eklentilerini yükleyin veya düzgün olarak çalışmıyorlarsa, yeniden yükleyin. Eğer yüklü ama makine tam olarak henüz başlatılmadıysa o zaman paylaşılan klasörler o seferlik kullanılabilir olacaktır.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Insert</source>
-        <comment>additions</comment>
-        <translation>Ekle</translation>
+        <comment>additions-new</comment>
+        <translation type="obsolete">Bağla</translation>
+    </message>
+    <message>
+        <source>Failed to attach the webcam &lt;b&gt;%1&lt;/b&gt; to the virtual machine &lt;b&gt;%2&lt;/b&gt;.</source>
+        <translation>&lt;b&gt;%2&lt;/b&gt; sanal makinesine &lt;b&gt;%1&lt;/b&gt; web kamerasını takma başarısız.</translation>
+    </message>
+    <message>
+        <source>Failed to detach the webcam &lt;b&gt;%1&lt;/b&gt; from the virtual machine &lt;b&gt;%2&lt;/b&gt;.</source>
+        <translation>&lt;b&gt;%2&lt;/b&gt; sanal makinesinden &lt;b&gt;%1&lt;/b&gt; web kamerasını çıkartma başarısız.</translation>
     </message>
     <message>
         <source>&lt;p&gt;The virtual screen is currently set to a &lt;b&gt;%1&amp;nbsp;bit&lt;/b&gt; color mode. For better performance please change this to &lt;b&gt;%2&amp;nbsp;bit&lt;/b&gt;. This can usually be done from the &lt;b&gt;Display&lt;/b&gt; section of the guest operating system&apos;s Control Panel or System Settings.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Sanal ekran şu an &lt;b&gt;%1&amp;nbsp;bit&lt;/b&gt; renk kipine ayarlı. Daha iyi performans için lütfen bunu &lt;b&gt;%2&amp;nbsp;bit&lt;/b&gt; olarak değiştirin. Bu genellikle misafir işletim sisteminin Denetim Masası&apos;nın ya da Sistem Ayarları&apos;nın &lt;b&gt;Görüntü&lt;/b&gt; bölümünden yapılabilir.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>The current port forwarding rules are not valid. Rule names should be unique.</source>
-        <translation>Şu anki bağlantı noktası yönlendirme kuralları geçerli değil. Kural adları benzersiz olmalıdır.</translation>
-    </message>
-    <message>
-        <source>The current port forwarding rules are not valid. Few rules have same host ports and conflicting IP addresses.</source>
-        <translation>Şu anki bağlantı noktası yönlendirme kuralları geçerli değil. Birkaç kural aynı anamakine bağlantı noktalarına ve çakışan IP adreslerine sahip.</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Failed to create the VirtualBoxClient COM object.&lt;/p&gt;&lt;p&gt;The application will now terminate.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;VirtualBoxClient COM nesnesini oluşturma başarısız.&lt;/p&gt;&lt;p&gt;Uygulama şimdi sonlandırılacak.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>Failed to set the global VirtualBox extra data for key &lt;i&gt;%1&lt;/i&gt; to value &lt;i&gt;{%2}&lt;/i&gt;.</source>
-        <translation>&lt;i&gt;%1&lt;/i&gt; anahtarı için genel VirtualBox ilave verisini &lt;i&gt;{%2}&lt;/i&gt; değerine ayarlama başarısız.</translation>
-    </message>
-    <message>
-        <source>Failed to set the extra data for key &lt;i&gt;%1&lt;/i&gt; of machine &lt;i&gt;%2&lt;/i&gt; to value &lt;i&gt;{%3}&lt;/i&gt;.</source>
-        <translation>&lt;i&gt;%2&lt;/i&gt; makinesinin &lt;i&gt;%1&lt;/i&gt; anahtarı için ilave verisini &lt;i&gt;{%3}&lt;/i&gt; değerine ayarlama başarısız.</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;One or more virtual hard disks, optical or floppy disk image files are not currently accessible. As a result, you will not be able to operate virtual machines that use these files until they become accessible later.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;Check&lt;/b&gt; to open the Virtual Media Manager window and see which files are inaccessible, or press &lt;b&gt;Ignore&lt;/b&gt; to ignore this message.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Bir ya da daha fazla sanal sabit disk, optik disk veya disket kalıbı dosyası şu anda erişilebilir değil. Sonuç olarak, daha sonra erişilebilir olana kadar bu dosyaları kullanan sanal makineleri işletemeyceksiniz.&lt;/p&gt;&lt;p&gt;Sanal Ortam Yöneticisi penceresini açmak için &lt;b&gt;Kontrol et&lt;/b&gt; düğmesine basın ve hangi dosyaların erişilemez olduğunu görün, ya da bu iletiyi yoksaymak için &lt;b&gt;Yoksay&lt;/b&gt; düğmesine basın.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>Failed to save the settings.</source>
-        <translation>Ayarları kaydetme başarısız.</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;You are about to add a new optical drive to controller &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Would you like to choose a virtual optical disk to put in the drive or to leave it empty for now?&lt;/p&gt;</source>
-        <translation>&lt;p&gt;&lt;b&gt;%1&lt;/b&gt; denetleyicisine yeni bir optik sürücü eklemek üzeresiniz.&lt;/p&gt;&lt;p&gt;Sürücüye koymak için sanal bir optik disk seçmek ya da şimdilik boş bırakmak ister misiniz?&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Are you sure you want to delete the optical drive?&lt;/p&gt;&lt;p&gt;You will not be able to insert any optical disks or ISO images or install the Guest Additions without it!&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Optik sürücüyü silmek istediğinize emin misiniz?&lt;/p&gt;&lt;p&gt;Herhangi bir optik diski veya ISO kalıbını yerleştiremeyeceksiniz ya da onsuz Misafir Eklentilerini yükleyemeyeceksiniz!&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>Failed to attach the optical drive (&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;) to the slot &lt;i&gt;%2&lt;/i&gt; of the machine &lt;b&gt;%3&lt;/b&gt;.</source>
-        <translation>&lt;b&gt;%3&lt;/b&gt; makinesinin &lt;i&gt;%2&lt;/i&gt; yuvasına optik sürücüyü (&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;) takma başarısız.</translation>
-    </message>
-    <message>
-        <source>Failed to attach the floppy drive (&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;) to the slot &lt;i&gt;%2&lt;/i&gt; of the machine &lt;b&gt;%3&lt;/b&gt;.</source>
-        <translation>&lt;b&gt;%3&lt;/b&gt; makinesinin &lt;i&gt;%2&lt;/i&gt; yuvasına disket sürücüyü (&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;) takma başarısız.</translation>
-    </message>
-    <message>
-        <source>Failed to detach the optical drive (&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;) from the slot &lt;i&gt;%2&lt;/i&gt; of the machine &lt;b&gt;%3&lt;/b&gt;.</source>
-        <translation>&lt;b&gt;%3&lt;/b&gt; makinesinin &lt;i&gt;%2&lt;/i&gt; yuvasından optik sürücüyü (&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;) ayırma başarısız.</translation>
-    </message>
-    <message>
-        <source>Failed to detach the floppy drive (&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;) from the slot &lt;i&gt;%2&lt;/i&gt; of the machine &lt;b&gt;%3&lt;/b&gt;.</source>
-        <translation>&lt;b&gt;%3&lt;/b&gt; makinesinin &lt;i&gt;%2&lt;/i&gt; yuvasından disket sürücüyü (&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;) ayırma başarısız.</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;A critical error has occurred while running the virtual machine and the machine execution should be stopped.&lt;/p&gt;&lt;p&gt;For help, please see the Community section on &lt;a href=http://www.virtualbox.org&gt;http://www.virtualbox.org&lt;/a&gt; or your support contract. Please provide the contents of the log file &lt;tt&gt;VBox.log&lt;/tt&gt;, which you can find in the virtual machine log directory, as well as a description of what you were doing when this error happened. Note that you can also access the above file by selecting &lt;b&gt;Show Log&lt;/b&gt; from the &lt;b&gt;Machine&lt;/b&gt; menu of the main VirtualBox window.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;OK&lt;/b&gt; to power off the machine.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Sanal makine çalışırken ciddi bir hata meydana geldi ve makinenin çalışması durdurulmalı.&lt;/p&gt;&lt;p&gt;Yardım için lütfen &lt;a href=http://www.virtualbox.org&gt;http://www.virtualbox.org&lt;/a&gt; adresindeki Community bölümüne veya destek sözleşmenize bakın. Lütfen sanal amkine günlük dizininde bulabileceğiniz &lt;tt&gt;VBox.log&lt;/tt&gt; günlük dosyasının içeriklerinin yanısıra bu hata olduğunda ne yapıyor olduğunuzun açıklamasını da verin. Ayrıca ana VirtualBox penceresinin &lt;b&gt;Makine&lt;/b&gt; menüsünden &lt;b&gt;Günlüğü Göster&lt;/b&gt;&apos;i seçerek aşağıdaki dosyalara erişebildiğinizi unutmayın.&lt;/p&gt;&lt;p&gt;Makinenin gücünü kapatmak için &lt;b&gt;TAMAM&lt;/b&gt; düğmesine basın.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>Failed to connect network adapter cable of the virtual machine &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation>&lt;b&gt;%1&lt;/b&gt; sanal makinesinin ağ bağdaştırıcısı kablosunu bağlama başarısız.</translation>
-    </message>
-    <message>
-        <source>Failed to disconnect network adapter cable of the virtual machine &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation>&lt;b&gt;%1&lt;/b&gt; sanal makinesinden ağ bağdaştırıcısı kablosu bağlantısını kesme başarısız.</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Could not insert the &lt;b&gt;VirtualBox Guest Additions&lt;/b&gt; disk image file into the virtual machine &lt;b&gt;%1&lt;/b&gt;, as the machine has no optical drives. Please add a drive using the storage page of the virtual machine settings window.&lt;/p&gt;</source>
-        <translation>&lt;b&gt;%1&lt;/b&gt; sanal makinesi içine &lt;b&gt;VirtualBox Misafir Eklentileri&lt;/b&gt; disk kalıbı dosyası yerleştirilemedi, makine optik sürücülere sahip değil gibi. Lütfen sanal makine ayarları penceresinin depolama sayfasını kullanarak bir sürücü ekleyin.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>Unable to enter password!</source>
-        <translation type="obsolete">Parola girilemiyor!</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;The &lt;b&gt;VirtualBox Guest Additions&lt;/b&gt; disk image file has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; and saved locally as &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Do you wish to register this disk image file and insert it into the virtual optical drive?&lt;/p&gt;</source>
-        <translation>&lt;p&gt;&lt;b&gt;VirtualBox Misafir Eklentileri&lt;/b&gt; disk kalıbı dosyası &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; adresinden başarılı olarak indirildi ve &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; ile yerel olarak kaydedildi.&lt;/p&gt;&lt;p&gt;Bu disk kalıbı dosyasını kaydettirmek ve sanal optik sürücü içine yerleştirmek ister misiniz?&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>Drag and drop operation failed.</source>
-        <translation type="obsolete">Sürükle ve bırak işlemi başarısız oldu.</translation>
-    </message>
-    <message>
-        <source>Failed while dropping data.</source>
-        <translation type="obsolete">Veri bırakılırken başarısız.</translation>
-    </message>
-    <message>
-        <source>Unable to cancel drag and drop operation.</source>
-        <translation type="obsolete">Sürükle ve bırak işlemi iptal edilemiyor.</translation>
-    </message>
-    <message>
-        <source>Bad password or authentication failure.</source>
-        <translation>Hatalı parola ya da kimlik doğrulaması başarısız.</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;A critical error has occurred while running the virtual machine and the machine execution has been stopped.&lt;/p&gt;&lt;p&gt;For help, please see the Community section on &lt;a href=https://www.virtualbox.org&gt;https://www.virtualbox.org&lt;/a&gt; or your support contract. Please provide the contents of the log file &lt;tt&gt;VBox.log&lt;/tt&gt; and the image file &lt;tt&gt;VBox.png&lt;/tt&gt;, which you can find in the &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; directory, as well as a description of what you were doing when this error happened. Note that you can also access the above files by selecting &lt;b&gt;Show Log&lt;/b&gt; from the &lt;b&gt;Machine&lt;/b&gt; menu of the main VirtualBox window.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;OK&lt;/b&gt; if you want to power off the machine or press &lt;b&gt;Ignore&lt;/b&gt; if you want to leave it as is for debugging. Please note that debugging requires special knowledge and tools, so it is recommended to press &lt;b&gt;OK&lt;/b&gt; now.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Sanal makine çalışırken ciddi bir hata meydana geldi ve makinenin çalışması durduruldu.&lt;/p&gt;&lt;p&gt;Yardım için lütfen &lt;a href=https://www.virtualbox.org&gt;https://www.virtualbox.org&lt;/a&gt; adresindeki Community bölümüne veya destek sözleşmenize bakın. Lütfen &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; dizininde bulabileceğiniz &lt;tt&gt;VBox.log&lt;/tt&gt; günlük dosyasının ve &lt;tt&gt;VBox.png&lt;/tt&gt; resim dosyasının içeriklerinin yanısıra bu hata olduğunda ne yapıyor olduğunuzun açıklamasını da verin. Ayrıca ana VirtualBox penceresinin &lt;b&gt;Makine&lt;/b&gt; menüsünden &lt;b&gt;Günlüğü Göster&lt;/b&gt;&apos;i seçerek aşağıdaki dosyalara erişebildiğinizi unutmayın.&lt;/p&gt;&lt;p&gt;Eğer makinenin gücünü kapatmak istiyorsanız &lt;b&gt;TAMAM&lt;/b&gt; düğmesine basın ya da hata ayıklama için olduğu gibi bırakmak istiyorsanız &lt;b&gt;Yoksay&lt;/b&gt; düğmesine basın. Lütfen hata ayıklamanın özel bilgi ve araçlar gerektirdiğini unutmayın, bu yüzden şimdi &lt;b&gt;TAMAM&lt;/b&gt; düğmesine basmanız önerilir.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;A critical error has occurred while running the virtual machine and the machine execution should be stopped.&lt;/p&gt;&lt;p&gt;For help, please see the Community section on &lt;a href=https://www.virtualbox.org&gt;https://www.virtualbox.org&lt;/a&gt; or your support contract. Please provide the contents of the log file &lt;tt&gt;VBox.log&lt;/tt&gt;, which you can find in the virtual machine log directory, as well as a description of what you were doing when this error happened. Note that you can also access the above file by selecting &lt;b&gt;Show Log&lt;/b&gt; from the &lt;b&gt;Machine&lt;/b&gt; menu of the main VirtualBox window.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;OK&lt;/b&gt; to power off the machine.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Sanal makine çalışırken ciddi bir hata meydana geldi ve makinenin çalışması durdurulmalı.&lt;/p&gt;&lt;p&gt;Yardım için lütfen &lt;a href=https://www.virtualbox.org&gt;https://www.virtualbox.org&lt;/a&gt; adresindeki Community bölümüne veya destek sözleşmenize bakın. Lütfen sanal amkine günlük dizininde bulabileceğiniz &lt;tt&gt;VBox.log&lt;/tt&gt; günlük dosyasının içeriklerinin yanısıra bu hata olduğunda ne yapıyor olduğunuzun açıklamasını da verin. Ayrıca ana VirtualBox penceresinin &lt;b&gt;Makine&lt;/b&gt; menüsünden &lt;b&gt;Günlüğü Göster&lt;/b&gt;&apos;i seçerek aşağıdaki dosyalara erişebildiğinizi unutmayın.&lt;/p&gt;&lt;p&gt;Makinenin gücünü kapatmak için &lt;b&gt;TAMAM&lt;/b&gt; düğmesine basın.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;A new version of VirtualBox has been released! Version &lt;b&gt;%1&lt;/b&gt; is available at &lt;a href=&quot;https://www.virtualbox.org/&quot;&gt;virtualbox.org&lt;/a&gt;.&lt;/p&gt;&lt;p&gt;You can download this version using the link:&lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</source>
-        <translation>&lt;p&gt;VirtualBox&apos;ın yeni bir sürümü yayımlandı! Sürüm &lt;b&gt;%1&lt;/b&gt; &lt;a href=&quot;https://www.virtualbox.org/&quot;&gt;virtualbox.org&lt;/a&gt; adresinde mevcuttur.&lt;/p&gt;&lt;p&gt;Şu bağlantıyı kullanarak bu sürümü indirebilirsiniz:&lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>Drag and drop operation from host to guest failed.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Unable to cancel host to guest drag and drop operation.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Drag and drop operation from guest to host failed.</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;p&gt;Sanal ekran şu anda &lt;b&gt;%1&amp;nbsp;bit&lt;/b&gt; renk kipine ayarlı. Daha iyi performans için lütfen bunu &lt;b&gt;%2&amp;nbsp;bit&lt;/b&gt; olarak değiştirin. Bu genelde misafir işletim sisteminin Denetim Masasının ya da Sistem Ayarlarının &lt;b&gt;Görüntü&lt;/b&gt; bölümünden yapılabilir.&lt;/p&gt;</translation>
     </message>
 </context>
 <context>
@@ -8180,12 +7441,12 @@
 <context>
     <name>UINameAndSystemEditor</name>
     <message>
-        <source>N&amp;ame:</source>
+        <source>&amp;Name:</source>
         <translation>&amp;Adı:</translation>
     </message>
     <message>
         <source>Holds the name of the virtual machine.</source>
-        <translation>Sanal makinenin adını tutar.</translation>
+        <translation>Sanal makinenin adını gösterir.</translation>
     </message>
     <message>
         <source>&amp;Type:</source>
@@ -8977,17 +8238,13 @@ bu basamağı atlayarak sabit diskleri Sanal Makine Ayarları penceresinden ekle
         <translation>Sanal makine dosyaları (%1)</translation>
     </message>
     <message>
-        <source>&lt;h3&gt;Welcome to VirtualBox!&lt;/h3&gt;&lt;p&gt;The left part of this window is  a list of all virtual machines on your computer. The list is empty now because you haven&apos;t created any virtual machines yet.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;In order to create a new virtual machine, press the &lt;b&gt;New&lt;/b&gt; button in the main tool bar located at the top of the window.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;%1&lt;/b&gt; key to get instant help, or visit &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for the latest information and news.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;h3&gt;VirtualBox&apos;a Hoş Geldiniz!&lt;/h3&gt;&lt;p&gt;Bu pencerenin sol tarafı bilgisayarınızdaki tüm sanal makinelerin listesidir. Liste şimdi boş çünkü henüz herhangi bir sanal makine oluşturmadınız.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;Yeni bir sanal makine oluşturmak için pencerenin en üstünde bulunan ana araç çubuğundaki &lt;b&gt;Yeni&lt;/b&gt; düğmesine basın.&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt; tuşuna basarak anında yardım alabilirsiniz ya da en son bilgileri ve haberleri almak için &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; adresini ziyaret edebilirsiniz.&lt;/p&gt;</translation>
+        <source>&lt;h3&gt;Welcome to VirtualBox!&lt;/h3&gt;&lt;p&gt;The left part of this window is  a list of all virtual machines on your computer. The list is empty now because you haven&apos;t created any virtual machines yet.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;In order to create a new virtual machine, press the &lt;b&gt;New&lt;/b&gt; button in the main tool bar located at the top of the window.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;%1&lt;/b&gt; key to get instant help, or visit &lt;a href=https://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for the latest information and news.&lt;/p&gt;</source>
+        <translation>&lt;h3&gt;VirtualBox&apos;a Hoş Geldiniz!&lt;/h3&gt;&lt;p&gt;Bu pencerenin sol tarafı bilgisayarınızdaki tüm sanal makinelerin listesidir. Liste şimdi boş çünkü henüz herhangi bir sanal makine oluşturmadınız.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;Yeni bir sanal makine oluşturmak için pencerenin en üstünde bulunan ana araç çubuğundaki &lt;b&gt;Yeni&lt;/b&gt; düğmesine basın.&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt; tuşuna basarak anında yardım alabilirsiniz ya da en son bilgileri ve haberleri almak için &lt;a href=https://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; adresini ziyaret edebilirsiniz.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Manager</source>
         <comment>Note: main window title which is pretended by the product name.</comment>
         <translation>Yöneticisi</translation>
-    </message>
-    <message>
-        <source>&lt;h3&gt;Welcome to VirtualBox!&lt;/h3&gt;&lt;p&gt;The left part of this window is  a list of all virtual machines on your computer. The list is empty now because you haven&apos;t created any virtual machines yet.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;In order to create a new virtual machine, press the &lt;b&gt;New&lt;/b&gt; button in the main tool bar located at the top of the window.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;%1&lt;/b&gt; key to get instant help, or visit &lt;a href=https://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for the latest information and news.&lt;/p&gt;</source>
-        <translation>&lt;h3&gt;VirtualBox&apos;a Hoş Geldiniz!&lt;/h3&gt;&lt;p&gt;Bu pencerenin sol tarafı bilgisayarınızdaki tüm sanal makinelerin listesidir. Liste şimdi boş çünkü henüz herhangi bir sanal makine oluşturmadınız.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;Yeni bir sanal makine oluşturmak için pencerenin en üstünde bulunan ana araç çubuğundaki &lt;b&gt;Yeni&lt;/b&gt; düğmesine basın.&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt; tuşuna basarak anında yardım alabilirsiniz ya da en son bilgileri ve haberleri almak için &lt;a href=https://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; adresini ziyaret edebilirsiniz.&lt;/p&gt;</translation>
     </message>
 </context>
 <context>
@@ -9017,7 +8274,7 @@ bu basamağı atlayarak sabit diskleri Sanal Makine Ayarları penceresinden ekle
     </message>
     <message>
         <source>Settings</source>
-        <translation type="obsolete">Ayarlar</translation>
+        <translation>Ayarlar</translation>
     </message>
     <message>
         <source>&lt;b&gt;%1&lt;/b&gt; page:</source>
@@ -9070,10 +8327,6 @@ bu basamağı atlayarak sabit diskleri Sanal Makine Ayarları penceresinden ekle
         <source>Display</source>
         <translation>Ekran</translation>
     </message>
-    <message>
-        <source>Preferences</source>
-        <translation>Tercihler</translation>
-    </message>
 </context>
 <context>
     <name>UISettingsDialogMachine</name>
@@ -9124,43 +8377,6 @@ bu basamağı atlayarak sabit diskleri Sanal Makine Ayarları penceresinden ekle
     <message>
         <source>%1 - %2</source>
         <translation>%1 - %2</translation>
-    </message>
-    <message>
-        <source>User Interface</source>
-        <translation>Kullanıcı Arayüzü</translation>
-    </message>
-    <message>
-        <source>Settings</source>
-        <translation>Ayarlar</translation>
-    </message>
-</context>
-<context>
-    <name>UISettingsSerializerProgress</name>
-    <message>
-        <source>Loading Settings...</source>
-        <translation>Ayarlar yükleniyor...</translation>
-    </message>
-    <message>
-        <source>Saving Settings...</source>
-        <translation>Ayarlar kaydediliyor...</translation>
-    </message>
-</context>
-<context>
-    <name>UIStatusBarEditorButton</name>
-    <message>
-        <source>&lt;nobr&gt;&lt;b&gt;Click&lt;/b&gt; to toggle indicator presence.&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Drag&amp;Drop&lt;/b&gt; to change indicator position.&lt;/nobr&gt;</source>
-        <translation>&lt;nobr&gt;Gösterge varlığını değiştirmek için &lt;b&gt;tıklayın&lt;/b&gt;.&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Gösterge konumunu değiştirmek için &lt;b&gt;Sürükle ve Bırak&lt;/b&gt;&apos;ın.&lt;/nobr&gt;</translation>
-    </message>
-</context>
-<context>
-    <name>UIStatusBarEditorWidget</name>
-    <message>
-        <source>Close</source>
-        <translation>Kapat</translation>
-    </message>
-    <message>
-        <source>Enable Status Bar</source>
-        <translation>Durum Çubuğunu etkinleştir</translation>
     </message>
 </context>
 <context>
@@ -9318,14 +8534,6 @@ bu basamağı atlayarak sabit diskleri Sanal Makine Ayarları penceresinden ekle
         <source>&amp;Restore current snapshot &apos;%1&apos;</source>
         <translation>Şu anki &apos;%1&apos; anlık görüntüsünü geri &amp;yükle</translation>
     </message>
-    <message>
-        <source>&amp;Continue running in the background</source>
-        <translation>Arka planda çalışmaya &amp;devam et</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Close the virtual machine windows but keep the virtual machine running.&lt;/p&gt;&lt;p&gt;You can use the VirtualBox Manager to return to running the virtual machine in a window.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Sanal makine pencerelerini kapatır ama sanal makineyi çalışır halde tutar.&lt;/p&gt;&lt;p&gt;Çalışan sanal makineyi bir pencere içine döndürmek için VirtualBox Yöneticisi&apos;ni kullanabilirsiniz.&lt;/p&gt;</translation>
-    </message>
 </context>
 <context>
     <name>UIVMDesktop</name>
@@ -9336,180 +8544,6 @@ bu basamağı atlayarak sabit diskleri Sanal Makine Ayarları penceresinden ekle
     <message>
         <source>&amp;Snapshots</source>
         <translation>Anlık Gör&amp;üntüler</translation>
-    </message>
-</context>
-<context>
-    <name>UIVMInfoDialog</name>
-    <message>
-        <source>Session Information Dialog</source>
-        <translation type="obsolete">Oturum Bilgileri Penceresi</translation>
-    </message>
-    <message>
-        <source>&amp;Close</source>
-        <translation type="obsolete">&amp;Kapat</translation>
-    </message>
-    <message>
-        <source>%1 - Session Information</source>
-        <translation>%1 - Oturum Bilgisi</translation>
-    </message>
-    <message>
-        <source>&amp;Details</source>
-        <translation type="obsolete">&amp;Ayrıntılar</translation>
-    </message>
-    <message>
-        <source>&amp;Runtime</source>
-        <translation type="obsolete">Çalışma &amp;Zamanı</translation>
-    </message>
-    <message>
-        <source>DMA Transfers</source>
-        <translation>DMA Aktarımları</translation>
-    </message>
-    <message>
-        <source>PIO Transfers</source>
-        <translation>PIO Aktarımları</translation>
-    </message>
-    <message>
-        <source>Data Read</source>
-        <translation>Okunan Veri</translation>
-    </message>
-    <message>
-        <source>Data Written</source>
-        <translation>Yazılan Veri</translation>
-    </message>
-    <message>
-        <source>Data Transmitted</source>
-        <translation>Aktarılan Veri</translation>
-    </message>
-    <message>
-        <source>Data Received</source>
-        <translation>Alınan Veri</translation>
-    </message>
-    <message>
-        <source>Enabled</source>
-        <translation type="obsolete">Etkin</translation>
-    </message>
-    <message>
-        <source>Disabled</source>
-        <translation type="obsolete">Pasifleştirilmiş</translation>
-    </message>
-    <message>
-        <source>Runtime Attributes</source>
-        <translation>Çalışma Zamanı Öznitelikleri</translation>
-    </message>
-    <message>
-        <source>Screen Resolution</source>
-        <translation>Ekran Çözünürlüğü</translation>
-    </message>
-    <message>
-        <source>CD/DVD Statistics</source>
-        <translation type="obsolete">CD/DVD İstatistikleri</translation>
-    </message>
-    <message>
-        <source>Network Adapter Statistics</source>
-        <translation type="obsolete">Ağ Bağdaştırıcısı İstatistikleri</translation>
-    </message>
-    <message>
-        <source>Not attached</source>
-        <translation type="obsolete">Eklenmedi</translation>
-    </message>
-    <message>
-        <source>Version %1.%2</source>
-        <comment>guest additions</comment>
-        <translation type="obsolete">Sürüm %1.%2</translation>
-    </message>
-    <message>
-        <source>Not Detected</source>
-        <comment>guest additions</comment>
-        <translation>Algılanmamış</translation>
-    </message>
-    <message>
-        <source>Not Detected</source>
-        <comment>guest os type</comment>
-        <translation>Algılanmamış</translation>
-    </message>
-    <message>
-        <source>Guest Additions</source>
-        <translation>Misafir Eklentileri</translation>
-    </message>
-    <message>
-        <source>Guest OS Type</source>
-        <translation>Misafir İS Türü</translation>
-    </message>
-    <message>
-        <source>Hard Disk Statistics</source>
-        <translation type="obsolete">Sabit Disk İstatistikleri</translation>
-    </message>
-    <message>
-        <source>No Hard Disks</source>
-        <translation type="obsolete">Sabit Disk Yok</translation>
-    </message>
-    <message>
-        <source>No Network Adapters</source>
-        <translation>Ağ Bağdaştırıcıları Yok</translation>
-    </message>
-    <message>
-        <source>Enabled</source>
-        <comment>nested paging</comment>
-        <translation type="obsolete">Etkin</translation>
-    </message>
-    <message>
-        <source>Disabled</source>
-        <comment>nested paging</comment>
-        <translation type="obsolete">Pasifleştirilmiş</translation>
-    </message>
-    <message>
-        <source>Nested Paging</source>
-        <translation type="obsolete">Yerleşik Sayfalama</translation>
-    </message>
-    <message>
-        <source>UIVMInfoDialog</source>
-        <translation type="obsolete">VBoxSMBilgiİletisi</translation>
-    </message>
-    <message>
-        <source>Storage Statistics</source>
-        <translation>Depolama İstatistikleri</translation>
-    </message>
-    <message>
-        <source>No Storage Devices</source>
-        <translation>Depolama Aygıtları Yok</translation>
-    </message>
-    <message>
-        <source>Network Statistics</source>
-        <translation>Ağ İstatistikleri</translation>
-    </message>
-    <message>
-        <source>Nested Paging</source>
-        <comment>details report</comment>
-        <translation type="obsolete">Yerleşik Sayfalama</translation>
-    </message>
-    <message>
-        <source>Not Available</source>
-        <comment>details report (VRDE server port)</comment>
-        <translation>Mevcut Değil</translation>
-    </message>
-    <message>
-        <source>Clipboard Mode</source>
-        <translation>Pano Kipi</translation>
-    </message>
-    <message>
-        <source>Drag&apos;n&apos;Drop Mode</source>
-        <translation type="obsolete">Sürükle&apos;v&apos;Bırak Kipi</translation>
-    </message>
-    <message>
-        <source>Configuration &amp;Details</source>
-        <translation>Yapılandırma &amp;Ayrıntıları</translation>
-    </message>
-    <message>
-        <source>&amp;Runtime Information</source>
-        <translation>Çalışma &amp;Zamanı Bilgisi</translation>
-    </message>
-    <message>
-        <source>VM Uptime</source>
-        <translation>VM Çalışma Zamanı</translation>
-    </message>
-    <message>
-        <source>Drag and Drop Mode</source>
-        <translation>Sürükle ve Bırak Kipi</translation>
     </message>
 </context>
 <context>
@@ -9663,34 +8697,18 @@ bu basamağı atlayarak sabit diskleri Sanal Makine Ayarları penceresinden ekle
     <name>UIWizard</name>
     <message>
         <source>Hide Description</source>
-        <translation type="obsolete">Açıklamayı Gizle</translation>
+        <translation>Açıklamayı Gizle</translation>
     </message>
     <message>
         <source>Show Description</source>
-        <translation type="obsolete">Açıklamayı Göster</translation>
-    </message>
-    <message>
-        <source>&amp;Expert Mode</source>
-        <translation>&amp;Uzman Kipi</translation>
-    </message>
-    <message>
-        <source>Switch to &lt;nobr&gt;&lt;b&gt;Expert Mode&lt;/b&gt;&lt;/nobr&gt;, a one-page dialog for experienced users.</source>
-        <translation>&lt;nobr&gt;&lt;b&gt;Uzman Kipi&lt;/b&gt;&lt;/nobr&gt;&apos;ne değiştirin, deneyimli kullanıcılar için tek sayfalık bir iletidir.</translation>
-    </message>
-    <message>
-        <source>&amp;Guided Mode</source>
-        <translation>&amp;Rehberli Kip</translation>
-    </message>
-    <message>
-        <source>Switch to &lt;nobr&gt;&lt;b&gt;Guided Mode&lt;/b&gt;&lt;/nobr&gt;, a step-by-step dialog with detailed explanations.</source>
-        <translation>&lt;nobr&gt;&lt;b&gt;Rehberli Kip&lt;/b&gt;&lt;/nobr&gt;&apos;e değiştirin, ayrıntılı açıklamaları olan adım adım bir iletidir.</translation>
+        <translation>Açıklamayı Göster</translation>
     </message>
 </context>
 <context>
     <name>UIWizardCloneVD</name>
     <message>
         <source>Copy Virtual Hard Drive</source>
-        <translation>Sanal Sabit Sürücüyü Kopyala</translation>
+        <translation>Sanal Sabit Diski Kopyala</translation>
     </message>
     <message>
         <source>Copy</source>
@@ -9698,43 +8716,43 @@ bu basamağı atlayarak sabit diskleri Sanal Makine Ayarları penceresinden ekle
     </message>
     <message>
         <source>Hard drive to copy</source>
-        <translation>Kopyalamak için sabit sürücü</translation>
+        <translation>Kopyalamak için sabit disk</translation>
     </message>
     <message>
         <source>&lt;p&gt;Please select the virtual hard drive file that you would like to copy if it is not already selected. You can either choose one from the list or use the folder icon beside the list to select one.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Lütfen kopyalamak istediğiniz sanal sabit sürücü dosyası eğer seçilmediyse seçin. Ya listeden birisini seçebilirsiniz ya da birini seçmek için listenin yanındaki klasör simgesini kullanabilirsiniz.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Lütfen kopyalamak istediğiniz sanal sabit disk dosyası eğer seçilmediyse seçin. Ya listeden birisini seçebilirsiniz ya da birini seçmek için listenin yanındaki klasör simgesini kullanabilirsiniz.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Choose a virtual hard drive file to copy...</source>
-        <translation>Kopyalamak için sanal sabit sürücü dosyasını seçin...</translation>
+        <translation>Kopyalamak için sanal sabit disk dosyasını seçin...</translation>
     </message>
     <message>
         <source>Hard drive file type</source>
-        <translation>Sabit sürücü dosyası türü</translation>
+        <translation>Sabit disk dosyası türü</translation>
     </message>
     <message>
         <source>Please choose the type of file that you would like to use for the new virtual hard drive. If you do not need to use it with other virtualization software you can leave this setting unchanged.</source>
-        <translation>Lütfen yeni sanal sabit sürücü için kullanmak istediğiniz dosyanın türünü seçin. Eğer diğer sanallaştırma yazılımları ile kullanmaya ihtiyacınız yoksa bu ayarı değiştirmeden bırakabilirsiniz.</translation>
+        <translation>Lütfen yeni sanal sabit disk için kullanmak istediğiniz dosyanın türünü seçin. Eğer diğer sanallaştırma yazılımları ile kullanmaya ihtiyacınız yoksa bu ayarı değiştirmeden bırakabilirsiniz.</translation>
     </message>
     <message>
         <source>Storage on physical hard drive</source>
-        <translation>Fiziksel sabit sürücü depolama</translation>
+        <translation>Fiziksel sabit diskte depolama</translation>
     </message>
     <message>
         <source>Please choose whether the new virtual hard drive file should grow as it is used (dynamically allocated) or if it should be created at its maximum size (fixed size).</source>
-        <translation>Lütfen yeni sanal sabit sürücü dosyasının kullanılmasına göre (değişken olarak ayrılan) büyüyüp büyümemesini ya da en fazla boyutunda (sabitlenmiş boyut) oluşturulup oluşturulmamalıysa seçin.</translation>
+        <translation>Lütfen yeni sanal sabit disk dosyasının kullanılmasına göre (değişken olarak ayrılan) büyüyüp büyümemesini ya da en fazla boyutunda (sabitlenmiş boyut) oluşturulup oluşturulmamalıysa seçin.</translation>
     </message>
     <message>
         <source>&lt;p&gt;A &lt;b&gt;dynamically allocated&lt;/b&gt; hard drive file will only use space on your physical hard drive as it fills up (up to a maximum &lt;b&gt;fixed size&lt;/b&gt;), although it will not shrink again automatically when space on it is freed.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;&lt;b&gt;Değişken olarak ayrılan&lt;/b&gt; sabit sürücü dosyası sadece fiziksel sabit sürücünüzdeki alanı doldurarak (en fazla &lt;b&gt;sabitlenmiş boyuta&lt;/b&gt; kadar) kullanacak olmasına rağmen alan serbest kaldığında otomatik olarak tekrar küçülmeyecektir.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;&lt;b&gt;Değişken olarak ayrılan&lt;/b&gt; sabit disk dosyası sadece fiziksel sabit diskinizdeki alanı doldurarak (en fazla &lt;b&gt;sabitlenmiş boyuta&lt;/b&gt; kadar) kullanacak olmasına rağmen alan serbest kaldığında otomatik olarak tekrar küçülmeyecektir.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;A &lt;b&gt;fixed size&lt;/b&gt; hard drive file may take longer to create on some systems but is often faster to use.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;&lt;b&gt;Sabitlenmiş boyutlu&lt;/b&gt; sabit sürücü dosyasını oluşturmak bazı sistemlerde uzun sürebilir ama kullanması çoğu kez en hızlı olandır.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;&lt;b&gt;Sabitlenmiş boyutlu&lt;/b&gt; sabit disk dosyasını oluşturmak bazı sistemlerde uzun sürebilir ama kullanması çoğu kez en hızlı olandır.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;You can also choose to &lt;b&gt;split&lt;/b&gt; the hard drive file into several files of up to two gigabytes each. This is mainly useful if you wish to store the virtual machine on removable USB devices or old systems, some of which cannot handle very large files.</source>
-        <translation>&lt;p&gt;Ayrıca sabit sürücü dosyasını her biri iki gigabayta kadar birkaç dosyaya &lt;b&gt;bölmeyi&lt;/b&gt; seçebilirsiniz. Bu çoğunlukla eğer sanal makineyi kaldırılabilir USB aygıtlarda veya çok büyük dosyalarla başa çıkamayan bazı eski sistemlerde depolamak isterseniz faydalıdır.</translation>
+        <translation>&lt;p&gt;Ayrıca sabit disk dosyasını her biri iki gigabayta kadar birkaç dosyaya &lt;b&gt;bölmeyi&lt;/b&gt; seçebilirsiniz. Bu çoğunlukla eğer sanal makineyi kaldırılabilir USB aygıtlarda veya çok büyük dosyalarla başa çıkamayan bazı eski sistemlerde depolamak isterseniz faydalıdır.</translation>
     </message>
     <message>
         <source>&amp;Dynamically allocated</source>
@@ -9750,19 +8768,19 @@ bu basamağı atlayarak sabit diskleri Sanal Makine Ayarları penceresinden ekle
     </message>
     <message>
         <source>Please choose a location for new virtual hard drive file</source>
-        <translation>Lütfen yeni sanal sabit sürücü dosyası için bir yer seçin</translation>
+        <translation>Lütfen yeni sanal sabit disk dosyası için bir yer seçin</translation>
     </message>
     <message>
         <source>New hard drive to create</source>
-        <translation>Oluşturmak için yeni sabit sürücü</translation>
+        <translation>Oluşturmak için yeni sabit disk</translation>
     </message>
     <message>
         <source>Please type the name of the new virtual hard drive file into the box below or click on the folder icon to select a different folder to create the file in.</source>
-        <translation>Lütfen aşağıdaki kutuya yeni sanal sabit sürücü dosyasının adını yazın ya da içine oluşturulacak farklı bir klasörü seçmek için klasör simgesine tıklayın.</translation>
+        <translation>Lütfen aşağıdaki kutuya yeni sanal sabit disk dosyasının adını yazın ya da içine oluşturulacak farklı bir klasörü seçmek için klasör simgesine tıklayın.</translation>
     </message>
     <message>
         <source>Choose a location for new virtual hard drive file...</source>
-        <translation>Yeni sanal sabit sürücü dosyası için bir yer seçin...</translation>
+        <translation>Yeni sanal sabit disk dosyası için bir yer seçin...</translation>
     </message>
     <message>
         <source>%1_copy</source>
@@ -9771,15 +8789,15 @@ bu basamağı atlayarak sabit diskleri Sanal Makine Ayarları penceresinden ekle
     </message>
     <message>
         <source>Hard drive to &amp;copy</source>
-        <translation>&amp;Kopyalamak için sabit sürücü</translation>
+        <translation>&amp;Kopyalamak için sabit disk</translation>
     </message>
     <message>
         <source>&amp;New hard drive to create</source>
-        <translation>Oluşturmak için &amp;yeni sabit sürücü</translation>
+        <translation>Oluşturmak için &amp;yeni sabit disk</translation>
     </message>
     <message>
         <source>Hard drive file &amp;type</source>
-        <translation>Sabit sürücü dosyası &amp;türü</translation>
+        <translation>Sabit disk dosyası &amp;türü</translation>
     </message>
 </context>
 <context>
@@ -9822,7 +8840,7 @@ bu basamağı atlayarak sabit diskleri Sanal Makine Ayarları penceresinden ekle
     </message>
     <message>
         <source>&lt;p&gt;Please choose the type of clone you wish to create.&lt;/p&gt;&lt;p&gt;If you choose &lt;b&gt;Full clone&lt;/b&gt;, an exact copy (including all virtual hard drive files) of the original virtual machine will be created.&lt;/p&gt;&lt;p&gt;If you choose &lt;b&gt;Linked clone&lt;/b&gt;, a new machine will be created, but the virtual hard drive files will be tied to the virtual hard drive files of original machine and you will not be able to move the new virtual machine to a different computer without moving the original as well.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Lütfen oluşturmak istediğiniz çoğaltma türünü seçin.&lt;/p&gt;&lt;p&gt;Eğer &lt;b&gt;Tam çoğaltma&lt;/b&gt; seçerseniz, orijinal sanal makinenin tam bir kopyası (tüm sanal sabit sürücü dosyaları dahil) oluşturulacaktır.&lt;/p&gt;&lt;p&gt;Eğer &lt;b&gt;Birbirine bağlantılı çoğaltma&lt;/b&gt; seçerseniz, yeni bir sanal makine oluşturulacaktır ama sanal sabit sürücü dosyaları orijinal makinenin sanal sabit sürücü dosyalarına bağlanacaktır ve yeni sanal makineyi farklı bir bilgisayara orijinalini de taşımadan taşıyamacaksınız.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Lütfen oluşturmak istediğiniz çoğaltma türünü seçin.&lt;/p&gt;&lt;p&gt;Eğer &lt;b&gt;Tam çoğaltma&lt;/b&gt; seçerseniz, orijinal sanal makinenin tam bir kopyası (tüm sanal sabit disk dosyaları dahil) oluşturulacaktır.&lt;/p&gt;&lt;p&gt;Eğer &lt;b&gt;Birbirine bağlantılı çoğaltma&lt;/b&gt; seçerseniz, yeni bir sanal makine oluşturulacaktır ama sanal sabit disk dosyaları orijinal makinenin sanal sabit disk dosyalarına bağlanacaktır ve yeni sanal makineyi farklı bir bilgisayara orijinalini de taşımadan taşıyamacaksınız.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;If you create a &lt;b&gt;Linked clone&lt;/b&gt; then a new snapshot will be created in the original virtual machine as part of the cloning process.&lt;/p&gt;</source>
@@ -10090,7 +9108,7 @@ bu basamağı atlayarak sabit diskleri Sanal Makine Ayarları penceresinden ekle
     </message>
     <message>
         <source>&lt;p&gt;Please select a virtual optical disk file or a physical optical drive containing a disk to start your new virtual machine from.&lt;/p&gt;&lt;p&gt;The disk should be suitable for starting a computer from. As this virtual machine has no hard drive you will not be able to install an operating system on it at the moment.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Lütfen sanal bir optik disk dosyası veya yeni sanal makinenizi ondan başlatmak için bir disk içeren fiziksel optik sürücü seçin.&lt;/p&gt;&lt;p&gt;Disk bir bilgisayarı ondan başlatmak için uygun olmalıdır. Bu sanal makine gibi hiç sabit sürücüye sahip değil, şu anda bir işletim sistemi yükleyemeyeceksiniz.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Lütfen sanal bir optik disk dosyası veya yeni sanal makinenizi ondan başlatmak için bir disk içeren fiziksel optik disk sürücüsü seçin.&lt;/p&gt;&lt;p&gt;Disk bir bilgisayarı başlatması için uygun olmalı. Bu sanal makine olarak hiç sabit diske sahip değil, şu anda bir işletim sistemi yükleyemeyeceksiniz.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Choose a virtual optical disk file...</source>
@@ -10156,7 +9174,7 @@ bu basamağı atlayarak sabit diskleri Sanal Makine Ayarları penceresinden ekle
     <name>UIWizardNewVD</name>
     <message>
         <source>Create Virtual Hard Drive</source>
-        <translation>Sanal Sabit Sürücü Oluştur</translation>
+        <translation>Sanal Sabit Disk Oluştur</translation>
     </message>
     <message>
         <source>Create</source>
@@ -10164,31 +9182,31 @@ bu basamağı atlayarak sabit diskleri Sanal Makine Ayarları penceresinden ekle
     </message>
     <message>
         <source>Hard drive file type</source>
-        <translation>Sabit sürücü dosyası türü</translation>
+        <translation>Sabit disk dosyası türü</translation>
     </message>
     <message>
         <source>Please choose the type of file that you would like to use for the new virtual hard drive. If you do not need to use it with other virtualization software you can leave this setting unchanged.</source>
-        <translation>Lütfen yeni sanal sabit sürücü için kullanmak istediğiniz dosyanın türünü seçin. Eğer diğer sanallaştırma yazılımları ile kullanmaya ihtiyacınız yoksa bu ayarı değiştirmeden bırakabilirsiniz.</translation>
+        <translation>Lütfen yeni sanal sabit disk için kullanmak istediğiniz dosyanın türünü seçin. Eğer diğer sanallaştırma yazılımları ile kullanmaya ihtiyacınız yoksa bu ayarı değiştirmeden bırakabilirsiniz.</translation>
     </message>
     <message>
         <source>Storage on physical hard drive</source>
-        <translation>Fiziksel sabit sürücüde depolama</translation>
+        <translation>Fiziksel sabit diskte depolama</translation>
     </message>
     <message>
         <source>Please choose whether the new virtual hard drive file should grow as it is used (dynamically allocated) or if it should be created at its maximum size (fixed size).</source>
-        <translation>Lütfen yeni sanal sabit sürücü dosyasının kullanılmasına göre (değişken olarak ayrılan) büyüyüp büyümemesini ya da en fazla boyutunda (sabitlenmiş boyut) oluşturulup oluşturulmamalıysa seçin.</translation>
+        <translation>Lütfen yeni sanal sabit disk dosyasının kullanılmasına göre (değişken olarak ayrılan) büyüyüp büyümemesini ya da en fazla boyutunda (sabitlenmiş boyut) oluşturulup oluşturulmamalıysa seçin.</translation>
     </message>
     <message>
         <source>&lt;p&gt;A &lt;b&gt;dynamically allocated&lt;/b&gt; hard drive file will only use space on your physical hard drive as it fills up (up to a maximum &lt;b&gt;fixed size&lt;/b&gt;), although it will not shrink again automatically when space on it is freed.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;&lt;b&gt;Değişken olarak ayrılan&lt;/b&gt; sabit sürücü dosyası sadece fiziksel sabit sürücünüzdeki alanı doldurarak (en fazla &lt;b&gt;sabitlenmiş boyuta&lt;/b&gt; kadar) kullanacak olmasına rağmen alan serbest kaldığında otomatik olarak tekrar küçülmeyecektir.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;&lt;b&gt;Değişken olarak ayrılan&lt;/b&gt; sabit disk dosyası sadece fiziksel sabit diskinizdeki alanı doldurarak (en fazla &lt;b&gt;sabitlenmiş boyuta&lt;/b&gt; kadar) kullanacak olmasına rağmen alan serbest kaldığında otomatik olarak tekrar küçülmeyecektir.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;A &lt;b&gt;fixed size&lt;/b&gt; hard drive file may take longer to create on some systems but is often faster to use.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;&lt;b&gt;Sabitlenmiş boyutlu&lt;/b&gt; sabit sürücü dosyasını oluşturmak bazı sistemlerde uzun sürebilir ama kullanması çoğu kez en hızlı olandır.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;&lt;b&gt;Sabitlenmiş boyutlu&lt;/b&gt; sabit disk dosyasını oluşturmak bazı sistemlerde uzun sürebilir ama kullanması çoğu kez en hızlı olandır.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;You can also choose to &lt;b&gt;split&lt;/b&gt; the hard drive file into several files of up to two gigabytes each. This is mainly useful if you wish to store the virtual machine on removable USB devices or old systems, some of which cannot handle very large files.</source>
-        <translation>&lt;p&gt;Ayrıca sabit sürücü dosyasını her biri iki gigabayta kadar birkaç dosyaya &lt;b&gt;bölmeyi&lt;/b&gt; seçebilirsiniz. Bu çoğunlukla eğer sanal makineyi kaldırılabilir USB aygıtlarda veya çok büyük dosyalarla başa çıkamayan bazı eski sistemlerde depolamak isterseniz faydalıdır.</translation>
+        <translation>&lt;p&gt;Ayrıca sabit disk dosyasını her biri iki gigabayta kadar birkaç dosyaya &lt;b&gt;bölmeyi&lt;/b&gt; seçebilirsiniz. Bu çoğunlukla eğer sanal makineyi kaldırılabilir USB aygıtlarda veya çok büyük dosyalarla başa çıkamayan bazı eski sistemlerde depolamak isterseniz faydalıdır.</translation>
     </message>
     <message>
         <source>&amp;Dynamically allocated</source>
@@ -10212,15 +9230,15 @@ bu basamağı atlayarak sabit diskleri Sanal Makine Ayarları penceresinden ekle
     </message>
     <message>
         <source>Please type the name of the new virtual hard drive file into the box below or click on the folder icon to select a different folder to create the file in.</source>
-        <translation>Lütfen aşağıdaki kutuya yeni sanal sabit sürücü dosyasının adını yazın ya da içine oluşturulacak farklı bir klasörü seçmek için klasör simgesine tıklayın.</translation>
+        <translation>Lütfen aşağıdaki kutuya yeni sanal sabit disk dosyasının adını yazın ya da içine oluşturulacak farklı bir klasörü seçmek için klasör simgesine tıklayın.</translation>
     </message>
     <message>
         <source>Choose a location for new virtual hard drive file...</source>
-        <translation>Yeni sanal sabit sürücü dosyası için bir yer seçin...</translation>
+        <translation>Yeni sanal sabit disk dosyası için bir yer seçin...</translation>
     </message>
     <message>
         <source>Select the size of the virtual hard drive in megabytes. This size is the limit on the amount of file data that a virtual machine will be able to store on the hard drive.</source>
-        <translation>Megabayt olarak sanal sabit sürücünün boyutunu seçin. Bu boyut sabit sürücüdeki depolanabilecek bir sanal makine dosya verisinin miktarını sınırlandırır.</translation>
+        <translation>Megabayt olarak sanal sabit sürücünün boyutunu seçin. Bu boyut sabit diskte depolanabilecek bir sanal makine dosya verisinin miktarını sınırlandırır.</translation>
     </message>
     <message>
         <source>File &amp;location</source>
@@ -10232,7 +9250,7 @@ bu basamağı atlayarak sabit diskleri Sanal Makine Ayarları penceresinden ekle
     </message>
     <message>
         <source>Hard drive file &amp;type</source>
-        <translation>Sabit sürücü dosyası &amp;türü</translation>
+        <translation>Sabit disk dosyası &amp;türü</translation>
     </message>
 </context>
 <context>
@@ -10283,15 +9301,15 @@ bu basamağı atlayarak sabit diskleri Sanal Makine Ayarları penceresinden ekle
     </message>
     <message>
         <source>Hard drive</source>
-        <translation>Sabit sürücü</translation>
+        <translation>Sabit disk</translation>
     </message>
     <message>
         <source>&lt;p&gt;If you wish you can add a virtual hard drive to the new machine. You can either create a new hard drive file or select one from the list or from another location using the folder icon.&lt;/p&gt;&lt;p&gt;If you need a more complex storage set-up you can skip this step and make the changes to the machine settings once the machine is created.&lt;/p&gt;&lt;p&gt;The recommended size of the hard drive is &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;</source>
-        <translation>Eğer isterseniz yeni makineye sanal bir sabit sürücü ekleyebilirsiniz. Ya yeni bir sabit sürücü dosyası oluşturabilirsiniz ya da listeden veya klasör simgesini kullanarak başka bir yerden birini seçebilirsiniz.&lt;/p&gt;&lt;p&gt;Eğer daha karışık depolama ayarlamasına ihtiyacınız varsa bu adımı atlayabilir ve makine bir kere oluşturuldumu makine ayarlarından değişiklikleri yapabilirsiniz.&lt;/p&gt;&lt;p&gt;Sabit sürücü için önerilen boyut &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;</translation>
+        <translation>Eğer isterseniz yeni makineye sanal bir sabit disk ekleyebilirsiniz. Ya yeni bir sabit disk dosyası oluşturabilirsiniz ya da listeden veya klasör simgesini kullanarak başka bir yerden birini seçebilirsiniz.&lt;/p&gt;&lt;p&gt;Eğer daha karışık depolama ayarlamasına ihtiyacınız varsa bu adımı atlayabilir ve makine bir kere oluşturuldumu makine ayarlarından değişiklikleri yapabilirsiniz.&lt;/p&gt;&lt;p&gt;Sabit disk için önerilen boyut &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Choose a virtual hard drive file...</source>
-        <translation>Sanal sabit sürücü dosyası seçin...</translation>
+        <translation>Sanal sabit disk dosyası seçin...</translation>
     </message>
     <message>
         <source>&amp;Memory size</source>
@@ -10299,15 +9317,15 @@ bu basamağı atlayarak sabit diskleri Sanal Makine Ayarları penceresinden ekle
     </message>
     <message>
         <source>&amp;Do not add a virtual hard drive</source>
-        <translation>Sanal bir sabit sürücü &amp;ekleme</translation>
+        <translation>Sanal sabit disk &amp;ekleme</translation>
     </message>
     <message>
         <source>&amp;Create a virtual hard drive now</source>
-        <translation>Şimdi sanal bir sabit sürücü &amp;oluştur</translation>
+        <translation>Şimdi sanal sabit disk &amp;oluştur</translation>
     </message>
     <message>
         <source>&amp;Use an existing virtual hard drive file</source>
-        <translation>Mevcut sanal bir sabit sürücü dosyası &amp;kullan</translation>
+        <translation>Mevcut sanal sabit disk dosyası &amp;kullan</translation>
     </message>
 </context>
 <context>
@@ -10652,11 +9670,11 @@ Version %1</source>
         <translation type="obsolete">Paylaşılan dizinler üzerinde işlem yapmak için pencereyi aç</translation>
     </message>
     <message>
-        <source>&amp;Install Guest Additions...</source>
+        <source>&amp;Insert Guest Additions CD image...</source>
         <translation type="obsolete">&amp;Misafir Eklentilerini (Guest Additions) Yükle...</translation>
     </message>
     <message>
-        <source>Mount the Guest Additions installation image</source>
+        <source>Insert the Guest Additions disk file into the virtual drive</source>
         <translation type="obsolete">Misafir Eklentilerini yükleyici kalıbı bağla</translation>
     </message>
     <message>
@@ -10927,7 +9945,7 @@ Version %1</source>
         <translation type="obsolete">Oturum &amp;Bilgileri Penceresi</translation>
     </message>
     <message>
-        <source>Show Session Information Dialog</source>
+        <source>Show Session Information Window</source>
         <translation type="obsolete">Oturum Bilgileri Penceresini Göster</translation>
     </message>
     <message>
@@ -11234,8 +10252,8 @@ Version %1</source>
         <translation>&lt;varsayılana sıfırla&gt;</translation>
     </message>
     <message>
-        <source>The actual default path value will be displayed after accepting the changes and opening this dialog again.</source>
-        <translation type="obsolete">Gerçek varsayılan yol değeri, değişiklikler kabul edildikten ve bu ileti tekrar açıldıktan sonra görüntülenecektir.</translation>
+        <source>The actual default path value will be displayed after accepting the changes and opening this window again.</source>
+        <translation>Gerçek varsayılan yol değeri, değişiklikler kabul edildikten ve bu pencere tekrar açıldıktan sonra görüntülenecektir.</translation>
     </message>
     <message>
         <source>&lt;not selected&gt;</source>
@@ -11255,7 +10273,7 @@ Version %1</source>
     </message>
     <message>
         <source>Opens a window to select a different folder.</source>
-        <translation>Farklı bir klasör seçmek için bir pencere açar.</translation>
+        <translation>Farklı bir klasör seçmek için bir ileti açar.</translation>
     </message>
     <message>
         <source>Resets the folder path to the default value.</source>
@@ -11263,7 +10281,7 @@ Version %1</source>
     </message>
     <message>
         <source>Opens a window to select a different file.</source>
-        <translation>Farklı bir dosya seçmek için bir pencere açar.</translation>
+        <translation>Farklı bir dosya seçmek için bir ileti açar.</translation>
     </message>
     <message>
         <source>Resets the file path to the default value.</source>
@@ -11283,7 +10301,8 @@ Version %1</source>
     </message>
     <message>
         <source>The actual default path value will be displayed after accepting the changes and opening this window again.</source>
-        <translation>Gerçek varsayılan yol değeri, değişiklikler kabul edildikten ve bu pencere tekrar açıldıktan sonra görüntülenecektir.</translation>
+        <comment>new</comment>
+        <translation type="obsolete">Gerçek varsayılan yol değeri, değişiklikler kabul edildikten ve bu ileti tekrar açıldıktan sonra görüntülenecektir.</translation>
     </message>
 </context>
 <context>
@@ -11635,7 +10654,7 @@ Version %1</source>
     <message>
         <source>CD/DVD</source>
         <comment>DeviceType</comment>
-        <translation type="obsolete">CD/DVD</translation>
+        <translation>CD/DVD</translation>
     </message>
     <message>
         <source>Hard Disk</source>
@@ -12368,7 +11387,7 @@ Version %1</source>
     <message>
         <source>Paravirtualized Network (virtio-net)</source>
         <comment>NetworkAdapterType</comment>
-        <translation>Yarı Sanallaştırılmış Ağ (virtio-net)</translation>
+        <translation>Parasanallaştırılmış Ağ (virtio-net)</translation>
     </message>
     <message>
         <source>I82078</source>
@@ -12436,17 +11455,17 @@ Version %1</source>
     <message>
         <source>Attaching this hard disk will be performed indirectly using a newly created differencing hard disk.</source>
         <comment>medium</comment>
-        <translation type="obsolete">Takılan bu sabit disk yeni olarak oluşturulmuş ayrımlanan sabit disk kullanımını dolaylı olarak gerçekleştirecektir.</translation>
+        <translation>Takılan bu sabit disk yeni olarak oluşturulmuş ayrımlanan sabit disk kullanımını dolaylı olarak gerçekleştirecektir.</translation>
     </message>
     <message>
         <source>Some of the files in this hard disk chain are inaccessible. Please use the Virtual Media Manager in &lt;b&gt;Show Differencing Hard Disks&lt;/b&gt; mode to inspect these files.</source>
         <comment>medium</comment>
-        <translation type="obsolete">Bu sabit disk zincirindeki ortamın bazısı erişilemez. Lütfen bu ortamı incelemek için &lt;b&gt;Ayrımlanan Sabit Diskleri Göster&lt;/b&gt; içindeki Sanal Ortam Yönetcisini kullanın.</translation>
+        <translation>Bu sabit disk zincirindeki ortamın bazısı erişilemez. Lütfen bu ortamı incelemek için &lt;b&gt;Ayrımlanan Sabit Diskleri Göster&lt;/b&gt; içindeki Sanal Ortam Yönetcisini kullanın.</translation>
     </message>
     <message>
         <source>This base hard disk is indirectly attached using the following differencing hard disk:</source>
         <comment>medium</comment>
-        <translation type="obsolete">Bu ana sabit disk aşağıdaki ayrımlanan sabit diskleri kullanarak dolaylı olarak takılır:</translation>
+        <translation>Bu ana sabit disk aşağıdaki ayrımlanan sabit diskleri kullanarak dolaylı olarak takılır:</translation>
     </message>
     <message numerus="yes">
         <source>%n year(s)</source>
@@ -12486,7 +11505,7 @@ Version %1</source>
     </message>
     <message>
         <source>(CD/DVD)</source>
-        <translation type="obsolete">(CD/DVD)</translation>
+        <translation>(CD/DVD)</translation>
     </message>
     <message>
         <source>Screens</source>
@@ -12891,7 +11910,7 @@ Version %1</source>
     </message>
     <message>
         <source>Please choose a virtual hard drive file</source>
-        <translation>Lütfen sanal bir sabit sürücü dosyası seçin</translation>
+        <translation>Lütfen sanal sabit sürücü dosyası seçin</translation>
     </message>
     <message>
         <source>All virtual hard drive files (%1)</source>
@@ -12899,7 +11918,7 @@ Version %1</source>
     </message>
     <message>
         <source>Please choose a virtual optical disk file</source>
-        <translation>Lütfen sanal bir optik disk dosyası seçin</translation>
+        <translation>Lütfen sanal optik disk dosyası seçin</translation>
     </message>
     <message>
         <source>All virtual optical disk files (%1)</source>
@@ -12944,12 +11963,12 @@ Version %1</source>
     <message>
         <source>Enabled</source>
         <comment>details report (Unrestricted Execution)</comment>
-        <translation type="obsolete">Etkinleştirildi</translation>
+        <translation>Etkinleştirildi</translation>
     </message>
     <message>
         <source>Disabled</source>
         <comment>details report (Unrestricted Execution)</comment>
-        <translation type="obsolete">Etkisizleştirildi</translation>
+        <translation>Etkisizleştirildi</translation>
     </message>
     <message>
         <source>Unrestricted Execution</source>
@@ -13008,155 +12027,6 @@ Version %1</source>
     <message>
         <source>You can create or add disk image files in the virtual machine settings.</source>
         <translation>Sanal makine ayarlarında disk kalıbı dosyalarını oluşturabilir ya da ekleyebilirsiniz.</translation>
-    </message>
-    <message>
-        <source>USB</source>
-        <comment>StorageControllerType</comment>
-        <translation>USB</translation>
-    </message>
-    <message>
-        <source>USB Port %1</source>
-        <comment>StorageSlot</comment>
-        <translation>USB B.Noktası %1</translation>
-    </message>
-    <message>
-        <source>off</source>
-        <comment>guest monitor status</comment>
-        <translation>kapalı</translation>
-    </message>
-    <message>
-        <source>Paravirtualization Interface</source>
-        <comment>details report</comment>
-        <translation>Yarı Sanallaştırma Arayüzü</translation>
-    </message>
-    <message>
-        <source>None</source>
-        <comment>ParavirtProvider</comment>
-        <translation>Yok</translation>
-    </message>
-    <message>
-        <source>Default</source>
-        <comment>ParavirtProvider</comment>
-        <translation>Varsayılan</translation>
-    </message>
-    <message>
-        <source>Legacy</source>
-        <comment>ParavirtProvider</comment>
-        <translation>Eski</translation>
-    </message>
-    <message>
-        <source>Minimal</source>
-        <comment>ParavirtProvider</comment>
-        <translation>En Az</translation>
-    </message>
-    <message>
-        <source>Hyper-V</source>
-        <comment>ParavirtProvider</comment>
-        <translation>Hyper-V</translation>
-    </message>
-    <message>
-        <source>New dynamically allocated storage</source>
-        <comment>MediumVariant</comment>
-        <translation>Yeni değişken olarak ayrılan depolama</translation>
-    </message>
-    <message>
-        <source>Active</source>
-        <comment>details report (VT-x/AMD-V)</comment>
-        <translation>Aktif</translation>
-    </message>
-    <message>
-        <source>Inactive</source>
-        <comment>details report (VT-x/AMD-V)</comment>
-        <translation>Devre dışı</translation>
-    </message>
-    <message>
-        <source>Active</source>
-        <comment>details report (Nested Paging)</comment>
-        <translation>Aktif</translation>
-    </message>
-    <message>
-        <source>Inactive</source>
-        <comment>details report (Nested Paging)</comment>
-        <translation>Devre dışı</translation>
-    </message>
-    <message>
-        <source>Active</source>
-        <comment>details report (Unrestricted Execution)</comment>
-        <translation>Aktif</translation>
-    </message>
-    <message>
-        <source>Inactive</source>
-        <comment>details report (Unrestricted Execution)</comment>
-        <translation>Devre dışı</translation>
-    </message>
-    <message>
-        <source>Taking Snapshot</source>
-        <comment>MachineState</comment>
-        <translation>Anlık Görüntü alınıyor</translation>
-    </message>
-    <message>
-        <source>Taking Online Snapshot</source>
-        <comment>MachineState</comment>
-        <translation>Çevrimiçi Anlık Görüntü alınıyor</translation>
-    </message>
-    <message>
-        <source>KVM</source>
-        <comment>ParavirtProvider</comment>
-        <translation>KVM</translation>
-    </message>
-    <message>
-        <source>Optical</source>
-        <comment>DeviceType</comment>
-        <translation>Optik</translation>
-    </message>
-    <message>
-        <source>TCP</source>
-        <comment>PortMode</comment>
-        <translation>TCP</translation>
-    </message>
-    <message>
-        <source>OHCI</source>
-        <comment>USBControllerType</comment>
-        <translation>OHCI</translation>
-    </message>
-    <message>
-        <source>EHCI</source>
-        <comment>USBControllerType</comment>
-        <translation>EHCI</translation>
-    </message>
-    <message>
-        <source>xHCI</source>
-        <comment>USBControllerType</comment>
-        <translation>xHCI</translation>
-    </message>
-    <message>
-        <source>User interface</source>
-        <comment>DetailsElementType</comment>
-        <translation>Kullanıcı arayüzü</translation>
-    </message>
-    <message>
-        <source>(Optical Drive)</source>
-        <translation>(Optik Sürücü)</translation>
-    </message>
-    <message>
-        <source>Attaching this hard drive will be performed indirectly using a newly created differencing hard drive.</source>
-        <comment>medium</comment>
-        <translation>Takılan bu sabit sürücü yeni olarak oluşturulmuş ayrımlanan sabit sürücüyü kullanarak dolaylı olarak gerçekleştirecektir.</translation>
-    </message>
-    <message>
-        <source>Some of the files in this hard drive chain are inaccessible. Please use the Virtual Medium Manager to inspect these files.</source>
-        <comment>medium</comment>
-        <translation>Bu sabit sürücü zincirindeki dosyaların bazıları erişilemez. Lütfen bu dosyaları incelemek için Sanal Ortam Yönetcisi&apos;ni kullanın.</translation>
-    </message>
-    <message>
-        <source>This base hard drive is indirectly attached using the following differencing hard drive:</source>
-        <comment>medium</comment>
-        <translation>Bu ana sabit sürücü aşağıdaki ayrımlanan sabit sürücüyü kullanarak dolaylı olarak takılır:</translation>
-    </message>
-    <message>
-        <source>Encrypted</source>
-        <comment>medium</comment>
-        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -13430,11 +12300,11 @@ to the system default language.&lt;/qt&gt;
         <translation type="obsolete">Varsayılan VDI klasörüne yolu gösterir. Eğer açıkça aksi hali belirtilmemişse daha önceden var olan ya da yeni oluşturulmuş sabit diskleri eklemek için bu klasör kullanılır.</translation>
     </message>
     <message>
-        <source>Resets the virtual machine folder path to the default value. The actual default path will be displayed after accepting the changes and opening this dialog again.</source>
+        <source>Resets the virtual machine folder path to the default value. The actual default path will be displayed after accepting the changes and opening this window again.</source>
         <translation type="obsolete">Sanal makine dizin yolunu ön tanımlı değerlerine geri döndürür. Şu anki ön tanımlı yol, değişiklikleri onayladıktan ve bu diyaloğu yeniden açtığınızda görüntülenir.</translation>
     </message>
     <message>
-        <source>Resets the VDI folder path to the default value. The actual default path will be displayed after accepting the changes and opening this dialog again.</source>
+        <source>Resets the VDI folder path to the default value. The actual default path will be displayed after accepting the changes and opening this window again.</source>
         <translation type="obsolete">VDI dizinini ön tanımlı değerlerine tekrar döndürür. Şu anki ön tanımlı yol, değişiklikler onaylandıktan ve bu diyaloğu tekrar açtıktan sonra görüntülenecektir.</translation>
     </message>
     <message>
@@ -13478,7 +12348,7 @@ to the system default language.&lt;/qt&gt;
         <translation type="obsolete">VRDP kimlik doğrulama kütüphanesi dosyasını seçmek için bir pencere açar.</translation>
     </message>
     <message>
-        <source>Resets the authentication library file to the default value. The actual default library file will be displayed after accepting the changes and opening this dialog again.</source>
+        <source>Resets the authentication library file to the default value. The actual default library file will be displayed after accepting the changes and opening this window again.</source>
         <translation type="obsolete">Kimlik doğrulama kütüphanesi dosyasını öntanımlı değerine döndürür. Değişiklikler kabul edildikten sonra geçerli öntanımlı kütüphane dosyası gösterilir ve bu pencere yeniden açılır.</translation>
     </message>
     <message>
@@ -13953,10 +12823,6 @@ to the system default language.&lt;/qt&gt;
         <source>Create a new virtual hard drive</source>
         <translation type="obsolete">Yeni bir sanal sabit sürücü oluştur</translation>
     </message>
-    <message>
-        <source>UUID:</source>
-        <translation>UUID:</translation>
-    </message>
 </context>
 <context>
     <name>VBoxMiniToolBar</name>
@@ -14038,8 +12904,8 @@ to the system default language.&lt;/qt&gt;
         <translation type="obsolete">VirtualBox Kayıt Formu</translation>
     </message>
     <message>
-        <source>&lt;p&gt;Please fill out this registration form to let us know that you use VirtualBox and, optionally, to keep you informed about VirtualBox news and updates.&lt;/p&gt;&lt;p&gt;Enter your full name using Latin characters and your e-mail address to the fields below. Please note that innotek will use this information only to gather product usage statistics and to send you VirtualBox newsletters. In particular, innotek will never pass your data to third parties. Detailed information about how we use your personal data can be found in the &lt;b&gt;Privacy Policy&lt;/b&gt; section of the VirtualBox Manual or on the &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; page of the VirtualBox web-site.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Lütfen VirtualBox kullandığınızı öğrenebilmemiz ve sizi VirtualBox haberleri ve güncellemeleri gibi konularda bilgilendirebilmemiz için kayıt formunu doldurun.&lt;/p&gt;&lt;p&gt;Aşağıdaki alanlara Latin karakterlerini kullanarak tam adınızı ve e-posta adresinizi girin. Lütfen innotek&apos;in bu bilgileri sadece ürün kullanımı istatistiklerini toplamak ve size VirtualBox ilgili haberleri göndermek için kullandığını unutmayın. Özellikle innotek&apos;in sizin bilgilerinizi üçüncü şahıslara iletmeyeceğini bilmelisiniz. Sizin kişisel bilgilerinizi nasıl kullandığımız konusunda detaylı bilgi almak için VirtualBox Web sitesinde yer alan &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; adresindeki VirtualBox El Kitabının &lt;b&gt;Privacy Policy&lt;/b&gt; bölümüne bakın.&lt;/p&gt;</translation>
+        <source>&lt;p&gt;Please fill out this registration form to let us know that you use VirtualBox and, optionally, to keep you informed about VirtualBox news and updates.&lt;/p&gt;&lt;p&gt;Enter your full name using Latin characters and your e-mail address to the fields below. Please note that innotek will use this information only to gather product usage statistics and to send you VirtualBox newsletters. In particular, innotek will never pass your data to third parties. Detailed information about how we use your personal data can be found in the &lt;b&gt;Privacy Policy&lt;/b&gt; section of the VirtualBox Manual or on the &lt;a href=https://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; page of the VirtualBox web-site.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Lütfen VirtualBox kullandığınızı öğrenebilmemiz ve sizi VirtualBox haberleri ve güncellemeleri gibi konularda bilgilendirebilmemiz için kayıt formunu doldurun.&lt;/p&gt;&lt;p&gt;Aşağıdaki alanlara Latin karakterlerini kullanarak tam adınızı ve e-posta adresinizi girin. Lütfen innotek&apos;in bu bilgileri sadece ürün kullanımı istatistiklerini toplamak ve size VirtualBox ilgili haberleri göndermek için kullandığını unutmayın. Özellikle innotek&apos;in sizin bilgilerinizi üçüncü şahıslara iletmeyeceğini bilmelisiniz. Sizin kişisel bilgilerinizi nasıl kullandığımız konusunda detaylı bilgi almak için VirtualBox Web sitesinde yer alan &lt;a href=https://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; adresindeki VirtualBox El Kitabının &lt;b&gt;Privacy Policy&lt;/b&gt; bölümüne bakın.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&amp;Name</source>
@@ -14086,8 +12952,8 @@ to the system default language.&lt;/qt&gt;
         <translation type="obsolete">Bağlantı anlaşması yapılamadı.</translation>
     </message>
     <message>
-        <source>&lt;p&gt;Please fill out this registration form to let us know that you use VirtualBox and, optionally, to keep you informed about VirtualBox news and updates.&lt;/p&gt;&lt;p&gt;Enter your full name using Latin characters and your e-mail address to the fields below. Sun Microsystems will use this information only to gather product usage statistics and to send you VirtualBox newsletters. In particular, Sun Microsystems will never pass your data to third parties. Detailed information about how we use your personal data can be found in the &lt;b&gt;Privacy Policy&lt;/b&gt; section of the VirtualBox Manual or on the &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; page of the VirtualBox web-site.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Lütfen VirtualBox kullandığınızı öğrenebilmemiz ve sizi VirtualBox haberleri ve güncellemeleri gibi konularda bilgilendirebilmemiz için kayıt formunu doldurun.&lt;/p&gt;&lt;p&gt;Aşağıdaki alanlara Latin karakterlerini kullanarak tam adınızı ve e-posta adresinizi girin. Lütfen innotek&apos;in bu bilgileri sadece ürün kullanımı istatistiklerini toplamak ve size VirtualBox ilgili haberleri göndermek için kullandığını unutmayın. Özellikle innotek&apos;in sizin bilgilerinizi üçüncü şahıslara iletmeyeceğini bilmelisiniz. Sizin kişisel bilgilerinizi nasıl kullandığımız konusunda detaylı bilgi almak için VirtualBox Web sitesinde yer alan &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; adresindeki VirtualBox El Kitabının &lt;b&gt;Privacy Policy&lt;/b&gt; bölümüne bakın.&lt;/p&gt;</translation>
+        <source>&lt;p&gt;Please fill out this registration form to let us know that you use VirtualBox and, optionally, to keep you informed about VirtualBox news and updates.&lt;/p&gt;&lt;p&gt;Enter your full name using Latin characters and your e-mail address to the fields below. Sun Microsystems will use this information only to gather product usage statistics and to send you VirtualBox newsletters. In particular, Sun Microsystems will never pass your data to third parties. Detailed information about how we use your personal data can be found in the &lt;b&gt;Privacy Policy&lt;/b&gt; section of the VirtualBox Manual or on the &lt;a href=https://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; page of the VirtualBox web-site.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Lütfen VirtualBox kullandığınızı öğrenebilmemiz ve sizi VirtualBox haberleri ve güncellemeleri gibi konularda bilgilendirebilmemiz için kayıt formunu doldurun.&lt;/p&gt;&lt;p&gt;Aşağıdaki alanlara Latin karakterlerini kullanarak tam adınızı ve e-posta adresinizi girin. Lütfen innotek&apos;in bu bilgileri sadece ürün kullanımı istatistiklerini toplamak ve size VirtualBox ilgili haberleri göndermek için kullandığını unutmayın. Özellikle innotek&apos;in sizin bilgilerinizi üçüncü şahıslara iletmeyeceğini bilmelisiniz. Sizin kişisel bilgilerinizi nasıl kullandığımız konusunda detaylı bilgi almak için VirtualBox Web sitesinde yer alan &lt;a href=https://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; adresindeki VirtualBox El Kitabının &lt;b&gt;Privacy Policy&lt;/b&gt; bölümüne bakın.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Check this box if you do not want to receive mail from Sun Microsystems at the e-mail address specified above.</source>
@@ -14396,8 +13262,8 @@ to the system default language.&lt;/qt&gt;
         <translation type="obsolete">Sanal makine uygulamasını askıya al</translation>
     </message>
     <message>
-        <source>&lt;h3&gt;Welcome to VirtualBox!&lt;/h3&gt;&lt;p&gt;The left part of this window is  a list of all virtual machines on your computer. The list is empty now because you haven&apos;t created any virtual machines yet.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;In order to create a new virtual machine, press the &lt;b&gt;New&lt;/b&gt; button in the main tool bar located at the top of the window.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;%1&lt;/b&gt; key to get instant help, or visit &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for the latest information and news.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;h3&gt;VirtualBox Uygulamasına Hoşgeldiniz!&lt;/h3&gt;&lt;p&gt;Bu pencerenin sol tarafı bilgisayarınızdaki sanal işletim sistemlerinin tümünün listesini gösterir. Liste şimdi boş çünkü henüz bir sanal makine oluşturmadınız.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;Yeni bir sanal makine oluşturmak için pencerenin yukarısındaki ana araç çubuğunda bulunan &lt;b&gt;Yeni&lt;/b&gt; düğmesine tıklayın.&lt;/p&gt;&lt;p&gt;Ayrıca &lt;b&gt;%1&lt;/b&gt; tuşuna basarak yardım alabilirsiniz ya da en yeni bilgileri ve haberleri almak için &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; adresini ziyaret edebilirsiniz.&lt;/p&gt;</translation>
+        <source>&lt;h3&gt;Welcome to VirtualBox!&lt;/h3&gt;&lt;p&gt;The left part of this window is  a list of all virtual machines on your computer. The list is empty now because you haven&apos;t created any virtual machines yet.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;In order to create a new virtual machine, press the &lt;b&gt;New&lt;/b&gt; button in the main tool bar located at the top of the window.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;%1&lt;/b&gt; key to get instant help, or visit &lt;a href=https://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for the latest information and news.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;h3&gt;VirtualBox Uygulamasına Hoşgeldiniz!&lt;/h3&gt;&lt;p&gt;Bu pencerenin sol tarafı bilgisayarınızdaki sanal işletim sistemlerinin tümünün listesini gösterir. Liste şimdi boş çünkü henüz bir sanal makine oluşturmadınız.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;Yeni bir sanal makine oluşturmak için pencerenin yukarısındaki ana araç çubuğunda bulunan &lt;b&gt;Yeni&lt;/b&gt; düğmesine tıklayın.&lt;/p&gt;&lt;p&gt;Ayrıca &lt;b&gt;%1&lt;/b&gt; tuşuna basarak yardım alabilirsiniz ya da en yeni bilgileri ve haberleri almak için &lt;a href=https://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; adresini ziyaret edebilirsiniz.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&amp;Virtual Media Manager...</source>
@@ -15021,6 +13887,172 @@ eşleşebilir.&lt;/qt&gt;</translation>
     <message>
         <source>The selected virtual machine is &lt;i&gt;inaccessible&lt;/i&gt;. Please inspect the error message shown below and press the &lt;b&gt;Refresh&lt;/b&gt; button if you want to repeat the accessibility check:</source>
         <translation type="obsolete">Seçilen sanal makineye &lt;i&gt;erişilemez&lt;/i&gt;. Lütfen aşağıdaki hata iletisine bakın ve &lt;b&gt;Yenile&lt;/b&gt; düğmesine basarak erişebilmenize yarayacak ilgili iletileri kontro edin:</translation>
+    </message>
+</context>
+<context>
+    <name>VBoxVMInformationDlg</name>
+    <message>
+        <source>Session Information Dialog</source>
+        <translation type="obsolete">Oturum Bilgileri Penceresi</translation>
+    </message>
+    <message>
+        <source>&amp;Close</source>
+        <translation type="obsolete">&amp;Kapat</translation>
+    </message>
+    <message>
+        <source>%1 - Session Information</source>
+        <translation>%1 - Oturum Bilgisi</translation>
+    </message>
+    <message>
+        <source>&amp;Details</source>
+        <translation type="obsolete">&amp;Ayrıntılar</translation>
+    </message>
+    <message>
+        <source>&amp;Runtime</source>
+        <translation type="obsolete">Çalışma &amp;Zamanı</translation>
+    </message>
+    <message>
+        <source>DMA Transfers</source>
+        <translation>DMA Aktarımları</translation>
+    </message>
+    <message>
+        <source>PIO Transfers</source>
+        <translation>PIO Aktarımları</translation>
+    </message>
+    <message>
+        <source>Data Read</source>
+        <translation>Okunan Veri</translation>
+    </message>
+    <message>
+        <source>Data Written</source>
+        <translation>Yazılan Veri</translation>
+    </message>
+    <message>
+        <source>Data Transmitted</source>
+        <translation>Aktarılan Veri</translation>
+    </message>
+    <message>
+        <source>Data Received</source>
+        <translation>Alınan Veri</translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <translation type="obsolete">Etkin</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <translation type="obsolete">Pasifleştirilmiş</translation>
+    </message>
+    <message>
+        <source>Runtime Attributes</source>
+        <translation>Çalışma Zamanı Öznitelikleri</translation>
+    </message>
+    <message>
+        <source>Screen Resolution</source>
+        <translation>Ekran Çözünürlüğü</translation>
+    </message>
+    <message>
+        <source>CD/DVD Statistics</source>
+        <translation type="obsolete">CD/DVD İstatistikleri</translation>
+    </message>
+    <message>
+        <source>Network Adapter Statistics</source>
+        <translation type="obsolete">Ağ Bağdaştırıcısı İstatistikleri</translation>
+    </message>
+    <message>
+        <source>Not attached</source>
+        <translation type="obsolete">Eklenmedi</translation>
+    </message>
+    <message>
+        <source>Version %1.%2</source>
+        <comment>guest additions</comment>
+        <translation type="obsolete">Sürüm %1.%2</translation>
+    </message>
+    <message>
+        <source>Not Detected</source>
+        <comment>guest additions</comment>
+        <translation>Algılanmamış</translation>
+    </message>
+    <message>
+        <source>Not Detected</source>
+        <comment>guest os type</comment>
+        <translation>Algılanmamış</translation>
+    </message>
+    <message>
+        <source>Guest Additions</source>
+        <translation>Misafir Eklentileri</translation>
+    </message>
+    <message>
+        <source>Guest OS Type</source>
+        <translation>Misafir İS Türü</translation>
+    </message>
+    <message>
+        <source>Hard Disk Statistics</source>
+        <translation type="obsolete">Sabit Disk İstatistikleri</translation>
+    </message>
+    <message>
+        <source>No Hard Disks</source>
+        <translation type="obsolete">Sabit Disk Yok</translation>
+    </message>
+    <message>
+        <source>No Network Adapters</source>
+        <translation>Ağ Bağdaştırıcıları Yok</translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <comment>nested paging</comment>
+        <translation type="obsolete">Etkin</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>nested paging</comment>
+        <translation type="obsolete">Pasifleştirilmiş</translation>
+    </message>
+    <message>
+        <source>Nested Paging</source>
+        <translation type="obsolete">Yerleşik Sayfalama</translation>
+    </message>
+    <message>
+        <source>VBoxVMInformationDlg</source>
+        <translation>VBoxSMBilgiİletisi</translation>
+    </message>
+    <message>
+        <source>Storage Statistics</source>
+        <translation>Depolama İstatistikleri</translation>
+    </message>
+    <message>
+        <source>No Storage Devices</source>
+        <translation>Depolama Aygıtları Yok</translation>
+    </message>
+    <message>
+        <source>Network Statistics</source>
+        <translation>Ağ İstatistikleri</translation>
+    </message>
+    <message>
+        <source>Nested Paging</source>
+        <comment>details report</comment>
+        <translation type="obsolete">Yerleşik Sayfalama</translation>
+    </message>
+    <message>
+        <source>Not Available</source>
+        <comment>details report (VRDE server port)</comment>
+        <translation>Mevcut Değil</translation>
+    </message>
+    <message>
+        <source>Clipboard Mode</source>
+        <translation>Pano Kipi</translation>
+    </message>
+    <message>
+        <source>Drag&apos;n&apos;Drop Mode</source>
+        <translation>Sürükle&apos;v&apos;Bırak Kipi</translation>
+    </message>
+    <message>
+        <source>Configuration &amp;Details</source>
+        <translation>Yapılandırma &amp;Ayrıntıları</translation>
+    </message>
+    <message>
+        <source>&amp;Runtime Information</source>
+        <translation>Çalışma &amp;Zamanı Bilgisi</translation>
     </message>
 </context>
 <context>
@@ -15816,7 +14848,7 @@ işletim sistemi yükledikten sonra bunu pasifleştirmeyin!&lt;/qt&gt;</translat
         <translation type="obsolete">Bu sanal makinenin anlık görüntülerinin nereye kaydedileceğini tanımlar. Anlık görüntülerin çok yer kaplayabileceğini unutmayın.</translation>
     </message>
     <message>
-        <source>Resets the snapshot folder path to the default value. The actual default path will be displayed after accepting the changes and opening this dialog again.</source>
+        <source>Resets the snapshot folder path to the default value. The actual default path will be displayed after accepting the changes and opening this window again.</source>
         <translation type="obsolete">Anlık görüntü dizinini öntanımlı ayarlarına döndürür. Güncel öntanımlı yol bu ayarlar kabul edildikten sonra bu pencere yeniden açılarak gösterilecektir.</translation>
     </message>
     <message>

@@ -825,7 +825,7 @@ DECLINLINE(bool) pgmPoolMonitorIsReused(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pReg
 static int pgmPoolAccessHandlerFlush(PVM pVM, PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPAGE pPage, PDISCPUSTATE pDis,
                                      PCPUMCTXCORE pRegFrame, RTGCPHYS GCPhysFault, RTGCPTR pvFault)
 {
-    NOREF(pVM); NOREF(GCPhysFault);
+    NOREF(GCPhysFault);
 
     /*
      * First, do the flushing.
@@ -965,7 +965,6 @@ DECLINLINE(int) pgmPoolAccessHandlerSimple(PVM pVM, PVMCPU pVCpu, PPGMPOOL pPool
                                            PCPUMCTXCORE pRegFrame, RTGCPHYS GCPhysFault, RTGCPTR pvFault, bool *pfReused)
 {
     Log3(("pgmPoolAccessHandlerSimple\n"));
-    NOREF(pVM);
     NOREF(pfReused); /* initialized by caller */
 
     /*
@@ -2500,9 +2499,12 @@ static int pgmPoolMonitorInsert(PPGMPOOL pPool, PPGMPOOLPAGE pPage)
         Assert(pPage->iMonitoredNext == NIL_PGMPOOL_IDX); Assert(pPage->iMonitoredPrev == NIL_PGMPOOL_IDX);
         PVM pVM = pPool->CTX_SUFF(pVM);
         const RTGCPHYS GCPhysPage = pPage->GCPhys & ~(RTGCPHYS)PAGE_OFFSET_MASK;
-        rc = PGMHandlerPhysicalRegister(pVM, GCPhysPage, GCPhysPage + PAGE_OFFSET_MASK, pPool->hAccessHandlerType,
-                                        MMHyperCCToR3(pVM, pPage), MMHyperCCToR0(pVM, pPage), MMHyperCCToRC(pVM, pPage),
-                                        NIL_RTR3PTR /*pszDesc*/);
+        rc = PGMHandlerPhysicalRegisterEx(pVM, PGMPHYSHANDLERTYPE_PHYSICAL_WRITE,
+                                          GCPhysPage, GCPhysPage + PAGE_OFFSET_MASK,
+                                          pPool->pfnAccessHandlerR3, MMHyperCCToR3(pVM, pPage),
+                                          pPool->pfnAccessHandlerR0, MMHyperCCToR0(pVM, pPage),
+                                          pPool->pfnAccessHandlerRC, MMHyperCCToRC(pVM, pPage),
+                                          pPool->pszAccessHandler);
         /** @todo we should probably deal with out-of-memory conditions here, but for now increasing
          * the heap size should suffice. */
         AssertFatalMsgRC(rc, ("PGMHandlerPhysicalRegisterEx %RGp failed with %Rrc\n", GCPhysPage, rc));
@@ -2579,9 +2581,11 @@ static int pgmPoolMonitorFlush(PPGMPOOL pPool, PPGMPOOLPAGE pPage)
         {
             PPGMPOOLPAGE pNewHead = &pPool->aPages[pPage->iMonitoredNext];
             pNewHead->iMonitoredPrev = NIL_PGMPOOL_IDX;
-            rc = PGMHandlerPhysicalChangeUserArgs(pVM, pPage->GCPhys & ~(RTGCPHYS)PAGE_OFFSET_MASK, MMHyperCCToR3(pVM, pNewHead),
-                                                  MMHyperCCToR0(pVM, pNewHead), MMHyperCCToRC(pVM, pNewHead));
-
+            rc = PGMHandlerPhysicalChangeCallbacks(pVM, pPage->GCPhys & ~(RTGCPHYS)PAGE_OFFSET_MASK,
+                                                   pPool->pfnAccessHandlerR3, MMHyperCCToR3(pVM, pNewHead),
+                                                   pPool->pfnAccessHandlerR0, MMHyperCCToR0(pVM, pNewHead),
+                                                   pPool->pfnAccessHandlerRC, MMHyperCCToRC(pVM, pNewHead),
+                                                   pPool->pszAccessHandler);
             AssertFatalRCSuccess(rc);
             pPage->iMonitoredNext = NIL_PGMPOOL_IDX;
         }
