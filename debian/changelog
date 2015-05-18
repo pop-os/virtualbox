@@ -1,6 +1,7 @@
 virtualbox (4.3.28-dfsg-1) unstable; urgency=medium
 
   * New upstream release.
+    - fix for CVE-2015-3456 a.k.a. VENOM
     - patch refresh.
     - remove d/p/37-diff_smap_4.patch.
   * Remove MAKE=kmk on virtualbox{,-guest}-source.files/rules
