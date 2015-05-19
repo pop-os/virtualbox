@@ -4,8 +4,7 @@
 #
 
 #
-#
-# Copyright (C) 2006-2012 Oracle Corporation
+# Copyright (C) 2006-2015 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -37,8 +36,10 @@ CFLAGS += -DRT_OS_FREEBSD -DIN_RING0 -DIN_RT_R0 -DIN_SUP_R0 -DSUPDRV_WITH_RELEAS
 
 SRCS = \
 	SUPDrv.c \
+	SUPDrvGip.c \
 	SUPDrvSem.c \
 	SUPDrvTracer.c \
+	SUPLibAll.c \
 
 # Include needed interface headers so they are created during build
 SRCS += \
@@ -81,6 +82,7 @@ SRCS += \
 	handletable.c \
 	handletablectx.c \
 	once.c \
+	term.c \
 	thread.c
 
 .PATH:	${.CURDIR}/common/string
@@ -88,6 +90,7 @@ SRCS += \
 	RTStrNCmp.c \
 	RTStrNLen.c \
 	RTStrCopy.c \
+	RTStrCopyEx.c \
 	RTStrCopyP.c \
 	strformat.c \
 	strformatrt.c \
@@ -130,6 +133,7 @@ SRCS += \
 	RTLogWriteStdErr-stub-generic.c \
 	RTLogWriteUser-generic.c \
 	RTMpGetArraySize-generic.c \
+	RTMpOnPair-generic.c \
 	RTRandAdvCreateSystemFaster-generic.c \
 	RTRandAdvCreateSystemTruer-generic.c \
 	RTSemEventWait-2-ex-generic.c \
@@ -170,6 +174,7 @@ SRCS += \
 SRCS += \
 	semspinmutex-r0drv-generic.c \
 	mpnotification-r0drv-generic.c \
+	threadctxhooks-r0drv-generic.c \
 	RTMpIsCpuWorkPending-r0drv-generic.c
 
 .PATH:	${.CURDIR}/VBox

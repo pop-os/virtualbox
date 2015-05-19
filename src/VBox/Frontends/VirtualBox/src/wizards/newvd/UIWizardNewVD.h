@@ -1,7 +1,6 @@
+/* $Id: UIWizardNewVD.h $ */
 /** @file
- *
- * VBox frontends: Qt4 GUI ("VirtualBox"):
- * UIWizardNewVD class declaration
+ * VBox Qt GUI - UIWizardNewVD class declaration.
  */
 
 /*
@@ -51,7 +50,7 @@ public:
     UIWizardNewVD(QWidget *pParent,
                   const QString &strDefaultName, const QString &strDefaultPath,
                   qulonglong uDefaultSize,
-                  UIWizardMode mode = UIWizardMode_Auto);
+                  WizardMode mode = WizardMode_Auto);
 
     /* Pages related stuff: */
     void prepare();

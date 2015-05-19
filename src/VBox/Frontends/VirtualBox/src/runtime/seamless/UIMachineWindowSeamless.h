@@ -1,7 +1,6 @@
+/* $Id: UIMachineWindowSeamless.h $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * UIMachineWindowSeamless class declaration
+ * VBox Qt GUI - UIMachineWindowSeamless class declaration.
  */
 
 /*
@@ -22,8 +21,10 @@
 /* Local includes: */
 #include "UIMachineWindow.h"
 
+#ifndef Q_WS_MAC
 /* Forward declarations: */
 class UIRuntimeMiniToolBar;
+#endif /* !Q_WS_MAC */
 
 /* Seamless machine-window implementation: */
 class UIMachineWindowSeamless : public UIMachineWindow
@@ -42,23 +43,12 @@ private slots:
     void sltMachineStateChanged();
 #endif /* !Q_WS_MAC */
 
-    /* Popup main menu: */
-    void sltPopupMainMenu();
-
     /** Revokes keyboard-focus. */
     void sltRevokeFocus();
-
-#ifndef VBOX_WITH_TRANSLUCENT_SEAMLESS
-# ifdef Q_WS_X11
-    /** Assigns mini-toolbar seamless mask. */
-    void sltUpdateMiniToolbarMask(const QRect &geo);
-# endif /* Q_WS_X11 */
-#endif /* !VBOX_WITH_TRANSLUCENT_SEAMLESS */
 
 private:
 
     /* Prepare helpers: */
-    void prepareMenu();
     void prepareVisualState();
 #ifndef Q_WS_MAC
     void prepareMiniToolbar();
@@ -69,7 +59,6 @@ private:
     void cleanupMiniToolbar();
 #endif /* !Q_WS_MAC */
     void cleanupVisualState();
-    void cleanupMenu();
 
     /* Show stuff: */
     void placeOnScreen();
@@ -88,27 +77,22 @@ private:
     void showEvent(QShowEvent *pEvent);
 #endif /* VBOX_WITH_TRANSLUCENT_SEAMLESS && Q_WS_WIN */
 
-#ifndef VBOX_WITH_TRANSLUCENT_SEAMLESS
+#ifdef VBOX_WITH_MASKED_SEAMLESS
     /** Assigns guest seamless mask. */
     void setMask(const QRegion &maskGuest);
-#endif /* !VBOX_WITH_TRANSLUCENT_SEAMLESS */
+#endif /* VBOX_WITH_MASKED_SEAMLESS */
 
-    /* Widgets: */
-    QMenu *m_pMainMenu;
 #ifndef Q_WS_MAC
+    /** Holds the mini-toolbar instance. */
     UIRuntimeMiniToolBar *m_pMiniToolBar;
 #endif /* !Q_WS_MAC */
 
-#ifndef VBOX_WITH_TRANSLUCENT_SEAMLESS
+#ifdef VBOX_WITH_MASKED_SEAMLESS
     /** Holds the full seamless mask. */
     QRegion m_maskFull;
     /** Holds the guest seamless mask. */
     QRegion m_maskGuest;
-# ifdef Q_WS_X11
-    /** Holds the mini-toolbar seamless mask. */
-    QRect m_maskMiniToolbar;
-# endif /* Q_WS_X11 */
-#endif /* !VBOX_WITH_TRANSLUCENT_SEAMLESS */
+#endif /* VBOX_WITH_MASKED_SEAMLESS */
 
     /* Factory support: */
     friend class UIMachineWindow;

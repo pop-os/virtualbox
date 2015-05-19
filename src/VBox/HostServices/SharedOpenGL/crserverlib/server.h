@@ -140,7 +140,7 @@ GLboolean crServerSupportRedirMuralFBO(void);
 void crVBoxServerMuralFbResizeBegin(HCR_FRAMEBUFFER hFb);
 void crVBoxServerMuralFbResizeEnd(HCR_FRAMEBUFFER hFb);
 
-void crVBoxServerNotifyEvent(int32_t idScreen, uint32_t uEvent, void*pvData);
+void crVBoxServerNotifyEvent(int32_t idScreen, uint32_t uEvent, void* pvData, uint32_t cbData);
 
 void crServerRedirMuralFbClear(CRMuralInfo *mural);
 
@@ -434,7 +434,6 @@ bool CrFbHas3DData(HCR_FRAMEBUFFER hFb);
 void CrFbVisitCreatedEntries(HCR_FRAMEBUFFER hFb, PFNCR_FRAMEBUFFER_ENTRIES_VISITOR_CB pfnVisitorCb, void *pvContext);
 int CrFbResize(HCR_FRAMEBUFFER hFb, const struct VBVAINFOSCREEN * pScreen, void *pvVRAM);
 int CrFbBltGetContentsEx(HCR_FRAMEBUFFER hFb, const RTRECTSIZE *pSrcRectSize, const RTRECT *pDstRect, uint32_t cRects, const RTRECT *pRects, CR_BLITTER_IMG *pImg);
-int CrFbBltGetContents(HCR_FRAMEBUFFER hFb, const RTPOINT *pPos, uint32_t cRects, const RTRECT *pPrects, CR_BLITTER_IMG *pImg);
 bool CrFbIsEnabled(HCR_FRAMEBUFFER hFb);
 int CrFbEntryCreateForTexId(HCR_FRAMEBUFFER hFb, GLuint idTex, uint32_t fFlags, HCR_FRAMEBUFFER_ENTRY *phEntry);
 int CrFbEntryCreateForTexData(HCR_FRAMEBUFFER hFb, struct CR_TEXDATA *pTex, uint32_t fFlags, HCR_FRAMEBUFFER_ENTRY *phEntry);

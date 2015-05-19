@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2013 Oracle Corporation
+ * Copyright (C) 2012-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -18,7 +18,7 @@
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
-#define LOG_GROUP LOG_GROUP_DEFAULT /** @todo: Log group */
+#define LOG_GROUP LOG_GROUP_VD_VHDX
 #include <VBox/vd-plugin.h>
 #include <VBox/err.h>
 
@@ -1065,10 +1065,10 @@ static int vhdxFindAndLoadCurrentHeader(PVHDXIMAGE pImage)
             /* Validate checksum. */
             u32ChkSumSaved = pHdr1->u32Checksum;
             pHdr1->u32Checksum = 0;
-            //u32ChkSum = RTCrc32C(pHdr1, RT_OFFSETOF(VhdxHeader, u8Reserved[502]));
+            u32ChkSum = RTCrc32C(pHdr1, sizeof(VhdxHeader));
 
             if (   pHdr1->u32Signature == VHDX_HEADER_SIGNATURE
-                /*&& u32ChkSum == u32ChkSumSaved*/)
+                && u32ChkSum == u32ChkSumSaved)
                 fHdr1Valid = true;
         }
 
@@ -1082,10 +1082,10 @@ static int vhdxFindAndLoadCurrentHeader(PVHDXIMAGE pImage)
             /* Validate checksum. */
             u32ChkSumSaved = pHdr2->u32Checksum;
             pHdr2->u32Checksum = 0;
-            //u32ChkSum = RTCrc32C(pHdr2, RT_OFFSETOF(VhdxHeader, u8Reserved[502]));
+            u32ChkSum = RTCrc32C(pHdr2, sizeof(VhdxHeader));
 
             if (   pHdr2->u32Signature == VHDX_HEADER_SIGNATURE
-                /*&& u32ChkSum == u32ChkSumSaved*/)
+                && u32ChkSum == u32ChkSumSaved)
                 fHdr2Valid = true;
         }
 
@@ -1572,18 +1572,16 @@ static int vhdxLoadRegionTable(PVHDXIMAGE pImage)
             pRegionTblHdr->u32Checksum = 0;
 
             /* Verify the region table integrity. */
-            //u32ChkSum = RTCrc32C(pbRegionTbl, VHDX_REGION_TBL_SIZE_MAX);
+            u32ChkSum = RTCrc32C(pbRegionTbl, VHDX_REGION_TBL_SIZE_MAX);
 
             if (RegionTblHdr.u32Signature != VHDX_REGION_TBL_HDR_SIGNATURE)
                 rc = vdIfError(pImage->pIfError, VERR_VD_GEN_INVALID_HEADER, RT_SRC_POS,
                                "VHDX: Invalid signature for region table header of image \'%s\'",
                                pImage->pszFilename);
-#if 0
             else if (u32ChkSum != RegionTblHdr.u32Checksum)
                 rc = vdIfError(pImage->pIfError, VERR_VD_GEN_INVALID_HEADER, RT_SRC_POS,
                                "VHDX: CRC32 checksum mismatch for the region table of image \'%s\' (expected %#x got %#x)",
                                pImage->pszFilename, RegionTblHdr.u32Checksum, u32ChkSum);
-#endif
             else if (RegionTblHdr.u32EntryCount > VHDX_REGION_TBL_HDR_ENTRY_COUNT_MAX)
                 rc = vdIfError(pImage->pIfError, VERR_VD_GEN_INVALID_HEADER, RT_SRC_POS,
                                "VHDX: Invalid entry count field in the region table header of image \'%s\'",
@@ -1793,9 +1791,11 @@ static int vhdxOpen(const char *pszFilename, unsigned uOpenFlags,
                    PVDINTERFACE pVDIfsDisk, PVDINTERFACE pVDIfsImage,
                    VDTYPE enmType, void **ppBackendData)
 {
-    LogFlowFunc(("pszFilename=\"%s\" uOpenFlags=%#x pVDIfsDisk=%#p pVDIfsImage=%#p ppBackendData=%#p\n", pszFilename, uOpenFlags, pVDIfsDisk, pVDIfsImage, ppBackendData));
+    LogFlowFunc(("pszFilename=\"%s\" uOpenFlags=%#x pVDIfsDisk=%#p pVDIfsImage=%#p enmType=%u ppBackendData=%#p\n", pszFilename, uOpenFlags, pVDIfsDisk, pVDIfsImage, enmType, ppBackendData));
     int rc;
     PVHDXIMAGE pImage;
+
+    NOREF(enmType); /**< @todo r=klaus make use of the type info. */
 
     /* Check open flags. All valid flags are supported. */
     if (   uOpenFlags & ~VD_OPEN_FLAGS_MASK
@@ -1823,6 +1823,24 @@ static int vhdxOpen(const char *pszFilename, unsigned uOpenFlags,
     }
 
     LogFlowFunc(("returns %Rrc (pBackendData=%#p)\n", rc, *ppBackendData));
+    return rc;
+}
+
+/** @interface_method_impl{VBOXHDDBACKEND,pfnCreate} */
+static DECLCALLBACK(int) vhdxCreate(const char *pszFilename, uint64_t cbSize,
+                                    unsigned uImageFlags, const char *pszComment,
+                                    PCVDGEOMETRY pPCHSGeometry, PCVDGEOMETRY pLCHSGeometry,
+                                    PCRTUUID pUuid, unsigned uOpenFlags,
+                                    unsigned uPercentStart, unsigned uPercentSpan,
+                                    PVDINTERFACE pVDIfsDisk, PVDINTERFACE pVDIfsImage,
+                                    PVDINTERFACE pVDIfsOperation, VDTYPE enmType,
+                                    void **ppBackendData)
+{
+    LogFlowFunc(("pszFilename=\"%s\" cbSize=%llu uImageFlags=%#x pszComment=\"%s\" pPCHSGeometry=%#p pLCHSGeometry=%#p Uuid=%RTuuid uOpenFlags=%#x uPercentStart=%u uPercentSpan=%u pVDIfsDisk=%#p pVDIfsImage=%#p pVDIfsOperation=%#p enmType=%u ppBackendData=%#p",
+                 pszFilename, cbSize, uImageFlags, pszComment, pPCHSGeometry, pLCHSGeometry, pUuid, uOpenFlags, uPercentStart, uPercentSpan, pVDIfsDisk, pVDIfsImage, pVDIfsOperation, enmType, ppBackendData));
+    int rc = VERR_NOT_SUPPORTED;
+
+    LogFlowFunc(("returns %Rrc\n", rc));
     return rc;
 }
 
@@ -2449,7 +2467,7 @@ const VBOXHDDBACKEND g_VhdxBackend =
     /* pfnOpen */
     vhdxOpen,
     /* pfnCreate */
-    NULL,
+    vhdxCreate,
     /* pfnRename */
     vhdxRename,
     /* pfnClose */

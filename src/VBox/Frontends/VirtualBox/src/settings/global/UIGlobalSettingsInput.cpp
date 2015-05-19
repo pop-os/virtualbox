@@ -1,8 +1,6 @@
 /* $Id: UIGlobalSettingsInput.cpp $ */
 /** @file
- *
- * VBox frontends: Qt4 GUI ("VirtualBox"):
- * UIGlobalSettingsInput class implementation
+ * VBox Qt GUI - UIGlobalSettingsInput class implementation.
  */
 
 /*
@@ -17,21 +15,33 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* Qt includes: */
-#include <QShortcut>
-#include <QHeaderView>
-#include <QAbstractItemDelegate>
-#include <QStyledItemDelegate>
-#include <QItemEditorFactory>
-#include <QTabWidget>
+# include <QHeaderView>
+# include <QAbstractItemDelegate>
+# include <QItemEditorFactory>
+# include <QTabWidget>
 
 /* GUI includes: */
-#include "QIWidgetValidator.h"
-#include "UIGlobalSettingsInput.h"
-#include "UIShortcutPool.h"
-#include "UIHotKeyEditor.h"
-#include "UIHostComboEditor.h"
-#include "VBoxGlobalSettings.h"
+# include "QIWidgetValidator.h"
+# include "QIStyledItemDelegate.h"
+# include "UIGlobalSettingsInput.h"
+# include "UIShortcutPool.h"
+# include "UIHotKeyEditor.h"
+# include "UIHostComboEditor.h"
+# include "VBoxGlobalSettings.h"
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
+#include <QShortcut>
+
+
+/* Namespaces: */
+using namespace UIExtraDataDefs;
+
 
 /* Input page constructor: */
 UIGlobalSettingsInput::UIGlobalSettingsInput()
@@ -52,11 +62,15 @@ UIGlobalSettingsInput::UIGlobalSettingsInput()
     m_pTabWidget->insertTab(UIHotKeyTableIndex_Selector, pSelectorTab, QString());
     m_pSelectorFilterEditor = new QLineEdit(pSelectorTab);
     m_pSelectorModel = new UIHotKeyTableModel(this, UIActionPoolType_Selector);
-    m_pSelectorTable = new UIHotKeyTable(pSelectorTab, m_pSelectorModel);
+    m_pSelectorTable = new UIHotKeyTable(pSelectorTab, m_pSelectorModel, "m_pSelectorTable");
     connect(m_pSelectorFilterEditor, SIGNAL(textChanged(const QString &)),
             m_pSelectorModel, SLOT(sltHandleFilterTextChange(const QString &)));
     QVBoxLayout *pSelectorLayout = new QVBoxLayout(pSelectorTab);
+#ifndef Q_WS_WIN
+    /* On Windows host that looks ugly, but
+     * On Mac OS X and X11 that deserves it's place. */
     pSelectorLayout->setContentsMargins(0, 0, 0, 0);
+#endif /* !Q_WS_WIN */
     pSelectorLayout->setSpacing(1);
     pSelectorLayout->addWidget(m_pSelectorFilterEditor);
     pSelectorLayout->addWidget(m_pSelectorTable);
@@ -68,11 +82,15 @@ UIGlobalSettingsInput::UIGlobalSettingsInput()
     m_pTabWidget->insertTab(UIHotKeyTableIndex_Machine, pMachineTab, QString());
     m_pMachineFilterEditor = new QLineEdit(pMachineTab);
     m_pMachineModel = new UIHotKeyTableModel(this, UIActionPoolType_Runtime);
-    m_pMachineTable = new UIHotKeyTable(pMachineTab, m_pMachineModel);
+    m_pMachineTable = new UIHotKeyTable(pMachineTab, m_pMachineModel, "m_pMachineTable");
     connect(m_pMachineFilterEditor, SIGNAL(textChanged(const QString &)),
             m_pMachineModel, SLOT(sltHandleFilterTextChange(const QString &)));
     QVBoxLayout *pMachineLayout = new QVBoxLayout(pMachineTab);
+#ifndef Q_WS_WIN
+    /* On Windows host that looks ugly, but
+     * On Mac OS X and X11 that deserves it's place. */
     pMachineLayout->setContentsMargins(0, 0, 0, 0);
+#endif /* !Q_WS_WIN */
     pMachineLayout->setSpacing(1);
     pMachineLayout->addWidget(m_pMachineFilterEditor);
     pMachineLayout->addWidget(m_pMachineTable);
@@ -533,39 +551,12 @@ void UIHotKeyTableModel::applyFilter()
 }
 
 
-/** Own QStyledItemDelegate implementation. */
-class UIStyledItemDelegate : public QStyledItemDelegate
-{
-    Q_OBJECT;
-
-public:
-
-    /** Constructor. */
-    UIStyledItemDelegate(QObject *pParent) : QStyledItemDelegate(pParent) {}
-
-private:
-
-    /** Returns the widget used to edit the item specified by @a index for editing.
-      * The @a pParent widget and style @a option are used to control how the editor widget appears.
-      * Besides Qt description copy-pasted above we are installing the hook to redirect editor's sigCommitData signal. */
-    QWidget* createEditor(QWidget *pParent, const QStyleOptionViewItem &option, const QModelIndex &index) const;
-};
-
-QWidget* UIStyledItemDelegate::createEditor(QWidget *pParent, const QStyleOptionViewItem &option, const QModelIndex &index) const
-{
-    /* Call to base-class to get actual editor created: */
-    QWidget *pEditor = QStyledItemDelegate::createEditor(pParent, option, index);
-    /* All the stuff we actually need from UIStyledItemDelegate is to redirect this one signal: */
-    if (qobject_cast<UIHotKeyEditor*>(pEditor) || qobject_cast<UIHostComboEditor*>(pEditor))
-        connect(pEditor, SIGNAL(sigCommitData(QWidget*)), this, SIGNAL(commitData(QWidget*)));
-    /* Return actual editor: */
-    return pEditor;
-}
-
-
-UIHotKeyTable::UIHotKeyTable(QWidget *pParent, UIHotKeyTableModel *pModel)
+UIHotKeyTable::UIHotKeyTable(QWidget *pParent, UIHotKeyTableModel *pModel, const QString &strObjectName)
     : QTableView(pParent)
 {
+    /* Set object name: */
+    setObjectName(strObjectName);
+
     /* Connect model: */
     setModel(pModel);
     connect(pModel, SIGNAL(sigShortcutsLoaded()), this, SLOT(sltHandleShortcutsLoaded()));
@@ -586,7 +577,7 @@ UIHotKeyTable::UIHotKeyTable(QWidget *pParent, UIHotKeyTableModel *pModel)
 
     /* Reinstall delegate: */
     delete itemDelegate();
-    UIStyledItemDelegate *pStyledItemDelegate = new UIStyledItemDelegate(this);
+    QIStyledItemDelegate *pStyledItemDelegate = new QIStyledItemDelegate(this);
     setItemDelegate(pStyledItemDelegate);
 
     /* Create new item editor factory: */
@@ -615,6 +606,4 @@ void UIHotKeyTable::sltHandleShortcutsLoaded()
     sortByColumn(UIHotKeyTableSection_Name, Qt::AscendingOrder);
     setSortingEnabled(true);
 }
-
-#include "UIGlobalSettingsInput.moc"
 

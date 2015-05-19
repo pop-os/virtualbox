@@ -1,8 +1,6 @@
 /* $Id: UIVMLogViewer.cpp $ */
 /** @file
- *
- * VBox frontends: Qt4 GUI ("VirtualBox"):
- * UIVMLogViewer class implementation
+ * VBox Qt GUI - UIVMLogViewer class implementation.
  */
 
 /*
@@ -18,33 +16,34 @@
  */
 
 #ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include "precomp.h"
+# include <precomp.h>
 #else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 /* Qt includes: */
-#include <QCheckBox>
-#include <QDateTime>
-#include <QDir>
-#include <QFileDialog>
-#include <QKeyEvent>
-#include <QLabel>
-#include <QScrollBar>
-#include <QTextEdit>
+# include <QCheckBox>
+# include <QDateTime>
+# include <QDir>
+# include <QFileDialog>
+# include <QKeyEvent>
+# include <QLabel>
+# include <QScrollBar>
+# include <QTextEdit>
 
 /* GUI includes: */
-#include "UIVMLogViewer.h"
-#include "QITabWidget.h"
-#include "UIIconPool.h"
-#include "UISpecialControls.h"
-#include "VBoxGlobal.h"
-#include "UIMessageCenter.h"
-#include "VBoxUtils.h"
+# include "UIVMLogViewer.h"
+# include "QITabWidget.h"
+# include "UIIconPool.h"
+# include "UISpecialControls.h"
+# include "VBoxGlobal.h"
+# include "UIMessageCenter.h"
+# include "VBoxUtils.h"
 
 /* COM includes: */
-#include "COMEnums.h"
-#include "CSystemProperties.h"
+# include "COMEnums.h"
+# include "CSystemProperties.h"
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 
 /* VM Log Viewer search panel: */
 class UIVMLogViewerSearchPanel : public QIWithRetranslateUI<QWidget>
@@ -73,13 +72,13 @@ public:
         m_pSearchLabel->setBuddy(m_pSearchEditor);
 
         /* Next/Previous buttons: */
-        m_pNextPrevButtons = new UIRoundRectSegmentedButton(2, this);
+        m_pNextPrevButtons = new UIRoundRectSegmentedButton(this, 2);
         m_pNextPrevButtons->setEnabled(0, false);
         m_pNextPrevButtons->setEnabled(1, false);
 #ifndef Q_WS_MAC
         /* No icons on the Mac: */
-        m_pNextPrevButtons->setIcon(0, UIIconPool::defaultIcon(UIIconPool::ArrowBackIcon, this));
-        m_pNextPrevButtons->setIcon(1, UIIconPool::defaultIcon(UIIconPool::ArrowForwardIcon, this));
+        m_pNextPrevButtons->setIcon(0, UIIconPool::defaultIcon(UIIconPool::UIDefaultIconType_ArrowBack, this));
+        m_pNextPrevButtons->setIcon(1, UIIconPool::defaultIcon(UIIconPool::UIDefaultIconType_ArrowForward, this));
 #endif /* !Q_WS_MAC */
 
         /* Case sensitive check-box: */
@@ -89,7 +88,7 @@ public:
         m_pWarningSpacer = new QSpacerItem(0, 0, QSizePolicy::Fixed, QSizePolicy::Minimum);
         m_pWarningIcon = new QLabel(this);
         m_pWarningIcon->hide();
-        QIcon icon = UIIconPool::defaultIcon(UIIconPool::MessageBoxWarningIcon, this);
+        QIcon icon = UIIconPool::defaultIcon(UIIconPool::UIDefaultIconType_MessageBoxWarning, this);
         if (!icon.isNull())
             m_pWarningIcon->setPixmap(icon.pixmap(16, 16));
         m_pWarningLabel = new QLabel(this);
@@ -383,9 +382,7 @@ UIVMLogViewer::UIVMLogViewer(QWidget *pParent, Qt::WindowFlags flags, const CMac
     Ui::UIVMLogViewer::setupUi(this);
 
     /* Apply window icons: */
-    setWindowIcon(UIIconPool::iconSetFull(QSize(32, 32), QSize(16, 16),
-                                          ":/vm_show_logs_32px.png",
-                                          ":/vm_show_logs_16px.png"));
+    setWindowIcon(UIIconPool::iconSetFull(":/vm_show_logs_32px.png", ":/vm_show_logs_16px.png"));
 
     /* Create VM Log Vewer container: */
     m_pViewerContainer = new QITabWidget(centralWidget());
@@ -597,7 +594,7 @@ void UIVMLogViewer::keyPressEvent(QKeyEvent *pEvent)
             mBtnClose->animateClick();
             return;
         }
-        /* Precess Back key as switch to previous tab: */
+        /* Process Back key as switch to previous tab: */
         case Qt::Key_Back:
         {
             if (m_pViewerContainer->currentIndex() > 0)
@@ -607,7 +604,7 @@ void UIVMLogViewer::keyPressEvent(QKeyEvent *pEvent)
             }
             break;
         }
-        /* Precess Forward key as switch to next tab: */
+        /* Process Forward key as switch to next tab: */
         case Qt::Key_Forward:
         {
             if (m_pViewerContainer->currentIndex() < m_pViewerContainer->count())

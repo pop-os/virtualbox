@@ -1,3 +1,4 @@
+/* $Id: VBoxDriversRegister.cpp $ */
 /** @file
  *
  * Main driver registration.
@@ -23,7 +24,11 @@
 #include "KeyboardImpl.h"
 #include "DisplayImpl.h"
 #include "VMMDev.h"
+#ifdef VBOX_WITH_PDM_AUDIO_DRIVER
+#include "DrvAudioVRDE.h"
+#else
 #include "AudioSnifferInterface.h"
+#endif
 #include "Nvram.h"
 #include "UsbWebcamInterface.h"
 #ifdef VBOX_WITH_USB_CARDREADER
@@ -67,7 +72,11 @@ extern "C" DECLEXPORT(int) VBoxDriversRegister(PCPDMDRVREGCB pCallbacks, uint32_
     if (RT_FAILURE(rc))
         return rc;
 
+#ifdef VBOX_WITH_PDM_AUDIO_DRIVER
+    rc = pCallbacks->pfnRegister(pCallbacks, &AudioVRDE::DrvReg);
+#else
     rc = pCallbacks->pfnRegister(pCallbacks, &AudioSniffer::DrvReg);
+#endif
     if (RT_FAILURE(rc))
         return rc;
 

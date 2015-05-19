@@ -104,7 +104,7 @@ have libgstreamer-plugins-base installed.</source>
     <message numerus="yes">
       <source>A required codec is missing. You need to install the following codec(s) to play this content: %0</source>
       <translation>
-        <numerusform>کدک موردنیاز وجود ندارد. برای پخش این محتوا باید کدک زیر را نصب کنید: %0</numerusform>
+        <numerusform>کدک مورد نیاز یافت نشد. شما باید کدک ذیل را برای اجرای این مضمون نصب کنید : %0</numerusform>
       </translation>
     </message>
     <message>
@@ -4906,13 +4906,13 @@ Please choose a different file name.</source>
     <message numerus="yes">
       <source>%1 takes at most %n argument(s). %2 is therefore invalid.</source>
       <translation>
-        <numerusform>%1 حداکثر %n نشانوند می گیرد. %2 از این رو نامعتبر است</numerusform>
+        <numerusform>%1 گرفته بیش از %n نشانوند. %2 از این رو نامعتبر است.</numerusform>
       </translation>
     </message>
     <message numerus="yes">
       <source>%1 requires at least %n argument(s). %2 is therefore invalid.</source>
       <translation>
-        <numerusform>%1 حداقل %n نشانوند نیاز دارد. %2 از این رو نامعتبر است</numerusform>
+        <numerusform>%1 حداقل %n به نشانوند نیاز دارد. %2 از اینرو نامعتبر است.</numerusform>
       </translation>
     </message>
     <message>

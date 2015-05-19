@@ -1,8 +1,6 @@
 /* $Id: UIWizardExportAppPageBasic3.cpp $ */
 /** @file
- *
- * VBox frontends: Qt4 GUI ("VirtualBox"):
- * UIWizardExportAppPageBasic3 class implementation
+ * VBox Qt GUI - UIWizardExportAppPageBasic3 class implementation.
  */
 
 /*
@@ -17,22 +15,29 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* Global includes: */
-#include <QDir>
-#include <QVBoxLayout>
-#include <QGridLayout>
-#include <QLabel>
-#include <QLineEdit>
-#include <QComboBox>
-#include <QCheckBox>
+# include <QDir>
+# include <QVBoxLayout>
+# include <QGridLayout>
+# include <QLabel>
+# include <QLineEdit>
+# include <QComboBox>
+# include <QCheckBox>
 
 /* Local includes: */
-#include "UIWizardExportAppPageBasic3.h"
-#include "UIWizardExportApp.h"
-#include "UIWizardExportAppDefs.h"
-#include "VBoxGlobal.h"
-#include "VBoxFilePathSelectorWidget.h"
-#include "QIRichTextLabel.h"
+# include "UIWizardExportAppPageBasic3.h"
+# include "UIWizardExportApp.h"
+# include "UIWizardExportAppDefs.h"
+# include "VBoxGlobal.h"
+# include "VBoxFilePathSelectorWidget.h"
+# include "QIRichTextLabel.h"
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 
 UIWizardExportAppPage3::UIWizardExportAppPage3()
 {
@@ -40,15 +45,8 @@ UIWizardExportAppPage3::UIWizardExportAppPage3()
 
 void UIWizardExportAppPage3::chooseDefaultSettings()
 {
-    /* Select default settings: */
-#if 0
-    m_pUsernameEditor->setText(vboxGlobal().virtualBox().GetExtraData(GUI_Export_Username));
-    m_pHostnameEditor->setText(vboxGlobal().virtualBox().GetExtraData(GUI_Export_Hostname));
-    m_pBucketEditor->setText(vboxGlobal().virtualBox().GetExtraData(GUI_Export_Bucket));
-#else
-    /* Choose defalt format: */
+    /* Choose default format: */
     setFormat("ovf-1.0");
-#endif
 }
 
 void UIWizardExportAppPage3::refreshCurrentSettings()

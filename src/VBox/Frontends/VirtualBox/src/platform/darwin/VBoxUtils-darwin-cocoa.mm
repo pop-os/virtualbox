@@ -1,9 +1,6 @@
 /* $Id: VBoxUtils-darwin-cocoa.mm $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * Declarations of utility classes and functions for handling Darwin Cocoa
- * specific tasks
+ * VBox Qt GUI -  Declarations of utility classes and functions for handling Darwin Cocoa specific tasks.
  */
 
 /*
@@ -69,10 +66,19 @@ NativeNSImageRef darwinToNSImageRef(const CGImageRef pImage)
 
 NativeNSImageRef darwinToNSImageRef(const QImage *pImage)
 {
-   CGImageRef pCGImage = ::darwinToCGImageRef(pImage);
-   NativeNSImageRef pNSImage = ::darwinToNSImageRef(pCGImage);
-   CGImageRelease(pCGImage);
-   return pNSImage;
+    /* Create CGImage on the basis of passed QImage: */
+    CGImageRef pCGImage = ::darwinToCGImageRef(pImage);
+    NativeNSImageRef pNSImage = ::darwinToNSImageRef(pCGImage);
+    CGImageRelease(pCGImage);
+#ifdef VBOX_GUI_WITH_HIDPI
+    /* Apply device pixel ratio: */
+    double dScaleFactor = pImage->devicePixelRatio();
+    NSSize imageSize = { (CGFloat)pImage->width() / dScaleFactor,
+                         (CGFloat)pImage->height() / dScaleFactor };
+    [pNSImage setSize:imageSize];
+#endif /* VBOX_GUI_WITH_HIDPI */
+    /* Return result: */
+    return pNSImage;
 }
 
 NativeNSImageRef darwinToNSImageRef(const QPixmap *pPixmap)
@@ -174,6 +180,14 @@ void darwinSetShowsWindowTransparentImpl(NativeNSWindowRef pWindow, bool fEnable
         [pWindow setBackgroundColor:[NSColor windowBackgroundColor]];
         [pWindow setHasShadow:YES];
     }
+}
+
+void darwinSetWindowHasShadow(NativeNSWindowRef pWindow, bool fEnabled)
+{
+    if (fEnabled)
+        [pWindow setHasShadow :YES];
+    else
+        [pWindow setHasShadow :NO];
 }
 
 void darwinMinaturizeWindow(NativeNSWindowRef pWindow)

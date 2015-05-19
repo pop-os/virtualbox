@@ -144,8 +144,8 @@
  *      - VBoxBFE - A bare metal edition which does not use COM/XPCOM (barely
  *        maintained atm).
  *  - IPRT - Runtime Library for hiding host OS differences.
- *  - Testsuite:
- *      - @ref pg_testsuite_guideline
+ *  - Validation Kit:
+ *      - @ref pg_validationkit_guideline
  *
  * @todo Make links to the components.
  *

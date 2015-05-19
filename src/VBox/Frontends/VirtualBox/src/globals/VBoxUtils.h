@@ -1,7 +1,6 @@
+/* $Id: VBoxUtils.h $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * Declarations of utility classes and functions
+ * VBox Qt GUI - Declarations of utility classes and functions.
  */
 
 /*
@@ -25,6 +24,30 @@
 #include <QMouseEvent>
 #include <QWidget>
 #include <QTextBrowser>
+
+/** QObject reimplementation,
+  * providing passed QObject with property assignation routine. */
+class QObjectPropertySetter : public QObject
+{
+    Q_OBJECT;
+
+public:
+
+    /** Constructor. */
+    QObjectPropertySetter(QObject *pParent, const QString &strName)
+        : QObject(pParent), m_strName(strName) {}
+
+private slots:
+
+    /** Assigns property value. */
+    void sltAssignProperty(const QString &strValue)
+        { parent()->setProperty(m_strName.toAscii().constData(), strValue); }
+
+private:
+
+    /** Holds property name. */
+    const QString m_strName;
+};
 
 /**
  *  Simple class that filters out all key presses and releases
@@ -97,7 +120,7 @@ class QRichTextEdit : public QTextEdit
 
 public:
 
-    QRichTextEdit (QWidget *aParent) : QTextEdit (aParent) {}
+    QRichTextEdit (QWidget *aParent = 0) : QTextEdit (aParent) {}
 
     void setViewportMargins (int aLeft, int aTop, int aRight, int aBottom)
     {

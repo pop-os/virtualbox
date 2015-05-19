@@ -334,18 +334,17 @@ RTDECL(void) VBoxHGSMIGetBaseMappingInfo(uint32_t cbVRAM,
 RTDECL(int) VBoxHGSMISetupGuestContext(PHGSMIGUESTCOMMANDCONTEXT pCtx,
                                        void *pvGuestHeapMemory,
                                        uint32_t cbGuestHeapMemory,
-                                       uint32_t offVRAMGuestHeapMemory)
+                                       uint32_t offVRAMGuestHeapMemory,
+                                       const HGSMIENV *pEnv)
 {
     /** @todo should we be using a fixed ISA port value here? */
     pCtx->port = (RTIOPORT)VGA_PORT_HGSMI_GUEST;
 #ifdef VBOX_WDDM_MINIPORT
     return VBoxSHGSMIInit(&pCtx->heapCtx, pvGuestHeapMemory,
-                          cbGuestHeapMemory, offVRAMGuestHeapMemory,
-                          false /*fOffsetBased*/);
+                          cbGuestHeapMemory, offVRAMGuestHeapMemory, pEnv);
 #else
     return HGSMIHeapSetup(&pCtx->heapCtx, pvGuestHeapMemory,
-                          cbGuestHeapMemory, offVRAMGuestHeapMemory,
-                          false /*fOffsetBased*/);
+                          cbGuestHeapMemory, offVRAMGuestHeapMemory, pEnv);
 #endif
 }
 

@@ -15,52 +15,61 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* Qt includes: */
-#include <QDesktopWidget>
+# include <QDesktopWidget>
+# include <QTimer>
 
 /* GUI includes: */
-#include "VBoxGlobal.h"
-#include "UIMessageCenter.h"
-#include "UISession.h"
-#include "UIActionPoolRuntime.h"
-#include "UIMachineLogicFullscreen.h"
-#include "UIMachineWindowFullscreen.h"
-#include "UIMultiScreenLayout.h"
-#ifdef Q_WS_MAC
+# include "VBoxGlobal.h"
+# include "UIMessageCenter.h"
+# include "UISession.h"
+# include "UIActionPoolRuntime.h"
+# include "UIMachineLogicFullscreen.h"
+# include "UIMachineWindowFullscreen.h"
+# include "UIMultiScreenLayout.h"
+# include "UIShortcutPool.h"
 # include "UIMachineView.h"
-# include "UIExtraDataEventHandler.h"
-# include "UICocoaApplication.h"
-# include "VBoxUtils.h"
-# include "UIFrameBuffer.h"
-# include <Carbon/Carbon.h>
-#endif /* Q_WS_MAC */
+# include "QIMenu.h"
+# ifdef Q_WS_MAC
+#  include "UICocoaApplication.h"
+#  include "UIExtraDataManager.h"
+#  include "VBoxUtils.h"
+#  include "UIFrameBuffer.h"
+#  include <Carbon/Carbon.h>
+# endif /* Q_WS_MAC */
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 
 UIMachineLogicFullscreen::UIMachineLogicFullscreen(QObject *pParent, UISession *pSession)
     : UIMachineLogic(pParent, pSession, UIVisualStateType_Fullscreen)
+    , m_pPopupMenu(0)
 #ifdef Q_WS_MAC
     , m_fScreensHaveSeparateSpaces(darwinScreensHaveSeparateSpaces())
-    , m_fadeToken(kCGDisplayFadeReservationInvalidToken)
 #endif /* Q_WS_MAC */
 {
     /* Create multiscreen layout: */
     m_pScreenLayout = new UIMultiScreenLayout(this);
+    actionPool()->toRuntime()->setMultiScreenLayout(m_pScreenLayout);
 }
 
 UIMachineLogicFullscreen::~UIMachineLogicFullscreen()
 {
     /* Delete multiscreen layout: */
+    actionPool()->toRuntime()->setMultiScreenLayout(0);
     delete m_pScreenLayout;
 }
 
 bool UIMachineLogicFullscreen::checkAvailability()
 {
-    /* Temporary get a machine object: */
-    const CMachine &machine = uisession()->session().GetMachine();
-
     /* Check if there is enough physical memory to enter fullscreen: */
     if (uisession()->isGuestSupportsGraphics())
     {
-        quint64 availBits = machine.GetVRAMSize() /* VRAM */ * _1M /* MiB to bytes */ * 8 /* to bits */;
+        quint64 availBits = machine().GetVRAMSize() /* VRAM */ * _1M /* MiB to bytes */ * 8 /* to bits */;
         quint64 usedBits = m_pScreenLayout->memoryRequirements();
         if (availBits < usedBits)
         {
@@ -69,18 +78,26 @@ bool UIMachineLogicFullscreen::checkAvailability()
         }
     }
 
-    /* Take the toggle hot key from the menu item.
-     * Since VBoxGlobal::extractKeyFromActionText gets exactly
-     * the linked key without the 'Host+' part we are adding it here. */
-    QString hotKey = QString("Host+%1")
-        .arg(VBoxGlobal::extractKeyFromActionText(gActionPool->action(UIActionIndexRuntime_Toggle_Fullscreen)->text()));
-    Assert(!hotKey.isEmpty());
-
     /* Show the info message. */
-    if (!msgCenter().confirmGoingFullscreen(hotKey))
+    const UIShortcut &shortcut =
+            gShortcutPool->shortcut(actionPool()->shortcutsExtraDataID(),
+                                    actionPool()->action(UIActionIndexRT_M_View_T_Fullscreen)->shortcutExtraDataID());
+    const QString strHotKey = QString("Host+%1").arg(shortcut.toString());
+    if (!msgCenter().confirmGoingFullscreen(strHotKey))
         return false;
 
     return true;
+}
+
+Qt::WindowFlags UIMachineLogicFullscreen::windowFlags(ulong uScreenId) const
+{
+    Q_UNUSED(uScreenId);
+#ifdef Q_WS_MAC
+    return vboxGlobal().osRelease() <= MacOSXRelease_Lion ? Qt::FramelessWindowHint :
+           uScreenId == 0 || screensHaveSeparateSpaces() ? Qt::Window : Qt::FramelessWindowHint;
+#else /* !Q_WS_MAC */
+    return Qt::FramelessWindowHint;
+#endif /* !Q_WS_MAC */
 }
 
 void UIMachineLogicFullscreen::adjustMachineWindowsGeometry()
@@ -129,9 +146,6 @@ void UIMachineLogicFullscreen::sltHandleNativeFullscreenWillEnter()
     LogRel(("UIMachineLogicFullscreen::sltHandleNativeFullscreenWillEnter: "
             "Machine-window #%d will enter native fullscreen.\n",
             (int)pMachineWindow->screenId()));
-
-    /* Fade to black: */
-    fadeToBlack();
 }
 
 void UIMachineLogicFullscreen::sltHandleNativeFullscreenDidEnter()
@@ -150,9 +164,6 @@ void UIMachineLogicFullscreen::sltHandleNativeFullscreenDidEnter()
     m_fullscreenMachineWindows.insert(pMachineWindow);
     AssertReturnVoid(m_fullscreenMachineWindows.contains(pMachineWindow));
 
-    /* Fade to normal: */
-    fadeToNormal();
-
     /* Rebuild multi-screen layout: */
     m_pScreenLayout->rebuild();
     /* Revalidate native fullscreen: */
@@ -170,9 +181,6 @@ void UIMachineLogicFullscreen::sltHandleNativeFullscreenWillExit()
     LogRel(("UIMachineLogicFullscreen::sltHandleNativeFullscreenWillExit: "
             "Machine-window #%d will exit native fullscreen.\n",
             (int)pMachineWindow->screenId()));
-
-    /* Fade to black: */
-    fadeToBlack();
 }
 
 void UIMachineLogicFullscreen::sltHandleNativeFullscreenDidExit()
@@ -236,9 +244,6 @@ void UIMachineLogicFullscreen::sltHandleNativeFullscreenDidExit()
                 type = UIVisualStateType_Normal;
             uisession()->setRequestedVisualState(UIVisualStateType_Invalid);
             uisession()->changeVisualState(type);
-
-            /* Fade to normal: */
-            fadeToNormal();
         }
     }
 }
@@ -276,8 +281,8 @@ void UIMachineLogicFullscreen::sltHandleNativeFullscreenFailToEnter()
         /* Ask session to change 'fullscreen' mode to 'normal': */
         uisession()->setRequestedVisualState(UIVisualStateType_Normal);
 
-        /* If session started already => push mode-change directly: */
-        if (uisession()->isStarted())
+        /* If session already initialized => push mode-change directly: */
+        if (uisession()->isInitialized())
             sltCheckForRequestedVisualStateType();
     }
 }
@@ -377,12 +382,15 @@ void UIMachineLogicFullscreen::sltMachineStateChanged()
     }
 }
 
-#ifdef Q_WS_MAC
-void UIMachineLogicFullscreen::sltChangePresentationMode(bool /* fEnabled */)
+void UIMachineLogicFullscreen::sltInvokePopupMenu()
 {
-    setPresentationModeEnabled(true);
+    /* Popup main-menu if present: */
+    if (m_pPopupMenu && !m_pPopupMenu->isEmpty())
+    {
+        m_pPopupMenu->popup(activeMachineWindow()->geometry().center());
+        QTimer::singleShot(0, m_pPopupMenu, SLOT(sltHighlightFirstAction()));
+    }
 }
-#endif /* Q_WS_MAC */
 
 void UIMachineLogicFullscreen::sltScreenLayoutChanged()
 {
@@ -395,8 +403,6 @@ void UIMachineLogicFullscreen::sltScreenLayoutChanged()
         /* Make sure all machine-window(s) have proper geometry: */
         foreach (UIMachineWindow *pMachineWindow, machineWindows())
             pMachineWindow->showInNecessaryMode();
-        /* Update 'presentation mode': */
-        setPresentationModeEnabled(true);
     }
     /* Revalidate native fullscreen for ML and next: */
     else revalidateNativeFullScreen();
@@ -455,17 +461,26 @@ void UIMachineLogicFullscreen::prepareActionGroups()
     /* Call to base-class: */
     UIMachineLogic::prepareActionGroups();
 
-    /* Adjust-window action isn't allowed in fullscreen: */
-    gActionPool->action(UIActionIndexRuntime_Simple_AdjustWindow)->setVisible(false);
+    /* Restrict 'Adjust Window', 'Status Bar' and 'Resize' actions for 'View' menu: */
+    actionPool()->toRuntime()->setRestrictionForMenuView(UIActionRestrictionLevel_Logic,
+                                                         (UIExtraDataMetaDefs::RuntimeMenuViewActionType)
+                                                         (UIExtraDataMetaDefs::RuntimeMenuViewActionType_AdjustWindow |
+                                                          UIExtraDataMetaDefs::RuntimeMenuViewActionType_MenuBar |
+                                                          UIExtraDataMetaDefs::RuntimeMenuViewActionType_StatusBar |
+                                                          UIExtraDataMetaDefs::RuntimeMenuViewActionType_Resize));
+#ifdef Q_WS_MAC
+    /* Restrict 'Window' menu: */
+    actionPool()->toRuntime()->setRestrictionForMenuBar(UIActionRestrictionLevel_Logic,
+                                                        UIExtraDataMetaDefs::MenuType_Window);
+#endif /* Q_WS_MAC */
 
     /* Take care of view-action toggle state: */
-    UIAction *pActionFullscreen = gActionPool->action(UIActionIndexRuntime_Toggle_Fullscreen);
+    UIAction *pActionFullscreen = actionPool()->action(UIActionIndexRT_M_View_T_Fullscreen);
     if (!pActionFullscreen->isChecked())
     {
         pActionFullscreen->blockSignals(true);
         pActionFullscreen->setChecked(true);
         pActionFullscreen->blockSignals(false);
-        pActionFullscreen->update();
     }
 }
 
@@ -474,25 +489,14 @@ void UIMachineLogicFullscreen::prepareActionConnections()
     /* Call to base-class: */
     UIMachineLogic::prepareActionConnections();
 
-    /* "View" actions connections: */
-    connect(gActionPool->action(UIActionIndexRuntime_Toggle_Fullscreen), SIGNAL(triggered(bool)),
+    /* Prepare 'View' actions connections: */
+    connect(actionPool()->action(UIActionIndexRT_M_View_T_Fullscreen), SIGNAL(triggered(bool)),
             this, SLOT(sltChangeVisualStateToNormal()));
-    connect(gActionPool->action(UIActionIndexRuntime_Toggle_Seamless), SIGNAL(triggered(bool)),
+    connect(actionPool()->action(UIActionIndexRT_M_View_T_Seamless), SIGNAL(triggered(bool)),
             this, SLOT(sltChangeVisualStateToSeamless()));
-    connect(gActionPool->action(UIActionIndexRuntime_Toggle_Scale), SIGNAL(triggered(bool)),
+    connect(actionPool()->action(UIActionIndexRT_M_View_T_Scale), SIGNAL(triggered(bool)),
             this, SLOT(sltChangeVisualStateToScale()));
 }
-
-#ifdef Q_WS_MAC
-void UIMachineLogicFullscreen::prepareOtherConnections()
-{
-    /* Make sure 'presentation mode' preference handling
-     * is updated at runtime for Lion and previous: */
-    if (vboxGlobal().osRelease() <= MacOSXRelease_Lion)
-        connect(gEDataEvents, SIGNAL(sigPresentationModeChange(bool)),
-                this, SLOT(sltChangePresentationMode(bool)));
-}
-#endif /* Q_WS_MAC */
 
 void UIMachineLogicFullscreen::prepareMachineWindows()
 {
@@ -514,30 +518,26 @@ void UIMachineLogicFullscreen::prepareMachineWindows()
     /* We have to make sure that we are getting the front most process.
      * This is necessary for Qt versions > 4.3.3: */
     darwinSetFrontMostProcess();
-
-    /* Fade to black: */
-    fadeToBlack();
 #endif /* Q_WS_MAC */
 
     /* Update the multi-screen layout: */
     m_pScreenLayout->update();
 
     /* Create machine-window(s): */
-    for (uint cScreenId = 0; cScreenId < session().GetMachine().GetMonitorCount(); ++cScreenId)
+    for (uint cScreenId = 0; cScreenId < machine().GetMonitorCount(); ++cScreenId)
         addMachineWindow(UIMachineWindow::create(this, cScreenId));
 
+    /* Listen for frame-buffer resize: */
+    foreach (UIMachineWindow *pMachineWindow, machineWindows())
+        connect(pMachineWindow, SIGNAL(sigFrameBufferResize()),
+                this, SIGNAL(sigFrameBufferResize()));
+    emit sigFrameBufferResize();
+
     /* Connect multi-screen layout change handler: */
-    connect(m_pScreenLayout, SIGNAL(sigScreenLayoutChanged()),
+    connect(m_pScreenLayout, SIGNAL(sigScreenLayoutChange()),
             this, SLOT(sltScreenLayoutChanged()));
 
 #ifdef Q_WS_MAC
-    /* Activate 'presentation mode': */
-    setPresentationModeEnabled(true);
-
-    /* For Lion and previous fade to normal: */
-    if (vboxGlobal().osRelease() <= MacOSXRelease_Lion)
-        fadeToNormal();
-
     /* For ML and next: */
     if (vboxGlobal().osRelease() > MacOSXRelease_Lion)
     {
@@ -577,12 +577,21 @@ void UIMachineLogicFullscreen::prepareMachineWindows()
 
 void UIMachineLogicFullscreen::prepareMenu()
 {
-    /* Call to base-class: */
-    UIMachineLogic::prepareMenu();
+    /* Prepare popup-menu: */
+    m_pPopupMenu = new QIMenu;
+    AssertPtrReturnVoid(m_pPopupMenu);
+    {
+        /* Prepare popup-menu: */
+        foreach (QMenu *pMenu, actionPool()->menus())
+            m_pPopupMenu->addMenu(pMenu);
+    }
+}
 
-    /* Finally update view-menu, if necessary: */
-    if (uisession()->allowedActionsMenuView() & RuntimeMenuViewActionType_Multiscreen)
-        m_pScreenLayout->setViewMenu(gActionPool->action(UIActionIndexRuntime_Menu_View)->menu());
+void UIMachineLogicFullscreen::cleanupMenu()
+{
+    /* Cleanup popup-menu: */
+    delete m_pPopupMenu;
+    m_pPopupMenu = 0;
 }
 
 void UIMachineLogicFullscreen::cleanupMachineWindows()
@@ -599,10 +608,6 @@ void UIMachineLogicFullscreen::cleanupMachineWindows()
         UICocoaApplication::instance()->unregisterFromNotificationOfWorkspace("NSWorkspaceDidActivateApplicationNotification", this);
         UICocoaApplication::instance()->unregisterFromNotificationOfWorkspace("NSWorkspaceActiveSpaceDidChangeNotification", this);
     }
-
-    /* For Lion and previous fade to black: */
-    if (vboxGlobal().osRelease() <= MacOSXRelease_Lion)
-        fadeToBlack();
 #endif/* Q_WS_MAC */
 
     /* Mark machine-window(s) destroyed: */
@@ -611,24 +616,16 @@ void UIMachineLogicFullscreen::cleanupMachineWindows()
     /* Destroy machine-window(s): */
     foreach (UIMachineWindow *pMachineWindow, machineWindows())
         UIMachineWindow::destroy(pMachineWindow);
-
-#ifdef Q_WS_MAC
-    /* Deactivate 'presentation mode': */
-    setPresentationModeEnabled(false);
-
-    /* Fade to normal: */
-    fadeToNormal();
-#endif/* Q_WS_MAC */
 }
 
 void UIMachineLogicFullscreen::cleanupActionConnections()
 {
     /* "View" actions disconnections: */
-    disconnect(gActionPool->action(UIActionIndexRuntime_Toggle_Fullscreen), SIGNAL(triggered(bool)),
+    disconnect(actionPool()->action(UIActionIndexRT_M_View_T_Fullscreen), SIGNAL(triggered(bool)),
                this, SLOT(sltChangeVisualStateToNormal()));
-    disconnect(gActionPool->action(UIActionIndexRuntime_Toggle_Seamless), SIGNAL(triggered(bool)),
+    disconnect(actionPool()->action(UIActionIndexRT_M_View_T_Seamless), SIGNAL(triggered(bool)),
                this, SLOT(sltChangeVisualStateToSeamless()));
-    disconnect(gActionPool->action(UIActionIndexRuntime_Toggle_Scale), SIGNAL(triggered(bool)),
+    disconnect(actionPool()->action(UIActionIndexRT_M_View_T_Scale), SIGNAL(triggered(bool)),
                this, SLOT(sltChangeVisualStateToScale()));
 
     /* Call to base-class: */
@@ -638,82 +635,28 @@ void UIMachineLogicFullscreen::cleanupActionConnections()
 void UIMachineLogicFullscreen::cleanupActionGroups()
 {
     /* Take care of view-action toggle state: */
-    UIAction *pActionFullscreen = gActionPool->action(UIActionIndexRuntime_Toggle_Fullscreen);
+    UIAction *pActionFullscreen = actionPool()->action(UIActionIndexRT_M_View_T_Fullscreen);
     if (pActionFullscreen->isChecked())
     {
         pActionFullscreen->blockSignals(true);
         pActionFullscreen->setChecked(false);
         pActionFullscreen->blockSignals(false);
-        pActionFullscreen->update();
     }
 
-    /* Reenable adjust-window action: */
-    gActionPool->action(UIActionIndexRuntime_Simple_AdjustWindow)->setVisible(true);
+    /* Allow 'Adjust Window', 'Status Bar' and 'Resize' actions for 'View' menu: */
+    actionPool()->toRuntime()->setRestrictionForMenuView(UIActionRestrictionLevel_Logic,
+                                                         UIExtraDataMetaDefs::RuntimeMenuViewActionType_Invalid);
+#ifdef Q_WS_MAC
+    /* Allow 'Window' menu: */
+    actionPool()->toRuntime()->setRestrictionForMenuBar(UIActionRestrictionLevel_Logic,
+                                                        UIExtraDataMetaDefs::MenuType_Invalid);
+#endif /* Q_WS_MAC */
 
     /* Call to base-class: */
     UIMachineLogic::cleanupActionGroups();
 }
 
 #ifdef Q_WS_MAC
-void UIMachineLogicFullscreen::setPresentationModeEnabled(bool fEnabled)
-{
-    /* Should we enable it? */
-    if (fEnabled)
-    {
-        /* For Lion and previous: */
-        if (vboxGlobal().osRelease() <= MacOSXRelease_Lion)
-        {
-            /* Check if we have screen which contains the Dock or the Menubar (which hasn't to be the same),
-             * only than the 'presentation mode' have to be changed. */
-            if (m_pScreenLayout->isHostTaskbarCovert())
-            {
-                /* Load 'presentation mode' preference: */
-                QString strPresentationMode = vboxGlobal().virtualBox().GetExtraData(GUI_PresentationModeEnabled).toLower();
-                /* Default to 'false' if it is an empty value: */
-                if (strPresentationMode.isEmpty() || strPresentationMode == "false")
-                    SetSystemUIMode(kUIModeAllHidden, 0);
-                else
-                    SetSystemUIMode(kUIModeAllSuppressed, 0);
-            }
-        }
-        /* For ML and next: */
-        else
-        {
-            /* I am not sure we have to check anything here.
-             * Without 'presentation mode' native fullscreen works pretty bad,
-             * so we have to enable it anyway: */
-            SetSystemUIMode(kUIModeAllSuppressed, 0);
-        }
-    }
-    /* Should we disable it? */
-    else SetSystemUIMode(kUIModeNormal, 0);
-}
-
-void UIMachineLogicFullscreen::fadeToBlack()
-{
-    /* Make sure fade-token invalid: */
-    if (m_fadeToken != kCGDisplayFadeReservationInvalidToken)
-        return;
-
-    /* Acquire fade-token: */
-    LogRel(("UIMachineLogicFullscreen::fadeToBlack\n"));
-    CGAcquireDisplayFadeReservation(kCGMaxDisplayReservationInterval, &m_fadeToken);
-    CGDisplayFade(m_fadeToken, 0.3, kCGDisplayBlendNormal, kCGDisplayBlendSolidColor, 0.0, 0.0, 0.0, true);
-}
-
-void UIMachineLogicFullscreen::fadeToNormal()
-{
-    /* Make sure fade-token valid: */
-    if (m_fadeToken == kCGDisplayFadeReservationInvalidToken)
-        return;
-
-    /* Release fade-token: */
-    LogRel(("UIMachineLogicFullscreen::fadeToNormal\n"));
-    CGDisplayFade(m_fadeToken, 0.5, kCGDisplayBlendSolidColor, kCGDisplayBlendNormal, 0.0, 0.0, 0.0, false);
-    CGReleaseDisplayFadeReservation(m_fadeToken);
-    m_fadeToken = kCGDisplayFadeReservationInvalidToken;
-}
-
 void UIMachineLogicFullscreen::revalidateNativeFullScreen(UIMachineWindow *pMachineWindow)
 {
     /* Make sure that is full-screen machine-window: */
@@ -745,8 +688,6 @@ void UIMachineLogicFullscreen::revalidateNativeFullScreen(UIMachineWindow *pMach
             LogRel(("UIMachineLogicFullscreen::revalidateNativeFullScreen: "
                     "Ask transient machine-window #%d to hide.\n", (int)uScreenID));
 
-            /* Make sure mini-toolbar hidden: */
-            pMachineWindowFullscreen->setMiniToolbarVisible(false);
             /* Make sure window hidden: */
             pMachineWindow->hide();
         }
@@ -758,8 +699,6 @@ void UIMachineLogicFullscreen::revalidateNativeFullScreen(UIMachineWindow *pMach
 
             /* Make sure window have proper geometry and shown: */
             pMachineWindow->showInNecessaryMode();
-            /* Make sure mini-toolbar shown: */
-            pMachineWindowFullscreen->setMiniToolbarVisible(true);
         }
     }
     /* Validate window which can be fullscreen: */
@@ -777,14 +716,6 @@ void UIMachineLogicFullscreen::revalidateNativeFullScreen(UIMachineWindow *pMach
                 LogRel(("UIMachineLogicFullscreen::revalidateNativeFullScreen: "
                         "Ask machine-window #%d to enter native fullscreen.\n", (int)uScreenID));
 
-                /* Fade to black: */
-                fadeToBlack();
-
-                /* Update 'presentation mode': */
-                setPresentationModeEnabled(true);
-
-                /* Make sure mini-toolbar hidden: */
-                pMachineWindowFullscreen->setMiniToolbarVisible(false);
                 /* Make sure window have proper geometry and shown: */
                 pMachineWindow->showInNecessaryMode();
 
@@ -798,13 +729,8 @@ void UIMachineLogicFullscreen::revalidateNativeFullScreen(UIMachineWindow *pMach
                 LogRel(("UIMachineLogicFullscreen::revalidateNativeFullScreen: "
                         "Ask machine-window #%d to hide.\n", (int)uScreenID));
 
-                /* Make sure mini-toolbar hidden: */
-                pMachineWindowFullscreen->setMiniToolbarVisible(false);
                 /* Make sure window hidden: */
                 pMachineWindow->hide();
-
-                /* Fade to normal: */
-                fadeToNormal();
             }
         }
         /* Validate window which is in fullscreen: */
@@ -827,14 +753,9 @@ void UIMachineLogicFullscreen::revalidateNativeFullScreen(UIMachineWindow *pMach
                 LogRel(("UIMachineLogicFullscreen::revalidateNativeFullScreen: "
                         "Ask machine-window #%d to exit native fullscreen.\n", (int)uScreenID));
 
-                /* Fade to black: */
-                fadeToBlack();
-
                 /* Mark window as invalidated: */
                 m_invalidFullscreenMachineWindows << pMachineWindow;
 
-                /* Make sure mini-toolbar hidden: */
-                pMachineWindowFullscreen->setMiniToolbarVisible(false);
                 /* Ask window to exit 'fullscreen' mode: */
                 emit sigNotifyAboutNativeFullscreenShouldBeExited(pMachineWindow);
                 return;
@@ -847,15 +768,10 @@ void UIMachineLogicFullscreen::revalidateNativeFullScreen(UIMachineWindow *pMach
                 LogRel(("UIMachineLogicFullscreen::revalidateNativeFullScreen: "
                         "Ask machine-window #%d to adjust guest geometry.\n", (int)uScreenID));
 
-                /* Make sure mini-toolbar shown: */
-                pMachineWindowFullscreen->setMiniToolbarVisible(true);
                 /* Just adjust machine-view size if necessary: */
                 pMachineWindow->adjustMachineViewSize();
                 return;
             }
-
-            /* Make sure mini-toolbar shown: */
-            pMachineWindowFullscreen->setMiniToolbarVisible(true);
         }
     }
 }

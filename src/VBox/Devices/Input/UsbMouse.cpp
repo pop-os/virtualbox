@@ -1,3 +1,4 @@
+/* $Id: UsbMouse.cpp $ */
 /** @file
  * UsbMouse - USB Human Interface Device Emulation (Mouse).
  */

@@ -1189,6 +1189,14 @@ typedef struct PDMAPICREG
      */
     DECLR3CALLBACKMEMBER(int,  pfnLocalInterruptR3,(PPDMDEVINS pDevIns, uint8_t u8Pin, uint8_t u8Level));
 
+    /**
+     * Get the APIC timer frequency (in Hz).
+     *
+     * @returns The frequency of the APIC timer.
+     * @param   pDevIns         Device instance of the APIC.
+     */
+    DECLR3CALLBACKMEMBER(uint64_t, pfnGetTimerFreqR3, (PPDMDEVINS pDevIns));
+
     /** The name of the RC GetInterrupt entry point. */
     const char         *pszGetInterruptRC;
     /** The name of the RC HasPendingIrq entry point. */
@@ -1209,6 +1217,8 @@ typedef struct PDMAPICREG
     const char         *pszBusDeliverRC;
     /** The name of the RC LocalInterrupt entry point. */
     const char         *pszLocalInterruptRC;
+    /** The name of the RC GetTimerFreq entry point. */
+    const char         *pszGetTimerFreqRC;
 
     /** The name of the R0 GetInterrupt entry point. */
     const char         *pszGetInterruptR0;
@@ -1230,7 +1240,8 @@ typedef struct PDMAPICREG
     const char         *pszBusDeliverR0;
     /** The name of the R0 LocalInterrupt entry point. */
     const char         *pszLocalInterruptR0;
-
+    /** The name of the R0 GetTimerFreq entry point. */
+    const char         *pszGetTimerFreqR0;
 } PDMAPICREG;
 /** Pointer to an APIC registration structure. */
 typedef PDMAPICREG *PPDMAPICREG;
@@ -2414,7 +2425,7 @@ typedef struct PDMDEVHLPR3
      * is configured for the VM, in which case we'll drop the base
      * memory pages. Presently we will make no attempt to preserve
      * anything that happens to be present in the base memory that
-     * is replaced, this is of course incorrectly but it's too much
+     * is replaced, this is of course incorrect but it's too much
      * effort.
      *
      * @returns VBox status code.
@@ -3507,6 +3518,14 @@ typedef struct PDMDEVHLPR3
     DECLR3CALLBACKMEMBER(PVMCPU, pfnGetVMCPU,(PPDMDEVINS pDevIns));
 
     /**
+     * The the VM CPU ID of the current thread (restricted API).
+     *
+     * @returns The VMCPUID of the calling thread, NIL_CPUID if not EMT.
+     * @param   pDevIns             The device instance.
+     */
+    DECLR3CALLBACKMEMBER(VMCPUID, pfnGetCurrentCpuId,(PPDMDEVINS pDevIns));
+
+    /**
      * Registers the VMM device heap
      *
      * @returns VBox status code.
@@ -3645,7 +3664,7 @@ typedef R3PTRTYPE(struct PDMDEVHLPR3 *) PPDMDEVHLPR3;
 typedef R3PTRTYPE(const struct PDMDEVHLPR3 *) PCPDMDEVHLPR3;
 
 /** Current PDMDEVHLPR3 version number. */
-#define PDM_DEVHLPR3_VERSION                    PDM_VERSION_MAKE(0xffe7, 12, 1)
+#define PDM_DEVHLPR3_VERSION                    PDM_VERSION_MAKE(0xffe7, 14, 1)
 
 
 /**
@@ -3818,6 +3837,14 @@ typedef struct PDMDEVHLPRC
     DECLRCCALLBACKMEMBER(PVMCPU, pfnGetVMCPU,(PPDMDEVINS pDevIns));
 
     /**
+     * The the VM CPU ID of the current thread (restricted API).
+     *
+     * @returns The VMCPUID of the calling thread, NIL_CPUID if not EMT.
+     * @param   pDevIns             The device instance.
+     */
+    DECLRCCALLBACKMEMBER(VMCPUID, pfnGetCurrentCpuId,(PPDMDEVINS pDevIns));
+
+    /**
      * Get the current virtual clock time in a VM. The clock frequency must be
      * queried separately.
      *
@@ -3862,7 +3889,7 @@ typedef RCPTRTYPE(struct PDMDEVHLPRC *) PPDMDEVHLPRC;
 typedef RCPTRTYPE(const struct PDMDEVHLPRC *) PCPDMDEVHLPRC;
 
 /** Current PDMDEVHLP version number. */
-#define PDM_DEVHLPRC_VERSION                    PDM_VERSION_MAKE(0xffe6, 3, 1)
+#define PDM_DEVHLPRC_VERSION                    PDM_VERSION_MAKE(0xffe6, 4, 1)
 
 
 /**
@@ -4043,6 +4070,14 @@ typedef struct PDMDEVHLPR0
     DECLR0CALLBACKMEMBER(PVMCPU, pfnGetVMCPU,(PPDMDEVINS pDevIns));
 
     /**
+     * The the VM CPU ID of the current thread (restricted API).
+     *
+     * @returns The VMCPUID of the calling thread, NIL_CPUID if not EMT.
+     * @param   pDevIns             The device instance.
+     */
+    DECLR0CALLBACKMEMBER(VMCPUID, pfnGetCurrentCpuId,(PPDMDEVINS pDevIns));
+
+    /**
      * Get the current virtual clock time in a VM. The clock frequency must be
      * queried separately.
      *
@@ -4087,7 +4122,7 @@ typedef R0PTRTYPE(struct PDMDEVHLPR0 *) PPDMDEVHLPR0;
 typedef R0PTRTYPE(const struct PDMDEVHLPR0 *) PCPDMDEVHLPR0;
 
 /** Current PDMDEVHLP version number. */
-#define PDM_DEVHLPR0_VERSION                    PDM_VERSION_MAKE(0xffe5, 3, 1)
+#define PDM_DEVHLPR0_VERSION                    PDM_VERSION_MAKE(0xffe5, 4, 1)
 
 
 
@@ -5141,6 +5176,14 @@ DECLINLINE(PVM) PDMDevHlpGetVM(PPDMDEVINS pDevIns)
 DECLINLINE(PVMCPU) PDMDevHlpGetVMCPU(PPDMDEVINS pDevIns)
 {
     return pDevIns->CTX_SUFF(pHlp)->pfnGetVMCPU(pDevIns);
+}
+
+/**
+ * @copydoc PDMDEVHLPR3::pfnGetCurrentCpuId
+ */
+DECLINLINE(VMCPUID) PDMDevHlpGetCurrentCpuId(PPDMDEVINS pDevIns)
+{
+    return pDevIns->CTX_SUFF(pHlp)->pfnGetCurrentCpuId(pDevIns);
 }
 
 /**

@@ -1,7 +1,6 @@
+/* $Id: UIGChooserItem.h $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * UIGChooserItem class declaration
+ * VBox Qt GUI - UIGChooserItem class declaration.
  */
 
 /*
@@ -30,6 +29,7 @@
 #include <iprt/cdefs.h>
 
 /* Forward declaration: */
+class UIActionPool;
 class UIGChooserModel;
 class UIGChooserItemGroup;
 class UIGChooserItemMachine;
@@ -86,6 +86,9 @@ public:
 
     /* API: Model stuff: */
     UIGChooserModel* model() const;
+
+    /** Returns the action-pool reference. */
+    UIActionPool* actionPool() const;
 
     /* API: Parent stuff: */
     UIGChooserItem* parentItem() const;
@@ -161,7 +164,7 @@ protected:
     /* Static paint stuff: */
     static void configurePainterShape(QPainter *pPainter, const QStyleOptionGraphicsItem *pOption, int iRadius);
     static void paintFrameRect(QPainter *pPainter, const QRect &rect, bool fIsSelected, int iRadius);
-    static void paintPixmap(QPainter *pPainter, const QRect &rect, const QPixmap &pixmap);
+    static void paintPixmap(QPainter *pPainter, const QPoint &point, const QPixmap &pixmap);
     static void paintText(QPainter *pPainter, QPoint point,
                           const QFont &font, QPaintDevice *pPaintDevice,
                           const QString &strText);

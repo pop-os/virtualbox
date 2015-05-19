@@ -1,7 +1,6 @@
+/* $Id: UINetworkDefs.h $ */
 /** @file
- *
- * VBox frontends: Qt4 GUI ("VirtualBox"):
- * Network routine related declarations
+ * VBox Qt GUI - Network routine related declarations.
  */
 
 /*

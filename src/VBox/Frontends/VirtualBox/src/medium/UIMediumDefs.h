@@ -1,11 +1,10 @@
+/* $Id: UIMediumDefs.h $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * UIMedium related declarations
+ * VBox Qt GUI - UIMedium related declarations.
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -16,16 +15,19 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef __UIMediumDefs_h__
-#define __UIMediumDefs_h__
+#ifndef ___UIMediumDefs_h___
+#define ___UIMediumDefs_h___
 
 /* COM includes: */
 #include "COMEnums.h"
 
-/* UIMediumDefs namespace: */
+/* Other VBox includes: */
+#include <VBox/com/defs.h>
+
+/** UIMediumDefs namespace. */
 namespace UIMediumDefs
 {
-    /* UIMedium types: */
+    /** UIMedium types. */
     enum UIMediumType
     {
         UIMediumType_Invalid,
@@ -35,18 +37,48 @@ namespace UIMediumDefs
         UIMediumType_All
     };
 
-    /* Convert global medium type (KDeviceType) to local (UIMediumType): */
+    /** Converts global medium type (KDeviceType) to local (UIMediumType). */
     UIMediumType mediumTypeToLocal(KDeviceType globalType);
 
-    /* Convert local medium type (UIMediumType) to global (KDeviceType): */
+    /** Convert local medium type (UIMediumType) to global (KDeviceType). */
     KDeviceType mediumTypeToGlobal(UIMediumType localType);
 }
-
 /* Using this namespace globally: */
 using namespace UIMediumDefs;
 
-/* Let QMetaType know about UIMediumType: */
+/** Medium-target. */
+struct UIMediumTarget
+{
+    /** Medium-target types. */
+    enum UIMediumTargetType { UIMediumTargetType_WithID, UIMediumTargetType_WithLocation };
+
+    /** Medium-target constructor. */
+    UIMediumTarget(const QString &strName = QString(), LONG iPort = 0, LONG iDevice = 0,
+                   UIMediumType aMediumType = UIMediumType_Invalid,
+                   UIMediumTargetType aType = UIMediumTargetType_WithID, const QString &strData = QString())
+        : name(strName), port(iPort), device(iDevice)
+        , mediumType(aMediumType)
+        , type(aType), data(strData)
+    {}
+
+    /** Determines controller name. */
+    QString name;
+    /** Determines controller port. */
+    LONG port;
+    /** Determines controller device. */
+    LONG device;
+
+    /** Determines medium-target medium-type. */
+    UIMediumType mediumType;
+
+    /** Determines medium-target type. */
+    UIMediumTargetType type;
+    /** Depending on medium-target type holds <i>ID</i> or <i>location</i>. */
+    QString data;
+};
+
+/* Let QMetaType know about our types: */
 Q_DECLARE_METATYPE(UIMediumType);
+Q_DECLARE_METATYPE(UIMediumTarget);
 
-#endif /* __UIMediumDefs_h__ */
-
+#endif /* !___UIMediumDefs_h___ */

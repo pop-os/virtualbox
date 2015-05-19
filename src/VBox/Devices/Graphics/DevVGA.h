@@ -317,6 +317,12 @@ typedef struct
     /** External command to be executed in the FIFO thread. */
     uint8_t                     u8FIFOExtCommand;
     bool                        Padding6;
+# if defined(DEBUG_GMR_ACCESS) || defined(DEBUG_FIFO_ACCESS)
+    /** GMR debug access handler type handle. */
+    PGMPHYSHANDLERTYPE          hGmrAccessHandlerType;
+    /** FIFO debug access handler type handle. */
+    PGMPHYSHANDLERTYPE          hFifoAccessHandlerType;
+# endif
 } VMSVGAState;
 #endif /* VBOX_WITH_VMSVGA */
 
@@ -399,17 +405,24 @@ typedef struct VGAState {
     PDMIBASE                    IBase;
     /** LUN\#0: The display port interface. */
     PDMIDISPLAYPORT             IPort;
-# if HC_ARCH_BITS == 32
-    uint32_t                    PaddingIPort;
-# endif
 # if defined(VBOX_WITH_HGSMI) && (defined(VBOX_WITH_VIDEOHWACCEL) || defined(VBOX_WITH_CRHGSMI))
     /** LUN\#0: VBVA callbacks interface */
     PDMIDISPLAYVBVACALLBACKS    IVBVACallbacks;
+# else
+    RTR3PTR                     Padding2;
 # endif
+    /** Status LUN\#0: Leds interface. */
+    PDMILEDPORTS                ILeds;
+
     /** Pointer to base interface of the driver. */
     R3PTRTYPE(PPDMIBASE)        pDrvBase;
     /** Pointer to display connector interface of the driver. */
     R3PTRTYPE(PPDMIDISPLAYCONNECTOR) pDrv;
+
+    /** Status LUN: Partner of ILeds. */
+    R3PTRTYPE(PPDMILEDCONNECTORS)   pLedsConnector;
+    /** Status LUN: Media Notifys. */
+    R3PTRTYPE(PPDMIMEDIANOTIFY)     pMediaNotify;
 
     /** Refresh timer handle - HC. */
     PTMTIMERR3                  RefreshTimer;
@@ -448,10 +461,13 @@ typedef struct VGAState {
 #ifdef VBOX_WITH_VMSVGA
     /* Whether the SVGA emulation is enabled or not. */
     bool                        fVMSVGAEnabled;
-    bool                        Padding1[1];
+    bool                        Padding1[1+4];
 #else
-    bool                        Padding1[2];
+    bool                        Padding1[2+4];
 #endif
+
+    /** Physical access type for the linear frame buffer dirty page tracking. */
+    PGMPHYSHANDLERTYPE          hLfbAccessHandlerType;
 
     /** The physical address the VRAM was assigned. */
     RTGCPHYS                    GCPhysVRAM;
@@ -644,8 +660,8 @@ bool VBVAIsEnabled(PVGASTATE pVGAState);
 void VBVARaiseIrq (PVGASTATE pVGAState, uint32_t fFlags);
 void VBVARaiseIrqNoWait(PVGASTATE pVGAState, uint32_t fFlags);
 
-int VBVAInfoView(PVGASTATE pVGAState, VBVAINFOVIEW *pView);
-int VBVAInfoScreen(PVGASTATE pVGAState, VBVAINFOSCREEN *pScreen);
+int VBVAInfoView(PVGASTATE pVGAState, const VBVAINFOVIEW *pView);
+int VBVAInfoScreen(PVGASTATE pVGAState, const VBVAINFOSCREEN *pScreen);
 int VBVAGetInfoViewAndScreen(PVGASTATE pVGAState, uint32_t u32ViewIndex, VBVAINFOVIEW *pView, VBVAINFOSCREEN *pScreen);
 
 /* @return host-guest flags that were set on reset
@@ -683,7 +699,7 @@ int vboxVBVASaveStateExec (PPDMDEVINS pDevIns, PSSMHANDLE pSSM);
 int vboxVBVALoadStateExec (PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t u32Version);
 int vboxVBVALoadStateDone (PPDMDEVINS pDevIns, PSSMHANDLE pSSM);
 
-int vgaUpdateDisplayAll(PVGASTATE pThis);
+DECLCALLBACK(int) vgaUpdateDisplayAll(PVGASTATE pThis, bool fFailOnResize);
 DECLCALLBACK(int) vbvaPortSendModeHint(PPDMIDISPLAYPORT pInterface, uint32_t cx,
                                        uint32_t cy, uint32_t cBPP,
                                        uint32_t cDisplay, uint32_t dx,

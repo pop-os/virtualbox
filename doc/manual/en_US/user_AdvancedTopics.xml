@@ -943,7 +943,7 @@ host path or identifier</screen>
     </sect2>
 
     <sect2>
-      <title>Linux hosts</title>
+      <title>Linux and Solaris hosts</title>
 
       <para>When the webcam is detached from the host the emulated webcam device is
       automatically detached from the guest only if the webcam is streaming video.
@@ -1789,15 +1789,19 @@ VBoxManage setextradata "VM name"
         with VirtualBox 4.1 and requires Solaris 11 build 159 or above.</para>
       </footnote> A VirtualBox VNIC template is a VNIC whose name starts with
     "vboxvnic_template" (case-sensitive).</para>
+ 
+    <para>On Solaris 11 hosts<footnote><para>When Crossbow based bridged
+    networking is used.</para></footnote>, a VNIC template may be used to
+    specify the VLAN ID to use while bridging over a network link.</para>
 
-    <para>Here is an example of how to use a VNIC template to configure a VLAN
-    for VMs. Create a VirtualBox VNIC template, by executing as root:</para>
+    <para>Here is an example of how to use a VNIC template to configure a VM
+    over a VLAN. Create a VirtualBox VNIC template, by executing as root:</para>
 
     <screen>dladm create-vnic -t -l nge0 -v 23 vboxvnic_template0</screen>
 
-    <para>This will create a temporary VNIC over interface "nge0" with the
-    VLAN ID 23. To create VNIC templates that are persistent across host
-    reboots, skip the <computeroutput>-t</computeroutput> parameter in the
+    <para>This will create a temporary VNIC template over interface "nge0"
+    with the VLAN ID 23. To create VNIC templates that are persistent across
+    host reboots, skip the <computeroutput>-t</computeroutput> parameter in the
     above command. You may check the current state of links using:</para>
 
     <para><screen>$ dladm show-link
@@ -1810,16 +1814,19 @@ $ dladm show-vnic
 LINK         OVER         SPEED  MACADDRESS        MACADDRTYPE         VID
 vboxvnic_template0 nge0   1000   2:8:20:25:12:75   random              23</screen></para>
 
-    <para>Once the VNIC template is created, all VMs that need to be part of
-    VLAN 23 over the physical interface "nge0" can use the same VNIC template.
-    This makes managing VMs on VLANs simpler and efficient, as the VLAN
-    details are not stored as part of every VM's configuration but rather
-    picked from the VNIC template which can be modified anytime using
-    <computeroutput>dladm</computeroutput>. Apart from the VLAN ID, VNIC
-    templates can be created with additional properties such as bandwidth
-    limits, CPU fanout etc. Refer to your Solaris network documentation on how
-    to accomplish this. These additional properties, if any, are also applied
-    to VMs which use the VNIC template.</para>
+    <para>Once the VNIC template is created, any VMs that need to be on VLAN
+    23 over the interface "nge0" can be configured to bridge using this VNIC
+    template.</para>
+
+    <para>VNIC templates makes managing VMs on VLANs simpler and efficient.
+    The VLAN details are not stored as part of every VM's configuration but
+    rather inherited from the VNIC template while starting the VM. The VNIC
+    template itself can be modified anytime using <computeroutput>dladm</computeroutput>.</para>
+
+    <para>VNIC templates can be created with additional properties such as
+    bandwidth limits, CPU fanout etc. Refer to your Solaris network
+    documentation on how to accomplish this. These additional properties,
+    if any, are also applied to VMs which bridge using the VNIC template.</para>
   </sect1>
 
   <sect1 id="addhostonlysolaris">
@@ -1828,34 +1835,57 @@ vboxvnic_template0 nge0   1000   2:8:20:25:12:75   random              23</scree
 
     <para>By default VirtualBox provides you with one host-only network
     interface. Adding more host-only network interfaces on Solaris hosts
-    requires manual configuration. Here's how to add two more host-only
-    network interfaces.</para>
+    requires manual configuration. Here's how to add another host-only
+    network interface.</para>
 
-    <para>You first need to stop all running VMs and unplumb all existing
-    "vboxnet" interfaces. Execute the following commands as root:</para>
+    <para>Begin by stopping all running VMs. Then, unplumb the existing
+    "vboxnet0" interface by execute the following command as root:</para>
 
     <screen>ifconfig vboxnet0 unplumb</screen>
 
-    <para>Once you make sure all vboxnet interfaces are unplumbed, remove the
-    driver using:</para>
+    <para>If you have several vboxnet interfaces, you will need to unplumb
+    all of them. Once all vboxnet interfaces are unplumbed, remove the
+    driver by executing the following command as root:</para>
 
-    <para><screen>rem_drv vboxnet</screen>then edit the file
-    <computeroutput>/platform/i86pc/kernel/drv/vboxnet.conf</computeroutput>
-    and add a line for the new interfaces:</para>
+    <screen>rem_drv vboxnet</screen>
+    
+    <para>Edit the file <computeroutput>/platform/i86pc/kernel/drv/vboxnet.conf</computeroutput>
+    and add a line for the new interface we want to add as shown below:</para>
 
-    <para><screen>name="vboxnet" parent="pseudo" instance=1;
-name="vboxnet" parent="pseudo" instance=2;</screen>Add as many of these lines
-    as required and make sure "instance" number is uniquely incremented. Next
-    reload the vboxnet driver using:</para>
+    <screen>name="vboxnet" parent="pseudo" instance=1;
+name="vboxnet" parent="pseudo" instance=2;</screen>
 
-    <para><screen>add_drv vboxnet</screen>Now plumb all the interfaces using
-    <computeroutput>ifconfig vboxnetX plumb</computeroutput> (where X can be
-    0, 1 or 2 in this case) and once plumbed you can then configure the
-    interface like any other network interface.</para>
+    <para>Add as many of these lines as required with each line having a
+    unique instance number.</para>
 
-    <para>To make your newly added interfaces' settings persistent across
-    reboots you will need to edit the files
-    <computeroutput>/etc/netmasks</computeroutput>, and if you are using NWAM
+    <para>Next, reload the vboxnet driver by executing the following command
+    as root:</para>
+
+    <screen>add_drv vboxnet</screen>
+
+    <para>On Solaris 11.1 and newer hosts you may want to rename the default
+    vanity interface name. To check what name has been assigned, execute:</para>
+
+    <screen>dladm show-phys
+LINK              MEDIA                STATE      SPEED  DUPLEX    DEVICE
+net0              Ethernet             up         100    full      e1000g0
+net2              Ethernet             up         1000   full      vboxnet1
+net1              Ethernet             up         1000   full      vboxnet0</screen>
+
+    <para>In the above example, we can rename "net2" to "vboxnet1" before
+    proceeding to plumb the interface. This can be done by executing as root:</para>
+
+    <screen>dladm rename-link net2 vboxnet1</screen>
+
+    <para>Now plumb all the interfaces using
+    <computeroutput>ifconfig vboxnetX plumb</computeroutput> (where 'X' would
+    be 1 in this case). Once the interface is plumbed, it may be configured
+    like any other network interface. Refer to the
+    <computeroutput>ifconfig</computeroutput> documentation for further details.</para>
+
+    <para>To make the newly added interfaces' settings persistent across
+    reboots, you will need to edit the files
+    <computeroutput>/etc/inet/netmasks</computeroutput>, and if you are using NWAM
     <computeroutput>/etc/nwam/llp</computeroutput> and add the appropriate
     entries to set the netmask and static IP for each of those interfaces. The
     VirtualBox installer only updates these configuration files for the one
@@ -1910,6 +1940,31 @@ VBoxManage setextradata "VM name" VBoxInternal2/CoreDumpLive 1</screen>At
     <para>Core files produced by the VirtualBox CoreDumper are of the form
     <computeroutput>core.vb.&lt;ProcessName&gt;.&lt;ProcessID&gt;</computeroutput>,
     for example <computeroutput>core.vb.VBoxHeadless.11321</computeroutput>.</para>
+  </sect1>
+
+  <sect1 id="vboxandsolzvmm">
+    <title>VirtualBox and Solaris kernel zones</title>
+
+    <para>Solaris kernel zones on x86-based systems make use of hardware-assisted
+    virtualization features like VirtualBox does. However, for kernel zones and
+    VirtualBox to share this hardware resource, they need to co-operate.</para>
+
+    <para>By default, due to performance reasons, VirtualBox acquires the
+    hardware-assisted virtualization resource (VT-x/AMD-V) globally on the
+    host machine and uses it until the last VirtualBox VM that requires it is
+    powered off. This prevents other software from using VT-x/AMD-V during the
+    time VirtualBox has taken control of it.</para>
+
+    <para>VirtualBox can be instructed to relinquish use of hardware-assisted
+    virtualization features when not executing guest code, thereby allowing
+    kernel zones to make use of them. To do this, shutdown all VirtualBox VMs
+    and execute the following command:</para>
+
+    <screen>VBoxManage setproperty hwvirtexclusive off</screen>
+
+    <para>This command needs to be executed only once as the setting is stored
+    as part of the global VirtualBox settings which will continue to persist
+    across host-reboots and VirtualBox upgrades.</para>
   </sect1>
 
   <sect1 id="guitweaks">
@@ -2603,7 +2658,7 @@ VBoxManage setextradata "VM name" VBoxInternal2/CoreDumpLive 1</screen>At
             <para>Don't allow to switch the VM into scale mode.</para>
           </glossdef>
         </glossentry>
-      
+
       </glosslist>
 
       <para>This is a per-VM setting. Any combination of the above is allowed. To restore
@@ -2812,7 +2867,7 @@ VBoxManage setextradata "VM name" VBoxInternal2/CoreDumpLive 1</screen>At
         default is to show a message window which instructs the user to
         open a bug report.</para>
       <para>This behavior can be configured:</para>
-        
+
       <para><screen>VBoxManage setextradata "VM name" GUI/GuruMeditationHandler MODE</screen></para>
 
       <para>where <computeroutput>MODE</computeroutput> is one of the
@@ -2843,6 +2898,50 @@ VBoxManage setextradata "VM name" VBoxInternal2/CoreDumpLive 1</screen>At
       </glosslist>
 
       <para>This is a per-VM setting.</para>
+    </sect2>
+
+    <sect2>
+      <title>Configuring automatic mouse capturing</title>
+
+      <para>
+        By default, the mouse is captured if the user clicks on the guest window
+        and the guest expects relative mouse coordiantes at this time. This
+        happens if the pointing device is configured as PS/2 mouse and the guest did
+        not (yet) start the VirtualBox Guest Additions (for instance, the guest is
+        booting or no Guest Additions installed at all) or if the pointing device
+        is configured as USB tablet but the guest has no USB driver loaded yet.
+        Once the Guest Additions become active or the USB guest driver is started,
+        the mouse capture is automatically released.
+      </para>
+      <para>
+        The default behavior is sometimes not desired. Therefore it can be configured:
+      </para>
+      <para><screen>VBoxManage setextradata "VM name" GUI/MouseCapturePolicy MODE</screen></para>
+
+      <para>where <computeroutput>MODE</computeroutput> is one of the
+        following keywords:</para><glosslist>
+        <glossentry>
+          <glossterm><computeroutput>Default</computeroutput></glossterm>
+          <glossdef>
+            <para>The default behavior as described above.</para>
+          </glossdef>
+        </glossentry>
+        <glossentry>
+          <glossterm><computeroutput>HostComboOnly</computeroutput></glossterm>
+          <glossdef>
+            <para>The mouse is only captured if the Host Key is toggled.</para>
+          </glossdef>
+        </glossentry>
+        <glossentry>
+          <glossterm><computeroutput>Disabled</computeroutput></glossterm>
+          <glossdef>
+            <para>The mouse is never captured, also not by toggling the Host Key</para>
+          </glossdef>
+        </glossentry>
+      </glosslist>
+
+      <para>This is a per-VM setting.</para>
+
     </sect2>
 
     <sect2 id="mouse-capture">
@@ -3562,6 +3661,215 @@ VBoxManage setextradata "VM name" VBoxInternal/CPUM/SSE4.2 1</screen>
       command to remove the extra data. This is a per-VM setting and it is disabled by default.
     </para>
 
+  </sect1>
+
+  <sect1 id="usbtrafficcapturing">
+    <title>Capturing USB traffic for selected devices</title>
+
+    <para>
+      Starting with VirtualBox 5.0 it is possible to capture USB traffic for
+      single USB devices or on the root hub level which captures the traffic of
+      all USB devices attached to the root hub. VirtualBox stores the traffic
+      in a format which is compatible with Wireshark. To capture the traffic
+      of a specific USB device it must be attached to the VM with VBoxManage
+      using the following command:
+    </para>
+
+    <screen>VBoxManage controlvm "VM name" usbattach "device uuid|address" --capturefile "filename"</screen>
+
+    <para>
+      In order to enable capturing on the root hub use the following command
+      while the VM is not running:
+    </para>
+
+    <screen>VBoxManage setextradata "VM name" VBoxInternal/Devices/usb-ehci/LUN#0/Config/CaptureFilename "filename"</screen>
+
+    The command above enables capturing on the root hub attached to the EHCI controller.
+    To enable it for the OHCI or XHCI controller replace <computeroutput>usb-ehci</computeroutput>
+    with <computeroutput>usb-ohci</computeroutput> or <computeroutput>usb-xhci</computeroutput> respectively.
+
+  </sect1>
+
+  <sect1 id="heartbeatservice">
+    <title>Configuring the heartbeat service</title>
+    <para>
+      VirtualBox ships a simple heartbeat service. Once the Guest Additions are
+      active, the guest sends frequent heartbeat pings to the host. If the guest
+      stops sending the heartbeat pings without properly termination the service,
+      the VM process will log this event in the VBox.log file. In the future it
+      might be possible to configure dedicated actions but for there is only a
+      warning in the log file.</para>
+
+    <para>
+      There are two parameters to configure. The <emphasis>heartbeat interval</emphasis>
+      defines the time between two heartbeat pings. The default value is 2 seconds, that
+      is, the heartbeat service of the VirtualBox Guest Additions will send a heartbeat
+      ping every two seconds. The value in nanoseconds can be configured like this:
+    </para>
+    <screen>VBoxManage controlvm "VM name" VBoxInternal/Devices/VMMDev/0/Config/HeartbeatInterval 2000000000</screen>
+    <para>
+      The <emphasis>heartbeat timeout</emphasis> defines the time the host waits
+      starting from the last heartbeat ping before it defines the guest as unresponsive.
+      The default value is 2 times the heartbeat interval (4 seconds) and can be configured
+      as following (in nanoseconds):
+    </para>
+
+    <screen>VBoxManage controlvm "VM name" VBoxInternal/Devices/VMMDev/0/Config/HeartbeatTimeout 4000000000</screen>
+
+    <para>
+      If the heartbeat timeout expires, there will be a log message like
+      <emphasis>VMMDev: HeartBeatCheckTimer: Guest seems to be unresponsive. Last heartbeat
+        received 5 seconds ago.</emphasis>
+      If another heartbeat ping arrives after this warning, there will be a log
+      message like
+      <emphasis>VMMDev: GuestHeartBeat: Guest is alive.</emphasis>
+    </para>
+
+  </sect1>
+
+  <sect1 id="diskencryption">
+    <title>Encryption of disk images</title>
+
+    <para>
+      Starting with VirtualBox 5.0, it is possible to encrypt the data stored in
+      hard disk images transparently for the guest. It does not depend on a specific
+      image format to be used. Images which have the data encrypted are not portable
+      between VirtualBox and other virtualization software though.
+    </para>
+
+    <para>
+      VirtualBox uses the AES algorithm in XTS mode and supports 128 or 256 bit
+      data encryption keys (DEK).
+      The DEK is stored encrypted in the medium properties and is decrypted during
+      VM startup by entering a password which was chosen when the image was encrypted.
+    </para>
+
+    <sect2 id="diskencryption-limitations">
+      <title>Limitations</title>
+
+      <para>
+        There are some limitations the user needs to be aware of when using this
+        feature:
+      </para>
+
+      <itemizedlist>
+
+        <listitem>
+          <para>This feature is currently closed source and requires the VirtualBox extension
+            pack to be installed to work.</para>
+        </listitem>
+
+        <listitem>
+          <para>Since encryption works only on the stored user data,
+            it is currently not possible to check for metadata integrity of the disk image.
+            Attackers might take advantage of this to remove or insert blocks of data
+            into the image or change certain metadata items such as the disk size.</para>
+        </listitem>
+
+        <listitem>
+          <para>Exporting appliances which contain encrypted disk images is not
+            possible because the OVF specification doesn't support this.
+            All images are therefore decrypted during export.</para>
+        </listitem>
+
+        <listitem>
+          <para>The DEK is kept in memory while the VM is running to be able to
+            decrypt data read and encrypt data written by the guest. While this should
+            be obvious the user needs to be aware of this because an attacker might be able
+            to extract the key on a compromised host and get access to the data later.</para>
+        </listitem>
+
+        <listitem>
+          <para>When encrypting or decrypting the images, the password is passed unencrypted
+            via the Main API from the frontend to VBoxSVC. This needs to be kept in mind,
+            especially when using third party frontends which make use of the webservice
+            where the password might be transmitted unencrypted over the network.</para>
+        </listitem>
+
+        <listitem>
+          <para>Encrypting images with differencing images is only possible if there
+            are no branches. This limitation may be addressed in a future
+            VirtualBox version.</para>
+        </listitem>
+
+      </itemizedlist>
+
+    </sect2>
+
+    <sect2 id="diskencryption-encryption">
+      <title>Encrypting disk images</title>
+
+      <para>
+        Encrypting disk images can be done either using the GUI or VBoxManage.
+        While the GUI is easier to use, it works on a per VM basis and encrypts
+        all disk images attached to the specific VM.
+        With VBoxManage one can encrypt individual images (including all differencing
+        images). To encrypt an unencrypted medium with VBoxManage, use:
+      </para>
+
+      <screen>VBoxManage encryptmedium "uuid|filename" --newpassword "file|-" --cipher "cipher id" --newpasswordid "id"</screen>
+
+      <para>
+        To supply the encryption password point VBoxManage to the file where the
+        password is stored or specify <computeroutput>-</computeroutput> to let VBoxManage
+        ask you for the password on the command line.
+      </para>
+      <para>
+        The cipher parameter specifies the cipher to use for encryption and can be either
+        <computeroutput>AES-XTS128-PLAIN64</computeroutput> or <computeroutput>AES-XTS256-PLAIN64</computeroutput>.
+        The specified password identifier can be freely chosen by the user and is
+        used for correct identification when supplying multiple passwords during
+        VM startup.
+      </para>
+      <para>
+        If the user uses the same password when encrypting multiple images and also the
+        same password identifier, the user needs to supply the password only once during
+        VM startup.
+      </para>
+    </sect2>
+
+    <sect2 id="diskencryption-startvm">
+      <title>Starting a VM with encrypted images</title>
+
+      <para>
+        When a VM is started using the GUI, a dialog will open where the user
+        needs to enter all passwords for all encrypted images attached to the VM.
+        If another frontend like VBoxHeadless is used, the VM will be paused as soon
+        as the guest tries to access an encrypted disk.
+        The user needs to provide the passwords through VBoxManage using the following
+        command:
+      </para>
+
+      <screen>VBoxManage controlvm "uuid|vmname" addencpassword "id" "password" [--removeonsuspend "yes|no"]</screen>
+
+      <para>
+        The <computeroutput>id</computeroutput> parameter must be the same as the password identifier
+        supplied when encrypting the images. <computeroutput>password</computeroutput> is the password
+        used when encrypting the images. The user can optionally specify
+        <computeroutput>--removeonsuspend "yes|no"</computeroutput> to specify whether
+        to remove the password from VM memory when the VM is suspended. Before the VM can be
+        resumed, the user needs to supply the passwords again. This is useful when
+        a VM is suspended by a host suspend event and the user doesn't want
+        the password to remain in memory.
+      </para>
+    </sect2>
+
+    <sect2 id="diskencryption-decryption">
+      <title>Decrypting encrypted images</title>
+
+      <para>
+        In some circumstances it might be required to decrypt previously encrypted
+        images. This can be done in the GUI for a complete VM or using VBoxManage
+        with the following command:
+      </para>
+
+      <screen>VBoxManage encryptmedium "uuid|filename" --oldpassword "file|-"</screen>
+
+      <para>
+        The only required parameter is the password the image was encrypted with.
+        The options are the same as for encrypting images.
+      </para>
+    </sect2>
   </sect1>
 
 </chapter>

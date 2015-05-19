@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -236,7 +236,7 @@ typedef DECLCALLBACK(int) FNIOMMMIOREAD(PPDMDEVINS pDevIns, void *pvUser, RTGCPH
 typedef FNIOMMMIOREAD *PFNIOMMMIOREAD;
 
 /**
- * Port I/O Handler for write operations.
+ * Memory mapped I/O Handler for write operations.
  *
  * @returns VBox status code.
  *
@@ -252,7 +252,7 @@ typedef DECLCALLBACK(int) FNIOMMMIOWRITE(PPDMDEVINS pDevIns, void *pvUser, RTGCP
 typedef FNIOMMMIOWRITE *PFNIOMMMIOWRITE;
 
 /**
- * Port I/O Handler for memset operations, actually for REP STOS* instructions handling.
+ * Memory mapped I/O Handler for memset operations, actually for REP STOS* instructions handling.
  *
  * @returns VBox status code.
  *
@@ -289,7 +289,6 @@ VMMDECL(bool)           IOMIsLockWriteOwner(PVM pVM);
 
 #ifdef IN_RC
 /** @defgroup grp_iom_rc    The IOM Raw-Mode Context API
- * @ingroup grp_iom
  * @{
  */
 VMMRCDECL(VBOXSTRICTRC) IOMRCIOPortHandler(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, PDISCPUSTATE pCpu);
@@ -300,7 +299,6 @@ VMMRCDECL(VBOXSTRICTRC) IOMRCIOPortHandler(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE p
 
 #ifdef IN_RING3
 /** @defgroup grp_iom_r3    The IOM Host Context Ring-3 API
- * @ingroup grp_iom
  * @{
  */
 VMMR3_INT_DECL(int)  IOMR3Init(PVM pVM);

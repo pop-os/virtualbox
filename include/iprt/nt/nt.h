@@ -71,6 +71,9 @@
 #define _PEB_LDR_DATA              Incomplete__PEB_LDR_DATA
 #define PEB_LDR_DATA               Incomplete_PEB_LDR_DATA
 #define PPEB_LDR_DATA              Incomplete_PPEB_LDR_DATA
+#define _KUSER_SHARED_DATA         Incomplete__KUSER_SHARED_DATA
+#define KUSER_SHARED_DATA          Incomplete_KUSER_SHARED_DATA
+#define PKUSER_SHARED_DATA         Incomplete_PKUSER_SHARED_DATA
 
 
 
@@ -208,6 +211,9 @@
 #undef _PEB_LDR_DATA
 #undef PEB_LDR_DATA
 #undef PPEB_LDR_DATA
+#undef _KUSER_SHARED_DATA
+#undef KUSER_SHARED_DATA
+#undef PKUSER_SHARED_DATA
 
 
 #include <iprt/types.h>
@@ -216,7 +222,7 @@
 
 /** @name Useful macros
  * @{ */
-/** Indicates that we're targetting native NT in the current source. */
+/** Indicates that we're targeting native NT in the current source. */
 #define RTNT_USE_NATIVE_NT              1
 /** Initializes a IO_STATUS_BLOCK. */
 #define RTNT_IO_STATUS_BLOCK_INITIALIZER  { STATUS_FAILED_DRIVER_ENTRY, ~(uintptr_t)42 }
@@ -394,6 +400,21 @@ typedef struct _CLIENT_ID
 typedef CLIENT_ID *PCLIENT_ID;
 #endif
 
+/** Extended affinity type, introduced in Windows 7 (?). */
+typedef struct _KAFFINITY_EX
+{
+    /** Count of valid bitmap entries. */
+    uint16_t                Count;
+    /** Count of allocated bitmap entries. */
+    uint16_t                Size;
+    /** Reserved / aligmment padding. */
+    uint32_t                Reserved;
+    /** Bitmap where one bit corresponds to a CPU. */
+    uintptr_t               Bitmap[20];
+} KAFFINITY_EX;
+typedef KAFFINITY_EX *PKAFFINITY_EX;
+typedef KAFFINITY_EX const *PCKAFFINITY_EX;
+
 /** @name User Shared Data
  * @{ */
 
@@ -441,45 +462,46 @@ typedef struct _XSTATE_CONFIGURATION
 } XSTATE_CONFIGURATION;
 typedef XSTATE_CONFIGURATION *PXSTATE_CONFIGURATION;
 # endif
+#endif /* IPRT_NT_USE_WINTERNL */
 
 typedef struct _KUSER_SHARED_DATA
 {
-    ULONG                   TickCountLowDeprecated;
-    ULONG                   TickCountMultiplier;
-    KSYSTEM_TIME volatile   InterruptTime;
-    KSYSTEM_TIME volatile   SystemTime;
-    KSYSTEM_TIME volatile   TimeZoneBias;
-    USHORT                  ImageNumberLow;
-    USHORT                  ImageNumberHigh;
-    WCHAR                   NtSystemRoot[260];
-    ULONG                   MaxStackTraceDepth;
-    ULONG                   CryptoExponent;
-    ULONG                   TimeZoneId;
-    ULONG                   LargePageMinimum;
-    ULONG                   AitSamplingValue;
-    ULONG                   AppCompatFlag;
-    ULONGLONG               RNGSeedVersion;
-    ULONG                   GlobalValidationRunlevel;
-    LONG volatile           TimeZoneBiasStamp;
-    ULONG                   Reserved2;
-    NT_PRODUCT_TYPE         NtProductType;
-    BOOLEAN                 ProductTypeIsValid;
-    BOOLEAN                 Reserved0[1];
-    USHORT                  NativeProcessorArchitecture;
-    ULONG                   NtMajorVersion;
-    ULONG                   NtMinorVersion;
-    BOOLEAN                 ProcessorFeatures[PROCESSOR_FEATURE_MAX];
-    ULONG                   Reserved1;
-    ULONG                   Reserved3;
-    ULONG volatile          TimeSlip;
-    ALTERNATIVE_ARCHITECTURE_TYPE AlternativeArchitecture;
-    ULONG                   AltArchitecturePad[1];
-    LARGE_INTEGER           SystemExpirationDate;
-    ULONG                   SuiteMask;
-    BOOLEAN                 KdDebuggerEnabled;
-    union
+    ULONG                   TickCountLowDeprecated;                     /**< 0x000 */
+    ULONG                   TickCountMultiplier;                        /**< 0x004 */
+    KSYSTEM_TIME volatile   InterruptTime;                              /**< 0x008 */
+    KSYSTEM_TIME volatile   SystemTime;                                 /**< 0x014 */
+    KSYSTEM_TIME volatile   TimeZoneBias;                               /**< 0x020 */
+    USHORT                  ImageNumberLow;                             /**< 0x02c */
+    USHORT                  ImageNumberHigh;                            /**< 0x02e */
+    WCHAR                   NtSystemRoot[260];                          /**< 0x030 */
+    ULONG                   MaxStackTraceDepth;                         /**< 0x238 */
+    ULONG                   CryptoExponent;                             /**< 0x23c */
+    ULONG                   TimeZoneId;                                 /**< 0x240 */
+    ULONG                   LargePageMinimum;                           /**< 0x244 */
+    ULONG                   AitSamplingValue;                           /**< 0x248 */
+    ULONG                   AppCompatFlag;                              /**< 0x24c */
+    ULONGLONG               RNGSeedVersion;                             /**< 0x250 */
+    ULONG                   GlobalValidationRunlevel;                   /**< 0x258 */
+    LONG volatile           TimeZoneBiasStamp;                          /**< 0x25c*/
+    ULONG                   Reserved2;                                  /**< 0x260 */
+    NT_PRODUCT_TYPE         NtProductType;                              /**< 0x264 */
+    BOOLEAN                 ProductTypeIsValid;                         /**< 0x268 */
+    BOOLEAN                 Reserved0[1];                               /**< 0x269 */
+    USHORT                  NativeProcessorArchitecture;                /**< 0x26a */
+    ULONG                   NtMajorVersion;                             /**< 0x26c */
+    ULONG                   NtMinorVersion;                             /**< 0x270 */
+    BOOLEAN                 ProcessorFeatures[PROCESSOR_FEATURE_MAX];   /**< 0x274 */
+    ULONG                   Reserved1;                                  /**< 0x2b4 */
+    ULONG                   Reserved3;                                  /**< 0x2b8 */
+    ULONG volatile          TimeSlip;                                   /**< 0x2bc */
+    ALTERNATIVE_ARCHITECTURE_TYPE AlternativeArchitecture;              /**< 0x2c0 */
+    ULONG                   AltArchitecturePad[1];                      /**< 0x2c4 */
+    LARGE_INTEGER           SystemExpirationDate;                       /**< 0x2c8 */
+    ULONG                   SuiteMask;                                  /**< 0x2d0 */
+    BOOLEAN                 KdDebuggerEnabled;                          /**< 0x2d4 */
+    union                                                               /**< 0x2d5 */
     {
-        UCHAR               MitigationPolicies;
+        UCHAR               MitigationPolicies;                         /**< 0x2d5 */
         struct
         {
             UCHAR           NXSupportPolicy  : 2;
@@ -488,17 +510,17 @@ typedef struct _KUSER_SHARED_DATA
             UCHAR           Reserved  : 2;
         };
     };
-    UCHAR                   Reserved6[2];
-    ULONG volatile          ActiveConsoleId;
-    ULONG volatile          DismountCount;
-    ULONG                   ComPlusPackage;
-    ULONG                   LastSystemRITEventTickCount;
-    ULONG                   NumberOfPhysicalPages;
-    BOOLEAN                 SafeBootMode;
-    UCHAR                   Reserved12[3];
-    union
+    UCHAR                   Reserved6[2];                               /**< 0x2d6 */
+    ULONG volatile          ActiveConsoleId;                            /**< 0x2d8 */
+    ULONG volatile          DismountCount;                              /**< 0x2dc */
+    ULONG                   ComPlusPackage;                             /**< 0x2e0 */
+    ULONG                   LastSystemRITEventTickCount;                /**< 0x2e4 */
+    ULONG                   NumberOfPhysicalPages;                      /**< 0x2e8 */
+    BOOLEAN                 SafeBootMode;                               /**< 0x2ec */
+    UCHAR                   Reserved12[3];                              /**< 0x2ed */
+    union                                                               /**< 0x2f0 */
     {
-        ULONG               SharedDataFlags;
+        ULONG               SharedDataFlags;                            /**< 0x2f0 */
         struct
         {
             ULONG           DbgErrorPortPresent  : 1;
@@ -512,57 +534,87 @@ typedef struct _KUSER_SHARED_DATA
             ULONG           SpareBits  : 24;
         };
     };
-    ULONG                   DataFlagsPad[1];
-    ULONGLONG               TestRetInstruction;
-    LONGLONG                QpcFrequency;
-    ULONGLONG               SystemCallPad[3];
-    union
+    ULONG                   DataFlagsPad[1];                            /**< 0x2f4 */
+    ULONGLONG               TestRetInstruction;                         /**< 0x2f8 */
+    LONGLONG                QpcFrequency;                               /**< 0x300 */
+    ULONGLONG               SystemCallPad[3];                           /**< 0x308 */
+    union                                                               /**< 0x320 */
     {
-        ULONG64 volatile    TickCountQuad;
-        KSYSTEM_TIME volatile TickCount;
-        struct
+        ULONG64 volatile    TickCountQuad;                              /**< 0x320 */
+        KSYSTEM_TIME volatile TickCount;                                /**< 0x320 */
+        struct                                                          /**< 0x320 */
         {
-            ULONG           ReservedTickCountOverlay[3];
-            ULONG           TickCountPad[1];
+            ULONG           ReservedTickCountOverlay[3];                /**< 0x320 */
+            ULONG           TickCountPad[1];                            /**< 0x32c */
         };
     };
-    ULONG                   Cookie;
-    ULONG                   CookiePad[1];
-    LONGLONG                ConsoleSessionForegroundProcessId;
-    ULONGLONG               TimeUpdateLock;
-    ULONGLONG               BaselineSystemTimeQpc;
-    ULONGLONG               BaselineInterruptTimeQpc;
-    ULONGLONG               QpcSystemTimeIncrement;
-    ULONGLONG               QpcInterruptTimeIncrement;
-    ULONG                   QpcSystemTimeIncrement32;
-    ULONG                   QpcInterruptTimeIncrement32;
-    UCHAR                   QpcSystemTimeIncrementShift;
-    UCHAR                   QpcInterruptTimeIncrementShift;
-    UCHAR                   Reserved8[14];
-    USHORT                  UserModeGlobalLogger[16];
-    ULONG                   ImageFileExecutionOptions;
-    ULONG                   LangGenerationCount;
-    ULONGLONG               Reserved4;
-    ULONGLONG volatile      InterruptTimeBias;
-    ULONGLONG volatile      QpcBias;
-    ULONG volatile          ActiveProcessorCount;
-    UCHAR volatile          ActiveGroupCount;
-    UCHAR                   Reserved9;
-    union
+    ULONG                   Cookie;                                     /**< 0x330 */
+    ULONG                   CookiePad[1];                               /**< 0x334 */
+    LONGLONG                ConsoleSessionForegroundProcessId;          /**< 0x338 */
+    ULONGLONG               TimeUpdateLock;                             /**< 0x340 */
+    ULONGLONG               BaselineSystemTimeQpc;                      /**< 0x348 */
+    ULONGLONG               BaselineInterruptTimeQpc;                   /**< 0x350 */
+    ULONGLONG               QpcSystemTimeIncrement;                     /**< 0x358 */
+    ULONGLONG               QpcInterruptTimeIncrement;                  /**< 0x360 */
+    ULONG                   QpcSystemTimeIncrement32;                   /**< 0x368 */
+    ULONG                   QpcInterruptTimeIncrement32;                /**< 0x36c */
+    UCHAR                   QpcSystemTimeIncrementShift;                /**< 0x370 */
+    UCHAR                   QpcInterruptTimeIncrementShift;             /**< 0x371 */
+    UCHAR                   Reserved8[14];                              /**< 0x372 */
+    USHORT                  UserModeGlobalLogger[16];                   /**< 0x380 */
+    ULONG                   ImageFileExecutionOptions;                  /**< 0x3a0 */
+    ULONG                   LangGenerationCount;                        /**< 0x3a4 */
+    ULONGLONG               Reserved4;                                  /**< 0x3a8 */
+    ULONGLONG volatile      InterruptTimeBias;                          /**< 0x3b0 */
+    ULONGLONG volatile      QpcBias;                                    /**< 0x3b8 */
+    ULONG volatile          ActiveProcessorCount;                       /**< 0x3c0 */
+    UCHAR volatile          ActiveGroupCount;                           /**< 0x3c4 */
+    UCHAR                   Reserved9;                                  /**< 0x3c5 */
+    union                                                               /**< 0x3c6 */
     {
-        USHORT              QpcData;
-        struct
+        USHORT              QpcData;                                    /**< 0x3c6 */
+        struct                                                          /**< 0x3c6 */
         {
-            BOOLEAN volatile QpcBypassEnabled;
-            UCHAR           QpcShift;
+            BOOLEAN volatile QpcBypassEnabled;                          /**< 0x3c6 */
+            UCHAR           QpcShift;                                   /**< 0x3c7 */
         };
     };
-    LARGE_INTEGER           TimeZoneBiasEffectiveStart;
-    LARGE_INTEGER           TimeZoneBiasEffectiveEnd;
-    XSTATE_CONFIGURATION    XState;
+    LARGE_INTEGER           TimeZoneBiasEffectiveStart;                 /**< 0x3c8 */
+    LARGE_INTEGER           TimeZoneBiasEffectiveEnd;                   /**< 0x3d0 */
+    XSTATE_CONFIGURATION    XState;                                     /**< 0x3d8 */
 } KUSER_SHARED_DATA;
 typedef KUSER_SHARED_DATA *PKUSER_SHARED_DATA;
-#endif /* IPRT_NT_USE_WINTERNL */
+AssertCompileMemberOffset(KUSER_SHARED_DATA, InterruptTime,             0x008);
+AssertCompileMemberOffset(KUSER_SHARED_DATA, SystemTime,                0x014);
+AssertCompileMemberOffset(KUSER_SHARED_DATA, NtSystemRoot,              0x030);
+AssertCompileMemberOffset(KUSER_SHARED_DATA, LargePageMinimum,          0x244);
+AssertCompileMemberOffset(KUSER_SHARED_DATA, Reserved1,                 0x2b4);
+AssertCompileMemberOffset(KUSER_SHARED_DATA, TestRetInstruction,        0x2f8);
+AssertCompileMemberOffset(KUSER_SHARED_DATA, Cookie,                    0x330);
+AssertCompileMemberOffset(KUSER_SHARED_DATA, ImageFileExecutionOptions, 0x3a0);
+AssertCompileMemberOffset(KUSER_SHARED_DATA, XState,                    0x3d8);
+/** @def MM_SHARED_USER_DATA_VA
+ * Read only userland mapping of KUSER_SHARED_DATA. */
+#ifndef MM_SHARED_USER_DATA_VA
+# if ARCH_BITS == 32
+#  define MM_SHARED_USER_DATA_VA        UINT32_C(0x7ffe0000)
+# elif ARCH_BITS == 64
+#  define MM_SHARED_USER_DATA_VA        UINT64_C(0x7ffe0000)
+# else
+#  error "Unsupported/undefined ARCH_BITS value."
+# endif
+#endif
+/** @def KI_USER_SHARED_DATA
+ * Read write kernel mapping of KUSER_SHARED_DATA. */
+#ifndef KI_USER_SHARED_DATA
+# ifdef RT_ARCH_X86
+#  define KI_USER_SHARED_DATA           UINT32_C(0xffdf0000)
+# elif defined(RT_ARCH_AMD64)
+#  define KI_USER_SHARED_DATA           UINT64_C(0xfffff78000000000)
+# else
+#  error "PORT ME - KI_USER_SHARED_DATA"
+# endif
+#endif
 /** @} */
 
 
@@ -2139,6 +2191,44 @@ RT_C_DECLS_END
  * @{ */
 RT_C_DECLS_BEGIN
 
+typedef ULONG KEPROCESSORINDEX; /**< Bitmap indexes != process numbers, apparently. */
+
+NTSYSAPI VOID     NTAPI KeInitializeAffinityEx(PKAFFINITY_EX pAffinity);
+typedef  VOID    (NTAPI *PFNKEINITIALIZEAFFINITYEX)(PKAFFINITY_EX pAffinity);
+NTSYSAPI VOID     NTAPI KeAddProcessorAffinityEx(PKAFFINITY_EX pAffinity, KEPROCESSORINDEX idxProcessor);
+typedef  VOID    (NTAPI *PFNKEADDPROCESSORAFFINITYEX)(PKAFFINITY_EX pAffinity, KEPROCESSORINDEX idxProcessor);
+NTSYSAPI VOID     NTAPI KeRemoveProcessorAffinityEx(PKAFFINITY_EX pAffinity, KEPROCESSORINDEX idxProcessor);
+typedef  VOID    (NTAPI *PFNKEREMOVEPROCESSORAFFINITYEX)(PKAFFINITY_EX pAffinity, KEPROCESSORINDEX idxProcessor);
+NTSYSAPI BOOLEAN  NTAPI KeInterlockedSetProcessorAffinityEx(PKAFFINITY_EX pAffinity, KEPROCESSORINDEX idxProcessor);
+typedef  BOOLEAN (NTAPI *PFNKEINTERLOCKEDSETPROCESSORAFFINITYEX)(PKAFFINITY_EX pAffinity, KEPROCESSORINDEX idxProcessor);
+NTSYSAPI BOOLEAN  NTAPI KeInterlockedClearProcessorAffinityEx(PKAFFINITY_EX pAffinity, KEPROCESSORINDEX idxProcessor);
+typedef  BOOLEAN (NTAPI *PFNKEINTERLOCKEDCLEARPROCESSORAFFINITYEX)(PKAFFINITY_EX pAffinity, KEPROCESSORINDEX idxProcessor);
+NTSYSAPI BOOLEAN  NTAPI KeCheckProcessorAffinityEx(PCKAFFINITY_EX pAffinity, KEPROCESSORINDEX idxProcessor);
+typedef  BOOLEAN (NTAPI *PFNKECHECKPROCESSORAFFINITYEX)(PCKAFFINITY_EX pAffinity, KEPROCESSORINDEX idxProcessor);
+NTSYSAPI VOID     NTAPI KeCopyAffinityEx(PKAFFINITY_EX pDst, PCKAFFINITY_EX pSrc);
+typedef  VOID    (NTAPI *PFNKECOPYAFFINITYEX)(PKAFFINITY_EX pDst, PCKAFFINITY_EX pSrc);
+NTSYSAPI VOID     NTAPI KeComplementAffinityEx(PKAFFINITY_EX pResult, PCKAFFINITY_EX pIn);
+typedef  VOID    (NTAPI *PFNKECOMPLEMENTAFFINITYEX)(PKAFFINITY_EX pResult, PCKAFFINITY_EX pIn);
+NTSYSAPI BOOLEAN  NTAPI KeAndAffinityEx(PCKAFFINITY_EX pIn1, PCKAFFINITY_EX pIn2, PKAFFINITY_EX pResult OPTIONAL);
+typedef  BOOLEAN (NTAPI *PFNKEANDAFFINITYEX)(PCKAFFINITY_EX pIn1, PCKAFFINITY_EX pIn2, PKAFFINITY_EX pResult OPTIONAL);
+NTSYSAPI BOOLEAN  NTAPI KeOrAffinityEx(PCKAFFINITY_EX pIn1, PCKAFFINITY_EX pIn2, PKAFFINITY_EX pResult OPTIONAL);
+typedef  BOOLEAN (NTAPI *PFNKEORAFFINITYEX)(PCKAFFINITY_EX pIn1, PCKAFFINITY_EX pIn2, PKAFFINITY_EX pResult OPTIONAL);
+/** Works like anding the complemented subtrahend with the minuend. */
+NTSYSAPI BOOLEAN  NTAPI KeSubtractAffinityEx(PCKAFFINITY_EX pMinuend, PCKAFFINITY_EX pSubtrahend, PKAFFINITY_EX pResult OPTIONAL);
+typedef  BOOLEAN (NTAPI *PFNKESUBTRACTAFFINITYEX)(PCKAFFINITY_EX pMinuend, PCKAFFINITY_EX pSubtrahend, PKAFFINITY_EX pResult OPTIONAL);
+NTSYSAPI BOOLEAN  NTAPI KeIsEqualAffinityEx(PCKAFFINITY_EX pLeft, PCKAFFINITY_EX pRight);
+typedef  BOOLEAN (NTAPI *PFNKEISEQUALAFFINITYEX)(PCKAFFINITY_EX pLeft, PCKAFFINITY_EX pRight);
+NTSYSAPI BOOLEAN  NTAPI KeIsEmptyAffinityEx(PCKAFFINITY_EX pAffinity);
+typedef  BOOLEAN (NTAPI *PFNKEISEMPTYAFFINITYEX)(PCKAFFINITY_EX pAffinity);
+NTSYSAPI BOOLEAN  NTAPI KeIsSubsetAffinityEx(PCKAFFINITY_EX pSubset, PCKAFFINITY_EX pSuperSet);
+typedef  BOOLEAN (NTAPI *PFNKEISSUBSETAFFINITYEX)(PCKAFFINITY_EX pSubset, PCKAFFINITY_EX pSuperSet);
+NTSYSAPI ULONG    NTAPI KeCountSetBitsAffinityEx(PCKAFFINITY_EX pAffinity);
+typedef  ULONG   (NTAPI *PFNKECOUNTSETAFFINITYEX)(PCKAFFINITY_EX pAffinity);
+NTSYSAPI KEPROCESSORINDEX  NTAPI KeFindFirstSetLeftAffinityEx(PCKAFFINITY_EX pAffinity);
+typedef  KEPROCESSORINDEX (NTAPI *PFNKEFINDFIRSTSETLEFTAFFINITYEX)(PCKAFFINITY_EX pAffinity);
+typedef  NTSTATUS (NTAPI *PFNKEGETPROCESSORNUMBERFROMINDEX)(KEPROCESSORINDEX idxProcessor, PPROCESSOR_NUMBER pProcNumber);
+typedef  KEPROCESSORINDEX (NTAPI *PFNKEGETPROCESSORINDEXFROMNUMBER)(const PROCESSOR_NUMBER *pProcNumber);
+
 NTSYSAPI BOOLEAN  NTAPI ObFindHandleForObject(PEPROCESS pProcess, PVOID pvObject, POBJECT_TYPE pObjectType,
                                               PVOID pvOptionalConditions, PHANDLE phFound);
 NTSYSAPI NTSTATUS NTAPI ObReferenceObjectByName(PUNICODE_STRING pObjectPath, ULONG fAttributes, PACCESS_STATE pAccessState,
@@ -2150,6 +2240,9 @@ NTSYSAPI BOOLEAN  NTAPI PsIsProcessBeingDebugged(PEPROCESS);
 NTSYSAPI ULONG    NTAPI PsGetProcessSessionId(PEPROCESS);
 extern DECLIMPORT(POBJECT_TYPE *) LpcPortObjectType;            /**< In vista+ this is the ALPC port object type. */
 extern DECLIMPORT(POBJECT_TYPE *) LpcWaitablePortObjectType;    /**< In vista+ this is the ALPC port object type. */
+
+typedef VOID (NTAPI *PFNHALREQUESTIPI_PRE_W7)(KAFFINITY TargetSet);
+typedef VOID (NTAPI *PFNHALREQUESTIPI_W7PLUS)(ULONG uUsuallyZero, PCKAFFINITY_EX pTargetSet);
 
 RT_C_DECLS_END
 /** @ */
@@ -2362,6 +2455,9 @@ NTSYSAPI ULONG NTAPI    RtlGetLastWin32Error(VOID);
 NTSYSAPI VOID NTAPI     RtlSetLastWin32Error(ULONG uError);
 NTSYSAPI VOID NTAPI     RtlSetLastWin32ErrorAndNtStatusFromNtStatus(NTSTATUS rcNt);
 NTSYSAPI VOID NTAPI     RtlRestoreLastWin32Error(ULONG uError);
+NTSYSAPI BOOLEAN NTAPI  RtlQueryPerformanceCounter(PLARGE_INTEGER);
+NTSYSAPI uint64_t NTAPI RtlGetSystemTimePrecise(VOID);
+typedef uint64_t (NTAPI * PFNRTLGETSYSTEMTIMEPRECISE)(VOID);
 
 RT_C_DECLS_END
 /** @} */

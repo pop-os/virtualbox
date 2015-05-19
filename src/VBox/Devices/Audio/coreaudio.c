@@ -299,7 +299,7 @@ static OSStatus caSetFrameBufferSize(AudioDeviceID device, bool fInput, UInt32 c
     if (RT_UNLIKELY(err != noErr))
         return err;
     pRange = RTMemAllocZ(cSize);
-    if (RT_VALID_PTR(pRange))
+    if (pRange)
     {
         err = AudioDeviceGetProperty(device,
                                      0,
@@ -492,8 +492,6 @@ typedef struct caVoiceOut
     /* Initialization status tracker. Used when some of the device parameters
      * or the device itself is changed during the runtime. */
     volatile uint32_t status;
-    /** Flag whether the "default device changed" listener was registered. */
-    bool              fDefDevChgListReg;
 } caVoiceOut;
 
 typedef struct caVoiceIn
@@ -521,8 +519,6 @@ typedef struct caVoiceIn
     /* Initialization status tracker. Used when some of the device parameters
      * or the device itself is changed during the runtime. */
     volatile uint32_t status;
-    /** Flag whether the "default device changed" listener was registered. */
-    bool              fDefDevChgListReg;
 } caVoiceIn;
 
 #ifdef CA_EXTENSIVE_LOGGING
@@ -1111,15 +1107,6 @@ static void coreaudio_fini_out(HWVoiceOut *hw)
         if (RT_UNLIKELY(err != noErr))
             LogRel(("CoreAudio: [Output] Failed to remove the processor overload listener (%RI32)\n", err));
 #endif /* DEBUG */
-
-        if (caVoice->fDefDevChgListReg)
-        {
-            err = AudioHardwareRemovePropertyListener(kAudioHardwarePropertyDefaultOutputDevice,
-                                                      caPlaybackDefaultDeviceChanged);
-            if (RT_UNLIKELY(err != noErr))
-                LogRel(("CoreAudio: [Output] Failed to remove the default playback device changed listener (%RI32)\n", err));
-        }
-
         err = AudioUnitUninitialize(caVoice->audioUnit);
         if (RT_LIKELY(err == noErr))
         {
@@ -1188,8 +1175,6 @@ static int coreaudio_init_out(HWVoiceOut *hw, audsettings_t *as)
         /* Not Fatal */
         if (RT_UNLIKELY(err != noErr))
             LogRel(("CoreAudio: [Output] Failed to add the default device changed listener (%RI32)\n", err));
-        else
-            caVoice->fDefDevChgListReg = true;
     }
 
     Log(("CoreAudio: [Output] HW samples: %d\n", hw->samples));
@@ -2053,15 +2038,6 @@ static void coreaudio_fini_in(HWVoiceIn *hw)
         /* Not Fatal */
         if (RT_UNLIKELY(err != noErr))
             LogRel(("CoreAudio: [Input] Failed to remove the sample rate changed listener (%RI32)\n", err));
-
-        if (caVoice->fDefDevChgListReg)
-        {
-            err = AudioHardwareRemovePropertyListener(kAudioHardwarePropertyDefaultInputDevice,
-                                                      caRecordingDefaultDeviceChanged);
-            if (RT_UNLIKELY(err != noErr))
-                LogRel(("CoreAudio: [Output] Failed to remove the default input device changed listener (%RI32)\n", err));
-        }
-
         if (caVoice->converter)
         {
             AudioConverterDispose(caVoice->converter);
@@ -2138,8 +2114,6 @@ static int coreaudio_init_in(HWVoiceIn *hw, audsettings_t *as)
         /* Not Fatal */
         if (RT_UNLIKELY(err != noErr))
             LogRel(("CoreAudio: [Input] Failed to add the default device changed listener (%RI32)\n", err));
-        else
-            caVoice->fDefDevChgListReg = true;
     }
 
     Log(("CoreAudio: [Input] HW samples: %d\n", hw->samples));

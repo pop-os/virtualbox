@@ -82,10 +82,7 @@ namespace com
 
 void GetInterfaceNameByIID(const GUID &aIID, BSTR *aName)
 {
-    Assert(aName);
-    if (!aName)
-        return;
-
+    AssertPtrReturnVoid(aName);
     *aName = NULL;
 
 #if !defined(VBOX_WITH_XPCOM)
@@ -114,7 +111,7 @@ void GetInterfaceNameByIID(const GUID &aIID, BSTR *aName)
                     if (rc != ERROR_SUCCESS)
                     {
                         SysFreeString(*aName);
-                        aName = NULL;
+                        *aName = NULL;
                     }
                 }
                 RegCloseKey(iidKey);
@@ -379,7 +376,8 @@ int VBoxLogRelCreate(const char *pcszEntity, const char *pcszLogFile,
     int vrc = RTLogCreateEx(&pReleaseLogger, fFlags, pcszGroupSettings,
                             pcszEnvVarBase, RT_ELEMENTS(s_apszGroups), s_apszGroups, fDestFlags,
                             vboxHeaderFooter, cHistory, uHistoryFileSize, uHistoryFileTime,
-                            pszError, cbError, pcszLogFile);
+                            pszError, cbError,
+                            pcszLogFile ? "%s" : NULL, pcszLogFile);
     if (RT_SUCCESS(vrc))
     {
         /* make sure that we don't flood logfiles */

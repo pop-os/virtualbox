@@ -1,10 +1,10 @@
-/* $Revision: 98806 $ */
+/* $Id: SUPDrvIOC.h $ */
 /** @file
  * VirtualBox Support Driver - IOCtl definitions.
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -118,10 +118,14 @@
 /** Fast path IOCtl: VMMR0_DO_RAW_RUN */
 #define SUP_IOCTL_FAST_DO_RAW_RUN               SUP_CTL_CODE_FAST(64)
 /** Fast path IOCtl: VMMR0_DO_HM_RUN */
-#define SUP_IOCTL_FAST_DO_HM_RUN             SUP_CTL_CODE_FAST(65)
+#define SUP_IOCTL_FAST_DO_HM_RUN                SUP_CTL_CODE_FAST(65)
 /** Just a NOP call for profiling the latency of a fast ioctl call to VMMR0. */
 #define SUP_IOCTL_FAST_DO_NOP                   SUP_CTL_CODE_FAST(66)
 
+#ifdef RT_OS_DARWIN
+/** Cookie used to fend off some unwanted clients to the IOService.  */
+# define SUP_DARWIN_IOSERVICE_COOKIE            0x64726962 /* 'bird' */
+#endif
 
 
 /*******************************************************************************
@@ -208,9 +212,9 @@ typedef SUPREQHDR *PSUPREQHDR;
  *  -# When increment the major number, execute all pending work.
  *
  * @todo Pending work on next major version change:
- *          - Remove RTSpinlockReleaseNoInts.
+ *          - (nothing)
  */
-#define SUPDRV_IOC_VERSION                              0x001a000a
+#define SUPDRV_IOC_VERSION                              0x00220000
 
 /** SUP_IOCTL_COOKIE. */
 typedef struct SUPCOOKIE
@@ -398,9 +402,9 @@ typedef struct SUPLDRLOAD
         struct
         {
             /** The address of module initialization function. Similar to _DLL_InitTerm(hmod, 0). */
-            PFNR0MODULEINIT pfnModuleInit;
+            RTR0PTR pfnModuleInit;
             /** The address of module termination function. Similar to _DLL_InitTerm(hmod, 1). */
-            PFNR0MODULETERM pfnModuleTerm;
+            RTR0PTR pfnModuleTerm;
             /** Special entry points. */
             union
             {
@@ -522,6 +526,7 @@ typedef struct SUPLDRGETSYMBOL
  * @{
  */
 #define SUP_IOCTL_CALL_VMMR0(cbReq)                     SUP_CTL_CODE_SIZE(7, SUP_IOCTL_CALL_VMMR0_SIZE(cbReq))
+#define SUP_IOCTL_CALL_VMMR0_NO_SIZE()                  SUP_CTL_CODE_SIZE(7, 0)
 #define SUP_IOCTL_CALL_VMMR0_SIZE(cbReq)                RT_UOFFSETOF(SUPCALLVMMR0, abReqPkt[cbReq])
 #define SUP_IOCTL_CALL_VMMR0_SIZE_IN(cbReq)             SUP_IOCTL_CALL_VMMR0_SIZE(cbReq)
 #define SUP_IOCTL_CALL_VMMR0_SIZE_OUT(cbReq)            SUP_IOCTL_CALL_VMMR0_SIZE(cbReq)
@@ -982,6 +987,7 @@ typedef struct SUPGIPUNMAP
  * @{
  */
 #define SUP_IOCTL_CALL_SERVICE(cbReq)                   SUP_CTL_CODE_SIZE(22, SUP_IOCTL_CALL_SERVICE_SIZE(cbReq))
+#define SUP_IOCTL_CALL_SERVICE_NO_SIZE()                SUP_CTL_CODE_SIZE(22, 0)
 #define SUP_IOCTL_CALL_SERVICE_SIZE(cbReq)              RT_UOFFSETOF(SUPCALLSERVICE, abReqPkt[cbReq])
 #define SUP_IOCTL_CALL_SERVICE_SIZE_IN(cbReq)           SUP_IOCTL_CALL_SERVICE_SIZE(cbReq)
 #define SUP_IOCTL_CALL_SERVICE_SIZE_OUT(cbReq)          SUP_IOCTL_CALL_SERVICE_SIZE(cbReq)
@@ -1012,6 +1018,7 @@ typedef struct SUPCALLSERVICE
  * @{
  */
 #define SUP_IOCTL_LOGGER_SETTINGS(cbStrTab)             SUP_CTL_CODE_SIZE(23, SUP_IOCTL_LOGGER_SETTINGS_SIZE(cbStrTab))
+#define SUP_IOCTL_LOGGER_SETTINGS_NO_SIZE()             SUP_CTL_CODE_SIZE(23, 0)
 #define SUP_IOCTL_LOGGER_SETTINGS_SIZE(cbStrTab)        RT_UOFFSETOF(SUPLOGGERSETTINGS, u.In.szStrings[cbStrTab])
 #define SUP_IOCTL_LOGGER_SETTINGS_SIZE_IN(cbStrTab)     RT_UOFFSETOF(SUPLOGGERSETTINGS, u.In.szStrings[cbStrTab])
 #define SUP_IOCTL_LOGGER_SETTINGS_SIZE_OUT              sizeof(SUPREQHDR)
@@ -1360,6 +1367,111 @@ typedef struct SUPTRACERUMODFIREPROBE
 /** @} */
 
 
+/** @name SUP_IOCTL_MSR_PROBER
+ * MSR probing interface, not available in normal builds.
+ *
+ * @{
+ */
+#define SUP_IOCTL_MSR_PROBER                        SUP_CTL_CODE_SIZE(34, SUP_IOCTL_MSR_PROBER_SIZE)
+#define SUP_IOCTL_MSR_PROBER_SIZE                   sizeof(SUPMSRPROBER)
+#define SUP_IOCTL_MSR_PROBER_SIZE_IN                sizeof(SUPMSRPROBER)
+#define SUP_IOCTL_MSR_PROBER_SIZE_OUT               sizeof(SUPMSRPROBER)
+
+typedef enum SUPMSRPROBEROP
+{
+    SUPMSRPROBEROP_INVALID = 0,                     /**< The customary invalid zero value. */
+    SUPMSRPROBEROP_READ,                            /**< Read an MSR. */
+    SUPMSRPROBEROP_WRITE,                           /**< Write a value to an MSR (use with care!). */
+    SUPMSRPROBEROP_MODIFY,                          /**< Read-modify-restore-flushall. */
+    SUPMSRPROBEROP_MODIFY_FASTER,                   /**< Read-modify-restore, skip the flushing. */
+    SUPMSRPROBEROP_END,                             /**< End of valid values. */
+    SUPMSRPROBEROP_32BIT_HACK = 0x7fffffff          /**< The customary 32-bit type hack. */
+} SUPMSRPROBEROP;
+
+typedef struct SUPMSRPROBER
+{
+    /** The header. */
+    SUPREQHDR               Hdr;
+
+    /** Input/output union. */
+    union
+    {
+        /** Inputs.  */
+        struct
+        {
+            /** The operation. */
+            SUPMSRPROBEROP          enmOp;
+            /** The MSR to test. */
+            uint32_t                uMsr;
+            /** The CPU to perform the operation on.
+             * Use UINT32_MAX to indicate that any CPU will do. */
+            uint32_t                idCpu;
+            /** Alignment padding. */
+            uint32_t                u32Padding;
+            /** Operation specific arguments. */
+            union
+            {
+                /* SUPMSRPROBEROP_READ takes no extra arguments. */
+
+                /** For SUPMSRPROBEROP_WRITE. */
+                struct
+                {
+                    /** The value to write. */
+                    uint64_t        uToWrite;
+                } Write;
+
+                /** For SUPMSRPROBEROP_MODIFY and SUPMSRPROBEROP_MODIFY_FASTER. */
+                struct
+                {
+                    /** The value to AND the current MSR value with to construct the value to
+                     *  write.  This applied first. */
+                    uint64_t        fAndMask;
+                    /** The value to OR the result of the above mentioned AND operation with
+                     * attempting to modify the MSR. */
+                    uint64_t        fOrMask;
+                } Modify;
+
+                /** Reserve space for the future.. */
+                uint64_t        auPadding[3];
+            } uArgs;
+        } In;
+
+        /** Outputs. */
+        struct
+        {
+            /** Operation specific results. */
+            union
+            {
+                /** For SUPMSRPROBEROP_READ. */
+                struct
+                {
+                    /** The value we've read. */
+                    uint64_t        uValue;
+                    /** Set if we GPed while reading it. */
+                    bool            fGp;
+                } Read;
+
+                /** For SUPMSRPROBEROP_WRITE. */
+                struct
+                {
+                    /** Set if we GPed while writing it. */
+                    bool            fGp;
+                } Write;
+
+                /** For SUPMSRPROBEROP_MODIFY and SUPMSRPROBEROP_MODIFY_FASTER. */
+                SUPMSRPROBERMODIFYRESULT Modify;
+
+                /** Size padding/aligning. */
+                uint64_t        auPadding[5];
+            } uResults;
+        } Out;
+    } u;
+} SUPMSRPROBER, *PSUPMSRPROBER;
+AssertCompileMemberAlignment(SUPMSRPROBER, u, 8);
+AssertCompileMemberAlignment(SUPMSRPROBER, u.In.uArgs, 8);
+AssertCompileMembersSameSizeAndOffset(SUPMSRPROBER, u.In, SUPMSRPROBER, u.Out);
+/** @} */
+
 /** @name SUP_IOCTL_RESUME_SUSPENDED_KBDS
  * Resume suspended keyboard devices if any found in the system.
  *
@@ -1371,6 +1483,80 @@ typedef struct SUPTRACERUMODFIREPROBE
 #define SUP_IOCTL_RESUME_SUSPENDED_KBDS_SIZE_OUT        sizeof(SUPREQHDR)
 /** @} */
 
+
+/** @name SUP_IOCTL_TSC_DELTA_MEASURE
+ * Measure the TSC-delta between the specified CPU and the master TSC.
+ *
+ * To call this I/O control, the client must first have mapped the GIP.
+ *
+ * @{
+ */
+#define SUP_IOCTL_TSC_DELTA_MEASURE                     SUP_CTL_CODE_SIZE(36, SUP_IOCTL_TSC_DELTA_MEASURE_SIZE)
+#define SUP_IOCTL_TSC_DELTA_MEASURE_SIZE                sizeof(SUPTSCDELTAMEASURE)
+#define SUP_IOCTL_TSC_DELTA_MEASURE_SIZE_IN             sizeof(SUPTSCDELTAMEASURE)
+#define SUP_IOCTL_TSC_DELTA_MEASURE_SIZE_OUT            sizeof(SUPREQHDR)
+typedef struct SUPTSCDELTAMEASURE
+{
+    /** The header. */
+    SUPREQHDR               Hdr;
+
+    /** Input/output union. */
+    union
+    {
+        struct
+        {
+            /** Which CPU to take the TSC-delta measurement for. */
+            RTCPUID         idCpu;
+            /** Number of times to retry on failure (specify 0 for default). */
+            uint8_t         cRetries;
+            /** Number of milliseconds to wait before each retry. */
+            uint8_t         cMsWaitRetry;
+            /** Whether to force taking a measurement if one exists already. */
+            bool            fForce;
+            /** Whether to do the measurement asynchronously (if possible). */
+            bool            fAsync;
+        } In;
+    } u;
+} SUPTSCDELTAMEASURE, *PSUPTSCDELTAMEASURE;
+AssertCompileMemberAlignment(SUPTSCDELTAMEASURE, u, 8);
+AssertCompileSize(SUPTSCDELTAMEASURE, 6*4 + 4+1+1+1+1);
+/** @} */
+
+/** @name SUP_IOCTL_TSC_READ
+ * Reads the TSC and apply TSC-delta if applicable, determining the delta if
+ * necessary (i64TSCDelta = INT64_MAX).
+ *
+ * This latter function is the primary use case of this I/O control.  To call
+ * this I/O control, the client must first have mapped the GIP.
+ *
+ * @{
+ */
+#define SUP_IOCTL_TSC_READ                              SUP_CTL_CODE_SIZE(37, SUP_IOCTL_TSC_READ_SIZE)
+#define SUP_IOCTL_TSC_READ_SIZE                         sizeof(SUPTSCREAD)
+#define SUP_IOCTL_TSC_READ_SIZE_IN                      sizeof(SUPREQHDR)
+#define SUP_IOCTL_TSC_READ_SIZE_OUT                     sizeof(SUPTSCREAD)
+typedef struct SUPTSCREAD
+{
+    /** The header. */
+    SUPREQHDR               Hdr;
+
+    /** Input/output union. */
+    union
+    {
+        struct
+        {
+            /** The TSC after applying the relevant delta. */
+            uint64_t        u64AdjustedTsc;
+            /** The APIC Id of the CPU where the TSC was read. */
+            uint16_t        idApic;
+            /** Explicit alignment padding. */
+            uint16_t        auPadding[3];
+        } Out;
+    } u;
+} SUPTSCREAD, *PSUPTSCREAD;
+AssertCompileMemberAlignment(SUPTSCREAD, u, 8);
+AssertCompileSize(SUPTSCREAD, 6*4 + 2*8);
+/** @} */
 
 #pragma pack()                          /* paranoia */
 

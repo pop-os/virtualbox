@@ -1,8 +1,6 @@
 /* $Id: VBoxSettingsSelector.cpp $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * VBoxSettingsSelector class implementation
+ * VBox Qt GUI - VBoxSettingsSelector class implementation.
  */
 
 /*
@@ -17,18 +15,26 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* Global includes */
-#include <QHeaderView>
-#include <QTabWidget>
-#include <QLayout>
-#include <QAction>
+# include <QHeaderView>
+# include <QTabWidget>
+# include <QLayout>
+# include <QAction>
 
 /* Local includes */
-#include "VBoxSettingsSelector.h"
-#include "UISettingsPage.h"
-#include "UIToolBar.h"
-#include "QITreeWidget.h"
-#include "QITabWidget.h"
+# include "VBoxSettingsSelector.h"
+# include "UISettingsPage.h"
+# include "UIToolBar.h"
+# include "QITreeWidget.h"
+# include "QITabWidget.h"
+# include "UIIconPool.h"
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 
 enum
 {
@@ -189,6 +195,7 @@ VBoxSettingsTreeViewSelector::VBoxSettingsTreeViewSelector (QWidget *aParent /* 
     mTwSelector->setHorizontalScrollBarPolicy (Qt::ScrollBarAlwaysOff);
     mTwSelector->setRootIsDecorated (false);
     mTwSelector->setUniformRowHeights (true);
+    mTwSelector->setIconSize(QSize(24, 24));
     /* Add the columns */
     mTwSelector->headerItem()->setText (treeWidget_Category, "Category");
     mTwSelector->headerItem()->setText (treeWidget_Id, "[id]");
@@ -207,10 +214,9 @@ QWidget *VBoxSettingsTreeViewSelector::widget() const
     return mTwSelector;
 }
 
-QWidget *VBoxSettingsTreeViewSelector::addItem (const QString & /* aBigIcon */,
-                                                const QString & /* aBigIconDisabled */,
-                                                const QString &aSmallIcon,
-                                                const QString &aSmallIconDisabled,
+QWidget *VBoxSettingsTreeViewSelector::addItem (const QString & /* strBigIcon */,
+                                                const QString &strMediumIcon ,
+                                                const QString & /* strSmallIcon */,
                                                 int aId,
                                                 const QString &aLink,
                                                 UISettingsPage* aPage /* = NULL */,
@@ -219,9 +225,7 @@ QWidget *VBoxSettingsTreeViewSelector::addItem (const QString & /* aBigIcon */,
     QWidget *result = NULL;
     if (aPage != NULL)
     {
-        QIcon icon (aSmallIcon);
-        if (aSmallIconDisabled.isEmpty())
-            icon.addFile (aSmallIconDisabled, QSize(), QIcon::Disabled);
+        QIcon icon = UIIconPool::iconSet(strMediumIcon);
 
         SelectorItem *item = new SelectorItem (icon, "", aId, aLink, aPage, aParentId);
         mItemList.append (item);
@@ -287,7 +291,7 @@ void VBoxSettingsTreeViewSelector::polish()
 {
     /* Get recommended size hint: */
     int iItemWidth = static_cast<QAbstractItemView*>(mTwSelector)->sizeHintForColumn(treeWidget_Category);
-    int iItemHeight = qMax(16 /* icon height */, mTwSelector->fontMetrics().height() /* text height */);
+    int iItemHeight = qMax(24 /* icon height */, mTwSelector->fontMetrics().height() /* text height */);
     /* Add some margin to every item in the tree: */
     iItemHeight += 4 /* margin itself */ * 2 /* margin count */;
     /* Set final size hint for items: */
@@ -379,7 +383,7 @@ VBoxSettingsToolBarSelector::VBoxSettingsToolBarSelector (QWidget *aParent /* = 
 {
     /* Init the toolbar */
     mTbSelector = new UIToolBar (aParent);
-    mTbSelector->setUsesTextLabel (true);
+    mTbSelector->setUseTextLabels (true);
     mTbSelector->setIconSize (QSize (32, 32));
 #ifdef Q_WS_MAC
     mTbSelector->setShowToolBarButton (false);
@@ -401,18 +405,15 @@ QWidget *VBoxSettingsToolBarSelector::widget() const
     return mTbSelector;
 }
 
-QWidget *VBoxSettingsToolBarSelector::addItem (const QString &aBigIcon,
-                                               const QString &aBigIconDisabled,
-                                               const QString &aSmallIcon,
-                                               const QString &aSmallIconDisabled,
+QWidget *VBoxSettingsToolBarSelector::addItem (const QString &strBigIcon,
+                                               const QString & /* strMediumIcon */,
+                                               const QString &strSmallIcon,
                                                int aId,
                                                const QString &aLink,
                                                UISettingsPage* aPage /* = NULL */,
                                                int aParentId /* = -1 */)
 {
-    QIcon icon (aBigIcon);
-    if (!aBigIconDisabled.isEmpty())
-        icon.addFile (aBigIconDisabled, QSize(), QIcon::Disabled);
+    QIcon icon = UIIconPool::iconSet(strBigIcon);
 
     QWidget *result = NULL;
     SelectorActionItem *item = new SelectorActionItem (icon, "", aId, aLink, aPage, aParentId, this);
@@ -433,6 +434,7 @@ QWidget *VBoxSettingsToolBarSelector::addItem (const QString &aBigIcon,
         mActionGroup->addAction (item->action());
         mTbSelector->addAction (item->action());
         QITabWidget *tabWidget= new QITabWidget();
+        tabWidget->setIconSize(QSize(16, 16));
         tabWidget->setContentsMargins (0, 0, 0, 0);
 //        connect (tabWidget, SIGNAL (currentChanged (int)),
 //                 this, SLOT (settingsGroupChanged (int)));
@@ -447,9 +449,7 @@ QWidget *VBoxSettingsToolBarSelector::addItem (const QString &aBigIcon,
             QTabWidget *tabWidget = parent->tabWidget();
             aPage->setContentsMargins (9, 5, 9, 9);
             aPage->layout()->setContentsMargins(0, 0, 0, 0);
-            QIcon icon1 (aSmallIcon);
-            if (!aSmallIconDisabled.isEmpty())
-                icon1.addFile (aSmallIconDisabled, QSize(), QIcon::Disabled);
+            QIcon icon1 = UIIconPool::iconSet(strSmallIcon);
             if (tabWidget)
                 tabWidget->addTab (aPage, icon1, "");
         }

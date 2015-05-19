@@ -1,7 +1,6 @@
+/* $Id: UINetworkCustomer.h $ */
 /** @file
- *
- * VBox frontends: Qt4 GUI ("VirtualBox"):
- * UINetworkCustomer class declaration
+ * VBox Qt GUI - UINetworkCustomer class declaration.
  */
 
 /*

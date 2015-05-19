@@ -320,7 +320,7 @@
 /** @} */
 
 /** @def RT_OPSYS
- * Indicates which OS we're targetting. It's a \#define with is
+ * Indicates which OS we're targeting. It's a \#define with is
  * assigned one of the RT_OPSYS_XXX defines above.
  *
  * So to test if we're on FreeBSD do the following:
@@ -1158,7 +1158,7 @@
  * @remarks Don't use this macro on C++ methods.
  */
 #ifdef __GNUC__
-# define DECL_NO_INLINE(scope,type) __attribute__((noinline)) scope type
+# define DECL_NO_INLINE(scope,type) __attribute__((__noinline__)) scope type
 #elif defined(_MSC_VER)
 # define DECL_NO_INLINE(scope,type) __declspec(noinline) scope type
 #else
@@ -2637,7 +2637,7 @@
 
 
 /** Source position. */
-#define RT_SRC_POS         __FILE__, __LINE__, __PRETTY_FUNCTION__
+#define RT_SRC_POS         __FILE__, __LINE__, RT_GCC_EXTENSION __PRETTY_FUNCTION__
 
 /** Source position declaration. */
 #define RT_SRC_POS_DECL    const char *pszFile, unsigned iLine, const char *pszFunction
@@ -2685,6 +2685,17 @@
 #endif
 #ifndef RT_INLINE_ASM_USES_INTRIN
 # define RT_INLINE_ASM_USES_INTRIN 0
+#endif
+
+/** @def RT_COMPILER_SUPPORTS_LAMBDA
+ * If the defined, the compiler supports lambda expressions.   These expressions
+ * are useful for embedding assertions and type checks into macros. */
+#if defined(_MSC_VER) && defined(__cplusplus)
+# if _MSC_VER >= 1600 /* Visual C++ v10.0 / 2010 */
+#  define RT_COMPILER_SUPPORTS_LAMBDA
+# endif
+#elif defined(__GNUC__) && defined(__cplusplus)
+/* 4.5 or later, I think, if in ++11 mode... */
 #endif
 
 /** @} */

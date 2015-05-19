@@ -1,8 +1,6 @@
 /* $Id: UIProgressDialog.cpp $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * UIProgressDialog class implementation
+ * VBox Qt GUI - UIProgressDialog class implementation.
  */
 
 /*
@@ -17,27 +15,35 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* Qt includes: */
-#include <QCloseEvent>
-#include <QEventLoop>
-#include <QProgressBar>
-#include <QTime>
-#include <QTimer>
-#include <QVBoxLayout>
+# include <QCloseEvent>
+# include <QEventLoop>
+# include <QProgressBar>
+# include <QTime>
+# include <QTimer>
+# include <QVBoxLayout>
 
 /* GUI includes: */
-#include "UIProgressDialog.h"
-#include "QIDialogButtonBox.h"
-#include "QILabel.h"
-#include "UISpecialControls.h"
-#include "VBoxGlobal.h"
-#include "UIModalWindowManager.h"
-#ifdef Q_WS_MAC
-# include "VBoxUtils-darwin.h"
-#endif /* Q_WS_MAC */
+# include "UIProgressDialog.h"
+# include "UIMessageCenter.h"
+# include "UISpecialControls.h"
+# include "UIModalWindowManager.h"
+# include "QIDialogButtonBox.h"
+# include "QILabel.h"
+# include "VBoxGlobal.h"
+# ifdef Q_WS_MAC
+#  include "VBoxUtils-darwin.h"
+# endif /* Q_WS_MAC */
 
 /* COM includes: */
-#include "CProgress.h"
+# include "CProgress.h"
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 
 const char *UIProgressDialog::m_spcszOpDescTpl = "%1 ... (%2/%3)";
 
@@ -334,5 +340,79 @@ void UIProgressDialog::handleTimerEvent()
     }
     else
         m_pEtaLbl->setText(m_strCancel);
+}
+
+
+UIProgress::UIProgress(CProgress &progress, QObject *pParent /* = 0 */)
+    : QObject(pParent)
+    , m_progress(progress)
+    , m_cOperations(m_progress.GetOperationCount())
+    , m_fEnded(false)
+{
+}
+
+void UIProgress::run(int iRefreshInterval)
+{
+    /* Make sure the CProgress still valid: */
+    if (!m_progress.isOk())
+        return;
+
+    /* Start the refresh timer: */
+    int id = startTimer(iRefreshInterval);
+
+    /* Create a local event-loop: */
+    {
+        QEventLoop eventLoop;
+        m_pEventLoop = &eventLoop;
+
+        /* Guard ourself for the case
+         * we destroyed ourself in our event-loop: */
+        QPointer<UIProgress> guard = this;
+
+        /* Start the blocking event-loop: */
+        eventLoop.exec();
+
+        /* Are we still valid? */
+        if (guard.isNull())
+            return;
+
+        m_pEventLoop = 0;
+    }
+
+    /* Kill the refresh timer: */
+    killTimer(id);
+}
+
+void UIProgress::timerEvent(QTimerEvent*)
+{
+    /* Make sure the UIProgress still 'running': */
+    if (m_fEnded)
+        return;
+
+    /* If progress had failed or finished: */
+    if (!m_progress.isOk() || m_progress.GetCompleted())
+    {
+        /* Notify listeners about the operation progress error: */
+        if (!m_progress.isOk() || m_progress.GetResultCode() != 0)
+            emit sigProgressError(UIMessageCenter::formatErrorInfo(m_progress));
+
+        /* Exit from the event-loop if there is any: */
+        if (m_pEventLoop)
+            m_pEventLoop->exit();
+
+        /* Mark UIProgress as 'ended': */
+        m_fEnded = true;
+
+        /* Return early: */
+        return;
+    }
+
+    /* If CProgress was not yet canceled: */
+    if (!m_progress.GetCanceled())
+    {
+        /* Notify listeners about the operation progress update: */
+        emit sigProgressChange(m_cOperations, m_progress.GetOperationDescription(),
+                               m_progress.GetOperation() + 1, m_progress.GetPercent());
+    }
 }
 

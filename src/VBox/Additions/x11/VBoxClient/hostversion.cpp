@@ -1,3 +1,4 @@
+/* $Id: hostversion.cpp $ */
 /** @file
  * X11 guest client - host version check.
  */
@@ -43,7 +44,7 @@ static int showNotify(const char *pcHeader, const char *pcBody)
 # ifdef VBOX_WITH_DBUS
     DBusConnection *conn;
     DBusMessage* msg = NULL;
-    conn = dbus_bus_get (DBUS_BUS_SESSON, NULL);
+    conn = dbus_bus_get (DBUS_BUS_SESSION, NULL);
     if (conn == NULL)
     {
         LogRelFlowFunc(("Could not retrieve D-BUS session bus!\n"));
@@ -208,7 +209,7 @@ struct VBCLSERVICE vbclHostVersionInterface =
     run,
     VBClServiceDefaultHandler, /* pause */
     VBClServiceDefaultHandler, /* resume */
-    VBClServiceDefaultCleanup    
+    VBClServiceDefaultCleanup
 };
 
 struct HOSTVERSIONSERVICE

@@ -1,8 +1,6 @@
 /* $Id: VBoxAboutDlg.cpp $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * VBoxAboutDlg class implementation
+ * VBox Qt GUI - VBoxAboutDlg class implementation.
  */
 
 /*
@@ -18,8 +16,9 @@
  */
 
 #ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include "precomp.h"
+# include <precomp.h>
 #else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* Global includes */
 # include <QDir>
 # include <QEvent>
@@ -30,7 +29,12 @@
 /* Local includes */
 # include "VBoxAboutDlg.h"
 # include "VBoxGlobal.h"
+# include "UIConverter.h"
+# include "UIExtraDataManager.h"
+# include "UIIconPool.h"
+
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 
 VBoxAboutDlg::VBoxAboutDlg(QWidget *pParent, const QString &strVersion)
     : QIWithRetranslateUI2<QIDialog>(pParent, Qt::CustomizeWindowHint | Qt::WindowTitleHint)
@@ -53,8 +57,10 @@ VBoxAboutDlg::VBoxAboutDlg(QWidget *pParent, const QString &strVersion)
             strPath = strTmpPath;
     }
 
-    /* Assign image: */
-    m_bgImage.load(strPath);
+    /* Load image: */
+    QIcon icon = UIIconPool::iconSet(strPath);
+    m_size = icon.availableSizes().first();
+    m_pixmap = icon.pixmap(m_size);
 
     /* Translate: */
     retranslateUi();
@@ -63,7 +69,7 @@ VBoxAboutDlg::VBoxAboutDlg(QWidget *pParent, const QString &strVersion)
 bool VBoxAboutDlg::event(QEvent *pEvent)
 {
     if (pEvent->type() == QEvent::Polish)
-        setFixedSize(m_bgImage.size());
+        setFixedSize(m_size);
     if (pEvent->type() == QEvent::WindowDeactivate)
         close();
     return QIDialog::event(pEvent);
@@ -72,7 +78,7 @@ bool VBoxAboutDlg::event(QEvent *pEvent)
 void VBoxAboutDlg::paintEvent(QPaintEvent* /* pEvent */)
 {
     QPainter painter(this);
-    painter.drawPixmap(0, 0, m_bgImage);
+    painter.drawPixmap(0, 0, m_pixmap);
     painter.setFont(font());
 
     /* Branding: Set a different text color (because splash also could be white),
@@ -103,15 +109,6 @@ void VBoxAboutDlg::retranslateUi()
 {
     setWindowTitle(tr("VirtualBox - About"));
     QString strAboutText =  tr("VirtualBox Graphical User Interface");
-#ifdef DEBUG
-    QString strRenderingInfo(" (%1)");
-    QString strRenderingMode("QImage");
-# ifdef VBOX_GUI_USE_QUARTZ2D
-    if (vboxGlobal().vmRenderMode() == Quartz2DMode)
-        strRenderingMode = "Quartz2D";
-# endif /* VBOX_GUI_USE_QUARTZ2D */
-    strAboutText += strRenderingInfo.arg(strRenderingMode);
-#endif /* DEBUG */
 #ifdef VBOX_BLEEDING_EDGE
     QString strVersionText = "EXPERIMENTAL build %1 - " + QString(VBOX_BLEEDING_EDGE);
 #else

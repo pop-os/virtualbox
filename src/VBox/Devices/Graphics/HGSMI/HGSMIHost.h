@@ -1,3 +1,4 @@
+/* $Id: HGSMIHost.h $ */
 /** @file
  *
  * VBox Host Guest Shared Memory Interface (HGSMI).
@@ -25,8 +26,8 @@
 #include <VBox/HGSMI/HGSMI.h>
 #include <VBox/HGSMI/HGSMIChSetup.h>
 
-struct _HGSMIINSTANCE;
-typedef struct _HGSMIINSTANCE *PHGSMIINSTANCE;
+struct HGSMIINSTANCE;
+typedef struct HGSMIINSTANCE *PHGSMIINSTANCE;
 
 /* Callback for the guest notification about a new host buffer. */
 typedef DECLCALLBACK(void) FNHGSMINOTIFYGUEST(void *pvCallback);
@@ -67,12 +68,9 @@ int HGSMIChannelRegisterName (PHGSMIINSTANCE pIns,
                               void *pvChannelHandler,
                               uint8_t *pu8Channel);
 
-int HGSMISetupHostHeap (PHGSMIINSTANCE pIns,
-                        HGSMIOFFSET    offHeap,
-                        HGSMISIZE      cbHeap);
-
-int HGSMISaveStateExec (PHGSMIINSTANCE pIns, PSSMHANDLE pSSM);
-int HGSMILoadStateExec (PHGSMIINSTANCE pIns, PSSMHANDLE pSSM);
+int HGSMIHostHeapSetup(PHGSMIINSTANCE pIns,
+                       HGSMIOFFSET    offHeap,
+                       HGSMISIZE      cbHeap);
 
 /*
  * Virtual hardware IO handlers.
@@ -104,21 +102,18 @@ void HGSMIClearHostGuestFlags(PHGSMIINSTANCE pIns, uint32_t flags);
  */
 
 /* Allocate a buffer in the host heap. */
-int HGSMIHostCommandAlloc (PHGSMIINSTANCE pIns,
-                           void **ppvMem,
-                           HGSMISIZE cbMem,
-                           uint8_t u8Channel,
-                           uint16_t u16ChannelInfo);
+int HGSMIHostCommandAlloc(PHGSMIINSTANCE pIns,
+                          void **ppvData,
+                          HGSMISIZE cbData,
+                          uint8_t u8Channel,
+                          uint16_t u16ChannelInfo);
 
-int HGSMIHostCommandProcess (PHGSMIINSTANCE pIns,
-                             void *pvMem);
+int HGSMIHostCommandSubmitAndFreeAsynch(PHGSMIINSTANCE pIns,
+                                        void *pvData,
+                                        bool fDoIrq);
 
-int HGSMIHostCommandProcessAndFreeAsynch (PHGSMIINSTANCE pIns,
-                             void *pvMem,
-                             bool bDoIrq);
-
-int HGSMIHostCommandFree (PHGSMIINSTANCE pIns,
-                          void *pvMem);
+int HGSMIHostCommandFree(PHGSMIINSTANCE pIns,
+                         void *pvData);
 
 int HGSMIHostLoadStateExec (PHGSMIINSTANCE pIns, PSSMHANDLE pSSM, uint32_t u32Version);
 

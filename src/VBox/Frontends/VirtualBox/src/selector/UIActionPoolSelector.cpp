@@ -1,12 +1,10 @@
 /* $Id: UIActionPoolSelector.cpp $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * UIActionPoolSelector class implementation
+ * VBox Qt GUI - UIActionPoolSelector class implementation.
  */
 
 /*
- * Copyright (C) 2010-2013 Oracle Corporation
+ * Copyright (C) 2010-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,10 +15,22 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* Local includes: */
-#include "UIActionPoolSelector.h"
-#include "UIShortcutPool.h"
-#include "UIDefs.h"
+# include "UIActionPoolSelector.h"
+# include "UIExtraDataDefs.h"
+# include "UIShortcutPool.h"
+# include "UIDefs.h"
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
+
+/* Namespaces: */
+using namespace UIExtraDataDefs;
+
 
 class UIActionMenuFile : public UIActionMenu
 {
@@ -29,10 +39,7 @@ class UIActionMenuFile : public UIActionMenu
 public:
 
     UIActionMenuFile(UIActionPool *pParent)
-        : UIActionMenu(pParent)
-    {
-        retranslateUi();
-    }
+        : UIActionMenu(pParent) {}
 
 protected:
 
@@ -53,10 +60,7 @@ class UIActionSimpleMediumManagerDialog : public UIActionSimple
 public:
 
     UIActionSimpleMediumManagerDialog(UIActionPool *pParent)
-        : UIActionSimple(pParent, ":/diskimage_16px.png")
-    {
-        retranslateUi();
-    }
+        : UIActionSimple(pParent, ":/diskimage_16px.png") {}
 
 protected:
 
@@ -84,10 +88,7 @@ class UIActionSimpleImportApplianceWizard : public UIActionSimple
 public:
 
     UIActionSimpleImportApplianceWizard(UIActionPool *pParent)
-        : UIActionSimple(pParent, ":/import_16px.png")
-    {
-        retranslateUi();
-    }
+        : UIActionSimple(pParent, ":/import_16px.png") {}
 
 protected:
 
@@ -115,10 +116,7 @@ class UIActionSimpleExportApplianceWizard : public UIActionSimple
 public:
 
     UIActionSimpleExportApplianceWizard(UIActionPool *pParent)
-        : UIActionSimple(pParent, ":/export_16px.png")
-    {
-        retranslateUi();
-    }
+        : UIActionSimple(pParent, ":/export_16px.png") {}
 
 protected:
 
@@ -139,37 +137,35 @@ protected:
     }
 };
 
-class UIActionSimplePreferencesDialog : public UIActionSimple
+#ifdef DEBUG
+class UIActionSimpleExtraDataManagerWindow : public UIActionSimple
 {
     Q_OBJECT;
 
 public:
 
-    UIActionSimplePreferencesDialog(UIActionPool *pParent)
-        : UIActionSimple(pParent, ":/global_settings_16px.png")
-    {
-        setMenuRole(QAction::PreferencesRole);
-        retranslateUi();
-    }
+    UIActionSimpleExtraDataManagerWindow(UIActionPool *pParent)
+        : UIActionSimple(pParent, ":/edataman_16px.png") {}
 
 protected:
 
     QString shortcutExtraDataID() const
     {
-        return QString("Preferences");
+        return QString("ExtraDataManager");
     }
 
     QKeySequence defaultShortcut(UIActionPoolType) const
     {
-        return QKeySequence("Ctrl+G");
+        return QKeySequence("Ctrl+X");
     }
 
     void retranslateUi()
     {
-        setName(QApplication::translate("UIActionPool", "&Preferences...", "global settings"));
-        setStatusTip(QApplication::translate("UIActionPool", "Display the global settings window"));
+        setName(QApplication::translate("UIActionPool", "E&xtra Data Manager..."));
+        setStatusTip(QApplication::translate("UIActionPool", "Display the Extra Data Manager window"));
     }
 };
+#endif /* DEBUG */
 
 class UIActionSimpleExit : public UIActionSimple
 {
@@ -181,7 +177,6 @@ public:
         : UIActionSimple(pParent, ":/exit_16px.png")
     {
         setMenuRole(QAction::QuitRole);
-        retranslateUi();
     }
 
 protected:
@@ -211,10 +206,7 @@ class UIActionMenuGroup : public UIActionMenu
 public:
 
     UIActionMenuGroup(UIActionPool *pParent)
-        : UIActionMenu(pParent)
-    {
-        retranslateUi();
-    }
+        : UIActionMenu(pParent) {}
 
 protected:
 
@@ -231,10 +223,7 @@ class UIActionSimpleGroupNew : public UIActionSimple
 public:
 
     UIActionSimpleGroupNew(UIActionPool *pParent)
-        : UIActionSimple(pParent, QSize(32, 32), QSize(16, 16), ":/vm_new_32px.png", ":/vm_new_16px.png")
-    {
-        retranslateUi();
-    }
+        : UIActionSimple(pParent, ":/vm_new_32px.png", ":/vm_new_16px.png") {}
 
 protected:
 
@@ -264,10 +253,7 @@ class UIActionSimpleGroupAdd : public UIActionSimple
 public:
 
     UIActionSimpleGroupAdd(UIActionPool *pParent)
-        : UIActionSimple(pParent, ":/vm_add_16px.png")
-    {
-        retranslateUi();
-    }
+        : UIActionSimple(pParent, ":/vm_add_16px.png") {}
 
 protected:
 
@@ -295,10 +281,7 @@ class UIActionSimpleGroupRename : public UIActionSimple
 public:
 
     UIActionSimpleGroupRename(UIActionPool *pParent)
-        : UIActionSimple(pParent, ":/vm_group_name_16px.png", ":/vm_group_name_disabled_16px.png")
-    {
-        retranslateUi();
-    }
+        : UIActionSimple(pParent, ":/vm_group_name_16px.png", ":/vm_group_name_disabled_16px.png") {}
 
 protected:
 
@@ -326,10 +309,7 @@ class UIActionSimpleGroupRemove : public UIActionSimple
 public:
 
     UIActionSimpleGroupRemove(UIActionPool *pParent)
-        : UIActionSimple(pParent, ":/vm_group_remove_16px.png", ":/vm_group_remove_disabled_16px.png")
-    {
-        retranslateUi();
-    }
+        : UIActionSimple(pParent, ":/vm_group_remove_16px.png", ":/vm_group_remove_disabled_16px.png") {}
 
 protected:
 
@@ -357,10 +337,7 @@ class UIActionSimpleGroupSort : public UIActionSimple
 public:
 
     UIActionSimpleGroupSort(UIActionPool *pParent)
-        : UIActionSimple(pParent, ":/sort_16px.png", ":/sort_disabled_16px.png")
-    {
-        retranslateUi();
-    }
+        : UIActionSimple(pParent, ":/sort_16px.png", ":/sort_disabled_16px.png") {}
 
 protected:
 
@@ -384,10 +361,7 @@ class UIActionMenuMachineSelector : public UIActionMenu
 public:
 
     UIActionMenuMachineSelector(UIActionPool *pParent)
-        : UIActionMenu(pParent)
-    {
-        retranslateUi();
-    }
+        : UIActionMenu(pParent) {}
 
 protected:
 
@@ -404,10 +378,7 @@ class UIActionSimpleMachineNew : public UIActionSimple
 public:
 
     UIActionSimpleMachineNew(UIActionPool *pParent)
-        : UIActionSimple(pParent, QSize(32, 32), QSize(16, 16), ":/vm_new_32px.png", ":/vm_new_16px.png")
-    {
-        retranslateUi();
-    }
+        : UIActionSimple(pParent, ":/vm_new_32px.png", ":/vm_new_16px.png") {}
 
 protected:
 
@@ -437,10 +408,7 @@ class UIActionSimpleMachineAdd : public UIActionSimple
 public:
 
     UIActionSimpleMachineAdd(UIActionPool *pParent)
-        : UIActionSimple(pParent, ":/vm_add_16px.png")
-    {
-        retranslateUi();
-    }
+        : UIActionSimple(pParent, ":/vm_add_16px.png") {}
 
 protected:
 
@@ -468,10 +436,7 @@ class UIActionSimpleMachineAddGroup : public UIActionSimple
 public:
 
     UIActionSimpleMachineAddGroup(UIActionPool *pParent)
-        : UIActionSimple(pParent, ":/vm_group_create_16px.png", ":/vm_group_create_disabled_16px.png")
-    {
-        retranslateUi();
-    }
+        : UIActionSimple(pParent, ":/vm_group_create_16px.png", ":/vm_group_create_disabled_16px.png") {}
 
 protected:
 
@@ -499,12 +464,9 @@ class UIActionSimpleMachineSettings : public UIActionSimple
 public:
 
     UIActionSimpleMachineSettings(UIActionPool *pParent)
-        : UIActionSimple(pParent, QSize(32, 32), QSize(16, 16),
+        : UIActionSimple(pParent,
                          ":/vm_settings_32px.png", ":/vm_settings_16px.png",
-                         ":/vm_settings_disabled_32px.png", ":/vm_settings_disabled_16px.png")
-    {
-        retranslateUi();
-    }
+                         ":/vm_settings_disabled_32px.png", ":/vm_settings_disabled_16px.png") {}
 
 protected:
 
@@ -534,10 +496,7 @@ class UIActionSimpleMachineClone : public UIActionSimple
 public:
 
     UIActionSimpleMachineClone(UIActionPool *pParent)
-        : UIActionSimple(pParent, ":/vm_clone_16px.png", ":/vm_clone_disabled_16px.png")
-    {
-        retranslateUi();
-    }
+        : UIActionSimple(pParent, ":/vm_clone_16px.png", ":/vm_clone_disabled_16px.png") {}
 
 protected:
 
@@ -565,12 +524,9 @@ class UIActionSimpleMachineRemove : public UIActionSimple
 public:
 
     UIActionSimpleMachineRemove(UIActionPool *pParent)
-        : UIActionSimple(pParent, QSize(32, 32), QSize(16, 16),
+        : UIActionSimple(pParent,
                          ":/vm_delete_32px.png", ":/vm_delete_16px.png",
-                         ":/vm_delete_disabled_32px.png", ":/vm_delete_disabled_16px.png")
-    {
-        retranslateUi();
-    }
+                         ":/vm_delete_disabled_32px.png", ":/vm_delete_disabled_16px.png") {}
 
 protected:
 
@@ -592,19 +548,16 @@ protected:
 };
 
 
-class UIActionStateCommonStartOrShow : public UIActionState
+class UIActionStateCommonStartOrShow : public UIActionPolymorphicMenu
 {
     Q_OBJECT;
 
 public:
 
     UIActionStateCommonStartOrShow(UIActionPool *pParent)
-        : UIActionState(pParent, QSize(32, 32), QSize(16, 16),
-                        ":/vm_start_32px.png", ":/vm_start_16px.png",
-                        ":/vm_start_disabled_32px.png", ":/vm_start_disabled_16px.png")
-    {
-        retranslateUi();
-    }
+        : UIActionPolymorphicMenu(pParent,
+                                  ":/vm_start_32px.png", ":/vm_start_16px.png",
+                                  ":/vm_start_disabled_32px.png", ":/vm_start_disabled_16px.png") {}
 
 protected:
 
@@ -615,10 +568,11 @@ protected:
 
     void retranslateUi()
     {
-        switch (m_iState)
+        switch (state())
         {
             case 0:
             {
+                showMenu();
                 setName(QApplication::translate("UIActionPool", "S&tart"));
                 setStatusTip(QApplication::translate("UIActionPool", "Start the selected virtual machines"));
                 setToolTip(text().remove('&').remove('.') +
@@ -627,6 +581,7 @@ protected:
             }
             case 1:
             {
+                hideMenu();
                 setName(QApplication::translate("UIActionPool", "S&how"));
                 setStatusTip(QApplication::translate("UIActionPool", "Switch to the windows of the selected virtual machines"));
                 setToolTip(text().remove('&').remove('.') +
@@ -639,6 +594,81 @@ protected:
     }
 };
 
+class UIActionSimpleStartNormal : public UIActionSimple
+{
+    Q_OBJECT;
+
+public:
+
+    UIActionSimpleStartNormal(UIActionPool *pParent)
+        : UIActionSimple(pParent,
+                         ":/vm_start_32px.png", ":/vm_start_16px.png",
+                         ":/vm_start_disabled_32px.png", ":/vm_start_disabled_16px.png") {}
+
+protected:
+
+    QString shortcutExtraDataID() const
+    {
+        return QString("StartVMNormal");
+    }
+
+    void retranslateUi()
+    {
+        setName(QApplication::translate("UIActionPool", "&Normal Start"));
+        setStatusTip(QApplication::translate("UIActionPool", "Start the selected virtual machines"));
+    }
+};
+
+class UIActionSimpleStartHeadless : public UIActionSimple
+{
+    Q_OBJECT;
+
+public:
+
+    UIActionSimpleStartHeadless(UIActionPool *pParent)
+        : UIActionSimple(pParent,
+                         ":/vm_start_32px.png", ":/vm_start_16px.png",
+                         ":/vm_start_disabled_32px.png", ":/vm_start_disabled_16px.png") {}
+
+protected:
+
+    QString shortcutExtraDataID() const
+    {
+        return QString("StartVMHeadless");
+    }
+
+    void retranslateUi()
+    {
+        setName(QApplication::translate("UIActionPool", "&Headless Start"));
+        setStatusTip(QApplication::translate("UIActionPool", "Start the selected virtual machines in the background"));
+    }
+};
+
+class UIActionSimpleStartDetachable : public UIActionSimple
+{
+    Q_OBJECT;
+
+public:
+
+    UIActionSimpleStartDetachable(UIActionPool *pParent)
+        : UIActionSimple(pParent,
+                         ":/vm_start_32px.png", ":/vm_start_16px.png",
+                         ":/vm_start_disabled_32px.png", ":/vm_start_disabled_16px.png") {}
+
+protected:
+
+    QString shortcutExtraDataID() const
+    {
+        return QString("StartVMDetachable");
+    }
+
+    void retranslateUi()
+    {
+        setName(QApplication::translate("UIActionPool", "&Detachable Start"));
+        setStatusTip(QApplication::translate("UIActionPool", "Start the selected virtual machines with the option of continuing them in the background"));
+    }
+};
+
 class UIActionToggleCommonPauseAndResume : public UIActionToggle
 {
     Q_OBJECT;
@@ -646,12 +676,9 @@ class UIActionToggleCommonPauseAndResume : public UIActionToggle
 public:
 
     UIActionToggleCommonPauseAndResume(UIActionPool *pParent)
-        : UIActionToggle(pParent, QSize(32, 32), QSize(16, 16),
+        : UIActionToggle(pParent,
                          ":/vm_pause_32px.png", ":/vm_pause_16px.png",
-                         ":/vm_pause_disabled_32px.png", ":/vm_pause_disabled_16px.png")
-    {
-        retranslateUi();
-    }
+                         ":/vm_pause_disabled_32px.png", ":/vm_pause_disabled_16px.png") {}
 
 protected:
 
@@ -679,10 +706,7 @@ class UIActionSimpleCommonReset : public UIActionSimple
 public:
 
     UIActionSimpleCommonReset(UIActionPool *pParent)
-        : UIActionSimple(pParent, ":/vm_reset_16px.png", ":/vm_reset_disabled_16px.png")
-    {
-        retranslateUi();
-    }
+        : UIActionSimple(pParent, ":/vm_reset_16px.png", ":/vm_reset_disabled_16px.png") {}
 
 protected:
 
@@ -710,12 +734,9 @@ class UIActionSimpleCommonDiscard : public UIActionSimple
 public:
 
     UIActionSimpleCommonDiscard(UIActionPool *pParent)
-        : UIActionSimple(pParent, QSize(32, 32), QSize(16, 16),
+        : UIActionSimple(pParent,
                          ":/vm_discard_32px.png", ":/vm_discard_16px.png",
-                         ":/vm_discard_disabled_32px.png", ":/vm_discard_disabled_16px.png")
-    {
-        retranslateUi();
-    }
+                         ":/vm_discard_disabled_32px.png", ":/vm_discard_disabled_16px.png") {}
 
 protected:
 
@@ -739,6 +760,39 @@ protected:
     }
 };
 
+class UIActionSimpleCommonShowLogDialog : public UIActionSimple
+{
+    Q_OBJECT;
+
+public:
+
+    UIActionSimpleCommonShowLogDialog(UIActionPool *pParent)
+        : UIActionSimple(pParent,
+                         ":/vm_show_logs_32px.png", ":/vm_show_logs_16px.png",
+                         ":/vm_show_logs_disabled_32px.png", ":/vm_show_logs_disabled_16px.png")
+    {
+        retranslateUi();
+    }
+
+protected:
+
+    QString shortcutExtraDataID() const
+    {
+        return QString("ShowVMLog");
+    }
+
+    QKeySequence defaultShortcut(UIActionPoolType) const
+    {
+        return QKeySequence("Ctrl+L");
+    }
+
+    void retranslateUi()
+    {
+        setName(QApplication::translate("UIActionPool", "Show &Log..."));
+        setStatusTip(QApplication::translate("UIActionPool", "Show the log files of the selected virtual machine"));
+    }
+};
+
 class UIActionSimpleCommonRefresh : public UIActionSimple
 {
     Q_OBJECT;
@@ -746,12 +800,9 @@ class UIActionSimpleCommonRefresh : public UIActionSimple
 public:
 
     UIActionSimpleCommonRefresh(UIActionPool *pParent)
-        : UIActionSimple(pParent, QSize(32, 32), QSize(16, 16),
+        : UIActionSimple(pParent,
                          ":/refresh_32px.png", ":/refresh_16px.png",
-                         ":/refresh_disabled_32px.png", ":/refresh_disabled_16px.png")
-    {
-        retranslateUi();
-    }
+                         ":/refresh_disabled_32px.png", ":/refresh_disabled_16px.png") {}
 
 protected:
 
@@ -774,10 +825,7 @@ class UIActionSimpleCommonShowInFileManager : public UIActionSimple
 public:
 
     UIActionSimpleCommonShowInFileManager(UIActionPool *pParent)
-        : UIActionSimple(pParent, ":/vm_open_filemanager_16px.png", ":/vm_open_filemanager_disabled_16px.png")
-    {
-        retranslateUi();
-    }
+        : UIActionSimple(pParent, ":/vm_open_filemanager_16px.png", ":/vm_open_filemanager_disabled_16px.png") {}
 
 protected:
 
@@ -808,10 +856,7 @@ class UIActionSimpleCommonCreateShortcut : public UIActionSimple
 public:
 
     UIActionSimpleCommonCreateShortcut(UIActionPool *pParent)
-        : UIActionSimple(pParent, ":/vm_create_shortcut_16px.png", ":/vm_create_shortcut_disabled_16px.png")
-    {
-        retranslateUi();
-    }
+        : UIActionSimple(pParent, ":/vm_create_shortcut_16px.png", ":/vm_create_shortcut_disabled_16px.png") {}
 
 protected:
 
@@ -839,10 +884,7 @@ class UIActionSimpleMachineSortParent : public UIActionSimple
 public:
 
     UIActionSimpleMachineSortParent(UIActionPool *pParent)
-        : UIActionSimple(pParent, ":/sort_16px.png", ":/sort_disabled_16px.png")
-    {
-        retranslateUi();
-    }
+        : UIActionSimple(pParent, ":/sort_16px.png", ":/sort_disabled_16px.png") {}
 
 protected:
 
@@ -866,10 +908,7 @@ class UIActionMenuClose : public UIActionMenu
 public:
 
     UIActionMenuClose(UIActionPool *pParent)
-        : UIActionMenu(pParent, ":/exit_16px.png")
-    {
-        retranslateUi();
-    }
+        : UIActionMenu(pParent, ":/exit_16px.png") {}
 
 protected:
 
@@ -886,10 +925,7 @@ class UIActionSimpleSave : public UIActionSimple
 public:
 
     UIActionSimpleSave(UIActionPool *pParent)
-        : UIActionSimple(pParent, ":/vm_save_state_16px.png", ":/vm_save_state_disabled_16px.png")
-    {
-        retranslateUi();
-    }
+        : UIActionSimple(pParent, ":/vm_save_state_16px.png", ":/vm_save_state_disabled_16px.png") {}
 
 protected:
 
@@ -917,10 +953,7 @@ class UIActionSimpleACPIShutdown : public UIActionSimple
 public:
 
     UIActionSimpleACPIShutdown(UIActionPool *pParent)
-        : UIActionSimple(pParent, ":/vm_shutdown_16px.png", ":/vm_shutdown_disabled_16px.png")
-    {
-        retranslateUi();
-    }
+        : UIActionSimple(pParent, ":/vm_shutdown_16px.png", ":/vm_shutdown_disabled_16px.png") {}
 
 protected:
 
@@ -948,10 +981,7 @@ class UIActionSimplePowerOff : public UIActionSimple
 public:
 
     UIActionSimplePowerOff(UIActionPool *pParent)
-        : UIActionSimple(pParent, ":/vm_poweroff_16px.png", ":/vm_poweroff_disabled_16px.png")
-    {
-        retranslateUi();
-    }
+        : UIActionSimple(pParent, ":/vm_poweroff_16px.png", ":/vm_poweroff_disabled_16px.png") {}
 
 protected:
 
@@ -973,88 +1003,102 @@ protected:
 };
 
 
-UIActionPoolSelector::UIActionPoolSelector()
-    : UIActionPool(UIActionPoolType_Selector)
+UIActionPoolSelector::UIActionPoolSelector(bool fTemporary /* = false */)
+    : UIActionPool(UIActionPoolType_Selector, fTemporary)
+{
+}
+
+void UIActionPoolSelector::preparePool()
+{
+    /* 'File' actions: */
+    m_pool[UIActionIndexST_M_File] = new UIActionMenuFile(this);
+    m_pool[UIActionIndexST_M_File_S_ShowMediumManager] = new UIActionSimpleMediumManagerDialog(this);
+    m_pool[UIActionIndexST_M_File_S_ImportAppliance] = new UIActionSimpleImportApplianceWizard(this);
+    m_pool[UIActionIndexST_M_File_S_ExportAppliance] = new UIActionSimpleExportApplianceWizard(this);
+#ifdef DEBUG
+    m_pool[UIActionIndexST_M_File_S_ShowExtraDataManager] = new UIActionSimpleExtraDataManagerWindow(this);
+#endif /* DEBUG */
+    m_pool[UIActionIndexST_M_File_S_Close] = new UIActionSimpleExit(this);
+
+    /* 'Group' actions: */
+    m_pool[UIActionIndexST_M_Group] = new UIActionMenuGroup(this);
+    m_pool[UIActionIndexST_M_Group_S_New] = new UIActionSimpleGroupNew(this);
+    m_pool[UIActionIndexST_M_Group_S_Add] = new UIActionSimpleGroupAdd(this);
+    m_pool[UIActionIndexST_M_Group_S_Rename] = new UIActionSimpleGroupRename(this);
+    m_pool[UIActionIndexST_M_Group_S_Remove] = new UIActionSimpleGroupRemove(this);
+    m_pool[UIActionIndexST_M_Group_M_StartOrShow] = new UIActionStateCommonStartOrShow(this);
+    m_pool[UIActionIndexST_M_Group_M_StartOrShow_S_StartNormal] = new UIActionSimpleStartNormal(this);
+    m_pool[UIActionIndexST_M_Group_M_StartOrShow_S_StartHeadless] = new UIActionSimpleStartHeadless(this);
+    m_pool[UIActionIndexST_M_Group_M_StartOrShow_S_StartDetachable] = new UIActionSimpleStartDetachable(this);
+    m_pool[UIActionIndexST_M_Group_T_Pause] = new UIActionToggleCommonPauseAndResume(this);
+    m_pool[UIActionIndexST_M_Group_S_Reset] = new UIActionSimpleCommonReset(this);
+    m_pool[UIActionIndexST_M_Group_M_Close] = new UIActionMenuClose(this);
+    m_pool[UIActionIndexST_M_Group_M_Close_S_SaveState] = new UIActionSimpleSave(this);
+    m_pool[UIActionIndexST_M_Group_M_Close_S_Shutdown] = new UIActionSimpleACPIShutdown(this);
+    m_pool[UIActionIndexST_M_Group_M_Close_S_PowerOff] = new UIActionSimplePowerOff(this);
+    m_pool[UIActionIndexST_M_Group_S_Discard] = new UIActionSimpleCommonDiscard(this);
+    m_pool[UIActionIndexST_M_Group_S_ShowLogDialog] = new UIActionSimpleCommonShowLogDialog(this);
+    m_pool[UIActionIndexST_M_Group_S_Refresh] = new UIActionSimpleCommonRefresh(this);
+    m_pool[UIActionIndexST_M_Group_S_ShowInFileManager] = new UIActionSimpleCommonShowInFileManager(this);
+    m_pool[UIActionIndexST_M_Group_S_CreateShortcut] = new UIActionSimpleCommonCreateShortcut(this);
+    m_pool[UIActionIndexST_M_Group_S_Sort] = new UIActionSimpleGroupSort(this);
+
+    /* 'Machine' actions: */
+    m_pool[UIActionIndexST_M_Machine] = new UIActionMenuMachineSelector(this);
+    m_pool[UIActionIndexST_M_Machine_S_New] = new UIActionSimpleMachineNew(this);
+    m_pool[UIActionIndexST_M_Machine_S_Add] = new UIActionSimpleMachineAdd(this);
+    m_pool[UIActionIndexST_M_Machine_S_Settings] = new UIActionSimpleMachineSettings(this);
+    m_pool[UIActionIndexST_M_Machine_S_Clone] = new UIActionSimpleMachineClone(this);
+    m_pool[UIActionIndexST_M_Machine_S_Remove] = new UIActionSimpleMachineRemove(this);
+    m_pool[UIActionIndexST_M_Machine_S_AddGroup] = new UIActionSimpleMachineAddGroup(this);
+    m_pool[UIActionIndexST_M_Machine_M_StartOrShow] = new UIActionStateCommonStartOrShow(this);
+    m_pool[UIActionIndexST_M_Machine_M_StartOrShow_S_StartNormal] = new UIActionSimpleStartNormal(this);
+    m_pool[UIActionIndexST_M_Machine_M_StartOrShow_S_StartHeadless] = new UIActionSimpleStartHeadless(this);
+    m_pool[UIActionIndexST_M_Machine_M_StartOrShow_S_StartDetachable] = new UIActionSimpleStartDetachable(this);
+    m_pool[UIActionIndexST_M_Machine_T_Pause] = new UIActionToggleCommonPauseAndResume(this);
+    m_pool[UIActionIndexST_M_Machine_S_Reset] = new UIActionSimpleCommonReset(this);
+    m_pool[UIActionIndexST_M_Machine_M_Close] = new UIActionMenuClose(this);
+    m_pool[UIActionIndexST_M_Machine_M_Close_S_SaveState] = new UIActionSimpleSave(this);
+    m_pool[UIActionIndexST_M_Machine_M_Close_S_Shutdown] = new UIActionSimpleACPIShutdown(this);
+    m_pool[UIActionIndexST_M_Machine_M_Close_S_PowerOff] = new UIActionSimplePowerOff(this);
+    m_pool[UIActionIndexST_M_Machine_S_Discard] = new UIActionSimpleCommonDiscard(this);
+    m_pool[UIActionIndexST_M_Machine_S_ShowLogDialog] = new UIActionSimpleCommonShowLogDialog(this);
+    m_pool[UIActionIndexST_M_Machine_S_Refresh] = new UIActionSimpleCommonRefresh(this);
+    m_pool[UIActionIndexST_M_Machine_S_ShowInFileManager] = new UIActionSimpleCommonShowInFileManager(this);
+    m_pool[UIActionIndexST_M_Machine_S_CreateShortcut] = new UIActionSimpleCommonCreateShortcut(this);
+    m_pool[UIActionIndexST_M_Machine_S_SortParent] = new UIActionSimpleMachineSortParent(this);
+
+    /* Call to base-class: */
+    UIActionPool::preparePool();
+}
+
+void UIActionPoolSelector::prepareConnections()
 {
     /* Prepare connections: */
     connect(gShortcutPool, SIGNAL(sigSelectorShortcutsReloaded()), this, SLOT(sltApplyShortcuts()));
+
+    /* Call to base-class: */
+    UIActionPool::prepareConnections();
+}
+
+void UIActionPoolSelector::updateMenus()
+{
+    /* 'Help' menu: */
+    updateMenuHelp();
 }
 
 void UIActionPoolSelector::retranslateUi()
 {
-    /* Translate all the actions: */
-    foreach (const int iActionPoolKey, m_pool.keys())
-        m_pool[iActionPoolKey]->retranslateUi();
-    /* Re-apply Selector UI shortcuts: */
-    sltApplyShortcuts();
-    /* Temporary create Runtime UI pool to do the same: */
-    UIActionPool::createTemporary(UIActionPoolType_Runtime);
+    /* Call to base-class: */
+    UIActionPool::retranslateUi();
+    /* Create temporary Runtime UI pool to do the same: */
+    if (!m_fTemporary)
+        UIActionPool::createTemporary(UIActionPoolType_Runtime);
 }
 
 QString UIActionPoolSelector::shortcutsExtraDataID() const
 {
     return GUI_Input_SelectorShortcuts;
-}
-
-void UIActionPoolSelector::createActions()
-{
-    /* Global actions creation: */
-    UIActionPool::createActions();
-
-    /* 'File' actions: */
-    m_pool[UIActionIndexSelector_Simple_File_MediumManagerDialog] = new UIActionSimpleMediumManagerDialog(this);
-    m_pool[UIActionIndexSelector_Simple_File_ImportApplianceWizard] = new UIActionSimpleImportApplianceWizard(this);
-    m_pool[UIActionIndexSelector_Simple_File_ExportApplianceWizard] = new UIActionSimpleExportApplianceWizard(this);
-    m_pool[UIActionIndexSelector_Simple_File_PreferencesDialog] = new UIActionSimplePreferencesDialog(this);
-    m_pool[UIActionIndexSelector_Simple_File_Exit] = new UIActionSimpleExit(this);
-
-    /* 'Group' actions: */
-    m_pool[UIActionIndexSelector_Simple_Group_New] = new UIActionSimpleGroupNew(this);
-    m_pool[UIActionIndexSelector_Simple_Group_Add] = new UIActionSimpleGroupAdd(this);
-    m_pool[UIActionIndexSelector_Simple_Group_Rename] = new UIActionSimpleGroupRename(this);
-    m_pool[UIActionIndexSelector_Simple_Group_Remove] = new UIActionSimpleGroupRemove(this);
-    m_pool[UIActionIndexSelector_Simple_Group_Sort] = new UIActionSimpleGroupSort(this);
-    m_pool[UIActionIndexSelector_Simple_Group_Close_Save] = new UIActionSimpleSave(this);
-    m_pool[UIActionIndexSelector_Simple_Group_Close_ACPIShutdown] = new UIActionSimpleACPIShutdown(this);
-    m_pool[UIActionIndexSelector_Simple_Group_Close_PowerOff] = new UIActionSimplePowerOff(this);
-
-    /* 'Machine' actions: */
-    m_pool[UIActionIndexSelector_Simple_Machine_New] = new UIActionSimpleMachineNew(this);
-    m_pool[UIActionIndexSelector_Simple_Machine_Add] = new UIActionSimpleMachineAdd(this);
-    m_pool[UIActionIndexSelector_Simple_Machine_Settings] = new UIActionSimpleMachineSettings(this);
-    m_pool[UIActionIndexSelector_Simple_Machine_Clone] = new UIActionSimpleMachineClone(this);
-    m_pool[UIActionIndexSelector_Simple_Machine_Remove] = new UIActionSimpleMachineRemove(this);
-    m_pool[UIActionIndexSelector_Simple_Machine_AddGroup] = new UIActionSimpleMachineAddGroup(this);
-    m_pool[UIActionIndexSelector_Simple_Machine_SortParent] = new UIActionSimpleMachineSortParent(this);
-    m_pool[UIActionIndexSelector_Simple_Machine_Close_Save] = new UIActionSimpleSave(this);
-    m_pool[UIActionIndexSelector_Simple_Machine_Close_ACPIShutdown] = new UIActionSimpleACPIShutdown(this);
-    m_pool[UIActionIndexSelector_Simple_Machine_Close_PowerOff] = new UIActionSimplePowerOff(this);
-
-    /* Common actions: */
-    m_pool[UIActionIndexSelector_State_Common_StartOrShow] = new UIActionStateCommonStartOrShow(this);
-    m_pool[UIActionIndexSelector_Toggle_Common_PauseAndResume] = new UIActionToggleCommonPauseAndResume(this);
-    m_pool[UIActionIndexSelector_Simple_Common_Reset] = new UIActionSimpleCommonReset(this);
-    m_pool[UIActionIndexSelector_Simple_Common_Discard] = new UIActionSimpleCommonDiscard(this);
-    m_pool[UIActionIndexSelector_Simple_Common_Refresh] = new UIActionSimpleCommonRefresh(this);
-    m_pool[UIActionIndexSelector_Simple_Common_ShowInFileManager] = new UIActionSimpleCommonShowInFileManager(this);
-    m_pool[UIActionIndexSelector_Simple_Common_CreateShortcut] = new UIActionSimpleCommonCreateShortcut(this);
-}
-
-void UIActionPoolSelector::createMenus()
-{
-    /* Global menus creation: */
-    UIActionPool::createMenus();
-
-    /* 'File' menu: */
-    m_pool[UIActionIndexSelector_Menu_File] = new UIActionMenuFile(this);
-
-    /* 'Group' menu: */
-    m_pool[UIActionIndexSelector_Menu_Group] = new UIActionMenuGroup(this);
-    m_pool[UIActionIndexSelector_Menu_Group_Close] = new UIActionMenuClose(this);
-
-    /* 'Machine' menu: */
-    m_pool[UIActionIndexSelector_Menu_Machine] = new UIActionMenuMachineSelector(this);
-    m_pool[UIActionIndexSelector_Menu_Machine_Close] = new UIActionMenuClose(this);
 }
 
 #include "UIActionPoolSelector.moc"

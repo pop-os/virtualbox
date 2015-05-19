@@ -536,7 +536,7 @@ VMMR3DECL(int)      DBGFR3InfoStdErr(PUVM pUVM, const char *pszName, const char 
 VMMR3_INT_DECL(int) DBGFR3InfoMulti(PVM pVM, const char *pszIncludePat, const char *pszExcludePat,
                                     const char *pszSepFmt, PCDBGFINFOHLP pHlp);
 
-/** @def DBGFR3InfoLog
+/** @def DBGFR3_INFO_LOG
  * Display a piece of info writing to the log if enabled.
  *
  * @param   a_pVM       The shared VM handle.
@@ -912,7 +912,7 @@ VMMR3DECL(int)      DBGFR3DisasInstrEx(PUVM pUVM, VMCPUID idCpu, RTSEL Sel, RTGC
 VMMR3_INT_DECL(int) DBGFR3DisasInstrCurrent(PVMCPU pVCpu, char *pszOutput, uint32_t cbOutput);
 VMMR3DECL(int)      DBGFR3DisasInstrCurrentLogInternal(PVMCPU pVCpu, const char *pszPrefix);
 
-/** @def DBGFR3DisasInstrCurrentLog
+/** @def DBGFR3_DISAS_INSTR_CUR_LOG
  * Disassembles the current guest context instruction and writes it to the log.
  * All registers and data will be displayed. Addresses will be attempted resolved to symbols.
  */
@@ -928,7 +928,7 @@ VMMR3DECL(int)      DBGFR3DisasInstrCurrentLogInternal(PVMCPU pVCpu, const char 
 
 VMMR3DECL(int) DBGFR3DisasInstrLogInternal(PVMCPU pVCpu, RTSEL Sel, RTGCPTR GCPtr, const char *pszPrefix);
 
-/** @def DBGFR3DisasInstrLog
+/** @def DBGFR3_DISAS_INSTR_LOG
  * Disassembles the specified guest context instruction and writes it to the log.
  * Addresses will be attempted resolved to symbols.
  * @thread Any EMT.
@@ -1550,6 +1550,8 @@ typedef enum DBGFOSINTERFACE
     DBGFOSINTERFACE_PROCESS,
     /** Thread info. */
     DBGFOSINTERFACE_THREAD,
+    /** Kernel message log - DBGFOSIDMESG. */
+    DBGFOSINTERFACE_DMESG,
     /** The end of the valid entries. */
     DBGFOSINTERFACE_END,
     /** The usual 32-bit type blowup. */
@@ -1657,6 +1659,9 @@ typedef struct DBGFOSREG
      *
      * This is called after pfnProbe.
      *
+     * The returned interface must be valid until pfnDestruct is called.  Two calls
+     * to this method with the same @a enmIf value must return the same pointer.
+     *
      * @returns Pointer to the interface if available, NULL if not available.
      * @param   pUVM    The user mode VM handle.
      * @param   pvData  Pointer to the instance data.
@@ -1675,6 +1680,49 @@ typedef DBGFOSREG const *PCDBGFOSREG;
 /** Magic value for DBGFOSREG::u32Magic and DBGFOSREG::u32EndMagic. (Hitomi Kanehara) */
 #define DBGFOSREG_MAGIC     0x19830808
 
+
+/**
+ * Interface for querying kernel log messages (DBGFOSINTERFACE_DMESG).
+ */
+typedef struct DBGFOSIDMESG
+{
+    /** Trailing magic (DBGFOSIDMESG_MAGIC). */
+    uint32_t    u32Magic;
+
+    /**
+     * Query the kernel log.
+     *
+     * @returns VBox status code.
+     * @retval  VERR_NOT_FOUND if the messages could not be located.
+     * @retval  VERR_INVALID_STATE if the messages was found to have unknown/invalid
+     *          format.
+     * @retval  VERR_BUFFER_OVERFLOW if the buffer isn't large enough, pcbActual
+     *          will be set to the required buffer size.  The buffer, however, will
+     *          be filled with as much data as it can hold (properly zero terminated
+     *          of course).
+     *
+     * @param   pThis       Pointer to the interface structure.
+     * @param   pUVM        The user mode VM handle.
+     * @param   fFlags      Flags reserved for future use, MBZ.
+     * @param   cMessages   The number of messages to retrieve, counting from the
+     *                      end of the log (i.e. like tail), use UINT32_MAX for all.
+     * @param   pszBuf      The output buffer.
+     * @param   cbBuf       The buffer size.
+     * @param   pcbActual   Where to store the number of bytes actually returned,
+     *                      including zero terminator.  On VERR_BUFFER_OVERFLOW this
+     *                      holds the necessary buffer size.  Optional.
+     */
+    DECLCALLBACKMEMBER(int, pfnQueryKernelLog)(struct DBGFOSIDMESG *pThis, PUVM pUVM, uint32_t fFlags, uint32_t cMessages,
+                                               char *pszBuf, size_t cbBuf, size_t *pcbActual);
+    /** Trailing magic (DBGFOSIDMESG_MAGIC). */
+    uint32_t    u32EndMagic;
+} DBGFOSIDMESG;
+/** Pointer to the interface for query kernel log messages (DBGFOSINTERFACE_DMESG). */
+typedef DBGFOSIDMESG *PDBGFOSIDMESG;
+/** Magic value for DBGFOSIDMESG::32Magic and DBGFOSIDMESG::u32EndMagic. (Kenazburo Oe) */
+#define DBGFOSIDMESG_MAGIC UINT32_C(0x19350131)
+
+
 VMMR3DECL(int)      DBGFR3OSRegister(PUVM pUVM, PCDBGFOSREG pReg);
 VMMR3DECL(int)      DBGFR3OSDeregister(PUVM pUVM, PCDBGFOSREG pReg);
 VMMR3DECL(int)      DBGFR3OSDetect(PUVM pUVM, char *pszName, size_t cchName);
@@ -1683,6 +1731,62 @@ VMMR3DECL(void *)   DBGFR3OSQueryInterface(PUVM pUVM, DBGFOSINTERFACE enmIf);
 
 
 VMMR3DECL(int)      DBGFR3CoreWrite(PUVM pUVM, const char *pszFilename, bool fReplaceFile);
+
+
+#ifdef IN_RING3
+/** @defgroup grp_dbgf_plug_in      The DBGF Plug-in Interface
+ * @{
+ */
+
+/** The plug-in module name prefix. */
+#define DBGF_PLUG_IN_PREFIX         "DbgPlugIn"
+
+/** The name of the plug-in entry point (FNDBGFPLUGIN) */
+#define DBGF_PLUG_IN_ENTRYPOINT     "DbgPlugInEntry"
+
+/**
+ * DBGF plug-in operations.
+ */
+typedef enum DBGFPLUGINOP
+{
+    /** The usual invalid first value. */
+    DBGFPLUGINOP_INVALID,
+    /** Initialize the plug-in for a VM, register all the stuff.
+     * The plug-in will be unloaded on failure.
+     * uArg: The full VirtualBox version, see VBox/version.h. */
+    DBGFPLUGINOP_INIT,
+    /** Terminate the plug-ing for a VM, deregister all the stuff.
+     * The plug-in will be unloaded after this call regardless of the return
+     * code. */
+    DBGFPLUGINOP_TERM,
+    /** The usual 32-bit hack. */
+    DBGFPLUGINOP_32BIT_HACK = 0x7fffffff
+} DBGFPLUGINOP;
+
+/**
+ * DBGF plug-in main entry point.
+ *
+ * @returns VBox status code.
+ *
+ * @param   enmOperation    The operation.
+ * @param   pUVM            The user mode VM handle. This may be NULL.
+ * @param   uArg            Extra argument.
+ */
+typedef DECLCALLBACK(int) FNDBGFPLUGIN(DBGFPLUGINOP enmOperation, PUVM pUVM, uintptr_t uArg);
+/** Pointer to a FNDBGFPLUGIN. */
+typedef FNDBGFPLUGIN *PFNDBGFPLUGIN;
+
+/** @copydoc FNDBGFPLUGIN */
+DECLEXPORT(int) DbgPlugInEntry(DBGFPLUGINOP enmOperation, PUVM pUVM, uintptr_t uArg);
+
+VMMR3DECL(int)  DBGFR3PlugInLoad(PUVM pUVM, const char *pszPlugIn, char *pszActual, size_t cbActual, PRTERRINFO pErrInfo);
+VMMR3DECL(int)  DBGFR3PlugInUnload(PUVM pUVM, const char *pszName);
+VMMR3DECL(void) DBGFR3PlugInLoadAll(PUVM pUVM);
+VMMR3DECL(void) DBGFR3PlugInUnloadAll(PUVM pUVM);
+
+/** @} */
+#endif /* IN_RING3 */
+
 
 /** @} */
 

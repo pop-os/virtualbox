@@ -2328,6 +2328,7 @@ static bool atapiReadDVDStructureSS(ATADevState *s)
 
                         /* 4 byte header + 4 byte data */
                         uASC = (4 + 4);
+                        break;
 
                     case 0x03: /* BCA information - invalid field for no BCA info */
                         uASC = -SCSI_ASC_INV_FIELD_IN_CMD_PACKET;
@@ -5900,10 +5901,10 @@ PDMBOTHCBDECL(int) ataIOPortRead1(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Por
     if (Port == pCtl->IOPortBase1)
     {
         /* Reads from the data register may be 16-bit or 32-bit. */
-        Assert(cb == 2 || cb == 4);
-        rc = ataDataRead(pCtl, Port, cb, (uint8_t *)pu32);
-        if (cb == 2)
-            *pu32 &= 0xffff;
+        Assert(cb == 1 || cb == 2 || cb == 4);
+        rc = ataDataRead(pCtl, Port, cb == 1 ? 2 : cb, (uint8_t *)pu32);
+        if (cb <= 2)
+            *pu32 &= 0xffff >> (16 - cb * 8);
     }
     else
     {

@@ -15,6 +15,11 @@
 #include "cr_vreg.h"
 #include "cr_environment.h"
 #include "cr_pixeldata.h"
+
+#ifdef VBOX_WITH_CR_DISPLAY_LISTS
+# include "cr_dlm.h"
+#endif
+
 #include "server_dispatch.h"
 #include "state/cr_texture.h"
 #include "render/renderspu.h"
@@ -203,9 +208,11 @@ static void crServerTearDown( void )
 
     if (!fContextsDeleted)
     {
+#ifndef VBOX_WITH_CR_DISPLAY_LISTS
         /* sync our state with renderspu,
          * do it before mural & context deletion to avoid deleting currently set murals/contexts*/
         cr_server.head_spu->dispatch_table.MakeCurrent(CR_RENDER_DEFAULT_WINDOW_ID, 0, CR_RENDER_DEFAULT_CONTEXT_ID);
+#endif
     }
 
     /* Deallocate all semaphores */
@@ -745,34 +752,6 @@ static void crVBoxServerInternalClientWriteRead(CRClient *pClient)
     CRVBOXHGSMI_CMDDATA_ASSERT_CLEANED(&pClient->conn->CmdData);
 
     crServerServiceClients();
-
-#if 0
-        if (pClient->currentMural) {
-            crStateViewport( 0, 0, 500, 500 );
-            pClient->currentMural->viewportValidated = GL_FALSE;
-            cr_server.head_spu->dispatch_table.Viewport( 0, 0, 500, 500 );
-            crStateViewport( 0, 0, 600, 600 );
-            pClient->currentMural->viewportValidated = GL_FALSE;
-            cr_server.head_spu->dispatch_table.Viewport( 0, 0, 600, 600 );
-
-            crStateMatrixMode(GL_PROJECTION);
-            cr_server.head_spu->dispatch_table.MatrixMode(GL_PROJECTION);
-            crServerDispatchLoadIdentity();
-            crStateFrustum(-0.6, 0.6, -0.5, 0.5, 1.5, 150.0);
-            cr_server.head_spu->dispatch_table.Frustum(-0.6, 0.6, -0.5, 0.5, 1.5, 150.0);
-            crServerDispatchLoadIdentity();
-            crStateFrustum(-0.5, 0.5, -0.5, 0.5, 1.5, 150.0);
-            cr_server.head_spu->dispatch_table.Frustum(-0.5, 0.5, -0.5, 0.5, 1.5, 150.0);
-
-            crStateMatrixMode(GL_MODELVIEW);
-            cr_server.head_spu->dispatch_table.MatrixMode(GL_MODELVIEW);
-            crServerDispatchLoadIdentity();
-            crStateFrustum(-0.5, 0.5, -0.5, 0.5, 1.5, 150.0);
-            cr_server.head_spu->dispatch_table.Frustum(-0.5, 0.5, -0.5, 0.5, 1.5, 150.0);
-            crServerDispatchLoadIdentity();
-        }
-#endif
-
     crStateResetCurrentPointers(&cr_server.current);
 
 #ifndef VBOX_WITH_CRHGSMI
@@ -794,7 +773,6 @@ int32_t crVBoxServerClientWrite(uint32_t u32ClientID, uint8_t *pBuffer, uint32_t
 
     if (RT_FAILURE(rc))
         return rc;
-
 
     CRASSERT(pBuffer);
 
@@ -1391,11 +1369,6 @@ static int crVBoxServerFBImageDataInitEx(CRFBData *pData, CRContextInfo *pCtxInf
     return VINF_SUCCESS;
 }
 
-static int crVBoxServerFBImageDataInit(CRFBData *pData, CRContextInfo *pCtxInfo, CRMuralInfo *pMural, GLboolean fWrite)
-{
-    return crVBoxServerFBImageDataInitEx(pData, pCtxInfo, pMural, fWrite, SHCROGL_SSM_VERSION, 0, 0);
-}
-
 static int crVBoxServerSaveFBImage(PSSMHANDLE pSSM)
 {
     CRContextInfo *pCtxInfo;
@@ -1415,7 +1388,7 @@ static int crVBoxServerSaveFBImage(PSSMHANDLE pSSM)
     pContext = pCtxInfo->pContext;
     pMural = pCtxInfo->currentMural;
 
-    rc = crVBoxServerFBImageDataInit(&Data.data, pCtxInfo, pMural, GL_FALSE);
+    rc = crVBoxServerFBImageDataInitEx(&Data.data, pCtxInfo, pMural, GL_FALSE, SHCROGL_SSM_VERSION, 0, 0);
     if (!RT_SUCCESS(rc))
     {
         crWarning("crVBoxServerFBImageDataInit failed rc %d", rc);
@@ -1542,125 +1515,6 @@ static void crVBoxServerSaveContextStateCB(unsigned long key, void *data1, void 
     /* restore the initial current mural */
     pContextInfo->currentMural = pContextCurrentMural;
 }
-
-#if 0
-typedef struct CR_SERVER_CHECK_BUFFERS
-{
-    CRBufferObject *obj;
-    CRContext *ctx;
-}CR_SERVER_CHECK_BUFFERS, *PCR_SERVER_CHECK_BUFFERS;
-
-static void crVBoxServerCheckConsistencyContextBuffersCB(unsigned long key, void *data1, void *data2)
-{
-    CRContextInfo* pContextInfo = (CRContextInfo*)data1;
-    CRContext *ctx = pContextInfo->pContext;
-    PCR_SERVER_CHECK_BUFFERS pBuffers = (PCR_SERVER_CHECK_BUFFERS)data2;
-    CRBufferObject *obj = pBuffers->obj;
-    CRBufferObjectState *b = &(ctx->bufferobject);
-    int j, k;
-
-    if (obj == b->arrayBuffer)
-    {
-        Assert(!pBuffers->ctx || pBuffers->ctx == ctx);
-        pBuffers->ctx = ctx;
-    }
-    if (obj == b->elementsBuffer)
-    {
-        Assert(!pBuffers->ctx || pBuffers->ctx == ctx);
-        pBuffers->ctx = ctx;
-    }
-#ifdef CR_ARB_pixel_buffer_object
-    if (obj == b->packBuffer)
-    {
-        Assert(!pBuffers->ctx || pBuffers->ctx == ctx);
-        pBuffers->ctx = ctx;
-    }
-    if (obj == b->unpackBuffer)
-    {
-        Assert(!pBuffers->ctx || pBuffers->ctx == ctx);
-        pBuffers->ctx = ctx;
-    }
-#endif
-
-#ifdef CR_ARB_vertex_buffer_object
-    for (j=0; j<CRSTATECLIENT_MAX_VERTEXARRAYS; ++j)
-    {
-        CRClientPointer *cp = crStateGetClientPointerByIndex(j, &ctx->client.array);
-        if (obj == cp->buffer)
-        {
-            Assert(!pBuffers->ctx || pBuffers->ctx == ctx);
-            pBuffers->ctx = ctx;
-        }
-    }
-
-    for (k=0; k<ctx->client.vertexArrayStackDepth; ++k)
-    {
-        CRVertexArrays *pArray = &ctx->client.vertexArrayStack[k];
-        for (j=0; j<CRSTATECLIENT_MAX_VERTEXARRAYS; ++j)
-        {
-            CRClientPointer *cp = crStateGetClientPointerByIndex(j, pArray);
-            if (obj == cp->buffer)
-            {
-                Assert(!pBuffers->ctx || pBuffers->ctx == ctx);
-                pBuffers->ctx = ctx;
-            }
-        }
-    }
-#endif
-}
-
-static void crVBoxServerCheckConsistencyBuffersCB(unsigned long key, void *data1, void *data2)
-{
-    CRBufferObject *obj = (CRBufferObject *)data1;
-    CR_SERVER_CHECK_BUFFERS Buffers = {0};
-    Buffers.obj = obj;
-    crHashtableWalk(cr_server.contextTable, crVBoxServerCheckConsistencyContextBuffersCB, (void*)&Buffers);
-}
-
-//static void crVBoxServerCheckConsistency2CB(unsigned long key, void *data1, void *data2)
-//{
-//    CRContextInfo* pContextInfo1 = (CRContextInfo*)data1;
-//    CRContextInfo* pContextInfo2 = (CRContextInfo*)data2;
-//
-//    CRASSERT(pContextInfo1->pContext);
-//    CRASSERT(pContextInfo2->pContext);
-//
-//    if (pContextInfo1 == pContextInfo2)
-//    {
-//        CRASSERT(pContextInfo1->pContext == pContextInfo2->pContext);
-//        return;
-//    }
-//
-//    CRASSERT(pContextInfo1->pContext != pContextInfo2->pContext);
-//    CRASSERT(pContextInfo1->pContext->shared);
-//    CRASSERT(pContextInfo2->pContext->shared);
-//    CRASSERT(pContextInfo1->pContext->shared == pContextInfo2->pContext->shared);
-//    if (pContextInfo1->pContext->shared != pContextInfo2->pContext->shared)
-//        return;
-//
-//    crHashtableWalk(pContextInfo1->pContext->shared->buffersTable, crVBoxServerCheckConsistencyBuffersCB, pContextInfo2);
-//}
-static void crVBoxServerCheckSharedCB(unsigned long key, void *data1, void *data2)
-{
-    CRContextInfo* pContextInfo = (CRContextInfo*)data1;
-    void **ppShared = (void**)data2;
-    if (!*ppShared)
-        *ppShared = pContextInfo->pContext->shared;
-    else
-        Assert(pContextInfo->pContext->shared == *ppShared);
-}
-
-static void crVBoxServerCheckConsistency()
-{
-    CRSharedState *pShared = NULL;
-    crHashtableWalk(cr_server.contextTable, crVBoxServerCheckSharedCB, (void*)&pShared);
-    Assert(pShared);
-    if (pShared)
-    {
-        crHashtableWalk(pShared->buffersTable, crVBoxServerCheckConsistencyBuffersCB, NULL);
-    }
-}
-#endif
 
 static uint32_t g_hackVBoxServerSaveLoadCallsLeft = 0;
 
@@ -1827,6 +1681,11 @@ static int32_t crVBoxServerSaveStatePerform(PSSMHANDLE pSSM)
             }
         }
     }
+
+#ifdef VBOX_WITH_CR_DISPLAY_LISTS
+    rc = crDLMSaveState();
+    AssertRCReturn(rc, rc);
+#endif
 
     rc = crServerPendSaveState(pSSM);
     AssertRCReturn(rc, rc);
@@ -2151,63 +2010,6 @@ static int32_t crVBoxServerLoadMurals(CR_SERVER_LOADSTATE_READER *pReader, uint3
                     }
                 }
 
-#if 0
-                if (muralInfo.pVisibleRects)
-                {
-                    int j;
-                    int cRects = RT_MIN(muralInfo.cVisibleRects, RT_ELEMENTS(LaBuf.aVisRects));
-                    CRASSERT(cRects);
-                    for (j = 0; j < cRects; ++j)
-                    {
-                        PRTRECT pRect = &LaBuf.aVisRects[j];
-                        if (pRect->xLeft >= pRect->xRight)
-                            break;
-                        if (pRect->yTop >= pRect->yBottom)
-                            break;
-                        if (pRect->xLeft < 0 || pRect->xRight < 0
-                                || pRect->yTop < 0 || pRect->yBottom < 0)
-                            break;
-                        if (pRect->xLeft > (GLint)muralInfo.width
-                                || pRect->xRight > (GLint)muralInfo.width)
-                            break;
-                        if (pRect->yTop > (GLint)muralInfo.height
-                                || pRect->yBottom > (GLint)muralInfo.height)
-                            break;
-                    }
-
-                    if (j < cRects)
-                    {
-                        fBuggyMuralData = true;
-                        break;
-                    }
-                }
-
-                if (muralInfo.pVisibleRects)
-                {
-                    /* @todo: do we actually need any further checks here? */
-                    fBuggyMuralData = true;
-                    break;
-                }
-
-                /* no visible regions*/
-
-                if (ui == uiNumElems - 1)
-                {
-                    /* this is the last mural, next it goes idsPool, whose content can not match the above template again */
-                    fBuggyMuralData = true;
-                    break;
-                }
-
-                /* next it goes a next mural info */
-//                if (!fExpectPtr)
-//                {
-//                    CRMuralInfo *pNextSpuWindowInfoMural = (CRMuralInfo*)((void*)&LaBuf);
-//                    if (!pNextSpuWindowInfoMural->spuWindow)
-//                        fBuggyMuralData = true;
-//
-//                    break;
-//                }
-#endif
                 /* fExpectPtr == true, the valid pointer values should not match possible mural width/height/position */
                 fBuggyMuralData = true;
                 break;
@@ -2659,70 +2461,8 @@ static int32_t crVBoxServerLoadStatePerform(PSSMHANDLE pSSM, uint32_t version)
 
             /* Restore client active context and window */
             crServerDispatchMakeCurrent(winID, 0, ctxID);
-
-            if (0)
-            {
-//            CRContext *tmpCtx;
-//            CRCreateInfo_t *createInfo;
-            GLfloat one[4] = { 1, 1, 1, 1 };
-            GLfloat amb[4] = { 0.4f, 0.4f, 0.4f, 1.0f };
-
-            crServerDispatchMakeCurrent(winID, 0, ctxID);
-
-            crHashtableWalk(client.currentCtxInfo->pContext->shared->textureTable, crVBoxServerSyncTextureCB, client.currentCtxInfo->pContext);
-
-            crStateTextureObjectDiff(client.currentCtxInfo->pContext, NULL, NULL, &client.currentCtxInfo->pContext->texture.base1D, GL_TRUE);
-            crStateTextureObjectDiff(client.currentCtxInfo->pContext, NULL, NULL, &client.currentCtxInfo->pContext->texture.base2D, GL_TRUE);
-            crStateTextureObjectDiff(client.currentCtxInfo->pContext, NULL, NULL, &client.currentCtxInfo->pContext->texture.base3D, GL_TRUE);
-#ifdef CR_ARB_texture_cube_map
-            crStateTextureObjectDiff(client.currentCtxInfo->pContext, NULL, NULL, &client.currentCtxInfo->pContext->texture.baseCubeMap, GL_TRUE);
-#endif
-#ifdef CR_NV_texture_rectangle
-            //@todo this doesn't work as expected
-            //crStateTextureObjectDiff(client.currentCtxInfo->pContext, NULL, NULL, &client.currentCtxInfo->pContext->texture.baseRect, GL_TRUE);
-#endif
-            /*cr_server.head_spu->dispatch_table.Materialfv(GL_FRONT_AND_BACK, GL_AMBIENT, amb);
-            cr_server.head_spu->dispatch_table.LightModelfv(GL_LIGHT_MODEL_AMBIENT, amb);
-            cr_server.head_spu->dispatch_table.Lightfv(GL_LIGHT1, GL_DIFFUSE, one);
-
-            cr_server.head_spu->dispatch_table.Enable(GL_LIGHTING);
-            cr_server.head_spu->dispatch_table.Enable(GL_LIGHT0);
-            cr_server.head_spu->dispatch_table.Enable(GL_LIGHT1);
-
-            cr_server.head_spu->dispatch_table.Enable(GL_CULL_FACE);
-            cr_server.head_spu->dispatch_table.Enable(GL_TEXTURE_2D);*/
-
-            //crStateViewport( 0, 0, 600, 600 );
-            //pClient->currentMural->viewportValidated = GL_FALSE;
-            //cr_server.head_spu->dispatch_table.Viewport( 0, 0, 600, 600 );
-
-            //crStateMatrixMode(GL_PROJECTION);
-            //cr_server.head_spu->dispatch_table.MatrixMode(GL_PROJECTION);
-
-            //crStateLoadIdentity();
-            //cr_server.head_spu->dispatch_table.LoadIdentity();
-
-            //crStateFrustum(-0.5, 0.5, -0.5, 0.5, 1.5, 150.0);
-            //cr_server.head_spu->dispatch_table.Frustum(-0.5, 0.5, -0.5, 0.5, 1.5, 150.0);
-
-            //crStateMatrixMode(GL_MODELVIEW);
-            //cr_server.head_spu->dispatch_table.MatrixMode(GL_MODELVIEW);
-            //crServerDispatchLoadIdentity();
-            //crStateFrustum(-0.5, 0.5, -0.5, 0.5, 1.5, 150.0);
-            //cr_server.head_spu->dispatch_table.Frustum(-0.5, 0.5, -0.5, 0.5, 1.5, 150.0);
-            //crServerDispatchLoadIdentity();
-
-                /*createInfo = (CRCreateInfo_t *) crHashtableSearch(cr_server.pContextCreateInfoTable, ctxID);
-                CRASSERT(createInfo);
-                tmpCtx = crStateCreateContext(NULL, createInfo->visualBits, NULL);
-                CRASSERT(tmpCtx);
-                crStateDiffContext(tmpCtx, client.currentCtxInfo->pContext);
-                crStateDestroyContext(tmpCtx);*/
-            }
         }
     }
-
-    //crServerDispatchMakeCurrent(-1, 0, -1);
 
     cr_server.curClient = NULL;
 
@@ -2739,10 +2479,6 @@ static int32_t crVBoxServerLoadStatePerform(PSSMHANDLE pSSM, uint32_t version)
         crWarning("crServer: glGetError %d after loading snapshot", err);
 
     cr_server.bIsInLoadingState = GL_FALSE;
-
-#if 0
-    crVBoxServerCheckConsistency();
-#endif
 
 #ifdef DEBUG_misha
     if (cr_server.head_spu->dispatch_table.StringMarkerGREMEDY)
@@ -2774,7 +2510,7 @@ extern DECLEXPORT(void) crServerVBoxSetNotifyEventCB(PFNCRSERVERNOTIFYEVENT pfnC
     cr_server.pfnNotifyEventCB = pfnCb;
 }
 
-void crVBoxServerNotifyEvent(int32_t idScreen, uint32_t uEvent, void*pvData)
+void crVBoxServerNotifyEvent(int32_t idScreen, uint32_t uEvent, void* pvData, uint32_t cbData)
 {
     /* this is something unexpected, but just in case */
     if (idScreen >= cr_server.screenCount)
@@ -2783,7 +2519,7 @@ void crVBoxServerNotifyEvent(int32_t idScreen, uint32_t uEvent, void*pvData)
         return;
     }
 
-    cr_server.pfnNotifyEventCB(idScreen, uEvent, pvData);
+    cr_server.pfnNotifyEventCB(idScreen, uEvent, pvData, cbData);
 }
 
 void crServerWindowReparent(CRMuralInfo *pMural)
@@ -2791,6 +2527,11 @@ void crServerWindowReparent(CRMuralInfo *pMural)
     pMural->fHasParentWindow = !!cr_server.screen[pMural->screenId].winID;
 
     renderspuReparentWindow(pMural->spuWindow);
+}
+
+DECLEXPORT(void) crServerSetUnscaledHiDPI(bool fEnable)
+{
+    renderspuSetUnscaledHiDPI(fEnable);
 }
 
 static void crVBoxServerReparentMuralCB(unsigned long key, void *data1, void *data2)
@@ -2966,11 +2707,6 @@ DECLEXPORT(int32_t) crVBoxServerSetRootVisibleRegion(GLint cRects, const RTRECT 
     }
 
     return VINF_SUCCESS;
-}
-
-DECLEXPORT(void) crVBoxServerSetPresentFBOCB(PFNCRSERVERPRESENTFBO pfnPresentFBO)
-{
-    cr_server.pfnPresentFBO = pfnPresentFBO;
 }
 
 DECLEXPORT(int32_t) crVBoxServerSetOffscreenRendering(GLboolean value)

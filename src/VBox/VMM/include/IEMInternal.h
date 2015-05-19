@@ -189,11 +189,11 @@ typedef IEMVERIFYEVTREC *PIEMVERIFYEVTREC;
  */
 typedef struct IEMCPU
 {
-    /** Pointer to the CPU context - ring-3 contex. */
+    /** Pointer to the CPU context - ring-3 context. */
     R3PTRTYPE(PCPUMCTX)     pCtxR3;
-    /** Pointer to the CPU context - ring-0 contex. */
+    /** Pointer to the CPU context - ring-0 context. */
     R0PTRTYPE(PCPUMCTX)     pCtxR0;
-    /** Pointer to the CPU context - raw-mode contex. */
+    /** Pointer to the CPU context - raw-mode context. */
     RCPTRTYPE(PCPUMCTX)     pCtxRC;
 
     /** Offset of the VMCPU structure relative to this structure (negative). */
@@ -372,22 +372,12 @@ typedef struct IEMCPU
 
     /** @name Target CPU information.
      * @{ */
-    /** EDX value of CPUID(1).
-     * @remarks Some bits are subject to change and must be queried dynamically. */
-    uint32_t                fCpuIdStdFeaturesEdx;
-    /** ECX value of CPUID(1).
-     * @remarks Some bits are subject to change and must be queried dynamically. */
-    uint32_t                fCpuIdStdFeaturesEcx;
     /** The CPU vendor. */
     CPUMCPUVENDOR           enmCpuVendor;
     /** @} */
 
     /** @name Host CPU information.
      * @{ */
-    /** EDX value of CPUID(1). */
-    uint32_t                fHostCpuIdStdFeaturesEdx;
-    /** ECX value of CPUID(1). */
-    uint32_t                fHostCpuIdStdFeaturesEcx;
     /** The CPU vendor. */
     CPUMCPUVENDOR           enmHostCpuVendor;
     /** @} */
@@ -520,6 +510,23 @@ typedef IEMCPU const *PCIEMCPU;
 /** The r/m is a memory access. */
 #define IEMOPFORM_NOT_MOD3      RT_BIT_32(9)
 /** @} */
+
+/**
+ * Possible hardware task switch sources.
+ */
+typedef enum IEMTASKSWITCH
+{
+    /** Task switch caused by an interrupt/exception. */
+    IEMTASKSWITCH_INT_XCPT = 1,
+    /** Task switch caused by a far CALL. */
+    IEMTASKSWITCH_CALL,
+    /** Task switch caused by a far JMP. */
+    IEMTASKSWITCH_JUMP,
+    /** Task switch caused by an IRET. */
+    IEMTASKSWITCH_IRET
+} IEMTASKSWITCH;
+AssertCompileSize(IEMTASKSWITCH, 4);
+
 
 /**
  * Tests if verification mode is enabled.

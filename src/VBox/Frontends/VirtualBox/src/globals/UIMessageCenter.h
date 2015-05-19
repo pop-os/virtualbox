@@ -1,11 +1,10 @@
+/* $Id: UIMessageCenter.h $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * UIMessageCenter class declaration
+ * VBox Qt GUI - UIMessageCenter class declaration.
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -152,13 +151,13 @@ public:
     void warnAboutWrongUSBMounted() const;
 #endif /* RT_OS_LINUX */
     void cannotStartSelector() const;
-    void showBETAWarning() const;
-    void showBEBWarning() const;
+    void showBetaBuildWarning() const;
+    void showExperimentalBuildWarning() const;
 
     /* API: COM startup warnings: */
     void cannotInitUserHome(const QString &strUserHome) const;
     void cannotInitCOM(HRESULT rc) const;
-    void cannotCreateVirtualBox(const CVirtualBox &vbox) const;
+    void cannotCreateVirtualBoxClient(const CVirtualBoxClient &client) const;
 
     /* API: Global warnings: */
     void cannotFindLanguage(const QString &strLangId, const QString &strNlsPath) const;
@@ -172,6 +171,8 @@ public:
     void cannotOpenSession(const CProgress &progress, const QString &strMachineName) const;
     void cannotGetMediaAccessibility(const UIMedium &medium) const;
     void cannotOpenURL(const QString &strUrl) const;
+    void cannotSetExtraData(const CVirtualBox &vbox, const QString &strKey, const QString &strValue);
+    void cannotSetExtraData(const CMachine &machine, const QString &strKey, const QString &strValue);
 
     /* API: Selector warnings: */
     void cannotOpenMachine(const CVirtualBox &vbox, const QString &strMachinePath) const;
@@ -190,8 +191,8 @@ public:
     bool confirmPowerOffMachine(const QString &strNames) const;
     void cannotPauseMachine(const CConsole &console) const;
     void cannotResumeMachine(const CConsole &console) const;
-    void cannotDiscardSavedState(const CConsole &console) const;
-    void cannotSaveMachineState(const CConsole &console);
+    void cannotDiscardSavedState(const CMachine &machine) const;
+    void cannotSaveMachineState(const CMachine &machine);
     void cannotSaveMachineState(const CProgress &progress, const QString &strMachineName);
     void cannotACPIShutdownMachine(const CConsole &console) const;
     void cannotPowerDownMachine(const CConsole &console) const;
@@ -202,12 +203,15 @@ public:
     bool confirmSnapshotRemoval(const QString &strSnapshotName) const;
     bool warnAboutSnapshotRemovalFreeSpace(const QString &strSnapshotName, const QString &strTargetImageName,
                                            const QString &strTargetImageMaxSize, const QString &strTargetFileSystemFree) const;
-    void cannotTakeSnapshot(const CConsole &console, const QString &strMachineName, QWidget *pParent = 0) const;
+    void cannotTakeSnapshot(const CMachine &machine, const QString &strMachineName, QWidget *pParent = 0) const;
     void cannotTakeSnapshot(const CProgress &progress, const QString &strMachineName, QWidget *pParent = 0) const;
-    bool cannotRestoreSnapshot(const CConsole &console, const QString &strSnapshotName, const QString &strMachineName) const;
+    bool cannotRestoreSnapshot(const CMachine &machine, const QString &strSnapshotName, const QString &strMachineName) const;
     bool cannotRestoreSnapshot(const CProgress &progress, const QString &strSnapshotName, const QString &strMachineName) const;
-    void cannotRemoveSnapshot(const CConsole &console, const QString &strSnapshotName, const QString &strMachineName) const;
+    void cannotRemoveSnapshot(const CMachine &machine, const QString &strSnapshotName, const QString &strMachineName) const;
     void cannotRemoveSnapshot(const CProgress &progress, const QString &strSnapshotName, const QString &strMachineName) const;
+
+    /* API: Common settings warnings: */
+    void cannotSaveSettings(const QString strDetails, QWidget *pParent = 0) const;
 
     /* API: Global settings warnings: */
     bool confirmNATNetworkRemoval(const QString &strName, QWidget *pParent = 0) const;
@@ -231,7 +235,9 @@ public:
     int confirmFloppyAttachmentCreation(const QString &strControllerName, QWidget *pParent = 0) const;
     int confirmRemovingOfLastDVDDevice(QWidget *pParent = 0) const;
     void cannotAttachDevice(const CMachine &machine, UIMediumType type, const QString &strLocation, const StorageSlot &storageSlot, QWidget *pParent = 0);
-    void warnAboutIncorrectPort(QWidget *pParent = 0) const;
+    bool warnAboutIncorrectPort(QWidget *pParent = 0) const;
+    bool warnAboutNameShouldBeUnique(QWidget *pParent = 0) const;
+    bool warnAboutRulesConflict(QWidget *pParent = 0) const;
     bool confirmCancelingPortForwardingDialog(QWidget *pParent = 0) const;
     void cannotCreateSharedFolder(const CMachine &machine, const QString &strName, const QString &strPath, QWidget *pParent = 0);
     void cannotCreateSharedFolder(const CConsole &console, const QString &strName, const QString &strPath, QWidget *pParent = 0);
@@ -241,7 +247,7 @@ public:
 
     /* API: Virtual Medium Manager warnings: */
     void cannotChangeMediumType(const CMedium &medium, KMediumType oldMediumType, KMediumType newMediumType, QWidget *pParent = 0) const;
-    bool confirmMediumRelease(const UIMedium &medium, const QString &strUsage, QWidget *pParent = 0) const;
+    bool confirmMediumRelease(const UIMedium &medium, QWidget *pParent = 0) const;
     bool confirmMediumRemoval(const UIMedium &medium, QWidget *pParent = 0) const;
     int confirmDeleteHardDiskStorage(const QString &strLocation, QWidget *pParent = 0) const;
     void cannotDeleteHardDiskStorage(const CMedium &medium, const QString &strLocation, QWidget *pParent = 0) const;
@@ -273,12 +279,14 @@ public:
     void cannotExportAppliance(const CMachine &machine, const QString &strPath, QWidget *pParent = 0) const;
     void cannotExportAppliance(const CProgress &progress, const QString &strPath, QWidget *pParent = 0) const;
     void cannotFindSnapshotByName(const CMachine &machine, const QString &strMachine, QWidget *pParent = 0) const;
+    void cannotAddDiskEncryptionPassword(const CAppliance &appliance, QWidget *pParent = 0);
 
     /* API: Runtime UI warnings: */
     void showRuntimeError(const CConsole &console, bool fFatal, const QString &strErrorId, const QString &strErrorMsg) const;
     bool remindAboutGuruMeditation(const QString &strLogFolder);
-    bool warnAboutVirtNotEnabled64BitsGuest(bool fHWVirtExSupported) const;
-    bool warnAboutVirtNotEnabledGuestRequired(bool fHWVirtExSupported) const;
+    void warnAboutVBoxSVCUnavailable() const;
+    bool warnAboutVirtExInactiveFor64BitsGuest(bool fHWVirtExSupported) const;
+    bool warnAboutVirtExInactiveForRecommendedGuest(bool fHWVirtExSupported) const;
     bool cannotStartWithoutNetworkIf(const QString &strMachineName, const QString &strIfNames) const;
     void cannotStartMachine(const CConsole &console, const QString &strName) const;
     void cannotStartMachine(const CProgress &progress, const QString &strName) const;
@@ -296,10 +304,12 @@ public:
     void cannotDetachUSBDevice(const CVirtualBoxErrorInfo &errorInfo, const QString &strDevice, const QString &strMachineName) const;
     void cannotAttachWebCam(const CEmulatedUSB &dispatcher, const QString &strWebCamName, const QString &strMachineName) const;
     void cannotDetachWebCam(const CEmulatedUSB &dispatcher, const QString &strWebCamName, const QString &strMachineName) const;
-    void cannotToggleVRDEServer(const CVRDEServer &server, const QString &strMachineName, bool fEnable);
     void cannotToggleVideoCapture(const CMachine &machine, bool fEnable);
+    void cannotToggleVRDEServer(const CVRDEServer &server, const QString &strMachineName, bool fEnable);
+    void cannotToggleNetworkAdapterCable(const CNetworkAdapter &adapter, const QString &strMachineName, bool fConnect);
     void remindAboutGuestAdditionsAreNotActive() const;
     void cannotMountGuestAdditions(const QString &strMachineName) const;
+    void cannotAddDiskEncryptionPassword(const CConsole &console);
 
 #ifdef VBOX_GUI_WITH_NETWORK_MANAGER
     /* API: Network management warnings: */
@@ -338,9 +348,12 @@ public:
     void warnAboutExtPackInstalled(const QString &strPackName, QWidget *pParent = 0) const;
 
 #ifdef VBOX_WITH_DRAG_AND_DROP
-    /* API: Drag&drop warnings: */
-    void cannotDropData(const CGuest &guest, QWidget *pParent = 0) const;
-    void cannotDropData(const CProgress &progress, QWidget *pParent = 0) const;
+    /* API: Drag and drop warnings: */
+    void cannotDropDataToGuest(const CDnDTarget &dndTarget, QWidget *pParent = 0) const;
+    void cannotDropDataToGuest(const CProgress &progress, QWidget *pParent = 0) const;
+    void cannotCancelDropToGuest(const CDnDTarget &dndTarget, QWidget *pParent = 0) const;
+    void cannotDropDataToHost(const CDnDSource &dndSource, QWidget *pParent = 0) const;
+    void cannotDropDataToHost(const CProgress &progress, QWidget *pParent = 0) const;
 #endif /* VBOX_WITH_DRAG_AND_DROP */
 
     /* API: License-viewer warnings: */
@@ -354,6 +367,7 @@ public:
 
     /* API: Static helpers: */
     static QString formatRC(HRESULT rc);
+    static QString formatRCFull(HRESULT rc);
     static QString formatErrorInfo(const CProgress &progress);
     static QString formatErrorInfo(const COMErrorInfo &info, HRESULT wrapperRC = S_OK);
     static QString formatErrorInfo(const CVirtualBoxErrorInfo &info);

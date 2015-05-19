@@ -1,7 +1,6 @@
+/* $Id: UIConverter.h $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * UIConverter declaration
+ * VBox Qt GUI - UIConverter declaration.
  */
 
 /*
@@ -42,12 +41,12 @@ public:
         Assert(0); return QColor();
     }
 
-    /* QPixmap <= template class: */
-    template<class T> QPixmap toPixmap(const T &data) const
+    /* QIcon <= template class: */
+    template<class T> QIcon toIcon(const T &data) const
     {
         if (canConvert<T>())
-            return ::toPixmap(data);
-        Assert(0); return QPixmap();
+            return ::toIcon(data);
+        Assert(0); return QIcon();
     }
     /* QPixmap <= template class: */
     template<class T> QPixmap toWarningPixmap(const T &data) const
@@ -84,6 +83,21 @@ public:
     {
         if (canConvert<T>())
             return ::fromInternalString<T>(strData);
+        Assert(0); return T();
+    }
+
+    /* int <= template class: */
+    template<class T> int toInternalInteger(const T &data) const
+    {
+        if (canConvert<T>())
+            return ::toInternalInteger(data);
+        Assert(0); return 0;
+    }
+    /* Template class <= int: */
+    template<class T> T fromInternalInteger(const int &iData) const
+    {
+        if (canConvert<T>())
+            return ::fromInternalInteger<T>(iData);
         Assert(0); return T();
     }
 

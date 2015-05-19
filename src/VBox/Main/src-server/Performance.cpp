@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2013 Oracle Corporation
+ * Copyright (C) 2008-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -72,7 +72,8 @@ int CollectorHAL::getRawHostDiskLoad(const char * /* name */, uint64_t * /* disk
     return VERR_NOT_IMPLEMENTED;
 }
 
-int CollectorHAL::getRawProcessCpuLoad(RTPROCESS  /* process */, uint64_t * /* user */, uint64_t * /* kernel */, uint64_t * /* total */)
+int CollectorHAL::getRawProcessCpuLoad(RTPROCESS  /* process */, uint64_t * /* user */,
+                                       uint64_t * /* kernel */, uint64_t * /* total */)
 {
     return VERR_NOT_IMPLEMENTED;
 }
@@ -82,7 +83,8 @@ int CollectorHAL::getHostMemoryUsage(ULONG * /* total */, ULONG * /* used */, UL
     return VERR_NOT_IMPLEMENTED;
 }
 
-int CollectorHAL::getHostFilesystemUsage(const char * /* name */, ULONG * /* total */, ULONG * /* used */, ULONG * /* available */)
+int CollectorHAL::getHostFilesystemUsage(const char * /* name */, ULONG * /* total */, ULONG * /* used */,
+                                         ULONG * /* available */)
 {
     return VERR_NOT_IMPLEMENTED;
 }
@@ -257,7 +259,7 @@ int CollectorGuest::enableVMMStats(bool mCollectVMMStats)
 
         ComPtr<IInternalSessionControl> directControl;
 
-        ret = mMachine->getDirectControl(&directControl);
+        ret = mMachine->i_getDirectControl(&directControl);
         if (ret != S_OK)
             return ret;
 
@@ -299,16 +301,16 @@ HRESULT CollectorGuest::enableInternal(ULONG mask)
         AutoCaller autoCaller(mMachine);
         if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-        mMachineName = mMachine->getName();
+        mMachineName = mMachine->i_getName();
 
         ComPtr<IInternalSessionControl> directControl;
 
-        ret = mMachine->getDirectControl(&directControl);
+        ret = mMachine->i_getDirectControl(&directControl);
         if (ret != S_OK)
             return ret;
 
         /* get the associated console; this is a remote call (!) */
-        ret = directControl->GetRemoteConsole(mConsole.asOutParam());
+        ret = directControl->COMGETTER(RemoteConsole)(mConsole.asOutParam());
         if (ret != S_OK)
             return ret;
 
@@ -456,7 +458,7 @@ void CollectorGuestManager::unregisterGuest(CollectorGuest* pGuest)
         /* Assume that nobody can provide VMM stats */
         mVMMStatsProvider = NULL;
 
-        for (it = mGuests.begin(); it != mGuests.end(); it++)
+        for (it = mGuests.begin(); it != mGuests.end(); ++it)
         {
             /* Skip unregistered as they are about to be destroyed */
             if ((*it)->isUnregistered())
@@ -479,7 +481,7 @@ void CollectorGuestManager::unregisterGuest(CollectorGuest* pGuest)
         if (!mVMMStatsProvider)
         {
             /* If nobody collects stats, take the first registered */
-            for (it = mGuests.begin(); it != mGuests.end(); it++)
+            for (it = mGuests.begin(); it != mGuests.end(); ++it)
             {
                 /* Skip unregistered as they are about to be destroyed */
                 if ((*it)->isUnregistered())
@@ -1100,7 +1102,7 @@ void MachineDiskUsage::collect()
 
         AutoReadLock local_alock(pMedium COMMA_LOCKVAL_SRC_POS);
 
-        used += (ULONG)(pMedium->getSize() / _1M);
+        used += (ULONG)(pMedium->i_getSize() / _1M);
     }
 
     mUsed->put(used);
@@ -1530,7 +1532,7 @@ bool Filter::match(const ComPtr<IUnknown> object, const RTCString &name) const
     ElementList::const_iterator it;
 
     //LogAleksey(("Filter::match(%p, %s)\n", static_cast<const IUnknown*> (object), name.c_str()));
-    for (it = mElements.begin(); it != mElements.end(); it++)
+    for (it = mElements.begin(); it != mElements.end(); ++it)
     {
         //LogAleksey(("...matching against(%p, %s)\n", static_cast<const IUnknown*> ((*it).first), (*it).second.c_str()));
         if ((*it).first.isNull() || (*it).first == object)

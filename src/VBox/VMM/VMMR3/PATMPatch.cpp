@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,6 +22,7 @@
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_PATM
 #include <VBox/vmm/patm.h>
+#include <VBox/vmm/pdmapi.h>
 #include <VBox/vmm/pgm.h>
 #include <VBox/vmm/cpum.h>
 #include <VBox/vmm/mm.h>
@@ -44,7 +45,14 @@
 #include "PATMA.h"
 #include "PATMPatch.h"
 
-/* internal structure for passing more information about call fixups to patmPatchGenCode */
+
+/*******************************************************************************
+*   Structures and Typedefs                                                    *
+*******************************************************************************/
+/**
+ * Internal structure for passing more information about call fixups to
+ * patmPatchGenCode.
+ */
 typedef struct
 {
     RTRCPTR   pTargetGC;
@@ -53,11 +61,55 @@ typedef struct
     RTRCPTR   pReturnGC;
 } PATMCALLINFO, *PPATMCALLINFO;
 
-int patmPatchAddReloc32(PVM pVM, PPATCHINFO pPatch, uint8_t *pRelocHC, uint32_t uType, RTRCPTR pSource, RTRCPTR pDest)
+
+/*******************************************************************************
+*   Defined Constants And Macros                                               *
+*******************************************************************************/
+/** Value to use when not sure about the patch size. */
+#define PATCHGEN_DEF_SIZE   256
+
+#define PATCHGEN_PROLOG_NODEF(pVM, pPatch, a_cbMaxEmit) \
+    do { \
+        cbGivenPatchSize = (a_cbMaxEmit) + 16U /*jmp++*/; \
+        if (RT_LIKELY((pPatch)->pPatchBlockOffset + pPatch->uCurPatchOffset + cbGivenPatchSize < pVM->patm.s.cbPatchMem)) \
+            pPB = PATCHCODE_PTR_HC(pPatch) + pPatch->uCurPatchOffset; \
+        else \
+        { \
+            pVM->patm.s.fOutOfMemory = true; \
+            AssertMsgFailed(("offPatch=%#x + offEmit=%#x + a_cbMaxEmit=%#x + jmp -->  cbTotalWithFudge=%#x >= cbPatchMem=%#x", \
+                             (pPatch)->pPatchBlockOffset, pPatch->uCurPatchOffset, a_cbMaxEmit, \
+                             (pPatch)->pPatchBlockOffset + pPatch->uCurPatchOffset + cbGivenPatchSize, pVM->patm.s.cbPatchMem)); \
+            return VERR_NO_MEMORY; \
+        } \
+    } while (0)
+
+#define PATCHGEN_PROLOG(pVM, pPatch, a_cbMaxEmit) \
+    uint8_t *pPB; \
+    uint32_t cbGivenPatchSize; \
+    PATCHGEN_PROLOG_NODEF(pVM, pPatch, a_cbMaxEmit)
+
+#define PATCHGEN_EPILOG(pPatch, a_cbActual) \
+    do { \
+        AssertMsg((a_cbActual) <= cbGivenPatchSize, ("a_cbActual=%#x cbGivenPatchSize=%#x\n", a_cbActual, cbGivenPatchSize)); \
+        Assert((a_cbActual) <= 640); \
+        pPatch->uCurPatchOffset += (a_cbActual); \
+    } while (0)
+
+
+
+
+int patmPatchAddReloc32(PVM pVM, PPATCHINFO pPatch, uint8_t *pRelocHC, uint32_t uType,
+                        RTRCPTR pSource /*= 0*/, RTRCPTR pDest /*= 0*/)
 {
     PRELOCREC pRec;
 
-    Assert(uType == FIXUP_ABSOLUTE || ((uType == FIXUP_REL_JMPTOPATCH || uType == FIXUP_REL_JMPTOGUEST) && pSource && pDest));
+    Assert(   uType == FIXUP_ABSOLUTE
+           || (   (   uType == FIXUP_ABSOLUTE_IN_PATCH_ASM_TMPL
+                   || uType == FIXUP_CONSTANT_IN_PATCH_ASM_TMPL
+                   || uType == FIXUP_REL_HELPER_IN_PATCH_ASM_TMPL)
+               && pSource == pDest
+               && PATM_IS_ASMFIX(pSource))
+           || ((uType == FIXUP_REL_JMPTOPATCH || uType == FIXUP_REL_JMPTOGUEST) && pSource && pDest));
 
     LogFlow(("patmPatchAddReloc32 type=%d pRelocGC=%RRv source=%RRv dest=%RRv\n", uType, pRelocHC - pVM->patm.s.pPatchMemGC + pVM->patm.s.pPatchMemGC , pSource, pDest));
 
@@ -96,272 +148,280 @@ int patmPatchAddJump(PVM pVM, PPATCHINFO pPatch, uint8_t *pJumpHC, uint32_t offs
     return VINF_SUCCESS;
 }
 
-#define PATCHGEN_PROLOG_NODEF(pVM, pPatch)                                      \
-    pPB = PATCHCODE_PTR_HC(pPatch) + pPatch->uCurPatchOffset;            \
-                                                                               \
-    if (pPB + 256 >= pVM->patm.s.pPatchMemHC + pVM->patm.s.cbPatchMem)          \
-    {                                                                          \
-        pVM->patm.s.fOutOfMemory = true; \
-        Assert(pPB + 256 >= pVM->patm.s.pPatchMemHC + pVM->patm.s.cbPatchMem); \
-        return VERR_NO_MEMORY; \
-    }
-
-#define PATCHGEN_PROLOG(pVM, pPatch)                                      \
-    uint8_t *pPB;                                                         \
-    PATCHGEN_PROLOG_NODEF(pVM, pPatch);
-
-
-#define PATCHGEN_EPILOG(pPatch, size) \
-    Assert(size <= 640);              \
-    pPatch->uCurPatchOffset += size;
-
-
-static uint32_t patmPatchGenCode(PVM pVM, PPATCHINFO pPatch, uint8_t *pPB, PPATCHASMRECORD pAsmRecord, RCPTRTYPE(uint8_t *) pReturnAddrGC, bool fGenJump,
+static uint32_t patmPatchGenCode(PVM pVM, PPATCHINFO pPatch, uint8_t *pPB, PCPATCHASMRECORD pAsmRecord,
+                                 RCPTRTYPE(uint8_t *) pReturnAddrGC, bool fGenJump,
                                  PPATMCALLINFO pCallInfo = 0)
 {
-    uint32_t i, j;
-
     Assert(fGenJump == false || pReturnAddrGC);
     Assert(fGenJump == false || pAsmRecord->offJump);
-    Assert(pAsmRecord && pAsmRecord->size > sizeof(pAsmRecord->uReloc[0]));
+    Assert(pAsmRecord);
+    Assert(pAsmRecord->cbFunction > sizeof(pAsmRecord->aRelocs[0].uType) * pAsmRecord->cRelocs);
 
     // Copy the code block
-    memcpy(pPB, pAsmRecord->pFunction, pAsmRecord->size);
+    memcpy(pPB, pAsmRecord->pbFunction, pAsmRecord->cbFunction);
 
     // Process all fixups
-    for (j=0,i=0;i<pAsmRecord->nrRelocs*2; i+=2)
+    uint32_t i, j;
+    for (j = 0, i = 0; i < pAsmRecord->cRelocs; i++)
     {
-        for (;j<pAsmRecord->size;j++)
+        for (; j < pAsmRecord->cbFunction; j++)
         {
-            if (*(uint32_t*)&pPB[j] == pAsmRecord->uReloc[i])
+            if (*(uint32_t*)&pPB[j] == pAsmRecord->aRelocs[i].uType)
             {
                 RCPTRTYPE(uint32_t *) dest;
 
 #ifdef VBOX_STRICT
-                if (pAsmRecord->uReloc[i] == PATM_FIXUP)
-                    Assert(pAsmRecord->uReloc[i+1] != 0);
+                if (pAsmRecord->aRelocs[i].uType == PATM_ASMFIX_FIXUP)
+                    Assert(pAsmRecord->aRelocs[i].uInfo != 0);
                 else
-                    Assert(pAsmRecord->uReloc[i+1] == 0);
+                    Assert(pAsmRecord->aRelocs[i].uInfo == 0);
 #endif
 
-                /**
-                 * BE VERY CAREFUL WITH THESE FIXUPS. TAKE INTO ACCOUNT THAT PROBLEMS MAY ARISE WHEN RESTORING A SAVED STATE WITH
-                 * A DIFFERENT HYPERVISOR LAYOUT.
+                /*
+                 * BE VERY CAREFUL WITH THESE FIXUPS. TAKE INTO ACCOUNT THAT PROBLEMS MAY ARISE WHEN RESTORING
+                 * A SAVED STATE WITH A DIFFERENT HYPERVISOR LAYOUT.
                  */
-                switch (pAsmRecord->uReloc[i])
+                uint32_t uRelocType = FIXUP_ABSOLUTE_IN_PATCH_ASM_TMPL;
+                switch (pAsmRecord->aRelocs[i].uType)
                 {
-                case PATM_VMFLAGS:
-                    dest = pVM->patm.s.pGCStateGC + RT_OFFSETOF(PATMGCSTATE, uVMFlags);
-                    break;
-
-                case PATM_PENDINGACTION:
-                    dest = pVM->patm.s.pGCStateGC + RT_OFFSETOF(PATMGCSTATE, uPendingAction);
-                    break;
-
-                case PATM_FIXUP:
-                    /* Offset in uReloc[i+1] is from the base of the function. */
-                    dest = (RTGCUINTPTR32)pVM->patm.s.pPatchMemGC + pAsmRecord->uReloc[i+1] + (RTGCUINTPTR32)(pPB - pVM->patm.s.pPatchMemHC);
-                    break;
+                    /*
+                     * PATMGCSTATE member fixups.
+                     */
+                    case PATM_ASMFIX_VMFLAGS:
+                        dest = pVM->patm.s.pGCStateGC + RT_OFFSETOF(PATMGCSTATE, uVMFlags);
+                        break;
+                    case PATM_ASMFIX_PENDINGACTION:
+                        dest = pVM->patm.s.pGCStateGC + RT_OFFSETOF(PATMGCSTATE, uPendingAction);
+                        break;
+                    case PATM_ASMFIX_STACKPTR:
+                        dest = pVM->patm.s.pGCStateGC + RT_OFFSETOF(PATMGCSTATE, Psp);
+                        break;
+                    case PATM_ASMFIX_INTERRUPTFLAG:
+                        dest = pVM->patm.s.pGCStateGC + RT_OFFSETOF(PATMGCSTATE, fPIF);
+                        break;
+                    case PATM_ASMFIX_INHIBITIRQADDR:
+                        dest = pVM->patm.s.pGCStateGC + RT_OFFSETOF(PATMGCSTATE, GCPtrInhibitInterrupts);
+                        break;
+                    case PATM_ASMFIX_TEMP_EAX:
+                        dest = pVM->patm.s.pGCStateGC + RT_OFFSETOF(PATMGCSTATE, Restore.uEAX);
+                        break;
+                    case PATM_ASMFIX_TEMP_ECX:
+                        dest = pVM->patm.s.pGCStateGC + RT_OFFSETOF(PATMGCSTATE, Restore.uECX);
+                        break;
+                    case PATM_ASMFIX_TEMP_EDI:
+                        dest = pVM->patm.s.pGCStateGC + RT_OFFSETOF(PATMGCSTATE, Restore.uEDI);
+                        break;
+                    case PATM_ASMFIX_TEMP_EFLAGS:
+                        dest = pVM->patm.s.pGCStateGC + RT_OFFSETOF(PATMGCSTATE, Restore.eFlags);
+                        break;
+                    case PATM_ASMFIX_TEMP_RESTORE_FLAGS:
+                        dest = pVM->patm.s.pGCStateGC + RT_OFFSETOF(PATMGCSTATE, Restore.uFlags);
+                        break;
+                    case PATM_ASMFIX_CALL_PATCH_TARGET_ADDR:
+                        dest = pVM->patm.s.pGCStateGC + RT_OFFSETOF(PATMGCSTATE, GCCallPatchTargetAddr);
+                        break;
+                    case PATM_ASMFIX_CALL_RETURN_ADDR:
+                        dest = pVM->patm.s.pGCStateGC + RT_OFFSETOF(PATMGCSTATE, GCCallReturnAddr);
+                        break;
 #ifdef VBOX_WITH_STATISTICS
-                case PATM_ALLPATCHCALLS:
-                    dest = pVM->patm.s.pGCStateGC + RT_OFFSETOF(PATMGCSTATE, uPatchCalls);
-                    break;
-
-                case PATM_IRETEFLAGS:
-                    dest = pVM->patm.s.pGCStateGC + RT_OFFSETOF(PATMGCSTATE, uIretEFlags);
-                    break;
-
-                case PATM_IRETCS:
-                    dest = pVM->patm.s.pGCStateGC + RT_OFFSETOF(PATMGCSTATE, uIretCS);
-                    break;
-
-                case PATM_IRETEIP:
-                    dest = pVM->patm.s.pGCStateGC + RT_OFFSETOF(PATMGCSTATE, uIretEIP);
-                    break;
-
-                case PATM_PERPATCHCALLS:
-                    dest = patmPatchQueryStatAddress(pVM, pPatch);
-                    break;
+                    case PATM_ASMFIX_ALLPATCHCALLS:
+                        dest = pVM->patm.s.pGCStateGC + RT_OFFSETOF(PATMGCSTATE, uPatchCalls);
+                        break;
+                    case PATM_ASMFIX_IRETEFLAGS:
+                        dest = pVM->patm.s.pGCStateGC + RT_OFFSETOF(PATMGCSTATE, uIretEFlags);
+                        break;
+                    case PATM_ASMFIX_IRETCS:
+                        dest = pVM->patm.s.pGCStateGC + RT_OFFSETOF(PATMGCSTATE, uIretCS);
+                        break;
+                    case PATM_ASMFIX_IRETEIP:
+                        dest = pVM->patm.s.pGCStateGC + RT_OFFSETOF(PATMGCSTATE, uIretEIP);
+                        break;
 #endif
-                case PATM_STACKPTR:
-                    dest = pVM->patm.s.pGCStateGC + RT_OFFSETOF(PATMGCSTATE, Psp);
-                    break;
 
-                /* The first part of our PATM stack is used to store offsets of patch return addresses; the 2nd
-                 * part to store the original return addresses.
-                 */
-                case PATM_STACKBASE:
-                    dest = pVM->patm.s.pGCStackGC;
-                    break;
 
-                case PATM_STACKBASE_GUEST:
-                    dest = pVM->patm.s.pGCStackGC + PATM_STACK_SIZE;
-                    break;
+                    case PATM_ASMFIX_FIXUP:
+                        /* Offset in aRelocs[i].uInfo is from the base of the function. */
+                        dest = (RTGCUINTPTR32)pVM->patm.s.pPatchMemGC + pAsmRecord->aRelocs[i].uInfo
+                             + (RTGCUINTPTR32)(pPB - pVM->patm.s.pPatchMemHC);
+                        break;
 
-                case PATM_RETURNADDR:   /* absolute guest address; no fixup required */
-                    Assert(pCallInfo && pAsmRecord->uReloc[i] >= PATM_NO_FIXUP);
-                    dest = pCallInfo->pReturnGC;
-                    break;
+#ifdef VBOX_WITH_STATISTICS
+                    case PATM_ASMFIX_PERPATCHCALLS:
+                        dest = patmPatchQueryStatAddress(pVM, pPatch);
+                        break;
+#endif
 
-                case PATM_PATCHNEXTBLOCK:  /* relative address of instruction following this block */
-                    Assert(pCallInfo && pAsmRecord->uReloc[i] >= PATM_NO_FIXUP);
+                    /* The first part of our PATM stack is used to store offsets of patch return addresses; the 2nd
+                     * part to store the original return addresses.
+                     */
+                    case PATM_ASMFIX_STACKBASE:
+                        dest = pVM->patm.s.pGCStackGC;
+                        break;
 
-                    /** @note hardcoded assumption that we must return to the instruction following this block */
-                    dest = (uintptr_t)pPB - (uintptr_t)pVM->patm.s.pPatchMemHC + pAsmRecord->size;
-                    break;
+                    case PATM_ASMFIX_STACKBASE_GUEST:
+                        dest = pVM->patm.s.pGCStackGC + PATM_STACK_SIZE;
+                        break;
 
-                case PATM_CALLTARGET:   /* relative to patch address; no fixup required */
-                    Assert(pCallInfo && pAsmRecord->uReloc[i] >= PATM_NO_FIXUP);
+                    case PATM_ASMFIX_RETURNADDR:   /* absolute guest address; no fixup required */
+                        Assert(pCallInfo && pAsmRecord->aRelocs[i].uType >= PATM_ASMFIX_NO_FIXUP);
+                        dest = pCallInfo->pReturnGC;
+                        break;
 
-                    /* Address must be filled in later. (see patmr3SetBranchTargets)  */
-                    patmPatchAddJump(pVM, pPatch, &pPB[j-1], 1, pCallInfo->pTargetGC, OP_CALL);
-                    dest = PATM_ILLEGAL_DESTINATION;
-                    break;
+                    case PATM_ASMFIX_PATCHNEXTBLOCK:  /* relative address of instruction following this block */
+                        Assert(pCallInfo && pAsmRecord->aRelocs[i].uType >= PATM_ASMFIX_NO_FIXUP);
 
-                case PATM_PATCHBASE:    /* Patch GC base address */
-                    dest = pVM->patm.s.pPatchMemGC;
-                    break;
+                        /** @note hardcoded assumption that we must return to the instruction following this block */
+                        dest = (uintptr_t)pPB - (uintptr_t)pVM->patm.s.pPatchMemHC + pAsmRecord->cbFunction;
+                        break;
 
-                case PATM_CPUID_STD_PTR:
-                    /* @todo dirty hack when correcting this fixup (state restore) */
-                    dest = CPUMR3GetGuestCpuIdStdRCPtr(pVM);
-                    break;
+                    case PATM_ASMFIX_CALLTARGET:   /* relative to patch address; no fixup required */
+                        Assert(pCallInfo && pAsmRecord->aRelocs[i].uType >= PATM_ASMFIX_NO_FIXUP);
 
-                case PATM_CPUID_EXT_PTR:
-                    /* @todo dirty hack when correcting this fixup (state restore) */
-                    dest = CPUMR3GetGuestCpuIdExtRCPtr(pVM);
-                    break;
+                        /* Address must be filled in later. (see patmr3SetBranchTargets)  */
+                        patmPatchAddJump(pVM, pPatch, &pPB[j-1], 1, pCallInfo->pTargetGC, OP_CALL);
+                        dest = PATM_ILLEGAL_DESTINATION;
+                        break;
 
-                case PATM_CPUID_CENTAUR_PTR:
-                    /* @todo dirty hack when correcting this fixup (state restore) */
-                    dest = CPUMR3GetGuestCpuIdCentaurRCPtr(pVM);
-                    break;
+                    case PATM_ASMFIX_PATCHBASE:    /* Patch GC base address */
+                        dest = pVM->patm.s.pPatchMemGC;
+                        break;
 
-                case PATM_CPUID_DEF_PTR:
-                    /* @todo dirty hack when correcting this fixup (state restore) */
-                    dest = CPUMR3GetGuestCpuIdDefRCPtr(pVM);
-                    break;
+                    case PATM_ASMFIX_NEXTINSTRADDR:
+                        Assert(pCallInfo);
+                        /* pNextInstrGC can be 0 if several instructions, that inhibit irqs, follow each other */
+                        dest = pCallInfo->pNextInstrGC;
+                        break;
 
-                case PATM_CPUID_STD_MAX:
-                    dest = CPUMGetGuestCpuIdStdMax(pVM);
-                    break;
+                    case PATM_ASMFIX_CURINSTRADDR:
+                        Assert(pCallInfo);
+                        dest = pCallInfo->pCurInstrGC;
+                        break;
 
-                case PATM_CPUID_EXT_MAX:
-                    dest = CPUMGetGuestCpuIdExtMax(pVM);
-                    break;
+                    /* Relative address of global patm lookup and call function. */
+                    case PATM_ASMFIX_LOOKUP_AND_CALL_FUNCTION:
+                    {
+                        RTRCPTR pInstrAfterCall = pVM->patm.s.pPatchMemGC
+                                                + (RTGCUINTPTR32)(&pPB[j] + sizeof(RTRCPTR) - pVM->patm.s.pPatchMemHC);
+                        Assert(pVM->patm.s.pfnHelperCallGC);
+                        Assert(sizeof(uint32_t) == sizeof(RTRCPTR));
 
-                case PATM_CPUID_CENTAUR_MAX:
-                    dest = CPUMGetGuestCpuIdCentaurMax(pVM);
-                    break;
+                        /* Relative value is target minus address of instruction after the actual call instruction. */
+                        dest = pVM->patm.s.pfnHelperCallGC - pInstrAfterCall;
+                        break;
+                    }
 
-                case PATM_INTERRUPTFLAG:
-                    dest = pVM->patm.s.pGCStateGC + RT_OFFSETOF(PATMGCSTATE, fPIF);
-                    break;
+                    case PATM_ASMFIX_RETURN_FUNCTION:
+                    {
+                        RTRCPTR pInstrAfterCall = pVM->patm.s.pPatchMemGC
+                                                + (RTGCUINTPTR32)(&pPB[j] + sizeof(RTRCPTR) - pVM->patm.s.pPatchMemHC);
+                        Assert(pVM->patm.s.pfnHelperRetGC);
+                        Assert(sizeof(uint32_t) == sizeof(RTRCPTR));
 
-                case PATM_INHIBITIRQADDR:
-                    dest = pVM->patm.s.pGCStateGC + RT_OFFSETOF(PATMGCSTATE, GCPtrInhibitInterrupts);
-                    break;
+                        /* Relative value is target minus address of instruction after the actual call instruction. */
+                        dest = pVM->patm.s.pfnHelperRetGC - pInstrAfterCall;
+                        break;
+                    }
 
-                case PATM_NEXTINSTRADDR:
-                    Assert(pCallInfo);
-                    /* pNextInstrGC can be 0 if several instructions, that inhibit irqs, follow each other */
-                    dest = pCallInfo->pNextInstrGC;
-                    break;
+                    case PATM_ASMFIX_IRET_FUNCTION:
+                    {
+                        RTRCPTR pInstrAfterCall = pVM->patm.s.pPatchMemGC
+                                                + (RTGCUINTPTR32)(&pPB[j] + sizeof(RTRCPTR) - pVM->patm.s.pPatchMemHC);
+                        Assert(pVM->patm.s.pfnHelperIretGC);
+                        Assert(sizeof(uint32_t) == sizeof(RTRCPTR));
 
-                case PATM_CURINSTRADDR:
-                    Assert(pCallInfo);
-                    dest = pCallInfo->pCurInstrGC;
-                    break;
+                        /* Relative value is target minus address of instruction after the actual call instruction. */
+                        dest = pVM->patm.s.pfnHelperIretGC - pInstrAfterCall;
+                        break;
+                    }
 
-                case PATM_VM_FORCEDACTIONS:
-                    /* @todo dirty assumptions when correcting this fixup during saved state loading. */
-                    dest = pVM->pVMRC + RT_OFFSETOF(VM, aCpus[0].fLocalForcedActions);
-                    break;
+                    case PATM_ASMFIX_LOOKUP_AND_JUMP_FUNCTION:
+                    {
+                        RTRCPTR pInstrAfterCall = pVM->patm.s.pPatchMemGC
+                                                + (RTGCUINTPTR32)(&pPB[j] + sizeof(RTRCPTR) - pVM->patm.s.pPatchMemHC);
+                        Assert(pVM->patm.s.pfnHelperJumpGC);
+                        Assert(sizeof(uint32_t) == sizeof(RTRCPTR));
 
-                case PATM_TEMP_EAX:
-                    dest = pVM->patm.s.pGCStateGC + RT_OFFSETOF(PATMGCSTATE, Restore.uEAX);
-                    break;
-                case PATM_TEMP_ECX:
-                    dest = pVM->patm.s.pGCStateGC + RT_OFFSETOF(PATMGCSTATE, Restore.uECX);
-                    break;
-                case PATM_TEMP_EDI:
-                    dest = pVM->patm.s.pGCStateGC + RT_OFFSETOF(PATMGCSTATE, Restore.uEDI);
-                    break;
-                case PATM_TEMP_EFLAGS:
-                    dest = pVM->patm.s.pGCStateGC + RT_OFFSETOF(PATMGCSTATE, Restore.eFlags);
-                    break;
-                case PATM_TEMP_RESTORE_FLAGS:
-                    dest = pVM->patm.s.pGCStateGC + RT_OFFSETOF(PATMGCSTATE, Restore.uFlags);
-                    break;
-                case PATM_CALL_PATCH_TARGET_ADDR:
-                    dest = pVM->patm.s.pGCStateGC + RT_OFFSETOF(PATMGCSTATE, GCCallPatchTargetAddr);
-                    break;
-                case PATM_CALL_RETURN_ADDR:
-                    dest = pVM->patm.s.pGCStateGC + RT_OFFSETOF(PATMGCSTATE, GCCallReturnAddr);
-                    break;
+                        /* Relative value is target minus address of instruction after the actual call instruction. */
+                        dest = pVM->patm.s.pfnHelperJumpGC - pInstrAfterCall;
+                        break;
+                    }
 
-                /* Relative address of global patm lookup and call function. */
-                case PATM_LOOKUP_AND_CALL_FUNCTION:
-                {
-                    RTRCPTR pInstrAfterCall = pVM->patm.s.pPatchMemGC + (RTGCUINTPTR32)(&pPB[j] + sizeof(RTRCPTR) - pVM->patm.s.pPatchMemHC);
-                    Assert(pVM->patm.s.pfnHelperCallGC);
-                    Assert(sizeof(uint32_t) == sizeof(RTRCPTR));
+                    case PATM_ASMFIX_CPUID_STD_MAX: /* saved state only */
+                        dest = CPUMR3GetGuestCpuIdPatmStdMax(pVM);
+                        break;
+                    case PATM_ASMFIX_CPUID_EXT_MAX: /* saved state only */
+                        dest = CPUMR3GetGuestCpuIdPatmExtMax(pVM);
+                        break;
+                    case PATM_ASMFIX_CPUID_CENTAUR_MAX: /* saved state only */
+                        dest = CPUMR3GetGuestCpuIdPatmCentaurMax(pVM);
+                        break;
 
-                    /* Relative value is target minus address of instruction after the actual call instruction. */
-                    dest = pVM->patm.s.pfnHelperCallGC - pInstrAfterCall;
-                    break;
+                    /*
+                     * The following fixups needs to be recalculated when loading saved state
+                     * Note! Earlier saved state versions had different hacks for detecting some of these.
+                     */
+                    case PATM_ASMFIX_VM_FORCEDACTIONS:
+                        dest = pVM->pVMRC + RT_OFFSETOF(VM, aCpus[0].fLocalForcedActions);
+                        break;
+
+                    case PATM_ASMFIX_CPUID_DEF_PTR: /* saved state only */
+                        dest = CPUMR3GetGuestCpuIdPatmDefRCPtr(pVM);
+                        break;
+                    case PATM_ASMFIX_CPUID_STD_PTR: /* saved state only */
+                        dest = CPUMR3GetGuestCpuIdPatmStdRCPtr(pVM);
+                        break;
+                    case PATM_ASMFIX_CPUID_EXT_PTR: /* saved state only */
+                        dest = CPUMR3GetGuestCpuIdPatmExtRCPtr(pVM);
+                        break;
+                    case PATM_ASMFIX_CPUID_CENTAUR_PTR: /* saved state only */
+                        dest = CPUMR3GetGuestCpuIdPatmCentaurRCPtr(pVM);
+                        break;
+
+                    /*
+                     * The following fixups are constants and helper code calls that only
+                     * needs to be corrected when loading saved state.
+                     */
+                    case PATM_ASMFIX_HELPER_CPUM_CPUID:
+                    {
+                        int rc = PDMR3LdrGetSymbolRC(pVM, NULL, "CPUMPatchHlpCpuId", &dest);
+                        AssertReleaseRCBreakStmt(rc, dest = PATM_ILLEGAL_DESTINATION);
+                        uRelocType = FIXUP_REL_HELPER_IN_PATCH_ASM_TMPL;
+                        break;
+                    }
+
+                    /*
+                     * Unknown fixup.
+                     */
+                    case PATM_ASMFIX_REUSE_LATER_0:
+                    case PATM_ASMFIX_REUSE_LATER_1:
+                    case PATM_ASMFIX_REUSE_LATER_2:
+                    case PATM_ASMFIX_REUSE_LATER_3:
+                    default:
+                        AssertReleaseMsgFailed(("Unknown fixup: %#x\n", pAsmRecord->aRelocs[i].uType));
+                        dest = PATM_ILLEGAL_DESTINATION;
+                        break;
                 }
 
-                case PATM_RETURN_FUNCTION:
+                if (uRelocType == FIXUP_REL_HELPER_IN_PATCH_ASM_TMPL)
                 {
-                    RTRCPTR pInstrAfterCall = pVM->patm.s.pPatchMemGC + (RTGCUINTPTR32)(&pPB[j] + sizeof(RTRCPTR) - pVM->patm.s.pPatchMemHC);
-                    Assert(pVM->patm.s.pfnHelperRetGC);
-                    Assert(sizeof(uint32_t) == sizeof(RTRCPTR));
-
-                    /* Relative value is target minus address of instruction after the actual call instruction. */
-                    dest = pVM->patm.s.pfnHelperRetGC - pInstrAfterCall;
-                    break;
+                    RTRCUINTPTR RCPtrAfter = pVM->patm.s.pPatchMemGC
+                                           + (RTRCUINTPTR)(&pPB[j + sizeof(RTRCPTR)] - pVM->patm.s.pPatchMemHC);
+                    dest -= RCPtrAfter;
                 }
 
-                case PATM_IRET_FUNCTION:
+                *(PRTRCPTR)&pPB[j] = dest;
+
+                if (pAsmRecord->aRelocs[i].uType < PATM_ASMFIX_NO_FIXUP)
                 {
-                    RTRCPTR pInstrAfterCall = pVM->patm.s.pPatchMemGC + (RTGCUINTPTR32)(&pPB[j] + sizeof(RTRCPTR) - pVM->patm.s.pPatchMemHC);
-                    Assert(pVM->patm.s.pfnHelperIretGC);
-                    Assert(sizeof(uint32_t) == sizeof(RTRCPTR));
-
-                    /* Relative value is target minus address of instruction after the actual call instruction. */
-                    dest = pVM->patm.s.pfnHelperIretGC - pInstrAfterCall;
-                    break;
-                }
-
-                case PATM_LOOKUP_AND_JUMP_FUNCTION:
-                {
-                    RTRCPTR pInstrAfterCall = pVM->patm.s.pPatchMemGC + (RTGCUINTPTR32)(&pPB[j] + sizeof(RTRCPTR) - pVM->patm.s.pPatchMemHC);
-                    Assert(pVM->patm.s.pfnHelperJumpGC);
-                    Assert(sizeof(uint32_t) == sizeof(RTRCPTR));
-
-                    /* Relative value is target minus address of instruction after the actual call instruction. */
-                    dest = pVM->patm.s.pfnHelperJumpGC - pInstrAfterCall;
-                    break;
-                }
-
-                default:
-                    dest = PATM_ILLEGAL_DESTINATION;
-                    AssertRelease(0);
-                    break;
-                }
-
-                *(RTRCPTR *)&pPB[j] = dest;
-                if (pAsmRecord->uReloc[i] < PATM_NO_FIXUP)
-                {
-                    patmPatchAddReloc32(pVM, pPatch, &pPB[j], FIXUP_ABSOLUTE);
+                    patmPatchAddReloc32(pVM, pPatch, &pPB[j], uRelocType,
+                                        pAsmRecord->aRelocs[i].uType /*pSources*/, pAsmRecord->aRelocs[i].uType /*pDest*/);
                 }
                 break;
             }
         }
-        Assert(j < pAsmRecord->size);
+        Assert(j < pAsmRecord->cbFunction);
     }
-    Assert(pAsmRecord->uReloc[i] == 0xffffffff);
+    Assert(pAsmRecord->aRelocs[i].uInfo == 0xffffffff);
 
     /* Add the jump back to guest code (if required) */
     if (fGenJump)
@@ -374,19 +434,15 @@ static uint32_t patmPatchGenCode(PVM pVM, PPATCHINFO pPatch, uint8_t *pPB, PPATC
 
         *(uint32_t *)&pPB[pAsmRecord->offJump] = displ;
         patmPatchAddReloc32(pVM, pPatch, &pPB[pAsmRecord->offJump], FIXUP_REL_JMPTOGUEST,
-                        PATCHCODE_PTR_GC(pPatch) + pPatch->uCurPatchOffset + pAsmRecord->offJump - 1 + SIZEOF_NEARJUMP32,
-                        pReturnAddrGC);
+                            PATCHCODE_PTR_GC(pPatch) + pPatch->uCurPatchOffset + pAsmRecord->offJump - 1 + SIZEOF_NEARJUMP32,
+                            pReturnAddrGC);
     }
 
     // Calculate the right size of this patch block
     if ((fGenJump && pAsmRecord->offJump) || (!fGenJump && !pAsmRecord->offJump))
-    {
-        return pAsmRecord->size;
-    }
-    else {
-        // if a jump instruction is present and we don't want one, then subtract SIZEOF_NEARJUMP32
-        return pAsmRecord->size - SIZEOF_NEARJUMP32;
-    }
+        return pAsmRecord->cbFunction;
+    // if a jump instruction is present and we don't want one, then subtract SIZEOF_NEARJUMP32
+    return pAsmRecord->cbFunction - SIZEOF_NEARJUMP32;
 }
 
 /* Read bytes and check for overwritten instructions. */
@@ -414,11 +470,10 @@ static int patmPatchReadBytes(PVM pVM, uint8_t *pDest, RTRCPTR pSrc, uint32_t cb
 
 int patmPatchGenDuplicate(PVM pVM, PPATCHINFO pPatch, DISCPUSTATE *pCpu, RCPTRTYPE(uint8_t *) pCurInstrGC)
 {
-    int rc = VINF_SUCCESS;
-    PATCHGEN_PROLOG(pVM, pPatch);
-
     uint32_t const cbInstrShutUpGcc = pCpu->cbInstr;
-    rc = patmPatchReadBytes(pVM, pPB, pCurInstrGC, cbInstrShutUpGcc);
+    PATCHGEN_PROLOG(pVM, pPatch, cbInstrShutUpGcc);
+
+    int rc = patmPatchReadBytes(pVM, pPB, pCurInstrGC, cbInstrShutUpGcc);
     AssertRC(rc);
     PATCHGEN_EPILOG(pPatch, cbInstrShutUpGcc);
     return rc;
@@ -428,16 +483,14 @@ int patmPatchGenIret(PVM pVM, PPATCHINFO pPatch, RTRCPTR pCurInstrGC, bool fSize
 {
     uint32_t size;
     PATMCALLINFO callInfo;
+    PCPATCHASMRECORD pPatchAsmRec = EMIsRawRing1Enabled(pVM) ? &g_patmIretRing1Record : &g_patmIretRecord;
 
-    PATCHGEN_PROLOG(pVM, pPatch);
+    PATCHGEN_PROLOG(pVM, pPatch, pPatchAsmRec->cbFunction);
 
     AssertMsg(fSizeOverride == false, ("operand size override!!\n"));
     callInfo.pCurInstrGC = pCurInstrGC;
 
-    if (EMIsRawRing1Enabled(pVM))
-        size = patmPatchGenCode(pVM, pPatch, pPB, &PATMIretRing1Record, 0, false, &callInfo);
-    else
-        size = patmPatchGenCode(pVM, pPatch, pPB, &PATMIretRecord, 0, false, &callInfo);
+    size = patmPatchGenCode(pVM, pPatch, pPB, pPatchAsmRec, 0, false, &callInfo);
 
     PATCHGEN_EPILOG(pPatch, size);
     return VINF_SUCCESS;
@@ -446,9 +499,9 @@ int patmPatchGenIret(PVM pVM, PPATCHINFO pPatch, RTRCPTR pCurInstrGC, bool fSize
 int patmPatchGenCli(PVM pVM, PPATCHINFO pPatch)
 {
     uint32_t size;
-    PATCHGEN_PROLOG(pVM, pPatch);
+    PATCHGEN_PROLOG(pVM, pPatch, g_patmCliRecord.cbFunction);
 
-    size = patmPatchGenCode(pVM, pPatch, pPB, &PATMCliRecord, 0, false);
+    size = patmPatchGenCode(pVM, pPatch, pPB, &g_patmCliRecord, 0, false);
 
     PATCHGEN_EPILOG(pPatch, size);
     return VINF_SUCCESS;
@@ -463,9 +516,9 @@ int patmPatchGenSti(PVM pVM, PPATCHINFO pPatch, RTRCPTR pCurInstrGC, RTRCPTR pNe
     uint32_t     size;
 
     Log(("patmPatchGenSti at %RRv; next %RRv\n", pCurInstrGC, pNextInstrGC));
-    PATCHGEN_PROLOG(pVM, pPatch);
+    PATCHGEN_PROLOG(pVM, pPatch, g_patmStiRecord.cbFunction);
     callInfo.pNextInstrGC = pNextInstrGC;
-    size = patmPatchGenCode(pVM, pPatch, pPB, &PATMStiRecord, 0, false, &callInfo);
+    size = patmPatchGenCode(pVM, pPatch, pPB, &g_patmStiRecord, 0, false, &callInfo);
     PATCHGEN_EPILOG(pPatch, size);
 
     return VINF_SUCCESS;
@@ -476,8 +529,13 @@ int patmPatchGenPopf(PVM pVM, PPATCHINFO pPatch, RCPTRTYPE(uint8_t *) pReturnAdd
 {
     uint32_t        size;
     PATMCALLINFO    callInfo;
+    PCPATCHASMRECORD pPatchAsmRec;
+    if (fSizeOverride == true)
+        pPatchAsmRec = fGenJumpBack ? &g_patmPopf16Record : &g_patmPopf16Record_NoExit;
+    else
+        pPatchAsmRec = fGenJumpBack ? &g_patmPopf32Record : &g_patmPopf32Record_NoExit;
 
-    PATCHGEN_PROLOG(pVM, pPatch);
+    PATCHGEN_PROLOG(pVM, pPatch, pPatchAsmRec->cbFunction);
 
     callInfo.pNextInstrGC = pReturnAddrGC;
 
@@ -485,14 +543,8 @@ int patmPatchGenPopf(PVM pVM, PPATCHINFO pPatch, RCPTRTYPE(uint8_t *) pReturnAdd
 
     /* Note: keep IOPL in mind when changing any of this!! (see comments in PATMA.asm, PATMPopf32Replacement) */
     if (fSizeOverride == true)
-    {
         Log(("operand size override!!\n"));
-        size = patmPatchGenCode(pVM, pPatch, pPB, (fGenJumpBack) ? &PATMPopf16Record : &PATMPopf16Record_NoExit , pReturnAddrGC, fGenJumpBack, &callInfo);
-    }
-    else
-    {
-        size = patmPatchGenCode(pVM, pPatch, pPB, (fGenJumpBack) ? &PATMPopf32Record : &PATMPopf32Record_NoExit, pReturnAddrGC, fGenJumpBack, &callInfo);
-    }
+    size = patmPatchGenCode(pVM, pPatch, pPB, pPatchAsmRec, pReturnAddrGC, fGenJumpBack, &callInfo);
 
     PATCHGEN_EPILOG(pPatch, size);
     STAM_COUNTER_INC(&pVM->patm.s.StatGenPopf);
@@ -502,17 +554,10 @@ int patmPatchGenPopf(PVM pVM, PPATCHINFO pPatch, RCPTRTYPE(uint8_t *) pReturnAdd
 int patmPatchGenPushf(PVM pVM, PPATCHINFO pPatch, bool fSizeOverride)
 {
     uint32_t size;
-    PATCHGEN_PROLOG(pVM, pPatch);
+    PCPATCHASMRECORD pPatchAsmRec = fSizeOverride == true ?  &g_patmPushf16Record : &g_patmPushf32Record;
+    PATCHGEN_PROLOG(pVM, pPatch, pPatchAsmRec->cbFunction);
 
-    if (fSizeOverride == true)
-    {
-        Log(("operand size override!!\n"));
-        size = patmPatchGenCode(pVM, pPatch, pPB, &PATMPushf16Record, 0, false);
-    }
-    else
-    {
-        size = patmPatchGenCode(pVM, pPatch, pPB, &PATMPushf32Record, 0, false);
-    }
+    size = patmPatchGenCode(pVM, pPatch, pPB, pPatchAsmRec, 0, false);
 
     PATCHGEN_EPILOG(pPatch, size);
     return VINF_SUCCESS;
@@ -521,8 +566,8 @@ int patmPatchGenPushf(PVM pVM, PPATCHINFO pPatch, bool fSizeOverride)
 int patmPatchGenPushCS(PVM pVM, PPATCHINFO pPatch)
 {
     uint32_t size;
-    PATCHGEN_PROLOG(pVM, pPatch);
-    size = patmPatchGenCode(pVM, pPatch, pPB, &PATMPushCSRecord, 0, false);
+    PATCHGEN_PROLOG(pVM, pPatch, g_patmPushCSRecord.cbFunction);
+    size = patmPatchGenCode(pVM, pPatch, pPB, &g_patmPushCSRecord, 0, false);
     PATCHGEN_EPILOG(pPatch, size);
     return VINF_SUCCESS;
 }
@@ -530,23 +575,20 @@ int patmPatchGenPushCS(PVM pVM, PPATCHINFO pPatch)
 int patmPatchGenLoop(PVM pVM, PPATCHINFO pPatch, RCPTRTYPE(uint8_t *) pTargetGC, uint32_t opcode, bool fSizeOverride)
 {
     uint32_t size = 0;
-    PPATCHASMRECORD pPatchAsmRec;
-
-    PATCHGEN_PROLOG(pVM, pPatch);
-
+    PCPATCHASMRECORD pPatchAsmRec;
     switch (opcode)
     {
     case OP_LOOP:
-        pPatchAsmRec = &PATMLoopRecord;
+        pPatchAsmRec = &g_patmLoopRecord;
         break;
     case OP_LOOPNE:
-        pPatchAsmRec = &PATMLoopNZRecord;
+        pPatchAsmRec = &g_patmLoopNZRecord;
         break;
     case OP_LOOPE:
-        pPatchAsmRec = &PATMLoopZRecord;
+        pPatchAsmRec = &g_patmLoopZRecord;
         break;
     case OP_JECXZ:
-        pPatchAsmRec = &PATMJEcxRecord;
+        pPatchAsmRec = &g_patmJEcxRecord;
         break;
     default:
         AssertMsgFailed(("PatchGenLoop: invalid opcode %d\n", opcode));
@@ -554,6 +596,7 @@ int patmPatchGenLoop(PVM pVM, PPATCHINFO pPatch, RCPTRTYPE(uint8_t *) pTargetGC,
     }
     Assert(pPatchAsmRec->offSizeOverride && pPatchAsmRec->offRelJump);
 
+    PATCHGEN_PROLOG(pVM, pPatch, pPatchAsmRec->cbFunction);
     Log(("PatchGenLoop %d jump %d to %08x offrel=%d\n", opcode, pPatch->nrJumpRecs, pTargetGC, pPatchAsmRec->offRelJump));
 
     // Generate the patch code
@@ -575,7 +618,7 @@ int patmPatchGenLoop(PVM pVM, PPATCHINFO pPatch, RCPTRTYPE(uint8_t *) pTargetGC,
 int patmPatchGenRelJump(PVM pVM, PPATCHINFO pPatch, RCPTRTYPE(uint8_t *) pTargetGC, uint32_t opcode, bool fSizeOverride)
 {
     uint32_t offset = 0;
-    PATCHGEN_PROLOG(pVM, pPatch);
+    PATCHGEN_PROLOG(pVM, pPatch, PATCHGEN_DEF_SIZE);
 
     // internal relative jumps from patch code to patch code; no relocation record required
 
@@ -686,7 +729,7 @@ int patmPatchGenCall(PVM pVM, PPATCHINFO pPatch, DISCPUSTATE *pCpu, RTRCPTR pCur
         return rc;
     AssertRCReturn(rc, rc);
 
-    PATCHGEN_PROLOG(pVM, pPatch);
+    PATCHGEN_PROLOG(pVM, pPatch, PATCHGEN_DEF_SIZE);
     /* 2: We must push the target address onto the stack before appending the indirect call code. */
 
     if (fIndirect)
@@ -746,13 +789,14 @@ int patmPatchGenCall(PVM pVM, PPATCHINFO pPatch, DISCPUSTATE *pCpu, RTRCPTR pCur
     PATCHGEN_EPILOG(pPatch, offset);
 
     /* 3: Generate code to lookup address in our local cache; call hypervisor PATM code if it can't be located. */
-    PATCHGEN_PROLOG_NODEF(pVM, pPatch);
+    PCPATCHASMRECORD pPatchAsmRec = fIndirect ? &g_patmCallIndirectRecord : &g_patmCallRecord;
+    PATCHGEN_PROLOG_NODEF(pVM, pPatch, pPatchAsmRec->cbFunction);
     callInfo.pReturnGC      = pCurInstrGC + pCpu->cbInstr;
     callInfo.pTargetGC      = (fIndirect) ? 0xDEADBEEF : pTargetGC;
-    size = patmPatchGenCode(pVM, pPatch, pPB, (fIndirect) ? &PATMCallIndirectRecord : &PATMCallRecord, 0, false, &callInfo);
+    size = patmPatchGenCode(pVM, pPatch, pPB, pPatchAsmRec, 0, false, &callInfo);
     PATCHGEN_EPILOG(pPatch, size);
 
-    /* Need to set PATM_INTERRUPTFLAG after the patched ret returns here. */
+    /* Need to set PATM_ASMFIX_INTERRUPTFLAG after the patched ret returns here. */
     rc = patmPatchGenSetPIF(pVM, pPatch, pCurInstrGC);
     if (rc == VERR_NO_MEMORY)
         return rc;
@@ -784,7 +828,7 @@ int patmPatchGenJump(PVM pVM, PPATCHINFO pPatch, DISCPUSTATE *pCpu, RTRCPTR pCur
         return rc;
     AssertRCReturn(rc, rc);
 
-    PATCHGEN_PROLOG(pVM, pPatch);
+    PATCHGEN_PROLOG(pVM, pPatch, PATCHGEN_DEF_SIZE);
     /* 2: We must push the target address onto the stack before appending the indirect call code. */
 
     Log(("patmPatchGenIndirectJump\n"));
@@ -823,10 +867,10 @@ int patmPatchGenJump(PVM pVM, PPATCHINFO pPatch, DISCPUSTATE *pCpu, RTRCPTR pCur
     PATCHGEN_EPILOG(pPatch, offset);
 
     /* 3: Generate code to lookup address in our local cache; call hypervisor PATM code if it can't be located. */
-    PATCHGEN_PROLOG_NODEF(pVM, pPatch);
+    PATCHGEN_PROLOG_NODEF(pVM, pPatch, g_patmJumpIndirectRecord.cbFunction);
     callInfo.pReturnGC      = pCurInstrGC + pCpu->cbInstr;
     callInfo.pTargetGC      = 0xDEADBEEF;
-    size = patmPatchGenCode(pVM, pPatch, pPB, &PATMJumpIndirectRecord, 0, false, &callInfo);
+    size = patmPatchGenCode(pVM, pPatch, pPB, &g_patmJumpIndirectRecord, 0, false, &callInfo);
     PATCHGEN_EPILOG(pPatch, size);
 
     STAM_COUNTER_INC(&pVM->patm.s.StatGenJump);
@@ -845,7 +889,6 @@ int patmPatchGenJump(PVM pVM, PPATCHINFO pPatch, DISCPUSTATE *pCpu, RTRCPTR pCur
  */
 int patmPatchGenRet(PVM pVM, PPATCHINFO pPatch, DISCPUSTATE *pCpu, RCPTRTYPE(uint8_t *) pCurInstrGC)
 {
-    int size = 0, rc;
     RTRCPTR pPatchRetInstrGC;
 
     /* Remember start of this patch for below. */
@@ -865,21 +908,21 @@ int patmPatchGenRet(PVM pVM, PPATCHINFO pPatch, DISCPUSTATE *pCpu, RCPTRTYPE(uin
 
     /* Jump back to the original instruction if IF is set again. */
     Assert(!patmFindActivePatchByEntrypoint(pVM, pCurInstrGC));
-    rc = patmPatchGenCheckIF(pVM, pPatch, pCurInstrGC);
+    int rc = patmPatchGenCheckIF(pVM, pPatch, pCurInstrGC);
     AssertRCReturn(rc, rc);
 
     /* align this block properly to make sure the jump table will not be misaligned. */
-    PATCHGEN_PROLOG(pVM, pPatch);
-    size = (RTHCUINTPTR)pPB & 3;
+    PATCHGEN_PROLOG(pVM, pPatch, 4);
+    uint32_t size = (RTHCUINTPTR)pPB & 3;
     if (size)
         size = 4 - size;
 
-    for (int i=0;i<size;i++)
+    for (uint32_t i = 0; i < size; i++)
         pPB[i] = 0x90;   /* nop */
     PATCHGEN_EPILOG(pPatch, size);
 
-    PATCHGEN_PROLOG_NODEF(pVM, pPatch);
-    size = patmPatchGenCode(pVM, pPatch, pPB, &PATMRetRecord, 0, false);
+    PATCHGEN_PROLOG_NODEF(pVM, pPatch, g_patmRetRecord.cbFunction);
+    size = patmPatchGenCode(pVM, pPatch, pPB, &g_patmRetRecord, 0, false);
     PATCHGEN_EPILOG(pPatch, size);
 
     STAM_COUNTER_INC(&pVM->patm.s.StatGenRet);
@@ -904,35 +947,33 @@ int patmPatchGenRet(PVM pVM, PPATCHINFO pPatch, DISCPUSTATE *pCpu, RCPTRTYPE(uin
  */
 int patmPatchGenGlobalFunctions(PVM pVM, PPATCHINFO pPatch)
 {
-    int size = 0;
-
     pVM->patm.s.pfnHelperCallGC = PATCHCODE_PTR_GC(pPatch) + pPatch->uCurPatchOffset;
-    PATCHGEN_PROLOG(pVM, pPatch);
-    size = patmPatchGenCode(pVM, pPatch, pPB, &PATMLookupAndCallRecord, 0, false);
+    PATCHGEN_PROLOG(pVM, pPatch, g_patmLookupAndCallRecord.cbFunction);
+    uint32_t size = patmPatchGenCode(pVM, pPatch, pPB, &g_patmLookupAndCallRecord, 0, false);
     PATCHGEN_EPILOG(pPatch, size);
 
     /* Round to next 8 byte boundary. */
     pPatch->uCurPatchOffset = RT_ALIGN_32(pPatch->uCurPatchOffset, 8);
 
     pVM->patm.s.pfnHelperRetGC = PATCHCODE_PTR_GC(pPatch) + pPatch->uCurPatchOffset;
-    PATCHGEN_PROLOG_NODEF(pVM, pPatch);
-    size = patmPatchGenCode(pVM, pPatch, pPB, &PATMRetFunctionRecord, 0, false);
+    PATCHGEN_PROLOG_NODEF(pVM, pPatch, g_patmRetFunctionRecord.cbFunction);
+    size = patmPatchGenCode(pVM, pPatch, pPB, &g_patmRetFunctionRecord, 0, false);
     PATCHGEN_EPILOG(pPatch, size);
 
     /* Round to next 8 byte boundary. */
     pPatch->uCurPatchOffset = RT_ALIGN_32(pPatch->uCurPatchOffset, 8);
 
     pVM->patm.s.pfnHelperJumpGC = PATCHCODE_PTR_GC(pPatch) + pPatch->uCurPatchOffset;
-    PATCHGEN_PROLOG_NODEF(pVM, pPatch);
-    size = patmPatchGenCode(pVM, pPatch, pPB, &PATMLookupAndJumpRecord, 0, false);
+    PATCHGEN_PROLOG_NODEF(pVM, pPatch, g_patmLookupAndJumpRecord.cbFunction);
+    size = patmPatchGenCode(pVM, pPatch, pPB, &g_patmLookupAndJumpRecord, 0, false);
     PATCHGEN_EPILOG(pPatch, size);
 
     /* Round to next 8 byte boundary. */
     pPatch->uCurPatchOffset = RT_ALIGN_32(pPatch->uCurPatchOffset, 8);
 
     pVM->patm.s.pfnHelperIretGC = PATCHCODE_PTR_GC(pPatch) + pPatch->uCurPatchOffset;
-    PATCHGEN_PROLOG_NODEF(pVM, pPatch);
-    size = patmPatchGenCode(pVM, pPatch, pPB, &PATMIretFunctionRecord, 0, false);
+    PATCHGEN_PROLOG_NODEF(pVM, pPatch, g_patmIretFunctionRecord.cbFunction);
+    size = patmPatchGenCode(pVM, pPatch, pPB, &g_patmIretFunctionRecord, 0, false);
     PATCHGEN_EPILOG(pPatch, size);
 
     Log(("pfnHelperCallGC %RRv\n", pVM->patm.s.pfnHelperCallGC));
@@ -953,7 +994,7 @@ int patmPatchGenGlobalFunctions(PVM pVM, PPATCHINFO pPatch)
  */
 int patmPatchGenIllegalInstr(PVM pVM, PPATCHINFO pPatch)
 {
-    PATCHGEN_PROLOG(pVM, pPatch);
+    PATCHGEN_PROLOG(pVM, pPatch, 1);
 
     pPB[0] = 0xCC;
 
@@ -974,13 +1015,13 @@ int patmPatchGenCheckIF(PVM pVM, PPATCHINFO pPatch, RTRCPTR pCurInstrGC)
 {
     uint32_t size;
 
-    PATCHGEN_PROLOG(pVM, pPatch);
+    PATCHGEN_PROLOG(pVM, pPatch, g_patmCheckIFRecord.cbFunction);
 
     /* Add lookup record for patch to guest address translation */
     patmR3AddP2GLookupRecord(pVM, pPatch, pPB, pCurInstrGC, PATM_LOOKUP_PATCH2GUEST);
 
     /* Generate code to check for IF=1 before executing the call to the duplicated function. */
-    size = patmPatchGenCode(pVM, pPatch, pPB, &PATMCheckIFRecord, pCurInstrGC, true);
+    size = patmPatchGenCode(pVM, pPatch, pPB, &g_patmCheckIFRecord, pCurInstrGC, true);
 
     PATCHGEN_EPILOG(pPatch, size);
     return VINF_SUCCESS;
@@ -997,12 +1038,12 @@ int patmPatchGenCheckIF(PVM pVM, PPATCHINFO pPatch, RTRCPTR pCurInstrGC)
  */
 int patmPatchGenSetPIF(PVM pVM, PPATCHINFO pPatch, RTRCPTR pInstrGC)
 {
-    PATCHGEN_PROLOG(pVM, pPatch);
+    PATCHGEN_PROLOG(pVM, pPatch, g_patmSetPIFRecord.cbFunction);
 
     /* Add lookup record for patch to guest address translation */
     patmR3AddP2GLookupRecord(pVM, pPatch, pPB, pInstrGC, PATM_LOOKUP_PATCH2GUEST);
 
-    int size = patmPatchGenCode(pVM, pPatch, pPB, &PATMSetPIFRecord, 0, false);
+    uint32_t size = patmPatchGenCode(pVM, pPatch, pPB, &g_patmSetPIFRecord, 0, false);
     PATCHGEN_EPILOG(pPatch, size);
     return VINF_SUCCESS;
 }
@@ -1018,12 +1059,12 @@ int patmPatchGenSetPIF(PVM pVM, PPATCHINFO pPatch, RTRCPTR pInstrGC)
  */
 int patmPatchGenClearPIF(PVM pVM, PPATCHINFO pPatch, RTRCPTR pInstrGC)
 {
-    PATCHGEN_PROLOG(pVM, pPatch);
+    PATCHGEN_PROLOG(pVM, pPatch, g_patmSetPIFRecord.cbFunction);
 
     /* Add lookup record for patch to guest address translation */
     patmR3AddP2GLookupRecord(pVM, pPatch, pPB, pInstrGC, PATM_LOOKUP_PATCH2GUEST);
 
-    int size = patmPatchGenCode(pVM, pPatch, pPB, &PATMClearPIFRecord, 0, false);
+    uint32_t size = patmPatchGenCode(pVM, pPatch, pPB, &g_patmClearPIFRecord, 0, false);
     PATCHGEN_EPILOG(pPatch, size);
     return VINF_SUCCESS;
 }
@@ -1039,10 +1080,10 @@ int patmPatchGenClearPIF(PVM pVM, PPATCHINFO pPatch, RTRCPTR pInstrGC)
  */
 int patmPatchGenClearInhibitIRQ(PVM pVM, PPATCHINFO pPatch, RTRCPTR pNextInstrGC)
 {
-    int          size;
     PATMCALLINFO callInfo;
-
-    PATCHGEN_PROLOG(pVM, pPatch);
+    PCPATCHASMRECORD pPatchAsmRec = pPatch->flags & PATMFL_DUPLICATE_FUNCTION
+                                  ? &g_patmClearInhibitIRQContIF0Record : &g_patmClearInhibitIRQFaultIF0Record;
+    PATCHGEN_PROLOG(pVM, pPatch, pPatchAsmRec->cbFunction);
 
     Assert((pPatch->flags & (PATMFL_GENERATE_JUMPTOGUEST|PATMFL_DUPLICATE_FUNCTION)) != (PATMFL_GENERATE_JUMPTOGUEST|PATMFL_DUPLICATE_FUNCTION));
 
@@ -1051,10 +1092,7 @@ int patmPatchGenClearInhibitIRQ(PVM pVM, PPATCHINFO pPatch, RTRCPTR pNextInstrGC
 
     callInfo.pNextInstrGC = pNextInstrGC;
 
-    if (pPatch->flags & PATMFL_DUPLICATE_FUNCTION)
-        size = patmPatchGenCode(pVM, pPatch, pPB, &PATMClearInhibitIRQContIF0Record, 0, false, &callInfo);
-    else
-        size = patmPatchGenCode(pVM, pPatch, pPB, &PATMClearInhibitIRQFaultIF0Record, 0, false, &callInfo);
+    uint32_t size = patmPatchGenCode(pVM, pPatch, pPB, pPatchAsmRec, 0, false, &callInfo);
 
     PATCHGEN_EPILOG(pPatch, size);
     return VINF_SUCCESS;
@@ -1079,15 +1117,15 @@ int patmPatchGenIntEntry(PVM pVM, PPATCHINFO pPatch, RTRCPTR pIntHandlerGC)
                                          TRPMForwardTrap takes care of the details. */
     {
         uint32_t size;
-        PATCHGEN_PROLOG(pVM, pPatch);
+        PCPATCHASMRECORD pPatchAsmRec = pPatch->flags & PATMFL_INTHANDLER_WITH_ERRORCODE
+                                      ? &g_patmIntEntryRecordErrorCode : &g_patmIntEntryRecord;
+        PATCHGEN_PROLOG(pVM, pPatch, pPatchAsmRec->cbFunction);
 
         /* Add lookup record for patch to guest address translation */
         patmR3AddP2GLookupRecord(pVM, pPatch, pPB, pIntHandlerGC, PATM_LOOKUP_PATCH2GUEST);
 
         /* Generate entrypoint for the interrupt handler (correcting CS in the interrupt stack frame) */
-        size = patmPatchGenCode(pVM, pPatch, pPB,
-                                (pPatch->flags & PATMFL_INTHANDLER_WITH_ERRORCODE) ? &PATMIntEntryRecordErrorCode : &PATMIntEntryRecord,
-                                0, false);
+        size = patmPatchGenCode(pVM, pPatch, pPB, pPatchAsmRec, 0, false);
 
         PATCHGEN_EPILOG(pPatch, size);
     }
@@ -1110,18 +1148,18 @@ int patmPatchGenIntEntry(PVM pVM, PPATCHINFO pPatch, RTRCPTR pIntHandlerGC)
 int patmPatchGenTrapEntry(PVM pVM, PPATCHINFO pPatch, RTRCPTR pTrapHandlerGC)
 {
     uint32_t size;
+    PCPATCHASMRECORD pPatchAsmRec = (pPatch->flags & PATMFL_TRAPHANDLER_WITH_ERRORCODE)
+                                  ? &g_patmTrapEntryRecordErrorCode : &g_patmTrapEntryRecord;
 
     Assert(!EMIsRawRing1Enabled(pVM));
 
-    PATCHGEN_PROLOG(pVM, pPatch);
+    PATCHGEN_PROLOG(pVM, pPatch, pPatchAsmRec->cbFunction);
 
     /* Add lookup record for patch to guest address translation */
     patmR3AddP2GLookupRecord(pVM, pPatch, pPB, pTrapHandlerGC, PATM_LOOKUP_PATCH2GUEST);
 
     /* Generate entrypoint for the trap handler (correcting CS in the interrupt stack frame) */
-    size = patmPatchGenCode(pVM, pPatch, pPB,
-                            (pPatch->flags & PATMFL_TRAPHANDLER_WITH_ERRORCODE) ? &PATMTrapEntryRecordErrorCode : &PATMTrapEntryRecord,
-                            pTrapHandlerGC, true);
+    size = patmPatchGenCode(pVM, pPatch, pPB, pPatchAsmRec, pTrapHandlerGC, true);
     PATCHGEN_EPILOG(pPatch, size);
 
     return VINF_SUCCESS;
@@ -1132,13 +1170,13 @@ int patmPatchGenStats(PVM pVM, PPATCHINFO pPatch, RTRCPTR pInstrGC)
 {
     uint32_t size;
 
-    PATCHGEN_PROLOG(pVM, pPatch);
+    PATCHGEN_PROLOG(pVM, pPatch, g_patmStatsRecord.cbFunction);
 
     /* Add lookup record for stats code -> guest handler. */
     patmR3AddP2GLookupRecord(pVM, pPatch, pPB, pInstrGC, PATM_LOOKUP_PATCH2GUEST);
 
     /* Generate code to keep calling statistics for this patch */
-    size = patmPatchGenCode(pVM, pPatch, pPB, &PATMStatsRecord, pInstrGC, false);
+    size = patmPatchGenCode(pVM, pPatch, pPB, &g_patmStatsRecord, pInstrGC, false);
     PATCHGEN_EPILOG(pPatch, size);
 
     return VINF_SUCCESS;
@@ -1159,7 +1197,7 @@ int patmPatchGenMovDebug(PVM pVM, PPATCHINFO pPatch, DISCPUSTATE *pCpu)
     unsigned reg, mod, rm, dbgreg;
     uint32_t offset;
 
-    PATCHGEN_PROLOG(pVM, pPatch);
+    PATCHGEN_PROLOG(pVM, pPatch, PATCHGEN_DEF_SIZE);
 
     mod = 0;            //effective address (only)
     rm  = 5;            //disp32
@@ -1209,7 +1247,7 @@ int patmPatchGenMovControl(PVM pVM, PPATCHINFO pPatch, DISCPUSTATE *pCpu)
     int reg, mod, rm, ctrlreg;
     uint32_t offset;
 
-    PATCHGEN_PROLOG(pVM, pPatch);
+    PATCHGEN_PROLOG(pVM, pPatch, PATCHGEN_DEF_SIZE);
 
     mod = 0;            //effective address (only)
     rm  = 5;            //disp32
@@ -1275,12 +1313,12 @@ int patmPatchGenMovFromSS(PVM pVM, PPATCHINFO pPatch, DISCPUSTATE *pCpu, RTRCPTR
 
     Assert(pPatch->flags & PATMFL_CODE32);
 
-    PATCHGEN_PROLOG(pVM, pPatch);
-    size = patmPatchGenCode(pVM, pPatch, pPB, &PATMClearPIFRecord, 0, false);
+    PATCHGEN_PROLOG(pVM, pPatch, g_patmClearPIFRecord.cbFunction + 2 + g_patmMovFromSSRecord.cbFunction + 2 + g_patmSetPIFRecord.cbFunction);
+    size = patmPatchGenCode(pVM, pPatch, pPB, &g_patmClearPIFRecord, 0, false);
     PATCHGEN_EPILOG(pPatch, size);
 
     /* push ss */
-    PATCHGEN_PROLOG_NODEF(pVM, pPatch);
+    PATCHGEN_PROLOG_NODEF(pVM, pPatch, 2);
     offset = 0;
     if (pCpu->fPrefix & DISPREFIX_OPSIZE)
         pPB[offset++] = 0x66;       /* size override -> 16 bits push */
@@ -1288,12 +1326,12 @@ int patmPatchGenMovFromSS(PVM pVM, PPATCHINFO pPatch, DISCPUSTATE *pCpu, RTRCPTR
     PATCHGEN_EPILOG(pPatch, offset);
 
     /* checks and corrects RPL of pushed ss*/
-    PATCHGEN_PROLOG_NODEF(pVM, pPatch);
-    size = patmPatchGenCode(pVM, pPatch, pPB, &PATMMovFromSSRecord, 0, false);
+    PATCHGEN_PROLOG_NODEF(pVM, pPatch, g_patmMovFromSSRecord.cbFunction);
+    size = patmPatchGenCode(pVM, pPatch, pPB, &g_patmMovFromSSRecord, 0, false);
     PATCHGEN_EPILOG(pPatch, size);
 
     /* pop general purpose register */
-    PATCHGEN_PROLOG_NODEF(pVM, pPatch);
+    PATCHGEN_PROLOG_NODEF(pVM, pPatch, 2);
     offset = 0;
     if (pCpu->fPrefix & DISPREFIX_OPSIZE)
         pPB[offset++] = 0x66; /* size override -> 16 bits pop */
@@ -1301,8 +1339,8 @@ int patmPatchGenMovFromSS(PVM pVM, PPATCHINFO pPatch, DISCPUSTATE *pCpu, RTRCPTR
     PATCHGEN_EPILOG(pPatch, offset);
 
 
-    PATCHGEN_PROLOG_NODEF(pVM, pPatch);
-    size = patmPatchGenCode(pVM, pPatch, pPB, &PATMSetPIFRecord, 0, false);
+    PATCHGEN_PROLOG_NODEF(pVM, pPatch, g_patmSetPIFRecord.cbFunction);
+    size = patmPatchGenCode(pVM, pPatch, pPB, &g_patmSetPIFRecord, 0, false);
     PATCHGEN_EPILOG(pPatch, size);
 
     return VINF_SUCCESS;
@@ -1328,7 +1366,7 @@ int patmPatchGenSldtStr(PVM pVM, PPATCHINFO pPatch, DISCPUSTATE *pCpu, RTRCPTR p
     /** @todo segment prefix (untested) */
     Assert(pCpu->fPrefix == DISPREFIX_NONE || pCpu->fPrefix == DISPREFIX_OPSIZE);
 
-    PATCHGEN_PROLOG(pVM, pPatch);
+    PATCHGEN_PROLOG(pVM, pPatch, PATCHGEN_DEF_SIZE);
 
     if (pCpu->Param1.fUse == DISUSE_REG_GEN32 || pCpu->Param1.fUse == DISUSE_REG_GEN16)
     {
@@ -1457,7 +1495,7 @@ int patmPatchGenSxDT(PVM pVM, PPATCHINFO pPatch, DISCPUSTATE *pCpu, RTRCPTR pCur
 //5A                   pop         edx
 //58                   pop         eax
 
-    PATCHGEN_PROLOG(pVM, pPatch);
+    PATCHGEN_PROLOG(pVM, pPatch, PATCHGEN_DEF_SIZE);
     pPB[offset++] = 0x50;              // push      eax
     pPB[offset++] = 0x52;              // push      edx
 
@@ -1516,9 +1554,9 @@ int patmPatchGenSxDT(PVM pVM, PPATCHINFO pPatch, DISCPUSTATE *pCpu, RTRCPTR pCur
 int patmPatchGenCpuid(PVM pVM, PPATCHINFO pPatch, RTRCPTR pCurInstrGC)
 {
     uint32_t size;
-    PATCHGEN_PROLOG(pVM, pPatch);
+    PATCHGEN_PROLOG(pVM, pPatch, g_patmCpuidRecord.cbFunction);
 
-    size = patmPatchGenCode(pVM, pPatch, pPB, &PATMCpuidRecord, 0, false);
+    size = patmPatchGenCode(pVM, pPatch, pPB, &g_patmCpuidRecord, 0, false);
 
     PATCHGEN_EPILOG(pPatch, size);
     NOREF(pCurInstrGC);
@@ -1547,7 +1585,7 @@ int patmPatchGenJumpToGuest(PVM pVM, PPATCHINFO pPatch, RCPTRTYPE(uint8_t *) pRe
         AssertRCReturn(rc, rc);
     }
 
-    PATCHGEN_PROLOG(pVM, pPatch);
+    PATCHGEN_PROLOG(pVM, pPatch, PATMJumpToGuest_IF1Record.cbFunction);
 
     /* Add lookup record for patch to guest address translation */
     patmR3AddP2GLookupRecord(pVM, pPatch, pPB, pReturnAddrGC, PATM_LOOKUP_PATCH2GUEST);
@@ -1568,7 +1606,7 @@ int patmPatchGenPatchJump(PVM pVM, PPATCHINFO pPatch, RTRCPTR pCurInstrGC, RCPTR
     int     rc = VINF_SUCCESS;
 
     Assert(PATMIsPatchGCAddr(pVM, pPatchAddrGC));
-    PATCHGEN_PROLOG(pVM, pPatch);
+    PATCHGEN_PROLOG(pVM, pPatch, SIZEOF_NEARJUMP32);
 
     if (fAddLookupRecord)
     {

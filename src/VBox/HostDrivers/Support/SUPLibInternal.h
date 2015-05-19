@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -332,9 +332,14 @@ typedef enum SUPR3HARDENEDMAINSTATE
 /*******************************************************************************
 *   Global Variables                                                           *
 *******************************************************************************/
-extern DECLHIDDEN(uint32_t)     g_u32Cookie;
-extern DECLHIDDEN(uint32_t)     g_u32SessionCookie;
-extern DECLHIDDEN(SUPLIBDATA)   g_supLibData;
+extern DECLHIDDEN(uint32_t)             g_u32Cookie;
+extern DECLHIDDEN(uint32_t)             g_u32SessionCookie;
+extern DECLHIDDEN(SUPLIBDATA)           g_supLibData;
+extern DECLHIDDEN(uint32_t)             g_uSupFakeMode;
+extern DECLHIDDEN(PSUPGLOBALINFOPAGE)   g_pSUPGlobalInfoPageR0;
+#ifdef ___SUPDrvIOC_h___
+extern DECLHIDDEN(PSUPQUERYFUNCS)       g_pSupFunctions;
+#endif
 extern DECLHIDDEN(SUPR3HARDENEDMAINSTATE) g_enmSupR3HardenedMainState;
 #ifdef RT_OS_WINDOWS
 extern DECLHIDDEN(bool)                 g_fSupEarlyProcessInit;

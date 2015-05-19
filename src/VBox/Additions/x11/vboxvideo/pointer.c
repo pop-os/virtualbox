@@ -1,3 +1,4 @@
+/* $Id: pointer.c $ */
 /** @file
  * VirtualBox X11 Additions graphics driver utility functions
  */

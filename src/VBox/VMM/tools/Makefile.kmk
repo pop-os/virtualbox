@@ -53,7 +53,7 @@ endif
 #
 # CPU report program (CPUM DB).
 #
-#PROGRAMS += VBoxCpuReport - not on 4.3, supdrv interface currently missing.
+PROGRAMS += VBoxCpuReport
 VBoxCpuReport_TEMPLATE := VBoxR3Static
 VBoxCpuReport_DEFS      = IN_VMM_R3 IN_VBOX_CPU_REPORT
 VBoxCpuReport_INCS      = ../include

@@ -1,7 +1,6 @@
+/* $Id: VBoxLicenseViewer.h $ */
 /** @file
- *
- * VBox frontends: Qt4 GUI ("VirtualBox"):
- * VBoxLicenseViewer class declaration
+ * VBox Qt GUI - VBoxLicenseViewer class declaration.
  */
 
 /*

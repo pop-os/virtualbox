@@ -1,47 +1,160 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
   <sect1>
-    <title>Version 4.3.28 (2015-05-13)</title>
+    <title>Version 5.0.0 Beta 4 (2015-05-18)</title>
 
-    <para>This is a maintenance release. The following items were fixed and/or
-      added:</para>
+    <para>This is a major update. The following major new features
+      were added:</para>
 
     <itemizedlist>
 
       <listitem>
-        <para>VMM: fixed a Guru Meditation when rebooting certain guests (for
-          example Solaris doing fast reboot) by fixing the implementation for INIT IPI</para>
+        <para>Paravirtualization support for Windows and Linux guests to improve
+          time-keeping accuracy and performance (see  <xref linkend="gimproviders" />)</para>
       </listitem>
 
       <listitem>
-        <para>VMM: added some information for diagnosing rare
-          <emphasis>VERR_VMX_INVALID_VMXON_PTR</emphasis> Guru Meditations (VT-x only)</para>
+        <para>Make more instruction set extensions available to the guest when
+          running with hardware-assisted virtualization and nested paging. Among
+          others this includes: SSE 4.1, SSE4.2, AES-NI, <emphasis>POPCNT</emphasis>,
+          <emphasis>RDRAND</emphasis> and <emphasis>RDSEED</emphasis></para>
       </listitem>
 
       <listitem>
-        <para>GUI: HID LEDs sync: prevent synchronization if VM window has no focus
-          (Windows and Mac OS X hosts only)</para>
+        <para>xHCI Controller to support USB 3 devices
+          (see <xref linkend="settings-usb" />)</para>
       </listitem>
 
       <listitem>
-        <para>GUI: fixed drag and drop moving the cursor between guest screens on
-          certain hosts</para>
+        <para>Drag and drop support (bidirectional) for Windows, Linux and Solaris guests</para>
       </listitem>
 
       <listitem>
-        <para>3D: fixed a crash on restoring the VM state on X11 hosts (bug #12737)</para>
+        <para>Disk image encryption (see </para>
       </listitem>
 
       <listitem>
-        <para>3D: fixed a crash on restoring the VM state</para>
+        <para>GUI: VM guest-content scaling support (including 3D acceleration)</para>
       </listitem>
 
       <listitem>
-        <para>3D: fixed a crash on Linux guest shutdown (bug #12772)</para>
+        <para>GUI: New User Interface settings page for customizing status-bar,
+          menu-bar and guest-content scaling</para>
       </listitem>
 
       <listitem>
-        <para>VRDP: fixed incompatibility with rdesktop 1.8.3</para>
+        <para>GUI: New Encryption settings tab for customizing encryption options for
+          disk images</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: HiDPI support including application icons and optional unscaled HiDPI
+          output on Mac OS X (including 3D acceleration)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: Hotplugging support for SATA disks</para>
+      </listitem>
+
+      <listitem>
+        <para>New, modular audio architecture for providing a better abstraction of the host
+          audio backends</para>
+      </listitem>
+
+      <listitem>
+        <para>Support for the NDIS6 networking framework on Windows (default on Vista
+          and later)</para>
+      </listitem>
+
+    </itemizedlist>
+
+    <para>In addition, the following items were fixed and/or added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>GUI: improved HID LEDs synchronization for Mac and Windows hosts.
+          Phisical LEDs state now restored together with VM state restore.</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: take the guest screen aspect ratio into account for the
+          preview window</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: improved timing on Solaris hosts with older VT-x hosts
+          without preemption timers</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxManage: when exporting an appliance, support the suppression
+          of MAC addresses, which means they will be always recreated on
+          import, avoiding duplicate MAC addresses for VMs which are imported
+          several times</para>
+      </listitem>
+
+      <listitem>
+        <para>USB: added USB traffic capturing (see <xref linkend="usbtrafficcapturing" />)</para>
+      </listitem>
+
+      <listitem>
+        <para>Made resizing X11 guests work more reliably</para>
+      </listitem>
+
+      <listitem>
+        <para>API: block the removal of the current snapshot if it has child
+          snapshots (only relevant for VMs without snapshottable hard disks,
+          their presence always prevented removal), which resulted in VM
+          config corruption</para>
+      </listitem>
+
+      <listitem>
+        <para>API: mark VM configs with snapshots but without current snapshot
+          as inaccessible, as this combination is nonsense</para>
+      </listitem>
+
+      <listitem>
+        <para>API: fix information for some automatically generated events
+           (only with XPCOM, Windows host was not affected), which caused
+           errors when getting some of the attributes over the webservice
+           (bug #12379)</para>
+      </listitem>
+
+      <listitem>
+        <para>API: fix crashes in Java API clients using the XPCOM binding,
+          happened with output parameters only (bug #11232)</para>
+      </listitem>
+
+      <listitem>
+        <para>API: a number of settings (e.g. network settings) can now also
+          be changed when the VM is in saved state</para>
+      </listitem>
+
+      <listitem>
+        <para>3D: fix potential race in which might cause a crash on VM
+          termination</para>
+      </listitem>
+
+      <listitem>
+        <para>3D: fixed a possible memory leak in the host service</para>
+      </listitem>
+
+      <listitem>
+        <para>Serial: new TCP/IP backend (see <xref linkend="serialports"/>)</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: added USB mass storage device class
+          (see <xref linkend="harddiskcontrollers"/>)</para>
+      </listitem>
+
+      <listitem>
+        <para>BIOS: fix for booting from SCSI CD/DVD media</para>
+      </listitem>
+
+      <listitem>
+        <para>BIOS: fix for reads partially beyond end of disk (bug #14021)</para>
       </listitem>
 
       <listitem>
@@ -49,118 +162,22 @@
       </listitem>
 
       <listitem>
-        <para>Storage: don't crash if creating an asynchronous I/O context
-          fails (e.g. when starting many VMs) and show a proper error message</para>
+        <para>rdesktop-vrdp: upgraded to version 1.8.3</para>
       </listitem>
 
       <listitem>
-        <para>Floppy: several fixes</para>
+        <para>Guest Additions: added a heartbeat service
+          (see <xref linkend="heartbeatservice" />)</para>
       </listitem>
 
       <listitem>
-        <para>Audio: improved the behavior of the volume control for the
-          HD audio device emulation</para>
-      </listitem>
-
-      <listitem>
-        <para>USB: increase the number of supported drivers from 3 to 5
-          (Windows hosts only)</para>
-      </listitem>
-
-      <listitem>
-        <para>PS/2 keyboard: synchronize the LED state on VM restore
-          (Windows and Mac OS X hosts only)</para>
-      </listitem>
-
-      <listitem>
-        <para>NAT Network: when running multiple NAT networks with multiple VMs,
-          only stop the respective services when stopping VMs (bug #14090)</para>
-      </listitem>
-
-      <listitem>
-        <para>NAT: don't kill UDP bindings on ICMP errors (bug #13475)</para>
-      </listitem>
-
-      <listitem>
-        <para>NAT: bandwidth limit now works properly with NAT (bug #11485)</para>
-      </listitem>
-
-      <listitem>
-        <para>BIOS: fixed the returned size value of the VBE 2.0 PMI function 0Ah
-          (4.2.0 regression; bug #14096)</para>
-      </listitem>
-
-      <listitem>
-        <para>Guest Control: fixed parameter quoting in Windows guests
-          (bug #13157)</para>
-      </listitem>
-
-      <listitem>
-        <para>Webcam passthrough improvements for Linux (V4L2) hosts to support more
-          webcam models</para>
-      </listitem>
-
-      <listitem>
-        <para>API: don't fail starting a VM with <emphasis>VBOX_E_INVALID_OBJECT_STATE</emphasis>
-          under certain conditions (bug #13617)</para>
-      </listitem>
-
-      <listitem>
-        <para>API: be more verbose on <emphasis>VBOX_E_INVALID_OBJECT_STATE</emphasis>
-          if a medium is attached to a running VM (bug #13560)</para>
-      </listitem>
-
-      <listitem>
-        <para>API: fixed a bug which could result in losing certain screen resize
-          events with multi-monitor guests</para>
-      </listitem>
-
-      <listitem>
-        <para>rdesktop-vrdp: fixed path to the keymaps (bug #12066)</para>
-      </listitem>
-
-      <listitem>
-        <para>rdesktop-vrdp: switch to version 1.8.3</para>
-      </listitem>
-
-      <listitem>
-        <para>Windows hosts: more hardening fixes (e.g. bugs #14051, #14052)</para>
-      </listitem>
-
-      <listitem>
-        <para>Linux hosts: another fix for activated SMAP on Linux 3.19
-          and newer (Broadwell and later; bug #13961)</para>
-      </listitem>
-
-      <listitem>
-        <para>Linux hosts: Linux 4.1 compile fix (bug #14081)</para>
-      </listitem>
-
-      <listitem>
-        <para>Solaris hosts: fixed using of VNIC templates with Crossbow based
-          bridged networking to be compatible with vanity interface names</para>
-      </listitem>
-
-      <listitem>
-        <para>Mac OS X hosts: fixed crash during VM termination under rare
-          circumstances</para>
-      </listitem>
-
-      <listitem>
-        <para>Windows Additions/WDDM: improved video memory utilization and allow
-          more/bigger guest screens with large resolutions (including HiDPI)</para>
-      </listitem>
-
-      <listitem>
-        <para>X11 Additions: prevent flickering when updating mouse cursor</para>
-      </listitem>
-
-      <listitem>
-        <para>Solaris Additions: fixed incorrect usage of 'prtconf' while
-          installing Guest Additions (Solaris 10 only)</para>
+        <para>Windows Additions/WDDM: improved video memory utilization and
+          allow more/bigger guest screens with large resolutions (including HiDPI
+        </para>
       </listitem>
 
     </itemizedlist>
+
   </sect1>
 
   <sect1>
@@ -669,7 +686,7 @@
       </listitem>
 
       <listitem>
-        <para>Storage: fixed broken iSCSI authentication (4.3.14 regression, bugs #13386,
+        <para>Storage: fixed broken iSCSI authentication (4.3.14 regression; bugs #13386,
           #13435)</para>
       </listitem>
 
@@ -1372,8 +1389,7 @@
 
       <listitem>
         <para>VMM: experimental support for SSE 4.1 / SSE 4.2 passthrough, see
-          <xref linkend="sse412passthrough" xreflabel="here"/> how to
-          enable it (bug #8651)</para>
+          the user manual how to enable it (bug #8651)</para>
       </listitem>
 
       <listitem>

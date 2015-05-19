@@ -1,12 +1,10 @@
 /* $Id: UISelectorWindow.cpp $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * UISelectorWindow class implementation
+ * VBox Qt GUI - UISelectorWindow class implementation.
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -18,69 +16,73 @@
  */
 
 #ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include "precomp.h"
+# include <precomp.h>
 #else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 /* Qt includes: */
-#include <QDesktopWidget>
-#include <QDesktopServices>
-#include <QMenuBar>
-#include <QResizeEvent>
-#include <QStackedWidget>
-#include <QTimer>
+# include <QDesktopServices>
+# include <QMenuBar>
+# include <QStatusBar>
+# include <QResizeEvent>
+# include <QStackedWidget>
+# include <QToolButton>
+# include <QTimer>
 
 /* Local includes: */
-#include "QISplitter.h"
-#include "QIFileDialog.h"
-#include "UIBar.h"
-#ifdef VBOX_GUI_WITH_NETWORK_MANAGER
-# include "UINetworkManager.h"
-# include "UINetworkManagerIndicator.h"
-# include "UIUpdateManager.h"
-# include "UIDownloaderUserManual.h"
-# include "UIDownloaderExtensionPack.h"
-#endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
-#include "UIIconPool.h"
-#include "UIWizardCloneVM.h"
-#include "UIWizardExportApp.h"
-#include "UIWizardImportApp.h"
-#include "UIVMDesktop.h"
-#include "UIVirtualBoxEventHandler.h"
-#include "UIMediumManager.h"
-#include "UIMedium.h"
-#include "UIMessageCenter.h"
-#include "UISelectorWindow.h"
-#include "UISettingsDialogSpecific.h"
-#include "UIToolBar.h"
-#include "UIVMLogViewer.h"
-#include "UIDesktopServices.h"
-#include "UIGlobalSettingsExtension.h"
-#include "UIActionPoolSelector.h"
-#include "UIGChooser.h"
-#include "UIGDetails.h"
-#include "UIVMItem.h"
-#include "VBoxGlobal.h"
+# include "QISplitter.h"
+# include "QIFileDialog.h"
+# include "UIBar.h"
+# ifdef VBOX_GUI_WITH_NETWORK_MANAGER
+#  include "UINetworkManager.h"
+#  include "UINetworkManagerIndicator.h"
+#  include "UIUpdateManager.h"
+#  include "UIDownloaderUserManual.h"
+#  include "UIDownloaderExtensionPack.h"
+# endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
+# include "UIIconPool.h"
+# include "UIWizardCloneVM.h"
+# include "UIWizardExportApp.h"
+# include "UIWizardImportApp.h"
+# include "UIVMDesktop.h"
+# include "UIVirtualBoxEventHandler.h"
+# include "UIMediumManager.h"
+# include "UIMedium.h"
+# include "UIMessageCenter.h"
+# include "UISelectorWindow.h"
+# include "UISettingsDialogSpecific.h"
+# include "UIToolBar.h"
+# include "UIVMLogViewer.h"
+# include "UIDesktopServices.h"
+# include "UIGlobalSettingsExtension.h"
+# include "UIActionPoolSelector.h"
+# include "UIGChooser.h"
+# include "UIGDetails.h"
+# include "UIVMItem.h"
+# include "UIExtraDataManager.h"
+# include "VBoxGlobal.h"
 
-#ifdef Q_WS_MAC
-# include "VBoxUtils.h"
-# include "UIWindowMenuManager.h"
-# include "UIImageTools.h"
-#endif /* Q_WS_MAC */
+# ifdef Q_WS_MAC
+#  include "VBoxUtils.h"
+#  include "UIWindowMenuManager.h"
+#  include "UIImageTools.h"
+# endif /* Q_WS_MAC */
 
 /* Other VBox stuff: */
-#include <iprt/buildconfig.h>
-#include <VBox/version.h>
-#ifdef Q_WS_X11
-# include <iprt/env.h>
-#endif /* Q_WS_X11 */
+# include <iprt/buildconfig.h>
+# include <VBox/version.h>
+# ifdef Q_WS_X11
+#  include <iprt/env.h>
+# endif /* Q_WS_X11 */
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 
 UISelectorWindow::UISelectorWindow(UISelectorWindow **ppSelf, QWidget *pParent,
                                    Qt::WindowFlags flags /* = Qt::Window */)
     : QIWithRetranslateUI2<QMainWindow>(pParent, flags)
     , m_fPolished(false)
     , m_fWarningAboutInaccessibleMediumShown(false)
+    , m_pActionPool(0)
     , m_pSplitter(0)
 #ifndef Q_WS_MAC
     , m_pBar(0)
@@ -119,7 +121,7 @@ UISelectorWindow::UISelectorWindow(UISelectorWindow **ppSelf, QWidget *pParent,
     /* Enable unified toolbars on Mac OS X. Available on Qt >= 4.3.
      * We do this after setting the window pos/size, cause Qt sometimes
      * includes the toolbar height in the content height. */
-    mVMToolBar->setMacToolbar();
+    mVMToolBar->enableMacToolbar();
 # endif /* MAC_LEOPARD_STYLE */
 
     UIWindowMenuManager::instance()->addWindow(this);
@@ -140,8 +142,16 @@ UISelectorWindow::~UISelectorWindow()
     /* Destroy event handlers: */
     UIVirtualBoxEventHandler::destroy();
 
+#ifdef Q_WS_MAC
+    UIWindowMenuManager::destroy();
+#endif /* Q_WS_MAC */
+
     /* Save settings: */
     saveSettings();
+
+    /* Cleanup: */
+    cleanupConnections();
+    cleanupMenuBar();
 }
 
 void UISelectorWindow::sltStateChanged(QString)
@@ -213,22 +223,19 @@ void UISelectorWindow::sltHandleMediumEnumerationFinish()
 
 void UISelectorWindow::sltShowSelectorContextMenu(const QPoint &pos)
 {
-    /* Load toolbar/statusbar availability settings: */
-    CVirtualBox vbox = vboxGlobal().virtualBox();
-    QString strToolbar = vbox.GetExtraData(GUI_Toolbar);
-    QString strStatusbar = vbox.GetExtraData(GUI_Statusbar);
-    bool fToolbar = strToolbar.isEmpty() || strToolbar == "true";
-    bool fStatusbar = strStatusbar.isEmpty() || strStatusbar == "true";
-
     /* Populate toolbar/statusbar acctions: */
     QList<QAction*> actions;
     QAction *pShowToolBar = new QAction(tr("Show Toolbar"), 0);
     pShowToolBar->setCheckable(true);
-    pShowToolBar->setChecked(fToolbar);
+#ifdef Q_WS_MAC
+    pShowToolBar->setChecked(mVMToolBar->isVisible());
+#else /* Q_WS_MAC */
+    pShowToolBar->setChecked(m_pBar->isVisible());
+#endif /* !Q_WS_MAC */
     actions << pShowToolBar;
     QAction *pShowStatusBar = new QAction(tr("Show Statusbar"), 0);
     pShowStatusBar->setCheckable(true);
-    pShowStatusBar->setChecked(fStatusbar);
+    pShowStatusBar->setChecked(statusBar()->isVisible());
     actions << pShowStatusBar;
 
     QPoint gpos = pos;
@@ -245,7 +252,6 @@ void UISelectorWindow::sltShowSelectorContextMenu(const QPoint &pos)
 #else /* Q_WS_MAC */
             m_pBar->show();
 #endif /* !Q_WS_MAC */
-            vbox.SetExtraData(GUI_Toolbar, "true");
         }
         else
         {
@@ -254,21 +260,14 @@ void UISelectorWindow::sltShowSelectorContextMenu(const QPoint &pos)
 #else /* Q_WS_MAC */
             m_pBar->hide();
 #endif /* !Q_WS_MAC */
-            vbox.SetExtraData(GUI_Toolbar, "false");
         }
     }
     else if (pResult == pShowStatusBar)
     {
         if (pResult->isChecked())
-        {
             statusBar()->show();
-            vbox.SetExtraData(GUI_Statusbar, "true");
-        }
         else
-        {
             statusBar()->hide();
-            vbox.SetExtraData(GUI_Statusbar, "false");
-        }
     }
 }
 
@@ -312,13 +311,20 @@ void UISelectorWindow::sltShowExportApplianceWizard()
         delete pWizard;
 }
 
+#ifdef DEBUG
+void UISelectorWindow::sltOpenExtraDataManagerWindow()
+{
+    gEDataManager->openWindow(this);
+}
+#endif /* DEBUG */
+
 void UISelectorWindow::sltShowPreferencesDialog()
 {
     /* Check that we do NOT handling that already: */
-    if (m_pPreferencesDialogAction->data().toBool())
+    if (actionPool()->action(UIActionIndex_M_Application_S_Preferences)->data().toBool())
         return;
     /* Remember that we handling that already: */
-    m_pPreferencesDialogAction->setData(true);
+    actionPool()->action(UIActionIndex_M_Application_S_Preferences)->setData(true);
 
     /* Don't show the inaccessible warning
      * if the user tries to open global settings: */
@@ -329,7 +335,7 @@ void UISelectorWindow::sltShowPreferencesDialog()
     dialog.execute();
 
     /* Remember that we do NOT handling that already: */
-    m_pPreferencesDialogAction->setData(false);
+    actionPool()->action(UIActionIndex_M_Application_S_Preferences)->setData(false);
 }
 
 void UISelectorWindow::sltPerformExit()
@@ -388,10 +394,10 @@ void UISelectorWindow::sltShowMachineSettingsDialog(const QString &strCategoryRe
                                                     const QString &strId /* = QString() */)
 {
     /* Check that we do NOT handling that already: */
-    if (m_pAction_Machine_Settings->data().toBool())
+    if (actionPool()->action(UIActionIndexST_M_Machine_S_Settings)->data().toBool())
         return;
     /* Remember that we handling that already: */
-    m_pAction_Machine_Settings->setData(true);
+    actionPool()->action(UIActionIndexST_M_Machine_S_Settings)->setData(true);
 
     /* Process href from VM details / description: */
     if (!strCategoryRef.isEmpty() && strCategoryRef[0] != '#')
@@ -425,7 +431,7 @@ void UISelectorWindow::sltShowMachineSettingsDialog(const QString &strCategoryRe
     dialog.execute();
 
     /* Remember that we do NOT handling that already: */
-    m_pAction_Machine_Settings->setData(false);
+    actionPool()->action(UIActionIndexST_M_Machine_S_Settings)->setData(false);
 }
 
 void UISelectorWindow::sltShowCloneMachineWizard()
@@ -452,12 +458,72 @@ void UISelectorWindow::sltPerformStartOrShowAction()
     foreach (UIVMItem *pItem, items)
     {
         /* Check if current item could be started/showed: */
-        if (!isActionEnabled(UIActionIndexSelector_State_Common_StartOrShow, QList<UIVMItem*>() << pItem))
+        if (!isActionEnabled(UIActionIndexST_M_Group_M_StartOrShow, QList<UIVMItem*>() << pItem))
             continue;
 
         /* Launch/show current VM: */
         CMachine machine = pItem->machine();
-        vboxGlobal().launchMachine(machine, qApp->keyboardModifiers() == Qt::ShiftModifier);
+        vboxGlobal().launchMachine(machine,
+                                   UIVMItem::isItemRunningHeadless(pItem)         ? VBoxGlobal::LaunchMode_Separate :
+                                   qApp->keyboardModifiers() == Qt::ShiftModifier ? VBoxGlobal::LaunchMode_Headless :
+                                                                                    VBoxGlobal::LaunchMode_Default);
+    }
+}
+
+void UISelectorWindow::sltPerformStartNormal()
+{
+    /* Get selected items: */
+    QList<UIVMItem*> items = currentItems();
+    AssertMsgReturnVoid(!items.isEmpty(), ("At least one item should be selected!\n"));
+
+    /* For every selected item: */
+    foreach (UIVMItem *pItem, items)
+    {
+        /* Check if current item could be started/showed: */
+        if (!isActionEnabled(UIActionIndexST_M_Group_M_StartOrShow, QList<UIVMItem*>() << pItem))
+            continue;
+
+        /* Launch/show current VM: */
+        CMachine machine = pItem->machine();
+        vboxGlobal().launchMachine(machine, VBoxGlobal::LaunchMode_Default);
+    }
+}
+
+void UISelectorWindow::sltPerformStartHeadless()
+{
+    /* Get selected items: */
+    QList<UIVMItem*> items = currentItems();
+    AssertMsgReturnVoid(!items.isEmpty(), ("At least one item should be selected!\n"));
+
+    /* For every selected item: */
+    foreach (UIVMItem *pItem, items)
+    {
+        /* Check if current item could be started/showed: */
+        if (!isActionEnabled(UIActionIndexST_M_Group_M_StartOrShow, QList<UIVMItem*>() << pItem))
+            continue;
+
+        /* Launch/show current VM: */
+        CMachine machine = pItem->machine();
+        vboxGlobal().launchMachine(machine, VBoxGlobal::LaunchMode_Headless);
+    }
+}
+
+void UISelectorWindow::sltPerformStartDetachable()
+{
+    /* Get selected items: */
+    QList<UIVMItem*> items = currentItems();
+    AssertMsgReturnVoid(!items.isEmpty(), ("At least one item should be selected!\n"));
+
+    /* For every selected item: */
+    foreach (UIVMItem *pItem, items)
+    {
+        /* Check if current item could be started/showed: */
+        if (!isActionEnabled(UIActionIndexST_M_Group_M_StartOrShow, QList<UIVMItem*>() << pItem))
+            continue;
+
+        /* Launch/show current VM: */
+        CMachine machine = pItem->machine();
+        vboxGlobal().launchMachine(machine, VBoxGlobal::LaunchMode_Separate);
     }
 }
 
@@ -471,7 +537,7 @@ void UISelectorWindow::sltPerformDiscardAction()
     QStringList machineNames;
     QList<UIVMItem*> itemsToDiscard;
     foreach (UIVMItem *pItem, items)
-        if (isActionEnabled(UIActionIndexSelector_Simple_Common_Discard, QList<UIVMItem*>() << pItem))
+        if (isActionEnabled(UIActionIndexST_M_Group_S_Discard, QList<UIVMItem*>() << pItem))
         {
             machineNames << pItem->name();
             itemsToDiscard << pItem;
@@ -490,11 +556,11 @@ void UISelectorWindow::sltPerformDiscardAction()
         if (session.isNull())
             return;
 
-        /* Get session console: */
-        CConsole console = session.GetConsole();
-        console.DiscardSavedState(true);
-        if (!console.isOk())
-            msgCenter().cannotDiscardSavedState(console);
+        /* Get session machine: */
+        CMachine machine = session.GetMachine();
+        machine.DiscardSavedState(true);
+        if (!machine.isOk())
+            msgCenter().cannotDiscardSavedState(machine);
 
         /* Unlock machine finally: */
         session.UnlockMachine();
@@ -514,7 +580,7 @@ void UISelectorWindow::sltPerformPauseResumeAction(bool fPause)
         KMachineState state = pItem->machineState();
 
         /* Check if current item could be paused/resumed: */
-        if (!isActionEnabled(UIActionIndexSelector_Toggle_Common_PauseAndResume, QList<UIVMItem*>() << pItem))
+        if (!isActionEnabled(UIActionIndexST_M_Group_T_Pause, QList<UIVMItem*>() << pItem))
             continue;
 
         /* Check if current item already paused: */
@@ -566,7 +632,7 @@ void UISelectorWindow::sltPerformResetAction()
     QStringList machineNames;
     QList<UIVMItem*> itemsToReset;
     foreach (UIVMItem *pItem, items)
-        if (isActionEnabled(UIActionIndexSelector_Simple_Common_Reset, QList<UIVMItem*>() << pItem))
+        if (isActionEnabled(UIActionIndexST_M_Group_S_Reset, QList<UIVMItem*>() << pItem))
         {
             machineNames << pItem->name();
             itemsToReset << pItem;
@@ -605,7 +671,7 @@ void UISelectorWindow::sltPerformSaveAction()
     foreach (UIVMItem *pItem, items)
     {
         /* Check if current item could be saved: */
-        if (!isActionEnabled(UIActionIndexSelector_Simple_Machine_Close_Save, QList<UIVMItem*>() << pItem))
+        if (!isActionEnabled(UIActionIndexST_M_Machine_M_Close_S_SaveState, QList<UIVMItem*>() << pItem))
             continue;
 
         /* Open a session to modify VM state: */
@@ -615,22 +681,23 @@ void UISelectorWindow::sltPerformSaveAction()
 
         /* Get session console: */
         CConsole console = session.GetConsole();
+        /* Get session machine: */
+        CMachine machine = session.GetMachine();
         /* Pause VM first: */
         console.Pause();
         if (console.isOk())
         {
             /* Prepare machine state saving: */
-            CProgress progress = console.SaveState();
-            if (console.isOk())
+            CProgress progress = machine.SaveState();
+            if (machine.isOk())
             {
                 /* Show machine state saving progress: */
-                CMachine machine = session.GetMachine();
                 msgCenter().showModalProgressDialog(progress, machine.GetName(), ":/progress_state_save_90px.png");
                 if (!progress.isOk() || progress.GetResultCode() != 0)
                     msgCenter().cannotSaveMachineState(progress, machine.GetName());
             }
             else
-                msgCenter().cannotSaveMachineState(console);
+                msgCenter().cannotSaveMachineState(machine);
         }
         else
             msgCenter().cannotPauseMachine(console);
@@ -650,7 +717,7 @@ void UISelectorWindow::sltPerformACPIShutdownAction()
     QStringList machineNames;
     QList<UIVMItem*> itemsToShutdown;
     foreach (UIVMItem *pItem, items)
-        if (isActionEnabled(UIActionIndexSelector_Simple_Machine_Close_ACPIShutdown, QList<UIVMItem*>() << pItem))
+        if (isActionEnabled(UIActionIndexST_M_Machine_M_Close_S_Shutdown, QList<UIVMItem*>() << pItem))
         {
             machineNames << pItem->name();
             itemsToShutdown << pItem;
@@ -691,7 +758,7 @@ void UISelectorWindow::sltPerformPowerOffAction()
     QStringList machineNames;
     QList<UIVMItem*> itemsToPowerOff;
     foreach (UIVMItem *pItem, items)
-        if (isActionEnabled(UIActionIndexSelector_Simple_Machine_Close_PowerOff, QList<UIVMItem*>() << pItem))
+        if (isActionEnabled(UIActionIndexST_M_Machine_M_Close_S_PowerOff, QList<UIVMItem*>() << pItem))
         {
             machineNames << pItem->name();
             itemsToPowerOff << pItem;
@@ -740,7 +807,7 @@ void UISelectorWindow::sltShowLogDialog()
     foreach (UIVMItem *pItem, items)
     {
         /* Check if log could be show for the current item: */
-        if (!isActionEnabled(UIActionIndex_Simple_LogDialog, QList<UIVMItem*>() << pItem))
+        if (!isActionEnabled(UIActionIndexST_M_Group_S_ShowLogDialog, QList<UIVMItem*>() << pItem))
             continue;
 
         /* Show VM Log Viewer: */
@@ -758,7 +825,7 @@ void UISelectorWindow::sltShowMachineInFileManager()
     foreach (UIVMItem *pItem, items)
     {
         /* Check if that item could be shown in file-browser: */
-        if (!isActionEnabled(UIActionIndexSelector_Simple_Common_ShowInFileManager, QList<UIVMItem*>() << pItem))
+        if (!isActionEnabled(UIActionIndexST_M_Group_S_ShowInFileManager, QList<UIVMItem*>() << pItem))
             continue;
 
         /* Show VM in filebrowser: */
@@ -776,7 +843,7 @@ void UISelectorWindow::sltPerformCreateShortcutAction()
     foreach (UIVMItem *pItem, items)
     {
         /* Check if shortcuts could be created for this item: */
-        if (!isActionEnabled(UIActionIndexSelector_Simple_Common_CreateShortcut, QList<UIVMItem*>() << pItem))
+        if (!isActionEnabled(UIActionIndexST_M_Group_S_CreateShortcut, QList<UIVMItem*>() << pItem))
             continue;
 
         /* Create shortcut for this VM: */
@@ -793,15 +860,16 @@ void UISelectorWindow::sltGroupCloseMenuAboutToShow()
     QList<UIVMItem*> items = currentItems();
     AssertMsgReturnVoid(!items.isEmpty(), ("At least one item should be selected!\n"));
 
-    m_pGroupACPIShutdownAction->setEnabled(isActionEnabled(UIActionIndexSelector_Simple_Group_Close_ACPIShutdown, items));
+    actionPool()->action(UIActionIndexST_M_Group_M_Close_S_Shutdown)->setEnabled(isActionEnabled(UIActionIndexST_M_Group_M_Close_S_Shutdown, items));
 }
+
 void UISelectorWindow::sltMachineCloseMenuAboutToShow()
 {
     /* Get selected items: */
     QList<UIVMItem*> items = currentItems();
     AssertMsgReturnVoid(!items.isEmpty(), ("At least one item should be selected!\n"));
 
-    m_pMachineACPIShutdownAction->setEnabled(isActionEnabled(UIActionIndexSelector_Simple_Machine_Close_ACPIShutdown, items));
+    actionPool()->action(UIActionIndexST_M_Machine_M_Close_S_Shutdown)->setEnabled(isActionEnabled(UIActionIndexST_M_Machine_M_Close_S_Shutdown, items));
 }
 
 void UISelectorWindow::sltCurrentVMItemChanged(bool fRefreshDetails, bool fRefreshSnapshots, bool)
@@ -953,7 +1021,7 @@ void UISelectorWindow::retranslateUi()
              +  QString(RTBldCfgVersion())
              +  QString(" r")
              +  QString(RTBldCfgRevisionStr())
-             +  QString(" - "VBOX_BLEEDING_EDGE);
+             +  QString(" - " VBOX_BLEEDING_EDGE);
 #endif /* VBOX_BLEEDING_EDGE */
     setWindowTitle(strTitle);
 
@@ -974,15 +1042,13 @@ bool UISelectorWindow::event(QEvent *pEvent)
     /* Which event do we have? */
     switch (pEvent->type())
     {
-        /* By handling every Resize and Move we keep track of the normal
-         * (non-minimized and non-maximized) window geometry. Shame on Qt
-         * that it doesn't provide this geometry in its public APIs. */
+        /* Handle every Resize and Move we keep track of the geometry. */
         case QEvent::Resize:
         {
             if (isVisible() && (windowState() & (Qt::WindowMaximized | Qt::WindowMinimized | Qt::WindowFullScreen)) == 0)
             {
                 QResizeEvent *pResizeEvent = static_cast<QResizeEvent*>(pEvent);
-                m_normalGeo.setSize(pResizeEvent->size());
+                m_geometry.setSize(pResizeEvent->size());
             }
             break;
         }
@@ -992,9 +1058,9 @@ bool UISelectorWindow::event(QEvent *pEvent)
             {
 #ifdef Q_WS_MAC
                 QMoveEvent *pMoveEvent = static_cast<QMoveEvent*>(pEvent);
-                m_normalGeo.moveTo(pMoveEvent->pos());
+                m_geometry.moveTo(pMoveEvent->pos());
 #else /* Q_WS_MAC */
-                m_normalGeo.moveTo(geometry().x(), geometry().y());
+                m_geometry.moveTo(geometry().x(), geometry().y());
 #endif /* !Q_WS_MAC */
             }
             break;
@@ -1014,14 +1080,6 @@ bool UISelectorWindow::event(QEvent *pEvent)
             /* Accept it to interrupt the chain. */
             pContextMenuEvent->accept();
             return false;
-            break;
-        }
-        case QEvent::ToolBarChange:
-        {
-            CVirtualBox vbox = vboxGlobal().virtualBox();
-            /* We have to invert the isVisible check one time, cause this event
-             * is sent *before* the real toggle is done. Really intuitive Trolls. */
-            vbox.SetExtraData(GUI_Toolbar, !::darwinIsToolbarVisible(mVMToolBar) ? "true" : "false");
             break;
         }
 #endif /* Q_WS_MAC */
@@ -1100,44 +1158,39 @@ void UISelectorWindow::prepareIcon()
 
 void UISelectorWindow::prepareMenuBar()
 {
+    /* Create action-pool: */
+    m_pActionPool = UIActionPool::create(UIActionPoolType_Selector);
+
     /* Prepare File-menu: */
-    m_pFileMenu = gActionPool->action(UIActionIndexSelector_Menu_File)->menu();
-    prepareMenuFile(m_pFileMenu);
-    menuBar()->addMenu(m_pFileMenu);
+    prepareMenuFile(actionPool()->action(UIActionIndexST_M_File)->menu());
+    menuBar()->addMenu(actionPool()->action(UIActionIndexST_M_File)->menu());
+
+    /* Prepare 'Group' / 'Start or Show' menu: */
+    prepareMenuGroupStartOrShow(actionPool()->action(UIActionIndexST_M_Group_M_StartOrShow)->menu());
+
+    /* Prepare 'Machine' / 'Start or Show' menu: */
+    prepareMenuMachineStartOrShow(actionPool()->action(UIActionIndexST_M_Machine_M_StartOrShow)->menu());
 
     /* Prepare 'Group' / 'Close' menu: */
-    m_pGroupCloseMenuAction = gActionPool->action(UIActionIndexSelector_Menu_Group_Close);
-    m_pGroupCloseMenu = m_pGroupCloseMenuAction->menu();
-    prepareMenuGroupClose(m_pGroupCloseMenu);
+    prepareMenuGroupClose(actionPool()->action(UIActionIndexST_M_Group_M_Close)->menu());
 
     /* Prepare 'Machine' / 'Close' menu: */
-    m_pMachineCloseMenuAction = gActionPool->action(UIActionIndexSelector_Menu_Machine_Close);
-    m_pMachineCloseMenu = m_pMachineCloseMenuAction->menu();
-    prepareMenuMachineClose(m_pMachineCloseMenu);
-
-    /* Create actions for 'Group' and 'Machine' menus: */
-    prepareCommonActions();
-    prepareGroupActions();
-    prepareMachineActions();
+    prepareMenuMachineClose(actionPool()->action(UIActionIndexST_M_Machine_M_Close)->menu());
 
     /* Prepare Group-menu: */
-    m_pGroupMenu = gActionPool->action(UIActionIndexSelector_Menu_Group)->menu();
-    prepareMenuGroup(m_pGroupMenu);
-    m_pGroupMenuAction = menuBar()->addMenu(m_pGroupMenu);
+    prepareMenuGroup(actionPool()->action(UIActionIndexST_M_Group)->menu());
+    m_pGroupMenuAction = menuBar()->addMenu(actionPool()->action(UIActionIndexST_M_Group)->menu());
 
     /* Prepare Machine-menu: */
-    m_pMachineMenu = gActionPool->action(UIActionIndexSelector_Menu_Machine)->menu();
-    prepareMenuMachine(m_pMachineMenu);
-    m_pMachineMenuAction = menuBar()->addMenu(m_pMachineMenu);
+    prepareMenuMachine(actionPool()->action(UIActionIndexST_M_Machine)->menu());
+    m_pMachineMenuAction = menuBar()->addMenu(actionPool()->action(UIActionIndexST_M_Machine)->menu());
 
 #ifdef Q_WS_MAC
     menuBar()->addMenu(UIWindowMenuManager::instance(this)->createMenu(this));
 #endif /* Q_WS_MAC */
 
     /* Prepare Help-menu: */
-    m_pHelpMenu = gActionPool->action(UIActionIndex_Menu_Help)->menu();
-    prepareMenuHelp(m_pHelpMenu);
-    menuBar()->addMenu(m_pHelpMenu);
+    menuBar()->addMenu(actionPool()->action(UIActionIndex_Menu_Help)->menu());
 
     /* Setup menubar policy: */
     menuBar()->setContextMenuPolicy(Qt::CustomContextMenu);
@@ -1150,54 +1203,29 @@ void UISelectorWindow::prepareMenuFile(QMenu *pMenu)
         return;
 
     /* Populate File-menu: */
-    m_pMediumManagerDialogAction = gActionPool->action(UIActionIndexSelector_Simple_File_MediumManagerDialog);
-    pMenu->addAction(m_pMediumManagerDialogAction);
-    m_pImportApplianceWizardAction = gActionPool->action(UIActionIndexSelector_Simple_File_ImportApplianceWizard);
-    pMenu->addAction(m_pImportApplianceWizardAction);
-    m_pExportApplianceWizardAction = gActionPool->action(UIActionIndexSelector_Simple_File_ExportApplianceWizard);
-    pMenu->addAction(m_pExportApplianceWizardAction);
-#ifndef Q_WS_MAC
-    pMenu->addSeparator();
+#ifdef Q_WS_MAC
+    pMenu->addAction(actionPool()->action(UIActionIndex_M_Application_S_About));
+    pMenu->addAction(actionPool()->action(UIActionIndex_M_Application_S_Preferences));
 #endif /* Q_WS_MAC */
-    m_pPreferencesDialogAction = gActionPool->action(UIActionIndexSelector_Simple_File_PreferencesDialog);
-    pMenu->addAction(m_pPreferencesDialogAction);
-#ifndef Q_WS_MAC
+    pMenu->addAction(actionPool()->action(UIActionIndexST_M_File_S_ImportAppliance));
+    pMenu->addAction(actionPool()->action(UIActionIndexST_M_File_S_ExportAppliance));
     pMenu->addSeparator();
+    pMenu->addAction(actionPool()->action(UIActionIndexST_M_File_S_ShowMediumManager));
+#ifdef DEBUG
+    pMenu->addAction(actionPool()->action(UIActionIndexST_M_File_S_ShowExtraDataManager));
+#endif /* DEBUG */
+#ifndef Q_WS_MAC
+    pMenu->addAction(actionPool()->action(UIActionIndex_M_Application_S_Preferences));
 #endif /* Q_WS_MAC */
-    m_pExitAction = gActionPool->action(UIActionIndexSelector_Simple_File_Exit);
-    pMenu->addAction(m_pExitAction);
-}
-
-void UISelectorWindow::prepareCommonActions()
-{
-    m_pAction_Common_StartOrShow       = gActionPool->action(UIActionIndexSelector_State_Common_StartOrShow)->toStateAction();
-    m_pAction_Common_PauseAndResume    = gActionPool->action(UIActionIndexSelector_Toggle_Common_PauseAndResume);
-    m_pAction_Common_Reset             = gActionPool->action(UIActionIndexSelector_Simple_Common_Reset);
-    m_pAction_Common_Discard           = gActionPool->action(UIActionIndexSelector_Simple_Common_Discard);
-    m_pAction_Common_Refresh           = gActionPool->action(UIActionIndexSelector_Simple_Common_Refresh);
-    m_pAction_Common_ShowInFileManager = gActionPool->action(UIActionIndexSelector_Simple_Common_ShowInFileManager);
-    m_pAction_Common_CreateShortcut    = gActionPool->action(UIActionIndexSelector_Simple_Common_CreateShortcut);
-}
-
-void UISelectorWindow::prepareGroupActions()
-{
-    m_pAction_Group_New    = gActionPool->action(UIActionIndexSelector_Simple_Group_New);
-    m_pAction_Group_Add    = gActionPool->action(UIActionIndexSelector_Simple_Group_Add);
-    m_pAction_Group_Rename = gActionPool->action(UIActionIndexSelector_Simple_Group_Rename);
-    m_pAction_Group_Remove = gActionPool->action(UIActionIndexSelector_Simple_Group_Remove);
-    m_pAction_Group_Sort   = gActionPool->action(UIActionIndexSelector_Simple_Group_Sort);
-}
-
-void UISelectorWindow::prepareMachineActions()
-{
-    m_pAction_Machine_New        = gActionPool->action(UIActionIndexSelector_Simple_Machine_New);
-    m_pAction_Machine_Add        = gActionPool->action(UIActionIndexSelector_Simple_Machine_Add);
-    m_pAction_Machine_Settings   = gActionPool->action(UIActionIndexSelector_Simple_Machine_Settings);
-    m_pAction_Machine_Clone      = gActionPool->action(UIActionIndexSelector_Simple_Machine_Clone);
-    m_pAction_Machine_Remove     = gActionPool->action(UIActionIndexSelector_Simple_Machine_Remove);
-    m_pAction_Machine_AddGroup   = gActionPool->action(UIActionIndexSelector_Simple_Machine_AddGroup);
-    m_pAction_Machine_LogDialog  = gActionPool->action(UIActionIndex_Simple_LogDialog);
-    m_pAction_Machine_SortParent = gActionPool->action(UIActionIndexSelector_Simple_Machine_SortParent);
+    pMenu->addSeparator();
+#ifdef VBOX_GUI_WITH_NETWORK_MANAGER
+    pMenu->addAction(actionPool()->action(UIActionIndex_M_Application_S_NetworkAccessManager));
+    pMenu->addAction(actionPool()->action(UIActionIndex_M_Application_S_CheckForUpdates));
+# ifndef Q_WS_MAC
+    pMenu->addSeparator();
+# endif /* Q_WS_MAC */
+#endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
+    pMenu->addAction(actionPool()->action(UIActionIndexST_M_File_S_Close));
 }
 
 void UISelectorWindow::prepareMenuGroup(QMenu *pMenu)
@@ -1207,31 +1235,40 @@ void UISelectorWindow::prepareMenuGroup(QMenu *pMenu)
         return;
 
     /* Populate Machine-menu: */
-    pMenu->addAction(m_pAction_Group_New);
-    pMenu->addAction(m_pAction_Group_Add);
+    pMenu->addAction(actionPool()->action(UIActionIndexST_M_Group_S_New));
+    pMenu->addAction(actionPool()->action(UIActionIndexST_M_Group_S_Add));
     pMenu->addSeparator();
-    pMenu->addAction(m_pAction_Group_Rename);
-    pMenu->addAction(m_pAction_Group_Remove);
+    pMenu->addAction(actionPool()->action(UIActionIndexST_M_Group_S_Rename));
+    pMenu->addAction(actionPool()->action(UIActionIndexST_M_Group_S_Remove));
     pMenu->addSeparator();
-    pMenu->addAction(m_pAction_Common_StartOrShow);
-    pMenu->addAction(m_pAction_Common_PauseAndResume);
-    pMenu->addAction(m_pAction_Common_Reset);
-    pMenu->addMenu(m_pGroupCloseMenu);
+    pMenu->addAction(actionPool()->action(UIActionIndexST_M_Group_M_StartOrShow));
+    pMenu->addAction(actionPool()->action(UIActionIndexST_M_Group_T_Pause));
+    pMenu->addAction(actionPool()->action(UIActionIndexST_M_Group_S_Reset));
+    pMenu->addMenu(actionPool()->action(UIActionIndexST_M_Group_M_Close)->menu());
     pMenu->addSeparator();
-    pMenu->addAction(m_pAction_Common_Discard);
-    pMenu->addAction(m_pAction_Common_Refresh);
+    pMenu->addAction(actionPool()->action(UIActionIndexST_M_Group_S_Discard));
+    pMenu->addAction(actionPool()->action(UIActionIndexST_M_Group_S_ShowLogDialog));
+    pMenu->addAction(actionPool()->action(UIActionIndexST_M_Group_S_Refresh));
     pMenu->addSeparator();
-    pMenu->addAction(m_pAction_Common_ShowInFileManager);
-    pMenu->addAction(m_pAction_Common_CreateShortcut);
+    pMenu->addAction(actionPool()->action(UIActionIndexST_M_Group_S_ShowInFileManager));
+    pMenu->addAction(actionPool()->action(UIActionIndexST_M_Group_S_CreateShortcut));
     pMenu->addSeparator();
-    pMenu->addAction(m_pAction_Group_Sort);
+    pMenu->addAction(actionPool()->action(UIActionIndexST_M_Group_S_Sort));
 
     /* Remember action list: */
-    m_groupActions << m_pAction_Group_New
-                   << m_pAction_Group_Add
-                   << m_pAction_Group_Rename
-                   << m_pAction_Group_Remove
-                   << m_pAction_Group_Sort;
+    m_groupActions << actionPool()->action(UIActionIndexST_M_Group_S_New)
+                   << actionPool()->action(UIActionIndexST_M_Group_S_Add)
+                   << actionPool()->action(UIActionIndexST_M_Group_S_Rename)
+                   << actionPool()->action(UIActionIndexST_M_Group_S_Remove)
+                   << actionPool()->action(UIActionIndexST_M_Group_M_StartOrShow)
+                   << actionPool()->action(UIActionIndexST_M_Group_T_Pause)
+                   << actionPool()->action(UIActionIndexST_M_Group_S_Reset)
+                   << actionPool()->action(UIActionIndexST_M_Group_S_Discard)
+                   << actionPool()->action(UIActionIndexST_M_Group_S_ShowLogDialog)
+                   << actionPool()->action(UIActionIndexST_M_Group_S_Refresh)
+                   << actionPool()->action(UIActionIndexST_M_Group_S_ShowInFileManager)
+                   << actionPool()->action(UIActionIndexST_M_Group_S_CreateShortcut)
+                   << actionPool()->action(UIActionIndexST_M_Group_S_Sort);
 }
 
 void UISelectorWindow::prepareMenuMachine(QMenu *pMenu)
@@ -1241,36 +1278,77 @@ void UISelectorWindow::prepareMenuMachine(QMenu *pMenu)
         return;
 
     /* Populate Machine-menu: */
-    pMenu->addAction(m_pAction_Machine_New);
-    pMenu->addAction(m_pAction_Machine_Add);
-    pMenu->addAction(m_pAction_Machine_Settings);
-    pMenu->addAction(m_pAction_Machine_Clone);
-    pMenu->addAction(m_pAction_Machine_Remove);
-    pMenu->addAction(m_pAction_Machine_AddGroup);
+    pMenu->addAction(actionPool()->action(UIActionIndexST_M_Machine_S_New));
+    pMenu->addAction(actionPool()->action(UIActionIndexST_M_Machine_S_Add));
+    pMenu->addAction(actionPool()->action(UIActionIndexST_M_Machine_S_Settings));
+    pMenu->addAction(actionPool()->action(UIActionIndexST_M_Machine_S_Clone));
+    pMenu->addAction(actionPool()->action(UIActionIndexST_M_Machine_S_Remove));
+    pMenu->addAction(actionPool()->action(UIActionIndexST_M_Machine_S_AddGroup));
     pMenu->addSeparator();
-    pMenu->addAction(m_pAction_Common_StartOrShow);
-    pMenu->addAction(m_pAction_Common_PauseAndResume);
-    pMenu->addAction(m_pAction_Common_Reset);
-    pMenu->addMenu(m_pMachineCloseMenu);
+    pMenu->addAction(actionPool()->action(UIActionIndexST_M_Machine_M_StartOrShow));
+    pMenu->addAction(actionPool()->action(UIActionIndexST_M_Machine_T_Pause));
+    pMenu->addAction(actionPool()->action(UIActionIndexST_M_Machine_S_Reset));
+    pMenu->addMenu(actionPool()->action(UIActionIndexST_M_Machine_M_Close)->menu());
     pMenu->addSeparator();
-    pMenu->addAction(m_pAction_Common_Discard);
-    pMenu->addAction(m_pAction_Machine_LogDialog);
-    pMenu->addAction(m_pAction_Common_Refresh);
+    pMenu->addAction(actionPool()->action(UIActionIndexST_M_Machine_S_Discard));
+    pMenu->addAction(actionPool()->action(UIActionIndexST_M_Machine_S_ShowLogDialog));
+    pMenu->addAction(actionPool()->action(UIActionIndexST_M_Machine_S_Refresh));
     pMenu->addSeparator();
-    pMenu->addAction(m_pAction_Common_ShowInFileManager);
-    pMenu->addAction(m_pAction_Common_CreateShortcut);
+    pMenu->addAction(actionPool()->action(UIActionIndexST_M_Machine_S_ShowInFileManager));
+    pMenu->addAction(actionPool()->action(UIActionIndexST_M_Machine_S_CreateShortcut));
     pMenu->addSeparator();
-    pMenu->addAction(m_pAction_Machine_SortParent);
+    pMenu->addAction(actionPool()->action(UIActionIndexST_M_Machine_S_SortParent));
 
     /* Remember action list: */
-    m_machineActions << m_pAction_Machine_New
-                     << m_pAction_Machine_Add
-                     << m_pAction_Machine_Settings
-                     << m_pAction_Machine_Clone
-                     << m_pAction_Machine_Remove
-                     << m_pAction_Machine_AddGroup
-                     << m_pAction_Machine_LogDialog
-                     << m_pAction_Machine_SortParent;
+    m_machineActions << actionPool()->action(UIActionIndexST_M_Machine_S_New)
+                     << actionPool()->action(UIActionIndexST_M_Machine_S_Add)
+                     << actionPool()->action(UIActionIndexST_M_Machine_S_Settings)
+                     << actionPool()->action(UIActionIndexST_M_Machine_S_Clone)
+                     << actionPool()->action(UIActionIndexST_M_Machine_S_Remove)
+                     << actionPool()->action(UIActionIndexST_M_Machine_S_AddGroup)
+                     << actionPool()->action(UIActionIndexST_M_Machine_M_StartOrShow)
+                     << actionPool()->action(UIActionIndexST_M_Machine_T_Pause)
+                     << actionPool()->action(UIActionIndexST_M_Machine_S_Reset)
+                     << actionPool()->action(UIActionIndexST_M_Machine_S_Discard)
+                     << actionPool()->action(UIActionIndexST_M_Machine_S_ShowLogDialog)
+                     << actionPool()->action(UIActionIndexST_M_Machine_S_Refresh)
+                     << actionPool()->action(UIActionIndexST_M_Machine_S_ShowInFileManager)
+                     << actionPool()->action(UIActionIndexST_M_Machine_S_CreateShortcut)
+                     << actionPool()->action(UIActionIndexST_M_Machine_S_SortParent);
+}
+
+void UISelectorWindow::prepareMenuGroupStartOrShow(QMenu *pMenu)
+{
+    /* Do not touch if filled already: */
+    if (!pMenu->isEmpty())
+        return;
+
+    /* Populate 'Group' / 'Start or Show' menu: */
+    pMenu->addAction(actionPool()->action(UIActionIndexST_M_Group_M_StartOrShow_S_StartNormal));
+    pMenu->addAction(actionPool()->action(UIActionIndexST_M_Group_M_StartOrShow_S_StartHeadless));
+    pMenu->addAction(actionPool()->action(UIActionIndexST_M_Group_M_StartOrShow_S_StartDetachable));
+
+    /* Remember action list: */
+    m_groupActions << actionPool()->action(UIActionIndexST_M_Group_M_StartOrShow_S_StartNormal)
+                   << actionPool()->action(UIActionIndexST_M_Group_M_StartOrShow_S_StartHeadless)
+                   << actionPool()->action(UIActionIndexST_M_Group_M_StartOrShow_S_StartDetachable);
+}
+
+void UISelectorWindow::prepareMenuMachineStartOrShow(QMenu *pMenu)
+{
+    /* Do not touch if filled already: */
+    if (!pMenu->isEmpty())
+        return;
+
+    /* Populate 'Machine' / 'Start or Show' menu: */
+    pMenu->addAction(actionPool()->action(UIActionIndexST_M_Machine_M_StartOrShow_S_StartNormal));
+    pMenu->addAction(actionPool()->action(UIActionIndexST_M_Machine_M_StartOrShow_S_StartHeadless));
+    pMenu->addAction(actionPool()->action(UIActionIndexST_M_Machine_M_StartOrShow_S_StartDetachable));
+
+    /* Remember action list: */
+    m_machineActions << actionPool()->action(UIActionIndexST_M_Machine_M_StartOrShow_S_StartNormal)
+                     << actionPool()->action(UIActionIndexST_M_Machine_M_StartOrShow_S_StartHeadless)
+                     << actionPool()->action(UIActionIndexST_M_Machine_M_StartOrShow_S_StartDetachable);
 }
 
 void UISelectorWindow::prepareMenuGroupClose(QMenu *pMenu)
@@ -1280,17 +1358,14 @@ void UISelectorWindow::prepareMenuGroupClose(QMenu *pMenu)
         return;
 
     /* Populate 'Group' / 'Close' menu: */
-    m_pGroupSaveAction = gActionPool->action(UIActionIndexSelector_Simple_Group_Close_Save);
-    pMenu->addAction(m_pGroupSaveAction);
-    m_pGroupACPIShutdownAction = gActionPool->action(UIActionIndexSelector_Simple_Group_Close_ACPIShutdown);
-    pMenu->addAction(m_pGroupACPIShutdownAction);
-    m_pGroupPowerOffAction = gActionPool->action(UIActionIndexSelector_Simple_Group_Close_PowerOff);
-    pMenu->addAction(m_pGroupPowerOffAction);
+    pMenu->addAction(actionPool()->action(UIActionIndexST_M_Group_M_Close_S_SaveState));
+    pMenu->addAction(actionPool()->action(UIActionIndexST_M_Group_M_Close_S_Shutdown));
+    pMenu->addAction(actionPool()->action(UIActionIndexST_M_Group_M_Close_S_PowerOff));
 
     /* Remember action list: */
-    m_groupActions << m_pGroupSaveAction
-                   << m_pGroupACPIShutdownAction
-                   << m_pGroupPowerOffAction;
+    m_groupActions << actionPool()->action(UIActionIndexST_M_Group_M_Close_S_SaveState)
+                   << actionPool()->action(UIActionIndexST_M_Group_M_Close_S_Shutdown)
+                   << actionPool()->action(UIActionIndexST_M_Group_M_Close_S_PowerOff);
 }
 
 void UISelectorWindow::prepareMenuMachineClose(QMenu *pMenu)
@@ -1300,49 +1375,14 @@ void UISelectorWindow::prepareMenuMachineClose(QMenu *pMenu)
         return;
 
     /* Populate 'Machine' / 'Close' menu: */
-    m_pMachineSaveAction = gActionPool->action(UIActionIndexSelector_Simple_Machine_Close_Save);
-    pMenu->addAction(m_pMachineSaveAction);
-    m_pMachineACPIShutdownAction = gActionPool->action(UIActionIndexSelector_Simple_Machine_Close_ACPIShutdown);
-    pMenu->addAction(m_pMachineACPIShutdownAction);
-    m_pMachinePowerOffAction = gActionPool->action(UIActionIndexSelector_Simple_Machine_Close_PowerOff);
-    pMenu->addAction(m_pMachinePowerOffAction);
+    pMenu->addAction(actionPool()->action(UIActionIndexST_M_Machine_M_Close_S_SaveState));
+    pMenu->addAction(actionPool()->action(UIActionIndexST_M_Machine_M_Close_S_Shutdown));
+    pMenu->addAction(actionPool()->action(UIActionIndexST_M_Machine_M_Close_S_PowerOff));
 
     /* Remember action list: */
-    m_machineActions << m_pMachineSaveAction
-                     << m_pMachineACPIShutdownAction
-                     << m_pMachinePowerOffAction;
-}
-
-void UISelectorWindow::prepareMenuHelp(QMenu *pMenu)
-{
-    /* Do not touch if filled already: */
-    if (!pMenu->isEmpty())
-        return;
-
-    /* Populate Help-menu: */
-    m_pHelpAction = gActionPool->action(UIActionIndex_Simple_Contents);
-    pMenu->addAction(m_pHelpAction);
-    m_pWebAction = gActionPool->action(UIActionIndex_Simple_WebSite);
-    pMenu->addAction(m_pWebAction);
-    pMenu->addSeparator();
-    m_pResetWarningsAction = gActionPool->action(UIActionIndex_Simple_ResetWarnings);
-    pMenu->addAction(m_pResetWarningsAction);
-#ifdef VBOX_GUI_WITH_NETWORK_MANAGER
-    pMenu->addSeparator();
-    m_pNetworkAccessManager = gActionPool->action(UIActionIndex_Simple_NetworkAccessManager);
-    pMenu->addAction(m_pNetworkAccessManager);
-    m_pUpdateAction = gActionPool->action(UIActionIndex_Simple_CheckForUpdates);
-    CVirtualBox vbox = vboxGlobal().virtualBox();
-    if (VBoxGlobal::shouldWeAllowApplicationUpdate(vbox))
-        pMenu->addAction(m_pUpdateAction);
-    else
-        m_pUpdateAction->setEnabled(false);
-#endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
-#ifndef Q_WS_MAC
-    pMenu->addSeparator();
-#endif /* !Q_WS_MAC */
-    m_pAboutAction = gActionPool->action(UIActionIndex_Simple_About);
-    pMenu->addAction(m_pAboutAction);
+    m_machineActions << actionPool()->action(UIActionIndexST_M_Machine_M_Close_S_SaveState)
+                     << actionPool()->action(UIActionIndexST_M_Machine_M_Close_S_Shutdown)
+                     << actionPool()->action(UIActionIndexST_M_Machine_M_Close_S_PowerOff);
 }
 
 void UISelectorWindow::prepareStatusBar()
@@ -1352,7 +1392,7 @@ void UISelectorWindow::prepareStatusBar()
     statusBar()->setContextMenuPolicy(Qt::CustomContextMenu);
 
     /* Add network-manager indicator: */
-    QIStateIndicator *pIndicator = gNetworkManager->indicator();
+    UINetworkManagerIndicator *pIndicator = gNetworkManager->indicator();
     statusBar()->addPermanentWidget(pIndicator);
     pIndicator->updateAppearance();
 #endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
@@ -1371,10 +1411,10 @@ void UISelectorWindow::prepareWidgets()
     mVMToolBar->setContextMenuPolicy(Qt::CustomContextMenu);
     mVMToolBar->setIconSize(QSize(32, 32));
     mVMToolBar->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
-    mVMToolBar->addAction(m_pAction_Machine_New);
-    mVMToolBar->addAction(m_pAction_Machine_Settings);
-    mVMToolBar->addAction(m_pAction_Common_StartOrShow);
-    mVMToolBar->addAction(m_pAction_Common_Discard);
+    mVMToolBar->addAction(actionPool()->action(UIActionIndexST_M_Machine_S_New));
+    mVMToolBar->addAction(actionPool()->action(UIActionIndexST_M_Machine_S_Settings));
+    mVMToolBar->addAction(actionPool()->action(UIActionIndexST_M_Machine_S_Discard));
+    mVMToolBar->addAction(actionPool()->action(UIActionIndexST_M_Machine_M_StartOrShow));
 
     /* Prepare graphics VM list: */
     m_pChooser = new UIGChooser(this);
@@ -1388,7 +1428,7 @@ void UISelectorWindow::prepareWidgets()
                                  m_pDetails->palette().color(QPalette::Active, QPalette::Window));
 
     /* Prepare details and snapshots tabs: */
-    m_pVMDesktop = new UIVMDesktop(mVMToolBar, m_pAction_Common_Refresh, this);
+    m_pVMDesktop = new UIVMDesktop(mVMToolBar, actionPool()->action(UIActionIndexST_M_Group_S_Refresh), this);
 
     /* Crate container: */
     m_pContainer = new QStackedWidget(this);
@@ -1432,50 +1472,58 @@ void UISelectorWindow::prepareConnections()
     connect(menuBar(), SIGNAL(customContextMenuRequested(const QPoint&)), this, SLOT(sltShowSelectorContextMenu(const QPoint&)));
 
     /* 'File' menu connections: */
-    connect(m_pMediumManagerDialogAction, SIGNAL(triggered()), this, SLOT(sltShowMediumManager()));
-    connect(m_pImportApplianceWizardAction, SIGNAL(triggered()), this, SLOT(sltShowImportApplianceWizard()));
-    connect(m_pExportApplianceWizardAction, SIGNAL(triggered()), this, SLOT(sltShowExportApplianceWizard()));
-    connect(m_pPreferencesDialogAction, SIGNAL(triggered()), this, SLOT(sltShowPreferencesDialog()));
-    connect(m_pExitAction, SIGNAL(triggered()), this, SLOT(sltPerformExit()));
-
-    /* 'Group'/'Machine' menu common connections: */
-    connect(m_pAction_Common_StartOrShow, SIGNAL(triggered()), this, SLOT(sltPerformStartOrShowAction()));
-    connect(m_pAction_Common_PauseAndResume, SIGNAL(toggled(bool)), this, SLOT(sltPerformPauseResumeAction(bool)));
-    connect(m_pAction_Common_Reset, SIGNAL(triggered()), this, SLOT(sltPerformResetAction()));
-    connect(m_pAction_Common_Discard, SIGNAL(triggered()), this, SLOT(sltPerformDiscardAction()));
-    connect(m_pAction_Common_ShowInFileManager, SIGNAL(triggered()), this, SLOT(sltShowMachineInFileManager()));
-    connect(m_pAction_Common_CreateShortcut, SIGNAL(triggered()), this, SLOT(sltPerformCreateShortcutAction()));
+    connect(actionPool()->action(UIActionIndexST_M_File_S_ShowMediumManager), SIGNAL(triggered()), this, SLOT(sltShowMediumManager()));
+    connect(actionPool()->action(UIActionIndexST_M_File_S_ImportAppliance), SIGNAL(triggered()), this, SLOT(sltShowImportApplianceWizard()));
+    connect(actionPool()->action(UIActionIndexST_M_File_S_ExportAppliance), SIGNAL(triggered()), this, SLOT(sltShowExportApplianceWizard()));
+#ifdef DEBUG
+    connect(actionPool()->action(UIActionIndexST_M_File_S_ShowExtraDataManager), SIGNAL(triggered()), this, SLOT(sltOpenExtraDataManagerWindow()));
+#endif /* DEBUG */
+    connect(actionPool()->action(UIActionIndex_M_Application_S_Preferences), SIGNAL(triggered()), this, SLOT(sltShowPreferencesDialog()));
+    connect(actionPool()->action(UIActionIndexST_M_File_S_Close), SIGNAL(triggered()), this, SLOT(sltPerformExit()));
 
     /* 'Group' menu connections: */
-    connect(m_pAction_Group_Add, SIGNAL(triggered()), this, SLOT(sltShowAddMachineDialog()));
+    connect(actionPool()->action(UIActionIndexST_M_Group_S_Add), SIGNAL(triggered()), this, SLOT(sltShowAddMachineDialog()));
+    connect(actionPool()->action(UIActionIndexST_M_Group_M_StartOrShow), SIGNAL(triggered()), this, SLOT(sltPerformStartOrShowAction()));
+    connect(actionPool()->action(UIActionIndexST_M_Group_T_Pause), SIGNAL(toggled(bool)), this, SLOT(sltPerformPauseResumeAction(bool)));
+    connect(actionPool()->action(UIActionIndexST_M_Group_S_Reset), SIGNAL(triggered()), this, SLOT(sltPerformResetAction()));
+    connect(actionPool()->action(UIActionIndexST_M_Group_S_Discard), SIGNAL(triggered()), this, SLOT(sltPerformDiscardAction()));
+    connect(actionPool()->action(UIActionIndexST_M_Group_S_ShowLogDialog), SIGNAL(triggered()), this, SLOT(sltShowLogDialog()));
+    connect(actionPool()->action(UIActionIndexST_M_Group_S_ShowInFileManager), SIGNAL(triggered()), this, SLOT(sltShowMachineInFileManager()));
+    connect(actionPool()->action(UIActionIndexST_M_Group_S_CreateShortcut), SIGNAL(triggered()), this, SLOT(sltPerformCreateShortcutAction()));
 
     /* 'Machine' menu connections: */
-    connect(m_pAction_Machine_Add, SIGNAL(triggered()), this, SLOT(sltShowAddMachineDialog()));
-    connect(m_pAction_Machine_Settings, SIGNAL(triggered()), this, SLOT(sltShowMachineSettingsDialog()));
-    connect(m_pAction_Machine_Clone, SIGNAL(triggered()), this, SLOT(sltShowCloneMachineWizard()));
-    connect(m_pAction_Machine_LogDialog, SIGNAL(triggered()), this, SLOT(sltShowLogDialog()));
+    connect(actionPool()->action(UIActionIndexST_M_Machine_S_Add), SIGNAL(triggered()), this, SLOT(sltShowAddMachineDialog()));
+    connect(actionPool()->action(UIActionIndexST_M_Machine_S_Settings), SIGNAL(triggered()), this, SLOT(sltShowMachineSettingsDialog()));
+    connect(actionPool()->action(UIActionIndexST_M_Machine_S_Clone), SIGNAL(triggered()), this, SLOT(sltShowCloneMachineWizard()));
+    connect(actionPool()->action(UIActionIndexST_M_Machine_M_StartOrShow), SIGNAL(triggered()), this, SLOT(sltPerformStartOrShowAction()));
+    connect(actionPool()->action(UIActionIndexST_M_Machine_T_Pause), SIGNAL(toggled(bool)), this, SLOT(sltPerformPauseResumeAction(bool)));
+    connect(actionPool()->action(UIActionIndexST_M_Machine_S_Reset), SIGNAL(triggered()), this, SLOT(sltPerformResetAction()));
+    connect(actionPool()->action(UIActionIndexST_M_Machine_S_Discard), SIGNAL(triggered()), this, SLOT(sltPerformDiscardAction()));
+    connect(actionPool()->action(UIActionIndexST_M_Machine_S_ShowLogDialog), SIGNAL(triggered()), this, SLOT(sltShowLogDialog()));
+    connect(actionPool()->action(UIActionIndexST_M_Machine_S_ShowInFileManager), SIGNAL(triggered()), this, SLOT(sltShowMachineInFileManager()));
+    connect(actionPool()->action(UIActionIndexST_M_Machine_S_CreateShortcut), SIGNAL(triggered()), this, SLOT(sltPerformCreateShortcutAction()));
+
+    /* 'Group/Start or Show' menu connections: */
+    connect(actionPool()->action(UIActionIndexST_M_Group_M_StartOrShow_S_StartNormal), SIGNAL(triggered()), this, SLOT(sltPerformStartNormal()));
+    connect(actionPool()->action(UIActionIndexST_M_Group_M_StartOrShow_S_StartHeadless), SIGNAL(triggered()), this, SLOT(sltPerformStartHeadless()));
+    connect(actionPool()->action(UIActionIndexST_M_Group_M_StartOrShow_S_StartDetachable), SIGNAL(triggered()), this, SLOT(sltPerformStartDetachable()));
+
+    /* 'Machine/Start or Show' menu connections: */
+    connect(actionPool()->action(UIActionIndexST_M_Machine_M_StartOrShow_S_StartNormal), SIGNAL(triggered()), this, SLOT(sltPerformStartNormal()));
+    connect(actionPool()->action(UIActionIndexST_M_Machine_M_StartOrShow_S_StartHeadless), SIGNAL(triggered()), this, SLOT(sltPerformStartHeadless()));
+    connect(actionPool()->action(UIActionIndexST_M_Machine_M_StartOrShow_S_StartDetachable), SIGNAL(triggered()), this, SLOT(sltPerformStartDetachable()));
 
     /* 'Group/Close' menu connections: */
-    connect(m_pGroupCloseMenu, SIGNAL(aboutToShow()), this, SLOT(sltGroupCloseMenuAboutToShow()));
-    connect(m_pGroupSaveAction, SIGNAL(triggered()), this, SLOT(sltPerformSaveAction()));
-    connect(m_pGroupACPIShutdownAction, SIGNAL(triggered()), this, SLOT(sltPerformACPIShutdownAction()));
-    connect(m_pGroupPowerOffAction, SIGNAL(triggered()), this, SLOT(sltPerformPowerOffAction()));
+    connect(actionPool()->action(UIActionIndexST_M_Group_M_Close)->menu(), SIGNAL(aboutToShow()), this, SLOT(sltGroupCloseMenuAboutToShow()));
+    connect(actionPool()->action(UIActionIndexST_M_Group_M_Close_S_SaveState), SIGNAL(triggered()), this, SLOT(sltPerformSaveAction()));
+    connect(actionPool()->action(UIActionIndexST_M_Group_M_Close_S_Shutdown), SIGNAL(triggered()), this, SLOT(sltPerformACPIShutdownAction()));
+    connect(actionPool()->action(UIActionIndexST_M_Group_M_Close_S_PowerOff), SIGNAL(triggered()), this, SLOT(sltPerformPowerOffAction()));
 
     /* 'Machine/Close' menu connections: */
-    connect(m_pMachineCloseMenu, SIGNAL(aboutToShow()), this, SLOT(sltMachineCloseMenuAboutToShow()));
-    connect(m_pMachineSaveAction, SIGNAL(triggered()), this, SLOT(sltPerformSaveAction()));
-    connect(m_pMachineACPIShutdownAction, SIGNAL(triggered()), this, SLOT(sltPerformACPIShutdownAction()));
-    connect(m_pMachinePowerOffAction, SIGNAL(triggered()), this, SLOT(sltPerformPowerOffAction()));
-
-    /* 'Help' menu connections: */
-    connect(m_pHelpAction, SIGNAL(triggered()), &msgCenter(), SLOT(sltShowHelpHelpDialog()));
-    connect(m_pWebAction, SIGNAL(triggered()), &msgCenter(), SLOT(sltShowHelpWebDialog()));
-    connect(m_pResetWarningsAction, SIGNAL(triggered()), &msgCenter(), SLOT(sltResetSuppressedMessages()));
-#ifdef VBOX_GUI_WITH_NETWORK_MANAGER
-    connect(m_pNetworkAccessManager, SIGNAL(triggered()), gNetworkManager, SLOT(show()));
-    connect(m_pUpdateAction, SIGNAL(triggered()), gUpdateManager, SLOT(sltForceCheck()));
-#endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
-    connect(m_pAboutAction, SIGNAL(triggered()), &msgCenter(), SLOT(sltShowHelpAboutDialog()));
+    connect(actionPool()->action(UIActionIndexST_M_Machine_M_Close)->menu(), SIGNAL(aboutToShow()), this, SLOT(sltMachineCloseMenuAboutToShow()));
+    connect(actionPool()->action(UIActionIndexST_M_Machine_M_Close_S_SaveState), SIGNAL(triggered()), this, SLOT(sltPerformSaveAction()));
+    connect(actionPool()->action(UIActionIndexST_M_Machine_M_Close_S_Shutdown), SIGNAL(triggered()), this, SLOT(sltPerformACPIShutdownAction()));
+    connect(actionPool()->action(UIActionIndexST_M_Machine_M_Close_S_PowerOff), SIGNAL(triggered()), this, SLOT(sltPerformPowerOffAction()));
 
     /* Status-bar connections: */
     connect(statusBar(), SIGNAL(customContextMenuRequested(const QPoint&)),
@@ -1508,113 +1556,96 @@ void UISelectorWindow::prepareConnections()
     connect(gVBoxEvents, SIGNAL(sigSnapshotTake(QString, QString)), this, SLOT(sltSnapshotChanged(QString)));
     connect(gVBoxEvents, SIGNAL(sigSnapshotDelete(QString, QString)), this, SLOT(sltSnapshotChanged(QString)));
     connect(gVBoxEvents, SIGNAL(sigSnapshotChange(QString, QString)), this, SLOT(sltSnapshotChanged(QString)));
+    connect(gVBoxEvents, SIGNAL(sigSnapshotRestore(QString, QString)), this, SLOT(sltSnapshotChanged(QString)));
 }
 
 void UISelectorWindow::loadSettings()
 {
-    /* Get VBox object: */
-    CVirtualBox vbox = vboxGlobal().virtualBox();
-
-    /* Restore window position: */
+    /* Restore window geometry: */
     {
-        /* Loading geometry: */
-        QString strWinPos = vbox.GetExtraData(GUI_LastSelectorWindowPosition);
-        LogRelFlow(("UISelectorWindow: Loading geometry settings: {%s}\n", strWinPos.toAscii().constData()));
-
-        bool ok = false, max = false;
-        int x = 0, y = 0, w = 0, h = 0;
-        x = strWinPos.section(',', 0, 0).toInt(&ok);
-        if (ok)
-            y = strWinPos.section(',', 1, 1).toInt(&ok);
-        if (ok)
-            w = strWinPos.section(',', 2, 2).toInt(&ok);
-        if (ok)
-            h = strWinPos.section(',', 3, 3).toInt(&ok);
-        if (ok)
-            max = strWinPos.section(',', 4, 4) == GUI_LastWindowState_Max;
-
-        QRect ar = ok ? QApplication::desktop()->availableGeometry(QPoint(x, y)) :
-                        QApplication::desktop()->availableGeometry(this);
-
-        if (ok /* previous parameters were read correctly */
-            && (y > 0) && (y < ar.bottom()) /* check vertical bounds */
-            && (x + w > ar.left()) && (x < ar.right()) /* & horizontal bounds */)
-        {
-            /* Apply loaded geometry: */
-            m_normalGeo.moveTo(x, y);
-            m_normalGeo.setSize(QSize(w, h).expandedTo(minimumSizeHint()).boundedTo(ar.size()));
+        /* Load geometry: */
+        m_geometry = gEDataManager->selectorWindowGeometry(this);
 #ifdef Q_WS_MAC
-            move(m_normalGeo.topLeft());
-            resize(m_normalGeo.size());
+        move(m_geometry.topLeft());
+        resize(m_geometry.size());
 #else /* Q_WS_MAC */
-            setGeometry(m_normalGeo);
+        setGeometry(m_geometry);
 #endif /* !Q_WS_MAC */
-            LogRelFlow(("UISelectorWindow: Geometry set to: %dx%d @ %dx%d.\n",
-                        m_normalGeo.x(), m_normalGeo.y(), m_normalGeo.width(), m_normalGeo.height()));
-            if (max) /* maximize if needed */
-                showMaximized();
-        }
-        else
-        {
-            /* Apply default geometry: */
-            m_normalGeo.setSize(QSize(770, 550).expandedTo(minimumSizeHint()).boundedTo(ar.size()));
-            m_normalGeo.moveCenter(ar.center());
-            setGeometry(m_normalGeo);
-            LogRelFlow(("UISelectorWindow: Geometry set to default because something was wrong: "
-                        "(loaded correctly = '%s', x = %d, y = %d, w = %d, h = %d)!\n",
-                        ok ? "true" : "false", x, y, w, h));
-        }
+        LogRel(("UISelectorWindow: Geometry loaded to: %dx%d @ %dx%d.\n",
+                m_geometry.x(), m_geometry.y(), m_geometry.width(), m_geometry.height()));
+
+        /* Maximize (if necessary): */
+        if (gEDataManager->selectorWindowShouldBeMaximized())
+            showMaximized();
     }
 
     /* Restore splitter handle position: */
     {
-        QList<int> sizes = vbox.GetExtraDataIntList(GUI_SplitterSizes);
-
-        if (sizes.size() == 2)
-            m_pSplitter->setSizes(sizes);
+        /* Read splitter hints: */
+        QList<int> sizes = gEDataManager->selectorWindowSplitterHints();
+        /* If both hints are zero, we have the 'default' case: */
+        if (sizes[0] == 0 && sizes[1] == 0)
+        {
+            /* Propose some 'default' based on current dialog width: */
+            sizes[0] = (double)width()     / 3 * .9;
+            sizes[1] = (double)width() * 2 / 3 * .9;
+        }
+        /* Pass hints to the splitter: */
+        m_pSplitter->setSizes(sizes);
     }
 
     /* Restore toolbar and statusbar visibility: */
     {
-        QString strToolbar = vbox.GetExtraData(GUI_Toolbar);
-        QString strStatusbar = vbox.GetExtraData(GUI_Statusbar);
-
 #ifdef Q_WS_MAC
-        mVMToolBar->setVisible(strToolbar.isEmpty() || strToolbar == "true");
+        mVMToolBar->setHidden(!gEDataManager->selectorWindowToolBarVisible());
 #else /* Q_WS_MAC */
-        m_pBar->setVisible(strToolbar.isEmpty() || strToolbar == "true");
+        m_pBar->setHidden(!gEDataManager->selectorWindowToolBarVisible());
 #endif /* !Q_WS_MAC */
-        statusBar()->setVisible(strStatusbar.isEmpty() || strStatusbar == "true");
+        statusBar()->setHidden(!gEDataManager->selectorWindowStatusBarVisible());
     }
 }
 
 void UISelectorWindow::saveSettings()
 {
-    /* Get VBox object: */
-    CVirtualBox vbox = vboxGlobal().virtualBox();
-
-    /* Save window position: */
+    /* Save toolbar and statusbar visibility: */
     {
-        QRect save(m_normalGeo);
-        LogRelFlow(("UISelectorWindow: Saving geometry as %dx%d @ %dx%d.\n",
-                    save.x(), save.y(), save.width(), save.height()));
-        QString strWinPos = QString("%1,%2,%3,%4").arg(save.x()).arg(save.y()).arg(save.width()).arg(save.height());
 #ifdef Q_WS_MAC
-        UIWindowMenuManager::destroy();
-        ::darwinUnregisterForUnifiedToolbarContextMenuEvents(this);
-        if (::darwinIsWindowMaximized(this))
+        gEDataManager->setSelectorWindowToolBarVisible(!mVMToolBar->isHidden());
 #else /* Q_WS_MAC */
-        if (isMaximized())
+        gEDataManager->setSelectorWindowToolBarVisible(!m_pBar->isHidden());
 #endif /* !Q_WS_MAC */
-            strWinPos += QString(",%1").arg(GUI_LastWindowState_Max);
-
-        vbox.SetExtraData(GUI_LastSelectorWindowPosition, strWinPos);
+        gEDataManager->setSelectorWindowStatusBarVisible(!statusBar()->isHidden());
     }
 
     /* Save splitter handle position: */
     {
-        vbox.SetExtraDataIntList(GUI_SplitterSizes, m_pSplitter->sizes());
+        gEDataManager->setSelectorWindowSplitterHints(m_pSplitter->sizes());
     }
+
+    /* Save window geometry: */
+    {
+#ifdef Q_WS_MAC
+        gEDataManager->setSelectorWindowGeometry(m_geometry, ::darwinIsWindowMaximized(this));
+#else /* Q_WS_MAC */
+        gEDataManager->setSelectorWindowGeometry(m_geometry, isMaximized());
+#endif /* !Q_WS_MAC */
+        LogRel(("UISelectorWindow: Geometry saved as: %dx%d @ %dx%d.\n",
+                m_geometry.x(), m_geometry.y(), m_geometry.width(), m_geometry.height()));
+    }
+}
+
+void UISelectorWindow::cleanupConnections()
+{
+#ifdef Q_WS_MAC
+    /* Tool-bar connections: */
+    ::darwinUnregisterForUnifiedToolbarContextMenuEvents(this);
+#endif /* Q_WS_MAC */
+}
+
+void UISelectorWindow::cleanupMenuBar()
+{
+    /* Destroy action-pool: */
+    UIActionPool::destroy(m_pActionPool);
 }
 
 UIVMItem* UISelectorWindow::currentItem() const
@@ -1634,44 +1665,72 @@ void UISelectorWindow::updateActionsAppearance()
     QList<UIVMItem*> items = currentItems();
 
     /* Enable/disable group actions: */
-    m_pAction_Group_Rename->setEnabled(isActionEnabled(UIActionIndexSelector_Simple_Group_Rename, items));
-    m_pAction_Group_Remove->setEnabled(isActionEnabled(UIActionIndexSelector_Simple_Group_Remove, items));
-    m_pAction_Group_Sort->setEnabled(isActionEnabled(UIActionIndexSelector_Simple_Group_Sort, items));
+    actionPool()->action(UIActionIndexST_M_Group_S_Rename)->setEnabled(isActionEnabled(UIActionIndexST_M_Group_S_Rename, items));
+    actionPool()->action(UIActionIndexST_M_Group_S_Remove)->setEnabled(isActionEnabled(UIActionIndexST_M_Group_S_Remove, items));
+    actionPool()->action(UIActionIndexST_M_Group_T_Pause)->setEnabled(isActionEnabled(UIActionIndexST_M_Group_T_Pause, items));
+    actionPool()->action(UIActionIndexST_M_Group_S_Reset)->setEnabled(isActionEnabled(UIActionIndexST_M_Group_S_Reset, items));
+    actionPool()->action(UIActionIndexST_M_Group_S_Discard)->setEnabled(isActionEnabled(UIActionIndexST_M_Group_S_Discard, items));
+    actionPool()->action(UIActionIndexST_M_Group_S_ShowLogDialog)->setEnabled(isActionEnabled(UIActionIndexST_M_Group_S_ShowLogDialog, items));
+    actionPool()->action(UIActionIndexST_M_Group_S_Refresh)->setEnabled(isActionEnabled(UIActionIndexST_M_Group_S_Refresh, items));
+    actionPool()->action(UIActionIndexST_M_Group_S_ShowInFileManager)->setEnabled(isActionEnabled(UIActionIndexST_M_Group_S_ShowInFileManager, items));
+    actionPool()->action(UIActionIndexST_M_Group_S_CreateShortcut)->setEnabled(isActionEnabled(UIActionIndexST_M_Group_S_CreateShortcut, items));
+    actionPool()->action(UIActionIndexST_M_Group_S_Sort)->setEnabled(isActionEnabled(UIActionIndexST_M_Group_S_Sort, items));
 
     /* Enable/disable machine actions: */
-    m_pAction_Machine_Settings->setEnabled(isActionEnabled(UIActionIndexSelector_Simple_Machine_Settings, items));
-    m_pAction_Machine_Clone->setEnabled(isActionEnabled(UIActionIndexSelector_Simple_Machine_Clone, items));
-    m_pAction_Machine_Remove->setEnabled(isActionEnabled(UIActionIndexSelector_Simple_Machine_Remove, items));
-    m_pAction_Machine_AddGroup->setEnabled(isActionEnabled(UIActionIndexSelector_Simple_Machine_AddGroup, items));
-    m_pAction_Machine_LogDialog->setEnabled(isActionEnabled(UIActionIndex_Simple_LogDialog, items));
-    m_pAction_Machine_SortParent->setEnabled(isActionEnabled(UIActionIndexSelector_Simple_Machine_SortParent, items));
+    actionPool()->action(UIActionIndexST_M_Machine_S_Settings)->setEnabled(isActionEnabled(UIActionIndexST_M_Machine_S_Settings, items));
+    actionPool()->action(UIActionIndexST_M_Machine_S_Clone)->setEnabled(isActionEnabled(UIActionIndexST_M_Machine_S_Clone, items));
+    actionPool()->action(UIActionIndexST_M_Machine_S_Remove)->setEnabled(isActionEnabled(UIActionIndexST_M_Machine_S_Remove, items));
+    actionPool()->action(UIActionIndexST_M_Machine_S_AddGroup)->setEnabled(isActionEnabled(UIActionIndexST_M_Machine_S_AddGroup, items));
+    actionPool()->action(UIActionIndexST_M_Machine_T_Pause)->setEnabled(isActionEnabled(UIActionIndexST_M_Machine_T_Pause, items));
+    actionPool()->action(UIActionIndexST_M_Machine_S_Reset)->setEnabled(isActionEnabled(UIActionIndexST_M_Machine_S_Reset, items));
+    actionPool()->action(UIActionIndexST_M_Machine_S_Discard)->setEnabled(isActionEnabled(UIActionIndexST_M_Machine_S_Discard, items));
+    actionPool()->action(UIActionIndexST_M_Machine_S_ShowLogDialog)->setEnabled(isActionEnabled(UIActionIndexST_M_Machine_S_ShowLogDialog, items));
+    actionPool()->action(UIActionIndexST_M_Machine_S_Refresh)->setEnabled(isActionEnabled(UIActionIndexST_M_Machine_S_Refresh, items));
+    actionPool()->action(UIActionIndexST_M_Machine_S_ShowInFileManager)->setEnabled(isActionEnabled(UIActionIndexST_M_Machine_S_ShowInFileManager, items));
+    actionPool()->action(UIActionIndexST_M_Machine_S_CreateShortcut)->setEnabled(isActionEnabled(UIActionIndexST_M_Machine_S_CreateShortcut, items));
+    actionPool()->action(UIActionIndexST_M_Machine_S_SortParent)->setEnabled(isActionEnabled(UIActionIndexST_M_Machine_S_SortParent, items));
 
-    /* Enable/disable common actions: */
-    m_pAction_Common_StartOrShow->setEnabled(isActionEnabled(UIActionIndexSelector_State_Common_StartOrShow, items));
-    m_pAction_Common_PauseAndResume->setEnabled(isActionEnabled(UIActionIndexSelector_Toggle_Common_PauseAndResume, items));
-    m_pAction_Common_Reset->setEnabled(isActionEnabled(UIActionIndexSelector_Simple_Common_Reset, items));
-    m_pAction_Common_Discard->setEnabled(isActionEnabled(UIActionIndexSelector_Simple_Common_Discard, items));
-    m_pAction_Common_Refresh->setEnabled(isActionEnabled(UIActionIndexSelector_Simple_Common_Refresh, items));
-    m_pAction_Common_ShowInFileManager->setEnabled(isActionEnabled(UIActionIndexSelector_Simple_Common_ShowInFileManager, items));
-    m_pAction_Common_CreateShortcut->setEnabled(isActionEnabled(UIActionIndexSelector_Simple_Common_CreateShortcut, items));
+    /* Enable/disable group-start-or-show actions: */
+    actionPool()->action(UIActionIndexST_M_Group_M_StartOrShow)->setEnabled(isActionEnabled(UIActionIndexST_M_Group_M_StartOrShow, items));
+    actionPool()->action(UIActionIndexST_M_Group_M_StartOrShow_S_StartNormal)->setEnabled(isActionEnabled(UIActionIndexST_M_Group_M_StartOrShow_S_StartNormal, items));
+    actionPool()->action(UIActionIndexST_M_Group_M_StartOrShow_S_StartHeadless)->setEnabled(isActionEnabled(UIActionIndexST_M_Group_M_StartOrShow_S_StartHeadless, items));
+    actionPool()->action(UIActionIndexST_M_Group_M_StartOrShow_S_StartDetachable)->setEnabled(isActionEnabled(UIActionIndexST_M_Group_M_StartOrShow_S_StartDetachable, items));
+
+    /* Enable/disable machine-start-or-show actions: */
+    actionPool()->action(UIActionIndexST_M_Machine_M_StartOrShow)->setEnabled(isActionEnabled(UIActionIndexST_M_Machine_M_StartOrShow, items));
+    actionPool()->action(UIActionIndexST_M_Machine_M_StartOrShow_S_StartNormal)->setEnabled(isActionEnabled(UIActionIndexST_M_Machine_M_StartOrShow_S_StartNormal, items));
+    actionPool()->action(UIActionIndexST_M_Machine_M_StartOrShow_S_StartHeadless)->setEnabled(isActionEnabled(UIActionIndexST_M_Machine_M_StartOrShow_S_StartHeadless, items));
+    actionPool()->action(UIActionIndexST_M_Machine_M_StartOrShow_S_StartDetachable)->setEnabled(isActionEnabled(UIActionIndexST_M_Machine_M_StartOrShow_S_StartDetachable, items));
 
     /* Enable/disable group-close actions: */
-    m_pGroupCloseMenuAction->setEnabled(isActionEnabled(UIActionIndexSelector_Menu_Group_Close, items));
-    m_pGroupSaveAction->setEnabled(isActionEnabled(UIActionIndexSelector_Simple_Group_Close_Save, items));
-    m_pGroupACPIShutdownAction->setEnabled(isActionEnabled(UIActionIndexSelector_Simple_Group_Close_ACPIShutdown, items));
-    m_pGroupPowerOffAction->setEnabled(isActionEnabled(UIActionIndexSelector_Simple_Group_Close_PowerOff, items));
+    actionPool()->action(UIActionIndexST_M_Group_M_Close)->setEnabled(isActionEnabled(UIActionIndexST_M_Group_M_Close, items));
+    actionPool()->action(UIActionIndexST_M_Group_M_Close_S_SaveState)->setEnabled(isActionEnabled(UIActionIndexST_M_Group_M_Close_S_SaveState, items));
+    actionPool()->action(UIActionIndexST_M_Group_M_Close_S_Shutdown)->setEnabled(isActionEnabled(UIActionIndexST_M_Group_M_Close_S_Shutdown, items));
+    actionPool()->action(UIActionIndexST_M_Group_M_Close_S_PowerOff)->setEnabled(isActionEnabled(UIActionIndexST_M_Group_M_Close_S_PowerOff, items));
 
     /* Enable/disable machine-close actions: */
-    m_pMachineCloseMenuAction->setEnabled(isActionEnabled(UIActionIndexSelector_Menu_Machine_Close, items));
-    m_pMachineSaveAction->setEnabled(isActionEnabled(UIActionIndexSelector_Simple_Machine_Close_Save, items));
-    m_pMachineACPIShutdownAction->setEnabled(isActionEnabled(UIActionIndexSelector_Simple_Machine_Close_ACPIShutdown, items));
-    m_pMachinePowerOffAction->setEnabled(isActionEnabled(UIActionIndexSelector_Simple_Machine_Close_PowerOff, items));
+    actionPool()->action(UIActionIndexST_M_Machine_M_Close)->setEnabled(isActionEnabled(UIActionIndexST_M_Machine_M_Close, items));
+    actionPool()->action(UIActionIndexST_M_Machine_M_Close_S_SaveState)->setEnabled(isActionEnabled(UIActionIndexST_M_Machine_M_Close_S_SaveState, items));
+    actionPool()->action(UIActionIndexST_M_Machine_M_Close_S_Shutdown)->setEnabled(isActionEnabled(UIActionIndexST_M_Machine_M_Close_S_Shutdown, items));
+    actionPool()->action(UIActionIndexST_M_Machine_M_Close_S_PowerOff)->setEnabled(isActionEnabled(UIActionIndexST_M_Machine_M_Close_S_PowerOff, items));
 
     /* Start/Show action is deremined by 1st item: */
     if (pItem && pItem->accessible())
-        m_pAction_Common_StartOrShow->setState(UIVMItem::isItemPoweredOff(pItem) ? 0 : 1);
+    {
+        actionPool()->action(UIActionIndexST_M_Group_M_StartOrShow)->toActionPolymorphicMenu()->setState(UIVMItem::isItemPoweredOff(pItem) ? 0 : 1);
+        actionPool()->action(UIActionIndexST_M_Machine_M_StartOrShow)->toActionPolymorphicMenu()->setState(UIVMItem::isItemPoweredOff(pItem) ? 0 : 1);
+        QToolButton *pButton = qobject_cast<QToolButton*>(mVMToolBar->widgetForAction(actionPool()->action(UIActionIndexST_M_Machine_M_StartOrShow)));
+        if (pButton)
+            pButton->setPopupMode(UIVMItem::isItemPoweredOff(pItem) ? QToolButton::MenuButtonPopup : QToolButton::DelayedPopup);
+    }
     else
-        m_pAction_Common_StartOrShow->setState(0);
+    {
+        actionPool()->action(UIActionIndexST_M_Group_M_StartOrShow)->toActionPolymorphicMenu()->setState(0);
+        actionPool()->action(UIActionIndexST_M_Machine_M_StartOrShow)->toActionPolymorphicMenu()->setState(0);
+        QToolButton *pButton = qobject_cast<QToolButton*>(mVMToolBar->widgetForAction(actionPool()->action(UIActionIndexST_M_Machine_M_StartOrShow)));
+        if (pButton)
+            pButton->setPopupMode(UIVMItem::isItemPoweredOff(pItem) ? QToolButton::MenuButtonPopup : QToolButton::DelayedPopup);
+    }
 
     /* Pause/Resume action is deremined by 1st started item: */
     UIVMItem *pFirstStartedAction = 0;
@@ -1679,10 +1738,10 @@ void UISelectorWindow::updateActionsAppearance()
         if (UIVMItem::isItemStarted(pSelectedItem))
             pFirstStartedAction = pSelectedItem;
     /* Update the Pause/Resume action appearance: */
-    m_pAction_Common_PauseAndResume->blockSignals(true);
-    m_pAction_Common_PauseAndResume->setChecked(pFirstStartedAction && UIVMItem::isItemPaused(pFirstStartedAction));
-    m_pAction_Common_PauseAndResume->update();
-    m_pAction_Common_PauseAndResume->blockSignals(false);
+    actionPool()->action(UIActionIndexST_M_Group_T_Pause)->blockSignals(true);
+    actionPool()->action(UIActionIndexST_M_Group_T_Pause)->setChecked(pFirstStartedAction && UIVMItem::isItemPaused(pFirstStartedAction));
+    actionPool()->action(UIActionIndexST_M_Group_T_Pause)->retranslateUi();
+    actionPool()->action(UIActionIndexST_M_Group_T_Pause)->blockSignals(false);
 
 #ifdef QT_MAC_USE_COCOA
     /* There is a bug in Qt Cocoa which result in showing a "more arrow" when
@@ -1705,98 +1764,112 @@ bool UISelectorWindow::isActionEnabled(int iActionIndex, const QList<UIVMItem*> 
     /* For known action types: */
     switch (iActionIndex)
     {
-        case UIActionIndexSelector_Simple_Group_Rename:
-        case UIActionIndexSelector_Simple_Group_Remove:
+        case UIActionIndexST_M_Group_S_Rename:
+        case UIActionIndexST_M_Group_S_Remove:
         {
             return !m_pChooser->isGroupSavingInProgress() &&
                    isItemsPoweredOff(items);
         }
-        case UIActionIndexSelector_Simple_Group_Sort:
+        case UIActionIndexST_M_Group_S_Sort:
         {
             return !m_pChooser->isGroupSavingInProgress() &&
                    m_pChooser->isSingleGroupSelected();
         }
-        case UIActionIndexSelector_Simple_Machine_Settings:
+        case UIActionIndexST_M_Machine_S_Settings:
         {
             return !m_pChooser->isGroupSavingInProgress() &&
                    items.size() == 1 &&
-                   pItem->reconfigurable();
+                   pItem->configurationAccessLevel() != ConfigurationAccessLevel_Null;
         }
-        case UIActionIndexSelector_Simple_Machine_Clone:
+        case UIActionIndexST_M_Machine_S_Clone:
         {
             return !m_pChooser->isGroupSavingInProgress() &&
                    items.size() == 1 &&
                    UIVMItem::isItemEditable(pItem);
         }
-        case UIActionIndexSelector_Simple_Machine_Remove:
+        case UIActionIndexST_M_Machine_S_Remove:
         {
             return !m_pChooser->isGroupSavingInProgress() &&
                    isAtLeastOneItemRemovable(items);
         }
-        case UIActionIndexSelector_Simple_Machine_AddGroup:
+        case UIActionIndexST_M_Machine_S_AddGroup:
         {
             return !m_pChooser->isGroupSavingInProgress() &&
                    !m_pChooser->isAllItemsOfOneGroupSelected() &&
                    isItemsPoweredOff(items);
         }
-        case UIActionIndexSelector_State_Common_StartOrShow:
+        case UIActionIndexST_M_Group_M_StartOrShow:
+        case UIActionIndexST_M_Group_M_StartOrShow_S_StartNormal:
+        case UIActionIndexST_M_Group_M_StartOrShow_S_StartHeadless:
+        case UIActionIndexST_M_Group_M_StartOrShow_S_StartDetachable:
+        case UIActionIndexST_M_Machine_M_StartOrShow:
+        case UIActionIndexST_M_Machine_M_StartOrShow_S_StartNormal:
+        case UIActionIndexST_M_Machine_M_StartOrShow_S_StartHeadless:
+        case UIActionIndexST_M_Machine_M_StartOrShow_S_StartDetachable:
         {
             return !m_pChooser->isGroupSavingInProgress() &&
                    isAtLeastOneItemCanBeStartedOrShowed(items);
         }
-        case UIActionIndexSelector_Simple_Common_Discard:
+        case UIActionIndexST_M_Group_S_Discard:
+        case UIActionIndexST_M_Machine_S_Discard:
         {
             return !m_pChooser->isGroupSavingInProgress() &&
                    isAtLeastOneItemDiscardable(items);
         }
-        case UIActionIndexSelector_Toggle_Common_PauseAndResume:
-        {
-            return isAtLeastOneItemStarted(items);
-        }
-        case UIActionIndexSelector_Simple_Common_Reset:
-        {
-            return isAtLeastOneItemRunning(items);
-        }
-        case UIActionIndexSelector_Simple_Common_Refresh:
-        {
-            return isAtLeastOneItemInaccessible(items);
-        }
-        case UIActionIndex_Simple_LogDialog:
-        {
-            return items.size() == 1 && pItem->accessible();
-        }
-        case UIActionIndexSelector_Simple_Common_ShowInFileManager:
+        case UIActionIndexST_M_Group_S_ShowLogDialog:
+        case UIActionIndexST_M_Machine_S_ShowLogDialog:
         {
             return isAtLeastOneItemAccessible(items);
         }
-        case UIActionIndexSelector_Simple_Machine_SortParent:
-        {
-            return !m_pChooser->isGroupSavingInProgress();
-        }
-        case UIActionIndexSelector_Simple_Common_CreateShortcut:
-        {
-            return isAtLeastOneItemSupportsShortcuts(items);
-        }
-        case UIActionIndexSelector_Menu_Group_Close:
-        case UIActionIndexSelector_Menu_Machine_Close:
+        case UIActionIndexST_M_Group_T_Pause:
+        case UIActionIndexST_M_Machine_T_Pause:
         {
             return isAtLeastOneItemStarted(items);
         }
-        case UIActionIndexSelector_Simple_Group_Close_Save:
-        case UIActionIndexSelector_Simple_Machine_Close_Save:
+        case UIActionIndexST_M_Group_S_Reset:
+        case UIActionIndexST_M_Machine_S_Reset:
         {
-            return isActionEnabled(UIActionIndexSelector_Menu_Machine_Close, items);
+            return isAtLeastOneItemRunning(items);
         }
-        case UIActionIndexSelector_Simple_Group_Close_ACPIShutdown:
-        case UIActionIndexSelector_Simple_Machine_Close_ACPIShutdown:
+        case UIActionIndexST_M_Group_S_Refresh:
+        case UIActionIndexST_M_Machine_S_Refresh:
         {
-            return isActionEnabled(UIActionIndexSelector_Menu_Machine_Close, items) &&
+            return isAtLeastOneItemInaccessible(items);
+        }
+        case UIActionIndexST_M_Group_S_ShowInFileManager:
+        case UIActionIndexST_M_Machine_S_ShowInFileManager:
+        {
+            return isAtLeastOneItemAccessible(items);
+        }
+        case UIActionIndexST_M_Machine_S_SortParent:
+        {
+            return !m_pChooser->isGroupSavingInProgress();
+        }
+        case UIActionIndexST_M_Group_S_CreateShortcut:
+        case UIActionIndexST_M_Machine_S_CreateShortcut:
+        {
+            return isAtLeastOneItemSupportsShortcuts(items);
+        }
+        case UIActionIndexST_M_Group_M_Close:
+        case UIActionIndexST_M_Machine_M_Close:
+        {
+            return isAtLeastOneItemStarted(items);
+        }
+        case UIActionIndexST_M_Group_M_Close_S_SaveState:
+        case UIActionIndexST_M_Machine_M_Close_S_SaveState:
+        {
+            return isActionEnabled(UIActionIndexST_M_Machine_M_Close, items);
+        }
+        case UIActionIndexST_M_Group_M_Close_S_Shutdown:
+        case UIActionIndexST_M_Machine_M_Close_S_Shutdown:
+        {
+            return isActionEnabled(UIActionIndexST_M_Machine_M_Close, items) &&
                    isAtLeastOneItemAbleToShutdown(items);
         }
-        case UIActionIndexSelector_Simple_Group_Close_PowerOff:
-        case UIActionIndexSelector_Simple_Machine_Close_PowerOff:
+        case UIActionIndexST_M_Group_M_Close_S_PowerOff:
+        case UIActionIndexST_M_Machine_M_Close_S_PowerOff:
         {
-            return isActionEnabled(UIActionIndexSelector_Menu_Machine_Close, items);
+            return isActionEnabled(UIActionIndexST_M_Machine_M_Close, items);
         }
         default:
             break;
@@ -1896,7 +1969,7 @@ bool UISelectorWindow::isAtLeastOneItemCanBeStartedOrShowed(const QList<UIVMItem
     foreach (UIVMItem *pItem, items)
     {
         if ((UIVMItem::isItemPoweredOff(pItem) && UIVMItem::isItemEditable(pItem)) ||
-            (UIVMItem::isItemStarted(pItem) && pItem->canSwitchTo()))
+            (UIVMItem::isItemStarted(pItem) && (pItem->canSwitchTo() || UIVMItem::isItemRunningHeadless(pItem))))
             return true;
     }
     return false;

@@ -1,4 +1,4 @@
-/* $Revision: 97151 $ */
+/* $Id: HGCM.cpp $ */
 /** @file
  * VBoxGuestLib - Host-Guest Communication Manager.
  *

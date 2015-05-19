@@ -1,3 +1,4 @@
+/* $Id: RTSha256Digest.cpp $ */
 /** @file
  * IPRT - SHA256 digest creation
  *

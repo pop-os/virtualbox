@@ -1,7 +1,6 @@
+/* $Id: QILabel.h $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * VirtualBox Qt extensions: QILabel class declaration
+ * VBox Qt GUI - Qt extensions: QILabel class declaration.
  */
 
 /*

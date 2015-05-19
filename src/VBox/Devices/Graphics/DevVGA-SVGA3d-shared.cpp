@@ -1,3 +1,4 @@
+/* $Id: DevVGA-SVGA3d-shared.cpp $ */
 /** @file
  * DevVMWare - VMWare SVGA device
  */
@@ -145,28 +146,28 @@ DECLCALLBACK(int) vmsvga3dWindowThread(RTTHREAD ThreadSelf, void *pvUser)
                 pCS->cx = rectClient.right - rectClient.left;
                 pCS->cy = rectClient.bottom - rectClient.top;
 #endif
-                *pHwnd = CreateWindowEx(pCS->dwExStyle, 
-                                        VMSVGA3D_WNDCLASSNAME, 
-                                        pCS->lpszName, 
+                *pHwnd = CreateWindowEx(pCS->dwExStyle,
+                                        VMSVGA3D_WNDCLASSNAME,
+                                        pCS->lpszName,
                                         pCS->style,
 #ifdef DEBUG_GFX_WINDOW
                                         0,
                                         0,
 #else
-                                        pCS->x, 
-                                        pCS->y, 
+                                        pCS->x,
+                                        pCS->y,
 #endif
-                                        pCS->cx, 
+                                        pCS->cx,
                                         pCS->cy,
 #ifdef DEBUG_GFX_WINDOW
                                         0,
 #else
-                                        pCS->hwndParent, 
+                                        pCS->hwndParent,
 #endif
-                                        pCS->hMenu, 
-                                        pCS->hInstance, 
+                                        pCS->hMenu,
+                                        pCS->hInstance,
                                         NULL);
-                AssertMsg(*pHwnd, ("CreateWindowEx %x %s %s %x (%d,%d)(%d,%d), %x %x %x error=%x\n", pCS->dwExStyle, pCS->lpszName, VMSVGA3D_WNDCLASSNAME, pCS->style, pCS->x, 
+                AssertMsg(*pHwnd, ("CreateWindowEx %x %s %s %x (%d,%d)(%d,%d), %x %x %x error=%x\n", pCS->dwExStyle, pCS->lpszName, VMSVGA3D_WNDCLASSNAME, pCS->style, pCS->x,
                                     pCS->y, pCS->cx, pCS->cy,pCS->hwndParent, pCS->hMenu, pCS->hInstance, GetLastError()));
 
                 /* Signal to the caller that we're done. */
@@ -340,8 +341,10 @@ uint32_t vmsvga3dSurfaceFormatSize(SVGA3dSurfaceFormat format)
         return 32;
     case SVGA3D_A16B16G16R16:
         return 8;
+
+    default:
+        AssertFailedReturn(4);
     }
-    AssertFailedReturn(4);
 }
 
 #ifdef LOG_ENABLED
@@ -579,7 +582,7 @@ const char *vmsvga3dGetRenderStateName(uint32_t state)
 {
     switch (state)
     {
-    case SVGA3D_RS_ZENABLE:                /* SVGA3dBool */            
+    case SVGA3D_RS_ZENABLE:                /* SVGA3dBool */
         return "SVGA3D_RS_ZENABLE";
     case SVGA3D_RS_ZWRITEENABLE:           /* SVGA3dBool */
         return "SVGA3D_RS_ZWRITEENABLE";

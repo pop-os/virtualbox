@@ -71,12 +71,11 @@ if1of ($(KBUILD_TARGET), darwin win) # this ifeq must go, see @todo around elif
 ifeq ($(KBUILD_TARGET),darwin)
  INSTALLS += VBoxNetFlt.kext
  VBoxNetFlt.kext_INST     = $(INST_VBOXNETFLT)Contents/
- VBoxNetFlt.kext_SOURCES  = \
- 	$(VBoxNetFlt.kext_0_OUTDIR)/Info.plist
- VBoxNetFlt.kext_CLEAN    = \
- 	$(VBoxNetFlt.kext_0_OUTDIR)/Info.plist
+ VBoxNetFlt.kext_SOURCES  = $(VBoxNetFlt.kext_0_OUTDIR)/Contents/Info.plist
+ VBoxNetFlt.kext_CLEAN    = $(VBoxNetFlt.kext_0_OUTDIR)/Contents/Info.plist
+ VBoxNetFlt.kext_BLDDIRS  = $(VBoxNetFlt.kext_0_OUTDIR)/Contents/
 
-$$(VBoxNetFlt.kext_0_OUTDIR)/Info.plist: $(PATH_SUB_CURRENT)/darwin/Info.plist $(VBOX_VERSION_MK) | $$(dir $$@)
+$$(VBoxNetFlt.kext_0_OUTDIR)/Contents/Info.plist: $(PATH_SUB_CURRENT)/darwin/Info.plist $(VBOX_VERSION_MK) | $$(dir $$@)
 	$(call MSG_GENERATE,VBoxNetFlt,$@,$<)
 	$(QUIET)$(RM) -f $@
 	$(QUIET)$(SED) \
@@ -89,6 +88,8 @@ $$(VBoxNetFlt.kext_0_OUTDIR)/Info.plist: $(PATH_SUB_CURRENT)/darwin/Info.plist $
 		-e 's/@VBOX_C_YEAR@/$(VBOX_C_YEAR)/g' \
 		--output $@ \
 		$<
+
+ $(evalcall2 VBOX_TEST_SIGN_KEXT,VBoxNetFlt)
 
  INSTALLS.darwin += Scripts-darwin
  Scripts-darwin_INST = $(INST_DIST)
@@ -138,6 +139,83 @@ $(PATH_TARGET)/VBoxNetFltCat.dir/VBoxNetFlt.cat: \
 	$(call VBOX_MAKE_CAT_FN, $(@D),$@)
 
  endif # signing
+
+
+ #
+ # VBoxNetLwf.sys - The light-weight filter driver for NDIS6.
+ #
+ SYSMODS += VBoxNetLwf
+ VBoxNetLwf_TEMPLATE = VBOXR0DRV
+ VBoxNetLwf_INST = $(INST_VBOXNETFLT)
+ if defined(VBOX_SIGNING_MODE)
+  VBoxNetLwf_INSTTYPE = none
+  VBoxNetLwf_DEBUG_INSTTYPE = both
+ endif
+ VBoxNetLwf_DEFS = IN_RT_R0 IN_SUP_STATIC
+ VBoxNetLwf_INCS = .
+ VBoxNetLwf_SOURCES = VBoxNetFlt.c VBoxNetFlt.rc
+ VBoxNetLwf_SDKS.win = ReorderCompilerIncs $(VBOX_WINDDK_WLH) $(VBOX_WINPSDK)INCS
+ VBoxNetLwf_SOURCES.win = \
+ 	win/ndis6/VBoxNetLwf-win.cpp
+# 	win/drv/VBoxNetLwfRt-win.cpp \
+# 	win/drv/VBoxNetLwf-win.rc
+ # with WINDDKWLH the WIN9X_COMPAT_SPINLOCK is needed to avoid inline declaration of KeInitializeSpinLock
+ # otherwise the linker would complain about dumplicate _KeInitializeSpinLock@4 definition
+ # in ntoskrnl.lib and our object files
+ VBoxNetLwf_DEFS.win += WIN9X_COMPAT_SPINLOCK=1 NDISLWF=1 DBG=1
+# VBoxNetLwf_DEFS.win += VBOXNETFLT_STATIC_CONFIG
+# VBoxNetLwf_DEFS.win += VBOXNETFLT_NO_PACKET_QUEUE
+# VBoxNetLwf_DEFS.win += NDIS_MINIPORT_DRIVER NDIS_WDM=1 BINARY_COMPATIBLE=0
+ VBoxNetLwf_DEFS.win += NDIS60=1
+# ifdef VBOX_LOOPBACK_USEFLAGS
+#  VBoxNetLwf_DEFS.win += VBOX_LOOPBACK_USEFLAGS
+# endif
+# VBoxNetLwf_SOURCES = VBoxNetLwf.c
+ VBoxNetLwf_LDFLAGS.win.x86 = -Entry:DriverEntry@8
+ VBoxNetLwf_LDFLAGS.win.amd64 = -Entry:DriverEntry
+ VBoxNetLwf_LIBS.win = \
+ 	$(PATH_SDK_$(VBOX_WINDDK_WLH)_LIB)/ntoskrnl.lib \
+ 	$(PATH_SDK_$(VBOX_WINDDK_WLH)_LIB)/hal.lib \
+ 	$(PATH_SDK_$(VBOX_WINDDK_WLH)_LIB)/ndis.lib \
+ 	$(PATH_STAGE_LIB)/RuntimeR0Drv$(VBOX_SUFF_LIB)
+ VBoxNetLwf_LIBS = \
+ 	$(PATH_STAGE_LIB)/SUPR0IdcClient$(VBOX_SUFF_LIB)
+ #
+ # VBoxNetLwf installation.
+ #
+ INSTALLS.win += VBoxNetLwf-inf
+ VBoxNetLwf-inf_INST = $(INST_BIN)
+ VBoxNetLwf-inf_SOURCES = \
+ 	$(PATH_TARGET)/VBoxNetLwfCat.dir/VBoxNetLwf.inf
+ VBoxNetLwf-inf_CLEAN = $(VBoxNetLwf-inf_SOURCES)
+ VBoxNetLwf-inf_BLDDIRS = $(PATH_TARGET)/VBoxNetLwfCat.dir
+
+$(PATH_TARGET)/VBoxNetLwfCat.dir/VBoxNetLwf.inf: $(PATH_SUB_CURRENT)/win/ndis6/VBoxNetLwf.inf $(MAKEFILE_CURRENT) | $$(dir $$@)
+	$(call MSG_GENERATE,VBoxNetLwf-inf,$@,$<)
+	$(call VBOX_EDIT_INF_FN,$<,$@)
+
+ ifdef VBOX_SIGNING_MODE
+VBoxNetLwf-inf_SOURCES += \
+	$(PATH_TARGET)/VBoxNetLwfCat.dir/VBoxNetLwf.sys \
+	$(PATH_TARGET)/VBoxNetLwfCat.dir/VBoxNetLwf.cat
+
+#	$(PATH_TARGET)/VBoxNetLwfCat.dir/VBoxNetLwfNobj.dll \
+
+$(PATH_TARGET)/VBoxNetLwfCat.dir/VBoxNetLwf.sys: $$(VBoxNetLwf_1_TARGET) | $$(dir $$@)
+	$(INSTALL) -m 644 $< $(@D)
+
+#$(PATH_TARGET)/VBoxNetLwfCat.dir/VBoxNetLwfNobj.dll: $$(VBoxNetLwfNobj_1_TARGET) | $$(dir $$@)
+#	$(INSTALL) -m 644 $< $(@D)
+
+$(PATH_TARGET)/VBoxNetLwfCat.dir/VBoxNetLwf.cat: \
+		$(PATH_TARGET)/VBoxNetLwfCat.dir/VBoxNetLwf.sys \
+		$(PATH_TARGET)/VBoxNetLwfCat.dir/VBoxNetLwf.inf
+	$(call MSG_TOOL,Inf2Cat,VBoxNetLwf-inf,$@,$<)
+	$(call VBOX_MAKE_CAT_FN, $(@D),$@)
+
+ endif # signing
+
+
 
  #
  # WinNetConfig - static library with host network interface config API
@@ -202,6 +280,66 @@ $(PATH_TARGET)/VBoxNetFltCat.dir/VBoxNetFlt.cat: \
  NetAdpUninstall_SDKS     = ReorderCompilerIncs $(VBOX_WINPSDK) $(VBOX_WINDDK) VBOX_NTDLL
  NetAdpUninstall_SOURCES  = win/tools/VBoxNetAdpUninstall.cpp
  NetAdpUninstall_LIBS     = \
+ 	$(WinNetConfig_1_TARGET) \
+	$(PATH_STAGE_LIB)/VBoxDrvCfg$(VBOX_SUFF_LIB) \
+ 	$(PATH_SDK_$(VBOX_WINDDK)_LIB)/Newdev.lib \
+  	$(PATH_TOOL_$(VBOX_VCC_TOOL)_LIB)/comsupp.lib \
+ 	$(PATH_SDK_$(VBOX_WINPSDK)_LIB)/WbemUuid.Lib
+
+ #
+ # NetAdp6Install
+ #
+ PROGRAMS.win  += NetAdp6Install
+ NetAdp6Install_TEMPLATE = VBOXR3STATIC
+ NetAdp6Install_SDKS     = ReorderCompilerIncs $(VBOX_WINPSDK) $(VBOX_WINDDK) VBOX_NTDLL
+ NetAdp6Install_SOURCES  = win/tools/VBoxNetAdpInstall.cpp
+ NetAdp6Install_DEFS    += NDIS60=1
+ NetAdp6Install_LIBS     = \
+ 	$(WinNetConfig_1_TARGET) \
+	$(PATH_STAGE_LIB)/VBoxDrvCfg$(VBOX_SUFF_LIB) \
+ 	$(PATH_SDK_$(VBOX_WINDDK)_LIB)/Newdev.lib \
+  	$(PATH_TOOL_$(VBOX_VCC_TOOL)_LIB)/comsupp.lib \
+ 	$(PATH_SDK_$(VBOX_WINPSDK)_LIB)/WbemUuid.Lib
+
+
+ #
+ # NetAdp6Uninstall
+ #
+ PROGRAMS.win  += NetAdp6Uninstall
+ NetAdp6Uninstall_TEMPLATE = VBOXR3STATIC
+ NetAdp6Uninstall_SDKS     = ReorderCompilerIncs $(VBOX_WINPSDK) $(VBOX_WINDDK) VBOX_NTDLL
+ NetAdp6Uninstall_SOURCES  = win/tools/VBoxNetAdpUninstall.cpp
+ NetAdp6Uninstall_DEFS    += NDIS60=1
+ NetAdp6Uninstall_LIBS     = \
+ 	$(WinNetConfig_1_TARGET) \
+	$(PATH_STAGE_LIB)/VBoxDrvCfg$(VBOX_SUFF_LIB) \
+ 	$(PATH_SDK_$(VBOX_WINDDK)_LIB)/Newdev.lib \
+  	$(PATH_TOOL_$(VBOX_VCC_TOOL)_LIB)/comsupp.lib \
+ 	$(PATH_SDK_$(VBOX_WINPSDK)_LIB)/WbemUuid.Lib
+
+ #
+ # NetLwfInstall
+ #
+ PROGRAMS.win  += NetLwfInstall
+ NetLwfInstall_TEMPLATE = VBOXR3STATIC
+ NetLwfInstall_SDKS     = ReorderCompilerIncs $(VBOX_WINPSDK) $(VBOX_WINDDK) VBOX_NTDLL
+ NetLwfInstall_SOURCES  = win/tools/VBoxNetLwfInstall.cpp
+ NetLwfInstall_LIBS     = \
+ 	$(WinNetConfig_1_TARGET) \
+	$(PATH_STAGE_LIB)/VBoxDrvCfg$(VBOX_SUFF_LIB) \
+ 	$(PATH_SDK_$(VBOX_WINDDK)_LIB)/Newdev.lib \
+  	$(PATH_TOOL_$(VBOX_VCC_TOOL)_LIB)/comsupp.lib \
+ 	$(PATH_SDK_$(VBOX_WINPSDK)_LIB)/WbemUuid.Lib
+
+
+ #
+ # NetLwfUninstall
+ #
+ PROGRAMS.win  += NetLwfUninstall
+ NetLwfUninstall_TEMPLATE = VBOXR3STATIC
+ NetLwfUninstall_SDKS     = ReorderCompilerIncs $(VBOX_WINPSDK) $(VBOX_WINDDK) VBOX_NTDLL
+ NetLwfUninstall_SOURCES  = win/tools/VBoxNetLwfUninstall.cpp
+ NetLwfUninstall_LIBS     = \
  	$(WinNetConfig_1_TARGET) \
 	$(PATH_STAGE_LIB)/VBoxDrvCfg$(VBOX_SUFF_LIB) \
  	$(PATH_SDK_$(VBOX_WINDDK)_LIB)/Newdev.lib \
@@ -310,18 +448,79 @@ $(PATH_TARGET)/VBoxNetAdpCat.dir/VBoxNetAdp.cat: \
 
  endif #  ifdef VBOX_SIGNING_MODE
 
+ #
+ # VBoxNetAdp6.sys - The VirtualBox Adapter miniport driver.
+ #
+ SYSMODS.win += VBoxNetAdp6
+ VBoxNetAdp6_TEMPLATE = VBOXR0DRV
+ #VBoxNetAdp6_INST = $(INST_VBOXNETADP)
+ if defined(VBOX_SIGNING_MODE)
+  VBoxNetAdp6_INSTTYPE.win = none
+  VBoxNetAdp6_DEBUG_INSTTYPE.win = both
+ endif
+ VBoxNetAdp6_DEFS = IN_RT_R0 IN_SUP_STATIC
+ VBoxNetAdp6_INCS := $(PATH_SUB_CURRENT)
+ VBoxNetAdp6_SDKS = ReorderCompilerIncs $(VBOX_WINDDK_WLH) $(VBOX_WINPSDK)INCS
+ VBoxNetAdp6_SOURCES = \
+ 	win/ndis6/VBoxNetAdp-win.cpp \
+ 	win/ndis6/VBoxNetAdp-win.rc
+ VBoxNetAdp6_DEFS += NDIS_MINIPORT_DRIVER NDIS_WDM=1 BINARY_COMPATIBLE=0
+ VBoxNetAdp6_DEFS += NDIS60_MINIPORT=1 NDIS60=1
+ VBoxNetAdp6_LDFLAGS.win.x86 = -Entry:DriverEntry@8
+ VBoxNetAdp6_LDFLAGS.win.amd64 = -Entry:DriverEntry
+ VBoxNetAdp6_LIBS.win = \
+ 	$(PATH_SDK_$(VBOX_WINDDK)_LIB)/ntoskrnl.lib \
+ 	$(PATH_SDK_$(VBOX_WINDDK)_LIB)/hal.lib \
+ 	$(PATH_SDK_$(VBOX_WINDDK)_LIB)/ndis.lib \
+ 	$(PATH_STAGE_LIB)/RuntimeR0Drv$(VBOX_SUFF_LIB)
+ VBoxNetAdp6_LIBS = \
+ 	$(PATH_STAGE_LIB)/SUPR0IdcClient$(VBOX_SUFF_LIB)
+
+
+ INSTALLS.win += VBoxNetAdp6-inf
+ VBoxNetAdp6-inf_INST = $(INST_BIN)
+ VBoxNetAdp6-inf_MODE = a+r,u+w
+ VBoxNetAdp6-inf_SOURCES = \
+ 	$(PATH_TARGET)/VBoxNetAdp6Cat.dir/VBoxNetAdp6.inf
+ VBoxNetAdp6-inf_CLEAN = $(VBoxNetAdp6-inf_SOURCES)
+ VBoxNetAdp6-inf_BLDDIRS = $(PATH_TARGET)/VBoxNetAdp6Cat.dir
+
+$(PATH_TARGET)/VBoxNetAdp6Cat.dir/VBoxNetAdp6.inf: $(PATH_SUB_CURRENT)/win/ndis6/VBoxNetAdp6.inf $(MAKEFILE_CURRENT) | $$(dir $$@)
+	$(call MSG_GENERATE,VBoxNetAdp6-inf,$@,$<)
+	$(call VBOX_EDIT_INF_FN,$<,$@)
+
+ ifdef VBOX_SIGNING_MODE
+VBoxNetAdp6-inf_SOURCES += \
+	$(PATH_TARGET)/VBoxNetAdp6Cat.dir/VBoxNetAdp6.sys \
+	$(PATH_TARGET)/VBoxNetAdp6Cat.dir/VBoxNetAdp6.cat
+
+$(PATH_TARGET)/VBoxNetAdp6Cat.dir/VBoxNetAdp6.sys: $$(VBoxNetAdp6_1_TARGET) | $$(dir $$@)
+	$(INSTALL) -m 644 $< $(@D)
+
+$(PATH_TARGET)/VBoxNetAdp6Cat.dir/VBoxNetAdp6.cat: \
+		$(PATH_TARGET)/VBoxNetAdp6Cat.dir/VBoxNetAdp6.sys \
+		$(PATH_TARGET)/VBoxNetAdp6Cat.dir/VBoxNetAdp6.inf
+	$(call MSG_TOOL,Inf2Cat,VBoxNetFlt-inf,$@,$<)
+	$(call VBOX_MAKE_CAT_FN, $(@D),$@)
+
+ endif #  ifdef VBOX_SIGNING_MODE
+
 endif #ifeq ($(KBUILD_TARGET), win)
 
 else if1of ($(KBUILD_TARGET), linux solaris freebsd) ## @todo merge this with the mixed case stuff.
 #
 # vboxnetflt(.ko/.o/) - The lower case driver.
 # Note! On Solaris the name has to be <= 8 chars long.
+# The DEBUG_HASH* stuff is for CONFIG_DYNAMIC_DEBUG-enabled kernels
 #
  ifdef VBOX_WITH_VBOXDRV
   SYSMODS += vboxnetflt
   vboxnetflt_TEMPLATE      = VBOXR0DRV
   vboxnetflt_NAME.solaris  = vboxflt
-  vboxnetflt_DEFS.linux    = KBUILD_MODNAME=KBUILD_STR\(vboxnetflt\) KBUILD_BASENAME=KBUILD_STR\(vboxnetflt\) MODULE
+  vboxnetflt_DEFS.linux    = \
+	KBUILD_MODNAME=KBUILD_STR\(vboxnetflt\) \
+	KBUILD_BASENAME=KBUILD_STR\(vboxnetflt\) \
+	MODULE DEBUG_HASH=2 DEBUG_HASH2=3
   vboxnetflt_DEFS          = IN_RT_R0
   vboxnetflt_DEPS.solaris += $(VBOX_SVN_REV_KMK)
   vboxnetflt_INCS.linux   := \

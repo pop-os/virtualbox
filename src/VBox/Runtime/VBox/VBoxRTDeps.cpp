@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -54,8 +54,10 @@ PFNRT g_VBoxRTDeps[] =
 #ifndef RT_NO_GIP
     (PFNRT)SUPR3Init,
     (PFNRT)SUPR3PageAllocEx,
+    (PFNRT)SUPR3LoadVMM,
     (PFNRT)SUPSemEventCreate,
     (PFNRT)SUPTracerFireProbe,
+    (PFNRT)SUPGetTscDeltaSlow,
 #endif
     (PFNRT)xmlLoadCatalogs,
     (PFNRT)MD5_Init,
@@ -69,6 +71,9 @@ PFNRT g_VBoxRTDeps[] =
     (PFNRT)i2d_X509,
     (PFNRT)i2d_PublicKey,
     (PFNRT)RSA_generate_key,
+    (PFNRT)RSA_generate_key_ex,
+    (PFNRT)DH_generate_parameters,
+    (PFNRT)DH_generate_parameters_ex,
     (PFNRT)RAND_load_file,
     (PFNRT)CRYPTO_set_dynlock_create_callback,
     (PFNRT)CRYPTO_set_dynlock_lock_callback,

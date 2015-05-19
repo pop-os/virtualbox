@@ -1,9 +1,10 @@
+/* $Id: VBoxGlobal.h $ */
 /** @file
  * VBox Qt GUI - VBoxGlobal class declaration.
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -37,6 +38,7 @@
 /* COM includes: */
 #include "VBox/com/Guid.h"
 #include "CHost.h"
+#include "CVirtualBoxClient.h"
 #include "CVirtualBox.h"
 #include "CSession.h"
 #include "CGuestOSType.h"
@@ -53,6 +55,7 @@ class CHostVideoInputDevice;
 class QSpinBox;
 class UIMediumEnumerator;
 class UIMedium;
+class UIIconPoolGeneral;
 
 // VBoxGlobal class
 ////////////////////////////////////////////////////////////////////////////////
@@ -65,6 +68,14 @@ class VBoxGlobal : public QObject
     Q_OBJECT
 
 public:
+
+    /** VM launch modes. */
+    enum LaunchMode
+    {
+        LaunchMode_Default,
+        LaunchMode_Headless,
+        LaunchMode_Separate
+    };
 
     /* Static API: Create/destroy stuff: */
     static VBoxGlobal* instance();
@@ -85,23 +96,34 @@ public:
     QString versionString() const { return mVerString; }
     bool isBeta() const;
 
+    /** Returns whether GUI is separate (from VM) process. */
+    bool isSeparateProcess() const { return m_fSeparateProcess; }
+
 #ifdef Q_WS_MAC
     static MacOSXRelease osRelease();
 #endif /* Q_WS_MAC */
 
-    CVirtualBox virtualBox() const { return mVBox; }
-    CHost host() const { return mHost; }
-    QString homeFolder() const { return mHomeFolder; }
+    /** Returns the copy of VirtualBox client wrapper. */
+    CVirtualBoxClient virtualBoxClient() const { return m_client; }
+    /** Returns the copy of VirtualBox object wrapper. */
+    CVirtualBox virtualBox() const { return m_vbox; }
+    /** Returns the copy of VirtualBox host-object wrapper. */
+    CHost host() const { return m_host; }
+    /** Returns the symbolic VirtualBox home-folder representation. */
+    QString homeFolder() const { return m_strHomeFolder; }
+
+    /** Returns the VBoxSVC availability value. */
+    bool isVBoxSVCAvailable() const { return m_fVBoxSVCAvailable; }
 
     VBoxGlobalSettings &settings() { return gset; }
     bool setSettings (VBoxGlobalSettings &gs);
 
     UISelectorWindow &selectorWnd();
 
-    /* VM stuff: */
-    bool startMachine(const QString &strMachineId);
-    UIMachine* virtualMachine();
-    QWidget* activeMachineWindow();
+    /** Returns current virtual machine. */
+    UIMachine* virtualMachine() const;
+    /** Returns currently active virtual machine window. */
+    QWidget* activeMachineWindow() const;
 
     bool is3DAvailableWorker() const;
     bool is3DAvailable() const { if (m3DAvailable < 0) return is3DAvailableWorker(); return m3DAvailable != 0; }
@@ -118,18 +140,26 @@ public:
     bool processArgs();
 
     bool switchToMachine(CMachine &machine);
-    bool launchMachine(CMachine &machine, bool fHeadless = false);
+
+    bool launchMachine(CMachine &machine, LaunchMode enmLaunchMode = LaunchMode_Default);
 
     bool isVMConsoleProcess() const { return !vmUuid.isNull(); }
     bool showStartVMErrors() const { return mShowStartVMErrors; }
     QString managedVMUuid() const { return vmUuid; }
     QList<QUrl> &argUrlList() { return m_ArgUrlList; }
 
-    RenderMode vmRenderMode() const { return vm_render_mode; }
-    const char *vmRenderModeStr() const { return vm_render_mode_str; }
     bool isKWinManaged() const { return mIsKWinManaged; }
 
+    /** Returns whether we should restore current snapshot before VM started. */
     bool shouldRestoreCurrentSnapshot() const { return mRestoreCurrentSnapshot; }
+    /** Defines whether we should fRestore current snapshot before VM started. */
+    void setShouldRestoreCurrentSnapshot(bool fRestore) { mRestoreCurrentSnapshot = fRestore; }
+
+    bool hasFloppyImageToMount() const    { return !m_strFloppyImage.isEmpty(); }
+    bool hasDvdImageToMount() const       { return !m_strDvdImage.isEmpty(); }
+    QString const &getFloppyImage() const { return m_strFloppyImage; }
+    QString const &getDvdImage() const    { return m_strDvdImage; }
+
     bool isPatmDisabled() const { return mDisablePatm; }
     bool isCsamDisabled() const { return mDisableCsam; }
     bool isSupervisorCodeExecedRecompiled() const { return mRecompileSupervisor; }
@@ -139,26 +169,25 @@ public:
     uint32_t getWarpPct()       const { return mWarpPct; }
 
 #ifdef VBOX_WITH_DEBUGGER_GUI
-    bool isDebuggerEnabled(CMachine &aMachine);
-    bool isDebuggerAutoShowEnabled(CMachine &aMachine);
-    bool isDebuggerAutoShowCommandLineEnabled(CMachine &aMachine);
-    bool isDebuggerAutoShowStatisticsEnabled(CMachine &aMachine);
-    RTLDRMOD getDebuggerModule() const { return mhVBoxDbg; }
+    bool isDebuggerEnabled() const;
+    bool isDebuggerAutoShowEnabled() const;
+    bool isDebuggerAutoShowCommandLineEnabled() const;
+    bool isDebuggerAutoShowStatisticsEnabled() const;
+
+    RTLDRMOD getDebuggerModule() const { return m_hVBoxDbg; }
 
     bool isStartPausedEnabled() const { return mStartPaused; }
-#else
-    bool isDebuggerAutoShowEnabled(CMachine & /*aMachine*/) const { return false; }
-    bool isDebuggerAutoShowCommandLineEnabled(CMachine & /*aMachine*/) const { return false; }
-    bool isDebuggerAutoShowStatisticsEnabled(CMachine & /*aMachine*/) const { return false; }
-
-    bool isStartPausedEnabled() const { return false; }
-#endif
+#endif /* VBOX_WITH_DEBUGGER_GUI */
 
     /* VBox enum to/from string/icon/color convertors */
 
     QList <CGuestOSType> vmGuestOSFamilyList() const;
     QList <CGuestOSType> vmGuestOSTypeList (const QString &aFamilyId) const;
-    QPixmap vmGuestOSTypeIcon (const QString &aTypeId) const;
+
+    /** Returns pixmap corresponding to passed @a strOSTypeID.
+      * In case if non-null @a pLogicalSize pointer provided, it will be updated properly. */
+    QPixmap vmGuestOSTypeIcon(const QString &strOSTypeID, QSize *pLogicalSize = 0) const;
+
     CGuestOSType vmGuestOSType (const QString &aTypeId,
                                 const QString &aFamilyId = QString::null) const;
     QString vmGuestOSTypeDescription (const QString &aTypeId) const;
@@ -209,11 +238,6 @@ public:
     QString toLPTPortName (ulong aIRQ, ulong aIOBase) const;
     bool toLPTPortNumbers (const QString &aName, ulong &aIRQ, ulong &aIOBase) const;
 
-    QPixmap snapshotIcon (bool online) const
-    {
-        return online ? mOnlineSnapshotIcon : mOfflineSnapshotIcon;
-    }
-
     static bool hasAllowedExtension(const QString &strExt, const QStringList &extList)
     {
         for (int i = 0; i < extList.size(); ++i)
@@ -263,6 +287,19 @@ public:
     bool isMediumEnumerationInProgress() const;
     UIMedium medium(const QString &strMediumID) const;
     QList<QString> mediumIDs() const;
+
+    /** Prepares storage menu according passed parameters.
+      * @param menu              QMenu being prepared.
+      * @param pListener         Listener QObject, this menu being prepared for.
+      * @param pszSlotName       SLOT in the @a pListener above, this menu will be handled with.
+      * @param machine           CMachine object, this menu being prepared for.
+      * @param strControllerName The name of the CStorageController in the @a machine above.
+      * @param storageSlot       The StorageSlot of the CStorageController called @a strControllerName above. */
+    void prepareStorageMenu(QMenu &menu,
+                            QObject *pListener, const char *pszSlotName,
+                            const CMachine &machine, const QString &strControllerName, const StorageSlot &storageSlot);
+    /** Updates @a constMachine storage with data described by @a target. */
+    void updateMachineStorage(const CMachine &constMachine, const UIMediumTarget &target);
 
     /* various helpers */
 
@@ -317,12 +354,13 @@ public:
     static bool supportsFullScreenMonitorsProtocolX11();
     /** X11: Performs mapping of the passed @a pWidget to host-screen with passed @a uScreenId. */
     static bool setFullScreenMonitorX11(QWidget *pWidget, ulong uScreenId);
+    /** X11: Ensures @a pPropWidget become transient for the @a pWidget. */
+    static void setTransientFor(QWidget *pWidget, QWidget *pPropWidget);
 #endif /* Q_WS_X11 */
 
     static QString removeAccelMark (const QString &aText);
 
     static QString insertKeyToActionText (const QString &aText, const QString &aKey);
-    static QString extractKeyFromActionText (const QString &aText);
 
     static QPixmap joinPixmaps (const QPixmap &aPM1, const QPixmap &aPM2);
 
@@ -353,54 +391,6 @@ public:
     /* Returns full medium-format name for the given base medium-format name: */
     static QString fullMediumFormatName(const QString &strBaseMediumFormatName);
 
-    /* Extra-data settings stuff: */
-    static bool isApprovedByExtraData(CVirtualBox &vbox, const QString &strExtraDataKey, bool fApprovedByDefault = false);
-    static bool isApprovedByExtraData(CMachine &machine, const QString &strExtraDataKey, bool fApprovedByDefault = false);
-#ifdef VBOX_GUI_WITH_NETWORK_MANAGER
-    static bool shouldWeAllowApplicationUpdate(CVirtualBox &vbox);
-#endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
-#ifdef Q_WS_X11
-    static bool legacyFullscreenModeRequested(CVirtualBox vbox);
-#endif /* Q_WS_X11 */
-    static bool shouldWeShowMachine(CMachine &machine);
-    static bool shouldWeAllowMachineReconfiguration(CMachine &machine,
-                                                    bool fIncludingMachineGeneralCheck = false,
-                                                    bool fIncludingMachineStateCheck = false);
-    static bool shouldWeShowDetails(CMachine &machine,
-                                    bool fIncludingMachineGeneralCheck = false);
-    static bool shouldWeAutoMountGuestScreens(CMachine &machine, bool fIncludingSanityCheck = true);
-    static bool shouldWeAllowSnapshotOperations(CMachine &machine, bool fIncludingSanityCheck = true);
-    static MachineCloseAction defaultMachineCloseAction(CMachine &machine);
-    static RuntimeMenuType restrictedRuntimeMenuTypes(CMachine &machine);
-#ifdef Q_WS_MAC
-    static RuntimeMenuApplicationActionType restrictedRuntimeMenuApplicationActionTypes(CMachine &machine);
-#endif /* Q_WS_MAC */
-    static RuntimeMenuMachineActionType restrictedRuntimeMenuMachineActionTypes(CMachine &machine);
-    static RuntimeMenuViewActionType restrictedRuntimeMenuViewActionTypes(CMachine &machine);
-    static RuntimeMenuDevicesActionType restrictedRuntimeMenuDevicesActionTypes(CMachine &machine);
-#ifdef VBOX_WITH_DEBUGGER_GUI
-    static RuntimeMenuDebuggerActionType restrictedRuntimeMenuDebuggerActionTypes(CMachine &machine);
-#endif /* VBOX_WITH_DEBUGGER_GUI */
-    static RuntimeMenuHelpActionType restrictedRuntimeMenuHelpActionTypes(CMachine &machine);
-    static UIVisualStateType restrictedVisualStateTypes(CMachine &machine);
-    static QList<IndicatorType> restrictedStatusBarIndicators(CMachine &machine);
-    static MachineCloseAction restrictedMachineCloseActions(CMachine &machine);
-    static QList<GlobalSettingsPageType> restrictedGlobalSettingsPages(CVirtualBox &vbox);
-    static QList<MachineSettingsPageType> restrictedMachineSettingsPages(CMachine &machine);
-    static bool activateHoveredMachineWindow(CVirtualBox &vbox);
-    static void setActivateHoveredMachineWindow(CVirtualBox &vbox, bool fActivate);
-#ifndef Q_WS_MAC
-    /** Except Mac OS X: Loads redefined machine-window icon names. */
-    static QStringList machineWindowIconNames(CMachine &machine);
-    /** Except Mac OS X: Loads redefined machine-window name postfix. */
-    static QString machineWindowNamePostfix(CMachine &machine);
-#endif /* !Q_WS_MAC */
-    /** Loads redefined mouse-capture policy type. */
-    static MouseCapturePolicy mouseCapturePolicy(CMachine &machine);
-    /** Loads redefined guru-meditation handler type. */
-    static GuruMeditationHandlerType guruMeditationHandlerType(CMachine &machine);
-    /** Loads Runtime UI HiDPI optimization type. */
-    static HiDPIOptimizationType hiDPIOptimizationType(CMachine &machine);
 
 #ifdef RT_OS_LINUX
     static void checkForWrongUSBMounted();
@@ -413,6 +403,9 @@ public:
     static void setMinimumWidthAccordingSymbolCount(QSpinBox *pSpinBox, int cCount);
 
 signals:
+
+    /** Notifies listeners about the VBoxSVC availability change. */
+    void sigVBoxSVCAvailabilityChange();
 
     /* Notifiers: Medium-processing stuff: */
     void sigMediumCreated(const QString &strMediumID);
@@ -436,6 +429,9 @@ protected slots:
     void prepare();
     void cleanup();
 
+    /** Handles the VBoxSVC availability change. */
+    void sltHandleVBoxSVCAvailabilityChange(bool fAvailable);
+
 protected:
 
     bool eventFilter (QObject *, QEvent *);
@@ -449,19 +445,29 @@ private:
 #ifdef VBOX_WITH_DEBUGGER_GUI
     void initDebuggerVar(int *piDbgCfgVar, const char *pszEnvVar, const char *pszExtraDataName, bool fDefault = false);
     void setDebuggerVar(int *piDbgCfgVar, bool fState);
-    bool isDebuggerWorker(int *piDbgCfgVar, CMachine &rMachine, const char *pszExtraDataName);
+    bool isDebuggerWorker(int *piDbgCfgVar, const char *pszExtraDataName) const;
 #endif
 
     bool mValid;
 
-    CVirtualBox mVBox;
-    CHost mHost;
-    QString mHomeFolder;
+    /** Holds the instance of VirtualBox client wrapper. */
+    CVirtualBoxClient m_client;
+    /** Holds the copy of VirtualBox object wrapper. */
+    CVirtualBox m_vbox;
+    /** Holds the copy of VirtualBox host-object wrapper. */
+    CHost m_host;
+    /** Holds the symbolic VirtualBox home-folder representation. */
+    QString m_strHomeFolder;
+
+    /** Holds the VBoxSVC availability value. */
+    bool m_fVBoxSVCAvailable;
 
     VBoxGlobalSettings gset;
 
     UISelectorWindow *mSelectorWnd;
-    UIMachine *m_pVirtualMachine;
+
+    /** Holds whether GUI is separate (from VM) process. */
+    bool m_fSeparateProcess;
 
     QString vmUuid;
     QList<QUrl> m_ArgUrlList;
@@ -473,14 +479,21 @@ private:
     UIMediumEnumerator *m_pMediumEnumerator;
     mutable QReadWriteLock m_mediumEnumeratorDtorRwLock;
 
-    RenderMode vm_render_mode;
-    const char * vm_render_mode_str;
     bool mIsKWinManaged;
 
     /** The --aggressive-caching / --no-aggressive-caching option. */
     bool mAgressiveCaching;
     /** The --restore-current option. */
     bool mRestoreCurrentSnapshot;
+    /** @name Ad-hoc VM reconfiguration.
+     * @{ */
+    /** Floppy image. */
+    QString m_strFloppyImage;
+    /** DVD image. */
+    QString m_strDvdImage;
+    /** @} */
+    /** @name VMM options
+     * @{ */
     /** The --disable-patm option. */
     bool mDisablePatm;
     /** The --disable-csam option. */
@@ -493,21 +506,22 @@ private:
     bool mExecuteAllInIem;
     /** The --warp-factor option value. */
     uint32_t mWarpPct;
+    /** @} */
 
 #ifdef VBOX_WITH_DEBUGGER_GUI
     /** Whether the debugger should be accessible or not.
-     * Use --dbg, the env.var. VBOX_GUI_DBG_ENABLED, --debug or the env.var.
-     * VBOX_GUI_DBG_AUTO_SHOW to enable. */
-    int mDbgEnabled;
+     * Use --dbg, the env.var. VBOX_GUI_DBG_ENABLED,
+     *     --debug or the env.var. VBOX_GUI_DBG_AUTO_SHOW to enable. */
+    mutable int m_fDbgEnabled;
     /** Whether to show the debugger automatically with the console.
      * Use --debug or the env.var. VBOX_GUI_DBG_AUTO_SHOW to enable. */
-    int mDbgAutoShow;
-    /** Whether to show the command line window when mDbgAutoShow is set. */
-    int mDbgAutoShowCommandLine;
-    /** Whether to show the statistics window when mDbgAutoShow is set. */
-    int mDbgAutoShowStatistics;
+    mutable int m_fDbgAutoShow;
+    /** Whether to show the command line window when m_fDbgAutoShow is set. */
+    mutable int m_fDbgAutoShowCommandLine;
+    /** Whether to show the statistics window when m_fDbgAutoShow is set. */
+    mutable int m_fDbgAutoShowStatistics;
     /** VBoxDbg module handle. */
-    RTLDRMOD mhVBoxDbg;
+    RTLDRMOD m_hVBoxDbg;
 
     /** Whether to start the VM in paused state or not. */
     bool mStartPaused;
@@ -524,9 +538,6 @@ private:
 
     QList <QString> mFamilyIDs;
     QList <QList <CGuestOSType> > mTypes;
-    QHash <QString, QPixmap *> mOsTypeIcons;
-
-    QPixmap mOfflineSnapshotIcon, mOnlineSnapshotIcon;
 
     QString mDiskTypes_Differencing;
 
@@ -542,6 +553,9 @@ private:
 
     char mSettingsPw[256];
     bool mSettingsPwSet;
+
+    /** General icon-pool. */
+    UIIconPoolGeneral *m_pIconPool;
 
     /* API: Instance stuff: */
     static bool m_sfCleanupInProgress;

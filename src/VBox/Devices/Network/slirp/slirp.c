@@ -316,6 +316,10 @@ int slirp_init(PNATState *ppData, uint32_t u32NetAddr, uint32_t u32Netmask,
     pData->pvUser = pvUser;
     pData->netmask = u32Netmask;
 
+    rc = RTCritSectRwInit(&pData->CsRwHandlerChain);
+    if (RT_FAILURE(rc))
+        return rc;
+
     /* sockets & TCP defaults */
     pData->socket_rcv = 64 * _1K;
     pData->socket_snd = 64 * _1K;
@@ -490,8 +494,7 @@ void slirp_link_down(PNATState pData)
     if (link_up == 0)
         return;
 
-    if (!pData->fUseHostResolverPermanent)
-        slirpReleaseDnsSettings(pData);
+    slirpReleaseDnsSettings(pData);
 
     while ((so = tcb.so_next) != &tcb)
     {
@@ -529,9 +532,6 @@ void slirp_term(PNATState pData)
         return;
     icmp_finit(pData);
 
-    /* Signal to slirp_link_down() to release DNS data. */
-    pData->fUseHostResolverPermanent = 0;
-
     slirp_link_down(pData);
     ftp_alias_unload(pData);
     nbt_alias_unload(pData);
@@ -566,7 +566,6 @@ void slirp_term(PNATState pData)
 #ifdef RT_OS_WINDOWS
     WSACleanup();
 #endif
-#ifndef VBOX_WITH_SLIRP_BSD_SBUF
 #ifdef LOG_ENABLED
     Log(("\n"
          "NAT statistics\n"
@@ -582,7 +581,7 @@ void slirp_term(PNATState pData)
          "\n"
          "\n"));
 #endif
-#endif
+    RTCritSectRwDelete(&pData->CsRwHandlerChain);
     RTMemFree(pData);
 }
 
@@ -1350,7 +1349,7 @@ static void arp_input(PNATState pData, struct mbuf *m)
                 if (!fGratuitousArpReported)
                 {
                     LogRel(("NAT: Gratuitous ARP [IP:%RTnaipv4, ether:%RTmac]\n",
-                            pARPHeader->ar_sip, pARPHeader->ar_sha));
+                            *(uint32_t *)pARPHeader->ar_sip, pARPHeader->ar_sha));
                     fGratuitousArpReported = true;
                 }
                 slirp_arp_cache_update_or_add(pData, *(uint32_t *)pARPHeader->ar_sip, &pARPHeader->ar_sha[0]);

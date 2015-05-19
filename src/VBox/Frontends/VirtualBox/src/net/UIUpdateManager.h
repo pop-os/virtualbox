@@ -1,7 +1,6 @@
+/* $Id: UIUpdateManager.h $ */
 /** @file
- *
- * VBox frontends: Qt4 GUI ("VirtualBox"):
- * UIUpdateManager class declaration
+ * VBox Qt GUI - UIUpdateManager class declaration.
  */
 
 /*

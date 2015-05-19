@@ -1129,7 +1129,7 @@ int pdmR3BlkCacheInit(PVM pVM)
                                        NULL, pdmR3BlkCacheLoadExec, NULL);
             if (RT_SUCCESS(rc))
             {
-                LogRel(("BlkCache: Cache successfully initialised. Cache size is %u bytes\n", pBlkCacheGlobal->cbMax));
+                LogRel(("BlkCache: Cache successfully initialized. Cache size is %u bytes\n", pBlkCacheGlobal->cbMax));
                 LogRel(("BlkCache: Cache commit interval is %u ms\n", pBlkCacheGlobal->u32CommitTimeoutMs));
                 LogRel(("BlkCache: Cache commit threshold is %u bytes\n", pBlkCacheGlobal->cbCommitDirtyThreshold));
                 pUVM->pdm.s.pBlkCacheGlobal = pBlkCacheGlobal;
@@ -1913,8 +1913,6 @@ static bool pdmBlkCacheReqUpdate(PPDMBLKCACHE pBlkCache, PPDMBLKCACHEREQ pReq,
     {
         if (fCallHandler)
             pdmBlkCacheReqComplete(pBlkCache, pReq);
-        else
-            RTMemFree(pReq);
         return true;
     }
 
@@ -2132,6 +2130,11 @@ VMMR3DECL(int) PDMR3BlkCacheRead(PPDMBLKCACHE pBlkCache, uint64_t off,
 
     if (!pdmBlkCacheReqUpdate(pBlkCache, pReq, rc, false))
         rc = VINF_AIO_TASK_PENDING;
+    else
+    {
+        rc = pReq->rcReq;
+        RTMemFree(pReq);
+    }
 
     LogFlowFunc((": Leave rc=%Rrc\n", rc));
 
@@ -2360,6 +2363,11 @@ VMMR3DECL(int) PDMR3BlkCacheWrite(PPDMBLKCACHE pBlkCache, uint64_t off,
 
     if (!pdmBlkCacheReqUpdate(pBlkCache, pReq, rc, false))
         rc = VINF_AIO_TASK_PENDING;
+    else
+    {
+        rc = pReq->rcReq;
+        RTMemFree(pReq);
+    }
 
     LogFlowFunc((": Leave rc=%Rrc\n", rc));
 
@@ -2536,6 +2544,11 @@ VMMR3DECL(int) PDMR3BlkCacheDiscard(PPDMBLKCACHE pBlkCache, PCRTRANGE paRanges,
 
     if (!pdmBlkCacheReqUpdate(pBlkCache, pReq, rc, false))
         rc = VINF_AIO_TASK_PENDING;
+    else
+    {
+        rc = pReq->rcReq;
+        RTMemFree(pReq);
+    }
 
     LogFlowFunc((": Leave rc=%Rrc\n", rc));
 
