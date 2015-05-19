@@ -91,6 +91,7 @@ typedef struct
 /*******************************************************************************
 *   Internal Functions                                                         *
 *******************************************************************************/
+static FNPGMR3VIRTHANDLER patmR3VirtPageHandler;
 
 static int          patmDisableUnusablePatch(PVM pVM, RTRCPTR pInstrGC, RTRCPTR pConflictAddr, PPATCHINFO pPatch);
 static int          patmActivateInt3Patch(PVM pVM, PPATCHINFO pPatch);
@@ -216,6 +217,16 @@ VMMR3_INT_DECL(int) PATMR3Init(PVM pVM)
     AssertRC(rc);
     if (RT_FAILURE(rc))
         return rc;
+
+    /*
+     * Register the virtual page access handler type.
+     */
+    rc = PGMR3HandlerVirtualTypeRegister(pVM, PGMVIRTHANDLERKIND_ALL, false /*fRelocUserRC*/,
+                                         NULL /*pfnInvalidateR3*/,
+                                         patmR3VirtPageHandler,
+                                         "patmRCVirtPagePfHandler",
+                                         "PATMMonitorPatchJump", &pVM->patm.s.hMonitorPageType);
+    AssertRCReturn(rc, rc);
 
     /*
      * Register save and load state notifiers.
@@ -366,7 +377,9 @@ VMMR3_INT_DECL(int) PATMR3InitFinalize(PVM pVM)
     AssertLogRelMsgReturn(pVM->patm.s.cbPatchHelpers < _128K,
                           ("%RRv-%RRv => %#x\n", pVM->patm.s.pbPatchHelpersRC, RCPtrEnd, pVM->patm.s.cbPatchHelpers),
                           VERR_INTERNAL_ERROR_4);
-    return rc;
+
+
+    return VINF_SUCCESS;
 }
 
 /**
@@ -817,7 +830,10 @@ static DECLCALLBACK(int) patmR3RelocatePatches(PAVLOU32NODECORE pNode, void *pPa
                     RTRCPTR pPage = pPatch->patch.pPrivInstrGC & PAGE_BASE_GC_MASK;
 
                     Log(("PATM: Patch page not present -> check later!\n"));
-                    rc = PGMR3HandlerVirtualRegister(pVM, PGMVIRTHANDLERTYPE_ALL, pPage, pPage + (PAGE_SIZE - 1) /* inclusive! */, 0, patmVirtPageHandler, "PATMGCMonitorPage", 0, "PATMMonitorPatchJump");
+                    rc = PGMR3HandlerVirtualRegister(pVM, VMMGetCpu(pVM), pVM->patm.s.hMonitorPageType,
+                                                     pPage,
+                                                     pPage + (PAGE_SIZE - 1) /* inclusive! */,
+                                                     (void *)(uintptr_t)pPage, pPage, NULL /*pszDesc*/);
                     Assert(RT_SUCCESS(rc) || rc == VERR_PGM_HANDLER_VIRTUAL_CONFLICT);
                 }
                 else
@@ -895,8 +911,11 @@ static DECLCALLBACK(int) patmR3RelocatePatches(PAVLOU32NODECORE pNode, void *pPa
                     ||  rc == VERR_PAGE_TABLE_NOT_PRESENT)
                 {
                     RTRCPTR pPage = pPatch->patch.pPrivInstrGC & PAGE_BASE_GC_MASK;
-
-                    rc = PGMR3HandlerVirtualRegister(pVM, PGMVIRTHANDLERTYPE_ALL, pPage, pPage + (PAGE_SIZE - 1) /* inclusive! */, 0, patmVirtPageHandler, "PATMGCMonitorPage", 0, "PATMMonitorPatchJump");
+                    Log(("PATM: Patch page not present -> check later!\n"));
+                    rc = PGMR3HandlerVirtualRegister(pVM, VMMGetCpu(pVM), pVM->patm.s.hMonitorPageType,
+                                                     pPage,
+                                                     pPage + (PAGE_SIZE - 1) /* inclusive! */,
+                                                     (void *)(uintptr_t)pPage, pPage, NULL /*pszDesc*/);
                     Assert(RT_SUCCESS(rc) || rc == VERR_PGM_HANDLER_VIRTUAL_CONFLICT);
                 }
                 else
@@ -964,18 +983,21 @@ static DECLCALLBACK(int) patmR3RelocatePatches(PAVLOU32NODECORE pNode, void *pPa
  * @returns VINF_SUCCESS if the handler have carried out the operation.
  * @returns VINF_PGM_HANDLER_DO_DEFAULT if the caller should carry out the access operation.
  * @param   pVM             Pointer to the VM.
+ * @param   pVCpu           Pointer to the cross context CPU context for the
+ *                          calling EMT.
  * @param   GCPtr           The virtual address the guest is writing to. (not correct if it's an alias!)
  * @param   pvPtr           The HC mapping of that address.
  * @param   pvBuf           What the guest is reading/writing.
  * @param   cbBuf           How much it's reading/writing.
  * @param   enmAccessType   The access type.
- * @param   pvUser          User argument.
+ * @param   enmOrigin       Who is making this write.
+ * @param   pvUser          The address of the guest page we're monitoring.
  */
-DECLCALLBACK(int) patmVirtPageHandler(PVM pVM, RTGCPTR GCPtr, void *pvPtr, void *pvBuf, size_t cbBuf,
-                                      PGMACCESSTYPE enmAccessType, void *pvUser)
+static DECLCALLBACK(int) patmR3VirtPageHandler(PVM pVM, PVMCPU pVCpu, RTGCPTR GCPtr, void *pvPtr, void *pvBuf, size_t cbBuf,
+                                               PGMACCESSTYPE enmAccessType, PGMACCESSORIGIN enmOrigin, void *pvUser)
 {
     Assert(enmAccessType == PGMACCESSTYPE_WRITE); NOREF(enmAccessType);
-    NOREF(pvPtr); NOREF(pvBuf); NOREF(cbBuf); NOREF(pvUser);
+    NOREF(pVCpu); NOREF(pvPtr); NOREF(pvBuf); NOREF(cbBuf); NOREF(enmOrigin); NOREF(pvUser);
 
     /** @todo could be the wrong virtual address (alias) */
     pVM->patm.s.pvFaultMonitor = GCPtr;
@@ -6672,11 +6694,12 @@ VMMR3_INT_DECL(int) PATMR3HandleTrap(PVM pVM, PCPUMCTX pCtx, RTRCPTR pEip, RTGCP
 VMMR3_INT_DECL(int) PATMR3HandleMonitoredPage(PVM pVM)
 {
     AssertReturn(!HMIsEnabled(pVM), VERR_PATM_HM_IPE);
+    PVMCPU pVCpu = VMMGetCpu0(pVM);
 
     RTRCPTR addr = pVM->patm.s.pvFaultMonitor;
     addr &= PAGE_BASE_GC_MASK;
 
-    int rc = PGMHandlerVirtualDeregister(pVM, addr);
+    int rc = PGMHandlerVirtualDeregister(pVM, pVCpu, addr, false /*fHypervisor*/);
     AssertRC(rc); NOREF(rc);
 
     PPATMPATCHREC pPatchRec = (PPATMPATCHREC)RTAvloU32GetBestFit(&pVM->patm.s.PatchLookupTreeHC->PatchTree, addr, false);

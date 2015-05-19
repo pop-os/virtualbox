@@ -206,7 +206,7 @@ void UIGMachinePreview::sltRecreatePreview()
                 {
                     /* Use the screenshot from saved-state if possible: */
                     ULONG uGuestWidth = 0, uGuestHeight = 0;
-                    QVector<BYTE> screenData = m_machine.ReadSavedScreenshotPNGToArray(0, uGuestWidth, uGuestHeight);
+                    QVector<BYTE> screenData = m_machine.ReadSavedScreenshotToArray(0, KBitmapFormat_PNG, uGuestWidth, uGuestHeight);
 
                     /* Make sure screen-data is OK: */
                     if (!m_machine.isOk() || screenData.isEmpty())
@@ -250,6 +250,13 @@ void UIGMachinePreview::sltRecreatePreview()
                     ULONG uGuestWidth, uGuestHeight, uBpp;
                     KGuestMonitorStatus monitorStatus = KGuestMonitorStatus_Enabled;
                     display.GetScreenResolution(0, uGuestWidth, uGuestHeight, uBpp, iOriginX, iOriginY, monitorStatus);
+                    if (uGuestWidth == 0 || uGuestHeight == 0)
+                    {
+                        AssertMsgFailed(("Acquired guest screen resolution is %dx%d\n",
+                                         uGuestWidth, uGuestHeight));
+                        break;
+                    }
+
                     double dAspectRatio = (double)uGuestWidth / uGuestHeight;
                     /* Look for the best aspect-ratio preset preset: */
                     preset = bestAspectRatioPreset(dAspectRatio, m_ratios);
@@ -514,6 +521,10 @@ UIGMachinePreview::AspectRatioPreset UIGMachinePreview::bestAspectRatioPreset(co
 /* static */
 QSize UIGMachinePreview::imageAspectRatioSize(const QSize &hostSize, const QSize &guestSize)
 {
+    /* Make sure host-size and guest-size are valid: */
+    AssertReturn(!hostSize.isNull(), QSize());
+    AssertReturn(!guestSize.isNull(), hostSize);
+
     /* Calculate host/guest aspect-ratio: */
     const double dHostAspectRatio = (double)hostSize.width() / hostSize.height();
     const double dGuestAspectRatio = (double)guestSize.width() / guestSize.height();

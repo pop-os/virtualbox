@@ -125,10 +125,17 @@ void crServerRedirMuralFbClear(CRMuralInfo *mural)
             pData->hFbEntry = NULL;
         }
 
-        for (j = 0; j < mural->cBuffers; ++j)
+        /* Release all valid texture data structures in the array.
+         * Do not rely on mural->cBuffers because it might be already
+         * set to zero in crServerDeleteMuralFBO.
+         */
+        for (j = 0; j < RT_ELEMENTS(pData->apTexDatas); ++j)
         {
-            CrTdRelease(pData->apTexDatas[j]);
-            pData->apTexDatas[j] = NULL;
+            if (pData->apTexDatas[j] != NULL)
+            {
+                CrTdRelease(pData->apTexDatas[j]);
+                pData->apTexDatas[j] = NULL;
+            }
         }
 
         pData->hFb = NULL;
@@ -202,6 +209,7 @@ static int crServerRedirMuralDbSyncFb(CRMuralInfo *mural, HCR_FRAMEBUFFER hFb, C
 
         pData->hFb = hFb;
 
+        RT_ZERO(pData->apTexDatas);
         for (uint32_t i = 0; i < mural->cBuffers; ++i)
         {
             VBOXVR_TEXTURE Tex;
@@ -542,7 +550,7 @@ static void crServerCreateMuralFBO(CRMuralInfo *mural)
                        0, GL_BGRA, GL_UNSIGNED_BYTE, NULL);
     }
 
-    /*Depth&Stencil*/
+    /* Depth & Stencil. */
     gl->GenRenderbuffersEXT(1, &mural->idDepthStencilRB);
     gl->BindRenderbufferEXT(GL_RENDERBUFFER_EXT, mural->idDepthStencilRB);
     gl->RenderbufferStorageEXT(GL_RENDERBUFFER_EXT, GL_DEPTH24_STENCIL8_EXT,

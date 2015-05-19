@@ -15,7 +15,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -247,15 +247,10 @@ static VBOXSTRICTRC PGM_BTH_NAME(Trap0eHandlerDoAccessHandlers)(PVMCPU pVCpu, RT
                 if (uErr & X86_TRAP_PF_RSVD) STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eHandlersPhysAllOpt);
             }
 
-            if (pCurType->CTX_SUFF(pfnHandler))
+            if (pCurType->CTX_SUFF(pfnPfHandler))
             {
-                PPGMPOOL            pPool      = pVM->pgm.s.CTX_SUFF(pPool);
-                void               *pvUser     = pCur->CTX_SUFF(pvUser);
-#  ifdef IN_RING0
-                PFNPGMR0PHYSHANDLER pfnHandler = pCurType->CTX_SUFF(pfnHandler);
-#  else
-                PFNPGMRCPHYSHANDLER pfnHandler = pCurType->CTX_SUFF(pfnHandler);
-#  endif
+                PPGMPOOL    pPool  = pVM->pgm.s.CTX_SUFF(pPool);
+                void       *pvUser = pCur->CTX_SUFF(pvUser);
 
                 STAM_PROFILE_START(&pCur->Stat, h);
                 if (pCur->hType != pPool->hAccessHandlerType)
@@ -264,7 +259,7 @@ static VBOXSTRICTRC PGM_BTH_NAME(Trap0eHandlerDoAccessHandlers)(PVMCPU pVCpu, RT
                     *pfLockTaken = false;
                 }
 
-                rc = pfnHandler(pVM, uErr, pRegFrame, pvFault, GCPhysFault, pvUser);
+                rc = pCurType->CTX_SUFF(pfnPfHandler)(pVM, pVCpu, uErr, pRegFrame, pvFault, GCPhysFault, pvUser);
 
 #  ifdef VBOX_WITH_STATISTICS
                 pgmLock(pVM);
@@ -319,25 +314,27 @@ static VBOXSTRICTRC PGM_BTH_NAME(Trap0eHandlerDoAccessHandlers)(PVMCPU pVCpu, RT
         PPGMVIRTHANDLER pCur = (PPGMVIRTHANDLER)RTAvlroGCPtrRangeGet(&pVM->pgm.s.CTX_SUFF(pTrees)->VirtHandlers, pvFault);
         if (pCur)
         {
+            PPGMVIRTHANDLERTYPEINT pCurType = PGMVIRTANDLER_GET_TYPE(pVM, pCur);
             AssertMsg(!(pvFault - pCur->Core.Key < pCur->cb)
-                      || (     pCur->enmType != PGMVIRTHANDLERTYPE_WRITE
+                      || (     pCurType->enmKind != PGMVIRTHANDLERKIND_WRITE
                            || !(uErr & X86_TRAP_PF_P)
-                           || (pCur->enmType == PGMVIRTHANDLERTYPE_WRITE && (uErr & X86_TRAP_PF_RW))),
-                      ("Unexpected trap for virtual handler: %RGv (phys=%RGp) pPage=%R[pgmpage] uErr=%X, enum=%d\n",
-                       pvFault, pGstWalk->Core.GCPhys, pPage, uErr, pCur->enmType));
+                           || (pCurType->enmKind == PGMVIRTHANDLERKIND_WRITE && (uErr & X86_TRAP_PF_RW))),
+                      ("Unexpected trap for virtual handler: %RGv (phys=%RGp) pPage=%R[pgmpage] uErr=%X, enumKind=%d\n",
+                       pvFault, pGstWalk->Core.GCPhys, pPage, uErr, pCurType->enmKind));
 
             if (    pvFault - pCur->Core.Key < pCur->cb
                 &&  (    uErr & X86_TRAP_PF_RW
-                     ||  pCur->enmType != PGMVIRTHANDLERTYPE_WRITE ) )
+                     ||  pCurType->enmKind != PGMVIRTHANDLERKIND_WRITE ) )
             {
 #   ifdef IN_RC
                 STAM_PROFILE_START(&pCur->Stat, h);
-                RTGCPTR                     GCPtrStart = pCur->Core.Key;
-                CTX_MID(PFNPGM,VIRTHANDLER) pfnHandler = pCur->CTX_SUFF(pfnHandler);
+                RTGCPTR GCPtrStart = pCur->Core.Key;
+                void *pvUser = pCur->CTX_SUFF(pvUser);
                 pgmUnlock(pVM);
                 *pfLockTaken = false;
 
-                rc = pfnHandler(pVM, uErr, pRegFrame, pvFault, GCPtrStart, pvFault - GCPtrStart);
+                rc = pCurType->CTX_SUFF(pfnPfHandler)(pVM, pVCpu, uErr, pRegFrame, pvFault, GCPtrStart,
+                                                      pvFault - GCPtrStart, pvUser);
 
 #    ifdef VBOX_WITH_STATISTICS
                 pgmLock(pVM);
@@ -362,37 +359,41 @@ static VBOXSTRICTRC PGM_BTH_NAME(Trap0eHandlerDoAccessHandlers)(PVMCPU pVCpu, RT
             unsigned iPage;
             rc = pgmHandlerVirtualFindByPhysAddr(pVM, pGstWalk->Core.GCPhys, &pCur, &iPage);
             Assert(RT_SUCCESS(rc) || !pCur);
-            if (    pCur
-                &&  (   uErr & X86_TRAP_PF_RW
-                     || pCur->enmType != PGMVIRTHANDLERTYPE_WRITE ) )
+            if (pCur)
             {
-                Assert((pCur->aPhysToVirt[iPage].Core.Key & X86_PTE_PAE_PG_MASK) == (pGstWalk->Core.GCPhys & X86_PTE_PAE_PG_MASK));
+                PPGMVIRTHANDLERTYPEINT pCurType = PGMVIRTANDLER_GET_TYPE(pVM, pCur);
+                if  (   uErr & X86_TRAP_PF_RW
+                     || pCurType->enmKind != PGMVIRTHANDLERKIND_WRITE )
+                {
+                    Assert(   (pCur->aPhysToVirt[iPage].Core.Key & X86_PTE_PAE_PG_MASK)
+                           == (pGstWalk->Core.GCPhys & X86_PTE_PAE_PG_MASK));
 #   ifdef IN_RC
-                STAM_PROFILE_START(&pCur->Stat, h);
-                RTGCPTR                     GCPtrStart = pCur->Core.Key;
-                CTX_MID(PFNPGM,VIRTHANDLER) pfnHandler = pCur->CTX_SUFF(pfnHandler);
-                pgmUnlock(pVM);
-                *pfLockTaken = false;
+                    STAM_PROFILE_START(&pCur->Stat, h);
+                    RTGCPTR GCPtrStart = pCur->Core.Key;
+                    void *pvUser = pCur->CTX_SUFF(pvUser);
+                    pgmUnlock(pVM);
+                    *pfLockTaken = false;
 
-                RTGCPTR off = (iPage << PAGE_SHIFT)
-                            + (pvFault    & PAGE_OFFSET_MASK)
-                            - (GCPtrStart & PAGE_OFFSET_MASK);
-                Assert(off < pCur->cb);
-                rc = pfnHandler(pVM, uErr, pRegFrame, pvFault, GCPtrStart, off);
+                    RTGCPTR off = (iPage << PAGE_SHIFT)
+                                + (pvFault    & PAGE_OFFSET_MASK)
+                                - (GCPtrStart & PAGE_OFFSET_MASK);
+                    Assert(off < pCur->cb);
+                    rc = pCurType->CTX_SUFF(pfnPfHandler)(pVM, pVCpu, uErr, pRegFrame, pvFault, GCPtrStart, off, pvUser);
 
 #    ifdef VBOX_WITH_STATISTICS
-                pgmLock(pVM);
-                pCur = (PPGMVIRTHANDLER)RTAvlroGCPtrRangeGet(&pVM->pgm.s.CTX_SUFF(pTrees)->VirtHandlers, GCPtrStart);
-                if (pCur)
-                    STAM_PROFILE_STOP(&pCur->Stat, h);
-                pgmUnlock(pVM);
+                    pgmLock(pVM);
+                    pCur = (PPGMVIRTHANDLER)RTAvlroGCPtrRangeGet(&pVM->pgm.s.CTX_SUFF(pTrees)->VirtHandlers, GCPtrStart);
+                    if (pCur)
+                        STAM_PROFILE_STOP(&pCur->Stat, h);
+                    pgmUnlock(pVM);
 #    endif
 #   else
-                rc = VINF_EM_RAW_EMULATE_INSTR; /** @todo for VMX */
+                    rc = VINF_EM_RAW_EMULATE_INSTR; /** @todo for VMX */
 #   endif
-                STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eHandlersVirtualByPhys);
-                STAM_STATS({ pVCpu->pgm.s.CTX_SUFF(pStatTrap0eAttribution) = &pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eTime2HndVirt; });
-                return rc;
+                    STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eHandlersVirtualByPhys);
+                    STAM_STATS({ pVCpu->pgm.s.CTX_SUFF(pStatTrap0eAttribution) = &pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eTime2HndVirt; });
+                    return rc;
+                }
             }
         }
     }
@@ -712,15 +713,19 @@ PGM_BTH_DECL(int, Trap0eHandler)(PVMCPU pVCpu, RTGCUINT uErr, PCPUMCTXCORE pRegF
                 /*
                  * Check if the fault address is in a virtual page access handler range.
                  */
-                PPGMVIRTHANDLER pCur = (PPGMVIRTHANDLER)RTAvlroGCPtrRangeGet(&pVM->pgm.s.CTX_SUFF(pTrees)->HyperVirtHandlers, pvFault);
+                PPGMVIRTHANDLER pCur = (PPGMVIRTHANDLER)RTAvlroGCPtrRangeGet(&pVM->pgm.s.CTX_SUFF(pTrees)->HyperVirtHandlers,
+                                                                             pvFault);
                 if (    pCur
                     &&  pvFault - pCur->Core.Key < pCur->cb
                     &&  uErr & X86_TRAP_PF_RW)
                 {
 #   ifdef IN_RC
                     STAM_PROFILE_START(&pCur->Stat, h);
+                    PPGMVIRTHANDLERTYPEINT pCurType = PGMVIRTANDLER_GET_TYPE(pVM, pCur);
+                    void *pvUser = pCur->CTX_SUFF(pvUser);
                     pgmUnlock(pVM);
-                    rc = pCur->CTX_SUFF(pfnHandler)(pVM, uErr, pRegFrame, pvFault, pCur->Core.Key, pvFault - pCur->Core.Key);
+                    rc = pCurType->CTX_SUFF(pfnPfHandler)(pVM, pVCpu, uErr, pRegFrame, pvFault, pCur->Core.Key,
+                                                          pvFault - pCur->Core.Key, pvUser);
                     pgmLock(pVM);
                     STAM_PROFILE_STOP(&pCur->Stat, h);
 #   else
@@ -799,20 +804,24 @@ PGM_BTH_DECL(int, Trap0eHandler)(PVMCPU pVCpu, RTGCUINT uErr, PCPUMCTXCORE pRegF
         PPGMVIRTHANDLER pCur = (PPGMVIRTHANDLER)RTAvlroGCPtrRangeGet(&pVM->pgm.s.CTX_SUFF(pTrees)->VirtHandlers, pvFault);
         if (pCur)
         {
+            PPGMVIRTHANDLERTYPEINT pCurType = PGMVIRTANDLER_GET_TYPE(pVM, pCur);
             AssertMsg(   !(pvFault - pCur->Core.Key < pCur->cb)
-                      || (    pCur->enmType != PGMVIRTHANDLERTYPE_WRITE
+                      || (    pCurType->enmKind != PGMVIRTHANDLERKIND_WRITE
                            || !(uErr & X86_TRAP_PF_P)
-                           || (pCur->enmType == PGMVIRTHANDLERTYPE_WRITE && (uErr & X86_TRAP_PF_RW))),
-                      ("Unexpected trap for virtual handler: %08X (phys=%08x) %R[pgmpage] uErr=%X, enum=%d\n", pvFault, GCPhys, pPage, uErr, pCur->enmType));
+                           || (pCurType->enmKind == PGMVIRTHANDLERKIND_WRITE && (uErr & X86_TRAP_PF_RW))),
+                      ("Unexpected trap for virtual handler: %08X (phys=%08x) %R[pgmpage] uErr=%X, enumKind=%d\n",
+                       pvFault, GCPhys, pPage, uErr, pCurType->enmKind));
 
             if (    pvFault - pCur->Core.Key < pCur->cb
                 &&  (    uErr & X86_TRAP_PF_RW
-                     ||  pCur->enmType != PGMVIRTHANDLERTYPE_WRITE ) )
+                     ||  pCurType->enmKind != PGMVIRTHANDLERKIND_WRITE ) )
             {
 #   ifdef IN_RC
                 STAM_PROFILE_START(&pCur->Stat, h);
+                void *pvUser = pCur->CTX_SUFF(pvUser);
                 pgmUnlock(pVM);
-                rc = pCur->CTX_SUFF(pfnHandler)(pVM, uErr, pRegFrame, pvFault, pCur->Core.Key, pvFault - pCur->Core.Key);
+                rc = pCurType->CTX_SUFF(pfnPfHandler)(pVM, pVCpu, uErr, pRegFrame, pvFault, pCur->Core.Key,
+                                                      pvFault - pCur->Core.Key, pvUser);
                 pgmLock(pVM);
                 STAM_PROFILE_STOP(&pCur->Stat, h);
 #   else

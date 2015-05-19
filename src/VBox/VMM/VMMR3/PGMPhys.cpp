@@ -86,9 +86,10 @@
 /**
  * EMT worker for PGMR3PhysReadExternal.
  */
-static DECLCALLBACK(int) pgmR3PhysReadExternalEMT(PVM pVM, PRTGCPHYS pGCPhys, void *pvBuf, size_t cbRead)
+static DECLCALLBACK(int) pgmR3PhysReadExternalEMT(PVM pVM, PRTGCPHYS pGCPhys, void *pvBuf, size_t cbRead,
+                                                  PGMACCESSORIGIN enmOrigin)
 {
-    PGMPhysRead(pVM, *pGCPhys, pvBuf, cbRead);
+    PGMPhysRead(pVM, *pGCPhys, pvBuf, cbRead, enmOrigin);
     return VINF_SUCCESS;
 }
 
@@ -103,10 +104,11 @@ static DECLCALLBACK(int) pgmR3PhysReadExternalEMT(PVM pVM, PRTGCPHYS pGCPhys, vo
  * @param   GCPhys          Physical address to read from.
  * @param   pvBuf           Where to read into.
  * @param   cbRead          How many bytes to read.
+ * @param   enmOrigin       Who is calling.
  *
  * @thread  Any but EMTs.
  */
-VMMR3DECL(int) PGMR3PhysReadExternal(PVM pVM, RTGCPHYS GCPhys, void *pvBuf, size_t cbRead)
+VMMR3DECL(int) PGMR3PhysReadExternal(PVM pVM, RTGCPHYS GCPhys, void *pvBuf, size_t cbRead, PGMACCESSORIGIN enmOrigin)
 {
     VM_ASSERT_OTHER_THREAD(pVM);
 
@@ -142,8 +144,8 @@ VMMR3DECL(int) PGMR3PhysReadExternal(PVM pVM, RTGCPHYS GCPhys, void *pvBuf, size
                 {
                     pgmUnlock(pVM);
 
-                    return VMR3ReqPriorityCallWait(pVM, VMCPUID_ANY, (PFNRT)pgmR3PhysReadExternalEMT, 4,
-                                                   pVM, &GCPhys, pvBuf, cbRead);
+                    return VMR3ReqPriorityCallWait(pVM, VMCPUID_ANY, (PFNRT)pgmR3PhysReadExternalEMT, 5,
+                                                   pVM, &GCPhys, pvBuf, cbRead, enmOrigin);
                 }
                 Assert(!PGM_PAGE_IS_MMIO_OR_SPECIAL_ALIAS(pPage));
 
@@ -214,10 +216,11 @@ VMMR3DECL(int) PGMR3PhysReadExternal(PVM pVM, RTGCPHYS GCPhys, void *pvBuf, size
 /**
  * EMT worker for PGMR3PhysWriteExternal.
  */
-static DECLCALLBACK(int) pgmR3PhysWriteExternalEMT(PVM pVM, PRTGCPHYS pGCPhys, const void *pvBuf, size_t cbWrite)
+static DECLCALLBACK(int) pgmR3PhysWriteExternalEMT(PVM pVM, PRTGCPHYS pGCPhys, const void *pvBuf, size_t cbWrite,
+                                                   PGMACCESSORIGIN enmOrigin)
 {
     /** @todo VERR_EM_NO_MEMORY */
-    PGMPhysWrite(pVM, *pGCPhys, pvBuf, cbWrite);
+    PGMPhysWrite(pVM, *pGCPhys, pvBuf, cbWrite, enmOrigin);
     return VINF_SUCCESS;
 }
 
@@ -233,18 +236,17 @@ static DECLCALLBACK(int) pgmR3PhysWriteExternalEMT(PVM pVM, PRTGCPHYS pGCPhys, c
  * @param   GCPhys          Physical address to write to.
  * @param   pvBuf           What to write.
  * @param   cbWrite         How many bytes to write.
- * @param   pszWho          Who is writing.  For tracking down who is writing
- *                          after we've saved the state.
+ * @param   enmOrigin       Who is calling.
  *
  * @thread  Any but EMTs.
  */
-VMMDECL(int) PGMR3PhysWriteExternal(PVM pVM, RTGCPHYS GCPhys, const void *pvBuf, size_t cbWrite, const char *pszWho)
+VMMDECL(int) PGMR3PhysWriteExternal(PVM pVM, RTGCPHYS GCPhys, const void *pvBuf, size_t cbWrite, PGMACCESSORIGIN enmOrigin)
 {
     VM_ASSERT_OTHER_THREAD(pVM);
 
     AssertMsg(!pVM->pgm.s.fNoMorePhysWrites,
-              ("Calling PGMR3PhysWriteExternal after pgmR3Save()! GCPhys=%RGp cbWrite=%#x pszWho=%s\n",
-               GCPhys, cbWrite, pszWho));
+              ("Calling PGMR3PhysWriteExternal after pgmR3Save()! GCPhys=%RGp cbWrite=%#x enmOrigin=%d\n",
+               GCPhys, cbWrite, enmOrigin));
     AssertMsgReturn(cbWrite > 0, ("don't even think about writing zero bytes!\n"), VINF_SUCCESS);
     LogFlow(("PGMR3PhysWriteExternal: %RGp %d\n", GCPhys, cbWrite));
 
@@ -286,8 +288,8 @@ VMMDECL(int) PGMR3PhysWriteExternal(PVM pVM, RTGCPHYS GCPhys, const void *pvBuf,
                     {
                         pgmUnlock(pVM);
 
-                        return VMR3ReqPriorityCallWait(pVM, VMCPUID_ANY, (PFNRT)pgmR3PhysWriteExternalEMT, 4,
-                                                       pVM, &GCPhys, pvBuf, cbWrite);
+                        return VMR3ReqPriorityCallWait(pVM, VMCPUID_ANY, (PFNRT)pgmR3PhysWriteExternalEMT, 5,
+                                                       pVM, &GCPhys, pvBuf, cbWrite, enmOrigin);
                     }
                 }
                 Assert(!PGM_PAGE_IS_MMIO_OR_SPECIAL_ALIAS(pPage));
@@ -3490,107 +3492,6 @@ VMMR3DECL(int) PGMR3PhysRomRegister(PVM pVM, PPDMDEVINS pDevIns, RTGCPHYS GCPhys
     int rc = pgmR3PhysRomRegister(pVM, pDevIns, GCPhys, cb, pvBinary, cbBinary, fFlags, pszDesc);
     pgmUnlock(pVM);
     return rc;
-}
-
-
-/**
- * \#PF Handler callback for ROM write accesses.
- *
- * @returns VINF_SUCCESS if the handler have carried out the operation.
- * @returns VINF_PGM_HANDLER_DO_DEFAULT if the caller should carry out the access operation.
- * @param   pVM             Pointer to the VM.
- * @param   GCPhys          The physical address the guest is writing to.
- * @param   pvPhys          The HC mapping of that address.
- * @param   pvBuf           What the guest is reading/writing.
- * @param   cbBuf           How much it's reading/writing.
- * @param   enmAccessType   The access type.
- * @param   pvUser          User argument.
- */
-DECLCALLBACK(int) pgmR3PhysRomWriteHandler(PVM pVM, RTGCPHYS GCPhys, void *pvPhys, void *pvBuf, size_t cbBuf,
-                                           PGMACCESSTYPE enmAccessType, void *pvUser)
-{
-    PPGMROMRANGE    pRom     = (PPGMROMRANGE)pvUser;
-    const uint32_t  iPage    = (GCPhys - pRom->GCPhys) >> PAGE_SHIFT;
-    Assert(iPage < (pRom->cb >> PAGE_SHIFT));
-    PPGMROMPAGE     pRomPage = &pRom->aPages[iPage];
-    Log5(("pgmR3PhysRomWriteHandler: %d %c %#08RGp %#04zx\n", pRomPage->enmProt, enmAccessType == PGMACCESSTYPE_READ ? 'R' : 'W', GCPhys, cbBuf));
-    NOREF(pvPhys);
-
-    if (enmAccessType == PGMACCESSTYPE_READ)
-    {
-        switch (pRomPage->enmProt)
-        {
-            /*
-             * Take the default action.
-             */
-            case PGMROMPROT_READ_ROM_WRITE_IGNORE:
-            case PGMROMPROT_READ_RAM_WRITE_IGNORE:
-            case PGMROMPROT_READ_ROM_WRITE_RAM:
-            case PGMROMPROT_READ_RAM_WRITE_RAM:
-                return VINF_PGM_HANDLER_DO_DEFAULT;
-
-            default:
-                AssertMsgFailedReturn(("enmProt=%d iPage=%d GCPhys=%RGp\n",
-                                       pRom->aPages[iPage].enmProt, iPage, GCPhys),
-                                      VERR_IPE_NOT_REACHED_DEFAULT_CASE);
-        }
-    }
-    else
-    {
-        Assert(enmAccessType == PGMACCESSTYPE_WRITE);
-        switch (pRomPage->enmProt)
-        {
-            /*
-             * Ignore writes.
-             */
-            case PGMROMPROT_READ_ROM_WRITE_IGNORE:
-            case PGMROMPROT_READ_RAM_WRITE_IGNORE:
-                return VINF_SUCCESS;
-
-            /*
-             * Write to the RAM page.
-             */
-            case PGMROMPROT_READ_ROM_WRITE_RAM:
-            case PGMROMPROT_READ_RAM_WRITE_RAM: /* yes this will get here too, it's *way* simpler that way. */
-            {
-                /* This should be impossible now, pvPhys doesn't work cross page anylonger. */
-                Assert(((GCPhys - pRom->GCPhys + cbBuf - 1) >> PAGE_SHIFT) == iPage);
-
-                /*
-                 * Take the lock, do lazy allocation, map the page and copy the data.
-                 *
-                 * Note that we have to bypass the mapping TLB since it works on
-                 * guest physical addresses and entering the shadow page would
-                 * kind of screw things up...
-                 */
-                int rc = pgmLock(pVM);
-                AssertRC(rc);
-
-                PPGMPAGE pShadowPage = &pRomPage->Shadow;
-                if (!PGMROMPROT_IS_ROM(pRomPage->enmProt))
-                {
-                    pShadowPage = pgmPhysGetPage(pVM, GCPhys);
-                    AssertLogRelReturn(pShadowPage, VERR_PGM_PHYS_PAGE_GET_IPE);
-                }
-
-                void *pvDstPage;
-                rc = pgmPhysPageMakeWritableAndMap(pVM, pShadowPage, GCPhys & X86_PTE_PG_MASK, &pvDstPage);
-                if (RT_SUCCESS(rc))
-                {
-                    memcpy((uint8_t *)pvDstPage + (GCPhys & PAGE_OFFSET_MASK), pvBuf, cbBuf);
-                    pRomPage->LiveSave.fWrittenTo = true;
-                }
-
-                pgmUnlock(pVM);
-                return rc;
-            }
-
-            default:
-                AssertMsgFailedReturn(("enmProt=%d iPage=%d GCPhys=%RGp\n",
-                                       pRom->aPages[iPage].enmProt, iPage, GCPhys),
-                                      VERR_IPE_NOT_REACHED_DEFAULT_CASE);
-        }
-    }
 }
 
 

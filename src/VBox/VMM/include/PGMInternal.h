@@ -589,14 +589,14 @@ typedef struct PGMPHYSHANDLERTYPEINT
     PGMPHYSHANDLERKIND                  enmKind;
     /** The PGM_PAGE_HNDL_PHYS_STATE_XXX value corresponding to enmKind. */
     uint32_t                            uState;
-    /** Pointer to RC callback function. */
-    RCPTRTYPE(PFNPGMRCPHYSHANDLER)      pfnHandlerRC;
+    /** Pointer to RC callback function for \#PFs. */
+    RCPTRTYPE(PFNPGMRZPHYSPFHANDLER)    pfnPfHandlerRC;
     /** Explicit alignment padding. */
     RTRCPTR                             RCPtrPadding;
     /** Pointer to R3 callback function. */
-    R3PTRTYPE(PFNPGMR3PHYSHANDLER)      pfnHandlerR3;
-    /** Pointer to R0 callback function. */
-    R0PTRTYPE(PFNPGMR0PHYSHANDLER)      pfnHandlerR0;
+    R3PTRTYPE(PFNPGMPHYSHANDLER)        pfnHandlerR3;
+    /** Pointer to R0 callback function for \#PFs. */
+    R0PTRTYPE(PFNPGMRZPHYSPFHANDLER)    pfnPfHandlerR0;
     /** Description / Name. For easing debugging. */
     R3PTRTYPE(const char *)             pszDesc;
 } PGMPHYSHANDLERTYPEINT;
@@ -611,7 +611,7 @@ typedef PGMPHYSHANDLERTYPEINT *PPGMPHYSHANDLERTYPEINT;
  * Converts a handle to a pointer.
  * @returns PPGMPHYSHANDLERTYPEINT
  * @param   a_pVM           Pointer to the cross context VM structure.
- * @param   a_hType         Physical access handler handle.
+ * @param   a_hType         Physical access handler type handle.
  */
 #define PGMPHYSHANDLERTYPEINT_FROM_HANDLE(a_pVM, a_hType) ((PPGMPHYSHANDLERTYPEINT)MMHyperHeapOffsetToPtr(a_pVM, a_hType))
 
@@ -692,6 +692,49 @@ typedef PGMPHYS2VIRTHANDLER *PPGMPHYS2VIRTHANDLER;
 
 
 /**
+ * Virtual page access handler type registration.
+ */
+typedef struct PGMVIRTANDLERTYPEINT
+{
+    /** Number of references.   */
+    uint32_t volatile                   cRefs;
+    /** Magic number (PGMVIRTHANDLERTYPEINT_MAGIC). */
+    uint32_t                            u32Magic;
+    /** Link of handler types anchored in PGMTREES::HeadVirtHandlerTypes. */
+    RTLISTOFF32NODE                     ListNode;
+    /** The kind of accesses we're handling. */
+    PGMVIRTHANDLERKIND                  enmKind;
+    /** The PGM_PAGE_HNDL_PHYS_STATE_XXX value corresponding to enmKind. */
+    uint32_t                            uState;
+    /** Whether the pvUserRC argument should be automatically relocated or not. */
+    bool                                fRelocUserRC;
+    bool                                afPadding[3];
+    /** Pointer to RC callback function for \#PFs. */
+    RCPTRTYPE(PFNPGMRCVIRTPFHANDLER)    pfnPfHandlerRC;
+    /** Pointer to the R3 callback function for invalidation. */
+    R3PTRTYPE(PFNPGMR3VIRTINVALIDATE)   pfnInvalidateR3;
+    /** Pointer to R3 callback function. */
+    R3PTRTYPE(PFNPGMR3VIRTHANDLER)      pfnHandlerR3;
+    /** Description / Name. For easing debugging. */
+    R3PTRTYPE(const char *)             pszDesc;
+} PGMVIRTHANDLERTYPEINT;
+/** Pointer to a virtual access handler type registration. */
+typedef PGMVIRTHANDLERTYPEINT *PPGMVIRTHANDLERTYPEINT;
+/** Magic value for the virtual handler callbacks (Sir Arthur Charles Clarke). */
+#define PGMVIRTHANDLERTYPEINT_MAGIC        UINT32_C(0x19171216)
+/** Magic value for the virtual handler callbacks. */
+#define PGMVIRTHANDLERTYPEINT_MAGIC_DEAD   UINT32_C(0x20080319)
+
+/**
+ * Converts a handle to a pointer.
+ * @returns PPGMVIRTHANDLERTYPEINT
+ * @param   a_pVM           Pointer to the cross context VM structure.
+ * @param   a_hType         Vitual access handler type handle.
+ */
+#define PGMVIRTHANDLERTYPEINT_FROM_HANDLE(a_pVM, a_hType) ((PPGMVIRTHANDLERTYPEINT)MMHyperHeapOffsetToPtr(a_pVM, a_hType))
+
+
+/**
  * Virtual page access handler structure.
  *
  * This is used to keep track of virtual address ranges
@@ -702,20 +745,15 @@ typedef struct PGMVIRTHANDLER
     /** Core node for the tree based on virtual ranges. */
     AVLROGCPTRNODECORE                  Core;
     /** Size of the range (in bytes). */
-    RTGCPTR                             cb;
+    uint32_t                            cb;
     /** Number of cache pages. */
     uint32_t                            cPages;
-    /** Access type. */
-    PGMVIRTHANDLERTYPE                  enmType;
-    /** Pointer to the RC callback function. */
-    RCPTRTYPE(PFNPGMRCVIRTHANDLER)      pfnHandlerRC;
-#if HC_ARCH_BITS == 64
-    RTRCPTR                             padding;
-#endif
-    /** Pointer to the R3 callback function for invalidation. */
-    R3PTRTYPE(PFNPGMR3VIRTINVALIDATE)   pfnInvalidateR3;
-    /** Pointer to the R3 callback function. */
-    R3PTRTYPE(PFNPGMR3VIRTHANDLER)      pfnHandlerR3;
+    /** Registered handler type handle (heap offset). */
+    PGMVIRTHANDLERTYPE                  hType;
+    /** User argument for RC handlers. */
+    RCPTRTYPE(void *)                   pvUserRC;
+    /** User argument for R3 handlers. */
+    R3PTRTYPE(void *)                   pvUserR3;
     /** Description / Name. For easing debugging. */
     R3PTRTYPE(const char *)             pszDesc;
 #ifdef VBOX_WITH_STATISTICS
@@ -727,6 +765,15 @@ typedef struct PGMVIRTHANDLER
 } PGMVIRTHANDLER;
 /** Pointer to a virtual page access handler structure. */
 typedef PGMVIRTHANDLER *PPGMVIRTHANDLER;
+
+/**
+ * Gets the type record for a virtual handler (no reference added).
+ * @returns PPGMVIRTHANDLERTYPEINT
+ * @param   a_pVM           Pointer to the cross context VM structure.
+ * @param   a_pVirtHandler  Pointer to the virtual handler structure
+ *                          (PGMVIRTHANDLER).
+ */
+#define PGMVIRTANDLER_GET_TYPE(a_pVM, a_pVirtHandler) PGMVIRTHANDLERTYPEINT_FROM_HANDLE(a_pVM, (a_pVirtHandler)->hType)
 
 
 /** @name Page type predicates.
@@ -2669,6 +2716,9 @@ typedef struct PGMTREES
     /** List of physical access handler types (offset pointers) of type
      * PGMPHYSHANDLERTYPEINT.  This is needed for relocations. */
     RTLISTOFF32ANCHOR               HeadPhysHandlerTypes;
+    /** List of virtual access handler types (offset pointers) of type
+     * PGMVIRTHANDLERTYPEINT.  This is needed for relocations. */
+    RTLISTOFF32ANCHOR               HeadVirtHandlerTypes;
 } PGMTREES;
 /** Pointer to PGM trees. */
 typedef PGMTREES *PPGMTREES;
@@ -4095,8 +4145,11 @@ int             pgmPhysGCPhys2CCPtrInternalDepr(PVM pVM, PPGMPAGE pPage, RTGCPHY
 int             pgmPhysGCPhys2CCPtrInternal(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhys, void **ppv, PPGMPAGEMAPLOCK pLock);
 int             pgmPhysGCPhys2CCPtrInternalReadOnly(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhys, const void **ppv, PPGMPAGEMAPLOCK pLock);
 void            pgmPhysReleaseInternalPageMappingLock(PVM pVM, PPGMPAGEMAPLOCK pLock);
-VMMDECL(int)    pgmPhysHandlerRedirectToHC(PVM pVM, RTGCUINT uErrorCode, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, RTGCPHYS GCPhysFault, void *pvUser);
-VMMDECL(int)    pgmPhysRomWriteHandler(PVM pVM, RTGCUINT uErrorCode, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, RTGCPHYS GCPhysFault, void *pvUser);
+PGM_ALL_CB2_DECL(FNPGMPHYSHANDLER) pgmPhysRomWriteHandler;
+#ifndef IN_RING3
+DECLEXPORT(FNPGMRZPHYSPFHANDLER) pgmPhysPfHandlerRedirectToHC;
+DECLEXPORT(FNPGMRZPHYSPFHANDLER) pgmPhysRomWritePfHandler;
+#endif
 int             pgmPhysFreePage(PVM pVM, PGMMFREEPAGESREQ pReq, uint32_t *pcPendingPages, PPGMPAGE pPage, RTGCPHYS GCPhys);
 void            pgmPhysInvalidRamRangeTlbs(PVM pVM);
 void            pgmPhysInvalidatePageMapTLB(PVM pVM);
@@ -4108,8 +4161,6 @@ int             pgmPhysGetPageExSlow(PVM pVM, RTGCPHYS GCPhys, PPPGMPAGE ppPage)
 int             pgmPhysGetPageAndRangeExSlow(PVM pVM, RTGCPHYS GCPhys, PPPGMPAGE ppPage, PPGMRAMRANGE *ppRam);
 
 #ifdef IN_RING3
-DECLCALLBACK(int) pgmR3PhysRomWriteHandler(PVM pVM, RTGCPHYS GCPhys, void *pvPhys, void *pvBuf, size_t cbBuf,
-                                           PGMACCESSTYPE enmAccessType, void *pvUser);
 void            pgmR3PhysRelinkRamRanges(PVM pVM);
 int             pgmR3PhysRamPreAllocate(PVM pVM);
 int             pgmR3PhysRamReset(PVM pVM);
@@ -4153,9 +4204,12 @@ int             pgmPoolTrackUpdateGCPhys(PVM pVM, RTGCPHYS GCPhysPage, PPGMPAGE 
 void            pgmPoolTracDerefGCPhysHint(PPGMPOOL pPool, PPGMPOOLPAGE pPage, RTHCPHYS HCPhys, RTGCPHYS GCPhysHint, uint16_t iPte);
 uint16_t        pgmPoolTrackPhysExtAddref(PVM pVM, PPGMPAGE pPhysPage, uint16_t u16, uint16_t iShwPT, uint16_t iPte);
 void            pgmPoolTrackPhysExtDerefGCPhys(PPGMPOOL pPool, PPGMPOOLPAGE pPoolPage, PPGMPAGE pPhysPage, uint16_t iPte);
-void            pgmPoolMonitorChainChanging(PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPAGE pPage, RTGCPHYS GCPhysFault, CTXTYPE(RTGCPTR, RTHCPTR, RTGCPTR) pvAddress, unsigned cbWrite);
 int             pgmPoolMonitorChainFlush(PPGMPOOL pPool, PPGMPOOLPAGE pPage);
 void            pgmPoolMonitorModifiedInsert(PPGMPOOL pPool, PPGMPOOLPAGE pPage);
+PGM_ALL_CB2_DECL(FNPGMPHYSHANDLER) pgmPoolAccessHandler;
+#ifndef IN_RING3
+DECLEXPORT(FNPGMRZPHYSPFHANDLER)   pgmPoolAccessPfHandler;
+#endif
 
 void            pgmPoolAddDirtyPage(PVM pVM, PPGMPOOL pPool, PPGMPOOLPAGE pPage);
 void            pgmPoolResetDirtyPages(PVM pVM);

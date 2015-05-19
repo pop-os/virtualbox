@@ -219,6 +219,9 @@ typedef struct _VBOX_VHWA_PENDINGCMD
 #define VMSVGA_FIFO_EXTCMD_LOADSTATE            3
 #define VMSVGA_FIFO_EXTCMD_RESET                4
 
+/** Size of the region to backup when switching into svga mode. */
+#define VMSVGA_FRAMEBUFFER_BACKUP_SIZE  (32*1024)
+
 typedef struct
 {
     PSSMHANDLE      pSSM;
@@ -657,8 +660,8 @@ bool VBVAIsEnabled(PVGASTATE pVGAState);
 void VBVARaiseIrq (PVGASTATE pVGAState, uint32_t fFlags);
 void VBVARaiseIrqNoWait(PVGASTATE pVGAState, uint32_t fFlags);
 
-int VBVAInfoView(PVGASTATE pVGAState, VBVAINFOVIEW *pView);
-int VBVAInfoScreen(PVGASTATE pVGAState, VBVAINFOSCREEN *pScreen);
+int VBVAInfoView(PVGASTATE pVGAState, const VBVAINFOVIEW *pView);
+int VBVAInfoScreen(PVGASTATE pVGAState, const VBVAINFOSCREEN *pScreen);
 int VBVAGetInfoViewAndScreen(PVGASTATE pVGAState, uint32_t u32ViewIndex, VBVAINFOVIEW *pView, VBVAINFOSCREEN *pScreen);
 
 /* @return host-guest flags that were set on reset

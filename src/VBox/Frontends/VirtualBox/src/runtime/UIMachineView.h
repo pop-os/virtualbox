@@ -23,8 +23,11 @@
 #include <QEventLoop>
 
 /* GUI includes: */
-#include "UIMachineDefs.h"
+#ifdef VBOX_WITH_DRAG_AND_DROP
+# include "UIDnDHandler.h"
+#endif
 #include "UIExtraDataDefs.h"
+#include "UIMachineDefs.h"
 #ifdef Q_WS_MAC
 # include <CoreFoundation/CFBase.h>
 #endif /* Q_WS_MAC */
@@ -254,10 +257,43 @@ protected:
     void paintEvent(QPaintEvent *pEvent);
 
 #ifdef VBOX_WITH_DRAG_AND_DROP
+    /**
+     * Host -> Guest: Issued when the host cursor enters the guest (VM) window.
+     *                The guest will receive the relative cursor coordinates of the
+     *                appropriate screen ID.
+     *
+     * @param pEvent                Related enter event.
+     */
     void dragEnterEvent(QDragEnterEvent *pEvent);
+
+    /**
+     * Host -> Guest: Issued when the host cursor moves inside (over) the guest (VM) window.
+     *                The guest will receive the relative cursor coordinates of the
+     *                appropriate screen ID.
+     *
+     * @param pEvent                Related move event.
+     */
     void dragLeaveEvent(QDragLeaveEvent *pEvent);
+
+    /**
+     * Host -> Guest: Issued when the host cursor leaves the guest (VM) window again.
+     *                This will ask the guest to stop any further drag'n drop operation.
+     *
+     * @param pEvent                Related leave event.
+     */
     void dragMoveEvent(QDragMoveEvent *pEvent);
+
+    /**
+     * Guest -> Host: Checks for a pending drag and drop event within the guest
+     *                and (optionally) starts a drag and drop operation on the host.
+     */
     void dragIsPending(void);
+
+    /**
+     * Host -> Guest: Issued when the host drops data into the guest (VM) window.
+     *
+     * @param pEvent                Related drop event.
+     */
     void dropEvent(QDropEvent *pEvent);
 #endif /* VBOX_WITH_DRAG_AND_DROP */
 
@@ -307,6 +343,11 @@ protected:
     QPixmap m_pausePixmap;
     /** Holds the scaled pause-pixmap. */
     QPixmap m_pausePixmapScaled;
+
+#ifdef VBOX_WITH_DRAG_AND_DROP
+    /** Pointer to drag and drop handler instance. */
+    UIDnDHandler *m_pDnDHandler;
+#endif
 
     /* Friend classes: */
     friend class UIKeyboardHandler;

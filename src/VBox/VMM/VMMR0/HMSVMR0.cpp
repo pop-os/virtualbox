@@ -120,12 +120,12 @@
     } while (0)
 
 /** Assert that preemption is disabled or covered by thread-context hooks. */
-#define HMSVM_ASSERT_PREEMPT_SAFE()           Assert(   VMMR0ThreadCtxHooksAreRegistered(pVCpu) \
+#define HMSVM_ASSERT_PREEMPT_SAFE()           Assert(   VMMR0ThreadCtxHookIsEnabled(pVCpu) \
                                                      || !RTThreadPreemptIsEnabled(NIL_RTTHREAD));
 
 /** Assert that we haven't migrated CPUs when thread-context hooks are not
  *  used. */
-#define HMSVM_ASSERT_CPU_SAFE()               AssertMsg(   VMMR0ThreadCtxHooksAreRegistered(pVCpu) \
+#define HMSVM_ASSERT_CPU_SAFE()               AssertMsg(   VMMR0ThreadCtxHookIsEnabled(pVCpu) \
                                                         || pVCpu->hm.s.idEnteredCpu == RTMpCpuId(), \
                                                         ("Illegal migration! Entered on CPU %u Current %u\n", \
                                                         pVCpu->hm.s.idEnteredCpu, RTMpCpuId()));
@@ -195,7 +195,7 @@ PHYSICAL_TABLE and AVIC LOGICAL_TABLE Pointers). */
 typedef struct SVMTRANSIENT
 {
     /** The host's rflags/eflags. */
-    RTCCUINTREG     uEflags;
+    RTCCUINTREG     fEFlags;
 #if HC_ARCH_BITS == 32
     uint32_t        u32Alignment0;
 #endif
@@ -339,7 +339,7 @@ VMMR0DECL(int) SVMR0EnableCpu(PHMGLOBALCPUINFO pCpu, PVM pVM, void *pvCpuPage, R
     NOREF(fEnabledByHost);
 
     /* Paranoid: Disable interrupt as, in theory, interrupt handlers might mess with EFER. */
-    RTCCUINTREG uEflags = ASMIntDisableFlags();
+    RTCCUINTREG fEFlags = ASMIntDisableFlags();
 
     /*
      * We must turn on AMD-V and setup the host state physical address, as those MSRs are per CPU.
@@ -356,7 +356,7 @@ VMMR0DECL(int) SVMR0EnableCpu(PHMGLOBALCPUINFO pCpu, PVM pVM, void *pvCpuPage, R
 
         if (!pCpu->fIgnoreAMDVInUseError)
         {
-            ASMSetFlags(uEflags);
+            ASMSetFlags(fEFlags);
             return VERR_SVM_IN_USE;
         }
     }
@@ -368,7 +368,7 @@ VMMR0DECL(int) SVMR0EnableCpu(PHMGLOBALCPUINFO pCpu, PVM pVM, void *pvCpuPage, R
     ASMWrMsr(MSR_K8_VM_HSAVE_PA, HCPhysCpuPage);
 
     /* Restore interrupts. */
-    ASMSetFlags(uEflags);
+    ASMSetFlags(fEFlags);
 
     /*
      * Theoretically, other hypervisors may have used ASIDs, ideally we should flush all non-zero ASIDs
@@ -404,7 +404,7 @@ VMMR0DECL(int) SVMR0DisableCpu(PHMGLOBALCPUINFO pCpu, void *pvCpuPage, RTHCPHYS 
     NOREF(pCpu);
 
     /* Paranoid: Disable interrupts as, in theory, interrupt handlers might mess with EFER. */
-    RTCCUINTREG uEflags = ASMIntDisableFlags();
+    RTCCUINTREG fEFlags = ASMIntDisableFlags();
 
     /* Turn off AMD-V in the EFER MSR. */
     uint64_t u64HostEfer = ASMRdMsr(MSR_K6_EFER);
@@ -414,7 +414,7 @@ VMMR0DECL(int) SVMR0DisableCpu(PHMGLOBALCPUINFO pCpu, void *pvCpuPage, RTHCPHYS 
     ASMWrMsr(MSR_K8_VM_HSAVE_PA, 0);
 
     /* Restore interrupts. */
-    ASMSetFlags(uEflags);
+    ASMSetFlags(fEFlags);
 
     return VINF_SUCCESS;
 }
@@ -1740,10 +1740,10 @@ VMMR0DECL(void) SVMR0ThreadCtxCallback(RTTHREADCTXEVENT enmEvent, PVMCPU pVCpu, 
 
     switch (enmEvent)
     {
-        case RTTHREADCTXEVENT_PREEMPTING:
+        case RTTHREADCTXEVENT_OUT:
         {
             Assert(!RTThreadPreemptIsEnabled(NIL_RTTHREAD));
-            Assert(VMMR0ThreadCtxHooksAreRegistered(pVCpu));
+            Assert(VMMR0ThreadCtxHookIsEnabled(pVCpu));
             VMCPU_ASSERT_EMT(pVCpu);
 
             PVM         pVM  = pVCpu->CTX_SUFF(pVM);
@@ -1768,10 +1768,10 @@ VMMR0DECL(void) SVMR0ThreadCtxCallback(RTTHREADCTXEVENT enmEvent, PVMCPU pVCpu, 
             break;
         }
 
-        case RTTHREADCTXEVENT_RESUMED:
+        case RTTHREADCTXEVENT_IN:
         {
             Assert(!RTThreadPreemptIsEnabled(NIL_RTTHREAD));
-            Assert(VMMR0ThreadCtxHooksAreRegistered(pVCpu));
+            Assert(VMMR0ThreadCtxHookIsEnabled(pVCpu));
             VMCPU_ASSERT_EMT(pVCpu);
 
             /* No longjmps (log-flush, locks) in this fragile context. */
@@ -1876,7 +1876,7 @@ static int hmR0SvmLoadGuestState(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
               ||  HMCPU_CF_IS_PENDING_ONLY(pVCpu, HM_CHANGED_HOST_CONTEXT | HM_CHANGED_HOST_GUEST_SHARED_STATE),
                ("fContextUseFlags=%#RX32\n", HMCPU_CF_VALUE(pVCpu)));
 
-    Log4(("Load: CS:RIP=%04x:%RX64 EFL=%#x SS:RSP=%04x:%RX64\n", pCtx->cs.Sel, pCtx->rip, pCtx->eflags.u, pCtx->ss, pCtx->rsp));
+    Log4(("Load: CS:RIP=%04x:%RX64 EFL=%#x SS:RSP=%04x:%RX64\n", pCtx->cs.Sel, pCtx->rip, pCtx->eflags.u, pCtx->ss.Sel, pCtx->rsp));
     STAM_PROFILE_ADV_STOP(&pVCpu->hm.s.StatLoadGuestState, x);
     return rc;
 }
@@ -2139,8 +2139,9 @@ static int hmR0SvmLeaveSession(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
      * If you modify code here, make sure to check whether hmR0SvmCallRing3Callback() needs to be updated too.
      */
 
+    /** @todo eliminate the need for calling VMMR0ThreadCtxHookDisable here!  */
     /* Deregister hook now that we've left HM context before re-enabling preemption. */
-    VMMR0ThreadCtxHooksDeregister(pVCpu);
+    VMMR0ThreadCtxHookDisable(pVCpu);
 
     /* Leave HM context. This takes care of local init (term). */
     int rc = HMR0LeaveCpu(pVCpu);
@@ -2197,7 +2198,8 @@ DECLCALLBACK(int) hmR0SvmCallRing3Callback(PVMCPU pVCpu, VMMCALLRING3 enmOperati
         CPUMR0DebugStateMaybeSaveGuestAndRestoreHost(pVCpu, false /* save DR6 */);
 
         /* Deregister the hook now that we've left HM context before re-enabling preemption. */
-        VMMR0ThreadCtxHooksDeregister(pVCpu);
+        /** @todo eliminate the need for calling VMMR0ThreadCtxHookDisable here!  */
+        VMMR0ThreadCtxHookDisable(pVCpu);
 
         /* Leave HM context. This takes care of local init (term). */
         HMR0LeaveCpu(pVCpu);
@@ -3024,18 +3026,18 @@ static int hmR0SvmPreRunGuest(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, PSVMTRANSIEN
      * We also check a couple of other force-flags as a last opportunity to get the EMT back to ring-3 before
      * executing guest code.
      */
-    pSvmTransient->uEflags = ASMIntDisableFlags();
+    pSvmTransient->fEFlags = ASMIntDisableFlags();
     if (   VM_FF_IS_PENDING(pVM, VM_FF_EMT_RENDEZVOUS | VM_FF_TM_VIRTUAL_SYNC)
         || VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_HM_TO_R3_MASK))
     {
-        ASMSetFlags(pSvmTransient->uEflags);
+        ASMSetFlags(pSvmTransient->fEFlags);
         VMMRZCallRing3Enable(pVCpu);
         STAM_COUNTER_INC(&pVCpu->hm.s.StatSwitchHmToR3FF);
         return VINF_EM_RAW_TO_R3;
     }
     if (RTThreadPreemptIsPending(NIL_RTTHREAD))
     {
-        ASMSetFlags(pSvmTransient->uEflags);
+        ASMSetFlags(pSvmTransient->fEFlags);
         VMMRZCallRing3Enable(pVCpu);
         STAM_COUNTER_INC(&pVCpu->hm.s.StatPendingHostIrq);
         return VINF_EM_RAW_INTERRUPT;
@@ -3238,7 +3240,7 @@ static void hmR0SvmPostRunGuest(PVM pVM, PVMCPU pVCpu, PCPUMCTX pMixedCtx, PSVMT
     VMCPU_SET_STATE(pVCpu, VMCPUSTATE_STARTED_HM);
 
     Assert(!(ASMGetFlags() & X86_EFL_IF));
-    ASMSetFlags(pSvmTransient->uEflags);                        /* Enable interrupts. */
+    ASMSetFlags(pSvmTransient->fEFlags);                        /* Enable interrupts. */
     VMMRZCallRing3Enable(pVCpu);                                /* It is now safe to do longjmps to ring-3!!! */
 
     /* If VMRUN failed, we can bail out early. This does -not- cover SVM_EXIT_INVALID. */
@@ -4489,10 +4491,13 @@ HMSVM_EXIT_DECL hmR0SvmExitReadCRx(PVMCPU pVCpu, PCPUMCTX pCtx, PSVMTRANSIENT pS
 HMSVM_EXIT_DECL hmR0SvmExitWriteCRx(PVMCPU pVCpu, PCPUMCTX pCtx, PSVMTRANSIENT pSvmTransient)
 {
     HMSVM_VALIDATE_EXIT_HANDLER_PARAMS();
+
     /** @todo Decode Assist. */
-    VBOXSTRICTRC rc2 = EMInterpretInstruction(pVCpu, CPUMCTX2CORE(pCtx), 0 /* pvFault */);
-    int rc = VBOXSTRICTRC_VAL(rc2);
-    if (rc == VINF_SUCCESS)
+    VBOXSTRICTRC rcStrict = IEMExecOneBypassEx(pVCpu, CPUMCTX2CORE(pCtx), NULL);
+    if (RT_UNLIKELY(   rcStrict == VERR_IEM_ASPECT_NOT_IMPLEMENTED
+                    || rcStrict == VERR_IEM_INSTR_NOT_IMPLEMENTED))
+        rcStrict = VERR_EM_INTERPRETER;
+    if (rcStrict == VINF_SUCCESS)
     {
         /* RIP has been updated by EMInterpretInstruction(). */
         Assert((pSvmTransient->u64ExitCode - SVM_EXIT_WRITE_CR0) <= 15);
@@ -4520,11 +4525,11 @@ HMSVM_EXIT_DECL hmR0SvmExitWriteCRx(PVMCPU pVCpu, PCPUMCTX pCtx, PSVMTRANSIENT p
                                 pSvmTransient->u64ExitCode, pSvmTransient->u64ExitCode - SVM_EXIT_WRITE_CR0));
                 break;
         }
-        HMSVM_CHECK_SINGLE_STEP(pVCpu, rc);
+        HMSVM_CHECK_SINGLE_STEP(pVCpu, rcStrict);
     }
     else
-        Assert(rc == VERR_EM_INTERPRETER || rc == VINF_PGM_CHANGE_MODE || rc == VINF_PGM_SYNC_CR3);
-    return rc;
+        Assert(rcStrict == VERR_EM_INTERPRETER || rcStrict == VINF_PGM_CHANGE_MODE || rcStrict == VINF_PGM_SYNC_CR3);
+    return VBOXSTRICTRC_TODO(rcStrict);
 }
 
 
@@ -4733,6 +4738,8 @@ HMSVM_EXIT_DECL hmR0SvmExitXsetbv(PVMCPU pVCpu, PCPUMCTX pCtx, PSVMTRANSIENT pSv
         HMCPU_CF_SET(pVCpu, HM_CHANGED_ALL_GUEST);
 
     pVCpu->hm.s.fLoadSaveGuestXcr0 = (pCtx->cr4 & X86_CR4_OSXSAVE) && pCtx->aXcr[0] != ASMGetXcr0();
+    Log4(("hmR0SvmExitXsetbv: New XCR0=%#RX64 fLoadSaveGuestXcr0=%d (cr4=%RX64) rcStrict=%Rrc\n",
+          pCtx->aXcr[0], pVCpu->hm.s.fLoadSaveGuestXcr0, pCtx->cr4, VBOXSTRICTRC_VAL(rcStrict)));
 
     HMSVM_CHECK_SINGLE_STEP(pVCpu, rcStrict);
     return VBOXSTRICTRC_TODO(rcStrict);

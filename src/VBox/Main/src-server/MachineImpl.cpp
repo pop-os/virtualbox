@@ -2673,7 +2673,6 @@ HRESULT Machine::getSettingsModified(BOOL *aSettingsModified)
 
 HRESULT Machine::getSessionState(SessionState_T *aSessionState)
 {
-
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     *aSessionState = mData->mSession.mState;
@@ -2681,11 +2680,11 @@ HRESULT Machine::getSessionState(SessionState_T *aSessionState)
     return S_OK;
 }
 
-HRESULT Machine::getSessionType(com::Utf8Str &aSessionType)
+HRESULT Machine::getSessionName(com::Utf8Str &aSessionName)
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    aSessionType = mData->mSession.mType;
+    aSessionName = mData->mSession.mName;
 
     return S_OK;
 }
@@ -3222,6 +3221,9 @@ HRESULT Machine::lockMachine(const ComPtr<ISession> &aSession,
     ComAssertMsgRet(!!pSessionControl, ("No IInternalSessionControl interface"),
                     E_INVALIDARG);
 
+    // session name (only used in some code paths)
+    Utf8Str strSessionName;
+
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     if (!mData->mRegistered)
@@ -3436,6 +3438,15 @@ HRESULT Machine::lockMachine(const ComPtr<ISession> &aSession,
                 setError(VBOX_E_VM_ERROR,
                          tr("Failed to assign the machine to the session (%Rhrc)"), rc);
 
+            // get session name, either to remember or to compare against
+            // the already known session name.
+            {
+                Bstr bstrSessionName;
+                HRESULT rc2 = aSession->COMGETTER(Name)(bstrSessionName.asOutParam());
+                if (SUCCEEDED(rc2))
+                    strSessionName = bstrSessionName;
+            }
+
             if (    SUCCEEDED(rc)
                  && fLaunchingVMProcess
                )
@@ -3484,6 +3495,7 @@ HRESULT Machine::lockMachine(const ComPtr<ISession> &aSession,
         // finalize spawning anyway (this is why we don't return on errors above)
         if (fLaunchingVMProcess)
         {
+            Assert(mData->mSession.mName == strSessionName);
             /* Note that the progress object is finalized later */
             /** @todo Consider checking mData->mSession.mProgress for cancellation
              *        around here.  */
@@ -3521,6 +3533,8 @@ HRESULT Machine::lockMachine(const ComPtr<ISession> &aSession,
             /* memorize the direct session control and cache IUnknown for it */
             mData->mSession.mDirectControl = pSessionControl;
             mData->mSession.mState = SessionState_Locked;
+            if (!fLaunchingVMProcess)
+                mData->mSession.mName = strSessionName;
             /* associate the SessionMachine with this Machine */
             mData->mSession.mMachine = sessionMachine;
 
@@ -3560,11 +3574,11 @@ HRESULT Machine::lockMachine(const ComPtr<ISession> &aSession,
  *  @note Locks objects!
  */
 HRESULT Machine::launchVMProcess(const ComPtr<ISession> &aSession,
-                                 const com::Utf8Str &aType,
+                                 const com::Utf8Str &aName,
                                  const com::Utf8Str &aEnvironment,
                                  ComPtr<IProgress> &aProgress)
 {
-    Utf8Str strFrontend(aType);
+    Utf8Str strFrontend(aName);
     /* "emergencystop" doesn't need the session, so skip the checks/interface
      * retrieval. This code doesn't quite fit in here, but introducing a
      * special API method would be even more effort, and would require explicit
@@ -5050,13 +5064,10 @@ HRESULT Machine::discardSettings()
 }
 
 /** @note Locks objects! */
-HRESULT Machine::unregister(CleanupMode_T aCleanupMode,
+HRESULT Machine::unregister(AutoCaller &autoCaller,
+                            CleanupMode_T aCleanupMode,
                             std::vector<ComPtr<IMedium> > &aMedia)
 {
-    // use AutoLimitedCaller because this call is valid on inaccessible machines as well
-    AutoLimitedCaller autoCaller(this);
-    AssertComRCReturnRC(autoCaller.rc());
-
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     Guid id(i_getId());
@@ -5871,7 +5882,7 @@ HRESULT Machine::i_enumerateGuestPropertiesInService(const com::Utf8Str &aPatter
                                             NULL)
            )
             propMap.insert(*it);
-        it++;
+        ++it;
     }
 
     alock.release();
@@ -6358,34 +6369,6 @@ HRESULT Machine::querySavedGuestScreenInfo(ULONG aScreenId,
     return S_OK;
 }
 
-HRESULT Machine::querySavedThumbnailSize(ULONG aScreenId, ULONG *aSize, ULONG *aWidth, ULONG *aHeight)
-{
-    if (aScreenId != 0)
-        return E_NOTIMPL;
-
-    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    uint8_t *pu8Data = NULL;
-    uint32_t cbData = 0;
-    uint32_t u32Width = 0;
-    uint32_t u32Height = 0;
-
-    int vrc = readSavedDisplayScreenshot(mSSData->strStateFilePath, 0 /* u32Type */, &pu8Data, &cbData, &u32Width, &u32Height);
-
-    if (RT_FAILURE(vrc))
-        return setError(VBOX_E_IPRT_ERROR,
-                        tr("Saved screenshot data is not available (%Rrc)"),
-                        vrc);
-
-    *aSize = cbData;
-    *aWidth = u32Width;
-    *aHeight = u32Height;
-
-    freeSavedDisplayScreenshot(pu8Data);
-
-    return S_OK;
-}
-
 HRESULT Machine::readSavedThumbnailToArray(ULONG aScreenId, BitmapFormat_T aBitmapFormat,
                                            ULONG *aWidth, ULONG *aHeight, std::vector<BYTE> &aData)
 {
@@ -6480,7 +6463,10 @@ HRESULT Machine::readSavedThumbnailToArray(ULONG aScreenId, BitmapFormat_T aBitm
     return hr;
 }
 
-HRESULT Machine::querySavedScreenshotPNGSize(ULONG aScreenId, ULONG *aSize, ULONG *aWidth, ULONG *aHeight)
+HRESULT Machine::querySavedScreenshotInfo(ULONG aScreenId,
+                                          ULONG *aWidth,
+                                          ULONG *aHeight,
+                                          std::vector<BitmapFormat_T> &aBitmapFormats)
 {
     if (aScreenId != 0)
         return E_NOTIMPL;
@@ -6499,18 +6485,26 @@ HRESULT Machine::querySavedScreenshotPNGSize(ULONG aScreenId, ULONG *aSize, ULON
                         tr("Saved screenshot data is not available (%Rrc)"),
                         vrc);
 
-    *aSize = cbData;
     *aWidth = u32Width;
     *aHeight = u32Height;
+    aBitmapFormats.resize(1);
+    aBitmapFormats[0] = BitmapFormat_PNG;
 
     freeSavedDisplayScreenshot(pu8Data);
 
     return S_OK;
 }
 
-HRESULT Machine::readSavedScreenshotPNGToArray(ULONG aScreenId, ULONG *aWidth, ULONG *aHeight, std::vector<BYTE> &aData)
+HRESULT Machine::readSavedScreenshotToArray(ULONG aScreenId,
+                                            BitmapFormat_T aBitmapFormat,
+                                            ULONG *aWidth,
+                                            ULONG *aHeight,
+                                            std::vector<BYTE> &aData)
 {
     if (aScreenId != 0)
+        return E_NOTIMPL;
+
+    if (aBitmapFormat != BitmapFormat_PNG)
         return E_NOTIMPL;
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
@@ -7429,7 +7423,7 @@ HRESULT Machine::i_launchVMProcess(IInternalSessionControl *aControl,
 
     if (fSeparate)
     {
-        if (mData->mSession.mState != SessionState_Unlocked && mData->mSession.mType.compare("headless", Utf8Str::CaseInsensitive))
+        if (mData->mSession.mState != SessionState_Unlocked && mData->mSession.mName == "headless")
             return setError(VBOX_E_INVALID_OBJECT_STATE,
                             tr("The machine '%s' is in a state which is incompatible with launching a separate UI process"),
                             mUserData->s.strName.c_str());
@@ -7530,6 +7524,7 @@ HRESULT Machine::i_launchVMProcess(IInternalSessionControl *aControl,
     const char *pszSupStartupLogArg = NULL;
 #endif
 
+    Utf8Str strCanonicalName;
 
 #ifdef VBOX_WITH_QTGUI
     if (   !strFrontend.compare("gui", Utf8Str::CaseInsensitive)
@@ -7538,6 +7533,7 @@ HRESULT Machine::i_launchVMProcess(IInternalSessionControl *aControl,
         || !strFrontend.compare("gui/separate", Utf8Str::CaseInsensitive)
         || !strFrontend.compare("GUI/Qt/separate", Utf8Str::CaseInsensitive))
     {
+        strCanonicalName = "GUI/Qt";
 # ifdef RT_OS_DARWIN /* Avoid Launch Services confusing this with the selector by using a helper app. */
         /* Modify the base path so that we don't need to use ".." below. */
         RTPathStripTrailingSlash(szPath);
@@ -7606,6 +7602,7 @@ HRESULT Machine::i_launchVMProcess(IInternalSessionControl *aControl,
         || !strFrontend.compare("sdl/separate", Utf8Str::CaseInsensitive)
         || !strFrontend.compare("GUI/SDL/separate", Utf8Str::CaseInsensitive))
     {
+        strCanonicalName = "GUI/SDL";
         static const char s_szVBoxSDL_exe[] = "VBoxSDL" HOSTSUFF_EXE;
         Assert(cchBufLeft >= sizeof(s_szVBoxSDL_exe));
         strcpy(pszNamePart, s_szVBoxSDL_exe);
@@ -7640,6 +7637,7 @@ HRESULT Machine::i_launchVMProcess(IInternalSessionControl *aControl,
         || !strFrontend.compare("vrdp", Utf8Str::CaseInsensitive) /* Deprecated. Same as headless. */
        )
     {
+        strCanonicalName = "headless";
         /* On pre-4.0 the "headless" type was used for passing "--vrdp off" to VBoxHeadless to let it work in OSE,
          * which did not contain VRDP server. In VBox 4.0 the remote desktop server (VRDE) is optional,
          * and a VM works even if the server has not been installed.
@@ -7731,7 +7729,8 @@ HRESULT Machine::i_launchVMProcess(IInternalSessionControl *aControl,
         mData->mSession.mProgress = aProgress;
         mData->mSession.mPID = pid;
         mData->mSession.mState = SessionState_Spawning;
-        mData->mSession.mType = strFrontend;
+        Assert(strCanonicalName.isNotEmpty());
+        mData->mSession.mName = strCanonicalName;
     }
     else
     {
@@ -9052,15 +9051,36 @@ HRESULT Machine::i_loadHardware(const settings::Hardware &data, const settings::
 
 #ifdef VBOX_WITH_GUEST_PROPS
         /* Guest properties (optional) */
-        for (settings::GuestPropertiesList::const_iterator it = data.llGuestProperties.begin();
-            it != data.llGuestProperties.end();
-            ++it)
+
+        /* Only load transient guest properties for configs which have saved
+         * state, because there shouldn't be any for powered off VMs. The same
+         * logic applies for snapshots, as offline snapshots shouldn't have
+         * any such properties. They confuse the code in various places.
+         * Note: can't rely on the machine state, as it isn't set yet. */
+        bool fSkipTransientGuestProperties = mSSData->strStateFilePath.isEmpty();
+        /* apologies for the hacky unconst() usage, but this needs hacking
+         * actually inconsistent settings into consistency, otherwise there
+         * will be some corner cases where the inconsistency survives
+         * surprisingly long without getting fixed, especially for snapshots
+         * as there are no config changes. */
+        settings::GuestPropertiesList &llGuestProperties = unconst(data.llGuestProperties);
+        for (settings::GuestPropertiesList::iterator it = llGuestProperties.begin();
+            it != llGuestProperties.end();
+            /*nothing*/)
         {
             const settings::GuestProperty &prop = *it;
             uint32_t fFlags = guestProp::NILFLAG;
             guestProp::validateFlags(prop.strFlags.c_str(), &fFlags);
+            if (   fSkipTransientGuestProperties
+                && (   fFlags & guestProp::TRANSIENT
+                    || fFlags & guestProp::TRANSRESET))
+            {
+                it = llGuestProperties.erase(it);
+                continue;
+            }
             HWData::GuestProperty property = { prop.strValue, (LONG64) prop.timestamp, fFlags };
             mHWData->mGuestProperties[prop.strName] = property;
+            ++it;
         }
 
         mHWData->mGuestPropertyNotificationPatterns = data.strNotificationPatterns;
@@ -10344,7 +10364,9 @@ HRESULT Machine::i_saveHardware(settings::Hardware &data, settings::Debugging *p
             HWData::GuestProperty property = it->second;
 
             /* Remove transient guest properties at shutdown unless we
-             * are saving state */
+             * are saving state. Note that restoring snapshot intentionally
+             * keeps them, they will be removed if appropriate once the final
+             * machine state is set (as crashes etc. need to work). */
             if (   (   mData->mMachineState == MachineState_PoweredOff
                     || mData->mMachineState == MachineState_Aborted
                     || mData->mMachineState == MachineState_Teleported)
@@ -12653,7 +12675,7 @@ void SessionMachine::uninit(Uninit::Reason aReason)
     mData->mSession.mLockType = LockType_Null;
     mData->mSession.mMachine.setNull();
     mData->mSession.mState = SessionState_Unlocked;
-    mData->mSession.mType.setNull();
+    mData->mSession.mName.setNull();
 
     /* destroy the machine client token before leaving the exclusive lock */
     if (mClientToken)
@@ -14467,10 +14489,11 @@ HRESULT SessionMachine::i_setMachineState(MachineState_T aMachineState)
     /* redirect to the underlying peer machine */
     mPeer->i_setMachineState(aMachineState);
 
-    if (   aMachineState == MachineState_PoweredOff
-        || aMachineState == MachineState_Teleported
-        || aMachineState == MachineState_Aborted
-        || aMachineState == MachineState_Saved)
+    if (   oldMachineState != MachineState_RestoringSnapshot
+        && (   aMachineState == MachineState_PoweredOff
+            || aMachineState == MachineState_Teleported
+            || aMachineState == MachineState_Aborted
+            || aMachineState == MachineState_Saved))
     {
         /* the machine has stopped execution
          * (or the saved state file was adopted) */
@@ -14497,15 +14520,43 @@ HRESULT SessionMachine::i_setMachineState(MachineState_T aMachineState)
          * property store on shutdown. */
         BOOL fNeedsSaving = mData->mGuestPropertiesModified;
 
+        /* remove it from the settings representation */
         settings::GuestPropertiesList &llGuestProperties = mData->pMachineConfigFile->hardwareMachine.llGuestProperties;
-        settings::GuestPropertiesList::iterator it = llGuestProperties.begin();
-        while (it != llGuestProperties.end())
+        for (settings::GuestPropertiesList::iterator it = llGuestProperties.begin();
+             it != llGuestProperties.end();
+             /*nothing*/)
         {
             const settings::GuestProperty &prop = *it;
             if (   prop.strFlags.contains("TRANSRESET", Utf8Str::CaseInsensitive)
                 || prop.strFlags.contains("TRANSIENT", Utf8Str::CaseInsensitive))
             {
                 it = llGuestProperties.erase(it);
+                fNeedsSaving = true;
+            }
+            else
+            {
+                ++it;
+            }
+        }
+
+        /* Additionally remove it from the HWData representation. Required to
+         * keep everything in sync, as this is what the API keeps using. */
+        HWData::GuestPropertyMap &llHWGuestProperties = mHWData->mGuestProperties;
+        for (HWData::GuestPropertyMap::iterator it = llHWGuestProperties.begin();
+             it != llHWGuestProperties.end();
+             /*nothing*/)
+        {
+            uint32_t fFlags = it->second.mFlags;
+            if (   fFlags & guestProp::TRANSIENT
+                || fFlags & guestProp::TRANSRESET)
+            {
+                /* iterator where we need to continue after the erase call
+                 * (C++03 is a fact still, and it doesn't return the iterator
+                 * which would allow continuing) */
+                HWData::GuestPropertyMap::iterator it2 = it;
+                ++it2;
+                llHWGuestProperties.erase(it);
+                it = it2;
                 fNeedsSaving = true;
             }
             else

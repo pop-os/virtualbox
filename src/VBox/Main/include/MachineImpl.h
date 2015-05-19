@@ -148,8 +148,8 @@ public:
             /** Current session state */
             SessionState_T mState;
 
-            /** Session type string (for indirect sessions) */
-            Utf8Str mType;
+            /** Session name string (of the primary session) */
+            Utf8Str mName;
 
             /** Session machine object */
             ComObjPtr<SessionMachine> mMachine;
@@ -927,7 +927,8 @@ private:
     HRESULT getSettingsFilePath(com::Utf8Str &aSettingsFilePath);
     HRESULT getSettingsModified(BOOL *aSettingsModified);
     HRESULT getSessionState(SessionState_T *aSessionState);
-    HRESULT getSessionType(com::Utf8Str &aSessionType);
+    HRESULT getSessionType(SessionType_T *aSessionType);
+    HRESULT getSessionName(com::Utf8Str &aSessionType);
     HRESULT getSessionPID(ULONG *aSessionPID);
     HRESULT getState(MachineState_T *aState);
     HRESULT getLastStateChange(LONG64 *aLastStateChange);
@@ -1113,7 +1114,8 @@ private:
                                 ComPtr<IProgress> &aProgress);
     HRESULT saveSettings();
     HRESULT discardSettings();
-    HRESULT unregister(CleanupMode_T aCleanupMode,
+    HRESULT unregister(AutoCaller &aAutoCaller,
+                       CleanupMode_T aCleanupMode,
                        std::vector<ComPtr<IMedium> > &aMedia);
     HRESULT deleteConfig(const std::vector<ComPtr<IMedium> > &aMedia,
                          ComPtr<IProgress> &aProgress);
@@ -1154,23 +1156,21 @@ private:
                                       ULONG *aWidth,
                                       ULONG *aHeight,
                                       BOOL *aEnabled);
-    HRESULT querySavedThumbnailSize(ULONG aScreenId,
-                                    ULONG *aSize,
-                                    ULONG *aWidth,
-                                    ULONG *aHeight);
     HRESULT readSavedThumbnailToArray(ULONG aScreenId,
                                       BitmapFormat_T aBitmapFormat,
                                       ULONG *aWidth,
                                       ULONG *aHeight,
                                       std::vector<BYTE> &aData);
-    HRESULT querySavedScreenshotPNGSize(ULONG aScreenId,
-                                        ULONG *aSize,
-                                        ULONG *aWidth,
-                                        ULONG *aHeight);
-    HRESULT readSavedScreenshotPNGToArray(ULONG aScreenId,
-                                          ULONG *aWidth,
-                                          ULONG *aHeight,
-                                          std::vector<BYTE> &aData);
+    HRESULT querySavedScreenshotInfo(ULONG aScreenId,
+                                     ULONG *aWidth,
+                                     ULONG *aHeight,
+                                     std::vector<BitmapFormat_T> &aBitmapFormats);
+    HRESULT readSavedScreenshotToArray(ULONG aScreenId,
+                                       BitmapFormat_T aBitmapFormat,
+                                       ULONG *aWidth,
+                                       ULONG *aHeight,
+                                       std::vector<BYTE> &aData);
+
     HRESULT hotPlugCPU(ULONG aCpu);
     HRESULT hotUnplugCPU(ULONG aCpu);
     HRESULT getCPUStatus(ULONG aCpu,

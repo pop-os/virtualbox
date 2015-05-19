@@ -808,7 +808,7 @@
     </message>
     <message>
         <source>Save State</source>
-        <translation>Kaydetme Durumu</translation>
+        <translation>Durumu Kaydet</translation>
     </message>
     <message>
         <source>Save the machine state of the selected virtual machines</source>
@@ -1057,7 +1057,7 @@
     </message>
     <message>
         <source>S&amp;cale Factor</source>
-        <translation>&amp;Küçültme Etkeni</translation>
+        <translation>Ö&amp;lçek Etkeni</translation>
     </message>
     <message>
         <source>&amp;Insert %1</source>
@@ -1102,7 +1102,7 @@
     </message>
     <message>
         <source>&amp;Headless Start</source>
-        <translation>&amp;Başlıksız Başlat</translation>
+        <translation>&amp;Gözetimsiz Başlat</translation>
     </message>
     <message>
         <source>Start the selected virtual machines in the background</source>
@@ -1114,7 +1114,7 @@
     </message>
     <message>
         <source>Start the selected virtual machines with the option of continuing them in the background</source>
-        <translation>Seçilen sanal makineleri arka planda devam ettiren seçenek ile başlatır</translation>
+        <translation>Seçilen sanal makineleri arka planda devam ettiren seçenek ile başlat</translation>
     </message>
 </context>
 <context>
@@ -2456,17 +2456,17 @@
     <message>
         <source>Scale-factor</source>
         <comment>details (user interface)</comment>
-        <translation>Küçültme etkeni</translation>
+        <translation type="obsolete">Küçültme etkeni</translation>
     </message>
     <message>
         <source>Unscaled HiDPI Video Output</source>
         <comment>details (user interface)</comment>
-        <translation>Küçültülmemiş HiDPI Görüntü Çıktısı</translation>
+        <translation type="obsolete">Küçültülmemiş HiDPI Görüntü Çıktısı</translation>
     </message>
     <message>
         <source>Enabled</source>
         <comment>details (user interface/Unscaled HiDPI Video Output)</comment>
-        <translation>Etkinleştirildi</translation>
+        <translation type="obsolete">Etkinleştirildi</translation>
     </message>
     <message>
         <source>Mini-toolbar Position</source>
@@ -2491,6 +2491,51 @@
     <message>
         <source>Disabled</source>
         <comment>details (user interface/mini-toolbar)</comment>
+        <translation>Etkisizleştirildi</translation>
+    </message>
+    <message>
+        <source>Scale-factor</source>
+        <comment>details (display)</comment>
+        <translation>Ölçek etkeni</translation>
+    </message>
+    <message>
+        <source>Unscaled HiDPI Video Output</source>
+        <comment>details (display)</comment>
+        <translation>Küçültülmemiş HiDPI Görüntü Çıktısı</translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <comment>details (display/Unscaled HiDPI Video Output)</comment>
+        <translation>Etkinleştirildi</translation>
+    </message>
+    <message>
+        <source>Menu-bar</source>
+        <comment>details (user interface)</comment>
+        <translation>Menü çubuğu</translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <comment>details (user interface/menu-bar)</comment>
+        <translation>Etkinleştirildi</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details (user interface/menu-bar)</comment>
+        <translation>Etkisizleştirildi</translation>
+    </message>
+    <message>
+        <source>Status-bar</source>
+        <comment>details (user interface)</comment>
+        <translation>Durum çubuğu</translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <comment>details (user interface/status-bar)</comment>
+        <translation>Etkinleştirildi</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details (user interface/status-bar)</comment>
         <translation>Etkisizleştirildi</translation>
     </message>
 </context>
@@ -3684,7 +3729,7 @@
     </message>
     <message>
         <source>Host+</source>
-        <translation>Host+</translation>
+        <translation>Anamakine+</translation>
     </message>
     <message>
         <source>None</source>
@@ -4177,7 +4222,7 @@
     </message>
     <message>
         <source>&amp;Video</source>
-        <translation>&amp;Görüntü</translation>
+        <translation type="obsolete">&amp;Görüntü</translation>
     </message>
     <message>
         <source>Video &amp;Memory:</source>
@@ -4445,6 +4490,46 @@
     <message>
         <source>The virtual machine is set up to use hardware graphics acceleration and the operating system hint is set to Windows Vista or later. For best performance you should set the machine&apos;s video memory to at least &lt;b&gt;%1&lt;/b&gt;.</source>
         <translation>Sanal makine, donanım grafikleri hızlandırmasını kullanması için ayarlanır ve işletim sistemi ipucu, Windows Vista veya sonrasına ayarlıdır. En iyi performans için makinenin görüntü belleğini en az &lt;b&gt;%1&lt;/b&gt; olarak ayarlamalısınız.</translation>
+    </message>
+    <message>
+        <source>&amp;Screen</source>
+        <translation>&amp;Ekran</translation>
+    </message>
+    <message>
+        <source>Scale Factor:</source>
+        <translation>Ölçek Etkeni:</translation>
+    </message>
+    <message>
+        <source>Controls the guest screen scale factor.</source>
+        <translation>Misafir ekranı ölçek etkenini kontrol eder.</translation>
+    </message>
+    <message>
+        <source>100%</source>
+        <translation>% 100</translation>
+    </message>
+    <message>
+        <source>200%</source>
+        <translation>% 200</translation>
+    </message>
+    <message>
+        <source>%</source>
+        <translation>%</translation>
+    </message>
+    <message>
+        <source>HiDPI:</source>
+        <translation>HiDPI:</translation>
+    </message>
+    <message>
+        <source>When checked, guest screen contents will not be scaled up to compensate for high host screen resolutions.</source>
+        <translation>İşaretlendiğinde, misafir ekran içerikleri yüksek anamakine ekran çözünürlüklerini dengelemek için büyütülmeyecektir.</translation>
+    </message>
+    <message>
+        <source>Use &amp;Unscaled HiDPI Output</source>
+        <translation>&amp;Küçültülmemiş HiDPI Çıktısı kullan</translation>
+    </message>
+    <message>
+        <source>Acceleration:</source>
+        <translation>Hızlandırma:</translation>
     </message>
 </context>
 <context>
@@ -4715,35 +4800,35 @@
     </message>
     <message>
         <source>Screen Scale Factor:</source>
-        <translation>Ekran Küçültme Etkeni:</translation>
+        <translation type="obsolete">Ekran Küçültme Etkeni:</translation>
     </message>
     <message>
         <source>This setting determines the guest screen scale factor.</source>
-        <translation>Bu ayar misafir ekranı küçültme etkenini belirler.</translation>
+        <translation type="obsolete">Bu ayar misafir ekranı küçültme etkenini belirler.</translation>
     </message>
     <message>
         <source>100%</source>
-        <translation>% 100</translation>
+        <translation type="obsolete">% 100</translation>
     </message>
     <message>
         <source>200%</source>
-        <translation>% 200</translation>
+        <translation type="obsolete">% 200</translation>
     </message>
     <message>
         <source>%</source>
-        <translation>%</translation>
+        <translation type="obsolete">%</translation>
     </message>
     <message>
         <source>HiDPI:</source>
-        <translation>HiDPI:</translation>
+        <translation type="obsolete">HiDPI:</translation>
     </message>
     <message>
         <source>If checked, guest screen contents will not be scaled up to compensate for high host screen resolutions.</source>
-        <translation>Eğer işaretlendiyse, misafir ekranı içerikleri yüksek anamakine ekranı çözünürlüğüne karşılık gelene kadar küçültülmeyecektir.</translation>
+        <translation type="obsolete">Eğer işaretlendiyse, misafir ekranı içerikleri yüksek anamakine ekranı çözünürlüğüne karşılık gelene kadar küçültülmeyecektir.</translation>
     </message>
     <message>
         <source>Use &amp;Unscaled HiDPI Output</source>
-        <translation>&amp;Küçültülmemiş HiDPI Çıktısı kullan</translation>
+        <translation type="obsolete">&amp;Küçültülmemiş HiDPI Çıktısı kullan</translation>
     </message>
     <message>
         <source>Mini ToolBar:</source>
@@ -5812,6 +5897,10 @@
     <message>
         <source>Set up the virtual optical drive</source>
         <translation>Sanal optik sürücüyü ayarla</translation>
+    </message>
+    <message>
+        <source>Encrypted with key:</source>
+        <translation>Şu anahtar ile şifrelenmiş:</translation>
     </message>
 </context>
 <context>
@@ -8066,11 +8155,11 @@
     </message>
     <message>
         <source>Failed to connect network adapter cable of the virtual machine &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation>&lt;b&gt;%1&lt;/b&gt; sanal makinesinin ağ bağdaştırıcısı kablosunu bağlama başarısız.</translation>
+        <translation type="obsolete">&lt;b&gt;%1&lt;/b&gt; sanal makinesinin ağ bağdaştırıcısı kablosunu bağlama başarısız.</translation>
     </message>
     <message>
         <source>Failed to disconnect network adapter cable of the virtual machine &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation>&lt;b&gt;%1&lt;/b&gt; sanal makinesinden ağ bağdaştırıcısı kablosu bağlantısını kesme başarısız.</translation>
+        <translation type="obsolete">&lt;b&gt;%1&lt;/b&gt; sanal makinesinden ağ bağdaştırıcısı kablosu bağlantısını kesme başarısız.</translation>
     </message>
     <message>
         <source>&lt;p&gt;Could not insert the &lt;b&gt;VirtualBox Guest Additions&lt;/b&gt; disk image file into the virtual machine &lt;b&gt;%1&lt;/b&gt;, as the machine has no optical drives. Please add a drive using the storage page of the virtual machine settings window.&lt;/p&gt;</source>
@@ -8114,15 +8203,23 @@
     </message>
     <message>
         <source>Drag and drop operation from host to guest failed.</source>
-        <translation type="unfinished"></translation>
+        <translation>Anamakineden misafire sürükle ve bırak işlemi başarısız oldu.</translation>
     </message>
     <message>
         <source>Unable to cancel host to guest drag and drop operation.</source>
-        <translation type="unfinished"></translation>
+        <translation>Anamakineden misafire sürükle ve bırak işlemi iptal edilemiyor.</translation>
     </message>
     <message>
         <source>Drag and drop operation from guest to host failed.</source>
-        <translation type="unfinished"></translation>
+        <translation>Misafirden anamakineye sürükle ve bırak işlemi başarısız oldu.</translation>
+    </message>
+    <message>
+        <source>Failed to connect the network adapter cable of the virtual machine &lt;b&gt;%1&lt;/b&gt;.</source>
+        <translation>&lt;b&gt;%1&lt;/b&gt; sanal makinesinin ağ bağdaştırıcısı kablosunu bağlama başarısız.</translation>
+    </message>
+    <message>
+        <source>Failed to disconnect the network adapter cable of the virtual machine &lt;b&gt;%1&lt;/b&gt;.</source>
+        <translation>&lt;b&gt;%1&lt;/b&gt; sanal makinesinden ağ bağdaştırıcısı kablosu bağlantısını kesme başarısız.</translation>
     </message>
 </context>
 <context>
@@ -9521,12 +9618,12 @@ bu basamağı atlayarak sabit diskleri Sanal Makine Ayarları penceresinden ekle
     <message>
         <source>&lt;nobr&gt;%1&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;%2 since %3&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Session %4&lt;/nobr&gt;</source>
         <comment>VM tooltip (name, last state change, session state)</comment>
-        <translation>&lt;nobr&gt;%1&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;%3 tarihinden bu yana %2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Oturum %4&lt;/nobr&gt;</translation>
+        <translation>&lt;nobr&gt;%1&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;%3 tarihinden/saatinden bu yana %2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Oturum %4&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;Inaccessible since %2&lt;/nobr&gt;</source>
         <comment>Inaccessible VM tooltip (name, last state change)</comment>
-        <translation>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;%2 tarihinden bu yana erişilemez&lt;/nobr&gt;</translation>
+        <translation>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;%2 tarihinden/saatinden bu yana erişilemez&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>S&amp;how</source>
@@ -12583,7 +12680,7 @@ Version %1</source>
     <message>
         <source>Unlocked</source>
         <comment>SessionState</comment>
-        <translation>Kilit Açıldı</translation>
+        <translation>Kilidi Açıldı</translation>
     </message>
     <message>
         <source>Locked</source>
@@ -12593,7 +12690,7 @@ Version %1</source>
     <message>
         <source>Unlocking</source>
         <comment>SessionState</comment>
-        <translation>Kilit açılıyor</translation>
+        <translation>Kilidi açılıyor</translation>
     </message>
     <message>
         <source>Null</source>
@@ -13156,7 +13253,7 @@ Version %1</source>
     <message>
         <source>Encrypted</source>
         <comment>medium</comment>
-        <translation type="unfinished"></translation>
+        <translation>Şifrelenmiş</translation>
     </message>
 </context>
 <context>
@@ -13956,6 +14053,14 @@ to the system default language.&lt;/qt&gt;
     <message>
         <source>UUID:</source>
         <translation>UUID:</translation>
+    </message>
+    <message>
+        <source>&lt;i&gt;Not&amp;nbsp;Encrypted&lt;/i&gt;</source>
+        <translation>&lt;i&gt;Şifrelenmemiş&lt;/i&gt;</translation>
+    </message>
+    <message>
+        <source>Encrypted with key:</source>
+        <translation>Şu anahtar ile şifrelenmiş:</translation>
     </message>
 </context>
 <context>

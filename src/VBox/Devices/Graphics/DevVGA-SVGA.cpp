@@ -68,7 +68,11 @@
 #include "vmsvga/svga3d_caps.h"
 #ifdef VBOX_WITH_VMSVGA3D
 # include "DevVGA-SVGA3d.h"
+# ifdef RT_OS_DARWIN
+#  include "DevVGA-SVGA3d-cocoa.h"
+# endif
 #endif
+
 
 /*******************************************************************************
 *   Defined Constants And Macros                                               *
@@ -153,6 +157,23 @@ typedef struct
 
 } VMSVGASTATE, *PVMSVGASTATE;
 
+
+/*******************************************************************************
+*   Internal Functions                                                         *
+*******************************************************************************/
+#ifdef IN_RING3
+# ifdef DEBUG_FIFO_ACCESS
+static FNPGMPHYSHANDLER vmsvgaR3FIFOAccessHandler;
+# endif
+# ifdef DEBUG_GMR_ACCESS
+static FNPGMPHYSHANDLER vmsvgaR3GMRAccessHandler;
+# endif
+#endif
+
+
+/*******************************************************************************
+*   Global Variables                                                           *
+*******************************************************************************/
 #ifdef IN_RING3
 
 /**
@@ -1853,20 +1874,23 @@ static int vmsvgaFIFOAccess(PVM pVM, PVGASTATE pThis, RTGCPHYS GCPhys, bool fWri
  * @returns VINF_SUCCESS if the handler have carried out the operation.
  * @returns VINF_PGM_HANDLER_DO_DEFAULT if the caller should carry out the access operation.
  * @param   pVM             VM Handle.
+ * @param   pVCpu           The cross context CPU structure for the calling EMT.
  * @param   GCPhys          The physical address the guest is writing to.
  * @param   pvPhys          The HC mapping of that address.
  * @param   pvBuf           What the guest is reading/writing.
  * @param   cbBuf           How much it's reading/writing.
  * @param   enmAccessType   The access type.
+ * @param   enmOrigin       Who is making the access.
  * @param   pvUser          User argument.
  */
-static DECLCALLBACK(int) vmsvgaR3FIFOAccessHandler(PVM pVM, RTGCPHYS GCPhys, void *pvPhys, void *pvBuf, size_t cbBuf, PGMACCESSTYPE enmAccessType, void *pvUser)
+static DECLCALLBACK(int) vmsvgaR3FIFOAccessHandler(PVM pVM, PVMCPU pVCpu RTGCPHYS GCPhys, void *pvPhys, void *pvBuf, size_t cbBuf,
+                                                   PGMACCESSTYPE enmAccessType, PGMACCESSORIGIN enmOrigin, void *pvUser)
 {
     PVGASTATE   pThis = (PVGASTATE)pvUser;
     int         rc;
     Assert(pThis);
     Assert(GCPhys >= pThis->GCPhysVRAM);
-    NOREF(pvPhys); NOREF(pvBuf); NOREF(cbBuf);
+    NOREF(pVCpu); NOREF(pvPhys); NOREF(pvBuf); NOREF(cbBuf); NOREF(enmOrigin);
 
     rc = vmsvgaFIFOAccess(pVM, pThis, GCPhys, enmAccessType == PGMACCESSTYPE_WRITE);
     if (RT_SUCCESS(rc))
@@ -1885,19 +1909,22 @@ static DECLCALLBACK(int) vmsvgaR3FIFOAccessHandler(PVM pVM, RTGCPHYS GCPhys, voi
  * @returns VINF_SUCCESS if the handler have carried out the operation.
  * @returns VINF_PGM_HANDLER_DO_DEFAULT if the caller should carry out the access operation.
  * @param   pVM             VM Handle.
+ * @param   pVCpu           The cross context CPU structure for the calling EMT.
  * @param   GCPhys          The physical address the guest is writing to.
  * @param   pvPhys          The HC mapping of that address.
  * @param   pvBuf           What the guest is reading/writing.
  * @param   cbBuf           How much it's reading/writing.
  * @param   enmAccessType   The access type.
+ * @param   enmOrigin       Who is making the access.
  * @param   pvUser          User argument.
  */
-static DECLCALLBACK(int) vmsvgaR3GMRAccessHandler(PVM pVM, RTGCPHYS GCPhys, void *pvPhys, void *pvBuf, size_t cbBuf, PGMACCESSTYPE enmAccessType, void *pvUser)
+static DECLCALLBACK(int) vmsvgaR3GMRAccessHandler(PVM pVM, PVMCPU pVCpu, RTGCPHYS GCPhys, void *pvPhys, void *pvBuf, size_t cbBuf,
+                                                  PGMACCESSTYPE enmAccessType, PGMACCESSORIGIN enmOrigin, void *pvUser)
 {
     PVGASTATE   pThis = (PVGASTATE)pvUser;
     Assert(pThis);
     PVMSVGASTATE pSVGAState = (PVMSVGASTATE)pThis->svga.pSVGAState;
-    NOREF(pvPhys); NOREF(pvBuf); NOREF(cbBuf);
+    NOREF(pVCpu); NOREF(pvPhys); NOREF(pvBuf); NOREF(cbBuf); NOREF(enmOrigin);
 
     Log(("vmsvgaR3GMRAccessHandler: GMR access to page %RGp\n", GCPhys));
 
@@ -2202,6 +2229,13 @@ static DECLCALLBACK(int) vmsvgaFIFOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
     uint32_t volatile * const pFIFO = pThis->svga.pFIFOR3;
     while (pThread->enmState == PDMTHREADSTATE_RUNNING)
     {
+# if defined(RT_OS_DARWIN) && defined(VBOX_WITH_VMSVGA3D)
+        /*
+         * Should service the run loop every so often.
+         */
+        if (pThis->svga.f3DEnabled)
+            vmsvga3dCocoaServiceRunLoop();
+# endif
 
         /*
          * Wait for at most 250 ms to start polling.
@@ -3085,7 +3119,7 @@ static DECLCALLBACK(int) vmsvgaFIFOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
                         SVGA3dCmdSetShader *pCmd = (SVGA3dCmdSetShader *)(pHdr + 1);
                         VMSVGAFIFO_CHECK_3D_CMD_MIN_SIZE_BREAK(sizeof(*pCmd));
 
-                        rc = vmsvga3dShaderSet(pThis, pCmd->cid, pCmd->type, pCmd->shid);
+                        rc = vmsvga3dShaderSet(pThis, NULL, pCmd->cid, pCmd->type, pCmd->shid);
                         break;
                     }
 

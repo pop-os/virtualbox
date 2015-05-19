@@ -1476,6 +1476,9 @@ CSession VBoxGlobal::openSession(const QString &strId, KLockType lockType /* = K
             break;
         }
 
+        if (lockType == KLockType_VM)
+            session.SetName("GUI/Qt");
+
         /* Lock found machine to session: */
         machine.LockMachine(session, lockType);
         if (!machine.isOk())
@@ -4064,7 +4067,7 @@ void VBoxGlobal::prepare()
         else if (!::strcmp(arg, "--restore-current"))
             mRestoreCurrentSnapshot = true;
         /* Ad hoc VM reconfig options: */
-        else if (!::strcmp(arg, "--fdc"))
+        else if (!::strcmp(arg, "--fda"))
         {
             if (++i < argc)
                 m_strFloppyImage = qApp->argv()[i];

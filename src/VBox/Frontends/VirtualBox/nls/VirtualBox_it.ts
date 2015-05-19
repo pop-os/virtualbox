@@ -1306,7 +1306,7 @@
     </message>
     <message>
         <source>&amp;Headless Start</source>
-        <translation type="unfinished">Avvio senza &amp;testa</translation>
+        <translation>A&amp;vvio senza finestra</translation>
     </message>
     <message>
         <source>Start the selected virtual machines in the background</source>
@@ -1314,7 +1314,7 @@
     </message>
     <message>
         <source>&amp;Detachable Start</source>
-        <translation type="unfinished">Avvio sgancia&amp;bile</translation>
+        <translation>Avvio sgancia&amp;bile</translation>
     </message>
     <message>
         <source>Start the selected virtual machines with the option of continuing them in the background</source>
@@ -3324,17 +3324,17 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Scale-factor</source>
         <comment>details (user interface)</comment>
-        <translation>Fattore di scala</translation>
+        <translation type="obsolete">Fattore di scala</translation>
     </message>
     <message>
         <source>Unscaled HiDPI Video Output</source>
         <comment>details (user interface)</comment>
-        <translation>Uscita video HiDPI non scalata</translation>
+        <translation type="obsolete">Uscita video HiDPI non scalata</translation>
     </message>
     <message>
         <source>Enabled</source>
         <comment>details (user interface/Unscaled HiDPI Video Output)</comment>
-        <translation>Abilitata</translation>
+        <translation type="obsolete">Abilitata</translation>
     </message>
     <message>
         <source>Mini-toolbar Position</source>
@@ -3359,6 +3359,51 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Disabled</source>
         <comment>details (user interface/mini-toolbar)</comment>
+        <translation>Disabilitata</translation>
+    </message>
+    <message>
+        <source>Scale-factor</source>
+        <comment>details (display)</comment>
+        <translation>Fattore di scala</translation>
+    </message>
+    <message>
+        <source>Unscaled HiDPI Video Output</source>
+        <comment>details (display)</comment>
+        <translation>Uscita video HiDPI non scalata</translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <comment>details (display/Unscaled HiDPI Video Output)</comment>
+        <translation>Abilitata</translation>
+    </message>
+    <message>
+        <source>Menu-bar</source>
+        <comment>details (user interface)</comment>
+        <translation>Barra dei menu</translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <comment>details (user interface/menu-bar)</comment>
+        <translation>Abilitata</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details (user interface/menu-bar)</comment>
+        <translation>Disabilitata</translation>
+    </message>
+    <message>
+        <source>Status-bar</source>
+        <comment>details (user interface)</comment>
+        <translation>Barra di stato</translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <comment>details (user interface/status-bar)</comment>
+        <translation>Abilitata</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details (user interface/status-bar)</comment>
         <translation>Disabilitata</translation>
     </message>
 </context>
@@ -5345,7 +5390,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&amp;Video</source>
-        <translation>&amp;Video</translation>
+        <translation type="obsolete">&amp;Video</translation>
     </message>
     <message>
         <source>Video &amp;Memory:</source>
@@ -5601,6 +5646,46 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>The virtual machine is set up to use hardware graphics acceleration and the operating system hint is set to Windows Vista or later. For best performance you should set the machine&apos;s video memory to at least &lt;b&gt;%1&lt;/b&gt;.</source>
         <translation>La macchina virtuale è configurata per utilizzare l&apos;accelerazione grafica hardware e il sistema operativo è impostato a Windows Vista o successivo. Per avere le prestazioni migliori, dovresti impostare la memoria video della macchina almeno a &lt;b&gt;%1&lt;/b&gt;.</translation>
+    </message>
+    <message>
+        <source>&amp;Screen</source>
+        <translation>&amp;Schermo</translation>
+    </message>
+    <message>
+        <source>Scale Factor:</source>
+        <translation>Fattore di scala:</translation>
+    </message>
+    <message>
+        <source>Controls the guest screen scale factor.</source>
+        <translation>Controlla il fattore di scala dello schermo del guest.</translation>
+    </message>
+    <message>
+        <source>100%</source>
+        <translation>100%</translation>
+    </message>
+    <message>
+        <source>200%</source>
+        <translation>200%</translation>
+    </message>
+    <message>
+        <source>%</source>
+        <translation>%</translation>
+    </message>
+    <message>
+        <source>HiDPI:</source>
+        <translation>HiDPI:</translation>
+    </message>
+    <message>
+        <source>When checked, guest screen contents will not be scaled up to compensate for high host screen resolutions.</source>
+        <translation>Se marcata, il contenuto dello schermo del guest non sarà riscalata per compensare in caso di risoluzioni elevate dello schermo dell&apos;host.</translation>
+    </message>
+    <message>
+        <source>Use &amp;Unscaled HiDPI Output</source>
+        <translation>&amp;Usa uscita HiDPI non scalata</translation>
+    </message>
+    <message>
+        <source>Acceleration:</source>
+        <translation>Accelerazione:</translation>
     </message>
 </context>
 <context>
@@ -5943,35 +6028,35 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Screen Scale Factor:</source>
-        <translation>Fattore di scala dello schermo:</translation>
+        <translation type="obsolete">Fattore di scala dello schermo:</translation>
     </message>
     <message>
         <source>This setting determines the guest screen scale factor.</source>
-        <translation>Questa impostazione determina il fattore di scala dello schermo del guest.</translation>
+        <translation type="obsolete">Questa impostazione determina il fattore di scala dello schermo del guest.</translation>
     </message>
     <message>
         <source>100%</source>
-        <translation>100%</translation>
+        <translation type="obsolete">100%</translation>
     </message>
     <message>
         <source>200%</source>
-        <translation>200%</translation>
+        <translation type="obsolete">200%</translation>
     </message>
     <message>
         <source>%</source>
-        <translation>%</translation>
+        <translation type="obsolete">%</translation>
     </message>
     <message>
         <source>HiDPI:</source>
-        <translation>HiDPI:</translation>
+        <translation type="obsolete">HiDPI:</translation>
     </message>
     <message>
         <source>If checked, guest screen contents will not be scaled up to compensate for high host screen resolutions.</source>
-        <translation>Se marcata, il contenuto dello schermo del guest non sarà scalato per compensare in caso di alte risoluzioni dello schermo dell&apos;host.</translation>
+        <translation type="obsolete">Se marcata, il contenuto dello schermo del guest non sarà scalato per compensare in caso di alte risoluzioni dello schermo dell&apos;host.</translation>
     </message>
     <message>
         <source>Use &amp;Unscaled HiDPI Output</source>
-        <translation>&amp;Usa uscita HiDPI non scalata</translation>
+        <translation type="obsolete">&amp;Usa uscita HiDPI non scalata</translation>
     </message>
     <message>
         <source>Mini ToolBar:</source>
@@ -7261,6 +7346,10 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Set up the virtual optical drive</source>
         <translation>Configura il lettore ottico virtuale</translation>
+    </message>
+    <message>
+        <source>Encrypted with key:</source>
+        <translation>Cifrato con chiave:</translation>
     </message>
 </context>
 <context>
@@ -9777,11 +9866,11 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Failed to connect network adapter cable of the virtual machine &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation>Connessione del cavo della scheda di rete della macchina virtuale &lt;b&gt;%1&lt;/b&gt; non riuscita.</translation>
+        <translation type="obsolete">Connessione del cavo della scheda di rete della macchina virtuale &lt;b&gt;%1&lt;/b&gt; non riuscita.</translation>
     </message>
     <message>
         <source>Failed to disconnect network adapter cable of the virtual machine &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation>Disconnessione del cavo della scheda di rete della macchina virtuale &lt;b&gt;%1&lt;/b&gt; non riuscita.</translation>
+        <translation type="obsolete">Disconnessione del cavo della scheda di rete della macchina virtuale &lt;b&gt;%1&lt;/b&gt; non riuscita.</translation>
     </message>
     <message>
         <source>&lt;p&gt;Could not insert the &lt;b&gt;VirtualBox Guest Additions&lt;/b&gt; disk image file into the virtual machine &lt;b&gt;%1&lt;/b&gt;, as the machine has no optical drives. Please add a drive using the storage page of the virtual machine settings window.&lt;/p&gt;</source>
@@ -9820,16 +9909,24 @@ p, li { white-space: pre-wrap; }
         <translation>&lt;p&gt;È stata rilasciata una nuova versione di VirtualBox! La versione &lt;b&gt;%1&lt;/b&gt; è disponibile su &lt;a href=&quot;https://www.virtualbox.org/&quot;&gt;virtualbox.org&lt;/a&gt;.&lt;/p&gt;&lt;p&gt;Puoi scaricare questa versione utilizzando il collegamento:&lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</translation>
     </message>
     <message>
+        <source>Failed to connect the network adapter cable of the virtual machine &lt;b&gt;%1&lt;/b&gt;.</source>
+        <translation>Collegamento del cavo di rete della macchina virtuale&lt;b&gt;%1&lt;/b&gt; non riucito.</translation>
+    </message>
+    <message>
+        <source>Failed to disconnect the network adapter cable of the virtual machine &lt;b&gt;%1&lt;/b&gt;.</source>
+        <translation>Disconnessione del cavo di rete della macchina virtuale&lt;b&gt;%1&lt;/b&gt; non riucito.</translation>
+    </message>
+    <message>
         <source>Drag and drop operation from host to guest failed.</source>
-        <translation type="unfinished"></translation>
+        <translation>Operazione di trascinamento e rilascio dall&apos;host al guest non riuscita.</translation>
     </message>
     <message>
         <source>Unable to cancel host to guest drag and drop operation.</source>
-        <translation type="unfinished"></translation>
+        <translation>Impossibile annullare l&apos;operazione di trascinamento e rilascio dall&apos;host al guest.</translation>
     </message>
     <message>
         <source>Drag and drop operation from guest to host failed.</source>
-        <translation type="unfinished"></translation>
+        <translation>Operazione di trascinamento e rilascio dal guest all&apos;host non riuscita.</translation>
     </message>
 </context>
 <context>
@@ -15652,7 +15749,7 @@ Versione %1</translation>
     <message>
         <source>Legacy</source>
         <comment>ParavirtProvider</comment>
-        <translation type="unfinished"></translation>
+        <translation>Vecchia generazione</translation>
     </message>
     <message>
         <source>Minimal</source>
@@ -15731,7 +15828,7 @@ Versione %1</translation>
     <message>
         <source>Encrypted</source>
         <comment>medium</comment>
-        <translation type="unfinished"></translation>
+        <translation>Cifrato</translation>
     </message>
 </context>
 <context>
@@ -16611,6 +16708,14 @@ la lingua a quella predefinita di sistema.&lt;/qt&gt;
     <message>
         <source>UUID:</source>
         <translation>UUID:</translation>
+    </message>
+    <message>
+        <source>&lt;i&gt;Not&amp;nbsp;Encrypted&lt;/i&gt;</source>
+        <translation>&lt;i&gt;Non&amp;nbsp;cifrato&lt;/i&gt;</translation>
+    </message>
+    <message>
+        <source>Encrypted with key:</source>
+        <translation>Cifrato con chiave:</translation>
     </message>
 </context>
 <context>

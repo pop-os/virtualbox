@@ -220,7 +220,9 @@ VBOX_BUILD_PUBLISHER =
 # Note! The BETA[n],ALPHA[n],RC[n] indicators should be inserted before the
 #       publisher so that RTStrVersionCompare have a chance of comparing
 #       prerelease from different publishers correctly.
-VBOX_VERSION_STRING = $(VBOX_VERSION_STRING_RAW)_BETA3$(VBOX_BUILD_PUBLISHER)
+VBOX_VERSION_STRING = $(VBOX_VERSION_STRING_RAW)_BETA4$(VBOX_BUILD_PUBLISHER)
+# Just the BETA[n],ALPHA[n],RC[n] indicators. Set to empty string for release.
+VBOX_VERSION_PRERELEASE = BETA4
 
 # Force the additions.sh script to get an exact additions build when we're doing the release.
 ifeq ($(int-mod $(VBOX_VERSION_BUILD),2),0)
@@ -582,8 +584,12 @@ VBOX_WITH_VRDP_AUTHMOD = 1
 VBOX_WITH_VRDP_RDESKTOP = 1
 ## The Direct Framebuffer GUI.
 #VBOX_WITH_VBOXFB = 1
-# Enables the Python<->XPCOM and Python<->COM bindings.
+# Enables the Python<->XPCOM, Python<->COM and (WS enabled) Python<->WS bindings.
 VBOX_WITH_PYTHON ?= 1
+# Enables the PERL<->WS binding (if WS enabled).
+#VBOX_WITH_PERL ?= 1
+# Enables the PHP<->WS binding (if WS enabled).
+VBOX_WITH_PHP ?= 1
 if1of ($(KBUILD_TARGET), darwin linux solaris)
  # Enable Java<->XPCOM bridge + glue code
  VBOX_WITH_JXPCOM ?= 1
@@ -855,6 +861,7 @@ VBOX_BRAND_LICENSE_VER               :=
 VBOX_BRAND_GUI_ABOUT_PNG             := $(PATH_ROOT)/src/VBox/Frontends/VirtualBox/images/NonOSE/about.png
 VBOX_BRAND_GUI_ABOUT_HIDPI_PNG       := $(PATH_ROOT)/src/VBox/Frontends/VirtualBox/images/hidpi/NonOSE/about_hidpi.png
 VBOX_BRAND_GUI_ABOUT_16PX_PNG        := $(PATH_ROOT)/src/VBox/Frontends/VirtualBox/images/NonOSE/about_16px.png
+VBOX_BRAND_GUI_ABOUT_16PX_HIDPI_PNG  := $(PATH_ROOT)/src/VBox/Frontends/VirtualBox/images/hidpi/NonOSE/about_16px_hidpi.png
 VBOX_BRAND_GUI_VBOX_16PX_PNG         := $(PATH_ROOT)/src/VBox/Frontends/VirtualBox/images/NonOSE/VirtualBox_16px.png
 VBOX_BRAND_GUI_VBOX_20PX_PNG         := $(PATH_ROOT)/src/VBox/Frontends/VirtualBox/images/NonOSE/VirtualBox_20px.png
 VBOX_BRAND_GUI_VBOX_32PX_PNG         := $(PATH_ROOT)/src/VBox/Frontends/VirtualBox/images/NonOSE/VirtualBox_32px.png
@@ -1085,21 +1092,22 @@ ifdef VBOX_OSE
  endif
  VBOX_GUI_WITH_HIDPI=
  # branding
- VBOX_BRAND_LICENSE_HTML        := $(PATH_ROOT)/doc/License-gpl-2.0.html
- VBOX_BRAND_LICENSE_RTF         := $(PATH_ROOT)/doc/License-gpl-2.0.rtf
- VBOX_BRAND_LICENSE_TXT         := $(PATH_ROOT)/doc/License-gpl-2.0.txt
- VBOX_BRAND_BIOS_LOGO           := $(PATH_ROOT)/src/VBox/Devices/Graphics/BIOS/ose_logo.bmp
- VBOX_BRAND_GUI_ABOUT_PNG       := $(PATH_ROOT)/src/VBox/Frontends/VirtualBox/images/OSE/about.png
- VBOX_BRAND_GUI_ABOUT_HIDPI_PNG := $(PATH_ROOT)/src/VBox/Frontends/VirtualBox/images/OSE/about.png
- VBOX_BRAND_GUI_ABOUT_16PX_PNG  := $(PATH_ROOT)/src/VBox/Frontends/VirtualBox/images/OSE/about_16px.png
- VBOX_BRAND_GUI_VBOX_16PX_PNG   := $(PATH_ROOT)/src/VBox/Frontends/VirtualBox/images/OSE/VirtualBox_16px.png
- VBOX_BRAND_GUI_VBOX_20PX_PNG   := $(PATH_ROOT)/src/VBox/Frontends/VirtualBox/images/OSE/VirtualBox_20px.png
- VBOX_BRAND_GUI_VBOX_32PX_PNG   := $(PATH_ROOT)/src/VBox/Frontends/VirtualBox/images/OSE/VirtualBox_32px.png
- VBOX_BRAND_GUI_VBOX_40PX_PNG   := $(PATH_ROOT)/src/VBox/Frontends/VirtualBox/images/OSE/VirtualBox_40px.png
- VBOX_BRAND_GUI_VBOX_48PX_PNG   := $(PATH_ROOT)/src/VBox/Frontends/VirtualBox/images/OSE/VirtualBox_48px.png
- VBOX_BRAND_GUI_VBOX_64PX_PNG   := $(PATH_ROOT)/src/VBox/Frontends/VirtualBox/images/OSE/VirtualBox_64px.png
- VBOX_BRAND_GUI_CUBE_42PX_PNG   := $(PATH_ROOT)/src/VBox/Frontends/VirtualBox/images/OSE/VirtualBox_cube_42px.png
- VBOX_BRAND_GUI_VBOX_SVG        := $(PATH_ROOT)/src/VBox/Resources/OSE/virtualbox.svg
+ VBOX_BRAND_LICENSE_HTML             := $(PATH_ROOT)/doc/License-gpl-2.0.html
+ VBOX_BRAND_LICENSE_RTF              := $(PATH_ROOT)/doc/License-gpl-2.0.rtf
+ VBOX_BRAND_LICENSE_TXT              := $(PATH_ROOT)/doc/License-gpl-2.0.txt
+ VBOX_BRAND_BIOS_LOGO                := $(PATH_ROOT)/src/VBox/Devices/Graphics/BIOS/ose_logo.bmp
+ VBOX_BRAND_GUI_ABOUT_PNG            := $(PATH_ROOT)/src/VBox/Frontends/VirtualBox/images/OSE/about.png
+ VBOX_BRAND_GUI_ABOUT_HIDPI_PNG      := $(PATH_ROOT)/src/VBox/Frontends/VirtualBox/images/OSE/about.png
+ VBOX_BRAND_GUI_ABOUT_16PX_PNG       := $(PATH_ROOT)/src/VBox/Frontends/VirtualBox/images/OSE/about_16px.png
+ VBOX_BRAND_GUI_ABOUT_16PX_HIDPI_PNG := $(PATH_ROOT)/src/VBox/Frontends/VirtualBox/images/OSE/about_16px.png
+ VBOX_BRAND_GUI_VBOX_16PX_PNG        := $(PATH_ROOT)/src/VBox/Frontends/VirtualBox/images/OSE/VirtualBox_16px.png
+ VBOX_BRAND_GUI_VBOX_20PX_PNG        := $(PATH_ROOT)/src/VBox/Frontends/VirtualBox/images/OSE/VirtualBox_20px.png
+ VBOX_BRAND_GUI_VBOX_32PX_PNG        := $(PATH_ROOT)/src/VBox/Frontends/VirtualBox/images/OSE/VirtualBox_32px.png
+ VBOX_BRAND_GUI_VBOX_40PX_PNG        := $(PATH_ROOT)/src/VBox/Frontends/VirtualBox/images/OSE/VirtualBox_40px.png
+ VBOX_BRAND_GUI_VBOX_48PX_PNG        := $(PATH_ROOT)/src/VBox/Frontends/VirtualBox/images/OSE/VirtualBox_48px.png
+ VBOX_BRAND_GUI_VBOX_64PX_PNG        := $(PATH_ROOT)/src/VBox/Frontends/VirtualBox/images/OSE/VirtualBox_64px.png
+ VBOX_BRAND_GUI_CUBE_42PX_PNG        := $(PATH_ROOT)/src/VBox/Frontends/VirtualBox/images/OSE/VirtualBox_cube_42px.png
+ VBOX_BRAND_GUI_VBOX_SVG             := $(PATH_ROOT)/src/VBox/Resources/OSE/virtualbox.svg
 endif
 
 #
@@ -2689,6 +2697,8 @@ ifdef VBOX_SIGNING_MODE
   endif
   VBOX_CERTIFICATE_STORE ?= my
   VBOX_CERTIFICATE_STORE_ARGS ?= /s "$(VBOX_CERTIFICATE_STORE)"
+  VBOX_CERTIFICATE_FINGERPRINT_ARGS := $(if-expr "$(VBOX_CERTIFICATE_FINGERPRINT)" != "" \
+  	,/sha1 "$(subst $(SP),,$(VBOX_CERTIFICATE_FINGERPRINT))",)
 
   ## Commands for signing a driver image after link.
   VBOX_SIGN_DRIVER_CMDS ?= $(if $(eq $(tool_do),LINK_LIBRARY),,$(call VBOX_SIGN_IMAGE_FN,$(out)))
@@ -2700,6 +2710,7 @@ ifdef VBOX_SIGNING_MODE
 	$(VBOX_CROSS_CERTIFICATE_FILE_ARGS) \
 	$(VBOX_CERTIFICATE_STORE_ARGS) \
 	$(VBOX_CERTIFICATE_SUBJECT_NAME_ARGS) \
+       $(VBOX_CERTIFICATE_FINGERPRINT_ARGS) \
 	$(VBOX_TSA_URL_ARGS) \
 	$(if $(strip $(2)),/d "$(strip $(2))",) \
 	$(3) \
@@ -2741,6 +2752,9 @@ ifdef VBOX_SIGNING_MODE
   # Currently release signing is done when packing.  This may change later.
   # (Installer package signing is done elsewhere (VBOX_MACOSX_INSTALLER_SIGN).)
   #
+  if defined(VBOX_CERTIFICATE_FINGERPRINT) && !defined(VBOX_CERTIFICATE_SUBJECT_NAME)
+    VBOX_CERTIFICATE_SUBJECT_NAME = $(subst $(SP),,$(VBOX_CERTIFICATE_FINGERPRINT))
+  endif
   ifeq ($(VBOX_SIGNING_MODE),test)
    VBOX_CERTIFICATE_SUBJECT_NAME ?= $(error You need to set VBOX_CERTIFICATE_SUBJECT_NAME in LocalConfig.kmk.)
    VBOX_CERTIFICATE_SUBJECT_NAME_ARGS ?= --sign "$(VBOX_CERTIFICATE_SUBJECT_NAME)"
@@ -2960,6 +2974,86 @@ endif
 ##
 # @param
 VBOX_RESIGN_DLL_FN =
+
+
+#
+# File version info and description macros (ignored on most OSes).
+#
+
+##
+# Internal macro.
+#
+# @param 1     The target name.
+# @param 2     The description
+# @param 3     Optional icon file.
+# @param 4     The template base name.
+# @param 5     Additional RC options.
+#
+# @remarks     ASSUMES RCFLAGS isn't a simple variable (var := value).
+define VBOX_SET_VER_INFO_INTERNAL
+ifeq ($(KBUILD_TARGET),win)
+$(1)_SOURCES.win += $(PATH_ROOT)/src/VBox/Resources/win/$(4)
+$(1)_RCFLAGS += /nologo /dIN_INTERNAL_NAME="\"$(1)\"" /dIN_FILE_DESCRIPTION="\"$(2)\"" \
+	/dIN_ORIGINAL_NAME="\"$$(notdir $$($(1)_1_INST_TARGET))\"" \
+	$(if $(3), /dIN_ICON_FILE="\"$(subst \\,/,$(strip $(3)))\"") $(5)
+$$$$($(1)_0_OUTDIR)/src/VBox/Resources/win/$(basename $(4)).res: \
+	$(PATH_ROOT)/include/VBox/version.h $$$$(VBOX_VERSION_HEADER)
+endif
+endef
+
+##
+# Macro for setting DLL/SO/DYLIB version information and description.
+#
+# The macro must be invoked using evalcall2 after the whole target has
+# been declared.
+#
+# @param 1     The target name.
+# @param 2     The description
+# @param 3     Optional icon file.
+VBOX_SET_VER_INFO_DLL = $(evalcall2 VBOX_SET_VER_INFO_INTERNAL,$1,$2,$3,TemplateDll.rc,)
+
+##
+# Macro for setting EXE version information and description.
+#
+# The macro must be invoked using call after the whole target has been declared.
+#
+# @param 1     The target name.
+# @param 2     The description
+# @param 3     Optional icon file.
+VBOX_SET_VER_INFO_EXE = $(evalcall2 VBOX_SET_VER_INFO_INTERNAL,$1,$2,$3,TemplateExe.rc,)
+
+##
+# Macro for setting driver version information and description.
+#
+# The macro must be invoked using call after the whole target has been declared.
+#
+# @param 1     The target name.
+# @param 2     The description
+# @param 3     Optional icon file.
+# @param 4     Optional VFT2_DRV_xxx define for windows.  Uses VFT2_UNKNOWN by default.
+VBOX_SET_VER_INFO_DRV = $(evalcall2 VBOX_SET_VER_INFO_INTERNAL,$1,$2,$3,TemplateDrv.rc,$(if $(4), /dIN_FILE_SUBTYPE=$(4)))
+
+##
+# Macro for setting the version information and description for a ring-0 module.
+#
+# The macro must be invoked using call after the whole target has been declared.
+#
+# @param 1     The target name.
+# @param 2     The description
+# @param 3     Optional icon file.
+VBOX_SET_VER_INFO_R0 = $(evalcall2 VBOX_SET_VER_INFO_INTERNAL,$1,$2,$3,TemplateR0.rc,)
+
+##
+# Macro for setting the version information and description for a raw-mode context module.
+#
+# The macro must be invoked using call after the whole target has been declared.
+#
+# @param 1     The target name.
+# @param 2     The description
+# @param 3     Optional icon file.
+VBOX_SET_VER_INFO_RC = $(evalcall2 VBOX_SET_VER_INFO_INTERNAL,$1,$2,$3,TemplateRc.rc,)
+
+
 
 #
 # Adjust kBuild defaults.
@@ -3288,6 +3382,7 @@ ifdef VBOX_WITH_RAW_MODE
 
  ifeq ($(VBOX_LDR_FMT32),pe)
   TEMPLATE_VBoxRc_TOOL               = $(VBOX_VCC_TOOL_STEM)X86
+  TEMPLATE_VBoxRc_RCDEFS             = VBOX_SVN_REV=$(VBOX_SVN_REV) VBOX_SVN_REV_MOD_5K=$(expr $(VBOX_SVN_REV) % 50000)
   ifdef TODO_MORE_WARNINGS
    TEMPLATE_VBoxRc_CXXFLAGS          = -Zi -Zl -GR- -EHs- -GF -GS- -Zc:wchar_t- -Gs8192 $(VBOX_VCC_GC_OPT) $(VBOX_VCC_GC_FP) -W4 -wd4244 -wd4996 -wd4127 -wd4100 -wd4214 -wd4706 $(VBOX_VCC_WERR)
   else
@@ -3423,6 +3518,7 @@ endif
 
 ifeq ($(VBOX_LDR_FMT),pe)
 TEMPLATE_VBoxR0_TOOL                = $(VBOX_VCC_TOOL)
+TEMPLATE_VBoxR0_RCDEFS              = VBOX_SVN_REV=$(VBOX_SVN_REV) VBOX_SVN_REV_MOD_5K=$(expr $(VBOX_SVN_REV) % 50000)
  ifdef TODO_MORE_WARNINGS
 TEMPLATE_VBoxR0_CXXFLAGS            = -Zi -Zl -GR- -EHs- -GF -GS- -Zc:wchar_t- $(VBOX_VCC_OPT) $(VBOX_VCC_FP) -W4 -wd4244 -wd4127 -wd4100 -wd4214 -wd4706 -wd4996 $(VBOX_VCC_WERR)
  else
@@ -3529,15 +3625,7 @@ endif
 
 ifeq ($(KBUILD_TARGET),win)
  TEMPLATE_VBOXR0DRV_TOOL               = $(VBOX_VCC_TOOL)
- TEMPLATE_VBOXR0DRV_RCDEFS             = \
-	VBOX_VERSION_MAJOR=\"$(VBOX_VERSION_MAJOR)\" \
-	VBOX_VERSION_MINOR=\"$(VBOX_VERSION_MINOR)\" \
-	VBOX_VERSION_BUILD=\"$(VBOX_VERSION_BUILD)\" \
-	VBOX_SVN_REV=\"$(VBOX_SVN_REV)\" \
-	VBOX_VERSION_MAJOR_NR=$(VBOX_VERSION_MAJOR) \
-	VBOX_VERSION_MINOR_NR=$(VBOX_VERSION_MINOR) \
-	VBOX_VERSION_BUILD_NR=$(VBOX_VERSION_BUILD) \
-	VBOX_SVN_REV_NR=$(VBOX_SVN_REV)
+ TEMPLATE_VBOXR0DRV_RCDEFS             = VBOX_SVN_REV=$(VBOX_SVN_REV) VBOX_SVN_REV_MOD_5K=$(expr $(VBOX_SVN_REV) % 50000)
  TEMPLATE_VBOXR0DRV_DEFS.x86           = _X86_
  TEMPLATE_VBOXR0DRV_DEFS.x86          += NO_INTERLOCKED_INTRINSICS # Avoids intrisic VC/WDK trouble
  TEMPLATE_VBOXR0DRV_DEFS.x86          += WIN9X_COMPAT_SPINLOCK     # Avoid multiply defined _KeInitializeSpinLock@4
@@ -3827,15 +3915,7 @@ ifeq ($(KBUILD_TARGET),win)
 # TEMPLATE_VBOXR3EXE_TOOL               = $(VBOX_VCC_TOOL)
  TEMPLATE_VBOXR3EXE_TOOL.win.x86       = $(VBOX_VCC_TOOL_STEM)X86
  TEMPLATE_VBOXR3EXE_TOOL.win.amd64     = $(VBOX_VCC_TOOL_STEM)AMD64
- TEMPLATE_VBOXR3EXE_RCDEFS             = \
-	VBOX_VERSION_MAJOR=\"$(VBOX_VERSION_MAJOR)\" \
-	VBOX_VERSION_MINOR=\"$(VBOX_VERSION_MINOR)\" \
-	VBOX_VERSION_BUILD=\"$(VBOX_VERSION_BUILD)\" \
-	VBOX_SVN_REV=\"$(VBOX_SVN_REV)\" \
-	VBOX_VERSION_MAJOR_NR=$(VBOX_VERSION_MAJOR) \
-	VBOX_VERSION_MINOR_NR=$(VBOX_VERSION_MINOR) \
-	VBOX_VERSION_BUILD_NR=$(VBOX_VERSION_BUILD) \
-	VBOX_SVN_REV_NR=$(VBOX_SVN_REV)
+ TEMPLATE_VBOXR3EXE_RCDEFS             = VBOX_SVN_REV=$(VBOX_SVN_REV) VBOX_SVN_REV_MOD_5K=$(expr $(VBOX_SVN_REV) % 50000)
  TEMPLATE_VBOXR3EXE_SDKS               = ReorderCompilerIncs $(VBOX_WINPSDK)
  TEMPLATE_VBOXR3EXE_CXXFLAGS           = -Zi -Zl -GR- -EHsc -GF -MD$(VBOX_VCC_CRT_TYPE) -W3 -wd4065 -wd4244 -wd4996 -Zc:wchar_t- $(VBOX_VCC_OPT) $(VBOX_VCC_FP)
  TEMPLATE_VBOXR3EXE_CXXFLAGS.debug     = -RTCsu
@@ -4903,14 +4983,17 @@ ifdef VBOX_WITH_EXTPACK
   TEMPLATE_VBoxR3ExtPackPuel = For the ring-3 context modules in the PUEL extension pack.
   TEMPLATE_VBoxR3ExtPackPuel_EXTENDS = VBoxR3ExtPack
   TEMPLATE_VBoxR3ExtPackPuel_INST = $(INST_EXTPACK_PUEL)$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH)/
+  TEMPLATE_VBoxR3ExtPackPuel_DEFS = $(TEMPLATE_VBoxR3ExtPack_DEFS) VBOX_IN_PUEL_EXTPACK
 
   TEMPLATE_VBoxR0ExtPackPuel = For the ring-0 context modules in the PUEL extension pack.
   TEMPLATE_VBoxR0ExtPackPuel_EXTENDS = VBoxR0ExtPack
   TEMPLATE_VBoxR0ExtPackPuel_INST = $(INST_EXTPACK_PUEL)$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH)/
+  TEMPLATE_VBoxR0ExtPackPuel_DEFS = $(TEMPLATE_VBoxR0ExtPack_DEFS) VBOX_IN_PUEL_EXTPACK
 
   TEMPLATE_VBoxRcExtPackPuel = For the raw-mode context modules in the PUEL extension pack.
   TEMPLATE_VBoxRcExtPackPuel_EXTENDS = VBoxRcExtPack
   TEMPLATE_VBoxRcExtPackPuel_INST = $(INST_EXTPACK_PUEL)$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH)/
+  TEMPLATE_VBoxRcExtPackPuel_DEFS = $(TEMPLATE_VBoxRcExtPack_DEFS) VBOX_IN_PUEL_EXTPACK
 
   TEMPLATE_VBoxInsExtPackPuel = For the install targets of an extension pack.
   TEMPLATE_VBoxInsExtPackPuel_EXTENDS = VBoxR0ExtPack
@@ -5828,7 +5911,7 @@ VBOX_VER_TMP2 :=
 # directory. If you don't run it there, you get a consistent sub-tree only.
 #
 VBOX_BAD_CHAR_SET   = ,;:/\$(SP)$(TAB)$(HASH)=![]@%&''()*""<>?^{}|~
-VBOX_VERSION_STAMP  = $(PATH_OUT)/version-stamp-raw-api-$(translate $(VBOX_VERSION_STRING)-$(VBOX_C_YEAR)-$(VBOX_VENDOR)-$(VBOX_PRODUCT)-$(VBOX_API_VERSION)-$(VBOX_BUILD_PUBLISHER),$(VBOX_BAD_CHAR_SET),,_)
+VBOX_VERSION_STAMP  = $(PATH_OUT)/version-stamp-raw-api-$(translate $(VBOX_VERSION_STRING)-$(VBOX_C_YEAR)-$(VBOX_VENDOR)-$(VBOX_PRODUCT)-$(VBOX_API_VERSION)-$(VBOX_BUILD_PUBLISHER)-$(USERNAME),$(VBOX_BAD_CHAR_SET),,_)
 VBOX_VERSION_HEADER = $(PATH_OUT)/version-generated.h
 VBOX_VERSION_MK     = $(PATH_OUT)/version-generated.mk
 
@@ -5848,9 +5931,18 @@ $(VBOX_VERSION_HEADER): $(VBOX_VERSION_STAMP)
 	$(QUIET)$(APPEND) $@.tmp '#define VBOX_VERSION_MAJOR $(VBOX_VERSION_MAJOR)'
 	$(QUIET)$(APPEND) $@.tmp '#define VBOX_VERSION_MINOR $(VBOX_VERSION_MINOR)'
 	$(QUIET)$(APPEND) $@.tmp '#define VBOX_VERSION_BUILD $(VBOX_VERSION_BUILD)'
+ifneq ($(VBOX_VERSION_PRERELEASE),)
+	$(QUIET)$(APPEND) $@.tmp '#define VBOX_VERSION_PRERELEASE "$(strip $(VBOX_VERSION_PRERELEASE))"'
+endif
 	$(QUIET)$(APPEND) $@.tmp '#define VBOX_VERSION_STRING_RAW "$(VBOX_VERSION_STRING_RAW)"'
 	$(QUIET)$(APPEND) $@.tmp '#define VBOX_VERSION_STRING "$(VBOX_VERSION_STRING)"'
 	$(QUIET)$(APPEND) $@.tmp '#define VBOX_API_VERSION_STRING "$(VBOX_API_VERSION)"'
+	$(QUIET)$(APPEND) $@.tmp ''
+ifdef VBOX_BUILD_SERVER_BUILD
+	$(QUIET)$(APPEND) $@.tmp '#define VBOX_BUILD_SERVER_BUILD 1'
+else
+	$(QUIET)$(APPEND) $@.tmp '#define VBOX_PRIVATE_BUILD_DESC "Private build by $(USERNAME)"'
+endif
 	$(QUIET)$(APPEND) $@.tmp ''
 	$(QUIET)$(APPEND) $@.tmp '#endif'
 	$(QUIET)$(MV) -f $@.tmp $@
@@ -5899,10 +5991,18 @@ $(VBOX_VERSION_MK): $(VBOX_VERSION_STAMP)
 	$(QUIET)$(APPEND) $@.tmp 'VBOX_VERSION_MINOR = $(VBOX_VERSION_MINOR)'
 	$(QUIET)$(APPEND) $@.tmp 'VBOX_VERSION_BUILD = $(VBOX_VERSION_BUILD)'
 	$(QUIET)$(APPEND) $@.tmp 'VBOX_VERSION_STRING = $(VBOX_VERSION_STRING)'
+ifneq ($(VBOX_VERSION_PRERELEASE),)
+	$(QUIET)$(APPEND) $@.tmp 'VBOX_VERSION_PRERELEASE = $(strip $(VBOX_VERSION_PRERELEASE))'
+endif
 	$(QUIET)$(APPEND) $@.tmp 'VBOX_VENDOR = $(VBOX_VENDOR)'
 	$(QUIET)$(APPEND) $@.tmp 'VBOX_VENDOR_SHORT = $(VBOX_VENDOR_SHORT)'
 	$(QUIET)$(APPEND) $@.tmp 'VBOX_PRODUCT = $(VBOX_PRODUCT)'
 	$(QUIET)$(APPEND) $@.tmp 'VBOX_C_YEAR = $(VBOX_C_YEAR)'
+ifdef VBOX_BUILD_SERVER_BUILD
+	$(QUIET)$(APPEND) $@.tmp 'VBOX_BUILD_SERVER_BUILD = 1'
+else
+	$(QUIET)$(APPEND) $@.tmp 'VBOX_PRIVATE_BUILD_DESC = Private build by $(USERNAME)'
+endif
 	$(QUIET)$(MV) -f $@.tmp $@
 
 if !defined(VBOX_OSE) && !defined(VBOX_NOINC_LICENSE_VER_KMK)
@@ -5951,7 +6051,7 @@ endif
 SVN                    ?= svn$(HOSTSUFF_EXE)
 VBOX_SVN_REV_KMK        = $(PATH_OUT)/revision.kmk
 ifndef VBOX_SVN_REV
- VBOX_SVN_REV_FALLBACK := $(patsubst %:,,  $Rev: 100143 $  )
+ VBOX_SVN_REV_FALLBACK := $(patsubst %:,,  $Rev: 100374 $  )
  VBOX_SVN_DEP          := $(firstword $(wildcard $(PATH_ROOT)/.svn/wc.db $(abspath $(PATH_ROOT)/../.svn/wc.db) $(abspath $(PATH_ROOT)/../../.svn/wc.db) $(PATH_ROOT)/.svn/entries))
  ifeq ($(which $(SVN)),)
   VBOX_SVN_DEP         :=

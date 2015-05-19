@@ -94,16 +94,19 @@ VMMRCDECL(void) TRPMGCHyperReturnToHost(PVM pVM, int rc)
  *
  * @returns VBox status code (appropriate for trap handling and GC return).
  * @param   pVM         Pointer to the VM.
+ * @param   pVCpu       Pointer to the cross context CPU context for the
+ *                      calling EMT.
  * @param   uErrorCode   CPU Error code.
  * @param   pRegFrame   Trap register frame.
  * @param   pvFault     The fault address (cr2).
  * @param   pvRange     The base address of the handled virtual range.
  * @param   offRange    The offset of the access into this range.
  *                      (If it's a EIP range this is the EIP, if not it's pvFault.)
+ * @param   pvUser      Unused.
  */
-VMMRCDECL(int) trpmRCGuestIDTWriteHandler(PVM pVM, RTGCUINT uErrorCode, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, RTGCPTR pvRange, uintptr_t offRange)
+DECLEXPORT(int) trpmRCGuestIDTWritePfHandler(PVM pVM, PVMCPU pVCpu, RTGCUINT uErrorCode, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault,
+                                             RTGCPTR pvRange, uintptr_t offRange, void *pvUser)
 {
-    PVMCPU      pVCpu = VMMGetCpu0(pVM);
     uint16_t    cbIDT;
     RTGCPTR     GCPtrIDT    = (RTGCPTR)CPUMGetGuestIDTR(pVCpu, &cbIDT);
 #ifdef VBOX_STRICT
@@ -113,7 +116,7 @@ VMMRCDECL(int) trpmRCGuestIDTWriteHandler(PVM pVM, RTGCUINT uErrorCode, PCPUMCTX
 
     AssertMsg(offRange < (uint32_t)cbIDT+1, ("pvFault=%RGv GCPtrIDT=%RGv-%RGv pvRange=%RGv\n", pvFault, GCPtrIDT, GCPtrIDTEnd, pvRange));
     Assert((RTGCPTR)(RTRCUINTPTR)pvRange == GCPtrIDT);
-    NOREF(uErrorCode);
+    NOREF(uErrorCode); NOREF(pvUser);
 
 #if 0
     /* Note! this causes problems in Windows XP as instructions following the update can be dangerous (str eax has been seen) */
@@ -142,7 +145,7 @@ VMMRCDECL(int) trpmRCGuestIDTWriteHandler(PVM pVM, RTGCUINT uErrorCode, PCPUMCTX
     NOREF(iGate);
 #endif
 
-    Log(("trpmRCGuestIDTWriteHandler: eip=%RGv write to gate %x offset %x\n", pRegFrame->eip, iGate, offRange));
+    Log(("trpmRCGuestIDTWritePfHandler: eip=%RGv write to gate %x offset %x\n", pRegFrame->eip, iGate, offRange));
 
     /** @todo Check which IDT entry and keep the update cost low in TRPMR3SyncIDT() and CSAMCheckGates(). */
     VMCPU_FF_SET(pVCpu, VMCPU_FF_TRPM_SYNC_IDT);
@@ -157,18 +160,21 @@ VMMRCDECL(int) trpmRCGuestIDTWriteHandler(PVM pVM, RTGCUINT uErrorCode, PCPUMCTX
  *
  * @returns VBox status code (appropriate for trap handling and GC return).
  * @param   pVM         Pointer to the VM.
- * @param   uErrorCode   CPU Error code.
+ * @param   pVCpu       Pointer to the cross context CPU context for the
+ *                      calling EMT.
+ * @param   uErrorCode  CPU Error code.
  * @param   pRegFrame   Trap register frame.
  * @param   pvFault     The fault address (cr2).
  * @param   pvRange     The base address of the handled virtual range.
  * @param   offRange    The offset of the access into this range.
  *                      (If it's a EIP range this is the EIP, if not it's pvFault.)
+ * @param   pvUser      Unused.
  */
-VMMRCDECL(int) trpmRCShadowIDTWriteHandler(PVM pVM, RTGCUINT uErrorCode, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, RTGCPTR pvRange, uintptr_t offRange)
+DECLEXPORT(int) trpmRCShadowIDTWritePfHandler(PVM pVM, PVMCPU pVCpu, RTGCUINT uErrorCode, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault,
+                                              RTGCPTR pvRange, uintptr_t offRange, void *pvUser)
 {
-    PVMCPU pVCpu = VMMGetCpu0(pVM);
-    LogRel(("FATAL ERROR: trpmRCShadowIDTWriteHandler: eip=%08X pvFault=%RGv pvRange=%08RGv\r\n", pRegFrame->eip, pvFault, pvRange));
-    NOREF(uErrorCode); NOREF(offRange);
+    LogRel(("FATAL ERROR: trpmRCShadowIDTWritePfHandler: eip=%08X pvFault=%RGv pvRange=%08RGv\r\n", pRegFrame->eip, pvFault, pvRange));
+    NOREF(uErrorCode); NOREF(offRange); NOREF(pvUser);
 
     /*
      * If we ever get here, then the guest has *probably* executed an SIDT

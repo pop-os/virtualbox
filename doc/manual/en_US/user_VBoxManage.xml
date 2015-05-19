@@ -1176,12 +1176,9 @@ Statistics update:  disabled</screen></para>
       available through <computeroutput>VBoxManage
       modifyvm</computeroutput>:<itemizedlist>
           <listitem>
-            <para><computeroutput>--vrde on|off</computeroutput>: With the
-            VirtualBox graphical user interface, this enables or disables the
-            VirtualBox remote desktop extension (VRDE) server. Note that if
-            you are using <computeroutput>VBoxHeadless</computeroutput> (see
-            <xref linkend="vboxheadless" />), VRDE is enabled by
-            default.</para>
+            <para><computeroutput>--vrde on|off</computeroutput>:
+            This enables or disables the VirtualBox remote desktop extension
+            (VRDE) server.</para>
           </listitem>
 
           <!-- @todo r=andy Document vrdeproperty -->
@@ -2879,6 +2876,17 @@ Value: 2006.01.01</screen>
           <glossdef>
             <para>This selects the global default VM frontend setting. See
             <xref linkend="vboxmanage-startvm" />.</para>
+          </glossdef>
+        </glossentry>
+
+        <glossentry>
+          <glossterm><computeroutput>logginglevel</computeroutput></glossterm>
+
+          <glossdef>
+            <para>This configures the VBoxSVC release logging details.<footnote>
+              <para><ulink url="http://www.virtualbox.org/wiki/VBoxLogging">http://www.virtualbox.org/wiki/VBoxLogging</ulink>.</para>
+              </footnote>
+            </para>
           </glossdef>
         </glossentry>
       </glosslist></para>

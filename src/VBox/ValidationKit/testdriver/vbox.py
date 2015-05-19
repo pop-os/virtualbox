@@ -8,7 +8,7 @@ VirtualBox Specific base testdriver.
 
 __copyright__ = \
 """
-Copyright (C) 2010-2014 Oracle Corporation
+Copyright (C) 2010-2015 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -27,7 +27,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 99374 $"
+__version__ = "$Revision: 100279 $"
 
 
 # Standard Python imports.
@@ -1780,7 +1780,10 @@ class TestDriver(base.TestDriver):                                              
             reporter.log("  Session PID:        %u (%#x)" % (oVM.sessionPID, oVM.sessionPID));
         else:
             reporter.log("  Session PID:        %u (%#x)" % (oVM.sessionPid, oVM.sessionPid));
-        reporter.log("  Session Type:       %s" % (oVM.sessionType));
+        if self.fpApiVer >= 5.0:
+            reporter.log("  Session Name:       %s" % (oVM.sessionName));
+        else:
+            reporter.log("  Session Name:       %s" % (oVM.sessionType));
         reporter.log("  CPUs:               %s" % (oVM.CPUCount));
         reporter.log("  RAM:                %sMB" % (oVM.memorySize));
         reporter.log("  VRAM:               %sMB" % (oVM.VRAMSize));
@@ -1793,7 +1796,8 @@ class TestDriver(base.TestDriver):                                              
             reporter.log("  Long-mode:          %s" % (oVM.getCPUProperty(vboxcon.CPUPropertyType_LongMode)));
         if self.fpApiVer >= 3.2:
             reporter.log("  PAE:                %s" % (oVM.getCPUProperty(vboxcon.CPUPropertyType_PAE)));
-            reporter.log("  Synthetic CPU:      %s" % (oVM.getCPUProperty(vboxcon.CPUPropertyType_Synthetic)));
+            if self.fpApiVer < 5.0:
+                reporter.log("  Synthetic CPU:      %s" % (oVM.getCPUProperty(vboxcon.CPUPropertyType_Synthetic)));
         else:
             reporter.log("  PAE:                %s" % (oVM.getCpuProperty(vboxcon.CpuPropertyType_PAE)));
             reporter.log("  Synthetic CPU:      %s" % (oVM.getCpuProperty(vboxcon.CpuPropertyType_Synthetic)));
@@ -2219,7 +2223,10 @@ class TestDriver(base.TestDriver):                                              
         # Get the original values so we're not subject to
         try:
             eCurState =             oVM.sessionState;
-            sCurType  = sOrgType  = oVM.sessionType;
+            if self.fpApiVer >= 5.0:
+                sCurName  = sOrgName  = oVM.sessionName;
+            else:
+                sCurName  = sOrgName  = oVM.sessionType;
             if self.fpApiVer >= 4.2:
                 iCurPid   = iOrgPid   = oVM.sessionPID;
             else:
@@ -2233,8 +2240,8 @@ class TestDriver(base.TestDriver):                                              
 
         msStart = base.timestampMilli();
         while iCurPid  == iOrgPid \
-          and sCurType == sOrgType \
-          and sCurType != '' \
+          and sCurName == sOrgName \
+          and sCurName != '' \
           and base.timestampMilli() - msStart < cMsTimeout \
           and (   eCurState == vboxcon.SessionState_Unlocking \
                or eCurState == vboxcon.SessionState_Spawning \
@@ -2242,7 +2249,7 @@ class TestDriver(base.TestDriver):                                              
             self.processEvents(1000);
             try:
                 eCurState = oVM.sessionState;
-                sCurType  = oVM.sessionType;
+                sCurName  = oVM.sessionName if self.fpApiVer >= 5.0 else oVM.sessionType;
                 iCurPid   = oVM.sessionPID if self.fpApiVer >= 4.2 else oVM.sessionPid;
             except Exception, oXcpt:
                 if ComError.notEqual(oXcpt, ComError.E_ACCESSDENIED):

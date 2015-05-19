@@ -4169,7 +4169,7 @@
 
   <interface
     name="IMachine" extends="$unknown"
-    uuid="701464d0-7284-42e9-b7b3-894cf31536b7"
+    uuid="feb138aa-dbce-4a89-8ec0-380fc7ec4913"
     wsmap="managed"
     wrap-hint-server-addinterfaces="IInternalMachineControl"
     wrap-hint-server="manualaddinterfaces"
@@ -4669,14 +4669,15 @@
       <desc>Current session state for this machine.</desc>
     </attribute>
 
-    <attribute name="sessionType" type="wstring" readonly="yes">
+    <attribute name="sessionName" type="wstring" readonly="yes">
       <desc>
-        Type of the session. If <link to="#sessionState"/> is
+        Name of the session. If <link to="#sessionState"/> is
         Spawning or Locked, this attribute contains the
         same value as passed to the
         <link to="IMachine::launchVMProcess"/> method in the
-        @a type parameter. If the session was used with
-        <link to="IMachine::lockMachine" />, or if
+        @a name parameter. If the session was established with
+        <link to="IMachine::lockMachine" />, it is the name of the session
+        (if set, otherwise empty string). If
         <link to="#sessionState"/> is SessionClosed, the value of this
         attribute is an empty string.
       </desc>
@@ -5190,7 +5191,7 @@ and "VAR" for unsetting. -->
           must be in "Unlocked" state).
         </desc>
       </param>
-      <param name="type" type="wstring" dir="in">
+      <param name="name" type="wstring" dir="in">
         <desc>
           Front-end to use for the new VM process. The following are currently supported:
           <ul>
@@ -6521,7 +6522,7 @@ and "VAR" for unsetting. -->
       </desc>
     </method>
 
-    <method name="unregister" wrap-hint-server="limitedcaller">
+    <method name="unregister" wrap-hint-server="limitedcaller,passcaller">
       <desc>
         Unregisters a machine previously registered with
         <link to="IVirtualBox::registerMachine"/> and optionally do additional
@@ -7035,32 +7036,6 @@ and "VAR" for unsetting. -->
       </param>
     </method>
 
-    <method name="querySavedThumbnailSize">
-      <desc>
-        Returns size in bytes and dimensions in pixels of a saved thumbnail bitmap from saved state.
-      </desc>
-      <param name="screenId" type="unsigned long" dir="in">
-        <desc>
-          Saved guest screen to query info from.
-        </desc>
-      </param>
-      <param name="size" type="unsigned long" dir="out">
-        <desc>
-          Size of buffer required to store the bitmap.
-        </desc>
-      </param>
-      <param name="width" type="unsigned long" dir="out">
-        <desc>
-          Bitmap width.
-        </desc>
-      </param>
-      <param name="height" type="unsigned long" dir="out">
-        <desc>
-          Bitmap height.
-        </desc>
-      </param>
-    </method>
-
     <method name="readSavedThumbnailToArray">
       <desc>
         Thumbnail is retrieved to an array of bytes in the requested format.
@@ -7092,18 +7067,13 @@ and "VAR" for unsetting. -->
       </param>
     </method>
 
-    <method name="querySavedScreenshotPNGSize">
+    <method name="querySavedScreenshotInfo">
       <desc>
-        Returns size in bytes and dimensions of a saved PNG image of screenshot from saved state.
+        Returns available formats and size of the screenshot from saved state.
       </desc>
       <param name="screenId" type="unsigned long" dir="in">
         <desc>
           Saved guest screen to query info from.
-        </desc>
-      </param>
-      <param name="size" type="unsigned long" dir="out">
-        <desc>
-          Size of buffer required to store the PNG binary data.
         </desc>
       </param>
       <param name="width" type="unsigned long" dir="out">
@@ -7116,15 +7086,25 @@ and "VAR" for unsetting. -->
           Image height.
         </desc>
       </param>
+      <param name="bitmapFormats" type="BitmapFormat" safearray="yes" dir="return">
+        <desc>
+          Formats supported by readSavedScreenshotToArray.
+        </desc>
+      </param>
     </method>
 
-    <method name="readSavedScreenshotPNGToArray">
+    <method name="readSavedScreenshotToArray">
       <desc>
-        Screenshot in PNG format is retrieved to an array of bytes.
+        Screenshot in requested format is retrieved to an array of bytes.
       </desc>
       <param name="screenId" type="unsigned long" dir="in">
         <desc>
           Saved guest screen to read from.
+        </desc>
+      </param>
+      <param name="bitmapFormat" type="BitmapFormat" dir="in">
+        <desc>
+          The requested format.
         </desc>
       </param>
       <param name="width" type="unsigned long" dir="out">
@@ -7139,7 +7119,7 @@ and "VAR" for unsetting. -->
       </param>
       <param name="data" type="octet" dir="return" safearray="yes">
         <desc>
-          Array with resulting PNG data.
+          Array with resulting image data.
         </desc>
       </param>
     </method>
@@ -17183,7 +17163,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
 
   <interface
     name="IMachineDebugger" extends="$unknown"
-    uuid="5e4534dc-21b8-4f6b-8a08-eef50e1a0aa1"
+    uuid="ae7afb78-4265-8c03-ccb9-33a7970057e3"
     wsmap="managed"
     >
     <method name="dumpGuestCore">
@@ -17367,6 +17347,23 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       </param>
     </method>
 
+    <method name="loadPlugIn">
+      <desc> Loads a DBGF plug-in. </desc>
+      <param name="name" type="wstring" dir="in">
+        <desc>The plug-in name or DLL. Special name 'all' loads all installed plug-ins.</desc>
+      </param>
+      <param name="plugInName" type="wstring" dir="return">
+        <desc>The name of the loaded plug-in.</desc>
+      </param>
+    </method>
+
+    <method name="unloadPlugIn">
+      <desc>Unloads a DBGF plug-in.</desc>
+      <param name="name" type="wstring" dir="in">
+        <desc>The plug-in name or DLL. Special name 'all' unloads all plug-ins.</desc>
+      </param>
+    </method>
+
     <method name="detectOS">
       <desc>
         Tries to (re-)detect the guest OS kernel.
@@ -17381,12 +17378,25 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       </param>
     </method>
 
+    <method name="queryOSKernelLog">
+      <desc>
+        Tries to get the kernel log (dmesg) of the guest OS.
+
+      </desc>
+      <param name="maxMessages" type="unsigned long" dir="in">
+        <desc>Max number of messages to return, counting from the end of the
+          log.  If 0, there is no limit.</desc>
+      </param>
+      <param name="dmesg" type="wstring" dir="return">
+        <desc>
+          The kernel log.
+        </desc>
+      </param>
+    </method>
+
     <method name="getRegister">
       <desc>
         Gets one register.
-
-        This feature is not implemented in the 4.0.0 release but may show up
-        in a dot release.
       </desc>
       <param name="cpuId" type="unsigned long" dir="in">
         <desc>The identifier of the Virtual CPU.</desc>
@@ -17405,9 +17415,6 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
     <method name="getRegisters">
       <desc>
         Gets all the registers for the given CPU.
-
-        This feature is not implemented in the 4.0.0 release but may show up
-        in a dot release.
       </desc>
       <param name="cpuId" type="unsigned long" dir="in">
         <desc>The identifier of the Virtual CPU.</desc>
@@ -19265,7 +19272,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
 
   <interface
     name="ISession" extends="$unknown"
-    uuid="12F4DCDB-12B2-4EC1-B7CD-DDD9F6C5BF4D"
+    uuid="3d4f472c-aac8-4387-94be-54042bcd8901"
     wsmap="managed"
     wrap-hint-server-addinterfaces="IInternalSessionControl"
     >
@@ -19338,12 +19345,24 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       </desc>
     </attribute>
 
+    <attribute name="name" type="wstring">
+      <desc>
+        Name of this session. Important only for VM sessions, otherwise it
+        it will be remembered, but not used for anything significant (and can
+        be left at the empty string which is the default). The value can only
+        be changed when the session state is SessionState_Unlocked. Make sure
+        that you use a descriptive name which does not conflict with the VM
+        process session names: "GUI/Qt", "GUI/SDL" and "headless".
+      </desc>
+    </attribute>
+
     <attribute name="machine" type="IMachine" readonly="yes">
       <desc>Machine object associated with this session.</desc>
     </attribute>
 
     <attribute name="console" type="IConsole" readonly="yes">
-      <desc>Console object associated with this session.</desc>
+      <desc>Console object associated with this session. Only sessions
+      which locked the machine for a VM process have a non-null console.</desc>
     </attribute>
 
     <method name="unlockMachine">

@@ -416,7 +416,7 @@ RTDECL(int) RTMpOnPair(RTCPUID idCpu1, RTCPUID idCpu2, uint32_t fFlags, PFNRTMPW
             rtmpLinuxWrapper(&Args);
             while (ASMAtomicReadU32(&Args.cHits) < 2)
             {
-                if ((cLoops & 0x1ff) == 0 && !RTMpIsCpuOnline(idCpuSelf == idCpu1 ? idCpu2 : idCpu2))
+                if ((cLoops & 0x1ff) == 0 && !RTMpIsCpuOnline(idCpuSelf == idCpu1 ? idCpu2 : idCpu1))
                     break;
                 cLoops++;
                 ASMNopPause();
@@ -452,6 +452,8 @@ RTDECL(bool) RTMpOnPairIsConcurrentExecSupported(void)
     return true;
 }
 RT_EXPORT_SYMBOL(RTMpOnPairIsConcurrentExecSupported);
+
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19)
 /**
  * Wrapper between the native linux per-cpu callbacks and PFNRTWORKER

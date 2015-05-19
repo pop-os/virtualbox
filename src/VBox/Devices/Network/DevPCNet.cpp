@@ -632,6 +632,14 @@ AssertCompileSize(RMD, 16);
 
 static void pcnetPollTimerStart(PPCNETSTATE pThis);
 static int  pcnetXmitPending(PPCNETSTATE pThis, bool fOnWorkerThread);
+#ifdef PCNET_NO_POLLING
+PGM_ALL_CB_DECL(FNPGMPHYSHANDLER)           pcnetHandleRingWrite;
+# ifndef IN_RING3
+RT_C_DECLS_BEGIN
+DECLEXPORT(CTX_SUFF(FNPGM,PHYSPFHANDLER))   pcnetHandleRingWritePf;
+RT_C_DECLS_END
+# endif
+#endif
 
 
 
@@ -1074,12 +1082,6 @@ DECLINLINE(RTGCPHYS32) pcnetTdraAddr(PPCNETSTATE pThis, int idx)
     return pThis->GCTDRA + ((CSR_XMTRL(pThis) - idx) << pThis->iLog2DescSize);
 }
 
-RT_C_DECLS_BEGIN
-#ifndef IN_RING3
-DECLEXPORT(int) pcnetHandleRingWrite(PVM pVM, RTGCUINT uErrorCode, PCPUMCTXCORE pRegFrame,
-                                     RTGCPTR pvFault, RTGCPHYS GCPhysFault, void *pvUser);
-#endif
-RT_C_DECLS_END
 
 #undef htonl
 #define htonl(x)    ASMByteSwapU32(x)
@@ -1094,25 +1096,26 @@ static int      pcnetBCRWriteU16(PPCNETSTATE pThis, uint32_t u32RAP, uint32_t va
 
 
 #ifdef PCNET_NO_POLLING
-# ifndef IN_RING3
 
+# ifndef IN_RING3
 /**
  * #PF Virtual Handler callback for Guest write access to the ring descriptor page(pThis)
  *
  * @return  VBox status code (appropriate for trap handling and GC return).
  * @param   pVM         VM Handle.
+ * @param   pVCpu           The cross context CPU structure for the calling EMT.
  * @param   uErrorCode  CPU Error code.
  * @param   pRegFrame   Trap register frame.
  * @param   pvFault     The fault address (cr2).
  * @param   GCPhysFault The GC physical address corresponding to pvFault.
  * @param   pvUser      User argument.
  */
-DECLEXPORT(int) pcnetHandleRingWrite(PVM pVM, RTGCUINT uErrorCode, PCPUMCTXCORE pRegFrame,
-                                     RTGCPTR pvFault, RTGCPHYS GCPhysFault, void *pvUser)
+DECLEXPORT(int) pcnetHandleRingWritePf(PVM pVM, PVMCPU pVCpu, RTGCUINT uErrorCode, PCPUMCTXCORE pRegFrame,
+                                       RTGCPTR pvFault, RTGCPHYS GCPhysFault, void *pvUser)
 {
-    PPCNETSTATE pThis   = (PPCNETSTATE)pvUser;
+    PPCNETSTATE pThis = (PPCNETSTATE)pvUser;
 
-    Log(("#%d pcnetHandleRingWriteGC: write to %#010x\n", PCNET_INST_NR, GCPhysFault));
+    Log(("#%d pcnetHandleRingWritePf: write to %#010x\n", PCNET_INST_NR, GCPhysFault));
 
     uint32_t cb;
     int rc = CTXALLSUFF(pThis->pfnEMInterpretInstruction)(pVM, pRegFrame, pvFault, &cb);
@@ -1148,11 +1151,11 @@ DECLEXPORT(int) pcnetHandleRingWrite(PVM pVM, RTGCUINT uErrorCode, PCPUMCTXCORE 
     STAM_COUNTER_INC(&CTXALLSUFF(pThis->StatRingWriteFailed)); ;
     return VINF_IOM_R3_MMIO_WRITE; /* handle in ring3 */
 }
+#endif /* !IN_RING3 */
 
-# else /* IN_RING3 */
 
 /**
- * #PF Handler callback for physical access handler ranges (MMIO among others) in HC.
+ * #PF Handler callback for physical access handler ranges (MMIO among others).
  *
  * The handler can not raise any faults, it's mainly for monitoring write access
  * to certain pages.
@@ -1160,15 +1163,17 @@ DECLEXPORT(int) pcnetHandleRingWrite(PVM pVM, RTGCUINT uErrorCode, PCPUMCTXCORE 
  * @returns VINF_SUCCESS if the handler have carried out the operation.
  * @returns VINF_PGM_HANDLER_DO_DEFAULT if the caller should carry out the access operation.
  * @param   pVM             VM Handle.
+ * @param   pVCpu           The cross context CPU structure for the calling EMT.
  * @param   GCPhys          The physical address the guest is writing to.
  * @param   pvPhys          The HC mapping of that address.
  * @param   pvBuf           What the guest is reading/writing.
  * @param   cbBuf           How much it's reading/writing.
  * @param   enmAccessType   The access type.
+ * @param   enmOrigin       Who is making the access.
  * @param   pvUser          User argument.
  */
-static DECLCALLBACK(int) pcnetHandleRingWrite(PVM pVM, RTGCPHYS GCPhys, void *pvPhys, void *pvBuf,
-                                              size_t cbBuf, PGMACCESSTYPE enmAccessType, void *pvUser)
+PGM_ALL_CB_DECL(int) pcnetHandleRingWrite(PVM pVM, PVMCPU pVCpu, RTGCPHYS GCPhys, void *pvPhys, void *pvBuf, size_t cbBuf,
+                                          PGMACCESSTYPE enmAccessType, PGMACCESSORIGIN enmOrigin, void *pvUser)
 {
     PPDMDEVINS  pDevIns = (PPDMDEVINS)pvUser;
     PPCNETSTATE pThis   = PDMINS_2_DATA(pDevIns, PPCNETSTATE);
@@ -1203,7 +1208,6 @@ static DECLCALLBACK(int) pcnetHandleRingWrite(PVM pVM, RTGCPHYS GCPhys, void *pv
     }
     return VINF_SUCCESS;
 }
-# endif /* !IN_RING3 */
 #endif /* PCNET_NO_POLLING */
 
 static void pcnetSoftReset(PPCNETSTATE pThis)
@@ -4976,8 +4980,8 @@ static DECLCALLBACK(int) pcnetConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGM
 
     rc = PGMR3HandlerPhysicalTypeRegister(PDMDevHlpGetVM(pDevIns), PGMPHYSHANDLERKIND_WRITE,
                                           pcnetHandleRingWrite,
-                                          g_DevicePCNet.szR0Mod, "pcnetHandleRingWrite",
-                                          g_DevicePCNet.szRCMod, "pcnetHandleRingWrite",
+                                          g_DevicePCNet.szR0Mod, "pcnetHandleRingWritePf",
+                                          g_DevicePCNet.szRCMod, "pcnetHandleRingWritePf",
                                           "PCNet ring write access handler",
                                           &pThis->hNoPollingHandlerType);
     AssertRCReturn(rc, rc);
