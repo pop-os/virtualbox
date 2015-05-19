@@ -42,8 +42,8 @@ Index: virtualbox/src/VBox/Additions/common/crOpenGL/Makefile.kmk
   VBoxOGL_DEFS     += VBOX_NO_NATIVEGL
  endif
  
-@@ -208,10 +202,10 @@
- 	$(PATH_STAGE_LIB)/additions/VBoxOGLspuload$(VBOX_SUFF_LIB)
+@@ -213,10 +207,10 @@
+ 
  if1of ($(KBUILD_TARGET), linux solaris freebsd)
   VBoxOGL_LIBS += \
 - 	$(PATH_STAGE_LIB)/libXcomposite.so \
