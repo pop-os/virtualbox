@@ -44,6 +44,7 @@ rm -fr ${ORIG_TARBALL_DIR}/src/VBox/Devices/EFI/Firmware/FatBinPkg/EnhancedFatDx
 rm -fr ${ORIG_TARBALL_DIR}/src/VBox/Devices/EFI/Firmware/StdLib/LibC/Main/Ia32/ftol2.obj
 rm -fr ${ORIG_TARBALL_DIR}/src/VBox/Devices/EFI/Firmware/BaseTools/Source/Python/UPT/Dll/sqlite3.dll
 rm -fr ${ORIG_TARBALL_DIR}/src/VBox/Main/webservice/jaxlibs/*.jar
+rm -rf ${ORIG_TARBALL_DIR}/src/VBox/HostDrivers/Support/win/winstub.com
 
 tar --exclude .svn --exclude '.git*' --exclude debian --directory ${WORKING_DIR} -cJf ${DEST_TARBALL_NAME} ${ORIG_TARBALL_DIR_STRIP} || exit 1
 rm -rf ${ORIG_TARBALL_DIR}
