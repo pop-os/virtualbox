@@ -10,6 +10,7 @@ virtualbox (5.0.0~beta4-dfsg-1) UNRELEASED; urgency=medium
     It seems to really not use libc symbols.
   * d/rules: remove VBoxDTraceR0.debug and strip VBoxDTraceR0.r0
     files.
+  * update d/source.lintian-overrides file.
 
  -- Gianfranco Costamagna <costamagnagianfranco@yahoo.it>  Fri, 20 Mar 2015 12:02:04 +0100
 
