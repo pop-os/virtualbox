@@ -44,7 +44,8 @@ kdist_clean: clean
 #
 ### end  KERNEL SETUP
 
-MAKE:=kmk
+#see bug #785161
+#MAKE:=kmk
 
 clean:
 	$(MAKE) -C vboxdrv clean
