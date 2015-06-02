@@ -122,8 +122,12 @@ QPixmap UIIconPoolStorageSettings::pixmap(PixmapType pixmapType) const
                     ("Undefined icon for type '%s'.", (int)pixmapType),
                     nullPixmap);
 
+    /* Determine icon metric: */
+    const QStyle *pStyle = QApplication::style();
+    const int iIconMetric = pStyle->pixelMetric(QStyle::PM_SmallIconSize);
+
     /* Return pixmap of first available size: */
-    return icon.pixmap(availableSizes.first());
+    return icon.pixmap(QSize(iIconMetric, iIconMetric));
 }
 
 QIcon UIIconPoolStorageSettings::icon(PixmapType pixmapType,
@@ -905,7 +909,7 @@ void AttachmentItem::cache()
             case KDeviceType_DVD:
             case KDeviceType_Floppy:
             {
-                mAttFormat = mAttIsHostDrive ? UIMachineSettingsStorage::tr("Host Drive") : UIMachineSettingsStorage::tr("Image");
+                mAttFormat = mAttIsHostDrive ? UIMachineSettingsStorage::tr("Host Drive") : UIMachineSettingsStorage::tr("Image", "storage image");
                 break;
             }
             default:
@@ -1072,16 +1076,16 @@ QVariant StorageModel::data (const QModelIndex &aIndex, int aRole) const
                     {
                         case ExpanderToolTip:
                             if (aIndex.child (0, 0).isValid())
-                                tip = UIMachineSettingsStorage::tr ("<nobr>Expand/Collapse&nbsp;Item</nobr>");
+                                tip = UIMachineSettingsStorage::tr("<nobr>Expands/Collapses&nbsp;item.</nobr>");
                             break;
                         case HDAdderToolTip:
-                            tip = UIMachineSettingsStorage::tr ("<nobr>Add&nbsp;Hard&nbsp;Disk</nobr>");
+                            tip = UIMachineSettingsStorage::tr("<nobr>Adds&nbsp;hard&nbsp;disk.</nobr>");
                             break;
                         case CDAdderToolTip:
-                            tip = UIMachineSettingsStorage::tr ("<nobr>Add&nbsp;Optical&nbsp;Drive</nobr>");
+                            tip = UIMachineSettingsStorage::tr("<nobr>Adds&nbsp;optical&nbsp;drive.</nobr>");
                             break;
                         case FDAdderToolTip:
-                            tip = UIMachineSettingsStorage::tr ("<nobr>Add&nbsp;Floppy&nbsp;Drive</nobr>");
+                            tip = UIMachineSettingsStorage::tr("<nobr>Adds&nbsp;floppy&nbsp;drive.</nobr>");
                             break;
                         default:
                             break;
@@ -1418,7 +1422,7 @@ QVariant StorageModel::data (const QModelIndex &aIndex, int aRole) const
         }
         case R_IconSize:
         {
-            return 16;
+            return QApplication::style()->pixelMetric(QStyle::PM_SmallIconSize);
         }
 
         case R_HDPixmapEn:
@@ -2024,8 +2028,12 @@ UIMachineSettingsStorage::UIMachineSettingsStorage()
     mTwStorageTree->setRootIndex (mStorageModel->root());
     mTwStorageTree->setCurrentIndex (mStorageModel->root());
 
+    /* Determine icon metric: */
+    const QStyle *pStyle = QApplication::style();
+    const int iIconMetric = pStyle->pixelMetric(QStyle::PM_SmallIconSize);
+
     /* Storage ToolBar */
-    mTbStorageBar->setIconSize (QSize (16, 16));
+    mTbStorageBar->setIconSize (QSize (iIconMetric, iIconMetric));
     mTbStorageBar->addAction (mAddAttAction);
     mTbStorageBar->addAction (mDelAttAction);
     mTbStorageBar->addAction (mAddCtrAction);
@@ -2433,46 +2441,37 @@ bool UIMachineSettingsStorage::validate(QList<UIValidationMessage> &messages)
 
 void UIMachineSettingsStorage::retranslateUi()
 {
-    /* Translate uic generated strings */
-    Ui::UIMachineSettingsStorage::retranslateUi (this);
+    /* Translate uic generated strings: */
+    Ui::UIMachineSettingsStorage::retranslateUi(this);
 
-    mAddCtrAction->setShortcut (QKeySequence ("Ins"));
-    mDelCtrAction->setShortcut (QKeySequence ("Del"));
-    mAddAttAction->setShortcut (QKeySequence ("+"));
-    mDelAttAction->setShortcut (QKeySequence ("-"));
+    mAddCtrAction->setShortcut(QKeySequence("Ins"));
+    mDelCtrAction->setShortcut(QKeySequence("Del"));
+    mAddAttAction->setShortcut(QKeySequence("+"));
+    mDelAttAction->setShortcut(QKeySequence("-"));
 
-    mAddCtrAction->setText (tr ("Add Controller"));
-    mAddIDECtrAction->setText (tr ("Add IDE Controller"));
-    mAddSATACtrAction->setText (tr ("Add SATA Controller"));
-    mAddSCSICtrAction->setText (tr ("Add SCSI Controller"));
-    mAddSASCtrAction->setText (tr ("Add SAS Controller"));
-    mAddFloppyCtrAction->setText (tr ("Add Floppy Controller"));
-    mAddUSBCtrAction->setText (tr ("Add USB Controller"));
-    mDelCtrAction->setText (tr ("Remove Controller"));
-    mAddAttAction->setText (tr ("Add Attachment"));
-    mAddHDAttAction->setText (tr ("Add Hard Disk"));
-    mAddCDAttAction->setText (tr ("Add Optical Drive"));
-    mAddFDAttAction->setText (tr ("Add Floppy Drive"));
-    mDelAttAction->setText (tr ("Remove Attachment"));
+    mAddCtrAction->setText(tr("Add Controller"));
+    mAddIDECtrAction->setText(tr("Add IDE Controller"));
+    mAddSATACtrAction->setText(tr("Add SATA Controller"));
+    mAddSCSICtrAction->setText(tr("Add SCSI Controller"));
+    mAddSASCtrAction->setText(tr("Add SAS Controller"));
+    mAddFloppyCtrAction->setText(tr("Add Floppy Controller"));
+    mAddUSBCtrAction->setText(tr("Add USB Controller"));
+    mDelCtrAction->setText(tr("Remove Controller"));
+    mAddAttAction->setText(tr("Add Attachment"));
+    mAddHDAttAction->setText(tr("Add Hard Disk"));
+    mAddCDAttAction->setText(tr("Add Optical Drive"));
+    mAddFDAttAction->setText(tr("Add Floppy Drive"));
+    mDelAttAction->setText(tr("Remove Attachment"));
 
-    mAddCtrAction->setWhatsThis (tr ("Adds a new controller to the end of the Storage Tree."));
-    mDelCtrAction->setWhatsThis (tr ("Removes the controller highlighted in the Storage Tree."));
-    mAddAttAction->setWhatsThis (tr ("Adds a new attachment to the Storage Tree using "
-                                     "currently selected controller as parent."));
-    mDelAttAction->setWhatsThis (tr ("Removes the attachment highlighted in the Storage Tree."));
+    mAddCtrAction->setWhatsThis(tr("Adds new storage controller."));
+    mDelCtrAction->setWhatsThis(tr("Removes selected storage controller."));
+    mAddAttAction->setWhatsThis(tr("Adds new storage attachment."));
+    mDelAttAction->setWhatsThis(tr("Removes selected storage attachment."));
 
-    mAddCtrAction->setToolTip (QString ("<nobr>%1&nbsp;(%2)")
-                               .arg (mAddCtrAction->text().remove ('&'))
-                               .arg (mAddCtrAction->shortcut().toString()));
-    mDelCtrAction->setToolTip (QString ("<nobr>%1&nbsp;(%2)")
-                               .arg (mDelCtrAction->text().remove ('&'))
-                               .arg (mDelCtrAction->shortcut().toString()));
-    mAddAttAction->setToolTip (QString ("<nobr>%1&nbsp;(%2)")
-                               .arg (mAddAttAction->text().remove ('&'))
-                               .arg (mAddAttAction->shortcut().toString()));
-    mDelAttAction->setToolTip (QString ("<nobr>%1&nbsp;(%2)")
-                               .arg (mDelAttAction->text().remove ('&'))
-                               .arg (mDelAttAction->shortcut().toString()));
+    mAddCtrAction->setToolTip(mAddCtrAction->whatsThis());
+    mDelCtrAction->setToolTip(mDelCtrAction->whatsThis());
+    mAddAttAction->setToolTip(mAddAttAction->whatsThis());
+    mDelAttAction->setToolTip(mDelAttAction->whatsThis());
 }
 
 void UIMachineSettingsStorage::showEvent (QShowEvent *aEvent)
@@ -2748,7 +2747,6 @@ void UIMachineSettingsStorage::getInformation()
                         mTbOpen->setIcon(iconPool()->icon(HDAttachmentNormal));
                         mTbOpen->setWhatsThis(tr("Choose or create a virtual hard disk file. The virtual machine will see "
                                                  "the data in the file as the contents of the virtual hard disk."));
-                        mTbOpen->setToolTip(tr("Set up the virtual hard disk"));
                         break;
                     case KDeviceType_DVD:
                         mLbMedium->setText(tr("Optical &Drive:"));
@@ -2756,7 +2754,6 @@ void UIMachineSettingsStorage::getInformation()
                         mTbOpen->setWhatsThis(tr("Choose a virtual optical disk or a physical drive to use with the virtual drive. "
                                                  "The virtual machine will see a disk inserted into the drive with the data "
                                                  "in the file or on the disk in the physical drive as its contents."));
-                        mTbOpen->setToolTip(tr("Set up the virtual optical drive"));
                         break;
                     case KDeviceType_Floppy:
                         mLbMedium->setText(tr("Floppy &Drive:"));
@@ -2764,7 +2761,6 @@ void UIMachineSettingsStorage::getInformation()
                         mTbOpen->setWhatsThis(tr("Choose a virtual floppy disk or a physical drive to use with the virtual drive. "
                                                  "The virtual machine will see a disk inserted into the drive with the data "
                                                  "in the file or on the disk in the physical drive as its contents."));
-                        mTbOpen->setToolTip(tr("Set up the virtual floppy drive"));
                         break;
                     default:
                         break;
@@ -2911,11 +2907,11 @@ void UIMachineSettingsStorage::sltPrepareOpenMediumMenu()
             case UIMediumType_HardDisk:
             {
                 /* Add "Create a new virtual hard disk" action: */
-                QAction *pCreateNewHardDisk = pOpenMediumMenu->addAction(tr("Create a new hard disk..."));
+                QAction *pCreateNewHardDisk = pOpenMediumMenu->addAction(tr("Create New Hard Disk..."));
                 pCreateNewHardDisk->setIcon(iconPool()->icon(HDNewEn, HDNewDis));
                 connect(pCreateNewHardDisk, SIGNAL(triggered(bool)), this, SLOT(sltCreateNewHardDisk()));
                 /* Add "Choose a virtual hard disk file" action: */
-                addChooseExistingMediumAction(pOpenMediumMenu, tr("Choose a virtual hard disk file..."));
+                addChooseExistingMediumAction(pOpenMediumMenu, tr("Choose Virtual Hard Disk File..."));
                 /* Add recent mediums list: */
                 addRecentMediumActions(pOpenMediumMenu, m_pMediumIdHolder->type());
                 break;
@@ -2923,14 +2919,14 @@ void UIMachineSettingsStorage::sltPrepareOpenMediumMenu()
             case UIMediumType_DVD:
             {
                 /* Add "Choose a virtual optical disk file" action: */
-                addChooseExistingMediumAction(pOpenMediumMenu, tr("Choose a virtual optical disk file..."));
+                addChooseExistingMediumAction(pOpenMediumMenu, tr("Choose Virtual Optical Disk File..."));
                 /* Add "Choose a physical drive" actions: */
                 addChooseHostDriveActions(pOpenMediumMenu);
                 /* Add recent mediums list: */
                 addRecentMediumActions(pOpenMediumMenu, m_pMediumIdHolder->type());
                 /* Add "Eject current medium" action: */
                 pOpenMediumMenu->addSeparator();
-                QAction *pEjectCurrentMedium = pOpenMediumMenu->addAction(tr("Remove disk from virtual drive"));
+                QAction *pEjectCurrentMedium = pOpenMediumMenu->addAction(tr("Remove Disk From Virtual Drive"));
                 pEjectCurrentMedium->setEnabled(!m_pMediumIdHolder->isNull());
                 pEjectCurrentMedium->setIcon(iconPool()->icon(CDUnmountEnabled, CDUnmountDisabled));
                 connect(pEjectCurrentMedium, SIGNAL(triggered(bool)), this, SLOT(sltUnmountDevice()));
@@ -2939,14 +2935,14 @@ void UIMachineSettingsStorage::sltPrepareOpenMediumMenu()
             case UIMediumType_Floppy:
             {
                 /* Add "Choose a virtual floppy disk file" action: */
-                addChooseExistingMediumAction(pOpenMediumMenu, tr("Choose a virtual floppy disk file..."));
+                addChooseExistingMediumAction(pOpenMediumMenu, tr("Choose Virtual Floppy Disk File..."));
                 /* Add "Choose a physical drive" actions: */
                 addChooseHostDriveActions(pOpenMediumMenu);
                 /* Add recent mediums list: */
                 addRecentMediumActions(pOpenMediumMenu, m_pMediumIdHolder->type());
                 /* Add "Eject current medium" action: */
                 pOpenMediumMenu->addSeparator();
-                QAction *pEjectCurrentMedium = pOpenMediumMenu->addAction(tr("Remove disk from virtual drive"));
+                QAction *pEjectCurrentMedium = pOpenMediumMenu->addAction(tr("Remove Disk From Virtual Drive"));
                 pEjectCurrentMedium->setEnabled(!m_pMediumIdHolder->isNull());
                 pEjectCurrentMedium->setIcon(iconPool()->icon(FDUnmountEnabled, FDUnmountDisabled));
                 connect(pEjectCurrentMedium, SIGNAL(triggered(bool)), this, SLOT(sltUnmountDevice()));

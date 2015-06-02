@@ -181,7 +181,10 @@ void UIMachineView::destroy(UIMachineView *pMachineView)
 
 #ifdef VBOX_WITH_DRAG_AND_DROP
     if (pMachineView->m_pDnDHandler)
+    {
         delete pMachineView->m_pDnDHandler;
+        pMachineView->m_pDnDHandler = NULL;
+    }
 #endif
     delete pMachineView;
 }
@@ -236,8 +239,10 @@ void UIMachineView::sltPerformGuestResize(const QSize &toSize)
                                uisession()->isScreenVisible(screenId()),
                                false, 0, 0, size.width(), size.height(), 0);
 
-    /* And track whether we have a "normal" or "fullscreen"/"seamless" size-hint sent: */
-    gEDataManager->markLastGuestSizeHintAsFullScreen(m_uScreenId, isFullscreenOrSeamless(), vboxGlobal().managedVMUuid());
+    /* If we are in normal or scaled mode, remember the size sent for the next
+     * time we have to restore one of those two modes: */
+    if (!isFullscreenOrSeamless())
+        storeGuestSizeHint(size);
 }
 
 void UIMachineView::sltHandleNotifyChange(int iWidth, int iHeight)
@@ -825,7 +830,7 @@ UIMachineLogic* UIMachineView::machineLogic() const
 
 QSize UIMachineView::sizeHint() const
 {
-    if (m_sizeHintOverride.isValid())
+    if (m_sizeHintOverride.isValid() && uisession()->isGuestSupportsGraphics())
         return m_sizeHintOverride;
 
     /* Get frame-buffer size-hint: */
@@ -1414,9 +1419,18 @@ void UIMachineView::paintEvent(QPaintEvent *pPaintEvent)
 }
 
 #ifdef VBOX_WITH_DRAG_AND_DROP
+bool UIMachineView::dragAndDropIsActive(void) const
+{
+    return (   m_pDnDHandler
+            && machine().GetDnDMode() != KDnDMode_Disabled);
+}
+
 void UIMachineView::dragEnterEvent(QDragEnterEvent *pEvent)
 {
     AssertPtrReturnVoid(pEvent);
+
+    if (!dragAndDropIsActive())
+        return;
 
     /* Get mouse-pointer location. */
     const QPoint &cpnt = viewportToContents(pEvent->pos());
@@ -1438,6 +1452,9 @@ void UIMachineView::dragMoveEvent(QDragMoveEvent *pEvent)
 {
     AssertPtrReturnVoid(pEvent);
 
+    if (!dragAndDropIsActive())
+        return;
+
     /* Get mouse-pointer location. */
     const QPoint &cpnt = viewportToContents(pEvent->pos());
 
@@ -1458,6 +1475,9 @@ void UIMachineView::dragLeaveEvent(QDragLeaveEvent *pEvent)
 {
     AssertPtrReturnVoid(pEvent);
 
+    if (!dragAndDropIsActive())
+        return;
+
     m_pDnDHandler->dragLeave(screenId());
 
     pEvent->accept();
@@ -1465,6 +1485,9 @@ void UIMachineView::dragLeaveEvent(QDragLeaveEvent *pEvent)
 
 void UIMachineView::dragIsPending(void)
 {
+    if (!dragAndDropIsActive())
+        return;
+
     /** @todo Add guest->guest DnD functionality here by getting
      *        the source of guest B (when copying from B to A). */
     m_pDnDHandler->dragIsPending(screenId());
@@ -1473,6 +1496,9 @@ void UIMachineView::dragIsPending(void)
 void UIMachineView::dropEvent(QDropEvent *pEvent)
 {
     AssertPtrReturnVoid(pEvent);
+
+    if (!dragAndDropIsActive())
+        return;
 
     /* Get mouse-pointer location. */
     const QPoint &cpnt = viewportToContents(pEvent->pos());

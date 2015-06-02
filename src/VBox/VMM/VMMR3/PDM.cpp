@@ -1036,12 +1036,11 @@ static DECLCALLBACK(int) pdmR3LoadExec(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersi
         {
             bool fSkip = false;
 
-#ifdef VBOX_WITH_PDM_AUDIO_DRIVER
-            /* Skip the non-existing "AudioSniffer" device stored in the saved state. */
+            /* Skip the non-existing (deprecated) "AudioSniffer" device stored in the saved state. */
             if (   uVersion <= PDM_SAVED_STATE_VERSION_PRE_PDM_AUDIO
                 && !RTStrCmp(szName, "AudioSniffer"))
                 fSkip = true;
-#endif
+
             if (!fSkip)
             {
                 LogRel(("Device '%s'/%d not found in current config\n", szName, iInstance));
@@ -2100,6 +2099,31 @@ VMMR3DECL(void) PDMR3PowerOff(PVM pVM)
 {
     LogFlow(("PDMR3PowerOff:\n"));
     uint64_t cNsElapsed = RTTimeNanoTS();
+
+    /*
+     * Clear the suspended flags on all devices and drivers first because they
+     * might have been set during a suspend but the power off callbacks should
+     * be called in any case.
+     */
+    for (PPDMDEVINS pDevIns = pVM->pdm.s.pDevInstances; pDevIns; pDevIns = pDevIns->Internal.s.pNextR3)
+    {
+        pDevIns->Internal.s.fIntFlags &= ~PDMDEVINSINT_FLAGS_SUSPENDED;
+
+        for (PPDMLUN pLun = pDevIns->Internal.s.pLunsR3; pLun; pLun = pLun->pNext)
+            for (PPDMDRVINS pDrvIns = pLun->pTop; pDrvIns; pDrvIns = pDrvIns->Internal.s.pDown)
+                pDrvIns->Internal.s.fVMSuspended = false;
+    }
+
+#ifdef VBOX_WITH_USB
+    for (PPDMUSBINS pUsbIns = pVM->pdm.s.pUsbInstances; pUsbIns; pUsbIns = pUsbIns->Internal.s.pNext)
+    {
+        pUsbIns->Internal.s.fVMSuspended = false;
+
+        for (PPDMLUN pLun = pUsbIns->Internal.s.pLuns; pLun; pLun = pLun->pNext)
+            for (PPDMDRVINS pDrvIns = pLun->pTop; pDrvIns; pDrvIns = pDrvIns->Internal.s.pDown)
+                pDrvIns->Internal.s.fVMSuspended = false;
+    }
+#endif
 
     /*
      * The outer loop repeats until there are no more async requests.

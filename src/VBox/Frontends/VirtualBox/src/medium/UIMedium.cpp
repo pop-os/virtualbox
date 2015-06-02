@@ -174,7 +174,7 @@ void UIMedium::refresh()
     if (!m_medium.isNull())
     {
         /* Refresh medium ID: */
-        m_strId = m_medium.GetId();
+        m_strId = normalizedID(m_medium.GetId());
         /* Refresh root medium ID: */
         m_strRootId = m_strId;
 
@@ -230,7 +230,7 @@ void UIMedium::refresh()
             /* Refresh parent hard drive ID: */
             CMedium parentMedium = m_medium.GetParent();
             if (!parentMedium.isNull())
-                m_strParentId = parentMedium.GetId();
+                m_strParentId = normalizedID(parentMedium.GetId());
 
             /* Only for created and accessible mediums: */
             if (m_state != KMediumState_Inaccessible && m_state != KMediumState_NotCreated)
@@ -238,7 +238,7 @@ void UIMedium::refresh()
                 /* Refresh root hard drive ID: */
                 while (!parentMedium.isNull())
                 {
-                    m_strRootId = parentMedium.GetId();
+                    m_strRootId = normalizedID(parentMedium.GetId());
                     parentMedium = parentMedium.GetParent();
                 }
 
@@ -395,7 +395,7 @@ void UIMedium::updateParentID()
     {
         CMedium parentMedium = m_medium.GetParent();
         if (!parentMedium.isNull())
-            m_strParentId = parentMedium.GetId();
+            m_strParentId = normalizedID(parentMedium.GetId());
     }
 }
 
@@ -418,8 +418,8 @@ QString UIMedium::toolTip(bool fNoDiffs /* = false */, bool fCheckRO /* = false 
 
         if (fCheckRO && m_fReadOnly)
             strTip += m_sstrRow.arg("<hr>") +
-                      m_sstrRow.arg(VBoxGlobal::tr("Attaching this hard drive will be performed indirectly using "
-                                                   "a newly created differencing hard drive.", "medium"));
+                      m_sstrRow.arg(VBoxGlobal::tr("Attaching this hard disk will be performed indirectly using "
+                                                   "a newly created differencing hard disk.", "medium"));
     }
 
     return m_sstrTable.arg(strTip);
@@ -528,6 +528,15 @@ QString UIMedium::nullID()
 }
 
 /* static */
+QString UIMedium::normalizedID(const QString &strID)
+{
+    AssertMsgReturn(QUuid(strID).toString().remove('{').remove('}') == strID,
+                    ("CMedium UUID is not valid: '%s'\n", strID.toAscii().constData()),
+                    nullID());
+    return strID;
+}
+
+/* static */
 bool UIMedium::isMediumAttachedToHiddenMachinesOnly(const UIMedium &medium)
 {
     /* Iterate till the root: */
@@ -573,7 +582,7 @@ void UIMedium::checkNoDiffs(bool fNoDiffs)
             m_noDiffs.state = parentMedium.m_state;
 
             if (m_noDiffs.toolTip.isNull())
-                m_noDiffs.toolTip = m_sstrRow.arg(VBoxGlobal::tr("Some of the files in this hard drive chain "
+                m_noDiffs.toolTip = m_sstrRow.arg(VBoxGlobal::tr("Some of the files in this hard disk chain "
                                                                  "are inaccessible. Please use the Virtual Medium "
                                                                  "Manager to inspect these files.", "medium"));
 
@@ -589,8 +598,8 @@ void UIMedium::checkNoDiffs(bool fNoDiffs)
     {
         m_noDiffs.toolTip = root().tip() +
                             m_sstrRow.arg("<hr>") +
-                            m_sstrRow.arg(VBoxGlobal::tr("This base hard drive is indirectly attached using "
-                                                         "the following differencing hard drive:", "medium")) +
+                            m_sstrRow.arg(VBoxGlobal::tr("This base hard disk is indirectly attached using "
+                                                         "the following differencing hard disk:", "medium")) +
                             m_strToolTip + m_noDiffs.toolTip;
     }
 

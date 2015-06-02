@@ -160,11 +160,14 @@ void UIGChooserItemMachine::enumerateMachineItems(const QList<UIGChooserItem*> &
         {
             /* Get the iterated machine-item: */
             UIGChooserItemMachine *pMachineItem = pItem->toMachineItem();
-            /* Skip if this item is already enumerated but we need unique: */
+            /* Skip if exactly this item is already enumerated: */
+            if (ol.contains(pMachineItem))
+                continue;
+            /* Skip if item with same ID is already enumerated but we need unique: */
             if ((iEnumerationFlags & UIGChooserItemMachineEnumerationFlag_Unique) &&
                 contains(ol, pMachineItem))
                 continue;
-            /* Skip if ths item is accessible and we no need it: */
+            /* Skip if this item is accessible and we no need it: */
             if ((iEnumerationFlags & UIGChooserItemMachineEnumerationFlag_Inaccessible) &&
                 pMachineItem->accessible())
                 continue;
@@ -238,10 +241,13 @@ void UIGChooserItemMachine::updatePixmap()
 
 void UIGChooserItemMachine::updateStatePixmap()
 {
+    /* Determine the icon metric: */
+    const QStyle *pStyle = QApplication::style();
+    const int iIconMetric = pStyle->pixelMetric(QStyle::PM_SmallIconSize);
     /* Get new state-pixmap and state-pixmap size: */
     const QIcon stateIcon = machineStateIcon();
     AssertReturnVoid(!stateIcon.isNull());
-    const QSize statePixmapSize = stateIcon.availableSizes().first();
+    const QSize statePixmapSize = QSize(iIconMetric, iIconMetric);
     const QPixmap statePixmap = stateIcon.pixmap(statePixmapSize);
     /* Update linked values: */
     if (m_statePixmapSize != statePixmapSize)
@@ -537,6 +543,13 @@ void UIGChooserItemMachine::removeAll(const QString &strId)
     /* Skip wrong id: */
     if (id() != strId)
         return;
+
+    /* Exclude itself from the current items: */
+    if (model()->currentItems().contains(this))
+        model()->removeFromCurrentItems(this);
+    /* Move the focus item to the first available current after that: */
+    if (model()->focusItem() == this && !model()->currentItems().isEmpty())
+        model()->setFocusItem(model()->currentItems().first());
 
     /* Remove item: */
     delete this;

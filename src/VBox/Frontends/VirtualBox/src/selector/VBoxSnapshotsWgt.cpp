@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -388,9 +388,13 @@ VBoxSnapshotsWgt::VBoxSnapshotsWgt (QWidget *aParent)
     m_offlineSnapshotIcon = UIIconPool::iconSet(":/snapshot_offline_16px.png");
     m_onlineSnapshotIcon = UIIconPool::iconSet(":/snapshot_online_16px.png");
 
+    /* Determine icon metric: */
+    const QStyle *pStyle = QApplication::style();
+    const int iIconMetric = pStyle->pixelMetric(QStyle::PM_SmallIconSize) * 1.375;
+
     /* ToolBar creation */
     UIToolBar *toolBar = new UIToolBar (this);
-    toolBar->setIconSize (QSize (22, 22));
+    toolBar->setIconSize (QSize (iIconMetric, iIconMetric));
     toolBar->setSizePolicy (QSizePolicy::Fixed, QSizePolicy::Fixed);
 
     toolBar->addAction (mTakeSnapshotAction);
@@ -478,31 +482,30 @@ void VBoxSnapshotsWgt::setMachine (const CMachine &aMachine)
 
 void VBoxSnapshotsWgt::retranslateUi()
 {
-    /* Translate uic generated strings */
-    Ui::VBoxSnapshotsWgt::retranslateUi (this);
+    /* Translate uic generated strings: */
+    Ui::VBoxSnapshotsWgt::retranslateUi(this);
 
-    mRestoreSnapshotAction->setText (tr ("&Restore Snapshot"));
-    mDeleteSnapshotAction->setText (tr ("&Delete Snapshot"));
-    mShowSnapshotDetailsAction->setText (tr ("S&how Details"));
-    mTakeSnapshotAction->setText (tr ("Take &Snapshot"));
+    mRestoreSnapshotAction->setText(tr("&Restore Snapshot"));
+    mDeleteSnapshotAction->setText(tr("&Delete Snapshot"));
+    mShowSnapshotDetailsAction->setText(tr("S&how Details"));
+    mTakeSnapshotAction->setText(tr("Take &Snapshot"));
     mCloneSnapshotAction->setText(tr("&Clone..."));
 
+    mRestoreSnapshotAction->setStatusTip(tr("Restore selected snapshot of the virtual machine"));
+    mDeleteSnapshotAction->setStatusTip(tr("Delete selected snapshot of the virtual machine"));
+    mShowSnapshotDetailsAction->setStatusTip(tr("Display a window with selected snapshot details"));
+    mTakeSnapshotAction->setStatusTip(tr("Take a snapshot of the current virtual machine state"));
+    mCloneSnapshotAction->setStatusTip(tr("Clone selected virtual machine"));
 
-    mRestoreSnapshotAction->setStatusTip (tr ("Restore the selected snapshot of the virtual machine"));
-    mDeleteSnapshotAction->setStatusTip (tr ("Delete the selected snapshot of the virtual machine"));
-    mShowSnapshotDetailsAction->setStatusTip (tr ("Show the details of the selected snapshot"));
-    mTakeSnapshotAction->setStatusTip (tr ("Take a snapshot of the current virtual machine state"));
-    mCloneSnapshotAction->setStatusTip(tr("Clone the selected virtual machine"));
-
-    mRestoreSnapshotAction->setToolTip (mRestoreSnapshotAction->text().remove ('&').remove ('.') +
-        QString (" (%1)").arg (mRestoreSnapshotAction->shortcut().toString()));
-    mDeleteSnapshotAction->setToolTip (mDeleteSnapshotAction->text().remove ('&').remove ('.') +
-        QString (" (%1)").arg (mDeleteSnapshotAction->shortcut().toString()));
-    mShowSnapshotDetailsAction->setToolTip (mShowSnapshotDetailsAction->text().remove ('&').remove ('.') +
-        QString (" (%1)").arg (mShowSnapshotDetailsAction->shortcut().toString()));
-    mTakeSnapshotAction->setToolTip (mTakeSnapshotAction->text().remove ('&').remove ('.') +
-        QString (" (%1)").arg (mTakeSnapshotAction->shortcut().toString()));
-    mCloneSnapshotAction->setToolTip(mCloneSnapshotAction->text().remove('&').remove('.') +
+    mRestoreSnapshotAction->setToolTip(mRestoreSnapshotAction->statusTip() +
+        QString(" (%1)").arg(mRestoreSnapshotAction->shortcut().toString()));
+    mDeleteSnapshotAction->setToolTip(mDeleteSnapshotAction->statusTip() +
+        QString(" (%1)").arg(mDeleteSnapshotAction->shortcut().toString()));
+    mShowSnapshotDetailsAction->setToolTip(mShowSnapshotDetailsAction->statusTip() +
+        QString(" (%1)").arg(mShowSnapshotDetailsAction->shortcut().toString()));
+    mTakeSnapshotAction->setToolTip(mTakeSnapshotAction->statusTip() +
+        QString(" (%1)").arg(mTakeSnapshotAction->shortcut().toString()));
+    mCloneSnapshotAction->setToolTip(mCloneSnapshotAction->statusTip() +
         QString(" (%1)").arg(mCloneSnapshotAction->shortcut().toString()));
 }
 
@@ -884,8 +887,9 @@ bool VBoxSnapshotsWgt::takeSnapshot()
             /* Was the dialog accepted? */
             if (fDialogAccepted)
             {
+                QString strSnapshotId;
                 /* Prepare the take-snapshot progress: */
-                CProgress progress = machine.TakeSnapshot(strSnapshotName, strSnapshotDescription, true);
+                CProgress progress = machine.TakeSnapshot(strSnapshotName, strSnapshotDescription, true, strSnapshotId);
                 if (machine.isOk())
                 {
                     /* Show the take-snapshot progress: */

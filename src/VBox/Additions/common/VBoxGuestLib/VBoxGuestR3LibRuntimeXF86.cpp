@@ -64,8 +64,20 @@ RTDECL(bool)    RTAssertShouldPanic(void)
     return false;
 }
 
-RTDECL(PRTLOGGER) RTLogRelDefaultInstance(void)
+RTDECL(PRTLOGGER) RTLogDefaultInstanceEx(uint32_t fFlagsAndGroup)
 {
+    NOREF(fFlagsAndGroup);
+    return NULL;
+}
+
+RTDECL(PRTLOGGER) RTLogRelGetDefaultInstance(void)
+{
+    return NULL;
+}
+
+RTDECL(PRTLOGGER) RTLogRelGetDefaultInstanceEx(uint32_t fFlagsAndGroup)
+{
+    NOREF(fFlagsAndGroup);
     return NULL;
 }
 

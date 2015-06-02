@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
   <sect1>
-    <title>Version 5.0.0 Beta 4 (2015-05-18)</title>
+    <title>Version 5.0.0 Release Candidate 1 (2015-06-01)</title>
 
     <para>This is a major update. The following major new features
       were added:</para>
@@ -16,8 +16,9 @@
       <listitem>
         <para>Make more instruction set extensions available to the guest when
           running with hardware-assisted virtualization and nested paging. Among
-          others this includes: SSE 4.1, SSE4.2, AES-NI, <emphasis>POPCNT</emphasis>,
-          <emphasis>RDRAND</emphasis> and <emphasis>RDSEED</emphasis></para>
+          others this includes: SSE 4.1, SSE4.2, AVX, AVX-2, AES-NI,
+          <emphasis>POPCNT</emphasis>, <emphasis>RDRAND</emphasis> and
+          <emphasis>RDSEED</emphasis></para>
       </listitem>
 
       <listitem>
@@ -30,7 +31,13 @@
       </listitem>
 
       <listitem>
-        <para>Disk image encryption (see </para>
+        <para>Disk image encryption (see <xref linkend="diskencryption" />)</para>
+      </listitem>
+
+      <listitem>
+        <para>VMs can now be started in <emphasis>separate mode</emphasis>. The VM
+          process is started headless while the frontend runs as a separate process
+          which can be terminated without stopping the VM.</para>
       </listitem>
 
       <listitem>
@@ -73,8 +80,18 @@
     <itemizedlist>
 
       <listitem>
+        <para>VMM: improved timing on Solaris hosts with older VT-x hosts
+          without preemption timers</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: further improvements for TSC frequency measurements and
+          guest timekeeping</para>
+      </listitem>
+
+      <listitem>
         <para>GUI: improved HID LEDs synchronization for Mac and Windows hosts.
-          Phisical LEDs state now restored together with VM state restore.</para>
+          The physical LEDs state now restored together with the VM state.</para>
       </listitem>
 
       <listitem>
@@ -83,8 +100,7 @@
       </listitem>
 
       <listitem>
-        <para>VMM: improved timing on Solaris hosts with older VT-x hosts
-          without preemption timers</para>
+        <para>GUI: provide direct access to storage media in the VM selector</para>
       </listitem>
 
       <listitem>
@@ -92,6 +108,11 @@
           of MAC addresses, which means they will be always recreated on
           import, avoiding duplicate MAC addresses for VMs which are imported
           several times</para>
+      </listitem>
+
+      <listitem>
+        <para>Guest Control: major overhaul, for example fixing wrong parameter quoting
+          (bug #13157)</para>
       </listitem>
 
       <listitem>
@@ -132,6 +153,11 @@
       </listitem>
 
       <listitem>
+        <para>Main/Properties: properly drop transient guest properties when
+          the VM is powered off</para>
+      </listitem>
+
+      <listitem>
         <para>3D: fix potential race in which might cause a crash on VM
           termination</para>
       </listitem>
@@ -147,6 +173,16 @@
       <listitem>
         <para>Storage: added USB mass storage device class
           (see <xref linkend="harddiskcontrollers"/>)</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: added vbox-img standalone tool for direct manipulation
+          of virtual hard disk images without VBoxManage</para>
+      </listitem>
+
+      <listitem>
+        <para>ICH9: fixed the interrupt disable logic for MSI interrupts; should
+          fix old Linux guests with AHCI</para>
       </listitem>
 
       <listitem>
@@ -172,7 +208,7 @@
 
       <listitem>
         <para>Windows Additions/WDDM: improved video memory utilization and
-          allow more/bigger guest screens with large resolutions (including HiDPI
+          allow more/bigger guest screens with large resolutions (including HiDPI)
         </para>
       </listitem>
 

@@ -260,13 +260,6 @@ int emR3HmHandleRC(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int rc)
         case VINF_EM_RAW_EMULATE_INSTR_TSS_FAULT:
             rc = emR3ExecuteInstruction(pVM, pVCpu, "TSS FAULT: ");
             break;
-        case VINF_EM_RAW_EMULATE_INSTR_PD_FAULT:
-            rc = emR3ExecuteInstruction(pVM, pVCpu, "PD FAULT: ");
-            break;
-        case VINF_EM_RAW_EMULATE_INSTR_HLT:
-            /** @todo skip instruction and go directly to the halt state. (see REM for implementation details) */
-            rc = emR3RawPrivileged(pVM, pVCpu);
-            break;
 #endif
 
 #ifdef EMHANDLERC_WITH_PATM
@@ -283,15 +276,10 @@ int emR3HmHandleRC(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int rc)
             break;
 
         case VINF_EM_RAW_INJECT_TRPM_EVENT:
-#ifdef VBOX_WITH_FIRST_IEM_STEP
             rc = VBOXSTRICTRC_VAL(IEMInjectTrpmEvent(pVCpu));
             /* The following condition should be removed when IEM_IMPLEMENTS_TASKSWITCH becomes true. */
             if (rc == VERR_IEM_ASPECT_NOT_IMPLEMENTED)
                 rc = emR3ExecuteInstruction(pVM, pVCpu, "EVENT: ");
-#else
-            /* Do the same thing as VINF_EM_RAW_EMULATE_INSTR. */
-            rc = emR3ExecuteInstruction(pVM, pVCpu, "EVENT: ");
-#endif
             break;
 
 

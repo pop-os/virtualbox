@@ -589,12 +589,14 @@ typedef struct PGMPHYSHANDLERTYPEINT
     PGMPHYSHANDLERKIND                  enmKind;
     /** The PGM_PAGE_HNDL_PHYS_STATE_XXX value corresponding to enmKind. */
     uint32_t                            uState;
+    /** Pointer to RC callback function. */
+    RCPTRTYPE(PFNPGMPHYSHANDLER)        pfnHandlerRC;
     /** Pointer to RC callback function for \#PFs. */
     RCPTRTYPE(PFNPGMRZPHYSPFHANDLER)    pfnPfHandlerRC;
-    /** Explicit alignment padding. */
-    RTRCPTR                             RCPtrPadding;
     /** Pointer to R3 callback function. */
     R3PTRTYPE(PFNPGMPHYSHANDLER)        pfnHandlerR3;
+    /** Pointer to R0 callback function. */
+    R0PTRTYPE(PFNPGMPHYSHANDLER)        pfnHandlerR0;
     /** Pointer to R0 callback function for \#PFs. */
     R0PTRTYPE(PFNPGMRZPHYSPFHANDLER)    pfnPfHandlerR0;
     /** Description / Name. For easing debugging. */
@@ -708,13 +710,15 @@ typedef struct PGMVIRTANDLERTYPEINT
     uint32_t                            uState;
     /** Whether the pvUserRC argument should be automatically relocated or not. */
     bool                                fRelocUserRC;
-    bool                                afPadding[3];
+    bool                                afPadding[HC_ARCH_BITS == 64 ? 7 : 3];
+    /** Pointer to RC callback function. */
+    RCPTRTYPE(PFNPGMVIRTHANDLER)        pfnHandlerRC;
     /** Pointer to RC callback function for \#PFs. */
     RCPTRTYPE(PFNPGMRCVIRTPFHANDLER)    pfnPfHandlerRC;
     /** Pointer to the R3 callback function for invalidation. */
     R3PTRTYPE(PFNPGMR3VIRTINVALIDATE)   pfnInvalidateR3;
     /** Pointer to R3 callback function. */
-    R3PTRTYPE(PFNPGMR3VIRTHANDLER)      pfnHandlerR3;
+    R3PTRTYPE(PFNPGMVIRTHANDLER)        pfnHandlerR3;
     /** Description / Name. For easing debugging. */
     R3PTRTYPE(const char *)             pszDesc;
 } PGMVIRTHANDLERTYPEINT;
@@ -2709,7 +2713,8 @@ typedef struct PGMTREES
     AVLROGCPHYSTREE                 PhysHandlers;
     /** Virtual access handlers (AVL range + GC ptr tree). */
     AVLROGCPTRTREE                  VirtHandlers;
-    /** Virtual access handlers (Phys range AVL range + offsetptr tree). */
+    /** Virtual access handlers (Phys range AVL range + offsetptr tree).
+     * @remarks Handler of the hypervisor kind are of course not present.  */
     AVLROGCPHYSTREE                 PhysToVirtHandlers;
     /** Virtual access handlers for the hypervisor (AVL range + GC ptr tree). */
     AVLROGCPTRTREE                  HyperVirtHandlers;
@@ -4118,7 +4123,7 @@ DECLCALLBACK(void) pgmR3MapInfo(PVM pVM, PCDBGFINFOHLP pHlp, const char *pszArgs
 void            pgmR3HandlerPhysicalUpdateAll(PVM pVM);
 bool            pgmHandlerPhysicalIsAll(PVM pVM, RTGCPHYS GCPhys);
 void            pgmHandlerPhysicalResetAliasedPage(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhysPage, bool fDoAccounting);
-int             pgmHandlerVirtualFindByPhysAddr(PVM pVM, RTGCPHYS GCPhys, PPGMVIRTHANDLER *ppVirt, unsigned *piPage);
+PPGMVIRTHANDLER pgmHandlerVirtualFindByPhysAddr(PVM pVM, RTGCPHYS GCPhys, unsigned *piPage);
 DECLCALLBACK(int) pgmHandlerVirtualResetOne(PAVLROGCPTRNODECORE pNode, void *pvUser);
 #if defined(VBOX_STRICT) || defined(LOG_ENABLED)
 void            pgmHandlerVirtualDumpPhysPages(PVM pVM);
@@ -4145,10 +4150,11 @@ int             pgmPhysGCPhys2CCPtrInternalDepr(PVM pVM, PPGMPAGE pPage, RTGCPHY
 int             pgmPhysGCPhys2CCPtrInternal(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhys, void **ppv, PPGMPAGEMAPLOCK pLock);
 int             pgmPhysGCPhys2CCPtrInternalReadOnly(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhys, const void **ppv, PPGMPAGEMAPLOCK pLock);
 void            pgmPhysReleaseInternalPageMappingLock(PVM pVM, PPGMPAGEMAPLOCK pLock);
-PGM_ALL_CB2_DECL(FNPGMPHYSHANDLER) pgmPhysRomWriteHandler;
+PGM_ALL_CB2_DECL(FNPGMPHYSHANDLER)  pgmPhysRomWriteHandler;
 #ifndef IN_RING3
-DECLEXPORT(FNPGMRZPHYSPFHANDLER) pgmPhysPfHandlerRedirectToHC;
-DECLEXPORT(FNPGMRZPHYSPFHANDLER) pgmPhysRomWritePfHandler;
+DECLEXPORT(FNPGMPHYSHANDLER)        pgmPhysHandlerRedirectToHC;
+DECLEXPORT(FNPGMRZPHYSPFHANDLER)    pgmPhysPfHandlerRedirectToHC;
+DECLEXPORT(FNPGMRZPHYSPFHANDLER)    pgmPhysRomWritePfHandler;
 #endif
 int             pgmPhysFreePage(PVM pVM, PGMMFREEPAGESREQ pReq, uint32_t *pcPendingPages, PPGMPAGE pPage, RTGCPHYS GCPhys);
 void            pgmPhysInvalidRamRangeTlbs(PVM pVM);

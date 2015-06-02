@@ -683,8 +683,9 @@ void UISelectorWindow::sltPerformSaveAction()
         CConsole console = session.GetConsole();
         /* Get session machine: */
         CMachine machine = session.GetMachine();
-        /* Pause VM first: */
-        console.Pause();
+        /* Pause VM first if necessary: */
+        if (pItem->machineState() != KMachineState_Paused)
+            console.Pause();
         if (console.isOk())
         {
             /* Prepare machine state saving: */
@@ -898,6 +899,10 @@ void UISelectorWindow::sltCurrentVMItemChanged(bool fRefreshDetails, bool fRefre
     /* Update action appearance: */
     updateActionsAppearance();
 
+    /* Refresh details-pane even if there are no items selected: */
+    if (fRefreshDetails)
+        m_pDetails->setItems(currentItems());
+
     /* If currently selected VM item is accessible: */
     if (pItem && pItem->accessible())
     {
@@ -907,8 +912,6 @@ void UISelectorWindow::sltCurrentVMItemChanged(bool fRefreshDetails, bool fRefre
         else
             m_pContainer->setCurrentWidget(m_pDetails);
 
-        if (fRefreshDetails)
-            m_pDetails->setItems(currentItems());
         if (fRefreshSnapshots)
         {
             m_pVMDesktop->updateSnapshots(pItem, pItem->machine());
@@ -1202,30 +1205,66 @@ void UISelectorWindow::prepareMenuFile(QMenu *pMenu)
     if (!pMenu->isEmpty())
         return;
 
-    /* Populate File-menu: */
+    /* The Application / 'File' menu contents is very different depending on host type. */
+
 #ifdef Q_WS_MAC
+    /* 'About' action goes to Application menu: */
     pMenu->addAction(actionPool()->action(UIActionIndex_M_Application_S_About));
-    pMenu->addAction(actionPool()->action(UIActionIndex_M_Application_S_Preferences));
-#endif /* Q_WS_MAC */
-    pMenu->addAction(actionPool()->action(UIActionIndexST_M_File_S_ImportAppliance));
-    pMenu->addAction(actionPool()->action(UIActionIndexST_M_File_S_ExportAppliance));
-    pMenu->addSeparator();
-    pMenu->addAction(actionPool()->action(UIActionIndexST_M_File_S_ShowMediumManager));
-#ifdef DEBUG
-    pMenu->addAction(actionPool()->action(UIActionIndexST_M_File_S_ShowExtraDataManager));
-#endif /* DEBUG */
-#ifndef Q_WS_MAC
-    pMenu->addAction(actionPool()->action(UIActionIndex_M_Application_S_Preferences));
-#endif /* Q_WS_MAC */
-    pMenu->addSeparator();
-#ifdef VBOX_GUI_WITH_NETWORK_MANAGER
-    pMenu->addAction(actionPool()->action(UIActionIndex_M_Application_S_NetworkAccessManager));
+# ifdef VBOX_GUI_WITH_NETWORK_MANAGER
+    /* 'Check for Updates' action goes to Application menu: */
     pMenu->addAction(actionPool()->action(UIActionIndex_M_Application_S_CheckForUpdates));
-# ifndef Q_WS_MAC
-    pMenu->addSeparator();
-# endif /* Q_WS_MAC */
-#endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
+    /* 'Network Access Manager' action goes to Application menu: */
+    pMenu->addAction(actionPool()->action(UIActionIndex_M_Application_S_NetworkAccessManager));
+# endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
+    /* 'Reset Warnings' action goes to Application menu: */
+    pMenu->addAction(actionPool()->action(UIActionIndex_M_Application_S_ResetWarnings));
+    /* 'Preferences' action goes to Application menu: */
+    pMenu->addAction(actionPool()->action(UIActionIndex_M_Application_S_Preferences));
+    /* 'Close' action goes to Application menu: */
     pMenu->addAction(actionPool()->action(UIActionIndexST_M_File_S_Close));
+
+    /* 'Import Appliance' action goes to 'File' menu: */
+    pMenu->addAction(actionPool()->action(UIActionIndexST_M_File_S_ImportAppliance));
+    /* 'Export Appliance' action goes to 'File' menu: */
+    pMenu->addAction(actionPool()->action(UIActionIndexST_M_File_S_ExportAppliance));
+# ifdef DEBUG
+    /* 'Show Extra-data Manager' action goes to 'File' menu for Debug build: */
+    pMenu->addAction(actionPool()->action(UIActionIndexST_M_File_S_ShowExtraDataManager));
+# endif /* DEBUG */
+    /* 'Show Medium Manager' action goes to 'File' menu: */
+    pMenu->addAction(actionPool()->action(UIActionIndexST_M_File_S_ShowMediumManager));
+
+#else /* !Q_WS_MAC */
+
+    /* 'Preferences' action goes to 'File' menu: */
+    pMenu->addAction(actionPool()->action(UIActionIndex_M_Application_S_Preferences));
+    /* Separator after 'Preferences' action of the 'File' menu: */
+    pMenu->addSeparator();
+    /* 'Import Appliance' action goes to 'File' menu: */
+    pMenu->addAction(actionPool()->action(UIActionIndexST_M_File_S_ImportAppliance));
+    /* 'Export Appliance' action goes to 'File' menu: */
+    pMenu->addAction(actionPool()->action(UIActionIndexST_M_File_S_ExportAppliance));
+    /* Separator after 'Export Appliance' action of the 'File' menu: */
+    pMenu->addSeparator();
+# ifdef DEBUG
+    /* 'Extra-data Manager' action goes to 'File' menu for Debug build: */
+    pMenu->addAction(actionPool()->action(UIActionIndexST_M_File_S_ShowExtraDataManager));
+# endif /* DEBUG */
+    /* 'Show Medium Manager' action goes to 'File' menu: */
+    pMenu->addAction(actionPool()->action(UIActionIndexST_M_File_S_ShowMediumManager));
+# ifdef VBOX_GUI_WITH_NETWORK_MANAGER
+    /* 'Network Access Manager' action goes to 'File' menu: */
+    pMenu->addAction(actionPool()->action(UIActionIndex_M_Application_S_NetworkAccessManager));
+    /* 'Check for Updates' action goes to 'File' menu: */
+    pMenu->addAction(actionPool()->action(UIActionIndex_M_Application_S_CheckForUpdates));
+# endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
+    /* 'Reset Warnings' action goes 'File' menu: */
+    pMenu->addAction(actionPool()->action(UIActionIndex_M_Application_S_ResetWarnings));
+    /* Separator after 'Reset Warnings' action of the 'File' menu: */
+    pMenu->addSeparator();
+    /* 'Close' action goes to 'File' menu: */
+    pMenu->addAction(actionPool()->action(UIActionIndexST_M_File_S_Close));
+#endif /* !Q_WS_MAC */
 }
 
 void UISelectorWindow::prepareMenuGroup(QMenu *pMenu)
@@ -1409,7 +1448,9 @@ void UISelectorWindow::prepareWidgets()
     /* Prepare tool-bar: */
     mVMToolBar = new UIToolBar(this);
     mVMToolBar->setContextMenuPolicy(Qt::CustomContextMenu);
-    mVMToolBar->setIconSize(QSize(32, 32));
+    const QSize toolBarIconSize = mVMToolBar->iconSize();
+    if (toolBarIconSize.width() < 32 || toolBarIconSize.height() < 32)
+        mVMToolBar->setIconSize(QSize(32, 32));
     mVMToolBar->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
     mVMToolBar->addAction(actionPool()->action(UIActionIndexST_M_Machine_S_New));
     mVMToolBar->addAction(actionPool()->action(UIActionIndexST_M_Machine_S_Settings));
@@ -1530,7 +1571,7 @@ void UISelectorWindow::prepareConnections()
             this, SLOT(sltShowSelectorContextMenu(const QPoint&)));
 
     /* Graphics VM chooser connections: */
-    connect(m_pChooser, SIGNAL(sigSelectionChanged()), this, SLOT(sltCurrentVMItemChanged()), Qt::QueuedConnection);
+    connect(m_pChooser, SIGNAL(sigSelectionChanged()), this, SLOT(sltCurrentVMItemChanged()));
     connect(m_pChooser, SIGNAL(sigSlidingStarted()), m_pDetails, SIGNAL(sigSlidingStarted()));
     connect(m_pChooser, SIGNAL(sigToggleStarted()), m_pDetails, SIGNAL(sigToggleStarted()));
     connect(m_pChooser, SIGNAL(sigToggleFinished()), m_pDetails, SIGNAL(sigToggleFinished()));
@@ -1571,7 +1612,7 @@ void UISelectorWindow::loadSettings()
 #else /* Q_WS_MAC */
         setGeometry(m_geometry);
 #endif /* !Q_WS_MAC */
-        LogRel(("UISelectorWindow: Geometry loaded to: %dx%d @ %dx%d.\n",
+        LogRel(("GUI: UISelectorWindow: Geometry loaded to: %dx%d @ %dx%d\n",
                 m_geometry.x(), m_geometry.y(), m_geometry.width(), m_geometry.height()));
 
         /* Maximize (if necessary): */
@@ -1629,7 +1670,7 @@ void UISelectorWindow::saveSettings()
 #else /* Q_WS_MAC */
         gEDataManager->setSelectorWindowGeometry(m_geometry, isMaximized());
 #endif /* !Q_WS_MAC */
-        LogRel(("UISelectorWindow: Geometry saved as: %dx%d @ %dx%d.\n",
+        LogRel(("GUI: UISelectorWindow: Geometry saved as: %dx%d @ %dx%d\n",
                 m_geometry.x(), m_geometry.y(), m_geometry.width(), m_geometry.height()));
     }
 }

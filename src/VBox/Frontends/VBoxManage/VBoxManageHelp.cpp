@@ -498,7 +498,7 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
                      "                            cpuexecutioncap <1-100>\n"
                      "                            webcam <attach [path [settings]]> | <detach [path]> | <list>\n"
                      "                            addencpassword <id>\n"
-                     "                                           <password>\n"
+                     "                                           <password file>|-\n"
                      "                                           [--removeonsuspend <yes|no>]\n"
                      "                            removeencpassword <id>\n"
                      "                            removeallencpasswords\n"
@@ -518,7 +518,8 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
     if (fCategory & USAGE_SNAPSHOT)
         RTStrmPrintf(pStrm,
                            "%s snapshot %s        <uuid|vmname>\n"
-                     "                            take <name> [--description <desc>] [--live] |\n"
+                     "                            take <name> [--description <desc>] [--live]\n"
+                     "                                 [--uniquename Number,Timestamp,Space,Force] |\n"
                      "                            delete <uuid|snapname> |\n"
                      "                            restore <uuid|snapname> |\n"
                      "                            restorecurrent |\n"
@@ -766,6 +767,7 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
                      "                            logflags [--release|--debug] <settings> ...|\n"
                      "                            osdetect |\n"
                      "                            osinfo |\n"
+                     "                            osdmesg [--lines|-n <N>] |\n"
                      "                            getregisters [--cpu <id>] <reg>|all ... |\n"
                      "                            setregisters [--cpu <id>] <reg>=<value> ... |\n"
                      "                            show [--human-readable|--sh-export|--sh-eval|\n"

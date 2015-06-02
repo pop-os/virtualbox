@@ -1579,8 +1579,8 @@ QString VBoxGlobal::openMediumWithFileOpenDialog(UIMediumType mediumType, QWidge
         case UIMediumType_HardDisk:
         {
             filters = vboxGlobal().HDDBackends();
-            strTitle = tr("Please choose a virtual hard drive file");
-            allType = tr("All virtual hard drive files (%1)");
+            strTitle = tr("Please choose a virtual hard disk file");
+            allType = tr("All virtual hard disk files (%1)");
             strLastFolder = gEDataManager->recentFolderForHardDrives();
             if (strLastFolder.isEmpty())
                 strLastFolder = gEDataManager->recentFolderForOpticalDisks();
@@ -1782,23 +1782,10 @@ void VBoxGlobal::prepareStorageMenu(QMenu &menu,
 
 
     /* Prepare open-existing-medium action: */
-    QAction *pActionOpenExistingMedium = menu.addAction(QIcon(":/select_file_16px.png"), QString(), pListener, pszSlotName);
+    QAction *pActionOpenExistingMedium = menu.addAction(UIIconPool::iconSet(":/select_file_16px.png"), QString(), pListener, pszSlotName);
     pActionOpenExistingMedium->setData(QVariant::fromValue(UIMediumTarget(strControllerName, currentAttachment.GetPort(), currentAttachment.GetDevice(),
                                                                           mediumType)));
-    switch (mediumType)
-    {
-        case UIMediumType_HardDisk:
-            pActionOpenExistingMedium->setText(QApplication::translate("UIMachineSettingsStorage", "Choose a virtual hard disk file..."));
-            break;
-        case UIMediumType_DVD:
-            pActionOpenExistingMedium->setText(QApplication::translate("UIMachineSettingsStorage", "Choose a virtual optical disk file..."));
-            break;
-        case UIMediumType_Floppy:
-            pActionOpenExistingMedium->setText(QApplication::translate("UIMachineSettingsStorage", "Choose a virtual floppy disk file..."));
-            break;
-        default:
-            break;
-    }
+    pActionOpenExistingMedium->setText(QApplication::translate("UIMachineSettingsStorage", "Choose a virtual disk image file..."));
 
 
     /* Insert separator: */
@@ -3219,16 +3206,14 @@ bool VBoxGlobal::activateWindow (WId aWId, bool aSwitchDesktop /* = true */)
                                            *desktop);
             if (!ok)
             {
-                LogWarningFunc (("Couldn't switch to desktop=%08X\n",
-                                 desktop));
+                Log1WarningFunc(("Couldn't switch to desktop=%08X\n", desktop));
                 result = false;
             }
             XFree (desktop);
         }
         else
         {
-            LogWarningFunc (("Couldn't find a desktop ID for aWId=%08X\n",
-                             aWId));
+            Log1WarningFunc(("Couldn't find a desktop ID for aWId=%08X\n", aWId));
             result = false;
         }
     }
@@ -3248,7 +3233,7 @@ bool VBoxGlobal::activateWindow (WId aWId, bool aSwitchDesktop /* = true */)
 #endif
 
     if (!result)
-        LogWarningFunc (("Couldn't activate aWId=%08X\n", aWId));
+        Log1WarningFunc(("Couldn't activate aWId=%08X\n", aWId));
 
     return result;
 }
@@ -4567,13 +4552,13 @@ bool VBoxGlobal::switchToMachine(CMachine &machine)
 
 bool VBoxGlobal::launchMachine(CMachine &machine, LaunchMode enmLaunchMode /* = LaunchMode_Default */)
 {
+    /* Switch to machine window(s) if possible: */
+    if (   machine.GetSessionState() == KSessionState_Locked /* precondition for CanShowConsoleWindow() */
+        && machine.CanShowConsoleWindow())
+        return VBoxGlobal::switchToMachine(machine);
+
     if (enmLaunchMode != LaunchMode_Separate)
     {
-        /* Switch to machine window(s) if possible: */
-        if (   machine.GetSessionState() == KSessionState_Locked /* precondition for CanShowConsoleWindow() */
-            && machine.CanShowConsoleWindow())
-            return VBoxGlobal::switchToMachine(machine);
-
         /* Make sure machine-state is one of required: */
         KMachineState state = machine.GetState(); NOREF(state);
         AssertMsg(   state == KMachineState_PoweredOff

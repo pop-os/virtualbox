@@ -49,7 +49,7 @@ public:
 
     int Reset(void);
 
-    int Notify(int rc);
+    int Notify(int rc = VINF_SUCCESS);
 
     int Result(void) const { return mRc; }
 
@@ -207,13 +207,14 @@ public:
             for (uint32_t i = 0; i < cParms; i++)
             {
                 if (   paParms[i].type == VBOX_HGCM_SVC_PARM_PTR
-                    && paParms[i].u.pointer.addr)
+                    && paParms[i].u.pointer.size)
                 {
+                    AssertPtr(paParms[i].u.pointer.addr);
                     RTMemFree(paParms[i].u.pointer.addr);
                 }
             }
 
-            delete paParms;
+            RTMemFree(paParms);
         }
     }
 
@@ -366,7 +367,7 @@ public:
 
     bool isProgressCanceled(void) const;
     int setCallback(uint32_t uMsg, PFNGUESTDNDCALLBACK pfnCallback, void *pvUser = NULL);
-    int setProgress(unsigned uPercentage, uint32_t uState, int rcOp = VINF_SUCCESS);
+    int setProgress(unsigned uPercentage, uint32_t uState, int rcOp = VINF_SUCCESS, const Utf8Str &strMsg = "");
     HRESULT resetProgress(const ComObjPtr<Guest>& pParent);
     HRESULT queryProgressTo(IProgress **ppProgress);
 
@@ -376,10 +377,6 @@ public:
        @{ */
     int onDispatch(uint32_t u32Function, void *pvParms, uint32_t cbParms);
     /** @}  */
-
-public:
-
-    Utf8Str errorToString(const ComObjPtr<Guest>& pGuest, int guestRc);
 
 protected:
 

@@ -8253,7 +8253,7 @@ VMMR0DECL(void) VMXR0ThreadCtxCallback(RTTHREADCTXEVENT enmEvent, PVMCPU pVCpu, 
 
             /* Restore longjmp state. */
             VMMRZCallRing3Enable(pVCpu);
-            STAM_COUNTER_INC(&pVCpu->hm.s.StatPreemptPreempting);
+            STAM_COUNTER_INC(&pVCpu->hm.s.StatSwitchPreempt);
             break;
         }
 
@@ -8739,7 +8739,7 @@ static void hmR0VmxPreRunGuestCommitted(PVM pVM, PVMCPU pVCpu, PCPUMCTX pMixedCt
         /* This ASSUMES that pfnStartVM has been set up already. */
         int rc = hmR0VmxSaveHostState(pVM, pVCpu);
         AssertRC(rc);
-        STAM_COUNTER_INC(&pVCpu->hm.s.StatPreemptSaveHostState);
+        STAM_COUNTER_INC(&pVCpu->hm.s.StatSwitchPreemptSaveHostState);
     }
     Assert(!HMCPU_CF_IS_PENDING(pVCpu, HM_CHANGED_HOST_CONTEXT));
 
@@ -11185,7 +11185,7 @@ HMVMX_EXIT_DECL hmR0VmxExitIoInstr(PVMCPU pVCpu, PCPUMCTX pMixedCtx, PVMXTRANSIE
     PVM pVM                 = pVCpu->CTX_SUFF(pVM);
     if (fIOString)
     {
-#if 0       /* Not yet ready. IEM gurus with debian 32-bit guest without NP (on ATA reads). See @bugref{5752#c158} */
+#ifdef VBOX_WITH_2ND_IEM_STEP /* This used to gurus with debian 32-bit guest without NP (on ATA reads). See @bugref{5752#c158}. Should work now. */
         /*
          * INS/OUTS - I/O String instruction.
          *
@@ -12063,7 +12063,8 @@ static int hmR0VmxExitXcptGP(PVMCPU pVCpu, PCPUMCTX pMixedCtx, PVMXTRANSIENT pVm
                 {
                     Assert(sizeof(Eflags.u32) >= cbParm);
                     Eflags.u32 = 0;
-                    rc = PGMPhysRead(pVM, (RTGCPHYS)GCPtrStack, &Eflags.u32, cbParm, PGMACCESSORIGIN_HM);
+                    rc = VBOXSTRICTRC_TODO(PGMPhysRead(pVM, (RTGCPHYS)GCPtrStack, &Eflags.u32, cbParm, PGMACCESSORIGIN_HM));
+                    AssertMsg(rc == VINF_SUCCESS, ("%Rrc\n", rc)); /** @todo allow strict return codes here */
                 }
                 if (RT_FAILURE(rc))
                 {
@@ -12116,9 +12117,10 @@ static int hmR0VmxExitXcptGP(PVMCPU pVCpu, PCPUMCTX pMixedCtx, PVMXTRANSIENT pVm
                 Eflags.Bits.u1RF = 0;
                 Eflags.Bits.u1VM = 0;
 
-                rc = PGMPhysWrite(pVM, (RTGCPHYS)GCPtrStack, &Eflags.u, cbParm, PGMACCESSORIGIN_HM);
-                if (RT_FAILURE(rc))
+                rc = VBOXSTRICTRC_TODO(PGMPhysWrite(pVM, (RTGCPHYS)GCPtrStack, &Eflags.u, cbParm, PGMACCESSORIGIN_HM));
+                if (RT_UNLIKELY(rc != VINF_SUCCESS))
                 {
+                    AssertMsgFailed(("%Rrc\n", rc)); /** @todo allow strict return codes here */
                     rc = VERR_EM_INTERPRETER;
                     break;
                 }
@@ -12151,7 +12153,11 @@ static int hmR0VmxExitXcptGP(PVMCPU pVCpu, PCPUMCTX pMixedCtx, PVMXTRANSIENT pVm
                 rc = SELMToFlatEx(pVCpu, DISSELREG_SS, CPUMCTX2CORE(pMixedCtx), pMixedCtx->esp & uMask, SELMTOFLAT_FLAGS_CPL0,
                                   &GCPtrStack);
                 if (RT_SUCCESS(rc))
-                    rc = PGMPhysRead(pVM, (RTGCPHYS)GCPtrStack, &aIretFrame[0], sizeof(aIretFrame), PGMACCESSORIGIN_HM);
+                {
+                    rc = VBOXSTRICTRC_TODO(PGMPhysRead(pVM, (RTGCPHYS)GCPtrStack, &aIretFrame[0], sizeof(aIretFrame),
+                                                       PGMACCESSORIGIN_HM));
+                    AssertMsg(rc == VINF_SUCCESS, ("%Rrc\n", rc)); /** @todo allow strict return codes here */
+                }
                 if (RT_FAILURE(rc))
                 {
                     rc = VERR_EM_INTERPRETER;

@@ -426,12 +426,12 @@ QVariant UIPortForwardingModel::headerData(int iSection, Qt::Orientation orienta
         /* Switch for different columns: */
         switch (iSection)
         {
-            case UIPortForwardingDataType_Name: return tr("Name");
-            case UIPortForwardingDataType_Protocol: return tr("Protocol");
-            case UIPortForwardingDataType_HostIp: return tr("Host IP");
-            case UIPortForwardingDataType_HostPort: return tr("Host Port");
-            case UIPortForwardingDataType_GuestIp: return tr("Guest IP");
-            case UIPortForwardingDataType_GuestPort: return tr("Guest Port");
+            case UIPortForwardingDataType_Name: return UIPortForwardingTable::tr("Name");
+            case UIPortForwardingDataType_Protocol: return UIPortForwardingTable::tr("Protocol");
+            case UIPortForwardingDataType_HostIp: return UIPortForwardingTable::tr("Host IP");
+            case UIPortForwardingDataType_HostPort: return UIPortForwardingTable::tr("Host Port");
+            case UIPortForwardingDataType_GuestIp: return UIPortForwardingTable::tr("Guest IP");
+            case UIPortForwardingDataType_GuestPort: return UIPortForwardingTable::tr("Guest Port");
             default: break;
         }
     }
@@ -594,8 +594,11 @@ UIPortForwardingTable::UIPortForwardingTable(const UIPortForwardingDataList &rul
         /* Create toolbar: */
         m_pToolBar = new UIToolBar;
         {
+            /* Determine icon metric: */
+            const QStyle *pStyle = QApplication::style();
+            const int iIconMetric = pStyle->pixelMetric(QStyle::PM_SmallIconSize);
             /* Configure toolbar: */
-            m_pToolBar->setIconSize(QSize(16, 16));
+            m_pToolBar->setIconSize(QSize(iIconMetric, iIconMetric));
             m_pToolBar->setOrientation(Qt::Vertical);
             /* Create 'add' action: */
             m_pAddAction = new QAction(this);
@@ -819,16 +822,20 @@ void UIPortForwardingTable::sltAdjustTable()
 void UIPortForwardingTable::retranslateUi()
 {
     /* Table translations: */
-    m_pTableView->setToolTip(QApplication::translate("UIMachineSettingsPortForwardingDlg", "This table contains a list of port forwarding rules."));
+    m_pTableView->setToolTip(tr("Contains a list of port forwarding rules."));
 
     /* Set action's text: */
-    m_pAddAction->setText(QApplication::translate("UIMachineSettingsPortForwardingDlg", "Insert new rule"));
-    m_pCopyAction->setText(QApplication::translate("UIMachineSettingsPortForwardingDlg", "Copy selected rule"));
-    m_pDelAction->setText(QApplication::translate("UIMachineSettingsPortForwardingDlg", "Delete selected rule"));
-    m_pAddAction->setWhatsThis(QApplication::translate("UIMachineSettingsPortForwardingDlg", "This button adds new port forwarding rule."));
-    m_pDelAction->setWhatsThis(QApplication::translate("UIMachineSettingsPortForwardingDlg", "This button deletes selected port forwarding rule."));
-    m_pAddAction->setToolTip(QString("%1 (%2)").arg(m_pAddAction->text()).arg(m_pAddAction->shortcut().toString()));
-    m_pDelAction->setToolTip(QString("%1 (%2)").arg(m_pDelAction->text()).arg(m_pDelAction->shortcut().toString()));
+    m_pAddAction->setText(tr("Add New Rule"));
+    m_pCopyAction->setText(tr("Copy Selected Rule"));
+    m_pDelAction->setText(tr("Remove Selected Rule"));
+
+    m_pAddAction->setWhatsThis(tr("Adds new port forwarding rule."));
+    m_pCopyAction->setWhatsThis(tr("Copies selected port forwarding rule."));
+    m_pDelAction->setWhatsThis(tr("Removes selected port forwarding rule."));
+
+    m_pAddAction->setToolTip(m_pAddAction->whatsThis());
+    m_pCopyAction->setToolTip(m_pCopyAction->whatsThis());
+    m_pDelAction->setToolTip(m_pDelAction->whatsThis());
 }
 
 bool UIPortForwardingTable::eventFilter(QObject *pObject, QEvent *pEvent)

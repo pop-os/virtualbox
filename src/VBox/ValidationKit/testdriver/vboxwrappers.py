@@ -27,7 +27,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 100185 $"
+__version__ = "$Revision: 100512 $"
 
 
 # Standard Python imports.
@@ -2249,7 +2249,7 @@ class SessionWrapper(TdTaskBase):
                and self.oVM.state is vboxcon.MachineState_Running:
                 self.o.console.pause();
             if self.fpApiVer >= 5.0:
-                oProgressCom = self.o.machine.takeSnapshot(sName, sDescription, True);
+                (oProgressCom, _) = self.o.machine.takeSnapshot(sName, sDescription, True);
             else:
                 oProgressCom = self.o.console.takeSnapshot(sName, sDescription);
             oProgress = ProgressWrapper(oProgressCom, self.oVBoxMgr, self.oTstDrv, 'Take Snapshot %s' % (sName));

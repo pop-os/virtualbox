@@ -54,7 +54,7 @@ VMMDECL(bool) HMIsEnabledNotMacro(PVM pVM)
 
 
 /**
- * Queues a page for invalidation
+ * Queues a guest page for invalidation.
  *
  * @returns VBox status code.
  * @param   pVCpu       Pointer to the VMCPU.
@@ -79,7 +79,7 @@ static void hmQueueInvlPage(PVMCPU pVCpu, RTGCPTR GCVirt)
 
 
 /**
- * Invalidates a guest page
+ * Invalidates a guest page.
  *
  * @returns VBox status code.
  * @param   pVCpu       Pointer to the VMCPU.
@@ -214,6 +214,13 @@ static void hmPokeCpuForTlbFlush(PVMCPU pVCpu, bool fAccountFlushStat)
  */
 VMM_INT_DECL(int) HMInvalidatePageOnAllVCpus(PVM pVM, RTGCPTR GCPtr)
 {
+    /*
+     * The VT-x/AMD-V code will be flushing TLB each time a VCPU migrates to a different
+     * host CPU, see hmR0VmxFlushTaggedTlbBoth() and hmR0SvmFlushTaggedTlb().
+     *
+     * This is the reason why we do not care about thread preemption here and just
+     * execute HMInvalidatePage() assuming it might be the 'right' CPU.
+     */
     VMCPUID idCurCpu = VMMGetCpuId(pVM);
     STAM_COUNTER_INC(&pVM->aCpus[idCurCpu].hm.s.StatFlushPage);
 
@@ -289,7 +296,7 @@ VMM_INT_DECL(bool) HMIsNestedPagingActive(PVM pVM)
 /**
  * Checks if both nested paging and unhampered guest execution are enabled.
  *
- * The almost complete guest execution in harware is only applicable to VT-x.
+ * The almost complete guest execution in hardware is only applicable to VT-x.
  *
  * @returns true if we have both enabled, otherwise false.
  * @param   pVM         Pointer to the VM.

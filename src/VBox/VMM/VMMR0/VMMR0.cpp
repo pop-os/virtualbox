@@ -710,9 +710,6 @@ static void vmmR0RecordRC(PVM pVM, PVMCPU pVCpu, int rc)
         case VINF_EM_RAW_EMULATE_INSTR_TSS_FAULT:
             STAM_COUNTER_INC(&pVM->vmm.s.StatRZRetTSSFault);
             break;
-        case VINF_EM_RAW_EMULATE_INSTR_PD_FAULT:
-            STAM_COUNTER_INC(&pVM->vmm.s.StatRZRetPDFault);
-            break;
         case VINF_CSAM_PENDING_ACTION:
             STAM_COUNTER_INC(&pVM->vmm.s.StatRZRetCSAMTask);
             break;
@@ -2075,7 +2072,7 @@ DECLEXPORT(void) RTCALL RTAssertMsg2WeakV(const char *pszFormat, va_list va)
         RTLogFormatV(rtLogOutput, pLog, pszFormat, vaCopy);
         va_end(vaCopy);
     }
-    pLog = RTLogRelDefaultInstance();
+    pLog = RTLogRelGetDefaultInstance();
     if (pLog)
     {
         va_copy(vaCopy, va);

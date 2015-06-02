@@ -195,6 +195,10 @@ static int crFbBltGetContentsScaledDirect(HCR_FRAMEBUFFER hFb, const RTRECTSIZE 
     CR_TEXDATA *pEnteredTex = NULL;
     PCR_BLITTER pEnteredBlitter = NULL;
 
+    /* Scaled texture size and rect calculated for every new "entered" texture. */
+    uint32_t width = 0, height = 0;
+    RTRECT ScaledSrcRect = {0};
+
     VBOXVR_SCR_COMPOSITOR_CONST_ITERATOR Iter;
     int32_t srcWidth = pSrcRectSize->cx;
     int32_t srcHeight = pSrcRectSize->cy;
@@ -226,10 +230,6 @@ static int crFbBltGetContentsScaledDirect(HCR_FRAMEBUFFER hFb, const RTRECTSIZE 
         RTPOINT ScaledEntryPoint;
         ScaledEntryPoint.x = CR_FLOAT_RCAST(int32_t, strX * CrVrScrCompositorEntryRectGet(pEntry)->xLeft) + pDstRect->xLeft;
         ScaledEntryPoint.y = CR_FLOAT_RCAST(int32_t, strY * CrVrScrCompositorEntryRectGet(pEntry)->yTop) + pDstRect->yTop;
-
-        /* Scaled texture size and rect. */
-        uint32_t width = 0, height = 0;
-        RTRECT ScaledSrcRect = {0};
 
         CR_TEXDATA *pTex = CrVrScrCompositorEntryTexGet(pEntry);
 
@@ -3954,9 +3954,12 @@ int8_t crVBoxServerCrCmdBltProcess(const VBOXCMDVBVA_BLT_HDR *pCmd, uint32_t cbC
     }
 }
 
-int8_t crVBoxServerCrCmdFlipProcess(const VBOXCMDVBVA_FLIP *pFlip)
+int8_t crVBoxServerCrCmdFlipProcess(const VBOXCMDVBVA_FLIP *pFlip, uint32_t cbCmd)
 {
     uint32_t hostId;
+    const VBOXCMDVBVA_RECT *pPRects = pFlip->aRects;
+    uint32_t cRects;
+
     if (pFlip->Hdr.u8Flags & VBOXCMDVBVA_OPF_OPERAND1_ISID)
     {
         hostId = pFlip->src.u.id;
@@ -3980,9 +3983,26 @@ int8_t crVBoxServerCrCmdFlipProcess(const VBOXCMDVBVA_FLIP *pFlip)
         return 0;
     }
 
-    const RTRECT *pRect = CrVrScrCompositorRectGet(&hFb->Compositor);
-    crServerDispatchVBoxTexPresent(hostId, idFb, 0, 0, 1, (const GLint*)pRect);
-    return 0;
+    cRects = (cbCmd - VBOXCMDVBVA_SIZEOF_FLIPSTRUCT_MIN) / sizeof (VBOXCMDVBVA_RECT);
+    if (cRects > 0)
+    {
+        RTRECT *pRects = crVBoxServerCrCmdBltRecsUnpack(pPRects, cRects);
+        if (pRects)
+        {
+            crServerDispatchVBoxTexPresent(hostId, idFb, 0, 0, cRects, (const GLint*)pRects);
+            return 0;
+        }
+    }
+    else
+    {
+        /* Prior to r100476 guest WDDM driver was not supplying us with sub-rectangles
+         * data obtained in DxgkDdiPresentNew() callback. Therefore, in order to support backward compatibility,
+         * lets play in old way if no rectangles were supplied. */
+        const RTRECT *pRect = CrVrScrCompositorRectGet(&hFb->Compositor);
+        crServerDispatchVBoxTexPresent(hostId, idFb, 0, 0, 1, (const GLint*)pRect);
+    }
+
+    return -1;
 }
 
 typedef struct CRSERVER_CLIENT_CALLOUT

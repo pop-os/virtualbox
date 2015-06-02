@@ -74,21 +74,20 @@ VirtualBoxBase::~VirtualBoxBase()
 RWLockHandle *VirtualBoxBase::lockHandle() const
 {
     /* lazy initialization */
-    if (RT_UNLIKELY(!mObjectLock))
-    {
-        AssertCompile(sizeof(RWLockHandle *) == sizeof(void *));
+    if (RT_LIKELY(mObjectLock))
+        return mObjectLock;
 
-        // getLockingClass() is overridden by many subclasses to return
-        // one of the locking classes listed at the top of AutoLock.h
-        RWLockHandle *objLock = new RWLockHandle(getLockingClass());
-        if (!ASMAtomicCmpXchgPtr(&mObjectLock, objLock, NULL))
-        {
-            delete objLock;
-            objLock = ASMAtomicReadPtrT(&mObjectLock, RWLockHandle *);
-        }
-        return objLock;
+    AssertCompile(sizeof(RWLockHandle *) == sizeof(void *));
+
+    // getLockingClass() is overridden by many subclasses to return
+    // one of the locking classes listed at the top of AutoLock.h
+    RWLockHandle *objLock = new RWLockHandle(getLockingClass());
+    if (!ASMAtomicCmpXchgPtr(&mObjectLock, objLock, NULL))
+    {
+        delete objLock;
+        objLock = ASMAtomicReadPtrT(&mObjectLock, RWLockHandle *);
     }
-    return mObjectLock;
+    return objLock;
 }
 
 /**
@@ -324,8 +323,7 @@ HRESULT VirtualBoxBase::setErrorInternal(HRESULT aResultCode,
              *  NS_ERROR_UNEXPECTED and it doesn't actually make sense to
              *  set the exception (nobody will be able to read it).
              */
-            LogWarningFunc(("Will not set an exception because nsIExceptionService is not available "
-                            "(NS_ERROR_UNEXPECTED). XPCOM is being shutdown?\n"));
+            Log1WarningFunc(("Will not set an exception because nsIExceptionService is not available (NS_ERROR_UNEXPECTED). XPCOM is being shutdown?\n"));
             rc = NS_OK;
         }
 
@@ -491,8 +489,7 @@ HRESULT VirtualBoxBase::setError(const com::ErrorInfo &ei)
              *  NS_ERROR_UNEXPECTED and it doesn't actually make sense to
              *  set the exception (nobody will be able to read it).
              */
-            LogWarningFunc(("Will not set an exception because nsIExceptionService is not available "
-                            "(NS_ERROR_UNEXPECTED). XPCOM is being shutdown?\n"));
+            Log1WarningFunc(("Will not set an exception because nsIExceptionService is not available (NS_ERROR_UNEXPECTED). XPCOM is being shutdown?\n"));
             rc = NS_OK;
         }
 

@@ -3925,7 +3925,7 @@ const Guid* Medium::i_getFirstMachineBackrefSnapshotId() const
         return NULL;
 
     const BackRef &ref = m->backRefs.front();
-    if (!ref.llSnapshotIds.size())
+    if (ref.llSnapshotIds.empty())
         return NULL;
 
     return &ref.llSnapshotIds.front();
@@ -5269,7 +5269,7 @@ HRESULT Medium::i_prepareMergeTo(const ComObjPtr<Medium> &pTarget,
                 aMediumLockList->GetBegin();
             MediumLockList::Base::iterator lockListEnd =
                 aMediumLockList->GetEnd();
-            lockListEnd--;
+            ++lockListEnd;
             for (MediumLockList::Base::iterator it = lockListBegin;
                  it != lockListEnd;
                  ++it)
@@ -6443,9 +6443,8 @@ HRESULT Medium::i_queryInfo(bool fSetImageId, bool fSetParentId, AutoCaller &aut
     else
     {
         m->strLastAccessError = lastAccessError;
-        LogWarningFunc(("'%s' is not accessible (error='%s', rc=%Rhrc, vrc=%Rrc)\n",
-                        location.c_str(), m->strLastAccessError.c_str(),
-                        rc, vrc));
+        Log1WarningFunc(("'%s' is not accessible (error='%s', rc=%Rhrc, vrc=%Rrc)\n",
+                         location.c_str(), m->strLastAccessError.c_str(), rc, vrc));
     }
 
     /* Set the proper state according to the result of the check */
@@ -8640,7 +8639,7 @@ HRESULT Medium::i_taskCompactHandler(Medium::CompactTask &task)
                 task.mpMediumLockList->GetEnd();
             MediumLockList::Base::const_iterator mediumListLast =
                 mediumListEnd;
-            mediumListLast--;
+            --mediumListLast;
             for (MediumLockList::Base::const_iterator it = mediumListBegin;
                  it != mediumListEnd;
                  ++it)
@@ -8738,7 +8737,7 @@ HRESULT Medium::i_taskResizeHandler(Medium::ResizeTask &task)
                 task.mpMediumLockList->GetEnd();
             MediumLockList::Base::const_iterator mediumListLast =
                 mediumListEnd;
-            mediumListLast--;
+            --mediumListLast;
             for (MediumLockList::Base::const_iterator it = mediumListBegin;
                  it != mediumListEnd;
                  ++it)
@@ -9433,7 +9432,7 @@ HRESULT Medium::i_taskEncryptHandler(Medium::EncryptTask &task)
                 task.mpMediumLockList->GetEnd();
             MediumLockList::Base::const_iterator mediumListLast =
                 mediumListEnd;
-            mediumListLast--;
+            --mediumListLast;
             for (MediumLockList::Base::const_iterator it = mediumListBegin;
                  it != mediumListEnd;
                  ++it)

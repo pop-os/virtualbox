@@ -206,18 +206,12 @@
 /** Reason for leaving RC: Unhandled IDT write.
  * Recompiler gets control. */
 #define VINF_EM_RAW_EMULATE_INSTR_IDT_FAULT 1130
-/** Reason for leaving RC: Unhandled GDT write.
+/** Reason for leaving RC: Partly handled GDT write.
  * Recompiler gets control. */
 #define VINF_EM_RAW_EMULATE_INSTR_GDT_FAULT 1131
-/** Reason for leaving RC: Unhandled Page Directory write.
- * Recompiler gets control. */
-#define VINF_EM_RAW_EMULATE_INSTR_PD_FAULT  1132
 /** Reason for leaving RC: jump inside generated patch jump.
  * Fatal error. */
 #define VERR_EM_RAW_PATCH_CONFLICT          (-1133)
-/** Reason for leaving RC: Hlt instruction.
- * Recompiler gets control. */
-#define VINF_EM_RAW_EMULATE_INSTR_HLT       1134
 /** Reason for leaving RZ: Ring-3 operation pending. */
 #define VINF_EM_RAW_TO_R3                   1135
 /** Reason for leaving RZ: Timer pending. */
@@ -2064,6 +2058,16 @@
 #define VERR_SVM_INVALID_GUEST_STATE                (-4059)
 /** Unknown or unrecognized SVM exit.  */
 #define VERR_SVM_UNKNOWN_EXIT                       (-4060)
+/** Internal SVM processing error no 1. */
+#define VERR_SVM_IPE_1                              (-4061)
+/** Internal SVM processing error no 2. */
+#define VERR_SVM_IPE_2                              (-4062)
+/** Internal SVM processing error no 3. */
+#define VERR_SVM_IPE_3                              (-4063)
+/** Internal SVM processing error no 4. */
+#define VERR_SVM_IPE_4                              (-4064)
+/** Internal SVM processing error no 5. */
+#define VERR_SVM_IPE_5                              (-4065)
 /** @} */
 
 
@@ -2643,6 +2647,13 @@
 /** The configuration constructor in main failed due to an internal consistency
  *  error. Consult the release log of the VM for further details. */
 #define VERR_MAIN_CONFIG_CONSTRUCTOR_IPE            (-6401)
+/** @} */
+
+/** @name VBox Drag and Drop Status Codes
+ * @{
+ */
+/** Guest side reported an error. */
+#define VERR_GSTDND_GUEST_ERROR                     (-6500)
 /** @} */
 
 

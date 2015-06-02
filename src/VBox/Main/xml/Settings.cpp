@@ -2081,7 +2081,6 @@ bool Hardware::operator==(const Hardware& h) const
                   && (ulMemoryBalloonSize       == h.ulMemoryBalloonSize)
                   && (fPageFusionEnabled        == h.fPageFusionEnabled)
                   && (llGuestProperties         == h.llGuestProperties)
-                  && (strNotificationPatterns   == h.strNotificationPatterns)
                   && (ioSettings                == h.ioSettings)
                   && (pciAttachments            == h.pciAttachments)
                   && (strDefaultFrontend        == h.strDefaultFrontend)
@@ -2622,6 +2621,24 @@ void MachineConfigFile::readParallelPorts(const xml::ElementNode &elmLPT,
 void MachineConfigFile::readAudioAdapter(const xml::ElementNode &elmAudioAdapter,
                                          AudioAdapter &aa)
 {
+
+    if (m->sv >= SettingsVersion_v1_15)
+    {
+        // get all properties
+        xml::NodesLoop nl1(elmAudioAdapter, "Property");
+        const xml::ElementNode *pelmModeChild;
+        while ((pelmModeChild = nl1.forAllNodes()))
+        {
+            Utf8Str strPropName, strPropValue;
+            if (   pelmModeChild->getAttributeValue("name", strPropName)
+                && pelmModeChild->getAttributeValue("value", strPropValue) )
+                aa.properties[strPropName] = strPropValue;
+            else
+                throw ConfigFileError(this, pelmModeChild, N_("Required AudioAdapter/Property/@name or @value attribute "
+                                                              "is missing"));
+        }
+    }
+
     elmAudioAdapter.getAttributeValue("enabled", aa.fEnabled);
 
     Utf8Str strTemp;
@@ -2690,8 +2707,6 @@ void MachineConfigFile::readGuestProperties(const xml::ElementNode &elmGuestProp
         pelmProp->getAttributeValue("flags", prop.strFlags);
         hw.llGuestProperties.push_back(prop);
     }
-
-    elmGuestProperties.getAttributeValue("notificationPatterns", hw.strNotificationPatterns);
 }
 
 /**
@@ -4733,6 +4748,20 @@ void MachineConfigFile::buildHardwareXML(xml::ElementNode &elmParent,
 
     pelmAudio->setAttribute("enabled", hw.audioAdapter.fEnabled);
 
+    if (m->sv >= SettingsVersion_v1_15 && hw.audioAdapter.properties.size() > 0)
+    {
+        for (StringsMap::const_iterator it = hw.audioAdapter.properties.begin();
+             it != hw.audioAdapter.properties.end();
+             ++it)
+        {
+            const Utf8Str &strName = it->first;
+            const Utf8Str &strValue = it->second;
+            xml::ElementNode *pelm = pelmAudio->createChild("Property");
+            pelm->setAttribute("name", strName);
+            pelm->setAttribute("value", strValue);
+        }
+    }
+
     xml::ElementNode *pelmSharedFolders = pelmHardware->createChild("SharedFolders");
     for (SharedFoldersList::const_iterator it = hw.llSharedFolders.begin();
          it != hw.llSharedFolders.end();
@@ -4852,9 +4881,6 @@ void MachineConfigFile::buildHardwareXML(xml::ElementNode &elmParent,
         pelmProp->setAttribute("timestamp", prop.timestamp);
         pelmProp->setAttribute("flags", prop.strFlags);
     }
-
-    if (hw.strNotificationPatterns.length())
-        pelmGuestProps->setAttribute("notificationPatterns", hw.strNotificationPatterns);
 }
 
 /**

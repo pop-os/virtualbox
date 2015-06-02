@@ -525,7 +525,7 @@ protected:
     void retranslateUi()
     {
         setName(QApplication::translate("UIActionPool", "&Minimize"));
-        setStatusTip(QApplication::translate("UIActionPool", "Minimize active machine-window"));
+        setStatusTip(QApplication::translate("UIActionPool", "Minimize active window"));
     }
 };
 #endif /* RT_OS_DARWIN */
@@ -698,7 +698,7 @@ protected:
     void retranslateUi()
     {
         setName(QApplication::translate("UIActionPool", "&Network Operations Manager..."));
-        setStatusTip(QApplication::translate("UIActionPool", "Show Network Operations Manager"));
+        setStatusTip(QApplication::translate("UIActionPool", "Display the Network Operations Manager window"));
     }
 };
 
@@ -788,7 +788,7 @@ protected:
     void retranslateUi()
     {
         setName(QApplication::translate("UIActionPool", "&About VirtualBox..."));
-        setStatusTip(QApplication::translate("UIActionPool", "Show a window with product information"));
+        setStatusTip(QApplication::translate("UIActionPool", "Display a window with product information"));
     }
 };
 
@@ -831,8 +831,8 @@ protected:
 
     void retranslateUi()
     {
-        setName(QApplication::translate("UIActionPool", "&Preferences...", "global settings"));
-        setStatusTip(QApplication::translate("UIActionPool", "Display the global settings window"));
+        setName(QApplication::translate("UIActionPool", "&Preferences...", "global preferences window"));
+        setStatusTip(QApplication::translate("UIActionPool", "Display the global preferences window"));
     }
 };
 

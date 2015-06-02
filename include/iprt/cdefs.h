@@ -1320,6 +1320,8 @@
  *
  * A few notes about the usage:
  *
+ *      - Generally, order your code use RT_LIKELY() instead of RT_UNLIKELY().
+ *
  *      - Generally, use RT_UNLIKELY() with error condition checks (unless you
  *        have some _strong_ reason to do otherwise, in which case document it),
  *        and/or RT_LIKELY() with success condition checks, assuming you want
@@ -1327,7 +1329,7 @@
  *
  *      - Other than that, if you don't know the likelihood of a test succeeding
  *        from empirical or other 'hard' evidence, don't make predictions unless
- *        you happen to be a Dirk Gently.
+ *        you happen to be a Dirk Gently character.
  *
  *      - These macros are meant to be used in places that get executed a lot. It
  *        is wasteful to make predictions in code that is executed rarely (e.g.
@@ -1335,13 +1337,13 @@
  *        affects can often generate larger code.
  *
  *      - Note that RT_SUCCESS() and RT_FAILURE() already makes use of RT_LIKELY()
- *        and RT_UNLIKELY(). Should you wish for prediction free status checks,
+ *        and RT_UNLIKELY().  Should you wish for prediction free status checks,
  *        use the RT_SUCCESS_NP() and RT_FAILURE_NP() macros instead.
  *
  *
  * @returns the boolean result of the expression.
  * @param   expr        The expression that's very likely to be true.
- * @see RT_UNLIKELY
+ * @see     RT_UNLIKELY
  */
 /** @def RT_UNLIKELY
  * Give the compiler a hint that an expression is highly unlikely to hold true.
@@ -1350,7 +1352,12 @@
  *
  * @returns the boolean result of the expression.
  * @param   expr        The expression that's very unlikely to be true.
- * @see RT_LIKELY
+ * @see     RT_LIKELY
+ *
+ * @deprecated Please use RT_LIKELY() instead wherever possible!  That gives us
+ *          a better chance of the windows compilers to generate favorable code
+ *          too.  The belief is that the compiler will by default assume the
+ *          if-case is more likely than the else-case.
  */
 #if defined(__GNUC__)
 # if __GNUC__ >= 3 && !defined(FORTIFY_RUNNING)
@@ -1689,8 +1696,8 @@
 #else
 # define RT_LO_U8(a)                            ( (uint8_t)(a) )
 #endif
-/** @def RT_HI_U16
- * Gets the high uint16_t of a uint32_t or something equivalent). */
+/** @def RT_HI_U8
+ * Gets the high uint8_t of a uint16_t or something equivalent. */
 #ifdef __GNUC__
 # define RT_HI_U8(a)    __extension__ ({ AssertCompile(sizeof((a)) == sizeof(uint16_t)); (uint8_t)((a) >> 8); })
 #else
@@ -1705,7 +1712,7 @@
 # define RT_LO_U16(a)                           ( (uint16_t)(a) )
 #endif
 /** @def RT_HI_U16
- * Gets the high uint16_t of a uint32_t or something equivalent). */
+ * Gets the high uint16_t of a uint32_t or something equivalent. */
 #ifdef __GNUC__
 # define RT_HI_U16(a)   __extension__ ({ AssertCompile(sizeof((a)) == sizeof(uint32_t)); (uint16_t)((a) >> 16); })
 #else
@@ -1720,7 +1727,7 @@
 # define RT_LO_U32(a)                           ( (uint32_t)(a) )
 #endif
 /** @def RT_HI_U32
- * Gets the high uint32_t of a uint64_t or something equivalent). */
+ * Gets the high uint32_t of a uint64_t or something equivalent. */
 #ifdef __GNUC__
 # define RT_HI_U32(a)   __extension__ ({ AssertCompile(sizeof((a)) == sizeof(uint64_t)); (uint32_t)((a) >> 32); })
 #else
@@ -1776,7 +1783,7 @@
  * @deprecated  Use RT_LO_U8. */
 #define RT_LOBYTE(a)                            ( (a) & 0xff )
 /** @def RT_HIBYTE
- * Gets the low byte of a 16-bit something.
+ * Gets the high byte of a 16-bit something.
  * @deprecated  Use RT_HI_U8. */
 #define RT_HIBYTE(a)                            ( (a) >> 8 )
 

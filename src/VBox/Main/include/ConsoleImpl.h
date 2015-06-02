@@ -35,11 +35,6 @@ class RemoteUSBDevice;
 class SharedFolder;
 class VRDEServerInfo;
 class EmulatedUSB;
-#ifdef VBOX_WITH_PDM_AUDIO_DRIVER
-class AudioVRDE;
-#else
-class AudioSniffer;
-#endif
 class AudioVRDE;
 class Nvram;
 #ifdef VBOX_WITH_USB_CARDREADER
@@ -138,11 +133,7 @@ public:
     Mouse *i_getMouse() const { return mMouse; }
     Display *i_getDisplay() const { return mDisplay; }
     MachineDebugger *i_getMachineDebugger() const { return mDebugger; }
-#ifdef VBOX_WITH_PDM_AUDIO_DRIVER
     AudioVRDE *i_getAudioVRDE() const { return mAudioVRDE; }
-#else
-    AudioSniffer *i_getAudioSniffer() const { return mAudioSniffer; }
-#endif
 
     const ComPtr<IMachine> &i_machine() const { return mMachine; }
     const Bstr &i_getId() const { return mstrUuid; }
@@ -192,11 +183,7 @@ public:
     HRESULT i_reconfigureMediumAttachments(const std::vector<ComPtr<IMediumAttachment> > &aAttachments);
     int i_hgcmLoadService(const char *pszServiceLibrary, const char *pszServiceName);
     VMMDev *i_getVMMDev() { return m_pVMMDev; }
-#ifdef VBOX_WITH_PDM_AUDIO_DRIVER
     AudioVRDE *i_getAudioVRDE() { return mAudioVRDE; }
-#else
-    AudioSniffer *i_getAudioSniffer() { return mAudioSniffer; }
-#endif
 
 #ifdef VBOX_WITH_EXTPACK
     ExtPackManager *i_getExtPackManager();
@@ -833,6 +820,8 @@ private:
     static DECLCALLBACK(int)    i_teleporterTrgServeConnection(RTSOCKET Sock, void *pvUser);
     /** @} */
 
+    void i_reportDriverVersions(void);
+
     bool mSavedStateDataLoaded : 1;
 
     const ComPtr<IMachine> mMachine;
@@ -903,17 +892,13 @@ private:
     typedef std::vector<NetworkAttachmentType_T> NetworkAttachmentTypeVector;
     NetworkAttachmentTypeVector meAttachmentType;
 
-    VMMDev * m_pVMMDev;
-#ifdef VBOX_WITH_PDM_AUDIO_DRIVER
-    AudioVRDE * const mAudioVRDE;
-#else
-    AudioSniffer * const mAudioSniffer;
-#endif
-    Nvram   * const mNvram;
+    VMMDev *                    m_pVMMDev;
+    AudioVRDE * const           mAudioVRDE;
+    Nvram   * const             mNvram;
 #ifdef VBOX_WITH_USB_CARDREADER
-    UsbCardReader * const mUsbCardReader;
+    UsbCardReader * const       mUsbCardReader;
 #endif
-    BusAssignmentManager* mBusMgr;
+    BusAssignmentManager*       mBusMgr;
 
     enum
     {
@@ -988,6 +973,11 @@ private:
     ComPtr<IProgress> mptrCancelableProgress;
 
     ComPtr<IEventListener> mVmListener;
+
+#ifdef RT_OS_WINDOWS
+    /** Use NDIS6 network drivers. */
+    bool mfNDIS6;
+#endif /* RT_OS_WINDOWS */
 
     friend struct VMTask;
 };
