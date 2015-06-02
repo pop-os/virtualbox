@@ -696,8 +696,7 @@ void UIMessageCenter::cannotRemoveMachine(const CMachine &machine, const CProgre
 bool UIMessageCenter::warnAboutInaccessibleMedia() const
 {
     return questionBinary(0, MessageType_Warning,
-                          tr("<p>One or more virtual hard disks, optical or "
-                             "floppy disk image files are not currently accessible. As a result, you will "
+                          tr("<p>One or more disk image files are not currently accessible. As a result, you will "
                              "not be able to operate virtual machines that use these files until "
                              "they become accessible later.</p>"
                              "<p>Press <b>Check</b> to open the Virtual Media Manager window and "
@@ -843,7 +842,7 @@ int UIMessageCenter::confirmSnapshotRestoring(const QString &strSnapshotName, bo
 bool UIMessageCenter::confirmSnapshotRemoval(const QString &strSnapshotName) const
 {
     return questionBinary(0, MessageType_Question,
-                          tr("<p>Deleting the snapshot will cause the state information saved in it to be lost, and disk data spread over "
+                          tr("<p>Deleting the snapshot will cause the state information saved in it to be lost, and storage data spread over "
                              "several image files that VirtualBox has created together with the snapshot will be merged into one file. "
                              "This can be a lengthy process, and the information in the snapshot cannot be recovered.</p>"
                              "</p>Are you sure you want to delete the selected snapshot <b>%1</b>?</p>")
@@ -858,8 +857,8 @@ bool UIMessageCenter::warnAboutSnapshotRemovalFreeSpace(const QString &strSnapsh
                                                         const QString &strTargetFileSystemFree) const
 {
     return questionBinary(0, MessageType_Question,
-                          tr("<p>Deleting the snapshot %1 will temporarily need more disk space. In the worst case the size of image %2 will grow by %3, "
-                              "however on this filesystem there is only %4 free.</p><p>Running out of disk space during the merge operation can result in "
+                          tr("<p>Deleting the snapshot %1 will temporarily need more storage space. In the worst case the size of image %2 will grow by %3, "
+                              "however on this filesystem there is only %4 free.</p><p>Running out of storage space during the merge operation can result in "
                               "corruption of the image and the VM configuration, i.e. loss of the VM and its data.</p><p>You may continue with deleting "
                               "the snapshot at your own risk.</p>")
                               .arg(strSnapshotName, strTargetImageName, strTargetImageMaxSize, strTargetFileSystemFree),
@@ -1233,34 +1232,11 @@ bool UIMessageCenter::confirmMediumRelease(const UIMedium &medium, QWidget *pPar
             continue;
         usage << machine.GetName();
     }
-    /* Prepare the message: */
-    QString strMessage;
-    switch (medium.type())
-    {
-        case UIMediumType_HardDisk:
-        {
-            strMessage = tr("<p>Are you sure you want to release the virtual hard disk <nobr><b>%1</b></nobr>?</p>"
-                            "<p>This will detach it from the following virtual machine(s): <b>%2</b>.</p>");
-            break;
-        }
-        case UIMediumType_DVD:
-        {
-            strMessage = tr("<p>Are you sure you want to release the virtual optical disk <nobr><b>%1</b></nobr>?</p>"
-                            "<p>This will detach it from the following virtual machine(s): <b>%2</b>.</p>");
-            break;
-        }
-        case UIMediumType_Floppy:
-        {
-            strMessage = tr("<p>Are you sure you want to release the virtual floppy disk <nobr><b>%1</b></nobr>?</p>"
-                            "<p>This will detach it from the following virtual machine(s): <b>%2</b>.</p>");
-            break;
-        }
-        default:
-            break;
-    }
     /* Show the question: */
     return questionBinary(pParent, MessageType_Question,
-                          strMessage.arg(medium.location(), usage.join(", ")),
+                          tr("<p>Are you sure you want to release the disk image file <nobr><b>%1</b></nobr>?</p>"
+                             "<p>This will detach it from the following virtual machine(s): <b>%2</b>.</p>")
+                             .arg(medium.location(), usage.join(", ")),
                           0 /* auto-confirm id */,
                           tr("Release", "detach medium"));
 }
@@ -1319,7 +1295,7 @@ bool UIMessageCenter::confirmMediumRemoval(const UIMedium &medium, QWidget *pPar
 int UIMessageCenter::confirmDeleteHardDiskStorage(const QString &strLocation, QWidget *pParent /* = 0*/) const
 {
     return questionTrinary(pParent, MessageType_Question,
-                           tr("<p>Do you want to delete the storage unit of the hard disk "
+                           tr("<p>Do you want to delete the storage unit of the virtual hard disk "
                               "<nobr><b>%1</b></nobr>?</p>"
                               "<p>If you select <b>Delete</b> then the specified storage unit "
                               "will be permanently deleted. This operation <b>cannot be "
@@ -1435,68 +1411,24 @@ bool UIMessageCenter::cannotRemountMedium(const CMachine &machine, const UIMediu
     return false;
 }
 
-void UIMessageCenter::cannotOpenMedium(const CVirtualBox &vbox, UIMediumType type, const QString &strLocation, QWidget *pParent /* = 0*/) const
+void UIMessageCenter::cannotOpenMedium(const CVirtualBox &vbox, UIMediumType /* type */, const QString &strLocation, QWidget *pParent /* = 0*/) const
 {
-    /* Prepare the message: */
-    QString strMessage;
-    switch (type)
-    {
-        case UIMediumType_HardDisk:
-        {
-            strMessage = tr("Failed to open the hard disk file <nobr><b>%1</b></nobr>.");
-            break;
-        }
-        case UIMediumType_DVD:
-        {
-            strMessage = tr("Failed to open the optical disk file <nobr><b>%1</b></nobr>.");
-            break;
-        }
-        case UIMediumType_Floppy:
-        {
-            strMessage = tr("Failed to open the floppy disk file <nobr><b>%1</b></nobr>.");
-            break;
-        }
-        default:
-            break;
-    }
     /* Show the error: */
     error(pParent, MessageType_Error,
-          strMessage.arg(strLocation), formatErrorInfo(vbox));
+          tr("Failed to open the disk image file <nobr><b>%1</b></nobr>.").arg(strLocation), formatErrorInfo(vbox));
 }
 
 void UIMessageCenter::cannotCloseMedium(const UIMedium &medium, const COMResult &rc, QWidget *pParent /* = 0*/) const
 {
-    /* Prepare the message: */
-    QString strMessage;
-    switch (medium.type())
-    {
-        case UIMediumType_HardDisk:
-        {
-            strMessage = tr("Failed to close the hard disk file <nobr><b>%2</b></nobr>.");
-            break;
-        }
-        case UIMediumType_DVD:
-        {
-            strMessage = tr("Failed to close the optical disk file <nobr><b>%2</b></nobr>.");
-            break;
-        }
-        case UIMediumType_Floppy:
-        {
-            strMessage = tr("Failed to close the floppy disk file <nobr><b>%2</b></nobr>.");
-            break;
-        }
-        default:
-            break;
-    }
     /* Show the error: */
     error(pParent, MessageType_Error,
-          strMessage.arg(medium.location()), formatErrorInfo(rc));
+          tr("Failed to close the disk image file <nobr><b>%1</b></nobr>.").arg(medium.location()), formatErrorInfo(rc));
 }
 
 bool UIMessageCenter::confirmHardDisklessMachine(QWidget *pParent /* = 0*/) const
 {
     return questionBinary(pParent, MessageType_Warning,
-                          tr("You are about to create a new virtual machine without a hard drive. "
+                          tr("You are about to create a new virtual machine without a hard disk. "
                              "You will not be able to install an operating system on the machine "
                              "until you add one. In the mean time you will only be able to start the "
                              "machine using a virtual optical disk or from the network."),
@@ -1915,10 +1847,10 @@ bool UIMessageCenter::confirmInputCapture(bool &fAutoConfirmed) const
 bool UIMessageCenter::confirmGoingFullscreen(const QString &strHotKey) const
 {
     return questionBinary(0, MessageType_Info,
-                          tr("<p>The virtual machine window will be now switched to <b>fullscreen</b> mode. "
+                          tr("<p>The virtual machine window will be now switched to <b>full-screen</b> mode. "
                              "You can go back to windowed mode at any time by pressing <b>%1</b>.</p>"
                              "<p>Note that the <i>Host</i> key is currently defined as <b>%2</b>.</p>"
-                             "<p>Note that the main menu bar is hidden in fullscreen mode. "
+                             "<p>Note that the main menu bar is hidden in full-screen mode. "
                              "You can access it by pressing <b>Host+Home</b>.</p>")
                              .arg(strHotKey, UIHostCombo::toReadableString(vboxGlobal().settings().hostCombo())),
                           "confirmGoingFullscreen",
@@ -1954,9 +1886,9 @@ bool UIMessageCenter::confirmGoingScale(const QString &strHotKey) const
 bool UIMessageCenter::cannotEnterFullscreenMode(ULONG /* uWidth */, ULONG /* uHeight */, ULONG /* uBpp */, ULONG64 uMinVRAM) const
 {
     return questionBinary(0, MessageType_Warning,
-                          tr("<p>Could not switch the guest display to fullscreen mode due to insufficient guest video memory.</p>"
+                          tr("<p>Could not switch the guest display to full-screen mode due to insufficient guest video memory.</p>"
                              "<p>You should configure the virtual machine to have at least <b>%1</b> of video memory.</p>"
-                             "<p>Press <b>Ignore</b> to switch to fullscreen mode anyway or press <b>Cancel</b> to cancel the operation.</p>")
+                             "<p>Press <b>Ignore</b> to switch to full-screen mode anyway or press <b>Cancel</b> to cancel the operation.</p>")
                              .arg(VBoxGlobal::formatSize(uMinVRAM)),
                           0 /* auto-confirm id */,
                           tr("Ignore"));

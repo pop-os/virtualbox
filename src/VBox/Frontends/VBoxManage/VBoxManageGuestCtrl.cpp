@@ -855,13 +855,18 @@ static RTEXITCODE gctlCtxInitVmSession(PGCTLCMDCTX pCtx)
                 CHECK_ERROR(pCtx->pArg->session, COMGETTER(Console)(ptrConsole.asOutParam()));
                 if (SUCCEEDED(rc))
                 {
-                    CHECK_ERROR(ptrConsole, COMGETTER(Guest)(pCtx->pGuest.asOutParam()));
-                    if (SUCCEEDED(rc))
-                        return RTEXITCODE_SUCCESS;
+                    if (ptrConsole.isNotNull())
+                    {
+                        CHECK_ERROR(ptrConsole, COMGETTER(Guest)(pCtx->pGuest.asOutParam()));
+                        if (SUCCEEDED(rc))
+                            return RTEXITCODE_SUCCESS;
+                    }
+                    else
+                        RTMsgError("Failed to get a IConsole pointer for the machine. Is it still running?\n");
                 }
             }
         }
-        else if(SUCCEEDED(rc))
+        else if (SUCCEEDED(rc))
             RTMsgError("Machine \"%s\" is not running (currently %s)!\n",
                        pCtx->pszVmNameOrUuid, machineStateToName(enmMachineState, false));
     }
@@ -3275,7 +3280,7 @@ static DECLCALLBACK(RTEXITCODE) gctlHandleMv(PGCTLCMDCTX pCtx, int argc, char **
             if (pCtx->cVerbose > 1)
                 RTPrintf("Warning: Cannot stat for element \"%s\": No such element\n",
                          strCurSource.c_str());
-            it++;
+            ++it;
             continue; /* Skip. */
         }
 
@@ -3308,7 +3313,7 @@ static DECLCALLBACK(RTEXITCODE) gctlHandleMv(PGCTLCMDCTX pCtx, int argc, char **
                                                                    ComSafeArrayAsInParam(aRenameFlags)));
         }
 
-        it++;
+        ++it;
     }
 
     if (   (it != vecSources.end())
@@ -3537,7 +3542,7 @@ static DECLCALLBACK(RTEXITCODE) gctlHandleStat(PGCTLCMDCTX pCtx, int argc, char 
             /** @todo: Show more information about this element. */
         }
 
-        it++;
+        ++it;
     }
 
     return rcExit;
@@ -4244,9 +4249,9 @@ static DECLCALLBACK(RTEXITCODE) gctlHandleWatch(PGCTLCMDCTX pCtx, int argc, char
  * @returns program exit code.
  * @note see the command line API description for parameters
  */
-int handleGuestControl(HandlerArg *pArg)
+RTEXITCODE handleGuestControl(HandlerArg *pArg)
 {
-    AssertPtrReturn(pArg, VERR_INVALID_POINTER);
+    AssertPtr(pArg);
 
 #ifdef DEBUG_andy_disabled
     if (RT_FAILURE(tstTranslatePath()))

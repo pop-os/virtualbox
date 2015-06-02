@@ -1134,7 +1134,9 @@ void UIMediumManager::prepareToolBar()
     AssertPtrReturnVoid(m_pToolBar);
     {
         /* Configure tool-bar: */
-        m_pToolBar->setIconSize(QSize(22, 22));
+        const QStyle *pStyle = QApplication::style();
+        const int iIconMetric = pStyle->pixelMetric(QStyle::PM_SmallIconSize) * 1.375;
+        m_pToolBar->setIconSize(QSize(iIconMetric, iIconMetric));
         m_pToolBar->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
         m_pToolBar->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Preferred);
         /* Add tool-bar actions: */
@@ -1783,7 +1785,7 @@ void UIMediumManager::retranslateUi()
     /* Translate tab-widget: */
     if (m_pTabWidget)
     {
-        m_pTabWidget->setTabText(tabIndex(UIMediumType_HardDisk), tr("&Hard drives"));
+        m_pTabWidget->setTabText(tabIndex(UIMediumType_HardDisk), tr("&Hard disks"));
         m_pTabWidget->setTabText(tabIndex(UIMediumType_DVD), tr("&Optical disks"));
         m_pTabWidget->setTabText(tabIndex(UIMediumType_Floppy), tr("&Floppy disks"));
     }
@@ -1990,14 +1992,14 @@ UIMediumItem* UIMediumManager::createHardDiskItem(const UIMedium &medium)
                 if (pParentMediumItem)
                 {
                     pMediumItem = new UIMediumItemHD(medium, pParentMediumItem);
-                    LogRel2(("UIMediumManager: Child hard-drive medium-item with ID={%s} created.\n", medium.id().toAscii().constData()));
+                    LogRel2(("UIMediumManager: Child hard-disk medium-item with ID={%s} created.\n", medium.id().toAscii().constData()));
                 }
             }
             /* Else just create item as top-level one: */
             if (!pMediumItem)
             {
                 pMediumItem = new UIMediumItemHD(medium, pTreeWidget);
-                LogRel2(("UIMediumManager: Root hard-drive medium-item with ID={%s} created.\n", medium.id().toAscii().constData()));
+                LogRel2(("UIMediumManager: Root hard-disk medium-item with ID={%s} created.\n", medium.id().toAscii().constData()));
             }
         }
 

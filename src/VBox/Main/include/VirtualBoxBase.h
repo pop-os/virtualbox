@@ -155,17 +155,18 @@ public:
  *
  *  @param   expr    Expression which should be true.
  */
-#if defined(DEBUG)
-#define ComAssert(expr)    Assert(expr)
-#else
-#define ComAssert(expr)    \
+#define ComAssert(expr) \
     do { \
-        if (RT_UNLIKELY(!(expr))) \
+        if (RT_LIKELY(!!(expr))) \
+        { /* likely */ } \
+        else \
+        { \
+            AssertMsgFailed(("%s\n", #expr)); \
             setError(E_FAIL, \
                      "Assertion failed: [%s] at '%s' (%d) in %s.\nPlease contact the product vendor!", \
                      #expr, __FILE__, __LINE__, __PRETTY_FUNCTION__); \
+        } \
     } while (0)
-#endif
 
 /**
  *  Special version of the AssertFailed macro to be used within VirtualBoxBase
@@ -178,16 +179,13 @@ public:
  *  @see VirtualBoxBase::setError
  *
  */
-#if defined(DEBUG)
-#define ComAssertFailed()    AssertFailed()
-#else
-#define ComAssertFailed()    \
+#define ComAssertFailed() \
     do { \
+        AssertFailed(); \
         setError(E_FAIL, \
                  "Assertion failed: at '%s' (%d) in %s.\nPlease contact the product vendor!", \
                  __FILE__, __LINE__, __PRETTY_FUNCTION__); \
     } while (0)
-#endif
 
 /**
  *  Special version of the AssertMsg macro to be used within VirtualBoxBase
@@ -198,17 +196,19 @@ public:
  *  @param   expr    Expression which should be true.
  *  @param   a       printf argument list (in parenthesis).
  */
-#if defined(DEBUG)
-#define ComAssertMsg(expr, a)  AssertMsg(expr, a)
-#else
-#define ComAssertMsg(expr, a)  \
+#define ComAssertMsg(expr, a) \
     do { \
-        if (RT_UNLIKELY(!(expr))) \
+        if (RT_LIKELY(!!(expr))) \
+        { /* likely */ } \
+        else \
+        { \
+            Utf8StrFmt MyAssertMsg a; /* may throw bad_alloc */ \
+            AssertMsgFailed(("%s\n", MyAssertMsg.c_str())); \
             setError(E_FAIL, \
                      "Assertion failed: [%s] at '%s' (%d) in %s.\n%s.\nPlease contact the product vendor!", \
-                     #expr, __FILE__, __LINE__, __PRETTY_FUNCTION__, Utf8StrFmt a .c_str()); \
+                     #expr, __FILE__, __LINE__, __PRETTY_FUNCTION__, MyAssertMsg.c_str()); \
+        } \
     } while (0)
-#endif
 
 /**
  *  Special version of the AssertMsgFailed macro to be used within VirtualBoxBase
@@ -218,16 +218,14 @@ public:
  *
  *  @param   a       printf argument list (in parenthesis).
  */
-#if defined(DEBUG)
-#define ComAssertMsgFailed(a)   AssertMsgFailed(a)
-#else
 #define ComAssertMsgFailed(a) \
     do { \
+        Utf8StrFmt MyAssertMsg a; /* may throw bad_alloc */ \
+        AssertMsgFailed(("%s\n", MyAssertMsg.c_str())); \
         setError(E_FAIL, \
                  "Assertion failed: at '%s' (%d) in %s.\n%s.\nPlease contact the product vendor!", \
-                 __FILE__, __LINE__, __PRETTY_FUNCTION__, Utf8StrFmt a .c_str()); \
+                 __FILE__, __LINE__, __PRETTY_FUNCTION__, MyAssertMsg.c_str()); \
     } while (0)
-#endif
 
 /**
  *  Special version of the AssertRC macro to be used within VirtualBoxBase
@@ -237,11 +235,7 @@ public:
  *
  * @param   vrc     VBox status code.
  */
-#if defined(DEBUG)
-#define ComAssertRC(vrc)    AssertRC(vrc)
-#else
-#define ComAssertRC(vrc)    ComAssertMsgRC(vrc, ("%Rra", vrc))
-#endif
+#define ComAssertRC(vrc)            ComAssertMsgRC(vrc, ("%Rra", vrc))
 
 /**
  *  Special version of the AssertMsgRC macro to be used within VirtualBoxBase
@@ -252,11 +246,7 @@ public:
  *  @param   vrc    VBox status code.
  *  @param   msg    printf argument list (in parenthesis).
  */
-#if defined(DEBUG)
-#define ComAssertMsgRC(vrc, msg)    AssertMsgRC(vrc, msg)
-#else
 #define ComAssertMsgRC(vrc, msg)    ComAssertMsg(RT_SUCCESS(vrc), msg)
-#endif
 
 /**
  *  Special version of the AssertComRC macro to be used within VirtualBoxBase
@@ -264,13 +254,9 @@ public:
  *
  *  See ComAssert for more info.
  *
- *  @param rc   COM result code
+ *  @param hrc  COM result code
  */
-#if defined(DEBUG)
-#define ComAssertComRC(rc)  AssertComRC(rc)
-#else
-#define ComAssertComRC(rc)  ComAssertMsg(SUCCEEDED(rc), ("COM RC = %Rhrc (0x%08X)", (rc), (rc)))
-#endif
+#define ComAssertComRC(hrc)         ComAssertMsg(SUCCEEDED(hrc), ("COM RC=%Rhrc (0x%08X)", (hrc), (hrc)))
 
 
 /** Special version of ComAssert that returns ret if expr fails */
@@ -364,7 +350,9 @@ public:
  */
 #define CheckComArgNotNull(arg) \
     do { \
-        if (RT_UNLIKELY((arg) == NULL)) \
+        if (RT_LIKELY((arg) != NULL)) \
+        { /* likely */ }\
+        else \
             return setError(E_INVALIDARG, tr("Argument %s is NULL"), #arg); \
     } while (0)
 
@@ -375,7 +363,9 @@ public:
  */
 #define CheckComArgMaybeNull(arg) \
     do { \
-        if (RT_UNLIKELY(!RT_VALID_PTR(arg) && (arg) != NULL)) \
+        if (RT_LIKELY(RT_VALID_PTR(arg) || (arg) == NULL)) \
+        { /* likely */ }\
+        else \
             return setError(E_INVALIDARG, tr("Argument %s is an invalid pointer"), #arg); \
     } while (0)
 
@@ -386,7 +376,9 @@ public:
  */
 #define CheckComArgPointerValid(arg) \
     do { \
-        if (RT_UNLIKELY(!RT_VALID_PTR(arg))) \
+        if (RT_LIKELY(RT_VALID_PTR(arg))) \
+        { /* likely */ }\
+        else \
             return setError(E_POINTER, \
                 tr("Argument %s points to invalid memory location (%p)"), \
                 #arg, (void *)(arg)); \
@@ -399,7 +391,9 @@ public:
  */
 #define CheckComArgSafeArrayNotNull(arg) \
     do { \
-        if (RT_UNLIKELY(ComSafeArrayInIsNull(arg))) \
+        if (RT_LIKELY(!ComSafeArrayInIsNull(arg))) \
+        { /* likely */ }\
+        else \
             return setError(E_INVALIDARG, tr("Argument %s is NULL"), #arg); \
     } while (0)
 
@@ -411,7 +405,9 @@ public:
 #define CheckComArgStr(a_bstrIn) \
     do { \
         IN_BSTR const bstrInCheck = (a_bstrIn); /* type check */ \
-        if (RT_UNLIKELY(!RT_VALID_PTR(bstrInCheck))) \
+        if (RT_LIKELY(RT_VALID_PTR(bstrInCheck))) \
+        { /* likely */ }\
+        else \
             return setError(E_INVALIDARG, tr("Argument %s is an invalid pointer"), #a_bstrIn); \
     } while (0)
 /**
@@ -422,7 +418,9 @@ public:
 #define CheckComArgStrNotEmptyOrNull(a_bstrIn) \
     do { \
         IN_BSTR const bstrInCheck = (a_bstrIn); /* type check */ \
-        if (RT_UNLIKELY(!RT_VALID_PTR(bstrInCheck) || *(bstrInCheck) == '\0')) \
+        if (RT_LIKELY(RT_VALID_PTR(bstrInCheck) && *(bstrInCheck) != '\0')) \
+        { /* likely */ }\
+        else \
             return setError(E_INVALIDARG, tr("Argument %s is empty or an invalid pointer"), #a_bstrIn); \
     } while (0)
 
@@ -437,7 +435,9 @@ public:
     do { \
         Guid tmpGuid(a_Arg); \
         (a_GuidVar) = tmpGuid; \
-        if (RT_UNLIKELY((a_GuidVar).isValid() == false)) \
+        if (RT_LIKELY((a_GuidVar).isValid())) \
+        { /* likely */ }\
+        else \
             return setError(E_INVALIDARG, \
                 tr("GUID argument %s is not valid (\"%ls\")"), #a_Arg, Bstr(a_Arg).raw()); \
     } while (0)
@@ -450,7 +450,9 @@ public:
  */
 #define CheckComArgExpr(arg, expr) \
     do { \
-        if (RT_UNLIKELY(!(expr))) \
+        if (RT_LIKELY(!!(expr))) \
+        { /* likely */ }\
+        else \
             return setError(E_INVALIDARG, \
                 tr("Argument %s is invalid (must be %s)"), #arg, #expr); \
     } while (0)
@@ -466,7 +468,9 @@ public:
  */
 #define CheckComArgExprMsg(arg, expr, msg) \
     do { \
-        if (RT_UNLIKELY(!(expr))) \
+        if (RT_LIKELY(!!(expr))) \
+        { /* likely */ }\
+        else \
             return setError(E_INVALIDARG, tr("Argument %s %s"), \
                             #arg, Utf8StrFmt msg .c_str()); \
     } while (0)
@@ -478,7 +482,9 @@ public:
  */
 #define CheckComArgOutPointerValid(arg) \
     do { \
-        if (RT_UNLIKELY(!VALID_PTR(arg))) \
+        if (RT_LIKELY(RT_VALID_PTR(arg))) \
+        { /* likely */ }\
+        else \
             return setError(E_POINTER, \
                 tr("Output argument %s points to invalid memory location (%p)"), \
                 #arg, (void *)(arg)); \
@@ -491,7 +497,9 @@ public:
  */
 #define CheckComArgOutSafeArrayPointerValid(arg) \
     do { \
-        if (RT_UNLIKELY(ComSafeArrayOutIsNull(arg))) \
+        if (RT_LIKELY(!ComSafeArrayOutIsNull(arg))) \
+        { /* likely */ }\
+        else \
             return setError(E_POINTER, \
                             tr("Output argument %s points to invalid memory location (%p)"), \
                             #arg, (void*)(arg)); \
@@ -534,13 +542,13 @@ public:
  *  finding the actual thrower possible.
  */
 #ifdef DEBUG
-#define DebugBreakThrow(a) \
+# define DebugBreakThrow(a) \
     do { \
         RTAssertDebugBreak(); \
         throw (a); \
-} while (0)
+    } while (0)
 #else
-#define DebugBreakThrow(a) throw (a)
+# define DebugBreakThrow(a) throw (a)
 #endif
 
 /**

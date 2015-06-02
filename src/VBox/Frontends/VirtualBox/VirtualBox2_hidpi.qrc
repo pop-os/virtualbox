@@ -1,10 +1,13 @@
 <RCC>
     <qresource prefix="/">
+        <file alias="os_qnx_hidpi.png">images/hidpi/os_qnx_hidpi.png</file>
+        <file alias="os_redhat_64_hidpi.png">images/hidpi/os_redhat_64_hidpi.png</file>
         <file alias="os_redhat_hidpi.png">images/hidpi/os_redhat_hidpi.png</file>
         <file alias="os_solaris_64_hidpi.png">images/hidpi/os_solaris_64_hidpi.png</file>
         <file alias="os_solaris_hidpi.png">images/hidpi/os_solaris_hidpi.png</file>
         <file alias="os_turbolinux_64_hidpi.png">images/hidpi/os_turbolinux_64_hidpi.png</file>
         <file alias="os_turbolinux_hidpi.png">images/hidpi/os_turbolinux_hidpi.png</file>
+        <file alias="os_type_16px_hidpi.png">images/hidpi/os_type_16px_hidpi.png</file>
         <file alias="os_ubuntu_64_hidpi.png">images/hidpi/os_ubuntu_64_hidpi.png</file>
         <file alias="os_ubuntu_hidpi.png">images/hidpi/os_ubuntu_hidpi.png</file>
         <file alias="os_win10_64_hidpi.png">images/hidpi/os_win10_64_hidpi.png</file>
@@ -235,9 +238,7 @@
         <file alias="vm_open_filemanager_16px_hidpi.png">images/hidpi/vm_open_filemanager_16px_hidpi.png</file>
         <file alias="vm_open_filemanager_disabled_16px_hidpi.png">images/hidpi/vm_open_filemanager_disabled_16px_hidpi.png</file>
         <file alias="vm_pause_16px_hidpi.png">images/hidpi/vm_pause_16px_hidpi.png</file>
-        <file alias="vm_pause_32px_hidpi.png">images/hidpi/vm_pause_32px_hidpi.png</file>
         <file alias="vm_pause_disabled_16px_hidpi.png">images/hidpi/vm_pause_disabled_16px_hidpi.png</file>
-        <file alias="vm_pause_disabled_32px_hidpi.png">images/hidpi/vm_pause_disabled_32px_hidpi.png</file>
         <file alias="vm_pause_on_16px_hidpi.png">images/hidpi/vm_pause_on_16px_hidpi.png</file>
         <file alias="vm_pause_on_disabled_16px_hidpi.png">images/hidpi/vm_pause_on_disabled_16px_hidpi.png</file>
         <file alias="vm_poweroff_16px_hidpi.png">images/hidpi/vm_poweroff_16px_hidpi.png</file>
@@ -271,5 +272,7 @@
         <file alias="vtx_amdv_disabled_16px_hidpi.png">images/hidpi/vtx_amdv_disabled_16px_hidpi.png</file>
         <file alias="web_camera_16px_hidpi.png">images/hidpi/web_camera_16px_hidpi.png</file>
         <file alias="web_camera_disabled_16px_hidpi.png">images/hidpi/web_camera_disabled_16px_hidpi.png</file>
+        <file alias="web_camera_unavailable_16px_hidpi.png">images/hidpi/web_camera_unavailable_16px_hidpi.png</file>
+        <file alias="web_camera_unavailable_disabled_16px_hidpi.png">images/hidpi/web_camera_unavailable_disabled_16px_hidpi.png</file>
     </qresource>
 </RCC>

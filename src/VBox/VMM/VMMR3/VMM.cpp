@@ -381,7 +381,7 @@ static int vmmR3InitLoggers(PVM pVM)
      */
     if (!HMIsEnabled(pVM))
     {
-        PRTLOGGER pRelLogger = RTLogRelDefaultInstance();
+        PRTLOGGER pRelLogger = RTLogRelGetDefaultInstance();
         if (pRelLogger)
         {
             pVM->vmm.s.cbRCRelLogger = RT_OFFSETOF(RTLOGGERRC, afGroups[pRelLogger->cGroups]);
@@ -431,7 +431,6 @@ static void vmmR3InitRegisterStats(PVM pVM)
     STAM_REG(pVM, &pVM->vmm.s.StatRZRetGDTFault,            STAMTYPE_COUNTER, "/VMM/RZRet/GDTFault",            STAMUNIT_OCCURENCES, "Number of VINF_EM_EXECUTE_INSTRUCTION_LDT_FAULT returns.");
     STAM_REG(pVM, &pVM->vmm.s.StatRZRetIDTFault,            STAMTYPE_COUNTER, "/VMM/RZRet/IDTFault",            STAMUNIT_OCCURENCES, "Number of VINF_EM_EXECUTE_INSTRUCTION_IDT_FAULT returns.");
     STAM_REG(pVM, &pVM->vmm.s.StatRZRetTSSFault,            STAMTYPE_COUNTER, "/VMM/RZRet/TSSFault",            STAMUNIT_OCCURENCES, "Number of VINF_EM_EXECUTE_INSTRUCTION_TSS_FAULT returns.");
-    STAM_REG(pVM, &pVM->vmm.s.StatRZRetPDFault,             STAMTYPE_COUNTER, "/VMM/RZRet/PDFault",             STAMUNIT_OCCURENCES, "Number of VINF_EM_EXECUTE_INSTRUCTION_PD_FAULT returns.");
     STAM_REG(pVM, &pVM->vmm.s.StatRZRetCSAMTask,            STAMTYPE_COUNTER, "/VMM/RZRet/CSAMTask",            STAMUNIT_OCCURENCES, "Number of VINF_CSAM_PENDING_ACTION returns.");
     STAM_REG(pVM, &pVM->vmm.s.StatRZRetSyncCR3,             STAMTYPE_COUNTER, "/VMM/RZRet/SyncCR",              STAMUNIT_OCCURENCES, "Number of VINF_PGM_SYNC_CR3 returns.");
     STAM_REG(pVM, &pVM->vmm.s.StatRZRetMisc,                STAMTYPE_COUNTER, "/VMM/RZRet/Misc",                STAMUNIT_OCCURENCES, "Number of misc returns.");
@@ -574,7 +573,7 @@ VMMR3_INT_DECL(int) VMMR3InitRC(PVM pVM)
      *      -# do a generic hypervisor call.
      */
     RTRCPTR RCPtrEP;
-    int rc = PDMR3LdrGetSymbolRC(pVM, VMMGC_MAIN_MODULE_NAME, "VMMGCEntry", &RCPtrEP);
+    int rc = PDMR3LdrGetSymbolRC(pVM, VMMRC_MAIN_MODULE_NAME, "VMMGCEntry", &RCPtrEP);
     if (RT_SUCCESS(rc))
     {
         CPUMSetHyperESP(pVCpu, pVCpu->vmm.s.pbEMTStackBottomRC); /* Clear the stack. */
@@ -607,7 +606,7 @@ VMMR3_INT_DECL(int) VMMR3InitRC(PVM pVM)
 #ifdef VBOX_WITH_RC_RELEASE_LOGGING
             PRTLOGGERRC pRelLogger = pVM->vmm.s.pRCRelLoggerR3;
             if (RT_UNLIKELY(pRelLogger && pRelLogger->offScratch > 0))
-                RTLogFlushRC(RTLogRelDefaultInstance(), pRelLogger);
+                RTLogFlushRC(RTLogRelGetDefaultInstance(), pRelLogger);
 #endif
             if (rc != VINF_VMM_CALL_HOST)
                 break;
@@ -855,10 +854,10 @@ VMMR3_INT_DECL(void) VMMR3Relocate(PVM pVM, RTGCINTPTR offDelta)
      */
     if (!HMIsEnabled(pVM))
     {
-        int rc = PDMR3LdrGetSymbolRC(pVM, VMMGC_MAIN_MODULE_NAME, "CPUMGCResumeGuest", &pVM->vmm.s.pfnCPUMRCResumeGuest);
+        int rc = PDMR3LdrGetSymbolRC(pVM, VMMRC_MAIN_MODULE_NAME, "CPUMGCResumeGuest", &pVM->vmm.s.pfnCPUMRCResumeGuest);
         AssertReleaseMsgRC(rc, ("CPUMGCResumeGuest not found! rc=%Rra\n", rc));
 
-        rc = PDMR3LdrGetSymbolRC(pVM, VMMGC_MAIN_MODULE_NAME, "CPUMGCResumeGuestV86", &pVM->vmm.s.pfnCPUMRCResumeGuestV86);
+        rc = PDMR3LdrGetSymbolRC(pVM, VMMRC_MAIN_MODULE_NAME, "CPUMGCResumeGuestV86", &pVM->vmm.s.pfnCPUMRCResumeGuestV86);
         AssertReleaseMsgRC(rc, ("CPUMGCResumeGuestV86 not found! rc=%Rra\n", rc));
     }
 
@@ -890,7 +889,7 @@ VMMR3_INT_DECL(int) VMMR3UpdateLoggers(PVM pVM)
        )
     {
         Assert(!HMIsEnabled(pVM));
-        rc = PDMR3LdrGetSymbolRC(pVM, VMMGC_MAIN_MODULE_NAME, "vmmGCLoggerFlush", &RCPtrLoggerFlush);
+        rc = PDMR3LdrGetSymbolRC(pVM, VMMRC_MAIN_MODULE_NAME, "vmmGCLoggerFlush", &RCPtrLoggerFlush);
         AssertReleaseMsgRC(rc, ("vmmGCLoggerFlush not found! rc=%Rra\n", rc));
     }
 
@@ -898,7 +897,7 @@ VMMR3_INT_DECL(int) VMMR3UpdateLoggers(PVM pVM)
     {
         Assert(!HMIsEnabled(pVM));
         RTRCPTR RCPtrLoggerWrapper = 0;
-        rc = PDMR3LdrGetSymbolRC(pVM, VMMGC_MAIN_MODULE_NAME, "vmmGCLoggerWrapper", &RCPtrLoggerWrapper);
+        rc = PDMR3LdrGetSymbolRC(pVM, VMMRC_MAIN_MODULE_NAME, "vmmGCLoggerWrapper", &RCPtrLoggerWrapper);
         AssertReleaseMsgRC(rc, ("vmmGCLoggerWrapper not found! rc=%Rra\n", rc));
 
         pVM->vmm.s.pRCLoggerRC = MMHyperR3ToRC(pVM, pVM->vmm.s.pRCLoggerR3);
@@ -912,11 +911,11 @@ VMMR3_INT_DECL(int) VMMR3UpdateLoggers(PVM pVM)
     {
         Assert(!HMIsEnabled(pVM));
         RTRCPTR RCPtrLoggerWrapper = 0;
-        rc = PDMR3LdrGetSymbolRC(pVM, VMMGC_MAIN_MODULE_NAME, "vmmGCRelLoggerWrapper", &RCPtrLoggerWrapper);
+        rc = PDMR3LdrGetSymbolRC(pVM, VMMRC_MAIN_MODULE_NAME, "vmmGCRelLoggerWrapper", &RCPtrLoggerWrapper);
         AssertReleaseMsgRC(rc, ("vmmGCRelLoggerWrapper not found! rc=%Rra\n", rc));
 
         pVM->vmm.s.pRCRelLoggerRC = MMHyperR3ToRC(pVM, pVM->vmm.s.pRCRelLoggerR3);
-        rc = RTLogCloneRC(RTLogRelDefaultInstance(), pVM->vmm.s.pRCRelLoggerR3, pVM->vmm.s.cbRCRelLogger,
+        rc = RTLogCloneRC(RTLogRelGetDefaultInstance(), pVM->vmm.s.pRCRelLoggerR3, pVM->vmm.s.cbRCRelLogger,
                           RCPtrLoggerWrapper, RCPtrLoggerFlush, RTLOGFLAGS_BUFFERED);
         AssertReleaseMsgRC(rc, ("RTLogCloneRC failed! rc=%Rra\n", rc));
     }
@@ -1318,7 +1317,7 @@ VMMR3_INT_DECL(int) VMMR3RawRunGC(PVM pVM, PVMCPU pVCpu)
 #ifdef VBOX_WITH_RC_RELEASE_LOGGING
         PRTLOGGERRC pRelLogger = pVM->vmm.s.pRCRelLoggerR3;
         if (RT_UNLIKELY(pRelLogger && pRelLogger->offScratch > 0))
-            RTLogFlushRC(RTLogRelDefaultInstance(), pRelLogger);
+            RTLogFlushRC(RTLogRelGetDefaultInstance(), pRelLogger);
 #endif
         if (rc != VINF_VMM_CALL_HOST)
         {
@@ -2004,7 +2003,7 @@ VMMR3DECL(int) VMMR3CallRCV(PVM pVM, RTRCPTR RCPtrEntry, unsigned cArgs, va_list
 #ifdef VBOX_WITH_RC_RELEASE_LOGGING
         PRTLOGGERRC pRelLogger = pVM->vmm.s.pRCRelLoggerR3;
         if (RT_UNLIKELY(pRelLogger && pRelLogger->offScratch > 0))
-            RTLogFlushRC(RTLogRelDefaultInstance(), pRelLogger);
+            RTLogFlushRC(RTLogRelGetDefaultInstance(), pRelLogger);
 #endif
         if (rc == VERR_TRPM_PANIC || rc == VERR_TRPM_DONT_PANIC)
             VMMR3FatalDump(pVM, pVCpu, rc);
@@ -2114,7 +2113,7 @@ VMMR3DECL(int) VMMR3ResumeHyper(PVM pVM, PVMCPU pVCpu)
 # ifdef VBOX_WITH_RC_RELEASE_LOGGING
         PRTLOGGERRC pRelLogger = pVM->vmm.s.pRCRelLoggerR3;
         if (RT_UNLIKELY(pRelLogger && pRelLogger->offScratch > 0))
-            RTLogFlushRC(RTLogRelDefaultInstance(), pRelLogger);
+            RTLogFlushRC(RTLogRelGetDefaultInstance(), pRelLogger);
 # endif
         if (rc == VERR_TRPM_PANIC || rc == VERR_TRPM_DONT_PANIC)
             VMMR3FatalDump(pVM, pVCpu, rc);

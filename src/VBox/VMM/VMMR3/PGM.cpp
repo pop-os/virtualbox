@@ -1456,8 +1456,8 @@ VMMR3DECL(int) PGMR3Init(PVM pVM)
     if (RT_SUCCESS(rc))
         rc = PGMR3HandlerPhysicalTypeRegister(pVM, PGMPHYSHANDLERKIND_WRITE,
                                               pgmPhysRomWriteHandler,
-                                              NULL, "pgmPhysRomWritePfHandler",
-                                              NULL, "pgmPhysRomWritePfHandler",
+                                              NULL, NULL, "pgmPhysRomWritePfHandler",
+                                              NULL, NULL, "pgmPhysRomWritePfHandler",
                                               "ROM write protection",
                                               &pVM->pgm.s.hRomPhysHandlerType);
 
@@ -2429,6 +2429,8 @@ VMMR3DECL(void) PGMR3Relocate(PVM pVM, RTGCINTPTR offDelta)
     PPGMPHYSHANDLERTYPEINT pCurPhysType;
     RTListOff32ForEach(&pVM->pgm.s.pTreesR3->HeadPhysHandlerTypes, pCurPhysType, PGMPHYSHANDLERTYPEINT, ListNode)
     {
+        if (pCurPhysType->pfnHandlerRC != NIL_RTRCPTR)
+            pCurPhysType->pfnHandlerRC += offDelta;
         if (pCurPhysType->pfnPfHandlerRC != NIL_RTRCPTR)
             pCurPhysType->pfnPfHandlerRC += offDelta;
     }
@@ -2439,6 +2441,8 @@ VMMR3DECL(void) PGMR3Relocate(PVM pVM, RTGCINTPTR offDelta)
     PPGMVIRTHANDLERTYPEINT pCurVirtType;
     RTListOff32ForEach(&pVM->pgm.s.pTreesR3->HeadVirtHandlerTypes, pCurVirtType, PGMVIRTHANDLERTYPEINT, ListNode)
     {
+        if (pCurVirtType->pfnHandlerRC != NIL_RTRCPTR)
+            pCurVirtType->pfnHandlerRC += offDelta;
         if (pCurVirtType->pfnPfHandlerRC != NIL_RTRCPTR)
             pCurVirtType->pfnPfHandlerRC += offDelta;
     }

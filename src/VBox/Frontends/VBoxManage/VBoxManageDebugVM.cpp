@@ -78,8 +78,9 @@ static RTEXITCODE handleDebugVM_GetRegisters(HandlerArg *pArgs, IMachineDebugger
                 {
                     com::SafeArray<BSTR> aBstrNames;
                     com::SafeArray<BSTR> aBstrValues;
-                    CHECK_ERROR2_RET(pDebugger, GetRegisters(idCpu, ComSafeArrayAsOutParam(aBstrNames), ComSafeArrayAsOutParam(aBstrValues)),
-                                     RTEXITCODE_FAILURE);
+                    CHECK_ERROR2I_RET(pDebugger, GetRegisters(idCpu, ComSafeArrayAsOutParam(aBstrNames),
+                                                              ComSafeArrayAsOutParam(aBstrValues)),
+                                      RTEXITCODE_FAILURE);
                     Assert(aBstrNames.size() == aBstrValues.size());
 
                     size_t cchMaxName  = 8;
@@ -97,7 +98,7 @@ static RTEXITCODE handleDebugVM_GetRegisters(HandlerArg *pArgs, IMachineDebugger
                 {
                     com::Bstr bstrName = ValueUnion.psz;
                     com::Bstr bstrValue;
-                    CHECK_ERROR2_RET(pDebugger, GetRegister(idCpu, bstrName.raw(), bstrValue.asOutParam()), RTEXITCODE_FAILURE);
+                    CHECK_ERROR2I_RET(pDebugger, GetRegister(idCpu, bstrName.raw(), bstrValue.asOutParam()), RTEXITCODE_FAILURE);
                     RTPrintf("%s = %ls\n", ValueUnion.psz, bstrValue.raw());
                 }
                 cRegisters++;
@@ -128,7 +129,7 @@ static RTEXITCODE handleDebugVM_Info(HandlerArg *a, IMachineDebugger *pDebugger)
     com::Bstr bstrName(a->argv[2]);
     com::Bstr bstrArgs(a->argv[3]);
     com::Bstr bstrInfo;
-    CHECK_ERROR2_RET(pDebugger, Info(bstrName.raw(), bstrArgs.raw(), bstrInfo.asOutParam()), RTEXITCODE_FAILURE);
+    CHECK_ERROR2I_RET(pDebugger, Info(bstrName.raw(), bstrArgs.raw(), bstrInfo.asOutParam()), RTEXITCODE_FAILURE);
     RTPrintf("%ls", bstrInfo.raw());
     return RTEXITCODE_SUCCESS;
 }
@@ -144,7 +145,7 @@ static RTEXITCODE handleDebugVM_InjectNMI(HandlerArg *a, IMachineDebugger *pDebu
 {
     if (a->argc != 2)
         return errorSyntax(USAGE_DEBUGVM, "The inject sub-command does not take any arguments");
-    CHECK_ERROR2_RET(pDebugger, InjectNMI(), RTEXITCODE_FAILURE);
+    CHECK_ERROR2I_RET(pDebugger, InjectNMI(), RTEXITCODE_FAILURE);
     return RTEXITCODE_SUCCESS;
 }
 
@@ -218,11 +219,11 @@ static RTEXITCODE handleDebugVM_LogXXXX(HandlerArg *pArgs, IMachineDebugger *pDe
 
     com::Bstr bstrSettings(strSettings);
     if (!strcmp(pszSubCmd, "log"))
-        CHECK_ERROR2_RET(pDebugger, ModifyLogGroups(bstrSettings.raw()), RTEXITCODE_FAILURE);
+        CHECK_ERROR2I_RET(pDebugger, ModifyLogGroups(bstrSettings.raw()), RTEXITCODE_FAILURE);
     else if (!strcmp(pszSubCmd, "logdest"))
-        CHECK_ERROR2_RET(pDebugger, ModifyLogDestinations(bstrSettings.raw()), RTEXITCODE_FAILURE);
+        CHECK_ERROR2I_RET(pDebugger, ModifyLogDestinations(bstrSettings.raw()), RTEXITCODE_FAILURE);
     else if (!strcmp(pszSubCmd, "logflags"))
-        CHECK_ERROR2_RET(pDebugger, ModifyLogFlags(bstrSettings.raw()), RTEXITCODE_FAILURE);
+        CHECK_ERROR2I_RET(pDebugger, ModifyLogFlags(bstrSettings.raw()), RTEXITCODE_FAILURE);
     else
         AssertFailedReturn(RTEXITCODE_FAILURE);
 
@@ -287,12 +288,12 @@ static RTEXITCODE handleDebugVM_DumpVMCore(HandlerArg *pArgs, IMachineDebugger *
 
     com::Bstr bstrFilename(szAbsFilename);
     com::Bstr bstrCompression(pszCompression);
-    CHECK_ERROR2_RET(pDebugger, DumpGuestCore(bstrFilename.raw(), bstrCompression.raw()), RTEXITCODE_FAILURE);
+    CHECK_ERROR2I_RET(pDebugger, DumpGuestCore(bstrFilename.raw(), bstrCompression.raw()), RTEXITCODE_FAILURE);
     return RTEXITCODE_SUCCESS;
 }
 
 /**
- * Handles the os sub-command.
+ * Handles the osdetect sub-command.
  *
  * @returns Suitable exit code.
  * @param   a                   The handler arguments.
@@ -305,16 +306,16 @@ static RTEXITCODE handleDebugVM_OSDetect(HandlerArg *a, IMachineDebugger *pDebug
 
     com::Bstr bstrIgnore;
     com::Bstr bstrAll("all");
-    CHECK_ERROR2_RET(pDebugger, LoadPlugIn(bstrAll.raw(), bstrIgnore.asOutParam()), RTEXITCODE_FAILURE);
+    CHECK_ERROR2I_RET(pDebugger, LoadPlugIn(bstrAll.raw(), bstrIgnore.asOutParam()), RTEXITCODE_FAILURE);
 
     com::Bstr bstrName;
-    CHECK_ERROR2_RET(pDebugger, DetectOS(bstrName.asOutParam()), RTEXITCODE_FAILURE);
+    CHECK_ERROR2I_RET(pDebugger, DetectOS(bstrName.asOutParam()), RTEXITCODE_FAILURE);
     RTPrintf("Detected: %ls\n", bstrName.raw());
     return RTEXITCODE_SUCCESS;
 }
 
 /**
- * Handles the os sub-command.
+ * Handles the osinfo sub-command.
  *
  * @returns Suitable exit code.
  * @param   a                   The handler arguments.
@@ -326,11 +327,48 @@ static RTEXITCODE handleDebugVM_OSInfo(HandlerArg *a, IMachineDebugger *pDebugge
         return errorSyntax(USAGE_DEBUGVM, "The osinfo sub-command does not take any arguments");
 
     com::Bstr bstrName;
-    CHECK_ERROR2_RET(pDebugger, COMGETTER(OSName)(bstrName.asOutParam()), RTEXITCODE_FAILURE);
+    CHECK_ERROR2I_RET(pDebugger, COMGETTER(OSName)(bstrName.asOutParam()), RTEXITCODE_FAILURE);
     com::Bstr bstrVersion;
-    CHECK_ERROR2_RET(pDebugger, COMGETTER(OSVersion)(bstrVersion.asOutParam()), RTEXITCODE_FAILURE);
+    CHECK_ERROR2I_RET(pDebugger, COMGETTER(OSVersion)(bstrVersion.asOutParam()), RTEXITCODE_FAILURE);
     RTPrintf("Name:    %ls\n", bstrName.raw());
     RTPrintf("Version: %ls\n", bstrVersion.raw());
+    return RTEXITCODE_SUCCESS;
+}
+
+/**
+ * Handles the osdmsg sub-command.
+ *
+ * @returns Suitable exit code.
+ * @param   pArgs               The handler arguments.
+ * @param   pDebugger           Pointer to the debugger interface.
+ */
+static RTEXITCODE handleDebugVM_OSDmesg(HandlerArg *pArgs, IMachineDebugger *pDebugger)
+{
+    /*
+     * Parse argument.
+     */
+    uint32_t                    uMaxMessages = 0;
+    RTGETOPTSTATE               GetState;
+    RTGETOPTUNION               ValueUnion;
+    static const RTGETOPTDEF    s_aOptions[] =
+    {
+        { "--lines", 'n', RTGETOPT_REQ_UINT32 },
+    };
+    int rc = RTGetOptInit(&GetState, pArgs->argc, pArgs->argv, s_aOptions, RT_ELEMENTS(s_aOptions), 2, RTGETOPTINIT_FLAGS_OPTS_FIRST);
+    AssertRCReturn(rc, RTEXITCODE_FAILURE);
+    while ((rc = RTGetOpt(&GetState, &ValueUnion)) != 0)
+        switch (rc)
+        {
+            case 'n': uMaxMessages = ValueUnion.u32; break;
+            default: return errorGetOpt(USAGE_DEBUGVM, rc, &ValueUnion);
+        }
+
+    /*
+     * Do it.
+     */
+    com::Bstr bstrDmesg;
+    CHECK_ERROR2I_RET(pDebugger, QueryOSKernelLog(uMaxMessages, bstrDmesg.asOutParam()), RTEXITCODE_FAILURE);
+    RTPrintf("%ls\n", bstrDmesg.raw());
     return RTEXITCODE_SUCCESS;
 }
 
@@ -402,12 +440,13 @@ static RTEXITCODE handleDebugVM_SetRegisters(HandlerArg *pArgs, IMachineDebugger
      */
     if (aBstrNames.size() == 1)
     {
-        CHECK_ERROR2_RET(pDebugger, SetRegister(idCpu, aBstrNames[0], aBstrValues[0]), RTEXITCODE_FAILURE);
+        CHECK_ERROR2I_RET(pDebugger, SetRegister(idCpu, aBstrNames[0], aBstrValues[0]), RTEXITCODE_FAILURE);
         RTPrintf("Successfully set %ls\n", aBstrNames[0]);
     }
     else
     {
-        CHECK_ERROR2_RET(pDebugger, SetRegisters(idCpu, ComSafeArrayAsInParam(aBstrNames), ComSafeArrayAsInParam(aBstrValues)), RTEXITCODE_FAILURE);
+        CHECK_ERROR2I_RET(pDebugger, SetRegisters(idCpu, ComSafeArrayAsInParam(aBstrNames), ComSafeArrayAsInParam(aBstrValues)),
+                          RTEXITCODE_FAILURE);
         RTPrintf("Successfully set %u registers\n", aBstrNames.size());
     }
 
@@ -455,13 +494,13 @@ static RTEXITCODE handleDebugVM_Show_LogDbgSettings(IMachineDebugger *pDebugger,
         RTPrintf("Debug logger settings:\n");
 
     com::Bstr bstr;
-    CHECK_ERROR2_RET(pDebugger, COMGETTER(LogDbgFlags)(bstr.asOutParam()), RTEXITCODE_FAILURE);
+    CHECK_ERROR2I_RET(pDebugger, COMGETTER(LogDbgFlags)(bstr.asOutParam()), RTEXITCODE_FAILURE);
     handleDebugVM_Show_PrintVar("VBOX_LOG", &bstr, fFlags);
 
-    CHECK_ERROR2_RET(pDebugger, COMGETTER(LogDbgGroups)(bstr.asOutParam()), RTEXITCODE_FAILURE);
+    CHECK_ERROR2I_RET(pDebugger, COMGETTER(LogDbgGroups)(bstr.asOutParam()), RTEXITCODE_FAILURE);
     handleDebugVM_Show_PrintVar("VBOX_LOG_FLAGS", &bstr, fFlags);
 
-    CHECK_ERROR2_RET(pDebugger, COMGETTER(LogDbgDestinations)(bstr.asOutParam()), RTEXITCODE_FAILURE);
+    CHECK_ERROR2I_RET(pDebugger, COMGETTER(LogDbgDestinations)(bstr.asOutParam()), RTEXITCODE_FAILURE);
     handleDebugVM_Show_PrintVar("VBOX_LOG_DEST", &bstr, fFlags);
     return RTEXITCODE_SUCCESS;
 }
@@ -479,13 +518,13 @@ static RTEXITCODE handleDebugVM_Show_LogRelSettings(IMachineDebugger *pDebugger,
         RTPrintf("Release logger settings:\n");
 
     com::Bstr bstr;
-    CHECK_ERROR2_RET(pDebugger, COMGETTER(LogRelFlags)(bstr.asOutParam()), RTEXITCODE_FAILURE);
+    CHECK_ERROR2I_RET(pDebugger, COMGETTER(LogRelFlags)(bstr.asOutParam()), RTEXITCODE_FAILURE);
     handleDebugVM_Show_PrintVar("VBOX_RELEASE_LOG", &bstr, fFlags);
 
-    CHECK_ERROR2_RET(pDebugger, COMGETTER(LogRelGroups)(bstr.asOutParam()), RTEXITCODE_FAILURE);
+    CHECK_ERROR2I_RET(pDebugger, COMGETTER(LogRelGroups)(bstr.asOutParam()), RTEXITCODE_FAILURE);
     handleDebugVM_Show_PrintVar("VBOX_RELEASE_LOG_FLAGS", &bstr, fFlags);
 
-    CHECK_ERROR2_RET(pDebugger, COMGETTER(LogRelDestinations)(bstr.asOutParam()), RTEXITCODE_FAILURE);
+    CHECK_ERROR2I_RET(pDebugger, COMGETTER(LogRelDestinations)(bstr.asOutParam()), RTEXITCODE_FAILURE);
     handleDebugVM_Show_PrintVar("VBOX_RELEASE_LOG_DEST", &bstr, fFlags);
     return RTEXITCODE_SUCCESS;
 }
@@ -621,12 +660,12 @@ static RTEXITCODE handleDebugVM_Statistics(HandlerArg *pArgs, IMachineDebugger *
      */
     com::Bstr bstrPattern(pszPattern);
     if (fReset)
-        CHECK_ERROR2_RET(pDebugger, ResetStats(bstrPattern.raw()), RTEXITCODE_FAILURE);
+        CHECK_ERROR2I_RET(pDebugger, ResetStats(bstrPattern.raw()), RTEXITCODE_FAILURE);
     else
     {
         com::Bstr bstrStats;
-        CHECK_ERROR2_RET(pDebugger, GetStats(bstrPattern.raw(), fWithDescriptions, bstrStats.asOutParam()),
-                         RTEXITCODE_FAILURE);
+        CHECK_ERROR2I_RET(pDebugger, GetStats(bstrPattern.raw(), fWithDescriptions, bstrStats.asOutParam()),
+                          RTEXITCODE_FAILURE);
         /* if (fFormatted)
          { big mess }
          else
@@ -637,7 +676,7 @@ static RTEXITCODE handleDebugVM_Statistics(HandlerArg *pArgs, IMachineDebugger *
     return RTEXITCODE_SUCCESS;
 }
 
-int handleDebugVM(HandlerArg *pArgs)
+RTEXITCODE handleDebugVM(HandlerArg *pArgs)
 {
     RTEXITCODE rcExit = RTEXITCODE_FAILURE;
 
@@ -647,8 +686,8 @@ int handleDebugVM(HandlerArg *pArgs)
     if (pArgs->argc < 2)
         return errorSyntax(USAGE_DEBUGVM, "Too few parameters");
     ComPtr<IMachine> ptrMachine;
-    CHECK_ERROR2_RET(pArgs->virtualBox, FindMachine(com::Bstr(pArgs->argv[0]).raw(), ptrMachine.asOutParam()), RTEXITCODE_FAILURE);
-    CHECK_ERROR2_RET(ptrMachine, LockMachine(pArgs->session, LockType_Shared), RTEXITCODE_FAILURE);
+    CHECK_ERROR2I_RET(pArgs->virtualBox, FindMachine(com::Bstr(pArgs->argv[0]).raw(), ptrMachine.asOutParam()), RTEXITCODE_FAILURE);
+    CHECK_ERROR2I_RET(ptrMachine, LockMachine(pArgs->session, LockType_Shared), RTEXITCODE_FAILURE);
 
     /*
      * Get the associated console and machine debugger.
@@ -658,41 +697,48 @@ int handleDebugVM(HandlerArg *pArgs)
     CHECK_ERROR(pArgs->session, COMGETTER(Console)(ptrConsole.asOutParam()));
     if (SUCCEEDED(rc))
     {
-        ComPtr<IMachineDebugger> ptrDebugger;
-        CHECK_ERROR(ptrConsole, COMGETTER(Debugger)(ptrDebugger.asOutParam()));
-        if (SUCCEEDED(rc))
+        if (ptrConsole.isNotNull())
         {
-            /*
-             * String switch on the sub-command.
-             */
-            const char *pszSubCmd = pArgs->argv[1];
-            if (!strcmp(pszSubCmd, "dumpguestcore"))
-                rcExit = handleDebugVM_DumpVMCore(pArgs, ptrDebugger);
-            else if (!strcmp(pszSubCmd, "getregisters"))
-                rcExit = handleDebugVM_GetRegisters(pArgs, ptrDebugger);
-            else if (!strcmp(pszSubCmd, "info"))
-                rcExit = handleDebugVM_Info(pArgs, ptrDebugger);
-            else if (!strcmp(pszSubCmd, "injectnmi"))
-                rcExit = handleDebugVM_InjectNMI(pArgs, ptrDebugger);
-            else if (!strcmp(pszSubCmd, "log"))
-                rcExit = handleDebugVM_LogXXXX(pArgs, ptrDebugger, pszSubCmd);
-            else if (!strcmp(pszSubCmd, "logdest"))
-                rcExit = handleDebugVM_LogXXXX(pArgs, ptrDebugger, pszSubCmd);
-            else if (!strcmp(pszSubCmd, "logflags"))
-                rcExit = handleDebugVM_LogXXXX(pArgs, ptrDebugger, pszSubCmd);
-            else if (!strcmp(pszSubCmd, "osdetect"))
-                rcExit = handleDebugVM_OSDetect(pArgs, ptrDebugger);
-            else if (!strcmp(pszSubCmd, "osinfo"))
-                rcExit = handleDebugVM_OSInfo(pArgs, ptrDebugger);
-            else if (!strcmp(pszSubCmd, "setregisters"))
-                rcExit = handleDebugVM_SetRegisters(pArgs, ptrDebugger);
-            else if (!strcmp(pszSubCmd, "show"))
-                rcExit = handleDebugVM_Show(pArgs, ptrDebugger);
-            else if (!strcmp(pszSubCmd, "statistics"))
-                rcExit = handleDebugVM_Statistics(pArgs, ptrDebugger);
-            else
-                errorSyntax(USAGE_DEBUGVM, "Invalid parameter '%s'", pArgs->argv[1]);
+            ComPtr<IMachineDebugger> ptrDebugger;
+            CHECK_ERROR(ptrConsole, COMGETTER(Debugger)(ptrDebugger.asOutParam()));
+            if (SUCCEEDED(rc))
+            {
+                /*
+                 * String switch on the sub-command.
+                 */
+                const char *pszSubCmd = pArgs->argv[1];
+                if (!strcmp(pszSubCmd, "dumpguestcore"))
+                    rcExit = handleDebugVM_DumpVMCore(pArgs, ptrDebugger);
+                else if (!strcmp(pszSubCmd, "getregisters"))
+                    rcExit = handleDebugVM_GetRegisters(pArgs, ptrDebugger);
+                else if (!strcmp(pszSubCmd, "info"))
+                    rcExit = handleDebugVM_Info(pArgs, ptrDebugger);
+                else if (!strcmp(pszSubCmd, "injectnmi"))
+                    rcExit = handleDebugVM_InjectNMI(pArgs, ptrDebugger);
+                else if (!strcmp(pszSubCmd, "log"))
+                    rcExit = handleDebugVM_LogXXXX(pArgs, ptrDebugger, pszSubCmd);
+                else if (!strcmp(pszSubCmd, "logdest"))
+                    rcExit = handleDebugVM_LogXXXX(pArgs, ptrDebugger, pszSubCmd);
+                else if (!strcmp(pszSubCmd, "logflags"))
+                    rcExit = handleDebugVM_LogXXXX(pArgs, ptrDebugger, pszSubCmd);
+                else if (!strcmp(pszSubCmd, "osdetect"))
+                    rcExit = handleDebugVM_OSDetect(pArgs, ptrDebugger);
+                else if (!strcmp(pszSubCmd, "osinfo"))
+                    rcExit = handleDebugVM_OSInfo(pArgs, ptrDebugger);
+                else if (!strcmp(pszSubCmd, "osdmesg"))
+                    rcExit = handleDebugVM_OSDmesg(pArgs, ptrDebugger);
+                else if (!strcmp(pszSubCmd, "setregisters"))
+                    rcExit = handleDebugVM_SetRegisters(pArgs, ptrDebugger);
+                else if (!strcmp(pszSubCmd, "show"))
+                    rcExit = handleDebugVM_Show(pArgs, ptrDebugger);
+                else if (!strcmp(pszSubCmd, "statistics"))
+                    rcExit = handleDebugVM_Statistics(pArgs, ptrDebugger);
+                else
+                    errorSyntax(USAGE_DEBUGVM, "Invalid parameter '%s'", pArgs->argv[1]);
+            }
         }
+        else
+            RTMsgError("Machine '%s' is not currently running.\n", pArgs->argv[0]);
     }
 
     pArgs->session->UnlockMachine();

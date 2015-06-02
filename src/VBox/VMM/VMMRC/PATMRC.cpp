@@ -45,25 +45,18 @@
 
 
 /**
- * \#PF Virtual Handler callback for Guest access a page monitored by PATM
+ * @callback_method_impl{FNPGMRZPHYSPFHANDLER,
+ *      PATM all access handler callback.}
  *
- * @returns VBox status code (appropriate for trap handling and GC return).
- * @param   pVM         Pointer to the VM.
- * @param   pVCpu       Pointer to the cross context CPU context for the
- *                      calling EMT.
- * @param   uErrorCode  CPU Error code.
- * @param   pRegFrame   Trap register frame.
- * @param   pvFault     The fault address (cr2).
- * @param   pvRange     The base address of the handled virtual range.
- * @param   offRange    The offset of the access into this range.
- *                      (If it's a EIP range this is the EIP, if not it's pvFault.)
- * @param   pvUser      The physical address of the guest page being monitored.
+ * @remarks The @a pvUser argument is the base address of the page being
+ *          monitored.
  */
-DECLEXPORT(int) patmRCVirtPagePfHandler(PVM pVM, PVMCPU pVCpu, RTGCUINT uErrorCode, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault,
-                                        RTGCPTR pvRange, uintptr_t offRange, void *pvUser)
+DECLEXPORT(VBOXSTRICTRC) patmRCVirtPagePfHandler(PVM pVM, PVMCPU pVCpu, RTGCUINT uErrorCode, PCPUMCTXCORE pRegFrame,
+                                                 RTGCPTR pvFault, RTGCPTR pvRange, uintptr_t offRange, void *pvUser)
 {
-    NOREF(pVCpu); NOREF(uErrorCode); NOREF(pRegFrame); NOREF(pvFault); NOREF(pvRange); NOREF(offRange); NOREF(pvUser);
-    pVM->patm.s.pvFaultMonitor = (RTRCPTR)(RTRCUINTPTR)pvFault;
+    NOREF(pVCpu); NOREF(uErrorCode); NOREF(pRegFrame); NOREF(pvFault); NOREF(pvRange); NOREF(offRange);
+    Assert(pvUser); Assert(!((uintptr_t)pvUser & PAGE_OFFSET_MASK));
+    pVM->patm.s.pvFaultMonitor = (RTRCPTR)((uintptr_t)pvUser + (pvFault & PAGE_OFFSET_MASK));
     return VINF_PATM_CHECK_PATCH_PAGE;
 }
 
@@ -72,50 +65,57 @@ DECLEXPORT(int) patmRCVirtPagePfHandler(PVM pVM, PVMCPU pVCpu, RTGCUINT uErrorCo
  * Checks if the write is located on a page with was patched before.
  * (if so, then we are not allowed to turn on r/w)
  *
- * @returns VBox status
+ * @returns Strict VBox status code.
+ * @retval  VINF_SUCCESS if access interpreted (@a pRegFrame != NULL).
+ * @retval  VINF_PGM_HANDLER_DO_DEFAULT (@a pRegFrame == NULL).
+ * @retval  VINF_EM_RAW_EMULATE_INSTR on needing to go to ring-3 to do this.
+ * @retval  VERR_PATCH_NOT_FOUND if no patch was found.
+ *
  * @param   pVM         Pointer to the VM.
- * @param   pRegFrame   CPU context
- * @param   GCPtr       GC pointer to write address
- * @param   cbWrite     Nr of bytes to write
+ * @param   pRegFrame   CPU context if \#PF, NULL if other write..
+ * @param   GCPtr       GC pointer to write address.
+ * @param   cbWrite     Number of bytes to write.
  *
  */
-VMMRC_INT_DECL(int) PATMRCHandleWriteToPatchPage(PVM pVM, PCPUMCTXCORE pRegFrame, RTRCPTR GCPtr, uint32_t cbWrite)
+VMMRC_INT_DECL(VBOXSTRICTRC) PATMRCHandleWriteToPatchPage(PVM pVM, PCPUMCTXCORE pRegFrame, RTRCPTR GCPtr, uint32_t cbWrite)
 {
-    RTGCUINTPTR          pWritePageStart, pWritePageEnd;
-    PPATMPATCHPAGE       pPatchPage;
+    Assert(cbWrite > 0);
 
     /* Quick boundary check */
-    if (    PAGE_ADDRESS(GCPtr) < PAGE_ADDRESS(pVM->patm.s.pPatchedInstrGCLowest)
-        ||  PAGE_ADDRESS(GCPtr) > PAGE_ADDRESS(pVM->patm.s.pPatchedInstrGCHighest)
-       )
-       return VERR_PATCH_NOT_FOUND;
+    if (   PAGE_ADDRESS(GCPtr) < PAGE_ADDRESS(pVM->patm.s.pPatchedInstrGCLowest)
+        || PAGE_ADDRESS(GCPtr) > PAGE_ADDRESS(pVM->patm.s.pPatchedInstrGCHighest))
+        return VERR_PATCH_NOT_FOUND;
 
     STAM_PROFILE_ADV_START(&pVM->patm.s.StatPatchWriteDetect, a);
 
-    pWritePageStart = (RTRCUINTPTR)GCPtr & PAGE_BASE_GC_MASK;
-    pWritePageEnd   = ((RTRCUINTPTR)GCPtr + cbWrite - 1) & PAGE_BASE_GC_MASK;
+    /*
+     * Lookup the patch page record for the write.
+     */
+    RTRCUINTPTR pWritePageStart = (RTRCUINTPTR)GCPtr & PAGE_BASE_GC_MASK;
+    RTRCUINTPTR pWritePageEnd   = ((RTRCUINTPTR)GCPtr + cbWrite - 1) & PAGE_BASE_GC_MASK;
 
-    pPatchPage = (PPATMPATCHPAGE)RTAvloU32Get(CTXSUFF(&pVM->patm.s.PatchLookupTree)->PatchTreeByPage, (AVLOU32KEY)pWritePageStart);
+    PPATMPATCHPAGE pPatchPage;
+    pPatchPage = (PPATMPATCHPAGE)RTAvloU32Get(&pVM->patm.s.CTXSUFF(PatchLookupTree)->PatchTreeByPage, pWritePageStart);
     if (    !pPatchPage
-        &&  pWritePageStart != pWritePageEnd
-       )
-    {
-        pPatchPage = (PPATMPATCHPAGE)RTAvloU32Get(CTXSUFF(&pVM->patm.s.PatchLookupTree)->PatchTreeByPage, (AVLOU32KEY)pWritePageEnd);
-    }
-
-#ifdef LOG_ENABLED
-    if (pPatchPage)
-        Log(("PATMGCHandleWriteToPatchPage: Found page %RRv for write to %RRv %d bytes (page low:high %RRv:%RRv\n", pPatchPage->Core.Key, GCPtr, cbWrite, pPatchPage->pLowestAddrGC, pPatchPage->pHighestAddrGC));
-#endif
-
+        &&  pWritePageStart != pWritePageEnd)
+        pPatchPage = (PPATMPATCHPAGE)RTAvloU32Get(&pVM->patm.s.CTXSUFF(PatchLookupTree)->PatchTreeByPage, pWritePageEnd);
     if (pPatchPage)
     {
-        if (    pPatchPage->pLowestAddrGC  > (RTRCPTR)((RTRCUINTPTR)GCPtr + cbWrite - 1)
-            ||  pPatchPage->pHighestAddrGC < (RTRCPTR)GCPtr)
+        Log(("PATMGCHandleWriteToPatchPage: Found page %RRv for write to %RRv %d bytes (page low:high %RRv:%RRv\n",
+             pPatchPage->Core.Key, GCPtr, cbWrite, pPatchPage->pLowestAddrGC, pPatchPage->pHighestAddrGC));
+        if (   (RTRCUINTPTR)pPatchPage->pLowestAddrGC  > (RTRCUINTPTR)GCPtr + cbWrite - 1U
+            || (RTRCUINTPTR)pPatchPage->pHighestAddrGC < (RTRCUINTPTR)GCPtr)
         {
-            /* This part of the page was not patched; try to emulate the instruction. */
+            /* This part of the page was not patched; try to emulate the instruction / tell the caller to do so. */
+            if (!pRegFrame)
+            {
+                LogFlow(("PATMHandleWriteToPatchPage: Allow writing %RRv LB %#x\n", pRegFrame->eip, GCPtr, cbWrite));
+                STAM_COUNTER_INC(&pVM->patm.s.StatPatchWriteInterpreted);
+                STAM_PROFILE_ADV_STOP(&pVM->patm.s.StatPatchWriteDetect, a);
+                return VINF_PGM_HANDLER_DO_DEFAULT;
+            }
             LogFlow(("PATMHandleWriteToPatchPage: Interpret %x accessing %RRv\n", pRegFrame->eip, GCPtr));
-            int rc = EMInterpretInstruction(VMMGetCpu0(pVM), pRegFrame, (RTGCPTR)(RTRCUINTPTR)GCPtr);
+            int rc = VBOXSTRICTRC_TODO(EMInterpretInstruction(VMMGetCpu0(pVM), pRegFrame, (RTGCPTR)(RTRCUINTPTR)GCPtr));
             if (rc == VINF_SUCCESS)
             {
                 STAM_COUNTER_INC(&pVM->patm.s.StatPatchWriteInterpreted);
@@ -544,8 +544,8 @@ VMMRC_INT_DECL(int) PATMRCHandleInt3PatchTrap(PVM pVM, PCPUMCTXCORE pRegFrame)
                 return VINF_EM_RAW_EMULATE_INSTR;
             }
 
-            rc = EMInterpretInstructionDisasState(pVCpu, &cpu, pRegFrame, 0 /* not relevant here */,
-                                                  EMCODETYPE_SUPERVISOR);
+            rc = VBOXSTRICTRC_TODO(EMInterpretInstructionDisasState(pVCpu, &cpu, pRegFrame, 0 /* not relevant here */,
+                                                                    EMCODETYPE_SUPERVISOR));
 #endif
             if (RT_FAILURE(rc))
             {

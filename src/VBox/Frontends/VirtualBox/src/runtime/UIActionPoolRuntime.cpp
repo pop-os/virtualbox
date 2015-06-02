@@ -96,7 +96,7 @@ protected:
     void retranslateUi()
     {
         setName(QApplication::translate("UIActionPool", "&Settings..."));
-        setStatusTip(QApplication::translate("UIActionPool", "Manage the virtual machine settings"));
+        setStatusTip(QApplication::translate("UIActionPool", "Display the virtual machine settings window"));
     }
 };
 
@@ -166,7 +166,7 @@ protected:
     void retranslateUi()
     {
         setName(QApplication::translate("UIActionPool", "Session I&nformation..."));
-        setStatusTip(QApplication::translate("UIActionPool", "Show Session Information Window"));
+        setStatusTip(QApplication::translate("UIActionPool", "Display the virtual machine session information window"));
     }
 };
 
@@ -267,8 +267,8 @@ protected:
 
     void retranslateUi()
     {
-        setName(QApplication::translate("UIActionPool", "Save State"));
-        setStatusTip(QApplication::translate("UIActionPool", "Save the machine state of the virtual machine"));
+        setName(QApplication::translate("UIActionPool", "&Save State"));
+        setStatusTip(QApplication::translate("UIActionPool", "Save the state of the virtual machine"));
     }
 };
 
@@ -307,7 +307,7 @@ protected:
     void retranslateUi()
     {
         setName(QApplication::translate("UIActionPool", "ACPI Sh&utdown"));
-        setStatusTip(QApplication::translate("UIActionPool", "Send the ACPI Power Button press event to the virtual machine"));
+        setStatusTip(QApplication::translate("UIActionPool", "Send the ACPI Shutdown signal to the virtual machine"));
     }
 };
 
@@ -497,42 +497,42 @@ protected:
     }
 };
 
-class UIActionToggleGuestAutoresize : public UIActionToggle
+#ifndef RT_OS_DARWIN
+class UIActionSimplePerformMinimizeWindow : public UIActionSimple
 {
     Q_OBJECT;
 
 public:
 
-    UIActionToggleGuestAutoresize(UIActionPool *pParent)
-        : UIActionToggle(pParent,
-                         ":/auto_resize_on_on_16px.png", ":/auto_resize_on_16px.png",
-                         ":/auto_resize_on_on_disabled_16px.png", ":/auto_resize_on_disabled_16px.png") {}
+    UIActionSimplePerformMinimizeWindow(UIActionPool *pParent)
+        : UIActionSimple(pParent, ":/minimize_16px.png") {}
 
 protected:
 
     /** Returns action extra-data ID. */
-    virtual int extraDataID() const { return UIExtraDataMetaDefs::RuntimeMenuViewActionType_GuestAutoresize; }
+    virtual int extraDataID() const { return UIExtraDataMetaDefs::RuntimeMenuViewActionType_MinimizeWindow; }
     /** Returns action extra-data key. */
-    virtual QString extraDataKey() const { return gpConverter->toInternalString(UIExtraDataMetaDefs::RuntimeMenuViewActionType_GuestAutoresize); }
+    virtual QString extraDataKey() const { return gpConverter->toInternalString(UIExtraDataMetaDefs::RuntimeMenuViewActionType_MinimizeWindow); }
     /** Returns whether action is allowed. */
-    virtual bool isAllowed() const { return actionPool()->toRuntime()->isAllowedInMenuView(UIExtraDataMetaDefs::RuntimeMenuViewActionType_GuestAutoresize); }
+    virtual bool isAllowed() const { return actionPool()->toRuntime()->isAllowedInMenuView(UIExtraDataMetaDefs::RuntimeMenuViewActionType_MinimizeWindow); }
 
     QString shortcutExtraDataID() const
     {
-        return QString("GuestAutoresize");
+        return QString("WindowMinimize");
     }
 
     QKeySequence defaultShortcut(UIActionPoolType) const
     {
-        return QKeySequence("G");
+        return QKeySequence("M");
     }
 
     void retranslateUi()
     {
-        setName(QApplication::translate("UIActionPool", "Auto-resize &Guest Display"));
-        setStatusTip(QApplication::translate("UIActionPool", "Automatically resize the guest display when the window is resized (requires Guest Additions)"));
+        setName(QApplication::translate("UIActionPool", "&Minimize Window"));
+        setStatusTip(QApplication::translate("UIActionPool", "Minimize active window"));
     }
 };
+#endif /* !RT_OS_DARWIN */
 
 class UIActionSimplePerformWindowAdjust : public UIActionSimple
 {
@@ -569,6 +569,43 @@ protected:
     }
 };
 
+class UIActionToggleGuestAutoresize : public UIActionToggle
+{
+    Q_OBJECT;
+
+public:
+
+    UIActionToggleGuestAutoresize(UIActionPool *pParent)
+        : UIActionToggle(pParent,
+                         ":/auto_resize_on_on_16px.png", ":/auto_resize_on_16px.png",
+                         ":/auto_resize_on_on_disabled_16px.png", ":/auto_resize_on_disabled_16px.png") {}
+
+protected:
+
+    /** Returns action extra-data ID. */
+    virtual int extraDataID() const { return UIExtraDataMetaDefs::RuntimeMenuViewActionType_GuestAutoresize; }
+    /** Returns action extra-data key. */
+    virtual QString extraDataKey() const { return gpConverter->toInternalString(UIExtraDataMetaDefs::RuntimeMenuViewActionType_GuestAutoresize); }
+    /** Returns whether action is allowed. */
+    virtual bool isAllowed() const { return actionPool()->toRuntime()->isAllowedInMenuView(UIExtraDataMetaDefs::RuntimeMenuViewActionType_GuestAutoresize); }
+
+    QString shortcutExtraDataID() const
+    {
+        return QString("GuestAutoresize");
+    }
+
+    QKeySequence defaultShortcut(UIActionPoolType) const
+    {
+        return QKeySequence("G");
+    }
+
+    void retranslateUi()
+    {
+        setName(QApplication::translate("UIActionPool", "Auto-resize &Guest Display"));
+        setStatusTip(QApplication::translate("UIActionPool", "Automatically resize the guest display when the window is resized"));
+    }
+};
+
 class UIActionSimplePerformTakeScreenshot : public UIActionSimple
 {
     Q_OBJECT;
@@ -600,7 +637,7 @@ protected:
     void retranslateUi()
     {
         setName(QApplication::translate("UIActionPool", "Take Screensh&ot..."));
-        setStatusTip(QApplication::translate("UIActionPool", "Take a screenshot of the virtual machine"));
+        setStatusTip(QApplication::translate("UIActionPool", "Take a guest display screenshot"));
     }
 };
 
@@ -654,7 +691,7 @@ protected:
     void retranslateUi()
     {
         setName(QApplication::translate("UIActionPool", "&Video Capture Settings..."));
-        setStatusTip(QApplication::translate("UIActionPool", "Configure video capture settings"));
+        setStatusTip(QApplication::translate("UIActionPool", "Display the virtual machine settings window to configure video capture"));
     }
 };
 
@@ -686,7 +723,7 @@ protected:
     void retranslateUi()
     {
         setName(QApplication::translate("UIActionPool", "&Video Capture"));
-        setStatusTip(QApplication::translate("UIActionPool", "Toggle video capture"));
+        setStatusTip(QApplication::translate("UIActionPool", "Enable guest display video capture"));
     }
 };
 
@@ -718,7 +755,7 @@ protected:
     void retranslateUi()
     {
         setName(QApplication::translate("UIActionPool", "R&emote Display"));
-        setStatusTip(QApplication::translate("UIActionPool", "Toggle remote desktop (RDP) connections to this machine"));
+        setStatusTip(QApplication::translate("UIActionPool", "Allow remote desktop (RDP) connections to this machine"));
     }
 };
 
@@ -772,7 +809,7 @@ protected:
     void retranslateUi()
     {
         setName(QApplication::translate("UIActionPool", "&Menu Bar Settings..."));
-        setStatusTip(QApplication::translate("UIActionPool", "Opens window to configure menu-bar"));
+        setStatusTip(QApplication::translate("UIActionPool", "Display the window to configure menu-bar"));
     }
 };
 
@@ -804,7 +841,7 @@ protected:
     void retranslateUi()
     {
         setName(QApplication::translate("UIActionPool", "Show Menu &Bar"));
-        setStatusTip(QApplication::translate("UIActionPool", "Toggle menu-bar visibility for this machine"));
+        setStatusTip(QApplication::translate("UIActionPool", "Enable menu-bar visibility"));
     }
 };
 #endif /* !RT_OS_DARWIN */
@@ -859,7 +896,7 @@ protected:
     void retranslateUi()
     {
         setName(QApplication::translate("UIActionPool", "&Status Bar Settings..."));
-        setStatusTip(QApplication::translate("UIActionPool", "Opens window to configure status-bar"));
+        setStatusTip(QApplication::translate("UIActionPool", "Display the window to configure status-bar"));
     }
 };
 
@@ -890,7 +927,7 @@ protected:
     void retranslateUi()
     {
         setName(QApplication::translate("UIActionPool", "Show Status &Bar"));
-        setStatusTip(QApplication::translate("UIActionPool", "Toggle status-bar visibility for this machine"));
+        setStatusTip(QApplication::translate("UIActionPool", "Enable status-bar visibility"));
     }
 };
 
@@ -992,7 +1029,7 @@ protected:
     void retranslateUi()
     {
         setName(QApplication::translate("UIActionPool", "&Keyboard Settings..."));
-        setStatusTip(QApplication::translate("UIActionPool", "Display the global settings window to configure shortcuts"));
+        setStatusTip(QApplication::translate("UIActionPool", "Display the global preferences window to configure keyboard shortcuts"));
     }
 };
 
@@ -1026,7 +1063,7 @@ protected:
 
     void retranslateUi()
     {
-        setName(QApplication::translate("UIActionPool", "&Insert %1").arg("Ctrl-Alt-Del"));
+        setName(QApplication::translate("UIActionPool", "&Insert %1", "that means send the %1 key sequence to the virtual machine").arg("Ctrl-Alt-Del"));
         setStatusTip(QApplication::translate("UIActionPool", "Send the %1 sequence to the virtual machine").arg("Ctrl-Alt-Del"));
     }
 };
@@ -1062,7 +1099,7 @@ protected:
 
     void retranslateUi()
     {
-        setName(QApplication::translate("UIActionPool", "&Insert %1").arg("Ctrl-Alt-Backspace"));
+        setName(QApplication::translate("UIActionPool", "&Insert %1", "that means send the %1 key sequence to the virtual machine").arg("Ctrl-Alt-Backspace"));
         setStatusTip(QApplication::translate("UIActionPool", "Send the %1 sequence to the virtual machine").arg("Ctrl-Alt-Backspace"));
     }
 };
@@ -1093,7 +1130,7 @@ protected:
 
     void retranslateUi()
     {
-        setName(QApplication::translate("UIActionPool", "&Insert %1").arg("Ctrl-Break"));
+        setName(QApplication::translate("UIActionPool", "&Insert %1", "that means send the %1 key sequence to the virtual machine").arg("Ctrl-Break"));
         setStatusTip(QApplication::translate("UIActionPool", "Send the %1 sequence to the virtual machine").arg("Ctrl-Break"));
     }
 };
@@ -1123,7 +1160,7 @@ protected:
 
     void retranslateUi()
     {
-        setName(QApplication::translate("UIActionPool", "&Insert %1").arg("Insert"));
+        setName(QApplication::translate("UIActionPool", "&Insert %1", "that means send the %1 key sequence to the virtual machine").arg("Insert"));
         setStatusTip(QApplication::translate("UIActionPool", "Send the %1 sequence to the virtual machine").arg("Insert"));
     }
 };
@@ -1236,7 +1273,7 @@ protected:
 
     void retranslateUi()
     {
-        setName(QApplication::translate("UIActionPool", "&Hard Drives"));
+        setName(QApplication::translate("UIActionPool", "&Hard Disks"));
     }
 };
 
@@ -1265,8 +1302,8 @@ protected:
 
     void retranslateUi()
     {
-        setName(QApplication::translate("UIActionPool", "&Hard Drive Settings..."));
-        setStatusTip(QApplication::translate("UIActionPool", "Change the settings of hard drives"));
+        setName(QApplication::translate("UIActionPool", "&Hard Disk Settings..."));
+        setStatusTip(QApplication::translate("UIActionPool", "Display the virtual machine settings window to configure hard disks"));
     }
 };
 
@@ -1344,7 +1381,7 @@ protected:
 
     void retranslateUi()
     {
-        setName(QApplication::translate("UIActionPool", "Network"));
+        setName(QApplication::translate("UIActionPool", "&Network"));
     }
 };
 
@@ -1374,7 +1411,7 @@ protected:
     void retranslateUi()
     {
         setName(QApplication::translate("UIActionPool", "&Network Settings..."));
-        setStatusTip(QApplication::translate("UIActionPool", "Change the settings of network adapters"));
+        setStatusTip(QApplication::translate("UIActionPool", "Display the virtual machine settings window to configure network adapters"));
     }
 };
 
@@ -1431,7 +1468,7 @@ protected:
     void retranslateUi()
     {
         setName(QApplication::translate("UIActionPool", "&USB Settings..."));
-        setStatusTip(QApplication::translate("UIActionPool", "Change the settings of USB devices"));
+        setStatusTip(QApplication::translate("UIActionPool", "Display the virtual machine settings window to configure USB devices"));
     }
 };
 
@@ -1506,7 +1543,7 @@ protected:
 
     void retranslateUi()
     {
-        setName(QApplication::translate("UIActionPool", "Drag and Drop"));
+        setName(QApplication::translate("UIActionPool", "&Drag and Drop"));
     }
 };
 
@@ -1560,7 +1597,7 @@ protected:
     void retranslateUi()
     {
         setName(QApplication::translate("UIActionPool", "&Shared Folders Settings..."));
-        setStatusTip(QApplication::translate("UIActionPool", "Create or modify shared folders"));
+        setStatusTip(QApplication::translate("UIActionPool", "Display the virtual machine settings window to configure shared folders"));
     }
 };
 
@@ -1595,7 +1632,7 @@ protected:
     void retranslateUi()
     {
         setName(QApplication::translate("UIActionPool", "&Insert Guest Additions CD image..."));
-        setStatusTip(QApplication::translate("UIActionPool", "Insert the Guest Additions disk file into the virtual drive"));
+        setStatusTip(QApplication::translate("UIActionPool", "Insert the Guest Additions disk file into the virtual optical drive"));
     }
 };
 
@@ -2030,8 +2067,11 @@ void UIActionPoolRuntime::preparePool()
     m_pool[UIActionIndexRT_M_View_T_Fullscreen] = new UIActionToggleFullscreenMode(this);
     m_pool[UIActionIndexRT_M_View_T_Seamless] = new UIActionToggleSeamlessMode(this);
     m_pool[UIActionIndexRT_M_View_T_Scale] = new UIActionToggleScaleMode(this);
-    m_pool[UIActionIndexRT_M_View_T_GuestAutoresize] = new UIActionToggleGuestAutoresize(this);
+#ifndef RT_OS_DARWIN
+    m_pool[UIActionIndexRT_M_View_S_MinimizeWindow] = new UIActionSimplePerformMinimizeWindow(this);
+#endif /* !RT_OS_DARWIN */
     m_pool[UIActionIndexRT_M_View_S_AdjustWindow] = new UIActionSimplePerformWindowAdjust(this);
+    m_pool[UIActionIndexRT_M_View_T_GuestAutoresize] = new UIActionToggleGuestAutoresize(this);
     m_pool[UIActionIndexRT_M_View_S_TakeScreenshot] = new UIActionSimplePerformTakeScreenshot(this);
     m_pool[UIActionIndexRT_M_View_M_VideoCapture] = new UIActionMenuVideoCapture(this);
     m_pool[UIActionIndexRT_M_View_M_VideoCapture_S_Settings] = new UIActionSimpleShowVideoCaptureSettingsDialog(this);
@@ -2289,6 +2329,14 @@ void UIActionPoolRuntime::updateMenuMachine()
 
     /* 'Settings Dialog' action: */
     fSeparator = addAction(pMenu, action(UIActionIndexRT_M_Machine_S_Settings)) || fSeparator;
+
+    /* Separator: */
+    if (fSeparator)
+    {
+        pMenu->addSeparator();
+        fSeparator = false;
+    }
+
     /* 'Take Snapshot' action: */
     fSeparator = addAction(pMenu, action(UIActionIndexRT_M_Machine_S_TakeSnapshot)) || fSeparator;
     /* 'Information Dialog' action: */
@@ -2398,8 +2446,7 @@ void UIActionPoolRuntime::updateMenuView()
             /* Add 'Virtual Screen %1' menu: */
             QMenu *pSubMenu = pMenu->addMenu(UIIconPool::iconSet(":/virtual_screen_16px.png",
                                                                  ":/virtual_screen_disabled_16px.png"),
-                                             QApplication::translate("UIMultiScreenLayout",
-                                                                     "Virtual Screen %1").arg(iGuestScreenIndex + 1));
+                                             QApplication::translate("UIMultiScreenLayout", "Virtual Screen %1").arg(iGuestScreenIndex + 1));
             pSubMenu->setProperty("Guest Screen Index", iGuestScreenIndex);
             connect(pSubMenu, SIGNAL(aboutToShow()), this, SLOT(sltPrepareMenuViewScreen()));
         }
@@ -2414,8 +2461,7 @@ void UIActionPoolRuntime::updateMenuView()
                 /* Add 'Virtual Screen %1' menu: */
                 QMenu *pSubMenu = pMenu->addMenu(UIIconPool::iconSet(":/virtual_screen_16px.png",
                                                                      ":/virtual_screen_disabled_16px.png"),
-                                                 QApplication::translate("UIMultiScreenLayout",
-                                                                         "Virtual Screen %1").arg(iGuestScreenIndex + 1));
+                                                 QApplication::translate("UIMultiScreenLayout", "Virtual Screen %1").arg(iGuestScreenIndex + 1));
                 pSubMenu->setProperty("Guest Screen Index", iGuestScreenIndex);
                 connect(pSubMenu, SIGNAL(aboutToShow()), this, SLOT(sltPrepareMenuViewMultiscreen()));
             }
@@ -2462,8 +2508,7 @@ void UIActionPoolRuntime::updateMenuViewPopup()
             /* Add 'Virtual Screen %1' menu: */
             QMenu *pSubMenu = pMenu->addMenu(UIIconPool::iconSet(":/virtual_screen_16px.png",
                                                                  ":/virtual_screen_disabled_16px.png"),
-                                             QApplication::translate("UIMultiScreenLayout",
-                                                                     "Virtual Screen %1").arg(iGuestScreenIndex + 1));
+                                             QApplication::translate("UIMultiScreenLayout", "Virtual Screen %1").arg(iGuestScreenIndex + 1));
             pSubMenu->setProperty("Guest Screen Index", iGuestScreenIndex);
             connect(pSubMenu, SIGNAL(aboutToShow()), this, SLOT(sltPrepareMenuViewScreen()));
         }
@@ -2567,8 +2612,8 @@ void UIActionPoolRuntime::updateMenuViewScaleFactor()
         foreach (const double &dScaleFactor, factors)
         {
             /* Create exclusive 'scale-factor' action: */
-            QAction *pAction = pActionGroup->addAction(tr("%1%", "scale-factor")
-                                                          .arg(dScaleFactor * 100));
+            QAction *pAction = pActionGroup->addAction(QApplication::translate("UIActionPool", "%1%", "scale-factor")
+                                                                               .arg(dScaleFactor * 100));
             AssertPtrReturnVoid(pAction);
             {
                 /* Configure exclusive 'scale-factor' action: */
@@ -2618,7 +2663,7 @@ void UIActionPoolRuntime::updateMenuViewScreen(QMenu *pMenu)
     if (iGuestScreenIndex > 0)
     {
         /* Create 'toggle' action: */
-        QAction *pToggleAction = pMenu->addAction(UIActionPoolRuntime::tr("Enable", "Virtual Screen"),
+        QAction *pToggleAction = pMenu->addAction(QApplication::translate("UIActionPool", "Enable", "Virtual Screen"),
                                                   this, SLOT(sltHandleActionTriggerViewScreenToggle()));
         AssertPtrReturnVoid(pToggleAction);
         {
@@ -2642,7 +2687,7 @@ void UIActionPoolRuntime::updateMenuViewScreen(QMenu *pMenu)
         foreach (const QSize &size, sizes)
         {
             /* Create exclusive 'resize' action: */
-            QAction *pAction = pActionGroup->addAction(UIActionPoolRuntime::tr("Resize to %1x%2", "Virtual Screen")
+            QAction *pAction = pActionGroup->addAction(QApplication::translate("UIActionPool", "Resize to %1x%2", "Virtual Screen")
                                                                                .arg(size.width()).arg(size.height()));
             AssertPtrReturnVoid(pAction);
             {

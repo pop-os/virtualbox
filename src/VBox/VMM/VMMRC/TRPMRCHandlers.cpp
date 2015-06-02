@@ -212,7 +212,8 @@ static int trpmGCExitTrap(PVM pVM, PVMCPU pVCpu, int rc, PCPUMCTXCORE pRegFrame)
              || VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_TIMER | VMCPU_FF_TO_R3 | VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC
                                           | VMCPU_FF_REQUEST | VMCPU_FF_PGM_SYNC_CR3 | VMCPU_FF_PGM_SYNC_CR3_NON_GLOBAL
                                           | VMCPU_FF_PDM_CRITSECT
-                                          | VMCPU_FF_SELM_SYNC_GDT | VMCPU_FF_SELM_SYNC_LDT | VMCPU_FF_SELM_SYNC_TSS
+                                          | VMCPU_FF_SELM_SYNC_GDT | VMCPU_FF_SELM_SYNC_LDT
+                                          | VMCPU_FF_SELM_SYNC_TSS | VMCPU_FF_TRPM_SYNC_IDT
                                    )
             )
        )
@@ -243,6 +244,8 @@ static int trpmGCExitTrap(PVM pVM, PVMCPU pVCpu, int rc, PCPUMCTXCORE pRegFrame)
         /* Pending GDT/LDT/TSS sync. */
         else if (VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_SELM_SYNC_GDT | VMCPU_FF_SELM_SYNC_LDT | VMCPU_FF_SELM_SYNC_TSS))
             rc = VINF_SELM_SYNC_GDT;
+        else if (VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_TRPM_SYNC_IDT))
+            rc = VINF_EM_RAW_TO_R3;
         /* Pending interrupt: dispatch it. */
         else if (    VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC)
                  && !VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS)
@@ -607,7 +610,7 @@ DECLASM(int) TRPMGCTrap06Handler(PTRPMCPU pTrpmCpu, PCPUMCTXCORE pRegFrame)
         else if (Cpu.pCurInstr->uOpcode == OP_MONITOR)
         {
             LogFlow(("TRPMGCTrap06Handler: -> EMInterpretInstructionCPU\n"));
-            rc = EMInterpretInstructionDisasState(pVCpu, &Cpu, pRegFrame, PC, EMCODETYPE_SUPERVISOR);
+            rc = VBOXSTRICTRC_TODO(EMInterpretInstructionDisasState(pVCpu, &Cpu, pRegFrame, PC, EMCODETYPE_SUPERVISOR));
         }
         else if (GIMShouldTrapXcptUD(pVCpu))
         {
@@ -871,7 +874,7 @@ static int trpmGCTrap0dHandlerRing0(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFram
         case OP_RDMSR:
         case OP_WRMSR:
         {
-            rc = EMInterpretInstructionDisasState(pVCpu, pCpu, pRegFrame, PC, EMCODETYPE_SUPERVISOR);
+            rc = VBOXSTRICTRC_TODO(EMInterpretInstructionDisasState(pVCpu, pCpu, pRegFrame, PC, EMCODETYPE_SUPERVISOR));
             if (rc == VERR_EM_INTERPRETER)
                 rc = VINF_EM_RAW_EXCEPTION_PRIVILEGED;
             TRPM_EXIT_DBG_HOOK(0xd);
@@ -958,7 +961,7 @@ static int trpmGCTrap0dHandlerRing3(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFram
         case OP_RDTSC:
         case OP_RDPMC:
         {
-            rc = EMInterpretInstructionDisasState(pVCpu, pCpu, pRegFrame, PC, EMCODETYPE_SUPERVISOR);
+            rc = VBOXSTRICTRC_TODO(EMInterpretInstructionDisasState(pVCpu, pCpu, pRegFrame, PC, EMCODETYPE_SUPERVISOR));
             if (rc == VERR_EM_INTERPRETER)
                 rc = VINF_EM_RAW_EXCEPTION_PRIVILEGED;
             TRPM_EXIT_DBG_HOOK(0xd);
@@ -1123,7 +1126,7 @@ static int trpmGCTrap0dHandler(PVM pVM, PTRPMCPU pTrpmCpu, PCPUMCTXCORE pRegFram
                     /* Raise #DB. */
                     TRPMResetTrap(pVCpu);
                     TRPMAssertTrap(pVCpu, X86_XCPT_DE, TRPM_TRAP);
-                    if (rcStrict)
+                    if (rcStrict != VINF_SUCCESS)
                         LogRel(("trpmGCTrap0dHandler: Overriding %Rrc with #DB on I/O port access.\n", VBOXSTRICTRC_VAL(rcStrict)));
                     rcStrict = VINF_EM_RAW_GUEST_TRAP;
                 }
@@ -1265,7 +1268,6 @@ DECLASM(int) TRPMGCTrap0eHandler(PTRPMCPU pTrpmCpu, PCPUMCTXCORE pRegFrame)
     switch (rc)
     {
         case VINF_EM_RAW_EMULATE_INSTR:
-        case VINF_EM_RAW_EMULATE_INSTR_PD_FAULT:
         case VINF_EM_RAW_EMULATE_INSTR_GDT_FAULT:
         case VINF_EM_RAW_EMULATE_INSTR_TSS_FAULT:
         case VINF_EM_RAW_EMULATE_INSTR_LDT_FAULT:

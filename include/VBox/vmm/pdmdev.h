@@ -160,9 +160,8 @@ typedef FNPDMDEVRESUME *PFNPDMDEVRESUME;
 /**
  * Power Off notification.
  *
- * This is only called when the VMR3PowerOff call is made on a running VM.  This
- * means that there is no notification if the VM was suspended before being
- * powered off.  There will also be no callback when hot plugging devices.
+ * This is always called when VMR3PowerOff is called.
+ * There will be no callback when hot plugging devices.
  *
  * @param   pDevIns     The device instance data.
  * @thread  EMT(0)
@@ -4242,10 +4241,10 @@ typedef struct PDMDEVINS
     do \
     { \
         PPDMDEVINS pDevInsTypeCheck = (pDevIns); NOREF(pDevInsTypeCheck); \
-        if (RT_UNLIKELY(!PDM_VERSION_ARE_COMPATIBLE((pDevIns)->u32Version, PDM_DEVINS_VERSION) )) \
-            return VERR_PDM_DEVINS_VERSION_MISMATCH; \
-        if (RT_UNLIKELY(!PDM_VERSION_ARE_COMPATIBLE((pDevIns)->pHlpR3->u32Version, PDM_DEVHLPR3_VERSION) )) \
-            return VERR_PDM_DEVHLPR3_VERSION_MISMATCH; \
+        if (RT_LIKELY(PDM_VERSION_ARE_COMPATIBLE((pDevIns)->u32Version, PDM_DEVINS_VERSION) )) \
+        { /* likely */ } else return VERR_PDM_DEVINS_VERSION_MISMATCH; \
+        if (RT_LIKELY(PDM_VERSION_ARE_COMPATIBLE((pDevIns)->pHlpR3->u32Version, PDM_DEVHLPR3_VERSION) )) \
+        { /* likely */ } else return VERR_PDM_DEVHLPR3_VERSION_MISMATCH; \
     } while (0)
 
 /**
@@ -4268,8 +4267,8 @@ typedef struct PDMDEVINS
     { \
         int rcValCfg = CFGMR3ValidateConfig((pDevIns)->pCfg, "/", pszValidValues, pszValidNodes, \
                                             (pDevIns)->pReg->szName, (pDevIns)->iInstance); \
-        if (RT_FAILURE(rcValCfg)) \
-            return rcValCfg; \
+        if (RT_SUCCESS(rcValCfg)) \
+        { /* likely */ } else return rcValCfg; \
     } while (0)
 
 /** @def PDMDEV_ASSERT_EMT

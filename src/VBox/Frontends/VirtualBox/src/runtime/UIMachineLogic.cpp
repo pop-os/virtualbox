@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2014 Oracle Corporation
+ * Copyright (C) 2010-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -659,7 +659,7 @@ void UIMachineLogic::sltKeyboardLedsChanged()
         keyboardHandler()->winSkipKeyboardEvents(false);
     }
     else
-        LogRel2(("HID LEDs Sync: already in sync\n"));
+        LogRel2(("GUI: HID LEDs Sync: already in sync\n"));
 #else
     LogRelFlow(("UIMachineLogic::sltKeyboardLedsChanged: Updating host LED lock states does not supported on this platform.\n"));
 #endif
@@ -708,7 +708,7 @@ void UIMachineLogic::sltShowWindows()
 
 void UIMachineLogic::sltGuestMonitorChange(KGuestMonitorChangedEventType, ulong, QRect)
 {
-    LogRel(("UIMachineLogic: Guest-screen count changed.\n"));
+    LogRel(("GUI: UIMachineLogic: Guest-screen count changed\n"));
 
     /* Make sure all machine-window(s) have proper geometry: */
     foreach (UIMachineWindow *pMachineWindow, machineWindows())
@@ -717,7 +717,7 @@ void UIMachineLogic::sltGuestMonitorChange(KGuestMonitorChangedEventType, ulong,
 
 void UIMachineLogic::sltHostScreenCountChange()
 {
-    LogRel(("UIMachineLogic: Host-screen count changed.\n"));
+    LogRel(("GUI: UIMachineLogic: Host-screen count changed\n"));
 
     /* Make sure all machine-window(s) have proper geometry: */
     foreach (UIMachineWindow *pMachineWindow, machineWindows())
@@ -726,7 +726,7 @@ void UIMachineLogic::sltHostScreenCountChange()
 
 void UIMachineLogic::sltHostScreenGeometryChange()
 {
-    LogRel(("UIMachineLogic: Host-screen geometry changed.\n"));
+    LogRel(("GUI: UIMachineLogic: Host-screen geometry changed\n"));
 
     /* Make sure all machine-window(s) have proper geometry: */
     foreach (UIMachineWindow *pMachineWindow, machineWindows())
@@ -735,7 +735,7 @@ void UIMachineLogic::sltHostScreenGeometryChange()
 
 void UIMachineLogic::sltHostScreenAvailableAreaChange()
 {
-    LogRel(("UIMachineLogic: Host-screen available-area changed.\n"));
+    LogRel(("GUI: UIMachineLogic: Host-screen available-area changed\n"));
 
     /* Make sure all machine-window(s) have proper geometry: */
     foreach (UIMachineWindow *pMachineWindow, machineWindows())
@@ -831,7 +831,7 @@ void UIMachineLogic::retranslateUi()
         for (int i = 0; i < actions.size(); ++i)
         {
             QAction *pAction = actions.at(i);
-            pAction->setText(QApplication::translate("UIMachineLogic", "Preview Monitor %1").arg(pAction->data().toInt() + 1));
+            pAction->setText(QApplication::translate("UIActionPool", "Preview Monitor %1").arg(pAction->data().toInt() + 1));
         }
     }
 #endif /* Q_WS_MAC */
@@ -957,7 +957,6 @@ void UIMachineLogic::prepareActionGroups()
     m_pRunningActions->addAction(actionPool()->action(UIActionIndexRT_M_View_T_Seamless));
     m_pRunningActions->addAction(actionPool()->action(UIActionIndexRT_M_View_T_Scale));
     m_pRunningActions->addAction(actionPool()->action(UIActionIndexRT_M_View_T_GuestAutoresize));
-    m_pRunningActions->addAction(actionPool()->action(UIActionIndexRT_M_View_S_AdjustWindow));
     m_pRunningActions->addAction(actionPool()->action(UIActionIndexRT_M_Input_M_Keyboard_S_TypeCAD));
 #ifdef Q_WS_X11
     m_pRunningActions->addAction(actionPool()->action(UIActionIndexRT_M_Input_M_Keyboard_S_TypeCABS));
@@ -971,6 +970,10 @@ void UIMachineLogic::prepareActionGroups()
     m_pRunningOrPausedActions->addAction(actionPool()->action(UIActionIndexRT_M_Machine_S_TakeSnapshot));
     m_pRunningOrPausedActions->addAction(actionPool()->action(UIActionIndexRT_M_Machine_S_ShowInformation));
     m_pRunningOrPausedActions->addAction(actionPool()->action(UIActionIndexRT_M_Machine_T_Pause));
+#ifndef Q_WS_MAC
+    m_pRunningOrPausedActions->addAction(actionPool()->action(UIActionIndexRT_M_View_S_MinimizeWindow));
+#endif /* !Q_WS_MAC */
+    m_pRunningOrPausedActions->addAction(actionPool()->action(UIActionIndexRT_M_View_S_AdjustWindow));
     m_pRunningOrPausedActions->addAction(actionPool()->action(UIActionIndexRT_M_View_S_TakeScreenshot));
     m_pRunningOrPausedActions->addAction(actionPool()->action(UIActionIndexRT_M_View_M_VideoCapture));
     m_pRunningOrPausedActions->addAction(actionPool()->action(UIActionIndexRT_M_View_M_VideoCapture_S_Settings));
@@ -1039,10 +1042,14 @@ void UIMachineLogic::prepareActionConnections()
             this, SLOT(sltPowerOff()), Qt::QueuedConnection);
 
     /* 'View' actions connections: */
+#ifndef Q_WS_MAC
+    connect(actionPool()->action(UIActionIndexRT_M_View_S_MinimizeWindow), SIGNAL(triggered()),
+            this, SLOT(sltMinimizeActiveMachineWindow()));
+#endif /* !Q_WS_MAC */
+    connect(actionPool()->action(UIActionIndexRT_M_View_S_AdjustWindow), SIGNAL(triggered()),
+            this, SLOT(sltAdjustMachineWindows()));
     connect(actionPool()->action(UIActionIndexRT_M_View_T_GuestAutoresize), SIGNAL(toggled(bool)),
             this, SLOT(sltToggleGuestAutoresize(bool)));
-    connect(actionPool()->action(UIActionIndexRT_M_View_S_AdjustWindow), SIGNAL(triggered()),
-            this, SLOT(sltAdjustWindow()));
     connect(actionPool()->action(UIActionIndexRT_M_View_S_TakeScreenshot), SIGNAL(triggered()),
             this, SLOT(sltTakeScreenshot()));
     connect(actionPool()->action(UIActionIndexRT_M_View_M_VideoCapture_S_Settings), SIGNAL(triggered()),
@@ -1402,7 +1409,7 @@ void UIMachineLogic::sltTakeSnapshot()
     pDlg->mLbIcon->setPixmap(vboxGlobal().vmGuestOSTypeIcon(strTypeId));
 
     /* Search for the max available filter index: */
-    QString strNameTemplate = QApplication::translate("UIMachineLogic", "Snapshot %1");
+    QString strNameTemplate = VBoxTakeSnapshotDlg::tr("Snapshot %1");
     int iMaxSnapshotIndex = searchMaxSnapshotIndex(machine(), machine().FindSnapshot(QString()), strNameTemplate);
     pDlg->mLeName->setText(strNameTemplate.arg(++ iMaxSnapshotIndex));
 
@@ -1423,8 +1430,9 @@ void UIMachineLogic::sltTakeSnapshot()
     /* Was the dialog accepted? */
     if (fDialogAccepted)
     {
+        QString strSnapshotId;
         /* Prepare the take-snapshot progress: */
-        CProgress progress = machine().TakeSnapshot(strSnapshotName, strSnapshotDescription, true);
+        CProgress progress = machine().TakeSnapshot(strSnapshotName, strSnapshotDescription, true, strSnapshotId);
         if (machine().isOk())
         {
             /* Show the take-snapshot progress: */
@@ -1533,18 +1541,18 @@ void UIMachineLogic::sltClose()
     activeMachineWindow()->close();
 }
 
-void UIMachineLogic::sltToggleGuestAutoresize(bool fEnabled)
+void UIMachineLogic::sltMinimizeActiveMachineWindow()
 {
     /* Do not process if window(s) missed! */
     if (!isMachineWindowsCreated())
         return;
 
-    /* Toggle guest-autoresize feature for all view(s)! */
-    foreach(UIMachineWindow *pMachineWindow, machineWindows())
-        pMachineWindow->machineView()->setGuestAutoresizeEnabled(fEnabled);
+    /* Minimize active machine-window: */
+    AssertPtrReturnVoid(activeMachineWindow());
+    activeMachineWindow()->showMinimized();
 }
 
-void UIMachineLogic::sltAdjustWindow()
+void UIMachineLogic::sltAdjustMachineWindows()
 {
     /* Do not process if window(s) missed! */
     if (!isMachineWindowsCreated())
@@ -1560,6 +1568,17 @@ void UIMachineLogic::sltAdjustWindow()
         /* Normalize window geometry: */
         pMachineWindow->normalizeGeometry(true /* adjust position */);
     }
+}
+
+void UIMachineLogic::sltToggleGuestAutoresize(bool fEnabled)
+{
+    /* Do not process if window(s) missed! */
+    if (!isMachineWindowsCreated())
+        return;
+
+    /* Toggle guest-autoresize feature for all view(s)! */
+    foreach(UIMachineWindow *pMachineWindow, machineWindows())
+        pMachineWindow->machineView()->setGuestAutoresizeEnabled(fEnabled);
 }
 
 void UIMachineLogic::sltTakeScreenshot()
@@ -1971,13 +1990,6 @@ void UIMachineLogic::sltShowLogDialog()
 #endif /* VBOX_WITH_DEBUGGER_GUI */
 
 #ifdef Q_WS_MAC
-void UIMachineLogic::sltMinimizeActiveMachineWindow()
-{
-    /* Minimize active machine-window: */
-    AssertPtrReturnVoid(activeMachineWindow());
-    activeMachineWindow()->showMinimized();
-}
-
 void UIMachineLogic::sltSwitchToMachineWindow()
 {
     /* Acquire appropriate sender action: */
@@ -2059,7 +2071,7 @@ void UIMachineLogic::sltSwitchKeyboardLedsToGuestLeds()
     WinHidDevicesBroadcastLeds(uisession()->isNumLock(), uisession()->isCapsLock(), uisession()->isScrollLock());
     keyboardHandler()->winSkipKeyboardEvents(false);
 #else
-    LogRelFlow(("UIMachineLogic::sltSwitchKeyboardLedsToGuestLeds: keep host LED lock states and broadcast guest's ones does not supported on this platform.\n"));
+    LogRelFlow(("UIMachineLogic::sltSwitchKeyboardLedsToGuestLeds: keep host LED lock states and broadcast guest's ones does not supported on this platform\n"));
 #endif
 }
 
@@ -2084,7 +2096,7 @@ void UIMachineLogic::sltSwitchKeyboardLedsToPreviousLeds()
         WinHidDevicesApplyAndReleaseLedsState(m_pHostLedsState);
         keyboardHandler()->winSkipKeyboardEvents(false);
 #else
-        LogRelFlow(("UIMachineLogic::sltSwitchKeyboardLedsToPreviousLeds: restore host LED lock states does not supported on this platform.\n"));
+        LogRelFlow(("UIMachineLogic::sltSwitchKeyboardLedsToPreviousLeds: restore host LED lock states does not supported on this platform\n"));
 #endif
         m_pHostLedsState = NULL;
     }
@@ -2185,7 +2197,8 @@ void UIMachineLogic::updateMenuDevicesNetwork(QMenu *pMenu)
     foreach (int iSlot, adapterData.keys())
     {
         QAction *pAction = pMenu->addAction(UIIconPool::iconSet(adapterData[iSlot] ? ":/connect_16px.png": ":/disconnect_16px.png"),
-                                            adapterData.size() == 1 ? tr("Connect Network Adapter") : tr("Connect Network Adapter %1").arg(iSlot + 1),
+                                            adapterData.size() == 1 ? UIActionPool::tr("&Connect Network Adapter") :
+                                                                      UIActionPool::tr("Connect Network Adapter &%1").arg(iSlot + 1),
                                             this, SLOT(sltToggleNetworkAdapterConnection()));
         pAction->setProperty("slot", iSlot);
         pAction->setCheckable(true);
@@ -2206,8 +2219,8 @@ void UIMachineLogic::updateMenuDevicesUSB(QMenu *pMenu)
         /* Add only one - "empty" action: */
         QAction *pEmptyMenuAction = pMenu->addAction(UIIconPool::iconSet(":/usb_unavailable_16px.png",
                                                                          ":/usb_unavailable_disabled_16px.png"),
-                                                     tr("No USB Devices Connected"));
-        pEmptyMenuAction->setToolTip(tr("No supported devices connected to the host PC"));
+                                                     UIActionPool::tr("No USB Devices Connected"));
+        pEmptyMenuAction->setToolTip(UIActionPool::tr("No supported devices connected to the host PC"));
         pEmptyMenuAction->setEnabled(false);
     }
     /* If device list is NOT empty: */
@@ -2252,8 +2265,8 @@ void UIMachineLogic::updateMenuDevicesWebCams(QMenu *pMenu)
         /* Add only one - "empty" action: */
         QAction *pEmptyMenuAction = pMenu->addAction(UIIconPool::iconSet(":/web_camera_unavailable_16px.png",
                                                                          ":/web_camera_unavailable_disabled_16px.png"),
-                                                     tr("No Webcams Connected"));
-        pEmptyMenuAction->setToolTip(tr("No supported webcams connected to the host PC"));
+                                                     UIActionPool::tr("No Webcams Connected"));
+        pEmptyMenuAction->setToolTip(UIActionPool::tr("No supported webcams connected to the host PC"));
         pEmptyMenuAction->setEnabled(false);
     }
     /* If webcam list is NOT empty: */
@@ -2560,14 +2573,14 @@ bool UIMachineLogic::dbgCreated()
                 return true;
             }
 
-            LogRel(("DBGGuiCreate failed, incompatible versions (loaded %#x/%#x, expected %#x)\n",
+            LogRel(("GUI: DBGGuiCreate failed, incompatible versions (loaded %#x/%#x, expected %#x)\n",
                     m_pDbgGuiVT->u32Version, m_pDbgGuiVT->u32EndVersion, DBGGUIVT_VERSION));
         }
         else
-            LogRel(("DBGGuiCreate failed, rc=%Rrc\n", rc));
+            LogRel(("GUI: DBGGuiCreate failed, rc=%Rrc\n", rc));
     }
     else
-        LogRel(("RTLdrGetSymbol(,\"DBGGuiCreate\",) -> %Rrc\n", rc));
+        LogRel(("GUI: RTLdrGetSymbol(,\"DBGGuiCreate\",) -> %Rrc\n", rc));
 
     m_pDbgGui = 0;
     m_pDbgGuiVT = 0;

@@ -27,7 +27,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 100279 $"
+__version__ = "$Revision: 100505 $"
 
 
 # Standard Python imports.
@@ -402,6 +402,8 @@ class Build(object): # pylint: disable=R0903
         if self.sOs == 'win' and self.sKind != 'development':
             self.sGuestAdditionsIso = '%s/VBoxGuestAdditions.iso' % (self.sInstallPath,);
         elif self.sOs == 'darwin':
+            self.sGuestAdditionsIso = '%s/VBoxGuestAdditions.iso' % (self.sInstallPath,);
+        elif self.sOs == 'solaris':
             self.sGuestAdditionsIso = '%s/VBoxGuestAdditions.iso' % (self.sInstallPath,);
         else:
             self.sGuestAdditionsIso = '%s/additions/VBoxGuestAdditions.iso' % (self.sInstallPath,);

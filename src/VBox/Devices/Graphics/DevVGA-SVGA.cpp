@@ -1883,8 +1883,9 @@ static int vmsvgaFIFOAccess(PVM pVM, PVGASTATE pThis, RTGCPHYS GCPhys, bool fWri
  * @param   enmOrigin       Who is making the access.
  * @param   pvUser          User argument.
  */
-static DECLCALLBACK(int) vmsvgaR3FIFOAccessHandler(PVM pVM, PVMCPU pVCpu RTGCPHYS GCPhys, void *pvPhys, void *pvBuf, size_t cbBuf,
-                                                   PGMACCESSTYPE enmAccessType, PGMACCESSORIGIN enmOrigin, void *pvUser)
+static DECLCALLBACK(VBOXSTRICTRC)
+vmsvgaR3FIFOAccessHandler(PVM pVM, PVMCPU pVCpu RTGCPHYS GCPhys, void *pvPhys, void *pvBuf, size_t cbBuf,
+                          PGMACCESSTYPE enmAccessType, PGMACCESSORIGIN enmOrigin, void *pvUser)
 {
     PVGASTATE   pThis = (PVGASTATE)pvUser;
     int         rc;
@@ -1918,8 +1919,9 @@ static DECLCALLBACK(int) vmsvgaR3FIFOAccessHandler(PVM pVM, PVMCPU pVCpu RTGCPHY
  * @param   enmOrigin       Who is making the access.
  * @param   pvUser          User argument.
  */
-static DECLCALLBACK(int) vmsvgaR3GMRAccessHandler(PVM pVM, PVMCPU pVCpu, RTGCPHYS GCPhys, void *pvPhys, void *pvBuf, size_t cbBuf,
-                                                  PGMACCESSTYPE enmAccessType, PGMACCESSORIGIN enmOrigin, void *pvUser)
+static DECLCALLBACK(VBOXSTRICTRC)
+vmsvgaR3GMRAccessHandler(PVM pVM, PVMCPU pVCpu, RTGCPHYS GCPhys, void *pvPhys, void *pvBuf, size_t cbBuf,
+                         PGMACCESSTYPE enmAccessType, PGMACCESSORIGIN enmOrigin, void *pvUser)
 {
     PVGASTATE   pThis = (PVGASTATE)pvUser;
     Assert(pThis);
@@ -3975,14 +3977,18 @@ int vmsvgaInit(PPDMDEVINS pDevIns)
 # ifdef DEBUG_GMR_ACCESS
     /* Register the GMR access handler type. */
     rc = PGMR3HandlerPhysicalTypeRegister(PDMDevHlpGetVM(pThis->pDevInsR3), PGMPHYSHANDLERKIND_WRITE,
-                                          vmsvgaR3GMRAccessHandler, NULL, NULL, NULL, NULL, "VMSVGA GMR",
-                                          &pThis->svga.hGmrAccessHandlerType);
+                                          vmsvgaR3GMRAccessHandler,
+                                          NULL, NULL, NULL,
+                                          NULL, NULL, NULL,
+                                          "VMSVGA GMR", &pThis->svga.hGmrAccessHandlerType);
     AssertRCReturn(rc, rc);
 # endif
 # ifdef DEBUG_FIFO_ACCESS
     rc = PGMR3HandlerPhysicalTypeRegister(PDMDevHlpGetVM(pThis->pDevInsR3), PGMPHYSHANDLERKIND_ALL,
-                                          vmsvgaR3FIFOAccessHandler, NULL, NULL, NULL, NULL, "VMSVGA FIFO",
-                                          &pThis->svga.hFifoAccessHandlerType);
+                                          vmsvgaR3FIFOAccessHandler,
+                                          NULL, NULL, NULL,
+                                          NULL, NULL, NULL,
+                                          "VMSVGA FIFO", &pThis->svga.hFifoAccessHandlerType);
     AssertRCReturn(rc, rc);
 #endif
 

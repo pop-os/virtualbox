@@ -704,12 +704,14 @@ struct AudioAdapter
                 || (    (fEnabled        == a.fEnabled)
                      && (controllerType  == a.controllerType)
                      && (driverType      == a.driverType)
+                     && (properties      == a.properties)
                    );
     }
 
     bool                    fEnabled;
     AudioControllerType_T   controllerType;
     AudioDriverType_T       driverType;
+    settings::StringsMap properties;
 };
 
 /**
@@ -973,7 +975,6 @@ struct Hardware
     bool                fPageFusionEnabled;
 
     GuestPropertiesList llGuestProperties;
-    com::Utf8Str        strNotificationPatterns;
 
     IOSettings          ioSettings;             // requires settings version 1.10 (VirtualBox 3.2)
     HostPCIDeviceAttachmentList pciAttachments; // requires settings version 1.12 (VirtualBox 4.1)

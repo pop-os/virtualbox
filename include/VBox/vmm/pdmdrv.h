@@ -174,10 +174,9 @@ typedef FNPDMDRVRESUME *PFNPDMDRVRESUME;
 /**
  * Power Off notification.
  *
- * This is only called when the VMR3PowerOff call is made on a running VM. This
- * means that there is no notification if the VM was suspended before being
- * powered of.  There will also be no callback when hot plugging devices or when
- * replumbing the driver stack.
+ * This is always called when VMR3PowerOff is called.
+ * There will be no callback when hot plugging devices or when replumbing the driver
+ * stack.
  *
  * @param   pDrvIns     The driver instance data.
  */
@@ -464,9 +463,9 @@ typedef struct PDMDRVINS
     do \
     { \
         PPDMDRVINS pDrvInsTypeCheck = (pDrvIns); NOREF(pDrvInsTypeCheck); \
-        if (RT_UNLIKELY(   !PDM_VERSION_ARE_COMPATIBLE((pDrvIns)->u32Version, PDM_DRVINS_VERSION) \
-                        || !PDM_VERSION_ARE_COMPATIBLE((pDrvIns)->pHlpR3->u32Version, PDM_DRVHLPR3_VERSION)) ) \
-            return; \
+        if (RT_LIKELY(   PDM_VERSION_ARE_COMPATIBLE((pDrvIns)->u32Version, PDM_DRVINS_VERSION) \
+                      && PDM_VERSION_ARE_COMPATIBLE((pDrvIns)->pHlpR3->u32Version, PDM_DRVHLPR3_VERSION)) ) \
+        { /* likely */ } else return; \
     } while (0)
 
 /**
@@ -489,8 +488,8 @@ typedef struct PDMDRVINS
     { \
         int rcValCfg = CFGMR3ValidateConfig((pDrvIns)->pCfg, "/", pszValidValues, pszValidNodes, \
                                             (pDrvIns)->pReg->szName, (pDrvIns)->iInstance); \
-        if (RT_FAILURE(rcValCfg)) \
-            return rcValCfg; \
+        if (RT_SUCCESS(rcValCfg)) \
+        { /* likely */ } else return rcValCfg; \
     } while (0)
 
 

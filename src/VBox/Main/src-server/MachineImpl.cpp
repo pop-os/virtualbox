@@ -206,7 +206,6 @@ Machine::HWData::HWData()
 
     mClipboardMode = ClipboardMode_Disabled;
     mDnDMode = DnDMode_Disabled;
-    mGuestPropertyNotificationPatterns = "";
 
     mFirmwareType = FirmwareType_BIOS;
     mKeyboardHIDType = KeyboardHIDType_PS2Keyboard;
@@ -760,9 +759,7 @@ HRESULT Machine::i_registeredInit()
 
         /* fetch the current error info */
         mData->mAccessError = com::ErrorInfo();
-        LogWarning(("Machine {%RTuuid} is inaccessible! [%ls]\n",
-                    mData->mUuid.raw(),
-                    mData->mAccessError.getText().raw()));
+        Log1Warning(("Machine {%RTuuid} is inaccessible! [%ls]\n", mData->mUuid.raw(), mData->mAccessError.getText().raw()));
 
         /* rollback all changes */
         i_rollback(false /* aNotify */);
@@ -837,12 +834,12 @@ void Machine::uninit()
          * after we return from this method (it expects the Machine instance is
          * still valid). We'll call it ourselves below.
          */
-        LogWarningThisFunc(("Session machine is not NULL (%p), the direct session is still open!\n",
-                            (SessionMachine*)mData->mSession.mMachine));
+        Log1WarningThisFunc(("Session machine is not NULL (%p), the direct session is still open!\n",
+                             (SessionMachine*)mData->mSession.mMachine));
 
         if (Global::IsOnlineOrTransient(mData->mMachineState))
         {
-            LogWarningThisFunc(("Setting state to Aborted!\n"));
+            Log1WarningThisFunc(("Setting state to Aborted!\n"));
             /* set machine state using SessionMachine reimplementation */
             static_cast<Machine*>(mData->mSession.mMachine)->i_setMachineState(MachineState_Aborted);
         }
@@ -873,7 +870,7 @@ void Machine::uninit()
     // has machine been modified?
     if (mData->flModifications)
     {
-        LogWarningThisFunc(("Discarding unsaved settings changes!\n"));
+        Log1WarningThisFunc(("Discarding unsaved settings changes!\n"));
         i_rollback(false /* aNotify */);
     }
 
@@ -2844,35 +2841,6 @@ HRESULT Machine::setDnDMode(DnDMode_T aDnDMode)
         i_saveSettings(NULL);
 
     return S_OK;
-}
-
-HRESULT Machine::getGuestPropertyNotificationPatterns(com::Utf8Str &aGuestPropertyNotificationPatterns)
-{
-    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    try
-    {
-        aGuestPropertyNotificationPatterns = mHWData->mGuestPropertyNotificationPatterns;
-    }
-    catch (...)
-    {
-        return VirtualBoxBase::handleUnexpectedExceptions(this, RT_SRC_POS);
-    }
-
-    return S_OK;
-}
-
-HRESULT Machine::setGuestPropertyNotificationPatterns(const com::Utf8Str &aGuestPropertyNotificationPatterns)
-{
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    HRESULT rc = i_checkStateDependency(MutableOrSavedOrRunningStateDep);
-    if (FAILED(rc)) return rc;
-
-    i_setModified(IsModified_MachineData);
-    mHWData.backup();
-    mHWData->mGuestPropertyNotificationPatterns = aGuestPropertyNotificationPatterns;
-    return rc;
 }
 
 HRESULT Machine::getStorageControllers(std::vector<ComPtr<IStorageController> > &aStorageControllers)
@@ -4973,8 +4941,7 @@ HRESULT Machine::setExtraData(const com::Utf8Str &aKey, const com::Utf8Str &aVal
         {
             const char *sep = error.isEmpty() ? "" : ": ";
             CBSTR err = error.raw();
-            LogWarningFunc(("Someone vetoed! Change refused%s%ls\n",
-                            sep, err));
+            Log1WarningFunc(("Someone vetoed! Change refused%s%ls\n", sep, err));
             return setError(E_ACCESSDENIED,
                             tr("Could not set extra data because someone refused the requested change of '%s' to '%s'%s%ls"),
                             aKey.c_str(),
@@ -5754,15 +5721,7 @@ HRESULT Machine::i_setGuestPropertyToService(const com::Utf8Str &aName, const co
             }
         }
 
-        if (   SUCCEEDED(rc)
-            && (   mHWData->mGuestPropertyNotificationPatterns.isEmpty()
-                || RTStrSimplePatternMultiMatch(mHWData->mGuestPropertyNotificationPatterns.c_str(),
-                                                RTSTR_MAX,
-                                                aName.c_str(),
-                                                RTSTR_MAX,
-                                                NULL)
-               )
-           )
+        if (SUCCEEDED(rc))
         {
             alock.release();
 
@@ -6099,7 +6058,8 @@ HRESULT Machine::getStorageControllerByName(const com::Utf8Str &aName,
     return rc;
 }
 
-HRESULT Machine::getStorageControllerByInstance(ULONG aInstance,
+HRESULT Machine::getStorageControllerByInstance(StorageBus_T aConnectionType,
+                                                ULONG aInstance,
                                                 ComPtr<IStorageController> &aStorageController)
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
@@ -6108,7 +6068,8 @@ HRESULT Machine::getStorageControllerByInstance(ULONG aInstance,
          it != mStorageControllers->end();
          ++it)
     {
-        if ((*it)->i_getInstance() == aInstance)
+        if (   (*it)->i_getStorageBus() == aConnectionType
+            && (*it)->i_getInstance() == aInstance)
         {
             (*it).queryInterfaceTo(aStorageController.asOutParam());
             return S_OK;
@@ -7423,7 +7384,7 @@ HRESULT Machine::i_launchVMProcess(IInternalSessionControl *aControl,
 
     if (fSeparate)
     {
-        if (mData->mSession.mState != SessionState_Unlocked && mData->mSession.mName == "headless")
+        if (mData->mSession.mState != SessionState_Unlocked && mData->mSession.mName != "headless")
             return setError(VBOX_E_INVALID_OBJECT_STATE,
                             tr("The machine '%s' is in a state which is incompatible with launching a separate UI process"),
                             mUserData->s.strName.c_str());
@@ -9082,8 +9043,6 @@ HRESULT Machine::i_loadHardware(const settings::Hardware &data, const settings::
             mHWData->mGuestProperties[prop.strName] = property;
             ++it;
         }
-
-        mHWData->mGuestPropertyNotificationPatterns = data.strNotificationPatterns;
 #endif /* VBOX_WITH_GUEST_PROPS defined */
 
         rc = i_loadDebugging(pDbg);
@@ -10384,7 +10343,6 @@ HRESULT Machine::i_saveHardware(settings::Hardware &data, settings::Debugging *p
             data.llGuestProperties.push_back(prop);
         }
 
-        data.strNotificationPatterns = mHWData->mGuestPropertyNotificationPatterns;
         /* I presume this doesn't require a backup(). */
         mData->mGuestPropertiesModified = FALSE;
 #endif /* VBOX_WITH_GUEST_PROPS defined */
@@ -12193,8 +12151,7 @@ void Machine::i_registerMetrics(PerformanceCollector *aCollector, Machine *aMach
     /* Guest metrics collector */
     mCollectorGuest = new pm::CollectorGuest(aMachine, pid);
     aCollector->registerGuest(mCollectorGuest);
-    LogAleksey(("{%p} " LOG_FN_FMT ": mCollectorGuest=%p\n",
-                this, __PRETTY_FUNCTION__, mCollectorGuest));
+    Log7(("{%p} " LOG_FN_FMT ": mCollectorGuest=%p\n", this, __PRETTY_FUNCTION__, mCollectorGuest));
 
     /* Create sub metrics */
     pm::SubMetric *guestLoadUser = new pm::SubMetric("Guest/CPU/Load/User",
@@ -12545,8 +12502,7 @@ void SessionMachine::uninit(Uninit::Reason aReason)
      */
     i_unregisterMetrics(mParent->i_performanceCollector(), mPeer);
     /* The guest must be unregistered after its metrics (@bugref{5949}). */
-    LogAleksey(("{%p} " LOG_FN_FMT ": mCollectorGuest=%p\n",
-                this, __PRETTY_FUNCTION__, mCollectorGuest));
+    Log7(("{%p} " LOG_FN_FMT ": mCollectorGuest=%p\n", this, __PRETTY_FUNCTION__, mCollectorGuest));
     if (mCollectorGuest)
     {
         mParent->i_performanceCollector()->unregisterGuest(mCollectorGuest);
@@ -12557,8 +12513,7 @@ void SessionMachine::uninit(Uninit::Reason aReason)
 
     if (aReason == Uninit::Abnormal)
     {
-        LogWarningThisFunc(("ABNORMAL client termination! (wasBusy=%d)\n",
-                             Global::IsOnlineOrTransient(lastState)));
+        Log1WarningThisFunc(("ABNORMAL client termination! (wasBusy=%d)\n", Global::IsOnlineOrTransient(lastState)));
 
         /* reset the state to Aborted */
         if (mData->mMachineState != MachineState_Aborted)
@@ -12568,7 +12523,7 @@ void SessionMachine::uninit(Uninit::Reason aReason)
     // any machine settings modified?
     if (mData->flModifications)
     {
-        LogWarningThisFunc(("Discarding unsaved settings changes!\n"));
+        Log1WarningThisFunc(("Discarding unsaved settings changes!\n"));
         i_rollback(false /* aNotify */);
     }
 
@@ -12596,7 +12551,7 @@ void SessionMachine::uninit(Uninit::Reason aReason)
             HRESULT rc = (*it)->Uninitialize();
             LogFlowThisFunc(("  remoteControl->Uninitialize() returned %08X\n", rc));
             if (FAILED(rc))
-                LogWarningThisFunc(("Forgot to close the remote session?\n"));
+                Log1WarningThisFunc(("Forgot to close the remote session?\n"));
             ++it;
         }
         mData->mSession.mRemoteControls.clear();
@@ -12642,7 +12597,7 @@ void SessionMachine::uninit(Uninit::Reason aReason)
      */
 
     if ((aReason == Uninit::Unexpected))
-        LogWarningThisFunc(("Unexpected SessionMachine uninitialization!\n"));
+        Log1WarningThisFunc(("Unexpected SessionMachine uninitialization!\n"));
 
     if (aReason != Uninit::Normal)
     {
@@ -13398,15 +13353,12 @@ HRESULT SessionMachine::pullGuestProperties(std::vector<com::Utf8Str> &aNames,
 HRESULT SessionMachine::pushGuestProperty(const com::Utf8Str &aName,
                                           const com::Utf8Str &aValue,
                                           LONG64 aTimestamp,
-                                          const com::Utf8Str &aFlags,
-                                          BOOL *aNotify)
+                                          const com::Utf8Str &aFlags)
 {
     LogFlowThisFunc(("\n"));
 
 #ifdef VBOX_WITH_GUEST_PROPS
     using namespace guestProp;
-
-    *aNotify = FALSE;
 
     try
     {
@@ -13474,24 +13426,12 @@ HRESULT SessionMachine::pushGuestProperty(const com::Utf8Str &aName,
             mData->mGuestPropertiesModified = TRUE;
         }
 
-        /*
-         * Send a callback notification if appropriate
-         */
-        if (    mHWData->mGuestPropertyNotificationPatterns.isEmpty()
-             || RTStrSimplePatternMultiMatch(mHWData->mGuestPropertyNotificationPatterns.c_str(),
-                                             RTSTR_MAX,
-                                             aName.c_str(),
-                                             RTSTR_MAX, NULL)
-           )
-        {
-            alock.release();
+        alock.release();
 
-            mParent->i_onGuestPropertyChange(mData->mUuid,
-                                             Bstr(aName).raw(),
-                                             Bstr(aValue).raw(),
-                                             Bstr(aFlags).raw());
-            *aNotify = TRUE;
-        }
+        mParent->i_onGuestPropertyChange(mData->mUuid,
+                                         Bstr(aName).raw(),
+                                         Bstr(aValue).raw(),
+                                         Bstr(aFlags).raw());
     }
     catch (...)
     {
@@ -14762,14 +14702,12 @@ HRESULT Machine::pullGuestProperties(std::vector<com::Utf8Str> &aNames,
 HRESULT Machine::pushGuestProperty(const com::Utf8Str &aName,
                                    const com::Utf8Str &aValue,
                                    LONG64 aTimestamp,
-                                   const com::Utf8Str &aFlags,
-                                   BOOL *aNotify)
+                                   const com::Utf8Str &aFlags)
 {
     NOREF(aName);
     NOREF(aValue);
     NOREF(aTimestamp);
     NOREF(aFlags);
-    NOREF(aNotify);
     ReturnComNotImplemented();
 }
 

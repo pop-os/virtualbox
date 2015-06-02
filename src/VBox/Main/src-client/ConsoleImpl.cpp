@@ -55,11 +55,7 @@
 #include "USBDeviceImpl.h"
 #include "RemoteUSBDeviceImpl.h"
 #include "SharedFolderImpl.h"
-#ifdef VBOX_WITH_PDM_AUDIO_DRIVER
 #include "DrvAudioVRDE.h"
-#else
-#include "AudioSnifferInterface.h"
-#endif
 #include "Nvram.h"
 #ifdef VBOX_WITH_USB_CARDREADER
 # include "UsbCardReader.h"
@@ -372,11 +368,7 @@ Console::Console()
     , mfPowerOffCausedByReset(false)
     , mpVmm2UserMethods(NULL)
     , m_pVMMDev(NULL)
-#ifdef VBOX_WITH_PDM_AUDIO_DRIVER
     , mAudioVRDE(NULL)
-#else
-    , mAudioSniffer(NULL)
-#endif
     , mNvram(NULL)
 #ifdef VBOX_WITH_USB_CARDREADER
     , mUsbCardReader(NULL)
@@ -388,6 +380,10 @@ Console::Console()
     , mVMStateChangeCallbackDisabled(false)
     , mfUseHostClipboard(true)
     , mMachineState(MachineState_PoweredOff)
+#ifdef RT_OS_WINDOWS
+    , mfNDIS6(true)
+#endif /* RT_OS_WINDOWS */
+
 {
 }
 
@@ -552,13 +548,9 @@ HRESULT Console::init(IMachine *aMachine, IInternalMachineControl *aControl, Loc
         for (ULONG slot = 0; slot < maxNetworkAdapters; ++slot)
             meAttachmentType[slot] = NetworkAttachmentType_Null;
 
-#ifdef VBOX_WITH_PDM_AUDIO_DRIVER
         unconst(mAudioVRDE) = new AudioVRDE(this);
         AssertReturn(mAudioVRDE, E_FAIL);
-#else
-        unconst(mAudioSniffer) = new AudioSniffer(this);
-        AssertReturn(mAudioSniffer, E_FAIL);
-#endif
+
         FirmwareType_T enmFirmwareType;
         mMachine->COMGETTER(FirmwareType)(&enmFirmwareType);
         if (   enmFirmwareType == FirmwareType_EFI
@@ -692,19 +684,11 @@ void Console::uninit()
     }
 #endif
 
-#ifdef VBOX_WITH_PDM_AUDIO_DRIVER
     if (mAudioVRDE)
     {
         delete mAudioVRDE;
         unconst(mAudioVRDE) = NULL;
     }
-#else
-    if (mAudioSniffer)
-    {
-        delete mAudioSniffer;
-        unconst(mAudioSniffer) = NULL;
-    }
-#endif
 
     // if the VM had a VMMDev with an HGCM thread, then remove that here
     if (m_pVMMDev)
@@ -1397,22 +1381,8 @@ void Console::i_VRDPClientDisconnect(uint32_t u32ClientId,
 
     if (fu32Intercepted & VRDE_CLIENT_INTERCEPT_AUDIO)
     {
-#ifdef VBOX_WITH_PDM_AUDIO_DRIVER
         if (mAudioVRDE)
             mAudioVRDE->onVRDEControl(false /* fEnable */, 0 /* uFlags */);
-#else
-        mcAudioRefs--;
-
-        if (mcAudioRefs <= 0)
-        {
-            if (mAudioSniffer)
-            {
-                PPDMIAUDIOSNIFFERPORT port = mAudioSniffer->getAudioSnifferPort();
-                if (port)
-                    port->pfnSetup(port, false, false);
-            }
-        }
-#endif
     }
 
     AuthType_T authType = AuthType_Null;
@@ -1444,22 +1414,8 @@ void Console::i_VRDPInterceptAudio(uint32_t u32ClientId)
 
     LogFlowFunc(("u32ClientId=%RU32\n", u32ClientId));
 
-#ifdef VBOX_WITH_PDM_AUDIO_DRIVER
     if (mAudioVRDE)
         mAudioVRDE->onVRDEControl(true /* fEnable */, 0 /* uFlags */);
-#else
-    ++mcAudioRefs;
-
-    if (mcAudioRefs == 1)
-    {
-        if (mAudioSniffer)
-        {
-            PPDMIAUDIOSNIFFERPORT port = mAudioSniffer->getAudioSnifferPort();
-            if (port)
-                port->pfnSetup(port, true, true);
-        }
-    }
-#endif
 
     LogFlowFuncLeave();
     return;
@@ -1754,22 +1710,21 @@ DECLCALLBACK(int) Console::i_doGuestPropNotification(void *pvExtension,
     Bstr value(pCBData->pcszValue);
     Bstr flags(pCBData->pcszFlags);
     ComObjPtr<Console> pConsole = reinterpret_cast<Console *>(pvExtension);
-    BOOL fNotify = FALSE;
     HRESULT hrc = pConsole->mControl->PushGuestProperty(name.raw(),
                                                         value.raw(),
                                                         pCBData->u64Timestamp,
-                                                        flags.raw(),
-                                                        &fNotify);
+                                                        flags.raw());
     if (SUCCEEDED(hrc))
+    {
+        fireGuestPropertyChangedEvent(pConsole->mEventSource, pConsole->i_getId().raw(), name.raw(), value.raw(), flags.raw());
         rc = VINF_SUCCESS;
+    }
     else
     {
         LogFlow(("Console::doGuestPropNotification: hrc=%Rhrc pCBData={.pcszName=%s, .pcszValue=%s, .pcszFlags=%s}\n",
                  hrc, pCBData->pcszName, pCBData->pcszValue, pCBData->pcszFlags));
         rc = Global::vboxStatusCodeFromCOM(hrc);
     }
-    if (fNotify)
-        fireGuestPropertyChangedEvent(pConsole->mEventSource, pConsole->i_getId().raw(), name.raw(), value.raw(), flags.raw());
     return rc;
 }
 
@@ -7239,8 +7194,8 @@ HRESULT Console::i_powerUp(IProgress **aProgress, bool aPaused)
 
         // If there is immutable drive the process that.
         VMPowerUpTask::ProgressList progresses(task->hardDiskProgresses);
-        if (aProgress && progresses.size() > 0){
-
+        if (aProgress && progresses.size() > 0)
+        {
             for (VMPowerUpTask::ProgressList::const_iterator it = progresses.begin(); it !=  progresses.end(); ++it)
             {
                 ++cOperations;
@@ -8652,8 +8607,7 @@ HRESULT Console::i_attachUSBDevice(IUSBDevice *aHostDevice, ULONG aMaskedIfs,
     }
     else
     {
-        LogWarningThisFunc(("Failed to create proxy device for '%s' {%RTuuid} (%Rrc)\n",
-                            Address.c_str(), uuid.raw(), vrc));
+        Log1WarningThisFunc(("Failed to create proxy device for '%s' {%RTuuid} (%Rrc)\n", Address.c_str(), uuid.raw(), vrc));
 
         switch (vrc)
         {
@@ -9325,8 +9279,7 @@ void Console::i_processRemoteUSBDevices(uint32_t u32ClientId, VRDEUSBDEVICEDESC 
 
         if (cbDevList < e->oNext)
         {
-            LogWarningThisFunc(("cbDevList %d > oNext %d\n",
-                                 cbDevList, e->oNext));
+            Log1WarningThisFunc(("cbDevList %d > oNext %d\n", cbDevList, e->oNext));
             break;
         }
 

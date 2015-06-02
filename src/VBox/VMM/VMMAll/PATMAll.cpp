@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -36,6 +36,30 @@
 #include <VBox/log.h>
 #include <iprt/assert.h>
 #include <iprt/string.h>
+
+
+/**
+ * @callback_method_impl{FNPGMPHYSHANDLER, PATM all access handler callback.}
+ *
+ * @remarks The @a pvUser argument is the base address of the page being
+ *          monitored.
+ */
+PGM_ALL_CB2_DECL(VBOXSTRICTRC) patmVirtPageHandler(PVM pVM, PVMCPU pVCpu, RTGCPTR GCPtr, void *pvPtr, void *pvBuf, size_t cbBuf,
+                                                   PGMACCESSTYPE enmAccessType, PGMACCESSORIGIN enmOrigin, void *pvUser)
+{
+    Assert(enmAccessType == PGMACCESSTYPE_WRITE); NOREF(enmAccessType);
+    NOREF(pvPtr); NOREF(pvBuf); NOREF(cbBuf); NOREF(enmOrigin); NOREF(pvUser);
+    Assert(pvUser); Assert(!((uintptr_t)pvUser & PAGE_OFFSET_MASK));
+
+    pVM->patm.s.pvFaultMonitor = (RTRCPTR)((uintptr_t)pvUser + (GCPtr & PAGE_OFFSET_MASK));
+#ifdef IN_RING3
+    PATMR3HandleMonitoredPage(pVM);
+    return VINF_PGM_HANDLER_DO_DEFAULT;
+#else
+    /* RC: Go handle this in ring-3. */
+    return VINF_PATM_CHECK_PATCH_PAGE;
+#endif
+}
 
 
 /**

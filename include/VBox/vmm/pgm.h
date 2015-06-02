@@ -165,7 +165,7 @@ typedef enum PGMACCESSTYPE
 /**
  * \#PF Handler callback for physical access handler ranges in RC and R0.
  *
- * @returns VBox status code (appropriate for RC return).
+ * @returns Strict VBox status code (appropriate for ring-0 and raw-mode).
  * @param   pVM         VM Handle.
  * @param   pVCpu           Pointer to the cross context CPU context for the
  *                          calling EMT.
@@ -175,21 +175,28 @@ typedef enum PGMACCESSTYPE
  * @param   pvFault     The fault address (cr2).
  * @param   GCPhysFault The GC physical address corresponding to pvFault.
  * @param   pvUser      User argument.
+ * @thread  EMT(pVCpu)
  */
-typedef DECLCALLBACK(int) FNPGMRZPHYSPFHANDLER(PVM pVM, PVMCPU pVCpu, RTGCUINT uErrorCode, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault,
-                                               RTGCPHYS GCPhysFault, void *pvUser);
+typedef DECLCALLBACK(VBOXSTRICTRC) FNPGMRZPHYSPFHANDLER(PVM pVM, PVMCPU pVCpu, RTGCUINT uErrorCode, PCPUMCTXCORE pRegFrame,
+                                                        RTGCPTR pvFault, RTGCPHYS GCPhysFault, void *pvUser);
 /** Pointer to PGM access callback. */
 typedef FNPGMRZPHYSPFHANDLER *PFNPGMRZPHYSPFHANDLER;
 
 
 /**
- * \#PF Handler callback for physical access handler ranges (MMIO among others) in HC.
+ * Access handler callback for physical access handler ranges.
  *
  * The handler can not raise any faults, it's mainly for monitoring write access
- * to certain pages.
+ * to certain pages (like MMIO).
  *
- * @returns VINF_SUCCESS if the handler have carried out the operation.
- * @returns VINF_PGM_HANDLER_DO_DEFAULT if the caller should carry out the access operation.
+ * @returns Strict VBox status code in ring-0 and raw-mode context, in ring-3
+ *          the only supported informational status code is
+ *          VINF_PGM_HANDLER_DO_DEFAULT.
+ * @retval  VINF_SUCCESS if the handler have carried out the operation.
+ * @retval  VINF_PGM_HANDLER_DO_DEFAULT if the caller should carry out the
+ *          access operation.
+ * @retval  VINF_EM_XXX in ring-0 and raw-mode context.
+ *
  * @param   pVM             VM Handle.
  * @param   pVCpu           Pointer to the cross context CPU context for the
  *                          calling EMT.
@@ -200,9 +207,10 @@ typedef FNPGMRZPHYSPFHANDLER *PFNPGMRZPHYSPFHANDLER;
  * @param   enmAccessType   The access type.
  * @param   enmOrigin       The origin of this call.
  * @param   pvUser          User argument.
+ * @thread  EMT(pVCpu)
  */
-typedef DECLCALLBACK(int) FNPGMPHYSHANDLER(PVM pVM, PVMCPU pVCpu, RTGCPHYS GCPhys, void *pvPhys, void *pvBuf, size_t cbBuf,
-                                           PGMACCESSTYPE enmAccessType, PGMACCESSORIGIN enmOrigin, void *pvUser);
+typedef DECLCALLBACK(VBOXSTRICTRC) FNPGMPHYSHANDLER(PVM pVM, PVMCPU pVCpu, RTGCPHYS GCPhys, void *pvPhys, void *pvBuf, size_t cbBuf,
+                                                    PGMACCESSTYPE enmAccessType, PGMACCESSORIGIN enmOrigin, void *pvUser);
 /** Pointer to PGM access callback. */
 typedef FNPGMPHYSHANDLER *PFNPGMPHYSHANDLER;
 
@@ -223,12 +231,12 @@ typedef enum PGMVIRTHANDLERKIND
 } PGMVIRTHANDLERKIND;
 
 /**
- * \#PF Handler callback for virtual access handler ranges, RC.
+ * \#PF handler callback for virtual access handler ranges, RC.
  *
  * Important to realize that a physical page in a range can have aliases, and
  * for ALL and WRITE handlers these will also trigger.
  *
- * @returns VBox status code (appropriate for GC return).
+ * @returns Strict VBox status code (appropriate for raw-mode).
  * @param   pVM             VM Handle.
  * @param   pVCpu           Pointer to the cross context CPU context for the
  *                          calling EMT.
@@ -239,14 +247,15 @@ typedef enum PGMVIRTHANDLERKIND
  * @param   offRange        The offset of the access into this range.
  *                          (If it's a EIP range this is the EIP, if not it's pvFault.)
  * @param   pvUser          User argument.
+ * @thread  EMT(pVCpu)
  */
-typedef DECLCALLBACK(int) FNPGMRCVIRTPFHANDLER(PVM pVM, PVMCPU pVCpu, RTGCUINT uErrorCode, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault,
-                                               RTGCPTR pvRange, uintptr_t offRange, void *pvUser);
+typedef DECLCALLBACK(VBOXSTRICTRC) FNPGMRCVIRTPFHANDLER(PVM pVM, PVMCPU pVCpu, RTGCUINT uErrorCode, PCPUMCTXCORE pRegFrame,
+                                                        RTGCPTR pvFault, RTGCPTR pvRange, uintptr_t offRange, void *pvUser);
 /** Pointer to PGM access callback. */
 typedef FNPGMRCVIRTPFHANDLER *PFNPGMRCVIRTPFHANDLER;
 
 /**
- * \#PF Handler callback for virtual access handler ranges, R3.
+ * Access handler callback for virtual access handler ranges.
  *
  * Important to realize that a physical page in a range can have aliases, and
  * for ALL and WRITE handlers these will also trigger.
@@ -256,18 +265,21 @@ typedef FNPGMRCVIRTPFHANDLER *PFNPGMRCVIRTPFHANDLER;
  * @param   pVM             VM Handle.
  * @param   pVCpu           Pointer to the cross context CPU context for the
  *                          calling EMT.
- * @param   GCPtr           The virtual address the guest is writing to. (not correct if it's an alias!)
+ * @param   GCPtr           The virtual address the guest is writing to.  This
+ *                          is the registered address corresponding to the
+ *                          access, so no aliasing trouble here.
  * @param   pvPtr           The HC mapping of that address.
  * @param   pvBuf           What the guest is reading/writing.
  * @param   cbBuf           How much it's reading/writing.
  * @param   enmAccessType   The access type.
  * @param   enmOrigin       Who is calling.
  * @param   pvUser          User argument.
+ * @thread  EMT(pVCpu)
  */
-typedef DECLCALLBACK(int) FNPGMR3VIRTHANDLER(PVM pVM, PVMCPU pVCpu, RTGCPTR GCPtr, void *pvPtr, void *pvBuf, size_t cbBuf,
-                                             PGMACCESSTYPE enmAccessType, PGMACCESSORIGIN enmOrigin, void *pvUser);
+typedef DECLCALLBACK(VBOXSTRICTRC) FNPGMVIRTHANDLER(PVM pVM, PVMCPU pVCpu, RTGCPTR GCPtr, void *pvPtr, void *pvBuf, size_t cbBuf,
+                                                    PGMACCESSTYPE enmAccessType, PGMACCESSORIGIN enmOrigin, void *pvUser);
 /** Pointer to PGM access callback. */
-typedef FNPGMR3VIRTHANDLER *PFNPGMR3VIRTHANDLER;
+typedef FNPGMVIRTHANDLER *PFNPGMVIRTHANDLER;
 
 /**
  * \#PF Handler callback for invalidation of virtual access handler ranges.
@@ -277,6 +289,11 @@ typedef FNPGMR3VIRTHANDLER *PFNPGMR3VIRTHANDLER;
  *                          calling EMT.
  * @param   GCPtr           The virtual address the guest has changed.
  * @param   pvUser          User argument.
+ * @thread  EMT(pVCpu)
+ *
+ * @todo    FNPGMR3VIRTINVALIDATE will not actually be called! It was introduced
+ *          in r13179 (1.1) and stopped working with r13806 (PGMPool merge,
+ *          v1.2), exactly a month later.
  */
 typedef DECLCALLBACK(int) FNPGMR3VIRTINVALIDATE(PVM pVM, PVMCPU pVCpu, RTGCPTR GCPtr, void *pvUser);
 /** Pointer to PGM invalidation callback. */
@@ -452,10 +469,87 @@ VMMDECL(bool)       PGMPhysIsGCPhysValid(PVM pVM, RTGCPHYS GCPhys);
 VMMDECL(bool)       PGMPhysIsGCPhysNormal(PVM pVM, RTGCPHYS GCPhys);
 VMMDECL(int)        PGMPhysGCPtr2GCPhys(PVMCPU pVCpu, RTGCPTR GCPtr, PRTGCPHYS pGCPhys);
 VMMDECL(void)       PGMPhysReleasePageMappingLock(PVM pVM, PPGMPAGEMAPLOCK pLock);
-VMMDECL(int)        PGMPhysRead(PVM pVM, RTGCPHYS GCPhys, void *pvBuf, size_t cbRead, PGMACCESSORIGIN enmOrigin);
-VMMDECL(int)        PGMPhysWrite(PVM pVM, RTGCPHYS GCPhys, const void *pvBuf, size_t cbWrite, PGMACCESSORIGIN enmOrigin);
-VMMDECL(int)        PGMPhysReadGCPtr(PVMCPU pVCpu, void *pvDst, RTGCPTR GCPtrSrc, size_t cb, PGMACCESSORIGIN enmOrigin);
-VMMDECL(int)        PGMPhysWriteGCPtr(PVMCPU pVCpu, RTGCPTR GCPtrDst, const void *pvSrc, size_t cb, PGMACCESSORIGIN enmOrigin);
+
+/** @def PGM_PHYS_RW_IS_SUCCESS
+ * Check whether a PGMPhysRead, PGMPhysWrite, PGMPhysReadGCPtr or
+ * PGMPhysWriteGCPtr call completed the given task.
+ *
+ * @returns true if completed, false if not.
+ * @param   a_rcStrict      The status code.
+ * @sa      IOM_SUCCESS
+ */
+#ifdef IN_RING3
+# define PGM_PHYS_RW_IS_SUCCESS(a_rcStrict) \
+    (   (a_rcStrict) == VINF_SUCCESS )
+#elif defined(IN_RING0)
+# define PGM_PHYS_RW_IS_SUCCESS(a_rcStrict) \
+    (   (a_rcStrict) == VINF_SUCCESS \
+     || (a_rcStrict) == VINF_EM_OFF \
+     || (a_rcStrict) == VINF_EM_SUSPEND \
+     || (a_rcStrict) == VINF_EM_RESET \
+     || (a_rcStrict) == VINF_EM_HALT \
+    )
+#elif defined(IN_RC)
+# define PGM_PHYS_RW_IS_SUCCESS(a_rcStrict) \
+    (   (a_rcStrict) == VINF_SUCCESS \
+     || (a_rcStrict) == VINF_EM_OFF \
+     || (a_rcStrict) == VINF_EM_SUSPEND \
+     || (a_rcStrict) == VINF_EM_RESET \
+     || (a_rcStrict) == VINF_EM_HALT \
+     || (a_rcStrict) == VINF_SELM_SYNC_GDT \
+     || (a_rcStrict) == VINF_EM_RAW_EMULATE_INSTR_GDT_FAULT \
+    )
+#endif
+/** @def PGM_PHYS_RW_DO_UPDATE_STRICT_RC
+ * Updates the return code with a new result.
+ *
+ * Both status codes must be successes according to PGM_PHYS_RW_IS_SUCCESS.
+ *
+ * @param   a_rcStrict      The current return code, to be updated.
+ * @param   a_rcStrict2     The new return code to merge in.
+ */
+#ifdef IN_RING3
+# define PGM_PHYS_RW_DO_UPDATE_STRICT_RC(a_rcStrict, a_rcStrict2) \
+    do { \
+        Assert(rcStrict == VINF_SUCCESS); \
+        Assert(rcStrict2 == VINF_SUCCESS); \
+    } while (0)
+#elif defined(IN_RING0)
+# define PGM_PHYS_RW_DO_UPDATE_STRICT_RC(a_rcStrict, a_rcStrict2) \
+    do { \
+        Assert(PGM_PHYS_RW_IS_SUCCESS(rcStrict)); \
+        Assert(PGM_PHYS_RW_IS_SUCCESS(rcStrict2)); \
+        if ((a_rcStrict2) == VINF_SUCCESS || (a_rcStrict) == (a_rcStrict2)) \
+        { /* likely */ } \
+        else if (   (a_rcStrict) == VINF_SUCCESS \
+                 || (a_rcStrict) > (a_rcStrict2)) \
+            (a_rcStrict) = (a_rcStrict2); \
+    } while (0)
+#elif defined(IN_RC)
+# define PGM_PHYS_RW_DO_UPDATE_STRICT_RC(a_rcStrict, a_rcStrict2) \
+    do { \
+        Assert(PGM_PHYS_RW_IS_SUCCESS(rcStrict)); \
+        Assert(PGM_PHYS_RW_IS_SUCCESS(rcStrict2)); \
+        AssertCompile(VINF_SELM_SYNC_GDT > VINF_EM_LAST); \
+        AssertCompile(VINF_EM_RAW_EMULATE_INSTR_GDT_FAULT > VINF_EM_LAST); \
+        AssertCompile(VINF_EM_RAW_EMULATE_INSTR_GDT_FAULT < VINF_SELM_SYNC_GDT); \
+        if ((a_rcStrict2) == VINF_SUCCESS || (a_rcStrict) == (a_rcStrict2)) \
+        { /* likely */ } \
+        else if (   (a_rcStrict) == VINF_SUCCESS \
+                 || (   (a_rcStrict) > (a_rcStrict2) \
+                     && (   (a_rcStrict2) <= VINF_EM_RESET  \
+                         || (a_rcStrict) != VINF_EM_RAW_EMULATE_INSTR_GDT_FAULT) ) \
+                 || (   (a_rcStrict2) == VINF_EM_RAW_EMULATE_INSTR_GDT_FAULT \
+                     && (a_rcStrict) > VINF_EM_RESET) ) \
+            (a_rcStrict) = (a_rcStrict2); \
+    } while (0)
+#endif
+
+VMMDECL(VBOXSTRICTRC) PGMPhysRead(PVM pVM, RTGCPHYS GCPhys, void *pvBuf, size_t cbRead, PGMACCESSORIGIN enmOrigin);
+VMMDECL(VBOXSTRICTRC) PGMPhysWrite(PVM pVM, RTGCPHYS GCPhys, const void *pvBuf, size_t cbWrite, PGMACCESSORIGIN enmOrigin);
+VMMDECL(VBOXSTRICTRC) PGMPhysReadGCPtr(PVMCPU pVCpu, void *pvDst, RTGCPTR GCPtrSrc, size_t cb, PGMACCESSORIGIN enmOrigin);
+VMMDECL(VBOXSTRICTRC) PGMPhysWriteGCPtr(PVMCPU pVCpu, RTGCPTR GCPtrDst, const void *pvSrc, size_t cb, PGMACCESSORIGIN enmOrigin);
+
 VMMDECL(int)        PGMPhysSimpleReadGCPhys(PVM pVM, void *pvDst, RTGCPHYS GCPhysSrc, size_t cb);
 VMMDECL(int)        PGMPhysSimpleWriteGCPhys(PVM pVM, RTGCPHYS GCPhysDst, const void *pvSrc, size_t cb);
 VMMDECL(int)        PGMPhysSimpleReadGCPtr(PVMCPU pVCpu, void *pvDst, RTGCPTR GCPtrSrc, size_t cb);
@@ -596,23 +690,27 @@ VMMR3DECL(int)      PGMR3MapRead(PVM pVM, void *pvDst, RTGCPTR GCPtrSrc, size_t 
 
 VMMR3_INT_DECL(int) PGMR3HandlerPhysicalTypeRegisterEx(PVM pVM, PGMPHYSHANDLERKIND enmKind,
                                                        PFNPGMPHYSHANDLER pfnHandlerR3,
+                                                       R0PTRTYPE(PFNPGMPHYSHANDLER)     pfnHandlerR0,
                                                        R0PTRTYPE(PFNPGMRZPHYSPFHANDLER) pfnPfHandlerR0,
+                                                       RCPTRTYPE(PFNPGMPHYSHANDLER)     pfnHandlerRC,
                                                        RCPTRTYPE(PFNPGMRZPHYSPFHANDLER) pfnPfHandlerRC,
                                                        const char *pszDesc, PPGMPHYSHANDLERTYPE phType);
 VMMR3DECL(int)      PGMR3HandlerPhysicalTypeRegister(PVM pVM, PGMPHYSHANDLERKIND enmKind,
                                                      R3PTRTYPE(PFNPGMPHYSHANDLER) pfnHandlerR3,
-                                                     const char *pszModR0, const char *pszPfHandlerR0,
-                                                     const char *pszModRC, const char *pszPfHandlerRC, const char *pszDesc,
+                                                     const char *pszModR0, const char *pszHandlerR0, const char *pszPfHandlerR0,
+                                                     const char *pszModRC, const char *pszHandlerRC, const char *pszPfHandlerRC,
+                                                     const char *pszDesc,
                                                      PPGMPHYSHANDLERTYPE phType);
 VMMR3_INT_DECL(int) PGMR3HandlerVirtualTypeRegisterEx(PVM pVM, PGMVIRTHANDLERKIND enmKind, bool fRelocUserRC,
                                                       PFNPGMR3VIRTINVALIDATE pfnInvalidateR3,
-                                                      PFNPGMR3VIRTHANDLER pfnHandlerR3,
+                                                      PFNPGMVIRTHANDLER pfnHandlerR3,
+                                                      RCPTRTYPE(FNPGMVIRTHANDLER) pfnHandlerRC,
                                                       RCPTRTYPE(FNPGMRCVIRTPFHANDLER) pfnPfHandlerRC,
                                                       const char *pszDesc, PPGMVIRTHANDLERTYPE phType);
 VMMR3_INT_DECL(int) PGMR3HandlerVirtualTypeRegister(PVM pVM, PGMVIRTHANDLERKIND enmKind, bool fRelocUserRC,
                                                     PFNPGMR3VIRTINVALIDATE pfnInvalidateR3,
-                                                    PFNPGMR3VIRTHANDLER pfnHandlerR3,
-                                                    const char *pszPfHandlerRC, const char *pszDesc,
+                                                    PFNPGMVIRTHANDLER pfnHandlerR3,
+                                                    const char *pszHandlerRC, const char *pszPfHandlerRC, const char *pszDesc,
                                                     PPGMVIRTHANDLERTYPE phType);
 VMMR3_INT_DECL(int) PGMR3HandlerVirtualRegister(PVM pVM, PVMCPU pVCpu, PGMVIRTHANDLERTYPE hType, RTGCPTR GCPtr,
                                                 RTGCPTR GCPtrLast, void *pvUserR3, RTRCPTR pvUserRC, const char *pszDesc);
