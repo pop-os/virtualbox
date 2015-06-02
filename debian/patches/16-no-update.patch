@@ -76,14 +76,24 @@ Index: virtualbox/src/VBox/Frontends/VirtualBox/src/settings/UISettingsDialogSpe
              break;
      }
 diff --git a/src/VBox/Frontends/VirtualBox/src/selector/UISelectorWindow.cpp b/src/VBox/Frontends/VirtualBox/src/selector/UISelectorWindow.cpp
-index 8bf5722..5748717 100644
+index 752afd4..0438cef 100644
 --- a/src/VBox/Frontends/VirtualBox/src/selector/UISelectorWindow.cpp
 +++ b/src/VBox/Frontends/VirtualBox/src/selector/UISelectorWindow.cpp
-@@ -1220,7 +1220,6 @@ void UISelectorWindow::prepareMenuFile(QMenu *pMenu)
-     pMenu->addSeparator();
- #ifdef VBOX_GUI_WITH_NETWORK_MANAGER
-     pMenu->addAction(actionPool()->action(UIActionIndex_M_Application_S_NetworkAccessManager));
+@@ -1211,8 +1211,6 @@ void UISelectorWindow::prepareMenuFile(QMenu *pMenu)
+     /* 'About' action goes to Application menu: */
+     pMenu->addAction(actionPool()->action(UIActionIndex_M_Application_S_About));
+ # ifdef VBOX_GUI_WITH_NETWORK_MANAGER
+-    /* 'Check for Updates' action goes to Application menu: */
 -    pMenu->addAction(actionPool()->action(UIActionIndex_M_Application_S_CheckForUpdates));
- # ifndef Q_WS_MAC
-     pMenu->addSeparator();
- # endif /* Q_WS_MAC */
+     /* 'Network Access Manager' action goes to Application menu: */
+     pMenu->addAction(actionPool()->action(UIActionIndex_M_Application_S_NetworkAccessManager));
+ # endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
+@@ -1255,8 +1253,6 @@ void UISelectorWindow::prepareMenuFile(QMenu *pMenu)
+ # ifdef VBOX_GUI_WITH_NETWORK_MANAGER
+     /* 'Network Access Manager' action goes to 'File' menu: */
+     pMenu->addAction(actionPool()->action(UIActionIndex_M_Application_S_NetworkAccessManager));
+-    /* 'Check for Updates' action goes to 'File' menu: */
+-    pMenu->addAction(actionPool()->action(UIActionIndex_M_Application_S_CheckForUpdates));
+ # endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
+     /* 'Reset Warnings' action goes 'File' menu: */
+     pMenu->addAction(actionPool()->action(UIActionIndex_M_Application_S_ResetWarnings));
