@@ -380,10 +380,6 @@ Console::Console()
     , mVMStateChangeCallbackDisabled(false)
     , mfUseHostClipboard(true)
     , mMachineState(MachineState_PoweredOff)
-#ifdef RT_OS_WINDOWS
-    , mfNDIS6(true)
-#endif /* RT_OS_WINDOWS */
-
 {
 }
 
@@ -499,6 +495,10 @@ HRESULT Console::init(IMachine *aMachine, IInternalMachineControl *aControl, Loc
         unconst(mGuest).createObject();
         rc = mGuest->init(this);
         AssertComRCReturnRC(rc);
+
+        ULONG cCpus = 1;
+        rc = mMachine->COMGETTER(CPUCount)(&cCpus);
+        mGuest->i_setCpuCount(cCpus);
 
         unconst(mKeyboard).createObject();
         rc = mKeyboard->init(this);
@@ -1104,7 +1104,7 @@ int Console::i_VRDPClientLogon(uint32_t u32ClientId, const char *pszUser, const 
         {
             guestJudgement = AuthGuestNotReacted;
 
-            // @todo r=dj locking required here for m_pVMMDev?
+            /** @todo r=dj locking required here for m_pVMMDev? */
             PPDMIVMMDEVPORT pDevPort;
             if (    (m_pVMMDev)
                  && ((pDevPort = m_pVMMDev->getVMMDevPort()))
@@ -1254,7 +1254,7 @@ int Console::i_VRDPClientLogon(uint32_t u32ClientId, const char *pszUser, const 
         }
     }
 
-    // @todo r=dj locking required here for m_pVMMDev?
+    /** @todo r=dj locking required here for m_pVMMDev? */
     if (   fProvideGuestCredentials
         && m_pVMMDev)
     {
@@ -1329,7 +1329,7 @@ void Console::i_VRDPClientConnect(uint32_t u32ClientId)
     {
         pPort->pfnVRDPChange(pPort,
                              true,
-                             VRDP_EXPERIENCE_LEVEL_FULL); // @todo configurable
+                             VRDP_EXPERIENCE_LEVEL_FULL); /** @todo configurable */
     }
 
     NOREF(u32ClientId);
@@ -3895,6 +3895,7 @@ DECLCALLBACK(int) Console::i_detachStorageDevice(Console *pThis,
 
         CFGMR3Dump(pCtlInst);
     }
+#ifdef VBOX_WITH_USB
     else
     {
         /* Find the correct USB device in the list. */
@@ -3910,6 +3911,7 @@ DECLCALLBACK(int) Console::i_detachStorageDevice(Console *pThis,
         AssertRCReturn(rc, rc);
         pThis->mUSBStorageDevices.erase(it);
     }
+#endif
 
     LogFlowFunc(("Returning %Rrc\n", rcRet));
     return rcRet;
@@ -6239,20 +6241,41 @@ HRESULT Console::i_resume(Reason_T aReason, AutoWriteLock &alock)
     }
     else
     {
-        VMRESUMEREASON enmReason = VMRESUMEREASON_USER;
+        VMRESUMEREASON enmReason;
         if (aReason == Reason_HostResume)
         {
             /*
              * Host resume may be called multiple times successively. We don't want to VMR3Resume->vmR3Resume->vmR3TrySetState()
-             * to assert on us, hence check for the VM state here and bail if it's already in the 'running' state.
+             * to assert on us, hence check for the VM state here and bail if it's not in the 'suspended' state.
              * See @bugref{3495}.
+             *
+             * Also, don't resume the VM through a host-resume unless it was suspended due to a host-suspend.
              */
-            enmReason = VMRESUMEREASON_HOST_RESUME;
-            if (VMR3GetStateU(ptrVM.rawUVM()) == VMSTATE_RUNNING)
+            if (VMR3GetStateU(ptrVM.rawUVM()) != VMSTATE_SUSPENDED)
+            {
+                LogRel(("Ignoring VM resume request, VM is currently not suspended\n"));
                 return S_OK;
+            }
+            if (VMR3GetSuspendReason(ptrVM.rawUVM()) != VMSUSPENDREASON_HOST_SUSPEND)
+            {
+                LogRel(("Ignoring VM resume request, VM was not suspended due to host-suspend\n"));
+                return S_OK;
+            }
+
+            enmReason = VMRESUMEREASON_HOST_RESUME;
         }
-        else if (aReason == Reason_Snapshot)
-            enmReason = VMRESUMEREASON_STATE_SAVED;
+        else
+        {
+            /*
+             * Any other reason to resume the VM throws an error when the VM was suspended due to a host suspend.
+             * See @bugref{7836}.
+             */
+            if (   VMR3GetStateU(ptrVM.rawUVM()) == VMSTATE_SUSPENDED
+                && VMR3GetSuspendReason(ptrVM.rawUVM()) == VMSUSPENDREASON_HOST_SUSPEND)
+                return setError(VBOX_E_INVALID_VM_STATE, tr("VM is paused due to host power management"));
+
+            enmReason = aReason == Reason_Snapshot ? VMRESUMEREASON_STATE_SAVED : VMRESUMEREASON_USER;
+        }
 
         // for snapshots: no state change callback, VBoxSVC does everything
         if (aReason == Reason_Snapshot)
@@ -8502,19 +8525,19 @@ int Console::i_changeDnDMode(DnDMode_T aDnDMode)
     {
         default:
         case DnDMode_Disabled:
-            LogRel(("Changed drag and drop mode to: Off\n"));
+            LogRel(("Drag and drop mode: Off\n"));
             parm.u.uint32 = VBOX_DRAG_AND_DROP_MODE_OFF;
             break;
         case DnDMode_GuestToHost:
-            LogRel(("Changed drag and drop mode to: Guest to Host\n"));
+            LogRel(("Drag and drop mode: Guest to Host\n"));
             parm.u.uint32 = VBOX_DRAG_AND_DROP_MODE_GUEST_TO_HOST;
             break;
         case DnDMode_HostToGuest:
-            LogRel(("Changed drag and drop mode to: Host to Guest\n"));
+            LogRel(("Drag and drop mode: Host to Guest\n"));
             parm.u.uint32 = VBOX_DRAG_AND_DROP_MODE_HOST_TO_GUEST;
             break;
         case DnDMode_Bidirectional:
-            LogRel(("Changed drag and drop mode to: Bidirectional\n"));
+            LogRel(("Drag and drop mode: Bidirectional\n"));
             parm.u.uint32 = VBOX_DRAG_AND_DROP_MODE_BIDIRECTIONAL;
             break;
     }

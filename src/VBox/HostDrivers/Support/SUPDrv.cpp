@@ -3759,6 +3759,10 @@ SUPR0DECL(void) SUPR0ResumeVTxOnCpu(bool fSuspended)
  *                                really can use VT-x or not.
  *
  * @remarks Must be called with preemption disabled.
+ *          The caller is also expected to check that the CPU is an Intel (or
+ *          VIA) CPU -and- that it supports VT-x.  Otherwise, this function
+ *          might throw a #GP fault as it tries to read/write MSRs that may not
+ *          be present!
  */
 SUPR0DECL(int) SUPR0GetVmxUsability(bool *pfIsSmxModeAmbiguous)
 {
@@ -3809,26 +3813,51 @@ SUPR0DECL(int) SUPR0GetVmxUsability(bool *pfIsSmxModeAmbiguous)
     else
     {
         /*
-         * MSR is not yet locked; we can change it ourselves here.
-         * Once the lock bit is set, this MSR can no longer be modified.
+         * MSR is not yet locked; we can change it ourselves here. Once the lock bit is set,
+         * this MSR can no longer be modified.
          *
-         * Set both the VMXON and SMX_VMXON bits as we can't determine SMX mode
+         * Set both the VMXON and SMX_VMXON bits (if supported) as we can't determine SMX mode
          * accurately. See @bugref{6873}.
+         *
+         * The reason we are being paranoid here and (re)checking is that we don't assume all callers
+         * of this function to check it like SUPR0QueryVTCaps() currently does. If we get something
+         * wrong here, we can throw a #GP and panic the box. This isn't a performance critical path.
          */
-        u64FeatMsr |= MSR_IA32_FEATURE_CONTROL_LOCK
-                    | MSR_IA32_FEATURE_CONTROL_SMX_VMXON
-                    | MSR_IA32_FEATURE_CONTROL_VMXON;
-        ASMWrMsr(MSR_IA32_FEATURE_CONTROL, u64FeatMsr);
+        uint32_t fFeaturesECX, uDummy;
+        uint32_t uMaxId, uVendorEBX, uVendorECX, uVendorEDX;
+        ASMCpuId(0, &uMaxId, &uVendorEBX, &uVendorECX, &uVendorEDX);
+        ASMCpuId(1, &uDummy, &uDummy, &fFeaturesECX, &uDummy);
+        if (   ASMIsValidStdRange(uMaxId)
+            && (   ASMIsIntelCpuEx(     uVendorEBX, uVendorECX, uVendorEDX)
+                || ASMIsViaCentaurCpuEx(uVendorEBX, uVendorECX, uVendorEDX)))
+        {
+            bool fSmxVmxHwSupport = false;
+            if (   (fFeaturesECX & X86_CPUID_FEATURE_ECX_VMX)
+                && (fFeaturesECX & X86_CPUID_FEATURE_ECX_SMX))
+                fSmxVmxHwSupport = true;
 
-        /* Verify. */
-        u64FeatMsr     = ASMRdMsr(MSR_IA32_FEATURE_CONTROL);
-        fMsrLocked     = RT_BOOL(u64FeatMsr & MSR_IA32_FEATURE_CONTROL_LOCK);
-        fSmxVmxAllowed = fMsrLocked && RT_BOOL(u64FeatMsr & MSR_IA32_FEATURE_CONTROL_SMX_VMXON);
-        fVmxAllowed    = fMsrLocked && RT_BOOL(u64FeatMsr & MSR_IA32_FEATURE_CONTROL_VMXON);
-        if (fSmxVmxAllowed && fVmxAllowed)
-            rc = VINF_SUCCESS;
+            u64FeatMsr |= MSR_IA32_FEATURE_CONTROL_LOCK
+                        | MSR_IA32_FEATURE_CONTROL_VMXON;
+            if (fSmxVmxHwSupport)
+                u64FeatMsr |= MSR_IA32_FEATURE_CONTROL_SMX_VMXON;
+
+            /* Commit. */
+            ASMWrMsr(MSR_IA32_FEATURE_CONTROL, u64FeatMsr);
+
+            /* Verify. */
+            u64FeatMsr     = ASMRdMsr(MSR_IA32_FEATURE_CONTROL);
+            fMsrLocked     = RT_BOOL(u64FeatMsr & MSR_IA32_FEATURE_CONTROL_LOCK);
+            fSmxVmxAllowed = fMsrLocked && RT_BOOL(u64FeatMsr & MSR_IA32_FEATURE_CONTROL_SMX_VMXON);
+            fVmxAllowed    = fMsrLocked && RT_BOOL(u64FeatMsr & MSR_IA32_FEATURE_CONTROL_VMXON);
+            if (   fVmxAllowed
+                && (   !fSmxVmxHwSupport
+                    || fSmxVmxAllowed))
+                rc = VINF_SUCCESS;
+            else
+                rc = VERR_VMX_MSR_LOCKING_FAILED;
+        }
         else
-            rc = VERR_VMX_MSR_LOCKING_FAILED;
+            rc = VERR_VMX_IPE_5;
     }
 
     if (pfIsSmxModeAmbiguous)
@@ -3898,10 +3927,9 @@ SUPR0DECL(int) SUPR0GetSvmUsability(bool fInitSvm)
  * @retval  VERR_UNSUPPORTED_CPU if not identifiable as an AMD, Intel or VIA
  *          (centaur) CPU.
  *
- * @param   pSession        The session handle.
  * @param   pfCaps          Where to store the capabilities.
  */
-SUPR0DECL(int) SUPR0QueryVTCaps(PSUPDRVSESSION pSession, uint32_t *pfCaps)
+int VBOXCALL supdrvQueryVTCapsInternal(uint32_t *pfCaps)
 {
     int  rc = VERR_UNSUPPORTED_CPU;
     bool fIsSmxModeAmbiguous = false;
@@ -3910,7 +3938,6 @@ SUPR0DECL(int) SUPR0QueryVTCaps(PSUPDRVSESSION pSession, uint32_t *pfCaps)
     /*
      * Input validation.
      */
-    AssertReturn(SUP_IS_SESSION_VALID(pSession), VERR_INVALID_PARAMETER);
     AssertPtrReturn(pfCaps, VERR_INVALID_POINTER);
 
     *pfCaps = 0;
@@ -3991,6 +4018,36 @@ SUPR0DECL(int) SUPR0QueryVTCaps(PSUPDRVSESSION pSession, uint32_t *pfCaps)
     if (fIsSmxModeAmbiguous)
         SUPR0Printf(("WARNING! CR4 hints SMX mode but your CPU is too secretive. Proceeding anyway... We wish you good luck!\n"));
     return rc;
+}
+
+/**
+ * Queries the AMD-V and VT-x capabilities of the calling CPU.
+ *
+ * @returns VBox status code.
+ * @retval  VERR_VMX_NO_VMX
+ * @retval  VERR_VMX_MSR_ALL_VMXON_DISABLED
+ * @retval  VERR_VMX_MSR_VMXON_DISABLED
+ * @retval  VERR_VMX_MSR_LOCKING_FAILED
+ * @retval  VERR_SVM_NO_SVM
+ * @retval  VERR_SVM_DISABLED
+ * @retval  VERR_UNSUPPORTED_CPU if not identifiable as an AMD, Intel or VIA
+ *          (centaur) CPU.
+ *
+ * @param   pSession        The session handle.
+ * @param   pfCaps          Where to store the capabilities.
+ */
+SUPR0DECL(int) SUPR0QueryVTCaps(PSUPDRVSESSION pSession, uint32_t *pfCaps)
+{
+    /*
+     * Input validation.
+     */
+    AssertReturn(SUP_IS_SESSION_VALID(pSession), VERR_INVALID_PARAMETER);
+    AssertPtrReturn(pfCaps, VERR_INVALID_POINTER);
+
+    /*
+     * Call common worker.
+     */
+    return supdrvQueryVTCapsInternal(pfCaps);
 }
 
 

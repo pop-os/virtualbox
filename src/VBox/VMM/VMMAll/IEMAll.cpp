@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2013 Oracle Corporation
+ * Copyright (C) 2011-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -768,6 +768,9 @@ DECLINLINE(void) iemInitExec(PIEMCPU pIemCpu, bool fBypassHandlers)
     PCPUMCTX pCtx  = pIemCpu->CTX_SUFF(pCtx);
     PVMCPU   pVCpu = IEMCPU_TO_VMCPU(pIemCpu);
 
+    Assert(!VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_IEM));
+    Assert(pIemCpu->PendingCommit.enmFn == IEMCOMMIT_INVALID);
+
 #if defined(VBOX_STRICT) && (defined(IEM_VERIFICATION_MODE_FULL) || !defined(VBOX_WITH_RAW_MODE_NOT_R0))
     Assert(CPUMSELREG_ARE_HIDDEN_PARTS_VALID(pVCpu, &pCtx->cs));
     Assert(CPUMSELREG_ARE_HIDDEN_PARTS_VALID(pVCpu, &pCtx->ss));
@@ -828,6 +831,9 @@ DECLINLINE(void) iemInitDecoder(PIEMCPU pIemCpu, bool fBypassHandlers)
 {
     PCPUMCTX pCtx  = pIemCpu->CTX_SUFF(pCtx);
     PVMCPU   pVCpu = IEMCPU_TO_VMCPU(pIemCpu);
+
+    Assert(!VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_IEM));
+    Assert(pIemCpu->PendingCommit.enmFn == IEMCOMMIT_INVALID);
 
 #if defined(VBOX_STRICT) && (defined(IEM_VERIFICATION_MODE_FULL) || !defined(VBOX_WITH_RAW_MODE_NOT_R0))
     Assert(CPUMSELREG_ARE_HIDDEN_PARTS_VALID(pVCpu, &pCtx->cs));
@@ -2143,7 +2149,7 @@ IEM_STATIC VBOXSTRICTRC iemRaiseLoadStackFromTss32Or16(PIEMCPU pIemCpu, PCCPUMCT
         }
 
         default:
-            AssertFailedReturn(VERR_INTERNAL_ERROR_2);
+            AssertFailedReturn(VERR_IEM_IPE_4);
     }
     return rcStrict;
 }
@@ -2165,7 +2171,7 @@ IEM_STATIC VBOXSTRICTRC iemRaiseLoadStackFromTss64(PIEMCPU pIemCpu, PCCPUMCTX pC
     Assert(uIst < 8);
     *puRsp  = 0; /* make gcc happy */
 
-    AssertReturn(pCtx->tr.Attr.n.u4Type == AMD64_SEL_TYPE_SYS_TSS_BUSY, VERR_INTERNAL_ERROR_2);
+    AssertReturn(pCtx->tr.Attr.n.u4Type == AMD64_SEL_TYPE_SYS_TSS_BUSY, VERR_IEM_IPE_5);
 
     uint32_t off;
     if (uIst)
@@ -2222,7 +2228,7 @@ iemRaiseXcptOrIntInRealMode(PIEMCPU     pIemCpu,
                             uint16_t    uErr,
                             uint64_t    uCr2)
 {
-    AssertReturn(pIemCpu->enmCpuMode == IEMMODE_16BIT, VERR_INTERNAL_ERROR_3);
+    AssertReturn(pIemCpu->enmCpuMode == IEMMODE_16BIT, VERR_IEM_IPE_6);
     NOREF(uErr); NOREF(uCr2);
 
     /*
@@ -4900,14 +4906,11 @@ IEM_STATIC void iemRegAddToRipAndClearRF(PIEMCPU pIemCpu, uint8_t cbInstr)
 
     pCtx->eflags.Bits.u1RF = 0;
 
+    /* NB: Must be kept in sync with HM (xxxAdvanceGuestRip). */
     switch (pIemCpu->enmCpuMode)
     {
+        /** @todo investigate if EIP or RIP is really incremented. */
         case IEMMODE_16BIT:
-            Assert(pCtx->rip <= UINT16_MAX);
-            pCtx->eip += cbInstr;
-            pCtx->eip &= UINT32_C(0xffff);
-            break;
-
         case IEMMODE_32BIT:
             pCtx->eip += cbInstr;
             Assert(pCtx->rip <= UINT32_MAX);
@@ -6234,7 +6237,7 @@ iemMemApplySegment(PIEMCPU pIemCpu, uint32_t fAccess, uint8_t iSegReg, size_t cb
             return VINF_SUCCESS;
 
         default:
-            AssertFailedReturn(VERR_INTERNAL_ERROR_5);
+            AssertFailedReturn(VERR_IEM_IPE_7);
     }
 }
 
@@ -6828,7 +6831,7 @@ IEM_STATIC VBOXSTRICTRC iemMemBounceBufferMapPhys(PIEMCPU pIemCpu, unsigned iMem
         && rcMap != VERR_PGM_PHYS_TLB_CATCH_ALL
         && rcMap != VERR_PGM_PHYS_TLB_UNASSIGNED)
     {
-        AssertReturn(RT_FAILURE_NP(rcMap), VERR_INTERNAL_ERROR_3);
+        AssertReturn(RT_FAILURE_NP(rcMap), VERR_IEM_IPE_8);
         return rcMap;
     }
     pIemCpu->cPotentialExits++;
@@ -6964,7 +6967,11 @@ iemMemMap(PIEMCPU pIemCpu, void **ppvMem, size_t cbMem, uint8_t iSegReg, RTGCPTR
         || pIemCpu->aMemMappings[iMemMap].fAccess != IEM_ACCESS_INVALID)
     {
         iMemMap = iemMemMapFindFree(pIemCpu);
-        AssertReturn(iMemMap < RT_ELEMENTS(pIemCpu->aMemMappings), VERR_INTERNAL_ERROR_3);
+        AssertLogRelMsgReturn(iMemMap < RT_ELEMENTS(pIemCpu->aMemMappings),
+                              ("active=%d fAccess[0] = {%#x, %#x, %#x}\n", pIemCpu->cActiveMappings,
+                               pIemCpu->aMemMappings[0].fAccess, pIemCpu->aMemMappings[1].fAccess,
+                               pIemCpu->aMemMappings[2].fAccess),
+                              VERR_IEM_IPE_9);
     }
 
     /*
@@ -9438,7 +9445,7 @@ IEM_STATIC VBOXSTRICTRC iemOpHlpCalcRmEffAddr(PIEMCPU pIemCpu, uint8_t bRm, uint
                     case 0:  u16EffAddr = 0;                             break;
                     case 1:  IEM_OPCODE_GET_NEXT_S8_SX_U16(&u16EffAddr); break;
                     case 2:  IEM_OPCODE_GET_NEXT_U16(&u16EffAddr);       break;
-                    default: AssertFailedReturn(VERR_INTERNAL_ERROR_2); /* (caller checked for these) */
+                    default: AssertFailedReturn(VERR_IEM_IPE_1); /* (caller checked for these) */
                 }
 
                 /* Add the base and index registers to the disp. */
@@ -9544,7 +9551,7 @@ IEM_STATIC VBOXSTRICTRC iemOpHlpCalcRmEffAddr(PIEMCPU pIemCpu, uint8_t bRm, uint
                         break;
                     }
                     default:
-                        AssertFailedReturn(VERR_INTERNAL_ERROR_2); /* (caller checked for these) */
+                        AssertFailedReturn(VERR_IEM_IPE_2); /* (caller checked for these) */
                 }
 
             }
@@ -9997,13 +10004,13 @@ VMM_INT_DECL(void)   IEMNotifyIOPortWrite(PVM pVM, RTIOPORT Port, uint32_t u32Va
 }
 
 
-VMM_INT_DECL(void)   IEMNotifyIOPortReadString(PVM pVM, RTIOPORT Port, RTGCPTR GCPtrDst, RTGCUINTREG cTransfers, size_t cbValue)
+VMM_INT_DECL(void)   IEMNotifyIOPortReadString(PVM pVM, RTIOPORT Port, void *pvDst, RTGCUINTREG cTransfers, size_t cbValue)
 {
     AssertFailed();
 }
 
 
-VMM_INT_DECL(void)   IEMNotifyIOPortWriteString(PVM pVM, RTIOPORT Port, RTGCPTR GCPtrSrc, RTGCUINTREG cTransfers, size_t cbValue)
+VMM_INT_DECL(void)   IEMNotifyIOPortWriteString(PVM pVM, RTIOPORT Port, void const *pvSrc, RTGCUINTREG cTransfers, size_t cbValue)
 {
     AssertFailed();
 }
@@ -10714,6 +10721,8 @@ DECL_FORCE_INLINE(VBOXSTRICTRC) iemExecStatusCodeFiddling(PIEMCPU pIemCpu, VBOXS
                       || rcStrict == VINF_CPUM_R3_MSR_READ
                       || rcStrict == VINF_CPUM_R3_MSR_WRITE
                       || rcStrict == VINF_EM_RAW_EMULATE_INSTR
+                      || rcStrict == VINF_EM_RAW_TO_R3
+                      || rcStrict == VINF_EM_RAW_EMULATE_IO_BLOCK
                       /* raw-mode / virt handlers only: */
                       || rcStrict == VINF_EM_RAW_EMULATE_INSTR_GDT_FAULT
                       || rcStrict == VINF_EM_RAW_EMULATE_INSTR_TSS_FAULT
@@ -11553,4 +11562,89 @@ VMM_INT_DECL(VBOXSTRICTRC) IEMExecDecodedXsetbv(PVMCPU pVCpu, uint8_t cbInstr)
     VBOXSTRICTRC rcStrict = IEM_CIMPL_CALL_0(iemCImpl_xsetbv);
     return iemExecStatusCodeFiddling(pIemCpu, rcStrict);
 }
+
+#ifdef IN_RING3
+
+/**
+ * Called by force-flag handling code when VMCPU_FF_IEM is set.
+ *
+ * @returns Merge between @a rcStrict and what the commit operation returned.
+ * @param   pVCpu           Pointer to the cross context CPU structure for the
+ *                          calling EMT.
+ * @param   rcStrict        The status code returned by ring-0 or raw-mode.
+ */
+VMMR3_INT_DECL(VBOXSTRICTRC) IEMR3DoPendingAction(PVMCPU pVCpu, VBOXSTRICTRC rcStrict)
+{
+    PIEMCPU      pIemCpu = &pVCpu->iem.s;
+
+    /*
+     * Retrieve and reset the pending commit.
+     */
+    IEMCOMMIT const enmFn = pIemCpu->PendingCommit.enmFn;
+    pIemCpu->PendingCommit.enmFn = IEMCOMMIT_INVALID;
+    VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_IEM);
+
+    /*
+     * Must reset pass-up status code.
+     */
+    pIemCpu->rcPassUp = VINF_SUCCESS;
+
+    /*
+     * Call the function.  Currently using switch here instead of function
+     * pointer table as a switch won't get skewed.
+     */
+    VBOXSTRICTRC rcStrictCommit;
+    switch (enmFn)
+    {
+        case IEMCOMMIT_INS_OP8_ADDR16:          rcStrictCommit = iemR3CImpl_commit_ins_op8_addr16(pIemCpu, pIemCpu->PendingCommit.cbInstr); break;
+        case IEMCOMMIT_INS_OP8_ADDR32:          rcStrictCommit = iemR3CImpl_commit_ins_op8_addr32(pIemCpu, pIemCpu->PendingCommit.cbInstr); break;
+        case IEMCOMMIT_INS_OP8_ADDR64:          rcStrictCommit = iemR3CImpl_commit_ins_op8_addr64(pIemCpu, pIemCpu->PendingCommit.cbInstr); break;
+        case IEMCOMMIT_INS_OP16_ADDR16:         rcStrictCommit = iemR3CImpl_commit_ins_op16_addr16(pIemCpu, pIemCpu->PendingCommit.cbInstr); break;
+        case IEMCOMMIT_INS_OP16_ADDR32:         rcStrictCommit = iemR3CImpl_commit_ins_op16_addr32(pIemCpu, pIemCpu->PendingCommit.cbInstr); break;
+        case IEMCOMMIT_INS_OP16_ADDR64:         rcStrictCommit = iemR3CImpl_commit_ins_op16_addr64(pIemCpu, pIemCpu->PendingCommit.cbInstr); break;
+        case IEMCOMMIT_INS_OP32_ADDR16:         rcStrictCommit = iemR3CImpl_commit_ins_op32_addr16(pIemCpu, pIemCpu->PendingCommit.cbInstr); break;
+        case IEMCOMMIT_INS_OP32_ADDR32:         rcStrictCommit = iemR3CImpl_commit_ins_op32_addr32(pIemCpu, pIemCpu->PendingCommit.cbInstr); break;
+        case IEMCOMMIT_INS_OP32_ADDR64:         rcStrictCommit = iemR3CImpl_commit_ins_op32_addr64(pIemCpu, pIemCpu->PendingCommit.cbInstr); break;
+        case IEMCOMMIT_REP_INS_OP8_ADDR16:      rcStrictCommit = iemR3CImpl_commit_rep_ins_op8_addr16(pIemCpu, pIemCpu->PendingCommit.cbInstr); break;
+        case IEMCOMMIT_REP_INS_OP8_ADDR32:      rcStrictCommit = iemR3CImpl_commit_rep_ins_op8_addr32(pIemCpu, pIemCpu->PendingCommit.cbInstr); break;
+        case IEMCOMMIT_REP_INS_OP8_ADDR64:      rcStrictCommit = iemR3CImpl_commit_rep_ins_op8_addr64(pIemCpu, pIemCpu->PendingCommit.cbInstr); break;
+        case IEMCOMMIT_REP_INS_OP16_ADDR16:     rcStrictCommit = iemR3CImpl_commit_rep_ins_op16_addr16(pIemCpu, pIemCpu->PendingCommit.cbInstr); break;
+        case IEMCOMMIT_REP_INS_OP16_ADDR32:     rcStrictCommit = iemR3CImpl_commit_rep_ins_op16_addr32(pIemCpu, pIemCpu->PendingCommit.cbInstr); break;
+        case IEMCOMMIT_REP_INS_OP16_ADDR64:     rcStrictCommit = iemR3CImpl_commit_rep_ins_op16_addr64(pIemCpu, pIemCpu->PendingCommit.cbInstr); break;
+        case IEMCOMMIT_REP_INS_OP32_ADDR16:     rcStrictCommit = iemR3CImpl_commit_rep_ins_op32_addr16(pIemCpu, pIemCpu->PendingCommit.cbInstr); break;
+        case IEMCOMMIT_REP_INS_OP32_ADDR32:     rcStrictCommit = iemR3CImpl_commit_rep_ins_op32_addr32(pIemCpu, pIemCpu->PendingCommit.cbInstr); break;
+        case IEMCOMMIT_REP_INS_OP32_ADDR64:     rcStrictCommit = iemR3CImpl_commit_rep_ins_op32_addr64(pIemCpu, pIemCpu->PendingCommit.cbInstr); break;
+        default:
+            AssertLogRelMsgFailedReturn(("enmFn=%#x (%d)\n", pIemCpu->PendingCommit.enmFn, pIemCpu->PendingCommit.enmFn), VERR_IEM_IPE_2);
+    }
+
+    /*
+     * Merge status code (if any) with the incomming one.
+     */
+    rcStrictCommit = iemExecStatusCodeFiddling(pIemCpu, rcStrictCommit);
+    if (RT_LIKELY(rcStrictCommit == VINF_SUCCESS))
+        return rcStrict;
+    if (RT_LIKELY(rcStrict == VINF_SUCCESS || rcStrict == VINF_EM_RAW_TO_R3))
+        return rcStrictCommit;
+
+    /* Complicated. */
+    if (RT_FAILURE(rcStrict))
+        return rcStrict;
+    if (RT_FAILURE(rcStrictCommit))
+        return rcStrictCommit;
+    if (   rcStrict >= VINF_EM_FIRST
+        && rcStrict <= VINF_EM_LAST)
+    {
+        if (   rcStrictCommit >= VINF_EM_FIRST
+            && rcStrictCommit <= VINF_EM_LAST)
+            return rcStrict < rcStrictCommit ? rcStrict : rcStrictCommit;
+
+        /* This really shouldn't happen. Check PGM + handler code! */
+        AssertLogRelMsgFailedReturn(("rcStrictCommit=%Rrc rcStrict=%Rrc enmFn=%d\n", VBOXSTRICTRC_VAL(rcStrictCommit), VBOXSTRICTRC_VAL(rcStrict), enmFn), VERR_IEM_IPE_1);
+    }
+    /* This shouldn't really happen either, see IOM_SUCCESS. */
+    AssertLogRelMsgFailedReturn(("rcStrictCommit=%Rrc rcStrict=%Rrc enmFn=%d\n", VBOXSTRICTRC_VAL(rcStrictCommit), VBOXSTRICTRC_VAL(rcStrict), enmFn), VERR_IEM_IPE_2);
+}
+
+#endif /* IN_RING */
 

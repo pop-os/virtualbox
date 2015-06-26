@@ -73,6 +73,8 @@
      || (a_rcStrict) == ((a_fWrite) ? VINF_IOM_R3_MMIO_WRITE : VINF_IOM_R3_MMIO_READ) \
      || (a_rcStrict) == VINF_IOM_R3_MMIO_READ_WRITE \
      \
+     || ((a_fWrite) ? (a_rcStrict) == VINF_EM_RAW_EMULATE_IO_BLOCK : false) \
+     \
      || (a_rcStrict) == VINF_EM_RAW_EMULATE_INSTR  \
      || (a_rcStrict) == VINF_EM_DBG_STOP \
      || (a_rcStrict) == VINF_EM_DBG_BREAKPOINT \
@@ -565,7 +567,7 @@ VMMDECL(bool) PGMPhysIsGCPhysNormal(PVM pVM, RTGCPHYS GCPhys)
  * @param   GCPhys  The GC physical address to convert.
  * @param   pHCPhys Where to store the HC physical address on success.
  */
-VMMDECL(int) PGMPhysGCPhys2HCPhys(PVM pVM, RTGCPHYS GCPhys, PRTHCPHYS pHCPhys)
+VMM_INT_DECL(int) PGMPhysGCPhys2HCPhys(PVM pVM, RTGCPHYS GCPhys, PRTHCPHYS pHCPhys)
 {
     pgmLock(pVM);
     PPGMPAGE pPage;
@@ -1245,10 +1247,15 @@ static int pgmPhysPageMapCommon(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhys, PPPGMP
             *ppv = pVM->pgm.s.CTXALLSUFF(pvZeroPg);
         }
         else
+# ifdef VBOX_WITH_2ND_IEM_STEP
+            *ppv = pVM->pgm.s.CTXALLSUFF(pvZeroPg);
+# else
         {
+            /* This kind of screws up the TLB entry if accessed from a different section afterwards. */
             static uint8_t s_abPlayItSafe[0x1000*2];  /* I don't dare return the zero page at the moment. */
             *ppv = (uint8_t *)((uintptr_t)&s_abPlayItSafe[0x1000] & ~(uintptr_t)0xfff);
         }
+# endif
         *ppMap = NULL;
         return VINF_SUCCESS;
     }
@@ -1759,7 +1766,7 @@ int pgmPhysGCPhys2CCPtrInternalReadOnly(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhys
  *          before the returned page!
  * @thread  Any thread.
  */
-VMMDECL(int) PGMPhysGCPhys2CCPtr(PVM pVM, RTGCPHYS GCPhys, void **ppv, PPGMPAGEMAPLOCK pLock)
+VMM_INT_DECL(int) PGMPhysGCPhys2CCPtr(PVM pVM, RTGCPHYS GCPhys, void **ppv, PPGMPAGEMAPLOCK pLock)
 {
     int rc = pgmLock(pVM);
     AssertRCReturn(rc, rc);
@@ -1862,7 +1869,7 @@ VMMDECL(int) PGMPhysGCPhys2CCPtr(PVM pVM, RTGCPHYS GCPhys, void **ppv, PPGMPAGEM
  *          before the returned page!
  * @thread  Any thread.
  */
-VMMDECL(int) PGMPhysGCPhys2CCPtrReadOnly(PVM pVM, RTGCPHYS GCPhys, void const **ppv, PPGMPAGEMAPLOCK pLock)
+VMM_INT_DECL(int) PGMPhysGCPhys2CCPtrReadOnly(PVM pVM, RTGCPHYS GCPhys, void const **ppv, PPGMPAGEMAPLOCK pLock)
 {
     int rc = pgmLock(pVM);
     AssertRCReturn(rc, rc);
@@ -1952,7 +1959,7 @@ VMMDECL(int) PGMPhysGCPhys2CCPtrReadOnly(PVM pVM, RTGCPHYS GCPhys, void const **
  *          the PGM one) because of the deadlock risk.
  * @thread  EMT
  */
-VMMDECL(int) PGMPhysGCPtr2CCPtr(PVMCPU pVCpu, RTGCPTR GCPtr, void **ppv, PPGMPAGEMAPLOCK pLock)
+VMM_INT_DECL(int) PGMPhysGCPtr2CCPtr(PVMCPU pVCpu, RTGCPTR GCPtr, void **ppv, PPGMPAGEMAPLOCK pLock)
 {
     VM_ASSERT_EMT(pVCpu->CTX_SUFF(pVM));
     RTGCPHYS GCPhys;
@@ -1978,15 +1985,16 @@ VMMDECL(int) PGMPhysGCPtr2CCPtr(PVMCPU pVCpu, RTGCPTR GCPtr, void **ppv, PPGMPAG
  * @retval  VERR_PGM_INVALID_GC_PHYSICAL_ADDRESS if it's not a valid physical address.
  *
  * @param   pVCpu       Pointer to the VMCPU.
- * @param   GCPhys      The guest physical address of the page that should be mapped.
- * @param   ppv         Where to store the address corresponding to GCPhys.
+ * @param   GCPtr       The guest physical address of the page that should be
+ *                      mapped.
+ * @param   ppv         Where to store the address corresponding to GCPtr.
  * @param   pLock       Where to store the lock information that PGMPhysReleasePageMappingLock needs.
  *
  * @remark  Avoid calling this API from within critical sections (other than
  *          the PGM one) because of the deadlock risk.
  * @thread  EMT
  */
-VMMDECL(int) PGMPhysGCPtr2CCPtrReadOnly(PVMCPU pVCpu, RTGCPTR GCPtr, void const **ppv, PPGMPAGEMAPLOCK pLock)
+VMM_INT_DECL(int) PGMPhysGCPtr2CCPtrReadOnly(PVMCPU pVCpu, RTGCPTR GCPtr, void const **ppv, PPGMPAGEMAPLOCK pLock)
 {
     VM_ASSERT_EMT(pVCpu->CTX_SUFF(pVM));
     RTGCPHYS GCPhys;
@@ -2203,7 +2211,7 @@ VMMDECL(int) PGMPhysGCPtr2GCPhys(PVMCPU pVCpu, RTGCPTR GCPtr, PRTGCPHYS pGCPhys)
  * @param   GCPtr       The guest pointer to convert.
  * @param   pHCPhys     Where to store the HC physical address.
  */
-VMMDECL(int) PGMPhysGCPtr2HCPhys(PVMCPU pVCpu, RTGCPTR GCPtr, PRTHCPHYS pHCPhys)
+VMM_INT_DECL(int) PGMPhysGCPtr2HCPhys(PVMCPU pVCpu, RTGCPTR GCPtr, PRTHCPHYS pHCPhys)
 {
     PVM pVM = pVCpu->CTX_SUFF(pVM);
     RTGCPHYS GCPhys;
@@ -2426,8 +2434,8 @@ static VBOXSTRICTRC pgmPhysReadHandler(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhys,
  * @retval  VINF_EM_HALT in RC and R0 - read completed.
  * @retval  VINF_SELM_SYNC_GDT in RC only - read completed.
  *
- * @retval  VINF_EM_DBG_STOP in RC and R0.
- * @retval  VINF_EM_DBG_BREAKPOINT in RC and R0.
+ * @retval  VINF_EM_DBG_STOP in RC and R0 - read completed.
+ * @retval  VINF_EM_DBG_BREAKPOINT in RC and R0 - read completed.
  * @retval  VINF_EM_RAW_EMULATE_INSTR in RC and R0 only.
  *
  * @retval  VINF_IOM_R3_MMIO_READ in RC and R0.
@@ -3046,12 +3054,14 @@ static VBOXSTRICTRC pgmPhysWriteHandler(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhys
  * @retval  VINF_EM_HALT in RC and R0 - write completed.
  * @retval  VINF_SELM_SYNC_GDT in RC only - write completed.
  *
- * @retval  VINF_EM_DBG_STOP in RC and R0.
- * @retval  VINF_EM_DBG_BREAKPOINT in RC and R0.
+ * @retval  VINF_EM_DBG_STOP in RC and R0 - write completed.
+ * @retval  VINF_EM_DBG_BREAKPOINT in RC and R0 - write completed.
  * @retval  VINF_EM_RAW_EMULATE_INSTR in RC and R0 only.
  *
  * @retval  VINF_IOM_R3_MMIO_WRITE in RC and R0.
  * @retval  VINF_IOM_R3_MMIO_READ_WRITE in RC and R0.
+ *
+ * @retval  VINF_EM_RAW_EMULATE_IO_BLOCK in R0 only.
  *
  * @retval  VINF_EM_RAW_EMULATE_INSTR_GDT_FAULT in RC only - write completed.
  * @retval  VINF_EM_RAW_EMULATE_INSTR_LDT_FAULT in RC only.
@@ -4349,7 +4359,7 @@ VMMDECL(int) PGMPhysInterpretedWriteNoHandlers(PVMCPU pVCpu, PCPUMCTXCORE pCtxCo
  * @param   pVM             Pointer to the VM.
  * @param   GCPhys          Guest physical address
  */
-VMMDECL(PGMPAGETYPE) PGMPhysGetPageType(PVM pVM, RTGCPHYS GCPhys)
+VMM_INT_DECL(PGMPAGETYPE) PGMPhysGetPageType(PVM pVM, RTGCPHYS GCPhys)
 {
     pgmLock(pVM);
     PPGMPAGE pPage = pgmPhysGetPage(pVM, GCPhys);

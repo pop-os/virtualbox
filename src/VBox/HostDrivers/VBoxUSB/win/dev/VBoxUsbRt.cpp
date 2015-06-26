@@ -3,7 +3,7 @@
  * VBox USB R0 runtime
  */
 /*
- * Copyright (C) 2011 Oracle Corporation
+ * Copyright (C) 2011-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1303,7 +1303,6 @@ static NTSTATUS vboxUsbRtUrbSend(PVBOXUSBDEV_EXT pDevExt, PIRP pIrp, PUSBSUP_URB
             }
             case USBSUP_TRANSFER_TYPE_ISOC:
             {
-                Assert(pUrbInfo->dir == USBSUP_DIRECTION_IN || pUrbInfo->type == USBSUP_TRANSFER_TYPE_BULK);
                 Assert(hPipe);
                 VBOXUSB_PIPE_INFO *pPipeInfo = vboxUsbRtGetPipeInfo(pDevExt, pUrbInfo->ep | ((pUrbInfo->dir == USBSUP_DIRECTION_IN) ? 0x80 : 0x00));
                 if (pPipeInfo == NULL)

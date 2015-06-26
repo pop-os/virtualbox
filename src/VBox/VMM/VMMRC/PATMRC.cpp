@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -55,8 +55,12 @@ DECLEXPORT(VBOXSTRICTRC) patmRCVirtPagePfHandler(PVM pVM, PVMCPU pVCpu, RTGCUINT
                                                  RTGCPTR pvFault, RTGCPTR pvRange, uintptr_t offRange, void *pvUser)
 {
     NOREF(pVCpu); NOREF(uErrorCode); NOREF(pRegFrame); NOREF(pvFault); NOREF(pvRange); NOREF(offRange);
-    Assert(pvUser); Assert(!((uintptr_t)pvUser & PAGE_OFFSET_MASK));
-    pVM->patm.s.pvFaultMonitor = (RTRCPTR)((uintptr_t)pvUser + (pvFault & PAGE_OFFSET_MASK));
+
+    Assert(pvUser);
+    Assert(!((uintptr_t)pvUser & PAGE_OFFSET_MASK));
+    Assert(((uintptr_t)pvUser + (pvFault & PAGE_OFFSET_MASK)) == pvRange + offRange);
+
+    pVM->patm.s.pvFaultMonitor = (RTRCPTR)(pvRange + offRange);
     return VINF_PATM_CHECK_PATCH_PAGE;
 }
 

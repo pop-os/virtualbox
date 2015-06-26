@@ -50,6 +50,7 @@ UIWizardNewVM::UIWizardNewVM(QWidget *pParent, const QString &strGroup /* = QStr
     , m_iSCSICount(0)
     , m_iFloppyCount(0)
     , m_iSASCount(0)
+    , m_iUSBCount(0)
 {
 #ifndef Q_WS_MAC
     /* Assign watermark: */
@@ -102,6 +103,8 @@ bool UIWizardNewVM::createVM()
 
     /* Selecting recommended Audio Controller: */
     m_machine.GetAudioAdapter().SetAudioController(type.GetRecommendedAudioController());
+    /* And the Audio Codec: */
+    m_machine.GetAudioAdapter().SetAudioCodec(type.GetRecommendedAudioCodec());
     /* Enabling audio by default: */
     m_machine.GetAudioAdapter().SetEnabled(true);
 
@@ -361,6 +364,14 @@ QString UIWizardNewVM::getNextControllerName(KStorageBus type)
             ++m_iSASCount;
             if (m_iSASCount > 1)
                 strControllerName = QString("%1 %2").arg(strControllerName).arg(m_iSASCount);
+            break;
+        }
+        case KStorageBus_USB:
+        {
+            strControllerName = "USB";
+            ++m_iUSBCount;
+            if (m_iUSBCount > 1)
+                strControllerName = QString("%1 %2").arg(strControllerName).arg(m_iUSBCount);
             break;
         }
         default:

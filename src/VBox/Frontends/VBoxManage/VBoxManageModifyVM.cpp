@@ -138,6 +138,7 @@ enum
 #endif
     MODIFYVM_GUESTMEMORYBALLOON,
     MODIFYVM_AUDIOCONTROLLER,
+    MODIFYVM_AUDIOCODEC,
     MODIFYVM_AUDIO,
     MODIFYVM_CLIPBOARD,
     MODIFYVM_DRAGANDDROP,
@@ -306,6 +307,7 @@ static const RTGETOPTDEF g_aModifyVMOptions[] =
 #endif
     { "--guestmemoryballoon",       MODIFYVM_GUESTMEMORYBALLOON,        RTGETOPT_REQ_UINT32 },
     { "--audiocontroller",          MODIFYVM_AUDIOCONTROLLER,           RTGETOPT_REQ_STRING },
+    { "--audiocodec",               MODIFYVM_AUDIOCODEC,                RTGETOPT_REQ_STRING },
     { "--audio",                    MODIFYVM_AUDIO,                     RTGETOPT_REQ_STRING },
     { "--clipboard",                MODIFYVM_CLIPBOARD,                 RTGETOPT_REQ_STRING },
     { "--draganddrop",              MODIFYVM_DRAGANDDROP,               RTGETOPT_REQ_STRING },
@@ -1934,15 +1936,20 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                 }
                 if (fEnableUsb)
                 {
-                    /* Make sure the OHCI controller is enabled. */
+                    /* Make sure either the OHCI or xHCI controller is enabled. */
                     ULONG cOhciCtrls = 0;
+                    ULONG cXhciCtrls = 0;
                     rc = sessionMachine->GetUSBControllerCountByType(USBControllerType_OHCI, &cOhciCtrls);
-                    if (   SUCCEEDED(rc)
-                        && !cOhciCtrls)
-                    {
-                        ComPtr<IUSBController> UsbCtl;
-                        CHECK_ERROR(sessionMachine, AddUSBController(Bstr("OHCI").raw(), USBControllerType_OHCI,
-                                                              UsbCtl.asOutParam()));
+                    if (SUCCEEDED(rc)) {
+                        rc = sessionMachine->GetUSBControllerCountByType(USBControllerType_XHCI, &cXhciCtrls);
+                        if (   SUCCEEDED(rc)
+                            && cOhciCtrls + cXhciCtrls == 0)
+                        {
+                            /* If there's nothing, enable OHCI (always available). */
+                            ComPtr<IUSBController> UsbCtl;
+                            CHECK_ERROR(sessionMachine, AddUSBController(Bstr("OHCI").raw(), USBControllerType_OHCI,
+                                                                  UsbCtl.asOutParam()));
+                        }
                     }
                 }
                 break;
@@ -1968,15 +1975,20 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                 }
                 if (fEnableUsb)
                 {
-                    /* Make sure the OHCI controller is enabled. */
+                    /* Make sure either the OHCI or xHCI controller is enabled. */
                     ULONG cOhciCtrls = 0;
+                    ULONG cXhciCtrls = 0;
                     rc = sessionMachine->GetUSBControllerCountByType(USBControllerType_OHCI, &cOhciCtrls);
-                    if (   SUCCEEDED(rc)
-                        && !cOhciCtrls)
-                    {
-                        ComPtr<IUSBController> UsbCtl;
-                        CHECK_ERROR(sessionMachine, AddUSBController(Bstr("OHCI").raw(), USBControllerType_OHCI,
-                                                              UsbCtl.asOutParam()));
+                    if (SUCCEEDED(rc)) {
+                        rc = sessionMachine->GetUSBControllerCountByType(USBControllerType_XHCI, &cXhciCtrls);
+                        if (   SUCCEEDED(rc)
+                            && cOhciCtrls + cXhciCtrls == 0)
+                        {
+                            /* If there's nothing, enable OHCI (always available). */
+                            ComPtr<IUSBController> UsbCtl;
+                            CHECK_ERROR(sessionMachine, AddUSBController(Bstr("OHCI").raw(), USBControllerType_OHCI,
+                                                                  UsbCtl.asOutParam()));
+                        }
                     }
                 }
                 break;
@@ -2142,6 +2154,28 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                 else
                 {
                     errorArgument("Invalid --audiocontroller argument '%s'", ValueUnion.psz);
+                    rc = E_FAIL;
+                }
+                break;
+            }
+
+            case MODIFYVM_AUDIOCODEC:
+            {
+                ComPtr<IAudioAdapter> audioAdapter;
+                sessionMachine->COMGETTER(AudioAdapter)(audioAdapter.asOutParam());
+                ASSERT(audioAdapter);
+
+                if (!RTStrICmp(ValueUnion.psz, "sb16"))
+                    CHECK_ERROR(audioAdapter, COMSETTER(AudioCodec)(AudioCodecType_SB16));
+                else if (!RTStrICmp(ValueUnion.psz, "stac9700"))
+                    CHECK_ERROR(audioAdapter, COMSETTER(AudioCodec)(AudioCodecType_STAC9700));
+                else if (!RTStrICmp(ValueUnion.psz, "ad1980"))
+                    CHECK_ERROR(audioAdapter, COMSETTER(AudioCodec)(AudioCodecType_AD1980));
+                else if (!RTStrICmp(ValueUnion.psz, "stac9221"))
+                    CHECK_ERROR(audioAdapter, COMSETTER(AudioCodec)(AudioCodecType_STAC9221));
+                else
+                {
+                    errorArgument("Invalid --audiocodec argument '%s'", ValueUnion.psz);
                     rc = E_FAIL;
                 }
                 break;

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1013,11 +1013,23 @@ void vusbDevSetAddress(PVUSBDEV pDev, uint8_t u8Address)
 
     PVUSBROOTHUB pRh = vusbDevGetRh(pDev);
     AssertPtrReturnVoid(pRh);
+    if (pDev->u8Address == VUSB_DEFAULT_ADDRESS)
+        pRh->pDefaultAddress = NULL;
 
     vusbDevAddressUnHash(pDev);
 
     if (u8Address == VUSB_DEFAULT_ADDRESS)
+    {
+        if (pRh->pDefaultAddress != NULL)
+        {
+            vusbDevAddressUnHash(pRh->pDefaultAddress);
+            vusbDevSetState(pRh->pDefaultAddress, VUSB_DEVICE_STATE_POWERED);
+            Log(("2 DEFAULT ADDRS\n"));
+        }
+
+        pRh->pDefaultAddress = pDev;
         vusbDevSetState(pDev, VUSB_DEVICE_STATE_DEFAULT);
+    }
     else
         vusbDevSetState(pDev, VUSB_DEVICE_STATE_ADDRESS);
 
@@ -1034,7 +1046,6 @@ static DECLCALLBACK(int) vusbDevCancelAllUrbsWorker(PVUSBDEV pDev, bool fDetachi
     /*
      * Iterate the URBs and cancel them.
      */
-    RTCritSectEnter(&pDev->CritSectAsyncUrbs);
     PVUSBURB pUrb = pDev->pAsyncUrbHead;
     while (pUrb)
     {
@@ -1051,6 +1062,7 @@ static DECLCALLBACK(int) vusbDevCancelAllUrbsWorker(PVUSBDEV pDev, bool fDetachi
     /*
      * Reap any URBs which became ripe during cancel now.
      */
+    RTCritSectEnter(&pDev->CritSectAsyncUrbs);
     unsigned cReaped;
     do
     {
@@ -1166,8 +1178,7 @@ int vusbDevUrbIoThreadCreate(PVUSBDEV pDev)
 
     ASMAtomicXchgBool(&pDev->fTerminate, false);
     rc = RTThreadCreateF(&pDev->hUrbIoThread, vusbDevUrbIoThread, pDev, 0, RTTHREADTYPE_IO,
-                         RTTHREADFLAGS_WAITABLE, "%s-%d", pDev->pUsbIns->pReg->szName,
-                         pDev->pUsbIns->iInstance);
+                         RTTHREADFLAGS_WAITABLE, "USBDevIo-%d", pDev->i16Port);
     if (RT_SUCCESS(rc))
     {
         /* Wait for it to become active. */
@@ -1221,6 +1232,8 @@ int vusbDevDetach(PVUSBDEV pDev)
     PVUSBROOTHUB pRh = vusbDevGetRh(pDev);
     if (!pRh)
         AssertMsgFailedReturn(("Not attached!\n"), VERR_VUSB_DEVICE_NOT_ATTACHED);
+    if (pRh->pDefaultAddress == pDev)
+        pRh->pDefaultAddress = NULL;
 
     pDev->pHub->pOps->pfnDetach(pDev->pHub, pDev);
     pDev->i16Port = -1;
@@ -1553,17 +1566,17 @@ DECLCALLBACK(VUSBDEVICESTATE) vusbIDeviceGetState(PVUSBIDEVICE pInterface)
 
 
 /**
- * @interface_method_impl{VUSBIDEVICE,pfnIsEmulated}
+ * @interface_method_impl{VUSBIDEVICE,pfnIsSavedStateSupported}
  */
-DECLCALLBACK(bool) vusbIDeviceIsEmulated(PVUSBIDEVICE pInterface)
+DECLCALLBACK(bool) vusbIDeviceIsSavedStateSupported(PVUSBIDEVICE pInterface)
 {
     PVUSBDEV pDev = (PVUSBDEV)pInterface;
-    bool fEmulated = !!(pDev->pUsbIns->pReg->fFlags & PDM_USBREG_EMULATED_DEVICE);
+    bool fSavedStateSupported = RT_BOOL(pDev->pUsbIns->pReg->fFlags & PDM_USBREG_SAVED_STATE_SUPPORTED);
 
     LogFlowFunc(("pInterface=%p\n", pInterface));
 
-    LogFlowFunc(("returns %RTbool\n", fEmulated));
-    return fEmulated;
+    LogFlowFunc(("returns %RTbool\n", fSavedStateSupported));
+    return fSavedStateSupported;
 }
 
 
@@ -1714,13 +1727,13 @@ int vusbDevInit(PVUSBDEV pDev, PPDMUSBINS pUsbIns, const char *pszCaptureFilenam
     Assert(!pDev->IDevice.pfnPowerOn);
     Assert(!pDev->IDevice.pfnPowerOff);
     Assert(!pDev->IDevice.pfnGetState);
-    Assert(!pDev->IDevice.pfnIsEmulated);
+    Assert(!pDev->IDevice.pfnIsSavedStateSupported);
 
     pDev->IDevice.pfnReset = vusbIDeviceReset;
     pDev->IDevice.pfnPowerOn = vusbIDevicePowerOn;
     pDev->IDevice.pfnPowerOff = vusbIDevicePowerOff;
     pDev->IDevice.pfnGetState = vusbIDeviceGetState;
-    pDev->IDevice.pfnIsEmulated = vusbIDeviceIsEmulated;
+    pDev->IDevice.pfnIsSavedStateSupported = vusbIDeviceIsSavedStateSupported;
     pDev->IDevice.pfnGetSpeed = vusbIDeviceGetSpeed;
     pDev->pUsbIns = pUsbIns;
     pDev->pNext = NULL;

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011 Oracle Corporation
+ * Copyright (C) 2011-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -187,12 +187,12 @@ VBOXDRVTOOL_DECL(VOID) VBoxDrvToolRefWaitEqual(PVBOXDRVTOOL_REF pRef, uint32_t u
     LARGE_INTEGER Interval;
     Interval.QuadPart = -(int64_t) 2 /* ms */ * 10000;
     uint32_t cRefs;
-    size_t loops = 0; 
+    size_t loops = 0;
     KTIMER kTimer;
     NTSTATUS status = STATUS_SUCCESS;
 
     KeInitializeTimer(&kTimer);
-    
+
     while ((cRefs = ASMAtomicReadU32(&pRef->cRefs)) > u32Val && loops < 256)
     {
         Assert(cRefs >= u32Val);

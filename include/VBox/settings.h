@@ -328,8 +328,8 @@ typedef std::list<MachineRegistryEntry> MachinesRegistry;
 struct DhcpOptValue
 {
     enum Encoding {
-	LEGACY = DhcpOptEncoding_Legacy,
-	HEX = DhcpOptEncoding_Hex
+        LEGACY = DhcpOptEncoding_Legacy,
+        HEX = DhcpOptEncoding_Hex
     };
 
     com::Utf8Str text;
@@ -695,6 +695,7 @@ struct AudioAdapter
     AudioAdapter()
         : fEnabled(true),
           controllerType(AudioControllerType_AC97),
+          codecType(AudioCodecType_STAC9700),
           driverType(AudioDriverType_Null)
     {}
 
@@ -703,6 +704,7 @@ struct AudioAdapter
         return     (this == &a)
                 || (    (fEnabled        == a.fEnabled)
                      && (controllerType  == a.controllerType)
+                     && (codecType       == a.codecType)
                      && (driverType      == a.driverType)
                      && (properties      == a.properties)
                    );
@@ -710,6 +712,7 @@ struct AudioAdapter
 
     bool                    fEnabled;
     AudioControllerType_T   controllerType;
+    AudioCodecType_T        codecType;
     AudioDriverType_T       driverType;
     settings::StringsMap properties;
 };
@@ -1054,11 +1057,7 @@ struct StorageController
           ulPortCount(2),
           ulInstance(0),
           fUseHostIOCache(true),
-          fBootable(true),
-          lIDE0MasterEmulationPort(0),
-          lIDE0SlaveEmulationPort(0),
-          lIDE1MasterEmulationPort(0),
-          lIDE1SlaveEmulationPort(0)
+          fBootable(true)
     {}
 
     bool operator==(const StorageController &s) const;

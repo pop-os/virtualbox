@@ -45,6 +45,18 @@
 #include <iprt/asm.h>
 #include <iprt/string.h>
 
+/*******************************************************************************
+*   Defined Constants And Macros                                               *
+*******************************************************************************/
+/** @def IEM_USE_IEM_INSTEAD
+ * Use IEM instead of IOM for interpreting MMIO accesses.
+ * Because of PATM/CSAM issues in raw-mode, we've split this up into 2nd and 3rd
+ * IEM deployment step. */
+#if  ((defined(IN_RING3) || defined(IN_RING0)) && defined(VBOX_WITH_2ND_IEM_STEP)) \
+  || defined(VBOX_WITH_3RD_IEM_STEP)
+# define IEM_USE_IEM_INSTEAD
+#endif
+
 
 /*******************************************************************************
 *   Global Variables                                                           *
@@ -719,7 +731,7 @@ DECLINLINE(void) iomMMIOStatLength(PVM pVM, unsigned cb)
 }
 
 
-#ifndef VBOX_WITH_2ND_IEM_STEP
+#ifndef IEM_USE_IEM_INSTEAD
 
 /**
  * MOV      reg, mem         (read)
@@ -1646,7 +1658,7 @@ static int iomInterpretXCHG(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, RTGCP
     return rc;
 }
 
-#endif /* !VBOX_WITH_2ND_IEM_STEP */
+#endif /* !IEM_USE_IEM_INSTEAD */
 
 /**
  * \#PF Handler callback for MMIO ranges.
@@ -1736,7 +1748,7 @@ static VBOXSTRICTRC iomMMIOHandler(PVM pVM, PVMCPU pVCpu, uint32_t uErrorCode, P
         return rc;
     }
 
-#ifdef VBOX_WITH_2ND_IEM_STEP
+#ifdef IEM_USE_IEM_INSTEAD
 
     /*
      * Let IEM call us back via iomMmioHandler.
@@ -1895,7 +1907,7 @@ static VBOXSTRICTRC iomMMIOHandler(PVM pVM, PVMCPU pVCpu, uint32_t uErrorCode, P
     PDMCritSectLeave(pDevIns->CTX_SUFF(pCritSectRo));
     iomMmioReleaseRange(pVM, pRange);
     return rc;
-#endif /* !VBOX_WITH_2ND_IEM_STEP */
+#endif /* !IEM_USE_IEM_INSTEAD */
 }
 
 
@@ -2001,6 +2013,7 @@ PGM_ALL_CB2_DECL(VBOXSTRICTRC) iomMmioHandler(PVM pVM, PVMCPU pVCpu, RTGCPHYS GC
                   || rcStrict == VINF_EM_OFF
                   || rcStrict == VINF_EM_SUSPEND
                   || rcStrict == VINF_EM_RESET
+                  || rcStrict == VINF_EM_RAW_EMULATE_IO_BLOCK
                   //|| rcStrict == VINF_EM_HALT       /* ?? */
                   //|| rcStrict == VINF_EM_NO_MEMORY  /* ?? */
                   , ("%Rrc - %RGp - %p\n", VBOXSTRICTRC_VAL(rcStrict), GCPhysFault, pDevIns));
@@ -2256,7 +2269,7 @@ VMMDECL(VBOXSTRICTRC) IOMMMIOWrite(PVM pVM, PVMCPU pVCpu, RTGCPHYS GCPhys, uint3
 }
 
 #endif /* IN_RING3 - only used by REM. */
-#ifndef VBOX_WITH_2ND_IEM_STEP
+#ifndef IEM_USE_IEM_INSTEAD
 
 /**
  * [REP*] INSB/INSW/INSD
@@ -2338,15 +2351,60 @@ VMMDECL(VBOXSTRICTRC) IOMInterpretINSEx(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pReg
     VBOXSTRICTRC rcStrict = VINF_SUCCESS;
     if (cTransfers > 1)
     {
-        /* If the device supports string transfers, ask it to do as
-         * much as it wants. The rest is done with single-word transfers. */
-        const RTGCUINTREG cTransfersOrg = cTransfers;
-        rcStrict = IOMIOPortReadString(pVM, pVCpu, uPort, &GCPtrDst, &cTransfers, cbTransfer);
-        AssertRC(VBOXSTRICTRC_VAL(rcStrict)); Assert(cTransfers <= cTransfersOrg);
-        pRegFrame->rdi  = ((pRegFrame->rdi + (cTransfersOrg - cTransfers) * cbTransfer) & fAddrMask)
-                        | (pRegFrame->rdi & ~fAddrMask);
+        /*
+         * Work the string page by page, letting the device handle as much
+         * as it likes via the string I/O interface.
+         */
+        for (;;)
+        {
+            PGMPAGEMAPLOCK Lock;
+            void          *pvDst;
+            rc2 = PGMPhysGCPtr2CCPtr(pVCpu, GCPtrDst, &pvDst, &Lock);
+            if (RT_SUCCESS(rc2))
+            {
+                uint32_t cMaxThisTime = (PAGE_SIZE - (GCPtrDst & PAGE_OFFSET_MASK)) / cbTransfer;
+                if (cMaxThisTime > cTransfers)
+                    cMaxThisTime      = cTransfers;
+                if (!cMaxThisTime)
+                    break;
+                uint32_t cThisTime    = cMaxThisTime;
+
+                rcStrict = IOMIOPortReadString(pVM, pVCpu, uPort, pvDst, &cThisTime, cbTransfer);
+                AssertRC(VBOXSTRICTRC_VAL(rcStrict));
+                Assert(cThisTime <= cMaxThisTime); /* cThisTime is now how many transfers we have left. */
+
+                uint32_t const cActual  = cMaxThisTime - cThisTime;
+                if (cActual)
+                {   /* Must dirty the page.  */
+                    uint8_t b = *(uint8_t *)pvDst;
+                    iomRamWrite(pVCpu, pRegFrame, GCPtrDst, &b, 1);
+                }
+
+                PGMPhysReleasePageMappingLock(pVM, &Lock);
+
+                uint32_t const cbActual = cActual * cbTransfer;
+                cTransfers    -= cActual;
+                pRegFrame->rdi = ((pRegFrame->rdi + cbActual) & fAddrMask)
+                               | (pRegFrame->rdi & ~fAddrMask);
+                GCPtrDst      += cbActual;
+
+                if (   cThisTime
+                    || !cTransfers
+                    || rcStrict != VINF_SUCCESS
+                    || (GCPtrDst & PAGE_OFFSET_MASK))
+                    break;
+            }
+            else
+            {
+                Log(("IOMInterpretOUTSEx: PGMPhysGCPtr2CCPtr %#RGv -> %Rrc\n", GCPtrDst, rc2));
+                break;
+            }
+        }
     }
 
+    /*
+     * Single transfer / unmapped memory fallback.
+     */
 #ifdef IN_RC
     MMGCRamRegisterTrapHandler(pVM);
 #endif
@@ -2394,12 +2452,15 @@ VMMDECL(VBOXSTRICTRC) IOMInterpretINSEx(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pReg
  * @retval  VINF_EM_RESCHEDULE_REM      The exception was dispatched and cannot be executed in raw-mode. (TRPMRaiseXcptErr)
  *
  * @param   pVM             The virtual machine.
- * @param   pVCpu       Pointer to the virtual CPU structure of the caller.
+ * @param   pVCpu           Pointer to the virtual CPU structure of the caller.
  * @param   pRegFrame       Pointer to CPUMCTXCORE guest registers structure.
  * @param   uPort           IO Port
  * @param   uPrefix         IO instruction prefix
  * @param   enmAddrMode     The address mode.
  * @param   cbTransfer      Size of transfer unit
+ *
+ * @remarks This API will probably be relaced by IEM before long, so no use in
+ *          optimizing+fixing stuff too much here.
  */
 VMMDECL(VBOXSTRICTRC) IOMInterpretOUTSEx(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint32_t uPort, uint32_t uPrefix,
                                          DISCPUMODE enmAddrMode, uint32_t cbTransfer)
@@ -2457,16 +2518,53 @@ VMMDECL(VBOXSTRICTRC) IOMInterpretOUTSEx(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRe
     if (cTransfers > 1)
     {
         /*
-         * If the device supports string transfers, ask it to do as
-         * much as it wants. The rest is done with single-word transfers.
+         * Work the string page by page, letting the device handle as much
+         * as it likes via the string I/O interface.
          */
-        const RTGCUINTREG cTransfersOrg = cTransfers;
-        rcStrict = IOMIOPortWriteString(pVM, pVCpu, uPort, &GCPtrSrc, &cTransfers, cbTransfer);
-        AssertRC(VBOXSTRICTRC_VAL(rcStrict)); Assert(cTransfers <= cTransfersOrg);
-        pRegFrame->rsi  = ((pRegFrame->rsi + (cTransfersOrg - cTransfers) * cbTransfer) & fAddrMask)
-                        | (pRegFrame->rsi & ~fAddrMask);
+        for (;;)
+        {
+            PGMPAGEMAPLOCK Lock;
+            void const    *pvSrc;
+            rc2 = PGMPhysGCPtr2CCPtrReadOnly(pVCpu, GCPtrSrc, &pvSrc, &Lock);
+            if (RT_SUCCESS(rc2))
+            {
+                uint32_t cMaxThisTime = (PAGE_SIZE - (GCPtrSrc & PAGE_OFFSET_MASK)) / cbTransfer;
+                if (cMaxThisTime > cTransfers)
+                    cMaxThisTime      = cTransfers;
+                if (!cMaxThisTime)
+                    break;
+                uint32_t cThisTime    = cMaxThisTime;
+
+                rcStrict = IOMIOPortWriteString(pVM, pVCpu, uPort, pvSrc, &cThisTime, cbTransfer);
+                AssertRC(VBOXSTRICTRC_VAL(rcStrict));
+                Assert(cThisTime <= cMaxThisTime); /* cThisTime is now how many transfers we have left. */
+
+                PGMPhysReleasePageMappingLock(pVM, &Lock);
+
+                uint32_t const cActual  = cMaxThisTime - cThisTime;
+                uint32_t const cbActual = cActual * cbTransfer;
+                cTransfers    -= cActual;
+                pRegFrame->rsi = ((pRegFrame->rsi + cbActual) & fAddrMask)
+                               | (pRegFrame->rsi & ~fAddrMask);
+                GCPtrSrc      += cbActual;
+
+                if (   cThisTime
+                    || !cTransfers
+                    || rcStrict != VINF_SUCCESS
+                    || (GCPtrSrc & PAGE_OFFSET_MASK))
+                    break;
+            }
+            else
+            {
+                Log(("IOMInterpretOUTSEx: PGMPhysGCPtr2CCPtrReadOnly %#RGv -> %Rrc\n", GCPtrSrc, rc2));
+                break;
+            }
+        }
     }
 
+    /*
+     * Single transfer / unmapped memory fallback.
+     */
 #ifdef IN_RC
     MMGCRamRegisterTrapHandler(pVM);
 #endif
@@ -2499,7 +2597,7 @@ VMMDECL(VBOXSTRICTRC) IOMInterpretOUTSEx(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRe
     return rcStrict;
 }
 
-#endif /* !VBOX_WITH_2ND_IEM_STEP */
+#endif /* !IEM_USE_IEM_INSTEAD */
 
 
 #ifndef IN_RC

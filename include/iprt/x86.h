@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -2743,7 +2743,12 @@ AssertCompileSize(X86XSAVELWP, 128);
 #endif
 
 
-
+/**
+ * x86 FPU/SSE/AVX/XXXX state.
+ *
+ * Please bump DBGFCORE_FMT_VERSION by 1 in dbgfcorefmt.h if you make any
+ * changes to this structure.
+ */
 typedef struct X86XSAVEAREA
 {
     /** The x87 and SSE region (or legacy region if you like).  */

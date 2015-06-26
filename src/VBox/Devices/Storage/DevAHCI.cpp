@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -6936,11 +6936,6 @@ static DECLCALLBACK(int) ahciAsyncIOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
                 bool fContinue = ahciR3CmdPrepare(pAhciPort, &Req);
                 if (fContinue)
                     fReqCanceled = ahciTransferComplete(pAhciPort, &Req, VERR_NO_MEMORY);
-                else
-                {
-                    ASMAtomicWriteNullPtr(&pAhciPort->aActiveTasks[pAhciReq->uTag]);
-                    ahciR3ReqFree(pAhciPort, pAhciReq);
-                }
             }
 
             /*
@@ -8612,7 +8607,7 @@ static DECLCALLBACK(int) ahciR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFG
         {
             pAhciPort->pDrvBase = NULL;
             rc = VINF_SUCCESS;
-            LogRel(("%s: no driver attached\n", szName));
+            LogRel(("AHCI: %s: No driver attached\n", szName));
         }
         else
             return PDMDevHlpVMSetError(pDevIns, rc, RT_SRC_POS,
@@ -8660,7 +8655,7 @@ const PDMDEVREG g_DeviceAHCI =
     /* szName */
     "ahci",
     /* szRCMod */
-    "VBoxDDGC.gc",
+    "VBoxDDRC.rc",
     /* szR0Mod */
     "VBoxDDR0.r0",
     /* pszDescription */

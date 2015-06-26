@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -81,12 +81,11 @@ DECLINLINE(int) mono_clock(struct timespec *ts)
          */
         case -1:
         {
-            int rc;
 #ifdef CLOCK_MONOTONIC
             /*
              * Real-Time API.
              */
-            rc = clock_gettime(CLOCK_MONOTONIC, ts);
+            int rc = clock_gettime(CLOCK_MONOTONIC, ts);
             if (!rc)
             {
                 iWorking = 0;

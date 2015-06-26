@@ -32,10 +32,11 @@ RT_C_DECLS_BEGIN
 RT_C_DECLS_END
 
 #include <pulse/pulseaudio.h>
-#include "vl_vbox.h"
 
 #include "DrvAudio.h"
 #include "AudioMixBuffer.h"
+
+#include "VBoxDD.h"
 
 #ifdef LOG_GROUP
 # undef LOG_GROUP
@@ -1155,7 +1156,7 @@ static DECLCALLBACK(int) drvHostPulseAudioConstruct(PPDMDRVINS pDrvIns, PCFGMNOD
 
     PDRVHOSTPULSEAUDIO pThis = PDMINS_2_DATA(pDrvIns, PDRVHOSTPULSEAUDIO);
     LogRel(("Audio: Initializing PulseAudio driver\n"));
-    
+
     CFGMR3QueryStringAlloc(pCfg, "StreamName", &pThis->pszStreamName);
 
     pThis->pDrvIns                   = pDrvIns;

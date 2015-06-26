@@ -2,7 +2,7 @@
 <!--
     VirtualBox Windows Installation Script (WiX)
 
-    Copyright (C) 2014 Oracle Corporation
+    Copyright (C) 2014-2015 Oracle Corporation
 
     This file is part of VirtualBox Open Source Edition (OSE), as
     available from http://www.virtualbox.org. This file is free software;
@@ -425,6 +425,7 @@
                      Absent="allow" AllowAdvertise="no" >
     <?if $(env.VBOX_WITH_MSM_INSTALL) = "yes" ?>
                 <MergeRef Id="msm_VBoxNetworkFlt" />
+                <MergeRef Id="msm_VBoxNetworkLwf" />
     <?else ?>
                 <ComponentRef Id="cp_NetFltDriver" />
                 <ComponentRef Id="cp_NetLwfDriver" />
@@ -436,6 +437,7 @@
                      Absent="allow" AllowAdvertise="no" >
     <?if $(env.VBOX_WITH_MSM_INSTALL) = "yes" ?>
                 <MergeRef Id="msm_VBoxNetworkAdp" />
+                <MergeRef Id="msm_VBoxNetworkAdp6" />
     <?else ?>
                 <ComponentRef Id="cp_NetAdpDriver" />
                 <ComponentRef Id="cp_NetAdp6Driver" />

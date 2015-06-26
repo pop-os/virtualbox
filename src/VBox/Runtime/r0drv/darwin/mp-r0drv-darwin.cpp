@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2014 Oracle Corporation
+ * Copyright (C) 2008-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -224,7 +224,6 @@ RTDECL(int) RTMpOnOthers(PFNRTMPWORKER pfnWorker, void *pvUser1, void *pvUser2)
 {
     RT_ASSERT_INTS_ON();
 
-    int rc;
     RTMPARGS Args;
     Args.pfnWorker = pfnWorker;
     Args.pvUser1 = pvUser1;
@@ -258,7 +257,6 @@ RTDECL(int) RTMpOnSpecific(RTCPUID idCpu, PFNRTMPWORKER pfnWorker, void *pvUser1
 {
     RT_ASSERT_INTS_ON();
 
-    int rc;
     RTMPARGS Args;
     Args.pfnWorker = pfnWorker;
     Args.pvUser1 = pvUser1;

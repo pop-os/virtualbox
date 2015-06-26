@@ -48,12 +48,12 @@ static void threadDestructor(void *tsd)
 {
     CRDLMContextState *listState = (CRDLMContextState *)tsd;
 
-    if (listState) {
-	if (listState->currentListInfo) {
-	    crdlm_free_list(listState->currentListInfo);
-	}
+    if (listState)
+    {
+        //if (listState->currentListInfo)
+        //    crdlm_free_list(listState->currentListInfo);
 
-	crFree(listState);
+        crFree(listState);
     }
 }
 #endif
@@ -143,7 +143,7 @@ void DLM_APIENTRY crDLMUseDLM(CRDLM *dlm)
  * It maintains an internal count of users, and will only actually destroy
  * itself when no one is still using the DLM.
  */
-void DLM_APIENTRY crDLMFreeDLM(CRDLM *dlm)
+void DLM_APIENTRY crDLMFreeDLM(CRDLM *dlm, SPUDispatchTable *dispatchTable)
 {
     /* We're about to change the displayLists hash; lock it first */
     DLM_LOCK(dlm)
@@ -156,12 +156,7 @@ void DLM_APIENTRY crDLMFreeDLM(CRDLM *dlm)
     dlm->userCount--;
     if (dlm->userCount == 0) {
 
-	/* Free the set of display lists.  As each one is freed, the
-	 * crdlm_free_list function will be called to free up its
-	 * internal resources.  The crdlm_free_list() routine is
-	 * cast to a (void *) to avoid warnings about being an
-	 */
-	crFreeHashtable(dlm->displayLists, crdlm_free_list);
+	crFreeHashtableEx(dlm->displayLists, crdlmFreeDisplayListResourcesCb, dispatchTable);
 	dlm->displayLists = NULL;
 
 	/* Must unlock before freeing the mutex */
@@ -268,32 +263,32 @@ CRDLMContextState DLM_APIENTRY *crDLMGetCurrentState(void)
  * is no longer going to be used.
  */
 
-void DLM_APIENTRY crDLMFreeContext(CRDLMContextState *state)
+void DLM_APIENTRY crDLMFreeContext(CRDLMContextState *state, SPUDispatchTable *dispatchTable)
 {
-	CRDLMContextState *listState = CURRENT_STATE();
+    CRDLMContextState *listState = CURRENT_STATE();
 
-	/* If we're currently using this context, release it first */
-	if (listState == state) {
-		crDLMSetCurrentState(NULL);
-	}
+    /* If we're currently using this context, release it first */
+    if (listState == state)
+        crDLMSetCurrentState(NULL);
 
-	/* Try to free the DLM.  This will either decrement the use count,
-	 * or will actually free the DLM, if we were the last user.
-	 */
-	crDLMFreeDLM(state->dlm);
-	state->dlm = NULL;
+    /* Try to free the DLM.  This will either decrement the use count,
+     * or will actually free the DLM, if we were the last user.
+     */
+    crDLMFreeDLM(state->dlm, dispatchTable);
+    state->dlm = NULL;
 
-	/* If any buffers still remain (e.g. because there was an open
-	 * display list), remove those as well.
-	 */
-	if (state->currentListInfo) {
-		crdlm_free_list((void *)state->currentListInfo);
-	}
-	state->currentListInfo = NULL;
-	state->currentListIdentifier = 0;
+    /* If any buffers still remain (e.g. because there was an open
+     * display list), remove those as well.
+     */
+    if (state->currentListInfo)
+    {
+        crdlmFreeDisplayListResourcesCb((void *)state->currentListInfo, (void *)dispatchTable);
+        state->currentListInfo = NULL;
+    }
+    state->currentListIdentifier = 0;
 
-	/* Free the state record itself */
-	crFree(state);
+    /* Free the state record itself */
+    crFree(state);
 }
 
 
@@ -613,90 +608,6 @@ int DLM_APIENTRY crDLMGetReferences(CRDLM *dlm, unsigned long listIdentifier,
     }
 }
 
-CRDLMError DLM_APIENTRY crDLMGetDLMBounds(CRDLM *dlm, unsigned long listIdentifier, CRDLMBounds *bounds)
-{
-	DLMListInfo *listInfo
-		= (DLMListInfo *) crHashtableSearch(dlm->displayLists, listIdentifier);
-	if (listInfo) {
-		*bounds = listInfo->bbox;
-		return GL_NO_ERROR;
-	}
-	else {
-		return GL_INVALID_OPERATION;
-	}
-}
-
-CRDLMError DLM_APIENTRY crDLMGetBounds(unsigned long listIdentifier, CRDLMBounds *bounds)
-{
-    CRDLMContextState *listState = CURRENT_STATE();
-    if (listState) {
-	return crDLMGetDLMBounds(listState->dlm, listIdentifier, bounds);
-    }
-    else {
-	return CRDLM_ERROR_STATE;
-    }
-}
-
-
-/**
- * Set the bounding box for a display list.
- */
-void DLM_APIENTRY crDLMSetDLMBounds(CRDLM *dlm, unsigned long listIdentifier,
-               double xmin, double ymin, double zmin,
-               double xmax, double ymax, double zmax)
-{
-	DLMListInfo *listInfo
-		= (DLMListInfo *) crHashtableSearch(dlm->displayLists, listIdentifier);
-	if (!listInfo) {
-		/* allocate a list info now */
-		CRDLMContextState *listState = CURRENT_STATE();
-		listInfo = (DLMListInfo *) crCalloc(sizeof(DLMListInfo));
-		crHashtableReplace(listState->dlm->displayLists,
-											 listIdentifier, listInfo, crdlm_free_list);
-	}
-	if (listInfo) {
-		listInfo->bbox.xmin = xmin;
-		listInfo->bbox.ymin = ymin;
-		listInfo->bbox.zmin = zmin;
-		listInfo->bbox.xmax = xmax;
-		listInfo->bbox.ymax = ymax;
-		listInfo->bbox.zmax = zmax;
-	}
-}
-
-void DLM_APIENTRY crDLMSetBounds(unsigned long listIdentifier,
-               double xmin, double ymin, double zmin,
-               double xmax, double ymax, double zmax)
-{
-    CRDLMContextState *listState = CURRENT_STATE();
-    if (listState) {
-	crDLMSetDLMBounds(listState->dlm, listIdentifier,
-	    xmin, ymin, zmin, xmax, ymax, zmax);
-    }
-}
-
-/**
- * Return GL_TRUE if the given list has a valid bounding box
- */
-GLboolean DLM_APIENTRY crDLMListHasDLMBounds(CRDLM *dlm, unsigned long listIdentifier)
-{
-	DLMListInfo *listInfo
-		= (DLMListInfo *) crHashtableSearch(dlm->displayLists, listIdentifier);
-	if (listInfo)
-		return listInfo->bbox.xmin != FLT_MAX;
-	else
-		return GL_FALSE;
-}
-
-GLboolean DLM_APIENTRY crDLMListHasBounds(unsigned long listIdentifier)
-{
-    CRDLMContextState *listState = CURRENT_STATE();
-    if (listState) {
-	return crDLMListHasDLMBounds(listState->dlm, listIdentifier);
-    }
-    return 0;
-}
-
 /*
  * Return id of list currently being compiled.  Returns 0 of there's no
  * current DLM state, or if no list is being compiled. 
@@ -733,7 +644,33 @@ void crdlm_error(int line, const char *file, GLenum error, const char *info)
 		(*ErrorCallback)(line, file, error, info);
 }
 
+static void crDLMSaveListsCb(unsigned long key, void *pData1, void *pData2 /* unused */ )
+{
+    DLMListInfo *pListInfo = (DLMListInfo*)pData1;
+
+    if (pListInfo)
+    {
+        crDebug("Saving Display Lists: found ID=%u, numInstances=%d, references=%p.",
+            key, pListInfo->numInstances, pListInfo->references);
+
+        DLMInstanceList *pInstance = pListInfo->first;
+        while (pInstance) {
+            crDebug("\t%p", pInstance->execute);
+            pInstance = pInstance->next;
+        }
+    }
+    else
+        crError("Saving Display Lists: found record with no data. Skipping.");
+}
+
 int32_t DLM_APIENTRY crDLMSaveState(void)
 {
+    CRDLMContextState *pListState = CURRENT_STATE();
+
+    if (pListState)
+        crHashtableWalk(pListState->dlm->displayLists, crDLMSaveListsCb, (void *)NULL);
+    else
+        crDebug("Saving Display Lists: no data to save.");
+
     return 0;
 }

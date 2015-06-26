@@ -7,7 +7,7 @@ VirtualBox Test VMs
 
 __copyright__ = \
 """
-Copyright (C) 2010-2014 Oracle Corporation
+Copyright (C) 2010-2015 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 99376 $"
+__version__ = "$Revision: 100967 $"
 
 # Standard Python imports.
 import re;
@@ -670,6 +670,11 @@ class TestVmSet(object):
         if 'hwvirt-np' in self.asVirtModes and not oTestDrv.hasHostNestedPaging():
             reporter.log('Nested paging not supported by the host, skipping it.');
             self.asVirtModes.remove('hwvirt-np');
+
+        if 'raw' in self.asVirtModes and not oTestDrv.hasRawModeSupport():
+            reporter.log('Raw-mode virtualization is not available in this build (or perhaps for this host), skipping it.');
+            self.asVirtModes.remove('raw');
+
         return True;
 
     def actionExecute(self, oTestDrv, fnCallback): # pylint: disable=R0914

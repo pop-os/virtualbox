@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -117,9 +117,9 @@ static SUPINSTFILE const    g_aSupInstallFiles[] =
     {   kSupIFT_Dll,  kSupID_AppPrivArch,       false, "VBoxDD2R0.r0" },
 
 #ifdef VBOX_WITH_RAW_MODE
-    {   kSupIFT_Rc,   kSupID_AppPrivArch,       false, "VMMGC.gc" },
-    {   kSupIFT_Rc,   kSupID_AppPrivArch,       false, "VBoxDDGC.gc" },
-    {   kSupIFT_Rc,   kSupID_AppPrivArch,       false, "VBoxDD2GC.gc" },
+    {   kSupIFT_Rc,   kSupID_AppPrivArch,       false, "VMMRC.rc" },
+    {   kSupIFT_Rc,   kSupID_AppPrivArch,       false, "VBoxDDRC.rc" },
+    {   kSupIFT_Rc,   kSupID_AppPrivArch,       false, "VBoxDD2RC.rc" },
 #endif
 
     {   kSupIFT_Dll,  kSupID_SharedLib,         false, "VBoxRT" SUPLIB_DLL_SUFF },

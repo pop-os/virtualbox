@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2012 Oracle Corporation
+ * Copyright (C) 2011-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -64,6 +64,8 @@ VMMR3DECL(int)      IEMR3Init(PVM pVM)
                         "Error statuses returned",           "/IEM/CPU%u/cRetErrStatuses", idCpu);
         STAMR3RegisterF(pVM, &pVCpu->iem.s.cbWritten,                 STAMTYPE_U32,       STAMVISIBILITY_ALWAYS, STAMUNIT_BYTES,
                         "Approx bytes written",              "/IEM/CPU%u/cbWritten", idCpu);
+        STAMR3RegisterF(pVM, &pVCpu->iem.s.cPendingCommit,            STAMTYPE_U32,       STAMVISIBILITY_ALWAYS, STAMUNIT_BYTES,
+                        "Times RC/R0 had to postpone instruction committing to ring-3", "/IEM/CPU%u/cPendingCommit", idCpu);
 
         /*
          * Host and guest CPU information.

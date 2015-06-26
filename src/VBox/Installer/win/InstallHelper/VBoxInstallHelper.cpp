@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2014 Oracle Corporation
+ * Copyright (C) 2008-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -308,7 +308,7 @@ static LONG installBrandingValue(MSIHANDLE hModule,
         WCHAR wszKey[_MAX_PATH];
 
         if (wcsicmp(L"General", pwszSection) != 0)
-            swprintf_s(wszKey, RT_ELEMENTS(wszKey), L"SOFTWARE\\%s\\VirtualBox\\Branding\\", VBOX_VENDOR_SHORT, pwszSection);
+            swprintf_s(wszKey, RT_ELEMENTS(wszKey), L"SOFTWARE\\%s\\VirtualBox\\Branding\\%s", VBOX_VENDOR_SHORT, pwszSection);
         else
             swprintf_s(wszKey, RT_ELEMENTS(wszKey), L"SOFTWARE\\%s\\VirtualBox\\Branding", VBOX_VENDOR_SHORT);
 
@@ -337,8 +337,8 @@ UINT CopyDir(MSIHANDLE hModule, const WCHAR *pwszDestDir, const WCHAR *pwszSourc
     WCHAR wszDest[_MAX_PATH + 1];
     WCHAR wszSource[_MAX_PATH + 1];
 
-    swprintf_s(wszDest, RT_ELEMENTS(wszDest), L"%s%c", pwszDestDir, '\0');
-    swprintf_s(wszSource, RT_ELEMENTS(wszSource), L"%s%c", pwszSourceDir, '\0');
+    swprintf_s(wszDest, RT_ELEMENTS(wszDest), L"%s%c", pwszDestDir, L'\0');
+    swprintf_s(wszSource, RT_ELEMENTS(wszSource), L"%s%c", pwszSourceDir, L'\0');
 
     SHFILEOPSTRUCTW s = {0};
     s.hwnd = NULL;
@@ -367,7 +367,7 @@ UINT RemoveDir(MSIHANDLE hModule, const WCHAR *pwszDestDir)
     UINT rc;
     WCHAR wszDest[_MAX_PATH + 1];
 
-    swprintf_s(wszDest, RT_ELEMENTS(wszDest), L"%s%c", pwszDestDir, '\0');
+    swprintf_s(wszDest, RT_ELEMENTS(wszDest), L"%s%c", pwszDestDir, L'\0');
 
     SHFILEOPSTRUCTW s = {0};
     s.hwnd = NULL;
@@ -396,8 +396,8 @@ UINT RenameDir(MSIHANDLE hModule, const WCHAR *pwszDestDir, const WCHAR *pwszSou
     WCHAR wszDest[_MAX_PATH + 1];
     WCHAR wszSource[_MAX_PATH + 1];
 
-    swprintf_s(wszDest, RT_ELEMENTS(wszDest), L"%s%c", pwszDestDir, '\0');
-    swprintf_s(wszSource, RT_ELEMENTS(wszSource), L"%s%c", pwszSourceDir, '\0');
+    swprintf_s(wszDest, RT_ELEMENTS(wszDest), L"%s%c", pwszDestDir, L'\0');
+    swprintf_s(wszSource, RT_ELEMENTS(wszSource), L"%s%c", pwszSourceDir, L'\0');
 
     SHFILEOPSTRUCTW s = {0};
     s.hwnd = NULL;

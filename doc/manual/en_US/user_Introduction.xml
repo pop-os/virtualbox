@@ -4,7 +4,7 @@
 <chapter id="Introduction">
   <title>First steps</title>
 
-  <para>Welcome to $VBOX_PRODUCT!</para>
+  <para>Welcome to @VBOX_PRODUCT@!</para>
 
   <para>VirtualBox is a cross-platform virtualization application. What does
   that mean? For one thing, it installs on your existing Intel or AMD-based
@@ -22,7 +22,7 @@
   up to datacenter deployments and even Cloud environments.</para>
 
   <para>The following screenshot shows you how VirtualBox, installed on a Mac
-  computer, is running Windows 7 in a virtual machine window:</para>
+  computer, is running Windows 8 in a virtual machine window:</para>
 
   <para><mediaobject>
       <imageobject>
@@ -1566,8 +1566,8 @@
 
     <para>To experiment with a VM configuration, test different guest OS levels
     or to simply backup a VM, VirtualBox can create a full or a linked copy of
-    an existing VM.<footnote>Cloning support was introduced with VirtualBox
-    4.1.</footnote></para>
+    an existing VM.<footnote><para>Cloning support was introduced with VirtualBox
+    4.1.</para></footnote></para>
     
     <para>A wizard will guide you through the clone process:</para>
 

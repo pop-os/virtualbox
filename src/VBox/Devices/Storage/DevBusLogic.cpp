@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -2574,17 +2574,13 @@ static DECLCALLBACK(int) buslogicR3BiosIoPortWrite(PPDMDEVINS pDevIns, void *pvU
  * Port I/O Handler for primary port range OUT string operations.
  * @see FNIOMIOPORTOUTSTRING for details.
  */
-static DECLCALLBACK(int) buslogicR3BiosIoPortWriteStr(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, RTGCPTR *pGCPtrSrc,
-                                                      PRTGCUINTREG pcTransfer, unsigned cb)
+static DECLCALLBACK(int) buslogicR3BiosIoPortWriteStr(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port,
+                                                      uint8_t const *pbSrc, uint32_t *pcTransfers, unsigned cb)
 {
     PBUSLOGIC pBusLogic = PDMINS_2_DATA(pDevIns, PBUSLOGIC);
-    int rc;
+    Log2(("#%d %s: pvUser=%#p cb=%d Port=%#x\n", pDevIns->iInstance, __FUNCTION__, pvUser, cb, Port));
 
-    Log2(("#%d %s: pvUser=%#p cb=%d Port=%#x\n",
-          pDevIns->iInstance, __FUNCTION__, pvUser, cb, Port));
-
-    rc = vboxscsiWriteString(pDevIns, &pBusLogic->VBoxSCSI, (Port - BUSLOGIC_BIOS_IO_PORT),
-                             pGCPtrSrc, pcTransfer, cb);
+    int rc = vboxscsiWriteString(pDevIns, &pBusLogic->VBoxSCSI, (Port - BUSLOGIC_BIOS_IO_PORT), pbSrc, pcTransfers, cb);
     if (rc == VERR_MORE_DATA)
     {
         rc = buslogicR3PrepareBIOSSCSIRequest(pBusLogic);
@@ -2600,16 +2596,14 @@ static DECLCALLBACK(int) buslogicR3BiosIoPortWriteStr(PPDMDEVINS pDevIns, void *
  * Port I/O Handler for primary port range IN string operations.
  * @see FNIOMIOPORTINSTRING for details.
  */
-static DECLCALLBACK(int) buslogicR3BiosIoPortReadStr(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, RTGCPTR *pGCPtrDst,
-                                                     PRTGCUINTREG pcTransfer, unsigned cb)
+static DECLCALLBACK(int) buslogicR3BiosIoPortReadStr(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port,
+                                                     uint8_t *pbDst, uint32_t *pcTransfers, unsigned cb)
 {
     PBUSLOGIC pBusLogic = PDMINS_2_DATA(pDevIns, PBUSLOGIC);
-
-    LogFlowFunc(("#%d %s: pvUser=%#p cb=%d Port=%#x\n",
-                 pDevIns->iInstance, __FUNCTION__, pvUser, cb, Port));
+    LogFlowFunc(("#%d %s: pvUser=%#p cb=%d Port=%#x\n", pDevIns->iInstance, __FUNCTION__, pvUser, cb, Port));
 
     return vboxscsiReadString(pDevIns, &pBusLogic->VBoxSCSI, (Port - BUSLOGIC_BIOS_IO_PORT),
-                              pGCPtrDst, pcTransfer, cb);
+                              pbDst, pcTransfers, cb);
 }
 
 /**
@@ -3224,19 +3218,8 @@ static DECLCALLBACK(int) buslogicR3SaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
     SSMR3PutU32   (pSSM, pBusLogic->uMailboxIncomingPositionCurrent);
     SSMR3PutBool  (pSSM, pBusLogic->fStrictRoundRobinMode);
     SSMR3PutBool  (pSSM, pBusLogic->fExtendedLunCCBFormat);
-    /* Now the data for the BIOS interface. */
-    SSMR3PutU8    (pSSM, pBusLogic->VBoxSCSI.regIdentify);
-    SSMR3PutU8    (pSSM, pBusLogic->VBoxSCSI.uTargetDevice);
-    SSMR3PutU8    (pSSM, pBusLogic->VBoxSCSI.uTxDir);
-    SSMR3PutU8    (pSSM, pBusLogic->VBoxSCSI.cbCDB);
-    SSMR3PutMem   (pSSM, pBusLogic->VBoxSCSI.abCDB, sizeof(pBusLogic->VBoxSCSI.abCDB));
-    SSMR3PutU8    (pSSM, pBusLogic->VBoxSCSI.iCDB);
-    SSMR3PutU32   (pSSM, pBusLogic->VBoxSCSI.cbBuf);
-    SSMR3PutU32   (pSSM, pBusLogic->VBoxSCSI.iBuf);
-    SSMR3PutBool  (pSSM, pBusLogic->VBoxSCSI.fBusy);
-    SSMR3PutU8    (pSSM, pBusLogic->VBoxSCSI.enmState);
-    if (pBusLogic->VBoxSCSI.cbBuf)
-        SSMR3PutMem(pSSM, pBusLogic->VBoxSCSI.pbBuf, pBusLogic->VBoxSCSI.cbBuf);
+
+    vboxscsiR3SaveExec(&pBusLogic->VBoxSCSI, pSSM);
 
     /*
      * Save the physical addresses of the command control blocks of still pending tasks.
@@ -3337,27 +3320,13 @@ static DECLCALLBACK(int) buslogicR3LoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM,
     SSMR3GetU32   (pSSM, &pBusLogic->uMailboxIncomingPositionCurrent);
     SSMR3GetBool  (pSSM, &pBusLogic->fStrictRoundRobinMode);
     SSMR3GetBool  (pSSM, &pBusLogic->fExtendedLunCCBFormat);
-    /* Now the data for the BIOS interface. */
-    SSMR3GetU8  (pSSM, &pBusLogic->VBoxSCSI.regIdentify);
-    SSMR3GetU8  (pSSM, &pBusLogic->VBoxSCSI.uTargetDevice);
-    SSMR3GetU8  (pSSM, &pBusLogic->VBoxSCSI.uTxDir);
-    SSMR3GetU8  (pSSM, &pBusLogic->VBoxSCSI.cbCDB);
-    SSMR3GetMem (pSSM, pBusLogic->VBoxSCSI.abCDB, sizeof(pBusLogic->VBoxSCSI.abCDB));
-    SSMR3GetU8  (pSSM, &pBusLogic->VBoxSCSI.iCDB);
-    SSMR3GetU32 (pSSM, &pBusLogic->VBoxSCSI.cbBuf);
-    SSMR3GetU32 (pSSM, &pBusLogic->VBoxSCSI.iBuf);
-    SSMR3GetBool(pSSM, (bool *)&pBusLogic->VBoxSCSI.fBusy);
-    SSMR3GetU8  (pSSM, (uint8_t *)&pBusLogic->VBoxSCSI.enmState);
-    if (pBusLogic->VBoxSCSI.cbBuf)
+
+    rc = vboxscsiR3LoadExec(&pBusLogic->VBoxSCSI, pSSM);
+    if (RT_FAILURE(rc))
     {
-        pBusLogic->VBoxSCSI.pbBuf = (uint8_t *)RTMemAllocZ(pBusLogic->VBoxSCSI.cbBuf);
-        if (!pBusLogic->VBoxSCSI.pbBuf)
-        {
-            LogRel(("BusLogic: Out of memory during restore.\n"));
-            return PDMDEV_SET_ERROR(pDevIns, VERR_NO_MEMORY,
-                                    N_("BusLogic: Out of memory during restore\n"));
-        }
-        SSMR3GetMem(pSSM, pBusLogic->VBoxSCSI.pbBuf, pBusLogic->VBoxSCSI.cbBuf);
+        LogRel(("BusLogic: Failed to restore BIOS state: %Rrc.\n", rc));
+        return PDMDEV_SET_ERROR(pDevIns, rc,
+                                N_("BusLogic: Failed to restore BIOS state\n"));
     }
 
     if (pBusLogic->VBoxSCSI.fBusy)
@@ -4098,7 +4067,7 @@ const PDMDEVREG g_DeviceBusLogic =
     /* szName */
     "buslogic",
     /* szRCMod */
-    "VBoxDDGC.gc",
+    "VBoxDDRC.rc",
     /* szR0Mod */
     "VBoxDDR0.r0",
     /* pszDescription */

@@ -32,12 +32,14 @@ struct AudioAdapterData
     AudioAdapterData() :
         mEnabled(false),
         mAudioDriver(AudioDriverType_Null),
-        mAudioController(AudioControllerType_AC97)
+        mAudioController(AudioControllerType_AC97),
+        mAudioCodec(AudioCodecType_STAC9700)
     {}
 
     BOOL mEnabled;
     AudioDriverType_T mAudioDriver;
     AudioControllerType_T mAudioController;
+    AudioCodecType_T mAudioCodec;
     settings::StringsMap  properties;
 };
 
@@ -347,6 +349,75 @@ HRESULT AudioAdapter::setAudioController(AudioControllerType_T aAudioController)
     return rc;
 }
 
+HRESULT AudioAdapter::getAudioCodec(AudioCodecType_T *aAudioCodec)
+{
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    *aAudioCodec = mData->m->mAudioCodec;
+
+    return S_OK;
+}
+
+HRESULT AudioAdapter::setAudioCodec(AudioCodecType_T aAudioCodec)
+{
+    /* the machine needs to be mutable */
+    AutoMutableStateDependency adep(mParent);
+    if (FAILED(adep.rc())) return adep.rc();
+
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    HRESULT rc = S_OK;
+
+    /*
+     * which audio hardware type are we supposed to use?
+     */
+    switch (mData->m->mAudioController)
+    {
+        case AudioControllerType_AC97:
+        {
+            if (   (aAudioCodec != AudioCodecType_STAC9700)
+                && (aAudioCodec != AudioCodecType_AD1980))
+                rc = E_INVALIDARG;
+            break;
+        }
+
+        case AudioControllerType_SB16:
+        {
+            if (aAudioCodec != AudioCodecType_SB16)
+                rc = E_INVALIDARG;
+            break;
+        }
+
+        case AudioControllerType_HDA:
+        {
+            if (aAudioCodec != AudioCodecType_STAC9221)
+                rc = E_INVALIDARG;
+            break;
+        }
+
+        default:
+            AssertMsgFailed (("Wrong audio controller type %d\n",
+                              mData->m->mAudioController));
+            rc = E_FAIL;
+    }
+
+    if (!SUCCEEDED(rc))
+        return setError(rc,
+                        tr ("Invalid audio codec type %d"),
+                        aAudioCodec);
+
+    if (mData->m->mAudioCodec != aAudioCodec)
+    {
+        mData->m.backup();
+        mData->m->mAudioCodec = aAudioCodec;
+        alock.release();
+        AutoWriteLock mlock(mParent COMMA_LOCKVAL_SRC_POS);  // mParent is const, needs no locking
+        mParent->i_setModified(Machine::IsModified_AudioAdapter);
+    }
+
+    return rc;
+}
+
 HRESULT AudioAdapter::getPropertiesList(std::vector<com::Utf8Str>& aProperties)
 {
     using namespace settings;
@@ -436,6 +507,7 @@ HRESULT AudioAdapter::i_loadSettings(const settings::AudioAdapter &data)
 
     mData->m->mEnabled = data.fEnabled;
     mData->m->mAudioController = data.controllerType;
+    mData->m->mAudioCodec = data.codecType;
     mData->m->mAudioDriver = data.driverType;
 
     settings::StringsMap::const_iterator cit = data.properties.begin();
@@ -464,6 +536,7 @@ HRESULT AudioAdapter::i_saveSettings(settings::AudioAdapter &data)
 
     data.fEnabled = !!mData->m->mEnabled;
     data.controllerType = mData->m->mAudioController;
+    data.codecType = mData->m->mAudioCodec;
     data.driverType = mData->m->mAudioDriver;
 
     settings::StringsMap::const_iterator cit = mData->m->properties.begin();

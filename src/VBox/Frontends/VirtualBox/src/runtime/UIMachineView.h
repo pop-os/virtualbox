@@ -93,6 +93,10 @@ public:
     /* Public setters: */
     virtual void setGuestAutoresizeEnabled(bool /* fEnabled */) {}
 
+    /** Send saved guest-screen size-hint to the guest.
+      * @note Reimplemented in sub-classes. Base implementation does nothing. */
+    virtual void resendSizeHint() {}
+
     /** Adjusts guest-screen size to correspond current visual-style.
       * @note Reimplemented in sub-classes. Base implementation does nothing. */
     virtual void adjustGuestScreenSize() {}
@@ -258,8 +262,14 @@ protected:
 
 #ifdef VBOX_WITH_DRAG_AND_DROP
     /**
-     * Returns @true if drag and drop for this machine is active 
-     * (that is, host->guest, guest->host or bidirectional), @false if not. 
+     * Returns @true if the VM window can accept (start is, start) a drag and drop
+     * operation, @false if not.
+     */
+    bool dragAndDropCanAccept(void) const;
+
+    /**
+     * Returns @true if drag and drop for this machine is active
+     * (that is, host->guest, guest->host or bidirectional), @false if not.
      */
     bool dragAndDropIsActive(void) const;
 
@@ -293,7 +303,20 @@ protected:
      * Guest -> Host: Checks for a pending drag and drop event within the guest
      *                and (optionally) starts a drag and drop operation on the host.
      */
-    void dragIsPending(void);
+    int dragCheckPending(void);
+
+    /**
+     * Guest -> Host: Starts a drag and drop operation from guest to the host. This
+     *                internally either uses Qt's abstract QDrag methods or some other
+     *                OS-dependent implementation.
+     */
+    int dragStart(void);
+
+    /**
+     * Guest -> Host: Aborts (and resets) the current (pending) guest to host
+     *                drag and drop operation.
+     */
+    int dragStop(void);
 
     /**
      * Host -> Guest: Issued when the host drops data into the guest (VM) window.
@@ -353,6 +376,11 @@ protected:
 #ifdef VBOX_WITH_DRAG_AND_DROP
     /** Pointer to drag and drop handler instance. */
     UIDnDHandler *m_pDnDHandler;
+# ifdef VBOX_WITH_DRAG_AND_DROP_GH
+    /** Flag indicating whether a guest->host drag currently is in
+     *  progress or not. */
+    bool m_fIsDraggingFromGuest;
+# endif
 #endif
 
     /* Friend classes: */

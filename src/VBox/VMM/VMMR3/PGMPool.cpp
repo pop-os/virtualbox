@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -282,8 +282,8 @@ int pgmR3PoolInit(PVM pVM)
     pPool->hAccessHandlerType = NIL_PGMPHYSHANDLERTYPE;
     rc = PGMR3HandlerPhysicalTypeRegister(pVM, PGMPHYSHANDLERKIND_WRITE,
                                           pgmPoolAccessHandler,
-                                          NULL, NULL, "pgmPoolAccessPfHandler",
-                                          NULL, NULL, "pgmPoolAccessPfHandler",
+                                          NULL, "pgmPoolAccessHandler", "pgmPoolAccessPfHandler",
+                                          NULL, "pgmPoolAccessHandler", "pgmPoolAccessPfHandler",
                                           "Guest Paging Access Handler",
                                           &pPool->hAccessHandlerType);
     AssertLogRelRCReturn(rc, rc);

@@ -961,17 +961,19 @@ HRESULT Appliance::i_readFSOVF(TaskOVF *pTask)
                 vrc = RTFileOpen(&pFile, strMfFile.c_str(), RTFILE_O_OPEN | RTFILE_O_READ | RTFILE_O_DENY_NONE);
                 if (RT_SUCCESS(vrc) && pFile != NULL)
                 {
-                    uint64_t cbFile = 0;
-                    uint64_t maxFileSize = _1M;
+                    uint64_t cbFile64 = 0;
+                    uint32_t maxFileSize = _1M;
                     size_t cbRead = 0;
+                    size_t cbFile;
                     void  *pBuf; /** @todo r=bird: You leak this buffer! throwing stuff is evil. */
 
-                    vrc = RTFileGetSize(pFile, &cbFile);
-                    if (cbFile > maxFileSize)
+                    vrc = RTFileGetSize(pFile, &cbFile64);
+                    if (cbFile64 > maxFileSize)
                         throw setError(VBOX_E_FILE_ERROR,
                                 tr("Size of the manifest file '%s' is bigger than 1Mb. Check it, please."),
                                 RTPathFilename(strMfFile.c_str()));
 
+                    cbFile = (size_t)cbFile64;    /* We know it's <= 1M. */
                     if (RT_SUCCESS(vrc))
                        pBuf = RTMemAllocZ(cbFile);
                     else
@@ -2443,7 +2445,7 @@ void Appliance::i_importOneDiskImage(const ovf::DiskImage &di,
 
             if ((pszSuff = RTPathSuffix(strTargetPath->c_str()))!=NULL)
             {
-                /* 
+                /*
                  * Figure out which format the user like to have. Default is VMDK
                  * or it can be VDI if according command-line option is set
                  */

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2014 Oracle Corporation
+ * Copyright (C) 2007-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -856,7 +856,7 @@ int main(int argc, char **argv)
      */
     if (   argc == 2
         && !RTStrICmp(argv[1], "pagefusion"))
-        return VBoxServicePageSharingInitFork();
+        return VBoxServicePageSharingWorkerChild();
 #endif
 
 #ifdef VBOX_WITH_GUEST_CONTROL

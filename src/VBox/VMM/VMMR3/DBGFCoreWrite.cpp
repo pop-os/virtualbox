@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2013 Oracle Corporation
+ * Copyright (C) 2010-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -50,6 +50,7 @@
 #define LOG_GROUP LOG_GROUP_DBGF
 #include <iprt/param.h>
 #include <iprt/file.h>
+#include <iprt/mem.h>
 
 #include "DBGFInternal.h"
 
@@ -77,12 +78,12 @@
 /*******************************************************************************
 *   Global Variables                                                           *
 *******************************************************************************/
-static const int s_NoteAlign  = 8;
-static const int s_cbNoteName = 16;
+static const int g_NoteAlign  = 8;
+static const int g_cbNoteName = 16;
 
-/* These strings *HAVE* to be 8-byte aligned */
-static const char *s_pcszCoreVBoxCore = "VBCORE";
-static const char *s_pcszCoreVBoxCpu  = "VBCPU";
+/* The size of these strings (incl. NULL terminator) must align to 8 bytes (g_NoteAlign) and -not- 4 bytes. */
+static const char *g_pcszCoreVBoxCore = "VBCORE";
+static const char *g_pcszCoreVBoxCpu  = "VBCPU";
 
 
 /*******************************************************************************
@@ -91,7 +92,7 @@ static const char *s_pcszCoreVBoxCpu  = "VBCPU";
 /**
  * Guest core writer data.
  *
- * Used to pass parameters from DBGFR3CoreWrite to dbgfR3CoreWriteRendezvous.
+ * Used to pass parameters from DBGFR3CoreWrite to dbgfR3CoreWriteRendezvous().
  */
 typedef struct DBGFCOREDATA
 {
@@ -161,12 +162,12 @@ static int Elf64WriteProgHdr(RTFILE hFile, uint32_t Type, uint32_t fFlags, uint6
 {
     Elf64_Phdr ProgHdr;
     RT_ZERO(ProgHdr);
-    ProgHdr.p_type          = Type;
-    ProgHdr.p_flags         = fFlags;
-    ProgHdr.p_offset        = offFileData;
-    ProgHdr.p_filesz        = cbFileData;
-    ProgHdr.p_memsz         = cbMemData;
-    ProgHdr.p_paddr         = Phys;
+    ProgHdr.p_type   = Type;
+    ProgHdr.p_flags  = fFlags;
+    ProgHdr.p_offset = offFileData;
+    ProgHdr.p_filesz = cbFileData;
+    ProgHdr.p_memsz  = cbMemData;
+    ProgHdr.p_paddr  = Phys;
 
     return RTFileWrite(hFile, &ProgHdr, sizeof(ProgHdr), NULL /* all */);
 }
@@ -184,11 +185,11 @@ static uint64_t Elf64NoteSectionSize(const char *pszName, uint64_t cbData)
 {
     uint64_t cbNote = sizeof(Elf64_Nhdr);
 
-    size_t cchName      = strlen(pszName) + 1;
-    size_t cchNameAlign = RT_ALIGN_Z(cchName, s_NoteAlign);
+    size_t cbName      = strlen(pszName) + 1;
+    size_t cbNameAlign = RT_ALIGN_Z(cbName, g_NoteAlign);
 
-    cbNote += cchNameAlign;
-    cbNote += RT_ALIGN_64(cbData, s_NoteAlign);
+    cbNote += cbNameAlign;
+    cbNote += RT_ALIGN_64(cbData, g_NoteAlign);
     return cbNote;
 }
 
@@ -209,38 +210,39 @@ static int Elf64WriteNoteHdr(RTFILE hFile, uint16_t Type, const char *pszName, c
     AssertReturn(pcvData, VERR_INVALID_POINTER);
     AssertReturn(cbData > 0, VERR_NO_DATA);
 
-    char szNoteName[s_cbNoteName];
+    char szNoteName[g_cbNoteName];
     RT_ZERO(szNoteName);
     RTStrCopy(szNoteName, sizeof(szNoteName), pszName);
 
-    size_t cchName       = strlen(szNoteName) + 1;
-    size_t cchNameAlign  = RT_ALIGN_Z(cchName, s_NoteAlign);
-    uint64_t cbDataAlign = RT_ALIGN_64(cbData, s_NoteAlign);
+    size_t   cbName      = strlen(szNoteName) + 1;
+    size_t   cbNameAlign = RT_ALIGN_Z(cbName, g_NoteAlign);
+    uint64_t cbDataAlign = RT_ALIGN_64(cbData, g_NoteAlign);
 
     /*
      * Yell loudly and bail if we are going to be writing a core file that is not compatible with
      * both Solaris and the 64-bit ELF spec. which dictates 8-byte alignment. See @bugref{5211} comment #3.
      */
-    if (cchNameAlign - cchName > 3)
+    if (cbNameAlign - cbName > 3)
     {
-        LogRel((DBGFLOG_NAME ": Elf64WriteNoteHdr pszName=%s cchName=%u cchNameAlign=%u, cchName aligns to 4 not 8-bytes!\n", pszName, cchName,
-                cchNameAlign));
+        LogRel((DBGFLOG_NAME ": Elf64WriteNoteHdr pszName=%s cbName=%u cbNameAlign=%u, cbName aligns to 4 not 8-bytes!\n",
+                pszName, cbName, cbNameAlign));
         return VERR_INVALID_PARAMETER;
     }
 
     if (cbDataAlign - cbData > 3)
     {
-        LogRel((DBGFLOG_NAME ": Elf64WriteNoteHdr pszName=%s cbData=%u cbDataAlign=%u, cbData aligns to 4 not 8-bytes!\n", pszName, cbData,
-                cbDataAlign));
+        LogRel((DBGFLOG_NAME ": Elf64WriteNoteHdr pszName=%s cbData=%u cbDataAlign=%u, cbData aligns to 4 not 8-bytes!\n",
+                pszName, cbData, cbDataAlign));
         return VERR_INVALID_PARAMETER;
     }
 
     static const char s_achPad[7] = { 0, 0, 0, 0, 0, 0, 0 };
-    AssertCompile(sizeof(s_achPad) >= s_NoteAlign - 1);
+    AssertCompile(sizeof(s_achPad) >= g_NoteAlign - 1);
 
     Elf64_Nhdr ElfNoteHdr;
     RT_ZERO(ElfNoteHdr);
-    ElfNoteHdr.n_namesz = (Elf64_Word)cchName - 1; /* Again, a discrepancy between ELF-64 and Solaris (see @bugref{5211} comment #3), we will follow ELF-64 */
+    ElfNoteHdr.n_namesz = (Elf64_Word)cbName - 1;    /* Again, a discrepancy between ELF-64 and Solaris,
+                                                        we will follow ELF-64, see @bugref{5211} comment #3. */
     ElfNoteHdr.n_type   = Type;
     ElfNoteHdr.n_descsz = (Elf64_Word)cbDataAlign;
 
@@ -253,14 +255,14 @@ static int Elf64WriteNoteHdr(RTFILE hFile, uint16_t Type, const char *pszName, c
         /*
          * Write note name.
          */
-        rc = RTFileWrite(hFile, szNoteName, cchName, NULL /* all */);
+        rc = RTFileWrite(hFile, szNoteName, cbName, NULL /* all */);
         if (RT_SUCCESS(rc))
         {
             /*
              * Write note name padding if required.
              */
-            if (cchNameAlign > cchName)
-                rc = RTFileWrite(hFile, s_achPad, cchNameAlign - cchName, NULL);
+            if (cbNameAlign > cbName)
+                rc = RTFileWrite(hFile, s_achPad, cbNameAlign - cbName, NULL);
 
             if (RT_SUCCESS(rc))
             {
@@ -281,8 +283,8 @@ static int Elf64WriteNoteHdr(RTFILE hFile, uint16_t Type, const char *pszName, c
     }
 
     if (RT_FAILURE(rc))
-        LogRel((DBGFLOG_NAME ": RTFileWrite failed. rc=%Rrc pszName=%s cchName=%u cchNameAlign=%u cbData=%u cbDataAlign=%u\n",
-                rc, pszName, cchName, cchNameAlign, cbData, cbDataAlign));
+        LogRel((DBGFLOG_NAME ": RTFileWrite failed. rc=%Rrc pszName=%s cbName=%u cbNameAlign=%u cbData=%u cbDataAlign=%u\n",
+                rc, pszName, cbName, cbNameAlign, cbData, cbDataAlign));
 
     return rc;
 }
@@ -308,7 +310,79 @@ static uint32_t dbgfR3GetRamRangeCount(PVM pVM)
 
 
 /**
- * Worker function for dbgfR3CoreWrite which does the writing.
+ * Gets the guest-CPU context suitable for dumping into the core file.
+ *
+ * @param   pCtx        Pointer to the guest-CPU context.
+ * @param   pDbgfCpu    Where to dump the guest-CPU data.
+ */
+static void dbgfR3GetCoreCpu(PCPUMCTX pCtx, PDBGFCORECPU pDbgfCpu)
+{
+#define DBGFCOPYSEL(a_dbgfsel, a_cpumselreg) \
+    do { \
+        (a_dbgfsel).uBase  = (a_cpumselreg).u64Base; \
+        (a_dbgfsel).uLimit = (a_cpumselreg).u32Limit; \
+        (a_dbgfsel).uAttr  = (a_cpumselreg).Attr.u; \
+        (a_dbgfsel).uSel   = (a_cpumselreg).Sel; \
+    } while (0)
+
+    pDbgfCpu->rax             = pCtx->rax;
+    pDbgfCpu->rbx             = pCtx->rbx;
+    pDbgfCpu->rcx             = pCtx->rcx;
+    pDbgfCpu->rdx             = pCtx->rdx;
+    pDbgfCpu->rsi             = pCtx->rsi;
+    pDbgfCpu->rdi             = pCtx->rdi;
+    pDbgfCpu->r8              = pCtx->r8;
+    pDbgfCpu->r9              = pCtx->r9;
+    pDbgfCpu->r10             = pCtx->r10;
+    pDbgfCpu->r11             = pCtx->r11;
+    pDbgfCpu->r12             = pCtx->r12;
+    pDbgfCpu->r13             = pCtx->r13;
+    pDbgfCpu->r14             = pCtx->r14;
+    pDbgfCpu->r15             = pCtx->r15;
+    pDbgfCpu->rip             = pCtx->rip;
+    pDbgfCpu->rsp             = pCtx->rsp;
+    pDbgfCpu->rbp             = pCtx->rbp;
+    DBGFCOPYSEL(pDbgfCpu->cs, pCtx->cs);
+    DBGFCOPYSEL(pDbgfCpu->ds, pCtx->ds);
+    DBGFCOPYSEL(pDbgfCpu->es, pCtx->es);
+    DBGFCOPYSEL(pDbgfCpu->fs, pCtx->fs);
+    DBGFCOPYSEL(pDbgfCpu->gs, pCtx->gs);
+    DBGFCOPYSEL(pDbgfCpu->ss, pCtx->ss);
+    pDbgfCpu->cr0             = pCtx->cr0;
+    pDbgfCpu->cr2             = pCtx->cr2;
+    pDbgfCpu->cr3             = pCtx->cr3;
+    pDbgfCpu->cr4             = pCtx->cr4;
+    AssertCompile(RT_ELEMENTS(pDbgfCpu->dr) == RT_ELEMENTS(pCtx->dr));
+    for (unsigned i = 0; i < RT_ELEMENTS(pDbgfCpu->dr); i++)
+        pDbgfCpu->dr[i] = pCtx->dr[i];
+    pDbgfCpu->gdtr.uAddr      = pCtx->gdtr.pGdt;
+    pDbgfCpu->gdtr.cb         = pCtx->gdtr.cbGdt;
+    pDbgfCpu->idtr.uAddr      = pCtx->idtr.pIdt;
+    pDbgfCpu->idtr.cb         = pCtx->idtr.cbIdt;
+    DBGFCOPYSEL(pDbgfCpu->ldtr, pCtx->ldtr);
+    DBGFCOPYSEL(pDbgfCpu->tr,   pCtx->tr);
+    pDbgfCpu->sysenter.cs     = pCtx->SysEnter.cs;
+    pDbgfCpu->sysenter.eip    = pCtx->SysEnter.eip;
+    pDbgfCpu->sysenter.esp    = pCtx->SysEnter.esp;
+    pDbgfCpu->msrEFER         = pCtx->msrEFER;
+    pDbgfCpu->msrSTAR         = pCtx->msrSTAR;
+    pDbgfCpu->msrPAT          = pCtx->msrPAT;
+    pDbgfCpu->msrLSTAR        = pCtx->msrLSTAR;
+    pDbgfCpu->msrCSTAR        = pCtx->msrCSTAR;
+    pDbgfCpu->msrSFMASK       = pCtx->msrSFMASK;
+    pDbgfCpu->msrKernelGSBase = pCtx->msrKERNELGSBASE;
+    pDbgfCpu->msrApicBase     = pCtx->msrApicBase;
+    pDbgfCpu->aXcr[0]         = pCtx->aXcr[0];
+    pDbgfCpu->aXcr[1]         = pCtx->aXcr[1];
+    AssertCompile(sizeof(pDbgfCpu->ext) == sizeof(*pCtx->pXStateR3));
+    memcpy(&pDbgfCpu->ext, pCtx->pXStateR3, sizeof(pDbgfCpu->ext));
+
+#undef DBGFCOPYSEL
+}
+
+
+/**
+ * Worker function for dbgfR3CoreWrite() which does the writing.
  *
  * @returns VBox status code
  * @param   pVM                 Pointer to the VM.
@@ -325,27 +399,27 @@ static int dbgfR3CoreWriteWorker(PVM pVM, RTFILE hFile)
 
     DBGFCOREDESCRIPTOR CoreDescriptor;
     RT_ZERO(CoreDescriptor);
-    CoreDescriptor.u32Magic         = DBGFCORE_MAGIC;
-    CoreDescriptor.u32FmtVersion    = DBGFCORE_FMT_VERSION;
-    CoreDescriptor.cbSelf           = sizeof(CoreDescriptor);
-    CoreDescriptor.u32VBoxVersion   = VBOX_FULL_VERSION;
-    CoreDescriptor.u32VBoxRevision  = VMMGetSvnRev();
-    CoreDescriptor.cCpus            = pVM->cCpus;
+    CoreDescriptor.u32Magic           = DBGFCORE_MAGIC;
+    CoreDescriptor.u32FmtVersion      = DBGFCORE_FMT_VERSION;
+    CoreDescriptor.cbSelf             = sizeof(CoreDescriptor);
+    CoreDescriptor.u32VBoxVersion     = VBOX_FULL_VERSION;
+    CoreDescriptor.u32VBoxRevision    = VMMGetSvnRev();
+    CoreDescriptor.cCpus              = pVM->cCpus;
 
     Log((DBGFLOG_NAME ": CoreDescriptor Version=%u Revision=%u\n", CoreDescriptor.u32VBoxVersion, CoreDescriptor.u32VBoxRevision));
 
     /*
      * Compute the file layout (see pg_dbgf_vmcore).
      */
-    uint64_t const offElfHdr        = RTFileTell(hFile);
-    uint64_t const offNoteSection   = offElfHdr         + sizeof(Elf64_Ehdr);
-    uint64_t const offLoadSections  = offNoteSection    + sizeof(Elf64_Phdr);
-    uint64_t const cbLoadSections   = cMemRanges * sizeof(Elf64_Phdr);
-    uint64_t const offCoreDescriptor= offLoadSections   + cbLoadSections;
-    uint64_t const cbCoreDescriptor = Elf64NoteSectionSize(s_pcszCoreVBoxCore, sizeof(CoreDescriptor));
-    uint64_t const offCpuDumps      = offCoreDescriptor + cbCoreDescriptor;
-    uint64_t const cbCpuDumps       = pVM->cCpus * Elf64NoteSectionSize(s_pcszCoreVBoxCpu, sizeof(CPUMCTX));
-    uint64_t const offMemory        = offCpuDumps       + cbCpuDumps;
+    uint64_t const offElfHdr          = RTFileTell(hFile);
+    uint64_t const offNoteSection     = offElfHdr         + sizeof(Elf64_Ehdr);
+    uint64_t const offLoadSections    = offNoteSection    + sizeof(Elf64_Phdr);
+    uint64_t const cbLoadSections     = cMemRanges * sizeof(Elf64_Phdr);
+    uint64_t const offCoreDescriptor  = offLoadSections   + cbLoadSections;
+    uint64_t const cbCoreDescriptor   = Elf64NoteSectionSize(g_pcszCoreVBoxCore, sizeof(CoreDescriptor));
+    uint64_t const offCpuDumps        = offCoreDescriptor + cbCoreDescriptor;
+    uint64_t const cbCpuDumps         = pVM->cCpus * Elf64NoteSectionSize(g_pcszCoreVBoxCpu, sizeof(DBGFCORECPU));
+    uint64_t const offMemory          = offCpuDumps       + cbCpuDumps;
 
     uint64_t const offNoteSectionData = offCoreDescriptor;
     uint64_t const cbNoteSectionData  = cbCoreDescriptor + cbCpuDumps;
@@ -417,29 +491,47 @@ static int dbgfR3CoreWriteWorker(PVM pVM, RTFILE hFile)
      * Write the Core descriptor note header and data.
      */
     Assert(RTFileTell(hFile) == offCoreDescriptor);
-    rc = Elf64WriteNoteHdr(hFile, NT_VBOXCORE, s_pcszCoreVBoxCore, &CoreDescriptor, sizeof(CoreDescriptor));
+    rc = Elf64WriteNoteHdr(hFile, NT_VBOXCORE, g_pcszCoreVBoxCore, &CoreDescriptor, sizeof(CoreDescriptor));
     if (RT_FAILURE(rc))
     {
-        LogRel((DBGFLOG_NAME ": Elf64WriteNoteHdr failed for Note '%s' rc=%Rrc\n", s_pcszCoreVBoxCore, rc));
+        LogRel((DBGFLOG_NAME ": Elf64WriteNoteHdr failed for Note '%s' rc=%Rrc\n", g_pcszCoreVBoxCore, rc));
         return rc;
     }
 
     /*
      * Write the CPU context note headers and data.
      */
-    /** @todo r=ramshankar: Dump a more standardized CPU structure rather than
-     *        dumping CPUMCTX and bump the core file version number. */
     Assert(RTFileTell(hFile) == offCpuDumps);
+    PDBGFCORECPU pDbgfCoreCpu = (PDBGFCORECPU)RTMemAlloc(sizeof(*pDbgfCoreCpu));
+    if (RT_UNLIKELY(!pDbgfCoreCpu))
+    {
+        LogRel((DBGFLOG_NAME ": failed to alloc %u bytes for DBGFCORECPU\n", sizeof(*pDbgfCoreCpu)));
+        return VERR_NO_MEMORY;
+    }
+
     for (uint32_t iCpu = 0; iCpu < pVM->cCpus; iCpu++)
     {
-        PCPUMCTX pCpuCtx = CPUMQueryGuestCtxPtr(&pVM->aCpus[iCpu]);
-        rc = Elf64WriteNoteHdr(hFile, NT_VBOXCPU, s_pcszCoreVBoxCpu, pCpuCtx, sizeof(CPUMCTX));
+        PVMCPU      pVCpu = &pVM->aCpus[iCpu];
+        PCPUMCTX    pCtx  = CPUMQueryGuestCtxPtr(pVCpu);
+        if (RT_UNLIKELY(!pCtx))
+        {
+            LogRel((DBGFLOG_NAME ": CPUMQueryGuestCtxPtr failed for vCPU[%u]\n", iCpu));
+            RTMemFree(pDbgfCoreCpu);
+            return VERR_INVALID_POINTER;
+        }
+
+        RT_BZERO(pDbgfCoreCpu, sizeof(*pDbgfCoreCpu));
+        dbgfR3GetCoreCpu(pCtx, pDbgfCoreCpu);
+        rc = Elf64WriteNoteHdr(hFile, NT_VBOXCPU, g_pcszCoreVBoxCpu, pDbgfCoreCpu, sizeof(*pDbgfCoreCpu));
         if (RT_FAILURE(rc))
         {
             LogRel((DBGFLOG_NAME ": Elf64WriteNoteHdr failed for vCPU[%u] rc=%Rrc\n", iCpu, rc));
+            RTMemFree(pDbgfCoreCpu);
             return rc;
         }
     }
+    RTMemFree(pDbgfCoreCpu);
+    pDbgfCoreCpu = NULL;
 
     /*
      * Write memory ranges.
@@ -493,7 +585,7 @@ static int dbgfR3CoreWriteWorker(PVM pVM, RTFILE hFile)
 
 
 /**
- * EMT Rendezvous worker function for DBGFR3CoreWrite.
+ * EMT Rendezvous worker function for DBGFR3CoreWrite().
  *
  * @param   pVM              Pointer to the VM.
  * @param   pVCpu            The handle of the calling VCPU.

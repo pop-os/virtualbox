@@ -367,7 +367,6 @@ typedef enum PGMMODE
       || (enmProt) == PGMROMPROT_READ_ROM_WRITE_RAM )
 
 
-
 VMMDECL(bool)           PGMIsLockOwner(PVM pVM);
 
 VMMDECL(int)            PGMRegisterStringFormatTypes(void);
@@ -439,7 +438,7 @@ VMMDECL(uint32_t)   PGMHandlerPhysicalTypeRelease(PVM pVM, PGMPHYSHANDLERTYPE hT
 VMMDECL(uint32_t)   PGMHandlerPhysicalTypeRetain(PVM pVM, PGMPHYSHANDLERTYPE hType);
 
 VMMDECL(int)        PGMHandlerPhysicalRegister(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS GCPhysLast, PGMPHYSHANDLERTYPE hType,
-                                               RTR3PTR pvUserR3, RTR0PTR pvUserR0, RTRCPTR pvUserRC, 
+                                               RTR3PTR pvUserR3, RTR0PTR pvUserR0, RTRCPTR pvUserRC,
                                                R3PTRTYPE(const char *) pszDesc);
 VMMDECL(int)        PGMHandlerPhysicalModify(PVM pVM, RTGCPHYS GCPhysCurrent, RTGCPHYS GCPhys, RTGCPHYS GCPhysLast);
 VMMDECL(int)        PGMHandlerPhysicalDeregister(PVM pVM, RTGCPHYS GCPhys);
@@ -460,9 +459,56 @@ typedef uint32_t PGMVIRTHANDLERTYPE;
 typedef PGMVIRTHANDLERTYPE *PPGMVIRTHANDLERTYPE;
 /** NIL value for PGM virtual access handler type handle. */
 #define NIL_PGMVIRTHANDLERTYPE  UINT32_MAX
+#ifdef VBOX_WITH_RAW_MODE
 VMM_INT_DECL(uint32_t) PGMHandlerVirtualTypeRelease(PVM pVM, PGMVIRTHANDLERTYPE hType);
 VMM_INT_DECL(uint32_t) PGMHandlerVirtualTypeRetain(PVM pVM, PGMVIRTHANDLERTYPE hType);
 VMM_INT_DECL(bool)     PGMHandlerVirtualIsRegistered(PVM pVM, RTGCPTR GCPtr);
+#endif
+
+
+/**
+ * Page type.
+ *
+ * @remarks This enum has to fit in a 3-bit field (see PGMPAGE::u3Type).
+ * @remarks This is used in the saved state, so changes to it requires bumping
+ *          the saved state version.
+ * @todo    So, convert to \#defines!
+ */
+typedef enum PGMPAGETYPE
+{
+    /** The usual invalid zero entry. */
+    PGMPAGETYPE_INVALID = 0,
+    /** RAM page. (RWX) */
+    PGMPAGETYPE_RAM,
+    /** MMIO2 page. (RWX) */
+    PGMPAGETYPE_MMIO2,
+    /** MMIO2 page aliased over an MMIO page. (RWX)
+     * See PGMHandlerPhysicalPageAlias(). */
+    PGMPAGETYPE_MMIO2_ALIAS_MMIO,
+    /** Special page aliased over an MMIO page. (RWX)
+     * See PGMHandlerPhysicalPageAliasHC(), but this is generally only used for
+     * VT-x's APIC access page at the moment.  Treated as MMIO by everyone except
+     * the shadow paging code. */
+    PGMPAGETYPE_SPECIAL_ALIAS_MMIO,
+    /** Shadowed ROM. (RWX) */
+    PGMPAGETYPE_ROM_SHADOW,
+    /** ROM page. (R-X) */
+    PGMPAGETYPE_ROM,
+    /** MMIO page. (---) */
+    PGMPAGETYPE_MMIO,
+    /** End of valid entries. */
+    PGMPAGETYPE_END
+} PGMPAGETYPE;
+AssertCompile(PGMPAGETYPE_END == 8);
+
+VMM_INT_DECL(PGMPAGETYPE) PGMPhysGetPageType(PVM pVM, RTGCPHYS GCPhys);
+
+VMM_INT_DECL(int)   PGMPhysGCPhys2HCPhys(PVM pVM, RTGCPHYS GCPhys, PRTHCPHYS pHCPhys);
+VMM_INT_DECL(int)   PGMPhysGCPtr2HCPhys(PVMCPU pVCpu, RTGCPTR GCPtr, PRTHCPHYS pHCPhys);
+VMM_INT_DECL(int)   PGMPhysGCPhys2CCPtr(PVM pVM, RTGCPHYS GCPhys, void **ppv, PPGMPAGEMAPLOCK pLock);
+VMM_INT_DECL(int)   PGMPhysGCPhys2CCPtrReadOnly(PVM pVM, RTGCPHYS GCPhys, void const **ppv, PPGMPAGEMAPLOCK pLock);
+VMM_INT_DECL(int)   PGMPhysGCPtr2CCPtr(PVMCPU pVCpu, RTGCPTR GCPtr, void **ppv, PPGMPAGEMAPLOCK pLock);
+VMM_INT_DECL(int)   PGMPhysGCPtr2CCPtrReadOnly(PVMCPU pVCpu, RTGCPTR GCPtr, void const **ppv, PPGMPAGEMAPLOCK pLock);
 
 VMMDECL(bool)       PGMPhysIsA20Enabled(PVMCPU pVCpu);
 VMMDECL(bool)       PGMPhysIsGCPhysValid(PVM pVM, RTGCPHYS GCPhys);
@@ -480,7 +526,10 @@ VMMDECL(void)       PGMPhysReleasePageMappingLock(PVM pVM, PPGMPAGEMAPLOCK pLock
  */
 #ifdef IN_RING3
 # define PGM_PHYS_RW_IS_SUCCESS(a_rcStrict) \
-    (   (a_rcStrict) == VINF_SUCCESS )
+    (   (a_rcStrict) == VINF_SUCCESS \
+     || (a_rcStrict) == VINF_EM_DBG_STOP \
+     || (a_rcStrict) == VINF_EM_DBG_BREAKPOINT \
+    )
 #elif defined(IN_RING0)
 # define PGM_PHYS_RW_IS_SUCCESS(a_rcStrict) \
     (   (a_rcStrict) == VINF_SUCCESS \
@@ -488,6 +537,8 @@ VMMDECL(void)       PGMPhysReleasePageMappingLock(PVM pVM, PPGMPAGEMAPLOCK pLock
      || (a_rcStrict) == VINF_EM_SUSPEND \
      || (a_rcStrict) == VINF_EM_RESET \
      || (a_rcStrict) == VINF_EM_HALT \
+     || (a_rcStrict) == VINF_EM_DBG_STOP \
+     || (a_rcStrict) == VINF_EM_DBG_BREAKPOINT \
     )
 #elif defined(IN_RC)
 # define PGM_PHYS_RW_IS_SUCCESS(a_rcStrict) \
@@ -498,6 +549,8 @@ VMMDECL(void)       PGMPhysReleasePageMappingLock(PVM pVM, PPGMPAGEMAPLOCK pLock
      || (a_rcStrict) == VINF_EM_HALT \
      || (a_rcStrict) == VINF_SELM_SYNC_GDT \
      || (a_rcStrict) == VINF_EM_RAW_EMULATE_INSTR_GDT_FAULT \
+     || (a_rcStrict) == VINF_EM_DBG_STOP \
+     || (a_rcStrict) == VINF_EM_DBG_BREAKPOINT \
     )
 #endif
 /** @def PGM_PHYS_RW_DO_UPDATE_STRICT_RC
@@ -631,6 +684,7 @@ VMMR3_INT_DECL(int) PGMR3InitCompleted(PVM pVM, VMINITCOMPLETED enmWhat);
 VMMR3DECL(void)     PGMR3Relocate(PVM pVM, RTGCINTPTR offDelta);
 VMMR3DECL(void)     PGMR3ResetCpu(PVM pVM, PVMCPU pVCpu);
 VMMR3_INT_DECL(void)    PGMR3Reset(PVM pVM);
+VMMR3_INT_DECL(void)    PGMR3ResetNoMorePhysWritesFlag(PVM pVM);
 VMMR3_INT_DECL(void)    PGMR3MemSetup(PVM pVM, bool fReset);
 VMMR3DECL(int)      PGMR3Term(PVM pVM);
 VMMR3DECL(int)      PGMR3LockCall(PVM pVM);
@@ -701,6 +755,7 @@ VMMR3DECL(int)      PGMR3HandlerPhysicalTypeRegister(PVM pVM, PGMPHYSHANDLERKIND
                                                      const char *pszModRC, const char *pszHandlerRC, const char *pszPfHandlerRC,
                                                      const char *pszDesc,
                                                      PPGMPHYSHANDLERTYPE phType);
+#ifdef VBOX_WITH_RAW_MODE
 VMMR3_INT_DECL(int) PGMR3HandlerVirtualTypeRegisterEx(PVM pVM, PGMVIRTHANDLERKIND enmKind, bool fRelocUserRC,
                                                       PFNPGMR3VIRTINVALIDATE pfnInvalidateR3,
                                                       PFNPGMVIRTHANDLER pfnHandlerR3,
@@ -716,6 +771,7 @@ VMMR3_INT_DECL(int) PGMR3HandlerVirtualRegister(PVM pVM, PVMCPU pVCpu, PGMVIRTHA
                                                 RTGCPTR GCPtrLast, void *pvUserR3, RTRCPTR pvUserRC, const char *pszDesc);
 VMMR3_INT_DECL(int) PGMHandlerVirtualChangeType(PVM pVM, RTGCPTR GCPtr, PGMVIRTHANDLERTYPE hNewType);
 VMMR3_INT_DECL(int) PGMHandlerVirtualDeregister(PVM pVM, PVMCPU pVCpu, RTGCPTR GCPtr, bool fHypervisor);
+#endif
 VMMR3DECL(int)      PGMR3PoolGrow(PVM pVM);
 
 VMMR3DECL(int)      PGMR3PhysTlbGCPhys2Ptr(PVM pVM, RTGCPHYS GCPhys, bool fWritable, void **ppv);
