@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2014 Oracle Corporation
+ * Copyright (C) 2013-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1053,7 +1053,7 @@ static int parseDhcpOptionText(const char *pszText,
 static int fillDhcpOption(RawOption &opt, const std::string &OptText, int OptEncoding)
 {
     int rc;
- 
+
     if (OptEncoding == DhcpOptEncoding_Hex)
     {
         if (OptText.empty())

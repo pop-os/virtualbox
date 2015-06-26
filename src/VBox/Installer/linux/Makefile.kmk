@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2013 Oracle Corporation
+# Copyright (C) 2006-2015 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -184,9 +184,9 @@ VBOX_LNX_STRIP_OBJ = \
 
 ifdef VBOX_WITH_RAW_MODE
  VBOX_LNX_STRIP_OBJ += \
-	VBoxDD2GC.gc \
-	VBoxDDGC.gc \
-	VMMGC.gc
+	VBoxDD2RC.rc \
+	VBoxDDRC.rc \
+	VMMRC.rc
 endif
 
 # Do not strip anything of these files

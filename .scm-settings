@@ -10,7 +10,7 @@
 #
 
 #
-# Copyright (C) 2010-2011 Oracle Corporation
+# Copyright (C) 2010-2015 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -45,8 +45,11 @@
 --filter-out-dirs  "*/tools/."
 --filter-out-dirs  "*/webtools/."
 --filter-out-dirs  "*/kBuild/."
+--filter-out-dirs  "*/_kBuild/."
+--filter-out-dirs  "*/kBuild_/."
 --filter-out-dirs  "*/debian/."
 --filter-out-dirs  "*/SlickEdit/."
+--filter-out-dirs  "*/doc/manual/texfiles/."
 --filter-out-dirs  "*/src/libs/*/."
 --filter-out-dirs  "*/src/apps/kchmviewer*/."
 --filter-out-dirs  "*/src/VBox/Additions/x11/x11include/."
@@ -71,7 +74,7 @@
 --filter-out-dirs  "*/src/VBox/Devices/Network/lwip*/doc*/."
 --filter-out-dirs  "*/src/VBox/Devices/Network/lwip*/test*/."
 --filter-out-dirs  "*/src/VBox/Storage/VDFormats/StorageCraft/*/."
---filter-out-dirs  "*/src/VBox/RDP/client/."
+--filter-out-dirs  "*/src/VBox/RDP/client-*/."
 --filter-out-dirs  "*/src/recompiler/tests/."
 
 

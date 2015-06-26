@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2009-2014 Oracle Corporation
+ * Copyright (C) 2009-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -35,8 +35,8 @@
 *   Defined Constants And Macros                                               *
 *******************************************************************************/
 /** @def USE_NSOPENGLVIEW
- * Define this to experiment with using NSOpenGLView instead 
- * of NSView.  There are transparency issues with the former, 
+ * Define this to experiment with using NSOpenGLView instead
+ * of NSView.  There are transparency issues with the former,
  * so for the time being we're using the latter.  */
 #if 0
 #define USE_NSOPENGLVIEW
@@ -53,7 +53,7 @@
 {
 @public
     /* in */
-    NativeNSViewRef             pParentView; 
+    NativeNSViewRef             pParentView;
     uint32_t                    cx;
     uint32_t                    cy;
     NativeNSOpenGLContextRef    pSharedCtx;
@@ -69,7 +69,7 @@
 /**
  * The overlay view.
  */
-@interface VMSVGA3DOverlayView 
+@interface VMSVGA3DOverlayView
 #ifdef USE_NSOPENGLVIEW
     : NSOpenGLView
 #else
@@ -89,7 +89,7 @@
     /* Position/Size tracking */
     NSPoint          m_Pos;
     NSSize           m_Size;
-    
+
     /** This is necessary for clipping on the root window */
     NSRect           m_RootRect;
 }
@@ -109,7 +109,7 @@
 - (void)prepareOpenGL;
 
 #endif
-/* Overridden: */    
+/* Overridden: */
 - (void)viewDidMoveToWindow;
 - (void)viewDidMoveToSuperview;
 - (void)resizeWithOldSuperviewSize:(NSSize)oldBoundsSize;
@@ -128,7 +128,7 @@
 
 + (void)createViewAndContext:(VMSVGA3DCreateViewAndContext *)pParams
 {
-    LogFlow(("OvlWin createViewAndContext:\n"));
+    LogFlow(("OvlView createViewAndContext:\n"));
 
     /*
      * Create a pixel format.
@@ -166,8 +166,8 @@
         if (pView)
         {
             /*
-             * If we have no shared GL context, we use the one that NSOpenGLView create. Otherwise, 
-             * we replace it.  (If we don't call openGLContext, it won't yet have been instantiated, 
+             * If we have no shared GL context, we use the one that NSOpenGLView create. Otherwise,
+             * we replace it.  (If we don't call openGLContext, it won't yet have been instantiated,
              * so there is no unecessary contexts created here when pSharedCtx != NULL.)
              */
             NSOpenGLContext *pCtx;
@@ -189,7 +189,7 @@
             }
             if (pCtx)
             {
-                /* 
+                /*
                  * Attach the view to the parent.
                  */
                 [pParams->pParentView addSubview:pView];
@@ -216,7 +216,7 @@
                 [pCtx retain]; //??
 
                 [pFmt release];
-                LogFlow(("OvlWin createViewAndContext: returns successfully\n"));
+                LogFlow(("OvlView createViewAndContext: returns successfully\n"));
                 return;
             }
             [pView release];
@@ -226,20 +226,20 @@
     else
         AssertFailed();
 
-    LogFlow(("OvlWin createViewAndContext: returns failure\n"));
+    LogFlow(("OvlView createViewAndContext: returns failure\n"));
     return;
 }
 
 - (id)initWithFrameAndFormat:(NSRect) frame parentView:(NSView*)pParentView pixelFormat:(NSOpenGLPixelFormat *)pFmt
 {
-    LogFlow(("OvlWin(%p) initWithFrameAndFormat:\n", (void *)self));
+    LogFlow(("OvlView(%p) initWithFrameAndFormat:\n", (void *)self));
 
     m_pParentView    = pParentView;
     /* Make some reasonable defaults */
     m_Pos            = NSZeroPoint;
     m_Size           = frame.size;
     m_RootRect       = NSMakeRect(0, 0, m_Size.width, m_Size.height);
-    
+
 #ifdef USE_NSOPENGLVIEW
     self = [super initWithFrame:frame pixelFormat:pFmt];
 #else
@@ -249,13 +249,13 @@
     {
         self.autoresizingMask = NSViewMinXMargin | NSViewMaxXMargin | NSViewMinYMargin | NSViewMaxYMargin;
     }
-    LogFlow(("OvlWin(%p) initWithFrameAndFormat: returns %p\n", (void *)self, (void *)self));
+    LogFlow(("OvlView(%p) initWithFrameAndFormat: returns %p\n", (void *)self, (void *)self));
     return self;
 }
 
 - (void)dealloc
 {
-    LogFlow(("OvlWin(%p) dealloc:\n", (void *)self));
+    LogFlow(("OvlView(%p) dealloc:\n", (void *)self));
 
 #ifdef USE_NSOPENGLVIEW
     [[self openGLContext] clearDrawable];
@@ -270,27 +270,27 @@
 
     [super dealloc];
 
-    LogFlow(("OvlWin(%p) dealloc: returns\n", (void *)self));
+    LogFlow(("OvlView(%p) dealloc: returns\n", (void *)self));
 }
 
 
 - (void)setPos:(NSPoint)pos
 {
-    Log(("OvlWin(%p) setPos: (%d,%d)\n", (void *)self, (int)pos.x, (int)pos.y));
+    Log(("OvlView(%p) setPos: (%d,%d)\n", (void *)self, (int)pos.x, (int)pos.y));
 
     m_Pos = pos;
     [self vboxReshape];
 
-    LogFlow(("OvlWin(%p) setPos: returns\n", (void *)self));
+    LogFlow(("OvlView(%p) setPos: returns\n", (void *)self));
 }
 
 
 - (void)setSize:(NSSize)size
 {
-    Log(("OvlWin(%p) setSize: (%d,%d):\n", (void *)self, (int)size.width, (int)size.height));
+    Log(("OvlView(%p) setSize: (%d,%d):\n", (void *)self, (int)size.width, (int)size.height));
     m_Size = size;
     [self vboxReshape];
-    LogFlow(("OvlWin(%p) setSize: returns\n", (void *)self));
+    LogFlow(("OvlView(%p) setSize: returns\n", (void *)self));
 }
 
 
@@ -298,10 +298,10 @@
 {
 #if 1 /* experiment */
     if ([NSThread isMainThread])
-        Log(("OvlWin(%p) vboxClearBuffers: skip, main thread\n", (void *)self));
+        Log(("OvlView(%p) vboxClearBuffers: skip, main thread\n", (void *)self));
     else
     {
-        Log(("OvlWin(%p) vboxClearBuffers: clears\n", (void *)self));
+        Log(("OvlView(%p) vboxClearBuffers: clears\n", (void *)self));
         NSOpenGLContext *pSavedCtx = [self makeCurrentGLContext];
 
         GLint iOldDrawBuf = GL_BACK;
@@ -320,10 +320,10 @@
 
 - (void)vboxReshape
 {
-    LogFlow(("OvlWin(%p) vboxReshape:\n", (void *)self));
+    LogFlow(("OvlView(%p) vboxReshape:\n", (void *)self));
 
     /*
-     * Not doing any complicate stuff here yet, hoping that we'll get correctly 
+     * Not doing any complicate stuff here yet, hoping that we'll get correctly
      * resized when the parent view changes...
      */
 
@@ -335,14 +335,14 @@
 
     [self vboxClearBuffers];
 
-    LogFlow(("OvlWin(%p) vboxReshape: returns\n", (void *)self));
+    LogFlow(("OvlView(%p) vboxReshape: returns\n", (void *)self));
 }
 
 
-/** 
- * Changes to the OpenGL context associated with the view. 
- * @returns Previous OpenGL context. 
- */ 
+/**
+ * Changes to the OpenGL context associated with the view.
+ * @returns Previous OpenGL context.
+ */
 - (NSOpenGLContext *)makeCurrentGLContext
 {
     NSOpenGLContext *pSavedCtx = [NSOpenGLContext currentContext];
@@ -358,9 +358,9 @@
 
 
 /**
- * Restores the previous OpenGL context after 
- * makeCurrentGLContext. 
- *  
+ * Restores the previous OpenGL context after
+ * makeCurrentGLContext.
+ *
  * @param pSavedCtx     The makeCurrentGLContext return value.
  */
 - (void)restoreSavedGLContext:(NSOpenGLContext *)pSavedCtx
@@ -414,7 +414,7 @@
 }
 #endif /* USE_NSOPENGLVIEW */
 
-/* 
+/*
  * Overridden NSOpenGLView / NSView methods:
  */
 
@@ -434,7 +434,7 @@
 
 -(void)resizeWithOldSuperviewSize:(NSSize)oldBoundsSize
 {
-    LogFlow(("OvlView(%p) resizeWithOldSuperviewSize: %d,%d -> %d,%d\n", (void *)self, 
+    LogFlow(("OvlView(%p) resizeWithOldSuperviewSize: %d,%d -> %d,%d\n", (void *)self,
              (int)oldBoundsSize.width, (int)oldBoundsSize.height, (int)[self bounds].size.width, (int)[self bounds].size.height));
     [super resizeWithOldSuperviewSize:oldBoundsSize];
     [self vboxReshape];
@@ -473,7 +473,7 @@ VMSVGA3DCOCOA_DECL(bool) vmsvga3dCocoaCreateViewAndContext(NativeNSViewRef *ppVi
                                                            NativeNSViewRef pParentView, uint32_t cx, uint32_t cy,
                                                            NativeNSOpenGLContextRef pSharedCtx, bool fOtherProfile)
 {
-    LogFlow(("vmsvga3dCocoaCreateViewAndContext: pParentView=%d size=%d,%d pSharedCtx=%p fOtherProfile=%RTbool\n", 
+    LogFlow(("vmsvga3dCocoaCreateViewAndContext: pParentView=%d size=%d,%d pSharedCtx=%p fOtherProfile=%RTbool\n",
              (void *)pParentView, cx, cy, (void *)pSharedCtx, fOtherProfile));
     NSAutoreleasePool *pPool = [[NSAutoreleasePool alloc] init];
     vmsvga3dCocoaServiceRunLoop();
@@ -518,7 +518,7 @@ VMSVGA3DCOCOA_DECL(void) vmsvga3dCocoaDestroyViewAndContext(NativeNSViewRef pVie
     [pView release];
 
     /* The OpenGL context. */
-    Log(("vmsvga3dCocoaDestroyViewAndContext: ctx  %p ref count=%d\n", (void *)pCtx, [pView retainCount]));
+    Log(("vmsvga3dCocoaDestroyViewAndContext: ctx  %p ref count=%d\n", (void *)pCtx, [pCtx retainCount]));
     [pCtx release];
 
     [pPool release];
@@ -570,7 +570,7 @@ void vmsvga3dCocoaViewMakeCurrentContext(NativeNSViewRef pView, NativeNSOpenGLCo
         [pCtx makeCurrentContext];
     }
     else
-    	[NSOpenGLContext clearCurrentContext];
+        [NSOpenGLContext clearCurrentContext];
 
     [pPool release];
     LogFlow(("vmsvga3dCocoaSwapBuffers: returns\n"));
@@ -598,7 +598,7 @@ void vmsvga3dCocoaSwapBuffers(NativeNSViewRef pView, NativeNSOpenGLContextRef pC
     [pCtx flushBuffer];
     //[pView setNeedsDisplay:YES];
     vmsvga3dCocoaServiceRunLoop();
-    
+
     [pPool release];
     LogFlow(("vmsvga3dCocoaSwapBuffers: returns\n"));
 }

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -4183,10 +4183,9 @@ static DECLCALLBACK(void) vgaInfoState(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp, c
     pHlp->pfnPrintf(pHlp, "display refresh interval: %u ms\n", pThis->cMilliesRefreshInterval);
 
 #ifdef VBOX_WITH_VMSVGA
-    if (pThis->svga.fEnabled) {
+    if (pThis->svga.fEnabled)
         pHlp->pfnPrintf(pHlp, pThis->svga.f3DEnabled ? "VMSVGA 3D enabled: %ux%ux%u\n" : "VMSVGA enabled: %ux%ux%u",
                         pThis->svga.uWidth, pThis->svga.uHeight, pThis->svga.uBpp);
-    }
 #endif
 }
 
@@ -6216,8 +6215,8 @@ static DECLCALLBACK(int)   vgaR3Construct(PPDMDEVINS pDevIns, int iInstance, PCF
      */
     rc = PGMR3HandlerPhysicalTypeRegister(pVM, PGMPHYSHANDLERKIND_WRITE,
                                           vgaLFBAccessHandler,
-                                          g_DeviceVga.szR0Mod, NULL, "vgaLbfAccessPfHandler",
-                                          g_DeviceVga.szRCMod, NULL, "vgaLbfAccessPfHandler",
+                                          g_DeviceVga.szR0Mod, "vgaLFBAccessHandler", "vgaLbfAccessPfHandler",
+                                          g_DeviceVga.szRCMod, "vgaLFBAccessHandler", "vgaLbfAccessPfHandler",
                                           "VGA LFB", &pThis->hLfbAccessHandlerType);
     AssertRCReturn(rc, rc);
 
@@ -6772,13 +6771,16 @@ static DECLCALLBACK(int)   vgaR3Construct(PPDMDEVINS pDevIns, int iInstance, PCF
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: Querying \"ShowBootMenu\" as integer failed"));
 
-#if defined(DEBUG) && !defined(DEBUG_sunlover)
+#if defined(DEBUG) && !defined(DEBUG_sunlover) && !defined(DEBUG_michael)
     /* Disable the logo abd menu if all default settings. */
     if (   LogoHdr.fu8FadeIn
         && LogoHdr.fu8FadeOut
         && LogoHdr.u16LogoMillies == 0
         && LogoHdr.fu8ShowBootMenu == 2)
-        LogoHdr.fu8FadeIn = LogoHdr.fu8FadeOut = LogoHdr.fu8ShowBootMenu = 0;
+    {
+        LogoHdr.fu8FadeIn = LogoHdr.fu8FadeOut = 0;
+        LogoHdr.u16LogoMillies = 500;
+    }
 #endif
 
     /* Delay the logo a little bit */
@@ -6961,7 +6963,7 @@ const PDMDEVREG g_DeviceVga =
     /* szName */
     "vga",
     /* szRCMod */
-    "VBoxDDGC.gc",
+    "VBoxDDRC.rc",
     /* szR0Mod */
     "VBoxDDR0.r0",
     /* pszDescription */

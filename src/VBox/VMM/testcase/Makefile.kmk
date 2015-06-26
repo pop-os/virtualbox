@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2013 Oracle Corporation
+# Copyright (C) 2006-2015 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -420,7 +420,7 @@ ifdef VBOX_WITH_RAW_MODE
  ifeq ($(filter-out pe lx,$(VBOX_LDR_FMT32)),)
   tstMicroRC_LIBS        += \
   	$(PATH_STAGE_LIB)/VMMRCBuiltin$(VBOX_SUFF_LIB) \
-  	$(LIB_VMMGC)
+  	$(LIB_VMMRC)
  endif
  tstMicroRC_SOURCES.win = tstMicroRC.def
 

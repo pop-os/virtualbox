@@ -100,6 +100,15 @@ const int XKeyRelease = KeyRelease;
 #include <math.h>
 
 
+#ifdef DEBUG_andy
+/* Macro for debugging drag and drop actions which usually would
+ * go to Main's logging group. */
+# define DNDDEBUG(x) LogRel(x)
+#else
+# define DNDDEBUG(x)
+#endif
+
+
 /* static */
 UIMachineView* UIMachineView::create(  UIMachineWindow *pMachineWindow
                                      , ulong uScreenId
@@ -337,10 +346,10 @@ void UIMachineView::sltHandleNotifyUpdate(int iX, int iY, int iWidth, int iHeigh
         const double yScaleFactor = visualStateType() == UIVisualStateType_Scale ?
                                     (double)scaledSize.height() / frameBuffer()->height() : dScaleFactor;
         /* Adjust corresponding viewport part: */
-        rect.moveTo(floor((double)rect.x() * xScaleFactor) - 1,
-                    floor((double)rect.y() * yScaleFactor) - 1);
-        rect.setSize(QSize(ceil((double)rect.width()  * xScaleFactor) + 2,
-                           ceil((double)rect.height() * yScaleFactor) + 2));
+        rect.moveTo((int)floor((double)rect.x() * xScaleFactor) - 1,
+                    (int)floor((double)rect.y() * yScaleFactor) - 1);
+        rect.setSize(QSize((int)ceil((double)rect.width()  * xScaleFactor) + 2,
+                           (int)ceil((double)rect.height() * yScaleFactor) + 2));
     }
 
     /* Shift has to be scaled by the backing-scale-factor
@@ -354,10 +363,10 @@ void UIMachineView::sltHandleNotifyUpdate(int iX, int iY, int iWidth, int iHeigh
         const double dBackingScaleFactor = frameBuffer()->backingScaleFactor();
         if (dBackingScaleFactor > 1.0)
         {
-            rect.moveTo(floor((double)rect.x() / dBackingScaleFactor) - 1,
-                        floor((double)rect.y() / dBackingScaleFactor) - 1);
-            rect.setSize(QSize(ceil((double)rect.width()  / dBackingScaleFactor) + 2,
-                               ceil((double)rect.height() / dBackingScaleFactor) + 2));
+            rect.moveTo((int)floor((double)rect.x() / dBackingScaleFactor) - 1,
+                        (int)floor((double)rect.y() / dBackingScaleFactor) - 1);
+            rect.setSize(QSize((int)ceil((double)rect.width()  / dBackingScaleFactor) + 2,
+                               (int)ceil((double)rect.height() / dBackingScaleFactor) + 2));
         }
     }
 #endif /* Q_WS_MAC */
@@ -544,6 +553,9 @@ UIMachineView::UIMachineView(  UIMachineWindow *pMachineWindow
 #ifdef VBOX_WITH_VIDEOHWACCEL
     , m_fAccelerate2DVideo(bAccelerate2DVideo)
 #endif /* VBOX_WITH_VIDEOHWACCEL */
+#ifdef VBOX_WITH_DRAG_AND_DROP_GH
+    , m_fIsDraggingFromGuest(false)
+#endif
 {
     /* Load machine view settings: */
     loadMachineViewSettings();
@@ -1419,6 +1431,16 @@ void UIMachineView::paintEvent(QPaintEvent *pPaintEvent)
 }
 
 #ifdef VBOX_WITH_DRAG_AND_DROP
+bool UIMachineView::dragAndDropCanAccept(void) const
+{
+    bool fAccept =  m_pDnDHandler
+#ifdef VBOX_WITH_DRAG_AND_DROP_GH
+                 && !m_fIsDraggingFromGuest
+#endif
+                 && machine().GetDnDMode() != KDnDMode_Disabled;
+    return fAccept;
+}
+
 bool UIMachineView::dragAndDropIsActive(void) const
 {
     return (   m_pDnDHandler
@@ -1429,91 +1451,162 @@ void UIMachineView::dragEnterEvent(QDragEnterEvent *pEvent)
 {
     AssertPtrReturnVoid(pEvent);
 
-    if (!dragAndDropIsActive())
-        return;
+    int rc = dragAndDropCanAccept() ? VINF_SUCCESS : VERR_ACCESS_DENIED;
+    if (RT_SUCCESS(rc))
+    {
+        /* Get mouse-pointer location. */
+        const QPoint &cpnt = viewportToContents(pEvent->pos());
 
-    /* Get mouse-pointer location. */
-    const QPoint &cpnt = viewportToContents(pEvent->pos());
+        /* Ask the target for starting a DnD event. */
+        Qt::DropAction result = m_pDnDHandler->dragEnter(screenId(),
+                                                         frameBuffer()->convertHostXTo(cpnt.x()),
+                                                         frameBuffer()->convertHostYTo(cpnt.y()),
+                                                         pEvent->proposedAction(),
+                                                         pEvent->possibleActions(),
+                                                         pEvent->mimeData());
 
-    /* Ask the target for starting a DnD event. */
-    Qt::DropAction result = m_pDnDHandler->dragEnter(screenId(),
-                                                     frameBuffer()->convertHostXTo(cpnt.x()),
-                                                     frameBuffer()->convertHostYTo(cpnt.y()),
-                                                     pEvent->proposedAction(),
-                                                     pEvent->possibleActions(),
-                                                     pEvent->mimeData());
+        /* Set the DnD action returned by the guest. */
+        pEvent->setDropAction(result);
+        pEvent->accept();
+    }
 
-    /* Set the DnD action returned by the guest. */
-    pEvent->setDropAction(result);
-    pEvent->accept();
+    DNDDEBUG(("DnD: dragEnterEvent ended with rc=%Rrc\n", rc));
 }
 
 void UIMachineView::dragMoveEvent(QDragMoveEvent *pEvent)
 {
     AssertPtrReturnVoid(pEvent);
 
-    if (!dragAndDropIsActive())
-        return;
+    int rc = dragAndDropCanAccept() ? VINF_SUCCESS : VERR_ACCESS_DENIED;
+    if (RT_SUCCESS(rc))
+    {
+        /* Get mouse-pointer location. */
+        const QPoint &cpnt = viewportToContents(pEvent->pos());
 
-    /* Get mouse-pointer location. */
-    const QPoint &cpnt = viewportToContents(pEvent->pos());
+        /* Ask the guest for moving the drop cursor. */
+        Qt::DropAction result = m_pDnDHandler->dragMove(screenId(),
+                                                        frameBuffer()->convertHostXTo(cpnt.x()),
+                                                        frameBuffer()->convertHostYTo(cpnt.y()),
+                                                        pEvent->proposedAction(),
+                                                        pEvent->possibleActions(),
+                                                        pEvent->mimeData());
 
-    /* Ask the guest for moving the drop cursor. */
-    Qt::DropAction result = m_pDnDHandler->dragMove(screenId(),
-                                                    frameBuffer()->convertHostXTo(cpnt.x()),
-                                                    frameBuffer()->convertHostYTo(cpnt.y()),
-                                                    pEvent->proposedAction(),
-                                                    pEvent->possibleActions(),
-                                                    pEvent->mimeData());
+        /* Set the DnD action returned by the guest. */
+        pEvent->setDropAction(result);
+        pEvent->accept();
+    }
 
-    /* Set the DnD action returned by the guest. */
-    pEvent->setDropAction(result);
-    pEvent->accept();
+    DNDDEBUG(("DnD: dragMoveEvent ended with rc=%Rrc\n", rc));
 }
 
 void UIMachineView::dragLeaveEvent(QDragLeaveEvent *pEvent)
 {
     AssertPtrReturnVoid(pEvent);
 
-    if (!dragAndDropIsActive())
-        return;
+    int rc = dragAndDropCanAccept() ? VINF_SUCCESS : VERR_ACCESS_DENIED;
+    if (RT_SUCCESS(rc))
+    {
+        m_pDnDHandler->dragLeave(screenId());
 
-    m_pDnDHandler->dragLeave(screenId());
+        pEvent->accept();
+    }
 
-    pEvent->accept();
+    DNDDEBUG(("DnD: dragLeaveEvent ended with rc=%Rrc\n", rc));
 }
 
-void UIMachineView::dragIsPending(void)
+int UIMachineView::dragCheckPending(void)
 {
-    if (!dragAndDropIsActive())
-        return;
+    int rc;
 
-    /** @todo Add guest->guest DnD functionality here by getting
-     *        the source of guest B (when copying from B to A). */
-    m_pDnDHandler->dragIsPending(screenId());
+    if (!dragAndDropIsActive())
+        rc = VERR_ACCESS_DENIED;
+#ifdef VBOX_WITH_DRAG_AND_DROP_GH
+    else if (!m_fIsDraggingFromGuest)
+    {
+        /** @todo Add guest->guest DnD functionality here by getting
+         *        the source of guest B (when copying from B to A). */
+        rc = m_pDnDHandler->dragCheckPending(screenId());
+        if (RT_SUCCESS(rc))
+            m_fIsDraggingFromGuest = true;
+    }
+    else /* Already dragging, so report success. */
+        rc = VINF_SUCCESS;
+#else
+    rc = VERR_NOT_SUPPORTED;
+#endif
+
+    DNDDEBUG(("DnD: dragCheckPending ended with rc=%Rrc\n", rc));
+    return rc;
+}
+
+int UIMachineView::dragStart(void)
+{
+    int rc;
+
+    if (!dragAndDropIsActive())
+        rc = VERR_ACCESS_DENIED;
+#ifdef VBOX_WITH_DRAG_AND_DROP_GH
+    else if (!m_fIsDraggingFromGuest)
+        rc = VERR_WRONG_ORDER;
+    else
+    {
+        /** @todo Add guest->guest DnD functionality here by getting
+         *        the source of guest B (when copying from B to A). */
+        rc = m_pDnDHandler->dragStart(screenId());
+
+        m_fIsDraggingFromGuest = false;
+    }
+#else
+    rc = VERR_NOT_SUPPORTED;
+#endif
+
+    DNDDEBUG(("DnD: dragStart ended with rc=%Rrc\n", rc));
+    return rc;
+}
+
+int UIMachineView::dragStop(void)
+{
+    int rc;
+
+    if (!dragAndDropIsActive())
+        rc = VERR_ACCESS_DENIED;
+#ifdef VBOX_WITH_DRAG_AND_DROP_GH
+    else if (!m_fIsDraggingFromGuest)
+        rc = VERR_WRONG_ORDER;
+    else
+        rc = m_pDnDHandler->dragStop(screenId());
+#else
+    rc = VERR_NOT_SUPPORTED;
+#endif
+
+    DNDDEBUG(("DnD: dragStop ended with rc=%Rrc\n", rc));
+    return rc;
 }
 
 void UIMachineView::dropEvent(QDropEvent *pEvent)
 {
     AssertPtrReturnVoid(pEvent);
 
-    if (!dragAndDropIsActive())
-        return;
+    int rc = dragAndDropCanAccept() ? VINF_SUCCESS : VERR_ACCESS_DENIED;
+    if (RT_SUCCESS(rc))
+    {
+        /* Get mouse-pointer location. */
+        const QPoint &cpnt = viewportToContents(pEvent->pos());
 
-    /* Get mouse-pointer location. */
-    const QPoint &cpnt = viewportToContents(pEvent->pos());
+        /* Ask the guest for dropping data. */
+        Qt::DropAction result = m_pDnDHandler->dragDrop(screenId(),
+                                                        frameBuffer()->convertHostXTo(cpnt.x()),
+                                                        frameBuffer()->convertHostYTo(cpnt.y()),
+                                                        pEvent->proposedAction(),
+                                                        pEvent->possibleActions(),
+                                                        pEvent->mimeData());
 
-    /* Ask the guest for dropping data. */
-    Qt::DropAction result = m_pDnDHandler->dragDrop(screenId(),
-                                                    frameBuffer()->convertHostXTo(cpnt.x()),
-                                                    frameBuffer()->convertHostYTo(cpnt.y()),
-                                                    pEvent->proposedAction(),
-                                                    pEvent->possibleActions(),
-                                                    pEvent->mimeData());
+        /* Set the DnD action returned by the guest. */
+        pEvent->setDropAction(result);
+        pEvent->accept();
+    }
 
-    /* Set the DnD action returned by the guest. */
-    pEvent->setDropAction(result);
-    pEvent->accept();
+    DNDDEBUG(("DnD: dropEvent ended with rc=%Rrc\n", rc));
 }
 #endif /* VBOX_WITH_DRAG_AND_DROP */
 
@@ -1597,7 +1690,7 @@ QSize UIMachineView::scaledForward(QSize size) const
     /* Take the scale-factor into account: */
     const double dScaleFactor = frameBuffer()->scaleFactor();
     if (dScaleFactor != 1.0)
-        size = QSize(size.width() * dScaleFactor, size.height() * dScaleFactor);
+        size = QSize((int)(size.width() * dScaleFactor), (int)(size.height() * dScaleFactor));
 
 #ifdef Q_WS_MAC
     /* Take the backing-scale-factor into account: */
@@ -1628,7 +1721,7 @@ QSize UIMachineView::scaledBackward(QSize size) const
     /* Take the scale-factor into account: */
     const double dScaleFactor = frameBuffer()->scaleFactor();
     if (dScaleFactor != 1.0)
-        size = QSize(size.width() / dScaleFactor, size.height() / dScaleFactor);
+        size = QSize((int)(size.width() / dScaleFactor), (int)(size.height() / dScaleFactor));
 
     /* Return result: */
     return size;

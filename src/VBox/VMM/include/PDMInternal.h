@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -300,9 +300,9 @@ typedef struct PDMCRITSECTINT
     bool                            fUsedByTimerOrSimilar;
     /** Alignment padding. */
     bool                            afPadding[2];
-    /** Event semaphore that is scheduled to be signaled upon leaving the
-     * critical section. This is Ring-3 only of course. */
-    RTSEMEVENT                      EventToSignal;
+    /** Support driver event semaphore that is scheduled to be signaled upon leaving
+     * the critical section. This is only for Ring-3 and Ring-0. */
+    SUPSEMEVENT                     hEventToSignal;
     /** The lock name. */
     R3PTRTYPE(const char *)         pszName;
     /** R0/RC lock contention. */

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -117,9 +117,8 @@ typedef const PDMUSBDESCCACHE *PCPDMUSBDESCCACHE;
  * @{ */
 /** A high-speed capable USB 2.0 device (also required to support full-speed). */
 #define PDM_USBREG_HIGHSPEED_CAPABLE        RT_BIT(0)
-/** Indicates that the device is fully emulated and is not used to pass through
- * a host device. */
-#define PDM_USBREG_EMULATED_DEVICE          RT_BIT(1)
+/** Indicates that the device implements the saved state handlers. */
+#define PDM_USBREG_SAVED_STATE_SUPPORTED    RT_BIT(1)
 /** A SuperSpeed USB 3.0 device. */
 #define PDM_USBREG_SUPERSPEED_CAPABLE       RT_BIT(2)
 /** @} */

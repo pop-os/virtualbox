@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2012 Oracle Corporation
+# Copyright (C) 2006-2015 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -33,14 +33,18 @@ VBoxCmp_TEMPLATE = VBoxBldProg
 VBoxCmp_SOURCES = VBoxCmp.cpp
 
 ifndef VBOX_ONLY_BUILD
- BLDPROGS += scm
- scm_TEMPLATE = VBoxAdvBldProg
+ PROGRAMS += scm
+ scm_TEMPLATE = VBoxR3Tool
  scm_SOURCES = \
  	scm.cpp \
  	scmdiff.cpp \
  	scmrw.cpp \
  	scmstream.cpp \
  	scmsubversion.cpp
+ ifdef VBOX_PATH_SUBVERSION_INCS
+  scm_INCS += $(VBOX_PATH_SUBVERSION_INCS) $(VBOX_PATH_APACHE_RUNTIME_INCS)
+  scm_DEFS += SCM_WITH_SVN_HEADERS
+ endif
 
  BLDPROGS += VBoxCPP
  VBoxCPP_TEMPLATE = VBoxAdvBldProg

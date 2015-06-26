@@ -2125,10 +2125,6 @@ bool StorageController::operator==(const StorageController &s) const
                   && (ulPortCount               == s.ulPortCount)
                   && (ulInstance                == s.ulInstance)
                   && (fUseHostIOCache           == s.fUseHostIOCache)
-                  && (lIDE0MasterEmulationPort  == s.lIDE0MasterEmulationPort)
-                  && (lIDE0SlaveEmulationPort   == s.lIDE0SlaveEmulationPort)
-                  && (lIDE1MasterEmulationPort  == s.lIDE1MasterEmulationPort)
-                  && (lIDE1SlaveEmulationPort   == s.lIDE1SlaveEmulationPort)
                   && (llAttachedDevices         == s.llAttachedDevices)
                 )
            );
@@ -2654,6 +2650,38 @@ void MachineConfigFile::readAudioAdapter(const xml::ElementNode &elmAudioAdapter
             throw ConfigFileError(this, &elmAudioAdapter, N_("Invalid value '%s' in AudioAdapter/@controller attribute"), strTemp.c_str());
     }
 
+    if (elmAudioAdapter.getAttributeValue("codec", strTemp))
+    {
+        if (strTemp == "SB16")
+            aa.codecType = AudioCodecType_SB16;
+        else if (strTemp == "STAC9700")
+            aa.codecType = AudioCodecType_STAC9700;
+        else if (strTemp == "AD1980")
+            aa.codecType = AudioCodecType_AD1980;
+        else if (strTemp == "STAC9221")
+            aa.codecType = AudioCodecType_STAC9221;
+        else
+            throw ConfigFileError(this, &elmAudioAdapter, N_("Invalid value '%s' in AudioAdapter/@codec attribute"), strTemp.c_str());
+    }
+    else
+    {
+        /* No codec attribute provided; use defaults. */
+        switch (aa.controllerType)
+        {
+            case AudioControllerType_AC97:
+                aa.codecType = AudioCodecType_STAC9700;
+                break;
+            case AudioControllerType_SB16:
+                aa.codecType = AudioCodecType_SB16;
+                break;
+            case AudioControllerType_HDA:
+                aa.codecType = AudioCodecType_STAC9221;
+                break;
+            default:
+                Assert(false);  /* We just checked the controller type above. */
+        }
+    }
+
     if (elmAudioAdapter.getAttributeValue("driver", strTemp))
     {
         // settings before 1.3 used lower case so make sure this is case-insensitive
@@ -2719,11 +2747,6 @@ void MachineConfigFile::readStorageControllerAttributes(const xml::ElementNode &
                                                         StorageController &sctl)
 {
     elmStorageController.getAttributeValue("PortCount", sctl.ulPortCount);
-    elmStorageController.getAttributeValue("IDE0MasterEmulationPort", sctl.lIDE0MasterEmulationPort);
-    elmStorageController.getAttributeValue("IDE0SlaveEmulationPort", sctl.lIDE0SlaveEmulationPort);
-    elmStorageController.getAttributeValue("IDE1MasterEmulationPort", sctl.lIDE1MasterEmulationPort);
-    elmStorageController.getAttributeValue("IDE1SlaveEmulationPort", sctl.lIDE1SlaveEmulationPort);
-
     elmStorageController.getAttributeValue("useHostIOCache", sctl.fUseHostIOCache);
 }
 
@@ -4725,6 +4748,33 @@ void MachineConfigFile::buildHardwareXML(xml::ElementNode &elmParent,
     }
     pelmAudio->setAttribute("controller", pcszController);
 
+    const char *pcszCodec;
+    switch (hw.audioAdapter.codecType)
+    {
+        /* Only write out the setting for non-default AC'97 codec
+         * and leave the rest alone.
+         */
+#if 0
+        case AudioCodecType_SB16:
+            pcszCodec = "SB16";
+            break;
+        case AudioCodecType_STAC9221:
+            pcszCodec = "STAC9221";
+            break;
+        case AudioCodecType_STAC9700:
+            pcszCodec = "STAC9700";
+            break;
+#endif
+        case AudioCodecType_AD1980:
+            pcszCodec = "AD1980";
+            break;
+        default:
+            /* Don't write out anything if unknown. */
+            pcszCodec = NULL;
+    }
+    if (pcszCodec)
+        pelmAudio->setAttribute("codec", pcszCodec);
+
     if (m->sv >= SettingsVersion_v1_10)
     {
         xml::ElementNode *pelmRTC = pelmHardware->createChild("RTC");
@@ -5062,10 +5112,10 @@ void MachineConfigFile::buildStorageControllersXML(xml::ElementNode &elmParent,
 
         if (sc.controllerType == StorageControllerType_IntelAhci)
         {
-            pelmController->setAttribute("IDE0MasterEmulationPort", sc.lIDE0MasterEmulationPort);
-            pelmController->setAttribute("IDE0SlaveEmulationPort", sc.lIDE0SlaveEmulationPort);
-            pelmController->setAttribute("IDE1MasterEmulationPort", sc.lIDE1MasterEmulationPort);
-            pelmController->setAttribute("IDE1SlaveEmulationPort", sc.lIDE1SlaveEmulationPort);
+            pelmController->setAttribute("IDE0MasterEmulationPort", 0);
+            pelmController->setAttribute("IDE0SlaveEmulationPort", 1);
+            pelmController->setAttribute("IDE1MasterEmulationPort", 2);
+            pelmController->setAttribute("IDE1SlaveEmulationPort", 3);
         }
 
         for (AttachedDevicesList::const_iterator it2 = sc.llAttachedDevices.begin();

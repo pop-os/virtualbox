@@ -45,6 +45,7 @@ typedef struct
 typedef struct
 {
     RTCList<MEDIUMTASK>     chain;
+    DeviceType_T            devType;
     bool                    fCreateDiffs;
     bool                    fAttachLinked;
 } MEDIUMTASKCHAIN;
@@ -102,7 +103,7 @@ struct MachineCloneVMPrivate
     /* MachineCloneVM::start helper: */
     HRESULT createMachineList(const ComPtr<ISnapshot> &pSnapshot, RTCList< ComObjPtr<Machine> > &machineList) const;
     inline void updateProgressStats(MEDIUMTASKCHAIN &mtc, bool fAttachLinked, ULONG &uCount, ULONG &uTotalWeight) const;
-    inline HRESULT addSaveState(const ComObjPtr<Machine> &machine, ULONG &uCount, ULONG &uTotalWeight);
+    inline HRESULT addSaveState(const ComObjPtr<Machine> &machine, bool fAttachCurrent, ULONG &uCount, ULONG &uTotalWeight);
     inline HRESULT queryBaseName(const ComPtr<IMedium> &pMedium, Utf8Str &strBaseName) const;
     HRESULT queryMediasForMachineState(const RTCList<ComObjPtr<Machine> > &machineList,
                                        bool fAttachLinked, ULONG &uCount, ULONG &uTotalWeight);
@@ -199,7 +200,7 @@ void MachineCloneVMPrivate::updateProgressStats(MEDIUMTASKCHAIN &mtc, bool fAtta
     }
 }
 
-HRESULT MachineCloneVMPrivate::addSaveState(const ComObjPtr<Machine> &machine, ULONG &uCount, ULONG &uTotalWeight)
+HRESULT MachineCloneVMPrivate::addSaveState(const ComObjPtr<Machine> &machine, bool fAttachCurrent, ULONG &uCount, ULONG &uTotalWeight)
 {
     Bstr bstrSrcSaveStatePath;
     HRESULT rc = machine->COMGETTER(StateFilePath)(bstrSrcSaveStatePath.asOutParam());
@@ -207,7 +208,14 @@ HRESULT MachineCloneVMPrivate::addSaveState(const ComObjPtr<Machine> &machine, U
     if (!bstrSrcSaveStatePath.isEmpty())
     {
         SAVESTATETASK sst;
-        sst.snapshotUuid     = machine->i_getSnapshotId();
+        if (fAttachCurrent)
+        {
+            /* Make this saved state part of "current state" of the target
+             * machine, whether it is part of a snapshot or not. */
+            sst.snapshotUuid.clear();
+        }
+        else
+            sst.snapshotUuid = machine->i_getSnapshotId();
         sst.strSaveStateFile = bstrSrcSaveStatePath;
         uint64_t cbSize;
         int vrc = RTFileQuerySize(sst.strSaveStateFile.c_str(), &cbSize);
@@ -240,7 +248,7 @@ HRESULT MachineCloneVMPrivate::queryMediasForMachineState(const RTCList<ComObjPt
                                                           bool fAttachLinked, ULONG &uCount, ULONG &uTotalWeight)
 {
     /* This mode is pretty straightforward. We didn't need to know about any
-     * parent/children relationship and therefor simply adding all directly
+     * parent/children relationship and therefore simply adding all directly
      * attached images of the source VM as cloning targets. The IMedium code
      * take than care to merge any (possibly) existing parents into the new
      * image. */
@@ -262,20 +270,23 @@ HRESULT MachineCloneVMPrivate::queryMediasForMachineState(const RTCList<ComObjPt
             rc = pAtt->COMGETTER(Type)(&type);
             if (FAILED(rc)) return rc;
 
-            /* Only harddisk's are of interest. */
-            if (type != DeviceType_HardDisk)
+            /* Only harddisks and floppies are of interest. */
+            if (   type != DeviceType_HardDisk
+                && type != DeviceType_Floppy)
                 continue;
 
             /* Valid medium attached? */
             ComPtr<IMedium> pSrcMedium;
             rc = pAtt->COMGETTER(Medium)(pSrcMedium.asOutParam());
             if (FAILED(rc)) return rc;
+
             if (pSrcMedium.isNull())
                 continue;
 
             /* Create the medium task chain. In this case it will always
              * contain one image only. */
             MEDIUMTASKCHAIN mtc;
+            mtc.devType       = type;
             mtc.fCreateDiffs  = fCreateDiffs;
             mtc.fAttachLinked = fAttachLinked;
 
@@ -308,7 +319,7 @@ HRESULT MachineCloneVMPrivate::queryMediasForMachineState(const RTCList<ComObjPt
             llMedias.append(mtc);
         }
         /* Add the save state files of this machine if there is one. */
-        rc = addSaveState(machine, uCount, uTotalWeight);
+        rc = addSaveState(machine, true /*fAttachCurrent*/, uCount, uTotalWeight);
         if (FAILED(rc)) return rc;
     }
 
@@ -345,9 +356,10 @@ HRESULT MachineCloneVMPrivate::queryMediasForMachineAndChildStates(const RTCList
      * included.
      *
      * Note: This still leads to media chains which can have the same medium
-     * included. This case is handled in "run" and therefor not critical, but
+     * included. This case is handled in "run" and therefore not critical, but
      * it leads to wrong progress infos which isn't nice. */
 
+    Assert(!fAttachLinked);
     HRESULT rc = S_OK;
     std::map<ComPtr<IMedium>, uint32_t> mediaHist; /* Our usage histogram for the medias */
     for (size_t i = 0; i < machineList.size(); ++i)
@@ -368,8 +380,9 @@ HRESULT MachineCloneVMPrivate::queryMediasForMachineAndChildStates(const RTCList
             rc = pAtt->COMGETTER(Type)(&type);
             if (FAILED(rc)) return rc;
 
-            /* Only harddisk's are of interest. */
-            if (type != DeviceType_HardDisk)
+            /* Only harddisks and floppies are of interest. */
+            if (   type != DeviceType_HardDisk
+                && type != DeviceType_Floppy)
                 continue;
 
             /* Valid medium attached? */
@@ -381,6 +394,7 @@ HRESULT MachineCloneVMPrivate::queryMediasForMachineAndChildStates(const RTCList
                 continue;
 
             MEDIUMTASKCHAIN mtc;
+            mtc.devType       = type;
             mtc.fCreateDiffs  = fCreateDiffs;
             mtc.fAttachLinked = fAttachLinked;
 
@@ -411,8 +425,15 @@ HRESULT MachineCloneVMPrivate::queryMediasForMachineAndChildStates(const RTCList
             llMedias.append(mtc);
         }
         /* Add the save state files of this machine if there is one. */
-        rc = addSaveState(machine, uCount, uTotalWeight);
+        rc = addSaveState(machine, false /*fAttachCurrent*/, uCount, uTotalWeight);
         if (FAILED(rc)) return rc;
+        /* If this is the newly created current state, make sure that the
+         * saved state is also attached to it. */
+        if (fCreateDiffs)
+        {
+            rc = addSaveState(machine, true /*fAttachCurrent*/, uCount, uTotalWeight);
+            if (FAILED(rc)) return rc;
+        }
     }
     /* Build up the index list of the image chain. Unfortunately we can't do
      * that in the previous loop, cause there we go from child -> parent and
@@ -484,6 +505,7 @@ HRESULT MachineCloneVMPrivate::queryMediasForAllStates(const RTCList<ComObjPtr<M
     /* In this case we create a exact copy of the original VM. This means just
      * adding all directly and indirectly attached disk images to the worker
      * list. */
+    Assert(!fAttachLinked);
     HRESULT rc = S_OK;
     for (size_t i = 0; i < machineList.size(); ++i)
     {
@@ -503,14 +525,16 @@ HRESULT MachineCloneVMPrivate::queryMediasForAllStates(const RTCList<ComObjPtr<M
             rc = pAtt->COMGETTER(Type)(&type);
             if (FAILED(rc)) return rc;
 
-            /* Only harddisk's are of interest. */
-            if (type != DeviceType_HardDisk)
+            /* Only harddisks and floppies are of interest. */
+            if (   type != DeviceType_HardDisk
+                && type != DeviceType_Floppy)
                 continue;
 
             /* Valid medium attached? */
             ComPtr<IMedium> pSrcMedium;
             rc = pAtt->COMGETTER(Medium)(pSrcMedium.asOutParam());
             if (FAILED(rc)) return rc;
+
             if (pSrcMedium.isNull())
                 continue;
 
@@ -518,6 +542,7 @@ HRESULT MachineCloneVMPrivate::queryMediasForAllStates(const RTCList<ComObjPtr<M
              * not interested of any child's not attached to this VM. So this
              * will not create a full copy of the base/child relationship.) */
             MEDIUMTASKCHAIN mtc;
+            mtc.devType       = type;
             mtc.fCreateDiffs  = fCreateDiffs;
             mtc.fAttachLinked = fAttachLinked;
 
@@ -548,8 +573,15 @@ HRESULT MachineCloneVMPrivate::queryMediasForAllStates(const RTCList<ComObjPtr<M
             llMedias.append(mtc);
         }
         /* Add the save state files of this machine if there is one. */
-        rc = addSaveState(machine, uCount, uTotalWeight);
+        rc = addSaveState(machine, false /*fAttachCurrent*/, uCount, uTotalWeight);
         if (FAILED(rc)) return rc;
+        /* If this is the newly created current state, make sure that the
+         * saved state is also attached to it. */
+        if (fCreateDiffs)
+        {
+            rc = addSaveState(machine, true /*fAttachCurrent*/, uCount, uTotalWeight);
+            if (FAILED(rc)) return rc;
+        }
     }
     /* Build up the index list of the image chain. Unfortunately we can't do
      * that in the previous loop, cause there we go from child -> parent and
@@ -622,7 +654,8 @@ void MachineCloneVMPrivate::updateStorageLists(settings::StorageControllersList 
              it4 != llAttachments.end();
              ++it4)
         {
-            if (   it4->deviceType == DeviceType_HardDisk
+            if (   (   it4->deviceType == DeviceType_HardDisk
+                    || it4->deviceType == DeviceType_Floppy)
                 && it4->uuid == bstrOldId)
             {
                 it4->uuid = bstrNewId;
@@ -972,6 +1005,8 @@ HRESULT MachineCloneVM::run()
 
         /* Reset media registry. */
         trgMCF.mediaRegistry.llHardDisks.clear();
+        trgMCF.mediaRegistry.llDvdImages.clear();
+        trgMCF.mediaRegistry.llFloppyImages.clear();
         /* If we got a valid snapshot id, replace the hardware/storage section
          * with the stuff from the snapshot. */
         settings::Snapshot sn;
@@ -980,8 +1015,6 @@ HRESULT MachineCloneVM::run()
             if (!d->findSnapshot(trgMCF.llFirstSnapshot, d->snapshotId, sn))
                 throw p->setError(E_FAIL,
                                   p->tr("Could not find data to snapshots '%s'"), d->snapshotId.toString().c_str());
-
-
 
         if (d->mode == CloneMode_MachineState)
         {
@@ -1007,9 +1040,6 @@ HRESULT MachineCloneVM::run()
 
                 /* Current state is under root snapshot. */
                 trgMCF.uuidCurrentSnapshot = sn.uuid;
-                /* There will be created a new differencing image based on this
-                 * snapshot. So reset the modified state. */
-                trgMCF.fCurrentStateModified = false;
             }
             /* The snapshot will be the root one. */
             trgMCF.llFirstSnapshot.clear();
@@ -1128,7 +1158,11 @@ HRESULT MachineCloneVM::run()
 
                         /* Default format? */
                         Utf8Str strDefaultFormat;
-                        p->mParent->i_getDefaultHardDiskFormat(strDefaultFormat);
+                        if (mtc.devType == DeviceType_HardDisk)
+                            p->mParent->i_getDefaultHardDiskFormat(strDefaultFormat);
+                        else
+                            strDefaultFormat = "RAW";
+
                         Bstr bstrSrcFormat(strDefaultFormat);
 
                         ULONG srcVar = MediumVariant_Standard;
@@ -1206,26 +1240,28 @@ HRESULT MachineCloneVM::run()
                                            Utf8Str(bstrSrcFormat),
                                            strFile,
                                            Guid::Empty /* empty media registry */,
-                                           DeviceType_HardDisk);
+                                           mtc.devType);
                         if (FAILED(rc)) throw rc;
 
                         /* Update the new uuid. */
                         pTarget->i_updateId(newId);
 
-                        srcLock.release();
                         /* Do the disk cloning. */
                         ComPtr<IProgress> progress2;
 
                         ComObjPtr<Medium> pLMedium = static_cast<Medium*>((IMedium*)pMedium);
+                        srcLock.release();
                         rc = pLMedium->i_cloneToEx(pTarget,
                                                    srcVar,
                                                    pNewParent,
                                                    progress2.asOutParam(),
                                                    uSrcParentIdx,
                                                    uTrgParentIdx);
+                        srcLock.acquire();
                         if (FAILED(rc)) throw rc;
 
                         /* Wait until the async process has finished. */
+                        srcLock.release();
                         rc = d->pProgress->WaitForAsyncProgressCompletion(progress2);
                         srcLock.acquire();
                         if (FAILED(rc)) throw rc;
@@ -1245,14 +1281,18 @@ HRESULT MachineCloneVM::run()
                         MediumType_T type;
                         rc = pMedium->COMGETTER(Type)(&type);
                         if (FAILED(rc)) throw rc;
+                        trgLock.release();
+                        srcLock.release();
                         rc = pTarget->COMSETTER(Type)(type);
+                        srcLock.acquire();
+                        trgLock.acquire();
                         if (FAILED(rc)) throw rc;
                         map.insert(TStrMediumPair(Utf8Str(bstrSrcId), pTarget));
-                        /* register the new harddisk */
+                        /* register the new medium */
                         {
                             AutoWriteLock tlock(p->mParent->i_getMediaTreeLockHandle() COMMA_LOCKVAL_SRC_POS);
                             rc = p->mParent->i_registerMedium(pTarget, &pTarget,
-                                                            tlock);
+                                                              tlock);
                             if (FAILED(rc)) throw rc;
                         }
                         /* This medium becomes the parent of the next medium in the
@@ -1395,6 +1435,33 @@ HRESULT MachineCloneVM::run()
             if (FAILED(rc)) throw rc;
             rc = d->pTrgMachine->i_loadMachineDataFromSettings(trgMCF, &d->pTrgMachine->mData->mUuid);
             if (FAILED(rc)) throw rc;
+
+            /* Fix up the "current state modified" flag to what it should be,
+             * as the value guessed in i_loadMachineDataFromSettings can be
+             * quite far off the logical value for the cloned VM. */
+            if (d->mode == CloneMode_MachineState)
+                d->pTrgMachine->mData->mCurrentStateModified = FALSE;
+            else if (   d->mode == CloneMode_MachineAndChildStates
+                && sn.uuid.isValid()
+                && !sn.uuid.isZero())
+            {
+                if (!d->pOldMachineState.isNull())
+                {
+                    /* There will be created a new differencing image based on
+                     * this snapshot. So reset the modified state. */
+                    d->pTrgMachine->mData->mCurrentStateModified = FALSE;
+                }
+                else
+                    d->pTrgMachine->mData->mCurrentStateModified = p->mData->mCurrentStateModified;
+            }
+            else if (d->mode == CloneMode_AllStates)
+                d->pTrgMachine->mData->mCurrentStateModified = p->mData->mCurrentStateModified;
+
+            /* If the target machine has saved state we MUST adjust the machine
+             * state, otherwise saving settings will drop the information. */
+            if (trgMCF.strStateFile.isNotEmpty())
+                d->pTrgMachine->i_setMachineState(MachineState_Saved);
+
             /* save all VM data */
             bool fNeedsGlobalSaveSettings = false;
             rc = d->pTrgMachine->i_saveSettings(&fNeedsGlobalSaveSettings, Machine::SaveS_Force);
@@ -1417,6 +1484,9 @@ HRESULT MachineCloneVM::run()
     }
     catch (HRESULT rc2)
     {
+        /* Error handling code only works correctly without locks held. */
+        trgLock.release();
+        srcLock.release();
         rc = rc2;
     }
     catch (...)
@@ -1442,7 +1512,7 @@ HRESULT MachineCloneVM::run()
         {
             const ComObjPtr<Medium> &pMedium = newMedia.at(i - 1);
             mrc = pMedium->i_deleteStorage(NULL /* aProgress */,
-                                         true /* aWait */);
+                                           true /* aWait */);
             pMedium->Close();
         }
         /* Delete the snapshot folder when not empty. */

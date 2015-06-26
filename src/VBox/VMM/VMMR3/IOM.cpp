@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -131,10 +131,10 @@ static DECLCALLBACK(int) iomR3RelocateIOPortCallback(PAVLROIOPORTNODECORE pNode,
 static DECLCALLBACK(int) iomR3RelocateMMIOCallback(PAVLROGCPHYSNODECORE pNode, void *pvUser);
 static DECLCALLBACK(void) iomR3IOPortInfo(PVM pVM, PCDBGFINFOHLP pHlp, const char *pszArgs);
 static DECLCALLBACK(void) iomR3MMIOInfo(PVM pVM, PCDBGFINFOHLP pHlp, const char *pszArgs);
-static DECLCALLBACK(int) iomR3IOPortDummyIn(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb);
-static DECLCALLBACK(int) iomR3IOPortDummyOut(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb);
-static DECLCALLBACK(int) iomR3IOPortDummyInStr(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, RTGCPTR *pGCPtrDst, PRTGCUINTREG pcTransfer, unsigned cb);
-static DECLCALLBACK(int) iomR3IOPortDummyOutStr(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, RTGCPTR *pGCPtrSrc, PRTGCUINTREG pcTransfer, unsigned cb);
+static FNIOMIOPORTIN        iomR3IOPortDummyIn;
+static FNIOMIOPORTOUT       iomR3IOPortDummyOut;
+static FNIOMIOPORTINSTRING  iomR3IOPortDummyInStr;
+static FNIOMIOPORTOUTSTRING iomR3IOPortDummyOutStr;
 
 #ifdef VBOX_WITH_STATISTICS
 static const char *iomR3IOPortGetStandardName(RTIOPORT Port);
@@ -187,8 +187,8 @@ VMMR3_INT_DECL(int) IOMR3Init(PVM pVM)
          */
         rc = PGMR3HandlerPhysicalTypeRegister(pVM, PGMPHYSHANDLERKIND_MMIO,
                                               iomMmioHandler,
-                                              NULL, NULL, "iomMmioPfHandler",
-                                              NULL, NULL, "iomMmioPfHandler",
+                                              NULL, "iomMmioHandler", "iomMmioPfHandler",
+                                              NULL, "iomMmioHandler", "iomMmioPfHandler",
                                               "MMIO", &pVM->iom.s.hMmioHandlerType);
         AssertRC(rc);
         if (RT_SUCCESS(rc))
@@ -1200,21 +1200,13 @@ static DECLCALLBACK(int) iomR3IOPortDummyIn(PPDMDEVINS pDevIns, void *pvUser, RT
 
 
 /**
- * Dummy Port I/O Handler for string IN operations.
- *
- * @returns VBox status code.
- *
- * @param   pDevIns     The device instance.
- * @param   pvUser      User argument.
- * @param   Port        Port number used for the string IN operation.
- * @param   pGCPtrDst   Pointer to the destination buffer (GC, incremented appropriately).
- * @param   pcTransfer  Pointer to the number of transfer units to read, on return remaining transfer units.
- * @param   cb          Size of the transfer unit (1, 2 or 4 bytes).
+ * @callback_method_impl{FNIOMIOPORTINSTRING,
+ *      Dummy Port I/O Handler for string IN operations.}
  */
-static DECLCALLBACK(int) iomR3IOPortDummyInStr(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, RTGCPTR *pGCPtrDst,
-                                               PRTGCUINTREG pcTransfer, unsigned cb)
+static DECLCALLBACK(int) iomR3IOPortDummyInStr(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint8_t *pbDst,
+                                               uint32_t *pcTransfer, unsigned cb)
 {
-    NOREF(pDevIns); NOREF(pvUser); NOREF(Port); NOREF(pGCPtrDst); NOREF(pcTransfer); NOREF(cb);
+    NOREF(pDevIns); NOREF(pvUser); NOREF(Port); NOREF(pbDst); NOREF(pcTransfer); NOREF(cb);
     return VINF_SUCCESS;
 }
 
@@ -1238,21 +1230,13 @@ static DECLCALLBACK(int) iomR3IOPortDummyOut(PPDMDEVINS pDevIns, void *pvUser, R
 
 
 /**
- * Dummy Port I/O Handler for string OUT operations.
- *
- * @returns VBox status code.
- *
- * @param   pDevIns     The device instance.
- * @param   pvUser      User argument.
- * @param   Port        Port number used for the string OUT operation.
- * @param   pGCPtrSrc   Pointer to the source buffer (GC, incremented appropriately).
- * @param   pcTransfer  Pointer to the number of transfer units to write, on return remaining transfer units.
- * @param   cb          Size of the transfer unit (1, 2 or 4 bytes).
+ * @callback_method_impl{FNIOMIOPORTOUTSTRING,
+ *      Dummy Port I/O Handler for string OUT operations.}
  */
-static DECLCALLBACK(int) iomR3IOPortDummyOutStr(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, RTGCPTR *pGCPtrSrc,
-                                                PRTGCUINTREG pcTransfer, unsigned cb)
+static DECLCALLBACK(int) iomR3IOPortDummyOutStr(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint8_t const *pbSrc,
+                                                uint32_t *pcTransfer, unsigned cb)
 {
-    NOREF(pDevIns); NOREF(pvUser); NOREF(Port); NOREF(pGCPtrSrc); NOREF(pcTransfer); NOREF(cb);
+    NOREF(pDevIns); NOREF(pvUser); NOREF(Port); NOREF(pbSrc); NOREF(pcTransfer); NOREF(cb);
     return VINF_SUCCESS;
 }
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -490,7 +490,7 @@ static void fd_revalidate(fdrive_t *drv)
 #endif
             FLOPPY_DPRINTF("%s floppy disk (%d h %d t %d s) %s\n", parse->str,
                            nb_heads, max_track, last_sect, ro ? "ro" : "rw");
-            LogRel(("%s floppy disk (%d h %d t %d s) %s\n", parse->str,
+            LogRel(("FDC: %s floppy disk (%d h %d t %d s) %s\n", parse->str,
                     nb_heads, max_track, last_sect, ro ? "ro" : "rw"));
         }
         if (nb_heads == 1) {

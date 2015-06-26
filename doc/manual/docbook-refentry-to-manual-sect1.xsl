@@ -50,9 +50,10 @@
 
 <!-- rename refentry to sect1 -->
 <xsl:template match="refentry">
-  <sect1>
+  <xsl:element name="sect1">
+    <xsl:attribute name="condition">refentry</xsl:attribute>
     <xsl:apply-templates select="node()|@*"/>
-  </sect1>
+  </xsl:element>
 </xsl:template>
 
 <!-- Remove refentryinfo, keeping the title element. -->
@@ -64,20 +65,88 @@
 
 <!-- Morph refnamediv into a brief description. -->
 <xsl:template match="refnamediv">
-  <para>
+  <xsl:element name="para">
     <xsl:call-template name="capitalize">
       <xsl:with-param name="text" select="normalize-space(./refpurpose)"/>
     </xsl:call-template>
     <xsl:text>.</xsl:text>
-  </para>
+  </xsl:element>
 </xsl:template>
+
+<!-- Morph the refsynopsisdiv part into a synopsis section. -->
+<xsl:template match="refsynopsisdiv">
+  <xsl:if test="name(*[1]) != 'cmdsynopsis'"><xsl:message terminate="yes">Expected refsynopsisdiv to start with cmdsynopsis</xsl:message></xsl:if>
+  <xsl:if test="title"><xsl:message terminate="yes">No title element supported in refsynopsisdiv</xsl:message></xsl:if>
+
+  <xsl:element name="sect2">
+    <xsl:attribute name="role">not-in-toc</xsl:attribute>
+    <xsl:attribute name="condition">refsynopsisdiv</xsl:attribute>
+    <xsl:element name="title">
+    <xsl:text>Synopsis</xsl:text>
+    </xsl:element>
+    <xsl:apply-templates />
+  </xsl:element>
+
+</xsl:template>
+
+<!-- refsect1 -> sect2 -->
+<xsl:template match="refsect1">
+  <xsl:if test="not(title)"><xsl:message terminate="yes">refsect1 requires title</xsl:message></xsl:if>
+  <xsl:element name="sect2">
+    <xsl:attribute name="role">not-in-toc</xsl:attribute>
+    <xsl:attribute name="condition">refsect1</xsl:attribute>
+    <xsl:apply-templates />
+  </xsl:element>
+</xsl:template>
+
+<!-- refsect2 -> sect3 -->
+<xsl:template match="refsect2">
+  <xsl:if test="not(title)"><xsl:message terminate="yes">refsect2 requires title</xsl:message></xsl:if>
+  <xsl:element name="sect3">
+    <xsl:attribute name="role">not-in-toc</xsl:attribute>
+    <xsl:attribute name="condition">refsect2</xsl:attribute>
+    <xsl:apply-templates />
+  </xsl:element>
+</xsl:template>
+
+<!-- refsect3 -> sect4 -->
+<xsl:template match="refsect3">
+  <xsl:if test="not(title)"><xsl:message terminate="yes">refsect3 requires title</xsl:message></xsl:if>
+  <xsl:element name="sect4">
+    <xsl:attribute name="role">not-in-toc</xsl:attribute>
+    <xsl:attribute name="condition">refsect3</xsl:attribute>
+    <xsl:apply-templates />
+  </xsl:element>
+</xsl:template>
+
 
 <!-- Remove refmeta. -->
 <xsl:template match="refmeta"/>
 
-<!-- Remove all remarks (for now). -->
+<!--
+ remark extensions:
+ -->
+<!-- Default: remove all remarks. -->
 <xsl:template match="remark"/>
 
+<!-- help-manual - stuff that should only be included in the manual. -->
+<xsl:template match="remark[@role = 'help-manual']">
+  <xsl:apply-templates/>
+</xsl:template>
+
+<!-- help-copy-synopsis - used in refsect2 to copy synopsis from the refsynopsisdiv. -->
+<xsl:template match="remark[@role = 'help-copy-synopsis']">
+  <xsl:if test="not(parent::refsect2)">
+    <xsl:message terminate="yes">The help-copy-synopsis remark is only applicable in refsect2.</xsl:message>
+  </xsl:if>
+  <xsl:variable name="sSrcId" select="concat('synopsis-',../@id)"/>
+  <xsl:if test="not(/refentry/refsynopsisdiv/cmdsynopsis[@id = $sSrcId])">
+    <xsl:message terminate="yes">Could not find any cmdsynopsis with id=<xsl:value-of select="$sSrcId"/> in refsynopsisdiv.</xsl:message>
+  </xsl:if>
+  <xsl:element name="cmdsynopsis">
+    <xsl:copy-of select="/refentry/refsynopsisdiv/cmdsynopsis[@id = $sSrcId]/node()"/>
+  </xsl:element>
+</xsl:template>
 
 <!--
  Captializes the given text.

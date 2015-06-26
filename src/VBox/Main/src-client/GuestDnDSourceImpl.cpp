@@ -258,7 +258,7 @@ HRESULT GuestDnDSource::dragIsPending(ULONG uScreenId, std::vector<com::Utf8Str>
         GuestDnDResponse *pResp = GuestDnDInst()->response();
         if (pResp)
         {
-            if (pResp->waitForGuestResponse() == VERR_TIMEOUT)
+            if (pResp->waitForGuestResponse(5000 /* Timeout in ms */) == VERR_TIMEOUT)
                 fFetchResult = false;
 
             if (isDnDIgnoreAction(pResp->defAction()))
@@ -423,20 +423,24 @@ Utf8Str GuestDnDSource::i_guestErrorToString(int guestRc)
         case VERR_ACCESS_DENIED:
             strError += Utf8StrFmt(tr("For one or more guest files or directories selected for transferring to the host your guest "
                                       "user does not have the appropriate access rights for. Please make sure that all selected "
-                                      "elements can be accessed and that your guest user has the appropriate rights."));
+                                      "elements can be accessed and that your guest user has the appropriate rights"));
             break;
 
         case VERR_NOT_FOUND:
             /* Should not happen due to file locking on the guest, but anyway ... */
             strError += Utf8StrFmt(tr("One or more guest files or directories selected for transferring to the host were not"
                                       "found on the guest anymore. This can be the case if the guest files were moved and/or"
-                                      "altered while the drag and drop operation was in progress."));
+                                      "altered while the drag and drop operation was in progress"));
             break;
 
         case VERR_SHARING_VIOLATION:
             strError += Utf8StrFmt(tr("One or more guest files or directories selected for transferring to the host were locked. "
                                       "Please make sure that all selected elements can be accessed and that your guest user has "
-                                      "the appropriate rights."));
+                                      "the appropriate rights"));
+            break;
+
+        case VERR_TIMEOUT:
+            strError += Utf8StrFmt(tr("The guest was not able to retrieve the drag and drop data within time"));
             break;
 
         default:
@@ -525,6 +529,7 @@ int GuestDnDSource::i_onReceiveData(PRECVDATACTX pCtx, const void *pvData, uint3
                     rc = pCtx->mURI.lstURI.RootFromURIData(&pCtx->mData.vecData[0], pCtx->mData.vecData.size(), 0 /* uFlags */);
                     if (RT_SUCCESS(rc))
                     {
+                        /* Reset processed bytes. */
                         pCtx->mData.cbProcessed = 0;
 
                         /*
@@ -533,7 +538,13 @@ int GuestDnDSource::i_onReceiveData(PRECVDATACTX pCtx, const void *pvData, uint3
                          */
                         pCtx->mData.cbToProcess = cbTotalSize;
 
-                        LogFlowFunc(("URI data => cbToProcess=%RU64\n", pCtx->mData.cbToProcess));
+                        /* Update our process with the data we already received.
+                         * Note: The total size will consist of the meta data (in vecData) and
+                         *       the actual accumulated file/directory data from the guest. */
+                        rc = i_updateProcess(pCtx, (uint64_t)pCtx->mData.vecData.size());
+
+                        LogFlowFunc(("URI data => cbProcessed=%RU64, cbToProcess=%RU64, rc=%Rrc\n",
+                                     pCtx->mData.cbProcessed, pCtx->mData.cbToProcess, rc));
                     }
                 }
             }
@@ -562,48 +573,12 @@ int GuestDnDSource::i_onReceiveDir(PRECVDATACTX pCtx, const char *pszPath, uint3
     {
         rc = RTDirCreateFullPath(pszDir, fMode);
         if (RT_FAILURE(rc))
-            LogRel2(("DnD: Error creating guest directory \"%s\" on the host, rc=%Rrc\n", pszDir, rc));
+            LogRel2(("DnD: Error creating guest directory '%s' on the host, rc=%Rrc\n", pszDir, rc));
 
         RTStrFree(pszDir);
     }
     else
          rc = VERR_NO_MEMORY;
-
-    if (RT_SUCCESS(rc))
-    {
-        if (mDataBase.mProtocolVersion <= 2)
-        {
-            /*
-             * Protocols v1/v2 do *not* send root element names (files/directories)
-             * in URI format. The initial GUEST_DND_GH_SND_DATA message(s) however
-             * did take those element names into account, but *with* URI decoration
-             * when it comes to communicating the total bytes being sent.
-             *
-             * So translate the path into a valid URI path and add the resulting
-             * length (+ "\r\n" and termination) to the total bytes received
-             * to keep the accounting right.
-             */
-            char *pszPathURI = RTUriCreate("file" /* pszScheme */, "/" /* pszAuthority */,
-                                           pszPath /* pszPath */,
-                                           NULL /* pszQuery */, NULL /* pszFragment */);
-            if (pszPathURI)
-            {
-                bool fHasPath = RTPathHasPath(pszPath); /* Use original data received. */
-                if (!fHasPath) /* Root path? */
-                {
-                    cbPath  = strlen(pszPathURI);
-                    cbPath += 3;                  /* Include "\r" + "\n" + termination -- see above. */
-
-                    rc = i_updateProcess(pCtx, cbPath);
-                }
-
-                LogFlowFunc(("URI pszPathURI=%s, fHasPath=%RTbool, cbPath=%RU32\n", pszPathURI, fHasPath, cbPath));
-                RTStrFree(pszPathURI);
-            }
-            else
-                rc = VERR_NO_MEMORY;
-        }
-    }
 
     LogFlowFuncLeaveRC(rc);
     return rc;
@@ -624,16 +599,17 @@ int GuestDnDSource::i_onReceiveFileHdr(PRECVDATACTX pCtx, const char *pszPath, u
 
     do
     {
-        if (!pCtx->mURI.objURI.IsComplete())
+        if (    pCtx->mURI.objURI.IsOpen()
+            && !pCtx->mURI.objURI.IsComplete())
         {
-            LogFlowFunc(("Warning: Object \"%s\" not complete yet\n", pCtx->mURI.objURI.GetDestPath().c_str()));
+            LogFlowFunc(("Warning: Object '%s' not complete yet\n", pCtx->mURI.objURI.GetDestPath().c_str()));
             rc = VERR_INVALID_PARAMETER;
             break;
         }
 
         if (pCtx->mURI.objURI.IsOpen()) /* File already opened? */
         {
-            LogFlowFunc(("Warning: Current opened object is \"%s\"\n", pCtx->mURI.objURI.GetDestPath().c_str()));
+            LogFlowFunc(("Warning: Current opened object is '%s'\n", pCtx->mURI.objURI.GetDestPath().c_str()));
             rc = VERR_WRONG_ORDER;
             break;
         }
@@ -681,42 +657,6 @@ int GuestDnDSource::i_onReceiveFileHdr(PRECVDATACTX pCtx, const char *pszPath, u
             break;
         }
 
-        if (mDataBase.mProtocolVersion <= 2)
-        {
-            /*
-             * Protocols v1/v2 do *not* send root element names (files/directories)
-             * in URI format. The initial GUEST_DND_GH_SND_DATA message(s) however
-             * did take those element names into account, but *with* URI decoration
-             * when it comes to communicating the total bytes being sent.
-             *
-             * So translate the path into a valid URI path and add the resulting
-             * length (+ "\r\n" and termination) to the total bytes received
-             * to keep the accounting right.
-             */
-            char *pszPathURI = RTUriCreate("file" /* pszScheme */, "/" /* pszAuthority */,
-                                           pszPath /* pszPath */,
-                                           NULL /* pszQuery */, NULL /* pszFragment */);
-            if (pszPathURI)
-            {
-                bool fHasPath = RTPathHasPath(pszPath); /* Use original data received. */
-                if (!fHasPath) /* Root path? */
-                {
-                    cbPath  = strlen(pszPathURI);
-                    cbPath += 3;                  /* Include "\r" + "\n" + termination -- see above. */
-
-                    rc = i_updateProcess(pCtx, cbPath);
-                }
-
-                LogFlowFunc(("URI pszPathURI=%s, fHasPath=%RTbool, cbPath=%RU32\n", pszPathURI, fHasPath, cbPath));
-                RTStrFree(pszPathURI);
-            }
-            else
-            {
-                rc = VERR_NO_MEMORY;
-                break;
-            }
-        }
-
     } while (0);
 
     LogFlowFuncLeaveRC(rc);
@@ -735,14 +675,14 @@ int GuestDnDSource::i_onReceiveFileData(PRECVDATACTX pCtx, const void *pvData, u
     {
         if (pCtx->mURI.objURI.IsComplete())
         {
-            LogFlowFunc(("Warning: Object \"%s\" already completed\n", pCtx->mURI.objURI.GetDestPath().c_str()));
+            LogFlowFunc(("Warning: Object '%s' already completed\n", pCtx->mURI.objURI.GetDestPath().c_str()));
             rc = VERR_WRONG_ORDER;
             break;
         }
 
         if (!pCtx->mURI.objURI.IsOpen()) /* File opened on host? */
         {
-            LogFlowFunc(("Warning: Object \"%s\" not opened\n", pCtx->mURI.objURI.GetDestPath().c_str()));
+            LogFlowFunc(("Warning: Object '%s' not opened\n", pCtx->mURI.objURI.GetDestPath().c_str()));
             rc = VERR_WRONG_ORDER;
             break;
         }
@@ -775,7 +715,10 @@ int GuestDnDSource::i_onReceiveFileData(PRECVDATACTX pCtx, const void *pvData, u
             }
         }
         else
-            LogRel(("DnD: Error writing guest file to host to \"%s\": %Rrc\n", pCtx->mURI.objURI.GetDestPath().c_str(), rc));
+        {
+            /** @todo What to do when the host's disk is full? */
+            LogRel(("DnD: Error writing guest file to host to '%s': %Rrc\n", pCtx->mURI.objURI.GetDestPath().c_str(), rc));
+        }
 
     } while (0);
 
@@ -908,15 +851,7 @@ int GuestDnDSource::i_receiveRawData(PRECVDATACTX pCtx, RTMSINTERVAL msTimeout)
         if (RT_SUCCESS(rc))
         {
             rc = waitForEvent(msTimeout, pCtx->mCallback, pCtx->mpResp);
-            if (RT_FAILURE(rc))
-            {
-                if (rc == VERR_CANCELLED)
-                    rc = pCtx->mpResp->setProgress(100, DragAndDropSvc::DND_PROGRESS_CANCELLED, VINF_SUCCESS);
-                else if (rc != VERR_GSTDND_GUEST_ERROR) /* Guest-side error are already handled in the callback. */
-                    rc = pCtx->mpResp->setProgress(100, DragAndDropSvc::DND_PROGRESS_ERROR, rc,
-                                                   GuestDnDSource::i_hostErrorToString(rc));
-            }
-            else
+            if (RT_SUCCESS(rc))
                 rc = pCtx->mpResp->setProgress(100, DragAndDropSvc::DND_PROGRESS_COMPLETE, VINF_SUCCESS);
         }
 
@@ -931,10 +866,21 @@ int GuestDnDSource::i_receiveRawData(PRECVDATACTX pCtx, RTMSINTERVAL msTimeout)
 #undef REGISTER_CALLBACK
 #undef UNREGISTER_CALLBACK
 
-    if (rc == VERR_CANCELLED)
+    if (RT_FAILURE(rc))
     {
-        int rc2 = sendCancel();
-        AssertRC(rc2);
+        if (rc == VERR_CANCELLED)
+        {
+            int rc2 = pCtx->mpResp->setProgress(100, DragAndDropSvc::DND_PROGRESS_CANCELLED, VINF_SUCCESS);
+            AssertRC(rc2);
+
+            rc2 = sendCancel();
+            AssertRC(rc2);
+        }
+        else if (rc != VERR_GSTDND_GUEST_ERROR) /* Guest-side error are already handled in the callback. */
+        {
+            rc = pCtx->mpResp->setProgress(100, DragAndDropSvc::DND_PROGRESS_ERROR,
+                                           rc, GuestDnDSource::i_hostErrorToString(rc));
+        }
     }
 
     LogFlowFuncLeaveRC(rc);
@@ -999,17 +945,13 @@ int GuestDnDSource::i_receiveURIData(PRECVDATACTX pCtx, RTMSINTERVAL msTimeout)
         rc = pInst->hostCall(Msg.getType(), Msg.getCount(), Msg.getParms());
         if (RT_SUCCESS(rc))
         {
+            LogFlowFunc(("Waiting ...\n"));
+
             rc = waitForEvent(msTimeout, pCtx->mCallback, pCtx->mpResp);
-            if (RT_FAILURE(rc))
-            {
-                if (rc == VERR_CANCELLED)
-                    rc = pCtx->mpResp->setProgress(100, DragAndDropSvc::DND_PROGRESS_CANCELLED, VINF_SUCCESS);
-                else if (rc != VERR_GSTDND_GUEST_ERROR) /* Guest-side error are already handled in the callback. */
-                    rc = pCtx->mpResp->setProgress(100, DragAndDropSvc::DND_PROGRESS_ERROR, rc,
-                                                   GuestDnDSource::i_hostErrorToString(rc));
-            }
-            else
+            if (RT_SUCCESS(rc))
                 rc = pCtx->mpResp->setProgress(100, DragAndDropSvc::DND_PROGRESS_COMPLETE, VINF_SUCCESS);
+
+            LogFlowFunc(("Waiting ended with rc=%Rrc\n", rc));
         }
 
     } while (0);
@@ -1029,10 +971,21 @@ int GuestDnDSource::i_receiveURIData(PRECVDATACTX pCtx, RTMSINTERVAL msTimeout)
 
     int rc2;
 
-    if (rc == VERR_CANCELLED)
+    if (RT_FAILURE(rc))
     {
-        rc2 = sendCancel();
-        AssertRC(rc2);
+        if (rc == VERR_CANCELLED)
+        {
+            rc2 = pCtx->mpResp->setProgress(100, DragAndDropSvc::DND_PROGRESS_CANCELLED, VINF_SUCCESS);
+            AssertRC(rc2);
+
+            rc2 = sendCancel();
+            AssertRC(rc2);
+        }
+        else if (rc != VERR_GSTDND_GUEST_ERROR) /* Guest-side error are already handled in the callback. */
+        {
+            rc = pCtx->mpResp->setProgress(100, DragAndDropSvc::DND_PROGRESS_ERROR,
+                                           rc, GuestDnDSource::i_hostErrorToString(rc));
+        }
     }
 
     if (RT_FAILURE(rc))
@@ -1196,11 +1149,14 @@ DECLCALLBACK(int) GuestDnDSource::i_receiveURIDataCallback(uint32_t uMsg, void *
             AssertReturn(DragAndDropSvc::CB_MAGIC_DND_GH_EVT_ERROR == pCBData->hdr.u32Magic, VERR_INVALID_PARAMETER);
 
             pCtx->mpResp->reset();
+
             if (RT_SUCCESS(pCBData->rc))
                 pCBData->rc = VERR_GENERAL_FAILURE; /* Make sure some error is set. */
-            rc = pCtx->mpResp->setProgress(100, DragAndDropSvc::DND_PROGRESS_ERROR, pCBData->rc);
+
+            rc = pCtx->mpResp->setProgress(100, DragAndDropSvc::DND_PROGRESS_ERROR, pCBData->rc,
+                                           GuestDnDSource::i_guestErrorToString(pCBData->rc));
             if (RT_SUCCESS(rc))
-                rcCallback = pCBData->rc;
+                rcCallback = VERR_GSTDND_GUEST_ERROR;
             break;
         }
 #endif /* VBOX_WITH_DRAG_AND_DROP_GH */
@@ -1260,9 +1216,12 @@ DECLCALLBACK(int) GuestDnDSource::i_receiveURIDataCallback(uint32_t uMsg, void *
     return rc; /* Tell the guest. */
 }
 
-int GuestDnDSource::i_updateProcess(PRECVDATACTX pCtx, uint32_t cbDataAdd)
+int GuestDnDSource::i_updateProcess(PRECVDATACTX pCtx, uint64_t cbDataAdd)
 {
     AssertPtrReturn(pCtx, VERR_INVALID_POINTER);
+
+    LogFlowFunc(("cbProcessed=%RU64 (+ %RU64 = %RU64), cbToProcess=%RU64\n",
+                 pCtx->mData.cbProcessed, cbDataAdd, pCtx->mData.cbProcessed + cbDataAdd, pCtx->mData.cbToProcess));
 
     pCtx->mData.cbProcessed += cbDataAdd;
     Assert(pCtx->mData.cbProcessed <= pCtx->mData.cbToProcess);

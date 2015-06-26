@@ -1,10 +1,10 @@
-/* $Id$ */
+/* $Id: dhcp6.h $ */
 /** @file
  * NAT Network - DHCPv6 protocol definitions.
  */
 
 /*
- * Copyright (C) 2013-2014 Oracle Corporation
+ * Copyright (C) 2013-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;

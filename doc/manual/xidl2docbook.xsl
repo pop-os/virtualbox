@@ -5,7 +5,7 @@
         XSLT stylesheet that generates docbook from
         VirtualBox.xidl.
 
-    Copyright (C) 2006-2012 Oracle Corporation
+    Copyright (C) 2006-2015 Oracle Corporation
 
     This file is part of VirtualBox Open Source Edition (OSE), as
     available from http://www.virtualbox.org. This file is free software;
@@ -30,6 +30,14 @@
 
   <xsl:strip-space elements="*"/>
 
+ <!-- - - - - - - - - - - - - - - - - - - - - - -
+  Keys for more efficiently looking up of types.
+ - - - - - - - - - - - - - - - - - - - - - - -->
+
+<xsl:key name="G_keyEnumsByName"        match="//enum[@name]"       use="@name"/>
+<xsl:key name="G_keyInterfacesByName"   match="//interface[@name]"  use="@name"/>
+<xsl:key name="G_keyResultsByName"      match="//result[@name]"     use="@name"/>
+
 <!-- - - - - - - - - - - - - - - - - - - - - - -
   global XSLT variables
  - - - - - - - - - - - - - - - - - - - - - - -->
@@ -52,23 +60,21 @@
   <xsl:choose>
     <xsl:when test="$type">
       <xsl:choose>
-        <xsl:when test="//interface[@name=$type]">
-          <xref>
-            <xsl:attribute name="apiref">yes</xsl:attribute>
+        <xsl:when test="count(key('G_keyInterfacesByName',$type)) > 0">
+          <link>
             <xsl:attribute name="linkend">
               <xsl:value-of select="translate($type, ':', '_')" />
             </xsl:attribute>
             <xsl:value-of select="$type" />
-          </xref>
+          </link>
         </xsl:when>
-        <xsl:when test="//enum[@name=$type]">
-          <xref>
-            <xsl:attribute name="apiref">yes</xsl:attribute>
+        <xsl:when test="count(key('G_keyEnumsByName',$type)) > 0">
+          <link>
             <xsl:attribute name="linkend">
               <xsl:value-of select="translate($type, ':', '_')" />
             </xsl:attribute>
             <xsl:value-of select="$type" />
-          </xref>
+          </link>
         </xsl:when>
         <xsl:otherwise>
           <xsl:value-of select="$type" />
@@ -95,6 +101,7 @@
  - - - - - - - - - - - - - - - - - - - - - - -->
 
 <xsl:template match="/idl">
+ <book> <!-- Need a single top-level element for xi:include, we'll skip it using xpointer. -->
   <chapter id="sdkref_classes">
     <title>Classes (interfaces)</title>
     <xsl:for-each select="//interface">
@@ -121,29 +128,28 @@
 
           <xsl:choose>
             <xsl:when test="$wsmap='suppress'">
-              <note>
+              <para><note><para>
                 This interface is not supported in the web service.
-              </note>
+              </para></note></para>
             </xsl:when>
             <xsl:when test="$wsmap='struct'">
-              <note>With the web service, this interface is mapped to a structure. Attributes that return this interface will not return an object, but a complete structure
-              containing the attributes listed below as structure members.</note>
+              <para><note><para>With the web service, this interface is mapped to a structure. Attributes that return this interface will not return an object, but a complete structure
+              containing the attributes listed below as structure members.</para></note></para>
             </xsl:when>
             <xsl:when test="$wsonly='yes'">
-              <note>This interface is supported in the web service only, not in COM/XPCOM.</note>
+              <para><note><para>This interface is supported in the web service only, not in COM/XPCOM.</para></note></para>
             </xsl:when>
           </xsl:choose>
 
           <xsl:if test="$reportExtends">
-            <note>
+            <para><note><para>
                 This interface extends
-                <xref>
-                  <xsl:attribute name="apiref">yes</xsl:attribute>
+                <link>
                   <xsl:attribute name="linkend"><xsl:value-of select="$extends" /></xsl:attribute>
                   <xsl:value-of select="$extends" />
-                </xref>
+                </link>
                 and therefore supports all its methods and attributes as well.
-            </note>
+            </para></note></para>
           </xsl:if>
 
           <xsl:apply-templates select="desc" />
@@ -180,9 +186,9 @@
                     </xsl:if>
                   </programlisting>
                   <xsl:if test="( ($attrtype=($G_setSuppressedInterfaces/@name)) )">
-                    <note>
+                    <para><note><para>
                       This attribute is not supported in the web service.
-                    </note>
+                    </para></note></para>
                   </xsl:if>
                   <xsl:apply-templates select="desc" />
                 </sect3>
@@ -208,9 +214,9 @@
                   </title>
                   <xsl:if test="   (param[@type=($G_setSuppressedInterfaces/@name)])
                                 or (param[@mod='ptr'])" >
-                    <note>
+                    <para><note><para>
                       This method is not supported in the web service.
-                    </note>
+                    </para></note></para>
                   </xsl:if>
                   <!-- make a set of all parameters with in and out direction -->
                   <xsl:variable name="paramsinout" select="param[@dir='in' or @dir='out']" />
@@ -255,9 +261,10 @@
                             <xsl:value-of select="@name" />
                           </glossterm>
                           <glossdef>
-                            <para>
-                              <xsl:apply-templates select="desc" />
-                            </para>
+                            <xsl:if test="not(desc)">
+                              <para/>
+                            </xsl:if>
+                            <xsl:apply-templates select="desc" />
                           </glossdef>
                         </glossentry>
                       </xsl:for-each>
@@ -319,6 +326,9 @@
                 <xsl:value-of select="@name" />
               </glossterm>
               <glossdef>
+                <xsl:if test="not(desc)">
+                  <para/>
+                </xsl:if>
                 <xsl:apply-templates select="desc" />
               </glossdef>
             </glossentry>
@@ -327,7 +337,7 @@
       </sect1>
     </xsl:for-each>
   </chapter>
-
+ </book>
 </xsl:template>
 
 <!-- - - - - - - - - - - - - - - - - - - - - - -
@@ -397,7 +407,11 @@
  - - - - - - - - - - - - - - - - - - - - - - -->
 
 <xsl:template match="desc">
+  <!-- todo: wrapping the entire content in a single para is actually not
+       entirely correct, as it contains empty lines denoting new paragraphs -->
+  <para>
   <xsl:apply-templates />
+  </para>
 </xsl:template>
 
 <xsl:template name="getCurrentInterface">
@@ -410,8 +424,7 @@
 
 <!-- <link to="DeviceType::HardDisk"/> -->
 <xsl:template match="link">
-  <xref>
-    <xsl:attribute name="apiref">yes</xsl:attribute>
+  <link>
     <xsl:variable name="tmp" select="@to" />
     <xsl:variable name="enumNameFromCombinedName">
         <xsl:value-of select="substring-before($tmp, '_')" />
@@ -420,11 +433,11 @@
         <xsl:value-of select="substring-after($tmp, '_')" />
     </xsl:variable>
     <xsl:choose>
-      <xsl:when test="//interface[@name=$tmp] or //enum[@name=$tmp]"><!-- link to interface only -->
+      <xsl:when test="count(key('G_keyInterfacesByName',$tmp)) > 0 or count(key('G_keyEnumsByName',$tmp)) > 0"><!-- link to interface only -->
         <xsl:attribute name="linkend"><xsl:value-of select="@to" /></xsl:attribute>
         <xsl:value-of select="$tmp" />
       </xsl:when>
-      <xsl:when test="//enum[@name=$enumNameFromCombinedName]">
+      <xsl:when test="count(key('G_keyEnumsByName',$enumNameFromCombinedName)) > 0">
         <xsl:attribute name="linkend">
           <xsl:value-of select="concat($enumNameFromCombinedName, '__', $enumValueFromCombinedName)" />
         </xsl:attribute>
@@ -459,19 +472,16 @@
         <xsl:variable name="autotextsuffix">
           <xsl:choose>
             <!-- if link points to a method, append "()" -->
-            <xsl:when test="//interface[@name=$if]/method[@name=$member]">
+            <xsl:when test="key('G_keyInterfacesByName',$if)/method[@name=$member]">
               <xsl:value-of select="'()'" />
             </xsl:when>
             <!-- if link points to a safearray attribute, append "[]" -->
-            <xsl:when test="//interface[@name=$if]/attribute[@name=$member]/@safearray = 'yes'">
+            <xsl:when test="key('G_keyInterfacesByName',$if)/attribute[@name=$member]/@safearray = 'yes'">
               <xsl:value-of select="'[]'" />
             </xsl:when>
-            <xsl:when test="//interface[@name=$if]/attribute[@name=$member]">
-            </xsl:when>
-            <xsl:when test="//enum[@name=$if]/const[@name=$member]">
-            </xsl:when>
-            <xsl:when test="//result[@name=$tmp]">
-            </xsl:when>
+            <xsl:when test="key('G_keyInterfacesByName',$if)/attribute[@name=$member]"/>
+            <xsl:when test="key('G_keyEnumsByName',$if)/const[@name=$member]"/>
+            <xsl:when test="count(key('G_keyResultsByName',$tmp)) > 0"/>
             <xsl:otherwise>
               <xsl:message terminate="yes">
                 <xsl:value-of select="concat('Invalid link pointing to &quot;', $tmp, '&quot;')" />
@@ -492,7 +502,7 @@
         </xsl:choose>
       </xsl:otherwise>
     </xsl:choose>
-  </xref>
+  </link>
 </xsl:template>
 
 <!-- - - - - - - - - - - - - - - - - - - - - - -
@@ -501,9 +511,9 @@
 
 <xsl:template match="note">
   <xsl:if test="not(@internal='yes')">
-    <note>
+    <note><para>
       <xsl:apply-templates />
-    </note>
+    </para></note>
   </xsl:if>
 </xsl:template>
 
@@ -544,7 +554,9 @@
 
 <xsl:template match="li">
   <listitem>
-    <xsl:apply-templates />
+    <para>
+      <xsl:apply-templates />
+    </para>
   </listitem>
 </xsl:template>
 

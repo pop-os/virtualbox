@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2013 Oracle Corporation
+# Copyright (C) 2006-2015 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -114,11 +114,11 @@ VBOX_FBSD_STRIP_BIN = \
 
 # Do not remove relocation information of these binaries
 VBOX_FBSD_STRIP_OBJ = \
-	VBoxDD2GC.gc \
+	VBoxDD2RC.rc \
 	VBoxDD2R0.r0 \
-	VBoxDDGC.gc \
+	VBoxDDRC.rc \
 	VBoxDDR0.r0 \
-	VMMGC.gc \
+	VMMRC.rc \
 	VMMR0.r0
 
 # Do not strip anything of these files

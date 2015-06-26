@@ -109,7 +109,7 @@ static void vbvaDataCleanup(VBVADATA *pVBVAData)
     {
         RT_ZERO(pVBVAData->guest.pVBVA->hostFlags);
     }
-    
+
     RTMemFree(pVBVAData->partialRecord.pu8);
 
     RT_ZERO(*pVBVAData);
@@ -527,7 +527,7 @@ static int vbvaFlush(PVGASTATE pVGAState, VBVACONTEXT *pCtx)
     if (RT_FAILURE(rc))
     {
         /* Turn off VBVA processing. */
-        LogRel(("VBVA: disabling\n", rc));
+        LogRel(("VBVA: Disabling\n", rc));
         for (uScreenId = 0; uScreenId < pCtx->cViews; uScreenId++)
         {
             VBVADATA *pVBVAData = &pCtx->aViews[uScreenId].vbva;
@@ -839,12 +839,12 @@ static void dumpctx(const VBVACONTEXT *pCtx)
               pView->screen.u16Flags));
 
         Log(("                  VBVA o 0x%x p %p\n",
-              pView->u32VBVAOffset,
+              pView->vbva.u32VBVAOffset,
               pView->vbva.guest.pVBVA));
 
         Log(("                  PR cb 0x%x p %p\n",
-              pView->partialRecord.cb,
-              pView->partialRecord.pu8));
+              pView->vbva.partialRecord.cb,
+              pView->vbva.partialRecord.pu8));
     }
 
     dumpMouseShapeInfo(&pCtx->mouseShapeInfo);

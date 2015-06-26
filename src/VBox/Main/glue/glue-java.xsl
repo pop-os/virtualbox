@@ -58,7 +58,7 @@
 <xsl:template name="fileheader">
   <xsl:param name="name" />
   <xsl:text>/*
- * Copyright (C) 2010-2014 Oracle Corporation
+ * Copyright (C) 2010-2015 Oracle Corporation
  *
  * This file is part of the VirtualBox SDK, as available from
  * http://www.virtualbox.org.  This library is free software; you can
@@ -3169,6 +3169,13 @@ public class VirtualBoxManager
     {
     }
 
+    public String getClientAPIVersion()
+    {
+        return "]]></xsl:text>
+    <xsl:value-of select="substring($G_vboxApiSuffix, 2)" />
+    <xsl:text><![CDATA[";
+    }
+
     public IVirtualBox getVBox()
     {
         return this.vbox;
@@ -3835,6 +3842,13 @@ public class VirtualBoxManager
         throw new VBoxException("Disconnect doesn't make sense for local bindings");
     }
 
+    public String getClientAPIVersion()
+    {
+        return "]]></xsl:text>
+    <xsl:value-of select="substring($G_vboxApiSuffix, 2)" />
+    <xsl:text><![CDATA[";
+    }
+
     public IVirtualBox getVBox()
     {
         return this.vbox;
@@ -3877,7 +3891,6 @@ public class VirtualBoxManager
 
     public void waitForEvents(long tmo)
     {
-        // what to do here?
         try
         {
           Thread.sleep(tmo);
@@ -4618,6 +4631,13 @@ public class VirtualBoxManager
         }
     }
 
+    public String getClientAPIVersion()
+    {
+        return "]]></xsl:text>
+    <xsl:value-of select="substring($G_vboxApiSuffix, 2)" />
+    <xsl:text><![CDATA[";
+    }
+
     public IVirtualBox getVBox()
     {
         return this.vbox;
@@ -4673,6 +4693,13 @@ public class VirtualBoxManager
 
     public void waitForEvents(long tmo)
     {
+        try
+        {
+          Thread.sleep(tmo);
+        }
+        catch (InterruptedException ie)
+        {
+        }
     }
 
     protected void finalize() throws Throwable

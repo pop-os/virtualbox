@@ -29,6 +29,503 @@
 
 #include "VBoxManage.h"
 
+/*******************************************************************************
+*   Defined Constants And Macros                                               *
+*******************************************************************************/
+/** If the usage is the given number of length long or longer, the error is
+ * repeated so the user can actually see it. */
+#define ERROR_REPEAT_AFTER_USAGE_LENGTH 16
+
+
+/*******************************************************************************
+*   Global Variables                                                           *
+*******************************************************************************/
+#ifndef VBOX_ONLY_DOCS
+enum HELP_CMD_VBOXMANAGE    g_enmCurCommand = HELP_CMD_VBOXMANAGE_INVALID;
+/** The scope maskt for the current subcommand. */
+uint64_t                    g_fCurSubcommandScope = REFENTRYSTR_SCOPE_GLOBAL;
+/** String of spaces that can be used for indentation.   */
+static const char           g_szSpaces[] = "                                                ";
+
+/**
+ * Sets the current command.
+ *
+ * This affects future calls to error and help functions.
+ *
+ * @param   enmCommand          The command.
+ */
+void setCurrentCommand(enum HELP_CMD_VBOXMANAGE enmCommand)
+{
+    Assert(g_enmCurCommand == HELP_CMD_VBOXMANAGE_INVALID);
+    g_enmCurCommand       = enmCommand;
+    g_fCurSubcommandScope = REFENTRYSTR_SCOPE_GLOBAL;
+}
+
+
+/**
+ * Sets the current subcommand.
+ *
+ * This affects future calls to error and help functions.
+ *
+ * @param   fSubcommandScope    The subcommand scope.
+ */
+void setCurrentSubcommand(uint64_t fSubcommandScope)
+{
+    g_fCurSubcommandScope = fSubcommandScope;
+}
+
+
+
+/**
+ * Retruns the width for the given handle.
+ *
+ * @returns Screen width.
+ * @param   pStrm           The stream, g_pStdErr or g_pStdOut.
+ */
+static uint32_t getScreenWidth(PRTSTREAM pStrm)
+{
+    static uint32_t s_acch[2] = { 0, 0};
+    uint32_t        iWhich    = pStrm == g_pStdErr ? 1 : 0;
+    uint32_t        cch       = s_acch[iWhich];
+    if (cch)
+        return cch;
+
+    cch = 80; /** @todo screen width IPRT API. */
+    s_acch[iWhich] = cch;
+    return cch;
+}
+
+
+/**
+ * Prints a string table string (paragraph), performing non-breaking-space
+ * replacement and wrapping.
+ *
+ * @returns Number of lines written.
+ * @param   pStrm           The output stream.
+ * @param   psz             The string table string to print.
+ * @param   cchMaxWidth     The maximum output width.
+ * @param   fFlags          String flags that may affect formatting.
+ */
+static uint32_t printString(PRTSTREAM pStrm, const char *psz, uint32_t cchMaxWidth, uint64_t fFlags)
+{
+    uint32_t    cLinesWritten;
+    size_t      cch     = strlen(psz);
+    const char *pszNbsp = strchr(psz, REFENTRY_NBSP);
+
+    /*
+     * No-wrap case is simpler, so handle that separately.
+     */
+    if (cch <= cchMaxWidth)
+    {
+        if (!pszNbsp)
+            RTStrmWrite(pStrm, psz, cch);
+        else
+        {
+            do
+            {
+                RTStrmWrite(pStrm, psz, pszNbsp - psz);
+                RTStrmPutCh(pStrm, ' ');
+                psz = pszNbsp + 1;
+                pszNbsp = strchr(psz, REFENTRY_NBSP);
+            } while (pszNbsp);
+            RTStrmWrite(pStrm, psz, strlen(psz));
+        }
+        RTStrmPutCh(pStrm, '\n');
+        cLinesWritten = 1;
+    }
+    /*
+     * We need to wrap stuff, too bad.
+     */
+    else
+    {
+        /* Figure the paragraph indent level first. */
+        const char * const pszIndent = psz;
+        uint32_t cchIndent = 0;
+        while (*psz == ' ')
+            cchIndent++, psz++;
+        Assert(cchIndent + 4 + 1 <= RT_ELEMENTS(g_szSpaces));
+
+        if (cchIndent + 8 >= cchMaxWidth)
+            cchMaxWidth += cchIndent + 8;
+
+        /* Work our way thru the string, line by line. */
+        uint32_t cchHangingIndent = 0;
+        cLinesWritten = 0;
+        do
+        {
+            RTStrmWrite(pStrm, g_szSpaces, cchIndent + cchHangingIndent);
+            size_t   offLine       = cchIndent + cchHangingIndent;
+            bool     fPendingSpace = false;
+            do
+            {
+                const char *pszSpace = strchr(psz, ' ');
+                size_t      cchWord  = pszSpace ? pszSpace - psz : strlen(psz);
+                if (   offLine + cchWord + fPendingSpace > cchMaxWidth
+                    && offLine != cchIndent)
+                    break;
+
+                pszNbsp = (const char *)memchr(psz, REFENTRY_NBSP, cchWord);
+                while (pszNbsp)
+                {
+                    size_t cchSubWord = pszNbsp - psz;
+                    if (fPendingSpace)
+                        RTStrmPutCh(pStrm, ' ');
+                    RTStrmWrite(pStrm, psz, cchSubWord);
+                    offLine += cchSubWord + fPendingSpace;
+                    psz     += cchSubWord + 1;
+                    cchWord -= cchSubWord + 1;
+                    pszNbsp = (const char *)memchr(psz, REFENTRY_NBSP, cchWord);
+                    fPendingSpace = true;
+                }
+
+                if (fPendingSpace)
+                    RTStrmPutCh(pStrm, ' ');
+                RTStrmWrite(pStrm, psz, cchWord);
+                offLine += cchWord + fPendingSpace;
+                psz      = pszSpace ? pszSpace + 1 : strchr(psz, '\0');
+                fPendingSpace = true;
+            } while (offLine < cchMaxWidth && *psz != '\0');
+            RTStrmPutCh(pStrm, '\n');
+            cLinesWritten++;
+
+            /* Set up hanging indent if relevant. */
+            if (fFlags & REFENTRYSTR_FLAGS_SYNOPSIS)
+                cchHangingIndent = 4;
+        } while (*psz != '\0');
+    }
+    return cLinesWritten;
+}
+
+
+/**
+ * Checks if the given string is empty (only spaces).
+ * @returns true if empty, false if not.
+ * @param   psz                 The string to examine.
+ */
+DECLINLINE(bool) isEmptyString(const char *psz)
+{
+    char ch;
+    while ((ch = *psz) == ' ')
+        psz++;
+    return ch == '\0';
+}
+
+
+/**
+ * Prints a string table.
+ *
+ * @returns Current number of pending blank lines.
+ * @param   pStrm               The output stream.
+ * @param   pStrTab             The string table.
+ * @param   fScope              The selection scope.
+ * @param   cPendingBlankLines  Pending blank lines from previous string table.
+ * @param   pcLinesWritten      Pointer to variable that should be incremented
+ *                              by the number of lines written.  Optional.
+ */
+static uint32_t printStringTable(PRTSTREAM pStrm, PCREFENTRYSTRTAB pStrTab, uint64_t fScope, uint32_t cPendingBlankLines,
+                                 uint32_t *pcLinesWritten = NULL)
+{
+    uint32_t cLinesWritten = 0;
+    uint32_t cchWidth      = getScreenWidth(pStrm);
+    uint64_t fPrevScope    = fScope;
+    for (uint32_t i = 0; i < pStrTab->cStrings; i++)
+    {
+        uint64_t fCurScope = pStrTab->paStrings[i].fScope;
+        if ((fCurScope & REFENTRYSTR_SCOPE_MASK) == REFENTRYSTR_SCOPE_SAME)
+        {
+            fCurScope &= ~REFENTRYSTR_SCOPE_MASK;
+            fCurScope |= (fPrevScope & REFENTRYSTR_SCOPE_MASK);
+        }
+        if (fCurScope & REFENTRYSTR_SCOPE_MASK & fScope)
+        {
+            const char *psz = pStrTab->paStrings[i].psz;
+            if (psz && !isEmptyString(psz))
+            {
+                while (cPendingBlankLines > 0)
+                {
+                    cPendingBlankLines--;
+                    RTStrmPutCh(pStrm, '\n');
+                    cLinesWritten++;
+                }
+                cLinesWritten += printString(pStrm, psz, cchWidth, fCurScope & REFENTRYSTR_FLAGS_MASK);
+            }
+            else
+                cPendingBlankLines++;
+        }
+        fPrevScope = fCurScope;
+    }
+
+    if (pcLinesWritten)
+        *pcLinesWritten += cLinesWritten;
+    return cPendingBlankLines;
+}
+
+
+/**
+ * Prints brief help for a command or subcommand.
+ *
+ * @returns Number of lines written.
+ * @param   enmCommand          The command.
+ * @param   fSubcommandScope    The subcommand scope, REFENTRYSTR_SCOPE_GLOBAL
+ *                              for all.
+ * @param   pStrm               The output stream.
+ */
+static uint32_t printBriefCommandOrSubcommandHelp(enum HELP_CMD_VBOXMANAGE enmCommand, uint64_t fSubcommandScope, PRTSTREAM pStrm)
+{
+    uint32_t cLinesWritten = 0;
+    uint32_t cPendingBlankLines = 0;
+    uint32_t cFound = 0;
+    for (uint32_t i = 0; i < g_cHelpEntries; i++)
+    {
+        PCREFENTRY pHelp = g_apHelpEntries[i];
+        if (pHelp->idInternal == (int64_t)enmCommand)
+        {
+            cFound++;
+            if (cFound == 1)
+            {
+                if (fSubcommandScope == REFENTRYSTR_SCOPE_GLOBAL)
+                    RTStrmPrintf(pStrm, "Usage - %c%s:\n", RT_C_TO_UPPER(pHelp->pszBrief[0]), pHelp->pszBrief + 1);
+                else
+                    RTStrmPrintf(pStrm, "Usage:\n");
+            }
+            cPendingBlankLines = printStringTable(pStrm, &pHelp->Synopsis, fSubcommandScope, cPendingBlankLines, &cLinesWritten);
+            if (!cPendingBlankLines)
+                cPendingBlankLines = 1;
+        }
+    }
+    Assert(cFound > 0);
+    return cLinesWritten;
+}
+
+
+/**
+ * Prints the brief usage information for the current (sub)command.
+ *
+ * @param   pStrm               The output stream.
+ */
+void printUsage(PRTSTREAM pStrm)
+{
+    printBriefCommandOrSubcommandHelp(g_enmCurCommand, g_fCurSubcommandScope, pStrm);
+}
+
+
+/**
+ * Prints full help for a command or subcommand.
+ *
+ * @param   enmCommand          The command.
+ * @param   fSubcommandScope    The subcommand scope, REFENTRYSTR_SCOPE_GLOBAL
+ *                              for all.
+ * @param   pStrm               The output stream.
+ */
+static void printFullCommandOrSubcommandHelp(enum HELP_CMD_VBOXMANAGE enmCommand, uint64_t fSubcommandScope, PRTSTREAM pStrm)
+{
+    uint32_t cPendingBlankLines = 0;
+    uint32_t cFound = 0;
+    for (uint32_t i = 0; i < g_cHelpEntries; i++)
+    {
+        PCREFENTRY pHelp = g_apHelpEntries[i];
+        if (   pHelp->idInternal == (int64_t)enmCommand
+            || enmCommand == HELP_CMD_VBOXMANAGE_INVALID)
+        {
+            cFound++;
+            cPendingBlankLines = printStringTable(pStrm, &pHelp->Help, fSubcommandScope, cPendingBlankLines);
+            if (cPendingBlankLines < 2)
+                cPendingBlankLines = 2;
+        }
+    }
+    Assert(cFound > 0);
+}
+
+
+/**
+ * Prints the full help for the current (sub)command.
+ *
+ * @param   pStrm               The output stream.
+ */
+void printHelp(PRTSTREAM pStrm)
+{
+    printFullCommandOrSubcommandHelp(g_enmCurCommand, g_fCurSubcommandScope, pStrm);
+}
+
+
+/**
+ * Display no subcommand error message and current command usage.
+ *
+ * @returns RTEXITCODE_SYNTAX.
+ */
+RTEXITCODE errorNoSubcommand(void)
+{
+    Assert(g_enmCurCommand != HELP_CMD_VBOXMANAGE_INVALID);
+    Assert(g_fCurSubcommandScope == REFENTRYSTR_SCOPE_GLOBAL);
+
+    return errorSyntax("No subcommand specified");
+}
+
+
+/**
+ * Display unknown subcommand error message and current command usage.
+ *
+ * May show full command help instead if the subcommand is a common help option.
+ *
+ * @returns RTEXITCODE_SYNTAX, or RTEXITCODE_SUCCESS if common help option.
+ * @param   pszSubcommand       The name of the alleged subcommand.
+ */
+RTEXITCODE errorUnknownSubcommand(const char *pszSubcommand)
+{
+    Assert(g_enmCurCommand != HELP_CMD_VBOXMANAGE_INVALID);
+    Assert(g_fCurSubcommandScope == REFENTRYSTR_SCOPE_GLOBAL);
+
+    /* check if help was requested. */
+    if (   strcmp(pszSubcommand, "--help") == 0
+        || strcmp(pszSubcommand, "-h") == 0
+        || strcmp(pszSubcommand, "-?") == 0)
+    {
+        printFullCommandOrSubcommandHelp(g_enmCurCommand, g_fCurSubcommandScope, g_pStdOut);
+        return RTEXITCODE_SUCCESS;
+    }
+
+    return errorSyntax("Unknown subcommand: %s", pszSubcommand);
+}
+
+
+/**
+ * Display too many parameters error message and current command usage.
+ *
+ * May show full command help instead if the subcommand is a common help option.
+ *
+ * @returns RTEXITCODE_SYNTAX, or RTEXITCODE_SUCCESS if common help option.
+ * @param   papszArgs           The first unwanted parameter.  Terminated by
+ *                              NULL entry.
+ */
+RTEXITCODE errorTooManyParameters(char **papszArgs)
+{
+    Assert(g_enmCurCommand != HELP_CMD_VBOXMANAGE_INVALID);
+    Assert(g_fCurSubcommandScope != REFENTRYSTR_SCOPE_GLOBAL);
+
+    /* check if help was requested. */
+    if (papszArgs)
+        for (uint32_t i = 0; papszArgs[i]; i++)
+            if (   strcmp(papszArgs[i], "--help") == 0
+                || strcmp(papszArgs[i], "-h") == 0
+                || strcmp(papszArgs[i], "-?") == 0)
+            {
+                printFullCommandOrSubcommandHelp(g_enmCurCommand, g_fCurSubcommandScope, g_pStdOut);
+                return RTEXITCODE_SUCCESS;
+            }
+            else if (!strcmp(papszArgs[i], "--"))
+                break;
+
+    return errorSyntax("Too many parameters");
+}
+
+
+/**
+ * Display current (sub)command usage and the custom error message.
+ *
+ * @returns RTEXITCODE_SYNTAX.
+ * @param   pszFormat           Custom error message format string.
+ * @param   ...                 Format arguments.
+ */
+RTEXITCODE errorSyntax(const char *pszFormat, ...)
+{
+    Assert(g_enmCurCommand != HELP_CMD_VBOXMANAGE_INVALID);
+
+    showLogo(g_pStdErr);
+
+    va_list va;
+    va_start(va, pszFormat);
+    RTMsgErrorV(pszFormat, va);
+    va_end(va);
+
+    RTStrmPutCh(g_pStdErr, '\n');
+    if (   printBriefCommandOrSubcommandHelp(g_enmCurCommand, g_fCurSubcommandScope, g_pStdErr)
+        >= ERROR_REPEAT_AFTER_USAGE_LENGTH)
+    {
+        /* Usage was very long, repeat the error message. */
+        RTStrmPutCh(g_pStdErr, '\n');
+        va_start(va, pszFormat);
+        RTMsgErrorV(pszFormat, va);
+        va_end(va);
+    }
+    return RTEXITCODE_SYNTAX;
+}
+
+
+/**
+ * Worker for errorGetOpt.
+ *
+ * @param   rcGetOpt            The RTGetOpt return value.
+ * @param   pValueUnion         The value union returned by RTGetOpt.
+ */
+static void errorGetOptWorker(int rcGetOpt, union RTGETOPTUNION const *pValueUnion)
+{
+    if (rcGetOpt == VINF_GETOPT_NOT_OPTION)
+        RTMsgError("Invalid parameter '%s'", pValueUnion->psz);
+    else if (rcGetOpt > 0)
+    {
+        if (RT_C_IS_PRINT(rcGetOpt))
+            RTMsgError("Invalid option -%c", rcGetOpt);
+        else
+            RTMsgError("Invalid option case %i", rcGetOpt);
+    }
+    else if (rcGetOpt == VERR_GETOPT_UNKNOWN_OPTION)
+        RTMsgError("Unknown option: %s", pValueUnion->psz);
+    else if (rcGetOpt == VERR_GETOPT_INVALID_ARGUMENT_FORMAT)
+        RTMsgError("Invalid argument format: %s", pValueUnion->psz);
+    else if (pValueUnion->pDef)
+        RTMsgError("%s: %Rrs", pValueUnion->pDef->pszLong, rcGetOpt);
+    else
+        RTMsgError("%Rrs", rcGetOpt);
+}
+
+
+/**
+ * Handled an RTGetOpt error or common option.
+ *
+ * This implements the 'V' and 'h' cases.  It reports appropriate syntax errors
+ * for other @a rcGetOpt values.
+ *
+ * @retval  RTEXITCODE_SUCCESS if help or version request.
+ * @retval  RTEXITCODE_SYNTAX if not help or version request.
+ * @param   rcGetOpt            The RTGetOpt return value.
+ * @param   pValueUnion         The value union returned by RTGetOpt.
+ */
+RTEXITCODE errorGetOpt(int rcGetOpt, union RTGETOPTUNION const *pValueUnion)
+{
+    Assert(g_enmCurCommand != HELP_CMD_VBOXMANAGE_INVALID);
+
+    /*
+     * Check if it is an unhandled standard option.
+     */
+    if (rcGetOpt == 'V')
+    {
+        RTPrintf("%sr%d\n", VBOX_VERSION_STRING, RTBldCfgRevision());
+        return RTEXITCODE_SUCCESS;
+    }
+
+    if (rcGetOpt == 'h')
+    {
+        printFullCommandOrSubcommandHelp(g_enmCurCommand, g_fCurSubcommandScope, g_pStdOut);
+        return RTEXITCODE_SUCCESS;
+    }
+
+    /*
+     * We failed.
+     */
+    showLogo(g_pStdErr);
+    errorGetOptWorker(rcGetOpt, pValueUnion);
+    if (   printBriefCommandOrSubcommandHelp(g_enmCurCommand, g_fCurSubcommandScope, g_pStdErr)
+        >= ERROR_REPEAT_AFTER_USAGE_LENGTH)
+    {
+        /* Usage was very long, repeat the error message. */
+        RTStrmPutCh(g_pStdErr, '\n');
+        errorGetOptWorker(rcGetOpt, pValueUnion);
+    }
+    return RTEXITCODE_SYNTAX;
+}
+
+#endif /* VBOX_ONLY_DOCS */
+
 
 
 void showLogo(PRTSTREAM pStrm)
@@ -45,6 +542,9 @@ void showLogo(PRTSTREAM pStrm)
         s_fShown = true;
     }
 }
+
+
+
 
 void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
 {
@@ -330,6 +830,7 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
         RTStrmPrintf(pStrm, "]\n");
         RTStrmPrintf(pStrm,
                      "                            [--audiocontroller ac97|hda|sb16]\n"
+                     "                            [--audiocodec stac9700|ad1980|stac9221|sb16]\n"
                      "                            [--clipboard disabled|hosttoguest|guesttohost|\n"
                      "                                         bidirectional]\n"
                      "                            [--draganddrop disabled|hosttoguest]\n");
@@ -841,7 +1342,7 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
                      "                            [--dhcp |\n"
                      "                            --ip<ipv4> [--netmask<ipv4> (def: 255.255.255.0)] |\n"
                      "                            --ipv6<ipv6> [--netmasklengthv6<length> (def: 64)]]\n"
-# if !defined(RT_OS_SOLARIS)
+# if !defined(RT_OS_SOLARIS) || defined(VBOX_ONLY_DOCS)
                      "                            create |\n"
                      "                            remove <name>\n"
 # endif
@@ -867,14 +1368,22 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
 #endif
                      "\n", SEP, SEP);
     }
-    if (fCategory & USAGE_EXTPACK)
+
+#ifndef VBOX_ONLY_DOCS /* Converted to man page, not needed. */
+    if (fCategory == USAGE_ALL)
     {
-        RTStrmPrintf(pStrm,
-                           "%s extpack %s         install [--replace] <tarball> |\n"
-                     "                            uninstall [--force] <name> |\n"
-                     "                            cleanup\n"
-                     "\n", SEP);
+        uint32_t cPendingBlankLines = 0;
+        for (uint32_t i = 0; i < g_cHelpEntries; i++)
+        {
+            PCREFENTRY pHelp = g_apHelpEntries[i];
+            RTStrmPrintf(pStrm, "  %c%s:\n", RT_C_TO_UPPER(pHelp->pszBrief[0]), pHelp->pszBrief + 1);
+            cPendingBlankLines = printStringTable(pStrm, &pHelp->Synopsis, REFENTRYSTR_SCOPE_GLOBAL, cPendingBlankLines);
+            if (!cPendingBlankLines)
+                cPendingBlankLines = 1;
+        }
     }
+
+#endif
 }
 
 /**
@@ -1005,3 +1514,6 @@ RTEXITCODE errorArgument(const char *pszFormat, ...)
     va_end(args);
     return RTEXITCODE_SYNTAX;
 }
+
+
+

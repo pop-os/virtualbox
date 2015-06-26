@@ -748,8 +748,6 @@ DECLCALLBACK(int) Console::i_configConstructor(PUVM pUVM, PVM pVM, void *pvConso
 
 /**
  * Report versions of installed drivers to release log.
- *
- * WARNING! This method has a side effect -- it modifies mfNDIS6.
  */
 void Console::i_reportDriverVersions()
 {
@@ -762,9 +760,6 @@ void Console::i_reportDriverVersions()
     TCHAR  *pszSystemRoot = szSystemRoot;
     LPVOID  pVerInfo      = NULL;
     DWORD   cbVerInfo     = 0;
-
-    /* Assume NDIS6 */
-    mfNDIS6 = true;
 
     do
     {
@@ -820,8 +815,6 @@ void Console::i_reportDriverVersions()
             {
                 if (_tcsnicmp(TEXT("vbox"), szDriver, 4))
                     continue;
-                if (_tcsnicmp(TEXT("vboxnetflt"), szDriver, 10) == 0)
-                    mfNDIS6 = false;
             }
             else
                 continue;
@@ -852,7 +845,7 @@ void Console::i_reportDriverVersions()
                         break;
                     }
                 }
-                        
+
                 if (GetFileVersionInfo(pszDrv, NULL, cbVerInfo, pVerInfo))
                 {
                     UINT   cbSize = 0;
@@ -1026,10 +1019,11 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
         }
 #endif
 
-        /* Not necessary, but to make sure these two settings end up in the release log. */
         BOOL fPageFusion = FALSE;
         hrc = pMachine->COMGETTER(PageFusionEnabled)(&fPageFusion);                         H();
-        InsertConfigInteger(pRoot, "PageFusion",           fPageFusion); /* boolean */
+        InsertConfigInteger(pRoot, "PageFusionAllowed",    fPageFusion); /* boolean */
+
+        /* Not necessary, but makes sure this setting ends up in the release log. */
         ULONG ulBalloonSize = 0;
         hrc = pMachine->COMGETTER(MemoryBalloonSize)(&ulBalloonSize);                       H();
         InsertConfigInteger(pRoot, "MemBalloonSize",       ulBalloonSize);
@@ -2700,6 +2694,8 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
         {
             AudioControllerType_T audioController;
             hrc = audioAdapter->COMGETTER(AudioController)(&audioController);               H();
+            AudioCodecType_T audioCodec;
+            hrc = audioAdapter->COMGETTER(AudioCodec)(&audioCodec);                         H();
             switch (audioController)
             {
                 case AudioControllerType_AC97:
@@ -2710,6 +2706,15 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
                     InsertConfigInteger(pInst, "Trusted",          1); /* boolean */
                     hrc = pBusMgr->assignPCIDevice("ichac97", pInst);                       H();
                     InsertConfigNode(pInst,    "Config", &pCfg);
+                    switch (audioCodec)
+                    {
+                        case AudioCodecType_STAC9700:
+                            InsertConfigString(pCfg,   "Codec", "STAC9700");
+                            break;
+                        case AudioCodecType_AD1980:
+                            InsertConfigString(pCfg,   "Codec", "AD1980");
+                            break;
+                    }
                     break;
                 }
                 case AudioControllerType_SB16:
@@ -4441,6 +4446,29 @@ int Console::i_configMediumProperties(PCFGMNODE pCur, IMedium *pMedium, bool *pf
     return hrc;
 }
 
+
+#ifdef RT_OS_WINDOWS
+DECLINLINE(bool) IsNdis6(void)
+{
+    LogFlowFunc(("entry\n"));
+    HANDLE hFile = CreateFile(L"\\\\.\\VBoxNetLwf",
+                              0,
+                              FILE_SHARE_READ | FILE_SHARE_WRITE,
+                              NULL,
+                              OPEN_EXISTING,
+                              0,
+                              NULL);
+    bool fNdis6 = hFile != INVALID_HANDLE_VALUE;
+    if (fNdis6)
+        CloseHandle(hFile);
+    else
+        LogFunc(("CreateFile failed with 0x%x\n", GetLastError()));
+    LogFlowFunc(("return %s\n", fNdis6 ? "true" : "false"));
+    return fNdis6;
+}
+#endif /* RT_OS_WINDOWS */
+
+
 /**
  *  Construct the Network configuration tree
  *
@@ -5295,7 +5323,7 @@ int Console::i_configNetwork(const char *pszDevice,
                 CoTaskMemFree(pswzBindName);
 
                 /* The old NDIS5.1 version of driver uses TRUNKTYPE_NETADP */
-                trunkType = mfNDIS6 ? TRUNKTYPE_NETFLT : TRUNKTYPE_NETADP;
+                trunkType = IsNdis6() ? TRUNKTYPE_NETFLT : TRUNKTYPE_NETADP;
                 InsertConfigInteger(pCfg, "TrunkType", trunkType == TRUNKTYPE_NETFLT ? kIntNetTrunkType_NetFlt : kIntNetTrunkType_NetAdp);
 
                 pAdaptorComponent.setNull();
