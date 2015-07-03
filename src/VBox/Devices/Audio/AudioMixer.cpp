@@ -16,7 +16,8 @@
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
-
+#define LOG_GROUP LOG_GROUP_AUDIO_MIXER
+#include <VBox/log.h>
 #include "AudioMixer.h"
 #include "AudioMixBuffer.h"
 
@@ -29,13 +30,6 @@
 #include <iprt/asm-math.h>
 #include <iprt/assert.h>
 #include <iprt/string.h>
-
-#ifdef LOG_GROUP
-# undef LOG_GROUP
-#endif
-#define LOG_GROUP LOG_GROUP_DEV_AUDIO
-#include <VBox/log.h>
-
 
 static int audioMixerUpdateSinkVolume(PAUDMIXSINK pSink, const PPDMAUDIOVOLUME pVolMaster);
 
@@ -473,4 +467,20 @@ int AudioMixerSetSinkVolume(PAUDMIXSINK pSink, PPDMAUDIOVOLUME pVol)
     pSink->Volume = *pVol;
 
     return audioMixerUpdateSinkVolume(pSink, &pSink->pParent->VolMaster);
+}
+
+void AudioMixerDebug(PAUDIOMIXER pMixer, PCDBGFINFOHLP pHlp, const char *pszArgs)
+{
+    PAUDMIXSINK pSink;
+    unsigned    iSink = 0;
+
+    pHlp->pfnPrintf(pHlp, "[Master] %s: lVol=%u, rVol=%u, fMuted=%RTbool\n", pMixer->pszName,
+                    pMixer->VolMaster.uLeft, pMixer->VolMaster.uRight, pMixer->VolMaster.fMuted);
+
+    RTListForEach(&pMixer->lstSinks, pSink, AUDMIXSINK, Node)
+    {
+        pHlp->pfnPrintf(pHlp, "[Sink %u] %s: lVol=%u, rVol=%u, fMuted=%RTbool\n", iSink, pSink->pszName,
+                        pSink->Volume.uLeft, pSink->Volume.uRight, pSink->Volume.fMuted);
+        ++iSink;
+    }
 }

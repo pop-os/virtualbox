@@ -37,6 +37,9 @@
 #include <iprt/asm-amd64-x86.h>
 #include <iprt/asm-math.h>
 #include <iprt/cpuset.h>
+#if defined(RT_OS_DARWIN) || defined(RT_OS_SOLARIS)
+# include <iprt/dbg.h>
+#endif
 #include <iprt/handletable.h>
 #include <iprt/mem.h>
 #include <iprt/mp.h>
@@ -130,6 +133,10 @@ static int                  supdrvIOCtl_ResumeSuspendedKbds(void);
  *
  * While making changes to these exports, make sure to update the IOC
  * minor version (SUPDRV_IOC_VERSION).
+ *
+ * @remarks This array is processed by SUPR0-def-pe.sed and SUPR0-def-lx.sed to
+ *          produce definition files from which import libraries are generated.
+ *          Take care when commenting things and especially with \#ifdef'ing.
  */
 static SUPFUNC g_aFunctions[] =
 {
@@ -289,6 +296,13 @@ static SUPFUNC g_aFunctions[] =
     { "RTPowerNotificationRegister",            (void *)RTPowerNotificationRegister },
     { "RTProcSelf",                             (void *)RTProcSelf },
     { "RTR0AssertPanicSystem",                  (void *)RTR0AssertPanicSystem },
+#if defined(RT_OS_DARWIN) || defined(RT_OS_SOLARIS)
+    { "RTR0DbgKrnlInfoOpen",                    (void *)RTR0DbgKrnlInfoOpen },          /* only-darwin, only-solaris */
+    { "RTR0DbgKrnlInfoQueryMember",             (void *)RTR0DbgKrnlInfoQueryMember },   /* only-darwin, only-solaris */
+    { "RTR0DbgKrnlInfoQuerySymbol",             (void *)RTR0DbgKrnlInfoQuerySymbol },   /* only-darwin, only-solaris */
+    { "RTR0DbgKrnlInfoRelease",                 (void *)RTR0DbgKrnlInfoRelease },       /* only-darwin, only-solaris */
+    { "RTR0DbgKrnlInfoRetain",                  (void *)RTR0DbgKrnlInfoRetain },        /* only-darwin, only-solaris */
+#endif
     { "RTR0MemAreKrnlAndUsrDifferent",          (void *)RTR0MemAreKrnlAndUsrDifferent },
     { "RTR0MemKernelIsValidAddr",               (void *)RTR0MemKernelIsValidAddr },
     { "RTR0MemKernelCopyFrom",                  (void *)RTR0MemKernelCopyFrom },

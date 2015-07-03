@@ -240,10 +240,10 @@ HRESULT GuestDnDTarget::getProtocolVersion(ULONG *aProtocolVersion)
 /////////////////////////////////////////////////////////////////////////////
 
 HRESULT GuestDnDTarget::enter(ULONG aScreenId, ULONG aX, ULONG aY,
-                              DnDAction_T aDefaultAction,
-                              const std::vector<DnDAction_T> &aAllowedActions,
+                              DnDAction_T                      aDefaultAction,
+                              const std::vector<DnDAction_T>  &aAllowedActions,
                               const std::vector<com::Utf8Str> &aFormats,
-                              DnDAction_T *aResultAction)
+                              DnDAction_T                     *aResultAction)
 {
 #if !defined(VBOX_WITH_DRAG_AND_DROP)
     ReturnComNotImplemented();
@@ -276,10 +276,21 @@ HRESULT GuestDnDTarget::enter(ULONG aScreenId, ULONG aX, ULONG aY,
         return S_OK;
 
     /* Make a flat data string out of the supported format list. */
-    Utf8Str strFormats = GuestDnD::toFormatString(m_strFormats, aFormats);
+    Utf8Str strFormats = GuestDnD::toFormatString(m_vecFmtSup, aFormats);
+
     /* If there is no valid supported format, ignore this request. */
     if (strFormats.isEmpty())
-        return S_OK;
+        return setError(E_INVALIDARG, tr("Specified format(s) not supported"));
+
+    LogRel2(("DnD: Offered formats to guest:\n"));
+    RTCList<RTCString> lstFormats = strFormats.split("\r\n");
+    for (size_t i = 0; i < lstFormats.size(); i++)
+        LogRel2(("DnD: \t%s\n", lstFormats[i].c_str()));
+
+    /* Save the formats offered to the guest. This is needed to later
+     * decide what to do with the data when sending stuff to the guest. */
+    m_vecFmtOff = aFormats;
+    Assert(m_vecFmtOff.size());
 
     HRESULT hr = S_OK;
 
@@ -306,8 +317,14 @@ HRESULT GuestDnDTarget::enter(ULONG aScreenId, ULONG aX, ULONG aY,
         }
     }
 
-    if (aResultAction)
-        *aResultAction = resAction;
+    if (RT_FAILURE(rc))
+        hr = VBOX_E_IPRT_ERROR;
+
+    if (SUCCEEDED(hr))
+    {
+        if (aResultAction)
+            *aResultAction = resAction;
+    }
 
     LogFlowFunc(("hr=%Rhrc, resAction=%ld\n", hr, resAction));
     return hr;
@@ -315,10 +332,10 @@ HRESULT GuestDnDTarget::enter(ULONG aScreenId, ULONG aX, ULONG aY,
 }
 
 HRESULT GuestDnDTarget::move(ULONG aScreenId, ULONG aX, ULONG aY,
-                             DnDAction_T aDefaultAction,
-                             const std::vector<DnDAction_T> &aAllowedActions,
+                             DnDAction_T                      aDefaultAction,
+                             const std::vector<DnDAction_T>  &aAllowedActions,
                              const std::vector<com::Utf8Str> &aFormats,
-                             DnDAction_T *aResultAction)
+                             DnDAction_T                     *aResultAction)
 {
 #if !defined(VBOX_WITH_DRAG_AND_DROP)
     ReturnComNotImplemented();
@@ -342,10 +359,10 @@ HRESULT GuestDnDTarget::move(ULONG aScreenId, ULONG aX, ULONG aY,
         return S_OK;
 
     /* Make a flat data string out of the supported format list. */
-    RTCString strFormats = GuestDnD::toFormatString(m_strFormats, aFormats);
+    RTCString strFormats = GuestDnD::toFormatString(m_vecFmtSup, aFormats);
     /* If there is no valid supported format, ignore this request. */
     if (strFormats.isEmpty())
-        return S_OK;
+        return setError(E_INVALIDARG, tr("Specified format(s) not supported"));
 
     HRESULT hr = S_OK;
 
@@ -371,8 +388,14 @@ HRESULT GuestDnDTarget::move(ULONG aScreenId, ULONG aX, ULONG aY,
         }
     }
 
-    if (aResultAction)
-        *aResultAction = resAction;
+    if (RT_FAILURE(rc))
+        hr = VBOX_E_IPRT_ERROR;
+
+    if (SUCCEEDED(hr))
+    {
+        if (aResultAction)
+            *aResultAction = resAction;
+    }
 
     LogFlowFunc(("hr=%Rhrc, *pResultAction=%ld\n", hr, resAction));
     return hr;
@@ -398,16 +421,20 @@ HRESULT GuestDnDTarget::leave(ULONG uScreenId)
             pResp->waitForGuestResponse();
     }
 
+    if (RT_FAILURE(rc))
+        hr = VBOX_E_IPRT_ERROR;
+
     LogFlowFunc(("hr=%Rhrc\n", hr));
     return hr;
 #endif /* VBOX_WITH_DRAG_AND_DROP */
 }
 
 HRESULT GuestDnDTarget::drop(ULONG aScreenId, ULONG aX, ULONG aY,
-                             DnDAction_T aDefaultAction,
-                             const std::vector<DnDAction_T> &aAllowedActions,
+                             DnDAction_T                      aDefaultAction,
+                             const std::vector<DnDAction_T>  &aAllowedActions,
                              const std::vector<com::Utf8Str> &aFormats,
-                             com::Utf8Str &aFormat, DnDAction_T *aResultAction)
+                             com::Utf8Str                    &aFormat,
+                             DnDAction_T                     *aResultAction)
 {
 #if !defined(VBOX_WITH_DRAG_AND_DROP)
     ReturnComNotImplemented();
@@ -430,13 +457,18 @@ HRESULT GuestDnDTarget::drop(ULONG aScreenId, ULONG aX, ULONG aY,
                             aAllowedActions, &uAllowedActions);
     /* If there is no usable action, ignore this request. */
     if (isDnDIgnoreAction(uDefAction))
+    {
+        aFormat = "";
+        if (aResultAction)
+            *aResultAction = DnDAction_Ignore;
         return S_OK;
+    }
 
     /* Make a flat data string out of the supported format list. */
-    Utf8Str strFormats = GuestDnD::toFormatString(m_strFormats, aFormats);
+    Utf8Str strFormats = GuestDnD::toFormatString(m_vecFmtSup, aFormats);
     /* If there is no valid supported format, ignore this request. */
     if (strFormats.isEmpty())
-        return S_OK;
+        return setError(E_INVALIDARG, tr("Specified format(s) not supported"));
 
     HRESULT hr = S_OK;
 
@@ -461,17 +493,24 @@ HRESULT GuestDnDTarget::drop(ULONG aScreenId, ULONG aX, ULONG aY,
             if (pResp && RT_SUCCESS(pResp->waitForGuestResponse()))
             {
                 resAction = GuestDnD::toMainAction(pResp->defAction());
-                aFormat = pResp->format();
+                aFormat = pResp->fmtReq();
 
                 LogFlowFunc(("resFormat=%s, resAction=%RU32\n",
-                             pResp->format().c_str(), pResp->defAction()));
+                             pResp->fmtReq().c_str(), pResp->defAction()));
             }
         }
     }
 
-    if (aResultAction)
-        *aResultAction = resAction;
+    if (RT_FAILURE(rc))
+        hr = VBOX_E_IPRT_ERROR;
 
+    if (SUCCEEDED(hr))
+    {
+        if (aResultAction)
+            *aResultAction = resAction;
+    }
+
+    LogFlowFunc(("Returning hr=%Rhrc\n", hr));
     return hr;
 #endif /* VBOX_WITH_DRAG_AND_DROP */
 }
@@ -555,7 +594,7 @@ HRESULT GuestDnDTarget::sendData(ULONG aScreenId, const com::Utf8Str &aFormat, c
         pSendCtx->mpTarget      = this;
         pSendCtx->mpResp        = pResp;
         pSendCtx->mScreenID     = aScreenId;
-        pSendCtx->mFormat       = aFormat;
+        pSendCtx->mFmtReq       = aFormat;
         pSendCtx->mData.vecData = aData;
 
         SendDataTask *pTask = new SendDataTask(this, pSendCtx);
@@ -680,10 +719,6 @@ int GuestDnDTarget::i_sendData(PSENDDATACTX pCtx, RTMSINTERVAL msTimeout)
 {
     AssertPtrReturn(pCtx, VERR_INVALID_POINTER);
 
-    GuestDnD *pInst = GuestDnDInst();
-    if (!pInst)
-        return VERR_INVALID_POINTER;
-
     int rc;
 
     ASMAtomicWriteBool(&pCtx->mIsActive, true);
@@ -691,11 +726,18 @@ int GuestDnDTarget::i_sendData(PSENDDATACTX pCtx, RTMSINTERVAL msTimeout)
     /* Clear all remaining outgoing messages. */
     mDataBase.mListOutgoing.clear();
 
-    const char *pszFormat = pCtx->mFormat.c_str();
-    uint32_t cbFormat = pCtx->mFormat.length() + 1;
-
-    /* Do we need to build up a file tree? */
-    bool fHasURIList = DnDMIMEHasFileURLs(pszFormat, cbFormat);
+    /**
+     * Do we need to build up a file tree?
+     * Note: The decision whether we need to build up a file tree and sending
+     *       actual file data only depends on the actual formats offered by this target.
+     *       If the guest does not want an URI list ("text/uri-list") but text ("TEXT" and
+     *       friends) instead, still send the data over to the guest -- the file as such still
+     *       is needed on the guest in this case, as the guest then just wants a simple path
+     *       instead of an URI list (pointing to a file on the guest itself).
+     *
+     ** @todo Support more than one format; add a format<->function handler concept. Later. */
+    bool fHasURIList = std::find(m_vecFmtOff.begin(),
+                                 m_vecFmtOff.end(), "text/uri-list") != m_vecFmtOff.end();
     if (fHasURIList)
     {
         rc = i_sendURIData(pCtx, msTimeout);
@@ -1128,8 +1170,8 @@ int GuestDnDTarget::i_sendURIData(PSENDDATACTX pCtx, RTMSINTERVAL msTimeout)
         GuestDnDMsg MsgSndData;
         MsgSndData.setType(DragAndDropSvc::HOST_DND_HG_SND_DATA);
         MsgSndData.setNextUInt32(pCtx->mScreenID);
-        MsgSndData.setNextPointer((void *)pCtx->mFormat.c_str(), (uint32_t)pCtx->mFormat.length() + 1);
-        MsgSndData.setNextUInt32((uint32_t)pCtx->mFormat.length() + 1);
+        MsgSndData.setNextPointer((void *)pCtx->mFmtReq.c_str(), (uint32_t)pCtx->mFmtReq.length() + 1);
+        MsgSndData.setNextUInt32((uint32_t)pCtx->mFmtReq.length() + 1);
         MsgSndData.setNextPointer((void*)strData.c_str(), (uint32_t)cbData);
         MsgSndData.setNextUInt32((uint32_t)cbData);
 
@@ -1266,7 +1308,8 @@ int GuestDnDTarget::i_sendRawData(PSENDDATACTX pCtx, RTMSINTERVAL msTimeout)
     GuestDnD *pInst = GuestDnDInst();
     AssertPtr(pInst);
 
-    /* At the moment we only allow up to 64K raw data. */
+    /** @todo At the moment we only allow sending up to 64K raw data. Fix this by
+     *        using HOST_DND_HG_SND_MORE_DATA. */
     size_t cbDataTotal = pCtx->mData.vecData.size();
     if (   !cbDataTotal
         || cbDataTotal > _64K)
@@ -1278,14 +1321,25 @@ int GuestDnDTarget::i_sendRawData(PSENDDATACTX pCtx, RTMSINTERVAL msTimeout)
     GuestDnDMsg Msg;
     Msg.setType(DragAndDropSvc::HOST_DND_HG_SND_DATA);
     Msg.setNextUInt32(pCtx->mScreenID);
-    Msg.setNextPointer((void *)pCtx->mFormat.c_str(), (uint32_t)pCtx->mFormat.length() + 1);
-    Msg.setNextUInt32((uint32_t)pCtx->mFormat.length() + 1);
+    Msg.setNextPointer((void *)pCtx->mFmtReq.c_str(), (uint32_t)pCtx->mFmtReq.length() + 1);
+    Msg.setNextUInt32((uint32_t)pCtx->mFmtReq.length() + 1);
     Msg.setNextPointer((void*)&pCtx->mData.vecData.front(), (uint32_t)cbDataTotal);
     Msg.setNextUInt32(cbDataTotal);
 
-    LogFlowFunc(("%zu total bytes of raw data to transfer\n", cbDataTotal));
+    LogFlowFunc(("Transferring %zu total bytes of raw data ('%s')\n", cbDataTotal, pCtx->mFmtReq.c_str()));
 
-    return pInst->hostCall(Msg.getType(), Msg.getCount(), Msg.getParms());
+    int rc2;
+
+    int rc = pInst->hostCall(Msg.getType(), Msg.getCount(), Msg.getParms());
+    if (RT_FAILURE(rc))
+        rc2 = pCtx->mpResp->setProgress(100, DragAndDropSvc::DND_PROGRESS_ERROR, rc,
+                                        GuestDnDTarget::i_hostErrorToString(rc));
+    else
+        rc2 = pCtx->mpResp->setProgress(100, DragAndDropSvc::DND_PROGRESS_COMPLETE, rc);
+    AssertRC(rc2);
+
+    LogFlowFuncLeaveRC(rc);
+    return rc;
 }
 
 HRESULT GuestDnDTarget::cancel(BOOL *aVeto)
@@ -1299,7 +1353,10 @@ HRESULT GuestDnDTarget::cancel(BOOL *aVeto)
     if (aVeto)
         *aVeto = FALSE; /** @todo */
 
-    return RT_SUCCESS(rc) ? S_OK : VBOX_E_IPRT_ERROR;
+    HRESULT hr = RT_SUCCESS(rc) ? S_OK : VBOX_E_IPRT_ERROR;
+
+    LogFlowFunc(("hr=%Rhrc\n", hr));
+    return hr;
 #endif /* VBOX_WITH_DRAG_AND_DROP */
 }
 

@@ -2014,10 +2014,17 @@ static void hmR0SvmSaveGuestState(PVMCPU pVCpu, PCPUMCTX pMixedCtx)
      * Guest TR.
      * Fixup TR attributes so it's compatible with Intel. Important when saved-states are used
      * between Intel and AMD. See @bugref{6208} comment #39.
+     * ASSUME that it's normally correct and that we're in 32-bit or 64-bit mode.
      */
     HMSVM_SAVE_SEG_REG(TR, tr);
-    if (CPUMIsGuestInLongModeEx(pMixedCtx))
-        pMixedCtx->tr.Attr.n.u4Type = X86_SEL_TYPE_SYS_386_TSS_BUSY;
+    if (pMixedCtx->tr.Attr.n.u4Type != X86_SEL_TYPE_SYS_386_TSS_BUSY)
+    {
+        if (   pMixedCtx->tr.Attr.n.u4Type == X86_SEL_TYPE_SYS_386_TSS_AVAIL
+            || CPUMIsGuestInLongModeEx(pMixedCtx))
+            pMixedCtx->tr.Attr.n.u4Type = X86_SEL_TYPE_SYS_386_TSS_BUSY;
+        else if (pMixedCtx->tr.Attr.n.u4Type == X86_SEL_TYPE_SYS_286_TSS_AVAIL)
+            pMixedCtx->tr.Attr.n.u4Type = X86_SEL_TYPE_SYS_286_TSS_BUSY;
+    }
 
     /*
      * Guest Descriptor-Table registers.
@@ -4794,13 +4801,25 @@ HMSVM_EXIT_DECL hmR0SvmExitIOInstr(PVMCPU pVCpu, PCPUMCTX pCtx, PSVMTRANSIENT pS
         if (enmAddrMode != (IEMMODE)-1)
         {
             uint64_t cbInstr = pVmcb->ctrl.u64ExitInfo2 - pCtx->rip;
-            if (cbInstr <= 15 && cbInstr >= 2)
+            if (cbInstr <= 15 && cbInstr >= 1)
             {
+                Assert(cbInstr >= 1U + IoExitInfo.n.u1REP);
                 if (IoExitInfo.n.u1Type == SVM_IOIO_WRITE)
                 {
-                    if (pVM->hm.s.svm.u32Features & AMD_CPUID_SVM_FEATURE_EDX_NRIP_SAVE)
+                    /* Don't know exactly how to detect whether u3SEG is valid, currently
+                       only enabling it for Bulldozer and later with NRIP.  OS/2 broke on
+                       2384 Opterons when only checking NRIP. */
+                    if (   (pVM->hm.s.svm.u32Features & AMD_CPUID_SVM_FEATURE_EDX_NRIP_SAVE)
+                        && pVM->cpum.ro.GuestFeatures.enmMicroarch >= kCpumMicroarch_AMD_15h_First)
+                    {
+                        AssertMsg(IoExitInfo.n.u3SEG == X86_SREG_DS || cbInstr > 1U + IoExitInfo.n.u1REP,
+                                  ("u32Seg=%d cbInstr=%d u1REP=%d", IoExitInfo.n.u3SEG, cbInstr, IoExitInfo.n.u1REP));
                         rcStrict = IEMExecStringIoWrite(pVCpu, cbValue, enmAddrMode, IoExitInfo.n.u1REP, (uint8_t)cbInstr,
                                                         IoExitInfo.n.u3SEG);
+                    }
+                    else if (cbInstr == 1U + IoExitInfo.n.u1REP)
+                        rcStrict = IEMExecStringIoWrite(pVCpu, cbValue, enmAddrMode, IoExitInfo.n.u1REP, (uint8_t)cbInstr,
+                                                        X86_SREG_DS);
                     else
                         rcStrict = IEMExecOne(pVCpu);
                     STAM_COUNTER_INC(&pVCpu->hm.s.StatExitIOStringWrite);
@@ -4944,6 +4963,7 @@ HMSVM_EXIT_DECL hmR0SvmExitIOInstr(PVMCPU pVCpu, PCPUMCTX pCtx, PSVMTRANSIENT pS
                   || rcStrict == VINF_EM_RAW_EMULATE_INSTR
                   || rcStrict == VINF_EM_DBG_BREAKPOINT
                   || rcStrict == VINF_EM_RAW_GUEST_TRAP
+                  || rcStrict == VINF_EM_RAW_TO_R3
                   || rcStrict == VINF_TRPM_XCPT_DISPATCHED, ("%Rrc\n", VBOXSTRICTRC_VAL(rcStrict)));
     }
 #endif

@@ -220,9 +220,9 @@ VBOX_BUILD_PUBLISHER =
 # Note! The BETA[n],ALPHA[n],RC[n] indicators should be inserted before the
 #       publisher so that RTStrVersionCompare have a chance of comparing
 #       prerelease from different publishers correctly.
-VBOX_VERSION_STRING = $(VBOX_VERSION_STRING_RAW)_RC2$(VBOX_BUILD_PUBLISHER)
+VBOX_VERSION_STRING = $(VBOX_VERSION_STRING_RAW)_RC3$(VBOX_BUILD_PUBLISHER)
 # Just the BETA[n],ALPHA[n],RC[n] indicators. Set to empty string for release.
-VBOX_VERSION_PRERELEASE = RC2
+VBOX_VERSION_PRERELEASE = RC3
 
 # Force the additions.sh script to get an exact additions build when we're doing the release.
 ifeq ($(int-mod $(VBOX_VERSION_BUILD),2),0)
@@ -4319,12 +4319,23 @@ TEMPLATE_VBOXR3HARDENEDLIB_LIBS = $(NO_SUCH_VARIABLE)
 
 
 #
-# Template for building hardened Ring-3 executables.
-# These shall have no extra runpaths, esp. not origin ones.
+# Template for building hardened Ring-3 testcase executables.
 #
 TEMPLATE_VBoxR3HardenedTstExe = VBox Ring-3 Hardened Testcase Exe (currently windows only!)
 TEMPLATE_VBoxR3HardenedTstExe_EXTENDS = VBOXR3HARDENEDEXE
 TEMPLATE_VBoxR3HardenedTstExe_INST = $(INST_TESTCASE)
+
+#
+# Template for building hardened Ring-3 testcase DLLs (pairs with VBoxR3HardenedTstExe).
+#
+TEMPLATE_VBoxR3HardenedTstDll = VBox Ring-3 Hardened Testcase Dll (currently windows only!)
+TEMPLATE_VBoxR3HardenedTstDll_EXTENDS = VBoxR3TstDll
+TEMPLATE_VBoxR3HardenedTstDll_INST = $(INST_TESTCASE)
+ TEMPLATE_VBoxR3HardenedTstDll_LDFLAGS.win = $(TEMPLATE_VBoxR3TstDll_LDFLAGS.win) -IntegrityCheck
+ifn1of ($(KBUILD_TARGET), win os2)
+ TEMPLATE_VBoxR3HardenedTstDll_LDFLAGS       = $(filter-out '$(VBOX_GCC_RPATH_OPT)%,$(TEMPLATE_VBoxR3TstDll_LDFLAGS))
+ TEMPLATE_VBoxR3HardenedTstDll_LDFLAGS.linux = $(filter-out $(VBOX_GCC_ORIGIN_OPT),$(TEMPLATE_VBoxR3TstDll_LDFLAGS.linux))
+endif
 
 #
 # Template for building set-uid-to-root helper programs.
@@ -6078,7 +6089,7 @@ endif
 SVN                    ?= svn$(HOSTSUFF_EXE)
 VBOX_SVN_REV_KMK        = $(PATH_OUT)/revision.kmk
 ifndef VBOX_SVN_REV
- VBOX_SVN_REV_FALLBACK := $(patsubst %:,,  $Rev: 101271 $  )
+ VBOX_SVN_REV_FALLBACK := $(patsubst %:,,  $Rev: 101436 $  )
  VBOX_SVN_DEP          := $(firstword $(wildcard $(PATH_ROOT)/.svn/wc.db $(abspath $(PATH_ROOT)/../.svn/wc.db) $(abspath $(PATH_ROOT)/../../.svn/wc.db) $(PATH_ROOT)/.svn/entries))
  ifeq ($(which $(SVN)),)
   VBOX_SVN_DEP         :=

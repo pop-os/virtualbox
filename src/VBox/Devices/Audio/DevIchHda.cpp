@@ -22,6 +22,8 @@
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
+#define LOG_GROUP LOG_GROUP_DEV_HDA
+#include <VBox/log.h>
 #include <VBox/vmm/pdmdev.h>
 #include <VBox/vmm/pdmaudioifs.h>
 #include <VBox/version.h>
@@ -35,12 +37,6 @@
 # include <iprt/mem.h>
 #endif
 #include <iprt/list.h>
-
-#ifdef LOG_GROUP
-# undef LOG_GROUP
-#endif
-#define LOG_GROUP LOG_GROUP_DEV_AUDIO
-#include <VBox/log.h>
 
 #include "VBoxDD.h"
 
@@ -3303,8 +3299,8 @@ static DECLCALLBACK(void) hdaInfoCodecNodes(PPDMDEVINS pDevIns, PCDBGFINFOHLP pH
 {
     PHDASTATE pThis = PDMINS_2_DATA(pDevIns, PHDASTATE);
 
-    if (pThis->pCodec->pfnCodecDbgListNodes)
-        pThis->pCodec->pfnCodecDbgListNodes(pThis->pCodec, pHlp, pszArgs);
+    if (pThis->pCodec->pfnDbgListNodes)
+        pThis->pCodec->pfnDbgListNodes(pThis->pCodec, pHlp, pszArgs);
     else
         pHlp->pfnPrintf(pHlp, "Codec implementation doesn't provide corresponding callback\n");
 }
@@ -3317,10 +3313,24 @@ static DECLCALLBACK(void) hdaInfoCodecSelector(PPDMDEVINS pDevIns, PCDBGFINFOHLP
 {
     PHDASTATE pThis = PDMINS_2_DATA(pDevIns, PHDASTATE);
 
-    if (pThis->pCodec->pfnCodecDbgSelector)
-        pThis->pCodec->pfnCodecDbgSelector(pThis->pCodec, pHlp, pszArgs);
+    if (pThis->pCodec->pfnDbgSelector)
+        pThis->pCodec->pfnDbgSelector(pThis->pCodec, pHlp, pszArgs);
     else
         pHlp->pfnPrintf(pHlp, "Codec implementation doesn't provide corresponding callback\n");
+}
+
+
+/**
+ * @callback_method_impl{FNDBGFHANDLERDEV}
+ */
+static DECLCALLBACK(void) hdaInfoMixer(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp, const char *pszArgs)
+{
+    PHDASTATE pThis = PDMINS_2_DATA(pDevIns, PHDASTATE);
+
+    if (pThis->pMixer)
+        AudioMixerDebug(pThis->pMixer, pHlp, pszArgs);
+    else
+        pHlp->pfnPrintf(pHlp, "Mixer not available\n");
 }
 
 
@@ -3788,6 +3798,7 @@ static DECLCALLBACK(int) hdaConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNO
         PDMDevHlpDBGFInfoRegister(pDevIns, "hdastrm",     "HDA stream info. (hdastrm [stream number])",     hdaInfoStream);
         PDMDevHlpDBGFInfoRegister(pDevIns, "hdcnodes",    "HDA codec nodes.",                               hdaInfoCodecNodes);
         PDMDevHlpDBGFInfoRegister(pDevIns, "hdcselector", "HDA codec's selector states [node number].",     hdaInfoCodecSelector);
+        PDMDevHlpDBGFInfoRegister(pDevIns, "hdamixer",    "HDA mixer state.",                               hdaInfoMixer);
 
         rc = RTStrFormatTypeRegister("sdctl",   hdaFormatStrmCtl,   NULL);
         AssertRC(rc);

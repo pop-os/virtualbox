@@ -27,7 +27,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 100880 $"
+__version__ = "$Revision: 101410 $"
 
 
 # Standard python imports.
@@ -637,7 +637,8 @@ class ModelDataBase(ModelBase): # pylint: disable=R0903
         return (sValue, sError);
 
     @staticmethod
-    def validateStr(sValue, cchMin = 0, cchMax = 4096, aoNilValues = tuple([None, '']), fAllowNull = True, fAllowUnicodeSymbols = False): # pylint: disable=C0301
+    def validateStr(sValue, cchMin = 0, cchMax = 4096, aoNilValues = tuple([None, '']), fAllowNull = True,
+                    fAllowUnicodeSymbols = False):
         """ Validates a string field. """
         if sValue in aoNilValues:
             return (sValue, None if fAllowNull else 'Mandatory.');

@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 100880 $"
+__version__ = "$Revision: 101411 $"
 
 # Standard Python imports.
 import os;
@@ -77,7 +77,9 @@ def escapeAttrToStr(oObject):
     """
     Stringifies the object and hands it to escapeAttr.  May return unicode string.
     """
-    return escapeAttr(oObject);
+    if utils.isString(oObject):
+        return escapeAttr(oObject);
+    return escapeAttr(str(oObject));
 
 def escapeAttrJavaScriptStringDQ(sText):
     """ Escapes a javascript string that is to be emitted between double quotes. """

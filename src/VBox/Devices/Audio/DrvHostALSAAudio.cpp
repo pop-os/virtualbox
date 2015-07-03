@@ -43,7 +43,8 @@
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
-
+#define LOG_GROUP LOG_GROUP_DRV_HOST_AUDIO
+#include <VBox/log.h>
 #include <iprt/alloc.h>
 #include <iprt/uuid.h> /* For PDMIBASE_2_PDMDRV. */
 #include <VBox/vmm/pdmaudioifs.h>
@@ -59,13 +60,6 @@ RT_C_DECLS_END
 #include "AudioMixBuffer.h"
 
 #include "VBoxDD.h"
-
-
-#ifdef LOG_GROUP
-# undef LOG_GROUP
-#endif
-#define LOG_GROUP LOG_GROUP_DEV_AUDIO
-#include <VBox/log.h>
 
 typedef struct ALSAAUDIOSTREAMIN
 {
@@ -824,8 +818,13 @@ static DECLCALLBACK(int) drvHostALSAAudioCaptureIn(PPDMIHOSTAUDIO pInterface, PP
         }
     }
 
+    /*
+     * Check how much we can read from the capture device without overflowing
+     * the mixer buffer.
+     */
     Assert(cAvail);
-    size_t cbToRead = AUDIOMIXBUF_S2B(&pHstStrmIn->MixBuf, cAvail);
+    size_t cbMixFree = AudioMixBufFreeBytes(&pHstStrmIn->MixBuf);
+    size_t cbToRead = RT_MIN((size_t)AUDIOMIXBUF_S2B(&pHstStrmIn->MixBuf, cAvail), cbMixFree);
 
     LogFlowFunc(("cbToRead=%zu, cAvail=%RI32\n", cbToRead, cAvail));
 
@@ -885,6 +884,13 @@ static DECLCALLBACK(int) drvHostALSAAudioCaptureIn(PPDMIHOSTAUDIO pInterface, PP
             if (RT_FAILURE(rc))
                 break;
 
+            /*
+             * We should not run into a full mixer buffer or we loose samples and
+             * run into an endless loop if ALSA keeps producing samples ("null"
+             * capture device for example).
+             */
+            AssertLogRelMsgBreakStmt(cWritten > 0, ("Mixer buffer shouldn't be full at this point!\n"),
+                                     rc = VERR_INTERNAL_ERROR);
             uint32_t cbWritten = AUDIOMIXBUF_S2B(&pHstStrmIn->MixBuf, cWritten);
 
             Assert(cbToRead >= cbWritten);
@@ -997,7 +1003,7 @@ static DECLCALLBACK(int) drvHostALSAAudioPlayOut(PPDMIHOSTAUDIO pInterface, PPDM
             if (RT_FAILURE(rc))
                 break;
 
-            Assert(cbToRead >= cRead);
+            Assert(cbToRead >= cbRead);
             cbToRead -= cbRead;
             cbReadTotal += cbRead;
         }
