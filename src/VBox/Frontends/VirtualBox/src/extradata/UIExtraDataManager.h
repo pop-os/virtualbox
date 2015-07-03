@@ -378,10 +378,15 @@ public:
         /** Defines whether guest-screen auto-resize according machine-window size is @a fEnabled. */
         void setGuestScreenAutoResizeEnabled(bool fEnabled, const QString &strID);
 
+        /** Returns last guest-screen visibility status for screen with @a uScreenIndex. */
+        bool lastGuestScreenVisibilityStatus(ulong uScreenIndex, const QString &strID);
+        /** Defines whether last guest-screen visibility status was @a fEnabled for screen with @a uScreenIndex. */
+        void setLastGuestScreenVisibilityStatus(ulong uScreenIndex, bool fEnabled, const QString &strID);
+
         /** Returns last guest-screen size-hint for screen with @a uScreenIndex. */
-        QSize lastGuestSizeHint(ulong uScreenIndex, const QString &strID);
+        QSize lastGuestScreenSizeHint(ulong uScreenIndex, const QString &strID);
         /** Defines last guest-screen @a sizeHint for screen with @a uScreenIndex. */
-        void setLastGuestSizeHint(ulong uScreenIndex, const QSize &sizeHint, const QString &strID);
+        void setLastGuestScreenSizeHint(ulong uScreenIndex, const QSize &sizeHint, const QString &strID);
 
         /** Returns host-screen index corresponding to passed guest-screen @a iGuestScreenIndex. */
         int hostScreenForPassedGuestScreen(int iGuestScreenIndex, const QString &strID);

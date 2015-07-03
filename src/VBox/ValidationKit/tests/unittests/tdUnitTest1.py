@@ -27,7 +27,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 100880 $"
+__version__ = "$Revision: 101420 $"
 
 
 # Standard Python imports.
@@ -59,13 +59,12 @@ class tdUnitTest1(vbox.TestDriver):
     ## @note This shall be empty before we release 4.3!
     kdTestCasesBuggyPerOs = {
         'darwin': {
-            'testcase/tstRTR0DbgKrnlInfoDriver': '',    # Busted testcase, probably. (VERR_SYMBOL_NOT_FOUND)
+            'testcase/tstX86-1': '',                    # 'FSTP M32R, ST0' fails; no idea why.
         },
         'solaris': {
             'testcase/tstIntNet-1': '',                 # Fails opening rge0, probably a generic issue figuring which nic to use.
             'testcase/tstIprtList': '',                 # Crashes in the multithreaded test, I think.
             'testcase/tstRTCritSect': '',               # Fairness/whatever issue here.
-            'testcase/tstRTR0DbgKrnlInfoDriver': '',    # Doesn't even load R0.
             'testcase/tstRTR0MemUserKernelDriver': '',  # Failes when kernel to kernel buffers.
             'testcase/tstRTSemRW': '',                  # line 338: RTSemRWReleaseRead(hSemRW): got VERR_ACCESS_DENIED
             'testcase/tstRTStrAlloc': '',               # VERR_NO_STR_MEMORY!

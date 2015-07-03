@@ -1663,9 +1663,9 @@ static RTEXITCODE gctlHandleRunCommon(PGCTLCMDCTX pCtx, int argc, char **argv, b
                          || procStatus == ProcessStatus_TimedOutAbnormally)
                 {
                     if (pCtx->cVerbose > 1)
-                        RTPrintf("Process timed out (guest side) and\n",
+                        RTPrintf("Process timed out (guest side) and %s\n",
                                  procStatus == ProcessStatus_TimedOutAbnormally
-                                 ? " failed to terminate so far" : " was terminated");
+                                 ? "failed to terminate so far" : "was terminated");
                     rcExit = EXITCODEEXEC_TIMEOUT;
                 }
                 else
@@ -2907,7 +2907,7 @@ static DECLCALLBACK(RTEXITCODE) handleCtrtMkDir(PGCTLCMDCTX pCtx, int argc, char
     int ch;
     RTGETOPTUNION ValueUnion;
     RTGETOPTSTATE GetState;
-    RTGetOptInit(&GetState, argc, argv, s_aOptions, RT_ELEMENTS(s_aOptions), 2, RTGETOPTINIT_FLAGS_OPTS_FIRST);
+    RTGetOptInit(&GetState, argc, argv, s_aOptions, RT_ELEMENTS(s_aOptions), 1, RTGETOPTINIT_FLAGS_OPTS_FIRST);
 
     SafeArray<DirectoryCreateFlag_T> dirCreateFlags;
     uint32_t    fDirMode     = 0; /* Default mode. */

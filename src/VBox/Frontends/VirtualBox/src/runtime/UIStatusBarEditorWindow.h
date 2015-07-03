@@ -72,13 +72,23 @@ public:
     /** Defines the @a strMachineID instance. */
     void setMachineID(const QString &strMachineID);
 
+    /** Returns whether the status-bar enabled. */
+    bool isStatusBarEnabled() const;
+    /** Defines whether the status-bar @a fEnabled. */
+    void setStatusBarEnabled(bool fEnabled);
+
+    /** Returns status-bar indicator restrictions. */
+    const QList<IndicatorType>& statusBarIndicatorRestrictions() const { return m_restrictions; }
+    /** Returns status-bar indicator order. */
+    const QList<IndicatorType>& statusBarIndicatorOrder() const { return m_order; }
+    /** Defines status-bar indicator @a restrictions and @a order. */
+    void setStatusBarConfiguration(const QList<IndicatorType> &restrictions, const QList<IndicatorType> &order);
+
 private slots:
 
     /** Handles configuration change. */
     void sltHandleConfigurationChange(const QString &strMachineID);
 
-    /** Handles status-bar enable toggle. */
-    void sltHandleStatusBarEnableToggle(bool fEnabled);
     /** Handles button click. */
     void sltHandleButtonClick();
 
@@ -93,11 +103,6 @@ private:
     void prepareStatusButtons();
     /** Prepare status button routine. */
     void prepareStatusButton(IndicatorType type);
-
-    /** Update enable-checkbox routine. */
-    void updateEnableCheckbox();
-    /** Update status buttons routine. */
-    void updateStatusButtons();
 
     /** Retranslation routine. */
     virtual void retranslateUi();

@@ -254,10 +254,11 @@ HRESULT GuestDnDSource::dragIsPending(ULONG uScreenId, std::vector<com::Utf8Str>
     int rc = GuestDnDInst()->hostCall(Msg.getType(), Msg.getCount(), Msg.getParms());
     if (RT_SUCCESS(rc))
     {
-        bool fFetchResult = true;
         GuestDnDResponse *pResp = GuestDnDInst()->response();
         if (pResp)
         {
+            bool fFetchResult = true;
+
             if (pResp->waitForGuestResponse(5000 /* Timeout in ms */) == VERR_TIMEOUT)
                 fFetchResult = false;
 
@@ -269,7 +270,7 @@ HRESULT GuestDnDSource::dragIsPending(ULONG uScreenId, std::vector<com::Utf8Str>
             {
                 defaultAction = GuestDnD::toMainAction(pResp->defAction());
 
-                GuestDnD::toFormatVector(m_strFormats, pResp->format(), aFormats);
+                GuestDnD::toFormatVector(m_vecFmtSup, pResp->fmtReq(), aFormats);
                 GuestDnD::toMainActions(pResp->allActions(), aAllowedActions);
             }
         }
@@ -757,7 +758,7 @@ int GuestDnDSource::i_receiveData(PRECVDATACTX pCtx, RTMSINTERVAL msTimeout)
     /* Set the format we are going to retrieve to have it around
      * when retrieving the data later. */
     pResp->reset();
-    pResp->setFormat(pCtx->mFormat);
+    pResp->setFmtReq(pCtx->mFormat);
 
     bool fHasURIList = DnDMIMENeedsDropDir(pCtx->mFormat.c_str(), pCtx->mFormat.length());
     LogFlowFunc(("strFormat=%s, uAction=0x%x, fHasURIList=%RTbool\n", pCtx->mFormat.c_str(), pCtx->mAction, fHasURIList));
@@ -1235,4 +1236,3 @@ int GuestDnDSource::i_updateProcess(PRECVDATACTX pCtx, uint64_t cbDataAdd)
                                        : DragAndDropSvc::DND_PROGRESS_RUNNING);
     return rc;
 }
-

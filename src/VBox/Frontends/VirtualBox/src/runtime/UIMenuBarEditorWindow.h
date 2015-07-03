@@ -22,6 +22,7 @@
 #include <QMap>
 
 /* GUI includes: */
+#include "UIExtraDataDefs.h"
 #include "UISlidingToolBar.h"
 #include "QIWithRetranslateUI.h"
 
@@ -84,15 +85,64 @@ public:
     /** Defines the @a pActionPool reference. */
     void setActionPool(UIActionPool *pActionPool);
 
+#ifndef Q_WS_MAC
+    /** Returns whether the menu-bar enabled. */
+    bool isMenuBarEnabled() const;
+    /** Defines whether the menu-bar @a fEnabled. */
+    void setMenuBarEnabled(bool fEnabled);
+#endif /* !Q_WS_MAC */
+
+    /** Returns the cached restrictions of menu-bar. */
+    UIExtraDataMetaDefs::MenuType restrictionsOfMenuBar() const { return m_restrictionsOfMenuBar; }
+    /** Returns the cached restrictions of menu 'Application'. */
+    UIExtraDataMetaDefs::MenuApplicationActionType restrictionsOfMenuApplication() const { return m_restrictionsOfMenuApplication; }
+    /** Returns the cached restrictions of menu 'Machine'. */
+    UIExtraDataMetaDefs::RuntimeMenuMachineActionType restrictionsOfMenuMachine() const { return m_restrictionsOfMenuMachine; }
+    /** Returns the cached restrictions of menu 'View'. */
+    UIExtraDataMetaDefs::RuntimeMenuViewActionType restrictionsOfMenuView() const { return m_restrictionsOfMenuView; }
+    /** Returns the cached restrictions of menu 'Input'. */
+    UIExtraDataMetaDefs::RuntimeMenuInputActionType restrictionsOfMenuInput() const { return m_restrictionsOfMenuInput; }
+    /** Returns the cached restrictions of menu 'Devices'. */
+    UIExtraDataMetaDefs::RuntimeMenuDevicesActionType restrictionsOfMenuDevices() const { return m_restrictionsOfMenuDevices; }
+#ifdef VBOX_WITH_DEBUGGER_GUI
+    /** Returns the cached restrictions of menu 'Debug'. */
+    UIExtraDataMetaDefs::RuntimeMenuDebuggerActionType restrictionsOfMenuDebug() const { return m_restrictionsOfMenuDebug; }
+#endif /* VBOX_WITH_DEBUGGER_GUI */
+#ifdef Q_WS_MAC
+    /** Mac OS X: Returns the cached restrictions of menu 'Window'. */
+    UIExtraDataMetaDefs::MenuWindowActionType restrictionsOfMenuWindow() const { return m_restrictionsOfMenuWindow; }
+#endif /* Q_WS_MAC */
+    /** Returns the cached restrictions of menu 'Help'. */
+    UIExtraDataMetaDefs::MenuHelpActionType restrictionsOfMenuHelp() const { return m_restrictionsOfMenuHelp; }
+
+    /** Defines the cached @a restrictions of menu-bar. */
+    void setRestrictionsOfMenuBar(UIExtraDataMetaDefs::MenuType restrictions);
+    /** Defines the cached @a restrictions of menu 'Application'. */
+    void setRestrictionsOfMenuApplication(UIExtraDataMetaDefs::MenuApplicationActionType restrictions);
+    /** Defines the cached @a restrictions of menu 'Machine'. */
+    void setRestrictionsOfMenuMachine(UIExtraDataMetaDefs::RuntimeMenuMachineActionType restrictions);
+    /** Defines the cached @a restrictions of menu 'View'. */
+    void setRestrictionsOfMenuView(UIExtraDataMetaDefs::RuntimeMenuViewActionType restrictions);
+    /** Defines the cached @a restrictions of menu 'Input'. */
+    void setRestrictionsOfMenuInput(UIExtraDataMetaDefs::RuntimeMenuInputActionType restrictions);
+    /** Defines the cached @a restrictions of menu 'Devices'. */
+    void setRestrictionsOfMenuDevices(UIExtraDataMetaDefs::RuntimeMenuDevicesActionType restrictions);
+#ifdef VBOX_WITH_DEBUGGER_GUI
+    /** Defines the cached @a restrictions of menu 'Debug'. */
+    void setRestrictionsOfMenuDebug(UIExtraDataMetaDefs::RuntimeMenuDebuggerActionType restrictions);
+#endif /* VBOX_WITH_DEBUGGER_GUI */
+#ifdef Q_WS_MAC
+    /** Mac OS X: Defines the cached @a restrictions of menu 'Window'. */
+    void setRestrictionsOfMenuWindow(UIExtraDataMetaDefs::MenuWindowActionType restrictions);
+#endif /* Q_WS_MAC */
+    /** Defines the cached @a restrictions of menu 'Help'. */
+    void setRestrictionsOfMenuHelp(UIExtraDataMetaDefs::MenuHelpActionType restrictions);
+
 private slots:
 
     /** Handles configuration change. */
     void sltHandleConfigurationChange(const QString &strMachineID);
 
-#ifndef RT_OS_DARWIN
-    /** Non Mac OS X: Handles menu-bar enable toggle. */
-    void sltHandleMenuBarEnableToggle(bool fEnabled);
-#endif /* !RT_OS_DARWIN */
     /** Handles menu-bar menu click. */
     void sltHandleMenuBarMenuClick();
 
@@ -140,33 +190,6 @@ private:
     /** Prepare 'Help' menu routine. */
     void prepareMenuHelp();
 
-#ifndef Q_WS_MAC
-    /** Non Mac OS X: Update enable-checkbox routine. */
-    void updateEnableCheckbox();
-#endif /* !Q_WS_MAC */
-    /** Update menus routine. */
-    void updateMenus();
-    /** Update 'Application' menu routine. */
-    void updateMenuApplication();
-    /** Update 'Machine' menu routine. */
-    void updateMenuMachine();
-    /** Update 'View' menu routine. */
-    void updateMenuView();
-    /** Update 'Input' menu routine. */
-    void updateMenuInput();
-    /** Update 'Devices' menu routine. */
-    void updateMenuDevices();
-#ifdef VBOX_WITH_DEBUGGER_GUI
-    /** Update 'Debug' menu routine. */
-    void updateMenuDebug();
-#endif /* VBOX_WITH_DEBUGGER_GUI */
-#ifdef Q_WS_MAC
-    /** Mac OS X: Update 'Window' menu routine. */
-    void updateMenuWindow();
-#endif /* Q_WS_MAC */
-    /** Update 'Help' menu routine. */
-    void updateMenuHelp();
-
     /** Retranslation routine. */
     virtual void retranslateUi();
 
@@ -199,6 +222,32 @@ private:
 #endif /* !Q_WS_MAC */
         /** Holds tool-bar action references. */
         QMap<QString, QAction*> m_actions;
+    /** @} */
+
+    /** @name Contents: Restrictions
+      * @{ */
+        /** Holds the cached restrictions of menu-bar. */
+        UIExtraDataMetaDefs::MenuType m_restrictionsOfMenuBar;
+        /** Holds the cached restrictions of menu 'Application'. */
+        UIExtraDataMetaDefs::MenuApplicationActionType m_restrictionsOfMenuApplication;
+        /** Holds the cached restrictions of menu 'Machine'. */
+        UIExtraDataMetaDefs::RuntimeMenuMachineActionType m_restrictionsOfMenuMachine;
+        /** Holds the cached restrictions of menu 'View'. */
+        UIExtraDataMetaDefs::RuntimeMenuViewActionType m_restrictionsOfMenuView;
+        /** Holds the cached restrictions of menu 'Input'. */
+        UIExtraDataMetaDefs::RuntimeMenuInputActionType m_restrictionsOfMenuInput;
+        /** Holds the cached restrictions of menu 'Devices'. */
+        UIExtraDataMetaDefs::RuntimeMenuDevicesActionType m_restrictionsOfMenuDevices;
+#ifdef VBOX_WITH_DEBUGGER_GUI
+        /** Holds the cached restrictions of menu 'Debug'. */
+        UIExtraDataMetaDefs::RuntimeMenuDebuggerActionType m_restrictionsOfMenuDebug;
+#endif /* VBOX_WITH_DEBUGGER_GUI */
+#ifdef Q_WS_MAC
+        /** Mac OS X: Holds the cached restrictions of menu 'Window'. */
+        UIExtraDataMetaDefs::MenuWindowActionType m_restrictionsOfMenuWindow;
+#endif /* Q_WS_MAC */
+        /** Holds the cached restrictions of menu 'Help'. */
+        UIExtraDataMetaDefs::MenuHelpActionType m_restrictionsOfMenuHelp;
     /** @} */
 };
 

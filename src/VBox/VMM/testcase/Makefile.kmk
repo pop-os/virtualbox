@@ -228,8 +228,8 @@ if defined(VBOX_WITH_HARDENING) && "$(KBUILD_TARGET)" == "win"
  tstGlobalConfigHardened_TEMPLATE = VBoxR3HardenedTstExe
  tstGlobalConfigHardened_NAME     = tstGlobalConfig
  tstGlobalConfigHardened_DEFS     = PROGRAM_NAME_STR=\"tstGlobalConfig\"
- tstGlobalConfigHardened_SOURCES  = ../../HostDrivers/Support/SUPR3HardenedMainTemplate.cpp
- tstGlobalConfig_TEMPLATE = VBoxR3TstDll
+ tstGlobalConfigHardened_SOURCES  = ../../HostDrivers/Support/SUPR3HardenedMainTemplateTestcase.cpp
+ tstGlobalConfig_TEMPLATE = VBoxR3HardenedTstDll
 else
  tstGlobalConfig_TEMPLATE = VBOXR3TSTEXE
 endif
@@ -253,8 +253,8 @@ if defined(VBOX_WITH_HARDENING) && "$(KBUILD_TARGET)" == "win"
  tstMMHyperHeapHardened_TEMPLATE = VBoxR3HardenedTstExe
  tstMMHyperHeapHardened_NAME     = tstMMHyperHeap
  tstMMHyperHeapHardened_DEFS     = PROGRAM_NAME_STR=\"tstMMHyperHeap\"
- tstMMHyperHeapHardened_SOURCES  = ../../HostDrivers/Support/SUPR3HardenedMainTemplate.cpp
- tstMMHyperHeap_TEMPLATE = VBoxR3TstDll
+ tstMMHyperHeapHardened_SOURCES  = ../../HostDrivers/Support/SUPR3HardenedMainTemplateTestcase.cpp
+ tstMMHyperHeap_TEMPLATE = VBoxR3HardenedTstDll
 else
  tstMMHyperHeap_TEMPLATE = VBOXR3TSTEXE
 endif
@@ -268,8 +268,8 @@ if defined(VBOX_WITH_HARDENING) && "$(KBUILD_TARGET)" == "win"
  tstSSMHardened_TEMPLATE = VBoxR3HardenedTstExe
  tstSSMHardened_NAME     = tstSSM
  tstSSMHardened_DEFS     = PROGRAM_NAME_STR=\"tstSSM\"
- tstSSMHardened_SOURCES  = ../../HostDrivers/Support/SUPR3HardenedMainTemplate.cpp
- tstSSM_TEMPLATE        = VBoxR3TstDll
+ tstSSMHardened_SOURCES  = ../../HostDrivers/Support/SUPR3HardenedMainTemplateTestcase.cpp
+ tstSSM_TEMPLATE        = VBoxR3HardenedTstDll
 else
  tstSSM_TEMPLATE        = VBOXR3TSTEXE
 endif
@@ -291,8 +291,8 @@ if defined(VBOX_WITH_HARDENING) && "$(KBUILD_TARGET)" == "win"
  tstCFGMHardened_TEMPLATE = VBoxR3HardenedTstExe
  tstCFGMHardened_NAME     = tstCFGM
  tstCFGMHardened_DEFS     = PROGRAM_NAME_STR=\"tstCFGM\"
- tstCFGMHardened_SOURCES  = ../../HostDrivers/Support/SUPR3HardenedMainTemplate.cpp
- tstCFGM_TEMPLATE       = VBoxR3TstDll
+ tstCFGMHardened_SOURCES  = ../../HostDrivers/Support/SUPR3HardenedMainTemplateTestcase.cpp
+ tstCFGM_TEMPLATE       = VBoxR3HardenedTstDll
 else
  tstCFGM_TEMPLATE       = VBOXR3TSTEXE
 endif
