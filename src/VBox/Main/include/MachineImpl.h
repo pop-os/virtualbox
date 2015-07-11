@@ -593,6 +593,9 @@ public:
                                          ComObjPtr<StorageController> &aStorageController,
                                          bool aSetError = false);
 
+    HRESULT i_getMediumAttachmentsOfController(const Utf8Str &aName,
+                                               MediaData::AttachmentList &aAttachments);
+
     HRESULT i_getUSBControllerByName(const Utf8Str &aName,
                                      ComObjPtr<USBController> &aUSBController,
                                      bool aSetError = false);
@@ -649,9 +652,6 @@ protected:
                                  ComObjPtr<Snapshot> &aSnapshot,
                                  bool aSetError = false);
 
-    HRESULT i_getMediumAttachmentsOfController(const Utf8Str &aName,
-                                               MediaData::AttachmentList &aAttachments);
-
     ULONG   i_getUSBControllerCountByType(USBControllerType_T enmType);
 
     enum
@@ -686,7 +686,7 @@ protected:
     HRESULT i_deleteImplicitDiffs(bool aOnline);
 
     MediumAttachment* i_findAttachment(const MediaData::AttachmentList &ll,
-                                       IN_BSTR aControllerName,
+                                       const Utf8Str &aControllerName,
                                        LONG aControllerPort,
                                        LONG aDevice);
     MediumAttachment* i_findAttachment(const MediaData::AttachmentList &ll,
@@ -984,6 +984,8 @@ private:
     HRESULT getDefaultFrontend(com::Utf8Str &aDefaultFrontend);
     HRESULT setDefaultFrontend(const com::Utf8Str &aDefaultFrontend);
     HRESULT getUSBProxyAvailable(BOOL *aUSBProxyAvailable);
+    HRESULT getVMProcessPriority(com::Utf8Str &aVMProcessPriority);
+    HRESULT setVMProcessPriority(const com::Utf8Str &aVMProcessPriority);
 
     // wrapped IMachine methods
     HRESULT lockMachine(const ComPtr<ISession> &aSession,

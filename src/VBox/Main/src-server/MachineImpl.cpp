@@ -7026,6 +7026,35 @@ HRESULT Machine::getUSBProxyAvailable(BOOL *aUSBProxyAvailable)
     return S_OK;
 }
 
+HRESULT Machine::getVMProcessPriority(com::Utf8Str &aVMProcessPriority)
+{
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    aVMProcessPriority = mUserData->s.strVMPriority;
+
+    return S_OK;
+}
+
+HRESULT Machine::setVMProcessPriority(const com::Utf8Str &aVMProcessPriority)
+{
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+    HRESULT hrc = i_checkStateDependency(MutableOrSavedOrRunningStateDep);
+    if (SUCCEEDED(hrc))
+    {
+        /** @todo r=klaus: currently this is marked as not implemented, as
+         * the code for setting the priority of the process is not there
+         * (neither when starting the VM nor at runtime). */
+        ReturnComNotImplemented();
+        hrc = mUserData.backupEx();
+        if (SUCCEEDED(hrc))
+        {
+            i_setModified(IsModified_MachineData);
+            mUserData->s.strVMPriority = aVMProcessPriority;
+        }
+    }
+    return hrc;
+}
+
 HRESULT Machine::cloneTo(const ComPtr<IMachine> &aTarget, CloneMode_T aMode, const std::vector<CloneOptions_T> &aOptions,
                          ComPtr<IProgress> &aProgress)
 {
@@ -9550,7 +9579,7 @@ HRESULT Machine::i_getMediumAttachmentsOfController(const Utf8Str &aName,
         }
         AutoReadLock attLock(pAtt COMMA_LOCKVAL_SRC_POS);
 
-        if (pAtt->i_getControllerName() == Bstr(aName).raw())
+        if (pAtt->i_getControllerName() == aName)
             atts.push_back(pAtt);
     }
 
@@ -11037,7 +11066,7 @@ HRESULT Machine::i_deleteImplicitDiffs(bool aOnline)
  * @return
  */
 MediumAttachment* Machine::i_findAttachment(const MediaData::AttachmentList &ll,
-                                            IN_BSTR aControllerName,
+                                            const Utf8Str &aControllerName,
                                             LONG aControllerPort,
                                             LONG aDevice)
 {

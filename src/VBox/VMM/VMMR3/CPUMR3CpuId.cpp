@@ -3717,6 +3717,7 @@ static int cpumR3CpuIdReadConfig(PVM pVM, PCPUMCPUIDCONFIG pConfig, PCFGMNODE pC
     bool const fMayHaveXSave = fNestedPagingAndFullGuestExec
                             && pVM->cpum.s.HostFeatures.fXSaveRstor
                             && pVM->cpum.s.HostFeatures.fOpSysXSaveRstor;
+    uint64_t const fXStateHostMask = pVM->cpum.s.fXStateHostMask;
 
     /** @cfgm{/CPUM/IsaExts/XSAVE, boolean, depends}
      * Expose XSAVE/XRSTOR to the guest if available.  For the time being the
@@ -3734,7 +3735,7 @@ static int cpumR3CpuIdReadConfig(PVM pVM, PCPUMCPUIDCONFIG pConfig, PCFGMNODE pC
      * to VMs with nested paging and AMD-V or unrestricted guest execution mode.
      */
     rc = cpumR3CpuIdReadIsaExtCfgEx(pVM, pIsaExts, "AVX", &pConfig->enmAvx, fNestedPagingAndFullGuestExec,
-                                    fMayHaveXSave && pConfig->enmXSave /*fAllowed*/);
+                                    fMayHaveXSave && pConfig->enmXSave && (fXStateHostMask & XSAVE_C_YMM)  /*fAllowed*/);
     AssertLogRelRCReturn(rc, rc);
 
     /** @cfgm{/CPUM/IsaExts/AVX2, boolean, depends}
@@ -3743,7 +3744,7 @@ static int cpumR3CpuIdReadConfig(PVM pVM, PCPUMCPUIDCONFIG pConfig, PCFGMNODE pC
      * to VMs with nested paging and AMD-V or unrestricted guest execution mode.
      */
     rc = cpumR3CpuIdReadIsaExtCfgEx(pVM, pIsaExts, "AVX2", &pConfig->enmAvx2, fNestedPagingAndFullGuestExec,
-                                    fMayHaveXSave && pConfig->enmXSave /*fAllowed*/);
+                                    fMayHaveXSave && pConfig->enmXSave && (fXStateHostMask & XSAVE_C_YMM) /*fAllowed*/);
     AssertLogRelRCReturn(rc, rc);
 
     /** @cfgm{/CPUM/IsaExts/AESNI, isaextcfg, depends}
@@ -3964,7 +3965,6 @@ int cpumR3InitCpuIdAndMsrs(PVM pVM)
 
         pCpum->GuestInfo.paMsrRangesR0 = MMHyperR3ToR0(pVM, pCpum->GuestInfo.paMsrRangesR3);
         pCpum->GuestInfo.paMsrRangesRC = MMHyperR3ToRC(pVM, pCpum->GuestInfo.paMsrRangesR3);
-        cpumR3MsrRegStats(pVM);
 
 
         /*

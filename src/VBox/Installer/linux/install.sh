@@ -111,8 +111,9 @@ check_previous() {
     check_binary "/usr/bin/VBoxDTrace" "$install_dir" &&
     check_binary "/usr/bin/VBoxBalloonCtrl" "$install_dir" &&
     check_binary "/usr/bin/VBoxAutostart" "$install_dir" &&
-    check_binary "/usr/bin/vboxwebsrv" "$install_dir"
-    check_binary "/usr/bin/vbox-img" "$install_dir"
+    check_binary "/usr/bin/vboxwebsrv" "$install_dir" &&
+    check_binary "/usr/bin/vbox-img" "$install_dir" &&
+    check_binary "/sbin/rcvboxdrv" "$install_dir"
 }
 
 ##############################################################################
@@ -284,7 +285,7 @@ if [ "$ACTION" = "install" ]; then
         log "Removing previous installation of VirtualBox $INSTALL_VER$INSTALL_REV from $PREV_INSTALLATION"
         log ""
 
-        stop_init_script vboxnet
+        stop_init_script vboxnet >/dev/null 2>&1  # Do we need this?
         delrunlevel vboxnet > /dev/null 2>&1
         if [ "$BUILD_MODULE" = "true" ]; then
             stop_init_script vboxdrv
@@ -375,14 +376,10 @@ if [ "$ACTION" = "install" ]; then
     test -e $INSTALLATION_DIR/VBoxVolInfo && chmod 4511 $INSTALLATION_DIR/VBoxVolInfo
 
     # Install runlevel scripts
-    # Note: vboxdrv is also handled by setup_init_script. This function will
-    #       use chkconfig to adjust the sequence numbers, therefore vboxdrv
-    #       numbers here should match the numbers in the vboxdrv.sh check
-    #       header!
-    install_init_script vboxdrv.sh vboxdrv
-    install_init_script vboxballoonctrl-service.sh vboxballoonctrl-service
-    install_init_script vboxautostart-service.sh vboxautostart-service
-    install_init_script vboxweb-service.sh vboxweb-service
+    install_init_script $INSTALLATION_DIR/vboxdrv.sh vboxdrv 2>> $LOG
+    install_init_script $INSTALLATION_DIR/vboxballoonctrl-service.sh vboxballoonctrl-service 2>> $LOG
+    install_init_script $INSTALLATION_DIR/vboxautostart-service.sh vboxautostart-service 2>> $LOG
+    install_init_script $INSTALLATION_DIR/vboxweb-service.sh vboxweb-service 2>> $LOG
 
     # Write the configuration. Do this before we call /etc/init.d/vboxdrv setup!
     echo "# VirtualBox installation directory" > $CONFIG_DIR/$CONFIG
@@ -395,13 +392,13 @@ if [ "$ACTION" = "install" ]; then
     echo "USERNAME='$BUILD_USERNAME'" >> $CONFIG_DIR/$CONFIG
 
     delrunlevel vboxdrv > /dev/null 2>&1
-    addrunlevel vboxdrv # This may produce useful output
+    addrunlevel vboxdrv 2>> $LOG # This may produce useful output
     delrunlevel vboxballoonctrl-service > /dev/null 2>&1
-    addrunlevel vboxballoonctrl-service # This may produce useful output
+    addrunlevel vboxballoonctrl-service 2>> $LOG # This may produce useful output
     delrunlevel vboxautostart-service > /dev/null 2>&1
-    addrunlevel vboxautostart-service # This may produce useful output
+    addrunlevel vboxautostart-service 2>> $LOG # This may produce useful output
     delrunlevel vboxweb-service > /dev/null 2>&1
-    addrunlevel vboxweb-service # This may produce useful output
+    addrunlevel vboxweb-service 2>> $LOG # This may produce useful output
 
     # Create users group
     groupadd -r -f $GROUPNAME 2> /dev/null
@@ -420,6 +417,7 @@ if [ "$ACTION" = "install" ]; then
     if [ -f $INSTALLATION_DIR/VBoxDTrace ]; then
         ln -sf $INSTALLATION_DIR/VBox.sh /usr/bin/VBoxDTrace
     fi
+    ln -sf $INSTALLATION_DIR/vboxdrv.sh /sbin/rcvboxdrv
     # Unity and Nautilus seem to look here for their icons
     ln -sf $INSTALLATION_DIR/icons/128x128/virtualbox.png /usr/share/pixmaps/virtualbox.png
     ln -sf $INSTALLATION_DIR/virtualbox.desktop /usr/share/applications/virtualbox.desktop
@@ -479,7 +477,7 @@ if [ "$ACTION" = "install" ]; then
         log "Output from the module build process (the Linux kernel build system) follows:"
         cur=`pwd`
         log ""
-        setup_init_script vboxdrv
+        ./vboxdrv.sh setup
         # Start VirtualBox kernel module
         if [ $RETVAL -eq 0 ] && ! start_init_script vboxdrv; then
             info "Failed to load the kernel module."

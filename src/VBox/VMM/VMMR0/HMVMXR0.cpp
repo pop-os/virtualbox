@@ -4842,7 +4842,8 @@ static int hmR0VmxLoadGuestMsrs(PVMCPU pVCpu, PCPUMCTX pMixedCtx)
                 AssertRCReturn(rc, rc);
 
                 /* We need to intercept reads too, see @bugref{7386} comment #16. */
-                hmR0VmxSetMsrPermission(pVCpu, MSR_K6_EFER, VMXMSREXIT_INTERCEPT_READ, VMXMSREXIT_INTERCEPT_WRITE);
+                if (pVM->hm.s.vmx.Msrs.VmxProcCtls.n.allowed1 & VMX_VMCS_CTRL_PROC_EXEC_USE_MSR_BITMAPS)
+                    hmR0VmxSetMsrPermission(pVCpu, MSR_K6_EFER, VMXMSREXIT_INTERCEPT_READ, VMXMSREXIT_INTERCEPT_WRITE);
                 Log4(("Load[%RU32]: MSR[--]: u32Msr=%#RX32 u64Value=%#RX64 cMsrs=%u\n", pVCpu->idCpu, MSR_K6_EFER,
                       pMixedCtx->msrEFER, pVCpu->hm.s.vmx.cMsrs));
             }
@@ -5696,8 +5697,12 @@ static void hmR0VmxUpdateTscOffsettingAndPreemptTimer(PVM pVM, PVMCPU pVCpu)
      *        VM-entry. */
     if (fParavirtTsc)
     {
+        /* Currently neither Hyper-V nor KVM need to update their paravirt. TSC
+           information before every VM-entry, hence disable it for performance sake. */
+#if 0
         rc = GIMR0UpdateParavirtTsc(pVM, 0 /* u64Offset */);
         AssertRC(rc);
+#endif
         STAM_COUNTER_INC(&pVCpu->hm.s.StatTscParavirt);
     }
 
@@ -8859,7 +8864,7 @@ static void hmR0VmxPostRunGuest(PVM pVM, PVMCPU pVCpu, PCPUMCTX pMixedCtx, PVMXT
 
     STAM_PROFILE_ADV_STOP_START(&pVCpu->hm.s.StatInGC, &pVCpu->hm.s.StatExit1, x);
     TMNotifyEndOfExecution(pVCpu);                                    /* Notify TM that the guest is no longer running. */
-    Assert(!(ASMGetFlags() & X86_EFL_IF));
+    Assert(!ASMIntAreEnabled());
     VMCPU_SET_STATE(pVCpu, VMCPUSTATE_STARTED_HM);
 
 #ifdef HMVMX_ALWAYS_SWAP_FPU_STATE

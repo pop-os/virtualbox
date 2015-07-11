@@ -162,6 +162,7 @@ enum
     MODIFYVM_VRDE_EXTPACK,
     MODIFYVM_VRDE,
     MODIFYVM_RTCUSEUTC,
+    MODIFYVM_USBRENAME,
     MODIFYVM_USBXHCI,
     MODIFYVM_USBEHCI,
     MODIFYVM_USB,
@@ -200,6 +201,7 @@ enum
     MODIFYVM_VCP_FILENAME,
     MODIFYVM_VCP_WIDTH,
     MODIFYVM_VCP_HEIGHT,
+    MODIFYVM_VCP_RES,
     MODIFYVM_VCP_RATE,
     MODIFYVM_VCP_FPS,
     MODIFYVM_VCP_MAXTIME,
@@ -330,6 +332,7 @@ static const RTGETOPTDEF g_aModifyVMOptions[] =
     { "--vrdevideochannelquality",  MODIFYVM_VRDEVIDEOCHANNELQUALITY,   RTGETOPT_REQ_STRING },
     { "--vrdeextpack",              MODIFYVM_VRDE_EXTPACK,              RTGETOPT_REQ_STRING },
     { "--vrde",                     MODIFYVM_VRDE,                      RTGETOPT_REQ_BOOL_ONOFF },
+    { "--usbrename",                MODIFYVM_USBRENAME,                 RTGETOPT_REQ_STRING },
     { "--usbxhci",                  MODIFYVM_USBXHCI,                   RTGETOPT_REQ_BOOL_ONOFF },
     { "--usbehci",                  MODIFYVM_USBEHCI,                   RTGETOPT_REQ_BOOL_ONOFF },
     { "--usb",                      MODIFYVM_USB,                       RTGETOPT_REQ_BOOL_ONOFF },
@@ -354,16 +357,25 @@ static const RTGETOPTDEF g_aModifyVMOptions[] =
     { "--faulttolerancesyncinterval", MODIFYVM_FAULT_TOLERANCE_SYNC_INTERVAL, RTGETOPT_REQ_UINT32 },
     { "--chipset",                  MODIFYVM_CHIPSET,                   RTGETOPT_REQ_STRING },
 #ifdef VBOX_WITH_VPX
-    { "--vcpenabled",               MODIFYVM_VCP,                       RTGETOPT_REQ_BOOL_ONOFF },
-    { "--vcpscreens",               MODIFYVM_VCP_SCREENS,               RTGETOPT_REQ_STRING },
-    { "--vcpfile",                  MODIFYVM_VCP_FILENAME,              RTGETOPT_REQ_STRING },
-    { "--vcpwidth",                 MODIFYVM_VCP_WIDTH,                 RTGETOPT_REQ_UINT32 },
-    { "--vcpheight",                MODIFYVM_VCP_HEIGHT,                RTGETOPT_REQ_UINT32 },
-    { "--vcprate",                  MODIFYVM_VCP_RATE,                  RTGETOPT_REQ_UINT32 },
-    { "--vcpfps",                   MODIFYVM_VCP_FPS,                   RTGETOPT_REQ_UINT32 },
-    { "--vcpmaxtime",               MODIFYVM_VCP_MAXTIME,               RTGETOPT_REQ_INT32  },
-    { "--vcpmaxsize",               MODIFYVM_VCP_MAXSIZE,               RTGETOPT_REQ_INT32  },
-    { "--vcpoptions",               MODIFYVM_VCP_OPTIONS,               RTGETOPT_REQ_STRING },
+    { "--videocap",                 MODIFYVM_VCP,                       RTGETOPT_REQ_BOOL_ONOFF },
+    { "--vcpenabled",               MODIFYVM_VCP,                       RTGETOPT_REQ_BOOL_ONOFF }, /* deprecated */
+    { "--videocapscreens",          MODIFYVM_VCP_SCREENS,               RTGETOPT_REQ_STRING },
+    { "--vcpscreens",               MODIFYVM_VCP_SCREENS,               RTGETOPT_REQ_STRING }, /* deprecated */
+    { "--videocapfile",             MODIFYVM_VCP_FILENAME,              RTGETOPT_REQ_STRING },
+    { "--vcpfile",                  MODIFYVM_VCP_FILENAME,              RTGETOPT_REQ_STRING }, /* deprecated */
+    { "--videocapres",              MODIFYVM_VCP_RES,                   RTGETOPT_REQ_STRING },
+    { "--vcpwidth",                 MODIFYVM_VCP_WIDTH,                 RTGETOPT_REQ_UINT32 }, /* deprecated */
+    { "--vcpheight",                MODIFYVM_VCP_HEIGHT,                RTGETOPT_REQ_UINT32 }, /* deprecated */
+    { "--videocaprate",             MODIFYVM_VCP_RATE,                  RTGETOPT_REQ_UINT32 },
+    { "--vcprate",                  MODIFYVM_VCP_RATE,                  RTGETOPT_REQ_UINT32 }, /* deprecated */
+    { "--videocapfps",              MODIFYVM_VCP_FPS,                   RTGETOPT_REQ_UINT32 },
+    { "--vcpfps",                   MODIFYVM_VCP_FPS,                   RTGETOPT_REQ_UINT32 }, /* deprecated */
+    { "--videocapmaxtime",          MODIFYVM_VCP_MAXTIME,               RTGETOPT_REQ_INT32  },
+    { "--vcpmaxtime",               MODIFYVM_VCP_MAXTIME,               RTGETOPT_REQ_INT32  }, /* deprecated */
+    { "--videocapmaxsize",          MODIFYVM_VCP_MAXSIZE,               RTGETOPT_REQ_INT32  },
+    { "--vcpmaxsize",               MODIFYVM_VCP_MAXSIZE,               RTGETOPT_REQ_INT32  }, /* deprecated */
+    { "--videocapopts",             MODIFYVM_VCP_OPTIONS,               RTGETOPT_REQ_STRING },
+    { "--vcpoptions",               MODIFYVM_VCP_OPTIONS,               RTGETOPT_REQ_STRING }, /* deprecated */
 #endif
     { "--autostart-enabled",        MODIFYVM_AUTOSTART_ENABLED,         RTGETOPT_REQ_BOOL_ONOFF },
     { "--autostart-delay",          MODIFYVM_AUTOSTART_DELAY,           RTGETOPT_REQ_UINT32 },
@@ -2514,6 +2526,39 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                 break;
             }
 
+            case MODIFYVM_USBRENAME:
+            {
+                const char *pszName = ValueUnion.psz;
+                int vrc = RTGetOptFetchValue(&GetOptState, &ValueUnion, RTGETOPT_REQ_STRING);
+                if (RT_FAILURE(vrc))
+                    return errorSyntax(USAGE_MODIFYVM,
+                                       "Missing or Invalid argument to '%s'",
+                                       GetOptState.pDef->pszLong);
+                const char *pszNewName = ValueUnion.psz;
+
+                SafeIfaceArray<IUSBController> ctrls;
+                CHECK_ERROR(sessionMachine, COMGETTER(USBControllers)(ComSafeArrayAsOutParam(ctrls)));
+                bool fRenamed = false;
+                for (size_t i = 0; i < ctrls.size(); i++)
+                {
+                    ComPtr<IUSBController> pCtrl = ctrls[i];
+                    Bstr bstrName;
+                    CHECK_ERROR(pCtrl, COMGETTER(Name)(bstrName.asOutParam()));
+                    if (bstrName == pszName)
+                    {
+                        bstrName = pszNewName;
+                        CHECK_ERROR(pCtrl, COMSETTER(Name)(bstrName.raw()));
+                        fRenamed = true;
+                    }
+                }
+                if (!fRenamed)
+                {
+                    errorArgument("Invalid --usbrename parameters, nothing renamed");
+                    rc = E_FAIL;
+                }
+                break;
+            }
+
             case MODIFYVM_USBXHCI:
             {
                 ULONG cXhciCtrls = 0;
@@ -2523,11 +2568,26 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                     if (!cXhciCtrls && ValueUnion.f)
                     {
                         ComPtr<IUSBController> UsbCtl;
-                        CHECK_ERROR(sessionMachine, AddUSBController(Bstr("XHCI").raw(), USBControllerType_XHCI,
+                        CHECK_ERROR(sessionMachine, AddUSBController(Bstr("xHCI").raw(), USBControllerType_XHCI,
                                                               UsbCtl.asOutParam()));
                     }
                     else if (cXhciCtrls && !ValueUnion.f)
-                        CHECK_ERROR(sessionMachine, RemoveUSBController(Bstr("XHCI").raw()));
+                    {
+                        SafeIfaceArray<IUSBController> ctrls;
+                        CHECK_ERROR(sessionMachine, COMGETTER(USBControllers)(ComSafeArrayAsOutParam(ctrls)));
+                        for (size_t i = 0; i < ctrls.size(); i++)
+                        {
+                            ComPtr<IUSBController> pCtrl = ctrls[i];
+                            USBControllerType_T enmType;
+                            CHECK_ERROR(pCtrl, COMGETTER(Type)(&enmType));
+                            if (enmType == USBControllerType_XHCI)
+                            {
+                                Bstr ctrlName;
+                                CHECK_ERROR(pCtrl, COMGETTER(Name)(ctrlName.asOutParam()));
+                                CHECK_ERROR(sessionMachine, RemoveUSBController(ctrlName.raw()));
+                            }
+                        }
+                    }
                 }
                 break;
             }
@@ -2545,7 +2605,22 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                                                               UsbCtl.asOutParam()));
                     }
                     else if (cEhciCtrls && !ValueUnion.f)
-                        CHECK_ERROR(sessionMachine, RemoveUSBController(Bstr("EHCI").raw()));
+                    {
+                        SafeIfaceArray<IUSBController> ctrls;
+                        CHECK_ERROR(sessionMachine, COMGETTER(USBControllers)(ComSafeArrayAsOutParam(ctrls)));
+                        for (size_t i = 0; i < ctrls.size(); i++)
+                        {
+                            ComPtr<IUSBController> pCtrl = ctrls[i];
+                            USBControllerType_T enmType;
+                            CHECK_ERROR(pCtrl, COMGETTER(Type)(&enmType));
+                            if (enmType == USBControllerType_EHCI)
+                            {
+                                Bstr ctrlName;
+                                CHECK_ERROR(pCtrl, COMGETTER(Name)(ctrlName.asOutParam()));
+                                CHECK_ERROR(sessionMachine, RemoveUSBController(ctrlName.raw()));
+                            }
+                        }
+                    }
                 }
                 break;
             }
@@ -2563,7 +2638,22 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                                                               UsbCtl.asOutParam()));
                     }
                     else if (cOhciCtrls && !ValueUnion.f)
-                        CHECK_ERROR(sessionMachine, RemoveUSBController(Bstr("OHCI").raw()));
+                    {
+                        SafeIfaceArray<IUSBController> ctrls;
+                        CHECK_ERROR(sessionMachine, COMGETTER(USBControllers)(ComSafeArrayAsOutParam(ctrls)));
+                        for (size_t i = 0; i < ctrls.size(); i++)
+                        {
+                            ComPtr<IUSBController> pCtrl = ctrls[i];
+                            USBControllerType_T enmType;
+                            CHECK_ERROR(pCtrl, COMGETTER(Type)(&enmType));
+                            if (enmType == USBControllerType_OHCI)
+                            {
+                                Bstr ctrlName;
+                                CHECK_ERROR(pCtrl, COMGETTER(Name)(ctrlName.asOutParam()));
+                                CHECK_ERROR(sessionMachine, RemoveUSBController(ctrlName.raw()));
+                            }
+                        }
+                    }
                 }
                 break;
             }
@@ -2768,6 +2858,29 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
             case MODIFYVM_VCP_HEIGHT:
             {
                 CHECK_ERROR(sessionMachine, COMSETTER(VideoCaptureHeight)(ValueUnion.u32));
+                break;
+            }
+            case MODIFYVM_VCP_RES:
+            {
+                uint32_t uWidth = 0;
+                char *pszNext;
+                int vrc = RTStrToUInt32Ex(ValueUnion.psz, &pszNext, 0, &uWidth);
+                if (RT_FAILURE(vrc) || vrc != VWRN_TRAILING_CHARS || !pszNext || *pszNext != 'x')
+                {
+                    errorArgument("Error parsing geomtry '%s' (expected <width>x<height>)", ValueUnion.psz);
+                    rc = E_FAIL;
+                    break;
+                }
+                uint32_t uHeight = 0;
+                vrc = RTStrToUInt32Ex(pszNext+1, NULL, 0, &uHeight);
+                if (vrc != VINF_SUCCESS)
+                {
+                    errorArgument("Error parsing geomtry '%s' (expected <width>x<height>)", ValueUnion.psz);
+                    rc = E_FAIL;
+                    break;
+                }
+                CHECK_ERROR(sessionMachine, COMSETTER(VideoCaptureWidth)(uWidth));
+                CHECK_ERROR(sessionMachine, COMSETTER(VideoCaptureHeight)(uHeight));
                 break;
             }
             case MODIFYVM_VCP_RATE:

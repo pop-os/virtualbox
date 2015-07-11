@@ -528,6 +528,8 @@ static int vbvaFlush(PVGASTATE pVGAState, VBVACONTEXT *pCtx)
     {
         /* Turn off VBVA processing. */
         LogRel(("VBVA: Disabling\n", rc));
+        pVGAState->fGuestCaps = 0;
+        pVGAState->pDrv->pfnVBVAGuestCapabilityUpdate(pVGAState->pDrv, pVGAState->fGuestCaps);
         for (uScreenId = 0; uScreenId < pCtx->cViews; uScreenId++)
         {
             VBVADATA *pVBVAData = &pCtx->aViews[uScreenId].vbva;
@@ -637,6 +639,11 @@ static int vbvaDisable (unsigned uScreenId, PVGASTATE pVGAState, VBVACONTEXT *pC
     VBVADATA *pVBVAData = &pCtx->aViews[uScreenId].vbva;
     vbvaDataCleanup(pVBVAData);
 
+    if (uScreenId == 0)
+    {
+        pVGAState->fGuestCaps = 0;
+        pVGAState->pDrv->pfnVBVAGuestCapabilityUpdate(pVGAState->pDrv, pVGAState->fGuestCaps);
+    }
     pVGAState->pDrv->pfnVBVADisable(pVGAState->pDrv, uScreenId);
     return VINF_SUCCESS;
 }
@@ -2043,8 +2050,15 @@ int vboxVBVALoadStateDone (PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
 #ifdef VBOX_WITH_CRHGSMI
                 Assert(!vboxCmdVBVAIsEnabled(pVGAState));
 #endif
-                vbvaEnable (iView, pVGAState, pCtx, pView->vbva.guest.pVBVA, pView->vbva.u32VBVAOffset, true /* fRestored */);
-                vbvaResize (pVGAState, pView, &pView->screen);
+                int rc = vbvaEnable(iView, pVGAState, pCtx, pView->vbva.guest.pVBVA, pView->vbva.u32VBVAOffset, true /* fRestored */);
+                if (RT_SUCCESS(rc))
+                {
+                    vbvaResize(pVGAState, pView, &pView->screen);
+                }
+                else
+                {
+                    LogRel(("VBVA: can not restore: %Rrc\n", rc));
+                }
             }
         }
 
@@ -2327,6 +2341,11 @@ static int vbvaHandleEnable(PVGASTATE pVGAState, const VBVAENABLE *pVbvaEnable, 
                      parms.u32Offset));
                 rc = VERR_INVALID_PARAMETER;
             }
+        }
+
+        if (RT_FAILURE(rc))
+        {
+            LogRelMax(8, ("VBVA: can not enable: %Rrc\n", rc));
         }
     }
     else if ((parms.u32Flags & (VBVA_F_ENABLE | VBVA_F_DISABLE)) == VBVA_F_DISABLE)
