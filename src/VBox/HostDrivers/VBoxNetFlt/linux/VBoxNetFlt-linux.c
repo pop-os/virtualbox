@@ -31,6 +31,7 @@
 #include <linux/in.h>
 #include <linux/ip.h>
 #include <linux/if_vlan.h>
+#include <net/ipv6.h>
 #include <net/if_inet6.h>
 #include <net/addrconf.h>
 
@@ -1884,6 +1885,10 @@ static int vboxNetFltLinuxNotifierCallback(struct notifier_block *self, unsigned
     return rc;
 }
 
+/*
+ * Initial enumeration of netdevs.  Called with NETDEV_REGISTER by
+ * register_netdevice_notifier() under rtnl lock.
+ */
 static int vboxNetFltLinuxEnumeratorCallback(struct notifier_block *self, unsigned long ulEventType, void *ptr)
 {
     PVBOXNETFLTINS pThis = ((PVBOXNETFLTNOTIFIER)self)->pThis;
@@ -1900,7 +1905,11 @@ static int vboxNetFltLinuxEnumeratorCallback(struct notifier_block *self, unsign
     /*
      * IPv4
      */
-    in_dev = __in_dev_get_rcu(dev);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 14)
+    in_dev = __in_dev_get_rtnl(dev);
+#else
+    in_dev = __in_dev_get(dev);
+#endif
     if (in_dev != NULL)
     {
         for_ifa(in_dev) {
@@ -1936,7 +1945,7 @@ static int vboxNetFltLinuxEnumeratorCallback(struct notifier_block *self, unsign
 #endif
         {
             if (   dev != pThis->u.s.pDev
-                && ipv6_addr_src_scope(&ifa->addr) <= IPV6_ADDR_SCOPE_LINKLOCAL)
+                && ipv6_addr_type(&ifa->addr) & (IPV6_ADDR_LINKLOCAL | IPV6_ADDR_LOOPBACK))
                 continue;
 
             Log(("%s: %s: IPv6 addr %RTnaipv6/%u\n",
@@ -2019,7 +2028,7 @@ static int vboxNetFltLinuxNotifierIPv6Callback(struct notifier_block *self, unsi
         vboxNetFltLinuxReleaseNetDev(pThis, pDev);
 
     if (   !fMyDev
-        && ipv6_addr_src_scope(&ifa->addr) <= IPV6_ADDR_SCOPE_LINKLOCAL)
+        && ipv6_addr_type(&ifa->addr) & (IPV6_ADDR_LINKLOCAL | IPV6_ADDR_LOOPBACK))
         return NOTIFY_OK;
 
     if (pThis->pSwitchPort->pfnNotifyHostAddress)

@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 100880 $"
+__version__ = "$Revision: 101453 $"
 
 
 # Validation Kit imports.
@@ -86,7 +86,7 @@ class SchdulerBeci(SchedulerBase): # pylint: disable=R0903
                 for oTestGroup in oData.aoTestGroups:
                     #self.msgDebug('testgroup loop: %s' % (oTestGroup,));
                     for oTestCase in oTestGroup.aoTestCases:
-                        self.msgDebug('testcase loop: idTestCase=%s' % (oTestCase.idTestCase,));
+                        #self.msgDebug('testcase loop: idTestCase=%s' % (oTestCase.idTestCase,));
                         if iPrio <= oTestCase.iBeciPrio  and  len(oTestCase.aoArgsVariations) > 0:
                             # Get variation.
                             iNext = oTestCase.iNextVariation;

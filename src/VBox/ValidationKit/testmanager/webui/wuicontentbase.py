@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 100880 $"
+__version__ = "$Revision: 101457 $"
 
 
 # Standard python imports.
@@ -212,6 +212,32 @@ class WuiContentBase(object): # pylint: disable=R0903
         oTsZulu = db.dbTimestampToZuluDatetime(oTs);
         sTs = oTsZulu.strftime('%Y-%m-%d %H:%M:%SZ');
         return unicode(sTs).replace('-', u'\u2011').replace(' ', u'\u00a0');
+
+    def formatIntervalShort(self, oInterval):
+        """
+        Formats an interval (db rep) into a short form.
+        """
+        # default formatting for negative intervals.
+        if oInterval.days < 0:
+            return str(oInterval);
+
+        # Figure the hour, min and sec counts.
+        cHours   = oInterval.seconds / 3600;
+        cMinutes = (oInterval.seconds % 3600) / 60;
+        cSeconds = oInterval.seconds - cHours * 3600 - cMinutes * 60;
+
+        # Tailor formatting to the interval length.
+        if oInterval.days > 0:
+            if oInterval.days > 1:
+                return '%d days, %d:%02d:%02d' % (oInterval.days, cHours, cMinutes, cSeconds);
+            return '1 day, %d:%02d:%02d' % (cHours, cMinutes, cSeconds);
+        if cMinutes > 0 or cSeconds >= 30 or cHours > 0:
+            return '%d:%02d:%02d' % (cHours, cMinutes, cSeconds);
+        if cSeconds >= 10:
+            return '%d.%ds'   % (cSeconds, oInterval.microseconds / 100000);
+        if cSeconds > 0:
+            return '%d.%02ds' % (cSeconds, oInterval.microseconds / 10000);
+        return '%d ms' % (oInterval.microseconds / 1000,);
 
     @staticmethod
     def genericPageWalker(iCurItem, cItems, sHrefFmt, cWidth = 11, iBase = 1, sItemName = 'page'):
@@ -622,6 +648,8 @@ class WuiListContentBase(WuiContentBase):
                         sRow += ' ';
             elif db.isDbTimestamp(aoValues[i]):
                 sRow += webutils.escapeElem(self.formatTsShort(aoValues[i]));
+            elif db.isDbInterval(aoValues[i]):
+                sRow += webutils.escapeElem(self.formatIntervalShort(aoValues[i]));
             elif aoValues[i] is not None:
                 sRow += webutils.escapeElem(unicode(aoValues[i]));
 

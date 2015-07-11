@@ -34,6 +34,7 @@
 #include <VBox/sup.h>
 
 #include <iprt/asm-amd64-x86.h>
+#include <iprt/time.h>
 
 
 /**
@@ -90,10 +91,17 @@ VMM_INT_DECL(int) gimKvmHypercall(PVMCPU pVCpu, PCPUMCTX pCtx)
                 PVMCPU pVCpuTarget = &pVM->aCpus[uHyperArg1];   /** ASSUMES pVCpu index == ApicId of the VCPU. */
                 VMCPU_FF_SET(pVCpuTarget, VMCPU_FF_UNHALT);
 #ifdef IN_RING0
-                GVMMR0SchedWakeUp(pVM, pVCpuTarget->idCpu);
+                /*
+                 * We might be here with preemption disabled or enabled (i.e. depending on thread-context hooks
+                 * being used), so don't try obtaining the GVMMR0 used lock here. See @bugref{7270} comment #148.
+                 */
+                GVMMR0SchedWakeUpEx(pVM, pVCpuTarget->idCpu, false /* fTakeUsedLock */);
 #elif defined(IN_RING3)
                 int rc2 = SUPR3CallVMMR0(pVM->pVMR0, pVCpuTarget->idCpu, VMMR0_DO_GVMM_SCHED_WAKE_UP, NULL);
                 AssertRC(rc2);
+#elif defined(IN_RC)
+                /* Nothing to do for raw-mode, shouldn't really be used by raw-mode guests anyway. */
+                Assert(pVM->cCpus == 1);
 #endif
                 uHyperRet = KVM_HYPERCALL_RET_SUCCESS;
             }
@@ -224,16 +232,20 @@ VMM_INT_DECL(VBOXSTRICTRC) gimKvmWriteMsr(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMS
         case MSR_GIM_KVM_SYSTEM_TIME_OLD:
         {
             bool fEnable = RT_BOOL(uRawValue & MSR_GIM_KVM_SYSTEM_TIME_ENABLE_BIT);
-#ifndef IN_RING3
+#ifdef IN_RING0
+            gimR0KvmUpdateSystemTime(pVM, pVCpu);
+            return VINF_CPUM_R3_MSR_WRITE;
+#elif defined(IN_RC)
+            Assert(pVM->cCpus == 1);
             if (fEnable)
             {
                 RTCCUINTREG fEFlags  = ASMIntDisableFlags();
-                pKvmCpu->uTsc        = TMCpuTickGetNoCheck(pVCpu);
-                pKvmCpu->uVirtNanoTS = TMVirtualGetNoCheck(pVM);
+                pKvmCpu->uTsc        = TMCpuTickGetNoCheck(pVCpu) | UINT64_C(1);
+                pKvmCpu->uVirtNanoTS = TMVirtualGetNoCheck(pVM)   | UINT64_C(1);
                 ASMSetFlags(fEFlags);
             }
             return VINF_CPUM_R3_MSR_WRITE;
-#else
+#else /* IN_RING3 */
             if (!fEnable)
             {
                 gimR3KvmDisableSystemTime(pVM);
@@ -250,28 +262,27 @@ VMM_INT_DECL(VBOXSTRICTRC) gimKvmWriteMsr(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMS
             {
                 int rc2 = PGMPhysSimpleReadGCPhys(pVM, &SystemTime, pKvmCpu->GCPhysSystemTime, sizeof(GIMKVMSYSTEMTIME));
                 if (RT_SUCCESS(rc2))
-                    fFlags = (SystemTime.fFlags & GIM_KVM_SYSTEM_TIME_FLAGS_GUEST_PAUSED);
+                    pKvmCpu->fSystemTimeFlags = (SystemTime.fFlags & GIM_KVM_SYSTEM_TIME_FLAGS_GUEST_PAUSED);
             }
 
             /* Enable and populate the system-time struct. */
             pKvmCpu->u64SystemTimeMsr      = uRawValue;
             pKvmCpu->GCPhysSystemTime      = MSR_GIM_KVM_SYSTEM_TIME_GUEST_GPA(uRawValue);
             pKvmCpu->u32SystemTimeVersion += 2;
-            int rc = gimR3KvmEnableSystemTime(pVM, pVCpu, pKvmCpu, fFlags);
+            int rc = gimR3KvmEnableSystemTime(pVM, pVCpu);
             if (RT_FAILURE(rc))
             {
                 pKvmCpu->u64SystemTimeMsr = 0;
                 return VERR_CPUM_RAISE_GP_0;
             }
             return VINF_SUCCESS;
-#endif /* IN_RING3 */
+#endif
         }
 
         case MSR_GIM_KVM_WALL_CLOCK:
         case MSR_GIM_KVM_WALL_CLOCK_OLD:
         {
 #ifndef IN_RING3
-
             return VINF_CPUM_R3_MSR_WRITE;
 #else
             /* Enable the wall-clock struct. */
@@ -281,7 +292,7 @@ VMM_INT_DECL(VBOXSTRICTRC) gimKvmWriteMsr(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMS
                 int rc = gimR3KvmEnableWallClock(pVM, GCPhysWallClock);
                 if (RT_SUCCESS(rc))
                 {
-                    pKvm->u64WallClockMsr     = uRawValue;
+                    pKvm->u64WallClockMsr = uRawValue;
                     return VINF_SUCCESS;
                 }
             }
