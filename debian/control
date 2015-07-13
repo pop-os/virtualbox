@@ -199,7 +199,8 @@ Package: virtualbox-guest-x11
 Section: contrib/x11
 Architecture: amd64 i386
 Pre-Depends: dpkg (>= 1.15.6~)
-Depends: virtualbox-guest-utils (= ${binary:Version}),
+Depends: libnotify-bin,
+         virtualbox-guest-utils (= ${binary:Version}),
          ${misc:Depends},
          ${shlibs:Depends},
          ${xserver:Depends}

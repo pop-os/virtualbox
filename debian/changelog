@@ -15,6 +15,10 @@ virtualbox (5.0.0-dfsg-1) UNRELEASED; urgency=medium
   * d/rules: sed .gc to .rc (following upstream rename change)
   * update d/source.lintian-overrides file.
   * Remove some more windows prebuilt files.
+  * Add libnotify-bin as runtime-dependency for the x11 package
+    (used for notify-send command) (Closes: #792292)
+    - Thanks Torquil Macdonald Sørensen for the useful and complete
+      bug report.
 
  -- Gianfranco Costamagna <costamagnagianfranco@yahoo.it>  Fri, 26 Jun 2015 09:57:04 +0200
 
