@@ -8,17 +8,9 @@ virtualbox (4.3.30-dfsg-1) unstable; urgency=medium
     gcc-4.9 workaround (d/{rules,control})
   * Update copyright file.
   * Patch refresh.
-  * remove obsolete lintian overrides.
-  * add some wrongly removed lintian overrides.
-  * Add VBoxDTrace not linked against libc lintian override.
-    It seems to really not use libc symbols.
-  * d/rules: remove VBoxDTraceR0.debug and strip VBoxDTraceR0.r0
-    files.
-  * d/rules: sed .gc to .rc (following upstream rename change)
-  * update d/source.lintian-overrides file.
   * Remove some more windows prebuilt files.
   * Add libnotify-bin as runtime-dependency for the x11 package
-   (used for notify-send command) (Closes: #792292)
+    (used for notify-send command) (Closes: #792292)
     - Thanks Torquil Macdonald Sørensen for the useful and complete
       bug report.
 
