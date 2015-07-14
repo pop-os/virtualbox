@@ -12,9 +12,7 @@ Build-Depends: bzip2,
                docbook-xml,
                docbook-xsl,
                dpkg-dev (>= 1.15.6~),
-               g++-4.9,
-               g++-multilib ( << 4:5-0 ) [amd64],
-               gcc-4.9,
+               g++-multilib,
                genisoimage,
                gsoap (>= 2.8.16),
                iasl,
@@ -104,7 +102,8 @@ Conflicts: virtualbox-2.0,
            virtualbox-4.0,
            virtualbox-4.1,
            virtualbox-4.2,
-           virtualbox-4.3
+           virtualbox-4.3,
+           virtualbox-5.0
 Description: x86 virtualization solution - base binaries
  VirtualBox is a free x86 virtualization solution allowing a wide range
  of x86 operating systems such as Windows, DOS, BSD or Linux to run on a
@@ -200,7 +199,8 @@ Package: virtualbox-guest-x11
 Section: contrib/x11
 Architecture: amd64 i386
 Pre-Depends: dpkg (>= 1.15.6~)
-Depends: virtualbox-guest-utils (= ${binary:Version}),
+Depends: libnotify-bin,
+         virtualbox-guest-utils (= ${binary:Version}),
          ${misc:Depends},
          ${shlibs:Depends},
          ${xserver:Depends}

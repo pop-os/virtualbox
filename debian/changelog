@@ -1,6 +1,26 @@
-virtualbox (4.3.28-dfsg-2) UNRELEASED; urgency=medium
+virtualbox (4.3.30-dfsg-1) UNRELEASED; urgency=medium
 
+  [ Ritesh Raj Sarraf ]
+  * Imported upstream release.
+  [ Gianfranco Costamagna ]
   * Readd again some removed lintian overrides.
+  * virtualbox 4.3.30 builds fine with gcc 5.1, removing the
+    gcc-4.9 workaround (d/{rules,control})
+  * Update copyright file.
+  * Patch refresh.
+  * remove obsolete lintian overrides.
+  * add some wrongly removed lintian overrides.
+  * Add VBoxDTrace not linked against libc lintian override.
+    It seems to really not use libc symbols.
+  * d/rules: remove VBoxDTraceR0.debug and strip VBoxDTraceR0.r0
+    files.
+  * d/rules: sed .gc to .rc (following upstream rename change)
+  * update d/source.lintian-overrides file.
+  * Remove some more windows prebuilt files.
+  * Add libnotify-bin as runtime-dependency for the x11 package
+   (used for notify-send command) (Closes: #792292)
+    - Thanks Torquil Macdonald Sørensen for the useful and complete
+      bug report.
 
  -- Gianfranco Costamagna <costamagnagianfranco@yahoo.it>  Wed, 03 Jun 2015 07:03:36 +0200
 

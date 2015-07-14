@@ -44,7 +44,7 @@ Index: virtualbox/src/VBox/Frontends/VirtualBox/src/selector/UISelectorWindow.cp
 ===================================================================
 --- virtualbox.orig/src/VBox/Frontends/VirtualBox/src/selector/UISelectorWindow.cpp	2013-11-19 03:42:12.725479132 -0500
 +++ virtualbox/src/VBox/Frontends/VirtualBox/src/selector/UISelectorWindow.cpp	2013-11-19 04:34:19.701624365 -0500
-@@ -1331,12 +1331,6 @@
+@@ -1332,12 +1332,6 @@
      pMenu->addSeparator();
      m_pNetworkAccessManager = gActionPool->action(UIActionIndex_Simple_NetworkAccessManager);
      pMenu->addAction(m_pNetworkAccessManager);
@@ -57,7 +57,7 @@ Index: virtualbox/src/VBox/Frontends/VirtualBox/src/selector/UISelectorWindow.cp
  #endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
  #ifndef Q_WS_MAC
      pMenu->addSeparator();
-@@ -1473,7 +1467,6 @@
+@@ -1474,7 +1468,6 @@
      connect(m_pResetWarningsAction, SIGNAL(triggered()), &msgCenter(), SLOT(sltResetSuppressedMessages()));
  #ifdef VBOX_GUI_WITH_NETWORK_MANAGER
      connect(m_pNetworkAccessManager, SIGNAL(triggered()), gNetworkManager, SLOT(show()));
