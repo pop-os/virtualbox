@@ -1,10 +1,7 @@
-virtualbox (5.0.0-dfsg-1) UNRELEASED; urgency=medium
+virtualbox (5.0.0-dfsg-1) experimental; urgency=medium
 
   [ Gianfranco Costamagna ]
   * Imported upstream release (Closes: #792026).
-    - virtualbox 5.0 builds fine with gcc 5.1, removing the
-      gcc-4.9 workaround (d/{rules,control})
-  * Update copyright file.
   * Patch refresh.
   * remove obsolete lintian overrides.
   * add some wrongly removed lintian overrides.
@@ -14,13 +11,26 @@ virtualbox (5.0.0-dfsg-1) UNRELEASED; urgency=medium
     files.
   * d/rules: sed .gc to .rc (following upstream rename change)
   * update d/source.lintian-overrides file.
+
+ -- Gianfranco Costamagna <costamagnagianfranco@yahoo.it>  Tue, 14 Jul 2015 15:56:17 +0200
+
+virtualbox (4.3.30-dfsg-1) unstable; urgency=medium
+
+  [ Ritesh Raj Sarraf ]
+  * Imported upstream release.
+  [ Gianfranco Costamagna ]
+  * Readd again some removed lintian overrides.
+  * virtualbox 4.3.30 builds fine with gcc 5.1, removing the
+    gcc-4.9 workaround (d/{rules,control})
+  * Update copyright file.
+  * Patch refresh.
   * Remove some more windows prebuilt files.
   * Add libnotify-bin as runtime-dependency for the x11 package
     (used for notify-send command) (Closes: #792292)
     - Thanks Torquil Macdonald Sørensen for the useful and complete
       bug report.
 
- -- Gianfranco Costamagna <costamagnagianfranco@yahoo.it>  Fri, 26 Jun 2015 09:57:04 +0200
+ -- Gianfranco Costamagna <costamagnagianfranco@yahoo.it>  Tue, 14 Jul 2015 15:29:23 +0200
 
 virtualbox (4.3.28-dfsg-1) unstable; urgency=medium
 
