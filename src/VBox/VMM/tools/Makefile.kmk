@@ -5,7 +5,7 @@
 #
 
 #
-# Copyright (C) 2006-2015 Oracle Corporation
+# Copyright (C) 2006-2013 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -53,7 +53,7 @@ endif
 #
 # CPU report program (CPUM DB).
 #
-PROGRAMS += VBoxCpuReport
+#PROGRAMS += VBoxCpuReport - not on 4.3, supdrv interface currently missing.
 VBoxCpuReport_TEMPLATE := VBoxR3Static
 VBoxCpuReport_DEFS      = IN_VMM_R3 IN_VBOX_CPU_REPORT
 VBoxCpuReport_INCS      = ../include

@@ -17,7 +17,7 @@
  */
 
 /*
- * Copyright (C) 2007-2015 Oracle Corporation
+ * Copyright (C) 2007-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -51,20 +51,10 @@
 #include <map>
 
 /**
- * Maximum depth of a medium tree, to prevent stack overflows.
- * XPCOM has a relatively low stack size for its workers, and we have
- * to avoid crashes due to exceeding the limit both on reading and
- * writing config files.
- */
-#define SETTINGS_MEDIUM_DEPTH_MAX 300
-
-/**
  * Maximum depth of the snapshot tree, to prevent stack overflows.
  * XPCOM has a relatively low stack size for its workers, and we have
  * to avoid crashes due to exceeding the limit both on reading and
- * writing config files. The bottleneck is reading config files with
- * deep snapshot nesting, as libxml2 needs quite some stack space,
- * so with the current stack size the margin isn't big.
+ * writing config files.
  */
 #define SETTINGS_SNAPSHOT_DEPTH_MAX 250
 
@@ -153,8 +143,6 @@ struct Medium
     bool operator==(const Medium &m) const;
 };
 
-extern const struct Medium g_MediumEmpty;
-
 /**
  * A media registry. Starting with VirtualBox 3.3, this can appear in both the
  * VirtualBox.xml file as well as machine XML files with settings version 1.11
@@ -240,21 +228,19 @@ protected:
 
     ~ConfigFileBase();
 
-    typedef enum {Error, HardDisk, DVDImage, FloppyImage} MediaType;
-
-    static const char *stringifyMediaType(MediaType t);
     void parseUUID(com::Guid &guid,
                    const com::Utf8Str &strUUID) const;
     void parseTimestamp(RTTIMESPEC &timestamp,
                         const com::Utf8Str &str) const;
-    com::Utf8Str stringifyTimestamp(const RTTIMESPEC &tm) const;
+
+    com::Utf8Str makeString(const RTTIMESPEC &tm);
 
     void readExtraData(const xml::ElementNode &elmExtraData,
                        StringsMap &map);
     void readUSBDeviceFilters(const xml::ElementNode &elmDeviceFilters,
                               USBDeviceFiltersList &ll);
-    void readMediumOne(MediaType t, const xml::ElementNode &elmMedium, Medium &med);
-    void readMedium(MediaType t, uint32_t depth, const xml::ElementNode &elmMedium, Medium &med);
+    typedef enum {Error, HardDisk, DVDImage, FloppyImage} MediaType;
+    void readMedium(MediaType t, const xml::ElementNode &elmMedium, MediaList &llMedia);
     void readMediaRegistry(const xml::ElementNode &elmMediaRegistry, MediaRegistry &mr);
     void readNATForwardRuleList(const xml::ElementNode  &elmParent, NATRuleList &llRules);
     void readNATLoopbacks(const xml::ElementNode &elmParent, NATLoopbackOffsetList &llLoopBacks);
@@ -266,10 +252,10 @@ protected:
     void buildUSBDeviceFilters(xml::ElementNode &elmParent,
                                const USBDeviceFiltersList &ll,
                                bool fHostMode);
-    void buildMedium(MediaType t,
-                     uint32_t depth,
-                     xml::ElementNode &elmMedium,
-                     const Medium &mdm);
+    void buildMedium(xml::ElementNode &elmMedium,
+                     DeviceType_T devType,
+                     const Medium &m,
+                     uint32_t level);
     void buildMediaRegistry(xml::ElementNode &elmParent,
                             const MediaRegistry &mr);
     void buildNATForwardRuleList(xml::ElementNode &elmParent, const NATRuleList &natRuleList);
@@ -328,8 +314,8 @@ typedef std::list<MachineRegistryEntry> MachinesRegistry;
 struct DhcpOptValue
 {
     enum Encoding {
-        LEGACY = DhcpOptEncoding_Legacy,
-        HEX = DhcpOptEncoding_Hex
+	LEGACY,
+	HEX
     };
 
     com::Utf8Str text;
@@ -695,7 +681,6 @@ struct AudioAdapter
     AudioAdapter()
         : fEnabled(true),
           controllerType(AudioControllerType_AC97),
-          codecType(AudioCodecType_STAC9700),
           driverType(AudioDriverType_Null)
     {}
 
@@ -704,17 +689,13 @@ struct AudioAdapter
         return     (this == &a)
                 || (    (fEnabled        == a.fEnabled)
                      && (controllerType  == a.controllerType)
-                     && (codecType       == a.codecType)
                      && (driverType      == a.driverType)
-                     && (properties      == a.properties)
                    );
     }
 
     bool                    fEnabled;
     AudioControllerType_T   controllerType;
-    AudioCodecType_T        codecType;
     AudioDriverType_T       driverType;
-    settings::StringsMap properties;
 };
 
 /**
@@ -901,11 +882,6 @@ struct Hardware
 
     bool operator==(const Hardware&) const;
 
-    bool areParavirtDefaultSettings() const
-    {
-        return paravirtProvider == ParavirtProvider_Legacy;
-    }
-
     com::Utf8Str        strVersion;             // hardware version, optional
     com::Guid           uuid;                   // hardware uuid, optional (null).
 
@@ -925,7 +901,6 @@ struct Hardware
     CpuList             llCpus;                 // requires settings version 1.10 (VirtualBox 3.2)
     bool                fHPETEnabled;           // requires settings version 1.10 (VirtualBox 3.2)
     uint32_t            ulCpuExecutionCap;      // requires settings version 1.11 (VirtualBox 3.3)
-    uint32_t            uCpuIdPortabilityLevel; // requires settings version 1.15 (VirtualBox 5.0)
 
     CpuIdLeafsList      llCpuIdLeafs;
 
@@ -943,8 +918,6 @@ struct Hardware
     uint32_t            ulVideoCaptureVertRes;  // requires settings version 1.14 (VirtualBox 4.3)
     uint32_t            ulVideoCaptureRate;     // requires settings version 1.14 (VirtualBox 4.3)
     uint32_t            ulVideoCaptureFPS;      // requires settings version 1.14 (VirtualBox 4.3)
-    uint32_t            ulVideoCaptureMaxTime;  // requires settings version 1.14 (VirtualBox 4.3)
-    uint32_t            ulVideoCaptureMaxSize;  // requires settings version 1.14 (VirtualBox 4.3)
     bool                fVideoCaptureEnabled;   // requires settings version 1.14 (VirtualBox 4.3)
     uint64_t            u64VideoCaptureScreens; // requires settings version 1.14 (VirtualBox 4.3)
     com::Utf8Str        strVideoCaptureFile;    // requires settings version 1.14 (VirtualBox 4.3)
@@ -955,7 +928,6 @@ struct Hardware
     KeyboardHIDType_T   keyboardHIDType;        // requires settings version 1.10 (VirtualBox 3.2)
 
     ChipsetType_T       chipsetType;            // requires settings version 1.11 (VirtualBox 4.0)
-    ParavirtProvider_T  paravirtProvider;       // requires settings version 1.15 (VirtualBox 4.4)
 
     bool                fEmulatedUSBCardReader; // 1.12 (VirtualBox 4.1)
 
@@ -972,12 +944,13 @@ struct Hardware
     // clever reason <Hardware> is where they are in the XML....
     SharedFoldersList   llSharedFolders;
     ClipboardMode_T     clipboardMode;
-    DnDMode_T           dndMode;
+    DragAndDropMode_T   dragAndDropMode;
 
     uint32_t            ulMemoryBalloonSize;
     bool                fPageFusionEnabled;
 
     GuestPropertiesList llGuestProperties;
+    com::Utf8Str        strNotificationPatterns;
 
     IOSettings          ioSettings;             // requires settings version 1.10 (VirtualBox 3.2)
     HostPCIDeviceAttachmentList pciAttachments; // requires settings version 1.12 (VirtualBox 4.1)
@@ -1057,7 +1030,11 @@ struct StorageController
           ulPortCount(2),
           ulInstance(0),
           fUseHostIOCache(true),
-          fBootable(true)
+          fBootable(true),
+          lIDE0MasterEmulationPort(0),
+          lIDE0SlaveEmulationPort(0),
+          lIDE1MasterEmulationPort(0),
+          lIDE1SlaveEmulationPort(0)
     {}
 
     bool operator==(const StorageController &s) const;
@@ -1165,11 +1142,6 @@ typedef std::list<Snapshot> SnapshotsList;
  */
 struct Snapshot
 {
-    Snapshot()
-    {
-        RTTimeSpecSetNano(&timestamp, 0);
-    }
-
     bool operator==(const Snapshot &s) const;
 
     com::Guid       uuid;
@@ -1198,8 +1170,7 @@ struct MachineUserData
           enmFaultToleranceState(FaultToleranceState_Inactive),
           uFaultTolerancePort(0),
           uFaultToleranceInterval(0),
-          fRTCUseUTC(false),
-          strVMPriority("")
+          fRTCUseUTC(false)
     {
         llGroups.push_back("/");
     }
@@ -1223,8 +1194,7 @@ struct MachineUserData
                && (strFaultToleranceAddress   == c.strFaultToleranceAddress)
                && (strFaultTolerancePassword  == c.strFaultTolerancePassword)
                && (fRTCUseUTC                 == c.fRTCUseUTC)
-               && (ovIcon                     == c.ovIcon)
-               && (strVMPriority              == c.strVMPriority);
+               && (ovIcon                     == c.ovIcon);
     }
 
     com::Utf8Str            strName;
@@ -1245,10 +1215,7 @@ struct MachineUserData
     uint32_t                uFaultToleranceInterval;
     bool                    fRTCUseUTC;
     com::Utf8Str            ovIcon;
-    com::Utf8Str            strVMPriority;
 };
-
-extern const struct Snapshot g_SnapshotEmpty;
 
 /**
  * MachineConfigFile represents an XML machine configuration. All the machine settings

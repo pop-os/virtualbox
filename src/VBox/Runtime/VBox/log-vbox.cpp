@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -205,8 +205,6 @@ RTDECL(PRTLOGGER) RTLogDefaultInit(void)
 #define ASSERT_LOG_GROUP2(def, str) \
     do { if (strcmp(g_apszGroups[def], str)) {printf("%s='%s' expects '%s'\n", #def, g_apszGroups[def], str); RTAssertDoPanic(); } } while (0)
     ASSERT_LOG_GROUP(DEFAULT);
-    ASSERT_LOG_GROUP(AUDIO_MIXER);
-    ASSERT_LOG_GROUP(AUDIO_MIXER_BUFFER);
     ASSERT_LOG_GROUP(CFGM);
     ASSERT_LOG_GROUP(CPUM);
     ASSERT_LOG_GROUP(CSAM);
@@ -214,12 +212,10 @@ RTDECL(PRTLOGGER) RTLogDefaultInit(void)
     ASSERT_LOG_GROUP(DBGF);
     ASSERT_LOG_GROUP(DBGF_INFO);
     ASSERT_LOG_GROUP(DEV);
-    ASSERT_LOG_GROUP(DEV_AC97);
     ASSERT_LOG_GROUP(DEV_ACPI);
     ASSERT_LOG_GROUP(DEV_APIC);
+    ASSERT_LOG_GROUP(DEV_AUDIO);
     ASSERT_LOG_GROUP(DEV_FDC);
-    ASSERT_LOG_GROUP(DEV_HDA);
-    ASSERT_LOG_GROUP(DEV_HDA_CODEC);
     ASSERT_LOG_GROUP(DEV_HPET);
     ASSERT_LOG_GROUP(DEV_IDE);
     ASSERT_LOG_GROUP(DEV_KBD);
@@ -233,7 +229,6 @@ RTDECL(PRTLOGGER) RTLogDefaultInit(void)
     ASSERT_LOG_GROUP(DEV_PIC);
     ASSERT_LOG_GROUP(DEV_PIT);
     ASSERT_LOG_GROUP(DEV_RTC);
-    ASSERT_LOG_GROUP(DEV_SB16);
     ASSERT_LOG_GROUP(DEV_SERIAL);
     ASSERT_LOG_GROUP(DEV_SMC);
     ASSERT_LOG_GROUP(DEV_VGA);
@@ -242,10 +237,8 @@ RTDECL(PRTLOGGER) RTLogDefaultInit(void)
     ASSERT_LOG_GROUP(DIS);
     ASSERT_LOG_GROUP(DRV);
     ASSERT_LOG_GROUP(DRV_ACPI);
-    ASSERT_LOG_GROUP(DRV_AUDIO);
     ASSERT_LOG_GROUP(DRV_BLOCK);
     ASSERT_LOG_GROUP(DRV_FLOPPY);
-    ASSERT_LOG_GROUP(DRV_HOST_AUDIO);
     ASSERT_LOG_GROUP(DRV_HOST_DVD);
     ASSERT_LOG_GROUP(DRV_HOST_FLOPPY);
     ASSERT_LOG_GROUP(DRV_ISO);
@@ -256,7 +249,6 @@ RTDECL(PRTLOGGER) RTLogDefaultInit(void)
     ASSERT_LOG_GROUP(DRV_TUN);
     ASSERT_LOG_GROUP(DRV_USBPROXY);
     ASSERT_LOG_GROUP(DRV_VBOXHDD);
-    ASSERT_LOG_GROUP(DRV_VRDE_AUDIO);
     ASSERT_LOG_GROUP(DRV_VSWITCH);
     ASSERT_LOG_GROUP(DRV_VUSB);
     ASSERT_LOG_GROUP(EM);
@@ -477,7 +469,7 @@ RTDECL(PRTLOGGER) RTLogDefaultInit(void)
         pLogger->fDestFlags |= RTLOGDEST_DEBUGGER;
 # endif
 # if defined(DEBUG_aleksey)  /* Guest ring-0 as well */
-        RTLogGroupSettings(pLogger, "net_flt_drv.e.l.f.l3.l4.l5 +net_adp_drv.e.l.f.l3.l4.l5");
+        RTLogGroupSettings(pLogger, "+net_adp_drv.e.l.f+net_flt_drv.e.l.l2.l3.l4.l5.f");
         RTLogFlags(pLogger, "enabled unbuffered");
         pLogger->fDestFlags |= RTLOGDEST_DEBUGGER | RTLOGDEST_STDOUT;
 # endif
@@ -493,7 +485,7 @@ RTDECL(PRTLOGGER) RTLogDefaultInit(void)
 # if defined(DEBUG_michael) && defined(IN_GUEST)
         RTLogGroupSettings(pLogger, "+all.e.l.f");
         RTLogFlags(pLogger, "enabled unbuffered");
-        pLogger->fDestFlags |= RTLOGDEST_DEBUGGER | RTLOGDEST_STDOUT;
+        pLogger->fDestFlags |= RTLOGDEST_DEBUGGER;
 # endif
 # if 0 /* vboxdrv logging - ATTENTION: this is what we're referring to guys! Change to '# if 1'. */
         RTLogGroupSettings(pLogger, "all=~0 -default.l6.l5.l4.l3");

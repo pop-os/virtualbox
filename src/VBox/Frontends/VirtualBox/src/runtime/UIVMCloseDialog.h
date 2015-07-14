@@ -1,6 +1,7 @@
-/* $Id: UIVMCloseDialog.h $ */
 /** @file
- * VBox Qt GUI - UIVMCloseDialog class declaration.
+ *
+ * VBox frontends: Qt4 GUI ("VirtualBox"):
+ * UIVMCloseDialog class declaration
  */
 
 /*
@@ -21,9 +22,10 @@
 /* GUI includes: */
 #include "QIWithRetranslateUI.h"
 #include "QIDialog.h"
-#include "UIExtraDataDefs.h"
+#include "UIDefs.h"
 
 /* Forward declarations: */
+enum MachineCloseAction;
 class CMachine;
 class QLabel;
 class QRadioButton;
@@ -56,9 +58,6 @@ private:
     /* API: Pixmap stuff: */
     void setPixmap(const QPixmap &pixmap);
 
-    /* API: Detach-button stuff: */
-    void setDetachButtonEnabled(bool fEnabled);
-    void setDetachButtonVisible(bool fVisible);
     /* API: Save-button stuff: */
     void setSaveButtonEnabled(bool fEnabled);
     void setSaveButtonVisible(bool fVisible);
@@ -87,8 +86,6 @@ private:
     /* Widgets: */
     QLabel *m_pIcon;
     QLabel *m_pLabel;
-    QLabel *m_pDetachIcon;
-    QRadioButton *m_pDetachRadio;
     QLabel *m_pSaveIcon;
     QRadioButton *m_pSaveRadio;
     QLabel *m_pShutdownIcon;

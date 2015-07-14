@@ -1,6 +1,7 @@
-/* $Id: UIWizardNewVM.h $ */
 /** @file
- * VBox Qt GUI - UIWizardNewVM class declaration.
+ *
+ * VBox frontends: Qt4 GUI ("VirtualBox"):
+ * UIWizardNewVM class declaration
  */
 
 /*
@@ -77,7 +78,6 @@ private:
     int m_iSCSICount;
     int m_iFloppyCount;
     int m_iSASCount;
-    int m_iUSBCount;
 };
 
 #endif // __UIWizardNewVM_h__

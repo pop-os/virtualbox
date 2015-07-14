@@ -1,6 +1,7 @@
-/* $Id: VBoxTakeSnapshotDlg.h $ */
 /** @file
- * VBox Qt GUI - VBoxTakeSnapshotDlg class declaration.
+ *
+ * VBox frontends: Qt4 GUI ("VirtualBox"):
+ * VBoxTakeSnapshotDlg class declaration
  */
 
 /*

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -442,7 +442,7 @@ static void vboxNetFltLinuxHookDev(PVBOXNETFLTINS pThis, struct net_device *pDev
 # if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
     ASMAtomicXchgPtr((void * volatile *)&pDev->hard_start_xmit, vboxNetFltLinuxStartXmitFilter);
 # endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29) */
-    RTSpinlockRelease(pThis->hSpinlock);
+    RTSpinlockReleaseNoInts(pThis->hSpinlock);
 }
 
 /**
@@ -478,7 +478,7 @@ static void vboxNetFltLinuxUnhookDev(PVBOXNETFLTINS pThis, struct net_device *pD
     }
     else
         pOverride = NULL;
-    RTSpinlockRelease(pThis->hSpinlock);
+    RTSpinlockReleaseNoInts(pThis->hSpinlock);
 
     if (pOverride)
     {
@@ -1501,7 +1501,7 @@ static void vboxNetFltLinuxReportNicGsoCapabilities(PVBOXNETFLTINS pThis)
         else
             fFeatures = 0;
 
-        RTSpinlockRelease(pThis->hSpinlock);
+        RTSpinlockReleaseNoInts(pThis->hSpinlock);
 
         if (pThis->pSwitchPort)
         {
@@ -1615,7 +1615,7 @@ static int vboxNetFltLinuxAttachToInterface(PVBOXNETFLTINS pThis, struct net_dev
 
     RTSpinlockAcquire(pThis->hSpinlock);
     ASMAtomicUoWritePtr(&pThis->u.s.pDev, pDev);
-    RTSpinlockRelease(pThis->hSpinlock);
+    RTSpinlockReleaseNoInts(pThis->hSpinlock);
 
     Log(("vboxNetFltLinuxAttachToInterface: Device %p(%s) retained. ref=%d\n",
           pDev, pDev->name,
@@ -1665,7 +1665,7 @@ static int vboxNetFltLinuxAttachToInterface(PVBOXNETFLTINS pThis, struct net_dev
         ASMAtomicUoWriteBool(&pThis->u.s.fRegistered, true);
         pDev = NULL; /* don't dereference it */
     }
-    RTSpinlockRelease(pThis->hSpinlock);
+    RTSpinlockReleaseNoInts(pThis->hSpinlock);
 
     /*
      * If the above succeeded report GSO capabilities,  if not undo and
@@ -1690,7 +1690,7 @@ static int vboxNetFltLinuxAttachToInterface(PVBOXNETFLTINS pThis, struct net_dev
 #endif
         RTSpinlockAcquire(pThis->hSpinlock);
         ASMAtomicUoWriteNullPtr(&pThis->u.s.pDev);
-        RTSpinlockRelease(pThis->hSpinlock);
+        RTSpinlockReleaseNoInts(pThis->hSpinlock);
         dev_put(pDev);
         Log(("vboxNetFltLinuxAttachToInterface: Device %p(%s) released. ref=%d\n",
              pDev, pDev->name,
@@ -1702,7 +1702,7 @@ static int vboxNetFltLinuxAttachToInterface(PVBOXNETFLTINS pThis, struct net_dev
              ));
     }
 
-    LogRel(("VBoxNetFlt: attached to '%s' / %RTmac\n", pThis->szName, &pThis->u.s.MacAddr));
+    LogRel(("VBoxNetFlt: attached to '%s' / %.*Rhxs\n", pThis->szName, sizeof(pThis->u.s.MacAddr), &pThis->u.s.MacAddr));
     return VINF_SUCCESS;
 }
 
@@ -1729,7 +1729,7 @@ static int vboxNetFltLinuxUnregisterDevice(PVBOXNETFLTINS pThis, struct net_devi
         ASMAtomicWriteBool(&pThis->fDisconnectedFromHost, true);
         ASMAtomicUoWriteNullPtr(&pThis->u.s.pDev);
     }
-    RTSpinlockRelease(pThis->hSpinlock);
+    RTSpinlockReleaseNoInts(pThis->hSpinlock);
 
     if (fRegistered)
     {
@@ -1923,7 +1923,7 @@ static int vboxNetFltLinuxEnumeratorCallback(struct notifier_block *self, unsign
             Log(("%s: %s: IPv4 addr %RTnaipv4 mask %RTnaipv4\n",
                  __FUNCTION__, VBOX_NETDEV_NAME(dev),
                  ifa->ifa_address, ifa->ifa_mask));
-
+            
             pThis->pSwitchPort->pfnNotifyHostAddress(pThis->pSwitchPort,
                 /* :fAdded */ true, kIntNetAddrType_IPv4, &ifa->ifa_address);
         } endfor_ifa(in_dev);
@@ -1998,7 +1998,7 @@ static int vboxNetFltLinuxNotifierIPv4Callback(struct notifier_block *self, unsi
             fAdded = false;
         else
             return NOTIFY_OK;
-
+            
         pThis->pSwitchPort->pfnNotifyHostAddress(pThis->pSwitchPort, fAdded,
                                                  kIntNetAddrType_IPv4, &ifa->ifa_local);
     }
@@ -2040,7 +2040,7 @@ static int vboxNetFltLinuxNotifierIPv6Callback(struct notifier_block *self, unsi
             fAdded = false;
         else
             return NOTIFY_OK;
-
+            
         pThis->pSwitchPort->pfnNotifyHostAddress(pThis->pSwitchPort, fAdded,
                                                  kIntNetAddrType_IPv6, &ifa->addr);
     }
@@ -2225,7 +2225,7 @@ void vboxNetFltOsDeleteInstance(PVBOXNETFLTINS pThis)
     RTSpinlockAcquire(pThis->hSpinlock);
     pDev = ASMAtomicUoReadPtrT(&pThis->u.s.pDev, struct net_device *);
     fRegistered = ASMAtomicXchgBool(&pThis->u.s.fRegistered, false);
-    RTSpinlockRelease(pThis->hSpinlock);
+    RTSpinlockReleaseNoInts(pThis->hSpinlock);
 
     if (fRegistered)
     {

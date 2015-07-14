@@ -1,6 +1,7 @@
-/* $Id: QIDialogButtonBox.h $ */
 /** @file
- * VBox Qt GUI - VBox Qt extensions: QIDialogButtonBox class declaration.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * VirtualBox Qt extensions: QIDialogButtonBox class declaration
  */
 
 /*

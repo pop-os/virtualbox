@@ -1,6 +1,8 @@
 /* $Id: DockIconPreview.h $ */
 /** @file
- * VBox Qt GUI - UIDockIconPreview class declaration.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * UIDockIconPreview class declaration
  */
 
 /*

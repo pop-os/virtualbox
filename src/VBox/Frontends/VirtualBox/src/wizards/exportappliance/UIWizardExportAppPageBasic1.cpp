@@ -1,6 +1,8 @@
 /* $Id: UIWizardExportAppPageBasic1.cpp $ */
 /** @file
- * VBox Qt GUI - UIWizardExportAppPageBasic1 class implementation.
+ *
+ * VBox frontends: Qt4 GUI ("VirtualBox"):
+ * UIWizardExportAppPageBasic1 class implementation
  */
 
 /*
@@ -15,27 +17,20 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QVBoxLayout>
+#include <QVBoxLayout>
 
 /* Local includes: */
-# include "UIWizardExportAppPageBasic1.h"
-# include "UIWizardExportApp.h"
-# include "UIWizardExportAppDefs.h"
-# include "VBoxGlobal.h"
-# include "UIMessageCenter.h"
-# include "QILabelSeparator.h"
-# include "QIRichTextLabel.h"
+#include "UIWizardExportAppPageBasic1.h"
+#include "UIWizardExportApp.h"
+#include "UIWizardExportAppDefs.h"
+#include "VBoxGlobal.h"
+#include "UIMessageCenter.h"
+#include "QILabelSeparator.h"
+#include "QIRichTextLabel.h"
 
 /* COM includes: */
-# include "CMachine.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
+#include "CMachine.h"
 
 UIWizardExportAppPage1::UIWizardExportAppPage1()
 {
@@ -51,11 +46,9 @@ void UIWizardExportAppPage1::populateVMSelectorItems(const QStringList &selected
         QString strUuid;
         bool fInSaveState = false;
         bool fEnabled = false;
-        const QStyle *pStyle = QApplication::style();
-        const int iIconMetric = pStyle->pixelMetric(QStyle::PM_SmallIconSize);
         if (machine.GetAccessible())
         {
-            pixIcon = vboxGlobal().vmGuestOSTypeIcon(machine.GetOSTypeId()).scaled(iIconMetric, iIconMetric, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+            pixIcon = vboxGlobal().vmGuestOSTypeIcon(machine.GetOSTypeId()).scaled(16, 16, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
             strName = machine.GetName();
             strUuid = machine.GetId();
             fEnabled = machine.GetSessionState() == KSessionState_Unlocked;
@@ -66,7 +59,7 @@ void UIWizardExportAppPage1::populateVMSelectorItems(const QStringList &selected
             QString settingsFile = machine.GetSettingsFilePath();
             QFileInfo fi(settingsFile);
             strName = VBoxGlobal::hasAllowedExtension(fi.completeSuffix(), VBoxFileExts) ? fi.completeBaseName() : fi.fileName();
-            pixIcon = QPixmap(":/os_other.png").scaled(iIconMetric, iIconMetric, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+            pixIcon = QPixmap(":/os_other.png").scaled(16, 16, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
         }
         QListWidgetItem *pItem = new VMListWidgetItem(pixIcon, strName, strUuid, fInSaveState, m_pVMSelector);
         if (!fEnabled)

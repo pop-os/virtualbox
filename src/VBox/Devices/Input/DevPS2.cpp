@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -45,6 +45,7 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_DEV_KBD
+#include "vl_vbox.h"
 #include <VBox/vmm/pdmdev.h>
 #include <iprt/assert.h>
 #include <iprt/uuid.h>
@@ -52,15 +53,8 @@
 #include "VBoxDD.h"
 #include "PS2Dev.h"
 
-/* Do not remove this (unless eliminating the corresponding ifdefs), it will
- * cause instant triple faults when booting Windows VMs. */
-#define TARGET_I386
-
-#ifndef VBOX_WITH_NEW_PS2M
 #define PCKBD_SAVED_STATE_VERSION 7
-#else
-#define PCKBD_SAVED_STATE_VERSION 8
-#endif
+
 
 #ifndef VBOX_DEVICE_STRUCT_TESTCASE
 /*******************************************************************************
@@ -215,9 +209,9 @@ typedef struct KBDState
     int32_t mouse_flags;
     uint8_t mouse_buttons;
     uint8_t mouse_buttons_reported;
+#endif
 
     uint32_t    Alignment0;
-#endif
 
     /** Pointer to the device instance - RC. */
     PPDMDEVINSRC                pDevInsRC;
@@ -1080,56 +1074,58 @@ static void kbd_reset(void *opaque)
 #endif
 }
 
-static void kbd_save(PSSMHANDLE pSSM, KBDState *s)
+static void kbd_save(QEMUFile* f, void* opaque)
 {
 #ifndef VBOX_WITH_NEW_PS2M
     uint32_t    cItems;
     int i;
 #endif
+    KBDState *s = (KBDState*)opaque;
 
-    SSMR3PutU8(pSSM, s->write_cmd);
-    SSMR3PutU8(pSSM, s->status);
-    SSMR3PutU8(pSSM, s->mode);
-    SSMR3PutU8(pSSM, s->dbbout);
+    qemu_put_8s(f, &s->write_cmd);
+    qemu_put_8s(f, &s->status);
+    qemu_put_8s(f, &s->mode);
+    qemu_put_8s(f, &s->dbbout);
 #ifndef VBOX_WITH_NEW_PS2M
-    SSMR3PutU32(pSSM, s->mouse_write_cmd);
-    SSMR3PutU8(pSSM, s->mouse_status);
-    SSMR3PutU8(pSSM, s->mouse_resolution);
-    SSMR3PutU8(pSSM, s->mouse_sample_rate);
-    SSMR3PutU8(pSSM, s->mouse_wrap);
-    SSMR3PutU8(pSSM, s->mouse_type);
-    SSMR3PutU8(pSSM, s->mouse_detect_state);
-    SSMR3PutU32(pSSM, s->mouse_dx);
-    SSMR3PutU32(pSSM, s->mouse_dy);
-    SSMR3PutU32(pSSM, s->mouse_dz);
-    SSMR3PutU32(pSSM, s->mouse_dw);
-    SSMR3PutU32(pSSM, s->mouse_flags);
-    SSMR3PutU8(pSSM, s->mouse_buttons);
-    SSMR3PutU8(pSSM, s->mouse_buttons_reported);
+    qemu_put_be32s(f, &s->mouse_write_cmd);
+    qemu_put_8s(f, &s->mouse_status);
+    qemu_put_8s(f, &s->mouse_resolution);
+    qemu_put_8s(f, &s->mouse_sample_rate);
+    qemu_put_8s(f, &s->mouse_wrap);
+    qemu_put_8s(f, &s->mouse_type);
+    qemu_put_8s(f, &s->mouse_detect_state);
+    qemu_put_be32s(f, &s->mouse_dx);
+    qemu_put_be32s(f, &s->mouse_dy);
+    qemu_put_be32s(f, &s->mouse_dz);
+    qemu_put_be32s(f, &s->mouse_dw);
+    qemu_put_be32s(f, &s->mouse_flags);
+    qemu_put_8s(f, &s->mouse_buttons);
+    qemu_put_8s(f, &s->mouse_buttons_reported);
 
     cItems = s->mouse_command_queue.count;
-    SSMR3PutU32(pSSM, cItems);
+    SSMR3PutU32(f, cItems);
     for (i = s->mouse_command_queue.rptr; cItems-- > 0; i = (i + 1) % RT_ELEMENTS(s->mouse_command_queue.data))
-        SSMR3PutU8(pSSM, s->mouse_command_queue.data[i]);
+        SSMR3PutU8(f, s->mouse_command_queue.data[i]);
     Log(("kbd_save: %d mouse command queue items stored\n", s->mouse_command_queue.count));
 
     cItems = s->mouse_event_queue.count;
-    SSMR3PutU32(pSSM, cItems);
+    SSMR3PutU32(f, cItems);
     for (i = s->mouse_event_queue.rptr; cItems-- > 0; i = (i + 1) % RT_ELEMENTS(s->mouse_event_queue.data))
-        SSMR3PutU8(pSSM, s->mouse_event_queue.data[i]);
+        SSMR3PutU8(f, s->mouse_event_queue.data[i]);
     Log(("kbd_save: %d mouse event queue items stored\n", s->mouse_event_queue.count));
 #endif
 
     /* terminator */
-    SSMR3PutU32(pSSM, ~0);
+    SSMR3PutU32(f, ~0);
 }
 
-static int kbd_load(PSSMHANDLE pSSM, KBDState *s, uint32_t version_id)
+static int kbd_load(QEMUFile* f, void* opaque, int version_id)
 {
     uint32_t    u32, i;
     uint8_t u8Dummy;
     uint32_t u32Dummy;
     int         rc;
+    KBDState *s = (KBDState*)opaque;
 
 #if 0
     /** @todo enable this and remove the "if (version_id == 4)" code at some
@@ -1139,87 +1135,50 @@ static int kbd_load(PSSMHANDLE pSSM, KBDState *s, uint32_t version_id)
 #endif
     if (version_id < 2 || version_id > PCKBD_SAVED_STATE_VERSION)
         return VERR_SSM_UNSUPPORTED_DATA_UNIT_VERSION;
-    SSMR3GetU8(pSSM, &s->write_cmd);
-    SSMR3GetU8(pSSM, &s->status);
-    SSMR3GetU8(pSSM, &s->mode);
+    qemu_get_8s(f, &s->write_cmd);
+    qemu_get_8s(f, &s->status);
+    qemu_get_8s(f, &s->mode);
     if (version_id <= 5)
     {
-        SSMR3GetU32(pSSM, (uint32_t *)&u32Dummy);
-        SSMR3GetU32(pSSM, (uint32_t *)&u32Dummy);
+        qemu_get_be32s(f, (uint32_t *)&u32Dummy);
+        qemu_get_be32s(f, (uint32_t *)&u32Dummy);
     }
     else
     {
-        SSMR3GetU8(pSSM, &s->dbbout);
+        qemu_get_8s(f, &s->dbbout);
     }
 #ifndef VBOX_WITH_NEW_PS2M
-    SSMR3GetU32(pSSM, (uint32_t *)&s->mouse_write_cmd);
-    SSMR3GetU8(pSSM, &s->mouse_status);
-    SSMR3GetU8(pSSM, &s->mouse_resolution);
-    SSMR3GetU8(pSSM, &s->mouse_sample_rate);
-    SSMR3GetU8(pSSM, &s->mouse_wrap);
-    SSMR3GetU8(pSSM, &s->mouse_type);
-    SSMR3GetU8(pSSM, &s->mouse_detect_state);
-    SSMR3GetU32(pSSM, (uint32_t *)&s->mouse_dx);
-    SSMR3GetU32(pSSM, (uint32_t *)&s->mouse_dy);
-    SSMR3GetU32(pSSM, (uint32_t *)&s->mouse_dz);
+    qemu_get_be32s(f, (uint32_t *)&s->mouse_write_cmd);
+    qemu_get_8s(f, &s->mouse_status);
+    qemu_get_8s(f, &s->mouse_resolution);
+    qemu_get_8s(f, &s->mouse_sample_rate);
+    qemu_get_8s(f, &s->mouse_wrap);
+    qemu_get_8s(f, &s->mouse_type);
+    qemu_get_8s(f, &s->mouse_detect_state);
+    qemu_get_be32s(f, (uint32_t *)&s->mouse_dx);
+    qemu_get_be32s(f, (uint32_t *)&s->mouse_dy);
+    qemu_get_be32s(f, (uint32_t *)&s->mouse_dz);
     if (version_id > 2)
     {
-        SSMR3GetS32(pSSM, &s->mouse_dw);
-        SSMR3GetS32(pSSM, &s->mouse_flags);
+        SSMR3GetS32(f, &s->mouse_dw);
+        SSMR3GetS32(f, &s->mouse_flags);
     }
-    SSMR3GetU8(pSSM, &s->mouse_buttons);
+    qemu_get_8s(f, &s->mouse_buttons);
     if (version_id == 4)
     {
-        SSMR3GetU32(pSSM, &u32Dummy);
-        SSMR3GetU32(pSSM, &u32Dummy);
+        SSMR3GetU32(f, &u32Dummy);
+        SSMR3GetU32(f, &u32Dummy);
     }
     if (version_id > 3)
-        SSMR3GetU8(pSSM, &s->mouse_buttons_reported);
+        SSMR3GetU8(f, &s->mouse_buttons_reported);
     if (version_id == 4)
-        SSMR3GetU8(pSSM, &u8Dummy);
+        SSMR3GetU8(f, &u8Dummy);
     s->mouse_command_queue.count = 0;
     s->mouse_command_queue.rptr = 0;
     s->mouse_command_queue.wptr = 0;
     s->mouse_event_queue.count = 0;
     s->mouse_event_queue.rptr = 0;
     s->mouse_event_queue.wptr = 0;
-#else
-    if (version_id <= 7)
-    {
-        int32_t     i32Dummy;
-        uint8_t     u8State;
-        uint8_t     u8Rate;
-        uint8_t     u8Proto;
-
-        SSMR3GetU32(pSSM, &u32Dummy);
-        SSMR3GetU8(pSSM, &u8State);
-        SSMR3GetU8(pSSM, &u8Dummy);
-        SSMR3GetU8(pSSM, &u8Rate);
-        SSMR3GetU8(pSSM, &u8Dummy);
-        SSMR3GetU8(pSSM, &u8Proto);
-        SSMR3GetU8(pSSM, &u8Dummy);
-        SSMR3GetS32(pSSM, &i32Dummy);
-        SSMR3GetS32(pSSM, &i32Dummy);
-        SSMR3GetS32(pSSM, &i32Dummy);
-        if (version_id > 2)
-        {
-            SSMR3GetS32(pSSM, &i32Dummy);
-            SSMR3GetS32(pSSM, &i32Dummy);
-        }
-        rc = SSMR3GetU8(pSSM, &u8Dummy);
-        if (version_id == 4)
-        {
-            SSMR3GetU32(pSSM, &u32Dummy);
-            rc = SSMR3GetU32(pSSM, &u32Dummy);
-        }
-        if (version_id > 3)
-            rc = SSMR3GetU8(pSSM, &u8Dummy);
-        if (version_id == 4)
-            rc = SSMR3GetU8(pSSM, &u8Dummy);
-        AssertLogRelRCReturn(rc, rc);
-
-        PS2MFixupState(&s->Aux, u8State, u8Rate, u8Proto);
-    }
 #endif
 
     /* Determine the translation state. */
@@ -1230,12 +1189,12 @@ static int kbd_load(PSSMHANDLE pSSM, KBDState *s, uint32_t version_id)
      */
     if (version_id <= 5)
     {
-        rc = SSMR3GetU32(pSSM, &u32);
+        rc = SSMR3GetU32(f, &u32);
         if (RT_FAILURE(rc))
             return rc;
         for (i = 0; i < u32; i++)
         {
-            rc = SSMR3GetU8(pSSM, &u8Dummy);
+            rc = SSMR3GetU8(f, &u8Dummy);
             if (RT_FAILURE(rc))
                 return rc;
         }
@@ -1243,7 +1202,7 @@ static int kbd_load(PSSMHANDLE pSSM, KBDState *s, uint32_t version_id)
     }
 
 #ifndef VBOX_WITH_NEW_PS2M
-    rc = SSMR3GetU32(pSSM, &u32);
+    rc = SSMR3GetU32(f, &u32);
     if (RT_FAILURE(rc))
         return rc;
     if (u32 > RT_ELEMENTS(s->mouse_command_queue.data))
@@ -1253,7 +1212,7 @@ static int kbd_load(PSSMHANDLE pSSM, KBDState *s, uint32_t version_id)
     }
     for (i = 0; i < u32; i++)
     {
-        rc = SSMR3GetU8(pSSM, &s->mouse_command_queue.data[i]);
+        rc = SSMR3GetU8(f, &s->mouse_command_queue.data[i]);
         if (RT_FAILURE(rc))
             return rc;
     }
@@ -1261,7 +1220,7 @@ static int kbd_load(PSSMHANDLE pSSM, KBDState *s, uint32_t version_id)
     s->mouse_command_queue.count = u32;
     Log(("kbd_load: %d mouse command queue items loaded\n", u32));
 
-    rc = SSMR3GetU32(pSSM, &u32);
+    rc = SSMR3GetU32(f, &u32);
     if (RT_FAILURE(rc))
         return rc;
     if (u32 > RT_ELEMENTS(s->mouse_event_queue.data))
@@ -1271,7 +1230,7 @@ static int kbd_load(PSSMHANDLE pSSM, KBDState *s, uint32_t version_id)
     }
     for (i = 0; i < u32; i++)
     {
-        rc = SSMR3GetU8(pSSM, &s->mouse_event_queue.data[i]);
+        rc = SSMR3GetU8(f, &s->mouse_event_queue.data[i]);
         if (RT_FAILURE(rc))
             return rc;
     }
@@ -1279,34 +1238,23 @@ static int kbd_load(PSSMHANDLE pSSM, KBDState *s, uint32_t version_id)
     s->mouse_event_queue.count = u32;
     Log(("kbd_load: %d mouse event queue items loaded\n", u32));
 #else
-    if (version_id <= 7)
+    if (version_id <= 6)
     {
-        rc = SSMR3GetU32(pSSM, &u32);
+        rc = SSMR3GetU32(f, &u32);
         if (RT_FAILURE(rc))
             return rc;
         for (i = 0; i < u32; i++)
         {
-            rc = SSMR3GetU8(pSSM, &u8Dummy);
+            rc = SSMR3GetU8(f, &u8Dummy);
             if (RT_FAILURE(rc))
                 return rc;
         }
         Log(("kbd_load: %d mouse event queue items discarded from old saved state\n", u32));
-
-        rc = SSMR3GetU32(pSSM, &u32);
-        if (RT_FAILURE(rc))
-            return rc;
-        for (i = 0; i < u32; i++)
-        {
-            rc = SSMR3GetU8(pSSM, &u8Dummy);
-            if (RT_FAILURE(rc))
-                return rc;
-        }
-        Log(("kbd_load: %d mouse command queue items discarded from old saved state\n", u32));
     }
 #endif
 
     /* terminator */
-    rc = SSMR3GetU32(pSSM, &u32);
+    rc = SSMR3GetU32(f, &u32);
     if (RT_FAILURE(rc))
         return rc;
     if (u32 != ~0U)
@@ -1367,10 +1315,10 @@ PDMBOTHCBDECL(int) kbdIOPortDataWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT
 {
     int rc = VINF_SUCCESS;
     NOREF(pvUser);
-    if (cb == 1 || cb == 2)
+    if (cb == 1)
     {
         KBDState *pThis = PDMINS_2_DATA(pDevIns, KBDState *);
-        rc = kbd_write_data(pThis, Port, (uint8_t)u32);
+        rc = kbd_write_data(pThis, Port, u32);
         Log2(("kbdIOPortDataWrite: Port=%#x cb=%d u32=%#x\n", Port, cb, u32));
     }
     else
@@ -1391,21 +1339,16 @@ PDMBOTHCBDECL(int) kbdIOPortDataWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT
  */
 PDMBOTHCBDECL(int) kbdIOPortStatusRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb)
 {
-    uint16_t    fluff = 0;
-    KBDState    *pThis = PDMINS_2_DATA(pDevIns, KBDState *);
-
     NOREF(pvUser);
-    switch (cb) {
-    case 2:
-        fluff = 0xff00;
-    case 1:
-        *pu32 = fluff | kbd_read_status(pThis, Port);
+    if (cb == 1)
+    {
+        KBDState *pThis = PDMINS_2_DATA(pDevIns, KBDState *);
+        *pu32 = kbd_read_status(pThis, Port);
         Log2(("kbdIOPortStatusRead: Port=%#x cb=%d -> *pu32=%#x\n", Port, cb, *pu32));
         return VINF_SUCCESS;
-    default:
-        AssertMsgFailed(("Port=%#x cb=%d\n", Port, cb));
-        return VERR_IOM_IOPORT_UNUSED;
     }
+    AssertMsgFailed(("Port=%#x cb=%d\n", Port, cb));
+    return VERR_IOM_IOPORT_UNUSED;
 }
 
 /**
@@ -1423,10 +1366,10 @@ PDMBOTHCBDECL(int) kbdIOPortCommandWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOP
 {
     int rc = VINF_SUCCESS;
     NOREF(pvUser);
-    if (cb == 1 || cb == 2)
+    if (cb == 1)
     {
         KBDState *pThis = PDMINS_2_DATA(pDevIns, KBDState *);
-        rc = kbd_write_command(pThis, Port, (uint8_t)u32);
+        rc = kbd_write_command(pThis, Port, u32);
         Log2(("kbdIOPortCommandWrite: Port=%#x cb=%d u32=%#x rc=%Rrc\n", Port, cb, u32, rc));
     }
     else
@@ -1474,7 +1417,7 @@ static DECLCALLBACK(int) kbdLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32
     if (uVersion >= 6)
         rc = PS2KLoadState(&pThis->Kbd, pSSM, uVersion);
 #ifdef VBOX_WITH_NEW_PS2M
-    if (uVersion >= 8)
+    if (uVersion >= 7)
         rc = PS2MLoadState(&pThis->Aux, pSSM, uVersion);
 #endif
     return rc;
@@ -1723,6 +1666,7 @@ static DECLCALLBACK(int) kbdConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNO
     rc = CFGMR3QueryBoolDef(pCfg, "R0Enabled", &fR0Enabled, true);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc, N_("Failed to query \"R0Enabled\" from the config"));
+fGCEnabled = fR0Enabled = false;
     Log(("pckbd: fGCEnabled=%RTbool fR0Enabled=%RTbool\n", fGCEnabled, fR0Enabled));
 
 
@@ -1811,7 +1755,7 @@ const PDMDEVREG g_DevicePS2KeyboardMouse =
     /* szName */
     "pckbd",
     /* szRCMod */
-    "VBoxDDRC.rc",
+    "VBoxDDGC.gc",
     /* szR0Mod */
     "VBoxDDR0.r0",
     /* pszDescription */

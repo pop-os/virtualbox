@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2015 Oracle Corporation
+ * Copyright (C) 2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -132,11 +132,7 @@ static char *rtUriPercentDecodeN(const char *pszString, size_t cchMax)
             /* % encoding means the percent sign and exactly 2 hexadecimal
              * digits describing the ASCII number of the character. */
             ++iIn;
-            char szNum[3];
-            szNum[0] = pszString[iIn++];
-            szNum[1] = pszString[iIn++];
-            szNum[2] = '\0';
-
+            char szNum[] = { pszString[iIn++], pszString[iIn++], '\0' };
             uint8_t u8;
             rc = RTStrToUInt8Ex(szNum, NULL, 16, &u8);
             if (RT_FAILURE(rc))
@@ -653,7 +649,7 @@ RTR3DECL(char *) RTUriFileNPath(const char *pszUri, uint32_t uFormat, size_t cch
     if (rtUriCheckPathStart(pszUri, iPos3, cbLen - iPos3, &iPos4))
     {
         uint32_t uFIntern = uFormat;
-        /* Auto is based on the current OS. */
+        /* Auto is based on the current host OS. */
         if (uFormat == URI_FILE_FORMAT_AUTO)
 #ifdef RT_OS_WINDOWS
             uFIntern = URI_FILE_FORMAT_WIN;

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -31,17 +31,13 @@
 
 /** @name Saved state version numbers.
  * @{ */
-/** New concept of helper code (for CPUID). */
-#define PATM_SAVED_STATE_VERSION                    58
-/** New fixup type FIXUP_ABSOLUTE_IN_PATCH_ASM_TMPL. */
-#define PATM_SAVED_STATE_VERSION_FORGET_THIS_ONE    57
 /** Uses normal structure serialization with markers and everything. */
-#define PATM_SAVED_STATE_VERSION_NO_RAW_MEM         56
+#define PATM_SSM_VERSION                    56
 /** Last version which saves structures as raw memory. */
-#define PATM_SAVED_STATE_VERSION_MEM                55
-#define PATM_SAVED_STATE_VERSION_FIXUP_HACK         54
-#define PATM_SAVED_STATE_VERSION_FIXUP_HACK         54
-#define PATM_SAVED_STATE_VERSION_VER16              53
+#define PATM_SSM_VERSION_MEM                55
+#define PATM_SSM_VERSION_FIXUP_HACK         54
+#define PATM_SSM_VERSION_FIXUP_HACK         54
+#define PATM_SSM_VERSION_VER16              53
 /** @}  */
 
 /* Enable for call patching. */
@@ -69,7 +65,7 @@
 #define PATMFL_CODE_MONITORED               RT_BIT_64(24) /** code pages of guest monitored for self-modifying code. */
 #define PATMFL_CALLABLE_AS_FUNCTION         RT_BIT_64(25) /** cli and pushf blocks can be used as callable functions. */
 #define PATMFL_GLOBAL_FUNCTIONS             RT_BIT_64(26) /** fake patch for global patm functions. */
-#define PATMFL_TRAMPOLINE                   RT_BIT_64(27) /** trampoline patch that clears PATM_ASMFIX_INTERRUPTFLAG and jumps to patch destination */
+#define PATMFL_TRAMPOLINE                   RT_BIT_64(27) /** trampoline patch that clears PATM_INTERRUPTFLAG and jumps to patch destination */
 #define PATMFL_GENERATE_SETPIF              RT_BIT_64(28) /** generate set PIF for the next instruction */
 #define PATMFL_INSTR_HINT                   RT_BIT_64(29) /** Generate patch, but don't activate it. */
 #define PATMFL_PATCHED_GUEST_CODE           RT_BIT_64(30) /** Patched guest code. */
@@ -101,29 +97,9 @@
 /* Maximum nr of invalid writes before a patch is disabled. */
 #define PATM_MAX_INVALID_WRITES            16384
 
-/** @name FIXUP_XXX - RELOCREC::uType values.
- * @{ */
-/** Absolute fixup.  With one exception (MMIO cache), this does not take any
- * source or destination.  @sa FIXUP_ABSOLUTE_ASM.  */
 #define FIXUP_ABSOLUTE                     0
 #define FIXUP_REL_JMPTOPATCH               1
 #define FIXUP_REL_JMPTOGUEST               2
-/** Absolute fixup in patch assembly code template.
- *
- * The source and desination addresses both set to the patch fixup type (see
- * PATM_IS_ASMFIX and friends in PATMA.h).  This is recent addition (CPUID
- * subleaf code), so when loading older saved states this is usally represented
- * as FIXUP_ABSOLUTE. */
-#define FIXUP_ABSOLUTE_IN_PATCH_ASM_TMPL   3
-/** Constant value that only needs fixing up when loading state.  Structure
- * size, member offset, or similar.  The source and destination address are set
- * like for FIXUP_ABSOLUTE_IN_PATCH_ASM_TMPL.  */
-#define FIXUP_CONSTANT_IN_PATCH_ASM_TMPL   4
-/** Relative call to a patch helper routine in VMMRC.  The source and destination
- * address are set like for FIXUP_ABSOLUTE_IN_PATCH_ASM_TMPL.  */
-#define FIXUP_REL_HELPER_IN_PATCH_ASM_TMPL 5
-/** @} */
-
 
 #define PATM_ILLEGAL_DESTINATION           0xDEADBEEF
 
@@ -175,6 +151,9 @@ typedef struct
     RTRCPTR                     pSource;
     RTRCPTR                     pDest;
 } RELOCREC, *PRELOCREC;
+
+/* forward decl */
+struct _PATCHINFO;
 
 /* Cache record for guest to host pointer conversions. */
 typedef struct
@@ -278,7 +257,7 @@ typedef struct TRAMPREC *PTRAMPREC;
 /**
  * Patch information.
  */
-typedef struct PATCHINFO
+typedef struct _PATCHINFO
 {
     /** Current patch state (enabled, disabled, etc.). */
     uint32_t                    uState;
@@ -450,19 +429,10 @@ typedef struct PATM
     /** Delta to the new relocated HMA area.
      * Used only during PATMR3Relocate(). */
     int32_t                     deltaReloc;
-
-    /** The ring-3 address of the PatchHlp segment (for PATMReadPatchCode). */
-    R3PTRTYPE(uint8_t *)        pbPatchHelpersR3;
-    /** The raw-mode address of the PatchHlp segment. */
-    RCPTRTYPE(uint8_t *)        pbPatchHelpersRC;
-    /** Size of the PatchHlp segment containing the callable helper code.   */
-    uint32_t                    cbPatchHelpers;
-
     /** GC PATM state pointer - HC pointer. */
     R3PTRTYPE(PPATMGCSTATE)     pGCStateHC;
     /** GC PATM state pointer - RC pointer. */
     RCPTRTYPE(PPATMGCSTATE)     pGCStateGC;
-
     /** PATM stack page for call instruction execution.
      * 2 parts: one for our private stack and one to store the original return
      * address. */
@@ -471,15 +441,13 @@ typedef struct PATM
     R3PTRTYPE(RTRCPTR *)        pGCStackHC;
     /** GC pointer to CPUMCTX structure. */
     RCPTRTYPE(PCPUMCTX)         pCPUMCtxGC;
-
     /** GC statistics pointer. */
     RCPTRTYPE(PSTAMRATIOU32)    pStatsGC;
     /** HC statistics pointer. */
     R3PTRTYPE(PSTAMRATIOU32)    pStatsHC;
-
-    /** Current free index value (uPatchRun/uPatchTrap arrays). */
+    /* Current free index value (uPatchRun/uPatchTrap arrays). */
     uint32_t                    uCurrentPatchIdx;
-    /** Temporary counter for patch installation call depth. (in order not to go on forever) */
+    /* Temporary counter for patch installation call depth. (in order not to go on forever) */
     uint32_t                    ulCallDepth;
     /** Number of page lookup records. */
     uint32_t                    cPageRecords;
@@ -527,11 +495,7 @@ typedef struct PATM
     /** Debug module for the patch memory. */
     RTDBGMOD                    hDbgModPatchMem;
 
-    /** Virtual page access handler type (patmVirtPageHandler,
-     * PATMGCMonitorPage). */
-    PGMVIRTHANDLERTYPE          hMonitorPageType;
-
-#if HC_ARCH_BITS == 64
+#if HC_ARCH_BITS == 32
     /** Align statistics on a 8 byte boundary. */
     uint32_t                    u32Alignment1;
 #endif
@@ -598,6 +562,8 @@ typedef struct PATM
 
 
 
+DECLCALLBACK(int) patmVirtPageHandler(PVM pVM, RTGCPTR GCPtr, void *pvPtr, void *pvBuf, size_t cbBuf, PGMACCESSTYPE enmAccessType, void *pvUser);
+
 DECLCALLBACK(int) patmR3Save(PVM pVM, PSSMHANDLE pSSM);
 DECLCALLBACK(int) patmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass);
 
@@ -636,7 +602,20 @@ int             patmAddBranchToLookupCache(PVM pVM, RTRCPTR pJumpTableGC, RTRCPT
 R3PTRTYPE(uint8_t *) patmR3GCVirtToHCVirt(PVM pVM, PPATMP2GLOOKUPREC pCacheRec, RCPTRTYPE(uint8_t *) pGCPtr);
 
 RT_C_DECLS_BEGIN
-DECLEXPORT(FNPGMRCVIRTPFHANDLER) patmRCVirtPagePfHandler;
+/**
+ * #PF Virtual Handler callback for Guest access a page monitored by PATM
+ *
+ * @returns VBox status code (appropriate for trap handling and GC return).
+ * @param   pVM         Pointer to the VM.
+ * @param   uErrorCode   CPU Error code.
+ * @param   pRegFrame   Trap register frame.
+ * @param   pvFault     The fault address (cr2).
+ * @param   pvRange     The base address of the handled virtual range.
+ * @param   offRange    The offset of the access into this range.
+ *                      (If it's a EIP range this is the EIP, if not it's pvFault.)
+ */
+VMMRCDECL(int) PATMGCMonitorPage(PVM pVM, RTGCUINT uErrorCode, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, RTGCPTR pvRange, uintptr_t offRange);
+
 RT_C_DECLS_END
 
 /**
@@ -685,7 +664,5 @@ void patmR3DbgInit(PVM pVM);
 void patmR3DbgTerm(PVM pVM);
 void patmR3DbgReset(PVM pVM);
 void patmR3DbgAddPatch(PVM pVM, PPATMPATCHREC pPatchRec);
-
-PGM_ALL_CB2_DECL(FNPGMVIRTHANDLER) patmVirtPageHandler;
 
 #endif

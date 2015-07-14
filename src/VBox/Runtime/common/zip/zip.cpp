@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1964,7 +1964,7 @@ RTDECL(int) RTZipBlockDecompress(RTZIPTYPE enmType, uint32_t fFlags,
                 return zipErrConvertFromZlib(rc, false /*fCompressing*/);
 
             if (pcbSrcActual)
-                *pcbSrcActual = cbSrc - ZStrm.avail_in;
+                *pcbSrcActual = ZStrm.avail_in - cbSrc;
             if (pcbDstActual)
                 *pcbDstActual = ZStrm.total_out;
             break;

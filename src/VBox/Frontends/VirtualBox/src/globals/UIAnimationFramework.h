@@ -1,6 +1,7 @@
-/* $Id: UIAnimationFramework.h $ */
 /** @file
- * VBox Qt GUI - UIAnimationFramework class declaration.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * UIAnimationFramework class declaration
  */
 
 /*

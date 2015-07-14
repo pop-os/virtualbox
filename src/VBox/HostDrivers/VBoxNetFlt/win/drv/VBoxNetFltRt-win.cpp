@@ -4,7 +4,7 @@
  * NetFlt Runtime
  */
 /*
- * Copyright (C) 2011-2015 Oracle Corporation
+ * Copyright (C) 2011-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1073,7 +1073,7 @@ DECLHIDDEN(void) vboxNetFltWinQuFiniPacketQueue(PVBOXNETFLTINS pInstance)
     {
         pSG = pWorker->pSG;
         pWorker->pSG = NULL;
-        RTSpinlockRelease((pInstance)->hSpinlock);
+        RTSpinlockReleaseNoInts((pInstance)->hSpinlock);
         KeSetEvent(&pWorker->KillEvent, 0, FALSE);
 
         KeWaitForSingleObject(pWorker->pThread, Executive,
@@ -1087,7 +1087,7 @@ DECLHIDDEN(void) vboxNetFltWinQuFiniPacketQueue(PVBOXNETFLTINS pInstance)
     }
     else
     {
-        RTSpinlockRelease((pInstance)->hSpinlock);
+        RTSpinlockReleaseNoInts((pInstance)->hSpinlock);
     }
 }
 

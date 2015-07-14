@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2014-2015 Oracle Corporation
+ * Copyright (C) 2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -182,7 +182,7 @@ static RTEXITCODE rtZipUnzipCmdExtractCallback(PRTZIPUNZIPCMDOPS pOpts, RTVFSOBJ
     int rc = RTVfsObjQueryInfo(hVfsObj, &UnixInfo, RTFSOBJATTRADD_UNIX);
     if (RT_FAILURE(rc))
         return RTMsgErrorExit(RTEXITCODE_FAILURE, "RTVfsObjQueryInfo returned %Rrc on '%s'", rc, pszName);
-
+    
     *pcBytes = UnixInfo.cbObject;
 
     char szDst[RTPATH_MAX];
@@ -406,7 +406,7 @@ RTDECL(RTEXITCODE) RTZipUnzipCmd(unsigned cArgs, char **papszArgs)
 
     RTZIPUNZIPCMDOPS Opts;
     RT_ZERO(Opts);
-
+    
     RTGETOPTUNION  ValueUnion;
     while (   (rc = RTGetOpt(&GetState, &ValueUnion)) != 0
            && rc != VINF_GETOPT_NOT_OPTION)

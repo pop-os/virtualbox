@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2015 Oracle Corporation
+ * Copyright (C) 2007-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -170,8 +170,6 @@
 #define RTSOCKET_MAGIC_DEAD             UINT32_C(0x20060326)
 /** Magic value for RTSPINLOCKINTERNAL::u32Magic. (Terry Pratchett) */
 #define RTSPINLOCK_MAGIC                UINT32_C(0x19480428)
-/** Magic value for generic RTSPINLOCKINTERNAL::u32Magic (Georges Prosper Remi). */
-#define RTSPINLOCK_GEN_MAGIC            UINT32_C(0x10970522)
 /** Magic value for RTSTRCACHE::u32Magic. (Sir Arthur Charles Clarke) */
 #define RTSTRCACHE_MAGIC                UINT32_C(0x19171216)
 /** Magic value for RTSTRCACHE::u32Magic after RTStrCacheDestroy. */
@@ -192,8 +190,8 @@
 #define RTTARFILE_MAGIC_DEAD            UINT32_C(0x19120420)
 /** RTTESTINT::u32Magic value. (Daniel Kehlmann) */
 #define RTTESTINT_MAGIC                 UINT32_C(0x19750113)
-/** RTTHREADCTXHOOKINT::u32Magic value. (Dennis MacAlistair Ritchie) */
-#define RTTHREADCTXHOOKINT_MAGIC        UINT32_C(0x19410909)
+/** RTTHREADCTXINT::u32Magic value. (Dennis MacAlistair Ritchie) */
+#define RTTHREADCTXINT_MAGIC            UINT32_C(0x19410909)
 /** RTTHREADINT::u32Magic value. (Gilbert Keith Chesterton) */
 #define RTTHREADINT_MAGIC               UINT32_C(0x18740529)
 /** RTTHREADINT::u32Magic value for a dead thread. */

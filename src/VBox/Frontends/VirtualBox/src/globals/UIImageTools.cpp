@@ -1,6 +1,8 @@
 /* $Id: UIImageTools.cpp $ */
 /** @file
- * VBox Qt GUI - Implementation of utility classes and functions for image manipulation.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * Implementation of utility classes and functions for image manipulation
  */
 
 /*
@@ -15,21 +17,14 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Local include */
-# include "UIImageTools.h"
+#include "UIImageTools.h"
 
 /* Qt includes */
-# include <QPainter>
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include <QPainter>
 
 /* System includes */
 #include <math.h>
-
 
 /* Todo: Think about the naming convention and if the images should be
  * processed in place or return changed copies. Make it more uniform. Add

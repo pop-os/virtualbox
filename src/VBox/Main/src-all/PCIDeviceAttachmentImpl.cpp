@@ -42,7 +42,6 @@ struct PCIDeviceAttachment::Data
 
 // constructor / destructor
 /////////////////////////////////////////////////////////////////////////////
-DEFINE_EMPTY_CTOR_DTOR(PCIDeviceAttachment)
 
 HRESULT PCIDeviceAttachment::FinalConstruct()
 {
@@ -71,15 +70,15 @@ HRESULT PCIDeviceAttachment::init(IMachine      *aParent,
     return m != NULL ? S_OK : E_FAIL;
 }
 
-HRESULT PCIDeviceAttachment::i_loadSettings(IMachine *aParent,
-                                            const settings::HostPCIDeviceAttachment &hpda)
+HRESULT PCIDeviceAttachment::loadSettings(IMachine *aParent,
+                                          const settings::HostPCIDeviceAttachment &hpda)
 {
     Bstr bname(hpda.strDeviceName);
     return init(aParent, bname,  hpda.uHostAddress, hpda.uGuestAddress, TRUE);
 }
 
 
-HRESULT PCIDeviceAttachment::i_saveSettings(settings::HostPCIDeviceAttachment &data)
+HRESULT PCIDeviceAttachment::saveSettings(settings::HostPCIDeviceAttachment &data)
 {
     Assert(m);
     data.uHostAddress = m->HostAddress;
@@ -104,25 +103,34 @@ void PCIDeviceAttachment::uninit()
 
 // IPCIDeviceAttachment properties
 /////////////////////////////////////////////////////////////////////////////
-HRESULT PCIDeviceAttachment::getName(com::Utf8Str &aName)
+
+STDMETHODIMP PCIDeviceAttachment::COMGETTER(Name)(BSTR * aName)
 {
-    aName = m->DevName;
+    CheckComArgOutPointerValid(aName);
+    m->DevName.cloneTo(aName);
     return S_OK;
 }
 
-HRESULT PCIDeviceAttachment::getIsPhysicalDevice(BOOL *aIsPhysicalDevice)
+STDMETHODIMP PCIDeviceAttachment::COMGETTER(IsPhysicalDevice)(BOOL * aPhysical)
 {
-    *aIsPhysicalDevice = m->fPhysical;
+    CheckComArgOutPointerValid(aPhysical);
+    *aPhysical = m->fPhysical;
     return S_OK;
 }
 
-HRESULT PCIDeviceAttachment::getHostAddress(LONG *aHostAddress)
+STDMETHODIMP PCIDeviceAttachment::COMGETTER(HostAddress)(LONG * aHostAddress)
 {
     *aHostAddress = m->HostAddress;
     return S_OK;
 }
-HRESULT PCIDeviceAttachment::getGuestAddress(LONG *aGuestAddress)
+
+STDMETHODIMP PCIDeviceAttachment::COMGETTER(GuestAddress)(LONG * aGuestAddress)
 {
     *aGuestAddress = m->GuestAddress;
     return S_OK;
 }
+
+#ifdef VBOX_WITH_XPCOM
+NS_DECL_CLASSINFO(PCIDeviceAttachment)
+NS_IMPL_THREADSAFE_ISUPPORTS1_CI(PCIDeviceAttachment, IPCIDeviceAttachment)
+#endif

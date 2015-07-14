@@ -3,7 +3,7 @@
 #
 
 #
-# Copyright (C) 2006-2015 Oracle Corporation
+# Copyright (C) 2006-2012 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -75,7 +75,7 @@ install -m 755 -d $RPM_BUILD_ROOT/usr/share/virtualbox
 install -m 755 -d $RPM_BUILD_ROOT/usr/share/mime/packages
 mv VBoxEFI32.fd $RPM_BUILD_ROOT/usr/lib/virtualbox || true
 mv VBoxEFI64.fd $RPM_BUILD_ROOT/usr/lib/virtualbox || true
-mv *.rc $RPM_BUILD_ROOT/usr/lib/virtualbox
+mv *.gc $RPM_BUILD_ROOT/usr/lib/virtualbox
 mv *.r0 $RPM_BUILD_ROOT/usr/lib/virtualbox
 mv *.rel $RPM_BUILD_ROOT/usr/lib/virtualbox || true
 mv VBoxNetDHCP $RPM_BUILD_ROOT/usr/lib/virtualbox
@@ -115,7 +115,7 @@ cd icons
 cd -
 rmdir icons
 mv virtualbox.xml $RPM_BUILD_ROOT/usr/share/mime/packages
-for i in VBoxManage VBoxSVC VBoxSDL VirtualBox VBoxHeadless VBoxDTrace VBoxExtPackHelperApp VBoxBalloonCtrl VBoxAutostart vbox-img; do
+for i in VBoxManage VBoxSVC VBoxSDL VirtualBox VBoxHeadless VBoxExtPackHelperApp VBoxBalloonCtrl VBoxAutostart; do
   mv $i $RPM_BUILD_ROOT/usr/lib/virtualbox; done
 if %WEBSVC%; then
   for i in vboxwebsrv webtest; do
@@ -169,7 +169,9 @@ if [ -d accessible ]; then
   mv accessible $RPM_BUILD_ROOT/usr/lib/virtualbox
 fi
 install -D -m 755 vboxdrv.init $RPM_BUILD_ROOT%{_initrddir}/vboxdrv
-ln -sf %{_initrddir}/vboxdrv $RPM_BUILD_ROOT/sbin/rcvboxdrv
+%if %{?rpm_suse:1}%{!?rpm_suse:0}
+ln -sf ../etc/init.d/vboxdrv $RPM_BUILD_ROOT/sbin/rcvboxdrv
+%endif
 install -D -m 755 vboxballoonctrl-service.init $RPM_BUILD_ROOT%{_initrddir}/vboxballoonctrl-service
 install -D -m 755 vboxautostart-service.init $RPM_BUILD_ROOT%{_initrddir}/vboxautostart-service
 install -D -m 755 vboxweb-service.init $RPM_BUILD_ROOT%{_initrddir}/vboxweb-service
@@ -187,14 +189,11 @@ ln -s VBox $RPM_BUILD_ROOT/usr/bin/vboxsdl
 ln -s VBox $RPM_BUILD_ROOT/usr/bin/VBoxVRDP
 ln -s VBox $RPM_BUILD_ROOT/usr/bin/VBoxHeadless
 ln -s VBox $RPM_BUILD_ROOT/usr/bin/vboxheadless
-ln -s VBox $RPM_BUILD_ROOT/usr/bin/VBoxDTrace
-ln -s VBox $RPM_BUILD_ROOT/usr/bin/vboxdtrace
 ln -s VBox $RPM_BUILD_ROOT/usr/bin/VBoxBalloonCtrl
 ln -s VBox $RPM_BUILD_ROOT/usr/bin/vboxballoonctrl
 ln -s VBox $RPM_BUILD_ROOT/usr/bin/VBoxAutostart
 ln -s VBox $RPM_BUILD_ROOT/usr/bin/vboxautostart
 ln -s VBox $RPM_BUILD_ROOT/usr/bin/vboxwebsrv
-ln -s /usr/lib/virtualbox/vbox-img $RPM_BUILD_ROOT/usr/bin/vbox-img
 ln -s /usr/share/virtualbox/src/vboxhost $RPM_BUILD_ROOT/usr/src/vboxhost-%VER%
 mv virtualbox.desktop $RPM_BUILD_ROOT/usr/share/applications/virtualbox.desktop
 mv VBox.png $RPM_BUILD_ROOT/usr/share/pixmaps/VBox.png
@@ -450,7 +449,7 @@ rm -rf $RPM_BUILD_ROOT
 %{_initrddir}/vboxweb-service
 %{?rpm_suse: %{py_sitedir}/*}
 %{!?rpm_suse: %{python_sitelib}/*}
-/sbin/rcvboxdrv
+%{?rpm_suse: /sbin/rcvboxdrv}
 %{?rpm_suse: /sbin/rcvboxballoonctrl-service}
 %{?rpm_suse: /sbin/rcvboxautostart-service}
 %{?rpm_suse: /sbin/rcvboxweb-service}

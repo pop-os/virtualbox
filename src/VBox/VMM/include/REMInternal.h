@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -78,7 +78,7 @@ typedef struct REMHANDLERNOTIFICATION
         {
             RTGCPHYS            GCPhys;
             RTGCPHYS            cb;
-            PGMPHYSHANDLERKIND  enmKind;
+            PGMPHYSHANDLERTYPE  enmType;
             bool                fHasHCHandler;
         } PhysicalRegister;
 
@@ -86,7 +86,7 @@ typedef struct REMHANDLERNOTIFICATION
         {
             RTGCPHYS            GCPhys;
             RTGCPHYS            cb;
-            PGMPHYSHANDLERKIND  enmKind;
+            PGMPHYSHANDLERTYPE  enmType;
             bool                fHasHCHandler;
             bool                fRestoreAsRAM;
         } PhysicalDeregister;
@@ -96,7 +96,7 @@ typedef struct REMHANDLERNOTIFICATION
             RTGCPHYS            GCPhysOld;
             RTGCPHYS            GCPhysNew;
             RTGCPHYS            cb;
-            PGMPHYSHANDLERKIND  enmKind;
+            PGMPHYSHANDLERTYPE  enmType;
             bool                fHasHCHandler;
             bool                fRestoreAsRAM;
         } PhysicalModify;

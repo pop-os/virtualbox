@@ -1,11 +1,10 @@
-/* $Id: VBoxSDL.cpp $ */
 /** @file
  * VBox frontends: VBoxSDL (simple frontend based on SDL):
  * Main code
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -202,13 +201,12 @@ static ComPtr<IConsole> gpConsole;
 static ComPtr<IMachineDebugger> gpMachineDebugger;
 static ComPtr<IKeyboard> gpKeyboard;
 static ComPtr<IMouse> gpMouse;
-ComPtr<IDisplay> gpDisplay;
+static ComPtr<IDisplay> gpDisplay;
 static ComPtr<IVRDEServer> gpVRDEServer;
 static ComPtr<IProgress> gpProgress;
 
 static ULONG       gcMonitors = 1;
-static ComObjPtr<VBoxSDLFB> gpFramebuffer[64];
-static Bstr gaFramebufferId[64];
+static VBoxSDLFB  *gpFramebuffer[64];
 static SDL_Cursor *gpDefaultCursor = NULL;
 #ifdef VBOXSDL_WITH_X11
 static Cursor      gpDefaultOrigX11Cursor;
@@ -528,8 +526,6 @@ public:
                 SDL_VERSION(&info.version);
                 if (!SDL_GetWMInfo(&info))
                     pCSWEv->AddVeto(NULL);
-                else
-                    pCSWEv->AddApproval(NULL);
 #endif
                 break;
             }
@@ -538,10 +534,6 @@ public:
             {
                 ComPtr<IShowWindowEvent> pSWEv = aEvent;
                 Assert(pSWEv);
-                LONG64 winId = 0;
-                pSWEv->COMGETTER(WinId)(&winId);
-                if (winId != 0)
-                    break; /* WinId already set by some other listener. */
 #ifndef RT_OS_DARWIN
                 SDL_SysWMinfo info;
                 SDL_VERSION(&info.version);
@@ -609,7 +601,6 @@ static void show_usage()
 {
     RTPrintf("Usage:\n"
              "  --startvm <uuid|name>    Virtual machine to start, either UUID or name\n"
-             "  --separate               Run a separate VM process or attach to a running VM\n"
              "  --hda <file>             Set temporary first hard disk to file\n"
              "  --fda <file>             Set temporary first floppy disk to file\n"
              "  --cdrom <file>           Set temporary CDROM/DVD to file/device ('none' to unmount)\n"
@@ -831,7 +822,6 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
     int vrc;
     Guid uuidVM;
     char *vmName = NULL;
-    bool fSeparate = false;
     DeviceType_T bootDevice = DeviceType_Null;
     uint32_t memorySize = 0;
     uint32_t vramSize = 0;
@@ -984,11 +974,6 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
                 RTPrintf("Error: UUID argument is zero!\n");
                 return 1;
             }
-        }
-        else if (   !strcmp(argv[curArg], "--separate")
-                 || !strcmp(argv[curArg], "-separate"))
-        {
-            fSeparate = true;
         }
         else if (   !strcmp(argv[curArg], "--comment")
                  || !strcmp(argv[curArg], "-comment"))
@@ -1496,70 +1481,7 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
         goto leave;
     }
 
-    if (fSeparate)
-    {
-        MachineState_T machineState = MachineState_Null;
-        pMachine->COMGETTER(State)(&machineState);
-        if (   machineState == MachineState_Running
-            || machineState == MachineState_Teleporting
-            || machineState == MachineState_LiveSnapshotting
-            || machineState == MachineState_Paused
-            || machineState == MachineState_TeleportingPausedVM
-           )
-        {
-            RTPrintf("VM is already running.\n");
-        }
-        else
-        {
-            ComPtr<IProgress> progress;
-            rc = pMachine->LaunchVMProcess(pSession, Bstr("headless").raw(), NULL, progress.asOutParam());
-            if (SUCCEEDED(rc) && !progress.isNull())
-            {
-                RTPrintf("Waiting for VM to power on...\n");
-                rc = progress->WaitForCompletion(-1);
-                if (SUCCEEDED(rc))
-                {
-                    BOOL completed = true;
-                    rc = progress->COMGETTER(Completed)(&completed);
-                    if (SUCCEEDED(rc))
-                    {
-                        LONG iRc;
-                        rc = progress->COMGETTER(ResultCode)(&iRc);
-                        if (SUCCEEDED(rc))
-                        {
-                            if (FAILED(iRc))
-                            {
-                                ProgressErrorInfo info(progress);
-                                com::GluePrintErrorInfo(info);
-                            }
-                            else
-                            {
-                                RTPrintf("VM has been successfully started.\n");
-                                /* LaunchVMProcess obtains a shared lock on the machine.
-                                 * Unlock it here, because the lock will be obtained below
-                                 * in the common code path as for already running VM.
-                                 */
-                                pSession->UnlockMachine();
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        if (FAILED(rc))
-        {
-            RTPrintf("Error: failed to power up VM! No error text available.\n");
-            goto leave;
-        }
-
-        rc = pMachine->LockMachine(pSession, LockType_Shared);
-    }
-    else
-    {
-        pSession->COMSETTER(Name)(Bstr("GUI/SDL").raw());
-        rc = pMachine->LockMachine(pSession, LockType_VM);
-    }
-
+    rc = pMachine->LockMachine(pSession, LockType_VM);
     if (FAILED(rc))
     {
         com::ErrorInfo info;
@@ -1586,7 +1508,6 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
             RTPrintf("Error: given machine not found!\n");
         goto leave;
     }
-
     // get the VM console
     pSession->COMGETTER(Console)(gpConsole.asOutParam());
     if (!gpConsole)
@@ -1845,7 +1766,7 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
         gpMachine->COMGETTER(State)(&machineState);
         if (machineState == MachineState_Saved)
         {
-            CHECK_ERROR(gpMachine, DiscardSavedState(true /* fDeleteFile */));
+            CHECK_ERROR(gpConsole, DiscardSavedState(true /* fDeleteFile */));
         }
         /*
          * If there are snapshots, discard the current state,
@@ -1862,7 +1783,7 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
             if (FAILED(rc))
                 goto leave;
 
-            CHECK_ERROR(gpMachine, RestoreSnapshot(pCurrentSnapshot, gpProgress.asOutParam()));
+            CHECK_ERROR(gpConsole, RestoreSnapshot(pCurrentSnapshot, gpProgress.asOutParam()));
             rc = gpProgress->WaitForCompletion(-1);
         }
     }
@@ -1935,10 +1856,10 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
     for (unsigned i = 0; i < gcMonitors; i++)
     {
         // create our SDL framebuffer instance
-        gpFramebuffer[i].createObject();
-        rc = gpFramebuffer[i]->init(i, fFullscreen, fResizable, fShowSDLConfig, false,
-                                    fixedWidth, fixedHeight, fixedBPP, fSeparate);
-        if (FAILED(rc))
+        gpFramebuffer[i] = new VBoxSDLFB(i, fFullscreen, fResizable, fShowSDLConfig, false,
+                                         fixedWidth, fixedHeight, fixedBPP);
+
+        if (!gpFramebuffer[i])
         {
             RTPrintf("Error: could not create framebuffer object!\n");
             goto leave;
@@ -1967,7 +1888,7 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
             goto leave;
         }
         /* load the SDL_ttf library and get the required imports */
-        vrc = RTLdrLoadSystem(LIBSDL_TTF_NAME, true /*fNoUnload*/, &gLibrarySDL_ttf);
+        vrc = RTLdrLoad(LIBSDL_TTF_NAME, &gLibrarySDL_ttf);
         if (RT_SUCCESS(vrc))
             vrc = RTLdrGetSymbol(gLibrarySDL_ttf, "TTF_Init", (void**)&pTTF_Init);
         if (RT_SUCCESS(vrc))
@@ -2016,16 +1937,15 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
     for (ULONG i = 0; i < gcMonitors; i++)
     {
         // register our framebuffer
-        rc = gpDisplay->AttachFramebuffer(i, gpFramebuffer[i], gaFramebufferId[i].asOutParam());
+        rc = gpDisplay->SetFramebuffer(i, gpFramebuffer[i]);
         if (FAILED(rc))
         {
             RTPrintf("Error: could not register framebuffer object!\n");
             goto leave;
         }
-        ULONG dummy;
+        IFramebuffer *dummyFb;
         LONG xOrigin, yOrigin;
-        GuestMonitorStatus_T monitorStatus;
-        rc = gpDisplay->GetScreenResolution(i, &dummy, &dummy, &dummy, &xOrigin, &yOrigin, &monitorStatus);
+        rc = gpDisplay->GetFramebuffer(i, &dummyFb, &xOrigin, &yOrigin);
         gpFramebuffer[i]->setOrigin(xOrigin, yOrigin);
     }
 
@@ -2210,19 +2130,16 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
      */
     SDL_Event event;
 
-    if (!fSeparate)
+    LogFlow(("Powering up the VM...\n"));
+    rc = gpConsole->PowerUp(gpProgress.asOutParam());
+    if (rc != S_OK)
     {
-        LogFlow(("Powering up the VM...\n"));
-        rc = gpConsole->PowerUp(gpProgress.asOutParam());
-        if (rc != S_OK)
-        {
-            com::ErrorInfo info(gpConsole, COM_IIDOF(IConsole));
-            if (info.isBasicAvailable())
-                PrintError("Failed to power up VM", info.getText().raw());
-            else
-                RTPrintf("Error: failed to power up VM! No error text available.\n");
-            goto leave;
-        }
+        com::ErrorInfo info(gpConsole, COM_IIDOF(IConsole));
+        if (info.isBasicAvailable())
+            PrintError("Failed to power up VM", info.getText().raw());
+        else
+            RTPrintf("Error: failed to power up VM! No error text available.\n");
+        goto leave;
     }
 
 #ifdef USE_XPCOM_QUEUE_THREAD
@@ -2295,18 +2212,19 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
                     }
 
                     /*
-                     * User specific framebuffer change event.
+                     * User specific resize event.
                      */
-                    case SDL_USER_EVENT_NOTIFYCHANGE:
+                    case SDL_USER_EVENT_RESIZE:
                     {
-                        LogFlow(("SDL_USER_EVENT_NOTIFYCHANGE\n"));
+                        LogFlow(("SDL_USER_EVENT_RESIZE\n"));
+                        IFramebuffer *dummyFb;
                         LONG xOrigin, yOrigin;
-                        gpFramebuffer[event.user.code]->notifyChange(event.user.code);
+                        gpFramebuffer[event.user.code]->resizeGuest();
                         /* update xOrigin, yOrigin -> mouse */
-                        ULONG dummy;
-                        GuestMonitorStatus_T monitorStatus;
-                        rc = gpDisplay->GetScreenResolution(event.user.code, &dummy, &dummy, &dummy, &xOrigin, &yOrigin, &monitorStatus);
+                        rc = gpDisplay->GetFramebuffer(event.user.code, &dummyFb, &xOrigin, &yOrigin);
                         gpFramebuffer[event.user.code]->setOrigin(xOrigin, yOrigin);
+                        /* notify the display that the resize has been completed */
+                        gpDisplay->ResizeCompleted(event.user.code);
                         break;
                     }
 
@@ -2342,7 +2260,7 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
 
                     default:
                     {
-                        Log8(("VBoxSDL: Unknown SDL event %d (pre)\n", event.type));
+                        LogBird(("VBoxSDL: Unknown SDL event %d (pre)\n", event.type));
                         break;
                     }
                 }
@@ -2391,42 +2309,6 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
     {
         RTPrintf("Error: could not get mouse object!\n");
         goto leave;
-    }
-
-    if (fSeparate && gpMouse)
-    {
-        LogFlow(("Fetching mouse caps\n"));
-
-        /* Fetch current mouse status, etc */
-        gpMouse->COMGETTER(AbsoluteSupported)(&gfAbsoluteMouseGuest);
-        gpMouse->COMGETTER(RelativeSupported)(&gfRelativeMouseGuest);
-        gpMouse->COMGETTER(NeedsHostCursor)(&gfGuestNeedsHostCursor);
-
-        HandleGuestCapsChanged();
-
-        ComPtr<IMousePointerShape> mps;
-        gpMouse->COMGETTER(PointerShape)(mps.asOutParam());
-        if (!mps.isNull())
-        {
-            BOOL  visible,  alpha;
-            ULONG hotX, hotY, width, height;
-            com::SafeArray <BYTE> shape;
-
-            mps->COMGETTER(Visible)(&visible);
-            mps->COMGETTER(Alpha)(&alpha);
-            mps->COMGETTER(HotX)(&hotX);
-            mps->COMGETTER(HotY)(&hotY);
-            mps->COMGETTER(Width)(&width);
-            mps->COMGETTER(Height)(&height);
-            mps->COMGETTER(Shape)(ComSafeArrayAsOutParam(shape));
-
-            if (shape.size() > 0)
-            {
-                PointerShapeChangeData data(visible, alpha, hotX, hotY, width, height,
-                                            ComSafeArrayAsInParam(shape));
-                SetPointerShape(&data);
-            }
-        }
     }
 
     UpdateTitlebar(TITLEBAR_NORMAL);
@@ -2815,18 +2697,19 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
             }
 
             /*
-             * User specific framebuffer change event.
+             * User specific resize event.
              */
-            case SDL_USER_EVENT_NOTIFYCHANGE:
+            case SDL_USER_EVENT_RESIZE:
             {
-                LogFlow(("SDL_USER_EVENT_NOTIFYCHANGE\n"));
+                LogFlow(("SDL_USER_EVENT_RESIZE\n"));
+                IFramebuffer *dummyFb;
                 LONG xOrigin, yOrigin;
-                gpFramebuffer[event.user.code]->notifyChange(event.user.code);
+                gpFramebuffer[event.user.code]->resizeGuest();
                 /* update xOrigin, yOrigin -> mouse */
-                ULONG dummy;
-                GuestMonitorStatus_T monitorStatus;
-                rc = gpDisplay->GetScreenResolution(event.user.code, &dummy, &dummy, &dummy, &xOrigin, &yOrigin, &monitorStatus);
+                rc = gpDisplay->GetFramebuffer(event.user.code, &dummyFb, &xOrigin, &yOrigin);
                 gpFramebuffer[event.user.code]->setOrigin(xOrigin, yOrigin);
+                /* notify the display that the resize has been completed */
+                gpDisplay->ResizeCompleted(event.user.code);
                 break;
             }
 
@@ -2904,7 +2787,7 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
 
             default:
             {
-                Log8(("unknown SDL event %d\n", event.type));
+                LogBird(("unknown SDL event %d\n", event.type));
                 break;
             }
         }
@@ -2931,41 +2814,38 @@ leave:
     else
         machineState = MachineState_Aborted;
 
-    if (!fSeparate)
-    {
-        /*
-         * Turn off the VM if it's running
-         */
-        if (   gpConsole
-            && (   machineState == MachineState_Running
-                || machineState == MachineState_Teleporting
-                || machineState == MachineState_LiveSnapshotting
-                /** @todo power off paused VMs too? */
-               )
+    /*
+     * Turn off the VM if it's running
+     */
+    if (   gpConsole
+        && (   machineState == MachineState_Running
+            || machineState == MachineState_Teleporting
+            || machineState == MachineState_LiveSnapshotting
+            /** @todo power off paused VMs too? */
            )
-        do
+       )
+    do
+    {
+        pConsoleListener->getWrapped()->ignorePowerOffEvents(true);
+        ComPtr<IProgress> pProgress;
+        CHECK_ERROR_BREAK(gpConsole, PowerDown(pProgress.asOutParam()));
+        CHECK_ERROR_BREAK(pProgress, WaitForCompletion(-1));
+        BOOL completed;
+        CHECK_ERROR_BREAK(pProgress, COMGETTER(Completed)(&completed));
+        ASSERT(completed);
+        LONG hrc;
+        CHECK_ERROR_BREAK(pProgress, COMGETTER(ResultCode)(&hrc));
+        if (FAILED(hrc))
         {
-            pConsoleListener->getWrapped()->ignorePowerOffEvents(true);
-            ComPtr<IProgress> pProgress;
-            CHECK_ERROR_BREAK(gpConsole, PowerDown(pProgress.asOutParam()));
-            CHECK_ERROR_BREAK(pProgress, WaitForCompletion(-1));
-            BOOL completed;
-            CHECK_ERROR_BREAK(pProgress, COMGETTER(Completed)(&completed));
-            ASSERT(completed);
-            LONG hrc;
-            CHECK_ERROR_BREAK(pProgress, COMGETTER(ResultCode)(&hrc));
-            if (FAILED(hrc))
-            {
-                com::ErrorInfo info;
-                if (info.isFullAvailable())
-                    PrintError("Failed to power down VM",
-                               info.getText().raw(), info.getComponent().raw());
-                else
-                    RTPrintf("Failed to power down virtual machine! No error information available (rc = 0x%x).\n", hrc);
-                break;
-            }
-        } while (0);
-    }
+            com::ErrorInfo info;
+            if (info.isFullAvailable())
+                PrintError("Failed to power down VM",
+                           info.getText().raw(), info.getComponent().raw());
+            else
+                RTPrintf("Failed to power down virtual machine! No error information available (rc = 0x%x).\n", hrc);
+            break;
+        }
+    } while (0);
 
     /* unregister Console listener */
     if (pConsoleListener)
@@ -2985,7 +2865,7 @@ leave:
         && machineState != MachineState_Saved)
     {
         rc = gpMachine->DiscardSettings();
-        AssertMsg(SUCCEEDED(rc), ("DiscardSettings %Rhrc, machineState %d\n", rc, machineState));
+        AssertComRC(rc);
     }
 
     /* close the session */
@@ -3036,7 +2916,7 @@ leave:
     if (gpDisplay)
     {
         for (unsigned i = 0; i < gcMonitors; i++)
-            gpDisplay->DetachFramebuffer(i, gaFramebufferId[i].raw());
+            gpDisplay->SetFramebuffer(i, NULL);
     }
 
     gpMouse = NULL;
@@ -4207,7 +4087,7 @@ void SaveState(void)
     RTThreadYield();
     UpdateTitlebar(TITLEBAR_SAVE);
     gpProgress = NULL;
-    HRESULT rc = gpMachine->SaveState(gpProgress.asOutParam());
+    HRESULT rc = gpConsole->SaveState(gpProgress.asOutParam());
     if (FAILED(rc))
     {
         RTPrintf("Error saving state! rc = 0x%x\n", rc);
@@ -4302,7 +4182,7 @@ void SaveState(void)
                 /*
                  * Ignore all other events.
                  */
-                case SDL_USER_EVENT_NOTIFYCHANGE:
+                case SDL_USER_EVENT_RESIZE:
                 case SDL_USER_EVENT_TERMINATE:
                 default:
                     break;
@@ -4957,10 +4837,8 @@ static int HandleHostKey(const SDL_KeyboardEvent *pEv)
             RTStrPrintf(pszSnapshotName, sizeof(pszSnapshotName), "Snapshot %d", cSnapshots + 1);
             gpProgress = NULL;
             HRESULT rc;
-            Bstr snapId;
-            CHECK_ERROR(gpMachine, TakeSnapshot(Bstr(pszSnapshotName).raw(),
+            CHECK_ERROR(gpConsole, TakeSnapshot(Bstr(pszSnapshotName).raw(),
                                                 Bstr("Taken by VBoxSDL").raw(),
-                                                TRUE, snapId.asOutParam(),
                                                 gpProgress.asOutParam()));
             if (FAILED(rc))
             {

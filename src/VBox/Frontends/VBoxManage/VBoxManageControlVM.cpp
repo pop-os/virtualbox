@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -81,7 +81,7 @@ unsigned int getMaxNics(IVirtualBox* vbox, IMachine* mach)
 }
 
 
-RTEXITCODE handleControlVM(HandlerArg *a)
+int handleControlVM(HandlerArg *a)
 {
     using namespace com;
     bool fNeedsSaving = false;
@@ -95,10 +95,10 @@ RTEXITCODE handleControlVM(HandlerArg *a)
     CHECK_ERROR(a->virtualBox, FindMachine(Bstr(a->argv[0]).raw(),
                                            machine.asOutParam()));
     if (FAILED(rc))
-        return RTEXITCODE_FAILURE;
+        return 1;
 
     /* open a session for the VM */
-    CHECK_ERROR_RET(machine, LockMachine(a->session, LockType_Shared), RTEXITCODE_FAILURE);
+    CHECK_ERROR_RET(machine, LockMachine(a->session, LockType_Shared), 1);
 
     ComPtr<IConsole> console;
     ComPtr<IMachine> sessionMachine;
@@ -109,9 +109,6 @@ RTEXITCODE handleControlVM(HandlerArg *a)
         CHECK_ERROR_BREAK(a->session, COMGETTER(Console)(console.asOutParam()));
         /* ... and session machine */
         CHECK_ERROR_BREAK(a->session, COMGETTER(Machine)(sessionMachine.asOutParam()));
-
-        if (!console)
-            return RTMsgErrorExit(RTEXITCODE_FAILURE, "Machine '%s' is not currently running", a->argv[0]);
 
         /* which command? */
         if (!strcmp(a->argv[1], "pause"))
@@ -199,20 +196,20 @@ RTEXITCODE handleControlVM(HandlerArg *a)
         {
             if (a->argc <= 1 + 1)
             {
-                errorArgument("Missing argument to '%s'. Expected drag and drop mode.", a->argv[1]);
+                errorArgument("Missing argument to '%s'. Expected drag'n'drop mode.", a->argv[1]);
                 rc = E_FAIL;
                 break;
             }
 
-            DnDMode_T mode;
+            DragAndDropMode_T mode;
             if (!strcmp(a->argv[2], "disabled"))
-                mode = DnDMode_Disabled;
+                mode = DragAndDropMode_Disabled;
             else if (!strcmp(a->argv[2], "hosttoguest"))
-                mode = DnDMode_HostToGuest;
+                mode = DragAndDropMode_HostToGuest;
             else if (!strcmp(a->argv[2], "guesttohost"))
-                mode = DnDMode_GuestToHost;
+                mode = DragAndDropMode_GuestToHost;
             else if (!strcmp(a->argv[2], "bidirectional"))
-                mode = DnDMode_Bidirectional;
+                mode = DragAndDropMode_Bidirectional;
             else
             {
                 errorArgument("Invalid '%s' argument '%s'.", a->argv[1], a->argv[2]);
@@ -220,7 +217,7 @@ RTEXITCODE handleControlVM(HandlerArg *a)
             }
             if (SUCCEEDED(rc))
             {
-                CHECK_ERROR_BREAK(sessionMachine, COMSETTER(DnDMode)(mode));
+                CHECK_ERROR_BREAK(sessionMachine, COMSETTER(DragAndDropMode)(mode));
                 if (SUCCEEDED(rc))
                     fNeedsSaving = true;
             }
@@ -264,7 +261,7 @@ RTEXITCODE handleControlVM(HandlerArg *a)
             }
 
             ComPtr<IProgress> progress;
-            CHECK_ERROR(sessionMachine, SaveState(progress.asOutParam()));
+            CHECK_ERROR(console, SaveState(progress.asOutParam()));
             if (FAILED(rc))
             {
                 if (!fPaused)
@@ -354,6 +351,7 @@ RTEXITCODE handleControlVM(HandlerArg *a)
         {
             /* Get the number of network adapters */
             ULONG NetworkAdapterCount = getMaxNics(a->virtualBox, sessionMachine);
+
             unsigned n = parseNum(&a->argv[1][12], NetworkAdapterCount, "NIC");
             if (!n)
             {
@@ -422,7 +420,7 @@ RTEXITCODE handleControlVM(HandlerArg *a)
                 {
                     if (a->argv[2])
                     {
-                        CHECK_ERROR_RET(adapter, COMSETTER(TraceFile)(Bstr(a->argv[2]).raw()), RTEXITCODE_FAILURE);
+                        CHECK_ERROR_RET(adapter, COMSETTER(TraceFile)(Bstr(a->argv[2]).raw()), 1);
                     }
                     else
                     {
@@ -441,6 +439,7 @@ RTEXITCODE handleControlVM(HandlerArg *a)
         {
             /* Get the number of network adapters */
             ULONG NetworkAdapterCount = getMaxNics(a->virtualBox, sessionMachine);
+
             unsigned n = parseNum(&a->argv[1][8], NetworkAdapterCount, "NIC");
             if (!n)
             {
@@ -465,11 +464,11 @@ RTEXITCODE handleControlVM(HandlerArg *a)
                 {
                     if (!strcmp(a->argv[2], "on"))
                     {
-                        CHECK_ERROR_RET(adapter, COMSETTER(TraceEnabled)(TRUE), RTEXITCODE_FAILURE);
+                        CHECK_ERROR_RET(adapter, COMSETTER(TraceEnabled)(TRUE), 1);
                     }
                     else if (!strcmp(a->argv[2], "off"))
                     {
-                        CHECK_ERROR_RET(adapter, COMSETTER(TraceEnabled)(FALSE), RTEXITCODE_FAILURE);
+                        CHECK_ERROR_RET(adapter, COMSETTER(TraceEnabled)(FALSE), 1);
                     }
                     else
                     {
@@ -489,6 +488,7 @@ RTEXITCODE handleControlVM(HandlerArg *a)
         {
             /* Get the number of network adapters */
             ULONG NetworkAdapterCount = getMaxNics(a->virtualBox, sessionMachine);
+            ComPtr<INATEngine> engine;
             unsigned n = parseNum(&a->argv[1][5], NetworkAdapterCount, "NIC");
             if (!n)
             {
@@ -510,7 +510,6 @@ RTEXITCODE handleControlVM(HandlerArg *a)
                 rc = E_FAIL;
                 break;
             }
-            ComPtr<INATEngine> engine;
             CHECK_ERROR(adapter, COMGETTER(NATEngine)(engine.asOutParam()));
             if (!engine)
             {
@@ -581,7 +580,7 @@ RTEXITCODE handleControlVM(HandlerArg *a)
         else if (!strncmp(a->argv[1], "nicproperty", 11))
         {
             /* Get the number of network adapters */
-            ULONG NetworkAdapterCount = getMaxNics(a->virtualBox, sessionMachine);
+            ULONG NetworkAdapterCount = getMaxNics(a->virtualBox,sessionMachine) ;
             unsigned n = parseNum(&a->argv[1][11], NetworkAdapterCount, "NIC");
             if (!n)
             {
@@ -641,7 +640,7 @@ RTEXITCODE handleControlVM(HandlerArg *a)
         else if (!strncmp(a->argv[1], "nicpromisc", 10))
         {
             /* Get the number of network adapters */
-            ULONG NetworkAdapterCount = getMaxNics(a->virtualBox, sessionMachine);
+            ULONG NetworkAdapterCount = getMaxNics(a->virtualBox,sessionMachine) ;
             unsigned n = parseNum(&a->argv[1][10], NetworkAdapterCount, "NIC");
             if (!n)
             {
@@ -690,7 +689,7 @@ RTEXITCODE handleControlVM(HandlerArg *a)
         else if (!strncmp(a->argv[1], "nic", 3))
         {
             /* Get the number of network adapters */
-            ULONG NetworkAdapterCount = getMaxNics(a->virtualBox, sessionMachine);
+            ULONG NetworkAdapterCount = getMaxNics(a->virtualBox,sessionMachine) ;
             unsigned n = parseNum(&a->argv[1][3], NetworkAdapterCount, "NIC");
             if (!n)
             {
@@ -715,15 +714,15 @@ RTEXITCODE handleControlVM(HandlerArg *a)
                 {
                     if (!strcmp(a->argv[2], "null"))
                     {
-                        CHECK_ERROR_RET(adapter, COMSETTER(Enabled)(TRUE), RTEXITCODE_FAILURE);
-                        CHECK_ERROR_RET(adapter, COMSETTER(AttachmentType)(NetworkAttachmentType_Null), RTEXITCODE_FAILURE);
+                        CHECK_ERROR_RET(adapter, COMSETTER(Enabled)(TRUE), 1);
+                        CHECK_ERROR_RET(adapter, COMSETTER(AttachmentType)(NetworkAttachmentType_Null), 1);
                     }
                     else if (!strcmp(a->argv[2], "nat"))
                     {
-                        CHECK_ERROR_RET(adapter, COMSETTER(Enabled)(TRUE), RTEXITCODE_FAILURE);
+                        CHECK_ERROR_RET(adapter, COMSETTER(Enabled)(TRUE), 1);
                         if (a->argc == 4)
-                            CHECK_ERROR_RET(adapter, COMSETTER(NATNetwork)(Bstr(a->argv[3]).raw()), RTEXITCODE_FAILURE);
-                        CHECK_ERROR_RET(adapter, COMSETTER(AttachmentType)(NetworkAttachmentType_NAT), RTEXITCODE_FAILURE);
+                            CHECK_ERROR_RET(adapter, COMSETTER(NATNetwork)(Bstr(a->argv[3]).raw()), 1);
+                        CHECK_ERROR_RET(adapter, COMSETTER(AttachmentType)(NetworkAttachmentType_NAT), 1);
                     }
                     else if (  !strcmp(a->argv[2], "bridged")
                             || !strcmp(a->argv[2], "hostif")) /* backward compatibility */
@@ -734,9 +733,9 @@ RTEXITCODE handleControlVM(HandlerArg *a)
                             rc = E_FAIL;
                             break;
                         }
-                        CHECK_ERROR_RET(adapter, COMSETTER(Enabled)(TRUE), RTEXITCODE_FAILURE);
-                        CHECK_ERROR_RET(adapter, COMSETTER(BridgedInterface)(Bstr(a->argv[3]).raw()), RTEXITCODE_FAILURE);
-                        CHECK_ERROR_RET(adapter, COMSETTER(AttachmentType)(NetworkAttachmentType_Bridged), RTEXITCODE_FAILURE);
+                        CHECK_ERROR_RET(adapter, COMSETTER(Enabled)(TRUE), 1);
+                        CHECK_ERROR_RET(adapter, COMSETTER(BridgedInterface)(Bstr(a->argv[3]).raw()), 1);
+                        CHECK_ERROR_RET(adapter, COMSETTER(AttachmentType)(NetworkAttachmentType_Bridged), 1);
                     }
                     else if (!strcmp(a->argv[2], "intnet"))
                     {
@@ -746,9 +745,9 @@ RTEXITCODE handleControlVM(HandlerArg *a)
                             rc = E_FAIL;
                             break;
                         }
-                        CHECK_ERROR_RET(adapter, COMSETTER(Enabled)(TRUE), RTEXITCODE_FAILURE);
-                        CHECK_ERROR_RET(adapter, COMSETTER(InternalNetwork)(Bstr(a->argv[3]).raw()), RTEXITCODE_FAILURE);
-                        CHECK_ERROR_RET(adapter, COMSETTER(AttachmentType)(NetworkAttachmentType_Internal), RTEXITCODE_FAILURE);
+                        CHECK_ERROR_RET(adapter, COMSETTER(Enabled)(TRUE), 1);
+                        CHECK_ERROR_RET(adapter, COMSETTER(InternalNetwork)(Bstr(a->argv[3]).raw()), 1);
+                        CHECK_ERROR_RET(adapter, COMSETTER(AttachmentType)(NetworkAttachmentType_Internal), 1);
                     }
 #if defined(VBOX_WITH_NETFLT)
                     else if (!strcmp(a->argv[2], "hostonly"))
@@ -759,9 +758,9 @@ RTEXITCODE handleControlVM(HandlerArg *a)
                             rc = E_FAIL;
                             break;
                         }
-                        CHECK_ERROR_RET(adapter, COMSETTER(Enabled)(TRUE), RTEXITCODE_FAILURE);
-                        CHECK_ERROR_RET(adapter, COMSETTER(HostOnlyInterface)(Bstr(a->argv[3]).raw()), RTEXITCODE_FAILURE);
-                        CHECK_ERROR_RET(adapter, COMSETTER(AttachmentType)(NetworkAttachmentType_HostOnly), RTEXITCODE_FAILURE);
+                        CHECK_ERROR_RET(adapter, COMSETTER(Enabled)(TRUE), 1);
+                        CHECK_ERROR_RET(adapter, COMSETTER(HostOnlyInterface)(Bstr(a->argv[3]).raw()), 1);
+                        CHECK_ERROR_RET(adapter, COMSETTER(AttachmentType)(NetworkAttachmentType_HostOnly), 1);
                     }
 #endif
                     else if (!strcmp(a->argv[2], "generic"))
@@ -772,9 +771,9 @@ RTEXITCODE handleControlVM(HandlerArg *a)
                             rc = E_FAIL;
                             break;
                         }
-                        CHECK_ERROR_RET(adapter, COMSETTER(Enabled)(TRUE), RTEXITCODE_FAILURE);
-                        CHECK_ERROR_RET(adapter, COMSETTER(GenericDriver)(Bstr(a->argv[3]).raw()), RTEXITCODE_FAILURE);
-                        CHECK_ERROR_RET(adapter, COMSETTER(AttachmentType)(NetworkAttachmentType_Generic), RTEXITCODE_FAILURE);
+                        CHECK_ERROR_RET(adapter, COMSETTER(Enabled)(TRUE), 1);
+                        CHECK_ERROR_RET(adapter, COMSETTER(GenericDriver)(Bstr(a->argv[3]).raw()), 1);
+                        CHECK_ERROR_RET(adapter, COMSETTER(AttachmentType)(NetworkAttachmentType_Generic), 1);
                     }
                     else if (!strcmp(a->argv[2], "natnetwork"))
                     {
@@ -784,9 +783,9 @@ RTEXITCODE handleControlVM(HandlerArg *a)
                             rc = E_FAIL;
                             break;
                         }
-                        CHECK_ERROR_RET(adapter, COMSETTER(Enabled)(TRUE), RTEXITCODE_FAILURE);
-                        CHECK_ERROR_RET(adapter, COMSETTER(NATNetwork)(Bstr(a->argv[3]).raw()), RTEXITCODE_FAILURE);
-                        CHECK_ERROR_RET(adapter, COMSETTER(AttachmentType)(NetworkAttachmentType_NATNetwork), RTEXITCODE_FAILURE);
+                        CHECK_ERROR_RET(adapter, COMSETTER(Enabled)(TRUE), 1);
+                        CHECK_ERROR_RET(adapter, COMSETTER(NATNetwork)(Bstr(a->argv[3]).raw()), 1);
+                        CHECK_ERROR_RET(adapter, COMSETTER(AttachmentType)(NetworkAttachmentType_NATNetwork), 1);
                     }
                     /** @todo obsolete, remove eventually */
                     else if (!strcmp(a->argv[2], "vde"))
@@ -797,9 +796,9 @@ RTEXITCODE handleControlVM(HandlerArg *a)
                             rc = E_FAIL;
                             break;
                         }
-                        CHECK_ERROR_RET(adapter, COMSETTER(Enabled)(TRUE), RTEXITCODE_FAILURE);
-                        CHECK_ERROR_RET(adapter, COMSETTER(AttachmentType)(NetworkAttachmentType_Generic), RTEXITCODE_FAILURE);
-                        CHECK_ERROR_RET(adapter, SetProperty(Bstr("name").raw(), Bstr(a->argv[3]).raw()), RTEXITCODE_FAILURE);
+                        CHECK_ERROR_RET(adapter, COMSETTER(Enabled)(TRUE), 1);
+                        CHECK_ERROR_RET(adapter, COMSETTER(AttachmentType)(NetworkAttachmentType_Generic), 1);
+                        CHECK_ERROR_RET(adapter, SetProperty(Bstr("name").raw(), Bstr(a->argv[3]).raw()), 1);
                     }
                     else
                     {
@@ -958,29 +957,10 @@ RTEXITCODE handleControlVM(HandlerArg *a)
                 rc = E_FAIL;
                 break;
             }
-            else if (a->argc == 4 || a->argc > 5)
-            {
-                errorSyntax(USAGE_CONTROLVM, "Wrong number of arguments");
-                rc = E_FAIL;
-                break;
-            }
 
             bool attach = !strcmp(a->argv[1], "usbattach");
 
             Bstr usbId = a->argv[2];
-            Bstr captureFilename;
-
-            if (a->argc == 5)
-            {
-                if (!strcmp(a->argv[3], "--capturefile"))
-                    captureFilename = a->argv[4];
-                else
-                {
-                    errorArgument("Invalid parameter '%s'", a->argv[3]);
-                    rc = E_FAIL;
-                    break;
-                }
-            }
 
             Guid guid(usbId);
             if (!guid.isValid())
@@ -1015,7 +995,7 @@ RTEXITCODE handleControlVM(HandlerArg *a)
             }
 
             if (attach)
-                CHECK_ERROR_BREAK(console, AttachUSBDevice(usbId.raw(), captureFilename.raw()));
+                CHECK_ERROR_BREAK(console, AttachUSBDevice(usbId.raw()));
             else
             {
                 ComPtr<IUSBDevice> dev;
@@ -1376,47 +1356,40 @@ RTEXITCODE handleControlVM(HandlerArg *a)
             }
             ULONG width, height, bpp;
             LONG xOrigin, yOrigin;
-            GuestMonitorStatus_T monitorStatus;
-            CHECK_ERROR_BREAK(pDisplay, GetScreenResolution(iScreen, &width, &height, &bpp, &xOrigin, &yOrigin, &monitorStatus));
+            CHECK_ERROR_BREAK(pDisplay, GetScreenResolution(iScreen, &width, &height, &bpp, &xOrigin, &yOrigin));
             com::SafeArray<BYTE> saScreenshot;
-            CHECK_ERROR_BREAK(pDisplay, TakeScreenShotToArray(iScreen, width, height, BitmapFormat_PNG, ComSafeArrayAsOutParam(saScreenshot)));
+            CHECK_ERROR_BREAK(pDisplay, TakeScreenShotPNGToArray(iScreen, width, height, ComSafeArrayAsOutParam(saScreenshot)));
             RTFILE pngFile = NIL_RTFILE;
             vrc = RTFileOpen(&pngFile, a->argv[2], RTFILE_O_OPEN_CREATE | RTFILE_O_WRITE | RTFILE_O_TRUNCATE | RTFILE_O_DENY_ALL);
             if (RT_FAILURE(vrc))
             {
-                RTMsgError("Failed to create file '%s' (%Rrc)", a->argv[2], vrc);
+                RTMsgError("Failed to create file '%s'. rc=%Rrc", a->argv[2], vrc);
                 rc = E_FAIL;
                 break;
             }
             vrc = RTFileWrite(pngFile, saScreenshot.raw(), saScreenshot.size(), NULL);
             if (RT_FAILURE(vrc))
             {
-                RTMsgError("Failed to write screenshot to file '%s' (%Rrc)", a->argv[2], vrc);
+                RTMsgError("Failed to write screenshot to file '%s'. rc=%Rrc", a->argv[2], vrc);
                 rc = E_FAIL;
             }
             RTFileClose(pngFile);
         }
-#ifdef VBOX_WITH_VPX
-        /*
-         * Note: Commands starting with "vcp" are the deprecated versions and are
-         *       kept to ensure backwards compatibility.
-         */
-        else if (   !strcmp(a->argv[1], "videocap")
-                 || !strcmp(a->argv[1], "vcpenabled"))
+        else if (   !strcmp(a->argv[1], "vcpenabled"))
         {
             if (a->argc != 3)
             {
-                errorSyntax(USAGE_CONTROLVM, "Incorrect number of parameters");
+                errorArgument("Missing argument to '%s'", a->argv[1]);
                 rc = E_FAIL;
                 break;
             }
             if (!strcmp(a->argv[2], "on"))
             {
-                CHECK_ERROR_RET(sessionMachine, COMSETTER(VideoCaptureEnabled)(TRUE), RTEXITCODE_FAILURE);
+                CHECK_ERROR_RET(sessionMachine, COMSETTER(VideoCaptureEnabled)(TRUE), 1);
             }
             else if (!strcmp(a->argv[2], "off"))
             {
-                CHECK_ERROR_RET(sessionMachine, COMSETTER(VideoCaptureEnabled)(FALSE), RTEXITCODE_FAILURE);
+                CHECK_ERROR_RET(sessionMachine, COMSETTER(VideoCaptureEnabled)(FALSE), 1);
             }
             else
             {
@@ -1425,8 +1398,7 @@ RTEXITCODE handleControlVM(HandlerArg *a)
                 break;
             }
         }
-        else if (   !strcmp(a->argv[1], "videocapscreens")
-                 || !strcmp(a->argv[1], "vcpscreens"))
+        else if (   !strcmp(a->argv[1], "videocapturescreens"))
         {
             ULONG cMonitors = 64;
             CHECK_ERROR_BREAK(machine, COMGETTER(MonitorCount)(&cMonitors));
@@ -1444,8 +1416,6 @@ RTEXITCODE handleControlVM(HandlerArg *a)
                 /* disable all screens */
                 for (unsigned i = 0; i < cMonitors; i++)
                     saScreens[i] = false;
-
-                /** @todo r=andy What if this is specified? */
             }
             else
             {
@@ -1474,163 +1444,6 @@ RTEXITCODE handleControlVM(HandlerArg *a)
 
             CHECK_ERROR_BREAK(sessionMachine, COMSETTER(VideoCaptureScreens)(ComSafeArrayAsInParam(saScreens)));
         }
-        else if (   !strcmp(a->argv[1], "videocapfile")
-                 || !strcmp(a->argv[1], "vcpfile"))
-        {
-            if (a->argc != 3)
-            {
-                errorSyntax(USAGE_CONTROLVM, "Incorrect number of parameters");
-                rc = E_FAIL;
-                break;
-            }
-
-            CHECK_ERROR_BREAK(sessionMachine, COMSETTER(VideoCaptureFile)(Bstr(a->argv[3]).raw()));
-        }
-        else if (!strcmp(a->argv[1], "videocapres"))
-        {
-            if (a->argc != 4)
-            {
-                errorSyntax(USAGE_CONTROLVM, "Incorrect number of parameters");
-                rc = E_FAIL;
-                break;
-            }
-
-            uint32_t uVal;
-            int vrc = RTStrToUInt32Ex(a->argv[2], NULL, 0, &uVal);
-            if (RT_FAILURE(vrc))
-            {
-                errorArgument("Error parsing width '%s'", a->argv[2]);
-                rc = E_FAIL;
-                break;
-            }
-            CHECK_ERROR_BREAK(sessionMachine, COMSETTER(VideoCaptureWidth)(uVal));
-
-            vrc = RTStrToUInt32Ex(a->argv[3], NULL, 0, &uVal);
-            if (RT_FAILURE(vrc))
-            {
-                errorArgument("Error parsing height '%s'", a->argv[3]);
-                rc = E_FAIL;
-                break;
-            }
-            CHECK_ERROR_BREAK(sessionMachine, COMSETTER(VideoCaptureHeight)(uVal));
-        }
-        else if (!strcmp(a->argv[1], "vcpwidth")) /* Deprecated; keeping for compatibility. */
-        {
-            uint32_t uVal;
-            int vrc = RTStrToUInt32Ex(a->argv[2], NULL, 0, &uVal);
-            if (RT_FAILURE(vrc))
-            {
-                errorArgument("Error parsing width '%s'", a->argv[2]);
-                rc = E_FAIL;
-                break;
-            }
-            CHECK_ERROR_BREAK(sessionMachine, COMSETTER(VideoCaptureWidth)(uVal));
-        }
-        else if (!strcmp(a->argv[1], "vcpheight")) /* Deprecated; keeping for compatibility. */
-        {
-            uint32_t uVal;
-            int vrc = RTStrToUInt32Ex(a->argv[2], NULL, 0, &uVal);
-            if (RT_FAILURE(vrc))
-            {
-                errorArgument("Error parsing height '%s'", a->argv[2]);
-                rc = E_FAIL;
-                break;
-            }
-            CHECK_ERROR_BREAK(sessionMachine, COMSETTER(VideoCaptureHeight)(uVal));
-        }
-        else if (   !strcmp(a->argv[1], "videocaprate")
-                 || !strcmp(a->argv[1], "vcprate"))
-        {
-            if (a->argc != 3)
-            {
-                errorSyntax(USAGE_CONTROLVM, "Incorrect number of parameters");
-                rc = E_FAIL;
-                break;
-            }
-
-            uint32_t uVal;
-            int vrc = RTStrToUInt32Ex(a->argv[2], NULL, 0, &uVal);
-            if (RT_FAILURE(vrc))
-            {
-                errorArgument("Error parsing rate '%s'", a->argv[2]);
-                rc = E_FAIL;
-                break;
-            }
-            CHECK_ERROR_BREAK(sessionMachine, COMSETTER(VideoCaptureRate)(uVal));
-        }
-        else if (   !strcmp(a->argv[1], "videocapfps")
-                 || !strcmp(a->argv[1], "vcpfps"))
-        {
-            if (a->argc != 3)
-            {
-                errorSyntax(USAGE_CONTROLVM, "Incorrect number of parameters");
-                rc = E_FAIL;
-                break;
-            }
-
-            uint32_t uVal;
-            int vrc = RTStrToUInt32Ex(a->argv[2], NULL, 0, &uVal);
-            if (RT_FAILURE(vrc))
-            {
-                errorArgument("Error parsing FPS '%s'", a->argv[2]);
-                rc = E_FAIL;
-                break;
-            }
-            CHECK_ERROR_BREAK(sessionMachine, COMSETTER(VideoCaptureFPS)(uVal));
-        }
-        else if (   !strcmp(a->argv[1], "videocapmaxtime")
-                 || !strcmp(a->argv[1], "vcpmaxtime"))
-        {
-            if (a->argc != 3)
-            {
-                errorSyntax(USAGE_CONTROLVM, "Incorrect number of parameters");
-                rc = E_FAIL;
-                break;
-            }
-
-            uint32_t uVal;
-            int vrc = RTStrToUInt32Ex(a->argv[2], NULL, 0, &uVal);
-            if (RT_FAILURE(vrc))
-            {
-                errorArgument("Error parsing maximum time '%s'", a->argv[2]);
-                rc = E_FAIL;
-                break;
-            }
-            CHECK_ERROR_BREAK(sessionMachine, COMSETTER(VideoCaptureMaxTime)(uVal));
-        }
-        else if (   !strcmp(a->argv[1], "videocapmaxsize")
-                 || !strcmp(a->argv[1], "vcpmaxsize"))
-        {
-            if (a->argc != 3)
-            {
-                errorSyntax(USAGE_CONTROLVM, "Incorrect number of parameters");
-                rc = E_FAIL;
-                break;
-            }
-
-            uint32_t uVal;
-            int vrc = RTStrToUInt32Ex(a->argv[2], NULL, 0, &uVal);
-            if (RT_FAILURE(vrc))
-            {
-                errorArgument("Error parsing maximum file size '%s'", a->argv[2]);
-                rc = E_FAIL;
-                break;
-            }
-            CHECK_ERROR_BREAK(sessionMachine, COMSETTER(VideoCaptureMaxFileSize)(uVal));
-        }
-        else if (   !strcmp(a->argv[1], "videocapopts")
-                 || !strcmp(a->argv[1], "vcpoptions"))
-        {
-            if (a->argc != 3)
-            {
-                errorSyntax(USAGE_CONTROLVM, "Incorrect number of parameters");
-                rc = E_FAIL;
-                break;
-            }
-
-            CHECK_ERROR_BREAK(sessionMachine, COMSETTER(VideoCaptureOptions)(Bstr(a->argv[3]).raw()));
-        }
-#endif /* VBOX_WITH_VPX */
         else if (!strcmp(a->argv[1], "webcam"))
         {
             if (a->argc < 3)
@@ -1681,64 +1494,7 @@ RTEXITCODE handleControlVM(HandlerArg *a)
                 rc = E_FAIL;
                 break;
             }
-        }
-        else if (!strcmp(a->argv[1], "addencpassword"))
-        {
-            if (   a->argc != 4
-                && a->argc != 6)
-            {
-                errorSyntax(USAGE_CONTROLVM, "Incorrect number of parameters");
-                break;
-            }
 
-            if (   strcmp(a->argv[4], "--removeonsuspend")
-                || (   strcmp(a->argv[5], "yes")
-                    && strcmp(a->argv[5], "no")))
-            {
-                errorSyntax(USAGE_CONTROLVM, "Invalid parameters");
-                break;
-            }
-
-            BOOL fRemoveOnSuspend = FALSE;
-            Bstr bstrPwId(a->argv[2]);
-            Utf8Str strPassword;
-
-            if (!RTStrCmp(a->argv[3], "-"))
-            {
-                /* Get password from console. */
-                RTEXITCODE rcExit = readPasswordFromConsole(&strPassword, "Enter password:");
-                if (rcExit == RTEXITCODE_FAILURE)
-                    break;
-            }
-            else
-            {
-                RTEXITCODE rcExit = readPasswordFile(a->argv[3], &strPassword);
-                if (rcExit == RTEXITCODE_FAILURE)
-                {
-                    RTMsgError("Failed to read new password from file");
-                    break;
-                }
-            }
-
-            if (   a->argc == 6
-                && !strcmp(a->argv[5], "yes"))
-                fRemoveOnSuspend = TRUE;
-
-            CHECK_ERROR_BREAK(console, AddDiskEncryptionPassword(bstrPwId.raw(), Bstr(strPassword).raw(), fRemoveOnSuspend));
-        }
-        else if (!strcmp(a->argv[1], "removeencpassword"))
-        {
-            if (a->argc != 3)
-            {
-                errorSyntax(USAGE_CONTROLVM, "Incorrect number of parameters");
-                break;
-            }
-            Bstr bstrPwId(a->argv[2]);
-            CHECK_ERROR_BREAK(console, RemoveDiskEncryptionPassword(bstrPwId.raw()));
-        }
-        else if (!strcmp(a->argv[1], "removeallencpasswords"))
-        {
-            CHECK_ERROR_BREAK(console, ClearAllDiskEncryptionPasswords());
         }
         else
         {
@@ -1753,5 +1509,5 @@ RTEXITCODE handleControlVM(HandlerArg *a)
 
     a->session->UnlockMachine();
 
-    return SUCCEEDED(rc) ? RTEXITCODE_SUCCESS : RTEXITCODE_FAILURE;
+    return SUCCEEDED(rc) ? 0 : 1;
 }

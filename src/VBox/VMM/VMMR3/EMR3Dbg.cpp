@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -67,11 +67,8 @@ static DBGCCMD const g_aCmds[] =
 
 int emR3InitDbg(PVM pVM)
 {
-    int rc = VINF_SUCCESS;
-#ifdef VBOX_WITH_DEBUGGER
-    rc = DBGCRegisterCommands(&g_aCmds[0], RT_ELEMENTS(g_aCmds));
+    int rc = DBGCRegisterCommands(&g_aCmds[0], RT_ELEMENTS(g_aCmds));
     AssertLogRelRC(rc);
-#endif
     return rc;
 }
 

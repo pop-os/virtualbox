@@ -361,8 +361,8 @@
         certificates installed in order to prevent user intervention popus which
         will undermine a silent installation.</para>
 
-        <note><para>On some Windows versions like Windows 2000 and Windows XP the user intervention
-        popups mentioned above always will be displayed, even after importing the Oracle certificates.</para></note>
+        <note>On some Windows versions like Windows 2000 and Windows XP the user intervention
+        popups mentioned above always will be displayed, even after importing the Oracle certificates.</note>
 
         <para>Since VirtualBox 4.2 installing those CA certificates on a Windows
         guest can be done in an automated fashion using the
@@ -401,72 +401,64 @@
         <para>In the following example the needed certificates will be extracted from the VirtualBox
         Windows Guest Additions installer on the CD-ROM:</para>
 
-        <glosslist>
-          <glossentry>
-            <glossterm>VeriSign Code Signing CA</glossterm>
-            <glossdef>
-              <para>Open the Windows Explorer.</para>
-              <itemizedlist>
-                <listitem>
-                  <para>Right click on VBoxWindowsAdditions-&lt;Architecture&gt;.exe,
-                  click on "Properties"</para>
-                </listitem>
-                <listitem>
-                  <para>Go to tab "Digital Signatures", choose "Oracle Corporation" and click on "Details"</para>
-                </listitem>
-                <listitem>
-                  <para>In tab "General" click on "View Certificate"</para>
-                </listitem>
-                <listitem>
-                  <para>In tab "Certification Path" select "VeriSign Class 3 Public Primary CA"</para>
-                </listitem>
-                <listitem>
-                  <para>Click on "View Certificate"</para>
-                </listitem>
-                <listitem>
-                  <para>In tab "Details" click on "Copy to File ..."</para>
-                </listitem>
-                <listitem>
-                  <para>In the upcoming wizard choose "DER encoded binary X.509 (.CER)"
-                  and save the certificate file to a local path, finish the wizard</para>
-                </listitem>
-                <listitem>
-                  <para>Close certificate dialog for "Verisign Class 3 Code Signing
-                  2010 CA"</para>
-                </listitem>
-              </itemizedlist>
-            </glossdef>
-          </glossentry>
+        <sect4>
+          <title>VeriSign Code Signing CA</title>
+          <itemizedlist>
+            <listitem>
+              <para>In the Windows Explorer, right click on VBoxWindowsAdditions-&lt;Architecture&gt;.exe,
+              click on "Properties"</para>
+            </listitem>
+            <listitem>
+              <para>Go to tab "Digital Signatures", choose "Oracle Corporation" and click on "Details"</para>
+            </listitem>
+            <listitem>
+              <para>In tab "General" click on "View Certificate"</para>
+            </listitem>
+            <listitem>
+              <para>In tab "Certification Path" select "VeriSign Class 3 Public Primary CA"</para>
+            </listitem>
+            <listitem>
+              <para>Click on "View Certificate"</para>
+            </listitem>
+            <listitem>
+              <para>In tab "Details" click on "Copy to File ..."</para>
+            </listitem>
+            <listitem>
+              <para>In the upcoming wizard choose "DER encoded binary X.509 (.CER)"
+              and save the certificate file to a local path, finish the wizard</para>
+            </listitem>
+            <listitem>
+              <para>Close certificate dialog for "Verisign Class 3 Code Signing
+              2010 CA"</para>
+            </listitem>
+          </itemizedlist>
+        </sect4>
 
-          <glossentry>
-            <glossterm>Oracle Corporation</glossterm>
-            <glossdef>
-              <para>Open the Windows Explorer.</para>
-              <itemizedlist>
-                <listitem>
-                  <para>Right click on VBoxWindowsAdditions-&lt;Architecture&gt;.exe,
-                  click on "Properties"</para>
-                </listitem>
-                <listitem>
-                  <para>Go to tab "Digital Signatures", choose "Oracle Corporation" and click on "Details"</para>
-                </listitem>
-                <listitem>
-                  <para>In tab "General" click on "View Certificate"</para>
-                </listitem>
-                <listitem>
-                  <para>In tab "Details" click on "Copy to File ..."</para>
-                </listitem>
-                <listitem>
-                  <para>In the upcoming wizard choose "DER encoded binary X.509 (.CER)"
-                  and save the certificate file to a local path, finish the wizard</para>
-                </listitem>
-                <listitem>
-                  <para>Close certificate dialog for "Oracle Corporation"</para>
-                </listitem>
-              </itemizedlist>
-            </glossdef>
-          </glossentry>
-        </glosslist>
+        <sect4>
+          <title>Oracle Corporation</title>
+          <itemizedlist>
+            <listitem>
+              <para>In the Windows Explorer, right click on VBoxWindowsAdditions-&lt;Architecture&gt;.exe,
+              click on "Properties"</para>
+            </listitem>
+            <listitem>
+              <para>Go to tab "Digital Signatures", choose "Oracle Corporation" and click on "Details"</para>
+            </listitem>
+            <listitem>
+              <para>In tab "General" click on "View Certificate"</para>
+            </listitem>
+            <listitem>
+              <para>In tab "Details" click on "Copy to File ..."</para>
+            </listitem>
+            <listitem>
+              <para>In the upcoming wizard choose "DER encoded binary X.509 (.CER)"
+              and save the certificate file to a local path, finish the wizard</para>
+            </listitem>
+            <listitem>
+              <para>Close certificate dialog for "Oracle Corporation"</para>
+            </listitem>
+          </itemizedlist>
+        </sect4>
 
         <para>After exporting the two certificates above they can be imported into the
         certificate store using the <computeroutput>certutil.exe</computeroutput>
@@ -600,7 +592,7 @@
             installing the Linux Guest Additions. If DKMS is not available
             or not installed, the guest kernel modules will need to be
             recreated manually whenever the guest kernel is updated using
-            the command <screen>rcvboxadd setup</screen> as root.
+            the command <screen>/etc/init.d/vboxadd setup</screen> as root.
             </para>
           </listitem>
 
@@ -654,7 +646,7 @@
           <para><orderedlist>
               <listitem>
                 <para>In order to fully update your guest system, open a
-                terminal and run <screen>yum update</screen> as root.</para>
+                terminal and run <screen>yum update</screen></para> as root.
               </listitem>
 
               <listitem>
@@ -675,7 +667,7 @@
           <para><orderedlist>
               <listitem>
                 <para>In order to fully update your guest system, open a
-                terminal and run <screen>zypper update</screen> as root.</para>
+                terminal and run <screen>zypper update</screen></para> as root.
               </listitem>
 
               <listitem>
@@ -713,7 +705,7 @@
           <para><orderedlist>
               <listitem>
                 <para>In order to fully update your guest system, open a
-                terminal and run <screen>zypper update</screen> as root.</para>
+                terminal and run <screen>zypper update</screen></para> as root.
               </listitem>
 
               <listitem>
@@ -755,8 +747,8 @@
 
               <listitem>
                 <para>In order to fully update your guest system, open a
-                terminal and run <screen>urpmi --auto-update</screen>
-                as root.</para>
+                terminal and run <screen>urpmi --auto-update</screen></para>
+                as root.
               </listitem>
 
               <listitem>
@@ -786,7 +778,7 @@
 
               <listitem>
                 <para>In order to fully update your guest system, open a
-                terminal and run <screen>yum update</screen> as root.</para>
+                terminal and run <screen>yum update</screen></para> as root.
               </listitem>
 
               <listitem>
@@ -899,9 +891,9 @@
         them.</para>
 
         <para>Starting with version 3.1.0, you can uninstall the Additions by
-        invoking <screen>/opt/VBoxGuestAdditions-@VBOX_VERSION_STRING@/uninstall.sh</screen>Please
+        invoking <screen>/opt/VBoxGuestAdditions-$VBOX_VERSION_STRING/uninstall.sh</screen>Please
         replace
-        <computeroutput>/opt/VBoxGuestAdditions-@VBOX_VERSION_STRING@</computeroutput>
+        <computeroutput>/opt/VBoxGuestAdditions-$VBOX_VERSION_STRING</computeroutput>
         with the correct Guest Additions installation directory.</para>
       </sect3>
     </sect2>
@@ -1087,14 +1079,6 @@
           <para>Currently only Linux and Solaris Guest Additions support
           symlinks.</para>
         </listitem>
-
-        <listitem>
-          <para>For security reasons the guest OS is not allowed to create
-          symlinks by default. If you trust the guest OS to not abuse the
-          functionality, you can enable creation of symlinks for "sharename"
-          with:
-          <screen>VBoxManage setextradata "VM name" VBoxInternal2/SharedFoldersEnableSymlinksCreate/sharename 1</screen></para>
-        </listitem>
       </orderedlist></para>
 
     <sect2 id="sf_mount_manual">
@@ -1255,112 +1239,6 @@ $</screen>
     </sect2>
   </sect1>
 
-  <sect1 id="guestadd-dnd">
-    <title>Drag'n Drop</title>
-
-    <para>Starting with version 5.0, VirtualBox supports to drag'n drop content
-    from the host to the guest and vice versa. For this to work the latest Guest
-    Additions must be installed on the guest.</para>
-
-    <para>Drag'n drop transparently allows copying or opening files, directories
-    and even certain clipboard formats from one end to the other, e.g. from the
-    host to the guest or from the guest to the host. One then can perform drag'n
-    drop operations between the host and a VM as it would be a native drag'n drop
-    operation on the host OS.</para>
-
-    <para>At the moment drag'n drop is implemented for Windows- and X-Windows-based
-    systems, both, on host and guest side. As X-Windows sports different drag'n drop
-    protocols only the most used one, XDND, is supported for now. Applications using
-    other protocols (such as Motif or OffiX) will not be recognized by VirtualBox.</para>
-
-    <para>In context of using drag'n drop the origin of the data is called
-    <emphasis role="bold">source</emphasis>, that is, where the actual data comes
-    from and is specified. On the other hand there is the
-    <emphasis role="bold">target</emphasis>, which specifies where the data from
-    the source should go to. Transferring data from the source to the target can
-    be done in various ways, e.g. copying, moving or linking.<footnote><para>At
-    the moment only copying of data is supported. Moving or linking is not yet
-    implemented.</para></footnote></para>
-
-    <para>When transferring data from the host to the guest OS, the host in
-    this case is the source, whereas the guest OS is the target. However, when
-    doing it the other way around, that is, transferring data from the guest OS
-    to the host, the guest OS this time became the source and the host is the
-    target.</para>
-
-    <para>For security reasons drag'n drop can be configured at runtime on a
-    per-VM basis either using the "Drag'n'Drop" menu item in the "Devices" menu
-    of the virtual machine or VBoxManage: The following four modes are
-    available:</para>
-
-    <para><mediaobject>
-      <imageobject>
-        <imagedata align="center" fileref="images/dnd-modes.png"
-                   width="10cm" />
-        </imageobject>
-      </mediaobject></para>
-
-    <itemizedlist>
-      <listitem>
-        <para><emphasis role="bold">Disabled</emphasis> disables the drag'n drop
-        entirely. This is the default when creating new VMs.</para>
-      </listitem>
-      <listitem>
-        <para><emphasis role="bold">Host To Guest</emphasis> enables performing
-        drag'n drop operations from the host to the guest only.</para>
-      </listitem>
-      <listitem>
-        <para><emphasis role="bold">Guest To Host</emphasis> enables performing
-        drag'n drop operations from the guest to the host only.</para>
-      </listitem>
-      <listitem>
-        <para><emphasis role="bold">Bidirectional</emphasis> enables performing
-        drag'n drop operations to both directions, e.g. from the host to the guest
-        and vice versa.</para>
-      </listitem>
-    </itemizedlist>
-
-    <note><para>Drag'n drop support depends on the frontend being used; at the
-    moment only the VirtualBox Manager frontend provides this
-    functionality.</para></note>
-
-    <para>To use VBoxManage for controlling the current drag'n drop mode, see <xref
-    linkend="vboxmanage" />. The commands <computeroutput>modifyvm</computeroutput>
-    and <computeroutput>controlvm</computeroutput> allow setting the VM's current
-    drag'n drop mode via command line.</para>
-
-    <sect2 id="guestadd-dnd-formats">
-      <title>Supported formats</title>
-
-      <para>As VirtualBox can run on a variety of host OSes and also supports a wide
-      range of guests, certain data formats must be translated after those
-      got transfered over so that the target OS (that is, the side which receiving the
-      data) is able to handle them in an appropriate manner.</para>
-
-      <note><para>When dragging files however, no data conversion is done in any way, e.g.
-      when transferring a file from a Linux guest to a Windows host the Linux-specific
-      line endings won't be converted to Windows ones.</para></note>
-
-      <para>The following formats are handled by the VirtualBox drag'n drop service:
-        <itemizedlist>
-          <listitem>
-            <para><emphasis role="bold">Plain text</emphasis>, from applications such as
-            text editors, internet browsers and terminal windows</para>
-          </listitem>
-          <listitem>
-            <para><emphasis role="bold">Files</emphasis>, from file managers such
-            as Windows explorer, Nautilus and Finder</para>
-          </listitem>
-          <listitem>
-            <para><emphasis role="bold">Directories</emphasis>, where the same applies
-            as for files</para>
-          </listitem>
-        </itemizedlist>
-      </para>
-    </sect2>
-
-  </sect1>
-
   <sect1 id="guestadd-video">
     <title>Hardware-accelerated graphics</title>
 
@@ -1458,22 +1336,19 @@ $</screen>
       displayed when the Direct3D feature is selected.
       <note><para>Unlike the current basic Direct3D support, the WDDM video
       driver installation does <emphasis role="bold">not</emphasis> require
-      the "Safe Mode".</para></note></para>
-
-      <para>The Aero theme is not enabled by default. To enable it
-        <itemizedlist>
+      the "Safe Mode".</para></note>
+      <para>The Aero theme is not enabled by default. To enable it<itemizedlist>
           <listitem>
             <para>In Windows Vista guest: right-click on the desktop, in the
             context menu select "Personalize", then select "Windows Color and Appearance"
             in the "Personalization" window, in the "Appearance Settings" dialog select
-            "Windows Aero" and press "OK"</para>
-          </listitem>
+            "Windows Aero" and press "OK"</para></listitem>
           <listitem>
             <para>In Windows 7 guest: right-click on the desktop, in the
             context menu select "Personalize" and select any Aero theme
-            in the "Personalization" window</para>
-          </listitem>
-        </itemizedlist>
+            in the "Personalization" window</para></listitem>
+          </itemizedlist>
+        </para>
       </para>
 
       <para>Technically, VirtualBox implements this by installing an
@@ -1609,8 +1484,8 @@ $</screen>
     <xref linkend="vboxmanage-guestproperty" /> for details. For example, to
     have <emphasis>all</emphasis> the available guest properties for a given
     running VM listed with their respective values, use this:<screen>$ VBoxManage guestproperty enumerate "Windows Vista III"
-VirtualBox Command Line Management Interface Version @VBOX_VERSION_MAJOR@.@VBOX_VERSION_MINOR@.@VBOX_VERSION_BUILD@
-(C) 2005-@VBOX_C_YEAR@ @VBOX_VENDOR@
+VirtualBox Command Line Management Interface Version $VBOX_VERSION_MAJOR.$VBOX_VERSION_MINOR.$VBOX_VERSION_BUILD
+(C) 2005-$VBOX_C_YEAR $VBOX_VENDOR
 All rights reserved.
 
 Name: /VirtualBox/GuestInfo/OS/Product, value: Windows Vista Business Edition,
@@ -1624,27 +1499,27 @@ Name: /VirtualBox/GuestAdd/InstallDir,
     Guest Additions, timestamp: 1229098279269739000, flags:
 Name: /VirtualBox/GuestAdd/Revision, value: 40720,
     timestamp: 1229098279345664000, flags:
-Name: /VirtualBox/GuestAdd/Version, value: @VBOX_VERSION_MAJOR@.@VBOX_VERSION_MINOR@.@VBOX_VERSION_BUILD@,
+Name: /VirtualBox/GuestAdd/Version, value: $VBOX_VERSION_MAJOR.$VBOX_VERSION_MINOR.$VBOX_VERSION_BUILD,
     timestamp: 1229098279479515000, flags:
-Name: /VirtualBox/GuestAdd/Components/VBoxControl.exe, value: @VBOX_VERSION_MAJOR@.@VBOX_VERSION_MINOR@.@VBOX_VERSION_BUILD@r40720,
+Name: /VirtualBox/GuestAdd/Components/VBoxControl.exe, value: $VBOX_VERSION_MAJOR.$VBOX_VERSION_MINOR.$VBOX_VERSION_BUILDr40720,
     timestamp: 1229098279651731000, flags:
-Name: /VirtualBox/GuestAdd/Components/VBoxHook.dll, value: @VBOX_VERSION_MAJOR@.@VBOX_VERSION_MINOR@.@VBOX_VERSION_BUILD@r40720,
+Name: /VirtualBox/GuestAdd/Components/VBoxHook.dll, value: $VBOX_VERSION_MAJOR.$VBOX_VERSION_MINOR.$VBOX_VERSION_BUILDr40720,
     timestamp: 1229098279804835000, flags:
-Name: /VirtualBox/GuestAdd/Components/VBoxDisp.dll, value: @VBOX_VERSION_MAJOR@.@VBOX_VERSION_MINOR@.@VBOX_VERSION_BUILD@r40720,
+Name: /VirtualBox/GuestAdd/Components/VBoxDisp.dll, value: $VBOX_VERSION_MAJOR.$VBOX_VERSION_MINOR.$VBOX_VERSION_BUILDr40720,
     timestamp: 1229098279880611000, flags:
-Name: /VirtualBox/GuestAdd/Components/VBoxMRXNP.dll, value: @VBOX_VERSION_MAJOR@.@VBOX_VERSION_MINOR@.@VBOX_VERSION_BUILD@r40720,
+Name: /VirtualBox/GuestAdd/Components/VBoxMRXNP.dll, value: $VBOX_VERSION_MAJOR.$VBOX_VERSION_MINOR.$VBOX_VERSION_BUILDr40720,
     timestamp: 1229098279882618000, flags:
-Name: /VirtualBox/GuestAdd/Components/VBoxService.exe, value: @VBOX_VERSION_MAJOR@.@VBOX_VERSION_MINOR@.@VBOX_VERSION_BUILD@r40720,
+Name: /VirtualBox/GuestAdd/Components/VBoxService.exe, value: $VBOX_VERSION_MAJOR.$VBOX_VERSION_MINOR.$VBOX_VERSION_BUILDr40720,
     timestamp: 1229098279883195000, flags:
-Name: /VirtualBox/GuestAdd/Components/VBoxTray.exe, value: @VBOX_VERSION_MAJOR@.@VBOX_VERSION_MINOR@.@VBOX_VERSION_BUILD@r40720,
+Name: /VirtualBox/GuestAdd/Components/VBoxTray.exe, value: $VBOX_VERSION_MAJOR.$VBOX_VERSION_MINOR.$VBOX_VERSION_BUILDr40720,
     timestamp: 1229098279885027000, flags:
-Name: /VirtualBox/GuestAdd/Components/VBoxGuest.sys, value: @VBOX_VERSION_MAJOR@.@VBOX_VERSION_MINOR@.@VBOX_VERSION_BUILD@r40720,
+Name: /VirtualBox/GuestAdd/Components/VBoxGuest.sys, value: $VBOX_VERSION_MAJOR.$VBOX_VERSION_MINOR.$VBOX_VERSION_BUILDr40720,
     timestamp: 1229098279886838000, flags:
-Name: /VirtualBox/GuestAdd/Components/VBoxMouse.sys, value: @VBOX_VERSION_MAJOR@.@VBOX_VERSION_MINOR@.@VBOX_VERSION_BUILD@r40720,
+Name: /VirtualBox/GuestAdd/Components/VBoxMouse.sys, value: $VBOX_VERSION_MAJOR.$VBOX_VERSION_MINOR.$VBOX_VERSION_BUILDr40720,
     timestamp: 1229098279890600000, flags:
-Name: /VirtualBox/GuestAdd/Components/VBoxSF.sys, value: @VBOX_VERSION_MAJOR@.@VBOX_VERSION_MINOR@.@VBOX_VERSION_BUILD@r40720,
+Name: /VirtualBox/GuestAdd/Components/VBoxSF.sys, value: $VBOX_VERSION_MAJOR.$VBOX_VERSION_MINOR.$VBOX_VERSION_BUILDr40720,
     timestamp: 1229098279893056000, flags:
-Name: /VirtualBox/GuestAdd/Components/VBoxVideo.sys, value: @VBOX_VERSION_MAJOR@.@VBOX_VERSION_MINOR@.@VBOX_VERSION_BUILD@r40720,
+Name: /VirtualBox/GuestAdd/Components/VBoxVideo.sys, value: $VBOX_VERSION_MAJOR.$VBOX_VERSION_MINOR.$VBOX_VERSION_BUILDr40720,
     timestamp: 1229098279895767000, flags:
 Name: /VirtualBox/GuestInfo/OS/LoggedInUsers, value: 1,
     timestamp: 1229099826317660000, flags:
@@ -1667,8 +1542,8 @@ Name: /VirtualBox/GuestInfo/OS/LoggedInUsersList, value: username,
 
     <para>To query the value of a single property, use the "get" subcommand
     like this:<screen>$ VBoxManage guestproperty get "Windows Vista III" "/VirtualBox/GuestInfo/OS/Product"
-VirtualBox Command Line Management Interface Version @VBOX_VERSION_MAJOR@.@VBOX_VERSION_MINOR@.@VBOX_VERSION_BUILD@
-(C) 2005-@VBOX_C_YEAR@ @VBOX_VENDOR@
+VirtualBox Command Line Management Interface Version $VBOX_VERSION_MAJOR.$VBOX_VERSION_MINOR.$VBOX_VERSION_BUILD
+(C) 2005-$VBOX_C_YEAR $VBOX_VENDOR
 All rights reserved.
 
 Value: Windows Vista Business Edition</screen></para>
@@ -1677,8 +1552,8 @@ Value: Windows Vista Business Edition</screen></para>
     <computeroutput>VBoxControl</computeroutput>. This tool is included in the
     Guest Additions of VirtualBox 2.2 or later. When started from a Linux
     guest, this tool requires root privileges for security reasons:<screen>$ sudo VBoxControl guestproperty enumerate
-VirtualBox Guest Additions Command Line Management Interface Version @VBOX_VERSION_MAJOR@.@VBOX_VERSION_MINOR@.@VBOX_VERSION_BUILD@
-(C) 2009-@VBOX_C_YEAR@ @VBOX_VENDOR@
+VirtualBox Guest Additions Command Line Management Interface Version $VBOX_VERSION_MAJOR.$VBOX_VERSION_MINOR.$VBOX_VERSION_BUILD
+(C) 2009-$VBOX_C_YEAR $VBOX_VENDOR
 All rights reserved.
 
 Name: /VirtualBox/GuestInfo/OS/Release, value: 2.6.28-18-generic,

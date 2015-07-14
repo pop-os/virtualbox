@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -651,7 +651,12 @@ int vmmdevHGCMCall (PVMMDEV pThis, VMMDevHGCMCall *pHGCMCall, uint32_t cbHGCMCal
      */
     if (cParms > VMMDEV_MAX_HGCM_PARMS)
     {
-        LogRelMax(50, ("VMMDev: request packet with too many parameters (%d). Refusing operation.\n", cParms));
+        static int s_cRelWarn;
+        if (s_cRelWarn < 50)
+        {
+            s_cRelWarn++;
+            LogRel(("VMMDev: request packet with too many parameters (%d). Refusing operation.\n", cParms));
+        }
         return VERR_INVALID_PARAMETER;
     }
 
@@ -1195,7 +1200,12 @@ static int vmmdevHGCMCallSaved (PVMMDEV pThis, VMMDevHGCMCall *pHGCMCall, RTGCPH
      */
     if (cParms > VMMDEV_MAX_HGCM_PARMS)
     {
-        LogRelMax(50, ("VMMDev: request packet with too many parameters (%d). Refusing operation.\n", cParms));
+        static int s_cRelWarn;
+        if (s_cRelWarn < 50)
+        {
+            s_cRelWarn++;
+            LogRel(("VMMDev: request packet with too many parameters (%d). Refusing operation.\n", cParms));
+        }
         return VERR_INVALID_PARAMETER;
     }
 

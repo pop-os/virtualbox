@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2015 Oracle Corporation
+ * Copyright (C) 2007-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -211,7 +211,7 @@ extern int                      VBoxServiceWinGetComponentVersions(uint32_t uiCl
 extern uint32_t                 VBoxServiceBalloonQueryPages(uint32_t cbPage);
 #endif
 #if defined(VBOXSERVICE_PAGE_SHARING)
-extern RTEXITCODE               VBoxServicePageSharingWorkerChild(void);
+extern RTEXITCODE               VBoxServicePageSharingInitFork(void);
 #endif
 extern int                      VBoxServiceVMInfoSignal(void);
 

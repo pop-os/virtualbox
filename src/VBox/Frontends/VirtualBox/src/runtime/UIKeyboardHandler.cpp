@@ -1,6 +1,8 @@
 /* $Id: UIKeyboardHandler.cpp $ */
 /** @file
- * VBox Qt GUI - UIKeyboardHandler class implementation.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * UIKeyboardHandler class implementation
  */
 
 /*
@@ -15,37 +17,27 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QKeyEvent>
-# ifdef Q_WS_X11
-#  include <QX11Info>
-# endif /* Q_WS_X11 */
+#include <QKeyEvent>
+#ifdef Q_WS_X11
+# include <QX11Info>
+#endif /* Q_WS_X11 */
 
 /* GUI includes: */
-# include "VBoxGlobal.h"
-# include "UIMessageCenter.h"
-# include "UIPopupCenter.h"
-# include "UIActionPool.h"
-# include "UIKeyboardHandlerNormal.h"
-# include "UIKeyboardHandlerFullscreen.h"
-# include "UIKeyboardHandlerSeamless.h"
-# include "UIKeyboardHandlerScale.h"
-# include "UIMouseHandler.h"
-# include "UISession.h"
-# include "UIMachineLogic.h"
-# include "UIMachineWindow.h"
-# include "UIMachineView.h"
-# include "UIHostComboEditor.h"
-# include "UIExtraDataManager.h"
-
-/* COM includes: */
-# include "CConsole.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "VBoxGlobal.h"
+#include "UIMessageCenter.h"
+#include "UIPopupCenter.h"
+#include "UIActionPool.h"
+#include "UIKeyboardHandlerNormal.h"
+#include "UIKeyboardHandlerFullscreen.h"
+#include "UIKeyboardHandlerSeamless.h"
+#include "UIKeyboardHandlerScale.h"
+#include "UIMouseHandler.h"
+#include "UISession.h"
+#include "UIMachineLogic.h"
+#include "UIMachineWindow.h"
+#include "UIMachineView.h"
+#include "UIHostComboEditor.h"
 
 /* Other VBox includes: */
 #ifdef Q_WS_X11
@@ -74,6 +66,9 @@ const int XKeyRelease = KeyRelease;
 #ifdef Q_WS_WIN
 # include "WinKeyboard.h"
 #endif /* Q_WS_WIN */
+ 
+/* COM includes: */
+#include "CConsole.h"
 
 /* Enums representing different keyboard-states: */
 enum { KeyExtended = 0x01, KeyPressed = 0x02, KeyPause = 0x04, KeyPrint = 0x08 };
@@ -182,7 +177,7 @@ static Bool checkForX11FocusEventsWorker(Display *pDisplay, XEvent *pEvent,
 {
     NOREF(pDisplay);
     struct CHECKFORX11FOCUSEVENTSDATA *pStruct;
-
+    
     pStruct = (struct CHECKFORX11FOCUSEVENTSDATA *)pArg;
     if (   pEvent->xany.type == XFocusIn
         || pEvent->xany.type == XFocusOut)
@@ -271,7 +266,7 @@ void UIKeyboardHandler::captureKeyboard(ulong uScreenId)
 #endif
 
         /* Notify all the listeners: */
-        emit sigStateChange(state());
+        emit keyboardStateChanged(keyboardState());
     }
 }
 
@@ -326,12 +321,13 @@ void UIKeyboardHandler::releaseKeyboard()
         m_iKeyboardCaptureViewIndex = -1;
 
         /* Notify all the listeners: */
-        emit sigStateChange(state());
+        emit keyboardStateChanged(keyboardState());
     }
 }
 
 void UIKeyboardHandler::releaseAllPressedKeys(bool aReleaseHostKey /* = true */)
 {
+    CKeyboard keyboard = session().GetConsole().GetKeyboard();
     bool fSentRESEND = false;
 
     /* Send a dummy scan code (RESEND) to prevent the guest OS from recognizing
@@ -345,22 +341,22 @@ void UIKeyboardHandler::releaseAllPressedKeys(bool aReleaseHostKey /* = true */)
         {
             if (!fSentRESEND)
             {
-                keyboard().PutScancode(0xFE);
+                keyboard.PutScancode (0xFE);
                 fSentRESEND = true;
             }
-            keyboard().PutScancode(i | 0x80);
+            keyboard.PutScancode(i | 0x80);
         }
         else if (m_pressedKeys[i] & IsExtKeyPressed)
         {
             if (!fSentRESEND)
             {
-                keyboard().PutScancode(0xFE);
+                keyboard.PutScancode(0xFE);
                 fSentRESEND = true;
             }
             QVector <LONG> codes(2);
             codes[0] = 0xE0;
             codes[1] = i | 0x80;
-            keyboard().PutScancodes(codes);
+            keyboard.PutScancodes(codes);
         }
         m_pressedKeys[i] = 0;
     }
@@ -382,12 +378,11 @@ void UIKeyboardHandler::releaseAllPressedKeys(bool aReleaseHostKey /* = true */)
         (aReleaseHostKey ? 0 : hostComboModifierMask);
 #endif
 
-    /* Notify all the listeners: */
-    emit sigStateChange(state());
+    emit keyboardStateChanged(keyboardState());
 }
 
 /* Current keyboard state: */
-int UIKeyboardHandler::state() const
+int UIKeyboardHandler::keyboardState() const
 {
     return (m_fIsKeyboardCaptured ? UIViewStateType_KeyboardCaptured : 0) |
            (m_bIsHostComboPressed ? UIViewStateType_HostKeyPressed : 0);
@@ -460,6 +455,10 @@ bool UIKeyboardHandler::winEventFilter(MSG *pMsg, ulong uScreenId)
             /* If present - why not just assert this? */
             if (m_pAltGrMonitor)
             {
+                /* Get the VM keyboard: */
+                CKeyboard keyboard = session().GetConsole().GetKeyboard();
+                Assert(!keyboard.isNull());
+
                 /* Bail out if we are sure that this is a fake left control. */
                 if (m_pAltGrMonitor->isCurrentEventDefinitelyFake(scan, flags & KeyPressed, flags & KeyExtended))
                 {
@@ -470,7 +469,7 @@ bool UIKeyboardHandler::winEventFilter(MSG *pMsg, ulong uScreenId)
                 m_pAltGrMonitor->updateStateFromKeyEvent(scan, flags & KeyPressed, flags & KeyExtended);
                 /* And release left Ctrl key early (if required): */
                 if (m_pAltGrMonitor->isLeftControlReleaseNeeded())
-                    keyboard().PutScancode(0x1D | 0x80);
+                    keyboard.PutScancode(0x1D | 0x80);
             }
 
             /* Check for special Korean keys. Based on the keyboard layout selected
@@ -623,7 +622,7 @@ bool UIKeyboardHandler::x11EventFilter(XEvent *pEvent, ulong uScreenId)
             unsigned scan = handleXKeyEvent(pEvent);
 
             /* Scancodes 0x00 (no valid translation) and 0x80 are ignored: */
-            if (!(scan & 0x7F))
+            if (!scan & 0x7F)
             {
                 fResult = true;
                 break;
@@ -756,7 +755,7 @@ UIKeyboardHandler::UIKeyboardHandler(UIMachineLogic *pMachineLogic)
     , m_bIsHostComboPressed(false)
     , m_bIsHostComboAlone(false)
     , m_bIsHostComboProcessed(false)
-    , m_fPassCADtoGuest(false)
+    , m_fPassCAD(false)
     , m_fDebuggerActive(false)
 #if defined(Q_WS_WIN)
     , m_bIsHostkeyInCapture(false)
@@ -800,7 +799,7 @@ void UIKeyboardHandler::prepareCommon()
     /* Pressed keys: */
     ::memset(m_pressedKeys, 0, sizeof(m_pressedKeys));
 
-    m_cMonitors = uisession()->machine().GetMonitorCount();
+    m_cMonitors = uisession()->session().GetMachine().GetMonitorCount();
 }
 
 void UIKeyboardHandler::loadSettings()
@@ -813,8 +812,10 @@ void UIKeyboardHandler::loadSettings()
 
     /* Extra data settings: */
     {
-        /* CAD setting: */
-        m_fPassCADtoGuest = gEDataManager->passCADtoGuest(vboxGlobal().managedVMUuid());
+        /* CAD settings: */
+        QString passCAD = session().GetConsole().GetMachine().GetExtraData(GUI_PassCAD);
+        if (!passCAD.isEmpty() && passCAD != "false" && passCAD != "no")
+            m_fPassCAD = true;
     }
 }
 
@@ -845,21 +846,16 @@ UIMachineLogic* UIKeyboardHandler::machineLogic() const
     return m_pMachineLogic;
 }
 
-/* Action-pool getter: */
-UIActionPool* UIKeyboardHandler::actionPool() const
-{
-    return machineLogic()->actionPool();
-}
-
 /* UI Session getter: */
 UISession* UIKeyboardHandler::uisession() const
 {
     return machineLogic()->uisession();
 }
 
-CKeyboard& UIKeyboardHandler::keyboard() const
+/* Main Session getter: */
+CSession& UIKeyboardHandler::session() const
 {
-    return uisession()->keyboard();
+    return uisession()->session();
 }
 
 /* Event handler for prepared listener(s): */
@@ -1009,10 +1005,11 @@ bool UIKeyboardHandler::eventFilter(QObject *pWatchedObject, QEvent *pEvent)
                             combo[2] = 0x57 + (pKeyEvent->key() - Qt::Key_F11); /* F11-F12 down */
                             combo[3] = 0xd7 + (pKeyEvent->key() - Qt::Key_F11); /* F11-F12 up   */
                         }
-                        keyboard().PutScancodes(combo);
+                        CKeyboard keyboard = session().GetConsole().GetKeyboard();
+                        keyboard.PutScancodes(combo);
                     }
                     /* Process hot keys not processed in keyEvent() (as in case of non-alphanumeric keys): */
-                    actionPool()->processHotKey(QKeySequence(pKeyEvent->key()));
+                    gActionPool->processHotKey(QKeySequence(pKeyEvent->key()));
                 }
                 else if (!m_bIsHostComboPressed && pEvent->type() == QEvent::KeyRelease)
                 {
@@ -1056,7 +1053,7 @@ bool UIKeyboardHandler::winLowKeyboardEvent(UINT msg, const KBDLLHOOKSTRUCT &eve
     if (   (event.flags & 0x80) /* released */
         && (   (   UIHostCombo::toKeyCodeList(m_globalSettings.hostCombo()).contains(event.vkCode)
                 && !m_bIsHostkeyInCapture)
-            ||    (  m_pressedKeys[event.scanCode & 0x7F]
+            ||    (  m_pressedKeys[event.scanCode]
                    & (IsKbdCaptured | what_pressed))
                == what_pressed))
         return false;
@@ -1245,8 +1242,8 @@ bool UIKeyboardHandler::darwinKeyboardEvent(const void *pvCocoaEvent, EventRef i
  */
 bool UIKeyboardHandler::keyEventCADHandled(uint8_t uScan)
 {
-    /* Check if it's C-A-D and GUI/PassCAD is not set/allowed: */
-    if (!m_fPassCADtoGuest &&
+    /* Check if it's C-A-D and GUI/PassCAD is not true: */
+    if (!m_fPassCAD &&
         uScan == 0x53 /* Del */ &&
         ((m_pressedKeys[0x38] & IsKeyPressed) /* Alt */ ||
          (m_pressedKeys[0x38] & IsExtKeyPressed)) &&
@@ -1402,8 +1399,8 @@ void UIKeyboardHandler::keyEventHandleHostComboRelease(ulong uScreenId)
 #endif /* Q_WS_X11 */
                         if (m_fIsKeyboardCaptured)
                         {
-                            const MouseCapturePolicy mcp = gEDataManager->mouseCapturePolicy(vboxGlobal().managedVMUuid());
-                            if (mcp == MouseCapturePolicy_Default || mcp == MouseCapturePolicy_HostComboOnly)
+                            if (uisession()->mouseCapturePolicy() == MouseCapturePolicy_Default ||
+                                uisession()->mouseCapturePolicy() == MouseCapturePolicy_HostComboOnly)
                                 machineLogic()->mouseHandler()->captureMouse(uScreenId);
                         }
                         else
@@ -1546,24 +1543,28 @@ bool UIKeyboardHandler::keyEvent(int iKey, uint8_t uScan, int fFlags, ulong uScr
         }
     }
 
-    /* Notify all the listeners: */
-    emit sigStateChange(state());
+    /* Notify all listeners: */
+    emit keyboardStateChanged(keyboardState());
 
     /* If the VM is NOT paused: */
     if (!uisession()->isPaused())
     {
+        /* Get the VM keyboard: */
+        CKeyboard keyboard = session().GetConsole().GetKeyboard();
+        Assert(!keyboard.isNull());
+
         /* If there are scan-codes to send: */
         if (uCodesCount)
         {
             /* Send prepared scan-codes to the guest: */
             std::vector<LONG> scancodes(pCodes, &pCodes[uCodesCount]);
-            keyboard().PutScancodes(QVector<LONG>::fromStdVector(scancodes));
+            keyboard.PutScancodes(QVector<LONG>::fromStdVector(scancodes));
         }
 
         /* If full host-key sequence was just finalized: */
         if (isHostComboStateChanged && m_bIsHostComboPressed)
         {
-            keyEventReleaseHostComboKeys(keyboard());
+            keyEventReleaseHostComboKeys(keyboard);
         }
     }
 
@@ -1589,7 +1590,7 @@ bool UIKeyboardHandler::processHotKey(int iHotKey, wchar_t *pHotKey)
         if (!ToUnicodeEx(iHotKey, 0, keys, &symbol, 1, 0, pList[i]) == 1)
             symbol = 0;
         if (symbol)
-            fWasProcessed = actionPool()->processHotKey(QKeySequence((Qt::UNICODE_ACCEL + QChar(symbol).toUpper().unicode())));
+            fWasProcessed = gActionPool->processHotKey(QKeySequence((Qt::UNICODE_ACCEL + QChar(symbol).toUpper().unicode())));
     }
     delete[] pList;
 #endif /* Q_WS_WIN */
@@ -1602,12 +1603,12 @@ bool UIKeyboardHandler::processHotKey(int iHotKey, wchar_t *pHotKey)
     {
         KeySym ks = wrapXkbKeycodeToKeysym(pDisplay, keyCode, i, 0);
         char symbol = 0;
-        if (XkbTranslateKeySym(pDisplay, &ks, 0, &symbol, 1, NULL) == 0)
+        if (!XkbTranslateKeySym(pDisplay, &ks, 0, &symbol, 1, NULL) == 1)
             symbol = 0;
         if (symbol)
         {
             QChar qtSymbol = QString::fromLocal8Bit(&symbol, 1)[0];
-            fWasProcessed = actionPool()->processHotKey(QKeySequence((Qt::UNICODE_ACCEL + qtSymbol.toUpper().unicode())));
+            fWasProcessed = gActionPool->processHotKey(QKeySequence((Qt::UNICODE_ACCEL + qtSymbol.toUpper().unicode())));
         }
     }
 #endif /* Q_WS_X11 */
@@ -1615,7 +1616,7 @@ bool UIKeyboardHandler::processHotKey(int iHotKey, wchar_t *pHotKey)
 #ifdef Q_WS_MAC
     Q_UNUSED(iHotKey);
     if (pHotKey && pHotKey[0] && !pHotKey[1])
-        fWasProcessed = actionPool()->processHotKey(QKeySequence(Qt::UNICODE_ACCEL + QChar(pHotKey[0]).toUpper().unicode()));
+        fWasProcessed = gActionPool->processHotKey(QKeySequence(Qt::UNICODE_ACCEL + QChar(pHotKey[0]).toUpper().unicode()));
 #endif /* Q_WS_MAC */
 
     /* Grab the key from the Qt if it was processed, or pass it to the Qt otherwise
@@ -1714,6 +1715,7 @@ void UIKeyboardHandler::saveKeyStates()
 void UIKeyboardHandler::sendChangedKeyStates()
 {
     QVector <LONG> codes(2);
+    CKeyboard keyboard = session().GetConsole().GetKeyboard();
     for (uint i = 0; i < SIZEOF_ARRAY(m_pressedKeys); ++ i)
     {
         uint8_t os = m_pressedKeysCopy[i];
@@ -1723,7 +1725,7 @@ void UIKeyboardHandler::sendChangedKeyStates()
             codes[0] = i;
             if (!(ns & IsKeyPressed))
                 codes[0] |= 0x80;
-            keyboard().PutScancode(codes[0]);
+            keyboard.PutScancode(codes[0]);
         }
         else if ((os & IsExtKeyPressed) != (ns & IsExtKeyPressed))
         {
@@ -1731,7 +1733,7 @@ void UIKeyboardHandler::sendChangedKeyStates()
             codes[1] = i;
             if (!(ns & IsExtKeyPressed))
                 codes[1] |= 0x80;
-            keyboard().PutScancodes(codes);
+            keyboard.PutScancodes(codes);
         }
     }
 }

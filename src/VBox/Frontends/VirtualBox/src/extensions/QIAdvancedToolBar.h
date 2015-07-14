@@ -1,6 +1,7 @@
-/* $Id: QIAdvancedToolBar.h $ */
 /** @file
- * VBox Qt GUI - QIAdvancedToolBar class implementation
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * QIAdvancedToolBar class implementation
  */
 
 /*

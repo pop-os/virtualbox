@@ -1,6 +1,7 @@
-/* $Id: UIMachineWindow.h $ */
 /** @file
- * VBox Qt GUI - UIMachineWindow class declaration.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * UIMachineWindow class declaration
  */
 
 /*
@@ -23,7 +24,7 @@
 
 /* GUI includes: */
 #include "QIWithRetranslateUI.h"
-#include "UIExtraDataDefs.h"
+#include "UIDefs.h"
 
 /* COM includes: */
 #include "COMEnums.h"
@@ -37,17 +38,11 @@ class CSession;
 class UISession;
 class UIMachineLogic;
 class UIMachineView;
-class UIActionPool;
 
 /* Machine-window interface: */
 class UIMachineWindow : public QIWithRetranslateUI2<QMainWindow>
 {
     Q_OBJECT;
-
-signals:
-
-    /** Notifies about frame-buffer resize. */
-    void sigFrameBufferResize();
 
 public:
 
@@ -63,18 +58,9 @@ public:
     ulong screenId() const { return m_uScreenId; }
     UIMachineView* machineView() const { return m_pMachineView; }
     UIMachineLogic* machineLogic() const { return m_pMachineLogic; }
-    UIActionPool* actionPool() const;
     UISession* uisession() const;
-
-    /** Returns the session reference. */
     CSession& session() const;
-    /** Returns the session's machine reference. */
-    CMachine& machine() const;
-    /** Returns the session's console reference. */
-    CConsole& console() const;
-
-    /** Returns the machine name. */
-    const QString& machineName() const;
+    CMachine machine() const;
 
     /** Adjusts machine-window size to correspond current machine-view size.
       * @param fAdjustPosition determines whether is it necessary to adjust position too.
@@ -84,21 +70,15 @@ public:
     /** Adjusts machine-view size to correspond current machine-window size. */
     virtual void adjustMachineViewSize();
 
-    /** Sends machine-view size-hint to the guest. */
-    virtual void sendMachineViewSizeHint();
-
-#ifdef VBOX_WITH_MASKED_SEAMLESS
+#ifndef VBOX_WITH_TRANSLUCENT_SEAMLESS
     /* Virtual caller for base class setMask: */
     virtual void setMask(const QRegion &region);
-#endif /* VBOX_WITH_MASKED_SEAMLESS */
+#endif /* !VBOX_WITH_TRANSLUCENT_SEAMLESS */
 
 protected slots:
 
     /* Session event-handlers: */
     virtual void sltMachineStateChanged();
-
-    /** Shows window minimized. */
-    virtual void showMinimized() { QMainWindow::showMinimized(); }
 
 protected:
 
@@ -113,15 +93,9 @@ protected:
 
     /* Event handlers: */
 #ifdef Q_WS_X11
-    /** X11: Native event handler. */
     bool x11Event(XEvent *pEvent);
 #endif /* Q_WS_X11 */
-
-    /** Show event handler. */
-    void showEvent(QShowEvent *pShowEvent);
-
-    /** Close event handler. */
-    void closeEvent(QCloseEvent *pCloseEvent);
+    void closeEvent(QCloseEvent *pEvent);
 
 #ifdef Q_WS_MAC
     /** Mac OS X: Handles native notifications.

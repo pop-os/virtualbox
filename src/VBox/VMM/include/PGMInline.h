@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -488,14 +488,6 @@ DECLINLINE(int) pgmPhysPageQueryTlbeWithPage(PVM pVM, PPGMPAGE pPage, RTGCPHYS G
     {
         STAM_COUNTER_INC(&pVM->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,PageMapTlbHits));
         rc = VINF_SUCCESS;
-# if 0 //def VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0
-#  ifdef IN_RING3
-        if (pTlbe->pv == (void *)pVM->pgm.s.pvZeroPgR0)
-#  else
-        if (pTlbe->pv == (void *)pVM->pgm.s.pvZeroPgR3)
-#  endif
-            pTlbe->pv = pVM->pgm.s.CTX_SUFF(pvZeroPg);
-# endif
         AssertPtr(pTlbe->pv);
 # ifndef VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0
         Assert(!pTlbe->pMap || RT_VALID_PTR(pTlbe->pMap->pv));
@@ -1206,7 +1198,50 @@ DECLINLINE(PPGMPHYSHANDLER) pgmHandlerPhysicalLookup(PVM pVM, RTGCPHYS GCPhys)
 }
 
 
-#ifdef VBOX_WITH_RAW_MODE
+/**
+ * Gets the page state for a physical handler.
+ *
+ * @returns The physical handler page state.
+ * @param   pCur    The physical handler in question.
+ */
+DECLINLINE(unsigned) pgmHandlerPhysicalCalcState(PPGMPHYSHANDLER pCur)
+{
+    switch (pCur->enmType)
+    {
+        case PGMPHYSHANDLERTYPE_PHYSICAL_WRITE:
+            return PGM_PAGE_HNDL_PHYS_STATE_WRITE;
+
+        case PGMPHYSHANDLERTYPE_MMIO:
+        case PGMPHYSHANDLERTYPE_PHYSICAL_ALL:
+            return PGM_PAGE_HNDL_PHYS_STATE_ALL;
+
+        default:
+            AssertFatalMsgFailed(("Invalid type %d\n", pCur->enmType));
+    }
+}
+
+
+/**
+ * Gets the page state for a virtual handler.
+ *
+ * @returns The virtual handler page state.
+ * @param   pCur    The virtual handler in question.
+ * @remarks This should never be used on a hypervisor access handler.
+ */
+DECLINLINE(unsigned) pgmHandlerVirtualCalcState(PPGMVIRTHANDLER pCur)
+{
+    switch (pCur->enmType)
+    {
+        case PGMVIRTHANDLERTYPE_WRITE:
+            return PGM_PAGE_HNDL_VIRT_STATE_WRITE;
+        case PGMVIRTHANDLERTYPE_ALL:
+            return PGM_PAGE_HNDL_VIRT_STATE_ALL;
+        default:
+            AssertFatalMsgFailed(("Invalid type %d\n", pCur->enmType));
+    }
+}
+
+
 /**
  * Clears one physical page of a virtual handler.
  *
@@ -1224,16 +1259,16 @@ DECLINLINE(void) pgmHandlerVirtualClearPage(PVM pVM, PPGMVIRTHANDLER pCur, unsig
     /*
      * Remove the node from the tree (it's supposed to be in the tree if we get here!).
      */
-# ifdef VBOX_STRICT_PGM_HANDLER_VIRTUAL
+#ifdef VBOX_STRICT_PGM_HANDLER_VIRTUAL
     AssertReleaseMsg(pPhys2Virt->offNextAlias & PGMPHYS2VIRTHANDLER_IN_TREE,
                      ("pPhys2Virt=%p:{.Core.Key=%RGp, .Core.KeyLast=%RGp, .offVirtHandler=%#RX32, .offNextAlias=%#RX32}\n",
                       pPhys2Virt, pPhys2Virt->Core.Key, pPhys2Virt->Core.KeyLast, pPhys2Virt->offVirtHandler, pPhys2Virt->offNextAlias));
-# endif
+#endif
     if (pPhys2Virt->offNextAlias & PGMPHYS2VIRTHANDLER_IS_HEAD)
     {
         /* We're the head of the alias chain. */
         PPGMPHYS2VIRTHANDLER pRemove = (PPGMPHYS2VIRTHANDLER)RTAvlroGCPhysRemove(&pVM->pgm.s.CTX_SUFF(pTrees)->PhysToVirtHandlers, pPhys2Virt->Core.Key); NOREF(pRemove);
-# ifdef VBOX_STRICT_PGM_HANDLER_VIRTUAL
+#ifdef VBOX_STRICT_PGM_HANDLER_VIRTUAL
         AssertReleaseMsg(pRemove != NULL,
                          ("pPhys2Virt=%p:{.Core.Key=%RGp, .Core.KeyLast=%RGp, .offVirtHandler=%#RX32, .offNextAlias=%#RX32}\n",
                           pPhys2Virt, pPhys2Virt->Core.Key, pPhys2Virt->Core.KeyLast, pPhys2Virt->offVirtHandler, pPhys2Virt->offNextAlias));
@@ -1242,16 +1277,16 @@ DECLINLINE(void) pgmHandlerVirtualClearPage(PVM pVM, PPGMVIRTHANDLER pCur, unsig
                           "   got:    pRemove=%p:{.Core.Key=%RGp, .Core.KeyLast=%RGp, .offVirtHandler=%#RX32, .offNextAlias=%#RX32}\n",
                           pPhys2Virt, pPhys2Virt->Core.Key, pPhys2Virt->Core.KeyLast, pPhys2Virt->offVirtHandler, pPhys2Virt->offNextAlias,
                           pRemove, pRemove->Core.Key, pRemove->Core.KeyLast, pRemove->offVirtHandler, pRemove->offNextAlias));
-# endif
+#endif
         if (pPhys2Virt->offNextAlias & PGMPHYS2VIRTHANDLER_OFF_MASK)
         {
             /* Insert the next list in the alias chain into the tree. */
             PPGMPHYS2VIRTHANDLER pNext = (PPGMPHYS2VIRTHANDLER)((intptr_t)pPhys2Virt + (pPhys2Virt->offNextAlias & PGMPHYS2VIRTHANDLER_OFF_MASK));
-# ifdef VBOX_STRICT_PGM_HANDLER_VIRTUAL
+#ifdef VBOX_STRICT_PGM_HANDLER_VIRTUAL
             AssertReleaseMsg(pNext->offNextAlias & PGMPHYS2VIRTHANDLER_IN_TREE,
                              ("pNext=%p:{.Core.Key=%RGp, .Core.KeyLast=%RGp, .offVirtHandler=%#RX32, .offNextAlias=%#RX32}\n",
                              pNext, pNext->Core.Key, pNext->Core.KeyLast, pNext->offVirtHandler, pNext->offNextAlias));
-# endif
+#endif
             pNext->offNextAlias |= PGMPHYS2VIRTHANDLER_IS_HEAD;
             bool fRc = RTAvlroGCPhysInsert(&pVM->pgm.s.CTX_SUFF(pTrees)->PhysToVirtHandlers, &pNext->Core);
             AssertRelease(fRc);
@@ -1261,11 +1296,11 @@ DECLINLINE(void) pgmHandlerVirtualClearPage(PVM pVM, PPGMVIRTHANDLER pCur, unsig
     {
         /* Locate the previous node in the alias chain. */
         PPGMPHYS2VIRTHANDLER pPrev = (PPGMPHYS2VIRTHANDLER)RTAvlroGCPhysGet(&pVM->pgm.s.CTX_SUFF(pTrees)->PhysToVirtHandlers, pPhys2Virt->Core.Key);
-# ifdef VBOX_STRICT_PGM_HANDLER_VIRTUAL
+#ifdef VBOX_STRICT_PGM_HANDLER_VIRTUAL
         AssertReleaseMsg(pPrev != pPhys2Virt,
                          ("pPhys2Virt=%p:{.Core.Key=%RGp, .Core.KeyLast=%RGp, .offVirtHandler=%#RX32, .offNextAlias=%#RX32} pPrev=%p\n",
                           pPhys2Virt, pPhys2Virt->Core.Key, pPhys2Virt->Core.KeyLast, pPhys2Virt->offVirtHandler, pPhys2Virt->offNextAlias, pPrev));
-# endif
+#endif
         for (;;)
         {
             PPGMPHYS2VIRTHANDLER pNext = (PPGMPHYS2VIRTHANDLER)((intptr_t)pPrev + (pPrev->offNextAlias & PGMPHYS2VIRTHANDLER_OFF_MASK));
@@ -1288,11 +1323,11 @@ DECLINLINE(void) pgmHandlerVirtualClearPage(PVM pVM, PPGMVIRTHANDLER pCur, unsig
             /* next */
             if (pNext == pPrev)
             {
-# ifdef VBOX_STRICT_PGM_HANDLER_VIRTUAL
+#ifdef VBOX_STRICT_PGM_HANDLER_VIRTUAL
                 AssertReleaseMsg(pNext != pPrev,
                                  ("pPhys2Virt=%p:{.Core.Key=%RGp, .Core.KeyLast=%RGp, .offVirtHandler=%#RX32, .offNextAlias=%#RX32} pPrev=%p\n",
                                   pPhys2Virt, pPhys2Virt->Core.Key, pPhys2Virt->Core.KeyLast, pPhys2Virt->offVirtHandler, pPhys2Virt->offNextAlias, pPrev));
-# endif
+#endif
                 break;
             }
             pPrev = pNext;
@@ -1310,7 +1345,6 @@ DECLINLINE(void) pgmHandlerVirtualClearPage(PVM pVM, PPGMVIRTHANDLER pCur, unsig
     AssertReturnVoid(pPage);
     PGM_PAGE_SET_HNDL_VIRT_STATE(pPage, PGM_PAGE_HNDL_VIRT_STATE_NONE);
 }
-#endif /* VBOX_WITH_RAW_MODE */
 
 
 /**

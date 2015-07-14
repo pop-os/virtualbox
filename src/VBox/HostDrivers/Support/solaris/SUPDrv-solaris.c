@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -28,6 +28,10 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_SUP_DRV
+#ifdef DEBUG_ramshankar
+# define LOG_ENABLED
+# define LOG_INSTANCE       RTLogRelDefaultInstance()
+#endif
 #include <sys/types.h>
 #include <sys/param.h>
 #include <sys/errno.h>
@@ -88,7 +92,6 @@ static int VBoxDrvSolarisIOCtl(dev_t Dev, int Cmd, intptr_t pArgs, int mode, cre
 
 static int VBoxDrvSolarisAttach(dev_info_t *pDip, ddi_attach_cmd_t Cmd);
 static int VBoxDrvSolarisDetach(dev_info_t *pDip, ddi_detach_cmd_t Cmd);
-static int VBoxDrvSolarisQuiesceNotNeeded(dev_info_t *pDip);
 
 static int VBoxSupDrvErr2SolarisErr(int rc);
 static int VBoxDrvSolarisIOCtlSlow(PSUPDRVSESSION pSession, int Cmd, int Mode, intptr_t pArgs);
@@ -104,20 +107,20 @@ static struct cb_ops g_VBoxDrvSolarisCbOps =
 {
     VBoxDrvSolarisOpen,
     VBoxDrvSolarisClose,
-    nodev,                        /* b strategy */
-    nodev,                        /* b dump */
-    nodev,                        /* b print */
+    nodev,                  /* b strategy */
+    nodev,                  /* b dump */
+    nodev,                  /* b print */
     VBoxDrvSolarisRead,
     VBoxDrvSolarisWrite,
     VBoxDrvSolarisIOCtl,
-    nodev,                        /* c devmap */
-    nodev,                        /* c mmap */
-    nodev,                        /* c segmap */
-    nochpoll,                     /* c poll */
-    ddi_prop_op,                  /* property ops */
-    NULL,                         /* streamtab  */
-    D_NEW | D_MP,                 /* compat. flag */
-    CB_REV                        /* revision */
+    nodev,                  /* c devmap */
+    nodev,                  /* c mmap */
+    nodev,                  /* c segmap */
+    nochpoll,               /* c poll */
+    ddi_prop_op,            /* property ops */
+    NULL,                   /* streamtab  */
+    D_NEW | D_MP,          /* compat. flag */
+    CB_REV                  /* revision */
 };
 
 /**
@@ -125,18 +128,17 @@ static struct cb_ops g_VBoxDrvSolarisCbOps =
  */
 static struct dev_ops g_VBoxDrvSolarisDevOps =
 {
-    DEVO_REV,                     /* driver build revision */
-    0,                            /* ref count */
-    nulldev,                      /* get info */
-    nulldev,                      /* identify */
-    nulldev,                      /* probe */
+    DEVO_REV,               /* driver build revision */
+    0,                      /* ref count */
+    nulldev,                /* get info */
+    nulldev,                /* identify */
+    nulldev,                /* probe */
     VBoxDrvSolarisAttach,
     VBoxDrvSolarisDetach,
-    nodev,                        /* reset */
+    nodev,                  /* reset */
     &g_VBoxDrvSolarisCbOps,
     (struct bus_ops *)0,
-    nodev,                        /* power */
-    VBoxDrvSolarisQuiesceNotNeeded
+    nodev                   /* power */
 };
 
 /**
@@ -144,7 +146,7 @@ static struct dev_ops g_VBoxDrvSolarisDevOps =
  */
 static struct modldrv g_VBoxDrvSolarisModule =
 {
-    &mod_driverops,               /* extern from kernel */
+    &mod_driverops,         /* extern from kernel */
     DEVICE_DESC " " VBOX_VERSION_STRING "r" RT_XSTR(VBOX_SVN_REV),
     &g_VBoxDrvSolarisDevOps
 };
@@ -157,7 +159,7 @@ static struct modlinkage g_VBoxDrvSolarisModLinkage =
     MODREV_1,                     /* loadable module system revision */
     {
         &g_VBoxDrvSolarisModule,
-        NULL                      /* terminate array of linkage structures */
+        NULL                     /* terminate array of linkage structures */
     }
 };
 
@@ -174,7 +176,7 @@ typedef struct
 /** State info. for each driver instance. */
 typedef struct
 {
-    dev_info_t     *pDip;         /* Device handle */
+    dev_info_t     *pDip;   /* Device handle */
 } vbox_devstate_t;
 #endif
 
@@ -196,9 +198,7 @@ static RTSPINLOCK           g_Spinlock = NIL_RTSPINLOCK;
  */
 int _init(void)
 {
-#if 0    /* No IPRT logging before RTR0Init() is done! */
     LogFlowFunc(("vboxdrv:_init\n"));
-#endif
 
     /*
      * Prevent module autounloading.
@@ -207,7 +207,7 @@ int _init(void)
     if (pModCtl)
         pModCtl->mod_loadflags |= MOD_NOAUTOUNLOAD;
     else
-        cmn_err(CE_NOTE, "vboxdrv: failed to disable autounloading!\n");
+        LogRel(("vboxdrv: failed to disable autounloading!\n"));
 
     /*
      * Initialize IPRT R0 driver, which internally calls OS-specific r0 init.
@@ -221,8 +221,6 @@ int _init(void)
         rc = supdrvInitDevExt(&g_DevExt, sizeof(SUPDRVSESSION));
         if (RT_SUCCESS(rc))
         {
-            cmn_err(CE_CONT, "!tsc::mode %s @ tentative %lu Hz\n", SUPGetGIPModeName(g_DevExt.pGip), g_DevExt.pGip->u64CpuHz);
-
             /*
              * Initialize the session hash table.
              */
@@ -256,7 +254,7 @@ int _init(void)
         else
         {
             LogRel(("VBoxDrvSolarisAttach: supdrvInitDevExt failed\n"));
-            rc = EINVAL;
+            rc = RTErrConvertToErrno(rc);
         }
         RTR0TermForced();
     }
@@ -299,9 +297,7 @@ int _fini(void)
 
 int _info(struct modinfo *pModInfo)
 {
-#if 0    /* No IPRT logging before RTR0Init() is done! And yes this is called before _init()!*/
-    LogFlowFunc(("vboxdrv:_init\n"));
-#endif
+    LogFlowFunc(("vboxdrv:_info\n"));
     int e = mod_info(&g_VBoxDrvSolarisModLinkage, pModInfo);
     return e;
 }
@@ -443,19 +439,6 @@ static int VBoxDrvSolarisDetach(dev_info_t *pDip, ddi_detach_cmd_t enmCmd)
 }
 
 
-/**
- * Quiesce not-needed entry point, as Solaris 10 doesn't have any
- * ddi_quiesce_not_needed() function.
- *
- * @param   pDip            The module structure instance.
- *
- * @return  corresponding solaris error code.
- */
-static int VBoxDrvSolarisQuiesceNotNeeded(dev_info_t *pDip)
-{
-    return DDI_SUCCESS;
-}
-
 
 /**
  * open() worker.
@@ -540,7 +523,7 @@ static int VBoxDrvSolarisOpen(dev_t *pDev, int fFlag, int fType, cred_t *pCred)
         RTSpinlockAcquire(g_Spinlock);
         pSession->pNextHash = g_apSessionHashTab[iHash];
         g_apSessionHashTab[iHash] = pSession;
-        RTSpinlockRelease(g_Spinlock);
+        RTSpinlockReleaseNoInts(g_Spinlock);
         LogFlow(("VBoxDrvSolarisOpen success\n"));
     }
 
@@ -628,7 +611,7 @@ static int VBoxDrvSolarisClose(dev_t Dev, int flag, int otyp, cred_t *cred)
             }
         }
     }
-    RTSpinlockRelease(g_Spinlock);
+    RTSpinlockReleaseNoInts(g_Spinlock);
     if (!pSession)
     {
         LogRel(("VBoxDrvSolarisClose: WHAT?!? pSession == NULL! This must be a mistake... pid=%d (close)\n", (int)Process));
@@ -702,7 +685,7 @@ static int VBoxDrvSolarisIOCtl(dev_t Dev, int Cmd, intptr_t pArgs, int Mode, cre
     pSession = g_apSessionHashTab[iHash];
     while (pSession && pSession->Process != Process && pSession->fUnrestricted == fUnrestricted);
         pSession = pSession->pNextHash;
-    RTSpinlockRelease(g_Spinlock);
+    RTSpinlockReleaseNoInts(g_Spinlock);
     if (!pSession)
     {
         LogRel(("VBoxSupDrvIOCtl: WHAT?!? pSession == NULL! This must be a mistake... pid=%d iCmd=%#x Dev=%#x\n",
@@ -958,20 +941,6 @@ bool VBOXCALL  supdrvOSGetForcedAsyncTscMode(PSUPDRVDEVEXT pDevExt)
 {
     return false;
 }
-
-
-bool VBOXCALL  supdrvOSAreCpusOfflinedOnSuspend(void)
-{
-    /** @todo verify this. */
-    return false;
-}
-
-
-bool VBOXCALL  supdrvOSAreTscDeltasInSync(void)
-{
-    return false;
-}
-
 
 #if  defined(VBOX_WITH_NATIVE_SOLARIS_LOADING) \
  && !defined(VBOX_WITHOUT_NATIVE_R0_LOADER)
@@ -1236,34 +1205,6 @@ void VBOXCALL   supdrvOSLdrUnload(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage)
 }
 
 #endif /* !VBOX_WITH_NATIVE_SOLARIS_LOADING */
-
-
-#ifdef SUPDRV_WITH_MSR_PROBER
-
-int VBOXCALL    supdrvOSMsrProberRead(uint32_t uMsr, RTCPUID idCpu, uint64_t *puValue)
-{
-/** @todo cmi_hdl_rdmsr can safely do this. there is also the on_trap() fun
- *        for catching traps that could possibly be used directly. */
-    NOREF(uMsr); NOREF(idCpu); NOREF(puValue);
-    return VERR_NOT_SUPPORTED;
-}
-
-
-int VBOXCALL    supdrvOSMsrProberWrite(uint32_t uMsr, RTCPUID idCpu, uint64_t uValue)
-{
-/** @todo cmi_hdl_wrmsr can safely do this. */
-    NOREF(uMsr); NOREF(idCpu); NOREF(uValue);
-    return VERR_NOT_SUPPORTED;
-}
-
-
-int VBOXCALL    supdrvOSMsrProberModify(RTCPUID idCpu, PSUPMSRPROBER pReq)
-{
-    NOREF(idCpu); NOREF(pReq);
-    return VERR_NOT_SUPPORTED;
-}
-
-#endif /* SUPDRV_WITH_MSR_PROBER */
 
 
 RTDECL(int) SUPR0Printf(const char *pszFormat, ...)

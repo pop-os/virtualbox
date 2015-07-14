@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2015 Oracle Corporation
+# Copyright (C) 2006-2012 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -47,15 +47,7 @@ VBoxClient_LIBS = \
 	X11 \
 	Xrandr \
 	Xt
-
-ifdef VBOX_WITH_DRAG_AND_DROP
- ifdef VBOX_DND_WITH_XTEST
- VBoxClient_DEFS += VBOX_DND_WITH_XTEST
- VBoxClient_LIBS += \
-	Xtst
- endif
-endif
-
+#	Xtst
 # These are static replacements for gcc-specific parts of libstdc++
 VBoxClient_LIBS += \
 	supc++ \
@@ -79,8 +71,6 @@ ifdef VBOX_WITH_DRAG_AND_DROP
 	$(if $(VBOX_WITH_DRAG_AND_DROP_GH),VBOX_WITH_DRAG_AND_DROP_GH,)
  VBoxClient_SOURCES += \
 	draganddrop.cpp
- VBoxClient_LIBS     += \
-	$(PATH_STAGE_LIB)/additions/VBoxDnDGuestR3Lib$(VBOX_SUFF_LIB)
 endif
 
 ifdef VBOX_X11_SEAMLESS_GUEST

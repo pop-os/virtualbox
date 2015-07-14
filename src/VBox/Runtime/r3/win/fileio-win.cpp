@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -709,9 +709,6 @@ RTR3DECL(bool) RTFileIsValid(RTFILE hFile)
                 if (GetLastError() == NO_ERROR)
                     return true;
                 break;
-
-            default:
-                break;
         }
     }
     return false;
@@ -829,10 +826,8 @@ RTR3DECL(int) RTFileQueryInfo(RTFILE hFile, PRTFSOBJINFO pObjInfo, RTFSOBJATTRAD
         DWORD dwErr = GetLastError();
         /* Only return if we *really* don't have a valid handle value,
          * everything else is fine here ... */
-        if (dwErr == ERROR_INVALID_HANDLE)
+        if (dwErr != ERROR_INVALID_HANDLE)
             return RTErrConvertFromWin32(dwErr);
-        RT_ZERO(Data);
-        Data.dwFileAttributes = RTFS_DOS_NT_DEVICE;
     }
 
     /*

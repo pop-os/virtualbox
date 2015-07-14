@@ -165,7 +165,7 @@ struct USBFilterCmd
     USBFilter mFilter;
 };
 
-RTEXITCODE handleUSBFilter(HandlerArg *a)
+int handleUSBFilter(HandlerArg *a)
 {
     HRESULT rc = S_OK;
     USBFilterCmd cmd;
@@ -221,7 +221,7 @@ RTEXITCODE handleUSBFilter(HandlerArg *a)
                     {
                         /* assume it's a UUID of a machine */
                         CHECK_ERROR_RET(a->virtualBox, FindMachine(Bstr(a->argv[i]).raw(),
-                                                                   cmd.mMachine.asOutParam()), RTEXITCODE_FAILURE);
+                                                                   cmd.mMachine.asOutParam()), 1);
                     }
                 }
                 else if (   !strcmp(a->argv[i], "--name")
@@ -370,7 +370,7 @@ RTEXITCODE handleUSBFilter(HandlerArg *a)
                     else
                     {
                         CHECK_ERROR_RET(a->virtualBox, FindMachine(Bstr(a->argv[i]).raw(),
-                                                                   cmd.mMachine.asOutParam()), RTEXITCODE_FAILURE);
+                                                                   cmd.mMachine.asOutParam()), 1);
                     }
                 }
             }
@@ -390,15 +390,15 @@ RTEXITCODE handleUSBFilter(HandlerArg *a)
     ComPtr<IHost> host;
     ComPtr<IUSBDeviceFilters> flts;
     if (cmd.mGlobal)
-        CHECK_ERROR_RET(a->virtualBox, COMGETTER(Host)(host.asOutParam()), RTEXITCODE_FAILURE);
+        CHECK_ERROR_RET(a->virtualBox, COMGETTER(Host)(host.asOutParam()), 1);
     else
     {
         /* open a session for the VM */
-        CHECK_ERROR_RET(cmd.mMachine, LockMachine(a->session, LockType_Shared), RTEXITCODE_FAILURE);
+        CHECK_ERROR_RET(cmd.mMachine, LockMachine(a->session, LockType_Shared), 1);
         /* get the mutable session machine */
         a->session->COMGETTER(Machine)(cmd.mMachine.asOutParam());
         /* and get the USB device filters */
-        CHECK_ERROR_RET(cmd.mMachine, COMGETTER(USBDeviceFilters)(flts.asOutParam()), RTEXITCODE_FAILURE);
+        CHECK_ERROR_RET(cmd.mMachine, COMGETTER(USBDeviceFilters)(flts.asOutParam()), 1);
     }
 
     switch (cmd.mAction)
@@ -544,6 +544,6 @@ RTEXITCODE handleUSBFilter(HandlerArg *a)
         a->session->UnlockMachine();
     }
 
-    return SUCCEEDED(rc) ? RTEXITCODE_SUCCESS : RTEXITCODE_FAILURE;
+    return SUCCEEDED(rc) ? 0 : 1;
 }
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

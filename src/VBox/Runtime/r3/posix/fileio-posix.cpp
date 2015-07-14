@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -390,6 +390,7 @@ RTFILE rtFileGetStandard(RTHANDLESTD enmStdHandle)
         case RTHANDLESTD_INPUT:  fd = 0; break;
         case RTHANDLESTD_OUTPUT: fd = 1; break;
         case RTHANDLESTD_ERROR:  fd = 2; break;
+            break;
         default:
             AssertFailedReturn(NIL_RTFILE);
     }

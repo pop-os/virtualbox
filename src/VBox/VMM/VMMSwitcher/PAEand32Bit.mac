@@ -4,7 +4,7 @@
 ;
 
 ;
-; Copyright (C) 2006-2015 Oracle Corporation
+; Copyright (C) 2006-2013 Oracle Corporation
 ;
 ; This file is part of VirtualBox Open Source Edition (OSE), as
 ; available from http://www.virtualbox.org. This file is free software;
@@ -224,9 +224,7 @@ BEGINPROC vmmR0ToRawModeAsm
     cmp     byte [edx + CPUMCPU.fX2Apic], 1
     je      htg_x2apic
 
-    ; Legacy xAPIC mode. No write completion required when writing to the
-    ; LVT registers as we have mapped the APIC page non-cacheable and the
-    ; MMIO is CPU-local.
+    ; Legacy xAPIC mode:
     mov     ebx, [edx + CPUMCPU.pvApicBase]
     or      ebx, ebx
     jz      htg_apic_done
@@ -240,6 +238,7 @@ BEGINPROC vmmR0ToRawModeAsm
     or      edi, 0x01
     or      eax, APIC_REG_LVT_MASKED
     mov     [ebx + APIC_REG_LVT_LINT0], eax
+    mov     eax, [ebx + APIC_REG_LVT_LINT0] ; write completion
 htg_nolint0:
     mov     eax, [ebx + APIC_REG_LVT_LINT1]
     mov     ecx, eax
@@ -249,6 +248,7 @@ htg_nolint0:
     or      edi, 0x02
     or      eax, APIC_REG_LVT_MASKED
     mov     [ebx + APIC_REG_LVT_LINT1], eax
+    mov     eax, [ebx + APIC_REG_LVT_LINT1] ; write completion
 htg_nolint1:
     mov     eax, [ebx + APIC_REG_LVT_PC]
     mov     ecx, eax
@@ -258,6 +258,7 @@ htg_nolint1:
     or      edi, 0x04
     or      eax, APIC_REG_LVT_MASKED
     mov     [ebx + APIC_REG_LVT_PC], eax
+    mov     eax, [ebx + APIC_REG_LVT_PC] ; write completion
 htg_nopc:
     mov     eax, [ebx + APIC_REG_VERSION]
     shr     eax, 16
@@ -272,6 +273,7 @@ htg_nopc:
     or      edi, 0x10
     or      eax, APIC_REG_LVT_MASKED
     mov     [ebx + APIC_REG_LVT_CMCI], eax
+    mov     eax, [ebx + APIC_REG_LVT_CMCI] ; write completion
 htg_nocmci:
     mov     eax, [ebx + APIC_REG_LVT_THMR]
     mov     ecx, eax
@@ -281,6 +283,7 @@ htg_nocmci:
     or      edi, 0x08
     or      eax, APIC_REG_LVT_MASKED
     mov     [ebx + APIC_REG_LVT_THMR], eax
+    mov     eax, [ebx + APIC_REG_LVT_THMR] ; write completion
 htg_notherm:
     mov     [edx + CPUMCPU.fApicDisVectors], edi
     jmp     htg_apic_done
@@ -419,7 +422,7 @@ htg_debug_regs_no:
 
     ;
     ; CR4.AndMask and CR4.OrMask are set in CPUMR3Init based on the presence of
-    ; FXSAVE and XSAVE support on the host CPU
+    ; FXSAVE support on the host CPU
     ;
     CPUM_FROM_CPUMCPU(edx)
     and     ecx, [edx + CPUM.CR4.AndMask]
@@ -989,31 +992,27 @@ gth_syscall_no:
     and     ecx, ~(X86_CR0_TS | X86_CR0_EM)
     mov     cr0, ecx
 
-    mov     ebx, edx                    ; save edx
+    FIXUP FIX_NO_FXSAVE_JMP, 0, gth_no_fxsave - NAME(Start) ; this will insert a jmp gth_no_fxsave if fxsave isn't supported.
+    fxsave  [edx + CPUMCPU.Guest.fpu]
+    fxrstor [edx + CPUMCPU.Host.fpu]
+    jmp near gth_fpu_no
 
-    mov     eax, [ebx + CPUMCPU.Guest.fXStateMask]
-    mov     ecx, [ebx + CPUMCPU.Guest.pXStateR0]
-    test    eax, eax
-    jz      gth_fpu_guest_fxsave
-    mov     edx, [ebx + CPUMCPU.Guest.fXStateMask + 4]
-    xsave   [ecx]
-    jmp     gth_fpu_host
-gth_fpu_guest_fxsave:
-    fxsave  [ecx]
+gth_no_fxsave:
+    fnsave  [edx + CPUMCPU.Guest.fpu]
+    mov     eax, [edx + CPUMCPU.Host.fpu]     ; control word
+    not     eax                            ; 1 means exception ignored (6 LS bits)
+    and     eax, byte 03Fh                 ; 6 LS bits only
+    test    eax, [edx + CPUMCPU.Host.fpu + 4] ; status word
+    jz      gth_no_exceptions_pending
 
-gth_fpu_host:
-    mov     eax, [ebx + CPUMCPU.Host.fXStateMask]
-    mov     ecx, [ebx + CPUMCPU.Host.pXStateR0]
-    test    eax, eax
-    jz      gth_fpu_host_fxrstor
-    mov     edx, [ebx + CPUMCPU.Host.fXStateMask + 4]
-    xrstor  [ecx]
-    jmp     gth_fpu_done
-gth_fpu_host_fxrstor:
-    fxrstor [ecx]
+    ; technically incorrect, but we certainly don't want any exceptions now!!
+    and     dword [edx + CPUMCPU.Host.fpu + 4], ~03Fh
 
-gth_fpu_done:
-    mov     edx, ebx                    ; restore edx
+gth_no_exceptions_pending:
+    frstor  [edx + CPUMCPU.Host.fpu]
+    jmp short gth_fpu_no
+
+ALIGNCODE(16)
 gth_fpu_no:
 
     ; Control registers.
@@ -1023,7 +1022,7 @@ gth_fpu_no:
     mov     cr4, ecx
     mov     ecx, [edx + CPUMCPU.Host.cr0]
     mov     cr0, ecx
-    ;mov     ecx, [edx + CPUMCPU.Host.cr2] ; assumes this is a waste of time.
+    ;mov     ecx, [edx + CPUMCPU.Host.cr2] ; assumes this is waste of time.
     ;mov     cr2, ecx
 
     ; restore debug registers (if modified) (esi must still be fUseFlags!)

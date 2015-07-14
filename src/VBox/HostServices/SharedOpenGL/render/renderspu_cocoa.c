@@ -79,7 +79,11 @@ GLboolean renderspu_SystemVBoxCreateWindow(VisualInfo *pVisInfo, GLboolean fShow
     pWinInfo->nativeWindow = NULL;
     pWinInfo->currentCtx = NULL;
 
-    NativeNSViewRef pParentWin = (NativeNSViewRef)(uintptr_t)render_spu_parent_window_id;
+#ifdef __LP64__
+    NativeNSViewRef pParentWin = (NativeNSViewRef)render_spu_parent_window_id;
+#else /* __LP64__ */
+    NativeNSViewRef pParentWin = (NativeNSViewRef)(uint32_t)render_spu_parent_window_id;
+#endif /* __LP64__ */
 
     cocoaViewCreate(&pWinInfo->window, pWinInfo, pParentWin, pVisInfo->visAttribs);
 
@@ -91,7 +95,11 @@ GLboolean renderspu_SystemVBoxCreateWindow(VisualInfo *pVisInfo, GLboolean fShow
 
 void renderspu_SystemReparentWindow(WindowInfo *pWinInfo)
 {
-    NativeNSViewRef pParentWin = (NativeNSViewRef)(uintptr_t)render_spu_parent_window_id;
+#ifdef __LP64__
+    NativeNSViewRef pParentWin = (NativeNSViewRef)render_spu_parent_window_id;
+#else /* __LP64__ */
+    NativeNSViewRef pParentWin = (NativeNSViewRef)(uint32_t)render_spu_parent_window_id;
+#endif /* __LP64__ */
     cocoaViewReparent(pWinInfo->window, pParentWin);
 }
 
@@ -105,7 +113,12 @@ void renderspu_SystemDestroyWindow(WindowInfo *pWinInfo)
 void renderspu_SystemWindowPosition(WindowInfo *pWinInfo, GLint x, GLint y)
 {
     CRASSERT(pWinInfo);
-    NativeNSViewRef pParentWin = (NativeNSViewRef)(uintptr_t)render_spu_parent_window_id;
+
+#ifdef __LP64__
+    NativeNSViewRef pParentWin = (NativeNSViewRef)render_spu_parent_window_id;
+#else /* __LP64__ */
+    NativeNSViewRef pParentWin = (NativeNSViewRef)(uint32_t)render_spu_parent_window_id;
+#endif /* __LP64__ */
 
     /*pParentWin is unused in the call, otherwise it might hold incorrect value if for ex. last reparent call was for
       a different screen*/

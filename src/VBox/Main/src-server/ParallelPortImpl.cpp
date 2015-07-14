@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -51,7 +51,6 @@ struct ParallelPort::Data
 
 // constructor / destructor
 /////////////////////////////////////////////////////////////////////////////
-DEFINE_EMPTY_CTOR_DTOR(ParallelPort)
 
 HRESULT ParallelPort::FinalConstruct()
 {
@@ -194,8 +193,13 @@ void ParallelPort::uninit()
 // IParallelPort properties
 /////////////////////////////////////////////////////////////////////////////
 
-HRESULT ParallelPort::getEnabled(BOOL *aEnabled)
+STDMETHODIMP ParallelPort::COMGETTER(Enabled) (BOOL *aEnabled)
 {
+    CheckComArgOutPointerValid(aEnabled);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     *aEnabled = m->bd->fEnabled;
@@ -203,9 +207,13 @@ HRESULT ParallelPort::getEnabled(BOOL *aEnabled)
     return S_OK;
 }
 
-HRESULT ParallelPort::setEnabled(BOOL aEnabled)
+STDMETHODIMP ParallelPort::COMSETTER(Enabled) (BOOL aEnabled)
 {
     LogFlowThisFunc(("aEnabled=%RTbool\n", aEnabled));
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     /* the machine needs to be mutable */
     AutoMutableStateDependency adep(m->pMachine);
     if (FAILED(adep.rc())) return adep.rc();
@@ -228,17 +236,22 @@ HRESULT ParallelPort::setEnabled(BOOL aEnabled)
         alock.release();
 
         AutoWriteLock mlock(m->pMachine COMMA_LOCKVAL_SRC_POS);
-        m->pMachine->i_setModified(Machine::IsModified_ParallelPorts);
+        m->pMachine->setModified(Machine::IsModified_ParallelPorts);
         mlock.release();
 
-        m->pMachine->i_onParallelPortChange(this);
+        m->pMachine->onParallelPortChange(this);
     }
 
     return S_OK;
 }
 
-HRESULT ParallelPort::getSlot(ULONG *aSlot)
+STDMETHODIMP ParallelPort::COMGETTER(Slot) (ULONG *aSlot)
 {
+    CheckComArgOutPointerValid(aSlot);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     *aSlot = m->bd->ulSlot;
@@ -246,8 +259,13 @@ HRESULT ParallelPort::getSlot(ULONG *aSlot)
     return S_OK;
 }
 
-HRESULT ParallelPort::getIRQ(ULONG *aIRQ)
+STDMETHODIMP ParallelPort::COMGETTER(IRQ) (ULONG *aIRQ)
 {
+    CheckComArgOutPointerValid(aIRQ);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     *aIRQ = m->bd->ulIRQ;
@@ -255,7 +273,7 @@ HRESULT ParallelPort::getIRQ(ULONG *aIRQ)
     return S_OK;
 }
 
-HRESULT ParallelPort::setIRQ(ULONG aIRQ)
+STDMETHODIMP ParallelPort::COMSETTER(IRQ)(ULONG aIRQ)
 {
     /* check IRQ limits
      * (when changing this, make sure it corresponds to XML schema */
@@ -263,6 +281,9 @@ HRESULT ParallelPort::setIRQ(ULONG aIRQ)
         return setError(E_INVALIDARG,
                         tr("Invalid IRQ number of the parallel port %d: %lu (must be in range [0, %lu])"),
                         m->bd->ulSlot, aIRQ, 255);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     /* the machine needs to be mutable */
     AutoMutableStateDependency adep(m->pMachine);
@@ -280,17 +301,22 @@ HRESULT ParallelPort::setIRQ(ULONG aIRQ)
         alock.release();
 
         AutoWriteLock mlock(m->pMachine COMMA_LOCKVAL_SRC_POS);
-        m->pMachine->i_setModified(Machine::IsModified_ParallelPorts);
+        m->pMachine->setModified(Machine::IsModified_ParallelPorts);
         mlock.release();
 
-        m->pMachine->i_onParallelPortChange(this);
+        m->pMachine->onParallelPortChange(this);
     }
 
     return S_OK;
 }
 
-HRESULT ParallelPort::getIOBase(ULONG *aIOBase)
+STDMETHODIMP ParallelPort::COMGETTER(IOBase) (ULONG *aIOBase)
 {
+    CheckComArgOutPointerValid(aIOBase);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     *aIOBase = m->bd->ulIOBase;
@@ -298,7 +324,7 @@ HRESULT ParallelPort::getIOBase(ULONG *aIOBase)
     return S_OK;
 }
 
-HRESULT ParallelPort::setIOBase(ULONG aIOBase)
+STDMETHODIMP ParallelPort::COMSETTER(IOBase)(ULONG aIOBase)
 {
     /* check IOBase limits
      * (when changing this, make sure it corresponds to XML schema */
@@ -306,6 +332,9 @@ HRESULT ParallelPort::setIOBase(ULONG aIOBase)
         return setError(E_INVALIDARG,
                         tr("Invalid I/O port base address of the parallel port %d: %lu (must be in range [0, 0x%X])"),
                         m->bd->ulSlot, aIOBase, 0, 0xFFFF);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     /* the machine needs to be mutable */
     AutoMutableStateDependency adep(m->pMachine);
@@ -323,50 +352,58 @@ HRESULT ParallelPort::setIOBase(ULONG aIOBase)
         alock.release();
 
         AutoWriteLock mlock(m->pMachine COMMA_LOCKVAL_SRC_POS);
-        m->pMachine->i_setModified(Machine::IsModified_ParallelPorts);
+        m->pMachine->setModified(Machine::IsModified_ParallelPorts);
         mlock.release();
 
-        m->pMachine->i_onParallelPortChange(this);
+        m->pMachine->onParallelPortChange(this);
     }
 
     return S_OK;
 }
 
-
-HRESULT ParallelPort::getPath(com::Utf8Str &aPath)
+STDMETHODIMP ParallelPort::COMGETTER(Path) (BSTR *aPath)
 {
+    CheckComArgOutPointerValid(aPath);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-    aPath = m->bd->strPath;
+
+    m->bd->strPath.cloneTo(aPath);
+
     return S_OK;
 }
 
-
-HRESULT ParallelPort::setPath(const com::Utf8Str &aPath)
+STDMETHODIMP ParallelPort::COMSETTER(Path) (IN_BSTR aPath)
 {
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     /* the machine needs to be mutable */
-    AutoMutableOrSavedStateDependency adep(m->pMachine);
+    AutoMutableStateDependency adep(m->pMachine);
     if (FAILED(adep.rc())) return adep.rc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    if (aPath != m->bd->strPath)
+    Utf8Str str(aPath);
+    if (str != m->bd->strPath)
     {
-        HRESULT rc = i_checkSetPath(aPath);
+        HRESULT rc = checkSetPath(str);
         if (FAILED(rc)) return rc;
 
         m->bd.backup();
-        m->bd->strPath = aPath;
+        m->bd->strPath = str;
 
         m->fModified = true;
-
         // leave the lock before informing callbacks
         alock.release();
 
         AutoWriteLock mlock(m->pMachine COMMA_LOCKVAL_SRC_POS);
-        m->pMachine->i_setModified(Machine::IsModified_ParallelPorts);
+        m->pMachine->setModified(Machine::IsModified_ParallelPorts);
         mlock.release();
 
-        return m->pMachine->i_onParallelPortChange(this);
+        return m->pMachine->onParallelPortChange(this);
     }
 
     return S_OK;
@@ -383,7 +420,7 @@ HRESULT ParallelPort::setPath(const com::Utf8Str &aPath)
  *
  *  @note Locks this object for writing.
  */
-HRESULT ParallelPort::i_loadSettings(const settings::ParallelPort &data)
+HRESULT ParallelPort::loadSettings(const settings::ParallelPort &data)
 {
     AutoCaller autoCaller(this);
     AssertComRCReturnRC(autoCaller.rc());
@@ -401,11 +438,11 @@ HRESULT ParallelPort::i_loadSettings(const settings::ParallelPort &data)
  *
  *  Note that the given Port node is completely empty on input.
  *
- *  @param  <data> node.
+ *  @param aPortNode <Port> node.
  *
  *  @note Locks this object for reading.
  */
-HRESULT ParallelPort::i_saveSettings(settings::ParallelPort &data)
+HRESULT ParallelPort::saveSettings(settings::ParallelPort &data)
 {
     AutoCaller autoCaller(this);
     AssertComRCReturnRC(autoCaller.rc());
@@ -422,7 +459,7 @@ HRESULT ParallelPort::i_saveSettings(settings::ParallelPort &data)
  * Returns true if any setter method has modified settings of this instance.
  * @return
  */
-bool ParallelPort::i_isModified()
+bool ParallelPort::isModified()
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
     return m->fModified;
@@ -431,7 +468,7 @@ bool ParallelPort::i_isModified()
 /**
  *  @note Locks this object for writing.
  */
-void ParallelPort::i_rollback()
+void ParallelPort::rollback()
 {
     /* sanity */
     AutoCaller autoCaller(this);
@@ -446,7 +483,7 @@ void ParallelPort::i_rollback()
  *  @note Locks this object for writing, together with the peer object (also
  *  for writing) if there is one.
  */
-void ParallelPort::i_commit()
+void ParallelPort::commit()
 {
     /* sanity */
     AutoCaller autoCaller(this);
@@ -475,7 +512,7 @@ void ParallelPort::i_commit()
  *  @note Locks this object for writing, together with the peer object
  *  represented by @a aThat (locked for reading).
  */
-void ParallelPort::i_copyFrom(ParallelPort *aThat)
+void ParallelPort::copyFrom(ParallelPort *aThat)
 {
     AssertReturnVoid (aThat != NULL);
 
@@ -499,7 +536,7 @@ void ParallelPort::i_copyFrom(ParallelPort *aThat)
 /**
  *  Validates COMSETTER(Path) arguments.
  */
-HRESULT ParallelPort::i_checkSetPath(const Utf8Str &str)
+HRESULT ParallelPort::checkSetPath(const Utf8Str &str)
 {
     AssertReturn(isWriteLockOnCurrentThread(), E_FAIL);
 

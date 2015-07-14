@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -147,7 +147,7 @@ static DECLCALLBACK(int) drvblockRead(PPDMIBLOCK pInterface, uint64_t off, void 
 }
 
 
-/** @copydoc PDMIBLOCK::pfnReadPcBios */
+/** @copydoc PDMIBLOCK::pfnRead */
 static DECLCALLBACK(int) drvblockReadPcBios(PPDMIBLOCK pInterface, uint64_t off, void *pvBuf, size_t cbRead)
 {
     PDRVBLOCK pThis = PDMIBLOCK_2_DRVBLOCK(pInterface);

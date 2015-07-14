@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -475,33 +475,33 @@ typedef struct BUSLOGIC
 /** Register offsets in the I/O port space. */
 #define BUSLOGIC_REGISTER_CONTROL   0 /**< Writeonly */
 /** Fields for the control register. */
-# define BL_CTRL_RSBUS  RT_BIT(4)   /* Reset SCSI Bus. */
-# define BL_CTRL_RINT   RT_BIT(5)   /* Reset Interrupt. */
-# define BL_CTRL_RSOFT  RT_BIT(6)   /* Soft Reset. */
-# define BL_CTRL_RHARD  RT_BIT(7)   /* Hard Reset. */
+# define BUSLOGIC_REGISTER_CONTROL_SCSI_BUSRESET   RT_BIT(4)
+# define BUSLOGIC_REGISTER_CONTROL_INTERRUPT_RESET RT_BIT(5)
+# define BUSLOGIC_REGISTER_CONTROL_SOFT_RESET      RT_BIT(6)
+# define BUSLOGIC_REGISTER_CONTROL_HARD_RESET      RT_BIT(7)
 
 #define BUSLOGIC_REGISTER_STATUS    0 /**< Readonly */
 /** Fields for the status register. */
-# define BL_STAT_CMDINV RT_BIT(0)   /* Command Invalid. */
-# define BL_STAT_DIRRDY RT_BIT(2)   /* Data In Register Ready. */
-# define BL_STAT_CPRBSY RT_BIT(3)   /* Command/Parameter Out Register Busy. */
-# define BL_STAT_HARDY  RT_BIT(4)   /* Host Adapter Ready. */
-# define BL_STAT_INREQ  RT_BIT(5)   /* Initialization Required. */
-# define BL_STAT_DFAIL  RT_BIT(6)   /* Diagnostic Failure. */
-# define BL_STAT_DACT   RT_BIT(7)   /* Diagnistic Active. */
+# define BUSLOGIC_REGISTER_STATUS_COMMAND_INVALID                 RT_BIT(0)
+# define BUSLOGIC_REGISTER_STATUS_DATA_IN_REGISTER_READY          RT_BIT(2)
+# define BUSLOGIC_REGISTER_STATUS_COMMAND_PARAMETER_REGISTER_BUSY RT_BIT(3)
+# define BUSLOGIC_REGISTER_STATUS_HOST_ADAPTER_READY              RT_BIT(4)
+# define BUSLOGIC_REGISTER_STATUS_INITIALIZATION_REQUIRED         RT_BIT(5)
+# define BUSLOGIC_REGISTER_STATUS_DIAGNOSTIC_FAILURE              RT_BIT(6)
+# define BUSLOGIC_REGISTER_STATUS_DIAGNOSTIC_ACTIVE               RT_BIT(7)
 
 #define BUSLOGIC_REGISTER_COMMAND   1 /**< Writeonly */
 #define BUSLOGIC_REGISTER_DATAIN    1 /**< Readonly */
 #define BUSLOGIC_REGISTER_INTERRUPT 2 /**< Readonly */
 /** Fields for the interrupt register. */
-# define BL_INTR_IMBL   RT_BIT(0)   /* Incoming Mailbox Loaded. */
-# define BL_INTR_OMBR   RT_BIT(1)   /* Outgoing Mailbox Available. */
-# define BL_INTR_CMDC   RT_BIT(2)   /* Command Complete. */
-# define BL_INTR_RSTS   RT_BIT(3)   /* SCSO Bus Reset State. */
-# define BL_INTR_INTV   RT_BIT(7)   /* Interrupt Valid. */
+# define BUSLOGIC_REGISTER_INTERRUPT_INCOMING_MAILBOX_LOADED      RT_BIT(0)
+# define BUSLOGIC_REGISTER_INTERRUPT_OUTGOING_MAILBOX_AVAILABLE   RT_BIT(1)
+# define BUSLOGIC_REGISTER_INTERRUPT_COMMAND_COMPLETE             RT_BIT(2)
+# define BUSLOGIC_REGISTER_INTERRUPT_EXTERNAL_BUS_RESET           RT_BIT(3)
+# define BUSLOGIC_REGISTER_INTERRUPT_INTERRUPT_VALID              RT_BIT(7)
 
 #define BUSLOGIC_REGISTER_GEOMETRY  3 /* Readonly */
-# define BL_GEOM_XLATEN  RT_BIT(7)  /* Extended geometry translation enabled. */
+# define BUSLOGIC_REGISTER_GEOMETRY_EXTENTED_TRANSLATION_ENABLED  RT_BIT(7)
 
 /** Structure for the INQUIRE_PCI_HOST_ADAPTER_INFORMATION reply. */
 typedef struct ReplyInquirePCIHostAdapterInformation
@@ -991,24 +991,23 @@ static void buslogicSetInterrupt(PBUSLOGIC pBusLogic, bool fSuppressIrq, uint8_t
 {
     LogFlowFunc(("pBusLogic=%#p\n", pBusLogic));
 
-    /* The CMDC interrupt has priority over IMBL and OMBR. */
-    if (uIrqType & (BL_INTR_IMBL | BL_INTR_OMBR))
+    /* The CMDC interrupt has priority over IMBL and MBOR. */
+    if (uIrqType & (BUSLOGIC_REGISTER_INTERRUPT_INCOMING_MAILBOX_LOADED | BUSLOGIC_REGISTER_INTERRUPT_OUTGOING_MAILBOX_AVAILABLE))
     {
-        if (!(pBusLogic->regInterrupt & BL_INTR_CMDC))
+        if (!(pBusLogic->regInterrupt & BUSLOGIC_REGISTER_INTERRUPT_COMMAND_COMPLETE))
             pBusLogic->regInterrupt |= uIrqType;    /* Report now. */
         else
             pBusLogic->uPendingIntr |= uIrqType;    /* Report later. */
     }
-    else if (uIrqType & BL_INTR_CMDC)
+    else if (uIrqType & BUSLOGIC_REGISTER_INTERRUPT_COMMAND_COMPLETE)
     {
-        AssertMsg(pBusLogic->regInterrupt == 0 || pBusLogic->regInterrupt == (BL_INTR_INTV | BL_INTR_CMDC),
-                  ("regInterrupt=%02X\n", pBusLogic->regInterrupt));
+        Assert(!pBusLogic->regInterrupt);
         pBusLogic->regInterrupt |= uIrqType;
     }
     else
         AssertMsgFailed(("Invalid interrupt state!\n"));
 
-    pBusLogic->regInterrupt |= BL_INTR_INTV;
+    pBusLogic->regInterrupt |= BUSLOGIC_REGISTER_INTERRUPT_INTERRUPT_VALID;
     if (pBusLogic->fIRQEnabled && !fSuppressIrq)
         PDMDevHlpPCISetIrq(pBusLogic->CTX_SUFF(pDevIns), 0, 1);
 }
@@ -1084,8 +1083,8 @@ static int buslogicR3HwReset(PBUSLOGIC pBusLogic, bool fResetIO)
     LogFlowFunc(("pBusLogic=%#p\n", pBusLogic));
 
     /* Reset registers to default values. */
-    pBusLogic->regStatus = BL_STAT_HARDY | BL_STAT_INREQ;
-    pBusLogic->regGeometry = BL_GEOM_XLATEN;
+    pBusLogic->regStatus = BUSLOGIC_REGISTER_STATUS_HOST_ADAPTER_READY | BUSLOGIC_REGISTER_STATUS_INITIALIZATION_REQUIRED;
+    pBusLogic->regGeometry = BUSLOGIC_REGISTER_GEOMETRY_EXTENTED_TRANSLATION_ENABLED;
     pBusLogic->uOperationCode = 0xff; /* No command executing. */
     pBusLogic->iParameter = 0;
     pBusLogic->cbCommandParametersLeft = 0;
@@ -1124,15 +1123,15 @@ static void buslogicCommandComplete(PBUSLOGIC pBusLogic, bool fSuppressIrq)
     LogFlowFunc(("pBusLogic=%#p\n", pBusLogic));
 
     pBusLogic->fUseLocalRam = false;
-    pBusLogic->regStatus |= BL_STAT_HARDY;
+    pBusLogic->regStatus |= BUSLOGIC_REGISTER_STATUS_HOST_ADAPTER_READY;
     pBusLogic->iReply = 0;
 
     /* Modify I/O address does not generate an interrupt. */
     if (pBusLogic->uOperationCode != BUSLOGICCOMMAND_EXECUTE_MAILBOX_COMMAND)
     {
         /* Notify that the command is complete. */
-        pBusLogic->regStatus &= ~BL_STAT_DIRRDY;
-        buslogicSetInterrupt(pBusLogic, fSuppressIrq, BL_INTR_CMDC);
+        pBusLogic->regStatus &= ~BUSLOGIC_REGISTER_STATUS_DATA_IN_REGISTER_READY;
+        buslogicSetInterrupt(pBusLogic, fSuppressIrq, BUSLOGIC_REGISTER_INTERRUPT_COMMAND_COMPLETE);
     }
 
     pBusLogic->uOperationCode = 0xff;
@@ -1157,8 +1156,8 @@ static void buslogicR3InitiateReset(PBUSLOGIC pBusLogic, bool fHardReset)
     if (fHardReset)
     {
         /* Set the diagnostic active bit in the status register and clear the ready state. */
-        pBusLogic->regStatus |=  BL_STAT_DACT;
-        pBusLogic->regStatus &= ~BL_STAT_HARDY;
+        pBusLogic->regStatus |=  BUSLOGIC_REGISTER_STATUS_DIAGNOSTIC_ACTIVE;
+        pBusLogic->regStatus &= ~BUSLOGIC_REGISTER_STATUS_HOST_ADAPTER_READY;
 
         /* Remember when the guest initiated a reset (after we're done resetting). */
         pBusLogic->u64ResetTime = PDMDevHlpTMTimeVirtGetNano(pBusLogic->CTX_SUFF(pDevIns));
@@ -1237,7 +1236,7 @@ static void buslogicR3SendIncomingMailbox(PBUSLOGIC pBusLogic, PBUSLOGICTASKSTAT
     ASMAtomicIncU32(&pBusLogic->cInMailboxesReady);
 # endif
 
-    buslogicSetInterrupt(pBusLogic, false, BL_INTR_IMBL);
+    buslogicSetInterrupt(pBusLogic, false, BUSLOGIC_REGISTER_INTERRUPT_INCOMING_MAILBOX_LOADED);
 
     PDMCritSectLeave(&pBusLogic->CritSectIntr);
 }
@@ -1911,7 +1910,7 @@ static int buslogicProcessCommand(PBUSLOGIC pBusLogic)
             Log(("cMailboxes=%u (24-bit mode)\n", pBusLogic->cMailbox));
             LogRel(("Initialized 24-bit mailbox, %d entries at %08x\n", pRequest->cMailbox, ADDR_TO_U32(pRequest->aMailboxBaseAddr)));
 
-            pBusLogic->regStatus &= ~BL_STAT_INREQ;
+            pBusLogic->regStatus &= ~BUSLOGIC_REGISTER_STATUS_INITIALIZATION_REQUIRED;
             pBusLogic->cbReplyParametersLeft = 0;
             break;
         }
@@ -1930,7 +1929,7 @@ static int buslogicProcessCommand(PBUSLOGIC pBusLogic)
             Log(("cMailboxes=%u (32-bit mode)\n", pBusLogic->cMailbox));
             LogRel(("Initialized 32-bit mailbox, %d entries at %08x\n", pRequest->cMailbox, pRequest->uMailboxBaseAddress));
 
-            pBusLogic->regStatus &= ~BL_STAT_INREQ;
+            pBusLogic->regStatus &= ~BUSLOGIC_REGISTER_STATUS_INITIALIZATION_REQUIRED;
             pBusLogic->cbReplyParametersLeft = 0;
             break;
         }
@@ -2081,7 +2080,7 @@ static int buslogicProcessCommand(PBUSLOGIC pBusLogic)
              */
             Log(("Command %#x not valid for this adapter\n", pBusLogic->uOperationCode));
             pBusLogic->cbReplyParametersLeft = 0;
-            pBusLogic->regStatus |= BL_STAT_CMDINV;
+            pBusLogic->regStatus |= BUSLOGIC_REGISTER_STATUS_COMMAND_INVALID;
             break;
         case BUSLOGICCOMMAND_EXECUTE_MAILBOX_COMMAND: /* Should be handled already. */
             AssertMsgFailed(("Invalid mailbox execute state!\n"));
@@ -2091,7 +2090,7 @@ static int buslogicProcessCommand(PBUSLOGIC pBusLogic)
 
     /* Set the data in ready bit in the status register in case the command has a reply. */
     if (pBusLogic->cbReplyParametersLeft)
-        pBusLogic->regStatus |= BL_STAT_DIRRDY;
+        pBusLogic->regStatus |= BUSLOGIC_REGISTER_STATUS_DATA_IN_REGISTER_READY;
     else if (!pBusLogic->cbCommandParametersLeft)
         buslogicCommandComplete(pBusLogic, fSuppressIrq);
 
@@ -2123,12 +2122,12 @@ static int buslogicRegisterRead(PBUSLOGIC pBusLogic, unsigned iRegister, uint32_
              * automatically after a period of time, in which case we can't show
              * the DIAG bit at all.
              */
-            if (pBusLogic->regStatus & BL_STAT_DACT)
+            if (pBusLogic->regStatus & BUSLOGIC_REGISTER_STATUS_DIAGNOSTIC_ACTIVE)
             {
                 uint64_t    u64AccessTime = PDMDevHlpTMTimeVirtGetNano(pBusLogic->CTX_SUFF(pDevIns));
 
-                pBusLogic->regStatus &= ~BL_STAT_DACT;
-                pBusLogic->regStatus |= BL_STAT_HARDY;
+                pBusLogic->regStatus &= ~BUSLOGIC_REGISTER_STATUS_DIAGNOSTIC_ACTIVE;
+                pBusLogic->regStatus |= BUSLOGIC_REGISTER_STATUS_HOST_ADAPTER_READY;
 
                 if (u64AccessTime - pBusLogic->u64ResetTime > BUSLOGIC_RESET_DURATION_NS)
                 {
@@ -2202,10 +2201,10 @@ static int buslogicRegisterWrite(PBUSLOGIC pBusLogic, unsigned iRegister, uint8_
     {
         case BUSLOGIC_REGISTER_CONTROL:
         {
-            if ((uVal & BL_CTRL_RHARD) || (uVal & BL_CTRL_RSOFT))
+            if ((uVal & BUSLOGIC_REGISTER_CONTROL_HARD_RESET) || (uVal & BUSLOGIC_REGISTER_CONTROL_SOFT_RESET))
             {
 #ifdef IN_RING3
-                bool    fHardReset = !!(uVal & BL_CTRL_RHARD);
+                bool    fHardReset = !!(uVal & BUSLOGIC_REGISTER_CONTROL_HARD_RESET);
 
                 LogRel(("BusLogic: %s reset\n", fHardReset ? "hard" : "soft"));
                 buslogicR3InitiateReset(pBusLogic, fHardReset);
@@ -2224,7 +2223,7 @@ static int buslogicRegisterWrite(PBUSLOGIC pBusLogic, unsigned iRegister, uint8_
             Log(("%u incoming mailboxes were ready when this interrupt was cleared\n", cMailboxesReady));
 #endif
 
-            if (uVal & BL_CTRL_RINT)
+            if (uVal & BUSLOGIC_REGISTER_CONTROL_INTERRUPT_RESET)
                 buslogicClearInterrupt(pBusLogic);
 
             PDMCritSectLeave(&pBusLogic->CritSectIntr);
@@ -2262,7 +2261,7 @@ static int buslogicRegisterWrite(PBUSLOGIC pBusLogic, unsigned iRegister, uint8_
                 pBusLogic->iParameter = 0;
 
                 /* Mark host adapter as busy and clear the invalid status bit. */
-                pBusLogic->regStatus &= ~(BL_STAT_HARDY | BL_STAT_CMDINV);
+                pBusLogic->regStatus &= ~(BUSLOGIC_REGISTER_STATUS_HOST_ADAPTER_READY | BUSLOGIC_REGISTER_STATUS_COMMAND_INVALID);
 
                 /* Get the number of bytes for parameters from the command code. */
                 switch (pBusLogic->uOperationCode)
@@ -2574,13 +2573,17 @@ static DECLCALLBACK(int) buslogicR3BiosIoPortWrite(PPDMDEVINS pDevIns, void *pvU
  * Port I/O Handler for primary port range OUT string operations.
  * @see FNIOMIOPORTOUTSTRING for details.
  */
-static DECLCALLBACK(int) buslogicR3BiosIoPortWriteStr(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port,
-                                                      uint8_t const *pbSrc, uint32_t *pcTransfers, unsigned cb)
+static DECLCALLBACK(int) buslogicR3BiosIoPortWriteStr(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, RTGCPTR *pGCPtrSrc,
+                                                      PRTGCUINTREG pcTransfer, unsigned cb)
 {
     PBUSLOGIC pBusLogic = PDMINS_2_DATA(pDevIns, PBUSLOGIC);
-    Log2(("#%d %s: pvUser=%#p cb=%d Port=%#x\n", pDevIns->iInstance, __FUNCTION__, pvUser, cb, Port));
+    int rc;
 
-    int rc = vboxscsiWriteString(pDevIns, &pBusLogic->VBoxSCSI, (Port - BUSLOGIC_BIOS_IO_PORT), pbSrc, pcTransfers, cb);
+    Log2(("#%d %s: pvUser=%#p cb=%d Port=%#x\n",
+          pDevIns->iInstance, __FUNCTION__, pvUser, cb, Port));
+
+    rc = vboxscsiWriteString(pDevIns, &pBusLogic->VBoxSCSI, (Port - BUSLOGIC_BIOS_IO_PORT),
+                             pGCPtrSrc, pcTransfer, cb);
     if (rc == VERR_MORE_DATA)
     {
         rc = buslogicR3PrepareBIOSSCSIRequest(pBusLogic);
@@ -2596,14 +2599,16 @@ static DECLCALLBACK(int) buslogicR3BiosIoPortWriteStr(PPDMDEVINS pDevIns, void *
  * Port I/O Handler for primary port range IN string operations.
  * @see FNIOMIOPORTINSTRING for details.
  */
-static DECLCALLBACK(int) buslogicR3BiosIoPortReadStr(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port,
-                                                     uint8_t *pbDst, uint32_t *pcTransfers, unsigned cb)
+static DECLCALLBACK(int) buslogicR3BiosIoPortReadStr(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, RTGCPTR *pGCPtrDst,
+                                                     PRTGCUINTREG pcTransfer, unsigned cb)
 {
     PBUSLOGIC pBusLogic = PDMINS_2_DATA(pDevIns, PBUSLOGIC);
-    LogFlowFunc(("#%d %s: pvUser=%#p cb=%d Port=%#x\n", pDevIns->iInstance, __FUNCTION__, pvUser, cb, Port));
+
+    LogFlowFunc(("#%d %s: pvUser=%#p cb=%d Port=%#x\n",
+                 pDevIns->iInstance, __FUNCTION__, pvUser, cb, Port));
 
     return vboxscsiReadString(pDevIns, &pBusLogic->VBoxSCSI, (Port - BUSLOGIC_BIOS_IO_PORT),
-                              pbDst, pcTransfers, cb);
+                              pGCPtrDst, pcTransfer, cb);
 }
 
 /**
@@ -3218,8 +3223,19 @@ static DECLCALLBACK(int) buslogicR3SaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
     SSMR3PutU32   (pSSM, pBusLogic->uMailboxIncomingPositionCurrent);
     SSMR3PutBool  (pSSM, pBusLogic->fStrictRoundRobinMode);
     SSMR3PutBool  (pSSM, pBusLogic->fExtendedLunCCBFormat);
-
-    vboxscsiR3SaveExec(&pBusLogic->VBoxSCSI, pSSM);
+    /* Now the data for the BIOS interface. */
+    SSMR3PutU8    (pSSM, pBusLogic->VBoxSCSI.regIdentify);
+    SSMR3PutU8    (pSSM, pBusLogic->VBoxSCSI.uTargetDevice);
+    SSMR3PutU8    (pSSM, pBusLogic->VBoxSCSI.uTxDir);
+    SSMR3PutU8    (pSSM, pBusLogic->VBoxSCSI.cbCDB);
+    SSMR3PutMem   (pSSM, pBusLogic->VBoxSCSI.abCDB, sizeof(pBusLogic->VBoxSCSI.abCDB));
+    SSMR3PutU8    (pSSM, pBusLogic->VBoxSCSI.iCDB);
+    SSMR3PutU32   (pSSM, pBusLogic->VBoxSCSI.cbBuf);
+    SSMR3PutU32   (pSSM, pBusLogic->VBoxSCSI.iBuf);
+    SSMR3PutBool  (pSSM, pBusLogic->VBoxSCSI.fBusy);
+    SSMR3PutU8    (pSSM, pBusLogic->VBoxSCSI.enmState);
+    if (pBusLogic->VBoxSCSI.cbBuf)
+        SSMR3PutMem(pSSM, pBusLogic->VBoxSCSI.pbBuf, pBusLogic->VBoxSCSI.cbBuf);
 
     /*
      * Save the physical addresses of the command control blocks of still pending tasks.
@@ -3320,13 +3336,27 @@ static DECLCALLBACK(int) buslogicR3LoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM,
     SSMR3GetU32   (pSSM, &pBusLogic->uMailboxIncomingPositionCurrent);
     SSMR3GetBool  (pSSM, &pBusLogic->fStrictRoundRobinMode);
     SSMR3GetBool  (pSSM, &pBusLogic->fExtendedLunCCBFormat);
-
-    rc = vboxscsiR3LoadExec(&pBusLogic->VBoxSCSI, pSSM);
-    if (RT_FAILURE(rc))
+    /* Now the data for the BIOS interface. */
+    SSMR3GetU8  (pSSM, &pBusLogic->VBoxSCSI.regIdentify);
+    SSMR3GetU8  (pSSM, &pBusLogic->VBoxSCSI.uTargetDevice);
+    SSMR3GetU8  (pSSM, &pBusLogic->VBoxSCSI.uTxDir);
+    SSMR3GetU8  (pSSM, &pBusLogic->VBoxSCSI.cbCDB);
+    SSMR3GetMem (pSSM, pBusLogic->VBoxSCSI.abCDB, sizeof(pBusLogic->VBoxSCSI.abCDB));
+    SSMR3GetU8  (pSSM, &pBusLogic->VBoxSCSI.iCDB);
+    SSMR3GetU32 (pSSM, &pBusLogic->VBoxSCSI.cbBuf);
+    SSMR3GetU32 (pSSM, &pBusLogic->VBoxSCSI.iBuf);
+    SSMR3GetBool(pSSM, (bool *)&pBusLogic->VBoxSCSI.fBusy);
+    SSMR3GetU8  (pSSM, (uint8_t *)&pBusLogic->VBoxSCSI.enmState);
+    if (pBusLogic->VBoxSCSI.cbBuf)
     {
-        LogRel(("BusLogic: Failed to restore BIOS state: %Rrc.\n", rc));
-        return PDMDEV_SET_ERROR(pDevIns, rc,
-                                N_("BusLogic: Failed to restore BIOS state\n"));
+        pBusLogic->VBoxSCSI.pbBuf = (uint8_t *)RTMemAllocZ(pBusLogic->VBoxSCSI.cbBuf);
+        if (!pBusLogic->VBoxSCSI.pbBuf)
+        {
+            LogRel(("BusLogic: Out of memory during restore.\n"));
+            return PDMDEV_SET_ERROR(pDevIns, VERR_NO_MEMORY,
+                                    N_("BusLogic: Out of memory during restore\n"));
+        }
+        SSMR3GetMem(pSSM, pBusLogic->VBoxSCSI.pbBuf, pBusLogic->VBoxSCSI.cbBuf);
     }
 
     if (pBusLogic->VBoxSCSI.fBusy)
@@ -3466,27 +3496,22 @@ static DECLCALLBACK(void) buslogicR3Info(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp,
                     !!pThis->fGCEnabled, !!pThis->fR0Enabled);
 
     /* Print mailbox state. */
-    if (pThis->regStatus & BL_STAT_INREQ)
+    if (pThis->regStatus & BUSLOGIC_REGISTER_STATUS_INITIALIZATION_REQUIRED)
         pHlp->pfnPrintf(pHlp, "Mailbox not initialized\n");
     else
-        pHlp->pfnPrintf(pHlp, "%u-bit mailbox with %u entries at %RGp (%d LUN CCBs)\n",
+        pHlp->pfnPrintf(pHlp, "%u-bit mailbox with %u entries at %RGp\n",
                         pThis->fMbxIs24Bit ? 24 : 32, pThis->cMailbox,
-                        pThis->GCPhysAddrMailboxOutgoingBase,
-                        pThis->fMbxIs24Bit ? 8 : pThis->fExtendedLunCCBFormat ? 64 : 8);
+                        pThis->GCPhysAddrMailboxOutgoingBase);
 
     /* Print register contents. */
     pHlp->pfnPrintf(pHlp, "Registers: STAT=%02x INTR=%02x GEOM=%02x\n",
                     pThis->regStatus, pThis->regInterrupt, pThis->regGeometry);
 
-    /* Print miscellaneous state. */
-    pHlp->pfnPrintf(pHlp, "HAC interrupts: %s\n",
-                    pThis->fIRQEnabled ? "on" : "off");
-
     /* Print the current command, if any. */
     if (pThis->uOperationCode != 0xff )
         pHlp->pfnPrintf(pHlp, "Current command: %02X\n", pThis->uOperationCode);
 
-    if (fVerbose && (pThis->regStatus & BL_STAT_INREQ) == 0)
+    if (fVerbose && (pThis->regStatus & BUSLOGIC_REGISTER_STATUS_INITIALIZATION_REQUIRED) == 0)
     {
         RTGCPHYS    GCMailbox;
 
@@ -4067,7 +4092,7 @@ const PDMDEVREG g_DeviceBusLogic =
     /* szName */
     "buslogic",
     /* szRCMod */
-    "VBoxDDRC.rc",
+    "VBoxDDGC.gc",
     /* szR0Mod */
     "VBoxDDR0.r0",
     /* pszDescription */

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -48,40 +48,6 @@
 
 
 /*******************************************************************************
-*   Defined Constants And Macros                                               *
-*******************************************************************************/
-/** The command doesn't need the COM stuff. */
-#define VBMG_CMD_F_NO_COM       RT_BIT_32(0)
-
-#define VBMG_CMD_TODO HELP_CMD_VBOXMANAGE_INVALID
-
-
-/*******************************************************************************
-*   Structures and Typedefs                                                    *
-*******************************************************************************/
-#ifndef VBOX_ONLY_DOCS
-/**
- * VBoxManage command descriptor.
- */
-typedef struct VBMGCMD
-{
-    /** The command.   */
-    const char                 *pszCommand;
-    /** The help category. */
-    USAGECATEGORY               enmHelpCat;
-    /** The new help command. */
-    enum HELP_CMD_VBOXMANAGE    enmCmdHelp;
-    /** The handler. */
-    RTEXITCODE                (*pfnHandler)(HandlerArg *pArg);
-    /** VBMG_CMD_F_XXX,    */
-    uint32_t                    fFlags;
-} VBMGCMD;
-/** Pointer to a const VBoxManage command descriptor. */
-typedef VBMGCMD const *PCVBMGCMD;
-#endif
-
-
-/*******************************************************************************
 *   Global Variables                                                           *
 *******************************************************************************/
 /*extern*/ bool         g_fDetailedProgress = false;
@@ -89,92 +55,6 @@ typedef VBMGCMD const *PCVBMGCMD;
 #ifndef VBOX_ONLY_DOCS
 /** Set by the signal handler. */
 static volatile bool    g_fCanceled = false;
-
-# ifdef RT_OS_WINDOWS
-// Required for ATL
-static CComModule       _Module;
-# endif
-
-/**
- * All registered command handlers
- */
-static const VBMGCMD g_aCommands[] =
-{
-    { "internalcommands",   0,                      VBMG_CMD_TODO, handleInternalCommands,     0 },
-    { "list",               USAGE_LIST,             VBMG_CMD_TODO, handleList,                 0 },
-    { "showvminfo",         USAGE_SHOWVMINFO,       VBMG_CMD_TODO, handleShowVMInfo,           0 },
-    { "registervm",         USAGE_REGISTERVM,       VBMG_CMD_TODO, handleRegisterVM,           0 },
-    { "unregistervm",       USAGE_UNREGISTERVM,     VBMG_CMD_TODO, handleUnregisterVM,         0 },
-    { "clonevm",            USAGE_CLONEVM,          VBMG_CMD_TODO, handleCloneVM,              0 },
-    { "mediumproperty",     USAGE_MEDIUMPROPERTY,   VBMG_CMD_TODO, handleMediumProperty,       0 },
-    { "hdproperty",         USAGE_MEDIUMPROPERTY,   VBMG_CMD_TODO, handleMediumProperty,       0 }, /* backward compatibility */
-    { "createmedium",       USAGE_CREATEMEDIUM,     VBMG_CMD_TODO, handleCreateMedium,         0 },
-    { "createhd",           USAGE_CREATEMEDIUM,     VBMG_CMD_TODO, handleCreateMedium,         0 }, /* backward compatibility */
-    { "createvdi",          USAGE_CREATEMEDIUM,     VBMG_CMD_TODO, handleCreateMedium,         0 }, /* backward compatibility */
-    { "modifymedium",       USAGE_MODIFYMEDIUM,     VBMG_CMD_TODO, handleModifyMedium,         0 },
-    { "modifyhd",           USAGE_MODIFYMEDIUM,     VBMG_CMD_TODO, handleModifyMedium,         0 }, /* backward compatibility */
-    { "modifyvdi",          USAGE_MODIFYMEDIUM,     VBMG_CMD_TODO, handleModifyMedium,         0 }, /* backward compatibility */
-    { "clonemedium",        USAGE_CLONEMEDIUM,      VBMG_CMD_TODO, handleCloneMedium,          0 },
-    { "clonehd",            USAGE_CLONEMEDIUM,      VBMG_CMD_TODO, handleCloneMedium,          0 }, /* backward compatibility */
-    { "clonevdi",           USAGE_CLONEMEDIUM,      VBMG_CMD_TODO, handleCloneMedium,          0 }, /* backward compatibility */
-    { "encryptmedium",      USAGE_ENCRYPTMEDIUM,    VBMG_CMD_TODO, handleEncryptMedium,        0 },
-    { "checkmediumpwd",     USAGE_MEDIUMENCCHKPWD,  VBMG_CMD_TODO, handleCheckMediumPassword,  0 },
-    { "createvm",           USAGE_CREATEVM,         VBMG_CMD_TODO, handleCreateVM,             0 },
-    { "modifyvm",           USAGE_MODIFYVM,         VBMG_CMD_TODO, handleModifyVM,             0 },
-    { "startvm",            USAGE_STARTVM,          VBMG_CMD_TODO, handleStartVM,              0 },
-    { "controlvm",          USAGE_CONTROLVM,        VBMG_CMD_TODO, handleControlVM,            0 },
-    { "discardstate",       USAGE_DISCARDSTATE,     VBMG_CMD_TODO, handleDiscardState,         0 },
-    { "adoptstate",         USAGE_ADOPTSTATE,       VBMG_CMD_TODO, handleAdoptState,           0 },
-    { "snapshot",           USAGE_SNAPSHOT,         VBMG_CMD_TODO, handleSnapshot,             0 },
-    { "closemedium",        USAGE_CLOSEMEDIUM,      VBMG_CMD_TODO, handleCloseMedium,          0 },
-    { "storageattach",      USAGE_STORAGEATTACH,    VBMG_CMD_TODO, handleStorageAttach,        0 },
-    { "storagectl",         USAGE_STORAGECONTROLLER,VBMG_CMD_TODO, handleStorageController,    0 },
-    { "showmediuminfo",     USAGE_SHOWMEDIUMINFO,   VBMG_CMD_TODO, handleShowMediumInfo,       0 },
-    { "showhdinfo",         USAGE_SHOWMEDIUMINFO,   VBMG_CMD_TODO, handleShowMediumInfo,       0 }, /* backward compatibility */
-    { "showvdiinfo",        USAGE_SHOWMEDIUMINFO,   VBMG_CMD_TODO, handleShowMediumInfo,       0 }, /* backward compatibility */
-    { "getextradata",       USAGE_GETEXTRADATA,     VBMG_CMD_TODO, handleGetExtraData,         0 },
-    { "setextradata",       USAGE_SETEXTRADATA,     VBMG_CMD_TODO, handleSetExtraData,         0 },
-    { "setproperty",        USAGE_SETPROPERTY,      VBMG_CMD_TODO, handleSetProperty,          0 },
-    { "usbfilter",          USAGE_USBFILTER,        VBMG_CMD_TODO, handleUSBFilter,            0 },
-    { "sharedfolder",       USAGE_SHAREDFOLDER,     VBMG_CMD_TODO, handleSharedFolder,         0 },
-#ifdef VBOX_WITH_GUEST_PROPS
-    { "guestproperty",      USAGE_GUESTPROPERTY,    VBMG_CMD_TODO, handleGuestProperty,        0 },
-#endif
-#ifdef VBOX_WITH_GUEST_CONTROL
-    { "guestcontrol",       USAGE_GUESTCONTROL,     VBMG_CMD_TODO, handleGuestControl,         0 },
-#endif
-    { "metrics",            USAGE_METRICS,          VBMG_CMD_TODO, handleMetrics,              0 },
-    { "import",             USAGE_IMPORTAPPLIANCE,  VBMG_CMD_TODO, handleImportAppliance,      0 },
-    { "export",             USAGE_EXPORTAPPLIANCE,  VBMG_CMD_TODO, handleExportAppliance,      0 },
-#ifdef VBOX_WITH_NETFLT
-    { "hostonlyif",         USAGE_HOSTONLYIFS,      VBMG_CMD_TODO, handleHostonlyIf,           0 },
-#endif
-    { "dhcpserver",         USAGE_DHCPSERVER,       VBMG_CMD_TODO, handleDHCPServer,           0 },
-#ifdef VBOX_WITH_NAT_SERVICE
-    { "natnetwork",         USAGE_NATNETWORK,       VBMG_CMD_TODO, handleNATNetwork,           0 },
-#endif
-    { "extpack",            USAGE_EXTPACK,       HELP_CMD_EXTPACK, handleExtPack,              0 },
-    { "bandwidthctl",       USAGE_BANDWIDTHCONTROL, VBMG_CMD_TODO, handleBandwidthControl,     0 },
-    { "debugvm",            USAGE_DEBUGVM,       HELP_CMD_DEBUGVM, handleDebugVM,              0 },
-    { "convertfromraw",     USAGE_CONVERTFROMRAW,   VBMG_CMD_TODO, handleConvertFromRaw,       VBMG_CMD_F_NO_COM },
-    { "convertdd",          USAGE_CONVERTFROMRAW,   VBMG_CMD_TODO, handleConvertFromRaw,       VBMG_CMD_F_NO_COM },
-};
-
-
-/**
- * Looks up a command by name.
- *
- * @returns Pointer to the command structure.
- * @param   pszCommand          Name of the command.
- */
-static PCVBMGCMD lookupCommand(const char *pszCommand)
-{
-    if (pszCommand)
-        for (uint32_t i = 0; i < RT_ELEMENTS(g_aCommands); i++)
-            if (!strcmp(g_aCommands[i].pszCommand, pszCommand))
-                return &g_aCommands[i];
-    return NULL;
-}
 
 
 /**
@@ -326,9 +206,9 @@ HRESULT showProgress(ComPtr<IProgress> progress)
     if (fCancelable)
     {
         signal(SIGINT,   SIG_DFL);
-# ifdef SIGBREAK
+#ifdef SIGBREAK
         signal(SIGBREAK, SIG_DFL);
-# endif
+#endif
     }
 
     /* complete the line. */
@@ -358,6 +238,15 @@ HRESULT showProgress(ComPtr<IProgress> progress)
     return hrc;
 }
 
+#ifdef RT_OS_WINDOWS
+// Required for ATL
+static CComModule _Module;
+#endif
+
+#endif /* !VBOX_ONLY_DOCS */
+
+
+#ifndef VBOX_ONLY_DOCS
 RTEXITCODE readPasswordFile(const char *pszFilename, com::Utf8Str *pPasswd)
 {
     size_t cbFile;
@@ -403,55 +292,15 @@ static RTEXITCODE settingsPasswordFile(ComPtr<IVirtualBox> virtualBox, const cha
     RTEXITCODE rcExit = readPasswordFile(pszFilename, &passwd);
     if (rcExit == RTEXITCODE_SUCCESS)
     {
-        CHECK_ERROR2I_STMT(virtualBox, SetSettingsSecret(com::Bstr(passwd).raw()), rcExit = RTEXITCODE_FAILURE);
+        int rc;
+        CHECK_ERROR(virtualBox, SetSettingsSecret(com::Bstr(passwd).raw()));
+        if (FAILED(rc))
+            rcExit = RTEXITCODE_FAILURE;
     }
 
     return rcExit;
 }
-
-RTEXITCODE readPasswordFromConsole(com::Utf8Str *pPassword, const char *pszPrompt, ...)
-{
-    RTEXITCODE rcExit = RTEXITCODE_SUCCESS;
-    char aszPwdInput[_1K] = { 0 };
-    va_list vaArgs;
-
-    va_start(vaArgs, pszPrompt);
-    int vrc = RTStrmPrintfV(g_pStdOut, pszPrompt, vaArgs);
-    if (RT_SUCCESS(vrc))
-    {
-        bool fEchoOld = false;
-        vrc = RTStrmInputGetEchoChars(g_pStdIn, &fEchoOld);
-        if (RT_SUCCESS(vrc))
-        {
-            vrc = RTStrmInputSetEchoChars(g_pStdIn, false);
-            if (RT_SUCCESS(vrc))
-            {
-                vrc = RTStrmGetLine(g_pStdIn, &aszPwdInput[0], sizeof(aszPwdInput));
-                if (RT_SUCCESS(vrc))
-                    *pPassword = aszPwdInput;
-                else
-                    rcExit = RTMsgErrorExit(RTEXITCODE_FAILURE, "Failed read password from command line (%Rrc)", vrc);
-
-                int vrc2 = RTStrmInputSetEchoChars(g_pStdIn, fEchoOld);
-                AssertRC(vrc2);
-            }
-            else
-                rcExit = RTMsgErrorExit(RTEXITCODE_FAILURE, "Failed to disable echoing typed characters (%Rrc)", vrc);
-        }
-        else
-            rcExit = RTMsgErrorExit(RTEXITCODE_FAILURE, "Failed to retrieve echo setting (%Rrc)", vrc);
-
-        RTStrmPutStr(g_pStdOut, "\n");
-    }
-    else
-        rcExit = RTMsgErrorExit(RTEXITCODE_FAILURE, "Failed to print prompt (%Rrc)", vrc);
-    va_end(vaArgs);
-
-    return rcExit;
-}
-
-#endif /* !VBOX_ONLY_DOCS */
-
+#endif
 
 int main(int argc, char *argv[])
 {
@@ -468,17 +317,17 @@ int main(int argc, char *argv[])
     bool fShowHelp = false;
     int  iCmd      = 1;
     int  iCmdArg;
-    const char *pszSettingsPw = NULL;
-    const char *pszSettingsPwFile = NULL;
+    const char *g_pszSettingsPw = NULL;
+    const char *g_pszSettingsPwFile = NULL;
 
     for (int i = 1; i < argc || argc <= iCmd; i++)
     {
         if (    argc <= iCmd
             ||  !strcmp(argv[i], "help")
-            ||  !strcmp(argv[i], "--help")
             ||  !strcmp(argv[i], "-?")
             ||  !strcmp(argv[i], "-h")
-            ||  !strcmp(argv[i], "-help"))
+            ||  !strcmp(argv[i], "-help")
+            ||  !strcmp(argv[i], "--help"))
         {
             if (i >= argc - 1)
             {
@@ -492,19 +341,18 @@ int main(int argc, char *argv[])
             continue;
         }
 
-        if (   !strcmp(argv[i], "-V")
-            || !strcmp(argv[i], "--version")
-            || !strcmp(argv[i], "-v")       /* deprecated */
-            || !strcmp(argv[i], "-version") /* deprecated */
-            || !strcmp(argv[i], "-Version") /* deprecated */)
+        if (   !strcmp(argv[i], "-v")
+            || !strcmp(argv[i], "-version")
+            || !strcmp(argv[i], "-Version")
+            || !strcmp(argv[i], "--version"))
         {
             /* Print version number, and do nothing else. */
-            RTPrintf("%sr%u\n", VBOX_VERSION_STRING, RTBldCfgRevision());
+            RTPrintf("%sr%d\n", VBOX_VERSION_STRING, RTBldCfgRevision());
             return 0;
         }
 
         if (   !strcmp(argv[i], "--dumpopts")
-            || !strcmp(argv[i], "-dumpopts") /* deprecated */)
+            || !strcmp(argv[i], "-dumpopts"))
         {
             /* Special option to dump really all commands,
              * even the ones not understood on this platform. */
@@ -513,8 +361,8 @@ int main(int argc, char *argv[])
         }
 
         if (   !strcmp(argv[i], "--nologo")
-            || !strcmp(argv[i], "-q")
-            || !strcmp(argv[i], "-nologo") /* deprecated */)
+            || !strcmp(argv[i], "-nologo")
+            || !strcmp(argv[i], "-q"))
         {
             /* suppress the logo */
             fShowLogo = false;
@@ -529,17 +377,19 @@ int main(int argc, char *argv[])
         }
         else if (!strcmp(argv[i], "--settingspw"))
         {
-            if (i >= argc - 1)
-                return RTMsgErrorExit(RTEXITCODE_FAILURE, "Password expected");
+            if (i >= argc-1)
+                return RTMsgErrorExit(RTEXITCODE_FAILURE,
+                                      "Password expected");
             /* password for certain settings */
-            pszSettingsPw = argv[i + 1];
+            g_pszSettingsPw = argv[i+1];
             iCmd += 2;
         }
         else if (!strcmp(argv[i], "--settingspwfile"))
         {
             if (i >= argc-1)
-                return RTMsgErrorExit(RTEXITCODE_FAILURE, "No password file specified");
-            pszSettingsPwFile = argv[i+1];
+                return RTMsgErrorExit(RTEXITCODE_FAILURE,
+                                      "No password file specified");
+            g_pszSettingsPwFile = argv[i+1];
             iCmd += 2;
         }
         else
@@ -548,118 +398,61 @@ int main(int argc, char *argv[])
 
     iCmdArg = iCmd + 1;
 
-    /*
-     * Show the logo and lookup the command and deal with fShowHelp = true.
-     */
     if (fShowLogo)
         showLogo(g_pStdOut);
 
+
 #ifndef VBOX_ONLY_DOCS
-    PCVBMGCMD pCmd = lookupCommand(argv[iCmd]);
-    if (pCmd && pCmd->enmCmdHelp != VBMG_CMD_TODO)
-        setCurrentCommand(pCmd->enmCmdHelp);
-
-    if (   pCmd
-        && (   fShowHelp
-            || (   argc - iCmdArg == 0
-                && pCmd->enmHelpCat != 0)))
-    {
-        if (pCmd->enmCmdHelp == VBMG_CMD_TODO)
-            printUsage(pCmd->enmHelpCat, ~0U, g_pStdOut);
-        else if (fShowHelp)
-            printHelp(g_pStdOut);
-        else
-            printUsage(g_pStdOut);
-        return RTEXITCODE_FAILURE; /* error */
-    }
-    if (!pCmd)
-    {
-        if (!strcmp(argv[iCmd], "commands"))
-        {
-            RTPrintf("commands:\n");
-            for (unsigned i = 0; i < RT_ELEMENTS(g_aCommands); i++)
-                if (   i == 0  /* skip backwards compatibility entries */
-                    || g_aCommands[i].enmHelpCat != g_aCommands[i - 1].enmHelpCat)
-                    RTPrintf("    %s\n", g_aCommands[i].pszCommand);
-            return RTEXITCODE_SUCCESS;
-        }
-        return errorSyntax(USAGE_ALL, "Invalid command '%s'", argv[iCmd]);
-    }
-
-    RTEXITCODE rcExit;
-    if (!(pCmd->fFlags & VBMG_CMD_F_NO_COM))
-    {
-        /*
-         * Initialize COM.
-         */
-        using namespace com;
-        HRESULT hrc = com::Initialize();
-        if (FAILED(hrc))
-        {
+    /*
+     * Initialize COM.
+     */
+    using namespace com;
+    HRESULT hrc = com::Initialize();
 # ifdef VBOX_WITH_XPCOM
-            if (hrc == NS_ERROR_FILE_ACCESS_DENIED)
-            {
-                char szHome[RTPATH_MAX] = "";
-                com::GetVBoxUserHomeDirectory(szHome, sizeof(szHome));
-                return RTMsgErrorExit(RTEXITCODE_FAILURE,
-                       "Failed to initialize COM because the global settings directory '%s' is not accessible!", szHome);
-            }
+    if (hrc == NS_ERROR_FILE_ACCESS_DENIED)
+    {
+        char szHome[RTPATH_MAX] = "";
+        com::GetVBoxUserHomeDirectory(szHome, sizeof(szHome));
+        return RTMsgErrorExit(RTEXITCODE_FAILURE,
+               "Failed to initialize COM because the global settings directory '%s' is not accessible!", szHome);
+    }
 # endif
-            return RTMsgErrorExit(RTEXITCODE_FAILURE, "Failed to initialize COM! (hrc=%Rhrc)", hrc);
-        }
+    if (FAILED(hrc))
+        return RTMsgErrorExit(RTEXITCODE_FAILURE, "Failed to initialize COM!");
 
+    RTEXITCODE rcExit = RTEXITCODE_FAILURE;
+    do
+    {
+    ///////////////////////////////////////////////////////////////////////////
+    // scopes all the stuff till shutdown
+        /*
+         * convertfromraw: does not need a VirtualBox instantiation.
+         */
+        if (argc >= iCmdArg && (   !strcmp(argv[iCmd], "convertfromraw")
+                                || !strcmp(argv[iCmd], "convertdd")))
+        {
+            rcExit = handleConvertFromRaw(argc - iCmdArg, argv + iCmdArg);
+            break;
+        }
 
         /*
          * Get the remote VirtualBox object and create a local session object.
          */
-        rcExit = RTEXITCODE_FAILURE;
         ComPtr<IVirtualBox> virtualBox;
+        ComPtr<ISession> session;
+
         hrc = virtualBox.createLocalObject(CLSID_VirtualBox);
-        if (SUCCEEDED(hrc))
-        {
-            ComPtr<ISession> session;
-            hrc = session.createInprocObject(CLSID_Session);
-            if (SUCCEEDED(hrc))
-            {
-                /* Session secret. */
-                if (pszSettingsPw)
-                    CHECK_ERROR2I_STMT(virtualBox, SetSettingsSecret(Bstr(pszSettingsPw).raw()), rcExit = RTEXITCODE_FAILURE);
-                else if (pszSettingsPwFile)
-                    rcExit = settingsPasswordFile(virtualBox, pszSettingsPwFile);
-                else
-                    rcExit = RTEXITCODE_SUCCESS;
-                if (rcExit == RTEXITCODE_SUCCESS)
-                {
-                    /*
-                     * Call the handler.
-                     */
-                    HandlerArg handlerArg = { argc - iCmdArg, &argv[iCmdArg], virtualBox, session };
-                    rcExit = pCmd->pfnHandler(&handlerArg);
-
-                    /* Although all handlers should always close the session if they open it,
-                     * we do it here just in case if some of the handlers contains a bug --
-                     * leaving the direct session not closed will turn the machine state to
-                     * Aborted which may have unwanted side effects like killing the saved
-                     * state file (if the machine was in the Saved state before). */
-                    session->UnlockMachine();
-                }
-
-                NativeEventQueue::getMainEventQueue()->processEventQueue(0);
-            }
-            else
-            {
-                com::ErrorInfo info;
-                RTMsgError("Failed to create a session object!");
-                if (!info.isFullAvailable() && !info.isBasicAvailable())
-                    com::GluePrintRCMessage(hrc);
-                else
-                    com::GluePrintErrorInfo(info);
-            }
-        }
+        if (FAILED(hrc))
+            RTMsgError("Failed to create the VirtualBox object!");
         else
         {
+            hrc = session.createInprocObject(CLSID_Session);
+            if (FAILED(hrc))
+                RTMsgError("Failed to create a session object!");
+        }
+        if (FAILED(hrc))
+        {
             com::ErrorInfo info;
-            RTMsgError("Failed to create the VirtualBox object!");
             if (!info.isFullAvailable() && !info.isBasicAvailable())
             {
                 com::GluePrintRCMessage(hrc);
@@ -667,25 +460,137 @@ int main(int argc, char *argv[])
             }
             else
                 com::GluePrintErrorInfo(info);
+            break;
         }
 
         /*
-         * Terminate COM, make sure the virtualBox object has been released.
+         * All registered command handlers
          */
-        virtualBox.setNull();
+        static const struct
+        {
+            const char *command;
+            USAGECATEGORY help;
+            int (*handler)(HandlerArg *a);
+        } s_commandHandlers[] =
+        {
+            { "internalcommands", 0,                       handleInternalCommands },
+            { "list",             USAGE_LIST,              handleList },
+            { "showvminfo",       USAGE_SHOWVMINFO,        handleShowVMInfo },
+            { "registervm",       USAGE_REGISTERVM,        handleRegisterVM },
+            { "unregistervm",     USAGE_UNREGISTERVM,      handleUnregisterVM },
+            { "clonevm",          USAGE_CLONEVM,           handleCloneVM },
+            { "createhd",         USAGE_CREATEHD,          handleCreateHardDisk },
+            { "createvdi",        USAGE_CREATEHD,          handleCreateHardDisk }, /* backward compatibility */
+            { "modifyhd",         USAGE_MODIFYHD,          handleModifyHardDisk },
+            { "modifyvdi",        USAGE_MODIFYHD,          handleModifyHardDisk }, /* backward compatibility */
+            { "clonehd",          USAGE_CLONEHD,           handleCloneHardDisk },
+            { "clonevdi",         USAGE_CLONEHD,           handleCloneHardDisk }, /* backward compatibility */
+            { "createvm",         USAGE_CREATEVM,          handleCreateVM },
+            { "modifyvm",         USAGE_MODIFYVM,          handleModifyVM },
+            { "startvm",          USAGE_STARTVM,           handleStartVM },
+            { "controlvm",        USAGE_CONTROLVM,         handleControlVM },
+            { "discardstate",     USAGE_DISCARDSTATE,      handleDiscardState },
+            { "adoptstate",       USAGE_ADOPTSTATE,        handleAdoptState },
+            { "snapshot",         USAGE_SNAPSHOT,          handleSnapshot },
+            { "closemedium",      USAGE_CLOSEMEDIUM,       handleCloseMedium },
+            { "storageattach",    USAGE_STORAGEATTACH,     handleStorageAttach },
+            { "storagectl",       USAGE_STORAGECONTROLLER, handleStorageController },
+            { "showhdinfo",       USAGE_SHOWHDINFO,        handleShowHardDiskInfo },
+            { "showvdiinfo",      USAGE_SHOWHDINFO,        handleShowHardDiskInfo }, /* backward compatibility */
+            { "getextradata",     USAGE_GETEXTRADATA,      handleGetExtraData },
+            { "setextradata",     USAGE_SETEXTRADATA,      handleSetExtraData },
+            { "setproperty",      USAGE_SETPROPERTY,       handleSetProperty },
+            { "usbfilter",        USAGE_USBFILTER,         handleUSBFilter },
+            { "sharedfolder",     USAGE_SHAREDFOLDER,      handleSharedFolder },
+#ifdef VBOX_WITH_GUEST_PROPS
+            { "guestproperty",    USAGE_GUESTPROPERTY,     handleGuestProperty },
+#endif
+#ifdef VBOX_WITH_GUEST_CONTROL
+            { "guestcontrol",     USAGE_GUESTCONTROL,      handleGuestControl },
+#endif
+            { "metrics",          USAGE_METRICS,           handleMetrics },
+            { "import",           USAGE_IMPORTAPPLIANCE,   handleImportAppliance },
+            { "export",           USAGE_EXPORTAPPLIANCE,   handleExportAppliance },
+#ifdef VBOX_WITH_NETFLT
+            { "hostonlyif",       USAGE_HOSTONLYIFS,       handleHostonlyIf },
+#endif
+            { "dhcpserver",       USAGE_DHCPSERVER,        handleDHCPServer},
+#ifdef VBOX_WITH_NAT_SERVICE
+            { "natnetwork",       USAGE_NATNETWORK,        handleNATNetwork},
+#endif
+            { "extpack",          USAGE_EXTPACK,           handleExtPack},
+            { "bandwidthctl",     USAGE_BANDWIDTHCONTROL,  handleBandwidthControl},
+            { "debugvm",          USAGE_DEBUGVM,           handleDebugVM},
+            { NULL,               0,                       NULL }
+        };
+
+        if (g_pszSettingsPw)
+        {
+            int rc;
+            CHECK_ERROR(virtualBox, SetSettingsSecret(Bstr(g_pszSettingsPw).raw()));
+            if (FAILED(rc))
+            {
+                rcExit = RTEXITCODE_FAILURE;
+                break;
+            }
+        }
+        else if (g_pszSettingsPwFile)
+        {
+            rcExit = settingsPasswordFile(virtualBox, g_pszSettingsPwFile);
+            if (rcExit != RTEXITCODE_SUCCESS)
+                break;
+        }
+
+        HandlerArg  handlerArg = { 0, NULL, virtualBox, session };
+        int         commandIndex;
+        for (commandIndex = 0; s_commandHandlers[commandIndex].command != NULL; commandIndex++)
+        {
+            if (!strcmp(s_commandHandlers[commandIndex].command, argv[iCmd]))
+            {
+                handlerArg.argc = argc - iCmdArg;
+                handlerArg.argv = &argv[iCmdArg];
+
+                if (   fShowHelp
+                    || (   argc - iCmdArg == 0
+                        && s_commandHandlers[commandIndex].help))
+                {
+                    printUsage(s_commandHandlers[commandIndex].help, ~0U, g_pStdOut);
+                    rcExit = RTEXITCODE_FAILURE; /* error */
+                }
+                else
+                    rcExit = (RTEXITCODE)s_commandHandlers[commandIndex].handler(&handlerArg); /** @todo Change to return RTEXITCODE. */
+                break;
+            }
+        }
+        if (!s_commandHandlers[commandIndex].command)
+        {
+            /* Help topics. */
+            if (fShowHelp && !strcmp(argv[iCmd], "commands"))
+            {
+                RTPrintf("commands:\n");
+                for (unsigned i = 0; i < RT_ELEMENTS(s_commandHandlers) - 1; i++)
+                    if (   i ==  0  /* skip backwards compatibility entries */
+                        || s_commandHandlers[i].help != s_commandHandlers[i - 1].help)
+                        RTPrintf("    %s\n", s_commandHandlers[i].command);
+            }
+            else
+                rcExit = errorSyntax(USAGE_ALL, "Invalid command '%s'", Utf8Str(argv[iCmd]).c_str());
+        }
+
+        /* Although all handlers should always close the session if they open it,
+         * we do it here just in case if some of the handlers contains a bug --
+         * leaving the direct session not closed will turn the machine state to
+         * Aborted which may have unwanted side effects like killing the saved
+         * state file (if the machine was in the Saved state before). */
+        session->UnlockMachine();
+
         NativeEventQueue::getMainEventQueue()->processEventQueue(0);
-        com::Shutdown();
-    }
-    else
-    {
-        /*
-         * The command needs no COM.
-         */
-        HandlerArg  handlerArg;
-        handlerArg.argc = argc - iCmdArg;
-        handlerArg.argv = &argv[iCmdArg];
-        rcExit = pCmd->pfnHandler(&handlerArg);
-    }
+
+    // end "all-stuff" scope
+    ///////////////////////////////////////////////////////////////////////////
+    } while (0);
+
+    com::Shutdown();
 
     return rcExit;
 #else  /* VBOX_ONLY_DOCS */

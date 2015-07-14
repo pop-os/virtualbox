@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -92,6 +92,7 @@ VMMDECL(int)        TRPMRaiseXcptErrCR2(PVMCPU pVCpu, PCPUMCTXCORE pCtxCore, X86
 
 #ifdef IN_RING3
 /** @defgroup grp_trpm_r3   TRPM Host Context Ring 3 API
+ * @ingroup grp_trpm
  * @{
  */
 VMMR3DECL(int)      TRPMR3Init(PVM pVM);
@@ -114,7 +115,8 @@ VMMR3DECL(RTRCPTR)  TRPMR3GetGuestTrapHandler(PVM pVM, unsigned iTrap);
 
 
 #ifdef IN_RC
-/** @defgroup grp_trpm_rc    The TRPM Raw-mode Context API
+/** @defgroup grp_trpm_gc    The TRPM Guest Context API
+ * @ingroup grp_trpm
  * @{
  */
 
@@ -138,6 +140,7 @@ VMMRCDECL(void)     TRPMGCHyperReturnToHost(PVM pVM, int rc);
 
 #ifdef IN_RING0
 /** @defgroup grp_trpm_r0   TRPM Host Context Ring 0 API
+ * @ingroup grp_trpm
  * @{
  */
 VMMR0DECL(void)     TRPMR0DispatchHostInterrupt(PVM pVM);

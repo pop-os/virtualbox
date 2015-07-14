@@ -253,13 +253,6 @@ static int tstVDOpenCreateWriteMerge(PVDSNAPTEST pTest)
     uint64_t cbDisk = 0;
 
     paDiskSeg = (PVDDISKSEG)RTMemAllocZ(cDiskSegments * sizeof(VDDISKSEG));
-    if (!paDiskSeg)
-    {
-        RTPrintf("Failed to allocate memory for random disk segments\n");
-        g_cErrors++;
-        return VERR_NO_MEMORY;
-    }
-
     for (unsigned i = 0; i < cDiskSegments; i++)
     {
         paDiskSeg[i].off    = cbDisk;
@@ -281,8 +274,6 @@ static int tstVDOpenCreateWriteMerge(PVDSNAPTEST pTest)
         { \
             if (pbTestPattern) \
                 RTMemFree(pbTestPattern); \
-            if (paDiskSeg) \
-                RTMemFree(paDiskSeg); \
             VDDestroy(pVD); \
             g_cErrors++; \
             return rc; \
@@ -395,8 +386,6 @@ static int tstVDOpenCreateWriteMerge(PVDSNAPTEST pTest)
     VDDumpImages(pVD);
 
     VDDestroy(pVD);
-    if (paDiskSeg)
-        RTMemFree(paDiskSeg);
     if (pbTestPattern)
         RTMemFree(pbTestPattern);
 

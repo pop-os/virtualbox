@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -377,19 +377,12 @@ typedef struct PDMIMOUSECONNECTOR
      * Notifies the the downstream driver of changes to the reporting modes
      * supported by the driver
      *
-     * @param   pInterface      Pointer to this interface structure.
+     * @param   pInterface      Pointer to the this interface.
      * @param   fRelative       Whether relative mode is currently supported.
      * @param   fAbsolute       Whether absolute mode is currently supported.
      * @param   fAbsolute       Whether multi-touch mode is currently supported.
      */
     DECLR3CALLBACKMEMBER(void, pfnReportModes,(PPDMIMOUSECONNECTOR pInterface, bool fRelative, bool fAbsolute, bool fMultiTouch));
-
-    /**
-     * Flushes the mouse queue if it contains pending events.
-     *
-     * @param   pInterface      Pointer to this interface structure.
-     */
-    DECLR3CALLBACKMEMBER(void, pfnFlushQueue,(PPDMIMOUSECONNECTOR pInterface));
 
 } PDMIMOUSECONNECTOR;
 /** PDMIMOUSECONNECTOR interface ID.  */
@@ -405,7 +398,7 @@ typedef struct PDMIKEYBOARDPORT *PPDMIKEYBOARDPORT;
 typedef struct PDMIKEYBOARDPORT
 {
     /**
-     * Puts a scan code based keyboard event.
+     * Puts a keyboard event.
      *
      * This is called by the source of keyboard events. The event will be passed up
      * until the topmost driver, which then calls the registered event handler.
@@ -414,23 +407,9 @@ typedef struct PDMIKEYBOARDPORT
      *          event now and want it to be repeated at a later point.
      *
      * @param   pInterface          Pointer to this interface structure.
-     * @param   u8ScanCode          The scan code to queue.
+     * @param   u8KeyCode           The keycode to queue.
      */
-    DECLR3CALLBACKMEMBER(int, pfnPutEventScan,(PPDMIKEYBOARDPORT pInterface, uint8_t u8KeyCode));
-
-    /**
-     * Puts a USB HID usage ID based keyboard event.
-     *
-     * This is called by the source of keyboard events. The event will be passed up
-     * until the topmost driver, which then calls the registered event handler.
-     *
-     * @returns VBox status code.  Return VERR_TRY_AGAIN if you cannot process the
-     *          event now and want it to be repeated at a later point.
-     *
-     * @param   pInterface          Pointer to this interface structure.
-     * @param   u32UsageID          The HID usage code event to queue.
-     */
-    DECLR3CALLBACKMEMBER(int, pfnPutEventHid,(PPDMIKEYBOARDPORT pInterface, uint32_t u32UsageID));
+    DECLR3CALLBACKMEMBER(int, pfnPutEvent,(PPDMIKEYBOARDPORT pInterface, uint8_t u8KeyCode));
 } PDMIKEYBOARDPORT;
 /** PDMIKEYBOARDPORT interface ID. */
 #define PDMIKEYBOARDPORT_IID                    "2a0844f0-410b-40ab-a6ed-6575f3aa3e29"
@@ -462,7 +441,7 @@ typedef struct PDMIKEYBOARDCONNECTOR
     /**
      * Notifies the the downstream driver about an LED change initiated by the guest.
      *
-     * @param   pInterface      Pointer to this interface structure.
+     * @param   pInterface      Pointer to the this interface.
      * @param   enmLeds         The new led mask.
      */
     DECLR3CALLBACKMEMBER(void, pfnLedStatusChange,(PPDMIKEYBOARDCONNECTOR pInterface, PDMKEYBLEDS enmLeds));
@@ -470,17 +449,10 @@ typedef struct PDMIKEYBOARDCONNECTOR
     /**
      * Notifies the the downstream driver of changes in driver state.
      *
-     * @param   pInterface      Pointer to this interface structure.
+     * @param   pInterface      Pointer to the this interface.
      * @param   fActive         Whether interface wishes to get "focus".
      */
     DECLR3CALLBACKMEMBER(void, pfnSetActive,(PPDMIKEYBOARDCONNECTOR pInterface, bool fActive));
-
-    /**
-     * Flushes the keyboard queue if it contains pending events.
-     *
-     * @param   pInterface      Pointer to this interface structure.
-     */
-    DECLR3CALLBACKMEMBER(void, pfnFlushQueue,(PPDMIKEYBOARDCONNECTOR pInterface));
 
 } PDMIKEYBOARDCONNECTOR;
 /** PDMIKEYBOARDCONNECTOR interface ID. */
@@ -517,13 +489,12 @@ typedef struct PDMIDISPLAYPORT
      *
      * @returns VBox status code.
      * @param   pInterface          Pointer to this interface.
-     * @param   fFailOnResize       Fail is a resize is pending.
      * @thread  The emulation thread.
      */
-    DECLR3CALLBACKMEMBER(int, pfnUpdateDisplayAll,(PPDMIDISPLAYPORT pInterface, bool fFailOnResize));
+    DECLR3CALLBACKMEMBER(int, pfnUpdateDisplayAll,(PPDMIDISPLAYPORT pInterface));
 
     /**
-     * Return the current guest resolution and color depth in bits per pixel (bpp).
+     * Return the current guest color depth in bits per pixel (bpp).
      *
      * As the graphics card is able to provide display updates with the bpp
      * requested by the host, this method can be used to query the actual
@@ -532,11 +503,9 @@ typedef struct PDMIDISPLAYPORT
      * @returns VBox status code.
      * @param   pInterface         Pointer to this interface.
      * @param   pcBits             Where to store the current guest color depth.
-     * @param   pcx                Where to store the horizontal resolution.
-     * @param   pcy                Where to store the vertical resolution.
      * @thread  Any thread.
      */
-    DECLR3CALLBACKMEMBER(int, pfnQueryVideoMode,(PPDMIDISPLAYPORT pInterface, uint32_t *pcBits, uint32_t *pcx, uint32_t *pcy));
+    DECLR3CALLBACKMEMBER(int, pfnQueryColorDepth,(PPDMIDISPLAYPORT pInterface, uint32_t *pcBits));
 
     /**
      * Sets the refresh rate and restart the timer.
@@ -705,9 +674,9 @@ typedef struct PDMIDISPLAYPORT
 } PDMIDISPLAYPORT;
 /** PDMIDISPLAYPORT interface ID. */
 #ifdef VBOX_WITH_VMSVGA
-#define PDMIDISPLAYPORT_IID                     "9672e2b0-1aef-4c4d-9108-864cdb28333f"
+#define PDMIDISPLAYPORT_IID                     "e8da6d7e-8490-11e4-91d8-ab609a010f13"
 #else
-#define PDMIDISPLAYPORT_IID                     "323f3412-8903-4564-b04c-cbfe0d2d1596"
+#define PDMIDISPLAYPORT_IID                     "db067c60-8490-11e4-8424-032afeb83818"
 #endif
 
 
@@ -718,7 +687,6 @@ typedef struct VBVAINFOVIEW *PVBVAINFOVIEW;
 typedef struct VBVAHOSTFLAGS *PVBVAHOSTFLAGS;
 struct VBOXVDMACMD_CHROMIUM_CMD; /* <- chromium [hgsmi] command */
 struct VBOXVDMACMD_CHROMIUM_CTL; /* <- chromium [hgsmi] command */
-
 
 /** Pointer to a display connector interface. */
 typedef struct PDMIDISPLAYCONNECTOR *PPDMIDISPLAYCONNECTOR;
@@ -1397,35 +1365,9 @@ typedef struct PDMISECKEY
      *        difficult like scrambling the memory buffer for instance.
      */
     DECLR3CALLBACKMEMBER(int, pfnKeyRelease, (PPDMISECKEY pInterface, const char *pszId));
-
-    /**
-     * Retains a password identified by the ID. The caller will only hold a reference
-     * to the password and must not modify the buffer in any way.
-     *
-     * @returns VBox status code.
-     * @param   pInterface      Pointer to this interface.
-     * @param   pszId           The alias/id for the password to retrieve.
-     * @param   ppszPassword    Where to store the pointer to the password on success.
-     */
-    DECLR3CALLBACKMEMBER(int, pfnPasswordRetain, (PPDMISECKEY pInterface, const char *pszId,
-                                                  const char **ppszPassword));
-
-    /**
-     * Releases one reference of the password identified by the given identifier.
-     * The caller must not access the password after calling this operation.
-     *
-     * @returns VBox status code.
-     * @param   pInterface      Pointer to this interface.
-     * @param   pszId           The alias/id for the password to release.
-     *
-     * @note: It is advised to release the password whenever it is not used anymore so the entity
-     *        storing the password can do anything to make retrieving the password from memory more
-     *        difficult like scrambling the memory buffer for instance.
-     */
-    DECLR3CALLBACKMEMBER(int, pfnPasswordRelease, (PPDMISECKEY pInterface, const char *pszId));
 } PDMISECKEY;
 /** PDMISECKEY interface ID. */
-#define PDMISECKEY_IID                           "3d698355-d995-453d-960f-31566a891df2"
+#define PDMISECKEY_IID                           "a7336c4a-2ca0-489d-ad2d-f740f215a1e6"
 
 /** Pointer to a secret key helper interface. */
 typedef struct PDMISECKEYHLP *PPDMISECKEYHLP;
@@ -2839,6 +2781,176 @@ typedef struct PDMIVMMDEVCONNECTOR
 #define PDMIVMMDEVCONNECTOR_IID                 "aff90240-a443-434e-9132-80c186ab97d4"
 
 
+/** Pointer to a network connector interface */
+typedef struct PDMIAUDIOCONNECTOR *PPDMIAUDIOCONNECTOR;
+/**
+ * Audio connector interface (up).
+ * No interface pair yet.
+ */
+typedef struct PDMIAUDIOCONNECTOR
+{
+    DECLR3CALLBACKMEMBER(void, pfnRun,(PPDMIAUDIOCONNECTOR pInterface));
+
+/*    DECLR3CALLBACKMEMBER(int,  pfnSetRecordSource,(PPDMIAUDIOINCONNECTOR pInterface, AUDIORECSOURCE)); */
+
+} PDMIAUDIOCONNECTOR;
+/** PDMIAUDIOCONNECTOR interface ID. */
+#define PDMIAUDIOCONNECTOR_IID                  "85d52af5-b3aa-4b3e-b176-4b5ebfc52f47"
+
+
+/** @todo r=bird: the two following interfaces are hacks to work around the missing audio driver
+ * interface. This should be addressed rather than making more temporary hacks. */
+
+/** Pointer to a Audio Sniffer Device port interface. */
+typedef struct PDMIAUDIOSNIFFERPORT *PPDMIAUDIOSNIFFERPORT;
+/**
+ * Audio Sniffer port interface (down).
+ * Pair with PDMIAUDIOSNIFFERCONNECTOR.
+ */
+typedef struct PDMIAUDIOSNIFFERPORT
+{
+    /**
+     * Enables or disables sniffing.
+     *
+     * If sniffing is being enabled also sets a flag whether the audio must be also
+     * left on the host.
+     *
+     * @returns VBox status code
+     * @param pInterface      Pointer to this interface.
+     * @param fEnable         'true' for enable sniffing, 'false' to disable.
+     * @param fKeepHostAudio  Indicates whether host audio should also present
+     *                        'true' means that sound should not be played
+     *                        by the audio device.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnSetup,(PPDMIAUDIOSNIFFERPORT pInterface, bool fEnable, bool fKeepHostAudio));
+
+    /**
+     * Enables or disables audio input.
+     *
+     * @returns VBox status code
+     * @param pInterface      Pointer to this interface.
+     * @param fIntercept      'true' for interception of audio input,
+     *                        'false' to let the host audio backend do audio input.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnAudioInputIntercept,(PPDMIAUDIOSNIFFERPORT pInterface, bool fIntercept));
+
+    /**
+     * Audio input is about to start.
+     *
+     * @returns VBox status code.
+     * @param   pvContext       The callback context, supplied in the
+     *                          PDMIAUDIOSNIFFERCONNECTOR::pfnAudioInputBegin as pvContext.
+     * @param   iSampleHz       The sample frequency in Hz.
+     * @param   cChannels       Number of channels. 1 for mono, 2 for stereo.
+     * @param   cBits           How many bits a sample for a single channel has. Normally 8 or 16.
+     * @param   fUnsigned       Whether samples are unsigned values.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnAudioInputEventBegin,(PPDMIAUDIOSNIFFERPORT pInterface,
+                                                       void *pvContext,
+                                                       int iSampleHz,
+                                                       int cChannels,
+                                                       int cBits,
+                                                       bool fUnsigned));
+
+    /**
+     * Callback which delivers audio data to the audio device.
+     *
+     * @returns VBox status code.
+     * @param   pvContext       The callback context, supplied in the
+     *                          PDMIAUDIOSNIFFERCONNECTOR::pfnAudioInputBegin as pvContext.
+     * @param   pvData          Event specific data.
+     * @param   cbData          Size of the buffer pointed by pvData.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnAudioInputEventData,(PPDMIAUDIOSNIFFERPORT pInterface,
+                                                      void *pvContext,
+                                                      const void *pvData,
+                                                      uint32_t cbData));
+
+    /**
+     * Audio input ends.
+     *
+     * @param   pvContext       The callback context, supplied in the
+     *                          PDMIAUDIOSNIFFERCONNECTOR::pfnAudioInputBegin as pvContext.
+     */
+    DECLR3CALLBACKMEMBER(void, pfnAudioInputEventEnd,(PPDMIAUDIOSNIFFERPORT pInterface,
+                                                      void *pvContext));
+} PDMIAUDIOSNIFFERPORT;
+/** PDMIAUDIOSNIFFERPORT interface ID. */
+#define PDMIAUDIOSNIFFERPORT_IID                "8ad25d78-46e9-479b-a363-bb0bc0fe022f"
+
+
+/** Pointer to a Audio Sniffer connector interface. */
+typedef struct PDMIAUDIOSNIFFERCONNECTOR *PPDMIAUDIOSNIFFERCONNECTOR;
+
+/**
+ * Audio Sniffer connector interface (up).
+ * Pair with PDMIAUDIOSNIFFERPORT.
+ */
+typedef struct PDMIAUDIOSNIFFERCONNECTOR
+{
+    /**
+     * AudioSniffer device calls this method when audio samples
+     * are about to be played and sniffing is enabled.
+     *
+     * @param   pInterface          Pointer to this interface.
+     * @param   pvSamples           Audio samples buffer.
+     * @param   cSamples            How many complete samples are in the buffer.
+     * @param   iSampleHz           The sample frequency in Hz.
+     * @param   cChannels           Number of channels. 1 for mono, 2 for stereo.
+     * @param   cBits               How many bits a sample for a single channel has. Normally 8 or 16.
+     * @param   fUnsigned           Whether samples are unsigned values.
+     * @thread  The emulation thread.
+     */
+    DECLR3CALLBACKMEMBER(void, pfnAudioSamplesOut,(PPDMIAUDIOSNIFFERCONNECTOR pInterface, void *pvSamples, uint32_t cSamples,
+                                                   int iSampleHz, int cChannels, int cBits, bool fUnsigned));
+
+    /**
+     * AudioSniffer device calls this method when output volume is changed.
+     *
+     * @param   pInterface          Pointer to this interface.
+     * @param   u16LeftVolume       0..0xFFFF volume level for left channel.
+     * @param   u16RightVolume      0..0xFFFF volume level for right channel.
+     * @thread  The emulation thread.
+     */
+    DECLR3CALLBACKMEMBER(void, pfnAudioVolumeOut,(PPDMIAUDIOSNIFFERCONNECTOR pInterface, uint16_t u16LeftVolume, uint16_t u16RightVolume));
+
+    /**
+     * Audio input has been requested by the virtual audio device.
+     *
+     * @param   pInterface          Pointer to this interface.
+     * @param   ppvUserCtx          The interface context for this audio input stream,
+     *                              it will be used in the pfnAudioInputEnd call.
+     * @param   pvContext           The context pointer to be used in PDMIAUDIOSNIFFERPORT::pfnAudioInputEvent.
+     * @param   cSamples            How many samples in a block is preferred in
+     *                              PDMIAUDIOSNIFFERPORT::pfnAudioInputEvent.
+     * @param   iSampleHz           The sample frequency in Hz.
+     * @param   cChannels           Number of channels. 1 for mono, 2 for stereo.
+     * @param   cBits               How many bits a sample for a single channel has. Normally 8 or 16.
+     * @thread  The emulation thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnAudioInputBegin,(PPDMIAUDIOSNIFFERCONNECTOR pInterface,
+                                                  void **ppvUserCtx,
+                                                  void *pvContext,
+                                                  uint32_t cSamples,
+                                                  uint32_t iSampleHz,
+                                                  uint32_t cChannels,
+                                                  uint32_t cBits));
+
+    /**
+     * Audio input has been requested by the virtual audio device.
+     *
+     * @param   pInterface          Pointer to this interface.
+     * @param   pvUserCtx           The interface context for this audio input stream,
+     *                              which was returned by pfnAudioInputBegin call.
+     * @thread  The emulation thread.
+     */
+    DECLR3CALLBACKMEMBER(void, pfnAudioInputEnd,(PPDMIAUDIOSNIFFERCONNECTOR pInterface,
+                                                 void *pvUserCtx));
+} PDMIAUDIOSNIFFERCONNECTOR;
+/** PDMIAUDIOSNIFFERCONNECTOR - The Audio Sniffer Driver connector interface. */
+#define PDMIAUDIOSNIFFERCONNECTOR_IID           "9d37f543-27af-45f8-8002-8ef7abac71e4"
+
+
 /**
  * Generic status LED core.
  * Note that a unit doesn't have to support all the indicators.
@@ -3148,18 +3260,6 @@ typedef struct PDMISCSIPORT
 /** PDMISCSIPORT interface ID. */
 #define PDMISCSIPORT_IID                        "05d9fc3b-e38c-4b30-8344-a323feebcfe5"
 
-/**
- * LUN type.
- */
-typedef enum PDMSCSILUNTYPE
-{
-    PDMSCSILUNTYPE_INVALID = 0,
-    PDMSCSILUNTYPE_SBC,         /** Hard disk (SBC) */
-    PDMSCSILUNTYPE_MMC,         /** CD/DVD drive (MMC) */
-    PDMSCSILUNTYPE_SSC,         /** Tape drive (SSC) */
-    PDMSCSILUNTYPE_32BIT_HACK = 0x7fffffff
-} PDMSCSILUNTYPE, *PPDMSCSILUNTYPE;
-
 
 /** Pointer to a SCSI connector interface. */
 typedef struct PDMISCSICONNECTOR *PPDMISCSICONNECTOR;
@@ -3178,16 +3278,6 @@ typedef struct PDMISCSICONNECTOR
      * @param   pSCSIRequest    Pointer to the SCSI request to execute.
      */
      DECLR3CALLBACKMEMBER(int, pfnSCSIRequestSend, (PPDMISCSICONNECTOR pInterface, PPDMSCSIREQUEST pSCSIRequest));
-
-    /**
-     * Queries the type of the attached LUN.
-     *
-     * @returns VBox status code.
-     * @param   pInterface      Pointer to this interface.
-     * @param   iLUN            The logical unit number.
-     * @param   pSCSIRequest    Pointer to the LUN to be returned.
-     */
-     DECLR3CALLBACKMEMBER(int, pfnQueryLUNType, (PPDMISCSICONNECTOR pInterface, uint32_t iLun, PPDMSCSILUNTYPE pLUNType));
 
 } PDMISCSICONNECTOR;
 /** PDMISCSICONNECTOR interface ID. */

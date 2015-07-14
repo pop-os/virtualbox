@@ -158,22 +158,6 @@
         </glosslist>For example, to only install USB support along with the
       main binaries, do a: <screen>VirtualBox.exe -msiparams ADDLOCAL=VBoxApplication,VBoxUSB</screen>
       or <screen>msiexec /i VirtualBox-&lt;version&gt;-MultiArch_&lt;x86|amd64&gt;.msi ADDLOCAL=VBoxApplication,VBoxUSB</screen></para>
-
-      <para>
-      The user is able to choose between NDIS5 and NDIS6 host network filters drivers during
-      the installation. This is realized via a command line parameter
-      <computeroutput>NETWORKTYPE</computeroutput>.
-      The NDIS6 driver is default for Windows Vista and later. For older Windows versions,
-      the installer will automatically select the NDIS5 driver and this cannot be changed.
-      For Windows Vista and later the user can force to install the (legacy) NDIS5 host
-      network filter driver using <computeroutput>NETWORKTYPE=NDIS5</computeroutput>. For
-      example, to install the NDIS5 driver on Windows 7, do
-      <screen>VirtualBox.exe -msiparams NETWORKTYPE=NDIS5</screen>
-      or
-      <screen>msiexec /i VirtualBox-&lt;version&gt;-MultiArch_&lt;x86|amd64&gt;.msi NETWORKTYPE=NDIS5</screen>
-      </para>
-
-
     </sect2>
 
     <sect2>
@@ -190,7 +174,6 @@
 
       <para>Unattended installations can be performed using the standard MSI
       support.</para>
-
     </sect2>
   </sect1>
 
@@ -264,7 +247,7 @@
 
       <itemizedlist>
         <listitem>
-          <para>Qt 4.8.0 or higher;</para>
+          <para>Qt 4.6.2 or higher;</para>
         </listitem>
 
         <listitem>
@@ -391,7 +374,7 @@
             installed. In that case, the kernel module will need to be
             reinstalled by executing (as root):</para>
 
-            <screen>rcvboxdrv setup</screen>
+            <screen>/etc/init.d/vboxdrv setup</screen>
           </listitem>
         </orderedlist></para>
     </sect2>
@@ -412,7 +395,7 @@
         Ubuntu Raring system. Use <computeroutput>dpkg</computeroutput> to
         install the Debian package:</para>
 
-        <screen>sudo dpkg -i virtualbox-5.0_@VBOX_VERSION_STRING@_Ubuntu_raring_i386.deb</screen>
+        <screen>sudo dpkg -i VirtualBox-3.2_$VBOX_VERSION_STRING_Ubuntu_raring_i386.deb</screen>
 
         <para>You will be asked to accept the VirtualBox Personal Use and
         Evaluation License. Unless you answer "yes" here, the installation
@@ -428,7 +411,7 @@
         out why the compilation failed. You may have to install the
         appropriate Linux kernel headers (see <xref
         linkend="externalkernelmodules" />). After correcting any problems, do
-        <screen>sudo rcvboxdrv setup</screen>This will start a
+        <screen>sudo /etc/init.d/vboxdrv setup</screen>This will start a
         second attempt to build the module.</para>
 
         <para>If a suitable kernel module was found in the package or the
@@ -736,13 +719,13 @@ virtualbox virtualbox/delete-old-modules boolean true</screen>The first line
       <computeroutput>zonename</computeroutput> command. Execute the following
       commands:</para>
 
-      <screen>gunzip -cd VirtualBox-@VBOX_VERSION_STRING@-SunOS.tar.gz | tar xvf -</screen>
+      <screen>gunzip -cd VirtualBox-$VBOX_VERSION_STRING-SunOS.tar.gz | tar xvf -</screen>
 
       <para>Starting with VirtualBox 3.1 the VirtualBox kernel package is no
       longer a separate package and has been integrated into the main package.
       Install the VirtualBox package using:</para>
 
-      <screen>pkgadd -d VirtualBox-@VBOX_VERSION_STRING@-SunOS.pkg</screen>
+      <screen>pkgadd -d VirtualBox-$VBOX_VERSION_STRING-SunOS.pkg</screen>
 
       <note>
         <para>If you are using Solaris Zones, to install VirtualBox only into
@@ -834,7 +817,7 @@ virtualbox virtualbox/delete-old-modules boolean true</screen>The first line
       <para>Extract the tar.gz package as described in the normal
       installation. Then open a root terminal session and execute:</para>
 
-      <screen>pkgadd -d VirtualBox-@VBOX_VERSION_STRING@-SunOS-x86 -n -a autoresponse SUNWvbox</screen>
+      <screen>pkgadd -d VirtualBox-$VBOX_VERSION_STRING-SunOS-x86 -n -a autoresponse SUNWvbox</screen>
 
       <para>To perform a non-interactive uninstallation, open a root terminal
       session and execute:</para>
@@ -845,15 +828,17 @@ virtualbox virtualbox/delete-old-modules boolean true</screen>The first line
     <sect2 id="solaris-zones">
       <title>Configuring a zone for running VirtualBox</title>
 
+      <para>Starting with VirtualBox 1.6 it is possible to run VirtualBox from
+      within Solaris zones. For an introduction of Solaris zones, please refer
+      to <ulink
+      url="http://www.sun.com/bigadmin/features/articles/solaris_zones.jsp">http://www.sun.com/bigadmin/features/articles/solaris_zones.jsp</ulink>.</para>
+
       <para>Assuming that VirtualBox has already been installed into your
       zone, you need to give the zone access to VirtualBox's device node. This
       is done by performing the following steps. Start a root terminal and
       execute:</para>
 
       <screen>zonecfg -z vboxzone</screen>
-
-      <para>Replace "vboxzone" with the name of the zone in which you intend
-      to run VirtualBox.</para>
 
       <para>Inside the <computeroutput>zonecfg</computeroutput> prompt add the
       <computeroutput>device</computeroutput> resource and
@@ -863,18 +848,19 @@ virtualbox virtualbox/delete-old-modules boolean true</screen>The first line
       <screen>zonecfg:vboxzone&gt;add device
 zonecfg:vboxzone:device&gt;set match=/dev/vboxdrv
 zonecfg:vboxzone:device&gt;end
-zonecfg:vboxzone&gt;add device
-zonecfg:vboxzone:device&gt;set match=/dev/vboxdrvu
-zonecfg:vboxzone:device&gt;end
+zonecfg:vboxzone&gt;verify
 zonecfg:vboxzone&gt;exit</screen>
 
-      <para>If you are running VirtualBox 2.2.0 or above on Solaris 11 or 
-      above, you may add a device for <computeroutput>/dev/vboxusbmon</computeroutput>
-      too, similar to what was shown above. This does not apply to Solaris 10
-      hosts due to lack of USB support.</para>
-      
-      <para>Next reboot the zone using <computeroutput>zoneadm</computeroutput>
-      and you should be able to run VirtualBox from within the configured zone.</para>
+      <para>If you are running VirtualBox 2.2.0 or above on Solaris 11 or
+      Nevada hosts, you should add a device for
+      <computeroutput>/dev/vboxusbmon</computeroutput> too, similar to what
+      was shown above. This does not apply to Solaris 10 hosts due to lack of
+      USB support.</para>
+
+      <para>Replace "vboxzone" with the name of the zone in which you intend
+      to run VirtualBox. Next reboot the zone using
+      <computeroutput>zoneadm</computeroutput> and you should be able to run
+      VirtualBox from within the configured zone.</para>
     </sect2>
   </sect1>
 </chapter>

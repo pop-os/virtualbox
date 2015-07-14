@@ -1,4 +1,3 @@
-/* $Id: Framebuffer.h $ */
 /** @file
  *
  * VBox frontends: VBoxSDL (simple frontend based on SDL):
@@ -6,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -42,53 +41,53 @@ extern DECLSPEC void (SDLCALL *pTTF_Quit)(void);
 
 class VBoxSDLFBOverlay;
 
-class ATL_NO_VTABLE VBoxSDLFB :
-    public CComObjectRootEx<CComMultiThreadModel>,
+class VBoxSDLFB :
     VBOX_SCRIPTABLE_IMPL(IFramebuffer)
 {
 public:
-    VBoxSDLFB();
-    ~VBoxSDLFB();
-
-    HRESULT init(uint32_t uScreenId,
-                 bool fFullscreen, bool fResizable, bool fShowSDLConfig,
-                 bool fKeepHostRes, uint32_t u32FixedWidth,
-                 uint32_t u32FixedHeight, uint32_t u32FixedBPP,
-                 bool fUpdateImage);
+    VBoxSDLFB(uint32_t uScreenId,
+              bool fFullscreen = false, bool fResizable = true, bool fShowSDLConfig = false,
+              bool fKeepHostRes = false, uint32_t u32FixedWidth = ~(uint32_t)0,
+              uint32_t u32FixedHeight = ~(uint32_t)0, uint32_t u32FixedBPP = ~(uint32_t)0);
+    virtual ~VBoxSDLFB();
 
     static bool init(bool fShowSDLConfig);
     static void uninit();
 
-    DECLARE_NOT_AGGREGATABLE(VBoxSDLFB)
+#ifdef RT_OS_WINDOWS
+    STDMETHOD_(ULONG, AddRef)()
+    {
+        return ::InterlockedIncrement (&refcnt);
+    }
+    STDMETHOD_(ULONG, Release)()
+    {
+        long cnt = ::InterlockedDecrement (&refcnt);
+        if (cnt == 0)
+            delete this;
+        return cnt;
+    }
+#endif
+    VBOX_SCRIPTABLE_DISPATCH_IMPL(IFramebuffer)
 
-    DECLARE_PROTECT_FINAL_CONSTRUCT()
-
-    BEGIN_COM_MAP(VBoxSDLFB)
-        COM_INTERFACE_ENTRY(IFramebuffer)
-        COM_INTERFACE_ENTRY2(IDispatch,IFramebuffer)
-        COM_INTERFACE_ENTRY_AGGREGATE(IID_IMarshal, m_pUnkMarshaler.p)
-    END_COM_MAP()
-
-    HRESULT FinalConstruct();
-    void FinalRelease();
+    NS_DECL_ISUPPORTS
 
     STDMETHOD(COMGETTER(Width))(ULONG *width);
     STDMETHOD(COMGETTER(Height))(ULONG *height);
+    STDMETHOD(Lock)();
+    STDMETHOD(Unlock)();
+    STDMETHOD(COMGETTER(Address))(BYTE **address);
     STDMETHOD(COMGETTER(BitsPerPixel))(ULONG *bitsPerPixel);
     STDMETHOD(COMGETTER(BytesPerLine))(ULONG *bytesPerLine);
-    STDMETHOD(COMGETTER(PixelFormat))(BitmapFormat_T *pixelFormat);
-    STDMETHOD(COMGETTER(HeightReduction))(ULONG *heightReduction);
-    STDMETHOD(COMGETTER(Overlay))(IFramebufferOverlay **aOverlay);
-    STDMETHOD(COMGETTER(WinId))(LONG64 *winId);
-    STDMETHOD(COMGETTER(Capabilities))(ComSafeArrayOut(FramebufferCapabilities_T, aCapabilities));
+    STDMETHOD(COMGETTER(PixelFormat)) (ULONG *pixelFormat);
+    STDMETHOD(COMGETTER(UsesGuestVRAM)) (BOOL *usesGuestVRAM);
+    STDMETHOD(COMGETTER(HeightReduction)) (ULONG *heightReduction);
+    STDMETHOD(COMGETTER(Overlay)) (IFramebufferOverlay **aOverlay);
+    STDMETHOD(COMGETTER(WinId)) (int64_t *winId);
 
     STDMETHOD(NotifyUpdate)(ULONG x, ULONG y, ULONG w, ULONG h);
-    STDMETHOD(NotifyUpdateImage)(ULONG x, ULONG y, ULONG w, ULONG h, ComSafeArrayIn(BYTE, aImage));
-    STDMETHOD(NotifyChange)(ULONG aScreenId,
-                            ULONG aXOrigin,
-                            ULONG aYOrigin,
-                            ULONG aWidth,
-                            ULONG aHeight);
+    STDMETHOD(RequestResize)(ULONG aScreenId, ULONG pixelFormat, BYTE *vram,
+                             ULONG bitsPerPixel, ULONG bytesPerLine,
+                             ULONG w, ULONG h, BOOL *finished);
     STDMETHOD(VideoModeSupported)(ULONG width, ULONG height, ULONG bpp, BOOL *supported);
 
     STDMETHOD(GetVisibleRegion)(BYTE *aRectangles, ULONG aCount, ULONG *aCountCopied);
@@ -96,11 +95,10 @@ public:
 
     STDMETHOD(ProcessVHWACommand)(BYTE *pCommand);
 
-    STDMETHOD(Notify3DEvent)(ULONG uType, ComSafeArrayIn(BYTE, aData));
+    STDMETHOD(Notify3DEvent)(ULONG uType, BYTE *pReserved);
 
     // internal public methods
     bool initialized() { return mfInitialized; }
-    void notifyChange(ULONG aScreenId);
     void resizeGuest();
     void resizeSDL();
     void update(int x, int y, int w, int h, bool fGuestRelative);
@@ -142,8 +140,6 @@ private:
     bool mfInitialized;
     /** the screen number of this framebuffer */
     uint32_t mScreenId;
-    /** use NotifyUpdateImage */
-    bool mfUpdateImage;
     /** maximum possible screen width in pixels (~0 = no restriction) */
     uint32_t mMaxScreenWidth;
     /** maximum possible screen height in pixels (~0 = no restriction) */
@@ -194,21 +190,17 @@ private:
     uint32_t mLabelOffs;
 
 #endif
-
+#ifdef RT_OS_WINDOWS
+    long refcnt;
+#endif
     SDL_Surface *mSurfVRAM;
 
     BYTE *mPtrVRAM;
     ULONG mBitsPerPixel;
     ULONG mBytesPerLine;
+    ULONG mPixelFormat;
+    BOOL mUsesGuestVRAM;
     BOOL mfSameSizeRequested;
-
-    ComPtr<IDisplaySourceBitmap> mpSourceBitmap;
-    ComPtr<IDisplaySourceBitmap> mpPendingSourceBitmap;
-    bool mfUpdates;
-
-#ifdef RT_OS_WINDOWS
-     CComPtr <IUnknown>   m_pUnkMarshaler;
-#endif
 };
 
 class VBoxSDLFBOverlay :
@@ -222,11 +214,11 @@ public:
 #ifdef RT_OS_WINDOWS
     STDMETHOD_(ULONG, AddRef)()
     {
-        return ::InterlockedIncrement(&refcnt);
+        return ::InterlockedIncrement (&refcnt);
     }
     STDMETHOD_(ULONG, Release)()
     {
-        long cnt = ::InterlockedDecrement(&refcnt);
+        long cnt = ::InterlockedDecrement (&refcnt);
         if (cnt == 0)
             delete this;
         return cnt;
@@ -249,11 +241,11 @@ public:
 
     /* These are not used, or return standard values. */
     STDMETHOD(COMGETTER(BitsPerPixel))(ULONG *bitsPerPixel);
-    STDMETHOD(COMGETTER(PixelFormat))(ULONG *pixelFormat);
-    STDMETHOD(COMGETTER(UsesGuestVRAM))(BOOL *usesGuestVRAM);
-    STDMETHOD(COMGETTER(HeightReduction))(ULONG *heightReduction);
-    STDMETHOD(COMGETTER(Overlay))(IFramebufferOverlay **aOverlay);
-    STDMETHOD(COMGETTER(WinId))(LONG64 *winId);
+    STDMETHOD(COMGETTER(PixelFormat)) (ULONG *pixelFormat);
+    STDMETHOD(COMGETTER(UsesGuestVRAM)) (BOOL *usesGuestVRAM);
+    STDMETHOD(COMGETTER(HeightReduction)) (ULONG *heightReduction);
+    STDMETHOD(COMGETTER(Overlay)) (IFramebufferOverlay **aOverlay);
+    STDMETHOD(COMGETTER(WinId)) (LONG64 *winId);
 
     STDMETHOD(Lock)();
     STDMETHOD(Unlock)();

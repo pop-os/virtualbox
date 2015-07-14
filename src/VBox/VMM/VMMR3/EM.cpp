@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -62,6 +62,7 @@
 #include <VBox/vmm/cpumdis.h>
 #include <VBox/dis.h>
 #include <VBox/disopcode.h>
+#include <VBox/vmm/dbgf.h>
 #include "VMMTracing.h"
 
 #include <iprt/asm.h>
@@ -386,7 +387,12 @@ VMMR3_INT_DECL(int) EMR3Init(PVM pVM)
         EM_REG_COUNTER_USED(&pStats->StatR3FailedPrefix,         "/EM/CPU%d/R3/Interpret/Failed/Prefix",     "The number of rejections because of prefix .");
 
         EM_REG_COUNTER_USED(&pStats->StatIoRestarted,            "/EM/CPU%d/R3/PrivInst/IoRestarted",        "I/O instructions restarted in ring-3.");
+# ifdef VBOX_WITH_FIRST_IEM_STEP
         EM_REG_COUNTER_USED(&pStats->StatIoIem,                  "/EM/CPU%d/R3/PrivInst/IoIem",              "I/O instructions end to IEM in ring-3.");
+# else
+        EM_REG_COUNTER_USED(&pStats->StatIn,                     "/EM/CPU%d/R3/PrivInst/In",                 "Number of in instructions.");
+        EM_REG_COUNTER_USED(&pStats->StatOut,                    "/EM/CPU%d/R3/PrivInst/Out",                "Number of out instructions.");
+# endif
         EM_REG_COUNTER_USED(&pStats->StatCli,                    "/EM/CPU%d/R3/PrivInst/Cli",                "Number of cli instructions.");
         EM_REG_COUNTER_USED(&pStats->StatSti,                    "/EM/CPU%d/R3/PrivInst/Sti",                "Number of sli instructions.");
         EM_REG_COUNTER_USED(&pStats->StatHlt,                    "/EM/CPU%d/R3/PrivInst/Hlt",                "Number of hlt instructions not handled in GC because of PATM.");
@@ -1360,7 +1366,11 @@ EMSTATE emR3Reschedule(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
          * Note! Raw mode and hw accelerated mode are incompatible. The latter
          *       turns off monitoring features essential for raw mode!
          */
+#ifdef VBOX_WITH_FIRST_IEM_STEP
         return EMSTATE_IEM_THEN_REM;
+#else
+        return EMSTATE_REM;
+#endif
     }
 
     /*
@@ -1396,7 +1406,7 @@ EMSTATE emR3Reschedule(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
     {
         uint32_t u32Dummy, u32Features;
 
-        CPUMGetGuestCpuId(pVCpu, 1, 0, &u32Dummy, &u32Dummy, &u32Dummy, &u32Features);
+        CPUMGetGuestCpuId(pVCpu, 1, &u32Dummy, &u32Dummy, &u32Dummy, &u32Features);
         if (!(u32Features & X86_CPUID_FEATURE_EDX_PAE))
             return EMSTATE_REM;
     }
@@ -1574,10 +1584,6 @@ int emR3HighPriorityPostForcedActions(PVM pVM, PVMCPU pVCpu, int rc)
             VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_HM_UPDATE_PAE_PDPES);
     }
 
-    /* IEM has pending work (typically memory write after INS instruction). */
-    if (VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_IEM))
-        rc = VBOXSTRICTRC_TODO(IEMR3DoPendingAction(pVCpu, rc));
-
 #ifdef VBOX_WITH_RAW_MODE
     if (VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_CSAM_PENDING_ACTION))
         CSAMR3DoPendingAction(pVM, pVCpu);
@@ -1710,7 +1716,7 @@ int emR3ForcedActions(PVM pVM, PVMCPU pVCpu, int rc)
             /** @todo: check for 16 or 32 bits code! (D bit in the code selector) */
             Log(("Forced action VMCPU_FF_CSAM_SCAN_PAGE\n"));
 
-            CSAMR3CheckCodeEx(pVM, pCtx, pCtx->eip);
+            CSAMR3CheckCodeEx(pVM, CPUMCTX2CORE(pCtx), pCtx->eip);
             VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_CSAM_SCAN_PAGE);
         }
 #endif
@@ -1849,23 +1855,8 @@ int emR3ForcedActions(PVM pVM, PVMCPU pVCpu, int rc)
             }
         }
 
-        /*
-         * Forced unhalting of EMT.
-         */
-        if (VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_UNHALT))
-        {
-            VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_UNHALT);
-            if (rc == VINF_EM_HALT)
-                rc = VINF_EM_RESCHEDULE;
-            else
-            {
-                rc2 = VINF_EM_RESCHEDULE;
-                UPDATE_RC();
-            }
-        }
-
         /* check that we got them all  */
-        Assert(!(VMCPU_FF_NORMAL_PRIORITY_MASK & ~(VMCPU_FF_REQUEST | VMCPU_FF_UNHALT)));
+        Assert(!(VMCPU_FF_NORMAL_PRIORITY_MASK & ~(VMCPU_FF_REQUEST)));
     }
 
     /*
@@ -2209,6 +2200,7 @@ VMMR3_INT_DECL(int) EMR3ExecuteVM(PVM pVM, PVMCPU pVCpu)
                  * Reschedule - to recompiled execution.
                  */
                 case VINF_EM_RESCHEDULE_REM:
+#ifdef VBOX_WITH_FIRST_IEM_STEP
                     Assert(!pVM->em.s.fIemExecutesAll || pVCpu->em.s.enmState != EMSTATE_IEM);
                     if (HMIsEnabled(pVM))
                     {
@@ -2225,6 +2217,11 @@ VMMR3_INT_DECL(int) EMR3ExecuteVM(PVM pVM, PVMCPU pVCpu)
                         Log2(("EMR3ExecuteVM: VINF_EM_RESCHEDULE_REM: %d -> %d (EMSTATE_REM)\n", enmOldState, EMSTATE_REM));
                         pVCpu->em.s.enmState = EMSTATE_REM;
                     }
+#else
+                    Log2(("EMR3ExecuteVM: VINF_EM_RESCHEDULE_REM: %d -> %d (EMSTATE_REM)\n", enmOldState, EMSTATE_REM));
+                    Assert(!pVM->em.s.fIemExecutesAll || pVCpu->em.s.enmState != EMSTATE_IEM);
+                    pVCpu->em.s.enmState = EMSTATE_REM;
+#endif
                     break;
 
                 /*
@@ -2390,7 +2387,7 @@ VMMR3_INT_DECL(int) EMR3ExecuteVM(PVM pVM, PVMCPU pVCpu)
                     break;
 
                 /*
-                 * Triple fault.
+                 * Guru mediations.
                  */
                 case VINF_EM_TRIPLE_FAULT:
                     if (!pVM->em.s.fGuruOnTripleFault)
@@ -2554,7 +2551,7 @@ VMMR3_INT_DECL(int) EMR3ExecuteVM(PVM pVM, PVMCPU pVCpu)
                         rc = VMR3WaitHalted(pVM, pVCpu, false /*fIgnoreInterrupts*/);
                         if (   rc == VINF_SUCCESS
                             && VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC
-                                                        | VMCPU_FF_INTERRUPT_NMI  | VMCPU_FF_INTERRUPT_SMI | VMCPU_FF_UNHALT))
+                                                        | VMCPU_FF_INTERRUPT_NMI  | VMCPU_FF_INTERRUPT_SMI))
                         {
                             Log(("EMR3ExecuteVM: Triggering reschedule on pending IRQ after MWAIT\n"));
                             rc = VINF_EM_RESCHEDULE;
@@ -2564,9 +2561,9 @@ VMMR3_INT_DECL(int) EMR3ExecuteVM(PVM pVM, PVMCPU pVCpu)
                     {
                         rc = VMR3WaitHalted(pVM, pVCpu, !(CPUMGetGuestEFlags(pVCpu) & X86_EFL_IF));
                         if (   rc == VINF_SUCCESS
-                            && VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_INTERRUPT_NMI | VMCPU_FF_INTERRUPT_SMI | VMCPU_FF_UNHALT))
+                            && VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_INTERRUPT_NMI | VMCPU_FF_INTERRUPT_SMI))
                         {
-                            Log(("EMR3ExecuteVM: Triggering reschedule on pending NMI/SMI/UNHALT after HLT\n"));
+                            Log(("EMR3ExecuteVM: Triggering reschedule on pending NMI/SMI after HLT\n"));
                             rc = VINF_EM_RESCHEDULE;
                         }
                     }

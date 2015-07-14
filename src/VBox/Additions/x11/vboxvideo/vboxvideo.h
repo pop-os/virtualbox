@@ -1,4 +1,3 @@
-/* $Id: vboxvideo.h $ */
 /** @file
  *
  * VirtualBox X11 Additions graphics driver
@@ -65,17 +64,17 @@
 
 #define TRACE_ENTRY() \
 do { \
-    vbvxMsg(RT_GCC_EXTENSION __PRETTY_FUNCTION__); \
+    vbvxMsg(__PRETTY_FUNCTION__); \
     vbvxMsg(": entering\n"); \
 } while(0)
 #define TRACE_EXIT() \
 do { \
-    vbvxMsg(RT_GCC_EXTENSION __PRETTY_FUNCTION__); \
+    vbvxMsg(__PRETTY_FUNCTION__); \
     vbvxMsg(": leaving\n"); \
 } while(0)
 #define TRACE_LOG(...) \
 do { \
-    vbvxMsg("%s: ", RT_GCC_EXTENSION __PRETTY_FUNCTION__); \
+    vbvxMsg("%s: ", __PRETTY_FUNCTION__); \
     vbvxMsg(__VA_ARGS__); \
 } while(0)
 # define TRACE_LINE() do \

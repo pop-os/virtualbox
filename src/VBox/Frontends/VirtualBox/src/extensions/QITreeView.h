@@ -1,6 +1,7 @@
-/* $Id:  $ */
 /** @file
- * VBox Qt GUI - Qt extensions: QITreeView class declaration.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * VirtualBox Qt extensions: QITreeView class declaration
  */
 
 /*

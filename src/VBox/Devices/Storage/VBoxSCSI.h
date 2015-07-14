@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -112,14 +112,13 @@ typedef struct VBOXSCSI
     R3PTRTYPE(uint8_t *) pbBuf;
     /** Size of the buffer in bytes. */
     uint32_t             cbBuf;
-    /** The number of bytes left to read/write in the
-     *  buffer.  It is decremented when the guest (BIOS) accesses
-     *  the buffer data. */
-    uint32_t             cbBufLeft;
     /** Current position in the buffer (offBuf if you like). */
     uint32_t             iBuf;
     /** The result code of last operation. */
     int32_t              rcCompletion;
+#if HC_ARCH_BITS == 64
+    uint32_t             Alignment1;
+#endif
     /** Flag whether a request is pending. */
     volatile bool        fBusy;
     /** The state we are in when fetching a command from the BIOS. */
@@ -138,12 +137,9 @@ int vboxscsiSetupRequest(PVBOXSCSI pVBoxSCSI, PPDMSCSIREQUEST pScsiRequest, uint
 int vboxscsiRequestFinished(PVBOXSCSI pVBoxSCSI, PPDMSCSIREQUEST pScsiRequest, int rcCompletion);
 void vboxscsiSetRequestRedo(PVBOXSCSI pVBoxSCSI, PPDMSCSIREQUEST pScsiRequest);
 int vboxscsiWriteString(PPDMDEVINS pDevIns, PVBOXSCSI pVBoxSCSI, uint8_t iRegister,
-                        uint8_t const *pbSrc, uint32_t *pcTransfers, unsigned cb);
+                        RTGCPTR *pGCPtrSrc, PRTGCUINTREG pcTransfer, unsigned cb);
 int vboxscsiReadString(PPDMDEVINS pDevIns, PVBOXSCSI pVBoxSCSI, uint8_t iRegister,
-                       uint8_t *pbDst, uint32_t *pcTransfers, unsigned cb);
-
-DECLHIDDEN(int) vboxscsiR3LoadExec(PVBOXSCSI pVBoxSCSI, PSSMHANDLE pSSM);
-DECLHIDDEN(int) vboxscsiR3SaveExec(PVBOXSCSI pVBoxSCSI, PSSMHANDLE pSSM);
+                       RTGCPTR *pGCPtrDst, PRTGCUINTREG pcTransfer, unsigned cb);
 RT_C_DECLS_END
 #endif /* IN_RING3 */
 

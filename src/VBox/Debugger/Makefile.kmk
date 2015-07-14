@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2015 Oracle Corporation
+# Copyright (C) 2006-2012 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -27,6 +27,9 @@ ifdef VBOX_WITH_DEBUGGER
   PROGRAMS += tstDBGCParser
  endif
 endif # VBOX_WITH_DEBUGGER
+ifndef VBOX_OSE
+ INSTALLS.win.x86 += dbghelp
+endif
 
 
 #
@@ -53,9 +56,9 @@ Debugger_SOURCES   = \
 #
 # The diggers plug-in.
 #
-DLLS += DbgPlugInDiggers
-DbgPlugInDiggers_TEMPLATE = VBOXR3
-DbgPlugInDiggers_SOURCES = \
+DLLS += DBGCPlugInDiggers
+DBGCPlugInDiggers_TEMPLATE = VBOXR3
+DBGCPlugInDiggers_SOURCES = \
 	DBGPlugInDiggers.cpp \
 	DBGPlugInDarwin.cpp \
 	DBGPlugInLinux.cpp \
@@ -63,11 +66,12 @@ DbgPlugInDiggers_SOURCES = \
 	DBGPlugInWinNt.cpp \
 	DBGPlugInOS2.cpp \
 	DBGPlugInCommonELF.cpp
-DbgPlugInDiggers_LIBS = \
+DBGCPlugInDiggers_SOURCES.win = \
+	DBGCPlugInDiggers.rc
+DBGCPlugInDiggers_LIBS = \
 	$(if-expr "$(LIB_VMM)" == "$(VBOX_LIB_VMM_LAZY)",$(LIB_REM),) \
 	$(VBOX_LIB_VMM_LAZY) \
 	$(LIB_RUNTIME)
-$(call VBOX_SET_VER_INFO_DLL,DbgPlugInDiggers,VirtualBox Debugger Guest OS Digger Plug-in)
 
 
 #
@@ -105,11 +109,12 @@ VBoxDbg_SOURCES = \
 	VBoxDbgBase.cpp \
 	VBoxDbgConsole.cpp \
 	VBoxDbgStatsQt4.cpp
+VBoxDbg_SOURCES.win = \
+	VBoxDbg.rc
 VBoxDbg_LIBS = \
 	$(VBOX_LIB_VMM_LAZY)
 VBoxDbg_LDFLAGS.darwin = \
 	-install_name $(VBOX_DYLD_EXECUTABLE_PATH)/VBoxDbg.dylib
-$(call VBOX_SET_VER_INFO_DLL,VBoxDbg,VirtualBox Debugger GUI)
 
  ifdef VBOX_WITH_TESTCASES
 #
@@ -133,6 +138,14 @@ tstVBoxDbg_LIBS        += \
   endif
  endif # TESTCASES
 endif # Qt4
+
+
+#
+# Install the dbghelp.dll binary.
+#
+dbghelp_INST = bin/
+dbghelp_SOURCES.x86 = win32/dbghelp.dll
+dbghelp_SOURCES.amd64 = win64/dbghelp.dll
 
 
 include $(FILE_KBUILD_SUB_FOOTER)

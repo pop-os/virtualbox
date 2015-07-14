@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2015 Oracle Corporation
+ * Copyright (C) 2008-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -28,6 +28,10 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_NET_FLT_DRV
+#ifdef DEBUG_ramshankar
+# define LOG_ENABLED
+# define LOG_INSTANCE       RTLogRelDefaultInstance()
+#endif
 #include <VBox/log.h>
 #include <VBox/err.h>
 #include <VBox/intnetinline.h>
@@ -123,7 +127,6 @@ typedef struct VLANHEADER *PVLANHEADER;
 static int VBoxNetFltSolarisGetInfo(dev_info_t *pDip, ddi_info_cmd_t enmCmd, void *pArg, void **ppResult);
 static int VBoxNetFltSolarisAttach(dev_info_t *pDip, ddi_attach_cmd_t enmCmd);
 static int VBoxNetFltSolarisDetach(dev_info_t *pDip, ddi_detach_cmd_t enmCmd);
-static int VBoxNetFltSolarisQuiesceNotNeeded(dev_info_t *pDip);
 
 /**
  * Stream Module hooks.
@@ -227,8 +230,7 @@ static struct dev_ops g_VBoxNetFltSolarisDevOps =
     nodev,                          /* reset */
     &g_VBoxNetFltSolarisCbOps,
     (struct bus_ops *)0,
-    nodev,                          /* power */
-    VBoxNetFltSolarisQuiesceNotNeeded
+    nodev                           /* power */
 };
 
 /**
@@ -691,20 +693,6 @@ static int VBoxNetFltSolarisDetach(dev_info_t *pDip, ddi_detach_cmd_t enmCmd)
 
 
 /**
- * Quiesce not-needed entry point, as Solaris 10 doesn't have any
- * ddi_quiesce_not_needed() function.
- *
- * @param   pDip            The module structure instance.
- *
- * @return  corresponding solaris error code.
- */
-static int VBoxNetFltSolarisQuiesceNotNeeded(dev_info_t *pDip)
-{
-    return DDI_SUCCESS;
-}
-
-
-/**
  * Info entry point, called by solaris kernel for obtaining driver info.
  *
  * @param   pDip            The module structure instance (do not use).
@@ -1105,7 +1093,7 @@ static int VBoxNetFltSolarisModReadPut(queue_t *pQueue, mblk_t *pMsg)
             RTSpinlockAcquire(pThis->hSpinlock);
             const bool fActive = pThis->enmTrunkState == INTNETTRUNKIFSTATE_ACTIVE;
             vboxNetFltRetain(pThis, true /* fBusy */);
-            RTSpinlockRelease(pThis->hSpinlock);
+            RTSpinlockReleaseNoInts(pThis->hSpinlock);
 
             vboxnetflt_promisc_stream_t *pPromiscStream = (vboxnetflt_promisc_stream_t *)pStream;
 

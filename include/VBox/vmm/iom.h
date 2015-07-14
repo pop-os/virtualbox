@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -163,7 +163,7 @@ RT_C_DECLS_BEGIN
  * @param   cb          Number of bytes read.
  * @remarks Caller enters the device critical section.
  */
-typedef DECLCALLBACK(int) FNIOMIOPORTIN(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT uPort, uint32_t *pu32, unsigned cb);
+typedef DECLCALLBACK(int) FNIOMIOPORTIN(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb);
 /** Pointer to a FNIOMIOPORTIN(). */
 typedef FNIOMIOPORTIN *PFNIOMIOPORTIN;
 
@@ -176,14 +176,12 @@ typedef FNIOMIOPORTIN *PFNIOMIOPORTIN;
  * @param   pDevIns     The device instance.
  * @param   pvUser      User argument.
  * @param   uPort       Port number used for the IN operation.
- * @param   pbDst       Pointer to the destination buffer.
- * @param   pcTransfers Pointer to the number of transfer units to read, on
- *                      return remaining transfer units.
+ * @param   pGCPtrDst   Pointer to the destination buffer (GC, incremented appropriately).
+ * @param   pcTransfers Pointer to the number of transfer units to read, on return remaining transfer units.
  * @param   cb          Size of the transfer unit (1, 2 or 4 bytes).
  * @remarks Caller enters the device critical section.
  */
-typedef DECLCALLBACK(int) FNIOMIOPORTINSTRING(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT uPort, uint8_t *pbDst,
-                                              uint32_t *pcTransfers, unsigned cb);
+typedef DECLCALLBACK(int) FNIOMIOPORTINSTRING(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, RTGCPTR *pGCPtrDst, PRTGCUINTREG pcTransfers, unsigned cb);
 /** Pointer to a FNIOMIOPORTINSTRING(). */
 typedef FNIOMIOPORTINSTRING *PFNIOMIOPORTINSTRING;
 
@@ -199,7 +197,7 @@ typedef FNIOMIOPORTINSTRING *PFNIOMIOPORTINSTRING;
  * @param   cb          The value size in bytes.
  * @remarks Caller enters the device critical section.
  */
-typedef DECLCALLBACK(int) FNIOMIOPORTOUT(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT uPort, uint32_t u32, unsigned cb);
+typedef DECLCALLBACK(int) FNIOMIOPORTOUT(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb);
 /** Pointer to a FNIOMIOPORTOUT(). */
 typedef FNIOMIOPORTOUT *PFNIOMIOPORTOUT;
 
@@ -211,14 +209,12 @@ typedef FNIOMIOPORTOUT *PFNIOMIOPORTOUT;
  * @param   pDevIns     The device instance.
  * @param   pvUser      User argument.
  * @param   uPort       Port number used for the OUT operation.
- * @param   pbSrc       Pointer to the source buffer.
- * @param   pcTransfers Pointer to the number of transfer units to write, on
- *                      return remaining transfer units.
+ * @param   pGCPtrSrc   Pointer to the source buffer (GC, incremented appropriately).
+ * @param   pcTransfers Pointer to the number of transfer units to write, on return remaining transfer units.
  * @param   cb          Size of the transfer unit (1, 2 or 4 bytes).
  * @remarks Caller enters the device critical section.
  */
-typedef DECLCALLBACK(int) FNIOMIOPORTOUTSTRING(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT uPort, const uint8_t *pbSrc,
-                                               uint32_t *pcTransfers, unsigned cb);
+typedef DECLCALLBACK(int) FNIOMIOPORTOUTSTRING(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, RTGCPTR *pGCPtrSrc, PRTGCUINTREG pcTransfers, unsigned cb);
 /** Pointer to a FNIOMIOPORTOUTSTRING(). */
 typedef FNIOMIOPORTOUTSTRING *PFNIOMIOPORTOUTSTRING;
 
@@ -240,7 +236,7 @@ typedef DECLCALLBACK(int) FNIOMMMIOREAD(PPDMDEVINS pDevIns, void *pvUser, RTGCPH
 typedef FNIOMMMIOREAD *PFNIOMMMIOREAD;
 
 /**
- * Memory mapped I/O Handler for write operations.
+ * Port I/O Handler for write operations.
  *
  * @returns VBox status code.
  *
@@ -256,7 +252,7 @@ typedef DECLCALLBACK(int) FNIOMMMIOWRITE(PPDMDEVINS pDevIns, void *pvUser, RTGCP
 typedef FNIOMMMIOWRITE *PFNIOMMMIOWRITE;
 
 /**
- * Memory mapped I/O Handler for memset operations, actually for REP STOS* instructions handling.
+ * Port I/O Handler for memset operations, actually for REP STOS* instructions handling.
  *
  * @returns VBox status code.
  *
@@ -274,11 +270,13 @@ typedef FNIOMMMIOFILL *PFNIOMMMIOFILL;
 
 VMMDECL(VBOXSTRICTRC)   IOMIOPortRead(PVM pVM, PVMCPU pVCpu, RTIOPORT Port, uint32_t *pu32Value, size_t cbValue);
 VMMDECL(VBOXSTRICTRC)   IOMIOPortWrite(PVM pVM, PVMCPU pVCpu, RTIOPORT Port, uint32_t u32Value, size_t cbValue);
-VMM_INT_DECL(VBOXSTRICTRC) IOMIOPortReadString(PVM pVM, PVMCPU pVCpu, RTIOPORT Port, void *pvDst,
-                                               uint32_t *pcTransfers, unsigned cb);
-VMM_INT_DECL(VBOXSTRICTRC) IOMIOPortWriteString(PVM pVM, PVMCPU pVCpu, RTIOPORT uPort, void const *pvSrc,
-                                                uint32_t *pcTransfers, unsigned cb);
+VMMDECL(VBOXSTRICTRC)   IOMInterpretOUT(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, PDISCPUSTATE pCpu);
+VMMDECL(VBOXSTRICTRC)   IOMInterpretIN(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, PDISCPUSTATE pCpu);
+VMMDECL(VBOXSTRICTRC)   IOMIOPortReadString(PVM pVM, PVMCPU pVCpu, RTIOPORT Port, PRTGCPTR pGCPtrDst, PRTGCUINTREG pcTransfers, unsigned cb);
+VMMDECL(VBOXSTRICTRC)   IOMIOPortWriteString(PVM pVM, PVMCPU pVCpu, RTIOPORT Port, PRTGCPTR pGCPtrSrc, PRTGCUINTREG pcTransfers, unsigned cb);
+VMMDECL(VBOXSTRICTRC)   IOMInterpretINS(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, PDISCPUSTATE pCpu);
 VMMDECL(VBOXSTRICTRC)   IOMInterpretINSEx(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint32_t uPort, uint32_t uPrefix, DISCPUMODE enmAddrMode, uint32_t cbTransfer);
+VMMDECL(VBOXSTRICTRC)   IOMInterpretOUTS(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, PDISCPUSTATE pCpu);
 VMMDECL(VBOXSTRICTRC)   IOMInterpretOUTSEx(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint32_t uPort, uint32_t uPrefix, DISCPUMODE enmAddrMode, uint32_t cbTransfer);
 VMMDECL(VBOXSTRICTRC)   IOMMMIORead(PVM pVM, PVMCPU pVCpu, RTGCPHYS GCPhys, uint32_t *pu32Value, size_t cbValue);
 VMMDECL(VBOXSTRICTRC)   IOMMMIOWrite(PVM pVM, PVMCPU pVCpu, RTGCPHYS GCPhys, uint32_t u32Value, size_t cbValue);
@@ -291,6 +289,7 @@ VMMDECL(bool)           IOMIsLockWriteOwner(PVM pVM);
 
 #ifdef IN_RC
 /** @defgroup grp_iom_rc    The IOM Raw-Mode Context API
+ * @ingroup grp_iom
  * @{
  */
 VMMRCDECL(VBOXSTRICTRC) IOMRCIOPortHandler(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, PDISCPUSTATE pCpu);
@@ -301,6 +300,7 @@ VMMRCDECL(VBOXSTRICTRC) IOMRCIOPortHandler(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE p
 
 #ifdef IN_RING3
 /** @defgroup grp_iom_r3    The IOM Host Context Ring-3 API
+ * @ingroup grp_iom
  * @{
  */
 VMMR3_INT_DECL(int)  IOMR3Init(PVM pVM);

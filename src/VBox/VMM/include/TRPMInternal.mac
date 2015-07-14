@@ -4,7 +4,7 @@
 ;
 
 ;
-; Copyright (C) 2006-2015 Oracle Corporation
+; Copyright (C) 2006-2012 Oracle Corporation
 ;
 ; This file is part of VirtualBox Open Source Edition (OSE), as
 ; available from http://www.virtualbox.org. This file is free software;
@@ -35,11 +35,9 @@ struc TRPM
     .au32IdtPatched     resd 8
     .aTmpTrapHandlers   RTRCPTR_RES 256
 
-    .pvMonShwIdtRC                  RTRCPTR_RES 1
-    .GuestIdtr                      resb 10
-    .au8Padding                     resb 2
-    .hShadowIdtWriteHandlerType     resd 1
-    .hGuestIdtWriteHandlerType      resd 1
+    .pvMonShwIdtRC            RTRCPTR_RES 1
+    .GuestIdtr          resb 10
+    .au8Padding         resb 2
 
     .aGuestTrapHandler  RTRCPTR_RES 256
 

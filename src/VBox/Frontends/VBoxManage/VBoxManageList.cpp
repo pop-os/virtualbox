@@ -401,44 +401,18 @@ static HRESULT listUsbHost(const ComPtr<IVirtualBox> &pVirtualBox)
             CHECK_ERROR_RET(dev, COMGETTER(Version)(&usVersion), 1);
             USHORT usPortVersion;
             CHECK_ERROR_RET(dev, COMGETTER(PortVersion)(&usPortVersion), 1);
-            USBConnectionSpeed_T enmSpeed;
-            CHECK_ERROR_RET(dev, COMGETTER(Speed)(&enmSpeed), 1);
 
             RTPrintf("UUID:               %s\n"
                      "VendorId:           %#06x (%04X)\n"
                      "ProductId:          %#06x (%04X)\n"
                      "Revision:           %u.%u (%02u%02u)\n"
-                     "Port:               %u\n",
+                     "Port:               %u\n"
+                     "USB version/speed:  %u/%u\n",
                      Utf8Str(id).c_str(),
                      usVendorId, usVendorId, usProductId, usProductId,
                      bcdRevision >> 8, bcdRevision & 0xff,
                      bcdRevision >> 8, bcdRevision & 0xff,
-                     usPort);
-
-            const char *pszSpeed = "?";
-            switch (enmSpeed)
-            {
-                case USBConnectionSpeed_Low:
-                    pszSpeed = "Low";
-                    break;
-                case USBConnectionSpeed_Full:
-                    pszSpeed = "Full";
-                    break;
-                case USBConnectionSpeed_High:
-                    pszSpeed = "High";
-                    break;
-                case USBConnectionSpeed_Super:
-                    pszSpeed = "Super";
-                    break;
-                case USBConnectionSpeed_SuperPlus:
-                    pszSpeed = "SuperPlus";
-                    break;
-                default:
-                    ASSERT(false);
-                    break;
-            }
-
-            RTPrintf("USB version/speed:  %u/%s\n", usVersion, pszSpeed);
+                     usPort, usVersion, usPortVersion);
 
             /* optional stuff. */
             Bstr bstr;
@@ -660,10 +634,8 @@ static HRESULT listSystemProperties(const ComPtr<IVirtualBox> &pVirtualBox)
 #endif
     systemProperties->COMGETTER(DefaultMachineFolder)(str.asOutParam());
     RTPrintf("Default machine folder:          %ls\n", str.raw());
-    systemProperties->COMGETTER(RawModeSupported)(&fValue);
-    RTPrintf("Raw-mode Supported:              %s\n", fValue ? "yes" : "no");
     systemProperties->COMGETTER(ExclusiveHwVirt)(&fValue);
-    RTPrintf("Exclusive HW virtualization use: %s\n", fValue ? "on" : "off");
+    RTPrintf("Exclusive HW virtualization use: %ls\n", fValue ? L"on" : L"off");
     systemProperties->COMGETTER(DefaultHardDiskFormat)(str.asOutParam());
     RTPrintf("Default hard disk format:        %ls\n", str.raw());
     systemProperties->COMGETTER(VRDEAuthLibrary)(str.asOutParam());
@@ -695,10 +667,10 @@ static HRESULT listSystemProperties(const ComPtr<IVirtualBox> &pVirtualBox)
 static HRESULT listExtensionPacks(const ComPtr<IVirtualBox> &pVirtualBox)
 {
     ComObjPtr<IExtPackManager> ptrExtPackMgr;
-    CHECK_ERROR2I_RET(pVirtualBox, COMGETTER(ExtensionPackManager)(ptrExtPackMgr.asOutParam()), hrcCheck);
+    CHECK_ERROR2_RET(pVirtualBox, COMGETTER(ExtensionPackManager)(ptrExtPackMgr.asOutParam()), hrcCheck);
 
     SafeIfaceArray<IExtPack> extPacks;
-    CHECK_ERROR2I_RET(ptrExtPackMgr, COMGETTER(InstalledExtPacks)(ComSafeArrayAsOutParam(extPacks)), hrcCheck);
+    CHECK_ERROR2_RET(ptrExtPackMgr, COMGETTER(InstalledExtPacks)(ComSafeArrayAsOutParam(extPacks)), hrcCheck);
     RTPrintf("Extension Packs: %u\n", extPacks.size());
 
     HRESULT hrc = S_OK;
@@ -706,21 +678,21 @@ static HRESULT listExtensionPacks(const ComPtr<IVirtualBox> &pVirtualBox)
     {
         /* Read all the properties. */
         Bstr bstrName;
-        CHECK_ERROR2I_STMT(extPacks[i], COMGETTER(Name)(bstrName.asOutParam()),          hrc = hrcCheck; bstrName.setNull());
+        CHECK_ERROR2_STMT(extPacks[i], COMGETTER(Name)(bstrName.asOutParam()),          hrc = hrcCheck; bstrName.setNull());
         Bstr bstrDesc;
-        CHECK_ERROR2I_STMT(extPacks[i], COMGETTER(Description)(bstrDesc.asOutParam()),   hrc = hrcCheck; bstrDesc.setNull());
+        CHECK_ERROR2_STMT(extPacks[i], COMGETTER(Description)(bstrDesc.asOutParam()),   hrc = hrcCheck; bstrDesc.setNull());
         Bstr bstrVersion;
-        CHECK_ERROR2I_STMT(extPacks[i], COMGETTER(Version)(bstrVersion.asOutParam()),    hrc = hrcCheck; bstrVersion.setNull());
+        CHECK_ERROR2_STMT(extPacks[i], COMGETTER(Version)(bstrVersion.asOutParam()),    hrc = hrcCheck; bstrVersion.setNull());
         ULONG uRevision;
-        CHECK_ERROR2I_STMT(extPacks[i], COMGETTER(Revision)(&uRevision),                 hrc = hrcCheck; uRevision = 0);
+        CHECK_ERROR2_STMT(extPacks[i], COMGETTER(Revision)(&uRevision),                 hrc = hrcCheck; uRevision = 0);
         Bstr bstrEdition;
-        CHECK_ERROR2I_STMT(extPacks[i], COMGETTER(Edition)(bstrEdition.asOutParam()),    hrc = hrcCheck; bstrEdition.setNull());
+        CHECK_ERROR2_STMT(extPacks[i], COMGETTER(Edition)(bstrEdition.asOutParam()),    hrc = hrcCheck; bstrEdition.setNull());
         Bstr bstrVrdeModule;
-        CHECK_ERROR2I_STMT(extPacks[i], COMGETTER(VRDEModule)(bstrVrdeModule.asOutParam()),hrc=hrcCheck; bstrVrdeModule.setNull());
+        CHECK_ERROR2_STMT(extPacks[i], COMGETTER(VRDEModule)(bstrVrdeModule.asOutParam()),hrc=hrcCheck; bstrVrdeModule.setNull());
         BOOL fUsable;
-        CHECK_ERROR2I_STMT(extPacks[i], COMGETTER(Usable)(&fUsable),                     hrc = hrcCheck; fUsable = FALSE);
+        CHECK_ERROR2_STMT(extPacks[i], COMGETTER(Usable)(&fUsable),                     hrc = hrcCheck; fUsable = FALSE);
         Bstr bstrWhy;
-        CHECK_ERROR2I_STMT(extPacks[i], COMGETTER(WhyUnusable)(bstrWhy.asOutParam()),    hrc = hrcCheck; bstrWhy.setNull());
+        CHECK_ERROR2_STMT(extPacks[i], COMGETTER(WhyUnusable)(bstrWhy.asOutParam()),    hrc = hrcCheck; bstrWhy.setNull());
 
         /* Display them. */
         if (i)
@@ -757,7 +729,7 @@ static HRESULT listExtensionPacks(const ComPtr<IVirtualBox> &pVirtualBox)
 static HRESULT listGroups(const ComPtr<IVirtualBox> &pVirtualBox)
 {
     SafeArray<BSTR> groups;
-    CHECK_ERROR2I_RET(pVirtualBox, COMGETTER(MachineGroups)(ComSafeArrayAsOutParam(groups)), hrcCheck);
+    CHECK_ERROR2_RET(pVirtualBox, COMGETTER(MachineGroups)(ComSafeArrayAsOutParam(groups)), hrcCheck);
 
     for (size_t i = 0; i < groups.size(); i++)
     {
@@ -795,35 +767,6 @@ static HRESULT listVideoInputDevices(const ComPtr<IVirtualBox> pVirtualBox)
     return rc;
 }
 
-/**
- * List supported screen shot formats.
- *
- * @returns See produceList.
- * @param   pVirtualBox         Reference to the IVirtualBox pointer.
- */
-static HRESULT listScreenShotFormats(const ComPtr<IVirtualBox> pVirtualBox)
-{
-    HRESULT rc = S_OK;
-    ComPtr<ISystemProperties> systemProperties;
-    CHECK_ERROR(pVirtualBox, COMGETTER(SystemProperties)(systemProperties.asOutParam()));
-    com::SafeArray<BitmapFormat_T> formats;
-    CHECK_ERROR(systemProperties, COMGETTER(ScreenShotFormats)(ComSafeArrayAsOutParam(formats)));
-
-    RTPrintf("Supported %d screen shot formats:\n", formats.size());
-    for (size_t i = 0; i < formats.size(); ++i)
-    {
-        uint32_t u32Format = (uint32_t)formats[i];
-        char szFormat[5];
-        szFormat[0] = RT_BYTE1(u32Format);
-        szFormat[1] = RT_BYTE2(u32Format);
-        szFormat[2] = RT_BYTE3(u32Format);
-        szFormat[3] = RT_BYTE4(u32Format);
-        szFormat[4] = 0;
-        RTPrintf("    BitmapFormat_%s (0x%08X)\n", szFormat, u32Format);
-    }
-    return rc;
-}
-
 
 /**
  * The type of lists we can produce.
@@ -854,8 +797,7 @@ enum enmListType
     kListExtPacks,
     kListGroups,
     kListNatNetworks,
-    kListVideoInputDevices,
-    kListScreenShotFormats
+    kListVideoInputDevices
 };
 
 
@@ -891,7 +833,7 @@ static HRESULT produceList(enum enmListType enmCommand, bool fOptLong, const Com
                 for (size_t i = 0; i < machines.size(); ++i)
                 {
                     if (machines[i])
-                        rc = showVMInfo(pVirtualBox, machines[i], NULL, fOptLong ? VMINFO_STANDARD : VMINFO_COMPACT);
+                        rc = showVMInfo(pVirtualBox, machines[i], fOptLong ? VMINFO_STANDARD : VMINFO_COMPACT);
                 }
             }
             break;
@@ -924,7 +866,7 @@ static HRESULT produceList(enum enmListType enmCommand, bool fOptLong, const Com
                             case MachineState_LiveSnapshotting:
                             case MachineState_Paused:
                             case MachineState_TeleportingPausedVM:
-                                rc = showVMInfo(pVirtualBox, machines[i], NULL, fOptLong ? VMINFO_STANDARD : VMINFO_COMPACT);
+                                rc = showVMInfo(pVirtualBox, machines[i], fOptLong ? VMINFO_STANDARD : VMINFO_COMPACT);
                                 break;
                         }
                     }
@@ -1193,10 +1135,6 @@ static HRESULT produceList(enum enmListType enmCommand, bool fOptLong, const Com
             rc = listVideoInputDevices(pVirtualBox);
             break;
 
-        case kListScreenShotFormats:
-            rc = listScreenShotFormats(pVirtualBox);
-            break;
-
         /* No default here, want gcc warnings. */
 
     } /* end switch */
@@ -1210,7 +1148,7 @@ static HRESULT produceList(enum enmListType enmCommand, bool fOptLong, const Com
  * @returns Appropriate exit code.
  * @param   a                   Handler argument.
  */
-RTEXITCODE handleList(HandlerArg *a)
+int handleList(HandlerArg *a)
 {
     bool                fOptLong      = false;
     bool                fOptMultiple  = false;
@@ -1246,7 +1184,6 @@ RTEXITCODE handleList(HandlerArg *a)
         { "extpacks",           kListExtPacks,           RTGETOPT_REQ_NOTHING },
         { "groups",             kListGroups,             RTGETOPT_REQ_NOTHING },
         { "webcams",            kListVideoInputDevices,  RTGETOPT_REQ_NOTHING },
-        { "screenshotformats",  kListScreenShotFormats,  RTGETOPT_REQ_NOTHING },
     };
 
     int                 ch;
@@ -1293,13 +1230,12 @@ RTEXITCODE handleList(HandlerArg *a)
             case kListGroups:
             case kListNatNetworks:
             case kListVideoInputDevices:
-            case kListScreenShotFormats:
                 enmOptCommand = (enum enmListType)ch;
                 if (fOptMultiple)
                 {
                     HRESULT hrc = produceList((enum enmListType)ch, fOptLong, a->virtualBox);
                     if (FAILED(hrc))
-                        return RTEXITCODE_FAILURE;
+                        return 1;
                 }
                 break;
 
@@ -1320,10 +1256,10 @@ RTEXITCODE handleList(HandlerArg *a)
     {
         HRESULT hrc = produceList(enmOptCommand, fOptLong, a->virtualBox);
         if (FAILED(hrc))
-            return RTEXITCODE_FAILURE;
+            return 1;
     }
 
-    return RTEXITCODE_SUCCESS;
+    return 0;
 }
 
 #endif /* !VBOX_ONLY_DOCS */

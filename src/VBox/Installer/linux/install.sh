@@ -4,7 +4,7 @@
 # VirtualBox linux installation script
 
 #
-# Copyright (C) 2007-2015 Oracle Corporation
+# Copyright (C) 2007-2012 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -108,12 +108,9 @@ check_previous() {
     check_binary "/usr/bin/VBoxSDL" "$install_dir" &&
     check_binary "/usr/bin/VBoxVRDP" "$install_dir" &&
     check_binary "/usr/bin/VBoxHeadless" "$install_dir" &&
-    check_binary "/usr/bin/VBoxDTrace" "$install_dir" &&
     check_binary "/usr/bin/VBoxBalloonCtrl" "$install_dir" &&
     check_binary "/usr/bin/VBoxAutostart" "$install_dir" &&
-    check_binary "/usr/bin/vboxwebsrv" "$install_dir" &&
-    check_binary "/usr/bin/vbox-img" "$install_dir" &&
-    check_binary "/sbin/rcvboxdrv" "$install_dir"
+    check_binary "/usr/bin/vboxwebsrv" "$install_dir"
 }
 
 ##############################################################################
@@ -285,7 +282,7 @@ if [ "$ACTION" = "install" ]; then
         log "Removing previous installation of VirtualBox $INSTALL_VER$INSTALL_REV from $PREV_INSTALLATION"
         log ""
 
-        stop_init_script vboxnet >/dev/null 2>&1  # Do we need this?
+        stop_init_script vboxnet
         delrunlevel vboxnet > /dev/null 2>&1
         if [ "$BUILD_MODULE" = "true" ]; then
             stop_init_script vboxdrv
@@ -376,29 +373,22 @@ if [ "$ACTION" = "install" ]; then
     test -e $INSTALLATION_DIR/VBoxVolInfo && chmod 4511 $INSTALLATION_DIR/VBoxVolInfo
 
     # Install runlevel scripts
-    install_init_script $INSTALLATION_DIR/vboxdrv.sh vboxdrv 2>> $LOG
-    install_init_script $INSTALLATION_DIR/vboxballoonctrl-service.sh vboxballoonctrl-service 2>> $LOG
-    install_init_script $INSTALLATION_DIR/vboxautostart-service.sh vboxautostart-service 2>> $LOG
-    install_init_script $INSTALLATION_DIR/vboxweb-service.sh vboxweb-service 2>> $LOG
-
-    # Write the configuration. Do this before we call /etc/init.d/vboxdrv setup!
-    echo "# VirtualBox installation directory" > $CONFIG_DIR/$CONFIG
-    echo "INSTALL_DIR='$INSTALLATION_DIR'" >> $CONFIG_DIR/$CONFIG
-    echo "# VirtualBox version" >> $CONFIG_DIR/$CONFIG
-    echo "INSTALL_VER='$VERSION'" >> $CONFIG_DIR/$CONFIG
-    echo "INSTALL_REV='$SVNREV'" >> $CONFIG_DIR/$CONFIG
-    echo "# Build type and user name for logging purposes" >> $CONFIG_DIR/$CONFIG
-    echo "BUILD_TYPE='$BUILD_BUILDTYPE'" >> $CONFIG_DIR/$CONFIG
-    echo "USERNAME='$BUILD_USERNAME'" >> $CONFIG_DIR/$CONFIG
-
+    # Note: vboxdrv is also handled by setup_init_script. This function will
+    #       use chkconfig to adjust the sequence numbers, therefore vboxdrv
+    #       numbers here should match the numbers in the vboxdrv.sh check
+    #       header!
+    install_init_script vboxdrv.sh vboxdrv
+    install_init_script vboxballoonctrl-service.sh vboxballoonctrl-service
+    install_init_script vboxautostart-service.sh vboxautostart-service
+    install_init_script vboxweb-service.sh vboxweb-service
     delrunlevel vboxdrv > /dev/null 2>&1
-    addrunlevel vboxdrv 2>> $LOG # This may produce useful output
+    addrunlevel vboxdrv 20 80 # This may produce useful output
     delrunlevel vboxballoonctrl-service > /dev/null 2>&1
-    addrunlevel vboxballoonctrl-service 2>> $LOG # This may produce useful output
+    addrunlevel vboxballoonctrl-service 25 75 # This may produce useful output
     delrunlevel vboxautostart-service > /dev/null 2>&1
-    addrunlevel vboxautostart-service 2>> $LOG # This may produce useful output
+    addrunlevel vboxautostart-service 25 75 # This may produce useful output
     delrunlevel vboxweb-service > /dev/null 2>&1
-    addrunlevel vboxweb-service 2>> $LOG # This may produce useful output
+    addrunlevel vboxweb-service 25 75 # This may produce useful output
 
     # Create users group
     groupadd -r -f $GROUPNAME 2> /dev/null
@@ -412,12 +402,7 @@ if [ "$ACTION" = "install" ]; then
     ln -sf $INSTALLATION_DIR/VBox.sh /usr/bin/VBoxBalloonCtrl
     ln -sf $INSTALLATION_DIR/VBox.sh /usr/bin/VBoxAutostart
     ln -sf $INSTALLATION_DIR/VBox.sh /usr/bin/vboxwebsrv
-    ln -sf $INSTALLATION_DIR/vbox-img /usr/bin/vbox-img
     ln -sf $INSTALLATION_DIR/VBox.png /usr/share/pixmaps/VBox.png
-    if [ -f $INSTALLATION_DIR/VBoxDTrace ]; then
-        ln -sf $INSTALLATION_DIR/VBox.sh /usr/bin/VBoxDTrace
-    fi
-    ln -sf $INSTALLATION_DIR/vboxdrv.sh /sbin/rcvboxdrv
     # Unity and Nautilus seem to look here for their icons
     ln -sf $INSTALLATION_DIR/icons/128x128/virtualbox.png /usr/share/pixmaps/virtualbox.png
     ln -sf $INSTALLATION_DIR/virtualbox.desktop /usr/share/applications/virtualbox.desktop
@@ -430,9 +415,6 @@ if [ "$ACTION" = "install" ]; then
     ln -sf VBoxManage /usr/bin/vboxmanage > /dev/null 2>&1
     ln -sf VBoxSDL /usr/bin/vboxsdl > /dev/null 2>&1
     ln -sf VBoxHeadless /usr/bin/vboxheadless > /dev/null 2>&1
-    if [ -f $INSTALLATION_DIR/VBoxDTrace ]; then
-        ln -sf VBoxDTrace /usr/bin/vboxdtrace > /dev/null 2>&1
-    fi
 
     # Icons
     cur=`pwd`
@@ -469,6 +451,16 @@ if [ "$ACTION" = "install" ]; then
 
     install_device_node_setup "$VBOXDRV_GRP" "$VBOXDRV_MODE" "$INSTALLATION_DIR"
 
+    # Write the configuration. Do this before we call /etc/init.d/vboxdrv setup!
+    echo "# VirtualBox installation directory" > $CONFIG_DIR/$CONFIG
+    echo "INSTALL_DIR='$INSTALLATION_DIR'" >> $CONFIG_DIR/$CONFIG
+    echo "# VirtualBox version" >> $CONFIG_DIR/$CONFIG
+    echo "INSTALL_VER='$VERSION'" >> $CONFIG_DIR/$CONFIG
+    echo "INSTALL_REV='$SVNREV'" >> $CONFIG_DIR/$CONFIG
+    echo "# Build type and user name for logging purposes" >> $CONFIG_DIR/$CONFIG
+    echo "BUILD_TYPE='$BUILD_BUILDTYPE'" >> $CONFIG_DIR/$CONFIG
+    echo "USERNAME='$BUILD_USERNAME'" >> $CONFIG_DIR/$CONFIG
+
     # Make kernel module
     MODULE_FAILED="false"
     if [ "$BUILD_MODULE" = "true" ]
@@ -477,7 +469,7 @@ if [ "$ACTION" = "install" ]; then
         log "Output from the module build process (the Linux kernel build system) follows:"
         cur=`pwd`
         log ""
-        ./vboxdrv.sh setup
+        setup_init_script vboxdrv
         # Start VirtualBox kernel module
         if [ $RETVAL -eq 0 ] && ! start_init_script vboxdrv; then
             info "Failed to load the kernel module."

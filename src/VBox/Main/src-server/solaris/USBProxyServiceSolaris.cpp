@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2005-2014 Oracle Corporation
+ * Copyright (C) 2005-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -283,9 +283,7 @@ static int solarisWalkDeviceNode(di_node_t Node, void *pvArg)
             if (di_prop_lookup_strings(DDI_DEV_T_ANY, Node, "usb-serialno", &pStr) > 0)
                 pCur->pszSerialNumber = RTStrDup(pStr);
 
-            if (pCur->bcdUSB == 0x300)
-                pCur->enmSpeed = USBDEVICESPEED_SUPER;
-            else if (di_prop_lookup_ints(DDI_DEV_T_ANY, Node, "low-speed", &pInt) >= 0)
+            if (di_prop_lookup_ints(DDI_DEV_T_ANY, Node, "low-speed", &pInt) >= 0)
                 pCur->enmSpeed = USBDEVICESPEED_LOW;
             else if (di_prop_lookup_ints(DDI_DEV_T_ANY, Node, "high-speed", &pInt) >= 0)
                 pCur->enmSpeed = USBDEVICESPEED_HIGH;
@@ -341,9 +339,9 @@ int USBProxyServiceSolaris::captureDevice(HostUSBDevice *aDevice)
     AssertReturn(!aDevice->isWriteLockOnCurrentThread(), VERR_GENERAL_FAILURE);
 
     AutoReadLock devLock(aDevice COMMA_LOCKVAL_SRC_POS);
-    LogFlowThisFunc(("aDevice=%s\n", aDevice->i_getName().c_str()));
+    LogFlowThisFunc(("aDevice=%s\n", aDevice->getName().c_str()));
 
-    Assert(aDevice->i_getUnistate() == kHostUSBDeviceState_Capturing);
+    Assert(aDevice->getUnistate() == kHostUSBDeviceState_Capturing);
     AssertReturn(aDevice->mUsb, VERR_INVALID_POINTER);
 
     /*
@@ -380,7 +378,7 @@ void USBProxyServiceSolaris::captureDeviceCompleted(HostUSBDevice *aDevice, bool
     /*
      * Remove the one-shot filter if necessary.
      */
-    LogFlowThisFunc(("aDevice=%s aSuccess=%RTbool mOneShotId=%p\n", aDevice->i_getName().c_str(), aSuccess, aDevice->mOneShotId));
+    LogFlowThisFunc(("aDevice=%s aSuccess=%RTbool mOneShotId=%p\n", aDevice->getName().c_str(), aSuccess, aDevice->mOneShotId));
     if (!aSuccess && aDevice->mOneShotId)
         USBLibRemoveFilter(aDevice->mOneShotId);
     aDevice->mOneShotId = NULL;
@@ -396,9 +394,9 @@ int USBProxyServiceSolaris::releaseDevice(HostUSBDevice *aDevice)
     AssertReturn(!aDevice->isWriteLockOnCurrentThread(), VERR_GENERAL_FAILURE);
 
     AutoReadLock devLock(aDevice COMMA_LOCKVAL_SRC_POS);
-    LogFlowThisFunc(("aDevice=%s\n", aDevice->i_getName().c_str()));
+    LogFlowThisFunc(("aDevice=%s\n", aDevice->getName().c_str()));
 
-    Assert(aDevice->i_getUnistate() == kHostUSBDeviceState_ReleasingToHost);
+    Assert(aDevice->getUnistate() == kHostUSBDeviceState_ReleasingToHost);
     AssertReturn(aDevice->mUsb, VERR_INVALID_POINTER);
 
     /*
@@ -435,15 +433,14 @@ void USBProxyServiceSolaris::releaseDeviceCompleted(HostUSBDevice *aDevice, bool
     /*
      * Remove the one-shot filter if necessary.
      */
-    LogFlowThisFunc(("aDevice=%s aSuccess=%RTbool mOneShotId=%p\n", aDevice->i_getName().c_str(), aSuccess, aDevice->mOneShotId));
+    LogFlowThisFunc(("aDevice=%s aSuccess=%RTbool mOneShotId=%p\n", aDevice->getName().c_str(), aSuccess, aDevice->mOneShotId));
     if (!aSuccess && aDevice->mOneShotId)
         USBLibRemoveFilter(aDevice->mOneShotId);
     aDevice->mOneShotId = NULL;
 }
 
 
-bool USBProxyServiceSolaris::updateDeviceState(HostUSBDevice *aDevice, PUSBDEVICE aUSBDevice, bool *aRunFilters,
-                                               SessionMachine **aIgnoreMachine)
+bool USBProxyServiceSolaris::updateDeviceState(HostUSBDevice *aDevice, PUSBDEVICE aUSBDevice, bool *aRunFilters, SessionMachine **aIgnoreMachine)
 {
     AssertReturn(aDevice, false);
     AssertReturn(!aDevice->isWriteLockOnCurrentThread(), false);

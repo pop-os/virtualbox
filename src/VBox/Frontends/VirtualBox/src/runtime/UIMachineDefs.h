@@ -1,6 +1,7 @@
-/* $Id: UIMachineDefs.h $ */
 /** @file
- * VBox Qt GUI - Defines for Virtual Machine classes.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * Defines for Virtual Machine classes
  */
 
 /*
@@ -26,19 +27,16 @@ enum UIVisualElement
 {
     UIVisualElement_WindowTitle           = RT_BIT(0),
     UIVisualElement_MouseIntegrationStuff = RT_BIT(1),
-    UIVisualElement_IndicatorPoolStuff    = RT_BIT(2),
+    UIVisualElement_PauseStuff            = RT_BIT(2),
     UIVisualElement_HDStuff               = RT_BIT(3),
     UIVisualElement_CDStuff               = RT_BIT(4),
     UIVisualElement_FDStuff               = RT_BIT(5),
     UIVisualElement_NetworkStuff          = RT_BIT(6),
     UIVisualElement_USBStuff              = RT_BIT(7),
     UIVisualElement_SharedFolderStuff     = RT_BIT(8),
-    UIVisualElement_Display               = RT_BIT(9),
-    UIVisualElement_VideoCapture          = RT_BIT(10),
-    UIVisualElement_FeaturesStuff         = RT_BIT(11),
-#ifndef Q_WS_MAC
-    UIVisualElement_MiniToolBar           = RT_BIT(12),
-#endif /* !Q_WS_MAC */
+    UIVisualElement_VideoCapture          = RT_BIT(9),
+    UIVisualElement_FeaturesStuff         = RT_BIT(10),
+    UIVisualElement_MiniToolBar           = RT_BIT(11),
     UIVisualElement_AllStuff              = 0xFFFF
 };
 

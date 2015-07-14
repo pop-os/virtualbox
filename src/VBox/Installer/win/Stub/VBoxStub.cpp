@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2015 Oracle Corporation
+ * Copyright (C) 2010-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -638,10 +638,10 @@ static RTEXITCODE ProcessPackage(unsigned iPackage, const char *pszPkgDir, const
     RTPathChangeToDosSlashes(szPkgFile, true /* Force conversion. */); /* paranoia */
 
     RTEXITCODE rcExit;
-    const char *pszSuff = RTPathSuffix(szPkgFile);
-    if (RTStrICmp(pszSuff, ".msi") == 0)
+    const char *pszExt = RTPathExt(szPkgFile);
+    if (RTStrICmp(pszExt, ".msi") == 0)
         rcExit = ProcessMsiPackage(szPkgFile, pszMsiArgs, fLogging);
-    else if (RTStrICmp(pszSuff, ".cab") == 0)
+    else if (RTStrICmp(pszExt, ".cab") == 0)
         rcExit = RTEXITCODE_SUCCESS; /* Ignore .cab files, they're generally referenced by other files. */
     else
         rcExit = ShowError("Internal error: Do not know how to handle file '%s'.", pPackage->szFileName);

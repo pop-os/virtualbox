@@ -1,6 +1,7 @@
-/* $Id: UISelectorWindow.h $ */
 /** @file
- * VBox Qt GUI - UISelectorWindow class declaration.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * UISelectorWindow class declaration
  */
 
 /*
@@ -29,14 +30,13 @@
 class QISplitter;
 class QMenu;
 class UIAction;
-class UIActionPolymorphic;
+class UIActionState;
 class UIMainBar;
 class UIToolBar;
 class UIVMDesktop;
 class UIVMItem;
 class UIGChooser;
 class UIGDetails;
-class UIActionPool;
 class QStackedWidget;
 
 /* VM selector window class: */
@@ -51,9 +51,6 @@ public:
                      QWidget* pParent = 0,
                      Qt::WindowFlags flags = Qt::Window);
     ~UISelectorWindow();
-
-    /** Returns the action-pool instance. */
-    UIActionPool* actionPool() const { return m_pActionPool; }
 
 private slots:
 
@@ -74,9 +71,6 @@ private slots:
     void sltShowMediumManager();
     void sltShowImportApplianceWizard(const QString &strFileName = QString());
     void sltShowExportApplianceWizard();
-#ifdef DEBUG
-    void sltOpenExtraDataManagerWindow();
-#endif /* DEBUG */
     void sltShowPreferencesDialog();
     void sltPerformExit();
 
@@ -87,9 +81,6 @@ private slots:
                                       const QString &strId = QString());
     void sltShowCloneMachineWizard();
     void sltPerformStartOrShowAction();
-    void sltPerformStartNormal();
-    void sltPerformStartHeadless();
-    void sltPerformStartDetachable();
     void sltPerformDiscardAction();
     void sltPerformPauseResumeAction(bool fPause);
     void sltPerformResetAction();
@@ -126,19 +117,19 @@ private:
     void prepareIcon();
     void prepareMenuBar();
     void prepareMenuFile(QMenu *pMenu);
+    void prepareCommonActions();
+    void prepareGroupActions();
+    void prepareMachineActions();
     void prepareMenuGroup(QMenu *pMenu);
     void prepareMenuMachine(QMenu *pMenu);
-    void prepareMenuGroupStartOrShow(QMenu *pMenu);
-    void prepareMenuMachineStartOrShow(QMenu *pMenu);
     void prepareMenuGroupClose(QMenu *pMenu);
     void prepareMenuMachineClose(QMenu *pMenu);
+    void prepareMenuHelp(QMenu *pMenu);
     void prepareStatusBar();
     void prepareWidgets();
     void prepareConnections();
     void loadSettings();
     void saveSettings();
-    void cleanupConnections();
-    void cleanupMenuBar();
 
     /* Helpers: Current item stuff: */
     UIVMItem* currentItem() const;
@@ -164,9 +155,6 @@ private:
     bool m_fPolished : 1;
     bool m_fWarningAboutInaccessibleMediumShown : 1;
 
-    /** Holds the action-pool instance. */
-    UIActionPool *m_pActionPool;
-
     /* Central splitter window: */
     QISplitter *m_pSplitter;
 
@@ -186,16 +174,69 @@ private:
     /* VM details widget: */
     UIVMDesktop *m_pVMDesktop;
 
+    /* 'File' menu action pointers: */
+    QMenu *m_pFileMenu;
+    UIAction *m_pMediumManagerDialogAction;
+    UIAction *m_pImportApplianceWizardAction;
+    UIAction *m_pExportApplianceWizardAction;
+    UIAction *m_pPreferencesDialogAction;
+    UIAction *m_pExitAction;
+
+    /* Common Group/Machine actions: */
+    UIActionState *m_pAction_Common_StartOrShow;
+    UIAction *m_pAction_Common_PauseAndResume;
+    UIAction *m_pAction_Common_Reset;
+    UIAction *m_pAction_Common_Discard;
+    UIAction *m_pAction_Common_Refresh;
+    UIAction *m_pAction_Common_ShowInFileManager;
+    UIAction *m_pAction_Common_CreateShortcut;
+
     /* 'Group' menu action pointers: */
     QList<UIAction*> m_groupActions;
     QAction *m_pGroupMenuAction;
+    QMenu *m_pGroupMenu;
+    UIAction *m_pAction_Group_New;
+    UIAction *m_pAction_Group_Add;
+    UIAction *m_pAction_Group_Rename;
+    UIAction *m_pAction_Group_Remove;
+    UIAction *m_pAction_Group_Sort;
+    /* 'Group / Close' menu action pointers: */
+    UIAction *m_pGroupCloseMenuAction;
+    QMenu *m_pGroupCloseMenu;
+    UIAction *m_pGroupSaveAction;
+    UIAction *m_pGroupACPIShutdownAction;
+    UIAction *m_pGroupPowerOffAction;
 
     /* 'Machine' menu action pointers: */
     QList<UIAction*> m_machineActions;
     QAction *m_pMachineMenuAction;
+    QMenu *m_pMachineMenu;
+    UIAction *m_pAction_Machine_New;
+    UIAction *m_pAction_Machine_Add;
+    UIAction *m_pAction_Machine_Settings;
+    UIAction *m_pAction_Machine_Clone;
+    UIAction *m_pAction_Machine_Remove;
+    UIAction *m_pAction_Machine_AddGroup;
+    UIAction *m_pAction_Machine_LogDialog;
+    UIAction *m_pAction_Machine_SortParent;
+    /* 'Machine / Close' menu action pointers: */
+    UIAction *m_pMachineCloseMenuAction;
+    QMenu *m_pMachineCloseMenu;
+    UIAction *m_pMachineSaveAction;
+    UIAction *m_pMachineACPIShutdownAction;
+    UIAction *m_pMachinePowerOffAction;
+
+    /* 'Help' menu action pointers: */
+    QMenu *m_pHelpMenu;
+    UIAction *m_pHelpAction;
+    UIAction *m_pWebAction;
+    UIAction *m_pResetWarningsAction;
+    UIAction *m_pNetworkAccessManager;
+    UIAction *m_pUpdateAction;
+    UIAction *m_pAboutAction;
 
     /* Other variables: */
-    QRect m_geometry;
+    QRect m_normalGeo;
 };
 
 #endif // __UISelectorWindow_h__

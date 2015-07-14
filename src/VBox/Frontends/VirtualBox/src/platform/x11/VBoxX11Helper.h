@@ -1,6 +1,7 @@
-/* $Id: VBoxX11Helper.h $ */
 /** @file
- * VBox Qt GUI - VBox X11 helper functions.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * VBox X11 helper functions
  */
 
 /*

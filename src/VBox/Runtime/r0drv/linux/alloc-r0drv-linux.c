@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -37,7 +37,7 @@
 #include "r0drv/alloc-r0drv.h"
 
 
-#if (defined(RT_ARCH_AMD64) || defined(DOXYGEN_RUNNING)) && !defined(RTMEMALLOC_EXEC_HEAP)
+#if defined(RT_ARCH_AMD64) || defined(DOXYGEN_RUNNING)
 # if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 23)
 /**
  * Starting with 2.6.23 we can use __get_vm_area and map_vm_area to allocate
@@ -95,7 +95,6 @@ typedef RTMEMLNXHDREX *PRTMEMLNXHDREX;
 static RTHEAPSIMPLE g_HeapExec = NIL_RTHEAPSIMPLE;
 /** Spinlock protecting the heap. */
 static RTSPINLOCK   g_HeapExecSpinlock = NIL_RTSPINLOCK;
-#endif
 
 
 /**
@@ -104,10 +103,8 @@ static RTSPINLOCK   g_HeapExecSpinlock = NIL_RTSPINLOCK;
  */
 DECLHIDDEN(void) rtR0MemExecCleanup(void)
 {
-#ifdef RTMEMALLOC_EXEC_HEAP
     RTSpinlockDestroy(g_HeapExecSpinlock);
     g_HeapExecSpinlock = NIL_RTSPINLOCK;
-#endif
 }
 
 
@@ -123,13 +120,11 @@ DECLHIDDEN(void) rtR0MemExecCleanup(void)
  * The API only accept one single donation.
  *
  * @returns IPRT status code.
- * @retval  VERR_NOT_SUPPORTED if the code isn't enabled.
  * @param   pvMemory    Pointer to the memory block.
  * @param   cb          The size of the memory block.
  */
 RTR0DECL(int) RTR0MemExecDonate(void *pvMemory, size_t cb)
 {
-#ifdef RTMEMALLOC_EXEC_HEAP
     int rc;
     AssertReturn(g_HeapExec == NIL_RTHEAPSIMPLE, VERR_WRONG_ORDER);
 
@@ -141,12 +136,10 @@ RTR0DECL(int) RTR0MemExecDonate(void *pvMemory, size_t cb)
             rtR0MemExecCleanup();
     }
     return rc;
-#else
-    return VERR_NOT_SUPPORTED;
-#endif
 }
 RT_EXPORT_SYMBOL(RTR0MemExecDonate);
 
+#endif /* RTMEMALLOC_EXEC_HEAP */
 
 
 #ifdef RTMEMALLOC_EXEC_VM_AREA

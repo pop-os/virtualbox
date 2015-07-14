@@ -1,6 +1,7 @@
-/* $Id: QIListView.h $ */
 /** @file
- * VBox Qt GUI - QIListView, QIItemDelegate class declarations.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * QIListView, QIItemDelegate class declarations
  */
 
 /*

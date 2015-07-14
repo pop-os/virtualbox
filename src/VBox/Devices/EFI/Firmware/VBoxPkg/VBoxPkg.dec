@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2009-2015 Oracle Corporation
+# Copyright (C) 2009-2013 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -49,7 +49,6 @@
         gEfiMdeModulePkgTokenSpaceGuid.PcdFlashNvStorageFtwWorkingSize|0|UINT32|0x00001003
         gEfiMdeModulePkgTokenSpaceGuid.PcdFlashNvStorageFtwSpareBase|0|UINT32|0x00001004
         gEfiMdeModulePkgTokenSpaceGuid.PcdFlashNvStorageFtwSpareSize|0|UINT32|0x00001005
-        gVBoxVgaPkgTokenSpaceGuid.PcdDriverSupportedEfiVersion|0x0002000a|UINT32|0x00010003
 
 ## XXX - boot mode - gEfiNt32PkgTokenSpaceGuid.PcdWinNtBootMode|1|UINT32|0x00001006
 

@@ -1,4 +1,3 @@
-/* $Id: tstSeamlessX11-auto.cpp $ */
 /** @file
  * Automated test of the X11 seamless Additions code.
  * @todo Better separate test data from implementation details!

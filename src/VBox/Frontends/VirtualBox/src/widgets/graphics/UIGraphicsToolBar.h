@@ -1,6 +1,7 @@
-/* $Id: UIGraphicsToolBar.h $ */
 /** @file
- * VBox Qt GUI - UIGraphicsToolBar class declaration.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * UIGraphicsToolBar class declaration
  */
 
 /*

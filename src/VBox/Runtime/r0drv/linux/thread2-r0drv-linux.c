@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -99,13 +99,6 @@ DECLHIDDEN(int) rtThreadNativeSetPriority(PRTTHREADINT pThread, RTTHREADTYPE enm
 DECLHIDDEN(int) rtThreadNativeAdopt(PRTTHREADINT pThread)
 {
     return VERR_NOT_IMPLEMENTED;
-}
-
-
-DECLHIDDEN(void) rtThreadNativeWaitKludge(PRTTHREADINT pThread)
-{
-    /** @todo fix RTThreadWait/RTR0Term race on linux. */
-    RTThreadSleep(1); NOREF(pThread);
 }
 
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -77,7 +77,7 @@ static size_t dbgcStringOutputInQuotes(PFNRTSTROUTPUT pfnOutput, void *pvArgOutp
         size_t cchSub = pchQuote - psz + 1;
         cchOutput += pfnOutput(pvArgOutput, psz, cchSub);
         cchOutput += pfnOutput(pvArgOutput, &chQuote, 1);
-        cch    -= cchSub;
+        cchSub -= cchSub;
         psz    += cchSub;
     }
 

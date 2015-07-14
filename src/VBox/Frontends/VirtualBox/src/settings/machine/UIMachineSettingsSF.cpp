@@ -1,6 +1,8 @@
 /* $Id: UIMachineSettingsSF.cpp $ */
 /** @file
- * VBox Qt GUI - UIMachineSettingsSF class implementation.
+ *
+ * VBox frontends: Qt4 GUI ("VirtualBox"):
+ * UIMachineSettingsSF class implementation
  */
 
 /*
@@ -15,24 +17,17 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Local includes */
-# include "UIIconPool.h"
-# include "VBoxGlobal.h"
-# include "UIMessageCenter.h"
-# include "VBoxUtils.h"
-# include "UIMachineSettingsSF.h"
-# include "UIMachineSettingsSFDetails.h"
+#include "UIIconPool.h"
+#include "VBoxGlobal.h"
+#include "UIMessageCenter.h"
+#include "VBoxUtils.h"
+#include "UIMachineSettingsSF.h"
+#include "UIMachineSettingsSFDetails.h"
 
 /* Global includes */
-# include <QHeaderView>
-# include <QTimer>
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
+#include <QHeaderView>
+#include <QTimer>
 
 class SFTreeViewItem : public QTreeWidgetItem
 {
@@ -191,12 +186,9 @@ UIMachineSettingsSF::UIMachineSettingsSF()
     mDelAction->setIcon(UIIconPool::iconSet(":/sf_remove_16px.png",
                                             ":/sf_remove_disabled_16px.png"));
 
-    /* Determine icon metric: */
-    const QStyle *pStyle = QApplication::style();
-    const int iIconMetric = pStyle->pixelMetric(QStyle::PM_SmallIconSize);
-
     /* Prepare tool-bar: */
-    m_pFoldersToolBar->setIconSize(QSize(iIconMetric, iIconMetric));
+    m_pFoldersToolBar->setUsesTextLabel(false);
+    m_pFoldersToolBar->setIconSize(QSize(16, 16));
     m_pFoldersToolBar->setOrientation(Qt::Vertical);
     m_pFoldersToolBar->addAction(mNewAction);
     m_pFoldersToolBar->addAction(mEdtAction);
@@ -407,24 +399,27 @@ void UIMachineSettingsSF::setOrderAfter (QWidget *aWidget)
 
 void UIMachineSettingsSF::retranslateUi()
 {
-    /* Translate uic generated strings: */
-    Ui::UIMachineSettingsSF::retranslateUi(this);
+    /* Translate uic generated strings */
+    Ui::UIMachineSettingsSF::retranslateUi (this);
 
-    mNewAction->setText(tr("Add Shared Folder"));
-    mEdtAction->setText(tr("Edit Shared Folder"));
-    mDelAction->setText(tr("Remove Shared Folder"));
+    mNewAction->setText (tr ("&Add Shared Folder"));
+    mEdtAction->setText (tr ("&Edit Shared Folder"));
+    mDelAction->setText (tr ("&Remove Shared Folder"));
 
-    mNewAction->setWhatsThis(tr("Adds new shared folder."));
-    mEdtAction->setWhatsThis(tr("Edits selected shared folder."));
-    mDelAction->setWhatsThis(tr("Removes selected shared folder."));
+    mNewAction->setToolTip (mNewAction->text().remove ('&') +
+        QString (" (%1)").arg (mNewAction->shortcut().toString()));
+    mEdtAction->setToolTip (mEdtAction->text().remove ('&') +
+        QString (" (%1)").arg (mEdtAction->shortcut().toString()));
+    mDelAction->setToolTip (mDelAction->text().remove ('&') +
+        QString (" (%1)").arg (mDelAction->shortcut().toString()));
 
-    mNewAction->setToolTip(mNewAction->whatsThis());
-    mEdtAction->setToolTip(mEdtAction->whatsThis());
-    mDelAction->setToolTip(mDelAction->whatsThis());
+    mNewAction->setWhatsThis (tr ("Adds a new shared folder definition."));
+    mEdtAction->setWhatsThis (tr ("Edits the selected shared folder definition."));
+    mDelAction->setWhatsThis (tr ("Removes the selected shared folder definition."));
 
-    mTrFull = tr("Full");
-    mTrReadOnly = tr("Read-only");
-    mTrYes = tr("Yes");
+    mTrFull = tr ("Full");
+    mTrReadOnly = tr ("Read-only");
+    mTrYes = tr ("Yes"); /** @todo Need to figure out if this string is necessary at all! */
 }
 
 void UIMachineSettingsSF::addTriggered()
@@ -663,7 +658,7 @@ bool UIMachineSettingsSF::isSharedFolderTypeSupported(UISharedFolderType sharedF
             fIsSharedFolderTypeSupported = isMachineInValidMode();
             break;
         case ConsoleType:
-            fIsSharedFolderTypeSupported = isMachineOnline();
+            fIsSharedFolderTypeSupported = isMachineSaved() || isMachineOnline();
             break;
         default:
             break;
@@ -858,4 +853,3 @@ bool UIMachineSettingsSF::createSharedFolder(const UICacheSettingsSharedFolder &
     }
     return true;
 }
-

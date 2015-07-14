@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -211,7 +211,17 @@ static DECLCALLBACK(int)
 tstVMREQConfigConstructor(PUVM pUVM, PVM pVM, void *pvUser)
 {
     NOREF(pvUser);
-    return CFGMR3ConstructDefaultTree(pVM);
+    int rc = CFGMR3ConstructDefaultTree(pVM);
+    if (RT_SUCCESS(rc))
+    {
+        /* Disable HM, otherwise it will fail on machines without unrestricted guest execution
+         * because the allocation of HM_VTX_TOTAL_DEVHEAP_MEM will fail -- no VMMDev */
+        PCFGMNODE pRoot = CFGMR3GetRoot(pVM);
+        rc = CFGMR3InsertInteger(pRoot, "HMEnabled", false);
+        if (RT_FAILURE(rc))
+            RTPrintf("CFGMR3InsertInteger(pRoot,\"HMEnabled\",) -> %Rrc\n", rc);
+    }
+    return rc;
 }
 
 /**

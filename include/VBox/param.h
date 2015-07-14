@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -52,6 +52,7 @@
 
 
 /** @defgroup   grp_vbox_param_mm  Memory Monitor Parameters
+ * @ingroup grp_vbox_param
  * @{
  */
 /** Initial address of Hypervisor Memory Area.
@@ -88,6 +89,7 @@
 
 
 /** @defgroup   grp_vbox_param_pgm  Page Manager Parameters
+ * @ingroup grp_vbox_param
  * @{
  */
 /** The number of handy pages.
@@ -121,6 +123,7 @@
 
 
 /** @defgroup   grp_vbox_param_vmm  VMM Parameters
+ * @ingroup grp_vbox_param
  * @{
  */
 /** VMM stack size. */

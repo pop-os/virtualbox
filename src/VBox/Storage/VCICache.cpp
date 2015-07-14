@@ -588,8 +588,6 @@ static int vciBlkMapLoad(PVCICACHE pStorage, uint64_t offBlkMap, uint32_t cBlkMa
                             pBlkMap->pRangesHead = pRangeCur;
                             pBlkMap->pRangesTail = pRangeCur;
                         }
-                        else
-                            RTMemFree(pRangeCur);
 
                         while (   RT_SUCCESS(rc)
                                && cBlocksLeft)
@@ -673,7 +671,7 @@ static int vciBlkMapLoad(PVCICACHE pStorage, uint64_t offBlkMap, uint32_t cBlkMa
             else
                 rc = VERR_VD_GEN_INVALID_HEADER;
         }
-        else
+        else if (RT_SUCCESS(rc))
             rc = VERR_VD_GEN_INVALID_HEADER;
     }
     else

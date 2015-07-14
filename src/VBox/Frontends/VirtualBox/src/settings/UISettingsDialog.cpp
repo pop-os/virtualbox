@@ -1,6 +1,8 @@
 /* $Id: UISettingsDialog.cpp $ */
 /** @file
- * VBox Qt GUI - UISettingsDialog class implementation.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * UISettingsDialog class implementation
  */
 
 /*
@@ -15,42 +17,31 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Global includes */
-# include <QProgressBar>
-# include <QPushButton>
-# include <QStackedWidget>
-# include <QTimer>
-# include <QCloseEvent>
+#include <QProgressBar>
+#include <QPushButton>
+#include <QStackedWidget>
+#include <QTimer>
+#include <QCloseEvent>
 
 /* Local includes */
-# include "UISettingsDialog.h"
-# include "UIWarningPane.h"
-# include "VBoxGlobal.h"
-# include "UIMessageCenter.h"
-# include "UIPopupCenter.h"
-# include "QIWidgetValidator.h"
-# include "VBoxSettingsSelector.h"
-# include "UIModalWindowManager.h"
-# include "UISettingsSerializer.h"
-# include "UISettingsPage.h"
-# include "UIToolBar.h"
-# include "UIIconPool.h"
-# include "UIConverter.h"
-# ifdef Q_WS_MAC
-#  include "VBoxUtils.h"
-# endif
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
+#include "UISettingsDialog.h"
+#include "UIWarningPane.h"
+#include "VBoxGlobal.h"
+#include "UIMessageCenter.h"
+#include "UIPopupCenter.h"
+#include "QIWidgetValidator.h"
+#include "VBoxSettingsSelector.h"
+#include "UISettingsPage.h"
+#include "UIToolBar.h"
+#include "UIIconPool.h"
+#include "UIConverter.h"
 #ifdef Q_WS_MAC
+# include "VBoxUtils.h"
 # if MAC_LEOPARD_STYLE
 #  define VBOX_GUI_WITH_TOOLBAR_SETTINGS
-# endif
-#endif
+# endif /* MAC_LEOPARD_STYLE */
+#endif /* Q_WS_MAC */
 
 /* Settings Dialog Constructor: */
 UISettingsDialog::UISettingsDialog(QWidget *pParent)
@@ -60,11 +51,11 @@ UISettingsDialog::UISettingsDialog(QWidget *pParent)
     , m_pSelector(0)
     , m_pStack(0)
     /* Common variables: */
-    , m_configurationAccessLevel(ConfigurationAccessLevel_Null)
+    , m_dialogType(SettingsDialogType_Wrong)
     , m_fPolished(false)
-    /* Serialization stuff: */
-    , m_pSerializeProcess(0)
-    , m_fSerializationIsInProgress(false)
+    /* Loading/saving stuff: */
+    , m_fLoaded(false)
+    , m_fSaved(false)
     /* Status-bar stuff: */
     , m_pStatusBar(0)
     /* Process-bar stuff: */
@@ -93,7 +84,7 @@ UISettingsDialog::UISettingsDialog(QWidget *pParent)
     m_pLbTitle->hide();
     /* Create modern tool-bar selector: */
     m_pSelector = new VBoxSettingsToolBarSelector(this);
-    static_cast<UIToolBar*>(m_pSelector->widget())->enableMacToolbar();
+    static_cast<UIToolBar*>(m_pSelector->widget())->setMacToolbar();
     addToolBar(qobject_cast<QToolBar*>(m_pSelector->widget()));
     /* No title in this mode, we change the title of the window: */
     pMainLayout->setColumnMinimumWidth(0, 0);
@@ -120,8 +111,6 @@ UISettingsDialog::UISettingsDialog(QWidget *pParent)
 
     /* Prepare process-bar: */
     m_pProcessBar = new QProgressBar;
-    m_pProcessBar->setMaximum(100);
-    m_pProcessBar->setMinimum(0);
 
     /* Prepare warning-pane: */
     m_pWarningPane = new UIWarningPane;
@@ -150,16 +139,8 @@ UISettingsDialog::UISettingsDialog(QWidget *pParent)
 
 UISettingsDialog::~UISettingsDialog()
 {
-    /* Delete serializer if exists: */
-    if (serializeProcess())
-    {
-        delete m_pSerializeProcess;
-        m_pSerializeProcess = 0;
-    }
-
     /* Recall popup-pane if any: */
     popupCenter().recall(m_pStack, "SettingsDialogWarning");
-
     /* Delete selector early! */
     delete m_pSelector;
 }
@@ -167,19 +148,14 @@ UISettingsDialog::~UISettingsDialog()
 void UISettingsDialog::execute()
 {
     /* Load data: */
-    loadOwnData();
+    loadData();
 
-    /* Execute dialog: */
-    exec();
-}
+    /* Execute dialog and wait for completion: */
+    if (exec() != QDialog::Accepted)
+        return;
 
-void UISettingsDialog::accept()
-{
     /* Save data: */
-    saveOwnData();
-
-    /* Call to base-class: */
-    QIWithRetranslateUI<QIMainDialog>::accept();
+    saveData();
 }
 
 void UISettingsDialog::sltCategoryChanged(int cId)
@@ -211,28 +187,12 @@ void UISettingsDialog::sltCategoryChanged(int cId)
 
 void UISettingsDialog::sltMarkLoaded()
 {
-    /* Delete serializer if exists: */
-    if (serializeProcess())
-    {
-        delete m_pSerializeProcess;
-        m_pSerializeProcess = 0;
-    }
-
-    /* Mark serialization finished: */
-    m_fSerializationIsInProgress = false;
+    m_fLoaded = true;
 }
 
 void UISettingsDialog::sltMarkSaved()
 {
-    /* Delete serializer if exists: */
-    if (serializeProcess())
-    {
-        delete m_pSerializeProcess;
-        m_pSerializeProcess = 0;
-    }
-
-    /* Mark serialization finished: */
-    m_fSerializationIsInProgress = false;
+    m_fSaved = true;
 }
 
 void UISettingsDialog::sltHandleProcessStarted()
@@ -241,9 +201,9 @@ void UISettingsDialog::sltHandleProcessStarted()
     m_pStatusBar->setCurrentWidget(m_pProcessBar);
 }
 
-void UISettingsDialog::sltHandleProcessProgressChange(int iValue)
+void UISettingsDialog::sltHandlePageProcessed()
 {
-    m_pProcessBar->setValue(iValue);
+    m_pProcessBar->setValue(m_pProcessBar->value() + 1);
     if (m_pProcessBar->value() == m_pProcessBar->maximum())
     {
         if (!m_fValid || !m_fSilent)
@@ -253,61 +213,14 @@ void UISettingsDialog::sltHandleProcessProgressChange(int iValue)
     }
 }
 
-void UISettingsDialog::loadData(QVariant &data)
+void UISettingsDialog::loadData()
 {
-    /* Mark serialization started: */
-    m_fSerializationIsInProgress = true;
-
-    /* Create settings loader: */
-    m_pSerializeProcess = new UISettingsSerializer(this, UISettingsSerializer::Load,
-                                                   data, m_pSelector->settingPages());
-    AssertPtrReturnVoid(m_pSerializeProcess);
-    {
-        /* Configure settings loader: */
-        connect(m_pSerializeProcess, SIGNAL(sigNotifyAboutProcessStarted()), this, SLOT(sltHandleProcessStarted()));
-        connect(m_pSerializeProcess, SIGNAL(sigNotifyAboutProcessProgressChanged(int)), this, SLOT(sltHandleProcessProgressChange(int)));
-        connect(m_pSerializeProcess, SIGNAL(sigNotifyAboutProcessFinished()), this, SLOT(sltMarkLoaded()));
-
-        /* Raise current page priority: */
-        m_pSerializeProcess->raisePriorityOfPage(m_pSelector->currentId());
-
-        /* Start settings loader: */
-        m_pSerializeProcess->start();
-
-        /* Upload data finally: */
-        data = m_pSerializeProcess->data();
-    }
+    m_fLoaded = false;
 }
 
-void UISettingsDialog::saveData(QVariant &data)
+void UISettingsDialog::saveData()
 {
-    /* Mark serialization started: */
-    m_fSerializationIsInProgress = true;
-
-    /* Create the 'settings saver': */
-    QPointer<UISettingsSerializerProgress> pDlgSerializeProgress =
-        new UISettingsSerializerProgress(this, UISettingsSerializer::Save,
-                                         data, m_pSelector->settingPages());
-    AssertPtrReturnVoid(static_cast<UISettingsSerializerProgress*>(pDlgSerializeProgress));
-    {
-        /* Make the 'settings saver' temporary parent for all sub-dialogs: */
-        windowManager().registerNewParent(pDlgSerializeProgress, windowManager().realParentWindow(this));
-
-        /* Execute the 'settings saver': */
-        pDlgSerializeProgress->exec();
-
-        /* Any modal dialog can be destroyed in own event-loop
-         * as a part of application termination procedure..
-         * We have to check if the dialog still valid. */
-        if (pDlgSerializeProgress)
-        {
-            /* Upload 'settings saver' data: */
-            data = pDlgSerializeProgress->data();
-
-            /* Delete the 'settings saver': */
-            delete pDlgSerializeProgress;
-        }
-    }
+    m_fSaved = false;
 }
 
 void UISettingsDialog::retranslateUi()
@@ -332,34 +245,44 @@ void UISettingsDialog::retranslateUi()
     revalidate();
 }
 
-void UISettingsDialog::setConfigurationAccessLevel(ConfigurationAccessLevel newConfigurationAccessLevel)
+void UISettingsDialog::setDialogType(SettingsDialogType settingsDialogType)
 {
-    /* Make sure something changed: */
-    if (m_configurationAccessLevel == newConfigurationAccessLevel)
-        return;
+    /* Remember new dialog-type: */
+    m_dialogType = settingsDialogType;
 
-    /* Apply new configuration access level: */
-    m_configurationAccessLevel = newConfigurationAccessLevel;
-
-    /* And propagate it to settings-page(s): */
+    /* Propagate it to settings-page(s): */
     foreach (UISettingsPage *pPage, m_pSelector->settingPages())
-        pPage->setConfigurationAccessLevel(configurationAccessLevel());
+        pPage->setDialogType(dialogType());
+}
+
+QString UISettingsDialog::titleExtension() const
+{
+#ifdef VBOX_GUI_WITH_TOOLBAR_SETTINGS
+    return m_pSelector->itemText(m_pSelector->currentId());
+#else
+    return tr("Settings");
+#endif
 }
 
 void UISettingsDialog::addItem(const QString &strBigIcon,
-                               const QString &strMediumIcon,
+                               const QString &strBigIconDisabled,
                                const QString &strSmallIcon,
+                               const QString &strSmallIconDisabled,
                                int cId,
                                const QString &strLink,
                                UISettingsPage *pSettingsPage /* = 0 */,
                                int iParentId /* = -1 */)
 {
     /* Add new selector item: */
-    if (QWidget *pPage = m_pSelector->addItem(strBigIcon, strMediumIcon, strSmallIcon,
+    if (QWidget *pPage = m_pSelector->addItem(strBigIcon, strBigIconDisabled,
+                                              strSmallIcon, strSmallIconDisabled,
                                               cId, strLink, pSettingsPage, iParentId))
     {
         /* Add stack-widget page if created: */
         m_pages[cId] = m_pStack->addWidget(pPage);
+        /* Update process-bar: */
+        m_pProcessBar->setMinimum(0);
+        m_pProcessBar->setMaximum(m_pStack->count());
     }
     /* Assign validator if necessary: */
     if (pSettingsPage)
@@ -529,7 +452,7 @@ void UISettingsDialog::sltUpdateWhatsThis(bool fGotFocus /* = false */)
 
 void UISettingsDialog::reject()
 {
-    if (!isSerializationInProgress())
+    if (m_fLoaded)
         QIMainDialog::reject();
 }
 

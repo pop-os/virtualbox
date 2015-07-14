@@ -4,7 +4,7 @@
 ;
 
 ;
-; Copyright (C) 2006-2015 Oracle Corporation
+; Copyright (C) 2006-2012 Oracle Corporation
 ;
 ; This file is part of VirtualBox Open Source Edition (OSE), as
 ; available from http://www.virtualbox.org. This file is free software;
@@ -27,18 +27,8 @@
 EXPORTS
     ASMMultU64ByU32DivByU32
 
-    RTTimeNanoTSLegacySyncInvarNoDelta
-    RTTimeNanoTSLFenceSyncInvarNoDelta
-    RTTimeNanoTSLegacyAsyncUseApicId
-    RTTimeNanoTSLegacyAsyncUseRdtscp
-    RTTimeNanoTSLegacyAsyncUseIdtrLim
-    RTTimeNanoTSLegacySyncInvarWithDeltaUseApicId
-    RTTimeNanoTSLegacySyncInvarWithDeltaUseRdtscp
-    RTTimeNanoTSLegacySyncInvarWithDeltaUseIdtrLim
-    RTTimeNanoTSLFenceAsyncUseApicId
-    RTTimeNanoTSLFenceAsyncUseRdtscp
-    RTTimeNanoTSLFenceAsyncUseIdtrLim
-    RTTimeNanoTSLFenceSyncInvarWithDeltaUseApicId
-    RTTimeNanoTSLFenceSyncInvarWithDeltaUseRdtscp
-    RTTimeNanoTSLFenceSyncInvarWithDeltaUseIdtrLim
+    RTTimeNanoTSLegacySync
+    RTTimeNanoTSLegacyAsync
+    RTTimeNanoTSLFenceSync
+    RTTimeNanoTSLFenceAsync
 

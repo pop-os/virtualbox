@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -52,6 +52,7 @@
 #include <iprt/uuid.h>
 
 #include "VBoxDD.h"
+#include "vl_vbox.h"
 
 #define FDC_SAVESTATE_CURRENT   2       /* The new and improved saved state. */
 #define FDC_SAVESTATE_OLD       1       /* The original saved state. */
@@ -248,7 +249,6 @@ static int fd_sector(fdrive_t *drv)
  * returns 2 if track is invalid
  * returns 3 if sector is invalid
  * returns 4 if seek is disabled
- * returns 5 if no media in drive
  */
 static int fd_seek(fdrive_t *drv, uint8_t head, uint8_t track, uint8_t sect,
                    int enable_seek)
@@ -256,12 +256,6 @@ static int fd_seek(fdrive_t *drv, uint8_t head, uint8_t track, uint8_t sect,
     int sector;
     int ret;
 
-    if (!drv->last_sect) {
-        FLOPPY_DPRINTF("no disk in drive (max=%d %d %02x %02x)\n",
-                       1, (drv->flags & FDISK_DBL_SIDES) == 0 ? 0 : 1,
-                       drv->max_track, drv->last_sect);
-        return 5;
-    }
     if (track > drv->max_track ||
         (head != 0 && (drv->flags & FDISK_DBL_SIDES) == 0)) {
         FLOPPY_DPRINTF("try to read %d %02x %02x (max=%d %d %02x %02x)\n",
@@ -348,7 +342,6 @@ static fd_format_t fd_formats[] = {
     { FDRIVE_DRV_144, FDRIVE_DISK_720, 14, 80, 1, FDRIVE_RATE_250K, "1.12 MB 3\"1/2", },
     /* 1.2 MB 5"1/4 floppy disks */
     { FDRIVE_DRV_120, FDRIVE_DISK_288, 15, 80, 1, FDRIVE_RATE_500K,  "1.2 MB 5\"1/4", },
-    { FDRIVE_DRV_120, FDRIVE_DISK_288, 16, 80, 1, FDRIVE_RATE_500K, "1.28 MB 5\"1/4", },    /* CP Backup 5.25" HD */
     { FDRIVE_DRV_120, FDRIVE_DISK_288, 18, 80, 1, FDRIVE_RATE_500K, "1.44 MB 5\"1/4", },
     { FDRIVE_DRV_120, FDRIVE_DISK_288, 18, 82, 1, FDRIVE_RATE_500K, "1.48 MB 5\"1/4", },
     { FDRIVE_DRV_120, FDRIVE_DISK_288, 18, 83, 1, FDRIVE_RATE_500K, "1.49 MB 5\"1/4", },
@@ -359,66 +352,63 @@ static fd_format_t fd_formats[] = {
     /* 360 kB 5"1/4 floppy disks (newer 9-sector formats) */
     { FDRIVE_DRV_120, FDRIVE_DISK_288,  9, 40, 1, FDRIVE_RATE_300K,  "360 kB 5\"1/4", },
     { FDRIVE_DRV_120, FDRIVE_DISK_288,  9, 40, 0, FDRIVE_RATE_300K,  "180 kB 5\"1/4", },
-    { FDRIVE_DRV_120, FDRIVE_DISK_288, 10, 40, 1, FDRIVE_RATE_300K,  "400 kB 5\"1/4", },    /* CP Backup 5.25" DD */
     { FDRIVE_DRV_120, FDRIVE_DISK_288, 10, 41, 1, FDRIVE_RATE_300K,  "410 kB 5\"1/4", },
     { FDRIVE_DRV_120, FDRIVE_DISK_288, 10, 42, 1, FDRIVE_RATE_300K,  "420 kB 5\"1/4", },
     /* 320 kB 5"1/4 floppy disks (old 8-sector formats) */
     { FDRIVE_DRV_120, FDRIVE_DISK_288,  8, 40, 1, FDRIVE_RATE_300K,  "320 kB 5\"1/4", },
     { FDRIVE_DRV_120, FDRIVE_DISK_288,  8, 40, 0, FDRIVE_RATE_300K,  "160 kB 5\"1/4", },
     /* 1.2 MB and low density 3"1/2 floppy 'aliases' */
-    { FDRIVE_DRV_144, FDRIVE_DISK_144, 15, 80, 1, FDRIVE_RATE_500K,  "1.2 MB 3\"1/2", },
-    { FDRIVE_DRV_144, FDRIVE_DISK_144, 16, 80, 1, FDRIVE_RATE_500K, "1.28 MB 3\"1/2", },
-    { FDRIVE_DRV_144, FDRIVE_DISK_720, 10, 40, 1, FDRIVE_RATE_300K,  "400 kB 3\"1/2", },    /* CP Backup 5.25" DD */
+    { FDRIVE_DRV_144, FDRIVE_DISK_144, 15, 80, 1, FDRIVE_RATE_500K, " 1.2 MB 3\"1/2", },
     { FDRIVE_DRV_144, FDRIVE_DISK_720,  9, 40, 1, FDRIVE_RATE_300K,  "360 kB 3\"1/2", },
     { FDRIVE_DRV_144, FDRIVE_DISK_720,  9, 40, 0, FDRIVE_RATE_300K,  "180 kB 3\"1/2", },
     { FDRIVE_DRV_144, FDRIVE_DISK_720,  8, 40, 1, FDRIVE_RATE_300K,  "320 kB 3\"1/2", },
     { FDRIVE_DRV_144, FDRIVE_DISK_720,  8, 40, 0, FDRIVE_RATE_300K,  "160 kB 3\"1/2", },
 #ifdef VBOX /* For larger than real life floppy images (see DrvBlock.cpp). */
     /* 15.6 MB fake floppy disk (just need something big). */
-    { FDRIVE_DRV_FAKE_15_6, FDRIVE_DISK_USER,  63, 255, 1, FDRIVE_RATE_1M,   "15.6 MB fake 15.6", },
-    { FDRIVE_DRV_FAKE_15_6, FDRIVE_DISK_288,   36,  80, 1, FDRIVE_RATE_1M,   "2.88 MB fake 15.6", },
-    { FDRIVE_DRV_FAKE_15_6, FDRIVE_DISK_288,   39,  80, 1, FDRIVE_RATE_1M,   "3.12 MB fake 15.6", },
-    { FDRIVE_DRV_FAKE_15_6, FDRIVE_DISK_288,   40,  80, 1, FDRIVE_RATE_1M,    "3.2 MB fake 15.6", },
-    { FDRIVE_DRV_FAKE_15_6, FDRIVE_DISK_288,   44,  80, 1, FDRIVE_RATE_1M,   "3.52 MB fake 15.6", },
-    { FDRIVE_DRV_FAKE_15_6, FDRIVE_DISK_288,   48,  80, 1, FDRIVE_RATE_1M,   "3.84 MB fake 15.6", },
-    { FDRIVE_DRV_FAKE_15_6, FDRIVE_DISK_144,   18,  80, 1, FDRIVE_RATE_500K, "1.44 MB fake 15.6", },
-    { FDRIVE_DRV_FAKE_15_6, FDRIVE_DISK_144,   20,  80, 1, FDRIVE_RATE_500K,  "1.6 MB fake 15.6", },
-    { FDRIVE_DRV_FAKE_15_6, FDRIVE_DISK_144,   21,  80, 1, FDRIVE_RATE_500K, "1.68 MB fake 15.6", },
-    { FDRIVE_DRV_FAKE_15_6, FDRIVE_DISK_144,   21,  82, 1, FDRIVE_RATE_500K, "1.72 MB fake 15.6", },
-    { FDRIVE_DRV_FAKE_15_6, FDRIVE_DISK_144,   21,  83, 1, FDRIVE_RATE_500K, "1.74 MB fake 15.6", },
-    { FDRIVE_DRV_FAKE_15_6, FDRIVE_DISK_144,   22,  80, 1, FDRIVE_RATE_500K, "1.76 MB fake 15.6", },
-    { FDRIVE_DRV_FAKE_15_6, FDRIVE_DISK_144,   23,  80, 1, FDRIVE_RATE_500K, "1.84 MB fake 15.6", },
-    { FDRIVE_DRV_FAKE_15_6, FDRIVE_DISK_144,   24,  80, 1, FDRIVE_RATE_500K, "1.92 MB fake 15.6", },
-    { FDRIVE_DRV_FAKE_15_6, FDRIVE_DISK_720,    9,  80, 1, FDRIVE_RATE_250K,  "720 kB fake 15.6", },
-    { FDRIVE_DRV_FAKE_15_6, FDRIVE_DISK_720,   10,  80, 1, FDRIVE_RATE_250K,  "800 kB fake 15.6", },
-    { FDRIVE_DRV_FAKE_15_6, FDRIVE_DISK_720,   10,  82, 1, FDRIVE_RATE_250K,  "820 kB fake 15.6", },
-    { FDRIVE_DRV_FAKE_15_6, FDRIVE_DISK_720,   10,  83, 1, FDRIVE_RATE_250K,  "830 kB fake 15.6", },
-    { FDRIVE_DRV_FAKE_15_6, FDRIVE_DISK_720,   13,  80, 1, FDRIVE_RATE_250K, "1.04 MB fake 15.6", },
-    { FDRIVE_DRV_FAKE_15_6, FDRIVE_DISK_720,   14,  80, 1, FDRIVE_RATE_250K, "1.12 MB fake 15.6", },
-    { FDRIVE_DRV_FAKE_15_6, FDRIVE_DISK_720,    9,  80, 0, FDRIVE_RATE_250K,  "360 kB fake 15.6", },
+    { FDRIVE_DRV_FAKE_15_6, FDRIVE_DISK_USER,  63, 255, 1, FDRIVE_RATE_1M,   "15.6 MB 3\"1/2", },
+    { FDRIVE_DRV_FAKE_15_6, FDRIVE_DISK_288,   36,  80, 1, FDRIVE_RATE_1M,   "2.88 MB 3\"1/2", },
+    { FDRIVE_DRV_FAKE_15_6, FDRIVE_DISK_288,   39,  80, 1, FDRIVE_RATE_1M,   "3.12 MB 3\"1/2", },
+    { FDRIVE_DRV_FAKE_15_6, FDRIVE_DISK_288,   40,  80, 1, FDRIVE_RATE_1M,    "3.2 MB 3\"1/2", },
+    { FDRIVE_DRV_FAKE_15_6, FDRIVE_DISK_288,   44,  80, 1, FDRIVE_RATE_1M,   "3.52 MB 3\"1/2", },
+    { FDRIVE_DRV_FAKE_15_6, FDRIVE_DISK_288,   48,  80, 1, FDRIVE_RATE_1M,   "3.84 MB 3\"1/2", },
+    { FDRIVE_DRV_FAKE_15_6, FDRIVE_DISK_144,   18,  80, 1, FDRIVE_RATE_500K, "1.44 MB 3\"1/2", },
+    { FDRIVE_DRV_FAKE_15_6, FDRIVE_DISK_144,   20,  80, 1, FDRIVE_RATE_500K,  "1.6 MB 3\"1/2", },
+    { FDRIVE_DRV_FAKE_15_6, FDRIVE_DISK_144,   21,  80, 1, FDRIVE_RATE_500K, "1.68 MB 3\"1/2", },
+    { FDRIVE_DRV_FAKE_15_6, FDRIVE_DISK_144,   21,  82, 1, FDRIVE_RATE_500K, "1.72 MB 3\"1/2", },
+    { FDRIVE_DRV_FAKE_15_6, FDRIVE_DISK_144,   21,  83, 1, FDRIVE_RATE_500K, "1.74 MB 3\"1/2", },
+    { FDRIVE_DRV_FAKE_15_6, FDRIVE_DISK_144,   22,  80, 1, FDRIVE_RATE_500K, "1.76 MB 3\"1/2", },
+    { FDRIVE_DRV_FAKE_15_6, FDRIVE_DISK_144,   23,  80, 1, FDRIVE_RATE_500K, "1.84 MB 3\"1/2", },
+    { FDRIVE_DRV_FAKE_15_6, FDRIVE_DISK_144,   24,  80, 1, FDRIVE_RATE_500K, "1.92 MB 3\"1/2", },
+    { FDRIVE_DRV_FAKE_15_6, FDRIVE_DISK_720,    9,  80, 1, FDRIVE_RATE_250K,  "720 kB 3\"1/2", },
+    { FDRIVE_DRV_FAKE_15_6, FDRIVE_DISK_720,   10,  80, 1, FDRIVE_RATE_250K,  "800 kB 3\"1/2", },
+    { FDRIVE_DRV_FAKE_15_6, FDRIVE_DISK_720,   10,  82, 1, FDRIVE_RATE_250K,  "820 kB 3\"1/2", },
+    { FDRIVE_DRV_FAKE_15_6, FDRIVE_DISK_720,   10,  83, 1, FDRIVE_RATE_250K,  "830 kB 3\"1/2", },
+    { FDRIVE_DRV_FAKE_15_6, FDRIVE_DISK_720,   13,  80, 1, FDRIVE_RATE_250K, "1.04 MB 3\"1/2", },
+    { FDRIVE_DRV_FAKE_15_6, FDRIVE_DISK_720,   14,  80, 1, FDRIVE_RATE_250K, "1.12 MB 3\"1/2", },
+    { FDRIVE_DRV_FAKE_15_6, FDRIVE_DISK_720,    9,  80, 0, FDRIVE_RATE_250K,  "360 kB 3\"1/2", },
     /* 63.5 MB fake floppy disk (just need something big). */
-    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_USER, 255, 255, 1, FDRIVE_RATE_1M,   "63.5 MB fake 63.5", },
-    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_USER,  63, 255, 1, FDRIVE_RATE_1M,   "15.6 MB fake 63.5", },
-    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_288,   36,  80, 1, FDRIVE_RATE_1M,   "2.88 MB fake 63.5", },
-    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_288,   39,  80, 1, FDRIVE_RATE_1M,   "3.12 MB fake 63.5", },
-    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_288,   40,  80, 1, FDRIVE_RATE_1M,    "3.2 MB fake 63.5", },
-    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_288,   44,  80, 1, FDRIVE_RATE_1M,   "3.52 MB fake 63.5", },
-    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_288,   48,  80, 1, FDRIVE_RATE_1M,   "3.84 MB fake 63.5", },
-    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_144,   18,  80, 1, FDRIVE_RATE_500K, "1.44 MB fake 63.5", },
-    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_144,   20,  80, 1, FDRIVE_RATE_500K,  "1.6 MB fake 63.5", },
-    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_144,   21,  80, 1, FDRIVE_RATE_500K, "1.68 MB fake 63.5", },
-    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_144,   21,  82, 1, FDRIVE_RATE_500K, "1.72 MB fake 63.5", },
-    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_144,   21,  83, 1, FDRIVE_RATE_500K, "1.74 MB fake 63.5", },
-    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_144,   22,  80, 1, FDRIVE_RATE_500K, "1.76 MB fake 63.5", },
-    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_144,   23,  80, 1, FDRIVE_RATE_500K, "1.84 MB fake 63.5", },
-    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_144,   24,  80, 1, FDRIVE_RATE_500K, "1.92 MB fake 63.5", },
-    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_720,    9,  80, 1, FDRIVE_RATE_250K,  "720 kB fake 63.5", },
-    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_720,   10,  80, 1, FDRIVE_RATE_250K,  "800 kB fake 63.5", },
-    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_720,   10,  82, 1, FDRIVE_RATE_250K,  "820 kB fake 63.5", },
-    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_720,   10,  83, 1, FDRIVE_RATE_250K,  "830 kB fake 63.5", },
-    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_720,   13,  80, 1, FDRIVE_RATE_250K, "1.04 MB fake 63.5", },
-    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_720,   14,  80, 1, FDRIVE_RATE_250K, "1.12 MB fake 63.5", },
-    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_720,    9,  80, 0, FDRIVE_RATE_250K,  "360 kB fake 63.5", },
+    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_USER, 255, 255, 1, FDRIVE_RATE_1M,   "63.5 MB 3\"1/2", },
+    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_USER,  63, 255, 1, FDRIVE_RATE_1M,   "15.6 MB 3\"1/2", },
+    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_288,   36,  80, 1, FDRIVE_RATE_1M,   "2.88 MB 3\"1/2", },
+    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_288,   39,  80, 1, FDRIVE_RATE_1M,   "3.12 MB 3\"1/2", },
+    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_288,   40,  80, 1, FDRIVE_RATE_1M,    "3.2 MB 3\"1/2", },
+    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_288,   44,  80, 1, FDRIVE_RATE_1M,   "3.52 MB 3\"1/2", },
+    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_288,   48,  80, 1, FDRIVE_RATE_1M,   "3.84 MB 3\"1/2", },
+    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_144,   18,  80, 1, FDRIVE_RATE_500K, "1.44 MB 3\"1/2", },
+    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_144,   20,  80, 1, FDRIVE_RATE_500K,  "1.6 MB 3\"1/2", },
+    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_144,   21,  80, 1, FDRIVE_RATE_500K, "1.68 MB 3\"1/2", },
+    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_144,   21,  82, 1, FDRIVE_RATE_500K, "1.72 MB 3\"1/2", },
+    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_144,   21,  83, 1, FDRIVE_RATE_500K, "1.74 MB 3\"1/2", },
+    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_144,   22,  80, 1, FDRIVE_RATE_500K, "1.76 MB 3\"1/2", },
+    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_144,   23,  80, 1, FDRIVE_RATE_500K, "1.84 MB 3\"1/2", },
+    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_144,   24,  80, 1, FDRIVE_RATE_500K, "1.92 MB 3\"1/2", },
+    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_720,    9,  80, 1, FDRIVE_RATE_250K,  "720 kB 3\"1/2", },
+    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_720,   10,  80, 1, FDRIVE_RATE_250K,  "800 kB 3\"1/2", },
+    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_720,   10,  82, 1, FDRIVE_RATE_250K,  "820 kB 3\"1/2", },
+    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_720,   10,  83, 1, FDRIVE_RATE_250K,  "830 kB 3\"1/2", },
+    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_720,   13,  80, 1, FDRIVE_RATE_250K, "1.04 MB 3\"1/2", },
+    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_720,   14,  80, 1, FDRIVE_RATE_250K, "1.12 MB 3\"1/2", },
+    { FDRIVE_DRV_FAKE_63_5, FDRIVE_DISK_720,    9,  80, 0, FDRIVE_RATE_250K,  "360 kB 3\"1/2", },
 #endif
     /* end */
     { FDRIVE_DRV_NONE, FDRIVE_DISK_NONE, (uint8_t)-1, (uint8_t)-1, 0, (fdrive_rate_t)0, NULL, },
@@ -490,7 +480,7 @@ static void fd_revalidate(fdrive_t *drv)
 #endif
             FLOPPY_DPRINTF("%s floppy disk (%d h %d t %d s) %s\n", parse->str,
                            nb_heads, max_track, last_sect, ro ? "ro" : "rw");
-            LogRel(("FDC: %s floppy disk (%d h %d t %d s) %s\n", parse->str,
+            LogRel(("%s floppy disk (%d h %d t %d s) %s\n", parse->str,
                     nb_heads, max_track, last_sect, ro ? "ro" : "rw"));
         }
         if (nb_heads == 1) {
@@ -721,11 +711,7 @@ struct fdctrl_t {
 #endif
     uint32_t io_base;
     /* Controller state */
-#ifndef VBOX
     QEMUTimer *result_timer;
-#else
-    struct TMTIMER *result_timer;
-#endif
     uint8_t sra;
     uint8_t srb;
     uint8_t dor;
@@ -1274,14 +1260,6 @@ static void fdctrl_start_transfer(fdctrl_t *fdctrl, int direction)
         fdctrl->fifo[4] = kh;
         fdctrl->fifo[5] = ks;
         return;
-    case 5:
-        /* No disk in drive */
-        ///@todo: This is wrong! Command should not complete.
-        fdctrl_stop_transfer(fdctrl, FD_SR0_ABNTERM | 0x08, /*FD_SR1_MA |*/ FD_SR1_ND, 0x00);
-        fdctrl->fifo[3] = kt;
-        fdctrl->fifo[4] = kh;
-        fdctrl->fifo[5] = ks;
-        return;
     case 1:
         did_seek = 1;
         break;
@@ -1403,13 +1381,6 @@ static void fdctrl_start_format(fdctrl_t *fdctrl)
     case 4:
         /* No seek enabled */
         fdctrl_stop_transfer(fdctrl, FD_SR0_ABNTERM, 0x00, 0x00);
-        fdctrl->fifo[3] = kt;
-        fdctrl->fifo[4] = kh;
-        fdctrl->fifo[5] = ks;
-        return;
-    case 5:
-        /* No disk in drive */
-        fdctrl_stop_transfer(fdctrl, FD_SR0_ABNTERM, FD_SR1_MA, 0x00);
         fdctrl->fifo[3] = kt;
         fdctrl->fifo[4] = kh;
         fdctrl->fifo[5] = ks;
@@ -1768,6 +1739,7 @@ static uint32_t fdctrl_read_data(fdctrl_t *fdctrl)
     }
     pos = fdctrl->data_pos % FD_SECTOR_LEN;
     if (fdctrl->msr & FD_MSR_NONDMA) {
+        pos %= FD_SECTOR_LEN;
         if (pos == 0) {
             if (fdctrl->data_pos != 0)
                 if (!fdctrl_seek_to_next_sect(fdctrl, cur_drv)) {
@@ -1841,13 +1813,6 @@ static void fdctrl_format_sector(fdctrl_t *fdctrl)
     case 4:
         /* No seek enabled */
         fdctrl_stop_transfer(fdctrl, FD_SR0_ABNTERM, 0x00, 0x00);
-        fdctrl->fifo[3] = kt;
-        fdctrl->fifo[4] = kh;
-        fdctrl->fifo[5] = ks;
-        return;
-    case 5:
-        /* No disk in drive */
-        fdctrl_stop_transfer(fdctrl, FD_SR0_ABNTERM, FD_SR1_MA, 0x00);
         fdctrl->fifo[3] = kt;
         fdctrl->fifo[4] = kh;
         fdctrl->fifo[5] = ks;
@@ -2318,7 +2283,7 @@ static void fdctrl_write_data(fdctrl_t *fdctrl, uint32_t value)
         fdctrl->msr |= FD_MSR_CMDBUSY;
     }
 
-    FLOPPY_DPRINTF("%s: %02x\n", __FUNCTION__, value);
+    FLOPPY_DPRINTF("%s: %02x\n", __func__, value);
     fdctrl->fifo[fdctrl->data_pos++ % FD_SECTOR_LEN] = value;
     if (fdctrl->data_pos == fdctrl->data_len) {
         /* We now have all parameters
@@ -2351,7 +2316,6 @@ static void fdctrl_result_timer(void *opaque)
 #ifdef VBOX
     if (!cur_drv->max_track) {
         FLOPPY_DPRINTF("read id when no disk in drive\n");
-        ///@todo: This is wrong! Command should not complete.
         fdctrl_stop_transfer(fdctrl, FD_SR0_ABNTERM, FD_SR1_MA | FD_SR1_ND, FD_SR2_MD);
     } else if ((fdctrl->dsr & FD_DSR_DRATEMASK) != cur_drv->media_rate) {
         FLOPPY_DPRINTF("read id rate mismatch (fdc=%d, media=%d)\n",

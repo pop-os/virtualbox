@@ -1,10 +1,11 @@
-/* $Id: QIArrowSplitter.h $ */
 /** @file
- * VBox Qt GUI - QIArrowSplitter class declaration.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * VirtualBox Qt extensions: QIArrowSplitter class declaration
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,95 +16,65 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___QIArrowSplitter_h___
-#define ___QIArrowSplitter_h___
+#ifndef __QIArrowSplitter_h__
+#define __QIArrowSplitter_h__
 
-/* Qt includes: */
+/* VBox includes */
+#include "QIArrowButtonPress.h"
+#include "QIArrowButtonSwitch.h"
+
+/* Qt includes */
 #include <QWidget>
+#include <QHBoxLayout>
 
-/* GUI includes: */
-#include "QIWithRetranslateUI.h"
-
-/* Forward declarations: */
-class QVBoxLayout;
-class QIArrowButtonSwitch;
+/* VBox forwards */
 class QIArrowButtonPress;
-class QIDetailsBrowser;
+class QIArrowButtonSwitch;
 
-/* Type definitions: */
-typedef QPair<QString, QString> QStringPair;
-typedef QList<QStringPair> QStringPairList;
+/* Qt forwards */
+class QVBoxLayout;
 
-/** QWidget extension
-  * allowing to toggle visibility for any other child widget. */
-class QIArrowSplitter : public QIWithRetranslateUI<QWidget>
+/** @class QIArrowSplitter
+ *
+ *  The QIArrowSplitter class is a folding widget placeholder.
+ *
+ */
+class QIArrowSplitter : public QWidget
 {
     Q_OBJECT;
 
-signals:
-
-    /** Notifies listeners about size-hint change: */
-    void sigSizeHintChange();
-
 public:
 
-    /** Constructor, passes @a pParent to the QWidget constructor. */
-    QIArrowSplitter(QWidget *pParent = 0);
+    QIArrowSplitter (QWidget *aChild, QWidget *aParent = 0);
 
-    /** Returns minimum size-hint. */
+    void setMultiPaging (bool aMultiPage);
+
+    void setButtonEnabled (bool aNext, bool aEnabled);
+
+    void setName (const QString &aName);
+
     QSize minimumSizeHint() const;
-
-    /** Defines the @a strName for the switch-button. */
-    void setName(const QString &strName);
-
-    /** Returns splitter details. */
-    const QStringPairList& details() const { return m_details; }
-    /** Defines splitter @a details. */
-    void setDetails(const QStringPairList &details);
 
 public slots:
 
-    /** Updates size-hints. */
-    void sltUpdateSizeHints();
+    void toggleWidget();
 
-    /** Updates navigation-buttons visibility. */
-    void sltUpdateNavigationButtonsVisibility();
-    /** Updates details-browser visibility. */
-    void sltUpdateDetailsBrowserVisibility();
+signals:
 
-    /** Navigates through details-list backward. */
-    void sltSwitchDetailsPageBack();
-    /** Navigates through details-list forward. */
-    void sltSwitchDetailsPageNext();
+    void showBackDetails();
+    void showNextDetails();
+    void sigSizeChanged();
 
 private:
 
-    /** Prepare routine. */
-    void prepare();
+    bool eventFilter (QObject *aObject, QEvent *aEvent);
 
-    /** Retranslation routine.
-      * @todo Fix translation context. */
-    void retranslateUi();
-
-    /** Updates details. */
-    void updateDetails();
-
-    /** Holds the main-layout. */
-    QVBoxLayout *m_pMainLayout;
-
-    /** Holds the switch-button. */
-    QIArrowButtonSwitch *m_pSwitchButton;
-    /** Holds the back-button. */
-    QIArrowButtonPress *m_pBackButton;
-    /** Holds the next-button. */
-    QIArrowButtonPress *m_pNextButton;
-
-    /** Holds the details-browser. */
-    QIDetailsBrowser *m_pDetailsBrowser;
-    /** Holds details-list. */
-    QStringPairList m_details;
-    /** Holds details-list index. */
-    int m_iDetailsIndex;
+    QVBoxLayout *mMainLayout;
+    QIArrowButtonSwitch *mSwitchButton;
+    QIArrowButtonPress *mBackButton;
+    QIArrowButtonPress *mNextButton;
+    QWidget *mChild;
 };
 
-#endif /* !___QIArrowSplitter_h___ */
+#endif
+

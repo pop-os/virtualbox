@@ -1,6 +1,8 @@
 /* $Id: UIMachineSettingsNetwork.cpp $ */
 /** @file
- * VBox Qt GUI - UIMachineSettingsNetwork class implementation.
+ *
+ * VBox frontends: Qt4 GUI ("VirtualBox"):
+ * UIMachineSettingsNetwork class implementation
  */
 
 /*
@@ -15,34 +17,25 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* GUI includes: */
-# include "QIWidgetValidator.h"
-# include "QIArrowButtonSwitch.h"
-# include "UIMachineSettingsNetwork.h"
-# include "QITabWidget.h"
-# include "VBoxGlobal.h"
-# include "UIConverter.h"
-# include "UIIconPool.h"
+#include "QIWidgetValidator.h"
+#include "QIArrowButtonSwitch.h"
+#include "UIMachineSettingsNetwork.h"
+#include "QITabWidget.h"
+#include "VBoxGlobal.h"
+#include "UIConverter.h"
 
 /* COM includes: */
-# include "CNetworkAdapter.h"
-# include "CHostNetworkInterface.h"
-# include "CNATNetwork.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
+#include "CNetworkAdapter.h"
 #include "CNATEngine.h"
+#include "CHostNetworkInterface.h"
+#include "CNATNetwork.h"
 
 /* Other VBox includes: */
 #ifdef VBOX_WITH_VDE
 # include <iprt/ldr.h>
 # include <VBox/VDEPlug.h>
 #endif /* VBOX_WITH_VDE */
-
 
 /* Empty item extra-code: */
 const char *pEmptyItemCode = "#empty#";
@@ -60,27 +53,17 @@ UIMachineSettingsNetwork::UIMachineSettingsNetwork(UIMachineSettingsNetworkPage 
     /* Apply UI decorations: */
     Ui::UIMachineSettingsNetwork::setupUi(this);
 
-    /* Determine icon metric: */
-    const QStyle *pStyle = QApplication::style();
-    const int iIconMetric = (int)(pStyle->pixelMetric(QStyle::PM_SmallIconSize) * .625);
-
     /* Setup widgets: */
     m_pAdapterNameCombo->setInsertPolicy(QComboBox::NoInsert);
     m_pMACEditor->setValidator(new QRegExpValidator(QRegExp("[0-9A-Fa-f]{12}"), this));
     m_pMACEditor->setMinimumWidthByText(QString().fill('0', 12));
-    m_pMACButton->setIcon(UIIconPool::iconSet(":/refresh_16px.png"));
-    m_pAdvancedArrow->setIconSize(QSize(iIconMetric, iIconMetric));
-    m_pAdvancedArrow->setIconForButtonState(QIArrowButtonSwitch::ButtonState_Collapsed,
-                                            UIIconPool::iconSet(":/arrow_right_10px.png"));
-    m_pAdvancedArrow->setIconForButtonState(QIArrowButtonSwitch::ButtonState_Expanded,
-                                            UIIconPool::iconSet(":/arrow_down_10px.png"));
 
     /* Setup connections: */
     connect(m_pEnableAdapterCheckBox, SIGNAL(toggled(bool)), this, SLOT(sltHandleAdapterActivityChange()));
     connect(m_pAttachmentTypeComboBox, SIGNAL(activated(int)), this, SLOT(sltHandleAttachmentTypeChange()));
     connect(m_pAdapterNameCombo, SIGNAL(activated(int)), this, SLOT(sltHandleAlternativeNameChange()));
     connect(m_pAdapterNameCombo, SIGNAL(editTextChanged(const QString&)), this, SLOT(sltHandleAlternativeNameChange()));
-    connect(m_pAdvancedArrow, SIGNAL(sigClicked()), this, SLOT(sltHandleAdvancedButtonStateChange()));
+    connect(m_pAdvancedArrow, SIGNAL(clicked()), this, SLOT(sltHandleAdvancedButtonStateChange()));
     connect(m_pMACButton, SIGNAL(clicked()), this, SLOT(sltGenerateMac()));
     connect(m_pPortForwardingButton, SIGNAL(clicked()), this, SLOT(sltOpenPortForwardingDlg()));
     connect(this, SIGNAL(sigTabUpdated()), m_pParent, SLOT(sltHandleUpdatedTab()));
@@ -990,20 +973,16 @@ void UIMachineSettingsNetworkPage::saveFromCacheTo(QVariant &data)
                         /* Cable connected flag: */
                         adapter.SetCableConnected(adapterData.m_fCableConnected);
                         /* Redirect options: */
-                        if (adapterCache.base().m_attachmentType == KNetworkAttachmentType_NAT ||
-                            adapterCache.data().m_attachmentType == KNetworkAttachmentType_NAT)
+                        QVector<QString> oldRedirects = adapter.GetNATEngine().GetRedirects();
+                        for (int i = 0; i < oldRedirects.size(); ++i)
+                            adapter.GetNATEngine().RemoveRedirect(oldRedirects[i].section(',', 0, 0));
+                        UIPortForwardingDataList newRedirects = adapterData.m_redirects;
+                        for (int i = 0; i < newRedirects.size(); ++i)
                         {
-                            QVector<QString> oldRedirects = adapter.GetNATEngine().GetRedirects();
-                            for (int i = 0; i < oldRedirects.size(); ++i)
-                                adapter.GetNATEngine().RemoveRedirect(oldRedirects[i].section(',', 0, 0));
-                            UIPortForwardingDataList newRedirects = adapterData.m_redirects;
-                            for (int i = 0; i < newRedirects.size(); ++i)
-                            {
-                                UIPortForwardingData newRedirect = newRedirects[i];
-                                adapter.GetNATEngine().AddRedirect(newRedirect.name, newRedirect.protocol,
-                                                                   newRedirect.hostIp, newRedirect.hostPort.value(),
-                                                                   newRedirect.guestIp, newRedirect.guestPort.value());
-                            }
+                            UIPortForwardingData newRedirect = newRedirects[i];
+                            adapter.GetNATEngine().AddRedirect(newRedirect.name, newRedirect.protocol,
+                                                               newRedirect.hostIp, newRedirect.hostPort.value(),
+                                                               newRedirect.guestIp, newRedirect.guestPort.value());
                         }
                     }
                 }

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -89,16 +89,16 @@ RTDECL(bool) RTThreadYield(void)
     RTTHREADPREEMPTSTATE PreemptState = RTTHREADPREEMPTSTATE_INITIALIZER;
     RTThreadPreemptDisable(&PreemptState);
 
-    char const bThreadPreempt = SOL_THREAD_PREEMPT;
-    char const bForcePreempt  = SOL_CPU_KPRUNRUN;
+    char cThreadPreempt = SOL_THREAD_PREEMPT;
+    char cForcePreempt  = SOL_CPU_KPRUNRUN;
     bool fWillYield = false;
-    Assert(bThreadPreempt >= 1);
+    Assert(cThreadPreempt >= 1);
 
     /*
      * If we are the last preemption enabler for this thread and if force
      * preemption is set on the CPU, only then we are guaranteed to be preempted.
      */
-    if (bThreadPreempt == 1 && bForcePreempt != 0)
+    if (cThreadPreempt == 1 && cForcePreempt != 0)
         fWillYield = true;
 
     RTThreadPreemptRestore(&PreemptState);
@@ -135,9 +135,9 @@ RTDECL(bool) RTThreadPreemptIsPending(RTTHREAD hThread)
 {
     Assert(hThread == NIL_RTTHREAD);
 
-    char const bPreempt      = SOL_CPU_RUNRUN;
-    char const bForcePreempt = SOL_CPU_KPRUNRUN;
-    return (bPreempt != 0 || bForcePreempt != 0);
+    char cPreempt      = SOL_CPU_RUNRUN;
+    char cForcePreempt = SOL_CPU_KPRUNRUN;
+    return (cPreempt != 0 || cForcePreempt != 0);
 }
 
 

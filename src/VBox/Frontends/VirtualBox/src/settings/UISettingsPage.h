@@ -1,6 +1,7 @@
-/* $Id: UISettingsPage.h $ */
 /** @file
- * VBox Qt GUI - UISettingsPage class declaration.
+ *
+ * VBox frontends: Qt4 GUI ("VirtualBox"):
+ * UISettingsPage class declaration
  */
 
 /*
@@ -24,8 +25,8 @@
 
 /* GUI includes: */
 #include "QIWithRetranslateUI.h"
+#include "UIDefs.h"
 #include "UISettingsDefs.h"
-#include "UIExtraDataDefs.h"
 #include "VBoxGlobalSettings.h"
 
 /* COM includes: */
@@ -78,20 +79,6 @@ class UISettingsPage : public QIWithRetranslateUI<QWidget>
 {
     Q_OBJECT;
 
-signals:
-
-    /** Notifies listeners about particular operation progress change.
-      * @param iOperations  holds the number of operations CProgress have,
-      * @param strOperation holds the description of the current CProgress operation,
-      * @param iOperation   holds the index of the current CProgress operation,
-      * @param iPercent     holds the percentage of the current CProgress operation. */
-    void sigOperationProgressChange(ulong iOperations, QString strOperation,
-                                    ulong iOperation, ulong iPercent);
-
-    /** Notifies listeners about particular COM error.
-      * @param strErrorInfo holds the details of the error happened. */
-    void sigOperationProgressError(QString strErrorInfo);
-
 public:
 
     /* Load data to cache from corresponding external object(s),
@@ -120,12 +107,12 @@ public:
     /* Settings page type stuff: */
     UISettingsPageType pageType() const { return m_pageType; }
 
-    /* Configuration access level stuff: */
-    ConfigurationAccessLevel configurationAccessLevel() const { return m_configurationAccessLevel; }
-    virtual void setConfigurationAccessLevel(ConfigurationAccessLevel newConfigurationAccessLevel) { m_configurationAccessLevel = newConfigurationAccessLevel; polishPage(); }
-    bool isMachineOffline() const { return configurationAccessLevel() == ConfigurationAccessLevel_Full; }
-    bool isMachineSaved() const { return configurationAccessLevel() == ConfigurationAccessLevel_Saved; }
-    bool isMachineOnline() const { return configurationAccessLevel() == ConfigurationAccessLevel_Runtime; }
+    /* Settings dialog type stuff: */
+    SettingsDialogType dialogType() const { return m_dialogType; }
+    virtual void setDialogType(SettingsDialogType settingsDialogType) { m_dialogType = settingsDialogType; polishPage(); }
+    bool isMachineOffline() const { return dialogType() == SettingsDialogType_Offline; }
+    bool isMachineSaved() const { return dialogType() == SettingsDialogType_Saved; }
+    bool isMachineOnline() const { return dialogType() == SettingsDialogType_Online; }
     bool isMachineInValidMode() const { return isMachineOffline() || isMachineSaved() || isMachineOnline(); }
 
     /* Page changed: */
@@ -166,7 +153,7 @@ private:
 
     /* Variables: */
     UISettingsPageType m_pageType;
-    ConfigurationAccessLevel m_configurationAccessLevel;
+    SettingsDialogType m_dialogType;
     int m_cId;
     bool m_fProcessed;
     bool m_fFailed;

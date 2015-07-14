@@ -1,6 +1,8 @@
 /* $Id: UIWizardNewVMPageBasic3.cpp $ */
 /** @file
- * VBox Qt GUI - UIWizardNewVMPageBasic3 class implementation.
+ *
+ * VBox frontends: Qt4 GUI ("VirtualBox"):
+ * UIWizardNewVMPageBasic3 class implementation
  */
 
 /*
@@ -15,28 +17,22 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Global includes: */
-# include <QMetaType>
-# include <QVBoxLayout>
-# include <QGridLayout>
-# include <QRadioButton>
+#include <QMetaType>
+#include <QVBoxLayout>
+#include <QGridLayout>
+#include <QRadioButton>
 
 /* Local includes: */
-# include "UIWizardNewVMPageBasic3.h"
-# include "UIWizardNewVM.h"
-# include "UIMessageCenter.h"
-# include "UIIconPool.h"
-# include "VBoxMediaComboBox.h"
-# include "QIToolButton.h"
-# include "UIWizardNewVD.h"
-# include "QIRichTextLabel.h"
-# include "UIMedium.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "UIWizardNewVMPageBasic3.h"
+#include "UIWizardNewVM.h"
+#include "UIMessageCenter.h"
+#include "UIIconPool.h"
+#include "VBoxMediaComboBox.h"
+#include "QIToolButton.h"
+#include "UIWizardNewVD.h"
+#include "QIRichTextLabel.h"
+#include "UIMedium.h"
 
 UIWizardNewVMPage3::UIWizardNewVMPage3()
 {
@@ -199,22 +195,22 @@ void UIWizardNewVMPageBasic3::sltGetWithFileOpenDialog()
 void UIWizardNewVMPageBasic3::retranslateUi()
 {
     /* Translate page: */
-    setTitle(UIWizardNewVM::tr("Hard disk"));
+    setTitle(UIWizardNewVM::tr("Hard drive"));
 
     /* Translate widgets: */
     QString strRecommendedHDD = field("type").value<CGuestOSType>().isNull() ? QString() :
                                 VBoxGlobal::formatSize(field("type").value<CGuestOSType>().GetRecommendedHDD());
-    m_pLabel->setText(UIWizardNewVM::tr("<p>If you wish you can add a virtual hard disk to the new machine. "
-                                        "You can either create a new hard disk file or select one from the list "
+    m_pLabel->setText(UIWizardNewVM::tr("<p>If you wish you can add a virtual hard drive to the new machine. "
+                                        "You can either create a new hard drive file or select one from the list "
                                         "or from another location using the folder icon.</p>"
                                         "<p>If you need a more complex storage set-up you can skip this step "
                                         "and make the changes to the machine settings once the machine is created.</p>"
-                                        "<p>The recommended size of the hard disk is <b>%1</b>.</p>")
+                                        "<p>The recommended size of the hard drive is <b>%1</b>.</p>")
                                         .arg(strRecommendedHDD));
-    m_pDiskSkip->setText(UIWizardNewVM::tr("&Do not add a virtual hard disk"));
-    m_pDiskCreate->setText(UIWizardNewVM::tr("&Create a virtual hard disk now"));
-    m_pDiskPresent->setText(UIWizardNewVM::tr("&Use an existing virtual hard disk file"));
-    m_pVMMButton->setToolTip(UIWizardNewVM::tr("Choose a virtual hard disk file..."));
+    m_pDiskSkip->setText(UIWizardNewVM::tr("&Do not add a virtual hard drive"));
+    m_pDiskCreate->setText(UIWizardNewVM::tr("&Create a virtual hard drive now"));
+    m_pDiskPresent->setText(UIWizardNewVM::tr("&Use an existing virtual hard drive file"));
+    m_pVMMButton->setToolTip(UIWizardNewVM::tr("Choose a virtual hard drive file..."));
 }
 
 void UIWizardNewVMPageBasic3::initializePage()

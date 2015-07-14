@@ -1,10 +1,11 @@
-/* $Id: UISettingsDefs.h $ */
 /** @file
- * VBox Qt GUI - Header with definitions and functions related to settings configuration.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * Header with definitions and functions related to settings window
  */
 
 /*
- * Copyright (C) 2011-2014 Oracle Corporation
+ * Copyright (C) 2011-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +16,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___UISettingsDefs_h___
-#define ___UISettingsDefs_h___
+#ifndef __UISettingsDefs_h__
+#define __UISettingsDefs_h__
 
 /* Qt includes: */
 #include <QPair>
@@ -25,20 +26,20 @@
 /* COM includes: */
 #include "COMEnums.h"
 
-/** Settings configuration namespace: */
+/* Settings dialog namespace: */
 namespace UISettingsDefs
 {
-    /** Configuration access levels: */
-    enum ConfigurationAccessLevel
+    /* Settings dialog types: */
+    enum SettingsDialogType
     {
-        ConfigurationAccessLevel_Null,
-        ConfigurationAccessLevel_Saved,
-        ConfigurationAccessLevel_Runtime,
-        ConfigurationAccessLevel_Full
+        SettingsDialogType_Wrong,
+        SettingsDialogType_Offline,
+        SettingsDialogType_Saved,
+        SettingsDialogType_Online
     };
 
-    /** Determines configuration access level for passed @a sessionState and @a machineState. */
-    ConfigurationAccessLevel configurationAccessLevel(KSessionState sessionState, KMachineState machineState);
+    /* Machine state => Settings dialog type converter: */
+    SettingsDialogType determineSettingsDialogType(KSessionState sessionState, KMachineState machineState);
 }
 
 /* Template to operate settings cache item: */
@@ -162,4 +163,5 @@ private:
     UISettingsCacheChildMap m_children;
 };
 
-#endif /* !___UISettingsDefs_h___ */
+#endif /* __UISettingsDefs_h__ */
+

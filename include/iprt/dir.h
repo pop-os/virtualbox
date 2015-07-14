@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -54,13 +54,7 @@ RTDECL(bool) RTDirExists(const char *pszPath);
  * @{ */
 /** Don't allow symbolic links as part of the path.
  * @remarks this flag is currently not implemented and will be ignored. */
-#define RTDIRCREATE_FLAGS_NO_SYMLINKS                       RT_BIT(0)
-/** Set the not-content-indexed flag (default).  Windows only atm. */
-#define RTDIRCREATE_FLAGS_NOT_CONTENT_INDEXED_DONT_SET      RT_BIT(1)
-/** Do not set the not-content-indexed flag.  Windows only atm. */
-#define RTDIRCREATE_FLAGS_NOT_CONTENT_INDEXED_DONT_SET      RT_BIT(1)
-/** Ignore errors setting the not-content-indexed flag.  Windows only atm. */
-#define RTDIRCREATE_FLAGS_NOT_CONTENT_INDEXED_NOT_CRITICAL  RT_BIT(2)
+#define RTDIRCREATE_FLAGS_NO_SYMLINKS  RT_BIT(0)
 /** @} */
 
 /**

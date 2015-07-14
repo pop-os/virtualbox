@@ -1,6 +1,8 @@
 /* $Id: UIMultiScreenLayout.cpp $ */
 /** @file
- * VBox Qt GUI - UIMultiScreenLayout class implementation.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * UIMultiScreenLayout class implementation
  */
 
 /*
@@ -15,42 +17,49 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QApplication>
-# include <QDesktopWidget>
-# include <QMenu>
+#include <QApplication>
+#include <QDesktopWidget>
+#include <QMenu>
 
 /* GUI includes: */
-# include "UIDefs.h"
-# include "UIMultiScreenLayout.h"
-# include "UIActionPoolRuntime.h"
-# include "UIMachineLogic.h"
-# include "UIFrameBuffer.h"
-# include "UISession.h"
-# include "UIMessageCenter.h"
-# include "UIExtraDataManager.h"
-# include "VBoxGlobal.h"
+#include "UIDefs.h"
+#include "UIMultiScreenLayout.h"
+#include "UIActionPoolRuntime.h"
+#include "UIMachineLogic.h"
+#include "UIFrameBuffer.h"
+#include "UISession.h"
+#include "UIMessageCenter.h"
+#include "VBoxGlobal.h"
 
 /* COM includes: */
-# include "COMEnums.h"
-# include "CSession.h"
-# include "CConsole.h"
-# include "CMachine.h"
-# include "CDisplay.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
+#include "COMEnums.h"
+#include "CSession.h"
+#include "CConsole.h"
+#include "CMachine.h"
+#include "CDisplay.h"
 
 UIMultiScreenLayout::UIMultiScreenLayout(UIMachineLogic *pMachineLogic)
     : m_pMachineLogic(pMachineLogic)
+    , m_pViewMenu(0)
 {
     /* Calculate host/guest screen count: */
     calculateHostMonitorCount();
     calculateGuestScreenCount();
+}
+
+UIMultiScreenLayout::~UIMultiScreenLayout()
+{
+    /* Cleanup view-menu: */
+    cleanupViewMenu();
+}
+
+void UIMultiScreenLayout::setViewMenu(QMenu *pViewMenu)
+{
+    /* Assign view-menu: */
+    m_pViewMenu = pViewMenu;
+    /* Prepare view-menu: */
+    prepareViewMenu();
 }
 
 void UIMultiScreenLayout::update()
@@ -68,9 +77,10 @@ void UIMultiScreenLayout::update()
     /* Load all combinations stored in the settings file.
      * We have to make sure they are valid, which means there have to be unique combinations
      * and all guests screens need there own host screen. */
+    CMachine machine = m_pMachineLogic->session().GetMachine();
     CDisplay display = m_pMachineLogic->session().GetConsole().GetDisplay();
-    bool fShouldWeAutoMountGuestScreens = gEDataManager->autoMountGuestScreensEnabled(vboxGlobal().managedVMUuid());
-    LogRel(("GUI: UIMultiScreenLayout::update: GUI/AutomountGuestScreens is %s\n", fShouldWeAutoMountGuestScreens ? "enabled" : "disabled"));
+    bool fShouldWeAutoMountGuestScreens = VBoxGlobal::shouldWeAutoMountGuestScreens(machine, false);
+    LogRel(("UIMultiScreenLayout::update: GUI/AutomountGuestScreens is %s.\n", fShouldWeAutoMountGuestScreens ? "enabled" : "disabled"));
     QDesktopWidget *pDW = QApplication::desktop();
     foreach (int iGuestScreen, m_guestScreens)
     {
@@ -81,28 +91,34 @@ void UIMultiScreenLayout::update()
         if (!fValid)
         {
             /* If the user ever selected a combination in the view menu, we have the following entry: */
-            iHostScreen = gEDataManager->hostScreenForPassedGuestScreen(iGuestScreen, vboxGlobal().managedVMUuid());
+            QString strTest = machine.GetExtraData(QString("%1%2").arg(GUI_VirtualScreenToHostScreen).arg(iGuestScreen));
+            bool fOk;
+            /* Check is this value can be converted: */
+            iHostScreen = strTest.toInt(&fOk);
             /* Revalidate: */
-            fValid =    iHostScreen >= 0 && iHostScreen < m_cHostScreens /* In the host screen bounds? */
+            fValid =    fOk /* Valid data */
+                     && iHostScreen >= 0 && iHostScreen < m_cHostScreens /* In the host screen bounds? */
                      && m_screenMap.key(iHostScreen, -1) == -1; /* Not taken already? */
         }
 
         if (!fValid)
         {
             /* Check the position of the guest window in normal mode.
-             * This makes sure that on first use fullscreen/seamless window opens on the same host-screen as the normal window was before.
-             * This even works with multi-screen. The user just have to move all the normal windows to the target host-screens
-             * and they will magically open there in fullscreen/seamless also. */
-            QRect geo = gEDataManager->machineWindowGeometry(UIVisualStateType_Normal, iGuestScreen, vboxGlobal().managedVMUuid());
-            /* If geometry is valid: */
-            if (!geo.isNull())
+             * This makes sure that on first use the window opens on the same screen as the normal window was before.
+             * This even works with multi-screen. The user just have to move all the normal windows to the target screens
+             * and they will magically open there in seamless/fullscreen also. */
+            QString strTest1 = machine.GetExtraData(GUI_LastNormalWindowPosition + (iGuestScreen > 0 ? QString::number(iGuestScreen): ""));
+            QRegExp posParser("(-?\\d+),(-?\\d+),(-?\\d+),(-?\\d+)");
+            if (posParser.exactMatch(strTest1))
             {
-                /* Get top-left corner position: */
-                QPoint topLeftPosition(geo.topLeft());
-                /* Check which host-screen the position belongs to: */
-                iHostScreen = pDW->screenNumber(topLeftPosition);
+                /* If parsing was successfully, convert it to a position: */
+                bool fOk1, fOk2;
+                QPoint p(posParser.cap(1).toInt(&fOk1), posParser.cap(2).toInt(&fOk2));
+                /* Check to which screen the position belongs: */
+                iHostScreen = pDW->screenNumber(p);
                 /* Revalidate: */
-                fValid =    iHostScreen >= 0 && iHostScreen < m_cHostScreens /* In the host screen bounds? */
+                fValid =    fOk1 && fOk2 /* Valid data */
+                         && iHostScreen >= 0 && iHostScreen < m_cHostScreens /* In the host screen bounds? */
                          && m_screenMap.key(iHostScreen, -1) == -1; /* Not taken already? */
             }
         }
@@ -129,7 +145,7 @@ void UIMultiScreenLayout::update()
         else if (fShouldWeAutoMountGuestScreens)
         {
             /* Then we have to disable excessive guest-screen: */
-            LogRel(("GUI: UIMultiScreenLayout::update: Disabling excessive guest-screen %d\n", iGuestScreen));
+            LogRel(("UIMultiScreenLayout::update: Disabling excessive guest-screen %d.\n", iGuestScreen));
             display.SetVideoModeHint(iGuestScreen, false, false, 0, 0, 0, 0, 0);
         }
     }
@@ -161,14 +177,14 @@ void UIMultiScreenLayout::update()
                 pFrameBuffer->setAutoEnabled(true);
             }
             /* Re-enable guest-screen with proper resolution: */
-            LogRel(("GUI: UIMultiScreenLayout::update: Enabling guest-screen %d with following resolution: %dx%d\n",
+            LogRel(("UIMultiScreenLayout::update: Enabling guest-screen %d with following resolution: %dx%d.\n",
                     iGuestScreen, uWidth, uHeight));
             display.SetVideoModeHint(iGuestScreen, true, false, 0, 0, uWidth, uHeight, 32);
         }
     }
 
-    /* Notifies about layout update: */
-    emit sigScreenLayoutUpdate();
+    /* Update menu actions: */
+    updateMenuActions(false);
 
     LogRelFlow(("UIMultiScreenLayout::update: Finished!\n"));
 }
@@ -180,6 +196,8 @@ void UIMultiScreenLayout::rebuild()
     /* Recalculate host/guest screen count: */
     calculateHostMonitorCount();
     calculateGuestScreenCount();
+    /* Update view-menu: */
+    prepareViewMenu();
     /* Update layout: */
     update();
 
@@ -211,8 +229,31 @@ quint64 UIMultiScreenLayout::memoryRequirements() const
     return memoryRequirements(m_screenMap);
 }
 
-void UIMultiScreenLayout::sltHandleScreenLayoutChange(int iRequestedGuestScreen, int iRequestedHostScreen)
+bool UIMultiScreenLayout::isHostTaskbarCovert() const
 {
+    /* Check for all screens which are in use if they have some
+     * taskbar/menubar/dock on it. Its done by comparing the available with the
+     * screen geometry. Only if they are the same for all screens, there are no
+     * host area covert. This is a little bit ugly, but there seems no other
+     * way to find out if we are on a screen where the taskbar/dock or whatever
+     * is present. */
+    QDesktopWidget *pDW = QApplication::desktop();
+    for (int i = 0; i < m_screenMap.size(); ++i)
+    {
+        int hostScreen = m_screenMap.value(i);
+        if (pDW->availableGeometry(hostScreen) != pDW->screenGeometry(hostScreen))
+            return true;
+    }
+    return false;
+}
+
+void UIMultiScreenLayout::sltScreenLayoutChanged(QAction *pAction)
+{
+    /* Parse incoming information: */
+    int a = pAction->data().toInt();
+    int iRequestedGuestScreen = RT_LOWORD(a);
+    int iRequestedHostScreen = RT_HIWORD(a);
+
     /* Search for the virtual screen which is currently displayed on the
      * requested host screen. When there is one found, we swap both. */
     QMap<int,int> tmpMap(m_screenMap);
@@ -246,12 +287,10 @@ void UIMultiScreenLayout::sltHandleScreenLayoutChange(int iRequestedGuestScreen,
 
     /* Swap the maps: */
     m_screenMap = tmpMap;
-
-    /* Save guest-to-host mapping: */
-    saveScreenMapping();
-
-    /* Notifies about layout change: */
-    emit sigScreenLayoutChange();
+    /* Update menu actions: */
+    updateMenuActions(true);
+    /* Inform the observer: */
+    emit sigScreenLayoutChanged();
 }
 
 void UIMultiScreenLayout::calculateHostMonitorCount()
@@ -273,12 +312,84 @@ void UIMultiScreenLayout::calculateGuestScreenCount()
             m_disabledGuestScreens << iGuestScreen;
 }
 
-void UIMultiScreenLayout::saveScreenMapping()
+void UIMultiScreenLayout::prepareViewMenu()
 {
-    foreach (const int &iGuestScreen, m_guestScreens)
+    /* Make sure view-menu was set: */
+    if (!m_pViewMenu)
+        return;
+
+    /* Cleanup menu first: */
+    cleanupViewMenu();
+
+    /* If we do have more than one host/guest screen: */
+    if (m_cHostScreens > 1 || m_guestScreens.size() > 1)
     {
-        const int iHostScreen = m_screenMap.value(iGuestScreen, -1);
-        gEDataManager->setHostScreenForPassedGuestScreen(iGuestScreen, iHostScreen, vboxGlobal().managedVMUuid());
+        m_pViewMenu->addSeparator();
+        foreach (int iGuestScreen, m_guestScreens)
+        {
+            m_screenMenuList << m_pViewMenu->addMenu(tr("Virtual Screen %1").arg(iGuestScreen + 1));
+            m_screenMenuList.last()->menuAction()->setData(true);
+            QActionGroup *pScreenGroup = new QActionGroup(m_screenMenuList.last());
+            pScreenGroup->setExclusive(true);
+            connect(pScreenGroup, SIGNAL(triggered(QAction*)), this, SLOT(sltScreenLayoutChanged(QAction*)));
+            for (int a = 0; a < m_cHostScreens; ++a)
+            {
+                QAction *pAction = pScreenGroup->addAction(tr("Use Host Screen %1").arg(a + 1));
+                pAction->setCheckable(true);
+                pAction->setData(RT_MAKE_U32(iGuestScreen, a));
+            }
+            m_screenMenuList.last()->addActions(pScreenGroup->actions());
+        }
+    }
+
+    /* Update menu actions: */
+    updateMenuActions(false);
+}
+
+void UIMultiScreenLayout::cleanupViewMenu()
+{
+    /* Make sure view-menu was set: */
+    if (!m_pViewMenu)
+        return;
+
+    /* Cleanup view-menu actions: */
+    while (!m_screenMenuList.isEmpty())
+        delete m_screenMenuList.takeFirst();
+}
+
+void UIMultiScreenLayout::updateMenuActions(bool fWithSave)
+{
+    /* Make sure view-menu was set: */
+    if (!m_pViewMenu)
+        return;
+
+    /* Get the list of all view-menu actions: */
+    QList<QAction*> viewMenuActions = gActionPool->action(UIActionIndexRuntime_Menu_View)->menu()->actions();
+    /* Get the list of all view related actions: */
+    QList<QAction*> viewActions;
+    for (int i = 0; i < viewMenuActions.size(); ++i)
+        if (viewMenuActions[i]->data().toBool())
+            viewActions << viewMenuActions[i];
+    /* Update view actions: */
+    CMachine machine = m_pMachineLogic->session().GetMachine();
+    for (int iViewAction = 0; iViewAction < viewActions.size(); ++iViewAction)
+    {
+        int iGuestScreen = m_guestScreens[iViewAction];
+        int iHostScreen = m_screenMap.value(iGuestScreen, -1);
+        if (fWithSave)
+        {
+            QString strHostScreen(iHostScreen != -1 ? QString::number(iHostScreen) : QString());
+            machine.SetExtraData(QString("%1%2").arg(GUI_VirtualScreenToHostScreen).arg(iViewAction), strHostScreen);
+        }
+        QList<QAction*> screenActions = viewActions.at(iViewAction)->menu()->actions();
+        /* Update screen actions: */
+        for (int j = 0; j < screenActions.size(); ++j)
+        {
+            QAction *pTmpAction = screenActions.at(j);
+            pTmpAction->blockSignals(true);
+            pTmpAction->setChecked(RT_HIWORD(pTmpAction->data().toInt()) == iHostScreen);
+            pTmpAction->blockSignals(false);
+        }
     }
 }
 
@@ -298,8 +409,7 @@ quint64 UIMultiScreenLayout::memoryRequirements(const QMap<int, int> &screenLayo
             screen = QApplication::desktop()->availableGeometry(screenLayout.value(iGuestScreen, 0));
         else
             screen = QApplication::desktop()->screenGeometry(screenLayout.value(iGuestScreen, 0));
-        KGuestMonitorStatus monitorStatus = KGuestMonitorStatus_Enabled;
-        display.GetScreenResolution(iGuestScreen, width, height, guestBpp, xOrigin, yOrigin, monitorStatus);
+        display.GetScreenResolution(iGuestScreen, width, height, guestBpp, xOrigin, yOrigin);
         usedBits += screen.width() * /* display width */
                     screen.height() * /* display height */
                     guestBpp + /* guest bits per pixel */

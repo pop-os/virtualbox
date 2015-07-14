@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -50,6 +50,9 @@ static void pgmPoolTrackClearPageUsers(PPGMPOOL pPool, PPGMPOOLPAGE pPage);
 static void pgmPoolTrackDeref(PPGMPOOL pPool, PPGMPOOLPAGE pPage);
 static int pgmPoolTrackAddUser(PPGMPOOL pPool, PPGMPOOLPAGE pPage, uint16_t iUser, uint32_t iUserTable);
 static void pgmPoolMonitorModifiedRemove(PPGMPOOL pPool, PPGMPOOLPAGE pPage);
+#ifndef IN_RING3
+DECLEXPORT(int) pgmPoolAccessHandler(PVM pVM, RTGCUINT uErrorCode, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, RTGCPHYS GCPhysFault, void *pvUser);
+#endif
 #if defined(LOG_ENABLED) || defined(VBOX_STRICT)
 static const char *pgmPoolPoolKindToStr(uint8_t enmKind);
 #endif
@@ -139,12 +142,12 @@ int pgmPoolMonitorChainFlush(PPGMPOOL pPool, PPGMPOOLPAGE pPage)
  * @returns VBox status code suitable for scheduling.
  * @param   pVM         Pointer to the VM.
  * @param   pvDst       Destination address
- * @param   pvSrc       Pointer to the mapping of @a GCPhysSrc or NULL depending
- *                      on the context (e.g. \#PF in R0 & RC).
+ * @param   pvSrc       Source guest virtual address.
  * @param   GCPhysSrc   The source guest physical address.
  * @param   cb          Size of data to read
  */
-DECLINLINE(int) pgmPoolPhysSimpleReadGCPhys(PVM pVM, void *pvDst, void const *pvSrc, RTGCPHYS GCPhysSrc, size_t cb)
+DECLINLINE(int) pgmPoolPhysSimpleReadGCPhys(PVM pVM, void *pvDst, CTXTYPE(RTGCPTR, RTHCPTR, RTGCPTR) pvSrc,
+                                            RTGCPHYS GCPhysSrc, size_t cb)
 {
 #if defined(IN_RING3)
     NOREF(pVM); NOREF(GCPhysSrc);
@@ -168,12 +171,12 @@ DECLINLINE(int) pgmPoolPhysSimpleReadGCPhys(PVM pVM, void *pvDst, void const *pv
  * @param   pPool       The pool.
  * @param   pPage       The head page.
  * @param   GCPhysFault The guest physical fault address.
- * @param   pvAddress   Pointer to the mapping of @a GCPhysFault or NULL
- *                      depending on the context (e.g. \#PF in R0 & RC).
+ * @param   uAddress    In R0 and GC this is the guest context fault address (flat).
+ *                      In R3 this is the host context 'fault' address.
  * @param   cbWrite     Write size; might be zero if the caller knows we're not crossing entry boundaries
  */
-static void pgmPoolMonitorChainChanging(PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPAGE pPage, RTGCPHYS GCPhysFault,
-                                        void const *pvAddress, unsigned cbWrite)
+void pgmPoolMonitorChainChanging(PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPAGE pPage, RTGCPHYS GCPhysFault,
+                                 CTXTYPE(RTGCPTR, RTHCPTR, RTGCPTR) pvAddress, unsigned cbWrite)
 {
     AssertMsg(pPage->iMonitoredPrev == NIL_PGMPOOL_IDX, ("%u (idx=%u)\n", pPage->iMonitoredPrev, pPage->idx));
     const unsigned  off = GCPhysFault & PAGE_OFFSET_MASK;
@@ -344,9 +347,11 @@ static void pgmPoolMonitorChainChanging(PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPA
                     if (PGMSHWPTEPAE_IS_P(uShw.pPTPae->a[iShw2]))
                     {
                         X86PTEPAE GstPte;
-                        int rc = pgmPoolPhysSimpleReadGCPhys(pVM, &GstPte,
-                                                             pvAddress ? (uint8_t const *)pvAddress + sizeof(GstPte) : NULL,
-                                                             GCPhysFault + sizeof(GstPte), sizeof(GstPte));
+#   ifdef IN_RING3
+                        int rc = pgmPoolPhysSimpleReadGCPhys(pVM, &GstPte, (RTHCPTR)((RTHCUINTPTR)pvAddress + sizeof(GstPte)), GCPhysFault + sizeof(GstPte), sizeof(GstPte));
+#   else
+                        int rc = pgmPoolPhysSimpleReadGCPhys(pVM, &GstPte, pvAddress + sizeof(GstPte), GCPhysFault + sizeof(GstPte), sizeof(GstPte));
+#   endif
                         AssertRC(rc);
                         Log4(("pgmPoolMonitorChainChanging pae: deref %016RX64 GCPhys %016RX64\n", PGMSHWPTEPAE_GET_HCPHYS(uShw.pPTPae->a[iShw2]), GstPte.u & X86_PTE_PAE_PG_MASK));
                         pgmPoolTracDerefGCPhysHint(pPool, pPage,
@@ -417,7 +422,7 @@ static void pgmPoolMonitorChainChanging(PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPA
                         }
                     }
                 }
-#if 0 /* useful when running PGMAssertCR3(), a bit too troublesome for general use (TLBs). - not working any longer... */
+#if 0 /* useful when running PGMAssertCR3(), a bit too troublesome for general use (TLBs). */
                 if (    uShw.pPD->a[iShw].n.u1Present
                     &&  !VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_PGM_SYNC_CR3))
                 {
@@ -817,10 +822,10 @@ DECLINLINE(bool) pgmPoolMonitorIsReused(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pReg
  * @param   pvFault     The fault address.
  * @todo VBOXSTRICTRC
  */
-static int pgmPoolAccessPfHandlerFlush(PVM pVM, PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPAGE pPage, PDISCPUSTATE pDis,
-                                       PCPUMCTXCORE pRegFrame, RTGCPHYS GCPhysFault, RTGCPTR pvFault)
+static int pgmPoolAccessHandlerFlush(PVM pVM, PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPAGE pPage, PDISCPUSTATE pDis,
+                                     PCPUMCTXCORE pRegFrame, RTGCPHYS GCPhysFault, RTGCPTR pvFault)
 {
-    NOREF(pVM); NOREF(GCPhysFault);
+    NOREF(GCPhysFault);
 
     /*
      * First, do the flushing.
@@ -849,7 +854,7 @@ static int pgmPoolAccessPfHandlerFlush(PVM pVM, PVMCPU pVCpu, PPGMPOOL pPool, PP
 #ifdef IN_RC
         if (PATMIsPatchGCAddr(pVM, pRegFrame->eip))
         {
-            LogFlow(("pgmPoolAccessPfHandlerPTWorker: Interpretation failed for patch code %04x:%RGv, ignoring.\n",
+            LogFlow(("pgmPoolAccessHandlerPTWorker: Interpretation failed for patch code %04x:%RGv, ignoring.\n",
                      pRegFrame->cs.Sel, (RTGCPTR)pRegFrame->eip));
             rc = VINF_SUCCESS;
             STAM_COUNTER_INC(&pPool->StatMonitorRZIntrFailPatch2);
@@ -866,7 +871,7 @@ static int pgmPoolAccessPfHandlerFlush(PVM pVM, PVMCPU pVCpu, PPGMPOOL pPool, PP
     else
         AssertMsgFailed(("%Rrc\n", VBOXSTRICTRC_VAL(rc2))); /* ASSUMES no complicated stuff here. */
 
-    LogFlow(("pgmPoolAccessPfHandlerPT: returns %Rrc (flushed)\n", rc));
+    LogFlow(("pgmPoolAccessHandlerPT: returns %Rrc (flushed)\n", rc));
     return rc;
 }
 
@@ -883,8 +888,8 @@ static int pgmPoolAccessPfHandlerFlush(PVM pVM, PVMCPU pVCpu, PPGMPOOL pPool, PP
  * @param   GCPhysFault The fault address as guest physical address.
  * @param   pvFault     The fault address.
  */
-DECLINLINE(int) pgmPoolAccessPfHandlerSTOSD(PVM pVM, PPGMPOOL pPool, PPGMPOOLPAGE pPage, PDISCPUSTATE pDis,
-                                            PCPUMCTXCORE pRegFrame, RTGCPHYS GCPhysFault, RTGCPTR pvFault)
+DECLINLINE(int) pgmPoolAccessHandlerSTOSD(PVM pVM, PPGMPOOL pPool, PPGMPOOLPAGE pPage, PDISCPUSTATE pDis,
+                                          PCPUMCTXCORE pRegFrame, RTGCPHYS GCPhysFault, RTGCPTR pvFault)
 {
     unsigned uIncrement = pDis->Param1.cb;
     NOREF(pVM);
@@ -899,7 +904,7 @@ DECLINLINE(int) pgmPoolAccessPfHandlerSTOSD(PVM pVM, PPGMPOOL pPool, PPGMPOOLPAG
         Assert(uIncrement == 8);
 #endif
 
-    Log3(("pgmPoolAccessPfHandlerSTOSD\n"));
+    Log3(("pgmPoolAccessHandlerSTOSD\n"));
 
     /*
      * Increment the modification counter and insert it into the list
@@ -920,10 +925,10 @@ DECLINLINE(int) pgmPoolAccessPfHandlerSTOSD(PVM pVM, PPGMPOOL pPool, PPGMPOOLPAG
     {
 #if defined(VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0) || defined(IN_RC)
         uint32_t iPrevSubset = PGMRZDynMapPushAutoSubset(pVCpu);
-        pgmPoolMonitorChainChanging(pVCpu, pPool, pPage, GCPhysFault, NULL, uIncrement);
+        pgmPoolMonitorChainChanging(pVCpu, pPool, pPage, GCPhysFault, (RTGCPTR)pu32, uIncrement);
         PGMRZDynMapPopAutoSubset(pVCpu, iPrevSubset);
 #else
-        pgmPoolMonitorChainChanging(pVCpu, pPool, pPage, GCPhysFault, NULL, uIncrement);
+        pgmPoolMonitorChainChanging(pVCpu, pPool, pPage, GCPhysFault, (RTGCPTR)pu32, uIncrement);
 #endif
 #ifdef IN_RC
         *(uint32_t *)(uintptr_t)pu32 = pRegFrame->eax;
@@ -937,7 +942,7 @@ DECLINLINE(int) pgmPoolAccessPfHandlerSTOSD(PVM pVM, PPGMPOOL pPool, PPGMPOOLPAG
     }
     pRegFrame->rip += pDis->cbInstr;
 
-    LogFlow(("pgmPoolAccessPfHandlerSTOSD: returns\n"));
+    LogFlow(("pgmPoolAccessHandlerSTOSD: returns\n"));
     return VINF_SUCCESS;
 }
 
@@ -956,11 +961,10 @@ DECLINLINE(int) pgmPoolAccessPfHandlerSTOSD(PVM pVM, PPGMPOOL pPool, PPGMPOOLPAG
  * @param   pvFault     The fault address.
  * @param   pfReused    Reused state (in/out)
  */
-DECLINLINE(int) pgmPoolAccessPfHandlerSimple(PVM pVM, PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPAGE pPage, PDISCPUSTATE pDis,
-                                             PCPUMCTXCORE pRegFrame, RTGCPHYS GCPhysFault, RTGCPTR pvFault, bool *pfReused)
+DECLINLINE(int) pgmPoolAccessHandlerSimple(PVM pVM, PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPAGE pPage, PDISCPUSTATE pDis,
+                                           PCPUMCTXCORE pRegFrame, RTGCPHYS GCPhysFault, RTGCPTR pvFault, bool *pfReused)
 {
-    Log3(("pgmPoolAccessPfHandlerSimple\n"));
-    NOREF(pVM);
+    Log3(("pgmPoolAccessHandlerSimple\n"));
     NOREF(pfReused); /* initialized by caller */
 
     /*
@@ -979,12 +983,12 @@ DECLINLINE(int) pgmPoolAccessPfHandlerSimple(PVM pVM, PVMCPU pVCpu, PPGMPOOL pPo
 
     uint32_t cbWrite = DISGetParamSize(pDis, &pDis->Param1);
     if (cbWrite <= 8)
-        pgmPoolMonitorChainChanging(pVCpu, pPool, pPage, GCPhysFault, NULL, cbWrite);
+        pgmPoolMonitorChainChanging(pVCpu, pPool, pPage, GCPhysFault, pvFault, cbWrite);
     else
     {
         Assert(cbWrite <= 16);
-        pgmPoolMonitorChainChanging(pVCpu, pPool, pPage, GCPhysFault, NULL, 8);
-        pgmPoolMonitorChainChanging(pVCpu, pPool, pPage, GCPhysFault + 8, NULL, cbWrite - 8);
+        pgmPoolMonitorChainChanging(pVCpu, pPool, pPage, GCPhysFault, pvFault, 8);
+        pgmPoolMonitorChainChanging(pVCpu, pPool, pPage, GCPhysFault + 8, pvFault + 8, cbWrite - 8);
     }
 
 #if defined(VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0) || defined(IN_RC)
@@ -999,7 +1003,7 @@ DECLINLINE(int) pgmPoolAccessPfHandlerSimple(PVM pVM, PVMCPU pVCpu, PPGMPOOL pPo
         AssertMsg(rc == VINF_SUCCESS, ("%Rrc\n", VBOXSTRICTRC_VAL(rc))); /* ASSUMES no complicated stuff here. */
     else if (rc == VERR_EM_INTERPRETER)
     {
-        LogFlow(("pgmPoolAccessPfHandlerPTWorker: Interpretation failed for %04x:%RGv - opcode=%d\n",
+        LogFlow(("pgmPoolAccessHandlerPTWorker: Interpretation failed for %04x:%RGv - opcode=%d\n",
                   pRegFrame->cs.Sel, (RTGCPTR)pRegFrame->rip, pDis->pCurInstr->uOpcode));
         rc = VINF_EM_RAW_EMULATE_INSTR;
         STAM_COUNTER_INC(&pPool->CTX_MID_Z(StatMonitor,EmulateInstr));
@@ -1035,34 +1039,41 @@ DECLINLINE(int) pgmPoolAccessPfHandlerSimple(PVM pVM, PVMCPU pVCpu, PPGMPOOL pPo
     }
 #endif
 
-    LogFlow(("pgmPoolAccessPfHandlerSimple: returns %Rrc\n", VBOXSTRICTRC_VAL(rc)));
+    LogFlow(("pgmPoolAccessHandlerSimple: returns %Rrc\n", VBOXSTRICTRC_VAL(rc)));
     return VBOXSTRICTRC_VAL(rc);
 }
 
 
 /**
- * @callback_method_impl{FNPGMRZPHYSPFHANDLER,
- *      \#PF access handler callback for page table pages.}
+ * \#PF Handler callback for PT write accesses.
  *
- * @remarks The @a pvUser argument points to the PGMPOOLPAGE.
+ * @returns VBox status code (appropriate for GC return).
+ * @param   pVM         Pointer to the VM.
+ * @param   uErrorCode  CPU Error code.
+ * @param   pRegFrame   Trap register frame.
+ *                      NULL on DMA and other non CPU access.
+ * @param   pvFault     The fault address (cr2).
+ * @param   GCPhysFault The GC physical address corresponding to pvFault.
+ * @param   pvUser      User argument.
  */
-DECLEXPORT(VBOXSTRICTRC) pgmPoolAccessPfHandler(PVM pVM, PVMCPU pVCpu, RTGCUINT uErrorCode, PCPUMCTXCORE pRegFrame,
-                                                RTGCPTR pvFault, RTGCPHYS GCPhysFault, void *pvUser)
+DECLEXPORT(int) pgmPoolAccessHandler(PVM pVM, RTGCUINT uErrorCode, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault,
+                                     RTGCPHYS GCPhysFault, void *pvUser)
 {
     STAM_PROFILE_START(&pVM->pgm.s.CTX_SUFF(pPool)->CTX_SUFF_Z(StatMonitor), a);
     PPGMPOOL        pPool = pVM->pgm.s.CTX_SUFF(pPool);
     PPGMPOOLPAGE    pPage = (PPGMPOOLPAGE)pvUser;
+    PVMCPU          pVCpu = VMMGetCpu(pVM);
     unsigned        cMaxModifications;
     bool            fForcedFlush = false;
     NOREF(uErrorCode);
 
-    LogFlow(("pgmPoolAccessPfHandler: pvFault=%RGv pPage=%p:{.idx=%d} GCPhysFault=%RGp\n", pvFault, pPage, pPage->idx, GCPhysFault));
+    LogFlow(("pgmPoolAccessHandler: pvFault=%RGv pPage=%p:{.idx=%d} GCPhysFault=%RGp\n", pvFault, pPage, pPage->idx, GCPhysFault));
 
     pgmLock(pVM);
     if (PHYS_PAGE_ADDRESS(GCPhysFault) != PHYS_PAGE_ADDRESS(pPage->GCPhys))
     {
         /* Pool page changed while we were waiting for the lock; ignore. */
-        Log(("CPU%d: pgmPoolAccessPfHandler pgm pool page for %RGp changed (to %RGp) while waiting!\n", pVCpu->idCpu, PHYS_PAGE_ADDRESS(GCPhysFault), PHYS_PAGE_ADDRESS(pPage->GCPhys)));
+        Log(("CPU%d: pgmPoolAccessHandler pgm pool page for %RGp changed (to %RGp) while waiting!\n", pVCpu->idCpu, PHYS_PAGE_ADDRESS(GCPhysFault), PHYS_PAGE_ADDRESS(pPage->GCPhys)));
         STAM_PROFILE_STOP_EX(&pVM->pgm.s.CTX_SUFF(pPool)->CTX_SUFF_Z(StatMonitor), &pPool->CTX_MID_Z(StatMonitor,Handled), a);
         pgmUnlock(pVM);
         return VINF_SUCCESS;
@@ -1160,7 +1171,7 @@ DECLEXPORT(VBOXSTRICTRC) pgmPoolAccessPfHandler(PVM pVM, PVMCPU pVCpu, RTGCUINT 
          */
         if (!(pDis->fPrefix & (DISPREFIX_REP | DISPREFIX_REPNE)))
         {
-            rc = pgmPoolAccessPfHandlerSimple(pVM, pVCpu, pPool, pPage, pDis, pRegFrame, GCPhysFault, pvFault, &fReused);
+            rc = pgmPoolAccessHandlerSimple(pVM, pVCpu, pPool, pPage, pDis, pRegFrame, GCPhysFault, pvFault, &fReused);
             if (fReused)
                 goto flushPage;
 
@@ -1231,7 +1242,7 @@ DECLEXPORT(VBOXSTRICTRC) pgmPoolAccessPfHandler(PVM pVM, PVMCPU pVCpu, RTGCUINT 
 
             if (fValidStosd)
             {
-                rc = pgmPoolAccessPfHandlerSTOSD(pVM, pPool, pPage, pDis, pRegFrame, GCPhysFault, pvFault);
+                rc = pgmPoolAccessHandlerSTOSD(pVM, pPool, pPage, pDis, pRegFrame, GCPhysFault, pvFault);
                 STAM_PROFILE_STOP_EX(&pVM->pgm.s.CTX_SUFF(pPool)->CTX_SUFF_Z(StatMonitor), &pPool->CTX_MID_Z(StatMonitor,RepStosd), a);
                 pgmUnlock(pVM);
                 return rc;
@@ -1240,7 +1251,7 @@ DECLEXPORT(VBOXSTRICTRC) pgmPoolAccessPfHandler(PVM pVM, PVMCPU pVCpu, RTGCUINT 
 
         /* REP prefix, don't bother. */
         STAM_COUNTER_INC(&pPool->CTX_MID_Z(StatMonitor,RepPrefix));
-        Log4(("pgmPoolAccessPfHandler: eax=%#x ecx=%#x edi=%#x esi=%#x rip=%RGv opcode=%d prefix=%#x\n",
+        Log4(("pgmPoolAccessHandler: eax=%#x ecx=%#x edi=%#x esi=%#x rip=%RGv opcode=%d prefix=%#x\n",
               pRegFrame->eax, pRegFrame->ecx, pRegFrame->edi, pRegFrame->esi, (RTGCPTR)pRegFrame->rip, pDis->pCurInstr->uOpcode, pDis->fPrefix));
         fNotReusedNotForking = true;
     }
@@ -1328,7 +1339,7 @@ flushPage:
      * interpret then. This may be a bit risky, in which case
      * the reuse detection must be fixed.
      */
-    rc = pgmPoolAccessPfHandlerFlush(pVM, pVCpu, pPool, pPage, pDis, pRegFrame, GCPhysFault, pvFault);
+    rc = pgmPoolAccessHandlerFlush(pVM, pVCpu, pPool, pPage, pDis, pRegFrame, GCPhysFault, pvFault);
     if (    rc == VINF_EM_RAW_EMULATE_INSTR
         &&  fReused)
     {
@@ -1342,83 +1353,6 @@ flushPage:
 }
 
 # endif /* !IN_RING3 */
-
-/**
- * @callback_method_impl{FNPGMPHYSHANDLER,
- *      Access handler for shadowed page table pages.}
- *
- * @remarks Only uses the VINF_PGM_HANDLER_DO_DEFAULT status.
- */
-PGM_ALL_CB2_DECL(VBOXSTRICTRC)
-pgmPoolAccessHandler(PVM pVM, PVMCPU pVCpu, RTGCPHYS GCPhys, void *pvPhys, void *pvBuf, size_t cbBuf,
-                     PGMACCESSTYPE enmAccessType, PGMACCESSORIGIN enmOrigin, void *pvUser)
-{
-    PPGMPOOL        pPool = pVM->pgm.s.CTX_SUFF(pPool);
-    STAM_PROFILE_START(&pPool->StatMonitorR3, a);
-    PPGMPOOLPAGE    pPage = (PPGMPOOLPAGE)pvUser;
-    LogFlow(("PGM_ALL_CB_DECL: GCPhys=%RGp %p:{.Core=%RHp, .idx=%d, .GCPhys=%RGp, .enmType=%d}\n",
-             GCPhys, pPage, pPage->Core.Key, pPage->idx, pPage->GCPhys, pPage->enmKind));
-
-    NOREF(pvBuf); NOREF(enmAccessType);
-
-    /*
-     * Make sure the pool page wasn't modified by a different CPU.
-     */
-    pgmLock(pVM);
-    if (PHYS_PAGE_ADDRESS(GCPhys) == PHYS_PAGE_ADDRESS(pPage->GCPhys))
-    {
-        Assert(pPage->enmKind != PGMPOOLKIND_FREE);
-
-        /* The max modification count before flushing depends on the context and page type. */
-#ifdef IN_RING3
-        uint16_t const cMaxModifications = 96; /* it's cheaper here, right? */
-#else
-        uint16_t cMaxModifications;
-        if (    pPage->enmKind == PGMPOOLKIND_PAE_PT_FOR_PAE_PT
-            ||  pPage->enmKind == PGMPOOLKIND_PAE_PT_FOR_32BIT_PT)
-            cMaxModifications = 4;
-        else
-            cMaxModifications = 24;
-# ifdef IN_RC
-        cMaxModifications *= 2; /* traps are cheaper than exists. */
-# endif
-#endif
-
-        /*
-         * We don't have to be very sophisticated about this since there are relativly few calls here.
-         * However, we must try our best to detect any non-cpu accesses (disk / networking).
-         */
-        if (   (   pPage->cModifications < cMaxModifications
-                || pgmPoolIsPageLocked(pPage) )
-            && enmOrigin != PGMACCESSORIGIN_DEVICE
-            && cbBuf <= 16)
-        {
-            /* Clear the shadow entry. */
-            if (!pPage->cModifications++)
-                pgmPoolMonitorModifiedInsert(pPool, pPage);
-
-            if (cbBuf <= 8)
-                pgmPoolMonitorChainChanging(pVCpu, pPool, pPage, GCPhys, pvBuf, (uint32_t)cbBuf);
-            else
-            {
-                pgmPoolMonitorChainChanging(pVCpu, pPool, pPage, GCPhys, pvBuf, 8);
-                pgmPoolMonitorChainChanging(pVCpu, pPool, pPage, GCPhys + 8, (uint8_t *)pvBuf + 8, (uint32_t)cbBuf - 8);
-            }
-        }
-        else
-        {
-            /* ASSUME that VERR_PGM_POOL_CLEARED can be ignored here and that FFs will deal with it in due time. */
-            pgmPoolMonitorChainFlush(pPool, pPage);
-        }
-
-        STAM_PROFILE_STOP_EX(&pPool->StatMonitorR3, &pPool->StatMonitorR3FlushPage, a);
-    }
-    else
-        Log(("CPU%d: PGM_ALL_CB_DECL pgm pool page for %RGp changed (to %RGp) while waiting!\n", pVCpu->idCpu, PHYS_PAGE_ADDRESS(GCPhys), PHYS_PAGE_ADDRESS(pPage->GCPhys)));
-    pgmUnlock(pVM);
-    return VINF_PGM_HANDLER_DO_DEFAULT;
-}
-
 
 # ifdef PGMPOOL_WITH_OPTIMIZED_DIRTY_PT
 
@@ -2565,9 +2499,12 @@ static int pgmPoolMonitorInsert(PPGMPOOL pPool, PPGMPOOLPAGE pPage)
         Assert(pPage->iMonitoredNext == NIL_PGMPOOL_IDX); Assert(pPage->iMonitoredPrev == NIL_PGMPOOL_IDX);
         PVM pVM = pPool->CTX_SUFF(pVM);
         const RTGCPHYS GCPhysPage = pPage->GCPhys & ~(RTGCPHYS)PAGE_OFFSET_MASK;
-        rc = PGMHandlerPhysicalRegister(pVM, GCPhysPage, GCPhysPage + PAGE_OFFSET_MASK, pPool->hAccessHandlerType,
-                                        MMHyperCCToR3(pVM, pPage), MMHyperCCToR0(pVM, pPage), MMHyperCCToRC(pVM, pPage),
-                                        NIL_RTR3PTR /*pszDesc*/);
+        rc = PGMHandlerPhysicalRegisterEx(pVM, PGMPHYSHANDLERTYPE_PHYSICAL_WRITE,
+                                          GCPhysPage, GCPhysPage + PAGE_OFFSET_MASK,
+                                          pPool->pfnAccessHandlerR3, MMHyperCCToR3(pVM, pPage),
+                                          pPool->pfnAccessHandlerR0, MMHyperCCToR0(pVM, pPage),
+                                          pPool->pfnAccessHandlerRC, MMHyperCCToRC(pVM, pPage),
+                                          pPool->pszAccessHandler);
         /** @todo we should probably deal with out-of-memory conditions here, but for now increasing
          * the heap size should suffice. */
         AssertFatalMsgRC(rc, ("PGMHandlerPhysicalRegisterEx %RGp failed with %Rrc\n", GCPhysPage, rc));
@@ -2644,9 +2581,11 @@ static int pgmPoolMonitorFlush(PPGMPOOL pPool, PPGMPOOLPAGE pPage)
         {
             PPGMPOOLPAGE pNewHead = &pPool->aPages[pPage->iMonitoredNext];
             pNewHead->iMonitoredPrev = NIL_PGMPOOL_IDX;
-            rc = PGMHandlerPhysicalChangeUserArgs(pVM, pPage->GCPhys & ~(RTGCPHYS)PAGE_OFFSET_MASK, MMHyperCCToR3(pVM, pNewHead),
-                                                  MMHyperCCToR0(pVM, pNewHead), MMHyperCCToRC(pVM, pNewHead));
-
+            rc = PGMHandlerPhysicalChangeCallbacks(pVM, pPage->GCPhys & ~(RTGCPHYS)PAGE_OFFSET_MASK,
+                                                   pPool->pfnAccessHandlerR3, MMHyperCCToR3(pVM, pNewHead),
+                                                   pPool->pfnAccessHandlerR0, MMHyperCCToR0(pVM, pNewHead),
+                                                   pPool->pfnAccessHandlerRC, MMHyperCCToRC(pVM, pNewHead),
+                                                   pPool->pszAccessHandler);
             AssertFatalRCSuccess(rc);
             pPage->iMonitoredNext = NIL_PGMPOOL_IDX;
         }

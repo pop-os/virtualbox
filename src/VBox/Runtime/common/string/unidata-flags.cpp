@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -47004,4 +47004,5 @@ RT_DECL_DATA_CONST(const RTUNIFLAGSRANGE) g_aRTUniFlagsRanges[] =
     { 0x02f800, 0x02fa1e, &g_afRTUniFlags0x02f800[0] },
     { ~(RTUNICP)0, ~(RTUNICP)0, NULL }
 };
+
 

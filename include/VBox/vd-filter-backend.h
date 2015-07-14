@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2014-2015 Oracle Corporation
+ * Copyright (C) 2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -57,11 +57,10 @@ typedef struct VDFILTERBACKEND
      *
      * @returns VBox status code.
      * @param   pVDIfsDisk      Pointer to the per-disk VD interface list.
-     * @param   fFlags          Subset of VD_FILTER_FLAGS_*.
      * @param   pVDIfsFilter    Pointer to the per-filter VD interface list.
      * @param   ppvBackendData  Opaque state data for this filter instance.
      */
-    DECLR3CALLBACKMEMBER(int, pfnCreate, (PVDINTERFACE pVDIfsDisk, uint32_t fFlags,
+    DECLR3CALLBACKMEMBER(int, pfnCreate, (PVDINTERFACE pVDIfsDisk,
                                           PVDINTERFACE pVDIfsFilter,
                                           void **ppvBackendData));
 

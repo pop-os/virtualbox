@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -888,9 +888,7 @@ RTASN1TMPL_DECL(int) RT_CONCAT(RTASN1TMPL_EXT_NAME,_Compare)(RT_CONCAT(PC,RTASN1
 RTASN1TMPL_DECL(int) RT_CONCAT(RTASN1TMPL_EXT_NAME,_CheckSanity)(RT_CONCAT(PC,RTASN1TMPL_TYPE) pThis, uint32_t fFlags,  \
                                                                  PRTERRINFO pErrInfo, const char *pszErrorTag) \
 { \
-    if (RT_LIKELY(RT_CONCAT(RTASN1TMPL_EXT_NAME,_IsPresent)(pThis))) \
-    { /* likely */ } \
-    else \
+    if (RT_UNLIKELY(!RT_CONCAT(RTASN1TMPL_EXT_NAME,_IsPresent)(pThis))) \
         return RTErrInfoSetF(pErrInfo, VERR_GENERAL_FAILURE, "%s: Missing (%s).", pszErrorTag, RT_XSTR(RTASN1TMPL_TYPE)); \
     int rc = VINF_SUCCESS
 
@@ -953,9 +951,7 @@ RTASN1TMPL_DECL(int) RT_CONCAT(RTASN1TMPL_EXT_NAME,_CheckSanity)(RT_CONCAT(PC,RT
                                                pErrInfo, RT_XSTR(RTASN1TMPL_TYPE) "::" #a_Name); \
             { a_Constraints } \
         } \
-        else if (RT_LIKELY(RTASN1CORE_IS_PRESENT(&pThis->a_TnNm.a_CtxTagN.Asn1Core) == fInnerPresent)) \
-        { /* likely */ } \
-        else \
+        else if (RT_UNLIKELY(RTASN1CORE_IS_PRESENT(&pThis->a_TnNm.a_CtxTagN.Asn1Core) != fInnerPresent)) \
             rc = RTErrInfoSetF(pErrInfo, VERR_GENERAL_FAILURE, \
                                "%s::" #a_TnNm "." #a_Name ": Explict tag precense mixup; " #a_CtxTagN "=%d " #a_Name "=%d.", \
                                pszErrorTag, fOuterPresent, fInnerPresent); \
@@ -1024,9 +1020,7 @@ RTASN1TMPL_DECL(int) RT_CONCAT(RTASN1TMPL_EXT_NAME,_CheckSanity)(RT_CONCAT(PC,RT
     if (RT_SUCCESS(rc) && ((cbMin) != 0 || (cbMax) != UINT32_MAX)) \
     { \
         PCRTASN1CORE pCore = RT_CONCAT(a_Api,_GetAsn1Core)(&pThis->a_Name); \
-        if (RT_LIKELY(pCore->cb >= (cbMin) && pCore->cb <= (cbMax))) \
-        { /* likely */ } \
-        else \
+        if (RT_UNLIKELY(pCore->cb < (cbMin) || pCore->cb > (cbMax))) \
             rc = RTErrInfoSetF(pErrInfo, VERR_GENERAL_FAILURE, \
                                "%s::" #a_Name ": Content size is out of range: %#x not in {%#x..%#x}", \
                                pszErrorTag, pCore->cb, cbMin, cbMax); \
@@ -1036,10 +1030,8 @@ RTASN1TMPL_DECL(int) RT_CONCAT(RTASN1TMPL_EXT_NAME,_CheckSanity)(RT_CONCAT(PC,RT
 # define RTASN1TMPL_MEMBER_CONSTR_BITSTRING_MIN_MAX(a_Name, cMinBits, cMaxBits, a_MoreConstraints) \
     if (RT_SUCCESS(rc) && ((cMinBits) != 0 || (cMaxBits) != UINT32_MAX)) \
     { \
-        if (RT_LIKELY(   ((cMinBits) == 0          ? true : pThis->a_Name.cBits + 1U >= (cMinBits) + 1U /* warning avoiding */) \
-                      && ((cMaxBits) == UINT32_MAX ? true : pThis->a_Name.cBits + 1U <= (cMaxBits) + 1U /* ditto */) ) ) \
-        { /* likely */ } \
-        else \
+        if (RT_UNLIKELY(   ((cMinBits) == 0          ? false : pThis->a_Name.cBits + 1U < (cMinBits) + 1U /* warning avoiding */) \
+                        || ((cMaxBits) == UINT32_MAX ? false : pThis->a_Name.cBits + 1U > (cMaxBits) + 1U /* ditto */) ) ) \
             rc = RTErrInfoSetF(pErrInfo, VERR_GENERAL_FAILURE, \
                                "%s::" #a_Name ": Bit size is out of range: %#x not in {%#x..%#x}", \
                                pszErrorTag, pThis->a_Name.cBits, cMinBits, cMaxBits); \
@@ -1049,10 +1041,8 @@ RTASN1TMPL_DECL(int) RT_CONCAT(RTASN1TMPL_EXT_NAME,_CheckSanity)(RT_CONCAT(PC,RT
 # define RTASN1TMPL_MEMBER_CONSTR_U64_MIN_MAX(a_Name, uMin, uMax, a_MoreConstraints) \
     if (RT_SUCCESS(rc)) \
     { \
-        if (RT_LIKELY(   RTAsn1Integer_UnsignedCompareWithU64(&pThis->a_Name, uMin) >= 0 \
-                      && RTAsn1Integer_UnsignedCompareWithU64(&pThis->a_Name, uMax) <= 0) ) \
-        { /* likely */ } \
-        else \
+        if (RT_UNLIKELY(   RTAsn1Integer_UnsignedCompareWithU64(&pThis->a_Name, uMin) < 0 \
+                        || RTAsn1Integer_UnsignedCompareWithU64(&pThis->a_Name, uMax) > 0) ) \
             rc = RTErrInfoSetF(pErrInfo, VERR_GENERAL_FAILURE, \
                                "%s::" #a_Name ": Out of range: %#x not in {%#llx..%#llx}", \
                                pszErrorTag, pThis->a_Name.Asn1Core.cb > 8 ? UINT64_MAX : pThis->a_Name.uValue.u, \
@@ -1061,13 +1051,8 @@ RTASN1TMPL_DECL(int) RT_CONCAT(RTASN1TMPL_EXT_NAME,_CheckSanity)(RT_CONCAT(PC,RT
     { a_MoreConstraints }
 
 # define RTASN1TMPL_MEMBER_CONSTR_PRESENT(a_Name, a_Api, a_MoreConstraints) \
-    if (RT_SUCCESS(rc)) \
-    { \
-        if (RT_LIKELY(RT_CONCAT(a_Api,_IsPresent)(&pThis->a_Name))) \
-        { /* likely */ } \
-        else \
-            rc = RTErrInfoSetF(pErrInfo, VERR_GENERAL_FAILURE, "%s::" #a_Name ": Missing.", pszErrorTag); \
-    } \
+    if (RT_SUCCESS(rc) && RT_UNLIKELY(!RT_CONCAT(a_Api,_IsPresent)(&pThis->a_Name))) \
+        rc = RTErrInfoSetF(pErrInfo, VERR_GENERAL_FAILURE, "%s::" #a_Name ": Missing.", pszErrorTag); \
     { a_MoreConstraints }
 
 

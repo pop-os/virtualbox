@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -42,4 +42,5 @@ RTASN1TMPL_SET_OF(RTASN1TIME, RTAsn1Time);
 #undef RTASN1TMPL_TYPE
 #undef RTASN1TMPL_EXT_NAME
 #undef RTASN1TMPL_INT_NAME
+
 

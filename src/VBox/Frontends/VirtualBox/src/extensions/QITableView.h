@@ -1,6 +1,7 @@
-/* $Id: QITableView.h $ */
 /** @file
- * VBox Qt GUI - Qt extensions: QITableView class declaration.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * VirtualBox Qt extensions: QITableView class declaration
  */
 
 /*

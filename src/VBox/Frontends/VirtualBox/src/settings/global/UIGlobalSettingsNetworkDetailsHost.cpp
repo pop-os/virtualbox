@@ -1,6 +1,8 @@
 /* $Id: UIGlobalSettingsNetworkDetailsHost.cpp $ */
 /** @file
- * VBox Qt GUI - UIGlobalSettingsNetworkDetailsHost class implementation.
+ *
+ * VBox frontends: Qt4 GUI ("VirtualBox"):
+ * UIGlobalSettingsNetworkDetailsHost class implementation
  */
 
 /*
@@ -15,19 +17,12 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QRegExpValidator>
+#include <QRegExpValidator>
 
 /* GUI includes: */
-# include "UIGlobalSettingsNetwork.h"
-# include "UIGlobalSettingsNetworkDetailsHost.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
+#include "UIGlobalSettingsNetwork.h"
+#include "UIGlobalSettingsNetworkDetailsHost.h"
 
 UIGlobalSettingsNetworkDetailsHost::UIGlobalSettingsNetworkDetailsHost(QWidget *pParent, UIDataNetworkHost &data)
     : QIWithRetranslateUI2<QIDialog>(pParent)

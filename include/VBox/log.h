@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -59,10 +59,6 @@ typedef enum LOGGROUP
 {
     /** The default VBox group. */
     LOG_GROUP_DEFAULT = RTLOGGROUP_FIRST_USER,
-    /** Audio mixer group. */
-    LOG_GROUP_AUDIO_MIXER,
-    /** Audio mixer buffer group. */
-    LOG_GROUP_AUDIO_MIXER_BUFFER,
     /** Auto-logon group. */
     LOG_GROUP_AUTOLOGON,
     /** CFGM group. */
@@ -81,14 +77,14 @@ typedef enum LOGGROUP
     LOG_GROUP_DBGG,
     /** Generic Device group. */
     LOG_GROUP_DEV,
-    /** AC97 Device group. */
-    LOG_GROUP_DEV_AC97,
     /** ACPI Device group. */
     LOG_GROUP_DEV_ACPI,
     /** AHCI Device group. */
     LOG_GROUP_DEV_AHCI,
     /** APIC Device group. */
     LOG_GROUP_DEV_APIC,
+    /** Audio Device group. */
+    LOG_GROUP_DEV_AUDIO,
     /** BusLogic SCSI host adapter group. */
     LOG_GROUP_DEV_BUSLOGIC,
     /** DMA Controller group. */
@@ -101,12 +97,6 @@ typedef enum LOGGROUP
     LOG_GROUP_DEV_EHCI,
     /** Floppy Controller Device group. */
     LOG_GROUP_DEV_FDC,
-    /** Guest Interface Manager Device group. */
-    LOG_GROUP_DEV_GIM,
-    /** HDA Device group. */
-    LOG_GROUP_DEV_HDA,
-    /** HDA Codec Device group. */
-    LOG_GROUP_DEV_HDA_CODEC,
     /** High Precision Event Timer Device group. */
     LOG_GROUP_DEV_HPET,
     /** IDE Device group. */
@@ -143,8 +133,6 @@ typedef enum LOGGROUP
     LOG_GROUP_DEV_PIT,
     /** RTC Device group. */
     LOG_GROUP_DEV_RTC,
-    /** SB16 Device group. */
-    LOG_GROUP_DEV_SB16,
     /** Serial Device group */
     LOG_GROUP_DEV_SERIAL,
     /** System Management Controller Device group. */
@@ -163,16 +151,12 @@ typedef enum LOGGROUP
     LOG_GROUP_DEV_VMM_STDERR,
     /** VMSVGA Device group. */
     LOG_GROUP_DEV_VMSVGA,
-    /** USB xHCI Device group. */
-    LOG_GROUP_DEV_XHCI,
     /** Disassembler group. */
     LOG_GROUP_DIS,
     /** Generic driver group. */
     LOG_GROUP_DRV,
     /** ACPI driver group */
     LOG_GROUP_DRV_ACPI,
-    /** Audio driver group */
-    LOG_GROUP_DRV_AUDIO,
     /** Block driver group. */
     LOG_GROUP_DRV_BLOCK,
     /** Char driver group. */
@@ -183,8 +167,6 @@ typedef enum LOGGROUP
     LOG_GROUP_DRV_DISPLAY,
     /** Floppy media driver group. */
     LOG_GROUP_DRV_FLOPPY,
-    /** Host Audio driver group. */
-    LOG_GROUP_DRV_HOST_AUDIO,
     /** Host Base block driver group. */
     LOG_GROUP_DRV_HOST_BASE,
     /** Host DVD block driver group. */
@@ -219,8 +201,6 @@ typedef enum LOGGROUP
     LOG_GROUP_DRV_SCSI,
     /** Host SCSI driver group. */
     LOG_GROUP_DRV_SCSIHOST,
-    /** TCP socket stream driver group. */
-    LOG_GROUP_DRV_TCP,
     /** Async transport driver group */
     LOG_GROUP_DRV_TRANSPORT_ASYNC,
     /** TUN network transport driver group */
@@ -233,8 +213,6 @@ typedef enum LOGGROUP
     LOG_GROUP_DRV_VBOXHDD,
     /** VBox HDD container media driver group. */
     LOG_GROUP_DRV_VD,
-    /** VRDE audio driver group. */
-    LOG_GROUP_DRV_VRDE_AUDIO,
     /** Virtual Switch transport driver group */
     LOG_GROUP_DRV_VSWITCH,
     /** VUSB driver group */
@@ -243,14 +221,10 @@ typedef enum LOGGROUP
     LOG_GROUP_EM,
     /** FTM group. */
     LOG_GROUP_FTM,
-    /** GIM group. */
-    LOG_GROUP_GIM,
     /** GMM group. */
     LOG_GROUP_GMM,
     /** Guest control. */
     LOG_GROUP_GUEST_CONTROL,
-    /** Guest drag'n drop. */
-    LOG_GROUP_GUEST_DND,
     /** GUI group. */
     LOG_GROUP_GUI,
     /** GVMM group. */
@@ -359,16 +333,8 @@ typedef enum LOGGROUP
     LOG_GROUP_MAIN_DIRECTORY,
     /** Main group, IDisplay. */
     LOG_GROUP_MAIN_DISPLAY,
-    /** Main group, IDisplaySourceBitmap. */
-    LOG_GROUP_MAIN_DISPLAYSOURCEBITMAP,
-    /** Main group, IDnDBase. */
-    LOG_GROUP_MAIN_DNDBASE,
-    /** Main group, IDnDModeChangedEvent. */
-    LOG_GROUP_MAIN_DNDMODECHANGEDEVENT,
-    /** Main group, IDnDSource. */
-    LOG_GROUP_MAIN_DNDSOURCE,
-    /** Main group, IDnDTarget. */
-    LOG_GROUP_MAIN_DNDTARGET,
+    /** Main group, IDragAndDropModeChangedEvent. */
+    LOG_GROUP_MAIN_DRAGANDDROPMODECHANGEDEVENT,
     /** Main group, IEmulatedUSB. */
     LOG_GROUP_MAIN_EMULATEDUSB,
     /** Main group, IEvent. */
@@ -405,10 +371,6 @@ typedef enum LOGGROUP
     LOG_GROUP_MAIN_GUEST,
     /** Main group, IGuestDirectory. */
     LOG_GROUP_MAIN_GUESTDIRECTORY,
-    /** Main group, IGuestDnDSource. */
-    LOG_GROUP_MAIN_GUESTDNDSOURCE,
-    /** Main group, IGuestDnDTarget. */
-    LOG_GROUP_MAIN_GUESTDNDTARGET,
     /** Main group, IGuestErrorInfo. */
     LOG_GROUP_MAIN_GUESTERRORINFO,
     /** Main group, IGuestFile. */
@@ -505,8 +467,6 @@ typedef enum LOGGROUP
     LOG_GROUP_MAIN_MEDIUMATTACHMENT,
     /** Main group, IMediumChangedEvent. */
     LOG_GROUP_MAIN_MEDIUMCHANGEDEVENT,
-    /** Main group, IMediumConfigChangedEvent. */
-    LOG_GROUP_MAIN_MEDIUMCONFIGCHANGEDEVENT,
     /** Main group, IMediumFormat. */
     LOG_GROUP_MAIN_MEDIUMFORMAT,
     /** Main group, IMediumRegisteredEvent. */
@@ -515,8 +475,6 @@ typedef enum LOGGROUP
     LOG_GROUP_MAIN_MOUSE,
     /** Main group, IMouseCapabilityChangedEvent. */
     LOG_GROUP_MAIN_MOUSECAPABILITYCHANGEDEVENT,
-    /** Main group, IMousePointerShape. */
-    LOG_GROUP_MAIN_MOUSEPOINTERSHAPE,
     /** Main group, IMousePointerShapeChangedEvent. */
     LOG_GROUP_MAIN_MOUSEPOINTERSHAPECHANGEDEVENT,
     /** Main group, INATEngine. */
@@ -584,8 +542,6 @@ typedef enum LOGGROUP
     /** Main group, ISnapshotEvent. */
     LOG_GROUP_MAIN_SNAPSHOTEVENT,
     /** Main group, ISnapshotTakenEvent. */
-    LOG_GROUP_MAIN_SNAPSHOTRESTOREDEVENT,
-    /** Main group, ISnapshotRestoredEvent. */
     LOG_GROUP_MAIN_SNAPSHOTTAKENEVENT,
     /** Main group, IStateChangedEvent. */
     LOG_GROUP_MAIN_STATECHANGEDEVENT,
@@ -761,8 +717,6 @@ typedef enum LOGGROUP
     LOG_GROUP_VD_VDI,
     /** VHD virtual disk backend. */
     LOG_GROUP_VD_VHD,
-    /** VHDX virtual disk backend. */
-    LOG_GROUP_VD_VHDX,
     /** VMDK virtual disk backend. */
     LOG_GROUP_VD_VMDK,
     /** VM group. */
@@ -798,8 +752,6 @@ typedef enum LOGGROUP
 {                   \
     RT_LOGGROUP_NAMES, \
     "DEFAULT",      \
-    "AUDIO_MIXER",  \
-    "AUDIO_MIXER_BUFFER", \
     "AUTOLOGON",    \
     "CFGM",         \
     "CPUM",         \
@@ -809,19 +761,16 @@ typedef enum LOGGROUP
     "DBGF_INFO",    \
     "DBGG",         \
     "DEV",          \
-    "DEV_AC97",     \
     "DEV_ACPI",     \
     "DEV_AHCI",     \
     "DEV_APIC",     \
+    "DEV_AUDIO",    \
     "DEV_BUSLOGIC", \
     "DEV_DMA",      \
     "DEV_E1000",    \
     "DEV_EFI",      \
     "DEV_EHCI",     \
     "DEV_FDC",      \
-    "DEV_GIM",      \
-    "DEV_HDA",      \
-    "DEV_HDA_CODEC", \
     "DEV_HPET",     \
     "DEV_IDE",      \
     "DEV_INIP",     \
@@ -840,7 +789,6 @@ typedef enum LOGGROUP
     "DEV_PIC",      \
     "DEV_PIT",      \
     "DEV_RTC",      \
-    "DEV_SB16",     \
     "DEV_SERIAL",   \
     "DEV_SMC",      \
     "DEV_VGA",      \
@@ -850,17 +798,14 @@ typedef enum LOGGROUP
     "DEV_VMM_BACKDOOR", \
     "DEV_VMM_STDERR", \
     "DEV_VMSVGA",   \
-    "DEV_XHCI",     \
     "DIS",          \
     "DRV",          \
     "DRV_ACPI",     \
-    "DRV_AUDIO",    \
     "DRV_BLOCK",    \
     "DRV_CHAR",     \
     "DRV_DISK_INTEGRITY", \
     "DRV_DISPLAY",  \
     "DRV_FLOPPY",   \
-    "DRV_HOST_AUDIO", \
     "DRV_HOST_BASE", \
     "DRV_HOST_DVD", \
     "DRV_HOST_FLOPPY", \
@@ -878,22 +823,18 @@ typedef enum LOGGROUP
     "DRV_RAW_IMAGE", \
     "DRV_SCSI",     \
     "DRV_SCSIHOST", \
-    "DRV_TELNETSERVER", \
     "DRV_TRANSPORT_ASYNC", \
     "DRV_TUN",      \
     "DRV_UDPTUNNEL", \
     "DRV_USBPROXY", \
     "DRV_VBOXHDD",  \
     "DRV_VD",       \
-    "DRV_VRDE_AUDIO", \
     "DRV_VSWITCH",  \
     "DRV_VUSB",     \
     "EM",           \
     "FTM",          \
-    "GIM",          \
     "GMM",          \
     "GUEST_CONTROL", \
-    "GUEST_DND",    \
     "GUI",          \
     "GVMM",         \
     "HGCM",         \
@@ -948,11 +889,7 @@ typedef enum LOGGROUP
     "MAIN_DHCPSERVER", \
     "MAIN_DIRECTORY", \
     "MAIN_DISPLAY", \
-    "MAIN_DISPLAYSOURCEBITMAP", \
-    "MAIN_DNDBASE", \
-    "MAIN_DNDMODECHANGEDEVENT", \
-    "MAIN_DNDSOURCE", \
-    "MAIN_DNDTARGET", \
+    "MAIN_DRAGANDDROPMODECHANGEDEVENT", \
     "MAIN_EMULATEDUSB",   \
     "MAIN_EVENT",   \
     "MAIN_EVENTLISTENER", \
@@ -971,8 +908,6 @@ typedef enum LOGGROUP
     "MAIN_FSOBJINFO", \
     "MAIN_GUEST",   \
     "MAIN_GUESTDIRECTORY", \
-    "MAIN_GUESTDNDSOURCE", \
-    "MAIN_GUESTDNDTARGET", \
     "MAIN_GUESTERRORINFO", \
     "MAIN_GUESTFILE", \
     "MAIN_GUESTFILEEVENT", \
@@ -1021,12 +956,10 @@ typedef enum LOGGROUP
     "MAIN_MEDIUM",  \
     "MAIN_MEDIUMATTACHMENT", \
     "MAIN_MEDIUMCHANGEDEVENT", \
-    "MAIN_MEDIUMCONFIGCHANGEDEVENT", \
     "MAIN_MEDIUMFORMAT", \
     "MAIN_MEDIUMREGISTEREDEVENT", \
     "MAIN_MOUSE",   \
     "MAIN_MOUSECAPABILITYCHANGEDEVENT", \
-    "MAIN_MOUSEPOINTERSHAPE", \
     "MAIN_MOUSEPOINTERSHAPECHANGEDEVENT", \
     "MAIN_NATENGINE", \
     "MAIN_NATNETWORK", \
@@ -1060,7 +993,6 @@ typedef enum LOGGROUP
     "MAIN_SNAPSHOTCHANGEDEVENT", \
     "MAIN_SNAPSHOTDELETEDEVENT", \
     "MAIN_SNAPSHOTEVENT", \
-    "MAIN_SNAPSHOTRESTOREDEVENT", \
     "MAIN_SNAPSHOTTAKENEVENT", \
     "MAIN_STATECHANGEDEVENT", \
     "MAIN_STORAGECONTROLLER", \
@@ -1149,7 +1081,6 @@ typedef enum LOGGROUP
     "VD_RAW",       \
     "VD_VDI",       \
     "VD_VHD",       \
-    "VD_VHDX",      \
     "VD_VMDK",      \
     "VM",           \
     "VMM",          \

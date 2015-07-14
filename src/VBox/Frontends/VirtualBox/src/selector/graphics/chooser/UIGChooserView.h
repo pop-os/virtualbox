@@ -1,10 +1,11 @@
-/* $Id: UIGChooserView.h $ */
 /** @file
- * VBox Qt GUI - UIGChooserView class declaration.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * UIGChooserView class declaration
  */
 
 /*
- * Copyright (C) 2012-2015 Oracle Corporation
+ * Copyright (C) 2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -18,14 +19,14 @@
 #ifndef __UIGChooserView_h__
 #define __UIGChooserView_h__
 
-/* GUI includes: */
-#include "QIGraphicsView.h"
+/* Qt includes: */
+#include <QGraphicsView>
 
 /* Forward declarations: */
 class UIGChooserItem;
 
 /* Graphics chooser-view: */
-class UIGChooserView : public QIGraphicsView
+class UIGChooserView : public QGraphicsView
 {
     Q_OBJECT;
 

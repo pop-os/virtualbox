@@ -1,4 +1,3 @@
-/* $Id: HGSMIHost.cpp $ */
 /** @file
  *
  * VBox Host Guest Shared Memory Interface (HGSMI).
@@ -61,12 +60,12 @@
 #include <iprt/alloc.h>
 #include <iprt/critsect.h>
 #include <iprt/heap.h>
-#include <iprt/list.h>
 #include <iprt/semaphore.h>
 #include <iprt/string.h>
+#include <iprt/asm.h>
 
 #include <VBox/err.h>
-#define LOG_GROUP LOG_GROUP_HGSMI
+#define LOG_GROUP LOG_GROUP_DEV_VGA
 #include <VBox/log.h>
 #include <VBox/vmm/ssm.h>
 
@@ -74,6 +73,7 @@
 #include <VBox/HGSMI/HGSMIChannels.h>
 #include <VBox/HGSMI/HGSMIChSetup.h>
 
+#include "HGSMIHostHlp.h"
 #include "../DevVGASavedState.h"
 
 #ifdef DEBUG_sunlover
@@ -132,32 +132,7 @@
 #endif /* !HGSMI_STRICT */
 
 
-/* Host heap types. */
-#define HGSMI_HEAP_TYPE_NULL    0 /* Heap not initialized. */
-#define HGSMI_HEAP_TYPE_POINTER 1 /* Deprecated, used only for old saved states. RTHEAPSIMPLE. */
-#define HGSMI_HEAP_TYPE_OFFSET  2 /* Deprecated, used only for old saved states. RTHEAPOFFSET. */
-#define HGSMI_HEAP_TYPE_MA      3 /* Memory allocator. */
-
-typedef struct HGSMIHOSTHEAP
-{
-    uint32_t u32HeapType;   /* HGSMI_HEAP_TYPE_* */
-    int32_t volatile cRefs; /* How many blocks allocated. */
-    HGSMIAREA area;         /* Host heap location. */
-    union
-    {
-        HGSMIMADATA ma;     /* Memory allocator for the default host heap implementation. */
-        struct              /* Legacy heap implementations. For old saved states. */
-        {
-            union
-            {
-                RTHEAPSIMPLE hPtr;  /* Pointer based heap. */
-                RTHEAPOFFSET hOff;  /* Offset based heap. */
-            } u;
-        } legacy;
-    } u;
-} HGSMIHOSTHEAP;
-
-typedef struct HGSMIINSTANCE
+typedef struct _HGSMIINSTANCE
 {
     PVM pVM;                           /* The VM. */
 
@@ -166,43 +141,64 @@ typedef struct HGSMIINSTANCE
     RTCRITSECT   instanceCritSect;     /* For updating the instance data: FIFO's, channels. */
 
     HGSMIAREA area; /* The shared memory description. */
-    HGSMIHOSTHEAP hostHeap;            /* Host heap instance. */
+    HGSMIHEAP hostHeap;                /* Host heap instance. */
     RTCRITSECT    hostHeapCritSect;    /* Heap serialization lock. */
 
-    RTLISTANCHOR hostFIFO;             /* Pending host buffers. */
-    RTLISTANCHOR hostFIFORead;         /* Host buffers read by the guest. */
-    RTLISTANCHOR hostFIFOProcessed;    /* Processed by the guest. */
-    RTLISTANCHOR hostFIFOFree;         /* Buffers for reuse. */
+    HGSMILIST hostFIFO;                /* Pending host buffers. */
+    HGSMILIST hostFIFORead;            /* Host buffers read by the guest. */
+    HGSMILIST hostFIFOProcessed;       /* Processed by the guest. */
+    HGSMILIST hostFIFOFree;            /* Buffers for reuse. */
 #ifdef VBOX_WITH_WDDM
-    RTLISTANCHOR guestCmdCompleted;    /* list of completed guest commands to be returned to the guest*/
+    HGSMILIST guestCmdCompleted;       /* list of completed guest commands to be returned to the guest*/
 #endif
-    RTCRITSECT hostFIFOCritSect;       /* FIFO serialization lock. */
+    RTCRITSECT    hostFIFOCritSect;    /* FIFO serialization lock. */
 
     PFNHGSMINOTIFYGUEST pfnNotifyGuest; /* Guest notification callback. */
-    void *pvNotifyGuest;                /* Guest notification callback context. */
+    void *pvNotifyGuest;               /* Guest notification callback context. */
 
-    volatile HGSMIHOSTFLAGS *pHGFlags;
+    volatile HGSMIHOSTFLAGS * pHGFlags;
 
     HGSMICHANNELINFO channelInfo;      /* Channel handlers indexed by the channel id.
-                                        * The array is accessed under the instance lock.
-                                        */
-} HGSMIINSTANCE;
+                                                      * The array is accessed under the instance lock.
+                                                      */
+ }  HGSMIINSTANCE;
 
 
 typedef DECLCALLBACK(void) FNHGSMIHOSTFIFOCALLBACK(void *pvCallback);
 typedef FNHGSMIHOSTFIFOCALLBACK *PFNHGSMIHOSTFIFOCALLBACK;
 
-typedef struct HGSMIHOSTFIFOENTRY
+typedef struct _HGSMIHOSTFIFOENTRY
 {
-    RTLISTNODE nodeEntry;
+    /* The list field. Must be the first field. */
+    HGSMILISTENTRY entry;
 
-    HGSMIINSTANCE *pIns;               /* Backlink to the HGSMI instance. */
+    /* Backlink to the HGSMI instance. */
+    HGSMIINSTANCE *pIns;
 
-    volatile uint32_t fl;              /* Status flags of the entry. */
+#if 0
+    /* removed to allow saved state handling */
+    /* The event which is signalled when the command has been processed by the host. */
+    RTSEMEVENTMULTI hEvent;
+#endif
+    /* Status flags of the entry. */
+    volatile uint32_t fl;
 
-    HGSMIOFFSET offBuffer;             /* Offset of the HGSMI buffer header in the HGSMI host heap:
-                                        * [pIns->hostHeap.area.offBase .. offLast]. */
+    /* Offset in the memory region of the entry data. */
+    HGSMIOFFSET offBuffer;
+
+#if 0
+    /* removed to allow saved state handling */
+    /* The command completion callback. */
+    PFNHGSMIHOSTFIFOCALLBACK pfnCallback;
+    void *pvCallback;
+#endif
+
 } HGSMIHOSTFIFOENTRY;
+
+#define HGSMILISTENTRY_2_FIFOENTRY(_pe) \
+    ( (HGSMIHOSTFIFOENTRY*)((uint8_t *)(_pe) - RT_OFFSETOF(HGSMIHOSTFIFOENTRY, entry)) )
+
+//AssertCompile(RT_OFFSETOF(HGSMIHOSTFIFOENTRY, entry) == 0);
 
 
 #define HGSMI_F_HOST_FIFO_ALLOCATED 0x0001
@@ -216,12 +212,16 @@ static DECLCALLBACK(void) hgsmiHostCommandFreeCallback (void *pvCallback);
 
 #ifdef VBOX_WITH_WDDM
 
-typedef struct HGSMIGUESTCOMPLENTRY
+typedef struct _HGSMIGUESTCOMPLENTRY
 {
-    RTLISTNODE nodeEntry;
-    HGSMIOFFSET offBuffer; /* Offset of the guest command buffer. */
+    /* The list field. Must be the first field. */
+    HGSMILISTENTRY entry;
+    /* guest command buffer */
+    HGSMIOFFSET offBuffer;
 } HGSMIGUESTCOMPLENTRY;
 
+#define HGSMILISTENTRY_2_HGSMIGUESTCOMPLENTRY(_pe) \
+    ( (HGSMIGUESTCOMPLENTRY*)((uint8_t *)(_pe) - RT_OFFSETOF(HGSMIGUESTCOMPLENTRY, entry)) )
 
 static void hgsmiGuestCompletionFIFOFree (HGSMIINSTANCE *pIns, HGSMIGUESTCOMPLENTRY *pEntry)
 {
@@ -293,31 +293,29 @@ static HGSMIOFFSET hgsmiProcessGuestCmdCompletion(HGSMIINSTANCE *pIns)
     HGSMIOFFSET offCmd = HGSMIOFFSET_VOID;
     int rc = hgsmiFIFOLock(pIns);
     AssertRC(rc);
-    if (RT_SUCCESS(rc))
+    if(RT_SUCCESS(rc))
     {
-        HGSMIGUESTCOMPLENTRY *pEntry = RTListGetFirst(&pIns->guestCmdCompleted, HGSMIGUESTCOMPLENTRY, nodeEntry);
-        if (pEntry)
-        {
-            RTListNodeRemove(&pEntry->nodeEntry);
-        }
+        /* Get the host FIFO head entry. */
+        HGSMILISTENTRY *pHead = pIns->guestCmdCompleted.pHead;
+        if(pHead)
+            hgsmiListRemove (&pIns->guestCmdCompleted, pHead, NULL);
 
-        if (RTListIsEmpty(&pIns->guestCmdCompleted))
+        if(!pIns->guestCmdCompleted.pHead)
         {
             if(pIns->pHGFlags)
-            {
-                ASMAtomicAndU32(&pIns->pHGFlags->u32HostFlags, ~HGSMIHOSTFLAGS_GCOMMAND_COMPLETED);
-            }
+                ASMAtomicAndU32(&pIns->pHGFlags->u32HostFlags, (~HGSMIHOSTFLAGS_GCOMMAND_COMPLETED));
         }
 
         hgsmiFIFOUnlock(pIns);
 
-        if (pEntry)
+        if (pHead)
         {
+            HGSMIGUESTCOMPLENTRY *pEntry = HGSMILISTENTRY_2_HGSMIGUESTCOMPLENTRY(pHead);
             offCmd = pEntry->offBuffer;
 
             LogFlowFunc(("host FIFO head %p.\n", pEntry));
 
-            hgsmiGuestCompletionFIFOFree(pIns, pEntry);
+            hgsmiGuestCompletionFIFOFree (pIns, pEntry);
         }
     }
     return offCmd;
@@ -347,27 +345,36 @@ HGSMIOFFSET HGSMIGuestRead (PHGSMIINSTANCE pIns)
 #endif
 }
 
-static bool hgsmiProcessHostCmdCompletion(HGSMIINSTANCE *pIns,
-                                          HGSMIOFFSET offBuffer,
-                                          bool bCompleteFirst)
+static bool hgsmiProcessHostCmdCompletion (HGSMIINSTANCE *pIns,
+                     HGSMIOFFSET offBuffer,
+                     bool bCompleteFirst)
 {
     VM_ASSERT_EMT(pIns->pVM);
 
     int rc = hgsmiFIFOLock(pIns);
     if(RT_SUCCESS(rc))
     {
-        /* Search the Read list for the given buffer offset. */
-        HGSMIHOSTFIFOENTRY *pEntry = NULL;
+        /* Search the Read list for the given buffer offset. Also find the previous entry. */
+        HGSMIHOSTFIFOENTRY *pEntry = HGSMILISTENTRY_2_FIFOENTRY(pIns->hostFIFORead.pHead);
+        HGSMIHOSTFIFOENTRY *pPrev = NULL;
 
-        HGSMIHOSTFIFOENTRY *pIter;
-        RTListForEach(&pIns->hostFIFORead, pIter, HGSMIHOSTFIFOENTRY, nodeEntry)
+        while (pEntry)
         {
-            Assert(pIter->fl == (HGSMI_F_HOST_FIFO_ALLOCATED | HGSMI_F_HOST_FIFO_READ));
-            if (bCompleteFirst || pIter->offBuffer == offBuffer)
+            Assert(pEntry->fl == (HGSMI_F_HOST_FIFO_ALLOCATED | HGSMI_F_HOST_FIFO_READ));
+
+            if (bCompleteFirst || pEntry->offBuffer == offBuffer)
             {
-                pEntry = pIter;
                 break;
             }
+
+#ifdef DEBUGVHWASTRICT
+            /* guest usually completes commands in the order it receives it
+             * if we're here this would typically means there is some cmd loss */
+            AssertFailed();
+#endif
+
+            pPrev = pEntry;
+            pEntry = HGSMILISTENTRY_2_FIFOENTRY(pEntry->entry.pNext);
         }
 
         LogFlowFunc(("read list entry: %p.\n", pEntry));
@@ -376,17 +383,25 @@ static bool hgsmiProcessHostCmdCompletion(HGSMIINSTANCE *pIns,
 
         if (pEntry)
         {
-            RTListNodeRemove(&pEntry->nodeEntry);
+            /* Exclude from the Read list. */
+            hgsmiListRemove (&pIns->hostFIFORead, &pEntry->entry, pPrev? &pPrev->entry: NULL);
 
             pEntry->fl &= ~HGSMI_F_HOST_FIFO_READ;
             pEntry->fl |= HGSMI_F_HOST_FIFO_PROCESSED;
 
-            RTListAppend(&pIns->hostFIFOProcessed, &pEntry->nodeEntry);
+            /* Save in the Processed list. */
+            hgsmiListAppend (&pIns->hostFIFOProcessed, &pEntry->entry);
 
             hgsmiFIFOUnlock(pIns);
-
+#if 0
+            /* Inform the submitter. */
+            if (pEntry->pfnCallback)
+            {
+                pEntry->pfnCallback (pEntry->pvCallback);
+            }
+#else
             hgsmiHostCommandFreeCallback(pEntry);
-
+#endif
             return true;
         }
 
@@ -419,13 +434,12 @@ HGSMIOFFSET HGSMIHostRead (HGSMIINSTANCE *pIns)
 
     VM_ASSERT_EMT(pIns->pVM);
 
-    AssertPtrReturn(pIns->pHGFlags, VERR_WRONG_ORDER);
     int rc = hgsmiFIFOLock(pIns);
     AssertRC(rc);
     if(RT_SUCCESS(rc))
     {
         /* Get the host FIFO head entry. */
-        HGSMIHOSTFIFOENTRY *pEntry = RTListGetFirst(&pIns->hostFIFO, HGSMIHOSTFIFOENTRY, nodeEntry);
+        HGSMIHOSTFIFOENTRY *pEntry = HGSMILISTENTRY_2_FIFOENTRY(pIns->hostFIFO.pHead);
 
         LogFlowFunc(("host FIFO head %p.\n", pEntry));
 
@@ -433,12 +447,10 @@ HGSMIOFFSET HGSMIHostRead (HGSMIINSTANCE *pIns)
         {
             Assert(pEntry->fl == (HGSMI_F_HOST_FIFO_ALLOCATED | HGSMI_F_HOST_FIFO_QUEUED));
 
-            /*
-             * Move the entry to the Read list.
-             */
-            RTListNodeRemove(&pEntry->nodeEntry);
+            /* Exclude from the FIFO. */
+            hgsmiListRemove (&pIns->hostFIFO, &pEntry->entry, NULL);
 
-            if (RTListIsEmpty(&pIns->hostFIFO))
+            if(!pIns->hostFIFO.pHead)
             {
                 ASMAtomicAndU32(&pIns->pHGFlags->u32HostFlags, (~HGSMIHOSTFLAGS_COMMANDS_PENDING));
             }
@@ -446,10 +458,11 @@ HGSMIOFFSET HGSMIHostRead (HGSMIINSTANCE *pIns)
             pEntry->fl &= ~HGSMI_F_HOST_FIFO_QUEUED;
             pEntry->fl |= HGSMI_F_HOST_FIFO_READ;
 
-            RTListAppend(&pIns->hostFIFORead, &pEntry->nodeEntry);
+            /* Save in the Read list. */
+            hgsmiListAppend (&pIns->hostFIFORead, &pEntry->entry);
 
             hgsmiFIFOUnlock(pIns);
-
+            Assert(pEntry->offBuffer != HGSMIOFFSET_VOID);
             /* Return the buffer offset of the host FIFO head. */
             return pEntry->offBuffer;
         }
@@ -471,15 +484,28 @@ static void hgsmiNotifyGuest (HGSMIINSTANCE *pIns)
 
 void HGSMISetHostGuestFlags(HGSMIINSTANCE *pIns, uint32_t flags)
 {
-    AssertPtrReturnVoid(pIns->pHGFlags);
     ASMAtomicOrU32(&pIns->pHGFlags->u32HostFlags, flags);
 }
 
 void HGSMIClearHostGuestFlags(HGSMIINSTANCE *pIns, uint32_t flags)
 {
-    AssertPtrReturnVoid(pIns->pHGFlags);
     ASMAtomicAndU32(&pIns->pHGFlags->u32HostFlags, (~flags));
 }
+
+#if 0
+static void hgsmiRaiseEvent (const HGSMIHOSTFIFOENTRY *pEntry)
+{
+    int rc = RTSemEventMultiSignal (pEntry->hEvent);
+    AssertRC(rc);
+}
+
+static int hgsmiWaitEvent (const HGSMIHOSTFIFOENTRY *pEntry)
+{
+    int rc = RTSemEventMultiWait (pEntry->hEvent, RT_INDEFINITE_WAIT);
+    AssertRC(rc);
+    return rc;
+}
+#endif
 
 /*
  * The host heap.
@@ -500,186 +526,6 @@ static void hgsmiHostHeapUnlock (HGSMIINSTANCE *pIns)
     AssertRC (rc);
 }
 
-static HGSMIOFFSET hgsmiHostHeapOffset(HGSMIHOSTHEAP *pHeap)
-{
-    return pHeap->area.offBase;
-}
-
-static HGSMISIZE hgsmiHostHeapSize(HGSMIHOSTHEAP *pHeap)
-{
-    return pHeap->area.cbArea;
-}
-
-static void *hgsmiHostHeapBufferAlloc(HGSMIHOSTHEAP *pHeap,
-                                      HGSMISIZE cbBuffer)
-{
-    void *pvBuf = NULL;
-
-    if (pHeap->u32HeapType == HGSMI_HEAP_TYPE_MA)
-    {
-        pvBuf = HGSMIMAAlloc(&pHeap->u.ma, cbBuffer);
-    }
-    else if (pHeap->u32HeapType == HGSMI_HEAP_TYPE_POINTER)
-    {
-        pvBuf = RTHeapSimpleAlloc(pHeap->u.legacy.u.hPtr, cbBuffer, 0);
-    }
-    else if (pHeap->u32HeapType == HGSMI_HEAP_TYPE_OFFSET)
-    {
-        pvBuf = RTHeapOffsetAlloc(pHeap->u.legacy.u.hOff, cbBuffer, 0);
-    }
-
-    if (pvBuf)
-    {
-        ++pHeap->cRefs;
-    }
-
-    return pvBuf;
-}
-
-static void hgsmiHostHeapBufferFree(HGSMIHOSTHEAP *pHeap,
-                                    void *pvBuf)
-{
-    if (pHeap->u32HeapType == HGSMI_HEAP_TYPE_MA)
-    {
-        HGSMIMAFree(&pHeap->u.ma, pvBuf);
-    }
-    else if (pHeap->u32HeapType == HGSMI_HEAP_TYPE_POINTER)
-    {
-        RTHeapSimpleFree(pHeap->u.legacy.u.hPtr, pvBuf);
-    }
-    else if (pHeap->u32HeapType == HGSMI_HEAP_TYPE_OFFSET)
-    {
-        RTHeapOffsetFree(pHeap->u.legacy.u.hOff, pvBuf);
-    }
-    --pHeap->cRefs;
-}
-
-static void *hgsmiHostHeapDataAlloc(HGSMIHOSTHEAP *pHeap,
-                                    HGSMISIZE cbData,
-                                    uint8_t u8Channel,
-                                    uint16_t u16ChannelInfo)
-{
-    HGSMISIZE cbAlloc = HGSMIBufferRequiredSize(cbData);
-    HGSMIBUFFERHEADER *pHeader = (HGSMIBUFFERHEADER *)hgsmiHostHeapBufferAlloc(pHeap, cbAlloc);
-    if (!pHeader)
-        return NULL;
-
-    HGSMIBufferInitializeSingle(&pHeap->area, pHeader, cbAlloc, u8Channel, u16ChannelInfo);
-
-    return HGSMIBufferDataFromPtr(pHeader);
-}
-
-static void hgsmiHostHeapDataFree(HGSMIHOSTHEAP *pHeap,
-                                  void *pvData)
-{
-    if (   pvData
-        && pHeap->u32HeapType != HGSMI_HEAP_TYPE_NULL)
-    {
-        HGSMIBUFFERHEADER *pHeader = HGSMIBufferHeaderFromData(pvData);
-        hgsmiHostHeapBufferFree(pHeap, pHeader);
-    }
-}
-
-/* Needed for heap relocation: offset of the heap handle relative to the start of heap area. */
-static HGSMIOFFSET hgsmiHostHeapHandleLocationOffset(HGSMIHOSTHEAP *pHeap)
-{
-    HGSMIOFFSET offHeapHandle;
-    if (pHeap->u32HeapType == HGSMI_HEAP_TYPE_POINTER)
-    {
-        offHeapHandle = (HGSMIOFFSET)((uintptr_t)pHeap->u.legacy.u.hPtr - (uintptr_t)pHeap->area.pu8Base);
-    }
-    else if (pHeap->u32HeapType == HGSMI_HEAP_TYPE_OFFSET)
-    {
-        offHeapHandle = (HGSMIOFFSET)((uintptr_t)pHeap->u.legacy.u.hOff - (uintptr_t)pHeap->area.pu8Base);
-    }
-    else
-    {
-        offHeapHandle = HGSMIOFFSET_VOID;
-    }
-    return offHeapHandle;
-}
-
-static int hgsmiHostHeapRelocate(HGSMIHOSTHEAP *pHeap,
-                                 uint32_t u32HeapType,
-                                 void *pvBase,
-                                 uint32_t offHeapHandle,
-                                 uintptr_t offDelta,
-                                 HGSMISIZE cbArea,
-                                 HGSMIOFFSET offBase)
-{
-    int rc = HGSMIAreaInitialize(&pHeap->area, pvBase, cbArea, offBase);
-    if (RT_SUCCESS(rc))
-    {
-        if (u32HeapType == HGSMI_HEAP_TYPE_OFFSET)
-        {
-            pHeap->u.legacy.u.hOff = (RTHEAPOFFSET)((uint8_t *)pvBase + offHeapHandle);
-        }
-        else if (u32HeapType == HGSMI_HEAP_TYPE_POINTER)
-        {
-            pHeap->u.legacy.u.hPtr = (RTHEAPSIMPLE)((uint8_t *)pvBase + offHeapHandle);
-            rc = RTHeapSimpleRelocate(pHeap->u.legacy.u.hPtr, offDelta); AssertRC(rc);
-        }
-        else
-        {
-            /* HGSMI_HEAP_TYPE_MA does not need the relocation. */
-            rc = VERR_NOT_SUPPORTED;
-        }
-
-        if (RT_SUCCESS(rc))
-        {
-            pHeap->u32HeapType = u32HeapType;
-        }
-        else
-        {
-            HGSMIAreaClear(&pHeap->area);
-        }
-    }
-
-    return rc;
-}
-
-static int hgsmiHostHeapRestoreMA(HGSMIHOSTHEAP *pHeap,
-                                  void *pvBase,
-                                  HGSMISIZE cbArea,
-                                  HGSMIOFFSET offBase,
-                                  uint32_t cBlocks,
-                                  HGSMIOFFSET *paDescriptors,
-                                  HGSMISIZE cbMaxBlock,
-                                  HGSMIENV *pEnv)
-{
-    int rc = HGSMIAreaInitialize(&pHeap->area, pvBase, cbArea, offBase);
-    if (RT_SUCCESS(rc))
-    {
-        rc = HGSMIMAInit(&pHeap->u.ma, &pHeap->area, paDescriptors, cBlocks, cbMaxBlock, pEnv);
-
-        if (RT_SUCCESS(rc))
-        {
-            pHeap->u32HeapType = HGSMI_HEAP_TYPE_MA;
-        }
-        else
-        {
-            HGSMIAreaClear(&pHeap->area);
-        }
-    }
-
-    return rc;
-}
-
-static void hgsmiHostHeapSetupUninitialized(HGSMIHOSTHEAP *pHeap)
-{
-    RT_ZERO(*pHeap);
-    pHeap->u32HeapType = HGSMI_HEAP_TYPE_NULL;
-}
-
-static void hgsmiHostHeapDestroy(HGSMIHOSTHEAP *pHeap)
-{
-    if (pHeap->u32HeapType == HGSMI_HEAP_TYPE_MA)
-    {
-        HGSMIMAUninit(&pHeap->u.ma);
-    }
-    hgsmiHostHeapSetupUninitialized(pHeap);
-}
-
 static int hgsmiHostFIFOAlloc (HGSMIINSTANCE *pIns, HGSMIHOSTFIFOENTRY **ppEntry)
 {
     int rc = VINF_SUCCESS;
@@ -691,6 +537,14 @@ static int hgsmiHostFIFOAlloc (HGSMIINSTANCE *pIns, HGSMIHOSTFIFOENTRY **ppEntry
     if (pEntry)
     {
         pEntry->fl = HGSMI_F_HOST_FIFO_ALLOCATED;
+#if 0
+        rc = RTSemEventMultiCreate (&pEntry->hEvent);
+
+        if (RT_FAILURE (rc))
+        {
+            RTMemFree (pEntry);
+        }
+#endif
     }
     else
     {
@@ -708,125 +562,169 @@ static int hgsmiHostFIFOAlloc (HGSMIINSTANCE *pIns, HGSMIHOSTFIFOENTRY **ppEntry
 static void hgsmiHostFIFOFree (HGSMIINSTANCE *pIns, HGSMIHOSTFIFOENTRY *pEntry)
 {
     NOREF (pIns);
+#if 0
+    if (pEntry->hEvent)
+    {
+        RTSemEventMultiDestroy (pEntry->hEvent);
+    }
+#endif
     RTMemFree (pEntry);
 }
 
 static int hgsmiHostCommandFreeByEntry (HGSMIHOSTFIFOENTRY *pEntry)
 {
-    LogFlowFunc(("offBuffer 0x%08X\n", pEntry->offBuffer));
-
     HGSMIINSTANCE *pIns = pEntry->pIns;
     int rc = hgsmiFIFOLock (pIns);
     if(RT_SUCCESS(rc))
     {
-        RTListNodeRemove(&pEntry->nodeEntry);
+        hgsmiListRemove (&pIns->hostFIFOProcessed, &pEntry->entry, NULL);
         hgsmiFIFOUnlock (pIns);
 
-        void *pvData = HGSMIBufferDataFromOffset(&pIns->hostHeap.area, pEntry->offBuffer);
+        void *pvMem = HGSMIBufferDataFromOffset(&pIns->area, pEntry->offBuffer);
 
         rc = hgsmiHostHeapLock (pIns);
         if(RT_SUCCESS(rc))
         {
             /* Deallocate the host heap memory. */
-            hgsmiHostHeapDataFree(&pIns->hostHeap, pvData);
+            HGSMIHeapFree (&pIns->hostHeap, pvMem);
 
             hgsmiHostHeapUnlock(pIns);
         }
 
         hgsmiHostFIFOFree (pIns, pEntry);
     }
-
-    LogFlowFunc(("%Rrc\n", rc));
     return rc;
 }
 
-static int hgsmiHostCommandFree(HGSMIINSTANCE *pIns,
-                                void *pvData)
+static int hgsmiHostCommandFree (HGSMIINSTANCE *pIns,
+                                                void *pvMem)
 {
-    HGSMIOFFSET offBuffer = HGSMIBufferOffsetFromData(&pIns->hostHeap.area, pvData);
-    HGSMIHOSTFIFOENTRY *pEntry = NULL;
-
-    int rc = hgsmiFIFOLock(pIns);
-    if (RT_SUCCESS(rc))
+    HGSMIOFFSET offMem = HGSMIHeapBufferOffset (&pIns->hostHeap, pvMem);
+    int rc = VINF_SUCCESS;
+    if (offMem != HGSMIOFFSET_VOID)
     {
-        /* Search the Processed list for the given offBuffer. */
-        HGSMIHOSTFIFOENTRY *pIter;
-        RTListForEach(&pIns->hostFIFOProcessed, pIter, HGSMIHOSTFIFOENTRY, nodeEntry)
+        rc = hgsmiFIFOLock (pIns);
+        if(RT_SUCCESS(rc))
         {
-            Assert(pIter->fl == (HGSMI_F_HOST_FIFO_ALLOCATED | HGSMI_F_HOST_FIFO_PROCESSED));
+            /* Search the Processed list for the given offMem. Also find the previous entry. */
+            HGSMIHOSTFIFOENTRY *pEntry = HGSMILISTENTRY_2_FIFOENTRY(pIns->hostFIFOProcessed.pHead);
+            HGSMIHOSTFIFOENTRY *pPrev = NULL;
 
-            if (pIter->offBuffer == offBuffer)
+            while (pEntry)
             {
-                pEntry = pIter;
-                break;
+                Assert(pEntry->fl == (HGSMI_F_HOST_FIFO_ALLOCATED | HGSMI_F_HOST_FIFO_PROCESSED));
+
+                if (pEntry->offBuffer == offMem)
+                {
+                    break;
+                }
+
+                pPrev = pEntry;
+                pEntry = HGSMILISTENTRY_2_FIFOENTRY(pEntry->entry.pNext);
+            }
+
+            if (pEntry)
+            {
+                /* Exclude from the Processed list. */
+                hgsmiListRemove (&pIns->hostFIFOProcessed, &pEntry->entry, &pPrev->entry);
+            }
+            else
+            {
+                LogRel(("HGSMI[%s]: the host frees unprocessed FIFO entry: 0x%08X\n", pIns->pszName, offMem));
+                AssertFailed ();
+            }
+
+
+            hgsmiFIFOUnlock (pIns);
+
+            rc = hgsmiHostHeapLock (pIns);
+            if(RT_SUCCESS(rc))
+            {
+                /* Deallocate the host heap memory. */
+                HGSMIHeapFree (&pIns->hostHeap, pvMem);
+
+                hgsmiHostHeapUnlock(pIns);
+            }
+
+            if(pEntry)
+            {
+                /* Deallocate the entry. */
+                hgsmiHostFIFOFree (pIns, pEntry);
             }
         }
 
-        if (pEntry)
-        {
-            RTListNodeRemove(&pEntry->nodeEntry);
-        }
-        else
-        {
-            AssertLogRelMsgFailed(("HGSMI[%s]: the host frees unprocessed FIFO entry: 0x%08X\n",
-                                   pIns->pszName, offBuffer));
-        }
-
-        hgsmiFIFOUnlock (pIns);
-
-        rc = hgsmiHostHeapLock (pIns);
-        if (RT_SUCCESS(rc))
-        {
-            /* Deallocate the host heap memory. */
-            hgsmiHostHeapDataFree(&pIns->hostHeap, pvData);
-
-            hgsmiHostHeapUnlock(pIns);
-        }
-
-        if (pEntry)
-        {
-            /* Deallocate the entry. */
-            hgsmiHostFIFOFree(pIns, pEntry);
-        }
     }
-
+    else
+    {
+        rc = VERR_INVALID_POINTER;
+        LogRel(("HGSMI[%s]: the host frees invalid FIFO entry: %p\n", pIns->pszName, pvMem));
+        AssertFailed ();
+    }
     return rc;
 }
+
+#define HGSMI_SET_COMMAND_PROCESSED_STATE(_pe) \
+{ \
+    Assert((_pe)->entry.pNext == NULL); \
+    Assert((_pe)->fl == (HGSMI_F_HOST_FIFO_ALLOCATED | HGSMI_F_HOST_FIFO_PROCESSED)); \
+}
+
+#if 0
+static DECLCALLBACK(void) hgsmiHostCommandRaiseEventCallback (void *pvCallback)
+{
+    /* Guest has processed the command. */
+    HGSMIHOSTFIFOENTRY *pEntry = (HGSMIHOSTFIFOENTRY *)pvCallback;
+
+    HGSMI_SET_COMMAND_PROCESSED_STATE(pEntry);
+
+    /* This is a simple callback, just signal the event. */
+    hgsmiRaiseEvent (pEntry);
+}
+#endif
 
 static DECLCALLBACK(void) hgsmiHostCommandFreeCallback (void *pvCallback)
 {
     /* Guest has processed the command. */
     HGSMIHOSTFIFOENTRY *pEntry = (HGSMIHOSTFIFOENTRY *)pvCallback;
 
-    Assert(pEntry->fl == (HGSMI_F_HOST_FIFO_ALLOCATED | HGSMI_F_HOST_FIFO_PROCESSED));
+    HGSMI_SET_COMMAND_PROCESSED_STATE(pEntry);
 
     /* This is a simple callback, just signal the event. */
     hgsmiHostCommandFreeByEntry (pEntry);
 }
 
-static int hgsmiHostCommandWrite(HGSMIINSTANCE *pIns,
-                                 HGSMIOFFSET offBuffer)
+static int hgsmiHostCommandWrite (HGSMIINSTANCE *pIns, HGSMIOFFSET offMem
+#if 0
+        , PFNHGSMIHOSTFIFOCALLBACK pfnCallback, void **ppvContext
+#endif
+        )
 {
-    AssertPtrReturn(pIns->pHGFlags, VERR_WRONG_ORDER);
-
     HGSMIHOSTFIFOENTRY *pEntry;
-    int rc = hgsmiHostFIFOAlloc(pIns, &pEntry);
 
-    if (RT_SUCCESS(rc))
+    int rc = hgsmiHostFIFOAlloc (pIns, &pEntry);
+
+    if (RT_SUCCESS (rc))
     {
         /* Initialize the new entry and add it to the FIFO. */
         pEntry->fl |= HGSMI_F_HOST_FIFO_QUEUED;
 
         pEntry->pIns = pIns;
-        pEntry->offBuffer = offBuffer;
+        pEntry->offBuffer = offMem;
+#if 0
+        pEntry->pfnCallback = pfnCallback;
+        pEntry->pvCallback = pEntry;
+#endif
 
         rc = hgsmiFIFOLock(pIns);
-        if (RT_SUCCESS(rc))
+        if (RT_SUCCESS (rc))
         {
+            hgsmiListAppend (&pIns->hostFIFO, &pEntry->entry);
             ASMAtomicOrU32(&pIns->pHGFlags->u32HostFlags, HGSMIHOSTFLAGS_COMMANDS_PENDING);
-            RTListAppend(&pIns->hostFIFO, &pEntry->nodeEntry);
 
             hgsmiFIFOUnlock(pIns);
+#if 0
+            *ppvContext = pEntry;
+#endif
         }
         else
         {
@@ -841,74 +739,104 @@ static int hgsmiHostCommandWrite(HGSMIINSTANCE *pIns,
 /**
  * Append the shared memory block to the FIFO, inform the guest.
  *
- * @param pIns       Pointer to HGSMI instance.
- * @param pvData     The shared memory block data pointer.
- * @param fDoIrq     Whether the guest interrupt should be generated, i.e. if the command is not
- *                   urgent (e.g. some guest command completion notification that does not require
- *                   post-processing) the command could be submitted without raising an irq.
+ * @param pIns       Pointer to HGSMI instance,
+ * @param pv         The HC memory pointer to the information.
+ * @param ppvContext Where to store a pointer, which will allow the caller
+ *                   to wait for the command completion.
+ * @param            bDoIrq specifies whether the guest interrupt should be generated,
+ * i.e. in case the command is not urgent(e.g. some guest command completion notification that does not require post-processing)
+ * the command could be posted without raising an irq.
+ *
  * @thread EMT
  */
-static int hgsmiHostCommandSubmit(HGSMIINSTANCE *pIns,
-                                  void *pvData,
-                                  bool fDoIrq)
+static int hgsmiHostCommandProcess (HGSMIINSTANCE *pIns, HGSMIOFFSET offBuffer,
+#if 0
+        PFNHGSMIHOSTFIFOCALLBACK pfnCallback, void **ppvContext,
+#endif
+        bool bDoIrq)
 {
-    /* Append the command to FIFO. */
-    HGSMIOFFSET offBuffer = HGSMIBufferOffsetFromData(&pIns->hostHeap.area, pvData);
-    int rc = hgsmiHostCommandWrite(pIns, offBuffer);
-    if (RT_SUCCESS(rc))
-    {
-        if (fDoIrq)
+//    HGSMIOFFSET offMem;
+//
+//    int rc = hgsmiCheckMemPtr (pIns, pvMem, &offMem);
+//
+//    if (RT_SUCCESS (rc))
+//    {
+        /* Append the command to FIFO. */
+        int rc = hgsmiHostCommandWrite (pIns, offBuffer
+#if 0
+                , pfnCallback, ppvContext
+#endif
+                );
+
+        if (RT_SUCCESS (rc))
         {
-            /* Now guest can read the FIFO, the notification is informational. */
-            hgsmiNotifyGuest(pIns);
+            if(bDoIrq)
+            {
+                /* Now guest can read the FIFO, the notification is informational. */
+                hgsmiNotifyGuest (pIns);
+            }
         }
-    }
+//    }
+//    else
+//    {
+//        AssertFailed ();
+//    }
 
     return rc;
 }
-
-/**
- * Allocate a shared memory buffer. The host can write command/data to the memory.
- * The allocated buffer contains the 'header', 'data' and the 'tail', but *ppvData
- * will point to the 'data'.
- *
- * @return VBox status code. Pointer to the payload data in *ppvData.
- * @param pIns           HGSMI instance,
- * @param ppvData        Where to store the allocated memory pointer to data.
- * @param cbData         How many bytes of data to allocate.
- * @param u8Channel      HGSMI channel.
- * @param u16ChannelInfo Command parameter.
- */
-int HGSMIHostCommandAlloc(HGSMIINSTANCE *pIns,
-                          void **ppvData,
-                          HGSMISIZE cbData,
-                          uint8_t u8Channel,
-                          uint16_t u16ChannelInfo)
+#if 0
+static void hgsmiWait (void *pvContext)
 {
-    LogFlowFunc(("pIns = %p, cbData = %d, u8Channel %d, u16ChannelInfo 0x%04X\n",
-                 pIns, cbData, u8Channel, u16ChannelInfo));
+    HGSMIHOSTFIFOENTRY *pEntry = (HGSMIHOSTFIFOENTRY *)pvContext;
 
-    int rc = hgsmiHostHeapLock(pIns);
-    if (RT_SUCCESS(rc))
+    for (;;)
     {
-        void *pvData = hgsmiHostHeapDataAlloc(&pIns->hostHeap,
-                                              cbData,
-                                              u8Channel,
-                                              u16ChannelInfo);
+        hgsmiWaitEvent (pEntry);
+
+        if (pEntry->fl & (HGSMI_F_HOST_FIFO_PROCESSED | HGSMI_F_HOST_FIFO_CANCELED))
+        {
+            return;
+        }
+    }
+}
+#endif
+/**
+ * Allocate a shared memory block. The host can write command/data to the memory.
+ *
+ * @param pIns   Pointer to HGSMI instance,
+ * @param ppvMem Where to store the allocated memory pointer to data.
+ * @param cbMem  How many bytes of data to allocate.
+ */
+int HGSMIHostCommandAlloc (HGSMIINSTANCE *pIns,
+                           void **ppvMem,
+                           HGSMISIZE cbMem,
+                           uint8_t u8Channel,
+                           uint16_t u16ChannelInfo)
+{
+    LogFlowFunc (("pIns = %p, cbMem = 0x%08X(%d)\n", pIns, cbMem, cbMem));
+
+    int rc = hgsmiHostHeapLock (pIns);
+    if(RT_SUCCESS(rc))
+    {
+        void *pvMem = HGSMIHeapAlloc (&pIns->hostHeap,
+                                  cbMem,
+                                  u8Channel,
+                                  u16ChannelInfo);
         hgsmiHostHeapUnlock(pIns);
 
-        if (pvData)
+        if (pvMem)
         {
-            *ppvData = pvData;
+            *ppvMem = pvMem;
         }
         else
         {
-            LogRel(("HGSMI[%s]: host heap allocation failed %d bytes\n", pIns->pszName, cbData));
-            rc = VERR_NO_MEMORY;
+            LogRel((0, "HGSMIHeapAlloc: HGSMIHeapAlloc failed\n"));
+            rc = VERR_GENERAL_FAILURE;
         }
     }
 
-    LogFlowFunc(("%Rrc, pvData = %p\n", rc, *ppvData));
+    LogFlowFunc (("rc = %Rrc, pvMem = %p\n", rc, *ppvMem));
+
     return rc;
 }
 
@@ -916,102 +844,110 @@ int HGSMIHostCommandAlloc(HGSMIINSTANCE *pIns,
  * Convenience function that allows posting the host command asynchronously
  * and make it freed on completion.
  * The caller does not get notified in any way on command completion,
- * on successful return the pvData buffer can not be used after being passed to this function.
+ * on success return the pvMem buffer can not be used after being passed to this function
  *
- * @param pIns   HGSMI instance,
- * @param pvData The pointer returned by 'HGSMIHostCommandAlloc'.
- * @param fDoIrq Specifies whether the guest interrupt should be generated.
- *               In case the command is not urgent (e.g. some guest command
- *               completion notification that does not require post-processing)
- *               the command could be posted without raising an irq.
+ * @param pIns  Pointer to HGSMI instance,
+ * @param pvMem The pointer returned by 'HGSMIHostCommandAlloc'.
+ * @param bDoIrq specifies whether the guest interrupt should be generated,
+ * i.e. in case the command is not urgent(e.g. some guest command completion notification that does not require post-processing)
+ * the command could be posted without raising an irq.
  */
-int HGSMIHostCommandSubmitAndFreeAsynch(PHGSMIINSTANCE pIns,
-                                        void *pvData,
-                                        bool fDoIrq)
+int HGSMIHostCommandProcessAndFreeAsynch (PHGSMIINSTANCE pIns,
+                             void *pvMem,
+                             bool bDoIrq)
 {
-    LogFlowFunc(("pIns = %p, pvData = %p, fDoIrq = %d\n", pIns, pvData, fDoIrq));
+    LogFlowFunc(("pIns = %p, pvMem = %p\n", pIns, pvMem));
 
-    int rc;
-    if (HGSMIAreaContainsPointer(&pIns->hostHeap.area, pvData))
+#if 0
+    void *pvContext = NULL;
+#endif
+
+    HGSMIOFFSET offBuffer = HGSMIHeapBufferOffset (&pIns->hostHeap, pvMem);
+
+    int rc = hgsmiHostCommandProcess (pIns, offBuffer,
+#if 0
+            hgsmiHostCommandFreeCallback, &pvContext,
+#endif
+            bDoIrq);
+    AssertRC (rc);
+
+    LogFlowFunc(("rc = %Rrc\n", rc));
+
+    return rc;
+}
+#if 0
+/**
+ * Submit the shared memory block to the guest.
+ *
+ * @param pIns  Pointer to HGSMI instance,
+ * @param pvMem The pointer returned by 'HGSMIHostCommandAlloc'.
+ */
+int HGSMIHostCommandProcess (HGSMIINSTANCE *pIns,
+                             void *pvMem)
+{
+    LogFlowFunc(("pIns = %p, pvMem = %p\n", pIns, pvMem));
+
+    VM_ASSERT_OTHER_THREAD(pIns->pVM);
+
+    void *pvContext = NULL;
+
+    HGSMIOFFSET offBuffer = HGSMIHeapBufferOffset (&pIns->hostHeap, pvMem);
+
+//    /* Have to forward to EMT because FIFO processing is there. */
+//    int rc = VMR3ReqCallVoid (pIns->pVM, &pReq, RT_INDEFINITE_WAIT,
+//                              (PFNRT) hgsmiHostCommandProcess,
+//                              3, pIns, offBuffer, &pvContext);
+
+    int rc = hgsmiHostCommandProcess (pIns, offBuffer,
+#if 0
+            hgsmiHostCommandRaiseEventCallback, &pvContext,
+#endif
+            true);
+    AssertReleaseRC (rc);
+
+    if (RT_SUCCESS (rc))
     {
-        rc = hgsmiHostCommandSubmit(pIns, pvData, fDoIrq);
-    }
-    else
-    {
-        AssertLogRelMsgFailed(("HGSMI[%s]: host submits invalid command %p/%p\n",
-                               pIns->pszName, pvData, pIns->hostHeap.area.pu8Base));
-        rc = VERR_INVALID_POINTER;
+        /* Wait for completion. */
+        hgsmiWait (pvContext);
     }
 
     LogFlowFunc(("rc = %Rrc\n", rc));
+
     return rc;
 }
+#endif
 
 /**
  * Free the shared memory block.
  *
- * @param pIns   Pointer to HGSMI instance,
- * @param pvData The pointer returned by 'HGSMIHostCommandAlloc'.
+ * @param pIns  Pointer to HGSMI instance,
+ * @param pvMem The pointer returned by 'HGSMIHostCommandAlloc'.
  */
-int HGSMIHostCommandFree(HGSMIINSTANCE *pIns,
-                         void *pvData)
+int HGSMIHostCommandFree (HGSMIINSTANCE *pIns,
+                          void *pvMem)
 {
-    LogFlowFunc(("pIns = %p, pvData = %p\n", pIns, pvData));
+    LogFlowFunc(("pIns = %p, pvMem = %p\n", pIns, pvMem));
 
-    int rc;
-    if (HGSMIAreaContainsPointer(&pIns->hostHeap.area, pvData))
-    {
-        rc = hgsmiHostCommandFree(pIns, pvData);
-    }
-    else
-    {
-        AssertLogRelMsgFailed(("HGSMI[%s]: the host frees invalid FIFO entry %p/%p\n",
-                               pIns->pszName, pvData, pIns->hostHeap.area.pu8Base));
-        rc = VERR_INVALID_POINTER;
-    }
-
-    LogFlowFunc(("rc = %Rrc\n", rc));
-    return rc;
+    return hgsmiHostCommandFree (pIns, pvMem);
 }
 
-static DECLCALLBACK(void *) hgsmiEnvAlloc(void *pvEnv, HGSMISIZE cb)
-{
-    NOREF(pvEnv);
-    return RTMemAlloc(cb);
-}
-
-static DECLCALLBACK(void) hgsmiEnvFree(void *pvEnv, void *pv)
-{
-    NOREF(pvEnv);
-    RTMemFree(pv);
-}
-
-static HGSMIENV g_hgsmiEnv =
-{
-    NULL,
-    hgsmiEnvAlloc,
-    hgsmiEnvFree
-};
-
-int HGSMIHostHeapSetup(PHGSMIINSTANCE pIns,
-                       HGSMIOFFSET    offHeap,
-                       HGSMISIZE      cbHeap)
+int HGSMISetupHostHeap (PHGSMIINSTANCE pIns,
+                        HGSMIOFFSET    offHeap,
+                        HGSMISIZE      cbHeap)
 {
     LogFlowFunc(("pIns %p, offHeap 0x%08X, cbHeap = 0x%08X\n", pIns, offHeap, cbHeap));
 
     int rc = VINF_SUCCESS;
 
-    AssertPtrReturn(pIns, VERR_INVALID_PARAMETER);
+    Assert (pIns);
 
-    if (   offHeap >= pIns->area.cbArea
-        || cbHeap > pIns->area.cbArea
-        || offHeap > pIns->area.cbArea - cbHeap)
-    {
-        AssertLogRelMsgFailed(("offHeap 0x%08X, cbHeap = 0x%08X, pIns->area.cbArea 0x%08X\n",
-                               offHeap, cbHeap, pIns->area.cbArea));
-        rc = VERR_INVALID_PARAMETER;
-    }
-    else
+//    if (   offHeap >= pIns->cbMem
+//        || cbHeap > pIns->cbMem
+//        || offHeap + cbHeap > pIns->cbMem)
+//    {
+//        rc = VERR_INVALID_PARAMETER;
+//    }
+//    else
     {
         rc = hgsmiHostHeapLock (pIns);
 
@@ -1019,27 +955,17 @@ int HGSMIHostHeapSetup(PHGSMIINSTANCE pIns,
         {
             if (pIns->hostHeap.cRefs)
             {
-                AssertLogRelMsgFailed(("HGSMI[%s]: host heap setup ignored. %d allocated.\n",
-                                       pIns->pszName, pIns->hostHeap.cRefs));
+                AssertFailed();
                 /* It is possible to change the heap only if there is no pending allocations. */
                 rc = VERR_ACCESS_DENIED;
             }
             else
             {
-                rc = HGSMIAreaInitialize(&pIns->hostHeap.area, pIns->area.pu8Base + offHeap, cbHeap, offHeap);
-                if (RT_SUCCESS(rc))
-                {
-                    rc = HGSMIMAInit(&pIns->hostHeap.u.ma, &pIns->hostHeap.area, NULL, 0, 0, &g_hgsmiEnv);
-                }
-
-                if (RT_SUCCESS(rc))
-                {
-                    pIns->hostHeap.u32HeapType = HGSMI_HEAP_TYPE_MA;
-                }
-                else
-                {
-                    HGSMIAreaClear(&pIns->hostHeap.area);
-                }
+                rc = HGSMIHeapSetup (&pIns->hostHeap,
+                                     pIns->area.pu8Base+offHeap,
+                                     cbHeap,
+                                     offHeap,
+                                     true /*fOffsetBased*/);
             }
 
             hgsmiHostHeapUnlock (pIns);
@@ -1051,30 +977,26 @@ int HGSMIHostHeapSetup(PHGSMIINSTANCE pIns,
     return rc;
 }
 
-static int hgsmiHostSaveFifoLocked(RTLISTANCHOR *pList, PSSMHANDLE pSSM)
+static int hgsmiHostSaveFifoEntryLocked (HGSMIHOSTFIFOENTRY *pEntry, PSSMHANDLE pSSM)
+{
+    SSMR3PutU32 (pSSM, pEntry->fl);
+    return SSMR3PutU32 (pSSM, pEntry->offBuffer);
+}
+
+static int hgsmiHostSaveFifoLocked (HGSMILIST * pFifo, PSSMHANDLE pSSM)
 {
     VBOXHGSMI_SAVE_FIFOSTART(pSSM);
-
-    HGSMIHOSTFIFOENTRY *pIter;
-
-    uint32_t cEntries = 0;
-    RTListForEach(pList, pIter, HGSMIHOSTFIFOENTRY, nodeEntry)
+    uint32_t size = 0;
+    for(HGSMILISTENTRY * pEntry = pFifo->pHead; pEntry; pEntry = pEntry->pNext)
     {
-        ++cEntries;
+        ++size;
     }
+    int rc = SSMR3PutU32 (pSSM, size);
 
-    int rc = SSMR3PutU32(pSSM, cEntries);
-    if (RT_SUCCESS(rc))
+    for(HGSMILISTENTRY * pEntry = pFifo->pHead; pEntry && RT_SUCCESS(rc); pEntry = pEntry->pNext)
     {
-        RTListForEach(pList, pIter, HGSMIHOSTFIFOENTRY, nodeEntry)
-        {
-            SSMR3PutU32(pSSM, pIter->fl);
-            rc = SSMR3PutU32(pSSM, pIter->offBuffer);
-            if (RT_FAILURE(rc))
-            {
-                break;
-            }
-        }
+        HGSMIHOSTFIFOENTRY *pFifoEntry = HGSMILISTENTRY_2_FIFOENTRY(pEntry);
+        rc = hgsmiHostSaveFifoEntryLocked (pFifoEntry, pSSM);
     }
 
     VBOXHGSMI_SAVE_FIFOSTOP(pSSM);
@@ -1082,28 +1004,25 @@ static int hgsmiHostSaveFifoLocked(RTLISTANCHOR *pList, PSSMHANDLE pSSM)
     return rc;
 }
 
-static int hgsmiHostSaveGuestCmdCompletedFifoLocked(RTLISTANCHOR *pList, PSSMHANDLE pSSM)
+static int hgsmiHostSaveGuestCmdCompletedFifoEntryLocked (HGSMIGUESTCOMPLENTRY *pEntry, PSSMHANDLE pSSM)
+{
+    return SSMR3PutU32 (pSSM, pEntry->offBuffer);
+}
+
+static int hgsmiHostSaveGuestCmdCompletedFifoLocked (HGSMILIST * pFifo, PSSMHANDLE pSSM)
 {
     VBOXHGSMI_SAVE_FIFOSTART(pSSM);
-
-    HGSMIGUESTCOMPLENTRY *pIter;
-
-    uint32_t cEntries = 0;
-    RTListForEach(pList, pIter, HGSMIGUESTCOMPLENTRY, nodeEntry)
+    uint32_t size = 0;
+    for(HGSMILISTENTRY * pEntry = pFifo->pHead; pEntry; pEntry = pEntry->pNext)
     {
-        ++cEntries;
+        ++size;
     }
-    int rc = SSMR3PutU32(pSSM, cEntries);
-    if (RT_SUCCESS(rc))
+    int rc = SSMR3PutU32 (pSSM, size);
+
+    for(HGSMILISTENTRY * pEntry = pFifo->pHead; pEntry && RT_SUCCESS(rc); pEntry = pEntry->pNext)
     {
-        RTListForEach(pList, pIter, HGSMIGUESTCOMPLENTRY, nodeEntry)
-        {
-            rc = SSMR3PutU32(pSSM, pIter->offBuffer);
-            if (RT_FAILURE(rc))
-            {
-                break;
-            }
-        }
+        HGSMIGUESTCOMPLENTRY *pFifoEntry = HGSMILISTENTRY_2_HGSMIGUESTCOMPLENTRY(pEntry);
+        rc = hgsmiHostSaveGuestCmdCompletedFifoEntryLocked (pFifoEntry, pSSM);
     }
 
     VBOXHGSMI_SAVE_FIFOSTOP(pSSM);
@@ -1131,22 +1050,20 @@ static int hgsmiHostLoadFifoEntryLocked (PHGSMIINSTANCE pIns, HGSMIHOSTFIFOENTRY
     return rc;
 }
 
-static int hgsmiHostLoadFifoLocked(PHGSMIINSTANCE pIns, RTLISTANCHOR *pList, PSSMHANDLE pSSM)
+static int hgsmiHostLoadFifoLocked (PHGSMIINSTANCE pIns, HGSMILIST * pFifo, PSSMHANDLE pSSM)
 {
     VBOXHGSMI_LOAD_FIFOSTART(pSSM);
 
-    uint32_t cEntries = 0;
-    int rc = SSMR3GetU32(pSSM, &cEntries);
-    if (RT_SUCCESS(rc) && cEntries)
+    uint32_t size;
+    int rc = SSMR3GetU32 (pSSM, &size); AssertRC(rc);
+    if(RT_SUCCESS(rc) && size)
     {
-        uint32_t i;
-        for (i = 0; i < cEntries; ++i)
+        for(uint32_t i = 0; i < size; ++i)
         {
-            HGSMIHOSTFIFOENTRY *pEntry = NULL;
-            rc = hgsmiHostLoadFifoEntryLocked(pIns, &pEntry, pSSM);
+            HGSMIHOSTFIFOENTRY *pFifoEntry = NULL;  /* initialized to shut up gcc */
+            rc = hgsmiHostLoadFifoEntryLocked (pIns, &pFifoEntry, pSSM);
             AssertRCBreak(rc);
-
-            RTListAppend(pList, &pEntry->nodeEntry);
+            hgsmiListAppend (pFifo, &pFifoEntry->entry);
         }
     }
 
@@ -1170,103 +1087,40 @@ static int hgsmiHostLoadGuestCmdCompletedFifoEntryLocked (PHGSMIINSTANCE pIns, H
     return rc;
 }
 
-static int hgsmiHostLoadGuestCmdCompletedFifoLocked(PHGSMIINSTANCE pIns, RTLISTANCHOR *pList, PSSMHANDLE pSSM, uint32_t u32Version)
+static int hgsmiHostLoadGuestCmdCompletedFifoLocked (PHGSMIINSTANCE pIns, HGSMILIST * pFifo, PSSMHANDLE pSSM, uint32_t u32Version)
 {
     VBOXHGSMI_LOAD_FIFOSTART(pSSM);
 
-    uint32_t i;
-
-    uint32_t cEntries = 0;
-    int rc = SSMR3GetU32(pSSM, &cEntries);
-    if (RT_SUCCESS(rc) && cEntries)
+    uint32_t size;
+    int rc = SSMR3GetU32 (pSSM, &size); AssertRC(rc);
+    if(RT_SUCCESS(rc) && size)
     {
         if (u32Version > VGA_SAVEDSTATE_VERSION_INV_GCMDFIFO)
         {
-            for (i = 0; i < cEntries; ++i)
+            for(uint32_t i = 0; i < size; ++i)
             {
-                HGSMIGUESTCOMPLENTRY *pEntry = NULL;
-                rc = hgsmiHostLoadGuestCmdCompletedFifoEntryLocked(pIns, &pEntry, pSSM);
+                HGSMIGUESTCOMPLENTRY *pFifoEntry = NULL;  /* initialized to shut up gcc */
+                rc = hgsmiHostLoadGuestCmdCompletedFifoEntryLocked (pIns, &pFifoEntry, pSSM);
                 AssertRCBreak(rc);
-
-                RTListAppend(pList, &pEntry->nodeEntry);
+                hgsmiListAppend (pFifo, &pFifoEntry->entry);
             }
         }
         else
         {
             LogRel(("WARNING: the current saved state version has some 3D support data missing, "
                     "which may lead to some guest applications function improperly"));
-
-            /* Just read out all invalid data and discard it. */
-            for (i = 0; i < cEntries; ++i)
+            /* just read out all invalid data and discard it */
+            for(uint32_t i = 0; i < size; ++i)
             {
-                HGSMIHOSTFIFOENTRY *pEntry = NULL;
-                rc = hgsmiHostLoadFifoEntryLocked(pIns, &pEntry, pSSM);
+                HGSMIHOSTFIFOENTRY *pFifoEntry = NULL;  /* initialized to shut up gcc */
+                rc = hgsmiHostLoadFifoEntryLocked (pIns, &pFifoEntry, pSSM);
                 AssertRCBreak(rc);
-
-                hgsmiHostFIFOFree(pIns, pEntry);
+                hgsmiHostFIFOFree (pIns, pFifoEntry);
             }
         }
     }
 
     VBOXHGSMI_LOAD_FIFOSTOP(pSSM);
-
-    return rc;
-}
-
-static int hgsmiHostSaveMA(PSSMHANDLE pSSM, HGSMIMADATA *pMA)
-{
-    int rc = SSMR3PutU32(pSSM, pMA->cBlocks);
-    if (RT_SUCCESS(rc))
-    {
-        HGSMIMABLOCK *pIter;
-        RTListForEach(&pMA->listBlocks, pIter, HGSMIMABLOCK, nodeBlock)
-        {
-            SSMR3PutU32(pSSM, pIter->descriptor);
-        }
-
-        rc = SSMR3PutU32(pSSM, pMA->cbMaxBlock);
-    }
-
-    return rc;
-}
-
-static int hgsmiHostLoadMA(PSSMHANDLE pSSM, uint32_t *pcBlocks, HGSMIOFFSET **ppaDescriptors, HGSMISIZE *pcbMaxBlock)
-{
-    int rc = SSMR3GetU32(pSSM, pcBlocks);
-    if (RT_SUCCESS(rc))
-    {
-        HGSMIOFFSET *paDescriptors = NULL;
-        if (*pcBlocks > 0)
-        {
-            paDescriptors = (HGSMIOFFSET *)RTMemAlloc(*pcBlocks * sizeof(HGSMIOFFSET));
-            if (paDescriptors)
-            {
-                uint32_t i;
-                for (i = 0; i < *pcBlocks; ++i)
-                {
-                    SSMR3GetU32(pSSM, &paDescriptors[i]);
-                }
-            }
-            else
-            {
-                rc = VERR_NO_MEMORY;
-            }
-        }
-
-        if (RT_SUCCESS(rc))
-        {
-            rc = SSMR3GetU32(pSSM, pcbMaxBlock);
-        }
-
-        if (RT_SUCCESS(rc))
-        {
-            *ppaDescriptors = paDescriptors;
-        }
-        else
-        {
-            RTMemFree(paDescriptors);
-        }
-    }
 
     return rc;
 }
@@ -1277,19 +1131,17 @@ int HGSMIHostSaveStateExec (PHGSMIINSTANCE pIns, PSSMHANDLE pSSM)
 
     int rc;
 
-    SSMR3PutU32(pSSM, pIns->hostHeap.u32HeapType);
+    SSMR3PutU32(pSSM, pIns->hostHeap.fOffsetBased ? HGSMI_HEAP_TYPE_OFFSET : HGSMI_HEAP_TYPE_POINTER);
 
     HGSMIOFFSET off = pIns->pHGFlags ? HGSMIPointerToOffset(&pIns->area, (const HGSMIBUFFERHEADER *)pIns->pHGFlags) : HGSMIOFFSET_VOID;
     SSMR3PutU32 (pSSM, off);
 
-    off = pIns->hostHeap.u32HeapType == HGSMI_HEAP_TYPE_MA?
-              0:
-              hgsmiHostHeapHandleLocationOffset(&pIns->hostHeap);
+    off = HGSMIHeapHandleLocationOffset(&pIns->hostHeap);
     rc = SSMR3PutU32 (pSSM, off);
     if(off != HGSMIOFFSET_VOID)
     {
-        SSMR3PutU32 (pSSM, hgsmiHostHeapOffset(&pIns->hostHeap));
-        SSMR3PutU32 (pSSM, hgsmiHostHeapSize(&pIns->hostHeap));
+        SSMR3PutU32 (pSSM, HGSMIHeapOffset(&pIns->hostHeap));
+        SSMR3PutU32 (pSSM, HGSMIHeapSize(&pIns->hostHeap));
         /* need save mem pointer to calculate offset on restore */
         SSMR3PutU64 (pSSM, (uint64_t)(uintptr_t)pIns->area.pu8Base);
         rc = hgsmiFIFOLock (pIns);
@@ -1303,14 +1155,6 @@ int HGSMIHostSaveStateExec (PHGSMIINSTANCE pIns, PSSMHANDLE pSSM)
 #endif
 
             hgsmiFIFOUnlock (pIns);
-        }
-
-        if (RT_SUCCESS(rc))
-        {
-            if (pIns->hostHeap.u32HeapType == HGSMI_HEAP_TYPE_MA)
-            {
-                rc = hgsmiHostSaveMA(pSSM, &pIns->hostHeap.u.ma);
-            }
         }
     }
 
@@ -1340,7 +1184,7 @@ int HGSMIHostLoadStateExec (PHGSMIINSTANCE pIns, PSSMHANDLE pSSM, uint32_t u32Ve
     AssertRCReturn(rc, rc);
     pIns->pHGFlags = (off != HGSMIOFFSET_VOID) ? (HGSMIHOSTFLAGS*)HGSMIOffsetToPointer (&pIns->area, off) : NULL;
 
-    HGSMIHOSTHEAP hHeap = pIns->hostHeap;
+    HGSMIHEAP hHeap = pIns->hostHeap;
     rc = SSMR3GetU32(pSSM, &off);
     AssertRCReturn(rc, rc);
     if(off != HGSMIOFFSET_VOID)
@@ -1353,6 +1197,12 @@ int HGSMIHostLoadStateExec (PHGSMIINSTANCE pIns, PSSMHANDLE pSSM, uint32_t u32Ve
                               HGSMI_HEAP_TYPE_POINTER;
         }
 
+        if (u32HeapType == HGSMI_HEAP_TYPE_MA)
+        {
+            AssertMsgFailed(("MA heap not supported"));
+            return VERR_VERSION_MISMATCH;
+        }
+
         HGSMIOFFSET offHeap;
         SSMR3GetU32(pSSM, &offHeap);
         uint32_t cbHeap;
@@ -1360,6 +1210,23 @@ int HGSMIHostLoadStateExec (PHGSMIINSTANCE pIns, PSSMHANDLE pSSM, uint32_t u32Ve
         uint64_t oldMem;
         rc = SSMR3GetU64(pSSM, &oldMem);
         AssertRCReturn(rc, rc);
+
+        rc = hgsmiHostHeapLock (pIns);
+        if (RT_SUCCESS (rc))
+        {
+            Assert(!pIns->hostHeap.cRefs);
+            pIns->hostHeap.cRefs = 0;
+
+            rc = HGSMIHeapRelocate(&pIns->hostHeap,
+                                   pIns->area.pu8Base+offHeap,
+                                   off,
+                                   uintptr_t(pIns->area.pu8Base) - uintptr_t(oldMem),
+                                   cbHeap,
+                                   offHeap,
+                                   u32HeapType == HGSMI_HEAP_TYPE_OFFSET);
+
+            hgsmiHostHeapUnlock (pIns);
+        }
 
         if (RT_SUCCESS(rc))
         {
@@ -1377,50 +1244,6 @@ int HGSMIHostLoadStateExec (PHGSMIINSTANCE pIns, PSSMHANDLE pSSM, uint32_t u32Ve
 #endif
 
                 hgsmiFIFOUnlock (pIns);
-            }
-        }
-
-        if (RT_SUCCESS(rc))
-        {
-            if (u32HeapType == HGSMI_HEAP_TYPE_MA)
-            {
-                uint32_t cBlocks = 0;
-                HGSMISIZE cbMaxBlock = 0;
-                HGSMIOFFSET *paDescriptors = NULL;
-                rc = hgsmiHostLoadMA(pSSM, &cBlocks, &paDescriptors, &cbMaxBlock);
-                if (RT_SUCCESS(rc))
-                {
-                    rc = hgsmiHostHeapRestoreMA(&pIns->hostHeap,
-                                                pIns->area.pu8Base+offHeap,
-                                                cbHeap,
-                                                offHeap,
-                                                cBlocks,
-                                                paDescriptors,
-                                                cbMaxBlock,
-                                                &g_hgsmiEnv);
-
-                    RTMemFree(paDescriptors);
-                }
-            }
-            else if (   u32HeapType == HGSMI_HEAP_TYPE_OFFSET
-                     || u32HeapType == HGSMI_HEAP_TYPE_POINTER)
-            {
-                rc = hgsmiHostHeapLock (pIns);
-                if (RT_SUCCESS (rc))
-                {
-                    Assert(!pIns->hostHeap.cRefs);
-                    pIns->hostHeap.cRefs = 0;
-
-                    rc = hgsmiHostHeapRelocate(&pIns->hostHeap,
-                                               u32HeapType,
-                                               pIns->area.pu8Base+offHeap,
-                                               off,
-                                               uintptr_t(pIns->area.pu8Base) - uintptr_t(oldMem),
-                                               cbHeap,
-                                               offHeap);
-
-                    hgsmiHostHeapUnlock (pIns);
-                }
             }
         }
     }
@@ -1613,12 +1436,11 @@ int HGSMICreate (PHGSMIINSTANCE *ppIns,
                  void           *pvNotifyGuest,
                  size_t         cbContext)
 {
-    LogFlowFunc(("ppIns = %p, pVM = %p, pszName = [%s], offBase = 0x%08X, pu8MemBase = %p, cbMem = 0x%08X, "
+    LogFlowFunc(("ppIns = %p, pVM = %p, pszName = [%s], pu8MemBase = %p, cbMem = 0x%08X, offMemBase = 0x%08X, "
                  "pfnNotifyGuest = %p, pvNotifyGuest = %p, cbContext = %d\n",
                  ppIns,
                  pVM,
                  pszName,
-                 offBase,
                  pu8MemBase,
                  cbMem,
                  pfnNotifyGuest,
@@ -1665,16 +1487,10 @@ int HGSMICreate (PHGSMIINSTANCE *ppIns,
 
         pIns->pszName        = VALID_PTR(pszName)? pszName: "";
 
-        hgsmiHostHeapSetupUninitialized(&pIns->hostHeap);
+        HGSMIHeapSetupUnitialized (&pIns->hostHeap);
 
         pIns->pfnNotifyGuest = pfnNotifyGuest;
         pIns->pvNotifyGuest  = pvNotifyGuest;
-
-        RTListInit(&pIns->hostFIFO);
-        RTListInit(&pIns->hostFIFORead);
-        RTListInit(&pIns->hostFIFOProcessed);
-        RTListInit(&pIns->hostFIFOFree);
-        RTListInit(&pIns->guestCmdCompleted);
     }
 
     rc = HGSMIHostChannelRegister (pIns,
@@ -1714,7 +1530,7 @@ uint32_t HGSMIReset (PHGSMIINSTANCE pIns)
     while(hgsmiProcessGuestCmdCompletion(pIns) != HGSMIOFFSET_VOID) {}
 #endif
 
-    hgsmiHostHeapDestroy(&pIns->hostHeap);
+    HGSMIHeapSetupUnitialized (&pIns->hostHeap);
 
     return flags;
 }
@@ -1725,8 +1541,6 @@ void HGSMIDestroy (PHGSMIINSTANCE pIns)
 
     if (pIns)
     {
-        hgsmiHostHeapDestroy(&pIns->hostHeap);
-
         if (RTCritSectIsInitialized (&pIns->hostHeapCritSect))
         {
             RTCritSectDelete (&pIns->hostHeapCritSect);
@@ -1756,7 +1570,6 @@ static int hgsmiGuestCommandComplete (HGSMIINSTANCE *pIns, HGSMIOFFSET offMem)
 {
     HGSMIGUESTCOMPLENTRY *pEntry = NULL;
 
-    AssertPtrReturn(pIns->pHGFlags, VERR_WRONG_ORDER);
     int rc = hgsmiGuestCompletionFIFOAlloc (pIns, &pEntry);
     AssertRC(rc);
     if (RT_SUCCESS (rc))
@@ -1767,7 +1580,7 @@ static int hgsmiGuestCommandComplete (HGSMIINSTANCE *pIns, HGSMIOFFSET offMem)
         AssertRC(rc);
         if (RT_SUCCESS (rc))
         {
-            RTListAppend(&pIns->guestCmdCompleted, &pEntry->nodeEntry);
+            hgsmiListAppend (&pIns->guestCmdCompleted, &pEntry->entry);
             ASMAtomicOrU32(&pIns->pHGFlags->u32HostFlags, HGSMIHOSTFLAGS_GCOMMAND_COMPLETED);
 
             hgsmiFIFOUnlock(pIns);

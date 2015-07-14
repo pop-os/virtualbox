@@ -1,6 +1,7 @@
-/* $Id: UIGChooser.h $ */
 /** @file
- * VBox Qt GUI - UIGChooser class declaration.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * UIGChooser class declaration
  */
 
 /*
@@ -27,8 +28,6 @@
 /* Forward declartions: */
 class UIVMItem;
 class QVBoxLayout;
-class UISelectorWindow;
-class UIActionPool;
 class UIGChooserModel;
 class UIGChooserView;
 class QStatusBar;
@@ -56,13 +55,8 @@ signals:
 public:
 
     /* Constructor/destructor: */
-    UIGChooser(UISelectorWindow *pParent);
+    UIGChooser(QWidget *pParent);
     ~UIGChooser();
-
-    /** Returns the selector-window reference. */
-    UISelectorWindow* selector() const { return m_pSelectorWindow; }
-    /** Returns the action-pool reference. */
-    UIActionPool* actionPool() const;
 
     /* API: Current-item stuff: */
     UIVMItem* currentItem() const;
@@ -88,9 +82,6 @@ private:
 
     /* Helper: Cleanup stuff: */
     void save();
-
-    /** Holds the selector-window reference. */
-    UISelectorWindow* m_pSelectorWindow;
 
     /* Variables: */
     QVBoxLayout *m_pMainLayout;

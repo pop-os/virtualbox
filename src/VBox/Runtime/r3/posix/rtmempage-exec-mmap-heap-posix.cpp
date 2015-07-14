@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -40,7 +40,6 @@
 #include <iprt/param.h>
 #include <iprt/string.h>
 #include "internal/mem.h"
-#include "../alloc-ef.h"
 
 #include <stdlib.h>
 #include <errno.h>
@@ -412,13 +411,7 @@ static int rtHeapPageAllocLocked(PRTHEAPPAGE pHeap, size_t cPages, const char *p
 
     }
     /** @todo Eliminate this rtMemBaseAlloc dependency! */
-    PRTHEAPPAGEBLOCK pBlock;
-#ifdef RTALLOC_REPLACE_MALLOC
-    if (g_pfnOrgMalloc)
-        pBlock = (PRTHEAPPAGEBLOCK)g_pfnOrgMalloc(sizeof(*pBlock));
-    else
-#endif
-        pBlock = (PRTHEAPPAGEBLOCK)rtMemBaseAlloc(sizeof(*pBlock));
+    PRTHEAPPAGEBLOCK pBlock = (PRTHEAPPAGEBLOCK)rtMemBaseAlloc(sizeof(*pBlock));
     if (!pBlock)
     {
         munmap(pvPages, RTMEMPAGEPOSIX_BLOCK_SIZE);
@@ -589,12 +582,7 @@ int RTHeapPageFree(PRTHEAPPAGE pHeap, void *pv, size_t cPages)
                         munmap(pBlock->Core.Key, RTMEMPAGEPOSIX_BLOCK_SIZE);
                         pBlock->Core.Key = pBlock->Core.KeyLast = NULL;
                         pBlock->cFreePages = 0;
-#ifdef RTALLOC_REPLACE_MALLOC
-                        if (g_pfnOrgFree)
-                            g_pfnOrgFree(pBlock);
-                        else
-#endif
-                            rtMemBaseFree(pBlock);
+                        rtMemBaseFree(pBlock);
 
                         RTCritSectEnter(&pHeap->CritSect);
                     }

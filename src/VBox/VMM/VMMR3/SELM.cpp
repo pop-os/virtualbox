@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -94,6 +94,9 @@
 static DECLCALLBACK(int)  selmR3Save(PVM pVM, PSSMHANDLE pSSM);
 static DECLCALLBACK(int)  selmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass);
 static DECLCALLBACK(int)  selmR3LoadDone(PVM pVM, PSSMHANDLE pSSM);
+static DECLCALLBACK(int)  selmR3GuestGDTWriteHandler(PVM pVM, RTGCPTR GCPtr, void *pvPhys, void *pvBuf, size_t cbBuf, PGMACCESSTYPE enmAccessType, void *pvUser);
+static DECLCALLBACK(int)  selmR3GuestLDTWriteHandler(PVM pVM, RTGCPTR GCPtr, void *pvPhys, void *pvBuf, size_t cbBuf, PGMACCESSTYPE enmAccessType, void *pvUser);
+static DECLCALLBACK(int)  selmR3GuestTSSWriteHandler(PVM pVM, RTGCPTR GCPtr, void *pvPhys, void *pvBuf, size_t cbBuf, PGMACCESSTYPE enmAccessType, void *pvUser);
 static DECLCALLBACK(void) selmR3InfoGdt(PVM pVM, PCDBGFINFOHLP pHlp, const char *pszArgs);
 static DECLCALLBACK(void) selmR3InfoGdtGuest(PVM pVM, PCDBGFINFOHLP pHlp, const char *pszArgs);
 static DECLCALLBACK(void) selmR3InfoLdt(PVM pVM, PCDBGFINFOHLP pHlp, const char *pszArgs);
@@ -183,57 +186,6 @@ VMMR3DECL(int) SELMR3Init(PVM pVM)
     pVM->selm.s.Tss.offIoBitmap = sizeof(VBOXTSS);
     /* bit set to 1 means no redirection */
     memset(pVM->selm.s.Tss.IntRedirBitmap, 0xff, sizeof(pVM->selm.s.Tss.IntRedirBitmap));
-
-    /*
-     * Register the virtual access handlers.
-     */
-    pVM->selm.s.hShadowGdtWriteHandlerType = NIL_PGMVIRTHANDLERTYPE;
-    pVM->selm.s.hShadowLdtWriteHandlerType = NIL_PGMVIRTHANDLERTYPE;
-    pVM->selm.s.hShadowTssWriteHandlerType = NIL_PGMVIRTHANDLERTYPE;
-    pVM->selm.s.hGuestGdtWriteHandlerType  = NIL_PGMVIRTHANDLERTYPE;
-    pVM->selm.s.hGuestLdtWriteHandlerType  = NIL_PGMVIRTHANDLERTYPE;
-    pVM->selm.s.hGuestTssWriteHandlerType  = NIL_PGMVIRTHANDLERTYPE;
-#ifdef VBOX_WITH_RAW_MODE
-    if (!HMIsEnabled(pVM))
-    {
-# ifdef SELM_TRACK_SHADOW_GDT_CHANGES
-        rc = PGMR3HandlerVirtualTypeRegister(pVM, PGMVIRTHANDLERKIND_HYPERVISOR, false /*fRelocUserRC*/,
-                                             NULL /*pfnInvalidateR3*/, NULL /*pfnHandlerR3*/,
-                                             NULL /*pszHandlerRC*/, "selmRCShadowGDTWritePfHandler",
-                                             "Shadow GDT write access handler", &pVM->selm.s.hShadowGdtWriteHandlerType);
-        AssertRCReturn(rc, rc);
-# endif
-# ifdef SELM_TRACK_SHADOW_TSS_CHANGES
-        rc = PGMR3HandlerVirtualTypeRegister(pVM, PGMVIRTHANDLERKIND_HYPERVISOR, false /*fRelocUserRC*/,
-                                             NULL /*pfnInvalidateR3*/, NULL /*pfnHandlerR3*/,
-                                             NULL /*pszHandlerRC*/, "selmRCShadowTSSWritePfHandler",
-                                             "Shadow TSS write access handler", &pVM->selm.s.hShadowTssWriteHandlerType);
-        AssertRCReturn(rc, rc);
-# endif
-# ifdef SELM_TRACK_SHADOW_LDT_CHANGES
-        rc = PGMR3HandlerVirtualTypeRegister(pVM, PGMVIRTHANDLERKIND_HYPERVISOR, false /*fRelocUserRC*/,
-                                             NULL /*pfnInvalidateR3*/, NULL /*pfnHandlerR3*/,
-                                             NULL /*pszHandlerRC*/, "selmRCShadowLDTWritePfHandler",
-                                             "Shadow LDT write access handler", &pVM->selm.s.hShadowLdtWriteHandlerType);
-        AssertRCReturn(rc, rc);
-# endif
-        rc = PGMR3HandlerVirtualTypeRegister(pVM, PGMVIRTHANDLERKIND_WRITE, false /*fRelocUserRC*/,
-                                             NULL /*pfnInvalidateR3*/, selmGuestGDTWriteHandler,
-                                             "selmGuestGDTWriteHandler", "selmRCGuestGDTWritePfHandler",
-                                             "Guest GDT write access handler", &pVM->selm.s.hGuestGdtWriteHandlerType);
-        AssertRCReturn(rc, rc);
-        rc = PGMR3HandlerVirtualTypeRegister(pVM, PGMVIRTHANDLERKIND_WRITE, false /*fRelocUserRC*/,
-                                             NULL /*pfnInvalidateR3*/, selmGuestLDTWriteHandler,
-                                             "selmGuestLDTWriteHandler", "selmRCGuestLDTWritePfHandler",
-                                             "Guest LDT write access handler", &pVM->selm.s.hGuestLdtWriteHandlerType);
-        AssertRCReturn(rc, rc);
-        rc = PGMR3HandlerVirtualTypeRegister(pVM, PGMVIRTHANDLERKIND_WRITE, false /*fRelocUserRC*/,
-                                             NULL /*pfnInvalidateR3*/, selmGuestTSSWriteHandler,
-                                             "selmGuestTSSWriteHandler", "selmRCGuestTSSWritePfHandler",
-                                             "Guest TSS write access handler", &pVM->selm.s.hGuestTssWriteHandlerType);
-        AssertRCReturn(rc, rc);
-    }
-#endif /* VBOX_WITH_RAW_MODE */
 
     /*
      * Register the saved state data unit.
@@ -546,32 +498,29 @@ VMMR3DECL(void) SELMR3Relocate(PVM pVM)
         /*
          * Update shadow GDT/LDT/TSS write access handlers.
          */
-        PVMCPU pVCpu = VMMGetCpu(pVM); NOREF(pVCpu);
         int rc; NOREF(rc);
 #ifdef SELM_TRACK_SHADOW_GDT_CHANGES
         if (pVM->selm.s.paGdtRC != NIL_RTRCPTR)
         {
-            rc = PGMHandlerVirtualDeregister(pVM, pVCpu, pVM->selm.s.paGdtRC, true /*fHypervisor*/);
+            rc = PGMHandlerVirtualDeregister(pVM, pVM->selm.s.paGdtRC);
             AssertRC(rc);
         }
         pVM->selm.s.paGdtRC = MMHyperR3ToRC(pVM, paGdt);
-        rc = PGMR3HandlerVirtualRegister(pVM, pVCpu, pVM->selm.s.hShadowGdtWriteHandlerType,
-                                         pVM->selm.s.paGdtRC,
+        rc = PGMR3HandlerVirtualRegister(pVM, PGMVIRTHANDLERTYPE_HYPERVISOR, pVM->selm.s.paGdtRC,
                                          pVM->selm.s.paGdtRC + SELM_GDT_ELEMENTS * sizeof(paGdt[0]) - 1,
-                                         NULL /*pvUserR3*/, NIL_RTR0PTR /*pvUserRC*/, NULL /*pszDesc*/);
+                                         0, 0, "selmRCShadowGDTWriteHandler", 0, "Shadow GDT write access handler");
         AssertRC(rc);
 #endif
 #ifdef SELM_TRACK_SHADOW_TSS_CHANGES
         if (pVM->selm.s.pvMonShwTssRC != RTRCPTR_MAX)
         {
-            rc = PGMHandlerVirtualDeregister(pVM, pVCpu, pVM->selm.s.pvMonShwTssRC, true /*fHypervisor*/);
+            rc = PGMHandlerVirtualDeregister(pVM, pVM->selm.s.pvMonShwTssRC);
             AssertRC(rc);
         }
         pVM->selm.s.pvMonShwTssRC = VM_RC_ADDR(pVM, &pVM->selm.s.Tss);
-        rc = PGMR3HandlerVirtualRegister(pVM, pVCpu, pVM->selm.s.hShadowTssWriteHandlerType,
-                                         pVM->selm.s.pvMonShwTssRC,
+        rc = PGMR3HandlerVirtualRegister(pVM, PGMVIRTHANDLERTYPE_HYPERVISOR, pVM->selm.s.pvMonShwTssRC,
                                          pVM->selm.s.pvMonShwTssRC + sizeof(pVM->selm.s.Tss) - 1,
-                                         NULL /*pvUserR3*/, NIL_RTR0PTR /*pvUserRC*/, NULL /*pszDesc*/);
+                                         0, 0, "selmRCShadowTSSWriteHandler", 0, "Shadow TSS write access handler");
         AssertRC(rc);
 #endif
 
@@ -581,16 +530,15 @@ VMMR3DECL(void) SELMR3Relocate(PVM pVM)
 #ifdef SELM_TRACK_SHADOW_LDT_CHANGES
         if (pVM->selm.s.pvLdtRC != RTRCPTR_MAX)
         {
-            rc = PGMHandlerVirtualDeregister(pVM, pVCpu, pVM->selm.s.pvLdtRC, true /*fHypervisor*/);
+            rc = PGMHandlerVirtualDeregister(pVM, pVM->selm.s.pvLdtRC);
             AssertRC(rc);
         }
 #endif
         pVM->selm.s.pvLdtRC = MMHyperR3ToRC(pVM, pVM->selm.s.pvLdtR3);
 #ifdef SELM_TRACK_SHADOW_LDT_CHANGES
-        rc = PGMR3HandlerVirtualRegister(pVM, pVCpu, pVM->selm.s.hShadowLdtWriteHandlerType,
-                                         pVM->selm.s.pvLdtRC,
+        rc = PGMR3HandlerVirtualRegister(pVM, PGMVIRTHANDLERTYPE_HYPERVISOR, pVM->selm.s.pvLdtRC,
                                          pVM->selm.s.pvLdtRC + _64K + PAGE_SIZE - 1,
-                                         NULL /*pvUserR3*/, NIL_RTR0PTR /*pvUserRC*/, NULL /*pszDesc*/);
+                                         0, 0, "selmRCShadowLDTWriteHandler", 0, "Shadow LDT write access handler");
         AssertRC(rc);
 #endif
     }
@@ -629,12 +577,11 @@ VMMR3DECL(void) SELMR3Reset(PVM pVM)
     /*
      * Uninstall guest GDT/LDT/TSS write access handlers.
      */
-    PVMCPU pVCpu = VMMGetCpu(pVM); NOREF(pVCpu);
     int rc = VINF_SUCCESS;
     if (pVM->selm.s.GuestGdtr.pGdt != RTRCPTR_MAX && pVM->selm.s.fGDTRangeRegistered)
     {
 #ifdef SELM_TRACK_GUEST_GDT_CHANGES
-        rc = PGMHandlerVirtualDeregister(pVM, pVCpu, pVM->selm.s.GuestGdtr.pGdt, false /*fHypervisor*/);
+        rc = PGMHandlerVirtualDeregister(pVM, pVM->selm.s.GuestGdtr.pGdt);
         AssertRC(rc);
 #endif
         pVM->selm.s.GuestGdtr.pGdt = RTRCPTR_MAX;
@@ -644,7 +591,7 @@ VMMR3DECL(void) SELMR3Reset(PVM pVM)
     if (pVM->selm.s.GCPtrGuestLdt != RTRCPTR_MAX)
     {
 #ifdef SELM_TRACK_GUEST_LDT_CHANGES
-        rc = PGMHandlerVirtualDeregister(pVM, pVCpu, pVM->selm.s.GCPtrGuestLdt, false /*fHypervisor*/);
+        rc = PGMHandlerVirtualDeregister(pVM, pVM->selm.s.GCPtrGuestLdt);
         AssertRC(rc);
 #endif
         pVM->selm.s.GCPtrGuestLdt = RTRCPTR_MAX;
@@ -652,7 +599,7 @@ VMMR3DECL(void) SELMR3Reset(PVM pVM)
     if (pVM->selm.s.GCPtrGuestTss != RTRCPTR_MAX)
     {
 #ifdef SELM_TRACK_GUEST_TSS_CHANGES
-        rc = PGMHandlerVirtualDeregister(pVM, pVCpu, pVM->selm.s.GCPtrGuestTss, false /*fHypervisor*/);
+        rc = PGMHandlerVirtualDeregister(pVM, pVM->selm.s.GCPtrGuestTss);
         AssertRC(rc);
 #endif
         pVM->selm.s.GCPtrGuestTss = RTRCPTR_MAX;
@@ -674,6 +621,7 @@ VMMR3DECL(void) SELMR3Reset(PVM pVM)
         /*
          * Default action when entering raw mode for the first time
          */
+        PVMCPU pVCpu = &pVM->aCpus[0];  /* raw mode implies on VCPU */
         VMCPU_FF_SET(pVCpu, VMCPU_FF_SELM_SYNC_TSS);
         VMCPU_FF_SET(pVCpu, VMCPU_FF_SELM_SYNC_GDT);
         VMCPU_FF_SET(pVCpu, VMCPU_FF_SELM_SYNC_LDT);
@@ -1045,27 +993,31 @@ static int selmR3UpdateShadowGdt(PVM pVM, PVMCPU pVCpu)
          */
         if (pVM->selm.s.GuestGdtr.pGdt != RTRCPTR_MAX && pVM->selm.s.fGDTRangeRegistered)
         {
-            rc = PGMHandlerVirtualDeregister(pVM, pVCpu, pVM->selm.s.GuestGdtr.pGdt, false /*fHypervisor*/);
+            rc = PGMHandlerVirtualDeregister(pVM, pVM->selm.s.GuestGdtr.pGdt);
             AssertRC(rc);
         }
-        rc = PGMR3HandlerVirtualRegister(pVM, pVCpu, pVM->selm.s.hGuestGdtWriteHandlerType,
+
+        rc = PGMR3HandlerVirtualRegister(pVM, PGMVIRTHANDLERTYPE_WRITE,
                                          GDTR.pGdt, GDTR.pGdt + GDTR.cbGdt /* already inclusive */,
-                                         NULL /*pvUserR3*/, NIL_RTR0PTR /*pvUserRC*/, NULL /*pszDesc*/);
+                                         0, selmR3GuestGDTWriteHandler, "selmRCGuestGDTWriteHandler", 0,
+                                         "Guest GDT write access handler");
 #  ifdef VBOX_WITH_RAW_RING1
         /** @todo !HACK ALERT!
          * Some guest OSes (QNX) share code and the GDT on the same page;
          * PGMR3HandlerVirtualRegister doesn't support more than one handler,
-         * so we kick out the PATM handler as this one is more important. Fix this
-         * properly in PGMR3HandlerVirtualRegister?
+         * so we kick out the  PATM handler as this one is more important.
+         * Fix this properly in PGMR3HandlerVirtualRegister?
          */
         if (rc == VERR_PGM_HANDLER_VIRTUAL_CONFLICT)
         {
             LogRel(("selmR3UpdateShadowGdt: Virtual handler conflict %RGv -> kick out PATM handler for the higher priority GDT page monitor\n", GDTR.pGdt));
-            rc = PGMHandlerVirtualDeregister(pVM, pVCpu, GDTR.pGdt & PAGE_BASE_GC_MASK, false /*fHypervisor*/);
+            rc = PGMHandlerVirtualDeregister(pVM, GDTR.pGdt & PAGE_BASE_GC_MASK);
             AssertRC(rc);
-            rc = PGMR3HandlerVirtualRegister(pVM, pVCpu, pVM->selm.s.hGuestGdtWriteHandlerType,
+
+            rc = PGMR3HandlerVirtualRegister(pVM, PGMVIRTHANDLERTYPE_WRITE,
                                              GDTR.pGdt, GDTR.pGdt + GDTR.cbGdt /* already inclusive */,
-                                             NULL /*pvUserR3*/, NIL_RTR0PTR /*pvUserRC*/, NULL /*pszDesc*/);
+                                             0, selmR3GuestGDTWriteHandler, "selmRCGuestGDTWriteHandler", 0,
+                                             "Guest GDT write access handler");
         }
 #  endif
         if (RT_FAILURE(rc))
@@ -1120,7 +1072,7 @@ static int selmR3UpdateShadowLdt(PVM pVM, PVMCPU pVCpu)
         CPUMSetHyperLDTR(pVCpu, 0);
         if (pVM->selm.s.GCPtrGuestLdt != RTRCPTR_MAX)
         {
-            rc = PGMHandlerVirtualDeregister(pVM, pVCpu, pVM->selm.s.GCPtrGuestLdt, false /*fHypervisor*/);
+            rc = PGMHandlerVirtualDeregister(pVM, pVM->selm.s.GCPtrGuestLdt);
             AssertRC(rc);
             pVM->selm.s.GCPtrGuestLdt = RTRCPTR_MAX;
         }
@@ -1153,7 +1105,7 @@ static int selmR3UpdateShadowLdt(PVM pVM, PVMCPU pVCpu)
         CPUMSetHyperLDTR(pVCpu, 0);
         if (pVM->selm.s.GCPtrGuestLdt != RTRCPTR_MAX)
         {
-            rc = PGMHandlerVirtualDeregister(pVM, pVCpu, pVM->selm.s.GCPtrGuestLdt, false /*fHypervisor*/);
+            rc = PGMHandlerVirtualDeregister(pVM, pVM->selm.s.GCPtrGuestLdt);
             AssertRC(rc);
             pVM->selm.s.GCPtrGuestLdt = RTRCPTR_MAX;
         }
@@ -1189,16 +1141,15 @@ static int selmR3UpdateShadowLdt(PVM pVM, PVMCPU pVCpu)
              */
             if (pVM->selm.s.GCPtrGuestLdt != RTRCPTR_MAX)
             {
-                rc = PGMHandlerVirtualDeregister(pVM, pVCpu, pVM->selm.s.GCPtrGuestLdt, false /*fHypervisor*/);
+                rc = PGMHandlerVirtualDeregister(pVM, pVM->selm.s.GCPtrGuestLdt);
                 AssertRC(rc);
             }
 #  ifdef LOG_ENABLED
             if (pDesc->Gen.u1Present)
                 Log(("LDT selector marked not present!!\n"));
 #  endif
-            rc = PGMR3HandlerVirtualRegister(pVM, pVCpu, pVM->selm.s.hGuestLdtWriteHandlerType,
-                                             GCPtrLdt, GCPtrLdt + cbLdt /* already inclusive */,
-                                             NULL /*pvUserR3*/, NIL_RTR0PTR /*pvUserRC*/, NULL /*pszDesc*/);
+            rc = PGMR3HandlerVirtualRegister(pVM, PGMVIRTHANDLERTYPE_WRITE, GCPtrLdt, GCPtrLdt + cbLdt /* already inclusive */,
+                                             0, selmR3GuestLDTWriteHandler, "selmRCGuestLDTWriteHandler", 0, "Guest LDT write access handler");
             if (rc == VERR_PGM_HANDLER_VIRTUAL_CONFLICT)
             {
                 /** @todo investigate the various cases where conflicts happen and try avoid them by enh. the instruction emulation. */
@@ -1475,6 +1426,102 @@ VMMR3DECL(VBOXSTRICTRC) SELMR3UpdateFromCPUM(PVM pVM, PVMCPU pVCpu)
     return rcStrict;
 }
 
+#endif /*VBOX_WITH_RAW_MODE*/
+
+#ifdef SELM_TRACK_GUEST_GDT_CHANGES
+/**
+ * \#PF Handler callback for virtual access handler ranges.
+ *
+ * Important to realize that a physical page in a range can have aliases, and
+ * for ALL and WRITE handlers these will also trigger.
+ *
+ * @returns VINF_SUCCESS if the handler have carried out the operation.
+ * @returns VINF_PGM_HANDLER_DO_DEFAULT if the caller should carry out the access operation.
+ * @param   pVM             Pointer to the VM.
+ * @param   GCPtr           The virtual address the guest is writing to. (not correct if it's an alias!)
+ * @param   pvPtr           The HC mapping of that address.
+ * @param   pvBuf           What the guest is reading/writing.
+ * @param   cbBuf           How much it's reading/writing.
+ * @param   enmAccessType   The access type.
+ * @param   pvUser          User argument.
+ */
+static DECLCALLBACK(int) selmR3GuestGDTWriteHandler(PVM pVM, RTGCPTR GCPtr, void *pvPtr, void *pvBuf, size_t cbBuf,
+                                                    PGMACCESSTYPE enmAccessType, void *pvUser)
+{
+    Assert(enmAccessType == PGMACCESSTYPE_WRITE); NOREF(enmAccessType);
+    Log(("selmR3GuestGDTWriteHandler: write to %RGv size %d\n", GCPtr, cbBuf)); NOREF(GCPtr); NOREF(cbBuf);
+    NOREF(pvPtr); NOREF(pvBuf); NOREF(pvUser);
+
+    VMCPU_FF_SET(VMMGetCpu(pVM), VMCPU_FF_SELM_SYNC_GDT);
+    return VINF_PGM_HANDLER_DO_DEFAULT;
+}
+#endif
+
+#ifdef SELM_TRACK_GUEST_LDT_CHANGES
+/**
+ * \#PF Handler callback for virtual access handler ranges.
+ *
+ * Important to realize that a physical page in a range can have aliases, and
+ * for ALL and WRITE handlers these will also trigger.
+ *
+ * @returns VINF_SUCCESS if the handler have carried out the operation.
+ * @returns VINF_PGM_HANDLER_DO_DEFAULT if the caller should carry out the access operation.
+ * @param   pVM             Pointer to the VM.
+ * @param   GCPtr           The virtual address the guest is writing to. (not correct if it's an alias!)
+ * @param   pvPtr           The HC mapping of that address.
+ * @param   pvBuf           What the guest is reading/writing.
+ * @param   cbBuf           How much it's reading/writing.
+ * @param   enmAccessType   The access type.
+ * @param   pvUser          User argument.
+ */
+static DECLCALLBACK(int) selmR3GuestLDTWriteHandler(PVM pVM, RTGCPTR GCPtr, void *pvPtr, void *pvBuf, size_t cbBuf,
+                                                    PGMACCESSTYPE enmAccessType, void *pvUser)
+{
+    Assert(enmAccessType == PGMACCESSTYPE_WRITE); NOREF(enmAccessType);
+    Log(("selmR3GuestLDTWriteHandler: write to %RGv size %d\n", GCPtr, cbBuf)); NOREF(GCPtr); NOREF(cbBuf);
+    NOREF(pvPtr); NOREF(pvBuf); NOREF(pvUser);
+
+    VMCPU_FF_SET(VMMGetCpu(pVM), VMCPU_FF_SELM_SYNC_LDT);
+    return VINF_PGM_HANDLER_DO_DEFAULT;
+}
+#endif
+
+
+#ifdef SELM_TRACK_GUEST_TSS_CHANGES
+/**
+ * \#PF Handler callback for virtual access handler ranges.
+ *
+ * Important to realize that a physical page in a range can have aliases, and
+ * for ALL and WRITE handlers these will also trigger.
+ *
+ * @returns VINF_SUCCESS if the handler have carried out the operation.
+ * @returns VINF_PGM_HANDLER_DO_DEFAULT if the caller should carry out the access operation.
+ * @param   pVM             Pointer to the VM.
+ * @param   GCPtr           The virtual address the guest is writing to. (not correct if it's an alias!)
+ * @param   pvPtr           The HC mapping of that address.
+ * @param   pvBuf           What the guest is reading/writing.
+ * @param   cbBuf           How much it's reading/writing.
+ * @param   enmAccessType   The access type.
+ * @param   pvUser          User argument.
+ */
+static DECLCALLBACK(int) selmR3GuestTSSWriteHandler(PVM pVM, RTGCPTR GCPtr, void *pvPtr, void *pvBuf, size_t cbBuf,
+                                                    PGMACCESSTYPE enmAccessType, void *pvUser)
+{
+    Assert(enmAccessType == PGMACCESSTYPE_WRITE); NOREF(enmAccessType);
+    Log(("selmR3GuestTSSWriteHandler: write %.*Rhxs to %RGv size %d\n", RT_MIN(8, cbBuf), pvBuf, GCPtr, cbBuf));
+    NOREF(pvBuf); NOREF(GCPtr); NOREF(cbBuf); NOREF(pvUser);NOREF(pvPtr);
+
+    /** @todo This can be optimized by checking for the ESP0 offset and tracking TR
+     *        reloads in REM (setting VM_FF_SELM_SYNC_TSS if TR is reloaded). We
+     *        should probably also deregister the virtual handler if TR.base/size
+     *        changes while we're in REM. */
+
+    VMCPU_FF_SET(VMMGetCpu(pVM), VMCPU_FF_SELM_SYNC_TSS);
+    return VINF_PGM_HANDLER_DO_DEFAULT;
+}
+#endif
+
+#ifdef VBOX_WITH_RAW_MODE
 
 /**
  * Synchronize the shadowed fields in the TSS.
@@ -1655,7 +1702,7 @@ VMMR3DECL(int) SELMR3SyncTSS(PVM pVM, PVMCPU pVCpu)
         /* Release the old range first. */
         if (pVM->selm.s.GCPtrGuestTss != RTRCPTR_MAX)
         {
-            rc = PGMHandlerVirtualDeregister(pVM, pVCpu, pVM->selm.s.GCPtrGuestTss, false /*fHypervisor*/);
+            rc = PGMHandlerVirtualDeregister(pVM, pVM->selm.s.GCPtrGuestTss);
             AssertRC(rc);
         }
 
@@ -1663,9 +1710,9 @@ VMMR3DECL(int) SELMR3SyncTSS(PVM pVM, PVMCPU pVCpu)
         if (cbMonitoredTss != 0)
         {
 # ifdef SELM_TRACK_GUEST_TSS_CHANGES
-            rc = PGMR3HandlerVirtualRegister(pVM, pVCpu, pVM->selm.s.hGuestTssWriteHandlerType,
-                                             GCPtrTss, GCPtrTss + cbMonitoredTss - 1,
-                                             NULL /*pvUserR3*/, NIL_RTR0PTR /*pvUserRC*/, NULL /*pszDesc*/);
+            rc = PGMR3HandlerVirtualRegister(pVM, PGMVIRTHANDLERTYPE_WRITE, GCPtrTss, GCPtrTss + cbMonitoredTss - 1,
+                                             0, selmR3GuestTSSWriteHandler,
+                                             "selmRCGuestTSSWriteHandler", 0, "Guest TSS write access handler");
             if (RT_FAILURE(rc))
             {
 #  ifdef VBOX_WITH_RAW_RING1
@@ -1678,12 +1725,12 @@ VMMR3DECL(int) SELMR3SyncTSS(PVM pVM, PVMCPU pVCpu)
                 if (rc == VERR_PGM_HANDLER_VIRTUAL_CONFLICT)
                 {
                     LogRel(("SELMR3SyncTSS: Virtual handler conflict %RGv -> kick out PATM handler for the higher priority TSS page monitor\n", GCPtrTss));
-                    rc = PGMHandlerVirtualDeregister(pVM, pVCpu, GCPtrTss & PAGE_BASE_GC_MASK, false /*fHypervisor*/);
+                    rc = PGMHandlerVirtualDeregister(pVM, GCPtrTss & PAGE_BASE_GC_MASK);
                     AssertRC(rc);
 
-                    rc = PGMR3HandlerVirtualRegister(pVM, pVCpu, pVM->selm.s.hGuestTssWriteHandlerType,
-                                                     GCPtrTss, GCPtrTss + cbMonitoredTss - 1,
-                                                     NULL /*pvUserR3*/, NIL_RTR0PTR /*pvUserRC*/, NULL /*pszDesc*/);
+                    rc = PGMR3HandlerVirtualRegister(pVM, PGMVIRTHANDLERTYPE_WRITE, GCPtrTss, GCPtrTss + cbMonitoredTss - 1,
+                                                     0, selmR3GuestTSSWriteHandler,
+                                                     "selmRCGuestTSSWriteHandler", 0, "Guest TSS write access handler");
                     if (RT_FAILURE(rc))
                     {
                         STAM_PROFILE_STOP(&pVM->selm.s.StatUpdateFromCPUM, a);
@@ -1726,7 +1773,7 @@ VMMR3DECL(int) SELMR3SyncTSS(PVM pVM, PVMCPU pVCpu)
  */
 VMMR3DECL(int) SELMR3DebugCheck(PVM pVM)
 {
-# ifdef VBOX_STRICT
+#ifdef VBOX_STRICT
     PVMCPU pVCpu = VMMGetCpu(pVM);
     AssertReturn(!HMIsEnabled(pVM), VERR_SELM_HM_IPE);
 
@@ -1847,9 +1894,9 @@ VMMR3DECL(int) SELMR3DebugCheck(PVM pVM)
         pLDTE++;
     }
 
-# else  /* !VBOX_STRICT */
+#else  /* !VBOX_STRICT */
     NOREF(pVM);
-# endif /* !VBOX_STRICT */
+#endif /* !VBOX_STRICT */
 
     return VINF_SUCCESS;
 }
@@ -1864,7 +1911,7 @@ VMMR3DECL(int) SELMR3DebugCheck(PVM pVM)
  */
 VMMR3DECL(bool) SELMR3CheckTSS(PVM pVM)
 {
-# if defined(VBOX_STRICT) && defined(SELM_TRACK_GUEST_TSS_CHANGES)
+#if defined(VBOX_STRICT) && defined(SELM_TRACK_GUEST_TSS_CHANGES)
     PVMCPU pVCpu = VMMGetCpu(pVM);
 
     if (VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_SELM_SYNC_TSS))
@@ -1990,10 +2037,10 @@ VMMR3DECL(bool) SELMR3CheckTSS(PVM pVM)
 
     return true;
 
-# else  /* !VBOX_STRICT */
+#else  /* !VBOX_STRICT */
     NOREF(pVM);
     return true;
-# endif /* !VBOX_STRICT */
+#endif /* !VBOX_STRICT */
 }
 
 

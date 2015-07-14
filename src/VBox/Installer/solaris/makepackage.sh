@@ -5,7 +5,7 @@
 #
 
 #
-# Copyright (C) 2007-2015 Oracle Corporation
+# Copyright (C) 2007-2012 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -96,12 +96,6 @@ symlink_fixup()
   mv -f "tmp-$1" "$1"
 }
 
-create_hardlink()
-{
-    if test -f "$VBOX_INSTALLED_DIR/amd64/$1" || test -f "$VBOX_INSTALLED_DIR/i386/$1"; then
-        ln -f ./VBoxISAExec "$VBOX_INSTALLED_DIR/$1"
-    fi
-}
 
 # Prepare file list
 cd "$PKG_BASE_DIR"
@@ -114,20 +108,27 @@ if test -f "./vbox.copyright"; then
     echo 'i copyright=./vbox.copyright' >> prototype
 fi
 
-# Create relative hardlinks for executables to either the 32-bit or 64-bit subfolders
+# Create relative hardlinks
 cd "$VBOX_INSTALLED_DIR"
-create_hardlink VBoxManage
-create_hardlink VBoxSDL
-create_hardlink VBoxAutostart
-create_hardlink vboxwebsrv
-create_hardlink webtest
-create_hardlink VBoxZoneAccess
-create_hardlink VBoxSVC
-create_hardlink VBoxBalloonCtrl
-create_hardlink VBoxTestOGL
-create_hardlink VirtualBox
-create_hardlink vbox-img
-create_hardlink VBoxHeadless
+ln -f ./VBoxISAExec $VBOX_INSTALLED_DIR/VBoxManage
+ln -f ./VBoxISAExec $VBOX_INSTALLED_DIR/VBoxSDL
+ln -f ./VBoxISAExec $VBOX_INSTALLED_DIR/VBoxBalloonCtrl
+ln -f ./VBoxISAExec $VBOX_INSTALLED_DIR/VBoxAutostart
+ln -f ./VBoxISAExec $VBOX_INSTALLED_DIR/vboxwebsrv
+ln -f ./VBoxISAExec $VBOX_INSTALLED_DIR/webtest
+ln -f ./VBoxISAExec $VBOX_INSTALLED_DIR/VBoxZoneAccess
+ln -f ./VBoxISAExec $VBOX_INSTALLED_DIR/VBoxSVC
+if test -f $VBOX_INSTALLED_DIR/amd64/VBoxTestOGL || test -f $VBOX_INSTALLED_DIR/i386/VBoxTestOGL; then
+    ln -f ./VBoxISAExec $VBOX_INSTALLED_DIR/VBoxTestOGL
+fi
+
+if test -f $VBOX_INSTALLED_DIR/amd64/VirtualBox || test -f $VBOX_INSTALLED_DIR/i386/VirtualBox; then
+    ln -f ./VBoxISAExec $VBOX_INSTALLED_DIR/VirtualBox
+fi
+if test -f $VBOX_INSTALLED_DIR/amd64/VBoxHeadless || test -f $VBOX_INSTALLED_DIR/i386/VBoxHeadless; then
+    ln -f ./VBoxISAExec $VBOX_INSTALLED_DIR/VBoxHeadless
+    ln -fs ./VBoxHeadless $VBOX_INSTALLED_DIR/VBoxVRDP
+fi
 
 # Exclude directories to not cause install-time conflicts with existing system directories
 cd "$PKG_BASE_DIR"
@@ -182,7 +183,7 @@ filelist_fixup prototype '$3 == "var/svc/manifest/application/virtualbox/virtual
 # we're violating directory attributes of another (non existing) package
 dirlist_fixup prototype  '$3 == "var/svc/manifest/application/virtualbox"'                              '$6 = "root"'
 
-# Hardening requires some executables to be marked setuid.
+# hardening requires some executables to be marked setuid.
 if test -n "$HARDENED"; then
     $VBOX_AWK 'NF == 6 \
         && (    $3 == "opt/VirtualBox/amd64/VirtualBox" \
@@ -231,7 +232,7 @@ pkgmk -p $VBOXPKG_TIMESTAMP -o -r .
 # Translate into package datastream
 pkgtrans -s -o /var/spool/pkg "`pwd`/$VBOX_PKGFILE" "$VBOX_PKGNAME"
 
-# $5 if exists would contain the path to the VBI package to include in the .tar.gz
+# $5 if exist would contain the path to the VBI package to include in the .tar.gz
 #if [ -f LICENSE ]; then
 #    VBOX_LICENSEFILE=LICENSE
 #fi

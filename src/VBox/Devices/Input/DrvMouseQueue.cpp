@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -200,20 +200,6 @@ static DECLCALLBACK(void) drvMousePassThruReportModes(PPDMIMOUSECONNECTOR pInter
 {
     PDRVMOUSEQUEUE pDrv = PPDMIMOUSECONNECTOR_2_DRVMOUSEQUEUE(pInterface);
     pDrv->pDownConnector->pfnReportModes(pDrv->pDownConnector, fRel, fAbs, fMT);
-}
-
-
-/**
- * Flush the mouse queue if there are pending events.
- *
- * @param   pInterface  Pointer to the mouse connector interface structure.
- */
-static DECLCALLBACK(void) drvMouseFlushQueue(PPDMIMOUSECONNECTOR pInterface)
-{
-    PDRVMOUSEQUEUE pDrv = PPDMIMOUSECONNECTOR_2_DRVMOUSEQUEUE(pInterface);
-
-    AssertPtr(pDrv->pQueue);
-    PDMQueueFlushIfNecessary(pDrv->pQueue);
 }
 
 

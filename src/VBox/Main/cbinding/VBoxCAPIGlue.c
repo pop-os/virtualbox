@@ -1,4 +1,4 @@
-/* $Id: VBoxCAPIGlue.c $ */
+/* $Revision: 97956 $ */
 /** @file
  * Glue code for dynamically linking to VBoxCAPI.
  */

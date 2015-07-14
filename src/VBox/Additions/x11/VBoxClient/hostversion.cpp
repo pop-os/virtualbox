@@ -1,4 +1,3 @@
-/* $Id: hostversion.cpp $ */
 /** @file
  * X11 guest client - host version check.
  */
@@ -209,7 +208,7 @@ struct VBCLSERVICE vbclHostVersionInterface =
     run,
     VBClServiceDefaultHandler, /* pause */
     VBClServiceDefaultHandler, /* resume */
-    VBClServiceDefaultCleanup
+    VBClServiceDefaultCleanup    
 };
 
 struct HOSTVERSIONSERVICE

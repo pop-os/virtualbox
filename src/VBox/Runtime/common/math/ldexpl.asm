@@ -4,7 +4,7 @@
 ;
 
 ;
-; Copyright (C) 2006-2015 Oracle Corporation
+; Copyright (C) 2006-2010 Oracle Corporation
 ;
 ; This file is part of VirtualBox Open Source Edition (OSE), as
 ; available from http://www.virtualbox.org. This file is free software;
@@ -32,7 +32,7 @@ BEGINCODE
 ; Computes lrd * 2^exp
 ; @returns st(0)
 ; @param    lrd     [rbp + xCB*2]
-; @param    exp     [ebp + 14h]  gcc:edi  msc:ecx
+; @param    exp     [ebp + 14h]  GCC:edi  MSC:ecx
 BEGINPROC RT_NOCRT(ldexpl)
     push    xBP
     mov     xBP, xSP

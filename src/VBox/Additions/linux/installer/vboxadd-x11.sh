@@ -1,6 +1,6 @@
 #! /bin/sh
 #
-# Linux Additions X11 setup init script ($Revision: 101523 $)
+# Linux Additions X11 setup init script ($Revision: 100166 $)
 #
 
 #
@@ -68,7 +68,9 @@ x11conf_files="/etc/X11/xorg.conf /etc/X11/xorg.conf-4 /etc/X11/.xorg.conf \
     /usr/X11R6/etc/X11/XF86Config /usr/X11R6/lib/X11/XF86Config-4 \
     /usr/X11R6/lib/X11/XF86Config"
 
-if [ -f /etc/redhat-release ]; then
+if [ -f /etc/arch-release ]; then
+    system=arch
+elif [ -f /etc/redhat-release ]; then
     system=redhat
 elif [ -f /etc/debian_version ]; then
     system=debian
@@ -80,6 +82,22 @@ elif [ -f /etc/lfs-release -a -d /etc/rc.d/init.d ]; then
     system=lfs
 else
     system=other
+fi
+
+if [ "$system" = "arch" ]; then
+    USECOLOR=yes
+    . /etc/rc.d/functions
+    fail_msg() {
+        stat_fail
+    }
+
+    succ_msg() {
+        stat_done
+    }
+
+    begin() {
+        stat_busy "$1"
+    }
 fi
 
 if [ "$system" = "redhat" ]; then
@@ -280,12 +298,9 @@ setup()
         test -c /dev/psaux && nopsaux="";;
     esac
     # Should we use the VMSVGA driver instead of VBoxVideo?
-    if grep 80eebeef /proc/bus/pci/devices > /dev/null; then
     vmsvga=""
-    elif grep 15ad0405 /proc/bus/pci/devices > /dev/null; then
+    if ! grep 80eebeef /proc/bus/pci/devices > /dev/null; then
         vmsvga="--vmsvga"
-    else
-        dox11config=""
     fi
     # The video driver to install for X.Org 6.9+
     vboxvideo_src=
@@ -575,7 +590,7 @@ cleanup()
             nobak="true"
         fi
     done
-    if test -z "${nobak}"; then
+    if test -n "${nobak}"; then
         for i in $x11conf_files; do
             if test -r "$i.vbox"; then
                 if test ! "$i" -nt "$i.vbox" -o -n "$legacy"; then
@@ -610,27 +625,14 @@ $failed
 EOF
 
     # Remove X.Org drivers
-    modules_dir=`X -showDefaultModulePath 2>&1` || modules_dir=
-    if [ -z "$modules_dir" ]; then
-        for dir in /usr/lib64/xorg/modules /usr/lib/xorg/modules /usr/X11R6/lib64/modules /usr/X11R6/lib/modules /usr/X11R6/lib/X11/modules; do
-            if [ -d $dir ]; then
-                modules_dir=$dir
-                break
-            fi
-        done
-    fi
-    rm -f "$modules_dir/drivers/vboxvideo_drv"* 2>/dev/null
-    rm -f "$modules_dir/input/vboxmouse_drv"* 2>/dev/null
+    find "$x11_modules_dir" /usr/lib64/xorg/modules /usr/lib/xorg/modules \
+        /usr/X11R6/lib64/modules /usr/X11R6/lib/modules \
+        /usr/X11R6/lib/X11/modules \
+        '(' -name 'vboxvideo_drv*' -o -name 'vboxmouse_drv*' ')' \
+        -exec rm -f '{}' ';' 2>/dev/null
 
     # Remove the link to vboxvideo_dri.so
-    for dir in /usr/lib/dri /usr/lib32/dri /usr/lib64/dri \
-        /usr/lib/xorg/modules/dri /usr/lib32/xorg/modules/dri \
-        /usr/lib64/xorg/modules/dri /usr/lib/i386-linux-gnu/dri \
-        /usr/lib/x86_64-linux-gnu/dri; do
-        if [ -d $dir ]; then
-            rm -f "$dir/vboxvideo_dri.so" 2>/dev/null
-        fi
-    done
+    rm -f /usr/lib/dri/vboxvideo_dri.so /usr/lib64/dri/vboxvideo_dri.so 2>/dev/null
 
     # Remove VBoxClient autostart files
     rm /etc/X11/Xsession.d/98vboxadd-xclient 2>/dev/null

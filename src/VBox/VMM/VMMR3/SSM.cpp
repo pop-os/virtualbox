@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1315,58 +1315,6 @@ SSMR3RegisterDriver(PVM pVM, PPDMDRVINS pDrvIns, const char *pszName, uint32_t u
 
 
 /**
- * Register a PDM USB device data unit.
- *
- * @returns VBox status.
- *
- * @param   pVM             Pointer to the VM.
- * @param   pUsbIns         USB instance.
- * @param   pszName         Data unit name.
- * @param   uInstance       The instance identifier of the data unit.
- *                          This must together with the name be unique.
- * @param   uVersion        Data layout version number.
- * @param   cbGuess         The approximate amount of data in the unit.
- *                          Only for progress indicators.
- *
- * @param   pfnLivePrep     Prepare live save callback, optional.
- * @param   pfnLiveExec     Execute live save callback, optional.
- * @param   pfnLiveVote     Vote live save callback, optional.
- *
- * @param   pfnSavePrep     Prepare save callback, optional.
- * @param   pfnSaveExec     Execute save callback, optional.
- * @param   pfnSaveDone     Done save callback, optional.
- *
- * @param   pfnLoadPrep     Prepare load callback, optional.
- * @param   pfnLoadExec     Execute load callback, optional.
- * @param   pfnLoadDone     Done load callback, optional.
- */
-VMMR3_INT_DECL(int)
-SSMR3RegisterUsb(PVM pVM, PPDMUSBINS pUsbIns, const char *pszName, uint32_t uInstance, uint32_t uVersion, size_t cbGuess,
-                 PFNSSMUSBLIVEPREP pfnLivePrep, PFNSSMUSBLIVEEXEC pfnLiveExec, PFNSSMUSBLIVEVOTE pfnLiveVote,
-                 PFNSSMUSBSAVEPREP pfnSavePrep, PFNSSMUSBSAVEEXEC pfnSaveExec, PFNSSMUSBSAVEDONE pfnSaveDone,
-                 PFNSSMUSBLOADPREP pfnLoadPrep, PFNSSMUSBLOADEXEC pfnLoadExec, PFNSSMUSBLOADDONE pfnLoadDone)
-{
-    PSSMUNIT pUnit;
-    int rc = ssmR3Register(pVM, pszName, uInstance, uVersion, cbGuess, NULL, &pUnit);
-    if (RT_SUCCESS(rc))
-    {
-        pUnit->enmType = SSMUNITTYPE_USB;
-        pUnit->u.Usb.pfnLivePrep = pfnLivePrep;
-        pUnit->u.Usb.pfnLiveExec = pfnLiveExec;
-        pUnit->u.Usb.pfnLiveVote = pfnLiveVote;
-        pUnit->u.Usb.pfnSavePrep = pfnSavePrep;
-        pUnit->u.Usb.pfnSaveExec = pfnSaveExec;
-        pUnit->u.Usb.pfnSaveDone = pfnSaveDone;
-        pUnit->u.Usb.pfnLoadPrep = pfnLoadPrep;
-        pUnit->u.Usb.pfnLoadExec = pfnLoadExec;
-        pUnit->u.Usb.pfnLoadDone = pfnLoadDone;
-        pUnit->u.Usb.pUsbIns = pUsbIns;
-    }
-    return rc;
-}
-
-
-/**
  * Register a internal data unit.
  *
  * @returns VBox status.
@@ -1397,7 +1345,7 @@ VMMR3DECL(int) SSMR3RegisterInternal(PVM pVM, const char *pszName, uint32_t uIns
     PFNSSMINTLOADPREP pfnLoadPrep, PFNSSMINTLOADEXEC pfnLoadExec, PFNSSMINTLOADDONE pfnLoadDone)
 {
     PSSMUNIT pUnit;
-    int rc = ssmR3Register(pVM, pszName, uInstance, uVersion, cbGuess, NULL /* pszBefore */, &pUnit);
+    int rc = ssmR3Register(pVM, pszName, uInstance, uVersion, cbGuess, NULL, &pUnit);
     if (RT_SUCCESS(rc))
     {
         pUnit->enmType = SSMUNITTYPE_INTERNAL;
@@ -1451,7 +1399,7 @@ VMMR3DECL(int) SSMR3RegisterExternal(PUVM pUVM, const char *pszName, uint32_t uI
     VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
 
     PSSMUNIT pUnit;
-    int rc = ssmR3Register(pVM, pszName, uInstance, uVersion, cbGuess, NULL /* pszBefore */, &pUnit);
+    int rc = ssmR3Register(pVM, pszName, uInstance, uVersion, cbGuess, NULL, &pUnit);
     if (RT_SUCCESS(rc))
     {
         pUnit->enmType = SSMUNITTYPE_EXTERNAL;
@@ -1640,76 +1588,6 @@ VMMR3_INT_DECL(int) SSMR3DeregisterDriver(PVM pVM, PPDMDRVINS pDrvIns, const cha
 
             AssertMsgReturn(!pszName,
                             ("Caller is not owner! Owner=%p Caller=%p %s\n", pUnit->u.Drv.pDrvIns, pDrvIns, pszName),
-                            VERR_SSM_UNIT_NOT_OWNER);
-        }
-
-        /* next */
-        pUnitPrev = pUnit;
-        pUnit = pUnit->pNext;
-    }
-
-    return rc;
-}
-
-
-/**
- * Deregister one or more PDM USB device data units.
- *
- * @returns VBox status.
- * @param   pVM             Pointer to the VM.
- * @param   pUsbIns         USB device instance.
- * @param   pszName         Data unit name.
- *                          Use NULL to deregister all data units for that driver instance.
- * @param   uInstance       The instance identifier of the data unit.
- *                          This must together with the name be unique. Ignored if pszName is NULL.
- * @remark  Only for dynamic data units and dynamic unloaded modules.
- */
-VMMR3_INT_DECL(int) SSMR3DeregisterUsb(PVM pVM, PPDMUSBINS pUsbIns, const char *pszName, uint32_t uInstance)
-{
-    /*
-     * Validate input.
-     */
-    AssertMsgReturn(VALID_PTR(pUsbIns), ("pUsbIns is NULL!\n"), VERR_INVALID_PARAMETER);
-
-    /*
-     * Search the list.
-     */
-    size_t      cchName = pszName ? strlen(pszName) : 0;
-    int         rc = pszName ? VERR_SSM_UNIT_NOT_FOUND : VINF_SUCCESS;
-    PSSMUNIT    pUnitPrev = NULL;
-    PSSMUNIT    pUnit = pVM->ssm.s.pHead;
-    while (pUnit)
-    {
-        if (    pUnit->enmType == SSMUNITTYPE_USB
-            &&  (   !pszName
-                 || (   pUnit->cchName == cchName
-                     && !memcmp(pUnit->szName, pszName, cchName)
-                     && pUnit->u32Instance == uInstance))
-            )
-        {
-            if (pUnit->u.Usb.pUsbIns == pUsbIns)
-            {
-                /*
-                 * Unlink it, advance pointer, and free the node.
-                 */
-                PSSMUNIT pFree = pUnit;
-                pUnit = pUnit->pNext;
-                if (pUnitPrev)
-                    pUnitPrev->pNext = pUnit;
-                else
-                    pVM->ssm.s.pHead = pUnit;
-                pVM->ssm.s.cUnits--;
-                Log(("SSM: Removed data unit '%s' (pdm drv).\n", pFree->szName));
-                MMR3HeapFree(pFree);
-
-                if (pszName)
-                    return VINF_SUCCESS;
-                rc = VINF_SUCCESS;
-                continue;
-            }
-
-            AssertMsgReturn(!pszName,
-                            ("Caller is not owner! Owner=%p Caller=%p %s\n", pUnit->u.Usb.pUsbIns, pUsbIns, pszName),
                             VERR_SSM_UNIT_NOT_OWNER);
         }
 
@@ -3702,7 +3580,7 @@ VMMR3DECL(int) SSMR3PutStructEx(PSSMHANDLE pSSM, const void *pvStruct, size_t cb
     /*
      * Begin marker.
      */
-    if (!(fFlags & (SSMSTRUCT_FLAGS_NO_MARKERS | SSMSTRUCT_FLAGS_NO_LEAD_MARKER)))
+    if (!(fFlags & SSMSTRUCT_FLAGS_NO_MARKERS))
     {
         rc = SSMR3PutU32(pSSM, SSMR3STRUCT_BEGIN);
         if (RT_FAILURE(rc))
@@ -3713,7 +3591,7 @@ VMMR3DECL(int) SSMR3PutStructEx(PSSMHANDLE pSSM, const void *pvStruct, size_t cb
      * Put the fields
      */
     rc = VINF_SUCCESS;
-    uint32_t off = 0;
+    uint32_t    off          = 0;
     for (PCSSMFIELD pCur = paFields;
          pCur->cb != UINT32_MAX && pCur->off != UINT32_MAX;
          pCur++)
@@ -3935,7 +3813,7 @@ VMMR3DECL(int) SSMR3PutStructEx(PSSMHANDLE pSSM, const void *pvStruct, size_t cb
     /*
      * End marker
      */
-    if (!(fFlags & (SSMSTRUCT_FLAGS_NO_MARKERS | SSMSTRUCT_FLAGS_NO_TAIL_MARKER)))
+    if (!(fFlags & SSMSTRUCT_FLAGS_NO_MARKERS))
     {
         rc = SSMR3PutU32(pSSM, SSMR3STRUCT_END);
         if (RT_FAILURE(rc))
@@ -4490,9 +4368,6 @@ static int ssmR3SaveDoDoneRun(PVM pVM, PSSMHANDLE pSSM)
                 case SSMUNITTYPE_DRV:
                     rc = pUnit->u.Drv.pfnSaveDone(pUnit->u.Drv.pDrvIns, pSSM);
                     break;
-                case SSMUNITTYPE_USB:
-                    rc = pUnit->u.Usb.pfnSaveDone(pUnit->u.Usb.pUsbIns, pSSM);
-                    break;
                 case SSMUNITTYPE_INTERNAL:
                     rc = pUnit->u.Internal.pfnSaveDone(pVM, pSSM);
                     break;
@@ -4842,9 +4717,6 @@ static int ssmR3SaveDoExecRun(PVM pVM, PSSMHANDLE pSSM)
             case SSMUNITTYPE_DRV:
                 rc = pUnit->u.Drv.pfnSaveExec(pUnit->u.Drv.pDrvIns, pSSM);
                 break;
-            case SSMUNITTYPE_USB:
-                rc = pUnit->u.Usb.pfnSaveExec(pUnit->u.Usb.pUsbIns, pSSM);
-                break;
             case SSMUNITTYPE_INTERNAL:
                 rc = pUnit->u.Internal.pfnSaveExec(pVM, pSSM);
                 break;
@@ -4934,9 +4806,6 @@ static int ssmR3SaveDoPrepRun(PVM pVM, PSSMHANDLE pSSM)
                     break;
                 case SSMUNITTYPE_DRV:
                     rc = pUnit->u.Drv.pfnSavePrep(pUnit->u.Drv.pDrvIns, pSSM);
-                    break;
-                case SSMUNITTYPE_USB:
-                    rc = pUnit->u.Usb.pfnSavePrep(pUnit->u.Usb.pUsbIns, pSSM);
                     break;
                 case SSMUNITTYPE_INTERNAL:
                     rc = pUnit->u.Internal.pfnSavePrep(pVM, pSSM);
@@ -5281,9 +5150,6 @@ static int ssmR3LiveDoVoteRun(PVM pVM, PSSMHANDLE pSSM, uint32_t uPass)
                 case SSMUNITTYPE_DRV:
                     rc = pUnit->u.Drv.pfnLiveVote(pUnit->u.Drv.pDrvIns, pSSM, uPass);
                     break;
-                case SSMUNITTYPE_USB:
-                    rc = pUnit->u.Usb.pfnLiveVote(pUnit->u.Usb.pUsbIns, pSSM, uPass);
-                    break;
                 case SSMUNITTYPE_INTERNAL:
                     rc = pUnit->u.Internal.pfnLiveVote(pVM, pSSM, uPass);
                     break;
@@ -5423,9 +5289,6 @@ static int ssmR3LiveDoExecRun(PVM pVM, PSSMHANDLE pSSM, uint32_t uPass)
                 break;
             case SSMUNITTYPE_DRV:
                 rc = pUnit->u.Drv.pfnLiveExec(pUnit->u.Drv.pDrvIns, pSSM, uPass);
-                break;
-            case SSMUNITTYPE_USB:
-                rc = pUnit->u.Usb.pfnLiveExec(pUnit->u.Usb.pUsbIns, pSSM, uPass);
                 break;
             case SSMUNITTYPE_INTERNAL:
                 rc = pUnit->u.Internal.pfnLiveExec(pVM, pSSM, uPass);
@@ -5585,9 +5448,6 @@ static int ssmR3DoLivePrepRun(PVM pVM, PSSMHANDLE pSSM)
                     break;
                 case SSMUNITTYPE_DRV:
                     rc = pUnit->u.Drv.pfnLivePrep(pUnit->u.Drv.pDrvIns, pSSM);
-                    break;
-                case SSMUNITTYPE_USB:
-                    rc = pUnit->u.Usb.pfnLivePrep(pUnit->u.Usb.pUsbIns, pSSM);
                     break;
                 case SSMUNITTYPE_INTERNAL:
                     rc = pUnit->u.Internal.pfnLivePrep(pVM, pSSM);
@@ -6544,49 +6404,46 @@ VMMR3DECL(int) SSMR3GetStruct(PSSMHANDLE pSSM, void *pvStruct, PCSSMFIELD paFiel
          pCur->cb != UINT32_MAX && pCur->off != UINT32_MAX;
          pCur++)
     {
-        if (pCur->uFirstVer <= pSSM->u.Read.uCurUnitVer)
+        uint8_t *pbField = (uint8_t *)pvStruct + pCur->off;
+        switch ((uintptr_t)pCur->pfnGetPutOrTransformer)
         {
-            uint8_t *pbField = (uint8_t *)pvStruct + pCur->off;
-            switch ((uintptr_t)pCur->pfnGetPutOrTransformer)
+            case SSMFIELDTRANS_NO_TRANSFORMATION:
+                rc = ssmR3DataRead(pSSM, pbField, pCur->cb);
+                break;
+
+            case SSMFIELDTRANS_GCPTR:
+                AssertMsgBreakStmt(pCur->cb == sizeof(RTGCPTR), ("%#x (%s)\n", pCur->cb, pCur->pszName), rc = VERR_SSM_FIELD_INVALID_SIZE);
+                rc = SSMR3GetGCPtr(pSSM, (PRTGCPTR)pbField);
+                break;
+
+            case SSMFIELDTRANS_GCPHYS:
+                AssertMsgBreakStmt(pCur->cb == sizeof(RTGCPHYS), ("%#x (%s)\n", pCur->cb, pCur->pszName), rc = VERR_SSM_FIELD_INVALID_SIZE);
+                rc = SSMR3GetGCPhys(pSSM, (PRTGCPHYS)pbField);
+                break;
+
+            case SSMFIELDTRANS_RCPTR:
+                AssertMsgBreakStmt(pCur->cb == sizeof(RTRCPTR), ("%#x (%s)\n", pCur->cb, pCur->pszName), rc = VERR_SSM_FIELD_INVALID_SIZE);
+                rc = SSMR3GetRCPtr(pSSM, (PRTRCPTR)pbField);
+                break;
+
+            case SSMFIELDTRANS_RCPTR_ARRAY:
             {
-                case SSMFIELDTRANS_NO_TRANSFORMATION:
-                    rc = ssmR3DataRead(pSSM, pbField, pCur->cb);
-                    break;
-
-                case SSMFIELDTRANS_GCPTR:
-                    AssertMsgBreakStmt(pCur->cb == sizeof(RTGCPTR), ("%#x (%s)\n", pCur->cb, pCur->pszName), rc = VERR_SSM_FIELD_INVALID_SIZE);
-                    rc = SSMR3GetGCPtr(pSSM, (PRTGCPTR)pbField);
-                    break;
-
-                case SSMFIELDTRANS_GCPHYS:
-                    AssertMsgBreakStmt(pCur->cb == sizeof(RTGCPHYS), ("%#x (%s)\n", pCur->cb, pCur->pszName), rc = VERR_SSM_FIELD_INVALID_SIZE);
-                    rc = SSMR3GetGCPhys(pSSM, (PRTGCPHYS)pbField);
-                    break;
-
-                case SSMFIELDTRANS_RCPTR:
-                    AssertMsgBreakStmt(pCur->cb == sizeof(RTRCPTR), ("%#x (%s)\n", pCur->cb, pCur->pszName), rc = VERR_SSM_FIELD_INVALID_SIZE);
-                    rc = SSMR3GetRCPtr(pSSM, (PRTRCPTR)pbField);
-                    break;
-
-                case SSMFIELDTRANS_RCPTR_ARRAY:
-                {
-                    uint32_t const cEntries = pCur->cb / sizeof(RTRCPTR);
-                    AssertMsgBreakStmt(pCur->cb == cEntries * sizeof(RTRCPTR) && cEntries, ("%#x (%s)\n", pCur->cb, pCur->pszName), rc = VERR_SSM_FIELD_INVALID_SIZE);
-                    rc = VINF_SUCCESS;
-                    for (uint32_t i = 0; i < cEntries && RT_SUCCESS(rc); i++)
-                        rc = SSMR3GetRCPtr(pSSM, &((PRTRCPTR)pbField)[i]);
-                    break;
-                }
-
-                default:
-                    AssertMsgFailedBreakStmt(("%#x\n", pCur->pfnGetPutOrTransformer), rc = VERR_SSM_FIELD_COMPLEX);
+                uint32_t const cEntries = pCur->cb / sizeof(RTRCPTR);
+                AssertMsgBreakStmt(pCur->cb == cEntries * sizeof(RTRCPTR) && cEntries, ("%#x (%s)\n", pCur->cb, pCur->pszName), rc = VERR_SSM_FIELD_INVALID_SIZE);
+                rc = VINF_SUCCESS;
+                for (uint32_t i = 0; i < cEntries && RT_SUCCESS(rc); i++)
+                    rc = SSMR3GetRCPtr(pSSM, &((PRTRCPTR)pbField)[i]);
+                break;
             }
-            if (RT_FAILURE(rc))
-            {
-                if (RT_SUCCESS(pSSM->rc))
-                    pSSM->rc = rc;
-                return rc;
-            }
+
+            default:
+                AssertMsgFailedBreakStmt(("%#x\n", pCur->pfnGetPutOrTransformer), rc = VERR_SSM_FIELD_COMPLEX);
+        }
+        if (RT_FAILURE(rc))
+        {
+            if (RT_SUCCESS(pSSM->rc))
+                pSSM->rc = rc;
+            return rc;
         }
     }
 
@@ -6674,7 +6531,7 @@ VMMR3DECL(int) SSMR3GetStructEx(PSSMHANDLE pSSM, void *pvStruct, size_t cbStruct
     /*
      * Begin marker.
      */
-    if (!(fFlags & (SSMSTRUCT_FLAGS_NO_MARKERS | SSMSTRUCT_FLAGS_NO_LEAD_MARKER)))
+    if (!(fFlags & SSMSTRUCT_FLAGS_NO_MARKERS))
     {
         rc = SSMR3GetU32(pSSM, &u32Magic);
         if (RT_FAILURE(rc))
@@ -6710,185 +6567,182 @@ VMMR3DECL(int) SSMR3GetStructEx(PSSMHANDLE pSSM, void *pvStruct, size_t cbStruct
                         ("off=%#x offField=%#x (%s)\n", off, offField, pCur->pszName),
                         pSSM->rc = VERR_SSM_FIELD_NOT_CONSECUTIVE);
 
-        if (pCur->uFirstVer <= pSSM->u.Read.uCurUnitVer)
+        rc = VINF_SUCCESS;
+        uint8_t       *pbField  = (uint8_t *)pvStruct + offField;
+        switch ((uintptr_t)pCur->pfnGetPutOrTransformer)
         {
-            rc = VINF_SUCCESS;
-            uint8_t       *pbField  = (uint8_t *)pvStruct + offField;
-            switch ((uintptr_t)pCur->pfnGetPutOrTransformer)
+            case SSMFIELDTRANS_NO_TRANSFORMATION:
+                rc = ssmR3DataRead(pSSM, pbField, cbField);
+                break;
+
+            case SSMFIELDTRANS_GCPHYS:
+                AssertMsgBreakStmt(cbField == sizeof(RTGCPHYS), ("%#x (%s)\n", cbField, pCur->pszName), rc = VERR_SSM_FIELD_INVALID_SIZE);
+                rc = SSMR3GetGCPhys(pSSM, (PRTGCPHYS)pbField);
+                break;
+
+            case SSMFIELDTRANS_GCPTR:
+                AssertMsgBreakStmt(cbField == sizeof(RTGCPTR), ("%#x (%s)\n", cbField, pCur->pszName), rc = VERR_SSM_FIELD_INVALID_SIZE);
+                rc = SSMR3GetGCPtr(pSSM, (PRTGCPTR)pbField);
+                break;
+
+            case SSMFIELDTRANS_RCPTR:
+                AssertMsgBreakStmt(cbField == sizeof(RTRCPTR), ("%#x (%s)\n", cbField, pCur->pszName), rc = VERR_SSM_FIELD_INVALID_SIZE);
+                rc = SSMR3GetRCPtr(pSSM, (PRTRCPTR)pbField);
+                break;
+
+            case SSMFIELDTRANS_RCPTR_ARRAY:
             {
-                case SSMFIELDTRANS_NO_TRANSFORMATION:
-                    rc = ssmR3DataRead(pSSM, pbField, cbField);
-                    break;
-
-                case SSMFIELDTRANS_GCPHYS:
-                    AssertMsgBreakStmt(cbField == sizeof(RTGCPHYS), ("%#x (%s)\n", cbField, pCur->pszName), rc = VERR_SSM_FIELD_INVALID_SIZE);
-                    rc = SSMR3GetGCPhys(pSSM, (PRTGCPHYS)pbField);
-                    break;
-
-                case SSMFIELDTRANS_GCPTR:
-                    AssertMsgBreakStmt(cbField == sizeof(RTGCPTR), ("%#x (%s)\n", cbField, pCur->pszName), rc = VERR_SSM_FIELD_INVALID_SIZE);
-                    rc = SSMR3GetGCPtr(pSSM, (PRTGCPTR)pbField);
-                    break;
-
-                case SSMFIELDTRANS_RCPTR:
-                    AssertMsgBreakStmt(cbField == sizeof(RTRCPTR), ("%#x (%s)\n", cbField, pCur->pszName), rc = VERR_SSM_FIELD_INVALID_SIZE);
-                    rc = SSMR3GetRCPtr(pSSM, (PRTRCPTR)pbField);
-                    break;
-
-                case SSMFIELDTRANS_RCPTR_ARRAY:
-                {
-                    uint32_t const cEntries = cbField / sizeof(RTRCPTR);
-                    AssertMsgBreakStmt(cbField == cEntries * sizeof(RTRCPTR) && cEntries, ("%#x (%s)\n", cbField, pCur->pszName), rc = VERR_SSM_FIELD_INVALID_SIZE);
-                    rc = VINF_SUCCESS;
-                    for (uint32_t i = 0; i < cEntries && RT_SUCCESS(rc); i++)
-                        rc = SSMR3GetRCPtr(pSSM, &((PRTRCPTR)pbField)[i]);
-                    break;
-                }
-
-                case SSMFIELDTRANS_HCPTR_NI:
-                    AssertMsgBreakStmt(cbField == sizeof(void *), ("%#x (%s)\n", cbField, pCur->pszName), rc = VERR_SSM_FIELD_INVALID_SIZE);
-                    rc = ssmR3GetHCPtrNI(pSSM, (void **)pbField, fFlags);
-                    break;
-
-                case SSMFIELDTRANS_HCPTR_NI_ARRAY:
-                {
-                    uint32_t const cEntries = cbField / sizeof(void *);
-                    AssertMsgBreakStmt(cbField == cEntries * sizeof(void *) && cEntries, ("%#x (%s)\n", cbField, pCur->pszName), rc = VERR_SSM_FIELD_INVALID_SIZE);
-                    rc = VINF_SUCCESS;
-                    for (uint32_t i = 0; i < cEntries && RT_SUCCESS(rc); i++)
-                        rc = ssmR3GetHCPtrNI(pSSM, &((void **)pbField)[i], fFlags);
-                    break;
-                }
-
-                case SSMFIELDTRANS_HCPTR_HACK_U32:
-                    AssertMsgBreakStmt(cbField == sizeof(void *), ("%#x (%s)\n", cbField, pCur->pszName), rc = VERR_SSM_FIELD_INVALID_SIZE);
-                    *(uintptr_t *)pbField = 0;
-                    rc = ssmR3DataRead(pSSM, pbField, sizeof(uint32_t));
-                    if ((fFlags & SSMSTRUCT_FLAGS_DONT_IGNORE) && ssmR3GetHostBits(pSSM) == 64)
-                    {
-                        uint32_t u32;
-                        rc = ssmR3DataRead(pSSM, &u32, sizeof(uint32_t));
-                        AssertMsgBreakStmt(RT_FAILURE(rc) || u32 == 0 || (fFlags & SSMSTRUCT_FLAGS_SAVED_AS_MEM),
-                                           ("high=%#x low=%#x (%s)\n", u32, *(uint32_t *)pbField, pCur->pszName),
-                                           rc = VERR_SSM_FIELD_INVALID_VALUE);
-                    }
-                    break;
-
-                case SSMFIELDTRANS_U32_ZX_U64:
-                    AssertMsgBreakStmt(cbField == sizeof(uint64_t), ("%#x (%s)\n", cbField, pCur->pszName), rc = VERR_SSM_FIELD_INVALID_SIZE);
-                    ((uint32_t *)pbField)[1] = 0;
-                    rc = SSMR3GetU32(pSSM, (uint32_t *)pbField);
-                    break;
-
-
-                case SSMFIELDTRANS_IGNORE:
-                    if (fFlags & SSMSTRUCT_FLAGS_DONT_IGNORE)
-                        rc = SSMR3Skip(pSSM, cbField);
-                    break;
-
-                case SSMFIELDTRANS_IGN_GCPHYS:
-                    AssertMsgBreakStmt(cbField == sizeof(RTGCPHYS), ("%#x (%s)\n", cbField, pCur->pszName), rc = VERR_SSM_FIELD_INVALID_SIZE);
-                    if (fFlags & SSMSTRUCT_FLAGS_DONT_IGNORE)
-                        rc = SSMR3Skip(pSSM, pSSM->u.Read.cbGCPhys);
-                    break;
-
-                case SSMFIELDTRANS_IGN_GCPTR:
-                    AssertMsgBreakStmt(cbField == sizeof(RTGCPTR), ("%#x (%s)\n", cbField, pCur->pszName), rc = VERR_SSM_FIELD_INVALID_SIZE);
-                    if (fFlags & SSMSTRUCT_FLAGS_DONT_IGNORE)
-                        rc = SSMR3Skip(pSSM, pSSM->u.Read.cbGCPtr);
-                    break;
-
-                case SSMFIELDTRANS_IGN_RCPTR:
-                    AssertMsgBreakStmt(cbField == sizeof(RTRCPTR), ("%#x (%s)\n", cbField, pCur->pszName), rc = VERR_SSM_FIELD_INVALID_SIZE);
-                    if (fFlags & SSMSTRUCT_FLAGS_DONT_IGNORE)
-                        rc = SSMR3Skip(pSSM, sizeof(RTRCPTR));
-                    break;
-
-                case SSMFIELDTRANS_IGN_HCPTR:
-                    AssertMsgBreakStmt(cbField == sizeof(void *), ("%#x (%s)\n", cbField, pCur->pszName), rc = VERR_SSM_FIELD_INVALID_SIZE);
-                    if (fFlags & SSMSTRUCT_FLAGS_DONT_IGNORE)
-                        rc = SSMR3Skip(pSSM, ssmR3GetHostBits(pSSM) / 8);
-                    break;
-
-
-                case SSMFIELDTRANS_OLD:
-                    AssertMsgBreakStmt(pCur->off == UINT32_MAX / 2, ("%#x %#x (%s)\n", pCur->cb, pCur->off, pCur->pszName), rc = VERR_SSM_FIELD_INVALID_SIZE);
-                    rc = SSMR3Skip(pSSM, pCur->cb);
-                    break;
-
-                case SSMFIELDTRANS_OLD_GCPHYS:
-                    AssertMsgBreakStmt(pCur->cb == sizeof(RTGCPHYS) && pCur->off == UINT32_MAX / 2, ("%#x %#x (%s)\n", pCur->cb, pCur->off, pCur->pszName), rc = VERR_SSM_FIELD_INVALID_SIZE);
-                    rc = SSMR3Skip(pSSM, pSSM->u.Read.cbGCPhys);
-                    break;
-
-                case SSMFIELDTRANS_OLD_GCPTR:
-                    AssertMsgBreakStmt(pCur->cb == sizeof(RTGCPTR) && pCur->off == UINT32_MAX / 2, ("%#x %#x (%s)\n", pCur->cb, pCur->off, pCur->pszName), rc = VERR_SSM_FIELD_INVALID_SIZE);
-                    rc = SSMR3Skip(pSSM, pSSM->u.Read.cbGCPtr);
-                    break;
-
-                case SSMFIELDTRANS_OLD_RCPTR:
-                    AssertMsgBreakStmt(pCur->cb == sizeof(RTRCPTR) && pCur->off == UINT32_MAX / 2, ("%#x %#x (%s)\n", pCur->cb, pCur->off, pCur->pszName), rc = VERR_SSM_FIELD_INVALID_SIZE);
-                    rc = SSMR3Skip(pSSM, sizeof(RTRCPTR));
-                    break;
-
-                case SSMFIELDTRANS_OLD_HCPTR:
-                    AssertMsgBreakStmt(pCur->cb == sizeof(void *) && pCur->off == UINT32_MAX / 2, ("%#x %#x (%s)\n", pCur->cb, pCur->off, pCur->pszName), rc = VERR_SSM_FIELD_INVALID_SIZE);
-                    rc = SSMR3Skip(pSSM, ssmR3GetHostBits(pSSM) / 8);
-                    break;
-
-                case SSMFIELDTRANS_OLD_PAD_HC:
-                    AssertMsgBreakStmt(pCur->off == UINT32_MAX / 2, ("%#x %#x (%s)\n", pCur->cb, pCur->off, pCur->pszName), rc = VERR_SSM_FIELD_INVALID_SIZE);
-                    rc = SSMR3Skip(pSSM, ssmR3GetHostBits(pSSM) == 64 ? RT_HIWORD(pCur->cb) : RT_LOWORD(pCur->cb));
-                    break;
-
-                case SSMFIELDTRANS_OLD_PAD_MSC32:
-                    AssertMsgBreakStmt(pCur->off == UINT32_MAX / 2, ("%#x %#x (%s)\n", pCur->cb, pCur->off, pCur->pszName), rc = VERR_SSM_FIELD_INVALID_SIZE);
-                    if (ssmR3IsHostMsc32(pSSM))
-                        rc = SSMR3Skip(pSSM, pCur->cb);
-                    break;
-
-
-                case SSMFIELDTRANS_PAD_HC:
-                case SSMFIELDTRANS_PAD_HC32:
-                case SSMFIELDTRANS_PAD_HC64:
-                case SSMFIELDTRANS_PAD_HC_AUTO:
-                case SSMFIELDTRANS_PAD_MSC32_AUTO:
-                {
-                    uint32_t cb32    = RT_BYTE1(pCur->cb);
-                    uint32_t cb64    = RT_BYTE2(pCur->cb);
-                    uint32_t cbCtx   =    HC_ARCH_BITS == 64
-                                       || (   (uintptr_t)pCur->pfnGetPutOrTransformer == SSMFIELDTRANS_PAD_MSC32_AUTO
-                                           && !SSM_HOST_IS_MSC_32)
-                                     ? cb64 : cb32;
-                    uint32_t cbSaved =    ssmR3GetHostBits(pSSM) == 64
-                                       || (   (uintptr_t)pCur->pfnGetPutOrTransformer == SSMFIELDTRANS_PAD_MSC32_AUTO
-                                           && !ssmR3IsHostMsc32(pSSM))
-                                     ? cb64 : cb32;
-                    AssertMsgBreakStmt(    cbField == cbCtx
-                                       &&  (   (   pCur->off == UINT32_MAX / 2
-                                                && (   cbField == 0
-                                                    || (uintptr_t)pCur->pfnGetPutOrTransformer == SSMFIELDTRANS_PAD_HC_AUTO
-                                                    || (uintptr_t)pCur->pfnGetPutOrTransformer == SSMFIELDTRANS_PAD_MSC32_AUTO
-                                                   )
-                                               )
-                                            || (pCur->off != UINT32_MAX / 2 && cbField != 0)
-                                            )
-                                       , ("cbField=%#x cb32=%#x cb64=%#x HC_ARCH_BITS=%u cbCtx=%#x cbSaved=%#x off=%#x\n",
-                                          cbField, cb32, cb64, HC_ARCH_BITS, cbCtx, cbSaved, pCur->off),
-                                       rc = VERR_SSM_FIELD_INVALID_PADDING_SIZE);
-                    if (fFlags & SSMSTRUCT_FLAGS_DONT_IGNORE)
-                        rc = SSMR3Skip(pSSM, cbSaved);
-                    break;
-                }
-
-                default:
-                    AssertBreakStmt(pCur->pfnGetPutOrTransformer, rc = VERR_SSM_FIELD_INVALID_CALLBACK);
-                    rc = pCur->pfnGetPutOrTransformer(pSSM, pCur, pvStruct, fFlags, true /*fGetOrPut*/, pvUser);
-                    break;
+                uint32_t const cEntries = cbField / sizeof(RTRCPTR);
+                AssertMsgBreakStmt(cbField == cEntries * sizeof(RTRCPTR) && cEntries, ("%#x (%s)\n", cbField, pCur->pszName), rc = VERR_SSM_FIELD_INVALID_SIZE);
+                rc = VINF_SUCCESS;
+                for (uint32_t i = 0; i < cEntries && RT_SUCCESS(rc); i++)
+                    rc = SSMR3GetRCPtr(pSSM, &((PRTRCPTR)pbField)[i]);
+                break;
             }
-            if (RT_FAILURE(rc))
+
+            case SSMFIELDTRANS_HCPTR_NI:
+                AssertMsgBreakStmt(cbField == sizeof(void *), ("%#x (%s)\n", cbField, pCur->pszName), rc = VERR_SSM_FIELD_INVALID_SIZE);
+                rc = ssmR3GetHCPtrNI(pSSM, (void **)pbField, fFlags);
+                break;
+
+            case SSMFIELDTRANS_HCPTR_NI_ARRAY:
+            {
+                uint32_t const cEntries = cbField / sizeof(void *);
+                AssertMsgBreakStmt(cbField == cEntries * sizeof(void *) && cEntries, ("%#x (%s)\n", cbField, pCur->pszName), rc = VERR_SSM_FIELD_INVALID_SIZE);
+                rc = VINF_SUCCESS;
+                for (uint32_t i = 0; i < cEntries && RT_SUCCESS(rc); i++)
+                    rc = ssmR3GetHCPtrNI(pSSM, &((void **)pbField)[i], fFlags);
+                break;
+            }
+
+            case SSMFIELDTRANS_HCPTR_HACK_U32:
+                AssertMsgBreakStmt(cbField == sizeof(void *), ("%#x (%s)\n", cbField, pCur->pszName), rc = VERR_SSM_FIELD_INVALID_SIZE);
+                *(uintptr_t *)pbField = 0;
+                rc = ssmR3DataRead(pSSM, pbField, sizeof(uint32_t));
+                if ((fFlags & SSMSTRUCT_FLAGS_DONT_IGNORE) && ssmR3GetHostBits(pSSM) == 64)
+                {
+                    uint32_t u32;
+                    rc = ssmR3DataRead(pSSM, &u32, sizeof(uint32_t));
+                    AssertMsgBreakStmt(RT_FAILURE(rc) || u32 == 0 || (fFlags & SSMSTRUCT_FLAGS_SAVED_AS_MEM),
+                                       ("high=%#x low=%#x (%s)\n", u32, *(uint32_t *)pbField, pCur->pszName),
+                                       rc = VERR_SSM_FIELD_INVALID_VALUE);
+                }
+                break;
+
+            case SSMFIELDTRANS_U32_ZX_U64:
+                AssertMsgBreakStmt(cbField == sizeof(uint64_t), ("%#x (%s)\n", cbField, pCur->pszName), rc = VERR_SSM_FIELD_INVALID_SIZE);
+                ((uint32_t *)pbField)[1] = 0;
+                rc = SSMR3GetU32(pSSM, (uint32_t *)pbField);
+                break;
+
+
+            case SSMFIELDTRANS_IGNORE:
+                if (fFlags & SSMSTRUCT_FLAGS_DONT_IGNORE)
+                    rc = SSMR3Skip(pSSM, cbField);
+                break;
+
+            case SSMFIELDTRANS_IGN_GCPHYS:
+                AssertMsgBreakStmt(cbField == sizeof(RTGCPHYS), ("%#x (%s)\n", cbField, pCur->pszName), rc = VERR_SSM_FIELD_INVALID_SIZE);
+                if (fFlags & SSMSTRUCT_FLAGS_DONT_IGNORE)
+                    rc = SSMR3Skip(pSSM, pSSM->u.Read.cbGCPhys);
+                break;
+
+            case SSMFIELDTRANS_IGN_GCPTR:
+                AssertMsgBreakStmt(cbField == sizeof(RTGCPTR), ("%#x (%s)\n", cbField, pCur->pszName), rc = VERR_SSM_FIELD_INVALID_SIZE);
+                if (fFlags & SSMSTRUCT_FLAGS_DONT_IGNORE)
+                    rc = SSMR3Skip(pSSM, pSSM->u.Read.cbGCPtr);
+                break;
+
+            case SSMFIELDTRANS_IGN_RCPTR:
+                AssertMsgBreakStmt(cbField == sizeof(RTRCPTR), ("%#x (%s)\n", cbField, pCur->pszName), rc = VERR_SSM_FIELD_INVALID_SIZE);
+                if (fFlags & SSMSTRUCT_FLAGS_DONT_IGNORE)
+                    rc = SSMR3Skip(pSSM, sizeof(RTRCPTR));
+                break;
+
+            case SSMFIELDTRANS_IGN_HCPTR:
+                AssertMsgBreakStmt(cbField == sizeof(void *), ("%#x (%s)\n", cbField, pCur->pszName), rc = VERR_SSM_FIELD_INVALID_SIZE);
+                if (fFlags & SSMSTRUCT_FLAGS_DONT_IGNORE)
+                    rc = SSMR3Skip(pSSM, ssmR3GetHostBits(pSSM) / 8);
+                break;
+
+
+            case SSMFIELDTRANS_OLD:
+                AssertMsgBreakStmt(pCur->off == UINT32_MAX / 2, ("%#x %#x (%s)\n", pCur->cb, pCur->off, pCur->pszName), rc = VERR_SSM_FIELD_INVALID_SIZE);
+                rc = SSMR3Skip(pSSM, pCur->cb);
+                break;
+
+            case SSMFIELDTRANS_OLD_GCPHYS:
+                AssertMsgBreakStmt(pCur->cb == sizeof(RTGCPHYS) && pCur->off == UINT32_MAX / 2, ("%#x %#x (%s)\n", pCur->cb, pCur->off, pCur->pszName), rc = VERR_SSM_FIELD_INVALID_SIZE);
+                rc = SSMR3Skip(pSSM, pSSM->u.Read.cbGCPhys);
+                break;
+
+            case SSMFIELDTRANS_OLD_GCPTR:
+                AssertMsgBreakStmt(pCur->cb == sizeof(RTGCPTR) && pCur->off == UINT32_MAX / 2, ("%#x %#x (%s)\n", pCur->cb, pCur->off, pCur->pszName), rc = VERR_SSM_FIELD_INVALID_SIZE);
+                rc = SSMR3Skip(pSSM, pSSM->u.Read.cbGCPtr);
+                break;
+
+            case SSMFIELDTRANS_OLD_RCPTR:
+                AssertMsgBreakStmt(pCur->cb == sizeof(RTRCPTR) && pCur->off == UINT32_MAX / 2, ("%#x %#x (%s)\n", pCur->cb, pCur->off, pCur->pszName), rc = VERR_SSM_FIELD_INVALID_SIZE);
+                rc = SSMR3Skip(pSSM, sizeof(RTRCPTR));
+                break;
+
+            case SSMFIELDTRANS_OLD_HCPTR:
+                AssertMsgBreakStmt(pCur->cb == sizeof(void *) && pCur->off == UINT32_MAX / 2, ("%#x %#x (%s)\n", pCur->cb, pCur->off, pCur->pszName), rc = VERR_SSM_FIELD_INVALID_SIZE);
+                rc = SSMR3Skip(pSSM, ssmR3GetHostBits(pSSM) / 8);
+                break;
+
+            case SSMFIELDTRANS_OLD_PAD_HC:
+                AssertMsgBreakStmt(pCur->off == UINT32_MAX / 2, ("%#x %#x (%s)\n", pCur->cb, pCur->off, pCur->pszName), rc = VERR_SSM_FIELD_INVALID_SIZE);
+                rc = SSMR3Skip(pSSM, ssmR3GetHostBits(pSSM) == 64 ? RT_HIWORD(pCur->cb) : RT_LOWORD(pCur->cb));
+                break;
+
+            case SSMFIELDTRANS_OLD_PAD_MSC32:
+                AssertMsgBreakStmt(pCur->off == UINT32_MAX / 2, ("%#x %#x (%s)\n", pCur->cb, pCur->off, pCur->pszName), rc = VERR_SSM_FIELD_INVALID_SIZE);
+                if (ssmR3IsHostMsc32(pSSM))
+                    rc = SSMR3Skip(pSSM, pCur->cb);
+                break;
+
+
+            case SSMFIELDTRANS_PAD_HC:
+            case SSMFIELDTRANS_PAD_HC32:
+            case SSMFIELDTRANS_PAD_HC64:
+            case SSMFIELDTRANS_PAD_HC_AUTO:
+            case SSMFIELDTRANS_PAD_MSC32_AUTO:
+            {
+                uint32_t cb32    = RT_BYTE1(pCur->cb);
+                uint32_t cb64    = RT_BYTE2(pCur->cb);
+                uint32_t cbCtx   =    HC_ARCH_BITS == 64
+                                   || (   (uintptr_t)pCur->pfnGetPutOrTransformer == SSMFIELDTRANS_PAD_MSC32_AUTO
+                                       && !SSM_HOST_IS_MSC_32)
+                                 ? cb64 : cb32;
+                uint32_t cbSaved =    ssmR3GetHostBits(pSSM) == 64
+                                   || (   (uintptr_t)pCur->pfnGetPutOrTransformer == SSMFIELDTRANS_PAD_MSC32_AUTO
+                                       && !ssmR3IsHostMsc32(pSSM))
+                                 ? cb64 : cb32;
+                AssertMsgBreakStmt(    cbField == cbCtx
+                                   &&  (   (   pCur->off == UINT32_MAX / 2
+                                            && (   cbField == 0
+                                                || (uintptr_t)pCur->pfnGetPutOrTransformer == SSMFIELDTRANS_PAD_HC_AUTO
+                                                || (uintptr_t)pCur->pfnGetPutOrTransformer == SSMFIELDTRANS_PAD_MSC32_AUTO
+                                               )
+                                           )
+                                        || (pCur->off != UINT32_MAX / 2 && cbField != 0)
+                                        )
+                                   , ("cbField=%#x cb32=%#x cb64=%#x HC_ARCH_BITS=%u cbCtx=%#x cbSaved=%#x off=%#x\n",
+                                      cbField, cb32, cb64, HC_ARCH_BITS, cbCtx, cbSaved, pCur->off),
+                                   rc = VERR_SSM_FIELD_INVALID_PADDING_SIZE);
+                if (fFlags & SSMSTRUCT_FLAGS_DONT_IGNORE)
+                    rc = SSMR3Skip(pSSM, cbSaved);
+                break;
+            }
+
+            default:
+                AssertBreakStmt(pCur->pfnGetPutOrTransformer, rc = VERR_SSM_FIELD_INVALID_CALLBACK);
+                rc = pCur->pfnGetPutOrTransformer(pSSM, pCur, pvStruct, fFlags, true /*fGetOrPut*/, pvUser);
                 break;
         }
+        if (RT_FAILURE(rc))
+            break;
 
         off = offField + cbField;
     }
@@ -6909,7 +6763,7 @@ VMMR3DECL(int) SSMR3GetStructEx(PSSMHANDLE pSSM, void *pvStruct, size_t cbStruct
     /*
      * End marker
      */
-    if (!(fFlags & (SSMSTRUCT_FLAGS_NO_MARKERS | SSMSTRUCT_FLAGS_NO_TAIL_MARKER)))
+    if (!(fFlags & SSMSTRUCT_FLAGS_NO_MARKERS))
     {
         rc = SSMR3GetU32(pSSM, &u32Magic);
         if (RT_FAILURE(rc))
@@ -8197,9 +8051,6 @@ static int ssmR3LoadExecV1(PVM pVM, PSSMHANDLE pSSM)
                             case SSMUNITTYPE_DRV:
                                 rc = pUnit->u.Drv.pfnLoadExec(pUnit->u.Drv.pDrvIns, pSSM, UnitHdr.u32Version, SSM_PASS_FINAL);
                                 break;
-                            case SSMUNITTYPE_USB:
-                                rc = pUnit->u.Usb.pfnLoadExec(pUnit->u.Usb.pUsbIns, pSSM, UnitHdr.u32Version, SSM_PASS_FINAL);
-                                break;
                             case SSMUNITTYPE_INTERNAL:
                                 rc = pUnit->u.Internal.pfnLoadExec(pVM, pSSM, UnitHdr.u32Version, SSM_PASS_FINAL);
                                 break;
@@ -8465,9 +8316,6 @@ static int ssmR3LoadExecV2(PVM pVM, PSSMHANDLE pSSM)
                 case SSMUNITTYPE_DRV:
                     rc = pUnit->u.Drv.pfnLoadExec(pUnit->u.Drv.pDrvIns, pSSM, UnitHdr.u32Version, UnitHdr.u32Pass);
                     break;
-                case SSMUNITTYPE_USB:
-                    rc = pUnit->u.Usb.pfnLoadExec(pUnit->u.Usb.pUsbIns, pSSM, UnitHdr.u32Version, UnitHdr.u32Pass);
-                    break;
                 case SSMUNITTYPE_INTERNAL:
                     rc = pUnit->u.Internal.pfnLoadExec(pVM, pSSM, UnitHdr.u32Version, UnitHdr.u32Pass);
                     break;
@@ -8640,9 +8488,6 @@ VMMR3DECL(int) SSMR3Load(PVM pVM, const char *pszFilename, PCSSMSTRMOPS pStreamO
                     case SSMUNITTYPE_DRV:
                         rc = pUnit->u.Drv.pfnLoadPrep(pUnit->u.Drv.pDrvIns, &Handle);
                         break;
-                    case SSMUNITTYPE_USB:
-                        rc = pUnit->u.Usb.pfnLoadPrep(pUnit->u.Usb.pUsbIns, &Handle);
-                        break;
                     case SSMUNITTYPE_INTERNAL:
                         rc = pUnit->u.Internal.pfnLoadPrep(pVM, &Handle);
                         break;
@@ -8715,9 +8560,6 @@ VMMR3DECL(int) SSMR3Load(PVM pVM, const char *pszFilename, PCSSMSTRMOPS pStreamO
                         break;
                     case SSMUNITTYPE_DRV:
                         rc = pUnit->u.Drv.pfnLoadDone(pUnit->u.Drv.pDrvIns, &Handle);
-                        break;
-                    case SSMUNITTYPE_USB:
-                        rc = pUnit->u.Usb.pfnLoadDone(pUnit->u.Usb.pUsbIns, &Handle);
                         break;
                     case SSMUNITTYPE_INTERNAL:
                         rc = pUnit->u.Internal.pfnLoadDone(pVM, &Handle);

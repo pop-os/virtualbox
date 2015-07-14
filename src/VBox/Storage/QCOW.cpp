@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2015 Oracle Corporation
+ * Copyright (C) 2011-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1310,7 +1310,6 @@ static int qcowAsyncClusterAllocRollback(PQCOWIMAGE pImage, PVDIOCTX pIoCtx, PQC
             rc = vdIfIoIntFileSetSize(pImage->pIfIo, pImage->pStorage, pClusterAlloc->offNextClusterOld);
             qcowL2TblCacheEntryRelease(pClusterAlloc->pL2Entry); /* Release L2 cache entry. */
             qcowL2TblCacheEntryFree(pImage, pClusterAlloc->pL2Entry); /* Free it, it is not in the cache yet. */
-            break;
         }
         case QCOWCLUSTERASYNCALLOCSTATE_USER_ALLOC:
         case QCOWCLUSTERASYNCALLOCSTATE_USER_LINK:
@@ -1495,11 +1494,9 @@ static int qcowOpen(const char *pszFilename, unsigned uOpenFlags,
                    PVDINTERFACE pVDIfsDisk, PVDINTERFACE pVDIfsImage,
                    VDTYPE enmType, void **ppBackendData)
 {
-    LogFlowFunc(("pszFilename=\"%s\" uOpenFlags=%#x pVDIfsDisk=%#p pVDIfsImage=%#p enmType=%u ppBackendData=%#p\n", pszFilename, uOpenFlags, pVDIfsDisk, pVDIfsImage, enmType, ppBackendData));
+    LogFlowFunc(("pszFilename=\"%s\" uOpenFlags=%#x pVDIfsDisk=%#p pVDIfsImage=%#p ppBackendData=%#p\n", pszFilename, uOpenFlags, pVDIfsDisk, pVDIfsImage, ppBackendData));
     int rc;
     PQCOWIMAGE pImage;
-
-    NOREF(enmType); /**< @todo r=klaus make use of the type info. */
 
     /* Check open flags. All valid flags are supported. */
     if (uOpenFlags & ~VD_OPEN_FLAGS_MASK)
@@ -1546,11 +1543,10 @@ static int qcowCreate(const char *pszFilename, uint64_t cbSize,
                      PCRTUUID pUuid, unsigned uOpenFlags,
                      unsigned uPercentStart, unsigned uPercentSpan,
                      PVDINTERFACE pVDIfsDisk, PVDINTERFACE pVDIfsImage,
-                     PVDINTERFACE pVDIfsOperation, VDTYPE enmType,
-                     void **ppBackendData)
+                     PVDINTERFACE pVDIfsOperation, void **ppBackendData)
 {
-    LogFlowFunc(("pszFilename=\"%s\" cbSize=%llu uImageFlags=%#x pszComment=\"%s\" pPCHSGeometry=%#p pLCHSGeometry=%#p Uuid=%RTuuid uOpenFlags=%#x uPercentStart=%u uPercentSpan=%u pVDIfsDisk=%#p pVDIfsImage=%#p pVDIfsOperation=%#p enmType=%u ppBackendData=%#p",
-                 pszFilename, cbSize, uImageFlags, pszComment, pPCHSGeometry, pLCHSGeometry, pUuid, uOpenFlags, uPercentStart, uPercentSpan, pVDIfsDisk, pVDIfsImage, pVDIfsOperation, enmType, ppBackendData));
+    LogFlowFunc(("pszFilename=\"%s\" cbSize=%llu uImageFlags=%#x pszComment=\"%s\" pPCHSGeometry=%#p pLCHSGeometry=%#p Uuid=%RTuuid uOpenFlags=%#x uPercentStart=%u uPercentSpan=%u pVDIfsDisk=%#p pVDIfsImage=%#p pVDIfsOperation=%#p ppBackendData=%#p",
+                 pszFilename, cbSize, uImageFlags, pszComment, pPCHSGeometry, pLCHSGeometry, pUuid, uOpenFlags, uPercentStart, uPercentSpan, pVDIfsDisk, pVDIfsImage, pVDIfsOperation, ppBackendData));
     int rc;
     PQCOWIMAGE pImage;
 
@@ -1561,13 +1557,6 @@ static int qcowCreate(const char *pszFilename, uint64_t cbSize,
     {
         pfnProgress = pIfProgress->pfnProgress;
         pvUser = pIfProgress->Core.pvUser;
-    }
-
-    /* Check the VD container type. */
-    if (enmType != VDTYPE_HDD)
-    {
-        rc = VERR_VD_INVALID_TYPE;
-        goto out;
     }
 
     /* Check open flags. All valid flags are supported. */

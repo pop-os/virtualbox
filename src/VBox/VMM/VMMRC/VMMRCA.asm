@@ -1,10 +1,10 @@
 ; $Id: VMMRCA.asm $
 ;; @file
-; VMMRC - Raw-mode Context Virtual Machine Monitor assembly routines.
+; VMMGC - Raw-mode Context Virtual Machine Monitor assembly routines.
 ;
 
 ;
-; Copyright (C) 2006-2015 Oracle Corporation
+; Copyright (C) 2006-2012 Oracle Corporation
 ;
 ; This file is part of VirtualBox Open Source Edition (OSE), as
 ; available from http://www.virtualbox.org. This file is free software;

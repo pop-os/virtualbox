@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -40,7 +40,7 @@
 # define _InterlockedAddLargeStatistic  _InterlockedAddLargeStatistic_StupidDDKVsCompilerCrap
 # pragma warning(disable : 4163)
 RT_C_DECLS_BEGIN
-# include <iprt/nt/nt.h>
+# include <ntddk.h>
 RT_C_DECLS_END
 # pragma warning(default : 4163)
 # undef  _InterlockedExchange
@@ -49,7 +49,7 @@ RT_C_DECLS_END
 # undef  _InterlockedAddLargeStatistic
 #else
 RT_C_DECLS_BEGIN
-# include <iprt/nt/nt.h>
+# include <ntddk.h>
 RT_C_DECLS_END
 #endif
 

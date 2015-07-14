@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -492,11 +492,11 @@ static DECLCALLBACK(int) drvNetSnifferConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pC
     char *pszPathReal = RTPathRealDup(pThis->szFilename);
     if (pszPathReal)
     {
-        LogRel(("NetSniffer: Sniffing to '%s'\n", pszPathReal));
+        LogRel(("Netsniffing to '%s'\n", pszPathReal));
         RTStrFree(pszPathReal);
     }
     else
-        LogRel(("NetSniffer: Sniffing to '%s'\n", pThis->szFilename));
+        LogRel(("Netsniffing to '%s'\n", pThis->szFilename));
 
     /*
      * Write pcap header.

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2010-2015 Oracle Corporation
+ * Copyright (C) 2010-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -129,7 +129,7 @@ RTDECL(int)         RTVfsGetAttachment(RTVFS hVfs, uint32_t iOrdinal, PRTVFS *ph
 RTDECL(int)         RTVfsIsRangeInUse(RTVFS hVfs, uint64_t off, size_t cb,
                                       bool *pfUsed);
 
-/** @defgroup grp_vfs_obj           VFS Base Object API
+/** @defgroup grp_vfs_dir           VFS Base Object API
  * @{
  */
 

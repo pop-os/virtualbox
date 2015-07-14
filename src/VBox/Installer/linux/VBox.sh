@@ -1,10 +1,8 @@
 #!/bin/sh
-## @file
+#
 # Oracle VM VirtualBox startup script, Linux hosts.
 #
-
-#
-# Copyright (C) 2006-2015 Oracle Corporation
+# Copyright (C) 2006-2012 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -102,9 +100,6 @@ case "$APP" in
         ;;
     VBoxBalloonCtrl|vboxballoonctrl)
         exec "$INSTALL_DIR/VBoxBalloonCtrl" "$@"
-        ;;
-    VBoxDTrace|vboxdtrace)
-        exec "$INSTALL_DIR/VBoxDTrace" "$@"
         ;;
     vboxwebsrv)
         exec "$INSTALL_DIR/vboxwebsrv" "$@"

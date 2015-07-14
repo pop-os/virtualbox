@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2015 Oracle Corporation
+ * Copyright (C) 2007-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -44,7 +44,7 @@ DECLHIDDEN(void) rtR0AssertNativeMsg1(const char *pszExpr, unsigned uLine, const
 {
     printf("\r\n!!Assertion Failed!!\r\n"
            "Expression: %s\r\n"
-           "Location  : %s(%u) %s\r\n",
+           "Location  : %s(%d) %s\r\n",
            pszExpr, pszFile, uLine, pszFunction);
 }
 

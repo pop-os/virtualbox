@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -174,9 +174,10 @@ typedef FNPDMDRVRESUME *PFNPDMDRVRESUME;
 /**
  * Power Off notification.
  *
- * This is always called when VMR3PowerOff is called.
- * There will be no callback when hot plugging devices or when replumbing the driver
- * stack.
+ * This is only called when the VMR3PowerOff call is made on a running VM. This
+ * means that there is no notification if the VM was suspended before being
+ * powered of.  There will also be no callback when hot plugging devices or when
+ * replumbing the driver stack.
  *
  * @param   pDrvIns     The driver instance data.
  */
@@ -187,7 +188,7 @@ typedef FNPDMDRVPOWEROFF *PFNPDMDRVPOWEROFF;
 /**
  * Attach command.
  *
- * This is called to let the driver attach to a driver at runtime.  This is not
+ * This is called to let the drive attach to a driver at runtime.  This is not
  * called during VM construction, the driver constructor have to do this by
  * calling PDMDrvHlpAttach.
  *
@@ -463,9 +464,9 @@ typedef struct PDMDRVINS
     do \
     { \
         PPDMDRVINS pDrvInsTypeCheck = (pDrvIns); NOREF(pDrvInsTypeCheck); \
-        if (RT_LIKELY(   PDM_VERSION_ARE_COMPATIBLE((pDrvIns)->u32Version, PDM_DRVINS_VERSION) \
-                      && PDM_VERSION_ARE_COMPATIBLE((pDrvIns)->pHlpR3->u32Version, PDM_DRVHLPR3_VERSION)) ) \
-        { /* likely */ } else return; \
+        if (RT_UNLIKELY(   !PDM_VERSION_ARE_COMPATIBLE((pDrvIns)->u32Version, PDM_DRVINS_VERSION) \
+                        || !PDM_VERSION_ARE_COMPATIBLE((pDrvIns)->pHlpR3->u32Version, PDM_DRVHLPR3_VERSION)) ) \
+            return; \
     } while (0)
 
 /**
@@ -488,8 +489,8 @@ typedef struct PDMDRVINS
     { \
         int rcValCfg = CFGMR3ValidateConfig((pDrvIns)->pCfg, "/", pszValidValues, pszValidNodes, \
                                             (pDrvIns)->pReg->szName, (pDrvIns)->iInstance); \
-        if (RT_SUCCESS(rcValCfg)) \
-        { /* likely */ } else return rcValCfg; \
+        if (RT_FAILURE(rcValCfg)) \
+            return rcValCfg; \
     } while (0)
 
 
@@ -506,13 +507,12 @@ typedef struct PDMUSBHUBREG
      * Request the hub to attach of the specified device.
      *
      * @returns VBox status code.
-     * @param   pDrvIns            The hub instance.
-     * @param   pUsbIns            The device to attach.
-     * @param   pszCaptureFilename Path to the file for USB traffic capturing, optional.
-     * @param   piPort             Where to store the port number the device was attached to.
+     * @param   pDrvIns     The hub instance.
+     * @param   pUsbIns     The device to attach.
+     * @param   piPort      Where to store the port number the device was attached to.
      * @thread EMT.
      */
-    DECLR3CALLBACKMEMBER(int, pfnAttachDevice,(PPDMDRVINS pDrvIns, PPDMUSBINS pUsbIns, const char *pszCaptureFilename, uint32_t *piPort));
+    DECLR3CALLBACKMEMBER(int, pfnAttachDevice,(PPDMDRVINS pDrvIns, PPDMUSBINS pUsbIns, uint32_t *piPort));
 
     /**
      * Request the hub to detach of the specified device.
@@ -536,7 +536,7 @@ typedef struct PDMUSBHUBREG
 typedef const PDMUSBHUBREG *PCPDMUSBHUBREG;
 
 /** Current PDMUSBHUBREG version number. */
-#define PDM_USBHUBREG_VERSION                   PDM_VERSION_MAKE(0xf0fd, 2, 0)
+#define PDM_USBHUBREG_VERSION                   PDM_VERSION_MAKE(0xf0fd, 1, 0)
 
 
 /**

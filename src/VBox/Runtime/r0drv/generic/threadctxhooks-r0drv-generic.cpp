@@ -1,10 +1,10 @@
 /* $Id: threadctxhooks-r0drv-generic.cpp $ */
 /** @file
- * IPRT - Thread Context Switching Hook, Ring-0 Driver, Generic.
+ * IPRT - Thread-Context Hooks, Ring-0 Driver, Generic.
  */
 
 /*
- * Copyright (C) 2013-2015 Oracle Corporation
+ * Copyright (C) 2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -33,43 +33,52 @@
 
 #include "internal/iprt.h"
 
-RTDECL(int) RTThreadCtxHookCreate(PRTTHREADCTXHOOK phCtxHook, uint32_t fFlags, PFNRTTHREADCTXHOOK pfnCallback, void *pvUser)
+RTDECL(int) RTThreadCtxHooksCreate(PRTTHREADCTX phThreadCtx)
 {
-    NOREF(phCtxHook);
+    NOREF(phThreadCtx);
+    return VERR_NOT_SUPPORTED;
+}
+RT_EXPORT_SYMBOL(RTThreadCtxHooksCreate);
+
+
+RTDECL(uint32_t) RTThreadCtxHooksRelease(RTTHREADCTX hThreadCtx)
+{
+    NOREF(hThreadCtx);
+    return UINT32_MAX;
+}
+RT_EXPORT_SYMBOL(RTThreadCtxHooksRelease);
+
+
+RTDECL(uint32_t) RTThreadCtxHooksRetain(RTTHREADCTX hThreadCtx)
+{
+    NOREF(hThreadCtx);
+    return UINT32_MAX;
+}
+RT_EXPORT_SYMBOL(RTThreadCtxHooksRetain);
+
+
+RTDECL(int) RTThreadCtxHooksRegister(RTTHREADCTX hThreadCtx, PFNRTTHREADCTXHOOK pfnCallback, void *pvUser)
+{
+    NOREF(hThreadCtx);
     NOREF(pfnCallback);
     NOREF(pvUser);
     return VERR_NOT_SUPPORTED;
 }
-RT_EXPORT_SYMBOL(RTThreadCtxHookCreate);
+RT_EXPORT_SYMBOL(RTThreadCtxHooksRegister);
 
 
-RTDECL(int) RTThreadCtxHookDestroy(RTTHREADCTXHOOK hCtxHook)
+RTDECL(int) RTThreadCtxHooksDeregister(RTTHREADCTX hThreadCtx)
 {
-    return hCtxHook == NIL_RTTHREADCTXHOOK ? VINF_SUCCESS : VERR_INVALID_HANDLE;
-}
-RT_EXPORT_SYMBOL(RTThreadCtxHookDestroy);
-
-
-RTDECL(int) RTThreadCtxHookEnable(RTTHREADCTXHOOK hCtxHook)
-{
-    NOREF(hCtxHook);
+    NOREF(hThreadCtx);
     return VERR_NOT_SUPPORTED;
 }
-RT_EXPORT_SYMBOL(RTThreadCtxHookEnable);
+RT_EXPORT_SYMBOL(RTThreadCtxHooksDeregister);
 
 
-RTDECL(int) RTThreadCtxHookDisable(RTTHREADCTXHOOK hCtxHook)
+RTDECL(bool) RTThreadCtxHooksAreRegistered(RTTHREADCTX hThreadCtx)
 {
-    NOREF(hCtxHook);
-    return VERR_NOT_SUPPORTED;
-}
-RT_EXPORT_SYMBOL(RTThreadCtxHookDisable);
-
-
-RTDECL(bool) RTThreadCtxHookIsEnabled(RTTHREADCTXHOOK hCtxHook)
-{
-    NOREF(hCtxHook);
+    NOREF(hThreadCtx);
     return false;
 }
-RT_EXPORT_SYMBOL(RTThreadCtxHookIsEnabled);
+RT_EXPORT_SYMBOL(RTThreadCtxHooksAreRegistered);
 

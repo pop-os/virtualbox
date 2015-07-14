@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -623,7 +623,6 @@ const char *mmGetTagName(MMTAG enmTag)
         TAG2STR(PGM);
         TAG2STR(PGM_CHUNK_MAPPING);
         TAG2STR(PGM_HANDLERS);
-        TAG2STR(PGM_HANDLER_TYPES);
         TAG2STR(PGM_MAPPINGS);
         TAG2STR(PGM_PHYS);
         TAG2STR(PGM_POOL);

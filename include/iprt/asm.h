@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -141,15 +141,11 @@
  * when in PIC mode on x86.
  */
 #ifndef RT_INLINE_DONT_MIX_CMPXCHG8B_AND_PIC
-# ifdef DOXYGEN_RUNNING
-#  define RT_INLINE_DONT_MIX_CMPXCHG8B_AND_PIC 1
-# else
-#  define RT_INLINE_DONT_MIX_CMPXCHG8B_AND_PIC \
+# define RT_INLINE_DONT_MIX_CMPXCHG8B_AND_PIC \
     (   (defined(PIC) || defined(__PIC__)) \
      && defined(RT_ARCH_X86) \
      && (   RT_INLINE_ASM_GCC_4_3_X_X86 \
          || defined(RT_OS_DARWIN)) )
-# endif
 #endif
 
 
@@ -1642,9 +1638,8 @@ DECLINLINE(uint64_t) ASMAtomicReadU64(volatile uint64_t *pu64)
  *                  The memory pointed to must be writable.
  * @remark  This will fault if the memory is read-only!
  */
-#if !defined(RT_ARCH_AMD64) \
-  && (   (RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN) \
-      || RT_INLINE_DONT_MIX_CMPXCHG8B_AND_PIC)
+#if (RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN) \
+ || RT_INLINE_DONT_MIX_CMPXCHG8B_AND_PIC
 DECLASM(uint64_t) ASMAtomicUoReadU64(volatile uint64_t *pu64);
 #else
 DECLINLINE(uint64_t) ASMAtomicUoReadU64(volatile uint64_t *pu64)
@@ -3270,83 +3265,6 @@ DECLINLINE(void) ASMAtomicUoAndS64(int64_t volatile *pi64, int64_t i64)
 }
 
 
-/**
- * Atomically increment an unsigned 32-bit value, unordered.
- *
- * @returns the new value.
- * @param   pu32   Pointer to the variable to increment.
- */
-#if RT_INLINE_ASM_EXTERNAL
-DECLASM(uint32_t) ASMAtomicUoIncU32(uint32_t volatile *pu32);
-#else
-DECLINLINE(uint32_t) ASMAtomicUoIncU32(uint32_t volatile *pu32)
-{
-    uint32_t u32;
-# if RT_INLINE_ASM_GNU_STYLE
-    __asm__ __volatile__("xaddl %0, %1\n\t"
-                         : "=r" (u32),
-                           "=m" (*pu32)
-                         : "0" (1),
-                           "m" (*pu32)
-                         : "memory");
-    return u32 + 1;
-# else
-    __asm
-    {
-        mov     eax, 1
-#  ifdef RT_ARCH_AMD64
-        mov     rdx, [pu32]
-        xadd    [rdx], eax
-#  else
-        mov     edx, [pu32]
-        xadd    [edx], eax
-#  endif
-        mov     u32, eax
-    }
-    return u32 + 1;
-# endif
-}
-#endif
-
-
-/**
- * Atomically decrement an unsigned 32-bit value, unordered.
- *
- * @returns the new value.
- * @param   pu32   Pointer to the variable to decrement.
- */
-#if RT_INLINE_ASM_EXTERNAL
-DECLASM(uint32_t) ASMAtomicUoDecU32(uint32_t volatile *pu32);
-#else
-DECLINLINE(uint32_t) ASMAtomicUoDecU32(uint32_t volatile *pu32)
-{
-    uint32_t u32;
-# if RT_INLINE_ASM_GNU_STYLE
-    __asm__ __volatile__("lock; xaddl %0, %1\n\t"
-                         : "=r" (u32),
-                           "=m" (*pu32)
-                         : "0" (-1),
-                           "m" (*pu32)
-                         : "memory");
-    return u32 - 1;
-# else
-    __asm
-    {
-        mov     eax, -1
-#  ifdef RT_ARCH_AMD64
-        mov     rdx, [pu32]
-        xadd    [rdx], eax
-#  else
-        mov     edx, [pu32]
-        xadd    [edx], eax
-#  endif
-        mov     u32, eax
-    }
-    return u32 - 1;
-# endif
-}
-#endif
-
 
 /** @def RT_ASM_PAGE_SIZE
  * We try avoid dragging in iprt/param.h here.
@@ -3598,9 +3516,7 @@ DECLINLINE(void *) ASMMemIsAll8(void const *pv, size_t cb, uint8_t u8)
 /** @todo rewrite this in inline assembly? */
     uint8_t const *pb = (uint8_t const *)pv;
     for (; cb; cb--, pb++)
-        if (RT_LIKELY(*pb == u8))
-        { /* likely */ }
-        else
+        if (RT_UNLIKELY(*pb != u8))
             return (void *)pb;
     return NULL;
 }
@@ -3625,9 +3541,7 @@ DECLINLINE(uint32_t *) ASMMemIsAllU32(void const *pv, size_t cb, uint32_t u32)
 /** @todo rewrite this in inline assembly? */
     uint32_t const *pu32 = (uint32_t const *)pv;
     for (; cb; cb -= 4, pu32++)
-        if (RT_LIKELY(*pu32 == u32))
-        { /* likely */ }
-        else
+        if (RT_UNLIKELY(*pu32 != u32))
             return (uint32_t *)pu32;
     return NULL;
 }

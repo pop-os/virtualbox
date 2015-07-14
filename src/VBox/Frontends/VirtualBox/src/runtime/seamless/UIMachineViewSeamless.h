@@ -1,6 +1,7 @@
-/* $Id: UIMachineViewSeamless.h $ */
 /** @file
- * VBox Qt GUI - UIMachineViewSeamless class declaration.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * UIMachineViewSeamless class declaration
  */
 
 /*

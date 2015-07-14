@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -186,7 +186,7 @@ RTDECL(int) RTLdrLoadSystem(const char *pszFilename, bool fNoUnload, PRTLDRMOD p
     AssertPtrReturn(phLdrMod, VERR_INVALID_PARAMETER);
     *phLdrMod = NIL_RTLDRMOD;
     AssertPtrReturn(pszFilename, VERR_INVALID_PARAMETER);
-    AssertMsgReturn(!RTPathHasPath(pszFilename), ("%s\n", pszFilename), VERR_INVALID_PARAMETER);
+    AssertMsgReturn(!RTPathHavePath(pszFilename), ("%s\n", pszFilename), VERR_INVALID_PARAMETER);
 
     /*
      * Check the filename.
@@ -194,14 +194,14 @@ RTDECL(int) RTLdrLoadSystem(const char *pszFilename, bool fNoUnload, PRTLDRMOD p
     size_t cchFilename = strlen(pszFilename);
     AssertMsgReturn(cchFilename < (RTPATH_MAX / 4) * 3, ("%zu\n", cchFilename), VERR_INVALID_PARAMETER);
 
-    const char *pszSuffix = "";
-    if (!RTPathHasSuffix(pszFilename))
-        pszSuffix = RTLdrGetSuff();
+    const char *pszExt = "";
+    if (!RTPathHaveExt(pszFilename))
+        pszExt = RTLdrGetSuff();
 
     /*
      * Let the platform specific code do the rest.
      */
-    int rc = rtldrNativeLoadSystem(pszFilename, pszSuffix, fNoUnload ? RTLDRLOAD_FLAGS_NO_UNLOAD : 0, phLdrMod);
+    int rc = rtldrNativeLoadSystem(pszFilename, pszExt, fNoUnload ? RTLDRLOAD_FLAGS_NO_UNLOAD : 0, phLdrMod);
     LogFlow(("RTLdrLoadSystem: returns %Rrc\n", rc));
     return rc;
 }
@@ -243,7 +243,7 @@ RTDECL(int) RTLdrLoadAppPriv(const char *pszFilename, PRTLDRMOD phLdrMod)
     AssertPtrReturn(phLdrMod, VERR_INVALID_PARAMETER);
     *phLdrMod = NIL_RTLDRMOD;
     AssertPtrReturn(pszFilename, VERR_INVALID_PARAMETER);
-    AssertMsgReturn(!RTPathHasPath(pszFilename), ("%s\n", pszFilename), VERR_INVALID_PARAMETER);
+    AssertMsgReturn(!RTPathHavePath(pszFilename), ("%s\n", pszFilename), VERR_INVALID_PARAMETER);
 
     /*
      * Check the filename.
@@ -251,26 +251,26 @@ RTDECL(int) RTLdrLoadAppPriv(const char *pszFilename, PRTLDRMOD phLdrMod)
     size_t cchFilename = strlen(pszFilename);
     AssertMsgReturn(cchFilename < (RTPATH_MAX / 4) * 3, ("%zu\n", cchFilename), VERR_INVALID_PARAMETER);
 
-    const char *pszSuffix = "";
-    size_t cchSuffix = 0;
-    if (!RTPathHasSuffix(pszFilename))
+    const char *pszExt = "";
+    size_t cchExt = 0;
+    if (!RTPathHaveExt(pszFilename))
     {
-        pszSuffix = RTLdrGetSuff();
-        cchSuffix = strlen(pszSuffix);
+        pszExt = RTLdrGetSuff();
+        cchExt = strlen(pszExt);
     }
 
     /*
      * Construct the private arch path and check if the file exists.
      */
     char szPath[RTPATH_MAX];
-    int rc = RTPathAppPrivateArch(szPath, sizeof(szPath) - 1 - cchSuffix - cchFilename);
+    int rc = RTPathAppPrivateArch(szPath, sizeof(szPath) - 1 - cchExt - cchFilename);
     AssertRCReturn(rc, rc);
 
     char *psz = strchr(szPath, '\0');
     *psz++ = RTPATH_SLASH;
     memcpy(psz, pszFilename, cchFilename);
     psz += cchFilename;
-    memcpy(psz, pszSuffix, cchSuffix + 1);
+    memcpy(psz, pszExt, cchExt + 1);
 
     if (!RTPathExists(szPath))
     {

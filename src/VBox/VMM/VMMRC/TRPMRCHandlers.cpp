@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -26,7 +26,6 @@
 #include <VBox/vmm/pdmapi.h>
 #include <VBox/vmm/dbgf.h>
 #include <VBox/vmm/em.h>
-#include <VBox/vmm/gim.h>
 #include <VBox/vmm/csam.h>
 #include <VBox/vmm/patm.h>
 #include <VBox/vmm/mm.h>
@@ -120,7 +119,7 @@ typedef struct TRPMGCHYPER
 *   Global Variables                                                           *
 *******************************************************************************/
 RT_C_DECLS_BEGIN
-/** Defined in VMMRC0.asm or VMMRC99.asm.
+/** Defined in VMMGC0.asm or VMMGC99.asm.
  * @{ */
 extern const TRPMGCHYPER g_aTrap0bHandlers[1];
 extern const TRPMGCHYPER g_aTrap0bHandlersEnd[1];
@@ -212,9 +211,7 @@ static int trpmGCExitTrap(PVM pVM, PVMCPU pVCpu, int rc, PCPUMCTXCORE pRegFrame)
              || VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_TIMER | VMCPU_FF_TO_R3 | VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC
                                           | VMCPU_FF_REQUEST | VMCPU_FF_PGM_SYNC_CR3 | VMCPU_FF_PGM_SYNC_CR3_NON_GLOBAL
                                           | VMCPU_FF_PDM_CRITSECT
-                                          | VMCPU_FF_IEM
-                                          | VMCPU_FF_SELM_SYNC_GDT | VMCPU_FF_SELM_SYNC_LDT
-                                          | VMCPU_FF_SELM_SYNC_TSS | VMCPU_FF_TRPM_SYNC_IDT
+                                          | VMCPU_FF_SELM_SYNC_GDT | VMCPU_FF_SELM_SYNC_LDT | VMCPU_FF_SELM_SYNC_TSS
                                    )
             )
        )
@@ -223,7 +220,7 @@ static int trpmGCExitTrap(PVM pVM, PVMCPU pVCpu, int rc, PCPUMCTXCORE pRegFrame)
         if (RT_UNLIKELY(VM_FF_IS_PENDING(pVM, VM_FF_PGM_NO_MEMORY)))
             rc = VINF_EM_NO_MEMORY;
         /* Pending Ring-3 action. */
-        else if (VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_TO_R3 | VMCPU_FF_PDM_CRITSECT | VMCPU_FF_IEM))
+        else if (VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_TO_R3 | VMCPU_FF_PDM_CRITSECT))
         {
             VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_TO_R3);
             rc = VINF_EM_RAW_TO_R3;
@@ -245,12 +242,10 @@ static int trpmGCExitTrap(PVM pVM, PVMCPU pVCpu, int rc, PCPUMCTXCORE pRegFrame)
         /* Pending GDT/LDT/TSS sync. */
         else if (VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_SELM_SYNC_GDT | VMCPU_FF_SELM_SYNC_LDT | VMCPU_FF_SELM_SYNC_TSS))
             rc = VINF_SELM_SYNC_GDT;
-        else if (VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_TRPM_SYNC_IDT))
-            rc = VINF_EM_RAW_TO_R3;
         /* Pending interrupt: dispatch it. */
         else if (    VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC)
                  && !VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS)
-                 &&  PATMAreInterruptsEnabledByCtx(pVM, CPUMCTX_FROM_CORE(pRegFrame))
+                 &&  PATMAreInterruptsEnabledByCtxCore(pVM, pRegFrame)
            )
         {
             uint8_t u8Interrupt;
@@ -599,7 +594,7 @@ DECLASM(int) TRPMGCTrap06Handler(PTRPMCPU pTrpmCpu, PCPUMCTXCORE pRegFrame)
             Log(("TRPMGCTrap06Handler: pc=%08x op=%d\n", pRegFrame->eip, Cpu.pCurInstr->uOpcode));
 #ifdef DTRACE_EXPERIMENT /** @todo fix/remove/permanent-enable this when DIS/PATM handles invalid lock sequences. */
             Assert(!PATMIsPatchGCAddr(pVM, pRegFrame->eip));
-            rc = TRPMForwardTrap(pVCpu, pRegFrame, X86_XCPT_UD, 0, TRPM_TRAP_NO_ERRORCODE, TRPM_TRAP, X86_XCPT_UD);
+            rc = TRPMForwardTrap(pVCpu, pRegFrame, 0x6, 0, TRPM_TRAP_NO_ERRORCODE, TRPM_TRAP, 0x6);
             Assert(rc == VINF_EM_RAW_GUEST_TRAP);
 #else
             rc = VINF_EM_RAW_EMULATE_INSTR;
@@ -611,17 +606,7 @@ DECLASM(int) TRPMGCTrap06Handler(PTRPMCPU pTrpmCpu, PCPUMCTXCORE pRegFrame)
         else if (Cpu.pCurInstr->uOpcode == OP_MONITOR)
         {
             LogFlow(("TRPMGCTrap06Handler: -> EMInterpretInstructionCPU\n"));
-            rc = VBOXSTRICTRC_TODO(EMInterpretInstructionDisasState(pVCpu, &Cpu, pRegFrame, PC, EMCODETYPE_SUPERVISOR));
-        }
-        else if (GIMShouldTrapXcptUD(pVCpu))
-        {
-            LogFlow(("TRPMGCTrap06Handler: -> GIMXcptUD\n"));
-            rc = GIMXcptUD(pVCpu, CPUMCTX_FROM_CORE(pRegFrame), &Cpu);
-            if (RT_FAILURE(rc))
-            {
-                LogFlow(("TRPMGCTrap06Handler: -> GIMXcptUD -> VINF_EM_RAW_EMULATE_INSTR\n"));
-                rc = VINF_EM_RAW_EMULATE_INSTR;
-            }
+            rc = EMInterpretInstructionDisasState(pVCpu, &Cpu, pRegFrame, PC, EMCODETYPE_SUPERVISOR);
         }
         /* Never generate a raw trap here; it might be an instruction, that requires emulation. */
         else
@@ -633,7 +618,7 @@ DECLASM(int) TRPMGCTrap06Handler(PTRPMCPU pTrpmCpu, PCPUMCTXCORE pRegFrame)
     else
     {
         LogFlow(("TRPMGCTrap06Handler: -> TRPMForwardTrap\n"));
-        rc = TRPMForwardTrap(pVCpu, pRegFrame, X86_XCPT_UD, 0, TRPM_TRAP_NO_ERRORCODE, TRPM_TRAP, X86_XCPT_UD);
+        rc = TRPMForwardTrap(pVCpu, pRegFrame, 0x6, 0, TRPM_TRAP_NO_ERRORCODE, TRPM_TRAP, 0x6);
         Assert(rc == VINF_EM_RAW_GUEST_TRAP);
     }
 
@@ -838,7 +823,7 @@ static int trpmGCTrap0dHandlerRing0(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFram
 #ifdef PATM_EMULATE_SYSENTER
         case OP_SYSEXIT:
         case OP_SYSRET:
-            rc = PATMSysCall(pVM, CPUMCTX_FROM_CORE(pRegFrame), pCpu);
+            rc = PATMSysCall(pVM, pRegFrame, pCpu);
             TRPM_EXIT_DBG_HOOK(0xd);
             return trpmGCExitTrap(pVM, pVCpu, rc, pRegFrame);
 #endif
@@ -875,7 +860,7 @@ static int trpmGCTrap0dHandlerRing0(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFram
         case OP_RDMSR:
         case OP_WRMSR:
         {
-            rc = VBOXSTRICTRC_TODO(EMInterpretInstructionDisasState(pVCpu, pCpu, pRegFrame, PC, EMCODETYPE_SUPERVISOR));
+            rc = EMInterpretInstructionDisasState(pVCpu, pCpu, pRegFrame, PC, EMCODETYPE_SUPERVISOR);
             if (rc == VERR_EM_INTERPRETER)
                 rc = VINF_EM_RAW_EXCEPTION_PRIVILEGED;
             TRPM_EXIT_DBG_HOOK(0xd);
@@ -942,7 +927,7 @@ static int trpmGCTrap0dHandlerRing3(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFram
         case OP_SYSCALL:
         case OP_SYSENTER:
 #ifdef PATM_EMULATE_SYSENTER
-            rc = PATMSysCall(pVM, CPUMCTX_FROM_CORE(pRegFrame), pCpu);
+            rc = PATMSysCall(pVM, pRegFrame, pCpu);
             if (rc == VINF_SUCCESS)
             {
                 TRPM_EXIT_DBG_HOOK(0xd);
@@ -962,7 +947,7 @@ static int trpmGCTrap0dHandlerRing3(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFram
         case OP_RDTSC:
         case OP_RDPMC:
         {
-            rc = VBOXSTRICTRC_TODO(EMInterpretInstructionDisasState(pVCpu, pCpu, pRegFrame, PC, EMCODETYPE_SUPERVISOR));
+            rc = EMInterpretInstructionDisasState(pVCpu, pCpu, pRegFrame, PC, EMCODETYPE_SUPERVISOR);
             if (rc == VERR_EM_INTERPRETER)
                 rc = VINF_EM_RAW_EXCEPTION_PRIVILEGED;
             TRPM_EXIT_DBG_HOOK(0xd);
@@ -1127,7 +1112,7 @@ static int trpmGCTrap0dHandler(PVM pVM, PTRPMCPU pTrpmCpu, PCPUMCTXCORE pRegFram
                     /* Raise #DB. */
                     TRPMResetTrap(pVCpu);
                     TRPMAssertTrap(pVCpu, X86_XCPT_DE, TRPM_TRAP);
-                    if (rcStrict != VINF_SUCCESS)
+                    if (rcStrict)
                         LogRel(("trpmGCTrap0dHandler: Overriding %Rrc with #DB on I/O port access.\n", VBOXSTRICTRC_VAL(rcStrict)));
                     rcStrict = VINF_EM_RAW_GUEST_TRAP;
                 }
@@ -1218,8 +1203,6 @@ DECLASM(int) TRPMGCTrap0dHandler(PTRPMCPU pTrpmCpu, PCPUMCTXCORE pRegFrame)
         case VINF_IOM_R3_MMIO_WRITE:
         case VINF_IOM_R3_MMIO_READ:
         case VINF_IOM_R3_MMIO_READ_WRITE:
-        case VINF_CPUM_R3_MSR_READ:
-        case VINF_CPUM_R3_MSR_WRITE:
         case VINF_PATM_PATCH_INT3:
         case VINF_EM_NO_MEMORY:
         case VINF_EM_RAW_TO_R3:
@@ -1269,6 +1252,7 @@ DECLASM(int) TRPMGCTrap0eHandler(PTRPMCPU pTrpmCpu, PCPUMCTXCORE pRegFrame)
     switch (rc)
     {
         case VINF_EM_RAW_EMULATE_INSTR:
+        case VINF_EM_RAW_EMULATE_INSTR_PD_FAULT:
         case VINF_EM_RAW_EMULATE_INSTR_GDT_FAULT:
         case VINF_EM_RAW_EMULATE_INSTR_TSS_FAULT:
         case VINF_EM_RAW_EMULATE_INSTR_LDT_FAULT:

@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -799,7 +799,7 @@ const PDMDEVREG g_DeviceParallelPort =
     /* szName */
     "parallel",
     /* szRCMod */
-    "VBoxDDRC.rc",
+    "VBoxDDGC.gc",
     /* szR0Mod */
     "VBoxDDR0.r0",
     /* pszDescription */

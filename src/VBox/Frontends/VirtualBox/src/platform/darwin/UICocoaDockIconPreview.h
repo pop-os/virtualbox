@@ -1,6 +1,8 @@
 /* $Id: UICocoaDockIconPreview.h $ */
 /** @file
- * VBox Qt GUI - UICocoaDockIconPreview class declaration.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * UICocoaDockIconPreview class declaration
  */
 
 /*

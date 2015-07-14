@@ -2,7 +2,7 @@
 <!--
     VirtualBox Windows Installation Script (WiX)
 
-    Copyright (C) 2006-2015 Oracle Corporation
+    Copyright (C) 2006-2014 Oracle Corporation
 
     This file is part of VirtualBox Open Source Edition (OSE), as
     available from http://www.virtualbox.org. This file is free software;
@@ -19,61 +19,60 @@
 <?if $(env.VBOX_WITH_NETFLT) = "yes" ?>
     <Custom Action="ca_RollbackInstallNetFltArgs" Before="ca_RollbackInstallNetFlt" >
         <?if $(env.VBOX_WITH_MSM_INSTALL) = "yes" ?>
-            <![CDATA[$cp_NetFltDriver=3 AND (NOT Installed)]]>
+            <![CDATA[NOT Installed]]>
         <?else ?>
-            <![CDATA[$cp_NetFltDriver=3 AND (NOT Installed)]]>
+            <![CDATA[&VBoxNetworkFlt=3]]>
         <?endif ?>
     </Custom>
     <Custom Action="ca_RollbackInstallNetFlt" Before="ca_InstallNetFlt" >
         <?if $(env.VBOX_WITH_MSM_INSTALL) = "yes" ?>
-            <![CDATA[$cp_NetFltDriver=3 AND (NOT Installed)]]>
+            <![CDATA[NOT Installed]]>
         <?else ?>
-            <![CDATA[$cp_NetFltDriver=3 AND (NOT Installed)]]>
+            <![CDATA[&VBoxNetworkFlt=3]]>
         <?endif ?>
     </Custom>
     <Custom Action="ca_InstallNetFltArgs" Before="ca_InstallNetFlt" >
         <?if $(env.VBOX_WITH_MSM_INSTALL) = "yes" ?>
-            <![CDATA[$cp_NetFltDriver=3 AND (NOT Installed)]]>
+            <![CDATA[NOT Installed]]>
         <?else ?>
-            <![CDATA[$cp_NetFltDriver=3 AND (NOT Installed)]]>
+            <![CDATA[&VBoxNetworkFlt=3]]>
         <?endif ?>
     </Custom>
     <Custom Action="ca_InstallNetFlt" Before="InstallFinalize" >
         <?if $(env.VBOX_WITH_MSM_INSTALL) = "yes" ?>
-            <![CDATA[$cp_NetFltDriver=3 AND (NOT Installed)]]>
+            <![CDATA[NOT Installed]]>
         <?else ?>
-            <![CDATA[$cp_NetFltDriver=3 AND (NOT Installed)]]>
+            <![CDATA[&VBoxNetworkFlt=3]]>
         <?endif ?>
     </Custom>
     <Custom Action="ca_RollbackUninstallNetFltArgs" Before="ca_RollbackUninstallNetFlt" >
         <?if $(env.VBOX_WITH_MSM_INSTALL) = "yes" ?>
             <![CDATA[(UPGRADINGPRODUCTCODE) OR (REMOVE="ALL")]]>
         <?else ?>
-            <![CDATA[(UPGRADINGPRODUCTCODE) OR (REMOVE="ALL")]]>
+            <![CDATA[&VBoxNetworkFlt=2]]>
         <?endif ?>
     </Custom>
     <Custom Action="ca_RollbackUninstallNetFlt" Before="ca_UninstallNetFlt" >
         <?if $(env.VBOX_WITH_MSM_INSTALL) = "yes" ?>
             <![CDATA[(UPGRADINGPRODUCTCODE) OR (REMOVE="ALL")]]>
         <?else ?>
-            <![CDATA[(UPGRADINGPRODUCTCODE) OR (REMOVE="ALL")]]>
+            <![CDATA[&VBoxNetworkFlt=2]]>
         <?endif ?>
     </Custom>
     <Custom Action="ca_UninstallNetFltArgs" Before="ca_UninstallNetFlt" >
         <?if $(env.VBOX_WITH_MSM_INSTALL) = "yes" ?>
             <![CDATA[(UPGRADINGPRODUCTCODE) OR (REMOVE="ALL")]]>
         <?else ?>
-            <![CDATA[(UPGRADINGPRODUCTCODE) OR (REMOVE="ALL")]]>
+            <![CDATA[&VBoxNetworkFlt=2]]>
         <?endif ?>
     </Custom>
     <Custom Action="ca_UninstallNetFlt" After="InstallInitialize" >
         <?if $(env.VBOX_WITH_MSM_INSTALL) = "yes" ?>
             <![CDATA[(UPGRADINGPRODUCTCODE) OR (REMOVE="ALL")]]>
         <?else ?>
-            <![CDATA[(UPGRADINGPRODUCTCODE) OR (REMOVE="ALL")]]>
+            <![CDATA[&VBoxNetworkFlt=2]]>
         <?endif ?>
     </Custom>
-
 <?endif?> <!-- VBOX_WITH_NETFLT -->
 
 </Include>

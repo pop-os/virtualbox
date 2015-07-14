@@ -8,7 +8,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -73,7 +73,6 @@ AssertCompileSize(RTHCPHYS, 8);
 #include "PATMInternal.h"
 #include "VMMInternal.h"
 #include "DBGFInternal.h"
-#include "GIMInternal.h"
 #include "STAMInternal.h"
 #include "CSAMInternal.h"
 #include "EMInternal.h"

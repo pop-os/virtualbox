@@ -1,10 +1,10 @@
 /* $Id: DBGPlugInDiggers.cpp $ */
 /** @file
- * DbfPlugInDiggers - Debugger and Guest OS Digger Plug-in.
+ * DBGPlugInDiggers - Debugger and Guest OS Digger Plug-in.
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -27,7 +27,7 @@
 #include <VBox/err.h>
 
 
-DECLEXPORT(int) DbgPlugInEntry(DBGFPLUGINOP enmOperation, PUVM pUVM, uintptr_t uArg)
+DECLEXPORT(int) DBGCPlugInEntry(DBGCPLUGINOP enmOperation, PUVM pUVM, uintptr_t uArg)
 {
     static PCDBGFOSREG s_aPlugIns[] =
     {
@@ -41,7 +41,7 @@ DECLEXPORT(int) DbgPlugInEntry(DBGFPLUGINOP enmOperation, PUVM pUVM, uintptr_t u
 
     switch (enmOperation)
     {
-        case DBGFPLUGINOP_INIT:
+        case DBGCPLUGINOP_INIT:
         {
             if (uArg != VBOX_VERSION)
                 return VERR_VERSION_MISMATCH;
@@ -60,7 +60,7 @@ DECLEXPORT(int) DbgPlugInEntry(DBGFPLUGINOP enmOperation, PUVM pUVM, uintptr_t u
             return VINF_SUCCESS;
         }
 
-        case DBGFPLUGINOP_TERM:
+        case DBGCPLUGINOP_TERM:
         {
             for (unsigned i = 0; i < RT_ELEMENTS(s_aPlugIns); i++)
             {

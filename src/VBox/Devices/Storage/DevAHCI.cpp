@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -46,7 +46,6 @@
 #include <iprt/assert.h>
 #include <iprt/asm.h>
 #include <iprt/string.h>
-#include <iprt/list.h>
 #ifdef IN_RING3
 # include <iprt/param.h>
 # include <iprt/thread.h>
@@ -81,7 +80,7 @@
 
 #define AHCI_MAX_ALLOC_TOO_MUCH 20
 
-/** The current saved state version. */
+ /** The current saved state version. */
 #define AHCI_SAVED_STATE_VERSION                        8
 /** The saved state version before changing the port reset logic in an incompatible way. */
 #define AHCI_SAVED_STATE_VERSION_PRE_PORT_RESET_CHANGES 7
@@ -276,27 +275,22 @@ typedef enum AHCITXSTATE
     /** 32bit hack. */
     AHCITXSTATE_32BIT_HACK = 0x7fffffff
 } AHCITXSTATE, *PAHCITXSTATE;
-AssertCompileSize(AHCITXSTATE, sizeof(uint32_t));
 
 /** Task encountered a buffer overflow. */
-#define AHCI_REQ_OVERFLOW    RT_BIT_32(0)
+#define AHCI_REQ_OVERFLOW   RT_BIT_32(0)
 /** Request is a PIO data command, if this flag is not set it either is
  * a command which does not transfer data or a DMA command based on the transfer size. */
-#define AHCI_REQ_PIO_DATA    RT_BIT_32(1)
+#define AHCI_REQ_PIO_DATA   RT_BIT_32(1)
 /** The request has the SACT register set. */
-#define AHCI_REQ_CLEAR_SACT  RT_BIT_32(2)
-/** Flag whether the request is queued. */
-#define AHCI_REQ_IS_QUEUED   RT_BIT_32(3)
-/** Flag whether the request is stored on the stack. */
-#define AHCI_REQ_IS_ON_STACK RT_BIT_32(4)
+#define AHCI_REQ_CLEAR_SACT RT_BIT_32(2)
+/** FLag whether the request is queued. */
+#define AHCI_REQ_IS_QUEUED  RT_BIT_32(3)
 
 /**
  * A task state.
  */
 typedef struct AHCIREQ
 {
-    /** List node for the free list if the request is not in use. */
-    RTLISTNODE                 NodeList;
     /** Task state. */
     volatile AHCITXSTATE       enmTxState;
     /** Start timestamp of the request. */
@@ -426,12 +420,16 @@ typedef struct AHCIPort
     /** Command Issue. */
     uint32_t                        regCI;
 
-    /** Current number of active tasks. */
-    volatile uint32_t               cTasksActive;
+#if HC_ARCH_BITS == 64
+    uint32_t                        Alignment1;
+#endif
+
     /** Command List Base Address */
     volatile RTGCPHYS               GCPhysAddrClb;
     /** FIS Base Address */
     volatile RTGCPHYS               GCPhysAddrFb;
+    /** Current number of active tasks. */
+    volatile uint32_t               cTasksActive;
 
     /** Device is powered on. */
     bool                            fPoweredOn;
@@ -451,14 +449,10 @@ typedef struct AHCIPort
     bool                            fAsyncInterface;
     /** Flag if we are in a device reset. */
     bool                            fResetDevice;
-    /** Flag whether this port is hot plug capable. */
-    bool                            fHotpluggable;
     /** Flag whether the port is in redo task mode. */
     volatile bool                   fRedo;
     /** Flag whether the worker thread is sleeping. */
     volatile bool                   fWrkThreadSleeping;
-
-    bool                            afAlignment[3];
 
     /** Number of total sectors. */
     uint64_t                        cTotalSectors;
@@ -523,12 +517,17 @@ typedef struct AHCIPort
     /** The status LED state for this drive. */
     PDMLED                          Led;
 
+#if HC_ARCH_BITS == 64
     uint32_t                        u32Alignment3;
+#endif
 
     /** Async IO Thread. */
     R3PTRTYPE(PPDMTHREAD)           pAsyncIOThread;
-    /** Array of active tasks indexed by the tag. */
-    R3PTRTYPE(volatile PAHCIREQ)    aActiveTasks[AHCI_NR_COMMAND_SLOTS];
+    /**
+     * Array of cached tasks. The tag number is the index value.
+     * Only used with the async interface.
+     */
+    R3PTRTYPE(PAHCIREQ)             aCachedTasks[AHCI_NR_COMMAND_SLOTS];
     /** First task throwing an error. */
     R3PTRTYPE(volatile PAHCIREQ)    pTaskErr;
     /** The current tracklist of the loaded medium if passthrough is used. */
@@ -568,23 +567,9 @@ typedef struct AHCIPort
     uint32_t                        cErrors;
 
     uint32_t                        u32Alignment5;
-
-    /** Critical section protecting the global free list. */
-    RTCRITSECT                      CritSectReqsFree;
-    /** Head of the global free request list. */
-    R3PTRTYPE(PRTLISTANCHOR)        pListReqsFree;
-
-    /** Align to a multiple of 8. */
-#if HC_ARCH_BITS == 32
-    uint32_t                        u32Alignment6;
-#endif
-
 } AHCIPort;
 /** Pointer to the state of an AHCI port. */
 typedef AHCIPort *PAHCIPort;
-
-AssertCompileMemberAlignment(AHCIPort, StatDMA, 8);
-AssertCompileSizeAlignment(AHCIPort, 8);
 
 /**
  * Main AHCI device state.
@@ -720,6 +705,8 @@ typedef struct AHCI
 
     /** Flag whether we have written the first 4bytes in an 8byte MMIO write successfully. */
     volatile bool                   f8ByteMMIO4BytesWrittenSuccessfully;
+    /** Flag whether whether hotplugging is enabled for the controller. */
+    bool                            fPortsHotpluggable;
 
 #if HC_ARCH_BITS == 64
     uint32_t                        Alignment7;
@@ -730,8 +717,6 @@ typedef struct AHCI
 } AHCI;
 /** Pointer to the state of an AHCI device. */
 typedef AHCI *PAHCI;
-
-AssertCompileMemberAlignment(AHCI, ahciPort, 8);
 
 /**
  * Scatter gather list entry.
@@ -961,7 +946,6 @@ static size_t ahciCopyFromPrdtl(PPDMDEVINS pDevIns, PAHCIREQ pAhciReq,
                                 void *pvBuf, size_t cbBuf);
 static bool ahciCancelActiveTasks(PAHCIPort pAhciPort, PAHCIREQ pAhciReqExcept);
 static void ahciReqMemFree(PAHCIPort pAhciPort, PAHCIREQ pAhciReq, bool fForceFree);
-static void ahciR3PortCachedReqsFree(PAHCIPort pAhciPort);
 #endif
 RT_C_DECLS_END
 
@@ -2033,16 +2017,13 @@ static void ahciPortSwReset(PAHCIPort pAhciPort)
     fAllTasksCanceled = ahciCancelActiveTasks(pAhciPort, NULL);
     Assert(fAllTasksCanceled);
 
-    Assert(pAhciPort->cTasksActive == 0);
-
     pAhciPort->regIS   = 0;
     pAhciPort->regIE   = 0;
     pAhciPort->regCMD  = AHCI_PORT_CMD_CPD  | /* Cold presence detection */
                          AHCI_PORT_CMD_SUD  | /* Device has spun up. */
                          AHCI_PORT_CMD_POD;   /* Port is powered on. */
 
-    /* Hotplugging supported?. */
-    if (pAhciPort->fHotpluggable)
+    if (pAhciPort->CTX_SUFF(pAhci)->fPortsHotpluggable)
         pAhciPort->regCMD |= AHCI_PORT_CMD_HPCP;
 
     pAhciPort->regTFD  = (1 << 8) | ATA_STAT_SEEK | ATA_STAT_WRERR;
@@ -2064,6 +2045,8 @@ static void ahciPortSwReset(PAHCIPort pAhciPort)
     pAhciPort->u32TasksFinished = 0;
     pAhciPort->u32QueuedTasksFinished = 0;
     pAhciPort->u32CurrentCommandSlot = 0;
+
+    pAhciPort->cTasksActive = 0;
 
     ASMAtomicWriteU32(&pAhciPort->MediaEventStatus, ATA_EVENT_STATUS_UNCHANGED);
     ASMAtomicWriteU32(&pAhciPort->MediaTrackType, ATA_MEDIA_TYPE_UNKNOWN);
@@ -4267,7 +4250,6 @@ static int atapiReadDVDStructureSS(PAHCIREQ pAhciReq, PAHCIPort pAhciPort, size_
 
                         /* 4 byte header + 4 byte data */
                         uASC = (4 + 4);
-                        break;
 
                     case 0x03: /* BCA information - invalid field for no BCA info */
                         uASC = -SCSI_ASC_INV_FIELD_IN_CMD_PACKET;
@@ -4661,13 +4643,11 @@ static AHCITXDIR atapiParseCmdVirtualATAPI(PAHCIPort pAhciPort, PAHCIREQ pAhciRe
                      * because the driver providing I/O memory allocation interface
                      * is about to be destroyed.
                      */
-                    ahciR3PortCachedReqsFree(pAhciPort);
-
-                    /*
-                     * Also make sure that the current request has no memory allocated
-                     * from the driver below us. We don't require it here anyway.
-                     */
-                    ahciReqMemFree(pAhciPort, pAhciReq, true /* fForceFree */);
+                    for (uint32_t i = 0; i < AHCI_NR_COMMAND_SLOTS; i++)
+                    {
+                        if (pAhciPort->aCachedTasks[i])
+                            ahciReqMemFree(pAhciPort, pAhciPort->aCachedTasks[i], true /* fForceFree */);
+                    }
 
                     rc = VMR3ReqPriorityCallWait(PDMDevHlpGetVM(pDevIns), VMCPUID_ANY,
                                                  (PFNRT)pAhciPort->pDrvMount->pfnUnmount, 3,
@@ -5697,19 +5677,14 @@ static void ahciIoBufFree(PAHCIPort pAhciPort, PAHCIREQ pAhciReq,
  */
 static void ahciR3PortCachedReqsFree(PAHCIPort pAhciPort)
 {
-    if (pAhciPort->pListReqsFree)
+    for (uint32_t i = 0; i < AHCI_NR_COMMAND_SLOTS; i++)
     {
-        PAHCIREQ pReq = NULL;
-        PAHCIREQ pReqNext = NULL;
-
-        RTCritSectEnter(&pAhciPort->CritSectReqsFree);
-        RTListForEachSafe(pAhciPort->pListReqsFree, pReq, pReqNext, AHCIREQ, NodeList)
+        if (pAhciPort->aCachedTasks[i])
         {
-            RTListNodeRemove(&pReq->NodeList);
-            ahciReqMemFree(pAhciPort, pReq, true /* fForceFree */);
-            RTMemFree(pReq);
+            ahciReqMemFree(pAhciPort, pAhciPort->aCachedTasks[i], true /* fForceFree */);
+            RTMemFree(pAhciPort->aCachedTasks[i]);
+            pAhciPort->aCachedTasks[i] = NULL;
         }
-        RTCritSectLeave(&pAhciPort->CritSectReqsFree);
     }
 }
 
@@ -5723,35 +5698,34 @@ static void ahciR3PortCachedReqsFree(PAHCIPort pAhciPort)
  */
 static bool ahciCancelActiveTasks(PAHCIPort pAhciPort, PAHCIREQ pAhciReqExcept)
 {
-    for (unsigned i = 0; i < RT_ELEMENTS(pAhciPort->aActiveTasks); i++)
+    for (unsigned i = 0; i < RT_ELEMENTS(pAhciPort->aCachedTasks); i++)
     {
-        PAHCIREQ pAhciReq = ASMAtomicReadPtrT(&pAhciPort->aActiveTasks[i], PAHCIREQ);
-        if (pAhciReq != pAhciReqExcept)
+        PAHCIREQ pAhciReq = pAhciPort->aCachedTasks[i];
+
+        if (   VALID_PTR(pAhciReq)
+            && pAhciReq != pAhciReqExcept)
         {
-            pAhciReq = (PAHCIREQ)ASMAtomicXchgPtr((void * volatile *)&pAhciPort->aActiveTasks[i], NULL);
+            bool fXchg = false;
+            ASMAtomicCmpXchgSize(&pAhciReq->enmTxState, AHCITXSTATE_CANCELED, AHCITXSTATE_ACTIVE, fXchg);
 
-            if (VALID_PTR(pAhciReq))
+            if (fXchg)
             {
-                bool fXchg = ASMAtomicCmpXchgU32((volatile uint32_t *)&pAhciReq->enmTxState, AHCITXSTATE_CANCELED, AHCITXSTATE_ACTIVE);
-                if (fXchg)
-                {
-                    /* Task is active and was canceled. */
-                    AssertReleaseMsg(ASMAtomicReadU32(&pAhciPort->cTasksActive) > 0,
-                                     ("Task was canceled but none is active\n"));
-                    ASMAtomicDecU32(&pAhciPort->cTasksActive);
+                /* Task is active and was canceled. */
+                AssertReleaseMsg(ASMAtomicReadU32(&pAhciPort->cTasksActive) > 0,
+                                 ("Task was canceled but none is active\n"));
+                ASMAtomicDecU32(&pAhciPort->cTasksActive);
 
-                    /*
-                     * Clear the pointer in the cached array. The controller will allocate a
-                     * a new task structure for this tag.
-                     */
-                    ASMAtomicWriteNullPtr(&pAhciPort->aActiveTasks[i]);
-                    LogRel(("AHCI#%uP%u: Cancelled task %u\n", pAhciPort->CTX_SUFF(pDevIns)->iInstance,
-                            pAhciPort->iLUN, pAhciReq->uTag));
-                }
-                else
-                    AssertMsg(pAhciReq->enmTxState == AHCITXSTATE_FREE,
-                              ("Invalid task state, must be free!\n"));
+                /*
+                 * Clear the pointer in the cached array. The controller will allocate a
+                 * a new task structure for this tag.
+                 */
+                ASMAtomicWriteNullPtr(&pAhciPort->aCachedTasks[i]);
+                LogRel(("AHCI#%uP%u: Cancelled task %u\n", pAhciPort->CTX_SUFF(pDevIns)->iInstance,
+                        pAhciPort->iLUN, pAhciReq->uTag));
             }
+            else
+                AssertMsg(pAhciReq->enmTxState == AHCITXSTATE_FREE,
+                          ("Invalid task state, must be free!\n"));
         }
     }
 
@@ -5959,49 +5933,6 @@ static void ahciTrimRangesDestroy(PAHCIREQ pAhciReq)
 }
 
 /**
- * Allocates a new AHCI request.
- *
- * @returns A new AHCI request structure or NULL if out of memory.
- * @param   pAhciPort    The AHCI port.
- */
-static PAHCIREQ ahciR3ReqAlloc(PAHCIPort pAhciPort)
-{
-    PAHCIREQ pAhciReq = NULL;
-
-    /* Check the global free list first. */
-    RTCritSectEnter(&pAhciPort->CritSectReqsFree);
-    pAhciReq = RTListGetFirst(pAhciPort->pListReqsFree, AHCIREQ, NodeList);
-    if (pAhciReq)
-    {
-        AssertMsg(pAhciReq->enmTxState == AHCITXSTATE_FREE, ("Should be free!\n"));
-        RTListNodeRemove(&pAhciReq->NodeList);
-    }
-    RTCritSectLeave(&pAhciPort->CritSectReqsFree);
-
-    if (!pAhciReq)
-        pAhciReq = (PAHCIREQ)RTMemAllocZ(sizeof(AHCIREQ));
-
-    pAhciReq->enmTxState = AHCITXSTATE_ACTIVE;
-    return pAhciReq;
-}
-
-/**
- * Frees a given AHCI request structure.
- *
- * @returns nothing.
- * @param   pAhciPort    The AHCI port.
- */
-static void ahciR3ReqFree(PAHCIPort pAhciPort, PAHCIREQ pAhciReq)
-{
-    AssertMsg(pAhciReq->enmTxState != AHCITXSTATE_FREE, ("Double free!\n"));
-    pAhciReq->enmTxState = AHCITXSTATE_FREE;
-
-    RTCritSectEnter(&pAhciPort->CritSectReqsFree);
-    RTListAppend(pAhciPort->pListReqsFree, &pAhciReq->NodeList);
-    RTCritSectLeave(&pAhciPort->CritSectReqsFree);
-}
-
-/**
  * Complete a data transfer task by freeing all occupied resources
  * and notifying the guest.
  *
@@ -6010,30 +5941,22 @@ static void ahciR3ReqFree(PAHCIPort pAhciPort, PAHCIREQ pAhciReq)
  * @param pAhciPort    Pointer to the port where to request completed.
  * @param pAhciReq     Pointer to the task which finished.
  * @param rcReq        IPRT status code of the completed request.
+ * @param fFreeReq     Flag whether to free the request if it was canceled.
  */
-static bool ahciTransferComplete(PAHCIPort pAhciPort, PAHCIREQ pAhciReq, int rcReq)
+static bool ahciTransferComplete(PAHCIPort pAhciPort, PAHCIREQ pAhciReq, int rcReq, bool fFreeReq)
 {
+    bool fXchg = false;
     bool fRedo = false;
     bool fCanceled = false;
     uint64_t tsNow = RTTimeMilliTS();
     AHCITXSTATE enmTxState = AHCITXSTATE_INVALID;
 
-    LogFlowFunc(("pAhciPort=%p pAhciReq=%p rcReq=%d\n",
-                 pAhciPort, pAhciReq, rcReq));
+    LogFlowFunc(("pAhciPort=%p pAhciReq=%p rcReq=%d fFreeReq=%RTbool\n",
+                 pAhciPort, pAhciReq, rcReq, fFreeReq));
 
-    enmTxState = (AHCITXSTATE)ASMAtomicReadU32((volatile uint32_t *)&pAhciReq->enmTxState);
+    ASMAtomicReadSize(&pAhciReq->enmTxState, &enmTxState);
     VBOXDD_AHCI_REQ_COMPLETED(pAhciReq, rcReq, enmTxState, pAhciReq->uOffset, pAhciReq->cbTransfer);
     VBOXDD_AHCI_REQ_COMPLETED_TIMESTAMP(pAhciReq, tsNow);
-
-    /*
-     * Clear the request structure from the active request list first so it doesn't get cancelled
-     * while we complete it. If the request is not in the active list anymore it was already canceled
-     * and we have to make sure to not copy anything to guest memory because the guest might use it
-     * for other things already.
-     */
-    bool fPortReset = ASMAtomicReadBool(&pAhciPort->fPortReset);
-    bool fXchg = ASMAtomicCmpXchgPtr(&pAhciPort->aActiveTasks[pAhciReq->uTag], NULL, pAhciReq);
-    bool fReqErrSaved = false;
 
     /*
      * Leave a release log entry if the request was active for more than 25 seconds
@@ -6064,6 +5987,9 @@ static bool ahciTransferComplete(PAHCIPort pAhciPort, PAHCIREQ pAhciReq, int rcR
         LogRel(("AHCI#%uP%u: %s request was active for %llu seconds\n",
                 pAhciPort->CTX_SUFF(pDevIns)->iInstance, pAhciPort->iLUN, pcszReq, (tsNow - pAhciReq->tsStart) / 1000));
     }
+
+    bool fPortReset = ASMAtomicReadBool(&pAhciPort->fPortReset);
+    ASMAtomicCmpXchgSize(&pAhciReq->enmTxState, AHCITXSTATE_FREE, AHCITXSTATE_ACTIVE, fXchg);
 
     if (fXchg && !fPortReset)
     {
@@ -6112,7 +6038,7 @@ static bool ahciTransferComplete(PAHCIPort pAhciPort, PAHCIREQ pAhciReq, int rcR
                 pAhciReq->cmdHdr.u32PRDBC = 0;
                 pAhciReq->uATARegError    = ID_ERR;
                 pAhciReq->uATARegStatus   = ATA_STAT_READY | ATA_STAT_ERR;
-                fReqErrSaved = ASMAtomicCmpXchgPtr(&pAhciPort->pTaskErr, pAhciReq, NULL);
+                ASMAtomicCmpXchgPtr(&pAhciPort->pTaskErr, pAhciReq, NULL);
             }
             else
                 ASMAtomicOrU32(&pAhciPort->u32TasksRedo, RT_BIT_32(pAhciReq->uTag));
@@ -6121,7 +6047,7 @@ static bool ahciTransferComplete(PAHCIPort pAhciPort, PAHCIREQ pAhciReq, int rcR
         {
             pAhciReq->cmdHdr.u32PRDBC = pAhciReq->cbTransfer;
 
-            /* Status will be set already for non I/O requests. */
+            /* Status will be set by already for non I/O requests. */
             if (pAhciReq->enmTxDir != AHCITXDIR_NONE)
             {
                 pAhciReq->uATARegError = 0;
@@ -6143,6 +6069,10 @@ static bool ahciTransferComplete(PAHCIPort pAhciPort, PAHCIREQ pAhciReq, int rcR
                     ahciHbaSetInterrupt(pAhciPort->CTX_SUFF(pAhci), pAhciPort->iLUN, VERR_IGNORED);
             }
         }
+
+        AssertReleaseMsg(ASMAtomicReadU32(&pAhciPort->cTasksActive) > 0 ,
+                         ("Inconsistent request counter\n"));
+        ASMAtomicDecU32(&pAhciPort->cTasksActive);
 
         if (!fRedo)
         {
@@ -6179,7 +6109,20 @@ static bool ahciTransferComplete(PAHCIPort pAhciPort, PAHCIREQ pAhciReq, int rcR
         AssertMsg(pAhciReq->enmTxState == AHCITXSTATE_CANCELED || fPortReset,
                   ("Task is not active but wasn't canceled and no port reset is active!\n"));
 
+        /*
+         * If this handler switched the request state from active to free the request counter
+         * must be decremented.
+         */
+        if (fXchg)
+        {
+            Assert(fPortReset);
+            AssertReleaseMsg(ASMAtomicReadU32(&pAhciPort->cTasksActive) > 0 ,
+                             ("Inconsistent request counter\n"));
+            ASMAtomicDecU32(&pAhciPort->cTasksActive);
+        }
+
         fCanceled = true;
+        ASMAtomicXchgSize(&pAhciReq->enmTxState, AHCITXSTATE_FREE);
 
         if (pAhciReq->enmTxDir == AHCITXDIR_TRIM)
             ahciTrimRangesDestroy(pAhciReq);
@@ -6204,31 +6147,15 @@ static bool ahciTransferComplete(PAHCIPort pAhciPort, PAHCIREQ pAhciReq, int rcR
                         pAhciReq->uOffset,
                         pAhciReq->cbTransfer, rcReq));
          }
-    }
 
-    /*
-     * Decrement the active task counter as the last step or we might run into a
-     * hang during power off otherwise (see @bugref{7859}).
-     * Before it could happen that we signal PDM that we are done while we still have to
-     * copy the data to the guest but EMT might be busy destroying the driver chains
-     * below us while we have to delegate copying data to EMT instead of doing it
-     * on this thread.
-     */
-    if (fXchg)
-    {
-        AssertReleaseMsg(ASMAtomicReadU32(&pAhciPort->cTasksActive) > 0,
-                         ("Inconsistent request counter\n"));
-        ASMAtomicDecU32(&pAhciPort->cTasksActive);
+        /* Finally free the task state structure because it is completely unused now. */
+        if (fFreeReq)
+            RTMemFree(pAhciReq);
     }
 
     if (pAhciPort->cTasksActive == 0 && pAhciPort->pAhciR3->fSignalIdle)
         PDMDevHlpAsyncNotificationCompleted(pAhciPort->pDevInsR3);
 
-    /* Don't free the request yet when it is saved for the error log page. */
-    if (   pAhciReq
-        && !(pAhciReq->fFlags & AHCI_REQ_IS_ON_STACK)
-        && !fReqErrSaved)
-        ahciR3ReqFree(pAhciPort, pAhciReq);
     return fCanceled;
 }
 
@@ -6248,7 +6175,7 @@ static DECLCALLBACK(int) ahciR3TransferCompleteNotify(PPDMIBLOCKASYNCPORT pInter
     ahciLog(("%s: pInterface=%p pvUser=%p uTag=%u\n",
              __FUNCTION__, pInterface, pvUser, pAhciReq->uTag));
 
-    ahciTransferComplete(pAhciPort, pAhciReq, rcReq);
+    ahciTransferComplete(pAhciPort, pAhciReq, rcReq, true);
 
     return VINF_SUCCESS;
 }
@@ -6491,7 +6418,7 @@ static AHCITXDIR ahciProcessCmd(PAHCIPort pAhciPort, PAHCIREQ pAhciReq, uint8_t 
                             if (pTaskErr->enmTxDir == AHCITXDIR_TRIM)
                                 ahciTrimRangesDestroy(pTaskErr);
                             else if (pTaskErr->enmTxDir != AHCITXDIR_FLUSH)
-                                ahciReqMemFree(pAhciPort, pTaskErr, true /* fForceFree */);
+                                ahciIoBufFree(pAhciPort, pTaskErr, false /* fCopyToGuest */);
 
                             /* Finally free the error task state structure because it is completely unused now. */
                             RTMemFree(pTaskErr);
@@ -6550,7 +6477,7 @@ static AHCITXDIR ahciProcessCmd(PAHCIPort pAhciPort, PAHCIREQ pAhciReq, uint8_t 
             pAhciReq->uATARegStatus = ATA_STAT_READY | ATA_STAT_ERR;
             break;
         default: /* For debugging purposes. */
-            AssertMsgFailed(("Unknown command issued (%#x)\n", pCmdFis[AHCI_CMDFIS_CMD]));
+            AssertMsgFailed(("Unknown command issued\n"));
             pAhciReq->uATARegError = ABRT_ERR;
             pAhciReq->uATARegStatus = ATA_STAT_READY | ATA_STAT_ERR;
     }
@@ -6651,173 +6578,6 @@ static bool ahciPortTaskGetCommandFis(PAHCIPort pAhciPort, PAHCIREQ pAhciReq)
 }
 
 /**
- * Submits a given request for execution.
- *
- * @returns Flag whether the request was canceled inbetween.
- * @param   pAhciPort    The port the request is for.
- * @param   pAhciReq     The request to submit.
- * @param   enmTxDir     The request type.
- */
-static bool ahciR3ReqSubmit(PAHCIPort pAhciPort, PAHCIREQ pAhciReq, AHCITXDIR enmTxDir)
-{
-    int rc = VINF_SUCCESS;
-    bool fReqCanceled = false;
-
-    if (pAhciPort->fAsyncInterface)
-    {
-        VBOXDD_AHCI_REQ_SUBMIT(pAhciReq, pAhciReq->enmTxDir, pAhciReq->uOffset, pAhciReq->cbTransfer);
-        VBOXDD_AHCI_REQ_SUBMIT_TIMESTAMP(pAhciReq, pAhciReq->tsStart);
-        if (enmTxDir == AHCITXDIR_FLUSH)
-        {
-            rc = pAhciPort->pDrvBlockAsync->pfnStartFlush(pAhciPort->pDrvBlockAsync,
-                                                          pAhciReq);
-        }
-        else if (enmTxDir == AHCITXDIR_TRIM)
-        {
-            rc = ahciTrimRangesCreate(pAhciPort, pAhciReq);
-            if (RT_SUCCESS(rc))
-            {
-                pAhciPort->Led.Asserted.s.fWriting = pAhciPort->Led.Actual.s.fWriting = 1;
-                rc = pAhciPort->pDrvBlockAsync->pfnStartDiscard(pAhciPort->pDrvBlockAsync, pAhciReq->u.Trim.paRanges,
-                                                                pAhciReq->u.Trim.cRanges, pAhciReq);
-            }
-        }
-        else if (enmTxDir == AHCITXDIR_READ)
-        {
-            pAhciPort->Led.Asserted.s.fReading = pAhciPort->Led.Actual.s.fReading = 1;
-            rc = pAhciPort->pDrvBlockAsync->pfnStartRead(pAhciPort->pDrvBlockAsync, pAhciReq->uOffset,
-                                                         &pAhciReq->u.Io.DataSeg, 1,
-                                                         pAhciReq->cbTransfer,
-                                                         pAhciReq);
-        }
-        else
-        {
-            pAhciPort->Led.Asserted.s.fWriting = pAhciPort->Led.Actual.s.fWriting = 1;
-            rc = pAhciPort->pDrvBlockAsync->pfnStartWrite(pAhciPort->pDrvBlockAsync, pAhciReq->uOffset,
-                                                          &pAhciReq->u.Io.DataSeg, 1,
-                                                          pAhciReq->cbTransfer,
-                                                          pAhciReq);
-        }
-        if (rc == VINF_VD_ASYNC_IO_FINISHED)
-            fReqCanceled = ahciTransferComplete(pAhciPort, pAhciReq, VINF_SUCCESS);
-        else if (RT_FAILURE(rc) && rc != VERR_VD_ASYNC_IO_IN_PROGRESS)
-            fReqCanceled = ahciTransferComplete(pAhciPort, pAhciReq, rc);
-    }
-    else
-    {
-        if (enmTxDir == AHCITXDIR_FLUSH)
-            rc = pAhciPort->pDrvBlock->pfnFlush(pAhciPort->pDrvBlock);
-        else if (enmTxDir == AHCITXDIR_TRIM)
-        {
-            rc = ahciTrimRangesCreate(pAhciPort, pAhciReq);
-            if (RT_SUCCESS(rc))
-            {
-                pAhciPort->Led.Asserted.s.fWriting = pAhciPort->Led.Actual.s.fWriting = 1;
-                rc = pAhciPort->pDrvBlock->pfnDiscard(pAhciPort->pDrvBlock, pAhciReq->u.Trim.paRanges,
-                                                      pAhciReq->u.Trim.cRanges);
-                pAhciPort->Led.Asserted.s.fWriting = pAhciPort->Led.Actual.s.fWriting = 0;
-            }
-        }
-        else if (enmTxDir == AHCITXDIR_READ)
-        {
-            pAhciPort->Led.Asserted.s.fReading = pAhciPort->Led.Actual.s.fReading = 1;
-            rc = pAhciPort->pDrvBlock->pfnRead(pAhciPort->pDrvBlock, pAhciReq->uOffset,
-                                               pAhciReq->u.Io.DataSeg.pvSeg,
-                                               pAhciReq->cbTransfer);
-            pAhciPort->Led.Asserted.s.fReading = pAhciPort->Led.Actual.s.fReading = 0;
-        }
-        else
-        {
-            pAhciPort->Led.Asserted.s.fWriting = pAhciPort->Led.Actual.s.fWriting = 1;
-            rc = pAhciPort->pDrvBlock->pfnWrite(pAhciPort->pDrvBlock, pAhciReq->uOffset,
-                                                pAhciReq->u.Io.DataSeg.pvSeg,
-                                                pAhciReq->cbTransfer);
-            pAhciPort->Led.Asserted.s.fWriting = pAhciPort->Led.Actual.s.fWriting = 0;
-        }
-        fReqCanceled = ahciTransferComplete(pAhciPort, pAhciReq, rc);
-    }
-
-    return fReqCanceled;
-}
-
-/**
- * Prepares the command for execution coping it from guest memory and doing a few
- * validation checks on it.
- *
- * @returns Whether the command was successfully fetched from guest memory and
- *          can be continued.
- * @param   pAhciPort    The AHCI port the request is for.
- * @param   pAhciReq     Request structure to copy the command to.
- */
-static bool ahciR3CmdPrepare(PAHCIPort pAhciPort, PAHCIREQ pAhciReq)
-{
-    pAhciReq->tsStart       = RTTimeMilliTS();
-    pAhciReq->uATARegStatus = 0;
-    pAhciReq->uATARegError  = 0;
-
-    /* Set current command slot */
-    ASMAtomicWriteU32(&pAhciPort->u32CurrentCommandSlot, pAhciReq->uTag);
-    ASMAtomicWritePtr(&pAhciPort->aActiveTasks[pAhciReq->uTag], pAhciReq);
-
-    bool fContinue = ahciPortTaskGetCommandFis(pAhciPort, pAhciReq);
-    if (fContinue)
-    {
-        /* Mark the task as processed by the HBA if this is a queued task so that it doesn't occur in the CI register anymore. */
-        if (pAhciPort->regSACT & RT_BIT_32(pAhciReq->uTag))
-        {
-            pAhciReq->fFlags |= AHCI_REQ_CLEAR_SACT;
-            ASMAtomicOrU32(&pAhciPort->u32TasksFinished, RT_BIT_32(pAhciReq->uTag));
-        }
-
-        if (pAhciReq->cmdFis[AHCI_CMDFIS_BITS] & AHCI_CMDFIS_C)
-        {
-            /*
-             * It is possible that the request counter can get one higher than the maximum because
-             * the request counter is decremented after the guest was notified about the completed
-             * request (see @bugref{7859}). If the completing thread is preempted in between the
-             * guest might already issue another request before the request counter is decremented
-             * which would trigger the following assertion incorrectly in the past.
-             */
-            AssertLogRelMsg(ASMAtomicReadU32(&pAhciPort->cTasksActive) <= AHCI_NR_COMMAND_SLOTS,
-                            ("AHCI#%uP%u: There are more than %u (+1) requests active",
-                             pAhciPort->CTX_SUFF(pDevIns)->iInstance, pAhciPort->iLUN,
-                             AHCI_NR_COMMAND_SLOTS));
-            ASMAtomicIncU32(&pAhciPort->cTasksActive);
-        }
-        else
-        {
-            /* If the reset bit is set put the device into reset state. */
-            if (pAhciReq->cmdFis[AHCI_CMDFIS_CTL] & AHCI_CMDFIS_CTL_SRST)
-            {
-                ahciLog(("%s: Setting device into reset state\n", __FUNCTION__));
-                pAhciPort->fResetDevice = true;
-                ahciSendD2HFis(pAhciPort, pAhciReq, pAhciReq->cmdFis, true);
-            }
-            else if (pAhciPort->fResetDevice) /* The bit is not set and we are in a reset state. */
-                ahciFinishStorageDeviceReset(pAhciPort, pAhciReq);
-            else /* We are not in a reset state update the control registers. */
-                AssertMsgFailed(("%s: Update the control register\n", __FUNCTION__));
-
-            fContinue = false;
-        }
-    }
-    else
-    {
-        /*
-         * Couldn't find anything in either the AHCI or SATA spec which
-         * indicates what should be done if the FIS is not read successfully.
-         * The closest thing is in the state machine, stating that the device
-         * should go into idle state again (SATA spec 1.0 chapter 8.7.1).
-         * Do the same here and ignore any corrupt FIS types, after all
-         * the guest messed up everything and this behavior is undefined.
-         */
-        fContinue = false;
-    }
-
-    return fContinue;
-}
-
-/**
  * Transmit queue consumer
  * Queue a new async task.
  *
@@ -6914,65 +6674,181 @@ static DECLCALLBACK(int) ahciAsyncIOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
             idx--;
             ahciLog(("%s: Processing command at slot %d\n", __FUNCTION__, idx));
 
-            /* Check whether the request is already active and ignore. */
-            if (ASMAtomicReadPtr((void * volatile *)&pAhciPort->aActiveTasks[idx]))
+            /*
+             * Check if there is already an allocated task struct in the cache.
+             * Allocate a new task otherwise.
+             */
+            if (!pAhciPort->aCachedTasks[idx])
             {
-                ahciLog(("%s: Ignoring command at slot %d because it is already active\n", __FUNCTION__, idx));
+                pAhciReq = (PAHCIREQ)RTMemAllocZ(sizeof(AHCIREQ));
+                AssertMsg(pAhciReq, ("%s: Cannot allocate task state memory!\n"));
+                pAhciReq->enmTxState = AHCITXSTATE_FREE;
+                pAhciPort->aCachedTasks[idx] = pAhciReq;
+            }
+            else
+                pAhciReq = pAhciPort->aCachedTasks[idx];
+
+            bool fXchg;
+            ASMAtomicCmpXchgSize(&pAhciReq->enmTxState, AHCITXSTATE_ACTIVE, AHCITXSTATE_FREE, fXchg);
+            AssertMsg(fXchg, ("Task is already active\n"));
+
+            pAhciReq->tsStart = RTTimeMilliTS();
+            pAhciReq->uATARegStatus = 0;
+            pAhciReq->uATARegError  = 0;
+            pAhciReq->fFlags        = 0;
+
+            /* Set current command slot */
+            pAhciReq->uTag = idx;
+            ASMAtomicWriteU32(&pAhciPort->u32CurrentCommandSlot, pAhciReq->uTag);
+
+            bool fFisRead = ahciPortTaskGetCommandFis(pAhciPort, pAhciReq);
+            if (RT_UNLIKELY(!fFisRead))
+            {
+                /*
+                 * Couldn't find anything in either the AHCI or SATA spec which
+                 * indicates what should be done if the FIS is not read successfully.
+                 * The closest thing is in the state machine, stating that the device
+                 * should go into idle state again (SATA spec 1.0 chapter 8.7.1).
+                 * Do the same here and ignore any corrupt FIS types, after all
+                 * the guest messed up everything and this behavior is undefined.
+                 */
+                ASMAtomicCmpXchgSize(&pAhciReq->enmTxState, AHCITXSTATE_FREE, AHCITXSTATE_ACTIVE, fXchg);
+                Assert(fXchg);
+                u32Tasks &= ~RT_BIT_32(idx); /* Clear task bit. */
+                idx = ASMBitFirstSetU32(u32Tasks);
                 continue;
             }
 
-            pAhciReq = ahciR3ReqAlloc(pAhciPort);
-            if (RT_LIKELY(pAhciReq))
+            /* Mark the task as processed by the HBA if this is a queued task so that it doesn't occur in the CI register anymore. */
+            if (pAhciPort->regSACT & (1 << idx))
             {
-                pAhciReq->uTag          = idx;
-                pAhciReq->fFlags        = 0;
+                pAhciReq->fFlags |= AHCI_REQ_CLEAR_SACT;
+                ASMAtomicOrU32(&pAhciPort->u32TasksFinished, (1 << pAhciReq->uTag));
+            }
 
-                bool fContinue = ahciR3CmdPrepare(pAhciPort, pAhciReq);
-                if (fContinue)
+            if (!(pAhciReq->cmdFis[AHCI_CMDFIS_BITS] & AHCI_CMDFIS_C))
+            {
+                /* If the reset bit is set put the device into reset state. */
+                if (pAhciReq->cmdFis[AHCI_CMDFIS_CTL] & AHCI_CMDFIS_CTL_SRST)
                 {
-                    enmTxDir = ahciProcessCmd(pAhciPort, pAhciReq, pAhciReq->cmdFis);
-                    pAhciReq->enmTxDir = enmTxDir;
-
-                    if (enmTxDir != AHCITXDIR_NONE)
-                    {
-                        if (   enmTxDir != AHCITXDIR_FLUSH
-                            && enmTxDir != AHCITXDIR_TRIM)
-                        {
-                            STAM_REL_COUNTER_INC(&pAhciPort->StatDMA);
-
-                            rc = ahciIoBufAllocate(pAhciPort, pAhciReq, pAhciReq->cbTransfer);
-                            if (RT_FAILURE(rc))
-                            {
-                                /* In case we can't allocate enough memory fail the request with an overflow error. */
-                                AssertMsgFailed(("%s: Failed to process command %Rrc\n", __FUNCTION__, rc));
-                                pAhciReq->fFlags |= AHCI_REQ_OVERFLOW;
-                            }
-                        }
-
-                        if (!(pAhciReq->fFlags & AHCI_REQ_OVERFLOW))
-                            fReqCanceled = ahciR3ReqSubmit(pAhciPort, pAhciReq, enmTxDir);
-                        else /* Overflow is handled in completion routine. */
-                            fReqCanceled = ahciTransferComplete(pAhciPort, pAhciReq, VINF_SUCCESS);
-                    }
-                    else
-                        fReqCanceled = ahciTransferComplete(pAhciPort, pAhciReq, VINF_SUCCESS);
-                } /* Command */
-                else
-                {
-                    ASMAtomicWriteNullPtr(&pAhciPort->aActiveTasks[pAhciReq->uTag]);
-                    ahciR3ReqFree(pAhciPort, pAhciReq);
+                    ahciLog(("%s: Setting device into reset state\n", __FUNCTION__));
+                    pAhciPort->fResetDevice = true;
+                    ahciSendD2HFis(pAhciPort, pAhciReq, pAhciReq->cmdFis, true);
                 }
-            }
-            else /* !Request allocated, use on stack variant to signal the error. */
-            {
-                AHCIREQ Req;
-                Req.uTag   = idx;
-                Req.fFlags = AHCI_REQ_IS_ON_STACK;
+                else if (pAhciPort->fResetDevice) /* The bit is not set and we are in a reset state. */
+                    ahciFinishStorageDeviceReset(pAhciPort, pAhciReq);
+                else /* We are not in a reset state update the control registers. */
+                    AssertMsgFailed(("%s: Update the control register\n", __FUNCTION__));
 
-                bool fContinue = ahciR3CmdPrepare(pAhciPort, &Req);
-                if (fContinue)
-                    fReqCanceled = ahciTransferComplete(pAhciPort, &Req, VERR_NO_MEMORY);
+                ASMAtomicCmpXchgSize(&pAhciReq->enmTxState, AHCITXSTATE_FREE, AHCITXSTATE_ACTIVE, fXchg);
+                AssertMsg(fXchg, ("Task is not active\n"));
+                break;
             }
+            else
+            {
+                AssertReleaseMsg(ASMAtomicReadU32(&pAhciPort->cTasksActive) < AHCI_NR_COMMAND_SLOTS,
+                                 ("There are more than 32 requests active"));
+                ASMAtomicIncU32(&pAhciPort->cTasksActive);
+
+                enmTxDir = ahciProcessCmd(pAhciPort, pAhciReq, pAhciReq->cmdFis);
+                pAhciReq->enmTxDir = enmTxDir;
+
+                if (enmTxDir != AHCITXDIR_NONE)
+                {
+                    if (   enmTxDir != AHCITXDIR_FLUSH
+                        && enmTxDir != AHCITXDIR_TRIM)
+                    {
+                        STAM_REL_COUNTER_INC(&pAhciPort->StatDMA);
+
+                        rc = ahciIoBufAllocate(pAhciPort, pAhciReq, pAhciReq->cbTransfer);
+                        if (RT_FAILURE(rc))
+                        {
+                            /* In case we can't allocate enough memory fail the request with an overflow error. */
+                            AssertMsgFailed(("%s: Failed to process command %Rrc\n", __FUNCTION__, rc));
+                            pAhciReq->fFlags |= AHCI_REQ_OVERFLOW;
+                        }
+                    }
+
+                    if (!(pAhciReq->fFlags & AHCI_REQ_OVERFLOW))
+                    {
+                        if (pAhciPort->fAsyncInterface)
+                        {
+                            VBOXDD_AHCI_REQ_SUBMIT(pAhciReq, enmTxDir, pAhciReq->uOffset, pAhciReq->cbTransfer);
+                            VBOXDD_AHCI_REQ_SUBMIT_TIMESTAMP(pAhciReq, pAhciReq->tsStart);
+                            if (enmTxDir == AHCITXDIR_FLUSH)
+                            {
+                                rc = pAhciPort->pDrvBlockAsync->pfnStartFlush(pAhciPort->pDrvBlockAsync,
+                                                                              pAhciReq);
+                            }
+                            else if (enmTxDir == AHCITXDIR_TRIM)
+                            {
+                                rc = ahciTrimRangesCreate(pAhciPort, pAhciReq);
+                                if (RT_SUCCESS(rc))
+                                {
+                                    pAhciPort->Led.Asserted.s.fWriting = pAhciPort->Led.Actual.s.fWriting = 1;
+                                    rc = pAhciPort->pDrvBlockAsync->pfnStartDiscard(pAhciPort->pDrvBlockAsync, pAhciReq->u.Trim.paRanges,
+                                                                                    pAhciReq->u.Trim.cRanges, pAhciReq);
+                                }
+                            }
+                            else if (enmTxDir == AHCITXDIR_READ)
+                            {
+                                pAhciPort->Led.Asserted.s.fReading = pAhciPort->Led.Actual.s.fReading = 1;
+                                rc = pAhciPort->pDrvBlockAsync->pfnStartRead(pAhciPort->pDrvBlockAsync, pAhciReq->uOffset,
+                                                                             &pAhciReq->u.Io.DataSeg, 1,
+                                                                             pAhciReq->cbTransfer,
+                                                                             pAhciReq);
+                            }
+                            else
+                            {
+                                pAhciPort->Led.Asserted.s.fWriting = pAhciPort->Led.Actual.s.fWriting = 1;
+                                rc = pAhciPort->pDrvBlockAsync->pfnStartWrite(pAhciPort->pDrvBlockAsync, pAhciReq->uOffset,
+                                                                              &pAhciReq->u.Io.DataSeg, 1,
+                                                                              pAhciReq->cbTransfer,
+                                                                              pAhciReq);
+                            }
+                            if (rc == VINF_VD_ASYNC_IO_FINISHED)
+                                fReqCanceled = ahciTransferComplete(pAhciPort, pAhciReq, VINF_SUCCESS, true);
+                            else if (RT_FAILURE(rc) && rc != VERR_VD_ASYNC_IO_IN_PROGRESS)
+                                fReqCanceled = ahciTransferComplete(pAhciPort, pAhciReq, rc, true);
+                        }
+                        else
+                        {
+                            if (enmTxDir == AHCITXDIR_FLUSH)
+                                rc = pAhciPort->pDrvBlock->pfnFlush(pAhciPort->pDrvBlock);
+                            else if (enmTxDir == AHCITXDIR_TRIM)
+                            {
+                                rc = ahciTrimRangesCreate(pAhciPort, pAhciReq);
+                                if (RT_SUCCESS(rc))
+                                {
+                                    pAhciPort->Led.Asserted.s.fWriting = pAhciPort->Led.Actual.s.fWriting = 1;
+                                    rc = pAhciPort->pDrvBlock->pfnDiscard(pAhciPort->pDrvBlock, pAhciReq->u.Trim.paRanges,
+                                                                          pAhciReq->u.Trim.cRanges);
+                                    pAhciPort->Led.Asserted.s.fWriting = pAhciPort->Led.Actual.s.fWriting = 0;
+                                }
+                            }
+                            else if (enmTxDir == AHCITXDIR_READ)
+                            {
+                                pAhciPort->Led.Asserted.s.fReading = pAhciPort->Led.Actual.s.fReading = 1;
+                                rc = pAhciPort->pDrvBlock->pfnRead(pAhciPort->pDrvBlock, pAhciReq->uOffset,
+                                                                   pAhciReq->u.Io.DataSeg.pvSeg,
+                                                                   pAhciReq->cbTransfer);
+                                pAhciPort->Led.Asserted.s.fReading = pAhciPort->Led.Actual.s.fReading = 0;
+                            }
+                            else
+                            {
+                                pAhciPort->Led.Asserted.s.fWriting = pAhciPort->Led.Actual.s.fWriting = 1;
+                                rc = pAhciPort->pDrvBlock->pfnWrite(pAhciPort->pDrvBlock, pAhciReq->uOffset,
+                                                                    pAhciReq->u.Io.DataSeg.pvSeg,
+                                                                    pAhciReq->cbTransfer);
+                                pAhciPort->Led.Asserted.s.fWriting = pAhciPort->Led.Actual.s.fWriting = 0;
+                            }
+                            fReqCanceled = ahciTransferComplete(pAhciPort, pAhciReq, rc, true);
+                        }
+                    }
+                }
+                else
+                    fReqCanceled = ahciTransferComplete(pAhciPort, pAhciReq, VINF_SUCCESS, true);
+            } /* Command */
 
             /*
              * Don't process other requests if the last one was canceled,
@@ -7159,7 +7035,7 @@ static DECLCALLBACK(int) ahciR3LiveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uin
     for (uint32_t i = 0; i < AHCI_MAX_NR_PORTS_IMPL; i++)
     {
         SSMR3PutBool(pSSM, pThis->ahciPort[i].pDrvBase != NULL);
-        SSMR3PutBool(pSSM, pThis->ahciPort[i].fHotpluggable);
+        SSMR3PutBool(pSSM, true); /* For the hotpluggable flag. */
         SSMR3PutStrZ(pSSM, pThis->ahciPort[i].szSerialNumber);
         SSMR3PutStrZ(pSSM, pThis->ahciPort[i].szFirmwareRevision);
         SSMR3PutStrZ(pSSM, pThis->ahciPort[i].szModelNumber);
@@ -7377,13 +7253,11 @@ static DECLCALLBACK(int) ahciR3LoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uin
                 bool fHotpluggable;
                 rc = SSMR3GetBool(pSSM, &fHotpluggable);
                 AssertRCReturn(rc, rc);
-                if (fHotpluggable != pThis->ahciPort[i].fHotpluggable)
+                if (!fHotpluggable)
                     return SSMR3SetCfgError(pSSM, RT_SRC_POS,
                                             N_("AHCI: Port %u config mismatch: Hotplug flag - saved=%RTbool config=%RTbool\n"),
-                                            i, fHotpluggable, pThis->ahciPort[i].fHotpluggable);
+                                            i, fHotpluggable, true);
             }
-            else
-                Assert(pThis->ahciPort[i].fHotpluggable);
 
             char szSerialNumber[AHCI_SERIAL_NUMBER_LENGTH+1];
             rc = SSMR3GetStrZ(pSSM, szSerialNumber,     sizeof(szSerialNumber));
@@ -7632,9 +7506,6 @@ static DECLCALLBACK(void) ahciR3UnmountNotify(PPDMIMOUNTNOTIFY pInterface)
     PAHCIPort pAhciPort = PDMIMOUNTNOTIFY_2_PAHCIPORT(pInterface);
     Log(("%s:\n", __FUNCTION__));
 
-    /* Free all cached I/O tasks. */
-    ahciR3PortCachedReqsFree(pAhciPort);
-
     pAhciPort->cTotalSectors = 0;
 
     if (pAhciPort->fATAPI)
@@ -7709,18 +7580,6 @@ static int ahciR3ConfigureLUN(PPDMDEVINS pDevIns, PAHCIPort pAhciPort)
     }
     pAhciPort->fATAPI = (enmType == PDMBLOCKTYPE_CDROM || enmType == PDMBLOCKTYPE_DVD);
     pAhciPort->fATAPIPassthrough = pAhciPort->fATAPI ? (pAhciPort->pDrvBlock->pfnSendCmd != NULL) : false;
-
-    rc = RTCritSectInit(&pAhciPort->CritSectReqsFree);
-    if (RT_FAILURE(rc))
-        return PDMDevHlpVMSetError(pDevIns, rc, RT_SRC_POS,
-                                   N_("AHCI initialisation error: Failed to create critical section for free request list"));
-
-    pAhciPort->pListReqsFree = (PRTLISTANCHOR)PDMDevHlpMMHeapAllocZ(pDevIns, sizeof(RTLISTANCHOR));
-    if (!pAhciPort->pListReqsFree)
-        return PDMDevHlpVMSetError(pDevIns, VERR_NO_MEMORY, RT_SRC_POS,
-                                   N_("AHCI initialisation error: Failed to allocate memory for free request list"));
-
-    RTListInit(pAhciPort->pListReqsFree);
 
     if (pAhciPort->fATAPI)
     {
@@ -8003,10 +7862,6 @@ static DECLCALLBACK(void) ahciR3Detach(PPDMDEVINS pDevIns, unsigned iLUN, uint32
     Log(("%s:\n", __FUNCTION__));
 
     AssertMsg(iLUN < pAhci->cPortsImpl, ("iLUN=%u", iLUN));
-    AssertMsgReturnVoid(   pAhciPort->fHotpluggable
-                        || (fFlags & PDM_TACH_FLAGS_NOT_HOT_PLUG),
-                        ("AHCI: Port %d is not marked hotpluggable\n", pAhciPort->iLUN));
-
 
     if (pAhciPort->pAsyncIOThread)
     {
@@ -8025,14 +7880,6 @@ static DECLCALLBACK(void) ahciR3Detach(PPDMDEVINS pDevIns, unsigned iLUN, uint32
 
     /* Free all cached I/O tasks. */
     ahciR3PortCachedReqsFree(pAhciPort);
-
-    if (RTCritSectIsInitialized(&pAhciPort->CritSectReqsFree))
-        RTCritSectDelete(&pAhciPort->CritSectReqsFree);
-
-    if (pAhciPort->pListReqsFree)
-        MMR3HeapFree(pAhciPort->pListReqsFree);
-
-    pAhciPort->pListReqsFree = NULL;
 
     if (!(fFlags & PDM_TACH_FLAGS_NOT_HOT_PLUG))
     {
@@ -8089,11 +7936,6 @@ static DECLCALLBACK(int)  ahciR3Attach(PPDMDEVINS pDevIns, unsigned iLUN, uint32
     AssertRelease(!pAhciPort->pDrvBlockAsync);
     Assert(pAhciPort->iLUN == iLUN);
 
-    AssertMsgReturn(   pAhciPort->fHotpluggable
-                    || (fFlags & PDM_TACH_FLAGS_NOT_HOT_PLUG),
-                    ("AHCI: Port %d is not marked hotpluggable\n", pAhciPort->iLUN),
-                    VERR_INVALID_PARAMETER);
-
     /*
      * Try attach the block device and get the interfaces,
      * required as well as optional.
@@ -8149,10 +7991,6 @@ static DECLCALLBACK(int)  ahciR3Attach(PPDMDEVINS pDevIns, unsigned iLUN, uint32
         if (   RT_SUCCESS(rc)
             && !(fFlags & PDM_TACH_FLAGS_NOT_HOT_PLUG))
         {
-            AssertMsgReturn(pAhciPort->fHotpluggable,
-                            ("AHCI: Port %d is not marked hotpluggable\n", pAhciPort->iLUN),
-                            VERR_NOT_SUPPORTED);
-
             /*
              * Initialize registers
              */
@@ -8279,12 +8117,9 @@ static DECLCALLBACK(int) ahciR3Destruct(PPDMDEVINS pDevIns)
                 pAhciPort->hEvtProcess = NIL_SUPSEMEVENT;
             }
 
-            if (RTCritSectIsInitialized(&pAhciPort->CritSectReqsFree))
-                RTCritSectDelete(&pAhciPort->CritSectReqsFree);
-
 #ifdef VBOX_STRICT
             for (uint32_t i = 0; i < AHCI_NR_COMMAND_SLOTS; i++)
-                Assert(!pAhciPort->aActiveTasks[i]);
+                Assert(!pAhciPort->aCachedTasks[i]);
 #endif
         }
 
@@ -8322,7 +8157,8 @@ static DECLCALLBACK(int) ahciR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFG
                                     "PortCount\0"
                                     "UseAsyncInterfaceIfAvailable\0"
                                     "Bootable\0"
-                                    "CmdSlotsAvail\0"))
+                                    "CmdSlotsAvail\0"
+                                    "PortsHotpluggable\0"))
         return PDMDEV_SET_ERROR(pDevIns, VERR_PDM_DEVINS_UNKNOWN_CFG_VALUES,
                                 N_("AHCI configuration error: unknown option specified"));
 
@@ -8375,6 +8211,11 @@ static DECLCALLBACK(int) ahciR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFG
         return PDMDevHlpVMSetError(pDevIns, VERR_INVALID_PARAMETER, RT_SRC_POS,
                                    N_("AHCI configuration error: CmdSlotsAvail=%u should be at least 1"),
                                    pThis->cCmdSlotsAvail);
+
+    rc = CFGMR3QueryBoolDef(pCfg, "PortsHotpluggable", &pThis->fPortsHotpluggable, true);
+    if (RT_FAILURE(rc))
+        return PDMDEV_SET_ERROR(pDevIns, rc,
+                                N_("AHCI configuration error: failed to read \"PortsHotpluggable\" as boolean"));
 
     /*
      * Initialize the instance data (everything touched by the destructor need
@@ -8437,7 +8278,6 @@ static DECLCALLBACK(int) ahciR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFG
         pAhciPort->pDrvBase             = NULL;
         pAhciPort->pAsyncIOThread       = NULL;
         pAhciPort->hEvtProcess          = NIL_SUPSEMEVENT;
-        pAhciPort->fHotpluggable        = true;
     }
 
     /*
@@ -8581,16 +8421,6 @@ static DECLCALLBACK(int) ahciR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFG
         pAhciPort->IMountNotify.pfnUnmountNotify        = ahciR3UnmountNotify;
         pAhciPort->fWrkThreadSleeping                   = true;
 
-        /* Query per port configuration options if available. */
-        PCFGMNODE pCfgPort = CFGMR3GetChild(pDevIns->pCfg, szName);
-        if (pCfgPort)
-        {
-            rc = CFGMR3QueryBoolDef(pCfgPort, "Hotpluggable", &pAhciPort->fHotpluggable, true);
-            if (RT_FAILURE(rc))
-                return PDMDEV_SET_ERROR(pDevIns, rc,
-                                        N_("AHCI configuration error: failed to read Hotpluggable as boolean"));
-        }
-
         /*
          * Attach the block driver
          */
@@ -8646,7 +8476,7 @@ static DECLCALLBACK(int) ahciR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFG
         {
             pAhciPort->pDrvBase = NULL;
             rc = VINF_SUCCESS;
-            LogRel(("AHCI: %s: No driver attached\n", szName));
+            LogRel(("%s: no driver attached\n", szName));
         }
         else
             return PDMDevHlpVMSetError(pDevIns, rc, RT_SRC_POS,
@@ -8694,7 +8524,7 @@ const PDMDEVREG g_DeviceAHCI =
     /* szName */
     "ahci",
     /* szRCMod */
-    "VBoxDDRC.rc",
+    "VBoxDDGC.gc",
     /* szR0Mod */
     "VBoxDDR0.r0",
     /* pszDescription */

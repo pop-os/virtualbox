@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -334,17 +334,18 @@ RTDECL(void) VBoxHGSMIGetBaseMappingInfo(uint32_t cbVRAM,
 RTDECL(int) VBoxHGSMISetupGuestContext(PHGSMIGUESTCOMMANDCONTEXT pCtx,
                                        void *pvGuestHeapMemory,
                                        uint32_t cbGuestHeapMemory,
-                                       uint32_t offVRAMGuestHeapMemory,
-                                       const HGSMIENV *pEnv)
+                                       uint32_t offVRAMGuestHeapMemory)
 {
     /** @todo should we be using a fixed ISA port value here? */
     pCtx->port = (RTIOPORT)VGA_PORT_HGSMI_GUEST;
 #ifdef VBOX_WDDM_MINIPORT
     return VBoxSHGSMIInit(&pCtx->heapCtx, pvGuestHeapMemory,
-                          cbGuestHeapMemory, offVRAMGuestHeapMemory, pEnv);
+                          cbGuestHeapMemory, offVRAMGuestHeapMemory,
+                          false /*fOffsetBased*/);
 #else
     return HGSMIHeapSetup(&pCtx->heapCtx, pvGuestHeapMemory,
-                          cbGuestHeapMemory, offVRAMGuestHeapMemory, pEnv);
+                          cbGuestHeapMemory, offVRAMGuestHeapMemory,
+                          false /*fOffsetBased*/);
 #endif
 }
 
@@ -491,11 +492,10 @@ static int testQueryConf(PHGSMIGUESTCOMMANDCONTEXT pCtx)
  * @param  pCtx      the context containing the heap used
  * @param  u32Index  the index of the parameter to query,
  *                   @see VBVACONF32::u32Index
- * @param  u32DefValue defaut value
  * @param  pulValue  where to store the value of the parameter on success
  */
-RTDECL(int) VBoxQueryConfHGSMIDef(PHGSMIGUESTCOMMANDCONTEXT pCtx,
-                                  uint32_t u32Index, uint32_t u32DefValue, uint32_t *pulValue)
+RTDECL(int) VBoxQueryConfHGSMI(PHGSMIGUESTCOMMANDCONTEXT pCtx,
+                               uint32_t u32Index, uint32_t *pulValue)
 {
     int rc = VINF_SUCCESS;
     VBVACONF32 *p;
@@ -512,7 +512,7 @@ RTDECL(int) VBoxQueryConfHGSMIDef(PHGSMIGUESTCOMMANDCONTEXT pCtx,
     {
         /* Prepare data to be sent to the host. */
         p->u32Index = u32Index;
-        p->u32Value = u32DefValue;
+        p->u32Value = UINT32_MAX;
         rc = VBoxHGSMIBufferSubmit(pCtx, p);
         if (RT_SUCCESS(rc))
         {
@@ -528,11 +528,6 @@ RTDECL(int) VBoxQueryConfHGSMIDef(PHGSMIGUESTCOMMANDCONTEXT pCtx,
     return rc;
 }
 
-RTDECL(int) VBoxQueryConfHGSMI(PHGSMIGUESTCOMMANDCONTEXT pCtx,
-                               uint32_t u32Index, uint32_t *pulValue)
-{
-    return VBoxQueryConfHGSMIDef(pCtx, u32Index, UINT32_MAX, pulValue);
-}
 
 /**
  * Pass the host a new mouse pointer shape via an HGSMI command.
@@ -609,7 +604,7 @@ RTDECL(int)  VBoxHGSMIUpdatePointerShape(PHGSMIGUESTCOMMANDCONTEXT pCtx,
 }
 
 
-/**
+/** 
  * Report the guest cursor position.  The host may wish to use this information
  * to re-position its own cursor (though this is currently unlikely).  The
  * current host cursor position is returned.

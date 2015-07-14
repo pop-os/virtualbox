@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2011-2015 Oracle Corporation
+ * Copyright (C) 2011-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -147,7 +147,7 @@ public:
         if (cSize > 0)
             memcpy(&p[iTo], &p1[0], sizeof(T1) * cSize);
     }
-    static inline void      erase(T2 * /* p */, size_t /* i */) { /* Nothing to do here. */ }
+    static inline void      erase(T2 *p, size_t /* i */) { /* Nothing to do here. */ }
     static inline void      eraseRange(T2 * /* p */, size_t /* cFrom */, size_t /* cSize */) { /* Nothing to do here. */ }
 };
 
@@ -457,26 +457,25 @@ public:
     RTCListBase<T, ITYPE, MT> &operator=(const RTCListBase<T, ITYPE, MT>& other)
     {
         /* Prevent self assignment */
-        if (RT_LIKELY(this != &other))
-        {
+        if (RT_UNLIKELY(this == &other))
+            return *this;
 
-            other.m_guard.enterRead();
-            m_guard.enterWrite();
+        other.m_guard.enterRead();
+        m_guard.enterWrite();
 
-            /* Delete all items. */
-            RTCListHelper<T, ITYPE>::eraseRange(m_pArray, 0, m_cElements);
+        /* Delete all items. */
+        RTCListHelper<T, ITYPE>::eraseRange(m_pArray, 0, m_cElements);
 
-            /* Need we to realloc memory. */
-            if (other.m_cElements != m_cCapacity)
-                resizeArrayNoErase(other.m_cElements);
-            m_cElements = other.m_cElements;
+        /* Need we to realloc memory. */
+        if (other.m_cElements != m_cCapacity)
+            resizeArrayNoErase(other.m_cElements);
+        m_cElements = other.m_cElements;
 
-            /* Copy new items. */
-            RTCListHelper<T, ITYPE>::copyTo(m_pArray, other.m_pArray, 0, other.m_cElements);
+        /* Copy new items. */
+        RTCListHelper<T, ITYPE>::copyTo(m_pArray, other.m_pArray, 0, other.m_cElements);
 
-            m_guard.leaveWrite();
-            other.m_guard.leaveRead();
-        }
+        m_guard.leaveWrite();
+        other.m_guard.leaveRead();
         return *this;
     }
 
@@ -635,14 +634,14 @@ public:
     T value(size_t i) const
     {
         m_guard.enterRead();
-        if (RT_LIKELY(i < m_cElements))
+        if (RT_UNLIKELY(i >= m_cElements))
         {
-            T res = RTCListHelper<T, ITYPE>::at(m_pArray, i);
             m_guard.leaveRead();
-            return res;
+            return T();
         }
+        T res = RTCListHelper<T, ITYPE>::at(m_pArray, i);
         m_guard.leaveRead();
-        return T();
+        return res;
     }
 
     /**
@@ -655,14 +654,14 @@ public:
     T value(size_t i, const T &defaultVal) const
     {
         m_guard.enterRead();
-        if (RT_LIKELY(i < m_cElements))
+        if (RT_UNLIKELY(i >= m_cElements))
         {
-            T res = RTCListHelper<T, ITYPE>::at(m_pArray, i);
             m_guard.leaveRead();
-            return res;
+            return defaultVal;
         }
+        T res = RTCListHelper<T, ITYPE>::at(m_pArray, i);
         m_guard.leaveRead();
-        return defaultVal;
+        return res;
     }
 
     /**

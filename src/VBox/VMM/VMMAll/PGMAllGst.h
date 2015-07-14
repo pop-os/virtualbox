@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -449,10 +449,9 @@ PGM_GST_DECL(int, GetPDE)(PVMCPU pVCpu, RTGCPTR GCPtr, PX86PDEPAE pPDE)
 }
 
 
-#if (   PGM_GST_TYPE == PGM_TYPE_32BIT \
-     || PGM_GST_TYPE == PGM_TYPE_PAE \
-     || PGM_GST_TYPE == PGM_TYPE_AMD64) \
- && defined(VBOX_WITH_RAW_MODE)
+#if PGM_GST_TYPE == PGM_TYPE_32BIT \
+ || PGM_GST_TYPE == PGM_TYPE_PAE \
+ || PGM_GST_TYPE == PGM_TYPE_AMD64
 /**
  * Updates one virtual handler range.
  *
@@ -462,13 +461,11 @@ PGM_GST_DECL(int, GetPDE)(PVMCPU pVCpu, RTGCPTR GCPtr, PX86PDEPAE pPDE)
  */
 static DECLCALLBACK(int) PGM_GST_NAME(VirtHandlerUpdateOne)(PAVLROGCPTRNODECORE pNode, void *pvUser)
 {
-    PPGMHVUSTATE            pState   = (PPGMHVUSTATE)pvUser;
-    PVM                     pVM      = pState->pVM;
-    PVMCPU                  pVCpu    = pState->pVCpu;
-    PPGMVIRTHANDLER         pCur     = (PPGMVIRTHANDLER)pNode;
-    PPGMVIRTHANDLERTYPEINT  pCurType = PGMVIRTANDLER_GET_TYPE(pVM, pCur);
-
-    Assert(pCurType->enmKind != PGMVIRTHANDLERKIND_HYPERVISOR);
+    PPGMVIRTHANDLER pCur   = (PPGMVIRTHANDLER)pNode;
+    PPGMHVUSTATE    pState = (PPGMHVUSTATE)pvUser;
+    PVM             pVM    = pState->pVM;
+    PVMCPU          pVCpu  = pState->pVCpu;
+    Assert(pCur->enmType != PGMVIRTHANDLERTYPE_HYPERVISOR);
 
 # if PGM_GST_TYPE == PGM_TYPE_32BIT
     PX86PD          pPDSrc = pgmGstGet32bitPDPtr(pVCpu);
@@ -608,7 +605,7 @@ static DECLCALLBACK(int) PGM_GST_NAME(VirtHandlerUpdateOne)(PAVLROGCPTRNODECORE 
 
     return 0;
 }
-#endif /* 32BIT, PAE and AMD64 + VBOX_WITH_RAW_MODE */
+#endif /* 32BIT, PAE and AMD64 */
 
 
 /**
@@ -622,10 +619,9 @@ static DECLCALLBACK(int) PGM_GST_NAME(VirtHandlerUpdateOne)(PAVLROGCPTRNODECORE 
  */
 PGM_GST_DECL(bool, HandlerVirtualUpdate)(PVM pVM, uint32_t cr4)
 {
-#if (   PGM_GST_TYPE == PGM_TYPE_32BIT \
-     || PGM_GST_TYPE == PGM_TYPE_PAE \
-     || PGM_GST_TYPE == PGM_TYPE_AMD64) \
- && defined(VBOX_WITH_RAW_MODE)
+#if PGM_GST_TYPE == PGM_TYPE_32BIT \
+ || PGM_GST_TYPE == PGM_TYPE_PAE \
+ || PGM_GST_TYPE == PGM_TYPE_AMD64
 
     /** @todo
      * In theory this is not sufficient: the guest can change a single page in a range with invlpg

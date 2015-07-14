@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2015 Oracle Corporation
+ * Copyright (C) 2009-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -2999,9 +2999,6 @@ RTDECL(void) RTLockValidatorRecExclDelete(PRTLOCKVALRECEXCL pRec)
 
     rtLockValidatorSerializeDestructEnter();
 
-    /** @todo Check that it's not on our stack first.  Need to make it
-     *        configurable whether deleting a owned lock is acceptable? */
-
     ASMAtomicWriteU32(&pRec->Core.u32Magic, RTLOCKVALRECEXCL_MAGIC_DEAD);
     ASMAtomicWriteHandle(&pRec->hThread, NIL_RTTHREAD);
     RTLOCKVALCLASS hClass;
@@ -3469,9 +3466,6 @@ RTDECL(int)  RTLockValidatorRecSharedCreate(PRTLOCKVALRECSHRD *ppRec, RTLOCKVALC
 RTDECL(void) RTLockValidatorRecSharedDelete(PRTLOCKVALRECSHRD pRec)
 {
     Assert(pRec->Core.u32Magic == RTLOCKVALRECSHRD_MAGIC);
-
-    /** @todo Check that it's not on our stack first.  Need to make it
-     *        configurable whether deleting a owned lock is acceptable? */
 
     /*
      * Flip it into table realloc mode and take the destruction lock.

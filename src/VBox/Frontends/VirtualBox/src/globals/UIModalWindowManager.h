@@ -1,6 +1,7 @@
-/* $Id: UIModalWindowManager.h $ */
 /** @file
- * VBox Qt GUI - UIModalWindowManager class declaration.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * UIModalWindowManager class declaration
  */
 
 /*

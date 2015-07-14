@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -33,7 +33,6 @@
 #include <iprt/asm.h>
 #include "VUSBInternal.h"
 
-#include "VUSBSniffer.h"
 
 /*******************************************************************************
 *   Structures and Typedefs                                                    *
@@ -737,7 +736,6 @@ static void ReadCachedConfigDesc(PCVUSBDESCCONFIGEX pCfgDesc, uint8_t *pbBuf, ui
             for (unsigned k = 0; k < pIf->paSettings[j].Core.bNumEndpoints; k++)
             {
                 cbTotal += pIf->paSettings[j].paEndpoints[k].Core.bLength;
-                cbTotal += pIf->paSettings[j].paEndpoints[k].cbSsepc;
                 cbTotal += pIf->paSettings[j].paEndpoints[k].cbClass;
             }
         }
@@ -776,7 +774,6 @@ static void ReadCachedConfigDesc(PCVUSBDESCCONFIGEX pCfgDesc, uint8_t *pbBuf, ui
 
                 COPY_DATA(pbBuf, cbLeft, &EndPtDesc, VUSB_DT_ENDPOINT_MIN_LEN);
                 COPY_DATA(pbBuf, cbLeft, pIfDesc->paEndpoints[k].pvMore, EndPtDesc.bLength - VUSB_DT_ENDPOINT_MIN_LEN);
-                COPY_DATA(pbBuf, cbLeft, pIfDesc->paEndpoints[k].pvSsepc, pIfDesc->paEndpoints[k].cbSsepc);
                 COPY_DATA(pbBuf, cbLeft, pIfDesc->paEndpoints[k].pvClass, pIfDesc->paEndpoints[k].cbClass);
             }
         }
@@ -1287,9 +1284,6 @@ void vusbDevDestroy(PVUSBDEV pDev)
     int rc = RTReqQueueDestroy(pDev->hReqQueueSync);
     AssertRC(rc);
 
-    if (pDev->hSniffer != VUSBSNIFFER_NIL)
-        VUSBSnifferDestroy(pDev->hSniffer);
-
     RTCritSectDelete(&pDev->CritSectAsyncUrbs);
     /* Not using vusbDevSetState() deliberately here because it would assert on the state. */
     pDev->enmState = VUSB_DEVICE_STATE_DESTROYED;
@@ -1566,34 +1560,6 @@ DECLCALLBACK(VUSBDEVICESTATE) vusbIDeviceGetState(PVUSBIDEVICE pInterface)
 
 
 /**
- * @interface_method_impl{VUSBIDEVICE,pfnIsSavedStateSupported}
- */
-DECLCALLBACK(bool) vusbIDeviceIsSavedStateSupported(PVUSBIDEVICE pInterface)
-{
-    PVUSBDEV pDev = (PVUSBDEV)pInterface;
-    bool fSavedStateSupported = RT_BOOL(pDev->pUsbIns->pReg->fFlags & PDM_USBREG_SAVED_STATE_SUPPORTED);
-
-    LogFlowFunc(("pInterface=%p\n", pInterface));
-
-    LogFlowFunc(("returns %RTbool\n", fSavedStateSupported));
-    return fSavedStateSupported;
-}
-
-
-/**
- * @interface_method_impl{VUSBIDEVICE,pfnGetState}
- */
-DECLCALLBACK(VUSBSPEED) vusbIDeviceGetSpeed(PVUSBIDEVICE pInterface)
-{
-    PVUSBDEV pDev = (PVUSBDEV)pInterface;
-    VUSBSPEED enmSpeed = pDev->pUsbIns->enmSpeed;
-
-    LogFlowFunc(("pInterface=%p, returns %u\n", pInterface, enmSpeed));
-    return enmSpeed;
-}
-
-
-/**
  * The maximum number of interfaces the device can have in all of it's configuration.
  *
  * @returns Number of interfaces.
@@ -1717,7 +1683,7 @@ static DECLCALLBACK(int) vusbDevGetDescriptorCacheWorker(PPDMUSBINS pUsbIns, PCP
  * @param   pDev    The VUSB device to initialize.
  * @param   pUsbIns Pointer to the PDM USB Device instance.
  */
-int vusbDevInit(PVUSBDEV pDev, PPDMUSBINS pUsbIns, const char *pszCaptureFilename)
+int vusbDevInit(PVUSBDEV pDev, PPDMUSBINS pUsbIns)
 {
     /*
      * Initialize the device data members.
@@ -1727,14 +1693,11 @@ int vusbDevInit(PVUSBDEV pDev, PPDMUSBINS pUsbIns, const char *pszCaptureFilenam
     Assert(!pDev->IDevice.pfnPowerOn);
     Assert(!pDev->IDevice.pfnPowerOff);
     Assert(!pDev->IDevice.pfnGetState);
-    Assert(!pDev->IDevice.pfnIsSavedStateSupported);
 
     pDev->IDevice.pfnReset = vusbIDeviceReset;
     pDev->IDevice.pfnPowerOn = vusbIDevicePowerOn;
     pDev->IDevice.pfnPowerOff = vusbIDevicePowerOff;
     pDev->IDevice.pfnGetState = vusbIDeviceGetState;
-    pDev->IDevice.pfnIsSavedStateSupported = vusbIDeviceIsSavedStateSupported;
-    pDev->IDevice.pfnGetSpeed = vusbIDeviceGetSpeed;
     pDev->pUsbIns = pUsbIns;
     pDev->pNext = NULL;
     pDev->pNextHash = NULL;
@@ -1754,7 +1717,6 @@ int vusbDevInit(PVUSBDEV pDev, PPDMUSBINS pUsbIns, const char *pszCaptureFilenam
         AssertRCReturn(rc, rc);
     }
     pDev->pResetTimer = NULL;
-    pDev->hSniffer = VUSBSNIFFER_NIL;
 
     int rc = RTCritSectInit(&pDev->CritSectAsyncUrbs);
     AssertRCReturn(rc, rc);
@@ -1773,12 +1735,6 @@ int vusbDevInit(PVUSBDEV pDev, PPDMUSBINS pUsbIns, const char *pszCaptureFilenam
     rc = PDMUsbHlpTMTimerCreate(pDev->pUsbIns, TMCLOCK_VIRTUAL, vusbDevResetDoneTimer, pDev, 0 /*fFlags*/,
                                 "USB Device Reset Timer",  &pDev->pResetTimer);
     AssertRCReturn(rc, rc);
-
-    if (pszCaptureFilename)
-    {
-        rc = VUSBSnifferCreate(&pDev->hSniffer, 0, pszCaptureFilename, NULL);
-        AssertRCReturn(rc, rc);
-    }
 
     /*
      * Get the descriptor cache from the device. (shall cannot fail)

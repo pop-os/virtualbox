@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2015 Oracle Corporation
+ * Copyright (C) 2008-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -74,18 +74,6 @@ DECLINLINE(int) rtMpDarwinMaxCpus(void)
 RTDECL(RTCPUID) RTMpCpuId(void)
 {
     return cpu_number();
-}
-
-
-RTDECL(int) RTMpCurSetIndex(void)
-{
-    return cpu_number();
-}
-
-
-RTDECL(int) RTMpCurSetIndexAndId(PRTCPUID pidCpu)
-{
-    return *pidCpu = cpu_number();
 }
 
 
@@ -224,6 +212,7 @@ RTDECL(int) RTMpOnOthers(PFNRTMPWORKER pfnWorker, void *pvUser1, void *pvUser2)
 {
     RT_ASSERT_INTS_ON();
 
+    int rc;
     RTMPARGS Args;
     Args.pfnWorker = pfnWorker;
     Args.pvUser1 = pvUser1;
@@ -257,6 +246,7 @@ RTDECL(int) RTMpOnSpecific(RTCPUID idCpu, PFNRTMPWORKER pfnWorker, void *pvUser1
 {
     RT_ASSERT_INTS_ON();
 
+    int rc;
     RTMPARGS Args;
     Args.pfnWorker = pfnWorker;
     Args.pvUser1 = pvUser1;
@@ -278,11 +268,5 @@ RTDECL(int) RTMpPokeCpu(RTCPUID idCpu)
         return VERR_NOT_SUPPORTED;
     g_pfnR0DarwinCpuInterrupt(idCpu);
     return VINF_SUCCESS;
-}
-
-
-RTDECL(bool) RTMpOnAllIsConcurrentSafe(void)
-{
-    return true;
 }
 

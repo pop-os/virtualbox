@@ -3,7 +3,7 @@
  * VBoxUsbDev.h - USB device.
  */
 /*
- * Copyright (C) 2011-2015 Oracle Corporation
+ * Copyright (C) 2011-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -46,7 +46,7 @@ AssertCompile(sizeof (ENMVBOXUSB_PNPSTATE) == sizeof (uint32_t));
 DECLHIDDEN(VOID) vboxUsbPnPStateGbgChange(ENMVBOXUSB_PNPSTATE enmOld, ENMVBOXUSB_PNPSTATE enmNew);
 # define VBOXUSB_PNP_GBG_STATE_CHANGE(_old, _new) vboxUsbPnPStateGbgChange((_old), (_new))
 #else
-# define VBOXUSB_PNP_GBG_STATE_CHANGE(_old, _new) do { } while (0)
+# define VBOXUSB_PNP_GBG_STATE_CHANGE(_old, _new) do {} while(0)
 #endif
 
 

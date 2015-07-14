@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2007-2015 Oracle Corporation
+ * Copyright (C) 2007-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -64,20 +64,8 @@ RTDECL(bool)    RTAssertShouldPanic(void)
     return false;
 }
 
-RTDECL(PRTLOGGER) RTLogDefaultInstanceEx(uint32_t fFlagsAndGroup)
+RTDECL(PRTLOGGER) RTLogRelDefaultInstance(void)
 {
-    NOREF(fFlagsAndGroup);
-    return NULL;
-}
-
-RTDECL(PRTLOGGER) RTLogRelGetDefaultInstance(void)
-{
-    return NULL;
-}
-
-RTDECL(PRTLOGGER) RTLogRelGetDefaultInstanceEx(uint32_t fFlagsAndGroup)
-{
-    NOREF(fFlagsAndGroup);
     return NULL;
 }
 

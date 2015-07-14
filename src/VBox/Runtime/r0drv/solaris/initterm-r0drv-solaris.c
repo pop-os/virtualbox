@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -70,16 +70,8 @@ RTR0FNSOLXCCALL                 g_rtSolXcCall;
 bool                            g_frtSolOldThreadCtx = false;
 /** The thread-context hooks callout table structure. */
 RTR0FNSOLTHREADCTX              g_rtSolThreadCtx;
-/** Thread preemption offset in the thread structure. */
+/** Thread preemption offset. */
 size_t                          g_offrtSolThreadPreempt;
-/** Thread ID offset in the thread structure. */
-size_t                          g_offrtSolThreadId;
-/** The interrupt (pinned) thread pointer offset in the thread structure.  */
-size_t                          g_offrtSolThreadIntrThread;
-/** The dispatcher lock pointer offset in the thread structure. */
-size_t                          g_offrtSolThreadLock;
-/** The process pointer offset in the thread structure. */
-size_t                          g_offrtSolThreadProc;
 /** Host scheduler preemption offset. */
 size_t                          g_offrtSolCpuPreempt;
 /** Host scheduler force preemption offset. */
@@ -88,7 +80,7 @@ size_t                          g_offrtSolCpuForceKernelPreempt;
 extern void contig_free(void *addr, size_t size);
 #pragma weak contig_free
 /** contig_free address. */
-PFNSOL_contig_free              g_pfnrtR0Sol_contig_free = contig_free;
+PFNSOL_contig_free          g_pfnrtR0Sol_contig_free       = contig_free;
 
 DECLHIDDEN(int) rtR0InitNative(void)
 {
@@ -114,6 +106,7 @@ DECLHIDDEN(int) rtR0InitNative(void)
 #else
         /* PORTME: See if the amd64/x86 problem applies to this architecture. */
 #endif
+
         /*
          * Mandatory: Preemption offsets.
          */
@@ -137,41 +130,9 @@ DECLHIDDEN(int) rtR0InitNative(void)
             cmn_err(CE_NOTE, "Failed to find kthread_t::t_preempt!\n");
             goto errorbail;
         }
-
-        rc = RTR0DbgKrnlInfoQueryMember(g_hKrnlDbgInfo, "kthread_t", "t_did", &g_offrtSolThreadId);
-        if (RT_FAILURE(rc))
-        {
-            cmn_err(CE_NOTE, "Failed to find kthread_t::t_did!\n");
-            goto errorbail;
-        }
-
-        rc = RTR0DbgKrnlInfoQueryMember(g_hKrnlDbgInfo, "kthread_t", "t_intr", &g_offrtSolThreadIntrThread);
-        if (RT_FAILURE(rc))
-        {
-            cmn_err(CE_NOTE, "Failed to find kthread_t::t_intr!\n");
-            goto errorbail;
-        }
-
-        rc = RTR0DbgKrnlInfoQueryMember(g_hKrnlDbgInfo, "kthread_t", "t_lockp", &g_offrtSolThreadLock);
-        if (RT_FAILURE(rc))
-        {
-            cmn_err(CE_NOTE, "Failed to find kthread_t::t_lockp!\n");
-            goto errorbail;
-        }
-
-        rc = RTR0DbgKrnlInfoQueryMember(g_hKrnlDbgInfo, "kthread_t", "t_procp", &g_offrtSolThreadProc);
-        if (RT_FAILURE(rc))
-        {
-            cmn_err(CE_NOTE, "Failed to find kthread_t::t_procp!\n");
-            goto errorbail;
-        }
         cmn_err(CE_CONT, "!cpu_t::cpu_runrun @ 0x%lx (%ld)\n",    g_offrtSolCpuPreempt, g_offrtSolCpuPreempt);
         cmn_err(CE_CONT, "!cpu_t::cpu_kprunrun @ 0x%lx (%ld)\n",  g_offrtSolCpuForceKernelPreempt, g_offrtSolCpuForceKernelPreempt);
         cmn_err(CE_CONT, "!kthread_t::t_preempt @ 0x%lx (%ld)\n", g_offrtSolThreadPreempt, g_offrtSolThreadPreempt);
-        cmn_err(CE_CONT, "!kthread_t::t_did @ 0x%lx (%ld)\n",     g_offrtSolThreadId, g_offrtSolThreadId);
-        cmn_err(CE_CONT, "!kthread_t::t_intr @ 0x%lx (%ld)\n",    g_offrtSolThreadIntrThread, g_offrtSolThreadIntrThread);
-        cmn_err(CE_CONT, "!kthread_t::t_lockp @ 0x%lx (%ld)\n",   g_offrtSolThreadLock, g_offrtSolThreadLock);
-        cmn_err(CE_CONT, "!kthread_t::t_procp @ 0x%lx (%ld)\n",   g_offrtSolThreadProc, g_offrtSolThreadProc);
 
         /*
          * Mandatory: CPU cross call infrastructure. Refer the-solaris-kernel.h for details.
@@ -250,8 +211,7 @@ DECLHIDDEN(int) rtR0InitNative(void)
          */
         if (g_pfnrtR0Sol_contig_free == NULL)
         {
-            rc = RTR0DbgKrnlInfoQuerySymbol(g_hKrnlDbgInfo, NULL /* pszModule */, "contig_free",
-                                            (void **)&g_pfnrtR0Sol_contig_free);
+            rc = RTR0DbgKrnlInfoQuerySymbol(g_hKrnlDbgInfo, NULL /* pszModule */, "contig_free", (void **)&g_pfnrtR0Sol_contig_free);
             if (RT_FAILURE(rc))
             {
                 cmn_err(CE_NOTE, "rtR0InitNative: failed to find contig_free!\n");

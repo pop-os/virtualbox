@@ -1,6 +1,8 @@
 /* $Id: UIGlobalSettingsNetwork.cpp $ */
 /** @file
- * VBox Qt GUI - UIGlobalSettingsNetwork class implementation.
+ *
+ * VBox frontends: Qt4 GUI ("VirtualBox"):
+ * UIGlobalSettingsNetwork class implementation
  */
 
 /*
@@ -15,35 +17,26 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QHeaderView>
-
-/* GUI includes: */
-# include "VBoxGlobal.h"
-# include "UIIconPool.h"
-# include "UIConverter.h"
-# include "UIMessageCenter.h"
-# include "UIGlobalSettingsNetwork.h"
-# include "UIGlobalSettingsNetworkDetailsNAT.h"
-# include "UIGlobalSettingsNetworkDetailsHost.h"
-
-/* COM includes: */
-# include "CNATNetwork.h"
-# include "CHostNetworkInterface.h"
-
-/* Other VBox includes: */
-# include <iprt/cidr.h>
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
+#include <QHeaderView>
 #include <QHostAddress>
 
+/* GUI includes: */
+#include "VBoxGlobal.h"
+#include "UIIconPool.h"
+#include "UIConverter.h"
+#include "UIMessageCenter.h"
+#include "UIGlobalSettingsNetwork.h"
+#include "UIGlobalSettingsNetworkDetailsNAT.h"
+#include "UIGlobalSettingsNetworkDetailsHost.h"
+
+/* COM includes: */
+#include "CNATNetwork.h"
+#include "CHostNetworkInterface.h"
 #include "CDHCPServer.h"
 
+/* Other VBox includes: */
+#include "iprt/cidr.h"
 
 
 /* Global settings / Network page / NAT network item: */
@@ -455,13 +448,10 @@ UIGlobalSettingsNetwork::UIGlobalSettingsNetwork()
         connect(m_pActionEditNetworkHost, SIGNAL(triggered(bool)), this, SLOT(sltEditNetworkHost()));
     }
 
-    /* Determine icon metric: */
-    const QStyle *pStyle = QApplication::style();
-    const int iIconMetric = pStyle->pixelMetric(QStyle::PM_SmallIconSize);
-
     /* Prepare NAT network toolbar: */
     {
-        m_pToolbarNetworkNAT->setIconSize(QSize(iIconMetric, iIconMetric));
+        m_pToolbarNetworkNAT->setUsesTextLabel(false);
+        m_pToolbarNetworkNAT->setIconSize(QSize(16, 16));
         m_pToolbarNetworkNAT->setOrientation(Qt::Vertical);
         m_pToolbarNetworkNAT->addAction(m_pActionAddNetworkNAT);
         m_pToolbarNetworkNAT->addAction(m_pActionDelNetworkNAT);
@@ -469,19 +459,13 @@ UIGlobalSettingsNetwork::UIGlobalSettingsNetwork()
     }
     /* Prepare Host network toolbar: */
     {
-        m_pToolbarNetworkHost->setIconSize(QSize(iIconMetric, iIconMetric));
+        m_pToolbarNetworkHost->setUsesTextLabel(false);
+        m_pToolbarNetworkHost->setIconSize(QSize(16, 16));
         m_pToolbarNetworkHost->setOrientation(Qt::Vertical);
         m_pToolbarNetworkHost->addAction(m_pActionAddNetworkHost);
         m_pToolbarNetworkHost->addAction(m_pActionDelNetworkHost);
         m_pToolbarNetworkHost->addAction(m_pActionEditNetworkHost);
     }
-
-#ifndef Q_WS_WIN
-    /* On Windows host that looks ugly, but
-     * On Mac OS X and X11 that deserves it's place. */
-    m_pLayoutNAT->setContentsMargins(0, 0, 0, 0);
-    m_pLayoutHostOnly->setContentsMargins(0, 0, 0, 0);
-#endif /* !Q_WS_WIN */
 
     /* Apply language settings: */
     retranslateUi();
@@ -656,33 +640,33 @@ void UIGlobalSettingsNetwork::retranslateUi()
                                            << tr("Name"));
 
         /* Translate action text: */
-        m_pActionAddNetworkNAT->setText(tr("Add NAT Network"));
-        m_pActionDelNetworkNAT->setText(tr("Remove NAT Network"));
-        m_pActionEditNetworkNAT->setText(tr("Edit NAT Network"));
+        m_pActionAddNetworkNAT->setText(tr("&Add NAT network"));
+        m_pActionDelNetworkNAT->setText(tr("&Remove NAT network"));
+        m_pActionEditNetworkNAT->setText(tr("&Edit NAT network"));
 
-        m_pActionAddNetworkNAT->setWhatsThis(tr("Adds new NAT network."));
-        m_pActionDelNetworkNAT->setWhatsThis(tr("Removes selected NAT network."));
-        m_pActionEditNetworkNAT->setWhatsThis(tr("Edits selected NAT network."));
-
-        m_pActionAddNetworkNAT->setToolTip(m_pActionAddNetworkNAT->whatsThis());
-        m_pActionDelNetworkNAT->setToolTip(m_pActionDelNetworkNAT->whatsThis());
-        m_pActionEditNetworkNAT->setToolTip(m_pActionEditNetworkNAT->whatsThis());
+        /* Recompose action tool-tips: */
+        m_pActionAddNetworkNAT->setToolTip(m_pActionAddNetworkNAT->text().remove('&') +
+            QString(" (%1)").arg(m_pActionAddNetworkNAT->shortcut().toString()));
+        m_pActionDelNetworkNAT->setToolTip(m_pActionDelNetworkNAT->text().remove('&') +
+            QString(" (%1)").arg(m_pActionDelNetworkNAT->shortcut().toString()));
+        m_pActionEditNetworkNAT->setToolTip(m_pActionEditNetworkNAT->text().remove('&') +
+            QString(" (%1)").arg(m_pActionEditNetworkNAT->shortcut().toString()));
     }
 
     /* Host networks: */
     {
         /* Translate action text: */
-        m_pActionAddNetworkHost->setText(tr("Add Host-only Network"));
-        m_pActionDelNetworkHost->setText(tr("Remove Host-only Network"));
-        m_pActionEditNetworkHost->setText(tr("Edit Host-only Network"));
+        m_pActionAddNetworkHost->setText(tr("&Add host-only network"));
+        m_pActionDelNetworkHost->setText(tr("&Remove host-only network"));
+        m_pActionEditNetworkHost->setText(tr("&Edit host-only network"));
 
-        m_pActionAddNetworkHost->setWhatsThis(tr("Adds new host-only network."));
-        m_pActionDelNetworkHost->setWhatsThis(tr("Removes selected host-only network."));
-        m_pActionEditNetworkHost->setWhatsThis(tr("Edits selected host-only network."));
-
-        m_pActionAddNetworkHost->setToolTip(m_pActionAddNetworkHost->whatsThis());
-        m_pActionDelNetworkHost->setToolTip(m_pActionDelNetworkHost->whatsThis());
-        m_pActionEditNetworkHost->setToolTip(m_pActionEditNetworkHost->whatsThis());
+        /* Recompose action tool-tips: */
+        m_pActionAddNetworkHost->setToolTip(m_pActionAddNetworkHost->text().remove('&') +
+            QString(" (%1)").arg(m_pActionAddNetworkHost->shortcut().toString()));
+        m_pActionDelNetworkHost->setToolTip(m_pActionDelNetworkHost->text().remove('&') +
+            QString(" (%1)").arg(m_pActionDelNetworkHost->shortcut().toString()));
+        m_pActionEditNetworkHost->setToolTip(m_pActionEditNetworkHost->text().remove('&') +
+            QString(" (%1)").arg(m_pActionEditNetworkHost->shortcut().toString()));
     }
 }
 
@@ -791,7 +775,7 @@ void UIGlobalSettingsNetwork::sltAddNetworkHost()
     CProgress progress = host.CreateHostOnlyNetworkInterface(iface);
     if (!host.isOk())
         return msgCenter().cannotCreateHostInterface(host, this);
-    msgCenter().showModalProgressDialog(progress, tr("Networking"), ":/progress_network_interface_90px.png", this, 0);
+    msgCenter().showModalProgressDialog(progress, tr("Networking"), ":/nw_32px.png", this, 0); // TODO: Change icon!
     if (!progress.isOk() || progress.GetResultCode() != 0)
         return msgCenter().cannotCreateHostInterface(progress, this);
 
@@ -843,7 +827,7 @@ void UIGlobalSettingsNetwork::sltDelNetworkHost()
     CProgress progress = host.RemoveHostOnlyNetworkInterface(iface.GetId());
     if (!host.isOk())
         return msgCenter().cannotRemoveHostInterface(host, strInterfaceName, this);
-    msgCenter().showModalProgressDialog(progress, tr("Networking"), ":/progress_network_interface_90px.png", this, 0);
+    msgCenter().showModalProgressDialog(progress, tr("Networking"), ":/nw_32px.png", this, 0); // TODO: Change icon!
     if (!progress.isOk() || progress.GetResultCode() != 0)
         return msgCenter().cannotRemoveHostInterface(progress, strInterfaceName, this);
 

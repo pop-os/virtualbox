@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -423,6 +423,13 @@ static VBOXIDTE_GENERIC     g_aIdt[256] =
 };
 
 
+#ifdef VBOX_WITH_RAW_MODE
+/** Enable or disable tracking of Guest's IDT. */
+# define TRPM_TRACK_GUEST_IDT_CHANGES
+/** Enable or disable tracking of Shadow IDT. */
+# define TRPM_TRACK_SHADOW_IDT_CHANGES
+#endif
+
 /** TRPM saved state version. */
 #define TRPM_SAVED_STATE_VERSION        9
 #define TRPM_SAVED_STATE_VERSION_UNI    8   /* SMP support bumped the version */
@@ -433,6 +440,9 @@ static VBOXIDTE_GENERIC     g_aIdt[256] =
 *******************************************************************************/
 static DECLCALLBACK(int) trpmR3Save(PVM pVM, PSSMHANDLE pSSM);
 static DECLCALLBACK(int) trpmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass);
+#ifdef TRPM_TRACK_GUEST_IDT_CHANGES
+static DECLCALLBACK(int) trpmR3GuestIDTWriteHandler(PVM pVM, RTGCPTR GCPtr, void *pvPtr, void *pvBuf, size_t cbBuf, PGMACCESSTYPE enmAccessType, void *pvUser);
+#endif
 
 
 /**
@@ -444,7 +454,6 @@ static DECLCALLBACK(int) trpmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion,
 VMMR3DECL(int) TRPMR3Init(PVM pVM)
 {
     LogFlow(("TRPMR3Init\n"));
-    int rc;
 
     /*
      * Assert sizes and alignments.
@@ -480,7 +489,7 @@ VMMR3DECL(int) TRPMR3Init(PVM pVM)
     if (pTRPMNode)
     {
         bool f;
-        rc = CFGMR3QueryBool(pTRPMNode, "SafeToDropGuestIDTMonitoring", &f);
+        int rc = CFGMR3QueryBool(pTRPMNode, "SafeToDropGuestIDTMonitoring", &f);
         if (RT_SUCCESS(rc))
             pVM->trpm.s.fSafeToDropGuestIDTMonitoring = f;
     }
@@ -497,35 +506,12 @@ VMMR3DECL(int) TRPMR3Init(PVM pVM)
     memcpy(&pVM->trpm.s.aIdt[0], &g_aIdt[0], sizeof(pVM->trpm.s.aIdt));
 
     /*
-     * Register virtual access handlers.
-     */
-    pVM->trpm.s.hShadowIdtWriteHandlerType = NIL_PGMVIRTHANDLERTYPE;
-    pVM->trpm.s.hGuestIdtWriteHandlerType  = NIL_PGMVIRTHANDLERTYPE;
-#ifdef VBOX_WITH_RAW_MODE
-    if (!HMIsEnabled(pVM))
-    {
-# ifdef TRPM_TRACK_SHADOW_IDT_CHANGES
-        rc = PGMR3HandlerVirtualTypeRegister(pVM, PGMVIRTHANDLERKIND_HYPERVISOR, false /*fRelocUserRC*/,
-                                             NULL /*pfnInvalidateR3*/, NULL /*pfnHandlerR3*/,
-                                             NULL /*pszHandlerRC*/, "trpmRCShadowIDTWritePfHandler",
-                                             "Shadow IDT write access handler", &pVM->trpm.s.hShadowIdtWriteHandlerType);
-        AssertRCReturn(rc, rc);
-# endif
-        rc = PGMR3HandlerVirtualTypeRegister(pVM, PGMVIRTHANDLERKIND_WRITE, false /*fRelocUserRC*/,
-                                             NULL /*pfnInvalidateR3*/, trpmGuestIDTWriteHandler,
-                                             "trpmGuestIDTWriteHandler", "trpmRCGuestIDTWritePfHandler",
-                                             "Guest IDT write access handler", &pVM->trpm.s.hGuestIdtWriteHandlerType);
-        AssertRCReturn(rc, rc);
-    }
-#endif /* VBOX_WITH_RAW_MODE */
-
-    /*
      * Register the saved state data unit.
      */
-    rc = SSMR3RegisterInternal(pVM, "trpm", 1, TRPM_SAVED_STATE_VERSION, sizeof(TRPM),
-                               NULL, NULL, NULL,
-                               NULL, trpmR3Save, NULL,
-                               NULL, trpmR3Load, NULL);
+    int rc = SSMR3RegisterInternal(pVM, "trpm", 1, TRPM_SAVED_STATE_VERSION, sizeof(TRPM),
+                                   NULL, NULL, NULL,
+                                   NULL, trpmR3Save, NULL,
+                                   NULL, trpmR3Load, NULL);
     if (RT_FAILURE(rc))
         return rc;
 
@@ -635,23 +621,23 @@ VMMR3DECL(void) TRPMR3Relocate(PVM pVM, RTGCINTPTR offDelta)
     /*
      * Get the trap handler addresses.
      *
-     * If VMMRC.rc is screwed, so are we. We'll assert here since it elsewise
+     * If VMMGC.gc is screwed, so are we. We'll assert here since it elsewise
      * would make init order impossible if we should assert the presence of these
      * exports in TRPMR3Init().
      */
     RTRCPTR aRCPtrs[TRPM_HANDLER_MAX];
     RT_ZERO(aRCPtrs);
-    int rc = PDMR3LdrGetSymbolRC(pVM, VMMRC_MAIN_MODULE_NAME, "TRPMGCHandlerInterupt", &aRCPtrs[TRPM_HANDLER_INT]);
-    AssertReleaseMsgRC(rc, ("Couldn't find TRPMGCHandlerInterupt in VMMRC.rc!\n"));
+    int rc = PDMR3LdrGetSymbolRC(pVM, VMMGC_MAIN_MODULE_NAME, "TRPMGCHandlerInterupt", &aRCPtrs[TRPM_HANDLER_INT]);
+    AssertReleaseMsgRC(rc, ("Couldn't find TRPMGCHandlerInterupt in VMMGC.gc!\n"));
 
-    rc = PDMR3LdrGetSymbolRC(pVM, VMMRC_MAIN_MODULE_NAME, "TRPMGCHandlerGeneric",  &aRCPtrs[TRPM_HANDLER_TRAP]);
-    AssertReleaseMsgRC(rc, ("Couldn't find TRPMGCHandlerGeneric in VMMRC.rc!\n"));
+    rc = PDMR3LdrGetSymbolRC(pVM, VMMGC_MAIN_MODULE_NAME, "TRPMGCHandlerGeneric",  &aRCPtrs[TRPM_HANDLER_TRAP]);
+    AssertReleaseMsgRC(rc, ("Couldn't find TRPMGCHandlerGeneric in VMMGC.gc!\n"));
 
-    rc = PDMR3LdrGetSymbolRC(pVM, VMMRC_MAIN_MODULE_NAME, "TRPMGCHandlerTrap08",   &aRCPtrs[TRPM_HANDLER_TRAP_08]);
-    AssertReleaseMsgRC(rc, ("Couldn't find TRPMGCHandlerTrap08 in VMMRC.rc!\n"));
+    rc = PDMR3LdrGetSymbolRC(pVM, VMMGC_MAIN_MODULE_NAME, "TRPMGCHandlerTrap08",   &aRCPtrs[TRPM_HANDLER_TRAP_08]);
+    AssertReleaseMsgRC(rc, ("Couldn't find TRPMGCHandlerTrap08 in VMMGC.gc!\n"));
 
-    rc = PDMR3LdrGetSymbolRC(pVM, VMMRC_MAIN_MODULE_NAME, "TRPMGCHandlerTrap12",   &aRCPtrs[TRPM_HANDLER_TRAP_12]);
-    AssertReleaseMsgRC(rc, ("Couldn't find TRPMGCHandlerTrap12 in VMMRC.rc!\n"));
+    rc = PDMR3LdrGetSymbolRC(pVM, VMMGC_MAIN_MODULE_NAME, "TRPMGCHandlerTrap12",   &aRCPtrs[TRPM_HANDLER_TRAP_12]);
+    AssertReleaseMsgRC(rc, ("Couldn't find TRPMGCHandlerTrap12 in VMMGC.gc!\n"));
 
     RTSEL SelCS = CPUMGetHyperCS(pVCpu);
 
@@ -705,13 +691,12 @@ VMMR3DECL(void) TRPMR3Relocate(PVM pVM, RTGCINTPTR offDelta)
 # ifdef TRPM_TRACK_SHADOW_IDT_CHANGES
     if (pVM->trpm.s.pvMonShwIdtRC != RTRCPTR_MAX)
     {
-        rc = PGMHandlerVirtualDeregister(pVM, pVCpu, pVM->trpm.s.pvMonShwIdtRC, true /*fHypervisor*/);
+        rc = PGMHandlerVirtualDeregister(pVM, pVM->trpm.s.pvMonShwIdtRC);
         AssertRC(rc);
     }
     pVM->trpm.s.pvMonShwIdtRC = VM_RC_ADDR(pVM, &pVM->trpm.s.aIdt[0]);
-    rc = PGMR3HandlerVirtualRegister(pVM, pVCpu, pVM->trpm.s.hShadowIdtWriteHandlerType,
-                                     pVM->trpm.s.pvMonShwIdtRC, pVM->trpm.s.pvMonShwIdtRC + sizeof(pVM->trpm.s.aIdt) - 1,
-                                     NULL /*pvUserR3*/, NIL_RTR0PTR /*pvUserRC*/, NULL /*pszDesc*/);
+    rc = PGMR3HandlerVirtualRegister(pVM, PGMVIRTHANDLERTYPE_HYPERVISOR, pVM->trpm.s.pvMonShwIdtRC, pVM->trpm.s.pvMonShwIdtRC + sizeof(pVM->trpm.s.aIdt) - 1,
+                                     0, 0, "trpmRCShadowIDTWriteHandler", 0, "Shadow IDT write access handler");
     AssertRC(rc);
 # endif
 
@@ -789,7 +774,7 @@ VMMR3DECL(void) TRPMR3Reset(PVM pVM)
     {
         if (!pVM->trpm.s.fSafeToDropGuestIDTMonitoring)
         {
-            int rc = PGMHandlerVirtualDeregister(pVM, VMMGetCpu(pVM), pVM->trpm.s.GuestIdtr.pIdt, false /*fHypervisor*/);
+            int rc = PGMHandlerVirtualDeregister(pVM, pVM->trpm.s.GuestIdtr.pIdt);
             AssertRC(rc);
         }
         pVM->trpm.s.GuestIdtr.pIdt = RTRCPTR_MAX;
@@ -838,16 +823,6 @@ VMMR3_INT_DECL(int) TRPMR3GetImportRC(PVM pVM, const char *pszSymbol, PRTRCPTR p
         *pRCPtrValue = VM_RC_ADDR(pVM, &pVM->trpm);
     else if (!strcmp(pszSymbol, "g_TRPMCPU"))
         *pRCPtrValue = VM_RC_ADDR(pVM, &pVM->aCpus[0].trpm);
-    else if (!strcmp(pszSymbol, "g_trpmGuestCtx"))
-    {
-        PCPUMCTX pCtx = CPUMQueryGuestCtxPtr(VMMGetCpuById(pVM, 0));
-        *pRCPtrValue = VM_RC_ADDR(pVM, pCtx);
-    }
-    else if (!strcmp(pszSymbol, "g_trpmHyperCtx"))
-    {
-        PCPUMCTX pCtx = CPUMGetHyperCtxPtr(VMMGetCpuById(pVM, 0));
-        *pRCPtrValue = VM_RC_ADDR(pVM, pCtx);
-    }
     else if (!strcmp(pszSymbol, "g_trpmGuestCtxCore"))
     {
         PCPUMCTX pCtx = CPUMQueryGuestCtxPtr(VMMGetCpuById(pVM, 0));
@@ -1106,13 +1081,12 @@ VMMR3DECL(int) TRPMR3SyncIDT(PVM pVM, PVMCPU pVCpu)
              */
             if (pVM->trpm.s.GuestIdtr.pIdt != RTRCPTR_MAX)
             {
-                rc = PGMHandlerVirtualDeregister(pVM, pVCpu, pVM->trpm.s.GuestIdtr.pIdt, false /*fHypervisor*/);
+                rc = PGMHandlerVirtualDeregister(pVM, pVM->trpm.s.GuestIdtr.pIdt);
                 AssertRCReturn(rc, rc);
             }
             /* limit is including */
-            rc = PGMR3HandlerVirtualRegister(pVM, pVCpu, pVM->trpm.s.hGuestIdtWriteHandlerType,
-                                             IDTR.pIdt, IDTR.pIdt + IDTR.cbIdt /* already inclusive */,
-                                             NULL /*pvUserR3*/, NIL_RTR0PTR /*pvUserRC*/, NULL /*pszDesc*/);
+            rc = PGMR3HandlerVirtualRegister(pVM, PGMVIRTHANDLERTYPE_WRITE, IDTR.pIdt, IDTR.pIdt + IDTR.cbIdt /* already inclusive */,
+                                             0, trpmR3GuestIDTWriteHandler, "trpmRCGuestIDTWriteHandler", 0, "Guest IDT write access handler");
 
             if (rc == VERR_PGM_HANDLER_VIRTUAL_CONFLICT)
             {
@@ -1121,9 +1095,8 @@ VMMR3DECL(int) TRPMR3SyncIDT(PVM pVM, PVMCPU pVCpu)
                 if (PAGE_ADDRESS(IDTR.pIdt) != PAGE_ADDRESS(IDTR.pIdt + IDTR.cbIdt))
                     CSAMR3RemovePage(pVM, IDTR.pIdt + IDTR.cbIdt);
 
-                rc = PGMR3HandlerVirtualRegister(pVM, pVCpu, pVM->trpm.s.hGuestIdtWriteHandlerType,
-                                                 IDTR.pIdt, IDTR.pIdt + IDTR.cbIdt /* already inclusive */,
-                                                 NULL /*pvUserR3*/, NIL_RTR0PTR /*pvUserRC*/, NULL /*pszDesc*/);
+                rc = PGMR3HandlerVirtualRegister(pVM, PGMVIRTHANDLERTYPE_WRITE, IDTR.pIdt, IDTR.pIdt + IDTR.cbIdt /* already inclusive */,
+                                                 0, trpmR3GuestIDTWriteHandler, "trpmRCGuestIDTWriteHandler", 0, "Guest IDT write access handler");
             }
 
             AssertRCReturn(rc, rc);
@@ -1160,6 +1133,37 @@ VMMR3DECL(int) TRPMR3SyncIDT(PVM pVM, PVMCPU pVCpu)
 }
 
 
+# ifdef TRPM_TRACK_GUEST_IDT_CHANGES
+/**
+ * \#PF Handler callback for virtual access handler ranges.
+ *
+ * Important to realize that a physical page in a range can have aliases, and
+ * for ALL and WRITE handlers these will also trigger.
+ *
+ * @returns VINF_SUCCESS if the handler have carried out the operation.
+ * @returns VINF_PGM_HANDLER_DO_DEFAULT if the caller should carry out the access operation.
+ * @param   pVM             Pointer to the VM.
+ * @param   GCPtr           The virtual address the guest is writing to. (not correct if it's an alias!)
+ * @param   pvPtr           The HC mapping of that address.
+ * @param   pvBuf           What the guest is reading/writing.
+ * @param   cbBuf           How much it's reading/writing.
+ * @param   enmAccessType   The access type.
+ * @param   pvUser          User argument.
+ */
+static DECLCALLBACK(int) trpmR3GuestIDTWriteHandler(PVM pVM, RTGCPTR GCPtr, void *pvPtr, void *pvBuf, size_t cbBuf,
+                                                    PGMACCESSTYPE enmAccessType, void *pvUser)
+{
+    Assert(enmAccessType == PGMACCESSTYPE_WRITE); NOREF(enmAccessType);
+    Log(("trpmR3GuestIDTWriteHandler: write to %RGv size %d\n", GCPtr, cbBuf)); NOREF(GCPtr); NOREF(cbBuf);
+    NOREF(pvPtr); NOREF(pvUser); NOREF(pvBuf);
+    Assert(!HMIsEnabled(pVM));
+
+    VMCPU_FF_SET(VMMGetCpu(pVM), VMCPU_FF_TRPM_SYNC_IDT);
+    return VINF_PGM_HANDLER_DO_DEFAULT;
+}
+# endif /* TRPM_TRACK_GUEST_IDT_CHANGES */
+
+
 /**
  * Clear passthrough interrupt gate handler (reset to default handler)
  *
@@ -1179,8 +1183,8 @@ int trpmR3ClearPassThroughHandler(PVM pVM, unsigned iTrap)
 
     memset(aGCPtrs, 0, sizeof(aGCPtrs));
 
-    rc = PDMR3LdrGetSymbolRC(pVM, VMMRC_MAIN_MODULE_NAME, "TRPMGCHandlerInterupt", &aGCPtrs[TRPM_HANDLER_INT]);
-    AssertReleaseMsgRC(rc, ("Couldn't find TRPMGCHandlerInterupt in VMMRC.rc!\n"));
+    rc = PDMR3LdrGetSymbolRC(pVM, VMMGC_MAIN_MODULE_NAME, "TRPMGCHandlerInterupt", &aGCPtrs[TRPM_HANDLER_INT]);
+    AssertReleaseMsgRC(rc, ("Couldn't find TRPMGCHandlerInterupt in VMMGC.gc!\n"));
 
     if (    iTrap < TRPM_HANDLER_INT_BASE
         ||  iTrap >= RT_ELEMENTS(pVM->trpm.s.aIdt))

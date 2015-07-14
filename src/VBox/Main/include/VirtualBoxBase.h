@@ -1,10 +1,9 @@
-/* $Id: VirtualBoxBase.h $ */
 /** @file
  * VirtualBox COM base classes definition
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,15 +23,14 @@
 #include <list>
 #include <map>
 
-#include "ObjectState.h"
-
 #include "VBox/com/AutoLock.h"
 #include "VBox/com/string.h"
 #include "VBox/com/Guid.h"
 
 #include "VBox/com/VirtualBox.h"
 
-// avoid including VBox/settings.h and VBox/xml.h; only declare the classes
+// avoid including VBox/settings.h and VBox/xml.h;
+// only declare the classes
 namespace xml
 {
 class File;
@@ -45,6 +43,9 @@ class ErrorInfo;
 
 using namespace com;
 using namespace util;
+
+class AutoInitSpan;
+class AutoUninitSpan;
 
 class VirtualBox;
 class Machine;
@@ -155,18 +156,17 @@ public:
  *
  *  @param   expr    Expression which should be true.
  */
-#define ComAssert(expr) \
+#if defined(DEBUG)
+#define ComAssert(expr)    Assert(expr)
+#else
+#define ComAssert(expr)    \
     do { \
-        if (RT_LIKELY(!!(expr))) \
-        { /* likely */ } \
-        else \
-        { \
-            AssertMsgFailed(("%s\n", #expr)); \
+        if (RT_UNLIKELY(!(expr))) \
             setError(E_FAIL, \
                      "Assertion failed: [%s] at '%s' (%d) in %s.\nPlease contact the product vendor!", \
                      #expr, __FILE__, __LINE__, __PRETTY_FUNCTION__); \
-        } \
     } while (0)
+#endif
 
 /**
  *  Special version of the AssertFailed macro to be used within VirtualBoxBase
@@ -179,13 +179,16 @@ public:
  *  @see VirtualBoxBase::setError
  *
  */
-#define ComAssertFailed() \
+#if defined(DEBUG)
+#define ComAssertFailed()    AssertFailed()
+#else
+#define ComAssertFailed()    \
     do { \
-        AssertFailed(); \
         setError(E_FAIL, \
                  "Assertion failed: at '%s' (%d) in %s.\nPlease contact the product vendor!", \
                  __FILE__, __LINE__, __PRETTY_FUNCTION__); \
     } while (0)
+#endif
 
 /**
  *  Special version of the AssertMsg macro to be used within VirtualBoxBase
@@ -196,19 +199,17 @@ public:
  *  @param   expr    Expression which should be true.
  *  @param   a       printf argument list (in parenthesis).
  */
-#define ComAssertMsg(expr, a) \
+#if defined(DEBUG)
+#define ComAssertMsg(expr, a)  AssertMsg(expr, a)
+#else
+#define ComAssertMsg(expr, a)  \
     do { \
-        if (RT_LIKELY(!!(expr))) \
-        { /* likely */ } \
-        else \
-        { \
-            Utf8StrFmt MyAssertMsg a; /* may throw bad_alloc */ \
-            AssertMsgFailed(("%s\n", MyAssertMsg.c_str())); \
+        if (RT_UNLIKELY(!(expr))) \
             setError(E_FAIL, \
                      "Assertion failed: [%s] at '%s' (%d) in %s.\n%s.\nPlease contact the product vendor!", \
-                     #expr, __FILE__, __LINE__, __PRETTY_FUNCTION__, MyAssertMsg.c_str()); \
-        } \
+                     #expr, __FILE__, __LINE__, __PRETTY_FUNCTION__, Utf8StrFmt a .c_str()); \
     } while (0)
+#endif
 
 /**
  *  Special version of the AssertMsgFailed macro to be used within VirtualBoxBase
@@ -218,14 +219,16 @@ public:
  *
  *  @param   a       printf argument list (in parenthesis).
  */
+#if defined(DEBUG)
+#define ComAssertMsgFailed(a)   AssertMsgFailed(a)
+#else
 #define ComAssertMsgFailed(a) \
     do { \
-        Utf8StrFmt MyAssertMsg a; /* may throw bad_alloc */ \
-        AssertMsgFailed(("%s\n", MyAssertMsg.c_str())); \
         setError(E_FAIL, \
                  "Assertion failed: at '%s' (%d) in %s.\n%s.\nPlease contact the product vendor!", \
-                 __FILE__, __LINE__, __PRETTY_FUNCTION__, MyAssertMsg.c_str()); \
+                 __FILE__, __LINE__, __PRETTY_FUNCTION__, Utf8StrFmt a .c_str()); \
     } while (0)
+#endif
 
 /**
  *  Special version of the AssertRC macro to be used within VirtualBoxBase
@@ -235,7 +238,11 @@ public:
  *
  * @param   vrc     VBox status code.
  */
-#define ComAssertRC(vrc)            ComAssertMsgRC(vrc, ("%Rra", vrc))
+#if defined(DEBUG)
+#define ComAssertRC(vrc)    AssertRC(vrc)
+#else
+#define ComAssertRC(vrc)    ComAssertMsgRC(vrc, ("%Rra", vrc))
+#endif
 
 /**
  *  Special version of the AssertMsgRC macro to be used within VirtualBoxBase
@@ -246,7 +253,11 @@ public:
  *  @param   vrc    VBox status code.
  *  @param   msg    printf argument list (in parenthesis).
  */
+#if defined(DEBUG)
+#define ComAssertMsgRC(vrc, msg)    AssertMsgRC(vrc, msg)
+#else
 #define ComAssertMsgRC(vrc, msg)    ComAssertMsg(RT_SUCCESS(vrc), msg)
+#endif
 
 /**
  *  Special version of the AssertComRC macro to be used within VirtualBoxBase
@@ -254,9 +265,13 @@ public:
  *
  *  See ComAssert for more info.
  *
- *  @param hrc  COM result code
+ *  @param rc   COM result code
  */
-#define ComAssertComRC(hrc)         ComAssertMsg(SUCCEEDED(hrc), ("COM RC=%Rhrc (0x%08X)", (hrc), (hrc)))
+#if defined(DEBUG)
+#define ComAssertComRC(rc)  AssertComRC(rc)
+#else
+#define ComAssertComRC(rc)  ComAssertMsg(SUCCEEDED(rc), ("COM RC = %Rhrc (0x%08X)", (rc), (rc)))
+#endif
 
 
 /** Special version of ComAssert that returns ret if expr fails */
@@ -350,9 +365,7 @@ public:
  */
 #define CheckComArgNotNull(arg) \
     do { \
-        if (RT_LIKELY((arg) != NULL)) \
-        { /* likely */ }\
-        else \
+        if (RT_UNLIKELY((arg) == NULL)) \
             return setError(E_INVALIDARG, tr("Argument %s is NULL"), #arg); \
     } while (0)
 
@@ -363,25 +376,8 @@ public:
  */
 #define CheckComArgMaybeNull(arg) \
     do { \
-        if (RT_LIKELY(RT_VALID_PTR(arg) || (arg) == NULL)) \
-        { /* likely */ }\
-        else \
+        if (RT_UNLIKELY(!RT_VALID_PTR(arg) && (arg) != NULL)) \
             return setError(E_INVALIDARG, tr("Argument %s is an invalid pointer"), #arg); \
-    } while (0)
-
-/**
- * Checks that the given pointer to an argument is valid and returns
- * E_POINTER + extended error info otherwise.
- * @param arg   Pointer argument.
- */
-#define CheckComArgPointerValid(arg) \
-    do { \
-        if (RT_LIKELY(RT_VALID_PTR(arg))) \
-        { /* likely */ }\
-        else \
-            return setError(E_POINTER, \
-                tr("Argument %s points to invalid memory location (%p)"), \
-                #arg, (void *)(arg)); \
     } while (0)
 
 /**
@@ -391,9 +387,7 @@ public:
  */
 #define CheckComArgSafeArrayNotNull(arg) \
     do { \
-        if (RT_LIKELY(!ComSafeArrayInIsNull(arg))) \
-        { /* likely */ }\
-        else \
+        if (RT_UNLIKELY(ComSafeArrayInIsNull(arg))) \
             return setError(E_INVALIDARG, tr("Argument %s is NULL"), #arg); \
     } while (0)
 
@@ -405,9 +399,7 @@ public:
 #define CheckComArgStr(a_bstrIn) \
     do { \
         IN_BSTR const bstrInCheck = (a_bstrIn); /* type check */ \
-        if (RT_LIKELY(RT_VALID_PTR(bstrInCheck))) \
-        { /* likely */ }\
-        else \
+        if (RT_UNLIKELY(!RT_VALID_PTR(bstrInCheck))) \
             return setError(E_INVALIDARG, tr("Argument %s is an invalid pointer"), #a_bstrIn); \
     } while (0)
 /**
@@ -418,9 +410,7 @@ public:
 #define CheckComArgStrNotEmptyOrNull(a_bstrIn) \
     do { \
         IN_BSTR const bstrInCheck = (a_bstrIn); /* type check */ \
-        if (RT_LIKELY(RT_VALID_PTR(bstrInCheck) && *(bstrInCheck) != '\0')) \
-        { /* likely */ }\
-        else \
+        if (RT_UNLIKELY(!RT_VALID_PTR(bstrInCheck) || *(bstrInCheck) == '\0')) \
             return setError(E_INVALIDARG, tr("Argument %s is empty or an invalid pointer"), #a_bstrIn); \
     } while (0)
 
@@ -435,9 +425,7 @@ public:
     do { \
         Guid tmpGuid(a_Arg); \
         (a_GuidVar) = tmpGuid; \
-        if (RT_LIKELY((a_GuidVar).isValid())) \
-        { /* likely */ }\
-        else \
+        if (RT_UNLIKELY((a_GuidVar).isValid() == false)) \
             return setError(E_INVALIDARG, \
                 tr("GUID argument %s is not valid (\"%ls\")"), #a_Arg, Bstr(a_Arg).raw()); \
     } while (0)
@@ -450,9 +438,7 @@ public:
  */
 #define CheckComArgExpr(arg, expr) \
     do { \
-        if (RT_LIKELY(!!(expr))) \
-        { /* likely */ }\
-        else \
+        if (RT_UNLIKELY(!(expr))) \
             return setError(E_INVALIDARG, \
                 tr("Argument %s is invalid (must be %s)"), #arg, #expr); \
     } while (0)
@@ -468,9 +454,7 @@ public:
  */
 #define CheckComArgExprMsg(arg, expr, msg) \
     do { \
-        if (RT_LIKELY(!!(expr))) \
-        { /* likely */ }\
-        else \
+        if (RT_UNLIKELY(!(expr))) \
             return setError(E_INVALIDARG, tr("Argument %s %s"), \
                             #arg, Utf8StrFmt msg .c_str()); \
     } while (0)
@@ -482,9 +466,7 @@ public:
  */
 #define CheckComArgOutPointerValid(arg) \
     do { \
-        if (RT_LIKELY(RT_VALID_PTR(arg))) \
-        { /* likely */ }\
-        else \
+        if (RT_UNLIKELY(!VALID_PTR(arg))) \
             return setError(E_POINTER, \
                 tr("Output argument %s points to invalid memory location (%p)"), \
                 #arg, (void *)(arg)); \
@@ -497,9 +479,7 @@ public:
  */
 #define CheckComArgOutSafeArrayPointerValid(arg) \
     do { \
-        if (RT_LIKELY(!ComSafeArrayOutIsNull(arg))) \
-        { /* likely */ }\
-        else \
+        if (RT_UNLIKELY(ComSafeArrayOutIsNull(arg))) \
             return setError(E_POINTER, \
                             tr("Output argument %s points to invalid memory location (%p)"), \
                             #arg, (void*)(arg)); \
@@ -542,13 +522,13 @@ public:
  *  finding the actual thrower possible.
  */
 #ifdef DEBUG
-# define DebugBreakThrow(a) \
+#define DebugBreakThrow(a) \
     do { \
         RTAssertDebugBreak(); \
         throw (a); \
-    } while (0)
+} while (0)
 #else
-# define DebugBreakThrow(a) throw (a)
+#define DebugBreakThrow(a) throw (a)
 #endif
 
 /**
@@ -671,7 +651,53 @@ public:
  *
  * Declares functionality that should be available in all components.
  *
- * The object state logic is documented in ObjectState.h.
+ * Among the basic functionality implemented by this class is the primary object
+ * state that indicates if the object is ready to serve the calls, and if not,
+ * what stage it is currently at. Here is the primary state diagram:
+ *
+ *              +-------------------------------------------------------+
+ *              |                                                       |
+ *              |         (InitFailed) -----------------------+         |
+ *              |              ^                              |         |
+ *              v              |                              v         |
+ *  [*] ---> NotReady ----> (InInit) -----> Ready -----> (InUninit) ----+
+ *                     ^       |
+ *                     |       v
+ *                     |    Limited
+ *                     |       |
+ *                     +-------+
+ *
+ * The object is fully operational only when its state is Ready. The Limited
+ * state means that only some vital part of the object is operational, and it
+ * requires some sort of reinitialization to become fully operational. The
+ * NotReady state means the object is basically dead: it either was not yet
+ * initialized after creation at all, or was uninitialized and is waiting to be
+ * destroyed when the last reference to it is released. All other states are
+ * transitional.
+ *
+ * The NotReady->InInit->Ready, NotReady->InInit->Limited and
+ * NotReady->InInit->InitFailed transition is done by the AutoInitSpan smart
+ * class.
+ *
+ * The Limited->InInit->Ready, Limited->InInit->Limited and
+ * Limited->InInit->InitFailed transition is done by the AutoReinitSpan smart
+ * class.
+ *
+ * The Ready->InUninit->NotReady and InitFailed->InUninit->NotReady
+ * transitions are done by the AutoUninitSpan smart class.
+ *
+ * In order to maintain the primary state integrity and declared functionality
+ * all subclasses must:
+ *
+ * 1) Use the above Auto*Span classes to perform state transitions. See the
+ *    individual class descriptions for details.
+ *
+ * 2) All public methods of subclasses (i.e. all methods that can be called
+ *    directly, not only from within other methods of the subclass) must have a
+ *    standard prolog as described in the AutoCaller and AutoLimitedCaller
+ *    documentation. Alternatively, they must use addCaller()/releaseCaller()
+ *    directly (and therefore have both the prolog and the epilog), but this is
+ *    not recommended.
  */
 class ATL_NO_VTABLE VirtualBoxBase
     : public VirtualBoxTranslatable,
@@ -704,6 +730,8 @@ protected:
 
 
 public:
+    enum State { NotReady, Ready, InInit, InUninit, InitFailed, Limited };
+
     VirtualBoxBase();
     virtual ~VirtualBoxBase();
 
@@ -714,18 +742,24 @@ public:
      * last reference to the object is released, before calling the destructor.
      *
      * @note Never call this method the AutoCaller scope or after the
-     *       ObjectState::addCaller() call not paired by
-     *       ObjectState::releaseCaller() because it is a guaranteed deadlock.
-     *       See AutoUninitSpan and AutoCaller.h/ObjectState.h for details.
+     *       #addCaller() call not paired by #releaseCaller() because it is a
+     *       guaranteed deadlock. See AutoUninitSpan for details.
      */
     virtual void uninit()
     { }
 
+    virtual HRESULT addCaller(State *aState = NULL,
+                              bool aLimited = false);
+    virtual void releaseCaller();
+
     /**
+     * Adds a limited caller. This method is equivalent to doing
+     * <tt>addCaller(aState, true)</tt>, but it is preferred because provides
+     * better self-descriptiveness. See #addCaller() for more info.
      */
-    ObjectState &getObjectState()
+    HRESULT addLimitedCaller(State *aState = NULL)
     {
-        return mState;
+        return addCaller(aState, true /* aLimited */);
     }
 
     /**
@@ -758,6 +792,14 @@ public:
 
     virtual RWLockHandle *lockHandle() const;
 
+    /**
+     * Returns a lock handle used to protect the primary state fields (used by
+     * #addCaller(), AutoInitSpan, AutoUninitSpan, etc.). Only intended to be
+     * used for similar purposes in subclasses. WARNING: NO any other locks may
+     * be requested while holding this lock!
+     */
+    WriteLockHandle *stateLockHandle() { return &mStateLock; }
+
     static HRESULT handleUnexpectedExceptions(VirtualBoxBase *const aThis, RT_SRC_POS_DECL);
 
     static HRESULT setErrorInternal(HRESULT aResultCode,
@@ -765,17 +807,12 @@ public:
                                     const char *aComponent,
                                     Utf8Str aText,
                                     bool aWarning,
-                                    bool aLogIt,
-                                    LONG aResultDetail = 0);
+                                    bool aLogIt);
     static void clearError(void);
 
     HRESULT setError(HRESULT aResultCode);
     HRESULT setError(HRESULT aResultCode, const char *pcsz, ...);
     HRESULT setError(const ErrorInfo &ei);
-    HRESULT setErrorVrc(int vrc);
-    HRESULT setErrorVrc(int vrc, const char *pcszMsgFmt, ...);
-    HRESULT setErrorBoth(HRESULT hrc, int vrc);
-    HRESULT setErrorBoth(HRESULT hrc, int vrc, const char *pcszMsgFmt, ...);
     HRESULT setWarning(HRESULT aResultCode, const char *pcsz, ...);
     HRESULT setErrorNoLog(HRESULT aResultCode, const char *pcsz, ...);
 
@@ -800,11 +837,36 @@ public:
 
 
 private:
-    /** Object for representing object state */
-    ObjectState mState;
+
+    void setState(State aState)
+    {
+        Assert(mState != aState);
+        mState = aState;
+        mStateChangeThread = RTThreadSelf();
+    }
+
+    /** Primary state of this object */
+    State mState;
+    /** Thread that caused the last state change */
+    RTTHREAD mStateChangeThread;
+    /** Total number of active calls to this object */
+    unsigned mCallers;
+    /** Posted when the number of callers drops to zero */
+    RTSEMEVENT mZeroCallersSem;
+    /** Posted when the object goes from InInit/InUninit to some other state */
+    RTSEMEVENTMULTI mInitUninitSem;
+    /** Number of threads waiting for mInitUninitDoneSem */
+    unsigned mInitUninitWaiters;
+
+    /** Protects access to state related data members */
+    WriteLockHandle mStateLock;
 
     /** User-level object lock for subclasses */
     mutable RWLockHandle *mObjectLock;
+
+    friend class AutoInitSpan;
+    friend class AutoReinitSpan;
+    friend class AutoUninitSpan;
 };
 
 /**

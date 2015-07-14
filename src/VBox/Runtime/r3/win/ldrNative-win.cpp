@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -45,90 +45,45 @@
 #include <iprt/string.h>
 #include "internal/ldr.h"
 
-#ifndef LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR
-# define LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR       UINT32_C(0x100)
-# define LOAD_LIBRARY_SEARCH_APPLICATION_DIR    UINT32_C(0x200)
-# define LOAD_LIBRARY_SEARCH_SYSTEM32           UINT32_C(0x800)
-#endif
-
 
 int rtldrNativeLoad(const char *pszFilename, uintptr_t *phHandle, uint32_t fFlags, PRTERRINFO pErrInfo)
 {
     Assert(sizeof(*phHandle) >= sizeof(HMODULE));
-    AssertReturn(!(fFlags & RTLDRLOAD_FLAGS_GLOBAL), VERR_INVALID_FLAGS);
+    AssertReturn(fFlags == 0 || fFlags == RTLDRLOAD_FLAGS_NO_UNLOAD, VERR_INVALID_PARAMETER);
     AssertLogRelMsgReturn(RTPathStartsWithRoot(pszFilename),  /* Relative names will still be applied to the search path. */
                           ("pszFilename='%s'\n", pszFilename),
                           VERR_INTERNAL_ERROR_2);
 
     /*
-     * Convert to UTF-16 and make sure it got a .DLL suffix.
+     * Do we need to add an extension?
      */
-    int rc;
-    RTUTF16 *pwszNative = NULL;
-    if (RTPathHasSuffix(pszFilename))
-        rc = RTStrToUtf16(pszFilename, &pwszNative);
-    else
+    if (!RTPathHaveExt(pszFilename))
     {
-        size_t cwcAlloc;
-        rc = RTStrCalcUtf16LenEx(pszFilename, RTSTR_MAX, &cwcAlloc);
-        if (RT_SUCCESS(rc))
-        {
-            cwcAlloc += sizeof(".DLL");
-            pwszNative = RTUtf16Alloc(cwcAlloc * sizeof(RTUTF16));
-            if (pwszNative)
-            {
-                size_t cwcNative;
-                rc = RTStrToUtf16Ex(pszFilename, RTSTR_MAX, &pwszNative, cwcAlloc, &cwcNative);
-                if (RT_SUCCESS(rc))
-                    rc = RTUtf16CopyAscii(&pwszNative[cwcNative], cwcAlloc - cwcNative, ".DLL");
-            }
-            else
-                rc = VERR_NO_UTF16_MEMORY;
-        }
+        size_t cch = strlen(pszFilename);
+        char *psz = (char *)alloca(cch + sizeof(".DLL"));
+        if (!psz)
+            return RTErrInfoSet(pErrInfo, VERR_NO_MEMORY, "alloca failed");
+        memcpy(psz, pszFilename, cch);
+        memcpy(psz + cch, ".DLL", sizeof(".DLL"));
+        pszFilename = psz;
     }
-    if (RT_SUCCESS(rc))
-    {
-        /*
-         * Attempt load.
-         */
-        HMODULE     hmod;
-        static int  s_iSearchDllLoadDirSupported = 0;
-        if (   !(fFlags & RTLDRLOAD_FLAGS_NT_SEARCH_DLL_LOAD_DIR)
-            || s_iSearchDllLoadDirSupported < 0)
-            hmod = LoadLibraryExW(pwszNative, NULL, 0);
-        else
-        {
-            hmod = LoadLibraryExW(pwszNative, NULL, LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32
-                                  | LOAD_LIBRARY_SEARCH_APPLICATION_DIR);
-            if (s_iSearchDllLoadDirSupported == 0)
-            {
-                if (hmod != NULL || GetLastError() != ERROR_INVALID_PARAMETER)
-                    s_iSearchDllLoadDirSupported = 1;
-                else
-                {
-                    s_iSearchDllLoadDirSupported = -1;
-                    hmod = LoadLibraryExW(pwszNative, NULL, 0);
-                }
-            }
-        }
-        if (hmod)
-        {
-            *phHandle = (uintptr_t)hmod;
-            RTUtf16Free(pwszNative);
-            return VINF_SUCCESS;
-        }
 
-        /*
-         * Try figure why it failed to load.
-         */
-        DWORD dwErr = GetLastError();
-        rc = RTErrConvertFromWin32(dwErr);
-        rc = RTErrInfoSetF(pErrInfo, rc, "GetLastError=%u", dwErr);
+    /*
+     * Attempt load.
+     */
+    HMODULE hmod = LoadLibrary(pszFilename);
+    if (hmod)
+    {
+        *phHandle = (uintptr_t)hmod;
+        return VINF_SUCCESS;
     }
-    else
-        rc = RTErrInfoSetF(pErrInfo, rc, "Error converting UTF-8 to UTF-16 string.");
-    RTUtf16Free(pwszNative);
-    return rc;
+
+    /*
+     * Try figure why it failed to load.
+     */
+    DWORD dwErr = GetLastError();
+    int rc = RTErrConvertFromWin32(dwErr);
+    return RTErrInfoSetF(pErrInfo, rc, "GetLastError=%u", dwErr);
 }
 
 

@@ -1,10 +1,10 @@
-/* $Id: HGCMInternal.cpp $ */
+/* $Revision: 97150 $ */
 /** @file
  * VBoxGuestLib - Host-Guest Communication Manager internal functions, implemented by VBoxGuest
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -207,7 +207,7 @@ static int vbglR0HGCMInternalPreprocessCall(VBoxGuestHGCMCallInfo const *pCallIn
                 break;
 
             case VMMDevHGCMParmType_64bit:
-                Log4(("GstHGCMCall: parm=%u type=64bit: %#018RX64\n", iParm, pSrcParm->u.value64));
+                Log4(("GstHGCMCall: parm=%u type=64bit: %#018x\n", iParm, pSrcParm->u.value64));
                 break;
 
             case VMMDevHGCMParmType_PageList:

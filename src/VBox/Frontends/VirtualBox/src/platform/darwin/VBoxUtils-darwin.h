@@ -1,6 +1,8 @@
-/* $Id: VBoxUtils-darwin.h $ */
 /** @file
- * VBox Qt GUI - Declarations of utility classes and functions for handling Darwin specific tasks.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * Declarations of utility classes and functions for handling Darwin specific
+ * tasks
  */
 
 /*
@@ -59,7 +61,6 @@ void darwinSetShowsResizeIndicatorImpl(NativeNSWindowRef pWindow, bool fEnabled)
 void darwinSetHidesAllTitleButtonsImpl(NativeNSWindowRef pWindow);
 void darwinLabelWindow(NativeNSWindowRef pWindow, NativeNSImageRef pImage, bool fCenter);
 void darwinSetShowsWindowTransparentImpl(NativeNSWindowRef pWindow, bool fEnabled);
-void darwinSetWindowHasShadow(NativeNSWindowRef pWindow, bool fEnabled);
 void darwinSetMouseCoalescingEnabled(bool fEnabled);
 
 void darwintest(NativeNSWindowRef pWindow);
@@ -228,7 +229,6 @@ void darwinLabelWindow(QWidget *pWidget, QPixmap *pPixmap, bool fCenter);
 void darwinSetShowsResizeIndicator(QWidget *pWidget, bool fEnabled);
 void darwinSetHidesAllTitleButtons(QWidget *pWidget);
 void darwinSetShowsWindowTransparent(QWidget *pWidget, bool fEnabled);
-void darwinSetWindowHasShadow(QWidget *pWidget, bool fEnabled);
 void darwinSetDockIconMenu(QMenu *pMenu);
 void darwinDisableIconsInMenus(void);
 

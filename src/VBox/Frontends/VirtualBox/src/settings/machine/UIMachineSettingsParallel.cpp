@@ -1,6 +1,8 @@
 /* $Id: UIMachineSettingsParallel.cpp $ */
 /** @file
- * VBox Qt GUI - UIMachineSettingsParallel class implementation.
+ *
+ * VBox frontends: Qt4 GUI ("VirtualBox"):
+ * UIMachineSettingsParallel class implementation
  */
 
 /*
@@ -15,24 +17,17 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QDir>
+#include <QDir>
 
 /* GUI includes: */
-# include "UIMachineSettingsParallel.h"
-# include "QIWidgetValidator.h"
-# include "VBoxGlobal.h"
-# include "QITabWidget.h"
+#include "UIMachineSettingsParallel.h"
+#include "QIWidgetValidator.h"
+#include "VBoxGlobal.h"
+#include "QITabWidget.h"
 
 /* COM includes: */
-# include "CParallelPort.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
+#include "CParallelPort.h"
 
 /* UIMachineSettingsParallel stuff */
 UIMachineSettingsParallel::UIMachineSettingsParallel(UIMachineSettingsParallelPage *pParent)
@@ -359,27 +354,27 @@ bool UIMachineSettingsParallelPage::validate(QList<UIValidationMessage> &message
 
         if (strIRQ.isEmpty())
         {
-            message.second << UIMachineSettingsParallel::tr("No IRQ is currently specified.");
+            message.second << tr("No IRQ is currently specified.");
             fPass = false;
         }
         if (strIOPort.isEmpty())
         {
-            message.second << UIMachineSettingsParallel::tr("No I/O port is currently specified.");
+            message.second << tr("No I/O port is currently specified.");
             fPass = false;
         }
         if (ports.contains(pair))
         {
-            message.second << UIMachineSettingsParallel::tr("Two or more ports have the same settings.");
+            message.second << tr("Two or more ports have the same settings.");
             fPass = false;
         }
         if (strPath.isEmpty())
         {
-            message.second << UIMachineSettingsParallel::tr("No port path is currently specified.");
+            message.second << tr("No port path is currently specified.");
             fPass = false;
         }
         if (paths.contains(strPath))
         {
-            message.second << UIMachineSettingsParallel::tr("There are currently duplicate port paths specified.");
+            message.second << tr("There are currently duplicate port paths specified.");
             fPass = false;
         }
 

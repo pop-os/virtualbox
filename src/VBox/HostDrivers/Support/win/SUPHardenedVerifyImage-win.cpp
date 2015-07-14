@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -2038,9 +2038,9 @@ DECLHIDDEN(void) supR3HardenedWinResolveVerifyTrustApiAndHookThreadCreation(cons
      * irreversably disabling most (if not all) debug events for them.
      */
     char szPath[RTPATH_MAX];
-    supR3HardenedPathAppSharedLibs(szPath, sizeof(szPath) - sizeof("/VBoxSupLib.DLL"));
+    supR3HardenedPathSharedLibs(szPath, sizeof(szPath) - sizeof("/VBoxSupLib.DLL"));
     suplibHardenedStrCat(szPath, "/VBoxSupLib.DLL");
-    HMODULE hSupLibMod = (HMODULE)supR3HardenedWinLoadLibrary(szPath, true /*fSystem32Only*/, 0 /*fMainFlags*/);
+    HMODULE hSupLibMod = (HMODULE)supR3HardenedWinLoadLibrary(szPath, true /*fSystem32Only*/);
     if (hSupLibMod == NULL)
         supR3HardenedFatal("Error loading '%s': %u", szPath, RtlGetLastWin32Error());
 # endif

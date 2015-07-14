@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -319,9 +319,13 @@ typedef struct IOM
     /** Pointer to the trees - R0 ptr. */
     R0PTRTYPE(PIOMTREES)            pTreesR0;
 
-    /** MMIO physical access handler type.   */
-    PGMPHYSHANDLERTYPE              hMmioHandlerType;
-    uint32_t                        u32Padding;
+    /** The ring-0 address of IOMMMIOHandler. */
+    R0PTRTYPE(PFNPGMR0PHYSHANDLER)  pfnMMIOHandlerR0;
+    /** The RC address of IOMMMIOHandler. */
+    RCPTRTYPE(PFNPGMRCPHYSHANDLER)  pfnMMIOHandlerRC;
+#if HC_ARCH_BITS == 64
+    RTRCPTR                         padding;
+#endif
 
     /** Lock serializing EMT access to IOM. */
 #ifdef IOM_WITH_CRIT_SECT_RW
@@ -421,10 +425,12 @@ void                iomMmioFreeRange(PVM pVM, PIOMMMIORANGE pRange);
 PIOMMMIOSTATS       iomR3MMIOStatsCreate(PVM pVM, RTGCPHYS GCPhys, const char *pszDesc);
 #endif /* IN_RING3 */
 
-#ifndef IN_RING3
-DECLEXPORT(FNPGMRZPHYSPFHANDLER)    iomMmioPfHandler;
+VMMDECL(int)        IOMMMIOHandler(PVM pVM, RTGCUINT uErrorCode, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault,
+                                   RTGCPHYS GCPhysFault, void *pvUser);
+#ifdef IN_RING3
+DECLCALLBACK(int)   IOMR3MMIOHandler(PVM pVM, RTGCPHYS GCPhys, void *pvPhys, void *pvBuf, size_t cbBuf,
+                                     PGMACCESSTYPE enmAccessType, void *pvUser);
 #endif
-PGM_ALL_CB2_DECL(FNPGMPHYSHANDLER)  iomMmioHandler;
 
 /* IOM locking helpers. */
 #ifdef IOM_WITH_CRIT_SECT_RW

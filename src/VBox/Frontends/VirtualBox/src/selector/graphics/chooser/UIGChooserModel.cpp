@@ -1,6 +1,8 @@
 /* $Id: UIGChooserModel.cpp $ */
 /** @file
- * VBox Qt GUI - UIGChooserModel class implementation.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * UIGChooserModel class implementation
  */
 
 /*
@@ -15,52 +17,41 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QGraphicsScene>
-# include <QGraphicsView>
-# include <QRegExp>
-# include <QGraphicsSceneMouseEvent>
-# include <QGraphicsSceneContextMenuEvent>
-# include <QPropertyAnimation>
-# include <QScrollBar>
-# include <QTimer>
+#include <QGraphicsScene>
+#include <QGraphicsView>
+#include <QRegExp>
+#include <QGraphicsSceneMouseEvent>
+#include <QGraphicsSceneContextMenuEvent>
+#include <QPropertyAnimation>
+#include <QParallelAnimationGroup>
+#include <QScrollBar>
+#include <QTimer>
 
 /* GUI includes: */
-# include "UIGChooser.h"
-# include "UIGChooserModel.h"
-# include "UIGChooserItemGroup.h"
-# include "UIGChooserItemMachine.h"
-# include "UIExtraDataDefs.h"
-# include "VBoxGlobal.h"
-# include "UIMessageCenter.h"
-# include "UIExtraDataManager.h"
-# include "UIActionPoolSelector.h"
-# include "UIGChooserHandlerMouse.h"
-# include "UIGChooserHandlerKeyboard.h"
-# include "UIWizardNewVM.h"
-# include "UISelectorWindow.h"
-# include "UIVirtualBoxEventHandler.h"
+#include "UIGChooserModel.h"
+#include "UIGChooserItemGroup.h"
+#include "UIGChooserItemMachine.h"
+#include "UIDefs.h"
+#include "VBoxGlobal.h"
+#include "UIMessageCenter.h"
+#include "UIActionPoolSelector.h"
+#include "UIGChooserHandlerMouse.h"
+#include "UIGChooserHandlerKeyboard.h"
+#include "UIWizardNewVM.h"
+#include "UISelectorWindow.h"
+#include "UIVirtualBoxEventHandler.h"
 
 /* COM includes: */
-# include "CVirtualBox.h"
-# include "CMachine.h"
-# include "CMedium.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
-#include <QParallelAnimationGroup>
-
+#include "CVirtualBox.h"
+#include "CMachine.h"
+#include "CMedium.h"
 
 /* Type defs: */
 typedef QSet<QString> UIStringSet;
 
-UIGChooserModel::UIGChooserModel(UIGChooser *pParent)
+UIGChooserModel::UIGChooserModel(QObject *pParent)
     : QObject(pParent)
-    , m_pChooser(pParent)
     , m_pScene(0)
     , m_fSliding(false)
     , m_pLeftRoot(0)
@@ -140,11 +131,6 @@ void UIGChooserModel::cleanup()
     /* Make sure all saving steps complete: */
     makeSureGroupDefinitionsSaveIsFinished();
     makeSureGroupOrdersSaveIsFinished();
-}
-
-UIActionPool* UIGChooserModel::actionPool() const
-{
-    return chooser()->actionPool();
 }
 
 QGraphicsScene* UIGChooserModel::scene() const
@@ -277,11 +263,7 @@ void UIGChooserModel::setCurrentItems(const QList<UIGChooserItem*> &items)
 void UIGChooserModel::setCurrentItem(UIGChooserItem *pItem)
 {
     /* Call for wrapper above: */
-    QList<UIGChooserItem*> items;
-    if (pItem)
-        items << pItem;
-    setCurrentItems(items);
-
+    setCurrentItems(QList<UIGChooserItem*>() << pItem);
     /* Move focus to current-item: */
     setFocusItem(currentItem());
 }
@@ -347,16 +329,12 @@ void UIGChooserModel::removeFromCurrentItems(UIGChooserItem *pItem)
     setCurrentItems(list);
 }
 
-void UIGChooserModel::makeSureSomeItemIsSelected()
+void UIGChooserModel::notifyCurrentItemChanged()
 {
     /* Make sure selection item list is never empty
      * if at least one item (for example 'focus') present: */
     if (!currentItem() && focusItem())
         setCurrentItem(focusItem());
-}
-
-void UIGChooserModel::notifyCurrentItemChanged()
-{
     /* Notify listeners about selection change: */
     emit sigSelectionChanged();
 }
@@ -550,7 +528,7 @@ QString UIGChooserModel::uniqueGroupName(UIGChooserItem *pRoot)
 
 void UIGChooserModel::activateMachineItem()
 {
-    actionPool()->action(UIActionIndexST_M_Machine_M_StartOrShow)->activate(QAction::Trigger);
+    gActionPool->action(UIActionIndexSelector_State_Common_StartOrShow)->activate(QAction::Trigger);
 }
 
 void UIGChooserModel::setCurrentDragObject(QDrag *pDragObject)
@@ -567,59 +545,18 @@ void UIGChooserModel::lookFor(const QString &strLookupSymbol)
 {
     /* Restart timer to reset lookup-string: */
     m_pLookupTimer->start();
-
-    /* Prepare item: */
-    UIGChooserItem *pItem = 0;
-
-    /* We are starting to look from the current position: */
-    int iCurrentIndex = navigationList().indexOf(currentItem());
-
-    /* Are we looking for the 1. same symbol or for the 2. composed word? */
-    const QString strLookupString = m_strLookupString.isEmpty() || m_strLookupString == strLookupSymbol ?
-                                    strLookupSymbol : m_strLookupString + strLookupSymbol;
-    /* Are we looking from the 1. subsequent position or from the 2. same one? */
-    const int     iFirstIndex     = m_strLookupString.isEmpty() || m_strLookupString == strLookupSymbol ?
-                                    iCurrentIndex + 1 : iCurrentIndex;
-
-    /* If first position feats the bounds: */
-    if (iFirstIndex < navigationList().size())
-    {
-        /* We have to look starting from the first position: */
-        for (int iIndex = iFirstIndex; iIndex < navigationList().size(); ++iIndex)
-        {
-            UIGChooserItem *pIteratedItem = navigationList().at(iIndex);
-            if (pIteratedItem->name().startsWith(strLookupString, Qt::CaseInsensitive))
-            {
-                pItem = pIteratedItem;
-                break;
-            }
-        }
-    }
-
-    /* If the item was not found: */
-    if (!pItem && iFirstIndex > 0)
-    {
-        /* We have to try to look from the beginning of the list: */
-        for (int iIndex = 0; iIndex < iFirstIndex; ++iIndex)
-        {
-            UIGChooserItem *pIteratedItem = navigationList().at(iIndex);
-            if (pIteratedItem->name().startsWith(strLookupString, Qt::CaseInsensitive))
-            {
-                pItem = pIteratedItem;
-                break;
-            }
-        }
-    }
-
-    /* If that item was found: */
+    /* Look for item which is starting from the lookup-string: */
+    UIGChooserItem *pItem = mainRoot()->searchForItem(m_strLookupString + strLookupSymbol,
+                                                      UIGChooserItemSearchFlag_Machine |
+                                                      UIGChooserItemSearchFlag_Group);
+    /* If item found: */
     if (pItem)
     {
         /* Choose it: */
         pItem->makeSureItsVisible();
         setCurrentItem(pItem);
         /* Append lookup symbol: */
-        if (m_strLookupString != strLookupSymbol)
-            m_strLookupString += strLookupSymbol;
+        m_strLookupString += strLookupSymbol;
     }
 }
 
@@ -659,7 +596,7 @@ void UIGChooserModel::sltMachineRegistered(QString strId, bool fRegistered)
         /* Search for corresponding machine: */
         CMachine machine = vboxGlobal().virtualBox().FindMachine(strId);
         /* Should we show this machine? */
-        if (gEDataManager->showMachineInSelectorChooser(strId))
+        if (VBoxGlobal::shouldWeShowMachine(machine))
         {
             /* Add new machine-item: */
             addMachineIntoTheTree(machine, true);
@@ -760,7 +697,7 @@ void UIGChooserModel::sltSlidingComplete()
 void UIGChooserModel::sltEditGroupName()
 {
     /* Check if action is enabled: */
-    if (!actionPool()->action(UIActionIndexST_M_Group_S_Rename)->isEnabled())
+    if (!gActionPool->action(UIActionIndexSelector_Simple_Group_Rename)->isEnabled())
         return;
 
     /* Only for single selected group: */
@@ -774,7 +711,7 @@ void UIGChooserModel::sltEditGroupName()
 void UIGChooserModel::sltSortGroup()
 {
     /* Check if action is enabled: */
-    if (!actionPool()->action(UIActionIndexST_M_Group_S_Sort)->isEnabled())
+    if (!gActionPool->action(UIActionIndexSelector_Simple_Group_Sort)->isEnabled())
         return;
 
     /* Only for single selected group: */
@@ -788,7 +725,7 @@ void UIGChooserModel::sltSortGroup()
 void UIGChooserModel::sltUngroupSelectedGroup()
 {
     /* Check if action is enabled: */
-    if (!actionPool()->action(UIActionIndexST_M_Group_S_Remove)->isEnabled())
+    if (!gActionPool->action(UIActionIndexSelector_Simple_Group_Remove)->isEnabled())
         return;
 
     /* Make sure focus item is of group type! */
@@ -864,7 +801,7 @@ void UIGChooserModel::sltUngroupSelectedGroup()
 void UIGChooserModel::sltCreateNewMachine()
 {
     /* Check if action is enabled: */
-    if (!actionPool()->action(UIActionIndexST_M_Machine_S_New)->isEnabled())
+    if (!gActionPool->action(UIActionIndexSelector_Simple_Machine_New)->isEnabled())
         return;
 
     /* Choose the parent: */
@@ -888,7 +825,7 @@ void UIGChooserModel::sltCreateNewMachine()
 void UIGChooserModel::sltGroupSelectedMachines()
 {
     /* Check if action is enabled: */
-    if (!actionPool()->action(UIActionIndexST_M_Machine_S_AddGroup)->isEnabled())
+    if (!gActionPool->action(UIActionIndexSelector_Simple_Machine_AddGroup)->isEnabled())
         return;
 
     /* Create new group in the current root: */
@@ -945,7 +882,7 @@ void UIGChooserModel::sltReloadMachine(const QString &strId)
 
     /* Show machine if we should: */
     CMachine machine = vboxGlobal().virtualBox().FindMachine(strId);
-    if (gEDataManager->showMachineInSelectorChooser(strId))
+    if (VBoxGlobal::shouldWeShowMachine(machine))
         addMachineIntoTheTree(machine);
 
     /* And update model: */
@@ -963,7 +900,7 @@ void UIGChooserModel::sltReloadMachine(const QString &strId)
 void UIGChooserModel::sltSortParentGroup()
 {
     /* Check if action is enabled: */
-    if (!actionPool()->action(UIActionIndexST_M_Machine_S_SortParent)->isEnabled())
+    if (!gActionPool->action(UIActionIndexSelector_Simple_Machine_SortParent)->isEnabled())
         return;
 
     /* Only if some item selected: */
@@ -977,7 +914,7 @@ void UIGChooserModel::sltSortParentGroup()
 void UIGChooserModel::sltPerformRefreshAction()
 {
     /* Check if action is enabled: */
-    if (!actionPool()->action(UIActionIndexST_M_Group_S_Refresh)->isEnabled())
+    if (!gActionPool->action(UIActionIndexSelector_Simple_Common_Refresh)->isEnabled())
         return;
 
     /* Gather list of current unique inaccessible machine-items: */
@@ -1018,7 +955,7 @@ void UIGChooserModel::sltPerformRefreshAction()
 void UIGChooserModel::sltRemoveSelectedMachine()
 {
     /* Check if action is enabled: */
-    if (!actionPool()->action(UIActionIndexST_M_Machine_S_Remove)->isEnabled())
+    if (!gActionPool->action(UIActionIndexSelector_Simple_Machine_Remove)->isEnabled())
         return;
 
     /* Enumerate all the selected machine-items: */
@@ -1187,69 +1124,66 @@ void UIGChooserModel::prepareContextMenu()
 {
     /* Context menu for group(s): */
     m_pContextMenuGroup = new QMenu;
-    m_pContextMenuGroup->addAction(actionPool()->action(UIActionIndexST_M_Group_S_New));
-    m_pContextMenuGroup->addAction(actionPool()->action(UIActionIndexST_M_Group_S_Add));
+    m_pContextMenuGroup->addAction(gActionPool->action(UIActionIndexSelector_Simple_Group_New));
+    m_pContextMenuGroup->addAction(gActionPool->action(UIActionIndexSelector_Simple_Group_Add));
     m_pContextMenuGroup->addSeparator();
-    m_pContextMenuGroup->addAction(actionPool()->action(UIActionIndexST_M_Group_S_Rename));
-    m_pContextMenuGroup->addAction(actionPool()->action(UIActionIndexST_M_Group_S_Remove));
+    m_pContextMenuGroup->addAction(gActionPool->action(UIActionIndexSelector_Simple_Group_Rename));
+    m_pContextMenuGroup->addAction(gActionPool->action(UIActionIndexSelector_Simple_Group_Remove));
     m_pContextMenuGroup->addSeparator();
-    m_pContextMenuGroup->addAction(actionPool()->action(UIActionIndexST_M_Group_M_StartOrShow));
-    m_pContextMenuGroup->addAction(actionPool()->action(UIActionIndexST_M_Group_T_Pause));
-    m_pContextMenuGroup->addAction(actionPool()->action(UIActionIndexST_M_Group_S_Reset));
-    m_pContextMenuGroup->addMenu(actionPool()->action(UIActionIndexST_M_Group_M_Close)->menu());
+    m_pContextMenuGroup->addAction(gActionPool->action(UIActionIndexSelector_State_Common_StartOrShow));
+    m_pContextMenuGroup->addAction(gActionPool->action(UIActionIndexSelector_Toggle_Common_PauseAndResume));
+    m_pContextMenuGroup->addAction(gActionPool->action(UIActionIndexSelector_Simple_Common_Reset));
+    m_pContextMenuGroup->addMenu(gActionPool->action(UIActionIndexSelector_Menu_Group_Close)->menu());
     m_pContextMenuGroup->addSeparator();
-    m_pContextMenuGroup->addAction(actionPool()->action(UIActionIndexST_M_Group_S_Discard));
-    m_pContextMenuGroup->addAction(actionPool()->action(UIActionIndexST_M_Group_S_ShowLogDialog));
-    m_pContextMenuGroup->addAction(actionPool()->action(UIActionIndexST_M_Group_S_Refresh));
+    m_pContextMenuGroup->addAction(gActionPool->action(UIActionIndexSelector_Simple_Common_Discard));
+    m_pContextMenuGroup->addAction(gActionPool->action(UIActionIndexSelector_Simple_Common_Refresh));
     m_pContextMenuGroup->addSeparator();
-    m_pContextMenuGroup->addAction(actionPool()->action(UIActionIndexST_M_Group_S_ShowInFileManager));
-    m_pContextMenuGroup->addAction(actionPool()->action(UIActionIndexST_M_Group_S_CreateShortcut));
+    m_pContextMenuGroup->addAction(gActionPool->action(UIActionIndexSelector_Simple_Common_ShowInFileManager));
+    m_pContextMenuGroup->addAction(gActionPool->action(UIActionIndexSelector_Simple_Common_CreateShortcut));
     m_pContextMenuGroup->addSeparator();
-    m_pContextMenuGroup->addAction(actionPool()->action(UIActionIndexST_M_Group_S_Sort));
+    m_pContextMenuGroup->addAction(gActionPool->action(UIActionIndexSelector_Simple_Group_Sort));
 
     /* Context menu for machine(s): */
     m_pContextMenuMachine = new QMenu;
-    m_pContextMenuMachine->addAction(actionPool()->action(UIActionIndexST_M_Machine_S_Settings));
-    m_pContextMenuMachine->addAction(actionPool()->action(UIActionIndexST_M_Machine_S_Clone));
-    m_pContextMenuMachine->addAction(actionPool()->action(UIActionIndexST_M_Machine_S_Remove));
-    m_pContextMenuMachine->addAction(actionPool()->action(UIActionIndexST_M_Machine_S_AddGroup));
+    m_pContextMenuMachine->addAction(gActionPool->action(UIActionIndexSelector_Simple_Machine_Settings));
+    m_pContextMenuMachine->addAction(gActionPool->action(UIActionIndexSelector_Simple_Machine_Clone));
+    m_pContextMenuMachine->addAction(gActionPool->action(UIActionIndexSelector_Simple_Machine_Remove));
+    m_pContextMenuMachine->addAction(gActionPool->action(UIActionIndexSelector_Simple_Machine_AddGroup));
     m_pContextMenuMachine->addSeparator();
-    m_pContextMenuMachine->addAction(actionPool()->action(UIActionIndexST_M_Machine_M_StartOrShow));
-    m_pContextMenuMachine->addAction(actionPool()->action(UIActionIndexST_M_Machine_T_Pause));
-    m_pContextMenuMachine->addAction(actionPool()->action(UIActionIndexST_M_Machine_S_Reset));
-    m_pContextMenuMachine->addMenu(actionPool()->action(UIActionIndexST_M_Machine_M_Close)->menu());
+    m_pContextMenuMachine->addAction(gActionPool->action(UIActionIndexSelector_State_Common_StartOrShow));
+    m_pContextMenuMachine->addAction(gActionPool->action(UIActionIndexSelector_Toggle_Common_PauseAndResume));
+    m_pContextMenuMachine->addAction(gActionPool->action(UIActionIndexSelector_Simple_Common_Reset));
+    m_pContextMenuMachine->addMenu(gActionPool->action(UIActionIndexSelector_Menu_Machine_Close)->menu());
     m_pContextMenuMachine->addSeparator();
-    m_pContextMenuMachine->addAction(actionPool()->action(UIActionIndexST_M_Machine_S_Discard));
-    m_pContextMenuMachine->addAction(actionPool()->action(UIActionIndexST_M_Machine_S_ShowLogDialog));
-    m_pContextMenuMachine->addAction(actionPool()->action(UIActionIndexST_M_Machine_S_Refresh));
+    m_pContextMenuMachine->addAction(gActionPool->action(UIActionIndexSelector_Simple_Common_Discard));
+    m_pContextMenuMachine->addAction(gActionPool->action(UIActionIndex_Simple_LogDialog));
+    m_pContextMenuMachine->addAction(gActionPool->action(UIActionIndexSelector_Simple_Common_Refresh));
     m_pContextMenuMachine->addSeparator();
-    m_pContextMenuMachine->addAction(actionPool()->action(UIActionIndexST_M_Machine_S_ShowInFileManager));
-    m_pContextMenuMachine->addAction(actionPool()->action(UIActionIndexST_M_Machine_S_CreateShortcut));
+    m_pContextMenuMachine->addAction(gActionPool->action(UIActionIndexSelector_Simple_Common_ShowInFileManager));
+    m_pContextMenuMachine->addAction(gActionPool->action(UIActionIndexSelector_Simple_Common_CreateShortcut));
     m_pContextMenuMachine->addSeparator();
-    m_pContextMenuMachine->addAction(actionPool()->action(UIActionIndexST_M_Machine_S_SortParent));
+    m_pContextMenuMachine->addAction(gActionPool->action(UIActionIndexSelector_Simple_Machine_SortParent));
 
     connect(m_pContextMenuGroup, SIGNAL(hovered(QAction*)), this, SLOT(sltActionHovered(QAction*)));
     connect(m_pContextMenuMachine, SIGNAL(hovered(QAction*)), this, SLOT(sltActionHovered(QAction*)));
 
-    connect(actionPool()->action(UIActionIndexST_M_Group_S_New), SIGNAL(triggered()),
+    connect(gActionPool->action(UIActionIndexSelector_Simple_Group_New), SIGNAL(triggered()),
             this, SLOT(sltCreateNewMachine()));
-    connect(actionPool()->action(UIActionIndexST_M_Machine_S_New), SIGNAL(triggered()),
+    connect(gActionPool->action(UIActionIndexSelector_Simple_Machine_New), SIGNAL(triggered()),
             this, SLOT(sltCreateNewMachine()));
-    connect(actionPool()->action(UIActionIndexST_M_Group_S_Rename), SIGNAL(triggered()),
+    connect(gActionPool->action(UIActionIndexSelector_Simple_Group_Rename), SIGNAL(triggered()),
             this, SLOT(sltEditGroupName()));
-    connect(actionPool()->action(UIActionIndexST_M_Group_S_Remove), SIGNAL(triggered()),
+    connect(gActionPool->action(UIActionIndexSelector_Simple_Group_Remove), SIGNAL(triggered()),
             this, SLOT(sltUngroupSelectedGroup()));
-    connect(actionPool()->action(UIActionIndexST_M_Machine_S_Remove), SIGNAL(triggered()),
+    connect(gActionPool->action(UIActionIndexSelector_Simple_Machine_Remove), SIGNAL(triggered()),
             this, SLOT(sltRemoveSelectedMachine()));
-    connect(actionPool()->action(UIActionIndexST_M_Machine_S_AddGroup), SIGNAL(triggered()),
+    connect(gActionPool->action(UIActionIndexSelector_Simple_Machine_AddGroup), SIGNAL(triggered()),
             this, SLOT(sltGroupSelectedMachines()));
-    connect(actionPool()->action(UIActionIndexST_M_Group_S_Refresh), SIGNAL(triggered()),
+    connect(gActionPool->action(UIActionIndexSelector_Simple_Common_Refresh), SIGNAL(triggered()),
             this, SLOT(sltPerformRefreshAction()));
-    connect(actionPool()->action(UIActionIndexST_M_Machine_S_Refresh), SIGNAL(triggered()),
-            this, SLOT(sltPerformRefreshAction()));
-    connect(actionPool()->action(UIActionIndexST_M_Machine_S_SortParent), SIGNAL(triggered()),
+    connect(gActionPool->action(UIActionIndexSelector_Simple_Machine_SortParent), SIGNAL(triggered()),
             this, SLOT(sltSortParentGroup()));
-    connect(actionPool()->action(UIActionIndexST_M_Group_S_Sort), SIGNAL(triggered()),
+    connect(gActionPool->action(UIActionIndexSelector_Simple_Group_Sort), SIGNAL(triggered()),
             this, SLOT(sltSortGroup()));
 
     connect(this, SIGNAL(sigStartGroupSaving()), this, SLOT(sltGroupSavingStart()), Qt::QueuedConnection);
@@ -1290,14 +1224,12 @@ void UIGChooserModel::prepareConnections()
             this, SLOT(sltSnapshotChanged(QString, QString)));
     connect(gVBoxEvents, SIGNAL(sigSnapshotChange(QString, QString)),
             this, SLOT(sltSnapshotChanged(QString, QString)));
-    connect(gVBoxEvents, SIGNAL(sigSnapshotRestore(QString, QString)),
-            this, SLOT(sltSnapshotChanged(QString, QString)));
 }
 
 void UIGChooserModel::loadLastSelectedItem()
 {
     /* Load last selected item (choose first if unable to load): */
-    setCurrentItem(gEDataManager->selectorWindowLastItemChosen());
+    setCurrentItem(vboxGlobal().virtualBox().GetExtraData(GUI_LastItemSelected));
     if (!currentItem() && !navigationList().isEmpty())
         setCurrentItem(navigationList().first());
 }
@@ -1305,7 +1237,8 @@ void UIGChooserModel::loadLastSelectedItem()
 void UIGChooserModel::saveLastSelectedItem()
 {
     /* Save last selected item: */
-    gEDataManager->setSelectorWindowLastItemChosen(currentItem() ? currentItem()->definition() : QString());
+    vboxGlobal().virtualBox().SetExtraData(GUI_LastItemSelected,
+                                           currentItem() ? currentItem()->definition() : QString());
 }
 
 void UIGChooserModel::cleanupHandlers()
@@ -1501,9 +1434,6 @@ void UIGChooserModel::unregisterMachines(const QStringList &ids)
     if (iResultCode == AlertButton_Cancel)
         return;
 
-    /* Unset current item(s): */
-    unsetCurrentItem();
-
     /* For every selected item: */
     for (int iMachineIndex = 0; iMachineIndex < machines.size(); ++iMachineIndex)
     {
@@ -1680,11 +1610,8 @@ void UIGChooserModel::loadGroupTree()
     /* Add all the approved machines we have into the group-tree: */
     LogRelFlow(("UIGChooserModel: Loading VMs...\n"));
     foreach (CMachine machine, vboxGlobal().virtualBox().GetMachines())
-    {
-        const QString strMachineID = machine.GetId();
-        if (!strMachineID.isEmpty() && gEDataManager->showMachineInSelectorChooser(strMachineID))
+        if (VBoxGlobal::shouldWeShowMachine(machine))
             addMachineIntoTheTree(machine);
-    }
     LogRelFlow(("UIGChooserModel: VMs loaded.\n"));
 }
 
@@ -1776,8 +1703,10 @@ UIGChooserItem* UIGChooserModel::getGroupItem(const QString &strName, UIGChooser
 
 bool UIGChooserModel::shouldBeGroupOpened(UIGChooserItem *pParentItem, const QString &strName)
 {
+    /* Prepare extra-data key for the parent-item: */
+    QString strExtraDataKey = UIDefs::GUI_GroupDefinitions + pParentItem->fullName();
     /* Read group definitions: */
-    const QStringList definitions = gEDataManager->selectorWindowGroupsDefinitions(pParentItem->fullName());
+    QStringList definitions = vboxGlobal().virtualBox().GetExtraDataStringList(strExtraDataKey);
     /* Return 'false' if no definitions found: */
     if (definitions.isEmpty())
         return false;
@@ -1786,8 +1715,10 @@ bool UIGChooserModel::shouldBeGroupOpened(UIGChooserItem *pParentItem, const QSt
     QString strDefinitionTemplate = QString("g(\\S)*=%1").arg(strName);
     QRegExp definitionRegExp(strDefinitionTemplate);
     /* For each the group definition: */
-    foreach (const QString &strDefinition, definitions)
+    for (int i = 0; i < definitions.size(); ++i)
     {
+        /* Get current definition: */
+        const QString &strDefinition = definitions[i];
         /* Check if this is required definition: */
         if (definitionRegExp.indexIn(strDefinition) == 0)
         {
@@ -1843,8 +1774,10 @@ int UIGChooserModel::getDesiredPosition(UIGChooserItem *pParentItem, UIGChooserI
 
 int UIGChooserModel::positionFromDefinitions(UIGChooserItem *pParentItem, UIGChooserItemType type, const QString &strName)
 {
+    /* Prepare extra-data key for the parent-item: */
+    QString strExtraDataKey = UIDefs::GUI_GroupDefinitions + pParentItem->fullName();
     /* Read group definitions: */
-    const QStringList definitions = gEDataManager->selectorWindowGroupsDefinitions(pParentItem->fullName());
+    QStringList definitions = vboxGlobal().virtualBox().GetExtraDataStringList(strExtraDataKey);
     /* Return 'false' if no definitions found: */
     if (definitions.isEmpty())
         return -1;
@@ -1869,8 +1802,10 @@ int UIGChooserModel::positionFromDefinitions(UIGChooserItem *pParentItem, UIGCho
 
     /* For each the definition: */
     int iDefinitionIndex = -1;
-    foreach (const QString &strDefinition, definitions)
+    for (int i = 0; i < definitions.size(); ++i)
     {
+        /* Get current definition: */
+        QString strDefinition = definitions[i];
         /* Check if this definition is of required type: */
         if (definitionRegExpShort.indexIn(strDefinition) == 0)
         {
@@ -1948,7 +1883,7 @@ void UIGChooserModel::gatherGroupOrders(QMap<QString, QStringList> &groups,
                                         UIGChooserItem *pParentItem)
 {
     /* Prepare extra-data key for current group: */
-    const QString strExtraDataKey = pParentItem->fullName();
+    QString strExtraDataKey = UIDefs::GUI_GroupDefinitions + pParentItem->fullName();
     /* Iterate over all the group-items: */
     foreach (UIGChooserItem *pItem, pParentItem->items(UIGChooserItemType_Group))
     {
@@ -2155,11 +2090,15 @@ void UIGroupOrderSaveThread::run()
     /* COM prepare: */
     COMBase::InitializeCOM(false);
 
-    /* Clear all the extra-data records related to group definitions: */
-    gEDataManager->clearSelectorWindowGroupsDefinitions();
+    /* Clear all the extra-data records related to group-definitions: */
+    const QVector<QString> extraDataKeys = vboxGlobal().virtualBox().GetExtraDataKeys();
+    foreach (const QString &strKey, extraDataKeys)
+        if (strKey.startsWith(UIDefs::GUI_GroupDefinitions))
+            vboxGlobal().virtualBox().SetExtraData(strKey, QString());
+
     /* For every particular group definition: */
     foreach (const QString &strId, m_groups.keys())
-        gEDataManager->setSelectorWindowGroupsDefinitions(strId, m_groups[strId]);
+        vboxGlobal().virtualBox().SetExtraDataStringList(strId, m_groups[strId]);
 
     /* Notify listeners about completeness: */
     emit sigComplete();

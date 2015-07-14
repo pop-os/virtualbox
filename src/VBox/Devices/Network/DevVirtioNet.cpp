@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2015 Oracle Corporation
+ * Copyright (C) 2009-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -2142,7 +2142,7 @@ const PDMDEVREG g_DeviceVirtioNet =
     "virtio-net",
     /* Name of guest context module (no path).
      * Only evalutated if PDM_DEVREG_FLAGS_RC is set. */
-    "VBoxDDRC.rc",
+    "VBoxDDGC.gc",
     /* Name of ring-0 module (no path).
      * Only evalutated if PDM_DEVREG_FLAGS_RC is set. */
     "VBoxDDR0.r0",

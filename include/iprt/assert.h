@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -456,7 +456,7 @@ RT_C_DECLS_END
 #if defined(RTASSERT_QUIET) && !defined(DOXYGEN_RUNNING)
 # define RTAssertMsg1Weak(pszExpr, uLine, pszfile, pszFunction) \
                                 do { } while (0)
-# define RTAssertMsg2Weak       if (1) {} else RTAssertMsg2Weak
+# define RTAssertMsg2Weak       if (0) RTAssertMsg2Weak
 #endif
 
 /** @def RTAssertDoPanic
@@ -498,11 +498,9 @@ RT_C_DECLS_END
 #ifdef RT_STRICT
 # define Assert(expr)  \
     do { \
-        if (RT_LIKELY(!!(expr))) \
-        { /* likely */ } \
-        else \
+        if (RT_UNLIKELY(!(expr))) \
         { \
-            RTAssertMsg1Weak(#expr, __LINE__, __FILE__, RT_GCC_EXTENSION __PRETTY_FUNCTION__); \
+            RTAssertMsg1Weak(#expr, __LINE__, __FILE__, __PRETTY_FUNCTION__); \
             RTAssertPanic(); \
         } \
     } while (0)
@@ -520,11 +518,9 @@ RT_C_DECLS_END
 #ifdef RT_STRICT
 # define AssertStmt(expr, stmt)  \
     do { \
-        if (RT_LIKELY(!!(expr))) \
-        { /* likely */ } \
-        else \
+        if (RT_UNLIKELY(!(expr))) \
         { \
-            RTAssertMsg1Weak(#expr, __LINE__, __FILE__, RT_GCC_EXTENSION __PRETTY_FUNCTION__); \
+            RTAssertMsg1Weak(#expr, __LINE__, __FILE__, __PRETTY_FUNCTION__); \
             RTAssertPanic(); \
             stmt; \
         } \
@@ -532,9 +528,7 @@ RT_C_DECLS_END
 #else
 # define AssertStmt(expr, stmt)  \
     do { \
-        if (RT_LIKELY(!!(expr))) \
-        { /* likely */ } \
-        else \
+        if (RT_UNLIKELY(!(expr))) \
         { \
             stmt; \
         } \
@@ -552,11 +546,9 @@ RT_C_DECLS_END
 #ifdef RT_STRICT
 # define AssertReturn(expr, rc) \
     do { \
-        if (RT_LIKELY(!!(expr))) \
-        { /* likely */ } \
-        else \
+        if (RT_UNLIKELY(!(expr))) \
         { \
-            RTAssertMsg1Weak(#expr, __LINE__, __FILE__, RT_GCC_EXTENSION __PRETTY_FUNCTION__); \
+            RTAssertMsg1Weak(#expr, __LINE__, __FILE__, __PRETTY_FUNCTION__); \
             RTAssertPanic(); \
             return (rc); \
         } \
@@ -564,9 +556,7 @@ RT_C_DECLS_END
 #else
 # define AssertReturn(expr, rc) \
     do { \
-        if (RT_LIKELY(!!(expr))) \
-        { /* likely */ } \
-        else \
+        if (RT_UNLIKELY(!(expr))) \
             return (rc); \
     } while (0)
 #endif
@@ -585,9 +575,7 @@ RT_C_DECLS_END
 #ifdef RT_STRICT
 # define AssertReturnStmt(expr, stmt, rc) \
     do { \
-        if (RT_LIKELY(!!(expr))) \
-        { /* likely */ } \
-        else \
+        if (RT_UNLIKELY(!(expr))) \
         { \
             RTAssertMsg1Weak(#expr, __LINE__, __FILE__, __PRETTY_FUNCTION__); \
             RTAssertPanic(); \
@@ -598,9 +586,7 @@ RT_C_DECLS_END
 #else
 # define AssertReturnStmt(expr, stmt, rc) \
     do { \
-        if (RT_LIKELY(!!(expr))) \
-        { /* likely */ } \
-        else \
+        if (RT_UNLIKELY(!(expr))) \
         { \
             stmt; \
             return (rc); \
@@ -617,11 +603,9 @@ RT_C_DECLS_END
 #ifdef RT_STRICT
 # define AssertReturnVoid(expr) \
     do { \
-        if (RT_LIKELY(!!(expr))) \
-        { /* likely */ } \
-        else \
+        if (RT_UNLIKELY(!(expr))) \
         { \
-            RTAssertMsg1Weak(#expr, __LINE__, __FILE__, RT_GCC_EXTENSION __PRETTY_FUNCTION__); \
+            RTAssertMsg1Weak(#expr, __LINE__, __FILE__, __PRETTY_FUNCTION__); \
             RTAssertPanic(); \
             return; \
         } \
@@ -629,9 +613,7 @@ RT_C_DECLS_END
 #else
 # define AssertReturnVoid(expr) \
     do { \
-        if (RT_LIKELY(!!(expr))) \
-        { /* likely */ } \
-        else \
+        if (RT_UNLIKELY(!(expr))) \
             return; \
     } while (0)
 #endif
@@ -648,9 +630,7 @@ RT_C_DECLS_END
 #ifdef RT_STRICT
 # define AssertReturnVoidStmt(expr, stmt) \
     do { \
-        if (RT_LIKELY(!!(expr))) \
-        { /* likely */ } \
-        else \
+        if (RT_UNLIKELY(!(expr))) \
         { \
             RTAssertMsg1Weak(#expr, __LINE__, __FILE__, __PRETTY_FUNCTION__); \
             RTAssertPanic(); \
@@ -661,9 +641,7 @@ RT_C_DECLS_END
 #else
 # define AssertReturnVoidStmt(expr, stmt) \
     do { \
-        if (RT_LIKELY(!!(expr))) \
-        { /* likely */ } \
-        else \
+        if (RT_UNLIKELY(!(expr))) \
         { \
             stmt; \
             return; \
@@ -680,9 +658,7 @@ RT_C_DECLS_END
  */
 #ifdef RT_STRICT
 # define AssertBreak(expr) \
-    if (RT_LIKELY(!!(expr))) \
-    { /* likely */ } \
-    else if (1) \
+    if (RT_UNLIKELY(!(expr))) \
     { \
         RTAssertMsg1Weak(#expr, __LINE__, __FILE__, __PRETTY_FUNCTION__); \
         RTAssertPanic(); \
@@ -690,10 +666,9 @@ RT_C_DECLS_END
     } else do {} while (0)
 #else
 # define AssertBreak(expr) \
-    if (RT_LIKELY(!!(expr))) \
-    { /* likely */ } \
-    else \
-        break
+    if (RT_UNLIKELY(!(expr))) \
+        break; \
+    else do {} while (0)
 #endif
 
 /** @def AssertBreakStmt
@@ -705,10 +680,7 @@ RT_C_DECLS_END
  */
 #ifdef RT_STRICT
 # define AssertBreakStmt(expr, stmt) \
-    if (RT_LIKELY(!!(expr))) \
-    { /* likely */ } \
-    else if (1) \
-    { \
+    if (RT_UNLIKELY(!(expr))) { \
         RTAssertMsg1Weak(#expr, __LINE__, __FILE__, __PRETTY_FUNCTION__); \
         RTAssertPanic(); \
         stmt; \
@@ -716,10 +688,7 @@ RT_C_DECLS_END
     } else do {} while (0)
 #else
 # define AssertBreakStmt(expr, stmt) \
-    if (RT_LIKELY(!!(expr))) \
-    { /* likely */ } \
-    else if (1) \
-    { \
+    if (RT_UNLIKELY(!(expr))) { \
         stmt; \
         break; \
     } else do {} while (0)
@@ -734,11 +703,9 @@ RT_C_DECLS_END
 #ifdef RT_STRICT
 # define AssertMsg(expr, a)  \
     do { \
-        if (RT_LIKELY(!!(expr))) \
-        { /* likely */ } \
-        else \
+        if (RT_UNLIKELY(!(expr))) \
         { \
-            RTAssertMsg1Weak(#expr, __LINE__, __FILE__, RT_GCC_EXTENSION __PRETTY_FUNCTION__); \
+            RTAssertMsg1Weak(#expr, __LINE__, __FILE__, __PRETTY_FUNCTION__); \
             RTAssertMsg2Weak a; \
             RTAssertPanic(); \
         } \
@@ -760,9 +727,7 @@ RT_C_DECLS_END
 #ifdef RT_STRICT
 # define AssertMsgStmt(expr, a, stmt)  \
     do { \
-        if (RT_LIKELY(!!(expr))) \
-        { /* likely */ } \
-        else \
+        if (RT_UNLIKELY(!(expr))) \
         { \
             RTAssertMsg1Weak(#expr, __LINE__, __FILE__, __PRETTY_FUNCTION__); \
             RTAssertMsg2Weak a; \
@@ -773,9 +738,7 @@ RT_C_DECLS_END
 #else
 # define AssertMsgStmt(expr, a, stmt)  \
     do { \
-        if (RT_LIKELY(!!(expr))) \
-        { /* likely */ } \
-        else \
+        if (RT_UNLIKELY(!(expr))) \
         { \
             stmt; \
         } \
@@ -793,11 +756,9 @@ RT_C_DECLS_END
 #ifdef RT_STRICT
 # define AssertMsgReturn(expr, a, rc)  \
     do { \
-        if (RT_LIKELY(!!(expr))) \
-        { /* likely */ } \
-        else \
+        if (RT_UNLIKELY(!(expr))) \
         { \
-            RTAssertMsg1Weak(#expr, __LINE__, __FILE__, RT_GCC_EXTENSION __PRETTY_FUNCTION__); \
+            RTAssertMsg1Weak(#expr, __LINE__, __FILE__, __PRETTY_FUNCTION__); \
             RTAssertMsg2Weak a; \
             RTAssertPanic(); \
             return (rc); \
@@ -806,9 +767,7 @@ RT_C_DECLS_END
 #else
 # define AssertMsgReturn(expr, a, rc) \
     do { \
-        if (RT_LIKELY(!!(expr))) \
-        { /* likely */ } \
-        else \
+        if (RT_UNLIKELY(!(expr))) \
             return (rc); \
     } while (0)
 #endif
@@ -828,9 +787,7 @@ RT_C_DECLS_END
 #ifdef RT_STRICT
 # define AssertMsgReturnStmt(expr, a, stmt, rc)  \
     do { \
-        if (RT_LIKELY(!!(expr))) \
-        { /* likely */ } \
-        else \
+        if (RT_UNLIKELY(!(expr))) \
         { \
             RTAssertMsg1Weak(#expr, __LINE__, __FILE__, __PRETTY_FUNCTION__); \
             RTAssertMsg2Weak a; \
@@ -842,9 +799,7 @@ RT_C_DECLS_END
 #else
 # define AssertMsgReturnStmt(expr, a, stmt, rc) \
     do { \
-        if (RT_LIKELY(!!(expr))) \
-        { /* likely */ } \
-        else \
+        if (RT_UNLIKELY(!(expr))) \
         { \
             stmt; \
             return (rc); \
@@ -862,11 +817,9 @@ RT_C_DECLS_END
 #ifdef RT_STRICT
 # define AssertMsgReturnVoid(expr, a)  \
     do { \
-        if (RT_LIKELY(!!(expr))) \
-        { /* likely */ } \
-        else \
+        if (RT_UNLIKELY(!(expr))) \
         { \
-            RTAssertMsg1Weak(#expr, __LINE__, __FILE__, RT_GCC_EXTENSION __PRETTY_FUNCTION__); \
+            RTAssertMsg1Weak(#expr, __LINE__, __FILE__, __PRETTY_FUNCTION__); \
             RTAssertMsg2Weak a; \
             RTAssertPanic(); \
             return; \
@@ -875,9 +828,7 @@ RT_C_DECLS_END
 #else
 # define AssertMsgReturnVoid(expr, a) \
     do { \
-        if (RT_LIKELY(!!(expr))) \
-        { /* likely */ } \
-        else \
+        if (RT_UNLIKELY(!(expr))) \
             return; \
     } while (0)
 #endif
@@ -890,14 +841,12 @@ RT_C_DECLS_END
  *
  * @param   expr    Expression which should be true.
  * @param   a       printf argument list (in parenthesis).
- * @param   stmt    Statement to execute before return in case of a failed assertion.
+ * @param   stmt    Statement to execute before break in case of a failed assertion.
  */
 #ifdef RT_STRICT
 # define AssertMsgReturnVoidStmt(expr, a, stmt)  \
     do { \
-        if (RT_LIKELY(!!(expr))) \
-        { /* likely */ } \
-        else \
+        if (RT_UNLIKELY(!(expr))) \
         { \
             RTAssertMsg1Weak(#expr, __LINE__, __FILE__, __PRETTY_FUNCTION__); \
             RTAssertMsg2Weak a; \
@@ -909,9 +858,7 @@ RT_C_DECLS_END
 #else
 # define AssertMsgReturnVoidStmt(expr, a, stmt) \
     do { \
-        if (RT_LIKELY(!!(expr))) \
-        { /* likely */ } \
-        else \
+        if (RT_UNLIKELY(!(expr))) \
         { \
             stmt; \
             return; \
@@ -928,10 +875,8 @@ RT_C_DECLS_END
  * @param   a       printf argument list (in parenthesis).
  */
 #ifdef RT_STRICT
-# define AssertMsgBreak(expr, a) \
-    if (RT_LIKELY(!!(expr))) \
-    { /* likely */ } \
-    else if (1) \
+# define AssertMsgBreak(expr, a)  \
+    if (RT_UNLIKELY(!(expr))) \
     { \
         RTAssertMsg1Weak(#expr, __LINE__, __FILE__, __PRETTY_FUNCTION__); \
         RTAssertMsg2Weak a; \
@@ -940,10 +885,9 @@ RT_C_DECLS_END
     } else do {} while (0)
 #else
 # define AssertMsgBreak(expr, a) \
-    if (RT_LIKELY(!!(expr))) \
-    { /* likely */ } \
-    else \
-        break
+    if (RT_UNLIKELY(!(expr))) \
+        break; \
+    else do {} while (0)
 #endif
 
 /** @def AssertMsgBreakStmt
@@ -956,10 +900,7 @@ RT_C_DECLS_END
  */
 #ifdef RT_STRICT
 # define AssertMsgBreakStmt(expr, a, stmt) \
-    if (RT_LIKELY(!!(expr))) \
-    { /* likely */ } \
-    else if (1) \
-    { \
+    if (RT_UNLIKELY(!(expr))) { \
         RTAssertMsg1Weak(#expr, __LINE__, __FILE__, __PRETTY_FUNCTION__); \
         RTAssertMsg2Weak a; \
         RTAssertPanic(); \
@@ -968,10 +909,7 @@ RT_C_DECLS_END
     } else do {} while (0)
 #else
 # define AssertMsgBreakStmt(expr, a, stmt) \
-    if (RT_LIKELY(!!(expr))) \
-    { /* likely */ } \
-    else if (1) \
-    { \
+    if (RT_UNLIKELY(!(expr))) { \
         stmt; \
         break; \
     } else do {} while (0)
@@ -983,7 +921,7 @@ RT_C_DECLS_END
 #ifdef RT_STRICT
 # define AssertFailed()  \
     do { \
-        RTAssertMsg1Weak((const char *)0, __LINE__, __FILE__, RT_GCC_EXTENSION __PRETTY_FUNCTION__); \
+        RTAssertMsg1Weak((const char *)0, __LINE__, __FILE__, __PRETTY_FUNCTION__); \
         RTAssertPanic(); \
     } while (0)
 #else
@@ -1120,7 +1058,7 @@ RT_C_DECLS_END
 #ifdef RT_STRICT
 # define AssertMsgFailed(a)  \
     do { \
-        RTAssertMsg1Weak((const char *)0, __LINE__, __FILE__, RT_GCC_EXTENSION __PRETTY_FUNCTION__); \
+        RTAssertMsg1Weak((const char *)0, __LINE__, __FILE__, __PRETTY_FUNCTION__); \
         RTAssertMsg2Weak a; \
         RTAssertPanic(); \
     } while (0)
@@ -1257,9 +1195,7 @@ RT_C_DECLS_END
  */
 #define AssertLogRel(expr) \
     do { \
-        if (RT_LIKELY(!!(expr))) \
-        { /* likely */ } \
-        else \
+        if (RT_UNLIKELY(!(expr))) \
         { \
             RTAssertLogRelMsg1(#expr, __LINE__, __FILE__, __PRETTY_FUNCTION__); \
             RTAssertPanic(); \
@@ -1275,9 +1211,7 @@ RT_C_DECLS_END
  */
 #define AssertLogRelReturn(expr, rc) \
     do { \
-        if (RT_LIKELY(!!(expr))) \
-        { /* likely */ } \
-        else \
+        if (RT_UNLIKELY(!(expr))) \
         { \
             RTAssertLogRelMsg1(#expr, __LINE__, __FILE__, __PRETTY_FUNCTION__); \
             RTAssertPanic(); \
@@ -1293,9 +1227,7 @@ RT_C_DECLS_END
  */
 #define AssertLogRelReturnVoid(expr) \
     do { \
-        if (RT_LIKELY(!!(expr))) \
-        { /* likely */ } \
-        else \
+        if (RT_UNLIKELY(!(expr))) \
         { \
             RTAssertLogRelMsg1(#expr, __LINE__, __FILE__, __PRETTY_FUNCTION__); \
             RTAssertPanic(); \
@@ -1310,9 +1242,7 @@ RT_C_DECLS_END
  * @param   expr    Expression which should be true.
  */
 #define AssertLogRelBreak(expr) \
-    if (RT_LIKELY(!!(expr))) \
-    { /* likely */ } \
-    else if (1) \
+    if (RT_UNLIKELY(!(expr))) \
     { \
         RTAssertLogRelMsg1(#expr, __LINE__, __FILE__, __PRETTY_FUNCTION__); \
         RTAssertPanic(); \
@@ -1328,9 +1258,7 @@ RT_C_DECLS_END
  * @param   stmt    Statement to execute before break in case of a failed assertion.
  */
 #define AssertLogRelBreakStmt(expr, stmt) \
-    if (RT_LIKELY(!!(expr))) \
-    { /* likely */ } \
-    else if (1) \
+    if (RT_UNLIKELY(!(expr))) \
     { \
         RTAssertLogRelMsg1(#expr, __LINE__, __FILE__, __PRETTY_FUNCTION__); \
         RTAssertPanic(); \
@@ -1347,9 +1275,7 @@ RT_C_DECLS_END
  */
 #define AssertLogRelMsg(expr, a) \
     do { \
-        if (RT_LIKELY(!!(expr))) \
-        { /* likely */ } \
-        else\
+        if (RT_UNLIKELY(!(expr))) \
         { \
             RTAssertLogRelMsg1(#expr, __LINE__, __FILE__, __PRETTY_FUNCTION__); \
             RTAssertLogRelMsg2(a); \
@@ -1367,9 +1293,7 @@ RT_C_DECLS_END
  */
 #define AssertLogRelMsgStmt(expr, a, stmt) \
     do { \
-        if (RT_LIKELY(!!(expr))) \
-        { /* likely */ } \
-        else\
+        if (RT_UNLIKELY(!(expr))) \
         { \
             RTAssertLogRelMsg1(#expr, __LINE__, __FILE__, __PRETTY_FUNCTION__); \
             RTAssertLogRelMsg2(a); \
@@ -1388,11 +1312,9 @@ RT_C_DECLS_END
  */
 #define AssertLogRelMsgReturn(expr, a, rc) \
     do { \
-        if (RT_LIKELY(!!(expr))) \
-        { /* likely */ } \
-        else\
+        if (RT_UNLIKELY(!(expr))) \
         { \
-            RTAssertLogRelMsg1(#expr, __LINE__, __FILE__, __PRETTY_FUNCTION__); \
+            RTAssertLogRelMsg1(#expr, __LINE__, __FILE__, RT_GCC_EXTENSION __PRETTY_FUNCTION__); \
             RTAssertLogRelMsg2(a); \
             RTAssertPanic(); \
             return (rc); \
@@ -1412,9 +1334,7 @@ RT_C_DECLS_END
  */
 #define AssertLogRelMsgReturnStmt(expr, a, stmt, rcRet) \
     do { \
-        if (RT_LIKELY(!!(expr))) \
-        { /* likely */ } \
-        else\
+        if (RT_UNLIKELY(!(expr))) \
         { \
             RTAssertLogRelMsg1(#expr, __LINE__, __FILE__, __PRETTY_FUNCTION__); \
             RTAssertLogRelMsg2(a); \
@@ -1433,9 +1353,7 @@ RT_C_DECLS_END
  */
 #define AssertLogRelMsgReturnVoid(expr, a) \
     do { \
-        if (RT_LIKELY(!!(expr))) \
-        { /* likely */ } \
-        else\
+        if (RT_UNLIKELY(!(expr))) \
         { \
             RTAssertLogRelMsg1(#expr, __LINE__, __FILE__, __PRETTY_FUNCTION__); \
             RTAssertLogRelMsg2(a); \
@@ -1452,9 +1370,7 @@ RT_C_DECLS_END
  * @param   a       printf argument list (in parenthesis).
  */
 #define AssertLogRelMsgBreak(expr, a) \
-    if (RT_LIKELY(!!(expr))) \
-    { /* likely */ } \
-    else if (1) \
+    if (RT_UNLIKELY(!(expr))) \
     { \
         RTAssertLogRelMsg1(#expr, __LINE__, __FILE__, __PRETTY_FUNCTION__); \
         RTAssertLogRelMsg2(a); \
@@ -1472,9 +1388,7 @@ RT_C_DECLS_END
  * @param   stmt    Statement to execute before break in case of a failed assertion.
  */
 #define AssertLogRelMsgBreakStmt(expr, a, stmt) \
-    if (RT_LIKELY(!!(expr))) \
-    { /* likely */ } \
-    else if (1) \
+    if (RT_UNLIKELY(!(expr))) \
     { \
         RTAssertLogRelMsg1(#expr, __LINE__, __FILE__, __PRETTY_FUNCTION__); \
         RTAssertLogRelMsg2(a); \
@@ -1697,9 +1611,7 @@ RT_C_DECLS_END
  */
 #define AssertRelease(expr)  \
     do { \
-        if (RT_LIKELY(!!(expr))) \
-        { /* likely */ } \
-        else \
+        if (RT_UNLIKELY(!(expr))) \
         { \
             RTAssertMsg1Weak(#expr, __LINE__, __FILE__, RT_GCC_EXTENSION __PRETTY_FUNCTION__); \
             RTAssertReleasePanic(); \
@@ -1714,9 +1626,7 @@ RT_C_DECLS_END
  */
 #define AssertReleaseReturn(expr, rc)  \
     do { \
-        if (RT_LIKELY(!!(expr))) \
-        { /* likely */ } \
-        else \
+        if (RT_UNLIKELY(!(expr))) \
         { \
             RTAssertMsg1Weak(#expr, __LINE__, __FILE__, __PRETTY_FUNCTION__); \
             RTAssertReleasePanic(); \
@@ -1731,9 +1641,7 @@ RT_C_DECLS_END
  */
 #define AssertReleaseReturnVoid(expr)  \
     do { \
-        if (RT_LIKELY(!!(expr))) \
-        { /* likely */ } \
-        else \
+        if (RT_UNLIKELY(!(expr))) \
         { \
             RTAssertMsg1Weak(#expr, __LINE__, __FILE__, __PRETTY_FUNCTION__); \
             RTAssertReleasePanic(); \
@@ -1748,13 +1656,13 @@ RT_C_DECLS_END
  * @param   expr    Expression which should be true.
  */
 #define AssertReleaseBreak(expr)  \
-    if (RT_LIKELY(!!(expr))) \
-    { /* likely */ } \
-    else if (1) \
-    { \
-        RTAssertMsg1Weak(#expr, __LINE__, __FILE__, __PRETTY_FUNCTION__); \
-        RTAssertReleasePanic(); \
-        break; \
+    if { \
+        if (RT_UNLIKELY(!(expr))) \
+        { \
+            RTAssertMsg1Weak(#expr, __LINE__, __FILE__, __PRETTY_FUNCTION__); \
+            RTAssertReleasePanic(); \
+            break; \
+        } \
     } else do {} while (0)
 
 /** @def AssertReleaseBreakStmt
@@ -1764,9 +1672,7 @@ RT_C_DECLS_END
  * @param   stmt    Statement to execute before break in case of a failed assertion.
  */
 #define AssertReleaseBreakStmt(expr, stmt)  \
-    if (RT_LIKELY(!!(expr))) \
-    { /* likely */ } \
-    else if (1) \
+    if (RT_UNLIKELY(!(expr))) \
     { \
         RTAssertMsg1Weak(#expr, __LINE__, __FILE__, __PRETTY_FUNCTION__); \
         RTAssertReleasePanic(); \
@@ -1783,9 +1689,7 @@ RT_C_DECLS_END
  */
 #define AssertReleaseMsg(expr, a)  \
     do { \
-        if (RT_LIKELY(!!(expr))) \
-        { /* likely */ } \
-        else \
+        if (RT_UNLIKELY(!(expr))) \
         { \
             RTAssertMsg1Weak(#expr, __LINE__, __FILE__, __PRETTY_FUNCTION__); \
             RTAssertMsg2Weak a; \
@@ -1802,9 +1706,7 @@ RT_C_DECLS_END
  */
 #define AssertReleaseMsgReturn(expr, a, rc)  \
     do { \
-        if (RT_LIKELY(!!(expr))) \
-        { /* likely */ } \
-        else \
+        if (RT_UNLIKELY(!(expr))) \
         { \
             RTAssertMsg1Weak(#expr, __LINE__, __FILE__, __PRETTY_FUNCTION__); \
             RTAssertMsg2Weak a; \
@@ -1821,9 +1723,7 @@ RT_C_DECLS_END
  */
 #define AssertReleaseMsgReturnVoid(expr, a)  \
     do { \
-        if (RT_LIKELY(!!(expr))) \
-        { /* likely */ } \
-        else \
+        if (RT_UNLIKELY(!(expr))) \
         { \
             RTAssertMsg1Weak(#expr, __LINE__, __FILE__, __PRETTY_FUNCTION__); \
             RTAssertMsg2Weak a; \
@@ -1840,9 +1740,7 @@ RT_C_DECLS_END
  * @param   a       printf argument list (in parenthesis).
  */
 #define AssertReleaseMsgBreak(expr, a)  \
-    if (RT_LIKELY(!!(expr))) \
-    { /* likely */ } \
-    else if (1) \
+    if (RT_UNLIKELY(!(expr))) \
     { \
         RTAssertMsg1Weak(#expr, __LINE__, __FILE__, __PRETTY_FUNCTION__); \
         RTAssertMsg2Weak a; \
@@ -1858,10 +1756,7 @@ RT_C_DECLS_END
  * @param   stmt    Statement to execute before break in case of a failed assertion.
  */
 #define AssertReleaseMsgBreakStmt(expr, a, stmt)  \
-    if (RT_LIKELY(!!(expr))) \
-    { /* likely */ } \
-    else if (1) \
-    { \
+    if (RT_UNLIKELY(!(expr))) { \
         RTAssertMsg1Weak(#expr, __LINE__, __FILE__, __PRETTY_FUNCTION__); \
         RTAssertMsg2Weak a; \
         RTAssertReleasePanic(); \
@@ -2012,9 +1907,7 @@ RT_C_DECLS_END
  */
 #define AssertFatal(expr)  \
     do { \
-        if (RT_LIKELY(!!(expr))) \
-        { /* likely */ } \
-        else \
+        if (RT_UNLIKELY(!(expr))) \
             for (;;) \
             { \
                 RTAssertMsg1Weak(#expr, __LINE__, __FILE__, __PRETTY_FUNCTION__); \
@@ -2030,9 +1923,7 @@ RT_C_DECLS_END
  */
 #define AssertFatalMsg(expr, a)  \
     do { \
-        if (RT_LIKELY(!!(expr))) \
-        { /* likely */ } \
-        else \
+        if (RT_UNLIKELY(!(expr))) \
             for (;;) \
             { \
                 RTAssertMsg1Weak(#expr, __LINE__, __FILE__, __PRETTY_FUNCTION__); \

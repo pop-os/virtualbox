@@ -1,10 +1,10 @@
 /* $Id: VMMRCDeps.cpp $ */
 /** @file
- * VMMRC Runtime Dependencies.
+ * VMMGC Runtime Dependencies.
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -25,7 +25,7 @@ extern uint64_t __umoddi3(uint64_t, uint64_t);
 RT_C_DECLS_END
 #endif // RT_OS_SOLARIS || RT_OS_FREEBSD
 
-PFNRT g_VMMRCDeps[] =
+PFNRT g_VMMGCDeps[] =
 {
     (PFNRT)memset,
     (PFNRT)memcpy,

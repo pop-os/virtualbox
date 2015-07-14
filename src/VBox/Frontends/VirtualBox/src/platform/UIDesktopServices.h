@@ -1,6 +1,7 @@
-/* $Id: UIDesktopServices.h $ */
 /** @file
- * VBox Qt GUI - Desktop Services..
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * Desktop Services.
  */
 
 /*

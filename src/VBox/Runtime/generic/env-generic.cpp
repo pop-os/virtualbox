@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -88,8 +88,6 @@ typedef struct RTENVINTERNAL
 {
     /** Magic value . */
     uint32_t    u32Magic;
-    /** Set if this is a record of environment changes, putenv style. */
-    bool        fPutEnvBlock;
     /** Number of variables in the array.
      * This does not include the terminating NULL entry. */
     size_t      cVars;
@@ -97,10 +95,7 @@ typedef struct RTENVINTERNAL
      * This includes space for the terminating NULL element (for compatibility
      * with the C library), so that c <= cCapacity - 1. */
     size_t      cAllocated;
-    /** Array of environment variables.
-     * These are always in "NAME=VALUE" form, where the value can be empty. If
-     * fPutEnvBlock is set though, there will be "NAME" entries too for variables
-     * that need to be removed when merged with another environment block. */
+    /** Array of environment variables. */
     char      **papszEnv;
     /** Array of environment variables in the process CP.
      * This get (re-)constructed when RTEnvGetExecEnvP method is called. */
@@ -136,12 +131,8 @@ static const char * const *rtEnvDefault(void)
  * @param   cAllocated      The initial array size.
  * @param   fCaseSensitive  Whether the environment block is case sensitive or
  *                          not.
- * @param   fPutEnvBlock    Indicates whether this is a special environment
- *                          block that will be used to record change another
- *                          block.  We will keep unsets in putenv format, i.e.
- *                          just the variable name without any equal sign.
  */
-static int rtEnvCreate(PRTENVINTERNAL *ppIntEnv, size_t cAllocated, bool fCaseSensitive, bool fPutEnvBlock)
+static int rtEnvCreate(PRTENVINTERNAL *ppIntEnv, size_t cAllocated, bool fCaseSensitive)
 {
     /*
      * Allocate environment handle.
@@ -153,7 +144,6 @@ static int rtEnvCreate(PRTENVINTERNAL *ppIntEnv, size_t cAllocated, bool fCaseSe
          * Pre-allocate the variable array.
          */
         pIntEnv->u32Magic = RTENV_MAGIC;
-        pIntEnv->fPutEnvBlock = fPutEnvBlock;
         pIntEnv->pfnCompare = fCaseSensitive ? RTStrNCmp : RTStrNICmp;
         pIntEnv->papszEnvOtherCP = NULL;
         pIntEnv->cVars = 0;
@@ -175,7 +165,7 @@ static int rtEnvCreate(PRTENVINTERNAL *ppIntEnv, size_t cAllocated, bool fCaseSe
 RTDECL(int) RTEnvCreate(PRTENV pEnv)
 {
     AssertPtrReturn(pEnv, VERR_INVALID_POINTER);
-    return rtEnvCreate(pEnv, RTENV_GROW_SIZE, true /*fCaseSensitive*/, false /*fPutEnvBlock*/);
+    return rtEnvCreate(pEnv, RTENV_GROW_SIZE, false /*fCaseSensitive*/);
 }
 RT_EXPORT_SYMBOL(RTEnvCreate);
 
@@ -230,7 +220,6 @@ RTDECL(int) RTEnvClone(PRTENV pEnv, RTENV EnvToClone)
      * Validate input and figure out how many variable to clone and where to get them.
      */
     bool fCaseSensitive = true;
-    bool fPutEnvBlock   = false;
     size_t cVars;
     const char * const *papszEnv;
 #ifdef RTENV_HAVE_WENVIRON
@@ -244,7 +233,7 @@ RTDECL(int) RTEnvClone(PRTENV pEnv, RTENV EnvToClone)
         pIntEnvToClone = NULL;
 #ifdef RTENV_HAVE_WENVIRON
         papszEnv  = NULL;
-        papwszEnv = (PCRTUTF16 * const)_wenviron;
+        papwszEnv = (PCRTUTF16 * const )_wenviron;
         if (!papwszEnv)
         {
             _wgetenv(L"Path"); /* Force the CRT to initalize it. */
@@ -273,7 +262,6 @@ RTDECL(int) RTEnvClone(PRTENV pEnv, RTENV EnvToClone)
         AssertReturn(pIntEnvToClone->u32Magic == RTENV_MAGIC, VERR_INVALID_HANDLE);
         RTENV_LOCK(pIntEnvToClone);
 
-        fPutEnvBlock = pIntEnvToClone->fPutEnvBlock;
         papszEnv = pIntEnvToClone->papszEnv;
         cVars = pIntEnvToClone->cVars;
     }
@@ -282,7 +270,7 @@ RTDECL(int) RTEnvClone(PRTENV pEnv, RTENV EnvToClone)
      * Create the duplicate.
      */
     PRTENVINTERNAL pIntEnv;
-    int rc = rtEnvCreate(&pIntEnv, cVars + 1 /* NULL */, fCaseSensitive, fPutEnvBlock);
+    int rc = rtEnvCreate(&pIntEnv, cVars + 1 /* NULL */, fCaseSensitive);
     if (RT_SUCCESS(rc))
     {
         pIntEnv->cVars = cVars;
@@ -299,25 +287,15 @@ RTDECL(int) RTEnvClone(PRTENV pEnv, RTENV EnvToClone)
                 int rc2 = RTStrCurrentCPToUtf8(&pIntEnv->papszEnv[iDst], papszEnv[iSrc]);
 #endif
                 if (RT_SUCCESS(rc2))
-                {
-                    /* Make sure it contains an '='. */
                     iDst++;
-                    if (strchr(pIntEnv->papszEnv[iDst - 1], '='))
-                        continue;
-                    rc2 = RTStrAAppend(&pIntEnv->papszEnv[iDst - 1], "=");
-                    if (RT_SUCCESS(rc2))
-                        continue;
-                }
                 else if (rc2 == VERR_NO_TRANSLATION)
-                {
                     rc = VWRN_ENV_NOT_FULLY_TRANSLATED;
-                    continue;
+                else
+                {
+                    pIntEnv->cVars = iDst;
+                    RTEnvDestroy(pIntEnv);
+                    return rc2;
                 }
-
-                /* failed fatally. */
-                pIntEnv->cVars = iDst;
-                RTEnvDestroy(pIntEnv);
-                return rc2;
             }
             pIntEnv->cVars = iDst;
         }
@@ -349,28 +327,6 @@ RTDECL(int) RTEnvClone(PRTENV pEnv, RTENV EnvToClone)
 RT_EXPORT_SYMBOL(RTEnvClone);
 
 
-RTDECL(int) RTEnvReset(RTENV hEnv)
-{
-    PRTENVINTERNAL pIntEnv = hEnv;
-    AssertPtrReturn(pIntEnv, VERR_INVALID_HANDLE);
-    AssertReturn(pIntEnv->u32Magic == RTENV_MAGIC, VERR_INVALID_HANDLE);
-
-    RTENV_LOCK(pIntEnv);
-
-    size_t iVar = pIntEnv->cVars;
-    pIntEnv->cVars = 0;
-    while (iVar-- > 0)
-    {
-        RTMemFree(pIntEnv->papszEnv[iVar]);
-        pIntEnv->papszEnv[iVar] = NULL;
-    }
-
-    RTENV_UNLOCK(pIntEnv);
-    return VINF_SUCCESS;
-}
-RT_EXPORT_SYMBOL(RTEnvReset);
-
-
 RTDECL(int) RTEnvPutEx(RTENV Env, const char *pszVarEqualValue)
 {
     int rc;
@@ -399,53 +355,11 @@ RTDECL(int) RTEnvPutEx(RTENV Env, const char *pszVarEqualValue)
 RT_EXPORT_SYMBOL(RTEnvPutEx);
 
 
-/**
- * Appends an already allocated string to papszEnv.
- *
- * @returns IPRT status code
- * @param   pIntEnv             The environment block to append it to.
- * @param   pszEntry            The string to add.  Already duplicated, caller
- *                              does error cleanup.
- */
-static int rtEnvIntAppend(PRTENVINTERNAL pIntEnv, char *pszEntry)
-{
-    /*
-     * Do we need to resize the array?
-     */
-    int rc = VINF_SUCCESS;
-    size_t iVar = pIntEnv->cVars;
-    if (iVar + 2 > pIntEnv->cAllocated)
-    {
-        void *pvNew = RTMemRealloc(pIntEnv->papszEnv, sizeof(char *) * (pIntEnv->cAllocated + RTENV_GROW_SIZE));
-        if (!pvNew)
-            rc = VERR_NO_MEMORY;
-        else
-        {
-            pIntEnv->papszEnv = (char **)pvNew;
-            pIntEnv->cAllocated += RTENV_GROW_SIZE;
-            for (size_t iNewVar = pIntEnv->cVars; iNewVar < pIntEnv->cAllocated; iNewVar++)
-                pIntEnv->papszEnv[iNewVar] = NULL;
-        }
-    }
-    if (RT_SUCCESS(rc))
-    {
-        /*
-         * Append it.
-         */
-        pIntEnv->papszEnv[iVar] = pszEntry;
-        pIntEnv->papszEnv[iVar + 1] = NULL; /* this isn't really necessary, but doesn't hurt. */
-        pIntEnv->cVars = iVar + 1;
-    }
-    return rc;
-}
-
-
 RTDECL(int) RTEnvSetEx(RTENV Env, const char *pszVar, const char *pszValue)
 {
     AssertPtrReturn(pszVar, VERR_INVALID_POINTER);
     AssertReturn(*pszVar, VERR_INVALID_PARAMETER);
     AssertPtrReturn(pszValue, VERR_INVALID_POINTER);
-    AssertReturn(strchr(pszVar, '=') == NULL, VERR_ENV_INVALID_VAR_NAME);
 
     int rc;
     if (Env == RTENV_DEFAULT)
@@ -500,8 +414,7 @@ RTDECL(int) RTEnvSetEx(RTENV Env, const char *pszVar, const char *pszValue)
             size_t iVar;
             for (iVar = 0; iVar < pIntEnv->cVars; iVar++)
                 if (    !pIntEnv->pfnCompare(pIntEnv->papszEnv[iVar], pszVar, cchVar)
-                    &&  (   pIntEnv->papszEnv[iVar][cchVar] == '='
-                         || pIntEnv->papszEnv[iVar][cchVar] == '\0') )
+                    &&  pIntEnv->papszEnv[iVar][cchVar] == '=')
                     break;
             if (iVar < pIntEnv->cVars)
             {
@@ -514,10 +427,29 @@ RTDECL(int) RTEnvSetEx(RTENV Env, const char *pszVar, const char *pszValue)
             else
             {
                 /*
-                 * New variable, append it.
+                 * Adding a new variable. Resize the array if required
+                 * and then insert the new value at the end.
                  */
-                Assert(pIntEnv->cVars == iVar);
-                rc = rtEnvIntAppend(pIntEnv, pszEntry);
+                if (pIntEnv->cVars + 2 > pIntEnv->cAllocated)
+                {
+                    void *pvNew = RTMemRealloc(pIntEnv->papszEnv, sizeof(char *) * (pIntEnv->cAllocated + RTENV_GROW_SIZE));
+                    if (!pvNew)
+                        rc = VERR_NO_MEMORY;
+                    else
+                    {
+                        pIntEnv->papszEnv = (char **)pvNew;
+                        pIntEnv->cAllocated += RTENV_GROW_SIZE;
+                        for (size_t iNewVar = pIntEnv->cVars; iNewVar < pIntEnv->cAllocated; iNewVar++)
+                            pIntEnv->papszEnv[iNewVar] = NULL;
+                    }
+                }
+                if (RT_SUCCESS(rc))
+                {
+                    pIntEnv->papszEnv[iVar] = pszEntry;
+                    pIntEnv->papszEnv[iVar + 1] = NULL; /* this isn't really necessary, but doesn't hurt. */
+                    pIntEnv->cVars++;
+                    Assert(pIntEnv->cVars == iVar + 1);
+                }
             }
 
             RTENV_UNLOCK(pIntEnv);
@@ -537,7 +469,6 @@ RTDECL(int) RTEnvUnsetEx(RTENV Env, const char *pszVar)
 {
     AssertPtrReturn(pszVar, VERR_INVALID_POINTER);
     AssertReturn(*pszVar, VERR_INVALID_PARAMETER);
-    AssertReturn(strchr(pszVar, '=') == NULL, VERR_ENV_INVALID_VAR_NAME);
 
     int rc;
     if (Env == RTENV_DEFAULT)
@@ -575,43 +506,16 @@ RTDECL(int) RTEnvUnsetEx(RTENV Env, const char *pszVar)
         size_t iVar;
         for (iVar = 0; iVar < pIntEnv->cVars; iVar++)
             if (    !pIntEnv->pfnCompare(pIntEnv->papszEnv[iVar], pszVar, cchVar)
-                &&  (   pIntEnv->papszEnv[iVar][cchVar] == '='
-                     || pIntEnv->papszEnv[iVar][cchVar] == '\0') )
+                &&  pIntEnv->papszEnv[iVar][cchVar] == '=')
             {
-                if (!pIntEnv->fPutEnvBlock)
-                {
-                    RTMemFree(pIntEnv->papszEnv[iVar]);
-                    pIntEnv->cVars--;
-                    if (pIntEnv->cVars > 0)
-                        pIntEnv->papszEnv[iVar] = pIntEnv->papszEnv[pIntEnv->cVars];
-                    pIntEnv->papszEnv[pIntEnv->cVars] = NULL;
-                }
-                else
-                {
-                    /* Record this unset by keeping the variable without any equal sign. */
-                    pIntEnv->papszEnv[iVar][cchVar] = '\0';
-                }
+                RTMemFree(pIntEnv->papszEnv[iVar]);
+                pIntEnv->cVars--;
+                if (pIntEnv->cVars > 0)
+                    pIntEnv->papszEnv[iVar] = pIntEnv->papszEnv[pIntEnv->cVars];
+                pIntEnv->papszEnv[pIntEnv->cVars] = NULL;
                 rc = VINF_SUCCESS;
                 /* no break, there could be more. */
             }
-
-        /*
-         * If this is a change record, we may need to add it.
-         */
-        if (rc == VINF_ENV_VAR_NOT_FOUND && pIntEnv->fPutEnvBlock)
-        {
-            char *pszEntry = (char *)RTMemDup(pszVar, cchVar + 1);
-            if (pszEntry)
-            {
-                rc = rtEnvIntAppend(pIntEnv, pszEntry);
-                if (RT_SUCCESS(rc))
-                    rc = VINF_ENV_VAR_NOT_FOUND;
-                else
-                    RTMemFree(pszEntry);
-            }
-            else
-                rc = VERR_NO_MEMORY;
-        }
 
         RTENV_UNLOCK(pIntEnv);
     }
@@ -627,7 +531,6 @@ RTDECL(int) RTEnvGetEx(RTENV Env, const char *pszVar, char *pszValue, size_t cbV
     AssertPtrNullReturn(pszValue, VERR_INVALID_POINTER);
     AssertPtrNullReturn(pcchActual, VERR_INVALID_POINTER);
     AssertReturn(pcchActual || (pszValue && cbValue), VERR_INVALID_PARAMETER);
-    AssertReturn(strchr(pszVar, '=') == NULL, VERR_ENV_INVALID_VAR_NAME);
 
     if (pcchActual)
         *pcchActual = 0;
@@ -688,30 +591,22 @@ RTDECL(int) RTEnvGetEx(RTENV Env, const char *pszVar, char *pszValue, size_t cbV
         const size_t cchVar = strlen(pszVar);
         size_t iVar;
         for (iVar = 0; iVar < pIntEnv->cVars; iVar++)
-            if (!pIntEnv->pfnCompare(pIntEnv->papszEnv[iVar], pszVar, cchVar))
+            if (    !pIntEnv->pfnCompare(pIntEnv->papszEnv[iVar], pszVar, cchVar)
+                &&  pIntEnv->papszEnv[iVar][cchVar] == '=')
             {
-                if (pIntEnv->papszEnv[iVar][cchVar] == '=')
+                rc = VINF_SUCCESS;
+                const char *pszValueOrg = pIntEnv->papszEnv[iVar] + cchVar + 1;
+                size_t cch = strlen(pszValueOrg);
+                if (pcchActual)
+                    *pcchActual = cch;
+                if (pszValue && cbValue)
                 {
-                    rc = VINF_SUCCESS;
-                    const char *pszValueOrg = pIntEnv->papszEnv[iVar] + cchVar + 1;
-                    size_t cch = strlen(pszValueOrg);
-                    if (pcchActual)
-                        *pcchActual = cch;
-                    if (pszValue && cbValue)
-                    {
-                        if (cch < cbValue)
-                            memcpy(pszValue, pszValueOrg, cch + 1);
-                        else
-                            rc = VERR_BUFFER_OVERFLOW;
-                    }
-                    break;
+                    if (cch < cbValue)
+                        memcpy(pszValue, pszValueOrg, cch + 1);
+                    else
+                        rc = VERR_BUFFER_OVERFLOW;
                 }
-                if (pIntEnv->papszEnv[iVar][cchVar] == '\0')
-                {
-                    Assert(pIntEnv->fPutEnvBlock);
-                    rc = VERR_ENV_VAR_UNSET;
-                    break;
-                }
+                break;
             }
 
         RTENV_UNLOCK(pIntEnv);
@@ -758,15 +653,11 @@ RTDECL(bool) RTEnvExistEx(RTENV Env, const char *pszVar)
          */
         const size_t cchVar = strlen(pszVar);
         for (size_t iVar = 0; iVar < pIntEnv->cVars; iVar++)
-            if (!pIntEnv->pfnCompare(pIntEnv->papszEnv[iVar], pszVar, cchVar))
+            if (    !pIntEnv->pfnCompare(pIntEnv->papszEnv[iVar], pszVar, cchVar)
+                &&  pIntEnv->papszEnv[iVar][cchVar] == '=')
             {
-                if (pIntEnv->papszEnv[iVar][cchVar] == '=')
-                {
-                    fExists = true;
-                    break;
-                }
-                if (pIntEnv->papszEnv[iVar][cchVar] == '\0')
-                    break;
+                fExists = true;
+                break;
             }
 
         RTENV_UNLOCK(pIntEnv);
@@ -848,7 +739,7 @@ RT_EXPORT_SYMBOL(RTEnvGetExecEnvP);
  * @param   pvElement2          Variable 2.
  * @param   pvUser              Ignored.
  */
-static DECLCALLBACK(int) rtEnvSortCompare(const void *pvElement1, const void *pvElement2, void *pvUser)
+DECLCALLBACK(int) rtEnvSortCompare(const void *pvElement1, const void *pvElement2, void *pvUser)
 {
     NOREF(pvUser);
     int iDiff = strcmp((const char *)pvElement1, (const char *)pvElement2);
@@ -946,7 +837,7 @@ RTDECL(int) RTEnvQueryUtf16Block(RTENV hEnv, PRTUTF16 *ppwszzBlock)
         *ppwszzBlock = pwszzBlock;
     return rc;
 }
-RT_EXPORT_SYMBOL(RTEnvQueryUtf16Block);
+RT_EXPORT_SYMBOL(RTEnvGetExecEnvP);
 
 
 RTDECL(void) RTEnvFreeUtf16Block(PRTUTF16 pwszzBlock)
@@ -954,222 +845,4 @@ RTDECL(void) RTEnvFreeUtf16Block(PRTUTF16 pwszzBlock)
     RTMemFree(pwszzBlock);
 }
 RT_EXPORT_SYMBOL(RTEnvFreeUtf16Block);
-
-
-RTDECL(int) RTEnvQueryUtf8Block(RTENV hEnv, bool fSorted, char **ppszzBlock, size_t *pcbBlock)
-{
-    RTENV           hClone  = NIL_RTENV;
-    PRTENVINTERNAL  pIntEnv;
-    int             rc;
-
-    /*
-     * Validate / simplify input.
-     */
-    if (hEnv == RTENV_DEFAULT)
-    {
-        rc = RTEnvClone(&hClone, RTENV_DEFAULT);
-        if (RT_FAILURE(rc))
-            return rc;
-        pIntEnv = hClone;
-    }
-    else
-    {
-        pIntEnv = hEnv;
-        AssertPtrReturn(pIntEnv, VERR_INVALID_HANDLE);
-        AssertReturn(pIntEnv->u32Magic == RTENV_MAGIC, VERR_INVALID_HANDLE);
-        rc = VINF_SUCCESS;
-    }
-
-    RTENV_LOCK(pIntEnv);
-
-    /*
-     * Sort it, if requested.
-     */
-    if (fSorted)
-        RTSortApvShell((void **)pIntEnv->papszEnv, pIntEnv->cVars, rtEnvSortCompare, pIntEnv);
-
-    /*
-     * Calculate the size. We add one extra terminator just to be on the safe side.
-     */
-    size_t cbBlock = 2;
-    for (size_t iVar = 0; iVar < pIntEnv->cVars; iVar++)
-        cbBlock += strlen(pIntEnv->papszEnv[iVar]) + 1;
-
-    if (pcbBlock)
-        *pcbBlock = cbBlock - 1;
-
-    /*
-     * Allocate memory and copy out the variables.
-     */
-    char *pszzBlock;
-    char *pszz = pszzBlock = (char *)RTMemAlloc(cbBlock);
-    if (pszz)
-    {
-        size_t cbLeft = cbBlock;
-        for (size_t iVar = 0; iVar < pIntEnv->cVars; iVar++)
-        {
-            size_t cb = strlen(pIntEnv->papszEnv[iVar]) + 1;
-            AssertBreakStmt(cb + 2 <= cbLeft, rc = VERR_INTERNAL_ERROR_3);
-            memcpy(pszz, pIntEnv->papszEnv[iVar], cb);
-            pszz   += cb;
-            cbLeft -= cb;
-        }
-        if (RT_SUCCESS(rc))
-        {
-            pszz[0] = '\0';
-            pszz[1] = '\0'; /* The extra one. */
-        }
-        else
-        {
-            RTMemFree(pszzBlock);
-            pszzBlock = NULL;
-        }
-    }
-    else
-        rc = VERR_NO_MEMORY;
-
-    RTENV_UNLOCK(pIntEnv);
-
-    if (hClone != NIL_RTENV)
-        RTEnvDestroy(hClone);
-    if (RT_SUCCESS(rc))
-        *ppszzBlock = pszzBlock;
-    return rc;
-}
-RT_EXPORT_SYMBOL(RTEnvQueryUtf8Block);
-
-
-RTDECL(void) RTEnvFreeUtf8Block(char *pszzBlock)
-{
-    RTMemFree(pszzBlock);
-}
-RT_EXPORT_SYMBOL(RTEnvFreeUtf8Block);
-
-
-RTDECL(uint32_t) RTEnvCountEx(RTENV hEnv)
-{
-    PRTENVINTERNAL pIntEnv = hEnv;
-    AssertPtrReturn(pIntEnv, UINT32_MAX);
-    AssertReturn(pIntEnv->u32Magic == RTENV_MAGIC, UINT32_MAX);
-
-    RTENV_LOCK(pIntEnv);
-    uint32_t cVars = (uint32_t)pIntEnv->cVars;
-    RTENV_UNLOCK(pIntEnv);
-
-    return cVars;
-}
-RT_EXPORT_SYMBOL(RTEnvCountEx);
-
-
-RTDECL(int) RTEnvGetByIndexEx(RTENV hEnv, uint32_t iVar, char *pszVar, size_t cbVar, char *pszValue, size_t cbValue)
-{
-    PRTENVINTERNAL pIntEnv = hEnv;
-    AssertPtrReturn(pIntEnv, UINT32_MAX);
-    AssertReturn(pIntEnv->u32Magic == RTENV_MAGIC, UINT32_MAX);
-    if (cbVar)
-        AssertPtrReturn(pszVar, VERR_INVALID_POINTER);
-    if (cbValue)
-        AssertPtrReturn(pszValue, VERR_INVALID_POINTER);
-
-    RTENV_LOCK(pIntEnv);
-
-    int rc;
-    if (iVar < pIntEnv->cVars)
-    {
-        const char *pszSrcVar   = pIntEnv->papszEnv[iVar];
-        const char *pszSrcValue = strchr(pszSrcVar, '=');
-        bool        fHasEqual   = pszSrcValue != NULL;
-        if (pszSrcValue)
-        {
-            pszSrcValue++;
-            rc = VINF_SUCCESS;
-        }
-        else
-        {
-            pszSrcValue = strchr(pszSrcVar, '\0');
-            rc = VINF_ENV_VAR_UNSET;
-        }
-        if (cbVar)
-        {
-            int rc2 = RTStrCopyEx(pszVar, cbVar, pszSrcVar, pszSrcValue - pszSrcVar - fHasEqual);
-            if (RT_FAILURE(rc2))
-                rc = rc2;
-        }
-        if (cbValue)
-        {
-            int rc2 = RTStrCopy(pszValue, cbValue, pszSrcValue);
-            if (RT_FAILURE(rc2) && RT_SUCCESS(rc))
-                rc = rc2;
-        }
-    }
-    else
-        rc = VERR_ENV_VAR_NOT_FOUND;
-
-    RTENV_UNLOCK(pIntEnv);
-
-    return rc;
-}
-RT_EXPORT_SYMBOL(RTEnvGetByIndexEx);
-
-
-RTDECL(const char *) RTEnvGetByIndexRawEx(RTENV hEnv, uint32_t iVar)
-{
-    PRTENVINTERNAL pIntEnv = hEnv;
-    AssertPtrReturn(pIntEnv, NULL);
-    AssertReturn(pIntEnv->u32Magic == RTENV_MAGIC, NULL);
-
-    RTENV_LOCK(pIntEnv);
-
-    const char *pszRet;
-    if (iVar < pIntEnv->cVars)
-        pszRet = pIntEnv->papszEnv[iVar];
-    else
-        pszRet = NULL;
-
-    RTENV_UNLOCK(pIntEnv);
-
-    return pszRet;
-}
-RT_EXPORT_SYMBOL(RTEnvGetByIndexRawEx);
-
-
-RTDECL(int) RTEnvCreateChangeRecord(PRTENV phEnv)
-{
-    AssertPtrReturn(phEnv, VERR_INVALID_POINTER);
-    return rtEnvCreate(phEnv, RTENV_GROW_SIZE, true /*fCaseSensitive*/, true /*fPutEnvBlock*/);
-}
-RT_EXPORT_SYMBOL(RTEnvCreateChangeRecord);
-
-
-RTDECL(bool) RTEnvIsChangeRecord(RTENV hEnv)
-{
-    if (hEnv == RTENV_DEFAULT)
-        return false;
-
-    PRTENVINTERNAL pIntEnv = hEnv;
-    AssertPtrReturn(pIntEnv, false);
-    AssertReturn(pIntEnv->u32Magic == RTENV_MAGIC, false);
-    return pIntEnv->fPutEnvBlock;
-}
-RT_EXPORT_SYMBOL(RTEnvIsChangeRecord);
-
-
-RTDECL(int) RTEnvApplyChanges(RTENV hEnvDst, RTENV hEnvChanges)
-{
-    PRTENVINTERNAL pIntEnvChanges = hEnvChanges;
-    AssertPtrReturn(pIntEnvChanges, VERR_INVALID_HANDLE);
-    AssertReturn(pIntEnvChanges->u32Magic == RTENV_MAGIC, VERR_INVALID_HANDLE);
-
-    /** @todo lock validator trouble ahead here! */
-    RTENV_LOCK(pIntEnvChanges);
-
-    int rc = VINF_SUCCESS;
-    for (uint32_t iChange = 0; iChange < pIntEnvChanges->cVars && RT_SUCCESS(rc); iChange++)
-        rc = RTEnvPutEx(hEnvDst, pIntEnvChanges->papszEnv[iChange]);
-
-    RTENV_UNLOCK(pIntEnvChanges);
-
-    return rc;
-}
-RT_EXPORT_SYMBOL(RTEnvApplyChanges);
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -106,9 +106,7 @@
 *   Structures and Typedefs                                                    *
 *******************************************************************************/
 /** The saved state version. */
-#define OHCI_SAVED_STATE_VERSION            5
-// The saved state with support of 8 ports
-#define OHCI_SAVED_STATE_VERSION_8PORTS     4
+#define OHCI_SAVED_STATE_VERSION            4
 /** The saved state version used in 3.0 and earlier.
  *
  * @remarks Because of the SSMR3MemPut/Get laziness we ended up with an
@@ -118,18 +116,11 @@
 #define OHCI_SAVED_STATE_VERSION_MEM_HELL   3
 
 
-/** Maximum supported number of Downstream Ports on the root hub. 15 ports
- * is the maximum defined by the OHCI spec.
+/** Number of Downstream Ports on the root hub.
  * If you change this you need to add more status register words to the 'opreg'
  * array.
  */
-#define OHCI_NDP_MAX        15
-
-/** Default NDP, chosen to be compatible with everything. */
-#define OHCI_NDP_DEFAULT    12
-
-/* Macro to query the number of currently configured ports. */
-#define OHCI_NDP_CFG(pohci) ((pohci)->RootHub.desc_a & OHCI_RHA_NDP)
+#define OHCI_NDP 8
 
 /** Pointer to OHCI device data. */
 typedef struct OHCI *POHCI;
@@ -189,11 +180,11 @@ typedef struct ohci_roothub
 #if HC_ARCH_BITS == 64
     uint32_t                            Alignment0; /**< Align aPorts on a 8 byte boundary. */
 #endif
-    OHCIHUBPORT                         aPorts[OHCI_NDP_MAX];
+    OHCIHUBPORT                         aPorts[OHCI_NDP];
     R3PTRTYPE(POHCI)                    pOhci;
 } OHCIROOTHUB;
 #if HC_ARCH_BITS == 64
-AssertCompile(sizeof(OHCIROOTHUB) == 392); /* saved state */
+AssertCompile(sizeof(OHCIROOTHUB) == 280); /* saved state */
 #endif
 /** Pointer to the OHCI root hub. */
 typedef OHCIROOTHUB *POHCIROOTHUB;
@@ -210,7 +201,7 @@ typedef struct ohci_load {
     /** Number of detached devices. */
     unsigned cDevs;
     /** Array of devices which were detached. */
-    PVUSBIDEVICE apDevs[OHCI_NDP_MAX];
+    PVUSBIDEVICE apDevs[OHCI_NDP];
 } OHCILOAD;
 /** Pointer to an OHCILOAD structure. */
 typedef OHCILOAD *POHCILOAD;
@@ -767,13 +758,6 @@ static SSMFIELD const g_aOhciFields[] =
     SSMFIELD_ENTRY(         OHCI, RootHub.aPorts[5].fReg),
     SSMFIELD_ENTRY(         OHCI, RootHub.aPorts[6].fReg),
     SSMFIELD_ENTRY(         OHCI, RootHub.aPorts[7].fReg),
-    SSMFIELD_ENTRY(         OHCI, RootHub.aPorts[8].fReg),
-    SSMFIELD_ENTRY(         OHCI, RootHub.aPorts[9].fReg),
-    SSMFIELD_ENTRY(         OHCI, RootHub.aPorts[10].fReg),
-    SSMFIELD_ENTRY(         OHCI, RootHub.aPorts[11].fReg),
-    SSMFIELD_ENTRY(         OHCI, RootHub.aPorts[12].fReg),
-    SSMFIELD_ENTRY(         OHCI, RootHub.aPorts[13].fReg),
-    SSMFIELD_ENTRY(         OHCI, RootHub.aPorts[14].fReg),
     SSMFIELD_ENTRY(         OHCI, ctl),
     SSMFIELD_ENTRY(         OHCI, status),
     SSMFIELD_ENTRY(         OHCI, intr_status),
@@ -927,7 +911,7 @@ static DECLCALLBACK(unsigned) ohciRhGetAvailablePorts(PVUSBIROOTHUBPORT pInterfa
     memset(pAvailable, 0, sizeof(*pAvailable));
 
     PDMCritSectEnter(pThis->pDevInsR3->pCritSectRoR3, VERR_IGNORED);
-    for (iPort = 0; iPort < OHCI_NDP_CFG(pThis); iPort++)
+    for (iPort = 0; iPort < RT_ELEMENTS(pThis->RootHub.aPorts); iPort++)
     {
         if (!pThis->RootHub.aPorts[iPort].pDev)
         {
@@ -969,11 +953,9 @@ static DECLCALLBACK(int) ohciRhAttach(PVUSBIROOTHUBPORT pInterface, PVUSBIDEVICE
     /*
      * Validate and adjust input.
      */
-    Assert(uPort >= 1 && uPort <= OHCI_NDP_CFG(pThis));
+    Assert(uPort >= 1 && uPort <= RT_ELEMENTS(pThis->RootHub.aPorts));
     uPort--;
     Assert(!pThis->RootHub.aPorts[uPort].pDev);
-    /* Only LS/FS devices can end up here. */
-    Assert(pDev->pfnGetSpeed(pDev) == VUSB_SPEED_LOW || pDev->pfnGetSpeed(pDev) == VUSB_SPEED_FULL);
 
     /*
      * Attach it.
@@ -1006,7 +988,7 @@ static DECLCALLBACK(void) ohciRhDetach(PVUSBIROOTHUBPORT pInterface, PVUSBIDEVIC
     /*
      * Validate and adjust input.
      */
-    Assert(uPort >= 1 && uPort <= OHCI_NDP_CFG(pThis));
+    Assert(uPort >= 1 && uPort <= RT_ELEMENTS(pThis->RootHub.aPorts));
     uPort--;
     Assert(pThis->RootHub.aPorts[uPort].pDev == pDev);
 
@@ -1063,7 +1045,7 @@ static DECLCALLBACK(int) ohciRhReset(PVUSBIROOTHUBPORT pInterface, bool fResetOn
     PDMCritSectEnter(pThis->pDevInsR3->pCritSectRoR3, VERR_IGNORED);
 
     pThis->RootHub.status = 0;
-    pThis->RootHub.desc_a = OHCI_RHA_NPS | OHCI_NDP_CFG(pThis); /* Preserve NDP value. */
+    pThis->RootHub.desc_a = OHCI_RHA_NPS | OHCI_NDP;
     pThis->RootHub.desc_b = 0x0; /* Impl. specific */
 
     /*
@@ -1078,7 +1060,7 @@ static DECLCALLBACK(int) ohciRhReset(PVUSBIROOTHUBPORT pInterface, bool fResetOn
      * get trouble and see the guest doing "USB Resets" we will have to look
      * into this. For the time being we stick with simple.
      */
-    for (unsigned iPort = 0; iPort < OHCI_NDP_CFG(pThis); iPort++)
+    for (unsigned iPort = 0; iPort < RT_ELEMENTS(pThis->RootHub.aPorts); iPort++)
     {
         if (pThis->RootHub.aPorts[iPort].pDev)
         {
@@ -3744,7 +3726,7 @@ static void ohciCancelOrphanedURBs(POHCI pThis)
             pUrb = pThis->aInFlight[i].pUrb;
             if (pThis->aInFlight[i].fInactive
                 && pUrb->enmState == VUSBURBSTATE_IN_FLIGHT
-                && pUrb->enmType != VUSBXFERTYPE_CTRL)
+                && !pUrb->enmType == VUSBXFERTYPE_CTRL)
                 pThis->RootHub.pIRhConn->pfnCancelUrbsEp(pThis->RootHub.pIRhConn, pUrb);
         }
     }
@@ -4698,7 +4680,7 @@ static int HcRhDescriptorA_w(POHCI pThis, uint32_t iReg, uint32_t val)
     uint32_t chg = val ^ pThis->RootHub.desc_a; NOREF(chg);
     Log2(("HcRhDescriptorA_w(%#010x) => %sNDP=%d %sPSM=%d %sNPS=%d %sDT=%d %sOCPM=%d %sNOCP=%d %sPOTGT=%#x - %sPowerSwitching Set%sPower\n",
           val,
-          chg & 0xff      ?"!!!": "", val & 0xff,
+          chg & 0xff      ?"!!!": "", OHCI_NDP,
           (chg >>  8) & 1 ? "*" : "", (val >>  8) & 1,
           (chg >>  9) & 1 ? "*" : "", (val >>  9) & 1,
           (chg >> 10) & 1 ?"!!!": "", 0,
@@ -4711,12 +4693,12 @@ static int HcRhDescriptorA_w(POHCI pThis, uint32_t iReg, uint32_t val)
         Log2(("Unknown bits %#x are set!!!\n", val & ~0xff001fff));
 
 
-    if ((val & (OHCI_RHA_NDP | OHCI_RHA_DT)) != OHCI_NDP_CFG(pThis))
+    if ((val & (OHCI_RHA_NDP | OHCI_RHA_DT)) != OHCI_NDP)
     {
         Log(("ohci: %s: invalid write to NDP or DT in roothub descriptor A!!! val=0x%.8x\n",
                 pThis->PciDev.name, val));
         val &= ~(OHCI_RHA_NDP | OHCI_RHA_DT);
-        val |= OHCI_NDP_CFG(pThis);
+        val |= OHCI_NDP;
     }
 
     pThis->RootHub.desc_a = val;
@@ -4791,18 +4773,18 @@ static int HcRhStatus_w(POHCI pThis, uint32_t iReg, uint32_t val)
     /* SetGlobalPower */
     if ( val & OHCI_RHS_LPSC )
     {
-        unsigned i;
+        int i;
         Log2(("ohci: %s: global power up\n", pThis->PciDev.name));
-        for (i = 0; i < OHCI_NDP_CFG(pThis); i++)
+        for (i = 0; i < OHCI_NDP; i++)
             rhport_power(&pThis->RootHub, i, true /* power up */);
     }
 
     /* ClearGlobalPower */
     if ( val & OHCI_RHS_LPS )
     {
-        unsigned i;
+        int i;
         Log2(("ohci: %s: global power down\n", pThis->PciDev.name));
-        for (i = 0; i < OHCI_NDP_CFG(pThis); i++)
+        for (i = 0; i < OHCI_NDP; i++)
             rhport_power(&pThis->RootHub, i, false /* power down */);
     }
 
@@ -4865,7 +4847,7 @@ static DECLCALLBACK(void) uchi_port_reset_done(PVUSBIDEVICE pDev, int rc, void *
      */
     POHCIHUBPORT pPort = NULL;
     unsigned iPort;
-    for (iPort = 0; iPort < OHCI_NDP_CFG(pThis); iPort++) /* lazy bird */
+    for (iPort = 0; iPort < RT_ELEMENTS(pThis->RootHub.aPorts); iPort++) /* lazy bird */
         if (pThis->RootHub.aPorts[iPort].pDev == pDev)
         {
             pPort = &pThis->RootHub.aPorts[iPort];
@@ -5086,7 +5068,7 @@ static const OHCIOPREG g_aOpRegs[] =
     { "HcRhStatus",          HcRhStatus_r,           HcRhStatus_w },            /* 20 */
 
     /* The number of port status register depends on the definition
-     * of OHCI_NDP_MAX macro
+     * of OHCI_NDP macro
      */
     { "HcRhPortStatus[0]",   HcRhPortStatus_r,       HcRhPortStatus_w },        /* 21 */
     { "HcRhPortStatus[1]",   HcRhPortStatus_r,       HcRhPortStatus_w },        /* 22 */
@@ -5096,22 +5078,8 @@ static const OHCIOPREG g_aOpRegs[] =
     { "HcRhPortStatus[5]",   HcRhPortStatus_r,       HcRhPortStatus_w },        /* 26 */
     { "HcRhPortStatus[6]",   HcRhPortStatus_r,       HcRhPortStatus_w },        /* 27 */
     { "HcRhPortStatus[7]",   HcRhPortStatus_r,       HcRhPortStatus_w },        /* 28 */
-    { "HcRhPortStatus[8]",   HcRhPortStatus_r,       HcRhPortStatus_w },        /* 29 */
-    { "HcRhPortStatus[9]",   HcRhPortStatus_r,       HcRhPortStatus_w },        /* 30 */
-    { "HcRhPortStatus[10]",  HcRhPortStatus_r,       HcRhPortStatus_w },        /* 31 */
-    { "HcRhPortStatus[11]",  HcRhPortStatus_r,       HcRhPortStatus_w },        /* 32 */
-    { "HcRhPortStatus[12]",  HcRhPortStatus_r,       HcRhPortStatus_w },        /* 33 */
-    { "HcRhPortStatus[13]",  HcRhPortStatus_r,       HcRhPortStatus_w },        /* 34 */
-    { "HcRhPortStatus[14]",  HcRhPortStatus_r,       HcRhPortStatus_w },        /* 35 */
 };
 
-/* Quick way to determine how many op regs are valid. Since at least one port must
- * be configured (and no more than 15), there will be between 22 and 36 registers.
- */
-#define NUM_OP_REGS(pohci)  (21 + OHCI_NDP_CFG(pohci))
-
-AssertCompile(RT_ELEMENTS(g_aOpRegs) > 21);
-AssertCompile(RT_ELEMENTS(g_aOpRegs) <= 36);
 
 /**
  * @callback_method_impl{FNIOMMMIOREAD}
@@ -5129,14 +5097,14 @@ PDMBOTHCBDECL(int) ohciMmioRead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhy
      */
     int rc;
     const uint32_t iReg = (GCPhysAddr - pThis->MMIOBase) >> 2;
-    if (iReg < NUM_OP_REGS(pThis))
+    if (iReg < RT_ELEMENTS(g_aOpRegs))
     {
         const OHCIOPREG *pReg = &g_aOpRegs[iReg];
         rc = pReg->pfnRead(pThis, iReg, (uint32_t *)pv);
     }
     else
     {
-        Log(("ohci: Trying to read register %u/%u!!!\n", iReg, NUM_OP_REGS(pThis)));
+        Log(("ohci: Trying to read register %u/%u!!!\n", iReg, RT_ELEMENTS(g_aOpRegs)));
         rc = VINF_IOM_MMIO_UNUSED_FF;
     }
     return rc;
@@ -5159,14 +5127,14 @@ PDMBOTHCBDECL(int) ohciMmioWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPh
      */
     int rc;
     const uint32_t iReg = (GCPhysAddr - pThis->MMIOBase) >> 2;
-    if (iReg < NUM_OP_REGS(pThis))
+    if (iReg < RT_ELEMENTS(g_aOpRegs))
     {
         const OHCIOPREG *pReg = &g_aOpRegs[iReg];
         rc = pReg->pfnWrite(pThis, iReg, *(uint32_t const *)pv);
     }
     else
     {
-        Log(("ohci: Trying to write to register %u/%u!!!\n", iReg, NUM_OP_REGS(pThis)));
+        Log(("ohci: Trying to write to register %u/%u!!!\n", iReg, RT_ELEMENTS(g_aOpRegs)));
         rc = VINF_SUCCESS;
     }
     return rc;
@@ -5223,22 +5191,19 @@ static DECLCALLBACK(int) ohciR3SavePrep(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
      * Detach all proxied devices.
      */
     PDMCritSectEnter(pThis->pDevInsR3->pCritSectRoR3, VERR_IGNORED);
-    /** @todo this won't work well when continuing after saving! */
+    /** @todo we a) can't tell which are proxied, and b) this won't work well when continuing after saving! */
     for (unsigned i = 0; i < RT_ELEMENTS(pRh->aPorts); i++)
     {
         PVUSBIDEVICE pDev = pRh->aPorts[i].pDev;
         if (pDev)
         {
-            if (!VUSBIDevIsSavedStateSupported(pDev))
-            {
-                VUSBIRhDetachDevice(pRh->pIRhConn, pDev);
-                /*
-                 * Save the device pointers here so we can reattach them afterwards.
-                 * This will work fine even if the save fails since the Done handler is
-                 * called unconditionally if the Prep handler was called.
-                 */
-                pRh->aPorts[i].pDev = pDev;
-            }
+            VUSBIRhDetachDevice(pRh->pIRhConn, pDev);
+            /*
+             * Save the device pointers here so we can reattach them afterwards.
+             * This will work fine even if the save fails since the Done handler is
+             * called unconditionally if the Prep handler was called.
+             */
+            pRh->aPorts[i].pDev = pDev;
         }
     }
 
@@ -5311,11 +5276,7 @@ static DECLCALLBACK(int) ohciR3SaveDone(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
      */
     Rh = *pRh;
     for (i = 0; i < RT_ELEMENTS(pRh->aPorts); i++)
-    {
-        if (   pRh->aPorts[i].pDev
-            && !VUSBIDevIsSavedStateSupported(pRh->aPorts[i].pDev))
-            pRh->aPorts[i].pDev = NULL;
-    }
+        pRh->aPorts[i].pDev = NULL;
 
     /*
      * Attach the devices.
@@ -5323,8 +5284,7 @@ static DECLCALLBACK(int) ohciR3SaveDone(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
     for (i = 0; i < RT_ELEMENTS(pRh->aPorts); i++)
     {
         PVUSBIDEVICE pDev = Rh.aPorts[i].pDev;
-        if (   pDev
-            && !VUSBIDevIsSavedStateSupported(pDev))
+        if (pDev)
             VUSBIRhAttachDevice(pRh->pIRhConn, pDev);
     }
 
@@ -5362,8 +5322,7 @@ static DECLCALLBACK(int) ohciR3LoadPrep(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
         for (i = 0; i < RT_ELEMENTS(pRh->aPorts); i++)
         {
             PVUSBIDEVICE pDev = pRh->aPorts[i].pDev;
-            if (   pDev
-                && !VUSBIDevIsSavedStateSupported(pDev))
+            if (pDev)
             {
                 Load.apDevs[Load.cDevs++] = pDev;
                 VUSBIRhDetachDevice(pRh->pIRhConn, pDev);
@@ -5407,44 +5366,6 @@ static DECLCALLBACK(int) ohciR3LoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uin
     if (uVersion == OHCI_SAVED_STATE_VERSION)
     {
         rc = SSMR3GetStructEx(pSSM, pThis, sizeof(*pThis), 0 /*fFlags*/, &g_aOhciFields[0], NULL);
-        if (RT_FAILURE(rc))
-            return rc;
-    }
-    else if (uVersion == OHCI_SAVED_STATE_VERSION_8PORTS)
-    {
-        static SSMFIELD const s_aOhciFields8Ports[] =
-        {
-            SSMFIELD_ENTRY(         OHCI, SofTime),
-            SSMFIELD_ENTRY_CUSTOM(        dpic+fno, RT_OFFSETOF(OHCI, SofTime) + RT_SIZEOFMEMB(OHCI, SofTime), 4),
-            SSMFIELD_ENTRY(         OHCI, RootHub.status),
-            SSMFIELD_ENTRY(         OHCI, RootHub.desc_a),
-            SSMFIELD_ENTRY(         OHCI, RootHub.desc_b),
-            SSMFIELD_ENTRY(         OHCI, RootHub.aPorts[0].fReg),
-            SSMFIELD_ENTRY(         OHCI, RootHub.aPorts[1].fReg),
-            SSMFIELD_ENTRY(         OHCI, RootHub.aPorts[2].fReg),
-            SSMFIELD_ENTRY(         OHCI, RootHub.aPorts[3].fReg),
-            SSMFIELD_ENTRY(         OHCI, RootHub.aPorts[4].fReg),
-            SSMFIELD_ENTRY(         OHCI, RootHub.aPorts[5].fReg),
-            SSMFIELD_ENTRY(         OHCI, RootHub.aPorts[6].fReg),
-            SSMFIELD_ENTRY(         OHCI, RootHub.aPorts[7].fReg),
-            SSMFIELD_ENTRY(         OHCI, ctl),
-            SSMFIELD_ENTRY(         OHCI, status),
-            SSMFIELD_ENTRY(         OHCI, intr_status),
-            SSMFIELD_ENTRY(         OHCI, intr),
-            SSMFIELD_ENTRY(         OHCI, hcca),
-            SSMFIELD_ENTRY(         OHCI, per_cur),
-            SSMFIELD_ENTRY(         OHCI, ctrl_cur),
-            SSMFIELD_ENTRY(         OHCI, ctrl_head),
-            SSMFIELD_ENTRY(         OHCI, bulk_cur),
-            SSMFIELD_ENTRY(         OHCI, bulk_head),
-            SSMFIELD_ENTRY(         OHCI, done),
-            SSMFIELD_ENTRY_CUSTOM(        fsmps+fit+fi+frt, RT_OFFSETOF(OHCI, done) + RT_SIZEOFMEMB(OHCI, done), 4),
-            SSMFIELD_ENTRY(         OHCI, HcFmNumber),
-            SSMFIELD_ENTRY(         OHCI, pstart),
-            SSMFIELD_ENTRY_TERM()
-        };
-
-        rc = SSMR3GetStructEx(pSSM, pThis, sizeof(*pThis), 0 /*fFlags*/, &s_aOhciFields8Ports[0], NULL);
         if (RT_FAILURE(rc))
             return rc;
     }
@@ -5775,8 +5696,7 @@ static DECLCALLBACK(int) ohciR3Destruct(PPDMDEVINS pDevIns)
  */
 static DECLCALLBACK(int) ohciR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg)
 {
-    POHCI       pThis = PDMINS_2_DATA(pDevIns, POHCI);
-    uint32_t    cPorts;
+    POHCI pThis = PDMINS_2_DATA(pDevIns, POHCI);
     PDMDEV_CHECK_VERSIONS_RETURN(pDevIns);
 
     /*
@@ -5813,25 +5733,12 @@ static DECLCALLBACK(int) ohciR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFG
 
 
     /*
-     * Read configuration.
+     * Read configuration. No configuration keys are currently supported.
      */
     PDMDEV_VALIDATE_CONFIG_RETURN(pDevIns, "RZEnabled", "");
     int rc = CFGMR3QueryBoolDef(pCfg, "RZEnabled", &pThis->fRZEnabled, true);
     AssertLogRelRCReturn(rc, rc);
 
-    /* Number of ports option. */
-    rc = CFGMR3QueryU32Def(pCfg, "Ports", &cPorts, OHCI_NDP_DEFAULT);
-    if (RT_FAILURE(rc))
-        return PDMDEV_SET_ERROR(pDevIns, rc,
-                                N_("OHCI configuration error: failed to read Ports as integer"));
-
-    if (cPorts == 0 || cPorts > OHCI_NDP_MAX)
-        return PDMDevHlpVMSetError(pDevIns, VERR_INVALID_PARAMETER, RT_SRC_POS,
-                                   N_("OHCI configuration error: Ports must be in range [%u,%u]"),
-                                   1, OHCI_NDP_MAX);
-
-    /* Store the configured NDP; it will be used everywhere else from now on. */
-    pThis->RootHub.desc_a = cPorts;
 
     /*
      * Register PCI device and I/O region.
@@ -5979,7 +5886,7 @@ const PDMDEVREG g_DeviceOHCI =
     /* szName */
     "usb-ohci",
     /* szRCMod */
-    "VBoxDDRC.rc",
+    "VBoxDDGC.gc",
     /* szR0Mod */
     "VBoxDDR0.r0",
     /* pszDescription */

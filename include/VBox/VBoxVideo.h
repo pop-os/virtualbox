@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -833,8 +833,6 @@ typedef struct VBVABUFFER
     uint8_t  au8Data[1]; /* variable size for the rest of the VBVABUFFER area in VRAM. */
 } VBVABUFFER;
 
-#define VBVA_MAX_RECORD_SIZE (128*_1M)
-
 /* guest->host commands */
 #define VBVA_QUERY_CONF32 1
 #define VBVA_SET_CONF32   2
@@ -930,8 +928,6 @@ typedef struct VBVAHOSTCMD
 #define VBOX_VBVA_CONF32_CURSOR_CAPABILITIES  4
 /** Returns the supported flags in VBVAINFOSCREEN::u8Flags. */
 #define VBOX_VBVA_CONF32_SCREEN_FLAGS 5
-/** Returns the max size of VBVA record. */
-#define VBOX_VBVA_CONF32_MAX_RECORD_SIZE 6
 
 typedef struct VBVACONF32
 {
@@ -1173,7 +1169,7 @@ typedef struct VBVAMODEHINT
 /** Report the rectangle relative to which absolute pointer events should be
  *  expressed.  This information remains valid until the next VBVA resize event
  *  for any screen, at which time it is reset to the bounding rectangle of all
- *  virtual screens and must be re-set.
+ *  virtual screens and must be re-set. 
  *  @see VBVA_REPORT_INPUT_MAPPING. */
 typedef struct VBVAREPORTINPUTMAPPING
 {
@@ -1853,10 +1849,7 @@ typedef struct VBOXCMDVBVA_FLIP
 {
     VBOXCMDVBVA_HDR Hdr;
     VBOXCMDVBVA_ALLOCINFO src;
-    VBOXCMDVBVA_RECT aRects[1];
 } VBOXCMDVBVA_FLIP;
-
-#define VBOXCMDVBVA_SIZEOF_FLIPSTRUCT_MIN (RT_OFFSETOF(VBOXCMDVBVA_FLIP, aRects))
 
 typedef struct VBOXCMDVBVA_CLRFILL_HDR
 {

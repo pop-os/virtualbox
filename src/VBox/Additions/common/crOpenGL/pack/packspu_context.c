@@ -453,34 +453,29 @@ void PACKSPU_APIENTRY packspu_DestroyContext( GLint ctx )
     CRASSERT(slot >= 0);
     CRASSERT(slot < pack_spu.numContexts);
 
-    context = (slot >= 0 && slot < pack_spu.numContexts) ? &(pack_spu.context[slot]) : NULL;
+    context = &(pack_spu.context[slot]);
+
+    if (CRPACKSPU_IS_WDDM_CRHGSMI())
+    {
+        thread = context->currentThread;
+        crPackSetContext(thread->packer);
+        CRASSERT(!(thread->packer == curPacker) == !(thread == curThread));
+    }
+    CRASSERT(thread);
     curContext = curThread ? curThread->currentContext : NULL;
 
-    if (context)
-    {
-        if (CRPACKSPU_IS_WDDM_CRHGSMI())
-        {
-            thread = context->currentThread;
-            if (thread)
-            {
-                crPackSetContext(thread->packer);
-                CRASSERT(!(thread->packer == curPacker) == !(thread == curThread));
-            }
-        }
+    if (pack_spu.swap)
+        crPackDestroyContextSWAP( context->serverCtx );
+    else
+        crPackDestroyContext( context->serverCtx );
 
-        if (pack_spu.swap)
-            crPackDestroyContextSWAP( context->serverCtx );
-        else
-            crPackDestroyContext( context->serverCtx );
+    crStateDestroyContext( context->clientState );
 
-        crStateDestroyContext( context->clientState );
+    context->clientState = NULL;
+    context->serverCtx = 0;
+    context->currentThread = NULL;
 
-        context->clientState = NULL;
-        context->serverCtx = 0;
-        context->currentThread = NULL;
-
-        crMemset (&context->zvaBufferInfo, 0, sizeof (context->zvaBufferInfo));
-    }
+    crMemset (&context->zvaBufferInfo, 0, sizeof (context->zvaBufferInfo));
 
     if (curContext == context)
     {
@@ -507,9 +502,9 @@ void PACKSPU_APIENTRY packspu_DestroyContext( GLint ctx )
 
 void PACKSPU_APIENTRY packspu_MakeCurrent( GLint window, GLint nativeWindow, GLint ctx )
 {
-    ThreadInfo *thread = NULL;
+    ThreadInfo *thread;
     GLint serverCtx;
-    ContextInfo *newCtx = NULL;
+    ContextInfo *newCtx;
 
     if (!CRPACKSPU_IS_WDDM_CRHGSMI())
     {
@@ -532,7 +527,6 @@ void PACKSPU_APIENTRY packspu_MakeCurrent( GLint window, GLint nativeWindow, GLi
         CRASSERT(slot < pack_spu.numContexts);
 
         newCtx = &pack_spu.context[slot];
-        CRASSERT(newCtx);
         CRASSERT(newCtx->clientState);  /* verify valid */
 
         if (CRPACKSPU_IS_WDDM_CRHGSMI())
@@ -544,7 +538,6 @@ void PACKSPU_APIENTRY packspu_MakeCurrent( GLint window, GLint nativeWindow, GLi
         }
         else
         {
-            CRASSERT(thread);
             if (newCtx->fAutoFlush)
             {
                 if (newCtx->currentThread && newCtx->currentThread != thread)

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2015 Oracle Corporation
+ * Copyright (C) 2010-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -333,20 +333,7 @@ RTDECL(int) RTGetOptArgvFromString(char ***ppapszArgv, int *pcArgs, const char *
                 if (RT_FAILURE(rc) || !Cp)
                     break;
                 if (Cp == '"')
-                {
-                    /* Two double quotes insides a quoted string in an escape
-                       sequence and we output one double quote char.
-                       See http://www.daviddeley.com/autohotkey/parameters/parameters.htm */
-                    if (!fInQuote)
-                        fInQuote = true;
-                    else if (*pszSrc != '"')
-                        fInQuote = false;
-                    else
-                    {
-                        pszDst = RTStrPutCp(pszDst, '"');
-                        pszSrc++;
-                    }
-                }
+                    fInQuote = !fInQuote;
                 else if (!fInQuote && rtGetOptIsCpInSet(Cp, pszSeparators, cchSeparators))
                     break;
                 else if (Cp != '\\')
@@ -355,30 +342,30 @@ RTDECL(int) RTGetOptArgvFromString(char ***ppapszArgv, int *pcArgs, const char *
                 {
                     /* A backslash sequence is only relevant if followed by
                        a double quote, then it will work like an escape char. */
-                    size_t cSlashes = 1;
+                    size_t cQuotes = 1;
                     while (*pszSrc == '\\')
                     {
-                        cSlashes++;
+                        cQuotes++;
                         pszSrc++;
                     }
                     if (*pszSrc != '"')
                         /* Not an escape sequence.  */
-                        while (cSlashes-- > 0)
+                        while (cQuotes-- > 0)
                             pszDst = RTStrPutCp(pszDst, '\\');
                     else
                     {
                         /* Escape sequence.  Output half of the slashes.  If odd
                            number, output the escaped double quote . */
-                        while (cSlashes >= 2)
+                        while (cQuotes >= 2)
                         {
                             pszDst = RTStrPutCp(pszDst, '\\');
-                            cSlashes -= 2;
+                            cQuotes -= 2;
                         }
-                        if (cSlashes)
-                        {
+                        if (!cQuotes)
+                            fInQuote = !fInQuote;
+                        else
                             pszDst = RTStrPutCp(pszDst, '"');
-                            pszSrc++;
-                        }
+                        pszSrc++;
                     }
                 }
             }

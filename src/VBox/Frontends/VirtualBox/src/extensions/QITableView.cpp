@@ -1,6 +1,8 @@
 /* $Id: QITableView.cpp $ */
 /** @file
- * VBox Qt GUI - VirtualBox Qt extensions: QITableView class implementation.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * VirtualBox Qt extensions: QITableView class implementation
  */
 
 /*
@@ -15,15 +17,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Local includes */
-# include "QITableView.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
+#include "QITableView.h"
 
 QITableView::QITableView(QWidget *pParent)
     : QTableView(pParent)

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2015 Oracle Corporation
+ * Copyright (C) 2010-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -427,7 +427,7 @@ RTDECL(int) RTManifestEntryAddPassthruIoStream(RTMANIFEST hManifest, RTVFSIOSTRE
     uint32_t cRefs = RTManifestRetain(hManifest);
     AssertReturn(cRefs != UINT32_MAX, VERR_INVALID_HANDLE);
     cRefs = RTVfsIoStrmRetain(hVfsIos);
-    AssertReturnStmt(cRefs != UINT32_MAX, RTManifestRelease(hManifest), VERR_INVALID_HANDLE);
+    AssertReturnStmt(cRefs != UINT32_MAX, VERR_INVALID_HANDLE, RTManifestRelease(hManifest));
 
     /*
      * Create an instace of the passthru I/O stream.
@@ -544,9 +544,10 @@ RTDECL(int) RTManifestEntryAddIoStream(RTMANIFEST hManifest, RTVFSIOSTREAM hVfsI
         }
     }
     else
+    {
+        rtManifestHashesDestroy(pHashes);
         rc = VERR_NO_TMP_MEMORY;
-
-    rtManifestHashesDestroy(pHashes);
+    }
     return rc;
 }
 

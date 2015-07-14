@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2015 Oracle Corporation
+ * Copyright (C) 2010-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -47,21 +47,6 @@ static void test1Worker(RTTEST hTest, const char *pszBaseDir,
     char    szPath1[RTPATH_MAX];
     char    szPath2[RTPATH_MAX];
     size_t  cchTarget = strlen(pszTarget);
-    char    szPath3[RTPATH_MAX];
-
-    RTStrCopy(szPath3, sizeof(szPath3), pszTarget);
-
-#ifdef RT_OS_WINDOWS
-    /* see RTSymlinkCreate in symlink-win.cpp */
-    char c;
-    char *psz = szPath3;
-    while ((c = *psz) != '\0')
-    {
-        if (c == '/')
-            *psz = '\\';
-        psz++;
-    }
-#endif
 
     /* Create it.*/
     RTTESTI_CHECK_RC_OK_RETV(RTPathJoin(szPath1, sizeof(szPath1), pszBaseDir, "tstRTSymlink-link-1"));
@@ -76,19 +61,19 @@ static void test1Worker(RTTEST hTest, const char *pszBaseDir,
     memset(szPath2, 0xff, sizeof(szPath2));
     szPath2[sizeof(szPath2) - 1] = '\0';
     RTTESTI_CHECK_RC(RTSymlinkRead(szPath1, szPath2, sizeof(szPath2), 0), VINF_SUCCESS);
-    RTTESTI_CHECK_MSG(strcmp(szPath2, szPath3) == 0, ("got=\"%s\" expected=\"%s\"", szPath2, szPath3));
+    RTTESTI_CHECK_MSG(strcmp(szPath2, pszTarget) == 0, ("got=\"%s\" expected=\"%s\"", szPath2, pszTarget));
 
     memset(szPath2, 0xff, sizeof(szPath2));
     szPath2[sizeof(szPath2) - 1] = '\0';
     RTTESTI_CHECK_RC(RTSymlinkRead(szPath1, szPath2, cchTarget + 1, 0), VINF_SUCCESS);
-    RTTESTI_CHECK_MSG(strcmp(szPath2, szPath3) == 0, ("got=\"%s\" expected=\"%s\"", szPath2, szPath3));
+    RTTESTI_CHECK_MSG(strcmp(szPath2, pszTarget) == 0, ("got=\"%s\" expected=\"%s\"", szPath2, pszTarget));
 
     memset(szPath2, 0xff, sizeof(szPath2));
     szPath2[sizeof(szPath2) - 1] = '\0';
     RTTESTI_CHECK_RC(RTSymlinkRead(szPath1, szPath2, cchTarget, 0), VERR_BUFFER_OVERFLOW);
-    RTTESTI_CHECK_MSG(   strncmp(szPath2, szPath3, cchTarget - 1) == 0
+    RTTESTI_CHECK_MSG(   strncmp(szPath2, pszTarget, cchTarget - 1) == 0
                       && szPath2[cchTarget - 1] == '\0',
-                      ("got=\"%s\" expected=\"%.*s\"", szPath2, cchTarget - 1, szPath3));
+                      ("got=\"%s\" expected=\"%.*s\"", szPath2, cchTarget - 1, pszTarget));
 
     /* Other APIs that have to handle symlinks carefully. */
     int rc;

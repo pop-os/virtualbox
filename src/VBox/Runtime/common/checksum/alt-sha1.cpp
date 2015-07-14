@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2015 Oracle Corporation
+ * Copyright (C) 2009-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -497,4 +497,5 @@ RTDECL(void) RTSha1(const void *pvBuf, size_t cbBuf, uint8_t pabDigest[RTSHA1_HA
     RTSha1Final(&Ctx, pabDigest);
 }
 RT_EXPORT_SYMBOL(RTSha1);
+
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1352,8 +1352,6 @@ RTDECL(int) RTTimerChangeInterval(PRTTIMER pTimer, uint64_t u64NanoInterval)
     AssertPtrReturn(pTimer, VERR_INVALID_HANDLE);
     AssertReturn(pTimer->u32Magic == RTTIMER_MAGIC, VERR_INVALID_HANDLE);
     AssertReturn(u64NanoInterval, VERR_INVALID_PARAMETER);
-    AssertReturn(u64NanoInterval < UINT64_MAX / 8, VERR_INVALID_PARAMETER);
-    AssertReturn(pTimer->u64NanoInterval, VERR_INVALID_STATE);
     RTTIMERLNX_LOG(("change %p %llu\n", pTimer, u64NanoInterval));
 
 #ifdef RTTIMER_LINUX_WITH_HRTIMER
@@ -1442,7 +1440,7 @@ RTDECL(int) RTTimerDestroy(PRTTIMER pTimer)
         }
 
         if (pTimer->cCpus > 1)
-            RTSpinlockRelease(pTimer->hSpinlock);
+            RTSpinlockReleaseNoInts(pTimer->hSpinlock);
     }
 
     if (fCanDestroy)
@@ -1591,7 +1589,7 @@ RTDECL(uint32_t) RTTimerGetSystemGranularity(void)
         return Ts.tv_nsec;
     }
 #endif
-    return RT_NS_1SEC / HZ; /* ns */
+    return 1000000000 / HZ; /* ns */
 }
 RT_EXPORT_SYMBOL(RTTimerGetSystemGranularity);
 

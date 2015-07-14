@@ -1,11 +1,10 @@
-/* $Id: AdditionsFacilityImpl.cpp $ */
 /** @file
  *
  * VirtualBox COM class implementation
  */
 
 /*
- * Copyright (C) 2014 Oracle Corporation
+ * Copyright (C) 2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -99,62 +98,87 @@ void AdditionsFacility::uninit()
     mData.mStates.clear();
 }
 
-HRESULT AdditionsFacility::getClassType(AdditionsFacilityClass_T *aClassType)
+STDMETHODIMP AdditionsFacility::COMGETTER(ClassType)(AdditionsFacilityClass_T *aClass)
 {
     LogFlowThisFuncEnter();
 
+    CheckComArgOutPointerValid(aClass);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    *aClassType = i_getClass();
+    *aClass = getClass();
 
     return S_OK;
 }
 
-HRESULT AdditionsFacility::getName(com::Utf8Str &aName)
+STDMETHODIMP AdditionsFacility::COMGETTER(Name)(BSTR *aName)
 {
     LogFlowThisFuncEnter();
 
+    CheckComArgOutPointerValid(aName);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    aName = i_getName();
+    Bstr(getName()).cloneTo(aName);
 
     return S_OK;
 }
 
-HRESULT AdditionsFacility::getLastUpdated(LONG64 *aLastUpdated)
+STDMETHODIMP AdditionsFacility::COMGETTER(LastUpdated)(LONG64 *aTimestamp)
 {
     LogFlowThisFuncEnter();
 
+    CheckComArgOutPointerValid(aTimestamp);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    *aLastUpdated = i_getLastUpdated();
+    *aTimestamp = getLastUpdated();
 
     return S_OK;
 }
 
-HRESULT AdditionsFacility::getStatus(AdditionsFacilityStatus_T *aStatus)
+STDMETHODIMP AdditionsFacility::COMGETTER(Status)(AdditionsFacilityStatus_T *aStatus)
 {
     LogFlowThisFuncEnter();
 
+    CheckComArgOutPointerValid(aStatus);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    *aStatus = i_getStatus();
+    *aStatus = getStatus();
 
     return S_OK;
 }
 
-HRESULT AdditionsFacility::getType(AdditionsFacilityType_T *aType)
+STDMETHODIMP AdditionsFacility::COMGETTER(Type)(AdditionsFacilityType_T *aType)
 {
     LogFlowThisFuncEnter();
 
+    CheckComArgOutPointerValid(aType);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    *aType = i_getType();
+    *aType = getType();
 
     return S_OK;
 }
 
-const AdditionsFacility::FacilityInfo &AdditionsFacility::i_typeToInfo(AdditionsFacilityType_T aType)
+const AdditionsFacility::FacilityInfo &AdditionsFacility::typeToInfo(AdditionsFacilityType_T aType)
 {
     for (size_t i = 0; i < RT_ELEMENTS(s_aFacilityInfo); ++i)
     {
@@ -164,17 +188,17 @@ const AdditionsFacility::FacilityInfo &AdditionsFacility::i_typeToInfo(Additions
     return s_aFacilityInfo[0]; /* Return unknown type. */
 }
 
-AdditionsFacilityClass_T AdditionsFacility::i_getClass() const
+AdditionsFacilityClass_T AdditionsFacility::getClass() const
 {
-    return AdditionsFacility::i_typeToInfo(mData.mType).mClass;
+    return AdditionsFacility::typeToInfo(mData.mType).mClass;
 }
 
-com::Utf8Str AdditionsFacility::i_getName() const
+Bstr AdditionsFacility::getName() const
 {
-    return AdditionsFacility::i_typeToInfo(mData.mType).mName;
+    return AdditionsFacility::typeToInfo(mData.mType).mName;
 }
 
-LONG64 AdditionsFacility::i_getLastUpdated() const
+LONG64 AdditionsFacility::getLastUpdated() const
 {
     if (mData.mStates.size())
         return RTTimeSpecGetMilli(&mData.mStates.front().mTimestamp);
@@ -183,7 +207,7 @@ LONG64 AdditionsFacility::i_getLastUpdated() const
     return 0; /* Should never happen! */
 }
 
-AdditionsFacilityStatus_T AdditionsFacility::i_getStatus() const
+AdditionsFacilityStatus_T AdditionsFacility::getStatus() const
 {
     if (mData.mStates.size())
         return mData.mStates.back().mStatus;
@@ -192,7 +216,7 @@ AdditionsFacilityStatus_T AdditionsFacility::i_getStatus() const
     return AdditionsFacilityStatus_Unknown; /* Should never happen! */
 }
 
-AdditionsFacilityType_T AdditionsFacility::i_getType() const
+AdditionsFacilityType_T AdditionsFacility::getType() const
 {
     return mData.mType;
 }
@@ -200,7 +224,7 @@ AdditionsFacilityType_T AdditionsFacility::i_getType() const
 /**
  * Method used by IGuest::facilityUpdate to make updates.
  */
-void AdditionsFacility::i_update(AdditionsFacilityStatus_T a_enmStatus, uint32_t a_fFlags, PCRTTIMESPEC a_pTimeSpecTS)
+void AdditionsFacility::update(AdditionsFacilityStatus_T a_enmStatus, uint32_t a_fFlags, PCRTTIMESPEC a_pTimeSpecTS)
 {
     FacilityState state;
     state.mStatus    = a_enmStatus;

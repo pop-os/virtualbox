@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -332,7 +332,7 @@ DECLINLINE(ifnet_t) vboxNetFltDarwinRetainIfNet(PVBOXNETFLTINS pThis)
         if (pIfNet)
             ifnet_reference(pIfNet);
     }
-    RTSpinlockRelease(pThis->hSpinlock);
+    RTSpinlockReleaseNoInts(pThis->hSpinlock);
 
     return pIfNet;
 }
@@ -762,7 +762,7 @@ static void vboxNetFltDarwinIffDetached(void *pvThis, ifnet_t pIfNet)
     ASMAtomicUoWriteBool(&pThis->fRediscoveryPending, false);
     ASMAtomicWriteBool(&pThis->fDisconnectedFromHost, true);
 
-    RTSpinlockRelease(pThis->hSpinlock);
+    RTSpinlockReleaseNoInts(pThis->hSpinlock);
 
     if (pIfNet)
         ifnet_release(pIfNet);
@@ -1044,7 +1044,7 @@ static int vboxNetFltDarwinAttachToInterface(PVBOXNETFLTINS pThis, bool fRedisco
 
     RTSpinlockAcquire(pThis->hSpinlock);
     ASMAtomicUoWritePtr(&pThis->u.s.pIfNet, pIfNet);
-    RTSpinlockRelease(pThis->hSpinlock);
+    RTSpinlockReleaseNoInts(pThis->hSpinlock);
 
     /* Adjust g_offIfNetPCount as it varies for different versions of xnu. */
     vboxNetFltDarwinDetectPCountOffset(pIfNet);
@@ -1082,7 +1082,7 @@ static int vboxNetFltDarwinAttachToInterface(PVBOXNETFLTINS pThis, bool fRedisco
             ASMAtomicUoWritePtr(&pThis->u.s.pIfFilter, pIfFilter);
             pIfNet = NULL; /* don't dereference it */
         }
-        RTSpinlockRelease(pThis->hSpinlock);
+        RTSpinlockReleaseNoInts(pThis->hSpinlock);
 
         /* Report capabilities. */
         if (   !pIfNet
@@ -1103,7 +1103,7 @@ static int vboxNetFltDarwinAttachToInterface(PVBOXNETFLTINS pThis, bool fRedisco
 
     int rc = RTErrConvertFromErrno(err);
     if (RT_SUCCESS(rc))
-        LogRel(("VBoxFltDrv: attached to '%s' / %RTmac\n", pThis->szName, &pThis->u.s.MacAddr));
+        LogRel(("VBoxFltDrv: attached to '%s' / %.*Rhxs\n", pThis->szName, sizeof(pThis->u.s.MacAddr), &pThis->u.s.MacAddr));
     else
         LogRel(("VBoxFltDrv: failed to attach to ifnet '%s' (err=%d)\n", pThis->szName, err));
     return rc;
@@ -1303,7 +1303,7 @@ void vboxNetFltOsDeleteInstance(PVBOXNETFLTINS pThis)
     pIfFilter = ASMAtomicUoReadPtrT(&pThis->u.s.pIfFilter, interface_filter_t);
     if (pIfFilter)
         ASMAtomicUoWriteNullPtr(&pThis->u.s.pIfFilter);
-    RTSpinlockRelease(pThis->hSpinlock);
+    RTSpinlockReleaseNoInts(pThis->hSpinlock);
 
     if (pIfFilter)
         iflt_detach(pIfFilter);
@@ -1360,7 +1360,7 @@ int  vboxNetFltOsInitInstance(PVBOXNETFLTINS pThis, void *pvContext)
     {
         LogRel(("FIONBIO ok, but socket is blocking?!\n"));
         sock_close(pThis->u.s.pSysSock);
-        return rc;
+        return rc;        
     }
 
     struct kev_request req;

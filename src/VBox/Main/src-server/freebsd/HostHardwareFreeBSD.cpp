@@ -38,7 +38,6 @@
 # include <sys/types.h>
 # include <sys/stat.h>
 # include <unistd.h>
-# include <stdio.h>
 # include <sys/ioctl.h>
 # include <fcntl.h>
 # include <cam/cam.h>
@@ -251,8 +250,7 @@ static int getDVDInfoFromCAM(DriveInfoList *pList, bool *pfSuccess)
                         PeriphMatchPattern.pattern.periph_pattern.path_id    = paMatches[i].result.device_result.path_id;
                         PeriphMatchPattern.pattern.periph_pattern.target_id  = paMatches[i].result.device_result.target_id;
                         PeriphMatchPattern.pattern.periph_pattern.target_lun = paMatches[i].result.device_result.target_lun;
-                        PeriphMatchPattern.pattern.periph_pattern.flags      = PERIPH_MATCH_PATH | PERIPH_MATCH_TARGET |
-                                                                               PERIPH_MATCH_LUN;
+                        PeriphMatchPattern.pattern.periph_pattern.flags      = PERIPH_MATCH_PATH | PERIPH_MATCH_TARGET | PERIPH_MATCH_LUN;
                         PeriphCCB.cdm.num_patterns    = 1;
                         PeriphCCB.cdm.pattern_buf_len = sizeof(struct dev_match_result);
                         PeriphCCB.cdm.patterns        = &PeriphMatchPattern;
@@ -380,3 +378,141 @@ static int getDriveInfoFromEnv(const char *pcszVar, DriveInfoList *pList,
     LogFlowFunc(("rc=%Rrc, success=%d\n", rc, success));
     return rc;
 }
+
+#if 0
+int VBoxMainUSBDeviceInfo::UpdateDevices ()
+{
+    LogFlowThisFunc(("entered\n"));
+    int rc = VINF_SUCCESS;
+    bool success = false;  /* Have we succeeded in finding anything yet? */
+    try
+    {
+        bool halSuccess = false;
+        mDeviceList.clear();
+#if defined(RT_OS_LINUX)
+#ifdef VBOX_WITH_DBUS
+        if (   RT_SUCCESS(rc)
+            && RT_SUCCESS(RTDBusLoadLib())
+            && (!success || testing()))
+            rc = getUSBDeviceInfoFromHal(&mDeviceList, &halSuccess);
+        /* Try the old API if the new one *succeeded* as only one of them will
+         * pick up devices anyway. */
+        if (RT_SUCCESS(rc) && halSuccess && (!success || testing()))
+            rc = getOldUSBDeviceInfoFromHal(&mDeviceList, &halSuccess);
+        if (!success)
+            success = halSuccess;
+#endif /* VBOX_WITH_DBUS defined */
+#endif /* RT_OS_LINUX */
+    }
+    catch(std::bad_alloc &e)
+    {
+        rc = VERR_NO_MEMORY;
+    }
+    LogFlowThisFunc(("rc=%Rrc\n", rc));
+    return rc;
+}
+
+struct VBoxMainHotplugWaiter::Context
+{
+#if defined RT_OS_LINUX && defined VBOX_WITH_DBUS
+    /** The connection to DBus */
+    RTMemAutoPtr <DBusConnection, VBoxHalShutdownPrivate> mConnection;
+    /** Semaphore which is set when a device is hotplugged and reset when
+     * it is read. */
+    volatile bool mTriggered;
+    /** A flag to say that we wish to interrupt the current wait. */
+    volatile bool mInterrupt;
+    /** Constructor */
+    Context() : mTriggered(false), mInterrupt(false) {}
+#endif  /* defined RT_OS_LINUX && defined VBOX_WITH_DBUS */
+};
+
+/* This constructor sets up a private connection to the DBus daemon, connects
+ * to the hal service and installs a filter which sets the mTriggered flag in
+ * the Context structure when a device (not necessarily USB) is added or
+ * removed. */
+VBoxMainHotplugWaiter::VBoxMainHotplugWaiter ()
+{
+#if defined RT_OS_LINUX && defined VBOX_WITH_DBUS
+    int rc = VINF_SUCCESS;
+
+    mContext = new Context;
+    if (RT_SUCCESS(RTDBusLoadLib()))
+    {
+        for (unsigned i = 0; RT_SUCCESS(rc) && i < 5 && !mContext->mConnection; ++i)
+        {
+            rc = halInitPrivate (&mContext->mConnection);
+        }
+        if (!mContext->mConnection)
+            rc = VERR_NOT_SUPPORTED;
+        DBusMessage *pMessage;
+        while (   RT_SUCCESS(rc)
+               && (pMessage = dbus_connection_pop_message (mContext->mConnection.get())) != NULL)
+            dbus_message_unref (pMessage); /* empty the message queue. */
+        if (   RT_SUCCESS(rc)
+            && !dbus_connection_add_filter (mContext->mConnection.get(),
+                                            dbusFilterFunction,
+                                            (void *) &mContext->mTriggered, NULL))
+            rc = VERR_NO_MEMORY;
+        if (RT_FAILURE(rc))
+            mContext->mConnection.reset();
+    }
+#endif /* defined RT_OS_LINUX && defined VBOX_WITH_DBUS */
+}
+
+/* Destructor */
+VBoxMainHotplugWaiter::~VBoxMainHotplugWaiter ()
+{
+#if defined RT_OS_LINUX && defined VBOX_WITH_DBUS
+    if (!!mContext->mConnection)
+        dbus_connection_remove_filter (mContext->mConnection.get(), dbusFilterFunction,
+                                       (void *) &mContext->mTriggered);
+    delete mContext;
+#endif /* defined RT_OS_LINUX && defined VBOX_WITH_DBUS */
+}
+
+/* Currently this is implemented using a timed out wait on our private DBus
+ * connection.  Because the connection is private we don't have to worry about
+ * blocking other users. */
+int VBoxMainHotplugWaiter::Wait(RTMSINTERVAL cMillies)
+{
+    int rc = VINF_SUCCESS;
+#if defined RT_OS_LINUX && defined VBOX_WITH_DBUS
+    if (!mContext->mConnection)
+        rc = VERR_NOT_SUPPORTED;
+    bool connected = true;
+    mContext->mTriggered = false;
+    mContext->mInterrupt = false;
+    unsigned cRealMillies;
+    if (cMillies != RT_INDEFINITE_WAIT)
+        cRealMillies = cMillies;
+    else
+        cRealMillies = DBUS_POLL_TIMEOUT;
+    while (   RT_SUCCESS(rc) && connected && !mContext->mTriggered
+           && !mContext->mInterrupt)
+    {
+        connected = dbus_connection_read_write_dispatch (mContext->mConnection.get(),
+                                                         cRealMillies);
+        if (mContext->mInterrupt)
+            LogFlowFunc(("wait loop interrupted\n"));
+        if (cMillies != RT_INDEFINITE_WAIT)
+            mContext->mInterrupt = true;
+    }
+    if (!connected)
+        rc = VERR_TRY_AGAIN;
+#else  /* !(defined RT_OS_LINUX && defined VBOX_WITH_DBUS) */
+    rc = VERR_NOT_IMPLEMENTED;
+#endif  /* !(defined RT_OS_LINUX && defined VBOX_WITH_DBUS) */
+    return rc;
+}
+
+/* Set a flag to tell the Wait not to resume next time it times out. */
+void VBoxMainHotplugWaiter::Interrupt()
+{
+#if defined RT_OS_LINUX && defined VBOX_WITH_DBUS
+    LogFlowFunc(("\n"));
+    mContext->mInterrupt = true;
+#endif  /* defined RT_OS_LINUX && defined VBOX_WITH_DBUS */
+}
+#endif
+

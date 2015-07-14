@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -28,13 +28,9 @@
 
 /* Product info. */
 #include <product-generated.h>
-#include <version-generated.h>
 
-#ifdef RC_INVOKED
-/* Some versions of RC has trouble with cdefs.h, so we duplicate these two here. */
-# define RT_STR(str)             #str
-# define RT_XSTR(str)            RT_STR(str)
-#else  /* !RC_INVOKED */
+#ifndef RC_INVOKED
+# include <version-generated.h>
 
 /** Combined version number. */
 # define VBOX_VERSION                    (VBOX_VERSION_MAJOR << 16 | VBOX_VERSION_MINOR)
@@ -96,58 +92,20 @@
 #endif /* !RC_INVOKED */
 
 /** @name Prefined strings for Windows resource files
+ *
+ * @remarks The VBOX_VERSION_*_NR define are integer numbers while
+ *          VBOX_VERSION_* are strings when using the resource compile.
+ *          Kind of confusing...
+ *
  * @{ */
 #define VBOX_RC_COMPANY_NAME            VBOX_VENDOR
 #define VBOX_RC_LEGAL_COPYRIGHT         "Copyright (C) 2009-" VBOX_C_YEAR " Oracle Corporation\0"
-#define VBOX_RC_PRODUCT_NAME                    VBOX_PRODUCT
-#define VBOX_RC_PRODUCT_NAME_GA                 VBOX_PRODUCT " Guest Additions"
-#define VBOX_RC_PRODUCT_NAME_PUEL_EXTPACK       VBOX_PRODUCT " Extension Pack"
-#define VBOX_RC_PRODUCT_NAME_DTRACE_EXTPACK     VBOX_PRODUCT " VBoxDTrace Extension Pack"
-#define VBOX_RC_PRODUCT_NAME_STR                VBOX_RC_PRODUCT_NAME "\0"
-#define VBOX_RC_PRODUCT_NAME_GA_STR             VBOX_RC_PRODUCT_NAME_GA "\0"
-#define VBOX_RC_PRODUCT_NAME_PUEL_EXTPACK_STR   VBOX_RC_PRODUCT_NAME_PUEL_EXTPACK "\0"
-#define VBOX_RC_PRODUCT_NAME_DTRACE_EXTPACK_STR VBOX_RC_PRODUCT_NAME_DTRACE_EXTPACK "\0"
-#define VBOX_RC_PRODUCT_VERSION         VBOX_VERSION_MAJOR , VBOX_VERSION_MINOR , VBOX_VERSION_BUILD , VBOX_SVN_REV_MOD_5K
-#define VBOX_RC_FILE_VERSION            VBOX_VERSION_MAJOR , VBOX_VERSION_MINOR , VBOX_VERSION_BUILD , VBOX_SVN_REV_MOD_5K
-#ifndef VBOX_VERSION_PRERELEASE
-# define VBOX_RC_PRODUCT_VERSION_STR    RT_XSTR(VBOX_VERSION_MAJOR) "." RT_XSTR(VBOX_VERSION_MINOR) "." RT_XSTR(VBOX_VERSION_BUILD) "." RT_XSTR(VBOX_SVN_REV) "\0"
-# define VBOX_RC_FILE_VERSION_STR       RT_XSTR(VBOX_VERSION_MAJOR) "." RT_XSTR(VBOX_VERSION_MINOR) "." RT_XSTR(VBOX_VERSION_BUILD) "." RT_XSTR(VBOX_SVN_REV) "\0"
-#else
-# define VBOX_RC_PRODUCT_VERSION_STR    RT_XSTR(VBOX_VERSION_MAJOR) "." RT_XSTR(VBOX_VERSION_MINOR) "." RT_XSTR(VBOX_VERSION_BUILD) "." RT_XSTR(VBOX_SVN_REV) " (" VBOX_VERSION_PRERELEASE ")\0"
-# define VBOX_RC_FILE_VERSION_STR       RT_XSTR(VBOX_VERSION_MAJOR) "." RT_XSTR(VBOX_VERSION_MINOR) "." RT_XSTR(VBOX_VERSION_BUILD) "." RT_XSTR(VBOX_SVN_REV) " (" VBOX_VERSION_PRERELEASE ")\0"
-#endif
-#define VBOX_RC_FILE_OS                 VOS_NT_WINDOWS32
-#define VBOX_RC_TYPE_DLL                VFT_DLL
-#define VBOX_RC_TYPE_APP                VFT_APP
-#define VBOX_RC_TYPE_DRV                VFT_DRV
-/* Flags and extra strings depending on the build type and who's building. */
-#if defined(DEBUG) || defined(LOG_ENABLED) || defined(RT_STRICT) || defined(VBOX_STRICT) || defined(VBOX_WITH_STATISTICS)
-# define VBOX_RC_FILE_FLAGS_DEBUG       VS_FF_DEBUG
-#else
-# define VBOX_RC_FILE_FLAGS_DEBUG       0
-#endif
-#if VBOX_VERSION_MINOR >= 51 || defined(VBOX_VERSION_PRERELEASE)
-# define VBOX_RC_FILE_FLAGS_PRERELEASE  VS_FF_PRERELEASE
-#else
-# define VBOX_RC_FILE_FLAGS_PRERELEASE  0
-#endif
-#if defined(VBOX_BUILD_SERVER_BUILD) && (VBOX_VERSION_MINOR & 1) == 0
-# define VBOX_RC_FILE_FLAGS_BUILD       0
-# define VBOX_RC_MORE_STRINGS
-#elif defined(VBOX_BUILD_SERVER_BUILD)
-# define VBOX_RC_FILE_FLAGS_BUILD       VS_FF_SPECIALBUILD
-# define VBOX_RC_MORE_STRINGS           VALUE "SpecialBuild", "r" RT_XSTR(VBOX_SVN_REV) "\0"
-#else
-# define VBOX_RC_FILE_FLAGS_BUILD       VS_FF_PRIVATEBUILD
-# ifdef VBOX_PRIVATE_BUILD_DESC
-#  define VBOX_RC_MORE_STRINGS          VALUE "PrivateBuild", VBOX_PRIVATE_BUILD_DESC "\0"
-# else
-#  define VBOX_RC_MORE_STRINGS          VALUE "PrivateBuild", "r" RT_XSTR(VBOX_SVN_REV) "\0"
-# error
-# endif
-#endif
-#define VBOX_RC_FILE_FLAGS              (VBOX_RC_FILE_FLAGS_DEBUG | VBOX_RC_FILE_FLAGS_PRERELEASE | VBOX_RC_FILE_FLAGS_BUILD)
+#define VBOX_RC_PRODUCT_VERSION         VBOX_VERSION_MAJOR_NR , VBOX_VERSION_MINOR_NR , 0 , 0
+#define VBOX_RC_FILE_VERSION            VBOX_VERSION_MAJOR_NR , VBOX_VERSION_MINOR_NR , 0 , 0
 /** @} */
+
+/** @todo Clean up the resource compiler mess where we cannot include
+ *        version-generated.h and requires two files. */
 
 #endif
 

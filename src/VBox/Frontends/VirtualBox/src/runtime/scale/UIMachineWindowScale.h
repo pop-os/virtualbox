@@ -1,6 +1,7 @@
-/* $Id: UIMachineWindowScale.h $ */
 /** @file
- * VBox Qt GUI - UIMachineWindowScale class declaration.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * UIMachineWindowScale class declaration
  */
 
 /*
@@ -31,10 +32,16 @@ protected:
     /* Constructor: */
     UIMachineWindowScale(UIMachineLogic *pMachineLogic, ulong uScreenId);
 
+private slots:
+
+    /* Popup main-menu: */
+    void sltPopupMainMenu();
+
 private:
 
     /* Prepare helpers: */
     void prepareMainLayout();
+    void prepareMenu();
 #ifdef Q_WS_MAC
     void prepareVisualState();
 #endif /* Q_WS_MAC */
@@ -43,8 +50,9 @@ private:
     /* Cleanup helpers: */
     void saveSettings();
 #ifdef Q_WS_MAC
-    //void cleanupVisualState() {}
+    void cleanupVisualState();
 #endif /* Q_WS_MAC */
+    void cleanupMenu();
     //void cleanupMainLayout() {}
 
     /* Show stuff: */
@@ -58,6 +66,9 @@ private:
 
     /* Helpers: */
     bool isMaximizedChecked();
+
+    /* Widgets: */
+    QMenu *m_pMainMenu;
 
     /* Variables: */
     QRect m_normalGeometry;

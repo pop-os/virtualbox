@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -228,8 +228,7 @@ RTDECL(int)      VBoxHGSMISendCapsInfo(PHGSMIGUESTCOMMANDCONTEXT pCtx,
 RTDECL(int)      VBoxHGSMISetupGuestContext(PHGSMIGUESTCOMMANDCONTEXT pCtx,
                                             void *pvGuestHeapMemory,
                                             uint32_t cbGuestHeapMemory,
-                                            uint32_t offVRAMGuestHeapMemory,
-                                            const HGSMIENV *pEnv);
+                                            uint32_t offVRAMGuestHeapMemory);
 RTDECL(void)     VBoxHGSMIGetHostAreaMapping(PHGSMIGUESTCOMMANDCONTEXT pCtx,
                                              uint32_t cbVRAM,
                                              uint32_t offVRAMBaseMapping,
@@ -248,8 +247,6 @@ RTDECL(int)      VBoxHGSMISendHostCtxInfo(PHGSMIGUESTCOMMANDCONTEXT pCtx,
                                           uint32_t cbHostArea);
 RTDECL(int)      VBoxQueryConfHGSMI(PHGSMIGUESTCOMMANDCONTEXT pCtx,
                                     uint32_t u32Index, uint32_t *pulValue);
-RTDECL(int)      VBoxQueryConfHGSMIDef(PHGSMIGUESTCOMMANDCONTEXT pCtx,
-                                       uint32_t u32Index, uint32_t u32DefValue, uint32_t *pulValue);
 RTDECL(int)      VBoxHGSMIUpdatePointerShape(PHGSMIGUESTCOMMANDCONTEXT pCtx,
                                              uint32_t fFlags,
                                              uint32_t cHotX,

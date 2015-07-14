@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -298,11 +298,11 @@ DECL_FORCE_INLINE(int) pdmCritSectEnter(PPDMCRITSECT pCritSect, int rcBusy, PCRT
             PVM     pVM   = pCritSect->s.CTX_SUFF(pVM);
             PVMCPU  pVCpu = VMMGetCpu(pVM);
             HMR0Leave(pVM, pVCpu);
-            RTThreadPreemptRestore(NIL_RTTHREAD, XXX);
+            RTThreadPreemptRestore(NIL_RTTHREAD, ????);
 
             rc = pdmR3R0CritSectEnterContended(pCritSect, hNativeSelf, pSrcPos);
 
-            RTThreadPreemptDisable(NIL_RTTHREAD, XXX);
+            RTThreadPreemptDisable(NIL_RTTHREAD, ????);
             HMR0Enter(pVM, pVCpu);
         }
         return rc;
@@ -584,9 +584,9 @@ VMMDECL(int) PDMCritSectLeave(PPDMCRITSECT pCritSect)
          * Leave for real.
          */
         /* update members. */
-        SUPSEMEVENT hEventToSignal  = pCritSect->s.hEventToSignal;
-        pCritSect->s.hEventToSignal = NIL_SUPSEMEVENT;
 # ifdef IN_RING3
+        RTSEMEVENT hEventToSignal    = pCritSect->s.EventToSignal;
+        pCritSect->s.EventToSignal   = NIL_RTSEMEVENT;
 #  if defined(PDMCRITSECT_STRICT)
         if (pCritSect->s.Core.pValidatorRec->hThread != NIL_RTTHREAD)
             RTLockValidatorRecExclReleaseOwnerUnchecked(pCritSect->s.Core.pValidatorRec);
@@ -610,13 +610,15 @@ VMMDECL(int) PDMCritSectLeave(PPDMCRITSECT pCritSect)
             AssertRC(rc);
         }
 
+# ifdef IN_RING3
         /* Signal exit event. */
-        if (hEventToSignal != NIL_SUPSEMEVENT)
+        if (hEventToSignal != NIL_RTSEMEVENT)
         {
-            Log8(("Signalling %#p\n", hEventToSignal));
-            int rc = SUPSemEventSignal(pCritSect->s.CTX_SUFF(pVM)->pSession, hEventToSignal);
+            LogBird(("Signalling %#x\n", hEventToSignal));
+            int rc = RTSemEventSignal(hEventToSignal);
             AssertRC(rc);
         }
+# endif
 
 # if defined(DEBUG_bird) && defined(IN_RING0)
         VMMTrashVolatileXMMRegs();
@@ -668,39 +670,6 @@ VMMDECL(int) PDMCritSectLeave(PPDMCRITSECT pCritSect)
 
     return VINF_SUCCESS;
 }
-
-
-#if defined(IN_RING0) || defined(IN_RING3)
-/**
- * Schedule a event semaphore for signalling upon critsect exit.
- *
- * @returns VINF_SUCCESS on success.
- * @returns VERR_TOO_MANY_SEMAPHORES if an event was already scheduled.
- * @returns VERR_NOT_OWNER if we're not the critsect owner (ring-3 only).
- * @returns VERR_SEM_DESTROYED if RTCritSectDelete was called while waiting.
- *
- * @param   pCritSect       The critical section.
- * @param   hEventToSignal  The support driver event semaphore that should be
- *                          signalled.
- */
-VMMDECL(int) PDMHCCritSectScheduleExitEvent(PPDMCRITSECT pCritSect, SUPSEMEVENT hEventToSignal)
-{
-    AssertPtr(pCritSect);
-    Assert(!(pCritSect->s.Core.fFlags & RTCRITSECT_FLAGS_NOP));
-    Assert(hEventToSignal != NIL_SUPSEMEVENT);
-# ifdef IN_RING3
-    if (RT_UNLIKELY(!RTCritSectIsOwner(&pCritSect->s.Core)))
-        return VERR_NOT_OWNER;
-# endif
-    if (RT_LIKELY(   pCritSect->s.hEventToSignal == NIL_RTSEMEVENT
-                  || pCritSect->s.hEventToSignal == hEventToSignal))
-    {
-        pCritSect->s.hEventToSignal = hEventToSignal;
-        return VINF_SUCCESS;
-    }
-    return VERR_TOO_MANY_SEMAPHORES;
-}
-#endif /* IN_RING0 || IN_RING3 */
 
 
 /**

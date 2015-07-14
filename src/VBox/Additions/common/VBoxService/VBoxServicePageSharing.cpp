@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -333,7 +333,7 @@ void VBoxServicePageSharingInspectModules(DWORD dwProcessId, PAVLPVNODECORE *ppN
  * with other VMs.
  *
  */
-static void VBoxServicePageSharingInspectGuest(void)
+void VBoxServicePageSharingInspectGuest()
 {
     HANDLE hSnapshot;
     PAVLPVNODECORE pNewTree = NULL;
@@ -513,14 +513,14 @@ static DECLCALLBACK(int) VBoxServicePageSharingEmptyTreeCallback(PAVLPVNODECORE 
 
 
 #elif TARGET_NT4
-static void VBoxServicePageSharingInspectGuest(void)
+void VBoxServicePageSharingInspectGuest()
 {
     /* not implemented */
 }
 #else
-static void VBoxServicePageSharingInspectGuest(void)
+void VBoxServicePageSharingInspectGuest()
 {
-    /** @todo other platforms */
+    /* @todo other platforms */
 }
 #endif
 
@@ -620,7 +620,7 @@ DECLCALLBACK(int) VBoxServicePageSharingWorker(bool volatile *pfShutdown)
 #ifdef RT_OS_WINDOWS
 
 /**
- * This gets control when VBoxService is launched with "pagefusion" by
+ * This gets control when VBoxService is launched with -pagefusionfork by
  * VBoxServicePageSharingWorkerProcess().
  *
  * @returns RTEXITCODE_SUCCESS.
@@ -628,7 +628,7 @@ DECLCALLBACK(int) VBoxServicePageSharingWorker(bool volatile *pfShutdown)
  * @remarks It won't normally return since the parent drops the shutdown hint
  *          via RTProcTerminate().
  */
-RTEXITCODE VBoxServicePageSharingWorkerChild(void)
+RTEXITCODE VBoxServicePageSharingInitFork(void)
 {
     VBoxServiceVerbose(3, "VBoxServicePageSharingInitFork\n");
 

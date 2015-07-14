@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -316,10 +316,6 @@ int slirp_init(PNATState *ppData, uint32_t u32NetAddr, uint32_t u32Netmask,
     pData->pvUser = pvUser;
     pData->netmask = u32Netmask;
 
-    rc = RTCritSectRwInit(&pData->CsRwHandlerChain);
-    if (RT_FAILURE(rc))
-        return rc;
-
     /* sockets & TCP defaults */
     pData->socket_rcv = 64 * _1K;
     pData->socket_snd = 64 * _1K;
@@ -583,7 +579,6 @@ void slirp_term(PNATState pData)
          "\n"
          "\n"));
 #endif
-    RTCritSectRwDelete(&pData->CsRwHandlerChain);
     RTMemFree(pData);
 }
 

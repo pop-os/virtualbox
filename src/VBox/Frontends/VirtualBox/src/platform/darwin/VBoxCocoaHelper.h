@@ -1,6 +1,7 @@
-/* $Id: VBoxCocoaHelper.h $ */
 /** @file
- * VBox Qt GUI - VBoxCocoa Helper.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * VBoxCocoa Helper
  */
 
 /*

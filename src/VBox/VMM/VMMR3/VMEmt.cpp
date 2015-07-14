@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -720,7 +720,7 @@ static DECLCALLBACK(int) vmR3HaltGlobal1Halt(PUVMCPU pUVCpu, const uint32_t fMas
                 rc = VINF_SUCCESS;
             else if (RT_FAILURE(rc))
             {
-                rc = vmR3FatalWaitError(pUVCpu, "vmR3HaltGlobal1Halt: VMMR0_DO_GVMM_SCHED_HALT->%Rrc\n", rc);
+                rc = vmR3FatalWaitError(pUVCpu, "VMMR0_DO_GVMM_SCHED_HALT->%Rrc\n", rc);
                 break;
             }
             else
@@ -786,7 +786,7 @@ static DECLCALLBACK(int) vmR3HaltGlobal1Wait(PUVMCPU pUVCpu)
             rc = VINF_SUCCESS;
         else if (RT_FAILURE(rc))
         {
-            rc = vmR3FatalWaitError(pUVCpu, "vmR3HaltGlobal1Wait: VMMR0_DO_GVMM_SCHED_HALT->%Rrc\n", rc);
+            rc = vmR3FatalWaitError(pUVCpu, "VMMR0_DO_GVMM_SCHED_HALT->%Rrc\n", rc);
             break;
         }
     }

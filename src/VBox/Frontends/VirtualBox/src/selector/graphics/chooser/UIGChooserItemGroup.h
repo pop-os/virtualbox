@@ -1,6 +1,7 @@
-/* $Id: UIGChooserItemGroup.h $ */
 /** @file
- * VBox Qt GUI - UIGChooserItemGroup class declaration.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * UIGChooserItemGroup class declaration
  */
 
 /*

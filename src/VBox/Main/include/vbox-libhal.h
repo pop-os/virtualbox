@@ -1,4 +1,3 @@
-/* $Id: vbox-libhal.h $ */
 /** @file
  *
  * Module to dynamically load libhal and libdbus and load all symbols

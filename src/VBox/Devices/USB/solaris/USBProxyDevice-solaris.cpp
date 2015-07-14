@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2015 Oracle Corporation
+ * Copyright (C) 2009-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,6 +20,9 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_DRV_USBPROXY
+#ifdef DEBUG_ramshankar
+# define LOG_INSTANCE       RTLogRelDefaultInstance()
+#endif
 #include <sys/poll.h>
 #include <errno.h>
 #include <strings.h>

@@ -1,10 +1,12 @@
 /* $Id: UIVirtualBoxEventHandler.cpp $ */
 /** @file
- * VBox Qt GUI - UIVirtualBoxEventHandler class implementation.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * UIVirtualBoxEventHandler class implementation
  */
 
 /*
- * Copyright (C) 2010-2015 Oracle Corporation
+ * Copyright (C) 2010-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,20 +17,13 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* GUI includes: */
-# include "UIVirtualBoxEventHandler.h"
-# include "UIMainEventListener.h"
-# include "VBoxGlobal.h"
+#include "UIVirtualBoxEventHandler.h"
+#include "UIMainEventListener.h"
+#include "VBoxGlobal.h"
 
 /* COM includes: */
-# include "CEventSource.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
+#include "CEventSource.h"
 
 /* static */
 UIVirtualBoxEventHandler *UIVirtualBoxEventHandler::m_pInstance = 0;
@@ -37,7 +32,7 @@ UIVirtualBoxEventHandler *UIVirtualBoxEventHandler::m_pInstance = 0;
 UIVirtualBoxEventHandler* UIVirtualBoxEventHandler::instance()
 {
     if (!m_pInstance)
-        m_pInstance = new UIVirtualBoxEventHandler;
+        m_pInstance = new UIVirtualBoxEventHandler();
     return m_pInstance;
 }
 
@@ -53,93 +48,56 @@ void UIVirtualBoxEventHandler::destroy()
 
 UIVirtualBoxEventHandler::UIVirtualBoxEventHandler()
 {
-    /* Create Main-event listener instance: */
+//    RTPrintf("Self add: %RTthrd\n", RTThreadSelf());
+    const CVirtualBox &vbox = vboxGlobal().virtualBox();
     ComObjPtr<UIMainEventListenerImpl> pListener;
     pListener.createObject();
-    pListener->init(new UIMainEventListener, this);
+    pListener->init(new UIMainEventListener(), this);
     m_mainEventListener = CEventListener(pListener);
-
-    /* Get VirtualBoxClient: */
-    const CVirtualBoxClient vboxClient = vboxGlobal().virtualBoxClient();
-    AssertWrapperOk(vboxClient);
-    /* Get event-source: */
-    CEventSource eventSourceVirtualBoxClient = vboxClient.GetEventSource();
-    AssertWrapperOk(eventSourceVirtualBoxClient);
-    /* Register listener for expected event-types: */
-    QVector<KVBoxEventType> vboxClientEvents;
-    vboxClientEvents
-        << KVBoxEventType_OnVBoxSVCAvailabilityChanged;
-    eventSourceVirtualBoxClient.RegisterListener(m_mainEventListener, vboxClientEvents, TRUE);
-    AssertWrapperOk(eventSourceVirtualBoxClient);
-
-    /* Get VirtualBox: */
-    const CVirtualBox vbox = vboxGlobal().virtualBox();
-    AssertWrapperOk(vbox);
-    /* Get event-source: */
-    CEventSource eventSourceVirtualBox = vbox.GetEventSource();
-    AssertWrapperOk(eventSourceVirtualBox);
-    /* Register listener for expected event-types: */
-    QVector<KVBoxEventType> vboxEvents;
-    vboxEvents
+    QVector<KVBoxEventType> events;
+    events
         << KVBoxEventType_OnMachineStateChanged
         << KVBoxEventType_OnMachineDataChanged
         << KVBoxEventType_OnMachineRegistered
         << KVBoxEventType_OnSessionStateChanged
         << KVBoxEventType_OnSnapshotTaken
         << KVBoxEventType_OnSnapshotDeleted
-        << KVBoxEventType_OnSnapshotChanged
-        << KVBoxEventType_OnSnapshotRestored;
-    eventSourceVirtualBox.RegisterListener(m_mainEventListener, vboxEvents, TRUE);
-    AssertWrapperOk(eventSourceVirtualBox);
+        << KVBoxEventType_OnSnapshotChanged;
 
-    /* Prepare connections: */
-    connect(pListener->getWrapped(), SIGNAL(sigVBoxSVCAvailabilityChange(bool)),
-            this, SIGNAL(sigVBoxSVCAvailabilityChange(bool)),
-            Qt::QueuedConnection);
+    vbox.GetEventSource().RegisterListener(m_mainEventListener, events, TRUE);
+    AssertWrapperOk(vbox);
+
     connect(pListener->getWrapped(), SIGNAL(sigMachineStateChange(QString, KMachineState)),
             this, SIGNAL(sigMachineStateChange(QString, KMachineState)),
             Qt::QueuedConnection);
+
     connect(pListener->getWrapped(), SIGNAL(sigMachineDataChange(QString)),
             this, SIGNAL(sigMachineDataChange(QString)),
             Qt::QueuedConnection);
+
     connect(pListener->getWrapped(), SIGNAL(sigMachineRegistered(QString, bool)),
             this, SIGNAL(sigMachineRegistered(QString, bool)),
             Qt::QueuedConnection);
+
     connect(pListener->getWrapped(), SIGNAL(sigSessionStateChange(QString, KSessionState)),
             this, SIGNAL(sigSessionStateChange(QString, KSessionState)),
             Qt::QueuedConnection);
+
     connect(pListener->getWrapped(), SIGNAL(sigSnapshotTake(QString, QString)),
             this, SIGNAL(sigSnapshotTake(QString, QString)),
             Qt::QueuedConnection);
+
     connect(pListener->getWrapped(), SIGNAL(sigSnapshotDelete(QString, QString)),
             this, SIGNAL(sigSnapshotDelete(QString, QString)),
             Qt::QueuedConnection);
+
     connect(pListener->getWrapped(), SIGNAL(sigSnapshotChange(QString, QString)),
             this, SIGNAL(sigSnapshotChange(QString, QString)),
-            Qt::QueuedConnection);
-    connect(pListener->getWrapped(), SIGNAL(sigSnapshotRestore(QString, QString)),
-            this, SIGNAL(sigSnapshotRestore(QString, QString)),
             Qt::QueuedConnection);
 }
 
 UIVirtualBoxEventHandler::~UIVirtualBoxEventHandler()
 {
-    /* Get VirtualBox: */
-    const CVirtualBox vbox = vboxGlobal().virtualBox();
-    AssertWrapperOk(vbox);
-    /* Get event-source: */
-    CEventSource eventSourceVirtualBox = vbox.GetEventSource();
-    AssertWrapperOk(eventSourceVirtualBox);
-    /* Unregister listener: */
-    eventSourceVirtualBox.UnregisterListener(m_mainEventListener);
-
-    /* Get VirtualBoxClient: */
-    const CVirtualBoxClient vboxClient = vboxGlobal().virtualBoxClient();
-    AssertWrapperOk(vboxClient);
-    /* Get event-source: */
-    CEventSource eventSourceVirtualBoxClient = vboxClient.GetEventSource();
-    AssertWrapperOk(eventSourceVirtualBoxClient);
-    /* Unregister listener: */
-    eventSourceVirtualBoxClient.UnregisterListener(m_mainEventListener);
+    const CVirtualBox &vbox = vboxGlobal().virtualBox();
+    vbox.GetEventSource().UnregisterListener(m_mainEventListener);
 }
-

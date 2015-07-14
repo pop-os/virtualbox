@@ -376,7 +376,7 @@ protected:
 	static PyObject *MakeDefaultWrapper(PyObject *pyis, const nsIID &iid);
 
 #ifdef VBOX_DEBUG_LIFETIMES
-	static DECLCALLBACK(int32_t) initOnceCallback(void *pvUser1);
+	static DECLCALLBACK(int) initOnceCallback(void *pvUser1, void *pvUser2);
 
 	RTLISTNODE              m_ListEntry; /**< List entry. */
 

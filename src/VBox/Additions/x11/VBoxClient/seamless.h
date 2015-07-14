@@ -1,4 +1,3 @@
-/* $Id: seamless.h $ */
 /** @file
  * X11 Guest client - seamless mode, missing proper description while using the
  * potentially confusing word 'host'.
@@ -63,7 +62,7 @@ private:
      * @a nextStateChangeEvent call to return immediately.
      */
     int cancelEvent(void);
-
+    
     /** Thread function to monitor X11 window configuration changes. */
     static DECLCALLBACK(int) x11MonitorThread(RTTHREAD self, void *pvUser);
 
@@ -72,7 +71,7 @@ private:
 
     /** Helper to stop the X11 monitor thread again. */
     int stopX11MonitorThread(void);
-
+    
     /** Is the service currently actively monitoring X11 windows? */
     bool isX11MonitorThreadRunning()
     {

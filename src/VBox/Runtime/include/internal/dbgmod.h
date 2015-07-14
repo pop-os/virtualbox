@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2015 Oracle Corporation
+ * Copyright (C) 2008-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -638,6 +638,27 @@ typedef struct RTDBGMODINT
 } RTDBGMODINT;
 /** Pointer to an debug module structure.  */
 typedef RTDBGMODINT *PRTDBGMODINT;
+
+
+/**
+ * Special segment package used passing segment order information for mach-o
+ * images (mainly mach_kernel, really).
+ *
+ * Passes to rtDbgModDwarf_TryOpen via RTDBGMODINF::pvDbgPriv.
+ */
+typedef struct RTDBGDWARFSEGPKG
+{
+    /** Pointer to the segment array. */
+    PCRTDBGSEGMENT      paSegs;
+    /** Number of segments. */
+    uint32_t            cSegs;
+    /** For use more internal use in file locator callbacks. */
+    RTLDRARCH           enmArch;
+    /** For use more internal use in file locator callbacks. */
+    PCRTUUID            pUuid;
+} RTDBGDWARFSEGPKG;
+/** Pointer to a const segment package. */
+typedef RTDBGDWARFSEGPKG const *PCRTDBGDWARFSEGPKG;
 
 
 extern DECLHIDDEN(RTSTRCACHE)           g_hDbgModStrCache;

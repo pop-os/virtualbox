@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -343,12 +343,11 @@ typedef struct VMM
     STAMCOUNTER                 StatRZRetMMIOPatchRead;
     STAMCOUNTER                 StatRZRetMMIOPatchWrite;
     STAMCOUNTER                 StatRZRetMMIOReadWrite;
-    STAMCOUNTER                 StatRZRetMSRRead;
-    STAMCOUNTER                 StatRZRetMSRWrite;
     STAMCOUNTER                 StatRZRetLDTFault;
     STAMCOUNTER                 StatRZRetGDTFault;
     STAMCOUNTER                 StatRZRetIDTFault;
     STAMCOUNTER                 StatRZRetTSSFault;
+    STAMCOUNTER                 StatRZRetPDFault;
     STAMCOUNTER                 StatRZRetCSAMTask;
     STAMCOUNTER                 StatRZRetSyncCR3;
     STAMCOUNTER                 StatRZRetMisc;
@@ -418,18 +417,25 @@ typedef struct VMMCPU
      * This is NULL if logging is disabled. */
     R0PTRTYPE(PVMMR0LOGGER)     pR0LoggerR0;
 
-    /** Thread context switching hook (ring-0). */
-    RTTHREADCTXHOOK             hCtxHook;
+    /** @name Thread-context hooks.
+     *  @{*/
+    R0PTRTYPE(RTTHREADCTX)      hR0ThreadCtx;
+#if HC_ARCH_BITS == 32
+    uint32_t                    u32Padding;
+#else
+    uint64_t                    u64Padding;
+#endif
+    /** @} */
 
     /** @name Rendezvous
      * @{ */
     /** Whether the EMT is executing a rendezvous right now. For detecting
      *  attempts at recursive rendezvous. */
     bool volatile               fInRendezvous;
-    bool                        afPadding[HC_ARCH_BITS == 32 ? 3+4 : 7+8];
+    bool                        afPadding[HC_ARCH_BITS == 32 ? 3 : 7];
     /** @} */
 
-    /** @name Raw-mode context tracing data.
+    /** @name Raw-mode context tracting data.
      * @{ */
     SUPDRVTRACERUSRCTX          TracerCtx;
     /** @} */
@@ -464,59 +470,59 @@ typedef VMMCPU *PVMMCPU;
 
 
 /**
- * The VMMRCEntry() codes.
+ * The VMMGCEntry() codes.
  */
-typedef enum VMMRCOPERATION
+typedef enum VMMGCOPERATION
 {
     /** Do GC module init. */
-    VMMRC_DO_VMMRC_INIT = 1,
+    VMMGC_DO_VMMGC_INIT = 1,
 
     /** The first Trap testcase. */
-    VMMRC_DO_TESTCASE_TRAP_FIRST = 0x0dead000,
+    VMMGC_DO_TESTCASE_TRAP_FIRST = 0x0dead000,
     /** Trap 0 testcases, uArg selects the variation. */
-    VMMRC_DO_TESTCASE_TRAP_0 = VMMRC_DO_TESTCASE_TRAP_FIRST,
+    VMMGC_DO_TESTCASE_TRAP_0 = VMMGC_DO_TESTCASE_TRAP_FIRST,
     /** Trap 1 testcases, uArg selects the variation. */
-    VMMRC_DO_TESTCASE_TRAP_1,
+    VMMGC_DO_TESTCASE_TRAP_1,
     /** Trap 2 testcases, uArg selects the variation. */
-    VMMRC_DO_TESTCASE_TRAP_2,
+    VMMGC_DO_TESTCASE_TRAP_2,
     /** Trap 3 testcases, uArg selects the variation. */
-    VMMRC_DO_TESTCASE_TRAP_3,
+    VMMGC_DO_TESTCASE_TRAP_3,
     /** Trap 4 testcases, uArg selects the variation. */
-    VMMRC_DO_TESTCASE_TRAP_4,
+    VMMGC_DO_TESTCASE_TRAP_4,
     /** Trap 5 testcases, uArg selects the variation. */
-    VMMRC_DO_TESTCASE_TRAP_5,
+    VMMGC_DO_TESTCASE_TRAP_5,
     /** Trap 6 testcases, uArg selects the variation. */
-    VMMRC_DO_TESTCASE_TRAP_6,
+    VMMGC_DO_TESTCASE_TRAP_6,
     /** Trap 7 testcases, uArg selects the variation. */
-    VMMRC_DO_TESTCASE_TRAP_7,
+    VMMGC_DO_TESTCASE_TRAP_7,
     /** Trap 8 testcases, uArg selects the variation. */
-    VMMRC_DO_TESTCASE_TRAP_8,
+    VMMGC_DO_TESTCASE_TRAP_8,
     /** Trap 9 testcases, uArg selects the variation. */
-    VMMRC_DO_TESTCASE_TRAP_9,
+    VMMGC_DO_TESTCASE_TRAP_9,
     /** Trap 0a testcases, uArg selects the variation. */
-    VMMRC_DO_TESTCASE_TRAP_0A,
+    VMMGC_DO_TESTCASE_TRAP_0A,
     /** Trap 0b testcases, uArg selects the variation. */
-    VMMRC_DO_TESTCASE_TRAP_0B,
+    VMMGC_DO_TESTCASE_TRAP_0B,
     /** Trap 0c testcases, uArg selects the variation. */
-    VMMRC_DO_TESTCASE_TRAP_0C,
+    VMMGC_DO_TESTCASE_TRAP_0C,
     /** Trap 0d testcases, uArg selects the variation. */
-    VMMRC_DO_TESTCASE_TRAP_0D,
+    VMMGC_DO_TESTCASE_TRAP_0D,
     /** Trap 0e testcases, uArg selects the variation. */
-    VMMRC_DO_TESTCASE_TRAP_0E,
+    VMMGC_DO_TESTCASE_TRAP_0E,
     /** The last trap testcase (exclusive). */
-    VMMRC_DO_TESTCASE_TRAP_LAST,
+    VMMGC_DO_TESTCASE_TRAP_LAST,
     /** Testcase for checking interrupt forwarding. */
-    VMMRC_DO_TESTCASE_HYPER_INTERRUPT,
+    VMMGC_DO_TESTCASE_HYPER_INTERRUPT,
     /** Switching testing and profiling stub. */
-    VMMRC_DO_TESTCASE_NOP,
+    VMMGC_DO_TESTCASE_NOP,
     /** Testcase for checking interrupt masking.. */
-    VMMRC_DO_TESTCASE_INTERRUPT_MASKING,
+    VMMGC_DO_TESTCASE_INTERRUPT_MASKING,
     /** Switching testing and profiling stub. */
-    VMMRC_DO_TESTCASE_HM_NOP,
+    VMMGC_DO_TESTCASE_HM_NOP,
 
     /** The usual 32-bit hack. */
-    VMMRC_DO_32_BIT_HACK = 0x7fffffff
-} VMMRCOPERATION;
+    VMMGC_DO_32_BIT_HACK = 0x7fffffff
+} VMMGCOPERATION;
 
 
 
@@ -550,11 +556,11 @@ void vmmR3SwitcherRelocate(PVM pVM, RTGCINTPTR offDelta);
 #ifdef IN_RING0
 /**
  * World switcher assembly routine.
- * It will call VMMRCEntry().
+ * It will call VMMGCEntry().
  *
- * @returns return code from VMMRCEntry().
+ * @returns return code from VMMGCEntry().
  * @param   pVM     Pointer to the VM.
- * @param   uArg    See VMMRCEntry().
+ * @param   uArg    See VMMGCEntry().
  * @internal
  */
 DECLASM(int)    vmmR0WorldSwitch(PVM pVM, unsigned uArg);

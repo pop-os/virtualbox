@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2015 Oracle Corporation
+ * Copyright (C) 2009-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -76,8 +76,8 @@
 
 /** @name Interrupt type
  * @{ */
-#define HPET_TIMER_TYPE_LEVEL       (1 << 1)
-#define HPET_TIMER_TYPE_EDGE        (0 << 1)
+#define HPET_TIMER_TYPE_LEVEL       1
+#define HPET_TIMER_TYPE_EDGE        0
 /** @} */
 
 /** @name Delivery mode
@@ -445,7 +445,9 @@ static int hpetTimerRegRead32(HPET const *pThis, uint32_t iTimerNo, uint32_t iTi
     if (   iTimerNo >= HPET_CAP_GET_TIMERS(pThis->u32Capabilities)  /* The second check is only to satisfy Parfait; */
         || iTimerNo >= RT_ELEMENTS(pThis->aTimers) )                /* in practice, the number of configured timers */
     {                                                               /* will always be <= aTimers elements. */
-        LogRelMax(10, ("HPET: Using timer above configured range: %d\n", iTimerNo));
+        static unsigned s_cOccurences = 0;
+        if (s_cOccurences++ < 10)
+            LogRel(("HPET: using timer above configured range: %d\n", iTimerNo));
         *pu32Value = 0;
         return VINF_SUCCESS;
     }
@@ -481,7 +483,9 @@ static int hpetTimerRegRead32(HPET const *pThis, uint32_t iTimerNo, uint32_t iTi
 
         default:
         {
-            LogRelMax(10, ("HPET: Invalid HPET register read %d on %d\n", iTimerReg, pHpetTimer->idxTimer));
+            static unsigned s_cOccurences = 0;
+            if (s_cOccurences++ < 10)
+                LogRel(("invalid HPET register read %d on %d\n", iTimerReg, pHpetTimer->idxTimer));
             u32Value = 0;
             break;
         }
@@ -510,7 +514,9 @@ static int hpetTimerRegWrite32(HPET *pThis, uint32_t iTimerNo, uint32_t iTimerRe
     if (   iTimerNo >= HPET_CAP_GET_TIMERS(pThis->u32Capabilities)
         || iTimerNo >= RT_ELEMENTS(pThis->aTimers) )    /* Parfait - see above. */
     {
-        LogRelMax(10, ("HPET: Using timer above configured range: %d\n", iTimerNo));
+        static unsigned s_cOccurences = 0;
+        if (s_cOccurences++ < 10)
+            LogRel(("HPET: using timer above configured range: %d\n", iTimerNo));
         return VINF_SUCCESS;
     }
     HPETTIMER *pHpetTimer = &pThis->aTimers[iTimerNo];
@@ -539,7 +545,9 @@ static int hpetTimerRegWrite32(HPET *pThis, uint32_t iTimerNo, uint32_t iTimerRe
             }
             if ((u32NewValue & HPET_TN_INT_TYPE) == HPET_TIMER_TYPE_LEVEL)
             {
-                LogRelMax(10, ("HPET: Level-triggered config not yet supported\n"));
+                static unsigned s_cOccurences = 0;
+                if (s_cOccurences++ < 10)
+                    LogRel(("level-triggered config not yet supported\n"));
                 AssertFailed();
             }
 
@@ -550,8 +558,10 @@ static int hpetTimerRegWrite32(HPET *pThis, uint32_t iTimerNo, uint32_t iTimerRe
         }
 
         case HPET_TN_CFG + 4: /* Interrupt capabilities - read only. */
+        {
             Log(("write HPET_TN_CFG + 4, useless\n"));
             break;
+        }
 
         case HPET_TN_CMP: /* lower bits of comparator register */
         {
@@ -592,16 +602,24 @@ static int hpetTimerRegWrite32(HPET *pThis, uint32_t iTimerNo, uint32_t iTimerRe
         }
 
         case HPET_TN_ROUTE:
+        {
             Log(("write HPET_TN_ROUTE\n"));
             break;
+        }
 
         case HPET_TN_ROUTE + 4:
+        {
             Log(("write HPET_TN_ROUTE + 4\n"));
             break;
+        }
 
         default:
-            LogRelMax(10, ("HPET: Invalid timer register write: %d\n", iTimerReg));
+        {
+            static unsigned s_cOccurences = 0;
+            if (s_cOccurences++ < 10)
+                LogRel(("invalid timer register write: %d\n", iTimerReg));
             break;
+        }
     }
 
     return VINF_SUCCESS;
@@ -795,7 +813,11 @@ static int hpetConfigRegWrite32(HPET *pThis, uint32_t idxReg, uint32_t u32NewVal
         {
             Log(("write HPET_STATUS + 4: %x\n", u32NewValue));
             if (u32NewValue != 0)
-                LogRelMax(10, ("HPET: Writing HPET_STATUS + 4 with non-zero, ignored\n"));
+            {
+                static unsigned s_cOccurrences = 0;
+                if (s_cOccurrences++ < 10)
+                    LogRel(("Writing HPET_STATUS + 4 with non-zero, ignored\n"));
+            }
             break;
         }
 
@@ -818,8 +840,12 @@ static int hpetConfigRegWrite32(HPET *pThis, uint32_t idxReg, uint32_t u32NewVal
         }
 
         default:
-            LogRelMax(10, ("HPET: Invalid HPET config write: %x\n", idxReg));
+        {
+            static unsigned s_cOccurences = 0;
+            if (s_cOccurences++ < 10)
+                LogRel(("invalid HPET config write: %x\n", idxReg));
             break;
+        }
     }
 
     return rc;
@@ -1439,7 +1465,7 @@ const PDMDEVREG g_DeviceHPET =
     /* szName */
     "hpet",
     /* szRCMod */
-    "VBoxDDRC.rc",
+    "VBoxDDGC.gc",
     /* szR0Mod */
     "VBoxDDR0.r0",
     /* pszDescription */

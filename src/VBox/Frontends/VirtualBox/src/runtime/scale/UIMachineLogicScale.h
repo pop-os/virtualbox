@@ -1,4 +1,3 @@
-/* $Id: UIMachineLogicScale.h $ */
 /** @file
  * VBox Qt GUI - UIMachineLogicScale class declaration.
  */
@@ -37,35 +36,17 @@ protected:
     /** Returns machine-window flags for 'Scale' machine-logic and passed @a uScreenId. */
     virtual Qt::WindowFlags windowFlags(ulong uScreenId) const { Q_UNUSED(uScreenId); return Qt::Window; }
 
-#ifndef RT_OS_DARWIN
-private slots:
-
-    /** Invokes popup-menu. */
-    void sltInvokePopupMenu();
-#endif /* !RT_OS_DARWIN */
-
 private:
 
     /* Prepare helpers: */
     void prepareActionGroups();
     void prepareActionConnections();
     void prepareMachineWindows();
-#ifndef RT_OS_DARWIN
-    void prepareMenu();
-#endif /* !RT_OS_DARWIN */
 
     /* Cleanup helpers: */
-#ifndef RT_OS_DARWIN
-    void cleanupMenu();
-#endif /* !RT_OS_DARWIN */
     void cleanupMachineWindows();
     void cleanupActionConnections();
     void cleanupActionGroups();
-
-#ifndef RT_OS_DARWIN
-    /** Holds the popup-menu instance. */
-    QMenu *m_pPopupMenu;
-#endif /* !RT_OS_DARWIN */
 
     /* Friend classes: */
     friend class UIMachineLogic;

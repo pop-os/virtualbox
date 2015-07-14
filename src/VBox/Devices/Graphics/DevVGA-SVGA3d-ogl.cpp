@@ -2330,7 +2330,7 @@ static void vmsvga3dSurfaceFormat2OGL(PVMSVGA3DSURFACE pSurface, SVGA3dSurfaceFo
         pSurface->internalFormatGL = GL_DEPTH_COMPONENT16; /** @todo Wine suggests GL_DEPTH_COMPONENT24. */
         pSurface->formatGL = GL_DEPTH_COMPONENT;
         pSurface->typeGL = GL_UNSIGNED_SHORT;
-        //AssertMsgFailed(("Test me - SVGA3D_Z_D16\n"));
+        AssertMsgFailed(("Test me - SVGA3D_Z_D16\n"));
         break;
     case SVGA3D_Z_D24S8:                /* D3DFMT_D24S8 - WINED3DFMT_D24_UNORM_S8_UINT */
         pSurface->internalFormatGL = GL_DEPTH24_STENCIL8;
@@ -2942,14 +2942,14 @@ int vmsvga3dSurfaceCopy(PVGASTATE pThis, SVGA3dSurfaceImageId dest, SVGA3dSurfac
         srcBox.z = pBox[i].srcz;
         srcBox.w = pBox[i].w;
         srcBox.h = pBox[i].h;
-        srcBox.d = pBox[i].z; /* XXX what about pBox[i].d? */
+        srcBox.d = pBox[i].z;
 
         destBox.x = pBox[i].x;
         destBox.y = pBox[i].y;
         destBox.z = pBox[i].z;
         destBox.w = pBox[i].w;
         destBox.h = pBox[i].h;
-        destBox.z = pBox[i].z; /* XXX initializing destBox.z again? What about pBox[i].d and destBox.d? */
+        destBox.z = pBox[i].z;
 
         rc = vmsvga3dSurfaceStretchBlt(pThis, dest, destBox, src, srcBox, SVGA3D_STRETCH_BLT_LINEAR);
         AssertRCReturn(rc, rc);
@@ -3143,9 +3143,7 @@ static int vmsvga3dCreateTexture(PVMSVGA3DSTATE pState, PVMSVGA3DCONTEXT pContex
 
 #ifdef VMSVGA3D_OGL_WITH_SHARED_CTX
     if (idPrevCtx < pState->cContexts && pState->papContexts[idPrevCtx]->id == idPrevCtx)
-    {
         VMSVGA3D_SET_CURRENT_CONTEXT(pState, pState->papContexts[idPrevCtx]);
-    }
 #endif
     return VINF_SUCCESS;
 }

@@ -129,7 +129,7 @@ int CollectorDarwin::getHostMemoryUsage(ULONG *total, ULONG *used, ULONG *availa
 
 static int getProcessInfo(RTPROCESS process, struct proc_taskinfo *tinfo)
 {
-    Log7(("getProcessInfo() getting info for %d", process));
+    LogAleksey(("getProcessInfo() getting info for %d", process));
     int nb = proc_pidinfo(process, PROC_PIDTASKINFO, 0,  tinfo, sizeof(*tinfo));
     if (nb <= 0)
     {

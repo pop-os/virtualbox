@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2015 Oracle Corporation
+ * Copyright (C) 2009-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -60,12 +60,12 @@ GLOBAL_REMOVE_IF_UNREFERENCED EFI_COMPONENT_NAME2_PROTOCOL gVBoxVgaComponentName
 
 
 GLOBAL_REMOVE_IF_UNREFERENCED EFI_UNICODE_STRING_TABLE mVBoxVgaDriverNameTable[] = {
-  { "eng;en", L"VirtualBox SVGA Driver" },
+  { "eng;en", L"Cirrus Logic 5430 Driver" },
   { NULL , NULL }
 };
 
 GLOBAL_REMOVE_IF_UNREFERENCED EFI_UNICODE_STRING_TABLE mVBoxVgaControllerNameTable[] = {
-  { "eng;en", L"VirtualBox SVGA PCI Adapter" },
+  { "eng;en", L"Cirrus Logic 5430 PCI Adapter" },
   { NULL , NULL }
 };
 

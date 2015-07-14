@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -34,7 +34,6 @@
 #include <iprt/assert.h>
 #include <VBox/vmm/vmm.h>
 #include <iprt/x86.h>
-#include <iprt/string.h>
 
 #include "SELMInline.h"
 
@@ -47,100 +46,6 @@
 static char const g_aszSRegNms[X86_SREG_COUNT][4] = { "ES", "CS", "SS", "DS", "FS", "GS" };
 #endif
 
-
-#ifndef IN_RING0
-
-# ifdef SELM_TRACK_GUEST_GDT_CHANGES
-/**
- * @callback_method_impl{FNPGMVIRTHANDLER}
- */
-PGM_ALL_CB2_DECL(VBOXSTRICTRC)
-selmGuestGDTWriteHandler(PVM pVM, PVMCPU pVCpu, RTGCPTR GCPtr, void *pvPtr, void *pvBuf, size_t cbBuf,
-                         PGMACCESSTYPE enmAccessType, PGMACCESSORIGIN enmOrigin, void *pvUser)
-{
-    Assert(enmAccessType == PGMACCESSTYPE_WRITE); NOREF(enmAccessType);
-    Log(("selmGuestGDTWriteHandler: write to %RGv size %d\n", GCPtr, cbBuf)); NOREF(GCPtr); NOREF(cbBuf);
-    NOREF(pvPtr); NOREF(pvBuf); NOREF(enmOrigin); NOREF(pvUser);
-
-#  ifdef IN_RING3
-    VMCPU_FF_SET(pVCpu, VMCPU_FF_SELM_SYNC_GDT);
-    return VINF_PGM_HANDLER_DO_DEFAULT;
-
-#  else  /* IN_RC: */
-    /*
-     * Execute the write, doing necessary pre and post shadow GDT checks.
-     */
-    PCPUMCTX pCtx        = CPUMQueryGuestCtxPtr(pVCpu);
-    uint32_t offGuestGdt = pCtx->gdtr.pGdt - GCPtr;
-    selmRCGuestGdtPreWriteCheck(pVM, pVCpu, offGuestGdt, cbBuf, pCtx);
-    memcpy(pvBuf, pvPtr, cbBuf);
-    VBOXSTRICTRC rcStrict = selmRCGuestGdtPostWriteCheck(pVM, pVCpu, offGuestGdt, cbBuf, pCtx);
-    if (!VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_SELM_SYNC_GDT))
-        STAM_COUNTER_INC(&pVM->selm.s.StatRCWriteGuestGDTHandled);
-    else
-        STAM_COUNTER_INC(&pVM->selm.s.StatRCWriteGuestGDTUnhandled);
-    return rcStrict;
-#  endif
-}
-# endif
-
-
-# ifdef SELM_TRACK_GUEST_LDT_CHANGES
-/**
- * @callback_method_impl{FNPGMVIRTHANDLER}
- */
-PGM_ALL_CB2_DECL(VBOXSTRICTRC)
-selmGuestLDTWriteHandler(PVM pVM, PVMCPU pVCpu, RTGCPTR GCPtr, void *pvPtr, void *pvBuf, size_t cbBuf,
-                         PGMACCESSTYPE enmAccessType, PGMACCESSORIGIN enmOrigin, void *pvUser)
-{
-    Assert(enmAccessType == PGMACCESSTYPE_WRITE); NOREF(enmAccessType);
-    Log(("selmGuestLDTWriteHandler: write to %RGv size %d\n", GCPtr, cbBuf)); NOREF(GCPtr); NOREF(cbBuf);
-    NOREF(pvPtr); NOREF(pvBuf); NOREF(enmOrigin); NOREF(pvUser);
-
-    VMCPU_FF_SET(pVCpu, VMCPU_FF_SELM_SYNC_LDT);
-#  ifdef IN_RING3
-    return VINF_PGM_HANDLER_DO_DEFAULT;
-#  else
-    STAM_COUNTER_INC(&pVM->selm.s.StatRCWriteGuestLDT);
-    return VINF_EM_RAW_EMULATE_INSTR_LDT_FAULT;
-#  endif
-}
-# endif
-
-
-# ifdef SELM_TRACK_GUEST_TSS_CHANGES
-/**
- * @callback_method_impl{FNPGMVIRTHANDLER}
- */
-PGM_ALL_CB2_DECL(VBOXSTRICTRC)
-selmGuestTSSWriteHandler(PVM pVM, PVMCPU pVCpu, RTGCPTR GCPtr, void *pvPtr, void *pvBuf, size_t cbBuf,
-                         PGMACCESSTYPE enmAccessType, PGMACCESSORIGIN enmOrigin, void *pvUser)
-{
-    Assert(enmAccessType == PGMACCESSTYPE_WRITE); NOREF(enmAccessType);
-    Log(("selmGuestTSSWriteHandler: write %.*Rhxs to %RGv size %d\n", RT_MIN(8, cbBuf), pvBuf, GCPtr, cbBuf));
-    NOREF(pvBuf); NOREF(GCPtr); NOREF(cbBuf); NOREF(enmOrigin); NOREF(pvUser); NOREF(pvPtr);
-
-#  ifdef IN_RING3
-    /** @todo This can be optimized by checking for the ESP0 offset and tracking TR
-     *        reloads in REM (setting VM_FF_SELM_SYNC_TSS if TR is reloaded). We
-     *        should probably also deregister the virtual handler if TR.base/size
-     *        changes while we're in REM.  May also share
-     *        selmRCGuestTssPostWriteCheck code. */
-    VMCPU_FF_SET(pVCpu, VMCPU_FF_SELM_SYNC_TSS);
-    return VINF_PGM_HANDLER_DO_DEFAULT;
-
-#  else  /* IN_RC */
-    /*
-     * Do the write and check if anything relevant changed.
-     */
-    Assert(pVM->selm.s.GCPtrGuestTss != (uintptr_t)RTRCPTR_MAX);
-    memcpy(pvPtr, pvBuf, cbBuf);
-    return selmRCGuestTssPostWriteCheck(pVM, pVCpu, GCPtr - pVM->selm.s.GCPtrGuestTss, cbBuf);
-#  endif
-}
-# endif
-
-#endif /* IN_RING0 */
 
 
 #ifdef VBOX_WITH_RAW_MODE_NOT_R0
@@ -202,11 +107,11 @@ VMMDECL(RTGCPTR) SELMToFlat(PVM pVM, DISSELREG SelReg, PCPUMCTXCORE pCtxCore, RT
     if (    pCtxCore->eflags.Bits.u1VM
         ||  CPUMIsGuestInRealMode(pVCpu))
     {
-        uint32_t uFlat = (uint32_t)Addr & 0xffff;
+        RTGCUINTPTR uFlat = (RTGCUINTPTR)Addr & 0xffff;
         if (CPUMSELREG_ARE_HIDDEN_PARTS_VALID(pVCpu, pSReg))
-            uFlat += (uint32_t)pSReg->u64Base;
+            uFlat += pSReg->u64Base;
         else
-            uFlat += (uint32_t)pSReg->Sel << 4;
+            uFlat += (RTGCUINTPTR)pSReg->Sel << 4;
         return (RTGCPTR)uFlat;
     }
 
@@ -239,7 +144,7 @@ VMMDECL(RTGCPTR) SELMToFlat(PVM pVM, DISSELREG SelReg, PCPUMCTXCORE pCtxCore, RT
 
     /* AMD64 manual: compatibility mode ignores the high 32 bits when calculating an effective address. */
     Assert(pSReg->u64Base <= 0xffffffff);
-    return (uint32_t)pSReg->u64Base + (uint32_t)Addr;
+    return ((pSReg->u64Base + (RTGCUINTPTR)Addr) & 0xffffffff);
 }
 
 
@@ -272,13 +177,13 @@ VMMDECL(int) SELMToFlatEx(PVMCPU pVCpu, DISSELREG SelReg, PCPUMCTXCORE pCtxCore,
     if (    pCtxCore->eflags.Bits.u1VM
         ||  CPUMIsGuestInRealMode(pVCpu))
     {
+        RTGCUINTPTR uFlat = (RTGCUINTPTR)Addr & 0xffff;
         if (ppvGC)
         {
-            uint32_t uFlat = (uint32_t)Addr & 0xffff;
             if (CPUMSELREG_ARE_HIDDEN_PARTS_VALID(pVCpu, pSReg))
-                *ppvGC = (uint32_t)pSReg->u64Base + uFlat;
+                *ppvGC = pSReg->u64Base + uFlat;
             else
-                *ppvGC = ((uint32_t)pSReg->Sel << 4) + uFlat;
+                *ppvGC = ((RTGCUINTPTR)pSReg->Sel << 4) + uFlat;
         }
         return VINF_SUCCESS;
     }
@@ -317,8 +222,8 @@ VMMDECL(int) SELMToFlatEx(PVMCPU pVCpu, DISSELREG SelReg, PCPUMCTXCORE pCtxCore,
     {
         /* AMD64 manual: compatibility mode ignores the high 32 bits when calculating an effective address. */
         Assert(pSReg->u64Base <= UINT32_C(0xffffffff));
-        pvFlat  = (uint32_t)pSReg->u64Base + (uint32_t)Addr;
-        Assert(pvFlat <= UINT32_MAX);
+        pvFlat  = pSReg->u64Base + Addr;
+        pvFlat &= UINT32_C(0xffffffff);
     }
 
     /*
@@ -590,32 +495,28 @@ static void selLoadHiddenSelectorRegFromGuestTable(PVMCPU pVCpu, PCCPUMCTX pCtx,
      * Try read the entry.
      */
     X86DESC GstDesc;
-    VBOXSTRICTRC rcStrict = PGMPhysReadGCPtr(pVCpu, &GstDesc, GCPtrDesc, sizeof(GstDesc), PGMACCESSORIGIN_SELM);
-    if (rcStrict == VINF_SUCCESS)
+    int rc = PGMPhysReadGCPtr(pVCpu, &GstDesc, GCPtrDesc, sizeof(GstDesc));
+    if (RT_FAILURE(rc))
     {
-        /*
-         * Validate it and load it.
-         */
-        if (selmIsGstDescGoodForSReg(pVCpu, pSReg, &GstDesc, iSReg, CPUMGetGuestCPL(pVCpu)))
-        {
-            selmLoadHiddenSRegFromGuestDesc(pVCpu, pSReg, &GstDesc);
-            Log(("SELMLoadHiddenSelectorReg: loaded %s=%#x:{b=%llx, l=%x, a=%x, vs=%x} (gst)\n",
-                 g_aszSRegNms[iSReg], Sel, pSReg->u64Base, pSReg->u32Limit, pSReg->Attr.u, pSReg->ValidSel));
-            STAM_COUNTER_INC(&pVCpu->CTX_SUFF(pVM)->selm.s.StatLoadHidSelGst);
-        }
-        else
-        {
-            Log(("SELMLoadHiddenSelectorReg: Guest table entry is no good (%s=%#x): %.8Rhxs\n", g_aszSRegNms[iSReg], Sel, &GstDesc));
-            STAM_REL_COUNTER_INC(&pVCpu->CTX_SUFF(pVM)->selm.s.StatLoadHidSelGstNoGood);
-        }
-    }
-    else
-    {
-        AssertMsg(RT_FAILURE_NP(rcStrict), ("%Rrc\n", VBOXSTRICTRC_VAL(rcStrict)));
-        Log(("SELMLoadHiddenSelectorReg: Error reading descriptor %s=%#x: %Rrc\n",
-             g_aszSRegNms[iSReg], Sel, VBOXSTRICTRC_VAL(rcStrict) ));
+        Log(("SELMLoadHiddenSelectorReg: Error reading descriptor %s=%#x: %Rrc\n", g_aszSRegNms[iSReg], Sel, rc));
         STAM_REL_COUNTER_INC(&pVCpu->CTX_SUFF(pVM)->selm.s.StatLoadHidSelReadErrors);
+        return;
     }
+
+    /*
+     * Validate it and load it.
+     */
+    if (!selmIsGstDescGoodForSReg(pVCpu, pSReg, &GstDesc, iSReg, CPUMGetGuestCPL(pVCpu)))
+    {
+        Log(("SELMLoadHiddenSelectorReg: Guest table entry is no good (%s=%#x): %.8Rhxs\n", g_aszSRegNms[iSReg], Sel, &GstDesc));
+        STAM_REL_COUNTER_INC(&pVCpu->CTX_SUFF(pVM)->selm.s.StatLoadHidSelGstNoGood);
+        return;
+    }
+
+    selmLoadHiddenSRegFromGuestDesc(pVCpu, pSReg, &GstDesc);
+    Log(("SELMLoadHiddenSelectorReg: loaded %s=%#x:{b=%llx, l=%x, a=%x, vs=%x} (gst)\n",
+         g_aszSRegNms[iSReg], Sel, pSReg->u64Base, pSReg->u32Limit, pSReg->Attr.u, pSReg->ValidSel));
+    STAM_COUNTER_INC(&pVCpu->CTX_SUFF(pVM)->selm.s.StatLoadHidSelGst);
 }
 
 
@@ -707,12 +608,11 @@ VMM_INT_DECL(void) SELMLoadHiddenSelectorReg(PVMCPU pVCpu, PCCPUMCTX pCtx, PCPUM
 DECLINLINE(int) selmValidateAndConvertCSAddrRealMode(PVMCPU pVCpu, RTSEL SelCS, PCCPUMSELREGHID pSReg, RTGCPTR Addr,
                                                      PRTGCPTR ppvFlat)
 {
-    NOREF(pVCpu);
-    uint32_t uFlat = Addr & 0xffff;
+    RTGCUINTPTR uFlat = Addr & 0xffff;
     if (!pSReg || !CPUMSELREG_ARE_HIDDEN_PARTS_VALID(pVCpu, pSReg))
-        uFlat += (uint32_t)SelCS << 4;
+        uFlat += (RTGCUINTPTR)SelCS << 4;
     else
-        uFlat += (uint32_t)pSReg->u64Base;
+        uFlat += pSReg->u64Base;
     *ppvFlat = uFlat;
     return VINF_SUCCESS;
 }
@@ -838,9 +738,9 @@ DECLINLINE(int) selmValidateAndConvertCSAddrHidden(PVMCPU pVCpu, RTSEL SelCPL, R
              * final value. The granularity bit was included in its calculation.
              */
             uint32_t u32Limit = pSRegCS->u32Limit;
-            if ((uint32_t)Addr <= u32Limit)
+            if ((RTGCUINTPTR)Addr <= u32Limit)
             {
-                *ppvFlat = (uint32_t)Addr + (uint32_t)pSRegCS->u64Base;
+                *ppvFlat = Addr + pSRegCS->u64Base;
                 return VINF_SUCCESS;
             }
 

@@ -1,6 +1,8 @@
 /* $Id: UINetworkCustomer.cpp $ */
 /** @file
- * VBox Qt GUI - UINetworkCustomer class implementation.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * UINetworkCustomer class implementation
  */
 
 /*
@@ -15,19 +17,12 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
-/* Qt includes: */
-# include <QNetworkRequest>
+/* Global includes: */
+#include <QNetworkRequest>
 
 /* Local includes: */
-# include "UINetworkCustomer.h"
-# include "UINetworkManager.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
+#include "UINetworkCustomer.h"
+#include "UINetworkManager.h"
 
 UINetworkCustomer::UINetworkCustomer()
     : QObject(0)

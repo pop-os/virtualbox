@@ -4,7 +4,7 @@
 ;
 
 ;
-; Copyright (C) 2006-2015 Oracle Corporation
+; Copyright (C) 2006-2012 Oracle Corporation
 ;
 ; This file is part of VirtualBox Open Source Edition (OSE), as
 ; available from http://www.virtualbox.org. This file is free software;
@@ -107,13 +107,18 @@ struc VMMCPU
         .pR0LoggerR3            RTR3PTR_RES 1
         .pR0LoggerR0            RTR0PTR_RES 1
 
-        .hCtxHook               RTR0PTR_RES 1
+        .hR0ThreadCtx           RTR0PTR_RES 1
+%if HC_ARCH_BITS == 32
+        .u32Padding             resd 1
+%else
+        .u64Padding             resq 1
+%endif
 
         .fInRendezvous          resb 1
 %if HC_ARCH_BITS == 32
-        .afPadding              resb 3+4
+        .afPadding              resb 3
 %else
-        .afPadding              resb 7+8
+        .afPadding              resb 7
 %endif
 
         alignb 8

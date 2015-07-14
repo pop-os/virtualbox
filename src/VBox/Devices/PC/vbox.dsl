@@ -3,7 +3,7 @@
 //
 // VirtualBox ACPI
 //
-// Copyright (C) 2006-2015 Oracle Corporation
+// Copyright (C) 2006-2011 Oracle Corporation
 //
 // This file is part of VirtualBox Open Source Edition (OSE), as
 // available from http://www.virtualbox.org. This file is free software;
@@ -586,7 +586,7 @@ DefinitionBlock ("DSDT.aml", "DSDT", 1, "VBOX  ", "VBOXBIOS", 2)
                         Return (0x00)
                      }
                      else {
-                        Return (0x0F)
+                        Return (0x0E)
                      }
                     }
                 }               

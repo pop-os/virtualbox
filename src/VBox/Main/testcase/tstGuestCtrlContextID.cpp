@@ -1,5 +1,7 @@
 /* $Id: tstGuestCtrlContextID.cpp $ */
+
 /** @file
+ *
  * Context ID makeup/extraction test cases.
  */
 
@@ -17,6 +19,7 @@
 
 #define LOG_ENABLED
 #define LOG_GROUP LOG_GROUP_MAIN
+#define LOG_INSTANCE NULL
 #include <VBox/log.h>
 
 #include "../include/GuestCtrlImplPrivate.h"

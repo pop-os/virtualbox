@@ -1,4 +1,3 @@
-/* $Id: main.cpp $ */
 /** @file
  *
  * VirtualBox Guest Service:
@@ -6,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,7 +28,6 @@
 #include <X11/Xlib.h>
 #include <X11/Xatom.h>
 
-#include <iprt/buildconfig.h>
 #include <iprt/critsect.h>
 #include <iprt/env.h>
 #include <iprt/file.h>
@@ -210,7 +208,7 @@ static int pfnMonitorThread(RTTHREAD self, void *pvUser)
 {
     Display *pDisplay;
     bool fHasVT = true;
-
+    
     pDisplay = XOpenDisplay(NULL);
     if (!pDisplay)
         VBClFatalError(("Failed to open the X11 display\n"));
@@ -250,20 +248,18 @@ void vboxClientUsage(const char *pcszFileName)
              "--checkhostversion|"
 #endif
              "--seamless [-d|--nodaemon]\n", pcszFileName);
-    RTPrintf("Starts the VirtualBox X Window System guest services.\n\n");
+    RTPrintf("Start the VirtualBox X Window System guest services.\n\n");
     RTPrintf("Options:\n");
-    RTPrintf("  --clipboard        starts the shared clipboard service\n");
+    RTPrintf("  --clipboard        start the shared clipboard service\n");
 #ifdef VBOX_WITH_DRAG_AND_DROP
-    RTPrintf("  --draganddrop      starts the drag and drop service\n");
+    RTPrintf("  --draganddrop      start the drag and drop service\n");
 #endif
-    RTPrintf("  --display          starts the display management service\n");
+    RTPrintf("  --display          start the display management service\n");
 #ifdef VBOX_WITH_GUEST_PROPS
-    RTPrintf("  --checkhostversion starts the host version notifier service\n");
+    RTPrintf("  --checkhostversion start the host version notifier service\n");
 #endif
-    RTPrintf("  --seamless         starts the seamless windows service\n");
-    RTPrintf("  -d, --nodaemon     continues running as a system service\n");
-    RTPrintf("  -h, --help         shows this help text\n");
-    RTPrintf("  -V, --version      shows version information\n");
+    RTPrintf("  --seamless         start the seamless windows service\n");
+    RTPrintf("  -d, --nodaemon     continue running as a system service\n");
     RTPrintf("\n");
     exit(0);
 }
@@ -276,7 +272,7 @@ int main(int argc, char *argv[])
 {
     bool fDaemonise = true, fRespawn = true;
     int rc;
-    const char *pcszFileName;
+    const char *pcszFileName, *pcszStage;
 
     /* Initialise our runtime before all else. */
     rc = RTR3InitExe(argc, &argv, 0);
@@ -300,7 +296,8 @@ int main(int argc, char *argv[])
         {
             /* If the user is running in "no daemon" mode anyway, send critical
              * logging to stdout as well. */
-            PRTLOGGER pReleaseLog = RTLogRelGetDefaultInstance();
+            PRTLOGGER pReleaseLog = RTLogRelDefaultInstance();
+
             if (pReleaseLog)
                 rc = RTLogDestinations(pReleaseLog, "stdout");
             if (pReleaseLog && RT_FAILURE(rc))
@@ -347,11 +344,6 @@ int main(int argc, char *argv[])
         else if (!strcmp(argv[i], "-h") || !strcmp(argv[i], "--help"))
         {
             vboxClientUsage(pcszFileName);
-            return 0;
-        }
-        else if (!strcmp(argv[i], "-V") || !strcmp(argv[i], "--version"))
-        {
-            RTPrintf("%sr%s\n", RTBldCfgVersion(), RTBldCfgRevisionStr());
             return 0;
         }
         else

@@ -556,28 +556,26 @@ VBOXVREGDECL(int) CrVrScrCompositorEntryRegionsSet(PVBOXVR_SCR_COMPOSITOR pCompo
     }
 
     rc = crVrScrCompositorEntryRegionsSet(pCompositor, pEntry, cRegions, paRegions, &fChanged);
-    if (RT_SUCCESS(rc))
+    if (RT_FAILURE(rc))
     {
-        if (fChanged && CrVrScrCompositorEntryIsUsed(pEntry))
-        {
-            rc = crVrScrCompositorEntryEnsureRegionsBounds(pCompositor, pEntry, NULL);
-            if (RT_SUCCESS(rc))
-            {
-                if (pfChanged)
-                    *pfChanged = fPosChanged || fChanged || fWasInList;
-            }
-            else
-                WARN(("crVrScrCompositorEntryEnsureRegionsBounds failed, rc %d", rc));
-        }
-
-    }
-    else
         WARN(("crVrScrCompositorEntryRegionsSet failed, rc %d", rc));
+        return rc;
+    }
 
-    if (paTranslatedRects)
-        RTMemFree(paTranslatedRects);
+    if (fChanged && CrVrScrCompositorEntryIsUsed(pEntry))
+    {
+        rc = crVrScrCompositorEntryEnsureRegionsBounds(pCompositor, pEntry, NULL);
+        if (RT_FAILURE(rc))
+        {
+            WARN(("crVrScrCompositorEntryEnsureRegionsBounds failed, rc %d", rc));
+            return rc;
+        }
+    }
 
-    return rc;
+    if (pfChanged)
+        *pfChanged = fPosChanged || fChanged || fWasInList;
+
+    return VINF_SUCCESS;
 }
 
 VBOXVREGDECL(int) CrVrScrCompositorEntryListIntersect(PVBOXVR_SCR_COMPOSITOR pCompositor, PVBOXVR_SCR_COMPOSITOR_ENTRY pEntry,

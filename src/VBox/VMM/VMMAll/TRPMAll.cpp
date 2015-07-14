@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -40,45 +40,6 @@
 #include <iprt/x86.h>
 #include "internal/pgm.h"
 
-
-
-#if defined(TRPM_TRACK_GUEST_IDT_CHANGES) && !defined(IN_RING0)
-/**
- * \#PF Handler callback for virtual access handler ranges.
- *
- * Important to realize that a physical page in a range can have aliases, and
- * for ALL and WRITE handlers these will also trigger.
- *
- * @returns VINF_SUCCESS if the handler have carried out the operation.
- * @returns VINF_PGM_HANDLER_DO_DEFAULT if the caller should carry out the access operation.
- * @param   pVM             Pointer to the VM.
- * @param   pVCpu           Pointer to the cross context CPU context for the
- *                          calling EMT.
- * @param   GCPtr           The virtual address the guest is writing to. (not correct if it's an alias!)
- * @param   pvPtr           The HC mapping of that address.
- * @param   pvBuf           What the guest is reading/writing.
- * @param   cbBuf           How much it's reading/writing.
- * @param   enmAccessType   The access type.
- * @param   enmOrigin       The origin of this call.
- * @param   pvUser          User argument.
- */
-PGM_ALL_CB2_DECL(VBOXSTRICTRC)
-trpmGuestIDTWriteHandler(PVM pVM, PVMCPU pVCpu, RTGCPTR GCPtr, void *pvPtr, void *pvBuf, size_t cbBuf,
-                         PGMACCESSTYPE enmAccessType, PGMACCESSORIGIN enmOrigin, void *pvUser)
-{
-    Assert(enmAccessType == PGMACCESSTYPE_WRITE); NOREF(enmAccessType);
-    Log(("trpmGuestIDTWriteHandler: write to %RGv size %d\n", GCPtr, cbBuf)); NOREF(GCPtr); NOREF(cbBuf);
-    NOREF(pvPtr); NOREF(pvUser); NOREF(pvBuf); NOREF(enmOrigin); NOREF(pvUser);
-    Assert(!HMIsEnabled(pVM));
-
-    /** @todo Check which IDT entry and keep the update cost low in TRPMR3SyncIDT() and CSAMCheckGates(). */
-    VMCPU_FF_SET(pVCpu, VMCPU_FF_TRPM_SYNC_IDT);
-# ifdef IN_RC
-    STAM_COUNTER_INC(&pVM->trpm.s.StatRCWriteGuestIDTFault);
-# endif
-    return VINF_PGM_HANDLER_DO_DEFAULT;
-}
-#endif /* TRPM_TRACK_GUEST_IDT_CHANGES && !IN_RING0 */
 
 
 /**
@@ -554,7 +515,7 @@ VMMDECL(int) TRPMForwardTrap(PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint32_t iGat
         RTGCPTR     pIDTEntry;
         int         rc;
 
-        Assert(PATMAreInterruptsEnabledByCtx(pVM, CPUMCTX_FROM_CORE(pRegFrame)));
+        Assert(PATMAreInterruptsEnabledByCtxCore(pVM, pRegFrame));
         Assert(!VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_SELM_SYNC_GDT | VMCPU_FF_SELM_SYNC_LDT | VMCPU_FF_TRPM_SYNC_IDT | VMCPU_FF_SELM_SYNC_TSS));
 
         if (GCPtrIDT && iGate * sizeof(VBOXIDTE) >= cbIDT)
@@ -879,7 +840,7 @@ failure:
     STAM_COUNTER_INC(&pVM->trpm.s.CTX_SUFF_Z(StatForwardFail));
     STAM_PROFILE_ADV_STOP(&pVM->trpm.s.CTX_SUFF_Z(StatForwardProf), a);
 
-    Log(("TRAP%02X: forwarding to REM (ss rpl=%d eflags=%08X VMIF=%d handler=%08X\n", iGate, pRegFrame->ss.Sel & X86_SEL_RPL, pRegFrame->eflags.u32, PATMAreInterruptsEnabledByCtx(pVM, CPUMCTX_FROM_CORE(pRegFrame)), pVM->trpm.s.aGuestTrapHandler[iGate]));
+    Log(("TRAP%02X: forwarding to REM (ss rpl=%d eflags=%08X VMIF=%d handler=%08X\n", iGate, pRegFrame->ss.Sel & X86_SEL_RPL, pRegFrame->eflags.u32, PATMAreInterruptsEnabledByCtxCore(pVM, pRegFrame), pVM->trpm.s.aGuestTrapHandler[iGate]));
 #endif
     return VINF_EM_RAW_GUEST_TRAP;
 }
@@ -903,7 +864,6 @@ failure:
 VMMDECL(int) TRPMRaiseXcpt(PVMCPU pVCpu, PCPUMCTXCORE pCtxCore, X86XCPT enmXcpt)
 {
     LogFlow(("TRPMRaiseXcptErr: cs:eip=%RTsel:%RX32 enmXcpt=%#x\n", pCtxCore->cs.Sel, pCtxCore->eip, enmXcpt));
-    NOREF(pCtxCore);
 /** @todo dispatch the trap. */
     pVCpu->trpm.s.uActiveVector            = enmXcpt;
     pVCpu->trpm.s.enmActiveType            = TRPM_TRAP;
@@ -932,7 +892,6 @@ VMMDECL(int) TRPMRaiseXcpt(PVMCPU pVCpu, PCPUMCTXCORE pCtxCore, X86XCPT enmXcpt)
 VMMDECL(int) TRPMRaiseXcptErr(PVMCPU pVCpu, PCPUMCTXCORE pCtxCore, X86XCPT enmXcpt, uint32_t uErr)
 {
     LogFlow(("TRPMRaiseXcptErr: cs:eip=%RTsel:%RX32 enmXcpt=%#x uErr=%RX32\n", pCtxCore->cs.Sel, pCtxCore->eip, enmXcpt, uErr));
-    NOREF(pCtxCore);
 /** @todo dispatch the trap. */
     pVCpu->trpm.s.uActiveVector            = enmXcpt;
     pVCpu->trpm.s.enmActiveType            = TRPM_TRAP;
@@ -962,7 +921,6 @@ VMMDECL(int) TRPMRaiseXcptErr(PVMCPU pVCpu, PCPUMCTXCORE pCtxCore, X86XCPT enmXc
 VMMDECL(int) TRPMRaiseXcptErrCR2(PVMCPU pVCpu, PCPUMCTXCORE pCtxCore, X86XCPT enmXcpt, uint32_t uErr, RTGCUINTPTR uCR2)
 {
     LogFlow(("TRPMRaiseXcptErr: cs:eip=%RTsel:%RX32 enmXcpt=%#x uErr=%RX32 uCR2=%RGv\n", pCtxCore->cs.Sel, pCtxCore->eip, enmXcpt, uErr, uCR2));
-    NOREF(pCtxCore);
 /** @todo dispatch the trap. */
     pVCpu->trpm.s.uActiveVector            = enmXcpt;
     pVCpu->trpm.s.enmActiveType            = TRPM_TRAP;

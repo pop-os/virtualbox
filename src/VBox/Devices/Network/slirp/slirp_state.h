@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -295,8 +295,6 @@ typedef struct NATState
     int    i32AliasMode;
     struct libalias *proxy_alias;
     LIST_HEAD(handler_chain, proto_handler) handler_chain;
-    /** Critical R/W section to protect the handler chain list. */
-    RTCRITSECTRW CsRwHandlerChain;
     struct port_forward_rule_list port_forward_rule_head;
     int cRedirectionsActive;
     int cRedirectionsStored;
@@ -433,7 +431,7 @@ typedef struct NATState
          (so) = (sonext))                                                \
     {                                                                    \
         (sonext) = (so)->so_next;                                        \
-         Log5(("%s:%d Processing so:%R[natsock]\n", RT_GCC_EXTENSION __FUNCTION__, __LINE__, (so)));
+         Log5(("%s:%d Processing so:%R[natsock]\n", __FUNCTION__, __LINE__, (so)));
 # define CONTINUE(label) continue
 # define CONTINUE_NO_UNLOCK(label) continue
 # define LOOP_LABEL(label, so, sonext) /* empty*/

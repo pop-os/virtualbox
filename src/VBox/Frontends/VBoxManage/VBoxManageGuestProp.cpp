@@ -76,7 +76,7 @@ void usageGuestProperty(PRTSTREAM pStrm, const char *pcszSep1, const char *pcszS
 
 #ifndef VBOX_ONLY_DOCS
 
-static RTEXITCODE handleGetGuestProperty(HandlerArg *a)
+static int handleGetGuestProperty(HandlerArg *a)
 {
     HRESULT rc = S_OK;
 
@@ -94,7 +94,7 @@ static RTEXITCODE handleGetGuestProperty(HandlerArg *a)
     if (machine)
     {
         /* open a session for the VM - new or existing */
-        CHECK_ERROR_RET(machine, LockMachine(a->session, LockType_Shared), RTEXITCODE_FAILURE);
+        CHECK_ERROR_RET(machine, LockMachine(a->session, LockType_Shared), 1);
 
         /* get the mutable session machine */
         a->session->COMGETTER(Machine)(machine.asOutParam());
@@ -115,10 +115,10 @@ static RTEXITCODE handleGetGuestProperty(HandlerArg *a)
             RTPrintf("Flags: %ls\n", flags.raw());
         }
     }
-    return SUCCEEDED(rc) ? RTEXITCODE_SUCCESS : RTEXITCODE_FAILURE;
+    return SUCCEEDED(rc) ? 0 : 1;
 }
 
-static RTEXITCODE handleSetGuestProperty(HandlerArg *a)
+static int handleSetGuestProperty(HandlerArg *a)
 {
     HRESULT rc = S_OK;
 
@@ -155,7 +155,7 @@ static RTEXITCODE handleSetGuestProperty(HandlerArg *a)
     if (machine)
     {
         /* open a session for the VM - new or existing */
-        CHECK_ERROR_RET(machine, LockMachine(a->session, LockType_Shared), RTEXITCODE_FAILURE);
+        CHECK_ERROR_RET(machine, LockMachine(a->session, LockType_Shared), 1);
 
         /* get the mutable session machine */
         a->session->COMGETTER(Machine)(machine.asOutParam());
@@ -173,10 +173,10 @@ static RTEXITCODE handleSetGuestProperty(HandlerArg *a)
 
         a->session->UnlockMachine();
     }
-    return SUCCEEDED(rc) ? RTEXITCODE_SUCCESS : RTEXITCODE_FAILURE;
+    return SUCCEEDED(rc) ? 0 : 1;
 }
 
-static RTEXITCODE handleDeleteGuestProperty(HandlerArg *a)
+static int handleDeleteGuestProperty(HandlerArg *a)
 {
     HRESULT rc = S_OK;
 
@@ -199,7 +199,7 @@ static RTEXITCODE handleDeleteGuestProperty(HandlerArg *a)
     if (machine)
     {
         /* open a session for the VM - new or existing */
-        CHECK_ERROR_RET(machine, LockMachine(a->session, LockType_Shared), RTEXITCODE_FAILURE);
+        CHECK_ERROR_RET(machine, LockMachine(a->session, LockType_Shared), 1);
 
         /* get the mutable session machine */
         a->session->COMGETTER(Machine)(machine.asOutParam());
@@ -211,7 +211,7 @@ static RTEXITCODE handleDeleteGuestProperty(HandlerArg *a)
 
         a->session->UnlockMachine();
     }
-    return SUCCEEDED(rc) ? RTEXITCODE_SUCCESS : RTEXITCODE_FAILURE;
+    return SUCCEEDED(rc) ? 0 : 1;
 }
 
 /**
@@ -220,7 +220,7 @@ static RTEXITCODE handleDeleteGuestProperty(HandlerArg *a)
  * @returns 0 on success, 1 on failure
  * @note see the command line API description for parameters
  */
-static RTEXITCODE handleEnumGuestProperty(HandlerArg *a)
+static int handleEnumGuestProperty(HandlerArg *a)
 {
     /*
      * Check the syntax.  We can deduce the correct syntax from the number of
@@ -250,7 +250,7 @@ static RTEXITCODE handleEnumGuestProperty(HandlerArg *a)
     if (machine)
     {
         /* open a session for the VM - new or existing */
-        CHECK_ERROR_RET(machine, LockMachine(a->session, LockType_Shared), RTEXITCODE_FAILURE);
+        CHECK_ERROR_RET(machine, LockMachine(a->session, LockType_Shared), 1);
 
         /* get the mutable session machine */
         a->session->COMGETTER(Machine)(machine.asOutParam());
@@ -273,7 +273,7 @@ static RTEXITCODE handleEnumGuestProperty(HandlerArg *a)
                          names[i], values[i], timestamps[i], flags[i]);
         }
     }
-    return SUCCEEDED(rc) ? RTEXITCODE_SUCCESS : RTEXITCODE_FAILURE;
+    return SUCCEEDED(rc) ? 0 : 1;
 }
 
 /**
@@ -282,7 +282,7 @@ static RTEXITCODE handleEnumGuestProperty(HandlerArg *a)
  * @returns 0 on success, 1 on failure
  * @note see the command line API description for parameters
  */
-static RTEXITCODE handleWaitGuestProperty(HandlerArg *a)
+static int handleWaitGuestProperty(HandlerArg *a)
 {
     /*
      * Handle arguments
@@ -387,15 +387,14 @@ static RTEXITCODE handleWaitGuestProperty(HandlerArg *a)
 
     es->UnregisterListener(listener);
 
-    RTEXITCODE rcExit = RTEXITCODE_SUCCESS;
+    int rcRet = 0;
     if (!fSignalled)
     {
         RTMsgError("Time out or interruption while waiting for a notification.");
         if (fFailOnTimeout)
-            /* Hysterical rasins: We always returned 2 here, which now translates to syntax error... Which is bad. */
-            rcExit = RTEXITCODE_SYNTAX;
+            rcRet = 2;
     }
-    return rcExit;
+    return rcRet;
 }
 
 /**
@@ -404,7 +403,7 @@ static RTEXITCODE handleWaitGuestProperty(HandlerArg *a)
  * @returns 0 on success, 1 on failure
  * @note see the command line API description for parameters
  */
-RTEXITCODE handleGuestProperty(HandlerArg *a)
+int handleGuestProperty(HandlerArg *a)
 {
     HandlerArg arg = *a;
     arg.argc = a->argc - 1;

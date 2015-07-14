@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -170,19 +170,16 @@ typedef struct DBGFINFO
 typedef struct DBGFOS
 {
     /** Pointer to the registration record. */
-    PCDBGFOSREG                 pReg;
+    PCDBGFOSREG pReg;
     /** Pointer to the next OS we've registered. */
-    struct DBGFOS              *pNext;
-    /** List of EMT interface wrappers. */
-    struct DBGFOSEMTWRAPPER    *pWrapperHead;
+    struct DBGFOS *pNext;
     /** The instance data (variable size). */
-    uint8_t                     abData[16];
+    uint8_t abData[16];
 } DBGFOS;
 /** Pointer to guest OS digger instance. */
 typedef DBGFOS *PDBGFOS;
 /** Pointer to const guest OS digger instance. */
 typedef DBGFOS const *PCDBGFOS;
-
 
 
 /**
@@ -279,7 +276,6 @@ typedef struct DBGFCPU
 /** Pointer to DBGFCPU data. */
 typedef DBGFCPU *PDBGFCPU;
 
-struct DBGFOSEMTWRAPPER;
 
 /**
  * The DBGF data kept in the UVM.
@@ -317,22 +313,17 @@ typedef struct DBGFUSERPERVM
     /** Alignment padding. */
     bool                        afAlignment2[3];
 
-    /** Critical section protecting the Guest OS Digger data, the info handlers
-     * and the plugins.  These share to give the best possible plugin unload
-     * race protection. */
-    RTCRITSECTRW                CritSect;
-    /** Head of the LIFO of loaded DBGF plugins. */
-    R3PTRTYPE(struct DBGFPLUGIN *) pPlugInHead;
     /** The current Guest OS digger. */
     R3PTRTYPE(PDBGFOS)          pCurOS;
     /** The head of the Guest OS digger instances. */
     R3PTRTYPE(PDBGFOS)          pOSHead;
+
     /** List of registered info handlers. */
     R3PTRTYPE(PDBGFINFO)        pInfoFirst;
+    /** Critical section protecting the above list. */
+    RTCRITSECT                  InfoCritSect;
 
 } DBGFUSERPERVM;
-typedef DBGFUSERPERVM *PDBGFUSERPERVM;
-typedef DBGFUSERPERVM const *PCDBGFUSERPERVM;
 
 /**
  * The per-CPU DBGF data kept in the UVM.
@@ -352,15 +343,12 @@ void dbgfR3AsRelocate(PUVM pUVM, RTGCUINTPTR offDelta);
 int  dbgfR3BpInit(PVM pVM);
 int  dbgfR3InfoInit(PUVM pUVM);
 int  dbgfR3InfoTerm(PUVM pUVM);
-int  dbgfR3OSInit(PUVM pUVM);
 void dbgfR3OSTerm(PUVM pUVM);
 int  dbgfR3RegInit(PUVM pUVM);
 void dbgfR3RegTerm(PUVM pUVM);
 int  dbgfR3TraceInit(PVM pVM);
 void dbgfR3TraceRelocate(PVM pVM);
 void dbgfR3TraceTerm(PVM pVM);
-int  dbgfR3PlugInInit(PUVM pUVM);
-void dbgfR3PlugInTerm(PUVM pUVM);
 
 
 

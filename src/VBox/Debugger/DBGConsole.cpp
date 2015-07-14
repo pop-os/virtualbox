@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -582,7 +582,7 @@ static const char *dbgcGetEventCtx(DBGFEVENTCTX enmCtx)
     {
         case DBGFEVENTCTX_RAW:      return "raw";
         case DBGFEVENTCTX_REM:      return "rem";
-        case DBGFEVENTCTX_HM:       return "hwaccl";
+        case DBGFEVENTCTX_HM:   return "hwaccl";
         case DBGFEVENTCTX_HYPER:    return "hyper";
         case DBGFEVENTCTX_OTHER:    return "other";
 
@@ -967,6 +967,9 @@ void dbgcDestroy(PDBGC pDbgc)
 
     }
 
+    /* Unload all plug-ins. */
+    dbgcPlugInUnloadAll(pDbgc);
+
     /* Detach from the VM. */
     if (pDbgc->pUVM)
         DBGFR3Detach(pDbgc->pUVM);
@@ -1046,7 +1049,7 @@ DBGDECL(int) DBGCCreate(PUVM pUVM, PDBGCBACK pBack, unsigned fFlags)
     if (RT_SUCCESS(rc))
     {
         if (pVM)
-            DBGFR3PlugInLoadAll(pDbgc->pUVM);
+            dbgcPlugInAutoLoad(pDbgc);
         rc = pDbgc->CmdHlp.pfnPrintf(&pDbgc->CmdHlp, NULL, "VBoxDbg> ");
         if (RT_SUCCESS(rc))
         {

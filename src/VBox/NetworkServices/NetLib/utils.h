@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2015 Oracle Corporation
+ * Copyright (C) 2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,7 +24,6 @@
 #include "cpp/utils.h"
 
 typedef ComPtr<IVirtualBox> ComVirtualBoxPtr;
-typedef ComPtr<IVirtualBoxClient> ComVirtualBoxClientPtr;
 typedef ComPtr<IDHCPServer> ComDhcpServerPtr;
 typedef ComPtr<IHost> ComHostPtr;
 typedef ComPtr<INATNetwork> ComNatPtr;
@@ -131,9 +130,4 @@ typedef com::SafeArray<VBoxEventType_T> ComEventTypeArray;
  isn't modify event type array */
 int createNatListener(ComNatListenerPtr& listener, const ComVirtualBoxPtr& vboxptr,
                       NATNetworkEventAdapter *adapter, /* const */ ComEventTypeArray& events);
-int destroyNatListener(ComNatListenerPtr& listener, const ComVirtualBoxPtr& vboxptr);
-int createClientListener(ComNatListenerPtr& listener, const ComVirtualBoxClientPtr& vboxclientptr,
-                         NATNetworkEventAdapter *adapter, /* const */ ComEventTypeArray& events);
-int destroyClientListener(ComNatListenerPtr& listener, const ComVirtualBoxClientPtr& vboxclientptr);
-
 #endif

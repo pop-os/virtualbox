@@ -1,10 +1,11 @@
-/* $Id: QIRichToolButton.h $ */
 /** @file
- * VBox Qt GUI - QIRichToolButton class declaration.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * VirtualBox Qt extensions: QIRichToolButton class declaration
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,67 +16,49 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___QIRichToolButton_h___
-#define ___QIRichToolButton_h___
+#ifndef __QIRichToolButton_h__
+#define __QIRichToolButton_h__
 
-/* Qt includes: */
+/* Qt includes */
+#include <QLabel>
 #include <QWidget>
+#include <QToolButton>
 
-/* Forward declarations: */
-class QIToolButton;
-class QLabel;
-
-/** QWidget extension
-  * representing tool-button with separate text-label. */
+/** @class QIRichToolButton
+ *
+ *  The QIRichToolButton class is a tool-button with separate text-label.
+ *
+ */
 class QIRichToolButton : public QWidget
 {
     Q_OBJECT;
 
-signals:
-
-    /** Notifies listeners about button click. */
-    void sigClicked();
-
 public:
 
-    /** Constructor, passes @a pParent to the QWidget constructor. */
-    QIRichToolButton(QWidget *pParent = 0);
+    QIRichToolButton (QWidget *aParent = 0);
+    QIRichToolButton (const QString &aName, QWidget *aParent = 0);
 
-    /** Defines tool-button @a iconSize. */
-    void setIconSize(const QSize &iconSize);
-    /** Defines tool-button @a icon. */
-    void setIcon(const QIcon &icon);
-    /** Animates tool-button click: */
-    void animateClick();
+    void animateClick() { mButton->animateClick(); }
+    void setText (const QString &aName) { mLabel->setText (aName); }
+    QString text() const { return mLabel->text(); }
 
-    /** Defines text-label @a strText. */
-    void setText(const QString &strText);
+signals:
+
+    void clicked();
 
 protected slots:
 
-    /** Button-click handler. */
-    virtual void sltButtonClicked() {}
+    virtual void buttonClicked() { emit clicked(); }
 
 protected:
 
-    /** Paint-event handler. */
-    virtual void paintEvent(QPaintEvent *pEvent);
-    /** Key-press-event handler. */
-    virtual void keyPressEvent(QKeyEvent *pEvent);
-    /** Mouse-press-event handler. */
-    virtual void mousePressEvent(QMouseEvent *pEvent);
+    void init();
+    bool eventFilter (QObject *aObject, QEvent *aEvent);
+    void paintEvent (QPaintEvent *aEvent);
 
-private:
-
-    /** Prepare routine. */
-    void prepare();
-
-    /** Holds the tool-button instance. */
-    QIToolButton *m_pButton;
-    /** Holds the text-label instance. */
-    QLabel *m_pLabel;
-    /** Holds the text for text-label instance. */
-    QString m_strName;
+    QToolButton *mButton;
+    QLabel *mLabel;
 };
 
-#endif /* !___QIRichToolButton_h___ */
+#endif
+

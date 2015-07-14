@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2015 Oracle Corporation
+# Copyright (C) 2006-2013 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -487,4 +487,5 @@ $(PATH_STAGE_BIN)/additions/VBoxLinuxAdditions.run: \
 	$(QUIET)$(VBOX_MAKESELF) --nocomp $(VBOX_LNX_ADD_INST_STAGE_DIR) $@ \
 		"VirtualBox $(VBOX_VERSION_STRING) Guest Additions for Linux" \
 		/bin/sh ./install.sh "\$$0 1> /dev/null"
+
 

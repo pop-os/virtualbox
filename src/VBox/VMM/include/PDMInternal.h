@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -175,11 +175,7 @@ typedef struct PDMDEVINSINT
  * This is used by PDMR3PowerOn, PDMR3Resume, PDMR3Suspend and PDMR3PowerOff
  * to make sure each device gets exactly one notification for each of those
  * events.  PDMR3Resume and PDMR3PowerOn also makes use of it to bail out on
- * a failure (already resumed/powered-on devices are suspended).
- * PDMR3PowerOff resets this flag once before going through the devices to make sure
- * every device gets the power off notification even if it was suspended before with
- * PDMR3Suspend.
- */
+ * a failure (already resumed/powered-on devices are suspended). */
 #define PDMDEVINSINT_FLAGS_SUSPENDED     RT_BIT_32(1)
 /** Indicates that the device has been reset already.  Used by PDMR3Reset. */
 #define PDMDEVINSINT_FLAGS_RESET         RT_BIT_32(2)
@@ -300,9 +296,9 @@ typedef struct PDMCRITSECTINT
     bool                            fUsedByTimerOrSimilar;
     /** Alignment padding. */
     bool                            afPadding[2];
-    /** Support driver event semaphore that is scheduled to be signaled upon leaving
-     * the critical section. This is only for Ring-3 and Ring-0. */
-    SUPSEMEVENT                     hEventToSignal;
+    /** Event semaphore that is scheduled to be signaled upon leaving the
+     * critical section. This is Ring-3 only of course. */
+    RTSEMEVENT                      EventToSignal;
     /** The lock name. */
     R3PTRTYPE(const char *)         pszName;
     /** R0/RC lock contention. */
@@ -584,8 +580,6 @@ typedef struct PDMAPIC
                                                      uint8_t iVector, uint8_t u8Polarity, uint8_t u8TriggerMode, uint32_t uTagSrc));
     /** @copydoc PDMAPICREG::pfnLocalInterruptR3 */
     DECLR3CALLBACKMEMBER(int,       pfnLocalInterruptR3,(PPDMDEVINS pDevIns, uint8_t u8Pin, uint8_t u8Level));
-    /** @copydoc PDMAPICREG::pfnGetTimerFreqR3 */
-    DECLR3CALLBACKMEMBER(uint64_t,  pfnGetTimerFreqR3,(PPDMDEVINS pDevIns));
 
     /** Pointer to the APIC device instance - R0 Ptr. */
     PPDMDEVINSR0                    pDevInsR0;
@@ -610,8 +604,6 @@ typedef struct PDMAPIC
                                                      uint8_t iVector, uint8_t u8Polarity, uint8_t u8TriggerMode, uint32_t uTagSrc));
     /** @copydoc PDMAPICREG::pfnLocalInterruptR3 */
     DECLR0CALLBACKMEMBER(int,       pfnLocalInterruptR0,(PPDMDEVINS pDevIns, uint8_t u8Pin, uint8_t u8Level));
-    /** @copydoc PDMAPICREG::pfnGetTimerFreqR3 */
-    DECLR0CALLBACKMEMBER(uint64_t,  pfnGetTimerFreqR0,(PPDMDEVINS pDevIns));
 
     /** Pointer to the APIC device instance - RC Ptr. */
     PPDMDEVINSRC                    pDevInsRC;
@@ -636,8 +628,8 @@ typedef struct PDMAPIC
                                                      uint8_t iVector, uint8_t u8Polarity, uint8_t u8TriggerMode, uint32_t uTagSrc));
     /** @copydoc PDMAPICREG::pfnLocalInterruptR3 */
     DECLRCCALLBACKMEMBER(int,       pfnLocalInterruptRC,(PPDMDEVINS pDevIns, uint8_t u8Pin, uint8_t u8Level));
-    /** @copydoc PDMAPICREG::pfnGetTimerFreqR3 */
-    DECLRCCALLBACKMEMBER(uint64_t,  pfnGetTimerFreqRC,(PPDMDEVINS pDevIns));
+    RTRCPTR                         RCPtrAlignment;
+
 } PDMAPIC;
 
 
@@ -1279,6 +1271,7 @@ DECLCALLBACK(bool) pdmR3DevHlpQueueConsumer(PVM pVM, PPDMQUEUEITEMCORE pItem);
 int         pdmR3UsbLoadModules(PVM pVM);
 int         pdmR3UsbInstantiateDevices(PVM pVM);
 PPDMUSB     pdmR3UsbLookup(PVM pVM, const char *pszName);
+int         pdmR3UsbFindLun(PVM pVM, const char *pszDevice, unsigned iInstance, unsigned iLun, PPDMLUN *ppLun);
 int         pdmR3UsbRegisterHub(PVM pVM, PPDMDRVINS pDrvIns, uint32_t fVersions, uint32_t cPorts, PCPDMUSBHUBREG pUsbHubReg, PPCPDMUSBHUBHLP ppUsbHubHlp);
 int         pdmR3UsbVMInitComplete(PVM pVM);
 

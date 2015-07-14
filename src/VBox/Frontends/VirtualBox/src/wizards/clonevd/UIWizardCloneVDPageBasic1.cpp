@@ -1,6 +1,8 @@
 /* $Id: UIWizardCloneVDPageBasic1.cpp $ */
 /** @file
- * VBox Qt GUI - UIWizardCloneVDPageBasic1 class implementation.
+ *
+ * VBox frontends: Qt4 GUI ("VirtualBox"):
+ * UIWizardCloneVDPageBasic1 class implementation
  */
 
 /*
@@ -15,25 +17,18 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Global includes: */
-# include <QVBoxLayout>
-# include <QHBoxLayout>
+#include <QVBoxLayout>
+#include <QHBoxLayout>
 
 /* Local includes: */
-# include "UIWizardCloneVDPageBasic1.h"
-# include "UIWizardCloneVD.h"
-# include "UIIconPool.h"
-# include "QIRichTextLabel.h"
-# include "VBoxMediaComboBox.h"
-# include "QIToolButton.h"
-# include "UIMedium.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
+#include "UIWizardCloneVDPageBasic1.h"
+#include "UIWizardCloneVD.h"
+#include "UIIconPool.h"
+#include "QIRichTextLabel.h"
+#include "VBoxMediaComboBox.h"
+#include "QIToolButton.h"
+#include "UIMedium.h"
 
 UIWizardCloneVDPage1::UIWizardCloneVDPage1()
 {
@@ -112,13 +107,13 @@ void UIWizardCloneVDPageBasic1::sltHandleOpenSourceDiskClick()
 void UIWizardCloneVDPageBasic1::retranslateUi()
 {
     /* Translate page: */
-    setTitle(UIWizardCloneVD::tr("Hard disk to copy"));
+    setTitle(UIWizardCloneVD::tr("Hard drive to copy"));
 
     /* Translate widgets: */
-    m_pLabel->setText(UIWizardCloneVD::tr("<p>Please select the virtual hard disk file that you would like to copy "
+    m_pLabel->setText(UIWizardCloneVD::tr("<p>Please select the virtual hard drive file that you would like to copy "
                                           "if it is not already selected. You can either choose one from the list "
                                           "or use the folder icon beside the list to select one.</p>"));
-    m_pSourceDiskOpenButton->setToolTip(UIWizardCloneVD::tr("Choose a virtual hard disk file to copy..."));
+    m_pSourceDiskOpenButton->setToolTip(UIWizardCloneVD::tr("Choose a virtual hard drive file to copy..."));
 }
 
 void UIWizardCloneVDPageBasic1::initializePage()

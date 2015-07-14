@@ -124,15 +124,22 @@ void MachineDebugger::uninit()
  * @returns COM status code
  * @param   a_fEnabled      Where to store the result.
  */
-HRESULT MachineDebugger::getSingleStep(BOOL *aSingleStep)
+STDMETHODIMP MachineDebugger::COMGETTER(SingleStep)(BOOL *a_fEnabled)
 {
-    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-    Console::SafeVMPtr ptrVM(mParent);
-    HRESULT hrc = ptrVM.rc();
+    CheckComArgOutPointerValid(a_fEnabled);
+
+    AutoCaller autoCaller(this);
+    HRESULT hrc = autoCaller.rc();
     if (SUCCEEDED(hrc))
     {
-        /** @todo */
-        ReturnComNotImplemented();
+        AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+        Console::SafeVMPtr ptrVM(mParent);
+        hrc = ptrVM.rc();
+        if (SUCCEEDED(hrc))
+        {
+            /** @todo */
+            ReturnComNotImplemented();
+        }
     }
     return hrc;
 }
@@ -143,15 +150,20 @@ HRESULT MachineDebugger::getSingleStep(BOOL *aSingleStep)
  * @returns COM status code
  * @param   a_fEnable       The new state.
  */
-HRESULT MachineDebugger::setSingleStep(BOOL aSingleStep)
+STDMETHODIMP MachineDebugger::COMSETTER(SingleStep)(BOOL a_fEnable)
 {
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-    Console::SafeVMPtr ptrVM(mParent);
-    HRESULT hrc = ptrVM.rc();
+    AutoCaller autoCaller(this);
+    HRESULT hrc = autoCaller.rc();
     if (SUCCEEDED(hrc))
     {
-        /** @todo */
-        ReturnComNotImplemented();
+        AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+        Console::SafeVMPtr ptrVM(mParent);
+        hrc = ptrVM.rc();
+        if (SUCCEEDED(hrc))
+        {
+            /** @todo */
+            ReturnComNotImplemented();
+        }
     }
     return hrc;
 }
@@ -163,7 +175,7 @@ HRESULT MachineDebugger::setSingleStep(BOOL aSingleStep)
  * @param   enmPolicy           Which EM policy.
  * @param   pfEnforced          Where to return the policy setting.
  */
-HRESULT MachineDebugger::i_getEmExecPolicyProperty(EMEXECPOLICY enmPolicy, BOOL *pfEnforced)
+HRESULT MachineDebugger::getEmExecPolicyProperty(EMEXECPOLICY enmPolicy, BOOL *pfEnforced)
 {
     CheckComArgOutPointerValid(pfEnforced);
 
@@ -172,7 +184,7 @@ HRESULT MachineDebugger::i_getEmExecPolicyProperty(EMEXECPOLICY enmPolicy, BOOL 
     if (SUCCEEDED(hrc))
     {
         AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-        if (i_queueSettings())
+        if (queueSettings())
             *pfEnforced = maiQueuedEmExecPolicyParams[enmPolicy] == 1;
         else
         {
@@ -194,14 +206,14 @@ HRESULT MachineDebugger::i_getEmExecPolicyProperty(EMEXECPOLICY enmPolicy, BOOL 
  * @param   enmPolicy           Which policy to change.
  * @param   fEnforce            Whether to enforce the policy or not.
  */
-HRESULT MachineDebugger::i_setEmExecPolicyProperty(EMEXECPOLICY enmPolicy, BOOL fEnforce)
+HRESULT MachineDebugger::setEmExecPolicyProperty(EMEXECPOLICY enmPolicy, BOOL fEnforce)
 {
     AutoCaller autoCaller(this);
     HRESULT hrc = autoCaller.rc();
     if (SUCCEEDED(hrc))
     {
         AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-        if (i_queueSettings())
+        if (queueSettings())
             maiQueuedEmExecPolicyParams[enmPolicy] = fEnforce ? 1 : 0;
         else
         {
@@ -224,9 +236,9 @@ HRESULT MachineDebugger::i_setEmExecPolicyProperty(EMEXECPOLICY enmPolicy, BOOL 
  * @returns COM status code
  * @param   a_fEnabled address of result variable
  */
-HRESULT MachineDebugger::getRecompileUser(BOOL *aRecompileUser)
+STDMETHODIMP MachineDebugger::COMGETTER(RecompileUser) (BOOL *aEnabled)
 {
-    return i_getEmExecPolicyProperty(EMEXECPOLICY_RECOMPILE_RING3, aRecompileUser);
+    return getEmExecPolicyProperty(EMEXECPOLICY_RECOMPILE_RING3, aEnabled);
 }
 
 /**
@@ -235,10 +247,10 @@ HRESULT MachineDebugger::getRecompileUser(BOOL *aRecompileUser)
  * @returns COM status
  * @param   aEnable new user mode code recompile flag.
  */
-HRESULT MachineDebugger::setRecompileUser(BOOL aRecompileUser)
+STDMETHODIMP MachineDebugger::COMSETTER(RecompileUser)(BOOL aEnable)
 {
-    LogFlowThisFunc(("enable=%d\n", aRecompileUser));
-    return i_setEmExecPolicyProperty(EMEXECPOLICY_RECOMPILE_RING3, aRecompileUser);
+    LogFlowThisFunc(("enable=%d\n", aEnable));
+    return setEmExecPolicyProperty(EMEXECPOLICY_RECOMPILE_RING3, aEnable);
 }
 
 /**
@@ -247,9 +259,9 @@ HRESULT MachineDebugger::setRecompileUser(BOOL aRecompileUser)
  * @returns COM status code
  * @param   aEnabled address of result variable
  */
-HRESULT MachineDebugger::getRecompileSupervisor(BOOL *aRecompileSupervisor)
+STDMETHODIMP MachineDebugger::COMGETTER(RecompileSupervisor) (BOOL *aEnabled)
 {
-    return i_getEmExecPolicyProperty(EMEXECPOLICY_RECOMPILE_RING0, aRecompileSupervisor);
+    return getEmExecPolicyProperty(EMEXECPOLICY_RECOMPILE_RING0, aEnabled);
 }
 
 /**
@@ -258,10 +270,10 @@ HRESULT MachineDebugger::getRecompileSupervisor(BOOL *aRecompileSupervisor)
  * @returns COM status code
  * @param   aEnable new recompile supervisor code flag
  */
-HRESULT MachineDebugger::setRecompileSupervisor(BOOL aRecompileSupervisor)
+STDMETHODIMP MachineDebugger::COMSETTER(RecompileSupervisor)(BOOL aEnable)
 {
-    LogFlowThisFunc(("enable=%d\n", aRecompileSupervisor));
-    return i_setEmExecPolicyProperty(EMEXECPOLICY_RECOMPILE_RING0, aRecompileSupervisor);
+    LogFlowThisFunc(("enable=%d\n", aEnable));
+    return setEmExecPolicyProperty(EMEXECPOLICY_RECOMPILE_RING0, aEnable);
 }
 
 /**
@@ -270,9 +282,9 @@ HRESULT MachineDebugger::setRecompileSupervisor(BOOL aRecompileSupervisor)
  * @returns COM status code
  * @param   aEnabled    Address of result variable.
  */
-HRESULT MachineDebugger::getExecuteAllInIEM(BOOL *aExecuteAllInIEM)
+STDMETHODIMP MachineDebugger::COMGETTER(ExecuteAllInIEM) (BOOL *aEnabled)
 {
-    return i_getEmExecPolicyProperty(EMEXECPOLICY_IEM_ALL, aExecuteAllInIEM);
+    return getEmExecPolicyProperty(EMEXECPOLICY_IEM_ALL, aEnabled);
 }
 
 /**
@@ -281,10 +293,10 @@ HRESULT MachineDebugger::getExecuteAllInIEM(BOOL *aExecuteAllInIEM)
  * @returns COM status code
  * @param   aEnable     New setting.
  */
-HRESULT MachineDebugger::setExecuteAllInIEM(BOOL aExecuteAllInIEM)
+STDMETHODIMP MachineDebugger::COMSETTER(ExecuteAllInIEM)(BOOL aEnable)
 {
-    LogFlowThisFunc(("enable=%d\n", aExecuteAllInIEM));
-    return i_setEmExecPolicyProperty(EMEXECPOLICY_IEM_ALL, aExecuteAllInIEM);
+    LogFlowThisFunc(("enable=%d\n", aEnable));
+    return setEmExecPolicyProperty(EMEXECPOLICY_IEM_ALL, aEnable);
 }
 
 /**
@@ -293,17 +305,23 @@ HRESULT MachineDebugger::setExecuteAllInIEM(BOOL aExecuteAllInIEM)
  * @returns COM status code
  * @param   aEnabled address of result variable
  */
-HRESULT MachineDebugger::getPATMEnabled(BOOL *aPATMEnabled)
+STDMETHODIMP MachineDebugger::COMGETTER(PATMEnabled) (BOOL *aEnabled)
 {
+    CheckComArgOutPointerValid(aEnabled);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc()))
+        return autoCaller.rc();
+
 #ifdef VBOX_WITH_RAW_MODE
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     Console::SafeVMPtrQuiet ptrVM(mParent);
     if (ptrVM.isOk())
-        *aPATMEnabled = PATMR3IsEnabled (ptrVM.rawUVM());
+        *aEnabled = PATMR3IsEnabled (ptrVM.rawUVM());
     else
 #endif
-        *aPATMEnabled = false;
+        *aEnabled = false;
 
     return S_OK;
 }
@@ -314,17 +332,20 @@ HRESULT MachineDebugger::getPATMEnabled(BOOL *aPATMEnabled)
  * @returns COM status code
  * @param   aEnable new patch manager enabled flag
  */
-HRESULT MachineDebugger::setPATMEnabled(BOOL aPATMEnabled)
+STDMETHODIMP MachineDebugger::COMSETTER(PATMEnabled) (BOOL aEnable)
 {
-    LogFlowThisFunc(("enable=%d\n", aPATMEnabled));
+    LogFlowThisFunc(("enable=%d\n", aEnable));
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
 #ifdef VBOX_WITH_RAW_MODE
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    if (i_queueSettings())
+    if (queueSettings())
     {
         // queue the request
-        mPatmEnabledQueued = aPATMEnabled;
+        mPatmEnabledQueued = aEnable;
         return S_OK;
     }
 
@@ -332,12 +353,12 @@ HRESULT MachineDebugger::setPATMEnabled(BOOL aPATMEnabled)
     if (FAILED(ptrVM.rc()))
         return ptrVM.rc();
 
-    int vrc = PATMR3AllowPatching(ptrVM.rawUVM(), RT_BOOL(aPATMEnabled));
+    int vrc = PATMR3AllowPatching(ptrVM.rawUVM(), RT_BOOL(aEnable));
     if (RT_FAILURE(vrc))
         return setError(VBOX_E_VM_ERROR, tr("PATMR3AllowPatching returned %Rrc"), vrc);
 
 #else  /* !VBOX_WITH_RAW_MODE */
-    if (aPATMEnabled)
+    if (aEnable)
         return setError(VBOX_E_VM_ERROR, tr("PATM not present"), VERR_NOT_SUPPORTED);
 #endif /* !VBOX_WITH_RAW_MODE */
     return S_OK;
@@ -349,18 +370,23 @@ HRESULT MachineDebugger::setPATMEnabled(BOOL aPATMEnabled)
  * @returns COM status code
  * @param   aEnabled address of result variable
  */
-HRESULT MachineDebugger::getCSAMEnabled(BOOL *aCSAMEnabled)
+STDMETHODIMP MachineDebugger::COMGETTER(CSAMEnabled) (BOOL *aEnabled)
 {
+    CheckComArgOutPointerValid(aEnabled);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
 #ifdef VBOX_WITH_RAW_MODE
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     Console::SafeVMPtrQuiet ptrVM(mParent);
 
     if (ptrVM.isOk())
-        *aCSAMEnabled = CSAMR3IsEnabled(ptrVM.rawUVM());
+        *aEnabled = CSAMR3IsEnabled(ptrVM.rawUVM());
     else
 #endif /* VBOX_WITH_RAW_MODE */
-        *aCSAMEnabled = false;
+        *aEnabled = false;
 
     return S_OK;
 }
@@ -371,17 +397,20 @@ HRESULT MachineDebugger::getCSAMEnabled(BOOL *aCSAMEnabled)
  * @returns COM status code
  * @param   aEnable new code scanner enabled flag
  */
-HRESULT MachineDebugger::setCSAMEnabled(BOOL aCSAMEnabled)
+STDMETHODIMP MachineDebugger::COMSETTER(CSAMEnabled) (BOOL aEnable)
 {
-    LogFlowThisFunc(("enable=%d\n", aCSAMEnabled));
+    LogFlowThisFunc(("enable=%d\n", aEnable));
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
 #ifdef VBOX_WITH_RAW_MODE
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    if (i_queueSettings())
+    if (queueSettings())
     {
         // queue the request
-        mCsamEnabledQueued = aCSAMEnabled;
+        mCsamEnabledQueued = aEnable;
         return S_OK;
     }
 
@@ -389,12 +418,12 @@ HRESULT MachineDebugger::setCSAMEnabled(BOOL aCSAMEnabled)
     if (FAILED(ptrVM.rc()))
         return ptrVM.rc();
 
-    int vrc = CSAMR3SetScanningEnabled(ptrVM.rawUVM(), aCSAMEnabled != FALSE);
+    int vrc = CSAMR3SetScanningEnabled(ptrVM.rawUVM(), aEnable != FALSE);
     if (RT_FAILURE(vrc))
         return setError(VBOX_E_VM_ERROR, tr("CSAMR3SetScanningEnabled returned %Rrc"), vrc);
 
 #else  /* !VBOX_WITH_RAW_MODE */
-    if (aCSAMEnabled)
+    if (aEnable)
         return setError(VBOX_E_VM_ERROR, tr("CASM not present"), VERR_NOT_SUPPORTED);
 #endif /* !VBOX_WITH_RAW_MODE */
     return S_OK;
@@ -406,15 +435,20 @@ HRESULT MachineDebugger::setCSAMEnabled(BOOL aCSAMEnabled)
  * @returns COM status code
  * @param   aEnabled     address of result variable
  */
-HRESULT MachineDebugger::getLogEnabled(BOOL *aLogEnabled)
+STDMETHODIMP MachineDebugger::COMGETTER(LogEnabled) (BOOL *aEnabled)
 {
+    CheckComArgOutPointerValid(aEnabled);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
 #ifdef LOG_ENABLED
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     const PRTLOGGER pLogInstance = RTLogDefaultInstance();
-    *aLogEnabled = pLogInstance && !(pLogInstance->fFlags & RTLOGFLAGS_DISABLED);
+    *aEnabled = pLogInstance && !(pLogInstance->fFlags & RTLOGFLAGS_DISABLED);
 #else
-    *aLogEnabled = false;
+    *aEnabled = false;
 #endif
 
     return S_OK;
@@ -426,16 +460,19 @@ HRESULT MachineDebugger::getLogEnabled(BOOL *aLogEnabled)
  * @returns COM status code
  * @param   aEnabled    The new code log state.
  */
-HRESULT MachineDebugger::setLogEnabled(BOOL aLogEnabled)
+STDMETHODIMP MachineDebugger::COMSETTER(LogEnabled) (BOOL aEnabled)
 {
-    LogFlowThisFunc(("aLogEnabled=%d\n", aLogEnabled));
+    LogFlowThisFunc(("aEnabled=%d\n", aEnabled));
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    if (i_queueSettings())
+    if (queueSettings())
     {
         // queue the request
-        mLogEnabledQueued = aLogEnabled;
+        mLogEnabledQueued = aEnabled;
         return S_OK;
     }
 
@@ -443,7 +480,7 @@ HRESULT MachineDebugger::setLogEnabled(BOOL aLogEnabled)
     if (FAILED(ptrVM.rc())) return ptrVM.rc();
 
 #ifdef LOG_ENABLED
-    int vrc = DBGFR3LogModifyFlags(ptrVM.rawUVM(), aLogEnabled ? "enabled" : "disabled");
+    int vrc = DBGFR3LogModifyFlags(ptrVM.rawUVM(), aEnabled ? "enabled" : "disabled");
     if (RT_FAILURE(vrc))
     {
         /** @todo handle error code. */
@@ -453,8 +490,8 @@ HRESULT MachineDebugger::setLogEnabled(BOOL aLogEnabled)
     return S_OK;
 }
 
-HRESULT MachineDebugger::i_logStringProps(PRTLOGGER pLogger, PFNLOGGETSTR pfnLogGetStr,
-                                          const char *pszLogGetStr, Utf8Str *pstrSettings)
+HRESULT MachineDebugger::logStringProps(PRTLOGGER pLogger, PFNLOGGETSTR pfnLogGetStr,
+                                        const char *pszLogGetStr, BSTR *a_pbstrSettings)
 {
     /* Make sure the VM is powered up. */
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
@@ -466,7 +503,8 @@ HRESULT MachineDebugger::i_logStringProps(PRTLOGGER pLogger, PFNLOGGETSTR pfnLog
     /* Make sure we've got a logger. */
     if (!pLogger)
     {
-        *pstrSettings = "";
+        Bstr bstrEmpty;
+        bstrEmpty.cloneTo(a_pbstrSettings);
         return S_OK;
     }
 
@@ -476,20 +514,25 @@ HRESULT MachineDebugger::i_logStringProps(PRTLOGGER pLogger, PFNLOGGETSTR pfnLog
     {
         char *pszBuf = (char *)RTMemTmpAlloc(cbBuf);
         AssertReturn(pszBuf, E_OUTOFMEMORY);
-        int vrc = pstrSettings->reserveNoThrow(cbBuf);
-        if (RT_SUCCESS(vrc))
+
+        int rc = pfnLogGetStr(pLogger, pszBuf, cbBuf);
+        if (RT_SUCCESS(rc))
         {
-            vrc = pfnLogGetStr(pLogger, pstrSettings->mutableRaw(), cbBuf);
-            if (RT_SUCCESS(vrc))
+            try
             {
-                pstrSettings->jolt();
-                return S_OK;
+                Bstr bstrRet(pszBuf);
+                bstrRet.detachTo(a_pbstrSettings);
+                hrc = S_OK;
             }
-            *pstrSettings = "";
-            AssertReturn(vrc == VERR_BUFFER_OVERFLOW, setError(VBOX_E_IPRT_ERROR, tr("%s returned %Rrc"), pszLogGetStr, vrc));
+            catch (std::bad_alloc)
+            {
+                hrc = E_OUTOFMEMORY;
+            }
+            RTMemTmpFree(pszBuf);
+            return hrc;
         }
-        else
-            return E_OUTOFMEMORY;
+        RTMemTmpFree(pszBuf);
+        AssertReturn(rc == VERR_BUFFER_OVERFLOW, setError(VBOX_E_IPRT_ERROR, tr("%s returned %Rrc"), pszLogGetStr, rc));
 
         /* try again with a bigger buffer. */
         cbBuf *= 2;
@@ -497,34 +540,78 @@ HRESULT MachineDebugger::i_logStringProps(PRTLOGGER pLogger, PFNLOGGETSTR pfnLog
     }
 }
 
-HRESULT MachineDebugger::getLogDbgFlags(com::Utf8Str &aLogDbgFlags)
+
+STDMETHODIMP MachineDebugger::COMGETTER(LogDbgFlags)(BSTR *a_pbstrSettings)
 {
-    return i_logStringProps(RTLogGetDefaultInstance(), RTLogGetFlags, "RTGetFlags", &aLogDbgFlags);
+    CheckComArgOutPointerValid(a_pbstrSettings);
+
+    AutoCaller autoCaller(this);
+    HRESULT hrc = autoCaller.rc();
+    if (SUCCEEDED(hrc))
+        hrc = logStringProps(RTLogGetDefaultInstance(), RTLogGetFlags, "RTGetFlags", a_pbstrSettings);
+
+    return hrc;
 }
 
-HRESULT MachineDebugger::getLogDbgGroups(com::Utf8Str &aLogDbgGroups)
+STDMETHODIMP MachineDebugger::COMGETTER(LogDbgGroups)(BSTR *a_pbstrSettings)
 {
-    return i_logStringProps(RTLogGetDefaultInstance(), RTLogGetGroupSettings, "RTLogGetGroupSettings", &aLogDbgGroups);
+    CheckComArgOutPointerValid(a_pbstrSettings);
+
+    AutoCaller autoCaller(this);
+    HRESULT hrc = autoCaller.rc();
+    if (SUCCEEDED(hrc))
+        hrc = logStringProps(RTLogGetDefaultInstance(), RTLogGetGroupSettings, "RTLogGetGroupSettings", a_pbstrSettings);
+
+    return hrc;
 }
 
-HRESULT MachineDebugger::getLogDbgDestinations(com::Utf8Str &aLogDbgDestinations)
+STDMETHODIMP MachineDebugger::COMGETTER(LogDbgDestinations)(BSTR *a_pbstrSettings)
 {
-    return i_logStringProps(RTLogGetDefaultInstance(), RTLogGetDestinations, "RTLogGetDestinations", &aLogDbgDestinations);
+    CheckComArgOutPointerValid(a_pbstrSettings);
+
+    AutoCaller autoCaller(this);
+    HRESULT hrc = autoCaller.rc();
+    if (SUCCEEDED(hrc))
+        hrc = logStringProps(RTLogGetDefaultInstance(), RTLogGetDestinations, "RTLogGetDestinations", a_pbstrSettings);
+
+    return hrc;
 }
 
-HRESULT MachineDebugger::getLogRelFlags(com::Utf8Str &aLogRelFlags)
+
+STDMETHODIMP MachineDebugger::COMGETTER(LogRelFlags)(BSTR *a_pbstrSettings)
 {
-    return i_logStringProps(RTLogRelGetDefaultInstance(), RTLogGetFlags, "RTGetFlags", &aLogRelFlags);
+    CheckComArgOutPointerValid(a_pbstrSettings);
+
+    AutoCaller autoCaller(this);
+    HRESULT hrc = autoCaller.rc();
+    if (SUCCEEDED(hrc))
+        hrc = logStringProps(RTLogRelDefaultInstance(), RTLogGetFlags, "RTGetFlags", a_pbstrSettings);
+
+    return hrc;
 }
 
-HRESULT MachineDebugger::getLogRelGroups(com::Utf8Str &aLogRelGroups)
+STDMETHODIMP MachineDebugger::COMGETTER(LogRelGroups)(BSTR *a_pbstrSettings)
 {
-    return i_logStringProps(RTLogRelGetDefaultInstance(), RTLogGetGroupSettings, "RTLogGetGroupSettings", &aLogRelGroups);
+    CheckComArgOutPointerValid(a_pbstrSettings);
+
+    AutoCaller autoCaller(this);
+    HRESULT hrc = autoCaller.rc();
+    if (SUCCEEDED(hrc))
+        hrc = logStringProps(RTLogRelDefaultInstance(), RTLogGetGroupSettings, "RTLogGetGroupSettings", a_pbstrSettings);
+
+    return hrc;
 }
 
-HRESULT MachineDebugger::getLogRelDestinations(com::Utf8Str &aLogRelDestinations)
+STDMETHODIMP MachineDebugger::COMGETTER(LogRelDestinations)(BSTR *a_pbstrSettings)
 {
-    return i_logStringProps(RTLogRelGetDefaultInstance(), RTLogGetDestinations, "RTLogGetDestinations", &aLogRelDestinations);
+    CheckComArgOutPointerValid(a_pbstrSettings);
+
+    AutoCaller autoCaller(this);
+    HRESULT hrc = autoCaller.rc();
+    if (SUCCEEDED(hrc))
+        hrc = logStringProps(RTLogRelDefaultInstance(), RTLogGetDestinations, "RTLogGetDestinations", a_pbstrSettings);
+
+    return hrc;
 }
 
 /**
@@ -533,16 +620,21 @@ HRESULT MachineDebugger::getLogRelDestinations(com::Utf8Str &aLogRelDestinations
  * @returns COM status code
  * @param   aEnabled address of result variable
  */
-HRESULT MachineDebugger::getHWVirtExEnabled(BOOL *aHWVirtExEnabled)
+STDMETHODIMP MachineDebugger::COMGETTER(HWVirtExEnabled) (BOOL *aEnabled)
 {
+    CheckComArgOutPointerValid(aEnabled);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     Console::SafeVMPtrQuiet ptrVM(mParent);
 
     if (ptrVM.isOk())
-        *aHWVirtExEnabled = HMR3IsEnabled(ptrVM.rawUVM());
+        *aEnabled = HMR3IsEnabled(ptrVM.rawUVM());
     else
-        *aHWVirtExEnabled = false;
+        *aEnabled = false;
 
     return S_OK;
 }
@@ -553,16 +645,22 @@ HRESULT MachineDebugger::getHWVirtExEnabled(BOOL *aHWVirtExEnabled)
  * @returns COM status code
  * @param   aEnabled address of result variable
  */
-HRESULT MachineDebugger::getHWVirtExNestedPagingEnabled(BOOL *aHWVirtExNestedPagingEnabled)
+STDMETHODIMP MachineDebugger::COMGETTER(HWVirtExNestedPagingEnabled)(BOOL *aEnabled)
 {
+    CheckComArgOutPointerValid(aEnabled);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc()))
+        return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     Console::SafeVMPtrQuiet ptrVM(mParent);
 
     if (ptrVM.isOk())
-        *aHWVirtExNestedPagingEnabled = HMR3IsNestedPagingActive(ptrVM.rawUVM());
+        *aEnabled = HMR3IsNestedPagingActive(ptrVM.rawUVM());
     else
-        *aHWVirtExNestedPagingEnabled = false;
+        *aEnabled = false;
 
     return S_OK;
 }
@@ -573,16 +671,22 @@ HRESULT MachineDebugger::getHWVirtExNestedPagingEnabled(BOOL *aHWVirtExNestedPag
  * @returns COM status code
  * @param   aEnabled address of result variable
  */
-HRESULT MachineDebugger::getHWVirtExVPIDEnabled(BOOL *aHWVirtExVPIDEnabled)
+STDMETHODIMP MachineDebugger::COMGETTER(HWVirtExVPIDEnabled) (BOOL *aEnabled)
 {
+    CheckComArgOutPointerValid(aEnabled);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc()))
+        return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     Console::SafeVMPtrQuiet ptrVM(mParent);
 
     if (ptrVM.isOk())
-        *aHWVirtExVPIDEnabled = HMR3IsVpidActive(ptrVM.rawUVM());
+        *aEnabled = HMR3IsVpidActive(ptrVM.rawUVM());
     else
-        *aHWVirtExVPIDEnabled = false;
+        *aEnabled = false;
 
     return S_OK;
 }
@@ -593,78 +697,96 @@ HRESULT MachineDebugger::getHWVirtExVPIDEnabled(BOOL *aHWVirtExVPIDEnabled)
  * @returns COM status code
  * @param   aEnabled address of result variable
  */
-HRESULT MachineDebugger::getHWVirtExUXEnabled(BOOL *aHWVirtExUXEnabled)
+STDMETHODIMP MachineDebugger::COMGETTER(HWVirtExUXEnabled) (BOOL *aEnabled)
 {
+    CheckComArgOutPointerValid(aEnabled);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc()))
+        return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     Console::SafeVMPtrQuiet ptrVM(mParent);
 
     if (ptrVM.isOk())
-        *aHWVirtExUXEnabled = HMR3IsUXActive(ptrVM.rawUVM());
+        *aEnabled = HMR3IsUXActive(ptrVM.rawUVM());
     else
-        *aHWVirtExUXEnabled = false;
+        *aEnabled = false;
 
     return S_OK;
 }
 
-HRESULT MachineDebugger::getOSName(com::Utf8Str &aOSName)
+STDMETHODIMP MachineDebugger::COMGETTER(OSName)(BSTR *a_pbstrName)
 {
     LogFlowThisFunc(("\n"));
-    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-    Console::SafeVMPtr ptrVM(mParent);
-    HRESULT hrc = ptrVM.rc();
+    CheckComArgNotNull(a_pbstrName);
+    AutoCaller autoCaller(this);
+    HRESULT hrc = autoCaller.rc();
     if (SUCCEEDED(hrc))
     {
-        /*
-         * Do the job and try convert the name.
-         */
-        char szName[64];
-        int vrc = DBGFR3OSQueryNameAndVersion(ptrVM.rawUVM(), szName, sizeof(szName), NULL, 0);
-        if (RT_SUCCESS(vrc))
+        AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+        Console::SafeVMPtr ptrVM(mParent);
+        hrc = ptrVM.rc();
+        if (SUCCEEDED(hrc))
         {
-            try
+            /*
+             * Do the job and try convert the name.
+             */
+            char szName[64];
+            int vrc = DBGFR3OSQueryNameAndVersion(ptrVM.rawUVM(), szName, sizeof(szName), NULL, 0);
+            if (RT_SUCCESS(vrc))
             {
-                Bstr bstrName(szName);
-                aOSName = Utf8Str(bstrName);
+                try
+                {
+                    Bstr bstrName(szName);
+                    bstrName.detachTo(a_pbstrName);
+                }
+                catch (std::bad_alloc)
+                {
+                    hrc = E_OUTOFMEMORY;
+                }
             }
-            catch (std::bad_alloc)
-            {
-                hrc = E_OUTOFMEMORY;
-            }
+            else
+                hrc = setError(VBOX_E_VM_ERROR, tr("DBGFR3OSQueryNameAndVersion failed with %Rrc"), vrc);
         }
-        else
-            hrc = setError(VBOX_E_VM_ERROR, tr("DBGFR3OSQueryNameAndVersion failed with %Rrc"), vrc);
     }
     return hrc;
 }
 
-HRESULT MachineDebugger::getOSVersion(com::Utf8Str &aOSVersion)
+STDMETHODIMP MachineDebugger::COMGETTER(OSVersion)(BSTR *a_pbstrVersion)
 {
     LogFlowThisFunc(("\n"));
-    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-    Console::SafeVMPtr ptrVM(mParent);
-    HRESULT hrc = ptrVM.rc();
+    CheckComArgNotNull(a_pbstrVersion);
+    AutoCaller autoCaller(this);
+    HRESULT hrc = autoCaller.rc();
     if (SUCCEEDED(hrc))
     {
-        /*
-         * Do the job and try convert the name.
-         */
-        char szVersion[256];
-        int vrc = DBGFR3OSQueryNameAndVersion(ptrVM.rawUVM(), NULL, 0, szVersion, sizeof(szVersion));
-        if (RT_SUCCESS(vrc))
+        AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+        Console::SafeVMPtr ptrVM(mParent);
+        hrc = ptrVM.rc();
+        if (SUCCEEDED(hrc))
         {
-            try
+            /*
+             * Do the job and try convert the name.
+             */
+            char szVersion[256];
+            int vrc = DBGFR3OSQueryNameAndVersion(ptrVM.rawUVM(), NULL, 0, szVersion, sizeof(szVersion));
+            if (RT_SUCCESS(vrc))
             {
-                Bstr bstrVersion(szVersion);
-                aOSVersion = Utf8Str(bstrVersion);
+                try
+                {
+                    Bstr bstrVersion(szVersion);
+                    bstrVersion.detachTo(a_pbstrVersion);
+                }
+                catch (std::bad_alloc)
+                {
+                    hrc = E_OUTOFMEMORY;
+                }
             }
-            catch (std::bad_alloc)
-            {
-                hrc = E_OUTOFMEMORY;
-            }
+            else
+                hrc = setError(VBOX_E_VM_ERROR, tr("DBGFR3OSQueryNameAndVersion failed with %Rrc"), vrc);
         }
-        else
-            hrc = setError(VBOX_E_VM_ERROR, tr("DBGFR3OSQueryNameAndVersion failed with %Rrc"), vrc);
     }
     return hrc;
 }
@@ -675,8 +797,13 @@ HRESULT MachineDebugger::getOSVersion(com::Utf8Str &aOSVersion)
  * @returns COM status code
  * @param   aEnabled address of result variable
  */
-HRESULT MachineDebugger::getPAEEnabled(BOOL *aPAEEnabled)
+STDMETHODIMP MachineDebugger::COMGETTER(PAEEnabled) (BOOL *aEnabled)
 {
+    CheckComArgOutPointerValid(aEnabled);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     Console::SafeVMPtrQuiet ptrVM(mParent);
@@ -685,10 +812,10 @@ HRESULT MachineDebugger::getPAEEnabled(BOOL *aPAEEnabled)
     {
         uint32_t cr4;
         int rc = DBGFR3RegCpuQueryU32(ptrVM.rawUVM(), 0 /*idCpu*/,  DBGFREG_CR4, &cr4); AssertRC(rc);
-        *aPAEEnabled = RT_BOOL(cr4 & X86_CR4_PAE);
+        *aEnabled = RT_BOOL(cr4 & X86_CR4_PAE);
     }
     else
-        *aPAEEnabled = false;
+        *aEnabled = false;
 
     return S_OK;
 }
@@ -699,14 +826,21 @@ HRESULT MachineDebugger::getPAEEnabled(BOOL *aPAEEnabled)
  * @returns COM status code.
  * @param   a_puPct      Where to store the rate.
  */
-HRESULT MachineDebugger::getVirtualTimeRate(ULONG *aVirtualTimeRate)
+STDMETHODIMP MachineDebugger::COMGETTER(VirtualTimeRate)(ULONG *a_puPct)
 {
-    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+    CheckComArgOutPointerValid(a_puPct);
 
-    Console::SafeVMPtr ptrVM(mParent);
-    HRESULT hrc = ptrVM.rc();
+    AutoCaller autoCaller(this);
+    HRESULT hrc = autoCaller.rc();
     if (SUCCEEDED(hrc))
-        *aVirtualTimeRate = TMR3GetWarpDrive(ptrVM.rawUVM());
+    {
+        AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+        Console::SafeVMPtr ptrVM(mParent);
+        hrc = ptrVM.rc();
+        if (SUCCEEDED(hrc))
+            *a_puPct = TMR3GetWarpDrive(ptrVM.rawUVM());
+    }
 
     return hrc;
 }
@@ -717,25 +851,28 @@ HRESULT MachineDebugger::getVirtualTimeRate(ULONG *aVirtualTimeRate)
  * @returns COM status code.
  * @param   aPct     Where to store the rate.
  */
-HRESULT MachineDebugger::setVirtualTimeRate(ULONG aVirtualTimeRate)
+STDMETHODIMP MachineDebugger::COMSETTER(VirtualTimeRate)(ULONG a_uPct)
 {
-    HRESULT hrc = S_OK;
+    if (a_uPct < 2 || a_uPct > 20000)
+        return setError(E_INVALIDARG, tr("%u is out of range [2..20000]"), a_uPct);
 
-    if (aVirtualTimeRate < 2 || aVirtualTimeRate > 20000)
-        return setError(E_INVALIDARG, tr("%u is out of range [2..20000]"), aVirtualTimeRate);
-
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-    if (i_queueSettings())
-        mVirtualTimeRateQueued = aVirtualTimeRate;
-    else
+    AutoCaller autoCaller(this);
+    HRESULT hrc = autoCaller.rc();
+    if (SUCCEEDED(hrc))
     {
-        Console::SafeVMPtr ptrVM(mParent);
-        hrc = ptrVM.rc();
-        if (SUCCEEDED(hrc))
+        AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+        if (queueSettings())
+            mVirtualTimeRateQueued = a_uPct;
+        else
         {
-            int vrc = TMR3SetWarpDrive(ptrVM.rawUVM(), aVirtualTimeRate);
-            if (RT_FAILURE(vrc))
-                hrc = setError(VBOX_E_VM_ERROR, tr("TMR3SetWarpDrive(, %u) failed with rc=%Rrc"), aVirtualTimeRate, vrc);
+            Console::SafeVMPtr ptrVM(mParent);
+            hrc = ptrVM.rc();
+            if (SUCCEEDED(hrc))
+            {
+                int vrc = TMR3SetWarpDrive(ptrVM.rawUVM(), a_uPct);
+                if (RT_FAILURE(vrc))
+                    hrc = setError(VBOX_E_VM_ERROR, tr("TMR3SetWarpDrive(, %u) failed with rc=%Rrc"), a_uPct, vrc);
+            }
         }
     }
 
@@ -754,49 +891,64 @@ HRESULT MachineDebugger::setVirtualTimeRate(ULONG aVirtualTimeRate)
  * @remarks The returned handle must be passed to VMR3ReleaseUVM()!
  * @remarks Prior to 4.3 this returned PVM.
  */
-HRESULT MachineDebugger::getVM(LONG64 *aVM)
+STDMETHODIMP MachineDebugger::COMGETTER(VM)(LONG64 *a_i64Vm)
 {
-    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+    CheckComArgOutPointerValid(a_i64Vm);
 
-    Console::SafeVMPtr ptrVM(mParent);
-    HRESULT hrc = ptrVM.rc();
+    AutoCaller autoCaller(this);
+    HRESULT hrc = autoCaller.rc();
     if (SUCCEEDED(hrc))
     {
-        VMR3RetainUVM(ptrVM.rawUVM());
-        *aVM = (intptr_t)ptrVM.rawUVM();
+        AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+        Console::SafeVMPtr ptrVM(mParent);
+        hrc = ptrVM.rc();
+        if (SUCCEEDED(hrc))
+        {
+            VMR3RetainUVM(ptrVM.rawUVM());
+            *a_i64Vm = (intptr_t)ptrVM.rawUVM();
+        }
+
+        /*
+         * Note! ptrVM protection provided by SafeVMPtr is no long effective
+         *       after we return from this method.
+         */
     }
 
-    /*
-     * Note! ptrVM protection provided by SafeVMPtr is no long effective
-     *       after we return from this method.
-     */
     return hrc;
 }
 
 // IMachineDebugger methods
 /////////////////////////////////////////////////////////////////////////////
 
-HRESULT MachineDebugger::dumpGuestCore(const com::Utf8Str &aFilename, const com::Utf8Str &aCompression)
+STDMETHODIMP MachineDebugger::DumpGuestCore(IN_BSTR a_bstrFilename, IN_BSTR a_bstrCompression)
 {
-    if (aCompression.length())
+    CheckComArgStrNotEmptyOrNull(a_bstrFilename);
+    Utf8Str strFilename(a_bstrFilename);
+    if (a_bstrCompression && *a_bstrCompression)
         return setError(E_INVALIDARG, tr("The compression parameter must be empty"));
 
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-    Console::SafeVMPtr ptrVM(mParent);
-    HRESULT hrc = ptrVM.rc();
+    AutoCaller autoCaller(this);
+    HRESULT hrc = autoCaller.rc();
     if (SUCCEEDED(hrc))
     {
-        int vrc = DBGFR3CoreWrite(ptrVM.rawUVM(), aFilename.c_str(), false /*fReplaceFile*/);
-        if (RT_SUCCESS(vrc))
-            hrc = S_OK;
-        else
-            hrc = setError(E_FAIL, tr("DBGFR3CoreWrite failed with %Rrc"), vrc);
+        AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+        Console::SafeVMPtr ptrVM(mParent);
+        hrc = ptrVM.rc();
+        if (SUCCEEDED(hrc))
+        {
+            int vrc = DBGFR3CoreWrite(ptrVM.rawUVM(), strFilename.c_str(), false /*fReplaceFile*/);
+            if (RT_SUCCESS(vrc))
+                hrc = S_OK;
+            else
+                hrc = setError(E_FAIL, tr("DBGFR3CoreWrite failed with %Rrc"), vrc);
+        }
     }
 
     return hrc;
 }
 
-HRESULT MachineDebugger::dumpHostProcessCore(const com::Utf8Str &aFilename, const com::Utf8Str &aCompression)
+STDMETHODIMP MachineDebugger::DumpHostProcessCore(IN_BSTR a_bstrFilename, IN_BSTR a_bstrCompression)
 {
     ReturnComNotImplemented();
 }
@@ -909,9 +1061,24 @@ static void MachineDebuggerInfoDelete(PMACHINEDEBUGGERINOFHLP pHlp)
     pHlp->pszBuf = NULL;
 }
 
-HRESULT MachineDebugger::info(const com::Utf8Str &aName, const com::Utf8Str &aArgs, com::Utf8Str &aInfo)
+STDMETHODIMP MachineDebugger::Info(IN_BSTR a_bstrName, IN_BSTR a_bstrArgs, BSTR *a_pbstrInfo)
 {
     LogFlowThisFunc(("\n"));
+
+    /*
+     * Validate and convert input.
+     */
+    CheckComArgStrNotEmptyOrNull(a_bstrName);
+    Utf8Str strName, strArgs;
+    try
+    {
+        strName = a_bstrName;
+        strArgs = a_bstrArgs;
+    }
+    catch (std::bad_alloc)
+    {
+        return E_OUTOFMEMORY;
+    }
 
     /*
      * Do the autocaller and lock bits.
@@ -930,7 +1097,7 @@ HRESULT MachineDebugger::info(const com::Utf8Str &aName, const com::Utf8Str &aAr
              */
             MACHINEDEBUGGERINOFHLP Hlp;
             MachineDebuggerInfoInit(&Hlp);
-            int vrc = DBGFR3Info(ptrVM.rawUVM(),  aName.c_str(),  aArgs.c_str(), &Hlp.Core);
+            int vrc = DBGFR3Info(ptrVM.rawUVM(),  strName.c_str(),  strArgs.c_str(), &Hlp.Core);
             if (RT_SUCCESS(vrc))
             {
                 if (!Hlp.fOutOfMemory)
@@ -941,7 +1108,7 @@ HRESULT MachineDebugger::info(const com::Utf8Str &aName, const com::Utf8Str &aAr
                     try
                     {
                         Bstr bstrInfo(Hlp.pszBuf);
-                        aInfo = bstrInfo;
+                        bstrInfo.detachTo(a_pbstrInfo);
                     }
                     catch (std::bad_alloc)
                     {
@@ -959,132 +1126,153 @@ HRESULT MachineDebugger::info(const com::Utf8Str &aName, const com::Utf8Str &aAr
     return hrc;
 }
 
-HRESULT MachineDebugger::injectNMI()
+STDMETHODIMP MachineDebugger::InjectNMI()
 {
     LogFlowThisFunc(("\n"));
 
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-    Console::SafeVMPtr ptrVM(mParent);
-    HRESULT hrc = ptrVM.rc();
+    AutoCaller autoCaller(this);
+    HRESULT hrc = autoCaller.rc();
     if (SUCCEEDED(hrc))
     {
-        int vrc = DBGFR3InjectNMI(ptrVM.rawUVM(), 0);
-        if (RT_SUCCESS(vrc))
-            hrc = S_OK;
-        else
-            hrc = setError(E_FAIL, tr("DBGFR3InjectNMI failed with %Rrc"), vrc);
-    }
-    return hrc;
-}
-
-HRESULT MachineDebugger::modifyLogFlags(const com::Utf8Str &aSettings)
-{
-    LogFlowThisFunc(("aSettings=%s\n", aSettings.c_str()));
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-    Console::SafeVMPtr ptrVM(mParent);
-    HRESULT hrc = ptrVM.rc();
-    if (SUCCEEDED(hrc))
-    {
-        int vrc = DBGFR3LogModifyFlags(ptrVM.rawUVM(), aSettings.c_str());
-        if (RT_SUCCESS(vrc))
-            hrc = S_OK;
-        else
-            hrc = setError(E_FAIL, tr("DBGFR3LogModifyFlags failed with %Rrc"), vrc);
-    }
-    return hrc;
-}
-
-HRESULT MachineDebugger::modifyLogGroups(const com::Utf8Str &aSettings)
-{
-    LogFlowThisFunc(("aSettings=%s\n", aSettings.c_str()));
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-    Console::SafeVMPtr ptrVM(mParent);
-    HRESULT hrc = ptrVM.rc();
-    if (SUCCEEDED(hrc))
-    {
-        int vrc = DBGFR3LogModifyGroups(ptrVM.rawUVM(), aSettings.c_str());
-        if (RT_SUCCESS(vrc))
-            hrc = S_OK;
-        else
-            hrc = setError(E_FAIL, tr("DBGFR3LogModifyGroups failed with %Rrc"), vrc);
-    }
-    return hrc;
-}
-
-HRESULT MachineDebugger::modifyLogDestinations(const com::Utf8Str &aSettings)
-{
-    LogFlowThisFunc(("aSettings=%s\n", aSettings.c_str()));
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-    Console::SafeVMPtr ptrVM(mParent);
-    HRESULT hrc = ptrVM.rc();
-    if (SUCCEEDED(hrc))
-    {
-        int vrc = DBGFR3LogModifyDestinations(ptrVM.rawUVM(), aSettings.c_str());
-        if (RT_SUCCESS(vrc))
-            hrc = S_OK;
-        else
-            hrc = setError(E_FAIL, tr("DBGFR3LogModifyDestinations failed with %Rrc"), vrc);
-    }
-    return hrc;
-}
-
-HRESULT MachineDebugger::readPhysicalMemory(LONG64 aAddress, ULONG aSize, std::vector<BYTE> &aBytes)
-{
-    ReturnComNotImplemented();
-}
-
-HRESULT MachineDebugger::writePhysicalMemory(LONG64 aAddress, ULONG aSize, const std::vector<BYTE> &aBytes)
-{
-    ReturnComNotImplemented();
-}
-
-HRESULT MachineDebugger::readVirtualMemory(ULONG aCpuId, LONG64 aAddress, ULONG aSize, std::vector<BYTE> &aBytes)
-{
-    ReturnComNotImplemented();
-}
-
-HRESULT MachineDebugger::writeVirtualMemory(ULONG aCpuId, LONG64 aAddress, ULONG aSize, const std::vector<BYTE> &aBytes)
-{
-    ReturnComNotImplemented();
-}
-
-HRESULT MachineDebugger::loadPlugIn(const com::Utf8Str &aName, com::Utf8Str &aPlugInName)
-{
-    /*
-     * Lock the debugger and get the VM pointer
-     */
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-    Console::SafeVMPtr ptrVM(mParent);
-    HRESULT hrc = ptrVM.rc();
-    if (SUCCEEDED(hrc))
-    {
-        /*
-         * Do the job and try convert the name.
-         */
-        if (aName.equals("all"))
+        AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+        Console::SafeVMPtr ptrVM(mParent);
+        hrc = ptrVM.rc();
+        if (SUCCEEDED(hrc))
         {
-            DBGFR3PlugInLoadAll(ptrVM.rawUVM());
-            try
-            {
-                aPlugInName = "all";
-                hrc = S_OK;
-            }
-            catch (std::bad_alloc)
-            {
-                hrc = E_OUTOFMEMORY;
-            }
-        }
-        else
-        {
-            RTERRINFOSTATIC ErrInfo;
-            char            szName[80];
-            int vrc = DBGFR3PlugInLoad(ptrVM.rawUVM(), aName.c_str(), szName, sizeof(szName), RTErrInfoInitStatic(&ErrInfo));
+            int vrc = DBGFR3InjectNMI(ptrVM.rawUVM(), 0);
             if (RT_SUCCESS(vrc))
+                hrc = S_OK;
+            else
+                hrc = setError(E_FAIL, tr("DBGFR3InjectNMI failed with %Rrc"), vrc);
+        }
+    }
+    return hrc;
+}
+
+STDMETHODIMP MachineDebugger::ModifyLogFlags(IN_BSTR a_bstrSettings)
+{
+    CheckComArgStrNotEmptyOrNull(a_bstrSettings);
+    Utf8Str strSettings(a_bstrSettings);
+
+    LogFlowThisFunc(("a_bstrSettings=%s\n", strSettings.c_str()));
+    AutoCaller autoCaller(this);
+    HRESULT hrc = autoCaller.rc();
+    if (SUCCEEDED(hrc))
+    {
+        AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+        Console::SafeVMPtr ptrVM(mParent);
+        hrc = ptrVM.rc();
+        if (SUCCEEDED(hrc))
+        {
+            int vrc = DBGFR3LogModifyFlags(ptrVM.rawUVM(), strSettings.c_str());
+            if (RT_SUCCESS(vrc))
+                hrc = S_OK;
+            else
+                hrc = setError(E_FAIL, tr("DBGFR3LogModifyFlags failed with %Rrc"), vrc);
+        }
+    }
+    return hrc;
+}
+
+STDMETHODIMP MachineDebugger::ModifyLogGroups(IN_BSTR a_bstrSettings)
+{
+    CheckComArgStrNotEmptyOrNull(a_bstrSettings);
+    Utf8Str strSettings(a_bstrSettings);
+
+    LogFlowThisFunc(("a_bstrSettings=%s\n", strSettings.c_str()));
+    AutoCaller autoCaller(this);
+    HRESULT hrc = autoCaller.rc();
+    if (SUCCEEDED(hrc))
+    {
+        AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+        Console::SafeVMPtr ptrVM(mParent);
+        hrc = ptrVM.rc();
+        if (SUCCEEDED(hrc))
+        {
+            int vrc = DBGFR3LogModifyGroups(ptrVM.rawUVM(), strSettings.c_str());
+            if (RT_SUCCESS(vrc))
+                hrc = S_OK;
+            else
+                hrc = setError(E_FAIL, tr("DBGFR3LogModifyGroups failed with %Rrc"), vrc);
+        }
+    }
+    return hrc;
+}
+
+STDMETHODIMP MachineDebugger::ModifyLogDestinations(IN_BSTR a_bstrSettings)
+{
+    CheckComArgStrNotEmptyOrNull(a_bstrSettings);
+    Utf8Str strSettings(a_bstrSettings);
+
+    LogFlowThisFunc(("a_bstrSettings=%s\n", strSettings.c_str()));
+    AutoCaller autoCaller(this);
+    HRESULT hrc = autoCaller.rc();
+    if (SUCCEEDED(hrc))
+    {
+        AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+        Console::SafeVMPtr ptrVM(mParent);
+        hrc = ptrVM.rc();
+        if (SUCCEEDED(hrc))
+        {
+            int vrc = DBGFR3LogModifyDestinations(ptrVM.rawUVM(), strSettings.c_str());
+            if (RT_SUCCESS(vrc))
+                hrc = S_OK;
+            else
+                hrc = setError(E_FAIL, tr("DBGFR3LogModifyDestinations failed with %Rrc"), vrc);
+        }
+    }
+    return hrc;
+}
+
+STDMETHODIMP MachineDebugger::ReadPhysicalMemory(LONG64 a_Address, ULONG a_cbRead, ComSafeArrayOut(BYTE, a_abData))
+{
+    ReturnComNotImplemented();
+}
+
+STDMETHODIMP MachineDebugger::WritePhysicalMemory(LONG64 a_Address, ULONG a_cbRead, ComSafeArrayIn(BYTE, a_abData))
+{
+    ReturnComNotImplemented();
+}
+
+STDMETHODIMP MachineDebugger::ReadVirtualMemory(ULONG a_idCpu, LONG64 a_Address, ULONG a_cbRead, ComSafeArrayOut(BYTE, a_abData))
+{
+    ReturnComNotImplemented();
+}
+
+STDMETHODIMP MachineDebugger::WriteVirtualMemory(ULONG a_idCpu, LONG64 a_Address, ULONG a_cbRead, ComSafeArrayIn(BYTE, a_abData))
+{
+    ReturnComNotImplemented();
+}
+
+STDMETHODIMP MachineDebugger::DetectOS(BSTR *a_pbstrName)
+{
+    LogFlowThisFunc(("\n"));
+    CheckComArgNotNull(a_pbstrName);
+
+    /*
+     * Do the autocaller and lock bits.
+     */
+    AutoCaller autoCaller(this);
+    HRESULT hrc = autoCaller.rc();
+    if (SUCCEEDED(hrc))
+    {
+        AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+        Console::SafeVMPtr ptrVM(mParent);
+        hrc = ptrVM.rc();
+        if (SUCCEEDED(hrc))
+        {
+            /*
+             * Do the job and try convert the name.
+             */
+/** @todo automatically load the DBGC plugins or this is a waste of time. */
+            char szName[64];
+            int vrc = DBGFR3OSDetect(ptrVM.rawUVM(), szName, sizeof(szName));
+            if (RT_SUCCESS(vrc) && vrc != VINF_DBGF_OS_NOT_DETCTED)
             {
                 try
                 {
-                    aPlugInName = "all";
-                    hrc = S_OK;
+                    Bstr bstrName(szName);
+                    bstrName.detachTo(a_pbstrName);
                 }
                 catch (std::bad_alloc)
                 {
@@ -1092,123 +1280,8 @@ HRESULT MachineDebugger::loadPlugIn(const com::Utf8Str &aName, com::Utf8Str &aPl
                 }
             }
             else
-                hrc = setErrorVrc(vrc, "%s", ErrInfo.szMsg);
+                hrc = setError(VBOX_E_VM_ERROR, tr("DBGFR3OSDetect failed with %Rrc"), vrc);
         }
-    }
-    return hrc;
-
-}
-
-HRESULT MachineDebugger::unloadPlugIn(const com::Utf8Str &aName)
-{
-    /*
-     * Lock the debugger and get the VM pointer
-     */
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-    Console::SafeVMPtr ptrVM(mParent);
-    HRESULT hrc = ptrVM.rc();
-    if (SUCCEEDED(hrc))
-    {
-        /*
-         * Do the job and try convert the name.
-         */
-        if (aName.equals("all"))
-        {
-            DBGFR3PlugInUnloadAll(ptrVM.rawUVM());
-            hrc = S_OK;
-        }
-        else
-        {
-            int vrc = DBGFR3PlugInUnload(ptrVM.rawUVM(), aName.c_str());
-            if (RT_SUCCESS(vrc))
-                hrc = S_OK;
-            else if (vrc == VERR_NOT_FOUND)
-                hrc = setErrorBoth(E_FAIL, vrc, "Plug-in '%s' was not found", aName.c_str());
-            else
-                hrc = setErrorVrc(vrc, "Error unloading '%s': %Rrc", aName.c_str(), vrc);
-        }
-    }
-    return hrc;
-
-}
-
-HRESULT MachineDebugger::detectOS(com::Utf8Str &aOs)
-{
-    LogFlowThisFunc(("\n"));
-
-    /*
-     * Lock the debugger and get the VM pointer
-     */
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-    Console::SafeVMPtr ptrVM(mParent);
-    HRESULT hrc = ptrVM.rc();
-    if (SUCCEEDED(hrc))
-    {
-        /*
-         * Do the job.
-         */
-        char szName[64];
-        int vrc = DBGFR3OSDetect(ptrVM.rawUVM(), szName, sizeof(szName));
-        if (RT_SUCCESS(vrc) && vrc != VINF_DBGF_OS_NOT_DETCTED)
-        {
-            try
-            {
-                aOs = szName;
-            }
-            catch (std::bad_alloc)
-            {
-                hrc = E_OUTOFMEMORY;
-            }
-        }
-        else
-            hrc = setError(VBOX_E_VM_ERROR, tr("DBGFR3OSDetect failed with %Rrc"), vrc);
-    }
-    return hrc;
-}
-
-HRESULT MachineDebugger::queryOSKernelLog(ULONG aMaxMessages, com::Utf8Str &aDmesg)
-{
-    /*
-     * Lock the debugger and get the VM pointer
-     */
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-    Console::SafeVMPtr ptrVM(mParent);
-    HRESULT hrc = ptrVM.rc();
-    if (SUCCEEDED(hrc))
-    {
-        PDBGFOSIDMESG pDmesg = (PDBGFOSIDMESG)DBGFR3OSQueryInterface(ptrVM.rawUVM(), DBGFOSINTERFACE_DMESG);
-        if (pDmesg)
-        {
-            size_t   cbActual;
-            size_t   cbBuf  = _512K;
-            int vrc = aDmesg.reserveNoThrow(cbBuf);
-            if (RT_SUCCESS(vrc))
-            {
-                uint32_t cMessages = aMaxMessages == 0 ? UINT32_MAX : aMaxMessages;
-                vrc = pDmesg->pfnQueryKernelLog(pDmesg, ptrVM.rawUVM(), 0 /*fFlags*/, cMessages,
-                                                aDmesg.mutableRaw(), cbBuf, &cbActual);
-
-                uint32_t cTries = 10;
-                while (vrc == VERR_BUFFER_OVERFLOW && cbBuf < 16*_1M && cTries-- > 0)
-                {
-                    cbBuf = RT_ALIGN_Z(cbActual + _4K, _4K);
-                    vrc = aDmesg.reserveNoThrow(cbBuf);
-                    if (RT_SUCCESS(vrc))
-                        vrc = pDmesg->pfnQueryKernelLog(pDmesg, ptrVM.rawUVM(), 0 /*fFlags*/, cMessages,
-                                                        aDmesg.mutableRaw(), cbBuf, &cbActual);
-                }
-                if (RT_SUCCESS(vrc))
-                    aDmesg.jolt();
-                else if (vrc == VERR_BUFFER_OVERFLOW)
-                    hrc = setError(E_FAIL, "Too much log available, must use the maxMessages parameter to restrict.");
-                else
-                    hrc = setErrorVrc(vrc);
-            }
-            else
-                hrc = setErrorBoth(E_OUTOFMEMORY, vrc);
-        }
-        else
-            hrc = setError(E_FAIL, "The dmesg interface isn't implemented by guest OS digger, or detectOS() has not been called.");
     }
     return hrc;
 }
@@ -1233,120 +1306,149 @@ DECLINLINE(HRESULT) formatRegisterValue(Bstr *a_pbstr, PCDBGFREGVAL a_pValue, DB
     return S_OK;
 }
 
-HRESULT MachineDebugger::getRegister(ULONG aCpuId, const com::Utf8Str &aName, com::Utf8Str &aValue)
+STDMETHODIMP MachineDebugger::GetRegister(ULONG a_idCpu, IN_BSTR a_bstrName, BSTR *a_pbstrValue)
 {
+    /*
+     * Validate and convert input.
+     */
+    CheckComArgStrNotEmptyOrNull(a_bstrName);
+    CheckComArgNotNull(a_pbstrValue);
+    Utf8Str strName;
+    try
+    {
+        strName = a_bstrName;
+    }
+    catch (std::bad_alloc)
+    {
+        return E_OUTOFMEMORY;
+    }
+
     /*
      * The prologue.
      */
     LogFlowThisFunc(("\n"));
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-    Console::SafeVMPtr ptrVM(mParent);
-    HRESULT hrc = ptrVM.rc();
+    AutoCaller autoCaller(this);
+    HRESULT hrc = autoCaller.rc();
     if (SUCCEEDED(hrc))
     {
-        /*
-         * Real work.
-         */
-        DBGFREGVAL      Value;
-        DBGFREGVALTYPE  enmType;
-        int vrc = DBGFR3RegNmQuery(ptrVM.rawUVM(), aCpuId, aName.c_str(), &Value, &enmType);
-        if (RT_SUCCESS(vrc))
+        AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+        Console::SafeVMPtr ptrVM(mParent);
+        hrc = ptrVM.rc();
+        if (SUCCEEDED(hrc))
         {
-            try
+            /*
+             * Real work.
+             */
+            DBGFREGVAL      Value;
+            DBGFREGVALTYPE  enmType;
+            int vrc = DBGFR3RegNmQuery(ptrVM.rawUVM(), a_idCpu, strName.c_str(), &Value, &enmType);
+            if (RT_SUCCESS(vrc))
             {
-                Bstr bstrValue;
-                hrc = formatRegisterValue(&bstrValue, &Value, enmType);
-                if (SUCCEEDED(hrc))
-                    aValue = Utf8Str(bstrValue);
+                try
+                {
+                    Bstr bstrValue;
+                    hrc = formatRegisterValue(&bstrValue, &Value, enmType);
+                    if (SUCCEEDED(hrc))
+                        bstrValue.detachTo(a_pbstrValue);
+                }
+                catch (std::bad_alloc)
+                {
+                    hrc = E_OUTOFMEMORY;
+                }
             }
-            catch (std::bad_alloc)
-            {
-                hrc = E_OUTOFMEMORY;
-            }
+            else if (vrc == VERR_DBGF_REGISTER_NOT_FOUND)
+                hrc = setError(E_FAIL, tr("Register '%s' was not found"), strName.c_str());
+            else if (vrc == VERR_INVALID_CPU_ID)
+                hrc = setError(E_FAIL, tr("Invalid CPU ID: %u"), a_idCpu);
+            else
+                hrc = setError(VBOX_E_VM_ERROR,
+                               tr("DBGFR3RegNmQuery failed with rc=%Rrc querying register '%s' with default cpu set to %u"),
+                               vrc, strName.c_str(), a_idCpu);
         }
-        else if (vrc == VERR_DBGF_REGISTER_NOT_FOUND)
-            hrc = setError(E_FAIL, tr("Register '%s' was not found"), aName.c_str());
-        else if (vrc == VERR_INVALID_CPU_ID)
-            hrc = setError(E_FAIL, tr("Invalid CPU ID: %u"), aCpuId);
-        else
-            hrc = setError(VBOX_E_VM_ERROR,
-                           tr("DBGFR3RegNmQuery failed with rc=%Rrc querying register '%s' with default cpu set to %u"),
-                           vrc, aName.c_str(), aCpuId);
     }
 
     return hrc;
 }
 
-HRESULT MachineDebugger::getRegisters(ULONG aCpuId, std::vector<com::Utf8Str> &aNames, std::vector<com::Utf8Str> &aValues)
+STDMETHODIMP MachineDebugger::GetRegisters(ULONG a_idCpu, ComSafeArrayOut(BSTR, a_bstrNames), ComSafeArrayOut(BSTR, a_bstrValues))
 {
     /*
      * The prologue.
      */
     LogFlowThisFunc(("\n"));
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-    Console::SafeVMPtr ptrVM(mParent);
-    HRESULT hrc = ptrVM.rc();
+    AutoCaller autoCaller(this);
+    HRESULT hrc = autoCaller.rc();
     if (SUCCEEDED(hrc))
     {
-        /*
-         * Real work.
-         */
-        size_t cRegs;
-        int vrc = DBGFR3RegNmQueryAllCount(ptrVM.rawUVM(), &cRegs);
-        if (RT_SUCCESS(vrc))
+        AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+        Console::SafeVMPtr ptrVM(mParent);
+        hrc = ptrVM.rc();
+        if (SUCCEEDED(hrc))
         {
-            PDBGFREGENTRYNM paRegs = (PDBGFREGENTRYNM)RTMemAllocZ(sizeof(paRegs[0]) * cRegs);
-            if (paRegs)
+            /*
+             * Real work.
+             */
+            size_t cRegs;
+            int vrc = DBGFR3RegNmQueryAllCount(ptrVM.rawUVM(), &cRegs);
+            if (RT_SUCCESS(vrc))
             {
-                vrc = DBGFR3RegNmQueryAll(ptrVM.rawUVM(), paRegs, cRegs);
-                if (RT_SUCCESS(vrc))
+                PDBGFREGENTRYNM paRegs = (PDBGFREGENTRYNM)RTMemAllocZ(sizeof(paRegs[0]) * cRegs);
+                if (paRegs)
                 {
-                    try
+                    vrc = DBGFR3RegNmQueryAll(ptrVM.rawUVM(), paRegs, cRegs);
+                    if (RT_SUCCESS(vrc))
                     {
-                        aValues.resize(cRegs);
-                        aNames.resize(cRegs);
-                        for (uint32_t iReg = 0; iReg < cRegs; iReg++)
+                        try
                         {
-                            char szHex[160];
-                            szHex[159] = szHex[0] = '\0';
-                            ssize_t cch = DBGFR3RegFormatValue(szHex, sizeof(szHex), &paRegs[iReg].Val,
-                                                               paRegs[iReg].enmType, true /*fSpecial*/);
-                            Assert(cch > 0);
-                            aNames[iReg] = Utf8Str(paRegs[iReg].pszName);
-                            aValues[iReg] = Utf8Str(szHex);
+                            com::SafeArray<BSTR> abstrNames(cRegs);
+                            com::SafeArray<BSTR> abstrValues(cRegs);
+
+                            for (uint32_t iReg = 0; iReg < cRegs; iReg++)
+                            {
+                                Bstr bstrValue;
+
+                                hrc = formatRegisterValue(&bstrValue, &paRegs[iReg].Val, paRegs[iReg].enmType);
+                                AssertComRC(hrc);
+                                bstrValue.detachTo(&abstrValues[iReg]);
+
+                                Bstr bstrName(paRegs[iReg].pszName);
+                                bstrName.detachTo(&abstrNames[iReg]);
+                            }
+
+                            abstrNames.detachTo(ComSafeArrayOutArg(a_bstrNames));
+                            abstrValues.detachTo(ComSafeArrayOutArg(a_bstrValues));
+                        }
+                        catch (std::bad_alloc)
+                        {
+                            hrc = E_OUTOFMEMORY;
                         }
                     }
-                    catch (std::bad_alloc)
-                    {
-                        hrc = E_OUTOFMEMORY;
-                    }
+                    else
+                        hrc = setError(E_FAIL, tr("DBGFR3RegNmQueryAll failed with %Rrc"), vrc);
+
+                    RTMemFree(paRegs);
                 }
                 else
-                    hrc = setError(E_FAIL, tr("DBGFR3RegNmQueryAll failed with %Rrc"), vrc);
-
-                RTMemFree(paRegs);
+                    hrc = E_OUTOFMEMORY;
             }
             else
-                hrc = E_OUTOFMEMORY;
+                hrc = setError(E_FAIL, tr("DBGFR3RegNmQueryAllCount failed with %Rrc"), vrc);
         }
-        else
-            hrc = setError(E_FAIL, tr("DBGFR3RegNmQueryAllCount failed with %Rrc"), vrc);
     }
     return hrc;
 }
 
-HRESULT MachineDebugger::setRegister(ULONG aCpuId, const com::Utf8Str &aName, const com::Utf8Str &aValue)
+STDMETHODIMP MachineDebugger::SetRegister(ULONG a_idCpu, IN_BSTR a_bstrName, IN_BSTR a_bstrValue)
 {
     ReturnComNotImplemented();
 }
 
-HRESULT MachineDebugger::setRegisters(ULONG aCpuId, const std::vector<com::Utf8Str> &aNames,
-                                      const std::vector<com::Utf8Str> &aValues)
+STDMETHODIMP MachineDebugger::SetRegisters(ULONG a_idCpu, ComSafeArrayIn(IN_BSTR, a_bstrNames), ComSafeArrayIn(IN_BSTR, a_bstrValues))
 {
     ReturnComNotImplemented();
 }
 
-HRESULT MachineDebugger::dumpGuestStack(ULONG aCpuId, com::Utf8Str &aStack)
+STDMETHODIMP MachineDebugger::DumpGuestStack(ULONG a_idCpu, BSTR *a_pbstrStack)
 {
     ReturnComNotImplemented();
 }
@@ -1357,14 +1459,14 @@ HRESULT MachineDebugger::dumpGuestStack(ULONG aCpuId, com::Utf8Str &aStack)
  * @returns COM status code.
  * @param   aPattern            The selection pattern. A bit similar to filename globbing.
  */
-HRESULT MachineDebugger::resetStats(const com::Utf8Str &aPattern)
+STDMETHODIMP MachineDebugger::ResetStats(IN_BSTR aPattern)
 {
     Console::SafeVMPtrQuiet ptrVM(mParent);
 
     if (!ptrVM.isOk())
         return setError(VBOX_E_INVALID_VM_STATE, "Machine is not running");
 
-    STAMR3Reset(ptrVM.rawUVM(), aPattern.c_str());
+    STAMR3Reset(ptrVM.rawUVM(), Utf8Str(aPattern).c_str());
 
     return S_OK;
 }
@@ -1375,14 +1477,14 @@ HRESULT MachineDebugger::resetStats(const com::Utf8Str &aPattern)
  * @returns COM status code.
  * @param   aPattern            The selection pattern. A bit similar to filename globbing.
  */
-HRESULT MachineDebugger::dumpStats(const com::Utf8Str &aPattern)
+STDMETHODIMP MachineDebugger::DumpStats(IN_BSTR aPattern)
 {
     Console::SafeVMPtrQuiet ptrVM(mParent);
 
     if (!ptrVM.isOk())
         return setError(VBOX_E_INVALID_VM_STATE, "Machine is not running");
 
-    STAMR3Dump(ptrVM.rawUVM(), aPattern.c_str());
+    STAMR3Dump(ptrVM.rawUVM(), Utf8Str(aPattern).c_str());
 
     return S_OK;
 }
@@ -1395,7 +1497,7 @@ HRESULT MachineDebugger::dumpStats(const com::Utf8Str &aPattern)
  * @param   aWithDescriptions   Whether to include the descriptions.
  * @param   aStats              The XML document containing the statistics.
  */
-HRESULT MachineDebugger::getStats(const com::Utf8Str &aPattern, BOOL aWithDescriptions, com::Utf8Str &aStats)
+STDMETHODIMP MachineDebugger::GetStats (IN_BSTR aPattern, BOOL aWithDescriptions, BSTR *aStats)
 {
     Console::SafeVMPtrQuiet ptrVM (mParent);
 
@@ -1403,7 +1505,7 @@ HRESULT MachineDebugger::getStats(const com::Utf8Str &aPattern, BOOL aWithDescri
         return setError(VBOX_E_INVALID_VM_STATE, "Machine is not running");
 
     char *pszSnapshot;
-    int vrc = STAMR3Snapshot(ptrVM.rawUVM(), aPattern.c_str(), &pszSnapshot, NULL,
+    int vrc = STAMR3Snapshot(ptrVM.rawUVM(), Utf8Str(aPattern).c_str(), &pszSnapshot, NULL,
                              !!aWithDescriptions);
     if (RT_FAILURE(vrc))
         return vrc == VERR_NO_MEMORY ? E_OUTOFMEMORY : E_FAIL;
@@ -1412,7 +1514,7 @@ HRESULT MachineDebugger::getStats(const com::Utf8Str &aPattern, BOOL aWithDescri
      * Must use UTF-8 or ASCII here and completely avoid these two extra copy operations.
      * Until that's done, this method is kind of useless for debugger statistics GUI because
      * of the amount statistics in a debug build. */
-    aStats = Utf8Str(pszSnapshot);
+    Bstr(pszSnapshot).detachTo(aStats);
     STAMR3SnapshotFree(ptrVM.rawUVM(), pszSnapshot);
 
     return S_OK;
@@ -1422,7 +1524,7 @@ HRESULT MachineDebugger::getStats(const com::Utf8Str &aPattern, BOOL aWithDescri
 // public methods only for internal purposes
 /////////////////////////////////////////////////////////////////////////////
 
-void MachineDebugger::i_flushQueuedSettings()
+void MachineDebugger::flushQueuedSettings()
 {
     mFlushMode = true;
     if (mSingleStepQueued != ~0)
@@ -1433,7 +1535,7 @@ void MachineDebugger::i_flushQueuedSettings()
     for (unsigned i = 0; i < EMEXECPOLICY_END; i++)
         if (maiQueuedEmExecPolicyParams[i] != UINT8_MAX)
         {
-            i_setEmExecPolicyProperty((EMEXECPOLICY)i, RT_BOOL(maiQueuedEmExecPolicyParams[i]));
+            setEmExecPolicyProperty((EMEXECPOLICY)i, RT_BOOL(maiQueuedEmExecPolicyParams[i]));
             maiQueuedEmExecPolicyParams[i] = UINT8_MAX;
         }
     if (mPatmEnabledQueued != ~0)
@@ -1462,7 +1564,7 @@ void MachineDebugger::i_flushQueuedSettings()
 // private methods
 /////////////////////////////////////////////////////////////////////////////
 
-bool MachineDebugger::i_queueSettings() const
+bool MachineDebugger::queueSettings() const
 {
     if (!mFlushMode)
     {

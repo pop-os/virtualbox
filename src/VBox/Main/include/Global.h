@@ -39,7 +39,6 @@
 #define VBOXOSHINT_ACCEL3D              RT_BIT(10)
 #define VBOXOSHINT_FLOPPY               RT_BIT(11)
 #define VBOXOSHINT_NOUSB                RT_BIT(12)
-#define VBOXOSHINT_TFRESET              RT_BIT(13)
 
 /** The VBoxVRDP kludge extension pack name.
  *
@@ -76,7 +75,6 @@ public:
         const StorageBus_T             hdStorageBusType;
         const ChipsetType_T            chipsetType;
         const AudioControllerType_T    audioControllerType;
-        const AudioCodecType_T         audioCodecType;
     };
 
     static const OSType sOSTypes[];
@@ -97,11 +95,34 @@ public:
      * recommended way to detect if the VM is online (being executed in a
      * dedicated process) or not. Note that some online states are also
      * transitional states (see #IsTransitional()).
+     *
+     * @remarks Saving may actually be an offline state according to the
+     *          documentation (offline snapshot).
      */
     static bool IsOnline(MachineState_T aState)
     {
+#if 0
         return aState >= MachineState_FirstOnline &&
                aState <= MachineState_LastOnline;
+#else
+        switch (aState)
+        {
+            case MachineState_Running:
+            case MachineState_Paused:
+            case MachineState_Teleporting:
+            case MachineState_LiveSnapshotting:
+            case MachineState_Stuck:
+            case MachineState_Starting:
+            case MachineState_Stopping:
+            case MachineState_Saving:
+            case MachineState_Restoring:
+            case MachineState_TeleportingPausedVM:
+            case MachineState_TeleportingIn:
+                return true;
+            default:
+                return false;
+        }
+#endif
     }
 
     /**
@@ -113,8 +134,28 @@ public:
      */
     static bool IsTransient(MachineState_T aState)
     {
+#if 0
         return aState >= MachineState_FirstTransient &&
                aState <= MachineState_LastTransient;
+#else
+        switch (aState)
+        {
+            case MachineState_Teleporting:
+            case MachineState_LiveSnapshotting:
+            case MachineState_Starting:
+            case MachineState_Stopping:
+            case MachineState_Saving:
+            case MachineState_Restoring:
+            case MachineState_TeleportingPausedVM:
+            case MachineState_TeleportingIn:
+            case MachineState_RestoringSnapshot:
+            case MachineState_DeletingSnapshot:
+            case MachineState_SettingUp:
+                return true;
+            default:
+                return false;
+        }
+#endif
     }
 
     /**

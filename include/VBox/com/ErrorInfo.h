@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -31,8 +31,8 @@
 #include "VBox/com/Guid.h"
 #include "VBox/com/assert.h"
 
-COM_STRUCT_OR_CLASS(IProgress);
-COM_STRUCT_OR_CLASS(IVirtualBoxErrorInfo);
+struct IProgress;
+struct IVirtualBoxErrorInfo;
 
 namespace com
 {

@@ -4,7 +4,7 @@
 # VirtualBox linux installation script
 
 #
-# Copyright (C) 2007-2015 Oracle Corporation
+# Copyright (C) 2007-2012 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -343,6 +343,11 @@ get_system_information()
         PATTERN_HEADERS=
         PATTERN_HEADERS_META=
     elif $file_exists /etc/lfs-release -a -d /etc/rc.d/init.d; then  # LFS
+        GET_KERN_PACKAGE=
+        PATTERN_GCC_MAKE=
+        PATTERN_HEADERS=
+        PATTERN_HEADERS_META=
+    elif $file_exists /etc/pardus-release; then  # Pardus
         GET_KERN_PACKAGE=
         PATTERN_GCC_MAKE=
         PATTERN_HEADERS=

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -188,7 +188,6 @@ RTR3DECL(int) RTProcQueryUsername(RTPROCESS hProcess, char *pszUser, size_t cbUs
             rc = VERR_BUFFER_OVERFLOW;
         else
         {
-/** @todo this needs to be UTF-8 checked or converted...   */
             memcpy(pszUser, pPwd->pw_name, cbPwdUser);
             rc = VINF_SUCCESS;
         }

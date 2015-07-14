@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -3600,9 +3600,10 @@ static int rtldrPEValidateDirectoriesAndRememberStuff(PRTLDRMODPE pModPe, const 
             } while (off < Dir.Size);
         }
         RTMemTmpFree(pFirst);
-        if (RT_FAILURE(rc) && !(fFlags & RTLDR_O_FOR_DEBUG))
+        if (RT_FAILURE(rc))
             return rc;
     }
+
 
     return VINF_SUCCESS;
 }

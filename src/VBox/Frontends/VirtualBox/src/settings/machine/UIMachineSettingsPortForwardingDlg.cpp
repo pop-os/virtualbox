@@ -1,6 +1,8 @@
 /* $Id: UIMachineSettingsPortForwardingDlg.cpp $ */
 /** @file
- * VBox Qt GUI - UIMachineSettingsPortForwardingDlg class implementation.
+ *
+ * VBox frontends: Qt4 GUI ("VirtualBox"):
+ * UIMachineSettingsPortForwardingDlg class implementation
  */
 
 /*
@@ -15,21 +17,14 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QVBoxLayout>
-# include <QPushButton>
+#include <QVBoxLayout>
+#include <QPushButton>
 
 /* GUI includes: */
-# include "UIMachineSettingsPortForwardingDlg.h"
-# include "UIIconPool.h"
-# include "QIDialogButtonBox.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
+#include "UIMachineSettingsPortForwardingDlg.h"
+#include "UIIconPool.h"
+#include "QIDialogButtonBox.h"
 
 UIMachineSettingsPortForwardingDlg::UIMachineSettingsPortForwardingDlg(QWidget *pParent,
                                                                        const UIPortForwardingDataList &rules)
@@ -38,7 +33,7 @@ UIMachineSettingsPortForwardingDlg::UIMachineSettingsPortForwardingDlg(QWidget *
     , m_pButtonBox(0)
 {
     /* Set dialog icon: */
-    setWindowIcon(UIIconPool::iconSetFull(":/nw_32px.png", ":/nw_16px.png"));
+    setWindowIcon(UIIconPool::iconSetFull(QSize(32, 32), QSize(16, 16), ":/nw_32px.png", ":/nw_16px.png"));
 
     /* Create layout: */
     QVBoxLayout *pMainLayout = new QVBoxLayout(this);

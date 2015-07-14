@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -808,7 +808,6 @@ VMMDECL(int) PGMInvalidatePage(PVMCPU pVCpu, RTGCPTR GCPtrPage)
  */
 VMMDECL(VBOXSTRICTRC) PGMInterpretInstruction(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault)
 {
-    NOREF(pVM);
     VBOXSTRICTRC rc = EMInterpretInstruction(pVCpu, pRegFrame, pvFault);
     if (rc == VERR_EM_INTERPRETER)
         rc = VINF_EM_RAW_EMULATE_INSTR;

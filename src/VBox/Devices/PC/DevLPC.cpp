@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -341,7 +341,7 @@ const PDMDEVREG g_DeviceLPC =
     /* szName */
     "lpc",
     /* szRCMod */
-    "VBoxDD2RC.rc",
+    "VBoxDD2GC.gc",
     /* szR0Mod */
     "VBoxDD2R0.r0",
     /* pszDescription */

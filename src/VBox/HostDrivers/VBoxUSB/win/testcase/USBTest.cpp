@@ -4,7 +4,7 @@
  *
  * Installation code
  *
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -188,7 +188,7 @@ int usbMonRemoveFilter (void *aID)
 
     Assert(g_hUSBMonitor);
 
-    printf("usblibRemoveFilter %p\n", aID);
+    printf("usblibRemoveFilter %x\n", aID);
 
     uId = (uintptr_t)aID;
     if (!DeviceIoControl(g_hUSBMonitor, SUPUSBFLT_IOCTL_REMOVE_FILTER, &uId, sizeof(uId),  NULL, 0,&cbReturned, NULL))

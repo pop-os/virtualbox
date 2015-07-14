@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2015 Oracle Corporation
+ * Copyright (C) 2010-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -334,12 +334,7 @@ static int rtIsoFsFindEntry(PRTISOFSFILE pFile, const char *pszFileName,
                     break;
 
                 char *pszName = RTStrAlloc(pCurRecord->name_len + 1);
-                if (RT_UNLIKELY(!pszName))
-                {
-                    rc = VERR_NO_STR_MEMORY;
-                    break;
-                }
-
+                AssertPtr(pszName);
                 Assert(idx + sizeof(RTISOFSDIRRECORD) < cbRead);
                 memcpy(pszName, &abBuffer[idx + sizeof(RTISOFSDIRRECORD)], pCurRecord->name_len);
                 pszName[pCurRecord->name_len] = '\0'; /* Force string termination. */
@@ -389,7 +384,6 @@ static int rtIsoFsFindEntry(PRTISOFSFILE pFile, const char *pszFileName,
                     }
                 }
                 idx += pCurRecord->record_length;
-                RTStrFree(pszName);
             }
         }
     }

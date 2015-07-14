@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -62,7 +62,7 @@ int mmR3PagePoolInit(PVM pVM)
      * Allocate the pool structures.
      */
     /** @todo @bufref{1865},@bufref{3202}: mapping the page pool page into
-     *        ring-0. Need to change the ways we allocate it... */
+     *        ring-0. Need to change the wasy we allocate it... */
     AssertReleaseReturn(sizeof(*pVM->mm.s.pPagePoolR3) + sizeof(*pVM->mm.s.pPagePoolLowR3) < PAGE_SIZE, VERR_INTERNAL_ERROR);
     int rc = SUPR3PageAllocEx(1, 0 /*fFlags*/, (void **)&pVM->mm.s.pPagePoolR3, NULL /*pR0Ptr*/, NULL /*paPages*/);
     if (RT_FAILURE(rc))

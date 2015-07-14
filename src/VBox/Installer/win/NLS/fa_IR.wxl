@@ -4,7 +4,7 @@
     <!--
             Language Definition Include for VirtualBox WiX script.
 
-            Copyright (C) 2011-2015 Oracle Corporation
+            Copyright (C) 2011-2014 Oracle Corporation
 
             This file is part of VirtualBox Open Source Edition (OSE), as
             available from http://www.virtualbox.org. This file is free software;
@@ -45,10 +45,7 @@
     <String Id="VB_Network">درایور دستگاه شبکه [ProductName] برای پشتیبانی از شبکه.</String>
     <String Id="VB_NetFltDriver">درایور [ProductName] برای شبکه پل شده.</String>
     <String Id="VB_NetAdpDriver">درایور آداپتور شبکه مجازی [ProductName] برای شبکه فقط-میزبان.</String>
-    <String Id="VB_NetLwfDriver">[ProductName] driver for NDIS6 Bridged Networking.</String>
-    <String Id="VB_NetAdp6Driver">[ProductName] virtual network adapter driver for NDIS6 Host-Only Networking.</String>
-
-  <String Id="VB_Python">پشتیبانی از پایتون برای ویرچوال باکس.</String>
+    <String Id="VB_Python">پشتیبانی از پایتون برای ویرچوال باکس.</String>
     <!---->
     <String Id="NeedAdmin">برای حذف [ProductName] شما نیاز به اجازه مدیر دارید! این راه انداز حالا لغو میشود.</String>
     <String Id="WrongOS">این برنامه فقط در ویندوز ایکس پی یا بالاتر اِجرا میشود.</String>
@@ -99,14 +96,6 @@
     <String Id="Customize2Dlg_CreateShortcut">ایجاد یک میانبر روی دسکتاپ</String>
     <String Id="Customize2Dlg_CreateQuickLaunch">ایجاد یک میانبر در اِجرای سریع</String>
     <String Id="Customize2Dlg_RegisterFileExtensions">ثبت نام انجمن فایل</String>
-    <!---->
-    <String Id="SelectionNetworkTypeDlg_CommonDescription">Please choose which type of network drivers you will use:</String>
-    <String Id="SelectionNetworkTypeDlg_DescriptionNDIS5">NDIS5 network drivers.
-This is default for older versions of Windows (pre-Vista).</String>
-    <String Id="SelectionNetworkTypeDlg_DescriptionNDIS6">NDIS6 network drivers.
-This is default for newer versions of Windows (Vista and newer).</String>
-    <String Id="SelectionNetworkTypeDlg_RadioButtonNDIS5">Use NDIS5 network drivers.</String>
-    <String Id="SelectionNetworkTypeDlg_RadioButtonNDIS6">Use NDIS6 network drivers.</String>
     <!---->
     <String Id="WarnDisconNetIfacesDlg_Title">هشدار:</String>
     <String Id="WarnDisconNetIfacesDlg_Title2">رابط های شبکه</String>

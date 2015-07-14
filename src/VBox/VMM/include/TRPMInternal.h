@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,24 +22,7 @@
 #include <VBox/types.h>
 #include <VBox/vmm/stam.h>
 #include <VBox/vmm/cpum.h>
-#include <VBox/vmm/pgm.h>
 
-RT_C_DECLS_BEGIN
-
-
-/** @defgroup grp_trpm_int   Internals
- * @ingroup grp_trpm
- * @internal
- * @{
- */
-
-
-#ifdef VBOX_WITH_RAW_MODE
-/** Enable or disable tracking of Guest's IDT. */
-# define TRPM_TRACK_GUEST_IDT_CHANGES
-/** Enable or disable tracking of Shadow IDT. */
-# define TRPM_TRACK_SHADOW_IDT_CHANGES
-#endif
 
 
 /** Enable to allow trap forwarding in GC. */
@@ -50,6 +33,14 @@ RT_C_DECLS_BEGIN
 /** First interrupt handler. Used for validating input. */
 #define TRPM_HANDLER_INT_BASE  0x20
 
+RT_C_DECLS_BEGIN
+
+
+/** @defgroup grp_trpm_int   Internals
+ * @ingroup grp_trpm
+ * @internal
+ * @{
+ */
 
 /** @name   TRPMGCTrapIn* flags.
  * The lower bits are offsets into the CPUMCTXCORE structure.
@@ -134,12 +125,9 @@ typedef struct TRPM
     RCPTRTYPE(void *)       pvMonShwIdtRC;
     /** Current (last) Guest's IDTR. */
     VBOXIDTR                GuestIdtr;
+
     /** padding. */
     uint8_t                 au8Padding[2];
-    /** Shadow IDT virtual write access handler type. */
-    PGMVIRTHANDLERTYPE      hShadowIdtWriteHandlerType;
-    /** Guest IDT virtual write access handler type. */
-    PGMVIRTHANDLERTYPE      hGuestIdtWriteHandlerType;
 
     /** Checked trap & interrupt handler array */
     RCPTRTYPE(void *)       aGuestTrapHandler[256];
@@ -256,9 +244,8 @@ typedef TRPMCPU *PTRPMCPU;
 #pragma pack()
 
 
-PGM_ALL_CB2_DECL(FNPGMVIRTHANDLER)  trpmGuestIDTWriteHandler;
-DECLEXPORT(FNPGMRCVIRTPFHANDLER)    trpmRCGuestIDTWritePfHandler;
-DECLEXPORT(FNPGMRCVIRTPFHANDLER)    trpmRCShadowIDTWritePfHandler;
+VMMRCDECL(int) trpmRCGuestIDTWriteHandler(PVM pVM, RTGCUINT uErrorCode, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, RTGCPTR pvRange, uintptr_t offRange);
+VMMRCDECL(int) trpmRCShadowIDTWriteHandler(PVM pVM, RTGCUINT uErrorCode, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, RTGCPTR pvRange, uintptr_t offRange);
 
 /**
  * Clear guest trap/interrupt gate handler

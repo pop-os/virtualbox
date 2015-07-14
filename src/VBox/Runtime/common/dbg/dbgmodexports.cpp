@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2015 Oracle Corporation
+ * Copyright (C) 2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -66,10 +66,10 @@ static DECLCALLBACK(int) rtDbgModExportsAddSymbolCallback(RTLDRMOD hLdrMod, cons
     {
         int rc = RTDbgModSymbolAdd(pArgs->pDbgMod, pszSymbol, RTDBGSEGIDX_RVA, Value - pArgs->uImageBase,
                                    0 /*cb*/, 0 /* fFlags */, NULL /*piOrdinal*/);
-        Log(("Symbol #%05u %#018RTptr %s [%Rrc]\n", uSymbol, Value, pszSymbol, rc)); NOREF(rc);
+        Log(("Symbol #%05u %#018x %s [%Rrc]\n", uSymbol, Value, pszSymbol, rc)); NOREF(rc);
     }
     else
-        Log(("Symbol #%05u %#018RTptr %s [SKIPPED - INVALID ADDRESS]\n", uSymbol, Value, pszSymbol));
+        Log(("Symbol #%05u %#018x %s [SKIPPED - INVALID ADDRESS]\n", uSymbol, Value, pszSymbol));
     return VINF_SUCCESS;
 }
 
@@ -86,8 +86,7 @@ static DECLCALLBACK(int) rtDbgModExportsAddSegmentsCallback(RTLDRMOD hLdrMod, PC
     pArgs->cSegs++;
 
     /* Add dummy segments for segments that doesn't get mapped. */
-    if (   pSeg->LinkAddress == NIL_RTLDRADDR
-        || pSeg->RVA         == NIL_RTLDRADDR)
+    if (pSeg->LinkAddress == NIL_RTLDRADDR)
         return RTDbgModSegmentAdd(pArgs->pDbgMod, 0, 0, pSeg->pszName, 0 /*fFlags*/, NULL);
 
     RTLDRADDR uRva = pSeg->RVA;

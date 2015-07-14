@@ -1,4 +1,3 @@
-/* $Id: HGCM.h $ */
 /** @file
  * HGCM - Host-Guest Communication Manager.
  */

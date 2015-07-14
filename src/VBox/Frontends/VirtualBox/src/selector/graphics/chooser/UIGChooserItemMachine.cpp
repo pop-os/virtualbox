@@ -1,6 +1,8 @@
 /* $Id: UIGChooserItemMachine.cpp $ */
 /** @file
- * VBox Qt GUI - UIGChooserItemMachine class implementation.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * UIGChooserItemMachine class implementation
  */
 
 /*
@@ -15,32 +17,25 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QPainter>
-# include <QStyleOptionGraphicsItem>
-# include <QGraphicsSceneMouseEvent>
+#include <QPainter>
+#include <QStyleOptionGraphicsItem>
+#include <QGraphicsSceneMouseEvent>
 
 /* GUI includes: */
-# include "UIGChooserItemMachine.h"
-# include "UIGChooserItemGroup.h"
-# include "UIGChooserModel.h"
-# include "UIGraphicsToolBar.h"
-# include "UIGraphicsZoomButton.h"
-# include "VBoxGlobal.h"
-# include "UIIconPool.h"
-# include "UIActionPoolSelector.h"
-# include "UIImageTools.h"
+#include "UIGChooserItemMachine.h"
+#include "UIGChooserItemGroup.h"
+#include "UIGChooserModel.h"
+#include "UIGraphicsToolBar.h"
+#include "UIGraphicsZoomButton.h"
+#include "VBoxGlobal.h"
+#include "UIIconPool.h"
+#include "UIActionPoolSelector.h"
+#include "UIImageTools.h"
 
 /* COM includes: */
-# include "COMEnums.h"
-# include "CMachine.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
+#include "COMEnums.h"
+#include "CMachine.h"
 
 /* static */
 QString UIGChooserItemMachine::className() { return "UIGChooserItemMachine"; }
@@ -160,14 +155,11 @@ void UIGChooserItemMachine::enumerateMachineItems(const QList<UIGChooserItem*> &
         {
             /* Get the iterated machine-item: */
             UIGChooserItemMachine *pMachineItem = pItem->toMachineItem();
-            /* Skip if exactly this item is already enumerated: */
-            if (ol.contains(pMachineItem))
-                continue;
-            /* Skip if item with same ID is already enumerated but we need unique: */
+            /* Skip if this item is already enumerated but we need unique: */
             if ((iEnumerationFlags & UIGChooserItemMachineEnumerationFlag_Unique) &&
                 contains(ol, pMachineItem))
                 continue;
-            /* Skip if this item is accessible and we no need it: */
+            /* Skip if ths item is accessible and we no need it: */
             if ((iEnumerationFlags & UIGChooserItemMachineEnumerationFlag_Inaccessible) &&
                 pMachineItem->accessible())
                 continue;
@@ -223,12 +215,13 @@ void UIGChooserItemMachine::updatePixmaps()
 void UIGChooserItemMachine::updatePixmap()
 {
     /* Get new pixmap and pixmap-size: */
-    QSize pixmapSize;
-    QPixmap pixmap = osPixmap(&pixmapSize);
+    QIcon icon = osIcon();
+    QSize iconSize = icon.availableSizes().first();
+    QPixmap pixmap = icon.pixmap(iconSize);
     /* Update linked values: */
-    if (m_pixmapSize != pixmapSize)
+    if (m_pixmapSize != iconSize)
     {
-        m_pixmapSize = pixmapSize;
+        m_pixmapSize = iconSize;
         updateFirstRowMaximumWidth();
         updateGeometry();
     }
@@ -241,18 +234,14 @@ void UIGChooserItemMachine::updatePixmap()
 
 void UIGChooserItemMachine::updateStatePixmap()
 {
-    /* Determine the icon metric: */
-    const QStyle *pStyle = QApplication::style();
-    const int iIconMetric = pStyle->pixelMetric(QStyle::PM_SmallIconSize);
     /* Get new state-pixmap and state-pixmap size: */
-    const QIcon stateIcon = machineStateIcon();
-    AssertReturnVoid(!stateIcon.isNull());
-    const QSize statePixmapSize = QSize(iIconMetric, iIconMetric);
-    const QPixmap statePixmap = stateIcon.pixmap(statePixmapSize);
+    QIcon stateIcon = machineStateIcon();
+    QSize stateIconSize = stateIcon.availableSizes().first();
+    QPixmap statePixmap = stateIcon.pixmap(stateIconSize);
     /* Update linked values: */
-    if (m_statePixmapSize != statePixmapSize)
+    if (m_statePixmapSize != stateIconSize)
     {
-        m_statePixmapSize = statePixmapSize;
+        m_statePixmapSize = stateIconSize;
         updateGeometry();
     }
     if (m_statePixmap.toImage() != statePixmap.toImage())
@@ -543,13 +532,6 @@ void UIGChooserItemMachine::removeAll(const QString &strId)
     /* Skip wrong id: */
     if (id() != strId)
         return;
-
-    /* Exclude itself from the current items: */
-    if (model()->currentItems().contains(this))
-        model()->removeFromCurrentItems(this);
-    /* Move the focus item to the first available current after that: */
-    if (model()->focusItem() == this && !model()->currentItems().isEmpty())
-        model()->setFocusItem(model()->currentItems().first());
 
     /* Remove item: */
     delete this;
@@ -969,8 +951,8 @@ void UIGChooserItemMachine::paintMachineInfo(QPainter *pPainter, const QStyleOpt
         /* Paint pixmap: */
         paintPixmap(/* Painter: */
                     pPainter,
-                    /* Point to paint in: */
-                    QPoint(iMachinePixmapX, iMachinePixmapY),
+                    /* Rectangle to paint in: */
+                    QRect(QPoint(iMachinePixmapX, iMachinePixmapY), m_pixmapSize),
                     /* Pixmap to paint: */
                     m_pixmap);
     }
@@ -1046,8 +1028,8 @@ void UIGChooserItemMachine::paintMachineInfo(QPainter *pPainter, const QStyleOpt
                 /* Paint state pixmap: */
                 paintPixmap(/* Painter: */
                             pPainter,
-                            /* Point to paint in: */
-                            QPoint(iMachineStatePixmapX, iMachineStatePixmapY),
+                            /* Rectangle to paint in: */
+                            QRect(QPoint(iMachineStatePixmapX, iMachineStatePixmapY), m_statePixmapSize),
                             /* Pixmap to paint: */
                             m_statePixmap);
             }
@@ -1159,16 +1141,16 @@ void UIGChooserItemMachine::prepare()
     m_pToolBar->insertItem(m_pCloseButton, 1, 1);
 
     connect(m_pSettingsButton, SIGNAL(sigButtonClicked()),
-            actionPool()->action(UIActionIndexST_M_Machine_S_Settings), SLOT(trigger()),
+            gActionPool->action(UIActionIndexSelector_Simple_Machine_Settings), SLOT(trigger()),
             Qt::QueuedConnection);
     connect(m_pStartButton, SIGNAL(sigButtonClicked()),
-            actionPool()->action(UIActionIndexST_M_Machine_M_StartOrShow), SLOT(trigger()),
+            gActionPool->action(UIActionIndexSelector_State_Common_StartOrShow), SLOT(trigger()),
             Qt::QueuedConnection);
     connect(m_pPauseButton, SIGNAL(sigButtonClicked()),
-            actionPool()->action(UIActionIndexST_M_Machine_T_Pause), SLOT(trigger()),
+            gActionPool->action(UIActionIndexSelector_Toggle_Common_PauseAndResume), SLOT(trigger()),
             Qt::QueuedConnection);
     connect(m_pCloseButton, SIGNAL(sigButtonClicked()),
-            actionPool()->action(UIActionIndexST_M_Machine_M_Close_S_PowerOff), SLOT(trigger()),
+            gActionPool->action(UIActionIndexSelector_Simple_Machine_Close_PowerOff), SLOT(trigger()),
             Qt::QueuedConnection);
 }
 

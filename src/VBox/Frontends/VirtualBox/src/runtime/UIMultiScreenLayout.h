@@ -1,6 +1,7 @@
-/* $Id: UIMultiScreenLayout.h $ */
 /** @file
- * VBox Qt GUI - UIMultiScreenLayout class declaration.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * UIMultiScreenLayout class declaration
  */
 
 /*
@@ -34,15 +35,17 @@ class UIMultiScreenLayout : public QObject
 
 signals:
 
-    /** Notifies about layout update. */
-    void sigScreenLayoutUpdate();
-    /** Notifies about layout change. */
-    void sigScreenLayoutChange();
+    /* Notifier: Layout change stuff: */
+    void sigScreenLayoutChanged();
 
 public:
 
     /* Constructor/destructor: */
     UIMultiScreenLayout(UIMachineLogic *pMachineLogic);
+    ~UIMultiScreenLayout();
+
+    /* API: View-menu stuff: */
+    void setViewMenu(QMenu *pViewMenu);
 
     /* API: Update stuff: */
     void update();
@@ -54,20 +57,25 @@ public:
     int hostScreenForGuestScreen(int iScreenId) const;
     bool hasHostScreenForGuestScreen(int iScreenId) const;
     quint64 memoryRequirements() const;
+    bool isHostTaskbarCovert() const;
 
 private slots:
 
     /* Handler: Screen change stuff: */
-    void sltHandleScreenLayoutChange(int iRequestedGuestScreen, int iRequestedHostScreen);
+    void sltScreenLayoutChanged(QAction *pAction);
 
 private:
 
     /* Helpers: Prepare stuff: */
     void calculateHostMonitorCount();
     void calculateGuestScreenCount();
+    void prepareViewMenu();
+
+    /* Helper: Cleanup stuff: */
+    void cleanupViewMenu();
 
     /* Other helpers: */
-    void saveScreenMapping();
+    void updateMenuActions(bool fWithSave);
     quint64 memoryRequirements(const QMap<int, int> &screenLayout) const;
 
     /* Variables: */
@@ -76,6 +84,7 @@ private:
     QList<int> m_disabledGuestScreens;
     int m_cHostScreens;
     QMap<int, int> m_screenMap;
+    QMenu *m_pViewMenu;
     QList<QMenu*> m_screenMenuList;
 };
 

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -36,11 +36,13 @@
 
 
 /** @defgroup grp_types_both  Common Guest and Host Context Basic Types
+ * @ingroup grp_types
  * @{
  */
 
 
 /** @defgroup grp_types_hc  Host Context Basic Types
+ * @ingroup grp_types_both
  * @{
  */
 
@@ -48,6 +50,7 @@
 
 
 /** @defgroup grp_types_gc  Guest Context Basic Types
+ * @ingroup grp_types_both
  * @{
  */
 
@@ -57,22 +60,7 @@
 /** Pointer to per support driver session data.
  * (The data is a R0 entity and private to the the R0 SUP part. All
  * other should consider this a sort of handle.) */
-typedef R0PTRTYPE(struct SUPDRVSESSION *)           PSUPDRVSESSION;
-
-/** Event semaphore handle. Ring-0 / ring-3. */
-typedef R0PTRTYPE(struct SUPSEMEVENTHANDLE *)       SUPSEMEVENT;
-/** Pointer to an event semaphore handle. */
-typedef SUPSEMEVENT                                *PSUPSEMEVENT;
-/** Nil event semaphore handle. */
-#define NIL_SUPSEMEVENT                             ((SUPSEMEVENT)0)
-
-/** Multiple release event semaphore handle. Ring-0 / ring-3. */
-typedef R0PTRTYPE(struct SUPSEMEVENTMULTIHANDLE *)  SUPSEMEVENTMULTI;
-/** Pointer to an multiple release event semaphore handle. */
-typedef SUPSEMEVENTMULTI                           *PSUPSEMEVENTMULTI;
-/** Nil multiple release event semaphore handle. */
-#define NIL_SUPSEMEVENTMULTI                        ((SUPSEMEVENTMULTI)0)
-
+typedef R0PTRTYPE(struct SUPDRVSESSION *) PSUPDRVSESSION;
 
 /** Pointer to a VM. */
 typedef struct VM                  *PVM;
@@ -219,6 +207,9 @@ typedef enum VMSTATE
       || defined(DEBUG) \
       || defined(DOXYGEN_RUNNING) )
 # define VBOXSTRICTRC_STRICT_ENABLED 1
+# ifdef _MSC_VER
+#  pragma warning(disable:4190)
+# endif
 #endif
 
 /** We need RTERR_STRICT_RC.  */
@@ -294,9 +285,6 @@ private:
     VBOXSTRICTRC(int64_t rc)  : m_rc(-999)          { NOREF(rc); }
     /** @} */
 };
-# ifdef _MSC_VER
-#  pragma warning(disable:4190)
-# endif
 #else
 typedef int32_t VBOXSTRICTRC;
 #endif
@@ -416,6 +404,7 @@ typedef const struct CPUMSELREG *PCCPUMSELREGHID;
 
 
 /** @defgroup grp_types_idt     Interrupt Descriptor Table Entry.
+ * @ingroup grp_types
  * @todo This all belongs in x86.h!
  * @{ */
 

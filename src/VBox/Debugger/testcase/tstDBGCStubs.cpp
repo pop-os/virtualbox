@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -293,10 +293,6 @@ VMMR3DECL(int) DBGFR3OSQueryNameAndVersion(PUVM pUVM, char *pszName, size_t cchN
 {
     return VERR_INTERNAL_ERROR;
 }
-VMMR3DECL(void *) DBGFR3OSQueryInterface(PUVM pUVM, DBGFOSINTERFACE enmIf)
-{
-    return NULL;
-}
 
 VMMR3DECL(int) DBGFR3SelQueryInfo(PUVM pUVM, VMCPUID idCpu, RTSEL Sel, uint32_t fFlags, PDBGFSELINFO pSelInfo)
 {
@@ -319,18 +315,6 @@ VMMR3DECL(bool) DBGFR3CpuIsIn64BitCode(PUVM pUVM, VMCPUID idCpu)
 VMMR3DECL(int) DBGFR3CoreWrite(PUVM pUVM, const char *pszFilename, bool fReplaceFile)
 {
     return VERR_INTERNAL_ERROR;
-}
-
-VMMR3DECL(int)  DBGFR3PlugInLoad(PUVM pUVM, const char *pszPlugIn, char *pszActual, size_t cbActual, PRTERRINFO pErrInfo)
-{
-    return VERR_INTERNAL_ERROR;
-}
-VMMR3DECL(int)  DBGFR3PlugInUnload(PUVM pUVM, const char *pszName)
-{
-    return VERR_INTERNAL_ERROR;
-}
-VMMR3DECL(void) DBGFR3PlugInLoadAll(PUVM pUVM)
-{
 }
 
 

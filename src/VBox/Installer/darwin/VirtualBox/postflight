@@ -1,11 +1,7 @@
 #!/bin/sh
-# $Id: postflight $
-## @file
-# Post installation script.
-#
 
 #
-# Copyright (C) 2007-2015 Oracle Corporation
+# Copyright (C) 2007-2010 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -19,6 +15,26 @@
 CP="/bin/cp -f"
 CPDIR="${CP} -R"
 
+#
+# Select the right architecture.
+#
+MY_ARCH=`uname -m`
+if test "$MY_ARCH" = "x86_64"; then
+  MY_ARCH="amd64"
+else
+  MY_ARCH="x86"
+fi
+set -e
+for trg in `ls /Applications/VirtualBox.app/Contents/MacOS/*-${MY_ARCH}`;
+do
+    linkname=`echo "$trg" | sed -e 's|-'"${MY_ARCH}"'$||' `
+    if test "$linkname" = "$trg"; then
+        echo "oops: $trg" 1>&2
+        exit 1;
+    fi
+    rm -f         "$linkname"
+    /bin/ln -vh "$trg" "$linkname"
+done
 
 #
 # Install the Python bindings
@@ -34,7 +50,6 @@ if [ -e "${VBOX_INSTALL_PATH}/sdk/installer/vboxapisetup.py" ]; then
     		# Pass install path via environment
     		export VBOX_INSTALL_PATH
     		/bin/sh -c "cd $VBOX_INSTALL_PATH/sdk/installer && ${p} vboxapisetup.py install"
-    		/bin/sh -c "cd $VBOX_INSTALL_PATH/sdk/installer && ${p} vboxapisetup.py clean --all"
     	fi
     done
 fi
@@ -88,4 +103,3 @@ fi
 chown -R root:admin /Applications/VirtualBox.app
 
 exit 0;
-

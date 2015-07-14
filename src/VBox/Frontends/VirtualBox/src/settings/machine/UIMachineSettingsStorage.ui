@@ -58,7 +58,7 @@
        <item>
         <layout class="QVBoxLayout" name="mLtStorage" >
          <property name="spacing" >
-          <number>3</number>
+          <number>0</number>
          </property>
          <property name="margin" >
           <number>0</number>
@@ -66,7 +66,7 @@
          <item>
           <widget class="QITreeView" native="1" name="mTwStorageTree" >
            <property name="whatsThis" >
-            <string>Lists all storage controllers for this machine and the virtual images and host drives attached to them.</string>
+            <string>Contains all storage controllers for this machine and the virtual images and host drives attached to them.</string>
            </property>
           </widget>
          </item>
@@ -178,7 +178,7 @@
         <item row="1" column="2" >
          <widget class="QLineEdit" name="mLeName" >
           <property name="whatsThis" >
-           <string>Holds the name of the storage controller currently selected in the Storage Tree.</string>
+           <string>Changes the name of the storage controller currently selected in the Storage Tree.</string>
           </property>
          </widget>
         </item>
@@ -237,7 +237,7 @@
         <item row="4" column="2" >
          <widget class="QCheckBox" name="mCbIoCache" >
           <property name="whatsThis" >
-           <string>When checked, allows to use host I/O caching capabilities.</string>
+           <string>Allows to use host I/O caching capabilities.</string>
           </property>
           <property name="text" >
            <string>Use Host I/O Cache</string>
@@ -325,83 +325,60 @@
             <property name="text" >
              <string/>
             </property>
+            <property name="autoRaise" >
+             <bool>true</bool>
+            </property>
            </widget>
           </item>
          </layout>
         </item>
-        <item row="2" column="2">
-         <layout class="QVBoxLayout" name="m_pLayoutAttachmentConfig">
-          <property name="margin">
-           <number>0</number>
+        <item row="2" column="2" >
+         <widget class="QCheckBox" name="mCbPassthrough" >
+          <property name="sizePolicy" >
+           <sizepolicy vsizetype="Fixed" hsizetype="MinimumExpanding" >
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
           </property>
-          <property name="spacing">
-           <number>0</number>
+          <property name="whatsThis" >
+           <string>When checked, allows the guest to send ATAPI commands directly to the host-drive which makes it possible to use CD/DVD writers connected to the host inside the VM. Note that writing audio CD inside the VM is not yet supported.</string>
           </property>
-          <item>
-           <widget class="QCheckBox" name="mCbPassthrough">
-            <property name="sizePolicy">
-             <sizepolicy vsizetype="Fixed" hsizetype="MinimumExpanding">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="whatsThis">
-             <string>When checked, allows the guest to send ATAPI commands directly to the host-drive which makes it possible to use CD/DVD writers connected to the host inside the VM. Note that writing audio CD inside the VM is not yet supported.</string>
-            </property>
-            <property name="text">
-             <string>&amp;Passthrough</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QCheckBox" name="mCbTempEject">
-            <property name="sizePolicy">
-             <sizepolicy vsizetype="Fixed" hsizetype="MinimumExpanding">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="whatsThis">
-             <string>When checked, the virtual disk will not be removed when the guest system ejects it.</string>
-            </property>
-            <property name="text">
-             <string>&amp;Live CD/DVD</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QCheckBox" name="mCbNonRotational">
-            <property name="sizePolicy">
-             <sizepolicy vsizetype="Fixed" hsizetype="MinimumExpanding">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="whatsThis">
-             <string>When checked, the guest system will see the virtual disk as a solid-state device.</string>
-            </property>
-            <property name="text">
-             <string>&amp;Solid-state Drive</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QCheckBox" name="m_pCheckBoxHotPluggable">
-            <property name="sizePolicy">
-             <sizepolicy vsizetype="Fixed" hsizetype="MinimumExpanding">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="whatsThis">
-             <string>When checked, the guest system will see the virtual disk as a hot-pluggable device.</string>
-            </property>
-            <property name="text">
-             <string>&amp;Hot-pluggable</string>
-            </property>
-           </widget>
-          </item>
-         </layout>
+          <property name="text" >
+           <string>&amp;Passthrough</string>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="2" >
+         <widget class="QCheckBox" name="mCbTempEject" >
+          <property name="sizePolicy" >
+           <sizepolicy vsizetype="Fixed" hsizetype="MinimumExpanding" >
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="whatsThis" >
+           <string>When checked the virtual disk will not be removed when the guest system ejects it.</string>
+          </property>
+          <property name="text" >
+           <string>&amp;Live CD/DVD</string>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="2" >
+         <widget class="QCheckBox" name="mCbNonRotational" >
+          <property name="sizePolicy" >
+           <sizepolicy vsizetype="Fixed" hsizetype="MinimumExpanding" >
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="whatsThis" >
+           <string>When checked the guest system will see the virtual disk as a solid state device.</string>
+          </property>
+          <property name="text" >
+           <string>&amp;Solid-state Drive</string>
+          </property>
+         </widget>
         </item>
         <item row="3" column="0" colspan="3" >
          <widget class="QILabelSeparator" native="1" name="mLsInformation" >
@@ -570,27 +547,7 @@
           </property>
          </widget>
         </item>
-        <item row="12" column="1">
-         <widget class="QLabel" name="m_pLabelEncryption">
-          <property name="text">
-           <string>Encrypted with key:</string>
-          </property>
-          <property name="alignment">
-           <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-          </property>
-         </widget>
-        </item>
-        <item row="12" column="2">
-         <widget class="QILabel" name="m_pLabelEncryptionValue">
-          <property name="sizePolicy">
-           <sizepolicy vsizetype="Preferred" hsizetype="Ignored">
-            <horstretch>0</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
-          </property>
-         </widget>
-        </item>
-        <item row="13" column="0" colspan="3" >
+        <item row="12" column="0" colspan="3" >
          <spacer name="mSp6" >
           <property name="orientation" >
            <enum>Qt::Vertical</enum>

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2015 Oracle Corporation
+ * Copyright (C) 2008-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -72,8 +72,7 @@ int CollectorHAL::getRawHostDiskLoad(const char * /* name */, uint64_t * /* disk
     return VERR_NOT_IMPLEMENTED;
 }
 
-int CollectorHAL::getRawProcessCpuLoad(RTPROCESS  /* process */, uint64_t * /* user */,
-                                       uint64_t * /* kernel */, uint64_t * /* total */)
+int CollectorHAL::getRawProcessCpuLoad(RTPROCESS  /* process */, uint64_t * /* user */, uint64_t * /* kernel */, uint64_t * /* total */)
 {
     return VERR_NOT_IMPLEMENTED;
 }
@@ -83,8 +82,7 @@ int CollectorHAL::getHostMemoryUsage(ULONG * /* total */, ULONG * /* used */, UL
     return VERR_NOT_IMPLEMENTED;
 }
 
-int CollectorHAL::getHostFilesystemUsage(const char * /* name */, ULONG * /* total */, ULONG * /* used */,
-                                         ULONG * /* available */)
+int CollectorHAL::getHostFilesystemUsage(const char * /* name */, ULONG * /* total */, ULONG * /* used */, ULONG * /* available */)
 {
     return VERR_NOT_IMPLEMENTED;
 }
@@ -114,14 +112,17 @@ int CollectorHAL::getHostCpuMHz(ULONG *mhz)
     RTMpGetOnlineSet(&OnlineSet);
     for (RTCPUID iCpu = 0; iCpu < RTCPUSET_MAX_CPUS; iCpu++)
     {
-        Log7(("{%p} " LOG_FN_FMT ": Checking if CPU %d is member of online set...\n", this, __PRETTY_FUNCTION__, (int)iCpu));
+        LogAleksey(("{%p} " LOG_FN_FMT ": Checking if CPU %d is member of online set...\n",
+                    this, __PRETTY_FUNCTION__, (int)iCpu));
         if (RTCpuSetIsMemberByIndex(&OnlineSet, iCpu))
         {
-            Log7(("{%p} " LOG_FN_FMT ": Getting frequency for CPU %d...\n", this, __PRETTY_FUNCTION__, (int)iCpu));
+            LogAleksey(("{%p} " LOG_FN_FMT ": Getting frequency for CPU %d...\n",
+                        this, __PRETTY_FUNCTION__, (int)iCpu));
             uint32_t uMHz = RTMpGetCurFrequency(RTMpCpuIdFromSetIndex(iCpu));
             if (uMHz != 0)
             {
-                Log7(("{%p} " LOG_FN_FMT ": CPU %d %u MHz\n", this, __PRETTY_FUNCTION__, (int)iCpu, uMHz));
+                LogAleksey(("{%p} " LOG_FN_FMT ": CPU %d %u MHz\n",
+                            this, __PRETTY_FUNCTION__, (int)iCpu, uMHz));
                 u64TotalMHz += uMHz;
                 cCpus++;
             }
@@ -193,7 +194,8 @@ void CGRQEnable::debugPrint(void *aObject, const char *aFunction, const char *aT
     NOREF(aObject);
     NOREF(aFunction);
     NOREF(aText);
-    Log7(("{%p} " LOG_FN_FMT ": CGRQEnable(mask=0x%x) %s\n", aObject, aFunction, mMask, aText));
+    LogAleksey(("{%p} " LOG_FN_FMT ": CGRQEnable(mask=0x%x) %s\n",
+                aObject, aFunction, mMask, aText));
 }
 
 HRESULT CGRQDisable::execute()
@@ -207,7 +209,8 @@ void CGRQDisable::debugPrint(void *aObject, const char *aFunction, const char *a
     NOREF(aObject);
     NOREF(aFunction);
     NOREF(aText);
-    Log7(("{%p} " LOG_FN_FMT ": CGRQDisable(mask=0x%x) %s\n", aObject, aFunction, mMask, aText));
+    LogAleksey(("{%p} " LOG_FN_FMT ": CGRQDisable(mask=0x%x) %s\n",
+                aObject, aFunction, mMask, aText));
 }
 
 HRESULT CGRQAbort::execute()
@@ -220,7 +223,8 @@ void CGRQAbort::debugPrint(void *aObject, const char *aFunction, const char *aTe
     NOREF(aObject);
     NOREF(aFunction);
     NOREF(aText);
-    Log7(("{%p} " LOG_FN_FMT ": CGRQAbort %s\n", aObject, aFunction, aText));
+    LogAleksey(("{%p} " LOG_FN_FMT ": CGRQAbort %s\n",
+                aObject, aFunction, aText));
 }
 
 CollectorGuest::CollectorGuest(Machine *machine, RTPROCESS process) :
@@ -253,14 +257,15 @@ int CollectorGuest::enableVMMStats(bool mCollectVMMStats)
 
         ComPtr<IInternalSessionControl> directControl;
 
-        ret = mMachine->i_getDirectControl(&directControl);
+        ret = mMachine->getDirectControl(&directControl);
         if (ret != S_OK)
             return ret;
 
         /* enable statistics collection; this is a remote call (!) */
         ret = directControl->EnableVMMStatistics(mCollectVMMStats);
-        Log7(("{%p} " LOG_FN_FMT ": %sable VMM stats (%s)\n",
-              this, __PRETTY_FUNCTION__, mCollectVMMStats ? "En" : "Dis", SUCCEEDED(ret) ? "success" : "failed"));
+        LogAleksey(("{%p} " LOG_FN_FMT ": %sable VMM stats (%s)\n",
+                    this, __PRETTY_FUNCTION__, mCollectVMMStats?"En":"Dis",
+                    SUCCEEDED(ret)?"success":"failed"));
     }
 
     return ret;
@@ -294,16 +299,16 @@ HRESULT CollectorGuest::enableInternal(ULONG mask)
         AutoCaller autoCaller(mMachine);
         if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-        mMachineName = mMachine->i_getName();
+        mMachineName = mMachine->getName();
 
         ComPtr<IInternalSessionControl> directControl;
 
-        ret = mMachine->i_getDirectControl(&directControl);
+        ret = mMachine->getDirectControl(&directControl);
         if (ret != S_OK)
             return ret;
 
         /* get the associated console; this is a remote call (!) */
-        ret = directControl->COMGETTER(RemoteConsole)(mConsole.asOutParam());
+        ret = directControl->GetRemoteConsole(mConsole.asOutParam());
         if (ret != S_OK)
             return ret;
 
@@ -311,8 +316,8 @@ HRESULT CollectorGuest::enableInternal(ULONG mask)
         if (ret == S_OK)
         {
             ret = mGuest->COMSETTER(StatisticsUpdateInterval)(1 /* 1 sec */);
-            Log7(("{%p} " LOG_FN_FMT ": Set guest statistics update interval to 1 sec (%s)\n",
-                  this, __PRETTY_FUNCTION__, SUCCEEDED(ret) ? "success" : "failed"));
+            LogAleksey(("{%p} " LOG_FN_FMT ": Set guest statistics update interval to 1 sec (%s)\n",
+                        this, __PRETTY_FUNCTION__, SUCCEEDED(ret)?"success":"failed"));
         }
     }
     if ((mask & VMSTATS_VMM_RAM) == VMSTATS_VMM_RAM)
@@ -335,8 +340,8 @@ int CollectorGuest::disableInternal(ULONG mask)
         Assert(mGuest && mConsole);
         HRESULT ret = mGuest->COMSETTER(StatisticsUpdateInterval)(0 /* off */);
         NOREF(ret);
-        Log7(("{%p} " LOG_FN_FMT ": Set guest statistics update interval to 0 sec (%s)\n",
-              this, __PRETTY_FUNCTION__, SUCCEEDED(ret) ? "success" : "failed"));
+        LogAleksey(("{%p} " LOG_FN_FMT ": Set guest statistics update interval to 0 sec (%s)\n",
+                    this, __PRETTY_FUNCTION__, SUCCEEDED(ret)?"success":"failed"));
         invalidate(VMSTATS_ALL);
     }
 
@@ -351,7 +356,8 @@ int CollectorGuest::enqueueRequest(CollectorGuestRequest *aRequest)
         return mManager->enqueueRequest(aRequest);
     }
 
-    Log7(("{%p} " LOG_FN_FMT ": Attempted enqueue guest request when mManager is null\n", this, __PRETTY_FUNCTION__));
+    LogAleksey(("{%p} " LOG_FN_FMT ": Attempted enqueue guest request when mManager is null\n",
+                this, __PRETTY_FUNCTION__));
     return E_POINTER;
 }
 
@@ -401,7 +407,8 @@ CollectorGuestManager::CollectorGuestManager()
                             this, 0, RTTHREADTYPE_MAIN_WORKER, RTTHREADFLAGS_WAITABLE,
                             "CGMgr");
     NOREF(rc);
-    Log7(("{%p} " LOG_FN_FMT ": RTThreadCreate returned %u (mThread=%p)\n", this, __PRETTY_FUNCTION__, rc));
+    LogAleksey(("{%p} " LOG_FN_FMT ": RTThreadCreate returned %u (mThread=%p)\n",
+                this, __PRETTY_FUNCTION__, rc));
 }
 
 CollectorGuestManager::~CollectorGuestManager()
@@ -412,9 +419,11 @@ CollectorGuestManager::~CollectorGuestManager()
     if (SUCCEEDED(rc))
     {
         /* We wait only if we were able to put the abort request to a queue */
-        Log7(("{%p} " LOG_FN_FMT ": Waiting for CGM request processing thread to stop...\n", this, __PRETTY_FUNCTION__));
+        LogAleksey(("{%p} " LOG_FN_FMT ": Waiting for CGM request processing thread to stop...\n",
+                    this, __PRETTY_FUNCTION__));
         rc = RTThreadWait(mThread, 1000 /* 1 sec */, &rcThread);
-        Log7(("{%p} " LOG_FN_FMT ": RTThreadWait returned %u (thread exit code: %u)\n", this, __PRETTY_FUNCTION__, rc, rcThread));
+        LogAleksey(("{%p} " LOG_FN_FMT ": RTThreadWait returned %u (thread exit code: %u)\n",
+                    this, __PRETTY_FUNCTION__, rc, rcThread));
     }
 }
 
@@ -428,14 +437,16 @@ void CollectorGuestManager::registerGuest(CollectorGuest* pGuest)
      */
     if (!mVMMStatsProvider)
         mVMMStatsProvider = pGuest;
-    Log7(("{%p} " LOG_FN_FMT ": Registered guest=%p provider=%p\n", this, __PRETTY_FUNCTION__, pGuest, mVMMStatsProvider));
+    LogAleksey(("{%p} " LOG_FN_FMT ": Registered guest=%p provider=%p\n",
+                this, __PRETTY_FUNCTION__, pGuest, mVMMStatsProvider));
 }
 
 void CollectorGuestManager::unregisterGuest(CollectorGuest* pGuest)
 {
     int rc = S_OK;
 
-    Log7(("{%p} " LOG_FN_FMT ": About to unregister guest=%p provider=%p\n", this, __PRETTY_FUNCTION__, pGuest, mVMMStatsProvider));
+    LogAleksey(("{%p} " LOG_FN_FMT ": About to unregister guest=%p provider=%p\n",
+                this, __PRETTY_FUNCTION__, pGuest, mVMMStatsProvider));
     //mGuests.remove(pGuest); => destroyUnregistered()
     pGuest->unregister();
     if (pGuest == mVMMStatsProvider)
@@ -445,7 +456,7 @@ void CollectorGuestManager::unregisterGuest(CollectorGuest* pGuest)
         /* Assume that nobody can provide VMM stats */
         mVMMStatsProvider = NULL;
 
-        for (it = mGuests.begin(); it != mGuests.end(); ++it)
+        for (it = mGuests.begin(); it != mGuests.end(); it++)
         {
             /* Skip unregistered as they are about to be destroyed */
             if ((*it)->isUnregistered())
@@ -468,7 +479,7 @@ void CollectorGuestManager::unregisterGuest(CollectorGuest* pGuest)
         if (!mVMMStatsProvider)
         {
             /* If nobody collects stats, take the first registered */
-            for (it = mGuests.begin(); it != mGuests.end(); ++it)
+            for (it = mGuests.begin(); it != mGuests.end(); it++)
             {
                 /* Skip unregistered as they are about to be destroyed */
                 if ((*it)->isUnregistered())
@@ -484,7 +495,8 @@ void CollectorGuestManager::unregisterGuest(CollectorGuest* pGuest)
             }
         }
     }
-    Log7(("{%p} " LOG_FN_FMT ": LEAVE new provider=%p\n", this, __PRETTY_FUNCTION__, mVMMStatsProvider));
+    LogAleksey(("{%p} " LOG_FN_FMT ": LEAVE new provider=%p\n",
+                this, __PRETTY_FUNCTION__, mVMMStatsProvider));
 }
 
 void CollectorGuestManager::destroyUnregistered()
@@ -496,8 +508,8 @@ void CollectorGuestManager::destroyUnregistered()
         {
             delete *it;
             it = mGuests.erase(it);
-            Log7(("{%p} " LOG_FN_FMT ": Number of guests after erasing unregistered is %d\n",
-                  this, __PRETTY_FUNCTION__, mGuests.size()));
+            LogAleksey(("{%p} " LOG_FN_FMT ": Number of guests after erasing unregistered is %d\n",
+                        this, __PRETTY_FUNCTION__, mGuests.size()));
         }
         else
             ++it;
@@ -522,12 +534,14 @@ int CollectorGuestManager::enqueueRequest(CollectorGuestRequest *aRequest)
          * the previous request. Half a second is an eternity for processes
          * and is barely noticable by humans.
          */
-        Log7(("{%p} " LOG_FN_FMT ": Suspecting %s is stalled. Waiting for .5 sec...\n",
-              this, __PRETTY_FUNCTION__, aRequest->getGuest()->getVMName().c_str()));
+        LogAleksey(("{%p} " LOG_FN_FMT ": Suspecting %s is stalled. Waiting for .5 sec...\n",
+                    this, __PRETTY_FUNCTION__,
+                    aRequest->getGuest()->getVMName().c_str()));
         RTThreadSleep(500 /* ms */);
         if (aRequest->getGuest() == mGuestBeingCalled) {
-            Log7(("{%p} " LOG_FN_FMT ": Request processing stalled for %s\n",
-                  this, __PRETTY_FUNCTION__, aRequest->getGuest()->getVMName().c_str()));
+            LogAleksey(("{%p} " LOG_FN_FMT ": Request processing stalled for %s\n",
+                        this, __PRETTY_FUNCTION__,
+                        aRequest->getGuest()->getVMName().c_str()));
             /* Request execution got stalled for this guest -- report an error */
             return E_FAIL;
         }
@@ -544,7 +558,8 @@ DECLCALLBACK(int) CollectorGuestManager::requestProcessingThread(RTTHREAD /* aTh
 
     HRESULT rc = S_OK;
 
-    Log7(("{%p} " LOG_FN_FMT ": Starting request processing loop...\n", mgr, __PRETTY_FUNCTION__));
+    LogAleksey(("{%p} " LOG_FN_FMT ": Starting request processing loop...\n",
+                mgr, __PRETTY_FUNCTION__));
     while ((pReq = mgr->mQueue.pop()) != NULL)
     {
 #ifdef DEBUG
@@ -557,9 +572,11 @@ DECLCALLBACK(int) CollectorGuestManager::requestProcessingThread(RTTHREAD /* aTh
         if (rc == E_ABORT)
             break;
         if (FAILED(rc))
-            Log7(("{%p} " LOG_FN_FMT ": request::execute returned %u\n", mgr, __PRETTY_FUNCTION__, rc));
+            LogAleksey(("{%p} " LOG_FN_FMT ": request::execute returned %u\n",
+                        mgr, __PRETTY_FUNCTION__, rc));
     }
-    Log7(("{%p} " LOG_FN_FMT ": Exiting request processing loop... rc=%u\n", mgr, __PRETTY_FUNCTION__, rc));
+    LogAleksey(("{%p} " LOG_FN_FMT ": Exiting request processing loop... rc=%u\n",
+                        mgr, __PRETTY_FUNCTION__, rc));
 
     return VINF_SUCCESS;
 }
@@ -948,8 +965,9 @@ void HostRamVmm::collect()
     CollectorGuest *provider = mCollectorGuestManager->getVMMStatsProvider();
     if (provider)
     {
-        Log7(("{%p} " LOG_FN_FMT ": provider=%p enabled=%RTbool valid=%RTbool...\n",
-              this, __PRETTY_FUNCTION__, provider, provider->isEnabled(), provider->isValid(VMSTATS_VMM_RAM) ));
+        LogAleksey(("{%p} " LOG_FN_FMT ": provider=%p enabled=%s valid=%s...\n",
+                    this, __PRETTY_FUNCTION__, provider, provider->isEnabled()?"y":"n",
+                    provider->isValid(VMSTATS_VMM_RAM)?"y":"n"));
         if (provider->isValid(VMSTATS_VMM_RAM))
         {
             /* Provider is ready, get updated stats */
@@ -972,8 +990,9 @@ void HostRamVmm::collect()
         mBalloonedCurrent = 0;
         mSharedCurrent    = 0;
     }
-    Log7(("{%p} " LOG_FN_FMT ": mAllocCurrent=%u mFreeCurrent=%u mBalloonedCurrent=%u mSharedCurrent=%u\n",
-          this, __PRETTY_FUNCTION__, mAllocCurrent, mFreeCurrent, mBalloonedCurrent, mSharedCurrent));
+    LogAleksey(("{%p} " LOG_FN_FMT ": mAllocCurrent=%u mFreeCurrent=%u mBalloonedCurrent=%u mSharedCurrent=%u\n",
+                this, __PRETTY_FUNCTION__,
+                mAllocCurrent, mFreeCurrent, mBalloonedCurrent, mSharedCurrent));
     mAllocVMM->put(mAllocCurrent);
     mFreeVMM->put(mFreeCurrent);
     mBalloonVMM->put(mBalloonedCurrent);
@@ -1081,7 +1100,7 @@ void MachineDiskUsage::collect()
 
         AutoReadLock local_alock(pMedium COMMA_LOCKVAL_SRC_POS);
 
-        used += (ULONG)(pMedium->i_getSize() / _1M);
+        used += (ULONG)(pMedium->getSize() / _1M);
     }
 
     mUsed->put(used);
@@ -1332,40 +1351,91 @@ const char * AggregateMax::getName()
     return "max";
 }
 
-Filter::Filter(const std::vector<com::Utf8Str> &metricNames,
-               const std::vector<ComPtr<IUnknown> > &objects)
+Filter::Filter(ComSafeArrayIn(IN_BSTR, metricNames),
+               ComSafeArrayIn(IUnknown *, objects))
 {
-    if (!objects.size())
+    /*
+     * Let's work around null/empty safe array mess. I am not sure there is
+     * a way to pass null arrays via webservice, I haven't found one. So I
+     * guess the users will be forced to use empty arrays instead. Constructing
+     * an empty SafeArray is a bit awkward, so what we do in this method is
+     * actually convert null arrays to empty arrays and pass them down to
+     * init() method. If someone knows how to do it better, please be my guest,
+     * fix it.
+     */
+    if (ComSafeArrayInIsNull(metricNames))
     {
-        if (metricNames.size())
+        com::SafeArray<BSTR> nameArray;
+        if (ComSafeArrayInIsNull(objects))
         {
-            for (size_t i = 0; i < metricNames.size(); ++i)
-                processMetricList(metricNames[i], ComPtr<IUnknown>());
+            com::SafeIfaceArray<IUnknown> objectArray;
+            objectArray.reset(0);
+            init(ComSafeArrayAsInParam(nameArray),
+                 ComSafeArrayAsInParam(objectArray));
+        }
+        else
+        {
+            com::SafeIfaceArray<IUnknown> objectArray(ComSafeArrayInArg(objects));
+            init(ComSafeArrayAsInParam(nameArray),
+                 ComSafeArrayAsInParam(objectArray));
+        }
+    }
+    else
+    {
+        com::SafeArray<IN_BSTR> nameArray(ComSafeArrayInArg(metricNames));
+        if (ComSafeArrayInIsNull(objects))
+        {
+            com::SafeIfaceArray<IUnknown> objectArray;
+            objectArray.reset(0);
+            init(ComSafeArrayAsInParam(nameArray),
+                 ComSafeArrayAsInParam(objectArray));
+        }
+        else
+        {
+            com::SafeIfaceArray<IUnknown> objectArray(ComSafeArrayInArg(objects));
+            init(ComSafeArrayAsInParam(nameArray),
+                 ComSafeArrayAsInParam(objectArray));
+        }
+    }
+}
+
+Filter::Filter(const com::Utf8Str name, const ComPtr<IUnknown> &aObject)
+{
+    processMetricList(name, aObject);
+}
+
+void Filter::init(ComSafeArrayIn(IN_BSTR, metricNames),
+                  ComSafeArrayIn(IUnknown *, objects))
+{
+    com::SafeArray<IN_BSTR> nameArray(ComSafeArrayInArg(metricNames));
+    com::SafeIfaceArray<IUnknown> objectArray(ComSafeArrayInArg(objects));
+
+    if (!objectArray.size())
+    {
+        if (nameArray.size())
+        {
+            for (size_t i = 0; i < nameArray.size(); ++i)
+                processMetricList(com::Utf8Str(nameArray[i]), ComPtr<IUnknown>());
         }
         else
             processMetricList("*", ComPtr<IUnknown>());
     }
     else
     {
-        for (size_t i = 0; i < objects.size(); ++i)
-            switch (metricNames.size())
+        for (size_t i = 0; i < objectArray.size(); ++i)
+            switch (nameArray.size())
             {
                 case 0:
-                    processMetricList("*", objects[i]);
+                    processMetricList("*", objectArray[i]);
                     break;
                 case 1:
-                    processMetricList(metricNames[0], objects[i]);
+                    processMetricList(com::Utf8Str(nameArray[0]), objectArray[i]);
                     break;
                 default:
-                    processMetricList(metricNames[i], objects[i]);
+                    processMetricList(com::Utf8Str(nameArray[i]), objectArray[i]);
                     break;
             }
     }
-}
-
-Filter::Filter(const com::Utf8Str &name, const ComPtr<IUnknown> &aObject)
-{
-    processMetricList(name, aObject);
 }
 
 void Filter::processMetricList(const com::Utf8Str &name, const ComPtr<IUnknown> object)
@@ -1459,10 +1529,10 @@ bool Filter::match(const ComPtr<IUnknown> object, const RTCString &name) const
 {
     ElementList::const_iterator it;
 
-    //Log7(("Filter::match(%p, %s)\n", static_cast<const IUnknown*> (object), name.c_str()));
-    for (it = mElements.begin(); it != mElements.end(); ++it)
+    //LogAleksey(("Filter::match(%p, %s)\n", static_cast<const IUnknown*> (object), name.c_str()));
+    for (it = mElements.begin(); it != mElements.end(); it++)
     {
-        //Log7(("...matching against(%p, %s)\n", static_cast<const IUnknown*> ((*it).first), (*it).second.c_str()));
+        //LogAleksey(("...matching against(%p, %s)\n", static_cast<const IUnknown*> ((*it).first), (*it).second.c_str()));
         if ((*it).first.isNull() || (*it).first == object)
         {
             // Objects match, compare names
@@ -1473,7 +1543,7 @@ bool Filter::match(const ComPtr<IUnknown> object, const RTCString &name) const
             }
         }
     }
-    //Log7(("...no matches!\n"));
+    //LogAleksey(("...no matches!\n"));
     return false;
 }
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -173,7 +173,7 @@ static RTEXITCODE handleBandwidthControlAdd(HandlerArg *a, ComPtr<IBandwidthCont
         return RTEXITCODE_FAILURE;
     }
 
-    CHECK_ERROR2I_RET(bwCtrl, CreateBandwidthGroup(name.raw(), enmType, (LONG64)cMaxBytesPerSec), RTEXITCODE_FAILURE);
+    CHECK_ERROR2_RET(bwCtrl, CreateBandwidthGroup(name.raw(), enmType, (LONG64)cMaxBytesPerSec), RTEXITCODE_FAILURE);
 
     return RTEXITCODE_SUCCESS;
 }
@@ -236,11 +236,9 @@ static RTEXITCODE handleBandwidthControlSet(HandlerArg *a, ComPtr<IBandwidthCont
     if (cMaxBytesPerSec != INT64_MAX)
     {
         ComPtr<IBandwidthGroup> bwGroup;
-        CHECK_ERROR2I_RET(bwCtrl, GetBandwidthGroup(name.raw(), bwGroup.asOutParam()), RTEXITCODE_FAILURE);
+        CHECK_ERROR2_RET(bwCtrl, GetBandwidthGroup(name.raw(), bwGroup.asOutParam()), RTEXITCODE_FAILURE);
         if (SUCCEEDED(rc))
-        {
-            CHECK_ERROR2I_RET(bwGroup, COMSETTER(MaxBytesPerSec)((LONG64)cMaxBytesPerSec), RTEXITCODE_FAILURE);
-        }
+            CHECK_ERROR2_RET(bwGroup, COMSETTER(MaxBytesPerSec)((LONG64)cMaxBytesPerSec), RTEXITCODE_FAILURE);
     }
 
     return RTEXITCODE_SUCCESS;
@@ -255,7 +253,7 @@ static RTEXITCODE handleBandwidthControlSet(HandlerArg *a, ComPtr<IBandwidthCont
 static RTEXITCODE handleBandwidthControlRemove(HandlerArg *a, ComPtr<IBandwidthControl> &bwCtrl)
 {
     Bstr name(a->argv[2]);
-    CHECK_ERROR2I_RET(bwCtrl, DeleteBandwidthGroup(name.raw()), RTEXITCODE_FAILURE);
+    CHECK_ERROR2_RET(bwCtrl, DeleteBandwidthGroup(name.raw()), RTEXITCODE_FAILURE);
     return RTEXITCODE_SUCCESS;
 }
 
@@ -290,6 +288,7 @@ static RTEXITCODE handleBandwidthControlList(HandlerArg *pArgs, ComPtr<IBandwidt
         }
     }
 
+    /* See showVMInfo. */
     if (FAILED(showBandwidthGroups(rptrBWControl, enmDetails)))
         return RTEXITCODE_FAILURE;
 
@@ -302,7 +301,7 @@ static RTEXITCODE handleBandwidthControlList(HandlerArg *pArgs, ComPtr<IBandwidt
  * @returns Exit code.
  * @param   a               The handler argument package.
  */
-RTEXITCODE handleBandwidthControl(HandlerArg *a)
+int handleBandwidthControl(HandlerArg *a)
 {
     int c = VERR_INTERNAL_ERROR;        /* initialized to shut up gcc */
     HRESULT rc = S_OK;
@@ -316,12 +315,12 @@ RTEXITCODE handleBandwidthControl(HandlerArg *a)
 
     /* try to find the given machine */
     CHECK_ERROR_RET(a->virtualBox, FindMachine(Bstr(a->argv[0]).raw(),
-                                               machine.asOutParam()), RTEXITCODE_FAILURE);
+                                               machine.asOutParam()), 1);
 
     /* open a session for the VM (new or shared) */
-    CHECK_ERROR_RET(machine, LockMachine(a->session, LockType_Shared), RTEXITCODE_FAILURE);
+    CHECK_ERROR_RET(machine, LockMachine(a->session, LockType_Shared), 1);
     SessionType_T st;
-    CHECK_ERROR_RET(a->session, COMGETTER(Type)(&st), RTEXITCODE_FAILURE);
+    CHECK_ERROR_RET(a->session, COMGETTER(Type)(&st), 1);
     bool fRunTime = (st == SessionType_Shared);
 
     /* get the mutable session machine */
@@ -365,7 +364,7 @@ leave:
     /* it's important to always close sessions */
     a->session->UnlockMachine();
 
-    return SUCCEEDED(rc) ? RTEXITCODE_SUCCESS : RTEXITCODE_FAILURE;
+    return SUCCEEDED(rc) ? 0 : 1;
 }
 
 #endif /* !VBOX_ONLY_DOCS */

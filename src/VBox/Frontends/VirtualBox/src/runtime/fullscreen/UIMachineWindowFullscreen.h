@@ -1,6 +1,7 @@
-/* $Id: UIMachineWindowFullscreen.h $ */
 /** @file
- * VBox Qt GUI - UIMachineWindowFullscreen class declaration.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * UIMachineWindowFullscreen class declaration
  */
 
 /*
@@ -21,10 +22,8 @@
 /* Local includes: */
 #include "UIMachineWindow.h"
 
-#ifndef Q_WS_MAC
 /* Forward declarations: */
 class UIRuntimeMiniToolBar;
-#endif /* !Q_WS_MAC */
 
 /* Fullscreen machine-window implementation: */
 class UIMachineWindowFullscreen : public UIMachineWindow
@@ -55,14 +54,17 @@ protected:
     void handleNativeNotification(const QString &strNativeNotificationName);
     /** Mac OS X: Returns whether window is in 'fullscreen' transition. */
     bool isInFullscreenTransition() const { return m_fIsInFullscreenTransition; }
+    /** Mac OS X: Defines whether mini-toolbar should be @a fVisible. */
+    void setMiniToolbarVisible(bool fVisible);
 #endif /* Q_WS_MAC */
 
 private slots:
 
-#ifndef Q_WS_MAC
     /* Session event-handlers: */
     void sltMachineStateChanged();
-#endif /* !Q_WS_MAC */
+
+    /* Popup main-menu: */
+    void sltPopupMainMenu();
 
 #ifdef RT_OS_DARWIN
     /** Mac OS X: Commands @a pMachineWindow to enter native 'fullscreen' mode if possible. */
@@ -74,22 +76,17 @@ private slots:
     /** Revokes keyboard-focus. */
     void sltRevokeFocus();
 
-    /** Shows window minimized. */
-    void showMinimized();
-
 private:
 
     /* Prepare helpers: */
+    void prepareMenu();
     void prepareVisualState();
-#ifndef Q_WS_MAC
     void prepareMiniToolbar();
-#endif /* !Q_WS_MAC */
 
     /* Cleanup helpers: */
-#ifndef Q_WS_MAC
     void cleanupMiniToolbar();
-#endif /* !Q_WS_MAC */
     void cleanupVisualState();
+    void cleanupMenu();
 
     /* Show stuff: */
     void placeOnScreen();
@@ -98,15 +95,12 @@ private:
     /** Adjusts machine-view size to correspond current machine-window size. */
     virtual void adjustMachineViewSize();
 
-#ifndef Q_WS_MAC
-    /* Update routines: */
+    /* Update stuff: */
     void updateAppearanceOf(int iElement);
-#endif /* !Q_WS_MAC */
 
-#ifndef Q_WS_MAC
-    /** Holds the mini-toolbar instance. */
+    /* Widgets: */
+    QMenu *m_pMainMenu;
     UIRuntimeMiniToolBar *m_pMiniToolBar;
-#endif /* !Q_WS_MAC */
 
 #ifdef Q_WS_MAC
     /** Mac OS X: Reflects whether window is in 'fullscreen' transition. */

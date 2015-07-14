@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1530,4 +1530,5 @@ RTCrX509Certificates_FindByIssuerAndSerialNumber(PCRTCRX509CERTIFICATES pCertifi
             return &pCertificates->paItems[i];
     return NULL;
 }
+
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2015 Oracle Corporation
+ * Copyright (C) 2011-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -32,12 +32,6 @@ RT_C_DECLS_BEGIN
  * @internal
  * @{
  */
-
-/** For expanding symbol in slickedit and other products tagging and
- *  crossreferencing IEM symbols. */
-#ifndef IEM_STATIC
-# define IEM_STATIC static
-#endif
 
 /** @def IEM_VERIFICATION_MODE_FULL
  * Shorthand for:
@@ -124,45 +118,6 @@ typedef IEMFPURESULTTWO *PIEMFPURESULTTWO;
 typedef IEMFPURESULTTWO const *PCIEMFPURESULTTWO;
 
 
-/**
- * IEM pending commit function index.
- */
-typedef enum IEMCOMMIT
-{
-    /** Invalid / nothing pending. */
-    IEMCOMMIT_INVALID = 0,
-    /** @name INS
-     * @{  */
-    IEMCOMMIT_INS_OP8_ADDR16,
-    IEMCOMMIT_INS_OP8_ADDR32,
-    IEMCOMMIT_INS_OP8_ADDR64,
-    IEMCOMMIT_INS_OP16_ADDR16,
-    IEMCOMMIT_INS_OP16_ADDR32,
-    IEMCOMMIT_INS_OP16_ADDR64,
-    IEMCOMMIT_INS_OP32_ADDR16,
-    IEMCOMMIT_INS_OP32_ADDR32,
-    IEMCOMMIT_INS_OP32_ADDR64,
-    /** @} */
-    /** @name REP INS
-     * @{  */
-    IEMCOMMIT_REP_INS_OP8_ADDR16,
-    IEMCOMMIT_REP_INS_OP8_ADDR32,
-    IEMCOMMIT_REP_INS_OP8_ADDR64,
-    IEMCOMMIT_REP_INS_OP16_ADDR16,
-    IEMCOMMIT_REP_INS_OP16_ADDR32,
-    IEMCOMMIT_REP_INS_OP16_ADDR64,
-    IEMCOMMIT_REP_INS_OP32_ADDR16,
-    IEMCOMMIT_REP_INS_OP32_ADDR32,
-    IEMCOMMIT_REP_INS_OP32_ADDR64,
-    /** @} */
-    /** End of valid functions. */
-    IEMCOMMIT_END,
-    /** Make sure the type is int in call contexts. */
-    IEMCOMMIT_32BIT_HACK = 0x7fffffff
-} IEMCOMMIT;
-AssertCompile(sizeof(IEMCOMMIT) == 4);
-
-
 #ifdef IEM_VERIFICATION_MODE_FULL
 
 /**
@@ -234,11 +189,11 @@ typedef IEMVERIFYEVTREC *PIEMVERIFYEVTREC;
  */
 typedef struct IEMCPU
 {
-    /** Pointer to the CPU context - ring-3 context. */
+    /** Pointer to the CPU context - ring-3 contex. */
     R3PTRTYPE(PCPUMCTX)     pCtxR3;
-    /** Pointer to the CPU context - ring-0 context. */
+    /** Pointer to the CPU context - ring-0 contex. */
     R0PTRTYPE(PCPUMCTX)     pCtxR0;
-    /** Pointer to the CPU context - raw-mode context. */
+    /** Pointer to the CPU context - raw-mode contex. */
     RCPTRTYPE(PCPUMCTX)     pCtxRC;
 
     /** Offset of the VMCPU structure relative to this structure (negative). */
@@ -291,8 +246,6 @@ typedef struct IEMCPU
     uint32_t                cRetErrStatuses;
     /** Number of times rcPassUp has been used. */
     uint32_t                cRetPassUpStatus;
-    /** Number of times RZ left with instruction commit pending for ring-3. */
-    uint32_t                cPendingCommit;
 #ifdef IEM_VERIFICATION_MODE_FULL
     /** The Number of I/O port reads that has been performed. */
     uint32_t                cIOReads;
@@ -362,6 +315,9 @@ typedef struct IEMCPU
 
     /** @}*/
 
+    /** Alignment padding for aMemMappings. */
+    uint8_t                 abAlignment2[4];
+
     /** The number of active guest memory mappings. */
     uint8_t                 cActiveMappings;
     /** The next unused mapping index. */
@@ -414,27 +370,24 @@ typedef struct IEMCPU
         uint8_t             ab[512];
     } aBounceBuffers[3];
 
-    /** @name Pending Instruction Commit (R0/RC postponed it to Ring-3).
-     * @{ */
-    struct
-    {
-        /** The commit function to call. */
-        IEMCOMMIT           enmFn;
-        /** The instruction size. */
-        uint8_t             cbInstr;
-        /** Generic value to commit. */
-        uint64_t            uValue;
-    } PendingCommit;
-    /** @} */
-
     /** @name Target CPU information.
      * @{ */
+    /** EDX value of CPUID(1).
+     * @remarks Some bits are subject to change and must be queried dynamically. */
+    uint32_t                fCpuIdStdFeaturesEdx;
+    /** ECX value of CPUID(1).
+     * @remarks Some bits are subject to change and must be queried dynamically. */
+    uint32_t                fCpuIdStdFeaturesEcx;
     /** The CPU vendor. */
     CPUMCPUVENDOR           enmCpuVendor;
     /** @} */
 
     /** @name Host CPU information.
      * @{ */
+    /** EDX value of CPUID(1). */
+    uint32_t                fHostCpuIdStdFeaturesEdx;
+    /** ECX value of CPUID(1). */
+    uint32_t                fHostCpuIdStdFeaturesEcx;
     /** The CPU vendor. */
     CPUMCPUVENDOR           enmHostCpuVendor;
     /** @} */
@@ -567,23 +520,6 @@ typedef IEMCPU const *PCIEMCPU;
 /** The r/m is a memory access. */
 #define IEMOPFORM_NOT_MOD3      RT_BIT_32(9)
 /** @} */
-
-/**
- * Possible hardware task switch sources.
- */
-typedef enum IEMTASKSWITCH
-{
-    /** Task switch caused by an interrupt/exception. */
-    IEMTASKSWITCH_INT_XCPT = 1,
-    /** Task switch caused by a far CALL. */
-    IEMTASKSWITCH_CALL,
-    /** Task switch caused by a far JMP. */
-    IEMTASKSWITCH_JUMP,
-    /** Task switch caused by an IRET. */
-    IEMTASKSWITCH_IRET
-} IEMTASKSWITCH;
-AssertCompileSize(IEMTASKSWITCH, 4);
-
 
 /**
  * Tests if verification mode is enabled.

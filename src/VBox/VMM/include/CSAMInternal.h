@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -38,7 +38,7 @@
 
 /** @} */
 
-#define CSAM_SAVED_STATE_VERSION                14
+#define CSAM_SSM_VERSION                        14
 
 #define CSAM_PGDIRBMP_CHUNKS                    1024
 
@@ -155,8 +155,8 @@ typedef struct CSAM
     uint32_t            iDangerousInstr;
 
     RCPTRTYPE(RTRCPTR *)  pPDBitmapGC;
-    RCPTRTYPE(RTHCPTR *)  pPDHCBitmapGC;
-    R3PTRTYPE(uint8_t **) pPDBitmapHC;
+    RCPTRTYPE(RTHCPTR *)    pPDHCBitmapGC;
+    R3PTRTYPE(uint8_t **)   pPDBitmapHC;
     R3PTRTYPE(RTRCPTR  *) pPDGCBitmapHC;
 
     /* Temporary storage during load/save state */
@@ -174,16 +174,11 @@ typedef struct CSAM
 
     /* To keep track of possible code pages */
     uint32_t            cPossibleCodePages;
-    RTRCPTR             pvPossibleCodePage[CSAM_MAX_CODE_PAGES_FLUSH];
+    RTRCPTR           pvPossibleCodePage[CSAM_MAX_CODE_PAGES_FLUSH];
 
     /* call addresses reported by the recompiler */
-    RTRCPTR             pvCallInstruction[16];
-    uint32_t            iCallInstruction;
-
-    /** Code page write access handler type. */
-    PGMVIRTHANDLERTYPE  hCodePageWriteType;
-    /** Code page write & invalidation access handler type. */
-    PGMVIRTHANDLERTYPE  hCodePageWriteAndInvPgType;
+    RTRCPTR           pvCallInstruction[16];
+    RTUINT              iCallInstruction;
 
     /* Set when scanning has started. */
     bool                fScanningStarted;
@@ -281,9 +276,8 @@ inline RTRCPTR CSAMResolveBranch(PDISCPUSTATE pCpu, RTRCPTR pBranchInstrGC)
 #endif
 }
 
-PGM_ALL_CB2_DECL(FNPGMVIRTHANDLER)  csamCodePageWriteHandler;
 RT_C_DECLS_BEGIN
-DECLEXPORT(FNPGMRCVIRTPFHANDLER)    csamRCCodePageWritePfHandler;
+VMMRCDECL(int) CSAMGCCodePageWriteHandler(PVM pVM, RTGCUINT uErrorCode, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, RTGCPTR pvRange, uintptr_t offRange);
 RT_C_DECLS_END
 
 #endif

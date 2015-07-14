@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -173,11 +173,6 @@ static bool MyDisBlock(DISCPUMODE enmCpuMode, RTHCUINTPTR pvCodeBlock, int32_t c
         RTAssertSetQuiet(fQuiet);
         if (RT_FAILURE(rc))
             return false;
-
-        TESTNEARSYM NearSym;
-        rc = FindNearSymbol(uNearAddr + i, &NearSym);
-        if (RT_SUCCESS(rc) && NearSym.aSyms[0].Value == NearSym.Addr)
-            RTPrintf("%s:\n", NearSym.aSyms[0].szName);
 
         DISFormatYasmEx(&Cpu, szOutput, sizeof(szOutput),
                         DIS_FMT_FLAGS_RELATIVE_BRANCH | DIS_FMT_FLAGS_BYTES_RIGHT | DIS_FMT_FLAGS_ADDR_LEFT  | DIS_FMT_FLAGS_BYTES_SPACED,

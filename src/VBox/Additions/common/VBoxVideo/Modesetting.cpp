@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -26,7 +26,7 @@
 #include <iprt/log.h>
 
 #ifndef VBOX_GUESTR3XF86MOD
-# include <iprt/string.h>
+# include <string.h>
 #endif
 
 /**
@@ -283,7 +283,7 @@ RTDECL(void) VBoxHGSMIProcessDisplayInfo(PHGSMIGUESTCOMMANDCONTEXT pCtx,
 /** Report the rectangle relative to which absolute pointer events should be
  *  expressed.  This information remains valid until the next VBVA resize event
  *  for any screen, at which time it is reset to the bounding rectangle of all
- *  virtual screens.
+ *  virtual screens. 
  * @param  pCtx      The context containing the heap to use.
  * @param  cOriginX  Upper left X co-ordinate relative to the first screen.
  * @param  cOriginY  Upper left Y co-ordinate relative to the first screen.
@@ -372,7 +372,7 @@ RTDECL(int) VBoxHGSMIGetModeHints(PHGSMIGUESTCOMMANDCONTEXT pCtx,
 RTDECL(uint16_t) VBoxHGSMIGetScreenFlags(PHGSMIGUESTCOMMANDCONTEXT pCtx)
 {
     uint32_t u32Flags = 0;
-    int rc = VBoxQueryConfHGSMIDef(pCtx, VBOX_VBVA_CONF32_SCREEN_FLAGS, 0, &u32Flags);
+    int rc = VBoxQueryConfHGSMI(pCtx, VBOX_VBVA_CONF32_SCREEN_FLAGS, &u32Flags);
     LogFunc(("u32Flags = 0x%x rc %Rrc\n", u32Flags, rc));
     if (RT_FAILURE(rc))
         u32Flags = 0;

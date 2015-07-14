@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -47,6 +47,7 @@
 #include <VBox/log.h>
 #include <iprt/asm.h>
 #include <iprt/asm-amd64-x86.h>
+#include <iprt/string.h>
 #include <iprt/env.h>
 #include <iprt/thread.h>
 
@@ -68,63 +69,58 @@ static const char * const g_apszVTxExitReasons[MAX_EXITREASON_STAT] =
     EXIT_REASON(VMX_EXIT_IO_SMI_IRQ         ,  5, "I/O system-management interrupt (SMI)."),
     EXIT_REASON(VMX_EXIT_SMI_IRQ            ,  6, "Other SMI."),
     EXIT_REASON(VMX_EXIT_INT_WINDOW         ,  7, "Interrupt window."),
-    EXIT_REASON(VMX_EXIT_NMI_WINDOW         ,  8, "NMI window."),
-    EXIT_REASON(VMX_EXIT_TASK_SWITCH        ,  9, "Task switch."),
-    EXIT_REASON(VMX_EXIT_CPUID              , 10, "CPUID instruction."),
     EXIT_REASON_NIL(),
-    EXIT_REASON(VMX_EXIT_HLT                , 12, "HLT instruction."),
-    EXIT_REASON(VMX_EXIT_INVD               , 13, "INVD instruction."),
-    EXIT_REASON(VMX_EXIT_INVLPG             , 14, "INVLPG instruction."),
-    EXIT_REASON(VMX_EXIT_RDPMC              , 15, "RDPMCinstruction."),
-    EXIT_REASON(VMX_EXIT_RDTSC              , 16, "RDTSC instruction."),
-    EXIT_REASON(VMX_EXIT_RSM                , 17, "RSM instruction in SMM."),
-    EXIT_REASON(VMX_EXIT_VMCALL             , 18, "VMCALL instruction."),
-    EXIT_REASON(VMX_EXIT_VMCLEAR            , 19, "VMCLEAR instruction."),
-    EXIT_REASON(VMX_EXIT_VMLAUNCH           , 20, "VMLAUNCH instruction."),
-    EXIT_REASON(VMX_EXIT_VMPTRLD            , 21, "VMPTRLD instruction."),
-    EXIT_REASON(VMX_EXIT_VMPTRST            , 22, "VMPTRST instruction."),
-    EXIT_REASON(VMX_EXIT_VMREAD             , 23, "VMREAD instruction."),
-    EXIT_REASON(VMX_EXIT_VMRESUME           , 24, "VMRESUME instruction."),
-    EXIT_REASON(VMX_EXIT_VMWRITE            , 25, "VMWRITE instruction."),
-    EXIT_REASON(VMX_EXIT_VMXOFF             , 26, "VMXOFF instruction."),
-    EXIT_REASON(VMX_EXIT_VMXON              , 27, "VMXON instruction."),
+    EXIT_REASON(VMX_EXIT_TASK_SWITCH        ,  9, "Task switch."),
+    EXIT_REASON(VMX_EXIT_CPUID              , 10, "Guest attempted to execute CPUID."),
+    EXIT_REASON_NIL(),
+    EXIT_REASON(VMX_EXIT_HLT                , 12, "Guest attempted to execute HLT."),
+    EXIT_REASON(VMX_EXIT_INVD               , 13, "Guest attempted to execute INVD."),
+    EXIT_REASON(VMX_EXIT_INVLPG             , 14, "Guest attempted to execute INVLPG."),
+    EXIT_REASON(VMX_EXIT_RDPMC              , 15, "Guest attempted to execute RDPMC."),
+    EXIT_REASON(VMX_EXIT_RDTSC              , 16, "Guest attempted to execute RDTSC."),
+    EXIT_REASON(VMX_EXIT_RSM                , 17, "Guest attempted to execute RSM in SMM."),
+    EXIT_REASON(VMX_EXIT_VMCALL             , 18, "Guest attempted to execute VMCALL."),
+    EXIT_REASON(VMX_EXIT_VMCLEAR            , 19, "Guest attempted to execute VMCLEAR."),
+    EXIT_REASON(VMX_EXIT_VMLAUNCH           , 20, "Guest attempted to execute VMLAUNCH."),
+    EXIT_REASON(VMX_EXIT_VMPTRLD            , 21, "Guest attempted to execute VMPTRLD."),
+    EXIT_REASON(VMX_EXIT_VMPTRST            , 22, "Guest attempted to execute VMPTRST."),
+    EXIT_REASON(VMX_EXIT_VMREAD             , 23, "Guest attempted to execute VMREAD."),
+    EXIT_REASON(VMX_EXIT_VMRESUME           , 24, "Guest attempted to execute VMRESUME."),
+    EXIT_REASON(VMX_EXIT_VMWRITE            , 25, "Guest attempted to execute VMWRITE."),
+    EXIT_REASON(VMX_EXIT_VMXOFF             , 26, "Guest attempted to execute VMXOFF."),
+    EXIT_REASON(VMX_EXIT_VMXON              , 27, "Guest attempted to execute VMXON."),
     EXIT_REASON(VMX_EXIT_MOV_CRX            , 28, "Control-register accesses."),
     EXIT_REASON(VMX_EXIT_MOV_DRX            , 29, "Debug-register accesses."),
     EXIT_REASON(VMX_EXIT_PORT_IO            , 30, "I/O instruction."),
-    EXIT_REASON(VMX_EXIT_RDMSR              , 31, "RDMSR instruction."),
-    EXIT_REASON(VMX_EXIT_WRMSR              , 32, "WRMSR instruction."),
+    EXIT_REASON(VMX_EXIT_RDMSR              , 31, "Guest attempted to execute RDMSR."),
+    EXIT_REASON(VMX_EXIT_WRMSR              , 32, "Guest attempted to execute WRMSR."),
     EXIT_REASON(VMX_EXIT_ERR_INVALID_GUEST_STATE,  33, "VM-entry failure due to invalid guest state."),
     EXIT_REASON(VMX_EXIT_ERR_MSR_LOAD       , 34, "VM-entry failure due to MSR loading."),
     EXIT_REASON_NIL(),
-    EXIT_REASON(VMX_EXIT_MWAIT              , 36, "MWAIT instruction."),
+    EXIT_REASON(VMX_EXIT_MWAIT              , 36, "Guest executed MWAIT."),
     EXIT_REASON(VMX_EXIT_MTF                , 37, "Monitor Trap Flag."),
     EXIT_REASON_NIL(),
-    EXIT_REASON(VMX_EXIT_MONITOR            , 39, "MONITOR instruction."),
-    EXIT_REASON(VMX_EXIT_PAUSE              , 40, "PAUSE instruction."),
+    EXIT_REASON(VMX_EXIT_MONITOR            , 39, "Guest attempted to execute MONITOR."),
+    EXIT_REASON(VMX_EXIT_PAUSE              , 40, "Guest attempted to execute PAUSE."),
     EXIT_REASON(VMX_EXIT_ERR_MACHINE_CHECK  , 41, "VM-entry failure due to machine-check."),
     EXIT_REASON_NIL(),
-    EXIT_REASON(VMX_EXIT_TPR_BELOW_THRESHOLD, 43, "TPR below threshold (MOV to CR8)."),
-    EXIT_REASON(VMX_EXIT_APIC_ACCESS        , 44, "APIC access."),
+    EXIT_REASON(VMX_EXIT_TPR_BELOW_THRESHOLD, 43, "TPR below threshold. Guest attempted to execute MOV to CR8."),
+    EXIT_REASON(VMX_EXIT_APIC_ACCESS        , 44, "APIC access. Guest attempted to access memory at a physical address on the APIC-access page."),
     EXIT_REASON_NIL(),
-    EXIT_REASON(VMX_EXIT_XDTR_ACCESS        , 46, "Access to GDTR or IDTR using LGDT, LIDT, SGDT, or SIDT."),
-    EXIT_REASON(VMX_EXIT_TR_ACCESS          , 47, "Access to LDTR or TR using LLDT, LTR, SLDT, or STR."),
-    EXIT_REASON(VMX_EXIT_EPT_VIOLATION      , 48, "EPT violation."),
-    EXIT_REASON(VMX_EXIT_EPT_MISCONFIG      , 49, "EPT misconfiguration."),
-    EXIT_REASON(VMX_EXIT_INVEPT             , 50, "INVEPT instruction."),
-    EXIT_REASON(VMX_EXIT_RDTSCP             , 51, "RDTSCP instruction."),
+    EXIT_REASON(VMX_EXIT_XDTR_ACCESS        , 46, "Access to GDTR or IDTR. Guest attempted to execute LGDT, LIDT, SGDT, or SIDT."),
+    EXIT_REASON(VMX_EXIT_TR_ACCESS          , 47, "Access to LDTR or TR. Guest attempted to execute LLDT, LTR, SLDT, or STR."),
+    EXIT_REASON(VMX_EXIT_EPT_VIOLATION      , 48, "EPT violation. An attempt to access memory with a guest-physical address was disallowed by the configuration of the EPT paging structures."),
+    EXIT_REASON(VMX_EXIT_EPT_MISCONFIG      , 49, "EPT misconfiguration. An attempt to access memory with a guest-physical address encountered a misconfigured EPT paging-structure entry."),
+    EXIT_REASON(VMX_EXIT_INVEPT             , 50, "Guest attempted to execute INVEPT."),
+    EXIT_REASON(VMX_EXIT_RDTSCP             , 51, "Guest attempted to execute RDTSCP."),
     EXIT_REASON(VMX_EXIT_PREEMPT_TIMER      , 52, "VMX-preemption timer expired."),
-    EXIT_REASON(VMX_EXIT_INVVPID            , 53, "INVVPID instruction."),
-    EXIT_REASON(VMX_EXIT_WBINVD             , 54, "WBINVD instruction."),
-    EXIT_REASON(VMX_EXIT_XSETBV             , 55, "XSETBV instruction."),
+    EXIT_REASON(VMX_EXIT_INVVPID            , 53, "Guest attempted to execute INVVPID."),
+    EXIT_REASON(VMX_EXIT_WBINVD             , 54, "Guest attempted to execute WBINVD."),
+    EXIT_REASON(VMX_EXIT_XSETBV             , 55, "Guest attempted to execute XSETBV."),
     EXIT_REASON_NIL(),
-    EXIT_REASON(VMX_EXIT_RDRAND             , 57, "RDRAND instruction."),
-    EXIT_REASON(VMX_EXIT_INVPCID            , 58, "INVPCID instruction."),
-    EXIT_REASON(VMX_EXIT_VMFUNC             , 59, "VMFUNC instruction."),
-    EXIT_REASON_NIL(),
-    EXIT_REASON(VMX_EXIT_RDSEED             , 61, "RDSEED instruction."),
-    EXIT_REASON_NIL(),
-    EXIT_REASON(VMX_EXIT_XSAVES             , 61, "XSAVES instruction."),
-    EXIT_REASON(VMX_EXIT_XRSTORS            , 62, "XRSTORS instruction.")
+    EXIT_REASON(VMX_EXIT_RDRAND             , 57, "Guest attempted to execute RDRAND."),
+    EXIT_REASON(VMX_EXIT_INVPCID            , 58, "Guest attempted to execute INVPCID."),
+    EXIT_REASON(VMX_EXIT_VMFUNC             , 59, "Guest attempted to execute VMFUNC.")
 };
 /** Exit reason descriptions for AMD-V, used to describe statistics. */
 static const char * const g_apszAmdVExitReasons[MAX_EXITREASON_STAT] =
@@ -345,12 +341,23 @@ VMMR3_INT_DECL(int) HMR3Init(PVM pVM)
     /*
      * Register the saved state data unit.
      */
-    int rc = SSMR3RegisterInternal(pVM, "HWACCM", 0, HM_SAVED_STATE_VERSION, sizeof(HM),
+    int rc = SSMR3RegisterInternal(pVM, "HWACCM", 0, HM_SSM_VERSION, sizeof(HM),
                                    NULL, NULL, NULL,
                                    NULL, hmR3Save, NULL,
                                    NULL, hmR3Load, NULL);
     if (RT_FAILURE(rc))
         return rc;
+
+    /*
+     * Misc initialisation.
+     */
+#if 0
+    pVM->hm.s.vmx.fSupported = false;
+    pVM->hm.s.svm.fSupported = false;
+    pVM->hm.s.vmx.fEnabled   = false;
+    pVM->hm.s.svm.fEnabled   = false;
+    pVM->hm.s.fNestedPaging  = false;
+#endif
 
     /*
      * Read configuration.
@@ -402,7 +409,7 @@ VMMR3_INT_DECL(int) HMR3Init(PVM pVM)
 
     /** @cfgm{/HM/TPRPatchingEnabled, bool, false}
      * Enables TPR patching for 32-bit windows guests with IO-APIC. */
-    rc = CFGMR3QueryBoolDef(pCfgHM, "TPRPatchingEnabled", &pVM->hm.s.fTprPatchingAllowed, false);
+    rc = CFGMR3QueryBoolDef(pCfgHM, "TPRPatchingEnabled", &pVM->hm.s.fTRPPatchingAllowed, false);
     AssertRCReturn(rc, rc);
 
     /** @cfgm{/HM/64bitEnabled, bool, 32-bit:false, 64-bit:true}
@@ -421,36 +428,23 @@ VMMR3_INT_DECL(int) HMR3Init(PVM pVM)
      * global init for each host CPU.  If false, we do local init each time we wish
      * to execute guest code.
      *
-     * On Windows, default is false due to the higher risk of conflicts with other
-     * hypervisors.
-     *
-     * On Mac OS X, this setting is ignored since the code does not handle local
-     * init when it utilizes the OS provided VT-x function, SUPR0EnableVTx().
+     * Default is false for Mac OS X and Windows due to the higher risk of conflicts
+     * with other hypervisors.
      */
-#if defined(RT_OS_DARWIN)
-    pVM->hm.s.fGlobalInit = true;
-#else
     rc = CFGMR3QueryBoolDef(pCfgHM, "Exclusive", &pVM->hm.s.fGlobalInit,
-# if defined(RT_OS_WINDOWS)
+#if defined(RT_OS_DARWIN) || defined(RT_OS_WINDOWS)
                             false
-# else
+#else
                             true
-# endif
+#endif
                            );
     AssertLogRelRCReturn(rc, rc);
-#endif
 
     /** @cfgm{/HM/MaxResumeLoops, uint32_t}
      * The number of times to resume guest execution before we forcibly return to
      * ring-3.  The return value of RTThreadPreemptIsPendingTrusty in ring-0
      * determines the default value. */
     rc = CFGMR3QueryU32Def(pCfgHM, "MaxResumeLoops", &pVM->hm.s.cMaxResumeLoops, 0 /* set by R0 later */);
-    AssertLogRelRCReturn(rc, rc);
-
-    /** @cfgm{/HM/UseVmxPreemptTimer, bool}
-     * Whether to make use of the VMX-preemption timer feature of the CPU if it's
-     * available. */
-    rc = CFGMR3QueryBoolDef(pCfgHM, "UseVmxPreemptTimer", &pVM->hm.s.vmx.fUsePreemptTimer, true);
     AssertLogRelRCReturn(rc, rc);
 
     /*
@@ -465,21 +459,12 @@ VMMR3_INT_DECL(int) HMR3Init(PVM pVM)
         if (RT_SUCCESS(rc))
         {
             if (fCaps & SUPVTCAPS_AMD_V)
-            {
-                LogRel(("HM: HMR3Init: AMD-V%s\n", fCaps & SUPVTCAPS_NESTED_PAGING ? " w/ nested paging" : ""));
-                pVM->hm.s.svm.fSupported = true;
-            }
+                LogRel(("HMR3Init: AMD-V%s\n", fCaps & SUPVTCAPS_NESTED_PAGING ? " w/ nested paging" : ""));
             else if (fCaps & SUPVTCAPS_VT_X)
             {
                 rc = SUPR3QueryVTxSupported();
                 if (RT_SUCCESS(rc))
-                {
-                    LogRel(("HM: HMR3Init: VT-x%s%s%s\n",
-                            fCaps & SUPVTCAPS_NESTED_PAGING ? " w/ nested paging" : "",
-                            fCaps & SUPVTCAPS_VTX_UNRESTRICTED_GUEST ? " and unrestricted guest execution" : "",
-                            (fCaps & (SUPVTCAPS_NESTED_PAGING | SUPVTCAPS_VTX_UNRESTRICTED_GUEST)) ? " hw support" : ""));
-                    pVM->hm.s.vmx.fSupported = true;
-                }
+                    LogRel(("HMR3Init: VT-x%s\n", fCaps & SUPVTCAPS_NESTED_PAGING ? " w/ nested paging" : ""));
                 else
                 {
 #ifdef RT_OS_LINUX
@@ -491,7 +476,7 @@ VMMR3_INT_DECL(int) HMR3Init(PVM pVM)
                         return VMSetError(pVM, rc, RT_SRC_POS, "The host kernel does not support VT-x.%s\n", pszMinReq);
 
                     /* Fall back to raw-mode. */
-                    LogRel(("HM: HMR3Init: Falling back to raw-mode: The host kernel does not support VT-x.%s\n", pszMinReq));
+                    LogRel(("HMR3Init: Falling back to raw-mode: The host kernel does not support VT-x.%s\n", pszMinReq));
                     pVM->fHMEnabled = false;
                 }
             }
@@ -505,32 +490,6 @@ VMMR3_INT_DECL(int) HMR3Init(PVM pVM)
             pVM->fHMNeedRawModeCtx = HC_ARCH_BITS == 32
                                   && pVM->fHMEnabled
                                   && pVM->hm.s.fAllow64BitGuests;
-
-            /*
-             * Disable nested paging and unrestricted guest execution now if they're
-             * configured so that CPUM can make decisions based on our configuration.
-             */
-            Assert(!pVM->hm.s.fNestedPaging);
-            if (pVM->hm.s.fAllowNestedPaging)
-            {
-                if (fCaps & SUPVTCAPS_NESTED_PAGING)
-                    pVM->hm.s.fNestedPaging = true;
-                else
-                    pVM->hm.s.fAllowNestedPaging = false;
-            }
-
-            if (fCaps & SUPVTCAPS_VT_X)
-            {
-                Assert(!pVM->hm.s.vmx.fUnrestrictedGuest);
-                if (pVM->hm.s.vmx.fAllowUnrestricted)
-                {
-                    if (   (fCaps & SUPVTCAPS_VTX_UNRESTRICTED_GUEST)
-                        && pVM->hm.s.fNestedPaging)
-                        pVM->hm.s.vmx.fUnrestrictedGuest = true;
-                    else
-                        pVM->hm.s.vmx.fAllowUnrestricted = false;
-                }
-            }
         }
         else
         {
@@ -549,8 +508,8 @@ VMMR3_INT_DECL(int) HMR3Init(PVM pVM)
                     pszMsg = "VT-x is disabled in the BIOS.";
                     break;
 
-                case VERR_VMX_MSR_ALL_VMXON_DISABLED:
-                    pszMsg = "VT-x is disabled in the BIOS for all CPU modes.";
+                case VERR_VMX_MSR_SMX_VMXON_DISABLED:
+                    pszMsg = "VT-x is disabled in the BIOS for Safer-Mode/Trusted Extensions.";
                     break;
 
                 case VERR_VMX_MSR_LOCKING_FAILED:
@@ -575,7 +534,7 @@ VMMR3_INT_DECL(int) HMR3Init(PVM pVM)
                 return VMSetError(pVM, rc, RT_SRC_POS, "SUPR3QueryVTCaps failed with %Rrc", rc);
 
             /* Fall back to raw-mode. */
-            LogRel(("HM: HMR3Init: Falling back to raw-mode: %s\n", pszMsg));
+            LogRel(("HMR3Init: Falling back to raw-mode: %s\n", pszMsg));
             pVM->fHMEnabled = false;
         }
     }
@@ -697,7 +656,7 @@ static int hmR3InitCPU(PVM pVM)
         HM_REG_COUNTER(&pVCpu->hm.s.StatExitGuestUD,            "/HM/CPU%d/Exit/Trap/Gst/#UD", "Guest #UD (undefined opcode) exception.");
         HM_REG_COUNTER(&pVCpu->hm.s.StatExitGuestSS,            "/HM/CPU%d/Exit/Trap/Gst/#SS", "Guest #SS (stack-segment fault) exception.");
         HM_REG_COUNTER(&pVCpu->hm.s.StatExitGuestNP,            "/HM/CPU%d/Exit/Trap/Gst/#NP", "Guest #NP (segment not present) exception.");
-        HM_REG_COUNTER(&pVCpu->hm.s.StatExitGuestGP,            "/HM/CPU%d/Exit/Trap/Gst/#GP", "Guest #GP (general protection) exception.");
+        HM_REG_COUNTER(&pVCpu->hm.s.StatExitGuestGP,            "/HM/CPU%d/Exit/Trap/Gst/#GP", "Guest #GP (general protection) execption.");
         HM_REG_COUNTER(&pVCpu->hm.s.StatExitGuestMF,            "/HM/CPU%d/Exit/Trap/Gst/#MF", "Guest #MF (x87 FPU error, math fault) exception.");
         HM_REG_COUNTER(&pVCpu->hm.s.StatExitGuestDE,            "/HM/CPU%d/Exit/Trap/Gst/#DE", "Guest #DE (divide error) exception.");
         HM_REG_COUNTER(&pVCpu->hm.s.StatExitGuestDB,            "/HM/CPU%d/Exit/Trap/Gst/#DB", "Guest #DB (debug) exception.");
@@ -734,6 +693,7 @@ static int hmR3InitCPU(PVM pVM)
         HM_REG_COUNTER(&pVCpu->hm.s.StatExitIOStringWrite,      "/HM/CPU%d/Exit/IO/WriteString", "String I/O write.");
         HM_REG_COUNTER(&pVCpu->hm.s.StatExitIOStringRead,       "/HM/CPU%d/Exit/IO/ReadString", "String I/O read.");
         HM_REG_COUNTER(&pVCpu->hm.s.StatExitIntWindow,          "/HM/CPU%d/Exit/IntWindow", "Interrupt-window exit. Guest is ready to receive interrupts again.");
+        HM_REG_COUNTER(&pVCpu->hm.s.StatExitMaxResume,          "/HM/CPU%d/Exit/MaxResume", "Maximum VMRESUME inner-loop counter reached.");
         HM_REG_COUNTER(&pVCpu->hm.s.StatExitExtInt,             "/HM/CPU%d/Exit/ExtInt", "Host interrupt received.");
 #endif
         HM_REG_COUNTER(&pVCpu->hm.s.StatExitHostNmiInGC,        "/HM/CPU%d/Exit/HostNmiInGC", "Host NMI received while in guest context.");
@@ -749,15 +709,13 @@ static int hmR3InitCPU(PVM pVM)
         HM_REG_COUNTER(&pVCpu->hm.s.StatSwitchHmToR3FF,         "/HM/CPU%d/Switch/HmToR3FF", "Exit to ring-3 due to pending timers, EMT rendezvous, critical section etc.");
         HM_REG_COUNTER(&pVCpu->hm.s.StatSwitchExitToR3,         "/HM/CPU%d/Switch/ExitToR3", "Exit to ring-3 (total).");
         HM_REG_COUNTER(&pVCpu->hm.s.StatSwitchLongJmpToR3,      "/HM/CPU%d/Switch/LongJmpToR3", "Longjump to ring-3.");
-        HM_REG_COUNTER(&pVCpu->hm.s.StatSwitchMaxResumeLoops,   "/HM/CPU%d/Switch/MaxResumeToR3", "Maximum VMRESUME inner-loop counter reached.");
-        HM_REG_COUNTER(&pVCpu->hm.s.StatSwitchHltToR3,          "/HM/CPU%d/Switch/HltToR3", "HLT causing us to go to ring-3.");
-        HM_REG_COUNTER(&pVCpu->hm.s.StatSwitchApicAccessToR3,   "/HM/CPU%d/Switch/ApicAccessToR3", "APIC access causing us to go to ring-3.");
-        HM_REG_COUNTER(&pVCpu->hm.s.StatSwitchPreempt,          "/HM/CPU%d/Switch/Preempting", "EMT has been preempted while in HM context.");
-        HM_REG_COUNTER(&pVCpu->hm.s.StatSwitchPreemptSaveHostState, "/HM/CPU%d/Switch/SaveHostState", "Preemption caused us to resave host state.");
 
         HM_REG_COUNTER(&pVCpu->hm.s.StatInjectInterrupt,        "/HM/CPU%d/EventInject/Interrupt", "Injected an external interrupt into the guest.");
         HM_REG_COUNTER(&pVCpu->hm.s.StatInjectXcpt,             "/HM/CPU%d/EventInject/Trap", "Injected an exception into the guest.");
         HM_REG_COUNTER(&pVCpu->hm.s.StatInjectPendingReflect,   "/HM/CPU%d/EventInject/PendingReflect", "Reflecting an exception back to the guest.");
+
+        HM_REG_COUNTER(&pVCpu->hm.s.StatPreemptPreempting,      "/HM/CPU%d/Preempt/Preempting", "EMT has been preempted while in HM context.");
+        HM_REG_COUNTER(&pVCpu->hm.s.StatPreemptSaveHostState,   "/HM/CPU%d/Preempt/SaveHostState", "Preemption caused us to resave host state.");
 
         HM_REG_COUNTER(&pVCpu->hm.s.StatFlushPage,              "/HM/CPU%d/Flush/Page", "Invalidating a guest page on all guest CPUs.");
         HM_REG_COUNTER(&pVCpu->hm.s.StatFlushPageManual,        "/HM/CPU%d/Flush/Page/Virt", "Invalidating a guest page using guest-virtual address.");
@@ -774,9 +732,9 @@ static int hmR3InitCPU(PVM pVM)
         HM_REG_COUNTER(&pVCpu->hm.s.StatTlbShootdown,           "/HM/CPU%d/Flush/Shootdown/Page", "Inter-VCPU request to flush queued guest page.");
         HM_REG_COUNTER(&pVCpu->hm.s.StatTlbShootdownFlush,      "/HM/CPU%d/Flush/Shootdown/TLB", "Inter-VCPU request to flush entire guest-TLB.");
 
-        HM_REG_COUNTER(&pVCpu->hm.s.StatTscParavirt,            "/HM/CPU%d/TSC/Paravirt", "Paravirtualized TSC in effect.");
         HM_REG_COUNTER(&pVCpu->hm.s.StatTscOffset,              "/HM/CPU%d/TSC/Offset", "TSC offsetting is in effect.");
-        HM_REG_COUNTER(&pVCpu->hm.s.StatTscIntercept,           "/HM/CPU%d/TSC/Intercept", "Intercept TSC accesses.");
+        HM_REG_COUNTER(&pVCpu->hm.s.StatTscIntercept,           "/HM/CPU%d/TSC/Intercept", "Guest is in catchup mode, intercept TSC accesses.");
+        HM_REG_COUNTER(&pVCpu->hm.s.StatTscInterceptOverFlow,   "/HM/CPU%d/TSC/InterceptOverflow", "TSC offset overflow, fallback to intercept TSC accesses.");
 
         HM_REG_COUNTER(&pVCpu->hm.s.StatDRxArmed,               "/HM/CPU%d/Debug/Armed", "Loaded guest-debug state while loading guest-state.");
         HM_REG_COUNTER(&pVCpu->hm.s.StatDRxContextSwitch,       "/HM/CPU%d/Debug/ContextSwitch", "Loaded guest-debug state on MOV DRx.");
@@ -853,7 +811,7 @@ static int hmR3InitCPU(PVM pVM)
         {
             STAMR3RegisterF(pVM, &pVCpu->hm.s.paStatInjectedIrqs[j], STAMTYPE_COUNTER, STAMVISIBILITY_USED, STAMUNIT_OCCURENCES,
                             "Injected event.",
-                            (j < 0x20) ? "/HM/CPU%d/EventInject/InjectTrap/%02X" : "/HM/CPU%d/EventInject/InjectIRQ/%02X", i, j);
+                            (j < 0x20) ? "/HM/CPU%d/EventInject/Event/Trap/%02X" : "/HM/CPU%d/EventInject/Event/IRQ/%02X", i, j);
         }
 
 #endif /* VBOX_WITH_STATISTICS */
@@ -959,8 +917,8 @@ static int hmR3InitFinalizeR0(PVM pVM)
                 return VM_SET_ERROR(pVM, VERR_VMX_NO_VMX, "VT-x is not available.");
             case VERR_VMX_MSR_VMXON_DISABLED:
                 return VM_SET_ERROR(pVM, VERR_VMX_NO_VMX, "VT-x is disabled in the BIOS.");
-            case VERR_VMX_MSR_ALL_VMXON_DISABLED:
-                return VM_SET_ERROR(pVM, VERR_VMX_NO_VMX, "VT-x is disabled in the BIOS for all CPU modes.");
+            case VERR_VMX_MSR_SMX_VMXON_DISABLED:
+                return VM_SET_ERROR(pVM, VERR_VMX_NO_VMX, "VT-x is disabled in the BIOS for Safer-Mode/Trusted Extensions.");
             case VERR_VMX_MSR_LOCKING_FAILED:
                 return VM_SET_ERROR(pVM, VERR_VMX_NO_VMX, "Failed to enable and lock VT-x features.");
 
@@ -992,8 +950,8 @@ static int hmR3InitFinalizeR0(PVM pVM)
     pVM->hm.s.fHasIoApic = PDMHasIoApic(pVM);
     if (!pVM->hm.s.fHasIoApic)
     {
-        Assert(!pVM->hm.s.fTprPatchingAllowed); /* paranoia */
-        pVM->hm.s.fTprPatchingAllowed = false;
+        Assert(!pVM->hm.s.fTRPPatchingAllowed); /* paranoia */
+        pVM->hm.s.fTRPPatchingAllowed = false;
     }
 
     /*
@@ -1096,10 +1054,6 @@ static int hmR3InitFinalizeR0Intel(PVM pVM)
         HMVMX_REPORT_FEATURE(val, zap, VMX_VMCS_CTRL_PROC_EXEC2_RDRAND_EXIT);
         HMVMX_REPORT_FEATURE(val, zap, VMX_VMCS_CTRL_PROC_EXEC2_INVPCID);
         HMVMX_REPORT_FEATURE(val, zap, VMX_VMCS_CTRL_PROC_EXEC2_VMFUNC);
-        HMVMX_REPORT_FEATURE(val, zap, VMX_VMCS_CTRL_PROC_EXEC2_VMCS_SHADOWING);
-        HMVMX_REPORT_FEATURE(val, zap, VMX_VMCS_CTRL_PROC_EXEC2_RDSEED_EXIT);
-        HMVMX_REPORT_FEATURE(val, zap, VMX_VMCS_CTRL_PROC_EXEC2_EPT_VE);
-        HMVMX_REPORT_FEATURE(val, zap, VMX_VMCS_CTRL_PROC_EXEC2_XSAVES);
     }
 
     LogRel(("HM: MSR_IA32_VMX_ENTRY_CTLS         = %#RX64\n", pVM->hm.s.vmx.Msrs.VmxEntry.u));
@@ -1203,20 +1157,9 @@ static int hmR3InitFinalizeR0Intel(PVM pVM)
         LogRel(("HM: VCPU%3d: VMCS physaddr          = %#RHp\n", i, pVM->aCpus[i].hm.s.vmx.HCPhysVmcs));
     }
 
-    /*
-     * EPT and unhampered guest execution are determined in HMR3Init, verify the sanity of that.
-     */
-    AssertLogRelReturn(   !pVM->hm.s.fNestedPaging
-                       || (pVM->hm.s.vmx.Msrs.VmxProcCtls2.n.allowed1 & VMX_VMCS_CTRL_PROC_EXEC2_EPT),
-                       VERR_HM_IPE_1);
-    AssertLogRelReturn(   !pVM->hm.s.vmx.fUnrestrictedGuest
-                       || (   (pVM->hm.s.vmx.Msrs.VmxProcCtls2.n.allowed1 & VMX_VMCS_CTRL_PROC_EXEC2_UNRESTRICTED_GUEST)
-                           && pVM->hm.s.fNestedPaging),
-                       VERR_HM_IPE_1);
+    if (pVM->hm.s.vmx.Msrs.VmxProcCtls2.n.allowed1 & VMX_VMCS_CTRL_PROC_EXEC2_EPT)
+        pVM->hm.s.fNestedPaging = pVM->hm.s.fAllowNestedPaging;
 
-    /*
-     * Enable VPID if configured and supported.
-     */
     if (pVM->hm.s.vmx.Msrs.VmxProcCtls2.n.allowed1 & VMX_VMCS_CTRL_PROC_EXEC2_VPID)
         pVM->hm.s.vmx.fVpid = pVM->hm.s.vmx.fAllowVpid;
 
@@ -1229,7 +1172,15 @@ static int hmR3InitFinalizeR0Intel(PVM pVM)
         && CPUMGetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_RDTSCP))
     {
         CPUMClearGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_RDTSCP);
-        LogRel(("HM: RDTSCP disabled\n"));
+        LogRel(("HM: RDTSCP disabled.\n"));
+    }
+
+    /* Unrestricted guest execution also requires EPT. */
+    if (    pVM->hm.s.vmx.fAllowUnrestricted
+        &&  pVM->hm.s.fNestedPaging
+        &&  (pVM->hm.s.vmx.Msrs.VmxProcCtls2.n.allowed1 & VMX_VMCS_CTRL_PROC_EXEC2_UNRESTRICTED_GUEST))
+    {
+        pVM->hm.s.vmx.fUnrestrictedGuest = true;
     }
 
     if (!pVM->hm.s.vmx.fUnrestrictedGuest)
@@ -1280,17 +1231,18 @@ static int hmR3InitFinalizeR0Intel(PVM pVM)
         }
         else
         {
+            /** @todo This cannot possibly work, there are other places which assumes
+             *        this allocation cannot fail (see HMR3CanExecuteGuest()). Make this
+             *        a failure case. */
             LogRel(("HM: No real mode VT-x support (PDMR3VMMDevHeapAlloc returned %Rrc)\n", rc));
             pVM->hm.s.vmx.pRealModeTSS = NULL;
             pVM->hm.s.vmx.pNonPagingModeEPTPageTable = NULL;
-            return VMSetError(pVM, rc, RT_SRC_POS,
-                              "HM failure: No real mode VT-x support (PDMR3VMMDevHeapAlloc returned %Rrc)", rc);
         }
     }
 
     LogRel((pVM->hm.s.fAllow64BitGuests
-            ? "HM: Guest support: 32-bit and 64-bit\n"
-            : "HM: Guest support: 32-bit only\n"));
+            ? "HM: Guest support: 32-bit and 64-bit.\n"
+            : "HM: Guest support: 32-bit only.\n"));
 
     /*
      * Call ring-0 to set up the VM.
@@ -1306,7 +1258,6 @@ static int hmR3InitFinalizeR0Intel(PVM pVM)
             LogRel(("HM: CPU[%u] Last instruction error  %#x\n", i, pVCpu->hm.s.vmx.LastError.u32InstrError));
             LogRel(("HM: CPU[%u] HM error                %#x (%u)\n", i, pVCpu->hm.s.u32HMError, pVCpu->hm.s.u32HMError));
         }
-        HMR3CheckError(pVM, rc);
         return VMSetError(pVM, rc, RT_SRC_POS, "VT-x setup failed: %Rrc", rc);
     }
 
@@ -1336,7 +1287,7 @@ static int hmR3InitFinalizeR0Intel(PVM pVM)
         if (pVM->hm.s.vmx.u64HostEfer & MSR_K6_EFER_NXE)
             CPUMSetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_NX);
         else
-            LogRel(("HM: NX not enabled on the host, unavailable to PAE guest\n"));
+            LogRel(("HM: NX not enabled on the host, unavailable to PAE guest.\n"));
     }
 
     /*
@@ -1345,12 +1296,12 @@ static int hmR3InitFinalizeR0Intel(PVM pVM)
     if (pVM->hm.s.fNestedPaging)
     {
         LogRel(("HM: Nested paging enabled!\n"));
-        if (pVM->hm.s.vmx.enmFlushEpt == VMXFLUSHEPT_SINGLE_CONTEXT)
-            LogRel(("HM:   EPT flush type                = VMXFLUSHEPT_SINGLE_CONTEXT\n"));
-        else if (pVM->hm.s.vmx.enmFlushEpt == VMXFLUSHEPT_ALL_CONTEXTS)
-            LogRel(("HM:   EPT flush type                = VMXFLUSHEPT_ALL_CONTEXTS\n"));
-        else if (pVM->hm.s.vmx.enmFlushEpt == VMXFLUSHEPT_NOT_SUPPORTED)
-            LogRel(("HM:   EPT flush type                = VMXFLUSHEPT_NOT_SUPPORTED\n"));
+        if (pVM->hm.s.vmx.enmFlushEpt == VMX_FLUSH_EPT_SINGLE_CONTEXT)
+            LogRel(("HM:   EPT flush type                = VMX_FLUSH_EPT_SINGLE_CONTEXT\n"));
+        else if (pVM->hm.s.vmx.enmFlushEpt == VMX_FLUSH_EPT_ALL_CONTEXTS)
+            LogRel(("HM:   EPT flush type                = VMX_FLUSH_EPT_ALL_CONTEXTS\n"));
+        else if (pVM->hm.s.vmx.enmFlushEpt == VMX_FLUSH_EPT_NOT_SUPPORTED)
+            LogRel(("HM:   EPT flush type                = VMX_FLUSH_EPT_NOT_SUPPORTED\n"));
         else
             LogRel(("HM:   EPT flush type                = %d\n", pVM->hm.s.vmx.enmFlushEpt));
 
@@ -1362,7 +1313,7 @@ static int hmR3InitFinalizeR0Intel(PVM pVM)
         {
             /* Use large (2 MB) pages for our EPT PDEs where possible. */
             PGMSetLargePageUsage(pVM, true);
-            LogRel(("HM: Large page support enabled\n"));
+            LogRel(("HM: Large page support enabled!\n"));
         }
 #endif
     }
@@ -1372,24 +1323,33 @@ static int hmR3InitFinalizeR0Intel(PVM pVM)
     if (pVM->hm.s.vmx.fVpid)
     {
         LogRel(("HM: VPID enabled!\n"));
-        if (pVM->hm.s.vmx.enmFlushVpid == VMXFLUSHVPID_INDIV_ADDR)
-            LogRel(("HM:   VPID flush type               = VMXFLUSHVPID_INDIV_ADDR\n"));
-        else if (pVM->hm.s.vmx.enmFlushVpid == VMXFLUSHVPID_SINGLE_CONTEXT)
-            LogRel(("HM:   VPID flush type               = VMXFLUSHVPID_SINGLE_CONTEXT\n"));
-        else if (pVM->hm.s.vmx.enmFlushVpid == VMXFLUSHVPID_ALL_CONTEXTS)
-            LogRel(("HM:   VPID flush type               = VMXFLUSHVPID_ALL_CONTEXTS\n"));
-        else if (pVM->hm.s.vmx.enmFlushVpid == VMXFLUSHVPID_SINGLE_CONTEXT_RETAIN_GLOBALS)
-            LogRel(("HM:   VPID flush type               = VMXFLUSHVPID_SINGLE_CONTEXT_RETAIN_GLOBALS\n"));
+        if (pVM->hm.s.vmx.enmFlushVpid == VMX_FLUSH_VPID_INDIV_ADDR)
+            LogRel(("HM:   VPID flush type               = VMX_FLUSH_VPID_INDIV_ADDR\n"));
+        else if (pVM->hm.s.vmx.enmFlushVpid == VMX_FLUSH_VPID_SINGLE_CONTEXT)
+            LogRel(("HM:   VPID flush type               = VMX_FLUSH_VPID_SINGLE_CONTEXT\n"));
+        else if (pVM->hm.s.vmx.enmFlushVpid == VMX_FLUSH_VPID_ALL_CONTEXTS)
+            LogRel(("HM:   VPID flush type               = VMX_FLUSH_VPID_ALL_CONTEXTS\n"));
+        else if (pVM->hm.s.vmx.enmFlushVpid == VMX_FLUSH_VPID_SINGLE_CONTEXT_RETAIN_GLOBALS)
+            LogRel(("HM:   VPID flush type               = VMX_FLUSH_VPID_SINGLE_CONTEXT_RETAIN_GLOBALS\n"));
         else
             LogRel(("HM:   VPID flush type               = %d\n", pVM->hm.s.vmx.enmFlushVpid));
     }
-    else if (pVM->hm.s.vmx.enmFlushVpid == VMXFLUSHVPID_NOT_SUPPORTED)
-        LogRel(("HM: Ignoring VPID capabilities of CPU\n"));
+    else if (pVM->hm.s.vmx.enmFlushVpid == VMX_FLUSH_VPID_NOT_SUPPORTED)
+        LogRel(("HM: Ignoring VPID capabilities of CPU.\n"));
 
+    /*
+     * Check for preemption timer config override and log the state of it.
+     */
     if (pVM->hm.s.vmx.fUsePreemptTimer)
-        LogRel(("HM: VMX-preemption timer enabled (cPreemptTimerShift=%u)\n", pVM->hm.s.vmx.cPreemptTimerShift));
+    {
+        PCFGMNODE pCfgHm = CFGMR3GetChild(CFGMR3GetRoot(pVM), "HM");
+        rc = CFGMR3QueryBoolDef(pCfgHm, "UsePreemptTimer", &pVM->hm.s.vmx.fUsePreemptTimer, true);
+        AssertLogRelRCReturn(rc, rc);
+    }
+    if (pVM->hm.s.vmx.fUsePreemptTimer)
+        LogRel(("HM: VMX-preemption timer enabled (cPreemptTimerShift=%u).\n", pVM->hm.s.vmx.cPreemptTimerShift));
     else
-        LogRel(("HM: VMX-preemption timer disabled\n"));
+        LogRel(("HM: VMX-preemption timer disabled.\n"));
 
     return VINF_SUCCESS;
 }
@@ -1412,7 +1372,6 @@ static int hmR3InitFinalizeR0Amd(PVM pVM)
     uint32_t u32Stepping;
     if (HMAmdIsSubjectToErratum170(&u32Family, &u32Model, &u32Stepping))
         LogRel(("HM: AMD Cpu with erratum 170 family %#x model %#x stepping %#x\n", u32Family, u32Model, u32Stepping));
-    LogRel(("HM: Max resume loops                  = %u\n",     pVM->hm.s.cMaxResumeLoops));
     LogRel(("HM: CPUID 0x80000001.u32AMDFeatureECX = %#RX32\n", pVM->hm.s.cpuid.u32AMDFeatureECX));
     LogRel(("HM: CPUID 0x80000001.u32AMDFeatureEDX = %#RX32\n", pVM->hm.s.cpuid.u32AMDFeatureEDX));
     LogRel(("HM: AMD HWCR MSR                      = %#RX64\n", pVM->hm.s.svm.u64MsrHwcr));
@@ -1453,11 +1412,10 @@ static int hmR3InitFinalizeR0Amd(PVM pVM)
                 LogRel(("HM:   Reserved bit %u\n", iBit));
 
     /*
-     * Nested paging is determined in HMR3Init, verify the sanity of that.
+     * Adjust feature(s).
      */
-    AssertLogRelReturn(   !pVM->hm.s.fNestedPaging
-                       || (pVM->hm.s.svm.u32Features & AMD_CPUID_SVM_FEATURE_EDX_NESTED_PAGING),
-                       VERR_HM_IPE_1);
+    if (pVM->hm.s.svm.u32Features & AMD_CPUID_SVM_FEATURE_EDX_NESTED_PAGING)
+        pVM->hm.s.fNestedPaging = pVM->hm.s.fAllowNestedPaging;
 
     /*
      * Call ring-0 to set up the VM.
@@ -1507,11 +1465,11 @@ static int hmR3InitFinalizeR0Amd(PVM pVM)
     else if (CPUMGetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_PAE))
         CPUMSetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_NX);
 
-    LogRel(("HM: TPR patching %s\n", (pVM->hm.s.fTprPatchingAllowed) ? "enabled" : "disabled"));
+    LogRel(("HM: TPR Patching %s.\n", (pVM->hm.s.fTRPPatchingAllowed) ? "enabled" : "disabled"));
 
     LogRel((pVM->hm.s.fAllow64BitGuests
-            ? "HM: Guest support: 32-bit and 64-bit\n"
-            : "HM: Guest support: 32-bit only\n"));
+            ? "HM: Guest support: 32-bit and 64-bit.\n"
+            : "HM: Guest support: 32-bit only.\n"));
 
     return VINF_SUCCESS;
 }
@@ -1881,7 +1839,7 @@ DECLCALLBACK(VBOXSTRICTRC) hmR3ReplaceTprInstr(PVM pVM, PVMCPU pVCpu, void *pvUs
      * issued. (The other CPU(s) might not yet have switched to protected
      * mode, nor have the correct memory context.)
      */
-    VMCPUID idCpu = (VMCPUID)(uintptr_t)pvUser;
+    VMCPUID         idCpu  = (VMCPUID)(uintptr_t)pvUser;
     if (pVCpu->idCpu != idCpu)
         return VINF_SUCCESS;
 
@@ -1889,14 +1847,14 @@ DECLCALLBACK(VBOXSTRICTRC) hmR3ReplaceTprInstr(PVM pVM, PVMCPU pVCpu, void *pvUs
      * We're racing other VCPUs here, so don't try patch the instruction twice
      * and make sure there is still room for our patch record.
      */
-    PCPUMCTX    pCtx   = CPUMQueryGuestCtxPtr(pVCpu);
+    PCPUMCTX        pCtx   = CPUMQueryGuestCtxPtr(pVCpu);
     PHMTPRPATCH pPatch = (PHMTPRPATCH)RTAvloU32Get(&pVM->hm.s.PatchTree, (AVLOU32KEY)pCtx->eip);
     if (pPatch)
     {
         Log(("hmR3ReplaceTprInstr: already patched %RGv\n", pCtx->rip));
         return VINF_SUCCESS;
     }
-    uint32_t const idx = pVM->hm.s.cPatches;
+    uint32_t const  idx = pVM->hm.s.cPatches;
     if (idx >= RT_ELEMENTS(pVM->hm.s.aPatches))
     {
         Log(("hmR3ReplaceTprInstr: no available patch slots (%RGv)\n", pCtx->rip));
@@ -2507,7 +2465,7 @@ VMMR3DECL(bool) HMR3CanExecuteGuest(PVM pVM, PCPUMCTX pCtx)
     {
         /*
          * The VMM device heap is a requirement for emulating real mode or protected mode without paging with the unrestricted
-         * guest execution feature is missing (VT-x only).
+         * guest execution feature i missing (VT-x only).
          */
         if (fSupportsRealMode)
         {
@@ -2567,12 +2525,12 @@ VMMR3DECL(bool) HMR3CanExecuteGuest(PVM pVM, PCPUMCTX pCtx)
                 /* VT-x also chokes on invalid TR or LDTR selectors (minix). */
                 if (pCtx->gdtr.cbGdt)
                 {
-                    if ((pCtx->tr.Sel | X86_SEL_RPL_LDT) > pCtx->gdtr.cbGdt)
+                    if (pCtx->tr.Sel > pCtx->gdtr.cbGdt)
                     {
                         STAM_COUNTER_INC(&pVCpu->hm.s.StatVmxCheckBadTr);
                         return false;
                     }
-                    else if ((pCtx->ldtr.Sel | X86_SEL_RPL_LDT) > pCtx->gdtr.cbGdt)
+                    else if (pCtx->ldtr.Sel > pCtx->gdtr.cbGdt)
                     {
                         STAM_COUNTER_INC(&pVCpu->hm.s.StatVmxCheckBadLdt);
                         return false;
@@ -2707,7 +2665,7 @@ VMMR3_INT_DECL(void) HMR3NotifyEmulated(PVMCPU pVCpu)
 
 
 /**
- * Checks if we are currently using hardware acceleration.
+ * Checks if we are currently using hardware accelerated raw mode.
  *
  * @returns true if hardware acceleration is being used, otherwise false.
  * @param   pVCpu        Pointer to the VMCPU.
@@ -2719,7 +2677,8 @@ VMMR3_INT_DECL(bool) HMR3IsActive(PVMCPU pVCpu)
 
 
 /**
- * External interface for querying whether hardware acceleration is enabled.
+ * External interface for querying whether hardware accelerated raw mode is
+ * enabled.
  *
  * @returns true if VT-x or AMD-V is being used, otherwise false.
  * @param   pUVM        The user mode VM handle.
@@ -2936,8 +2895,6 @@ VMMR3_INT_DECL(void) HMR3CheckError(PVM pVM, int iStatusCode)
         PVMCPU pVCpu = &pVM->aCpus[i];
         switch (iStatusCode)
         {
-            /** @todo r=ramshankar: Are all EMTs out of ring-0 at this point!? If not, we
-             *  might be getting inaccurate values for non-guru'ing EMTs. */
             case VERR_VMX_INVALID_VMCS_FIELD:
                 break;
 
@@ -2968,10 +2925,12 @@ VMMR3_INT_DECL(void) HMR3CheckError(PVM pVM, int iStatusCode)
                     LogRel(("HM: CPU[%u] ProcCtls2        %#RX32\n", i, pVCpu->hm.s.vmx.u32ProcCtls2));
                     LogRel(("HM: CPU[%u] EntryCtls        %#RX32\n", i, pVCpu->hm.s.vmx.u32EntryCtls));
                     LogRel(("HM: CPU[%u] ExitCtls         %#RX32\n", i, pVCpu->hm.s.vmx.u32ExitCtls));
-                    LogRel(("HM: CPU[%u] HCPhysMsrBitmap  %#RHp\n",  i, pVCpu->hm.s.vmx.HCPhysMsrBitmap));
-                    LogRel(("HM: CPU[%u] HCPhysGuestMsr   %#RHp\n",  i, pVCpu->hm.s.vmx.HCPhysGuestMsr));
-                    LogRel(("HM: CPU[%u] HCPhysHostMsr    %#RHp\n",  i, pVCpu->hm.s.vmx.HCPhysHostMsr));
-                    LogRel(("HM: CPU[%u] cMsrs            %u\n",     i, pVCpu->hm.s.vmx.cMsrs));
+                    LogRel(("HM: CPU[%u] MSRBitmapPhys    %#RHp\n",  i, pVCpu->hm.s.vmx.HCPhysMsrBitmap));
+#ifdef VBOX_WITH_AUTO_MSR_LOAD_RESTORE
+                    LogRel(("HM: CPU[%u] GuestMSRPhys     %#RHp\n",  i, pVCpu->hm.s.vmx.HCPhysGuestMsr));
+                    LogRel(("HM: CPU[%u] HostMsrPhys      %#RHp\n",  i, pVCpu->hm.s.vmx.HCPhysHostMsr));
+                    LogRel(("HM: CPU[%u] cGuestMSRs       %u\n",     i, pVCpu->hm.s.vmx.cGuestMsrs));
+#endif
                 }
                 /** @todo Log VM-entry event injection control fields
                  *        VMX_VMCS_CTRL_ENTRY_IRQ_INFO, VMX_VMCS_CTRL_ENTRY_EXCEPTION_ERRCODE
@@ -2991,15 +2950,6 @@ VMMR3_INT_DECL(void) HMR3CheckError(PVM pVM, int iStatusCode)
             case VERR_VMX_UNEXPECTED_INTERRUPTION_EXIT_TYPE:
             {
                 LogRel(("HM: CPU[%u] HM error         %#x (%u)\n", i, pVCpu->hm.s.u32HMError, pVCpu->hm.s.u32HMError));
-                LogRel(("HM: CPU[%u] idxExitHistoryFree    %u\n", i, pVCpu->hm.s.idxExitHistoryFree));
-                unsigned const idxLast = pVCpu->hm.s.idxExitHistoryFree > 0 ?
-                                                                            pVCpu->hm.s.idxExitHistoryFree - 1 :
-                                                                            RT_ELEMENTS(pVCpu->hm.s.auExitHistory) - 1;
-                for (unsigned k = 0; k < RT_ELEMENTS(pVCpu->hm.s.auExitHistory); k++)
-                {
-                    LogRel(("HM: CPU[%u] auExitHistory[%2u]   = %#x (%u) %s\n", i, k, pVCpu->hm.s.auExitHistory[k],
-                            pVCpu->hm.s.auExitHistory[k], idxLast == k ? "<-- Last" : ""));
-                }
                 break;
             }
         }
@@ -3007,8 +2957,8 @@ VMMR3_INT_DECL(void) HMR3CheckError(PVM pVM, int iStatusCode)
 
     if (iStatusCode == VERR_VMX_UNABLE_TO_START_VM)
     {
-        LogRel(("HM: VERR_VMX_UNABLE_TO_START_VM: VM-entry allowed    %#RX32\n", pVM->hm.s.vmx.Msrs.VmxEntry.n.allowed1));
-        LogRel(("HM: VERR_VMX_UNABLE_TO_START_VM: VM-entry disallowed %#RX32\n", pVM->hm.s.vmx.Msrs.VmxEntry.n.disallowed0));
+        LogRel(("VERR_VMX_UNABLE_TO_START_VM: VM-entry allowed    %#RX32\n", pVM->hm.s.vmx.Msrs.VmxEntry.n.allowed1));
+        LogRel(("VERR_VMX_UNABLE_TO_START_VM: VM-entry disallowed %#RX32\n", pVM->hm.s.vmx.Msrs.VmxEntry.n.disallowed0));
     }
     else if (iStatusCode == VERR_VMX_INVALID_VMXON_PTR)
         LogRel(("HM: HCPhysVmxEnableError         = %#RHp\n", pVM->hm.s.vmx.HCPhysVmxEnableError));
@@ -3123,9 +3073,9 @@ static DECLCALLBACK(int) hmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, u
     /*
      * Validate version.
      */
-    if (   uVersion != HM_SAVED_STATE_VERSION
-        && uVersion != HM_SAVED_STATE_VERSION_NO_PATCHING
-        && uVersion != HM_SAVED_STATE_VERSION_2_0_X)
+    if (   uVersion != HM_SSM_VERSION
+        && uVersion != HM_SSM_VERSION_NO_PATCHING
+        && uVersion != HM_SSM_VERSION_2_0_X)
     {
         AssertMsgFailed(("hmR3Load: Invalid version uVersion=%d!\n", uVersion));
         return VERR_SSM_UNSUPPORTED_DATA_UNIT_VERSION;
@@ -3139,7 +3089,7 @@ static DECLCALLBACK(int) hmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, u
         rc = SSMR3GetU64(pSSM, &pVM->aCpus[i].hm.s.Event.u64IntInfo);
         AssertRCReturn(rc, rc);
 
-        if (uVersion >= HM_SAVED_STATE_VERSION_NO_PATCHING)
+        if (uVersion >= HM_SSM_VERSION_NO_PATCHING)
         {
             uint32_t val;
             /** @todo See note in hmR3Save(). */
@@ -3152,7 +3102,7 @@ static DECLCALLBACK(int) hmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, u
         }
     }
 #ifdef VBOX_HM_WITH_GUEST_PATCHING
-    if (uVersion > HM_SAVED_STATE_VERSION_NO_PATCHING)
+    if (uVersion > HM_SSM_VERSION_NO_PATCHING)
     {
         rc = SSMR3GetGCPtr(pSSM, &pVM->hm.s.pGuestPatchMem);
         AssertRCReturn(rc, rc);

@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2009-2015 Oracle Corporation
+ * Copyright (C) 2009-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -45,7 +45,6 @@ void SERVER_DISPATCH_APIENTRY crServerDispatchGetActiveAttrib(GLuint program, GL
         crGetActive_t zero;
         zero.length = 0;
         crServerReturnValue(&zero, sizeof(zero));
-        return;
     }
     /* zero out just the header to ensure it initially contains zero size values */
     memset(pLocal, 0, sizeof (*pLocal));
@@ -64,7 +63,6 @@ void SERVER_DISPATCH_APIENTRY crServerDispatchGetActiveUniform(GLuint program, G
         crGetActive_t zero;
         zero.length = 0;
         crServerReturnValue(&zero, sizeof(zero));
-        return;
     }
     /* zero out just the header to ensure it initially contains zero size values */
     memset(pLocal, 0, sizeof (*pLocal));
@@ -82,7 +80,6 @@ void SERVER_DISPATCH_APIENTRY crServerDispatchGetAttachedShaders(GLuint program,
     {
         GLsizei zero=0;
         crServerReturnValue(&zero, sizeof(zero));
-        return;
     }
     /* initial (fallback )value */
     *pLocal = 0;
@@ -109,7 +106,6 @@ void SERVER_DISPATCH_APIENTRY crServerDispatchGetAttachedObjectsARB(VBoxGLhandle
     {
         GLsizei zero=0;
         crServerReturnValue(&zero, sizeof(zero));
-        return;
     }
     /* initial (fallback )value */
     *pLocal = 0;
@@ -139,7 +135,6 @@ void SERVER_DISPATCH_APIENTRY crServerDispatchGetInfoLogARB(VBoxGLhandleARB obj,
     {
         GLsizei zero=0;
         crServerReturnValue(&zero, sizeof(zero));
-        return;
     }
     /* initial (fallback )value */
     *pLocal = 0;
@@ -161,7 +156,6 @@ void SERVER_DISPATCH_APIENTRY crServerDispatchGetShaderInfoLog(GLuint shader, GL
     {
         GLsizei zero=0;
         crServerReturnValue(&zero, sizeof(zero));
-        return;
     }
     /* initial (fallback )value */
     *pLocal = 0;
@@ -179,7 +173,6 @@ void SERVER_DISPATCH_APIENTRY crServerDispatchGetProgramInfoLog(GLuint program, 
     {
         GLsizei zero=0;
         crServerReturnValue(&zero, sizeof(zero));
-        return;
     }
     /* initial (fallback )value */
     *pLocal = 0;
@@ -198,7 +191,6 @@ void SERVER_DISPATCH_APIENTRY crServerDispatchGetShaderSource(GLuint shader, GLs
     {
         GLsizei zero=0;
         crServerReturnValue(&zero, sizeof(zero));
-        return;
     }
     /* initial (fallback )value */
     *pLocal = 0;
@@ -221,7 +213,6 @@ crServerDispatchGetUniformsLocations(GLuint program, GLsizei maxcbData, GLsizei 
     {
         GLsizei zero=0;
         crServerReturnValue(&zero, sizeof(zero));
-        return;
     }
     
     /* initial (fallback )value */
@@ -245,7 +236,6 @@ crServerDispatchGetAttribsLocations(GLuint program, GLsizei maxcbData, GLsizei *
     {
         GLsizei zero=0;
         crServerReturnValue(&zero, sizeof(zero));
-        return;
     }
 
     /* initial (fallback )value */
@@ -277,7 +267,6 @@ void SERVER_DISPATCH_APIENTRY crServerDispatchGetUniformfv(GLuint program, GLint
     {
         GLsizei zero=0;
         crServerReturnValue(&zero, sizeof(zero));
-        return;
     }
 
     cr_server.head_spu->dispatch_table.GetUniformfv(crStateGetProgramHWID(program), location, pLocal);
@@ -296,7 +285,6 @@ void SERVER_DISPATCH_APIENTRY crServerDispatchGetUniformiv(GLuint program, GLint
     {
         GLsizei zero=0;
         crServerReturnValue(&zero, sizeof(zero));
-        return;
     }
 
     cr_server.head_spu->dispatch_table.GetUniformiv(crStateGetProgramHWID(program), location, pLocal);

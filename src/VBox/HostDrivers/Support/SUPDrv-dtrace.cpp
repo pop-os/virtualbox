@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2015 Oracle Corporation
+ * Copyright (C) 2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -46,17 +46,7 @@
 #ifdef RT_OS_DARWIN
 # include VBOX_PATH_MACOSX_DTRACE_H
 #elif defined(RT_OS_LINUX)
-/* Avoid type and define conflicts. */
-# undef UINT8_MAX
-# undef UINT16_MAX
-# undef UINT32_MAX
-# undef UINT64_MAX
-# undef INT64_MAX
-# undef INT64_MIN
-# define intptr_t dtrace_intptr_t
-
-# if 0
-/* DTrace experiments with the Unbreakable Enterprise Kernel (UEK2)
+/* DTrace experiments with the Unbreakable Enterprise Kernel (UEK)
    (Oracle Linux).
    1. The dtrace.h here is from the dtrace module source, not
       /usr/include/sys/dtrace.h nor /usr/include/dtrace.h.
@@ -67,29 +57,16 @@
       | sed -e 's/^......../0x/' -e 's/ A __crc_/\t/' \
             -e 's/$/\tdrivers\/dtrace\/dtrace\tEXPORT_SYMBOL/' \
       >> Module.symvers
-      Update: Althernative workaround (active), resolve symbols dynamically.
    3. No tracepoints in vboxdrv, vboxnet* or vboxpci yet.  This requires yasm
       and VBoxTpG and build time. */
-#  include "dtrace.h"
-# else
-/* DTrace experiments with the Unbreakable Enterprise Kernel (UEKR3)
-   (Oracle Linux).
-   1. To generate the missing entries for the dtrace module in Module.symvers
-      of UEK:
-      nm /lib/modules/....../kernel/drivers/dtrace/dtrace.ko  \
-      | grep _crc_ \
-      | sed -e 's/^......../0x/' -e 's/ A __crc_/\t/' \
-            -e 's/$/\tdrivers\/dtrace\/dtrace\tEXPORT_SYMBOL/' \
-      >> Module.symvers
-      Update: Althernative workaround (active), resolve symbols dynamically.
-   2. No tracepoints in vboxdrv, vboxnet* or vboxpci yet.  This requires yasm
-      and VBoxTpG and build time. */
-#  include <dtrace/provider.h>
-#  include <dtrace/enabling.h> /* Missing from provider.h. */
-#  include <dtrace/arg.h> /* Missing from provider.h. */
-# endif
-# include <linux/kallsyms.h>
-/** Status code fixer (UEK uses linux convension unlike the others). */
+# undef UINT8_MAX
+# undef UINT16_MAX
+# undef UINT32_MAX
+# undef UINT64_MAX
+# undef INT64_MAX
+# undef INT64_MIN
+# define intptr_t dtrace_intptr_t
+# include "dtrace.h"
 # define FIX_UEK_RC(a_rc) (-(a_rc))
 #else
 # include <sys/dtrace.h>
@@ -214,8 +191,8 @@ typedef VBDTSTACKDATA *PVBDTSTACKDATA;
 /*******************************************************************************
 *   Global Variables                                                           *
 *******************************************************************************/
-#if defined(RT_OS_DARWIN) || defined(RT_OS_LINUX)
-/** @name DTrace kernel interface used on Darwin and Linux.
+#ifdef RT_OS_DARWIN
+/** @name DTrace kernel interface used on Darwin
  * @{ */
 static void        (* g_pfnDTraceProbeFire)(dtrace_id_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
 static dtrace_id_t (* g_pfnDTraceProbeCreate)(dtrace_provider_id_t, const char *, const char *, const char *, int, void *);
@@ -1050,11 +1027,10 @@ static SUPDRVTRACERREG g_VBoxDTraceReg =
  */
 const SUPDRVTRACERREG * VBOXCALL supdrvDTraceInit(void)
 {
-#if defined(RT_OS_DARWIN) || defined(RT_OS_LINUX)
+#ifdef RT_OS_DARWIN
     /*
      * Resolve the kernel symbols we need.
      */
-# ifndef RT_OS_LINUX
     RTDBGKRNLINFO hKrnlInfo;
     int rc = RTR0DbgKrnlInfoOpen(&hKrnlInfo, 0);
     if (RT_FAILURE(rc))
@@ -1062,7 +1038,6 @@ const SUPDRVTRACERREG * VBOXCALL supdrvDTraceInit(void)
         SUPR0Printf("supdrvDTraceInit: RTR0DbgKrnlInfoOpen failed with rc=%d.\n", rc);
         return NULL;
     }
-# endif
 
     static const struct
     {
@@ -1077,10 +1052,8 @@ const SUPDRVTRACERREG * VBOXCALL supdrvDTraceInit(void)
         { "dtrace_invalidate",   (PFNRT*)&dtrace_invalidate   },
         { "dtrace_unregister",   (PFNRT*)&dtrace_unregister   },
     };
-    unsigned i;
-    for (i = 0; i < RT_ELEMENTS(s_aDTraceFunctions); i++)
+    for (unsigned i = 0; i < RT_ELEMENTS(s_aDTraceFunctions); i++)
     {
-# ifndef RT_OS_LINUX
         rc = RTR0DbgKrnlInfoQuerySymbol(hKrnlInfo, NULL, s_aDTraceFunctions[i].pszName,
                                         (void **)s_aDTraceFunctions[i].ppfn);
         if (RT_FAILURE(rc))
@@ -1088,24 +1061,11 @@ const SUPDRVTRACERREG * VBOXCALL supdrvDTraceInit(void)
             SUPR0Printf("supdrvDTraceInit: Failed to resolved '%s' (rc=%Rrc, i=%u).\n", s_aDTraceFunctions[i].pszName, rc, i);
             break;
         }
-# else
-        unsigned long ulAddr = kallsyms_lookup_name(s_aDTraceFunctions[i].pszName);
-        if (!ulAddr)
-        {
-            SUPR0Printf("supdrvDTraceInit: Failed to resolved '%s' (i=%u).\n", s_aDTraceFunctions[i].pszName, i);
-            return NULL;
-        }
-        *s_aDTraceFunctions[i].ppfn = (PFNRT)ulAddr;
-# endif
     }
 
-# ifndef RT_OS_LINUX
     RTR0DbgKrnlInfoRelease(hKrnlInfo);
     if (RT_FAILURE(rc))
         return NULL;
-# else
-    /** @todo grab a reference to the dtrace module... */
-# endif
 #endif
 
     return &g_VBoxDTraceReg;

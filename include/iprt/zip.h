@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -215,6 +215,21 @@ RTDECL(int)     RTZipBlockCompress(RTZIPTYPE enmType, RTZIPLEVEL enmLevel, uint3
 RTDECL(int)     RTZipBlockDecompress(RTZIPTYPE enmType, uint32_t fFlags,
                                      void const *pvSrc, size_t cbSrc, size_t *pcbSrcActual,
                                      void *pvDst, size_t cbDst, size_t *pcbDstActual) RT_NO_THROW;
+
+
+/**
+ * Opens a zip decompression I/O stream.
+ *
+ * @returns IPRT status code.
+ *
+ * @param   hVfsIosIn           The compressed input stream (must be readable).
+ *                              The reference is not consumed, instead another
+ *                              one is retained.
+ * @param   fFlags              Flags, MBZ.
+ * @param   phVfsIosUnzip       Where to return the handle to the gunzipped I/O
+ *                              stream (read).
+ */
+RTDECL(int) RTZipDecompressIoStream(RTVFSIOSTREAM hVfsIosIn, uint32_t fFlags, PRTVFSIOSTREAM phVfsIosUnzip);
 
 
 /**

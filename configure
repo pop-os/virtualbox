@@ -71,7 +71,6 @@ ODIR_OVERRIDE=0
 OUT_PATH=""
 OUT_PATH_OVERRIDE=0
 SETUP_WINE=
-ONLY_ADDITIONS=0
 TARGET_MACHINE=""
 TARGET_CPU=""
 WITH_XPCOM=1
@@ -1513,11 +1512,11 @@ check_qt4()
 extern "C" int main(void)
 {
   printf("found version %s", QT_VERSION_STR);
-#if QT_VERSION >= 0x040800
+#if QT_VERSION >= 0x040602
   printf(", OK.\n");
   return 0;
 #else
-  printf(", expected version 4.8.0 or higher\n");
+  printf(", expected version 4.6.2 or higher\n");
   return 1;
 #endif
 }
@@ -1546,11 +1545,11 @@ EOF
 extern "C" int main(void)
 {
   printf("found version %s", QT_VERSION_STR);
-#if QT_VERSION >= 0x040800
+#if QT_VERSION >= 0x040602
   printf(", OK.\n");
   return 0;
 #else
-  printf(", expected version 4.8.0 or higher\n");
+  printf(", expected version 4.6.2 or higher\n");
   return 1;
 #endif
 }
@@ -2118,26 +2117,6 @@ check_gsoap()
 
 
 #
-# Check Xcode path
-#
-check_xcode_sdk_path()
-{
-    # Check if WITH_XCODE_DIR is set.
-    if [ -z "$WITH_XCODE_DIR" ]; then
-        echo "Please specify --with-xcode-dir option."
-        return 0
-    fi
-
-    # Check if specified path exists and is a directory.
-    if [ -d "$1" ]; then
-        return 1
-    else
-        echo "Xcode path [$1] not found."
-        return 0
-    fi
-}
-
-#
 # Determines the Darwin version.
 # @todo This should really check the Xcode/SDK version.
 #
@@ -2146,33 +2125,6 @@ check_darwinversion()
   test_header "Darwin version"
   darwin_ver=`uname -r`
   case "$darwin_ver" in
-    14\.*)
-      check_xcode_sdk_path "$WITH_XCODE_SDK_DIR"
-      [ $? -eq 1 ] || fail
-      darwin_ver="10.10" # Yosemite
-      sdk=$WITH_XCODE_DIR/Developer/SDKs/MacOSX10.6.sdk
-      cnf_append "VBOX_WITH_MACOSX_COMPILERS_FROM_DEVEL" "1"
-      cnf_append "VBOX_PATH_MACOSX_DEVEL_ROOT" "$WITH_XCODE_DIR/Developer"
-      ;;
-    13\.*)
-      check_xcode_sdk_path "$WITH_XCODE_DIR"
-      [ $? -eq 1 ] || fail
-      darwin_ver="10.9" # Mavericks
-      sdk=$WITH_XCODE_DIR/Developer/SDKs/MacOSX10.6.sdk
-      cnf_append "VBOX_WITH_MACOSX_COMPILERS_FROM_DEVEL" "1"
-      cnf_append "VBOX_PATH_MACOSX_DEVEL_ROOT" "$WITH_XCODE_DIR/Developer"
-      ;;
-    12\.*)
-      darwin_ver="10.8" # Mountain Lion
-      if [ ! -z "$WITH_XCODE_DIR" ]; then
-        sdk=$WITH_XCODE_DIR/Developer/SDKs/MacOSX10.6.sdk
-        cnf_append "VBOX_WITH_MACOSX_COMPILERS_FROM_DEVEL" "1"
-        cnf_append "VBOX_PATH_MACOSX_DEVEL_ROOT" "$WITH_XCODE_DIR/Developer"
-      else
-        sdk=/Developer/SDKs/MacOSX10.6.sdk
-      fi
-      CXX_FLAGS="-mmacosx-version-min=10.6 -isysroot $sdk -Wl,-syslibroot,$sdk"
-      ;;
     11\.*)
       darwin_ver="10.7" # Lion
       sdk=/Developer/SDKs/MacOSX10.6.sdk
@@ -2298,7 +2250,6 @@ EOF
 EOF
 [ "$OS"   != "darwin" ] && echo "  --setup-wine             setup a Wine directory and register the hhc hack"
 cat << EOF
-  --only-additions         only build the Guest Additions
 
 Paths:
   --with-gcc=PATH          location of the gcc compiler [$CC]
@@ -2308,9 +2259,6 @@ Paths:
   --with-mkisofs=PATH      location of mkisofs [$MKISOFS]
   --with-makeself=PATH     location of makeself [$MAKESELF]
 EOF
-[ "$OS"   = "darwin" ] && echo "  --with-xcode-dir=DIR     custom path to Xcode root directory; it is assumed that Xcode"
-[ "$OS"   = "darwin" ] && echo "                           contains OS X 10.6 SDK (required for Mountain Lion and newer hosts"
-[ "$OS"   = "darwin" ] && echo "                           only, ignored for the rest)"
 [ "$OS"    = "linux" ] && echo "  --with-linux=DIR         Linux kernel source directory [$LINUX]"
 [ $WITH_QT4    -eq 1 ] && echo "  --with-qt-dir=DIR        directory for Qt4 headers/libraries [pkgconfig]"
 [ $WITH_GSOAP  -eq 1 ] && echo "  --with-gsoap-dir=PATH    directory for gSOAP compiler/headers/libraries"
@@ -2356,7 +2304,6 @@ if [ "$OS" = "darwin" ]; then
   BUILD_LIBVPX=1
   [ $OSE -eq 1 ] || BUILD_LIBCURL=1
   [ $OSE -eq 1 ] && WITH_LIBVPX=0
-  WITH_XCODE_DIR=""
 elif [ "$OS" = "haiku" ]; then
   #WITH_SDL=0
   WITH_SDL_TTF=0
@@ -2380,7 +2327,7 @@ elif [ "$OS" = "solaris" ]; then
 fi
 
 # scan command line options
-for option in "$@"; do
+for option in $*; do
   case "$option" in
     --help|-help|-h)
       show_help
@@ -2424,10 +2371,6 @@ for option in "$@"; do
       ;;
     --with-iasl=*)
       IASL=`echo $option | cut -d'=' -f2`
-      ;;
-    --with-xcode-dir=*)
-      WITH_XCODE_DIR=`echo $option | cut -d'=' -f2`
-      echo $option
       ;;
     --with-linux=*)
       LINUX=`echo $option | cut -d'=' -f2`
@@ -2566,9 +2509,6 @@ for option in "$@"; do
     --setup-wine)
       [ "$OS" != "darwin" ] && SETUP_WINE=1
       ;;
-    --only-additions)
-      ONLY_ADDITIONS=1
-      ;;
     *)
       echo
       echo "Unrecognized option \"$option\""
@@ -2650,7 +2590,7 @@ fi
 # some things are not available in for OSE
 if [ $OSE -ge 1 ]; then
   cnf_append "VBOX_OSE" "1"
-  cnf_append "VBOX_WITH_VALIDATIONKIT" ""
+  cnf_append "VBOX_WITH_TESTSUITE" ""
   cnf_append "VBOX_WITH_WIN32_ADDITIONS" ""
 
   if [ "$OS" = "linux" ]; then
@@ -2662,9 +2602,7 @@ if [ $OSE -ge 1 ]; then
 fi
 
 # extpack
-if [ $ONLY_ADDITIONS -eq 1 ]; then
-  cnf_append "VBOX_WITH_EXTPACK_PUEL_BUILD" ""
-elif [ $OSE -eq 0 ]; then
+if [ $OSE -eq 0 ]; then
   if [ $WITH_EXTPACK -eq 1 ]; then
     BUILD_LIBSSL=1
   else
@@ -2700,47 +2638,43 @@ if [ "$OS" = "darwin" ]; then
 fi
 # the tools
 check_gcc
-if [ $ONLY_ADDITIONS -eq 0 ]; then
-  check_open_watcom
-  [ "$OS" != "darwin"  ] && check_iasl
-  # don't check for yasm for the time beeing as 0.40 and 0.50 both have known bugs
-  # [ "$OS" != "darwin" ] && check_yasm
-  [ "$OS" != "darwin"  ] && check_xsltproc
-  [ "$OS" != "darwin"  ] && check_mkisofs
-fi
+check_open_watcom
+[ "$OS" != "darwin"  ] && check_iasl
+# don't check for yasm for the time beeing as 0.40 and 0.50 both have known bugs
+# [ "$OS" != "darwin" ] && check_yasm
+[ "$OS" != "darwin"  ] && check_xsltproc
+[ "$OS" != "darwin"  ] && check_mkisofs
 
 # the libraries
-if [ $ONLY_ADDITIONS -eq 0 ]; then
-  [ "$OS" != "darwin"  ] && check_pthread
-  check_libxml2
-  [ $WITH_LIBIDL -eq 1 ] && check_libidl
-  check_ssl
-  check_curl
-  [ $WITH_LIBVPX -eq 1 ] && check_vpx
- [ "$OS" != "darwin"  ] && check_z
-  [ "$OS" != "darwin"  ] && check_png
-  [ $OSE -eq 0 -a "$OS" = "linux" ] && check_pam
-  [ $WITH_SDL -eq 1 ]    && check_sdl
-  [ $WITH_SDL_TTF -eq 1 -a $OSE -eq 0 ] && check_sdl_ttf
-  [ $WITH_X11    -eq 1 ] && check_x
-  # TODO check for xcomposite-dev (X11/extensions/Xcomposite.h, additions only)
-  # TODO check for libxdamange-dev (X11/extensions/Xdamage.h, additions only)
-  [ $WITH_X11    -eq 1 ] && check_xcursor
-  [ $WITH_X11    -eq 1 ] && check_xinerama
-  [ $WITH_X11    -eq 1 ] && check_xrandr
-  [ $WITH_OPENGL -eq 1 ] && check_opengl
-  [ $WITH_QT4    -eq 1 ] && check_qt4
-  [ $WITH_PYTHON -eq 1 ] && check_python
-  [ $WITH_JAVA   -eq 1 ] && check_java
+[ "$OS" != "darwin"  ] && check_pthread
+check_libxml2
+[ $WITH_LIBIDL -eq 1 ] && check_libidl
+check_ssl
+check_curl
+[ $WITH_LIBVPX -eq 1 ] && check_vpx
+[ "$OS" != "darwin"  ] && check_z
+[ "$OS" != "darwin"  ] && check_png
+[ $OSE -eq 0 -a "$OS" = "linux" ] && check_pam
+[ $WITH_SDL -eq 1 ]    && check_sdl
+[ $WITH_SDL_TTF -eq 1 -a $OSE -eq 0 ] && check_sdl_ttf
+[ $WITH_X11    -eq 1 ] && check_x
+# TODO check for xcomposite-dev (X11/extensions/Xcomposite.h, additions only)
+# TODO check for libxdamange-dev (X11/extensions/Xdamage.h, additions only)
+[ $WITH_X11    -eq 1 ] && check_xcursor
+[ $WITH_X11    -eq 1 ] && check_xinerama
+[ $WITH_X11    -eq 1 ] && check_xrandr
+[ $WITH_OPENGL -eq 1 ] && check_opengl
+[ $WITH_QT4    -eq 1 ] && check_qt4
+[ $WITH_PYTHON -eq 1 ] && check_python
+[ $WITH_JAVA   -eq 1 ] && check_java
 
-  # PulseAudio
-  if [ "$OS" = "linux" -o "$OS" = "freebsd" ]; then
-    if [ $WITH_PULSE -eq 1 ]; then
-      check_pulse
-    elif [ $WITH_PULSE -eq 0 ]; then
-      cnf_append "VBOX_WITH_PULSE" ""
-    fi
- fi
+# PulseAudio
+if [ "$OS" = "linux" -o "$OS" = "freebsd" ]; then
+  if [ $WITH_PULSE -eq 1 ]; then
+    check_pulse
+  elif [ $WITH_PULSE -eq 0 ]; then
+    cnf_append "VBOX_WITH_PULSE" ""
+  fi
 fi
 
 # Linux-specific
@@ -2755,31 +2689,29 @@ if [ "$OS" = "linux" ]; then
     cnf_append "VBOX_WITH_VBOXDRV" ""
     cnf_append "VBOX_WITH_ADDITION_DRIVERS" ""
   fi
-  if [ $ONLY_ADDITIONS -eq 0 ]; then
-    if [ $WITH_ALSA -eq 1 ]; then
-      check_alsa
-    else
-      cnf_append "VBOX_WITH_ALSA" ""
-    fi
-    if [ $WITH_DBUS -eq 0 ]; then
-      cnf_append "VBOX_WITH_DBUS" ""
-    fi
-    if [ $WITH_DEVMAPPER -eq 1 ]; then
-      check_libdevmapper
-    else
-      cnf_append "VBOX_WITH_DEVMAPPER" ""
-    fi
-    check_libcap
+  if [ $WITH_ALSA -eq 1 ]; then
+    check_alsa
+  else
+    cnf_append "VBOX_WITH_ALSA" ""
   fi
+  if [ $WITH_DBUS -eq 0 ]; then
+    cnf_append "VBOX_WITH_DBUS" ""
+  fi
+  if [ $WITH_DEVMAPPER -eq 1 ]; then
+    check_libdevmapper
+  else
+    cnf_append "VBOX_WITH_DEVMAPPER" ""
+  fi
+  check_libcap
   check_compiler_h
-  [ $ONLY_ADDITIONS -eq 0 -a "$BUILD_MACHINE" = "amd64" -a $WITH_VMMRAW -eq 1 ] && check_32bit
+  [ "$BUILD_MACHINE" = "amd64" -a $WITH_VMMRAW -eq 1 ] && check_32bit
   # tools/common/makeself*
   [ $OSE -ge 1 ] && check_makeself
 fi
 
 [ -n "$SETUP_WINE" ] && setup_wine
 
-if [ $ONLY_ADDITIONS -eq 0 -a $WITH_GSOAP -eq 1 ]; then
+if [ $WITH_GSOAP -eq 1 ]; then
   check_gsoap
 else
   if [ $OSE -ge 1 ]; then
@@ -2788,34 +2720,30 @@ else
 fi
 
 # UDPTUNNEL
-if [ $ONLY_ADDITIONS -eq 0 -a $WITH_UDPTUNNEL -eq 0 ]; then
+if [ $WITH_UDPTUNNEL -eq 0 ]; then
   cnf_append "VBOX_WITH_UDPTUNNEL" ""
 fi
 
 # VDE
-if [ $ONLY_ADDITIONS -eq 0 -a "$OS" = "linux" -o "$OS" = "freebsd" ]; then
+if [ "$OS" = "linux" -o "$OS" = "freebsd" ]; then
   if [ $WITH_VDE -eq 1 ]; then
     cnf_append "VBOX_WITH_VDE" "1"
   fi
 fi
 
 # DOCS
-if [ $ONLY_ADDITIONS -eq 1 -o $WITH_DOCS -eq 0 ]; then
+if [ $WITH_DOCS -eq 0 ]; then
   cnf_append "VBOX_WITH_DOCS" ""
   cnf_append "VBOX_WITH_DOCS_PACKING" ""
 fi
 
 # VNC server support
-if [ $ONLY_ADDITIONS -eq 0 -a $OSE -ge 1 ]; then
+if [ $OSE -ge 1 ]; then
   if [ $WITH_VNC = 1 ]; then
     check_vncserver
   else
     cnf_append "VBOX_WITH_EXTPACK_VNC" ""
   fi
-fi
-
-if [ $ONLY_ADDITIONS -eq 1 ]; then
-  cnf_append "VBOX_ONLY_ADDITIONS" "1"
 fi
 
 # success!
@@ -2838,11 +2766,7 @@ if [ "$OS" = "linux" ]; then
     echo "  make"
     echo ""
 fi
-if [ $ONLY_ADDITIONS -eq 1 ]; then
-    echo ""
-    echo "  Tree configured to build only the Guest Additions"
-    echo ""
-elif [ $WITH_HARDENING -gt 0 ]; then
+if [ $WITH_HARDENING -gt 0 ]; then
     echo ""
     echo "  +++ WARNING +++ WARNING +++ WARNING +++ WARNING +++ WARNING +++ WARNING +++"
     echo "  Hardening is enabled which means that the VBox binaries will not run from"

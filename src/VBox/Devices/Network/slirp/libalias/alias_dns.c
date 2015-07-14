@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2015 Oracle Corporation
+ * Copyright (C) 2009-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -84,7 +84,7 @@ fingerprint(struct libalias *la, struct ip *pIp, struct alias_data *ah)
         return -1;
 
     Log(("NAT:%s: ah(dport: %hd, sport: %hd) oaddr:%RTnaipv4 aaddr:%RTnaipv4\n",
-        RT_GCC_EXTENSION __FUNCTION__, ntohs(*ah->dport), ntohs(*ah->sport),
+        __FUNCTION__, ntohs(*ah->dport), ntohs(*ah->sport),
         ah->oaddr, ah->aaddr));
 
     if (   (ntohs(*ah->dport) == DNS_CONTROL_PORT_NUMBER

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1097,6 +1097,7 @@ typedef const STAMRATIOU32 *PCSTAMRATIOU32;
 
 
 /** @defgroup grp_stam_r3   The STAM Host Context Ring 3 API
+ * @ingroup grp_stam
  * @{
  */
 

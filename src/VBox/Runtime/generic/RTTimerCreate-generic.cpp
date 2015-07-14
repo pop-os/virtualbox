@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -37,10 +37,10 @@
 
 RTDECL(int) RTTimerCreate(PRTTIMER *ppTimer, unsigned uMilliesInterval, PFNRTTIMER pfnTimer, void *pvUser)
 {
-    int rc = RTTimerCreateEx(ppTimer, uMilliesInterval * RT_NS_1MS_64, 0 /* fFlags */, pfnTimer, pvUser);
+    int rc = RTTimerCreateEx(ppTimer, uMilliesInterval * UINT64_C(1000000), 0, pfnTimer, pvUser);
     if (RT_SUCCESS(rc))
     {
-        rc = RTTimerStart(*ppTimer, 0 /* u64First */);
+        rc = RTTimerStart(*ppTimer, 0);
         if (RT_FAILURE(rc))
         {
             int rc2 = RTTimerDestroy(*ppTimer); AssertRC(rc2);

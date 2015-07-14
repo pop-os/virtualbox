@@ -1,6 +1,7 @@
-/* $Id: UIWizardImportAppPageBasic1.h $ */
 /** @file
- * VBox Qt GUI - UIWizardImportAppPageBasic1 class declaration.
+ *
+ * VBox frontends: Qt4 GUI ("VirtualBox"):
+ * UIWizardImportAppPageBasic1 class declaration
  */
 
 /*

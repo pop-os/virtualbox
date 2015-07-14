@@ -3,7 +3,7 @@
  * VBox USB Monitor
  */
 /*
- * Copyright (C) 2011-2015 Oracle Corporation
+ * Copyright (C) 2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -190,7 +190,7 @@ NTSTATUS VBoxUsbMonQueryBusRelations(PDEVICE_OBJECT pDevObj, PFILE_OBJECT pFileO
         return STATUS_INSUFFICIENT_RESOURCES;
     }
     pIrp->IoStatus.Status = STATUS_NOT_SUPPORTED;
-
+	
     pSl = IoGetNextIrpStackLocation(pIrp);
     pSl->MajorFunction = IRP_MJ_PNP;
     pSl->MinorFunction = IRP_MN_QUERY_DEVICE_RELATIONS;
@@ -1145,48 +1145,6 @@ typedef struct VBOXUSBMONHOOKDRIVERWALKER
     PDRIVER_OBJECT pDrvObj;
 } VBOXUSBMONHOOKDRIVERWALKER, *PVBOXUSBMONHOOKDRIVERWALKER;
 
-/**
- * Logs an error to the system event log.
- *
- * @param   ErrCode        Error to report to event log.
- * @param   ReturnedStatus Error that was reported by the driver to the caller.
- * @param   uErrId         Unique error id representing the location in the driver.
- * @param   cbDumpData     Number of bytes at pDumpData.
- * @param   pDumpData      Pointer to data that will be added to the message (see 'details' tab).
- */
-static void vboxUsbMonLogError(NTSTATUS ErrCode, NTSTATUS ReturnedStatus, ULONG uErrId, USHORT cbDumpData, PVOID pDumpData)
-{
-    PIO_ERROR_LOG_PACKET pErrEntry;
-
-
-    /* Truncate dumps that do not fit into IO_ERROR_LOG_PACKET. */
-    if (FIELD_OFFSET(IO_ERROR_LOG_PACKET, DumpData) + cbDumpData > ERROR_LOG_MAXIMUM_SIZE)
-        cbDumpData = ERROR_LOG_MAXIMUM_SIZE - FIELD_OFFSET(IO_ERROR_LOG_PACKET, DumpData);
-
-    pErrEntry = (PIO_ERROR_LOG_PACKET)IoAllocateErrorLogEntry(g_VBoxUsbMonGlobals.pDevObj,
-                                                              FIELD_OFFSET(IO_ERROR_LOG_PACKET, DumpData) + cbDumpData);
-    if (pErrEntry)
-    {
-        uint8_t *pDump = (uint8_t *)pErrEntry->DumpData;
-        if (cbDumpData)
-            memcpy(pDump, pDumpData, cbDumpData);
-        pErrEntry->MajorFunctionCode = 0;
-        pErrEntry->RetryCount = 0;
-        pErrEntry->DumpDataSize = cbDumpData;
-        pErrEntry->NumberOfStrings = 0;
-        pErrEntry->StringOffset = 0;
-        pErrEntry->ErrorCode = ErrCode;
-        pErrEntry->UniqueErrorValue = uErrId;
-        pErrEntry->FinalStatus = ReturnedStatus;
-        pErrEntry->IoControlCode = 0;
-        IoWriteErrorLogEntry(pErrEntry);
-    }
-    else
-    {
-        LOG(("Failed to allocate error log entry (cb=%d)\n", FIELD_OFFSET(IO_ERROR_LOG_PACKET, DumpData) + cbDumpData));
-    }
-}
-
 static DECLCALLBACK(BOOLEAN) vboxUsbMonHookDrvObjWalker(PFILE_OBJECT pFile, PDEVICE_OBJECT pTopDo, PDEVICE_OBJECT pHubDo, PVOID pvContext)
 {
     PDRIVER_OBJECT pDrvObj = pHubDo->DriverObject;
@@ -1224,16 +1182,6 @@ static DECLCALLBACK(BOOLEAN) vboxUsbMonHookDrvObjWalker(PFILE_OBJECT pFile, PDEV
     }
     /* No empty slots! No reason to continue. */
     LOG(("No empty slots!\n"));
-    ANSI_STRING ansiDrvName;
-    NTSTATUS Status = RtlUnicodeStringToAnsiString(&ansiDrvName, &pDrvObj->DriverName, true);
-    if (Status != STATUS_SUCCESS)
-    {
-        ansiDrvName.Length = 0;
-        LOG(("RtlUnicodeStringToAnsiString failed with 0x%x", Status));
-    }
-    vboxUsbMonLogError(IO_ERR_INSUFFICIENT_RESOURCES, STATUS_SUCCESS, 1, ansiDrvName.Length, ansiDrvName.Buffer);
-    if (Status == STATUS_SUCCESS)
-        RtlFreeAnsiString(&ansiDrvName);
     return FALSE;
 }
 

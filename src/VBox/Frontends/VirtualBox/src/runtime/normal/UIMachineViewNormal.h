@@ -1,6 +1,7 @@
-/* $Id: UIMachineViewNormal.h $ */
 /** @file
- * VBox Qt GUI - UIMachineViewNormal class declaration.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * UIMachineViewNormal class declaration
  */
 
 /*
@@ -51,8 +52,10 @@ private:
     void prepareCommon();
     void prepareFilters();
     void prepareConsoleConnections();
+    //void loadMachineViewSettings();
 
     /* Cleanup helpers: */
+    void saveMachineViewSettings();
     //void cleanupConsoleConnections() {}
     //void cleanupFilters() {}
     //void cleanupCommon() {}
@@ -60,8 +63,8 @@ private:
     /* Hidden setters: */
     void setGuestAutoresizeEnabled(bool bEnabled);
 
-    /** Resends guest size-hint. */
-    void resendSizeHint();
+    /** Resends guest size-hint if necessary. */
+    void maybeResendSizeHint();
 
     /** Adjusts guest-screen size to correspond current <i>machine-window</i> size. */
     void adjustGuestScreenSize();

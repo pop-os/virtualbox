@@ -1,10 +1,11 @@
 /* $Id: VBoxNetBaseService.cpp $ */
 /** @file
- * VBoxNetBaseService - common services for VBoxNetDHCP and VBoxNetNAT.
+ * VBoxNetDHCP - DHCP Service for connecting to IntNet.
  */
+/** @todo r=bird: Cut&Past rules... Please fix DHCP refs! */
 
 /*
- * Copyright (C) 2009-2015 Oracle Corporation
+ * Copyright (C) 2009-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -170,7 +171,7 @@ VBoxNetBaseService::~VBoxNetBaseService()
     /*
      * Close the interface connection.
      */
-    if (m)
+    if (m != NULL)
     {
         shutdown();
         if (m->m_hIf != INTNET_HANDLE_INVALID)
@@ -206,10 +207,7 @@ int VBoxNetBaseService::init()
         HRESULT hrc = com::Initialize();
         AssertComRCReturn(hrc, VERR_INTERNAL_ERROR);
 
-        hrc = virtualboxClient.createInprocObject(CLSID_VirtualBoxClient);
-        AssertComRCReturn(hrc, VERR_INTERNAL_ERROR);
-
-        hrc = virtualboxClient->COMGETTER(VirtualBox)(virtualbox.asOutParam());
+        hrc = virtualbox.createLocalObject(CLSID_VirtualBox);
         AssertComRCReturn(hrc, VERR_INTERNAL_ERROR);
     }
 
@@ -226,15 +224,16 @@ bool VBoxNetBaseService::isMainNeeded() const
 int VBoxNetBaseService::run()
 {
     /**
-     * If the child class needs Main we start the receving thread which calls
-     * doReceiveLoop and enter to event polling loop. For other clients we do
-     * receiving on the current (main) thread.
+     * If child class need Main we start receving thread which calls doReceiveLoop and enter to event polling loop
+     * and for the rest clients we do receiving on the current (main) thread.
      */
     if (isMainNeeded())
         return startReceiveThreadAndEnterEventLoop();
-
-    doReceiveLoop();
-    return VINF_SUCCESS;
+    else
+    {
+        doReceiveLoop();
+        return VINF_SUCCESS;
+    }
 }
 
 /**
@@ -338,7 +337,6 @@ int VBoxNetBaseService::parseArgs(int argc, char **argv)
                 return 1;
 
             default:
-            {
                 int rc1 = parseOpt(rc, Val);
                 if (RT_FAILURE(rc1))
                 {
@@ -346,8 +344,6 @@ int VBoxNetBaseService::parseArgs(int argc, char **argv)
                     RTPrintf("Use --help for more information.\n");
                     return rc;
                 }
-                break;
-            }
         }
     }
 
@@ -452,7 +448,6 @@ int VBoxNetBaseService::tryGoOnline(void)
     /* bail out */
     Log2(("VBoxNetBaseService: SUPR3CallVMMR0Ex(,VMMR0_DO_INTNET_IF_SET_PROMISCUOUS_MODE,) failed, rc=%Rrc\n", rc));
 
-    /* ignore this error */
     return VINF_SUCCESS;
 }
 
@@ -460,25 +455,27 @@ int VBoxNetBaseService::tryGoOnline(void)
 void VBoxNetBaseService::shutdown(void)
 {
     syncEnter();
-    if (!m->fShutdown)
+    if (! m->fShutdown)
     {
         m->fShutdown = true;
         if (m->m_hThrRecv != NIL_RTTHREAD)
         {
             int rc = abortWait();
-            AssertRC(rc == VINF_SUCCESS || rc == VERR_SEM_DESTROYED);
+            Assert(rc == VINF_SUCCESS || rc == VERR_SEM_DESTROYED);
             rc = m->m_EventQ->interruptEventQueueProcessing();
+#if 0 /* this will not work as long as we don't set RTTHREADFLAGS_WAITABLE */
             if (RT_SUCCESS(rc))
             {
                 rc = RTThreadWait(m->m_hThrRecv, 60000, NULL);
                 if (RT_FAILURE(rc))
-                    Log1WarningFunc(("RTThreadWait(%RTthrd) -> %Rrc\n", m->m_hThrRecv, rc));
+                    LogWarningFunc(("RTThreadWait(%RTthrd) -> %Rrc\n", m->m_hThrRecv, rc));
             }
             else
             {
                 AssertMsgFailed(("interruptEventQueueProcessing() failed\n"));
                 RTThreadWait(m->m_hThrRecv , 0, NULL);
             }
+#endif
         }
     }
     syncLeave();
@@ -567,6 +564,7 @@ void VBoxNetBaseService::flushWire()
     int rc = SUPR3CallVMMR0Ex(NIL_RTR0PTR, NIL_VMCPUID, VMMR0_DO_INTNET_IF_SEND, 0, &SendReq.Hdr);
     AssertRCReturnVoid(rc);
     LogFlowFuncLeave();
+
 }
 
 
@@ -693,10 +691,10 @@ void VBoxNetBaseService::doReceiveLoop()
         /*
          * Wait for a packet to become available.
          */
+        /* 2. waiting for request for */
         rc = waitForIntNetEvent(2000);
         if (rc == VERR_SEM_DESTROYED)
             break;
-
         if (RT_FAILURE(rc))
         {
             if (rc == VERR_TIMEOUT || rc == VERR_INTERRUPTED)
@@ -704,7 +702,7 @@ void VBoxNetBaseService::doReceiveLoop()
                 /* do we want interrupt anyone ??? */
                 continue;
             }
-            LogRel(("VBoxNetBaseService: waitForIntNetEvent returned %Rrc\n", rc));
+            LogRel(("VBoxNetNAT: waitForIntNetEvent returned %Rrc\n", rc));
             AssertRCReturnVoid(rc);
         }
 
@@ -712,50 +710,50 @@ void VBoxNetBaseService::doReceiveLoop()
          * Process the receive buffer.
          */
         PCINTNETHDR pHdr;
+
         while ((pHdr = IntNetRingGetNextFrameToRead(pRingBuf)) != NULL)
         {
             uint8_t const u8Type = pHdr->u8Type;
-            size_t        cbFrame = pHdr->cbFrame;
+            size_t         cbFrame = pHdr->cbFrame;
             switch (u8Type)
             {
+
                 case INTNETHDR_TYPE_FRAME:
-                {
-                    void *pvFrame = IntNetHdrGetFramePtr(pHdr, m->m_pIfBuf);
-                    rc = processFrame(pvFrame, cbFrame);
-                    if (RT_FAILURE(rc) && rc == VERR_IGNORED)
                     {
-                        /* XXX: UDP + ARP for DHCP */
-                        VBOXNETUDPHDRS Hdrs;
-                        size_t  cb;
-                        void   *pv = VBoxNetUDPMatch(m->m_pIfBuf, RTNETIPV4_PORT_BOOTPS, &m->m_MacAddress,
-                                                       VBOXNETUDP_MATCH_UNICAST
-                                                     | VBOXNETUDP_MATCH_BROADCAST
-                                                     | VBOXNETUDP_MATCH_CHECKSUM
-                                                     | (m->m_cVerbosity > 2 ? VBOXNETUDP_MATCH_PRINT_STDERR : 0),
-                                                     &Hdrs, &cb);
-                        if (pv && cb)
-                            processUDP(pv, cb);
-                        else
-                            VBoxNetArpHandleIt(m->m_pSession, m->m_hIf, m->m_pIfBuf, &m->m_MacAddress, m->m_Ipv4Address);
+                        void *pvFrame = IntNetHdrGetFramePtr(pHdr, m->m_pIfBuf);
+                        rc = processFrame(pvFrame, cbFrame);
+                        if (RT_FAILURE(rc) && rc == VERR_IGNORED)
+                        {
+                            /* XXX: UDP + ARP for DHCP */
+                            VBOXNETUDPHDRS Hdrs;
+                            size_t  cb;
+                            void   *pv = VBoxNetUDPMatch(m->m_pIfBuf, RTNETIPV4_PORT_BOOTPS, &m->m_MacAddress,
+                                                         VBOXNETUDP_MATCH_UNICAST | VBOXNETUDP_MATCH_BROADCAST
+                                                         | VBOXNETUDP_MATCH_CHECKSUM
+                                                         | (m->m_cVerbosity > 2 ? VBOXNETUDP_MATCH_PRINT_STDERR : 0),
+                                                         &Hdrs, &cb);
+                            if (pv && cb)
+                                processUDP(pv, cb);
+                            else
+                                VBoxNetArpHandleIt(m->m_pSession, m->m_hIf, m->m_pIfBuf, &m->m_MacAddress, m->m_Ipv4Address);
+                        }
                     }
                     break;
-                }
                 case INTNETHDR_TYPE_GSO:
-                {
-                    PCPDMNETWORKGSO pGso = IntNetHdrGetGsoContext(pHdr, m->m_pIfBuf);
-                    rc = processGSO(pGso, cbFrame);
-                    if (RT_FAILURE(rc) && rc == VERR_IGNORED)
-                        break;
-                    break;
-                }
-
+                  {
+                      PCPDMNETWORKGSO pGso = IntNetHdrGetGsoContext(pHdr, m->m_pIfBuf);
+                      rc = processGSO(pGso, cbFrame);
+                      if (RT_FAILURE(rc) && rc == VERR_IGNORED)
+                          break;
+                  }
+                  break;
                 case INTNETHDR_TYPE_PADDING:
                     break;
-
                 default:
                     break;
             }
             IntNetRingSkipFrame(&m->m_pIfBuf->Recv);
+
         } /* loop */
     }
 }
@@ -771,7 +769,7 @@ int VBoxNetBaseService::startReceiveThreadAndEnterEventLoop()
                             this, /* user data */
                             128 * _1K, /* stack size */
                             RTTHREADTYPE_IO, /* type */
-                            RTTHREADFLAGS_WAITABLE, /* flags */
+                            0, /* flags, @todo: waitable ?*/
                             "RECV");
     AssertRCReturn(rc, rc);
 
@@ -825,6 +823,7 @@ void VBoxNetBaseService::debugPrintV(int iMinLevel, bool fMsg, const char *pszFm
                      &vaCopy);
         va_end(vaCopy);
     }
+
 }
 
 

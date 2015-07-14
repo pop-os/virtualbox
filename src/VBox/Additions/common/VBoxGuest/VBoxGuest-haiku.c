@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2015 Oracle Corporation
+ * Copyright (C) 2012-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,7 +20,7 @@
  *
  * VirtualBox Guest Additions for Haiku.
  * Copyright (c) 2011 Mike Smith <mike@scgtrp.net>
- *                    FranÃ§ois Revol <revol@free.fr>
+ *                    François Revol <revol@free.fr>
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -176,13 +176,11 @@ static struct vboxguest_module_info g_VBoxGuest =
     RTMemTmpAllocTag,
     RTMemTmpFree,
     RTLogDefaultInstance,
-    RTLogDefaultInstanceEx,
-    RTLogRelGetDefaultInstance,
-    RTLogRelGetDefaultInstanceEx,
+    RTLogRelDefaultInstance,
     RTErrConvertToErrno,
-    VbgdCommonIoCtl,
-    VbgdCommonCreateUserSession,
-    VbgdCommonCloseSession,
+    VBoxGuestCommonIOCtl,
+    VBoxGuestCreateUserSession,
+    VBoxGuestCloseSession,
     VBoxGuestIDCOpen,
     VBoxGuestIDCClose,
     VBoxGuestIDCCall,
@@ -279,7 +277,7 @@ static status_t VBoxGuestHaikuDetach(void)
     if (pState->iVMMDevMemAreaId)
         delete_area(pState->iVMMDevMemAreaId);
 
-    VbgdCommonDeleteDevExt(&g_DevExt);
+    VBoxGuestDeleteDevExt(&g_DevExt);
 
 #ifdef DO_LOG
     RTLogDestroy(RTLogRelSetDefaultInstance(NULL));
@@ -305,14 +303,14 @@ static int32 VBoxGuestHaikuISR(void *pvState)
 {
     LogFlow((MODULE_NAME ":VBoxGuestHaikuISR pvState=%p\n", pvState));
 
-    bool fOurIRQ = VbgdCommonISR(&g_DevExt);
+    bool fOurIRQ = VBoxGuestCommonISR(&g_DevExt);
     if (fOurIRQ)
         return B_HANDLED_INTERRUPT;
     return B_UNHANDLED_INTERRUPT;
 }
 
 
-void VbgdNativeISRMousePollEvent(PVBOXGUESTDEVEXT pDevExt)
+void VBoxGuestNativeISRMousePollEvent(PVBOXGUESTDEVEXT pDevExt)
 {
     LogFlow((MODULE_NAME "::NativeISRMousePollEvent:\n"));
 
@@ -447,13 +445,13 @@ static status_t VBoxGuestHaikuAttach(const pci_info *pDevice)
             /*
              * Call the common device extension initializer.
              */
-            rc = VbgdCommonInitDevExt(&g_DevExt, pState->uIOPortBase, pState->pMMIOBase, pState->VMMDevMemSize,
+            rc = VBoxGuestInitDevExt(&g_DevExt, pState->uIOPortBase, pState->pMMIOBase, pState->VMMDevMemSize,
 #if ARCH_BITS == 64
-                                      VBOXOSTYPE_Haiku_x64,
+                                     VBOXOSTYPE_Haiku_x64,
 #else
-                                      VBOXOSTYPE_Haiku,
+                                     VBOXOSTYPE_Haiku,
 #endif
-                                      VMMDEV_EVENT_MOUSE_POSITION_CHANGED);
+                                     VMMDEV_EVENT_MOUSE_POSITION_CHANGED);
             if (RT_SUCCESS(rc))
             {
                 /*
@@ -467,8 +465,8 @@ static status_t VBoxGuestHaikuAttach(const pci_info *pDevice)
                     return B_OK;
                 }
 
-                LogRel((MODULE_NAME ":VbgdCommonInitDevExt failed.\n"));
-                VbgdCommonDeleteDevExt(&g_DevExt);
+                LogRel((MODULE_NAME ":VBoxGuestInitDevExt failed.\n"));
+                VBoxGuestDeleteDevExt(&g_DevExt);
             }
             else
                 LogRel((MODULE_NAME ":VBoxGuestHaikuAddIRQ failed.\n"));

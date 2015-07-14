@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2012-2015 Oracle Corporation
+ * Copyright (C) 2012-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -584,11 +584,13 @@ bool createServiceFileCore(char **ppachTemplate,
             }
             else
             {
-                const char *pcszFileName = RTPathFilename(pParameters->pcszCommand);
-                const char *pcszSuffix   = RTPathSuffix(pParameters->pcszCommand);
+                const char *pcszFileName =
+                    RTPathFilename(pParameters->pcszCommand);
+                const char *pcszExtension =
+                    RTPathExt(pParameters->pcszCommand);
                 char *pszName = RTStrDupN(pcszFileName,
-                                            pcszSuffix
-                                          ? pcszSuffix - pcszFileName
+                                            pcszExtension
+                                          ? pcszExtension - pcszFileName
                                           : RTPATH_MAX);
                 bool fRc;
                 if (!pszName)

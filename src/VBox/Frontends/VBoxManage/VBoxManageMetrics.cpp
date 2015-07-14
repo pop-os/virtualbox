@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -44,10 +44,10 @@ using namespace com;
 ///////////////////////////////////////////////////////////////////////////////
 
 
-static HRESULT parseFilterParameters(int argc, char *argv[],
-                                     ComPtr<IVirtualBox> aVirtualBox,
-                                     ComSafeArrayOut(BSTR, outMetrics),
-                                     ComSafeArrayOut(IUnknown *, outObjects))
+static int parseFilterParameters(int argc, char *argv[],
+                                 ComPtr<IVirtualBox> aVirtualBox,
+                                 ComSafeArrayOut(BSTR, outMetrics),
+                                 ComSafeArrayOut(IUnknown *, outObjects))
 {
     HRESULT rc = S_OK;
     com::SafeArray<BSTR> retMetrics(1);
@@ -80,7 +80,7 @@ static HRESULT parseFilterParameters(int argc, char *argv[],
             ComPtr<IMachine> machine;
             rc = aVirtualBox->FindMachine(Bstr(argv[0]).raw(),
                                           machine.asOutParam());
-            if (SUCCEEDED(rc))
+            if (SUCCEEDED (rc))
             {
                 retObjects.reset(1);
                 machine.queryInterfaceTo(&retObjects[0]);
@@ -107,7 +107,7 @@ static Bstr toBaseName(Utf8Str& aFullName)
      * Currently there are two metrics which base name is the same as the
      * sub-metric name: CPU/MHz and Net/<iface>/LinkSpeed.
      */
-    if (pszRaw && strcmp(pszRaw, "CPU/MHz") && !RTStrSimplePatternMatch("Net/*/LinkSpeed", pszRaw))
+    if (strcmp(pszRaw, "CPU/MHz") && !RTStrSimplePatternMatch("Net/*/LinkSpeed", pszRaw))
     {
         char *pszSlash = strrchr(pszRaw, '/');
         if (pszSlash)
@@ -169,7 +169,7 @@ static void listAffectedMetrics(ComPtr<IVirtualBox> aVirtualBox,
 /**
  * list
  */
-static RTEXITCODE handleMetricsList(int argc, char *argv[],
+static int handleMetricsList(int argc, char *argv[],
                              ComPtr<IVirtualBox> aVirtualBox,
                              ComPtr<IPerformanceCollector> performanceCollector)
 {
@@ -181,7 +181,7 @@ static RTEXITCODE handleMetricsList(int argc, char *argv[],
                                ComSafeArrayAsOutParam(metrics),
                                ComSafeArrayAsOutParam(objects));
     if (FAILED(rc))
-        return RTEXITCODE_FAILURE;
+        return 1;
 
     com::SafeIfaceArray<IPerformanceMetric> metricInfo;
 
@@ -212,15 +212,15 @@ static RTEXITCODE handleMetricsList(int argc, char *argv[],
             minimum, maximum, period, count, description.raw());
     }
 
-    return RTEXITCODE_SUCCESS;
+    return 0;
 }
 
 /**
  * Metrics setup
  */
-static RTEXITCODE handleMetricsSetup(int argc, char *argv[],
-                                     ComPtr<IVirtualBox> aVirtualBox,
-                                     ComPtr<IPerformanceCollector> performanceCollector)
+static int handleMetricsSetup(int argc, char *argv[],
+                              ComPtr<IVirtualBox> aVirtualBox,
+                              ComPtr<IPerformanceCollector> performanceCollector)
 {
     HRESULT rc;
     com::SafeArray<BSTR>          metrics;
@@ -260,7 +260,7 @@ static RTEXITCODE handleMetricsSetup(int argc, char *argv[],
                                ComSafeArrayAsOutParam(metrics),
                                ComSafeArrayAsOutParam(objects));
     if (FAILED(rc))
-        return RTEXITCODE_FAILURE;
+        return 1;
 
     com::SafeIfaceArray<IPerformanceMetric> affectedMetrics;
     CHECK_ERROR(performanceCollector,
@@ -268,21 +268,21 @@ static RTEXITCODE handleMetricsSetup(int argc, char *argv[],
                      ComSafeArrayAsInParam(objects), period, samples,
                      ComSafeArrayAsOutParam(affectedMetrics)));
     if (FAILED(rc))
-        return RTEXITCODE_SYNTAX; /** @todo figure out why we must return 2 here. */
+        return 2;
 
     if (listMatches)
         listAffectedMetrics(aVirtualBox,
                             ComSafeArrayAsInParam(affectedMetrics));
 
-    return RTEXITCODE_SUCCESS;
+    return 0;
 }
 
 /**
  * metrics query
  */
-static RTEXITCODE handleMetricsQuery(int argc, char *argv[],
-                                     ComPtr<IVirtualBox> aVirtualBox,
-                                     ComPtr<IPerformanceCollector> performanceCollector)
+static int handleMetricsQuery(int argc, char *argv[],
+                              ComPtr<IVirtualBox> aVirtualBox,
+                              ComPtr<IPerformanceCollector> performanceCollector)
 {
     HRESULT rc;
     com::SafeArray<BSTR>          metrics;
@@ -292,7 +292,7 @@ static RTEXITCODE handleMetricsQuery(int argc, char *argv[],
                                ComSafeArrayAsOutParam(metrics),
                                ComSafeArrayAsOutParam(objects));
     if (FAILED(rc))
-        return RTEXITCODE_FAILURE;
+        return 1;
 
     com::SafeArray<BSTR>          retNames;
     com::SafeIfaceArray<IUnknown> retObjects;
@@ -302,16 +302,16 @@ static RTEXITCODE handleMetricsQuery(int argc, char *argv[],
     com::SafeArray<ULONG>         retIndices;
     com::SafeArray<ULONG>         retLengths;
     com::SafeArray<LONG>          retData;
-    CHECK_ERROR(performanceCollector, QueryMetricsData(ComSafeArrayAsInParam(metrics),
-                                                       ComSafeArrayAsInParam(objects),
-                                                       ComSafeArrayAsOutParam(retNames),
-                                                       ComSafeArrayAsOutParam(retObjects),
-                                                       ComSafeArrayAsOutParam(retUnits),
-                                                       ComSafeArrayAsOutParam(retScales),
-                                                       ComSafeArrayAsOutParam(retSequenceNumbers),
-                                                       ComSafeArrayAsOutParam(retIndices),
-                                                       ComSafeArrayAsOutParam(retLengths),
-                                                       ComSafeArrayAsOutParam(retData)) );
+    CHECK_ERROR (performanceCollector, QueryMetricsData(ComSafeArrayAsInParam(metrics),
+                                             ComSafeArrayAsInParam(objects),
+                                             ComSafeArrayAsOutParam(retNames),
+                                             ComSafeArrayAsOutParam(retObjects),
+                                             ComSafeArrayAsOutParam(retUnits),
+                                             ComSafeArrayAsOutParam(retScales),
+                                             ComSafeArrayAsOutParam(retSequenceNumbers),
+                                             ComSafeArrayAsOutParam(retIndices),
+                                             ComSafeArrayAsOutParam(retLengths),
+                                             ComSafeArrayAsOutParam(retData)) );
 
     RTPrintf("Object     Metric               Values\n"
              "---------- -------------------- --------------------------------------------\n");
@@ -333,7 +333,7 @@ static RTEXITCODE handleMetricsQuery(int argc, char *argv[],
         RTPrintf("\n");
     }
 
-    return RTEXITCODE_SUCCESS;
+    return 0;
 }
 
 static void getTimestamp(char *pts, size_t tsSize)
@@ -386,9 +386,9 @@ static BOOL WINAPI ctrlHandler(DWORD dwCtrlType)
 /**
  * collect
  */
-static RTEXITCODE handleMetricsCollect(int argc, char *argv[],
-                                       ComPtr<IVirtualBox> aVirtualBox,
-                                       ComPtr<IPerformanceCollector> performanceCollector)
+static int handleMetricsCollect(int argc, char *argv[],
+                                ComPtr<IVirtualBox> aVirtualBox,
+                                ComPtr<IPerformanceCollector> performanceCollector)
 {
     HRESULT rc;
     com::SafeArray<BSTR>          metrics;
@@ -430,7 +430,7 @@ static RTEXITCODE handleMetricsCollect(int argc, char *argv[],
                                ComSafeArrayAsOutParam(metrics),
                                ComSafeArrayAsOutParam(objects));
     if (FAILED(rc))
-        return RTEXITCODE_FAILURE;
+        return 1;
 
     com::SafeIfaceArray<IPerformanceMetric> metricInfo;
 
@@ -464,19 +464,19 @@ static RTEXITCODE handleMetricsCollect(int argc, char *argv[],
                      ComSafeArrayAsInParam(objectsFiltered), period, samples,
                      ComSafeArrayAsOutParam(affectedMetrics)));
     if (FAILED(rc))
-        return RTEXITCODE_SYNTAX; /** @todo figure out why we must return 2 here. */
+        return 2;
 
     if (listMatches)
         listAffectedMetrics(aVirtualBox,
                             ComSafeArrayAsInParam(affectedMetrics));
     if (!affectedMetrics.size())
-        return RTEXITCODE_FAILURE;
+        return 1;
 
     if (isDetached)
     {
         RTMsgWarning("The background process holding collected metrics will shutdown\n"
                      "in few seconds, discarding all collected data and parameters.");
-        return RTEXITCODE_SUCCESS;
+        return 0;
     }
 
 #ifdef RT_OS_WINDOWS
@@ -500,16 +500,16 @@ static RTEXITCODE handleMetricsCollect(int argc, char *argv[],
         com::SafeArray<ULONG>         retIndices;
         com::SafeArray<ULONG>         retLengths;
         com::SafeArray<LONG>          retData;
-        CHECK_ERROR(performanceCollector, QueryMetricsData(ComSafeArrayAsInParam(metrics),
-                                                           ComSafeArrayAsInParam(objects),
-                                                           ComSafeArrayAsOutParam(retNames),
-                                                           ComSafeArrayAsOutParam(retObjects),
-                                                           ComSafeArrayAsOutParam(retUnits),
-                                                           ComSafeArrayAsOutParam(retScales),
-                                                           ComSafeArrayAsOutParam(retSequenceNumbers),
-                                                           ComSafeArrayAsOutParam(retIndices),
-                                                           ComSafeArrayAsOutParam(retLengths),
-                                                           ComSafeArrayAsOutParam(retData)) );
+        CHECK_ERROR (performanceCollector, QueryMetricsData(ComSafeArrayAsInParam(metrics),
+                                                 ComSafeArrayAsInParam(objects),
+                                                 ComSafeArrayAsOutParam(retNames),
+                                                 ComSafeArrayAsOutParam(retObjects),
+                                                 ComSafeArrayAsOutParam(retUnits),
+                                                 ComSafeArrayAsOutParam(retScales),
+                                                 ComSafeArrayAsOutParam(retSequenceNumbers),
+                                                 ComSafeArrayAsOutParam(retIndices),
+                                                 ComSafeArrayAsOutParam(retLengths),
+                                                 ComSafeArrayAsOutParam(retData)) );
         for (unsigned j = 0; j < retNames.size(); j++)
         {
             Bstr metricUnit(retUnits[j]);
@@ -534,15 +534,15 @@ static RTEXITCODE handleMetricsCollect(int argc, char *argv[],
     SetConsoleCtrlHandler(ctrlHandler, false);
 #endif /* RT_OS_WINDOWS */
 
-    return RTEXITCODE_SUCCESS;
+    return 0;
 }
 
 /**
  * Enable metrics
  */
-static RTEXITCODE handleMetricsEnable(int argc, char *argv[],
-                                      ComPtr<IVirtualBox> aVirtualBox,
-                                      ComPtr<IPerformanceCollector> performanceCollector)
+static int handleMetricsEnable(int argc, char *argv[],
+                               ComPtr<IVirtualBox> aVirtualBox,
+                               ComPtr<IPerformanceCollector> performanceCollector)
 {
     HRESULT rc;
     com::SafeArray<BSTR>          metrics;
@@ -563,7 +563,7 @@ static RTEXITCODE handleMetricsEnable(int argc, char *argv[],
                                ComSafeArrayAsOutParam(metrics),
                                ComSafeArrayAsOutParam(objects));
     if (FAILED(rc))
-        return RTEXITCODE_FAILURE;
+        return 1;
 
     com::SafeIfaceArray<IPerformanceMetric> affectedMetrics;
     CHECK_ERROR(performanceCollector,
@@ -571,21 +571,21 @@ static RTEXITCODE handleMetricsEnable(int argc, char *argv[],
                       ComSafeArrayAsInParam(objects),
                       ComSafeArrayAsOutParam(affectedMetrics)));
     if (FAILED(rc))
-        return RTEXITCODE_SYNTAX; /** @todo figure out why we must return 2 here. */
+        return 2;
 
     if (listMatches)
         listAffectedMetrics(aVirtualBox,
                             ComSafeArrayAsInParam(affectedMetrics));
 
-    return RTEXITCODE_SUCCESS;
+    return 0;
 }
 
 /**
  * Disable metrics
  */
-static RTEXITCODE handleMetricsDisable(int argc, char *argv[],
-                                       ComPtr<IVirtualBox> aVirtualBox,
-                                       ComPtr<IPerformanceCollector> performanceCollector)
+static int handleMetricsDisable(int argc, char *argv[],
+                                ComPtr<IVirtualBox> aVirtualBox,
+                                ComPtr<IPerformanceCollector> performanceCollector)
 {
     HRESULT rc;
     com::SafeArray<BSTR>          metrics;
@@ -606,7 +606,7 @@ static RTEXITCODE handleMetricsDisable(int argc, char *argv[],
                                ComSafeArrayAsOutParam(metrics),
                                ComSafeArrayAsOutParam(objects));
     if (FAILED(rc))
-        return RTEXITCODE_FAILURE;
+        return 1;
 
     com::SafeIfaceArray<IPerformanceMetric> affectedMetrics;
     CHECK_ERROR(performanceCollector,
@@ -614,42 +614,43 @@ static RTEXITCODE handleMetricsDisable(int argc, char *argv[],
                        ComSafeArrayAsInParam(objects),
                        ComSafeArrayAsOutParam(affectedMetrics)));
     if (FAILED(rc))
-        return RTEXITCODE_SYNTAX; /** @todo figure out why we must return 2 here. */
+        return 2;
 
     if (listMatches)
         listAffectedMetrics(aVirtualBox,
                             ComSafeArrayAsInParam(affectedMetrics));
 
-    return RTEXITCODE_SUCCESS;
+    return 0;
 }
 
 
-RTEXITCODE handleMetrics(HandlerArg *a)
+int handleMetrics(HandlerArg *a)
 {
+    int rc;
+
     /* at least one option: subcommand name */
     if (a->argc < 1)
         return errorSyntax(USAGE_METRICS, "Subcommand missing");
 
     ComPtr<IPerformanceCollector> performanceCollector;
-    CHECK_ERROR2I_RET(a->virtualBox, COMGETTER(PerformanceCollector)(performanceCollector.asOutParam()), RTEXITCODE_FAILURE);
+    CHECK_ERROR(a->virtualBox, COMGETTER(PerformanceCollector)(performanceCollector.asOutParam()));
 
-    RTEXITCODE rcExit;
     if (!strcmp(a->argv[0], "list"))
-        rcExit = handleMetricsList(a->argc, a->argv, a->virtualBox, performanceCollector);
+        rc = handleMetricsList(a->argc, a->argv, a->virtualBox, performanceCollector);
     else if (!strcmp(a->argv[0], "setup"))
-        rcExit = handleMetricsSetup(a->argc, a->argv, a->virtualBox, performanceCollector);
+        rc = handleMetricsSetup(a->argc, a->argv, a->virtualBox, performanceCollector);
     else if (!strcmp(a->argv[0], "query"))
-        rcExit = handleMetricsQuery(a->argc, a->argv, a->virtualBox, performanceCollector);
+        rc = handleMetricsQuery(a->argc, a->argv, a->virtualBox, performanceCollector);
     else if (!strcmp(a->argv[0], "collect"))
-        rcExit = handleMetricsCollect(a->argc, a->argv, a->virtualBox, performanceCollector);
+        rc = handleMetricsCollect(a->argc, a->argv, a->virtualBox, performanceCollector);
     else if (!strcmp(a->argv[0], "enable"))
-        rcExit = handleMetricsEnable(a->argc, a->argv, a->virtualBox, performanceCollector);
+        rc = handleMetricsEnable(a->argc, a->argv, a->virtualBox, performanceCollector);
     else if (!strcmp(a->argv[0], "disable"))
-        rcExit = handleMetricsDisable(a->argc, a->argv, a->virtualBox, performanceCollector);
+        rc = handleMetricsDisable(a->argc, a->argv, a->virtualBox, performanceCollector);
     else
         return errorSyntax(USAGE_METRICS, "Invalid subcommand '%s'", a->argv[0]);
 
-    return rcExit;
+    return rc;
 }
 
 #endif /* VBOX_ONLY_DOCS */

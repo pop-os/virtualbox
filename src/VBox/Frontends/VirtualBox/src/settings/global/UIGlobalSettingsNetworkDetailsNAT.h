@@ -1,6 +1,7 @@
-/* $Id:  $ */
 /** @file
- * VBox Qt GUI - UIGlobalSettingsNetworkDetailsNAT class declaration.
+ *
+ * VBox frontends: Qt4 GUI ("VirtualBox"):
+ * UIGlobalSettingsNetworkDetailsNAT class declaration
  */
 
 /*

@@ -13,14 +13,10 @@
   An odd minor version number represents an internal development or test build.
   In addition, each build contains a revision number.</para>
 
-  <xi:include href="@VBOX_PATH_MANUAL_SRC@/user_ChangeLogImpl.xml" xpointer="xpointer(/chapter/*)"
-    xmlns:xi="http://www.w3.org/2001/XInclude" />
+<!--$VIRTUALBOX_CHANGELOG_IMPL-->
 
-  <sect1>
-    <title>Older Change log details</title>
-    <para>With VirtualBox 5.0, changelog information for versions before 4.3
-    was removed in order to save space. To access this information, please
-    consult the User Manual of VirtualBox version 4.3 or earlier.</para>
-  </sect1>
+  <para>With VirtualBox 3.2, changelog information for versions before 2.0 was removed in
+  order to save space. To access this information, please consult the User Manual of
+  VirtualBox version 3.1 or earlier.</para>
 
 </chapter>

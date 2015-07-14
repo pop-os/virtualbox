@@ -1,6 +1,7 @@
-/* $Id: UIGraphicsButton.h $ */
 /** @file
- * VBox Qt GUI - UIGraphicsButton class declaration.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * UIGraphicsButton class declaration
  */
 
 /*

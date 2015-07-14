@@ -35,7 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef nsProxyRelease_h__
+#ifndef nsProxyRelease_h_
 #define nsProxyRelease_h__
 
 #include "nsIEventQueueService.h"

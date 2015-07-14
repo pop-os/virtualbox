@@ -1,4 +1,4 @@
-/* $Rev: 100489 $ */
+/* $Rev: 97220 $ */
 /** @file
  * VBoxGuest - Linux specifics.
  *
@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -340,7 +340,7 @@ static irqreturn_t vboxguestLinuxISR(int iIrrq, void *pvDevId)
 static irqreturn_t vboxguestLinuxISR(int iIrrq, void *pvDevId, struct pt_regs *pRegs)
 #endif
 {
-    bool fTaken = VbgdCommonISR(&g_DevExt);
+    bool fTaken = VBoxGuestCommonISR(&g_DevExt);
     return IRQ_RETVAL(fTaken);
 }
 
@@ -385,9 +385,9 @@ static void vboxguestLinuxTermISR(void)
  * our kernel session. */
 static int vboxguestLinuxSetMouseStatus(uint32_t fStatus)
 {
-    return VbgdCommonIoCtl(VBOXGUEST_IOCTL_SET_MOUSE_STATUS, &g_DevExt,
-                           g_pKernelSession, &fStatus, sizeof(fStatus),
-                           NULL);
+    return VBoxGuestCommonIOCtl(VBOXGUEST_IOCTL_SET_MOUSE_STATUS, &g_DevExt,
+                                g_pKernelSession, &fStatus, sizeof(fStatus),
+                                NULL);
 }
 
 
@@ -594,18 +594,18 @@ static int __init vboxguestLinuxModInit(void)
 # warning "huh? which arch + version is this?"
             VBOXOSTYPE enmOsType = VBOXOSTYPE_Linux;
 #endif
-            rc = VbgdCommonInitDevExt(&g_DevExt,
-                                      g_IOPortBase,
-                                      g_pvMMIOBase,
-                                      g_cbMMIO,
-                                      enmOSType,
-                                      VMMDEV_EVENT_MOUSE_POSITION_CHANGED);
+            rc = VBoxGuestInitDevExt(&g_DevExt,
+                                     g_IOPortBase,
+                                     g_pvMMIOBase,
+                                     g_cbMMIO,
+                                     enmOSType,
+                                     VMMDEV_EVENT_MOUSE_POSITION_CHANGED);
             if (RT_SUCCESS(rc))
             {
                 /*
                  * Create the kernel session for this driver.
                  */
-                rc = VbgdCommonCreateKernelSession(&g_DevExt,
+                rc = VBoxGuestCreateKernelSession(&g_DevExt,
                                                   &g_pKernelSession);
                 if (RT_SUCCESS(rc))
                 {
@@ -641,13 +641,13 @@ static int __init vboxguestLinuxModInit(void)
                         rc = RTErrConvertFromErrno(rc);
                     }
 #endif
-                    VbgdCommonCloseSession(&g_DevExt, g_pKernelSession);
+                    VBoxGuestCloseSession(&g_DevExt, g_pKernelSession);
                 }
-                VbgdCommonDeleteDevExt(&g_DevExt);
+                VBoxGuestDeleteDevExt(&g_DevExt);
             }
             else
             {
-                LogRel((DEVICE_NAME ": VbgdCommonInitDevExt failed with rc=%Rrc\n", rc));
+                LogRel((DEVICE_NAME ": VBoxGuestInitDevExt failed with rc=%Rrc\n", rc));
                 rc = RTErrConvertFromErrno(rc);
             }
             vboxguestLinuxTermISR();
@@ -678,8 +678,8 @@ static void __exit vboxguestLinuxModExit(void)
 #ifdef VBOXGUEST_WITH_INPUT_DRIVER
     vboxguestLinuxTermInputDevice();
 #endif
-    VbgdCommonCloseSession(&g_DevExt, g_pKernelSession);
-    VbgdCommonDeleteDevExt(&g_DevExt);
+    VBoxGuestCloseSession(&g_DevExt, g_pKernelSession);
+    VBoxGuestDeleteDevExt(&g_DevExt);
     vboxguestLinuxTermISR();
     pci_unregister_driver(&g_PciDriver);
     RTLogDestroy(RTLogRelSetDefaultInstance(NULL));
@@ -704,7 +704,7 @@ static int vboxguestLinuxOpen(struct inode *pInode, struct file *pFilp)
      * Call common code to create the user session. Associate it with
      * the file so we can access it in the other methods.
      */
-    rc = VbgdCommonCreateUserSession(&g_DevExt, &pSession);
+    rc = VBoxGuestCreateUserSession(&g_DevExt, &pSession);
     if (RT_SUCCESS(rc))
     {
         pFilp->private_data = pSession;
@@ -735,7 +735,7 @@ static int vboxguestLinuxRelease(struct inode *pInode, struct file *pFilp)
      * the file pointer didn't get left on the polling queue. */
     vboxguestFAsync(-1, pFilp, 0);
 #endif
-    VbgdCommonCloseSession(&g_DevExt, (PVBOXGUESTSESSION)pFilp->private_data);
+    VBoxGuestCloseSession(&g_DevExt, (PVBOXGUESTSESSION)pFilp->private_data);
     pFilp->private_data = NULL;
     return 0;
 }
@@ -786,7 +786,7 @@ static int vboxguestLinuxIOCtl(struct inode *pInode, struct file *pFilp, unsigne
          * Process the IOCtl.
          */
         size_t cbDataReturned;
-        rc = VbgdCommonIoCtl(uCmd, &g_DevExt, pSession, pvBuf, cbData, &cbDataReturned);
+        rc = VBoxGuestCommonIOCtl(uCmd, &g_DevExt, pSession, pvBuf, cbData, &cbDataReturned);
 
         /*
          * Copy ioctl data and output buffer back to user space.
@@ -881,7 +881,7 @@ static unsigned int vboxguestPoll(struct file *pFile, poll_table *pPt)
  *
  * @remarks This is probably not really used as X11 lets the driver do its own
  *          event reading. The poll condition is therefore also cleared when we
- *          see VMMDevReq_GetMouseStatus in VbgdCommonIoCtl_VMMRequest.
+ *          see VMMDevReq_GetMouseStatus in VBoxGuestCommonIOCtl_VMMRequest.
  */
 static ssize_t vboxguestRead(struct file *pFile, char *pbBuf, size_t cbRead, loff_t *poff)
 {
@@ -905,7 +905,7 @@ static ssize_t vboxguestRead(struct file *pFile, char *pbBuf, size_t cbRead, lof
 }
 
 
-void VbgdNativeISRMousePollEvent(PVBOXGUESTDEVEXT pDevExt)
+void VBoxGuestNativeISRMousePollEvent(PVBOXGUESTDEVEXT pDevExt)
 {
 #ifdef VBOXGUEST_WITH_INPUT_DRIVER
     int rc;
@@ -916,9 +916,9 @@ void VbgdNativeISRMousePollEvent(PVBOXGUESTDEVEXT pDevExt)
      * Wake up everyone that's in a poll() and post anyone that has
      * subscribed to async notifications.
      */
-    Log3(("VbgdNativeISRMousePollEvent: wake_up_all\n"));
+    Log3(("VBoxGuestNativeISRMousePollEvent: wake_up_all\n"));
     wake_up_all(&g_PollEventQueue);
-    Log3(("VbgdNativeISRMousePollEvent: kill_fasync\n"));
+    Log3(("VBoxGuestNativeISRMousePollEvent: kill_fasync\n"));
     kill_fasync(&g_pFAsyncQueue, SIGIO, POLL_IN);
 #ifdef VBOXGUEST_WITH_INPUT_DRIVER
     /* Report events to the kernel input device */
@@ -937,7 +937,7 @@ void VbgdNativeISRMousePollEvent(PVBOXGUESTDEVEXT pDevExt)
 # endif
     }
 #endif
-    Log3(("VbgdNativeISRMousePollEvent: done\n"));
+    Log3(("VBoxGuestNativeISRMousePollEvent: done\n"));
 }
 
 
@@ -956,7 +956,7 @@ static int vboxguestLinuxParamLogGrpSet(const char *pszValue, struct kernel_para
 {
     if (g_fLoggerCreated)
     {
-        PRTLOGGER pLogger = pParam->name[0] == 'd' ? RTLogDefaultInstance() : RTLogRelGetDefaultInstance();
+        PRTLOGGER pLogger = pParam->name[0] == 'd' ? RTLogDefaultInstance() : RTLogRelDefaultInstance();
         if (pLogger)
             RTLogGroupSettings(pLogger, pszValue);
     }
@@ -966,10 +966,11 @@ static int vboxguestLinuxParamLogGrpSet(const char *pszValue, struct kernel_para
     return 0;
 }
 
+
 /** log and dbg_log parameter getter. */
 static int vboxguestLinuxParamLogGrpGet(char *pszBuf, struct kernel_param *pParam)
 {
-    PRTLOGGER pLogger = pParam->name[0] == 'd' ? RTLogDefaultInstance() : RTLogRelGetDefaultInstance();
+    PRTLOGGER pLogger = pParam->name[0] == 'd' ? RTLogDefaultInstance() : RTLogRelDefaultInstance();
     *pszBuf = '\0';
     if (pLogger)
         RTLogGetGroupSettings(pLogger, pszBuf, _4K);
@@ -982,7 +983,7 @@ static int vboxguestLinuxParamLogFlagsSet(const char *pszValue, struct kernel_pa
 {
     if (g_fLoggerCreated)
     {
-        PRTLOGGER pLogger = pParam->name[0] == 'd' ? RTLogDefaultInstance() : RTLogRelGetDefaultInstance();
+        PRTLOGGER pLogger = pParam->name[0] == 'd' ? RTLogDefaultInstance() : RTLogRelDefaultInstance();
         if (pLogger)
             RTLogFlags(pLogger, pszValue);
     }
@@ -991,10 +992,11 @@ static int vboxguestLinuxParamLogFlagsSet(const char *pszValue, struct kernel_pa
     return 0;
 }
 
+
 /** log and dbg_log_flags parameter getter. */
 static int vboxguestLinuxParamLogFlagsGet(char *pszBuf, struct kernel_param *pParam)
 {
-    PRTLOGGER pLogger = pParam->name[0] == 'd' ? RTLogDefaultInstance() : RTLogRelGetDefaultInstance();
+    PRTLOGGER pLogger = pParam->name[0] == 'd' ? RTLogDefaultInstance() : RTLogRelDefaultInstance();
     *pszBuf = '\0';
     if (pLogger)
         RTLogGetFlags(pLogger, pszBuf, _4K);
@@ -1007,7 +1009,7 @@ static int vboxguestLinuxParamLogDstSet(const char *pszValue, struct kernel_para
 {
     if (g_fLoggerCreated)
     {
-        PRTLOGGER pLogger = pParam->name[0] == 'd' ? RTLogDefaultInstance() : RTLogRelGetDefaultInstance();
+        PRTLOGGER pLogger = pParam->name[0] == 'd' ? RTLogDefaultInstance() : RTLogRelDefaultInstance();
         if (pLogger)
             RTLogDestinations(pLogger, pszValue);
     }
@@ -1016,42 +1018,16 @@ static int vboxguestLinuxParamLogDstSet(const char *pszValue, struct kernel_para
     return 0;
 }
 
+
 /** log and dbg_log_dest parameter getter. */
 static int vboxguestLinuxParamLogDstGet(char *pszBuf, struct kernel_param *pParam)
 {
-    PRTLOGGER pLogger = pParam->name[0] == 'd' ? RTLogDefaultInstance() : RTLogRelGetDefaultInstance();
+    PRTLOGGER pLogger = pParam->name[0] == 'd' ? RTLogDefaultInstance() : RTLogRelDefaultInstance();
     *pszBuf = '\0';
     if (pLogger)
         RTLogGetDestinations(pLogger, pszBuf, _4K);
     return strlen(pszBuf);
 }
-
-
-/** r3_log_to_host parameter setter. */
-static int vboxguestLinuxParamR3LogToHostSet(const char *pszValue, struct kernel_param *pParam)
-{
-    if (    pszValue == NULL
-        || *pszValue == '\0'
-        || *pszValue == 'n'
-        || *pszValue == 'N'
-        || *pszValue == 'd'
-        || *pszValue == 'D'
-        || (   (*pszValue == 'o' || *pszValue == 'O')
-            && (*pszValue == 'f' || *pszValue == 'F') )
-       )
-        g_DevExt.fLoggingEnabled = false;
-    else
-        g_DevExt.fLoggingEnabled = true;
-    return 0;
-}
-
-/** r3_log_to_host parameter getter. */
-static int vboxguestLinuxParamR3LogToHostGet(char *pszBuf, struct kernel_param *pParam)
-{
-    strcpy(pszBuf, g_DevExt.fLoggingEnabled ? "enabled" : "disabled");
-    return strlen(pszBuf);
-}
-
 
 /*
  * Define module parameters.
@@ -1064,7 +1040,6 @@ module_param_call(dbg_log,        vboxguestLinuxParamLogGrpSet,   vboxguestLinux
 module_param_call(dbg_log_flags,  vboxguestLinuxParamLogFlagsSet, vboxguestLinuxParamLogFlagsGet, NULL, 0664);
 module_param_call(dbg_log_dest,   vboxguestLinuxParamLogDstSet,   vboxguestLinuxParamLogDstGet,   NULL, 0664);
 # endif
-module_param_call(r3_log_to_host, vboxguestLinuxParamR3LogToHostSet, vboxguestLinuxParamR3LogToHostGet, NULL, 0664);
 
 #endif /* 2.6.0 and later */
 

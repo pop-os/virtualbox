@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2015 Oracle Corporation
+ * Copyright (C) 2008-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -28,6 +28,10 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP  LOG_GROUP_USB_DRV
+#ifdef DEBUG_ramshankar
+# define LOG_ENABLED
+# define LOG_INSTANCE       RTLogRelDefaultInstance()
+#endif
 #include "VBoxUSBFilterMgr.h"
 #include <VBox/usblib-solaris.h>
 #include <VBox/version.h>
@@ -118,8 +122,7 @@ static struct dev_ops g_VBoxUSBMonSolarisDevOps =
     nodev,                      /* reset */
     &g_VBoxUSBMonSolarisCbOps,
     (struct bus_ops *)0,
-    nodev,                      /* power */
-    ddi_quiesce_not_needed
+    nodev                       /* power */
 };
 
 /**

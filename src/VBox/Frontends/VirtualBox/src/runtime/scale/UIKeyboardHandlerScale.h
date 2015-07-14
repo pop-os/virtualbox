@@ -1,10 +1,11 @@
-/* $Id: UIKeyboardHandlerScale.h $ */
 /** @file
- * VBox Qt GUI - UIKeyboardHandlerScale class declaration.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * UIKeyboardHandlerScale class declaration
  */
 
 /*
- * Copyright (C) 2010-2014 Oracle Corporation
+ * Copyright (C) 2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -18,31 +19,27 @@
 #ifndef ___UIKeyboardHandlerScale_h___
 #define ___UIKeyboardHandlerScale_h___
 
-/* GUI includes: */
+/* Local includes */
 #include "UIKeyboardHandler.h"
 
-/** UIKeyboardHandler reimplementation
-  * providing machine-logic with PopupMenu keyboard handler. */
 class UIKeyboardHandlerScale : public UIKeyboardHandler
 {
     Q_OBJECT;
 
 protected:
 
-    /** Scale keyboard-handler constructor. */
+    /* Fullscreen keyboard-handler constructor/destructor: */
     UIKeyboardHandlerScale(UIMachineLogic *pMachineLogic);
-    /** Scale keyboard-handler destructor. */
     virtual ~UIKeyboardHandlerScale();
 
 private:
 
-#ifndef Q_WS_MAC
-    /** General event-filter. */
+    /* Event handlers: */
     bool eventFilter(QObject *pWatched, QEvent *pEvent);
-#endif /* !Q_WS_MAC */
 
-    /* Friend class: */
+    /* Friend classes: */
     friend class UIKeyboardHandler;
 };
 
-#endif /* !___UIKeyboardHandlerScale_h___ */
+#endif // !___UIKeyboardHandlerScale_h___
+

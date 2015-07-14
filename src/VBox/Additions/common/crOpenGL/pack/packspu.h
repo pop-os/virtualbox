@@ -94,7 +94,7 @@ typedef struct {
     int idxThreadInUse; /*index of any used thread*/
 
 #if defined(WINDOWS) && defined(VBOX_WITH_WDDM)
-    bool bIsWDDMCrHgsmi;
+    bool bRunningUnderWDDM;
 #endif
 
     SPUDispatchTable self;
@@ -146,7 +146,7 @@ extern CRtsd _PackTSD;
     } while (0)
 
 #if defined(WINDOWS) && defined(VBOX_WITH_WDDM) && defined(VBOX_WITH_CRHGSMI) && defined(IN_GUEST)
-# define CRPACKSPU_IS_WDDM_CRHGSMI() (pack_spu.bIsWDDMCrHgsmi)
+# define CRPACKSPU_IS_WDDM_CRHGSMI() (pack_spu.bRunningUnderWDDM)
 #else
 # define CRPACKSPU_IS_WDDM_CRHGSMI() (GL_FALSE)
 #endif

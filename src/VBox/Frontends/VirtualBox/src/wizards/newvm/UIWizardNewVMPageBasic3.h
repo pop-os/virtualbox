@@ -1,6 +1,7 @@
-/* $Id: UIWizardNewVMPageBasic3.h $ */
 /** @file
- * VBox Qt GUI - UIWizardNewVMPageBasic3 class declaration.
+ *
+ * VBox frontends: Qt4 GUI ("VirtualBox"):
+ * UIWizardNewVMPageBasic3 class declaration
  */
 
 /*

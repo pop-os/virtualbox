@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -193,7 +193,7 @@ DECLINLINE(PSHFLSTRING) ShflStringInitBuffer(void *pvBuffer, uint32_t u32Size)
     PSHFLSTRING pString = NULL;
     const uint32_t u32HeaderSize = SHFLSTRING_HEADER_SIZE;
 
-    /*
+    /* 
      * Check that the buffer size is big enough to hold a zero sized string
      * and is not too big to fit into 16 bit variables.
      */
@@ -221,11 +221,13 @@ DECLINLINE(PSHFLSTRING) ShflStringInitBuffer(void *pvBuffer, uint32_t u32Size)
  */
 DECLINLINE(bool) ShflStringIsValidOut(PCSHFLSTRING pString, uint32_t cbBuf)
 {
-    if (RT_LIKELY(cbBuf > RT_UOFFSETOF(SHFLSTRING, String)))
-        if (RT_LIKELY((uint32_t)pString->u16Size + RT_UOFFSETOF(SHFLSTRING, String) <= cbBuf))
-            if (RT_LIKELY(pString->u16Length < pString->u16Size))
-                return true;
-    return false;
+    if (RT_UNLIKELY(cbBuf <= RT_UOFFSETOF(SHFLSTRING, String)))
+        return false;
+    if (RT_UNLIKELY((uint32_t)pString->u16Size + RT_UOFFSETOF(SHFLSTRING, String) > cbBuf))
+        return false;
+    if (RT_UNLIKELY(pString->u16Length >= pString->u16Size))
+        return false;
+    return true;
 }
 
 /**
@@ -240,39 +242,31 @@ DECLINLINE(bool) ShflStringIsValidOut(PCSHFLSTRING pString, uint32_t cbBuf)
 DECLINLINE(bool) ShflStringIsValidIn(PCSHFLSTRING pString, uint32_t cbBuf, bool fUtf8Not16)
 {
     int rc;
-    if (RT_LIKELY(cbBuf > RT_UOFFSETOF(SHFLSTRING, String)))
+    if (RT_UNLIKELY(cbBuf <= RT_UOFFSETOF(SHFLSTRING, String)))
+        return false;
+    if (RT_UNLIKELY((uint32_t)pString->u16Size + RT_UOFFSETOF(SHFLSTRING, String) > cbBuf))
+        return false;
+    if (fUtf8Not16)
     {
-        if (RT_LIKELY((uint32_t)pString->u16Size + RT_UOFFSETOF(SHFLSTRING, String) <= cbBuf))
-        {
-            if (fUtf8Not16)
-            {
-                /* UTF-8: */
-                if (RT_LIKELY(pString->u16Length < pString->u16Size))
-                {
-                    rc = RTStrValidateEncodingEx((const char *)&pString->String.utf8[0], pString->u16Length + 1,
-                                                 RTSTR_VALIDATE_ENCODING_EXACT_LENGTH | RTSTR_VALIDATE_ENCODING_ZERO_TERMINATED);
-                    if (RT_SUCCESS(rc))
-                        return true;
-                }
-            }
-            else
-            {
-                /* UTF-16: */
-                if (RT_LIKELY(!(pString->u16Length & 1)))
-                {
-                    if (RT_LIKELY((uint32_t)sizeof(RTUTF16) + pString->u16Length <= pString->u16Size))
-                    {
-                        rc = RTUtf16ValidateEncodingEx(&pString->String.ucs2[0], pString->u16Length / 2 + 1,
-                                                       RTSTR_VALIDATE_ENCODING_EXACT_LENGTH
-                                                       | RTSTR_VALIDATE_ENCODING_ZERO_TERMINATED);
-                        if (RT_SUCCESS(rc))
-                            return true;
-                    }
-                }
-            }
-        }
+        /* UTF-8: */
+        if (RT_UNLIKELY(pString->u16Length >= pString->u16Size))
+            return false;
+        rc = RTStrValidateEncodingEx((const char *)&pString->String.utf8[0], pString->u16Length + 1,
+                                     RTSTR_VALIDATE_ENCODING_EXACT_LENGTH | RTSTR_VALIDATE_ENCODING_ZERO_TERMINATED);
     }
-    return false;
+    else
+    {
+        /* UTF-16: */
+        if (RT_UNLIKELY(pString->u16Length & 1))
+            return false;
+        if (RT_UNLIKELY((uint32_t)sizeof(RTUTF16) + pString->u16Length > pString->u16Size))
+            return false;
+        rc = RTUtf16ValidateEncodingEx(&pString->String.ucs2[0], pString->u16Length / 2 + 1,
+                                       RTSTR_VALIDATE_ENCODING_EXACT_LENGTH | RTSTR_VALIDATE_ENCODING_ZERO_TERMINATED);
+    }
+    if (RT_FAILURE(rc))
+        return false;
+    return true;
 }
 
 /**
@@ -288,9 +282,9 @@ DECLINLINE(bool) ShflStringIsValidOrNullIn(PCSHFLSTRING pString, uint32_t cbBuf,
 {
     if (pString)
         return ShflStringIsValidIn(pString, cbBuf, fUtf8Not16);
-    if (RT_LIKELY(cbBuf == 0))
-        return true;
-    return false;
+    if (RT_UNLIKELY(cbBuf > 0))
+        return false;
+    return true;
 }
 
 /** @} */

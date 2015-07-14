@@ -1,6 +1,8 @@
 /* $Id: UIGlobalSettingsProxy.cpp $ */
 /** @file
- * VBox Qt GUI - UIGlobalSettingsProxy class implementation.
+ *
+ * VBox frontends: Qt4 GUI ("VirtualBox"):
+ * UIGlobalSettingsProxy class implementation
  */
 
 /*
@@ -15,20 +17,13 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Global includes */
-# include <QRegExpValidator>
+#include <QRegExpValidator>
 
 /* Local includes */
-# include "QIWidgetValidator.h"
-# include "UIGlobalSettingsProxy.h"
-# include "VBoxUtils.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
+#include "QIWidgetValidator.h"
+#include "UIGlobalSettingsProxy.h"
+#include "VBoxUtils.h"
 
 /* General page constructor: */
 UIGlobalSettingsProxy::UIGlobalSettingsProxy()

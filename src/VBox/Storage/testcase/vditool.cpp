@@ -26,7 +26,6 @@
 #include <iprt/initterm.h>
 #include <VBox/err.h>
 #include <VBox/log.h>
-#include <VBox/version.h>
 
 #include <stdlib.h>
 
@@ -381,7 +380,7 @@ int main(int argc, char **argv)
 
     RTR3InitExe(argc, &argv, 0);
     RTPrintf("vditool -- for internal use only!\n"
-             "Copyright (C) 2009-" VBOX_C_YEAR " " VBOX_VENDOR "\n\n");
+             "Copyright (c) 2009 Oracle Corporation\n\n");
 
     /*
      * Do cmd line parsing.

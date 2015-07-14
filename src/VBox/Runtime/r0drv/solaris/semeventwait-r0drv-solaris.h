@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -42,9 +42,6 @@
  * @todo Fixed by @bugref{5595}, can be reenabled after checking out
  *       CY_HIGH_LEVEL. */
 #define RTR0SEMSOLWAIT_NO_OLD_S10_FALLBACK
-
-#define SOL_THREAD_TINTR_PTR        ((kthread_t **)((char *)curthread + g_offrtSolThreadIntrThread))
-
 
 /**
  * Solaris semaphore wait structure.
@@ -457,17 +454,15 @@ DECLINLINE(void) rtR0SemSolWaitEnterMutexWithUnpinningHack(kmutex_t *pMtx)
     if (!fAcquired)
     {
         /*
-         * Note! This assumes nobody is using the RTThreadPreemptDisable() in an
+         * Note! This assumes nobody is using the RTThreadPreemptDisable in an
          *       interrupt context and expects it to work right.  The swtch will
          *       result in a voluntary preemption.  To fix this, we would have to
-         *       do our own counting in RTThreadPreemptDisable/Restore() like we do
+         *       do our own counting in RTThreadPreemptDisable/Restore like we do
          *       on systems which doesn't do preemption (OS/2, linux, ...) and
-         *       check whether preemption was disabled via RTThreadPreemptDisable()
-         *       or not and only call swtch if RTThreadPreemptDisable() wasn't called.
+         *       check whether preemption was disabled via RTThreadPreemptDisable
+         *       or not and only call swtch if RTThreadPreemptDisable wasn't called.
          */
-        kthread_t **ppIntrThread = SOL_THREAD_TINTR_PTR;
-        if (   *ppIntrThread
-            && getpil() < DISP_LEVEL)
+        if (curthread->t_intr && getpil() < DISP_LEVEL)
         {
             RTTHREADPREEMPTSTATE PreemptState = RTTHREADPREEMPTSTATE_INITIALIZER;
             RTThreadPreemptDisable(&PreemptState);

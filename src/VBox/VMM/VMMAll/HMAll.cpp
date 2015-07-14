@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -37,6 +37,7 @@
 #include <iprt/asm-amd64-x86.h>
 
 
+
 /**
  * Checks whether HM (VT-x/AMD-V) is being used by this VM.
  *
@@ -54,7 +55,7 @@ VMMDECL(bool) HMIsEnabledNotMacro(PVM pVM)
 
 
 /**
- * Queues a guest page for invalidation.
+ * Queues a page for invalidation
  *
  * @returns VBox status code.
  * @param   pVCpu       Pointer to the VMCPU.
@@ -77,9 +78,8 @@ static void hmQueueInvlPage(PVMCPU pVCpu, RTGCPTR GCVirt)
 #endif
 }
 
-
 /**
- * Invalidates a guest page.
+ * Invalidates a guest page
  *
  * @returns VBox status code.
  * @param   pVCpu       Pointer to the VMCPU.
@@ -102,7 +102,6 @@ VMM_INT_DECL(int) HMInvalidatePage(PVMCPU pVCpu, RTGCPTR GCVirt)
 #endif
 }
 
-
 /**
  * Flushes the guest TLB.
  *
@@ -118,8 +117,8 @@ VMM_INT_DECL(int) HMFlushTLB(PVMCPU pVCpu)
     return VINF_SUCCESS;
 }
 
-
 #ifdef IN_RING0
+
 /**
  * Dummy RTMpOnSpecific handler since RTMpPokeCpu couldn't be used.
  *
@@ -173,10 +172,10 @@ static void hmR0PokeCpu(PVMCPU pVCpu, RTCPUID idHostCpu)
             STAM_PROFILE_ADV_STOP(&pVCpu->hm.s.StatSpinPokeFailed, z);
     }
 }
+
 #endif /* IN_RING0 */
-
-
 #ifndef IN_RC
+
 /**
  * Poke an EMT so it can perform the appropriate TLB shootdowns.
  *
@@ -214,13 +213,6 @@ static void hmPokeCpuForTlbFlush(PVMCPU pVCpu, bool fAccountFlushStat)
  */
 VMM_INT_DECL(int) HMInvalidatePageOnAllVCpus(PVM pVM, RTGCPTR GCPtr)
 {
-    /*
-     * The VT-x/AMD-V code will be flushing TLB each time a VCPU migrates to a different
-     * host CPU, see hmR0VmxFlushTaggedTlbBoth() and hmR0SvmFlushTaggedTlb().
-     *
-     * This is the reason why we do not care about thread preemption here and just
-     * execute HMInvalidatePage() assuming it might be the 'right' CPU.
-     */
     VMCPUID idCurCpu = VMMGetCpuId(pVM);
     STAM_COUNTER_INC(&pVM->aCpus[idCurCpu].hm.s.StatFlushPage);
 
@@ -277,38 +269,18 @@ VMM_INT_DECL(int) HMFlushTLBOnAllVCpus(PVM pVM)
 
     return VINF_SUCCESS;
 }
+
 #endif /* !IN_RC */
 
 /**
- * Checks if nested paging is enabled.
+ * Checks if nested paging is enabled
  *
- * @returns true if nested paging is active, false otherwise.
+ * @returns boolean
  * @param   pVM         Pointer to the VM.
- *
- * @remarks Works before hmR3InitFinalizeR0.
  */
 VMM_INT_DECL(bool) HMIsNestedPagingActive(PVM pVM)
 {
     return HMIsEnabled(pVM) && pVM->hm.s.fNestedPaging;
-}
-
-
-/**
- * Checks if both nested paging and unhampered guest execution are enabled.
- *
- * The almost complete guest execution in hardware is only applicable to VT-x.
- *
- * @returns true if we have both enabled, otherwise false.
- * @param   pVM         Pointer to the VM.
- *
- * @remarks Works before hmR3InitFinalizeR0.
- */
-VMM_INT_DECL(bool) HMAreNestedPagingAndFullGuestExecEnabled(PVM pVM)
-{
-    return HMIsEnabled(pVM)
-        && pVM->hm.s.fNestedPaging
-        && (   pVM->hm.s.vmx.fUnrestrictedGuest
-            || pVM->hm.s.svm.fSupported);
 }
 
 
@@ -321,30 +293,6 @@ VMM_INT_DECL(bool) HMAreNestedPagingAndFullGuestExecEnabled(PVM pVM)
 VMM_INT_DECL(bool) HMIsLongModeAllowed(PVM pVM)
 {
     return HMIsEnabled(pVM) && pVM->hm.s.fAllow64BitGuests;
-}
-
-
-/**
- * Checks if MSR bitmaps are available. It is assumed that when it's available
- * it will be used as well.
- *
- * @returns true if MSR bitmaps are available, false otherwise.
- * @param   pVM         Pointer to the VM.
- */
-VMM_INT_DECL(bool) HMAreMsrBitmapsAvailable(PVM pVM)
-{
-    if (HMIsEnabled(pVM))
-    {
-        if (pVM->hm.s.svm.fSupported)
-            return true;
-
-        if (   pVM->hm.s.vmx.fSupported
-            && (pVM->hm.s.vmx.Msrs.VmxProcCtls.n.allowed1 & VMX_VMCS_CTRL_PROC_EXEC_USE_MSR_BITMAPS))
-        {
-            return true;
-        }
-    }
-    return false;
 }
 
 
@@ -510,51 +458,5 @@ VMM_INT_DECL(bool) HMSetSingleInstruction(PVMCPU pVCpu, bool fEnable)
     bool fOld = pVCpu->hm.s.fSingleInstruction;
     pVCpu->hm.s.fSingleInstruction = fEnable;
     return fOld;
-}
-
-
-/**
- * Notifies HM that paravirtualized hypercalls are now enabled.
- *
- * @param   pVCpu   Pointer to the VMCPU.
- */
-VMM_INT_DECL(void) HMHypercallsEnable(PVMCPU pVCpu)
-{
-    pVCpu->hm.s.fHypercallsEnabled = true;
-}
-
-
-/**
- * Notifies HM that paravirtualized hypercalls are now disabled.
- *
- * @param   pVCpu   Pointer to the VMCPU.
- */
-VMM_INT_DECL(void) HMHypercallsDisable(PVMCPU pVCpu)
-{
-    pVCpu->hm.s.fHypercallsEnabled = false;
-}
-
-
-/**
- * Notifies HM that GIM provider wants to trap #UD.
- *
- * @param   pVCpu   Pointer to the VMCPU.
- */
-VMM_INT_DECL(void) HMTrapXcptUDForGIMEnable(PVMCPU pVCpu)
-{
-    pVCpu->hm.s.fGIMTrapXcptUD = true;
-    HMCPU_CF_SET(pVCpu, HM_CHANGED_GUEST_XCPT_INTERCEPTS);
-}
-
-
-/**
- * Notifies HM that GIM provider no longer wants to trap #UD.
- *
- * @param   pVCpu   Pointer to the VMCPU.
- */
-VMM_INT_DECL(void) HMTrapXcptUDForGIMDisable(PVMCPU pVCpu)
-{
-    pVCpu->hm.s.fGIMTrapXcptUD = false;
-    HMCPU_CF_SET(pVCpu, HM_CHANGED_GUEST_XCPT_INTERCEPTS);
 }
 

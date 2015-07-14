@@ -51,7 +51,7 @@ bool HostDnsInformation::equals(const HostDnsInformation &info, uint32_t fLaxCom
     {
         std::set<std::string> l(servers.begin(), servers.end());
         std::set<std::string> r(info.servers.begin(), info.servers.end());
-
+        
         fSameServers = (l == r);
     }
 
@@ -70,12 +70,18 @@ bool HostDnsInformation::equals(const HostDnsInformation &info, uint32_t fLaxCom
 }
 
 inline static void detachVectorOfString(const std::vector<std::string>& v,
-                                        std::vector<com::Utf8Str> &aArray)
+                                        ComSafeArrayOut(BSTR, aBstrArray))
 {
-    aArray.resize(v.size());
-    size_t i = 0;
-    for (std::vector<std::string>::const_iterator it = v.begin(); it != v.end(); ++it, ++i)
-        aArray[i] = Utf8Str(it->c_str());
+    com::SafeArray<BSTR> aBstr(v.size());
+
+    std::vector<std::string>::const_iterator it;
+
+    int i = 0;
+    it = v.begin();
+    for (; it != v.end(); ++it, ++i)
+        Utf8Str(it->c_str()).cloneTo(&aBstr[i]);
+
+    aBstr.detachTo(ComSafeArrayOutArg(aBstrArray));
 }
 
 struct HostDnsMonitor::Data
@@ -341,10 +347,10 @@ void HostDnsMonitorProxy::notify() const
 {
     LogRel(("HostDnsMonitorProxy::notify\n"));
     m->fModified = true;
-    m->virtualbox->i_onHostNameResolutionConfigurationChange();
+    m->virtualbox->onHostNameResolutionConfigurationChange();
 }
 
-HRESULT HostDnsMonitorProxy::GetNameServers(std::vector<com::Utf8Str> &aNameServers)
+HRESULT HostDnsMonitorProxy::GetNameServers(ComSafeArrayOut(BSTR, aNameServers))
 {
     AssertReturn(m && m->info, E_FAIL);
     RTCLock grab(m_LockMtx);
@@ -355,12 +361,12 @@ HRESULT HostDnsMonitorProxy::GetNameServers(std::vector<com::Utf8Str> &aNameServ
     LogRel(("HostDnsMonitorProxy::GetNameServers:\n"));
     dumpHostDnsStrVector("name server", m->info->servers);
 
-    detachVectorOfString(m->info->servers, aNameServers);
+    detachVectorOfString(m->info->servers, ComSafeArrayOutArg(aNameServers));
 
     return S_OK;
 }
 
-HRESULT HostDnsMonitorProxy::GetDomainName(com::Utf8Str *pDomainName)
+HRESULT HostDnsMonitorProxy::GetDomainName(BSTR *aDomainName)
 {
     AssertReturn(m && m->info, E_FAIL);
     RTCLock grab(m_LockMtx);
@@ -371,12 +377,12 @@ HRESULT HostDnsMonitorProxy::GetDomainName(com::Utf8Str *pDomainName)
     LogRel(("HostDnsMonitorProxy::GetDomainName: %s\n",
             m->info->domain.empty() ? "no domain set" : m->info->domain.c_str()));
 
-    *pDomainName = m->info->domain.c_str();
+    Utf8Str(m->info->domain.c_str()).cloneTo(aDomainName);
 
     return S_OK;
 }
 
-HRESULT HostDnsMonitorProxy::GetSearchStrings(std::vector<com::Utf8Str> &aSearchStrings)
+HRESULT HostDnsMonitorProxy::GetSearchStrings(ComSafeArrayOut(BSTR, aSearchStrings))
 {
     AssertReturn(m && m->info, E_FAIL);
     RTCLock grab(m_LockMtx);
@@ -387,7 +393,7 @@ HRESULT HostDnsMonitorProxy::GetSearchStrings(std::vector<com::Utf8Str> &aSearch
     LogRel(("HostDnsMonitorProxy::GetSearchStrings:\n"));
     dumpHostDnsStrVector("search string", m->info->searchList);
 
-    detachVectorOfString(m->info->searchList, aSearchStrings);
+    detachVectorOfString(m->info->searchList, ComSafeArrayOutArg(aSearchStrings));
 
     return S_OK;
 }

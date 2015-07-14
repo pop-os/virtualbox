@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -800,7 +800,7 @@ RTDECL(PRTTIME) RTTimeFromString(PRTTIME pTime, const char *pszString)
         return NULL;
     unsigned const cDaysInMonth = fLeapYear
                                 ? g_acDaysInMonthsLeap[pTime->u8Month - 1]
-                                : g_acDaysInMonths[pTime->u8Month - 1];
+                                : g_acDaysInMonthsLeap[pTime->u8Month - 1];
     if (pTime->u8MonthDay == 0 || pTime->u8MonthDay > cDaysInMonth)
         return NULL;
 

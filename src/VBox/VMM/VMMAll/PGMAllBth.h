@@ -15,7 +15,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -163,7 +163,7 @@ static VBOXSTRICTRC PGM_BTH_NAME(Trap0eHandlerDoAccessHandlers)(PVMCPU pVCpu, RT
     GSTPDE const    PdeSrcDummy = { X86_PDE_P | X86_PDE_US | X86_PDE_RW | X86_PDE_A };
 #endif
     PVM             pVM         = pVCpu->CTX_SUFF(pVM);
-    VBOXSTRICTRC    rcStrict;
+    int             rc;
 
     if (PGM_PAGE_HAS_ANY_PHYSICAL_HANDLERS(pPage))
     {
@@ -178,8 +178,6 @@ static VBOXSTRICTRC PGM_BTH_NAME(Trap0eHandlerDoAccessHandlers)(PVMCPU pVCpu, RT
         PPGMPHYSHANDLER pCur = pgmHandlerPhysicalLookup(pVM, GCPhysFault);
         if (pCur)
         {
-            PPGMPHYSHANDLERTYPEINT pCurType = PGMPHYSHANDLER_GET_TYPE(pVM, pCur);
-
 #  ifdef PGM_SYNC_N_PAGES
             /*
              * If the region is write protected and we got a page not present fault, then sync
@@ -189,21 +187,21 @@ static VBOXSTRICTRC PGM_BTH_NAME(Trap0eHandlerDoAccessHandlers)(PVMCPU pVCpu, RT
              * ASSUMES that there is only one handler per page or that they have similar write properties.
              */
             if (   !(uErr & X86_TRAP_PF_P)
-                &&  pCurType->enmKind == PGMPHYSHANDLERKIND_WRITE)
+                &&  pCur->enmType == PGMPHYSHANDLERTYPE_PHYSICAL_WRITE)
             {
 #   if PGM_WITH_PAGING(PGM_GST_TYPE, PGM_SHW_TYPE)
-                rcStrict = PGM_BTH_NAME(SyncPage)(pVCpu, pGstWalk->Pde, pvFault, PGM_SYNC_NR_PAGES, uErr);
+                rc = PGM_BTH_NAME(SyncPage)(pVCpu, pGstWalk->Pde, pvFault, PGM_SYNC_NR_PAGES, uErr);
 #   else
-                rcStrict = PGM_BTH_NAME(SyncPage)(pVCpu, PdeSrcDummy, pvFault, PGM_SYNC_NR_PAGES, uErr);
+                rc = PGM_BTH_NAME(SyncPage)(pVCpu, PdeSrcDummy, pvFault, PGM_SYNC_NR_PAGES, uErr);
 #   endif
-                if (    RT_FAILURE(rcStrict)
+                if (    RT_FAILURE(rc)
                     || !(uErr & X86_TRAP_PF_RW)
-                    || rcStrict == VINF_PGM_SYNCPAGE_MODIFIED_PDE)
+                    || rc == VINF_PGM_SYNCPAGE_MODIFIED_PDE)
                 {
-                    AssertMsgRC(rcStrict, ("%Rrc\n", VBOXSTRICTRC_VAL(rcStrict)));
+                    AssertRC(rc);
                     STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eHandlersOutOfSync);
                     STAM_STATS({ pVCpu->pgm.s.CTX_SUFF(pStatTrap0eAttribution) = &pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eTime2OutOfSyncHndPhys; });
-                    return rcStrict;
+                    return rc;
                 }
             }
 #  endif
@@ -212,7 +210,7 @@ static VBOXSTRICTRC PGM_BTH_NAME(Trap0eHandlerDoAccessHandlers)(PVMCPU pVCpu, RT
              * If the access was not thru a #PF(RSVD|...) resync the page.
              */
             if (   !(uErr & X86_TRAP_PF_RSVD)
-                && pCurType->enmKind != PGMPHYSHANDLERKIND_WRITE
+                && pCur->enmType != PGMPHYSHANDLERTYPE_PHYSICAL_WRITE
 #   if PGM_WITH_PAGING(PGM_GST_TYPE, PGM_SHW_TYPE)
                 && pGstWalk->Core.fEffectiveRW
                 && !pGstWalk->Core.fEffectiveUS /** @todo Remove pGstWalk->Core.fEffectiveUS and X86_PTE_US further down in the sync code. */
@@ -220,26 +218,26 @@ static VBOXSTRICTRC PGM_BTH_NAME(Trap0eHandlerDoAccessHandlers)(PVMCPU pVCpu, RT
                )
             {
 #   if PGM_WITH_PAGING(PGM_GST_TYPE, PGM_SHW_TYPE)
-                rcStrict = PGM_BTH_NAME(SyncPage)(pVCpu, pGstWalk->Pde, pvFault, PGM_SYNC_NR_PAGES, uErr);
+                rc = PGM_BTH_NAME(SyncPage)(pVCpu, pGstWalk->Pde, pvFault, PGM_SYNC_NR_PAGES, uErr);
 #   else
-                rcStrict = PGM_BTH_NAME(SyncPage)(pVCpu, PdeSrcDummy, pvFault, PGM_SYNC_NR_PAGES, uErr);
+                rc = PGM_BTH_NAME(SyncPage)(pVCpu, PdeSrcDummy, pvFault, PGM_SYNC_NR_PAGES, uErr);
 #   endif
-                if (    RT_FAILURE(rcStrict)
-                    || rcStrict == VINF_PGM_SYNCPAGE_MODIFIED_PDE)
+                if (    RT_FAILURE(rc)
+                    || rc == VINF_PGM_SYNCPAGE_MODIFIED_PDE)
                 {
-                    AssertMsgRC(rcStrict, ("%Rrc\n", VBOXSTRICTRC_VAL(rcStrict)));
+                    AssertRC(rc);
                     STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eHandlersOutOfSync);
                     STAM_STATS({ pVCpu->pgm.s.CTX_SUFF(pStatTrap0eAttribution) = &pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eTime2OutOfSyncHndPhys; });
-                    return rcStrict;
+                    return rc;
                 }
             }
 #  endif
 
-            AssertMsg(   pCurType->enmKind != PGMPHYSHANDLERKIND_WRITE
-                      || (pCurType->enmKind == PGMPHYSHANDLERKIND_WRITE && (uErr & X86_TRAP_PF_RW)),
-                      ("Unexpected trap for physical handler: %08X (phys=%08x) pPage=%R[pgmpage] uErr=%X, enmKind=%d\n",
-                       pvFault, GCPhysFault, pPage, uErr, pCurType->enmKind));
-            if (pCurType->enmKind == PGMPHYSHANDLERKIND_WRITE)
+            AssertMsg(   pCur->enmType != PGMPHYSHANDLERTYPE_PHYSICAL_WRITE
+                      || (pCur->enmType == PGMPHYSHANDLERTYPE_PHYSICAL_WRITE && (uErr & X86_TRAP_PF_RW)),
+                      ("Unexpected trap for physical handler: %08X (phys=%08x) pPage=%R[pgmpage] uErr=%X, enum=%d\n",
+                       pvFault, GCPhysFault, pPage, uErr, pCur->enmType));
+            if (pCur->enmType == PGMPHYSHANDLERTYPE_PHYSICAL_WRITE)
                 STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eHandlersPhysWrite);
             else
             {
@@ -247,19 +245,24 @@ static VBOXSTRICTRC PGM_BTH_NAME(Trap0eHandlerDoAccessHandlers)(PVMCPU pVCpu, RT
                 if (uErr & X86_TRAP_PF_RSVD) STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eHandlersPhysAllOpt);
             }
 
-            if (pCurType->CTX_SUFF(pfnPfHandler))
+            if (pCur->CTX_SUFF(pfnHandler))
             {
-                PPGMPOOL    pPool  = pVM->pgm.s.CTX_SUFF(pPool);
-                void       *pvUser = pCur->CTX_SUFF(pvUser);
+                PPGMPOOL            pPool      = pVM->pgm.s.CTX_SUFF(pPool);
+                void               *pvUser     = pCur->CTX_SUFF(pvUser);
+#  ifdef IN_RING0
+                PFNPGMR0PHYSHANDLER pfnHandler = pCur->CTX_SUFF(pfnHandler);
+#  else
+                PFNPGMRCPHYSHANDLER pfnHandler = pCur->CTX_SUFF(pfnHandler);
+#  endif
 
                 STAM_PROFILE_START(&pCur->Stat, h);
-                if (pCur->hType != pPool->hAccessHandlerType)
+                if (pfnHandler != pPool->CTX_SUFF(pfnAccessHandler))
                 {
                     pgmUnlock(pVM);
                     *pfLockTaken = false;
                 }
 
-                rcStrict = pCurType->CTX_SUFF(pfnPfHandler)(pVM, pVCpu, uErr, pRegFrame, pvFault, GCPhysFault, pvUser);
+                rc = pfnHandler(pVM, uErr, pRegFrame, pvFault, GCPhysFault, pvUser);
 
 #  ifdef VBOX_WITH_STATISTICS
                 pgmLock(pVM);
@@ -270,10 +273,10 @@ static VBOXSTRICTRC PGM_BTH_NAME(Trap0eHandlerDoAccessHandlers)(PVMCPU pVCpu, RT
 #  endif
             }
             else
-                rcStrict = VINF_EM_RAW_EMULATE_INSTR;
+                rc = VINF_EM_RAW_EMULATE_INSTR;
 
             STAM_STATS({ pVCpu->pgm.s.CTX_SUFF(pStatTrap0eAttribution) = &pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eTime2HndPhys; });
-            return rcStrict;
+            return rc;
         }
     }
 # if PGM_WITH_PAGING(PGM_GST_TYPE, PGM_SHW_TYPE) && !defined(IN_RING0)
@@ -288,15 +291,15 @@ static VBOXSTRICTRC PGM_BTH_NAME(Trap0eHandlerDoAccessHandlers)(PVMCPU pVCpu, RT
         if (    PGM_PAGE_GET_HNDL_VIRT_STATE(pPage) < PGM_PAGE_HNDL_PHYS_STATE_ALL
             && !(uErr & X86_TRAP_PF_P))
         {
-            rcStrict = PGM_BTH_NAME(SyncPage)(pVCpu, pGstWalk->Pde, pvFault, PGM_SYNC_NR_PAGES, uErr);
-            if (    RT_FAILURE(rcStrict)
-                ||  rcStrict == VINF_PGM_SYNCPAGE_MODIFIED_PDE
+            rc = PGM_BTH_NAME(SyncPage)(pVCpu, pGstWalk->Pde, pvFault, PGM_SYNC_NR_PAGES, uErr);
+            if (    RT_FAILURE(rc)
+                ||  rc == VINF_PGM_SYNCPAGE_MODIFIED_PDE
                 ||  !(uErr & X86_TRAP_PF_RW))
             {
-                AssertRC(rcStrict);
+                AssertRC(rc);
                 STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eHandlersOutOfSync);
                 STAM_STATS({ pVCpu->pgm.s.CTX_SUFF(pStatTrap0eAttribution) = &pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eTime2OutOfSyncHndVirt; });
-                return rcStrict;
+                return rc;
             }
         }
 #  endif
@@ -314,27 +317,25 @@ static VBOXSTRICTRC PGM_BTH_NAME(Trap0eHandlerDoAccessHandlers)(PVMCPU pVCpu, RT
         PPGMVIRTHANDLER pCur = (PPGMVIRTHANDLER)RTAvlroGCPtrRangeGet(&pVM->pgm.s.CTX_SUFF(pTrees)->VirtHandlers, pvFault);
         if (pCur)
         {
-            PPGMVIRTHANDLERTYPEINT pCurType = PGMVIRTANDLER_GET_TYPE(pVM, pCur);
             AssertMsg(!(pvFault - pCur->Core.Key < pCur->cb)
-                      || (     pCurType->enmKind != PGMVIRTHANDLERKIND_WRITE
+                      || (     pCur->enmType != PGMVIRTHANDLERTYPE_WRITE
                            || !(uErr & X86_TRAP_PF_P)
-                           || (pCurType->enmKind == PGMVIRTHANDLERKIND_WRITE && (uErr & X86_TRAP_PF_RW))),
-                      ("Unexpected trap for virtual handler: %RGv (phys=%RGp) pPage=%R[pgmpage] uErr=%X, enumKind=%d\n",
-                       pvFault, pGstWalk->Core.GCPhys, pPage, uErr, pCurType->enmKind));
+                           || (pCur->enmType == PGMVIRTHANDLERTYPE_WRITE && (uErr & X86_TRAP_PF_RW))),
+                      ("Unexpected trap for virtual handler: %RGv (phys=%RGp) pPage=%R[pgmpage] uErr=%X, enum=%d\n",
+                       pvFault, pGstWalk->Core.GCPhys, pPage, uErr, pCur->enmType));
 
             if (    pvFault - pCur->Core.Key < pCur->cb
                 &&  (    uErr & X86_TRAP_PF_RW
-                     ||  pCurType->enmKind != PGMVIRTHANDLERKIND_WRITE ) )
+                     ||  pCur->enmType != PGMVIRTHANDLERTYPE_WRITE ) )
             {
 #   ifdef IN_RC
                 STAM_PROFILE_START(&pCur->Stat, h);
-                RTGCPTR GCPtrStart = pCur->Core.Key;
-                void *pvUser = pCur->CTX_SUFF(pvUser);
+                RTGCPTR                     GCPtrStart = pCur->Core.Key;
+                CTX_MID(PFNPGM,VIRTHANDLER) pfnHandler = pCur->CTX_SUFF(pfnHandler);
                 pgmUnlock(pVM);
                 *pfLockTaken = false;
 
-                rcStrict = pCurType->CTX_SUFF(pfnPfHandler)(pVM, pVCpu, uErr, pRegFrame, pvFault, GCPtrStart,
-                                                            pvFault - GCPtrStart, pvUser);
+                rc = pfnHandler(pVM, uErr, pRegFrame, pvFault, GCPtrStart, pvFault - GCPtrStart);
 
 #    ifdef VBOX_WITH_STATISTICS
                 pgmLock(pVM);
@@ -344,11 +345,11 @@ static VBOXSTRICTRC PGM_BTH_NAME(Trap0eHandlerDoAccessHandlers)(PVMCPU pVCpu, RT
                 pgmUnlock(pVM);
 #    endif
 #   else
-                rcStrict = VINF_EM_RAW_EMULATE_INSTR; /** @todo for VMX */
+                rc = VINF_EM_RAW_EMULATE_INSTR; /** @todo for VMX */
 #   endif
                 STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eHandlersVirtual);
                 STAM_STATS({ pVCpu->pgm.s.CTX_SUFF(pStatTrap0eAttribution) = &pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eTime2HndVirt; });
-                return rcStrict;
+                return rc;
             }
             /* Unhandled part of a monitored page */
             Log(("Unhandled part of monitored page %RGv\n", pvFault));
@@ -357,42 +358,39 @@ static VBOXSTRICTRC PGM_BTH_NAME(Trap0eHandlerDoAccessHandlers)(PVMCPU pVCpu, RT
         {
            /* Check by physical address. */
             unsigned iPage;
-            pCur = pgmHandlerVirtualFindByPhysAddr(pVM, pGstWalk->Core.GCPhys, &iPage);
-            if (pCur)
+            rc = pgmHandlerVirtualFindByPhysAddr(pVM, pGstWalk->Core.GCPhys, &pCur, &iPage);
+            Assert(RT_SUCCESS(rc) || !pCur);
+            if (    pCur
+                &&  (   uErr & X86_TRAP_PF_RW
+                     || pCur->enmType != PGMVIRTHANDLERTYPE_WRITE ) )
             {
-                PPGMVIRTHANDLERTYPEINT pCurType = PGMVIRTANDLER_GET_TYPE(pVM, pCur);
-                if  (   uErr & X86_TRAP_PF_RW
-                     || pCurType->enmKind != PGMVIRTHANDLERKIND_WRITE )
-                {
-                    Assert(   (pCur->aPhysToVirt[iPage].Core.Key & X86_PTE_PAE_PG_MASK)
-                           == (pGstWalk->Core.GCPhys & X86_PTE_PAE_PG_MASK));
+                Assert((pCur->aPhysToVirt[iPage].Core.Key & X86_PTE_PAE_PG_MASK) == (pGstWalk->Core.GCPhys & X86_PTE_PAE_PG_MASK));
 #   ifdef IN_RC
-                    STAM_PROFILE_START(&pCur->Stat, h);
-                    RTGCPTR GCPtrStart = pCur->Core.Key;
-                    void *pvUser = pCur->CTX_SUFF(pvUser);
-                    pgmUnlock(pVM);
-                    *pfLockTaken = false;
+                STAM_PROFILE_START(&pCur->Stat, h);
+                RTGCPTR                     GCPtrStart = pCur->Core.Key;
+                CTX_MID(PFNPGM,VIRTHANDLER) pfnHandler = pCur->CTX_SUFF(pfnHandler);
+                pgmUnlock(pVM);
+                *pfLockTaken = false;
 
-                    RTGCPTR off = (iPage << PAGE_SHIFT)
-                                + (pvFault    & PAGE_OFFSET_MASK)
-                                - (GCPtrStart & PAGE_OFFSET_MASK);
-                    Assert(off < pCur->cb);
-                    rcStrict = pCurType->CTX_SUFF(pfnPfHandler)(pVM, pVCpu, uErr, pRegFrame, pvFault, GCPtrStart, off, pvUser);
+                RTGCPTR off = (iPage << PAGE_SHIFT)
+                            + (pvFault    & PAGE_OFFSET_MASK)
+                            - (GCPtrStart & PAGE_OFFSET_MASK);
+                Assert(off < pCur->cb);
+                rc = pfnHandler(pVM, uErr, pRegFrame, pvFault, GCPtrStart, off);
 
 #    ifdef VBOX_WITH_STATISTICS
-                    pgmLock(pVM);
-                    pCur = (PPGMVIRTHANDLER)RTAvlroGCPtrRangeGet(&pVM->pgm.s.CTX_SUFF(pTrees)->VirtHandlers, GCPtrStart);
-                    if (pCur)
-                        STAM_PROFILE_STOP(&pCur->Stat, h);
-                    pgmUnlock(pVM);
+                pgmLock(pVM);
+                pCur = (PPGMVIRTHANDLER)RTAvlroGCPtrRangeGet(&pVM->pgm.s.CTX_SUFF(pTrees)->VirtHandlers, GCPtrStart);
+                if (pCur)
+                    STAM_PROFILE_STOP(&pCur->Stat, h);
+                pgmUnlock(pVM);
 #    endif
 #   else
-                    rcStrict = VINF_EM_RAW_EMULATE_INSTR; /** @todo for VMX */
+                rc = VINF_EM_RAW_EMULATE_INSTR; /** @todo for VMX */
 #   endif
-                    STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eHandlersVirtualByPhys);
-                    STAM_STATS({ pVCpu->pgm.s.CTX_SUFF(pStatTrap0eAttribution) = &pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eTime2HndVirt; });
-                    return rcStrict;
-                }
+                STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eHandlersVirtualByPhys);
+                STAM_STATS({ pVCpu->pgm.s.CTX_SUFF(pStatTrap0eAttribution) = &pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eTime2HndVirt; });
+                return rc;
             }
         }
     }
@@ -412,28 +410,28 @@ static VBOXSTRICTRC PGM_BTH_NAME(Trap0eHandlerDoAccessHandlers)(PVMCPU pVCpu, RT
         &&  !(uErr & X86_TRAP_PF_P))
     {
 #  if PGM_WITH_PAGING(PGM_GST_TYPE, PGM_SHW_TYPE)
-        rcStrict = PGM_BTH_NAME(SyncPage)(pVCpu, pGstWalk->Pde, pvFault, PGM_SYNC_NR_PAGES, uErr);
+        rc = PGM_BTH_NAME(SyncPage)(pVCpu, pGstWalk->Pde, pvFault, PGM_SYNC_NR_PAGES, uErr);
 #  else
-        rcStrict = PGM_BTH_NAME(SyncPage)(pVCpu, PdeSrcDummy, pvFault, PGM_SYNC_NR_PAGES, uErr);
+        rc = PGM_BTH_NAME(SyncPage)(pVCpu, PdeSrcDummy, pvFault, PGM_SYNC_NR_PAGES, uErr);
 #  endif
-        if (    RT_FAILURE(rcStrict)
-            ||  rcStrict == VINF_PGM_SYNCPAGE_MODIFIED_PDE
+        if (    RT_FAILURE(rc)
+            ||  rc == VINF_PGM_SYNCPAGE_MODIFIED_PDE
             ||  !(uErr & X86_TRAP_PF_RW))
         {
-            AssertMsgRC(rcStrict, ("%Rrc\n", VBOXSTRICTRC_VAL(rcStrict)));
+            AssertRC(rc);
             STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eHandlersOutOfSync);
             STAM_STATS({ pVCpu->pgm.s.CTX_SUFF(pStatTrap0eAttribution) = &pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eTime2OutOfSyncHndPhys; });
-            return rcStrict;
+            return rc;
         }
     }
 
     /** @todo This particular case can cause quite a lot of overhead. E.g. early stage of kernel booting in Ubuntu 6.06
      *        It's writing to an unhandled part of the LDT page several million times.
      */
-    rcStrict = PGMInterpretInstruction(pVM, pVCpu, pRegFrame, pvFault);
-    LogFlow(("PGM: PGMInterpretInstruction -> rcStrict=%d pPage=%R[pgmpage]\n", VBOXSTRICTRC_VAL(rcStrict), pPage));
+    rc = VBOXSTRICTRC_TODO(PGMInterpretInstruction(pVM, pVCpu, pRegFrame, pvFault));
+    LogFlow(("PGM: PGMInterpretInstruction -> rc=%d pPage=%R[pgmpage]\n", rc, pPage));
     STAM_STATS({ pVCpu->pgm.s.CTX_SUFF(pStatTrap0eAttribution) = &pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eTime2HndUnhandled; });
-    return rcStrict;
+    return rc;
 } /* if any kind of handler */
 
 
@@ -630,7 +628,7 @@ PGM_BTH_DECL(int, Trap0eHandler)(PVMCPU pVCpu, RTGCUINT uErr, PCPUMCTXCORE pRegF
                         = rc == VINF_PGM_HANDLED_DIRTY_BIT_FAULT
                           ? &pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eTime2DirtyAndAccessed
                           : &pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eTime2GuestTrap; });
-            Log8(("Trap0eHandler: returns VINF_SUCCESS\n"));
+            LogBird(("Trap0eHandler: returns VINF_SUCCESS\n"));
             return VINF_SUCCESS;
         }
         //AssertMsg(GstWalk.Pde.u == GstWalk.pPde->u || GstWalk.pPte->u == GstWalk.pPde->u, ("%RX64 %RX64\n", (uint64_t)GstWalk.Pde.u, (uint64_t)GstWalk.pPde->u)); - triggers with smp w7 guests.
@@ -712,29 +710,24 @@ PGM_BTH_DECL(int, Trap0eHandler)(PVMCPU pVCpu, RTGCUINT uErr, PCPUMCTXCORE pRegF
                 /*
                  * Check if the fault address is in a virtual page access handler range.
                  */
-                PPGMVIRTHANDLER pCur = (PPGMVIRTHANDLER)RTAvlroGCPtrRangeGet(&pVM->pgm.s.CTX_SUFF(pTrees)->HyperVirtHandlers,
-                                                                             pvFault);
+                PPGMVIRTHANDLER pCur = (PPGMVIRTHANDLER)RTAvlroGCPtrRangeGet(&pVM->pgm.s.CTX_SUFF(pTrees)->HyperVirtHandlers, pvFault);
                 if (    pCur
                     &&  pvFault - pCur->Core.Key < pCur->cb
                     &&  uErr & X86_TRAP_PF_RW)
                 {
-                    VBOXSTRICTRC rcStrict;
 #   ifdef IN_RC
                     STAM_PROFILE_START(&pCur->Stat, h);
-                    PPGMVIRTHANDLERTYPEINT pCurType = PGMVIRTANDLER_GET_TYPE(pVM, pCur);
-                    void *pvUser = pCur->CTX_SUFF(pvUser);
                     pgmUnlock(pVM);
-                    rcStrict = pCurType->CTX_SUFF(pfnPfHandler)(pVM, pVCpu, uErr, pRegFrame, pvFault, pCur->Core.Key,
-                                                                pvFault - pCur->Core.Key, pvUser);
+                    rc = pCur->CTX_SUFF(pfnHandler)(pVM, uErr, pRegFrame, pvFault, pCur->Core.Key, pvFault - pCur->Core.Key);
                     pgmLock(pVM);
                     STAM_PROFILE_STOP(&pCur->Stat, h);
 #   else
                     AssertFailed();
-                    rcStrict = VINF_EM_RAW_EMULATE_INSTR; /* can't happen with VMX */
+                    rc = VINF_EM_RAW_EMULATE_INSTR; /* can't happen with VMX */
 #   endif
                     STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eHandlersMapping);
                     STAM_STATS({ pVCpu->pgm.s.CTX_SUFF(pStatTrap0eAttribution) = &pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eTime2Mapping; });
-                    return VBOXSTRICTRC_TODO(rcStrict);
+                    return rc;
                 }
 
                 /*
@@ -804,32 +797,27 @@ PGM_BTH_DECL(int, Trap0eHandler)(PVMCPU pVCpu, RTGCUINT uErr, PCPUMCTXCORE pRegF
         PPGMVIRTHANDLER pCur = (PPGMVIRTHANDLER)RTAvlroGCPtrRangeGet(&pVM->pgm.s.CTX_SUFF(pTrees)->VirtHandlers, pvFault);
         if (pCur)
         {
-            PPGMVIRTHANDLERTYPEINT pCurType = PGMVIRTANDLER_GET_TYPE(pVM, pCur);
             AssertMsg(   !(pvFault - pCur->Core.Key < pCur->cb)
-                      || (    pCurType->enmKind != PGMVIRTHANDLERKIND_WRITE
+                      || (    pCur->enmType != PGMVIRTHANDLERTYPE_WRITE
                            || !(uErr & X86_TRAP_PF_P)
-                           || (pCurType->enmKind == PGMVIRTHANDLERKIND_WRITE && (uErr & X86_TRAP_PF_RW))),
-                      ("Unexpected trap for virtual handler: %08X (phys=%08x) %R[pgmpage] uErr=%X, enumKind=%d\n",
-                       pvFault, GCPhys, pPage, uErr, pCurType->enmKind));
+                           || (pCur->enmType == PGMVIRTHANDLERTYPE_WRITE && (uErr & X86_TRAP_PF_RW))),
+                      ("Unexpected trap for virtual handler: %08X (phys=%08x) %R[pgmpage] uErr=%X, enum=%d\n", pvFault, GCPhys, pPage, uErr, pCur->enmType));
 
             if (    pvFault - pCur->Core.Key < pCur->cb
                 &&  (    uErr & X86_TRAP_PF_RW
-                     ||  pCurType->enmKind != PGMVIRTHANDLERKIND_WRITE ) )
+                     ||  pCur->enmType != PGMVIRTHANDLERTYPE_WRITE ) )
             {
-                VBOXSTRICTRC rcStrict;
 #   ifdef IN_RC
                 STAM_PROFILE_START(&pCur->Stat, h);
-                void *pvUser = pCur->CTX_SUFF(pvUser);
                 pgmUnlock(pVM);
-                rcStrict = pCurType->CTX_SUFF(pfnPfHandler)(pVM, pVCpu, uErr, pRegFrame, pvFault, pCur->Core.Key,
-                                                            pvFault - pCur->Core.Key, pvUser);
+                rc = pCur->CTX_SUFF(pfnHandler)(pVM, uErr, pRegFrame, pvFault, pCur->Core.Key, pvFault - pCur->Core.Key);
                 pgmLock(pVM);
                 STAM_PROFILE_STOP(&pCur->Stat, h);
 #   else
-                rcStrict = VINF_EM_RAW_EMULATE_INSTR; /** @todo for VMX */
+                rc = VINF_EM_RAW_EMULATE_INSTR; /** @todo for VMX */
 #   endif
                 STAM_STATS({ pVCpu->pgm.s.CTX_SUFF(pStatTrap0eAttribution) = &pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eTime2HndVirt; });
-                return VBOXSTRICTRC_TODO(rcStrict);
+                return rc;
             }
         }
     }

@@ -1,6 +1,8 @@
 /* $Id: UISpecialControls.cpp $ */
 /** @file
- * VBox Qt GUI - VBoxSpecialButtons implementation.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * VBoxSpecialButtons implementation
  */
 
 /*
@@ -15,19 +17,12 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* VBox includes */
-# include "UIIconPool.h"
-# include "UISpecialControls.h"
+#include "UIIconPool.h"
+#include "UISpecialControls.h"
 
 /* Global includes */
-# include <QHBoxLayout>
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
+#include <QHBoxLayout>
 
 #ifdef VBOX_DARWIN_USE_NATIVE_CONTROLS
 
@@ -40,7 +35,7 @@ UIMiniCancelButton::UIMiniCancelButton(QWidget *pParent /* = 0 */)
   : QAbstractButton(pParent)
 {
     setShortcut(QKeySequence(Qt::Key_Escape));
-    m_pButton = new UICocoaButton(this, UICocoaButton::CancelButton);
+    m_pButton = new UICocoaButton(UICocoaButton::CancelButton, this);
     connect(m_pButton, SIGNAL(clicked()),
             this, SIGNAL(clicked()));
     setFixedSize(m_pButton->size());
@@ -59,7 +54,7 @@ void UIMiniCancelButton::resizeEvent(QResizeEvent * /* pEvent */)
 UIResetButton::UIResetButton(QWidget *pParent /* = 0 */)
   : QAbstractButton(pParent)
 {
-    m_pButton = new UICocoaButton(this, UICocoaButton::ResetButton);
+    m_pButton = new UICocoaButton(UICocoaButton::ResetButton, this);
     connect(m_pButton, SIGNAL(clicked()),
             this, SIGNAL(clicked()));
     setFixedSize(m_pButton->size());
@@ -79,7 +74,7 @@ UIHelpButton::UIHelpButton(QWidget *pParent /* = 0 */)
   : QPushButton(pParent)
 {
     setShortcut(QKeySequence(QKeySequence::HelpContents));
-    m_pButton = new UICocoaButton(this, UICocoaButton::HelpButton);
+    m_pButton = new UICocoaButton(UICocoaButton::HelpButton, this);
     connect(m_pButton, SIGNAL(clicked()),
             this, SIGNAL(clicked()));
     setFixedSize(m_pButton->size());
@@ -90,13 +85,13 @@ UIHelpButton::UIHelpButton(QWidget *pParent /* = 0 */)
  * A segmented button in the native Cocoa version.
  *
  ********************************************************************************/
-UIRoundRectSegmentedButton::UIRoundRectSegmentedButton(QWidget *pParent, int cCount)
-  : UICocoaSegmentedButton(pParent, cCount, UICocoaSegmentedButton::RoundRectSegment)
+UIRoundRectSegmentedButton::UIRoundRectSegmentedButton(int cCount, QWidget *pParent /* = 0 */)
+  : UICocoaSegmentedButton(cCount, UICocoaSegmentedButton::RoundRectSegment, pParent)
 {
 }
 
-UITexturedSegmentedButton::UITexturedSegmentedButton(QWidget *pParent, int cCount)
-  : UICocoaSegmentedButton(pParent, cCount, UICocoaSegmentedButton::TexturedRoundedSegment)
+UITexturedSegmentedButton::UITexturedSegmentedButton(int cCount, QWidget *pParent /* = 0 */)
+  : UICocoaSegmentedButton(cCount, UICocoaSegmentedButton::TexturedRoundedSegment, pParent)
 {
 }
 
@@ -112,13 +107,11 @@ UISearchField::UISearchField(QWidget *pParent /* = 0 */)
 
 #else /* VBOX_DARWIN_USE_NATIVE_CONTROLS */
 
-# ifndef VBOX_WITH_PRECOMPILED_HEADERS
 /* Qt includes */
-#  include <QPainter>
-#  include <QBitmap>
-#  include <QMouseEvent>
-#  include <QSignalMapper>
-# endif
+#include <QPainter>
+#include <QBitmap>
+#include <QMouseEvent>
+#include <QSignalMapper>
 
 /********************************************************************************
  *
@@ -131,7 +124,7 @@ UIMiniCancelButton::UIMiniCancelButton(QWidget *pParent /* = 0 */)
     setAutoRaise(true);
     setFocusPolicy(Qt::TabFocus);
     setShortcut(QKeySequence(Qt::Key_Escape));
-    setIcon(UIIconPool::defaultIcon(UIIconPool::UIDefaultIconType_DialogCancel));
+    setIcon(UIIconPool::defaultIcon(UIIconPool::DialogCancelIcon));
 }
 
 /********************************************************************************
@@ -239,7 +232,7 @@ void UIHelpButton::leaveEvent(QEvent * pEvent)
  * A segmented button for the other OS's.
  *
  ********************************************************************************/
-UIRoundRectSegmentedButton::UIRoundRectSegmentedButton(QWidget *pParent, int aCount)
+UIRoundRectSegmentedButton::UIRoundRectSegmentedButton(int aCount, QWidget *pParent /* = 0 */)
   : QWidget(pParent)
 {
     m_pSignalMapper = new QSignalMapper(this);
@@ -293,8 +286,8 @@ void UIRoundRectSegmentedButton::animateClick(int iSegment)
     m_pButtons.at(iSegment)->animateClick();
 }
 
-UITexturedSegmentedButton::UITexturedSegmentedButton(QWidget *pParent, int cCount)
-  : UIRoundRectSegmentedButton(pParent, cCount)
+UITexturedSegmentedButton::UITexturedSegmentedButton(int cCount, QWidget *pParent /* = 0 */)
+  : UIRoundRectSegmentedButton(cCount, pParent)
 {
     for (int i=0; i < m_pButtons.size(); ++i)
     {
@@ -308,7 +301,7 @@ UITexturedSegmentedButton::UITexturedSegmentedButton(QWidget *pParent, int cCoun
  * A search field  for the other OS's.
  *
  ********************************************************************************/
-UISearchField::UISearchField(QWidget *pParent)
+UISearchField::UISearchField(QWidget *pParent /* = 0 */)
   : QLineEdit(pParent)
 {
     m_baseBrush = palette().base();

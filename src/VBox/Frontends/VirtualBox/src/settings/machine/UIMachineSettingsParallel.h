@@ -1,6 +1,7 @@
-/* $Id: UIMachineSettingsParallel.h $ */
 /** @file
- * VBox Qt GUI - UIMachineSettingsParallel class declaration.
+ *
+ * VBox frontends: Qt4 GUI ("VirtualBox"):
+ * UIMachineSettingsParallel class declaration
  */
 
 /*

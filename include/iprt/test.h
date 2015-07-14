@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2009-2015 Oracle Corporation
+ * Copyright (C) 2009-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1125,7 +1125,7 @@ RTR3DECL(int) RTTestIFailureDetails(const char *pszFormat, ...);
     if (!(expr)) { \
         RTTestIFailed("line %u: %s", __LINE__, #expr); \
         break; \
-    } else do {} while (0)
+    } do {} while (0)
 
 
 /** @def RTTESTI_CHECK_MSG
@@ -1144,23 +1144,6 @@ RTR3DECL(int) RTTestIFailureDetails(const char *pszFormat, ...);
             RTTestIFailureDetails DetailsArgs; \
          } \
     } while (0)
-/** @def RTTESTI_CHECK_MSG_BREAK
- * Check whether a boolean expression holds true, returns on false.
- *
- * If the expression is false, call RTTestIFailed giving the line number and
- * expression.
- *
- * @param   expr            The expression to evaluate.
- * @param   DetailsArgs     Argument list for RTTestIFailureDetails, including
- *                          parenthesis.
- * @param   rcRet           What to return on failure.
- */
-#define RTTESTI_CHECK_MSG_BREAK(expr, DetailsArgs) \
-    if (!(expr)) { \
-        RTTestIFailed("line %u: %s", __LINE__, #expr); \
-        RTTestIFailureDetails DetailsArgs; \
-        break; \
-    } else do {} while (0)
 /** @def RTTESTI_CHECK_MSG_RET
  * Check whether a boolean expression holds true, returns on false.
  *
@@ -1196,6 +1179,7 @@ RTR3DECL(int) RTTestIFailureDetails(const char *pszFormat, ...);
             return; \
          } \
     } while (0)
+
 
 /** @def RTTESTI_CHECK_RC
  * Check whether an expression returns a specific IPRT style status code.
@@ -1271,6 +1255,8 @@ RTR3DECL(int) RTTestIFailureDetails(const char *pszFormat, ...);
             break; \
         } \
     } else do {} while (0)
+
+
 /** @def RTTESTI_CHECK_RC_OK
  * Check whether a IPRT style status code indicates success.
  *
@@ -1284,22 +1270,6 @@ RTR3DECL(int) RTTestIFailureDetails(const char *pszFormat, ...);
         int rcCheck = (rcExpr); \
         if (RT_FAILURE(rcCheck)) { \
             RTTestIFailed("line %u: %s: %Rrc", __LINE__, #rcExpr, rcCheck); \
-        } \
-    } while (0)
-/** @def RTTESTI_CHECK_RC_OK_BREAK
- * Check whether a IPRT style status code indicates success.
- *
- * If a different status code is return, call RTTestIFailed giving the line
- * number, expression, actual and expected status codes, then break.
- *
- * @param   rcExpr          The expression resulting in an IPRT status code.
- */
-#define RTTESTI_CHECK_RC_OK_BREAK(rcExpr) \
-    do { \
-        int rcCheck = (rcExpr); \
-        if (RT_FAILURE(rcCheck)) { \
-            RTTestIFailed("line %u: %s: %Rrc", __LINE__, #rcExpr, rcCheck); \
-            break; \
         } \
     } while (0)
 /** @def RTTESTI_CHECK_RC_OK_RET

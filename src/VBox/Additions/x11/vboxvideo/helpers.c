@@ -79,6 +79,7 @@ int vbvxGetIntegerPropery(ScrnInfoPtr pScrn, char *pszName, size_t *pcData, int3
 void vbvxSetIntegerPropery(ScrnInfoPtr pScrn, char *pszName, size_t cData, int32_t *paData, Bool fSendEvent)
 {
     Atom property_name;
+    int i;
 
     property_name = MakeAtom(pszName, strlen(pszName), TRUE);
     VBVXASSERT(property_name != BAD_RESOURCE, ("Failed to set atom \"%s\"\n", pszName));

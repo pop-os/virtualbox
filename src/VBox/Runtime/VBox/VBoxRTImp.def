@@ -3,7 +3,7 @@
 ; VirtualBox Runtime DLL - Stable Interface Definition file.
 
 ;
-; Copyright (C) 2010-2015 Oracle Corporation
+; Copyright (C) 2010-2012 Oracle Corporation
 ;
 ; This file is part of VirtualBox Open Source Edition (OSE), as
 ; available from http://www.virtualbox.org. This file is free software;
@@ -609,7 +609,6 @@ EXPORTS
     RTLogCreateForR0
     RTLogDefaultInit
     RTLogDefaultInstance
-    RTLogDefaultInstanceEx
     RTLogDestinations
     RTLogDestroy
     RTLogFlags
@@ -618,7 +617,6 @@ EXPORTS
     RTLogFlushToLogger
     RTLogFormatV
     RTLogGetDefaultInstance
-    RTLogGetDefaultInstanceEx
     RTLogGetDestinations
     RTLogGetFlags
     RTLogGetGroupSettings
@@ -629,8 +627,7 @@ EXPORTS
     RTLogLoggerV
     RTLogPrintf
     RTLogPrintfV
-    RTLogRelGetDefaultInstance
-    RTLogRelGetDefaultInstanceEx
+    RTLogRelDefaultInstance
     RTLogRelLogger
     RTLogRelLoggerV
     RTLogRelPrintf
@@ -731,13 +728,6 @@ EXPORTS
     RTMemPoolRetain
     RTMemProtect
     RTMemReallocTag
-    RTMemSaferAllocZExTag
-    RTMemSaferAllocZTag
-    RTMemSaferFree
-    RTMemSaferReallocZExTag
-    RTMemSaferReallocZTag
-    RTMemSaferScramble
-    RTMemSaferUnscramble
     RTMemTmpAllocTag
     RTMemTmpAllocZTag
     RTMemTmpFree
@@ -807,11 +797,12 @@ EXPORTS
     RTPathExecDir
     RTPathExists
     RTPathExistsEx
+    RTPathExt
     RTPathFilename
     RTPathGetCurrent
     RTPathGetMode
+    RTPathHaveExt
     RTPathHavePath
-    RTPathHaveSuffix
     RTPathJoin
     RTPathJoinA
     RTPathJoinEx
@@ -830,10 +821,9 @@ EXPORTS
     RTPathSharedLibs
     RTPathStartsWith
     RTPathStartsWithRoot
+    RTPathStripExt
     RTPathStripFilename
-    RTPathStripSuffix
     RTPathStripTrailingSlash
-    RTPathSuffix
     RTPathTemp
     RTPathTraverseList
     RTPathUserHome
@@ -1339,20 +1329,10 @@ EXPORTS
     RTTimeLocalNow
     RTTimeMilliTS
     RTTimeNanoTS
-    RTTimeNanoTSLegacySyncInvarNoDelta
-    RTTimeNanoTSLFenceSyncInvarNoDelta
-    RTTimeNanoTSLegacyAsyncUseApicId
-    RTTimeNanoTSLegacyAsyncUseRdtscp
-    RTTimeNanoTSLegacyAsyncUseIdtrLim
-    RTTimeNanoTSLegacySyncInvarWithDeltaUseApicId
-    RTTimeNanoTSLegacySyncInvarWithDeltaUseRdtscp
-    RTTimeNanoTSLegacySyncInvarWithDeltaUseIdtrLim
-    RTTimeNanoTSLFenceAsyncUseApicId
-    RTTimeNanoTSLFenceAsyncUseRdtscp
-    RTTimeNanoTSLFenceAsyncUseIdtrLim
-    RTTimeNanoTSLFenceSyncInvarWithDeltaUseApicId
-    RTTimeNanoTSLFenceSyncInvarWithDeltaUseRdtscp
-    RTTimeNanoTSLFenceSyncInvarWithDeltaUseIdtrLim
+    RTTimeNanoTSLFenceAsync
+    RTTimeNanoTSLFenceSync
+    RTTimeNanoTSLegacyAsync
+    RTTimeNanoTSLegacySync
     RTTimeNormalize
     RTTimeNow
     RTTimeProgramMicroTS
@@ -1507,12 +1487,3 @@ EXPORTS
     SUPR3HardenedLdrLoadPlugIn
     SUPR3QueryVTxSupported
     SUPR3QueryVTCaps
-    SUPSemEventSignal
-    SUPSemEventWaitNoResume
-    SUPSemEventClose
-    SUPSemEventCreate
-    SUPR3Init
-    SUPR3LoadModule
-    SUPR3TracerOpen
-    SUPR3TracerIoCtl
-

@@ -14,7 +14,7 @@
  */
 
 /*
- * Copyright (C) 2007-2015 Oracle Corporation
+ * Copyright (C) 2007-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -158,9 +158,9 @@
 # ifdef E1K_REL_DEBUG
 #  define DEBUG
 #  define E1kLog(a)               LogRel(a)
-#  define E1kLog2(a)              LogRel(a)
-#  define E1kLog3(a)              LogRel(a)
-#  define E1kLogX(x, a)           LogRel(a)
+#  define E1kLog2(a)              do {} while (0) /* LogRel(a) */
+#  define E1kLog3(a)              do {} while (0) /* LogRel(a) */
+#  define E1kLogX(x, a)           do {} while (0) /* LogRel(a) */
 //#  define E1kLog3(a)              do {} while (0)
 # else
 #  define E1kLog(a)               do {} while (0)
@@ -172,7 +172,7 @@
 #  define E1kLog(a)               Log(a)
 #  define E1kLog2(a)              Log2(a)
 #  define E1kLog3(a)              Log3(a)
-#  define E1kLogX(x, a)           LogIt(x, LOG_GROUP, a)
+#  define E1kLogX(x, a)           LogIt(LOG_INSTANCE, x, LOG_GROUP, a)
 //#  define E1kLog(a)               do {} while (0)
 //#  define E1kLog2(a)              do {} while (0)
 //#  define E1kLog3(a)              do {} while (0)
@@ -1931,7 +1931,7 @@ static int e1kRaiseInterrupt(PE1KSTATE pThis, int rcBusy, uint32_t u32IntCause =
                 /* Raise(1) INTA(0) */
                 E1kLogRel(("E1000: irq RAISED icr&mask=0x%x, icr=0x%x\n", ICR & IMS, ICR));
                 PDMDevHlpPCISetIrq(pThis->CTX_SUFF(pDevIns), 0, 1);
-                E1kLog(("%s e1kRaiseInterrupt: Raised. ICR&IMS=%08x\n",
+                E1kLog2(("%s e1kRaiseInterrupt: Raised. ICR&IMS=%08x\n",
                         pThis->szPrf, ICR & IMS));
             }
         }
@@ -2629,13 +2629,24 @@ static int e1kRegWriteCTRL(PE1KSTATE pThis, uint32_t offset, uint32_t index, uin
     if (value & CTRL_RESET)
     { /* RST */
 #ifndef IN_RING3
-        return VINF_IOM_R3_MMIO_WRITE;
+        return VINF_IOM_R3_IOPORT_WRITE;
 #else
         e1kHardReset(pThis);
 #endif
     }
     else
     {
+
+#ifdef DEBUG
+        if (   (value & CTRL_SLU)
+            && !(STATUS & STATUS_LU))
+        {
+            E1kLog(("%s %s: STATUS %x, value %x, cable%s connected\n",
+                    pThis->szPrf, __FUNCTION__,
+                    STATUS, value,
+                    pThis->fCableConnected ? "" : " NOT"));
+        }
+#endif
         if (   (value & CTRL_SLU)
             && pThis->fCableConnected
             && !(STATUS & STATUS_LU))
@@ -2815,14 +2826,8 @@ static int e1kRegWriteMDIC(PE1KSTATE pThis, uint32_t offset, uint32_t index, uin
     }
     else if (GET_BITS_V(value, MDIC, PHY) != 1)
     {
-        E1kLog(("%s WARNING! Access to invalid PHY detected, phy=%d.\n",
+        E1kLog(("%s ERROR! Access to invalid PHY detected, phy=%d.\n",
                 pThis->szPrf, GET_BITS_V(value, MDIC, PHY)));
-        /*
-         * Some drivers scan the MDIO bus for a PHY. We can work with these
-         * drivers if we set MDIC_READY and MDIC_ERROR when there isn't a PHY
-         * at the requested address, see @bugref{7346}.
-         */
-        MDIC = MDIC_READY | MDIC_ERROR;
     }
     else
     {
@@ -2897,7 +2902,7 @@ static int e1kRegReadICR(PE1KSTATE pThis, uint32_t offset, uint32_t index, uint3
                  * beginning of interrupt handler
                  */
                 E1kLogRel(("E1000: irq lowered, icr=0x%x\n", ICR));
-                E1kLog(("%s e1kRegReadICR: Lowered IRQ (%08x)\n", pThis->szPrf, ICR));
+                E1kLog2(("%s e1kRegReadICR: Lowered IRQ (%08x)\n", pThis->szPrf, ICR));
                 /* Clear all pending interrupts */
                 ICR = 0;
                 pThis->fIntRaised = false;
@@ -2958,7 +2963,7 @@ static int e1kRegWriteIMS(PE1KSTATE pThis, uint32_t offset, uint32_t index, uint
 {
     IMS |= value;
     E1kLogRel(("E1000: irq enabled, RDH=%x RDT=%x TDH=%x TDT=%x\n", RDH, RDT, TDH, TDT));
-    E1kLog(("%s e1kRegWriteIMS: IRQ enabled\n", pThis->szPrf));
+    E1kLog2(("%s e1kRegWriteIMS: IRQ enabled\n", pThis->szPrf));
     /* Mask changes, we need to raise pending interrupts. */
     if ((ICR & IMS) && !pThis->fLocked)
     {
@@ -3002,10 +3007,10 @@ static int e1kRegWriteIMC(PE1KSTATE pThis, uint32_t offset, uint32_t index, uint
         /* Lower(0) INTA(0) */
         PDMDevHlpPCISetIrq(pThis->CTX_SUFF(pDevIns), 0, 0);
         pThis->fIntRaised = false;
-        E1kLog(("%s e1kRegWriteIMC: Lowered IRQ: ICR=%08x\n", pThis->szPrf, ICR));
+        E1kLog2(("%s e1kRegWriteIMC: Lowered IRQ: ICR=%08x\n", pThis->szPrf, ICR));
     }
     IMS &= ~value;
-    E1kLog(("%s e1kRegWriteIMC: IRQ disabled\n", pThis->szPrf));
+    E1kLog2(("%s e1kRegWriteIMC: IRQ disabled\n", pThis->szPrf));
     e1kCsLeave(pThis);
 
     return VINF_SUCCESS;
@@ -3029,7 +3034,7 @@ static int e1kRegWriteRCTL(PE1KSTATE pThis, uint32_t offset, uint32_t index, uin
     {
         /* Promiscuity has changed, pass the knowledge on. */
 #ifndef IN_RING3
-        return VINF_IOM_R3_MMIO_WRITE;
+        return VINF_IOM_R3_IOPORT_WRITE;
 #else
         if (pThis->pDrvR3)
             pThis->pDrvR3->pfnSetPromiscuousMode(pThis->pDrvR3, fBecomePromiscous);
@@ -3095,21 +3100,7 @@ static int e1kRegWriteRDT(PE1KSTATE pThis, uint32_t offset, uint32_t index, uint
     int rc = e1kCsRxEnter(pThis, VINF_IOM_R3_MMIO_WRITE);
     if (RT_LIKELY(rc == VINF_SUCCESS))
     {
-        E1kLog(("%s e1kRegWriteRDT\n",  pThis->szPrf));
-        /*
-         * Some drivers advance RDT too far, so that it equals RDH. This
-         * somehow manages to work with real hardware but not with this
-         * emulated device. We can work with these drivers if we just
-         * write 1 less when we see a driver writing RDT equal to RDH,
-         * see @bugref{7346}.
-         */
-        if (value == RDH)
-        {
-            if (RDH == 0)
-                value = (RDLEN / sizeof(E1KRXDESC)) - 1;
-            else
-                value = RDH - 1;
-        }
+        E1kLog2(("%s e1kRegWriteRDT\n",  pThis->szPrf));
         rc = e1kRegWriteDefault(pThis, offset, index, value);
 #ifdef E1K_WITH_RXD_CACHE
         /*
@@ -3350,9 +3341,12 @@ static DECLCALLBACK(void) e1kLinkUpTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, vo
      * already armed (shortly after e1kLoadDone() or when the cable was disconnected
      * and connect+disconnect the cable very quick.
      */
-    if (!pThis->fCableConnected)
+    if (!pThis->fCableConnected) {
+        E1kLog(("%s %s: cable not connected!\n", pThis->szPrf, __FUNCTION__));
         return;
+    }
 
+    E1kLog(("%s %s\n", pThis->szPrf, __FUNCTION__));
     e1kR3LinkUp(pThis);
 }
 
@@ -5229,7 +5223,7 @@ static int e1kXmitPending(PE1KSTATE pThis, bool fOnWorkerThread)
 # ifdef IN_RING3
                 rc = VERR_NET_INCOMPLETE_TX_PACKET;
 # else /* !IN_RING3 */
-                rc = VINF_IOM_R3_MMIO_WRITE;
+                rc = VINF_IOM_R3_IOPORT_WRITE;
 # endif /* !IN_RING3 */
                 goto out;
             }
@@ -5349,7 +5343,7 @@ static int e1kRegWriteTDT(PE1KSTATE pThis, uint32_t offset, uint32_t index, uint
     if (TDH != TDT && (STATUS & STATUS_LU))
     {
         Log5(("E1000: TDT write: TDH=%08x, TDT=%08x, %d descriptors to process\n", TDH, TDT, e1kGetTxLen(pThis)));
-        E1kLog(("%s e1kRegWriteTDT: %d descriptors to process\n",
+        E1kLog2(("%s e1kRegWriteTDT: %d descriptors to process\n",
                  pThis->szPrf, e1kGetTxLen(pThis)));
 
         /* Transmit pending packets if possible, defer it if we cannot do it
@@ -5385,7 +5379,7 @@ static int e1kRegWriteTDT(PE1KSTATE pThis, uint32_t offset, uint32_t index, uint
             if (rc == VERR_TRY_AGAIN)
                 rc = VINF_SUCCESS;
             else if (rc == VERR_SEM_BUSY)
-                rc = VINF_IOM_R3_MMIO_WRITE;
+                rc = VINF_IOM_R3_IOPORT_WRITE;
             AssertRC(rc);
         }
     }
@@ -5512,7 +5506,7 @@ static int e1kRegReadVFTA(PE1KSTATE pThis, uint32_t offset, uint32_t index, uint
  */
 static int e1kRegReadUnimplemented(PE1KSTATE pThis, uint32_t offset, uint32_t index, uint32_t *pu32Value)
 {
-    E1kLog(("%s At %08X read (00000000) attempt from unimplemented register %s (%s)\n",
+    E1kLog2(("%s At %08X read (00000000) attempt from unimplemented register %s (%s)\n",
             pThis->szPrf, offset, g_aE1kRegMap[index].abbrev, g_aE1kRegMap[index].name));
     *pu32Value = 0;
 
@@ -5582,7 +5576,7 @@ static int e1kRegReadDefault(PE1KSTATE pThis, uint32_t offset, uint32_t index, u
 
  static int e1kRegWriteUnimplemented(PE1KSTATE pThis, uint32_t offset, uint32_t index, uint32_t value)
 {
-    E1kLog(("%s At %08X write attempt (%08X) to  unimplemented register %s (%s)\n",
+    E1kLog2(("%s At %08X write attempt (%08X) to  unimplemented register %s (%s)\n",
             pThis->szPrf, offset, value, g_aE1kRegMap[index].abbrev, g_aE1kRegMap[index].name));
 
     return VINF_SUCCESS;
@@ -5755,7 +5749,7 @@ static int e1kRegReadUnaligned(PE1KSTATE pThis, uint32_t offReg, void *pv, uint3
             STAM_COUNTER_INC(&pThis->aStatRegReads[index]);
     }
     else
-        E1kLog(("%s At %08X read (%s) attempt from non-existing register\n",
+        E1kLog2(("%s At %08X read (%s) attempt from non-existing register\n",
                 pThis->szPrf, offReg, e1kU32toHex(u32, mask, buf)));
 
     memcpy(pv, &u32, cb);
@@ -5855,7 +5849,7 @@ static int e1kRegWriteAlignedU32(PE1KSTATE pThis, uint32_t offReg, uint32_t u32V
             STAM_COUNTER_INC(&pThis->aStatRegWrites[index]);
     }
     else
-        E1kLog(("%s At %08X write attempt (%08X) to  non-existing register\n",
+        E1kLog2(("%s At %08X write attempt (%08X) to  non-existing register\n",
                 pThis->szPrf, offReg, u32Value));
     return rc;
 }
@@ -6498,7 +6492,8 @@ static DECLCALLBACK(int) e1kR3SetLinkState(PPDMINETWORKCONFIG pInterface, PDMNET
 {
     PE1KSTATE pThis = RT_FROM_MEMBER(pInterface, E1KSTATE, INetworkConfig);
 
-    E1kLog(("%s e1kR3SetLinkState: enmState=%d\n", pThis->szPrf, enmState));
+    E1kLog(("%s e1kR3SetLinkState: STATUS_LU=%s -> enmState=%d\n",
+            pThis->szPrf, STATUS & STATUS_LU ? "up" : "down", enmState));
     switch (enmState)
     {
         case PDMNETWORKLINKSTATE_UP:
@@ -7831,7 +7826,7 @@ const PDMDEVREG g_DeviceE1000 =
     "e1000",
     /* Name of guest context module (no path).
      * Only evalutated if PDM_DEVREG_FLAGS_RC is set. */
-    "VBoxDDRC.rc",
+    "VBoxDDGC.gc",
     /* Name of ring-0 module (no path).
      * Only evalutated if PDM_DEVREG_FLAGS_RC is set. */
     "VBoxDDR0.r0",

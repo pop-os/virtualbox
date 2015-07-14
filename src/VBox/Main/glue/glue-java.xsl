@@ -10,7 +10,7 @@
         XSLT stylesheet that generates Java glue code for XPCOM, MSCOM and JAX-WS from
         VirtualBox.xidl.
 
-    Copyright (C) 2010-2015 Oracle Corporation
+    Copyright (C) 2010-2014 Oracle Corporation
 
     This file is part of VirtualBox Open Source Edition (OSE), as
     available from http://www.virtualbox.org. This file is free software;
@@ -43,22 +43,10 @@
 
 <xsl:strip-space elements="*"/>
 
-
-<!-- - - - - - - - - - - - - - - - - - - - - - -
-  Keys for more efficiently looking up of types.
- - - - - - - - - - - - - - - - - - - - - - - -->
-
-<xsl:key name="G_keyEnumsByName" match="//enum[@name]" use="@name"/>
-<xsl:key name="G_keyInterfacesByName" match="//interface[@name]" use="@name"/>
-
-
-<!-- - - - - - - - - - - - - - - - - - - - - - -
- - - - - - - - - - - - - - - - - - - - - - - -->
-
 <xsl:template name="fileheader">
   <xsl:param name="name" />
   <xsl:text>/*
- * Copyright (C) 2010-2015 Oracle Corporation
+ * Copyright (C) 2010-2014 Oracle Corporation
  *
  * This file is part of the VirtualBox SDK, as available from
  * http://www.virtualbox.org.  This library is free software; you can
@@ -118,7 +106,7 @@
       </xsl:choose>
     </xsl:when>
     <xsl:otherwise>
-      <xsl:value-of select="concat(' \', $G_sNewLine, '&#9;', $G_vboxDirPrefix, $file)"/>
+      <xsl:value-of select="concat('&#9;', $G_vboxDirPrefix, $file, ' \&#10;')"/>
     </xsl:otherwise>
   </xsl:choose>
 </xsl:template>
@@ -126,68 +114,79 @@
 <xsl:template name="endFile">
   <xsl:param name="file" />
   <xsl:if test="$filelistonly=''">
-    <xsl:value-of select="concat('&#10;// ##### ENDFILE &quot;', $file, '&quot;&#10;')" />
-    <xsl:call-template name="xsltprocNewlineOutputHack"/>
+    <xsl:value-of select="concat('&#10;// ##### ENDFILE &quot;', $file, '&quot;&#10;&#10;')" />
   </xsl:if>
 </xsl:template>
 
-<!-- strip-and-normalize-desc
- Removes leading and trailing white space on each line in the given text.
- -->
-<xsl:template name="strip-and-normalize-desc">
-  <xsl:param name="text"/>
 
-  <!-- Strip the whole string first so we won't leave trailing new line chars behind. -->
-  <xsl:variable name="sStrippedText">
-    <xsl:call-template name="strip-string">
-      <xsl:with-param name="text" select="$text"/>
-    </xsl:call-template>
-  </xsl:variable>
-
+<xsl:template name="string-replace">
+  <xsl:param name="haystack"/>
+  <xsl:param name="needle"/>
+  <xsl:param name="replacement"/>
+  <xsl:param name="onlyfirst" select="false"/>
   <xsl:choose>
-    <!-- If there are multiple lines, strip them one by one on a recursive fasion. -->
-    <xsl:when test="contains($sStrippedText, '&#10;')">
-      <xsl:call-template name="strip-string-right">
-        <xsl:with-param name="text" select="substring-before($sStrippedText, '&#10;')"/>
-      </xsl:call-template>
-      <xsl:value-of select="'&#10;'"/>
-      <xsl:call-template name="strip-and-normalize-desc-recursive">
-        <xsl:with-param name="text" select="substring-after($sStrippedText, '&#10;')"/>
-      </xsl:call-template>
+    <xsl:when test="contains($haystack, $needle)">
+      <xsl:value-of select="substring-before($haystack, $needle)"/>
+      <xsl:value-of select="$replacement"/>
+      <xsl:choose>
+        <xsl:when test="$onlyfirst = 'true'">
+          <xsl:value-of select="substring-after($haystack, $needle)"/>
+        </xsl:when>
+        <xsl:otherwise>
+          <xsl:call-template name="string-replace">
+            <xsl:with-param name="haystack" select="substring-after($haystack, $needle)"/>
+            <xsl:with-param name="needle" select="$needle"/>
+            <xsl:with-param name="replacement" select="$replacement"/>
+          </xsl:call-template>
+        </xsl:otherwise>
+      </xsl:choose>
     </xsl:when>
-
-    <!-- Single line, we're done. -->
     <xsl:otherwise>
-      <xsl:value-of select="$sStrippedText"/>
+      <xsl:value-of select="$haystack"/>
     </xsl:otherwise>
   </xsl:choose>
-
 </xsl:template>
 
-<!-- Internal worker for strip-and-normalize-desc, don't use. -->
-<xsl:template name="strip-and-normalize-desc-recursive">
+<xsl:template name="string-trim">
   <xsl:param name="text"/>
 
+  <xsl:variable name="begin" select="substring($text, 1, 1)"/>
   <xsl:choose>
-    <!-- If there are multiple lines, strip them one by one on a recursive fasion. -->
-    <xsl:when test="contains($text, '&#10;')">
-      <xsl:call-template name="strip-string">
-        <xsl:with-param name="text" select="substring-before($text, '&#10;')"/>
-      </xsl:call-template>
-      <xsl:value-of select="'&#10;'"/>
-      <xsl:call-template name="strip-and-normalize-desc-recursive">
-        <xsl:with-param name="text" select="substring-after($text, '&#10;')"/>
+    <xsl:when test="$begin = ' ' or $begin = '&#10;' or $begin = '&#13;'">
+      <xsl:call-template name="string-trim">
+        <xsl:with-param name="text" select="substring($text, 2)"/>
       </xsl:call-template>
     </xsl:when>
-
-    <!-- Single line: Left strip it. -->
     <xsl:otherwise>
-      <xsl:call-template name="strip-string-left">
-        <xsl:with-param name="text" select="$text"/>
-      </xsl:call-template>
+      <xsl:variable name="end" select="substring($text, string-length($text) - 1, 1)"/>
+      <xsl:choose>
+        <xsl:when test="$end = ' ' or $end = '&#10;' or $end = '&#13;'">
+          <xsl:call-template name="string-trim">
+            <xsl:with-param name="text" select="substring($text, 1, string-length($text) - 1)"/>
+          </xsl:call-template>
+        </xsl:when>
+        <xsl:otherwise>
+          <xsl:choose>
+            <xsl:when test="contains($text, '&#10; ')">
+              <xsl:variable name="tmptext">
+                <xsl:call-template name="string-replace">
+                  <xsl:with-param name="haystack" select="$text"/>
+                  <xsl:with-param name="needle" select="'&#10; '"/>
+                  <xsl:with-param name="replacement" select="'&#10;'"/>
+                </xsl:call-template>
+              </xsl:variable>
+              <xsl:call-template name="string-trim">
+                <xsl:with-param name="text" select="$tmptext"/>
+              </xsl:call-template>
+            </xsl:when>
+            <xsl:otherwise>
+              <xsl:value-of select="$text"/>
+            </xsl:otherwise>
+          </xsl:choose>
+        </xsl:otherwise>
+      </xsl:choose>
     </xsl:otherwise>
   </xsl:choose>
-
 </xsl:template>
 
 <!-- descriptions -->
@@ -219,36 +218,13 @@
     </xsl:call-template>
   </xsl:variable>
 
-  <!-- &amp;, &lt; and &gt; must remain as they are or javadoc 8 throws a fit. -->
   <xsl:variable name="rep4">
-    <xsl:call-template name="string-replace">
-      <xsl:with-param name="haystack" select="$rep3"/>
-      <xsl:with-param name="needle" select="'&amp;'"/>
-      <xsl:with-param name="replacement" select="'&amp;amp;'"/>
-    </xsl:call-template>
-  </xsl:variable>
-  <xsl:variable name="rep5">
-    <xsl:call-template name="string-replace">
-      <xsl:with-param name="haystack" select="$rep4"/>
-      <xsl:with-param name="needle" select="'&lt;'"/>
-      <xsl:with-param name="replacement" select="'&amp;lt;'"/>
-    </xsl:call-template>
-  </xsl:variable>
-  <xsl:variable name="rep6">
-    <xsl:call-template name="string-replace">
-      <xsl:with-param name="haystack" select="$rep5"/>
-      <xsl:with-param name="needle" select="'&gt;'"/>
-      <xsl:with-param name="replacement" select="'&amp;gt;'"/>
+    <xsl:call-template name="string-trim">
+      <xsl:with-param name="text" select="$rep3"/>
     </xsl:call-template>
   </xsl:variable>
 
-  <xsl:variable name="rep7">
-    <xsl:call-template name="strip-and-normalize-desc">
-      <xsl:with-param name="text" select="$rep6"/>
-    </xsl:call-template>
-  </xsl:variable>
-
-  <xsl:value-of select="$rep7"/>
+  <xsl:value-of select="$rep4"/>
 </xsl:template>
 
 <!--
@@ -257,11 +233,7 @@
 -->
 <xsl:template match="desc//*">
   <xsl:variable name="tagname" select="local-name()"/>
-  <xsl:value-of select="concat('&lt;', $tagname)"/>
-  <xsl:if test="$tagname = 'table'"> <!-- javadoc 8 fudge -->
-    <xsl:text> summary=""</xsl:text>
-  </xsl:if>
-  <xsl:text>&gt;</xsl:text>
+  <xsl:value-of select="concat('&lt;', $tagname, '&gt;')"/>
   <xsl:apply-templates/>
   <xsl:value-of select="concat('&lt;/', $tagname, '&gt;')"/>
 </xsl:template>
@@ -271,13 +243,13 @@
   <xsl:param name="identifier"/>
 
   <xsl:choose>
-    <xsl:when test="key('G_keyEnumsByName', $context)/const[@name=$identifier]">
+    <xsl:when test="//enum[@name=$context]/const[@name=$identifier]">
       <xsl:value-of select="$identifier"/>
     </xsl:when>
-    <xsl:when test="key('G_keyInterfacesByName', $context)/method[@name=$identifier]">
+    <xsl:when test="//interface[@name=$context]/method[@name=$identifier]">
       <xsl:value-of select="$identifier"/>
       <xsl:text>(</xsl:text>
-      <xsl:for-each select="key('G_keyInterfacesByName', $context)/method[@name=$identifier]/param">
+      <xsl:for-each select="//interface[@name=$context]/method[@name=$identifier]/param">
         <xsl:if test="@dir!='return'">
           <xsl:if test="position() > 1">
             <xsl:text>,</xsl:text>
@@ -298,7 +270,7 @@
       </xsl:for-each>
       <xsl:text>)</xsl:text>
     </xsl:when>
-    <xsl:when test="key('G_keyInterfacesByName', $context)/attribute[@name=$identifier]">
+    <xsl:when test="//interface[@name=$context]/attribute[@name=$identifier]">
       <xsl:call-template name="makeGetterName">
         <xsl:with-param name="attrname" select="$identifier" />
       </xsl:call-template>
@@ -323,10 +295,11 @@
 
 <xsl:template match="link" mode="middle">
   <xsl:variable name="linktext">
-    <xsl:call-template name="string-replace-first">
+    <xsl:call-template name="string-replace">
       <xsl:with-param name="haystack" select="@to"/>
       <xsl:with-param name="needle" select="'_'"/>
       <xsl:with-param name="replacement" select="'#'"/>
+      <xsl:with-param name="onlyfirst" select="'true'"/>
     </xsl:call-template>
   </xsl:variable>
   <xsl:choose>
@@ -416,16 +389,11 @@
  * common comment prologue (handles group IDs)
 -->
 <xsl:template match="desc" mode="begin">
-  <!-- TODO,XXX: This is a hot spot. The whole $id crap isn't working though,
-                 so it's been disabled to save precious time. -->
-<!--
   <xsl:param name="id" select="@group | preceding::descGroup[1]/@id"/>
   <xsl:text>&#10;/**&#10;</xsl:text>
   <xsl:if test="$id">
     <xsl:value-of select="concat(' @ingroup ', $id, '&#10;')"/>
   </xsl:if>
--->
-  <xsl:value-of select="concat($G_sNewLine, '/**', $G_sNewLine)"/>
 </xsl:template>
 
 <!--
@@ -443,7 +411,7 @@
 <xsl:template match="desc" mode="results">
   <xsl:if test="result">
     <xsl:text>&#10;Expected result codes:&#10;</xsl:text>
-    <xsl:text>&lt;table summary=""&gt;&#10;</xsl:text>
+    <xsl:text>&lt;table&gt;&#10;</xsl:text>
     <xsl:for-each select="result">
       <xsl:text>&lt;tr&gt;</xsl:text>
       <xsl:choose>
@@ -457,10 +425,18 @@
       <xsl:text>&lt;td&gt;</xsl:text>
       <xsl:apply-templates select="text() | *[not(self::note or self::see or
                                                   self::result)]"/>
-      <xsl:text>&lt;/td&gt;&lt;/tr&gt;&#10;</xsl:text>
+      <xsl:text>&lt;/td&gt;&lt;tr&gt;&#10;</xsl:text>
     </xsl:for-each>
     <xsl:text>&lt;/table&gt;&#10;</xsl:text>
   </xsl:if>
+</xsl:template>
+
+<!--
+ * translates the string to uppercase
+-->
+<xsl:template name="uppercase">
+  <xsl:param name="str" select="."/>
+  <xsl:value-of select="translate($str, $G_lowerCase, $G_upperCase)"/>
 </xsl:template>
 
 <!--
@@ -469,8 +445,8 @@
 <xsl:template match="desc" mode="interface">
   <xsl:apply-templates select="." mode="begin"/>
   <xsl:apply-templates select="." mode="middle"/>
-  <xsl:text>&#10;&#10;Interface ID: &lt;tt&gt;{</xsl:text>
-  <xsl:call-template name="string-to-upper">
+  <xsl:text>&#10;Interface ID: &lt;tt&gt;{</xsl:text>
+  <xsl:call-template name="uppercase">
     <xsl:with-param name="str" select="../@uuid"/>
   </xsl:call-template>
   <xsl:text>}&lt;/tt&gt;&#10;*/&#10;</xsl:text>
@@ -488,7 +464,6 @@
   <xsl:call-template name="typeIdl2Glue">
     <xsl:with-param name="type" select="../@type"/>
     <xsl:with-param name="safearray" select="../@safearray"/>
-    <xsl:with-param name="doubleescape">yes</xsl:with-param>
   </xsl:call-template>
   <xsl:text>&#10;</xsl:text>
   <xsl:apply-templates select="see"/>
@@ -507,7 +482,6 @@
   <xsl:call-template name="typeIdl2Glue">
     <xsl:with-param name="type" select="../@type"/>
     <xsl:with-param name="safearray" select="../@safearray"/>
-    <xsl:with-param name="doubleescape">yes</xsl:with-param>
   </xsl:call-template>
   <xsl:text>&#10;</xsl:text>
   <xsl:apply-templates select="see"/>
@@ -557,7 +531,7 @@
   <xsl:apply-templates select="." mode="begin"/>
   <xsl:apply-templates select="." mode="middle"/>
   <xsl:text>&#10;Interface ID: &lt;tt&gt;{</xsl:text>
-  <xsl:call-template name="string-to-upper">
+  <xsl:call-template name="uppercase">
     <xsl:with-param name="str" select="../@uuid"/>
   </xsl:call-template>
   <xsl:text>}&lt;/tt&gt;&#10;*/&#10;</xsl:text>
@@ -721,10 +695,10 @@
   <xsl:param name="collPrefix" />
 
   <xsl:choose>
-    <xsl:when test="(count(key('G_keyEnumsByName', $name)) > 0) or (count(key('G_keyEnumsByName', $origname)) > 0)">
+    <xsl:when test="//enum[@name=$name] or //enum[@name=$origname]">
       <xsl:value-of select="concat($G_virtualBoxPackage, concat('.', $name))" />
     </xsl:when>
-    <xsl:when test="count(key('G_keyInterfacesByName', $name)) > 0">
+    <xsl:when test="//interface[@name=$name]">
       <xsl:value-of select="concat($G_virtualBoxPackage, concat('.', $name))" />
     </xsl:when>
     <xsl:otherwise>
@@ -740,7 +714,6 @@
   <xsl:param name="safearray" />
   <xsl:param name="forceelem" />
   <xsl:param name="skiplisttype" />
-  <xsl:param name="doubleescape" />
 
   <xsl:variable name="needarray" select="($safearray='yes') and not($forceelem='yes')" />
   <xsl:variable name="needlist" select="($needarray) and not($type='octet')" />
@@ -748,14 +721,7 @@
   <xsl:if test="($needlist)">
     <xsl:text>List</xsl:text>
     <xsl:if test="not($skiplisttype='yes')">
-      <xsl:choose>
-        <xsl:when test="$doubleescape='yes'">
-          <xsl:text>&amp;lt;</xsl:text>
-        </xsl:when>
-        <xsl:otherwise>
-          <xsl:text>&lt;</xsl:text>
-        </xsl:otherwise>
-      </xsl:choose>
+      <xsl:text>&lt;</xsl:text>
     </xsl:if>
   </xsl:if>
 
@@ -781,14 +747,7 @@
   <xsl:choose>
     <xsl:when test="($needlist)">
       <xsl:if test="not($skiplisttype='yes')">
-        <xsl:choose>
-          <xsl:when test="$doubleescape='yes'">
-            <xsl:text>&amp;gt;</xsl:text>
-          </xsl:when>
-          <xsl:otherwise>
-            <xsl:text>&gt;</xsl:text>
-          </xsl:otherwise>
-        </xsl:choose>
+        <xsl:text>&gt;</xsl:text>
       </xsl:if>
     </xsl:when>
     <xsl:when test="($needarray)">
@@ -850,19 +809,19 @@
           <xsl:text>String</xsl:text>
         </xsl:when>
 
-        <xsl:when test="key('G_keyInterfacesByName', $type)/@wsmap='struct'">
+        <xsl:when test="//interface[@name=$type]/@wsmap='struct'">
           <xsl:call-template name="wrappedName">
             <xsl:with-param name="ifname" select="$type" />
           </xsl:call-template>
         </xsl:when>
 
-        <xsl:when test="count(key('G_keyInterfacesByName', $type)) > 0">
+        <xsl:when test="//interface[@name=$type]">
           <xsl:call-template name="wrappedName">
             <xsl:with-param name="ifname" select="$type" />
           </xsl:call-template>
         </xsl:when>
 
-        <xsl:when test="count(key('G_keyEnumsByName', $type)) > 0">
+        <xsl:when test="//enum[@name=$type]">
           <xsl:text>long</xsl:text>
         </xsl:when>
 
@@ -893,15 +852,15 @@
           <xsl:text>String</xsl:text>
         </xsl:when>
 
-        <xsl:when test="key('G_keyInterfacesByName', $type)/@wsmap='managed'">
+        <xsl:when test="//interface[@name=$type]/@wsmap='managed'">
           <xsl:text>String</xsl:text>
         </xsl:when>
 
-        <xsl:when test="key('G_keyInterfacesByName', $type)/@wsmap='struct'">
+        <xsl:when test="//interface[@name=$type]/@wsmap='struct'">
           <xsl:value-of select="concat($G_virtualBoxPackageCom, '.', $type)" />
         </xsl:when>
 
-        <xsl:when test="count(key('G_keyEnumsByName', $type)) > 0">
+        <xsl:when test="//enum[@name=$type]">
           <xsl:value-of select="concat($G_virtualBoxPackageCom, '.', $type)" />
         </xsl:when>
 
@@ -969,7 +928,7 @@
   <xsl:param name="idltype"/>
   <xsl:param name="safearray"/>
   <xsl:variable name="isstruct"
-                select="key('G_keyInterfacesByName', $idltype)/@wsmap='struct'" />
+                select="//interface[@name=$idltype]/@wsmap='struct'" />
 
   <xsl:variable name="gluetype">
     <xsl:call-template name="typeIdl2Glue">
@@ -989,7 +948,7 @@
   </xsl:variable>
 
   <xsl:choose>
-    <xsl:when test="$idltype = '$unknown' or (count(key('G_keyInterfacesByName', $idltype)) > 0)">
+    <xsl:when test="//interface[@name=$idltype] or $idltype='$unknown'">
       <xsl:choose>
         <xsl:when test="$safearray='yes'">
           <xsl:variable name="elembacktype">
@@ -1007,7 +966,7 @@
       </xsl:choose>
     </xsl:when>
 
-    <xsl:when test="count(key('G_keyEnumsByName', $idltype)) > 0">
+    <xsl:when test="//enum[@name=$idltype]">
       <xsl:choose>
         <xsl:when test="$safearray='yes'">
           <xsl:variable name="elembacktype">
@@ -1072,11 +1031,11 @@
       </xsl:choose>
     </xsl:when>
 
-    <xsl:when test="$idltype = '$unknown' or (count(key('G_keyInterfacesByName', $idltype)) > 0)">
+    <xsl:when test="//interface[@name=$idltype] or $idltype='$unknown'">
       <xsl:value-of select="concat('Helper.wrapDispatch(', $gluetype, '.class, ', $value, '.getDispatch())')"/>
     </xsl:when>
 
-    <xsl:when test="count(key('G_keyEnumsByName', $idltype)) > 0">
+    <xsl:when test="//enum[@name=$idltype]">
       <xsl:value-of select="concat($gluetype, '.fromValue(', $value, '.getInt())')"/>
     </xsl:when>
 
@@ -1132,7 +1091,7 @@
   <xsl:param name="safearray"/>
 
   <xsl:variable name="isstruct"
-                select="key('G_keyInterfacesByName', $idltype)/@wsmap='struct'" />
+                select="//interface[@name=$idltype]/@wsmap='struct'" />
 
   <xsl:variable name="gluetype">
     <xsl:call-template name="typeIdl2Glue">
@@ -1161,10 +1120,10 @@
         <xsl:when test="$isstruct">
           <xsl:value-of select="concat('Helper.wrap2(', $elemgluetype, '.class, ', $elembacktype, '.class, port, ', $value, ')')"/>
         </xsl:when>
-        <xsl:when test="count(key('G_keyEnumsByName', $idltype)) > 0">
+        <xsl:when test="//enum[@name=$idltype]">
           <xsl:value-of select="concat('Helper.convertEnums(', $elembacktype, '.class, ', $elemgluetype, '.class, ', $value, ')')"/>
         </xsl:when>
-        <xsl:when test="$idltype = '$unknown' or (count(key('G_keyInterfacesByName', $idltype)) > 0)">
+        <xsl:when test="//interface[@name=$idltype] or $idltype='$unknown'">
           <xsl:value-of select="concat('Helper.wrap(', $elemgluetype, '.class, port, ', $value, ')')"/>
         </xsl:when>
         <xsl:when test="$idltype='octet'">
@@ -1178,7 +1137,7 @@
 
     <xsl:otherwise>
       <xsl:choose>
-        <xsl:when test="count(key('G_keyEnumsByName', $idltype)) > 0">
+        <xsl:when test="//enum[@name=$idltype]">
           <xsl:value-of select="concat($gluetype, '.fromValue(', $value, '.value())')"/>
         </xsl:when>
         <xsl:when test="$idltype='boolean'">
@@ -1211,7 +1170,7 @@
         <xsl:when test="$isstruct">
           <xsl:value-of select="concat('(', $value, ' != null) ? new ', $gluetype, '(', $value, ', port) : null')" />
         </xsl:when>
-        <xsl:when test="$idltype = '$unknown' or (count(key('G_keyInterfacesByName', $idltype)) > 0)">
+        <xsl:when test="//interface[@name=$idltype] or $idltype='$unknown'">
           <!-- if the MOR string is empty, that means NULL, so return NULL instead of an object then -->
           <xsl:value-of select="concat('(', $value, '.length() > 0) ? new ', $gluetype, '(', $value, ', port) : null')" />
         </xsl:when>
@@ -1265,7 +1224,7 @@
   <xsl:param name="idltype"/>
   <xsl:param name="safearray"/>
   <xsl:variable name="isstruct"
-                select="key('G_keyInterfacesByName', $idltype)/@wsmap='struct'" />
+                select="//interface[@name=$idltype]/@wsmap='struct'" />
   <xsl:variable name="gluetype">
     <xsl:call-template name="typeIdl2Glue">
       <xsl:with-param name="type" select="$idltype" />
@@ -1291,7 +1250,7 @@
   </xsl:variable>
 
   <xsl:choose>
-    <xsl:when test="count(key('G_keyInterfacesByName', $idltype)) > 0">
+    <xsl:when test="//interface[@name=$idltype]">
       <xsl:choose>
         <xsl:when test="$safearray='yes'">
           <xsl:variable name="elembacktype">
@@ -1320,7 +1279,7 @@
       </xsl:choose>
     </xsl:when>
 
-    <xsl:when test="count(key('G_keyEnumsByName', $idltype)) > 0">
+    <xsl:when test="//enum[@name=$idltype]">
       <xsl:choose>
         <xsl:when test="$safearray='yes'">
           <xsl:value-of select="concat('Helper.unwrapEnum(', $elemgluetype, '.class, ', $value, ')')"/>
@@ -1397,7 +1356,7 @@
   </xsl:variable>
 
   <xsl:choose>
-    <xsl:when test="count(key('G_keyInterfacesByName', $idltype)) > 0">
+    <xsl:when test="//interface[@name=$idltype]">
       <xsl:choose>
         <xsl:when test="$safearray='yes'">
           <xsl:variable name="elembacktype">
@@ -1429,7 +1388,7 @@
       </xsl:choose>
     </xsl:when>
 
-    <xsl:when test="count(key('G_keyEnumsByName', $idltype)) > 0">
+    <xsl:when test="//enum[@name=$idltype]">
       <xsl:choose>
         <xsl:when test="$safearray='yes'">
           <xsl:value-of select="concat('Helper.unwrapEnum(', $elemgluetype, '.class, ', $value, ')')"/>
@@ -1514,7 +1473,7 @@
   <xsl:param name="idltype"/>
   <xsl:param name="safearray"/>
   <xsl:variable name="isstruct"
-                select="key('G_keyInterfacesByName', $idltype)/@wsmap='struct'" />
+                select="//interface[@name=$idltype]/@wsmap='struct'" />
 
   <xsl:variable name="gluetype">
     <xsl:call-template name="typeIdl2Glue">
@@ -1534,7 +1493,7 @@
   </xsl:variable>
 
   <xsl:choose>
-    <xsl:when test="$idltype = '$unknown' or (count(key('G_keyInterfacesByName', $idltype)) > 0)">
+    <xsl:when test="//interface[@name=$idltype] or $idltype='$unknown'">
       <xsl:choose>
         <xsl:when test="@safearray='yes'">
           <xsl:value-of select="concat('Helper.unwrap(', $value, ')')"/>
@@ -1545,7 +1504,7 @@
       </xsl:choose>
     </xsl:when>
 
-    <xsl:when test="count(key('G_keyEnumsByName', $idltype)) > 0">
+    <xsl:when test="//enum[@name=$idltype]">
       <xsl:choose>
         <xsl:when test="$safearray='yes'">
           <xsl:variable name="elembacktype">
@@ -1702,7 +1661,7 @@
         </xsl:call-template>
       </xsl:variable>
       <xsl:variable name="portArg">
-        <xsl:if test="not(key('G_keyInterfacesByName', $ifname)/@wsmap='global')">
+        <xsl:if test="not(//interface[@name=$ifname]/@wsmap='global')">
           <xsl:text>obj</xsl:text>
         </xsl:if>
       </xsl:variable>
@@ -1944,14 +1903,9 @@
     </xsl:when>
     <xsl:otherwise>
       <xsl:variable name="hasReturnParms" select="param[@dir='return']" />
-      <xsl:variable name="hasOutParms" select="count(param[@dir='out']) > 0" />
+      <xsl:variable name="hasOutParms" select="param[@dir='out']" />
       <xsl:variable name="returnidltype" select="param[@dir='return']/@type" />
       <xsl:variable name="returnidlsafearray" select="param[@dir='return']/@safearray" />
-      <xsl:if test="$hasOutParms and not($hasReturnParms) and (string-length(@wsmap) = 0) and (count(param[@dir='out']) = 1)">
-        <xsl:call-template name="fatalError">
-          <xsl:with-param name="msg" select="concat('genMethod: ', $ifname, $hasOutParms, not($hasReturnParms), 'a', string-length(@wsmap) = 0, 'b', @wsmap, (count(param[@dir='out']) = 1), '::', $methodname, ' has exactly one out parameter and no return parameter, this causes trouble with JAX-WS and the out parameter needs to be converted to return')" />
-        </xsl:call-template>
-      </xsl:if>
       <xsl:variable name="returngluetype">
         <xsl:choose>
           <xsl:when test="$returnidltype">
@@ -2205,6 +2159,7 @@
     </xsl:when>
     <xsl:otherwise>
       <xsl:variable name="hasReturnParms" select="param[@dir='return']" />
+      <xsl:variable name="hasOutParms" select="param[@dir='out']" />
       <xsl:variable name="returnidltype" select="param[@dir='return']/@type" />
       <xsl:variable name="returnidlsafearray" select="param[@dir='return']/@safearray" />
       <xsl:variable name="returnbacktype">
@@ -2532,13 +2487,13 @@
       </xsl:when>
 
       <xsl:otherwise>
-        <xsl:variable name="extends" select="key('G_keyInterfacesByName', $ifname)/@extends" />
+        <xsl:variable name="extends" select="//interface[@name=$ifname]/@extends" />
         <xsl:choose>
           <xsl:when test="($extends = '$unknown') or ($extends = '$errorinfo')">
             <xsl:value-of select="concat('public class ', $ifname, ' extends IUnknown&#10;')" />
             <xsl:text>{&#10;&#10;</xsl:text>
           </xsl:when>
-          <xsl:when test="count(key('G_keyInterfacesByName', $extends)) > 0">
+          <xsl:when test="//interface[@name=$extends]">
             <xsl:value-of select="concat('public class ', $ifname, ' extends ', $extends, '&#10;')" />
             <xsl:text>{&#10;&#10;</xsl:text>
           </xsl:when>
@@ -4735,7 +4690,7 @@ public class VirtualBoxManager
   </xsl:if>
 
   <xsl:if test="not($filelistonly='')">
-    <xsl:value-of select="concat($filelistonly, ' :=')"/>
+    <xsl:value-of select="concat($filelistonly, ' := \&#10;')"/>
   </xsl:if>
 
   <!-- Handwritten files -->
@@ -4786,7 +4741,7 @@ public class VirtualBoxManager
 
       <xsl:otherwise>
         <!-- We don't need WSDL-specific interfaces here -->
-        <xsl:if test="not(@internal='yes') and not($self_target='wsdl') and not($module)">
+        <xsl:if test="not($self_target='wsdl') and not($module)">
           <xsl:call-template name="genIface">
             <xsl:with-param name="ifname" select="@name" />
             <xsl:with-param name="filename" select="concat(@name, '.java')" />
@@ -4798,7 +4753,7 @@ public class VirtualBoxManager
   </xsl:for-each>
 
   <xsl:if test="not($filelistonly='')">
-    <xsl:value-of select="concat($G_sNewLine, $G_sNewLine)"/>
+    <xsl:value-of select="'&#10;'"/>
   </xsl:if>
 
 </xsl:template>

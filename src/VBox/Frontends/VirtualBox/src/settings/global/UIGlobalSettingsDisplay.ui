@@ -63,7 +63,7 @@
       </sizepolicy>
      </property>
      <property name="whatsThis">
-      <string>Holds the maximum width which we would like the guest to use.</string>
+      <string>Specifies the maximum width which we would like the guest to use.</string>
      </property>
     </widget>
    </item>
@@ -89,7 +89,7 @@
       </sizepolicy>
      </property>
      <property name="whatsThis">
-      <string>Holds the maximum height which we would like the guest to use.</string>
+      <string>Specifies the maximum height which we would like the guest to use.</string>
      </property>
     </widget>
    </item>
@@ -112,7 +112,7 @@
       </sizepolicy>
      </property>
      <property name="whatsThis" >
-      <string>When checked, machine windows will be raised when the mouse pointer moves over them.</string>
+      <string>If checked, machine windows will be raised when the mouse pointer moves over them.</string>
      </property>
      <property name="text">
       <string>&amp;Raise Window Under Mouse</string>

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -171,7 +171,7 @@ int pdmR3DevInit(PVM pVM)
         Log(("PDM: No devices were configured!\n"));
         return VINF_SUCCESS;
     }
-    Log2(("PDM: cDevs=%u\n", cDevs));
+    Log2(("PDM: cDevs=%d!\n", cDevs));
 
     /*
      * Collect info on each device instance.

@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2015 Oracle Corporation
+# Copyright (C) 2006-2013 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -31,7 +31,7 @@ if1of ($(KBUILD_TARGET), linux solaris)
  	VBOX_DRI
 endif
 vboxvideo_xorg_INCS = \
-	$(VBOX_PATH_X11_ROOT)/dri2proto-2.8 \
+    $(VBOX_PATH_X11_ROOT)/dri2proto-2.8 \
 	$(VBOX_PATH_X11_ROOT)/fontsproto-2.1.0 \
 	$(VBOX_PATH_X11_ROOT)/glproto-1.4.10 \
 	$(VBOX_PATH_X11_ROOT)/MesaLib-8.0.4-GL \
@@ -113,7 +113,6 @@ vboxvideo_drv_SOURCES = \
 	$(PATH_ROOT)/src/VBox/Additions/common/VBoxVideo/Modesetting.cpp \
 	$(PATH_ROOT)/src/VBox/Additions/common/VBoxVideo/VBVABase.cpp \
 	$(PATH_ROOT)/src/VBox/GuestHost/HGSMI/HGSMICommon.cpp \
-	$(PATH_ROOT)/src/VBox/GuestHost/HGSMI/HGSMIMemAlloc.cpp \
 	$(PATH_ROOT)/src/VBox/Runtime/common/alloc/heapsimple.cpp \
 	$(PATH_ROOT)/src/VBox/Runtime/common/alloc/heapoffset.cpp
  # Any global symbols in the driver object files will be added to XFree86's

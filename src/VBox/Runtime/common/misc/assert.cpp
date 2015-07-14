@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -145,7 +145,7 @@ RTDECL(void) RTAssertMsg1(const char *pszExpr, unsigned uLine, const char *pszFi
 #  endif
 # endif
 
-        PRTLOGGER pLog = RTLogRelGetDefaultInstance();
+        PRTLOGGER pLog = RTLogRelDefaultInstance();
         if (pLog)
         {
             RTLogRelPrintf("\n!!Assertion Failed!!\n"
@@ -254,7 +254,7 @@ static void rtAssertMsg2Worker(bool fInitial, const char *pszFormat, va_list va)
 #  endif
 # endif
 
-        PRTLOGGER pLog = RTLogRelGetDefaultInstance();
+        PRTLOGGER pLog = RTLogRelDefaultInstance();
         if (pLog)
         {
             va_copy(vaCopy, va);

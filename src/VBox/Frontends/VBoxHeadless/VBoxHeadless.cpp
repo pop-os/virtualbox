@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -52,6 +52,10 @@ using namespace com;
 #ifdef VBOX_WITH_SAVESTATE_ON_SIGNAL
 #include <signal.h>
 #endif
+
+#include "Framebuffer.h"
+
+#include "NullFramebuffer.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -127,6 +131,171 @@ private:
 };
 
 /**
+ *  Handler for global events.
+ */
+class VirtualBoxEventListener
+{
+public:
+    VirtualBoxEventListener()
+    {
+        mfNoLoggedInUsers = true;
+    }
+
+    virtual ~VirtualBoxEventListener()
+    {
+    }
+
+    HRESULT init()
+    {
+        return S_OK;
+    }
+
+    void uninit()
+    {
+    }
+
+    STDMETHOD(HandleEvent)(VBoxEventType_T aType, IEvent *aEvent)
+    {
+        switch (aType)
+        {
+            case VBoxEventType_OnGuestPropertyChanged:
+            {
+                ComPtr<IGuestPropertyChangedEvent> pChangedEvent = aEvent;
+                Assert(pChangedEvent);
+
+                HRESULT hrc;
+
+                ComPtr <IMachine> pMachine;
+                if (gConsole)
+                {
+                    hrc = gConsole->COMGETTER(Machine)(pMachine.asOutParam());
+                    if (SUCCEEDED(hrc) && pMachine)
+                    {
+                        Bstr gpMachineId, machineId;
+                        hrc = pMachine->COMGETTER(Id)(gpMachineId.asOutParam());
+                        AssertComRC(hrc);
+                        hrc = pChangedEvent->COMGETTER(MachineId)(machineId.asOutParam());
+                        AssertComRC(hrc);
+                        if (gpMachineId != machineId)
+                            hrc = VBOX_E_OBJECT_NOT_FOUND;
+                    }
+                }
+                else
+                    hrc = VBOX_E_INVALID_VM_STATE;
+
+                if (SUCCEEDED(hrc))
+                {
+                    Bstr strKey;
+                    hrc = pChangedEvent->COMGETTER(Name)(strKey.asOutParam());
+                    AssertComRC(hrc);
+
+                    Bstr strValue;
+                    hrc = pChangedEvent->COMGETTER(Value)(strValue.asOutParam());
+                    AssertComRC(hrc);
+
+                    Utf8Str utf8Key = strKey;
+                    Utf8Str utf8Value = strValue;
+                    LogRelFlow(("Guest property \"%s\" has been changed to \"%s\"\n",
+                                utf8Key.c_str(), utf8Value.c_str()));
+
+                    if (utf8Key.equals("/VirtualBox/GuestInfo/OS/NoLoggedInUsers"))
+                    {
+                        LogRelFlow(("Guest indicates that there %s logged in users\n",
+                                    utf8Value.equals("true") ? "are no" : "are"));
+
+                        /* Check if this is our machine and the "disconnect on logout feature" is enabled. */
+                        BOOL fProcessDisconnectOnGuestLogout = FALSE;
+
+                        /* Does the machine handle VRDP disconnects? */
+                        Bstr strDiscon;
+                        hrc = pMachine->GetExtraData(Bstr("VRDP/DisconnectOnGuestLogout").raw(),
+                                                    strDiscon.asOutParam());
+                        if (SUCCEEDED(hrc))
+                        {
+                            Utf8Str utf8Discon = strDiscon;
+                            fProcessDisconnectOnGuestLogout = utf8Discon.equals("1")
+                                                            ? TRUE : FALSE;
+                        }
+
+                        LogRelFlow(("VRDE: hrc=%Rhrc: Host %s disconnecting clients (current host state known: %s)\n",
+                                    hrc, fProcessDisconnectOnGuestLogout ? "will handle" : "does not handle",
+                                    mfNoLoggedInUsers ? "No users logged in" : "Users logged in"));
+
+                        if (fProcessDisconnectOnGuestLogout)
+                        {
+                            bool fDropConnection = false;
+                            if (!mfNoLoggedInUsers) /* Only if the property really changes. */
+                            {
+                                if (   utf8Value == "true"
+                                    /* Guest property got deleted due to reset,
+                                     * so it has no value anymore. */
+                                    || utf8Value.isEmpty())
+                                {
+                                    mfNoLoggedInUsers = true;
+                                    fDropConnection = true;
+                                }
+                            }
+                            else if (utf8Value == "false")
+                                mfNoLoggedInUsers = false;
+                            /* Guest property got deleted due to reset,
+                             * take the shortcut without touching the mfNoLoggedInUsers
+                             * state. */
+                            else if (utf8Value.isEmpty())
+                                fDropConnection = true;
+
+                            LogRelFlow(("VRDE: szNoLoggedInUsers=%s, mfNoLoggedInUsers=%RTbool, fDropConnection=%RTbool\n",
+                                        utf8Value.c_str(), mfNoLoggedInUsers, fDropConnection));
+
+                            if (fDropConnection)
+                            {
+                                /* If there is a connection, drop it. */
+                                ComPtr<IVRDEServerInfo> info;
+                                hrc = gConsole->COMGETTER(VRDEServerInfo)(info.asOutParam());
+                                if (SUCCEEDED(hrc) && info)
+                                {
+                                    ULONG cClients = 0;
+                                    hrc = info->COMGETTER(NumberOfClients)(&cClients);
+
+                                    LogRelFlow(("VRDE: connected clients=%RU32\n", cClients));
+                                    if (SUCCEEDED(hrc) && cClients > 0)
+                                    {
+                                        ComPtr <IVRDEServer> vrdeServer;
+                                        hrc = pMachine->COMGETTER(VRDEServer)(vrdeServer.asOutParam());
+                                        if (SUCCEEDED(hrc) && vrdeServer)
+                                        {
+                                            LogRel(("VRDE: the guest user has logged out, disconnecting remote clients.\n"));
+                                            hrc = vrdeServer->COMSETTER(Enabled)(FALSE);
+                                            AssertComRC(hrc);
+                                            HRESULT hrc2 = vrdeServer->COMSETTER(Enabled)(TRUE);
+                                            if (SUCCEEDED(hrc))
+                                                hrc = hrc2;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if (FAILED(hrc))
+                        LogRelFlow(("VRDE: returned error=%Rhrc\n", hrc));
+                }
+
+                break;
+            }
+
+            default:
+                AssertFailed();
+        }
+
+        return S_OK;
+    }
+
+private:
+
+    bool mfNoLoggedInUsers;
+};
+
+/**
  *  Handler for machine events.
  */
 class ConsoleEventListener
@@ -134,8 +303,7 @@ class ConsoleEventListener
 public:
     ConsoleEventListener() :
         mLastVRDEPort(-1),
-        m_fIgnorePowerOffEvents(false),
-        m_fNoLoggedInUsers(true)
+        m_fIgnorePowerOffEvents(false)
     {
     }
 
@@ -234,127 +402,9 @@ public:
             {
                 ComPtr<IShowWindowEvent> swev = aEvent;
                 Assert(swev);
-                /* Ignore the event, WinId is either still zero or some other listener assigned it. */
-                NOREF(swev); /* swev->COMSETTER(WinId)(0); */
+                swev->COMSETTER(WinId)(0);
                 break;
             }
-            case VBoxEventType_OnGuestPropertyChanged:
-            {
-                ComPtr<IGuestPropertyChangedEvent> pChangedEvent = aEvent;
-                Assert(pChangedEvent);
-
-                HRESULT hrc;
-
-                ComPtr <IMachine> pMachine;
-                if (gConsole)
-                {
-                    hrc = gConsole->COMGETTER(Machine)(pMachine.asOutParam());
-                    if (FAILED(hrc) || !pMachine)
-                        hrc = VBOX_E_OBJECT_NOT_FOUND;
-                }
-                else
-                    hrc = VBOX_E_INVALID_VM_STATE;
-
-                if (SUCCEEDED(hrc))
-                {
-                    Bstr strKey;
-                    hrc = pChangedEvent->COMGETTER(Name)(strKey.asOutParam());
-                    AssertComRC(hrc);
-
-                    Bstr strValue;
-                    hrc = pChangedEvent->COMGETTER(Value)(strValue.asOutParam());
-                    AssertComRC(hrc);
-
-                    Utf8Str utf8Key = strKey;
-                    Utf8Str utf8Value = strValue;
-                    LogRelFlow(("Guest property \"%s\" has been changed to \"%s\"\n",
-                                utf8Key.c_str(), utf8Value.c_str()));
-
-                    if (utf8Key.equals("/VirtualBox/GuestInfo/OS/NoLoggedInUsers"))
-                    {
-                        LogRelFlow(("Guest indicates that there %s logged in users\n",
-                                    utf8Value.equals("true") ? "are no" : "are"));
-
-                        /* Check if this is our machine and the "disconnect on logout feature" is enabled. */
-                        BOOL fProcessDisconnectOnGuestLogout = FALSE;
-
-                        /* Does the machine handle VRDP disconnects? */
-                        Bstr strDiscon;
-                        hrc = pMachine->GetExtraData(Bstr("VRDP/DisconnectOnGuestLogout").raw(),
-                                                    strDiscon.asOutParam());
-                        if (SUCCEEDED(hrc))
-                        {
-                            Utf8Str utf8Discon = strDiscon;
-                            fProcessDisconnectOnGuestLogout = utf8Discon.equals("1")
-                                                            ? TRUE : FALSE;
-                        }
-
-                        LogRelFlow(("VRDE: hrc=%Rhrc: Host %s disconnecting clients (current host state known: %s)\n",
-                                    hrc, fProcessDisconnectOnGuestLogout ? "will handle" : "does not handle",
-                                    m_fNoLoggedInUsers ? "No users logged in" : "Users logged in"));
-
-                        if (fProcessDisconnectOnGuestLogout)
-                        {
-                            bool fDropConnection = false;
-                            if (!m_fNoLoggedInUsers) /* Only if the property really changes. */
-                            {
-                                if (   utf8Value == "true"
-                                    /* Guest property got deleted due to reset,
-                                     * so it has no value anymore. */
-                                    || utf8Value.isEmpty())
-                                {
-                                    m_fNoLoggedInUsers = true;
-                                    fDropConnection = true;
-                                }
-                            }
-                            else if (utf8Value == "false")
-                                m_fNoLoggedInUsers = false;
-                            /* Guest property got deleted due to reset,
-                             * take the shortcut without touching the m_fNoLoggedInUsers
-                             * state. */
-                            else if (utf8Value.isEmpty())
-                                fDropConnection = true;
-
-                            LogRelFlow(("VRDE: szNoLoggedInUsers=%s, m_fNoLoggedInUsers=%RTbool, fDropConnection=%RTbool\n",
-                                        utf8Value.c_str(), m_fNoLoggedInUsers, fDropConnection));
-
-                            if (fDropConnection)
-                            {
-                                /* If there is a connection, drop it. */
-                                ComPtr<IVRDEServerInfo> info;
-                                hrc = gConsole->COMGETTER(VRDEServerInfo)(info.asOutParam());
-                                if (SUCCEEDED(hrc) && info)
-                                {
-                                    ULONG cClients = 0;
-                                    hrc = info->COMGETTER(NumberOfClients)(&cClients);
-
-                                    LogRelFlow(("VRDE: connected clients=%RU32\n", cClients));
-                                    if (SUCCEEDED(hrc) && cClients > 0)
-                                    {
-                                        ComPtr <IVRDEServer> vrdeServer;
-                                        hrc = pMachine->COMGETTER(VRDEServer)(vrdeServer.asOutParam());
-                                        if (SUCCEEDED(hrc) && vrdeServer)
-                                        {
-                                            LogRel(("VRDE: the guest user has logged out, disconnecting remote clients.\n"));
-                                            hrc = vrdeServer->COMSETTER(Enabled)(FALSE);
-                                            AssertComRC(hrc);
-                                            HRESULT hrc2 = vrdeServer->COMSETTER(Enabled)(TRUE);
-                                            if (SUCCEEDED(hrc))
-                                                hrc = hrc2;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    if (FAILED(hrc))
-                        LogRelFlow(("VRDE: returned error=%Rhrc\n", hrc));
-                }
-
-                break;
-            }
-
             default:
                 AssertFailed();
         }
@@ -370,13 +420,14 @@ private:
 
     long mLastVRDEPort;
     bool m_fIgnorePowerOffEvents;
-    bool m_fNoLoggedInUsers;
 };
 
 typedef ListenerImpl<VirtualBoxClientEventListener> VirtualBoxClientEventListenerImpl;
+typedef ListenerImpl<VirtualBoxEventListener> VirtualBoxEventListenerImpl;
 typedef ListenerImpl<ConsoleEventListener> ConsoleEventListenerImpl;
 
 VBOX_LISTENER_DECLARE(VirtualBoxClientEventListenerImpl)
+VBOX_LISTENER_DECLARE(VirtualBoxEventListenerImpl)
 VBOX_LISTENER_DECLARE(ConsoleEventListenerImpl)
 
 #ifdef VBOX_WITH_SAVESTATE_ON_SIGNAL
@@ -444,25 +495,23 @@ static void show_usage()
 {
     RTPrintf("Usage:\n"
              "   -s, -startvm, --startvm <name|uuid>   Start given VM (required argument)\n"
-             "   -v, -vrde, --vrde on|off|config       Enable or disable the VRDE server\n"
-             "                                           or don't change the setting (default)\n"
+             "   -v, -vrde, --vrde on|off|config       Enable (default) or disable the VRDE\n"
+             "                                         server or don't change the setting\n"
              "   -e, -vrdeproperty, --vrdeproperty <name=[value]> Set a VRDE property:\n"
-             "                                     \"TCP/Ports\" - comma-separated list of\n"
-             "                                       ports the VRDE server can bind to; dash\n"
-             "                                       between two port numbers specifies range\n"
-             "                                     \"TCP/Address\" - interface IP the VRDE\n"
-             "                                       server will bind to\n"
-             "   --settingspw <pw>                 Specify the settings password\n"
-             "   --settingspwfile <file>           Specify a file containing the\n"
-             "                                       settings password\n"
-             "   -start-paused, --start-paused     Start the VM in paused state\n"
+             "                                         \"TCP/Ports\" - comma-separated list of ports\n"
+             "                                         the VRDE server can bind to. Use a dash between\n"
+             "                                         two port numbers to specify a range\n"
+             "                                         \"TCP/Address\" - interface IP the VRDE server\n"
+             "                                         will bind to\n"
+             "   --settingspw <pw>                     Specify the settings password\n"
+             "   --settingspwfile <file>               Specify a file containing the settings password\n"
 #ifdef VBOX_WITH_VPX
-             "   -c, -capture, --capture           Record the VM screen output to a file\n"
-             "   -w, --width                       Frame width when recording\n"
-             "   -h, --height                      Frame height when recording\n"
-             "   -r, --bitrate                     Recording bit rate when recording\n"
-             "   -f, --filename                    File name when recording. The codec used\n"
-             "                                       will be chosen based on file extension\n"
+             "   -c, -capture, --capture               Record the VM screen output to a file\n"
+             "   -w, --width                           Frame width when recording\n"
+             "   -h, --height                          Frame height when recording\n"
+             "   -r, --bitrate                         Recording bit rate when recording\n"
+             "   -f, --filename                        File name when recording. The codec used\n"
+             "                                         will be chosen based on the file extension\n"
 #endif
              "\n");
 }
@@ -600,7 +649,6 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
     unsigned fRawR3 = ~0U;
     unsigned fPATM  = ~0U;
     unsigned fCSAM  = ~0U;
-    unsigned fPaused = 0;
 #ifdef VBOX_WITH_VPX
     bool fVideoRec = 0;
     unsigned long ulFrameWidth = 800;
@@ -632,8 +680,7 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
         OPT_NO_CSAM,
         OPT_SETTINGSPW,
         OPT_SETTINGSPW_FILE,
-        OPT_COMMENT,
-        OPT_PAUSED
+        OPT_COMMENT
     };
 
     static const RTGETOPTDEF s_aOptions[] =
@@ -677,9 +724,7 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
         { "--filename", 'f', RTGETOPT_REQ_STRING },
 #endif /* VBOX_WITH_VPX defined */
         { "-comment", OPT_COMMENT, RTGETOPT_REQ_STRING },
-        { "--comment", OPT_COMMENT, RTGETOPT_REQ_STRING },
-        { "-start-paused", OPT_PAUSED, 0 },
-        { "--start-paused", OPT_PAUSED, 0 }
+        { "--comment", OPT_COMMENT, RTGETOPT_REQ_STRING }
     };
 
     const char *pcszNameOrUUID = NULL;
@@ -744,9 +789,6 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
                 break;
             case OPT_SETTINGSPW_FILE:
                 pcszSettingsPwFile = ValueUnion.psz;
-                break;
-            case OPT_PAUSED:
-                fPaused = true;
                 break;
 #ifdef VBOX_WITH_VPX
             case 'c':
@@ -910,8 +952,6 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
         Log(("VBoxHeadless: Opening a session with machine (id={%s})...\n",
               Utf8Str(id).c_str()));
 
-        // set session name
-        CHECK_ERROR_BREAK(session, COMSETTER(Name)(Bstr("headless").raw()));
         // open a session
         CHECK_ERROR_BREAK(m, LockMachine(session, LockType_VM));
         fSessionOpened = true;
@@ -936,6 +976,42 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
             CHECK_ERROR_BREAK(machine, COMSETTER(VideoCaptureEnabled)(TRUE));
         }
 #endif /* defined(VBOX_WITH_VPX) */
+        ULONG cMonitors = 1;
+        machine->COMGETTER(MonitorCount)(&cMonitors);
+
+        unsigned uScreenId;
+        for (uScreenId = 0; uScreenId < cMonitors; uScreenId++)
+        {
+            VRDPFramebuffer *pVRDPFramebuffer = new VRDPFramebuffer();
+            if (!pVRDPFramebuffer)
+            {
+                RTPrintf("Error: could not create framebuffer object %d\n", uScreenId);
+                break;
+            }
+            pVRDPFramebuffer->AddRef();
+            display->SetFramebuffer(uScreenId, pVRDPFramebuffer);
+        }
+        if (uScreenId < cMonitors)
+        {
+            break;
+        }
+
+        // fill in remaining slots with null framebuffers
+        for (uScreenId = 0; uScreenId < cMonitors; uScreenId++)
+        {
+            ComPtr<IFramebuffer> fb;
+            LONG xOrigin, yOrigin;
+            HRESULT hrc2 = display->GetFramebuffer(uScreenId,
+                                                   fb.asOutParam(),
+                                                   &xOrigin, &yOrigin);
+            if (hrc2 == S_OK && fb.isNull())
+            {
+                NullFB *pNullFB =  new NullFB();
+                pNullFB->AddRef();
+                pNullFB->init();
+                display->SetFramebuffer(uScreenId, pNullFB);
+            }
+        }
 
         /* get the machine debugger (isn't necessarily available) */
         ComPtr <IMachineDebugger> machineDebugger;
@@ -1011,18 +1087,11 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
             eventTypes.push_back(VBoxEventType_OnVRDEServerInfoChanged);
             eventTypes.push_back(VBoxEventType_OnCanShowWindow);
             eventTypes.push_back(VBoxEventType_OnShowWindow);
-            eventTypes.push_back(VBoxEventType_OnGuestPropertyChanged);
             CHECK_ERROR(es, RegisterListener(consoleListener, ComSafeArrayAsInParam(eventTypes), true));
         }
 
-        /* Default is to use the VM setting for the VRDE server. */
-        enum VRDEOption
-        {
-            VRDEOption_Config,
-            VRDEOption_Off,
-            VRDEOption_On
-        };
-        VRDEOption enmVRDEOption = VRDEOption_Config;
+        /* default is to enable the remote desktop server (backward compatibility) */
+        BOOL fVRDEEnable = true;
         BOOL fVRDEEnabled;
         ComPtr <IVRDEServer> vrdeServer;
         CHECK_ERROR_BREAK(machine, COMGETTER(VRDEServer)(vrdeServer.asOutParam()));
@@ -1030,23 +1099,24 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
 
         if (vrdeEnabled != NULL)
         {
-            /* -vrde on|off|config */
+            /* -vrdeServer on|off|config */
             if (!strcmp(vrdeEnabled, "off") || !strcmp(vrdeEnabled, "disable"))
-                enmVRDEOption = VRDEOption_Off;
-            else if (!strcmp(vrdeEnabled, "on") || !strcmp(vrdeEnabled, "enable"))
-                enmVRDEOption = VRDEOption_On;
-            else if (strcmp(vrdeEnabled, "config"))
+                fVRDEEnable = false;
+            else if (!strcmp(vrdeEnabled, "config"))
             {
-                RTPrintf("-vrde requires an argument (on|off|config)\n");
+                if (!fVRDEEnabled)
+                    fVRDEEnable = false;
+            }
+            else if (strcmp(vrdeEnabled, "on") && strcmp(vrdeEnabled, "enable"))
+            {
+                RTPrintf("-vrdeServer requires an argument (on|off|config)\n");
                 break;
             }
         }
 
-        Log(("VBoxHeadless: enmVRDE %d, fVRDEEnabled %d\n", enmVRDEOption, fVRDEEnabled));
-
-        if (enmVRDEOption != VRDEOption_Off)
+        if (fVRDEEnable)
         {
-            /* Set other specified options. */
+            Log(("VBoxHeadless: Enabling VRDE server...\n"));
 
             /* set VRDE port if requested by the user */
             if (vrdePort != NULL)
@@ -1098,17 +1168,13 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
                     break;
             }
 
-        }
-
-        if (enmVRDEOption == VRDEOption_On)
-        {
             /* enable VRDE server (only if currently disabled) */
             if (!fVRDEEnabled)
             {
                 CHECK_ERROR_BREAK(vrdeServer, COMSETTER(Enabled)(TRUE));
             }
         }
-        else if (enmVRDEOption == VRDEOption_Off)
+        else
         {
             /* disable VRDE server (only if currently enabled */
             if (fVRDEEnabled)
@@ -1123,10 +1189,7 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
         Log(("VBoxHeadless: Powering up the machine...\n"));
 
         ComPtr <IProgress> progress;
-        if (!fPaused)
-            CHECK_ERROR_BREAK(console, PowerUp(progress.asOutParam()));
-        else
-            CHECK_ERROR_BREAK(console, PowerUpPaused(progress.asOutParam()));
+        CHECK_ERROR_BREAK(console, PowerUp(progress.asOutParam()));
 
         /*
          * Wait for the result because there can be errors.
@@ -1169,6 +1232,26 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
                 }
                 break;
             }
+        }
+
+        /* VirtualBox events registration. */
+        {
+            ComPtr<IEventSource> es;
+            CHECK_ERROR(virtualBox, COMGETTER(EventSource)(es.asOutParam()));
+            ComObjPtr<VirtualBoxEventListenerImpl> listener;
+            listener.createObject();
+            listener->init(new VirtualBoxEventListener());
+            vboxListener = listener;
+            com::SafeArray<VBoxEventType_T> eventTypes;
+            eventTypes.push_back(VBoxEventType_OnGuestPropertyChanged);
+
+            /**
+             * @todo Set the notification pattern to "/VirtualBox/GuestInfo/OS/ *Logged*"
+             *       to not cause too much load. The current API is broken as
+             *       IMachine::GuestPropertyNotificationPatterns() would change the
+             *       filter for _all_ clients. This is not what we want!
+             */
+            CHECK_ERROR(es, RegisterListener(vboxListener, ComSafeArrayAsInParam(eventTypes), true));
         }
 
 #ifdef VBOX_WITH_SAVESTATE_ON_SIGNAL
@@ -1320,3 +1403,8 @@ int main(int argc, char **argv, char **envp)
     return TrustedMain(argc, argv, envp);
 }
 #endif /* !VBOX_WITH_HARDENING */
+
+#ifdef VBOX_WITH_XPCOM
+NS_DECL_CLASSINFO(NullFB)
+NS_IMPL_THREADSAFE_ISUPPORTS1_CI(NullFB, IFramebuffer)
+#endif

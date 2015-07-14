@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -49,4 +49,5 @@ static int rtCrPkcs7ContentInfo_CloneExtra(PRTCRPKCS7CONTENTINFO pThis)
  * Generate the code.
  */
 #include <iprt/asn1-generator-init.h>
+
 
