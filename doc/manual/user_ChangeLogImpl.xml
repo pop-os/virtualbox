@@ -1,6 +1,107 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
   <sect1>
+    <title>Version 4.3.30 (2015-07-10)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>VMM: fixed a hang under rare conditions on 32-bit hosts</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: fixed a bug while diagnosing <emphasis>VERR_VMX_INVALID_GUEST_STATE</emphasis>
+          Gurus Meditations (VT-x only)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: allow to save the VM state from the selector even if the VM
+          is already paused</para>
+      </listitem>
+
+      <listitem>
+        <para>API: OS type description consistency fix (bug #14162)</para>
+      </listitem>
+
+      <listitem>
+        <para>API: fixed incorrect resuming of VMs on host-resume unless they were
+          previously paused due to a host-suspend</para>
+      </listitem>
+
+      <listitem>
+        <para>API: fixed several bugs when cloning a VM having a saved
+          state</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT: fixed several potential crashes</para>
+      </listitem>
+
+      <listitem>
+        <para>Netsniffer: properly handle changing of the trace file name
+          at VM runtime</para>
+      </listitem>
+
+      <listitem>
+        <para>USB: some improvements for passing through audio devices (headsets
+          etc)</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: fixed audio output and input when changing the default audio device
+          more than once on OS X</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: fixed audio input on OS X under certain circumstances</para>
+      </listitem>
+
+      <listitem>
+        <para>VRDP: fixed a couple of races which may cause a crash during
+          VM poweroff</para>
+      </listitem>
+
+      <listitem>
+        <para>ExtPack: don't fail if the TMP directory contains non-latin1
+          characters (bug #14159)</para>
+      </listitem>
+
+      <listitem>
+        <para>SDK: fixed a memory leak in the Java bindings (bug #13647)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts: fixed a bug which made the netfilter driver ignore
+          certain events (bug #12264)</para>
+      </listitem>
+
+      <listitem>
+        <para>Mac OS X hosts: fixed a bug which might trigger a host kernel panic
+          if a VM is started and another hypervisor is active</para>
+      </listitem>
+
+      <listitem>
+        <para>Mac OS X hosts: several El-Capitan fixes</para>
+      </listitem>
+
+      <listitem>
+        <para>X11 Additions: fixed wrong DPI value with certain guests
+          (4.3.28 regression; bug #14151)</para>
+      </listitem>
+
+      <listitem>
+        <para>Solaris Additions: added quiesce support to co-operate with Solaris'
+          fast-reboot feature</para>
+      </listitem>
+
+    </itemizedlist>
+
+  </sect1>
+
+  <sect1>
     <title>Version 4.3.28 (2015-05-13)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or

@@ -1,4 +1,4 @@
-/* $Id$ */
+/* $Id: pxtcp.h $ */
 /** @file
  * NAT Network - TCP proxy, internal interface declarations.
  */

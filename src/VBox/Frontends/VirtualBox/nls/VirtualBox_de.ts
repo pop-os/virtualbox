@@ -557,7 +557,7 @@
     </message>
     <message>
         <source>Sort the items of the selected virtual machine group alphabetically</source>
-        <translation>Sortiert die Gruppe der ausgewählten Maschine automatisch</translation>
+        <translation>Sortiert die Gruppe der ausgewählten Maschine alphabetisch</translation>
     </message>
     <message>
         <source>Remove the selected virtual machines</source>
@@ -645,7 +645,7 @@
     </message>
     <message>
         <source>Sort the group of the first selected machine alphabetically</source>
-        <translation>Sortiert die Gruppe der ersten ausgewählten Maschine automatisch</translation>
+        <translation>Sortiert die Gruppe der ersten ausgewählten Maschine alphabetisch</translation>
     </message>
     <message>
         <source>Shared &amp;Clipboard</source>
@@ -1182,9 +1182,9 @@
         <translation>Generischer Treiber, &apos;%1&apos;</translation>
     </message>
     <message>
-        <source>Generic Driver, &apos;%1&apos; {&amp;nbsp;%2&amp;nbsp;}</source>
+        <source>Generic Driver, &apos;%1&apos; { %2 }</source>
         <comment>details (network)</comment>
-        <translation>Generischer Treiber, &apos;%1&apos; {&amp;nbsp;%2&amp;nbsp;}</translation>
+        <translation>Generischer Treiber, &apos;%1&apos; { %2 }</translation>
     </message>
     <message>
         <source>Device Filters</source>

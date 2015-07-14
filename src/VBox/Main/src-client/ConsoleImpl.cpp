@@ -6339,7 +6339,37 @@ HRESULT Console::resume(Reason_T aReason)
     {
         VMRESUMEREASON enmReason = VMRESUMEREASON_USER;
         if (aReason == Reason_HostResume)
+        {
+            /*
+             * Host resume may be called multiple times successively. We don't want to VMR3Resume->vmR3Resume->vmR3TrySetState()
+             * to assert on us, hence check for the VM state here and bail if it's not in the 'suspended' state.
+             * See @bugref{3495}.
+             *
+             * Also, don't resume the VM through a host-resume unless it was suspended due to a host-suspend.
+             */
+            if (VMR3GetStateU(ptrVM.rawUVM()) != VMSTATE_SUSPENDED)
+            {
+                LogRel(("Ignoring VM resume request, VM is currently not suspended\n"));
+                return S_OK;
+            }
+            if (VMR3GetSuspendReason(ptrVM.rawUVM()) != VMSUSPENDREASON_HOST_SUSPEND)
+            {
+                LogRel(("Ignoring VM resume request, VM was not suspended due to host-suspend\n"));
+                return S_OK;
+            }
+
             enmReason = VMRESUMEREASON_HOST_RESUME;
+        }
+        else
+        {
+            /*
+             * Any other reason to resume the VM throws an error when the VM was suspended due to a host suspend.
+             * See @bugref{7836}.
+             */
+            if (   VMR3GetStateU(ptrVM.rawUVM()) == VMSTATE_SUSPENDED
+                && VMR3GetSuspendReason(ptrVM.rawUVM()) == VMSUSPENDREASON_HOST_SUSPEND)
+                return setError(VBOX_E_INVALID_VM_STATE, tr("VM is paused due to host power management"));
+        }
         vrc = VMR3Resume(ptrVM.rawUVM(), enmReason);
     }
 

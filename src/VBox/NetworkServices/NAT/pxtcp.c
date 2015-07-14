@@ -1104,32 +1104,64 @@ pxtcp_pmgr_connect(struct pollmgr_handler *handler, SOCKET fd, int revents)
     pxtcp = (struct pxtcp *)handler->data;
     LWIP_ASSERT1(handler == &pxtcp->pmhdl);
     LWIP_ASSERT1(fd == pxtcp->sock);
+    LWIP_ASSERT1(pxtcp->sockerr == 0);
 
-    if (revents & (POLLNVAL | POLLHUP | POLLERR)) {
-        if (revents & POLLNVAL) {
-            pxtcp->sock = INVALID_SOCKET;
+    if (revents & POLLNVAL) {
+        pxtcp->sock = INVALID_SOCKET;
+        pxtcp->sockerr = ETIMEDOUT;
+        return pxtcp_schedule_reject(pxtcp);
+    }
+
+    /*
+     * Solaris and NetBSD don't report either POLLERR or POLLHUP when
+     * connect(2) fails, just POLLOUT.  In that case we always need to
+     * check SO_ERROR.
+     */
+#if defined(RT_OS_SOLARIS) || defined(RT_OS_NETBSD)
+# define CONNECT_CHECK_ERROR POLLOUT
+#else
+# define CONNECT_CHECK_ERROR (POLLERR | POLLHUP)
+#endif
+
+    /*
+     * Check the cause of the failure so that pxtcp_pcb_reject() may
+     * behave accordingly.
+     */
+    if (revents & CONNECT_CHECK_ERROR) {
+        socklen_t optlen = (socklen_t)sizeof(pxtcp->sockerr);
+        int status;
+        SOCKET s;
+
+        status = getsockopt(pxtcp->sock, SOL_SOCKET, SO_ERROR,
+                            (char *)&pxtcp->sockerr, &optlen);
+        if (RT_UNLIKELY(status == SOCKET_ERROR)) { /* should not happen */
+            DPRINTF(("%s: sock %d: SO_ERROR failed: %R[sockerr]\n",
+                     __func__, fd, SOCKERRNO()));
             pxtcp->sockerr = ETIMEDOUT;
         }
         else {
-            socklen_t optlen = (socklen_t)sizeof(pxtcp->sockerr);
-            int status;
-            SOCKET s;
-
-            status = getsockopt(pxtcp->sock, SOL_SOCKET, SO_ERROR,
-                                (char *)&pxtcp->sockerr, &optlen);
-            if (status == SOCKET_ERROR) { /* should not happen */
-                DPRINTF(("%s: sock %d: SO_ERROR failed: %R[sockerr]\n",
-                         __func__, fd, SOCKERRNO()));
-            }
-            else {
+            /* don't spam this log on successful connect(2) */
+            if ((revents & (POLLERR | POLLHUP)) /* we were told it's failed */
+                || pxtcp->sockerr != 0)         /* we determined it's failed */
+            {
                 DPRINTF(("%s: sock %d: connect: %R[sockerr]\n",
                          __func__, fd, pxtcp->sockerr));
             }
+
+            if ((revents & (POLLERR | POLLHUP))
+                && RT_UNLIKELY(pxtcp->sockerr == 0))
+            {
+                /* if we're told it's failed, make sure it's marked as such */
+                pxtcp->sockerr = ETIMEDOUT;
+            }
+        }
+
+        if (pxtcp->sockerr != 0) {
             s = pxtcp->sock;
             pxtcp->sock = INVALID_SOCKET;
             closesocket(s);
+            return pxtcp_schedule_reject(pxtcp);
         }
-        return pxtcp_schedule_reject(pxtcp);
     }
 
     if (revents & POLLOUT) { /* connect is successful */
@@ -1511,6 +1543,8 @@ pxtcp_pcb_forward_outbound(struct pxtcp *pxtcp, struct pbuf *p)
     }
 
     if (forwarded > 0) {
+        DPRINTF2(("forward_outbound: pxtcp %p, pcb %p: sent %d bytes\n",
+                  (void *)pxtcp, (void *)pxtcp->pcb, (int)forwarded));
         tcp_recved(pxtcp->pcb, (u16_t)forwarded);
     }
 
@@ -1535,6 +1569,8 @@ pxtcp_pcb_forward_outbound(struct pxtcp *pxtcp, struct pbuf *p)
             pbuf_header(q, -(s16_t)qoff);
         }
         pxtcp->unsent = q;
+        DPRINTF2(("forward_outbound: pxtcp %p, pcb %p: kept %d bytes\n",
+                  (void *)pxtcp, (void *)pxtcp->pcb, (int)q->tot_len));
 
         /*
          * Have sendmsg() failed?
@@ -1547,6 +1583,9 @@ pxtcp_pcb_forward_outbound(struct pxtcp *pxtcp, struct pbuf *p)
          */
         if (sockerr != 0 && sockerr != ECONNRESET) {
             struct tcp_pcb *pcb = pxtcp->pcb;
+            DPRINTF2(("forward_outbound: pxtcp %p, pcb %p: %R[sockerr]\n",
+                      (void *)pxtcp, (void *)pcb, sockerr));
+
             pxtcp_pcb_dissociate(pxtcp);
 
             tcp_abort(pcb);
@@ -1704,7 +1743,7 @@ pxtcp_pmgr_pump(struct pollmgr_handler *handler, SOCKET fd, int revents)
          * Remote closed inbound.
          */
         if (!pxtcp->outbound_close_done) {
-            /* 
+            /*
              * We might still need to poll for POLLOUT, but we can not
              * poll for POLLIN anymore (even if not all data are read)
              * because we will be spammed by POLLHUP.

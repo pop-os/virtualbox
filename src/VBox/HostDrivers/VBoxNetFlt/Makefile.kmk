@@ -60,6 +60,7 @@ if1of ($(KBUILD_TARGET), darwin win) # this ifeq must go, see @todo around elif
  	$(PATH_SDK_$(VBOX_WINDDK_WLH)_LIB)/ntoskrnl.lib \
  	$(PATH_SDK_$(VBOX_WINDDK_WLH)_LIB)/hal.lib \
  	$(PATH_SDK_$(VBOX_WINDDK_WLH)_LIB)/ndis.lib \
+ 	$(PATH_SDK_$(VBOX_WINDDK_WLH)_LIB)/tdi.lib \
  	$(PATH_STAGE_LIB)/RuntimeR0Drv$(VBOX_SUFF_LIB)
  VBoxNetFlt_LIBS = \
  	$(PATH_STAGE_LIB)/SUPR0IdcClient$(VBOX_SUFF_LIB)
@@ -316,12 +317,16 @@ else if1of ($(KBUILD_TARGET), linux solaris freebsd) ## @todo merge this with th
 #
 # vboxnetflt(.ko/.o/) - The lower case driver.
 # Note! On Solaris the name has to be <= 8 chars long.
+# The DEBUG_HASH* stuff is for CONFIG_DYNAMIC_DEBUG-enabled kernels
 #
  ifdef VBOX_WITH_VBOXDRV
   SYSMODS += vboxnetflt
   vboxnetflt_TEMPLATE      = VBOXR0DRV
   vboxnetflt_NAME.solaris  = vboxflt
-  vboxnetflt_DEFS.linux    = KBUILD_MODNAME=KBUILD_STR\(vboxnetflt\) KBUILD_BASENAME=KBUILD_STR\(vboxnetflt\) MODULE
+  vboxnetflt_DEFS.linux    = \
+	KBUILD_MODNAME=KBUILD_STR\(vboxnetflt\) \
+	KBUILD_BASENAME=KBUILD_STR\(vboxnetflt\) \
+	MODULE DEBUG_HASH=2 DEBUG_HASH2=3
   vboxnetflt_DEFS          = IN_RT_R0
   vboxnetflt_DEPS.solaris += $(VBOX_SVN_REV_KMK)
   vboxnetflt_INCS.linux   := \

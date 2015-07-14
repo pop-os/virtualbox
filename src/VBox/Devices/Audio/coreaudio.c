@@ -543,7 +543,7 @@ static int coreaudio_write(SWVoiceOut *sw, void *buf, int len);
 static int coreaudio_ctl_out(HWVoiceOut *hw, int cmd, ...);
 static void coreaudio_fini_out(HWVoiceOut *hw);
 static int coreaudio_init_out(HWVoiceOut *hw, audsettings_t *as);
-static int caInitOutput(HWVoiceOut *hw);
+static int caInitOutput(HWVoiceOut *hw, bool fDefDevChgListReg);
 static void caReinitOutput(HWVoiceOut *hw);
 
 /* Callback for getting notified when the default output device was changed */
@@ -661,7 +661,7 @@ static DECLCALLBACK(OSStatus) caPlaybackCallback(void* inRefCon,
     return noErr;
 }
 
-static int caInitOutput(HWVoiceOut *hw)
+static int caInitOutput(HWVoiceOut *hw, bool fDefDevChgListReg)
 {
     OSStatus err = noErr;
     UInt32 uSize = 0; /* temporary size of properties */
@@ -944,6 +944,18 @@ static int caInitOutput(HWVoiceOut *hw)
         LogRel(("CoreAudio: [Output] Failed to add the processor overload listener (%RI32)\n", err));
 #endif /* DEBUG */
 
+    if (fDefDevChgListReg)
+    {
+        err = AudioHardwareAddPropertyListener(kAudioHardwarePropertyDefaultOutputDevice,
+                                               caPlaybackDefaultDeviceChanged,
+                                               caVoice);
+        /* Not Fatal */
+        if (RT_UNLIKELY(err != noErr))
+            LogRel(("CoreAudio: [Output] Failed to add the default device changed listener (%RI32)\n", err));
+        else
+            caVoice->fDefDevChgListReg = true;
+    }
+
     ASMAtomicXchgU32(&caVoice->status, CA_STATUS_INIT);
 
     Log(("CoreAudio: [Output] Frame count: %RU32\n", cFrames));
@@ -956,7 +968,7 @@ static void caReinitOutput(HWVoiceOut *hw)
     caVoiceOut *caVoice = (caVoiceOut *) hw;
 
     coreaudio_fini_out(&caVoice->hw);
-    caInitOutput(&caVoice->hw);
+    caInitOutput(&caVoice->hw, true /* fDefDevChgListReg */);
 
     coreaudio_ctl_out(&caVoice->hw, VOICE_ENABLE);
 }
@@ -1171,26 +1183,16 @@ static int coreaudio_init_out(HWVoiceOut *hw, audsettings_t *as)
             fDeviceByUser = true;
     }
 
-    rc = caInitOutput(hw);
+    /* 
+     * When the devices isn't forced by the user, we want default device change
+     * notifications.
+     */
+    rc = caInitOutput(hw, !fDeviceByUser);
     if (RT_UNLIKELY(rc != 0))
         return rc;
 
     /* The samples have to correspond to the internal ring buffer size. */
     hw->samples = (IORingBufferSize(caVoice->pBuf) >> hw->info.shift) / caVoice->streamFormat.mChannelsPerFrame;
-
-    /* When the devices isn't forced by the user, we want default device change
-     * notifications. */
-    if (!fDeviceByUser)
-    {
-        err = AudioHardwareAddPropertyListener(kAudioHardwarePropertyDefaultOutputDevice,
-                                               caPlaybackDefaultDeviceChanged,
-                                               caVoice);
-        /* Not Fatal */
-        if (RT_UNLIKELY(err != noErr))
-            LogRel(("CoreAudio: [Output] Failed to add the default device changed listener (%RI32)\n", err));
-        else
-            caVoice->fDefDevChgListReg = true;
-    }
 
     Log(("CoreAudio: [Output] HW samples: %d\n", hw->samples));
 
@@ -1209,7 +1211,7 @@ static int coreaudio_read(SWVoiceIn *sw, void *buf, int size);
 static int coreaudio_ctl_in(HWVoiceIn *hw, int cmd, ...);
 static void coreaudio_fini_in(HWVoiceIn *hw);
 static int coreaudio_init_in(HWVoiceIn *hw, audsettings_t *as);
-static int caInitInput(HWVoiceIn *hw);
+static int caInitInput(HWVoiceIn *hw, bool fDefDevChgListReg);
 static void caReinitInput(HWVoiceIn *hw);
 
 /* Callback for getting notified when the default input device was changed */
@@ -1355,7 +1357,7 @@ static DECLCALLBACK(OSStatus) caRecordingCallback(void* inRefCon,
         return noErr;
 
     /* Are we using an converter? */
-    if (RT_VALID_PTR(caVoice->converter))
+    if (caVoice->converter)
     {
         /* Firstly render the data as usual */
         caVoice->bufferList.mBuffers[0].mNumberChannels = caVoice->deviceFormat.mChannelsPerFrame;
@@ -1494,7 +1496,7 @@ static DECLCALLBACK(OSStatus) caRecordingCallback(void* inRefCon,
     return err;
 }
 
-static int caInitInput(HWVoiceIn *hw)
+static int caInitInput(HWVoiceIn *hw, bool fDefDevChgListReg)
 {
     OSStatus err = noErr;
     int rc = -1;
@@ -1887,6 +1889,18 @@ static int caInitInput(HWVoiceIn *hw)
     if (RT_UNLIKELY(err != noErr))
         LogRel(("CoreAudio: [Input] Failed to add the sample rate changed listener (%RI32)\n", err));
 
+    if (fDefDevChgListReg)
+    {
+        err = AudioHardwareAddPropertyListener(kAudioHardwarePropertyDefaultInputDevice,
+                                               caRecordingDefaultDeviceChanged,
+                                               caVoice);
+        /* Not Fatal */
+        if (RT_UNLIKELY(err != noErr))
+            LogRel(("CoreAudio: [Input] Failed to add the default device changed listener (%RI32)\n", err));
+        else
+            caVoice->fDefDevChgListReg = true;
+    }
+
     ASMAtomicXchgU32(&caVoice->status, CA_STATUS_INIT);
 
     Log(("CoreAudio: [Input] Frame count: %RU32\n", cFrames));
@@ -1899,7 +1913,7 @@ static void caReinitInput(HWVoiceIn *hw)
     caVoiceIn *caVoice = (caVoiceIn *) hw;
 
     coreaudio_fini_in(&caVoice->hw);
-    caInitInput(&caVoice->hw);
+    caInitInput(&caVoice->hw, true /* fDefDevChgListReg */);
 
     coreaudio_ctl_in(&caVoice->hw, VOICE_ENABLE);
 }
@@ -2121,26 +2135,16 @@ static int coreaudio_init_in(HWVoiceIn *hw, audsettings_t *as)
             fDeviceByUser = true;
     }
 
-    rc = caInitInput(hw);
+    /* 
+     * When the devices isn't forced by the user, we want default device change
+     * notifications.
+     */
+    rc = caInitInput(hw, !fDeviceByUser);
     if (RT_UNLIKELY(rc != 0))
         return rc;
 
     /* The samples have to correspond to the internal ring buffer size. */
     hw->samples = (IORingBufferSize(caVoice->pBuf) >> hw->info.shift) / caVoice->streamFormat.mChannelsPerFrame;
-
-    /* When the devices isn't forced by the user, we want default device change
-     * notifications. */
-    if (!fDeviceByUser)
-    {
-        err = AudioHardwareAddPropertyListener(kAudioHardwarePropertyDefaultInputDevice,
-                                               caRecordingDefaultDeviceChanged,
-                                               caVoice);
-        /* Not Fatal */
-        if (RT_UNLIKELY(err != noErr))
-            LogRel(("CoreAudio: [Input] Failed to add the default device changed listener (%RI32)\n", err));
-        else
-            caVoice->fDefDevChgListReg = true;
-    }
 
     Log(("CoreAudio: [Input] HW samples: %d\n", hw->samples));
 

@@ -1,4 +1,4 @@
-/* $Id$ */
+/* $Id: proxy_pollmgr.h $ */
 /** @file
  * NAT Network - poll manager, definitions and declarations.
  */

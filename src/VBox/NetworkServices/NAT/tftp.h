@@ -1,4 +1,4 @@
-/* $Id$ */
+/* $Id: tftp.h $ */
 /** @file
  * NAT Network - Definitions for TFTP protocol.
  */

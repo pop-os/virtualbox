@@ -208,7 +208,7 @@ VBOX_VERSION_MINOR = 3
 # This is the current build number. It should be increased every time we publish a
 # new build. The define is available in every source file. Only even build numbers
 # will be published, odd numbers are set during development.
-VBOX_VERSION_BUILD = 28
+VBOX_VERSION_BUILD = 30
 # The raw version string. This *must not* contain any other information/fields than
 # major, minor and build revision (as it is now) -- also will be used for host/guest version
 # comparison.
@@ -2616,6 +2616,8 @@ ifdef VBOX_SIGNING_MODE
   endif
   VBOX_CERTIFICATE_STORE ?= my
   VBOX_CERTIFICATE_STORE_ARGS ?= /s "$(VBOX_CERTIFICATE_STORE)"
+  VBOX_CERTIFICATE_FINGERPRINT_ARGS := $(if-expr "$(VBOX_CERTIFICATE_FINGERPRINT)" != "" \
+  	,/sha1 "$(subst $(SP),,$(VBOX_CERTIFICATE_FINGERPRINT))",)
 
   ## Commands for signing a driver image after link.
   VBOX_SIGN_DRIVER_CMDS ?= $(if $(eq $(tool_do),LINK_LIBRARY),,$(call VBOX_SIGN_IMAGE_FN,$(out)))
@@ -2627,6 +2629,7 @@ ifdef VBOX_SIGNING_MODE
 	$(VBOX_CROSS_CERTIFICATE_FILE_ARGS) \
 	$(VBOX_CERTIFICATE_STORE_ARGS) \
 	$(VBOX_CERTIFICATE_SUBJECT_NAME_ARGS) \
+       $(VBOX_CERTIFICATE_FINGERPRINT_ARGS) \
 	$(VBOX_TSA_URL_ARGS) \
 	$(if $(strip $(2)),/d "$(strip $(2))",) \
        $(3) \
@@ -2668,6 +2671,9 @@ ifdef VBOX_SIGNING_MODE
   # Currently release signing is done when packing.  This may change later.
   # (Installer package signing is done elsewhere (VBOX_MACOSX_INSTALLER_SIGN).)
   #
+  if defined(VBOX_CERTIFICATE_FINGERPRINT) && !defined(VBOX_CERTIFICATE_SUBJECT_NAME)
+   VBOX_CERTIFICATE_SUBJECT_NAME = $(subst $(SP),,$(VBOX_CERTIFICATE_FINGERPRINT))
+  endif
   ifeq ($(strip $(VBOX_SIGNING_MODE)),test)
    VBOX_CERTIFICATE_SUBJECT_NAME ?= $(error You, need to set VBOX_CERTIFICATE_SUBJECT_NAME in LocalConfig.kmk.)
    VBOX_CERTIFICATE_SUBJECT_NAME_ARGS ?= --sign "$(VBOX_CERTIFICATE_SUBJECT_NAME)"
@@ -5728,7 +5734,7 @@ endif
 SVN                    ?= svn$(HOSTSUFF_EXE)
 VBOX_SVN_REV_KMK        = $(PATH_OUT)/revision.kmk
 ifndef VBOX_SVN_REV
- VBOX_SVN_REV_FALLBACK := $(patsubst %:,,  $Rev: 100309 $  )
+ VBOX_SVN_REV_FALLBACK := $(patsubst %:,,  $Rev: 101610 $  )
  VBOX_SVN_DEP          := $(firstword $(wildcard $(PATH_ROOT)/.svn/wc.db $(abspath $(PATH_ROOT)/../.svn/wc.db) $(abspath $(PATH_ROOT)/../../.svn/wc.db) $(PATH_ROOT)/.svn/entries))
  ifeq ($(which $(SVN)),)
   VBOX_SVN_DEP         :=

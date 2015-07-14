@@ -453,7 +453,7 @@ static int rtR0DbgKrnlDarwinCheckStandardSymbols(RTDBGKRNLINFOINT *pThis)
         KNOWN_ENTRY(ostype),
         KNOWN_ENTRY(panic),
         KNOWN_ENTRY(strprefix),
-        KNOWN_ENTRY(sysctlbyname),
+        //KNOWN_ENTRY(sysctlbyname), - we get kernel_sysctlbyname from the 10.10+ kernels.
         KNOWN_ENTRY(vsscanf),
         KNOWN_ENTRY(page_mask),
 
@@ -520,7 +520,7 @@ static int rtR0DbgKrnlDarwinCheckStandardSymbols(RTDBGKRNLINFOINT *pThis)
         KNOWN_ENTRY(vm_map),
         KNOWN_ENTRY(vm_protect),
         KNOWN_ENTRY(vm_region),
-        KNOWN_ENTRY(vm_map_wire),
+        KNOWN_ENTRY(vm_map_unwire), /* vm_map_wire has an alternative symbol, vm_map_wire_external, in 10.11  */
         KNOWN_ENTRY(PE_kputc),
         KNOWN_ENTRY(kernel_map),
         KNOWN_ENTRY(kernel_pmap),
@@ -1031,6 +1031,8 @@ RTR0DECL(int) RTR0DbgKrnlInfoOpen(PRTDBGKRNLINFO phKrnlInfo, uint32_t fFlags)
     pThis->hFile = NIL_RTFILE;
 
     int rc = RTFileOpen(&pThis->hFile, "/mach_kernel", RTFILE_O_READ | RTFILE_O_OPEN | RTFILE_O_DENY_WRITE);
+    if (rc == VERR_FILE_NOT_FOUND)
+        rc = RTFileOpen(&pThis->hFile, "/System/Library/Kernels/kernel", RTFILE_O_READ | RTFILE_O_OPEN | RTFILE_O_DENY_WRITE);
     if (RT_SUCCESS(rc))
         rc = rtR0DbgKrnlDarwinLoadFileHeaders(pThis);
     if (RT_SUCCESS(rc))

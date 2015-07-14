@@ -61,7 +61,7 @@
 <context>
     <name>VBoxGlobal</name>
     <message numerus="yes">
-        <location filename="../src/globals/VBoxGlobal.h" line="169"/>
+        <location filename="../src/globals/VBoxGlobal.h" line="168"/>
         <source>%n year(s)</source>
         <translation>
             <numerusform>%n year</numerusform>
@@ -69,7 +69,7 @@
         </translation>
     </message>
     <message numerus="yes">
-        <location filename="../src/globals/VBoxGlobal.h" line="174"/>
+        <location filename="../src/globals/VBoxGlobal.h" line="173"/>
         <source>%n month(s)</source>
         <translation>
             <numerusform>%n month</numerusform>
@@ -77,7 +77,7 @@
         </translation>
     </message>
     <message numerus="yes">
-        <location filename="../src/globals/VBoxGlobal.h" line="179"/>
+        <location filename="../src/globals/VBoxGlobal.h" line="178"/>
         <source>%n day(s)</source>
         <translation>
             <numerusform>%n day</numerusform>
@@ -85,7 +85,7 @@
         </translation>
     </message>
     <message numerus="yes">
-        <location filename="../src/globals/VBoxGlobal.h" line="184"/>
+        <location filename="../src/globals/VBoxGlobal.h" line="183"/>
         <source>%n hour(s)</source>
         <translation>
             <numerusform>%n hour</numerusform>
@@ -93,7 +93,7 @@
         </translation>
     </message>
     <message numerus="yes">
-        <location filename="../src/globals/VBoxGlobal.h" line="194"/>
+        <location filename="../src/globals/VBoxGlobal.h" line="193"/>
         <source>%n second(s)</source>
         <translation>
             <numerusform>%n second</numerusform>
@@ -101,7 +101,7 @@
         </translation>
     </message>
     <message numerus="yes">
-        <location filename="../src/globals/VBoxGlobal.h" line="189"/>
+        <location filename="../src/globals/VBoxGlobal.h" line="188"/>
         <source>%n minute(s)</source>
         <translation>
             <numerusform>%n minute</numerusform>

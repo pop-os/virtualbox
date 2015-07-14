@@ -108,7 +108,7 @@ static int              VBoxDrvDarwinErr2DarwinErr(int rc);
 static IOReturn         VBoxDrvDarwinSleepHandler(void *pvTarget, void *pvRefCon, UInt32 uMessageType, IOService *pProvider, void *pvMessageArgument, vm_size_t argSize);
 RT_C_DECLS_END
 
-static void             vboxdrvDarwinResolveSymbols(void);
+static int              vboxdrvDarwinResolveSymbols(void);
 static bool             vboxdrvDarwinCpuHasSMAP(void);
 
 
@@ -270,49 +270,55 @@ static kern_return_t    VBoxDrvDarwinStart(struct kmod_info *pKModInfo, void *pv
                 }
 
                 /*
-                 * Registering ourselves as a character device.
+                 * Resolve some extra kernel symbols.
                  */
-                g_iMajorDeviceNo = cdevsw_add(-1, &g_DevCW);
-                if (g_iMajorDeviceNo >= 0)
+                rc = vboxdrvDarwinResolveSymbols();
+                if (RT_SUCCESS(rc))
                 {
-#ifdef VBOX_WITH_HARDENING
-                    g_hDevFsDeviceSys = devfs_make_node(makedev(g_iMajorDeviceNo, 0), DEVFS_CHAR,
-                                                        UID_ROOT, GID_WHEEL, 0600, DEVICE_NAME_SYS);
-#else
-                    g_hDevFsDeviceSys = devfs_make_node(makedev(g_iMajorDeviceNo, 0), DEVFS_CHAR,
-                                                        UID_ROOT, GID_WHEEL, 0666, DEVICE_NAME_SYS);
-#endif
-                    if (g_hDevFsDeviceSys)
+
+                    /*
+                     * Registering ourselves as a character device.
+                     */
+                    g_iMajorDeviceNo = cdevsw_add(-1, &g_DevCW);
+                    if (g_iMajorDeviceNo >= 0)
                     {
-                        g_hDevFsDeviceUsr = devfs_make_node(makedev(g_iMajorDeviceNo, 1), DEVFS_CHAR,
-                                                            UID_ROOT, GID_WHEEL, 0666, DEVICE_NAME_USR);
-                        if (g_hDevFsDeviceUsr)
+#ifdef VBOX_WITH_HARDENING
+                        g_hDevFsDeviceSys = devfs_make_node(makedev(g_iMajorDeviceNo, 0), DEVFS_CHAR,
+                                                            UID_ROOT, GID_WHEEL, 0600, DEVICE_NAME_SYS);
+#else
+                        g_hDevFsDeviceSys = devfs_make_node(makedev(g_iMajorDeviceNo, 0), DEVFS_CHAR,
+                                                            UID_ROOT, GID_WHEEL, 0666, DEVICE_NAME_SYS);
+#endif
+                        if (g_hDevFsDeviceSys)
                         {
-                            LogRel(("VBoxDrv: version " VBOX_VERSION_STRING " r%d; IOCtl version %#x; IDC version %#x; dev major=%d\n",
-                                    VBOX_SVN_REV, SUPDRV_IOC_VERSION, SUPDRV_IDC_VERSION, g_iMajorDeviceNo));
+                            g_hDevFsDeviceUsr = devfs_make_node(makedev(g_iMajorDeviceNo, 1), DEVFS_CHAR,
+                                                                UID_ROOT, GID_WHEEL, 0666, DEVICE_NAME_USR);
+                            if (g_hDevFsDeviceUsr)
+                            {
+                                LogRel(("VBoxDrv: version " VBOX_VERSION_STRING " r%d; IOCtl version %#x; IDC version %#x; dev major=%d\n",
+                                        VBOX_SVN_REV, SUPDRV_IOC_VERSION, SUPDRV_IDC_VERSION, g_iMajorDeviceNo));
 
-                            /* Register a sleep/wakeup notification callback */
-                            g_pSleepNotifier = registerPrioritySleepWakeInterest(&VBoxDrvDarwinSleepHandler, &g_DevExt, NULL);
-                            if (g_pSleepNotifier == NULL)
-                                LogRel(("VBoxDrv: register for sleep/wakeup events failed\n"));
+                                /* Register a sleep/wakeup notification callback */
+                                g_pSleepNotifier = registerPrioritySleepWakeInterest(&VBoxDrvDarwinSleepHandler, &g_DevExt, NULL);
+                                if (g_pSleepNotifier == NULL)
+                                    LogRel(("VBoxDrv: register for sleep/wakeup events failed\n"));
 
-                            /* Find kernel symbols that are kind of optional. */
-                            vboxdrvDarwinResolveSymbols();
-                            return KMOD_RETURN_SUCCESS;
+                                return KMOD_RETURN_SUCCESS;
+                            }
+
+                            LogRel(("VBoxDrv: devfs_make_node(makedev(%d,1),,,,%s) failed\n", g_iMajorDeviceNo, DEVICE_NAME_USR));
+                            devfs_remove(g_hDevFsDeviceSys);
+                            g_hDevFsDeviceSys = NULL;
                         }
+                        else
+                            LogRel(("VBoxDrv: devfs_make_node(makedev(%d,0),,,,%s) failed\n", g_iMajorDeviceNo, DEVICE_NAME_SYS));
 
-                        LogRel(("VBoxDrv: devfs_make_node(makedev(%d,1),,,,%s) failed\n", g_iMajorDeviceNo, DEVICE_NAME_USR));
-                        devfs_remove(g_hDevFsDeviceSys);
-                        g_hDevFsDeviceSys = NULL;
+                        cdevsw_remove(g_iMajorDeviceNo, &g_DevCW);
+                        g_iMajorDeviceNo = -1;
                     }
                     else
-                        LogRel(("VBoxDrv: devfs_make_node(makedev(%d,0),,,,%s) failed\n", g_iMajorDeviceNo, DEVICE_NAME_SYS));
-
-                    cdevsw_remove(g_iMajorDeviceNo, &g_DevCW);
-                    g_iMajorDeviceNo = -1;
+                        LogRel(("VBoxDrv: cdevsw_add failed (%d)\n", g_iMajorDeviceNo));
                 }
-                else
-                    LogRel(("VBoxDrv: cdevsw_add failed (%d)\n", g_iMajorDeviceNo));
                 RTSpinlockDestroy(g_Spinlock);
                 g_Spinlock = NIL_RTSPINLOCK;
             }
@@ -333,15 +339,17 @@ static kern_return_t    VBoxDrvDarwinStart(struct kmod_info *pKModInfo, void *pv
 
 
 /**
- * Resolves kernel symbols we want (but may do without).
+ * Resolves kernel symbols we need and some we just would like to have.
  */
-static void vboxdrvDarwinResolveSymbols(void)
+static int vboxdrvDarwinResolveSymbols(void)
 {
     RTDBGKRNLINFO hKrnlInfo;
     int rc = RTR0DbgKrnlInfoOpen(&hKrnlInfo, 0);
     if (RT_SUCCESS(rc))
     {
-        /* The VMX stuff. */
+        /*
+         * The VMX stuff - required (for raw-mode).
+         */
         int rc1 = RTR0DbgKrnlInfoQuerySymbol(hKrnlInfo, NULL, "vmx_resume", (void **)&g_pfnVmxResume);
         int rc2 = RTR0DbgKrnlInfoQuerySymbol(hKrnlInfo, NULL, "vmx_suspend", (void **)&g_pfnVmxSuspend);
         int rc3 = RTR0DbgKrnlInfoQuerySymbol(hKrnlInfo, NULL, "vmx_use_count", (void **)&g_pVmxUseCount);
@@ -356,12 +364,14 @@ static void vboxdrvDarwinResolveSymbols(void)
             g_pfnVmxResume  = NULL;
             g_pfnVmxSuspend = NULL;
             g_pVmxUseCount  = NULL;
+            rc = VERR_SYMBOL_NOT_FOUND;
         }
 
         RTR0DbgKrnlInfoRelease(hKrnlInfo);
     }
     else
         LogRel(("VBoxDrv: Failed to open kernel symbols, rc=%Rrc\n", rc));
+    return rc;
 }
 
 
@@ -850,6 +860,28 @@ IOReturn VBoxDrvDarwinSleepHandler(void * /* pvTarget */, void *pvRefCon, UInt32
 }
 
 
+#ifdef VBOX_WITH_HOST_VMX
+/**
+ * For cleaning up the mess we left behind on Yosemite with 4.3.28 and earlier.
+ *
+ * We ASSUME VT-x is supported by the CPU.
+ *
+ * @param   idCpu       Unused.
+ * @param   pvUser1     Unused.
+ * @param   pvUser2     Unused.
+ */
+static DECLCALLBACK(void) vboxdrvDarwinVmxEnableFix(RTCPUID idCpu, void *pvUser1, void *pvUser2)
+{
+    RTCCUINTREG uCr4 = ASMGetCR4();
+    if (!(uCr4 & X86_CR4_VMXE))
+    {
+        uCr4 |= X86_CR4_VMXE;
+        ASMSetCR4(uCr4);
+    }
+}
+#endif
+
+
 /**
  * @copydoc SUPR0EnableVTx
  */
@@ -864,6 +896,39 @@ int VBOXCALL supdrvOSEnableVTx(bool fEnable)
     {
         if (fEnable)
         {
+            /*
+             * We screwed up on Yosemite and didn't notice that we weren't
+             * calling host_vmxon.  CR4.VMXE may therefor have been disabled
+             * by us.  So, first time around we make sure it's set so we won't
+             * crash in the pre-4.3.28/5.0RC1 upgrade scenario.
+             */
+            static bool volatile g_fDoneCleanup = false;
+            if (!g_fDoneCleanup)
+            {
+                if (version_major == 14 /* 14 = 10.10 = yosemite */)
+                {
+                    uint32_t fCaps;
+                    int rc = supdrvQueryVTCapsInternal(&fCaps);
+                    if (RT_SUCCESS(rc))
+                    {
+                        if (fCaps & SUPVTCAPS_VT_X)
+                            rc = RTMpOnAll(vboxdrvDarwinVmxEnableFix, NULL, NULL);
+                        else
+                            rc = VERR_VMX_NO_VMX;
+                    }
+                    if (RT_FAILURE(rc))
+                        return rc;
+                }
+                g_fDoneCleanup = true;
+            }
+
+            /*
+             * Call the kernel.
+             */
+            AssertLogRelMsg(!g_pVmxUseCount || *g_pVmxUseCount >= 0,
+                            ("vmx_use_count=%d (@ %p, expected it to be a positive number\n",
+                             *g_pVmxUseCount, g_pVmxUseCount));
+
             rc = host_vmxon(false /* exclusive */);
             if (rc == VMX_OK)
                 rc = VINF_SUCCESS;
@@ -880,6 +945,10 @@ int VBOXCALL supdrvOSEnableVTx(bool fEnable)
         }
         else
         {
+            AssertLogRelMsgReturn(!g_pVmxUseCount || *g_pVmxUseCount >= 1,
+                                  ("vmx_use_count=%d (@ %p, expected it to be a non-zero positive number\n",
+                                   *g_pVmxUseCount, g_pVmxUseCount),
+                                  VERR_WRONG_ORDER);
             host_vmxoff();
             rc = VINF_SUCCESS;
             LogRel(("VBoxDrv: host_vmxoff -> vmx_use_count=%d\n", *g_pVmxUseCount));

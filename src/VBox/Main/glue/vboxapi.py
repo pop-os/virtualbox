@@ -16,7 +16,7 @@ Foundation, in version 2 as it comes in the "COPYING" file of the
 VirtualBox OSE distribution. VirtualBox OSE is distributed in the
 hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
 """
-__version__ = "$Revision: 98155 $"
+__version__ = "$Revision: 101359 $"
 
 
 # Note! To set Python bitness on OSX use 'export VERSIONER_PYTHON_PREFER_32_BIT=yes'
@@ -220,6 +220,19 @@ class PlatformBase(object):
         _ = oInterface;
         _ = sAttrib;
         return None;
+
+    def setArray(self, oInterface, sAttrib, aoArray):
+        """
+        Sets the value (aoArray) of the array attribute 'sAttrib' in
+        interface 'oInterface'.
+
+        This is for hiding platform specific differences in attributes
+        setting arrays.
+        """
+        _ = oInterface
+        _ = sAttrib
+        _ = aoArray
+        return None
 
     def initPerThread(self):
         """
@@ -541,6 +554,34 @@ class PlatformMSCOM(PlatformBase):
     def getArray(self, oInterface, sAttrib):
         return oInterface.__getattr__(sAttrib)
 
+    def setArray(self, oInterface, sAttrib, aoArray):
+        #
+        # HACK ALERT!
+        #
+        # With pywin32 build 218, we're seeing type mismatch errors here for
+        # IGuestSession::environmentChanges (safearray of BSTRs). The Dispatch
+        # object (_oleobj_) seems to get some type conversion wrong and COM
+        # gets upset.  So, we redo some of the dispatcher work here, picking
+        # the missing type information from the getter.
+        #
+        oOleObj     = getattr(oInterface, '_oleobj_');
+        aPropMapGet = getattr(oInterface, '_prop_map_get_');
+        aPropMapPut = getattr(oInterface, '_prop_map_put_');
+        sComAttrib  = sAttrib if sAttrib in aPropMapGet else ComifyName(sAttrib);
+        try:
+            aArgs, aDefaultArgs = aPropMapPut[sComAttrib];
+            aGetArgs            = aPropMapGet[sComAttrib];
+        except KeyError: # fallback.
+            return oInterface.__setattr__(sAttrib, aoArray);
+
+        import pythoncom;
+        oOleObj.InvokeTypes(aArgs[0],                   # dispid
+                            aArgs[1],                   # LCID
+                            aArgs[2],                   # DISPATCH_PROPERTYPUT
+                            (pythoncom.VT_HRESULT, 0),  # retType - or void?
+                            (aGetArgs[2],),             # argTypes - trick: we get the type from the getter.
+                            aoArray,);                  # The array
+
     def initPerThread(self):
         import pythoncom
         pythoncom.CoInitializeEx(0)
@@ -740,6 +781,9 @@ class PlatformXPCOM(PlatformBase):
     def getArray(self, oInterface, sAttrib):
         return oInterface.__getattr__('get'+ComifyName(sAttrib))()
 
+    def setArray(self, oInterface, sAttrib, aoArray):
+        return oInterface.__getattr__('set' + ComifyName(sAttrib))(aoArray)
+
     def initPerThread(self):
         import xpcom
         xpcom._xpcom.AttachThread()
@@ -864,6 +908,9 @@ class PlatformWEBSERVICE(PlatformBase):
 
     def getArray(self, oInterface, sAttrib):
         return oInterface.__getattr__(sAttrib)
+
+    def setArray(self, oInterface, sAttrib, aoArray):
+        return oInterface.__setattr__(sAttrib, aoArray)
 
     def waitForEvents(self, timeout):
         # Webservices cannot do that yet
@@ -1024,6 +1071,10 @@ class VirtualBoxManager(object):
     def getArray(self, oInterface, sAttrib):
         """ See PlatformBase::getArray(). """
         return self.platform.getArray(oInterface, sAttrib)
+
+    def setArray(self, oInterface, sAttrib, aoArray):
+        """ See PlatformBase::setArray(). """
+        return self.platform.setArray(oInterface, sAttrib, aoArray)
 
     def createListener(self, oImplClass, dArgs = None):
         """ See PlatformBase::createListener(). """

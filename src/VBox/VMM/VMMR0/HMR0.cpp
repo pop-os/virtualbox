@@ -122,8 +122,12 @@ static struct
         /** VMX MSR values */
         VMXMSRS                     Msrs;
 
-        /* Last instruction error */
+        /** Last instruction error. */
         uint32_t                    ulLastInstrError;
+
+        /** Set if we've called SUPR0EnableVTx(true) and should disable it during
+         * module termination. */
+        bool                        fCalledSUPR0EnableVTx;
     } vmx;
 
     /** AMD-V information. */
@@ -730,7 +734,14 @@ VMMR0_INT_DECL(int) HMR0Term(void)
          * Simple if the host OS manages VT-x.
          */
         Assert(g_HvmR0.fGlobalInit);
-        rc = SUPR0EnableVTx(false /* fEnable */);
+
+        if (g_HvmR0.vmx.fCalledSUPR0EnableVTx)
+        {
+            rc = SUPR0EnableVTx(false /* fEnable */);
+            g_HvmR0.vmx.fCalledSUPR0EnableVTx = false;
+        }
+        else
+            rc = VINF_SUCCESS;
 
         for (unsigned iCpu = 0; iCpu < RT_ELEMENTS(g_HvmR0.aCpuInfo); iCpu++)
         {
@@ -1001,8 +1012,11 @@ static DECLCALLBACK(int32_t) hmR0EnableAllCpuOnce(void *pvUser)
          */
         rc = SUPR0EnableVTx(true /* fEnable */);
         if (RT_SUCCESS(rc))
+        {
+            g_HvmR0.vmx.fCalledSUPR0EnableVTx = true;
             /* If the host provides a VT-x init API, then we'll rely on that for global init. */
             g_HvmR0.fGlobalInit = pVM->hm.s.fGlobalInit = true;
+        }
         else
             AssertMsgFailed(("hmR0EnableAllCpuOnce/SUPR0EnableVTx: rc=%Rrc\n", rc));
     }

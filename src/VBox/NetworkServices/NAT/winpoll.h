@@ -1,4 +1,4 @@
-/* $Id$ */
+/* $Id: winpoll.h $ */
 /** @file
  * NAT Network - poll(2) for winsock, definitions and declarations.
  */

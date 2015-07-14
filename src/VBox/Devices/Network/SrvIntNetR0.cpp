@@ -157,27 +157,6 @@ typedef INTNETDSTTAB *PINTNETDSTTAB;
 /** Pointer to a const destination table. */
 typedef INTNETDSTTAB const *PCINTNETDSTTAB;
 
-
-/** Network layer address type. */
-typedef enum INTNETADDRTYPE
-{
-    /** The invalid 0 entry. */
-    kIntNetAddrType_Invalid = 0,
-    /** IP version 4. */
-    kIntNetAddrType_IPv4,
-    /** IP version 6. */
-    kIntNetAddrType_IPv6,
-    /** IPX. */
-    kIntNetAddrType_IPX,
-    /** The end of the valid values. */
-    kIntNetAddrType_End,
-    /** The usual 32-bit hack. */
-    kIntNetAddrType_32BitHack = 0x7fffffff
-} INTNETADDRTYPE;
-/** Pointer to a network layer address type. */
-typedef INTNETADDRTYPE *PINTNETADDRTYPE;
-
-
 /**
  * Address and type.
  */
@@ -350,12 +329,16 @@ typedef struct INTNETNETWORK
      * This is protected by the INTNET::hMtxCreateOpenDestroy. */
     struct INTNETNETWORK   *pNext;
 
-    /** The spinlock protecting MacTab and INTNETTRUNKIF::aAddrCache.
+    /** The spinlock protecting MacTab, aAddrBlacklist and INTNETIF::aAddrCache.
      *  Interrupt safe. */
     RTSPINLOCK              hAddrSpinlock;
     /** MAC address table.
      * This doubles as interface collection. */
     INTNETMACTAB            MacTab;
+
+    /** The network layer address cache. (Indexed by type, 0 entry isn't used.
+     * Contains host addresses.  We don't let guests spoof them. */
+    INTNETADDRCACHE         aAddrBlacklist[kIntNetAddrType_End];
 
     /** Wait for an interface to stop being busy so it can be removed or have its
      * destination table replaced.  We have to wait upon this while owning the
@@ -1091,7 +1074,7 @@ static void intnetR0IfAddrCacheDeleteIt(PINTNETIF pIf, PINTNETADDRCACHE pCache, 
             break;
         case kIntNetAddrType_IPv6:
             Log(("intnetR0IfAddrCacheDeleteIt: hIf=%#x MAC=%.6Rhxs IPv6 deleted #%d %RTnaipv6 %s\n",
-                pIf->hIf, &pIf->MacAddr, iEntry, pAddr->IPv6, pszMsg));
+                pIf->hIf, &pIf->MacAddr, iEntry, &pAddr->IPv6, pszMsg));
             break;
         default:
             Log(("intnetR0IfAddrCacheDeleteIt: hIf=%RX32 MAC=%.6Rhxs type=%d #%d %.*Rhxs %s\n",
@@ -1138,19 +1121,41 @@ DECLINLINE(void) intnetR0IfAddrCacheDelete(PINTNETIF pIf, PINTNETADDRCACHE pCach
  * @param   cbAddr          The address size (optimization).
  * @param   pszMsg          Log message.
  */
+DECLINLINE(void) intnetR0NetworkAddrCacheDeleteLocked(PINTNETNETWORK pNetwork,
+                                                      PCRTNETADDRU pAddr, INTNETADDRTYPE enmType,
+                                                      uint8_t const cbAddr,
+                                                      const char *pszMsg)
+{
+    uint32_t iIf = pNetwork->MacTab.cEntries;
+    while (iIf--)
+    {
+        PINTNETIF pIf = pNetwork->MacTab.paEntries[iIf].pIf;
+
+        int i = intnetR0IfAddrCacheLookup(&pIf->aAddrCache[enmType], pAddr, cbAddr);
+        if (RT_UNLIKELY(i >= 0))
+            intnetR0IfAddrCacheDeleteIt(pIf, &pIf->aAddrCache[enmType], i, pszMsg);
+    }
+}
+
+
+/**
+ * Deletes the address from all the interface caches.
+ *
+ * This is used to remove stale entries that has been reassigned to
+ * other machines on the network.
+ *
+ * @param   pNetwork        The network.
+ * @param   pAddr           The address.
+ * @param   enmType         The address type.
+ * @param   cbAddr          The address size (optimization).
+ * @param   pszMsg          Log message.
+ */
 DECLINLINE(void) intnetR0NetworkAddrCacheDelete(PINTNETNETWORK pNetwork, PCRTNETADDRU pAddr, INTNETADDRTYPE const enmType,
                                                 uint8_t const cbAddr, const char *pszMsg)
 {
     RTSpinlockAcquire(pNetwork->hAddrSpinlock);
 
-    uint32_t iIf = pNetwork->MacTab.cEntries;
-    while (iIf--)
-    {
-        PINTNETIF pIf = pNetwork->MacTab.paEntries[iIf].pIf;
-        int i = intnetR0IfAddrCacheLookup(&pIf->aAddrCache[enmType], pAddr, cbAddr);
-        if (RT_UNLIKELY(i >= 0))
-            intnetR0IfAddrCacheDeleteIt(pIf, &pIf->aAddrCache[enmType], i, pszMsg);
-    }
+    intnetR0NetworkAddrCacheDeleteLocked(pNetwork, pAddr, enmType, cbAddr, pszMsg);
 
     RTSpinlockReleaseNoInts(pNetwork->hAddrSpinlock);
 }
@@ -1223,6 +1228,114 @@ DECLINLINE(PINTNETIF) intnetR0NetworkAddrCacheLookupIf(PINTNETNETWORK pNetwork, 
 
 
 /**
+ * Look up specified address in the network's blacklist.
+ *
+ * @param pNetwork      The network. 
+ * @param enmType       The address type.
+ * @param pAddr         The address.
+ */
+static bool intnetR0NetworkBlacklistLookup(PINTNETNETWORK pNetwork,
+                                           PCRTNETADDRU pAddr, INTNETADDRTYPE enmType)
+{
+    PINTNETADDRCACHE pCache = &pNetwork->aAddrBlacklist[enmType];
+
+    if (RT_UNLIKELY(pCache->cEntriesAlloc == 0))
+        return false;
+
+    const uint8_t cbAddr = pCache->cbAddress;
+    Assert(cbAddr == intnetR0AddrSize(enmType));
+
+    for (unsigned i = 0; i < pCache->cEntries; ++i)
+    {
+        uint8_t *pbEntry = pCache->pbEntries + pCache->cbEntry * i;
+        if (intnetR0AddrUIsEqualEx((PCRTNETADDRU)pbEntry, pAddr, cbAddr))
+            return true;
+    }
+
+    return false;
+}
+
+
+/**
+ * Deletes specified address from network's blacklist.
+ *
+ * @param pNetwork      The network. 
+ * @param enmType       The address type.
+ * @param pAddr         The address.
+ */
+static void intnetR0NetworkBlacklistDelete(PINTNETNETWORK pNetwork,
+                                           PCRTNETADDRU pAddr, INTNETADDRTYPE enmType)
+{
+    PINTNETADDRCACHE pCache = &pNetwork->aAddrBlacklist[enmType];
+
+    if (RT_UNLIKELY(pCache->cEntriesAlloc == 0))
+        return;
+
+    const uint8_t cbAddr = pCache->cbAddress;
+    Assert(cbAddr == intnetR0AddrSize(enmType));
+
+    for (unsigned i = 0; i < pCache->cEntries; ++i)
+    {
+        uint8_t *pbEntry = pCache->pbEntries + pCache->cbEntry * i;
+        if (!intnetR0AddrUIsEqualEx((PCRTNETADDRU)pbEntry, pAddr, cbAddr))
+            continue;
+
+        --pCache->cEntries;
+        memmove(pCache->pbEntries + i * pCache->cbEntry,
+                pCache->pbEntries + (i + 1) * pCache->cbEntry,
+                (pCache->cEntries - i) * pCache->cbEntry);
+        return;
+    }
+}
+
+
+/**
+ * Adds specified address from network's blacklist.
+ *
+ * @param pNetwork      The network. 
+ * @param enmType       The address type.
+ * @param pAddr         The address.
+ */
+static void intnetR0NetworkBlacklistAdd(PINTNETNETWORK pNetwork,
+                                        PCRTNETADDRU pAddr, INTNETADDRTYPE enmType)
+{
+    PINTNETADDRCACHE pCache = &pNetwork->aAddrBlacklist[enmType];
+
+    if (RT_UNLIKELY(pCache->cEntriesAlloc == 0))
+        return;
+
+    const uint8_t cbAddr = pCache->cbAddress;
+    Assert(cbAddr == intnetR0AddrSize(enmType));
+
+    /* lookup */
+    for (unsigned i = 0; i < pCache->cEntries; ++i)
+    {
+        uint8_t *pbEntry = pCache->pbEntries + pCache->cbEntry * i;
+        if (RT_UNLIKELY(intnetR0AddrUIsEqualEx((PCRTNETADDRU)pbEntry, pAddr, cbAddr)))
+            return; /* already exists */
+    }
+
+    if (pCache->cEntries >= pCache->cEntriesAlloc)
+    {
+        /* shift */
+        memmove(pCache->pbEntries, pCache->pbEntries + pCache->cbEntry, 
+                pCache->cbEntry * (pCache->cEntries - 1));
+        --pCache->cEntries;
+    }
+
+    Assert(pCache->cEntries < pCache->cEntriesAlloc);
+
+    /* push */
+    uint8_t *pbEntry = pCache->pbEntries + pCache->cEntries * pCache->cbEntry;
+    memcpy(pbEntry, pAddr, cbAddr);
+    memset(pbEntry + pCache->cbAddress, '\0', pCache->cbEntry - cbAddr);
+    ++pCache->cEntries;
+
+    Assert(pCache->cEntries <= pCache->cEntriesAlloc);
+}
+
+
+/**
  * Adds an address to the cache, the caller is responsible for making sure it's
  * not already in the cache.
  *
@@ -1233,11 +1346,43 @@ DECLINLINE(PINTNETIF) intnetR0NetworkAddrCacheLookupIf(PINTNETNETWORK pNetwork, 
  * @param   pAddr       The address.
  * @param   pszMsg      log message.
  */
-static void intnetR0IfAddrCacheAddIt(PINTNETIF pIf, PINTNETADDRCACHE pCache, PCRTNETADDRU pAddr, const char *pszMsg)
+static void intnetR0IfAddrCacheAddIt(PINTNETIF pIf, INTNETADDRTYPE enmAddrType, PCRTNETADDRU pAddr,
+                                     const char *pszMsg)
 {
     PINTNETNETWORK  pNetwork = pIf->pNetwork;
     AssertReturnVoid(pNetwork);
+
+    PINTNETADDRCACHE pCache = &pIf->aAddrCache[enmAddrType];
+
+    const uint8_t cbAddr = pCache->cbAddress;
+    Assert(cbAddr == intnetR0AddrSize(enmAddrType));
+
     RTSpinlockAcquire(pNetwork->hAddrSpinlock);
+
+    bool fBlacklisted = intnetR0NetworkBlacklistLookup(pNetwork, pAddr, enmAddrType);
+    if (fBlacklisted)
+    {
+        RTSpinlockRelease(pNetwork->hAddrSpinlock);
+
+#ifdef LOG_ENABLED
+        switch (enmAddrType)
+        {
+            case kIntNetAddrType_IPv4:
+                Log(("%s: spoofing attempt for %RTnaipv4\n",
+                     __FUNCTION__, pAddr->IPv4));
+                break;
+            case kIntNetAddrType_IPv6:
+                Log(("%s: spoofing attempt for %RTnaipv6\n",
+                     __FUNCTION__, &pAddr->IPv6));
+                break;
+            default: 
+                Log(("%s: spoofing attempt for %.*Rhxs (type %d)\n",
+                     __FUNCTION__, cbAddr, pAddr, enmAddrType));
+                break;
+        }
+#endif
+        return;
+    }
 
     if (RT_UNLIKELY(!pCache->cEntriesAlloc))
     {
@@ -1262,8 +1407,8 @@ static void intnetR0IfAddrCacheAddIt(PINTNETIF pIf, PINTNETADDRCACHE pCache, PCR
     uint8_t *pbEntry = pCache->pbEntries + pCache->cEntries * pCache->cbEntry;
     memcpy(pbEntry, pAddr, pCache->cbAddress);
     memset(pbEntry + pCache->cbAddress, '\0', pCache->cbEntry - pCache->cbAddress);
+
 #ifdef LOG_ENABLED
-    INTNETADDRTYPE enmAddrType = (INTNETADDRTYPE)(uintptr_t)(pCache - &pIf->aAddrCache[0]);
     switch (enmAddrType)
     {
         case kIntNetAddrType_IPv4:
@@ -1272,7 +1417,7 @@ static void intnetR0IfAddrCacheAddIt(PINTNETIF pIf, PINTNETADDRCACHE pCache, PCR
             break;
         case kIntNetAddrType_IPv6:
             Log(("intnetR0IfAddrCacheAddIt: hIf=%#x MAC=%.6Rhxs IPv6 added #%d %RTnaipv6 %s\n",
-                 pIf->hIf, &pIf->MacAddr, pCache->cEntries, pAddr->IPv6, pszMsg));
+                 pIf->hIf, &pIf->MacAddr, pCache->cEntries, &pAddr->IPv6, pszMsg));
             break;
         default:
             Log(("intnetR0IfAddrCacheAddIt: hIf=%#x MAC=%.6Rhxs type=%d added #%d %.*Rhxs %s\n",
@@ -1296,8 +1441,14 @@ static void intnetR0IfAddrCacheAddIt(PINTNETIF pIf, PINTNETADDRCACHE pCache, PCR
  * @param   cbAddr      The size of the address (optimization).
  * @param   pszMsg      Log message.
  */
-static void intnetR0IfAddrCacheAddSlow(PINTNETIF pIf, PINTNETADDRCACHE pCache, PCRTNETADDRU pAddr, uint8_t const cbAddr, const char *pszMsg)
+static void intnetR0IfAddrCacheAddSlow(PINTNETIF pIf, INTNETADDRTYPE enmAddrType, PCRTNETADDRU pAddr,
+                                       const char *pszMsg)
 {
+    PINTNETADDRCACHE pCache = &pIf->aAddrCache[enmAddrType];
+
+    const uint8_t cbAddr = pCache->cbAddress;
+    Assert(cbAddr == intnetR0AddrSize(enmAddrType));
+
     /*
      * Check all but the first and last entries, the caller
      * has already checked those.
@@ -1315,7 +1466,7 @@ static void intnetR0IfAddrCacheAddSlow(PINTNETIF pIf, PINTNETADDRCACHE pCache, P
     /*
      * Not found, add it.
      */
-    intnetR0IfAddrCacheAddIt(pIf, pCache, pAddr, pszMsg);
+    intnetR0IfAddrCacheAddIt(pIf, enmAddrType, pAddr, pszMsg);
 }
 
 
@@ -1330,10 +1481,13 @@ static void intnetR0IfAddrCacheAddSlow(PINTNETIF pIf, PINTNETADDRCACHE pCache, P
  * @param   cbAddr      The size of the address (optimization).
  * @param   pszMsg      Log message.
  */
-DECLINLINE(void) intnetR0IfAddrCacheAdd(PINTNETIF pIf, PINTNETADDRCACHE pCache, PCRTNETADDRU pAddr,
-                                        uint8_t const cbAddr, const char *pszMsg)
+DECLINLINE(void) intnetR0IfAddrCacheAdd(PINTNETIF pIf, INTNETADDRTYPE enmAddrType, PCRTNETADDRU pAddr,
+                                        const char *pszMsg)
 {
-    Assert(pCache->cbAddress == cbAddr);
+    PINTNETADDRCACHE pCache = &pIf->aAddrCache[enmAddrType];
+
+    const uint8_t cbAddr = pCache->cbAddress;
+    Assert(cbAddr == intnetR0AddrSize(enmAddrType));
 
     /*
      * The optimized case is when the address the first or last cache entry.
@@ -1342,9 +1496,10 @@ DECLINLINE(void) intnetR0IfAddrCacheAdd(PINTNETIF pIf, PINTNETADDRCACHE pCache, 
     if (RT_LIKELY(   i > 0
                   && (   intnetR0AddrUIsEqualEx((PCRTNETADDRU)pCache->pbEntries, pAddr, cbAddr)
                       || (i > 1
-                          && intnetR0AddrUIsEqualEx((PCRTNETADDRU)(pCache->pbEntries + pCache->cbEntry * i), pAddr, cbAddr))) ))
+                          && intnetR0AddrUIsEqualEx((PCRTNETADDRU)(pCache->pbEntries + pCache->cbEntry * (i-1)), pAddr, cbAddr))) ))
         return;
-    intnetR0IfAddrCacheAddSlow(pIf, pCache, pAddr, cbAddr, pszMsg);
+
+    intnetR0IfAddrCacheAddSlow(pIf, enmAddrType, pAddr, pszMsg);
 }
 
 
@@ -2120,8 +2275,8 @@ static void intnetR0NetworkSnoopDhcp(PINTNETNETWORK pNetwork, PCRTNETIPV4 pIpHdr
 
                 if (pMatchingIf)
                 {
-                    intnetR0IfAddrCacheAdd(pMatchingIf, &pMatchingIf->aAddrCache[kIntNetAddrType_IPv4],
-                                           (PCRTNETADDRU)&pDhcp->bp_yiaddr, sizeof(RTNETADDRIPV4), "DHCP_MT_ACK");
+                    intnetR0IfAddrCacheAdd(pMatchingIf, kIntNetAddrType_IPv4,
+                                           (PCRTNETADDRU)&pDhcp->bp_yiaddr, "DHCP_MT_ACK");
                     intnetR0BusyDecIf(pMatchingIf);
                 }
             }
@@ -2391,7 +2546,7 @@ static void intnetR0IfSnoopIPv6SourceAddr(PINTNETIF pIf, PCRTNETIPV6 pIpHdr, uin
     if (    intnetR0IPv6AddrIsGood(Addr.IPv6) && (pIpHdr->ip6_hlim == 0xff)
         &&  intnetR0IfAddrCacheLookupLikely(&pIf->aAddrCache[kIntNetAddrType_IPv6], &Addr, sizeof(Addr.IPv6)) < 0)
     {
-        intnetR0IfAddrCacheAddIt(pIf, &pIf->aAddrCache[kIntNetAddrType_IPv6], &Addr, "if/ipv6");
+        intnetR0IfAddrCacheAdd(pIf, kIntNetAddrType_IPv6, &Addr, "if/ipv6");
     }
 }
 
@@ -2437,7 +2592,8 @@ static void intnetR0IfSnoopIPv4SourceAddr(PINTNETIF pIf, PCRTNETIPV4 pIpHdr, uin
             Log(("intnetR0IfSnoopIPv4SourceAddr: bad ip header\n"));
             return;
         }
-        intnetR0IfAddrCacheAddIt(pIf, &pIf->aAddrCache[kIntNetAddrType_IPv4], &Addr, "if/ipv4");
+
+        intnetR0IfAddrCacheAddIt(pIf, kIntNetAddrType_IPv4, &Addr, "if/ipv4");
         fValidatedIpHdr = true;
     }
 
@@ -2513,8 +2669,9 @@ static void intnetR0IfSnoopArpAddr(PINTNETIF pIf, PCRTNETARPIPV4 pArpIPv4, uint3
 
     if (    !memcmp(&pArpIPv4->ar_sha, &pIf->MacAddr, sizeof(RTMAC))
         &&  intnetR0IPv4AddrIsGood(pArpIPv4->ar_spa))
-        intnetR0IfAddrCacheAdd(pIf, &pIf->aAddrCache[kIntNetAddrType_IPv4],
-                               (PCRTNETADDRU)&pArpIPv4->ar_spa, sizeof(RTNETADDRIPV4), "if/arp");
+    {
+        intnetR0IfAddrCacheAdd(pIf, kIntNetAddrType_IPv4, (PCRTNETADDRU)&pArpIPv4->ar_spa, "if/arp");
+    }
 }
 
 
@@ -5253,6 +5410,54 @@ static DECLCALLBACK(void) intnetR0TrunkIfPortSGRelease(PINTNETTRUNKSWPORT pSwitc
 }
 
 
+/** @copydoc INTNETTRUNKSWPORT::pfnNotifyHostAddress */
+static DECLCALLBACK(void) intnetR0NetworkNotifyHostAddress(PINTNETTRUNKSWPORT pSwitchPort,
+                                                           bool fAdded,
+                                                           INTNETADDRTYPE enmType, const void *pvAddr)
+{
+    PINTNETTRUNKIF pTrunkIf = INTNET_SWITCHPORT_2_TRUNKIF(pSwitchPort);
+    PINTNETNETWORK pNetwork = pTrunkIf->pNetwork;
+    PCRTNETADDRU pAddr = (PCRTNETADDRU)pvAddr;
+    uint8_t cbAddr;
+
+    if (enmType == kIntNetAddrType_IPv4)
+    {
+        Log(("%s: %s %RTnaipv4\n",
+             __FUNCTION__, (fAdded ? "add" : "del"),
+             pAddr->IPv4));
+        cbAddr = 4;
+    }
+    else if (enmType == kIntNetAddrType_IPv6)
+    {
+        Log(("%s: %s %RTnaipv6\n",
+             __FUNCTION__, (fAdded ? "add" : "del"),
+             pAddr));
+        cbAddr = 16;
+    }
+    else
+    {
+        Log(("%s: unexpected address type %d\n", __FUNCTION__, enmType));
+        return;
+    }
+
+    RTSpinlockAcquire(pNetwork->hAddrSpinlock);
+    if (fAdded)         /* one of host interfaces got a new address */
+    {
+        /* blacklist it to prevent spoofing by guests */
+        intnetR0NetworkBlacklistAdd(pNetwork, pAddr, enmType);
+
+        /* kick out any guest that uses it */
+        intnetR0NetworkAddrCacheDeleteLocked(pNetwork, pAddr, enmType, cbAddr, "tif/host");
+    }
+    else                /* address deleted from one of host interfaces */
+    {
+        /* stop blacklisting it, guests may use it now */
+        intnetR0NetworkBlacklistDelete(pNetwork, pAddr, enmType);
+    }
+    RTSpinlockRelease(pNetwork->hAddrSpinlock);
+}
+
+
 /**
  * Shutdown the trunk interface.
  *
@@ -5416,6 +5621,8 @@ static int intnetR0NetworkCreateTrunkIf(PINTNETNETWORK pNetwork, PSUPDRVSESSION 
         pTrunk->SwitchPort.pfnReportPromiscuousMode   = intnetR0TrunkIfPortReportPromiscuousMode;
         pTrunk->SwitchPort.pfnReportGsoCapabilities   = intnetR0TrunkIfPortReportGsoCapabilities;
         pTrunk->SwitchPort.pfnReportNoPreemptDsts     = intnetR0TrunkIfPortReportNoPreemptDsts;
+        if (pNetwork->fFlags & INTNET_OPEN_FLAGS_SHARED_MAC_ON_WIRE)
+            pTrunk->SwitchPort.pfnNotifyHostAddress   = intnetR0NetworkNotifyHostAddress;
         pTrunk->SwitchPort.u32VersionEnd              = INTNETTRUNKSWPORT_VERSION;
         //pTrunk->pIfPort                 = NULL;
         pTrunk->pNetwork                  = pNetwork;
@@ -5625,6 +5832,8 @@ static DECLCALLBACK(void) intnetR0NetworkDestruct(void *pvObj, void *pvUser1, vo
     pNetwork->hAddrSpinlock = NIL_RTSPINLOCK;
     RTMemFree(pNetwork->MacTab.paEntries);
     pNetwork->MacTab.paEntries = NULL;
+    for (int i = kIntNetAddrType_Invalid + 1; i < kIntNetAddrType_End; i++)
+        intnetR0IfAddrCacheDestroy(&pNetwork->aAddrBlacklist[i]);
     RTMemFree(pNetwork);
 
     /* Release the create/destroy sem. */
@@ -6004,6 +6213,12 @@ static int intnetR0CreateNetwork(PINTNET pIntNet, PSUPDRVSESSION pSession, const
         pNetwork->MacTab.paEntries = (PINTNETMACTABENTRY)RTMemAlloc(sizeof(INTNETMACTABENTRY) * pNetwork->MacTab.cEntriesAllocated);
         if (!pNetwork->MacTab.paEntries)
             rc = VERR_NO_MEMORY;
+    }
+    if (RT_SUCCESS(rc))
+    {
+        for (int i = kIntNetAddrType_Invalid + 1; i < kIntNetAddrType_End && RT_SUCCESS(rc); i++)
+            rc = intnetR0IfAddrCacheInit(&pNetwork->aAddrBlacklist[i], (INTNETADDRTYPE)i,
+                                         !!(pNetwork->fFlags & INTNET_OPEN_FLAGS_SHARED_MAC_ON_WIRE));
     }
     if (RT_SUCCESS(rc))
     {

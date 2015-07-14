@@ -958,6 +958,8 @@ int audio_pcm_sw_read (SWVoiceIn *sw, void *buf, int size)
             Log(("audio_pcm_sw_read: buffer overflow!! ret = %d, osamp = %d, buf_samples = %d\n",
                   ret, osamp, sw->buf_samples));
         st_rate_flow (sw->rate, src, dst, &isamp, &osamp);
+        if (!osamp) /* Exit if nothing was added to the output, prevents possible endless loop. */
+            break;
         swlim -= osamp;
         rpos = (rpos + isamp) % hw->samples;
         dst += osamp;

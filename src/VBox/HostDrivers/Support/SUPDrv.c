@@ -37,6 +37,9 @@
 #include <iprt/asm-amd64-x86.h>
 #include <iprt/asm-math.h>
 #include <iprt/cpuset.h>
+#if defined(RT_OS_DARWIN) || defined(RT_OS_SOLARIS)
+# include <iprt/dbg.h>
+#endif
 #include <iprt/handletable.h>
 #include <iprt/mem.h>
 #include <iprt/mp.h>
@@ -299,6 +302,13 @@ static SUPFUNC g_aFunctions[] =
     { "RTPowerNotificationRegister",            (void *)RTPowerNotificationRegister },
     { "RTProcSelf",                             (void *)RTProcSelf },
     { "RTR0AssertPanicSystem",                  (void *)RTR0AssertPanicSystem },
+#if defined(RT_OS_DARWIN) || defined(RT_OS_SOLARIS)
+    { "RTR0DbgKrnlInfoOpen",                    (void *)RTR0DbgKrnlInfoOpen },          /* only-darwin, only-solaris */
+    { "RTR0DbgKrnlInfoQueryMember",             (void *)RTR0DbgKrnlInfoQueryMember },   /* only-darwin, only-solaris */
+    { "RTR0DbgKrnlInfoQuerySymbol",             (void *)RTR0DbgKrnlInfoQuerySymbol },   /* only-darwin, only-solaris */
+    { "RTR0DbgKrnlInfoRelease",                 (void *)RTR0DbgKrnlInfoRelease },       /* only-darwin, only-solaris */
+    { "RTR0DbgKrnlInfoRetain",                  (void *)RTR0DbgKrnlInfoRetain },        /* only-darwin, only-solaris */
+#endif
     { "RTR0MemAreKrnlAndUsrDifferent",          (void *)RTR0MemAreKrnlAndUsrDifferent },
     { "RTR0MemKernelIsValidAddr",               (void *)RTR0MemKernelIsValidAddr },
     { "RTR0MemKernelCopyFrom",                  (void *)RTR0MemKernelCopyFrom },
@@ -3713,10 +3723,9 @@ SUPR0DECL(void) SUPR0ResumeVTxOnCpu(bool fSuspended)
  * @retval  VERR_UNSUPPORTED_CPU if not identifiable as an AMD, Intel or VIA
  *          (centaur) CPU.
  *
- * @param   pSession        The session handle.
  * @param   pfCaps          Where to store the capabilities.
  */
-SUPR0DECL(int) SUPR0QueryVTCaps(PSUPDRVSESSION pSession, uint32_t *pfCaps)
+int VBOXCALL supdrvQueryVTCapsInternal(uint32_t *pfCaps)
 {
     int rc = VERR_UNSUPPORTED_CPU;
     RTTHREADPREEMPTSTATE PreemptState = RTTHREADPREEMPTSTATE_INITIALIZER;
@@ -3724,7 +3733,6 @@ SUPR0DECL(int) SUPR0QueryVTCaps(PSUPDRVSESSION pSession, uint32_t *pfCaps)
     /*
      * Input validation.
      */
-    AssertReturn(SUP_IS_SESSION_VALID(pSession), VERR_INVALID_PARAMETER);
     AssertPtrReturn(pfCaps, VERR_INVALID_POINTER);
 
     *pfCaps = 0;
@@ -3779,6 +3787,8 @@ SUPR0DECL(int) SUPR0QueryVTCaps(PSUPDRVSESSION pSession, uint32_t *pfCaps)
                     else
                         u64FeatMsr |= MSR_IA32_FEATURE_CONTROL_VMXON;
 
+                    /** @todo we ought to be checking for SMX mode capability but most likely not a
+                     *        problem that is likely to happen, see @bugref{6873} comment #22. */
                     ASMWrMsr(MSR_IA32_FEATURE_CONTROL, u64FeatMsr);
 
                     /* Verify. */
@@ -4122,6 +4132,36 @@ SUPR0DECL(int) SUPR0GipUnmap(PSUPDRVSESSION pSession)
 SUPDECL(PSUPGLOBALINFOPAGE) SUPGetGIP(void)
 {
     return g_pSUPGlobalInfoPage;
+}
+
+/**
+ * Queries the AMD-V and VT-x capabilities of the calling CPU.
+ *
+ * @returns VBox status code.
+ * @retval  VERR_VMX_NO_VMX
+ * @retval  VERR_VMX_MSR_ALL_VMXON_DISABLED
+ * @retval  VERR_VMX_MSR_VMXON_DISABLED
+ * @retval  VERR_VMX_MSR_LOCKING_FAILED
+ * @retval  VERR_SVM_NO_SVM
+ * @retval  VERR_SVM_DISABLED
+ * @retval  VERR_UNSUPPORTED_CPU if not identifiable as an AMD, Intel or VIA
+ *          (centaur) CPU.
+ *
+ * @param   pSession        The session handle.
+ * @param   pfCaps          Where to store the capabilities.
+ */
+SUPR0DECL(int) SUPR0QueryVTCaps(PSUPDRVSESSION pSession, uint32_t *pfCaps)
+{
+    /*
+     * Input validation.
+     */
+    AssertReturn(SUP_IS_SESSION_VALID(pSession), VERR_INVALID_PARAMETER);
+    AssertPtrReturn(pfCaps, VERR_INVALID_POINTER);
+
+    /*
+     * Call common worker.
+     */
+    return supdrvQueryVTCapsInternal(pfCaps);
 }
 
 

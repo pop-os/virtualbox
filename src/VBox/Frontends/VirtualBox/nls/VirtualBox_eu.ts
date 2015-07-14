@@ -1886,9 +1886,9 @@
     </message>
     <message>
         <location line="+1"/>
-        <source>Generic Driver, &apos;%1&apos; {&amp;nbsp;%2&amp;nbsp;}</source>
+        <source>Generic Driver, &apos;%1&apos; { %2 }</source>
         <comment>details (network)</comment>
-        <translation>Gidagailu generikoa, &apos;%1&apos; {&amp;nbsp;%2&amp;nbsp;}</translation>
+        <translation>Gidagailu generikoa, &apos;%1&apos; { %2 }</translation>
     </message>
     <message>
         <location line="+234"/>
@@ -3429,7 +3429,7 @@
 <context>
     <name>UIMachineLogic</name>
     <message>
-        <location filename="../src/runtime/UIMachineLogic.cpp" line="+764"/>
+        <location filename="../src/runtime/UIMachineLogic.cpp" line="+766"/>
         <source>Preview Monitor %1</source>
         <translation>Aurreikuspen Monitorea %1</translation>
     </message>
@@ -7348,12 +7348,12 @@
 <context>
     <name>UIProgressDialog</name>
     <message>
-        <location filename="../src/widgets/UIProgressDialog.cpp" line="+288"/>
+        <location filename="../src/widgets/UIProgressDialog.cpp" line="+316"/>
         <source>A few seconds remaining</source>
         <translation>Segundu gutxi gelditzen dira</translation>
     </message>
     <message>
-        <location line="-157"/>
+        <location line="-177"/>
         <source>Canceling...</source>
         <translation>Ezeztatzen...</translation>
     </message>
@@ -7368,7 +7368,7 @@
         <translation>Ezeztatu oraingo eragiketa</translation>
     </message>
     <message>
-        <location line="+127"/>
+        <location line="+147"/>
         <source>%1, %2 remaining</source>
         <comment>You may wish to translate this more like &quot;Time remaining: %1, %2&quot;</comment>
         <translation>%1, %2 gelditzen da</translation>
@@ -7403,7 +7403,7 @@
         <translation>Makina birtual agiriak (%1)</translation>
     </message>
     <message>
-        <location line="+514"/>
+        <location line="+515"/>
         <source>&lt;h3&gt;Welcome to VirtualBox!&lt;/h3&gt;&lt;p&gt;The left part of this window is  a list of all virtual machines on your computer. The list is empty now because you haven&apos;t created any virtual machines yet.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;In order to create a new virtual machine, press the &lt;b&gt;New&lt;/b&gt; button in the main tool bar located at the top of the window.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;%1&lt;/b&gt; key to get instant help, or visit &lt;a href=https://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for the latest information and news.&lt;/p&gt;</source>
         <translation>&lt;h3&gt;Ongi etorri VirtualBox-era!&lt;/h3&gt;&lt;p&gt;Leiho honetako ezker aldea zure ordenagailuko makina birtualen zerrenda bat da. Zerrenda orain hutsik dago oraindik ez duzulako makina birtualik sortu.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;Makina birtual berri bat sortzeko, sakatu &lt;b&gt;Berria&lt;/b&gt; botoia leihoaren goialdeko tresna barra nagusian.&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt; tekla sakatu dezakezu berehalako laguntza lortzeko, edo ikusi &lt;a href=https://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; azken argibideak eta berriak jasotzeko.&lt;/p&gt;</translation>
     </message>
@@ -7417,7 +7417,7 @@
 <context>
     <name>UISession</name>
     <message>
-        <location filename="../src/runtime/UISession.cpp" line="+572"/>
+        <location filename="../src/runtime/UISession.cpp" line="+568"/>
         <source>Updating Guest Additions</source>
         <translation>Gonbidatu Gehigarriak Eguneratzen</translation>
     </message>

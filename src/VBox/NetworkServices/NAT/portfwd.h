@@ -1,4 +1,4 @@
-/* $Id$ */
+/* $Id: portfwd.h $ */
 /** @file
  * NAT Network - port-forwarding rules, definitions and declarations.
  */

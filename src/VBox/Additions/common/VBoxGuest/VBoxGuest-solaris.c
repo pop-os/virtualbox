@@ -74,6 +74,7 @@ static int VBoxGuestSolarisPoll(dev_t Dev, short fEvents, int fAnyYet, short *pR
 static int VBoxGuestSolarisGetInfo(dev_info_t *pDip, ddi_info_cmd_t enmCmd, void *pArg, void **ppResult);
 static int VBoxGuestSolarisAttach(dev_info_t *pDip, ddi_attach_cmd_t enmCmd);
 static int VBoxGuestSolarisDetach(dev_info_t *pDip, ddi_detach_cmd_t enmCmd);
+static int VBoxGuestSolarisQuiesce(dev_info_t *pDip);
 
 static int VBoxGuestSolarisAddIRQ(dev_info_t *pDip);
 static void VBoxGuestSolarisRemoveIRQ(dev_info_t *pDip);
@@ -121,7 +122,8 @@ static struct dev_ops g_VBoxGuestSolarisDevOps =
     nodev,                  /* reset */
     &g_VBoxGuestSolarisCbOps,
     (struct bus_ops *)0,
-    nodev                   /* power */
+    nodev,                  /* power */
+    VBoxGuestSolarisQuiesce
 };
 
 /**
@@ -415,6 +417,29 @@ static int VBoxGuestSolarisDetach(dev_info_t *pDip, ddi_detach_cmd_t enmCmd)
         default:
             return DDI_FAILURE;
     }
+}
+
+
+/**
+ * Quiesce entry point, called by solaris kernel for disabling the device from
+ * generating any interrupts or doing in-bound DMA.
+ *
+ * @param   pDip            The module structure instance.
+ *
+ * @return  corresponding solaris error code.
+ */
+static int VBoxGuestSolarisQuiesce(dev_info_t *pDip)
+{
+    for (int i = 0; i < g_cIntrAllocated; i++)
+    {
+        int rc = ddi_intr_disable(g_pIntr[i]);
+        if (rc != DDI_SUCCESS)
+            return DDI_FAILURE;
+    }
+
+    /** @todo What about HGCM/HGSMI touching guest-memory? */
+
+    return DDI_SUCCESS;
 }
 
 
@@ -810,6 +835,7 @@ static int VBoxGuestSolarisAddIRQ(dev_info_t *pDip)
                             /* Remove allocated IRQs, too bad we can free only one handle at a time. */
                             for (int k = 0; k < g_cIntrAllocated; k++)
                                 ddi_intr_free(g_pIntr[k]);
+                            g_cIntrAllocated = 0;
                         }
                         else
                             LogRel((DEVICE_NAME "::AddIRQ: failed to allocated IRQs. count=%d\n", IntrCount));
@@ -852,6 +878,7 @@ static void VBoxGuestSolarisRemoveIRQ(dev_info_t *pDip)
                 ddi_intr_free(g_pIntr[i]);
         }
     }
+    g_cIntrAllocated = 0;
     RTMemFree(g_pIntr);
     mutex_destroy(&g_IrqMtx);
 }

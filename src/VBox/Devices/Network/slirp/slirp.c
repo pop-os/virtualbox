@@ -484,28 +484,12 @@ void slirp_link_up(PNATState pData)
  */
 void slirp_link_down(PNATState pData)
 {
-    struct socket *so;
     struct port_forward_rule *rule;
 
     if (link_up == 0)
         return;
 
-    if (!pData->fUseHostResolverPermanent)
-        slirpReleaseDnsSettings(pData);
-
-    while ((so = tcb.so_next) != &tcb)
-    {
-        /* Don't miss TCB releasing */
-        if (   !sototcpcb(so)
-            && (   so->so_state & SS_NOFDREF
-                || so->s == -1))
-             sofree(pData, so);
-        else
-            tcp_close(pData, sototcpcb(so));
-    }
-
-    while ((so = udb.so_next) != &udb)
-        udp_detach(pData, so);
+    slirpReleaseDnsSettings(pData);
 
     /*
      *  Clear the active state of port-forwarding rules to force
@@ -525,12 +509,26 @@ void slirp_link_down(PNATState pData)
  */
 void slirp_term(PNATState pData)
 {
+    struct socket *so;
+
     if (pData == NULL)
         return;
+
     icmp_finit(pData);
 
-    /* Signal to slirp_link_down() to release DNS data. */
-    pData->fUseHostResolverPermanent = 0;
+    while ((so = tcb.so_next) != &tcb)
+    {
+        /* Don't miss TCB releasing */
+        if (   !sototcpcb(so)
+            && (   so->so_state & SS_NOFDREF
+                || so->s == -1))
+             sofree(pData, so);
+        else
+            tcp_close(pData, sototcpcb(so));
+    }
+
+    while ((so = udb.so_next) != &udb)
+        udp_detach(pData, so);
 
     slirp_link_down(pData);
     ftp_alias_unload(pData);
@@ -566,7 +564,6 @@ void slirp_term(PNATState pData)
 #ifdef RT_OS_WINDOWS
     WSACleanup();
 #endif
-#ifndef VBOX_WITH_SLIRP_BSD_SBUF
 #ifdef LOG_ENABLED
     Log(("\n"
          "NAT statistics\n"
@@ -581,7 +578,6 @@ void slirp_term(PNATState pData)
     Log(("\n"
          "\n"
          "\n"));
-#endif
 #endif
     RTMemFree(pData);
 }
@@ -1350,7 +1346,7 @@ static void arp_input(PNATState pData, struct mbuf *m)
                 if (!fGratuitousArpReported)
                 {
                     LogRel(("NAT: Gratuitous ARP [IP:%RTnaipv4, ether:%RTmac]\n",
-                            pARPHeader->ar_sip, pARPHeader->ar_sha));
+                            *(uint32_t *)pARPHeader->ar_sip, pARPHeader->ar_sha));
                     fGratuitousArpReported = true;
                 }
                 slirp_arp_cache_update_or_add(pData, *(uint32_t *)pARPHeader->ar_sip, &pARPHeader->ar_sha[0]);

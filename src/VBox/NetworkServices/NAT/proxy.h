@@ -1,4 +1,4 @@
-/* $Id$ */
+/* $Id: proxy.h $ */
 /** @file
  * NAT Network - common definitions and declarations.
  */

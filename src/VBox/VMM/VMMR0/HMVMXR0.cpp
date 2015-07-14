@@ -8760,7 +8760,11 @@ static uint32_t hmR0VmxCheckGuestState(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
             HMVMX_CHECK_BREAK((u64Val & MSR_K6_EFER_LMA) == (pVCpu->hm.s.vmx.u32EntryCtls & VMX_VMCS_CTRL_ENTRY_IA32E_MODE_GUEST),
                               VMX_IGS_EFER_LMA_GUEST_MODE_MISMATCH);
             HMVMX_CHECK_BREAK(   fUnrestrictedGuest
-                              || (u64Val & MSR_K6_EFER_LMA) == (u32GuestCR0 & X86_CR0_PG), VMX_IGS_EFER_LMA_PG_MISMATCH);
+                              || (u64Val & MSR_K6_EFER_LMA) == (u32GuestCR0 & X86_CR0_PG), VMX_IGS_EFER_LMA_GUEST_MODE_MISMATCH);
+            HMVMX_CHECK_BREAK(   fUnrestrictedGuest
+                              || !(u32GuestCR0 & X86_CR0_PG)
+                              || RT_BOOL(u64Val & MSR_K6_EFER_LMA) == RT_BOOL(u64Val & MSR_K6_EFER_LME),
+                              VMX_IGS_EFER_LMA_LME_MISMATCH);
         }
 
         /*

@@ -774,6 +774,7 @@ PSUPDRVSESSION VBOXCALL supdrvSessionHashTabLookup(PSUPDRVDEVEXT pDevExt, RTPROC
                                                    PSUPDRVSESSION *ppOsSessionPtr);
 uint32_t VBOXCALL supdrvSessionRetain(PSUPDRVSESSION pSession);
 uint32_t VBOXCALL supdrvSessionRelease(PSUPDRVSESSION pSession);
+int VBOXCALL    supdrvQueryVTCapsInternal(uint32_t *pfCaps);
 
 int  VBOXCALL   supdrvTracerInit(PSUPDRVDEVEXT pDevExt);
 void VBOXCALL   supdrvTracerTerm(PSUPDRVDEVEXT pDevExt);

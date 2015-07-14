@@ -2901,9 +2901,9 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="673"/>
-        <source>Generic Driver, &apos;%1&apos; {&amp;nbsp;%2&amp;nbsp;}</source>
+        <source>Generic Driver, &apos;%1&apos; { %2 }</source>
         <comment>details (network)</comment>
-        <translation>汎用ドライバー, &apos;%1&apos; {&amp;nbsp;%2&amp;nbsp;} </translation>
+        <translation>汎用ドライバー, &apos;%1&apos; { %2 } </translation>
     </message>
     <message>
         <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="679"/>
@@ -4983,32 +4983,32 @@ p, li { white-space: pre-wrap; }
         <translation type="obsolete">試験的ビルド %1r%2 - %3</translation>
     </message>
     <message>
-        <location filename="../src/runtime/UIMachineLogic.cpp" line="764"/>
+        <location filename="../src/runtime/UIMachineLogic.cpp" line="766"/>
         <source>Preview Monitor %1</source>
         <translation>プレビュー ディスプレイ %1</translation>
     </message>
     <message>
-        <location filename="../src/runtime/UIMachineLogic.cpp" line="1306"/>
+        <location filename="../src/runtime/UIMachineLogic.cpp" line="1308"/>
         <source>Snapshot %1</source>
         <translation>スナップショット %1</translation>
     </message>
     <message>
-        <location filename="../src/runtime/UIMachineLogic.cpp" line="1975"/>
+        <location filename="../src/runtime/UIMachineLogic.cpp" line="1977"/>
         <source>No Webcams Connected</source>
         <translation>ウェブカメラが接続されていません</translation>
     </message>
     <message>
-        <location filename="../src/runtime/UIMachineLogic.cpp" line="1976"/>
+        <location filename="../src/runtime/UIMachineLogic.cpp" line="1978"/>
         <source>No supported webcams connected to the host PC</source>
         <translation>ホストPCに接続されているウェブカメラはサポートされていません</translation>
     </message>
     <message>
-        <location filename="../src/runtime/UIMachineLogic.cpp" line="2201"/>
+        <location filename="../src/runtime/UIMachineLogic.cpp" line="2203"/>
         <source>Connect Network Adapter</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/runtime/UIMachineLogic.cpp" line="2201"/>
+        <location filename="../src/runtime/UIMachineLogic.cpp" line="2203"/>
         <source>Connect Network Adapter %1</source>
         <translation type="unfinished"></translation>
     </message>
@@ -5029,7 +5029,7 @@ p, li { white-space: pre-wrap; }
         <translation type="obsolete">フロッピーデバイスのマウント解除</translation>
     </message>
     <message>
-        <location filename="../src/runtime/UIMachineLogic.cpp" line="1401"/>
+        <location filename="../src/runtime/UIMachineLogic.cpp" line="1403"/>
         <source>Select a filename for the screenshot ...</source>
         <translation>スクリーンショットの名前を選択...</translation>
     </message>
@@ -5050,12 +5050,12 @@ p, li { white-space: pre-wrap; }
         <translation type="obsolete">フロッピーデバイス 未割り当て</translation>
     </message>
     <message>
-        <location filename="../src/runtime/UIMachineLogic.cpp" line="1909"/>
+        <location filename="../src/runtime/UIMachineLogic.cpp" line="1911"/>
         <source>No USB Devices Connected</source>
         <translation>USB デバイス 未接続</translation>
     </message>
     <message>
-        <location filename="../src/runtime/UIMachineLogic.cpp" line="1910"/>
+        <location filename="../src/runtime/UIMachineLogic.cpp" line="1912"/>
         <source>No supported devices connected to the host PC</source>
         <translation>ホストマシンに接続されたデバイスはサポートされていません</translation>
     </message>
@@ -6890,21 +6890,21 @@ p, li { white-space: pre-wrap; }
         <translation>仮想ハードディスクファイルの選択...</translation>
     </message>
     <message>
-        <location filename="../src/runtime/UIMachineLogic.cpp" line="1718"/>
+        <location filename="../src/runtime/UIMachineLogic.cpp" line="1720"/>
         <location filename="../src/settings/machine/UIMachineSettingsStorage.cpp" line="2663"/>
         <source>Choose a virtual CD/DVD disk file...</source>
         <translation>仮想CD/DVDディスクファイルの選択...</translation>
     </message>
     <message>
-        <location filename="../src/runtime/UIMachineLogic.cpp" line="1719"/>
-        <location filename="../src/runtime/UIMachineLogic.cpp" line="1725"/>
+        <location filename="../src/runtime/UIMachineLogic.cpp" line="1721"/>
+        <location filename="../src/runtime/UIMachineLogic.cpp" line="1727"/>
         <location filename="../src/settings/machine/UIMachineSettingsStorage.cpp" line="2670"/>
         <location filename="../src/settings/machine/UIMachineSettingsStorage.cpp" line="2687"/>
         <source>Remove disk from virtual drive</source>
         <translation>仮想ドライブからディスクを除去</translation>
     </message>
     <message>
-        <location filename="../src/runtime/UIMachineLogic.cpp" line="1724"/>
+        <location filename="../src/runtime/UIMachineLogic.cpp" line="1726"/>
         <location filename="../src/settings/machine/UIMachineSettingsStorage.cpp" line="2680"/>
         <source>Choose a virtual floppy disk file...</source>
         <translation>仮想フロッピーディスクファイルの選択...</translation>
@@ -10792,7 +10792,7 @@ step and attach hard disks later using the VM Settings dialog.&lt;/p&gt;</source
 <context>
     <name>UIProgressDialog</name>
     <message>
-        <location filename="../src/widgets/UIProgressDialog.cpp" line="132"/>
+        <location filename="../src/widgets/UIProgressDialog.cpp" line="140"/>
         <source>&amp;Cancel</source>
         <translation>キャンセル(&amp;C)</translation>
     </message>
@@ -10853,28 +10853,28 @@ step and attach hard disks later using the VM Settings dialog.&lt;/p&gt;</source
         <translation type="obsolete">残り時間 %1秒</translation>
     </message>
     <message>
-        <location filename="../src/widgets/UIProgressDialog.cpp" line="288"/>
+        <location filename="../src/widgets/UIProgressDialog.cpp" line="316"/>
         <source>A few seconds remaining</source>
         <translation>残り時間 数秒</translation>
     </message>
     <message>
-        <location filename="../src/widgets/UIProgressDialog.cpp" line="131"/>
+        <location filename="../src/widgets/UIProgressDialog.cpp" line="139"/>
         <source>Canceling...</source>
         <translation>キャンセル...</translation>
     </message>
     <message>
-        <location filename="../src/widgets/UIProgressDialog.cpp" line="133"/>
+        <location filename="../src/widgets/UIProgressDialog.cpp" line="141"/>
         <source>Cancel the current operation</source>
         <translation>現在の操作をキャンセル</translation>
     </message>
     <message>
-        <location filename="../src/widgets/UIProgressDialog.cpp" line="260"/>
+        <location filename="../src/widgets/UIProgressDialog.cpp" line="288"/>
         <source>%1, %2 remaining</source>
         <comment>You may wish to translate this more like &quot;Time remaining: %1, %2&quot;</comment>
         <translation>残り時間:%1, %2</translation>
     </message>
     <message>
-        <location filename="../src/widgets/UIProgressDialog.cpp" line="261"/>
+        <location filename="../src/widgets/UIProgressDialog.cpp" line="289"/>
         <source>%1 remaining</source>
         <comment>You may wish to translate this more like &quot;Time remaining: %1&quot;</comment>
         <translation>残り時間:%1</translation>
@@ -10903,12 +10903,12 @@ step and attach hard disks later using the VM Settings dialog.&lt;/p&gt;</source
         <translation>仮想マシンファイル(%1)</translation>
     </message>
     <message>
-        <location filename="../src/selector/UISelectorWindow.cpp" line="870"/>
+        <location filename="../src/selector/UISelectorWindow.cpp" line="871"/>
         <source>&lt;h3&gt;Welcome to VirtualBox!&lt;/h3&gt;&lt;p&gt;The left part of this window is  a list of all virtual machines on your computer. The list is empty now because you haven&apos;t created any virtual machines yet.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;In order to create a new virtual machine, press the &lt;b&gt;New&lt;/b&gt; button in the main tool bar located at the top of the window.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;%1&lt;/b&gt; key to get instant help, or visit &lt;a href=https://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for the latest information and news.&lt;/p&gt;</source>
         <translation>&lt;h3&gt;ようこそVirtualBoxへ！&lt;/h3&gt;&lt;p&gt;このウィンドウの左側にコンピューター上のすべての仮想マシンがリスト表示されます。しかしまだ仮想マシンが作成されていないため、リストは空です。&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;新規仮想マシンを作成するにはウィンドウ上部にあるメインツールバーの&lt;b&gt;[新規]&lt;/b&gt;ボタンをクリックしてください。&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;キーでヘルプを表示できます。または最新情報とニュースを取得するため &lt;a href=https://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; を訪問ください。&lt;/p&gt;</translation>
     </message>
     <message>
-        <location filename="../src/selector/UISelectorWindow.cpp" line="950"/>
+        <location filename="../src/selector/UISelectorWindow.cpp" line="951"/>
         <source>Manager</source>
         <comment>Note: main window title which is pretended by the product name.</comment>
         <translation>マネージャー</translation>
@@ -10921,7 +10921,7 @@ step and attach hard disks later using the VM Settings dialog.&lt;/p&gt;</source
         <translation type="obsolete">インストール</translation>
     </message>
     <message>
-        <location filename="../src/runtime/UISession.cpp" line="572"/>
+        <location filename="../src/runtime/UISession.cpp" line="568"/>
         <source>Updating Guest Additions</source>
         <translation>Guest Additions をアップデートしています</translation>
     </message>

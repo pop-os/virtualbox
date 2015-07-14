@@ -309,7 +309,7 @@ DECLINLINE(void) GCC_ATTR ldebug (const char *fmt, ...)  /* shuts up unused warn
 #define AUDIO_STRINGIFY(n) AUDIO_STRINGIFY_(n)
 
 #if defined _MSC_VER || defined __GNUC__
-#define AUDIO_FUNC __FUNCTION__
+#define AUDIO_FUNC RT_GCC_EXTENSION __FUNCTION__
 #else
 #define AUDIO_FUNC __FILE__ ":" AUDIO_STRINGIFY (__LINE__)
 #endif

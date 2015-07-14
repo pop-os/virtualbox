@@ -1043,7 +1043,6 @@ static DECLCALLBACK(int) vusbDevCancelAllUrbsWorker(PVUSBDEV pDev, bool fDetachi
     /*
      * Iterate the URBs and cancel them.
      */
-    RTCritSectEnter(&pDev->CritSectAsyncUrbs);
     PVUSBURB pUrb = pDev->pAsyncUrbHead;
     while (pUrb)
     {
@@ -1060,6 +1059,7 @@ static DECLCALLBACK(int) vusbDevCancelAllUrbsWorker(PVUSBDEV pDev, bool fDetachi
     /*
      * Reap any URBs which became ripe during cancel now.
      */
+    RTCritSectEnter(&pDev->CritSectAsyncUrbs);
     unsigned cReaped;
     do
     {

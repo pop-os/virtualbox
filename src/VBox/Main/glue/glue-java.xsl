@@ -3124,6 +3124,13 @@ public class VirtualBoxManager
     {
     }
 
+    public String getClientAPIVersion()
+    {
+        return "]]></xsl:text>
+    <xsl:value-of select="substring($G_vboxApiSuffix, 2)" />
+    <xsl:text><![CDATA[";
+    }
+
     public IVirtualBox getVBox()
     {
         return this.vbox;
@@ -3790,6 +3797,13 @@ public class VirtualBoxManager
         throw new VBoxException("Disconnect doesn't make sense for local bindings");
     }
 
+    public String getClientAPIVersion()
+    {
+        return "]]></xsl:text>
+    <xsl:value-of select="substring($G_vboxApiSuffix, 2)" />
+    <xsl:text><![CDATA[";
+    }
+
     public IVirtualBox getVBox()
     {
         return this.vbox;
@@ -3832,7 +3846,6 @@ public class VirtualBoxManager
 
     public void waitForEvents(long tmo)
     {
-        // what to do here?
         try
         {
           Thread.sleep(tmo);
@@ -4573,6 +4586,13 @@ public class VirtualBoxManager
         }
     }
 
+    public String getClientAPIVersion()
+    {
+        return "]]></xsl:text>
+    <xsl:value-of select="substring($G_vboxApiSuffix, 2)" />
+    <xsl:text><![CDATA[";
+    }
+
     public IVirtualBox getVBox()
     {
         return this.vbox;
@@ -4628,6 +4648,13 @@ public class VirtualBoxManager
 
     public void waitForEvents(long tmo)
     {
+        try
+        {
+          Thread.sleep(tmo);
+        }
+        catch (InterruptedException ie)
+        {
+        }
     }
 
     protected void finalize() throws Throwable

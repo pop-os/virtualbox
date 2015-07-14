@@ -615,8 +615,9 @@ void UISelectorWindow::sltPerformSaveAction()
 
         /* Get session console: */
         CConsole console = session.GetConsole();
-        /* Pause VM first: */
-        console.Pause();
+        /* Pause VM first if necessary: */
+        if (pItem->machineState() != KMachineState_Paused)
+            console.Pause();
         if (console.isOk())
         {
             /* Prepare machine state saving: */

@@ -868,10 +868,11 @@ int Console::configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
         }
 #endif
 
-        /* Not necessary, but to make sure these two settings end up in the release log. */
         BOOL fPageFusion = FALSE;
         hrc = pMachine->COMGETTER(PageFusionEnabled)(&fPageFusion);                         H();
-        InsertConfigInteger(pRoot, "PageFusion",           fPageFusion); /* boolean */
+        InsertConfigInteger(pRoot, "PageFusionAllowed",    fPageFusion); /* boolean */
+
+        /* Not necessary, but makes sure this setting ends up in the release log. */
         ULONG ulBalloonSize = 0;
         hrc = pMachine->COMGETTER(MemoryBalloonSize)(&ulBalloonSize);                       H();
         InsertConfigInteger(pRoot, "MemBalloonSize",       ulBalloonSize);
@@ -941,19 +942,22 @@ int Console::configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
             uint32_t uMaxIntelFamilyModelStep = UINT32_MAX;
             if (   osTypeId == "MacOS"
                 || osTypeId == "MacOS_64")
-                uMaxIntelFamilyModelStep = RT_MAKE_U32_FROM_U8(1, 23, 6, 7); /* Penryn / X5482. */
+                uMaxIntelFamilyModelStep = RT_MAKE_U32_FROM_U8(1, 23, 6, 0); /* Penryn / X5482. */
             else if (   osTypeId == "MacOS106"
                      || osTypeId == "MacOS106_64")
-                uMaxIntelFamilyModelStep = RT_MAKE_U32_FROM_U8(1, 23, 6, 7); /* Penryn / X5482 */
+                uMaxIntelFamilyModelStep = RT_MAKE_U32_FROM_U8(1, 23, 6, 0); /* Penryn / X5482 */
             else if (   osTypeId == "MacOS107"
                      || osTypeId == "MacOS107_64")
-                uMaxIntelFamilyModelStep = RT_MAKE_U32_FROM_U8(1, 23, 6, 7); /* Penryn / X5482 */ /** @todo figure out what is required here. */
+                uMaxIntelFamilyModelStep = RT_MAKE_U32_FROM_U8(1, 23, 6, 0); /* Penryn / X5482 */ /** @todo figure out
+                                                                                what is required here. */
             else if (   osTypeId == "MacOS108"
                      || osTypeId == "MacOS108_64")
-                uMaxIntelFamilyModelStep = RT_MAKE_U32_FROM_U8(1, 23, 6, 7); /* Penryn / X5482 */ /** @todo figure out what is required here. */
+                uMaxIntelFamilyModelStep = RT_MAKE_U32_FROM_U8(1, 23, 6, 0); /* Penryn / X5482 */ /** @todo figure out
+                                                                                what is required here. */
             else if (   osTypeId == "MacOS109"
                      || osTypeId == "MacOS109_64")
-                uMaxIntelFamilyModelStep = RT_MAKE_U32_FROM_U8(1, 23, 6, 7); /* Penryn / X5482 */ /** @todo figure out what is required here. */
+                uMaxIntelFamilyModelStep = RT_MAKE_U32_FROM_U8(1, 23, 6, 0); /* Penryn / X5482 */ /** @todo figure
+                                                                                out what is required here. */
             if (uMaxIntelFamilyModelStep != UINT32_MAX)
                 InsertConfigInteger(pCPUM, "MaxIntelFamilyModelStep", uMaxIntelFamilyModelStep);
         }

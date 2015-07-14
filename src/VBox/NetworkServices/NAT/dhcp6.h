@@ -1,4 +1,4 @@
-/* $Id$ */
+/* $Id: dhcp6.h $ */
 /** @file
  * NAT Network - DHCPv6 protocol definitions.
  */
