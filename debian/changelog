@@ -2,6 +2,7 @@ virtualbox (4.3.30-dfsg-1) unstable; urgency=medium
 
   [ Ritesh Raj Sarraf ]
   * Imported upstream release.
+
   [ Gianfranco Costamagna ]
   * Readd again some removed lintian overrides.
   * virtualbox 4.3.30 builds fine with gcc 5.1, removing the
