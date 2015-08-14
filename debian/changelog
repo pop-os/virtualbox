@@ -1,8 +1,11 @@
-virtualbox (5.0.0-dfsg-2) UNRELEASED; urgency=medium
+virtualbox (5.0.2-dfsg-1) UNRELEASED; urgency=medium
 
+  * New upstream release. (Closes: #795424)
+  * Patch refresh.
   * Update my uid.
+  * d/p/fix-gcc-5.2.patch: allow building with gcc-5.2
 
- -- Gianfranco Costamagna <locutusofborg@debian.org>  Sun, 26 Jul 2015 15:44:00 +0200
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Fri, 14 Aug 2015 15:43:08 +0200
 
 virtualbox (5.0.0-dfsg-1) experimental; urgency=medium
 
