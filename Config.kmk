@@ -208,7 +208,7 @@ VBOX_VERSION_MINOR = 0
 # This is the current build number. It should be increased every time we publish a
 # new build. The define is available in every source file. Only even build numbers
 # will be published, odd numbers are set during development.
-VBOX_VERSION_BUILD = 0
+VBOX_VERSION_BUILD = 2
 # The raw version string. This *must not* contain any other information/fields than
 # major, minor and build revision (as it is now) -- also will be used for host/guest version
 # comparison.
@@ -550,6 +550,8 @@ if1of ($(KBUILD_TARGET).$(KBUILD_TARGET_ARCH), solaris.amd64 win.amd64)
   VBOX_WITH_32_ON_64_MAIN_API = 1
  endif
 endif
+# Whether to generate a database of USB vendor IDs and device IDs into VBoxSVC.
+#VBOX_WITH_MAIN_USB_ID_DATABASE = 1
 # The recompiler.
 VBOX_WITH_REM = 1
 # Set this to prefix all C symbols in XPCOM, to avoid dynamic linking problems
@@ -557,8 +559,6 @@ VBOX_WITH_REM = 1
 if1of ($(KBUILD_TARGET), linux solaris)
  VBOX_WITH_XPCOM_NAMESPACE_CLEANUP = 1
 endif
-# Set this to not use COM or XPCOM in places where it can be avoided.
-#VBOX_WITHOUT_COM = 1
 # The webservices api.
 VBOX_WITH_WEBSERVICES = 1
 VBOX_WITH_WEBSERVICES_SSL = 1
@@ -649,6 +649,14 @@ if1of ($(KBUILD_TARGET), darwin linux solaris win)
  VBOX_WITH_DRAG_AND_DROP = 1
  if1of ($(KBUILD_TARGET), darwin linux solaris win)
   VBOX_WITH_DRAG_AND_DROP_GH = $(VBOX_WITH_DRAG_AND_DROP)
+ endif
+ ifdef VBOX_WITH_DRAG_AND_DROP_GH
+  ifeq ($(KBUILD_TARGET),darwin)
+   # On OS X (Darwin) this needs to be set in order to get proper
+   # guest->host support.
+   # Note: Setting this requires Qt also having this feature enabled!
+   VBOX_WITH_DRAG_AND_DROP_PROMISES = $(VBOX_WITH_DRAG_AND_DROP)
+  endif
  endif
 endif
 # Enables use of merge modules in the windows installer. This will increase
@@ -870,7 +878,7 @@ VBOX_BRAND_GUI_VBOX_32PX_PNG         := $(PATH_ROOT)/src/VBox/Frontends/VirtualB
 VBOX_BRAND_GUI_VBOX_40PX_PNG         := $(PATH_ROOT)/src/VBox/Frontends/VirtualBox/images/NonOSE/VirtualBox_40px.png
 VBOX_BRAND_GUI_VBOX_48PX_PNG         := $(PATH_ROOT)/src/VBox/Frontends/VirtualBox/images/NonOSE/VirtualBox_48px.png
 VBOX_BRAND_GUI_VBOX_64PX_PNG         := $(PATH_ROOT)/src/VBox/Frontends/VirtualBox/images/NonOSE/VirtualBox_64px.png
-VBOX_BRAND_GUI_VBOX_SVG              := $(PATH_ROOT)/src/VBox/Resources/NonOSE/virtualbox.svg
+VBOX_BRAND_GUI_VBOX_SVG              := $(PATH_ROOT)/src/VBox/Artwork/NonOSE/virtualbox.svg
 VBOX_BRAND_WIN_INST_DLGJPG           := $(PATH_ROOT)/src/VBox/Installer/win/Binary/Dialog.jpg
 VBOX_BRAND_WIN_INST_EXT              :=
 VBOX_BRAND_WIN_ADD_INST_DLGBMP       := $(PATH_ROOT)/src/VBox/Additions/WINNT/Installer/welcome.bmp
@@ -1072,6 +1080,7 @@ ifdef VBOX_OSE
  VBOX_WITH_SECURELABEL=
  VBOX_WITH_KCHMVIEWER=
  VBOX_WITH_PLUGIN_CRYPT=
+ VBOX_WITH_DRAG_AND_DROP_PROMISES=
  ifn1of ($(KBUILD_TARGET), linux)
   VBOX_WITH_DOCS=
   VBOX_WITH_DOCS_PACKING=
@@ -1109,7 +1118,7 @@ ifdef VBOX_OSE
  VBOX_BRAND_GUI_VBOX_48PX_PNG        := $(PATH_ROOT)/src/VBox/Frontends/VirtualBox/images/OSE/VirtualBox_48px.png
  VBOX_BRAND_GUI_VBOX_64PX_PNG        := $(PATH_ROOT)/src/VBox/Frontends/VirtualBox/images/OSE/VirtualBox_64px.png
  VBOX_BRAND_GUI_CUBE_42PX_PNG        := $(PATH_ROOT)/src/VBox/Frontends/VirtualBox/images/OSE/VirtualBox_cube_42px.png
- VBOX_BRAND_GUI_VBOX_SVG             := $(PATH_ROOT)/src/VBox/Resources/OSE/virtualbox.svg
+ VBOX_BRAND_GUI_VBOX_SVG             := $(PATH_ROOT)/src/VBox/Artwork/OSE/virtualbox.svg
 endif
 
 #
@@ -1730,8 +1739,8 @@ ifndef VBOX_BLD_PYTHON
   VBOX_BLD_PYTHON := $(firstword $(rsort $(wildcard $(KBUILD_DEVTOOLS)/win.x86/python/v*/python$(HOSTSUFF_EXE))) \
   				   python-not-found.exe)
  else
-  VBOX_BLD_PYTHON := $(firstword $(which python$(HOSTSUFF_EXE)) $(which python2.7$(HOSTSUFF_EXE)) \
-                                 $(which python2.6$(HOSTSUFF_EXE)) python$(HOSTSUFF_EXE))
+  VBOX_BLD_PYTHON := $(firstword $(which python2.7$(HOSTSUFF_EXE)) $(which python2.6$(HOSTSUFF_EXE)) \
+                                 $(which python$(HOSTSUFF_EXE)) python$(HOSTSUFF_EXE))
  endif
 endif
 
@@ -2275,24 +2284,24 @@ endif
 
 # The icons to use.
 ifdef VBOX_OSE
- VBOX_WINDOWS_ICON_FILE           ?= $(PATH_ROOT)/src/VBox/Frontends/VirtualBox/images/OSE/VirtualBox_win.ico
- VBOX_WINDOWS_ADDITIONS_ICON_FILE ?= $(PATH_ROOT)/src/VBox/Frontends/VirtualBox/images/OSE/VirtualBox_win.ico
- VBOX_NSIS_ICON_FILE              ?= $(PATH_ROOT)/src/VBox/Frontends/VirtualBox/images/OSE/VirtualBox_win.ico
- VBOX_MACOSX_ICON_FILE            ?= $(PATH_ROOT)/src/VBox/Frontends/VirtualBox/images/OSE/VirtualBox.icns
+ VBOX_WINDOWS_ICON_FILE           ?= $(PATH_ROOT)/src/VBox/Artwork/win/OSE/VirtualBox_win.ico
+ VBOX_WINDOWS_ADDITIONS_ICON_FILE ?= $(PATH_ROOT)/src/VBox/Artwork/win/OSE/VirtualBox_win.ico
+ VBOX_NSIS_ICON_FILE              ?= $(PATH_ROOT)/src/VBox/Artwork/win/OSE/VirtualBox_win.ico
+ VBOX_MACOSX_ICON_FILE            ?= $(PATH_ROOT)/src/VBox/Artwork/darwin/OSE/VirtualBox.icns
 else
  ifeq ($(KBUILD_HOST),win)
-  VBOX_WINDOWS_ICON_FILE           ?= $(PATH_ROOT)/src/VBox/Artwork/VirtualBox-vista.ico
-  VBOX_WINDOWS_ADDITIONS_ICON_FILE ?= $(PATH_ROOT)/src/VBox/Artwork/VirtualBoxGA-vista.ico
-  VBOX_NSIS_ICON_FILE              ?= $(PATH_ROOT)/src/VBox/Artwork/VirtualBoxGA-nsis.ico
-  TOOL_VCC80X86_RC    := $(KBUILD_DEVTOOLS)/win.x86/ddk/6000/bin/x86/rc.exe
-  TOOL_VCC80AMD64_RC  := $(KBUILD_DEVTOOLS)/win.x86/ddk/6000/bin/x86/rc.exe
-  TOOL_VCC70_RC       := $(KBUILD_DEVTOOLS)/win.x86/ddk/6000/bin/x86/rc.exe
+  VBOX_WINDOWS_ICON_FILE           ?= $(PATH_ROOT)/src/VBox/Artwork/win/NonOSE/VirtualBox-vista.ico
+  VBOX_WINDOWS_ADDITIONS_ICON_FILE ?= $(PATH_ROOT)/src/VBox/Artwork/win/NonOSE/VirtualBoxGA-vista.ico
+  VBOX_NSIS_ICON_FILE              ?= $(PATH_ROOT)/src/VBox/Artwork/win/NonOSE/VirtualBoxGA-nsis.ico
+  TOOL_VCC80X86_RC                 := $(KBUILD_DEVTOOLS)/win.x86/ddk/6000/bin/x86/rc.exe
+  TOOL_VCC80AMD64_RC               := $(KBUILD_DEVTOOLS)/win.x86/ddk/6000/bin/x86/rc.exe
+  TOOL_VCC70_RC                    := $(KBUILD_DEVTOOLS)/win.x86/ddk/6000/bin/x86/rc.exe
  else
-  VBOX_WINDOWS_ICON_FILE           ?= $(PATH_ROOT)/src/VBox/Artwork/VirtualBox-winxp.ico
-  VBOX_WINDOWS_ADDITIONS_ICON_FILE ?= $(PATH_ROOT)/src/VBox/Artwork/VirtualBoxGA-winxp.ico
-  VBOX_NSIS_ICON_FILE              ?= $(PATH_ROOT)/src/VBox/Artwork/VirtualBox-nsis.ico
+  VBOX_WINDOWS_ICON_FILE           ?= $(PATH_ROOT)/src/VBox/Artwork/win/NonOSE/VirtualBox-winxp.ico
+  VBOX_WINDOWS_ADDITIONS_ICON_FILE ?= $(PATH_ROOT)/src/VBox/Artwork/win/NonOSE/VirtualBoxGA-winxp.ico
+  VBOX_NSIS_ICON_FILE              ?= $(PATH_ROOT)/src/VBox/Artwork/win/NonOSE/VirtualBox-nsis.ico
  endif
- VBOX_MACOSX_ICON_FILE ?= $(PATH_ROOT)/src/VBox/Artwork/VirtualBox.icns
+ VBOX_MACOSX_ICON_FILE             ?= $(PATH_ROOT)/src/VBox/Artwork/darwin/NonOSE/VirtualBox.icns
 endif
 
 
@@ -2404,7 +2413,9 @@ $(PATH_OUT)/DynamicConfig.kmk: \
 		$(VBOX_GCC_PATH_CC) \
 		$(VBOX_GCC_PATH_CXX) \
 		$(VBOX_GCC32_PATH_CC) \
-		$(VBOX_GCC32_PATH_CXX)
+		$(VBOX_GCC32_PATH_CXX) \
+		$(if-expr "$(KBUILD_HOST).$(KBUILD_HOST_ARCH)" == "solaris.amd64" && $(KBUILD_HOST_VERSION_MINOR) >= 11 \
+			, /platform/i86pc/kernel/$(KBUILD_HOST_ARCH)/unix,)
 	$(call MSG_GENERATE,,$@,)
 	$(QUIET)$(RM) -f '$@'
 	$(QUIET)$(MKDIR) -p $(@D)
@@ -2528,6 +2539,18 @@ endif
 	$(QUIET)$(APPEND) '$@' 'VBOX_HAVE_FLEX    ?= $(if $(which flex),1,)'
 	$(QUIET)$(APPEND) '$@' 'VBOX_HAVE_BISON   ?= $(if $(which bison),1,)'
 	$(QUIET)$(APPEND) '$@' 'VBOX_HAVE_XMLLINT ?= $(which xmllint)'
+if "$(KBUILD_HOST)" == "solaris" && $(KBUILD_HOST_VERSION_MAJOR) == 5 && $(KBUILD_HOST_VERSION_MINOR) == 11
+# uname -v can report "snv_XYZ" or "11.X"
+	$(QUIET)$(APPEND) '$@' 'VBOX_SOLARIS_11_VERSION ?= $(shell uname -v | sed "s/snv_//" | cut -f1 -d".")'
+# FULLVERSION format e.g. "5.11-0.175.1.0.0.16.0", we're interested in 175 (VERSION), 1 (UPDATE), 16 (BUILD).
+	$(QUIET)$(APPEND) '$@' "VBOX_SOLARIS_11_FULLVERSION := $(shell pkg contents -H -t set -o pkg.fmri system/kernel | $(SED_EXT) -e '1!d' -e 's/^.*\@//;s/\:.*//;s/.*,//')"
+	$(QUIET)$(APPEND) '$@' 'ifeq ($$(VBOX_SOLARIS_11_VERSION),11)'
+	$(QUIET)$(APPEND) '$@' '   VBOX_SOLARIS_11_VERSION        := $$(word 2, $$(subst ., ,$$(word 2,$$(subst -, ,$$(VBOX_SOLARIS_11_FULLVERSION)))))'
+	$(QUIET)$(APPEND) '$@' 'endif'
+	$(QUIET)$(APPEND) '$@' 'VBOX_SOLARIS_11_UPDATE_VERSION := $$(word 3, $$(subst ., ,$$(word 2,$$(subst -, ,$$(VBOX_SOLARIS_11_FULLVERSION)))))'
+	$(QUIET)$(APPEND) '$@' 'VBOX_SOLARIS_11_BUILD_VERSION  := $$(word 6, $$(subst ., ,$$(word 2,$$(subst -, ,$$(VBOX_SOLARIS_11_FULLVERSION)))))'
+endif
+
 	$(QUIET)$(ECHO) '========= START OF $@ ========='
 	$(QUIET)$(CAT) $@
 	$(QUIET)$(ECHO) '=========== END OF $@ ========='
@@ -3019,11 +3042,11 @@ VBOX_RESIGN_DLL_FN =
 # @remarks     ASSUMES RCFLAGS isn't a simple variable (var := value).
 define VBOX_SET_VER_INFO_INTERNAL
 ifeq ($(KBUILD_TARGET),win)
-$(1)_SOURCES.win += $(PATH_ROOT)/src/VBox/Resources/win/$(4)
+$(1)_SOURCES.win += $(PATH_ROOT)/src/VBox/Artwork/win/$(4)
 $(1)_RCFLAGS += /nologo /dIN_INTERNAL_NAME="\"$(1)\"" /dIN_FILE_DESCRIPTION="\"$(2)\"" \
 	/dIN_ORIGINAL_NAME="\"$$(notdir $$($(1)_1_INST_TARGET))\"" \
 	$(if $(3), /dIN_ICON_FILE="\"$(subst \\,/,$(strip $(3)))\"") $(5)
-$$$$($(1)_0_OUTDIR)/src/VBox/Resources/win/$(basename $(4)).res: \
+$$$$($(1)_0_OUTDIR)/src/VBox/Artwork/win/$(basename $(4)).res: \
 	$(PATH_ROOT)/include/VBox/version.h $$$$(VBOX_VERSION_HEADER)
 endif
 endef
@@ -3300,9 +3323,7 @@ endif
 # Determine Solaris version.
 #
 ifeq ($(KBUILD_TARGET),solaris)
- ifeq ($(origin VBOX_SOLARIS_VERSION),undefined)
-  $(eval export VBOX_SOLARIS_VERSION := $(shell uname -r | $(SED_EXT) 's|\([0-9]*\)\.\([0-9]*\)|$$(int-add $$(int-mul 100, \1), \2)|' ))
- endif
+ VBOX_SOLARIS_VERSION := $(expr $(KBUILD_HOST_VERSION_MAJOR) * 100 + $(KBUILD_HOST_VERSION_MINOR))
  ifeq ($(VBOX_SOLARIS_VERSION),510)
   DEFS.solaris += RT_OS_SOLARIS_10
   # Solaris 10 does not include crossbow.
@@ -3311,16 +3332,6 @@ ifeq ($(KBUILD_TARGET),solaris)
   VBOX_WITHOUT_ADDITIONS := 1
   VBOX_WITH_ADDITIONS =
  else ifeq ($(VBOX_SOLARIS_VERSION),511)
-  # uname -v can report "snv_XYZ" or "11.X"
-  VBOX_SOLARIS_11_VERSION = $(shell uname -v | sed 's/snv_//' | cut -f1 -d'.')
-  ifeq ($(VBOX_SOLARIS_11_VERSION),11)
-   VBOX_SOLARIS_11_FULLVERSION = $(shell pkg contents -H -t set -o pkg.fmri system/kernel | $(SED_EXT) -e '1!d' -e 's/^.*\@//;s/\:.*//;s/.*,//')
-   # FULLVERSION format e.g. "5.11-0.175.1.0.0.16.0", we're interested in 175 (VERSION), 1 (UPDATE), 16 (BUILD).
-   VBOX_SOLARIS_11_VERSION = $(word 2, $(subst ., ,$(word 2,$(subst -, ,$(VBOX_SOLARIS_11_FULLVERSION)))))
-   VBOX_SOLARIS_11_UPDATE_VERSION = $(word 3, $(subst ., ,$(word 2,$(subst -, ,$(VBOX_SOLARIS_11_FULLVERSION)))))
-   VBOX_SOLARIS_11_BUILD_VERSION = $(word 6, $(subst ., ,$(word 2,$(subst -, ,$(VBOX_SOLARIS_11_FULLVERSION)))))
-  endif
-
   # OSS audio support for Solaris
   VBOX_WITH_SOLARIS_OSS := $(if-expr $(VBOX_SOLARIS_11_VERSION) >= 115,1,)
  endif
@@ -3432,8 +3443,8 @@ ifdef VBOX_WITH_RAW_MODE
 
  ifeq ($(VBOX_LDR_FMT32),elf)
  TEMPLATE_VBoxRc_TOOL                = $(VBOX_GCC32_TOOL)
- TEMPLATE_VBoxRc_CXXFLAGS            = -nostdinc -g $(VBOX_GCC_pipe) $(VBOX_GCC_WERR) $(VBOX_GCC_PEDANTIC_CXX) $(VBOX_GCC32_Wno-variadic-macros) -fno-exceptions $(VBOX_GCC_GC_OPT) $(VBOX_GCC_GC_FP) -mno-sse -mno-mmx -mno-sse2 -mno-3dnow -fno-strict-aliasing $(VBOX_GCC_fno-stack-protector) $(VBOX_GCC_fvisibility-hidden) $(VBOX_GCC_fvisibility-inlines-hidden) -fno-rtti
- TEMPLATE_VBoxRc_CFLAGS              = -nostdinc -g $(VBOX_GCC_pipe) $(VBOX_GCC_WERR) $(VBOX_GCC_PEDANTIC_C)   $(VBOX_GCC32_Wno-variadic-macros) -fno-exceptions $(VBOX_GCC_GC_OPT) $(VBOX_GCC_GC_FP) -mno-sse -mno-mmx -mno-sse2 -mno-3dnow -fno-strict-aliasing $(VBOX_GCC_fno-stack-protector) $(VBOX_GCC_fvisibility-hidden)
+ TEMPLATE_VBoxRc_CXXFLAGS            = -nostdinc -g $(VBOX_GCC_pipe) $(VBOX_GCC_WERR) $(VBOX_GCC_PEDANTIC_CXX) $(VBOX_GCC32_Wno-variadic-macros) -fno-exceptions $(VBOX_GCC_GC_OPT) $(VBOX_GCC_GC_FP) -mno-sse -mno-mmx -mno-sse2 -mno-3dnow -fno-strict-aliasing $(VBOX_GCC_fno-stack-protector) $(VBOX_GCC_fvisibility-hidden) $(VBOX_GCC_fvisibility-inlines-hidden) -fno-rtti $(VBOX_GCC_IPRT_FMT_CHECK)
+ TEMPLATE_VBoxRc_CFLAGS              = -nostdinc -g $(VBOX_GCC_pipe) $(VBOX_GCC_WERR) $(VBOX_GCC_PEDANTIC_C)   $(VBOX_GCC32_Wno-variadic-macros) -fno-exceptions $(VBOX_GCC_GC_OPT) $(VBOX_GCC_GC_FP) -mno-sse -mno-mmx -mno-sse2 -mno-3dnow -fno-strict-aliasing $(VBOX_GCC_fno-stack-protector) $(VBOX_GCC_fvisibility-hidden) $(VBOX_GCC_IPRT_FMT_CHECK)
   ifeq ($(KBUILD_TARGET),solaris)
    TEMPLATE_VBoxRc_LDFLAGS           = -r
   else
@@ -3572,8 +3583,8 @@ endif # pe
 
 ifeq ($(VBOX_LDR_FMT),elf)
 TEMPLATE_VBoxR0_TOOL                = $(VBOX_GCC_TOOL)
-TEMPLATE_VBoxR0_CFLAGS              = -nostdinc -g $(VBOX_GCC_pipe) $(VBOX_GCC_WERR) $(VBOX_GCC_PEDANTIC_C)   $(VBOX_GCC_Wno-variadic-macros) $(VBOX_GCC_R0_OPT) $(VBOX_GCC_R0_FP) -fno-strict-aliasing -fno-exceptions $(VBOX_GCC_fno-stack-protector) -fno-common $(VBOX_GCC_fvisibility-hidden) -std=gnu99
-TEMPLATE_VBoxR0_CXXFLAGS            = -nostdinc -g $(VBOX_GCC_pipe) $(VBOX_GCC_WERR) $(VBOX_GCC_PEDANTIC_CXX) $(VBOX_GCC_Wno-variadic-macros) $(VBOX_GCC_R0_OPT) $(VBOX_GCC_R0_FP) -fno-strict-aliasing -fno-exceptions $(VBOX_GCC_fno-stack-protector) -fno-common $(VBOX_GCC_fvisibility-inlines-hidden) $(VBOX_GCC_fvisibility-hidden) -fno-rtti
+TEMPLATE_VBoxR0_CFLAGS              = -nostdinc -g $(VBOX_GCC_pipe) $(VBOX_GCC_WERR) $(VBOX_GCC_PEDANTIC_C)   $(VBOX_GCC_Wno-variadic-macros) $(VBOX_GCC_R0_OPT) $(VBOX_GCC_R0_FP) -fno-strict-aliasing -fno-exceptions $(VBOX_GCC_fno-stack-protector) -fno-common $(VBOX_GCC_fvisibility-hidden) -std=gnu99 $(VBOX_GCC_IPRT_FMT_CHECK)
+TEMPLATE_VBoxR0_CXXFLAGS            = -nostdinc -g $(VBOX_GCC_pipe) $(VBOX_GCC_WERR) $(VBOX_GCC_PEDANTIC_CXX) $(VBOX_GCC_Wno-variadic-macros) $(VBOX_GCC_R0_OPT) $(VBOX_GCC_R0_FP) -fno-strict-aliasing -fno-exceptions $(VBOX_GCC_fno-stack-protector) -fno-common $(VBOX_GCC_fvisibility-inlines-hidden) $(VBOX_GCC_fvisibility-hidden) -fno-rtti $(VBOX_GCC_IPRT_FMT_CHECK)
 TEMPLATE_VBoxR0_CFLAGS.amd64        = -m64 -mno-red-zone -mcmodel=kernel -mno-sse -mno-mmx -mno-sse2 -mno-3dnow -fno-asynchronous-unwind-tables -ffreestanding
 TEMPLATE_VBoxR0_CXXFLAGS.amd64      = -m64 -mno-red-zone -mcmodel=kernel -mno-sse -mno-mmx -mno-sse2 -mno-3dnow -fno-asynchronous-unwind-tables
 ifeq ($(KBUILD_TARGET),solaris)
@@ -3981,13 +3992,13 @@ ifeq ($(KBUILD_TARGET),win)
 
 else # the gcc guys
 TEMPLATE_VBOXR3EXE_TOOL                = $(VBOX_GCC_TOOL)
-TEMPLATE_VBOXR3EXE_CXXFLAGS            = -g $(VBOX_GCC_pipe) $(VBOX_GCC_PEDANTIC_CXX) $(VBOX_GCC_Wno-variadic-macros) $(VBOX_GCC_OPT) $(VBOX_GCC_FP) -fno-strict-aliasing $(VBOX_GCC_fvisibility-hidden) $(VBOX_GCC_fvisibility-inlines-hidden)
+TEMPLATE_VBOXR3EXE_CXXFLAGS            = -g $(VBOX_GCC_pipe) $(VBOX_GCC_PEDANTIC_CXX) $(VBOX_GCC_Wno-variadic-macros) $(VBOX_GCC_OPT) $(VBOX_GCC_FP) -fno-strict-aliasing $(VBOX_GCC_fvisibility-hidden) $(VBOX_GCC_fvisibility-inlines-hidden) $(VBOX_GCC_IPRT_FMT_CHECK)
 TEMPLATE_VBOXR3EXE_CXXFLAGS.x86        = -m32
 TEMPLATE_VBOXR3EXE_CXXFLAGS.amd64      = -m64
 TEMPLATE_VBOXR3EXE_CXXFLAGS.sparc32    = -m32
 TEMPLATE_VBOXR3EXE_CXXFLAGS.sparc64    = -m64
 TEMPLATE_VBOXR3EXE_CXXFLAGS.kprofile   = -finstrument-functions
-TEMPLATE_VBOXR3EXE_CFLAGS              = -g $(VBOX_GCC_pipe) $(VBOX_GCC_PEDANTIC_C)   $(VBOX_GCC_Wno-variadic-macros) $(VBOX_GCC_OPT) $(VBOX_GCC_FP) -fno-strict-aliasing $(VBOX_GCC_fvisibility-hidden)
+TEMPLATE_VBOXR3EXE_CFLAGS              = -g $(VBOX_GCC_pipe) $(VBOX_GCC_PEDANTIC_C)   $(VBOX_GCC_Wno-variadic-macros) $(VBOX_GCC_OPT) $(VBOX_GCC_FP) -fno-strict-aliasing $(VBOX_GCC_fvisibility-hidden) $(VBOX_GCC_IPRT_FMT_CHECK)
 TEMPLATE_VBOXR3EXE_CFLAGS.x86          = $(TEMPLATE_VBOXR3EXE_CXXFLAGS.x86)
 TEMPLATE_VBOXR3EXE_CFLAGS.amd64        = $(TEMPLATE_VBOXR3EXE_CXXFLAGS.amd64)
 TEMPLATE_VBOXR3EXE_CFLAGS.sparc32      = $(TEMPLATE_VBOXR3EXE_CXXFLAGS.sparc32)
@@ -4700,7 +4711,7 @@ TEMPLATE_VBOXMAINEXE_TOOL                = $(VBOX_GCC_TOOL)
 TEMPLATE_VBOXMAINEXE_CXXFLAGS            = -g $(VBOX_GCC_pipe) \
 	$(VBOX_GCC_PEDANTIC_CXX) $(VBOX_GCC_Wno-variadic-macros) -Wno-long-long -Wno-non-virtual-dtor -Wshadow \
 	-fshort-wchar -fpermissive -fexceptions -frtti $(VBOX_GCC_OPT) $(VBOX_GCC_FP) -fno-strict-aliasing \
-	$(VBOX_GCC_fvisibility-inlines-hidden) $(VBOX_GCC_fvisibility-hidden) $(VBOX_GCC_std)
+	$(VBOX_GCC_fvisibility-inlines-hidden) $(VBOX_GCC_fvisibility-hidden) $(VBOX_GCC_std) $(VBOX_GCC_IPRT_FMT_CHECK)
 ifdef VBOX_WITH_DTRACE_R3_MAIN
  TEMPLATE_VBOXMAINEXE_CXXFLAGS := $(filter-out -pedantic,$(TEMPLATE_VBOXMAINEXE_CXXFLAGS)) -fdollars-in-identifiers # annoying gcc option precedence.
 endif
@@ -4708,7 +4719,7 @@ TEMPLATE_VBOXMAINEXE_CXXFLAGS.x86        = -m32
 TEMPLATE_VBOXMAINEXE_CXXFLAGS.amd64      = -m64
 TEMPLATE_VBOXMAINEXE_CXXFLAGS.kprofile   = -finstrument-functions
 TEMPLATE_VBOXMAINEXE_CFLAGS              = -g $(VBOX_GCC_pipe) $(VBOX_GCC_PEDANTIC_C) $(VBOX_GCC_Wno-variadic-macros) \
-	$(VBOX_GCC_OPT) $(VBOX_GCC_FP) -fno-strict-aliasing $(VBOX_GCC_fvisibility-hidden)
+	$(VBOX_GCC_OPT) $(VBOX_GCC_FP) -fno-strict-aliasing $(VBOX_GCC_fvisibility-hidden) $(VBOX_GCC_IPRT_FMT_CHECK)
 TEMPLATE_VBOXMAINEXE_CFLAGS.x86          = -m32
 TEMPLATE_VBOXMAINEXE_CFLAGS.amd64        = -m64
 TEMPLATE_VBOXMAINEXE_CFLAGS.kprofile     = $(TEMPLATE_VBOXMAINEXE_CXXFLAGS.kprofile)
@@ -5167,16 +5178,16 @@ ifdef VBOX_WITH_QTGUI
 	-g $(VBOX_GCC_pipe) $(filter-out -Wno-unused,$(VBOX_GCC_WARN)) -frtti -fno-exceptions -Wno-non-virtual-dtor \
 	-Wno-long-long -fshort-wchar -fno-strict-aliasing \
 	$(VBOX_GCC_fvisibility-hidden) $(VBOX_GCC_fvisibility-inlines-hidden) \
-	$(VBOX_GCC_Wno-delete-non-virtual-dtor) $(VBOX_GCC_std)
+	$(VBOX_GCC_Wno-delete-non-virtual-dtor) $(VBOX_GCC_std) $(VBOX_GCC_IPRT_FMT_CHECK)
   TEMPLATE_VBOXQT4GUIEXE_CXXFLAGS.x86 = -m32
   TEMPLATE_VBOXQT4GUIEXE_CXXFLAGS.amd64 = -m64
   TEMPLATE_VBOXQT4GUIEXE_CXXFLAGS.linux = -pthread
-  TEMPLATE_VBOXQT4GUIEXE_OBJCFLAGS = -g $(VBOX_GCC_pipe) $(VBOX_GCC_PEDANTIC_C) -Wno-long-long -fno-exceptions
+  TEMPLATE_VBOXQT4GUIEXE_OBJCFLAGS = -g $(VBOX_GCC_pipe) $(VBOX_GCC_PEDANTIC_C) -Wno-long-long -fno-exceptions $(VBOX_GCC_IPRT_FMT_CHECK)
   TEMPLATE_VBOXQT4GUIEXE_OBJCFLAGS.x86 = $(TEMPLATE_VBOXQT4GUIEXE_CXXFLAGS.x86)
   TEMPLATE_VBOXQT4GUIEXE_OBJCFLAGS.amd64 = $(TEMPLATE_VBOXQT4GUIEXE_CXXFLAGS.amd64)
   TEMPLATE_VBOXQT4GUIEXE_OBJCXXFLAGS = \
 	-g $(VBOX_GCC_pipe) $(VBOX_GCC_PEDANTIC_CXX) -Wno-non-virtual-dtor -Wno-long-long \
-	-frtti -fno-exceptions $(VBOX_GCC_fvisibility-hidden) $(VBOX_GCC_fvisibility-inlines-hidden)
+	-frtti -fno-exceptions $(VBOX_GCC_fvisibility-hidden) $(VBOX_GCC_fvisibility-inlines-hidden) $(VBOX_GCC_IPRT_FMT_CHECK)
   TEMPLATE_VBOXQT4GUIEXE_OBJCXXFLAGS.x86 = $(TEMPLATE_VBOXQT4GUIEXE_CXXFLAGS.x86)
   TEMPLATE_VBOXQT4GUIEXE_OBJCXXFLAGS.amd64 = $(TEMPLATE_VBOXQT4GUIEXE_CXXFLAGS.amd64)
   TEMPLATE_VBOXQT4GUIEXE_LDFLAGS.x86 = -m32
@@ -6089,7 +6100,7 @@ endif
 SVN                    ?= svn$(HOSTSUFF_EXE)
 VBOX_SVN_REV_KMK        = $(PATH_OUT)/revision.kmk
 ifndef VBOX_SVN_REV
- VBOX_SVN_REV_FALLBACK := $(patsubst %:,,  $Rev: 101573 $  )
+ VBOX_SVN_REV_FALLBACK := $(patsubst %:,,  $Rev: 102095 $  )
  VBOX_SVN_DEP          := $(firstword $(wildcard $(PATH_ROOT)/.svn/wc.db $(abspath $(PATH_ROOT)/../.svn/wc.db) $(abspath $(PATH_ROOT)/../../.svn/wc.db) $(PATH_ROOT)/.svn/entries))
  ifeq ($(which $(SVN)),)
   VBOX_SVN_DEP         :=

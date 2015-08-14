@@ -194,6 +194,13 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
   VBoxDD_SOURCES += Storage/DrvHostFloppy.cpp
  endif
 
+ ifn1of ($(KBUILD_TARGET), darwin)
+  VBoxDD_SOURCES += Storage/HBDMgmt-generic.cpp
+ endif
+
+ VBoxDD_SOURCES.darwin += Storage/HBDMgmt-darwin.cpp
+ #VBoxDD_SOURCES.win += Storage/HBDMgmt-win.cpp Disabled until remaining issues are sorted out
+
  VBoxDD_LIBS             = # more later.
  VBoxDD_LDFLAGS.darwin   = -install_name $(VBOX_DYLD_EXECUTABLE_PATH)/VBoxDD.dylib \
  	-framework CoreAudio \
@@ -249,12 +256,18 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
  endif
  ifdef VBOX_WITH_VMSVGA3D
   VBoxDD_DEFS           += VBOX_WITH_VMSVGA3D
-  VBoxDD_SOURCES        += Graphics/DevVGA-SVGA3d-shared.cpp
-  ifeq ($(KBUILD_TARGET),win) # (Disable this to work with OpenGL on Windows.)
+  VBoxDD_SOURCES        += \
+  	Graphics/DevVGA-SVGA3d.cpp \
+  	Graphics/DevVGA-SVGA3d-info.cpp \
+  	Graphics/DevVGA-SVGA3d-shared.cpp \
+  	Graphics/DevVGA-SVGA3d-savedstate.cpp
+  if  "$(KBUILD_TARGET)" == "win" && !defined(VBOX_WITH_VMSVGA3D_USE_OPENGL)
+   VBoxDD_DEFS          += VMSVGA3D_DIRECT3D
    VBoxDD_SOURCES       += Graphics/DevVGA-SVGA3d-win.cpp
    VBoxDD_LIBS.win      += d3d9.lib $(PATH_TOOL_$(VBOX_VCC_TOOL)_LIB)/delayimp.lib
    VBoxDD_LDFLAGS.win   += /DELAYLOAD:d3d9.dll
   else
+   VBoxDD_DEFS          += VMSVGA3D_OPENGL
    VBoxDD_SOURCES       += \
    	Graphics/DevVGA-SVGA3d-ogl.cpp \
    	$(VBoxDD_0_OUTDIR)/VBoxSVGA3DLazyLoad.asm
@@ -280,7 +293,11 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
     VBoxDD_DEFS.darwin   += VBOX_VMSVGA3D_DEFAULT_OGL_PROFILE=2.1 VBOX_VMSVGA3D_OTHER_OGL_PROFILE=3.2
    endif
   endif
-  Graphics/DevVGA-SVGA3d-ogl.cpp_CXXFLAGS.darwin = -F$(VBOX_PATH_MACOSX_SDK_10_7)/System/Library/Frameworks/
+  Graphics/DevVGA-SVGA3d.cpp_CXXFLAGS.darwin            = -F$(VBOX_PATH_MACOSX_SDK_10_7)/System/Library/Frameworks/
+  Graphics/DevVGA-SVGA3d-info.cpp_CXXFLAGS.darwin       = -F$(VBOX_PATH_MACOSX_SDK_10_7)/System/Library/Frameworks/
+  Graphics/DevVGA-SVGA3d-shared.cpp_CXXFLAGS.darwin     = -F$(VBOX_PATH_MACOSX_SDK_10_7)/System/Library/Frameworks/
+  Graphics/DevVGA-SVGA3d-savedstate.cpp_CXXFLAGS.darwin = -F$(VBOX_PATH_MACOSX_SDK_10_7)/System/Library/Frameworks/
+  Graphics/DevVGA-SVGA3d-ogl.cpp_CXXFLAGS.darwin        = -F$(VBOX_PATH_MACOSX_SDK_10_7)/System/Library/Frameworks/
  endif
 
  ifdef VBOX_WITH_VDMA

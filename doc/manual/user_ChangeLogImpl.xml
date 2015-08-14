@@ -1,7 +1,212 @@
 <?xml version="1.0" encoding="UTF-8"?>
- 
+
 <chapter> <!-- HACK ALERT! Seems we must have a single top level element for xi:include to work.
                            So, we use chapter and xpointer="xpointer(/chapter/)" with xi:include. -->
+  <sect1>
+    <title>Version 5.0.2 (2015-08-13)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>VMM: added support for guest crash report MSRs with Hyper-V
+          paravirtualization</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: fixed an issue causing artifically high load averages on
+          Linux hosts</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: fixed a kernel panic with thread-context hooks caused by
+          incompatible changes made to Linux 4.2 kernels</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: fixed a saved state issue with VT-x/AMD-V disabled
+          (5.0 regression; bug #14304)</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: fixed <emphasis>VERR_SUPDRV_TSC_DELTA_MEASUREMENT_FAILED</emphasis>
+          Guru Meditations on certain AMD CPUs (5.0 regression; bug #14370)</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: fixed a crash while creating a guest core dumps via the VM
+          debug facility (5.0 regression)</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: This release has AVX2 passthrough disabled on every host and
+          AVX passthrough disabled for 64-bit VMs on 32-bit hosts. This will be
+          properly fixed in a future 5.0.x maintenance release (see e.g. bug #14262).</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: fixed rare hang and crash on VM shutdown/poweroff</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: X11: fixed few crashes caused by the Qt <emphasis>alien
+            widgets</emphasis> feature</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: X11: fixed various mini-toolbar geometry quirks like positioning, z-order,
+          transiency issues on certain window managers (bug #14257)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: X11: fixed mini-toolbar minimize button issue under certain window managers
+          (bug #14284)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: VM menu actions availability should now be properly updated on
+          full-screen/seamless/scaled mode switches</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: disk encryption password validation should be performed
+          when user confirmed the password, not after each entered symbol</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: do not change the VM/group selection in the VM Manager to the newly
+          created VM if it was created by another client (e.g. VBoxManage)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: Mac OS X: do not treat 'almost maximized' VM windows as 'maximized',
+          watch for the strict window geometry instead</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: improve the quality in scaled mode under some circumstances
+          (5.0 regression; bug #14303)</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxManage: do not deny changing the network adapter type at
+          VM runtime (5.0 regression; bug #14308)</para>
+      </listitem>
+
+      <listitem>
+        <para>VRDP: allow Windows 10 RDP clients (bug #14216)</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: fix a possible crash on VM process termination
+          (5.0 regression)</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: improved raw disk access on OS X by unmounting
+          any accessed volume before first use and prevent any mount attempt
+          by the host (bug #14219)</para>
+      </listitem>
+
+      <listitem>
+        <para>3D: basic support for saving/restoring display lists</para>
+      </listitem>
+
+      <listitem>
+        <para>Drag and drop: fixed guest to host transfers on OS X hosts</para>
+      </listitem>
+
+      <listitem>
+        <para>Drag and drop: fixed memory leak on Windows guests</para>
+      </listitem>
+
+      <listitem>
+        <para>Shared Folders: fixed a problem with accessing CIFS shares
+          (bug #14252)</para>
+      </listitem>
+
+      <listitem>
+        <para>Shared Folders: improved path conversion between hosts and
+          guests with different path separators (bug #14153)</para>
+      </listitem>
+
+      <listitem>
+        <para>API: skip resetting of immutable media when the VM in saved
+          state is started (bug #13957)</para>
+      </listitem>
+
+      <listitem>
+        <para>API: fixed method for setting medium IDs which used zero (invalid)
+          UUIDs instead random (valid) UUIDs if no UUIDs were passed (bug #14350)</para>
+      </listitem>
+
+      <listitem>
+        <para>API: for Windows host fix detection of API client crashes which
+          have a session open</para>
+      </listitem>
+
+      <listitem>
+        <para>OVF: properly export all VBox features including the setting
+          for paravirtualization (bug #14390)</para>
+      </listitem>
+
+      <listitem>
+        <para>Mac OS X hosts: El Capitan USB fixes</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows hosts: fixed crash when opening Windows dialogs
+          from the VM process on Windows 10 (bug #14351)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows hosts: fixed host-only adapter creation issues on
+          Windows 10 (bug #14040)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows hosts: fixed audio on Windows 10 (bug #14432)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts: more fixes for activated SMAP on Linux 3.19
+          and newer (Broadwell and later; bug #13961)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts: check then name space before attaching to a host
+          network interface (bug #13795)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: Linux 4.2 fixes (bug #14227)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: improved the performance of
+          <emphasis>stat()</emphasis> to speed up certain file operations
+          on shared folders</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows Additions: fixed a potential crash in the WDDM driver
+          with Windows 10 (bug #14190)</para>
+      </listitem>
+
+      <listitem>
+        <para>Solaris Additions: added support for X.Org Server 1.17</para>
+      </listitem>
+
+      <listitem>
+        <para>X11 Additions: various seamless mode fixes, including
+           invisible windows under LXDE.</para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
+
   <sect1>
     <title>Version 5.0.0 (2015-07-09)</title>
 

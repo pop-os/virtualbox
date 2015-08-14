@@ -810,7 +810,9 @@ DECLHIDDEN(void) supR3HardenedWinVerifyCacheScheduleImports(RTLDRMOD hLdrMod, PC
                     if (   RTStrCmp(uBuf.szName, "kernel32.dll") == 0
                         || RTStrCmp(uBuf.szName, "kernelbase.dll") == 0
                         || RTStrCmp(uBuf.szName, "ntdll.dll") == 0
-                        || RTStrNCmp(uBuf.szName, RT_STR_TUPLE("api-ms-win-")) == 0 )
+                        || RTStrNCmp(uBuf.szName, RT_STR_TUPLE("api-ms-win-")) == 0
+                        || RTStrNCmp(uBuf.szName, RT_STR_TUPLE("ext-ms-win-")) == 0
+                       )
                     {
                         continue;
                     }
@@ -1722,8 +1724,11 @@ supR3HardenedMonitor_LdrLoadDll(PWSTR pwszSearchPath, PULONG pfFlags, PUNICODE_S
      * Not an absolute path.  Check if it's one of those special API set DLLs
      * or something we're known to use but should be taken from WinSxS.
      */
-    else if (supHardViUtf16PathStartsWithEx(pName->Buffer, pName->Length / sizeof(WCHAR),
-                                            L"api-ms-win-", 11, false /*fCheckSlash*/))
+    else if (   supHardViUtf16PathStartsWithEx(pName->Buffer, pName->Length / sizeof(WCHAR),
+                                               L"api-ms-win-", 11, false /*fCheckSlash*/)
+             || supHardViUtf16PathStartsWithEx(pName->Buffer, pName->Length / sizeof(WCHAR),
+                                               L"ext-ms-win-", 11, false /*fCheckSlash*/)
+            )
     {
         memcpy(wszPath, pName->Buffer, pName->Length);
         wszPath[pName->Length / sizeof(WCHAR)] = '\0';
@@ -4183,17 +4188,18 @@ DECLHIDDEN(char *) supR3HardenedWinReadErrorInfoDevice(char *pszErrorInfo, size_
             offRead.QuadPart = 0;
             rcNt = NtReadFile(hFile, NULL /*hEvent*/, NULL /*ApcRoutine*/, NULL /*ApcContext*/, &Ios,
                               &pszErrorInfo[cchPrefix], (ULONG)(cbErrorInfo - cchPrefix - 1), &offRead, NULL);
-            if (NT_SUCCESS(rcNt))
+            if (NT_SUCCESS(rcNt) && NT_SUCCESS(Ios.Status) && Ios.Information > 0)
             {
                 memcpy(pszErrorInfo, pszPrefix, cchPrefix);
-                pszErrorInfo[cbErrorInfo - 1] = '\0';
+                pszErrorInfo[RT_MIN(cbErrorInfo - 1, Ios.Information)] = '\0';
                 SUP_DPRINTF(("supR3HardenedWinReadErrorInfoDevice: '%s'", &pszErrorInfo[cchPrefix]));
             }
             else
             {
                 *pszErrorInfo = '\0';
-                if (rcNt != STATUS_END_OF_FILE)
-                    SUP_DPRINTF(("supR3HardenedWinReadErrorInfoDevice: NtReadFile -> %#x\n", rcNt));
+                if (rcNt != STATUS_END_OF_FILE || Ios.Status != STATUS_END_OF_FILE)
+                    SUP_DPRINTF(("supR3HardenedWinReadErrorInfoDevice: NtReadFile -> %#x / %#x / %p\n",
+                                 rcNt, Ios.Status, Ios.Information));
             }
         }
         else

@@ -562,7 +562,7 @@ static void doPacketSniffing(INTNETIFHANDLE hIf, PSUPDRVSESSION pSession, PINTNE
                 }
                 else
                 {
-                    RTPrintf("tstIntNet-1: Bad GSO frame: %Rhxs\n", sizeof(*pGso), pGso);
+                    RTPrintf("tstIntNet-1: Bad GSO frame: %.*Rhxs\n", sizeof(*pGso), pGso);
                     STAM_REL_COUNTER_INC(&pBuf->cStatBadFrames);
                     g_cErrors++;
                 }
@@ -806,7 +806,7 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
                 return 1;
 
             case 'V':
-                RTPrintf("$Revision: 100876 $\n");
+                RTPrintf("$Revision: 101707 $\n");
                 return 0;
 
             default:

@@ -27,7 +27,7 @@
 #ifndef ___the_darwin_kernel_h
 #define ___the_darwin_kernel_h
 
-/* Problematic header(s) containing conflicts with IPRT  first. */
+/* Problematic header(s) containing conflicts with IPRT first. (FreeBSD has fixed these ages ago.) */
 #define __STDC_CONSTANT_MACROS
 #define __STDC_LIMIT_MACROS
 #include <sys/param.h>
@@ -37,6 +37,8 @@
 #undef MAX
 #undef PAGE_SIZE
 #undef PAGE_SHIFT
+#undef PVM
+
 
 /* Include the IPRT definitions of the conflicting #defines & typedefs. */
 #include <iprt/cdefs.h>
@@ -72,7 +74,7 @@
 #include <sys/vnode.h>
 #include <sys/fcntl.h>
 #include <IOKit/IOTypes.h>
-#include <IOKit/IOLib.h>
+#include <IOKit/IOLib.h> /* Note! Has Assert down as a function. */
 #include <IOKit/IOMemoryDescriptor.h>
 #include <IOKit/IOBufferMemoryDescriptor.h>
 #include <IOKit/IOMapper.h>
@@ -90,6 +92,17 @@
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 1060
 # define kIOMemoryMapperNone UINT32_C(0x800)
 #endif
+
+/** @name Macros for preserving EFLAGS.AC (despair / paranoid)
+ * @remarks Unlike linux, we have to restore it unconditionally on darwin.
+ * @{ */
+#include <iprt/asm-amd64-x86.h>
+#include <iprt/x86.h>
+#define IPRT_DARWIN_SAVE_EFL_AC()                       RTCCUINTREG const fSavedEfl = ASMGetFlags();
+#define IPRT_DARWIN_RESTORE_EFL_AC()                    ASMSetFlags(fSavedEfl)
+#define IPRT_DARWIN_RESTORE_EFL_ONLY_AC()               ASMChangeFlags(~X86_EFL_AC, fSavedEfl & X86_EFL_AC)
+#define IPRT_DARWIN_RESTORE_EFL_ONLY_AC_EX(a_fSavedEfl) ASMChangeFlags(~X86_EFL_AC, (a_fSavedEfl) & X86_EFL_AC)
+/** @} */
 
 
 RT_C_DECLS_BEGIN

@@ -33,7 +33,9 @@
 #include <iprt/err.h> /* for VINF_SUCCESS */
 #if defined(RT_OS_LINUX) && defined(__KERNEL__)
   RT_C_DECLS_BEGIN
+# define new newhack /* string.h: strreplace */
 # include <linux/string.h>
+# undef new
   RT_C_DECLS_END
 
 #elif defined(IN_XF86_MODULE) && !defined(NO_ANSIC)
@@ -1726,7 +1728,8 @@ typedef FNSTRFORMAT *PFNSTRFORMAT;
  * @param   pszFormat   Pointer to the format string, @see pg_rt_str_format.
  * @param   InArgs      Argument list.
  */
-RTDECL(size_t) RTStrFormatV(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput, PFNSTRFORMAT pfnFormat, void *pvArgFormat, const char *pszFormat, va_list InArgs);
+RTDECL(size_t) RTStrFormatV(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput, PFNSTRFORMAT pfnFormat, void *pvArgFormat,
+                            const char *pszFormat, va_list InArgs) RT_IPRT_FORMAT_ATTR(5, 0);
 
 /**
  * Partial implementation of a printf like formatter.
@@ -1743,7 +1746,8 @@ RTDECL(size_t) RTStrFormatV(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput, PFNSTRF
  * @param   pszFormat   Pointer to the format string, @see pg_rt_str_format.
  * @param   ...         Argument list.
  */
-RTDECL(size_t) RTStrFormat(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput, PFNSTRFORMAT pfnFormat, void *pvArgFormat, const char *pszFormat, ...);
+RTDECL(size_t) RTStrFormat(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput, PFNSTRFORMAT pfnFormat, void *pvArgFormat,
+                           const char *pszFormat, ...) RT_IPRT_FORMAT_ATTR(5, 6);
 
 /**
  * Formats an integer number according to the parameters.
@@ -1756,7 +1760,8 @@ RTDECL(size_t) RTStrFormat(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput, PFNSTRFO
  * @param   cchPrecision    Precision.
  * @param   fFlags          Flags, RTSTR_F_XXX.
  */
-RTDECL(int) RTStrFormatNumber(char *psz, uint64_t u64Value, unsigned int uiBase, signed int cchWidth, signed int cchPrecision, unsigned int fFlags);
+RTDECL(int) RTStrFormatNumber(char *psz, uint64_t u64Value, unsigned int uiBase, signed int cchWidth, signed int cchPrecision,
+                              unsigned int fFlags);
 
 /**
  * Formats an unsigned 8-bit number.
@@ -1949,7 +1954,7 @@ RTDECL(int) RTStrFormatTypeSetUser(const char *pszType, void *pvUser);
  * @param   pszFormat   Pointer to the format string, @see pg_rt_str_format.
  * @param   args        The format argument.
  */
-RTDECL(size_t) RTStrPrintfV(char *pszBuffer, size_t cchBuffer, const char *pszFormat, va_list args);
+RTDECL(size_t) RTStrPrintfV(char *pszBuffer, size_t cchBuffer, const char *pszFormat, va_list args) RT_IPRT_FORMAT_ATTR(3, 0);
 
 /**
  * String printf.
@@ -1961,7 +1966,7 @@ RTDECL(size_t) RTStrPrintfV(char *pszBuffer, size_t cchBuffer, const char *pszFo
  * @param   pszFormat   Pointer to the format string, @see pg_rt_str_format.
  * @param   ...         The format argument.
  */
-RTDECL(size_t) RTStrPrintf(char *pszBuffer, size_t cchBuffer, const char *pszFormat, ...);
+RTDECL(size_t) RTStrPrintf(char *pszBuffer, size_t cchBuffer, const char *pszFormat, ...) RT_IPRT_FORMAT_ATTR(3, 4);
 
 
 /**
@@ -1976,7 +1981,8 @@ RTDECL(size_t) RTStrPrintf(char *pszBuffer, size_t cchBuffer, const char *pszFor
  * @param   pszFormat   Pointer to the format string, @see pg_rt_str_format.
  * @param   args        The format argument.
  */
-RTDECL(size_t) RTStrPrintfExV(PFNSTRFORMAT pfnFormat, void *pvArg, char *pszBuffer, size_t cchBuffer, const char *pszFormat, va_list args);
+RTDECL(size_t) RTStrPrintfExV(PFNSTRFORMAT pfnFormat, void *pvArg, char *pszBuffer, size_t cchBuffer,
+                              const char *pszFormat, va_list args)  RT_IPRT_FORMAT_ATTR(5, 0);
 
 /**
  * String printf with custom formatting.
@@ -1990,7 +1996,8 @@ RTDECL(size_t) RTStrPrintfExV(PFNSTRFORMAT pfnFormat, void *pvArg, char *pszBuff
  * @param   pszFormat   Pointer to the format string, @see pg_rt_str_format.
  * @param   ...         The format argument.
  */
-RTDECL(size_t) RTStrPrintfEx(PFNSTRFORMAT pfnFormat, void *pvArg, char *pszBuffer, size_t cchBuffer, const char *pszFormat, ...);
+RTDECL(size_t) RTStrPrintfEx(PFNSTRFORMAT pfnFormat, void *pvArg, char *pszBuffer, size_t cchBuffer,
+                             const char *pszFormat, ...)  RT_IPRT_FORMAT_ATTR(5, 6);
 
 
 /**
@@ -2020,7 +2027,7 @@ RTDECL(size_t) RTStrPrintfEx(PFNSTRFORMAT pfnFormat, void *pvArg, char *pszBuffe
  * @param   args        The format argument.
  * @param   pszTag      Allocation tag used for statistics and such.
  */
-RTDECL(int) RTStrAPrintfVTag(char **ppszBuffer, const char *pszFormat, va_list args, const char *pszTag);
+RTDECL(int) RTStrAPrintfVTag(char **ppszBuffer, const char *pszFormat, va_list args, const char *pszTag) RT_IPRT_FORMAT_ATTR(2, 0);
 
 /**
  * Allocating string printf.
@@ -2034,7 +2041,7 @@ RTDECL(int) RTStrAPrintfVTag(char **ppszBuffer, const char *pszFormat, va_list a
  * @param   pszFormat   Pointer to the format string, @see pg_rt_str_format.
  * @param   ...         The format argument.
  */
-DECLINLINE(int) RTStrAPrintf(char **ppszBuffer, const char *pszFormat, ...)
+DECLINLINE(int) RT_IPRT_FORMAT_ATTR(2, 3) RTStrAPrintf(char **ppszBuffer, const char *pszFormat, ...)
 {
     int     cbRet;
     va_list va;
@@ -2057,7 +2064,7 @@ DECLINLINE(int) RTStrAPrintf(char **ppszBuffer, const char *pszFormat, ...)
  * @param   pszFormat   Pointer to the format string, @see pg_rt_str_format.
  * @param   ...         The format argument.
  */
-DECLINLINE(int) RTStrAPrintfTag(char **ppszBuffer, const char *pszTag, const char *pszFormat, ...)
+DECLINLINE(int) RT_IPRT_FORMAT_ATTR(3, 4) RTStrAPrintfTag(char **ppszBuffer, const char *pszTag, const char *pszFormat, ...)
 {
     int     cbRet;
     va_list va;
@@ -2086,7 +2093,7 @@ DECLINLINE(int) RTStrAPrintfTag(char **ppszBuffer, const char *pszTag, const cha
  * @param   args        The format argument.
  * @param   pszTag      Allocation tag used for statistics and such.
  */
-RTDECL(char *) RTStrAPrintf2VTag(const char *pszFormat, va_list args, const char *pszTag);
+RTDECL(char *) RTStrAPrintf2VTag(const char *pszFormat, va_list args, const char *pszTag) RT_IPRT_FORMAT_ATTR(1, 0);
 
 /**
  * Allocating string printf, version 2 (default tag).
@@ -2096,7 +2103,7 @@ RTDECL(char *) RTStrAPrintf2VTag(const char *pszFormat, va_list args, const char
  * @param   pszFormat   Pointer to the format string, @see pg_rt_str_format.
  * @param   ...         The format argument.
  */
-DECLINLINE(char *) RTStrAPrintf2(const char *pszFormat, ...)
+DECLINLINE(char *) RT_IPRT_FORMAT_ATTR(1, 2) RTStrAPrintf2(const char *pszFormat, ...)
 {
     char   *pszRet;
     va_list va;
@@ -2115,7 +2122,7 @@ DECLINLINE(char *) RTStrAPrintf2(const char *pszFormat, ...)
  * @param   pszFormat   Pointer to the format string, @see pg_rt_str_format.
  * @param   ...         The format argument.
  */
-DECLINLINE(char *) RTStrAPrintf2Tag(const char *pszTag, const char *pszFormat, ...)
+DECLINLINE(char *) RT_IPRT_FORMAT_ATTR(2, 3) RTStrAPrintf2Tag(const char *pszTag, const char *pszFormat, ...)
 {
     char   *pszRet;
     va_list va;

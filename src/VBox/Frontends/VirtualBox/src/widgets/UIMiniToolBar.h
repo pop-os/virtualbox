@@ -1,10 +1,10 @@
 /* $Id: UIMiniToolBar.h $ */
 /** @file
- * VBox Qt GUI - UIMiniToolBar class declaration (fullscreen/seamless).
+ * VBox Qt GUI - UIMiniToolBar class declaration.
  */
 
 /*
- * Copyright (C) 2009-2013 Oracle Corporation
+ * Copyright (C) 2009-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,23 +15,20 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef __UIMiniToolBar_h__
-#define __UIMiniToolBar_h__
-
-/* Qt includes: */
-#include <QMainWindow>
+#ifndef ___UIMiniToolBar_h___
+#define ___UIMiniToolBar_h___
 
 /* GUI includes: */
 #include "UIToolBar.h"
 
 /* Forward declarations: */
+class QMenu;
 class QTimer;
 class QLabel;
-class QMenu;
 class QMdiArea;
-class UIMiniToolBar;
 class QMdiSubWindow;
 class UIAnimation;
+class UIMiniToolBarPrivate;
 
 /** Geometry types. */
 enum GeometryType
@@ -40,8 +37,9 @@ enum GeometryType
     GeometryType_Full
 };
 
-/* Runtime mini-toolbar frameless-window prototype: */
-class UIRuntimeMiniToolBar : public QWidget
+/** QWidget reimplementation
+  * providing GUI with slideable mini-toolbar used in full-screen/seamless modes. */
+class UIMiniToolBar : public QWidget
 {
     Q_OBJECT;
     Q_PROPERTY(QPoint toolbarPosition READ toolbarPosition WRITE setToolbarPosition);
@@ -50,178 +48,128 @@ class UIRuntimeMiniToolBar : public QWidget
 
 signals:
 
-    /* Notifiers: Action stuff: */
-#ifndef RT_OS_DARWIN
+    /** Notifies listeners about action triggered to minimize. */
     void sigMinimizeAction();
-#endif /* !RT_OS_DARWIN */
+    /** Notifies listeners about action triggered to exit. */
     void sigExitAction();
+    /** Notifies listeners about action triggered to close. */
     void sigCloseAction();
 
-    /* Notifiers: Hover stuff: */
+    /** Notifies listeners about we are hovered. */
     void sigHoverEnter();
+    /** Notifies listeners about we are unhovered. */
     void sigHoverLeave();
 
-    /** Notifies listeners about we stole focus. */
-    void sigNotifyAboutFocusStolen();
+    /** Notifies listeners about we stole window activation. */
+    void sigNotifyAboutWindowActivationStolen();
 
 public:
 
-    /* Constructor/destructor: */
-    UIRuntimeMiniToolBar(QWidget *pParent,
-                         GeometryType geometryType,
-                         Qt::Alignment alignment,
-                         bool fAutoHide = true);
-    ~UIRuntimeMiniToolBar();
+    /** Constructor, passes @a pParent to the QWidget constructor.
+      * @param geometryType determines the geometry type,
+      * @param alignment    determines the alignment type,
+      * @param fAutoHide    determines whether we should auto-hide. */
+    UIMiniToolBar(QWidget *pParent,
+                  GeometryType geometryType,
+                  Qt::Alignment alignment,
+                  bool fAutoHide = true);
+    /** Destructor. */
+    ~UIMiniToolBar();
 
-    /* API: Alignment stuff: */
+    /** Defines @a alignment. */
     void setAlignment(Qt::Alignment alignment);
 
-    /* API: Auto-hide stuff: */
+    /** Returns whether internal widget do auto-hide. */
     bool autoHide() const { return m_fAutoHide; }
+    /** Defines whether internal widget do @a fAutoHide.
+      * @param fPropagateToChild determines should we propagate defined
+      *                          option value to internal widget. */
     void setAutoHide(bool fAutoHide, bool fPropagateToChild = true);
 
-    /* API: Text stuff: */
+    /** Defines @a strText for internal widget. */
     void setText(const QString &strText);
 
-    /* API: Menu stuff: */
+    /** Adds @a menus to internal widget. */
     void addMenus(const QList<QMenu*> &menus);
 
-    /* API: Geometry stuff: */
-    void adjustGeometry(int iHostScreen = -1);
+    /** Adjusts geometry. */
+    void adjustGeometry();
 
 private slots:
 
-#ifdef RT_OS_DARWIN
-    /** Handle 3D overlay visibility change. */
-    void sltHandle3DOverlayVisibilityChange(bool fVisible) { if (fVisible) activateWindow(); }
-#endif /* RT_OS_DARWIN */
-
-    /* Handlers: Toolbar stuff: */
+    /** Handles internal widget resize event. */
     void sltHandleToolbarResize();
+
+    /** Handles internal widget auto-hide toggling. */
     void sltAutoHideToggled();
+
+    /** Handles hovering. */
     void sltHoverEnter();
+    /** Handles unhovering. */
     void sltHoverLeave();
+
+    /** Notifies listeners about we stole window activation. */
+    void sltNotifyAboutWindowActivationStolen() { emit sigNotifyAboutWindowActivationStolen(); }
 
 private:
 
-    /* Helpers: Prepare/cleanup stuff: */
+    /** Prepare routine. */
     void prepare();
+    /** Cleanup routine. */
     void cleanup();
 
-    /* Handlers: Event-processing stuff: */
+    /** Mouse enter @a pEvent handler. */
     void enterEvent(QEvent *pEvent);
+    /** Mouse leave @a pEvent handler. */
     void leaveEvent(QEvent *pEvent);
 
-#ifdef Q_WS_X11
-    /** X11: Resize event handler. */
+    /** Resize @a pEvent handler. */
     void resizeEvent(QResizeEvent *pEvent);
-#endif /* Q_WS_X11 */
 
     /** Filters @a pEvent if <i>this</i> object has been
       * installed as an event-filter for the @a pWatched. */
     bool eventFilter(QObject *pWatched, QEvent *pEvent);
 
-    /* Helper: Hover stuff: */
+    /** Simulates auto-hide animation. */
     void simulateToolbarAutoHiding();
 
-    /* Property: Hover stuff: */
-    void setToolbarPosition(QPoint point);
+    /** Defines internal widget @a position. */
+    void setToolbarPosition(QPoint position);
+    /** Returns internal widget position. */
     QPoint toolbarPosition() const;
+    /** Returns internal widget position when it's hidden. */
     QPoint hiddenToolbarPosition() const { return m_hiddenToolbarPosition; }
+    /** Returns internal widget position when it's shown. */
     QPoint shownToolbarPosition() const { return m_shownToolbarPosition; }
 
-    /* Variables: General stuff: */
+    /** Holds the geometry type. */
     const GeometryType m_geometryType;
+    /** Holds the alignment type. */
     Qt::Alignment m_alignment;
+    /** Holds whether we should auto-hide. */
     bool m_fAutoHide;
 
-    /* Variables: Contents stuff: */
+    /** Holds the MDI-area. */
     QMdiArea *m_pMdiArea;
-    UIMiniToolBar *m_pToolbar;
+    /** Holds the internal widget. */
+    UIMiniToolBarPrivate *m_pToolbar;
+    /** Holds the pointer to the wrapped
+      * internal widget inside the MDI-area. */
     QMdiSubWindow *m_pEmbeddedToolbar;
 
-    /* Variables: Hover stuff: */
+    /** Holds whether we are hovered. */
     bool m_fHovered;
+    /** Holds the hover timer. */
     QTimer *m_pHoverEnterTimer;
+    /** Holds the unhover timer. */
     QTimer *m_pHoverLeaveTimer;
+    /** Holds the internal widget position when it's hidden. */
     QPoint m_hiddenToolbarPosition;
+    /** Holds the internal widget position when it's shown. */
     QPoint m_shownToolbarPosition;
+    /** Holds the animation framework object. */
     UIAnimation *m_pAnimation;
 };
 
-/* Mini-toolbar widget prototype: */
-class UIMiniToolBar : public UIToolBar
-{
-    Q_OBJECT;
-
-signals:
-
-    /* Notifier: Resize stuff: */
-    void sigResized();
-
-    /* Notifiers: Action stuff: */
-    void sigAutoHideToggled();
-#ifndef RT_OS_DARWIN
-    void sigMinimizeAction();
-#endif /* !RT_OS_DARWIN */
-    void sigExitAction();
-    void sigCloseAction();
-
-public:
-
-    /* Constructor: */
-    UIMiniToolBar();
-
-    /* API: Alignment stuff: */
-    void setAlignment(Qt::Alignment alignment);
-
-    /* API: Auto-hide stuff: */
-    bool autoHide() const;
-    void setAutoHide(bool fAutoHide);
-
-    /* API: Text stuff: */
-    void setText(const QString &strText);
-
-    /* API: Menu aggregator: */
-    void addMenus(const QList<QMenu*> &menus);
-
-protected:
-
-    /* Handlers: Event-processing stuff: */
-    virtual void showEvent(QShowEvent *pEvent);
-    virtual void polishEvent(QShowEvent *pEvent);
-    virtual void resizeEvent(QResizeEvent *pEvent);
-    virtual void paintEvent(QPaintEvent *pEvent);
-
-private:
-
-    /* Helper: Prepare stuff: */
-    void prepare();
-
-    /* Helper: Shape stuff: */
-    void rebuildShape();
-
-    /* Variables: General stuff: */
-    bool m_fPolished;
-    Qt::Alignment m_alignment;
-    QPainterPath m_shape;
-
-    /* Variables: Contents stuff: */
-    QAction *m_pAutoHideAction;
-    QLabel *m_pLabel;
-#ifndef RT_OS_DARWIN
-    QAction *m_pMinimizeAction;
-#endif /* !RT_OS_DARWIN */
-    QAction *m_pRestoreAction;
-    QAction *m_pCloseAction;
-
-    /* Variables: Menu stuff: */
-    QAction *m_pMenuInsertPosition;
-
-    /* Variables: Spacers stuff: */
-    QList<QWidget*> m_spacings;
-    QList<QWidget*> m_margins;
-};
-
-#endif // __UIMiniToolBar_h__
+#endif /* !___UIMiniToolBar_h___ */
 

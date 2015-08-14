@@ -99,6 +99,32 @@
 # define VBOX_SVN_REV 0
 #endif
 
+/** @ SUPDRV_CHECK_SMAP_SETUP
+ * SMAP check setup. */
+/** @def SUPDRV_CHECK_SMAP_CHECK
+ * Checks that the AC flag is set if SMAP is enabled.  If AC is not set, it
+ * will be logged and @a a_BadExpr is executed. */
+#if defined(RT_OS_DARWIN) || defined(RT_OS_LINUX)
+# define SUPDRV_CHECK_SMAP_SETUP() uint32_t const fKernelFeatures = SUPR0GetKernelFeatures()
+# define SUPDRV_CHECK_SMAP_CHECK(a_pDevExt, a_BadExpr) \
+    do { \
+        if (fKernelFeatures & SUPKERNELFEATURES_SMAP) \
+        { \
+            RTCCUINTREG fEfl = ASMGetFlags(); \
+            if (RT_LIKELY(fEfl & X86_EFL_AC)) \
+            { /* likely */ } \
+            else \
+            { \
+                supdrvBadContext(a_pDevExt, "SUPDrv.cpp", __LINE__, "EFLAGS.AC is 0!"); \
+                a_BadExpr; \
+            } \
+        } \
+    } while (0)
+#else
+# define SUPDRV_CHECK_SMAP_SETUP()                      uint32_t const fKernelFeatures = 0
+# define SUPDRV_CHECK_SMAP_CHECK(a_pDevExt, a_BadExpr)  NOREF(fKernelFeatures)
+#endif
+
 
 /*******************************************************************************
 *   Internal Functions                                                         *
@@ -160,6 +186,9 @@ static SUPFUNC g_aFunctions[] =
     { "SUPReadTscWithDelta",                    (void *)SUPReadTscWithDelta },
     { "SUPGetTscDeltaSlow",                     (void *)SUPGetTscDeltaSlow },
     { "SUPGetCpuHzFromGipForAsyncMode",         (void *)SUPGetCpuHzFromGipForAsyncMode },
+    { "SUPIsTscFreqCompatible",                 (void *)SUPIsTscFreqCompatible },
+    { "SUPIsTscFreqCompatibleEx",               (void *)SUPIsTscFreqCompatibleEx },
+    { "SUPR0BadContext",                        (void *)SUPR0BadContext },
     { "SUPR0ComponentDeregisterFactory",        (void *)SUPR0ComponentDeregisterFactory },
     { "SUPR0ComponentQueryFactory",             (void *)SUPR0ComponentQueryFactory },
     { "SUPR0ComponentRegisterFactory",          (void *)SUPR0ComponentRegisterFactory },
@@ -2254,6 +2283,16 @@ static int supdrvIOCtlInnerUnrestricted(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt,
             return 0;
         }
 
+        case SUP_CTL_CODE_NO_SIZE(SUP_IOCTL_GIP_SET_FLAGS):
+        {
+            /* validate */
+            PSUPGIPSETFLAGS pReq = (PSUPGIPSETFLAGS)pReqHdr;
+            REQ_CHECK_SIZES(SUP_IOCTL_GIP_SET_FLAGS);
+
+            pReqHdr->rc = supdrvIOCtl_GipSetFlags(pDevExt, pSession, pReq->u.In.fOrMask, pReq->u.In.fAndMask);
+            return 0;
+        }
+
         default:
             Log(("Unknown IOCTL %#lx\n", (long)uIOCtl));
             break;
@@ -3603,6 +3642,66 @@ SUPR0DECL(int) SUPR0PageFree(PSUPDRVSESSION pSession, RTR3PTR pvR3)
 
 
 /**
+ * Reports a bad context, currenctly that means EFLAGS.AC is 0 instead of 1.
+ *
+ * @param   pSession        The session of the caller.
+ * @param   pszFile         The source file where the caller detected the bad
+ *                          context.
+ * @param   uLine           The line number in @a pszFile.
+ * @param   pszExtra        Optional additional message to give further hints.
+ */
+void VBOXCALL supdrvBadContext(PSUPDRVDEVEXT pDevExt, const char *pszFile, uint32_t uLine, const char *pszExtra)
+{
+    uint32_t cCalls;
+
+    /*
+     * Shorten the filename before displaying the message.
+     */
+    for (;;)
+    {
+        const char *pszTmp = strchr(pszFile, '/');
+        if (!pszTmp)
+            pszTmp = strchr(pszFile, '\\');
+        if (!pszTmp)
+            break;
+        pszFile = pszTmp + 1;
+    }
+    if (RT_VALID_PTR(pszExtra) && *pszExtra)
+        SUPR0Printf("vboxdrv: Bad CPU context error at line %u in %s: %s\n", uLine, pszFile, pszExtra);
+    else
+        SUPR0Printf("vboxdrv: Bad CPU context error at line %u in %s!\n", uLine, pszFile);
+
+    /*
+     * Record the incident so that we stand a chance of blocking I/O controls
+     * before panicing the system.
+     */
+    cCalls = ASMAtomicIncU32(&pDevExt->cBadContextCalls);
+    if (cCalls > UINT32_MAX - _1K)
+        ASMAtomicWriteU32(&pDevExt->cBadContextCalls, UINT32_MAX - _1K);
+}
+
+
+/**
+ * Reports a bad context, currenctly that means EFLAGS.AC is 0 instead of 1.
+ *
+ * @param   pSession        The session of the caller.
+ * @param   pszFile         The source file where the caller detected the bad
+ *                          context.
+ * @param   uLine           The line number in @a pszFile.
+ * @param   pszExtra        Optional additional message to give further hints.
+ */
+SUPR0DECL(void) SUPR0BadContext(PSUPDRVSESSION pSession, const char *pszFile, uint32_t uLine, const char *pszExtra)
+{
+    PSUPDRVDEVEXT pDevExt;
+
+    AssertReturnVoid(SUP_IS_SESSION_VALID(pSession));
+    pDevExt = pSession->pDevExt;
+
+    supdrvBadContext(pDevExt, pszFile, uLine, pszExtra);
+}
+
+
+/**
  * Gets the paging mode of the current CPU.
  *
  * @returns Paging mode, SUPPAGEINGMODE_INVALID on error.
@@ -3804,13 +3903,13 @@ SUPR0DECL(int) SUPR0GetVmxUsability(bool *pfIsSmxModeAmbiguous)
         if (fVmxAllowed && fSmxVmxAllowed)
             rc = VINF_SUCCESS;
         else if (!fVmxAllowed && !fSmxVmxAllowed)
-            rc = VERR_VMX_MSR_ALL_VMXON_DISABLED;
+            rc = VERR_VMX_MSR_ALL_VMX_DISABLED;
         else if (!fMaybeSmxMode)
         {
             if (fVmxAllowed)
                 rc = VINF_SUCCESS;
             else
-                rc = VERR_VMX_MSR_VMXON_DISABLED;
+                rc = VERR_VMX_MSR_VMX_DISABLED;
         }
         else
         {
@@ -3830,48 +3929,58 @@ SUPR0DECL(int) SUPR0GetVmxUsability(bool *pfIsSmxModeAmbiguous)
          * MSR is not yet locked; we can change it ourselves here. Once the lock bit is set,
          * this MSR can no longer be modified.
          *
-         * Set both the VMXON and SMX_VMXON bits (if supported) as we can't determine SMX mode
+         * Set both the VMX and SMX_VMX bits (if supported) as we can't determine SMX mode
          * accurately. See @bugref{6873}.
          *
-         * The reason we are being paranoid here and (re)checking is that we don't assume all callers
-         * of this function to check it like SUPR0QueryVTCaps() currently does. If we get something
-         * wrong here, we can throw a #GP and panic the box. This isn't a performance critical path.
+         * We need to check for SMX hardware support here, before writing the MSR as
+         * otherwise we will #GP fault on CPUs that do not support it. Callers do not check
+         * for it.
          */
         uint32_t fFeaturesECX, uDummy;
+#ifdef VBOX_STRICT
+        /* Callers should have verified these at some point. */
         uint32_t uMaxId, uVendorEBX, uVendorECX, uVendorEDX;
         ASMCpuId(0, &uMaxId, &uVendorEBX, &uVendorECX, &uVendorEDX);
+        Assert(ASMIsValidStdRange(uMaxId));
+        Assert(   ASMIsIntelCpuEx(     uVendorEBX, uVendorECX, uVendorEDX)
+               || ASMIsViaCentaurCpuEx(uVendorEBX, uVendorECX, uVendorEDX));
+#endif
         ASMCpuId(1, &uDummy, &uDummy, &fFeaturesECX, &uDummy);
-        if (   ASMIsValidStdRange(uMaxId)
-            && (   ASMIsIntelCpuEx(     uVendorEBX, uVendorECX, uVendorEDX)
-                || ASMIsViaCentaurCpuEx(uVendorEBX, uVendorECX, uVendorEDX)))
+        bool fSmxVmxHwSupport = false;
+        if (   (fFeaturesECX & X86_CPUID_FEATURE_ECX_VMX)
+            && (fFeaturesECX & X86_CPUID_FEATURE_ECX_SMX))
+            fSmxVmxHwSupport = true;
+
+        u64FeatMsr |= MSR_IA32_FEATURE_CONTROL_LOCK
+                    | MSR_IA32_FEATURE_CONTROL_VMXON;
+        if (fSmxVmxHwSupport)
+            u64FeatMsr |= MSR_IA32_FEATURE_CONTROL_SMX_VMXON;
+
+        /*
+         * Commit.
+         */
+        ASMWrMsr(MSR_IA32_FEATURE_CONTROL, u64FeatMsr);
+
+        /*
+         * Verify.
+         */
+        u64FeatMsr = ASMRdMsr(MSR_IA32_FEATURE_CONTROL);
+        fMsrLocked = RT_BOOL(u64FeatMsr & MSR_IA32_FEATURE_CONTROL_LOCK);
+        if (fMsrLocked)
         {
-            bool fSmxVmxHwSupport = false;
-            if (   (fFeaturesECX & X86_CPUID_FEATURE_ECX_VMX)
-                && (fFeaturesECX & X86_CPUID_FEATURE_ECX_SMX))
-                fSmxVmxHwSupport = true;
-
-            u64FeatMsr |= MSR_IA32_FEATURE_CONTROL_LOCK
-                        | MSR_IA32_FEATURE_CONTROL_VMXON;
-            if (fSmxVmxHwSupport)
-                u64FeatMsr |= MSR_IA32_FEATURE_CONTROL_SMX_VMXON;
-
-            /* Commit. */
-            ASMWrMsr(MSR_IA32_FEATURE_CONTROL, u64FeatMsr);
-
-            /* Verify. */
-            u64FeatMsr     = ASMRdMsr(MSR_IA32_FEATURE_CONTROL);
-            fMsrLocked     = RT_BOOL(u64FeatMsr & MSR_IA32_FEATURE_CONTROL_LOCK);
-            fSmxVmxAllowed = fMsrLocked && RT_BOOL(u64FeatMsr & MSR_IA32_FEATURE_CONTROL_SMX_VMXON);
-            fVmxAllowed    = fMsrLocked && RT_BOOL(u64FeatMsr & MSR_IA32_FEATURE_CONTROL_VMXON);
+            fSmxVmxAllowed = RT_BOOL(u64FeatMsr & MSR_IA32_FEATURE_CONTROL_SMX_VMXON);
+            fVmxAllowed    = RT_BOOL(u64FeatMsr & MSR_IA32_FEATURE_CONTROL_VMXON);
             if (   fVmxAllowed
                 && (   !fSmxVmxHwSupport
                     || fSmxVmxAllowed))
+            {
                 rc = VINF_SUCCESS;
+            }
             else
-                rc = VERR_VMX_MSR_LOCKING_FAILED;
+                rc = !fSmxVmxHwSupport ? VERR_VMX_MSR_VMX_ENABLE_FAILED : VERR_VMX_MSR_SMX_VMX_ENABLE_FAILED;
         }
         else
-            rc = VERR_VMX_IPE_5;
+            rc = VERR_VMX_MSR_LOCKING_FAILED;
     }
 
     if (pfIsSmxModeAmbiguous)
@@ -3933,9 +4042,11 @@ SUPR0DECL(int) SUPR0GetSvmUsability(bool fInitSvm)
  *
  * @returns VBox status code.
  * @retval  VERR_VMX_NO_VMX
- * @retval  VERR_VMX_MSR_ALL_VMXON_DISABLED
- * @retval  VERR_VMX_MSR_VMXON_DISABLED
+ * @retval  VERR_VMX_MSR_ALL_VMX_DISABLED
+ * @retval  VERR_VMX_MSR_VMX_DISABLED
  * @retval  VERR_VMX_MSR_LOCKING_FAILED
+ * @retval  VERR_VMX_MSR_VMX_ENABLE_FAILED
+ * @retval  VERR_VMX_MSR_SMX_VMX_ENABLE_FAILED
  * @retval  VERR_SVM_NO_SVM
  * @retval  VERR_SVM_DISABLED
  * @retval  VERR_UNSUPPORTED_CPU if not identifiable as an AMD, Intel or VIA
@@ -4039,9 +4150,11 @@ int VBOXCALL supdrvQueryVTCapsInternal(uint32_t *pfCaps)
  *
  * @returns VBox status code.
  * @retval  VERR_VMX_NO_VMX
- * @retval  VERR_VMX_MSR_ALL_VMXON_DISABLED
- * @retval  VERR_VMX_MSR_VMXON_DISABLED
+ * @retval  VERR_VMX_MSR_ALL_VMX_DISABLED
+ * @retval  VERR_VMX_MSR_VMX_DISABLED
  * @retval  VERR_VMX_MSR_LOCKING_FAILED
+ * @retval  VERR_VMX_MSR_VMX_ENABLE_FAILED
+ * @retval  VERR_VMX_MSR_SMX_VMX_ENABLE_FAILED
  * @retval  VERR_SVM_NO_SVM
  * @retval  VERR_SVM_DISABLED
  * @retval  VERR_UNSUPPORTED_CPU if not identifiable as an AMD, Intel or VIA
@@ -4421,12 +4534,15 @@ static int supdrvIOCtl_LdrOpen(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, P
     PSUPDRVLDRIMAGE pImage;
     void           *pv;
     size_t          cchName = strlen(pReq->u.In.szName); /* (caller checked < 32). */
+    SUPDRV_CHECK_SMAP_SETUP();
+    SUPDRV_CHECK_SMAP_CHECK(pDevExt, RT_NOTHING);
     LogFlow(("supdrvIOCtl_LdrOpen: szName=%s cbImageWithTabs=%d\n", pReq->u.In.szName, pReq->u.In.cbImageWithTabs));
 
     /*
      * Check if we got an instance of the image already.
      */
     supdrvLdrLock(pDevExt);
+    SUPDRV_CHECK_SMAP_CHECK(pDevExt, RT_NOTHING);
     for (pImage = pDevExt->pLdrImages; pImage; pImage = pImage->pNext)
     {
         if (    pImage->szName[cchName] == '\0'
@@ -4441,6 +4557,7 @@ static int supdrvIOCtl_LdrOpen(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, P
                 pReq->u.Out.fNativeLoader = pImage->fNative;
                 supdrvLdrAddUsage(pSession, pImage);
                 supdrvLdrUnlock(pDevExt);
+                SUPDRV_CHECK_SMAP_CHECK(pDevExt, RT_NOTHING);
                 return VINF_SUCCESS;
             }
             supdrvLdrUnlock(pDevExt);
@@ -4469,6 +4586,7 @@ static int supdrvIOCtl_LdrOpen(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, P
         Log(("supdrvIOCtl_LdrOpen: RTMemAlloc() failed\n"));
         return /*VERR_NO_MEMORY*/ VERR_INTERNAL_ERROR_2;
     }
+    SUPDRV_CHECK_SMAP_CHECK(pDevExt, RT_NOTHING);
 
     /*
      * Setup and link in the LDR stuff.
@@ -4502,6 +4620,7 @@ static int supdrvIOCtl_LdrOpen(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, P
         pImage->pvImage     = RT_ALIGN_P(pImage->pvImageAlloc, 32);
         pImage->fNative     = false;
         rc = pImage->pvImageAlloc ? VINF_SUCCESS : VERR_NO_EXEC_MEMORY;
+        SUPDRV_CHECK_SMAP_CHECK(pDevExt, RT_NOTHING);
     }
     if (RT_FAILURE(rc))
     {
@@ -4526,6 +4645,7 @@ static int supdrvIOCtl_LdrOpen(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, P
     supdrvOSLdrNotifyOpened(pDevExt, pImage);
 
     supdrvLdrUnlock(pDevExt);
+    SUPDRV_CHECK_SMAP_CHECK(pDevExt, RT_NOTHING);
     return VINF_SUCCESS;
 }
 
@@ -4585,12 +4705,16 @@ static int supdrvIOCtl_LdrLoad(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, P
     PSUPDRVLDRUSAGE pUsage;
     PSUPDRVLDRIMAGE pImage;
     int             rc;
+    SUPDRV_CHECK_SMAP_SETUP();
     LogFlow(("supdrvIOCtl_LdrLoad: pvImageBase=%p cbImageWithBits=%d\n", pReq->u.In.pvImageBase, pReq->u.In.cbImageWithTabs));
+    SUPDRV_CHECK_SMAP_CHECK(pDevExt, RT_NOTHING);
 
     /*
      * Find the ldr image.
      */
     supdrvLdrLock(pDevExt);
+    SUPDRV_CHECK_SMAP_CHECK(pDevExt, RT_NOTHING);
+
     pUsage = pSession->pLdrUsage;
     while (pUsage && pUsage->pImage->pvImage != pReq->u.In.pvImageBase)
         pUsage = pUsage->pNext;
@@ -4678,6 +4802,7 @@ static int supdrvIOCtl_LdrLoad(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, P
     rc = supdrvLdrValidatePointer(pDevExt, pImage, pReq->u.In.pfnModuleTerm, true, pReq->u.In.abImage, "pfnModuleTerm");
     if (RT_FAILURE(rc))
         return rc;
+    SUPDRV_CHECK_SMAP_CHECK(pDevExt, RT_NOTHING);
 
     /*
      * Allocate and copy the tables.
@@ -4691,6 +4816,7 @@ static int supdrvIOCtl_LdrLoad(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, P
             memcpy(pImage->pachStrTab, &pReq->u.In.abImage[pReq->u.In.offStrTab], pImage->cbStrTab);
         else
             rc = /*VERR_NO_MEMORY*/ VERR_INTERNAL_ERROR_3;
+        SUPDRV_CHECK_SMAP_CHECK(pDevExt, RT_NOTHING);
     }
 
     pImage->cSymbols = pReq->u.In.cSymbols;
@@ -4702,6 +4828,7 @@ static int supdrvIOCtl_LdrLoad(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, P
             memcpy(pImage->paSymbols, &pReq->u.In.abImage[pReq->u.In.offSymbols], cbSymbols);
         else
             rc = /*VERR_NO_MEMORY*/ VERR_INTERNAL_ERROR_4;
+        SUPDRV_CHECK_SMAP_CHECK(pDevExt, RT_NOTHING);
     }
 
     /*
@@ -4720,6 +4847,7 @@ static int supdrvIOCtl_LdrLoad(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, P
             memcpy(pImage->pvImage, &pReq->u.In.abImage[0], pImage->cbImageBits);
             Log(("vboxdrv: Loaded '%s' at %p\n", pImage->szName, pImage->pvImage));
         }
+        SUPDRV_CHECK_SMAP_CHECK(pDevExt, RT_NOTHING);
     }
 
     /*
@@ -4753,7 +4881,9 @@ static int supdrvIOCtl_LdrLoad(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, P
         Log(("supdrvIOCtl_LdrLoad: calling pfnModuleInit=%p\n", pImage->pfnModuleInit));
         pDevExt->pLdrInitImage  = pImage;
         pDevExt->hLdrInitThread = RTThreadNativeSelf();
+        SUPDRV_CHECK_SMAP_CHECK(pDevExt, RT_NOTHING);
         rc = pImage->pfnModuleInit(pImage);
+        SUPDRV_CHECK_SMAP_CHECK(pDevExt, RT_NOTHING);
         pDevExt->pLdrInitImage  = NULL;
         pDevExt->hLdrInitThread = NIL_RTNATIVETHREAD;
         if (RT_FAILURE(rc) && pDevExt->pvVMMR0 == pImage->pvImage)
@@ -4779,6 +4909,7 @@ static int supdrvIOCtl_LdrLoad(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, P
     }
 
     supdrvLdrUnlock(pDevExt);
+    SUPDRV_CHECK_SMAP_CHECK(pDevExt, RT_NOTHING);
     return rc;
 }
 

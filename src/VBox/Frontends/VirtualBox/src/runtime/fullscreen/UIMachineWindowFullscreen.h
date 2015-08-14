@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2013 Oracle Corporation
+ * Copyright (C) 2010-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,18 +15,19 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef __UIMachineWindowFullscreen_h__
-#define __UIMachineWindowFullscreen_h__
+#ifndef ___UIMachineWindowFullscreen_h___
+#define ___UIMachineWindowFullscreen_h___
 
-/* Local includes: */
+/* GUI includes: */
 #include "UIMachineWindow.h"
 
-#ifndef Q_WS_MAC
+#if defined(Q_WS_WIN) || defined(Q_WS_X11)
 /* Forward declarations: */
-class UIRuntimeMiniToolBar;
-#endif /* !Q_WS_MAC */
+class UIMiniToolBar;
+#endif /* Q_WS_WIN || Q_WS_X11 */
 
-/* Fullscreen machine-window implementation: */
+/** UIMachineWindow reimplementation,
+  * providing GUI with machine-window for the full-screen mode. */
 class UIMachineWindowFullscreen : public UIMachineWindow
 {
     Q_OBJECT;
@@ -47,7 +48,7 @@ signals:
 
 protected:
 
-    /* Constructor: */
+    /** Constructor, passes @a pMachineLogic and @a uScreenId to the UIMachineWindow constructor. */
     UIMachineWindowFullscreen(UIMachineLogic *pMachineLogic, ulong uScreenId);
 
 #ifdef Q_WS_MAC
@@ -59,10 +60,13 @@ protected:
 
 private slots:
 
-#ifndef Q_WS_MAC
-    /* Session event-handlers: */
+#if defined(Q_WS_WIN) || defined(Q_WS_X11)
+    /** Handles machine state change event. */
     void sltMachineStateChanged();
-#endif /* !Q_WS_MAC */
+
+    /** Revokes window activation. */
+    void sltRevokeWindowActivation();
+#endif /* Q_WS_WIN || Q_WS_X11 */
 
 #ifdef RT_OS_DARWIN
     /** Mac OS X: Commands @a pMachineWindow to enter native 'fullscreen' mode if possible. */
@@ -71,42 +75,36 @@ private slots:
     void sltExitNativeFullscreen(UIMachineWindow *pMachineWindow);
 #endif /* RT_OS_DARWIN */
 
-    /** Revokes keyboard-focus. */
-    void sltRevokeFocus();
-
-    /** Shows window minimized. */
-    void showMinimized();
-
 private:
 
-    /* Prepare helpers: */
+    /** Prepare visual-state routine. */
     void prepareVisualState();
-#ifndef Q_WS_MAC
+#if defined(Q_WS_WIN) || defined(Q_WS_X11)
+    /** Prepare mini-toolbar routine. */
     void prepareMiniToolbar();
-#endif /* !Q_WS_MAC */
+#endif /* Q_WS_WIN || Q_WS_X11 */
 
-    /* Cleanup helpers: */
-#ifndef Q_WS_MAC
+#if defined(Q_WS_WIN) || defined(Q_WS_X11)
+    /** Cleanup mini-toolbar routine. */
     void cleanupMiniToolbar();
-#endif /* !Q_WS_MAC */
+#endif /* Q_WS_WIN || Q_WS_X11 */
+    /** Cleanup visual-state routine. */
     void cleanupVisualState();
 
-    /* Show stuff: */
+    /** Updates geometry according to visual-state. */
     void placeOnScreen();
+    /** Updates visibility according to visual-state. */
     void showInNecessaryMode();
 
-    /** Adjusts machine-view size to correspond current machine-window size. */
-    virtual void adjustMachineViewSize();
-
-#ifndef Q_WS_MAC
-    /* Update routines: */
+#if defined(Q_WS_WIN) || defined(Q_WS_X11)
+    /** Common update routine. */
     void updateAppearanceOf(int iElement);
-#endif /* !Q_WS_MAC */
+#endif /* Q_WS_WIN || Q_WS_X11 */
 
-#ifndef Q_WS_MAC
+#if defined(Q_WS_WIN) || defined(Q_WS_X11)
     /** Holds the mini-toolbar instance. */
-    UIRuntimeMiniToolBar *m_pMiniToolBar;
-#endif /* !Q_WS_MAC */
+    UIMiniToolBar *m_pMiniToolBar;
+#endif /* Q_WS_WIN || Q_WS_X11 */
 
 #ifdef Q_WS_MAC
     /** Mac OS X: Reflects whether window is in 'fullscreen' transition. */
@@ -115,9 +113,9 @@ private:
     friend class UIMachineLogicFullscreen;
 #endif /* Q_WS_MAC */
 
-    /* Factory support: */
+    /** Factory support. */
     friend class UIMachineWindow;
 };
 
-#endif // __UIMachineWindowFullscreen_h__
+#endif /* !___UIMachineWindowFullscreen_h___ */
 

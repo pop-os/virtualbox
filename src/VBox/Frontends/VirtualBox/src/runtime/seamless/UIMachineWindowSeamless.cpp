@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2013 Oracle Corporation
+ * Copyright (C) 2010-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -32,10 +32,10 @@
 # include "UIMachineLogicSeamless.h"
 # include "UIMachineWindowSeamless.h"
 # include "UIMachineView.h"
-# ifndef Q_WS_MAC
+# if   defined(Q_WS_WIN) || defined(Q_WS_X11)
 #  include "UIMachineDefs.h"
 #  include "UIMiniToolBar.h"
-# else  /* Q_WS_MAC*/
+# elif defined(Q_WS_MAC)
 #  include "VBoxUtils.h"
 # endif /* Q_WS_MAC */
 
@@ -47,13 +47,13 @@
 
 UIMachineWindowSeamless::UIMachineWindowSeamless(UIMachineLogic *pMachineLogic, ulong uScreenId)
     : UIMachineWindow(pMachineLogic, uScreenId)
-#ifndef Q_WS_MAC
+#if defined(Q_WS_WIN) || defined(Q_WS_X11)
     , m_pMiniToolBar(0)
-#endif /* !Q_WS_MAC */
+#endif /* Q_WS_WIN || Q_WS_X11 */
 {
 }
 
-#ifndef Q_WS_MAC
+#if defined(Q_WS_WIN) || defined(Q_WS_X11)
 void UIMachineWindowSeamless::sltMachineStateChanged()
 {
     /* Call to base-class: */
@@ -62,37 +62,20 @@ void UIMachineWindowSeamless::sltMachineStateChanged()
     /* Update mini-toolbar: */
     updateAppearanceOf(UIVisualElement_MiniToolBar);
 }
-#endif /* !Q_WS_MAC */
 
-void UIMachineWindowSeamless::sltRevokeFocus()
+void UIMachineWindowSeamless::sltRevokeWindowActivation()
 {
     /* Make sure window is visible: */
-    if (!isVisible())
+    if (!isVisible() || isMinimized())
         return;
 
-#if   defined(Q_WS_WIN)
-    /* Revoke stolen focus: */
-    m_pMachineView->setFocus();
-#elif defined(Q_WS_MAC) || defined(Q_WS_X11)
     /* Revoke stolen activation: */
-    activateWindow();
-#endif /* Q_WS_MAC || Q_WS_X11 */
-}
-
-void UIMachineWindowSeamless::showMinimized()
-{
 #ifdef Q_WS_X11
-    /* If there is mini-toolbar: */
-    if (m_pMiniToolBar)
-    {
-        /* Minimize it first: */
-        m_pMiniToolBar->showMinimized();
-    }
+    raise();
 #endif /* Q_WS_X11 */
-
-    /* Call to base-class: */
-    UIMachineWindow::showMinimized();
+    activateWindow();
 }
+#endif /* Q_WS_WIN || Q_WS_X11 */
 
 void UIMachineWindowSeamless::prepareVisualState()
 {
@@ -125,13 +108,13 @@ void UIMachineWindowSeamless::prepareVisualState()
     setMask(m_maskGuest);
 #endif /* VBOX_WITH_MASKED_SEAMLESS */
 
-#ifndef Q_WS_MAC
+#if defined(Q_WS_WIN) || defined(Q_WS_X11)
     /* Prepare mini-toolbar: */
     prepareMiniToolbar();
-#endif /* !Q_WS_MAC */
+#endif /* Q_WS_WIN || Q_WS_X11 */
 }
 
-#ifndef Q_WS_MAC
+#if defined(Q_WS_WIN) || defined(Q_WS_X11)
 void UIMachineWindowSeamless::prepareMiniToolbar()
 {
     /* Make sure mini-toolbar is not restricted: */
@@ -139,23 +122,27 @@ void UIMachineWindowSeamless::prepareMiniToolbar()
         return;
 
     /* Create mini-toolbar: */
-    m_pMiniToolBar = new UIRuntimeMiniToolBar(this,
-                                              GeometryType_Available,
-                                              gEDataManager->miniToolbarAlignment(vboxGlobal().managedVMUuid()),
-                                              gEDataManager->autoHideMiniToolbar(vboxGlobal().managedVMUuid()));
-    m_pMiniToolBar->show();
-    m_pMiniToolBar->addMenus(actionPool()->menus());
-    connect(m_pMiniToolBar, SIGNAL(sigMinimizeAction()), this, SLOT(showMinimized()), Qt::QueuedConnection);
-    connect(m_pMiniToolBar, SIGNAL(sigExitAction()),
-            actionPool()->action(UIActionIndexRT_M_View_T_Seamless), SLOT(trigger()));
-    connect(m_pMiniToolBar, SIGNAL(sigCloseAction()),
-            actionPool()->action(UIActionIndex_M_Application_S_Close), SLOT(trigger()));
-    connect(m_pMiniToolBar, SIGNAL(sigNotifyAboutFocusStolen()),
-            this, SLOT(sltRevokeFocus()), Qt::QueuedConnection);
+    m_pMiniToolBar = new UIMiniToolBar(this,
+                                       GeometryType_Available,
+                                       gEDataManager->miniToolbarAlignment(vboxGlobal().managedVMUuid()),
+                                       gEDataManager->autoHideMiniToolbar(vboxGlobal().managedVMUuid()));
+    AssertPtrReturnVoid(m_pMiniToolBar);
+    {
+        /* Configure mini-toolbar: */
+        m_pMiniToolBar->addMenus(actionPool()->menus());
+        connect(m_pMiniToolBar, SIGNAL(sigMinimizeAction()),
+                this, SLOT(showMinimized()), Qt::QueuedConnection);
+        connect(m_pMiniToolBar, SIGNAL(sigExitAction()),
+                actionPool()->action(UIActionIndexRT_M_View_T_Seamless), SLOT(trigger()));
+        connect(m_pMiniToolBar, SIGNAL(sigCloseAction()),
+                actionPool()->action(UIActionIndex_M_Application_S_Close), SLOT(trigger()));
+        connect(m_pMiniToolBar, SIGNAL(sigNotifyAboutWindowActivationStolen()),
+                this, SLOT(sltRevokeWindowActivation()), Qt::QueuedConnection);
+    }
 }
-#endif /* !Q_WS_MAC */
+#endif /* Q_WS_WIN || Q_WS_X11 */
 
-#ifndef Q_WS_MAC
+#if defined(Q_WS_WIN) || defined(Q_WS_X11)
 void UIMachineWindowSeamless::cleanupMiniToolbar()
 {
     /* Make sure mini-toolbar was created: */
@@ -168,14 +155,14 @@ void UIMachineWindowSeamless::cleanupMiniToolbar()
     delete m_pMiniToolBar;
     m_pMiniToolBar = 0;
 }
-#endif /* !Q_WS_MAC */
+#endif /* Q_WS_WIN || Q_WS_X11 */
 
 void UIMachineWindowSeamless::cleanupVisualState()
 {
-#ifndef Q_WS_MAC
+#if defined(Q_WS_WIN) || defined(Q_WS_X11)
     /* Cleanup mini-toolbar: */
     cleanupMiniToolbar();
-#endif /* !Q_WS_MAC */
+#endif /* Q_WS_WIN || Q_WS_X11 */
 
     /* Call to base-class: */
     UIMachineWindow::cleanupVisualState();
@@ -183,97 +170,78 @@ void UIMachineWindowSeamless::cleanupVisualState()
 
 void UIMachineWindowSeamless::placeOnScreen()
 {
-    /* Get corresponding screen: */
-    int iScreen = qobject_cast<UIMachineLogicSeamless*>(machineLogic())->hostScreenForGuestScreen(m_uScreenId);
-    /* Calculate working area: */
-    QRect workingArea = QApplication::desktop()->availableGeometry(iScreen);
+    /* Get corresponding host-screen: */
+    const int iHostScreen = qobject_cast<UIMachineLogicSeamless*>(machineLogic())->hostScreenForGuestScreen(m_uScreenId);
+    /* And corresponding working area: */
+    const QRect workingArea = QApplication::desktop()->availableGeometry(iHostScreen);
 
-    /* Move to the appropriate position: */
+    /* Set appropriate geometry for window: */
     move(workingArea.topLeft());
-
-    /* Resize to the appropriate size: */
     resize(workingArea.size());
+
+#if defined(Q_WS_WIN) || defined(Q_WS_X11)
+    /* If there is a mini-toolbar: */
+    if (m_pMiniToolBar)
+    {
+        /* Set appropriate geometry for mini-toolbar: */
+        m_pMiniToolBar->move(workingArea.topLeft());
+        m_pMiniToolBar->resize(workingArea.size());
+    }
+#endif /* Q_WS_WIN || Q_WS_X11 */
 }
 
 void UIMachineWindowSeamless::showInNecessaryMode()
 {
-    /* Make sure this window has seamless logic: */
+    /* Make sure window has seamless logic: */
     UIMachineLogicSeamless *pSeamlessLogic = qobject_cast<UIMachineLogicSeamless*>(machineLogic());
     AssertPtrReturnVoid(pSeamlessLogic);
 
-    /* Make sure this window should be shown and mapped to some host-screen: */
+    /* Make sure window should be shown and mapped to some host-screen: */
     if (!uisession()->isScreenVisible(m_uScreenId) ||
         !pSeamlessLogic->hasHostScreenForGuestScreen(m_uScreenId))
     {
-#ifndef Q_WS_MAC
-        /* If there is mini-toolbar: */
+#if defined(Q_WS_WIN) || defined(Q_WS_X11)
+        /* If there is a mini-toolbar: */
         if (m_pMiniToolBar)
         {
-            /* Just hide mini-toolbar: */
+            /* Hide mini-toolbar: */
             m_pMiniToolBar->hide();
         }
-#endif /* !Q_WS_MAC */
+#endif /* Q_WS_WIN || Q_WS_X11 */
+
         /* Hide window: */
         hide();
-        return;
     }
-
-    /* Make sure this window is not minimized: */
-    if (isMinimized())
-        return;
-
-    /* Make sure this window is maximized and placed on valid screen: */
-    placeOnScreen();
-
-    /* Show in normal mode: */
-    show();
-
-    /* Adjust machine-view size if necessary: */
-    adjustMachineViewSize();
-
-#ifndef Q_WS_MAC
-    /* If there is mini-toolbar: */
-    if (m_pMiniToolBar)
+    else
     {
-# if   defined(Q_WS_WIN)
-        /* Just show mini-toolbar: */
-        m_pMiniToolBar->show();
-# elif defined(Q_WS_X11)
-        /* Allow mini-toolbar to be located on full-screen area: */
-        m_pMiniToolBar->showMaximized();
-        /* Make sure mini-toolbar is always on top of machine-window: */
-        VBoxGlobal::setTransientFor(m_pMiniToolBar, this);
-# endif /* Q_WS_X11 */
-    }
-#endif /* !Q_WS_MAC */
+        /* Ignore if window minimized: */
+        if (isMinimized())
+            return;
 
-    /* Make sure machine-view have focus: */
-    m_pMachineView->setFocus();
+        /* Make sure window have appropriate geometry: */
+        placeOnScreen();
+
+        /* Show window in normal mode: */
+        show();
+
+#if defined(Q_WS_WIN) || defined(Q_WS_X11)
+        /* If there is a mini-toolbar: */
+        if (m_pMiniToolBar)
+        {
+            /* Show mini-toolbar in normal mode: */
+            m_pMiniToolBar->show();
+        }
+#endif /* Q_WS_WIN || Q_WS_X11 */
+
+        /* Adjust machine-view size if necessary: */
+        adjustMachineViewSize();
+
+        /* Make sure machine-view have focus: */
+        m_pMachineView->setFocus();
+    }
 }
 
-void UIMachineWindowSeamless::adjustMachineViewSize()
-{
-    /* Call to base-class: */
-    UIMachineWindow::adjustMachineViewSize();
-
-#ifndef Q_WS_MAC
-    /* If mini-toolbar present: */
-    if (m_pMiniToolBar)
-    {
-        /* Make sure this window has seamless logic: */
-        const UIMachineLogicSeamless *pSeamlessLogic = qobject_cast<UIMachineLogicSeamless*>(machineLogic());
-        AssertPtrReturnVoid(pSeamlessLogic);
-
-        /* Which host-screen should that machine-window located on? */
-        const int iHostScreen = pSeamlessLogic->hostScreenForGuestScreen(m_uScreenId);
-
-        /* Move mini-toolbar into appropriate place: */
-        m_pMiniToolBar->adjustGeometry(iHostScreen);
-    }
-#endif /* !Q_WS_MAC */
-}
-
-#ifndef Q_WS_MAC
+#if defined(Q_WS_WIN) || defined(Q_WS_X11)
 void UIMachineWindowSeamless::updateAppearanceOf(int iElement)
 {
     /* Call to base-class: */
@@ -282,6 +250,7 @@ void UIMachineWindowSeamless::updateAppearanceOf(int iElement)
     /* Update mini-toolbar: */
     if (iElement & UIVisualElement_MiniToolBar)
     {
+        /* If there is a mini-toolbar: */
         if (m_pMiniToolBar)
         {
             /* Get snapshot(s): */
@@ -296,7 +265,7 @@ void UIMachineWindowSeamless::updateAppearanceOf(int iElement)
         }
     }
 }
-#endif /* !Q_WS_MAC */
+#endif /* Q_WS_WIN || Q_WS_X11 */
 
 #if defined(VBOX_WITH_TRANSLUCENT_SEAMLESS) && defined(Q_WS_WIN)
 void UIMachineWindowSeamless::showEvent(QShowEvent *pShowEvent)

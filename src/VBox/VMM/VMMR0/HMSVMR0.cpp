@@ -983,9 +983,9 @@ static void hmR0SvmFlushTaggedTlb(PVMCPU pVCpu)
     }
 
     AssertMsg(pVCpu->hm.s.idLastCpu == pCpu->idCpu,
-              ("vcpu idLastCpu=%x pcpu idCpu=%x\n", pVCpu->hm.s.idLastCpu, pCpu->idCpu));
+              ("vcpu idLastCpu=%u pcpu idCpu=%u\n", pVCpu->hm.s.idLastCpu, pCpu->idCpu));
     AssertMsg(pVCpu->hm.s.cTlbFlushes == pCpu->cTlbFlushes,
-              ("Flush count mismatch for cpu %d (%x vs %x)\n", pCpu->idCpu, pVCpu->hm.s.cTlbFlushes, pCpu->cTlbFlushes));
+              ("Flush count mismatch for cpu %u (%u vs %u)\n", pCpu->idCpu, pVCpu->hm.s.cTlbFlushes, pCpu->cTlbFlushes));
     AssertMsg(pCpu->uCurrentAsid >= 1 && pCpu->uCurrentAsid < pVM->hm.s.uMaxAsid,
               ("cpu%d uCurrentAsid = %x\n", pCpu->idCpu, pCpu->uCurrentAsid));
     AssertMsg(pVCpu->hm.s.uCurrentAsid >= 1 && pVCpu->hm.s.uCurrentAsid < pVM->hm.s.uMaxAsid,
@@ -2013,7 +2013,7 @@ static void hmR0SvmSaveGuestState(PVMCPU pVCpu, PCPUMCTX pMixedCtx)
     /*
      * Guest TR.
      * Fixup TR attributes so it's compatible with Intel. Important when saved-states are used
-     * between Intel and AMD. See @bugref{6208} comment #39.
+     * between Intel and AMD. See @bugref{6208#c39}.
      * ASSUME that it's normally correct and that we're in 32-bit or 64-bit mode.
      */
     HMSVM_SAVE_SEG_REG(TR, tr);
@@ -4099,7 +4099,7 @@ static int hmR0SvmCheckExitDueToEventDelivery(PVMCPU pVCpu, PCPUMCTX pCtx, PSVMT
                 if (   hmR0SvmIsContributoryXcpt(uIdtVector)
                     && uExitVector == X86_XCPT_PF)
                 {
-                    Log4(("IDT: Contributory #PF uCR2=%#RX64\n", pVCpu->idCpu, pCtx->cr2));
+                    Log4(("IDT: Contributory #PF idCpu=%u uCR2=%#RX64\n", pVCpu->idCpu, pCtx->cr2));
                 }
 #endif
                 if (   uExitVector == X86_XCPT_PF
@@ -4532,8 +4532,8 @@ HMSVM_EXIT_DECL hmR0SvmExitWriteCRx(PVMCPU pVCpu, PCPUMCTX pCtx, PSVMTRANSIENT p
                 break;
 
             default:
-                AssertMsgFailed(("hmR0SvmExitWriteCRx: Invalid/Unexpected Write-CRx exit. u64ExitCode=%#RX64 %#x CRx=%#RX64\n",
-                                pSvmTransient->u64ExitCode, pSvmTransient->u64ExitCode - SVM_EXIT_WRITE_CR0));
+                AssertMsgFailed(("hmR0SvmExitWriteCRx: Invalid/Unexpected Write-CRx exit. u64ExitCode=%#RX64 %#x\n",
+                                 pSvmTransient->u64ExitCode, pSvmTransient->u64ExitCode - SVM_EXIT_WRITE_CR0));
                 break;
         }
         HMSVM_CHECK_SINGLE_STEP(pVCpu, rcStrict);

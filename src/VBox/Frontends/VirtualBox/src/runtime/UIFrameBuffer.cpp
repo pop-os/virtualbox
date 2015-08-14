@@ -293,7 +293,7 @@ protected:
     void paintSeamless(QPaintEvent *pEvent);
 
     /** Returns the transformation mode corresponding to the passed @a dScaleFactor and ScalingOptimizationType. */
-    static Qt::TransformationMode transformationMode(double dScaleFactor, ScalingOptimizationType type);
+    static Qt::TransformationMode transformationMode(ScalingOptimizationType type, double dScaleFactor = 0);
 
     /** Erases corresponding @a rect with @a painter. */
     static void eraseImageRect(QPainter &painter, const QRect &rect,
@@ -458,7 +458,7 @@ public:
         /* Make sure frame-buffer is used: */
         if (m_fUnused)
         {
-            LogRel2(("GUI: NotifyUpdate: Ignored!\n"));
+            LogRel3(("GUI: NotifyUpdate: Ignored!\n"));
             mOverlay.onNotifyUpdateIgnore (aX, aY, aW, aH);
             /* Unlock access to frame-buffer: */
             UIFrameBufferPrivate::unlock();
@@ -793,11 +793,9 @@ STDMETHODIMP UIFrameBufferPrivate::NotifyUpdate(ULONG uX, ULONG uY, ULONG uWidth
     /* Make sure frame-buffer is used: */
     if (m_fUnused)
     {
-#ifndef DEBUG_andy
-        LogRel2(("GUI: UIFrameBufferPrivate::NotifyUpdate: Origin=%lux%lu, Size=%lux%lu, Ignored!\n",
+        LogRel3(("GUI: UIFrameBufferPrivate::NotifyUpdate: Origin=%lux%lu, Size=%lux%lu, Ignored!\n",
                  (unsigned long)uX, (unsigned long)uY,
                  (unsigned long)uWidth, (unsigned long)uHeight));
-#endif
         /* Unlock access to frame-buffer: */
         unlock();
 
@@ -805,13 +803,11 @@ STDMETHODIMP UIFrameBufferPrivate::NotifyUpdate(ULONG uX, ULONG uY, ULONG uWidth
         return E_FAIL;
     }
 
-#ifndef DEBUG_andy
     /* Widget update is NOT thread-safe and *seems* never will be,
      * We have to notify machine-view with the async-signal to perform update operation. */
-    LogRel2(("GUI: UIFrameBufferPrivate::NotifyUpdate: Origin=%lux%lu, Size=%lux%lu, Sending to async-handler\n",
+    LogRel3(("GUI: UIFrameBufferPrivate::NotifyUpdate: Origin=%lux%lu, Size=%lux%lu, Sending to async-handler\n",
              (unsigned long)uX, (unsigned long)uY,
              (unsigned long)uWidth, (unsigned long)uHeight));
-#endif
     emit sigNotifyUpdate(uX, uY, uWidth, uHeight);
 
     /* Unlock access to frame-buffer: */
@@ -834,7 +830,7 @@ STDMETHODIMP UIFrameBufferPrivate::NotifyUpdateImage(ULONG uX, ULONG uY,
     /* Make sure frame-buffer is used: */
     if (m_fUnused)
     {
-        LogRel2(("GUI: UIFrameBufferPrivate::NotifyUpdateImage: Origin=%lux%lu, Size=%lux%lu, Ignored!\n",
+        LogRel3(("GUI: UIFrameBufferPrivate::NotifyUpdateImage: Origin=%lux%lu, Size=%lux%lu, Ignored!\n",
                  (unsigned long)uX, (unsigned long)uY,
                  (unsigned long)uWidth, (unsigned long)uHeight));
 
@@ -862,7 +858,7 @@ STDMETHODIMP UIFrameBufferPrivate::NotifyUpdateImage(ULONG uX, ULONG uY,
 
         /* Widget update is NOT thread-safe and *seems* never will be,
          * We have to notify machine-view with the async-signal to perform update operation. */
-        LogRel2(("GUI: UIFrameBufferPrivate::NotifyUpdateImage: Origin=%lux%lu, Size=%lux%lu, Sending to async-handler\n",
+        LogRel3(("GUI: UIFrameBufferPrivate::NotifyUpdateImage: Origin=%lux%lu, Size=%lux%lu, Sending to async-handler\n",
                  (unsigned long)uX, (unsigned long)uY,
                  (unsigned long)uWidth, (unsigned long)uHeight));
         emit sigNotifyUpdate(uX, uY, uWidth, uHeight);
@@ -880,7 +876,7 @@ STDMETHODIMP UIFrameBufferPrivate::VideoModeSupported(ULONG uWidth, ULONG uHeigh
     /* Make sure result pointer is valid: */
     if (!pfSupported)
     {
-        LogRel2(("GUI: UIFrameBufferPrivate::IsVideoModeSupported: Mode: BPP=%lu, Size=%lux%lu, Invalid pfSupported pointer!\n",
+        LogRel3(("GUI: UIFrameBufferPrivate::IsVideoModeSupported: Mode: BPP=%lu, Size=%lux%lu, Invalid pfSupported pointer!\n",
                  (unsigned long)uBPP, (unsigned long)uWidth, (unsigned long)uHeight));
 
         return E_POINTER;
@@ -892,7 +888,7 @@ STDMETHODIMP UIFrameBufferPrivate::VideoModeSupported(ULONG uWidth, ULONG uHeigh
     /* Make sure frame-buffer is used: */
     if (m_fUnused)
     {
-        LogRel2(("GUI: UIFrameBufferPrivate::IsVideoModeSupported: Mode: BPP=%lu, Size=%lux%lu, Ignored!\n",
+        LogRel3(("GUI: UIFrameBufferPrivate::IsVideoModeSupported: Mode: BPP=%lu, Size=%lux%lu, Ignored!\n",
                  (unsigned long)uBPP, (unsigned long)uWidth, (unsigned long)uHeight));
 
         /* Unlock access to frame-buffer: */
@@ -913,7 +909,7 @@ STDMETHODIMP UIFrameBufferPrivate::VideoModeSupported(ULONG uWidth, ULONG uHeigh
         && (uHeight > (ULONG)screenSize.height())
         && (uHeight > (ULONG)height()))
         *pfSupported = FALSE;
-    LogRel2(("GUI: UIFrameBufferPrivate::IsVideoModeSupported: Mode: BPP=%lu, Size=%lux%lu, Supported=%s\n",
+    LogRel3(("GUI: UIFrameBufferPrivate::IsVideoModeSupported: Mode: BPP=%lu, Size=%lux%lu, Supported=%s\n",
              (unsigned long)uBPP, (unsigned long)uWidth, (unsigned long)uHeight, *pfSupported ? "TRUE" : "FALSE"));
 
     /* Unlock access to frame-buffer: */
@@ -1108,11 +1104,9 @@ void UIFrameBufferPrivate::handleNotifyChange(int iWidth, int iHeight)
 
 void UIFrameBufferPrivate::handlePaintEvent(QPaintEvent *pEvent)
 {
-#ifndef DEBUG_andy
-    LogRel2(("GUI: UIFrameBufferPrivate::handlePaintEvent: Origin=%lux%lu, Size=%dx%d\n",
+    LogRel3(("GUI: UIFrameBufferPrivate::handlePaintEvent: Origin=%lux%lu, Size=%dx%d\n",
              pEvent->rect().x(), pEvent->rect().y(),
              pEvent->rect().width(), pEvent->rect().height()));
-#endif
 
     /* On mode switch the enqueued paint-event may still come
      * while the machine-view is already null (before the new machine-view set),
@@ -1346,8 +1340,17 @@ void UIFrameBufferPrivate::paintDefault(QPaintEvent *pEvent)
          * detached during scale process, otherwise we can get a frozen frame-buffer. */
         scaledImage = m_image.copy();
         /* And scaling the image to predefined scaled-factor: */
-        scaledImage = scaledImage.scaled(m_scaledSize, Qt::IgnoreAspectRatio,
-                                         transformationMode(m_dScaleFactor, scalingOptimizationType()));
+        switch (m_pMachineView->visualStateType())
+        {
+            case UIVisualStateType_Scale:
+                scaledImage = scaledImage.scaled(m_scaledSize, Qt::IgnoreAspectRatio,
+                                                 transformationMode(scalingOptimizationType()));
+                break;
+            default:
+                scaledImage = scaledImage.scaled(m_scaledSize, Qt::IgnoreAspectRatio,
+                                                 transformationMode(scalingOptimizationType(), m_dScaleFactor));
+                break;
+        }
     }
     /* Finally we are choosing image to paint from: */
     const QImage &sourceImage = scaledImage.isNull() ? m_image : scaledImage;
@@ -1387,8 +1390,17 @@ void UIFrameBufferPrivate::paintSeamless(QPaintEvent *pEvent)
          * detached during scale process, otherwise we can get a frozen frame-buffer. */
         scaledImage = m_image.copy();
         /* And scaling the image to predefined scaled-factor: */
-        scaledImage = scaledImage.scaled(m_scaledSize, Qt::IgnoreAspectRatio,
-                                         transformationMode(m_dScaleFactor, scalingOptimizationType()));
+        switch (m_pMachineView->visualStateType())
+        {
+            case UIVisualStateType_Scale:
+                scaledImage = scaledImage.scaled(m_scaledSize, Qt::IgnoreAspectRatio,
+                                                 transformationMode(scalingOptimizationType()));
+                break;
+            default:
+                scaledImage = scaledImage.scaled(m_scaledSize, Qt::IgnoreAspectRatio,
+                                                 transformationMode(scalingOptimizationType(), m_dScaleFactor));
+                break;
+        }
     }
     /* Finally we are choosing image to paint from: */
     const QImage &sourceImage = scaledImage.isNull() ? m_image : scaledImage;
@@ -1444,7 +1456,7 @@ void UIFrameBufferPrivate::paintSeamless(QPaintEvent *pEvent)
 }
 
 /* static */
-Qt::TransformationMode UIFrameBufferPrivate::transformationMode(double dScaleFactor, ScalingOptimizationType type)
+Qt::TransformationMode UIFrameBufferPrivate::transformationMode(ScalingOptimizationType type, double dScaleFactor /* = 0 */)
 {
     switch (type)
     {
@@ -1453,7 +1465,7 @@ Qt::TransformationMode UIFrameBufferPrivate::transformationMode(double dScaleFac
         default: break;
     }
     /* For integer-scaling we are choosing the 'Performance' optimization type ourselves: */
-    return floor(dScaleFactor) == dScaleFactor ? Qt::FastTransformation : Qt::SmoothTransformation;
+    return dScaleFactor && floor(dScaleFactor) == dScaleFactor ? Qt::FastTransformation : Qt::SmoothTransformation;;
 }
 
 /* static */

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2013 Oracle Corporation
+ * Copyright (C) 2010-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -32,10 +32,11 @@
 # include "UIMachineLogicFullscreen.h"
 # include "UIMachineWindowFullscreen.h"
 # include "UIMachineView.h"
-# include "UIFrameBuffer.h"
-# include "UIMachineDefs.h"
-# include "UIMiniToolBar.h"
-# ifdef Q_WS_MAC
+# if   defined(Q_WS_WIN) || defined(Q_WS_X11)
+#  include "UIMachineDefs.h"
+#  include "UIMiniToolBar.h"
+# elif defined(Q_WS_MAC)
+#  include "UIFrameBuffer.h"
 #  include "VBoxUtils-darwin.h"
 #  include "UICocoaApplication.h"
 # endif /* Q_WS_MAC */
@@ -48,9 +49,9 @@
 
 UIMachineWindowFullscreen::UIMachineWindowFullscreen(UIMachineLogic *pMachineLogic, ulong uScreenId)
     : UIMachineWindow(pMachineLogic, uScreenId)
-#ifndef Q_WS_MAC
+#if defined(Q_WS_WIN) || defined(Q_WS_X11)
     , m_pMiniToolBar(0)
-#endif /* !Q_WS_MAC */
+#endif /* Q_WS_WIN || Q_WS_X11 */
 #ifdef Q_WS_MAC
     , m_fIsInFullscreenTransition(false)
 #endif /* Q_WS_MAC */
@@ -111,7 +112,7 @@ void UIMachineWindowFullscreen::handleNativeNotification(const QString &strNativ
 }
 #endif /* Q_WS_MAC */
 
-#ifndef Q_WS_MAC
+#if defined(Q_WS_WIN) || defined(Q_WS_X11)
 void UIMachineWindowFullscreen::sltMachineStateChanged()
 {
     /* Call to base-class: */
@@ -120,7 +121,20 @@ void UIMachineWindowFullscreen::sltMachineStateChanged()
     /* Update mini-toolbar: */
     updateAppearanceOf(UIVisualElement_MiniToolBar);
 }
-#endif /* !Q_WS_MAC */
+
+void UIMachineWindowFullscreen::sltRevokeWindowActivation()
+{
+    /* Make sure window is visible: */
+    if (!isVisible() || isMinimized())
+        return;
+
+    /* Revoke stolen activation: */
+#ifdef Q_WS_X11
+    raise();
+#endif /* Q_WS_X11 */
+    activateWindow();
+}
+#endif /* Q_WS_WIN || Q_WS_X11 */
 
 #ifdef Q_WS_MAC
 void UIMachineWindowFullscreen::sltEnterNativeFullscreen(UIMachineWindow *pMachineWindow)
@@ -173,36 +187,6 @@ void UIMachineWindowFullscreen::sltExitNativeFullscreen(UIMachineWindow *pMachin
 }
 #endif /* Q_WS_MAC */
 
-void UIMachineWindowFullscreen::sltRevokeFocus()
-{
-    /* Make sure window is visible: */
-    if (!isVisible())
-        return;
-
-#if   defined(Q_WS_WIN)
-    /* Revoke stolen focus: */
-    m_pMachineView->setFocus();
-#elif defined(Q_WS_MAC) || defined(Q_WS_X11)
-    /* Revoke stolen activation: */
-    activateWindow();
-#endif /* Q_WS_MAC || Q_WS_X11 */
-}
-
-void UIMachineWindowFullscreen::showMinimized()
-{
-#ifdef Q_WS_X11
-    /* If there is mini-toolbar: */
-    if (m_pMiniToolBar)
-    {
-        /* Minimize it first: */
-        m_pMiniToolBar->showMinimized();
-    }
-#endif /* Q_WS_X11 */
-
-    /* Call to base-class: */
-    UIMachineWindow::showMinimized();
-}
-
 void UIMachineWindowFullscreen::prepareVisualState()
 {
     /* Call to base-class: */
@@ -215,10 +199,10 @@ void UIMachineWindowFullscreen::prepareVisualState()
     centralWidget()->setAutoFillBackground(true);
     setAutoFillBackground(true);
 
-#ifndef Q_WS_MAC
+#if defined(Q_WS_WIN) || defined(Q_WS_X11)
     /* Prepare mini-toolbar: */
     prepareMiniToolbar();
-#endif /* !Q_WS_MAC */
+#endif /* Q_WS_WIN || Q_WS_X11 */
 
 #ifdef Q_WS_MAC
     /* Native fullscreen stuff on ML and next: */
@@ -248,7 +232,7 @@ void UIMachineWindowFullscreen::prepareVisualState()
 #endif /* Q_WS_MAC */
 }
 
-#ifndef Q_WS_MAC
+#if defined(Q_WS_WIN) || defined(Q_WS_X11)
 void UIMachineWindowFullscreen::prepareMiniToolbar()
 {
     /* Make sure mini-toolbar is not restricted: */
@@ -256,22 +240,35 @@ void UIMachineWindowFullscreen::prepareMiniToolbar()
         return;
 
     /* Create mini-toolbar: */
-    m_pMiniToolBar = new UIRuntimeMiniToolBar(this,
-                                              GeometryType_Full,
-                                              gEDataManager->miniToolbarAlignment(vboxGlobal().managedVMUuid()),
-                                              gEDataManager->autoHideMiniToolbar(vboxGlobal().managedVMUuid()));
-    m_pMiniToolBar->addMenus(actionPool()->menus());
-    connect(m_pMiniToolBar, SIGNAL(sigMinimizeAction()), this, SLOT(showMinimized()), Qt::QueuedConnection);
-    connect(m_pMiniToolBar, SIGNAL(sigExitAction()),
-            actionPool()->action(UIActionIndexRT_M_View_T_Fullscreen), SLOT(trigger()));
-    connect(m_pMiniToolBar, SIGNAL(sigCloseAction()),
-            actionPool()->action(UIActionIndex_M_Application_S_Close), SLOT(trigger()));
-    connect(m_pMiniToolBar, SIGNAL(sigNotifyAboutFocusStolen()),
-            this, SLOT(sltRevokeFocus()), Qt::QueuedConnection);
+    m_pMiniToolBar = new UIMiniToolBar(this,
+                                       GeometryType_Full,
+                                       gEDataManager->miniToolbarAlignment(vboxGlobal().managedVMUuid()),
+                                       gEDataManager->autoHideMiniToolbar(vboxGlobal().managedVMUuid()));
+    AssertPtrReturnVoid(m_pMiniToolBar);
+    {
+        /* Configure mini-toolbar: */
+        m_pMiniToolBar->addMenus(actionPool()->menus());
+        connect(m_pMiniToolBar, SIGNAL(sigMinimizeAction()),
+                this, SLOT(showMinimized()), Qt::QueuedConnection);
+        connect(m_pMiniToolBar, SIGNAL(sigExitAction()),
+                actionPool()->action(UIActionIndexRT_M_View_T_Fullscreen), SLOT(trigger()));
+        connect(m_pMiniToolBar, SIGNAL(sigCloseAction()),
+                actionPool()->action(UIActionIndex_M_Application_S_Close), SLOT(trigger()));
+        connect(m_pMiniToolBar, SIGNAL(sigNotifyAboutWindowActivationStolen()),
+                this, SLOT(sltRevokeWindowActivation()), Qt::QueuedConnection);
+# ifdef Q_WS_X11
+        // WORKAROUND:
+        // Due to Unity bug we want native full-screen flag to be set
+        // for mini-toolbar _before_ trying to show it in full-screen mode.
+        // That significantly improves of chances to have required geometry.
+        if (vboxGlobal().typeOfWindowManager() == X11WMType_Compiz)
+            vboxGlobal().setFullScreenFlag(m_pMiniToolBar);
+# endif /* Q_WS_X11 */
+    }
 }
-#endif /* !Q_WS_MAC */
+#endif /* Q_WS_WIN || Q_WS_X11 */
 
-#ifndef Q_WS_MAC
+#if defined(Q_WS_WIN) || defined(Q_WS_X11)
 void UIMachineWindowFullscreen::cleanupMiniToolbar()
 {
     /* Make sure mini-toolbar was created: */
@@ -284,7 +281,7 @@ void UIMachineWindowFullscreen::cleanupMiniToolbar()
     delete m_pMiniToolBar;
     m_pMiniToolBar = 0;
 }
-#endif /* !Q_WS_MAC */
+#endif /* Q_WS_WIN || Q_WS_X11 */
 
 void UIMachineWindowFullscreen::cleanupVisualState()
 {
@@ -301,10 +298,10 @@ void UIMachineWindowFullscreen::cleanupVisualState()
     }
 #endif /* Q_WS_MAC */
 
-#ifndef Q_WS_MAC
+#if defined(Q_WS_WIN) || defined(Q_WS_X11)
     /* Cleanup mini-toolbar: */
     cleanupMiniToolbar();
-#endif /* !Q_WS_MAC */
+#endif /* Q_WS_WIN || Q_WS_X11 */
 
     /* Call to base-class: */
     UIMachineWindow::cleanupVisualState();
@@ -312,23 +309,35 @@ void UIMachineWindowFullscreen::cleanupVisualState()
 
 void UIMachineWindowFullscreen::placeOnScreen()
 {
-    /* Get corresponding screen: */
-    const int iScreen = qobject_cast<UIMachineLogicFullscreen*>(machineLogic())->hostScreenForGuestScreen(m_uScreenId);
+    /* Get corresponding host-screen: */
+    const int iHostScreen = qobject_cast<UIMachineLogicFullscreen*>(machineLogic())->hostScreenForGuestScreen(m_uScreenId);
     /* And corresponding working area: */
-    const QRect workingArea = QApplication::desktop()->screenGeometry(iScreen);
+    const QRect workingArea = QApplication::desktop()->screenGeometry(iHostScreen);
 
-    /* Move to the appropriate position: */
+#if   defined(Q_WS_WIN) || defined(Q_WS_X11)
+    /* Set appropriate geometry for window: */
     move(workingArea.topLeft());
+    resize(workingArea.size());
 
-#ifdef Q_WS_MAC
+    /* If there is a mini-toolbar: */
+    if (m_pMiniToolBar)
+    {
+        /* Set appropriate geometry for mini-toolbar: */
+        m_pMiniToolBar->move(workingArea.topLeft());
+        m_pMiniToolBar->resize(workingArea.size());
+    }
+#elif defined(Q_WS_MAC)
     /* Make sure this window has fullscreen logic: */
     UIMachineLogicFullscreen *pFullscreenLogic = qobject_cast<UIMachineLogicFullscreen*>(machineLogic());
     AssertPtrReturnVoid(pFullscreenLogic);
 
-    /* Resize to the appropriate size on Lion and previous: */
+    /* Move window to the appropriate position: */
+    move(workingArea.topLeft());
+
+    /* Resize window to the appropriate size on Lion and previous: */
     if (vboxGlobal().osRelease() <= MacOSXRelease_Lion)
         resize(workingArea.size());
-    /* Resize to the appropriate size on ML and next
+    /* Resize window to the appropriate size on ML and next
      * only if that screen has no own user-space: */
     else if (!pFullscreenLogic->screensHaveSeparateSpaces() && m_uScreenId != 0)
         resize(workingArea.size());
@@ -349,146 +358,102 @@ void UIMachineWindowFullscreen::placeOnScreen()
         geo.moveCenter(workingArea.center());
         setGeometry(geo);
     }
-#else /* !Q_WS_MAC */
-    /* Resize to the appropriate size: */
-    resize(workingArea.size());
-#endif /* !Q_WS_MAC */
+#endif /* Q_WS_MAC */
 }
 
 void UIMachineWindowFullscreen::showInNecessaryMode()
 {
-    /* Make sure this window has fullscreen logic: */
+    /* Make sure window has fullscreen logic: */
     UIMachineLogicFullscreen *pFullscreenLogic = qobject_cast<UIMachineLogicFullscreen*>(machineLogic());
     AssertPtrReturnVoid(pFullscreenLogic);
 
-#ifdef Q_WS_MAC
-    /* ML and next using native stuff: */
-    const bool fSupportsNativeFullScreen = vboxGlobal().osRelease() > MacOSXRelease_Lion;
-#endif /* Q_WS_MAC */
-
-    /* Make sure this window should be shown and mapped to some host-screen: */
+    /* Make sure window should be shown and mapped to some host-screen: */
     if (!uisession()->isScreenVisible(m_uScreenId) ||
         !pFullscreenLogic->hasHostScreenForGuestScreen(m_uScreenId))
     {
-#ifndef Q_WS_MAC
-        /* If there is mini-toolbar: */
+#if defined(Q_WS_WIN) || defined(Q_WS_X11)
+        /* If there is a mini-toolbar: */
         if (m_pMiniToolBar)
         {
-            /* Just hide mini-toolbar: */
+            /* Hide mini-toolbar: */
             m_pMiniToolBar->hide();
         }
-#endif /* !Q_WS_MAC */
+#endif /* Q_WS_WIN || Q_WS_X11 */
+
         /* Hide window: */
         hide();
-        return;
-    }
-
-    /* Make sure this window is not minimized: */
-    if (isMinimized())
-        return;
-
-#ifdef Q_WS_X11
-    /* On X11 calling placeOnScreen() is only needed for legacy window managers
-     * which we do not test, so this is 'best effort' code. With window managers which
-     * support the _NET_WM_FULLSCREEN_MONITORS protocol this would interfere unreliable. */
-    const bool fSupportsNativeFullScreen = VBoxGlobal::supportsFullScreenMonitorsProtocolX11() &&
-                                           !gEDataManager->legacyFullscreenModeRequested();
-    if (!fSupportsNativeFullScreen)
-        placeOnScreen();
-#else /* !Q_WS_X11 */
-    /* Make sure this window is maximized and placed on valid screen: */
-    placeOnScreen();
-#endif /* !Q_WS_X11 */
-
-#ifdef Q_WS_MAC
-    /* ML and next using native stuff, so we can call for simple show(),
-     * Lion and previous using Qt stuff, so we should call for showFullScreen(): */
-    if (fSupportsNativeFullScreen)
-        show();
-    else
-        showFullScreen();
-#else /* !Q_WS_MAC */
-    /* Show in fullscreen mode: */
-    showFullScreen();
-#endif /* !Q_WS_MAC */
-
-#ifdef Q_WS_X11
-    if (fSupportsNativeFullScreen)
-    {
-        /* Tell recent window managers which screen this window should be mapped to.
-         * Apparently some window managers will not respond to requests for
-         * unmapped windows, so do this *after* the call to showFullScreen(). */
-        VBoxGlobal::setFullScreenMonitorX11(this, pFullscreenLogic->hostScreenForGuestScreen(m_uScreenId));
     }
     else
     {
-        /* On X11 calling placeOnScreen() is only needed for legacy window managers
-         * which we do not test, so this is 'best effort' code. With window managers which
-         * support the _NET_WM_FULLSCREEN_MONITORS protocol this would interfere unreliable. */
-        placeOnScreen();
-    }
-#endif /* Q_WS_X11 */
+        /* Ignore if window minimized: */
+        if (isMinimized())
+            return;
 
-    /* Adjust machine-view size if necessary: */
-    adjustMachineViewSize();
-
-#ifndef Q_WS_MAC
-    /* If there is mini-toolbar: */
-    if (m_pMiniToolBar)
-    {
-# if   defined(Q_WS_WIN)
-        /* Just show mini-toolbar: */
-        m_pMiniToolBar->show();
-# elif defined(Q_WS_X11)
-        /* Allow mini-toolbar to be located on full-screen area: */
-        m_pMiniToolBar->showFullScreen();
-        /* On modern window managers: */
-        if (fSupportsNativeFullScreen)
-        {
-            /* We also can map mini-toolbar directly on corresponding machine-window: */
-            VBoxGlobal::setFullScreenMonitorX11(m_pMiniToolBar, pFullscreenLogic->hostScreenForGuestScreen(m_uScreenId));
-        }
-        /* Make sure mini-toolbar is always on top of machine-window: */
-        VBoxGlobal::setTransientFor(m_pMiniToolBar, this);
-# endif /* Q_WS_X11 */
-    }
-#endif /* !Q_WS_MAC */
-
-    /* Make sure machine-view have focus: */
-    m_pMachineView->setFocus();
-}
-
-void UIMachineWindowFullscreen::adjustMachineViewSize()
-{
-    /* Call to base-class: */
-    UIMachineWindow::adjustMachineViewSize();
-
-#ifndef Q_WS_MAC
-    /* If mini-toolbar present: */
-    if (m_pMiniToolBar)
-    {
-        /* Make sure this window has fullscreen logic: */
-        const UIMachineLogicFullscreen *pFullscreenLogic = qobject_cast<UIMachineLogicFullscreen*>(machineLogic());
-        AssertPtrReturnVoid(pFullscreenLogic);
-
-        /* Which host-screen should that machine-window located on? */
-        const int iHostScreen = pFullscreenLogic->hostScreenForGuestScreen(m_uScreenId);
-
-#ifndef Q_WS_X11
-        /* Move mini-toolbar into appropriate place: */
-        m_pMiniToolBar->adjustGeometry(iHostScreen);
-#else /* Q_WS_X11 */
-        /* On modern WMs we are mapping mini-toolbar to corresponding host-screen directly. */
+#ifdef Q_WS_X11
+        /* If WM doesn't support native stuff, we need to call for placeOnScreen(): */
         const bool fSupportsNativeFullScreen = VBoxGlobal::supportsFullScreenMonitorsProtocolX11() &&
                                                !gEDataManager->legacyFullscreenModeRequested();
-        /* Adjust mini-toolbar and move into appropriate place if necessary: */
-        m_pMiniToolBar->adjustGeometry(fSupportsNativeFullScreen ? -1 : iHostScreen);
+        if (!fSupportsNativeFullScreen)
+        {
+            /* Make sure window have appropriate geometry: */
+            placeOnScreen();
+        }
+#else /* !Q_WS_X11 */
+        /* Make sure window have appropriate geometry: */
+        placeOnScreen();
+#endif /* !Q_WS_X11 */
+
+#if defined(Q_WS_MAC)
+        /* ML and next using native stuff, so we can call for simple show(),
+         * Lion and previous using Qt stuff, so we should call for showFullScreen(): */
+        const bool fSupportsNativeFullScreen = vboxGlobal().osRelease() > MacOSXRelease_Lion;
+        if (fSupportsNativeFullScreen)
+        {
+            /* Show window in normal mode: */
+            show();
+        }
+        else
+        {
+            /* Show window in fullscreen mode: */
+            showFullScreen();
+        }
+#elif defined(Q_WS_WIN) || defined(Q_WS_X11)
+        /* Show window in fullscreen mode: */
+        showFullScreen();
+
+        /* If there is a mini-toolbar: */
+        if (m_pMiniToolBar)
+        {
+            /* Show mini-toolbar in full-screen mode: */
+            m_pMiniToolBar->showFullScreen();
+        }
+#endif /* Q_WS_WIN || Q_WS_X11 */
+
+#ifdef Q_WS_X11
+        /* If WM supports native stuff, we need to map window to corresponding host-screen. */
+        if (fSupportsNativeFullScreen)
+        {
+            /* Tell recent window managers which host-screen this window should be mapped to: */
+            VBoxGlobal::setFullScreenMonitorX11(this, pFullscreenLogic->hostScreenForGuestScreen(m_uScreenId));
+
+            /* If there is a mini-toolbar: */
+            if (m_pMiniToolBar)
+            {
+                /* Tell recent window managers which host-screen this mini-toolbar should be mapped to: */
+                VBoxGlobal::setFullScreenMonitorX11(m_pMiniToolBar, pFullscreenLogic->hostScreenForGuestScreen(m_uScreenId));
+            }
+        }
 #endif /* Q_WS_X11 */
+
+        /* Adjust machine-view size if necessary: */
+        adjustMachineViewSize();
+
+        /* Make sure machine-view have focus: */
+        m_pMachineView->setFocus();
     }
-#endif /* !Q_WS_MAC */
 }
 
-#ifndef Q_WS_MAC
+#if defined(Q_WS_WIN) || defined(Q_WS_X11)
 void UIMachineWindowFullscreen::updateAppearanceOf(int iElement)
 {
     /* Call to base-class: */
@@ -497,6 +462,7 @@ void UIMachineWindowFullscreen::updateAppearanceOf(int iElement)
     /* Update mini-toolbar: */
     if (iElement & UIVisualElement_MiniToolBar)
     {
+        /* If there is a mini-toolbar: */
         if (m_pMiniToolBar)
         {
             /* Get snapshot(s): */
@@ -511,5 +477,5 @@ void UIMachineWindowFullscreen::updateAppearanceOf(int iElement)
         }
     }
 }
-#endif /* !Q_WS_MAC */
+#endif /* Q_WS_WIN || Q_WS_X11 */
 

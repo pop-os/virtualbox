@@ -562,13 +562,14 @@ typedef struct PDMIDISPLAYPORT
      * The allocated bitmap buffer must be freed with pfnFreeScreenshot.
      *
      * @param   pInterface          Pointer to this interface.
-     * @param   ppu8Data            Where to store the pointer to the allocated buffer.
+     * @param   ppbData             Where to store the pointer to the allocated
+     *                              buffer.
      * @param   pcbData             Where to store the actual size of the bitmap.
      * @param   pcx                 Where to store the width of the bitmap.
      * @param   pcy                 Where to store the height of the bitmap.
      * @thread  The emulation thread.
      */
-    DECLR3CALLBACKMEMBER(int, pfnTakeScreenshot,(PPDMIDISPLAYPORT pInterface, uint8_t **ppu8Data, size_t *pcbData, uint32_t *pcx, uint32_t *pcy));
+    DECLR3CALLBACKMEMBER(int, pfnTakeScreenshot,(PPDMIDISPLAYPORT pInterface, uint8_t **ppbData, size_t *pcbData, uint32_t *pcx, uint32_t *pcy));
 
     /**
      * Free screenshot buffer.
@@ -576,10 +577,11 @@ typedef struct PDMIDISPLAYPORT
      * This will free the memory buffer allocated by pfnTakeScreenshot.
      *
      * @param   pInterface          Pointer to this interface.
-     * @param   ppu8Data            Pointer to the buffer returned by pfnTakeScreenshot.
+     * @param   pbData              Pointer to the buffer returned by
+     *                              pfnTakeScreenshot.
      * @thread  Any.
      */
-    DECLR3CALLBACKMEMBER(void, pfnFreeScreenshot,(PPDMIDISPLAYPORT pInterface, uint8_t *pu8Data));
+    DECLR3CALLBACKMEMBER(void, pfnFreeScreenshot,(PPDMIDISPLAYPORT pInterface, uint8_t *pbData));
 
     /**
      * Copy bitmap to the display.
@@ -647,20 +649,21 @@ typedef struct PDMIDISPLAYPORT
         const uint8_t *pbSrc, int32_t xSrc, int32_t ySrc, uint32_t cxSrc, uint32_t cySrc, uint32_t cbSrcLine, uint32_t cSrcBitsPerPixel,
         uint8_t       *pbDst, int32_t xDst, int32_t yDst, uint32_t cxDst, uint32_t cyDst, uint32_t cbDstLine, uint32_t cDstBitsPerPixel));
 
-#ifdef VBOX_WITH_VMSVGA
     /**
-     * Inform the VGA device of viewport changes (as a result of e.g. scrolling)
+     * Inform the VGA device of viewport changes (as a result of e.g. scrolling).
      *
      * @param   pInterface          Pointer to this interface.
-     * @param   uScreenId           The screen updates are for.
+     * @param   idScreen            The screen updates are for.
      * @param   x                   The upper left corner x coordinate of the new viewport rectangle
      * @param   y                   The upper left corner y coordinate of the new viewport rectangle
      * @param   cx                  The width of the new viewport rectangle
      * @param   cy                  The height of the new viewport rectangle
-     * @thread  The emulation thread.
+     * @thread  GUI thread?
+     *
+     * @remarks Is allowed to be NULL.
      */
-    DECLR3CALLBACKMEMBER(void, pfnSetViewPort,(PPDMIDISPLAYPORT pInterface, uint32_t uScreenId, uint32_t x, uint32_t y, uint32_t cx, uint32_t cy));
-#endif
+    DECLR3CALLBACKMEMBER(void, pfnSetViewport,(PPDMIDISPLAYPORT pInterface,
+                                               uint32_t idScreen, uint32_t x, uint32_t y, uint32_t cx, uint32_t cy));
 
     /**
      * Send a video mode hint to the VGA device.
@@ -677,10 +680,9 @@ typedef struct PDMIDISPLAYPORT
      *                              Set for the last hint of a series.
      * @thread  Schedules on the emulation thread.
      */
-    DECLR3CALLBACKMEMBER(int, pfnSendModeHint,
-                         (PPDMIDISPLAYPORT pInterface, uint32_t cx, uint32_t cy,
-                          uint32_t cBPP, uint32_t iDisplay, uint32_t dx,
-                          uint32_t dy, uint32_t fEnabled, uint32_t fNotifyGuest));
+    DECLR3CALLBACKMEMBER(int, pfnSendModeHint, (PPDMIDISPLAYPORT pInterface, uint32_t cx, uint32_t cy,
+                                                uint32_t cBPP, uint32_t iDisplay, uint32_t dx,
+                                                uint32_t dy, uint32_t fEnabled, uint32_t fNotifyGuest));
 
     /**
      * Send the guest a notification about host cursor capabilities changes.
@@ -747,7 +749,8 @@ typedef struct PDMIDISPLAYCONNECTOR
      * @param   cy                  New display height.
      * @thread  The emulation thread.
      */
-    DECLR3CALLBACKMEMBER(int, pfnResize,(PPDMIDISPLAYCONNECTOR pInterface, uint32_t cBits, void *pvVRAM, uint32_t cbLine, uint32_t cx, uint32_t cy));
+    DECLR3CALLBACKMEMBER(int, pfnResize,(PPDMIDISPLAYCONNECTOR pInterface, uint32_t cBits, void *pvVRAM, uint32_t cbLine,
+                                         uint32_t cx, uint32_t cy));
 
     /**
      * Update a rectangle of the display.
@@ -796,7 +799,7 @@ typedef struct PDMIDISPLAYCONNECTOR
      *                              true -  an LFB mode was disabled
      * @thread  The emulation thread.
      */
-    DECLR3CALLBACKMEMBER(void, pfnLFBModeChange, (PPDMIDISPLAYCONNECTOR pInterface, bool fEnabled));
+    DECLR3CALLBACKMEMBER(void, pfnLFBModeChange,(PPDMIDISPLAYCONNECTOR pInterface, bool fEnabled));
 
     /**
      * Process the guest graphics adapter information.
@@ -808,7 +811,7 @@ typedef struct PDMIDISPLAYCONNECTOR
      * @param   u32VRAMSize         Size of the guest VRAM.
      * @thread  The emulation thread.
      */
-    DECLR3CALLBACKMEMBER(void, pfnProcessAdapterData, (PPDMIDISPLAYCONNECTOR pInterface, void *pvVRAM, uint32_t u32VRAMSize));
+    DECLR3CALLBACKMEMBER(void, pfnProcessAdapterData,(PPDMIDISPLAYCONNECTOR pInterface, void *pvVRAM, uint32_t u32VRAMSize));
 
     /**
      * Process the guest display information.
@@ -820,7 +823,7 @@ typedef struct PDMIDISPLAYCONNECTOR
      * @param   uScreenId           The index of the guest display to be processed.
      * @thread  The emulation thread.
      */
-    DECLR3CALLBACKMEMBER(void, pfnProcessDisplayData, (PPDMIDISPLAYCONNECTOR pInterface, void *pvVRAM, unsigned uScreenId));
+    DECLR3CALLBACKMEMBER(void, pfnProcessDisplayData,(PPDMIDISPLAYCONNECTOR pInterface, void *pvVRAM, unsigned uScreenId));
 
     /**
      * Process the guest Video HW Acceleration command.
@@ -832,7 +835,7 @@ typedef struct PDMIDISPLAYCONNECTOR
      * VERR_INVALID_STATE - the command could not be processed (most likely because the framebuffer was disconnected) - the post should be retried later
      * @thread  The emulation thread.
      */
-    DECLR3CALLBACKMEMBER(int, pfnVHWACommandProcess, (PPDMIDISPLAYCONNECTOR pInterface, PVBOXVHWACMD pCmd));
+    DECLR3CALLBACKMEMBER(int, pfnVHWACommandProcess,(PPDMIDISPLAYCONNECTOR pInterface, PVBOXVHWACMD pCmd));
 
     /**
      * Process the guest chromium command.
@@ -841,7 +844,7 @@ typedef struct PDMIDISPLAYCONNECTOR
      * @param   pCmd                Video HW Acceleration Command to be processed.
      * @thread  The emulation thread.
      */
-    DECLR3CALLBACKMEMBER(void, pfnCrHgsmiCommandProcess, (PPDMIDISPLAYCONNECTOR pInterface, struct VBOXVDMACMD_CHROMIUM_CMD* pCmd, uint32_t cbCmd));
+    DECLR3CALLBACKMEMBER(void, pfnCrHgsmiCommandProcess,(PPDMIDISPLAYCONNECTOR pInterface, struct VBOXVDMACMD_CHROMIUM_CMD* pCmd, uint32_t cbCmd));
 
     /**
      * Process the guest chromium control command.
@@ -850,25 +853,27 @@ typedef struct PDMIDISPLAYCONNECTOR
      * @param   pCmd                Video HW Acceleration Command to be processed.
      * @thread  The emulation thread.
      */
-    DECLR3CALLBACKMEMBER(void, pfnCrHgsmiControlProcess, (PPDMIDISPLAYCONNECTOR pInterface, struct VBOXVDMACMD_CHROMIUM_CTL* pCtl, uint32_t cbCtl));
+    DECLR3CALLBACKMEMBER(void, pfnCrHgsmiControlProcess,(PPDMIDISPLAYCONNECTOR pInterface, struct VBOXVDMACMD_CHROMIUM_CTL* pCtl, uint32_t cbCtl));
 
     /**
      * Process the guest chromium control command.
      *
      * @param   pInterface          Pointer to this interface.
      * @param   pCmd                Video HW Acceleration Command to be processed.
+     * @param   cbCmd               Undocumented!
+     * @param   pfnCompletion       Undocumented!
+     * @param   pvCompletion        Undocumented!
      * @thread  The emulation thread.
      */
-    DECLR3CALLBACKMEMBER(int, pfnCrHgcmCtlSubmit, (PPDMIDISPLAYCONNECTOR pInterface,
-                                            struct VBOXCRCMDCTL* pCmd, uint32_t cbCmd,
-                                            PFNCRCTLCOMPLETION pfnCompletion,
-                                            void *pvCompletion));
+    DECLR3CALLBACKMEMBER(int, pfnCrHgcmCtlSubmit,(PPDMIDISPLAYCONNECTOR pInterface, struct VBOXCRCMDCTL *pCmd, uint32_t cbCmd,
+                                                  PFNCRCTLCOMPLETION pfnCompletion, void *pvCompletion));
 
     /**
      * The specified screen enters VBVA mode.
      *
      * @param   pInterface          Pointer to this interface.
      * @param   uScreenId           The screen updates are for.
+     * @param   pHostFlags          Undocumented!
      * @param   fRenderThreadMode   if true - the graphics device has a separate thread that does all rendering.
      *                              This means that:
      *                              1. most pfnVBVAXxx callbacks (see the individual documentation for each one)
@@ -878,7 +883,8 @@ typedef struct PDMIDISPLAYCONNECTOR
      *                                 in the context of the render thread as part of the Graphics device, and gets notified about those events directly
      * @thread  if fRenderThreadMode is TRUE - the render thread, otherwise - the emulation thread.
      */
-    DECLR3CALLBACKMEMBER(int, pfnVBVAEnable,(PPDMIDISPLAYCONNECTOR pInterface, unsigned uScreenId, PVBVAHOSTFLAGS pHostFlags, bool fRenderThreadMode));
+    DECLR3CALLBACKMEMBER(int, pfnVBVAEnable,(PPDMIDISPLAYCONNECTOR pInterface, unsigned uScreenId,
+                                             PVBVAHOSTFLAGS pHostFlags, bool fRenderThreadMode));
 
     /**
      * The specified screen leaves VBVA mode.
@@ -904,11 +910,14 @@ typedef struct PDMIDISPLAYCONNECTOR
      * Process the guest VBVA command.
      *
      * @param   pInterface          Pointer to this interface.
+     * @param   uScreenId           The screen updates are for.
      * @param   pCmd                Video HW Acceleration Command to be processed.
+     * @param   cbCmd               Undocumented!
      * @thread  if render thread mode is on (fRenderThreadMode that was passed to pfnVBVAEnable is TRUE) - the render thread pfnVBVAEnable was called in,
      *          otherwise - the emulation thread.
      */
-    DECLR3CALLBACKMEMBER(void, pfnVBVAUpdateProcess,(PPDMIDISPLAYCONNECTOR pInterface, unsigned uScreenId, const PVBVACMDHDR pCmd, size_t cbCmd));
+    DECLR3CALLBACKMEMBER(void, pfnVBVAUpdateProcess,(PPDMIDISPLAYCONNECTOR pInterface, unsigned uScreenId,
+                                                     const PVBVACMDHDR pCmd, size_t cbCmd));
 
     /**
      * A sequence of pfnVBVAUpdateProcess calls ends.
@@ -963,8 +972,7 @@ typedef struct PDMIDISPLAYCONNECTOR
      * @thread  The emulation thread.
      */
     DECLR3CALLBACKMEMBER(int, pfnVBVAMousePointerShape,(PPDMIDISPLAYCONNECTOR pInterface, bool fVisible, bool fAlpha,
-                                                        uint32_t xHot, uint32_t yHot,
-                                                        uint32_t cx, uint32_t cy,
+                                                        uint32_t xHot, uint32_t yHot, uint32_t cx, uint32_t cy,
                                                         const void *pvShape));
 
     /**
@@ -982,7 +990,7 @@ typedef struct PDMIDISPLAYCONNECTOR
      * @{
      */
     /** Pointer to the display data buffer. */
-    uint8_t        *pu8Data;
+    uint8_t        *pbData;
     /** Size of a scanline in the data buffer. */
     uint32_t        cbScanline;
     /** The color depth (in bits) the graphics card is supposed to provide. */

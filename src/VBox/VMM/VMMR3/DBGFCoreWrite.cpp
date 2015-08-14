@@ -220,7 +220,7 @@ static int Elf64WriteNoteHdr(RTFILE hFile, uint16_t Type, const char *pszName, c
 
     /*
      * Yell loudly and bail if we are going to be writing a core file that is not compatible with
-     * both Solaris and the 64-bit ELF spec. which dictates 8-byte alignment. See @bugref{5211} comment #3.
+     * both Solaris and the 64-bit ELF spec. which dictates 8-byte alignment. See @bugref{5211#c3}.
      */
     if (cbNameAlign - cbName > 3)
     {
@@ -242,7 +242,7 @@ static int Elf64WriteNoteHdr(RTFILE hFile, uint16_t Type, const char *pszName, c
     Elf64_Nhdr ElfNoteHdr;
     RT_ZERO(ElfNoteHdr);
     ElfNoteHdr.n_namesz = (Elf64_Word)cbName - 1;    /* Again, a discrepancy between ELF-64 and Solaris,
-                                                        we will follow ELF-64, see @bugref{5211} comment #3. */
+                                                        we will follow ELF-64, see @bugref{5211#c3}. */
     ElfNoteHdr.n_type   = Type;
     ElfNoteHdr.n_descsz = (Elf64_Word)cbDataAlign;
 
@@ -312,10 +312,11 @@ static uint32_t dbgfR3GetRamRangeCount(PVM pVM)
 /**
  * Gets the guest-CPU context suitable for dumping into the core file.
  *
+ * @param   pVM         Pointer to the VM.
  * @param   pCtx        Pointer to the guest-CPU context.
  * @param   pDbgfCpu    Where to dump the guest-CPU data.
  */
-static void dbgfR3GetCoreCpu(PCPUMCTX pCtx, PDBGFCORECPU pDbgfCpu)
+static void dbgfR3GetCoreCpu(PVM pVM, PCPUMCTX pCtx, PDBGFCORECPU pDbgfCpu)
 {
 #define DBGFCOPYSEL(a_dbgfsel, a_cpumselreg) \
     do { \
@@ -375,7 +376,9 @@ static void dbgfR3GetCoreCpu(PCPUMCTX pCtx, PDBGFCORECPU pDbgfCpu)
     pDbgfCpu->aXcr[0]         = pCtx->aXcr[0];
     pDbgfCpu->aXcr[1]         = pCtx->aXcr[1];
     AssertCompile(sizeof(pDbgfCpu->ext) == sizeof(*pCtx->pXStateR3));
-    memcpy(&pDbgfCpu->ext, pCtx->pXStateR3, sizeof(pDbgfCpu->ext));
+    pDbgfCpu->cbExt = pVM->cpum.ro.GuestFeatures.cbMaxExtendedState;
+    if (RT_LIKELY(pDbgfCpu->cbExt))
+        memcpy(&pDbgfCpu->ext, pCtx->pXStateR3, pDbgfCpu->cbExt);
 
 #undef DBGFCOPYSEL
 }
@@ -505,7 +508,7 @@ static int dbgfR3CoreWriteWorker(PVM pVM, RTFILE hFile)
     PDBGFCORECPU pDbgfCoreCpu = (PDBGFCORECPU)RTMemAlloc(sizeof(*pDbgfCoreCpu));
     if (RT_UNLIKELY(!pDbgfCoreCpu))
     {
-        LogRel((DBGFLOG_NAME ": failed to alloc %u bytes for DBGFCORECPU\n", sizeof(*pDbgfCoreCpu)));
+        LogRel((DBGFLOG_NAME ": Failed to alloc %u bytes for DBGFCORECPU\n", sizeof(*pDbgfCoreCpu)));
         return VERR_NO_MEMORY;
     }
 
@@ -521,7 +524,7 @@ static int dbgfR3CoreWriteWorker(PVM pVM, RTFILE hFile)
         }
 
         RT_BZERO(pDbgfCoreCpu, sizeof(*pDbgfCoreCpu));
-        dbgfR3GetCoreCpu(pCtx, pDbgfCoreCpu);
+        dbgfR3GetCoreCpu(pVM, pCtx, pDbgfCoreCpu);
         rc = Elf64WriteNoteHdr(hFile, NT_VBOXCPU, g_pcszCoreVBoxCpu, pDbgfCoreCpu, sizeof(*pDbgfCoreCpu));
         if (RT_FAILURE(rc))
         {

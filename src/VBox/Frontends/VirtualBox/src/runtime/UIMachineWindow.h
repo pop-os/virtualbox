@@ -94,11 +94,11 @@ public:
 
 protected slots:
 
+    /** Performs machine-window activation. */
+    void sltActivateWindow() { activateWindow(); }
+
     /* Session event-handlers: */
     virtual void sltMachineStateChanged();
-
-    /** Shows window minimized. */
-    virtual void showMinimized() { QMainWindow::showMinimized(); }
 
 protected:
 
@@ -147,7 +147,7 @@ protected:
     virtual void cleanupStatusBar() {}
     virtual void cleanupMenu() {}
     virtual void cleanupMainLayout() {}
-    virtual void cleanupSessionConnections() {}
+    virtual void cleanupSessionConnections();
 
     /* Update stuff: */
     virtual void updateAppearanceOf(int iElement);

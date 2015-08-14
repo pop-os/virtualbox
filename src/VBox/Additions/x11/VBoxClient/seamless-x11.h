@@ -137,7 +137,8 @@ public:
     bool addWindow(Window hWin, bool isMapped, int x, int y, int w, int h, int cRects,
                    XRectangle *pRects)
     {
-        LogRelFlowFunc(("\n"));
+        LogRelFlowFunc(("hWin=%lu, isMapped=%RTbool, x=%d, y=%d, w=%d, h=%d, cRects=%d\n",
+                        (unsigned long) hWin, isMapped, x, y, w, h, cRects));
         VBoxGuestWinInfo *pInfo = new VBoxGuestWinInfo(isMapped, x, y, w, h, cRects,
                                                        pRects);
         pInfo->Core.Key = hWin;
@@ -242,8 +243,6 @@ public:
     /* Methods to handle X11 events.  These are public so that the unit test
      * can call them. */
     void doConfigureEvent(Window hWin);
-    void doMapEvent(Window hWin);
-    void doUnmapEvent(Window hWin);
     void doShapeEvent(Window hWin);
 
     SeamlessX11(void)

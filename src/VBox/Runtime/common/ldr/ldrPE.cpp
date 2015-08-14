@@ -3089,7 +3089,7 @@ static int rtldrPEValidateOptionalHeader(const IMAGE_OPTIONAL_HEADER64 *pOptHdr,
     {
         Log(("rtldrPEOpen: %s: SizeOfHeaders=%#x - cbMinImageSize %#x + sections %#x = %#llx!!!\n",
              pszLogName, pOptHdr->SizeOfHeaders,
-             cbImage, cbMinImageSize, pFileHdr->NumberOfSections * sizeof(IMAGE_SECTION_HEADER),
+             cbMinImageSize, pFileHdr->NumberOfSections * sizeof(IMAGE_SECTION_HEADER),
              cbMinImageSize + pFileHdr->NumberOfSections * sizeof(IMAGE_SECTION_HEADER)));
         return VERR_BAD_EXE_FORMAT;
     }
@@ -3148,17 +3148,17 @@ static int rtldrPEValidateOptionalHeader(const IMAGE_OPTIONAL_HEADER64 *pOptHdr,
                      pszLogName, i, pDir->VirtualAddress, pDir->Size));
                 if (pDir->Size < sizeof(WIN_CERTIFICATE))
                 {
-                    Log(("rtldrPEOpen: %s: Security directory is too small: %#x bytes\n", pszLogName, i, pDir->Size));
+                    Log(("rtldrPEOpen: %s: Security directory #%u is too small: %#x bytes\n", pszLogName, i, pDir->Size));
                     return VERR_LDRPE_CERT_MALFORMED;
                 }
                 if (pDir->Size >= RTLDRMODPE_MAX_SECURITY_DIR_SIZE)
                 {
-                    Log(("rtldrPEOpen: %s: Security directory is too large: %#x bytes\n", pszLogName, i, pDir->Size));
+                    Log(("rtldrPEOpen: %s: Security directory #%u is too large: %#x bytes\n", pszLogName, i, pDir->Size));
                     return VERR_LDRPE_CERT_MALFORMED;
                 }
                 if (pDir->VirtualAddress & 7)
                 {
-                    Log(("rtldrPEOpen: %s: Security directory is misaligned: %#x\n", pszLogName, i, pDir->VirtualAddress));
+                    Log(("rtldrPEOpen: %s: Security directory #%u is misaligned: %#x\n", pszLogName, i, pDir->VirtualAddress));
                     return VERR_LDRPE_CERT_MALFORMED;
                 }
                 /* When using the in-memory reader with a debugger, we may get
@@ -3480,7 +3480,7 @@ static int rtldrPEValidateDirectoriesAndRememberStuff(PRTLDRMODPE pModPe, const 
                 Log(("rtldrPEOpen: %s: load cfg dir: Header (%d) and directory (%d) size mismatch, applying the ATI kludge\n",
                      pszLogName, u.Cfg64.Size, Dir.Size));
                 Dir.Size = u.Cfg64.Size;
-                memset(&u.Cfg64, 0, sizeof(u.Cfg64));
+                RT_ZERO(u.Cfg64);
                 rc = rtldrPEReadRVA(pModPe, &u.Cfg64, Dir.Size, Dir.VirtualAddress);
                 if (RT_FAILURE(rc))
                     return rc;
@@ -3490,7 +3490,21 @@ static int rtldrPEValidateDirectoriesAndRememberStuff(PRTLDRMODPE pModPe, const 
             /* Kludge #2, ntdll.dll from XP seen with Dir.Size=0x40 and Cfg64.Size=0x00. */
             if (Dir.Size == 0x40 && u.Cfg64.Size == 0x00 && !pModPe->f64Bit)
             {
+                Log(("rtldrPEOpen: %s: load cfg dir: Header (%d) and directory (%d) size mismatch, applying the XP kludge\n",
+                     pszLogName, u.Cfg64.Size, Dir.Size));
                 u.Cfg64.Size = 0x40;
+            }
+
+            /* Kludge #3, imagehlp.dll from W10/32 seen with Dir.Size=0x40 (V1) and Cfg64.Size=0x68 (V3). */
+            if (Dir.Size == 0x40 && u.Cfg64.Size == 0x68 && !pModPe->f64Bit)
+            {
+                Log(("rtldrPEOpen: %s: load cfg dir: Header (%d) and directory (%d) size mismatch, applying the W10/32 kludge\n",
+                     pszLogName, u.Cfg64.Size, Dir.Size));
+                Dir.Size = u.Cfg64.Size;
+                RT_ZERO(u.Cfg64);
+                rc = rtldrPEReadRVA(pModPe, &u.Cfg64, Dir.Size, Dir.VirtualAddress);
+                if (RT_FAILURE(rc))
+                    return rc;
                 rtldrPEConvert32BitLoadConfigTo64Bit(&u.Cfg64);
             }
 

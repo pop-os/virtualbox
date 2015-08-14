@@ -27,7 +27,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 100967 $"
+__version__ = "$Revision: 102049 $"
 
 
 # Standard python imports.
@@ -222,7 +222,7 @@ class TestBoxScript(object):
         os.environ['TESTBOX_MEM_SIZE']          = self.getSignOnParam(constants.tbreq.SIGNON_PARAM_MEM_SIZE);
         os.environ['TESTBOX_SCRATCH_SIZE']      = self.getSignOnParam(constants.tbreq.SIGNON_PARAM_SCRATCH_SIZE);
         #TODO: os.environ['TESTBOX_WITH_RAW_MODE']     = self.getSignOnParam(constants.tbreq.SIGNON_PARAM_WITH_RAW_MODE);
-        os.environ['TESTBOX_WITH_RAW_MODE']     = self._withRawModeSupport();
+        os.environ['TESTBOX_WITH_RAW_MODE']     = str(self._withRawModeSupport());
         os.environ['TESTBOX_MANAGER_URL']       = self._oOptions.sTestManagerUrl;
         os.environ['TESTBOX_UUID']              = self._sTestBoxUuid;
         os.environ['TESTBOX_REPORTER']          = 'remote';
@@ -286,7 +286,7 @@ class TestBoxScript(object):
             if sType == 'cifs':
                 utils.sudoProcessOutputChecked(['/bin/mount', '-t', 'cifs',
                                                 '-o',
-                                                  'user=' + sUser
+                                                'user=' + sUser
                                                 + ',password=' + sPassword
                                                 + ',sec=ntlmv2'
                                                 + ',uid=' + str(os.getuid()) # pylint: disable=E1101
@@ -313,7 +313,7 @@ class TestBoxScript(object):
                 oPasswdFile.flush();
                 utils.sudoProcessOutputChecked(['/sbin/mount', '-F', 'smbfs',
                                                 '-o',
-                                                  'user=' + sUser
+                                                'user=' + sUser
                                                 + ',uid=' + str(os.getuid()) # pylint: disable=E1101
                                                 + ',gid=' + str(os.getgid()) # pylint: disable=E1101
                                                 + ',fileperms=0555,dirperms=0555,noxattr,ro',

@@ -1172,6 +1172,9 @@
 #define VERR_VMM_SWITCHER_STUB              (-2715)
 /** HM returned in the wrong state. */
 #define VERR_VMM_WRONG_HM_VMCPU_STATE       (-2716)
+/** SMAP enabled, but the AC flag was found to be clear - check the kernel
+ * log for details. */
+#define VERR_VMM_SMAP_BUT_AC_CLEAR          (-2717)
 /** @} */
 
 
@@ -1618,6 +1621,15 @@
 #define VERR_VD_DMG_XML_PARSE_ERROR                 (-3284)
 /** Unable to locate a usable DMG file within the XAR archive. */
 #define VERR_VD_DMG_NOT_FOUND_INSIDE_XAR            (-3285)
+/** The size of the raw image is not dividable by 512 */
+#define VERR_VD_RAW_SIZE_MODULO_512                 (-3286)
+/** The size of the raw image is not dividable by 2048 */
+#define VERR_VD_RAW_SIZE_MODULO_2048                (-3287)
+/** The size of the raw optical image is too small (<= 32K) */
+#define VERR_VD_RAW_SIZE_OPTICAL_TOO_SMALL          (-3288)
+/** The size of the raw floppy image is too big (>2.88MB) */
+#define VERR_VD_RAW_SIZE_FLOPPY_TOO_BIG             (-3289)
+
 /** @} */
 
 
@@ -1808,6 +1820,10 @@
 #define VWRN_SUPDRV_TSC_DELTA_MEASUREMENT_FAILED     3746
 /** A TSC-delta measurement request is currently being serviced. */
 #define VERR_SUPDRV_TSC_DELTA_MEASUREMENT_BUSY      (-3747)
+/** The process trying to open VBoxDrv is not a budding VM process (1). */
+#define VERR_SUPDRV_NOT_BUDDING_VM_PROCESS_1        (-3748)
+/** The process trying to open VBoxDrv is not a budding VM process (2). */
+#define VERR_SUPDRV_NOT_BUDDING_VM_PROCESS_2        (-3749)
 /** @} */
 
 
@@ -2017,9 +2033,9 @@
 /** Internal VMX processing error no 5. */
 #define VERR_VMX_IPE_5                              (-4027)
 /** VT-x features for all modes (SMX and non-SMX) disabled by the BIOS. */
-#define VERR_VMX_MSR_ALL_VMXON_DISABLED             (-4028)
+#define VERR_VMX_MSR_ALL_VMX_DISABLED               (-4028)
 /** VT-x features disabled by the BIOS. */
-#define VERR_VMX_MSR_VMXON_DISABLED                 (-4029)
+#define VERR_VMX_MSR_VMX_DISABLED                   (-4029)
 /** VM-Entry Controls internal cache invalid. */
 #define VERR_VMX_ENTRY_CTLS_CACHE_INVALID           (-4030)
 /** VM-Exit Controls internal cache invalid. */
@@ -2032,6 +2048,10 @@
 /** VM-Execution Secondary Processor-based Controls internal
  *  cache invalid. */
 #define VERR_VMX_PROC_EXEC2_CTLS_CACHE_INVALID      (-4034)
+/** Failed to set VMXON enable bit while enabling VT-x through the MSR. */
+#define VERR_VMX_MSR_VMX_ENABLE_FAILED              (-4035)
+/** Failed to enable VMXON-in-SMX bit while enabling VT-x through the MSR. */
+#define VERR_VMX_MSR_SMX_VMX_ENABLE_FAILED          (-4036)
 /** @} */
 
 

@@ -1,4 +1,4 @@
-/* $Id: kDbgHlp.h 29 2009-07-01 20:30:29Z bird $ */
+/* $Id: kDbgHlp.h 70 2015-08-13 09:03:02Z bird $ */
 /** @file
  * kDbg - The Debug Info Reader, Internal Header.
  */
@@ -242,7 +242,7 @@ void kDbgAssertMsg2(const char *pszFormat, ...);
     do { \
         if (!(expr)) \
         { \
-            kDbgAssertMsg1(#expr, __FILE__, __LINE__, __FUNCTION__); \
+            kDbgAssertMsg1(#expr, __FILE__, __LINE__, K_FUNCTION); \
             kDbgAssertBreakpoint(); \
         }
     } while (0)
@@ -251,7 +251,7 @@ void kDbgAssertMsg2(const char *pszFormat, ...);
     do { \
         if (!(expr)) \
         { \
-            kDbgAssertMsg1(#expr, __FILE__, __LINE__, __FUNCTION__); \
+            kDbgAssertMsg1(#expr, __FILE__, __LINE__, K_FUNCTION); \
             kDbgAssertBreakpoint(); \
             return (rcRet); \
         }
@@ -261,7 +261,7 @@ void kDbgAssertMsg2(const char *pszFormat, ...);
     do { \
         if (!(expr)) \
         { \
-            kDbgAssertMsg1(#expr, __FILE__, __LINE__, __FUNCTION__); \
+            kDbgAssertMsg1(#expr, __FILE__, __LINE__, K_FUNCTION); \
             kDbgAssertMsg2 msg; \
             kDbgAssertBreakpoint(); \
         }
@@ -271,7 +271,7 @@ void kDbgAssertMsg2(const char *pszFormat, ...);
     do { \
         if (!(expr)) \
         { \
-            kDbgAssertMsg1(#expr, __FILE__, __LINE__, __FUNCTION__); \
+            kDbgAssertMsg1(#expr, __FILE__, __LINE__, K_FUNCTION); \
             kDbgAssertMsg2 msg; \
             kDbgAssertBreakpoint(); \
             return (rcRet); \

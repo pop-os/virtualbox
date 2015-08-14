@@ -93,6 +93,8 @@ typedef struct HOSTPARTITION
 {
     /** partition number */
     unsigned        uIndex;
+    /** partition number (internal only, windows specific numbering) */
+    unsigned        uIndexWin;
     /** partition type */
     unsigned        uType;
     /** CHS/cylinder of the first sector */
@@ -830,6 +832,7 @@ static int partRead(RTFILE File, PHOSTPARTITIONS pPart)
 
                 PHOSTPARTITION pCP = &pPart->aPartitions[pPart->cPartitions++];
                 pCP->uIndex = currentEntry + 1;
+                pCP->uIndexWin = currentEntry + 1;
                 pCP->uType = 0;
                 pCP->uStartCylinder = 0;
                 pCP->uStartHead = 0;
@@ -842,6 +845,7 @@ static int partRead(RTFILE File, PHOSTPARTITIONS pPart)
                 if (start==0 || end==0)
                 {
                     pCP->uIndex = 0;
+                    pCP->uIndexWin = 0;
                     --pPart->cPartitions;
                     break;
                 }
@@ -866,6 +870,7 @@ static int partRead(RTFILE File, PHOSTPARTITIONS pPart)
             return VERR_INVALID_PARAMETER;
 
         unsigned uExtended = (unsigned)-1;
+        unsigned uIndexWin = 1;
 
         for (unsigned i = 0; i < 4; i++)
         {
@@ -889,12 +894,20 @@ static int partRead(RTFILE File, PHOSTPARTITIONS pPart)
             if (PARTTYPE_IS_EXTENDED(p[4]))
             {
                 if (uExtended == (unsigned)-1)
+                {
                     uExtended = (unsigned)(pCP - pPart->aPartitions);
+                    pCP->uIndexWin = 0;
+                }
                 else
                 {
                     RTMsgError("More than one extended partition");
                     return VERR_INVALID_PARAMETER;
                 }
+            }
+            else
+            {
+                pCP->uIndexWin = uIndexWin;
+                uIndexWin++;
             }
         }
 
@@ -930,6 +943,7 @@ static int partRead(RTFILE File, PHOSTPARTITIONS pPart)
 
                 PHOSTPARTITION pCP = &pPart->aPartitions[pPart->cPartitions++];
                 pCP->uIndex = uIndex;
+                pCP->uIndexWin = uIndexWin;
                 pCP->uType = p[4];
                 pCP->uStartCylinder = (uint32_t)p[3] + ((uint32_t)(p[2] & 0xc0) << 2);
                 pCP->uStartHead = p[1];
@@ -953,7 +967,9 @@ static int partRead(RTFILE File, PHOSTPARTITIONS pPart)
                     uExtended = (unsigned)-1;
                 else if (PARTTYPE_IS_EXTENDED(p[4]))
                 {
-                    uExtended = uIndex++;
+                    uExtended = uIndex;
+                    uIndex++;
+                    uIndexWin++;
                     uOffset = RT_MAKE_U32_FROM_U8(p[8], p[9], p[10], p[11]);
                 }
                 else
@@ -1176,7 +1192,7 @@ static RTEXITCODE CmdCreateRawVMDK(int argc, char **argv, ComPtr<IVirtualBox> aV
             i++;
             pszPartitions = argv[i];
         }
-#if defined(RT_OS_LINUX) || defined(RT_OS_FREEBSD)
+#if defined(RT_OS_LINUX) || defined(RT_OS_FREEBSD) || defined(RT_OS_WINDOWS)
         else if (strcmp(argv[i], "-relative") == 0)
         {
             fRelative = true;
@@ -1243,6 +1259,13 @@ static RTEXITCODE CmdCreateRawVMDK(int argc, char **argv, ComPtr<IVirtualBox> aV
             /* IOCTL_DISK_GET_LENGTH_INFO is supported -- override cbSize. */
             cbSize = DiskLenInfo.Length.QuadPart;
         }
+        if (   fRelative
+            && !rawdisk.startsWith("\\\\.\\PhysicalDrive", Utf8Str::CaseInsensitive))
+        {
+            RTMsgError("The -relative parameter is invalid for raw disk %s", rawdisk.c_str());
+            vrc = VERR_INVALID_PARAMETER;
+            goto out;
+        }
     }
     else
     {
@@ -1257,11 +1280,19 @@ static RTEXITCODE CmdCreateRawVMDK(int argc, char **argv, ComPtr<IVirtualBox> aV
             goto out;
         }
         else
+        {
+            if (fRelative)
+            {
+                RTMsgError("The -relative parameter is invalid for raw images");
+                vrc = VERR_INVALID_PARAMETER;
+                goto out;
+            }
             vrc = VINF_SUCCESS;
+        }
     }
 #elif defined(RT_OS_LINUX)
     struct stat DevStat;
-    if(!fstat(RTFileToNative(hRawFile), &DevStat))
+    if (!fstat(RTFileToNative(hRawFile), &DevStat))
     {
         if (S_ISBLK(DevStat.st_mode))
         {
@@ -1470,17 +1501,18 @@ static RTEXITCODE CmdCreateRawVMDK(int argc, char **argv, ComPtr<IVirtualBox> aV
     RawDescriptor.szSignature[3] = '\0';
     if (!pszPartitions)
     {
-        RawDescriptor.fRawDisk = true;
+        RawDescriptor.uFlags = VBOXHDDRAW_DISK;
         RawDescriptor.pszRawDisk = rawdisk.c_str();
     }
     else
     {
-        RawDescriptor.fRawDisk = false;
+        RawDescriptor.uFlags = VBOXHDDRAW_NORMAL;
         RawDescriptor.pszRawDisk = NULL;
         RawDescriptor.cPartDescs = 0;
         RawDescriptor.pPartDescs = NULL;
 
         uint32_t uPartitions = 0;
+        uint32_t uPartitionsRO = 0;
 
         const char *p = pszPartitions;
         char *pszNext;
@@ -1495,6 +1527,11 @@ static RTEXITCODE CmdCreateRawVMDK(int argc, char **argv, ComPtr<IVirtualBox> aV
             }
             uPartitions |= RT_BIT(u32);
             p = pszNext;
+            if (*p == 'r')
+            {
+                uPartitionsRO |= RT_BIT(u32);
+                p++;
+            }
             if (*p == ',')
                 p++;
             else if (*p != '\0')
@@ -1615,15 +1652,18 @@ static RTEXITCODE CmdCreateRawVMDK(int argc, char **argv, ComPtr<IVirtualBox> aV
 
             if (uPartitions & RT_BIT(partitions.aPartitions[i].uIndex))
             {
+                if (uPartitionsRO & RT_BIT(partitions.aPartitions[i].uIndex))
+                    pPartDesc->uFlags |= VBOXHDDRAW_READONLY;
+
                 if (fRelative)
                 {
-#if defined(RT_OS_LINUX) || defined(RT_OS_FREEBSD)
+#if defined(RT_OS_LINUX) || defined(RT_OS_DARWIN) || defined(RT_OS_FREEBSD)
                     /* Refer to the correct partition and use offset 0. */
                     char *psz;
                     RTStrAPrintf(&psz,
 #if defined(RT_OS_LINUX)
                                  "%s%u",
-#elif defined(RT_OS_FREEBSD)
+#elif defined(RT_OS_DARWIN) || defined(RT_OS_FREEBSD)
                                  "%ss%u",
 #endif
                                  rawdisk.c_str(),
@@ -1637,16 +1677,17 @@ static RTEXITCODE CmdCreateRawVMDK(int argc, char **argv, ComPtr<IVirtualBox> aV
                     }
                     pszRawName = psz;
                     uStartOffset = 0;
-#elif defined(RT_OS_DARWIN)
+#elif defined(RT_OS_WINDOWS)
                     /* Refer to the correct partition and use offset 0. */
                     char *psz;
-                    RTStrAPrintf(&psz, "%ss%u", rawdisk.c_str(),
-                                 partitions.aPartitions[i].uIndex);
+                    RTStrAPrintf(&psz, "\\\\.\\Harddisk%sPartition%u",
+                                 rawdisk.c_str() + 17,
+                                 partitions.aPartitions[i].uIndexWin);
                     if (!psz)
                     {
                         vrc = VERR_NO_STR_MEMORY;
-                        RTMsgError("Cannot create reference to individual partition %u, rc=%Rrc",
-                                 partitions.aPartitions[i].uIndex, vrc);
+                        RTMsgError("Cannot create reference to individual partition %u (numbered %u), rc=%Rrc",
+                                   partitions.aPartitions[i].uIndex, partitions.aPartitions[i].uIndexWin, vrc);
                         goto out;
                     }
                     pszRawName = psz;
@@ -1703,7 +1744,7 @@ static RTEXITCODE CmdCreateRawVMDK(int argc, char **argv, ComPtr<IVirtualBox> aV
                 RawDescriptor.pPartDescs[i].cbData = RT_MIN(RawDescriptor.pPartDescs[i+1].uStart - RawDescriptor.pPartDescs[i].uStart, RawDescriptor.pPartDescs[i].cbData);
                 if (!RawDescriptor.pPartDescs[i].cbData)
                 {
-                    if(RawDescriptor.uPartitioningType == MBR)
+                    if (RawDescriptor.uPartitioningType == MBR)
                     {
                         RTMsgError("MBR/EPT overlaps with data area");
                         vrc = VERR_INVALID_PARAMETER;
@@ -1711,7 +1752,7 @@ static RTEXITCODE CmdCreateRawVMDK(int argc, char **argv, ComPtr<IVirtualBox> aV
                     }
                     else
                     {
-                        if(RawDescriptor.cPartDescs != i+1)
+                        if (RawDescriptor.cPartDescs != i+1)
                         {
                             RTMsgError("GPT overlaps with data area");
                             vrc = VERR_INVALID_PARAMETER;
@@ -1726,7 +1767,7 @@ static RTEXITCODE CmdCreateRawVMDK(int argc, char **argv, ComPtr<IVirtualBox> aV
     RTFileClose(hRawFile);
 
 #ifdef DEBUG_klaus
-    if (!RawDescriptor.fRawDisk)
+    if (!(RawDescriptor.uFlags & VBOXHDDRAW_DISK))
     {
         RTPrintf("#            start         length    startoffset  partdataptr  device\n");
         for (unsigned i = 0; i < RawDescriptor.cPartDescs; i++)

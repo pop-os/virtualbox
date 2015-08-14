@@ -28,16 +28,7 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_SUP_DRV
-/*
- * Deal with conflicts first.
- * PVM - BSD mess, that FreeBSD has correct a long time ago.
- * iprt/types.h before sys/param.h - prevents UINT32_C and friends.
- */
-#include <iprt/types.h>
-#include <sys/param.h>
-#undef PVM
-
-#include <IOKit/IOLib.h> /* Assert as function */
+#include "../../../Runtime/r0drv/darwin/the-darwin-kernel.h"
 
 #include "../SUPDrvInternal.h"
 #include <VBox/version.h>
@@ -78,10 +69,10 @@ RT_C_DECLS_BEGIN
 RT_C_DECLS_END
 #endif
 
-/* Temporary debugging. */
+/* Temporary debugging - very temporary... */
 #define VBOX_PROC_SELFNAME_LEN  (20)
-#define VBOX_RETRIEVE_CUR_PROC_NAME(_name)    char _name[VBOX_PROC_SELFNAME_LEN]; \
-                                              proc_selfname(pszProcName, VBOX_PROC_SELFNAME_LEN)
+#define VBOX_RETRIEVE_CUR_PROC_NAME(_name)  char _name[VBOX_PROC_SELFNAME_LEN]; \
+                                            proc_selfname(pszProcName, VBOX_PROC_SELFNAME_LEN)
 
 
 /*******************************************************************************
@@ -489,7 +480,7 @@ static int VBoxDrvDarwinOpen(dev_t Dev, int fFlags, int fDevType, struct proc *p
      * The process issuing the request must be the current process.
      */
     RTPROCESS Process = RTProcSelf();
-    if (Process != proc_pid(pProcess))
+    if ((int)Process != proc_pid(pProcess))
         return EIO;
 
     /*
@@ -585,6 +576,20 @@ static int VBoxDrvDarwinIOCtl(dev_t Dev, u_long iCmd, caddr_t pData, int fFlags,
     const unsigned      iHash = SESSION_HASH(Process);
     PSUPDRVSESSION      pSession;
 
+#ifdef VBOX_WITH_EFLAGS_AC_SET_IN_VBOXDRV
+    /*
+     * Refuse all I/O control calls if we've ever detected EFLAGS.AC being cleared.
+     *
+     * This isn't a problem, as there is absolutely nothing in the kernel context that
+     * depend on user context triggering cleanups.  That would be pretty wild, right?
+     */
+    if (RT_UNLIKELY(g_DevExt.cBadContextCalls > 0))
+    {
+        SUPR0Printf("VBoxDrvDarwinIOCtl: EFLAGS.AC=0 detected %u times, refusing all I/O controls!\n", g_DevExt.cBadContextCalls);
+        return EDEVERR;
+    }
+#endif
+
     /*
      * Find the session.
      */
@@ -639,10 +644,25 @@ static int VBoxDrvDarwinIOCtlSMAP(dev_t Dev, u_long iCmd, caddr_t pData, int fFl
      * Allow VBox R0 code to touch R3 memory. Setting the AC bit disables the
      * SMAP check.
      */
-    RTCCUINTREG uFlags = ASMGetFlags();
-    ASMSetAC();
+    RTCCUINTREG fSavedEfl = ASMAddFlags(X86_EFL_AC);
+
     int rc = VBoxDrvDarwinIOCtl(Dev, iCmd, pData, fFlags, pProcess);
-    ASMSetFlags(uFlags);
+
+#if defined(VBOX_STRICT) || defined(VBOX_WITH_EFLAGS_AC_SET_IN_VBOXDRV)
+    /*
+     * Before we restore AC and the rest of EFLAGS, check if the IOCtl handler code
+     * accidentially modified it or some other important flag.
+     */
+    if (RT_UNLIKELY(   (ASMGetFlags() & (X86_EFL_AC | X86_EFL_IF | X86_EFL_DF | X86_EFL_IOPL))
+                    != ((fSavedEfl    & (X86_EFL_AC | X86_EFL_IF | X86_EFL_DF | X86_EFL_IOPL)) | X86_EFL_AC) ))
+    {
+        char szTmp[48];
+        RTStrPrintf(szTmp, sizeof(szTmp), "iCmd=%#x: %#x->%#x!", iCmd, (uint32_t)fSavedEfl, (uint32_t)ASMGetFlags());
+        supdrvBadContext(&g_DevExt, "SUPDrv-darwin.cpp",  __LINE__, szTmp);
+    }
+#endif
+
+    ASMSetFlags(fSavedEfl);
     return rc;
 }
 
@@ -1367,9 +1387,10 @@ static void supdrvDarwinResumeBuiltinKbd(void)
  */
 int VBOXCALL    supdrvDarwinResumeSuspendedKbds(void)
 {
+    IPRT_DARWIN_SAVE_EFL_AC();
     supdrvDarwinResumeBuiltinKbd();
     supdrvDarwinResumeBluetoothKbd();
-
+    IPRT_DARWIN_RESTORE_EFL_AC();
     return 0;
 }
 
@@ -1399,6 +1420,7 @@ static int VBoxDrvDarwinErr2DarwinErr(int rc)
     return EPERM;
 }
 
+
 /**
  * Check if the CPU has SMAP support.
  */
@@ -1413,11 +1435,17 @@ static bool vboxdrvDarwinCpuHasSMAP(void)
         if (uEBX & X86_CPUID_STEXT_FEATURE_EBX_SMAP)
             return true;
     }
+#ifdef VBOX_WITH_EFLAGS_AC_SET_IN_VBOXDRV
+    return true;
+#else
     return false;
+#endif
 }
+
 
 RTDECL(int) SUPR0Printf(const char *pszFormat, ...)
 {
+    IPRT_DARWIN_SAVE_EFL_AC();
     va_list     va;
     char        szMsg[512];
 
@@ -1427,16 +1455,20 @@ RTDECL(int) SUPR0Printf(const char *pszFormat, ...)
     szMsg[sizeof(szMsg) - 1] = '\0';
 
     printf("%s", szMsg);
+
+    IPRT_DARWIN_RESTORE_EFL_AC();
     return 0;
 }
 
 
-/**
- * Returns configuration flags of the host kernel.
- */
 SUPR0DECL(uint32_t) SUPR0GetKernelFeatures(void)
 {
-    return 0;
+    uint32_t fFlags = 0;
+    if (g_DevCW.d_ioctl == VBoxDrvDarwinIOCtlSMAP)
+        fFlags |= SUPKERNELFEATURES_SMAP;
+    else
+        Assert(!(ASMGetCR4() & X86_CR4_SMAP));
+    return fFlags;
 }
 
 

@@ -103,6 +103,7 @@ RTDECL(int)  RTSemEventMultiCreateEx(PRTSEMEVENTMULTI phEventMultiSem, uint32_t 
     AssertCompile(sizeof(RTSEMEVENTMULTIINTERNAL) > sizeof(void *));
     AssertPtrReturn(phEventMultiSem, VERR_INVALID_POINTER);
     RT_ASSERT_PREEMPTIBLE();
+    IPRT_DARWIN_SAVE_EFL_AC();
 
     PRTSEMEVENTMULTIINTERNAL pThis = (PRTSEMEVENTMULTIINTERNAL)RTMemAlloc(sizeof(*pThis));
     if (pThis)
@@ -116,12 +117,14 @@ RTDECL(int)  RTSemEventMultiCreateEx(PRTSEMEVENTMULTI phEventMultiSem, uint32_t 
         if (pThis->pSpinlock)
         {
             *phEventMultiSem = pThis;
+            IPRT_DARWIN_RESTORE_EFL_AC();
             return VINF_SUCCESS;
         }
 
         pThis->u32Magic = 0;
         RTMemFree(pThis);
     }
+    IPRT_DARWIN_RESTORE_EFL_AC();
     return VERR_NO_MEMORY;
 }
 
@@ -147,9 +150,13 @@ DECLINLINE(void) rtR0SemEventMultiDarwinRelease(PRTSEMEVENTMULTIINTERNAL pThis)
 {
     if (RT_UNLIKELY(ASMAtomicDecU32(&pThis->cRefs) == 0))
     {
+        IPRT_DARWIN_SAVE_EFL_AC();
         Assert(pThis->u32Magic != RTSEMEVENTMULTI_MAGIC);
+
         lck_spin_destroy(pThis->pSpinlock, g_pDarwinLockGroup);
         RTMemFree(pThis);
+
+        IPRT_DARWIN_RESTORE_EFL_AC();
     }
 }
 
@@ -163,6 +170,7 @@ RTDECL(int)  RTSemEventMultiDestroy(RTSEMEVENTMULTI hEventMultiSem)
     AssertMsgReturn(pThis->u32Magic == RTSEMEVENTMULTI_MAGIC, ("pThis=%p u32Magic=%#x\n", pThis, pThis->u32Magic), VERR_INVALID_HANDLE);
     Assert(pThis->cRefs > 0);
     RT_ASSERT_INTS_ON();
+    IPRT_DARWIN_SAVE_EFL_AC();
 
     lck_spin_lock(pThis->pSpinlock);
 
@@ -177,6 +185,7 @@ RTDECL(int)  RTSemEventMultiDestroy(RTSEMEVENTMULTI hEventMultiSem)
     lck_spin_unlock(pThis->pSpinlock);
     rtR0SemEventMultiDarwinRelease(pThis);
 
+    IPRT_DARWIN_RESTORE_EFL_AC();
     return VINF_SUCCESS;
 }
 
@@ -188,6 +197,7 @@ RTDECL(int)  RTSemEventMultiSignal(RTSEMEVENTMULTI hEventMultiSem)
     AssertMsgReturn(pThis->u32Magic == RTSEMEVENTMULTI_MAGIC, ("pThis=%p u32Magic=%#x\n", pThis, pThis->u32Magic), VERR_INVALID_HANDLE);
     RT_ASSERT_PREEMPT_CPUID_VAR();
     RT_ASSERT_INTS_ON();
+    IPRT_DARWIN_SAVE_EFL_AC();
 
     rtR0SemEventMultiDarwinRetain(pThis);
     lck_spin_lock(pThis->pSpinlock);
@@ -213,6 +223,7 @@ RTDECL(int)  RTSemEventMultiSignal(RTSEMEVENTMULTI hEventMultiSem)
     rtR0SemEventMultiDarwinRelease(pThis);
 
     RT_ASSERT_PREEMPT_CPUID();
+    IPRT_DARWIN_RESTORE_EFL_AC();
     return VINF_SUCCESS;
 }
 
@@ -224,6 +235,7 @@ RTDECL(int)  RTSemEventMultiReset(RTSEMEVENTMULTI hEventMultiSem)
     AssertMsgReturn(pThis->u32Magic == RTSEMEVENTMULTI_MAGIC, ("pThis=%p u32Magic=%#x\n", pThis, pThis->u32Magic), VERR_INVALID_HANDLE);
     RT_ASSERT_PREEMPT_CPUID_VAR();
     RT_ASSERT_INTS_ON();
+    IPRT_DARWIN_SAVE_EFL_AC();
 
     rtR0SemEventMultiDarwinRetain(pThis);
     lck_spin_lock(pThis->pSpinlock);
@@ -234,6 +246,7 @@ RTDECL(int)  RTSemEventMultiReset(RTSEMEVENTMULTI hEventMultiSem)
     rtR0SemEventMultiDarwinRelease(pThis);
 
     RT_ASSERT_PREEMPT_CPUID();
+    IPRT_DARWIN_RESTORE_EFL_AC();
     return VINF_SUCCESS;
 }
 
@@ -258,6 +271,7 @@ static int rtR0SemEventMultiDarwinWait(PRTSEMEVENTMULTIINTERNAL pThis, uint32_t 
     AssertReturn(RTSEMWAIT_FLAGS_ARE_VALID(fFlags), VERR_INVALID_PARAMETER);
     if (uTimeout != 0 || (fFlags & RTSEMWAIT_FLAGS_INDEFINITE))
         RT_ASSERT_PREEMPTIBLE();
+    IPRT_DARWIN_SAVE_EFL_AC();
 
     rtR0SemEventMultiDarwinRetain(pThis);
     lck_spin_lock(pThis->pSpinlock);
@@ -381,6 +395,8 @@ static int rtR0SemEventMultiDarwinWait(PRTSEMEVENTMULTIINTERNAL pThis, uint32_t 
 
     lck_spin_unlock(pThis->pSpinlock);
     rtR0SemEventMultiDarwinRelease(pThis);
+
+    IPRT_DARWIN_RESTORE_EFL_AC();
     return rc;
 }
 

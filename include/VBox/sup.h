@@ -101,6 +101,8 @@ typedef enum SUPPAGINGMODE
  */
 /** GDT is read-only. */
 #define SUPKERNELFEATURES_GDT_READ_ONLY     RT_BIT(0)
+/** SMAP is possibly enabled. */
+#define SUPKERNELFEATURES_SMAP              RT_BIT(1)
 /** @} */
 
 
@@ -386,9 +388,11 @@ typedef struct SUPGLOBALINFOPAGE
     /** Mask of SUPGIPGETCPU_XXX values that indicates different ways that aCPU
      * can be accessed from ring-3 and raw-mode context. */
     uint32_t            fGetGipCpu;
+    /** GIP flags, see SUPGIP_FLAGS_XXX. */
+    volatile uint32_t   fFlags;
 
     /** Padding / reserved space for future data. */
-    uint32_t            au32Padding1[25];
+    uint32_t            au32Padding1[24];
 
     /** Table indexed by the CPU APIC ID to get the CPU table index. */
     uint16_t            aiCpuFromApicId[256];
@@ -421,7 +425,7 @@ typedef SUPGLOBALINFOPAGE *PSUPGLOBALINFOPAGE;
 /** The GIP version.
  * Upper 16 bits is the major version. Major version is only changed with
  * incompatible changes in the GIP. */
-#define SUPGLOBALINFOPAGE_VERSION   0x00060000
+#define SUPGLOBALINFOPAGE_VERSION   0x00060001
 
 /**
  * SUPGLOBALINFOPAGE::u32Mode values.
@@ -488,9 +492,25 @@ extern DECLIMPORT(SUPGLOBALINFOPAGE)    g_SUPGlobalInfoPage;
  */
 SUPDECL(PSUPGLOBALINFOPAGE)             SUPGetGIP(void);
 
+/** @name SUPGIP_FLAGS_XXX - SUPR3GipSetFlags flags.
+ * @{ */
+/** Enable GIP test mode. */
+#define SUPGIP_FLAGS_TESTING_ENABLE          RT_BIT_32(0)
+/** Valid mask of flags that can be set through the ioctl. */
+#define SUPGIP_FLAGS_VALID_MASK              RT_BIT_32(0)
+/** GIP test mode needs to be checked (e.g. when enabled or being disabled). */
+#define SUPGIP_FLAGS_TESTING                 RT_BIT_32(24)
+/** Prepare to start GIP test mode. */
+#define SUPGIP_FLAGS_TESTING_START           RT_BIT_32(25)
+/** Prepare to stop GIP test mode. */
+#define SUPGIP_FLAGS_TESTING_STOP            RT_BIT_32(26)
+/** @} */
 
 /** @internal  */
 SUPDECL(uint64_t) SUPGetCpuHzFromGipForAsyncMode(PSUPGLOBALINFOPAGE pGip);
+SUPDECL(bool)     SUPIsTscFreqCompatible(uint64_t uCpuHz, uint64_t *puGipCpuHz, bool fRelax);
+SUPDECL(bool)     SUPIsTscFreqCompatibleEx(uint64_t uBaseCpuHz, uint64_t uCpuHz, bool fRelax);
+
 
 /**
  * Gets the TSC frequency of the calling CPU.
@@ -550,35 +570,6 @@ DECLINLINE(uint64_t) SUPGetCpuHzFromGipBySetIndex(PSUPGLOBALINFOPAGE pGip, uint3
     return UINT64_MAX;
 }
 
-
-#if 0 /* Not used anywhere.  Unsure where this would be useful. */
-/**
- * Checks if the provided TSC frequency is close enough to the computed TSC
- * frequency of the host.
- *
- * @returns true if it's compatible, false otherwise.
- */
-DECLINLINE(bool) SUPIsTscFreqCompatible(uint64_t u64CpuHz)
-{
-    PSUPGLOBALINFOPAGE pGip = g_pSUPGlobalInfoPage;
-    if (   pGip
-        && pGip->u32Mode == SUPGIPMODE_INVARIANT_TSC)
-    {
-        if (pGip->u64CpuHz != u64CpuHz)
-        {
-            /* Arbitrary tolerance threshold, tweak later if required, perhaps
-               more tolerance on lower frequencies and less tolerance on higher. */
-            uint64_t uLo = (pGip->u64CpuHz << 10) / 1025;
-            uint64_t uHi = pGip->u64CpuHz + (pGip->u64CpuHz - uLo);
-            if (   u64CpuHz < uLo
-                || u64CpuHz > uHi)
-                return false;
-        }
-        return true;
-    }
-    return false;
-}
-#endif
 
 #if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
 
@@ -1018,7 +1009,8 @@ typedef enum SUPINITOP
  * @param   pszMsgFmt       Error message format string.
  * @param   va              The message format arguments.
  */
-typedef DECLCALLBACK(void) FNSUPTRUSTEDERROR(const char *pszWhere, SUPINITOP enmWhat, int rc, const char *pszMsgFmt, va_list va);
+typedef DECLCALLBACK(void) FNSUPTRUSTEDERROR(const char *pszWhere, SUPINITOP enmWhat, int rc,
+                                             const char *pszMsgFmt, va_list va) RT_IPRT_FORMAT_ATTR(4, 0);
 /** Pointer to FNSUPTRUSTEDERROR. */
 typedef FNSUPTRUSTEDERROR *PFNSUPTRUSTEDERROR;
 
@@ -1072,7 +1064,6 @@ DECLHIDDEN(int) SUPR3HardenedMain(const char *pszProgName, uint32_t fFlags, int 
  * @param   ppSession       Where to store the session handle. Defaults to NULL.
  */
 SUPR3DECL(int) SUPR3Init(PSUPDRVSESSION *ppSession);
-
 
 /**
  * Initializes the support library, extended version.
@@ -1648,7 +1639,6 @@ SUPR3DECL(int) SUPR3TracerDeregisterModule(struct VTGOBJHDR *pVtgHdr);
 SUPDECL(void)  SUPTracerFireProbe(struct VTGPROBELOC *pVtgProbeLoc, uintptr_t uArg0, uintptr_t uArg1, uintptr_t uArg2,
                                   uintptr_t uArg3, uintptr_t uArg4);
 
-
 /**
  * Attempts to read the value of an MSR.
  *
@@ -1713,7 +1703,6 @@ SUPR3DECL(int) SUPR3MsrProberModifyEx(uint32_t uMsr, RTCPUID idCpu, uint64_t fAn
  */
 SUPR3DECL(int) SUPR3ResumeSuspendedKeyboards(void);
 
-
 /**
  * Measure the TSC-delta for the specified CPU.
  *
@@ -1739,6 +1728,15 @@ SUPR3DECL(int) SUPR3TscDeltaMeasure(RTCPUID idCpu, bool fAsync, bool fForce, uin
  *                          was read (optional, can be NULL).
  */
 SUPR3DECL(int) SUPR3ReadTsc(uint64_t *puTsc, uint16_t *pidApic);
+
+/**
+ * Modifies the GIP flags.
+ *
+ * @returns VBox status code.
+ * @param   fOrMask         The OR mask of the GIP flags, see SUPGIP_FLAGS_XXX.
+ * @param   fAndMask        The AND mask of the GIP flags, see SUPGIP_FLAGS_XXX.
+ */
+SUPR3DECL(int) SUPR3GipSetFlags(uint32_t fOrMask, uint32_t fAndMask);
 
 /** @} */
 #endif /* IN_RING3 */
@@ -1821,9 +1819,7 @@ SUPR0DECL(int) SUPR0GetSvmUsability(bool fInitSvm);
 SUPR0DECL(int) SUPR0GetVmxUsability(bool *pfIsSmxModeAmbiguous);
 SUPR0DECL(int) SUPR0QueryVTCaps(PSUPDRVSESSION pSession, uint32_t *pfCaps);
 SUPR0DECL(int) SUPR0GipUnmap(PSUPDRVSESSION pSession);
-SUPR0DECL(int) SUPR0Printf(const char *pszFormat, ...);
 SUPR0DECL(SUPPAGINGMODE) SUPR0GetPagingMode(void);
-SUPR0DECL(uint32_t) SUPR0GetKernelFeatures(void);
 SUPR0DECL(RTCCUINTREG) SUPR0ChangeCR4(RTCCUINTREG fOrMask, RTCCUINTREG fAndMask);
 SUPR0DECL(int) SUPR0EnableVTx(bool fEnable);
 SUPR0DECL(bool) SUPR0SuspendVTxOnCpu(void);
@@ -1833,6 +1829,28 @@ SUPR0DECL(void) SUPR0ResumeVTxOnCpu(bool fSuspended);
 #define SUP_TSCDELTA_MEASURE_F_VALID_MASK   UINT32_C(0x00000003)
 SUPR0DECL(int) SUPR0TscDeltaMeasureBySetIndex(PSUPDRVSESSION pSession, uint32_t iCpuSet, uint32_t fFlags,
                                               RTMSINTERVAL cMsWaitRetry, RTMSINTERVAL cMsWaitThread, uint32_t cTries);
+
+SUPR0DECL(void) SUPR0BadContext(PSUPDRVSESSION pSession, const char *pszFile, uint32_t uLine, const char *pszExpr);
+
+/**
+ * Writes to the debugger and/or kernel log.
+ *
+ * The length of the formatted message is somewhat limited, so keep things short
+ * and to the point.
+ *
+ * @returns Number of bytes written, mabye.
+ * @param   pszFormat       IPRT format string.
+ * @param   ...             Arguments referenced by the format string.
+ */
+SUPR0DECL(int)  SUPR0Printf(const char *pszFormat, ...) RT_IPRT_FORMAT_ATTR(1, 2);
+
+/**
+ * Returns configuration flags of the host kernel.
+ *
+ * @returns Combination of SUPKERNELFEATURES_XXX flags.
+ */
+SUPR0DECL(uint32_t) SUPR0GetKernelFeatures(void);
+
 
 /** @name Absolute symbols
  * Take the address of these, don't try call them.

@@ -34,6 +34,9 @@
 #include "UIDefs.h"
 #include "UIMediumDefs.h"
 #include "VBoxGlobalSettings.h"
+#ifdef Q_WS_X11
+# include "VBoxX11Helper.h"
+#endif /* Q_WS_X11 */
 
 /* COM includes: */
 #include "VBox/com/Guid.h"
@@ -42,6 +45,11 @@
 #include "CVirtualBox.h"
 #include "CSession.h"
 #include "CGuestOSType.h"
+
+/* Other includes: */
+#ifdef Q_WS_X11
+# include <X11/Xdefs.h>
+#endif /* Q_WS_X11 */
 
 /* Forward declarations: */
 class QAction;
@@ -75,6 +83,14 @@ public:
         LaunchMode_Default,
         LaunchMode_Headless,
         LaunchMode_Separate
+    };
+
+    /** Whether to start the VM running. */
+    enum StartRunning
+    {
+        StartRunning_Default,   /**< Default (depends on debug settings). */
+        StartRunning_No,        /**< Start the VM paused. */
+        StartRunning_Yes        /**< Start the VM running. */
     };
 
     /* Static API: Create/destroy stuff: */
@@ -148,7 +164,10 @@ public:
     QString managedVMUuid() const { return vmUuid; }
     QList<QUrl> &argUrlList() { return m_ArgUrlList; }
 
-    bool isKWinManaged() const { return mIsKWinManaged; }
+#ifdef Q_WS_X11
+    /** X11: Returns the type of the Window Manager we are running under. */
+    X11WMType typeOfWindowManager() const { return m_enmWindowManagerType; }
+#endif /* Q_WS_X11 */
 
     /** Returns whether we should restore current snapshot before VM started. */
     bool shouldRestoreCurrentSnapshot() const { return mRestoreCurrentSnapshot; }
@@ -175,9 +194,16 @@ public:
     bool isDebuggerAutoShowStatisticsEnabled() const;
 
     RTLDRMOD getDebuggerModule() const { return m_hVBoxDbg; }
-
-    bool isStartPausedEnabled() const { return mStartPaused; }
 #endif /* VBOX_WITH_DEBUGGER_GUI */
+
+    bool shouldStartPaused() const
+    {
+#ifdef VBOX_WITH_DEBUGGER_GUI
+        return m_enmStartRunning == StartRunning_Default ? isDebuggerAutoShowEnabled() : m_enmStartRunning == StartRunning_No;
+#else
+        return false;
+#endif
+    }
 
     /* VBox enum to/from string/icon/color convertors */
 
@@ -354,8 +380,13 @@ public:
     static bool supportsFullScreenMonitorsProtocolX11();
     /** X11: Performs mapping of the passed @a pWidget to host-screen with passed @a uScreenId. */
     static bool setFullScreenMonitorX11(QWidget *pWidget, ulong uScreenId);
-    /** X11: Ensures @a pPropWidget become transient for the @a pWidget. */
-    static void setTransientFor(QWidget *pWidget, QWidget *pPropWidget);
+
+    /** X11: Returns a list of current _NET_WM_STATE flags for passed @a pWidget. */
+    static QVector<Atom> flagsNetWmState(QWidget *pWidget);
+    /** X11: Check whether _NET_WM_STATE_FULLSCREEN flag is set for passed @a pWidget. */
+    static bool isFullScreenFlagSet(QWidget *pWidget);
+    /** X11: Sets _NET_WM_STATE_FULLSCREEN flag for passed @a pWidget. */
+    static void setFullScreenFlag(QWidget *pWidget);
 #endif /* Q_WS_X11 */
 
     static QString removeAccelMark (const QString &aText);
@@ -479,7 +510,10 @@ private:
     UIMediumEnumerator *m_pMediumEnumerator;
     mutable QReadWriteLock m_mediumEnumeratorDtorRwLock;
 
-    bool mIsKWinManaged;
+#ifdef Q_WS_X11
+    /** X11: Holds the type of the Window Manager we are running under. */
+    X11WMType m_enmWindowManagerType;
+#endif /* Q_WS_X11 */
 
     /** The --aggressive-caching / --no-aggressive-caching option. */
     bool mAgressiveCaching;
@@ -523,8 +557,8 @@ private:
     /** VBoxDbg module handle. */
     RTLDRMOD m_hVBoxDbg;
 
-    /** Whether to start the VM in paused state or not. */
-    bool mStartPaused;
+    /** Whether --start-running, --start-paused or nothing was given. */
+    enum StartRunning m_enmStartRunning;
 #endif
 
 #if defined (Q_WS_WIN32)

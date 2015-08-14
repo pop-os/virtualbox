@@ -4656,7 +4656,7 @@ HRESULT Machine::attachDeviceWithoutMedium(const com::Utf8Str &aName,
 {
      HRESULT rc = S_OK;
 
-     LogFlowThisFunc(("aName=\"%s\" aControllerPort=%d aDevice=%d aType=%d aMedium=%p\n",
+     LogFlowThisFunc(("aName=\"%s\" aControllerPort=%d aDevice=%d aType=%d\n",
                       aName.c_str(), aControllerPort, aDevice, aType));
 
      rc = AttachDevice(Bstr(aName).raw(), aControllerPort, aDevice, aType, NULL);
@@ -7746,6 +7746,7 @@ HRESULT Machine::i_launchVMProcess(IInternalSessionControl *aControl,
  *
  * @param aMachine      Session machine object.
  * @param aControl      Direct session control object (optional).
+ * @param aRequireVM    If true then only allow VM sessions.
  * @param aAllowClosing If true then additionally a session which is currently
  *                      being closed will also be allowed.
  *
@@ -7753,6 +7754,7 @@ HRESULT Machine::i_launchVMProcess(IInternalSessionControl *aControl,
  */
 bool Machine::i_isSessionOpen(ComObjPtr<SessionMachine> &aMachine,
                               ComPtr<IInternalSessionControl> *aControl /*= NULL*/,
+                              bool aRequireVM /*= false*/,
                               bool aAllowClosing /*= false*/)
 {
     AutoLimitedCaller autoCaller(this);
@@ -7765,7 +7767,7 @@ bool Machine::i_isSessionOpen(ComObjPtr<SessionMachine> &aMachine,
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     if (    (   mData->mSession.mState == SessionState_Locked
-             && mData->mSession.mLockType == LockType_VM)
+             && (!aRequireVM || mData->mSession.mLockType == LockType_VM))
          || (aAllowClosing && mData->mSession.mState == SessionState_Unlocking)
        )
     {
@@ -8154,7 +8156,7 @@ HRESULT Machine::i_checkStateDependency(StateDependency aDepType)
                    )
                )
                 return setError(VBOX_E_INVALID_VM_STATE,
-                                tr("The machine is not mutable (state is %s)"),
+                                tr("The machine is not mutable or saved (state is %s)"),
                                 Global::stringifyMachineState(mData->mMachineState));
             break;
         }
@@ -8170,7 +8172,7 @@ HRESULT Machine::i_checkStateDependency(StateDependency aDepType)
                    )
                )
                 return setError(VBOX_E_INVALID_VM_STATE,
-                                tr("The machine is not mutable (state is %s)"),
+                                tr("The machine is not mutable or running (state is %s)"),
                                 Global::stringifyMachineState(mData->mMachineState));
             break;
         }
@@ -8187,7 +8189,7 @@ HRESULT Machine::i_checkStateDependency(StateDependency aDepType)
                    )
                )
                 return setError(VBOX_E_INVALID_VM_STATE,
-                                tr("The machine is not mutable (state is %s)"),
+                                tr("The machine is not mutable, saved or running (state is %s)"),
                                 Global::stringifyMachineState(mData->mMachineState));
             break;
         }
@@ -13385,23 +13387,10 @@ HRESULT SessionMachine::pushGuestProperty(const com::Utf8Str &aName,
 
         AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-        switch (mData->mMachineState)
+        if (!Global::IsOnline(mData->mMachineState))
         {
-            case MachineState_Paused:
-            case MachineState_Running:
-            case MachineState_Teleporting:
-            case MachineState_TeleportingPausedVM:
-            case MachineState_OnlineSnapshotting:
-            case MachineState_LiveSnapshotting:
-            case MachineState_DeletingSnapshotOnline:
-            case MachineState_DeletingSnapshotPaused:
-            case MachineState_Saving:
-            case MachineState_Stopping:
-                break;
-
-            default:
-                AssertMsgFailedReturn(("%s\n", Global::stringifyMachineState(mData->mMachineState)),
-                                      VBOX_E_INVALID_VM_STATE);
+            AssertMsgFailedReturn(("%s\n", Global::stringifyMachineState(mData->mMachineState)),
+                                  VBOX_E_INVALID_VM_STATE);
         }
 
         i_setModified(IsModified_MachineData);

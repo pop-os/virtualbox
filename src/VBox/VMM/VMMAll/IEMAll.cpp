@@ -1963,7 +1963,7 @@ IEM_STATIC VBOXSTRICTRC iemMiscValidateNewSS(PIEMCPU pIemCpu, PCCPUMCTX pCtx, RT
        interrupts with SS=0 in long mode). */
     if (!(NewSS & X86_SEL_MASK_OFF_RPL))
     {
-        Log(("iemMiscValidateNewSSandRsp: #x - null selector -> #TS(0)\n", NewSS));
+        Log(("iemMiscValidateNewSSandRsp: %#x - null selector -> #TS(0)\n", NewSS));
         return iemRaiseTaskSwitchFault0(pIemCpu);
     }
 
@@ -1986,7 +1986,7 @@ IEM_STATIC VBOXSTRICTRC iemMiscValidateNewSS(PIEMCPU pIemCpu, PCCPUMCTX pCtx, RT
      */
     if (!pDesc->Legacy.Gen.u1DescType)
     {
-        Log(("iemMiscValidateNewSSandRsp: %#x - system selector -> #TS\n", NewSS, pDesc->Legacy.Gen.u4Type));
+        Log(("iemMiscValidateNewSSandRsp: %#x - system selector (%#x) -> #TS\n", NewSS, pDesc->Legacy.Gen.u4Type));
         return iemRaiseTaskSwitchFaultBySelector(pIemCpu, NewSS);
     }
 
@@ -2507,7 +2507,7 @@ iemTaskSwitch(PIEMCPU         pIemCpu,
 
     /* Update CR2 in case it's a page-fault. */
     /** @todo This should probably be done much earlier in IEM/PGM. See
-     *        @bugref{5653} comment #49. */
+     *        @bugref{5653#c49}. */
     if (fFlags & IEM_XCPT_FLAGS_CR2)
         pCtx->cr2 = uCr2;
 

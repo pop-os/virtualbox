@@ -60,7 +60,7 @@ UIMachineLogicFullscreen::UIMachineLogicFullscreen(QObject *pParent, UISession *
 UIMachineLogicFullscreen::~UIMachineLogicFullscreen()
 {
     /* Delete multiscreen layout: */
-    actionPool()->toRuntime()->setMultiScreenLayout(0);
+    actionPool()->toRuntime()->unsetMultiScreenLayout(m_pScreenLayout);
     delete m_pScreenLayout;
 }
 
@@ -573,6 +573,24 @@ void UIMachineLogicFullscreen::prepareMachineWindows()
 
     /* Mark machine-window(s) created: */
     setMachineWindowsCreated(true);
+
+#ifdef Q_WS_X11
+    switch (vboxGlobal().typeOfWindowManager())
+    {
+        case X11WMType_GNOMEShell:
+        case X11WMType_Mutter:
+        {
+            // WORKAROUND:
+            // Under certain WMs we can loose machine-window activation due to any Qt::Tool
+            // overlay asynchronously shown above it. Qt is not become aware of such event.
+            // We are going to ask to return machine-window activation in let's say 100ms.
+            QTimer::singleShot(100, machineWindows().first(), SLOT(sltActivateWindow()));
+            break;
+        }
+        default:
+            break;
+    }
+#endif /* Q_WS_X11 */
 }
 
 void UIMachineLogicFullscreen::prepareMenu()

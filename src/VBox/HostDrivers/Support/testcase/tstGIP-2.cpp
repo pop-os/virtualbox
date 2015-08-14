@@ -40,29 +40,6 @@
 #include <iprt/getopt.h>
 #include <iprt/x86.h>
 
-
-/**
- * Checks whether the CPU advertises an invariant TSC or not.
- *
- * @returns true if invariant, false otherwise.
- */
-bool tstIsInvariantTsc(void)
-{
-    if (ASMHasCpuId())
-    {
-        uint32_t uEax, uEbx, uEcx, uEdx;
-        ASMCpuId(0x80000000, &uEax, &uEbx, &uEcx, &uEdx);
-        if (uEax >= 0x80000007)
-        {
-            ASMCpuId(0x80000007, &uEax, &uEbx, &uEcx, &uEdx);
-            if (uEdx & X86_CPUID_AMD_ADVPOWER_EDX_TSCINVAR)
-                return true;
-        }
-    }
-    return false;
-}
-
-
 int main(int argc, char **argv)
 {
     RTR3InitExe(argc, &argv, 0);
@@ -78,16 +55,21 @@ int main(int argc, char **argv)
         { "--spin",             's', RTGETOPT_REQ_NOTHING },
         { "--reference",        'r', RTGETOPT_REQ_UINT64 },  /* reference value of CpuHz, display the
                                                               * CpuHz deviation in a separate column. */
+        { "--notestmode",       't', RTGETOPT_REQ_NOTHING }  /* don't run GIP in test-mode (atm, test-mode
+                                                              * implies updating GIP CpuHz even when invariant) */
     };
 
     uint32_t cIterations = 40;
     bool fHex = true;
     bool fSpin = false;
+    bool fCompat = true;
+    bool fTestMode = true;
     int ch;
-    uint64_t uCpuHzRef = 0;
+    uint64_t uCpuHzRef = UINT64_MAX;
     uint64_t uCpuHzOverallDeviation = 0;
+    uint32_t cCpuHzNotCompat = 0;
     int64_t  iCpuHzMaxDeviation = 0;
-    int32_t cCpuHzOverallDevCnt = 0;
+    int32_t  cCpuHzOverallDevCnt = 0;
     RTGETOPTUNION ValueUnion;
     RTGETOPTSTATE GetState;
     RTGetOptInit(&GetState, argc, argv, g_aOptions, RT_ELEMENTS(g_aOptions), 1, RTGETOPTINIT_FLAGS_NO_STD_OPTS);
@@ -115,6 +97,10 @@ int main(int argc, char **argv)
                 uCpuHzRef = ValueUnion.u64;
                 break;
 
+            case 't':
+                fTestMode = false;
+                break;
+
             default:
                 return RTGetOptPrintError(ch, &ValueUnion);
         }
@@ -129,6 +115,14 @@ int main(int argc, char **argv)
     {
         if (g_pSUPGlobalInfoPage)
         {
+            /* Pick current CpuHz as the reference if none was specified. */
+            if (uCpuHzRef == UINT64_MAX)
+                uCpuHzRef = SUPGetCpuHzFromGip(g_pSUPGlobalInfoPage);
+
+            if (   fTestMode
+                && g_pSUPGlobalInfoPage->u32Mode == SUPGIPMODE_INVARIANT_TSC)
+                SUPR3GipSetFlags(SUPGIP_FLAGS_TESTING_ENABLE, UINT32_MAX);
+
             RTPrintf("tstGIP-2: cCpus=%d  u32UpdateHz=%RU32  u32UpdateIntervalNS=%RU32  u64NanoTSLastUpdateHz=%RX64  u64CpuHz=%RU64  uCpuHzRef=%RU64  u32Mode=%d (%s) u32Version=%#x\n",
                      g_pSUPGlobalInfoPage->cCpus,
                      g_pSUPGlobalInfoPage->u32UpdateHz,
@@ -142,7 +136,7 @@ int main(int argc, char **argv)
             RTPrintf(fHex
                      ? "tstGIP-2:     it: u64NanoTS        delta     u64TSC           UpIntTSC H  TransId      CpuHz      %sTSC Interval History...\n"
                      : "tstGIP-2:     it: u64NanoTS        delta     u64TSC             UpIntTSC H    TransId      CpuHz      %sTSC Interval History...\n",
-                     uCpuHzRef ? "  CpuHz deviation  " : "");
+                     uCpuHzRef ? "  CpuHz deviation  Compat  " : "");
             static SUPGIPCPU s_aaCPUs[2][256];
             for (uint32_t i = 0; i < cIterations; i++)
             {
@@ -167,16 +161,21 @@ int main(int argc, char **argv)
                             else
                             {
                                 /* Wait until the history validation code takes effect. */
+                                bool fCurHzCompat = true;
                                 if (pCpu->u32TransactionId > 23 + (8 * 2) + 1)
                                 {
                                     if (RT_ABS(iCpuHzDeviation) > RT_ABS(iCpuHzMaxDeviation))
                                         iCpuHzMaxDeviation = iCpuHzDeviation;
                                     uCpuHzOverallDeviation += uCpuHzDeviation;
                                     cCpuHzOverallDevCnt++;
+                                    fCurHzCompat = SUPIsTscFreqCompatibleEx(uCpuHzRef, pCpu->u64CpuHz, false /* fRelax */);
                                 }
                                 uint32_t uPct = (uint32_t)(uCpuHzDeviation * 100000 / uCpuHzRef + 5);
-                                RTStrPrintf(szCpuHzDeviation, sizeof(szCpuHzDeviation), "%10RI64%3d.%02d%%  ",
-                                            iCpuHzDeviation, uPct / 1000, (uPct % 1000) / 10);
+                                RTStrPrintf(szCpuHzDeviation, sizeof(szCpuHzDeviation), "%10RI64%3d.%02d%%  %RTbool   ",
+                                            iCpuHzDeviation, uPct / 1000, (uPct % 1000) / 10, fCurHzCompat);
+                                if (!fCurHzCompat)
+                                    ++cCpuHzNotCompat;
+                                fCompat &= fCurHzCompat;
                             }
                         }
                         else
@@ -261,7 +260,19 @@ int main(int argc, char **argv)
                 uint32_t uMaxPct = (uint32_t)(RT_ABS(iCpuHzMaxDeviation) * 100000 / uCpuHzRef + 5);
                 RTPrintf("tstGIP-2: Maximum CpuHz deviation: %d.%02d%% (%RI64 ticks)\n",
                          uMaxPct / 1000, (uMaxPct % 1000) / 10, iCpuHzMaxDeviation);
+
+                RTPrintf("tstGIP-2: CpuHz compatibility: %RTbool (incompatible %u of %u times w/ %RU64 Hz %s GIP)\n", fCompat,
+                         cCpuHzNotCompat, cIterations * g_pSUPGlobalInfoPage->cCpus, uCpuHzRef,
+                         SUPGetGIPModeName(g_pSUPGlobalInfoPage));
+
+                if (   !fCompat
+                    && g_pSUPGlobalInfoPage->u32Mode == SUPGIPMODE_INVARIANT_TSC)
+                    rc = -1;
             }
+
+            /* Disable GIP test mode. */
+            if (fTestMode)
+                SUPR3GipSetFlags(0, ~SUPGIP_FLAGS_TESTING_ENABLE);
         }
         else
         {

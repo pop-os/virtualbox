@@ -40,12 +40,15 @@
 /**
  * Structure for maintaining a "dropped files" directory
  * on the host or guest. This will contain all received files & directories
- * for a single transfer.
+ * for a single drag and drop operation.
  */
 typedef struct DNDDIRDROPPEDFILES
 {
     /** Directory handle for drop directory. */
     PRTDIR                       hDir;
+    /** Flag indicating whether the drop directory
+     *  has been opened for processing or not. */
+    bool                         fOpen;
     /** Absolute path to drop directory. */
     RTCString                    strPathAbs;
     /** List for holding created directories in the case of a rollback. */
@@ -73,6 +76,12 @@ int DnDPathSanitize(char *pszPath, size_t cbPath);
 #define DNDURILIST_FLAGS_ABSOLUTE_PATHS         RT_BIT(0)
 /** Resolve all symlinks. */
 #define DNDURILIST_FLAGS_RESOLVE_SYMLINKS       RT_BIT(1)
+/** Keep the files + directory entries open while
+ *  being in this list. */
+#define DNDURILIST_FLAGS_KEEP_OPEN              RT_BIT(2)
+/** Lazy loading: Only enumerate sub directories when needed.
+ ** @todo Implement lazy loading.  */
+#define DNDURILIST_FLAGS_LAZY                   RT_BIT(3)
 
 class DnDURIObject
 {
@@ -167,14 +176,14 @@ public:
     int AppendURIPathsFromList(const RTCList<RTCString> &lstURI, uint32_t fFlags);
 
     void Clear(void);
-    DnDURIObject &First(void) { return m_lstTree.first(); }
-    bool IsEmpty(void) { return m_lstTree.isEmpty(); }
+    DnDURIObject *First(void) { return m_lstTree.first(); }
+    bool IsEmpty(void) const { return m_lstTree.isEmpty(); }
     void RemoveFirst(void);
     int RootFromURIData(const void *pvData, size_t cbData, uint32_t fFlags);
     RTCString RootToString(const RTCString &strPathBase = "", const RTCString &strSeparator = "\r\n");
-    size_t RootCount(void) { return m_lstRoot.size(); }
-    uint32_t TotalCount(void) { return m_cTotal; }
-    size_t TotalBytes(void) { return m_cbTotal; }
+    size_t RootCount(void) const { return m_lstRoot.size(); }
+    uint32_t TotalCount(void) const { return m_cTotal; }
+    size_t TotalBytes(void) const { return m_cbTotal; }
 
 protected:
 
@@ -186,14 +195,16 @@ protected:
     /** List of all top-level file/directory entries.
      *  Note: All paths are kept internally as UNIX paths for
      *        easier conversion/handling!  */
-    RTCList<RTCString>     m_lstRoot;
-    /** List of all URI objects added. */
-    RTCList<DnDURIObject>  m_lstTree;
+    RTCList<RTCString>      m_lstRoot;
+    /** List of all URI objects added. The list's content
+     *  might vary depending on how the objects are being
+     *  added (lazy or not). */
+    RTCList<DnDURIObject *> m_lstTree;
     /** Total number of all URI objects. */
-    uint32_t               m_cTotal;
+    uint32_t                m_cTotal; /** @todo Really needed? m_lstTree.size()? */
     /** Total size of all URI objects, that is, the file
      *  size of all objects (in bytes). */
-    size_t                 m_cbTotal;
+    size_t                  m_cbTotal;
 };
 #endif /* ___VBox_GuestHost_DragAndDrop_h */
 

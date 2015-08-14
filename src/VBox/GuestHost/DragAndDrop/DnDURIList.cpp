@@ -42,6 +42,7 @@ DnDURIList::DnDURIList(void)
 
 DnDURIList::~DnDURIList(void)
 {
+    Clear();
 }
 
 int DnDURIList::addEntry(const char *pcszSource, const char *pcszTarget, uint32_t fFlags)
@@ -49,7 +50,7 @@ int DnDURIList::addEntry(const char *pcszSource, const char *pcszTarget, uint32_
     AssertPtrReturn(pcszSource, VERR_INVALID_POINTER);
     AssertPtrReturn(pcszTarget, VERR_INVALID_POINTER);
 
-    LogFlowFunc(("pcszSource=%s, pcszTarget=%s\n", pcszSource, pcszTarget));
+    LogFlowFunc(("pcszSource=%s, pcszTarget=%s, fFlags=0x%x\n", pcszSource, pcszTarget, fFlags));
 
     RTFSOBJINFO objInfo;
     int rc = RTPathQueryInfo(pcszSource, &objInfo, RTFSOBJATTRADD_NOTHING);
@@ -57,19 +58,43 @@ int DnDURIList::addEntry(const char *pcszSource, const char *pcszTarget, uint32_
     {
         if (RTFS_IS_FILE(objInfo.Attr.fMode))
         {
-            LogFlowFunc(("File '%s' -> '%s'\n", pcszSource, pcszTarget));
+            LogFlowFunc(("File '%s' -> '%s' (%RU64)\n", pcszSource, pcszTarget, (uint64_t)objInfo.cbObject));
 
-            m_lstTree.append(DnDURIObject(DnDURIObject::File, pcszSource, pcszTarget,
-                             objInfo.Attr.fMode, (uint64_t)objInfo.cbObject));
-            m_cTotal++;
-            m_cbTotal += (uint64_t)objInfo.cbObject;
+            DnDURIObject *pObjFile= new DnDURIObject(DnDURIObject::File, pcszSource, pcszTarget);
+            if (pObjFile)
+            {
+                if (fFlags & DNDURILIST_FLAGS_KEEP_OPEN) /* Shall we keep the file open while being added to this list? */
+                {
+                    /** @todo Add a standard fOpen mode for this list. */
+                    rc = pObjFile->Open(DnDURIObject::Source, RTFILE_O_OPEN | RTFILE_O_READ | RTFILE_O_DENY_WRITE, objInfo.Attr.fMode);
+                }
+
+                if (RT_SUCCESS(rc))
+                {
+                    m_lstTree.append(pObjFile);
+
+                    m_cTotal++;
+                    m_cbTotal += pObjFile->GetSize();
+                }
+            }
+            else
+                rc = VERR_NO_MEMORY;
         }
         else if (RTFS_IS_DIRECTORY(objInfo.Attr.fMode))
         {
             LogFlowFunc(("Directory '%s' -> '%s' \n", pcszSource, pcszTarget));
 
-            m_lstTree.append(DnDURIObject(DnDURIObject::Directory, pcszSource, pcszTarget,
-                             objInfo.Attr.fMode, 0 /* Size */));
+            DnDURIObject *pObjDir= new DnDURIObject(DnDURIObject::Directory, pcszSource, pcszTarget,
+                                                    objInfo.Attr.fMode, 0 /* Size */);
+            if (pObjDir)
+            {
+                m_lstTree.append(pObjDir);
+            }
+            else
+                rc = VERR_NO_MEMORY;
+
+            /** @todo Add DNDURILIST_FLAGS_KEEP_OPEN handling. */
+
             m_cTotal++;
         }
         /* Note: Symlinks already should have been resolved at this point. */
@@ -383,8 +408,16 @@ int DnDURIList::AppendURIPathsFromList(const RTCList<RTCString> &lstURI,
 void DnDURIList::Clear(void)
 {
     m_lstRoot.clear();
+
+    for (size_t i = 0; i < m_lstTree.size(); i++)
+    {
+        DnDURIObject *pCurObj = m_lstTree.at(i);
+        AssertPtr(pCurObj);
+        RTMemFree(pCurObj);
+    }
     m_lstTree.clear();
 
+    m_cTotal  = 0;
     m_cbTotal = 0;
 }
 
@@ -393,11 +426,15 @@ void DnDURIList::RemoveFirst(void)
     if (m_lstTree.isEmpty())
         return;
 
-    DnDURIObject &curPath = m_lstTree.first();
+    DnDURIObject *pCurObj = m_lstTree.first();
+    AssertPtr(pCurObj);
 
-    uint64_t cbSize = curPath.GetSize();
+    uint64_t cbSize = pCurObj->GetSize();
     Assert(m_cbTotal >= cbSize);
     m_cbTotal -= cbSize; /* Adjust total size. */
+
+    pCurObj->Close();
+    RTMemFree(pCurObj);
 
     m_lstTree.removeFirst();
 }

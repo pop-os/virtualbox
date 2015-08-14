@@ -184,9 +184,16 @@ int main()
     {
         RTTestSub(g_hTest, "Write");
         RTFILE hFile;
-        RTTESTI_CHECK_RC(rc = RTFileOpen(&hFile, "tstFileAio#1.tst",
-                                         RTFILE_O_READWRITE | RTFILE_O_CREATE_REPLACE | RTFILE_O_DENY_NONE | RTFILE_O_ASYNC_IO),
-                         VINF_SUCCESS);
+        RTFSTYPE enmType;
+        bool fAsyncMayFail = false;
+        rc = RTFsQueryType("tstFileAio#1.tst", &enmType);
+        if (   RT_SUCCESS(rc)
+            && enmType == RTFSTYPE_TMPFS)
+            fAsyncMayFail = true;
+        rc = RTFileOpen(&hFile, "tstFileAio#1.tst",
+                                RTFILE_O_READWRITE | RTFILE_O_CREATE_REPLACE | RTFILE_O_DENY_NONE | RTFILE_O_ASYNC_IO);
+        RTTESTI_CHECK(   rc == VINF_SUCCESS
+                      || (rc == VERR_ACCESS_DENIED && fAsyncMayFail));
         if (RT_SUCCESS(rc))
         {
             uint8_t *pbTestBuf = (uint8_t *)RTTestGuardedAllocTail(g_hTest, TSTFILEAIO_BUFFER_SIZE);

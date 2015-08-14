@@ -2087,6 +2087,18 @@ VBOXNETCFGWIN_DECL(HRESULT) VBoxNetCfgWinNetAdpUninstall(IN INetCfg *pNc, IN LPC
     return vboxNetCfgWinNetAdpUninstall(pNc, pwszId, SUOI_FORCEDELETE);
 }
 
+VBOXNETCFGWIN_DECL(HRESULT) VBoxNetCfgWinNetAdpInstall(IN INetCfg *pNc,
+                                                       IN LPCWSTR const pInfFullPath)
+{
+    NonStandardLog("NetAdp will be installed ...\n");
+    HRESULT hr = vboxNetCfgWinInstallInfAndComponent(pNc, VBOXNETCFGWIN_NETADP_ID,
+                                             &GUID_DEVCLASS_NET,
+                                             &pInfFullPath,
+                                             1,
+                                             NULL);
+    return hr;
+}
+
 #define VBOXNETCFGWIN_NETLWF_ID    L"oracle_VBoxNetLwf"
 
 static HRESULT vboxNetCfgWinNetLwfUninstall(IN INetCfg *pNc, DWORD InfRmFlags)
@@ -2961,13 +2973,26 @@ VBOXNETCFGWIN_DECL(HRESULT) VBoxNetCfgWinCreateHostOnlyNetworkInterface(IN LPCWS
         if (hkey == INVALID_HANDLE_VALUE)
             SetErrBreak(("SetupDiOpenDevRegKey failed (0x%08X)", GetLastError()));
 
-        cbSize = sizeof(pWCfgGuidString);
-        DWORD ret;
-        ret = RegQueryValueExW (hkey, L"NetCfgInstanceId", NULL,
-                               &dwValueType, (LPBYTE) pWCfgGuidString, &cbSize);
 
-        RegCloseKey (hkey);
+        /* Query the instance ID; on Windows 10, the registry key may take a short
+         * while to appear. Microsoft recommends waiting for up to 5 seconds.
+         */
+        for (int retries = 0; retries < 5 * 5; ++retries)
+        {
+            cbSize = sizeof(pWCfgGuidString);
+            ret = RegQueryValueExW (hkey, L"NetCfgInstanceId", NULL,
+                                   &dwValueType, (LPBYTE) pWCfgGuidString, &cbSize);
+            /* As long as the return code is FILE_NOT_FOUND, sleep and retry. */
+            if (ret == ERROR_FILE_NOT_FOUND)
+                Sleep(200); /* 1/5 of a second. */
+            else
+                break;
+        }
 
+        /*
+         * We need to query the device name after we have succeeded in querying its
+         * instance ID to avoid similar waiting-and-retrying loop (see @bugref{7973}).
+         */
         if (!SetupDiGetDeviceRegistryPropertyW(hDeviceInfo, &DeviceInfoData,
                                                SPDRP_FRIENDLYNAME , /* IN DWORD Property,*/
                                                NULL, /*OUT PDWORD PropertyRegDataType, OPTIONAL*/
@@ -2995,6 +3020,10 @@ VBOXNETCFGWIN_DECL(HRESULT) VBoxNetCfgWinCreateHostOnlyNetworkInterface(IN LPCWS
                                               err));
             }
         }
+        RegCloseKey (hkey);
+
+        if (ret != ERROR_SUCCESS)
+            SetErrBreak(("Querying NetCfgInstanceId failed (0x%08X)", GetLastError()));
     }
     while (0);
 
@@ -3023,12 +3052,12 @@ VBOXNETCFGWIN_DECL(HRESULT) VBoxNetCfgWinCreateHostOnlyNetworkInterface(IN LPCWS
     /* return the network connection GUID on success */
     if (SUCCEEDED(hrc))
     {
-        WCHAR ConnectoinName[128];
-        ULONG cbName = sizeof(ConnectoinName);
+        WCHAR ConnectionName[128];
+        ULONG cbName = sizeof(ConnectionName);
 
-        HRESULT hr = VBoxNetCfgWinGenHostonlyConnectionName(DevName, ConnectoinName, &cbName);
+        HRESULT hr = VBoxNetCfgWinGenHostonlyConnectionName(DevName, ConnectionName, &cbName);
         if (SUCCEEDED(hr))
-            hr = VBoxNetCfgWinRenameConnection(pWCfgGuidString, ConnectoinName);
+            hr = VBoxNetCfgWinRenameConnection(pWCfgGuidString, ConnectionName);
 
         if (lppszName)
         {

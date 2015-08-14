@@ -133,6 +133,26 @@ static const CPUMMICROARCH g_aenmIntelFamily06[] =
     /* [77(0x4d)] = */ kCpumMicroarch_Intel_Atom_Silvermont,
     /* [78(0x4e)] = */ kCpumMicroarch_Intel_Unknown,
     /* [79(0x4f)] = */ kCpumMicroarch_Intel_Unknown,
+    /* [80(0x50)] = */ kCpumMicroarch_Intel_Unknown,
+    /* [81(0x51)] = */ kCpumMicroarch_Intel_Unknown,
+    /* [82(0x52)] = */ kCpumMicroarch_Intel_Unknown,
+    /* [83(0x53)] = */ kCpumMicroarch_Intel_Unknown,
+    /* [84(0x54)] = */ kCpumMicroarch_Intel_Unknown,
+    /* [85(0x55)] = */ kCpumMicroarch_Intel_Unknown,
+    /* [86(0x56)] = */ kCpumMicroarch_Intel_Unknown,
+    /* [87(0x57)] = */ kCpumMicroarch_Intel_Unknown,
+    /* [88(0x58)] = */ kCpumMicroarch_Intel_Unknown,
+    /* [89(0x59)] = */ kCpumMicroarch_Intel_Unknown,
+    /* [90(0x5a)] = */ kCpumMicroarch_Intel_Unknown,
+    /* [91(0x5b)] = */ kCpumMicroarch_Intel_Unknown,
+    /* [92(0x5c)] = */ kCpumMicroarch_Intel_Unknown,
+    /* [93(0x5d)] = */ kCpumMicroarch_Intel_Unknown,
+    /* [94(0x5e)] = */ kCpumMicroarch_Intel_Core7_Skylake, /* 6700K */
+    /* [95(0x5f)] = */ kCpumMicroarch_Intel_Unknown,
+    /* [96(0x60)] = */ kCpumMicroarch_Intel_Unknown,
+    /* [97(0x61)] = */ kCpumMicroarch_Intel_Unknown,
+    /* [98(0x62)] = */ kCpumMicroarch_Intel_Unknown,
+    /* [99(0x63)] = */ kCpumMicroarch_Intel_Unknown,
 };
 
 
@@ -523,7 +543,7 @@ VMMR3DECL(const char *) CPUMR3MicroarchName(CPUMMICROARCH enmMicroarch)
  * @param   paLeaves            The CPUID leaves to search.  This is sorted.
  * @param   cLeaves             The number of leaves in the array.
  * @param   uLeaf               The leaf to locate.
- * @param   uSubLeaf            The subleaf to locate.  Pass 0 if no subleaves.
+ * @param   uSubLeaf            The subleaf to locate.  Pass 0 if no sub-leaves.
  */
 static PCPUMCPUIDLEAF cpumR3CpuIdGetLeaf(PCPUMCPUIDLEAF paLeaves, uint32_t cLeaves, uint32_t uLeaf, uint32_t uSubLeaf)
 {
@@ -544,7 +564,7 @@ static PCPUMCPUIDLEAF cpumR3CpuIdGetLeaf(PCPUMCPUIDLEAF paLeaves, uint32_t cLeav
  * @param   paLeaves            The CPUID leaves to search.  This is sorted.
  * @param   cLeaves             The number of leaves in the array.
  * @param   uLeaf               The leaf to locate.
- * @param   uSubLeaf            The subleaf to locate.  Pass 0 if no subleaves.
+ * @param   uSubLeaf            The subleaf to locate.  Pass 0 if no sub-leaves.
  * @param   pLegacy             The legacy output leaf.
  */
 static bool cpumR3CpuIdGetLeafLegacy(PCPUMCPUIDLEAF paLeaves, uint32_t cLeaves, uint32_t uLeaf, uint32_t uSubLeaf,
@@ -714,7 +734,7 @@ static void cpumR3CpuIdAssertOrder(PCPUMCPUIDLEAF paLeaves, uint32_t cLeaves)
 /**
  * Inserts a CPU ID leaf, replacing any existing ones.
  *
- * When inserting a simple leaf where we already got a series of subleaves with
+ * When inserting a simple leaf where we already got a series of sub-leaves with
  * the same leaf number (eax), the simple leaf will replace the whole series.
  *
  * When pVM is NULL, this ASSUMES that the leaves array is still on the normal
@@ -1037,7 +1057,7 @@ static bool cpumR3IsEcxRelevantForCpuIdLeaf(uint32_t uLeaf, uint32_t *pcSubLeave
  * @param   pVM         Pointer to the VM.
  * @param   pLeaf       Where to store the found leaf.
  * @param   uLeaf       The leaf to locate.
- * @param   uSubLeaf    The subleaf to locate.  Pass 0 if no subleaves.
+ * @param   uSubLeaf    The subleaf to locate.  Pass 0 if no sub-leaves.
  */
 VMMR3DECL(int) CPUMR3CpuIdGetLeaf(PVM pVM, PCPUMCPUIDLEAF pLeaf, uint32_t uLeaf, uint32_t uSubLeaf)
 {
@@ -1173,7 +1193,7 @@ VMMR3DECL(int) CPUMR3CpuIdCollectLeaves(PCPUMCPUIDLEAF *ppaLeaves, uint32_t *pcL
                         /* This shouldn't happen.  But in case it does, file all
                            relevant details in the release log. */
                         LogRel(("CPUM: VERR_CPUM_TOO_MANY_CPUID_SUBLEAVES! uLeaf=%#x cSubLeaves=%#x\n", uLeaf, cSubLeaves));
-                        LogRel(("------------------ dump of problematic subleaves ------------------\n"));
+                        LogRel(("------------------ dump of problematic sub-leaves -----------------\n"));
                         for (uint32_t uSubLeaf = 0; uSubLeaf < 128; uSubLeaf++)
                         {
                             uint32_t auTmp[4];
@@ -2117,8 +2137,8 @@ static int cpumR3CpuIdInstallAndExplodeLeaves(PVM pVM, PCPUM pCpum, PCPUMCPUIDLE
         if (pCpum->fXStateGuestMask & RT_BIT_64(iComponent))
         {
             PCPUMCPUIDLEAF pSubLeaf = cpumR3CpuIdGetExactLeaf(pCpum, 0xd, iComponent);
-            AssertLogRelMsgReturn(pSubLeaf, ("iComponent=%#x\n"), VERR_CPUM_IPE_1);
-            AssertLogRelMsgReturn(pSubLeaf->fSubLeafMask >= iComponent, ("iComponent=%#x\n"), VERR_CPUM_IPE_1);
+            AssertLogRelMsgReturn(pSubLeaf, ("iComponent=%#x\n", iComponent), VERR_CPUM_IPE_1);
+            AssertLogRelMsgReturn(pSubLeaf->fSubLeafMask >= iComponent, ("iComponent=%#x\n", iComponent), VERR_CPUM_IPE_1);
             AssertLogRelMsgReturn(   pSubLeaf->uEax > 0
                                   && pSubLeaf->uEbx >= CPUM_MIN_XSAVE_AREA_SIZE
                                   && pSubLeaf->uEax <= pCpum->GuestFeatures.cbMaxExtendedState
@@ -2401,6 +2421,59 @@ static void cpumR3CpuIdZeroLeaf(PCPUM pCpum, uint32_t uLeaf)
 
 
 /**
+ * Used by cpumR3CpuIdSanitize to ensure that we don't have any sub-leaves for
+ * the given leaf.
+ *
+ * @returns pLeaf.
+ * @param   pCpum       The CPUM instance data.
+ * @param   pLeaf       The leaf to ensure is alone with it's EAX input value.
+ */
+static PCPUMCPUIDLEAF cpumR3CpuIdMakeSingleLeaf(PCPUM pCpum, PCPUMCPUIDLEAF pLeaf)
+{
+    Assert((uintptr_t)(pLeaf - pCpum->GuestInfo.paCpuIdLeavesR3) < pCpum->GuestInfo.cCpuIdLeaves);
+    if (pLeaf->fSubLeafMask != 0)
+    {
+        /*
+         * Figure out how many sub-leaves in need of removal (we'll keep the first).
+         * Log everything while we're at it.
+         */
+        LogRel(("CPUM:\n"
+                "CPUM: Unexpected CPUID sub-leaves for leaf %#x; fSubLeafMask=%#x\n", pLeaf->uLeaf, pLeaf->fSubLeafMask));
+        PCPUMCPUIDLEAF  pLast    = &pCpum->GuestInfo.paCpuIdLeavesR3[pCpum->GuestInfo.cCpuIdLeaves - 1];
+        PCPUMCPUIDLEAF  pSubLeaf = pLeaf;
+        for (;;)
+        {
+            LogRel(("CPUM: %08x/%08x: %08x %08x %08x %08x; flags=%#x mask=%#x\n",
+                    pSubLeaf->uLeaf, pSubLeaf->uSubLeaf,
+                    pSubLeaf->uEax, pSubLeaf->uEbx, pSubLeaf->uEcx, pSubLeaf->uEdx,
+                    pSubLeaf->fFlags, pSubLeaf->fSubLeafMask));
+            if (pSubLeaf == pLast || pSubLeaf[1].uLeaf != pLeaf->uLeaf)
+                break;
+            pSubLeaf++;
+        }
+        LogRel(("CPUM:\n"));
+
+        /*
+         * Remove the offending sub-leaves.
+         */
+        if (pSubLeaf != pLeaf)
+        {
+            if (pSubLeaf != pLast)
+                memmove(pLeaf + 1, pSubLeaf + 1, (uintptr_t)pLast - (uintptr_t)pSubLeaf);
+            pCpum->GuestInfo.cCpuIdLeaves -= (uint32_t)(pSubLeaf - pLeaf);
+        }
+
+        /*
+         * Convert the first sub-leaf into a single leaf.
+         */
+        pLeaf->uSubLeaf     = 0;
+        pLeaf->fSubLeafMask = 0;
+    }
+    return pLeaf;
+}
+
+
+/**
  * Sanitizes and adjust the CPUID leaves.
  *
  * Drop features that aren't virtualized (or virtualizable).  Adjust information
@@ -2450,7 +2523,7 @@ static int cpumR3CpuIdSanitize(PVM pVM, PCPUM pCpum, PCPUMCPUIDCONFIG pConfig)
      */
     PCPUMCPUIDLEAF pStdFeatureLeaf = cpumR3CpuIdGetExactLeaf(pCpum, 1, 0); /* Note! Must refetch when used later. */
     AssertLogRelReturn(pStdFeatureLeaf, VERR_CPUM_IPE_2);
-    AssertLogRelReturn(pStdFeatureLeaf->fSubLeafMask == 0, VERR_CPUM_IPE_2);
+    pStdFeatureLeaf = cpumR3CpuIdMakeSingleLeaf(pCpum, pStdFeatureLeaf);
 
     pStdFeatureLeaf->uEdx &= X86_CPUID_FEATURE_EDX_FPU
                            | X86_CPUID_FEATURE_EDX_VME
@@ -2622,7 +2695,7 @@ static int cpumR3CpuIdSanitize(PVM pVM, PCPUM pCpum, PCPUMCPUIDCONFIG pConfig)
     PCPUMCPUIDLEAF pExtFeatureLeaf = cpumR3CpuIdGetExactLeaf(pCpum, UINT32_C(0x80000001), 0);
     if (pExtFeatureLeaf)
     {
-        AssertLogRelReturn(pExtFeatureLeaf->fSubLeafMask == 0, VERR_CPUM_IPE_2);
+        pExtFeatureLeaf = cpumR3CpuIdMakeSingleLeaf(pCpum, pExtFeatureLeaf);
 
         pExtFeatureLeaf->uEdx &= X86_CPUID_AMD_FEATURE_EDX_FPU
                                | X86_CPUID_AMD_FEATURE_EDX_VME
@@ -2758,8 +2831,7 @@ static int cpumR3CpuIdSanitize(PVM pVM, PCPUM pCpum, PCPUMCPUIDCONFIG pConfig)
      * Intel: (Nondeterministic) Cache and TLB information
      * AMD:   Reserved
      * VIA:   Reserved
-     * Safe to expose.  Restrict the number of calls to 1 since we don't
-     * implement this kind of subleaves (is there hardware that does??).
+     * Safe to expose.
      */
     uint32_t        uSubLeaf = 0;
     PCPUMCPUIDLEAF  pCurLeaf;
@@ -3116,7 +3188,8 @@ static int cpumR3CpuIdSanitize(PVM pVM, PCPUM pCpum, PCPUMCPUIDCONFIG pConfig)
                                                   && pCurLeaf->uEbx < cbXSaveMax
                                                   && pCurLeaf->uEbx >= CPUM_MIN_XSAVE_AREA_SIZE
                                                   && pCurLeaf->uEbx + pCurLeaf->uEax <= cbXSaveMax,
-                                                  ("%#x: eax=%#x ebx=%#x cbMax=%#x\n", pCurLeaf->uEax, pCurLeaf->uEbx, cbXSaveMax),
+                                                  ("%#x: eax=%#x ebx=%#x cbMax=%#x\n",
+                                                   uSubLeaf, pCurLeaf->uEax, pCurLeaf->uEbx, cbXSaveMax),
                                                   VERR_CPUM_IPE_2);
                             AssertLogRel(!(pCurLeaf->uEcx & 1));
                             pCurLeaf->uEcx = 0; /* Bit 0 should be zero (XCR0), the reset are reserved... */
@@ -3669,6 +3742,9 @@ static int cpumR3CpuIdReadConfig(PVM pVM, PCPUMCPUIDCONFIG pConfig, PCFGMNODE pC
                                   "|MWaitExtensions"
                                   "|SSE4.1"
                                   "|SSE4.2"
+                                  "|XSAVE"
+                                  "|AVX"
+                                  "|AVX2"
                                   "|AESNI"
                                   "|PCLMUL"
                                   "|POPCNT"
@@ -3676,6 +3752,11 @@ static int cpumR3CpuIdReadConfig(PVM pVM, PCPUMCPUIDCONFIG pConfig, PCFGMNODE pC
                                   "|RDRAND"
                                   "|RDSEED"
                                   "|CLFLUSHOPT"
+                                  "|ABM"
+                                  "|SSE4A"
+                                  "|MISALNSSE"
+                                  "|3DNOWPRF"
+                                  "|AXMMX"
                                   , "" /*pszValidNodes*/, "CPUM" /*pszWho*/, 0 /*uInstance*/);
         if (RT_FAILURE(rc))
             return rc;
@@ -3716,7 +3797,11 @@ static int cpumR3CpuIdReadConfig(PVM pVM, PCPUMCPUIDCONFIG pConfig, PCFGMNODE pC
 
     bool const fMayHaveXSave = fNestedPagingAndFullGuestExec
                             && pVM->cpum.s.HostFeatures.fXSaveRstor
-                            && pVM->cpum.s.HostFeatures.fOpSysXSaveRstor;
+                            && pVM->cpum.s.HostFeatures.fOpSysXSaveRstor
+#if HC_ARCH_BITS == 32 /* Seems this may be broken when doing 64-bit on 32-bit, just disable it for now. */
+                            && !HMIsLongModeAllowed(pVM)
+#endif
+                            ;
     uint64_t const fXStateHostMask = pVM->cpum.s.fXStateHostMask;
 
     /** @cfgm{/CPUM/IsaExts/XSAVE, boolean, depends}
@@ -3743,7 +3828,7 @@ static int cpumR3CpuIdReadConfig(PVM pVM, PCPUMCPUIDCONFIG pConfig, PCFGMNODE pC
      * XSAVE is exposed too. For the time being the default is to only expose this
      * to VMs with nested paging and AMD-V or unrestricted guest execution mode.
      */
-    rc = cpumR3CpuIdReadIsaExtCfgEx(pVM, pIsaExts, "AVX2", &pConfig->enmAvx2, fNestedPagingAndFullGuestExec,
+    rc = cpumR3CpuIdReadIsaExtCfgEx(pVM, pIsaExts, "AVX2", &pConfig->enmAvx2, fNestedPagingAndFullGuestExec && false /* temporarily */,
                                     fMayHaveXSave && pConfig->enmXSave && (fXStateHostMask & XSAVE_C_YMM) /*fAllowed*/);
     AssertLogRelRCReturn(rc, rc);
 

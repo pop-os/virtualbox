@@ -544,6 +544,8 @@ typedef struct SUPDRVSESSION
     RTLISTANCHOR                    TpUmods;
     /** The user tracepoint module lookup table. */
     struct SUPDRVTRACERUMOD        *apTpLookupTable[32];
+    /** Whether this is a GIP test-mode client session or not. */
+    bool                            fGipTestMode;
 #ifndef SUPDRV_AGNOSTIC
 # if defined(RT_OS_DARWIN)
     /** Pointer to the associated org_virtualbox_SupDrvClient object. */
@@ -622,6 +624,9 @@ typedef struct SUPDRVDEVEXT
     RTNATIVETHREAD volatile         hLdrInitThread;
     /** @} */
 
+    /** Number of times someone reported bad execution context via SUPR0BadContext.
+     * (This is times EFLAGS.AC is zero when we expected it to be 1.) */
+    uint32_t volatile               cBadContextCalls;
 
     /** GIP mutex.
      * Any changes to any of the GIP members requires ownership of this mutex,
@@ -750,6 +755,14 @@ typedef struct SUPDRVDEVEXT
     bool                            fTscThreadRecomputeAllDeltas;
     /** @} */
 #endif
+
+    /** @name GIP test mode.
+     *  @{ */
+    /** Reference counter for GIP test-mode sessions. */
+    uint32_t                        cGipTestModeRefs;
+    /** Cache of TSC frequency before enabling test-mode on invariant GIP systems. */
+    uint64_t                        uGipTestModeInvariantCpuHz;
+    /** @} */
 
     /*
      * Note! The non-agnostic bits must be at the very end of the structure!
@@ -941,6 +954,7 @@ PSUPDRVSESSION VBOXCALL supdrvSessionHashTabLookup(PSUPDRVDEVEXT pDevExt, RTPROC
                                                    PSUPDRVSESSION *ppOsSessionPtr);
 uint32_t VBOXCALL supdrvSessionRetain(PSUPDRVSESSION pSession);
 uint32_t VBOXCALL supdrvSessionRelease(PSUPDRVSESSION pSession);
+void VBOXCALL   supdrvBadContext(PSUPDRVDEVEXT pDevExt, const char *pszFile, uint32_t uLine, const char *pszExtra);
 int VBOXCALL    supdrvQueryVTCapsInternal(uint32_t *pfCaps);
 
 /* SUPDrvGip.cpp */
@@ -948,6 +962,8 @@ int  VBOXCALL   supdrvGipCreate(PSUPDRVDEVEXT pDevExt);
 void VBOXCALL   supdrvGipDestroy(PSUPDRVDEVEXT pDevExt);
 int  VBOXCALL   supdrvIOCtl_TscDeltaMeasure(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, PSUPTSCDELTAMEASURE pReq);
 int  VBOXCALL   supdrvIOCtl_TscRead(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, PSUPTSCREAD pReq);
+int  VBOXCALL   supdrvIOCtl_GipSetFlags(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, uint32_t fOrMask, uint32_t fAndMask);
+
 
 /* SUPDrvTracer.cpp */
 int  VBOXCALL   supdrvTracerInit(PSUPDRVDEVEXT pDevExt);

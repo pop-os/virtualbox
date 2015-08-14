@@ -280,11 +280,14 @@ static const char * const g_apszAmdVExitReasons[MAX_EXITREASON_STAT] =
 #define HMVMX_REPORT_FEATURE(allowed1, disallowed0, featflag) \
     do { \
         if ((allowed1) & (featflag)) \
-            LogRel(("HM:   " #featflag "\n")); \
+        { \
+            if ((disallowed0) & (featflag)) \
+                LogRel(("HM:   " #featflag " (must be set)\n")); \
+            else \
+                LogRel(("HM:   " #featflag "\n")); \
+        } \
         else \
             LogRel(("HM:   " #featflag " (must be cleared)\n")); \
-        if ((disallowed0) & (featflag)) \
-            LogRel(("HM:   " #featflag " (must be set)\n")); \
     } while (0)
 
 #define HMVMX_REPORT_ALLOWED_FEATURE(allowed1, featflag) \
@@ -538,31 +541,31 @@ VMMR3_INT_DECL(int) HMR3Init(PVM pVM)
             switch (rc)
             {
                 case VERR_UNSUPPORTED_CPU:
-                    pszMsg = "Unknown CPU, VT-x or AMD-v features cannot be ascertained.";
+                    pszMsg = "Unknown CPU, VT-x or AMD-v features cannot be ascertained";
                     break;
 
                 case VERR_VMX_NO_VMX:
-                    pszMsg = "VT-x is not available.";
+                    pszMsg = "VT-x is not available";
                     break;
 
-                case VERR_VMX_MSR_VMXON_DISABLED:
-                    pszMsg = "VT-x is disabled in the BIOS.";
+                case VERR_VMX_MSR_VMX_DISABLED:
+                    pszMsg = "VT-x is disabled in the BIOS";
                     break;
 
-                case VERR_VMX_MSR_ALL_VMXON_DISABLED:
-                    pszMsg = "VT-x is disabled in the BIOS for all CPU modes.";
+                case VERR_VMX_MSR_ALL_VMX_DISABLED:
+                    pszMsg = "VT-x is disabled in the BIOS for both all CPU modes";
                     break;
 
                 case VERR_VMX_MSR_LOCKING_FAILED:
-                    pszMsg = "Failed to enable and lock VT-x features.";
+                    pszMsg = "Failed to enable and lock VT-x features";
                     break;
 
                 case VERR_SVM_NO_SVM:
-                    pszMsg = "AMD-V is not available.";
+                    pszMsg = "AMD-V is not available";
                     break;
 
                 case VERR_SVM_DISABLED:
-                    pszMsg = "AMD-V is disabled in the BIOS (or by the host OS).";
+                    pszMsg = "AMD-V is disabled in the BIOS (or by the host OS)";
                     break;
 
                 default:
@@ -954,22 +957,26 @@ static int hmR3InitFinalizeR0(PVM pVM)
         switch (pVM->hm.s.lLastError)
         {
             case VERR_VMX_IN_VMX_ROOT_MODE:
-                return VM_SET_ERROR(pVM, VERR_VMX_IN_VMX_ROOT_MODE, "VT-x is being used by another hypervisor.");
+                return VM_SET_ERROR(pVM, VERR_VMX_IN_VMX_ROOT_MODE, "VT-x is being used by another hypervisor");
             case VERR_VMX_NO_VMX:
-                return VM_SET_ERROR(pVM, VERR_VMX_NO_VMX, "VT-x is not available.");
-            case VERR_VMX_MSR_VMXON_DISABLED:
-                return VM_SET_ERROR(pVM, VERR_VMX_NO_VMX, "VT-x is disabled in the BIOS.");
-            case VERR_VMX_MSR_ALL_VMXON_DISABLED:
-                return VM_SET_ERROR(pVM, VERR_VMX_NO_VMX, "VT-x is disabled in the BIOS for all CPU modes.");
+                return VM_SET_ERROR(pVM, VERR_VMX_NO_VMX, "VT-x is not available");
+            case VERR_VMX_MSR_VMX_DISABLED:
+                return VM_SET_ERROR(pVM, VERR_VMX_MSR_VMX_DISABLED, "VT-x is disabled in the BIOS");
+            case VERR_VMX_MSR_ALL_VMX_DISABLED:
+                return VM_SET_ERROR(pVM, VERR_VMX_MSR_ALL_VMX_DISABLED, "VT-x is disabled in the BIOS for all CPU modes");
             case VERR_VMX_MSR_LOCKING_FAILED:
-                return VM_SET_ERROR(pVM, VERR_VMX_NO_VMX, "Failed to enable and lock VT-x features.");
+                return VM_SET_ERROR(pVM, VERR_VMX_MSR_LOCKING_FAILED, "Failed to lock VT-x features while trying to enable VT-x");
+            case VERR_VMX_MSR_VMX_ENABLE_FAILED:
+                return VM_SET_ERROR(pVM, VERR_VMX_MSR_VMX_ENABLE_FAILED, "Failed to enable VT-x features");
+            case VERR_VMX_MSR_SMX_VMX_ENABLE_FAILED:
+                return VM_SET_ERROR(pVM, VERR_VMX_MSR_SMX_VMX_ENABLE_FAILED, "Failed to enable VT-x features in SMX mode");
 
             case VERR_SVM_IN_USE:
-                return VM_SET_ERROR(pVM, VERR_SVM_IN_USE, "AMD-V is being used by another hypervisor.");
+                return VM_SET_ERROR(pVM, VERR_SVM_IN_USE, "AMD-V is being used by another hypervisor");
             case VERR_SVM_NO_SVM:
-                return VM_SET_ERROR(pVM, VERR_SVM_NO_SVM, "AMD-V is not available.");
+                return VM_SET_ERROR(pVM, VERR_SVM_NO_SVM, "AMD-V is not available");
             case VERR_SVM_DISABLED:
-                return VM_SET_ERROR(pVM, VERR_SVM_DISABLED, "AMD-V is disabled in the BIOS.");
+                return VM_SET_ERROR(pVM, VERR_SVM_DISABLED, "AMD-V is disabled in the BIOS");
         }
         return VMSetError(pVM, pVM->hm.s.lLastError, RT_SRC_POS, "HM ring-0 init failed: %Rrc", pVM->hm.s.lLastError);
     }
@@ -1038,6 +1045,8 @@ static int hmR3InitFinalizeR0Intel(PVM pVM)
     LogRel(("HM: Host CR4                        = %#RX64\n", pVM->hm.s.vmx.u64HostCr4));
     LogRel(("HM: Host EFER                       = %#RX64\n", pVM->hm.s.vmx.u64HostEfer));
     LogRel(("HM: MSR_IA32_FEATURE_CONTROL        = %#RX64\n", pVM->hm.s.vmx.Msrs.u64FeatureCtrl));
+    if (!(pVM->hm.s.vmx.Msrs.u64FeatureCtrl & MSR_IA32_FEATURE_CONTROL_LOCK))
+        LogRel(("HM:   IA32_FEATURE_CONTROL lock bit not set, possibly bad hardware!\n"));
     LogRel(("HM: MSR_IA32_VMX_BASIC_INFO         = %#RX64\n", pVM->hm.s.vmx.Msrs.u64BasicInfo));
     LogRel(("HM:   VMCS id                             = %#x\n", MSR_IA32_VMX_BASIC_INFO_VMCS_ID(pVM->hm.s.vmx.Msrs.u64BasicInfo)));
     LogRel(("HM:   VMCS size                           = %u bytes\n", MSR_IA32_VMX_BASIC_INFO_VMCS_SIZE(pVM->hm.s.vmx.Msrs.u64BasicInfo)));

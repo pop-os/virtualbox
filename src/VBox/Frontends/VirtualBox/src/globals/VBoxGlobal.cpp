@@ -146,7 +146,6 @@
 #ifdef VBOX_GUI_WITH_NETWORK_MANAGER
 # include <QNetworkProxy>
 #endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
-#include <QReadLocker>
 #include <QSettings>
 #include <QStyleOptionSpinBox>
 
@@ -175,7 +174,6 @@
 # include <X11/extensions/Xinerama.h>
 
 # define BOOL PRBool
-# include "VBoxX11Helper.h"
 #endif /* Q_WS_X11 */
 
 
@@ -231,7 +229,9 @@ VBoxGlobal::VBoxGlobal()
     , mSelectorWnd (NULL)
     , m_fSeparateProcess(false)
     , m_pMediumEnumerator(0)
-    , mIsKWinManaged (false)
+#ifdef Q_WS_X11
+    , m_enmWindowManagerType(X11WMType_Unknown)
+#endif /* Q_WS_X11 */
 #if defined(DEBUG_bird)
     , mAgressiveCaching(false)
 #else
@@ -1546,18 +1546,24 @@ void VBoxGlobal::reloadProxySettings()
 
 void VBoxGlobal::createMedium(const UIMedium &medium)
 {
-    /* Create medium in medium-enumerator: */
-    QReadLocker cleanupRacePreventor(&m_mediumEnumeratorDtorRwLock);
-    if (m_pMediumEnumerator)
-        m_pMediumEnumerator->createMedium(medium);
+    if (m_mediumEnumeratorDtorRwLock.tryLockForRead())
+    {
+        /* Create medium in medium-enumerator: */
+        if (m_pMediumEnumerator)
+            m_pMediumEnumerator->createMedium(medium);
+        m_mediumEnumeratorDtorRwLock.unlock();
+    }
 }
 
 void VBoxGlobal::deleteMedium(const QString &strMediumID)
 {
-    /* Delete medium from medium-enumerator: */
-    QReadLocker cleanupRacePreventor(&m_mediumEnumeratorDtorRwLock);
-    if (m_pMediumEnumerator)
-        m_pMediumEnumerator->deleteMedium(strMediumID);
+    if (m_mediumEnumeratorDtorRwLock.tryLockForRead())
+    {
+        /* Delete medium from medium-enumerator: */
+        if (m_pMediumEnumerator)
+            m_pMediumEnumerator->deleteMedium(strMediumID);
+        m_mediumEnumeratorDtorRwLock.unlock();
+    }
 }
 
 /* Open some external medium using file open dialog
@@ -1732,10 +1738,13 @@ void VBoxGlobal::startMediumEnumeration(bool fForceStart /* = true*/)
     if (!fForceStart && !agressiveCaching())
         return;
 
-    /* Redirect request to medium-enumerator: */
-    QReadLocker cleanupRacePreventor(&m_mediumEnumeratorDtorRwLock);
-    if (m_pMediumEnumerator)
-        m_pMediumEnumerator->enumerateMediums();
+    if (m_mediumEnumeratorDtorRwLock.tryLockForRead())
+    {
+        /* Redirect request to medium-enumerator: */
+        if (m_pMediumEnumerator)
+            m_pMediumEnumerator->enumerateMediums();
+        m_mediumEnumeratorDtorRwLock.unlock();
+    }
 }
 
 bool VBoxGlobal::isMediumEnumerationInProgress() const
@@ -1747,19 +1756,29 @@ bool VBoxGlobal::isMediumEnumerationInProgress() const
 
 UIMedium VBoxGlobal::medium(const QString &strMediumID) const
 {
-    /* Redirect call to medium-enumerator: */
-    QReadLocker cleanupRacePreventor(&m_mediumEnumeratorDtorRwLock);
-    if (m_pMediumEnumerator)
-        return m_pMediumEnumerator->medium(strMediumID);
+    if (m_mediumEnumeratorDtorRwLock.tryLockForRead())
+    {
+        /* Redirect call to medium-enumerator: */
+        UIMedium result;
+        if (m_pMediumEnumerator)
+            result = m_pMediumEnumerator->medium(strMediumID);
+        m_mediumEnumeratorDtorRwLock.unlock();
+        return result;
+    }
     return UIMedium();
 }
 
 QList<QString> VBoxGlobal::mediumIDs() const
 {
-    /* Redirect call to medium-enumerator: */
-    QReadLocker cleanupRacePreventor(&m_mediumEnumeratorDtorRwLock);
-    if (m_pMediumEnumerator)
-        return m_pMediumEnumerator->mediumIDs();
+    if (m_mediumEnumeratorDtorRwLock.tryLockForRead())
+    {
+        /* Redirect call to medium-enumerator: */
+        QList<QString> result;
+        if (m_pMediumEnumerator)
+            result = m_pMediumEnumerator->mediumIDs();
+        m_mediumEnumeratorDtorRwLock.unlock();
+        return result;
+    }
     return QList<QString>();
 }
 
@@ -3319,11 +3338,82 @@ bool VBoxGlobal::setFullScreenMonitorX11(QWidget *pWidget, ulong uScreenId)
 }
 
 /* static */
-void VBoxGlobal::setTransientFor(QWidget *pWidget, QWidget *pPropWidget)
+QVector<Atom> VBoxGlobal::flagsNetWmState(QWidget *pWidget)
 {
-    XSetTransientForHint(pWidget->x11Info().display(),
-                         pWidget->window()->winId(),
-                         pPropWidget->window()->winId());
+    /* Get display: */
+    Display *pDisplay = pWidget->x11Info().display();
+
+    /* Prepare atoms: */
+    QVector<Atom> resultNetWmState;
+    Atom net_wm_state = XInternAtom(pDisplay, "_NET_WM_STATE", True /* only if exists */);
+
+    /* Get the size of the property data: */
+    Atom actual_type;
+    int iActualFormat;
+    ulong uPropertyLength;
+    ulong uBytesLeft;
+    uchar *pPropertyData = 0;
+    if (XGetWindowProperty(pDisplay, pWidget->window()->winId(),
+                           net_wm_state, 0, 0, False, XA_ATOM, &actual_type, &iActualFormat,
+                           &uPropertyLength, &uBytesLeft, &pPropertyData) == Success &&
+        actual_type == XA_ATOM && iActualFormat == 32)
+    {
+        resultNetWmState.resize(uBytesLeft / 4);
+        XFree((char*)pPropertyData);
+        pPropertyData = 0;
+
+        /* Fetch all data: */
+        if (XGetWindowProperty(pDisplay, pWidget->window()->winId(),
+                               net_wm_state, 0, resultNetWmState.size(), False, XA_ATOM, &actual_type, &iActualFormat,
+                               &uPropertyLength, &uBytesLeft, &pPropertyData) != Success)
+            resultNetWmState.clear();
+        else if (uPropertyLength != (ulong)resultNetWmState.size())
+            resultNetWmState.resize(uPropertyLength);
+
+        /* Put it into resultNetWmState: */
+        if (!resultNetWmState.isEmpty())
+            memcpy(resultNetWmState.data(), pPropertyData, resultNetWmState.size() * sizeof(Atom));
+        if (pPropertyData)
+            XFree((char*)pPropertyData);
+    }
+
+    /* Return result: */
+    return resultNetWmState;
+}
+
+/* static */
+bool VBoxGlobal::isFullScreenFlagSet(QWidget *pWidget)
+{
+    /* Get display: */
+    Display *pDisplay = pWidget->x11Info().display();
+
+    /* Prepare atoms: */
+    Atom net_wm_state_fullscreen = XInternAtom(pDisplay, "_NET_WM_STATE_FULLSCREEN", True /* only if exists */);
+
+    /* Check if flagsNetWmState(pWidget) contains full-screen flag: */
+    return flagsNetWmState(pWidget).contains(net_wm_state_fullscreen);
+}
+
+/* static */
+void VBoxGlobal::setFullScreenFlag(QWidget *pWidget)
+{
+    /* Get display: */
+    Display *pDisplay = pWidget->x11Info().display();
+
+    /* Prepare atoms: */
+    QVector<Atom> resultNetWmState = flagsNetWmState(pWidget);
+    Atom net_wm_state = XInternAtom(pDisplay, "_NET_WM_STATE", True /* only if exists */);
+    Atom net_wm_state_fullscreen = XInternAtom(pDisplay, "_NET_WM_STATE_FULLSCREEN", True /* only if exists */);
+
+    /* Append resultNetWmState with full-screen flag if necessary: */
+    if (!resultNetWmState.contains(net_wm_state_fullscreen))
+    {
+        resultNetWmState.append(net_wm_state_fullscreen);
+        /* Apply property to widget again: */
+        XChangeProperty(pDisplay, pWidget->window()->winId(),
+                        net_wm_state, XA_ATOM, 32, PropModeReplace,
+                        (unsigned char*)resultNetWmState.data(), resultNetWmState.size());
+    }
 }
 #endif /* Q_WS_X11 */
 
@@ -3947,8 +4037,9 @@ void VBoxGlobal::prepare()
     UIVisualStateType visualStateType = UIVisualStateType_Invalid;
 
 #ifdef Q_WS_X11
-    mIsKWinManaged = X11IsWindowManagerKWin();
-#endif
+    /* Acquire current Window Manager type: */
+    m_enmWindowManagerType = X11WindowManagerType();
+#endif /* Q_WS_X11 */
 
 #ifdef VBOX_WITH_DEBUGGER_GUI
 # ifdef VBOX_WITH_DEBUGGER_GUI_MENU
@@ -3958,7 +4049,7 @@ void VBoxGlobal::prepare()
 # endif
     initDebuggerVar(&m_fDbgAutoShow, "VBOX_GUI_DBG_AUTO_SHOW", GUI_Dbg_AutoShow, false);
     m_fDbgAutoShowCommandLine = m_fDbgAutoShowStatistics = m_fDbgAutoShow;
-    mStartPaused = false;
+    m_enmStartRunning = StartRunning_Default;
 #endif
 
     mShowStartVMErrors = true;
@@ -4096,21 +4187,18 @@ void VBoxGlobal::prepare()
             setDebuggerVar(&m_fDbgAutoShow, true);
             setDebuggerVar(&m_fDbgAutoShowCommandLine, true);
             setDebuggerVar(&m_fDbgAutoShowStatistics, true);
-            mStartPaused = true;
         }
         else if (!::strcmp(arg, "--debug-command-line"))
         {
             setDebuggerVar(&m_fDbgEnabled, true);
             setDebuggerVar(&m_fDbgAutoShow, true);
             setDebuggerVar(&m_fDbgAutoShowCommandLine, true);
-            mStartPaused = true;
         }
         else if (!::strcmp(arg, "--debug-statistics"))
         {
             setDebuggerVar(&m_fDbgEnabled, true);
             setDebuggerVar(&m_fDbgAutoShow, true);
             setDebuggerVar(&m_fDbgAutoShowStatistics, true);
-            mStartPaused = true;
         }
         else if (!::strcmp(arg, "-no-debug") || !::strcmp(arg, "--no-debug"))
         {
@@ -4121,9 +4209,9 @@ void VBoxGlobal::prepare()
         }
         /* Not quite debug options, but they're only useful with the debugger bits. */
         else if (!::strcmp(arg, "--start-paused"))
-            mStartPaused = true;
+            m_enmStartRunning = StartRunning_No;
         else if (!::strcmp(arg, "--start-running"))
-            mStartPaused = false;
+            m_enmStartRunning = StartRunning_Yes;
 #endif
         /** @todo add an else { msgbox(syntax error); exit(1); } here, pretty please... */
         i++;
@@ -4193,7 +4281,7 @@ void VBoxGlobal::prepare()
         if (RT_FAILURE(vrc))
         {
             m_hVBoxDbg = NIL_RTLDRMOD;
-            m_fDbgAutoShow =  m_fDbgAutoShowCommandLine = m_fDbgAutoShowStatistics = false;
+            m_fDbgAutoShow = m_fDbgAutoShowCommandLine = m_fDbgAutoShowStatistics = false;
             LogRel(("Failed to load VBoxDbg, rc=%Rrc - %s\n", vrc, ErrInfo.Core.pszMsg));
         }
     }
@@ -4378,7 +4466,7 @@ void VBoxGlobal::initDebuggerVar(int *piDbgCfgVar, const char *pszEnvVar, const 
                  || pStr->startsWith("d")  // disable
                  || pStr->startsWith("f")  // false
                  || pStr->startsWith("off")
-                 || pStr->contains("veto")
+                 || pStr->contains("veto") /* paranoia */
                  || pStr->toLongLong() == 0)
             *piDbgCfgVar = VBOXGLOBAL_DBG_CFG_VAR_FALSE;
         else
