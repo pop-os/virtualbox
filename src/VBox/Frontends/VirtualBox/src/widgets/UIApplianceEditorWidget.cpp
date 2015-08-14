@@ -1,8 +1,6 @@
 /* $Id: UIApplianceEditorWidget.cpp $ */
 /** @file
- *
- * VBox frontends: Qt4 GUI ("VirtualBox"):
- * UIApplianceEditorWidget class implementation
+ * VBox Qt GUI - UIApplianceEditorWidget class implementation.
  */
 
 /*
@@ -17,26 +15,34 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* Qt includes: */
-#include <QItemDelegate>
-#include <QSortFilterProxyModel>
-#include <QHeaderView>
-#include <QLineEdit>
-#include <QTextEdit>
-#include <QSpinBox>
-#include <QComboBox>
-#include <QDir>
+# include <QItemDelegate>
+# include <QSortFilterProxyModel>
+# include <QHeaderView>
+# include <QLineEdit>
+# include <QTextEdit>
+# include <QSpinBox>
+# include <QComboBox>
+# include <QDir>
 
 /* GUI includes: */
-#include "UIApplianceEditorWidget.h"
-#include "VBoxGlobal.h"
-#include "UIMessageCenter.h"
-#include "VBoxOSTypeSelectorButton.h"
-#include "UILineTextEdit.h"
-#include "UIConverter.h"
+# include "UIApplianceEditorWidget.h"
+# include "VBoxGlobal.h"
+# include "UIMessageCenter.h"
+# include "VBoxOSTypeSelectorButton.h"
+# include "UILineTextEdit.h"
+# include "UIConverter.h"
+# include "UIIconPool.h"
 
 /* COM includes: */
-#include "CSystemProperties.h"
+# include "CSystemProperties.h"
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // ModelItem
@@ -207,10 +213,10 @@ QVariant HardwareItem::data(int column, int role) const
                     case KVirtualSystemDescriptionType_OS:                     v = UIApplianceEditorWidget::tr("Guest OS Type"); break;
                     case KVirtualSystemDescriptionType_CPU:                    v = UIApplianceEditorWidget::tr("CPU"); break;
                     case KVirtualSystemDescriptionType_Memory:                 v = UIApplianceEditorWidget::tr("RAM"); break;
-                    case KVirtualSystemDescriptionType_HardDiskControllerIDE:  v = UIApplianceEditorWidget::tr("Hard Disk Controller (IDE)"); break;
-                    case KVirtualSystemDescriptionType_HardDiskControllerSATA: v = UIApplianceEditorWidget::tr("Hard Disk Controller (SATA)"); break;
-                    case KVirtualSystemDescriptionType_HardDiskControllerSCSI: v = UIApplianceEditorWidget::tr("Hard Disk Controller (SCSI)"); break;
-                    case KVirtualSystemDescriptionType_HardDiskControllerSAS:  v = UIApplianceEditorWidget::tr("Hard Disk Controller (SAS)"); break;
+                    case KVirtualSystemDescriptionType_HardDiskControllerIDE:  v = UIApplianceEditorWidget::tr("Storage Controller (IDE)"); break;
+                    case KVirtualSystemDescriptionType_HardDiskControllerSATA: v = UIApplianceEditorWidget::tr("Storage Controller (SATA)"); break;
+                    case KVirtualSystemDescriptionType_HardDiskControllerSCSI: v = UIApplianceEditorWidget::tr("Storage Controller (SCSI)"); break;
+                    case KVirtualSystemDescriptionType_HardDiskControllerSAS:  v = UIApplianceEditorWidget::tr("Storage Controller (SAS)"); break;
                     case KVirtualSystemDescriptionType_CDROM:                  v = UIApplianceEditorWidget::tr("DVD"); break;
                     case KVirtualSystemDescriptionType_Floppy:                 v = UIApplianceEditorWidget::tr("Floppy"); break;
                     case KVirtualSystemDescriptionType_NetworkAdapter:         v = UIApplianceEditorWidget::tr("Network Adapter"); break;
@@ -261,34 +267,36 @@ QVariant HardwareItem::data(int column, int role) const
             {
                 switch (m_type)
                 {
-                    case KVirtualSystemDescriptionType_Name:                   v = QIcon(":/name_16px.png"); break;
+                    case KVirtualSystemDescriptionType_Name:                   v = UIIconPool::iconSet(":/name_16px.png"); break;
                     case KVirtualSystemDescriptionType_Product:
                     case KVirtualSystemDescriptionType_ProductUrl:
                     case KVirtualSystemDescriptionType_Vendor:
                     case KVirtualSystemDescriptionType_VendorUrl:
                     case KVirtualSystemDescriptionType_Version:
                     case KVirtualSystemDescriptionType_Description:
-                    case KVirtualSystemDescriptionType_License:                v = QIcon(":/description_16px.png"); break;
-                    case KVirtualSystemDescriptionType_OS:                     v = QIcon(":/os_type_16px.png"); break;
-                    case KVirtualSystemDescriptionType_CPU:                    v = QIcon(":/cpu_16px.png"); break;
-                    case KVirtualSystemDescriptionType_Memory:                 v = QIcon(":/ram_16px.png"); break;
-                    case KVirtualSystemDescriptionType_HardDiskControllerIDE:  v = QIcon(":/ide_16px.png"); break;
-                    case KVirtualSystemDescriptionType_HardDiskControllerSATA: v = QIcon(":/sata_16px.png"); break;
-                    case KVirtualSystemDescriptionType_HardDiskControllerSCSI: v = QIcon(":/scsi_16px.png"); break;
-                    case KVirtualSystemDescriptionType_HardDiskControllerSAS:  v = QIcon(":/scsi_16px.png"); break;
-                    case KVirtualSystemDescriptionType_HardDiskImage:          v = QIcon(":/hd_16px.png"); break;
-                    case KVirtualSystemDescriptionType_CDROM:                  v = QIcon(":/cd_16px.png"); break;
-                    case KVirtualSystemDescriptionType_Floppy:                 v = QIcon(":/fd_16px.png"); break;
-                    case KVirtualSystemDescriptionType_NetworkAdapter:         v = QIcon(":/nw_16px.png"); break;
-                    case KVirtualSystemDescriptionType_USBController:          v = QIcon(":/usb_16px.png"); break;
-                    case KVirtualSystemDescriptionType_SoundCard:              v = QIcon(":/sound_16px.png"); break;
+                    case KVirtualSystemDescriptionType_License:                v = UIIconPool::iconSet(":/description_16px.png"); break;
+                    case KVirtualSystemDescriptionType_OS:                     v = UIIconPool::iconSet(":/os_type_16px.png"); break;
+                    case KVirtualSystemDescriptionType_CPU:                    v = UIIconPool::iconSet(":/cpu_16px.png"); break;
+                    case KVirtualSystemDescriptionType_Memory:                 v = UIIconPool::iconSet(":/ram_16px.png"); break;
+                    case KVirtualSystemDescriptionType_HardDiskControllerIDE:  v = UIIconPool::iconSet(":/ide_16px.png"); break;
+                    case KVirtualSystemDescriptionType_HardDiskControllerSATA: v = UIIconPool::iconSet(":/sata_16px.png"); break;
+                    case KVirtualSystemDescriptionType_HardDiskControllerSCSI: v = UIIconPool::iconSet(":/scsi_16px.png"); break;
+                    case KVirtualSystemDescriptionType_HardDiskControllerSAS:  v = UIIconPool::iconSet(":/scsi_16px.png"); break;
+                    case KVirtualSystemDescriptionType_HardDiskImage:          v = UIIconPool::iconSet(":/hd_16px.png"); break;
+                    case KVirtualSystemDescriptionType_CDROM:                  v = UIIconPool::iconSet(":/cd_16px.png"); break;
+                    case KVirtualSystemDescriptionType_Floppy:                 v = UIIconPool::iconSet(":/fd_16px.png"); break;
+                    case KVirtualSystemDescriptionType_NetworkAdapter:         v = UIIconPool::iconSet(":/nw_16px.png"); break;
+                    case KVirtualSystemDescriptionType_USBController:          v = UIIconPool::iconSet(":/usb_16px.png"); break;
+                    case KVirtualSystemDescriptionType_SoundCard:              v = UIIconPool::iconSet(":/sound_16px.png"); break;
                     default: break;
                 }
             }
             else if (column == ConfigValueSection &&
                      m_type == KVirtualSystemDescriptionType_OS)
             {
-                v = vboxGlobal().vmGuestOSTypeIcon(m_strConfigValue).scaledToHeight(16, Qt::SmoothTransformation);
+                const QStyle *pStyle = QApplication::style();
+                const int iIconMetric = pStyle->pixelMetric(QStyle::PM_SmallIconSize);
+                v = vboxGlobal().vmGuestOSTypeIcon(m_strConfigValue).scaledToHeight(iIconMetric, Qt::SmoothTransformation);
             }
             break;
         }

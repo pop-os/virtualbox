@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -18,7 +18,7 @@
 #ifndef ____H_KEYBOARDIMPL
 #define ____H_KEYBOARDIMPL
 
-#include "VirtualBoxBase.h"
+#include "KeyboardWrap.h"
 #include "EventImpl.h"
 
 #include <VBox/vmm/pdmdrv.h>
@@ -32,7 +32,7 @@ class KeyboardEvent
 public:
     KeyboardEvent() : scan(-1) {}
     KeyboardEvent(int _scan) : scan(_scan) {}
-    bool isValid()
+    bool i_isValid()
     {
         return (scan & ~0x80) && !(scan & ~0xFF);
     }
@@ -41,20 +41,9 @@ public:
 class Console;
 
 class ATL_NO_VTABLE Keyboard :
-    public VirtualBoxBase,
-    VBOX_SCRIPTABLE_IMPL(IKeyboard)
+    public KeyboardWrap
 {
 public:
-
-    VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT(Keyboard, IKeyboard)
-
-    DECLARE_NOT_AGGREGATABLE(Keyboard)
-
-    DECLARE_PROTECT_FINAL_CONSTRUCT()
-
-    BEGIN_COM_MAP(Keyboard)
-        VBOX_DEFAULT_INTERFACE_ENTRIES(IKeyboard)
-    END_COM_MAP()
 
     DECLARE_EMPTY_CTOR_DTOR(Keyboard)
 
@@ -65,27 +54,33 @@ public:
     HRESULT init(Console *aParent);
     void uninit();
 
-    STDMETHOD(PutScancode)(LONG scancode);
-    STDMETHOD(PutScancodes)(ComSafeArrayIn(LONG, scancodes),
-                            ULONG *codesStored);
-    STDMETHOD(PutCAD)();
-
-    STDMETHOD(COMGETTER(EventSource))(IEventSource ** aEventSource);
-
     static const PDMDRVREG  DrvReg;
 
-    Console *getParent() const
+    Console *i_getParent() const
     {
         return mParent;
     }
 
 private:
 
-    static DECLCALLBACK(void)   keyboardLedStatusChange(PPDMIKEYBOARDCONNECTOR pInterface, PDMKEYBLEDS enmLeds);
-    static DECLCALLBACK(void)   keyboardSetActive(PPDMIKEYBOARDCONNECTOR pInterface, bool fActive);
-    static DECLCALLBACK(void *) drvQueryInterface(PPDMIBASE pInterface, const char *pszIID);
-    static DECLCALLBACK(int)    drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint32_t fFlags);
-    static DECLCALLBACK(void)   drvDestruct(PPDMDRVINS pDrvIns);
+    // Wrapped Keyboard properties
+    HRESULT getEventSource(ComPtr<IEventSource> &aEventSource);
+    HRESULT getKeyboardLEDs(std::vector<KeyboardLED_T> &aKeyboardLEDs);
+
+    // Wrapped Keyboard members
+    HRESULT putScancode(LONG aScancode);
+    HRESULT putScancodes(const std::vector<LONG> &aScancodes,
+                         ULONG *aCodesStored);
+    HRESULT putCAD();
+    HRESULT releaseKeys();
+
+    static DECLCALLBACK(void)   i_keyboardLedStatusChange(PPDMIKEYBOARDCONNECTOR pInterface, PDMKEYBLEDS enmLeds);
+    static DECLCALLBACK(void)   i_keyboardSetActive(PPDMIKEYBOARDCONNECTOR pInterface, bool fActive);
+    static DECLCALLBACK(void *) i_drvQueryInterface(PPDMIBASE pInterface, const char *pszIID);
+    static DECLCALLBACK(int)    i_drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint32_t fFlags);
+    static DECLCALLBACK(void)   i_drvDestruct(PPDMDRVINS pDrvIns);
+
+    void onKeyboardLedsChange(PDMKEYBLEDS enmLeds);
 
     Console * const         mParent;
     /** Pointer to the associated keyboard driver(s). */
@@ -94,6 +89,9 @@ private:
     PPDMDEVINS              mpVMMDev;
     /** Set after the first attempt to find the VMM Device. */
     bool                    mfVMMDevInited;
+
+    /* The current guest keyboard LED status. */
+    PDMKEYBLEDS menmLeds;
 
     const ComObjPtr<EventSource> mEventSource;
 };

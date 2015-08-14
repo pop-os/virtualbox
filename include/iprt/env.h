@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -80,6 +80,15 @@ RTDECL(int) RTEnvClone(PRTENV pEnv, RTENV EnvToClone);
 RTDECL(int) RTEnvDestroy(RTENV Env);
 
 /**
+ * Resets the environment block to contain zero variables.
+ *
+ * @returns IPRT status code.
+ *
+ * @param   hEnv    Environment block handle.  RTENV_DEFAULT is not supported.
+ */
+RTDECL(int) RTEnvReset(RTENV hEnv);
+
+/**
  * Get the execve/spawnve/main envp.
  *
  * All returned strings are in the current process' codepage.
@@ -111,6 +120,30 @@ RTDECL(int) RTEnvQueryUtf16Block(RTENV hEnv, PRTUTF16 *ppwszzBlock);
  * @param   pwszzBlock      What RTEnvGetUtf16Block returned.  NULL is ignored.
  */
 RTDECL(void) RTEnvFreeUtf16Block(PRTUTF16 pwszzBlock);
+
+/**
+ * Get a sorted, UTF-8 environment block.
+ *
+ * The environment block is a sequence of putenv formatted ("NAME=VALUE" or
+ * "NAME") zero terminated strings ending with an empty string (i.e. last string
+ * has two zeros).
+ *
+ * @returns IPRT status code.
+ *
+ * @param   hEnv            Environment block handle.
+ * @param   fSorted         Whether to sort it, this will affect @a hEnv.
+ * @param   ppszzBlock      Where to return the environment block.  This must be
+ *                          freed by calling RTEnvFreeUtf8Block.
+ * @param   pcbBlock        Where to return the size of the block. Optional.
+ */
+RTDECL(int) RTEnvQueryUtf8Block(RTENV hEnv, bool fSorted, char **ppszzBlock, size_t *pcbBlock);
+
+/**
+ * Frees an environment block returned by RTEnvGetUtf8Block().
+ *
+ * @param   pszzBlock       What RTEnvGetUtf8Block returned.  NULL is ignored.
+ */
+RTDECL(void) RTEnvFreeUtf8Block(char *pszzBlock);
 
 /**
  * Checks if an environment variable exists in the default environment block.
@@ -157,14 +190,16 @@ RTDECL(int) RTEnvGetUtf8(const char *pszVar, char *pszValue, size_t cbValue, siz
  *
  * @returns IPRT status code.
  * @retval  VERR_ENV_VAR_NOT_FOUND if the variable was not found.
+ * @retval  VERR_ENV_VAR_UNSET if @a hEnv is an environment change record and
+ *          the variable has been recorded as unset.
  *
- * @param   Env         The environment handle.
+ * @param   hEnv        The environment handle.
  * @param   pszVar      The environment variable name.
  * @param   pszValue    Where to put the buffer.
  * @param   cbValue     The size of the value buffer.
  * @param   pcchActual  Returns the actual value string length. Optional.
  */
-RTDECL(int) RTEnvGetEx(RTENV Env, const char *pszVar, char *pszValue, size_t cbValue, size_t *pcchActual);
+RTDECL(int) RTEnvGetEx(RTENV hEnv, const char *pszVar, char *pszValue, size_t cbValue, size_t *pcchActual);
 
 /**
  * Puts an variable=value string into the environment (putenv).
@@ -255,6 +290,100 @@ RTDECL(int) RTEnvUnsetEx(RTENV Env, const char *pszVar);
  * @param   pszVar      The environment variable name.
  */
 RTDECL(char *) RTEnvDupEx(RTENV Env, const char *pszVar);
+
+/**
+ * Counts the variables in the environment.
+ *
+ * @returns Number of variables in the environment. UINT32_MAX on error.
+ * @param   hEnv        The environment handle.
+ *                      RTENV_DEFAULT is currently not accepted.
+ */
+RTDECL(uint32_t) RTEnvCountEx(RTENV hEnv);
+
+/**
+ * Queries an environment variable by it's index.
+ *
+ * This can be used together with RTEnvCount to enumerate the environment block.
+ *
+ * @returns IPRT status code.
+ * @retval  VERR_ENV_VAR_NOT_FOUND if the index is out of bounds, output buffers
+ *          untouched.
+ * @retval  VERR_BUFFER_OVERFLOW if one of the buffers are too small.  We'll
+ *          fill it with as much we can in RTStrCopy fashion.
+ * @retval  VINF_ENV_VAR_UNSET if @a hEnv is an environment change record and
+ *          the variable at @a iVar is recorded as being unset.
+ *
+ * @param   hEnv        The environment handle.
+ *                      RTENV_DEFAULT is currently not accepted.
+ * @param   iVar        The variable index.
+ * @param   pszVar      Variable name buffer.
+ * @param   cbVar       The size of the variable name buffer.
+ * @param   pszValue    Value buffer.
+ * @param   cbValue     The size of the value buffer.
+ */
+RTDECL(int) RTEnvGetByIndexEx(RTENV hEnv, uint32_t iVar, char *pszVar, size_t cbVar, char *pszValue, size_t cbValue);
+
+/**
+ * Leaner and meaner version of RTEnvGetByIndexEx.
+ *
+ * This can be used together with RTEnvCount to enumerate the environment block.
+ *
+ * Use with caution as the returned pointer may change by the next call using
+ * the environment handle.  Please only use this API in cases where there is no
+ * chance of races.
+ *
+ * @returns Pointer to the internal environment variable=value string on
+ *          success.  If @a hEnv is an environment change recordthe string may
+ *          also be on the "variable" form, representing an unset operation. Do
+ *          NOT change this string, it is read only!
+ *
+ *          If the index is out of range on the environment handle is invalid,
+ *          NULL is returned.
+ *
+ * @param   hEnv        The environment handle.
+ *                      RTENV_DEFAULT is currently not accepted.
+ * @param   iVar        The variable index.
+ */
+RTDECL(const char *) RTEnvGetByIndexRawEx(RTENV hEnv, uint32_t iVar);
+
+
+/**
+ * Creates an empty environment change record.
+ *
+ * This is a special environment for use with RTEnvApplyChanges and similar
+ * purposes.  The
+ *
+ * @returns IPRT status code. Typical error is VERR_NO_MEMORY.
+ *
+ * @param   phEnv       Where to store the handle of the new environment block.
+ */
+RTDECL(int) RTEnvCreateChangeRecord(PRTENV phEnv);
+
+/**
+ * Checks if @a hEnv is an environment change record.
+ *
+ * @returns true if it is, false if it's not or if the handle is invalid.
+ * @param   hEnv         The environment handle.
+ * @sa      RTEnvCreateChangeRecord.
+ */
+RTDECL(bool) RTEnvIsChangeRecord(RTENV hEnv);
+
+/**
+ * Applies changes from one environment onto another.
+ *
+ * If @a hEnvChanges is a normal environment, its content is just added to @a
+ * hEnvDst, where variables in the destination can only be overwritten. However
+ * if @a hEnvChanges is a change record environment, variables in the
+ * destination can also be removed.
+ *
+ * @returns IPRT status code. Typical error is VERR_NO_MEMORY.
+ * @param   hEnvDst     The destination environment.
+ * @param   hEnvChanges Handle to the environment containig the changes to
+ *                      apply.  As said, especially useful if it's a environment
+ *                      change record.  RTENV_DEFAULT is not supported here.
+ */
+RTDECL(int) RTEnvApplyChanges(RTENV hEnvDst, RTENV hEnvChanges);
+
 
 #endif /* IN_RING3 */
 

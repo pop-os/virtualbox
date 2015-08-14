@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -36,7 +36,8 @@ RT_C_DECLS_END
     do { \
         if (off != RT_OFFSETOF(type, m)) \
         { \
-            printf("error! %#010x %s  Off by %d!! (off=%#x)\n", RT_OFFSETOF(type, m), #type "." #m, off - RT_OFFSETOF(type, m), off); \
+            printf("error! %#010x %s  Off by %d!! (expected off=%#x)\n", \
+                   RT_OFFSETOF(type, m), #type "." #m, off - RT_OFFSETOF(type, m), (int)off); \
             rc++; \
         } \
         /*else */ \
@@ -52,7 +53,8 @@ RT_C_DECLS_END
     do { \
         if (size != sizeof(type)) \
         { \
-            printf("error! sizeof(%s): %#x (%d)  Off by %d!!\n", #type, (int)sizeof(type), (int)sizeof(type), (int)(sizeof(type) - size)); \
+            printf("error! sizeof(%s): %#x (%d)  Off by %d!! (expected %#x)\n", \
+                   #type, (int)sizeof(type), (int)sizeof(type), (int)(sizeof(type) - size), (int)size); \
             rc++; \
         } \
         else \

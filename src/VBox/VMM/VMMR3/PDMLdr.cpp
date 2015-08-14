@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -101,7 +101,11 @@ int pdmR3LdrInitU(PUVM pUVM)
      */
     PVM pVM = pUVM->pVM; AssertPtr(pVM);
     if (!HMIsEnabled(pVM))
-        return PDMR3LdrLoadRC(pVM, NULL, VMMGC_MAIN_MODULE_NAME);
+    {
+        int rc = PDMR3LdrLoadRC(pVM, NULL, VMMRC_MAIN_MODULE_NAME);
+        if (RT_FAILURE(rc))
+            return rc;
+    }
 #endif
     return VINF_SUCCESS;
 }
@@ -245,7 +249,7 @@ int pdmR3LoadR3U(PUVM pUVM, const char *pszFilename, const char *pszName)
     /*
      * Validate input.
      */
-    AssertMsg(PDMCritSectIsInitialized(&pUVM->pVM->pdm.s.CritSect), ("bad init order!\n"));
+    AssertMsg(RTCritSectIsInitialized(&pUVM->pdm.s.ListCritSect), ("bad init order!\n"));
     Assert(pszFilename);
     size_t cchFilename = strlen(pszFilename);
     Assert(pszName);
@@ -281,7 +285,7 @@ int pdmR3LoadR3U(PUVM pUVM, const char *pszFilename, const char *pszName)
      * Allocate the module list node and initialize it.
      */
     const char *pszSuff = RTLdrGetSuff();
-    size_t      cchSuff = RTPathHaveExt(pszFilename) ? 0 : strlen(pszSuff);
+    size_t      cchSuff = RTPathHasSuffix(pszFilename) ? 0 : strlen(pszSuff);
     PPDMMOD     pModule = (PPDMMOD)RTMemAllocZ(RT_OFFSETOF(PDMMOD, szFilename[cchFilename + cchSuff + 1]));
     if (pModule)
     {
@@ -438,6 +442,11 @@ static DECLCALLBACK(int) pdmR3GetImportRC(RTLDRMOD hLdrMod, const char *pszModul
  * region).
  *
  * @returns VBox status code.
+ * @retval  VINF_PDM_ALREADY_LOADED if the module is already loaded (name +
+ *          filename match).
+ * @retval  VERR_PDM_MODULE_NAME_CLASH if a different file has already been
+ *          loaded with the name module name.
+ *
  * @param   pVM             The VM to load it into.
  * @param   pszFilename     Filename of the module binary.
  * @param   pszName         Module name. Case sensitive and the length is limited!
@@ -447,23 +456,8 @@ VMMR3DECL(int) PDMR3LdrLoadRC(PVM pVM, const char *pszFilename, const char *pszN
     /*
      * Validate input.
      */
-    AssertMsg(PDMCritSectIsInitialized(&pVM->pdm.s.CritSect), ("bad init order!\n"));
+    AssertMsg(MMR3IsInitialized(pVM), ("bad init order!\n"));
     AssertReturn(!HMIsEnabled(pVM), VERR_PDM_HM_IPE);
-
-    PUVM     pUVM = pVM->pUVM;
-    RTCritSectEnter(&pUVM->pdm.s.ListCritSect);
-    PPDMMOD  pCur = pUVM->pdm.s.pModules;
-    while (pCur)
-    {
-        if (!strcmp(pCur->szName, pszName))
-        {
-            RTCritSectLeave(&pUVM->pdm.s.ListCritSect);
-            AssertMsgFailed(("We've already got a module '%s' loaded!\n", pszName));
-            return VERR_PDM_MODULE_NAME_CLASH;
-        }
-        /* next */
-        pCur = pCur->pNext;
-    }
 
     /*
      * Find the file if not specified.
@@ -473,9 +467,36 @@ VMMR3DECL(int) PDMR3LdrLoadRC(PVM pVM, const char *pszFilename, const char *pszN
         pszFilename = pszFile = pdmR3FileRC(pszName, NULL);
 
     /*
+     * Check if a module by that name is already loaded.
+     */
+    int     rc;
+    PUVM    pUVM = pVM->pUVM;
+    RTCritSectEnter(&pUVM->pdm.s.ListCritSect);
+    PPDMMOD pCur = pUVM->pdm.s.pModules;
+    while (pCur)
+    {
+        if (!strcmp(pCur->szName, pszName))
+        {
+            /* Name clash. Hopefully due to it being the same file. */
+            if (!strcmp(pCur->szFilename, pszFilename))
+                rc = VINF_PDM_ALREADY_LOADED;
+            else
+            {
+                rc = VERR_PDM_MODULE_NAME_CLASH;
+                AssertMsgFailed(("We've already got a module '%s' loaded!\n", pszName));
+            }
+            RTCritSectLeave(&pUVM->pdm.s.ListCritSect);
+            RTMemTmpFree(pszFile);
+            return rc;
+        }
+        /* next */
+        pCur = pCur->pNext;
+    }
+
+    /*
      * Allocate the module list node.
      */
-    PPDMMOD     pModule = (PPDMMOD)RTMemAllocZ(sizeof(*pModule) + strlen(pszFilename));
+    PPDMMOD pModule = (PPDMMOD)RTMemAllocZ(sizeof(*pModule) + strlen(pszFilename));
     if (!pModule)
     {
         RTCritSectLeave(&pUVM->pdm.s.ListCritSect);
@@ -494,7 +515,7 @@ VMMR3DECL(int) PDMR3LdrLoadRC(PVM pVM, const char *pszFilename, const char *pszN
      */
     RTERRINFOSTATIC ErrInfo;
     RTErrInfoInitStatic(&ErrInfo);
-    int rc = SUPR3HardenedVerifyPlugIn(pszFilename, &ErrInfo.Core);
+    rc = SUPR3HardenedVerifyPlugIn(pszFilename, &ErrInfo.Core);
     if (RT_SUCCESS(rc))
     {
         RTErrInfoClear(&ErrInfo.Core);
@@ -551,7 +572,7 @@ VMMR3DECL(int) PDMR3LdrLoadRC(PVM pVM, const char *pszFilename, const char *pszN
                                 else
                                     rc = pVtgHdr ? VERR_INVALID_MAGIC : VERR_INVALID_POINTER;
                                 if (RT_FAILURE(rc))
-                                    LogRel(("PDM: Failed to register tracepoints for '%s': %Rrc\n", pModule->szName, rc));
+                                    LogRel(("PDMLdr: Failed to register tracepoints for '%s': %Rrc\n", pModule->szName, rc));
                             }
 #endif
 
@@ -696,7 +717,7 @@ static int pdmR3LoadR0U(PUVM pUVM, const char *pszFilename, const char *pszName,
 
     RTCritSectLeave(&pUVM->pdm.s.ListCritSect);
     RTMemFree(pModule);
-    LogRel(("pdmR3LoadR0U: pszName=\"%s\" rc=%Rrc szErr=\"%s\"\n", pszName, rc, ErrInfo.Core.pszMsg));
+    LogRel(("PDMLdr: pdmR3LoadR0U: pszName=\"%s\" rc=%Rrc szErr=\"%s\"\n", pszName, rc, ErrInfo.Core.pszMsg));
 
     /* Don't consider VERR_PDM_MODULE_NAME_CLASH and VERR_NO_MEMORY above as these are very unlikely. */
     if (RT_FAILURE(rc) && pUVM->pVM) /** @todo VMR3SetErrorU. */
@@ -726,12 +747,12 @@ VMMR3_INT_DECL(int) PDMR3LdrGetSymbolR3(PVM pVM, const char *pszModule, const ch
     AssertPtr(pVM);
     AssertPtr(pszModule);
     AssertPtr(ppvValue);
-    AssertMsg(PDMCritSectIsInitialized(&pVM->pdm.s.CritSect), ("bad init order!\n"));
+    PUVM pUVM = pVM->pUVM;
+    AssertMsg(RTCritSectIsInitialized(&pUVM->pdm.s.ListCritSect), ("bad init order!\n"));
 
     /*
      * Find the module.
      */
-    PUVM pUVM = pVM->pUVM;
     RTCritSectEnter(&pUVM->pdm.s.ListCritSect);
     for (PPDMMOD pModule = pUVM->pdm.s.pModules; pModule; pModule = pModule->pNext)
     {
@@ -785,15 +806,15 @@ VMMR3DECL(int) PDMR3LdrGetSymbolR0(PVM pVM, const char *pszModule, const char *p
     AssertPtr(pVM);
     AssertPtrNull(pszModule);
     AssertPtr(ppvValue);
-    AssertMsg(PDMCritSectIsInitialized(&pVM->pdm.s.CritSect), ("bad init order!\n"));
+    PUVM pUVM = pVM->pUVM;
+    AssertMsg(RTCritSectIsInitialized(&pUVM->pdm.s.ListCritSect), ("bad init order!\n"));
 
     if (!pszModule)
-        pszModule = "VMMR0.r0";
+        pszModule = VMMR0_MAIN_MODULE_NAME;
 
     /*
      * Find the module.
      */
-    PUVM pUVM = pVM->pUVM;
     RTCritSectEnter(&pUVM->pdm.s.ListCritSect);
     for (PPDMMOD pModule = pUVM->pdm.s.pModules; pModule; pModule = pModule->pNext)
     {
@@ -805,7 +826,7 @@ VMMR3DECL(int) PDMR3LdrGetSymbolR0(PVM pVM, const char *pszModule, const char *p
             if (RT_FAILURE(rc))
             {
                 AssertMsgRC(rc, ("Couldn't find symbol '%s' in module '%s'\n", pszSymbol, pszModule));
-                LogRel(("PDMGetSymbol: Couldn't find symbol '%s' in module '%s'\n", pszSymbol, pszModule));
+                LogRel(("PDMLdr: PDMGetSymbol: Couldn't find symbol '%s' in module '%s'\n", pszSymbol, pszModule));
             }
             return rc;
         }
@@ -841,16 +862,16 @@ VMMR3DECL(int) PDMR3LdrGetSymbolR0Lazy(PVM pVM, const char *pszModule, const cha
     AssertPtr(pVM);
     AssertPtrNull(pszModule);
     AssertPtr(ppvValue);
-    AssertMsg(PDMCritSectIsInitialized(&pVM->pdm.s.CritSect), ("bad init order!\n"));
+    PUVM pUVM = pVM->pUVM;
+    AssertMsg(RTCritSectIsInitialized(&pUVM->pdm.s.ListCritSect), ("bad init order!\n"));
 
-    /*
-     * Since we're lazy, we'll only check if the module is present
-     * and hand it over to PDMR3LdrGetSymbolR0 when that's done.
-     */
-    if (pszModule)
+    if (pszModule) /* (We don't lazy load the main R0 module.) */
     {
+        /*
+         * Since we're lazy, we'll only check if the module is present
+         * and hand it over to PDMR3LdrGetSymbolR0 when that's done.
+         */
         AssertMsgReturn(!strpbrk(pszModule, "/\\:\n\r\t"), ("pszModule=%s\n", pszModule), VERR_INVALID_PARAMETER);
-        PUVM    pUVM = pVM->pUVM;
         PPDMMOD pModule;
         RTCritSectEnter(&pUVM->pdm.s.ListCritSect);
         for (pModule = pUVM->pdm.s.pModules; pModule; pModule = pModule->pNext)
@@ -864,6 +885,7 @@ VMMR3DECL(int) PDMR3LdrGetSymbolR0Lazy(PVM pVM, const char *pszModule, const cha
             AssertMsgRCReturn(rc, ("pszModule=%s rc=%Rrc\n", pszModule, rc), VERR_MODULE_NOT_FOUND);
         }
     }
+
     return PDMR3LdrGetSymbolR0(pVM, pszModule, pszSymbol, ppvValue);
 #endif
 }
@@ -874,9 +896,11 @@ VMMR3DECL(int) PDMR3LdrGetSymbolR0Lazy(PVM pVM, const char *pszModule, const cha
  *
  * @returns VBox status code.
  * @param   pVM             Pointer to the VM.
- * @param   pszModule       Module name. If NULL the main R0 module (VMMGC.gc) is assumes.
- * @param   pszSymbol       Symbol name. If it's value is less than 64k it's treated like a
- *                          ordinal value rather than a string pointer.
+ * @param   pszModule       Module name.  If NULL the main R0 module (VMMRC.rc)
+ *                          is assumes.
+ * @param   pszSymbol       Symbol name.  If it's value is less than 64k it's
+ *                          treated like a ordinal value rather than a string
+ *                          pointer.
  * @param   pRCPtrValue     Where to store the symbol value.
  */
 VMMR3DECL(int) PDMR3LdrGetSymbolRC(PVM pVM, const char *pszModule, const char *pszSymbol, PRTRCPTR pRCPtrValue)
@@ -893,10 +917,10 @@ VMMR3DECL(int) PDMR3LdrGetSymbolRC(PVM pVM, const char *pszModule, const char *p
     AssertPtr(pVM);
     AssertPtrNull(pszModule);
     AssertPtr(pRCPtrValue);
-    AssertMsg(PDMCritSectIsInitialized(&pVM->pdm.s.CritSect), ("bad init order!\n"));
+    AssertMsg(MMR3IsInitialized(pVM), ("bad init order!\n"));
 
     if (!pszModule)
-        pszModule = "VMMGC.gc";
+        pszModule = VMMRC_MAIN_MODULE_NAME;
 
     /*
      * Find the module.
@@ -938,7 +962,8 @@ VMMR3DECL(int) PDMR3LdrGetSymbolRC(PVM pVM, const char *pszModule, const char *p
  *
  * @returns VBox status code.
  * @param   pVM             Pointer to the VM.
- * @param   pszModule       Module name. If NULL the main R0 module (VMMGC.gc) is assumes.
+ * @param   pszModule       Module name.  If NULL the main RC module (VMMRC.rc)
+ *                          is assumed.
  * @param   pszSearchPath   List of directories to search if @a pszFile is
  *                          not qualified with a path.  Can be NULL, in which
  *                          case the arch dependent install dir is searched.
@@ -956,34 +981,34 @@ VMMR3DECL(int) PDMR3LdrGetSymbolRCLazy(PVM pVM, const char *pszModule, const cha
 
 #else
     AssertPtr(pVM);
-    AssertPtrNull(pszModule);
+    if (!pszModule)
+        pszModule = VMMRC_MAIN_MODULE_NAME;
+    AssertPtr(pszModule);
     AssertPtr(pRCPtrValue);
-    AssertMsg(PDMCritSectIsInitialized(&pVM->pdm.s.CritSect), ("bad init order!\n"));
+    AssertMsg(MMR3IsInitialized(pVM), ("bad init order!\n"));
 
     /*
      * Since we're lazy, we'll only check if the module is present
      * and hand it over to PDMR3LdrGetSymbolRC when that's done.
      */
-    if (pszModule)
+    AssertMsgReturn(!strpbrk(pszModule, "/\\:\n\r\t"), ("pszModule=%s\n", pszModule), VERR_INVALID_PARAMETER);
+    PUVM    pUVM = pVM->pUVM;
+    PPDMMOD pModule;
+    RTCritSectEnter(&pUVM->pdm.s.ListCritSect);
+    for (pModule = pUVM->pdm.s.pModules; pModule; pModule = pModule->pNext)
+        if (    pModule->eType == PDMMOD_TYPE_RC
+            &&  !strcmp(pModule->szName, pszModule))
+            break;
+    RTCritSectLeave(&pUVM->pdm.s.ListCritSect);
+    if (!pModule)
     {
-        AssertMsgReturn(!strpbrk(pszModule, "/\\:\n\r\t"), ("pszModule=%s\n", pszModule), VERR_INVALID_PARAMETER);
-        PUVM    pUVM = pVM->pUVM;
-        PPDMMOD pModule;
-        RTCritSectEnter(&pUVM->pdm.s.ListCritSect);
-        for (pModule = pUVM->pdm.s.pModules; pModule; pModule = pModule->pNext)
-            if (    pModule->eType == PDMMOD_TYPE_RC
-                &&  !strcmp(pModule->szName, pszModule))
-                break;
-        RTCritSectLeave(&pUVM->pdm.s.ListCritSect);
-        if (!pModule)
-        {
-            char *pszFilename = pdmR3FileRC(pszModule, pszSearchPath);
-            AssertMsgReturn(pszFilename, ("pszModule=%s\n", pszModule), VERR_MODULE_NOT_FOUND);
-            int rc = PDMR3LdrLoadRC(pVM, pszFilename, pszModule);
-            RTMemTmpFree(pszFilename);
-            AssertMsgRCReturn(rc, ("pszModule=%s rc=%Rrc\n", pszModule, rc), VERR_MODULE_NOT_FOUND);
-        }
+        char *pszFilename = pdmR3FileRC(pszModule, pszSearchPath);
+        AssertMsgReturn(pszFilename, ("pszModule=%s\n", pszModule), VERR_MODULE_NOT_FOUND);
+        int rc = PDMR3LdrLoadRC(pVM, pszFilename, pszModule);
+        RTMemTmpFree(pszFilename);
+        AssertMsgRCReturn(rc, ("pszModule=%s rc=%Rrc\n", pszModule, rc), VERR_MODULE_NOT_FOUND);
     }
+
     return PDMR3LdrGetSymbolRC(pVM, pszModule, pszSymbol, pRCPtrValue);
 #endif
 }
@@ -1569,7 +1594,7 @@ VMMR3_INT_DECL(int) PDMR3LdrGetInterfaceSymbols(PVM pVM, void *pvInterface, size
     PPDMMOD pModule = NULL;
     if (!fNullRun)
         pModule = pdmR3LdrFindModule(pVM->pUVM,
-                                     pszModule ? pszModule : fRing0 ? "VMMR0.r0" : "VMMGC.gc",
+                                     pszModule ? pszModule : fRing0 ? "VMMR0.r0" : "VMMRC.rc",
                                      fRing0 ? PDMMOD_TYPE_R0 : PDMMOD_TYPE_RC,
                                      true /*fLazy*/, pszSearchPath);
     if (pModule || fNullRun)

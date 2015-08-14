@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -84,7 +84,7 @@ static DECLCALLBACK(int) pcarchIOPortFPUWrite(PPDMDEVINS pDevIns, void *pvUser, 
 
             /* Reset. */
             case 0xf1:
-                Log2(("PCARCH: FPU Reset cb=%d u32=%#x\n", Port, cb, u32));
+                Log2(("PCARCH: FPU Reset cb=%d u32=%#x\n", cb, u32));
                 /** @todo figure out what the difference between FPU ports 0xf0 and 0xf1 are... */
                 /* pDevIns->pHlp->pfnPICSetIrq(pDevIns, 13, 0); */
                 break;

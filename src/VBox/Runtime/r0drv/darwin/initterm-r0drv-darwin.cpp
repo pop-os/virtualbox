@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -51,6 +51,8 @@ PFNR0DARWINCPUINTERRUPT     g_pfnR0DarwinCpuInterrupt = NULL;
 
 DECLHIDDEN(int) rtR0InitNative(void)
 {
+    IPRT_DARWIN_SAVE_EFL_AC();
+
     /*
      * Create the lock group.
      */
@@ -85,12 +87,15 @@ DECLHIDDEN(int) rtR0InitNative(void)
     if (RT_FAILURE(rc))
         rtR0TermNative();
 
+    IPRT_DARWIN_RESTORE_EFL_AC();
     return rc;
 }
 
 
 DECLHIDDEN(void) rtR0TermNative(void)
 {
+    IPRT_DARWIN_SAVE_EFL_AC();
+
     /*
      * Preemption hacks before the lock group.
      */
@@ -104,5 +109,7 @@ DECLHIDDEN(void) rtR0TermNative(void)
         lck_grp_free(g_pDarwinLockGroup);
         g_pDarwinLockGroup = NULL;
     }
+
+    IPRT_DARWIN_RESTORE_EFL_AC();
 }
 

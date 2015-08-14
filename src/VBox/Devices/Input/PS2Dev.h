@@ -1,9 +1,10 @@
+/* $Id: PS2Dev.h $ */
 /** @file
  * PS/2 devices - Internal header file.
  */
 
 /*
- * Copyright (C) 2007-2012 Oracle Corporation
+ * Copyright (C) 2007-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -67,6 +68,7 @@ void PS2MReset(PPS2M pThis);
 void PS2MRelocate(PPS2M pThis, RTGCINTPTR offDelta, PPDMDEVINS pDevIns);
 void PS2MSaveState(PPS2M pThis, PSSMHANDLE pSSM);
 int  PS2MLoadState(PPS2M pThis, PSSMHANDLE pSSM, uint32_t uVersion);
+void PS2MFixupState(PPS2M pThis, uint8_t u8State, uint8_t u8Rate, uint8_t u8Proto);
 
 PS2M *KBDGetPS2MFromDevIns(PPDMDEVINS pDevIns);
 

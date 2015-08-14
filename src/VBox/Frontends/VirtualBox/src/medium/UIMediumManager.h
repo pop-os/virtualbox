@@ -1,11 +1,10 @@
+/* $Id: UIMediumManager.h $ */
 /** @file
- *
- * VBox frontends: Qt4 GUI ("VirtualBox"):
- * UIMediumManager class declaration
+ * VBox Qt GUI - UIMediumManager class declaration.
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -16,177 +15,292 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef __UIMediumManager_h__
-#define __UIMediumManager_h__
+#ifndef ___UIMediumManager_h___
+#define ___UIMediumManager_h___
+
+/* Qt includes: */
+#include <QMainWindow>
 
 /* GUI includes: */
-#include "UIMediumManager.gen.h"
 #include "QIWithRetranslateUI.h"
-#include "QIMainDialog.h"
 #include "UIMediumDefs.h"
 
-/* COM includes: */
-#include "COMEnums.h"
-#include "CMachine.h"
-#include "CVirtualBox.h"
-
 /* Forward declarations: */
-class UIToolBar;
-class UIMediumItem;
-class UIEnumerationProgressBar;
 class UIMedium;
+class UIMediumItem;
+class UIToolBar;
+class UIEnumerationProgressBar;
+class QTabWidget;
+class QTreeWidget;
+class QTreeWidgetItem;
+class QFrame;
+class QLabel;
+class QILabel;
+class QIDialogButtonBox;
 
 /** Functor interface allowing to check if passed UIMediumItem is suitable. */
 class CheckIfSuitableBy
 {
 public:
-    /** Determines whether passed UIMediumItem is suitable. */
+    /** Determines whether passed @a pItem is suitable. */
     virtual bool isItSuitable(UIMediumItem *pItem) const = 0;
 };
 
-/* Medium Manager Dialog: */
-class UIMediumManager : public QIWithRetranslateUI2<QIMainDialog>, public Ui::UIMediumManager
+/** Medium Manager dialog. */
+class UIMediumManager : public QIWithRetranslateUI<QMainWindow>
 {
     Q_OBJECT;
 
-    /* Enumerators: */
-    enum TabIndex { HDTab = 0, CDTab, FDTab };
-    enum ItemAction { ItemAction_Added, ItemAction_Updated, ItemAction_Removed };
-    enum Action { Action_Edit, Action_Copy, Action_Modify, Action_Remove, Action_Release };
+    /** Item action enumerator. */
+    enum Action { Action_Add, Action_Edit, Action_Copy, Action_Modify, Action_Remove, Action_Release };
 
-    /* Constructor/destructor: */
+    /** Constructor for UIMediumManager dialog. */
     UIMediumManager(QWidget *pCenterWidget, bool fRefresh = true);
+    /** Destructor for UIMediumManager dialog. */
     ~UIMediumManager();
 
 public:
 
-    /* Static API: Singleton stuff: */
+    /** Returns UIMediumManager singleton instance. */
     static UIMediumManager* instance();
+    /** Shows UIMediumManager singleton instance, creates new if necessary. */
     static void showModeless(QWidget *pCenterWidget, bool fRefresh = true);
-
-public slots:
-
-    /* Handler: Refresh stuff: */
-    void refreshAll();
 
 private slots:
 
-    /* Handlers: Medium-processing stuff: */
+    /** Handles VBoxGlobal::sigMediumCreated signal. */
     void sltHandleMediumCreated(const QString &strMediumID);
+    /** Handles VBoxGlobal::sigMediumDeleted signal. */
     void sltHandleMediumDeleted(const QString &strMediumID);
 
-    /* Handlers: Medium-enumeration stuff: */
+    /** Handles VBoxGlobal::sigMediumEnumerationStarted signal. */
     void sltHandleMediumEnumerationStart();
+    /** Handles VBoxGlobal::sigMediumEnumerated signal. */
     void sltHandleMediumEnumerated(const QString &strMediumID);
+    /** Handles VBoxGlobal::sigMediumEnumerationFinished signal. */
     void sltHandleMediumEnumerationFinish();
 
-    /* Handlers: Medium-modification stuff: */
+    /** Handles UIMediumManager::m_pActionCopy action triggering. */
     void sltCopyMedium();
+    /** Handles UIMediumManager::m_pActionModify action triggering. */
     void sltModifyMedium();
+    /** Handles UIMediumManager::m_pActionRemove action triggering. */
     void sltRemoveMedium();
+    /** Handles UIMediumManager::m_pActionRelease action triggering. */
     void sltReleaseMedium();
+    /** Handles UIMediumManager::m_pActionRefresh action triggering. */
+    void sltRefreshAll();
 
-    /* Handlers: Navigation stuff: */
+    /** Handles tab change case. */
     void sltHandleCurrentTabChanged();
-    void sltHandleCurrentItemChanged(QTreeWidgetItem *pItem, QTreeWidgetItem *pPrevItem = 0);
+    /** Handles item change case. */
+    void sltHandleCurrentItemChanged();
+    /** Handles item double-click case. */
     void sltHandleDoubleClick();
+    /** Handles item context-menu-call case. */
     void sltHandleContextMenuCall(const QPoint &position);
 
-    /* Handlers: Geometry stuff:  */
-    void sltMakeRequestForTableAdjustment();
+    /** Adjusts tree-widgets according content. */
     void sltPerformTablesAdjustment();
 
 private:
 
-    /* Helpers: Prepare stuff: */
+    /** General prepare wrapper. */
     void prepare();
+    /** Prepare dialog. */
     void prepareThis();
+    /** Prepare connections. */
+    void prepareConnections();
+    /** Prepare actions. */
     void prepareActions();
+    /** Prepare menu-bar. */
     void prepareMenuBar();
-    void prepareToolBar();
+    /** Prepare context-menu. */
     void prepareContextMenu();
-    void preapreTabWidget();
-    void prepareTreeWidgets();
-    void prepareTreeWidgetHD();
-    void prepareTreeWidgetCD();
-    void prepareTreeWidgetFD();
-    void prepareInformationPanes();
+    /** Prepare central-widget. */
+    void prepareCentralWidget();
+    /** Prepare tool-bar. */
+    void prepareToolBar();
+    /** Prepare tab-widget. */
+    void prepareTabWidget();
+    /** Prepare tab-widget's tab. */
+    void prepareTab(UIMediumType type);
+    /** Prepare tab-widget's tree-widget. */
+    void prepareTreeWidget(UIMediumType type, int iColumns);
+    /** Prepare tab-widget's information-container. */
+    void prepareInformationContainer(UIMediumType type, int iFields);
+    /** Prepare button-box. */
     void prepareButtonBox();
+    /** Prepare progress-bar. */
     void prepareProgressBar();
 #ifdef Q_WS_MAC
+    /** Mac OS X: Prepare <i>Window</i> menu. */
     void prepareMacWindowMenu();
 #endif /* Q_WS_MAC */
 
-    /* Helper: Populate stuff: */
-    void populateTreeWidgets();
+    /** Repopulates tree-widgets content. */
+    void repopulateTreeWidgets();
 
-    /* Helpers: Cleanup stuff: */
+    /** Updates details according latest changes in current item of passed @a type. */
+    void refetchCurrentMediumItem(UIMediumType type);
+    /** Updates details according latest changes in current item of chosen type. */
+    void refetchCurrentChosenMediumItem();
+    /** Updates details according latest changes in all current items. */
+    void refetchCurrentMediumItems();
+
+    /** Update actions according currently chosen item. */
+    void updateActions();
+    /** Update action icons according currently chosen tab. */
+    void updateActionIcons();
+    /** Update tab icons according last @a action happened with @a pItem. */
+    void updateTabIcons(UIMediumItem *pItem, Action action);
+    /** Update information fields of passed medium @a type. */
+    void updateInformationFields(UIMediumType type = UIMediumType_Invalid);
+    /** Update information fields for hard-drive tab. */
+    void updateInformationFieldsHD();
+    /** Update information fields for optical-disk tab. */
+    void updateInformationFieldsCD();
+    /** Update information fields for floppy-disk tab. */
+    void updateInformationFieldsFD();
+
 #ifdef Q_WS_MAC
+    /** Mac OS X: Cleanup <i>Window</i> menu. */
     void cleanupMacWindowMenu();
 #endif /* Q_WS_MAC */
+    /** General cleanup wrapper. */
     void cleanup();
 
-    /* Handler: Translation stuff: */
+    /** Translates dialog content. */
     void retranslateUi();
 
-    /* Helpers: Medium-modification stuff: */
-    bool releaseMediumFrom(const UIMedium &medium, const QString &strMachineId);
-    bool releaseHardDiskFrom(const UIMedium &medium, CMachine &machine);
-    bool releaseOpticalDiskFrom(const UIMedium &medium, CMachine &machine);
-    bool releaseFloppyDiskFrom(const UIMedium &medium, CMachine &machine);
+    /** Creates UIMediumItem for corresponding @a medium. */
+    UIMediumItem* createMediumItem(const UIMedium &medium);
+    /** Creates UIMediumItemHD for corresponding @a medium. */
+    UIMediumItem* createHardDiskItem(const UIMedium &medium);
+    /** Updates UIMediumItem for corresponding @a medium. */
+    void updateMediumItem(const UIMedium &medium);
+    /** Deletes UIMediumItem for corresponding @a strMediumID. */
+    void deleteMediumItem(const QString &strMediumID);
 
-    /* Internal API: Tree-widget access stuff: */
+    /** Returns tab for passed medium @a type. */
+    QWidget* tab(UIMediumType type) const;
+    /** Returns tree-widget for passed medium @a type. */
     QTreeWidget* treeWidget(UIMediumType type) const;
-    UIMediumType currentTreeWidgetType() const;
+    /** Returns item for passed medium @a type. */
+    UIMediumItem* mediumItem(UIMediumType type) const;
+    /** Returns information-container for passed medium @a type. */
+    QFrame* infoContainer(UIMediumType type) const;
+    /** Returns information-label for passed medium @a type and @a iLabelIndex. */
+    QLabel* infoLabel(UIMediumType type, int iLabelIndex) const;
+    /** Returns information-field for passed medium @a type and @a iFieldIndex. */
+    QILabel* infoField(UIMediumType type, int iFieldIndex) const;
+
+    /** Returns medium type for passed @a pTreeWidget. */
+    UIMediumType mediumType(QTreeWidget *pTreeWidget) const;
+
+    /** Returns current medium type. */
+    UIMediumType currentMediumType() const;
+    /** Returns current tree-widget. */
     QTreeWidget* currentTreeWidget() const;
-    void setCurrentItem(QTreeWidget *pTree, QTreeWidgetItem *pItem);
-    UIMediumItem* toMediumItem(QTreeWidgetItem *pItem) const;
-    UIMediumItem* searchItem(QTreeWidget *pTree, const CheckIfSuitableBy &functor) const;
-    UIMediumItem* searchItem(QTreeWidgetItem *pParentItem, const CheckIfSuitableBy &functor) const;
-    UIMediumItem* createHardDiskItem(QTreeWidget *pTree, const UIMedium &medium) const;
+    /** Returns current item. */
+    UIMediumItem* currentMediumItem() const;
 
-    /* Internal API: Tab-widget access stuff: */
-    void updateTabIcons(UIMediumItem *pItem, ItemAction action);
+    /** Defines current item for passed @a pTreeWidget as @a pItem. */
+    void setCurrentItem(QTreeWidget *pTreeWidget, QTreeWidgetItem *pItem);
 
-    /* Helpers: Other stuff: */
-    bool checkMediumFor(UIMediumItem *pItem, Action action);
-    void clearInfoPanes();
-    void prepareToRefresh(int iTotal = 0);
+    /** Returns tab index for passed UIMediumType. */
+    static int tabIndex(UIMediumType type);
+    /** Returns UIMediumType for passed tab index. */
+    static UIMediumType mediumType(int iIndex);
 
-    /* Static helper: Formatting stuff: */
-    static QString formatPaneText(const QString &strText, bool fCompact = true, const QString &strElipsis = "middle");
+    /** Performs search for the @a pTree child which corresponds to the @a condition but not @a pException. */
+    static UIMediumItem* searchItem(QTreeWidget *pTree, const CheckIfSuitableBy &condition, CheckIfSuitableBy *pException = 0);
+    /** Performs search for the @a pParentItem child which corresponds to the @a condition but not @a pException. */
+    static UIMediumItem* searchItem(QTreeWidgetItem *pParentItem, const CheckIfSuitableBy &condition, CheckIfSuitableBy *pException = 0);
 
-    /* Variable: Singleton instance: */
+    /** Checks if @a action can be used for @a pItem. */
+    static bool checkMediumFor(UIMediumItem *pItem, Action action);
+
+    /** Casts passed QTreeWidgetItem @a pItem to UIMediumItem if possible. */
+    static UIMediumItem* toMediumItem(QTreeWidgetItem *pItem);
+
+    /** Format information-field content. */
+    static QString formatFieldText(const QString &strText, bool fCompact = true, const QString &strElipsis = "middle");
+
+    /** UIMediumManager singleton instance. */
     static UIMediumManager *m_spInstance;
 
-    /* Variables: General stuff: */
-    CVirtualBox m_vbox;
-    QWidget *m_pCenterWidget;
+    /** @name General variables.
+     * @{ */
+    /** Widget to center UIMediumManager according. */
+    QWidget *m_pPseudoParentWidget;
+    /** Holds whether UIMediumManager should be refreshed on invoke. */
     bool m_fRefresh;
+    /** Holds whether UIMediumManager should preserve current item change. */
+    bool m_fPreventChangeCurrentItem;
+    /** @} */
 
-    /* Variables: Tab-widget stuff: */
+    /** @name Tab-widget variables.
+     * @{ */
+    /** Tab-widget itself. */
+    QTabWidget *m_pTabWidget;
+    /** Tab-widget tab-count. */
+    const int m_iTabCount;
+    /** Tree-widgets. */
+    QMap<int, QTreeWidget*> m_trees;
+    /** Information-containers. */
+    QMap<int, QFrame*> m_containers;
+    /** Information-container labels. */
+    QMap<int, QList<QLabel*> > m_labels;
+    /** Information-container fields. */
+    QMap<int, QList<QILabel*> > m_fields;
+    /** Holds whether hard-drive tab-widget have inaccessible item. */
     bool m_fInaccessibleHD;
+    /** Holds whether optical-disk tab-widget have inaccessible item. */
     bool m_fInaccessibleCD;
+    /** Holds whether floppy-disk tab-widget have inaccessible item. */
     bool m_fInaccessibleFD;
+    /** Holds cached hard-drive tab-widget icon. */
     const QIcon m_iconHD;
+    /** Holds cached optical-disk tab-widget icon. */
     const QIcon m_iconCD;
+    /** Holds cached floppy-disk tab-widget icon. */
     const QIcon m_iconFD;
-    QString m_strSelectedIdHD;
-    QString m_strSelectedIdCD;
-    QString m_strSelectedIdFD;
+    /** Holds current hard-drive tree-view item ID. */
+    QString m_strCurrentIdHD;
+    /** Holds current optical-disk tree-view item ID. */
+    QString m_strCurrentIdCD;
+    /** Holds current floppy-disk tree-view item ID. */
+    QString m_strCurrentIdFD;
+    /** @} */
 
-    /* Variables: Menu & Toolbar stuff: */
+    /** @name Tool-bar and menu variables.
+     * @{ */
+    /** Tool-bar widget. */
     UIToolBar *m_pToolBar;
-    QMenu     *m_pContextMenu;
-    QMenu     *m_pMenu;
-    QAction   *m_pActionCopy;
-    QAction   *m_pActionModify;
-    QAction   *m_pActionRemove;
-    QAction   *m_pActionRelease;
-    QAction   *m_pActionRefresh;
+    /** Context menu object. */
+    QMenu *m_pContextMenu;
+    /** Menu-bar menu object. */
+    QMenu *m_pMenu;
+    /** Action to <i>copy</i> current item. */
+    QAction *m_pActionCopy;
+    /** Action to <i>modify</i> current item. */
+    QAction *m_pActionModify;
+    /** Action to <i>remove</i> current item. */
+    QAction *m_pActionRemove;
+    /** Action to <i>release</i> current item. */
+    QAction *m_pActionRelease;
+    /** Action to <i>refresh</i> current item. */
+    QAction *m_pActionRefresh;
+    /** @} */
 
-    /* Variable: Progress-bar stuff: */
+    /** @name Button-box variables.
+     * @{ */
+    /** Dialog button-box. */
+    QIDialogButtonBox *m_pButtonBox;
+    /** Progress-bar widget. */
     UIEnumerationProgressBar *m_pProgressBar;
+    /** @} */
 };
 
-#endif /* __UIMediumManager_h__ */
+#endif /* !___UIMediumManager_h___ */

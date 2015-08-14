@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -46,9 +46,13 @@ RTDECL(RTNATIVETHREAD) RTThreadNativeSelf(void)
 static int rtR0ThreadDarwinSleepCommon(RTMSINTERVAL cMillies)
 {
     RT_ASSERT_PREEMPTIBLE();
+    IPRT_DARWIN_SAVE_EFL_AC();
+
     uint64_t u64Deadline;
     clock_interval_to_deadline(cMillies, kMillisecondScale, &u64Deadline);
     clock_delay_until(u64Deadline);
+
+    IPRT_DARWIN_RESTORE_EFL_AC();
     return VINF_SUCCESS;
 }
 
@@ -68,7 +72,11 @@ RTDECL(int) RTThreadSleepNoLog(RTMSINTERVAL cMillies)
 RTDECL(bool) RTThreadYield(void)
 {
     RT_ASSERT_PREEMPTIBLE();
+    IPRT_DARWIN_SAVE_EFL_AC();
+
     thread_block(THREAD_CONTINUE_NULL);
+
+    IPRT_DARWIN_RESTORE_EFL_AC();
     return true; /* this is fishy */
 }
 

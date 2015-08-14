@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -69,7 +69,7 @@ static void testDisas(const char *pszSub, uint8_t const *pabInstrs, uintptr_t uE
         }
         if (cErrBefore != RTTestIErrorCount())
             RTTestIFailureDetails("rc=%Rrc, off=%#x (%u) cbInstr=%u enmDisCpuMode=%d\n",
-                                  rc, off, Dis.cbInstr, enmDisCpuMode);
+                                  rc, off, off, Dis.cbInstr, enmDisCpuMode);
         RTTestIPrintf(RTTESTLVL_ALWAYS, "%s\n", szOutput);
 
         /* Check with size-only. */

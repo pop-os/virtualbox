@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -136,6 +136,13 @@ DECLHIDDEN(int) rtThreadNativeAdopt(PRTTHREADINT pThread)
 }
 
 
+DECLHIDDEN(void) rtThreadNativeWaitKludge(PRTTHREADINT pThread)
+{
+    /** @todo fix RTThreadWait/RTR0Term race on darwin. */
+    RTThreadSleep(1);
+}
+
+
 DECLHIDDEN(void) rtThreadNativeDestroy(PRTTHREADINT pThread)
 {
     NOREF(pThread);
@@ -165,6 +172,7 @@ static void rtThreadNativeMain(void *pvArg, wait_result_t Ignored)
 DECLHIDDEN(int) rtThreadNativeCreate(PRTTHREADINT pThreadInt, PRTNATIVETHREAD pNativeThread)
 {
     RT_ASSERT_PREEMPTIBLE();
+    IPRT_DARWIN_SAVE_EFL_AC();
 
     thread_t NativeThread;
     kern_return_t kr = kernel_thread_start(rtThreadNativeMain, pThreadInt, &NativeThread);
@@ -172,8 +180,10 @@ DECLHIDDEN(int) rtThreadNativeCreate(PRTTHREADINT pThreadInt, PRTNATIVETHREAD pN
     {
         *pNativeThread = (RTNATIVETHREAD)NativeThread;
         thread_deallocate(NativeThread);
+        IPRT_DARWIN_RESTORE_EFL_AC();
         return VINF_SUCCESS;
     }
+    IPRT_DARWIN_RESTORE_EFL_AC();
     return RTErrConvertFromMachKernReturn(kr);
 }
 

@@ -294,7 +294,7 @@ static RTEXITCODE SetExtPackPermissions(const char *pszDir)
      if (RT_FAILURE(rc))
          return RTMsgErrorExit(RTEXITCODE_FAILURE, "Failed to set directory permissions: %Rrc ('%s')", rc, pszDir);
 #else
-        /** @todo  */
+     /** @todo TrustedInstaller? */
 #endif
 
     return RTEXITCODE_SUCCESS;
@@ -1419,7 +1419,7 @@ static RTEXITCODE RelaunchElevatedNative(const char *pszExecPath, const char **p
     char *pszCmdLine;
     int rc = RTGetOptArgvToString(&pszCmdLine, &papszArgs[cSuArgs], RTGETOPTARGV_CNV_QUOTE_BOURNE_SH);
     if (RT_FAILURE(rc))
-        return RTMsgErrorExit(RTEXITCODE_FAILURE, "RTGetOptArgvToString failed: %Rrc");
+        return RTMsgErrorExit(RTEXITCODE_FAILURE, "RTGetOptArgvToString failed: %Rrc", rc);
 
     /*
      * Look for various standard stuff for executing a program as root.

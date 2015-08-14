@@ -3,7 +3,7 @@
 ;
 
 ;
-; Copyright (C) 2006-2012 Oracle Corporation
+; Copyright (C) 2006-2015 Oracle Corporation
 ;
 ; This file is part of VirtualBox Open Source Edition (OSE), as
 ; available from http://www.virtualbox.org. This file is free software;
@@ -72,8 +72,25 @@
 %define RT_BIT(bit)        (1 << bit)
 
 ;;
+; Make the mask for the given bit.
+%define RT_BIT_32(bit)     (1 << bit)
+;;
+; Make the mask for the given bit.
+%define RT_BIT_64(bit)     (1 << bit)
+
+;;
 ; Makes a 32-bit unsigned (not type safe, but whatever) out of four byte values.
 %define RT_MAKE_U32_FROM_U8(b0, b1, b2, b3) ( (b3 << 24) | (b2 << 16) | (b1 << 8) | b0 )
+
+;; Preprocessor concatenation macro.
+%define RT_CONCAT(a_1,a_2)              a_1 %+ a_2
+
+;; Preprocessor concatenation macro, three arguments.
+%define RT_CONCAT3(a_1,a_2,a_3)         a_1 %+ a_2 %+ a_3
+
+;; Preprocessor concatenation macro, four arguments.
+%define RT_CONCAT4(a_1,a_2,a_3,a_4)     a_1 %+ a_2 %+ a_3 %+ a_4
+
 
 ;; Define ASM_FORMAT_PE64 if applicable.
 %ifdef ASM_FORMAT_PE
@@ -103,6 +120,14 @@
 %macro SEH64_SET_FRAME_xBP 1
  %ifdef RT_ASM_WITH_SEH64
   [setframe rbp, %1]
+ %endif
+%endmacro
+
+;;
+; Records an ADD xSP, %1.
+%macro SEH64_ALLOCATE_STACK 1
+ %ifdef RT_ASM_WITH_SEH64
+  [allocstack %1]
  %endif
 %endmacro
 
@@ -173,6 +198,18 @@
  %endif
 %else
  %define IMP(name)      IMPNAME(name)
+%endif
+
+;;
+; Gets the pointer to an imported object.
+%ifdef ASM_FORMAT_PE
+ %ifdef RT_ARCH_AMD64
+  %define IMP_SEG(SegOverride, name)  qword [SegOverride:IMPNAME(name) wrt rip]
+ %else
+  %define IMP_SEG(SegOverride, name)  dword [SegOverride:IMPNAME(name)]
+ %endif
+%else
+ %define IMP_SEG(SegOverride, name)   IMPNAME(name)
 %endif
 
 ;;

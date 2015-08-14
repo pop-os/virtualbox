@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2011 Oracle Corporation
+ * Copyright (C) 2009-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -132,6 +132,7 @@ protected:
     protected:
     /* VirtualBox instance */
     ComPtr<IVirtualBox> virtualbox;
+    ComPtr<IVirtualBoxClient> virtualboxClient;
 
     private:
     struct Data;

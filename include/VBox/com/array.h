@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -161,6 +161,18 @@
 
 #ifdef VBOX_WITH_XPCOM
 # include <nsMemory.h>
+#endif
+
+        /* Type traits are a C++ 11 feature, so not available everywhere (yet). */
+        /* Only GCC 4.6 or newer. */
+#if    (defined(__GNUC__) && (__GNUC__ * 100 + __GNUC_MINOR__) >= 406) \
+       /* Only MSVC++ 16.0 (Visual Studio 2010) or newer. */           \
+    || (defined(_MSC_VER) && (_MSC_VER >= 1600))
+    #define VBOX_WITH_TYPE_TRAITS
+#endif
+
+#ifdef VBOX_WITH_TYPE_TRAITS
+# include <type_traits>
 #endif
 
 #include "VBox/com/defs.h"
@@ -393,10 +405,32 @@ protected:
 
     static VARTYPE VarType()
     {
+#ifdef VBOX_WITH_TYPE_TRAITS
+        if (    std::is_integral<T>::value
+            && !std::is_signed<T>::value)
+        {
+            if (sizeof(T) % 8 == 0) return VT_UI8;
+            if (sizeof(T) % 4 == 0) return VT_UI4;
+            if (sizeof(T) % 2 == 0) return VT_UI2;
+            return VT_UI1;
+        }
+#endif
         if (sizeof(T) % 8 == 0) return VT_I8;
         if (sizeof(T) % 4 == 0) return VT_I4;
         if (sizeof(T) % 2 == 0) return VT_I2;
         return VT_I1;
+    }
+
+    /*
+     * Fallback method in case type traits (VBOX_WITH_TYPE_TRAITS)
+     * are not available. Always returns unsigned types.
+     */
+    static VARTYPE VarTypeUnsigned()
+    {
+        if (sizeof(T) % 8 == 0) return VT_UI8;
+        if (sizeof(T) % 4 == 0) return VT_UI4;
+        if (sizeof(T) % 2 == 0) return VT_UI2;
+        return VT_UI1;
     }
 
     static ULONG VarCount(size_t aSize)
@@ -624,10 +658,18 @@ public:
             VARTYPE vt;
             HRESULT rc = SafeArrayGetVartype(arg, &vt);
             AssertComRCReturnVoid(rc);
-            AssertMsgReturnVoid(vt == VarType(),
+# ifndef VBOX_WITH_TYPE_TRAITS
+            AssertMsgReturnVoid(
+                                   vt == VarType()
+                                || vt == VarTypeUnsigned(),
+                                ("Expected vartype %d or %d, got %d.\n",
+                                 VarType(), VarTypeUnsigned(), vt));
+# else /* !VBOX_WITH_TYPE_TRAITS */
+            AssertMsgReturnVoid(
+                                   vt == VarType(),
                                 ("Expected vartype %d, got %d.\n",
                                  VarType(), vt));
-
+# endif
             rc = SafeArrayAccessData(arg, (void HUGEP **)&m.raw);
             AssertComRCReturnVoid(rc);
 
@@ -1565,8 +1607,8 @@ public:
             HRESULT rc = SafeArrayGetVartype(arg, &vt);
             AssertComRCReturnVoid(rc);
             AssertMsgReturnVoid(vt == VT_UNKNOWN || vt == VT_DISPATCH,
-                                ("Expected vartype VT_UNKNOWN, got %d.\n",
-                                 VarType(), vt));
+                                ("Expected vartype VT_UNKNOWN or VT_DISPATCH, got %d.\n",
+                                 vt));
             GUID guid;
             rc = SafeArrayGetIID(arg, &guid);
             AssertComRCReturnVoid(rc);
@@ -1607,7 +1649,7 @@ public:
         for (typename List::const_iterator it = aCntr.begin();
              it != aCntr.end(); ++ it, ++ i)
 #ifdef VBOX_WITH_XPCOM
-            Copy(*it, Base::m.arr[i]);
+            this->Copy(*it, Base::m.arr[i]);
 #else
             Copy(*it, Base::m.raw[i]);
 #endif

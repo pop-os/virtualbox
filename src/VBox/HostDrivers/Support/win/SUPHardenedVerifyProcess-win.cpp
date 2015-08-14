@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -223,7 +223,7 @@ static const char *g_apszSupNtVpAllowedVmExes[] =
     "tstCFGM.exe",
     "tstIntNet-1.exe",
     "tstMMHyperHeap.exe",
-    "tstR0ThreadPreemptionDriver.exe",
+    "tstRTR0ThreadPreemptionDriver.exe",
     "tstRTR0MemUserKernelDriver.exe",
     "tstRTR0SemMutexDriver.exe",
     "tstRTR0TimerDriver.exe",

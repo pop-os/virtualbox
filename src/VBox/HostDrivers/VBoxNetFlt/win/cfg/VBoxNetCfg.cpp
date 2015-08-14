@@ -3,7 +3,7 @@
  * VBoxNetCfg.cpp - Network Configuration API.
  */
 /*
- * Copyright (C) 2011-2012 Oracle Corporation
+ * Copyright (C) 2011-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -239,20 +239,16 @@ VBOXNETCFGWIN_DECL(HRESULT) VBoxNetCfgWinGetComponentByGuid(IN INetCfg *pNc,
 
 static HRESULT vboxNetCfgWinQueryInstaller(IN INetCfg *pNetCfg, IN const GUID *pguidClass, INetCfgClassSetup **ppSetup)
 {
-    NonStandardLogFlow(("vboxNetCfgWinQueryInstaller: enter \n"));
     HRESULT hr = pNetCfg->QueryNetCfgClass(pguidClass, IID_INetCfgClassSetup, (void**)ppSetup);
     if (FAILED(hr))
         NonStandardLogFlow(("QueryNetCfgClass failed, hr (0x%x)\n", hr));
-    NonStandardLogFlow(("vboxNetCfgWinQueryInstaller: leave \n"));
     return hr;
 }
 
 VBOXNETCFGWIN_DECL(HRESULT) VBoxNetCfgWinInstallComponent(IN INetCfg *pNetCfg, IN LPCWSTR pszwComponentId, IN const GUID *pguidClass,
                                                           OUT INetCfgComponent **ppComponent)
 {
-    NonStandardLogFlow(("VBoxNetCfgWinInstallComponent: enter \n"));
     INetCfgClassSetup *pSetup;
-
     HRESULT hr = vboxNetCfgWinQueryInstaller(pNetCfg, pguidClass, &pSetup);
     if (FAILED(hr))
     {
@@ -282,8 +278,6 @@ VBOXNETCFGWIN_DECL(HRESULT) VBoxNetCfgWinInstallComponent(IN INetCfg *pNetCfg, I
         NonStandardLogFlow(("Install failed, hr (0x%x)\n", hr));
 
     pSetup->Release();
-
-    NonStandardLogFlow(("VBoxNetCfgWinInstallComponent: leave \n"));
     return hr;
 }
 
@@ -291,7 +285,6 @@ static HRESULT vboxNetCfgWinInstallInfAndComponent(IN INetCfg *pNetCfg, IN LPCWS
                                                    IN LPCWSTR const *apInfPaths, IN UINT cInfPaths,
                                                    OUT INetCfgComponent **ppComponent)
 {
-    NonStandardLogFlow(("vboxNetCfgWinInstallInfAndComponent: enter \n"));
     HRESULT hr = S_OK;
     UINT cFilesProcessed = 0;
 
@@ -306,7 +299,6 @@ static HRESULT vboxNetCfgWinInstallInfAndComponent(IN INetCfg *pNetCfg, IN LPCWS
             NonStandardLogFlow(("VBoxNetCfgWinInfInstall failed, hr (0x%x)\n", hr));
             break;
         }
-        NonStandardLogFlow(("Installing INF file \"%ws\" has been done \n", apInfPaths[cFilesProcessed]));
     }
 
     if (SUCCEEDED(hr))
@@ -333,7 +325,6 @@ static HRESULT vboxNetCfgWinInstallInfAndComponent(IN INetCfg *pNetCfg, IN LPCWS
         NonStandardLogFlow(("Rollback complete\n"));
     }
 
-    NonStandardLogFlow(("vboxNetCfgWinInstallInfAndComponent: leave \n"));
     return hr;
 }
 
@@ -695,6 +686,7 @@ VBOXNETCFGWIN_DECL(HRESULT) VBoxNetCfgWinEnumNetDevices(LPCWSTR pwszPnPId,
             if (cCurId >= cPnPId)
             {
                 NonStandardLogFlow(("!wcsnicmp(pCurId = (%S), pwszPnPId = (%S), cPnPId = (%d))", pCurId, pwszPnPId, cPnPId));
+
                 pCurId += cCurId - cPnPId;
                 if (!wcsnicmp(pCurId, pwszPnPId, cPnPId))
                 {
@@ -735,6 +727,7 @@ VBOXNETCFGWIN_DECL(HRESULT) VBoxNetCfgWinPropChangeAllNetDevicesOfId(IN LPCWSTR 
     Pc.enmPcType = enmPcType;
     Pc.hr = S_OK;
     NonStandardLogFlow(("Calling VBoxNetCfgWinEnumNetDevices with lpszPnPId =(%S) and vboxNetCfgWinPropChangeAllNetDevicesOfIdCallback", lpszPnPId));
+
     HRESULT hr = VBoxNetCfgWinEnumNetDevices(lpszPnPId, vboxNetCfgWinPropChangeAllNetDevicesOfIdCallback, &Pc);
     if (!SUCCEEDED(hr))
     {
@@ -2065,7 +2058,7 @@ VBOXNETCFGWIN_DECL(HRESULT) VBoxNetCfgWinNetFltUninstall(IN INetCfg *pNc)
 VBOXNETCFGWIN_DECL(HRESULT) VBoxNetCfgWinNetFltInstall(IN INetCfg *pNc,
                                                        IN LPCWSTR const *apInfFullPaths, IN UINT cInfFullPaths)
 {
-    HRESULT hr = S_OK;
+    HRESULT hr = vboxNetCfgWinNetFltUninstall(pNc, SUOI_FORCEDELETE);
     if (SUCCEEDED(hr))
     {
         NonStandardLog("NetFlt will be installed ...\n");
@@ -2079,19 +2072,120 @@ VBOXNETCFGWIN_DECL(HRESULT) VBoxNetCfgWinNetFltInstall(IN INetCfg *pNc,
 }
 
 #define VBOXNETCFGWIN_NETADP_ID L"sun_VBoxNetAdp"
-static HRESULT vboxNetCfgWinNetAdpUninstall(IN INetCfg *pNc, DWORD InfRmFlags)
+static HRESULT vboxNetCfgWinNetAdpUninstall(IN INetCfg *pNc, LPCWSTR pwszId, DWORD InfRmFlags)
 {
     HRESULT hr = S_OK;
     NonStandardLog("Finding NetAdp driver package and trying to uninstall it ...\n");
 
-    VBoxDrvCfgInfUninstallAllF(L"Net", VBOXNETCFGWIN_NETADP_ID, InfRmFlags);
-    NonStandardLog("NetAdp driver package has been uninstalled \n");
+    VBoxDrvCfgInfUninstallAllF(L"Net", pwszId, InfRmFlags);
+    NonStandardLog("NetAdp is not installed currently\n");
     return hr;
 }
 
-VBOXNETCFGWIN_DECL(HRESULT) VBoxNetCfgWinNetAdpUninstall(IN INetCfg *pNc)
+VBOXNETCFGWIN_DECL(HRESULT) VBoxNetCfgWinNetAdpUninstall(IN INetCfg *pNc, IN LPCWSTR pwszId)
 {
-    return vboxNetCfgWinNetAdpUninstall(pNc, SUOI_FORCEDELETE);
+    return vboxNetCfgWinNetAdpUninstall(pNc, pwszId, SUOI_FORCEDELETE);
+}
+
+VBOXNETCFGWIN_DECL(HRESULT) VBoxNetCfgWinNetAdpInstall(IN INetCfg *pNc,
+                                                       IN LPCWSTR const pInfFullPath)
+{
+    NonStandardLog("NetAdp will be installed ...\n");
+    HRESULT hr = vboxNetCfgWinInstallInfAndComponent(pNc, VBOXNETCFGWIN_NETADP_ID,
+                                             &GUID_DEVCLASS_NET,
+                                             &pInfFullPath,
+                                             1,
+                                             NULL);
+    return hr;
+}
+
+#define VBOXNETCFGWIN_NETLWF_ID    L"oracle_VBoxNetLwf"
+
+static HRESULT vboxNetCfgWinNetLwfUninstall(IN INetCfg *pNc, DWORD InfRmFlags)
+{
+    INetCfgComponent * pNcc = NULL;
+    HRESULT hr = pNc->FindComponent(VBOXNETCFGWIN_NETLWF_ID, &pNcc);
+    if (hr == S_OK)
+    {
+        NonStandardLog("NetLwf is installed currently, uninstalling ...\n");
+
+        hr = VBoxNetCfgWinUninstallComponent(pNc, pNcc);
+
+        pNcc->Release();
+    }
+    else if (hr == S_FALSE)
+    {
+        NonStandardLog("NetLwf is not installed currently\n");
+        hr = S_OK;
+    }
+    else
+    {
+        NonStandardLogFlow(("FindComponent failed, hr (0x%x)\n", hr));
+        hr = S_OK;
+    }
+
+    VBoxDrvCfgInfUninstallAllF(L"NetService", VBOXNETCFGWIN_NETLWF_ID, InfRmFlags);
+
+    return hr;
+}
+
+VBOXNETCFGWIN_DECL(HRESULT) VBoxNetCfgWinNetLwfUninstall(IN INetCfg *pNc)
+{
+    return vboxNetCfgWinNetLwfUninstall(pNc, 0);
+}
+
+static void VBoxNetCfgWinFilterLimitWorkaround(void)
+{
+    /*
+     * Need to check if the system has a limit of installed filter drivers. If it
+     * has, bump the limit to 14, which the maximum value supported by Windows 7.
+     * Note that we only touch the limit if it is set to the default value (8).
+     * See @bugref{7899}.
+     */
+    HKEY hNetKey;
+    DWORD dwMaxNumFilters = 0;
+    DWORD cbMaxNumFilters = sizeof(dwMaxNumFilters);
+    LONG hr = RegOpenKeyEx(HKEY_LOCAL_MACHINE,
+                           _T("SYSTEM\\CurrentControlSet\\Control\\Network"),
+                           0, KEY_QUERY_VALUE | KEY_SET_VALUE, &hNetKey);
+    if (SUCCEEDED(hr))
+    {
+        hr = RegQueryValueEx(hNetKey, _T("MaxNumFilters"), NULL, NULL,
+                             (LPBYTE)&dwMaxNumFilters, &cbMaxNumFilters);
+        if (SUCCEEDED(hr) && cbMaxNumFilters == sizeof(dwMaxNumFilters) && dwMaxNumFilters == 8)
+        {
+            dwMaxNumFilters = 14;
+            hr = RegSetValueEx(hNetKey, _T("MaxNumFilters"), 0, REG_DWORD,
+                             (LPBYTE)&dwMaxNumFilters, sizeof(dwMaxNumFilters));
+            if (SUCCEEDED(hr))
+                NonStandardLog("Adjusted the installed filter limit to 14...\n");
+            else
+                NonStandardLog("Failed to set MaxNumFilters, error code 0x%x\n", hr);
+        }
+        RegCloseKey(hNetKey);
+    }
+    else
+    {
+        NonStandardLog("Failed to open network key, error code 0x%x\n", hr);
+    }
+
+}
+
+VBOXNETCFGWIN_DECL(HRESULT) VBoxNetCfgWinNetLwfInstall(IN INetCfg *pNc,
+                                                       IN LPCWSTR const pInfFullPath)
+{
+    HRESULT hr = vboxNetCfgWinNetLwfUninstall(pNc, SUOI_FORCEDELETE);
+    if (SUCCEEDED(hr))
+    {
+        VBoxNetCfgWinFilterLimitWorkaround();
+        NonStandardLog("NetLwf will be installed ...\n");
+        hr = vboxNetCfgWinInstallInfAndComponent(pNc, VBOXNETCFGWIN_NETLWF_ID,
+                                                 &GUID_DEVCLASS_NETSERVICE,
+                                                 &pInfFullPath,
+                                                 1,
+                                                 NULL);
+    }
+    return hr;
 }
 
 #define VBOX_CONNECTION_NAME L"VirtualBox Host-Only Network"
@@ -2576,9 +2670,9 @@ VBOXNETCFGWIN_DECL(HRESULT) VBoxNetCfgWinRemoveHostOnlyNetworkInterface(IN const
     return hrc;
 }
 
-VBOXNETCFGWIN_DECL(HRESULT) VBoxNetCfgWinUpdateHostOnlyNetworkInterface(LPCWSTR pcsxwInf, BOOL *pbRebootRequired)
+VBOXNETCFGWIN_DECL(HRESULT) VBoxNetCfgWinUpdateHostOnlyNetworkInterface(LPCWSTR pcsxwInf, BOOL *pbRebootRequired, LPCWSTR pcsxwId)
 {
-    return VBoxDrvCfgDrvUpdate(DRIVERHWID, pcsxwInf, pbRebootRequired);
+    return VBoxDrvCfgDrvUpdate(pcsxwId, pcsxwInf, pbRebootRequired);
 }
 
 VBOXNETCFGWIN_DECL(HRESULT) VBoxNetCfgWinCreateHostOnlyNetworkInterface(IN LPCWSTR pInfPath, IN bool bIsInfPathFile,
@@ -2879,13 +2973,26 @@ VBOXNETCFGWIN_DECL(HRESULT) VBoxNetCfgWinCreateHostOnlyNetworkInterface(IN LPCWS
         if (hkey == INVALID_HANDLE_VALUE)
             SetErrBreak(("SetupDiOpenDevRegKey failed (0x%08X)", GetLastError()));
 
-        cbSize = sizeof(pWCfgGuidString);
-        DWORD ret;
-        ret = RegQueryValueExW (hkey, L"NetCfgInstanceId", NULL,
-                               &dwValueType, (LPBYTE) pWCfgGuidString, &cbSize);
 
-        RegCloseKey (hkey);
+        /* Query the instance ID; on Windows 10, the registry key may take a short
+         * while to appear. Microsoft recommends waiting for up to 5 seconds.
+         */
+        for (int retries = 0; retries < 5 * 5; ++retries)
+        {
+            cbSize = sizeof(pWCfgGuidString);
+            ret = RegQueryValueExW (hkey, L"NetCfgInstanceId", NULL,
+                                   &dwValueType, (LPBYTE) pWCfgGuidString, &cbSize);
+            /* As long as the return code is FILE_NOT_FOUND, sleep and retry. */
+            if (ret == ERROR_FILE_NOT_FOUND)
+                Sleep(200); /* 1/5 of a second. */
+            else
+                break;
+        }
 
+        /*
+         * We need to query the device name after we have succeeded in querying its
+         * instance ID to avoid similar waiting-and-retrying loop (see @bugref{7973}).
+         */
         if (!SetupDiGetDeviceRegistryPropertyW(hDeviceInfo, &DeviceInfoData,
                                                SPDRP_FRIENDLYNAME , /* IN DWORD Property,*/
                                                NULL, /*OUT PDWORD PropertyRegDataType, OPTIONAL*/
@@ -2913,6 +3020,10 @@ VBOXNETCFGWIN_DECL(HRESULT) VBoxNetCfgWinCreateHostOnlyNetworkInterface(IN LPCWS
                                               err));
             }
         }
+        RegCloseKey (hkey);
+
+        if (ret != ERROR_SUCCESS)
+            SetErrBreak(("Querying NetCfgInstanceId failed (0x%08X)", GetLastError()));
     }
     while (0);
 
@@ -2941,12 +3052,12 @@ VBOXNETCFGWIN_DECL(HRESULT) VBoxNetCfgWinCreateHostOnlyNetworkInterface(IN LPCWS
     /* return the network connection GUID on success */
     if (SUCCEEDED(hrc))
     {
-        WCHAR ConnectoinName[128];
-        ULONG cbName = sizeof(ConnectoinName);
+        WCHAR ConnectionName[128];
+        ULONG cbName = sizeof(ConnectionName);
 
-        HRESULT hr = VBoxNetCfgWinGenHostonlyConnectionName(DevName, ConnectoinName, &cbName);
+        HRESULT hr = VBoxNetCfgWinGenHostonlyConnectionName(DevName, ConnectionName, &cbName);
         if (SUCCEEDED(hr))
-            hr = VBoxNetCfgWinRenameConnection(pWCfgGuidString, ConnectoinName);
+            hr = VBoxNetCfgWinRenameConnection(pWCfgGuidString, ConnectionName);
 
         if (lppszName)
         {

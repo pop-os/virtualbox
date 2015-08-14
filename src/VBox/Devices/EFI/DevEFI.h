@@ -8,7 +8,7 @@
  */
 
 /*
- * Copyright (C) 2009-2012 Oracle Corporation
+ * Copyright (C) 2009-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -66,7 +66,7 @@ typedef enum
     EFI_INFO_INDEX_CPU_FREQUENCY,
     EFI_INFO_INDEX_TSC_FREQUENCY,
     EFI_INFO_INDEX_GOP_MODE,
-    EFI_INFO_INDEX_UGA_HORISONTAL_RESOLUTION,
+    EFI_INFO_INDEX_UGA_HORIZONTAL_RESOLUTION,
     EFI_INFO_INDEX_UGA_VERTICAL_RESOLUTION,
     EFI_INFO_INDEX_END
 } EfiInfoIndex;

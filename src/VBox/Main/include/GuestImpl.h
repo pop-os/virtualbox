@@ -1,9 +1,10 @@
+/* $Id: GuestImpl.h $ */
 /** @file
  * VirtualBox COM class implementation
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,6 +18,7 @@
 #ifndef ____H_GUESTIMPL
 #define ____H_GUESTIMPL
 
+#include "GuestWrap.h"
 #include "VirtualBoxBase.h"
 #include <iprt/list.h>
 #include <iprt/time.h>
@@ -24,13 +26,16 @@
 #include <VBox/vmm/stam.h>
 
 #include "AdditionsFacilityImpl.h"
-#include "GuestCtrlImplPrivate.h"
-#include "GuestSessionImpl.h"
-#include "HGCM.h"
-
-#ifdef VBOX_WITH_DRAG_AND_DROP
-class GuestDnD;
+#ifdef VBOX_WITH_GUEST_CONTROL
+# include "GuestCtrlImplPrivate.h"
+# include "GuestSessionImpl.h"
 #endif
+#ifdef VBOX_WITH_DRAG_AND_DROP
+# include "GuestDnDSourceImpl.h"
+# include "GuestDnDTargetImpl.h"
+#endif
+#include "EventImpl.h"
+#include "HGCM.h"
 
 typedef enum
 {
@@ -47,138 +52,155 @@ typedef enum
 } GUESTSTATTYPE;
 
 class Console;
-#ifdef VBOX_WITH_GUEST_CONTROL
-class Progress;
-#endif
 
 class ATL_NO_VTABLE Guest :
-    public VirtualBoxBase,
-    VBOX_SCRIPTABLE_IMPL(IGuest)
+    public GuestWrap
 {
 public:
-    VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT(Guest, IGuest)
-
-    DECLARE_NOT_AGGREGATABLE(Guest)
-
-    DECLARE_PROTECT_FINAL_CONSTRUCT()
-
-    BEGIN_COM_MAP(Guest)
-        VBOX_DEFAULT_INTERFACE_ENTRIES(IGuest)
-    END_COM_MAP()
 
     DECLARE_EMPTY_CTOR_DTOR (Guest)
 
-    HRESULT FinalConstruct(void);
-    void FinalRelease(void);
+    HRESULT FinalConstruct();
+    void FinalRelease();
 
     // Public initializer/uninitializer for internal purposes only.
-    HRESULT init (Console *aParent);
+    HRESULT init(Console *aParent);
     void uninit();
 
-    // IGuest properties.
-    STDMETHOD(COMGETTER(OSTypeId)) (BSTR *aOSTypeId);
-    STDMETHOD(COMGETTER(AdditionsRunLevel)) (AdditionsRunLevelType_T *aRunLevel);
-    STDMETHOD(COMGETTER(AdditionsVersion))(BSTR *a_pbstrAdditionsVersion);
-    STDMETHOD(COMGETTER(AdditionsRevision))(ULONG *a_puAdditionsRevision);
-    STDMETHOD(COMGETTER(EventSource))(IEventSource ** aEventSource);
-    STDMETHOD(COMGETTER(Facilities)) (ComSafeArrayOut(IAdditionsFacility *, aFacilities));
-    STDMETHOD(COMGETTER(Sessions)) (ComSafeArrayOut(IGuestSession *, aSessions));
-    STDMETHOD(COMGETTER(MemoryBalloonSize)) (ULONG *aMemoryBalloonSize);
-    STDMETHOD(COMSETTER(MemoryBalloonSize)) (ULONG aMemoryBalloonSize);
-    STDMETHOD(COMGETTER(StatisticsUpdateInterval)) (ULONG *aUpdateInterval);
-    STDMETHOD(COMSETTER(StatisticsUpdateInterval)) (ULONG aUpdateInterval);
-    // IGuest methods.
-    STDMETHOD(GetFacilityStatus)(AdditionsFacilityType_T aType, LONG64 *aTimestamp, AdditionsFacilityStatus_T *aStatus);
-    STDMETHOD(GetAdditionsStatus)(AdditionsRunLevelType_T aLevel, BOOL *aActive);
-    STDMETHOD(SetCredentials)(IN_BSTR aUsername, IN_BSTR aPassword,
-                              IN_BSTR aDomain, BOOL aAllowInteractiveLogon);
-    // Drag'n drop support.
-    STDMETHOD(DragHGEnter)(ULONG uScreenId, ULONG uX, ULONG uY, DragAndDropAction_T defaultAction, ComSafeArrayIn(DragAndDropAction_T, allowedActions), ComSafeArrayIn(IN_BSTR, formats), DragAndDropAction_T *pResultAction);
-    STDMETHOD(DragHGMove)(ULONG uScreenId, ULONG uX, ULONG uY, DragAndDropAction_T defaultAction, ComSafeArrayIn(DragAndDropAction_T, allowedActions), ComSafeArrayIn(IN_BSTR, formats), DragAndDropAction_T *pResultAction);
-    STDMETHOD(DragHGLeave)(ULONG uScreenId);
-    STDMETHOD(DragHGDrop)(ULONG uScreenId, ULONG uX, ULONG uY, DragAndDropAction_T defaultAction, ComSafeArrayIn(DragAndDropAction_T, allowedActions), ComSafeArrayIn(IN_BSTR, formats), BSTR *pstrFormat, DragAndDropAction_T *pResultAction);
-    STDMETHOD(DragHGPutData)(ULONG uScreenId, IN_BSTR strFormat, ComSafeArrayIn(BYTE, data), IProgress **ppProgress);
-    STDMETHOD(DragGHPending)(ULONG uScreenId, ComSafeArrayOut(BSTR, formats), ComSafeArrayOut(DragAndDropAction_T, allowedActions), DragAndDropAction_T *pDefaultAction);
-    STDMETHOD(DragGHDropped)(IN_BSTR strFormat, DragAndDropAction_T action, IProgress **ppProgress);
-    STDMETHOD(DragGHGetData)(ComSafeArrayOut(BYTE, data));
-    // Guest control.
-    STDMETHOD(CreateSession)(IN_BSTR aUser, IN_BSTR aPassword, IN_BSTR aDomain, IN_BSTR aSessionName, IGuestSession **aGuestSession);
-    STDMETHOD(FindSession)(IN_BSTR aSessionName, ComSafeArrayOut(IGuestSession *, aSessions));
-    // Misc stuff
-    STDMETHOD(InternalGetStatistics)(ULONG *aCpuUser, ULONG *aCpuKernel, ULONG *aCpuIdle,
-                                     ULONG *aMemTotal, ULONG *aMemFree, ULONG *aMemBalloon, ULONG *aMemShared, ULONG *aMemCache,
-                                     ULONG *aPageTotal, ULONG *aMemAllocTotal, ULONG *aMemFreeTotal, ULONG *aMemBalloonTotal, ULONG *aMemSharedTotal);
-    STDMETHOD(UpdateGuestAdditions)(IN_BSTR aSource, ComSafeArrayIn(IN_BSTR, aArguments), ComSafeArrayIn(AdditionsUpdateFlag_T, aFlags), IProgress **aProgress);
 
 public:
     /** @name Static internal methods.
      * @{ */
 #ifdef VBOX_WITH_GUEST_CONTROL
     /** Static callback for handling guest control notifications. */
-    static DECLCALLBACK(int) notifyCtrlDispatcher(void *pvExtension, uint32_t u32Function, void *pvData, uint32_t cbData);
-    static DECLCALLBACK(void) staticUpdateStats(RTTIMERLR hTimerLR, void *pvUser, uint64_t iTick);
+    static DECLCALLBACK(int) i_notifyCtrlDispatcher(void *pvExtension, uint32_t u32Function, void *pvData, uint32_t cbData);
 #endif
+    static DECLCALLBACK(void) i_staticUpdateStats(RTTIMERLR hTimerLR, void *pvUser, uint64_t iTick);
     /** @}  */
 
 public:
     /** @name Public internal methods.
      * @{ */
-    void enableVMMStatistics(BOOL aEnable) { mCollectVMMStats = aEnable; };
-    void setAdditionsInfo(Bstr aInterfaceVersion, VBOXOSTYPE aOsType);
-    void setAdditionsInfo2(uint32_t a_uFullVersion, const char *a_pszName, uint32_t a_uRevision, uint32_t a_fFeatures);
-    bool facilityIsActive(VBoxGuestFacilityType enmFacility);
-    void facilityUpdate(VBoxGuestFacilityType a_enmFacility, VBoxGuestFacilityStatus a_enmStatus, uint32_t a_fFlags, PCRTTIMESPEC a_pTimeSpecTS);
-    void setAdditionsStatus(VBoxGuestFacilityType a_enmFacility, VBoxGuestFacilityStatus a_enmStatus, uint32_t a_fFlags, PCRTTIMESPEC a_pTimeSpecTS);
-    void onUserStateChange(Bstr aUser, Bstr aDomain, VBoxGuestUserState enmState, const uint8_t *puDetails, uint32_t cbDetails);
-    void setSupportedFeatures(uint32_t aCaps);
-    HRESULT setStatistic(ULONG aCpuId, GUESTSTATTYPE enmType, ULONG aVal);
-    BOOL isPageFusionEnabled();
-    static HRESULT setErrorStatic(HRESULT aResultCode,
-                                  const Utf8Str &aText)
+    void i_enableVMMStatistics(BOOL aEnable) { mCollectVMMStats = aEnable; };
+    void i_setAdditionsInfo(com::Utf8Str aInterfaceVersion, VBOXOSTYPE aOsType);
+    void i_setAdditionsInfo2(uint32_t a_uFullVersion, const char *a_pszName, uint32_t a_uRevision, uint32_t a_fFeatures);
+    bool i_facilityIsActive(VBoxGuestFacilityType enmFacility);
+    void i_facilityUpdate(VBoxGuestFacilityType a_enmFacility, VBoxGuestFacilityStatus a_enmStatus,
+                          uint32_t a_fFlags, PCRTTIMESPEC a_pTimeSpecTS);
+    ComObjPtr<Console> i_getConsole(void) { return mParent; }
+    void i_setAdditionsStatus(VBoxGuestFacilityType a_enmFacility, VBoxGuestFacilityStatus a_enmStatus,
+                              uint32_t a_fFlags, PCRTTIMESPEC a_pTimeSpecTS);
+    void i_onUserStateChange(Bstr aUser, Bstr aDomain, VBoxGuestUserState enmState, const uint8_t *puDetails, uint32_t cbDetails);
+    void i_setSupportedFeatures(uint32_t aCaps);
+    HRESULT i_setStatistic(ULONG aCpuId, GUESTSTATTYPE enmType, ULONG aVal);
+    BOOL i_isPageFusionEnabled();
+    void i_setCpuCount(uint32_t aCpus) { mCpus = aCpus; }
+    static HRESULT i_setErrorStatic(HRESULT aResultCode, const Utf8Str &aText)
     {
         return setErrorInternal(aResultCode, getStaticClassIID(), getStaticComponentName(), aText, false, true);
     }
+    uint32_t    i_getAdditionsVersion(void) { return mData.mAdditionsVersionFull; }
+    VBOXOSTYPE  i_getGuestOSType(void) { return mData.mOSType; }
 #ifdef VBOX_WITH_GUEST_CONTROL
-    int         dispatchToSession(PVBOXGUESTCTRLHOSTCBCTX pCtxCb, PVBOXGUESTCTRLHOSTCALLBACK pSvcCb);
-    uint32_t    getAdditionsVersion(void) { return mData.mAdditionsVersionFull; }
-    Console    *getConsole(void) { return mParent; }
-    int         sessionRemove(GuestSession *pSession);
-    int         sessionCreate(const GuestSessionStartupInfo &ssInfo, const GuestCredentials &guestCreds, ComObjPtr<GuestSession> &pGuestSession);
-    inline bool sessionExists(uint32_t uSessionID);
+    int         i_dispatchToSession(PVBOXGUESTCTRLHOSTCBCTX pCtxCb, PVBOXGUESTCTRLHOSTCALLBACK pSvcCb);
+    int         i_sessionRemove(GuestSession *pSession);
+    int         i_sessionCreate(const GuestSessionStartupInfo &ssInfo, const GuestCredentials &guestCreds,
+                                ComObjPtr<GuestSession> &pGuestSession);
+    inline bool i_sessionExists(uint32_t uSessionID);
+
 #endif
     /** @}  */
 
 private:
+
+     // wrapped IGuest properties
+     HRESULT getOSTypeId(com::Utf8Str &aOSTypeId);
+     HRESULT getAdditionsRunLevel(AdditionsRunLevelType_T *aAdditionsRunLevel);
+     HRESULT getAdditionsVersion(com::Utf8Str &aAdditionsVersion);
+     HRESULT getAdditionsRevision(ULONG *aAdditionsRevision);
+     HRESULT getDnDSource(ComPtr<IGuestDnDSource> &aDnDSource);
+     HRESULT getDnDTarget(ComPtr<IGuestDnDTarget> &aDnDTarget);
+     HRESULT getEventSource(ComPtr<IEventSource> &aEventSource);
+     HRESULT getFacilities(std::vector<ComPtr<IAdditionsFacility> > &aFacilities);
+     HRESULT getSessions(std::vector<ComPtr<IGuestSession> > &aSessions);
+     HRESULT getMemoryBalloonSize(ULONG *aMemoryBalloonSize);
+     HRESULT setMemoryBalloonSize(ULONG aMemoryBalloonSize);
+     HRESULT getStatisticsUpdateInterval(ULONG *aStatisticsUpdateInterval);
+     HRESULT setStatisticsUpdateInterval(ULONG aStatisticsUpdateInterval);
+     HRESULT internalGetStatistics(ULONG *aCpuUser,
+                                   ULONG *aCpuKernel,
+                                   ULONG *aCpuIdle,
+                                   ULONG *aMemTotal,
+                                   ULONG *aMemFree,
+                                   ULONG *aMemBalloon,
+                                   ULONG *aMemShared,
+                                   ULONG *aMemCache,
+                                   ULONG *aPagedTotal,
+                                   ULONG *aMemAllocTotal,
+                                   ULONG *aMemFreeTotal,
+                                   ULONG *aMemBalloonTotal,
+                                   ULONG *aMemSharedTotal);
+     HRESULT getFacilityStatus(AdditionsFacilityType_T aFacility,
+                               LONG64 *aTimestamp,
+                               AdditionsFacilityStatus_T *aStatus);
+     HRESULT getAdditionsStatus(AdditionsRunLevelType_T aLevel,
+                                BOOL *aActive);
+     HRESULT setCredentials(const com::Utf8Str &aUserName,
+                            const com::Utf8Str &aPassword,
+                            const com::Utf8Str &aDomain,
+                            BOOL aAllowInteractiveLogon);
+
+     // wrapped IGuest methods
+     HRESULT createSession(const com::Utf8Str &aUser,
+                           const com::Utf8Str &aPassword,
+                           const com::Utf8Str &aDomain,
+                           const com::Utf8Str &aSessionName,
+                           ComPtr<IGuestSession> &aGuestSession);
+
+     HRESULT findSession(const com::Utf8Str &aSessionName,
+                         std::vector<ComPtr<IGuestSession> > &aSessions);
+     HRESULT updateGuestAdditions(const com::Utf8Str &aSource,
+                                  const std::vector<com::Utf8Str> &aArguments,
+                                  const std::vector<AdditionsUpdateFlag_T> &aFlags,
+                                  ComPtr<IProgress> &aProgress);
+
+
     /** @name Private internal methods.
      * @{ */
-    void updateStats(uint64_t iTick);
-    static int staticEnumStatsCallback(const char *pszName, STAMTYPE enmType, void *pvSample, STAMUNIT enmUnit,
-                                       STAMVISIBILITY enmVisiblity, const char *pszDesc, void *pvUser);
+    void i_updateStats(uint64_t iTick);
+    static int i_staticEnumStatsCallback(const char *pszName, STAMTYPE enmType, void *pvSample, STAMUNIT enmUnit,
+                                         STAMVISIBILITY enmVisiblity, const char *pszDesc, void *pvUser);
+
     /** @}  */
 
     typedef std::map< AdditionsFacilityType_T, ComObjPtr<AdditionsFacility> > FacilityMap;
     typedef std::map< AdditionsFacilityType_T, ComObjPtr<AdditionsFacility> >::iterator FacilityMapIter;
     typedef std::map< AdditionsFacilityType_T, ComObjPtr<AdditionsFacility> >::const_iterator FacilityMapIterConst;
 
+#ifdef VBOX_WITH_GUEST_CONTROL
     /** Map for keeping the guest sessions. The primary key marks the guest session ID. */
     typedef std::map <uint32_t, ComObjPtr<GuestSession> > GuestSessions;
+#endif
 
     struct Data
     {
-        Data() : mAdditionsRunLevel(AdditionsRunLevelType_None)
+        Data() : mOSType(VBOXOSTYPE_Unknown),  mAdditionsRunLevel(AdditionsRunLevelType_None)
             , mAdditionsVersionFull(0), mAdditionsRevision(0), mAdditionsFeatures(0)
         { }
 
-        Bstr                    mOSTypeId;
-        FacilityMap             mFacilityMap;
-        AdditionsRunLevelType_T mAdditionsRunLevel;
-        uint32_t                mAdditionsVersionFull;
-        Bstr                    mAdditionsVersionNew;
-        uint32_t                mAdditionsRevision;
-        uint32_t                mAdditionsFeatures;
-        Bstr                    mInterfaceVersion;
-        GuestSessions           mGuestSessions;
-        uint32_t                mNextSessionID;
+        VBOXOSTYPE                  mOSType;        /**@< For internal used. VBOXOSTYPE_Unknown if not reported. */
+        Utf8Str                     mOSTypeId;
+        FacilityMap                 mFacilityMap;
+        AdditionsRunLevelType_T     mAdditionsRunLevel;
+        uint32_t                    mAdditionsVersionFull;
+        Utf8Str                     mAdditionsVersionNew;
+        uint32_t                    mAdditionsRevision;
+        uint32_t                    mAdditionsFeatures;
+        Utf8Str                     mInterfaceVersion;
+#ifdef VBOX_WITH_GUEST_CONTROL
+        GuestSessions               mGuestSessions;
+        uint32_t                    mNextSessionID;
+#endif
     } mData;
 
     ULONG                           mMemoryBalloonSize;
@@ -187,33 +209,38 @@ private:
     uint64_t                        mNetStatTx;
     uint64_t                        mNetStatLastTs;
     ULONG                           mCurrentGuestStat[GUESTSTATTYPE_MAX];
+    ULONG                           mCurrentGuestCpuUserStat[VMM_MAX_CPU_COUNT];
+    ULONG                           mCurrentGuestCpuKernelStat[VMM_MAX_CPU_COUNT];
+    ULONG                           mCurrentGuestCpuIdleStat[VMM_MAX_CPU_COUNT];
     ULONG                           mVmValidStats;
     BOOL                            mCollectVMMStats;
     BOOL                            mfPageFusionEnabled;
+    uint32_t                        mCpus;
 
-    Console                        *mParent;
+    const ComObjPtr<Console>        mParent;
 
-#ifdef VBOX_WITH_GUEST_CONTROL
     /**
      * This can safely be used without holding any locks.
      * An AutoCaller suffices to prevent it being destroy while in use and
      * internally there is a lock providing the necessary serialization.
      */
     const ComObjPtr<EventSource>    mEventSource;
+#ifdef VBOX_WITH_GUEST_CONTROL
     /** General extension callback for guest control. */
     HGCMSVCEXTHANDLE                mhExtCtrl;
 #endif
 
 #ifdef VBOX_WITH_DRAG_AND_DROP
-    GuestDnD         *m_pGuestDnD;
-    friend class GuestDnD;
-    friend class GuestDnDPrivate;
+    /** The guest's DnD source. */
+    const ComObjPtr<GuestDnDSource> mDnDSource;
+    /** The guest's DnD target. */
+    const ComObjPtr<GuestDnDTarget> mDnDTarget;
 #endif
 
-    RTTIMERLR         mStatTimer;
-    uint32_t          mMagic;
+    RTTIMERLR                       mStatTimer;
+    uint32_t                        mMagic; /** @todo r=andy Rename this to something more meaningful. */
 };
-#define GUEST_MAGIC 0xCEED2006u
+#define GUEST_MAGIC 0xCEED2006u /** @todo r=andy Not very well defined!? */
 
 #endif // ____H_GUESTIMPL
 

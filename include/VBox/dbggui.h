@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -27,11 +27,6 @@
 #define ___VBox_dbggui_h
 
 #include <VBox/types.h>
-#if defined(RT_OS_WINDOWS)
-# include <VirtualBox.h>
-#else
-# include <VirtualBox_XPCOM.h>
-#endif
 
 
 RT_C_DECLS_BEGIN
@@ -39,6 +34,12 @@ RT_C_DECLS_BEGIN
 /** @defgroup grp_dbggui    VirtualBox Debugger GUI
  * @{
  */
+
+#ifdef RT_OS_WINDOWS
+struct ISession;
+#else
+class ISession;
+#endif
 
 /** Pointer to the debugger GUI instance structure. */
 typedef struct DBGGUI *PDBGGUI;

@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2004-2014 Oracle Corporation
+# Copyright (C) 2004-2015 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -17,6 +17,13 @@
 
 SUB_DEPTH = ../../..
 include $(KBUILD_PATH)/subheader.kmk
+
+#
+# Make sure our Config.kmk is included.
+#
+ifndef VBOX_MAIN_CONFIG_KMK_INCLUDED
+ include $(PATH_SUB_CURRENT)/Config.kmk
+endif
 
 #
 # Include sub-makefile(s).
@@ -164,8 +171,10 @@ $(PATH_TARGET)/docs.Main: \
 	$(APPEND) $(PATH_TARGET)/docs.Main
 # aliases
 docs.main docs.Main: $(PATH_TARGET)/docs.Main
-if !defined(VBOX_ONLY_DOCS)
+if !defined(VBOX_ONLY_DOCS) && defined(VBOX_WITH_ALL_DOXYGEN_TARGETS)
 docs:                $(PATH_TARGET)/docs.Main
+else
+docs:
 endif
 
 
@@ -175,28 +184,38 @@ ifndef VBOX_ONLY_SDK
 #
 LIBRARIES += VBoxAPIWrap
 VBoxAPIWrap_TEMPLATE        = VBoxMainLib
-VBoxAPIWrap_SOURCES         = $(VBoxAPIWrap_GENERATEDCPP)
-VBoxAPIWrap_GENERATEDCPP    = $(filter %.cpp,$(VBoxAPIWrap_GENERATEDSOURCES))
-VBoxAPIWrap_GENERATEDSOURCES = $(addprefix $(VBoxAPIWrap_0_OUTDIR)/,$(VBoxAPIWrap_VBOX_APIWRAPPERFILES))
-VBoxAPIWrap_RAWSRC          = \
-	$(VBoxAPIWrap_0_OUTDIR)/apiwrappers
-VBoxAPIWrap_XSLT            = \
-	$(VBOX_PATH_MAIN_SRC)/idl/apiwrap-server.xsl
-VBoxAPIWrap_DEFS.win.x86 += _WIN32_WINNT=0x0500
+VBoxAPIWrap_SOURCES         = \
+	$(VBoxAPIWrap_0_OUTDIR)/VBoxAPI.d \
+	$(VBOX_MAIN_APIWRAPPER_GEN_SRCS)
+VBoxAPIWrap_INTERMEDIATES   = $(VBOX_MAIN_APIWRAPPER_GEN_HDRS)
+VBoxAPIWrap_DEFS.win.x86   += _WIN32_WINNT=0x0500
 VBoxAPIWrap_DEFS.win.amd64 += _WIN32_WINNT=0x0510
 VBoxAPIWrap_INCS           += \
 	include
 VBoxAPIWrap_CLEAN           = \
 	$(wildcard $(VBoxAPIWrap_0_OUTDIR)/*.cpp) \
 	$(wildcard $(VBoxAPIWrap_0_OUTDIR)/*.h) \
-	$(VBoxAPIWrap_RAWSRC)
-VBoxAPIWrap_KMK = $(PATH_OUT)/vboxapiwrap.kmk
-include $(VBoxAPIWrap_KMK)
+	$(VBoxAPIWrap_0_OUTDIR)/VBoxAPI.d.ts \
+	$(VBoxAPIWrap_0_OUTDIR)/VBoxAPI.d \
+	$(VBoxAPIWrap_0_OUTDIR)/apiwrappers-headers \
+	$(VBoxAPIWrap_0_OUTDIR)/apiwrappers-sources-even \
+	$(VBoxAPIWrap_0_OUTDIR)/apiwrappers-sources-odd
+
+# Two VBox variables used here and/or in the rules generating wrappers.
+VBoxAPIWrap_VBOX_XSLT       = \
+	$(VBOX_PATH_MAIN_SRC)/idl/apiwrap-server.xsl
+
+
+# This include file (generated at the bottom of this file), defines
+# VBOX_MAIN_APIWRAPPER_GEN_SRCS and VBOX_MAIN_APIWRAPPER_GEN_HDRS.
+VBoxAPIWrap_VBOX_KMK_FILE = $(PATH_OUT)/vboxapiwrap.kmk
+include $(VBoxAPIWrap_VBOX_KMK_FILE)
 
 ifdef VBOX_WITH_32_ON_64_MAIN_API
 LIBRARIES += VBoxAPIWrap-x86
 VBoxAPIWrap-x86_TEMPLATE = VBoxMainLib-x86
 VBoxAPIWrap-x86_EXTENDS  = VBoxAPIWrap
+VBoxAPIWrap-x86_DTRACE_HDR_FLAGS = -32 # ugly, should be fixed in the tool in Config.kmk
 endif
 
 endif # !VBOX_ONLY_SDK
@@ -235,12 +254,6 @@ ifndef VBOX_ONLY_SDK # Note this goes on for *very* long
 # These two files are used by both VBoxC and VBoxSVC.
 #
 BLDDIRS += $(PATH_TARGET)/Main
-VBOX_XML_SCHEMADEFS_H   = $(PATH_TARGET)/Main/SchemaDefs.h
-VBOX_XML_SCHEMADEFS_CPP = $(PATH_TARGET)/Main/SchemaDefs.cpp
-VBOX_XML_SCHEMADEFS_XSL = $(VBOX_PATH_MAIN_SRC)/xml/SchemaDefs.xsl
-
-VBOX_AUTOGEN_EVENT_H    = $(PATH_TARGET)/Main/VBoxEvents.h
-VBOX_AUTOGEN_EVENT_CPP  = $(PATH_TARGET)/Main/VBoxEvents.cpp
 
 testschemadefs: $(VBOX_XML_SCHEMADEFS_H) $(VBOX_XML_SCHEMADEFS_CPP)
 
@@ -269,6 +282,7 @@ VBoxSVC_DEFS = \
 	$(if $(VBOX_WITH_LINUX_COMPILER_H),VBOX_WITH_LINUX_COMPILER_H,) \
 	$(if $(VBOX_WITH_RESOURCE_USAGE_API),VBOX_WITH_RESOURCE_USAGE_API,) \
 	$(if $(VBOX_WITH_PDM_ASYNC_COMPLETION),VBOX_WITH_PDM_ASYNC_COMPLETION,) \
+	$(if $(VBOX_WITH_DBUS),VBOX_WITH_DBUS,) \
 	$(if $(VBOX_WITH_DBUS),$(if $(VBOX_USB_WITH_DBUS),VBOX_USB_WITH_DBUS,),) \
 	$(if $(VBOX_USB_WITH_SYSFS),VBOX_USB_WITH_SYSFS,) \
 	$(if $(VBOX_USB_WITH_INOTIFY),VBOX_USB_WITH_INOTIFY,) \
@@ -291,17 +305,14 @@ VBoxSVC_DEFS.win += _WIN32_WINNT=0x0510
 # Try to load and use libhal at runtime for probing removable media
 # VBoxSVC_DEFS.linux += VBOX_USE_LIBHAL
 VBoxSVC_DEFS.solaris += VBOX_USE_LIBHAL
-VBoxSVC_DEFS.freebsd += VBOX_USE_LIBHAL
 
 VBoxSVC_CXXFLAGS = $(filter-out -Wno-unused,$(TEMPLATE_VBOXMAINEXE_CXXFLAGS))
-
-VBoxSVC_DEPS = $(filter %.h,$(VBoxAPIWrap_GENERATEDSOURCES))
 
 VBoxSVC_INCS = \
 	include \
 	$(VBoxSVC_0_OUTDIR) \
 	$(dir $(VBOX_XML_SCHEMADEFS_H)) \
-	$(VBoxAPIWrap_0_OUTDIR) \
+	$(VBOX_MAIN_APIWRAPPER_INCS) \
 	.
 VBoxSVC_INCS.win = \
 	$(VBoxCOM_0_OUTDIR)
@@ -314,7 +325,8 @@ VBoxSVC_LIBS += \
 	$(PATH_STAGE_LIB)/VBoxAPIWrap$(VBOX_SUFF_LIB) \
 	$(PATH_STAGE_LIB)/SSMStandalone$(VBOX_SUFF_LIB) \
 	$(LIB_DDU)
-VBoxSVC_SDKS = VBOX_LIBPNG VBOX_ZLIB
+
+VBoxSVC_SDKS = VBOX_LIBPNG VBOX_ZLIB VBOX_OPENSSL
 VBoxSVC_LIBS.solaris = \
 	adm \
 	nsl \
@@ -328,9 +340,11 @@ VBoxSVC_LIBS.win += \
 VBoxSVC_INTERMEDIATES = \
 	$(VBOX_MAIN_PREREQS) \
 	$(VBOX_XML_SCHEMADEFS_H) \
-	$(VBOX_AUTOGEN_EVENT_H)
+	$(VBOX_AUTOGEN_EVENT_H) \
+	$(VBOX_MAIN_APIWRAPPER_GEN_HDRS)
 
 VBoxSVC_SOURCES = \
+	$(VBoxAPIWrap_0_OUTDIR)/VBoxAPI.d \
 	src-all/DisplayPNGUtil.cpp \
 	src-all/DisplayResampleImage.cpp \
 	src-all/DisplayUtils.cpp \
@@ -340,7 +354,10 @@ VBoxSVC_SOURCES = \
 	src-all/Logging.cpp \
 	src-all/PCIDeviceAttachmentImpl.cpp \
 	src-all/ProgressImpl.cpp \
+	src-all/QMTranslatorImpl.cpp \
+	src-all/SecretKeyStore.cpp \
 	src-all/SharedFolderImpl.cpp \
+	src-all/AutoCaller.cpp \
 	src-all/VirtualBoxBase.cpp \
 	src-all/VirtualBoxErrorInfoImpl.cpp \
 	$(if $(VBOX_WITH_EXTPACK),src-all/ExtPackManagerImpl.cpp src-all/ExtPackUtil.cpp,) \
@@ -391,7 +408,7 @@ VBoxSVC_SOURCES = \
 	$(VBOX_AUTOGEN_EVENT_CPP) \
 	$(if $(VBOX_WITH_XPCOM),src-server/xpcom/server.cpp,)
 
-ifn1of ($(KBUILD_TARGET), win darwin) 
+ifn1of ($(KBUILD_TARGET), win darwin)
 	VBoxSVC_SOURCES += $(PATH_ROOT)/src/VBox/Devices/Network/slirp/resolv_conf_parser.c
 endif
 
@@ -411,6 +428,7 @@ VBoxSVC_SOURCES.win = \
 VBoxSVC_SOURCES.linux = \
 	src-server/linux/HostHardwareLinux.cpp \
 	src-server/linux/HostDnsServiceLinux.cpp \
+	$(if $(VBOX_WITH_DBUS),src-server/linux/HostPowerLinux.cpp) \
 	src-server/HostDnsServiceResolvConf.cpp
 
 VBoxSVC_SOURCES.solaris = \
@@ -422,7 +440,8 @@ VBoxSVC_SOURCES.os2 = \
 	src-server/HostDnsServiceResolvConf.cpp
 
 VBoxSVC_SOURCES.freebsd = \
-	src-server/freebsd/HostHardwareFreeBSD.cpp
+	src-server/freebsd/HostHardwareFreeBSD.cpp \
+	src-server/HostDnsServiceResolvConf.cpp
 
 
 ifdef VBOX_WITH_USB
@@ -446,7 +465,7 @@ ifdef VBOX_WITH_NETFLT
  VBoxSVC_LIBS.win += \
 	$(PATH_STAGE_LIB)/WinNetConfig$(VBOX_SUFF_LIB) \
 	$(PATH_STAGE_LIB)/VBoxDrvCfg$(VBOX_SUFF_LIB) \
-	$(PATH_SDK_$(VBOX_WINDDK)_LIB)/Newdev.lib \
+	$(PATH_SDK_$(VBOX_WINDDK)_LIB)/newdev.lib \
 	$(PATH_TOOL_$(VBOX_VCC_TOOL)_LIB)/comsupp.lib \
 	$(PATH_SDK_$(VBOX_WINPSDK)_LIB)/WbemUuid.Lib
 endif
@@ -487,6 +506,23 @@ ifdef VBOX_WITH_HOSTNETIF_API
  if1of ($(KBUILD_TARGET), linux darwin solaris freebsd)
   VBoxSVC_SOURCES        += src-server/generic/NetIf-generic.cpp
  endif
+endif
+
+ifdef VBOX_WITH_MAIN_USB_ID_DATABASE  # Generate a database of USB vendor IDs and device IDs.
+ VBoxSVC_DEFS    += VBOX_WITH_MAIN_USB_ID_DATABASE
+ VBoxSVC_SOURCES += $(VBoxSVC_0_OUTDIR)/USBIdDatabase.cpp
+ VBoxSVC_CLEAN   += $(VBoxSVC_0_OUTDIR)/USBIdDatabase.cpp
+
+ $$(VBoxSVC_0_OUTDIR)/USBIdDatabase.cpp:  $$(USBIdDatabaseGenerator_1_TARGET) \
+ 		$(PATH_SUB_CURRENT)/src-server/usb.ids $(PATH_SUB_CURRENT)/src-server/custom.ids | $$(dir $$@)
+	$(call MSG_GENERATE,SchemaDefs,$@,$<)
+	$(QUIET)$(USBIdDatabaseGenerator_1_TARGET) -o "$@" $(filter %.ids,$^)
+
+ BLDPROGS += USBIdDatabaseGenerator
+ USBIdDatabaseGenerator_TEMPLATE = VBoxAdvBldProg
+ USBIdDatabaseGenerator_SOURCES  = src-server/USBIdDatabaseGenerator.cpp
+else
+ VBoxSVC_SOURCES += src-server/USBIdDatabaseStub.cpp	
 endif
 
 src-server/win/VBoxSVC.rc_INCS  = $(VBoxSVC_0_OUTDIR)
@@ -629,14 +665,16 @@ VBoxC_SDKS = VBOX_LIBPNG VBOX_ZLIB
 ifdef VBOX_WITH_VPX
   VBoxC_SDKS += VBOX_VPX
 endif
-
-VBoxC_DEPS = $(filter %.h,$(VBoxAPIWrap_GENERATEDSOURCES))
+ifdef VBOX_WITH_OPENSSL_FIPS
+  VBoxC_SDKS += VBOX_OPENSSL2
+endif
 
 VBoxC_INCS          = \
 	include \
 	$(VBoxC_0_OUTDIR) \
-	$(VBoxAPIWrap_0_OUTDIR) \
-	$(dir $(VBOX_XML_SCHEMADEFS_H))
+	$(VBOX_MAIN_APIWRAPPER_INCS) \
+	$(dir $(VBOX_XML_SCHEMADEFS_H)) \
+       $(VBOX_MAIN_APIWRAPPER_DIR)/dtrace
 VBoxC_INCS.win      = \
 	$(VBoxCOM_0_OUTDIR) \
 	.
@@ -654,11 +692,12 @@ VBoxC_LIBS += \
 	$(if-expr "$(LIB_VMM)" == "$(VBOX_LIB_VMM_LAZY)",$(LIB_REM),) \
 	$(VBOX_LIB_VMM_LAZY)
 VBoxC_LIBS.win += \
+	$(PATH_SDK_$(VBOX_WINPSDK)_LIB)/psapi.lib \
 	$(PATH_TOOL_$(VBOX_VCC_TOOL)_LIB)/delayimp.lib
 ifdef VBOX_WITH_NETFLT
  VBoxC_LIBS.win += \
 	$(PATH_STAGE_LIB)/VBoxDrvCfg$(VBOX_SUFF_LIB) \
-	$(PATH_SDK_$(VBOX_WINDDK)_LIB)/Newdev.lib \
+	$(PATH_SDK_$(VBOX_WINDDK)_LIB)/newdev.lib \
 	$(PATH_STAGE_LIB)/WinNetConfig$(VBOX_SUFF_LIB) \
 	$(PATH_TOOL_$(VBOX_VCC_TOOL)_LIB)/comsupp.lib \
 	$(PATH_SDK_$(VBOX_WINPSDK)_LIB)/WbemUuid.Lib
@@ -673,12 +712,18 @@ ifdef VBOX_WITH_CROGL
  VBoxC_LDFLAGS.darwin += -framework OpenGL
 endif
 
+ifdef VBOX_WITH_DRAG_AND_DROP
+ VBoxC_LIBS += $(PATH_STAGE_LIB)/VBoxDnDHostR3Lib$(VBOX_SUFF_LIB)
+endif
+
 VBoxC_INTERMEDIATES = \
 	$(VBOX_MAIN_PREREQS) \
 	$(VBOX_XML_SCHEMADEFS_H) \
-	$(VBOX_AUTOGEN_EVENT_H)
+	$(VBOX_AUTOGEN_EVENT_H) \
+	$(VBOX_MAIN_APIWRAPPER_GEN_HDRS)
 
 VBoxC_SOURCES = \
+	$(VBoxAPIWrap_0_OUTDIR)/VBoxAPI.d \
 	src-all/DisplayPNGUtil.cpp \
 	src-all/DisplayResampleImage.cpp \
 	src-all/DisplayUtils.cpp \
@@ -688,7 +733,9 @@ VBoxC_SOURCES = \
 	src-all/Logging.cpp \
 	src-all/PCIDeviceAttachmentImpl.cpp \
 	src-all/ProgressImpl.cpp \
+	src-all/SecretKeyStore.cpp \
 	src-all/SharedFolderImpl.cpp \
+	src-all/AutoCaller.cpp \
 	src-all/VirtualBoxBase.cpp \
 	src-all/VirtualBoxErrorInfoImpl.cpp \
 	$(if $(VBOX_WITH_EXTPACK),src-all/ExtPackManagerImpl.cpp src-all/ExtPackUtil.cpp,) \
@@ -696,7 +743,6 @@ VBoxC_SOURCES = \
 	$(if $(VBOX_WITH_USB_CARDREADER),src-client/UsbCardReader.cpp,) \
 	src-client/Nvram.cpp \
 	src-client/AdditionsFacilityImpl.cpp \
-	src-client/AudioSnifferInterface.cpp \
 	src-client/BusAssignmentManager.cpp \
 	$(if $(VBOX_WITH_PCI_PASSTHROUGH),src-client/PCIRawDevImpl.cpp,) \
 	src-client/ClientTokenHolder.cpp \
@@ -705,13 +751,10 @@ VBoxC_SOURCES = \
 	src-client/ConsoleImplTeleporter.cpp \
 	src-client/ConsoleVRDPServer.cpp \
 	src-client/DisplayImpl.cpp \
+	src-client/DisplayImplLegacy.cpp \
+	src-client/DisplaySourceBitmapImpl.cpp \
 	src-client/EmulatedUSBImpl.cpp \
 	src-client/GuestImpl.cpp \
-	src-client/GuestDirectoryImpl.cpp \
-	src-client/GuestFileImpl.cpp \
-	src-client/GuestFsObjInfoImpl.cpp \
-	src-client/GuestProcessImpl.cpp \
-	src-client/GuestSessionImpl.cpp \
 	src-client/GuestCtrlImpl.cpp \
 	src-client/KeyboardImpl.cpp \
 	src-client/MachineDebuggerImpl.cpp \
@@ -723,7 +766,11 @@ VBoxC_SOURCES = \
 	src-client/VirtualBoxClientImpl.cpp \
 	src-client/VMMDevInterface.cpp \
 	$(VBOX_AUTOGEN_EVENT_CPP) \
-	$(VBOX_XML_SCHEMADEFS_CPP)
+	$(VBOX_XML_SCHEMADEFS_CPP) \
+	../Devices/Audio/AudioMixBuffer.cpp \
+	../Devices/Audio/DrvAudioCommon.cpp \
+	src-client/DrvAudioVRDE.cpp
+
 VBoxC_SOURCES.win = \
 	src-client/win/dllmain.cpp \
 	src-client/win/VBoxC.def \
@@ -731,11 +778,18 @@ VBoxC_SOURCES.win = \
 ifdef VBOX_WITH_GUEST_CONTROL
  VBoxC_SOURCES += \
 	src-client/GuestSessionImplTasks.cpp \
-	src-client/GuestCtrlPrivate.cpp
+	src-client/GuestCtrlPrivate.cpp \
+	src-client/GuestDirectoryImpl.cpp \
+	src-client/GuestFileImpl.cpp \
+	src-client/GuestFsObjInfoImpl.cpp \
+	src-client/GuestProcessImpl.cpp \
+	src-client/GuestSessionImpl.cpp
 endif
 ifdef VBOX_WITH_DRAG_AND_DROP
  VBoxC_SOURCES += \
-	src-client/GuestDnDImpl.cpp
+	src-client/GuestDnDPrivate.cpp \
+	src-client/GuestDnDSourceImpl.cpp \
+	src-client/GuestDnDTargetImpl.cpp
 endif
 ifdef VBOX_WITH_XPCOM
  VBoxC_SOURCES += \
@@ -767,7 +821,8 @@ $$(VBoxC_0_OUTDIR)/VBoxC.def: $(MAKEFILE_CURRENT)
 endif
 
 src-client/ConsoleImpl.cpp_DEFS = \
-	$(if $(VBOX_BLEEDING_EDGE),VBOX_BLEEDING_EDGE=\"$(VBOX_BLEEDING_EDGE)\",)
+	$(if $(VBOX_BLEEDING_EDGE),VBOX_BLEEDING_EDGE=\"$(VBOX_BLEEDING_EDGE)\",) \
+	$(if $(VBOX_WITH_OPENSSL_FIPS), VBOX_OPENSSL_FIPS,)
 
 
 src-client/win/VBoxC.rc_DEPS = $(VBoxC_0_OUTDIR)/VBoxC.rgs $(VBoxCOM_0_OUTDIR)/VirtualBox.tlb
@@ -800,6 +855,7 @@ ifdef VBOX_WITH_32_ON_64_MAIN_API
  VBoxClient-x86_SOURCES = \
  	src-all/EventImpl.cpp \
  	src-all/Global.cpp \
+	src-all/AutoCaller.cpp \
  	src-all/VirtualBoxBase.cpp \
  	src-all/VirtualBoxErrorInfoImpl.cpp \
  	src-client/ClientTokenHolder.cpp \
@@ -815,7 +871,8 @@ ifdef VBOX_WITH_32_ON_64_MAIN_API
   VBoxClient-x86_SOURCES += \
   	src-client/xpcom/module.cpp
  endif
- VBoxClient-x86_LIBS = $(NO_SUCH_VARIABLE)
+ VBoxClient-x86_LIBS = \
+	$(PATH_STAGE_LIB)/VBoxAPIWrap-x86$(VBOX_SUFF_LIB)
  VBoxClient-x86_LIBS.win = $(NO_SUCH_VARIABLE)
  VBoxClient-x86_LIBS.win.x86 = $(PATH_TOOL_$(VBOX_VCC_TOOL_STEM)X86_LIB)/delayimp.lib
  VBoxClient-x86_CLEAN.win += $(VBoxClient-x86_0_OUTDIR)/VBoxClient-x86.rgs
@@ -836,7 +893,8 @@ endif
 #
 LIBRARIES += VBoxCOM
 VBoxCOM_TEMPLATE        = VBoxMainLib
-VBoxCOM_INTERMEDIATES   = $(VBOX_MAIN_PREREQS)
+VBoxCOM_INTERMEDIATES   = $(VBOX_MAIN_PREREQS) \
+                          $(VBOX_MAIN_APIWRAPPER_GEN_HDRS)
 VBoxCOM_SOURCES         = \
 	glue/com.cpp \
 	glue/initterm.cpp \
@@ -846,7 +904,7 @@ VBoxCOM_SOURCES         = \
 	glue/NativeEventQueue.cpp \
 	glue/ErrorInfo.cpp \
 	glue/errorprint.cpp
-VBoxCOM_INCS          += \
+VBoxCOM_INCS          += $(VBOX_MAIN_APIWRAPPER_INCS) \
 	include
 ifeq ($(KBUILD_TARGET),win)
  VBoxCOM_DEFS.x86       = _WIN32_WINNT=0x0500
@@ -926,6 +984,35 @@ if defined(VBOX_WITH_HARDENING) && "$(KBUILD_TARGET)" == "linux"
 endif
 
 
+if defined(VBOX_WITH_MIDL_PROXY_STUB) && "$(KBUILD_TARGET)" == "win"
+ #
+ # Experimental COM proxy + stub DLL.
+ #
+ DLLS += VBoxProxyStub
+ VBoxProxyStub_TEMPLATE = VBOXMAINCOMP
+ VBoxProxyStub_DEFS     = REGISTER_PROXY_DLL
+ VBoxProxyStub_DEFS.win.x86 = WIN32
+ VBoxProxyStub_SOURCES  = \
+ 	$(VBoxCOM_0_OUTDIR)/dlldata.c \
+ 	$(VBoxCOM_0_OUTDIR)/VirtualBox_p.c \
+ 	$(VBoxCOM_0_OUTDIR)/VirtualBox_i.c \
+ 	src-all/win/VBoxProxyStub.def
+
+ ifdef VBOX_WITH_32_ON_64_MAIN_API
+  DLLS += VBoxProxyStub-x86
+  VBoxProxyStub-x86_TEMPLATE = VBoxMainComp-x86
+  VBoxProxyStub-x86_DEFS     = REGISTER_PROXY_DLL
+  VBoxProxyStub-x86_DEFS.win.x86 = WIN32
+  VBoxProxyStub-x86_SOURCES  = \
+  	$(VBoxCOM-x86_0_OUTDIR)/dlldata.c \
+  	$(VBoxCOM-x86_0_OUTDIR)/VirtualBox_p.c \
+  	$(VBoxCOM-x86_0_OUTDIR)/VirtualBox_i.c \
+  	src-all/win/VBoxProxyStub.def
+ endif
+endif
+
+
+
 # generate rules
 include $(FILE_KBUILD_SUB_FOOTER)
 
@@ -954,7 +1041,7 @@ $(VBOX_IDL_HEADER.XPCOM): $(VBOX_IDL_FILE.XPCOM) | $$(dir $$@) $(VBOX_XPIDL)
 
 $(VBOX_IDL_FILE.MSCOM): $(VBOX_PATH_MAIN_SRC)/idl/midl.xsl $(VBOX_XIDL_FILE) | $$(dir $$@)
 	$(call MSG_TOOL,xsltproc,VBoxSVC,$<,$@)
-	$(QUIET)$(VBOX_XSLTPROC) -o $@ $< $(VBOX_XIDL_FILE)
+	$(QUIET)$(VBOX_XSLTPROC) -o $@ $(if $(VBOX_WITH_MIDL_PROXY_STUB),-stringparam g_fGenProxy yes,) $< $(VBOX_XIDL_FILE)
 
 # Aliases for testing purposes.
 ifdef VBOX_WITH_XPCOM
@@ -972,9 +1059,11 @@ $(VBoxCOM_0_OUTDIR)/VirtualBox_XPCOM_i.c: $(VBOX_PATH_MAIN_SRC)/idl/xpidl_iid.xs
 
 $(VBoxCOM_0_OUTDIR)/VirtualBox_i.c \
 + $(VBoxCOM_0_OUTDIR)/VirtualBox.h \
+$(if $(VBOX_WITH_MIDL_PROXY_STUB),+ $(VBoxCOM_0_OUTDIR)/VirtualBox_p.c + $(VBoxCOM_0_OUTDIR)/dlldata.c,) \
 + $(VBoxCOM_0_OUTDIR)/VirtualBox.tlb: $(VBOX_IDL_FILE.MSCOM) | $$(dir $$@)
 	$(VBOX_WIN_MIDL) /nologo \
-		$(if-expr "$(KBUILD_TARGET_ARCH)" == "amd64" && "$(KBUILD_HOST)" == "win",/env amd64,/env win32) /target NT51 \
+		$(if-expr "$(KBUILD_TARGET_ARCH)" == "amd64" && "$(KBUILD_HOST)" == "win",/env amd64,/env win32) \
+		/robust /protocol all /target NT51 \
 		/out $(call VBOX_FN_MAKE_WIN_PATH,$(VBoxCOM_0_OUTDIR)) \
 		/cpp_cmd $(subst $(EXEC_X86_WIN32),,$(call VBOX_FN_MAKE_WIN_PATH,$(TOOL_$(VBOX_VCC_TOOL)_CC))) \
 		/I $(call VBOX_FN_MAKE_WIN_PATH,$(PATH_SDK_$(VBOX_WINPSDK)_INC)) \
@@ -983,8 +1072,10 @@ $(VBoxCOM_0_OUTDIR)/VirtualBox_i.c \
 
 $(VBoxCOM-x86_0_OUTDIR)/VirtualBox_i.c \
 + $(VBoxCOM-x86_0_OUTDIR)/VirtualBox.h \
+$(if $(VBOX_WITH_MIDL_PROXY_STUB),+ $(VBoxCOM-x86_0_OUTDIR)/VirtualBox_p.c + $(VBoxCOM-x86_0_OUTDIR)/dlldata.c,) \
 + $(VBoxCOM-x86_0_OUTDIR)/VirtualBox-x86.tlb: $(VBOX_IDL_FILE.MSCOM) | $$(dir $$@)
 	$(VBOX_WIN_MIDL) /nologo /env win32 /target NT51 \
+		/robust /protocol all \
 		/out $(call VBOX_FN_MAKE_WIN_PATH,$(VBoxCOM-x86_0_OUTDIR)) \
 		/tlb $(call VBOX_FN_MAKE_WIN_PATH,$(VBoxCOM-x86_0_OUTDIR)/VirtualBox-x86.tlb) \
 		/cpp_cmd $(subst $(EXEC_X86_WIN32),,$(call VBOX_FN_MAKE_WIN_PATH,$(TOOL_$(VBOX_VCC_TOOL_STEM)X86_CC))) \
@@ -1003,6 +1094,10 @@ VBoxSVC_VBOX_TRANSLATIONS = \
 
 VBoxC_VBOX_HEADERS = \
 	include/ConsoleImpl.h
+
+VBoxC_VBOX_INTERMEDIATES   = $(VBOX_MAIN_APIWRAPPER_GEN_HDRS)
+VBoxC_VBOX_HEADERS += $(VBOX_MAIN_APIWRAPPER_INCS)
+
 VBoxC_VBOX_TRANSLATIONS = \
 	nls/VBoxC_de.ts
 
@@ -1075,34 +1170,101 @@ javagluesample_SOURCES = \
 	$(VBOX_PATH_MAIN_SRC)/glue/tests/TestVBox.java=>TestVBox.java \
 	$(VBOX_PATH_MAIN_SRC)/glue/tests/Makefile=>Makefile
 
-# moved those rules to the end so that VBoxAPIWrap_0_OUTDIR can be expanded without $$ trickery
-$(VBoxAPIWrap_RAWSRC) \
-+| $(VBoxAPIWrap_GENERATEDSOURCES): \
-		$(VBOX_XIDL_FILE) \
-		$(VBoxAPIWrap_XSLT) \
-		$(VBOX_FILESPLIT) \
-		| $$(dir $$@)
-	$(call MSG_L1,Generating C++ Server API wrapper files from XIDL)
-	$(QUIET)$(RM) -f $(filter-out $(VBoxAPIWrap_GENERATEDSOURCES),$(wildcard $(VBoxAPIWrap_0_OUTDIR)/*.cpp) $(wildcard $(VBoxAPIWrap_0_OUTDIR)/*.h))
-	$(QUIET)$(VBOX_XSLTPROC) --stringparam filelistonly "" -o $@ $(VBoxAPIWrap_XSLT) $<
-	$(QUIET)$(VBOX_FILESPLIT) $@ $(VBoxAPIWrap_0_OUTDIR)
+#
+# Rules associated with VBoxAPIWrap (in typical invocation order).
+# We keep them down here to simplify the use of VBoxAPIWrap_0_OUTDIR.
+#
 
-$(VBoxAPIWrap_KMK).ts +| $(VBoxAPIWrap_KMK): $(VBOX_XIDL_FILE) $(VBoxAPIWrap_XSLT)
-	$(call MSG_GENERATE,,$(VBoxAPIWrap_KMK))
+# Generate a make include file which lists the wrapper header and source files.
+$(VBoxAPIWrap_VBOX_KMK_FILE).ts \
++| $(VBoxAPIWrap_VBOX_KMK_FILE): \
+		$(VBOX_XIDL_FILE) \
+		$(VBOX_PATH_MAIN_SRC)/idl/apiwrap-server-filelist.xsl \
+		$(VBOX_PATH_MAIN_SRC)/Makefile.kmk
+	$(call MSG_GENERATE,,$(VBoxAPIWrap_VBOX_KMK_FILE))
 	$(QUIET)$(RM) -f $@
 	$(QUIET)$(MKDIR) -p $(@D)
-	$(QUIET)$(VBOX_XSLTPROC) --stringparam filelistonly VBoxAPIWrap_VBOX_APIWRAPPERFILES -o $@ $(VBoxAPIWrap_XSLT) $<
-	$(QUIET)$(CP) --changed -fv $@ $(VBoxAPIWrap_KMK)
+	$(QUIET)$(VBOX_XSLTPROC) --stringparam KBUILD_HOST $(KBUILD_HOST) \
+		-o $@ $(VBOX_PATH_MAIN_SRC)/idl/apiwrap-server-filelist.xsl $<
+	$(QUIET)$(CP) --changed -fv $@ $(VBoxAPIWrap_VBOX_KMK_FILE)
 
+# Generate the header files for the wrappers.
+$(VBoxAPIWrap_0_OUTDIR)/apiwrappers-headers \
++| $(VBOX_MAIN_APIWRAPPER_GEN_HDRS): \
+		$(VBOX_XIDL_FILE) \
+               $(VBOX_PATH_MAIN_SRC)/idl/typemap-shared.inc.xsl \
+		$(VBoxAPIWrap_VBOX_XSLT) \
+		$(VBOX_FILESPLIT) \
+		| $$(dir $$@)
+	$(call MSG_L1,Generating C++ Server API wrapper header files from XIDL)
+	$(QUIET)$(RM) -f -- $(filter-out $(VBOX_MAIN_APIWRAPPER_GEN_HDRS), $(wildcard $(VBoxAPIWrap_0_OUTDIR)/*.h))
+	$(QUIET)$(VBOX_XSLTPROC) --stringparam KBUILD_HOST $(KBUILD_HOST) \
+		--stringparam generating "headers" \
+		-o $@ $(VBoxAPIWrap_VBOX_XSLT) $<
+	$(QUIET)$(VBOX_FILESPLIT) $@ $(VBoxAPIWrap_0_OUTDIR)
+
+# Generate the DTrace probes for the wrappers and combine them with handcoded probes.
+$(VBoxAPIWrap_0_OUTDIR)/VBoxAPI.d.ts \
++| $(VBoxAPIWrap_0_OUTDIR)/VBoxAPI.d: \
+		$(VBOX_XIDL_FILE) \
+               $(VBOX_PATH_MAIN_SRC)/idl/typemap-shared.inc.xsl \
+		$(VBoxAPIWrap_VBOX_XSLT) \
+		$(VBOX_FILESPLIT) \
+		| $$(dir $$@)
+	$(call MSG_L1,Generating DTrace Provider for the VBox API (from XIDL))
+	$(QUIET)$(RM) -f -- "$@" "$@.tmp"
+	$(QUIET)$(VBOX_XSLTPROC) --stringparam KBUILD_HOST $(KBUILD_HOST) \
+		--stringparam generating "dtrace-probes" \
+		-o "$@" $(VBoxAPIWrap_VBOX_XSLT) $<
+	$(QUIET)$(SED) -e '' -o "$@.tmp" \
+		"$(VBOX_PATH_MAIN_SRC)/src-all/VBoxAPI-start.d" \
+		"$@" \
+		"$(VBOX_PATH_MAIN_SRC)/src-all/VBoxAPI-end.d"
+	$(QUIET)$(MV) -- "$@.tmp" "$@"
+	$(QUIET)$(CP) --changed -fv -- "$@" "$(VBoxAPIWrap_0_OUTDIR)/VBoxAPI.d"
+
+# Generate the wrapper source files - split in two due to long processing time
+$(VBoxAPIWrap_0_OUTDIR)/apiwrappers-sources-even \
++| $(VBOX_MAIN_APIWRAPPER_GEN_SRCS_EVEN): \
+		$(VBOX_XIDL_FILE) \
+               $(VBOX_PATH_MAIN_SRC)/idl/typemap-shared.inc.xsl \
+		$(VBoxAPIWrap_VBOX_XSLT) \
+		$(VBOX_FILESPLIT) \
+		| $$(dir $$@)
+	$(call MSG_L1,Generating C++ Server API wrapper files from XIDL - part 1)
+	$(QUIET)$(RM) -f -- $(filter-out $(VBOX_MAIN_APIWRAPPER_GEN_SRCS), $(wildcard $(VBoxAPIWrap_0_OUTDIR)/*.cpp))
+	$(QUIET)$(VBOX_XSLTPROC) --stringparam KBUILD_HOST $(KBUILD_HOST) \
+		--stringparam generating "sources" \
+		--param reminder 0 \
+		-o $@ $(VBoxAPIWrap_VBOX_XSLT) $<
+	$(QUIET)$(VBOX_FILESPLIT) $@ $(VBoxAPIWrap_0_OUTDIR)
+
+$(VBoxAPIWrap_0_OUTDIR)/apiwrappers-sources-odd \
++| $(VBOX_MAIN_APIWRAPPER_GEN_SRCS_ODD): \
+		$(VBOX_XIDL_FILE) \
+               $(VBOX_PATH_MAIN_SRC)/idl/typemap-shared.inc.xsl \
+		$(VBoxAPIWrap_VBOX_XSLT) \
+		$(VBOX_FILESPLIT) \
+		| $$(dir $$@)
+	$(call MSG_L1,Generating C++ Server API wrapper files from XIDL - part 2)
+	$(QUIET)$(RM) -f -- $(filter-out $(VBOX_MAIN_APIWRAPPER_GEN_SRCS), $(wildcard $(VBoxAPIWrap_0_OUTDIR)/*.cpp))
+	$(QUIET)$(VBOX_XSLTPROC) --stringparam KBUILD_HOST $(KBUILD_HOST) \
+		--stringparam generating "sources" \
+		--param reminder 1 \
+		-o $@ $(VBoxAPIWrap_VBOX_XSLT) $<
+	$(QUIET)$(VBOX_FILESPLIT) $@ $(VBoxAPIWrap_0_OUTDIR)
+
+testapiwrappers:: \
+	$(VBoxAPIWrap_0_OUTDIR)/apiwrappers-headers \
+	$(VBoxAPIWrap_0_OUTDIR)/VBoxAPI.d.ts \
+	$(VBoxAPIWrap_0_OUTDIR)/apiwrappers-sources-odd \
+	$(VBoxAPIWrap_0_OUTDIR)/apiwrappers-sources-even
+
+
+#
+# NLS stuff.
+#
 updatenls::
 	$(VBOX_LUPDATE) $(VBoxSVC_SOURCES) $(VBoxSVC_VBOX_HEADERS) -ts $(VBoxSVC_VBOX_TRANSLATIONS)
 	$(VBOX_LUPDATE) $(VBoxC_SOURCES) $(VBoxC_VBOX_HEADERS) -ts $(VBoxC_VBOX_TRANSLATIONS)
-
-testconverter:: $(VBOX_USER_HOME)/VirtualBox.xml
-	$(call MSG_TOOL,xsltproc,Test Settings Converter,$<,$(VBOX_USER_HOME)/VirtualBox.xml.test)
-	$(QUIET)$(VBOX_XSLTPROC) -o $(VBOX_USER_HOME)/VirtualBox.xml.test xml/SettingsConverter.xsl $<
-
-testconverter2:: $(VBOX_USER_HOME)/Machines/dos/dos.xml
-	$(call MSG_TOOL,xsltproc,Test Settings Converter,$<,$<.test)
-	$(QUIET)$(VBOX_XSLTPROC) -o $<.test xml/SettingsConverter.xsl $<
 

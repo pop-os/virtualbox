@@ -1,11 +1,10 @@
-
 /* $Id: GuestDirectoryImpl.h $ */
 /** @file
- * VirtualBox Main - XXX.
+ * VirtualBox Main - Guest directory handling implementation.
  */
 
 /*
- * Copyright (C) 2012 Oracle Corporation
+ * Copyright (C) 2012-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,8 +18,8 @@
 #ifndef ____H_GUESTDIRECTORYIMPL
 #define ____H_GUESTDIRECTORYIMPL
 
-#include "VirtualBoxBase.h"
 #include "GuestProcessImpl.h"
+#include "GuestDirectoryWrap.h"
 
 class GuestSession;
 
@@ -28,50 +27,44 @@ class GuestSession;
  * TODO
  */
 class ATL_NO_VTABLE GuestDirectory :
-    public VirtualBoxBase,
-    public GuestObject,
-    VBOX_SCRIPTABLE_IMPL(IGuestDirectory)
+    public GuestDirectoryWrap,
+    public GuestObject
 {
 public:
     /** @name COM and internal init/term/mapping cruft.
      * @{ */
-    VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT(GuestDirectory, IGuestDirectory)
-    DECLARE_NOT_AGGREGATABLE(GuestDirectory)
-    DECLARE_PROTECT_FINAL_CONSTRUCT()
-    BEGIN_COM_MAP(GuestDirectory)
-        VBOX_DEFAULT_INTERFACE_ENTRIES(IGuestDirectory)
-        COM_INTERFACE_ENTRY(IDirectory)
-    END_COM_MAP()
     DECLARE_EMPTY_CTOR_DTOR(GuestDirectory)
 
     int     init(Console *pConsole, GuestSession *pSession, ULONG uDirID, const GuestDirectoryOpenInfo &openInfo);
     void    uninit(void);
+
     HRESULT FinalConstruct(void);
     void    FinalRelease(void);
-    /** @}  */
-
-    /** @name IDirectory interface.
-     * @{ */
-    STDMETHOD(COMGETTER(DirectoryName))(BSTR *aName);
-    STDMETHOD(COMGETTER(Filter))(BSTR *aFilter);
-    STDMETHOD(Close)(void);
-    STDMETHOD(Read)(IFsObjInfo **aInfo);
     /** @}  */
 
 public:
     /** @name Public internal methods.
      * @{ */
-    int            callbackDispatcher(PVBOXGUESTCTRLHOSTCBCTX pCbCtx, PVBOXGUESTCTRLHOSTCALLBACK pSvcCb);
-    static Utf8Str guestErrorToString(int guestRc);
-    int            onRemove(void);
-    static HRESULT setErrorExternal(VirtualBoxBase *pInterface, int guestRc);
+    int            i_callbackDispatcher(PVBOXGUESTCTRLHOSTCBCTX pCbCtx, PVBOXGUESTCTRLHOSTCALLBACK pSvcCb);
+    int            i_onRemove(void);
+
+    static Utf8Str i_guestErrorToString(int guestRc);
+    static HRESULT i_setErrorExternal(VirtualBoxBase *pInterface, int guestRc);
     /** @}  */
 
 private:
 
-    /** @name Private internal methods.
+    /** @name Private Wrapped properties
      * @{ */
     /** @}  */
+    HRESULT getDirectoryName(com::Utf8Str &aDirectoryName);
+    HRESULT getFilter(com::Utf8Str &aFilter);
+
+    /** @name Wrapped Private internal methods.
+     * @{ */
+    /** @}  */
+    HRESULT close();
+    HRESULT read(ComPtr<IFsObjInfo> &aObjInfo);
 
     struct Data
     {

@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2013 Oracle Corporation
+# Copyright (C) 2006-2015 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -47,7 +47,7 @@ VBOX_WITH_ADDITIONS_ISO.$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH) = 1
 # Include sub-makefiles.
 include $(PATH_SUB_CURRENT)/common/Makefile.kmk
 
-ifndef VBOX_ONLY_TESTSUITE
+ifndef VBOX_ONLY_VALIDATIONKIT
  ifdef VBOX_WITH_X11_ADDITIONS
   include $(PATH_SUB_CURRENT)/x11/Makefile.kmk
  endif
@@ -160,7 +160,7 @@ ifndef VBOX_ONLY_TESTSUITE
  ifndef VBOX_WITHOUT_ADDITIONS_ISO
   PACKING += $(VBOX_PATH_ADDITIONS_ISO)/VBoxGuestAdditions.zip
  endif
-endif # !VBOX_ONLY_TESTSUITE
+endif # !VBOX_ONLY_VALIDATIONKIT
 
 include $(FILE_KBUILD_SUB_FOOTER)
 

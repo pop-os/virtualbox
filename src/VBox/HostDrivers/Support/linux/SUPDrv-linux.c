@@ -1,10 +1,10 @@
-/* $Rev: 99005 $ */
+/* $Rev: 102077 $ */
 /** @file
  * VBoxDrv - The VirtualBox Support Driver - Linux specifics.
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -59,6 +59,10 @@
 #ifdef VBOX_WITH_SUSPEND_NOTIFICATION
 # include <linux/platform_device.h>
 #endif
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 28)) && defined(SUPDRV_WITH_MSR_PROBER)
+# define SUPDRV_LINUX_HAS_SAFE_MSR_API
+# include <asm/msr.h>
+#endif
 #include <iprt/asm-amd64-x86.h>
 
 
@@ -85,11 +89,19 @@
 # error "CONFIG_X86_HIGH_ENTRY is not supported by VBoxDrv at this time."
 #endif
 
-/* to include the version number of VirtualBox into kernel backtraces */
+/* We cannot include x86.h, so we copy the defines we need here: */
+#define X86_EFL_IF          RT_BIT(9)
+#define X86_EFL_AC          RT_BIT(18)
+#define X86_EFL_DF          RT_BIT(10)
+#define X86_EFL_IOPL        (RT_BIT(12) | RT_BIT(13))
+
+/* To include the version number of VirtualBox into kernel backtraces: */
 #define VBoxDrvLinuxVersion RT_CONCAT3(RT_CONCAT(VBOX_VERSION_MAJOR, _), \
                                        RT_CONCAT(VBOX_VERSION_MINOR, _), \
                                        VBOX_VERSION_BUILD)
 #define VBoxDrvLinuxIOCtl RT_CONCAT(VBoxDrvLinuxIOCtl_,VBoxDrvLinuxVersion)
+
+
 
 /*******************************************************************************
 *   Internal Functions                                                         *
@@ -147,19 +159,35 @@ static int force_async_tsc = 0;
 /** The user device name. */
 #define DEVICE_NAME_USR     "vboxdrvu"
 
-#if defined(RT_ARCH_AMD64) && LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23)
+#if (defined(RT_ARCH_AMD64) && LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23)) || defined(VBOX_WITH_TEXT_MODMEM_HACK)
 /**
  * Memory for the executable memory heap (in IPRT).
  */
-extern uint8_t g_abExecMemory[1572864]; /* 1.5 MB */
+# ifdef DEBUG
+#  define EXEC_MEMORY_SIZE   6291456    /* 6 MB */
+# else
+#  define EXEC_MEMORY_SIZE   1572864    /* 1.5 MB */
+# endif
+extern uint8_t g_abExecMemory[EXEC_MEMORY_SIZE];
+# ifndef VBOX_WITH_TEXT_MODMEM_HACK
 __asm__(".section execmemory, \"awx\", @progbits\n\t"
         ".align 32\n\t"
         ".globl g_abExecMemory\n"
         "g_abExecMemory:\n\t"
-        ".zero 1572864\n\t"
+        ".zero " RT_XSTR(EXEC_MEMORY_SIZE) "\n\t"
         ".type g_abExecMemory, @object\n\t"
-        ".size g_abExecMemory, 1572864\n\t"
+        ".size g_abExecMemory, " RT_XSTR(EXEC_MEMORY_SIZE) "\n\t"
         ".text\n\t");
+# else
+__asm__(".text\n\t"
+        ".align 4096\n\t"
+        ".globl g_abExecMemory\n"
+        "g_abExecMemory:\n\t"
+        ".zero " RT_XSTR(EXEC_MEMORY_SIZE) "\n\t"
+        ".type g_abExecMemory, @object\n\t"
+        ".size g_abExecMemory, " RT_XSTR(EXEC_MEMORY_SIZE) "\n\t"
+        ".text\n\t");
+# endif
 #endif
 
 /** The file_operations structure. */
@@ -302,7 +330,7 @@ static int __init VBoxDrvLinuxInit(void)
     /*
      * Check for synchronous/asynchronous TSC mode.
      */
-    printk(KERN_DEBUG "vboxdrv: Found %u processor cores.\n", (unsigned)RTMpGetOnlineCount());
+    printk(KERN_DEBUG "vboxdrv: Found %u processor cores\n", (unsigned)RTMpGetOnlineCount());
 #ifdef CONFIG_VBOXDRV_AS_MISC
     rc = misc_register(&gMiscDeviceSys);
     if (rc)
@@ -371,7 +399,11 @@ static int __init VBoxDrvLinuxInit(void)
         rc = RTR0Init(0);
         if (RT_SUCCESS(rc))
         {
-#if defined(RT_ARCH_AMD64) && LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23)
+#if (defined(RT_ARCH_AMD64) && LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23)) || defined(VBOX_WITH_TEXT_MODMEM_HACK)
+# ifdef VBOX_WITH_TEXT_MODMEM_HACK
+            set_memory_x(&g_abExecMemory[0], sizeof(g_abExecMemory) / PAGE_SIZE);
+            set_memory_rw(&g_abExecMemory[0], sizeof(g_abExecMemory) / PAGE_SIZE);
+# endif
             rc = RTR0MemExecDonate(&g_abExecMemory[0], sizeof(g_abExecMemory));
             printk(KERN_DEBUG "VBoxDrv: dbg - g_abExecMemory=%p\n", (void *)&g_abExecMemory[0]);
 #endif
@@ -392,11 +424,11 @@ static int __init VBoxDrvLinuxInit(void)
                     if (rc == 0)
 #endif
                     {
-                        printk(KERN_INFO "vboxdrv: TSC mode is %s, kernel timer mode is 'normal'.\n",
-                               g_DevExt.pGip->u32Mode == SUPGIPMODE_SYNC_TSC ? "'synchronous'" : "'asynchronous'");
+                        printk(KERN_INFO "vboxdrv: TSC mode is %s, tentative frequency %llu Hz\n",
+                               SUPGetGIPModeName(g_DevExt.pGip), g_DevExt.pGip->u64CpuHz);
                         LogFlow(("VBoxDrv::ModuleInit returning %#x\n", rc));
                         printk(KERN_DEBUG "vboxdrv: Successfully loaded version "
-                                VBOX_VERSION_STRING " (interface " RT_XSTR(SUPDRV_IOC_VERSION) ").\n");
+                                VBOX_VERSION_STRING " (interface " RT_XSTR(SUPDRV_IOC_VERSION) ")\n");
                         return rc;
                     }
 #ifdef VBOX_WITH_SUSPEND_NOTIFICATION
@@ -624,6 +656,25 @@ static int VBoxDrvLinuxIOCtl(struct inode *pInode, struct file *pFilp, unsigned 
 {
     PSUPDRVSESSION pSession = (PSUPDRVSESSION)pFilp->private_data;
     int rc;
+#if defined(VBOX_STRICT) || defined(VBOX_WITH_EFLAGS_AC_SET_IN_VBOXDRV)
+    RTCCUINTREG fSavedEfl;
+
+    /*
+     * Refuse all I/O control calls if we've ever detected EFLAGS.AC being cleared.
+     *
+     * This isn't a problem, as there is absolutely nothing in the kernel context that
+     * depend on user context triggering cleanups.  That would be pretty wild, right?
+     */
+    if (RT_UNLIKELY(g_DevExt.cBadContextCalls > 0))
+    {
+        SUPR0Printf("VBoxDrvLinuxIOCtl: EFLAGS.AC=0 detected %u times, refusing all I/O controls!\n", g_DevExt.cBadContextCalls);
+        return ESPIPE;
+    }
+
+    fSavedEfl = ASMAddFlags(X86_EFL_AC);
+# else
+    stac();
+# endif
 
     /*
      * Deal with the two high-speed IOCtl that takes it's arguments from
@@ -634,14 +685,9 @@ static int VBoxDrvLinuxIOCtl(struct inode *pInode, struct file *pFilp, unsigned 
                       || uCmd == SUP_IOCTL_FAST_DO_HM_RUN
                       || uCmd == SUP_IOCTL_FAST_DO_NOP)
                   && pSession->fUnrestricted == true))
-    {
-        stac();
         rc = supdrvIOCtlFast(uCmd, ulArg, &g_DevExt, pSession);
-        clac();
-        return rc;
-    }
-    return VBoxDrvLinuxIOCtlSlow(pFilp, uCmd, ulArg, pSession);
-
+    else
+        rc = VBoxDrvLinuxIOCtlSlow(pFilp, uCmd, ulArg, pSession);
 #else   /* !HAVE_UNLOCKED_IOCTL */
     unlock_kernel();
     if (RT_LIKELY(   (   uCmd == SUP_IOCTL_FAST_DO_RAW_RUN
@@ -652,8 +698,25 @@ static int VBoxDrvLinuxIOCtl(struct inode *pInode, struct file *pFilp, unsigned 
     else
         rc = VBoxDrvLinuxIOCtlSlow(pFilp, uCmd, ulArg, pSession);
     lock_kernel();
-    return rc;
 #endif  /* !HAVE_UNLOCKED_IOCTL */
+
+#if defined(VBOX_STRICT) || defined(VBOX_WITH_EFLAGS_AC_SET_IN_VBOXDRV)
+    /*
+     * Before we restore AC and the rest of EFLAGS, check if the IOCtl handler code
+     * accidentially modified it or some other important flag.
+     */
+    if (RT_UNLIKELY(   (ASMGetFlags() & (X86_EFL_AC | X86_EFL_IF | X86_EFL_DF | X86_EFL_IOPL))
+                    != ((fSavedEfl    & (X86_EFL_AC | X86_EFL_IF | X86_EFL_DF | X86_EFL_IOPL)) | X86_EFL_AC) ))
+    {
+        char szTmp[48];
+        RTStrPrintf(szTmp, sizeof(szTmp), "uCmd=%#x: %#x->%#x!", _IOC_NR(uCmd), (uint32_t)fSavedEfl, (uint32_t)ASMGetFlags());
+        supdrvBadContext(&g_DevExt, "SUPDrv-linux.c",  __LINE__, szTmp);
+    }
+    ASMSetFlags(fSavedEfl);
+#else
+    clac();
+#endif
+    return rc;
 }
 
 
@@ -677,9 +740,9 @@ static int VBoxDrvLinuxIOCtlSlow(struct file *pFilp, unsigned int uCmd, unsigned
     /*
      * Read the header.
      */
-    if (RT_UNLIKELY(copy_from_user(&Hdr, (void *)ulArg, sizeof(Hdr))))
+    if (RT_FAILURE(RTR0MemUserCopyFrom(&Hdr, ulArg, sizeof(Hdr))))
     {
-        Log(("VBoxDrvLinuxIOCtl: copy_from_user(,%#lx,) failed; uCmd=%#x.\n", ulArg, uCmd));
+        Log(("VBoxDrvLinuxIOCtl: copy_from_user(,%#lx,) failed; uCmd=%#x\n", ulArg, uCmd));
         return -EFAULT;
     }
     if (RT_UNLIKELY((Hdr.fFlags & SUPREQHDR_FLAGS_MAGIC_MASK) != SUPREQHDR_FLAGS_MAGIC))
@@ -699,18 +762,18 @@ static int VBoxDrvLinuxIOCtlSlow(struct file *pFilp, unsigned int uCmd, unsigned
     }
     if (RT_UNLIKELY(_IOC_SIZE(uCmd) ? cbBuf != _IOC_SIZE(uCmd) : Hdr.cbIn < sizeof(Hdr)))
     {
-        Log(("VBoxDrvLinuxIOCtl: bad ioctl cbBuf=%#x _IOC_SIZE=%#x; uCmd=%#x.\n", cbBuf, _IOC_SIZE(uCmd), uCmd));
+        Log(("VBoxDrvLinuxIOCtl: bad ioctl cbBuf=%#x _IOC_SIZE=%#x; uCmd=%#x\n", cbBuf, _IOC_SIZE(uCmd), uCmd));
         return -EINVAL;
     }
     pHdr = RTMemAlloc(cbBuf);
     if (RT_UNLIKELY(!pHdr))
     {
-        OSDBGPRINT(("VBoxDrvLinuxIOCtl: failed to allocate buffer of %d bytes for uCmd=%#x.\n", cbBuf, uCmd));
+        OSDBGPRINT(("VBoxDrvLinuxIOCtl: failed to allocate buffer of %d bytes for uCmd=%#x\n", cbBuf, uCmd));
         return -ENOMEM;
     }
-    if (RT_UNLIKELY(copy_from_user(pHdr, (void *)ulArg, Hdr.cbIn)))
+    if (RT_FAILURE(RTR0MemUserCopyFrom(pHdr, ulArg, Hdr.cbIn)))
     {
-        Log(("VBoxDrvLinuxIOCtl: copy_from_user(,%#lx, %#x) failed; uCmd=%#x.\n", ulArg, Hdr.cbIn, uCmd));
+        Log(("VBoxDrvLinuxIOCtl: copy_from_user(,%#lx, %#x) failed; uCmd=%#x\n", ulArg, Hdr.cbIn, uCmd));
         RTMemFree(pHdr);
         return -EFAULT;
     }
@@ -720,9 +783,7 @@ static int VBoxDrvLinuxIOCtlSlow(struct file *pFilp, unsigned int uCmd, unsigned
     /*
      * Process the IOCtl.
      */
-    stac();
     rc = supdrvIOCtl(uCmd, &g_DevExt, pSession, pHdr, cbBuf);
-    clac();
 
     /*
      * Copy ioctl data and output buffer back to user space.
@@ -735,7 +796,7 @@ static int VBoxDrvLinuxIOCtlSlow(struct file *pFilp, unsigned int uCmd, unsigned
             OSDBGPRINT(("VBoxDrvLinuxIOCtl: too much output! %#x > %#x; uCmd=%#x!\n", cbOut, cbBuf, uCmd));
             cbOut = cbBuf;
         }
-        if (RT_UNLIKELY(copy_to_user((void *)ulArg, pHdr, cbOut)))
+        if (RT_FAILURE(RTR0MemUserCopyTo(ulArg, pHdr, cbOut)))
         {
             /* this is really bad! */
             OSDBGPRINT(("VBoxDrvLinuxIOCtl: copy_to_user(%#lx,,%#x); uCmd=%#x!\n", ulArg, cbOut, uCmd));
@@ -867,6 +928,18 @@ bool VBOXCALL supdrvOSGetForcedAsyncTscMode(PSUPDRVDEVEXT pDevExt)
 }
 
 
+bool VBOXCALL supdrvOSAreCpusOfflinedOnSuspend(void)
+{
+    return true;
+}
+
+
+bool VBOXCALL supdrvOSAreTscDeltasInSync(void)
+{
+    return false;
+}
+
+
 int  VBOXCALL   supdrvOSLdrOpen(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, const char *pszFilename)
 {
     NOREF(pDevExt); NOREF(pImage); NOREF(pszFilename);
@@ -900,6 +973,138 @@ void VBOXCALL   supdrvOSLdrUnload(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage)
 }
 
 
+#ifdef SUPDRV_WITH_MSR_PROBER
+
+int VBOXCALL    supdrvOSMsrProberRead(uint32_t uMsr, RTCPUID idCpu, uint64_t *puValue)
+{
+# ifdef SUPDRV_LINUX_HAS_SAFE_MSR_API
+    uint32_t u32Low, u32High;
+    int rc;
+
+    IPRT_LINUX_SAVE_EFL_AC();
+    if (idCpu == NIL_RTCPUID)
+        rc = rdmsr_safe(uMsr, &u32Low, &u32High);
+    else if (RTMpIsCpuOnline(idCpu))
+        rc = rdmsr_safe_on_cpu(idCpu, uMsr, &u32Low, &u32High);
+    else
+        return VERR_CPU_OFFLINE;
+    IPRT_LINUX_RESTORE_EFL_AC();
+    if (rc == 0)
+    {
+        *puValue = RT_MAKE_U64(u32Low, u32High);
+        return VINF_SUCCESS;
+    }
+    return VERR_ACCESS_DENIED;
+# else
+    return VERR_NOT_SUPPORTED;
+# endif
+}
+
+
+int VBOXCALL    supdrvOSMsrProberWrite(uint32_t uMsr, RTCPUID idCpu, uint64_t uValue)
+{
+# ifdef SUPDRV_LINUX_HAS_SAFE_MSR_API
+    int rc;
+
+    IPRT_LINUX_SAVE_EFL_AC();
+    if (idCpu == NIL_RTCPUID)
+        rc = wrmsr_safe(uMsr, RT_LODWORD(uValue), RT_HIDWORD(uValue));
+    else if (RTMpIsCpuOnline(idCpu))
+        rc = wrmsr_safe_on_cpu(idCpu, uMsr, RT_LODWORD(uValue), RT_HIDWORD(uValue));
+    else
+        return VERR_CPU_OFFLINE;
+    IPRT_LINUX_RESTORE_EFL_AC();
+
+    if (rc == 0)
+        return VINF_SUCCESS;
+    return VERR_ACCESS_DENIED;
+# else
+    return VERR_NOT_SUPPORTED;
+# endif
+}
+
+# ifdef SUPDRV_LINUX_HAS_SAFE_MSR_API
+/**
+ * Worker for supdrvOSMsrProberModify.
+ */
+static DECLCALLBACK(void) supdrvLnxMsrProberModifyOnCpu(RTCPUID idCpu, void *pvUser1, void *pvUser2)
+{
+    PSUPMSRPROBER               pReq    = (PSUPMSRPROBER)pvUser1;
+    register uint32_t           uMsr    = pReq->u.In.uMsr;
+    bool const                  fFaster = pReq->u.In.enmOp == SUPMSRPROBEROP_MODIFY_FASTER;
+    uint64_t                    uBefore;
+    uint64_t                    uWritten;
+    uint64_t                    uAfter;
+    int                         rcBefore, rcWrite, rcAfter, rcRestore;
+    RTCCUINTREG                 fOldFlags;
+
+    /* Initialize result variables. */
+    uBefore = uWritten = uAfter    = 0;
+    rcWrite = rcAfter  = rcRestore = -EIO;
+
+    /*
+     * Do the job.
+     */
+    fOldFlags = ASMIntDisableFlags();
+    ASMCompilerBarrier(); /* paranoia */
+    if (!fFaster)
+        ASMWriteBackAndInvalidateCaches();
+
+    rcBefore = rdmsrl_safe(uMsr, &uBefore);
+    if (rcBefore >= 0)
+    {
+        register uint64_t uRestore = uBefore;
+        uWritten  = uRestore;
+        uWritten &= pReq->u.In.uArgs.Modify.fAndMask;
+        uWritten |= pReq->u.In.uArgs.Modify.fOrMask;
+
+        rcWrite   = wrmsr_safe(uMsr, RT_LODWORD(uWritten), RT_HIDWORD(uWritten));
+        rcAfter   = rdmsrl_safe(uMsr, &uAfter);
+        rcRestore = wrmsr_safe(uMsr, RT_LODWORD(uRestore), RT_HIDWORD(uRestore));
+
+        if (!fFaster)
+        {
+            ASMWriteBackAndInvalidateCaches();
+            ASMReloadCR3();
+            ASMNopPause();
+        }
+    }
+
+    ASMCompilerBarrier(); /* paranoia */
+    ASMSetFlags(fOldFlags);
+
+    /*
+     * Write out the results.
+     */
+    pReq->u.Out.uResults.Modify.uBefore    = uBefore;
+    pReq->u.Out.uResults.Modify.uWritten   = uWritten;
+    pReq->u.Out.uResults.Modify.uAfter     = uAfter;
+    pReq->u.Out.uResults.Modify.fBeforeGp  = rcBefore  != 0;
+    pReq->u.Out.uResults.Modify.fModifyGp  = rcWrite   != 0;
+    pReq->u.Out.uResults.Modify.fAfterGp   = rcAfter   != 0;
+    pReq->u.Out.uResults.Modify.fRestoreGp = rcRestore != 0;
+    RT_ZERO(pReq->u.Out.uResults.Modify.afReserved);
+}
+# endif
+
+
+int VBOXCALL    supdrvOSMsrProberModify(RTCPUID idCpu, PSUPMSRPROBER pReq)
+{
+# ifdef SUPDRV_LINUX_HAS_SAFE_MSR_API
+    if (idCpu == NIL_RTCPUID)
+    {
+        supdrvLnxMsrProberModifyOnCpu(idCpu, pReq, NULL);
+        return VINF_SUCCESS;
+    }
+    return RTMpOnSpecific(idCpu, supdrvLnxMsrProberModifyOnCpu, pReq, NULL);
+# else
+    return VERR_NOT_SUPPORTED;
+# endif
+}
+
+#endif /* SUPDRV_WITH_MSR_PROBER */
+
+
 /**
  * Converts a supdrv error code to an linux error code.
  *
@@ -931,6 +1136,7 @@ RTDECL(int) SUPR0Printf(const char *pszFormat, ...)
 {
     va_list va;
     char    szMsg[512];
+    IPRT_LINUX_SAVE_EFL_AC();
 
     va_start(va, pszFormat);
     RTStrPrintfV(szMsg, sizeof(szMsg) - 1, pszFormat, va);
@@ -938,18 +1144,23 @@ RTDECL(int) SUPR0Printf(const char *pszFormat, ...)
     szMsg[sizeof(szMsg) - 1] = '\0';
 
     printk("%s", szMsg);
+
+    IPRT_LINUX_RESTORE_EFL_AC();
     return 0;
 }
 
 
-/**
- * Returns configuration flags of the host kernel.
- */
 SUPR0DECL(uint32_t) SUPR0GetKernelFeatures(void)
 {
     uint32_t fFlags = 0;
 #ifdef CONFIG_PAX_KERNEXEC
     fFlags |= SUPKERNELFEATURES_GDT_READ_ONLY;
+#endif
+#if defined(VBOX_STRICT) || defined(VBOX_WITH_EFLAGS_AC_SET_IN_VBOXDRV)
+    fFlags |= SUPKERNELFEATURES_SMAP;
+#elif defined(CONFIG_X86_SMAP)
+    if (ASMGetCR4() & X86_CR4_SMAP)
+        fFlags |= SUPKERNELFEATURES_SMAP;
 #endif
     return fFlags;
 }

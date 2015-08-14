@@ -82,10 +82,7 @@ namespace com
 
 void GetInterfaceNameByIID(const GUID &aIID, BSTR *aName)
 {
-    Assert(aName);
-    if (!aName)
-        return;
-
+    AssertPtrReturnVoid(aName);
     *aName = NULL;
 
 #if !defined(VBOX_WITH_XPCOM)
@@ -114,7 +111,7 @@ void GetInterfaceNameByIID(const GUID &aIID, BSTR *aName)
                     if (rc != ERROR_SUCCESS)
                     {
                         SysFreeString(*aName);
-                        aName = NULL;
+                        *aName = NULL;
                     }
                 }
                 RegCloseKey(iidKey);
@@ -379,7 +376,8 @@ int VBoxLogRelCreate(const char *pcszEntity, const char *pcszLogFile,
     int vrc = RTLogCreateEx(&pReleaseLogger, fFlags, pcszGroupSettings,
                             pcszEnvVarBase, RT_ELEMENTS(s_apszGroups), s_apszGroups, fDestFlags,
                             vboxHeaderFooter, cHistory, uHistoryFileSize, uHistoryFileTime,
-                            pszError, cbError, pcszLogFile);
+                            pszError, cbError,
+                            pcszLogFile ? "%s" : NULL, pcszLogFile);
     if (RT_SUCCESS(vrc))
     {
         /* make sure that we don't flood logfiles */
@@ -404,20 +402,5 @@ const Guid Guid::Empty; /* default ctor is OK */
 const nsID *SafeGUIDArray::nsIDRef::Empty = (const nsID *)Guid::Empty.raw();
 
 #endif /* (VBOX_WITH_XPCOM) */
-
-/**
- * Used by ComPtr and friends to log details about reference counting.
- * @param pcszFormat
- */
-void LogRef(const char *pcszFormat, ...)
-{
-    char *pszNewMsg;
-    va_list args;
-    va_start(args, pcszFormat);
-    RTStrAPrintfV(&pszNewMsg, pcszFormat, args);
-    LogDJ((pszNewMsg));
-    RTStrFree(pszNewMsg);
-    va_end(args);
-}
 
 } /* namespace com */

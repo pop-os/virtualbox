@@ -1,8 +1,6 @@
 /* $Id: UIMachineViewScale.cpp $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * UIMachineViewScale class implementation
+ * VBox Qt GUI - UIMachineViewScale class implementation.
  */
 
 /*
@@ -17,26 +15,33 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* Qt includes: */
-#include <QDesktopWidget>
-#include <QMainWindow>
-#include <QTimer>
+# include <QDesktopWidget>
+# include <QMainWindow>
+# include <QTimer>
 
 /* GUI includes */
-#include "VBoxGlobal.h"
-#include "UISession.h"
-#include "UIMachineLogic.h"
-#include "UIMachineWindow.h"
-#include "UIMachineViewScale.h"
-#include "UIFrameBuffer.h"
-#include "UIFrameBufferQImage.h"
-#ifdef VBOX_GUI_USE_QUARTZ2D
-# include "UIFrameBufferQuartz2D.h"
-#endif /* VBOX_GUI_USE_QUARTZ2D */
+# include "VBoxGlobal.h"
+# include "UISession.h"
+# include "UIMachineLogic.h"
+# include "UIMachineWindow.h"
+# include "UIMachineViewScale.h"
+# include "UIExtraDataManager.h"
+# include "UIFrameBuffer.h"
 
 /* COM includes: */
-#include "CConsole.h"
-#include "CDisplay.h"
+# include "CConsole.h"
+# include "CDisplay.h"
+
+/* Other VBox includes: */
+#include <VBox/VBoxOGL.h>
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 
 UIMachineViewScale::UIMachineViewScale(  UIMachineWindow *pMachineWindow
                                        , ulong uScreenId
@@ -50,111 +55,46 @@ UIMachineViewScale::UIMachineViewScale(  UIMachineWindow *pMachineWindow
                     , bAccelerate2DVideo
 #endif
                     )
-    , m_pPauseImage(0)
 {
-    /* Resend the last resize hint if necessary: */
-    maybeResendSizeHint();
+    /* Resend the last resize hint: */
+    resendSizeHint();
 }
 
 UIMachineViewScale::~UIMachineViewScale()
 {
-    /* Save machine view settings: */
-    saveMachineViewSettings();
-
-    /* Disable scaling: */
-    frameBuffer()->setScaledSize(QSize());
-
     /* Cleanup frame buffer: */
     cleanupFrameBuffer();
 }
 
-void UIMachineViewScale::takePauseShotLive()
-{
-    /* Take a screen snapshot. Note that TakeScreenShot() always needs a 32bpp image: */
-    QImage shot = QImage(m_pFrameBuffer->width(), m_pFrameBuffer->height(), QImage::Format_RGB32);
-    /* If TakeScreenShot fails or returns no image, just show a black image. */
-    shot.fill(0);
-    CDisplay dsp = session().GetConsole().GetDisplay();
-    dsp.TakeScreenShot(screenId(), shot.bits(), shot.width(), shot.height());
-    m_pPauseImage = new QImage(shot);
-    scalePauseShot();
-}
-
-void UIMachineViewScale::takePauseShotSnapshot()
-{
-    CMachine machine = session().GetMachine();
-    ULONG width = 0, height = 0;
-    QVector<BYTE> screenData = machine.ReadSavedScreenshotPNGToArray(0, width, height);
-    if (screenData.size() != 0)
-    {
-        ULONG guestOriginX = 0, guestOriginY = 0, guestWidth = 0, guestHeight = 0;
-        BOOL fEnabled = true;
-        machine.QuerySavedGuestScreenInfo(0, guestOriginX, guestOriginY, guestWidth, guestHeight, fEnabled);
-        QImage shot = QImage::fromData(screenData.data(), screenData.size(), "PNG").scaled(guestWidth > 0 ? QSize(guestWidth, guestHeight) : guestSizeHint());
-        m_pPauseImage = new QImage(shot);
-        scalePauseShot();
-    }
-}
-
-void UIMachineViewScale::resetPauseShot()
-{
-    /* Call the base class */
-    UIMachineView::resetPauseShot();
-
-    if (m_pPauseImage)
-    {
-        delete m_pPauseImage;
-        m_pPauseImage = 0;
-    }
-}
-
-void UIMachineViewScale::scalePauseShot()
-{
-    if (m_pPauseImage)
-    {
-        QSize scaledSize = frameBuffer()->scaledSize();
-        if (scaledSize.isValid())
-        {
-            QImage tmpImg = m_pPauseImage->scaled(scaledSize, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
-            dimImage(tmpImg);
-            m_pauseShot = QPixmap::fromImage(tmpImg);
-        }
-    }
-}
-
 void UIMachineViewScale::sltPerformGuestScale()
 {
-    /* Check if scale is requested: */
-    /* Set new frame-buffer scale-factor: */
-    frameBuffer()->setScaledSize(viewport()->size());
+    /* Adjust frame-buffer scaled-size: */
+    frameBuffer()->setScaledSize(size());
+    frameBuffer()->performRescale();
 
-    /* Scale the pause image if necessary */
-    scalePauseShot();
+    /* If scaled-size is valid: */
+    const QSize scaledSize = frameBuffer()->scaledSize();
+    if (scaledSize.isValid())
+    {
+        /* Propagate scale-factor to 3D service if necessary: */
+        if (machine().GetAccelerate3DEnabled() && vboxGlobal().is3DAvailable())
+        {
+            const double xScaleFactor = (double)scaledSize.width()  / frameBuffer()->width();
+            const double yScaleFactor = (double)scaledSize.height() / frameBuffer()->height();
+            display().NotifyScaleFactorChange(m_uScreenId,
+                                              (uint32_t)(xScaleFactor * VBOX_OGL_SCALE_FACTOR_MULTIPLIER),
+                                              (uint32_t)(yScaleFactor * VBOX_OGL_SCALE_FACTOR_MULTIPLIER));
+        }
+    }
+
+    /* Scale the pause-pixmap: */
+    updateScaledPausePixmap();
 
     /* Update viewport: */
     viewport()->repaint();
 
     /* Update machine-view sliders: */
     updateSliders();
-}
-
-void UIMachineViewScale::sltHandleNotifyUpdate(int iX, int iY, int iW, int iH)
-{
-    /* Initialize variables for scale mode: */
-    QSize scaledSize = frameBuffer()->scaledSize();
-    double xRatio = (double)scaledSize.width() / frameBuffer()->width();
-    double yRatio = (double)scaledSize.height() / frameBuffer()->height();
-    AssertMsg(contentsX() == 0, ("This can't be, else notify Dsen!\n"));
-    AssertMsg(contentsY() == 0, ("This can't be, else notify Dsen!\n"));
-
-    /* Update corresponding viewport part,
-     * But make sure we update always a bigger rectangle than requested to
-     * catch all rounding errors. (use 1 time the ratio factor and
-     * round down on top/left, but round up for the width/height) */
-    viewport()->update((int)(iX * xRatio) - ((int)xRatio) - 1,
-                       (int)(iY * yRatio) - ((int)yRatio) - 1,
-                       (int)(iW * xRatio) + ((int)xRatio + 2) * 2,
-                       (int)(iH * yRatio) + ((int)yRatio + 2) * 2);
 }
 
 bool UIMachineViewScale::eventFilter(QObject *pWatched, QEvent *pEvent)
@@ -177,33 +117,53 @@ bool UIMachineViewScale::eventFilter(QObject *pWatched, QEvent *pEvent)
     return UIMachineView::eventFilter(pWatched, pEvent);
 }
 
-void UIMachineViewScale::saveMachineViewSettings()
+void UIMachineViewScale::applyMachineViewScaleFactor()
 {
-    /* If guest screen-still visible => store it's size-hint: */
-    if (uisession()->isScreenVisible(screenId()))
-        storeGuestSizeHint(QSize(frameBuffer()->width(), frameBuffer()->height()));
-}
-
-void UIMachineViewScale::maybeResendSizeHint()
-{
-    if (uisession()->isGuestSupportsGraphics())
+    /* If scaled-size is valid: */
+    const QSize scaledSize = frameBuffer()->scaledSize();
+    if (scaledSize.isValid())
     {
-        /* Get the current machine: */
-        CMachine machine = session().GetMachine();
-
-        /* We send a guest size hint if needed to reverse a transition
-         * to fullscreen or seamless. */
-        QString strKey = makeExtraDataKeyPerMonitor(GUI_LastGuestSizeHintWasFullscreen);
-        QString strHintSent = machine.GetExtraData(strKey);
-        if (!strHintSent.isEmpty())
+        /* Propagate scale-factor to 3D service if necessary: */
+        if (machine().GetAccelerate3DEnabled() && vboxGlobal().is3DAvailable())
         {
-            const QSize sizeHint = guestSizeHint();
-            LogRel(("UIMachineViewScale::maybeResendSizeHint: "
-                    "Restoring guest size-hint for screen %d to %dx%d\n",
-                    (int)screenId(), sizeHint.width(), sizeHint.height()));
-            sltPerformGuestResize(sizeHint);
+            const double xScaleFactor = (double)scaledSize.width()  / frameBuffer()->width();
+            const double yScaleFactor = (double)scaledSize.height() / frameBuffer()->height();
+            display().NotifyScaleFactorChange(m_uScreenId,
+                                              (uint32_t)(xScaleFactor * VBOX_OGL_SCALE_FACTOR_MULTIPLIER),
+                                              (uint32_t)(yScaleFactor * VBOX_OGL_SCALE_FACTOR_MULTIPLIER));
         }
     }
+
+    /* Take unscaled HiDPI output mode into account: */
+    const bool fUseUnscaledHiDPIOutput = gEDataManager->useUnscaledHiDPIOutput(vboxGlobal().managedVMUuid());
+    frameBuffer()->setUseUnscaledHiDPIOutput(fUseUnscaledHiDPIOutput);
+    /* Propagate unscaled-hidpi-output feature to 3D service if necessary: */
+    if (machine().GetAccelerate3DEnabled() && vboxGlobal().is3DAvailable())
+    {
+        display().NotifyHiDPIOutputPolicyChange(fUseUnscaledHiDPIOutput);
+    }
+
+    /* Perform frame-buffer rescaling: */
+    frameBuffer()->performRescale();
+
+    // TODO: How to make it work?
+    display().ViewportChanged(screenId(), contentsX(), contentsY(), visibleWidth(), visibleHeight());
+}
+
+void UIMachineViewScale::resendSizeHint()
+{
+    /* Get the last guest-screen size-hint, taking the scale factor into account. */
+    const QSize sizeHint = scaledBackward(guestScreenSizeHint());
+    LogRel(("GUI: UIMachineViewScale::resendSizeHint: Restoring guest size-hint for screen %d to %dx%d\n",
+            (int)screenId(), sizeHint.width(), sizeHint.height()));
+
+    /* Expand current limitations: */
+    setMaxGuestSize(sizeHint);
+
+    /* Send saved size-hint to the guest: */
+    display().SetVideoModeHint(screenId(),
+                               guestScreenVisibilityStatus(),
+                               false, 0, 0, sizeHint.width(), sizeHint.height(), 0);
 }
 
 QSize UIMachineViewScale::sizeHint() const

@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -16,7 +16,6 @@
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
-
 #include "HostNetworkInterfaceImpl.h"
 #include "AutoCaller.h"
 #include "Logging.h"
@@ -32,11 +31,13 @@
 # include <netinet/in.h> /* INADDR_NONE */
 #endif /* RT_OS_FREEBSD */
 
+#include "VirtualBoxImpl.h"
+
 // constructor / destructor
 /////////////////////////////////////////////////////////////////////////////
 
 HostNetworkInterface::HostNetworkInterface()
-    : mVBox(NULL)
+    : mVirtualBox(NULL)
 {
 }
 
@@ -78,7 +79,7 @@ HRESULT HostNetworkInterface::init(Bstr aInterfaceName, Bstr aShortName, Guid aG
     AssertReturn(autoInitSpan.isOk(), E_FAIL);
 
     unconst(mInterfaceName) = aInterfaceName;
-    unconst(mNetworkName) = composeNetworkName(aShortName);
+    unconst(mNetworkName) = i_composeNetworkName(aShortName);
     unconst(mShortName) = aShortName;
     unconst(mGuid) = aGuid;
     mIfType = ifType;
@@ -91,7 +92,7 @@ HRESULT HostNetworkInterface::init(Bstr aInterfaceName, Bstr aShortName, Guid aG
 
 #ifdef VBOX_WITH_RESOURCE_USAGE_API
 
-void HostNetworkInterface::registerMetrics(PerformanceCollector *aCollector, ComPtr<IUnknown> objptr)
+void HostNetworkInterface::i_registerMetrics(PerformanceCollector *aCollector, ComPtr<IUnknown> objptr)
 {
     LogFlowThisFunc(("mShortName={%ls}, mInterfaceName={%ls}, mGuid={%s}, mSpeedMbits=%u\n",
                      mShortName.raw(), mInterfaceName.raw(), mGuid.toString().c_str(), m.speedMbits));
@@ -106,9 +107,13 @@ void HostNetworkInterface::registerMetrics(PerformanceCollector *aCollector, Com
         "Physical link speed.");
 
     /* Create and register base metrics */
-    pm::BaseMetric *networkSpeed = new pm::HostNetworkSpeed(hal, objptr, strName + "/LinkSpeed", Utf8Str(mShortName), Utf8Str(mInterfaceName), m.speedMbits, networkLinkSpeed);
+    pm::BaseMetric *networkSpeed = new pm::HostNetworkSpeed(hal, objptr, strName + "/LinkSpeed",
+                                                            Utf8Str(mShortName), Utf8Str(mInterfaceName),
+                                                            m.speedMbits, networkLinkSpeed);
     aCollector->registerBaseMetric(networkSpeed);
-    pm::BaseMetric *networkLoad = new pm::HostNetworkLoadRaw(hal, objptr, strName + "/Load", Utf8Str(mShortName), Utf8Str(mInterfaceName), m.speedMbits, networkLoadRx, networkLoadTx);
+    pm::BaseMetric *networkLoad = new pm::HostNetworkLoadRaw(hal, objptr, strName + "/Load",
+                                                             Utf8Str(mShortName), Utf8Str(mInterfaceName),
+                                                             m.speedMbits, networkLoadRx, networkLoadTx);
     aCollector->registerBaseMetric(networkLoad);
 
     aCollector->registerMetric(new pm::Metric(networkSpeed, networkLinkSpeed, 0));
@@ -136,7 +141,7 @@ void HostNetworkInterface::registerMetrics(PerformanceCollector *aCollector, Com
                                               new pm::AggregateMax()));
 }
 
-void HostNetworkInterface::unregisterMetrics(PerformanceCollector *aCollector, ComPtr<IUnknown> objptr)
+void HostNetworkInterface::i_unregisterMetrics(PerformanceCollector *aCollector, ComPtr<IUnknown> objptr)
 {
     LogFlowThisFunc(("mShortName={%ls}, mInterfaceName={%ls}, mGuid={%s}\n",
                      mShortName.raw(), mInterfaceName.raw(), mGuid.toString().c_str()));
@@ -174,7 +179,7 @@ HRESULT HostNetworkInterface::updateConfig()
     return rc == VERR_NOT_IMPLEMENTED ? E_NOTIMPL : E_FAIL;
 }
 
-Bstr HostNetworkInterface::composeNetworkName(const Utf8Str aShortName)
+Bstr HostNetworkInterface::i_composeNetworkName(const Utf8Str aShortName)
 {
     return Utf8Str("HostInterfaceNetworking-").append(aShortName);
 }
@@ -202,12 +207,12 @@ HRESULT HostNetworkInterface::init(Bstr aInterfaceName, HostNetworkInterfaceType
     unconst(mGuid) = pIf->Uuid;
     if (pIf->szShortName[0])
     {
-        unconst(mNetworkName) = composeNetworkName(pIf->szShortName);
+        unconst(mNetworkName) = i_composeNetworkName(pIf->szShortName);
         unconst(mShortName)   = pIf->szShortName;
     }
     else
     {
-        unconst(mNetworkName) = composeNetworkName(aInterfaceName);
+        unconst(mNetworkName) = i_composeNetworkName(aInterfaceName);
         unconst(mShortName)   = aInterfaceName;
     }
     mIfType = ifType;
@@ -234,41 +239,31 @@ HRESULT HostNetworkInterface::init(Bstr aInterfaceName, HostNetworkInterfaceType
 }
 #endif
 
-// IHostNetworkInterface properties
+// wrapped IHostNetworkInterface properties
 /////////////////////////////////////////////////////////////////////////////
-
 /**
  * Returns the name of the host network interface.
  *
  * @returns COM status code
- * @param   aInterfaceName address of result pointer
+ * @param   aInterfaceName - Interface Name
  */
-STDMETHODIMP HostNetworkInterface::COMGETTER(Name)(BSTR *aInterfaceName)
+
+HRESULT HostNetworkInterface::getName(com::Utf8Str &aInterfaceName)
 {
-    CheckComArgOutPointerValid(aInterfaceName);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    mInterfaceName.cloneTo(aInterfaceName);
-
+    aInterfaceName = mInterfaceName;
     return S_OK;
 }
 
 /**
  * Returns the short name of the host network interface.
  *
- * @returns COM status code
- * @param   aShortName address of result pointer
+ * @returns  COM status code
+ * @param   aShortName Short Name
  */
-STDMETHODIMP HostNetworkInterface::COMGETTER(ShortName)(BSTR *aShortName)
+
+HRESULT HostNetworkInterface::getShortName(com::Utf8Str &aShortName)
 {
-    CheckComArgOutPointerValid(aShortName);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    mShortName.cloneTo(aShortName);
+    aShortName = mShortName;
 
     return S_OK;
 }
@@ -277,27 +272,17 @@ STDMETHODIMP HostNetworkInterface::COMGETTER(ShortName)(BSTR *aShortName)
  * Returns the GUID of the host network interface.
  *
  * @returns COM status code
- * @param   aGuid address of result pointer
+ * @param   aGuid GUI Id
  */
-STDMETHODIMP HostNetworkInterface::COMGETTER(Id)(BSTR *aGuid)
+HRESULT HostNetworkInterface::getId(com::Guid &aGuiId)
 {
-    CheckComArgOutPointerValid(aGuid);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    mGuid.toUtf16().cloneTo(aGuid);
+    aGuiId = mGuid;
 
     return S_OK;
 }
 
-STDMETHODIMP HostNetworkInterface::COMGETTER(DHCPEnabled)(BOOL *aDHCPEnabled)
+HRESULT HostNetworkInterface::getDHCPEnabled(BOOL *aDHCPEnabled)
 {
-    CheckComArgOutPointerValid(aDHCPEnabled);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
     *aDHCPEnabled = m.dhcpEnabled;
 
     return S_OK;
@@ -308,15 +293,10 @@ STDMETHODIMP HostNetworkInterface::COMGETTER(DHCPEnabled)(BOOL *aDHCPEnabled)
  * Returns the IP address of the host network interface.
  *
  * @returns COM status code
- * @param   aIPAddress address of result pointer
+ * @param   aIPAddress  Address name
  */
-STDMETHODIMP HostNetworkInterface::COMGETTER(IPAddress)(BSTR *aIPAddress)
+HRESULT HostNetworkInterface::getIPAddress(com::Utf8Str &aIPAddress)
 {
-    CheckComArgOutPointerValid(aIPAddress);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
     in_addr tmp;
 #if defined(RT_OS_WINDOWS)
     tmp.S_un.S_addr = m.IPAddress;
@@ -326,7 +306,7 @@ STDMETHODIMP HostNetworkInterface::COMGETTER(IPAddress)(BSTR *aIPAddress)
     char *addr = inet_ntoa(tmp);
     if (addr)
     {
-        Bstr(addr).detachTo(aIPAddress);
+        aIPAddress = addr;
         return S_OK;
     }
 
@@ -337,14 +317,10 @@ STDMETHODIMP HostNetworkInterface::COMGETTER(IPAddress)(BSTR *aIPAddress)
  * Returns the netwok mask of the host network interface.
  *
  * @returns COM status code
- * @param   aNetworkMask address of result pointer
+ * @param   aNetworkMask name.
  */
-STDMETHODIMP HostNetworkInterface::COMGETTER(NetworkMask)(BSTR *aNetworkMask)
+HRESULT HostNetworkInterface::getNetworkMask(com::Utf8Str &aNetworkMask)
 {
-    CheckComArgOutPointerValid(aNetworkMask);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     in_addr tmp;
 #if defined(RT_OS_WINDOWS)
@@ -355,16 +331,15 @@ STDMETHODIMP HostNetworkInterface::COMGETTER(NetworkMask)(BSTR *aNetworkMask)
     char *addr = inet_ntoa(tmp);
     if (addr)
     {
-        Bstr(addr).detachTo(aNetworkMask);
+        aNetworkMask = Utf8Str(addr);
         return S_OK;
     }
 
     return E_FAIL;
 }
 
-STDMETHODIMP HostNetworkInterface::COMGETTER(IPV6Supported)(BOOL *aIPV6Supported)
+HRESULT HostNetworkInterface::getIPV6Supported(BOOL *aIPV6Supported)
 {
-    CheckComArgOutPointerValid(aIPV6Supported);
 #if defined(RT_OS_WINDOWS)
     *aIPV6Supported = FALSE;
 #else
@@ -378,17 +353,11 @@ STDMETHODIMP HostNetworkInterface::COMGETTER(IPV6Supported)(BOOL *aIPV6Supported
  * Returns the IP V6 address of the host network interface.
  *
  * @returns COM status code
- * @param   aIPV6Address address of result pointer
+ * @param   aIPV6Address
  */
-STDMETHODIMP HostNetworkInterface::COMGETTER(IPV6Address)(BSTR *aIPV6Address)
+HRESULT HostNetworkInterface::getIPV6Address(com::Utf8Str &aIPV6Address)
 {
-    CheckComArgOutPointerValid(aIPV6Address);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    m.IPV6Address.cloneTo(aIPV6Address);
-
+    aIPV6Address = m.IPV6Address;
     return S_OK;
 }
 
@@ -398,13 +367,8 @@ STDMETHODIMP HostNetworkInterface::COMGETTER(IPV6Address)(BSTR *aIPV6Address)
  * @returns COM status code
  * @param   aIPV6Mask address of result pointer
  */
-STDMETHODIMP HostNetworkInterface::COMGETTER(IPV6NetworkMaskPrefixLength)(ULONG *aIPV6NetworkMaskPrefixLength)
+HRESULT HostNetworkInterface::getIPV6NetworkMaskPrefixLength(ULONG *aIPV6NetworkMaskPrefixLength)
 {
-    CheckComArgOutPointerValid(aIPV6NetworkMaskPrefixLength);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
     *aIPV6NetworkMaskPrefixLength = m.IPV6NetworkMaskPrefixLength;
 
     return S_OK;
@@ -414,17 +378,11 @@ STDMETHODIMP HostNetworkInterface::COMGETTER(IPV6NetworkMaskPrefixLength)(ULONG 
  * Returns the hardware address of the host network interface.
  *
  * @returns COM status code
- * @param   aHardwareAddress address of result pointer
+ * @param   aHardwareAddress hardware address
  */
-STDMETHODIMP HostNetworkInterface::COMGETTER(HardwareAddress)(BSTR *aHardwareAddress)
+HRESULT HostNetworkInterface::getHardwareAddress(com::Utf8Str &aHardwareAddress)
 {
-    CheckComArgOutPointerValid(aHardwareAddress);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    m.hardwareAddress.cloneTo(aHardwareAddress);
-
+    aHardwareAddress = m.hardwareAddress;
     return S_OK;
 }
 
@@ -434,13 +392,8 @@ STDMETHODIMP HostNetworkInterface::COMGETTER(HardwareAddress)(BSTR *aHardwareAdd
  * @returns COM status code
  * @param   aType address of result pointer
  */
-STDMETHODIMP HostNetworkInterface::COMGETTER(MediumType)(HostNetworkInterfaceMediumType_T *aType)
+HRESULT HostNetworkInterface::getMediumType(HostNetworkInterfaceMediumType_T *aType)
 {
-    CheckComArgOutPointerValid(aType);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
     *aType = m.mediumType;
 
     return S_OK;
@@ -452,13 +405,8 @@ STDMETHODIMP HostNetworkInterface::COMGETTER(MediumType)(HostNetworkInterfaceMed
  * @returns COM status code
  * @param   aStatus address of result pointer
  */
-STDMETHODIMP HostNetworkInterface::COMGETTER(Status)(HostNetworkInterfaceStatus_T *aStatus)
+HRESULT HostNetworkInterface::getStatus(HostNetworkInterfaceStatus_T *aStatus)
 {
-    CheckComArgOutPointerValid(aStatus);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
     *aStatus = m.status;
 
     return S_OK;
@@ -470,50 +418,40 @@ STDMETHODIMP HostNetworkInterface::COMGETTER(Status)(HostNetworkInterfaceStatus_
  * @returns COM status code
  * @param   aType address of result pointer
  */
-STDMETHODIMP HostNetworkInterface::COMGETTER(InterfaceType)(HostNetworkInterfaceType_T *aType)
+HRESULT HostNetworkInterface::getInterfaceType(HostNetworkInterfaceType_T *aType)
 {
-    CheckComArgOutPointerValid(aType);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
     *aType = mIfType;
 
     return S_OK;
 
 }
 
-STDMETHODIMP HostNetworkInterface::COMGETTER(NetworkName)(BSTR *aNetworkName)
+HRESULT HostNetworkInterface::getNetworkName(com::Utf8Str &aNetworkName)
 {
-    CheckComArgOutPointerValid(aNetworkName);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    mNetworkName.cloneTo(aNetworkName);
+    aNetworkName = mNetworkName;
 
     return S_OK;
 }
 
-STDMETHODIMP HostNetworkInterface::EnableStaticIPConfig(IN_BSTR aIPAddress, IN_BSTR aNetMask)
+HRESULT HostNetworkInterface::enableStaticIPConfig(const com::Utf8Str &aIPAddress,
+                                                   const com::Utf8Str &aNetworkMask)
 {
 #ifndef VBOX_WITH_HOSTNETIF_API
     return E_NOTIMPL;
 #else
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    if (Bstr(aIPAddress).isEmpty())
+    if (aIPAddress.isEmpty())
     {
         if (m.IPAddress)
         {
-            int rc = NetIfEnableStaticIpConfig(mVBox, this, m.IPAddress, 0, 0);
+            int rc = NetIfEnableStaticIpConfig(mVirtualBox, this, m.IPAddress, 0, 0);
             if (RT_SUCCESS(rc))
             {
                 m.realIPAddress = 0;
-                if (FAILED(mVBox->SetExtraData(BstrFmt("HostOnly/%ls/IPAddress", mInterfaceName.raw()).raw(), NULL)))
+                if (FAILED(mVirtualBox->SetExtraData(BstrFmt("HostOnly/%ls/IPAddress",
+                                                             mInterfaceName.raw()).raw(), NULL)))
                     return E_FAIL;
-                if (FAILED(mVBox->SetExtraData(BstrFmt("HostOnly/%ls/IPNetMask", mInterfaceName.raw()).raw(), NULL)))
+                if (FAILED(mVirtualBox->SetExtraData(BstrFmt("HostOnly/%ls/IPNetMask",
+                                                             mInterfaceName.raw()).raw(), NULL)))
                     return E_FAIL;
                 return S_OK;
             }
@@ -523,27 +461,29 @@ STDMETHODIMP HostNetworkInterface::EnableStaticIPConfig(IN_BSTR aIPAddress, IN_B
     }
 
     ULONG ip, mask;
-    ip = inet_addr(Utf8Str(aIPAddress).c_str());
+    ip = inet_addr(aIPAddress.c_str());
     if (ip != INADDR_NONE)
     {
-        if (Bstr(aNetMask).isEmpty())
+        if (aNetworkMask.isEmpty())
             mask = 0xFFFFFF;
         else
-            mask = inet_addr(Utf8Str(aNetMask).c_str());
+            mask = inet_addr(aNetworkMask.c_str());
         if (mask != INADDR_NONE)
         {
             if (m.realIPAddress == ip && m.realNetworkMask == mask)
                 return S_OK;
-            int rc = NetIfEnableStaticIpConfig(mVBox, this, m.IPAddress, ip, mask);
+            int rc = NetIfEnableStaticIpConfig(mVirtualBox, this, m.IPAddress, ip, mask);
             if (RT_SUCCESS(rc))
             {
                 m.realIPAddress   = ip;
                 m.realNetworkMask = mask;
-                if (FAILED(mVBox->SetExtraData(BstrFmt("HostOnly/%ls/IPAddress", mInterfaceName.raw()).raw(),
-                                                       Bstr(aIPAddress).raw())))
+                if (FAILED(mVirtualBox->SetExtraData(BstrFmt("HostOnly/%ls/IPAddress",
+                                                             mInterfaceName.raw()).raw(),
+                                                     Bstr(aIPAddress).raw())))
                     return E_FAIL;
-                if (FAILED(mVBox->SetExtraData(BstrFmt("HostOnly/%ls/IPNetMask", mInterfaceName.raw()).raw(),
-                                               Bstr(aNetMask).raw())))
+                if (FAILED(mVirtualBox->SetExtraData(BstrFmt("HostOnly/%ls/IPNetMask",
+                                                             mInterfaceName.raw()).raw(),
+                                                     Bstr(aNetworkMask).raw())))
                     return E_FAIL;
                 return S_OK;
             }
@@ -559,25 +499,25 @@ STDMETHODIMP HostNetworkInterface::EnableStaticIPConfig(IN_BSTR aIPAddress, IN_B
 #endif
 }
 
-STDMETHODIMP HostNetworkInterface::EnableStaticIPConfigV6(IN_BSTR aIPV6Address, ULONG aIPV6MaskPrefixLength)
+HRESULT HostNetworkInterface::enableStaticIPConfigV6(const com::Utf8Str &aIPV6Address,
+                                                     ULONG aIPV6NetworkMaskPrefixLength)
 {
 #ifndef VBOX_WITH_HOSTNETIF_API
     return E_NOTIMPL;
 #else
-    if (!aIPV6Address)
+    if (aIPV6NetworkMaskPrefixLength > 128)
         return E_INVALIDARG;
-    if (aIPV6MaskPrefixLength > 128)
-        return E_INVALIDARG;
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     int rc = S_OK;
-    if (m.realIPV6Address != aIPV6Address || m.realIPV6PrefixLength != aIPV6MaskPrefixLength)
+    if (   m.realIPV6Address      != aIPV6Address
+        || m.realIPV6PrefixLength != aIPV6NetworkMaskPrefixLength)
     {
-        if (aIPV6MaskPrefixLength == 0)
-            aIPV6MaskPrefixLength = 64;
-        rc = NetIfEnableStaticIpConfigV6(mVBox, this, m.IPV6Address.raw(), aIPV6Address, aIPV6MaskPrefixLength);
+        BSTR bstr;
+        aIPV6Address.cloneTo(&bstr);
+        if (aIPV6NetworkMaskPrefixLength == 0)
+            aIPV6NetworkMaskPrefixLength = 64;
+        rc = NetIfEnableStaticIpConfigV6(mVirtualBox, this, m.IPV6Address.raw(),
+                                         bstr, aIPV6NetworkMaskPrefixLength);
         if (RT_FAILURE(rc))
         {
             LogRel(("Failed to EnableStaticIpConfigV6 with rc=%Rrc\n", rc));
@@ -586,12 +526,14 @@ STDMETHODIMP HostNetworkInterface::EnableStaticIPConfigV6(IN_BSTR aIPV6Address, 
         else
         {
             m.realIPV6Address = aIPV6Address;
-            m.realIPV6PrefixLength = aIPV6MaskPrefixLength;
-            if (FAILED(mVBox->SetExtraData(BstrFmt("HostOnly/%ls/IPV6Address", mInterfaceName.raw()).raw(),
-                                           Bstr(aIPV6Address).raw())))
+            m.realIPV6PrefixLength = aIPV6NetworkMaskPrefixLength;
+            if (FAILED(mVirtualBox->SetExtraData(BstrFmt("HostOnly/%ls/IPV6Address",
+                                                         mInterfaceName.raw()).raw(),
+                                                 Bstr(aIPV6Address).raw())))
                 return E_FAIL;
-            if (FAILED(mVBox->SetExtraData(BstrFmt("HostOnly/%ls/IPV6NetMask", mInterfaceName.raw()).raw(),
-                                           BstrFmt("%u", aIPV6MaskPrefixLength).raw())))
+            if (FAILED(mVirtualBox->SetExtraData(BstrFmt("HostOnly/%ls/IPV6NetMask",
+                                                         mInterfaceName.raw()).raw(),
+                                                 BstrFmt("%u", aIPV6NetworkMaskPrefixLength).raw())))
                 return E_FAIL;
         }
 
@@ -600,15 +542,12 @@ STDMETHODIMP HostNetworkInterface::EnableStaticIPConfigV6(IN_BSTR aIPV6Address, 
 #endif
 }
 
-STDMETHODIMP HostNetworkInterface::EnableDynamicIPConfig()
+HRESULT HostNetworkInterface::enableDynamicIPConfig()
 {
 #ifndef VBOX_WITH_HOSTNETIF_API
     return E_NOTIMPL;
 #else
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    int rc = NetIfEnableDynamicIpConfig(mVBox, this);
+    int rc = NetIfEnableDynamicIpConfig(mVirtualBox, this);
     if (RT_FAILURE(rc))
     {
         LogRel(("Failed to EnableDynamicIpConfig with rc=%Rrc\n", rc));
@@ -618,15 +557,12 @@ STDMETHODIMP HostNetworkInterface::EnableDynamicIPConfig()
 #endif
 }
 
-STDMETHODIMP HostNetworkInterface::DHCPRediscover()
+HRESULT HostNetworkInterface::dHCPRediscover()
 {
 #ifndef VBOX_WITH_HOSTNETIF_API
     return E_NOTIMPL;
 #else
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    int rc = NetIfDhcpRediscover(mVBox, this);
+    int rc = NetIfDhcpRediscover(mVirtualBox, this);
     if (RT_FAILURE(rc))
     {
         LogRel(("Failed to DhcpRediscover with rc=%Rrc\n", rc));
@@ -636,26 +572,29 @@ STDMETHODIMP HostNetworkInterface::DHCPRediscover()
 #endif
 }
 
-HRESULT HostNetworkInterface::setVirtualBox(VirtualBox *pVBox)
+HRESULT HostNetworkInterface::i_setVirtualBox(VirtualBox *pVirtualBox)
 {
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
-    AssertReturn(mVBox != pVBox, S_OK);
 
-    unconst(mVBox) = pVBox;
+    AssertReturn(mVirtualBox != pVirtualBox, S_OK);
+
+    unconst(mVirtualBox) = pVirtualBox;
 
 #if !defined(RT_OS_WINDOWS)
     /* If IPv4 address hasn't been initialized */
     if (m.IPAddress == 0 && mIfType == HostNetworkInterfaceType_HostOnly)
     {
         Bstr tmpAddr, tmpMask;
-        HRESULT hrc = mVBox->GetExtraData(BstrFmt("HostOnly/%ls/IPAddress", mInterfaceName.raw()).raw(),
-                                          tmpAddr.asOutParam());
+        HRESULT hrc = mVirtualBox->GetExtraData(BstrFmt("HostOnly/%ls/IPAddress",
+                                                        mInterfaceName.raw()).raw(),
+                                                tmpAddr.asOutParam());
         if (FAILED(hrc) || tmpAddr.isEmpty())
             tmpAddr = getDefaultIPv4Address(mInterfaceName);
 
-        hrc = mVBox->GetExtraData(BstrFmt("HostOnly/%ls/IPNetMask", mInterfaceName.raw()).raw(),
-                                  tmpMask.asOutParam());
+        hrc = mVirtualBox->GetExtraData(BstrFmt("HostOnly/%ls/IPNetMask",
+                                                mInterfaceName.raw()).raw(),
+                                        tmpMask.asOutParam());
         if (FAILED(hrc) || tmpMask.isEmpty())
             tmpMask = Bstr(VBOXNET_IPV4MASK_DEFAULT);
 
@@ -666,12 +605,14 @@ HRESULT HostNetworkInterface::setVirtualBox(VirtualBox *pVBox)
     if (m.IPV6Address.isEmpty())
     {
         Bstr tmpPrefixLen;
-        HRESULT hrc = mVBox->GetExtraData(BstrFmt("HostOnly/%ls/IPV6Address", mInterfaceName.raw()).raw(),
-                                          m.IPV6Address.asOutParam());
+        HRESULT hrc = mVirtualBox->GetExtraData(BstrFmt("HostOnly/%ls/IPV6Address",
+                                                        mInterfaceName.raw()).raw(),
+                                                m.IPV6Address.asOutParam());
         if (SUCCEEDED(hrc) && !m.IPV6Address.isEmpty())
         {
-            hrc = mVBox->GetExtraData(BstrFmt("HostOnly/%ls/IPV6PrefixLen", mInterfaceName.raw()).raw(),
-                                      tmpPrefixLen.asOutParam());
+            hrc = mVirtualBox->GetExtraData(BstrFmt("HostOnly/%ls/IPV6PrefixLen",
+                                                    mInterfaceName.raw()).raw(),
+                                            tmpPrefixLen.asOutParam());
             if (SUCCEEDED(hrc) && !tmpPrefixLen.isEmpty())
                 m.IPV6NetworkMaskPrefixLength = Utf8Str(tmpPrefixLen).toUInt32();
             else

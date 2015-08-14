@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -75,6 +75,10 @@
 #  undef LOG_GROUP
 #  include "../USB/DevEHCI.cpp"
 # endif
+# ifdef VBOX_WITH_XHCI_IMPL
+#  undef LOG_GROUP
+#  include "../USB/DevXHCI.cpp"
+# endif
 #endif
 #undef LOG_GROUP
 #include "../VMMDev/VMMDev.cpp"
@@ -100,6 +104,10 @@
 # include "../Bus/DevPciRaw.cpp"
 #endif
 
+#include <VBox/vmm/pdmaudioifs.h>
+
+#undef LOG_GROUP
+#include "../Audio/DevIchAc97.cpp"
 #undef LOG_GROUP
 #include "../Audio/DevIchHda.cpp"
 
@@ -122,8 +130,8 @@
             printf("tstDeviceStructSize: error! %#010x %s  Off by %d!! (off=%#x)\n", RT_OFFSETOF(type, m), #type "." #m, off - RT_OFFSETOF(type, m), off); \
             rc++; \
         } \
-        /*else */ \
-            /*printf("%#08x %s\n", RT_OFFSETOF(type, m), #m);*/ \
+        else  \
+            printf("%#08x (%d) %s\n", RT_OFFSETOF(type, m), RT_OFFSETOF(type, m), #type "." #m); \
     } while (0)
 
 /**
@@ -293,6 +301,15 @@ int main()
     CHECK_MEMBER_ALIGNMENT(EHCI, RootHub, 8);
 #  ifdef VBOX_WITH_STATISTICS
     CHECK_MEMBER_ALIGNMENT(EHCI, StatCanceledIsocUrbs, 8);
+#  endif
+# endif
+# ifdef VBOX_WITH_XHCI_IMPL
+    CHECK_MEMBER_ALIGNMENT(XHCI, RootHub2, 8);
+    CHECK_MEMBER_ALIGNMENT(XHCI, RootHub3, 8);
+    CHECK_MEMBER_ALIGNMENT(XHCI, cmdr_dqp, 8);
+#  ifdef VBOX_WITH_STATISTICS
+    CHECK_MEMBER_ALIGNMENT(XHCI, StatCanceledIsocUrbs, 8);
+    CHECK_MEMBER_ALIGNMENT(XHCI, StatIntrsCleared, 8);
 #  endif
 # endif
 #endif

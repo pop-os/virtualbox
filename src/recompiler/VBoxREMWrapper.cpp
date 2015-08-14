@@ -365,9 +365,9 @@ static DECLCALLBACKPTR(void, pfnREMR3ReplayHandlerNotifications)(PVM pVM);
 static DECLCALLBACKPTR(void, pfnREMR3NotifyPhysRamRegister)(PVM, RTGCPHYS, RTGCPHYS, unsigned);
 static DECLCALLBACKPTR(void, pfnREMR3NotifyPhysRamDeregister)(PVM, RTGCPHYS, RTUINT);
 static DECLCALLBACKPTR(void, pfnREMR3NotifyPhysRomRegister)(PVM, RTGCPHYS, RTUINT, void *, bool);
-static DECLCALLBACKPTR(void, pfnREMR3NotifyHandlerPhysicalModify)(PVM, PGMPHYSHANDLERTYPE, RTGCPHYS, RTGCPHYS, RTGCPHYS, bool, bool);
-static DECLCALLBACKPTR(void, pfnREMR3NotifyHandlerPhysicalRegister)(PVM, PGMPHYSHANDLERTYPE, RTGCPHYS, RTGCPHYS, bool);
-static DECLCALLBACKPTR(void, pfnREMR3NotifyHandlerPhysicalDeregister)(PVM, PGMPHYSHANDLERTYPE, RTGCPHYS, RTGCPHYS, bool, bool);
+static DECLCALLBACKPTR(void, pfnREMR3NotifyHandlerPhysicalModify)(PVM, PGMPHYSHANDLERKIND, RTGCPHYS, RTGCPHYS, RTGCPHYS, bool, bool);
+static DECLCALLBACKPTR(void, pfnREMR3NotifyHandlerPhysicalRegister)(PVM, PGMPHYSHANDLERKIND, RTGCPHYS, RTGCPHYS, bool);
+static DECLCALLBACKPTR(void, pfnREMR3NotifyHandlerPhysicalDeregister)(PVM, PGMPHYSHANDLERKIND, RTGCPHYS, RTGCPHYS, bool, bool);
 static DECLCALLBACKPTR(void, pfnREMR3NotifyInterruptSet)(PVM, PVMCPU);
 static DECLCALLBACKPTR(void, pfnREMR3NotifyInterruptClear)(PVM, PVMCPU);
 static DECLCALLBACKPTR(void, pfnREMR3NotifyTimerPending)(PVM, PVMCPU);
@@ -483,7 +483,7 @@ static const REMPARMDESC g_aArgsNotifyPhysRomRegister[] =
 static const REMPARMDESC g_aArgsNotifyHandlerPhysicalModify[] =
 {
     { REMPARMDESC_FLAGS_INT,        sizeof(PVM),                NULL },
-    { REMPARMDESC_FLAGS_INT,        sizeof(PGMPHYSHANDLERTYPE), NULL },
+    { REMPARMDESC_FLAGS_INT,        sizeof(PGMPHYSHANDLERKIND), NULL },
     { REMPARMDESC_FLAGS_GCPHYS,     sizeof(RTGCPHYS),           NULL },
     { REMPARMDESC_FLAGS_GCPHYS,     sizeof(RTGCPHYS),           NULL },
     { REMPARMDESC_FLAGS_GCPHYS,     sizeof(RTGCPHYS),           NULL },
@@ -493,7 +493,7 @@ static const REMPARMDESC g_aArgsNotifyHandlerPhysicalModify[] =
 static const REMPARMDESC g_aArgsNotifyHandlerPhysicalRegister[] =
 {
     { REMPARMDESC_FLAGS_INT,        sizeof(PVM),                NULL },
-    { REMPARMDESC_FLAGS_INT,        sizeof(PGMPHYSHANDLERTYPE), NULL },
+    { REMPARMDESC_FLAGS_INT,        sizeof(PGMPHYSHANDLERKIND), NULL },
     { REMPARMDESC_FLAGS_GCPHYS,     sizeof(RTGCPHYS),           NULL },
     { REMPARMDESC_FLAGS_GCPHYS,     sizeof(RTGCPHYS),           NULL },
     { REMPARMDESC_FLAGS_INT,        sizeof(bool),               NULL }
@@ -501,7 +501,7 @@ static const REMPARMDESC g_aArgsNotifyHandlerPhysicalRegister[] =
 static const REMPARMDESC g_aArgsNotifyHandlerPhysicalDeregister[] =
 {
     { REMPARMDESC_FLAGS_INT,        sizeof(PVM),                NULL },
-    { REMPARMDESC_FLAGS_INT,        sizeof(PGMPHYSHANDLERTYPE), NULL },
+    { REMPARMDESC_FLAGS_INT,        sizeof(PGMPHYSHANDLERKIND), NULL },
     { REMPARMDESC_FLAGS_GCPHYS,     sizeof(RTGCPHYS),           NULL },
     { REMPARMDESC_FLAGS_GCPHYS,     sizeof(RTGCPHYS),           NULL },
     { REMPARMDESC_FLAGS_INT,        sizeof(bool),               NULL },
@@ -557,6 +557,7 @@ static const REMPARMDESC g_aArgsCPUMSetGuestMsr[] =
 static const REMPARMDESC g_aArgsCPUMGetGuestCpuId[] =
 {
     { REMPARMDESC_FLAGS_INT,        sizeof(PVMCPU),             NULL },
+    { REMPARMDESC_FLAGS_INT,        sizeof(uint32_t),           NULL },
     { REMPARMDESC_FLAGS_INT,        sizeof(uint32_t),           NULL },
     { REMPARMDESC_FLAGS_INT,        sizeof(uint32_t *),         NULL },
     { REMPARMDESC_FLAGS_INT,        sizeof(uint32_t *),         NULL },
@@ -830,7 +831,8 @@ static const REMPARMDESC g_aArgsPGMPhysRead[] =
     { REMPARMDESC_FLAGS_INT,        sizeof(PVM),                NULL },
     { REMPARMDESC_FLAGS_GCPHYS,     sizeof(RTGCPHYS),           NULL },
     { REMPARMDESC_FLAGS_INT,        sizeof(void *),             NULL },
-    { REMPARMDESC_FLAGS_INT,        sizeof(size_t),             NULL }
+    { REMPARMDESC_FLAGS_INT,        sizeof(size_t),             NULL },
+    { REMPARMDESC_FLAGS_INT,        sizeof(PGMACCESSORIGIN),    NULL }
 };
 static const REMPARMDESC g_aArgsPGMPhysSimpleReadGCPtr[] =
 {
@@ -844,7 +846,8 @@ static const REMPARMDESC g_aArgsPGMPhysWrite[] =
     { REMPARMDESC_FLAGS_INT,        sizeof(PVM),                NULL },
     { REMPARMDESC_FLAGS_GCPHYS,     sizeof(RTGCPHYS),           NULL },
     { REMPARMDESC_FLAGS_INT,        sizeof(const void *),       NULL },
-    { REMPARMDESC_FLAGS_INT,        sizeof(size_t),             NULL }
+    { REMPARMDESC_FLAGS_INT,        sizeof(size_t),             NULL },
+    { REMPARMDESC_FLAGS_INT,        sizeof(PGMACCESSORIGIN),    NULL }
 };
 static const REMPARMDESC g_aArgsPGMChangeMode[] =
 {
@@ -862,31 +865,36 @@ static const REMPARMDESC g_aArgsPGMFlushTLB[] =
 static const REMPARMDESC g_aArgsPGMR3PhysReadUxx[] =
 {
     { REMPARMDESC_FLAGS_INT,        sizeof(PVM),                NULL },
-    { REMPARMDESC_FLAGS_GCPHYS,     sizeof(RTGCPHYS),           NULL }
+    { REMPARMDESC_FLAGS_GCPHYS,     sizeof(RTGCPHYS),           NULL },
+    { REMPARMDESC_FLAGS_INT,        sizeof(PGMACCESSORIGIN),    NULL }
 };
 static const REMPARMDESC g_aArgsPGMR3PhysWriteU8[] =
 {
     { REMPARMDESC_FLAGS_INT,        sizeof(PVM),                NULL },
     { REMPARMDESC_FLAGS_GCPHYS,     sizeof(RTGCPHYS),           NULL },
-    { REMPARMDESC_FLAGS_INT,        sizeof(uint8_t),            NULL }
+    { REMPARMDESC_FLAGS_INT,        sizeof(uint8_t),            NULL },
+    { REMPARMDESC_FLAGS_INT,        sizeof(PGMACCESSORIGIN),    NULL }
 };
 static const REMPARMDESC g_aArgsPGMR3PhysWriteU16[] =
 {
     { REMPARMDESC_FLAGS_INT,        sizeof(PVM),                NULL },
     { REMPARMDESC_FLAGS_GCPHYS,     sizeof(RTGCPHYS),           NULL },
-    { REMPARMDESC_FLAGS_INT,        sizeof(uint16_t),           NULL }
+    { REMPARMDESC_FLAGS_INT,        sizeof(uint16_t),           NULL },
+    { REMPARMDESC_FLAGS_INT,        sizeof(PGMACCESSORIGIN),    NULL }
 };
 static const REMPARMDESC g_aArgsPGMR3PhysWriteU32[] =
 {
     { REMPARMDESC_FLAGS_INT,        sizeof(PVM),                NULL },
     { REMPARMDESC_FLAGS_GCPHYS,     sizeof(RTGCPHYS),           NULL },
-    { REMPARMDESC_FLAGS_INT,        sizeof(uint32_t),           NULL }
+    { REMPARMDESC_FLAGS_INT,        sizeof(uint32_t),           NULL },
+    { REMPARMDESC_FLAGS_INT,        sizeof(PGMACCESSORIGIN),    NULL }
 };
 static const REMPARMDESC g_aArgsPGMR3PhysWriteU64[] =
 {
     { REMPARMDESC_FLAGS_INT,        sizeof(PVM),                NULL },
     { REMPARMDESC_FLAGS_GCPHYS,     sizeof(RTGCPHYS),           NULL },
-    { REMPARMDESC_FLAGS_INT,        sizeof(uint64_t),           NULL }
+    { REMPARMDESC_FLAGS_INT,        sizeof(uint64_t),           NULL },
+    { REMPARMDESC_FLAGS_INT,        sizeof(PGMACCESSORIGIN),    NULL }
 };
 static const REMPARMDESC g_aArgsRTMemReallocTag[] =
 {
@@ -1074,6 +1082,10 @@ static const REMPARMDESC g_aArgsRTAssertMsg2V[] =
 {
     { REMPARMDESC_FLAGS_INT,        sizeof(const char *),       NULL },
     { REMPARMDESC_FLAGS_VALIST,     0,                          NULL }
+};
+static const REMPARMDESC g_aArgsRTLogGetDefaultInstanceEx[] =
+{
+    { REMPARMDESC_FLAGS_INT,        sizeof(uint32_t),           NULL }
 };
 static const REMPARMDESC g_aArgsRTLogFlags[] =
 {
@@ -1328,7 +1340,9 @@ static REMFNDESC g_aRTImports[] =
     { "RTAssertMsg2Weak",                       (void *)(uintptr_t)&RTAssertMsg2Weak,               &g_aArgsRTAssertMsg2[0],                    RT_ELEMENTS(g_aArgsRTAssertMsg2),                      REMFNDESC_FLAGS_RET_VOID | REMFNDESC_FLAGS_ELLIPSIS, 0, NULL },
     { "RTAssertShouldPanic",                    (void *)(uintptr_t)&RTAssertShouldPanic,            NULL,                                       0,                                                     REMFNDESC_FLAGS_RET_INT,    sizeof(bool),       NULL },
     { "RTLogDefaultInstance",                   (void *)(uintptr_t)&RTLogDefaultInstance,           NULL,                                       0,                                                     REMFNDESC_FLAGS_RET_INT,    sizeof(PRTLOGGER),  NULL },
-    { "RTLogRelDefaultInstance",                (void *)(uintptr_t)&RTLogRelDefaultInstance,        NULL,                                       0,                                                     REMFNDESC_FLAGS_RET_INT,    sizeof(PRTLOGGER),  NULL },
+    { "RTLogRelGetDefaultInstance",             (void *)(uintptr_t)&RTLogRelGetDefaultInstance,     NULL,                                       0,                                                     REMFNDESC_FLAGS_RET_INT,    sizeof(PRTLOGGER),  NULL },
+    { "RTLogDefaultInstanceEx",                 (void *)(uintptr_t)&RTLogDefaultInstance,           &g_aArgsRTLogGetDefaultInstanceEx[0],       RT_ELEMENTS(g_aArgsRTLogGetDefaultInstanceEx),         REMFNDESC_FLAGS_RET_INT,    sizeof(PRTLOGGER),  NULL },
+    { "RTLogRelGetDefaultInstanceEx",           (void *)(uintptr_t)&RTLogRelGetDefaultInstance,     &g_aArgsRTLogGetDefaultInstanceEx[0],       RT_ELEMENTS(g_aArgsRTLogGetDefaultInstanceEx),         REMFNDESC_FLAGS_RET_INT,    sizeof(PRTLOGGER),  NULL },
     { "RTLogFlags",                             (void *)(uintptr_t)&RTLogFlags,                     &g_aArgsRTLogFlags[0],                      RT_ELEMENTS(g_aArgsRTLogFlags),                        REMFNDESC_FLAGS_RET_INT,    sizeof(int),        NULL },
     { "RTLogFlush",                             (void *)(uintptr_t)&RTLogFlush,                     &g_aArgsRTLogFlush[0],                      RT_ELEMENTS(g_aArgsRTLogFlush),                        REMFNDESC_FLAGS_RET_INT,    sizeof(int),        NULL },
     { "RTLogLoggerEx",                          (void *)(uintptr_t)&RTLogLoggerEx,                  &g_aArgsRTLogLoggerEx[0],                   RT_ELEMENTS(g_aArgsRTLogLoggerEx),                     REMFNDESC_FLAGS_RET_VOID | REMFNDESC_FLAGS_ELLIPSIS, 0, NULL },
@@ -2380,27 +2394,27 @@ REMR3DECL(void) REMR3NotifyPhysRamDeregister(PVM pVM, RTGCPHYS GCPhys, RTUINT cb
 #endif
 }
 
-REMR3DECL(void) REMR3NotifyHandlerPhysicalRegister(PVM pVM, PGMPHYSHANDLERTYPE enmType, RTGCPHYS GCPhys, RTGCPHYS cb, bool fHasHCHandler)
+REMR3DECL(void) REMR3NotifyHandlerPhysicalRegister(PVM pVM, PGMPHYSHANDLERKIND enmKind, RTGCPHYS GCPhys, RTGCPHYS cb, bool fHasHCHandler)
 {
 #ifndef USE_REM_STUBS
     Assert(VALID_PTR(pfnREMR3NotifyHandlerPhysicalRegister));
-    pfnREMR3NotifyHandlerPhysicalRegister(pVM, enmType, GCPhys, cb, fHasHCHandler);
+    pfnREMR3NotifyHandlerPhysicalRegister(pVM, enmKind, GCPhys, cb, fHasHCHandler);
 #endif
 }
 
-REMR3DECL(void) REMR3NotifyHandlerPhysicalDeregister(PVM pVM, PGMPHYSHANDLERTYPE enmType, RTGCPHYS GCPhys, RTGCPHYS cb, bool fHasHCHandler, bool fRestoreAsRAM)
+REMR3DECL(void) REMR3NotifyHandlerPhysicalDeregister(PVM pVM, PGMPHYSHANDLERKIND enmKind, RTGCPHYS GCPhys, RTGCPHYS cb, bool fHasHCHandler, bool fRestoreAsRAM)
 {
 #ifndef USE_REM_STUBS
     Assert(VALID_PTR(pfnREMR3NotifyHandlerPhysicalDeregister));
-    pfnREMR3NotifyHandlerPhysicalDeregister(pVM, enmType, GCPhys, cb, fHasHCHandler, fRestoreAsRAM);
+    pfnREMR3NotifyHandlerPhysicalDeregister(pVM, enmKind, GCPhys, cb, fHasHCHandler, fRestoreAsRAM);
 #endif
 }
 
-REMR3DECL(void) REMR3NotifyHandlerPhysicalModify(PVM pVM, PGMPHYSHANDLERTYPE enmType, RTGCPHYS GCPhysOld, RTGCPHYS GCPhysNew, RTGCPHYS cb, bool fHasHCHandler, bool fRestoreAsRAM)
+REMR3DECL(void) REMR3NotifyHandlerPhysicalModify(PVM pVM, PGMPHYSHANDLERKIND enmKind, RTGCPHYS GCPhysOld, RTGCPHYS GCPhysNew, RTGCPHYS cb, bool fHasHCHandler, bool fRestoreAsRAM)
 {
 #ifndef USE_REM_STUBS
     Assert(VALID_PTR(pfnREMR3NotifyHandlerPhysicalModify));
-    pfnREMR3NotifyHandlerPhysicalModify(pVM, enmType, GCPhysOld, GCPhysNew, cb, fHasHCHandler, fRestoreAsRAM);
+    pfnREMR3NotifyHandlerPhysicalModify(pVM, enmKind, GCPhysOld, GCPhysNew, cb, fHasHCHandler, fRestoreAsRAM);
 #endif
 }
 

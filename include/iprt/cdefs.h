@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -320,7 +320,7 @@
 /** @} */
 
 /** @def RT_OPSYS
- * Indicates which OS we're targetting. It's a \#define with is
+ * Indicates which OS we're targeting. It's a \#define with is
  * assigned one of the RT_OPSYS_XXX defines above.
  *
  * So to test if we're on FreeBSD do the following:
@@ -914,6 +914,31 @@
 # define RT_THROW(type)
 #endif
 
+/** @def RT_IPRT_FORMAT_ATTR
+ * Identifies a function taking an IPRT format string.
+ * @param   a_iFmt  The index (1-based) of the format string argument.
+ * @param   a_iArgs The index (1-based) of the first format argument, use 0 for
+ *                  va_list.
+ */
+#if defined(__GNUC__) && defined(WITH_IPRT_FORMAT_ATTRIBUTE)
+# define RT_IPRT_FORMAT_ATTR(a_iFmt, a_iArgs)   __attribute__((__iprt_format__(a_iFmt, a_iArgs)))
+#else
+# define RT_IPRT_FORMAT_ATTR(a_iFmt, a_iArgs)
+#endif
+
+/** @def RT_IPRT_FORMAT_ATTR_MAYBE_NULL
+ * Identifies a function taking an IPRT format string, NULL is allowed.
+ * @param   a_iFmt  The index (1-based) of the format string argument.
+ * @param   a_iArgs The index (1-based) of the first format argument, use 0 for
+ *                  va_list.
+ */
+#if defined(__GNUC__) && defined(WITH_IPRT_FORMAT_ATTRIBUTE)
+# define RT_IPRT_FORMAT_ATTR_MAYBE_NULL(a_iFmt, a_iArgs)   __attribute__((__iprt_format_maybe_null__(a_iFmt, a_iArgs)))
+#else
+# define RT_IPRT_FORMAT_ATTR_MAYBE_NULL(a_iFmt, a_iArgs)
+#endif
+
+
 /** @def RT_GCC_SUPPORTS_VISIBILITY_HIDDEN
  * Indicates that the "hidden" visibility attribute can be used (GCC) */
 #if defined(__GNUC__)
@@ -1158,7 +1183,7 @@
  * @remarks Don't use this macro on C++ methods.
  */
 #ifdef __GNUC__
-# define DECL_NO_INLINE(scope,type) __attribute__((noinline)) scope type
+# define DECL_NO_INLINE(scope,type) __attribute__((__noinline__)) scope type
 #elif defined(_MSC_VER)
 # define DECL_NO_INLINE(scope,type) __declspec(noinline) scope type
 #else
@@ -1320,6 +1345,8 @@
  *
  * A few notes about the usage:
  *
+ *      - Generally, order your code use RT_LIKELY() instead of RT_UNLIKELY().
+ *
  *      - Generally, use RT_UNLIKELY() with error condition checks (unless you
  *        have some _strong_ reason to do otherwise, in which case document it),
  *        and/or RT_LIKELY() with success condition checks, assuming you want
@@ -1327,7 +1354,7 @@
  *
  *      - Other than that, if you don't know the likelihood of a test succeeding
  *        from empirical or other 'hard' evidence, don't make predictions unless
- *        you happen to be a Dirk Gently.
+ *        you happen to be a Dirk Gently character.
  *
  *      - These macros are meant to be used in places that get executed a lot. It
  *        is wasteful to make predictions in code that is executed rarely (e.g.
@@ -1335,13 +1362,13 @@
  *        affects can often generate larger code.
  *
  *      - Note that RT_SUCCESS() and RT_FAILURE() already makes use of RT_LIKELY()
- *        and RT_UNLIKELY(). Should you wish for prediction free status checks,
+ *        and RT_UNLIKELY().  Should you wish for prediction free status checks,
  *        use the RT_SUCCESS_NP() and RT_FAILURE_NP() macros instead.
  *
  *
  * @returns the boolean result of the expression.
  * @param   expr        The expression that's very likely to be true.
- * @see RT_UNLIKELY
+ * @see     RT_UNLIKELY
  */
 /** @def RT_UNLIKELY
  * Give the compiler a hint that an expression is highly unlikely to hold true.
@@ -1350,7 +1377,12 @@
  *
  * @returns the boolean result of the expression.
  * @param   expr        The expression that's very unlikely to be true.
- * @see RT_LIKELY
+ * @see     RT_LIKELY
+ *
+ * @deprecated Please use RT_LIKELY() instead wherever possible!  That gives us
+ *          a better chance of the windows compilers to generate favorable code
+ *          too.  The belief is that the compiler will by default assume the
+ *          if-case is more likely than the else-case.
  */
 #if defined(__GNUC__)
 # if __GNUC__ >= 3 && !defined(FORTIFY_RUNNING)
@@ -1689,8 +1721,8 @@
 #else
 # define RT_LO_U8(a)                            ( (uint8_t)(a) )
 #endif
-/** @def RT_HI_U16
- * Gets the high uint16_t of a uint32_t or something equivalent). */
+/** @def RT_HI_U8
+ * Gets the high uint8_t of a uint16_t or something equivalent. */
 #ifdef __GNUC__
 # define RT_HI_U8(a)    __extension__ ({ AssertCompile(sizeof((a)) == sizeof(uint16_t)); (uint8_t)((a) >> 8); })
 #else
@@ -1705,7 +1737,7 @@
 # define RT_LO_U16(a)                           ( (uint16_t)(a) )
 #endif
 /** @def RT_HI_U16
- * Gets the high uint16_t of a uint32_t or something equivalent). */
+ * Gets the high uint16_t of a uint32_t or something equivalent. */
 #ifdef __GNUC__
 # define RT_HI_U16(a)   __extension__ ({ AssertCompile(sizeof((a)) == sizeof(uint32_t)); (uint16_t)((a) >> 16); })
 #else
@@ -1720,7 +1752,7 @@
 # define RT_LO_U32(a)                           ( (uint32_t)(a) )
 #endif
 /** @def RT_HI_U32
- * Gets the high uint32_t of a uint64_t or something equivalent). */
+ * Gets the high uint32_t of a uint64_t or something equivalent. */
 #ifdef __GNUC__
 # define RT_HI_U32(a)   __extension__ ({ AssertCompile(sizeof((a)) == sizeof(uint64_t)); (uint32_t)((a) >> 32); })
 #else
@@ -1776,7 +1808,7 @@
  * @deprecated  Use RT_LO_U8. */
 #define RT_LOBYTE(a)                            ( (a) & 0xff )
 /** @def RT_HIBYTE
- * Gets the low byte of a 16-bit something.
+ * Gets the high byte of a 16-bit something.
  * @deprecated  Use RT_HI_U8. */
 #define RT_HIBYTE(a)                            ( (a) >> 8 )
 
@@ -2685,6 +2717,17 @@
 #endif
 #ifndef RT_INLINE_ASM_USES_INTRIN
 # define RT_INLINE_ASM_USES_INTRIN 0
+#endif
+
+/** @def RT_COMPILER_SUPPORTS_LAMBDA
+ * If the defined, the compiler supports lambda expressions.   These expressions
+ * are useful for embedding assertions and type checks into macros. */
+#if defined(_MSC_VER) && defined(__cplusplus)
+# if _MSC_VER >= 1600 /* Visual C++ v10.0 / 2010 */
+#  define RT_COMPILER_SUPPORTS_LAMBDA
+# endif
+#elif defined(__GNUC__) && defined(__cplusplus)
+/* 4.5 or later, I think, if in ++11 mode... */
 #endif
 
 /** @} */

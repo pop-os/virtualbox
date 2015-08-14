@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2008-2012 Oracle Corporation
+# Copyright (C) 2008-2015 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -52,9 +52,10 @@ else
  vboxfs_SOURCES           += deps.asm
  vboxfs_deps.asm_ASFLAGS   = -f bin -g null
 endif
-if $(VBOX_SOLARIS_11_VERSION) >= 175
- && $(VBOX_SOLARIS_11_UPDATE_VERSION) >= 1
- && $(VBOX_SOLARIS_11_BUILD_VERSION) >= 10
+if $(VBOX_SOLARIS_11_VERSION) > 175 \
+ || (   $(VBOX_SOLARIS_11_VERSION) == 175 \
+     && (   $(VBOX_SOLARIS_11_UPDATE_VERSION) > 1 \
+         || ($(VBOX_SOLARIS_11_UPDATE_VERSION) == 1 && $(VBOX_SOLARIS_11_BUILD_VERSION) >= 10) ) )
 vboxfs_DEFS         += VBOX_VFS_EXTENDED_POLICY
 endif
 
@@ -67,9 +68,7 @@ SYSMODS.solaris      += vboxfs_s10
 vboxfs_s10_TEMPLATE      = VBOXGUESTR0
 vboxfs_s10_DEFS          = VBOX_WITH_HGCM VBOX_VFS_SOLARIS_10U6 VBOX_SVN_REV=$(VBOX_SVN_REV)
 vboxfs_s10_DEPS         += $(VBOX_SVN_REV_KMK)
-vboxfs_s10_INCS         := \
-	solaris10/ \
-	.
+vboxfs_s10_INCS         := solaris10/
 vboxfs_s10_SOURCES       = \
 	vboxfs_vfs.c \
 	vboxfs_vnode.c \

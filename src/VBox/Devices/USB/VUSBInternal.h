@@ -9,7 +9,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -28,7 +28,6 @@
 #include <VBox/vusb.h>
 #include <VBox/vmm/stam.h>
 #include <iprt/assert.h>
-#include <iprt/queueatomic.h>
 #include <iprt/req.h>
 
 #include "VUSBSniffer.h"
@@ -217,40 +216,21 @@ typedef struct VUSBDEV
     /** Request queue for executing tasks on the I/O thread which should be done
      * synchronous and without any other thread accessing the USB device. */
     RTREQQUEUE          hReqQueueSync;
+    /** Sniffer instance for this device if configured. */
+    VUSBSNIFFER         hSniffer;
     /** Flag whether the URB I/O thread should terminate. */
     bool volatile       fTerminate;
     /** Flag whether the I/O thread was woken up. */
     bool volatile       fWokenUp;
 #if HC_ARCH_BITS == 32
     /** Align the size to a 8 byte boundary. */
-    bool                afAlignment0[6];
+    bool                afAlignment0[2];
 #endif
 } VUSBDEV;
 AssertCompileSizeAlignment(VUSBDEV, 8);
 
 
-/** Pointer to the virtual method table for a kind of USB devices. */
-typedef struct vusb_dev_ops *PVUSBDEVOPS;
-
-/** Pointer to the const virtual method table for a kind of USB devices. */
-typedef const struct vusb_dev_ops *PCVUSBDEVOPS;
-
-/**
- * Virtual method table for USB devices - these are the functions you need to
- * implement when writing a new device (or hub)
- *
- * Note that when creating your structure, you are required to zero the
- * vusb_dev fields (ie. use calloc).
- */
-typedef struct vusb_dev_ops
-{
-    /* mandatory */
-    const char *name;
-} VUSBDEVOPS;
-
-
-int vusbDevInit(PVUSBDEV pDev, PPDMUSBINS pUsbIns);
-int vusbDevCreateOld(const char *pszDeviceName, void *pvDriverInit, PCRTUUID pUuid, PVUSBDEV *ppDev);
+int vusbDevInit(PVUSBDEV pDev, PPDMUSBINS pUsbIns, const char *pszCaptureFilename);
 void vusbDevDestroy(PVUSBDEV pDev);
 
 DECLINLINE(bool) vusbDevIsRh(PVUSBDEV pDev)
@@ -269,9 +249,6 @@ bool vusbDevStandardRequest(PVUSBDEV pDev, int EndPt, PVUSBSETUP pSetup, void *p
 
 
 /** @} */
-
-
-
 
 
 /** @name Internal Hub Operations, Structures and Constants.
@@ -304,6 +281,7 @@ typedef struct VUSBHUB
     /** Name of the hub. Used for logging. */
     char               *pszName;
 } VUSBHUB;
+AssertCompileMemberAlignment(VUSBHUB, pOps, 8);
 AssertCompileSizeAlignment(VUSBHUB, 8);
 
 /** @} */
@@ -363,7 +341,6 @@ typedef struct VUSBROOTHUB
 #if HC_ARCH_BITS == 32
     uint32_t                Alignment0;
 #endif
-
     /** Critical section protecting the device list. */
     RTCRITSECT              CritSectDevices;
     /** Chain of devices attached to this hub. */

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -28,6 +28,7 @@
 
 #include <iprt/stream.h>
 #include <iprt/getopt.h>
+#include <iprt/time.h>
 
 #include "VBoxManage.h"
 using namespace com;
@@ -161,9 +162,9 @@ void DumpMediumWithChildren(ComPtr<IMedium> &pCurrentStateMedium,
  * Handles the 'snapshot myvm list' sub-command.
  * @returns Exit code.
  * @param   pArgs           The handler argument package.
- * @param   rptrMachine     Reference to the VM (locked) we're operating on.
+ * @param   pMachine        Reference to the VM (locked) we're operating on.
  */
-static RTEXITCODE handleSnapshotList(HandlerArg *pArgs, ComPtr<IMachine> &rptrMachine)
+static RTEXITCODE handleSnapshotList(HandlerArg *pArgs, ComPtr<IMachine> &pMachine)
 {
     static const RTGETOPTDEF g_aOptions[] =
     {
@@ -187,19 +188,18 @@ static RTEXITCODE handleSnapshotList(HandlerArg *pArgs, ComPtr<IMachine> &rptrMa
         }
     }
 
-    /* See showVMInfo. */
-    ComPtr<ISnapshot> ptrSnapshot;
-    HRESULT hrc = rptrMachine->FindSnapshot(Bstr().raw(), ptrSnapshot.asOutParam());
+    ComPtr<ISnapshot> pSnapshot;
+    HRESULT hrc = pMachine->FindSnapshot(Bstr().raw(), pSnapshot.asOutParam());
     if (FAILED(hrc))
     {
         RTPrintf("This machine does not have any snapshots\n");
         return RTEXITCODE_FAILURE;
     }
-    if (ptrSnapshot)
+    if (pSnapshot)
     {
-        ComPtr<ISnapshot> ptrCurrentSnapshot;
-        CHECK_ERROR2_RET(rptrMachine,COMGETTER(CurrentSnapshot)(ptrCurrentSnapshot.asOutParam()), RTEXITCODE_FAILURE);
-        hrc = showSnapshots(ptrSnapshot, ptrCurrentSnapshot, enmDetails);
+        ComPtr<ISnapshot> pCurrentSnapshot;
+        CHECK_ERROR2I_RET(pMachine, COMGETTER(CurrentSnapshot)(pCurrentSnapshot.asOutParam()), RTEXITCODE_FAILURE);
+        hrc = showSnapshots(pSnapshot, pCurrentSnapshot, enmDetails);
         if (FAILED(hrc))
             return RTEXITCODE_FAILURE;
     }
@@ -260,12 +260,57 @@ void DumpSnapshot(ComPtr<IMachine> &pMachine)
     } while (0);
 }
 
+typedef enum SnapshotUniqueFlags
+{
+    SnapshotUniqueFlags_Null = 0,
+    SnapshotUniqueFlags_Number = RT_BIT(1),
+    SnapshotUniqueFlags_Timestamp = RT_BIT(2),
+    SnapshotUniqueFlags_Space = RT_BIT(16),
+    SnapshotUniqueFlags_Force = RT_BIT(30)
+} SnapshotUniqueFlags;
+
+static int parseSnapshotUniqueFlags(const char *psz, SnapshotUniqueFlags *pUnique)
+{
+    int rc = VINF_SUCCESS;
+    unsigned uUnique = 0;
+    while (psz && *psz && RT_SUCCESS(rc))
+    {
+        size_t len;
+        const char *pszComma = strchr(psz, ',');
+        if (pszComma)
+            len = pszComma - psz;
+        else
+            len = strlen(psz);
+        if (len > 0)
+        {
+            if (!RTStrNICmp(psz, "number", len))
+                uUnique |= SnapshotUniqueFlags_Number;
+            else if (!RTStrNICmp(psz, "timestamp", len))
+                uUnique |= SnapshotUniqueFlags_Timestamp;
+            else if (!RTStrNICmp(psz, "space", len))
+                uUnique |= SnapshotUniqueFlags_Space;
+            else if (!RTStrNICmp(psz, "force", len))
+                uUnique |= SnapshotUniqueFlags_Force;
+            else
+                rc = VERR_PARSE_ERROR;
+        }
+        if (pszComma)
+            psz += len + 1;
+        else
+            psz += len;
+    }
+
+    if (RT_SUCCESS(rc))
+        *pUnique = (SnapshotUniqueFlags)uUnique;
+    return rc;
+}
+
 /**
  * Implementation for all VBoxManage snapshot ... subcommands.
  * @param a
  * @return
  */
-int handleSnapshot(HandlerArg *a)
+RTEXITCODE handleSnapshot(HandlerArg *a)
 {
     HRESULT rc;
 
@@ -275,18 +320,19 @@ int handleSnapshot(HandlerArg *a)
 
     /* the first argument must be the VM */
     Bstr bstrMachine(a->argv[0]);
-    ComPtr<IMachine> ptrMachine;
+    ComPtr<IMachine> pMachine;
     CHECK_ERROR(a->virtualBox, FindMachine(bstrMachine.raw(),
-                                           ptrMachine.asOutParam()));
-    if (!ptrMachine)
-        return 1;
+                                           pMachine.asOutParam()));
+    if (!pMachine)
+        return RTEXITCODE_FAILURE;
 
+    /* we have to open a session for this task (new or shared) */
+    CHECK_ERROR_RET(pMachine, LockMachine(a->session, LockType_Shared), RTEXITCODE_FAILURE);
     do
     {
-        /* we have to open a session for this task (new or shared) */
-        rc = ptrMachine->LockMachine(a->session, LockType_Shared);
-        ComPtr<IConsole> console;
-        CHECK_ERROR_BREAK(a->session, COMGETTER(Console)(console.asOutParam()));
+        /* replace the (read-only) IMachine object by a writable one */
+        ComPtr<IMachine> sessionMachine;
+        CHECK_ERROR_BREAK(a->session, COMGETTER(Machine)(sessionMachine.asOutParam()));
 
         /* switch based on the command */
         bool fDelete = false,
@@ -307,19 +353,22 @@ int handleSnapshot(HandlerArg *a)
             /* parse the optional arguments */
             Bstr desc;
             bool fPause = true; /* default is NO live snapshot */
+            SnapshotUniqueFlags enmUnique = SnapshotUniqueFlags_Null;
             static const RTGETOPTDEF s_aTakeOptions[] =
             {
                 { "--description", 'd', RTGETOPT_REQ_STRING },
                 { "-description",  'd', RTGETOPT_REQ_STRING },
                 { "-desc",         'd', RTGETOPT_REQ_STRING },
                 { "--pause",       'p', RTGETOPT_REQ_NOTHING },
-                { "--live",        'l', RTGETOPT_REQ_NOTHING }
+                { "--live",        'l', RTGETOPT_REQ_NOTHING },
+                { "--uniquename",  'u', RTGETOPT_REQ_STRING }
             };
             RTGETOPTSTATE GetOptState;
             RTGetOptInit(&GetOptState, a->argc, a->argv, s_aTakeOptions, RT_ELEMENTS(s_aTakeOptions),
                          3, RTGETOPTINIT_FLAGS_NO_STD_OPTS);
             int ch;
             RTGETOPTUNION Value;
+            int vrc;
             while (   SUCCEEDED(rc)
                    && (ch = RTGetOpt(&GetOptState, &Value)))
             {
@@ -337,6 +386,12 @@ int handleSnapshot(HandlerArg *a)
                         desc = Value.psz;
                         break;
 
+                    case 'u':
+                        vrc = parseSnapshotUniqueFlags(Value.psz, &enmUnique);
+                        if (RT_FAILURE(vrc))
+                            return errorArgument("Invalid unique name description '%s'", Value.psz);
+                        break;
+
                     default:
                         errorGetOpt(USAGE_SNAPSHOT, ch, &Value);
                         rc = E_FAIL;
@@ -346,35 +401,75 @@ int handleSnapshot(HandlerArg *a)
             if (FAILED(rc))
                 break;
 
-            if (fPause)
+            if (enmUnique & (SnapshotUniqueFlags_Number | SnapshotUniqueFlags_Timestamp))
             {
-                MachineState_T machineState;
-                CHECK_ERROR_BREAK(console, COMGETTER(State)(&machineState));
-                if (machineState == MachineState_Running)
-                    CHECK_ERROR_BREAK(console, Pause());
-                else
-                    fPause = false;
+                ComPtr<ISnapshot> pSnapshot;
+                rc = sessionMachine->FindSnapshot(name.raw(),
+                                                  pSnapshot.asOutParam());
+                if (SUCCEEDED(rc) || (enmUnique & SnapshotUniqueFlags_Force))
+                {
+                    /* there is a duplicate, need to create a unique name */
+                    uint32_t count = 0;
+                    RTTIMESPEC now;
+
+                    if (enmUnique & SnapshotUniqueFlags_Number)
+                    {
+                        if (enmUnique & SnapshotUniqueFlags_Force)
+                            count = 1;
+                        else
+                            count = 2;
+                    }
+                    else
+                        RTTimeNow(&now);
+
+                    while (count < 500)
+                    {
+                        Utf8Str suffix;
+                        if (enmUnique & SnapshotUniqueFlags_Number)
+                            suffix = Utf8StrFmt("%u", count);
+                        else
+                        {
+                            RTTIMESPEC nowplus = now;
+                            RTTimeSpecAddSeconds(&nowplus, count);
+                            RTTIME stamp;
+                            RTTimeExplode(&stamp, &nowplus);
+                            suffix = Utf8StrFmt("%04u-%02u-%02uT%02u:%02u:%02uZ", stamp.i32Year, stamp.u8Month, stamp.u8MonthDay, stamp.u8Hour, stamp.u8Minute, stamp.u8Second);
+                        }
+                        Bstr tryName = name;
+                        if (enmUnique & SnapshotUniqueFlags_Space)
+                            tryName = BstrFmt("%ls %s", name.raw(), suffix.c_str());
+                        else
+                            tryName = BstrFmt("%ls%s", name.raw(), suffix.c_str());
+                        count++;
+                        rc = sessionMachine->FindSnapshot(tryName.raw(),
+                                                          pSnapshot.asOutParam());
+                        if (FAILED(rc))
+                        {
+                            name = tryName;
+                            break;
+                        }
+                    }
+                    if (SUCCEEDED(rc))
+                    {
+                        errorArgument("Failed to generate a unique snapshot name");
+                        rc = E_FAIL;
+                        break;
+                    }
+                }
+                rc = S_OK;
             }
 
             ComPtr<IProgress> progress;
-            CHECK_ERROR_BREAK(console, TakeSnapshot(name.raw(), desc.raw(),
-                                                    progress.asOutParam()));
+            Bstr snapId;
+            CHECK_ERROR_BREAK(sessionMachine, TakeSnapshot(name.raw(), desc.raw(),
+                                                           fPause, snapId.asOutParam(),
+                                                           progress.asOutParam()));
 
             rc = showProgress(progress);
-            CHECK_PROGRESS_ERROR(progress, ("Failed to take snapshot"));
-
-            if (fPause)
-            {
-                MachineState_T machineState;
-                CHECK_ERROR_BREAK(console, COMGETTER(State)(&machineState));
-                if (machineState == MachineState_Paused)
-                {
-                    if (SUCCEEDED(rc))
-                        CHECK_ERROR_BREAK(console, Resume());
-                    else
-                        console->Resume();
-                }
-            }
+            if (SUCCEEDED(rc))
+                RTPrintf("Snapshot taken. UUID: %ls\n", snapId.raw());
+            else
+                CHECK_PROGRESS_ERROR(progress, ("Failed to take snapshot"));
         }
         else if (    (fDelete = !strcmp(a->argv[1], "delete"))
                   || (fRestore = !strcmp(a->argv[1], "restore"))
@@ -404,27 +499,27 @@ int handleSnapshot(HandlerArg *a)
 
             if (fRestoreCurrent)
             {
-                CHECK_ERROR_BREAK(ptrMachine, COMGETTER(CurrentSnapshot)(pSnapshot.asOutParam()));
+                CHECK_ERROR_BREAK(sessionMachine, COMGETTER(CurrentSnapshot)(pSnapshot.asOutParam()));
             }
             else
             {
                 // restore or delete snapshot: then resolve cmd line argument to snapshot instance
-                CHECK_ERROR_BREAK(ptrMachine, FindSnapshot(Bstr(a->argv[2]).raw(),
-                                                         pSnapshot.asOutParam()));
+                CHECK_ERROR_BREAK(sessionMachine, FindSnapshot(Bstr(a->argv[2]).raw(),
+                                                               pSnapshot.asOutParam()));
             }
 
             CHECK_ERROR_BREAK(pSnapshot, COMGETTER(Id)(bstrSnapGuid.asOutParam()));
 
             if (fDelete)
             {
-                CHECK_ERROR_BREAK(console, DeleteSnapshot(bstrSnapGuid.raw(),
-                                                          pProgress.asOutParam()));
+                CHECK_ERROR_BREAK(sessionMachine, DeleteSnapshot(bstrSnapGuid.raw(),
+                                                                 pProgress.asOutParam()));
             }
             else
             {
                 // restore or restore current
                 RTPrintf("Restoring snapshot %ls\n", bstrSnapGuid.raw());
-                CHECK_ERROR_BREAK(console, RestoreSnapshot(pSnapshot, pProgress.asOutParam()));
+                CHECK_ERROR_BREAK(sessionMachine, RestoreSnapshot(pSnapshot, pProgress.asOutParam()));
             }
 
             rc = showProgress(pProgress);
@@ -439,17 +534,17 @@ int handleSnapshot(HandlerArg *a)
                 break;
             }
 
-            ComPtr<ISnapshot> snapshot;
+            ComPtr<ISnapshot> pSnapshot;
 
             if (   !strcmp(a->argv[2], "--current")
                 || !strcmp(a->argv[2], "-current"))
             {
-                CHECK_ERROR_BREAK(ptrMachine, COMGETTER(CurrentSnapshot)(snapshot.asOutParam()));
+                CHECK_ERROR_BREAK(sessionMachine, COMGETTER(CurrentSnapshot)(pSnapshot.asOutParam()));
             }
             else
             {
-                CHECK_ERROR_BREAK(ptrMachine, FindSnapshot(Bstr(a->argv[2]).raw(),
-                                                           snapshot.asOutParam()));
+                CHECK_ERROR_BREAK(sessionMachine, FindSnapshot(Bstr(a->argv[2]).raw(),
+                                                               pSnapshot.asOutParam()));
             }
 
             /* parse options */
@@ -466,7 +561,7 @@ int handleSnapshot(HandlerArg *a)
                         break;
                     }
                     i++;
-                    snapshot->COMSETTER(Name)(Bstr(a->argv[i]).raw());
+                    pSnapshot->COMSETTER(Name)(Bstr(a->argv[i]).raw());
                 }
                 else if (   !strcmp(a->argv[i], "--description")
                          || !strcmp(a->argv[i], "-description")
@@ -479,7 +574,7 @@ int handleSnapshot(HandlerArg *a)
                         break;
                     }
                     i++;
-                    snapshot->COMSETTER(Description)(Bstr(a->argv[i]).raw());
+                    pSnapshot->COMSETTER(Description)(Bstr(a->argv[i]).raw());
                 }
                 else
                 {
@@ -500,20 +595,20 @@ int handleSnapshot(HandlerArg *a)
                 break;
             }
 
-            ComPtr<ISnapshot> snapshot;
+            ComPtr<ISnapshot> pSnapshot;
 
-            CHECK_ERROR_BREAK(ptrMachine, FindSnapshot(Bstr(a->argv[2]).raw(),
-                                                       snapshot.asOutParam()));
+            CHECK_ERROR_BREAK(sessionMachine, FindSnapshot(Bstr(a->argv[2]).raw(),
+                                                           pSnapshot.asOutParam()));
 
             /* get the machine of the given snapshot */
-            ComPtr<IMachine> ptrMachine2;
-            snapshot->COMGETTER(Machine)(ptrMachine2.asOutParam());
-            showVMInfo(a->virtualBox, ptrMachine2, VMINFO_NONE, console);
+            ComPtr<IMachine> pMachine2;
+            pSnapshot->COMGETTER(Machine)(pMachine2.asOutParam());
+            showVMInfo(a->virtualBox, pMachine2, NULL, VMINFO_NONE);
         }
         else if (!strcmp(a->argv[1], "list"))
-            rc = handleSnapshotList(a, ptrMachine) == RTEXITCODE_SUCCESS ? S_OK : E_FAIL;
+            rc = handleSnapshotList(a, sessionMachine) == RTEXITCODE_SUCCESS ? S_OK : E_FAIL;
         else if (!strcmp(a->argv[1], "dump"))          // undocumented parameter to debug snapshot info
-            DumpSnapshot(ptrMachine);
+            DumpSnapshot(sessionMachine);
         else
         {
             errorSyntax(USAGE_SNAPSHOT, "Invalid parameter '%s'", Utf8Str(a->argv[1]).c_str());
@@ -523,6 +618,6 @@ int handleSnapshot(HandlerArg *a)
 
     a->session->UnlockMachine();
 
-    return SUCCEEDED(rc) ? 0 : 1;
+    return SUCCEEDED(rc) ? RTEXITCODE_SUCCESS : RTEXITCODE_FAILURE;
 }
 

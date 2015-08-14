@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -50,7 +50,8 @@ typedef union PDMCRITSECTRW
 #endif
 } PDMCRITSECTRW;
 
-VMMR3DECL(int)      PDMR3CritSectRwInit(PVM pVM, PPDMCRITSECTRW pCritSect, RT_SRC_POS_DECL, const char *pszNameFmt, ...);
+VMMR3DECL(int)      PDMR3CritSectRwInit(PVM pVM, PPDMCRITSECTRW pCritSect, RT_SRC_POS_DECL,
+                                        const char *pszNameFmt, ...) RT_IPRT_FORMAT_ATTR(6, 7);
 VMMR3DECL(int)      PDMR3CritSectRwDelete(PPDMCRITSECTRW pCritSect);
 VMMR3DECL(const char *) PDMR3CritSectRwName(PCPDMCRITSECTRW pCritSect);
 VMMR3DECL(int)      PDMR3CritSectRwEnterSharedEx(PPDMCRITSECTRW pThis, bool fCallRing3);

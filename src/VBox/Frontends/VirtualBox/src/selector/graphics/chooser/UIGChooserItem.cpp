@@ -1,8 +1,6 @@
 /* $Id: UIGChooserItem.cpp $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * UIGChooserItem class definition
+ * VBox Qt GUI - UIGChooserItem class definition.
  */
 
 /*
@@ -17,22 +15,29 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* Qt includes: */
-#include <QApplication>
-#include <QStyle>
-#include <QPainter>
-#include <QGraphicsScene>
-#include <QStyleOptionFocusRect>
-#include <QGraphicsSceneMouseEvent>
-#include <QStateMachine>
-#include <QPropertyAnimation>
-#include <QSignalTransition>
+# include <QApplication>
+# include <QStyle>
+# include <QPainter>
+# include <QGraphicsScene>
+# include <QStyleOptionFocusRect>
+# include <QGraphicsSceneMouseEvent>
+# include <QStateMachine>
+# include <QPropertyAnimation>
+# include <QSignalTransition>
 
 /* GUI includes: */
-#include "UIGChooserItem.h"
-#include "UIGChooserModel.h"
-#include "UIGChooserItemGroup.h"
-#include "UIGChooserItemMachine.h"
+# include "UIGChooserItem.h"
+# include "UIGChooserModel.h"
+# include "UIGChooserItemGroup.h"
+# include "UIGChooserItemMachine.h"
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 
 UIGChooserItem::UIGChooserItem(UIGChooserItem *pParent, bool fTemporary)
     : m_fRoot(!pParent)
@@ -112,6 +117,11 @@ UIGChooserModel* UIGChooserItem::model() const
     UIGChooserModel *pModel = qobject_cast<UIGChooserModel*>(QIGraphicsWidget::scene()->parent());
     AssertMsg(pModel, ("Incorrect graphics scene parent set!"));
     return pModel;
+}
+
+UIActionPool* UIGChooserItem::actionPool() const
+{
+    return model()->actionPool();
 }
 
 UIGChooserItem* UIGChooserItem::parentItem() const
@@ -353,9 +363,9 @@ void UIGChooserItem::paintFrameRect(QPainter *pPainter, const QRect &rect, bool 
 }
 
 /* static */
-void UIGChooserItem::paintPixmap(QPainter *pPainter, const QRect &rect, const QPixmap &pixmap)
+void UIGChooserItem::paintPixmap(QPainter *pPainter, const QPoint &point, const QPixmap &pixmap)
 {
-    pPainter->drawPixmap(rect, pixmap);
+    pPainter->drawPixmap(point, pixmap);
 }
 
 /* static */

@@ -1,11 +1,10 @@
+/* $Id: UIGDetailsView.h $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * UIGDetailsView class declaration
+ * VBox Qt GUI - UIGDetailsView class declaration.
  */
 
 /*
- * Copyright (C) 2012 Oracle Corporation
+ * Copyright (C) 2012-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,11 +18,11 @@
 #ifndef __UIGDetailsView_h__
 #define __UIGDetailsView_h__
 
-/* Qt includes: */
-#include <QGraphicsView>
+/* GUI includes: */
+#include "QIGraphicsView.h"
 
 /* Graphics details-view: */
-class UIGDetailsView : public QGraphicsView
+class UIGDetailsView : public QIGraphicsView
 {
     Q_OBJECT;
 

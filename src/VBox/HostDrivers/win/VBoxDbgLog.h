@@ -1,11 +1,10 @@
 /* $Id: VBoxDbgLog.h $ */
-
 /** @file
  * Logging helper
  */
 
 /*
- * Copyright (C) 2011 Oracle Corporation
+ * Copyright (C) 2011-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -40,7 +39,7 @@
 #ifdef DEBUG_misha
 # define BP_WARN() AssertFailed()
 #else
-# define BP_WARN() do {} while(0)
+# define BP_WARN() do { } while (0)
 #endif
 
 #define _LOGMSG_EXACT(_logger, _a)                                          \

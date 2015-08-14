@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013 Oracle Corporation
+ * Copyright (C) 2013-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -117,7 +117,7 @@ static int rtPathRmError(PRTPATHRMCMDOPTS pOpts, const char *pszPath, int rc,
                          const char *pszFormat, ...)
 {
     if (pOpts->fMachineReadable)
-        RTPrintf("fname=%s%crc=%d%c", pszPath, rc);
+        RTPrintf("fname=%s%crc=%d%c", pszPath, 0, rc, 0);
     else
     {
         va_list va;

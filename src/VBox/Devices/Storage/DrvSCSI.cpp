@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -647,6 +647,28 @@ static DECLCALLBACK(int) drvscsiRequestSend(PPDMISCSICONNECTOR pInterface, PPDMS
     return rc;
 }
 
+/** @copydoc PDMISCSICONNECTOR::pfnQueryLUNType. */
+static DECLCALLBACK(int) drvscsiQueryLUNType(PPDMISCSICONNECTOR pInterface, uint32_t iLun, PPDMSCSILUNTYPE pLunType)
+{
+    int rc;
+    PDRVSCSI pThis = PDMISCSICONNECTOR_2_DRVSCSI(pInterface);
+    VSCSILUNTYPE enmLunType;
+
+    rc = VSCSIDeviceLunQueryType(pThis->hVScsiDevice, iLun, &enmLunType);
+    if (RT_FAILURE(rc))
+        return rc;
+
+    switch (enmLunType)
+    {
+    case VSCSILUNTYPE_SBC:  *pLunType = PDMSCSILUNTYPE_SBC; break;
+    case VSCSILUNTYPE_MMC:  *pLunType = PDMSCSILUNTYPE_MMC; break;
+    case VSCSILUNTYPE_SSC:  *pLunType = PDMSCSILUNTYPE_SSC; break;
+    default:                *pLunType = PDMSCSILUNTYPE_INVALID;
+    }
+
+    return rc;
+}
+
 /* -=-=-=-=- IBase -=-=-=-=- */
 
 /**
@@ -891,6 +913,7 @@ static DECLCALLBACK(int) drvscsiConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, ui
      */
     pThis->pDrvIns                              = pDrvIns;
     pThis->ISCSIConnector.pfnSCSIRequestSend    = drvscsiRequestSend;
+    pThis->ISCSIConnector.pfnQueryLUNType       = drvscsiQueryLUNType;
 
     pDrvIns->IBase.pfnQueryInterface            = drvscsiQueryInterface;
 
@@ -992,10 +1015,10 @@ static DECLCALLBACK(int) drvscsiConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, ui
     pThis->VScsiIoCallbacks.pfnVScsiLunMediumSetLock       = drvscsiSetLock;
 
     rc = VSCSIDeviceCreate(&pThis->hVScsiDevice, drvscsiVScsiReqCompleted, pThis);
-    AssertMsgReturn(RT_SUCCESS(rc), ("Failed to create VSCSI device rc=%Rrc\n"), rc);
+    AssertMsgReturn(RT_SUCCESS(rc), ("Failed to create VSCSI device rc=%Rrc\n", rc), rc);
     rc = VSCSILunCreate(&pThis->hVScsiLun, enmLunType, &pThis->VScsiIoCallbacks,
                         pThis);
-    AssertMsgReturn(RT_SUCCESS(rc), ("Failed to create VSCSI LUN rc=%Rrc\n"), rc);
+    AssertMsgReturn(RT_SUCCESS(rc), ("Failed to create VSCSI LUN rc=%Rrc\n", rc), rc);
     rc = VSCSIDeviceLunAttach(pThis->hVScsiDevice, pThis->hVScsiLun, 0);
     AssertMsgReturn(RT_SUCCESS(rc), ("Failed to attached the LUN to the SCSI device\n"), rc);
 
@@ -1033,11 +1056,11 @@ static DECLCALLBACK(int) drvscsiConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, ui
     {
         /* Create request queue. */
         rc = RTReqQueueCreate(&pThis->hQueueRequests);
-        AssertMsgReturn(RT_SUCCESS(rc), ("Failed to create request queue rc=%Rrc\n"), rc);
+        AssertMsgReturn(RT_SUCCESS(rc), ("Failed to create request queue rc=%Rrc\n", rc), rc);
         /* Create I/O thread. */
         rc = PDMDrvHlpThreadCreate(pDrvIns, &pThis->pAsyncIOThread, pThis, drvscsiAsyncIOLoop,
                                    drvscsiAsyncIOLoopWakeup, 0, RTTHREADTYPE_IO, "SCSI async IO");
-        AssertMsgReturn(RT_SUCCESS(rc), ("Failed to create async I/O thread rc=%Rrc\n"), rc);
+        AssertMsgReturn(RT_SUCCESS(rc), ("Failed to create async I/O thread rc=%Rrc\n", rc), rc);
 
         LogRel(("SCSI#%d: using normal I/O\n", pDrvIns->iInstance));
     }
@@ -1047,7 +1070,7 @@ static DECLCALLBACK(int) drvscsiConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, ui
     if (   pThis->pDrvBlock->pfnDiscard
         || (   pThis->pDrvBlockAsync
             && pThis->pDrvBlockAsync->pfnStartDiscard))
-        LogRel(("SCSI#%d: Enabled UNMAP support\n"));
+        LogRel(("SCSI#%d: Enabled UNMAP support\n", pDrvIns->iInstance));
 
     return VINF_SUCCESS;
 }

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2008-2011 Oracle Corporation
+ * Copyright (C) 2008-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -70,6 +70,36 @@ DECLINLINE(PRTCPUSET) RTCpuSetFill(PRTCPUSET pSet)
 
 
 /**
+ * Copies one set to another.
+ *
+ * @param   pDst    Pointer to the destination set.
+ * @param   pSrc    Pointer to the source set.
+ */
+DECLINLINE(void) RTCpuSetCopy(PRTCPUSET pDst, PRTCPUSET pSrc)
+{
+    unsigned i;
+    for (i = 0; i < RT_ELEMENTS(pDst->bmSet); i++)
+        pDst->bmSet[i] = pSrc->bmSet[i];
+}
+
+
+/**
+ * ANDs the given CPU set with another.
+ *
+ * @returns pSet.
+ * @param   pSet          Pointer to the set.
+ * @param   pAndMaskSet   Pointer to the AND-mask set.
+ */
+DECLINLINE(PRTCPUSET) RTCpuSetAnd(PRTCPUSET pSet, PRTCPUSET pAndMaskSet)
+{
+    unsigned i;
+    for (i = 0; i < RT_ELEMENTS(pSet->bmSet); i++)
+        ASMAtomicAndU64((volatile uint64_t *)&pSet->bmSet[i], pAndMaskSet->bmSet[i]);
+    return pSet;
+}
+
+
+/**
  * Adds a CPU given by its identifier to the set.
  *
  * @returns 0 on success, -1 if idCpu isn't valid.
@@ -80,10 +110,12 @@ DECLINLINE(PRTCPUSET) RTCpuSetFill(PRTCPUSET pSet)
 DECLINLINE(int) RTCpuSetAdd(PRTCPUSET pSet, RTCPUID idCpu)
 {
     int iCpu = RTMpCpuIdToSetIndex(idCpu);
-    if (RT_UNLIKELY(iCpu < 0))
-        return -1;
-    ASMAtomicBitSet(pSet, iCpu);
-    return 0;
+    if (RT_LIKELY(iCpu >= 0))
+    {
+        ASMAtomicBitSet(pSet, iCpu);
+        return 0;
+    }
+    return -1;
 }
 
 
@@ -97,10 +129,12 @@ DECLINLINE(int) RTCpuSetAdd(PRTCPUSET pSet, RTCPUID idCpu)
  */
 DECLINLINE(int) RTCpuSetAddByIndex(PRTCPUSET pSet, int iCpu)
 {
-    if (RT_UNLIKELY((unsigned)iCpu >= RTCPUSET_MAX_CPUS))
-        return -1;
-    ASMAtomicBitSet(pSet, iCpu);
-    return 0;
+    if (RT_LIKELY((unsigned)iCpu < RTCPUSET_MAX_CPUS))
+    {
+        ASMAtomicBitSet(pSet, iCpu);
+        return 0;
+    }
+    return -1;
 }
 
 
@@ -115,10 +149,12 @@ DECLINLINE(int) RTCpuSetAddByIndex(PRTCPUSET pSet, int iCpu)
 DECLINLINE(int) RTCpuSetDel(PRTCPUSET pSet, RTCPUID idCpu)
 {
     int iCpu = RTMpCpuIdToSetIndex(idCpu);
-    if (RT_UNLIKELY(iCpu < 0))
-        return -1;
-    ASMAtomicBitClear(pSet, iCpu);
-    return 0;
+    if (RT_LIKELY(iCpu >= 0))
+    {
+        ASMAtomicBitClear(pSet, iCpu);
+        return 0;
+    }
+    return -1;
 }
 
 
@@ -132,10 +168,12 @@ DECLINLINE(int) RTCpuSetDel(PRTCPUSET pSet, RTCPUID idCpu)
  */
 DECLINLINE(int) RTCpuSetDelByIndex(PRTCPUSET pSet, int iCpu)
 {
-    if (RT_UNLIKELY((unsigned)iCpu >= RTCPUSET_MAX_CPUS))
-        return -1;
-    ASMAtomicBitClear(pSet, iCpu);
-    return 0;
+    if (RT_LIKELY((unsigned)iCpu < RTCPUSET_MAX_CPUS))
+    {
+        ASMAtomicBitClear(pSet, iCpu);
+        return 0;
+    }
+    return -1;
 }
 
 
@@ -150,9 +188,9 @@ DECLINLINE(int) RTCpuSetDelByIndex(PRTCPUSET pSet, int iCpu)
 DECLINLINE(bool) RTCpuSetIsMember(PCRTCPUSET pSet, RTCPUID idCpu)
 {
     int iCpu = RTMpCpuIdToSetIndex(idCpu);
-    if (RT_UNLIKELY(iCpu < 0))
-        return false;
-    return ASMBitTest((volatile void *)pSet, iCpu);
+    if (RT_LIKELY(iCpu >= 0))
+        return ASMBitTest((volatile void *)pSet, iCpu);
+    return false;
 }
 
 
@@ -166,9 +204,9 @@ DECLINLINE(bool) RTCpuSetIsMember(PCRTCPUSET pSet, RTCPUID idCpu)
  */
 DECLINLINE(bool) RTCpuSetIsMemberByIndex(PCRTCPUSET pSet, int iCpu)
 {
-    if (RT_UNLIKELY((unsigned)iCpu >= RTCPUSET_MAX_CPUS))
-        return false;
-    return ASMBitTest((volatile void *)pSet, iCpu);
+    if (RT_LIKELY((unsigned)iCpu < RTCPUSET_MAX_CPUS))
+        return ASMBitTest((volatile void *)pSet, iCpu);
+    return false;
 }
 
 
@@ -184,6 +222,22 @@ DECLINLINE(bool) RTCpuSetIsEqual(PCRTCPUSET pSet1, PCRTCPUSET pSet2)
     unsigned i;
     for (i = 0; i < RT_ELEMENTS(pSet1->bmSet); i++)
         if (pSet1->bmSet[i] != pSet2->bmSet[i])
+            return false;
+    return true;
+}
+
+
+/**
+ * Checks if the CPU set is empty or not.
+ *
+ * @returns true / false accordingly.
+ * @param   pSet    Pointer to the set.
+ */
+DECLINLINE(bool) RTCpuSetIsEmpty(PRTCPUSET pSet)
+{
+    unsigned i;
+    for (i = 0; i < RT_ELEMENTS(pSet->bmSet); i++)
+        if (pSet->bmSet[i])
             return false;
     return true;
 }

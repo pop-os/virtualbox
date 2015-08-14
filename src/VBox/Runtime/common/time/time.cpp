@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -706,7 +706,7 @@ RTDECL(char *) RTTimeToString(PCRTTIME pTime, char *psz, size_t cb)
             offUTCHour = -offUTCHour;
         }
         cch = RTStrPrintf(psz, cb,
-                          "%RI32-%02u-%02uT%02u:%02u:%02u.%09RU32%c%02%02",
+                          "%RI32-%02u-%02uT%02u:%02u:%02u.%09RU32%c%02d%02d",
                           pTime->i32Year, pTime->u8Month, pTime->u8MonthDay,
                           pTime->u8Hour, pTime->u8Minute, pTime->u8Second, pTime->u32Nanosecond,
                           chSign, offUTCHour, offUTCMinute);
@@ -800,7 +800,7 @@ RTDECL(PRTTIME) RTTimeFromString(PRTTIME pTime, const char *pszString)
         return NULL;
     unsigned const cDaysInMonth = fLeapYear
                                 ? g_acDaysInMonthsLeap[pTime->u8Month - 1]
-                                : g_acDaysInMonthsLeap[pTime->u8Month - 1];
+                                : g_acDaysInMonths[pTime->u8Month - 1];
     if (pTime->u8MonthDay == 0 || pTime->u8MonthDay > cDaysInMonth)
         return NULL;
 

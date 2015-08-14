@@ -1,9 +1,10 @@
+/* $Id: VBoxGuestR0LibCrOgl.h $ */
 /** @file
  * VBoxGuestLib - Central calls header.
  */
 
 /*
- * Copyright (C) 2012 Oracle Corporation
+ * Copyright (C) 2012-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;

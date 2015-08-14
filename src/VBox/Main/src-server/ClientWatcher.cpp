@@ -1,10 +1,11 @@
+/* $Id: ClientWatcher.cpp $ */
 /** @file
  *
  * VirtualBox API client session crash watcher
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -184,6 +185,7 @@ DECLCALLBACK(int) VirtualBox::ClientWatcher::worker(RTTHREAD /* thread */, void 
         if (!autoCaller.isOk())
             break;
 
+        bool fPidRace = false;
         do
         {
             /* release the caller to let uninit() ever proceed */
@@ -192,7 +194,7 @@ DECLCALLBACK(int) VirtualBox::ClientWatcher::worker(RTTHREAD /* thread */, void 
             DWORD rc = ::WaitForMultipleObjects((DWORD)(1 + cnt + cntSpawned),
                                                 handles,
                                                 FALSE,
-                                                INFINITE);
+                                                !fPidRace ? INFINITE : 500);
 
             /* Restore the caller before using VirtualBox. If it fails, this
              * means VirtualBox is being uninitialized and we must terminate. */
@@ -200,7 +202,7 @@ DECLCALLBACK(int) VirtualBox::ClientWatcher::worker(RTTHREAD /* thread */, void 
             if (!autoCaller.isOk())
                 break;
 
-            bool update = false;
+            bool update = fPidRace;
 
             if (rc == WAIT_OBJECT_0)
             {
@@ -210,20 +212,20 @@ DECLCALLBACK(int) VirtualBox::ClientWatcher::worker(RTTHREAD /* thread */, void 
             else if (rc > WAIT_OBJECT_0 && rc <= (WAIT_OBJECT_0 + cnt))
             {
                 /* machine mutex is released */
-                (machines[rc - WAIT_OBJECT_0 - 1])->checkForDeath();
+                (machines[rc - WAIT_OBJECT_0 - 1])->i_checkForDeath();
                 update = true;
             }
             else if (rc > WAIT_ABANDONED_0 && rc <= (WAIT_ABANDONED_0 + cnt))
             {
                 /* machine mutex is abandoned due to client process termination */
-                (machines[rc - WAIT_ABANDONED_0 - 1])->checkForDeath();
+                (machines[rc - WAIT_ABANDONED_0 - 1])->i_checkForDeath();
                 update = true;
             }
             else if (rc > WAIT_OBJECT_0 + cnt && rc <= (WAIT_OBJECT_0 + cntSpawned))
             {
                 /* spawned VM process has terminated (normally or abnormally) */
                 (spawnedMachines[rc - WAIT_OBJECT_0 - cnt - 1])->
-                    checkForSpawnFailure();
+                    i_checkForSpawnFailure();
                 update = true;
             }
 
@@ -234,7 +236,7 @@ DECLCALLBACK(int) VirtualBox::ClientWatcher::worker(RTTHREAD /* thread */, void 
                     CloseHandle(handles[i]);
 
                 // get reference to the machines list in VirtualBox
-                VirtualBox::MachinesOList &allMachines = that->mVirtualBox->getMachinesList();
+                VirtualBox::MachinesOList &allMachines = that->mVirtualBox->i_getMachinesList();
 
                 // lock the machines list for reading
                 AutoReadLock thatLock(allMachines.getLockHandle() COMMA_LOCKVAL_SRC_POS);
@@ -252,13 +254,13 @@ DECLCALLBACK(int) VirtualBox::ClientWatcher::worker(RTTHREAD /* thread */, void 
                                    ("MAXIMUM_WAIT_OBJECTS reached"));
 
                     ComObjPtr<SessionMachine> sm;
-                    if ((*it)->isSessionOpenOrClosing(sm))
+                    if ((*it)->i_isSessionOpenOrClosing(sm))
                     {
                         AutoCaller smCaller(sm);
                         if (smCaller.isOk())
                         {
                             AutoReadLock smLock(sm COMMA_LOCKVAL_SRC_POS);
-                            Machine::ClientToken *ct = sm->getClientToken();
+                            Machine::ClientToken *ct = sm->i_getClientToken();
                             if (ct)
                             {
                                 HANDLE ipcSem = ct->getToken();
@@ -273,6 +275,7 @@ DECLCALLBACK(int) VirtualBox::ClientWatcher::worker(RTTHREAD /* thread */, void 
                 LogFlowFunc(("UPDATE: direct session count = %d\n", cnt));
 
                 /* obtain a new set of spawned machines */
+                fPidRace = false;
                 cntSpawned = 0;
                 spawnedMachines.clear();
 
@@ -284,21 +287,25 @@ DECLCALLBACK(int) VirtualBox::ClientWatcher::worker(RTTHREAD /* thread */, void 
                     AssertMsgBreak((1 + cnt + cntSpawned) <= MAXIMUM_WAIT_OBJECTS,
                                    ("MAXIMUM_WAIT_OBJECTS reached"));
 
-                    if ((*it)->isSessionSpawning())
+                    if ((*it)->i_isSessionSpawning())
                     {
                         ULONG pid;
                         HRESULT hrc = (*it)->COMGETTER(SessionPID)(&pid);
                         if (SUCCEEDED(hrc))
                         {
-                            HANDLE ph = OpenProcess(SYNCHRONIZE, FALSE, pid);
-                            AssertMsg(ph != NULL, ("OpenProcess (pid=%d) failed with %d\n",
-                                                   pid, GetLastError()));
-                            if (ph != NULL)
+                            if (pid != NIL_RTPROCESS)
                             {
-                                spawnedMachines.push_back(*it);
-                                handles[1 + cnt + cntSpawned] = ph;
-                                ++cntSpawned;
+                                HANDLE hProc = OpenProcess(SYNCHRONIZE, FALSE, pid);
+                                AssertMsg(hProc != NULL, ("OpenProcess (pid=%d) failed with %d\n", pid, GetLastError()));
+                                if (hProc != NULL)
+                                {
+                                    spawnedMachines.push_back(*it);
+                                    handles[1 + cnt + cntSpawned] = hProc;
+                                    ++cntSpawned;
+                                }
                             }
+                            else
+                                fPidRace = true;
                         }
                     }
                 }
@@ -387,7 +394,7 @@ DECLCALLBACK(int) VirtualBox::ClientWatcher::worker(RTTHREAD /* thread */, void 
                                              machines[semId]->name().raw()));
                             }
 #endif
-                            machines[semId]->checkForDeath();
+                            machines[semId]->i_checkForDeath();
                         }
                         update = true;
                     }
@@ -416,7 +423,7 @@ DECLCALLBACK(int) VirtualBox::ClientWatcher::worker(RTTHREAD /* thread */, void 
                                                      machines[i]->name().raw()));
                                     }
 #endif
-                                    machines[i]->checkForDeath();
+                                    machines[i]->i_checkForDeath();
                                 }
                             }
                         }
@@ -432,14 +439,14 @@ DECLCALLBACK(int) VirtualBox::ClientWatcher::worker(RTTHREAD /* thread */, void 
                 {
                     for (size_t i = 0; i < cntSpawned; ++i)
                         updateSpawned |= (spawnedMachines[i])->
-                            checkForSpawnFailure();
+                            i_checkForSpawnFailure();
                 }
             }
 
             if (update || updateSpawned)
             {
                 // get reference to the machines list in VirtualBox
-                VirtualBox::MachinesOList &allMachines = that->mVirtualBox->getMachinesList();
+                VirtualBox::MachinesOList &allMachines = that->mVirtualBox->i_getMachinesList();
 
                 // lock the machines list for reading
                 AutoReadLock thatLock(allMachines.getLockHandle() COMMA_LOCKVAL_SRC_POS);
@@ -463,13 +470,13 @@ DECLCALLBACK(int) VirtualBox::ClientWatcher::worker(RTTHREAD /* thread */, void 
                                    cnt));
 
                         ComObjPtr<SessionMachine> sm;
-                        if ((*it)->isSessionOpenOrClosing(sm))
+                        if ((*it)->i_isSessionOpenOrClosing(sm))
                         {
                             AutoCaller smCaller(sm);
                             if (smCaller.isOk())
                             {
                                 AutoReadLock smLock(sm COMMA_LOCKVAL_SRC_POS);
-                                ClientToken *ct = sm->getClientToken();
+                                ClientToken *ct = sm->i_getClientToken();
                                 if (ct)
                                 {
                                     HMTX ipcSem = ct->getToken();
@@ -504,7 +511,7 @@ DECLCALLBACK(int) VirtualBox::ClientWatcher::worker(RTTHREAD /* thread */, void 
                     for (MachinesOList::iterator it = allMachines.begin();
                          it != allMachines.end(); ++it)
                     {
-                        if ((*it)->isSessionSpawning())
+                        if ((*it)->i_isSessionSpawning())
                             spawnedMachines.push_back(*it);
                     }
 
@@ -573,7 +580,7 @@ DECLCALLBACK(int) VirtualBox::ClientWatcher::worker(RTTHREAD /* thread */, void 
                 /* RT_SUCCESS(rc) means an update event is signaled */
 
                 // get reference to the machines list in VirtualBox
-                VirtualBox::MachinesOList &allMachines = that->mVirtualBox->getMachinesList();
+                VirtualBox::MachinesOList &allMachines = that->mVirtualBox->i_getMachinesList();
 
                 // lock the machines list for reading
                 AutoReadLock thatLock(allMachines.getLockHandle() COMMA_LOCKVAL_SRC_POS);
@@ -588,7 +595,7 @@ DECLCALLBACK(int) VirtualBox::ClientWatcher::worker(RTTHREAD /* thread */, void 
                          ++it)
                     {
                         ComObjPtr<SessionMachine> sm;
-                        if ((*it)->isSessionOpenOrClosing(sm))
+                        if ((*it)->i_isSessionOpenOrClosing(sm))
                             machines.push_back(sm);
                     }
 
@@ -605,7 +612,7 @@ DECLCALLBACK(int) VirtualBox::ClientWatcher::worker(RTTHREAD /* thread */, void 
                          it != allMachines.end();
                          ++it)
                     {
-                        if ((*it)->isSessionSpawning())
+                        if ((*it)->i_isSessionSpawning())
                             spawnedMachines.push_back(*it);
                     }
 
@@ -618,11 +625,11 @@ DECLCALLBACK(int) VirtualBox::ClientWatcher::worker(RTTHREAD /* thread */, void 
 
             update = false;
             for (size_t i = 0; i < cnt; ++i)
-                update |= (machines[i])->checkForDeath();
+                update |= (machines[i])->i_checkForDeath();
 
             updateSpawned = false;
             for (size_t i = 0; i < cntSpawned; ++i)
-                updateSpawned |= (spawnedMachines[i])->checkForSpawnFailure();
+                updateSpawned |= (spawnedMachines[i])->i_checkForSpawnFailure();
 
             /* reap child processes */
             {
@@ -742,7 +749,7 @@ DECLCALLBACK(int) VirtualBox::ClientWatcher::worker(RTTHREAD /* thread */, void 
                 /* RT_SUCCESS(rc) means an update event is signaled */
 
                 // get reference to the machines list in VirtualBox
-                VirtualBox::MachinesOList &allMachines = that->mVirtualBox->getMachinesList();
+                VirtualBox::MachinesOList &allMachines = that->mVirtualBox->i_getMachinesList();
 
                 // lock the machines list for reading
                 AutoReadLock thatLock(allMachines.getLockHandle() COMMA_LOCKVAL_SRC_POS);
@@ -756,7 +763,7 @@ DECLCALLBACK(int) VirtualBox::ClientWatcher::worker(RTTHREAD /* thread */, void 
                          it != allMachines.end();
                          ++it)
                     {
-                        if ((*it)->isSessionSpawning())
+                        if ((*it)->i_isSessionSpawning())
                             spawnedMachines.push_back(*it);
                     }
 
@@ -770,7 +777,7 @@ DECLCALLBACK(int) VirtualBox::ClientWatcher::worker(RTTHREAD /* thread */, void 
 
             updateSpawned = false;
             for (size_t i = 0; i < cntSpawned; ++i)
-                updateSpawned |= (spawnedMachines[i])->checkForSpawnFailure();
+                updateSpawned |= (spawnedMachines[i])->i_checkForSpawnFailure();
 
             /* reap child processes */
             {

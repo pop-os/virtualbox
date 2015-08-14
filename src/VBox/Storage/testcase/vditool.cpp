@@ -26,6 +26,7 @@
 #include <iprt/initterm.h>
 #include <VBox/err.h>
 #include <VBox/log.h>
+#include <VBox/version.h>
 
 #include <stdlib.h>
 
@@ -380,7 +381,7 @@ int main(int argc, char **argv)
 
     RTR3InitExe(argc, &argv, 0);
     RTPrintf("vditool -- for internal use only!\n"
-             "Copyright (c) 2009 Oracle Corporation\n\n");
+             "Copyright (C) 2009-" VBOX_C_YEAR " " VBOX_VENDOR "\n\n");
 
     /*
      * Do cmd line parsing.
@@ -396,10 +397,9 @@ int main(int argc, char **argv)
 
     PRTLOGGER pLogger;
     static const char * const s_apszGroups[] = VBOX_LOGGROUP_NAMES;
-    int rc = RTLogCreate(&pLogger, 0, "all",
-                         NULL, RT_ELEMENTS(s_apszGroups), s_apszGroups, RTLOGDEST_STDOUT,
-                         NULL /* pfnBeginEnd */, 0 /* cHistory */, 0 /* cbHistoryFileMax */, 0 /* uHistoryTimeMax */,
-                         NULL);
+    int rc = RTLogCreate(&pLogger, 0 /*fFlags*/, "all" /*pszGroupSettings*/,
+                         NULL /*pszEnvVarBase*/, RT_ELEMENTS(s_apszGroups), s_apszGroups, RTLOGDEST_STDOUT,
+                         NULL /*pszFilenameFmt*/);
     RTLogRelSetDefaultInstance(pLogger);
 
     if (strcmp(szCmd, "NEW") == 0)

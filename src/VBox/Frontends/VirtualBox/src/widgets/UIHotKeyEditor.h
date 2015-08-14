@@ -1,7 +1,6 @@
+/* $Id: UIHotKeyEditor.h $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * VirtualBox Qt extensions: UIHotKeyEditor class declaration
+ * VBox Qt GUI - VirtualBox Qt extensions: UIHotKeyEditor class declaration.
  */
 
 /*

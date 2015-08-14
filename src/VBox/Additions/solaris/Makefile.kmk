@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2008-2012 Oracle Corporation
+# Copyright (C) 2008-2015 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -161,7 +161,7 @@ SOLARIS_ADD_STRIP_BINS = \
 	VBoxClient \
 	VBoxService \
 	VBoxControl \
-	vboxfsmount	\
+	vboxfsmount \
 	vboxfs \
 	vboxmslnk \
 	$(if ($VBOX_WITH_PAM),pam_vbox.so,) \
@@ -197,6 +197,7 @@ SOLARIS_ADD_XORG_DRIVERS = \
 	vboxvideo_drv_112.so \
 	vboxvideo_drv_113.so \
 	vboxvideo_drv_114.so \
+	vboxvideo_drv_117.so \
 	vboxvideo_drv_70.so \
 	vboxvideo_drv_71.so
 

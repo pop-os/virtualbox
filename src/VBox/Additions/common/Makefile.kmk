@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2012 Oracle Corporation
+# Copyright (C) 2006-2015 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -19,7 +19,7 @@ SUB_DEPTH = ../../../..
 include $(KBUILD_PATH)/subheader.kmk
 
 # Include sub-makefile.
-ifndef VBOX_ONLY_TESTSUITE
+ifndef VBOX_ONLY_VALIDATIONKIT
  include $(PATH_SUB_CURRENT)/VBoxGuestLib/Makefile.kmk
  include $(PATH_SUB_CURRENT)/VBoxControl/Makefile.kmk
  include $(PATH_SUB_CURRENT)/VBoxGuest/Makefile.kmk
@@ -30,6 +30,6 @@ ifndef VBOX_ONLY_TESTSUITE
  ifdef VBOX_WITH_PAM
   include $(PATH_SUB_CURRENT)/pam/Makefile.kmk
  endif
-endif # !VBOX_ONLY_TESTSUITE
+endif # !VBOX_ONLY_VALIDATIONKIT
 
 include $(FILE_KBUILD_SUB_FOOTER)

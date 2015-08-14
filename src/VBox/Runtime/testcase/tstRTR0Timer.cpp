@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2013 Oracle Corporation
+ * Copyright (C) 2009-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -446,6 +446,7 @@ DECLEXPORT(int) TSTRTR0TimerSrvReqHandler(PSUPDRVSESSION pSession, uint32_t uOpe
             if (rc == VERR_NOT_SUPPORTED)
             {
                 RTR0TestR0Info("one-shot timer are not supported, skipping\n");
+                RTR0TESTR0_SKIP();
                 break;
             }
             RTR0TESTR0_CHECK_RC_BREAK(rc, VINF_SUCCESS);
@@ -486,10 +487,10 @@ DECLEXPORT(int) TSTRTR0TimerSrvReqHandler(PSUPDRVSESSION pSession, uint32_t uOpe
             break;
         }
 
-#if 1 /* might have to disable this for some host... */
         case TSTRTR0TIMER_ONE_SHOT_RESTART:
         case TSTRTR0TIMER_ONE_SHOT_RESTART_HIRES:
         {
+#if !defined(RT_OS_SOLARIS) /* Not expected to work on all hosts. */
             /* Create a one-shot timer and restart it in the callback handler. */
             PRTTIMER pTimer;
             uint32_t fFlags = TSTRTR0TIMER_IS_HIRES(uOperation) ? RTTIMER_FLAGS_HIGH_RES : 0;
@@ -499,6 +500,7 @@ DECLEXPORT(int) TSTRTR0TimerSrvReqHandler(PSUPDRVSESSION pSession, uint32_t uOpe
                 if (rc == VERR_NOT_SUPPORTED)
                 {
                     RTR0TestR0Info("one-shot timer are not supported, skipping\n");
+                    RTR0TESTR0_SKIP();
                     break;
                 }
                 RTR0TESTR0_CHECK_RC_BREAK(rc, VINF_SUCCESS);
@@ -515,14 +517,17 @@ DECLEXPORT(int) TSTRTR0TimerSrvReqHandler(PSUPDRVSESSION pSession, uint32_t uOpe
                 } while (0);
                 RTR0TESTR0_CHECK_RC(RTTimerDestroy(pTimer), VINF_SUCCESS);
             }
+#else
+            RTR0TestR0Info("restarting from callback not supported on this platform\n");
+            RTR0TESTR0_SKIP();
+#endif
             break;
         }
-#endif
 
-#if 1 /* might have to disable this for some host... */
         case TSTRTR0TIMER_ONE_SHOT_DESTROY:
         case TSTRTR0TIMER_ONE_SHOT_DESTROY_HIRES:
         {
+#if !defined(RT_OS_SOLARIS) && !defined(RT_OS_WINDOWS) /* Not expected to work on all hosts. */
             /* Create a one-shot timer and destroy it in the callback handler. */
             PRTTIMER pTimer;
             uint32_t fFlags = TSTRTR0TIMER_IS_HIRES(uOperation) ? RTTIMER_FLAGS_HIGH_RES : 0;
@@ -532,6 +537,7 @@ DECLEXPORT(int) TSTRTR0TimerSrvReqHandler(PSUPDRVSESSION pSession, uint32_t uOpe
                 if (rc == VERR_NOT_SUPPORTED)
                 {
                     RTR0TestR0Info("one-shot timer are not supported, skipping\n");
+                    RTR0TESTR0_SKIP();
                     break;
                 }
                 RTR0TESTR0_CHECK_RC_BREAK(rc, VINF_SUCCESS);
@@ -551,9 +557,12 @@ DECLEXPORT(int) TSTRTR0TimerSrvReqHandler(PSUPDRVSESSION pSession, uint32_t uOpe
                 if (RT_FAILURE(State.rc))
                     RTR0TESTR0_CHECK_RC(RTTimerDestroy(pTimer), VINF_SUCCESS);
             }
+#else
+            RTR0TestR0Info("destroying from callback not supported on this platform\n");
+            RTR0TESTR0_SKIP();
+#endif
             break;
         }
-#endif
 
         case TSTRTR0TIMER_ONE_SHOT_SPECIFIC:
         case TSTRTR0TIMER_ONE_SHOT_SPECIFIC_HIRES:
@@ -576,6 +585,7 @@ DECLEXPORT(int) TSTRTR0TimerSrvReqHandler(PSUPDRVSESSION pSession, uint32_t uOpe
                     if (rc == VERR_NOT_SUPPORTED)
                     {
                         RTR0TestR0Info("one-shot specific timer are not supported, skipping\n");
+                        RTR0TESTR0_SKIP();
                         break;
                     }
                     RTR0TESTR0_CHECK_RC_BREAK(rc, VINF_SUCCESS);
@@ -632,6 +642,8 @@ DECLEXPORT(int) TSTRTR0TimerSrvReqHandler(PSUPDRVSESSION pSession, uint32_t uOpe
                 RTR0TESTR0_CHECK_MSG_BREAK(ASMAtomicUoReadU32(&State.cShots) == 10, ("cShots=%u\n", State.cShots));
                 if (tstRTR0TimerCheckShotIntervals(&State, uStartNsTS, u10HzAsNsMin, u10HzAsNsMax))
                     break;
+                RTThreadSleep(1); /** @todo RTTimerStop doesn't currently make sure the timer callback not is running
+                                   *        before returning on windows, linux (low res) and possible other plaforms. */
             }
             RTR0TESTR0_CHECK_RC(RTTimerDestroy(pTimer), VINF_SUCCESS);
             RTR0TESTR0_CHECK_RC(RTTimerDestroy(NULL), VINF_SUCCESS);
@@ -658,6 +670,8 @@ DECLEXPORT(int) TSTRTR0TimerSrvReqHandler(PSUPDRVSESSION pSession, uint32_t uOpe
                     for (uint32_t k = 0; k < 1000 && ASMAtomicUoReadU32(&State.cShots) < 2; k++)
                         RTThreadSleep(1);
                     RTR0TESTR0_CHECK_RC_BREAK(RTTimerStop(pTimer), VINF_SUCCESS);
+                    RTThreadSleep(1); /** @todo RTTimerStop doesn't currently make sure the timer callback not is running
+                                       *        before returning on windows, linux (low res) and possible other plaforms. */
                 }
                 RTR0TESTR0_CHECK_RC(RTTimerDestroy(pTimer), VINF_SUCCESS);
             }
@@ -702,6 +716,7 @@ DECLEXPORT(int) TSTRTR0TimerSrvReqHandler(PSUPDRVSESSION pSession, uint32_t uOpe
             {
                 RTR0TestR0Info("RTTimerChangeInterval not supported, skipped");
                 RTR0TESTR0_CHECK_RC(RTTimerDestroy(pTimer), VINF_SUCCESS);
+                RTR0TESTR0_SKIP();
                 break;
             }
 
@@ -742,6 +757,7 @@ DECLEXPORT(int) TSTRTR0TimerSrvReqHandler(PSUPDRVSESSION pSession, uint32_t uOpe
                     if (rc == VERR_NOT_SUPPORTED)
                     {
                         RTR0TestR0Info("specific timer are not supported, skipping\n");
+                        RTR0TESTR0_SKIP();
                         break;
                     }
                     RTR0TESTR0_CHECK_RC_BREAK(rc, VINF_SUCCESS);
@@ -758,6 +774,8 @@ DECLEXPORT(int) TSTRTR0TimerSrvReqHandler(PSUPDRVSESSION pSession, uint32_t uOpe
                         RTR0TESTR0_CHECK_MSG_BREAK(ASMAtomicReadU32(&State.cShots) > 5,
                                                    ("cShots=%u iCpu=%u i=%u iCurCpu=%u cNsElapsed=%'llu\n",
                                                     State.cShots, iCpu, i, RTMpCpuIdToSetIndex(RTMpCpuId()), cNsElapsed));
+                        RTThreadSleep(1); /** @todo RTTimerStop doesn't currently make sure the timer callback not is running
+                                           *        before returning on windows, linux (low res) and possible other plaforms. */
                         RTR0TESTR0_CHECK_MSG_BREAK(State.rc == VINF_SUCCESS, ("rc=%Rrc\n", State.rc));
                         RTR0TESTR0_CHECK_MSG_BREAK(!State.u.Specific.fFailed, ("iCpu=%u i=%u\n", iCpu, i));
                     }
@@ -888,7 +906,6 @@ DECLEXPORT(int) TSTRTR0TimerSrvReqHandler(PSUPDRVSESSION pSession, uint32_t uOpe
                 RTThreadSleep(2);
 
             RTR0TESTR0_CHECK_RC_BREAK(RTTimerStop(pTimer), VINF_SUCCESS);
-            uint64_t    cNsElapsedX = RTTimeNanoTS() - uStartNsTS;
 
             /*
              * Process the result.

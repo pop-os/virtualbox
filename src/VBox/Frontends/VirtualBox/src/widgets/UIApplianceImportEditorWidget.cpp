@@ -1,8 +1,6 @@
 /* $Id: UIApplianceImportEditorWidget.cpp $ */
 /** @file
- *
- * VBox frontends: Qt4 GUI ("VirtualBox"):
- * UIApplianceImportEditorWidget class implementation
+ * VBox Qt GUI - UIApplianceImportEditorWidget class implementation.
  */
 
 /*
@@ -17,13 +15,20 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* GUI includes: */
-#include "UIApplianceImportEditorWidget.h"
-#include "VBoxGlobal.h"
-#include "UIMessageCenter.h"
+# include "UIApplianceImportEditorWidget.h"
+# include "VBoxGlobal.h"
+# include "UIMessageCenter.h"
 
 /* COM includes: */
-#include "CAppliance.h"
+# include "CAppliance.h"
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // ImportSortProxyModel
@@ -66,7 +71,7 @@ bool UIApplianceImportEditorWidget::setFile(const QString& strFile)
             if (fResult)
             {
                 /* Show some progress, so the user know whats going on */
-                msgCenter().showModalProgressDialog(progress, tr("Reading Appliance ..."), ":/sf_32px.png", this);
+                msgCenter().showModalProgressDialog(progress, tr("Reading Appliance ..."), ":/progress_reading_appliance_90px.png", this);
                 if (!progress.isOk() || progress.GetResultCode() != 0)
                     fResult = false;
                 else

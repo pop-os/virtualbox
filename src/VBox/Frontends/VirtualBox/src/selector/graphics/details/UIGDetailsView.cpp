@@ -1,8 +1,6 @@
 /* $Id: UIGDetailsView.cpp $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * UIGDetailsView class implementation
+ * VBox Qt GUI - UIGDetailsView class implementation.
  */
 
 /*
@@ -17,15 +15,22 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* Qt includes: */
-#include <QApplication>
-#include <QScrollBar>
+# include <QApplication>
+# include <QScrollBar>
 
 /* GUI includes: */
-#include "UIGDetailsView.h"
+# include "UIGDetailsView.h"
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 
 UIGDetailsView::UIGDetailsView(QWidget *pParent)
-    : QGraphicsView(pParent)
+    : QIGraphicsView(pParent)
     , m_iMinimumWidthHint(0)
     , m_iMinimumHeightHint(0)
 {
@@ -88,7 +93,7 @@ void UIGDetailsView::preparePalette()
 void UIGDetailsView::resizeEvent(QResizeEvent *pEvent)
 {
     /* Call to base-class: */
-    QGraphicsView::resizeEvent(pEvent);
+    QIGraphicsView::resizeEvent(pEvent);
     /* Notify listeners: */
     emit sigResized();
 }

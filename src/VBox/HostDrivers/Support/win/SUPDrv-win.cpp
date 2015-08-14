@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -206,6 +206,8 @@ typedef struct SUPDRVNTPROTECT
     uint32_t volatile   cRefs;
     /** The kind of process we're protecting. */
     SUPDRVNTPROTECTKIND volatile enmProcessKind;
+    /** Whether this structure is in the tree. */
+    bool                fInTree : 1;
     /** 7,: Hack to allow the supid themes service duplicate handle privileges to
      *  our process. */
     bool                fThemesFirstProcessCreateHandle : 1;
@@ -845,14 +847,14 @@ NTSTATUS _stdcall VBoxDrvNtCreate(PDEVICE_OBJECT pDevObj, PIRP pIrp)
                     {
                         LogRel(("vboxdrv: %p is not a budding VM process (enmProcessKind=%d).\n",
                                 PsGetProcessId(PsGetCurrentProcess()), pNtProtect->enmProcessKind));
-                        rc = VERR_ACCESS_DENIED;
+                        rc = VERR_SUPDRV_NOT_BUDDING_VM_PROCESS_2;
                     }
                     supdrvNtProtectRelease(pNtProtect);
                 }
                 else
                 {
                     LogRel(("vboxdrv: %p is not a budding VM process.\n", PsGetProcessId(PsGetCurrentProcess())));
-                    rc = VERR_ACCESS_DENIED;
+                    rc = VERR_SUPDRV_NOT_BUDDING_VM_PROCESS_1;
                 }
             }
             /*
@@ -1478,7 +1480,7 @@ NTSTATUS _stdcall VBoxDrvNtRead(PDEVICE_OBJECT pDevObj, PIRP pIrp)
 
                 /*
                  * Did we find error info and is the caller requesting data within it?
-                 * If so, cehck the destination buffer and copy the data into it.
+                 * If so, check the destination buffer and copy the data into it.
                  */
                 if (   pCur
                     && pStack->Parameters.Read.ByteOffset.QuadPart < pCur->cchErrorInfo
@@ -1488,12 +1490,11 @@ NTSTATUS _stdcall VBoxDrvNtRead(PDEVICE_OBJECT pDevObj, PIRP pIrp)
                     if (pvDstBuf)
                     {
                         uint32_t offRead  = (uint32_t)pStack->Parameters.Read.ByteOffset.QuadPart;
-                        uint32_t cbToRead = pCur->cchErrorInfo - (uint32_t)offRead;
-                        if (cbToRead > pStack->Parameters.Read.Length)
-                        {
-                            cbToRead = pStack->Parameters.Read.Length;
+                        uint32_t cbToRead = pCur->cchErrorInfo - offRead;
+                        if (cbToRead < pStack->Parameters.Read.Length)
                             RT_BZERO((uint8_t *)pvDstBuf + cbToRead, pStack->Parameters.Read.Length - cbToRead);
-                        }
+                        else
+                            cbToRead = pStack->Parameters.Read.Length;
                         memcpy(pvDstBuf, &pCur->szErrorInfo[offRead], cbToRead);
                         pIrp->IoStatus.Information = cbToRead;
 
@@ -1521,6 +1522,15 @@ NTSTATUS _stdcall VBoxDrvNtRead(PDEVICE_OBJECT pDevObj, PIRP pIrp)
             }
             else
                 rcNt = STATUS_UNSUCCESSFUL;
+
+            /* Paranoia: Clear the buffer on failure. */
+            if (!NT_SUCCESS(rcNt))
+            {
+                PVOID pvDstBuf = pIrp->AssociatedIrp.SystemBuffer;
+                if (   pvDstBuf
+                    && pStack->Parameters.Read.Length)
+                    RT_BZERO(pvDstBuf, pStack->Parameters.Read.Length);
+            }
         }
         else
             rcNt = STATUS_INVALID_PARAMETER;
@@ -1657,6 +1667,26 @@ bool VBOXCALL   supdrvOSObjCanAccess(PSUPDRVOBJ pObj, PSUPDRVSESSION pSession, c
 bool VBOXCALL  supdrvOSGetForcedAsyncTscMode(PSUPDRVDEVEXT pDevExt)
 {
     return false;
+}
+
+
+/**
+ * Whether the host takes CPUs offline during a suspend/resume operation.
+ */
+bool VBOXCALL  supdrvOSAreCpusOfflinedOnSuspend(void)
+{
+    return false;
+}
+
+
+/**
+ * Whether the hardware TSC has been synchronized by the OS.
+ */
+bool VBOXCALL  supdrvOSAreTscDeltasInSync(void)
+{
+    /* If IPRT didn't find KeIpiGenericCall we pretend windows(, the firmware,
+       or whoever) always configures TSCs perfectly. */
+    return !RTMpOnPairIsConcurrentExecSupported();
 }
 
 
@@ -1959,6 +1989,226 @@ void VBOXCALL   supdrvOSLdrUnload(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage)
 }
 
 
+#ifdef SUPDRV_WITH_MSR_PROBER
+
+#if 1
+/** @todo make this selectable. */
+# define AMD_MSR_PASSCODE 0x9c5a203a
+#else
+# define ASMRdMsrEx(a, b, c) ASMRdMsr(a)
+# define ASMWrMsrEx(a, b, c) ASMWrMsr(a,c)
+#endif
+
+
+/**
+ * Argument package used by supdrvOSMsrProberRead and supdrvOSMsrProberWrite.
+ */
+typedef struct SUPDRVNTMSPROBERARGS
+{
+    uint32_t    uMsr;
+    uint64_t    uValue;
+    bool        fGp;
+} SUPDRVNTMSPROBERARGS;
+
+/** @callback_method_impl{FNRTMPWORKER, Worker for supdrvOSMsrProberRead.} */
+static DECLCALLBACK(void) supdrvNtMsProberReadOnCpu(RTCPUID idCpu, void *pvUser1, void *pvUser2)
+{
+    /*
+     * rdmsr and wrmsr faults can be caught even with interrupts disabled.
+     * (At least on 32-bit XP.)
+     */
+    SUPDRVNTMSPROBERARGS   *pArgs = (SUPDRVNTMSPROBERARGS *)pvUser1; NOREF(idCpu); NOREF(pvUser2);
+    RTCCUINTREG             fOldFlags = ASMIntDisableFlags();
+    __try
+    {
+        pArgs->uValue = ASMRdMsrEx(pArgs->uMsr, AMD_MSR_PASSCODE);
+        pArgs->fGp    = false;
+    }
+    __except(EXCEPTION_EXECUTE_HANDLER)
+    {
+        pArgs->fGp    = true;
+        pArgs->uValue = 0;
+    }
+    ASMSetFlags(fOldFlags);
+}
+
+
+int VBOXCALL    supdrvOSMsrProberRead(uint32_t uMsr, RTCPUID idCpu, uint64_t *puValue)
+{
+    SUPDRVNTMSPROBERARGS Args;
+    Args.uMsr   = uMsr;
+    Args.uValue = 0;
+    Args.fGp    = true;
+
+    if (idCpu == NIL_RTCPUID)
+        supdrvNtMsProberReadOnCpu(idCpu, &Args, NULL);
+    else
+    {
+        int rc = RTMpOnSpecific(idCpu, supdrvNtMsProberReadOnCpu, &Args, NULL);
+        if (RT_FAILURE(rc))
+            return rc;
+    }
+
+    if (Args.fGp)
+        return VERR_ACCESS_DENIED;
+    *puValue = Args.uValue;
+    return VINF_SUCCESS;
+}
+
+
+/** @callback_method_impl{FNRTMPWORKER, Worker for supdrvOSMsrProberWrite.} */
+static DECLCALLBACK(void) supdrvNtMsProberWriteOnCpu(RTCPUID idCpu, void *pvUser1, void *pvUser2)
+{
+    /*
+     * rdmsr and wrmsr faults can be caught even with interrupts disabled.
+     * (At least on 32-bit XP.)
+     */
+    SUPDRVNTMSPROBERARGS   *pArgs = (SUPDRVNTMSPROBERARGS *)pvUser1; NOREF(idCpu); NOREF(pvUser2);
+    RTCCUINTREG             fOldFlags = ASMIntDisableFlags();
+    __try
+    {
+        ASMWrMsrEx(pArgs->uMsr, AMD_MSR_PASSCODE, pArgs->uValue);
+        pArgs->fGp = false;
+    }
+    __except(EXCEPTION_EXECUTE_HANDLER)
+    {
+        pArgs->fGp = true;
+    }
+    ASMSetFlags(fOldFlags);
+}
+
+int VBOXCALL    supdrvOSMsrProberWrite(uint32_t uMsr, RTCPUID idCpu, uint64_t uValue)
+{
+    SUPDRVNTMSPROBERARGS Args;
+    Args.uMsr   = uMsr;
+    Args.uValue = uValue;
+    Args.fGp    = true;
+
+    if (idCpu == NIL_RTCPUID)
+        supdrvNtMsProberReadOnCpu(idCpu, &Args, NULL);
+    else
+    {
+        int rc = RTMpOnSpecific(idCpu, supdrvNtMsProberReadOnCpu, &Args, NULL);
+        if (RT_FAILURE(rc))
+            return rc;
+    }
+
+    if (Args.fGp)
+        return VERR_ACCESS_DENIED;
+    return VINF_SUCCESS;
+}
+
+/** @callback_method_impl{FNRTMPWORKER, Worker for supdrvOSMsrProberModify.} */
+static DECLCALLBACK(void) supdrvNtMsProberModifyOnCpu(RTCPUID idCpu, void *pvUser1, void *pvUser2)
+{
+    PSUPMSRPROBER       pReq        = (PSUPMSRPROBER)pvUser1;
+    register uint32_t   uMsr        = pReq->u.In.uMsr;
+    bool const          fFaster     = pReq->u.In.enmOp == SUPMSRPROBEROP_MODIFY_FASTER;
+    uint64_t            uBefore     = 0;
+    uint64_t            uWritten    = 0;
+    uint64_t            uAfter      = 0;
+    bool                fBeforeGp   = true;
+    bool                fModifyGp   = true;
+    bool                fAfterGp    = true;
+    bool                fRestoreGp  = true;
+    RTCCUINTREG         fOldFlags;
+
+    /*
+     * Do the job.
+     */
+    fOldFlags = ASMIntDisableFlags();
+    ASMCompilerBarrier(); /* paranoia */
+    if (!fFaster)
+        ASMWriteBackAndInvalidateCaches();
+
+    __try
+    {
+        uBefore   = ASMRdMsrEx(uMsr, AMD_MSR_PASSCODE);
+        fBeforeGp = false;
+    }
+    __except(EXCEPTION_EXECUTE_HANDLER)
+    {
+        fBeforeGp = true;
+    }
+    if (!fBeforeGp)
+    {
+        register uint64_t uRestore = uBefore;
+
+        /* Modify. */
+        uWritten  = uRestore;
+        uWritten &= pReq->u.In.uArgs.Modify.fAndMask;
+        uWritten |= pReq->u.In.uArgs.Modify.fOrMask;
+        __try
+        {
+            ASMWrMsrEx(uMsr, AMD_MSR_PASSCODE, uWritten);
+            fModifyGp = false;
+        }
+        __except(EXCEPTION_EXECUTE_HANDLER)
+        {
+            fModifyGp = true;
+        }
+
+        /* Read modified value. */
+        __try
+        {
+            uAfter   = ASMRdMsrEx(uMsr, AMD_MSR_PASSCODE);
+            fAfterGp = false;
+        }
+        __except(EXCEPTION_EXECUTE_HANDLER)
+        {
+            fAfterGp = true;
+        }
+
+        /* Restore original value. */
+        __try
+        {
+            ASMWrMsrEx(uMsr, AMD_MSR_PASSCODE, uRestore);
+            fRestoreGp = false;
+        }
+        __except(EXCEPTION_EXECUTE_HANDLER)
+        {
+            fRestoreGp = true;
+        }
+
+        /* Invalid everything we can. */
+        if (!fFaster)
+        {
+            ASMWriteBackAndInvalidateCaches();
+            ASMReloadCR3();
+            ASMNopPause();
+        }
+    }
+
+    ASMCompilerBarrier(); /* paranoia */
+    ASMSetFlags(fOldFlags);
+
+    /*
+     * Write out the results.
+     */
+    pReq->u.Out.uResults.Modify.uBefore    = uBefore;
+    pReq->u.Out.uResults.Modify.uWritten   = uWritten;
+    pReq->u.Out.uResults.Modify.uAfter     = uAfter;
+    pReq->u.Out.uResults.Modify.fBeforeGp  = fBeforeGp;
+    pReq->u.Out.uResults.Modify.fModifyGp  = fModifyGp;
+    pReq->u.Out.uResults.Modify.fAfterGp   = fAfterGp;
+    pReq->u.Out.uResults.Modify.fRestoreGp = fRestoreGp;
+    RT_ZERO(pReq->u.Out.uResults.Modify.afReserved);
+}
+
+
+int VBOXCALL    supdrvOSMsrProberModify(RTCPUID idCpu, PSUPMSRPROBER pReq)
+{
+    if (idCpu == NIL_RTCPUID)
+    {
+        supdrvNtMsProberModifyOnCpu(idCpu, pReq, NULL);
+        return VINF_SUCCESS;
+    }
+    return RTMpOnSpecific(idCpu, supdrvNtMsProberModifyOnCpu, pReq, NULL);
+}
+
+#endif /* SUPDRV_WITH_MSR_PROBER */
+
+
 /**
  * Converts an IPRT error code to an nt status code.
  *
@@ -2013,9 +2263,6 @@ SUPR0DECL(int) SUPR0Printf(const char *pszFormat, ...)
 #endif
 
 
-/**
- * Returns configuration flags of the host kernel.
- */
 SUPR0DECL(uint32_t) SUPR0GetKernelFeatures(void)
 {
     return 0;
@@ -2692,6 +2939,7 @@ static int supdrvNtProtectProtectNewStubChild(PSUPDRVNTPROTECT pNtParent, HANDLE
             bool fSuccess = RTAvlPVInsert(&g_NtProtectTree, &pNtChild->AvlCore);
             if (fSuccess)
             {
+                pNtChild->fInTree         = true;
                 pNtParent->u.pChild       = pNtChild; /* Parent keeps the initial reference. */
                 pNtParent->enmProcessKind = kSupDrvNtProtectKind_StubParent;
                 pNtChild->u.pParent       = pNtParent;
@@ -3022,6 +3270,8 @@ supdrvNtProtectCallback_ProcessHandlePre(PVOID pvUser, POB_PRE_OPERATION_INFORMA
 #endif
             else
             {
+                ACCESS_MASK const fDesiredAccess = pOpInfo->Parameters->CreateHandleInformation.DesiredAccess;
+
                 /* Special case 1 on Vista, 7 & 8:
                    The CreateProcess code passes the handle over to CSRSS.EXE
                    and the code inBaseSrvCreateProcess will duplicate the
@@ -3038,7 +3288,7 @@ supdrvNtProtectCallback_ProcessHandlePre(PVOID pvUser, POB_PRE_OPERATION_INFORMA
                     && ExGetPreviousMode() != KernelMode)
                 {
                     if (   !pOpInfo->KernelHandle
-                        && pOpInfo->Parameters->CreateHandleInformation.DesiredAccess == s_fCsrssStupidDesires)
+                        && fDesiredAccess == s_fCsrssStupidDesires)
                     {
                         if (g_uNtVerCombined < SUP_MAKE_NT_VER_SIMPLE(6, 3))
                             fAllowedRights |= s_fCsrssStupidDesires;
@@ -3067,7 +3317,7 @@ supdrvNtProtectCallback_ProcessHandlePre(PVOID pvUser, POB_PRE_OPERATION_INFORMA
                     && supdrvNtProtectIsAssociatedCsrss(pNtProtect, PsGetCurrentProcess()) )
                 {
                     pNtProtect->fCsrssFirstProcessCreateHandle = false;
-                    if (pOpInfo->Parameters->CreateHandleInformation.DesiredAccess == s_fCsrssStupidDesires)
+                    if (fDesiredAccess == s_fCsrssStupidDesires)
                     {
                         /* Not needed: PROCESS_CREATE_THREAD, PROCESS_SET_SESSIONID,
                            PROCESS_CREATE_PROCESS */
@@ -3087,7 +3337,7 @@ supdrvNtProtectCallback_ProcessHandlePre(PVOID pvUser, POB_PRE_OPERATION_INFORMA
                    go into making this more secure.  */
                 if (   g_uNtVerCombined >= SUP_MAKE_NT_VER_SIMPLE(6, 0)
                     && g_uNtVerCombined  < SUP_MAKE_NT_VER_SIMPLE(6, 2)
-                    && pOpInfo->Parameters->CreateHandleInformation.DesiredAccess == 0x1478 /* 6.1.7600.16385 (win7_rtm.090713-1255) */
+                    && fDesiredAccess == 0x1478 /* 6.1.7600.16385 (win7_rtm.090713-1255) */
                     && pNtProtect->fThemesFirstProcessCreateHandle
                     && pOpInfo->KernelHandle == 0
                     && ExGetPreviousMode() == UserMode
@@ -3098,11 +3348,29 @@ supdrvNtProtectCallback_ProcessHandlePre(PVOID pvUser, POB_PRE_OPERATION_INFORMA
                     pOpInfo->CallContext = NULL; /* don't assert this. */
                 }
 
+                /* Special case 6a, Windows 10+: AudioDG.exe opens the process with the
+                   PROCESS_SET_LIMITED_INFORMATION right.  It seems like it need it for
+                   some myserious and weirdly placed cpu set management of our process.
+                   I'd love to understand what that's all about...
+                   Currently playing safe and only grand this right, however limited, to
+                   audiodg.exe. */
+                if (   g_uNtVerCombined >= SUP_MAKE_NT_VER_SIMPLE(10, 0)
+                    && (   fDesiredAccess == PROCESS_SET_LIMITED_INFORMATION
+                        || fDesiredAccess == (PROCESS_SET_LIMITED_INFORMATION | PROCESS_QUERY_LIMITED_INFORMATION) /* expected fix #1 */
+                        || fDesiredAccess == (PROCESS_SET_LIMITED_INFORMATION | PROCESS_QUERY_INFORMATION)         /* expected fix #2 */
+                        )
+                    && pOpInfo->KernelHandle == 0
+                    && ExGetPreviousMode() == UserMode
+                    && supdrvNtProtectIsSystem32ProcessMatch(PsGetCurrentProcess(), "audiodg.exe") )
+                {
+                    fAllowedRights |= PROCESS_SET_LIMITED_INFORMATION;
+                    pOpInfo->CallContext = NULL; /* don't assert this. */
+                }
+
                 Log(("vboxdrv/ProcessHandlePre: %sctx=%04zx/%p wants %#x to %p/pid=%04zx [%d], allow %#x => %#x; %s [prev=%#x]\n",
                      pOpInfo->KernelHandle ? "k" : "", PsGetProcessId(PsGetCurrentProcess()), PsGetCurrentProcess(),
-                     pOpInfo->Parameters->CreateHandleInformation.DesiredAccess,
-                     pOpInfo->Object, pNtProtect->AvlCore.Key, pNtProtect->enmProcessKind, fAllowedRights,
-                     pOpInfo->Parameters->CreateHandleInformation.DesiredAccess & fAllowedRights,
+                     fDesiredAccess, pOpInfo->Object, pNtProtect->AvlCore.Key, pNtProtect->enmProcessKind,
+                     fAllowedRights, fDesiredAccess & fAllowedRights,
                      PsGetProcessImageFileName(PsGetCurrentProcess()), ExGetPreviousMode() ));
 
                 pOpInfo->Parameters->CreateHandleInformation.DesiredAccess &= fAllowedRights;
@@ -3127,13 +3395,15 @@ supdrvNtProtectCallback_ProcessHandlePre(PVOID pvUser, POB_PRE_OPERATION_INFORMA
             }
             else
             {
+                ACCESS_MASK const fDesiredAccess = pOpInfo->Parameters->DuplicateHandleInformation.DesiredAccess;
+
                 /* Special case 5 on Vista, 7 & 8:
                    This is the CSRSS.EXE end of special case #1. */
                 if (   g_uNtVerCombined < SUP_MAKE_NT_VER_SIMPLE(6, 3)
                     && pNtProtect->enmProcessKind == kSupDrvNtProtectKind_VmProcessUnconfirmed
                     && pNtProtect->cCsrssFirstProcessDuplicateHandle > 0
                     && pOpInfo->KernelHandle == 0
-                    && pOpInfo->Parameters->DuplicateHandleInformation.DesiredAccess == s_fCsrssStupidDesires
+                    && fDesiredAccess == s_fCsrssStupidDesires
                     &&    pNtProtect->hParentPid
                        == PsGetProcessId((PEPROCESS)pOpInfo->Parameters->DuplicateHandleInformation.SourceProcess)
                     && pOpInfo->Parameters->DuplicateHandleInformation.TargetProcess == PsGetCurrentProcess()
@@ -3153,12 +3423,26 @@ supdrvNtProtectCallback_ProcessHandlePre(PVOID pvUser, POB_PRE_OPERATION_INFORMA
                     }
                 }
 
+                /* Special case 6b, Windows 10+: AudioDG.exe duplicates the handle it opened above. */
+                if (   g_uNtVerCombined >= SUP_MAKE_NT_VER_SIMPLE(10, 0)
+                    && (   fDesiredAccess == PROCESS_SET_LIMITED_INFORMATION
+                        || fDesiredAccess == (PROCESS_SET_LIMITED_INFORMATION | PROCESS_QUERY_LIMITED_INFORMATION) /* expected fix #1 */
+                        || fDesiredAccess == (PROCESS_SET_LIMITED_INFORMATION | PROCESS_QUERY_INFORMATION)         /* expected fix #2 */
+                        )
+                    && pOpInfo->KernelHandle == 0
+                    && ExGetPreviousMode() == UserMode
+                    && supdrvNtProtectIsSystem32ProcessMatch(PsGetCurrentProcess(), "audiodg.exe") )
+                {
+                    fAllowedRights |= PROCESS_SET_LIMITED_INFORMATION;
+                    pOpInfo->CallContext = NULL; /* don't assert this. */
+                }
+
                 Log(("vboxdrv/ProcessHandlePre: %sctx=%04zx/%p[%p] dup from %04zx/%p with %#x to %p in pid=%04zx [%d] %s\n",
                      pOpInfo->KernelHandle ? "k" : "", PsGetProcessId(PsGetCurrentProcess()), PsGetCurrentProcess(),
                      pOpInfo->Parameters->DuplicateHandleInformation.TargetProcess,
                      PsGetProcessId((PEPROCESS)pOpInfo->Parameters->DuplicateHandleInformation.SourceProcess),
                      pOpInfo->Parameters->DuplicateHandleInformation.SourceProcess,
-                     pOpInfo->Parameters->DuplicateHandleInformation.DesiredAccess,
+                     fDesiredAccess,
                      pOpInfo->Object, pNtProtect->AvlCore.Key, pNtProtect->enmProcessKind,
                      PsGetProcessImageFileName(PsGetCurrentProcess()) ));
 
@@ -3439,6 +3723,7 @@ static int supdrvNtProtectCreate(PSUPDRVNTPROTECT *ppNtProtect, HANDLE hPid, SUP
     {
         RTSpinlockAcquire(g_hNtProtectLock);
         bool fSuccess = RTAvlPVInsert(&g_NtProtectTree, &pNtProtect->AvlCore);
+        pNtProtect->fInTree = fSuccess;
         RTSpinlockRelease(g_hNtProtectLock);
 
         if (!fSuccess)
@@ -3479,9 +3764,13 @@ static void supdrvNtProtectRelease(PSUPDRVNTPROTECT pNtProtect)
          * child/parent references related to this protection structure.
          */
         ASMAtomicWriteU32(&pNtProtect->u32Magic, SUPDRVNTPROTECT_MAGIC_DEAD);
-        PSUPDRVNTPROTECT pRemoved = (PSUPDRVNTPROTECT)RTAvlPVRemove(&g_NtProtectTree, pNtProtect->AvlCore.Key);
+        if (pNtProtect->fInTree)
+        {
+            PSUPDRVNTPROTECT pRemoved = (PSUPDRVNTPROTECT)RTAvlPVRemove(&g_NtProtectTree, pNtProtect->AvlCore.Key);
+            Assert(pRemoved == pNtProtect);
+            pNtProtect->fInTree = false;
+        }
 
-        PSUPDRVNTPROTECT pRemovedChild = NULL;
         PSUPDRVNTPROTECT pChild = NULL;
         if (pNtProtect->enmProcessKind == kSupDrvNtProtectKind_StubParent)
         {
@@ -3493,7 +3782,15 @@ static void supdrvNtProtectRelease(PSUPDRVNTPROTECT pNtProtect)
                 pChild->enmProcessKind = kSupDrvNtProtectKind_VmProcessDead;
                 uint32_t cChildRefs = ASMAtomicDecU32(&pChild->cRefs);
                 if (!cChildRefs)
-                    pRemovedChild = (PSUPDRVNTPROTECT)RTAvlPVRemove(&g_NtProtectTree, pChild->AvlCore.Key);
+                {
+                    Assert(pChild->fInTree);
+                    if (pChild->fInTree)
+                    {
+                        PSUPDRVNTPROTECT pRemovedChild = (PSUPDRVNTPROTECT)RTAvlPVRemove(&g_NtProtectTree, pChild->AvlCore.Key);
+                        Assert(pRemovedChild == pChild);
+                        pChild->fInTree = false;
+                    }
+                }
                 else
                     pChild = NULL;
             }
@@ -3502,8 +3799,6 @@ static void supdrvNtProtectRelease(PSUPDRVNTPROTECT pNtProtect)
             AssertRelease(pNtProtect->enmProcessKind != kSupDrvNtProtectKind_VmProcessUnconfirmed);
 
         RTSpinlockRelease(g_hNtProtectLock);
-        Assert(pRemoved == pNtProtect);
-        Assert(pRemovedChild == pChild);
 
         if (pNtProtect->pCsrssProcess)
         {
@@ -3731,7 +4026,7 @@ static int supdrvNtProtectRestrictHandlesToProcessAndThread(PSUPDRVNTPROTECT pNt
                Windows 8.1 and later, and one in earlier. This is probably a
                little overly paranoid as I think we can safely trust the
                system process... */
-            if (   cSystemProcessHandles < (g_uNtVerCombined >= SUP_MAKE_NT_VER_SIMPLE(6, 3) ? 2 : 1)
+            if (   cSystemProcessHandles < (g_uNtVerCombined >= SUP_MAKE_NT_VER_SIMPLE(6, 3) ? UINT32_C(2) : UINT32_C(1))
                 && pHandleInfo->UniqueProcessId == PsGetProcessId(PsInitialSystemProcess))
             {
                 cSystemProcessHandles++;
@@ -3927,8 +4222,7 @@ static int supdrvNtProtectVerifyProcess(PSUPDRVNTPROTECT pNtProtect)
         if (!pErrorInfo->cchErrorInfo)
             pErrorInfo->cchErrorInfo = (uint32_t)RTStrPrintf(pErrorInfo->szErrorInfo, sizeof(pErrorInfo->szErrorInfo),
                                                              "supdrvNtProtectVerifyProcess: rc=%d", rc);
-        if (RT_FAILURE(rc))
-            RTLogWriteDebugger(pErrorInfo->szErrorInfo, pErrorInfo->cchErrorInfo);
+        RTLogWriteDebugger(pErrorInfo->szErrorInfo, pErrorInfo->cchErrorInfo);
 
         int rc2 = RTSemMutexRequest(g_hErrorInfoLock, RT_INDEFINITE_WAIT);
         if (RT_SUCCESS(rc2))

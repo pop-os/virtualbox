@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -60,7 +60,7 @@ int main(int argc, char **argv)
         RTPrintf("pv=%p\n", pv);
         SUPPAGE aPages[1];
         rc = supR3PageLock(pv, 1, &aPages[0]);
-        RTPrintf("rc=%d aPages[0]=%RHp\n", rc, pv, aPages[0]);
+        RTPrintf("rc=%d pv=%p aPages[0]=%RHp\n", rc, pv, aPages[0]);
         RTThreadSleep(1500);
 #if 0
         RTPrintf("Unlocking...\n");

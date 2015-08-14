@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -60,9 +60,6 @@ typedef struct DRVMAINKEYBOARD
     uint32_t                    u32DevCaps;
 } DRVMAINKEYBOARD, *PDRVMAINKEYBOARD;
 
-/** Converts PDMIVMMDEVCONNECTOR pointer to a DRVMAINVMMDEV pointer. */
-#define PPDMIKEYBOARDCONNECTOR_2_MAINKEYBOARD(pInterface) ( (PDRVMAINKEYBOARD) ((uintptr_t)pInterface - RT_OFFSETOF(DRVMAINKEYBOARD, IConnector)) )
-
 
 // constructor / destructor
 ////////////////////////////////////////////////////////////////////////////////
@@ -81,6 +78,7 @@ HRESULT Keyboard::FinalConstruct()
     RT_ZERO(mpDrv);
     mpVMMDev = NULL;
     mfVMMDevInited = false;
+    menmLeds = PDMKEYBLEDS_NONE;
     return BaseFinalConstruct();
 }
 
@@ -144,6 +142,8 @@ void Keyboard::uninit()
     mpVMMDev = NULL;
     mfVMMDevInited = true;
 
+    menmLeds = PDMKEYBLEDS_NONE;
+
     unconst(mParent) = NULL;
     unconst(mEventSource).setNull();
 }
@@ -152,36 +152,28 @@ void Keyboard::uninit()
  * Sends a scancode to the keyboard.
  *
  * @returns COM status code
- * @param scancode The scancode to send
+ * @param aScancode The scancode to send
  */
-STDMETHODIMP Keyboard::PutScancode(LONG scancode)
+HRESULT Keyboard::putScancode(LONG aScancode)
 {
-    com::SafeArray<LONG> scancodes(1);
-    scancodes[0] = scancode;
-    return PutScancodes(ComSafeArrayAsInParam(scancodes), NULL);
+    std::vector<LONG> scancodes;
+    scancodes.resize(1);
+    scancodes[0] = aScancode;
+    return putScancodes(scancodes, NULL);
 }
 
 /**
  * Sends a list of scancodes to the keyboard.
  *
  * @returns COM status code
- * @param scancodes   Pointer to the first scancode
- * @param count       Number of scancodes
- * @param codesStored Address of variable to store the number
- *                    of scancodes that were sent to the keyboard.
-                      This value can be NULL.
+ * @param aScancodes   Pointer to the first scancode
+ * @param aCodesStored Address of variable to store the number
+ *                     of scancodes that were sent to the keyboard.
+                       This value can be NULL.
  */
-STDMETHODIMP Keyboard::PutScancodes(ComSafeArrayIn(LONG, scancodes),
-                                    ULONG *codesStored)
+HRESULT Keyboard::putScancodes(const std::vector<LONG> &aScancodes,
+                               ULONG *aCodesStored)
 {
-    if (ComSafeArrayInIsNull(scancodes))
-        return E_INVALIDARG;
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    com::SafeArray<LONG> keys(ComSafeArrayInArg(scancodes));
-
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     CHECK_CONSOLE_DRV(mpDrv[0]);
@@ -198,26 +190,27 @@ STDMETHODIMP Keyboard::PutScancodes(ComSafeArrayIn(LONG, scancodes),
             break;
         }
     }
+
     /* No enabled keyboard - throw the input away. */
     if (!pUpPort)
     {
-        if (codesStored)
-            *codesStored = (uint32_t)keys.size();
+        if (aCodesStored)
+            *aCodesStored = (uint32_t)aScancodes.size();
         return S_OK;
     }
 
     int vrc = VINF_SUCCESS;
 
     uint32_t sent;
-    for (sent = 0; (sent < keys.size()) && RT_SUCCESS(vrc); sent++)
-        vrc = pUpPort->pfnPutEvent(pUpPort, (uint8_t)keys[sent]);
+    for (sent = 0; (sent < aScancodes.size()) && RT_SUCCESS(vrc); ++sent)
+        vrc = pUpPort->pfnPutEventScan(pUpPort, (uint8_t)aScancodes[sent]);
 
-    if (codesStored)
-        *codesStored = sent;
+    if (aCodesStored)
+        *aCodesStored = sent;
 
-    /* Only signal the keys in the event which have been actually sent. */
-    com::SafeArray<LONG> keysSent(sent);
-    memcpy(keysSent.raw(), keys.raw(), sent*sizeof(LONG));
+    com::SafeArray<LONG> keys(aScancodes.size());
+    for (size_t i = 0; i < aScancodes.size(); ++i)
+        keys[i] = aScancodes[i];
 
     VBoxEventDesc evDesc;
     evDesc.init(mEventSource, VBoxEventType_OnGuestKeyboard, ComSafeArrayAsInParam(keys));
@@ -238,9 +231,10 @@ STDMETHODIMP Keyboard::PutScancodes(ComSafeArrayIn(LONG, scancodes),
  * @returns COM status code
  *
  */
-STDMETHODIMP Keyboard::PutCAD()
+HRESULT Keyboard::putCAD()
 {
-    static com::SafeArray<LONG> cadSequence(8);
+    static std::vector<LONG> cadSequence;
+    cadSequence.resize(8);
 
     cadSequence[0] = 0x1d; // Ctrl down
     cadSequence[1] = 0x38; // Alt down
@@ -251,18 +245,40 @@ STDMETHODIMP Keyboard::PutCAD()
     cadSequence[6] = 0xb8; // Alt up
     cadSequence[7] = 0x9d; // Ctrl up
 
-    return PutScancodes(ComSafeArrayAsInParam(cadSequence), NULL);
+    return putScancodes(cadSequence, NULL);
 }
 
-STDMETHODIMP Keyboard::COMGETTER(EventSource)(IEventSource ** aEventSource)
+/**
+ * Releases all currently held keys in the virtual keyboard.
+ *
+ * @returns COM status code
+ *
+ */
+HRESULT Keyboard::releaseKeys()
 {
-    CheckComArgOutPointerValid(aEventSource);
+    std::vector<LONG> scancodes;
+    scancodes.resize(1);
+    scancodes[0] = 0xFC;    /* Magic scancode, see PS/2 and USB keyboard devices. */
+    return putScancodes(scancodes, NULL);
+}
 
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+HRESULT Keyboard::getKeyboardLEDs(std::vector<KeyboardLED_T> &aKeyboardLEDs)
+{
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    // no need to lock - lifetime constant
-    mEventSource.queryInterfaceTo(aEventSource);
+    aKeyboardLEDs.resize(0);
+
+    if (menmLeds & PDMKEYBLEDS_NUMLOCK)    aKeyboardLEDs.push_back(KeyboardLED_NumLock);
+    if (menmLeds & PDMKEYBLEDS_CAPSLOCK)   aKeyboardLEDs.push_back(KeyboardLED_CapsLock);
+    if (menmLeds & PDMKEYBLEDS_SCROLLLOCK) aKeyboardLEDs.push_back(KeyboardLED_ScrollLock);
+
+    return S_OK;
+}
+
+HRESULT Keyboard::getEventSource(ComPtr<IEventSource> &aEventSource)
+{
+    // No need to lock - lifetime constant
+    mEventSource.queryInterfaceTo(aEventSource.asOutParam());
 
     return S_OK;
 }
@@ -270,21 +286,32 @@ STDMETHODIMP Keyboard::COMGETTER(EventSource)(IEventSource ** aEventSource)
 //
 // private methods
 //
-
-DECLCALLBACK(void) Keyboard::keyboardLedStatusChange(PPDMIKEYBOARDCONNECTOR pInterface, PDMKEYBLEDS enmLeds)
+void Keyboard::onKeyboardLedsChange(PDMKEYBLEDS enmLeds)
 {
-    PDRVMAINKEYBOARD pDrv = PPDMIKEYBOARDCONNECTOR_2_MAINKEYBOARD(pInterface);
-    pDrv->pKeyboard->getParent()->onKeyboardLedsChange(RT_BOOL(enmLeds & PDMKEYBLEDS_NUMLOCK),
-                                                       RT_BOOL(enmLeds & PDMKEYBLEDS_CAPSLOCK),
-                                                       RT_BOOL(enmLeds & PDMKEYBLEDS_SCROLLLOCK));
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    /* Save the current status. */
+    menmLeds = enmLeds;
+
+    alock.release();
+
+    i_getParent()->i_onKeyboardLedsChange(RT_BOOL(enmLeds & PDMKEYBLEDS_NUMLOCK),
+                                          RT_BOOL(enmLeds & PDMKEYBLEDS_CAPSLOCK),
+                                          RT_BOOL(enmLeds & PDMKEYBLEDS_SCROLLLOCK));
+}
+
+DECLCALLBACK(void) Keyboard::i_keyboardLedStatusChange(PPDMIKEYBOARDCONNECTOR pInterface, PDMKEYBLEDS enmLeds)
+{
+    PDRVMAINKEYBOARD pDrv = RT_FROM_MEMBER(pInterface, DRVMAINKEYBOARD, IConnector);
+    pDrv->pKeyboard->onKeyboardLedsChange(enmLeds);
 }
 
 /**
  * @interface_method_impl{PDMIKEYBOARDCONNECTOR,pfnSetActive}
  */
-DECLCALLBACK(void) Keyboard::keyboardSetActive(PPDMIKEYBOARDCONNECTOR pInterface, bool fActive)
+DECLCALLBACK(void) Keyboard::i_keyboardSetActive(PPDMIKEYBOARDCONNECTOR pInterface, bool fActive)
 {
-    PDRVMAINKEYBOARD pDrv = PPDMIKEYBOARDCONNECTOR_2_MAINKEYBOARD(pInterface);
+    PDRVMAINKEYBOARD pDrv = RT_FROM_MEMBER(pInterface, DRVMAINKEYBOARD, IConnector);
     if (fActive)
         pDrv->u32DevCaps |= KEYBOARD_DEVCAP_ENABLED;
     else
@@ -295,7 +322,7 @@ DECLCALLBACK(void) Keyboard::keyboardSetActive(PPDMIKEYBOARDCONNECTOR pInterface
 /**
  * @interface_method_impl{PDMIBASE,pfnQueryInterface}
  */
-DECLCALLBACK(void *) Keyboard::drvQueryInterface(PPDMIBASE pInterface, const char *pszIID)
+DECLCALLBACK(void *) Keyboard::i_drvQueryInterface(PPDMIBASE pInterface, const char *pszIID)
 {
     PPDMDRVINS          pDrvIns = PDMIBASE_2_PDMDRV(pInterface);
     PDRVMAINKEYBOARD    pDrv    = PDMINS_2_DATA(pDrvIns, PDRVMAINKEYBOARD);
@@ -312,7 +339,7 @@ DECLCALLBACK(void *) Keyboard::drvQueryInterface(PPDMIBASE pInterface, const cha
  * @returns VBox status.
  * @param   pDrvIns     The driver instance data.
  */
-DECLCALLBACK(void) Keyboard::drvDestruct(PPDMDRVINS pDrvIns)
+DECLCALLBACK(void) Keyboard::i_drvDestruct(PPDMDRVINS pDrvIns)
 {
     PDMDRV_CHECK_VERSIONS_RETURN_VOID(pDrvIns);
     PDRVMAINKEYBOARD pThis = PDMINS_2_DATA(pDrvIns, PDRVMAINKEYBOARD);
@@ -327,7 +354,7 @@ DECLCALLBACK(void) Keyboard::drvDestruct(PPDMDRVINS pDrvIns)
                 pThis->pKeyboard->mpDrv[cDev] = NULL;
                 break;
             }
-        pThis->pKeyboard->mpVMMDev = NULL;
+            pThis->pKeyboard->mpVMMDev = NULL;
     }
 }
 
@@ -336,7 +363,7 @@ DECLCALLBACK(void) Keyboard::drvDestruct(PPDMDRVINS pDrvIns)
  *
  * @copydoc FNPDMDRVCONSTRUCT
  */
-DECLCALLBACK(int) Keyboard::drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint32_t fFlags)
+DECLCALLBACK(int) Keyboard::i_drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint32_t fFlags)
 {
     PDMDRV_CHECK_VERSIONS_RETURN(pDrvIns);
     PDRVMAINKEYBOARD pThis = PDMINS_2_DATA(pDrvIns, PDRVMAINKEYBOARD);
@@ -354,10 +381,10 @@ DECLCALLBACK(int) Keyboard::drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uin
     /*
      * IBase.
      */
-    pDrvIns->IBase.pfnQueryInterface        = Keyboard::drvQueryInterface;
+    pDrvIns->IBase.pfnQueryInterface      = Keyboard::i_drvQueryInterface;
 
-    pThis->IConnector.pfnLedStatusChange    = keyboardLedStatusChange;
-    pThis->IConnector.pfnSetActive          = Keyboard::keyboardSetActive;
+    pThis->IConnector.pfnLedStatusChange  = i_keyboardLedStatusChange;
+    pThis->IConnector.pfnSetActive        = Keyboard::i_keyboardSetActive;
 
     /*
      * Get the IKeyboardPort interface of the above driver/device.
@@ -418,9 +445,9 @@ const PDMDRVREG Keyboard::DrvReg =
     /* cbInstance */
     sizeof(DRVMAINKEYBOARD),
     /* pfnConstruct */
-    Keyboard::drvConstruct,
+    Keyboard::i_drvConstruct,
     /* pfnDestruct */
-    Keyboard::drvDestruct,
+    Keyboard::i_drvDestruct,
     /* pfnRelocate */
     NULL,
     /* pfnIOCtl */

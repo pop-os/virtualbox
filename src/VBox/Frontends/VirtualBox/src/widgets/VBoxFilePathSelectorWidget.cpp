@@ -1,8 +1,6 @@
 /* $Id: VBoxFilePathSelectorWidget.cpp $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * VirtualBox Qt extensions: VBoxFilePathSelectorWidget class implementation
+ * VBox Qt GUI - VirtualBox Qt extensions: VBoxFilePathSelectorWidget class implementation.
  */
 
 /*
@@ -17,25 +15,32 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* Local includes */
-#include "QIFileDialog.h"
-#include "QIToolButton.h"
-#include "QILabel.h"
-#include "QILineEdit.h"
-#include "UIIconPool.h"
-#include "VBoxFilePathSelectorWidget.h"
-#include "VBoxGlobal.h"
+# include "QIFileDialog.h"
+# include "QIToolButton.h"
+# include "QILabel.h"
+# include "QILineEdit.h"
+# include "UIIconPool.h"
+# include "VBoxFilePathSelectorWidget.h"
+# include "VBoxGlobal.h"
 
 /* Global includes */
-#include <iprt/assert.h>
-#include <QAction>
-#include <QApplication>
-#include <QClipboard>
-#include <QDir>
-#include <QFocusEvent>
-#include <QHBoxLayout>
-#include <QLineEdit>
-#include <QTimer>
+# include <iprt/assert.h>
+# include <QAction>
+# include <QApplication>
+# include <QClipboard>
+# include <QDir>
+# include <QFocusEvent>
+# include <QHBoxLayout>
+# include <QLineEdit>
+# include <QTimer>
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // VBoxFilePathSelectorWidget
@@ -311,7 +316,7 @@ void VBoxFilePathSelectorWidget::retranslateUi()
     {
         case Mode_Folder:
             setItemData (SelectId,
-                         tr ("Opens a window to select a different folder."),
+                         tr ("Displays a window to select a different folder."),
                          Qt::ToolTipRole);
             setItemData (ResetId,
                          tr ("Resets the folder path to the default value."),
@@ -320,7 +325,7 @@ void VBoxFilePathSelectorWidget::retranslateUi()
         case Mode_File_Open:
         case Mode_File_Save:
             setItemData (SelectId,
-                         tr ("Opens a window to select a different file."),
+                         tr ("Displays a window to select a different file."),
                          Qt::ToolTipRole);
             setItemData (ResetId,
                          tr ("Resets the file path to the default value."),
@@ -506,8 +511,8 @@ void VBoxFilePathSelectorWidget::refreshText()
             setItemText (PathId, mPath);
         setItemIcon (PathId, QIcon());
         setToolTip (mMode == Mode_Folder ?
-            tr ("Please type the folder path here.") :
-            tr ("Please type the file path here."));
+            tr ("Holds the folder path.") :
+            tr ("Holds the file path."));
 
         if (mIsMouseAwaited)
         {

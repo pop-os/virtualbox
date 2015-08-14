@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -132,5 +132,4 @@ RTASN1TYPE_STANDARD_PROTOTYPES(RTCRTSPTSTINFO, RTDECL, RTCrTspTstInfo, SeqCore.A
 RT_C_DECLS_END
 
 #endif
-
 

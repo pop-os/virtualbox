@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2012 Oracle Corporation
+ * Copyright (C) 2007-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -485,7 +485,7 @@ VBGLR3DECL(int) VbglR3RetrieveVideoMode(unsigned cScreen,
     if (RT_SUCCESS(rc))
     {
         char c1, c2;
-        cMatches = sscanf(szModeParms, "%ux%ux%u%c%ux%u,%u%c", &cx, &cy, &cBits,
+        cMatches = sscanf(szModeParms, "%5ux%5ux%2u%c%5ux%5u,%1u%c", &cx, &cy, &cBits,
                           &c1, &x, &y, &fEnabled, &c2);
         if ((cMatches == 7 && c1 == ',') || cMatches == 3)
             rc = VINF_SUCCESS;

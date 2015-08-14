@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -283,7 +283,7 @@ RTR3DECL(int) RTPathSetOwnerEx(const char *pszPath, uint32_t uid, uint32_t gid, 
         rtPathFreeNative(pszNativePath, pszPath);
     }
 
-    LogFlow(("RTPathSetOwnerEx(%p:{%s}, uid, gid): return %Rrc\n",
+    LogFlow(("RTPathSetOwnerEx(%p:{%s}, uid=%d, gid=%d): return %Rrc\n",
              pszPath, pszPath, uid, gid, rc));
     return rc;
 }

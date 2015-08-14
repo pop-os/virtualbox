@@ -26,6 +26,26 @@ CRtsd _PackTSD;
 CRmutex _PackMutex;
 #endif
 
+#if defined(VBOX_WITH_CRHGSMI) && defined(IN_GUEST)
+# include <VBox/VBoxCrHgsmi.h>
+# include <VBox/VBoxUhgsmi.h>
+#endif
+
+#if defined(RT_OS_WINDOWS) && defined(VBOX_WITH_WDDM)
+static bool isVBoxWDDMCrHgsmi(void)
+{
+#if defined(VBOX_WITH_CRHGSMI) && defined(IN_GUEST)
+    PVBOXUHGSMI pHgsmi = VBoxCrHgsmiCreate();
+    if (pHgsmi)
+    {
+        VBoxCrHgsmiDestroy(pHgsmi);
+        return true;
+    }
+#endif
+    return false;
+}
+#endif /* RT_OS_WINDOWS && VBOX_WITH_WDDM */
+
 static SPUFunctions *
 packSPUInit( int id, SPU *child, SPU *self,
                          unsigned int context_id,
@@ -42,12 +62,17 @@ packSPUInit( int id, SPU *child, SPU *self,
     crInitMutex(&_PackMutex);
 #endif
 
+#ifdef CHROMIUM_THREADSAFE
+    crInitTSD(&_PackerTSD);
+    crInitTSD(&_PackTSD);
+#endif
+
     pack_spu.id = id;
 
     packspuSetVBoxConfiguration( child );
 
 #if defined(WINDOWS) && defined(VBOX_WITH_WDDM)
-    pack_spu.bRunningUnderWDDM = !!GetModuleHandle(VBOX_MODNAME_DISPD3D);
+    pack_spu.bIsWDDMCrHgsmi = isVBoxWDDMCrHgsmi();
 #endif
 
 #ifdef VBOX_WITH_CRPACKSPU_DUMPER
@@ -98,15 +123,14 @@ packSPUCleanup(void)
         }
     }
 
+#ifdef CHROMIUM_THREADSAFE
     crFreeTSD(&_PackerTSD);
     crFreeTSD(&_PackTSD);
-    
-#ifdef CHROMIUM_THREADSAFE
     crUnlockMutex(&_PackMutex);
 # ifndef WINDOWS
     crFreeMutex(&_PackMutex);
 # endif
-#endif
+#endif /* CHROMIUM_THREADSAFE */
     return 1;
 }
 

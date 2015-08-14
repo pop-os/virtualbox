@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -125,6 +125,7 @@
 #include <VBox/vmm/vmm.h>
 #include <VBox/vmm/mm.h>
 #include <VBox/vmm/hm.h>
+#include <VBox/vmm/gim.h>
 #include <VBox/vmm/ssm.h>
 #include <VBox/vmm/dbgf.h>
 #include <VBox/vmm/dbgftrace.h>
@@ -166,6 +167,7 @@
 *   Internal Functions                                                         *
 *******************************************************************************/
 static bool                 tmR3HasFixedTSC(PVM pVM);
+static const char *         tmR3GetTSCModeName(PVM pVM);
 static uint64_t             tmR3CalibrateTSC(PVM pVM);
 static DECLCALLBACK(int)    tmR3Save(PVM pVM, PSSMHANDLE pSSM);
 static DECLCALLBACK(int)    tmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass);
@@ -179,6 +181,7 @@ static DECLCALLBACK(void)   tmR3CpuLoadTimer(PVM pVM, PTMTIMER pTimer, void *pvU
 static DECLCALLBACK(void)   tmR3TimerInfo(PVM pVM, PCDBGFINFOHLP pHlp, const char *pszArgs);
 static DECLCALLBACK(void)   tmR3TimerInfoActive(PVM pVM, PCDBGFINFOHLP pHlp, const char *pszArgs);
 static DECLCALLBACK(void)   tmR3InfoClocks(PVM pVM, PCDBGFINFOHLP pHlp, const char *pszArgs);
+static DECLCALLBACK(VBOXSTRICTRC) tmR3CpuTickParavirtDisable(PVM pVM, PVMCPU pVCpu, void *pvData);
 
 
 /**
@@ -226,10 +229,12 @@ VMM_INT_DECL(int) TMR3Init(PVM pVM)
      * the GIP into the guest context so we can do this calculation there
      * as well and save costly world switches.
      */
-    pVM->tm.s.pvGIPR3 = (void *)g_pSUPGlobalInfoPage;
+    PSUPGLOBALINFOPAGE pGip = g_pSUPGlobalInfoPage;
+    pVM->tm.s.pvGIPR3 = (void *)pGip;
     AssertMsgReturn(pVM->tm.s.pvGIPR3, ("GIP support is now required!\n"), VERR_TM_GIP_REQUIRED);
-    AssertMsgReturn((g_pSUPGlobalInfoPage->u32Version >> 16) == (SUPGLOBALINFOPAGE_VERSION >> 16),
-                    ("Unsupported GIP version!\n"), VERR_TM_GIP_VERSION);
+    AssertMsgReturn((pGip->u32Version >> 16) == (SUPGLOBALINFOPAGE_VERSION >> 16),
+                    ("Unsupported GIP version %#x! (expected=%#x)\n", pGip->u32Version, SUPGLOBALINFOPAGE_VERSION),
+                    VERR_TM_GIP_VERSION);
 
     RTHCPHYS HCPhysGIP;
     rc = SUPR3GipGetPhys(&HCPhysGIP);
@@ -237,7 +242,7 @@ VMM_INT_DECL(int) TMR3Init(PVM pVM)
 
     RTGCPTR GCPtr;
 #ifdef SUP_WITH_LOTS_OF_CPUS
-    rc = MMR3HyperMapHCPhys(pVM, pVM->tm.s.pvGIPR3, NIL_RTR0PTR, HCPhysGIP, (size_t)g_pSUPGlobalInfoPage->cPages * PAGE_SIZE,
+    rc = MMR3HyperMapHCPhys(pVM, pVM->tm.s.pvGIPR3, NIL_RTR0PTR, HCPhysGIP, (size_t)pGip->cPages * PAGE_SIZE,
                             "GIP", &GCPtr);
 #else
     rc = MMR3HyperMapHCPhys(pVM, pVM->tm.s.pvGIPR3, NIL_RTR0PTR, HCPhysGIP, PAGE_SIZE, "GIP", &GCPtr);
@@ -252,41 +257,39 @@ VMM_INT_DECL(int) TMR3Init(PVM pVM)
     MMR3HyperReserve(pVM, PAGE_SIZE, "fence", NULL);
 
     /* Check assumptions made in TMAllVirtual.cpp about the GIP update interval. */
-    if (    g_pSUPGlobalInfoPage->u32Magic == SUPGLOBALINFOPAGE_MAGIC
-        &&  g_pSUPGlobalInfoPage->u32UpdateIntervalNS >= 250000000 /* 0.25s */)
+    if (    pGip->u32Magic == SUPGLOBALINFOPAGE_MAGIC
+        &&  pGip->u32UpdateIntervalNS >= 250000000 /* 0.25s */)
         return VMSetError(pVM, VERR_TM_GIP_UPDATE_INTERVAL_TOO_BIG, RT_SRC_POS,
                           N_("The GIP update interval is too big. u32UpdateIntervalNS=%RU32 (u32UpdateHz=%RU32)"),
-                          g_pSUPGlobalInfoPage->u32UpdateIntervalNS, g_pSUPGlobalInfoPage->u32UpdateHz);
-    LogRel(("TM: GIP - u32Mode=%d (%s) u32UpdateHz=%u\n", g_pSUPGlobalInfoPage->u32Mode,
-            g_pSUPGlobalInfoPage->u32Mode == SUPGIPMODE_SYNC_TSC ? "SyncTSC"
-            : g_pSUPGlobalInfoPage->u32Mode == SUPGIPMODE_ASYNC_TSC ? "AsyncTSC" : "Unknown",
-            g_pSUPGlobalInfoPage->u32UpdateHz));
+                          pGip->u32UpdateIntervalNS, pGip->u32UpdateHz);
+
+    /* Log GIP info that may come in handy. */
+    LogRel(("TM: GIP - u32Mode=%d (%s) u32UpdateHz=%u u32UpdateIntervalNS=%u enmUseTscDelta=%d (%s) fGetGipCpu=%#x cCpus=%d\n",
+            pGip->u32Mode, SUPGetGIPModeName(pGip), pGip->u32UpdateHz, pGip->u32UpdateIntervalNS,
+            pGip->enmUseTscDelta, SUPGetGIPTscDeltaModeName(pGip), pGip->fGetGipCpu, pGip->cCpus));
+    LogRel(("TM: GIP - u64CpuHz=%'RU64 (%#RX64)  SUPGetCpuHzFromGip => %'RU64\n",
+            pGip->u64CpuHz, pGip->u64CpuHz, SUPGetCpuHzFromGip(pGip)));
+    for (uint32_t iCpuSet = 0; iCpuSet < RT_ELEMENTS(pGip->aiCpuFromCpuSetIdx); iCpuSet++)
+    {
+        uint16_t iGipCpu = pGip->aiCpuFromCpuSetIdx[iCpuSet];
+        if (iGipCpu != UINT16_MAX)
+            LogRel(("TM: GIP - CPU: iCpuSet=%#x idCpu=%#x idApic=%#x iGipCpu=%#x i64TSCDelta=%RI64 enmState=%d u64CpuHz=%RU64(*) cErrors=%u\n",
+                    iCpuSet, pGip->aCPUs[iGipCpu].idCpu, pGip->aCPUs[iGipCpu].idApic, iGipCpu, pGip->aCPUs[iGipCpu].i64TSCDelta,
+                    pGip->aCPUs[iGipCpu].enmState, pGip->aCPUs[iGipCpu].u64CpuHz, pGip->aCPUs[iGipCpu].cErrors));
+    }
 
     /*
      * Setup the VirtualGetRaw backend.
      */
-    pVM->tm.s.VirtualGetRawDataR3.pu64Prev = &pVM->tm.s.u64VirtualRawPrev;
-    pVM->tm.s.VirtualGetRawDataR3.pfnBad = tmVirtualNanoTSBad;
-    pVM->tm.s.VirtualGetRawDataR3.pfnRediscover = tmVirtualNanoTSRediscover;
-    if (ASMCpuId_EDX(1) & X86_CPUID_FEATURE_EDX_SSE2)
-    {
-        if (g_pSUPGlobalInfoPage->u32Mode == SUPGIPMODE_SYNC_TSC)
-            pVM->tm.s.pfnVirtualGetRawR3 = RTTimeNanoTSLFenceSync;
-        else
-            pVM->tm.s.pfnVirtualGetRawR3 = RTTimeNanoTSLFenceAsync;
-    }
-    else
-    {
-        if (g_pSUPGlobalInfoPage->u32Mode == SUPGIPMODE_SYNC_TSC)
-            pVM->tm.s.pfnVirtualGetRawR3 = RTTimeNanoTSLegacySync;
-        else
-            pVM->tm.s.pfnVirtualGetRawR3 = RTTimeNanoTSLegacyAsync;
-    }
-
-    pVM->tm.s.VirtualGetRawDataRC.pu64Prev = MMHyperR3ToRC(pVM, (void *)&pVM->tm.s.u64VirtualRawPrev);
-    pVM->tm.s.VirtualGetRawDataR0.pu64Prev = MMHyperR3ToR0(pVM, (void *)&pVM->tm.s.u64VirtualRawPrev);
+    pVM->tm.s.pfnVirtualGetRawR3                 = tmVirtualNanoTSRediscover;
+    pVM->tm.s.VirtualGetRawDataR3.pfnRediscover  = tmVirtualNanoTSRediscover;
+    pVM->tm.s.VirtualGetRawDataR3.pfnBad         = tmVirtualNanoTSBadPrev;
+    pVM->tm.s.VirtualGetRawDataR3.pfnBadCpuIndex = tmVirtualNanoTSBadCpuIndex;
+    pVM->tm.s.VirtualGetRawDataR3.pu64Prev       = &pVM->tm.s.u64VirtualRawPrev;
+    pVM->tm.s.VirtualGetRawDataRC.pu64Prev       = MMHyperR3ToRC(pVM, (void *)&pVM->tm.s.u64VirtualRawPrev);
+    pVM->tm.s.VirtualGetRawDataR0.pu64Prev       = MMHyperR3ToR0(pVM, (void *)&pVM->tm.s.u64VirtualRawPrev);
     AssertRelease(pVM->tm.s.VirtualGetRawDataR0.pu64Prev);
-    /* The rest is done in TMR3InitFinalize since it's too early to call PDM. */
+    /* The rest is done in TMR3InitFinalize() since it's too early to call PDM. */
 
     /*
      * Init the locks.
@@ -309,65 +312,113 @@ VMM_INT_DECL(int) TMR3Init(PVM pVM)
     }
 
     /*
+     * Specific errors about some obsolete TM settings (remove after 2015-12-03).
+     */
+    if (CFGMR3Exists(pCfgHandle, "TSCVirtualized"))
+        return VMSetError(pVM, VERR_CFGM_CONFIG_UNKNOWN_VALUE, RT_SRC_POS,
+                          N_("Configuration error: TM setting \"TSCVirtualized\" is no longer supported. Use the \"Mode\" setting instead."));
+    if (CFGMR3Exists(pCfgHandle, "UseRealTSC"))
+        return VMSetError(pVM, VERR_CFGM_CONFIG_UNKNOWN_VALUE, RT_SRC_POS,
+                          N_("Configuration error: TM setting \"UseRealTSC\" is no longer supported. Use the \"Mode\" setting instead."));
+
+    if (CFGMR3Exists(pCfgHandle, "MaybeUseOffsettedHostTSC"))
+        return VMSetError(pVM, VERR_CFGM_CONFIG_UNKNOWN_VALUE, RT_SRC_POS,
+                          N_("Configuration error: TM setting \"MaybeUseOffsettedHostTSC\" is no longer supported. Use the \"Mode\" setting instead."));
+
+    /*
+     * Validate the rest of the TM settings.
+     */
+    rc = CFGMR3ValidateConfig(pCfgHandle, "/TM/",
+                              "TSCMode|"
+                              "TSCModeSwitchAllowed|"
+                              "TSCTicksPerSecond|"
+                              "TSCTiedToExecution|"
+                              "TSCNotTiedToHalt|"
+                              "ScheduleSlack|"
+                              "CatchUpStopThreshold|"
+                              "CatchUpGiveUpThreshold|"
+                              "CatchUpStartThreshold0|CatchUpStartThreshold1|CatchUpStartThreshold2|CatchUpStartThreshold3|"
+                              "CatchUpStartThreshold4|CatchUpStartThreshold5|CatchUpStartThreshold6|CatchUpStartThreshold7|"
+                              "CatchUpStartThreshold8|CatchUpStartThreshold9|"
+                              "CatchUpPrecentage0|CatchUpPrecentage1|CatchUpPrecentage2|CatchUpPrecentage3|"
+                              "CatchUpPrecentage4|CatchUpPrecentage5|CatchUpPrecentage6|CatchUpPrecentage7|"
+                              "CatchUpPrecentage8|CatchUpPrecentage9|"
+                              "UTCOffset|"
+                              "WarpDrivePercentage|"
+                              "HostHzMax|"
+                              "HostHzFudgeFactorTimerCpu|"
+                              "HostHzFudgeFactorOtherCpu|"
+                              "HostHzFudgeFactorCatchUp100|"
+                              "HostHzFudgeFactorCatchUp200|"
+                              "HostHzFudgeFactorCatchUp400|"
+                              "TimerMillies",
+                              "",
+                              "TM", 0);
+    if (RT_FAILURE(rc))
+        return rc;
+
+    /*
      * Determine the TSC configuration and frequency.
      */
-    /* mode */
-    /** @cfgm{/TM/TSCVirtualized,bool,true}
-     * Use a virtualize TSC, i.e. trap all TSC access. */
-    rc = CFGMR3QueryBool(pCfgHandle, "TSCVirtualized", &pVM->tm.s.fTSCVirtualized);
-    if (rc == VERR_CFGM_VALUE_NOT_FOUND)
-        pVM->tm.s.fTSCVirtualized = true; /* trap rdtsc */
-    else if (RT_FAILURE(rc))
-        return VMSetError(pVM, rc, RT_SRC_POS,
-                          N_("Configuration error: Failed to querying bool value \"UseRealTSC\""));
-
-    /* source */
-    /** @cfgm{/TM/UseRealTSC,bool,false}
-     * Use the real TSC as time source for the TSC instead of the synchronous
-     * virtual clock (false, default). */
-    rc = CFGMR3QueryBool(pCfgHandle, "UseRealTSC", &pVM->tm.s.fTSCUseRealTSC);
-    if (rc == VERR_CFGM_VALUE_NOT_FOUND)
-        pVM->tm.s.fTSCUseRealTSC = false; /* use virtual time */
-    else if (RT_FAILURE(rc))
-        return VMSetError(pVM, rc, RT_SRC_POS,
-                          N_("Configuration error: Failed to querying bool value \"UseRealTSC\""));
-    if (!pVM->tm.s.fTSCUseRealTSC)
-        pVM->tm.s.fTSCVirtualized = true;
-
-    /* TSC reliability */
-    /** @cfgm{/TM/MaybeUseOffsettedHostTSC,bool,detect}
-     * Whether the CPU has a fixed TSC rate and may be used in offsetted mode with
-     * VT-x/AMD-V execution.  This is autodetected in a very restrictive way by
-     * default. */
-    rc = CFGMR3QueryBool(pCfgHandle, "MaybeUseOffsettedHostTSC", &pVM->tm.s.fMaybeUseOffsettedHostTSC);
+    /** @cfgm{/TM/TSCMode, string, Depends on the CPU and VM config}
+     * The name of the TSC mode to use: VirtTSCEmulated, RealTSCOffset or Dynamic.
+     * The default depends on the VM configuration and the capabilities of the
+     * host CPU.  Other config options or runtime changes may override the TSC
+     * mode specified here.
+     */
+    char szTSCMode[32];
+    rc = CFGMR3QueryString(pCfgHandle, "TSCMode", szTSCMode, sizeof(szTSCMode));
     if (rc == VERR_CFGM_VALUE_NOT_FOUND)
     {
-        if (!pVM->tm.s.fTSCUseRealTSC)
-            pVM->tm.s.fMaybeUseOffsettedHostTSC = tmR3HasFixedTSC(pVM);
+        /** @todo Rainy-day/never: Dynamic mode isn't currently suitable for SMP VMs, so
+         * fall back on the more expensive emulated mode. With the current TSC handling
+         * (frequent switching between offsetted mode and taking VM exits, on all VCPUs
+         * without any kind of coordination) will lead to inconsistent TSC behavior with
+         * guest SMP, including TSC going backwards. */
+        pVM->tm.s.enmTSCMode = pVM->cCpus == 1 && tmR3HasFixedTSC(pVM) ? TMTSCMODE_DYNAMIC : TMTSCMODE_VIRT_TSC_EMULATED;
+    }
+    else if (RT_FAILURE(rc))
+        return VMSetError(pVM, rc, RT_SRC_POS, N_("Configuration error: Failed to querying string value \"TSCMode\""));
+    else
+    {
+        if (!RTStrCmp(szTSCMode, "VirtTSCEmulated"))
+            pVM->tm.s.enmTSCMode = TMTSCMODE_VIRT_TSC_EMULATED;
+        else if (!RTStrCmp(szTSCMode, "RealTSCOffset"))
+            pVM->tm.s.enmTSCMode = TMTSCMODE_REAL_TSC_OFFSET;
+        else if (!RTStrCmp(szTSCMode, "Dynamic"))
+            pVM->tm.s.enmTSCMode = TMTSCMODE_DYNAMIC;
         else
-            pVM->tm.s.fMaybeUseOffsettedHostTSC = true;
-        /** @todo needs a better fix, for now disable offsetted mode for VMs
-         * with more than one VCPU. With the current TSC handling (frequent
-         * switching between offsetted mode and taking VM exits, on all VCPUs
-         * without any kind of coordination) it will lead to inconsistent TSC
-         * behavior with guest SMP, including TSC going backwards. */
-        if (pVM->cCpus != 1)
-            pVM->tm.s.fMaybeUseOffsettedHostTSC = false;
+            return VMSetError(pVM, rc, RT_SRC_POS, N_("Configuration error: Unrecognized TM TSC mode value \"%s\""), szTSCMode);
     }
 
-    /** @cfgm{TM/TSCTicksPerSecond, uint32_t, Current TSC frequency from GIP}
+    /**
+     * @cfgm{/TM/TSCModeSwitchAllowed, bool, Whether TM TSC mode switch is allowed
+     *      at runtime}
+     * When using paravirtualized guests, we dynamically switch TSC modes to a more
+     * optimal one for performance. This setting allows overriding this behaviour.
+     */
+    rc = CFGMR3QueryBool(pCfgHandle, "TSCModeSwitchAllowed", &pVM->tm.s.fTSCModeSwitchAllowed);
+    if (rc == VERR_CFGM_VALUE_NOT_FOUND)
+    {
+        /* This is finally determined in TMR3InitFinalize() as GIM isn't initialized yet. */
+        pVM->tm.s.fTSCModeSwitchAllowed = true;
+    }
+    else if (RT_FAILURE(rc))
+        return VMSetError(pVM, rc, RT_SRC_POS, N_("Configuration error: Failed to querying bool value \"TSCModeSwitchAllowed\""));
+
+    /** @cfgm{/TM/TSCTicksPerSecond, uint32_t, Current TSC frequency from GIP}
      * The number of TSC ticks per second (i.e. the TSC frequency). This will
-     * override TSCUseRealTSC, TSCVirtualized and MaybeUseOffsettedHostTSC.
+     * override enmTSCMode.
      */
     rc = CFGMR3QueryU64(pCfgHandle, "TSCTicksPerSecond", &pVM->tm.s.cTSCTicksPerSecond);
     if (rc == VERR_CFGM_VALUE_NOT_FOUND)
     {
         pVM->tm.s.cTSCTicksPerSecond = tmR3CalibrateTSC(pVM);
-        if (    !pVM->tm.s.fTSCUseRealTSC
-            &&  pVM->tm.s.cTSCTicksPerSecond >= _4G)
+        if (   pVM->tm.s.enmTSCMode != TMTSCMODE_REAL_TSC_OFFSET
+            && pVM->tm.s.cTSCTicksPerSecond >= _4G)
         {
             pVM->tm.s.cTSCTicksPerSecond = _4G - 1; /* (A limitation of our math code) */
-            pVM->tm.s.fMaybeUseOffsettedHostTSC = false;
+            pVM->tm.s.enmTSCMode = TMTSCMODE_VIRT_TSC_EMULATED;
         }
     }
     else if (RT_FAILURE(rc))
@@ -380,11 +431,10 @@ VMM_INT_DECL(int) TMR3Init(PVM pVM)
                           pVM->tm.s.cTSCTicksPerSecond);
     else
     {
-        pVM->tm.s.fTSCUseRealTSC = pVM->tm.s.fMaybeUseOffsettedHostTSC = false;
-        pVM->tm.s.fTSCVirtualized = true;
+        pVM->tm.s.enmTSCMode = TMTSCMODE_VIRT_TSC_EMULATED;
     }
 
-    /** @cfgm{TM/TSCTiedToExecution, bool, false}
+    /** @cfgm{/TM/TSCTiedToExecution, bool, false}
      * Whether the TSC should be tied to execution. This will exclude most of the
      * virtualization overhead, but will by default include the time spent in the
      * halt state (see TM/TSCNotTiedToHalt). This setting will override all other
@@ -396,14 +446,9 @@ VMM_INT_DECL(int) TMR3Init(PVM pVM)
         return VMSetError(pVM, rc, RT_SRC_POS,
                           N_("Configuration error: Failed to querying bool value \"TSCTiedToExecution\""));
     if (pVM->tm.s.fTSCTiedToExecution)
-    {
-        /* tied to execution, override all other settings. */
-        pVM->tm.s.fTSCVirtualized = true;
-        pVM->tm.s.fTSCUseRealTSC = true;
-        pVM->tm.s.fMaybeUseOffsettedHostTSC = false;
-    }
+        pVM->tm.s.enmTSCMode = TMTSCMODE_VIRT_TSC_EMULATED;
 
-    /** @cfgm{TM/TSCNotTiedToHalt, bool, true}
+    /** @cfgm{/TM/TSCNotTiedToHalt, bool, true}
      * For overriding the default of TM/TSCTiedToExecution, i.e. set this to false
      * to make the TSC freeze during HLT. */
     rc = CFGMR3QueryBoolDef(pCfgHandle, "TSCNotTiedToHalt", &pVM->tm.s.fTSCNotTiedToHalt, false);
@@ -411,20 +456,10 @@ VMM_INT_DECL(int) TMR3Init(PVM pVM)
         return VMSetError(pVM, rc, RT_SRC_POS,
                           N_("Configuration error: Failed to querying bool value \"TSCNotTiedToHalt\""));
 
-    /* setup and report */
-    if (pVM->tm.s.fTSCVirtualized)
-        CPUMR3SetCR4Feature(pVM, X86_CR4_TSD, ~X86_CR4_TSD);
-    else
-        CPUMR3SetCR4Feature(pVM, 0, ~X86_CR4_TSD);
-    LogRel(("TM: cTSCTicksPerSecond=%#RX64 (%'RU64) fTSCVirtualized=%RTbool fTSCUseRealTSC=%RTbool\n"
-            "TM: fMaybeUseOffsettedHostTSC=%RTbool TSCTiedToExecution=%RTbool TSCNotTiedToHalt=%RTbool\n",
-            pVM->tm.s.cTSCTicksPerSecond, pVM->tm.s.cTSCTicksPerSecond, pVM->tm.s.fTSCVirtualized, pVM->tm.s.fTSCUseRealTSC,
-            pVM->tm.s.fMaybeUseOffsettedHostTSC, pVM->tm.s.fTSCTiedToExecution, pVM->tm.s.fTSCNotTiedToHalt));
-
     /*
      * Configure the timer synchronous virtual time.
      */
-    /** @cfgm{TM/ScheduleSlack, uint32_t, ns, 0, UINT32_MAX, 100000}
+    /** @cfgm{/TM/ScheduleSlack, uint32_t, ns, 0, UINT32_MAX, 100000}
      * Scheduling slack when processing timers. */
     rc = CFGMR3QueryU32(pCfgHandle, "ScheduleSlack", &pVM->tm.s.u32VirtualSyncScheduleSlack);
     if (rc == VERR_CFGM_VALUE_NOT_FOUND)
@@ -433,7 +468,7 @@ VMM_INT_DECL(int) TMR3Init(PVM pVM)
         return VMSetError(pVM, rc, RT_SRC_POS,
                           N_("Configuration error: Failed to querying 32-bit integer value \"ScheduleSlack\""));
 
-    /** @cfgm{TM/CatchUpStopThreshold, uint64_t, ns, 0, UINT64_MAX, 500000}
+    /** @cfgm{/TM/CatchUpStopThreshold, uint64_t, ns, 0, UINT64_MAX, 500000}
      * When to stop a catch-up, considering it successful. */
     rc = CFGMR3QueryU64(pCfgHandle, "CatchUpStopThreshold", &pVM->tm.s.u64VirtualSyncCatchUpStopThreshold);
     if (rc == VERR_CFGM_VALUE_NOT_FOUND)
@@ -442,7 +477,7 @@ VMM_INT_DECL(int) TMR3Init(PVM pVM)
         return VMSetError(pVM, rc, RT_SRC_POS,
                           N_("Configuration error: Failed to querying 64-bit integer value \"CatchUpStopThreshold\""));
 
-    /** @cfgm{TM/CatchUpGiveUpThreshold, uint64_t, ns, 0, UINT64_MAX, 60000000000}
+    /** @cfgm{/TM/CatchUpGiveUpThreshold, uint64_t, ns, 0, UINT64_MAX, 60000000000}
      * When to give up a catch-up attempt. */
     rc = CFGMR3QueryU64(pCfgHandle, "CatchUpGiveUpThreshold", &pVM->tm.s.u64VirtualSyncCatchUpGiveUpThreshold);
     if (rc == VERR_CFGM_VALUE_NOT_FOUND)
@@ -452,9 +487,9 @@ VMM_INT_DECL(int) TMR3Init(PVM pVM)
                           N_("Configuration error: Failed to querying 64-bit integer value \"CatchUpGiveUpThreshold\""));
 
 
-    /** @cfgm{TM/CatchUpPrecentage[0..9], uint32_t, %, 1, 2000, various}
+    /** @cfgm{/TM/CatchUpPrecentage[0..9], uint32_t, %, 1, 2000, various}
      * The catch-up percent for a given period.  */
-    /** @cfgm{TM/CatchUpStartThreshold[0..9], uint64_t, ns, 0, UINT64_MAX}
+    /** @cfgm{/TM/CatchUpStartThreshold[0..9], uint64_t, ns, 0, UINT64_MAX}
      * The catch-up period threshold, or if you like, when a period starts.  */
 #define TM_CFG_PERIOD(iPeriod, DefStart, DefPct) \
     do \
@@ -492,7 +527,7 @@ VMM_INT_DECL(int) TMR3Init(PVM pVM)
     /*
      * Configure real world time (UTC).
      */
-    /** @cfgm{TM/UTCOffset, int64_t, ns, INT64_MIN, INT64_MAX, 0}
+    /** @cfgm{/TM/UTCOffset, int64_t, ns, INT64_MIN, INT64_MAX, 0}
      * The UTC offset. This is used to put the guest back or forwards in time.  */
     rc = CFGMR3QueryS64(pCfgHandle, "UTCOffset", &pVM->tm.s.offUTC);
     if (rc == VERR_CFGM_VALUE_NOT_FOUND)
@@ -504,7 +539,7 @@ VMM_INT_DECL(int) TMR3Init(PVM pVM)
     /*
      * Setup the warp drive.
      */
-    /** @cfgm{TM/WarpDrivePercentage, uint32_t, %, 0, 20000, 100}
+    /** @cfgm{/TM/WarpDrivePercentage, uint32_t, %, 0, 20000, 100}
      * The warp drive percentage, 100% is normal speed.  This is used to speed up
      * or slow down the virtual clock, which can be useful for fast forwarding
      * borring periods during tests. */
@@ -523,7 +558,10 @@ VMM_INT_DECL(int) TMR3Init(PVM pVM)
                           pVM->tm.s.u32VirtualWarpDrivePercentage);
     pVM->tm.s.fVirtualWarpDrive = pVM->tm.s.u32VirtualWarpDrivePercentage != 100;
     if (pVM->tm.s.fVirtualWarpDrive)
-        LogRel(("TM: u32VirtualWarpDrivePercentage=%RI32\n", pVM->tm.s.u32VirtualWarpDrivePercentage));
+    {
+        pVM->tm.s.enmTSCMode = TMTSCMODE_VIRT_TSC_EMULATED;
+        LogRel(("TM: Warp-drive active. u32VirtualWarpDrivePercentage=%RI32\n", pVM->tm.s.u32VirtualWarpDrivePercentage));
+    }
 
     /*
      * Gather the Host Hz configuration values.
@@ -559,9 +597,19 @@ VMM_INT_DECL(int) TMR3Init(PVM pVM)
                           N_("Configuration error: Failed to querying uint32_t value \"HostHzFudgeFactorCatchUp400\""));
 
     /*
+     * Finally, setup and report.
+     */
+    pVM->tm.s.enmOriginalTSCMode = pVM->tm.s.enmTSCMode;
+    CPUMR3SetCR4Feature(pVM, X86_CR4_TSD, ~X86_CR4_TSD);
+    LogRel(("TM: cTSCTicksPerSecond=%'RU64 (%#RX64) enmTSCMode=%d (%s)\n"
+            "TM: TSCTiedToExecution=%RTbool TSCNotTiedToHalt=%RTbool\n",
+            pVM->tm.s.cTSCTicksPerSecond, pVM->tm.s.cTSCTicksPerSecond, pVM->tm.s.enmTSCMode, tmR3GetTSCModeName(pVM),
+            pVM->tm.s.fTSCTiedToExecution, pVM->tm.s.fTSCNotTiedToHalt));
+
+    /*
      * Start the timer (guard against REM not yielding).
      */
-    /** @cfgm{TM/TimerMillies, uint32_t, ms, 1, 1000, 10}
+    /** @cfgm{/TM/TimerMillies, uint32_t, ms, 1, 1000, 10}
      * The watchdog timer interval.  */
     uint32_t u32Millies;
     rc = CFGMR3QueryU32(pCfgHandle, "TimerMillies", &u32Millies);
@@ -686,6 +734,7 @@ VMM_INT_DECL(int) TMR3Init(PVM pVM)
     STAM_REG(pVM, &pVM->tm.s.StatVirtualResume,                       STAMTYPE_COUNTER, "/TM/VirtualResume",                   STAMUNIT_OCCURENCES, "The number of times TMR3TimerResume was called.");
 
     STAM_REG(pVM, &pVM->tm.s.StatTimerCallbackSetFF,                  STAMTYPE_COUNTER, "/TM/CallbackSetFF",                   STAMUNIT_OCCURENCES, "The number of times the timer callback set FF.");
+    STAM_REG(pVM, &pVM->tm.s.StatTimerCallback,                       STAMTYPE_COUNTER, "/TM/Callback",                        STAMUNIT_OCCURENCES, "The number of times the timer callback is invoked.");
 
     STAM_REG(pVM, &pVM->tm.s.StatTSCCatchupLE010,                     STAMTYPE_COUNTER, "/TM/TSC/Intercept/CatchupLE010",      STAMUNIT_OCCURENCES, "In catch-up mode, 10% or lower.");
     STAM_REG(pVM, &pVM->tm.s.StatTSCCatchupLE025,                     STAMTYPE_COUNTER, "/TM/TSC/Intercept/CatchupLE025",      STAMUNIT_OCCURENCES, "In catch-up mode, 25%-11%.");
@@ -768,16 +817,42 @@ VMM_INT_DECL(int) TMR3Init(PVM pVM)
  *
  * @returns true if it has, false if it hasn't.
  *
- * @remark  This test doesn't bother with very old CPUs that don't do power
+ * @remarks This test doesn't bother with very old CPUs that don't do power
  *          management or any other stuff that might influence the TSC rate.
  *          This isn't currently relevant.
  */
 static bool tmR3HasFixedTSC(PVM pVM)
 {
+    /*
+     * ASSUME that if the GIP is in invariant TSC mode, it's because the CPU
+     * actually has invariant TSC.
+     */
+    PSUPGLOBALINFOPAGE pGip = g_pSUPGlobalInfoPage;
+    if (pGip->u32Mode == SUPGIPMODE_INVARIANT_TSC)
+        return true;
+
+    /*
+     * Go by features and model info from the CPUID instruction.
+     */
     if (ASMHasCpuId())
     {
         uint32_t uEAX, uEBX, uECX, uEDX;
 
+        /*
+         * By feature. (Used to be AMD specific, intel seems to have picked it up.)
+         */
+        ASMCpuId(0x80000000, &uEAX, &uEBX, &uECX, &uEDX);
+        if (uEAX >= 0x80000007 && ASMIsValidExtRange(uEAX))
+        {
+            ASMCpuId(0x80000007, &uEAX, &uEBX, &uECX, &uEDX);
+            if (   (uEDX & X86_CPUID_AMD_ADVPOWER_EDX_TSCINVAR) /* TscInvariant */
+                && pGip->u32Mode != SUPGIPMODE_ASYNC_TSC)       /* No fixed tsc if the gip timer is in async mode. */
+                return true;
+        }
+
+        /*
+         * By model.
+         */
         if (CPUMGetHostCpuVendor(pVM) == CPUMCPUVENDOR_AMD)
         {
             /*
@@ -787,16 +862,17 @@ static bool tmR3HasFixedTSC(PVM pVM)
              * older models, but this isn't relevant since the result is currently
              * only used for making a decision on AMD-V models.
              */
+#if 0 /* Promoted to generic */
             ASMCpuId(0x80000000, &uEAX, &uEBX, &uECX, &uEDX);
             if (uEAX >= 0x80000007)
             {
-                PSUPGLOBALINFOPAGE pGip = g_pSUPGlobalInfoPage;
-
                 ASMCpuId(0x80000007, &uEAX, &uEBX, &uECX, &uEDX);
                 if (   (uEDX & X86_CPUID_AMD_ADVPOWER_EDX_TSCINVAR) /* TscInvariant */
-                    && pGip->u32Mode == SUPGIPMODE_SYNC_TSC /* no fixed tsc if the gip timer is in async mode */)
+                    && (   pGip->u32Mode == SUPGIPMODE_SYNC_TSC     /* No fixed tsc if the gip timer is in async mode. */
+                        || pGip->u32Mode == SUPGIPMODE_INVARIANT_TSC))
                     return true;
             }
+#endif
         }
         else if (CPUMGetHostCpuVendor(pVM) == CPUMCPUVENDOR_INTEL)
         {
@@ -806,6 +882,7 @@ static bool tmR3HasFixedTSC(PVM pVM)
              * This test is lacking in the same way and for the same reasons
              * as the AMD test above.
              */
+            /** @todo use ASMGetCpuFamily() and ASMGetCpuModel() here. */
             ASMCpuId(1, &uEAX, &uEBX, &uECX, &uEDX);
             unsigned uModel  = (uEAX >> 4) & 0x0f;
             unsigned uFamily = (uEAX >> 8) & 0x0f;
@@ -825,6 +902,7 @@ static bool tmR3HasFixedTSC(PVM pVM)
              * This only checks for VIA CPU models Nano X2, Nano X3,
              * Eden X2 and QuadCore.
              */
+            /** @todo use ASMGetCpuFamily() and ASMGetCpuModel() here. */
             ASMCpuId(1, &uEAX, &uEBX, &uECX, &uEDX);
             unsigned uStepping = (uEAX & 0x0f);
             unsigned uModel    = (uEAX >> 4) & 0x0f;
@@ -833,9 +911,7 @@ static bool tmR3HasFixedTSC(PVM pVM)
                 && uModel    == 0x0f
                 && uStepping >= 0x0c
                 && uStepping <= 0x0f)
-            {
                 return true;
-            }
         }
     }
     return false;
@@ -849,29 +925,28 @@ static bool tmR3HasFixedTSC(PVM pVM)
  */
 static uint64_t tmR3CalibrateTSC(PVM pVM)
 {
+    uint64_t u64Hz;
+
     /*
-     * Use GIP when available present.
+     * Use GIP when available. Prefere the nominal one, no need to wait for it.
      */
-    uint64_t u64Hz = SUPGetCpuHzFromGIP(g_pSUPGlobalInfoPage);
-    if (u64Hz != UINT64_MAX)
+    PSUPGLOBALINFOPAGE pGip = g_pSUPGlobalInfoPage;
+    if (pGip)
     {
-        if (tmR3HasFixedTSC(pVM))
-            /* Sleep a bit to get a more reliable CpuHz value. */
-            RTThreadSleep(32);
-        else
-        {
-            /* Spin for 40ms to try push up the CPU frequency and get a more reliable CpuHz value. */
-            const uint64_t u64 = RTTimeMilliTS();
-            while ((RTTimeMilliTS() - u64) < 40 /*ms*/)
-                /* nothing */;
-        }
-
-        u64Hz = SUPGetCpuHzFromGIP(g_pSUPGlobalInfoPage);
-        if (u64Hz != UINT64_MAX)
+        u64Hz = pGip->u64CpuHz;
+        if (u64Hz < _1T && u64Hz > _1M)
             return u64Hz;
-    }
+        AssertFailed(); /* This shouldn't happen. */
 
-    /* call this once first to make sure it's initialized. */
+        u64Hz = SUPGetCpuHzFromGip(pGip);
+        if (u64Hz < _1T && u64Hz > _1M)
+            return u64Hz;
+
+        AssertFailed(); /* This shouldn't happen. */
+    }
+    /* else: This should only happen in fake SUPLib mode, which we don't really support any more... */
+
+    /* Call this once first to make sure it's initialized. */
     RTTimeNanoTS();
 
     /*
@@ -943,38 +1018,22 @@ VMM_INT_DECL(int) TMR3InitFinalize(PVM pVM)
      */
     if (!HMIsEnabled(pVM))
     {
-        rc = PDMR3LdrGetSymbolRC(pVM, NULL, "tmVirtualNanoTSBad",          &pVM->tm.s.VirtualGetRawDataRC.pfnBad);
+        rc = PDMR3LdrGetSymbolRC(pVM, NULL, "tmVirtualNanoTSBadPrev",       &pVM->tm.s.VirtualGetRawDataRC.pfnBad);
         AssertRCReturn(rc, rc);
-        rc = PDMR3LdrGetSymbolRC(pVM, NULL, "tmVirtualNanoTSRediscover",   &pVM->tm.s.VirtualGetRawDataRC.pfnRediscover);
+        rc = PDMR3LdrGetSymbolRC(pVM, NULL, "tmVirtualNanoTSBadCpuIndex",   &pVM->tm.s.VirtualGetRawDataRC.pfnBadCpuIndex);
         AssertRCReturn(rc, rc);
-        if (pVM->tm.s.pfnVirtualGetRawR3       == RTTimeNanoTSLFenceSync)
-            rc = PDMR3LdrGetSymbolRC(pVM, NULL, "RTTimeNanoTSLFenceSync",  &pVM->tm.s.pfnVirtualGetRawRC);
-        else if (pVM->tm.s.pfnVirtualGetRawR3  == RTTimeNanoTSLFenceAsync)
-            rc = PDMR3LdrGetSymbolRC(pVM, NULL, "RTTimeNanoTSLFenceAsync", &pVM->tm.s.pfnVirtualGetRawRC);
-        else if (pVM->tm.s.pfnVirtualGetRawR3  == RTTimeNanoTSLegacySync)
-            rc = PDMR3LdrGetSymbolRC(pVM, NULL, "RTTimeNanoTSLegacySync",  &pVM->tm.s.pfnVirtualGetRawRC);
-        else if (pVM->tm.s.pfnVirtualGetRawR3  == RTTimeNanoTSLegacyAsync)
-            rc = PDMR3LdrGetSymbolRC(pVM, NULL, "RTTimeNanoTSLegacyAsync", &pVM->tm.s.pfnVirtualGetRawRC);
-        else
-            AssertFatalFailed();
+        rc = PDMR3LdrGetSymbolRC(pVM, NULL, "tmVirtualNanoTSRediscover",    &pVM->tm.s.VirtualGetRawDataRC.pfnRediscover);
         AssertRCReturn(rc, rc);
+        pVM->tm.s.pfnVirtualGetRawRC = pVM->tm.s.VirtualGetRawDataRC.pfnRediscover;
     }
 
-    rc = PDMR3LdrGetSymbolR0(pVM, NULL, "tmVirtualNanoTSBad",          &pVM->tm.s.VirtualGetRawDataR0.pfnBad);
+    rc = PDMR3LdrGetSymbolR0(pVM, NULL, "tmVirtualNanoTSBadPrev",       &pVM->tm.s.VirtualGetRawDataR0.pfnBad);
     AssertRCReturn(rc, rc);
-    rc = PDMR3LdrGetSymbolR0(pVM, NULL, "tmVirtualNanoTSRediscover",   &pVM->tm.s.VirtualGetRawDataR0.pfnRediscover);
+    rc = PDMR3LdrGetSymbolR0(pVM, NULL, "tmVirtualNanoTSBadCpuIndex",   &pVM->tm.s.VirtualGetRawDataR0.pfnBadCpuIndex);
     AssertRCReturn(rc, rc);
-    if (pVM->tm.s.pfnVirtualGetRawR3       == RTTimeNanoTSLFenceSync)
-        rc = PDMR3LdrGetSymbolR0(pVM, NULL, "RTTimeNanoTSLFenceSync",  &pVM->tm.s.pfnVirtualGetRawR0);
-    else if (pVM->tm.s.pfnVirtualGetRawR3  == RTTimeNanoTSLFenceAsync)
-        rc = PDMR3LdrGetSymbolR0(pVM, NULL, "RTTimeNanoTSLFenceAsync", &pVM->tm.s.pfnVirtualGetRawR0);
-    else if (pVM->tm.s.pfnVirtualGetRawR3  == RTTimeNanoTSLegacySync)
-        rc = PDMR3LdrGetSymbolR0(pVM, NULL, "RTTimeNanoTSLegacySync",  &pVM->tm.s.pfnVirtualGetRawR0);
-    else if (pVM->tm.s.pfnVirtualGetRawR3  == RTTimeNanoTSLegacyAsync)
-        rc = PDMR3LdrGetSymbolR0(pVM, NULL, "RTTimeNanoTSLegacyAsync", &pVM->tm.s.pfnVirtualGetRawR0);
-    else
-        AssertFatalFailed();
+    rc = PDMR3LdrGetSymbolR0(pVM, NULL, "tmVirtualNanoTSRediscover",    &pVM->tm.s.VirtualGetRawDataR0.pfnRediscover);
     AssertRCReturn(rc, rc);
+    pVM->tm.s.pfnVirtualGetRawR0 = pVM->tm.s.VirtualGetRawDataR0.pfnRediscover;
 
 #ifndef VBOX_WITHOUT_NS_ACCOUNTING
     /*
@@ -986,6 +1045,11 @@ VMM_INT_DECL(int) TMR3InitFinalize(PVM pVM)
         rc = TMTimerSetMillies(pTimer, 1000);
 #endif
 
+    /*
+     * GIM is now initialized. Determine if TSC mode switching is allowed (respecting CFGM override).
+     */
+    pVM->tm.s.fTSCModeSwitchAllowed &= tmR3HasFixedTSC(pVM) && GIMIsEnabled(pVM) && HMIsEnabled(pVM);
+    LogRel(("TM: TMR3InitFinalize: fTSCModeSwitchAllowed=%RTbool\n", pVM->tm.s.fTSCModeSwitchAllowed));
     return rc;
 }
 
@@ -1000,34 +1064,19 @@ VMM_INT_DECL(int) TMR3InitFinalize(PVM pVM)
  */
 VMM_INT_DECL(void) TMR3Relocate(PVM pVM, RTGCINTPTR offDelta)
 {
-    int rc;
     LogFlow(("TMR3Relocate\n"));
-    NOREF(offDelta);
 
     pVM->tm.s.paTimerQueuesR0 = MMHyperR3ToR0(pVM, pVM->tm.s.paTimerQueuesR3);
 
     if (!HMIsEnabled(pVM))
     {
-        pVM->tm.s.pvGIPRC = MMHyperR3ToRC(pVM, pVM->tm.s.pvGIPR3);
-        pVM->tm.s.paTimerQueuesRC = MMHyperR3ToRC(pVM, pVM->tm.s.paTimerQueuesR3);
-        pVM->tm.s.VirtualGetRawDataRC.pu64Prev = MMHyperR3ToRC(pVM, (void *)&pVM->tm.s.u64VirtualRawPrev);
-        AssertFatal(pVM->tm.s.VirtualGetRawDataRC.pu64Prev);
-        rc = PDMR3LdrGetSymbolRC(pVM, NULL, "tmVirtualNanoTSBad",          &pVM->tm.s.VirtualGetRawDataRC.pfnBad);
-        AssertFatalRC(rc);
-        rc = PDMR3LdrGetSymbolRC(pVM, NULL, "tmVirtualNanoTSRediscover",   &pVM->tm.s.VirtualGetRawDataRC.pfnRediscover);
-        AssertFatalRC(rc);
-
-        if (pVM->tm.s.pfnVirtualGetRawR3       == RTTimeNanoTSLFenceSync)
-            rc = PDMR3LdrGetSymbolRC(pVM, NULL, "RTTimeNanoTSLFenceSync",  &pVM->tm.s.pfnVirtualGetRawRC);
-        else if (pVM->tm.s.pfnVirtualGetRawR3  == RTTimeNanoTSLFenceAsync)
-            rc = PDMR3LdrGetSymbolRC(pVM, NULL, "RTTimeNanoTSLFenceAsync", &pVM->tm.s.pfnVirtualGetRawRC);
-        else if (pVM->tm.s.pfnVirtualGetRawR3  == RTTimeNanoTSLegacySync)
-            rc = PDMR3LdrGetSymbolRC(pVM, NULL, "RTTimeNanoTSLegacySync",  &pVM->tm.s.pfnVirtualGetRawRC);
-        else if (pVM->tm.s.pfnVirtualGetRawR3  == RTTimeNanoTSLegacyAsync)
-            rc = PDMR3LdrGetSymbolRC(pVM, NULL, "RTTimeNanoTSLegacyAsync", &pVM->tm.s.pfnVirtualGetRawRC);
-        else
-            AssertFatalFailed();
-        AssertFatalRC(rc);
+        pVM->tm.s.pvGIPRC           = MMHyperR3ToRC(pVM, pVM->tm.s.pvGIPR3);
+        pVM->tm.s.paTimerQueuesRC   = MMHyperR3ToRC(pVM, pVM->tm.s.paTimerQueuesR3);
+        pVM->tm.s.VirtualGetRawDataRC.pu64Prev       += offDelta;
+        pVM->tm.s.VirtualGetRawDataRC.pfnBad         += offDelta;
+        pVM->tm.s.VirtualGetRawDataRC.pfnBadCpuIndex += offDelta;
+        pVM->tm.s.VirtualGetRawDataRC.pfnRediscover  += offDelta;
+        pVM->tm.s.pfnVirtualGetRawRC                 += offDelta;
     }
 
     /*
@@ -1112,6 +1161,20 @@ VMM_INT_DECL(void) TMR3Reset(PVM pVM)
 
     PVMCPU pVCpuDst = &pVM->aCpus[pVM->tm.s.idTimerCpu];
     VMCPU_FF_CLEAR(pVCpuDst, VMCPU_FF_TIMER); /** @todo FIXME: this isn't right. */
+
+    /*
+     * Switch TM TSC mode back to the original mode after a reset for
+     * paravirtualized guests that alter the TM TSC mode during operation.
+     */
+    if (   pVM->tm.s.fTSCModeSwitchAllowed
+        && pVM->tm.s.enmTSCMode != pVM->tm.s.enmOriginalTSCMode)
+    {
+        VM_ASSERT_EMT0(pVM);
+        tmR3CpuTickParavirtDisable(pVM, &pVM->aCpus[0], NULL /* pvData */);
+    }
+    Assert(!GIMIsParavirtTscEnabled(pVM));
+    pVM->tm.s.fParavirtTscEnabled = false;
+
     TM_UNLOCK_TIMERS(pVM);
 }
 
@@ -1276,18 +1339,49 @@ static DECLCALLBACK(int) tmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, u
         if (pVM->tm.s.u64LastPausedTSC < pVCpu->tm.s.u64TSC)
             pVM->tm.s.u64LastPausedTSC = pVCpu->tm.s.u64TSC;
 
-        if (pVM->tm.s.fTSCUseRealTSC)
+        if (pVM->tm.s.enmTSCMode == TMTSCMODE_REAL_TSC_OFFSET)
             pVCpu->tm.s.offTSCRawSrc = 0; /** @todo TSC restore stuff and HWACC. */
     }
 
     rc = SSMR3GetU64(pSSM, &u64Hz);
     if (RT_FAILURE(rc))
         return rc;
-    if (!pVM->tm.s.fTSCUseRealTSC)
+    if (pVM->tm.s.enmTSCMode != TMTSCMODE_REAL_TSC_OFFSET)
         pVM->tm.s.cTSCTicksPerSecond = u64Hz;
 
-    LogRel(("TM: cTSCTicksPerSecond=%#RX64 (%'RU64) fTSCVirtualized=%RTbool fTSCUseRealTSC=%RTbool (state load)\n",
-            pVM->tm.s.cTSCTicksPerSecond, pVM->tm.s.cTSCTicksPerSecond, pVM->tm.s.fTSCVirtualized, pVM->tm.s.fTSCUseRealTSC));
+    LogRel(("TM: cTSCTicksPerSecond=%#RX64 (%'RU64) enmTSCMode=%d (%s) (state load)\n",
+            pVM->tm.s.cTSCTicksPerSecond, pVM->tm.s.cTSCTicksPerSecond, pVM->tm.s.enmTSCMode, tmR3GetTSCModeName(pVM)));
+
+    /* Disabled as this isn't tested, also should this apply only if GIM is enabled etc. */
+#if 0
+    /*
+     * If the current host TSC frequency is incompatible with what is in the
+     * saved state of the VM, fall back to emulating TSC and disallow TSC mode
+     * switches during VM runtime (e.g. by GIM).
+     */
+    if (   GIMIsEnabled(pVM)
+        || pVM->tm.s.enmTSCMode == TMTSCMODE_REAL_TSC_OFFSET)
+    {
+        uint64_t uGipCpuHz;
+        bool fRelax  = RTSystemIsInsideVM();
+        bool fCompat = SUPIsTscFreqCompatible(pVM->tm.s.cTSCTicksPerSecond, &uGipCpuHz, fRelax);
+        if (!fCompat)
+        {
+            pVM->tm.s.enmTSCMode = TMTSCMODE_VIRT_TSC_EMULATED;
+            pVM->tm.s.fTSCModeSwitchAllowed = false;
+            if (g_pSUPGlobalInfoPage->u32Mode != SUPGIPMODE_ASYNC_TSC)
+            {
+                LogRel(("TM: TSC frequency incompatible! uGipCpuHz=%#RX64 (%'RU64) enmTSCMode=%d (%s) fTSCModeSwitchAllowed=%RTbool (state load)\n",
+                        uGipCpuHz, uGipCpuHz, pVM->tm.s.enmTSCMode, tmR3GetTSCModeName(pVM), pVM->tm.s.fTSCModeSwitchAllowed));
+            }
+            else
+            {
+                LogRel(("TM: GIP is async, enmTSCMode=%d (%s) fTSCModeSwitchAllowed=%RTbool (state load)\n",
+                        uGipCpuHz, uGipCpuHz, pVM->tm.s.enmTSCMode, tmR3GetTSCModeName(pVM), pVM->tm.s.fTSCModeSwitchAllowed));
+            }
+        }
+    }
+#endif
 
     /*
      * Make sure timers get rescheduled immediately.
@@ -1899,6 +1993,8 @@ static DECLCALLBACK(void) tmR3TimerCallback(PRTTIMER pTimer, void *pvUser, uint6
     NOREF(pTimer);
 
     AssertCompile(TMCLOCK_MAX == 4);
+    STAM_COUNTER_INC(&pVM->tm.s.StatTimerCallback);
+
 #ifdef DEBUG_Sander /* very annoying, keep it private. */
     if (VMCPU_FF_IS_SET(pVCpuDst, VMCPU_FF_TIMER))
         Log(("tmR3TimerCallback: timer event still pending!!\n"));
@@ -1919,7 +2015,7 @@ static DECLCALLBACK(void) tmR3TimerCallback(PRTTIMER pTimer, void *pvUser, uint6
 #ifdef VBOX_WITH_REM
         REMR3NotifyTimerPending(pVM, pVCpuDst);
 #endif
-        VMR3NotifyCpuFFU(pVCpuDst->pUVCpu, VMNOTIFYFF_FLAGS_DONE_REM /** @todo | VMNOTIFYFF_FLAGS_POKE ?*/);
+        VMR3NotifyCpuFFU(pVCpuDst->pUVCpu, VMNOTIFYFF_FLAGS_DONE_REM | VMNOTIFYFF_FLAGS_POKE);
         STAM_COUNTER_INC(&pVM->tm.s.StatTimerCallbackSetFF);
     }
 }
@@ -2801,6 +2897,7 @@ static DECLCALLBACK(int) tmR3SetWarpDrive(PUVM pUVM, uint32_t u32Percent)
     if (fPaused) /** @todo this isn't really working, but wtf. */
         TMR3NotifySuspend(pVM, pVCpu);
 
+    /** @todo Should switch TM mode to virt-tsc-emulated if it isn't already! */
     pVM->tm.s.u32VirtualWarpDrivePercentage = u32Percent;
     pVM->tm.s.fVirtualWarpDrive = u32Percent != 100;
     LogRel(("TM: u32VirtualWarpDrivePercentage=%RI32 fVirtualWarpDrive=%RTbool\n",
@@ -3011,6 +3108,149 @@ static DECLCALLBACK(void) tmR3CpuLoadTimer(PVM pVM, PTMTIMER pTimer, void *pvUse
 
 #endif /* !VBOX_WITHOUT_NS_ACCOUNTING */
 
+
+/**
+ * @callback_method_impl{PFNVMMEMTRENDEZVOUS,
+ *      Worker for TMR3CpuTickParavirtEnable}
+ */
+static DECLCALLBACK(VBOXSTRICTRC) tmR3CpuTickParavirtEnable(PVM pVM, PVMCPU pVCpuEmt, void *pvData)
+{
+    AssertPtr(pVM); Assert(pVM->tm.s.fTSCModeSwitchAllowed); NOREF(pVCpuEmt); NOREF(pvData);
+    Assert(pVM->tm.s.enmTSCMode != TMTSCMODE_REAL_TSC_OFFSET);
+    Assert(tmR3HasFixedTSC(pVM));
+
+    /*
+     * The return value of TMCpuTickGet() and the guest's TSC value for each
+     * CPU must remain constant across the TM TSC mode-switch.  Thus we have
+     * the following equation (new/old signifies the new/old tsc modes):
+     *      uNewTsc = uOldTsc
+     *
+     * Where (see tmCpuTickGetInternal):
+     *      uOldTsc = uRawOldTsc - offTscRawSrcOld
+     *      uNewTsc = uRawNewTsc - offTscRawSrcNew
+     *
+     * Solve it for offTscRawSrcNew without replacing uOldTsc:
+     *     uRawNewTsc - offTscRawSrcNew = uOldTsc
+     *  => -offTscRawSrcNew = uOldTsc - uRawNewTsc
+     *  => offTscRawSrcNew  = uRawNewTsc - uOldTsc
+     */
+    uint64_t uRawOldTsc = tmR3CpuTickGetRawVirtualNoCheck(pVM);
+    uint64_t uRawNewTsc = SUPReadTsc();
+    uint32_t cCpus = pVM->cCpus;
+    for (uint32_t i = 0; i < cCpus; i++)
+    {
+        PVMCPU   pVCpu   = &pVM->aCpus[i];
+        uint64_t uOldTsc = uRawOldTsc - pVCpu->tm.s.offTSCRawSrc;
+        pVCpu->tm.s.offTSCRawSrc = uRawNewTsc - uOldTsc;
+        Assert(uRawNewTsc - pVCpu->tm.s.offTSCRawSrc >= uOldTsc); /* paranoia^256 */
+    }
+
+    LogRel(("TM: Switching TSC mode from '%s' to '%s'\n", tmR3GetTSCModeNameEx(pVM->tm.s.enmTSCMode),
+            tmR3GetTSCModeNameEx(TMTSCMODE_REAL_TSC_OFFSET)));
+    pVM->tm.s.enmTSCMode = TMTSCMODE_REAL_TSC_OFFSET;
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * Notify TM that the guest has enabled usage of a paravirtualized TSC.
+ *
+ * This may perform a EMT rendezvous and change the TSC virtualization mode.
+ *
+ * @returns VBox status code.
+ * @param   pVM     Pointer to the VM.
+ */
+VMMR3_INT_DECL(int) TMR3CpuTickParavirtEnable(PVM pVM)
+{
+    int rc = VINF_SUCCESS;
+    if (pVM->tm.s.fTSCModeSwitchAllowed)
+    {
+        if (pVM->tm.s.enmTSCMode != TMTSCMODE_REAL_TSC_OFFSET)
+            rc = VMMR3EmtRendezvous(pVM, VMMEMTRENDEZVOUS_FLAGS_TYPE_ONCE, tmR3CpuTickParavirtEnable, NULL);
+    }
+    else
+        LogRel(("TM: Host/VM is not suitable for using TSC mode '%s', request to change TSC mode ignored\n",
+                tmR3GetTSCModeNameEx(TMTSCMODE_REAL_TSC_OFFSET)));
+    pVM->tm.s.fParavirtTscEnabled = true;
+    return rc;
+}
+
+
+/**
+ * @callback_method_impl{PFNVMMEMTRENDEZVOUS,
+ *      Worker for TMR3CpuTickParavirtDisable}
+ */
+static DECLCALLBACK(VBOXSTRICTRC) tmR3CpuTickParavirtDisable(PVM pVM, PVMCPU pVCpuEmt, void *pvData)
+{
+    AssertPtr(pVM); Assert(pVM->tm.s.fTSCModeSwitchAllowed); NOREF(pVCpuEmt);
+    Assert(   pVM->tm.s.enmTSCMode == TMTSCMODE_REAL_TSC_OFFSET
+           && pVM->tm.s.enmTSCMode != pVM->tm.s.enmOriginalTSCMode);
+
+    /*
+     * See tmR3CpuTickParavirtEnable for an explanation of the conversion math.
+     */
+    uint64_t uRawOldTsc = SUPReadTsc();
+    uint64_t uRawNewTsc = tmR3CpuTickGetRawVirtualNoCheck(pVM);
+    uint32_t cCpus = pVM->cCpus;
+    for (uint32_t i = 0; i < cCpus; i++)
+    {
+        PVMCPU   pVCpu   = &pVM->aCpus[i];
+        uint64_t uOldTsc = uRawOldTsc - pVCpu->tm.s.offTSCRawSrc;
+        pVCpu->tm.s.offTSCRawSrc = uRawNewTsc - uOldTsc;
+        Assert(uRawNewTsc - pVCpu->tm.s.offTSCRawSrc >= uOldTsc); /* paranoia^256 */
+
+        /* Update the last-seen tick here as we havent't been updating it (as we don't
+           need it) while in pure TSC-offsetting mode. */
+        pVCpu->tm.s.u64TSCLastSeen = uOldTsc;
+    }
+
+    LogRel(("TM: Switching TSC mode from '%s' to '%s'\n", tmR3GetTSCModeNameEx(pVM->tm.s.enmTSCMode),
+            tmR3GetTSCModeNameEx(pVM->tm.s.enmOriginalTSCMode)));
+    pVM->tm.s.enmTSCMode = pVM->tm.s.enmOriginalTSCMode;
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * Notify TM that the guest has disabled usage of a paravirtualized TSC.
+ *
+ * If TMR3CpuTickParavirtEnable() changed the TSC virtualization mode, this will
+ * perform an EMT  rendezvous to revert those changes.
+ *
+ * @returns VBox status code.
+ * @param   pVM     Pointer to the VM.
+ */
+VMMR3_INT_DECL(int) TMR3CpuTickParavirtDisable(PVM pVM)
+{
+    int rc = VINF_SUCCESS;
+    if (   pVM->tm.s.fTSCModeSwitchAllowed
+        && pVM->tm.s.enmTSCMode == TMTSCMODE_REAL_TSC_OFFSET
+        && pVM->tm.s.enmTSCMode != pVM->tm.s.enmOriginalTSCMode)
+        rc = VMMR3EmtRendezvous(pVM, VMMEMTRENDEZVOUS_FLAGS_TYPE_ONCE, tmR3CpuTickParavirtDisable, NULL);
+    pVM->tm.s.fParavirtTscEnabled = false;
+    return rc;
+}
+
+
+/**
+ * Check whether the guest can be presented a fixed rate & monotonic TSC.
+ *
+ * @returns true if TSC is stable, false otherwise.
+ * @param   pVM                     Pointer to the VM.
+ * @param   fWithParavirtEnabled    Whether it's fixed & monotonic when
+ *                                  paravirt. TSC is enabled or not.
+ *
+ * @remarks Must be called only after TMR3InitFinalize().
+ */
+VMMR3_INT_DECL(bool) TMR3CpuTickIsFixedRateMonotonic(PVM pVM, bool fWithParavirtEnabled)
+{
+    /** @todo figure out what exactly we want here later. */
+    NOREF(fWithParavirtEnabled);
+    return (   tmR3HasFixedTSC(pVM)                                        /* Host has fixed-rate TSC. */
+            && g_pSUPGlobalInfoPage->u32Mode != SUPGIPMODE_ASYNC_TSC);     /* GIP thinks it's monotonic. */
+}
+
+
 /**
  * Gets the 5 char clock name for the info tables.
  *
@@ -3146,13 +3386,12 @@ static DECLCALLBACK(void) tmR3InfoClocks(PVM pVM, PCDBGFINFOHLP pHlp, const char
          * TSC
          */
         pHlp->pfnPrintf(pHlp,
-                        "Cpu Tick: %18RU64 (%#016RX64) %RU64Hz %s%s",
+                        "Cpu Tick: %18RU64 (%#016RX64) %RU64Hz %s - virtualized",
                         u64TSC, u64TSC, TMCpuTicksPerSecond(pVM),
-                        pVCpu->tm.s.fTSCTicking ? "ticking" : "paused",
-                        pVM->tm.s.fTSCVirtualized ? " - virtualized" : "");
-        if (pVM->tm.s.fTSCUseRealTSC)
+                        pVCpu->tm.s.fTSCTicking ? "ticking" : "paused");
+        if (pVM->tm.s.enmTSCMode == TMTSCMODE_REAL_TSC_OFFSET)
         {
-            pHlp->pfnPrintf(pHlp, " - real tsc");
+            pHlp->pfnPrintf(pHlp, " - real tsc offset");
             if (pVCpu->tm.s.offTSCRawSrc)
                 pHlp->pfnPrintf(pHlp, "\n          offset %RU64", pVCpu->tm.s.offTSCRawSrc);
         }
@@ -3194,5 +3433,36 @@ static DECLCALLBACK(void) tmR3InfoClocks(PVM pVM, PCDBGFINFOHLP pHlp, const char
     pHlp->pfnPrintf(pHlp,
                     "    Real: %18RU64 (%#016RX64) %RU64Hz\n",
                     u64Real, u64Real, TMRealGetFreq(pVM));
+}
+
+
+/**
+ * Gets the descriptive TM TSC mode name given the enum value.
+ *
+ * @returns The name.
+ * @param   pVM      Pointer to the VM.
+ */
+static const char *tmR3GetTSCModeNameEx(TMTSCMODE enmMode)
+{
+    switch (enmMode)
+    {
+        case TMTSCMODE_REAL_TSC_OFFSET:    return "RealTscOffset";
+        case TMTSCMODE_VIRT_TSC_EMULATED:  return "VirtTscEmulated";
+        case TMTSCMODE_DYNAMIC:            return "Dynamic";
+        default:                           return "???";
+    }
+}
+
+
+/**
+ * Gets the descriptive TM TSC mode name.
+ *
+ * @returns The name.
+ * @param   pVM      Pointer to the VM.
+ */
+static const char *tmR3GetTSCModeName(PVM pVM)
+{
+    Assert(pVM);
+    return tmR3GetTSCModeNameEx(pVM->tm.s.enmTSCMode);
 }
 

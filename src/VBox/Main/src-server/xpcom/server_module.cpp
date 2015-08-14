@@ -1,3 +1,4 @@
+/* $Id: server_module.cpp $ */
 /** @file
  *
  * XPCOM server process helper module implementation functions
@@ -91,8 +92,8 @@ static bool IsVBoxSVCPathSet = false;
  *  in sync with macros used for VirtualBox in server.cpp for the same purpose.
  */
 
-NS_DECL_CLASSINFO(VirtualBox)
-NS_IMPL_CI_INTERFACE_GETTER1(VirtualBox, IVirtualBox)
+NS_DECL_CLASSINFO(VirtualBoxWrap)
+NS_IMPL_CI_INTERFACE_GETTER1(VirtualBoxWrap, IVirtualBox)
 
 static nsresult vboxsvcSpawnDaemon(void)
 {
@@ -363,10 +364,10 @@ static const nsModuleComponentInfo components[] =
         NULL, // deregistration function
         NULL, // destructor function
         /// @todo
-        NS_CI_INTERFACE_GETTER_NAME(VirtualBox), // interfaces function
+        NS_CI_INTERFACE_GETTER_NAME(VirtualBoxWrap), // interfaces function
         NULL, // language helper
         /// @todo
-        &NS_CLASSINFO_NAME(VirtualBox) // global class info & flags
+        &NS_CLASSINFO_NAME(VirtualBoxWrap) // global class info & flags
     }
 };
 

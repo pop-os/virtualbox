@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -789,7 +789,7 @@ static RTEXITCODE HandleMakeTaInfo(int cArgs, char **papszArgs)
                         if (RT_SUCCESS(rc))
                             RTMsgInfo("Successfully wrote TrustedAnchorInfo to '%s'.", State.pszOutput);
                         else
-                            RTMsgError("RTStrmClose failed: %Rrc");
+                            RTMsgError("RTStrmClose failed: %Rrc", rc);
                     }
                     else
                     {

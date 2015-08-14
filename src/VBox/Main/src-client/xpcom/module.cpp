@@ -1,10 +1,11 @@
+/* $Id: module.cpp $ */
 /** @file
  *
  * XPCOM module implementation functions
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -28,91 +29,30 @@
 // generated file
 #include "VirtualBox_XPCOM.h"
 
-#include "AdditionsFacilityImpl.h"
-#include "ConsoleImpl.h"
-#include "ConsoleVRDPServer.h"
-#include "DisplayImpl.h"
-#ifdef VBOX_WITH_EXTPACK
-# include "ExtPackManagerImpl.h"
-#endif
-#include "GuestImpl.h"
-#ifdef VBOX_WITH_GUEST_CONTROL
-# include "GuestDirectoryImpl.h"
-# include "GuestFileImpl.h"
-# include "GuestFsObjInfoImpl.h"
-# include "GuestProcessImpl.h"
-# include "GuestSessionImpl.h"
-#endif
-#include "KeyboardImpl.h"
-#include "MachineDebuggerImpl.h"
-#include "MouseImpl.h"
-#include "NATEngineImpl.h"
-#include "NetworkAdapterImpl.h"
-#include "ProgressImpl.h"
-#include "RemoteUSBDeviceImpl.h"
 #include "SessionImpl.h"
-#include "SharedFolderImpl.h"
-#include "USBDeviceImpl.h"
 #include "VirtualBoxClientImpl.h"
+#include "RemoteUSBDeviceImpl.h"
+#include "USBDeviceImpl.h"
 
 #include "Logging.h"
 
 // XPCOM glue code unfolding
 
-NS_DECL_CLASSINFO(VirtualBoxClient)
-NS_IMPL_THREADSAFE_ISUPPORTS1_CI(VirtualBoxClient, IVirtualBoxClient)
-NS_DECL_CLASSINFO(Session)
-NS_IMPL_THREADSAFE_ISUPPORTS2_CI(Session, ISession, IInternalSessionControl)
+/*
+ * Declare extern variables here to tell the compiler that
+ * NS_DECL_CLASSINFO(SessionWrap)
+ * already exists in the VBoxAPIWrap library.
+ */
+NS_DECL_CI_INTERFACE_GETTER(SessionWrap)
+extern nsIClassInfo *NS_CLASSINFO_NAME(SessionWrap);
 
-#ifndef VBOX_COM_INPROC_API_CLIENT
-NS_DECL_CLASSINFO(Guest)
-NS_IMPL_THREADSAFE_ISUPPORTS1_CI(Guest, IGuest)
- #ifdef VBOX_WITH_GUEST_CONTROL
-NS_DECL_CLASSINFO(GuestDirectory)
-NS_IMPL_THREADSAFE_ISUPPORTS2_CI(GuestDirectory, IGuestDirectory, IDirectory)
-NS_DECL_CLASSINFO(GuestFile)
-NS_IMPL_THREADSAFE_ISUPPORTS2_CI(GuestFile, IGuestFile, IFile)
-NS_DECL_CLASSINFO(GuestFsObjInfo)
-NS_IMPL_THREADSAFE_ISUPPORTS2_CI(GuestFsObjInfo, IGuestFsObjInfo, IFsObjInfo)
-NS_DECL_CLASSINFO(GuestProcess)
-NS_IMPL_THREADSAFE_ISUPPORTS2_CI(GuestProcess, IGuestProcess, IProcess)
-NS_DECL_CLASSINFO(GuestSession)
-NS_IMPL_THREADSAFE_ISUPPORTS1_CI(GuestSession, IGuestSession)
- #endif
-NS_DECL_CLASSINFO(Keyboard)
-NS_IMPL_THREADSAFE_ISUPPORTS1_CI(Keyboard, IKeyboard)
-NS_DECL_CLASSINFO(Mouse)
-NS_IMPL_THREADSAFE_ISUPPORTS1_CI(Mouse, IMouse)
-NS_DECL_CLASSINFO(Display)
-NS_IMPL_THREADSAFE_ISUPPORTS2_CI(Display, IDisplay, IEventListener)
-NS_DECL_CLASSINFO(MachineDebugger)
-NS_IMPL_THREADSAFE_ISUPPORTS1_CI(MachineDebugger, IMachineDebugger)
-NS_DECL_CLASSINFO(Progress)
-NS_IMPL_THREADSAFE_ISUPPORTS1_CI(Progress, IProgress)
-NS_DECL_CLASSINFO(OUSBDevice)
-NS_IMPL_THREADSAFE_ISUPPORTS1_CI(OUSBDevice, IUSBDevice)
-NS_DECL_CLASSINFO(RemoteUSBDevice)
-NS_IMPL_THREADSAFE_ISUPPORTS2_CI(RemoteUSBDevice, IHostUSBDevice, IUSBDevice)
-NS_DECL_CLASSINFO(SharedFolder)
-NS_IMPL_THREADSAFE_ISUPPORTS1_CI(SharedFolder, ISharedFolder)
-NS_DECL_CLASSINFO(VRDEServerInfo)
-NS_IMPL_THREADSAFE_ISUPPORTS1_CI(VRDEServerInfo, IVRDEServerInfo)
- #ifdef VBOX_WITH_EXTPACK
-// deliberately omit ExtPackFile as it's unusable in the client context
-// NS_DECL_CLASSINFO(ExtPackFile)
-// NS_IMPL_THREADSAFE_ISUPPORTS2_CI(ExtPackFile, IExtPackFile, IExtPackBase)
-NS_DECL_CLASSINFO(ExtPack)
-NS_IMPL_THREADSAFE_ISUPPORTS2_CI(ExtPack, IExtPack, IExtPackBase)
-NS_DECL_CLASSINFO(ExtPackManager)
-NS_IMPL_THREADSAFE_ISUPPORTS1_CI(ExtPackManager, IExtPackManager)
- #endif
-NS_DECL_CLASSINFO(AdditionsFacility)
-NS_IMPL_THREADSAFE_ISUPPORTS1_CI(AdditionsFacility, IAdditionsFacility)
-
-NS_DECL_CLASSINFO(Console)
-NS_IMPL_THREADSAFE_ISUPPORTS1_CI(Console, IConsole)
-
-#endif /* VBOX_COM_INPROC_API_CLIENT */
+/*
+ * Declare extern variables here to tell the compiler that
+ * NS_DECL_CLASSINFO(VirtualBoxClientWrap)
+ * already exists in the VBoxAPIWrap library.
+ */
+NS_DECL_CI_INTERFACE_GETTER(VirtualBoxClientWrap)
+extern nsIClassInfo *NS_CLASSINFO_NAME(VirtualBoxClientWrap);
 
 /**
  *  Singleton class factory that holds a reference to the created instance
@@ -185,9 +125,9 @@ static const nsModuleComponentInfo components[] =
 /** @note this is for singleton; disabled for now */
 //        SessionClassFactory::releaseInstance,
         NULL, // destructor function
-        NS_CI_INTERFACE_GETTER_NAME(Session), // interfaces function
+        NS_CI_INTERFACE_GETTER_NAME(SessionWrap), // interfaces function
         NULL, // language helper
-        &NS_CLASSINFO_NAME(Session) // global class info & flags
+        &NS_CLASSINFO_NAME(SessionWrap) // global class info & flags
     },
     {
         "VirtualBoxClient component", // description
@@ -196,9 +136,9 @@ static const nsModuleComponentInfo components[] =
         NULL, // registration function
         NULL, // deregistration function
         NULL, // destructor function
-        NS_CI_INTERFACE_GETTER_NAME(VirtualBoxClient), // interfaces function
+        NS_CI_INTERFACE_GETTER_NAME(VirtualBoxClientWrap), // interfaces function
         NULL, // language helper
-        &NS_CLASSINFO_NAME(VirtualBoxClient) // global class info & flags
+        &NS_CLASSINFO_NAME(VirtualBoxClientWrap) // global class info & flags
     },
 };
 

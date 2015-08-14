@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2013 Oracle Corporation
+ * Copyright (C) 2009-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -635,7 +635,7 @@ RTR3DECL(int) RTTestGuardedAlloc(RTTEST hTest, size_t cb, uint32_t cbAlign, bool
 RTR3DECL(void *) RTTestGuardedAllocTail(RTTEST hTest, size_t cb)
 {
     void *pvUser;
-    int rc = RTTestGuardedAlloc(hTest, cb, 1, false /*fHead*/, &pvUser);
+    int rc = RTTestGuardedAlloc(hTest, cb, 1 /* cbAlign */, false /* fHead */, &pvUser);
     if (RT_SUCCESS(rc))
         return pvUser;
     return NULL;
@@ -654,7 +654,7 @@ RTR3DECL(void *) RTTestGuardedAllocTail(RTTEST hTest, size_t cb)
 RTR3DECL(void *) RTTestGuardedAllocHead(RTTEST hTest, size_t cb)
 {
     void *pvUser;
-    int rc = RTTestGuardedAlloc(hTest, cb, 1, true /*fHead*/, &pvUser);
+    int rc = RTTestGuardedAlloc(hTest, cb, 1 /* cbAlign */, true /* fHead */, &pvUser);
     if (RT_SUCCESS(rc))
         return pvUser;
     return NULL;
@@ -1258,7 +1258,7 @@ RTR3DECL(RTEXITCODE) RTTestSummaryAndDestroy(RTTEST hTest)
     RTEXITCODE enmExitCode;
     if (!pTest->cErrors)
     {
-        RTTestPrintfNl(hTest, RTTESTLVL_ALWAYS, "SUCCESS\n", pTest->cErrors);
+        RTTestPrintfNl(hTest, RTTESTLVL_ALWAYS, "SUCCESS\n");
         enmExitCode = RTEXITCODE_SUCCESS;
     }
     else
@@ -1286,7 +1286,7 @@ RTR3DECL(RTEXITCODE) RTTestSkipAndDestroyV(RTTEST hTest, const char *pszReasonFm
     {
         if (pszReasonFmt)
             RTTestPrintfNlV(hTest, RTTESTLVL_FAILURE, pszReasonFmt, va);
-        RTTestPrintfNl(hTest, RTTESTLVL_ALWAYS, "SKIPPED\n", pTest->cErrors);
+        RTTestPrintfNl(hTest, RTTESTLVL_ALWAYS, "SKIPPED\n");
         enmExitCode = RTEXITCODE_SKIPPED;
     }
     else

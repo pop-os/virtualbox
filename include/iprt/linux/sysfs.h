@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2010 Oracle Corporation
+ * Copyright (C) 2008-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -47,7 +47,7 @@ RT_C_DECLS_BEGIN
  * @param   pszFormat   The name format, either absolute or relative to "/sys/".
  * @param   va          The format args.
  */
-RTDECL(bool) RTLinuxSysFsExistsV(const char *pszFormat, va_list va);
+RTDECL(bool) RTLinuxSysFsExistsV(const char *pszFormat, va_list va) RT_IPRT_FORMAT_ATTR(1, 0);
 
 /**
  * Checks if a sysfs file (or directory, device, symlink, whatever) exists.
@@ -56,7 +56,7 @@ RTDECL(bool) RTLinuxSysFsExistsV(const char *pszFormat, va_list va);
  * @param   pszFormat   The name format, either absolute or relative to "/sys/".
  * @param   ...         The format args.
  */
-RTDECL(bool) RTLinuxSysFsExists(const char *pszFormat, ...);
+RTDECL(bool) RTLinuxSysFsExists(const char *pszFormat, ...) RT_IPRT_FORMAT_ATTR(1, 2);
 
 /**
  * Opens a sysfs file.
@@ -65,7 +65,7 @@ RTDECL(bool) RTLinuxSysFsExists(const char *pszFormat, ...);
  * @param   pszFormat   The name format, either absolute or relative to "/sys/".
  * @param   va          The format args.
  */
-RTDECL(int) RTLinuxSysFsOpenV(const char *pszFormat, va_list va);
+RTDECL(int) RTLinuxSysFsOpenV(const char *pszFormat, va_list va) RT_IPRT_FORMAT_ATTR(1, 0);
 
 /**
  * Opens a sysfs file.
@@ -74,7 +74,7 @@ RTDECL(int) RTLinuxSysFsOpenV(const char *pszFormat, va_list va);
  * @param   pszFormat   The name format, either absolute or relative to "/sys/".
  * @param   ...         The format args.
  */
-RTDECL(int) RTLinuxSysFsOpen(const char *pszFormat, ...);
+RTDECL(int) RTLinuxSysFsOpen(const char *pszFormat, ...) RT_IPRT_FORMAT_ATTR(1, 2);
 
 /**
  * Closes a file opened with RTLinuxSysFsOpen or RTLinuxSysFsOpenV.
@@ -114,7 +114,7 @@ RTDECL(int) RTLinuxSysFsReadFile(int fd, void *pvBuf, size_t cbBuf, size_t *pcbR
  * @param   pszFormat   The filename format, either absolute or relative to "/sys/".
  * @param   va          Format args.
  */
-RTDECL(int64_t) RTLinuxSysFsReadIntFileV(unsigned uBase, const char *pszFormat, va_list va);
+RTDECL(int64_t) RTLinuxSysFsReadIntFileV(unsigned uBase, const char *pszFormat, va_list va) RT_IPRT_FORMAT_ATTR(2, 0);
 
 /**
  * Reads a number from a sysfs file.
@@ -124,7 +124,7 @@ RTDECL(int64_t) RTLinuxSysFsReadIntFileV(unsigned uBase, const char *pszFormat, 
  * @param   pszFormat   The filename format, either absolute or relative to "/sys/".
  * @param   ...         Format args.
  */
-RTDECL(int64_t) RTLinuxSysFsReadIntFile(unsigned uBase, const char *pszFormat, ...);
+RTDECL(int64_t) RTLinuxSysFsReadIntFile(unsigned uBase, const char *pszFormat, ...) RT_IPRT_FORMAT_ATTR(2, 3);
 
 /**
  * Reads a device number from a sysfs file.
@@ -133,7 +133,7 @@ RTDECL(int64_t) RTLinuxSysFsReadIntFile(unsigned uBase, const char *pszFormat, .
  * @param   pszFormat   The filename format, either absolute or relative to "/sys/".
  * @param   va          Format args.
  */
-RTDECL(dev_t) RTLinuxSysFsReadDevNumFileV(const char *pszFormat, va_list va);
+RTDECL(dev_t) RTLinuxSysFsReadDevNumFileV(const char *pszFormat, va_list va) RT_IPRT_FORMAT_ATTR(1, 0);
 
 /**
  * Reads a device number from a sysfs file.
@@ -142,7 +142,7 @@ RTDECL(dev_t) RTLinuxSysFsReadDevNumFileV(const char *pszFormat, va_list va);
  * @param   pszFormat   The filename format, either absolute or relative to "/sys/".
  * @param   ...         Format args.
  */
-RTDECL(dev_t) RTLinuxSysFsReadDevNumFile(const char *pszFormat, ...);
+RTDECL(dev_t) RTLinuxSysFsReadDevNumFile(const char *pszFormat, ...) RT_IPRT_FORMAT_ATTR(1, 2);
 
 /**
  * Reads a string from a sysfs file.  If the file contains a newline, we only
@@ -155,7 +155,7 @@ RTDECL(dev_t) RTLinuxSysFsReadDevNumFile(const char *pszFormat, ...);
  * @param   pszFormat   The filename format, either absolute or relative to "/sys/".
  * @param   va          Format args.
  */
-RTDECL(ssize_t) RTLinuxSysFsReadStrFileV(char *pszBuf, size_t cchBuf, const char *pszFormat, va_list va);
+RTDECL(ssize_t) RTLinuxSysFsReadStrFileV(char *pszBuf, size_t cchBuf, const char *pszFormat, va_list va) RT_IPRT_FORMAT_ATTR(3, 0);
 
 /**
  * Reads a string from a sysfs file.  If the file contains a newline, we only
@@ -168,7 +168,7 @@ RTDECL(ssize_t) RTLinuxSysFsReadStrFileV(char *pszBuf, size_t cchBuf, const char
  * @param   pszFormat   The filename format, either absolute or relative to "/sys/".
  * @param   ...         Format args.
  */
-RTDECL(ssize_t) RTLinuxSysFsReadStrFile(char *pszBuf, size_t cchBuf, const char *pszFormat, ...);
+RTDECL(ssize_t) RTLinuxSysFsReadStrFile(char *pszBuf, size_t cchBuf, const char *pszFormat, ...) RT_IPRT_FORMAT_ATTR(3, 4);
 
 /**
  * Reads the last element of the path of the file pointed to by the symbolic
@@ -186,7 +186,7 @@ RTDECL(ssize_t) RTLinuxSysFsReadStrFile(char *pszBuf, size_t cchBuf, const char 
  * @param   pszFormat   The filename format, either absolute or relative to "/sys/".
  * @param   va           Format args.
  */
-RTDECL(ssize_t) RTLinuxSysFsGetLinkDestV(char *pszBuf, size_t cchBuf, const char *pszFormat, va_list va);
+RTDECL(ssize_t) RTLinuxSysFsGetLinkDestV(char *pszBuf, size_t cchBuf, const char *pszFormat, va_list va) RT_IPRT_FORMAT_ATTR(3, 0);
 
 /**
  * Reads the last element of the path of the file pointed to by the symbolic
@@ -204,16 +204,11 @@ RTDECL(ssize_t) RTLinuxSysFsGetLinkDestV(char *pszBuf, size_t cchBuf, const char
  * @param   pszFormat   The filename format, either absolute or relative to "/sys/".
  * @param   ...         Format args.
  */
-RTDECL(ssize_t) RTLinuxSysFsGetLinkDest(char *pszBuf, size_t cchBuf, const char *pszFormat, ...);
+RTDECL(ssize_t) RTLinuxSysFsGetLinkDest(char *pszBuf, size_t cchBuf, const char *pszFormat, ...) RT_IPRT_FORMAT_ATTR(3, 4);
 
 /**
- * Find the path of a device node under /dev, given then device number.
- *
- * This function will recursively search under /dev until it finds a device node
- * matching @a devnum, and store the path into @a pszBuf.  The caller may
- * provide an expected path in pszSuggestion, which will be tried before
- * searching, but due to the variance in Linux systems it can be hard to always
- * correctly predict the path.
+ * Check the path of a device node under /dev, given the device number and a
+ * pattern and store the path into @a pszBuf.
  *
  * @returns The length of the returned string on success, -1 and errno on
  *          failure.
@@ -223,21 +218,16 @@ RTDECL(ssize_t) RTLinuxSysFsGetLinkDest(char *pszBuf, size_t cchBuf, const char 
  *                         RTFS_TYPE_DEV_BLOCK are valid values.
  * @param   pszBuf         Where to store the path.
  * @param   cchBuf         The size of the buffer.
- * @param   pszSuggestion  The expected path format of the device node, either
- *                         absolute or relative to "/dev". (Optional)
+ * @param   pszPattern     The expected path format of the device node, either
+ *                         absolute or relative to "/dev".
  * @param   va             Format args.
  */
-RTDECL(ssize_t) RTLinuxFindDevicePathV(dev_t DevNum, RTFMODE fMode, char *pszBuf, size_t cchBuf,
-                                       const char *pszSuggestion, va_list va);
+RTDECL(ssize_t) RTLinuxCheckDevicePathV(dev_t DevNum, RTFMODE fMode, char *pszBuf, size_t cchBuf,
+                                        const char *pszPattern, va_list va) RT_IPRT_FORMAT_ATTR(5, 0);
 
 /**
- * Find the path of a device node under /dev, given the device number.
- *
- * This function will recursively search under /dev until it finds a device node
- * matching @a devnum, and store the path into @a pszBuf.  The caller may
- * provide an expected path in pszSuggestion, which will be tried before
- * searching, but due to the variance in Linux systems it can be hard to always
- * correctly predict the path.
+ * Check the path of a device node under /dev, given the device number and a
+ * pattern and store the path into @a pszBuf.
  *
  * @returns The length of the returned string on success, -1 and errno on
  *          failure.
@@ -247,12 +237,12 @@ RTDECL(ssize_t) RTLinuxFindDevicePathV(dev_t DevNum, RTFMODE fMode, char *pszBuf
  *                          RTFS_TYPE_DEV_BLOCK are valid values
  * @param   pszBuf          Where to store the path.
  * @param   cchBuf          The size of the buffer.
- * @param   pszSuggestion   The expected path format of the device node, either
- *                          absolute or relative to "/dev". (Optional)
+ * @param   pszPattern      The expected path format of the device node, either
+ *                          absolute or relative to "/dev".
  * @param   ...             Format args.
  */
-RTDECL(ssize_t) RTLinuxFindDevicePath(dev_t DevNum, RTFMODE fMode, char *pszBuf, size_t cchBuf,
-                                      const char *pszSuggestion, ...);
+RTDECL(ssize_t) RTLinuxCheckDevicePath(dev_t DevNum, RTFMODE fMode, char *pszBuf, size_t cchBuf,
+                                       const char *pszPattern, ...) RT_IPRT_FORMAT_ATTR(5, 6);
 
 /** @} */
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2011 Oracle Corporation
+ * Copyright (C) 2008-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -52,7 +52,17 @@ typedef struct RTMPARGS
     void       *pvUser1;
     void       *pvUser2;
     RTCPUID     idCpu;
+    RTCPUID     idCpu2;
     uint32_t volatile cHits;
+#ifdef RT_OS_WINDOWS
+    /** Turns out that KeFlushQueuedDpcs doesn't necessarily wait till all
+     * callbacks are done.  So, do reference counting to make sure we don't free
+     * this structure befor all CPUs have completely handled their requests.  */
+    int32_t volatile  cRefs;
+#endif
+#ifdef RT_OS_LINUX
+    PRTCPUSET   pWorkerSet;
+#endif
 } RTMPARGS;
 /** Pointer to a RTMpOn* argument packet. */
 typedef RTMPARGS *PRTMPARGS;

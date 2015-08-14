@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2012 Oracle Corporation
+ * Copyright (C) 2008-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -124,6 +124,8 @@
                  (DBusConnection *connection, \
                   DBusHandleMessageFunction function, void *pvoid), \
                  (connection, function, pvoid)) \
+ RT_PROXY_STUB(dbus_connection_read_write, dbus_bool_t, \
+                 (DBusConnection *connection, int val), (connection, val)) \
  RT_PROXY_STUB(dbus_connection_read_write_dispatch, dbus_bool_t, \
                  (DBusConnection *connection, int val), (connection, val)) \
  RT_PROXY_STUB(dbus_message_is_signal, dbus_bool_t, \

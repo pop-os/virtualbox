@@ -1,10 +1,11 @@
+/* $Id: MediumAttachmentImpl.cpp $ */
 /** @file
  *
  * VirtualBox COM class implementation
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,7 +21,6 @@
 #include "MediumImpl.h"
 #include "Global.h"
 
-#include "AutoStateDep.h"
 #include "AutoCaller.h"
 #include "Logging.h"
 
@@ -52,7 +52,7 @@ struct BackupableMediumAttachmentData
      * controller will not work - when settings are changed it will point
      * to the old, uninitialized instance. Changing this requires
      * substantial changes to MediumImpl.cpp. */
-    const Bstr          bstrControllerName;
+    const Utf8Str       strControllerName;
     /* Same counts for the assigned bandwidth group */
     Utf8Str             strBandwidthGroup;
     const LONG          lPort;
@@ -85,6 +85,8 @@ struct MediumAttachment::Data
 // constructor / destructor
 /////////////////////////////////////////////////////////////////////////////
 
+DEFINE_EMPTY_CTOR_DTOR(MediumAttachment)
+
 HRESULT MediumAttachment::FinalConstruct()
 {
     LogFlowThisFunc(("\n"));
@@ -115,7 +117,7 @@ void MediumAttachment::FinalRelease()
  */
 HRESULT MediumAttachment::init(Machine *aParent,
                                Medium *aMedium,
-                               const Bstr &aControllerName,
+                               const Utf8Str &aControllerName,
                                LONG aPort,
                                LONG aDevice,
                                DeviceType_T aType,
@@ -128,7 +130,7 @@ HRESULT MediumAttachment::init(Machine *aParent,
                                const Utf8Str &strBandwidthGroup)
 {
     LogFlowThisFuncEnter();
-    LogFlowThisFunc(("aParent=%p aMedium=%p aControllerName=%ls aPort=%d aDevice=%d aType=%d aImplicit=%d aPassthrough=%d aTempEject=%d aNonRotational=%d aDiscard=%d aHotPluggable=%d strBandwithGroup=%s\n", aParent, aMedium, aControllerName.raw(), aPort, aDevice, aType, aImplicit, aPassthrough, aTempEject, aNonRotational, aDiscard, aHotPluggable, strBandwidthGroup.c_str()));
+    LogFlowThisFunc(("aParent=%p aMedium=%p aControllerName=%s aPort=%d aDevice=%d aType=%d aImplicit=%d aPassthrough=%d aTempEject=%d aNonRotational=%d aDiscard=%d aHotPluggable=%d strBandwithGroup=%s\n", aParent, aMedium, aControllerName.c_str(), aPort, aDevice, aType, aImplicit, aPassthrough, aTempEject, aNonRotational, aDiscard, aHotPluggable, strBandwidthGroup.c_str()));
 
     if (aType == DeviceType_HardDisk)
         AssertReturn(aMedium, E_INVALIDARG);
@@ -144,7 +146,7 @@ HRESULT MediumAttachment::init(Machine *aParent,
     m->bd.allocate();
     m->bd->pMedium = aMedium;
     unconst(m->bd->strBandwidthGroup) = strBandwidthGroup;
-    unconst(m->bd->bstrControllerName) = aControllerName;
+    unconst(m->bd->strControllerName) = aControllerName;
     unconst(m->bd->lPort)   = aPort;
     unconst(m->bd->lDevice) = aDevice;
     unconst(m->bd->type)    = aType;
@@ -168,7 +170,7 @@ HRESULT MediumAttachment::init(Machine *aParent,
                           aPort, aDevice, Global::stringifyDeviceType(aType),
                           m->bd->fImplicit ? ":I" : "");
 
-    LogFlowThisFunc(("LEAVE - %s\n", getLogName()));
+    LogFlowThisFunc(("LEAVE - %s\n", i_getLogName()));
     return S_OK;
 }
 
@@ -208,7 +210,7 @@ HRESULT MediumAttachment::initCopy(Machine *aParent, MediumAttachment *aThat)
  */
 void MediumAttachment::uninit()
 {
-    LogFlowThisFunc(("ENTER - %s\n", getLogName()));
+    LogFlowThisFunc(("ENTER - %s\n", i_getLogName()));
 
     /* Enclose the state transition Ready->InUninit->NotReady */
     AutoUninitSpan autoUninitSpan(this);
@@ -228,47 +230,35 @@ void MediumAttachment::uninit()
 // IHardDiskAttachment properties
 /////////////////////////////////////////////////////////////////////////////
 
-STDMETHODIMP MediumAttachment::COMGETTER(Medium)(IMedium **aHardDisk)
+
+HRESULT MediumAttachment::getMedium(ComPtr<IMedium> &aHardDisk)
 {
     LogFlowThisFuncEnter();
-
-    CheckComArgOutPointerValid(aHardDisk);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    m->bd->pMedium.queryInterfaceTo(aHardDisk);
+    aHardDisk = m->bd->pMedium;
 
     LogFlowThisFuncLeave();
     return S_OK;
 }
 
-STDMETHODIMP MediumAttachment::COMGETTER(Controller)(BSTR *aController)
+
+HRESULT MediumAttachment::getController(com::Utf8Str &aController)
 {
     LogFlowThisFuncEnter();
-
-    CheckComArgOutPointerValid(aController);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     /* m->controller is constant during life time, no need to lock */
-    m->bd->bstrControllerName.cloneTo(aController);
+    aController = Utf8Str(m->bd->strControllerName);
 
     LogFlowThisFuncLeave();
     return S_OK;
 }
 
-STDMETHODIMP MediumAttachment::COMGETTER(Port)(LONG *aPort)
+
+HRESULT MediumAttachment::getPort(LONG *aPort)
 {
     LogFlowThisFuncEnter();
-
-    CheckComArgOutPointerValid(aPort);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     /* m->bd->port is constant during life time, no need to lock */
     *aPort = m->bd->lPort;
@@ -277,14 +267,9 @@ STDMETHODIMP MediumAttachment::COMGETTER(Port)(LONG *aPort)
     return S_OK;
 }
 
-STDMETHODIMP MediumAttachment::COMGETTER(Device)(LONG *aDevice)
+HRESULT  MediumAttachment::getDevice(LONG *aDevice)
 {
     LogFlowThisFuncEnter();
-
-    CheckComArgOutPointerValid(aDevice);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     /* m->bd->device is constant during life time, no need to lock */
     *aDevice = m->bd->lDevice;
@@ -293,14 +278,9 @@ STDMETHODIMP MediumAttachment::COMGETTER(Device)(LONG *aDevice)
     return S_OK;
 }
 
-STDMETHODIMP MediumAttachment::COMGETTER(Type)(DeviceType_T *aType)
+HRESULT MediumAttachment::getType(DeviceType_T *aType)
 {
     LogFlowThisFuncEnter();
-
-    CheckComArgOutPointerValid(aType);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     /* m->bd->type is constant during life time, no need to lock */
     *aType = m->bd->type;
@@ -309,14 +289,10 @@ STDMETHODIMP MediumAttachment::COMGETTER(Type)(DeviceType_T *aType)
     return S_OK;
 }
 
-STDMETHODIMP MediumAttachment::COMGETTER(Passthrough)(BOOL *aPassthrough)
+
+HRESULT MediumAttachment::getPassthrough(BOOL *aPassthrough)
 {
     LogFlowThisFuncEnter();
-
-    CheckComArgOutPointerValid(aPassthrough);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     AutoReadLock lock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -326,14 +302,10 @@ STDMETHODIMP MediumAttachment::COMGETTER(Passthrough)(BOOL *aPassthrough)
     return S_OK;
 }
 
-STDMETHODIMP MediumAttachment::COMGETTER(TemporaryEject)(BOOL *aTemporaryEject)
+
+HRESULT MediumAttachment::getTemporaryEject(BOOL *aTemporaryEject)
 {
     LogFlowThisFuncEnter();
-
-    CheckComArgOutPointerValid(aTemporaryEject);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     AutoReadLock lock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -343,14 +315,10 @@ STDMETHODIMP MediumAttachment::COMGETTER(TemporaryEject)(BOOL *aTemporaryEject)
     return S_OK;
 }
 
-STDMETHODIMP MediumAttachment::COMGETTER(IsEjected)(BOOL *aEjected)
+
+HRESULT MediumAttachment::getIsEjected(BOOL *aEjected)
 {
     LogFlowThisFuncEnter();
-
-    CheckComArgOutPointerValid(aEjected);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     AutoReadLock lock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -360,14 +328,10 @@ STDMETHODIMP MediumAttachment::COMGETTER(IsEjected)(BOOL *aEjected)
     return S_OK;
 }
 
-STDMETHODIMP MediumAttachment::COMGETTER(NonRotational)(BOOL *aNonRotational)
+
+HRESULT MediumAttachment::getNonRotational(BOOL *aNonRotational)
 {
     LogFlowThisFuncEnter();
-
-    CheckComArgOutPointerValid(aNonRotational);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     AutoReadLock lock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -377,14 +341,9 @@ STDMETHODIMP MediumAttachment::COMGETTER(NonRotational)(BOOL *aNonRotational)
     return S_OK;
 }
 
-STDMETHODIMP MediumAttachment::COMGETTER(Discard)(BOOL *aDiscard)
+HRESULT MediumAttachment::getDiscard(BOOL *aDiscard)
 {
     LogFlowThisFuncEnter();
-
-    CheckComArgOutPointerValid(aDiscard);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     AutoReadLock lock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -394,13 +353,10 @@ STDMETHODIMP MediumAttachment::COMGETTER(Discard)(BOOL *aDiscard)
     return S_OK;
 }
 
-STDMETHODIMP MediumAttachment::COMGETTER(BandwidthGroup) (IBandwidthGroup **aBwGroup)
+
+HRESULT MediumAttachment::getBandwidthGroup(ComPtr<IBandwidthGroup> &aBandwidthGroup)
 {
     LogFlowThisFuncEnter();
-    CheckComArgOutPointerValid(aBwGroup);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -408,26 +364,22 @@ STDMETHODIMP MediumAttachment::COMGETTER(BandwidthGroup) (IBandwidthGroup **aBwG
     if (m->bd->strBandwidthGroup.isNotEmpty())
     {
         ComObjPtr<BandwidthGroup> pBwGroup;
-        hrc = m->pMachine->getBandwidthGroup(m->bd->strBandwidthGroup, pBwGroup, true /* fSetError */);
+        hrc = m->pMachine->i_getBandwidthGroup(m->bd->strBandwidthGroup, pBwGroup, true /* fSetError */);
 
-        Assert(SUCCEEDED(hrc)); /* This is not allowed to fail because the existence of the group was checked when it was attached. */
+        Assert(SUCCEEDED(hrc)); /* This is not allowed to fail because the existence of the
+                                   group was checked when it was attached. */
 
         if (SUCCEEDED(hrc))
-            pBwGroup.queryInterfaceTo(aBwGroup);
+            pBwGroup.queryInterfaceTo(aBandwidthGroup.asOutParam());
     }
 
     LogFlowThisFuncLeave();
     return hrc;
 }
 
-STDMETHODIMP MediumAttachment::COMGETTER(HotPluggable)(BOOL *aHotPluggable)
+HRESULT MediumAttachment::getHotPluggable(BOOL *aHotPluggable)
 {
     LogFlowThisFuncEnter();
-
-    CheckComArgOutPointerValid(aHotPluggable);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     AutoReadLock lock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -440,9 +392,9 @@ STDMETHODIMP MediumAttachment::COMGETTER(HotPluggable)(BOOL *aHotPluggable)
 /**
  *  @note Locks this object for writing.
  */
-void MediumAttachment::rollback()
+void MediumAttachment::i_rollback()
 {
-    LogFlowThisFunc(("ENTER - %s\n", getLogName()));
+    LogFlowThisFunc(("ENTER - %s\n", i_getLogName()));
 
     /* sanity */
     AutoCaller autoCaller(this);
@@ -452,15 +404,15 @@ void MediumAttachment::rollback()
 
     m->bd.rollback();
 
-    LogFlowThisFunc(("LEAVE - %s\n", getLogName()));
+    LogFlowThisFunc(("LEAVE - %s\n", i_getLogName()));
 }
 
 /**
  *  @note Locks this object for writing.
  */
-void MediumAttachment::commit()
+void MediumAttachment::i_commit()
 {
-    LogFlowThisFunc(("ENTER - %s\n", getLogName()));
+    LogFlowThisFunc(("ENTER - %s\n", i_getLogName()));
 
     /* sanity */
     AutoCaller autoCaller(this);
@@ -471,91 +423,100 @@ void MediumAttachment::commit()
     if (m->bd.isBackedUp())
         m->bd.commit();
 
-    LogFlowThisFunc(("LEAVE - %s\n", getLogName()));
+    LogFlowThisFunc(("LEAVE - %s\n", i_getLogName()));
 }
 
-bool MediumAttachment::isImplicit() const
+bool MediumAttachment::i_isImplicit() const
 {
     return m->bd->fImplicit;
 }
 
-void MediumAttachment::setImplicit(bool aImplicit)
+void MediumAttachment::i_setImplicit(bool aImplicit)
 {
     m->bd->fImplicit = aImplicit;
 }
 
-const ComObjPtr<Medium>& MediumAttachment::getMedium() const
+const ComObjPtr<Medium>& MediumAttachment::i_getMedium() const
 {
     return m->bd->pMedium;
 }
 
-Bstr MediumAttachment::getControllerName() const
+const Utf8Str &MediumAttachment::i_getControllerName() const
 {
-    return m->bd->bstrControllerName;
+    return m->bd->strControllerName;
 }
 
-LONG MediumAttachment::getPort() const
+LONG MediumAttachment::i_getPort() const
 {
     return m->bd->lPort;
 }
 
-LONG MediumAttachment::getDevice() const
+LONG MediumAttachment::i_getDevice() const
 {
     return m->bd->lDevice;
 }
 
-DeviceType_T MediumAttachment::getType() const
+DeviceType_T MediumAttachment::i_getType() const
 {
     return m->bd->type;
 }
 
-bool MediumAttachment::getPassthrough() const
+bool MediumAttachment::i_getPassthrough() const
 {
     AutoReadLock lock(this COMMA_LOCKVAL_SRC_POS);
     return m->bd->fPassthrough;
 }
 
-bool MediumAttachment::getTempEject() const
+bool MediumAttachment::i_getTempEject() const
 {
     AutoReadLock lock(this COMMA_LOCKVAL_SRC_POS);
     return m->bd->fTempEject;
 }
 
-bool MediumAttachment::getNonRotational() const
+bool MediumAttachment::i_getNonRotational() const
 {
     AutoReadLock lock(this COMMA_LOCKVAL_SRC_POS);
     return m->bd->fNonRotational;
 }
 
-bool MediumAttachment::getDiscard() const
+bool MediumAttachment::i_getDiscard() const
 {
     AutoReadLock lock(this COMMA_LOCKVAL_SRC_POS);
     return m->bd->fDiscard;
 }
 
-bool MediumAttachment::getHotPluggable() const
+bool MediumAttachment::i_getHotPluggable() const
 {
     AutoReadLock lock(this COMMA_LOCKVAL_SRC_POS);
     return m->bd->fHotPluggable;
 }
 
-const Utf8Str& MediumAttachment::getBandwidthGroup() const
+Utf8Str& MediumAttachment::i_getBandwidthGroup() const
 {
     return m->bd->strBandwidthGroup;
 }
 
-bool MediumAttachment::matches(CBSTR aControllerName, LONG aPort, LONG aDevice)
+bool MediumAttachment::i_matches(const Utf8Str &aControllerName, LONG aPort, LONG aDevice)
 {
-    return (    aControllerName == m->bd->bstrControllerName
+    return (    aControllerName == m->bd->strControllerName
              && aPort == m->bd->lPort
              && aDevice == m->bd->lDevice);
+}
+
+/** Must be called from under this object's write lock. */
+void MediumAttachment::i_updateName(const Utf8Str &aName)
+{
+    Assert(isWriteLockOnCurrentThread());
+
+    m->bd.backup();
+    unconst(m->bd->strControllerName) = aName;
 }
 
 /**
  * Sets the medium of this attachment and unsets the "implicit" flag.
  * @param aMedium
  */
-void MediumAttachment::updateMedium(const ComObjPtr<Medium> &aMedium)
+void MediumAttachment::i_updateMedium(const ComObjPtr<Medium> &aMedium)
 {
     Assert(isWriteLockOnCurrentThread());
 
@@ -566,7 +527,7 @@ void MediumAttachment::updateMedium(const ComObjPtr<Medium> &aMedium)
 }
 
 /** Must be called from under this object's write lock. */
-void MediumAttachment::updatePassthrough(bool aPassthrough)
+void MediumAttachment::i_updatePassthrough(bool aPassthrough)
 {
     Assert(isWriteLockOnCurrentThread());
 
@@ -575,7 +536,7 @@ void MediumAttachment::updatePassthrough(bool aPassthrough)
 }
 
 /** Must be called from under this object's write lock. */
-void MediumAttachment::updateTempEject(bool aTempEject)
+void MediumAttachment::i_updateTempEject(bool aTempEject)
 {
     Assert(isWriteLockOnCurrentThread());
 
@@ -584,7 +545,7 @@ void MediumAttachment::updateTempEject(bool aTempEject)
 }
 
 /** Must be called from under this object's write lock. */
-void MediumAttachment::updateEjected()
+void MediumAttachment::i_updateEjected()
 {
     Assert(isWriteLockOnCurrentThread());
 
@@ -592,7 +553,7 @@ void MediumAttachment::updateEjected()
 }
 
 /** Must be called from under this object's write lock. */
-void MediumAttachment::updateNonRotational(bool aNonRotational)
+void MediumAttachment::i_updateNonRotational(bool aNonRotational)
 {
     Assert(isWriteLockOnCurrentThread());
 
@@ -601,7 +562,7 @@ void MediumAttachment::updateNonRotational(bool aNonRotational)
 }
 
 /** Must be called from under this object's write lock. */
-void MediumAttachment::updateDiscard(bool aDiscard)
+void MediumAttachment::i_updateDiscard(bool aDiscard)
 {
     Assert(isWriteLockOnCurrentThread());
 
@@ -610,7 +571,7 @@ void MediumAttachment::updateDiscard(bool aDiscard)
 }
 
 /** Must be called from under this object's write lock. */
-void MediumAttachment::updateHotPluggable(bool aHotPluggable)
+void MediumAttachment::i_updateHotPluggable(bool aHotPluggable)
 {
     Assert(isWriteLockOnCurrentThread());
 
@@ -618,7 +579,7 @@ void MediumAttachment::updateHotPluggable(bool aHotPluggable)
     m->bd->fHotPluggable = aHotPluggable;
 }
 
-void MediumAttachment::updateBandwidthGroup(const Utf8Str &aBandwidthGroup)
+void MediumAttachment::i_updateBandwidthGroup(const Utf8Str &aBandwidthGroup)
 {
     LogFlowThisFuncEnter();
     Assert(isWriteLockOnCurrentThread());
@@ -629,10 +590,9 @@ void MediumAttachment::updateBandwidthGroup(const Utf8Str &aBandwidthGroup)
     LogFlowThisFuncLeave();
 }
 
-void MediumAttachment::updateParentMachine(Machine * const pMachine)
+void MediumAttachment::i_updateParentMachine(Machine * const pMachine)
 {
-    LogFlowThisFunc(("ENTER - %s\n", getLogName()));
-
+    LogFlowThisFunc(("ENTER - %s\n", i_getLogName()));
     /* sanity */
     AutoCaller autoCaller(this);
     AssertComRCReturnVoid (autoCaller.rc());
@@ -641,6 +601,6 @@ void MediumAttachment::updateParentMachine(Machine * const pMachine)
 
     unconst(m->pMachine) = pMachine;
 
-    LogFlowThisFunc(("LEAVE - %s\n", getLogName()));
+    LogFlowThisFunc(("LEAVE - %s\n", i_getLogName()));
 }
 

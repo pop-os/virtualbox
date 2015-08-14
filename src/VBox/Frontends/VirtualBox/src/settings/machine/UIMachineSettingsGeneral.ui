@@ -30,7 +30,7 @@
      </property>
      <widget class="QWidget" name="mTabBasic" >
       <attribute name="title" >
-       <string>&amp;Basic</string>
+       <string>Basi&amp;c</string>
       </attribute>
       <layout class="QVBoxLayout" name="mLtBasic" >
        <property name="spacing" >
@@ -56,7 +56,7 @@
      </widget>
      <widget class="QWidget" name="mTabAdvanced" >
       <attribute name="title" >
-       <string>&amp;Advanced</string>
+       <string>A&amp;dvanced</string>
       </attribute>
       <layout class="QVBoxLayout" name="mLtAdvanced" >
        <property name="spacing" >
@@ -133,7 +133,7 @@
           <item row="2" column="0" >
            <widget class="QLabel" name="mLbDragAndDrop" >
             <property name="text" >
-             <string>&amp;Drag'n'Drop:</string>
+             <string>D&amp;rag'n'Drop:</string>
             </property>
             <property name="alignment" >
              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
@@ -169,83 +169,6 @@
             </property>
            </spacer>
           </item>
-          <item row="3" column="0" >
-           <widget class="QLabel" name="mLbMedia" >
-            <property name="text" >
-             <string>Removable Media:</string>
-            </property>
-            <property name="alignment" >
-             <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-            </property>
-           </widget>
-          </item>
-          <item row="3" column="1" >
-           <widget class="QCheckBox" name="mCbSaveMounted" >
-            <property name="sizePolicy" >
-             <sizepolicy vsizetype="Fixed" hsizetype="MinimumExpanding" >
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="whatsThis" >
-             <string>If checked, any CD/DVD or floppy disks inserted into or removed from the virtual drives while the machine is running will be remembered.</string>
-            </property>
-            <property name="text" >
-             <string>&amp;Remember Runtime Changes</string>
-            </property>
-            <property name="checked" >
-             <bool>true</bool>
-            </property>
-           </widget>
-          </item>
-          <item row="4" column="0" >
-           <widget class="QLabel" name="mLbToolBar" >
-            <property name="text" >
-             <string>Mini ToolBar:</string>
-            </property>
-            <property name="alignment" >
-             <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-            </property>
-           </widget>
-          </item>
-          <item row="4" column="1" >
-           <widget class="QCheckBox" name="mCbShowToolBar" >
-            <property name="sizePolicy" >
-             <sizepolicy vsizetype="Fixed" hsizetype="MinimumExpanding" >
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="whatsThis" >
-             <string>If checked, show the Mini ToolBar in Fullscreen and Seamless modes.</string>
-            </property>
-            <property name="text" >
-             <string>Show in &amp;Fullscreen/Seamless</string>
-            </property>
-            <property name="checked" >
-             <bool>true</bool>
-            </property>
-           </widget>
-          </item>
-          <item row="5" column="1" >
-           <widget class="QCheckBox" name="mCbToolBarAlignment" >
-            <property name="sizePolicy" >
-             <sizepolicy vsizetype="Fixed" hsizetype="MinimumExpanding" >
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
-            <property name="whatsThis" >
-             <string>If checked, show the Mini ToolBar at the top of the screen, rather than in its default position at the bottom of the screen.</string>
-            </property>
-            <property name="text" >
-             <string>Show at &amp;Top of Screen</string>
-            </property>
-            <property name="checked" >
-             <bool>false</bool>
-            </property>
-           </widget>
-          </item>
          </layout>
         </widget>
        </item>
@@ -266,7 +189,7 @@
      </widget>
      <widget class="QWidget" name="mTabDescription" >
       <attribute name="title" >
-       <string>&amp;Description</string>
+       <string>D&amp;escription</string>
       </attribute>
       <layout class="QVBoxLayout" name="mLtDescription" >
        <property name="spacing" >
@@ -281,6 +204,139 @@
           <bool>false</bool>
          </property>
         </widget>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="m_pTabEncryption">
+      <attribute name="title">
+       <string>Enc&amp;ryption</string>
+      </attribute>
+      <layout class="QGridLayout" name="m_pLayoutEncryption">
+       <item row="0" column="0" colspan="2">
+        <widget class="QCheckBox" name="m_pCheckBoxEncryption">
+         <property name="whatsThis">
+          <string>When checked, enables encryption for this virtual machine.</string>
+         </property>
+         <property name="text">
+          <string>En&amp;able Encryption</string>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="0">
+        <spacer>
+         <property name="orientation">
+          <enum>Qt::Horizontal</enum>
+         </property>
+         <property name="sizeType">
+          <enum>QSizePolicy::Fixed</enum>
+         </property>
+         <property name="sizeHint">
+          <size>
+           <width>20</width>
+           <height>0</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+       <item row="1" column="1">
+        <widget class="QWidget" name="m_pWidgetEncryption">
+         <property name="sizePolicy">
+          <sizepolicy vsizetype="Fixed" hsizetype="MinimumExpanding">
+           <horstretch>1</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <layout class="QGridLayout" name="m_pLayoutEncryptionSettings">
+          <property name="leftMargin">
+           <number>0</number>
+          </property>
+          <property name="topMargin">
+           <number>0</number>
+          </property>
+          <property name="rightMargin">
+           <number>0</number>
+          </property>
+          <property name="bottomMargin">
+           <number>0</number>
+          </property>
+          <item row="0" column="0">
+           <widget class="QLabel" name="m_pLabelCipher">
+            <property name="text">
+             <string>Encryption C&amp;ipher:</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+            </property>
+            <property name="buddy">
+             <cstring>m_pComboCipher</cstring>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QComboBox" name="m_pComboCipher">
+            <property name="whatsThis" >
+             <string>Selects the cipher to be used for encrypting the virtual machine disks.</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="QLabel" name="m_pLabelPassword1">
+            <property name="text">
+             <string>E&amp;nter New Password:</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+            </property>
+            <property name="buddy">
+             <cstring>m_pEditorEncryptionPassword</cstring>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="QLineEdit" name="m_pEditorEncryptionPassword">
+            <property name="whatsThis" >
+             <string>Holds the password to be assigned to the virtual machine.</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="0">
+           <widget class="QLabel" name="m_pLabelPassword2">
+            <property name="text">
+             <string>C&amp;onfirm New Password:</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+            </property>
+            <property name="buddy">
+             <cstring>m_pEditorEncryptionPasswordConfirm</cstring>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="1">
+           <widget class="QLineEdit" name="m_pEditorEncryptionPasswordConfirm">
+            <property name="whatsThis" >
+             <string>Confirms the password to be assigned to the virtual machine.</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item row="2" column="1">
+        <spacer>
+         <property name="orientation">
+          <enum>Qt::Vertical</enum>
+         </property>
+         <property name="sizeType">
+          <enum>QSizePolicy::Expanding</enum>
+         </property>
+         <property name="sizeHint">
+          <size>
+           <width>0</width>
+           <height>0</height>
+          </size>
+         </property>
+        </spacer>
        </item>
       </layout>
      </widget>
@@ -309,20 +365,10 @@
  <resources/>
  <connections>
   <connection>
-   <sender>mCbShowToolBar</sender>
+   <sender>m_pCheckBoxEncryption</sender>
    <signal>toggled(bool)</signal>
-   <receiver>mCbToolBarAlignment</receiver>
+   <receiver>m_pWidgetEncryption</receiver>
    <slot>setEnabled(bool)</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>195</x>
-     <y>50</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>196</x>
-     <y>72</y>
-    </hint>
-   </hints>
   </connection>
  </connections>
 </ui>

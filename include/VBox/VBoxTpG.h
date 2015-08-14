@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2013 Oracle Corporation
+ * Copyright (C) 2012-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -163,6 +163,8 @@ typedef uint32_t VTGSTROFF;
 #define VTG_TYPE_CTX_POINTER    RT_BIT_32(10)
 /** The type has the same size as the host architecture. */
 #define VTG_TYPE_HC_ARCH_SIZED  RT_BIT_32(11)
+/** Const char pointer, requires casting in wrapper headers. */
+#define VTG_TYPE_CONST_CHAR_PTR RT_BIT_32(12)
 /** The type applies to ring-3 context. */
 #define VTG_TYPE_CTX_R3         RT_BIT_32(24)
 /** The type applies to ring-0 context. */

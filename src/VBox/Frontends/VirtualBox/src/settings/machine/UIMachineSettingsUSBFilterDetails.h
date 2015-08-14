@@ -1,7 +1,6 @@
+/* $Id: UIMachineSettingsUSBFilterDetails.h $ */
 /** @file
- *
- * VBox frontends: Qt4 GUI ("VirtualBox"):
- * UIMachineSettingsUSBFilterDetails class declaration
+ * VBox Qt GUI - UIMachineSettingsUSBFilterDetails class declaration.
  */
 
 /*

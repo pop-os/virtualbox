@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -241,6 +241,20 @@ RTDECL(int) RTSystemQueryDmiString(RTSYSDMISTR enmString, char *pszBuf, size_t c
  *                              shutting down.
  */
 RTDECL(int) RTSystemShutdown(RTMSINTERVAL cMsDelay, uint32_t fFlags, const char *pszLogMsg);
+
+/**
+ * Checks if we're executing inside a virtual machine (VM).
+ *
+ * The current implemention is very simplistic and won't try to detect the
+ * presence of a virtual machine monitor (VMM) unless it openly tells us it is
+ * there.
+ *
+ * @returns true if inside a VM, false if on real hardware.
+ *
+ * @todo    If more information is needed, like which VMM it is and which
+ *          version and such, add one or two new APIs.
+ */
+RTDECL(bool) RTSystemIsInsideVM(void);
 
 /** @} */
 

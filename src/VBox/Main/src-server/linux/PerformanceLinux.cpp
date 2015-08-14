@@ -117,7 +117,7 @@ int CollectorLinux::preCollect(const CollectorHints& hints, uint64_t /* iTick */
     hints.getProcesses(processes);
 
     std::vector<RTPROCESS>::iterator it;
-    for (it = processes.begin(); it != processes.end(); it++)
+    for (it = processes.begin(); it != processes.end(); ++it)
     {
         VMProcessStats vmStats;
         int rc = getRawProcessStats(*it, &vmStats.cpuUser, &vmStats.cpuKernel, &vmStats.pagesUsed);
@@ -127,7 +127,7 @@ int CollectorLinux::preCollect(const CollectorHints& hints, uint64_t /* iTick */
         if (RT_SUCCESS(rc))
             mProcessStats[*it] = vmStats;
     }
-    if (hints.isHostCpuLoadCollected() || mProcessStats.size())
+    if (hints.isHostCpuLoadCollected() || !mProcessStats.empty())
     {
         _getRawHostCpuLoad();
     }

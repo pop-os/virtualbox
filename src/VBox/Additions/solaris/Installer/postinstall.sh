@@ -93,7 +93,7 @@ fi
 if test "$currentzone" = "global"; then
     # vboxguest.sh would've been installed, we just need to call it.
     echo "Configuring VirtualBox guest kernel module..."
-    # stop all previous moduels (vboxguest, vboxfs) and start only starts vboxguest
+    # stop all previous modules (vboxguest, vboxfs) and start only starts vboxguest
     $vboxadditions_path/vboxguest.sh stopall silentunload
     $vboxadditions_path/vboxguest.sh start
 
@@ -159,6 +159,7 @@ if test ! -z "$xorgbin"; then
         retval=2
     elif test ! -f "$vboxadditions32_path/$vboxvideo_src" && test ! -f "$vboxadditions64_path/$vboxvideo_src"; then
         echo "*** $vboxadditions32_path/$vboxvideo_src or $vboxadditions64_path/$vboxvideo_src not found!"
+        echo "*** X.org $xorgversion not supported by this package!"
         echo "*** Failed to install the VirtualBox X.org drivers."
 
         # Exit as partially failed installation

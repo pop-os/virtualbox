@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2013 Oracle Corporation
+ * Copyright (C) 2007-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -199,3 +199,10 @@ VBGLR3DECL(int)     VbglR3GuestPropWait(uint32_t u32ClientId,
 }
 
 #endif
+
+VBGLR3DECL(int) VbglR3WriteLog(const char *pch, size_t cch)
+{
+    NOREF(pch); NOREF(cch);
+    return VINF_SUCCESS;
+}
+

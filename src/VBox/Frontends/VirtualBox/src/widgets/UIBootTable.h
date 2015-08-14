@@ -1,7 +1,6 @@
+/* $Id: UIBootTable.h $ */
 /** @file
- *
- * VBox frontends: Qt4 GUI ("VirtualBox"):
- * UIBootTable class declaration
+ * VBox Qt GUI - UIBootTable class declaration.
  */
 
 /*

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2013 Oracle Corporation
+ * Copyright (C) 2011-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -285,7 +285,7 @@
 #define DW_ADDR_i386_huge16     UINT8_C(3)
 #define DW_ADDR_i386_near32     UINT8_C(4)
 #define DW_ADDR_i386_far32      UINT8_C(5)
-/** @}  */
+/** @} */
 
 
 /** @name Location Expression Opcodes
@@ -391,7 +391,7 @@ typedef struct RTDWARFABBREV
 {
     /** Whether there are children or not. */
     bool                fChildren;
-    /** The tag.  */
+    /** The tag. */
     uint16_t            uTag;
     /** Offset into the abbrev section of the specification pairs. */
     uint32_t            offSpec;
@@ -460,7 +460,7 @@ typedef struct RTDBGMODDWARF
     /** Used by rtDwarfAbbrev_Lookup when the result is uncachable. */
     RTDWARFABBREV           LookupAbbrev;
 
-    /** The list of compilation units (RTDWARFDIE).   */
+    /** The list of compilation units (RTDWARFDIE). */
     RTLISTANCHOR            CompileUnitList;
 
     /** Set if we have to use link addresses because the module does not have
@@ -483,7 +483,7 @@ typedef struct RTDBGMODDWARF
     /** Pointer to segments if iWatcomPass isn't -1. */
     PRTDBGDWARFSEG          paSegs;
 #ifdef RTDBGMODDWARF_WITH_MEM_CACHE
-    /** DIE allocators.  */
+    /** DIE allocators. */
     struct
     {
         RTMEMCACHE          hMemCache;
@@ -642,11 +642,11 @@ typedef struct RTDWARFDIEDESC
     size_t              cbDie;
     /** The number of attributes. */
     size_t              cAttributes;
-    /** The  */
+    /** Pointer to the array of attributes. */
     PCRTDWARFATTRDESC   paAttributes;
 } RTDWARFDIEDESC;
 typedef struct RTDWARFDIEDESC const *PCRTDWARFDIEDESC;
-/** DIE descriptor initializer.  */
+/** DIE descriptor initializer. */
 #define DIE_DESC_INIT(a_Type, a_aAttrs)  { sizeof(a_Type), RT_ELEMENTS(a_aAttrs), &a_aAttrs[0] }
 
 
@@ -740,7 +740,7 @@ typedef struct RTDWARFLOCST
     RTDWARFCURSOR   Cursor;
     /** Points to the current top of the stack. Initial value -1. */
     int32_t         iTop;
-    /** The value stack.  */
+    /** The value stack. */
     uint64_t        auStack[64];
 } RTDWARFLOCST;
 /** Pointer to location state. */
@@ -859,9 +859,9 @@ typedef struct RTDWARFDIESUBPROGRAM
     /** Reference to the specification. */
     RTDWARFREF          SpecRef;
 } RTDWARFDIESUBPROGRAM;
-/** Pointer to a DW_TAG_subprogram DIE.  */
+/** Pointer to a DW_TAG_subprogram DIE. */
 typedef RTDWARFDIESUBPROGRAM *PRTDWARFDIESUBPROGRAM;
-/** Pointer to a const DW_TAG_subprogram DIE.  */
+/** Pointer to a const DW_TAG_subprogram DIE. */
 typedef RTDWARFDIESUBPROGRAM const *PCRTDWARFDIESUBPROGRAM;
 
 
@@ -911,9 +911,9 @@ typedef struct RTDWARFDIELABEL
     /** Externally visible? */
     bool                fExternal;
 } RTDWARFDIELABEL;
-/** Pointer to a DW_TAG_label DIE.  */
+/** Pointer to a DW_TAG_label DIE. */
 typedef RTDWARFDIELABEL *PRTDWARFDIELABEL;
-/** Pointer to a const DW_TAG_label DIE.  */
+/** Pointer to a const DW_TAG_label DIE. */
 typedef RTDWARFDIELABEL const *PCRTDWARFDIELABEL;
 
 
@@ -935,7 +935,7 @@ static const RTDWARFDIEDESC g_LabelDesc = DIE_DESC_INIT(RTDWARFDIELABEL, g_aLabe
  */
 static const struct RTDWARFTAGDESC
 {
-    /** The tag value.  */
+    /** The tag value. */
     uint16_t            uTag;
     /** The tag name as string. */
     const char         *pszName;
@@ -4403,6 +4403,97 @@ static int rtDwarfInfo_LoadAll(PRTDBGMODDWARF pThis)
 
 
 
+/*
+ *
+ * Public and image level symbol handling.
+ * Public and image level symbol handling.
+ * Public and image level symbol handling.
+ * Public and image level symbol handling.
+ *
+ *
+ */
+
+#define RTDBGDWARF_SYM_ENUM_BASE_ADDRESS  UINT32_C(0x200000)
+
+/** @callback_method_impl{FNRTLDRENUMSYMS,
+ *  Adds missing symbols from the image symbol table.} */
+static DECLCALLBACK(int) rtDwarfSyms_EnumSymbolsCallback(RTLDRMOD hLdrMod, const char *pszSymbol, unsigned uSymbol,
+                                                         RTLDRADDR Value, void *pvUser)
+{
+    PRTDBGMODDWARF pThis = (PRTDBGMODDWARF)pvUser;
+    NOREF(hLdrMod);
+    Assert(pThis->iWatcomPass != 1);
+
+    RTLDRADDR uRva = Value - RTDBGDWARF_SYM_ENUM_BASE_ADDRESS;
+    if (   Value >= RTDBGDWARF_SYM_ENUM_BASE_ADDRESS
+        && uRva  <  _1G)
+    {
+        RTDBGSYMBOL SymInfo;
+        RTINTPTR    offDisp;
+        int rc = RTDbgModSymbolByAddr(pThis->hCnt, RTDBGSEGIDX_RVA, uRva, RTDBGSYMADDR_FLAGS_LESS_OR_EQUAL, &offDisp, &SymInfo);
+        if (   RT_FAILURE(rc)
+            || offDisp != 0)
+        {
+            rc = RTDbgModSymbolAdd(pThis->hCnt, pszSymbol, RTDBGSEGIDX_RVA, uRva, 1, 0 /*fFlags*/, NULL /*piOrdinal*/);
+            Log(("Dwarf: Symbol #%05u %#018RTptr %s [%Rrc]\n", uSymbol, Value, pszSymbol, rc)); NOREF(rc);
+        }
+    }
+    else
+        Log(("Dwarf: Symbol #%05u %#018RTptr '%s' [SKIPPED - INVALID ADDRESS]\n", uSymbol, Value, pszSymbol));
+    return VINF_SUCCESS;
+}
+
+
+
+/**
+ * Loads additional symbols from the pubnames section and the executable image.
+ *
+ * The symbols are insered into the debug info container.
+ *
+ * @returns IPRT status code
+ * @param   pThis               The DWARF instance.
+ */
+static int rtDwarfSyms_LoadAll(PRTDBGMODDWARF pThis)
+{
+    /*
+     * pubnames.
+     */
+    int rc = VINF_SUCCESS;
+    if (pThis->aSections[krtDbgModDwarfSect_pubnames].fPresent)
+    {
+//        RTDWARFCURSOR Cursor;
+//        int rc = rtDwarfCursor_Init(&Cursor, pThis, krtDbgModDwarfSect_info);
+//        if (RT_SUCCESS(rc))
+//        {
+//            while (   !rtDwarfCursor_IsAtEnd(&Cursor)
+//                   && RT_SUCCESS(rc))
+//                rc = rtDwarfInfo_LoadUnit(pThis, &Cursor, false /* fKeepDies */);
+//
+//            rc = rtDwarfCursor_Delete(&Cursor, rc);
+//        }
+//        return rc;
+    }
+
+    /*
+     * The executable image.
+     */
+    if (   pThis->pImgMod
+        && pThis->pImgMod->pImgVt->pfnEnumSymbols
+        && pThis->iWatcomPass != 1
+        && RT_SUCCESS(rc))
+    {
+        rc = pThis->pImgMod->pImgVt->pfnEnumSymbols(pThis->pImgMod,
+                                                    RTLDR_ENUM_SYMBOL_FLAGS_ALL | RTLDR_ENUM_SYMBOL_FLAGS_NO_FWD,
+                                                    RTDBGDWARF_SYM_ENUM_BASE_ADDRESS,
+                                                    rtDwarfSyms_EnumSymbolsCallback,
+                                                    pThis);
+    }
+
+    return rc;
+}
+
+
+
 
 /*
  *
@@ -4711,8 +4802,9 @@ static DECLCALLBACK(int) rtDbgModDwarf_TryOpen(PRTDBGMODINT pMod, RTLDRARCH enmA
     pThis->pImgMod     = pMod;
     RTListInit(&pThis->CompileUnitList);
     /** @todo better fUseLinkAddress heuristics! */
-    if (   (pMod->pszDbgFile && strstr(pMod->pszDbgFile, "mach_kernel"))
-        || (pMod->pszImgFile && strstr(pMod->pszImgFile, "mach_kernel")) )
+    if (   (pMod->pszDbgFile          && strstr(pMod->pszDbgFile,          "mach_kernel"))
+        || (pMod->pszImgFile          && strstr(pMod->pszImgFile,          "mach_kernel"))
+        || (pMod->pszImgFileSpecified && strstr(pMod->pszImgFileSpecified, "mach_kernel")) )
         pThis->fUseLinkAddress = true;
 
 #ifdef RTDBGMODDWARF_WITH_MEM_CACHE
@@ -4767,6 +4859,8 @@ static DECLCALLBACK(int) rtDbgModDwarf_TryOpen(PRTDBGMODINT pMod, RTLDRARCH enmA
                 if (RT_SUCCESS(rc))
                     rc = rtDwarfInfo_LoadAll(pThis);
                 if (RT_SUCCESS(rc))
+                    rc = rtDwarfSyms_LoadAll(pThis);
+                if (RT_SUCCESS(rc))
                     rc = rtDwarfLine_ExplodeAll(pThis);
                 if (RT_SUCCESS(rc) && pThis->iWatcomPass == 1)
                 {
@@ -4774,6 +4868,8 @@ static DECLCALLBACK(int) rtDbgModDwarf_TryOpen(PRTDBGMODINT pMod, RTLDRARCH enmA
                     pThis->iWatcomPass = 2;
                     if (RT_SUCCESS(rc))
                         rc = rtDwarfInfo_LoadAll(pThis);
+                    if (RT_SUCCESS(rc))
+                        rc = rtDwarfSyms_LoadAll(pThis);
                     if (RT_SUCCESS(rc))
                         rc = rtDwarfLine_ExplodeAll(pThis);
                 }

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -78,9 +78,9 @@
  */
 # define supR3HardenedPathAppPrivateNoArch supR3HardenedStaticPathAppPrivateNoArch
 # define supR3HardenedPathAppPrivateArch   supR3HardenedStaticPathAppPrivateArch
-# define supR3HardenedPathSharedLibs       supR3HardenedStaticPathSharedLibs
+# define supR3HardenedPathAppSharedLibs    supR3HardenedStaticPathAppSharedLibs
 # define supR3HardenedPathAppDocs          supR3HardenedStaticPathAppDocs
-# define supR3HardenedPathExecDir          supR3HardenedStaticPathExecDir
+# define supR3HardenedPathAppBin           supR3HardenedStaticPathAppBin
 # define supR3HardenedPathFilename         supR3HardenedStaticPathFilename
 # define supR3HardenedFatalV               supR3HardenedStaticFatalV
 # define supR3HardenedFatal                supR3HardenedStaticFatal
@@ -175,9 +175,8 @@ typedef enum SUPINSTFILETYPE
 typedef enum SUPINSTDIR
 {
     kSupID_Invalid = 0,
-    kSupID_Bin,
     kSupID_AppBin,
-    kSupID_SharedLib,
+    kSupID_AppSharedLib,
     kSupID_AppPrivArch,
     kSupID_AppPrivArchComp,
     kSupID_AppPrivNoArch,
@@ -332,9 +331,14 @@ typedef enum SUPR3HARDENEDMAINSTATE
 /*******************************************************************************
 *   Global Variables                                                           *
 *******************************************************************************/
-extern DECLHIDDEN(uint32_t)     g_u32Cookie;
-extern DECLHIDDEN(uint32_t)     g_u32SessionCookie;
-extern DECLHIDDEN(SUPLIBDATA)   g_supLibData;
+extern DECLHIDDEN(uint32_t)             g_u32Cookie;
+extern DECLHIDDEN(uint32_t)             g_u32SessionCookie;
+extern DECLHIDDEN(SUPLIBDATA)           g_supLibData;
+extern DECLHIDDEN(uint32_t)             g_uSupFakeMode;
+extern DECLHIDDEN(PSUPGLOBALINFOPAGE)   g_pSUPGlobalInfoPageR0;
+#ifdef ___SUPDrvIOC_h___
+extern DECLHIDDEN(PSUPQUERYFUNCS)       g_pSupFunctions;
+#endif
 extern DECLHIDDEN(SUPR3HARDENEDMAINSTATE) g_enmSupR3HardenedMainState;
 #ifdef RT_OS_WINDOWS
 extern DECLHIDDEN(bool)                 g_fSupEarlyProcessInit;
@@ -376,11 +380,11 @@ DECLHIDDEN(int)    supR3HardenedPathAppPrivateNoArch(char *pszPath, size_t cchPa
 /** @copydoc RTPathAppPrivateArch */
 DECLHIDDEN(int)    supR3HardenedPathAppPrivateArch(char *pszPath, size_t cchPath);
 /** @copydoc RTPathSharedLibs */
-DECLHIDDEN(int)    supR3HardenedPathSharedLibs(char *pszPath, size_t cchPath);
+DECLHIDDEN(int)    supR3HardenedPathAppSharedLibs(char *pszPath, size_t cchPath);
 /** @copydoc RTPathAppDocs */
 DECLHIDDEN(int)    supR3HardenedPathAppDocs(char *pszPath, size_t cchPath);
 /** @copydoc RTPathExecDir */
-DECLHIDDEN(int)    supR3HardenedPathExecDir(char *pszPath, size_t cchPath);
+DECLHIDDEN(int)    supR3HardenedPathAppBin(char *pszPath, size_t cchPath);
 /** @copydoc RTPathFilename */
 DECLHIDDEN(char *) supR3HardenedPathFilename(const char *pszPath);
 
@@ -435,7 +439,7 @@ DECLHIDDEN(void)    supR3HardenedLog(const char *pszFormat, ...);
 DECLHIDDEN(void)    supR3HardenedLogFlush(void);
 
 
-DECLHIDDEN(int)     supR3HardenedVerifyAll(bool fFatal, const char *pszProgName);
+DECLHIDDEN(int)     supR3HardenedVerifyAll(bool fFatal, const char *pszProgName, const char *pszExePath, uint32_t fMainFlags);
 DECLHIDDEN(int)     supR3HardenedVerifyFixedDir(SUPINSTDIR enmDir, bool fFatal);
 DECLHIDDEN(int)     supR3HardenedVerifyFixedFile(const char *pszFilename, bool fFatal);
 DECLHIDDEN(int)     supR3HardenedVerifyDir(const char *pszDirPath, bool fRecursive, bool fCheckFiles, PRTERRINFO pErrInfo);
@@ -446,8 +450,10 @@ DECLHIDDEN(int)     supR3HardenedRecvPreInitData(PCSUPPREINITDATA pPreInitData);
 
 #ifdef RT_OS_WINDOWS
 DECLHIDDEN(void)    supR3HardenedWinInit(uint32_t fFlags, bool fAvastKludge);
+DECLHIDDEN(void)    supR3HardenedWinInitAppBin(uint32_t fFlags);
 DECLHIDDEN(void)    supR3HardenedWinInitVersion(void);
 DECLHIDDEN(void)    supR3HardenedWinInitImports(void);
+DECLHIDDEN(void)    supR3HardenedWinModifyDllSearchPath(uint32_t fFlags, const char *pszAppBinPath);
 # ifdef ___iprt_nt_nt_h___
 DECLHIDDEN(void)    supR3HardenedWinGetVeryEarlyImports(uintptr_t uNtDllAddr,
                                                         PFNNTWAITFORSINGLEOBJECT *ppfnNtWaitForSingleObject,
@@ -464,7 +470,7 @@ DECLHIDDEN(int)     supR3HardenedWinReSpawn(int iWhich);
 # ifdef _WINDEF_
 DECLHIDDEN(void)    supR3HardenedWinCreateParentWatcherThread(HMODULE hVBoxRT);
 # endif
-DECLHIDDEN(void *)  supR3HardenedWinLoadLibrary(const char *pszName, bool fSystem32Only);
+DECLHIDDEN(void *)  supR3HardenedWinLoadLibrary(const char *pszName, bool fSystem32Only, uint32_t fMainFlags);
 extern RTUTF16      g_wszSupLibHardenedExePath[1024];
 # ifdef RTPATH_MAX
 extern char         g_szSupLibHardenedExePath[RTPATH_MAX];

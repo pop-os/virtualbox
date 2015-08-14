@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -55,9 +55,9 @@ extern const PDMDEVREG g_DeviceINIP;
 extern const PDMDEVREG g_DeviceICHAC97;
 extern const PDMDEVREG g_DeviceSB16;
 extern const PDMDEVREG g_DeviceICH6_HDA;
-extern const PDMDEVREG g_DeviceAudioSniffer;
 extern const PDMDEVREG g_DeviceOHCI;
 extern const PDMDEVREG g_DeviceEHCI;
+extern const PDMDEVREG g_DeviceXHCI;
 extern const PDMDEVREG g_DeviceACPI;
 extern const PDMDEVREG g_DeviceDMA;
 extern const PDMDEVREG g_DeviceFloppyController;
@@ -114,6 +114,25 @@ extern const PDMDRVREG g_DrvNetShaper;
 #endif /* VBOX_WITH_NETSHAPER */
 extern const PDMDRVREG g_DrvNetSniffer;
 extern const PDMDRVREG g_DrvAUDIO;
+extern const PDMDRVREG g_DrvHostNullAudio;
+#if defined(RT_OS_WINDOWS)
+extern const PDMDRVREG g_DrvHostDSound;
+#endif
+#if defined(RT_OS_LINUX)
+extern const PDMDRVREG g_DrvHostPulseAudio;
+extern const PDMDRVREG g_DrvHostALSAAudio;
+extern const PDMDRVREG g_DrvHostOSSAudio;
+#endif
+#if defined(RT_OS_DARWIN)
+extern const PDMDRVREG g_DrvHostCoreAudio;
+#endif
+#if defined(RT_OS_SOLARIS)
+extern const PDMDRVREG g_DrvHostOSSAudio;
+extern const PDMDRVREG g_DrvHostSolAudio;
+#endif
+#if defined(RT_OS_FREEBSD)
+extern const PDMDRVREG g_DrvHostOSSAudio;
+#endif
 extern const PDMDRVREG g_DrvACPI;
 extern const PDMDRVREG g_DrvAcpiCpu;
 extern const PDMDRVREG g_DrvVUSBRootHub;
@@ -122,6 +141,7 @@ extern const PDMDRVREG g_DrvHostWebcam;
 #endif
 extern const PDMDRVREG g_DrvChar;
 extern const PDMDRVREG g_DrvNamedPipe;
+extern const PDMDRVREG g_DrvTCP;
 extern const PDMDRVREG g_DrvRawFile;
 extern const PDMDRVREG g_DrvHostParallel;
 extern const PDMDRVREG g_DrvHostSerial;

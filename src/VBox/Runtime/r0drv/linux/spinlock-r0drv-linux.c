@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -73,6 +73,7 @@ typedef struct RTSPINLOCKINTERNAL
 
 RTDECL(int)  RTSpinlockCreate(PRTSPINLOCK pSpinlock, uint32_t fFlags, const char *pszName)
 {
+    IPRT_LINUX_SAVE_EFL_AC();
     PRTSPINLOCKINTERNAL pThis;
     AssertReturn(fFlags == RTSPINLOCK_FLAGS_INTERRUPT_SAFE || fFlags == RTSPINLOCK_FLAGS_INTERRUPT_UNSAFE, VERR_INVALID_PARAMETER);
 
@@ -97,6 +98,7 @@ RTDECL(int)  RTSpinlockCreate(PRTSPINLOCK pSpinlock, uint32_t fFlags, const char
     spin_lock_init(&pThis->Spinlock);
 
     *pSpinlock = pThis;
+    IPRT_LINUX_RESTORE_EFL_AC();
     return VINF_SUCCESS;
 }
 RT_EXPORT_SYMBOL(RTSpinlockCreate);
@@ -126,11 +128,12 @@ RT_EXPORT_SYMBOL(RTSpinlockDestroy);
 RTDECL(void) RTSpinlockAcquire(RTSPINLOCK Spinlock)
 {
     PRTSPINLOCKINTERNAL pThis = (PRTSPINLOCKINTERNAL)Spinlock;
+    IPRT_LINUX_SAVE_EFL_AC();
     RT_ASSERT_PREEMPT_CPUID_VAR();
     AssertMsg(pThis && pThis->u32Magic == RTSPINLOCK_MAGIC,
               ("pThis=%p u32Magic=%08x\n", pThis, pThis ? (int)pThis->u32Magic : 0));
 
-#if defined(CONFIG_PROVE_LOCKING) && !defined(RT_STRICT)
+#ifdef CONFIG_PROVE_LOCKING
     lockdep_off();
 #endif
     if (pThis->fFlags & RTSPINLOCK_FLAGS_INTERRUPT_SAFE)
@@ -141,10 +144,11 @@ RTDECL(void) RTSpinlockAcquire(RTSPINLOCK Spinlock)
     }
     else
         spin_lock(&pThis->Spinlock);
-#if defined(CONFIG_PROVE_LOCKING) && !defined(RT_STRICT)
+#ifdef CONFIG_PROVE_LOCKING
     lockdep_on();
 #endif
 
+    IPRT_LINUX_RESTORE_EFL_ONLY_AC();
     RT_ASSERT_PREEMPT_CPUID_SPIN_ACQUIRED(pThis);
 }
 RT_EXPORT_SYMBOL(RTSpinlockAcquire);
@@ -153,12 +157,13 @@ RT_EXPORT_SYMBOL(RTSpinlockAcquire);
 RTDECL(void) RTSpinlockRelease(RTSPINLOCK Spinlock)
 {
     PRTSPINLOCKINTERNAL pThis = (PRTSPINLOCKINTERNAL)Spinlock;
+    IPRT_LINUX_SAVE_EFL_AC();           /* spin_unlock* may preempt and trash eflags.ac. */
     RT_ASSERT_PREEMPT_CPUID_SPIN_RELEASE_VARS();
     AssertMsg(pThis && pThis->u32Magic == RTSPINLOCK_MAGIC,
               ("pThis=%p u32Magic=%08x\n", pThis, pThis ? (int)pThis->u32Magic : 0));
     RT_ASSERT_PREEMPT_CPUID_SPIN_RELEASE(pThis);
 
-#if defined(CONFIG_PROVE_LOCKING) && !defined(RT_STRICT)
+#ifdef CONFIG_PROVE_LOCKING
     lockdep_off();
 #endif
     if (pThis->fFlags & RTSPINLOCK_FLAGS_INTERRUPT_SAFE)
@@ -169,24 +174,12 @@ RTDECL(void) RTSpinlockRelease(RTSPINLOCK Spinlock)
     }
     else
         spin_unlock(&pThis->Spinlock);
-#if defined(CONFIG_PROVE_LOCKING) && !defined(RT_STRICT)
+#ifdef CONFIG_PROVE_LOCKING
     lockdep_on();
 #endif
 
+    IPRT_LINUX_RESTORE_EFL_ONLY_AC();
     RT_ASSERT_PREEMPT_CPUID();
 }
 RT_EXPORT_SYMBOL(RTSpinlockRelease);
-
-
-RTDECL(void) RTSpinlockReleaseNoInts(RTSPINLOCK Spinlock)
-{
-#if 1
-    if (RT_UNLIKELY(!(Spinlock->fFlags & RTSPINLOCK_FLAGS_INTERRUPT_SAFE)))
-        RTAssertMsg2("RTSpinlockReleaseNoInts: %p (magic=%#x)\n", Spinlock, Spinlock->u32Magic);
-#else
-    AssertRelease(Spinlock->fFlags & RTSPINLOCK_FLAGS_INTERRUPT_SAFE);
-#endif
-    RTSpinlockRelease(Spinlock);
-}
-RT_EXPORT_SYMBOL(RTSpinlockReleaseNoInts);
 

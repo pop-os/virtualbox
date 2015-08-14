@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2014 Oracle Corporation
+ * Copyright (C) 2013-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -170,7 +170,7 @@ rtmon_check_defaults(const void *buf, size_t len)
         size_t gwlen;
         int oif;
 
-        DPRINTF2(("nlmsg type %d flags 0x%x\n",
+        DPRINTF2(("nlmsg seq %d type %d flags 0x%x\n",
                   nh->nlmsg_seq, nh->nlmsg_type, nh->nlmsg_flags));
 
         if (nh->nlmsg_type == NLMSG_DONE) {

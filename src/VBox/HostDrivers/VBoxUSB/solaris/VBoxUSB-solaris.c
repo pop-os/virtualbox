@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2013 Oracle Corporation
+ * Copyright (C) 2008-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -28,10 +28,6 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_USB_DRV
-#ifdef DEBUG_ramshankar
-# define LOG_ENABLED
-# define LOG_INSTANCE       RTLogRelDefaultInstance()
-#endif
 #include <VBox/version.h>
 #include <VBox/log.h>
 #include <VBox/err.h>
@@ -324,6 +320,7 @@ LOCAL void vboxUSBSolarisIsocOutXferCompleted(usb_pipe_handle_t pPipe, usb_isoc_
 LOCAL vboxusb_urb_t *vboxUSBSolarisGetIsocInURB(vboxusb_state_t *pState, PVBOXUSBREQ_URB pUrbReq);
 LOCAL vboxusb_urb_t *vboxUSBSolarisQueueURB(vboxusb_state_t *pState, PVBOXUSBREQ_URB pUrbReq, mblk_t *pMsg);
 LOCAL inline void vboxUSBSolarisConcatMsg(vboxusb_urb_t *pUrb);
+LOCAL inline VUSBSTATUS vboxUSBSolarisGetUrbStatus(usb_cr_t Status);
 LOCAL inline void vboxUSBSolarisDeQueueURB(vboxusb_urb_t *pUrb, int URBStatus);
 LOCAL inline void vboxUSBSolarisNotifyComplete(vboxusb_state_t *pState);
 LOCAL int vboxUSBSolarisProcessIOCtl(int iFunction, void *pvState, int Mode, PVBOXUSBREQ pUSBReq, void *pvBuf,
@@ -1171,7 +1168,7 @@ int VBoxUSBSolarisIOCtl(dev_t Dev, int Cmd, intptr_t pArg, int Mode, cred_t *pCr
     /*
      * Process the IOCtl.
      */
-    size_t cbDataOut;
+    size_t cbDataOut = 0;
     rc = vboxUSBSolarisProcessIOCtl(Cmd, pState, Mode, &ReqWrap, pvBuf, &cbDataOut);
     ReqWrap.rc = rc;
     rc = 0;
@@ -1480,7 +1477,7 @@ LOCAL void vboxUSBSolarisDestroyPower(vboxusb_state_t *pState)
  *
  * @returns VBox USB URB status.
  */
-static inline VUSBSTATUS vboxUSBSolarisGetUrbStatus(usb_cr_t Status)
+LOCAL inline VUSBSTATUS vboxUSBSolarisGetUrbStatus(usb_cr_t Status)
 {
     switch (Status)
     {

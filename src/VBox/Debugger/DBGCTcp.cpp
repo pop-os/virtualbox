@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -101,6 +101,8 @@ static DECLCALLBACK(int) dbgcTcpBackRead(PDBGCBACK pBack, void *pvBuf, size_t cb
     if (!pDbgcTcp->fAlive)
         return VERR_INVALID_HANDLE;
     int rc = RTTcpRead(pDbgcTcp->Sock, pvBuf, cbBuf, pcbRead);
+    if (RT_SUCCESS(rc) && pcbRead != NULL && *pcbRead == 0)
+        rc = VERR_NET_SHUTDOWN;
     if (RT_FAILURE(rc))
         pDbgcTcp->fAlive = false;
     return rc;
@@ -135,7 +137,7 @@ static DECLCALLBACK(int) dbgcTcpBackWrite(PDBGCBACK pBack, const void *pvBuf, si
         /* write newlines */
         if (*(const char *)pvBuf == '\n')
         {
-            rc = RTTcpWrite(pDbgcTcp->Sock, "\n\r", 2);
+            rc = RTTcpWrite(pDbgcTcp->Sock, "\r\n", 2);
             cb = 1;
         }
         /* write till next newline */

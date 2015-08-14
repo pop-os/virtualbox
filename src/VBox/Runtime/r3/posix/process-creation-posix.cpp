@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -247,7 +247,7 @@ static void rtSolarisContractPostForkParent(int templateFd, pid_t pid)
     /* Abandon this contract we just created. */
     char ctlPath[PATH_MAX];
     size_t len = snprintf(ctlPath, sizeof(ctlPath),
-                          CTFS_ROOT "/process/%d/ctl", ctId);
+                          CTFS_ROOT "/process/%ld/ctl", (long)ctId);
     if (len >= sizeof(ctlPath))
         return;
     int ctlFd = open64(ctlPath, O_WRONLY);

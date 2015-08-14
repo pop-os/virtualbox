@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,6 +21,11 @@
 #include "cr_gl.h"
 #include "stub.h"
 #include "cr_mem.h"
+
+#if defined(VBOX_WITH_CRHGSMI) && defined(IN_GUEST)
+# include <VBox/VBoxCrHgsmi.h>
+# include <VBox/VBoxUhgsmi.h>
+#endif
 
 #include <windows.h>
 
@@ -109,27 +114,33 @@ BOOL APIENTRY DrvValidateVersion(DWORD version)
 //we're not going to change icdTable at runtime, so callback is unused
 PICDTABLE APIENTRY DrvSetContext(HDC hdc, HGLRC hglrc, void *callback)
 {
-    ContextInfo *context;
-    WindowInfo *window;
-    BOOL ret;
+    ContextInfo *pContext;
+    WindowInfo  *pWindowInfo;
+    BOOL ret = false;
 
     CR_DDI_PROLOGUE();
 
-    /*crDebug( "DrvSetContext called(0x%x, 0x%x)", hdc, hglrc );*/
     (void) (callback);
 
     crHashtableLock(stub.windowTable);
     crHashtableLock(stub.contextTable);
 
-    context = (ContextInfo *) crHashtableSearch(stub.contextTable, (unsigned long) hglrc);
-    window = stubGetWindowInfo(hdc);
-
-    ret = stubMakeCurrent(window, context);
+    pContext = (ContextInfo *) crHashtableSearch(stub.contextTable, (unsigned long) hglrc);
+    if (pContext)
+    {
+        pWindowInfo = stubGetWindowInfo(hdc);
+        if (pWindowInfo)
+            ret = stubMakeCurrent(pWindowInfo, pContext);
+        else
+            crError("no window info available.");
+    }
+    else
+        crError("No context found.");
 
     crHashtableUnlock(stub.contextTable);
     crHashtableUnlock(stub.windowTable);
 
-    return ret ? &icdTable:NULL;
+    return ret ? &icdTable : NULL;
 }
 
 BOOL APIENTRY DrvSetPixelFormat(HDC hdc, int iPixelFormat)
@@ -148,6 +159,9 @@ HGLRC APIENTRY DrvCreateContext(HDC hdc)
 {
     char dpyName[MAX_DPY_NAME];
     ContextInfo *context;
+#if defined(VBOX_WITH_CRHGSMI) && defined(IN_GUEST)
+    PVBOXUHGSMI pHgsmi = NULL;
+#endif
 
     CR_DDI_PROLOGUE();
 
@@ -163,9 +177,13 @@ HGLRC APIENTRY DrvCreateContext(HDC hdc)
         desiredVisual |= ComputeVisBits( hdc );
 #endif
 
+#if defined(VBOX_WITH_CRHGSMI) && defined(IN_GUEST)
+    pHgsmi = VBoxCrHgsmiCreate();
+#endif
+
     context = stubNewContext(dpyName, desiredVisual, UNDECIDED, 0
 #if defined(VBOX_WITH_CRHGSMI) && defined(IN_GUEST)
-        , NULL
+        , pHgsmi
 #endif
             );
     if (!context)
@@ -294,10 +312,32 @@ int APIENTRY DrvDescribePixelFormat(HDC hdc, int iPixelFormat, UINT nBytes, LPPI
 
 BOOL APIENTRY DrvDeleteContext(HGLRC hglrc)
 {
+#if defined(VBOX_WITH_CRHGSMI) && defined(IN_GUEST)
+    ContextInfo *pContext;
+    PVBOXUHGSMI pHgsmi = NULL;
+#endif
+
     CR_DDI_PROLOGUE();
-    /*crDebug( "DrvDeleteContext(0x%x) called", hglrc );*/
+    crDebug( "DrvDeleteContext(0x%x) called", hglrc );
+
+#if defined(VBOX_WITH_CRHGSMI) && defined(IN_GUEST)
+    crHashtableLock(stub.contextTable);
+
+    pContext = (ContextInfo *) crHashtableSearch(stub.contextTable, (unsigned long) hglrc);
+    if (pContext)
+        pHgsmi = pContext->pHgsmi;
+
+    crHashtableUnlock(stub.contextTable);
+#endif
+
     stubDestroyContext( (unsigned long) hglrc );
-    return 1;
+
+#if defined(VBOX_WITH_CRHGSMI) && defined(IN_GUEST)
+    if (pHgsmi)
+        VBoxCrHgsmiDestroy(pHgsmi);
+#endif
+
+    return true;
 }
 
 BOOL APIENTRY DrvCopyContext(HGLRC hglrcSrc, HGLRC hglrcDst, UINT mask)

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2013 Oracle Corporation
+ * Copyright (C) 2007-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -739,7 +739,7 @@ RTDECL(RTEXITCODE) RTGetOptPrintError(int ch, PCRTGETOPTUNION pValueUnion)
     }
     else if (ch == VERR_GETOPT_UNKNOWN_OPTION)
         RTMsgError("Unknown option: '%s'", pValueUnion->psz);
-    else if (ch == VERR_GETOPT_INVALID_ARGUMENT_FORMAT)
+    else if (pValueUnion->pDef && ch == VERR_GETOPT_INVALID_ARGUMENT_FORMAT)
         /** @todo r=klaus not really ideal, as the value isn't available */
         RTMsgError("The value given '%s' has an invalid format.", pValueUnion->pDef->pszLong);
     else if (pValueUnion->pDef)

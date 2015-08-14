@@ -15,6 +15,11 @@
 #include "cr_vreg.h"
 #include "cr_environment.h"
 #include "cr_pixeldata.h"
+
+#ifdef VBOX_WITH_CR_DISPLAY_LISTS
+# include "cr_dlm.h"
+#endif
+
 #include "server_dispatch.h"
 #include "state/cr_texture.h"
 #include "render/renderspu.h"
@@ -203,9 +208,11 @@ static void crServerTearDown( void )
 
     if (!fContextsDeleted)
     {
+#ifndef VBOX_WITH_CR_DISPLAY_LISTS
         /* sync our state with renderspu,
          * do it before mural & context deletion to avoid deleting currently set murals/contexts*/
         cr_server.head_spu->dispatch_table.MakeCurrent(CR_RENDER_DEFAULT_WINDOW_ID, 0, CR_RENDER_DEFAULT_CONTEXT_ID);
+#endif
     }
 
     /* Deallocate all semaphores */
@@ -745,34 +752,6 @@ static void crVBoxServerInternalClientWriteRead(CRClient *pClient)
     CRVBOXHGSMI_CMDDATA_ASSERT_CLEANED(&pClient->conn->CmdData);
 
     crServerServiceClients();
-
-#if 0
-        if (pClient->currentMural) {
-            crStateViewport( 0, 0, 500, 500 );
-            pClient->currentMural->viewportValidated = GL_FALSE;
-            cr_server.head_spu->dispatch_table.Viewport( 0, 0, 500, 500 );
-            crStateViewport( 0, 0, 600, 600 );
-            pClient->currentMural->viewportValidated = GL_FALSE;
-            cr_server.head_spu->dispatch_table.Viewport( 0, 0, 600, 600 );
-
-            crStateMatrixMode(GL_PROJECTION);
-            cr_server.head_spu->dispatch_table.MatrixMode(GL_PROJECTION);
-            crServerDispatchLoadIdentity();
-            crStateFrustum(-0.6, 0.6, -0.5, 0.5, 1.5, 150.0);
-            cr_server.head_spu->dispatch_table.Frustum(-0.6, 0.6, -0.5, 0.5, 1.5, 150.0);
-            crServerDispatchLoadIdentity();
-            crStateFrustum(-0.5, 0.5, -0.5, 0.5, 1.5, 150.0);
-            cr_server.head_spu->dispatch_table.Frustum(-0.5, 0.5, -0.5, 0.5, 1.5, 150.0);
-
-            crStateMatrixMode(GL_MODELVIEW);
-            cr_server.head_spu->dispatch_table.MatrixMode(GL_MODELVIEW);
-            crServerDispatchLoadIdentity();
-            crStateFrustum(-0.5, 0.5, -0.5, 0.5, 1.5, 150.0);
-            cr_server.head_spu->dispatch_table.Frustum(-0.5, 0.5, -0.5, 0.5, 1.5, 150.0);
-            crServerDispatchLoadIdentity();
-        }
-#endif
-
     crStateResetCurrentPointers(&cr_server.current);
 
 #ifndef VBOX_WITH_CRHGSMI
@@ -794,7 +773,6 @@ int32_t crVBoxServerClientWrite(uint32_t u32ClientID, uint8_t *pBuffer, uint32_t
 
     if (RT_FAILURE(rc))
         return rc;
-
 
     CRASSERT(pBuffer);
 
@@ -1391,11 +1369,6 @@ static int crVBoxServerFBImageDataInitEx(CRFBData *pData, CRContextInfo *pCtxInf
     return VINF_SUCCESS;
 }
 
-static int crVBoxServerFBImageDataInit(CRFBData *pData, CRContextInfo *pCtxInfo, CRMuralInfo *pMural, GLboolean fWrite)
-{
-    return crVBoxServerFBImageDataInitEx(pData, pCtxInfo, pMural, fWrite, SHCROGL_SSM_VERSION, 0, 0);
-}
-
 static int crVBoxServerSaveFBImage(PSSMHANDLE pSSM)
 {
     CRContextInfo *pCtxInfo;
@@ -1415,7 +1388,7 @@ static int crVBoxServerSaveFBImage(PSSMHANDLE pSSM)
     pContext = pCtxInfo->pContext;
     pMural = pCtxInfo->currentMural;
 
-    rc = crVBoxServerFBImageDataInit(&Data.data, pCtxInfo, pMural, GL_FALSE);
+    rc = crVBoxServerFBImageDataInitEx(&Data.data, pCtxInfo, pMural, GL_FALSE, SHCROGL_SSM_VERSION, 0, 0);
     if (!RT_SUCCESS(rc))
     {
         crWarning("crVBoxServerFBImageDataInit failed rc %d", rc);
@@ -1542,125 +1515,6 @@ static void crVBoxServerSaveContextStateCB(unsigned long key, void *data1, void 
     /* restore the initial current mural */
     pContextInfo->currentMural = pContextCurrentMural;
 }
-
-#if 0
-typedef struct CR_SERVER_CHECK_BUFFERS
-{
-    CRBufferObject *obj;
-    CRContext *ctx;
-}CR_SERVER_CHECK_BUFFERS, *PCR_SERVER_CHECK_BUFFERS;
-
-static void crVBoxServerCheckConsistencyContextBuffersCB(unsigned long key, void *data1, void *data2)
-{
-    CRContextInfo* pContextInfo = (CRContextInfo*)data1;
-    CRContext *ctx = pContextInfo->pContext;
-    PCR_SERVER_CHECK_BUFFERS pBuffers = (PCR_SERVER_CHECK_BUFFERS)data2;
-    CRBufferObject *obj = pBuffers->obj;
-    CRBufferObjectState *b = &(ctx->bufferobject);
-    int j, k;
-
-    if (obj == b->arrayBuffer)
-    {
-        Assert(!pBuffers->ctx || pBuffers->ctx == ctx);
-        pBuffers->ctx = ctx;
-    }
-    if (obj == b->elementsBuffer)
-    {
-        Assert(!pBuffers->ctx || pBuffers->ctx == ctx);
-        pBuffers->ctx = ctx;
-    }
-#ifdef CR_ARB_pixel_buffer_object
-    if (obj == b->packBuffer)
-    {
-        Assert(!pBuffers->ctx || pBuffers->ctx == ctx);
-        pBuffers->ctx = ctx;
-    }
-    if (obj == b->unpackBuffer)
-    {
-        Assert(!pBuffers->ctx || pBuffers->ctx == ctx);
-        pBuffers->ctx = ctx;
-    }
-#endif
-
-#ifdef CR_ARB_vertex_buffer_object
-    for (j=0; j<CRSTATECLIENT_MAX_VERTEXARRAYS; ++j)
-    {
-        CRClientPointer *cp = crStateGetClientPointerByIndex(j, &ctx->client.array);
-        if (obj == cp->buffer)
-        {
-            Assert(!pBuffers->ctx || pBuffers->ctx == ctx);
-            pBuffers->ctx = ctx;
-        }
-    }
-
-    for (k=0; k<ctx->client.vertexArrayStackDepth; ++k)
-    {
-        CRVertexArrays *pArray = &ctx->client.vertexArrayStack[k];
-        for (j=0; j<CRSTATECLIENT_MAX_VERTEXARRAYS; ++j)
-        {
-            CRClientPointer *cp = crStateGetClientPointerByIndex(j, pArray);
-            if (obj == cp->buffer)
-            {
-                Assert(!pBuffers->ctx || pBuffers->ctx == ctx);
-                pBuffers->ctx = ctx;
-            }
-        }
-    }
-#endif
-}
-
-static void crVBoxServerCheckConsistencyBuffersCB(unsigned long key, void *data1, void *data2)
-{
-    CRBufferObject *obj = (CRBufferObject *)data1;
-    CR_SERVER_CHECK_BUFFERS Buffers = {0};
-    Buffers.obj = obj;
-    crHashtableWalk(cr_server.contextTable, crVBoxServerCheckConsistencyContextBuffersCB, (void*)&Buffers);
-}
-
-//static void crVBoxServerCheckConsistency2CB(unsigned long key, void *data1, void *data2)
-//{
-//    CRContextInfo* pContextInfo1 = (CRContextInfo*)data1;
-//    CRContextInfo* pContextInfo2 = (CRContextInfo*)data2;
-//
-//    CRASSERT(pContextInfo1->pContext);
-//    CRASSERT(pContextInfo2->pContext);
-//
-//    if (pContextInfo1 == pContextInfo2)
-//    {
-//        CRASSERT(pContextInfo1->pContext == pContextInfo2->pContext);
-//        return;
-//    }
-//
-//    CRASSERT(pContextInfo1->pContext != pContextInfo2->pContext);
-//    CRASSERT(pContextInfo1->pContext->shared);
-//    CRASSERT(pContextInfo2->pContext->shared);
-//    CRASSERT(pContextInfo1->pContext->shared == pContextInfo2->pContext->shared);
-//    if (pContextInfo1->pContext->shared != pContextInfo2->pContext->shared)
-//        return;
-//
-//    crHashtableWalk(pContextInfo1->pContext->shared->buffersTable, crVBoxServerCheckConsistencyBuffersCB, pContextInfo2);
-//}
-static void crVBoxServerCheckSharedCB(unsigned long key, void *data1, void *data2)
-{
-    CRContextInfo* pContextInfo = (CRContextInfo*)data1;
-    void **ppShared = (void**)data2;
-    if (!*ppShared)
-        *ppShared = pContextInfo->pContext->shared;
-    else
-        Assert(pContextInfo->pContext->shared == *ppShared);
-}
-
-static void crVBoxServerCheckConsistency()
-{
-    CRSharedState *pShared = NULL;
-    crHashtableWalk(cr_server.contextTable, crVBoxServerCheckSharedCB, (void*)&pShared);
-    Assert(pShared);
-    if (pShared)
-    {
-        crHashtableWalk(pShared->buffersTable, crVBoxServerCheckConsistencyBuffersCB, NULL);
-    }
-}
-#endif
 
 static uint32_t g_hackVBoxServerSaveLoadCallsLeft = 0;
 
@@ -1833,6 +1687,16 @@ static int32_t crVBoxServerSaveStatePerform(PSSMHANDLE pSSM)
 
     rc = CrPMgrSaveState(pSSM);
     AssertRCReturn(rc, rc);
+
+#ifdef VBOX_WITH_CR_DISPLAY_LISTS
+    if (cr_server.head_spu->dispatch_table.spu_save_state)
+    {
+        rc = cr_server.head_spu->dispatch_table.spu_save_state((void *)pSSM);
+        AssertRCReturn(rc, rc);
+    }
+    else
+        crDebug("Do not save %s SPU state: no interface exported.", cr_server.head_spu->name);
+#endif
 
     /* all context gl error states should have now be synced with chromium erro states,
      * reset the error if any */
@@ -2033,7 +1897,7 @@ static int32_t crVBoxServerLoadMurals(CR_SERVER_LOADSTATE_READER *pReader, uint3
     bool fBuggyMuralData = false;
     /* Load windows */
     int32_t rc = crServerLsrDataGetU32(pReader, &uiNumElems);
-    AssertRCReturn(rc, rc);
+    AssertLogRelRCReturn(rc, rc);
     for (ui=0; ui<uiNumElems; ++ui)
     {
         CRCreateInfo_t createInfo;
@@ -2042,16 +1906,16 @@ static int32_t crVBoxServerLoadMurals(CR_SERVER_LOADSTATE_READER *pReader, uint3
         unsigned long key;
 
         rc = crServerLsrDataGetMem(pReader, &key, sizeof(key));
-        AssertRCReturn(rc, rc);
+        AssertLogRelRCReturn(rc, rc);
         rc = crServerLsrDataGetMem(pReader, &createInfo, sizeof(createInfo));
-        AssertRCReturn(rc, rc);
+        AssertLogRelRCReturn(rc, rc);
 
         CRASSERT(!pReader->cbData);
 
         if (createInfo.pszDpyName)
         {
             rc = SSMR3GetStrZEx(pReader->pSSM, psz, 200, NULL);
-            AssertRCReturn(rc, rc);
+            AssertLogRelRCReturn(rc, rc);
             createInfo.pszDpyName = psz;
         }
 
@@ -2061,16 +1925,16 @@ static int32_t crVBoxServerLoadMurals(CR_SERVER_LOADSTATE_READER *pReader, uint3
 
     /* Load cr_server.muralTable */
     rc = SSMR3GetU32(pReader->pSSM, &uiNumElems);
-    AssertRCReturn(rc, rc);
+    AssertLogRelRCReturn(rc, rc);
     for (ui=0; ui<uiNumElems; ++ui)
     {
         CRMuralInfo muralInfo;
         CRMuralInfo *pActualMural = NULL;
 
         rc = crServerLsrDataGetMem(pReader, &key, sizeof(key));
-        AssertRCReturn(rc, rc);
+        AssertLogRelRCReturn(rc, rc);
         rc = crServerLsrDataGetMem(pReader, &muralInfo, RT_OFFSETOF(CRMuralInfo, CreateInfo));
-        AssertRCReturn(rc, rc);
+        AssertLogRelRCReturn(rc, rc);
 
         if (version <= SHCROGL_SSM_VERSION_BEFORE_FRONT_DRAW_TRACKING)
             muralInfo.bFbDraw = GL_TRUE;
@@ -2091,7 +1955,7 @@ static int32_t crVBoxServerLoadMurals(CR_SERVER_LOADSTATE_READER *pReader, uint3
                 /* first value is bool (uint8_t) value followed by pointer-size-based alignment.
                  * the mural memory is zero-initialized initially, so we can be sure the padding is zeroed */
                 rc = crServerLsrDataGetMem(pReader, &LaBuf, sizeof (LaBuf));
-                AssertRCReturn(rc, rc);
+                AssertLogRelRCReturn(rc, rc);
                 if (LaBuf.apv[0] != NULL && LaBuf.apv[0] != ((void*)1))
                     break;
 
@@ -2151,63 +2015,6 @@ static int32_t crVBoxServerLoadMurals(CR_SERVER_LOADSTATE_READER *pReader, uint3
                     }
                 }
 
-#if 0
-                if (muralInfo.pVisibleRects)
-                {
-                    int j;
-                    int cRects = RT_MIN(muralInfo.cVisibleRects, RT_ELEMENTS(LaBuf.aVisRects));
-                    CRASSERT(cRects);
-                    for (j = 0; j < cRects; ++j)
-                    {
-                        PRTRECT pRect = &LaBuf.aVisRects[j];
-                        if (pRect->xLeft >= pRect->xRight)
-                            break;
-                        if (pRect->yTop >= pRect->yBottom)
-                            break;
-                        if (pRect->xLeft < 0 || pRect->xRight < 0
-                                || pRect->yTop < 0 || pRect->yBottom < 0)
-                            break;
-                        if (pRect->xLeft > (GLint)muralInfo.width
-                                || pRect->xRight > (GLint)muralInfo.width)
-                            break;
-                        if (pRect->yTop > (GLint)muralInfo.height
-                                || pRect->yBottom > (GLint)muralInfo.height)
-                            break;
-                    }
-
-                    if (j < cRects)
-                    {
-                        fBuggyMuralData = true;
-                        break;
-                    }
-                }
-
-                if (muralInfo.pVisibleRects)
-                {
-                    /* @todo: do we actually need any further checks here? */
-                    fBuggyMuralData = true;
-                    break;
-                }
-
-                /* no visible regions*/
-
-                if (ui == uiNumElems - 1)
-                {
-                    /* this is the last mural, next it goes idsPool, whose content can not match the above template again */
-                    fBuggyMuralData = true;
-                    break;
-                }
-
-                /* next it goes a next mural info */
-//                if (!fExpectPtr)
-//                {
-//                    CRMuralInfo *pNextSpuWindowInfoMural = (CRMuralInfo*)((void*)&LaBuf);
-//                    if (!pNextSpuWindowInfoMural->spuWindow)
-//                        fBuggyMuralData = true;
-//
-//                    break;
-//                }
-#endif
                 /* fExpectPtr == true, the valid pointer values should not match possible mural width/height/position */
                 fBuggyMuralData = true;
                 break;
@@ -2215,14 +2022,14 @@ static int32_t crVBoxServerLoadMurals(CR_SERVER_LOADSTATE_READER *pReader, uint3
             } while (0);
 
             rc = crServerLsrDataPutMem(pReader, &LaBuf, sizeof (LaBuf));
-            AssertRCReturn(rc, rc);
+            AssertLogRelRCReturn(rc, rc);
         }
 
         if (fBuggyMuralData)
         {
             CR_SERVER_BUGGY_MURAL_DATA Tmp;
             rc = crServerLsrDataGetMem(pReader, &Tmp, sizeof (Tmp));
-            AssertRCReturn(rc, rc);
+            AssertLogRelRCReturn(rc, rc);
         }
 
         if (muralInfo.pVisibleRects)
@@ -2234,7 +2041,7 @@ static int32_t crVBoxServerLoadMurals(CR_SERVER_LOADSTATE_READER *pReader, uint3
             }
 
             rc = crServerLsrDataGetMem(pReader, muralInfo.pVisibleRects, 4*sizeof(GLint)*muralInfo.cVisibleRects);
-            AssertRCReturn(rc, rc);
+            AssertLogRelRCReturn(rc, rc);
         }
 
         pActualMural = (CRMuralInfo *)crHashtableSearch(cr_server.muralTable, key);
@@ -2327,7 +2134,7 @@ static int crVBoxServerLoadFBImage(PSSMHANDLE pSSM, uint32_t version,
     {
         CRFBDataElement * pEl = &Data.data.aElements[i];
         rc = SSMR3GetMem(pSSM, pEl->pvData, pEl->cbData);
-        AssertRCReturn(rc, rc);
+        AssertLogRelRCReturn(rc, rc);
     }
 
     if (version > SHCROGL_SSM_VERSION_WITH_BUGGY_FB_IMAGE_DATA)
@@ -2397,7 +2204,7 @@ static int32_t crVBoxServerLoadStatePerform(PSSMHANDLE pSSM, uint32_t version)
 
         /* Read number of clients */
         rc = SSMR3GetU32(pSSM, &g_hackVBoxServerSaveLoadCallsLeft);
-        AssertRCReturn(rc, rc);
+        AssertLogRelRCReturn(rc, rc);
 
         Assert(g_hackVBoxServerSaveLoadCallsLeft);
         /* we get called only once for CrCmd */
@@ -2430,8 +2237,8 @@ static int32_t crVBoxServerLoadStatePerform(PSSMHANDLE pSSM, uint32_t version)
 
     /* Load and recreate rendering contexts */
     rc = SSMR3GetU32(pSSM, &uiNumElems);
-    AssertRCReturn(rc, rc);
-    for (ui=0; ui<uiNumElems; ++ui)
+    AssertLogRelRCReturn(rc, rc);
+    for (ui = 0; ui < uiNumElems; ++ui)
     {
         CRCreateInfo_t createInfo;
         char psz[200];
@@ -2440,14 +2247,14 @@ static int32_t crVBoxServerLoadStatePerform(PSSMHANDLE pSSM, uint32_t version)
         CRContext* pContext;
 
         rc = SSMR3GetMem(pSSM, &key, sizeof(key));
-        AssertRCReturn(rc, rc);
+        AssertLogRelRCReturn(rc, rc);
         rc = SSMR3GetMem(pSSM, &createInfo, sizeof(createInfo));
-        AssertRCReturn(rc, rc);
+        AssertLogRelRCReturn(rc, rc);
 
         if (createInfo.pszDpyName)
         {
             rc = SSMR3GetStrZEx(pSSM, psz, 200, NULL);
-            AssertRCReturn(rc, rc);
+            AssertLogRelRCReturn(rc, rc);
             createInfo.pszDpyName = psz;
         }
 
@@ -2466,7 +2273,7 @@ static int32_t crVBoxServerLoadStatePerform(PSSMHANDLE pSSM, uint32_t version)
         CRASSERT(!Reader.pu8Buffer);
         /* we have a mural data here */
         rc = crVBoxServerLoadMurals(&Reader, version);
-        AssertRCReturn(rc, rc);
+        AssertLogRelRCReturn(rc, rc);
         CRASSERT(!Reader.pu8Buffer);
     }
 
@@ -2478,7 +2285,7 @@ static int32_t crVBoxServerLoadStatePerform(PSSMHANDLE pSSM, uint32_t version)
     }
 
     rc = crStateLoadGlobals(pSSM, version);
-    AssertRCReturn(rc, rc);
+    AssertLogRelRCReturn(rc, rc);
 
     if (uiNumElems)
     {
@@ -2501,7 +2308,7 @@ static int32_t crVBoxServerLoadStatePerform(PSSMHANDLE pSSM, uint32_t version)
         int32_t winId = 0;
 
         rc = SSMR3GetMem(pSSM, &key, sizeof(key));
-        AssertRCReturn(rc, rc);
+        AssertLogRelRCReturn(rc, rc);
 
         pContextInfo = (CRContextInfo*) crHashtableSearch(cr_server.contextTable, key);
         CRASSERT(pContextInfo);
@@ -2511,7 +2318,7 @@ static int32_t crVBoxServerLoadStatePerform(PSSMHANDLE pSSM, uint32_t version)
         if (version > SHCROGL_SSM_VERSION_WITH_BUGGY_FB_IMAGE_DATA)
         {
             rc = SSMR3GetMem(pSSM, &winId, sizeof(winId));
-            AssertRCReturn(rc, rc);
+            AssertLogRelRCReturn(rc, rc);
 
             if (winId)
             {
@@ -2527,11 +2334,11 @@ static int32_t crVBoxServerLoadStatePerform(PSSMHANDLE pSSM, uint32_t version)
         }
 
         rc = crStateLoadContext(pContext, cr_server.contextTable, crVBoxServerGetContextCB, pSSM, version);
-        AssertRCReturn(rc, rc);
+        AssertLogRelRCReturn(rc, rc);
 
         /*Restore front/back buffer images*/
         rc = crVBoxServerLoadFBImage(pSSM, version, pContextInfo, pMural);
-        AssertRCReturn(rc, rc);
+        AssertLogRelRCReturn(rc, rc);
     }
 
     if (version > SHCROGL_SSM_VERSION_WITH_BUGGY_FB_IMAGE_DATA)
@@ -2541,17 +2348,17 @@ static int32_t crVBoxServerLoadStatePerform(PSSMHANDLE pSSM, uint32_t version)
         GLint ctxId;
 
         rc = SSMR3GetU32(pSSM, &uiNumElems);
-        AssertRCReturn(rc, rc);
+        AssertLogRelRCReturn(rc, rc);
         for (ui=0; ui<uiNumElems; ++ui)
         {
             CRbitvalue initialCtxUsage[CR_MAX_BITARRAY];
             CRMuralInfo *pInitialCurMural;
 
             rc = SSMR3GetMem(pSSM, &key, sizeof(key));
-            AssertRCReturn(rc, rc);
+            AssertLogRelRCReturn(rc, rc);
 
             rc = SSMR3GetMem(pSSM, &ctxId, sizeof(ctxId));
-            AssertRCReturn(rc, rc);
+            AssertLogRelRCReturn(rc, rc);
 
             pMural = (CRMuralInfo*)crHashtableSearch(cr_server.muralTable, key);
             CRASSERT(pMural);
@@ -2567,7 +2374,7 @@ static int32_t crVBoxServerLoadStatePerform(PSSMHANDLE pSSM, uint32_t version)
             pInitialCurMural = pContextInfo->currentMural;
 
             rc = crVBoxServerLoadFBImage(pSSM, version, pContextInfo, pMural);
-            AssertRCReturn(rc, rc);
+            AssertLogRelRCReturn(rc, rc);
 
             /* restore the reference data, we synchronize it with the HW state in a later crServerPerformMakeCurrent call */
             crMemcpy(pMural->ctxUsage, initialCtxUsage, sizeof (initialCtxUsage));
@@ -2587,7 +2394,7 @@ static int32_t crVBoxServerLoadStatePerform(PSSMHANDLE pSSM, uint32_t version)
 
         /* we have a mural data here */
         rc = crVBoxServerLoadMurals(&Reader, version);
-        AssertRCReturn(rc, rc);
+        AssertLogRelRCReturn(rc, rc);
 
         /* not used any more, just read it out and ignore */
         rc = crServerLsrDataGetMem(&Reader, &dummyIdsPool, sizeof(dummyIdsPool));
@@ -2604,17 +2411,17 @@ static int32_t crVBoxServerLoadStatePerform(PSSMHANDLE pSSM, uint32_t version)
             unsigned long ctxID=-1, winID=-1;
 
             rc = crServerLsrDataGetU32(&Reader, &ui);
-            AssertRCReturn(rc, rc);
+            AssertLogRelRCReturn(rc, rc);
             /* If this assert fires, then we should search correct client in the list first*/
             CRASSERT(ui == pClient->conn->u32ClientID);
 
             if (version>=4)
             {
                 rc = crServerLsrDataGetU32(&Reader, &pClient->conn->vMajor);
-                AssertRCReturn(rc, rc);
+                AssertLogRelRCReturn(rc, rc);
 
                 rc = crServerLsrDataGetU32(&Reader, &pClient->conn->vMinor);
-                AssertRCReturn(rc, rc);
+                AssertLogRelRCReturn(rc, rc);
             }
 
             rc = crServerLsrDataGetMem(&Reader, &client, sizeof(client));
@@ -2637,7 +2444,7 @@ static int32_t crVBoxServerLoadStatePerform(PSSMHANDLE pSSM, uint32_t version)
             if (client.currentCtxInfo && client.currentContextNumber > 0)
             {
                 rc = crServerLsrDataGetMem(&Reader, &ctxID, sizeof(ctxID));
-                AssertRCReturn(rc, rc);
+                AssertLogRelRCReturn(rc, rc);
                 client.currentCtxInfo = (CRContextInfo*) crHashtableSearch(cr_server.contextTable, ctxID);
                 CRASSERT(client.currentCtxInfo);
                 CRASSERT(client.currentCtxInfo->pContext);
@@ -2648,7 +2455,7 @@ static int32_t crVBoxServerLoadStatePerform(PSSMHANDLE pSSM, uint32_t version)
             if (client.currentMural && client.currentWindow > 0)
             {
                 rc = crServerLsrDataGetMem(&Reader, &winID, sizeof(winID));
-                AssertRCReturn(rc, rc);
+                AssertLogRelRCReturn(rc, rc);
                 client.currentMural = (CRMuralInfo*) crHashtableSearch(cr_server.muralTable, winID);
                 CRASSERT(client.currentMural);
                 //pClient->currentMural = client.currentMural;
@@ -2659,90 +2466,37 @@ static int32_t crVBoxServerLoadStatePerform(PSSMHANDLE pSSM, uint32_t version)
 
             /* Restore client active context and window */
             crServerDispatchMakeCurrent(winID, 0, ctxID);
-
-            if (0)
-            {
-//            CRContext *tmpCtx;
-//            CRCreateInfo_t *createInfo;
-            GLfloat one[4] = { 1, 1, 1, 1 };
-            GLfloat amb[4] = { 0.4f, 0.4f, 0.4f, 1.0f };
-
-            crServerDispatchMakeCurrent(winID, 0, ctxID);
-
-            crHashtableWalk(client.currentCtxInfo->pContext->shared->textureTable, crVBoxServerSyncTextureCB, client.currentCtxInfo->pContext);
-
-            crStateTextureObjectDiff(client.currentCtxInfo->pContext, NULL, NULL, &client.currentCtxInfo->pContext->texture.base1D, GL_TRUE);
-            crStateTextureObjectDiff(client.currentCtxInfo->pContext, NULL, NULL, &client.currentCtxInfo->pContext->texture.base2D, GL_TRUE);
-            crStateTextureObjectDiff(client.currentCtxInfo->pContext, NULL, NULL, &client.currentCtxInfo->pContext->texture.base3D, GL_TRUE);
-#ifdef CR_ARB_texture_cube_map
-            crStateTextureObjectDiff(client.currentCtxInfo->pContext, NULL, NULL, &client.currentCtxInfo->pContext->texture.baseCubeMap, GL_TRUE);
-#endif
-#ifdef CR_NV_texture_rectangle
-            //@todo this doesn't work as expected
-            //crStateTextureObjectDiff(client.currentCtxInfo->pContext, NULL, NULL, &client.currentCtxInfo->pContext->texture.baseRect, GL_TRUE);
-#endif
-            /*cr_server.head_spu->dispatch_table.Materialfv(GL_FRONT_AND_BACK, GL_AMBIENT, amb);
-            cr_server.head_spu->dispatch_table.LightModelfv(GL_LIGHT_MODEL_AMBIENT, amb);
-            cr_server.head_spu->dispatch_table.Lightfv(GL_LIGHT1, GL_DIFFUSE, one);
-
-            cr_server.head_spu->dispatch_table.Enable(GL_LIGHTING);
-            cr_server.head_spu->dispatch_table.Enable(GL_LIGHT0);
-            cr_server.head_spu->dispatch_table.Enable(GL_LIGHT1);
-
-            cr_server.head_spu->dispatch_table.Enable(GL_CULL_FACE);
-            cr_server.head_spu->dispatch_table.Enable(GL_TEXTURE_2D);*/
-
-            //crStateViewport( 0, 0, 600, 600 );
-            //pClient->currentMural->viewportValidated = GL_FALSE;
-            //cr_server.head_spu->dispatch_table.Viewport( 0, 0, 600, 600 );
-
-            //crStateMatrixMode(GL_PROJECTION);
-            //cr_server.head_spu->dispatch_table.MatrixMode(GL_PROJECTION);
-
-            //crStateLoadIdentity();
-            //cr_server.head_spu->dispatch_table.LoadIdentity();
-
-            //crStateFrustum(-0.5, 0.5, -0.5, 0.5, 1.5, 150.0);
-            //cr_server.head_spu->dispatch_table.Frustum(-0.5, 0.5, -0.5, 0.5, 1.5, 150.0);
-
-            //crStateMatrixMode(GL_MODELVIEW);
-            //cr_server.head_spu->dispatch_table.MatrixMode(GL_MODELVIEW);
-            //crServerDispatchLoadIdentity();
-            //crStateFrustum(-0.5, 0.5, -0.5, 0.5, 1.5, 150.0);
-            //cr_server.head_spu->dispatch_table.Frustum(-0.5, 0.5, -0.5, 0.5, 1.5, 150.0);
-            //crServerDispatchLoadIdentity();
-
-                /*createInfo = (CRCreateInfo_t *) crHashtableSearch(cr_server.pContextCreateInfoTable, ctxID);
-                CRASSERT(createInfo);
-                tmpCtx = crStateCreateContext(NULL, createInfo->visualBits, NULL);
-                CRASSERT(tmpCtx);
-                crStateDiffContext(tmpCtx, client.currentCtxInfo->pContext);
-                crStateDestroyContext(tmpCtx);*/
-            }
         }
     }
-
-    //crServerDispatchMakeCurrent(-1, 0, -1);
 
     cr_server.curClient = NULL;
 
     rc = crServerPendLoadState(pSSM, version);
-    AssertRCReturn(rc, rc);
+    AssertLogRelRCReturn(rc, rc);
 
     if (version >= SHCROGL_SSM_VERSION_WITH_SCREEN_INFO)
     {
         rc = CrPMgrLoadState(pSSM, version);
-        AssertRCReturn(rc, rc);
+        AssertLogRelRCReturn(rc, rc);
     }
+
+#ifdef VBOX_WITH_CR_DISPLAY_LISTS
+    if (version >= SHCROGL_SSM_VERSION_WITH_DISPLAY_LISTS)
+    {
+        if (cr_server.head_spu->dispatch_table.spu_load_state)
+        {
+            rc = cr_server.head_spu->dispatch_table.spu_load_state((void *)pSSM);
+            AssertLogRelRCReturn(rc, rc);
+        }
+        else
+            crDebug("Do not load %s SPU state: no interface exported.", cr_server.head_spu->name);
+    }
+#endif
 
     while ((err = cr_server.head_spu->dispatch_table.GetError()) != GL_NO_ERROR)
         crWarning("crServer: glGetError %d after loading snapshot", err);
 
     cr_server.bIsInLoadingState = GL_FALSE;
-
-#if 0
-    crVBoxServerCheckConsistency();
-#endif
 
 #ifdef DEBUG_misha
     if (cr_server.head_spu->dispatch_table.StringMarkerGREMEDY)
@@ -2774,7 +2528,7 @@ extern DECLEXPORT(void) crServerVBoxSetNotifyEventCB(PFNCRSERVERNOTIFYEVENT pfnC
     cr_server.pfnNotifyEventCB = pfnCb;
 }
 
-void crVBoxServerNotifyEvent(int32_t idScreen, uint32_t uEvent, void*pvData)
+void crVBoxServerNotifyEvent(int32_t idScreen, uint32_t uEvent, void* pvData, uint32_t cbData)
 {
     /* this is something unexpected, but just in case */
     if (idScreen >= cr_server.screenCount)
@@ -2783,7 +2537,7 @@ void crVBoxServerNotifyEvent(int32_t idScreen, uint32_t uEvent, void*pvData)
         return;
     }
 
-    cr_server.pfnNotifyEventCB(idScreen, uEvent, pvData);
+    cr_server.pfnNotifyEventCB(idScreen, uEvent, pvData, cbData);
 }
 
 void crServerWindowReparent(CRMuralInfo *pMural)
@@ -2791,6 +2545,11 @@ void crServerWindowReparent(CRMuralInfo *pMural)
     pMural->fHasParentWindow = !!cr_server.screen[pMural->screenId].winID;
 
     renderspuReparentWindow(pMural->spuWindow);
+}
+
+DECLEXPORT(void) crServerSetUnscaledHiDPI(bool fEnable)
+{
+    renderspuSetUnscaledHiDPI(fEnable);
 }
 
 static void crVBoxServerReparentMuralCB(unsigned long key, void *data1, void *data2)
@@ -2966,11 +2725,6 @@ DECLEXPORT(int32_t) crVBoxServerSetRootVisibleRegion(GLint cRects, const RTRECT 
     }
 
     return VINF_SUCCESS;
-}
-
-DECLEXPORT(void) crVBoxServerSetPresentFBOCB(PFNCRSERVERPRESENTFBO pfnPresentFBO)
-{
-    cr_server.pfnPresentFBO = pfnPresentFBO;
 }
 
 DECLEXPORT(int32_t) crVBoxServerSetOffscreenRendering(GLboolean value)
@@ -3619,7 +3373,7 @@ static int crVBoxCrCmdLoadClients(PSSMHANDLE pSSM, uint32_t u32Version)
     uint32_t u32;
     VBOXCMDVBVA_3DCTL_CONNECT Connect;
     int rc = SSMR3GetU32(pSSM, &u32);
-    AssertRCReturn(rc, rc);
+    AssertLogRelRCReturn(rc, rc);
 
     for (i = 0; i < u32; i++)
     {
@@ -3628,16 +3382,16 @@ static int crVBoxCrCmdLoadClients(PSSMHANDLE pSSM, uint32_t u32Version)
         Connect.Hdr.u32CmdClientId = 0;
 
         rc = SSMR3GetU32(pSSM, &u32ClientID);
-        AssertRCReturn(rc, rc);
+        AssertLogRelRCReturn(rc, rc);
         rc = SSMR3GetU32(pSSM, &Connect.u32MajorVersion);
-        AssertRCReturn(rc, rc);
+        AssertLogRelRCReturn(rc, rc);
         rc = SSMR3GetU32(pSSM, &Connect.u32MinorVersion);
-        AssertRCReturn(rc, rc);
+        AssertLogRelRCReturn(rc, rc);
         rc = SSMR3GetU64(pSSM, &Connect.u64Pid);
-        AssertRCReturn(rc, rc);
+        AssertLogRelRCReturn(rc, rc);
 
         rc = crVBoxCrConnectEx(&Connect, u32ClientID);
-        AssertRCReturn(rc, rc);
+        AssertLogRelRCReturn(rc, rc);
     }
 
     return VINF_SUCCESS;
@@ -3698,89 +3452,58 @@ static DECLCALLBACK(int) crVBoxCrCmdLoadState(HVBOXCRCMDSVR hSvr, PSSMHANDLE pSS
 {
     int rc = VINF_SUCCESS;
 
-    char psz[2000];
+    char szBuf[2000];
     uint32_t ui32;
 
     Assert(cr_server.fCrCmdEnabled);
 
     /* Start of data */
-    rc = SSMR3GetStrZEx(pSSM, psz, 2000, NULL);
-    AssertRCReturn(rc, rc);
-    if (strcmp(gszVBoxOGLSSMMagic, psz))
-    {
-        WARN(("unexpected data"));
-        return VERR_SSM_UNEXPECTED_DATA;
-    }
+    rc = SSMR3GetStrZEx(pSSM, szBuf, sizeof(szBuf), NULL);
+    AssertLogRelRCReturn(rc, rc);
+    AssertLogRelMsgReturn(!strcmp(gszVBoxOGLSSMMagic, szBuf), ("Unexpected data1: '%s'\n", szBuf), VERR_SSM_UNEXPECTED_DATA);
 
     /* num clients */
     rc = SSMR3GetU32(pSSM, &ui32);
-    AssertRCReturn(rc, rc);
+    AssertLogRelRCReturn(rc, rc);
 
     if (!ui32)
     {
         /* no clients, dummy stub */
-        rc = SSMR3GetStrZEx(pSSM, psz, 2000, NULL);
-        AssertRCReturn(rc, rc);
-        if (strcmp(gszVBoxOGLSSMMagic, psz))
-        {
-            WARN(("unexpected data"));
-            return VERR_SSM_UNEXPECTED_DATA;
-        }
+        rc = SSMR3GetStrZEx(pSSM, szBuf, sizeof(szBuf), NULL);
+        AssertLogRelRCReturn(rc, rc);
+        AssertLogRelMsgReturn(!strcmp(gszVBoxOGLSSMMagic, szBuf), ("Unexpected data2: '%s'\n", szBuf), VERR_SSM_UNEXPECTED_DATA);
 
         return VINF_SUCCESS;
     }
-    if (ui32 != 1)
-    {
-        WARN(("invalid id"));
-        return VERR_SSM_UNEXPECTED_DATA;
-    }
+    AssertLogRelMsgReturn(ui32 == 1, ("Invalid client count: %#x\n", ui32), VERR_SSM_UNEXPECTED_DATA);
 
     /* Version */
     rc = SSMR3GetU32(pSSM, &ui32);
-    AssertRCReturn(rc, rc);
-
-    if (ui32 < SHCROGL_SSM_VERSION_CRCMD)
-    {
-        WARN(("unexpected version"));
-        return VERR_SSM_UNEXPECTED_DATA;
-    }
+    AssertLogRelRCReturn(rc, rc);
+    AssertLogRelMsgReturn(ui32 >= SHCROGL_SSM_VERSION_CRCMD, ("Unexpected version: %#x\n", ui32), VERR_SSM_UNEXPECTED_DATA);
 
     rc = crVBoxCrCmdLoadClients(pSSM, u32Version);
-    AssertRCReturn(rc, rc);
+    AssertLogRelRCReturn(rc, rc);
 
     /* The state itself */
     rc = crVBoxServerLoadStatePerform(pSSM, ui32);
-    AssertRCReturn(rc, rc);
+    AssertLogRelRCReturn(rc, rc);
 
     /* Save svc buffers info */
     {
         rc = SSMR3GetU32(pSSM, &ui32);
-        AssertRCReturn(rc, rc);
-
-        if (ui32)
-        {
-            WARN(("unexpected data1"));
-            return VERR_SSM_UNEXPECTED_DATA;
-        }
+        AssertLogRelRCReturn(rc, rc);
+        AssertLogRelMsgReturn(ui32 == 0, ("Unexpected data3: %#x\n", ui32), VERR_SSM_UNEXPECTED_DATA);
 
         rc = SSMR3GetU32(pSSM, &ui32);
-        AssertRCReturn(rc, rc);
-
-        if (ui32)
-        {
-            WARN(("unexpected data1"));
-            return VERR_SSM_UNEXPECTED_DATA;
-        }
+        AssertLogRelRCReturn(rc, rc);
+        AssertLogRelMsgReturn(ui32 == 0, ("Unexpected data4: %#x\n", ui32), VERR_SSM_UNEXPECTED_DATA);
     }
 
     /* End */
-    rc = SSMR3GetStrZEx(pSSM, psz, 2000, NULL);
-    AssertRCReturn(rc, rc);
-    if (strcmp(gszVBoxOGLSSMMagic, psz))
-    {
-        WARN(("unexpected data"));
-        return VERR_SSM_UNEXPECTED_DATA;
-    }
+    rc = SSMR3GetStrZEx(pSSM, szBuf, sizeof(szBuf), NULL);
+    AssertLogRelRCReturn(rc, rc);
+    AssertLogRelMsgReturn(!strcmp(gszVBoxOGLSSMMagic, szBuf), ("Unexpected data5: '%s'\n", szBuf), VERR_SSM_UNEXPECTED_DATA);
 
     return VINF_SUCCESS;
 }
@@ -3816,14 +3539,14 @@ static DECLCALLBACK(int8_t) crVBoxCrCmdCmd(HVBOXCRCMDSVR hSvr, const VBOXCMDVBVA
         {
             const VBOXCMDVBVA_FLIP *pFlip;
 
-            if (cbCmd < sizeof (VBOXCMDVBVA_FLIP))
+            if (cbCmd < VBOXCMDVBVA_SIZEOF_FLIPSTRUCT_MIN)
             {
-                WARN(("invalid buffer size"));
+                WARN(("invalid buffer size (cbCmd(%u) < sizeof(VBOXCMDVBVA_FLIP)(%u))", cbCmd, sizeof(VBOXCMDVBVA_FLIP)));
                 return -1;
             }
 
             pFlip = (const VBOXCMDVBVA_FLIP*)pCmd;
-            return crVBoxServerCrCmdFlipProcess(pFlip);
+            return crVBoxServerCrCmdFlipProcess(pFlip, cbCmd);
         }
         case VBOXCMDVBVA_OPTYPE_BLT:
         {

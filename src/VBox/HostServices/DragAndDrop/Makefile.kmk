@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2011-2012 Oracle Corporation
+# Copyright (C) 2011-2015 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -45,7 +45,8 @@ VBoxDragAndDropSvc_SOURCES.win = \
 VBoxDragAndDropSvc_LIBS = \
 	$(LIB_VMM) \
 	$(LIB_RUNTIME) \
-	$(LIB_REM)
+	$(LIB_REM) \
+	$(PATH_STAGE_LIB)/VBoxDnDHostR3Lib$(VBOX_SUFF_LIB)
 
 VBoxDragAndDropSvc_LDFLAGS.darwin = \
 	-install_name $(VBOX_DYLD_EXECUTABLE_PATH)/VBoxDragAndDropSvc.dylib

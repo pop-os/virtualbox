@@ -139,7 +139,7 @@ int CollectorWin::preCollect(const CollectorHints& hints, uint64_t /* iTick */)
 
     mProcessStats.clear();
 
-    for (it = processes.begin(); it != processes.end() && RT_SUCCESS(rc); it++)
+    for (it = processes.begin(); it != processes.end() && RT_SUCCESS(rc); ++it)
     {
         RTPROCESS process = it->first;
         HANDLE h = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ,
@@ -268,7 +268,8 @@ int CollectorWin::getHostCpuMHz(ULONG *mhz)
 {
     uint64_t uTotalMhz   = 0;
     RTCPUID  nProcessors = RTMpGetCount();
-    PPROCESSOR_POWER_INFORMATION ppi = (PPROCESSOR_POWER_INFORMATION)RTMemAllocZ(nProcessors * sizeof(PROCESSOR_POWER_INFORMATION));
+    PPROCESSOR_POWER_INFORMATION ppi = (PPROCESSOR_POWER_INFORMATION)
+                                       RTMemAllocZ(nProcessors * sizeof(PROCESSOR_POWER_INFORMATION));
 
     if (!ppi)
         return VERR_NO_MEMORY;

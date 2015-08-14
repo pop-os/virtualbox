@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -160,8 +160,10 @@ static RTWINOSTYPE rtR3InitWinSimplifiedVersion(OSVERSIONINFOEXW const *pOSInfoE
         else if (   dwMajorVersion == 6
                  && dwMinorVersion == 3)
             enmVer = kRTWinOSType_81;
-        else if (   dwMajorVersion == 6
-                 && dwMinorVersion == 4)
+        else if (   (   dwMajorVersion == 6
+                     && dwMinorVersion == 4)
+                 || (   dwMajorVersion == 10
+                     && dwMinorVersion == 0))
             enmVer = kRTWinOSType_10;
         else
             enmVer = kRTWinOSType_NT_UNKNOWN;

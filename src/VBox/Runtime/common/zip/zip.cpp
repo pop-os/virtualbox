@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1100,7 +1100,7 @@ static bool rtZipLZFValidHeader(PCRTZIPLZFHDR pHdr)
         ||  pHdr->cbUncompressed > RTZIPLZF_MAX_UNCOMPRESSED_DATA_SIZE
        )
     {
-        AssertMsgFailed(("Invalid LZF header! %.*%Rhxs\n", sizeof(pHdr), pHdr));
+        AssertMsgFailed(("Invalid LZF header! %.*Rhxs\n", sizeof(pHdr), pHdr));
         return false;
     }
     return true;
@@ -1964,7 +1964,7 @@ RTDECL(int) RTZipBlockDecompress(RTZIPTYPE enmType, uint32_t fFlags,
                 return zipErrConvertFromZlib(rc, false /*fCompressing*/);
 
             if (pcbSrcActual)
-                *pcbSrcActual = ZStrm.avail_in - cbSrc;
+                *pcbSrcActual = cbSrc - ZStrm.avail_in;
             if (pcbDstActual)
                 *pcbDstActual = ZStrm.total_out;
             break;

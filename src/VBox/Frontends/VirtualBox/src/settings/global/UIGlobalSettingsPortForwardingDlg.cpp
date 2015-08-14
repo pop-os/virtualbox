@@ -1,8 +1,6 @@
 /* $Id: UIGlobalSettingsPortForwardingDlg.cpp $ */
 /** @file
- *
- * VBox frontends: Qt4 GUI ("VirtualBox"):
- * UIGlobalSettingsPortForwardingDlg class implementation
+ * VBox Qt GUI - UIGlobalSettingsPortForwardingDlg class implementation.
  */
 
 /*
@@ -17,15 +15,22 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* Qt includes: */
-#include <QVBoxLayout>
-#include <QPushButton>
-#include <QTabWidget>
+# include <QVBoxLayout>
+# include <QPushButton>
+# include <QTabWidget>
 
 /* GUI includes: */
-#include "UIGlobalSettingsPortForwardingDlg.h"
-#include "UIIconPool.h"
-#include "QIDialogButtonBox.h"
+# include "UIGlobalSettingsPortForwardingDlg.h"
+# include "UIIconPool.h"
+# include "QIDialogButtonBox.h"
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 
 UIGlobalSettingsPortForwardingDlg::UIGlobalSettingsPortForwardingDlg(QWidget *pParent,
                                                                      const UIPortForwardingDataList &ipv4rules,
@@ -36,7 +41,7 @@ UIGlobalSettingsPortForwardingDlg::UIGlobalSettingsPortForwardingDlg(QWidget *pP
     , m_pButtonBox(0)
 {
     /* Set dialog icon: */
-    setWindowIcon(UIIconPool::iconSetFull(QSize(32, 32), QSize(16, 16), ":/nw_32px.png", ":/nw_16px.png"));
+    setWindowIcon(UIIconPool::iconSetFull(":/nw_32px.png", ":/nw_16px.png"));
 
     /* Create layout: */
     QVBoxLayout *pMainLayout = new QVBoxLayout(this);

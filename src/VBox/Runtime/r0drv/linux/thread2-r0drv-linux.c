@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -102,6 +102,13 @@ DECLHIDDEN(int) rtThreadNativeAdopt(PRTTHREADINT pThread)
 }
 
 
+DECLHIDDEN(void) rtThreadNativeWaitKludge(PRTTHREADINT pThread)
+{
+    /** @todo fix RTThreadWait/RTR0Term race on linux. */
+    RTThreadSleep(1); NOREF(pThread);
+}
+
+
 DECLHIDDEN(void) rtThreadNativeDestroy(PRTTHREADINT pThread)
 {
     NOREF(pThread);
@@ -130,16 +137,20 @@ DECLHIDDEN(int) rtThreadNativeCreate(PRTTHREADINT pThreadInt, PRTNATIVETHREAD pN
 {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 4)
     struct task_struct *NativeThread;
+    IPRT_LINUX_SAVE_EFL_AC();
 
     RT_ASSERT_PREEMPTIBLE();
 
     NativeThread = kthread_run(rtThreadNativeMain, pThreadInt, "iprt-%s", pThreadInt->szName);
 
-    if (IS_ERR(NativeThread))
-        return VERR_GENERAL_FAILURE;
-
-    *pNativeThread = (RTNATIVETHREAD)NativeThread;
-    return VINF_SUCCESS;
+    if (!IS_ERR(NativeThread))
+    {
+        *pNativeThread = (RTNATIVETHREAD)NativeThread;
+        IPRT_LINUX_RESTORE_EFL_AC();
+        return VINF_SUCCESS;
+    }
+    IPRT_LINUX_RESTORE_EFL_AC();
+    return VERR_GENERAL_FAILURE;
 #else
     return VERR_NOT_IMPLEMENTED;
 #endif

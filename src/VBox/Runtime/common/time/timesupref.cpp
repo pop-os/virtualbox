@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -36,49 +36,183 @@
 #include <iprt/asm-math.h>
 #include <iprt/asm-amd64-x86.h>
 #include <VBox/sup.h>
+#ifdef IN_RC
+# include <VBox/vmm/vmm.h>
+# include <VBox/vmm/vm.h>
+#endif
 #include "internal/time.h"
 
 
-/*
- * Use the CPUID instruction for some kind of serialization.
- */
-#undef  ASYNC_GIP
-#undef  USE_LFENCE
-#define NEED_TRANSACTION_ID
-#define rtTimeNanoTSInternalRef RTTimeNanoTSLegacySync
-#include "timesupref.h"
-RT_EXPORT_SYMBOL(RTTimeNanoTSLegacySync);
+#define TMPL_MODE_SYNC_INVAR_NO_DELTA       1
+#define TMPL_MODE_SYNC_INVAR_WITH_DELTA     2
+#define TMPL_MODE_ASYNC                     3
 
-#define ASYNC_GIP
-#ifdef IN_RC
-# undef NEED_TRANSACTION_ID
-#endif
+
+/*
+ * Use the XCHG instruction for some kind of serialization.
+ */
+#define TMPL_READ_FENCE()        ASMReadFence()
+
+#undef  TMPL_MODE
+#define TMPL_MODE                TMPL_MODE_SYNC_INVAR_NO_DELTA
+#undef  TMPL_GET_CPU_METHOD
+#define TMPL_GET_CPU_METHOD      0
 #undef  rtTimeNanoTSInternalRef
-#define rtTimeNanoTSInternalRef RTTimeNanoTSLegacyAsync
+#define rtTimeNanoTSInternalRef  RTTimeNanoTSLegacySyncInvarNoDelta
 #include "timesupref.h"
+RT_EXPORT_SYMBOL(RTTimeNanoTSLegacySyncInvarNoDelta);
+
+#ifdef IN_RING3
+
+# undef  TMPL_MODE
+# define TMPL_MODE               TMPL_MODE_SYNC_INVAR_WITH_DELTA
+# undef  TMPL_GET_CPU_METHOD
+# define TMPL_GET_CPU_METHOD     SUPGIPGETCPU_APIC_ID
+# undef  rtTimeNanoTSInternalRef
+# define rtTimeNanoTSInternalRef RTTimeNanoTSLegacySyncInvarWithDeltaUseApicId
+# include "timesupref.h"
+RT_EXPORT_SYMBOL(RTTimeNanoTSLegacySyncInvarWithDeltaUseApicId);
+
+# undef  TMPL_GET_CPU_METHOD
+# define TMPL_GET_CPU_METHOD     SUPGIPGETCPU_RDTSCP_MASK_MAX_SET_CPUS
+# undef  rtTimeNanoTSInternalRef
+# define rtTimeNanoTSInternalRef RTTimeNanoTSLegacySyncInvarWithDeltaUseRdtscp
+# include "timesupref.h"
+RT_EXPORT_SYMBOL(RTTimeNanoTSLegacySyncInvarWithDeltaUseRdtscp);
+
+# undef  TMPL_GET_CPU_METHOD
+# define TMPL_GET_CPU_METHOD     SUPGIPGETCPU_IDTR_LIMIT_MASK_MAX_SET_CPUS
+# undef  rtTimeNanoTSInternalRef
+# define rtTimeNanoTSInternalRef RTTimeNanoTSLegacySyncInvarWithDeltaUseIdtrLim
+# include "timesupref.h"
+RT_EXPORT_SYMBOL(RTTimeNanoTSLegacySyncInvarWithDeltaUseIdtrLim);
+
+# undef  TMPL_MODE
+# define TMPL_MODE               TMPL_MODE_ASYNC
+# undef  TMPL_GET_CPU_METHOD
+# define TMPL_GET_CPU_METHOD     SUPGIPGETCPU_APIC_ID
+# undef  rtTimeNanoTSInternalRef
+# define rtTimeNanoTSInternalRef RTTimeNanoTSLegacyAsyncUseApicId
+# include "timesupref.h"
+RT_EXPORT_SYMBOL(RTTimeNanoTSLegacyAsyncUseApicId);
+
+# undef  TMPL_GET_CPU_METHOD
+# define TMPL_GET_CPU_METHOD     SUPGIPGETCPU_RDTSCP_MASK_MAX_SET_CPUS
+# undef  rtTimeNanoTSInternalRef
+# define rtTimeNanoTSInternalRef RTTimeNanoTSLegacyAsyncUseRdtscp
+# include "timesupref.h"
+RT_EXPORT_SYMBOL(RTTimeNanoTSLegacyAsyncUseRdtscp);
+
+# undef  TMPL_GET_CPU_METHOD
+# define TMPL_GET_CPU_METHOD     SUPGIPGETCPU_IDTR_LIMIT_MASK_MAX_SET_CPUS
+# undef  rtTimeNanoTSInternalRef
+# define rtTimeNanoTSInternalRef RTTimeNanoTSLegacyAsyncUseIdtrLim
+# include "timesupref.h"
+RT_EXPORT_SYMBOL(RTTimeNanoTSLegacyAsyncUseIdtrLim);
+
+#else  /* IN_RC || IN_RING0: Disable interrupts and call getter function. */
+
+# undef  TMPL_MODE
+# define TMPL_MODE               TMPL_MODE_SYNC_INVAR_WITH_DELTA
+# undef  TMPL_GET_CPU_METHOD
+# define TMPL_GET_CPU_METHOD     UINT32_MAX
+# undef  rtTimeNanoTSInternalRef
+# define rtTimeNanoTSInternalRef RTTimeNanoTSLegacySyncInvarWithDelta
+# include "timesupref.h"
+RT_EXPORT_SYMBOL(RTTimeNanoTSLegacySyncInvarWithDelta);
+
+# undef  TMPL_MODE
+# define TMPL_MODE TMPL_MODE_ASYNC
+# undef  rtTimeNanoTSInternalRef
+# define rtTimeNanoTSInternalRef RTTimeNanoTSLegacyAsync
+# include "timesupref.h"
 RT_EXPORT_SYMBOL(RTTimeNanoTSLegacyAsync);
+
+#endif
 
 
 /*
  * Use LFENCE for load serialization.
  */
-#undef  ASYNC_GIP
-#define USE_LFENCE
-#undef  NEED_TRANSACTION_ID
-#define NEED_TRANSACTION_ID
-#undef  rtTimeNanoTSInternalRef
-#define rtTimeNanoTSInternalRef RTTimeNanoTSLFenceSync
-#include "timesupref.h"
-RT_EXPORT_SYMBOL(RTTimeNanoTSLFenceSync);
+#undef  TMPL_READ_FENCE
+#define TMPL_READ_FENCE()        ASMReadFenceSSE2()
 
-#define ASYNC_GIP
-#ifdef IN_RC
-# undef NEED_TRANSACTION_ID
-#endif
+#undef  TMPL_MODE
+#define TMPL_MODE                TMPL_MODE_SYNC_INVAR_NO_DELTA
+#undef  TMPL_GET_CPU_METHOD
+#define TMPL_GET_CPU_METHOD      0
 #undef  rtTimeNanoTSInternalRef
-#define rtTimeNanoTSInternalRef RTTimeNanoTSLFenceAsync
+#define rtTimeNanoTSInternalRef  RTTimeNanoTSLFenceSyncInvarNoDelta
 #include "timesupref.h"
+RT_EXPORT_SYMBOL(RTTimeNanoTSLFenceSyncInvarNoDelta);
+
+#ifdef IN_RING3
+
+# undef  TMPL_MODE
+# define TMPL_MODE               TMPL_MODE_SYNC_INVAR_WITH_DELTA
+# undef  TMPL_GET_CPU_METHOD
+# define TMPL_GET_CPU_METHOD     SUPGIPGETCPU_APIC_ID
+# undef  rtTimeNanoTSInternalRef
+# define rtTimeNanoTSInternalRef RTTimeNanoTSLFenceSyncInvarWithDeltaUseApicId
+# include "timesupref.h"
+RT_EXPORT_SYMBOL(RTTimeNanoTSLFenceSyncInvarWithDeltaUseApicId);
+
+# undef  TMPL_GET_CPU_METHOD
+# define TMPL_GET_CPU_METHOD     SUPGIPGETCPU_RDTSCP_MASK_MAX_SET_CPUS
+# undef  rtTimeNanoTSInternalRef
+# define rtTimeNanoTSInternalRef RTTimeNanoTSLFenceSyncInvarWithDeltaUseRdtscp
+# include "timesupref.h"
+RT_EXPORT_SYMBOL(RTTimeNanoTSLFenceSyncInvarWithDeltaUseRdtscp);
+
+# undef  TMPL_GET_CPU_METHOD
+# define TMPL_GET_CPU_METHOD     SUPGIPGETCPU_IDTR_LIMIT_MASK_MAX_SET_CPUS
+# undef  rtTimeNanoTSInternalRef
+# define rtTimeNanoTSInternalRef RTTimeNanoTSLFenceSyncInvarWithDeltaUseIdtrLim
+# include "timesupref.h"
+RT_EXPORT_SYMBOL(RTTimeNanoTSLFenceSyncInvarWithDeltaUseIdtrLim);
+
+# undef  TMPL_MODE
+# define TMPL_MODE               TMPL_MODE_ASYNC
+# undef  TMPL_GET_CPU_METHOD
+# define TMPL_GET_CPU_METHOD     SUPGIPGETCPU_APIC_ID
+# undef  rtTimeNanoTSInternalRef
+# define rtTimeNanoTSInternalRef RTTimeNanoTSLFenceAsyncUseApicId
+# include "timesupref.h"
+RT_EXPORT_SYMBOL(RTTimeNanoTSLFenceAsyncUseApicId);
+
+# undef  TMPL_GET_CPU_METHOD
+# define TMPL_GET_CPU_METHOD     SUPGIPGETCPU_RDTSCP_MASK_MAX_SET_CPUS
+# undef  rtTimeNanoTSInternalRef
+# define rtTimeNanoTSInternalRef RTTimeNanoTSLFenceAsyncUseRdtscp
+# include "timesupref.h"
+RT_EXPORT_SYMBOL(RTTimeNanoTSLFenceAsyncUseRdtscp);
+
+# undef  TMPL_GET_CPU_METHOD
+# define TMPL_GET_CPU_METHOD     SUPGIPGETCPU_IDTR_LIMIT_MASK_MAX_SET_CPUS
+# undef  rtTimeNanoTSInternalRef
+# define rtTimeNanoTSInternalRef RTTimeNanoTSLFenceAsyncUseIdtrLim
+# include "timesupref.h"
+RT_EXPORT_SYMBOL(RTTimeNanoTSLFenceAsyncUseIdtrLim);
+
+#else  /* IN_RC || IN_RING0: Disable interrupts and call getter function. */
+
+# undef  TMPL_MODE
+# define TMPL_MODE               TMPL_MODE_SYNC_INVAR_WITH_DELTA
+# undef  TMPL_GET_CPU_METHOD
+# define TMPL_GET_CPU_METHOD     UINT32_MAX
+# undef  rtTimeNanoTSInternalRef
+# define rtTimeNanoTSInternalRef RTTimeNanoTSLFenceSyncInvarWithDelta
+# include "timesupref.h"
+RT_EXPORT_SYMBOL(RTTimeNanoTSLFenceSyncInvarWithDelta);
+
+# undef  TMPL_MODE
+# define TMPL_MODE TMPL_MODE_ASYNC
+# undef  rtTimeNanoTSInternalRef
+# define rtTimeNanoTSInternalRef RTTimeNanoTSLFenceAsync
+# include "timesupref.h"
 RT_EXPORT_SYMBOL(RTTimeNanoTSLFenceAsync);
+
+#endif
 
 
 #endif /* !IN_GUEST && !RT_NO_GIP */

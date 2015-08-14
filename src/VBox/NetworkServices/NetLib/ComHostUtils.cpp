@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013 Oracle Corporation
+ * Copyright (C) 2013-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -211,5 +211,61 @@ int createNatListener(ComNatListenerPtr& listener, const ComVirtualBoxPtr& vboxp
     hrc = esVBox->RegisterListener(listener, ComSafeArrayAsInParam(events), true);
     AssertComRCReturn(hrc, VERR_INTERNAL_ERROR);
 
+    return VINF_SUCCESS;
+}
+
+int destroyNatListener(ComNatListenerPtr& listener, const ComVirtualBoxPtr& vboxptr)
+{
+    if (listener)
+    {
+        ComPtr<IEventSource> esVBox;
+        HRESULT hrc = vboxptr->COMGETTER(EventSource)(esVBox.asOutParam());
+        AssertComRCReturn(hrc, VERR_INTERNAL_ERROR);
+        if (!esVBox.isNull())
+        {
+            hrc = esVBox->UnregisterListener(listener);
+            AssertComRCReturn(hrc, VERR_INTERNAL_ERROR);
+        }
+        listener.setNull();
+    }
+    return VINF_SUCCESS;
+}
+
+int createClientListener(ComNatListenerPtr& listener, const ComVirtualBoxClientPtr& vboxclientptr,
+                         NATNetworkEventAdapter *adapter, /* const */ ComEventTypeArray& events)
+{
+    ComObjPtr<NATNetworkListenerImpl> obj;
+    HRESULT hrc = obj.createObject();
+    AssertComRCReturn(hrc, VERR_INTERNAL_ERROR);
+
+    hrc = obj->init(new NATNetworkListener(), adapter);
+    AssertComRCReturn(hrc, VERR_INTERNAL_ERROR);
+
+    ComPtr<IEventSource> esVBox;
+    hrc = vboxclientptr->COMGETTER(EventSource)(esVBox.asOutParam());
+    AssertComRCReturn(hrc, VERR_INTERNAL_ERROR);
+
+    listener = obj;
+
+    hrc = esVBox->RegisterListener(listener, ComSafeArrayAsInParam(events), true);
+    AssertComRCReturn(hrc, VERR_INTERNAL_ERROR);
+
+    return VINF_SUCCESS;
+}
+
+int destroyClientListener(ComNatListenerPtr& listener, const ComVirtualBoxClientPtr& vboxclientptr)
+{
+    if (listener)
+    {
+        ComPtr<IEventSource> esVBox;
+        HRESULT hrc = vboxclientptr->COMGETTER(EventSource)(esVBox.asOutParam());
+        AssertComRCReturn(hrc, VERR_INTERNAL_ERROR);
+        if (!esVBox.isNull())
+        {
+            hrc = esVBox->UnregisterListener(listener);
+            AssertComRCReturn(hrc, VERR_INTERNAL_ERROR);
+        }
+        listener.setNull();
+    }
     return VINF_SUCCESS;
 }

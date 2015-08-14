@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2012 Oracle Corporation
+ * Copyright (C) 2011-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1014,6 +1014,60 @@ IEM_CIMPL_DEF_1(RT_CONCAT4(iemCImpl_lods_,OP_rAX,_m,ADDR_SIZE), int8_t, iEffSeg)
 
 #if OP_SIZE != 64
 
+# if !defined(IN_RING3) && !defined(IEMCIMPL_INS_INLINES)
+#  define IEMCIMPL_INS_INLINES 1
+
+/**
+ * Check if we should postpone committing an INS instruction to ring-3, or if we
+ * should rather panic.
+ *
+ * @returns true if we should postpone it, false if it's better to panic.
+ * @param   rcStrictMem     The status code returned by the memory write.
+ */
+DECLINLINE(bool) iemCImpl_ins_shouldPostponeCommitToRing3(VBOXSTRICTRC rcStrictMem)
+{
+    /*
+     * The following requires executing the write in ring-3.
+     * See PGMPhysWrite for status code explanations.
+     */
+    if (   rcStrictMem == VINF_IOM_R3_MMIO_WRITE
+        || rcStrictMem == VINF_IOM_R3_MMIO_READ_WRITE
+        || rcStrictMem == VINF_EM_RAW_EMULATE_INSTR
+# ifdef IN_RC
+        || rcStrictMem == VINF_EM_RAW_EMULATE_INSTR_LDT_FAULT
+        || rcStrictMem == VINF_EM_RAW_EMULATE_INSTR_TSS_FAULT
+        || rcStrictMem == VINF_EM_RAW_EMULATE_INSTR_IDT_FAULT
+        || rcStrictMem == VINF_CSAM_PENDING_ACTION
+        || rcStrictMem == VINF_PATM_CHECK_PATCH_PAGE
+# endif
+       )
+        return true;
+
+    /* For the other status code, the pass-up handling should already have
+       caught them. So, anything getting down here is a real problem worth
+       meditating over. */
+    return false;
+}
+
+
+/**
+ * Merges a iemCImpl_ins_shouldPostponeCommitToRing3() status with the I/O port
+ * status.
+ *
+ * @returns status code.
+ * @param   rcStrictPort    The status returned by the I/O port read.
+ * @param   rcStrictMem     The status code returned by the memory write.
+ */
+DECLINLINE(VBOXSTRICTRC) iemCImpl_ins_mergePostponedCommitStatuses(VBOXSTRICTRC rcStrictPort, VBOXSTRICTRC rcStrictMem)
+{
+    /* Turns out we don't need a lot of merging, since we'll be redoing the
+       write anyway.  (CSAM, PATM status codes, perhaps, but that's about it.) */
+    return rcStrictPort == VINF_SUCCESS ? VINF_EM_RAW_TO_R3 : rcStrictPort;
+}
+
+# endif /* !IN_RING3 || !IEMCIMPL_INS_INLINES */
+
+
 /**
  * Implements 'INS' (no rep)
  */
@@ -1066,15 +1120,49 @@ IEM_CIMPL_DEF_1(RT_CONCAT4(iemCImpl_ins_op,OP_SIZE,_addr,ADDR_SIZE), bool, fIoCh
                 pCtx->ADDR_rDI -= OP_SIZE / 8;
             iemRegAddToRipAndClearRF(pIemCpu, cbInstr);
         }
-        /* iemMemMap already check permissions, so this may only be real errors
-           or access handlers medling. The access handler case is going to
-           cause misbehavior if the instruction is re-interpreted or smth. So,
-           we fail with an internal error here instead. */
+#ifndef IN_RING3
+        /* iemMemMap already checked permissions, so this may only be real errors
+           or access handlers meddling. In the access handler case, we must postpone
+           the instruction committing to ring-3. */
+        else if (iemCImpl_ins_shouldPostponeCommitToRing3(rcStrict2))
+        {
+            pIemCpu->PendingCommit.cbInstr = cbInstr;
+            pIemCpu->PendingCommit.uValue  = u32Value;
+            pIemCpu->PendingCommit.enmFn   = RT_CONCAT4(IEMCOMMIT_INS_OP,OP_SIZE,_ADDR,ADDR_SIZE);
+            pIemCpu->cPendingCommit++;
+            VMCPU_FF_SET(IEMCPU_TO_VMCPU(pIemCpu), VMCPU_FF_IEM);
+            Log(("%s: Postponing to ring-3; cbInstr=%#x u32Value=%#x rcStrict2=%Rrc rcStrict=%Rrc\n", __FUNCTION__,
+                 cbInstr, u32Value, VBOXSTRICTRC_VAL(rcStrict2),  VBOXSTRICTRC_VAL(rcStrict)));
+            rcStrict = iemCImpl_ins_mergePostponedCommitStatuses(rcStrict, rcStrict2);
+        }
+#endif
         else
-            AssertLogRelFailedReturn(VERR_IEM_IPE_1);
+            AssertLogRelMsgFailedReturn(("rcStrict2=%Rrc\n", VBOXSTRICTRC_VAL(rcStrict2)), RT_FAILURE_NP(rcStrict2) ? rcStrict2 : VERR_IEM_IPE_1);
     }
     return rcStrict;
 }
+
+
+# ifdef IN_RING3
+/**
+ * Called in ring-3 when raw-mode or ring-0 was forced to return while
+ * committing the instruction (hit access handler).
+ */
+IEM_CIMPL_DEF_0(RT_CONCAT4(iemR3CImpl_commit_ins_op,OP_SIZE,_addr,ADDR_SIZE))
+{
+    PCPUMCTX     pCtx     = pIemCpu->CTX_SUFF(pCtx);
+    VBOXSTRICTRC rcStrict = RT_CONCAT(iemMemStoreDataU,OP_SIZE)(pIemCpu, X86_SREG_ES, pCtx->ADDR_rDI, (OP_TYPE)pIemCpu->PendingCommit.uValue);
+    if (rcStrict == VINF_SUCCESS)
+    {
+        if (!pCtx->eflags.Bits.u1DF)
+            pCtx->ADDR_rDI += OP_SIZE / 8;
+        else
+            pCtx->ADDR_rDI -= OP_SIZE / 8;
+        iemRegAddToRipAndClearRF(pIemCpu, cbInstr);
+    }
+    return rcStrict;
+}
+# endif /* IN_RING3 */
 
 
 /**
@@ -1140,6 +1228,7 @@ IEM_CIMPL_DEF_1(RT_CONCAT4(iemCImpl_rep_ins_op,OP_SIZE,_addr,ADDR_SIZE), bool, f
                 || (   uAddrReg < pCtx->es.u32Limit
                     && uAddrReg + (cLeftPage * (OP_SIZE / 8)) <= pCtx->es.u32Limit)
                )
+            && !IEM_VERIFICATION_ENABLED(pIemCpu)
            )
         {
             RTGCPHYS GCPhysMem;
@@ -1148,47 +1237,35 @@ IEM_CIMPL_DEF_1(RT_CONCAT4(iemCImpl_rep_ins_op,OP_SIZE,_addr,ADDR_SIZE), bool, f
                 return rcStrict;
 
             /*
-             * If we can map the page without trouble, we would've liked to use
-             * an string I/O method to do the work, but the current IOM
-             * interface doesn't match our current approach. So, do a regular
-             * loop instead.
+             * If we can map the page without trouble, use the IOM
+             * string I/O interface to do the work.
              */
-            /** @todo Change the I/O manager interface to make use of
-             *        mapped buffers instead of leaving those bits to the
-             *        device implementation! */
             PGMPAGEMAPLOCK PgLockMem;
             OP_TYPE *puMem;
             rcStrict = iemMemPageMap(pIemCpu, GCPhysMem, IEM_ACCESS_DATA_W, (void **)&puMem, &PgLockMem);
             if (rcStrict == VINF_SUCCESS)
             {
-                uint32_t off = 0;
-                while (off < cLeftPage)
+                uint32_t cTransfers = cLeftPage;
+                rcStrict = IOMIOPortReadString(pVM, pVCpu, u16Port, puMem, &cTransfers, OP_SIZE / 8);
+
+                uint32_t cActualTransfers = cLeftPage - cTransfers;
+                Assert(cActualTransfers <= cLeftPage);
+                pCtx->ADDR_rDI = uAddrReg    += cbIncr * cActualTransfers;
+                pCtx->ADDR_rCX = uCounterReg -= cActualTransfers;
+                puMem += cActualTransfers;
+
+                iemMemPageUnmap(pIemCpu, GCPhysMem, IEM_ACCESS_DATA_W, puMem, &PgLockMem);
+
+                if (rcStrict != VINF_SUCCESS)
                 {
-                    uint32_t u32Value;
-                    if (!IEM_VERIFICATION_ENABLED(pIemCpu))
-                        rcStrict = IOMIOPortRead(pVM, pVCpu, u16Port, &u32Value, OP_SIZE / 8);
-                    else
-                        rcStrict = iemVerifyFakeIOPortRead(pIemCpu, u16Port, &u32Value, OP_SIZE / 8);
                     if (IOM_SUCCESS(rcStrict))
                     {
-                        puMem[off]     = (OP_TYPE)u32Value;
-                        pCtx->ADDR_rDI = uAddrReg += cbIncr;
-                        pCtx->ADDR_rCX = --uCounterReg;
+                        rcStrict = iemSetPassUpStatus(pIemCpu, rcStrict);
+                        if (uCounterReg == 0)
+                            iemRegAddToRipAndClearRF(pIemCpu, cbInstr);
                     }
-                    if (rcStrict != VINF_SUCCESS)
-                    {
-                        if (IOM_SUCCESS(rcStrict))
-                        {
-                            rcStrict = iemSetPassUpStatus(pIemCpu, rcStrict);
-                            if (uCounterReg == 0)
-                                iemRegAddToRipAndClearRF(pIemCpu, cbInstr);
-                        }
-                        iemMemPageUnmap(pIemCpu, GCPhysMem, IEM_ACCESS_DATA_W, puMem, &PgLockMem);
-                        return rcStrict;
-                    }
-                    off++;
+                    return rcStrict;
                 }
-                iemMemPageUnmap(pIemCpu, GCPhysMem, IEM_ACCESS_DATA_W, puMem, &PgLockMem);
 
                 /* If unaligned, we drop thru and do the page crossing access
                    below. Otherwise, do the next page. */
@@ -1227,7 +1304,27 @@ IEM_CIMPL_DEF_1(RT_CONCAT4(iemCImpl_rep_ins_op,OP_SIZE,_addr,ADDR_SIZE), bool, f
 
             *puMem = (OP_TYPE)u32Value;
             VBOXSTRICTRC rcStrict2 = iemMemCommitAndUnmap(pIemCpu, puMem, IEM_ACCESS_DATA_W);
-            AssertLogRelReturn(rcStrict2 == VINF_SUCCESS, VERR_IEM_IPE_1); /* See non-rep version. */
+            if (rcStrict2 == VINF_SUCCESS)
+            { /* likely */ }
+#ifndef IN_RING3
+            /* iemMemMap already checked permissions, so this may only be real errors
+               or access handlers meddling. In the access handler case, we must postpone
+               the instruction committing to ring-3. */
+            else if (iemCImpl_ins_shouldPostponeCommitToRing3(rcStrict2))
+            {
+                pIemCpu->PendingCommit.cbInstr = cbInstr;
+                pIemCpu->PendingCommit.uValue  = u32Value;
+                pIemCpu->PendingCommit.enmFn   = RT_CONCAT4(IEMCOMMIT_REP_INS_OP,OP_SIZE,_ADDR,ADDR_SIZE);
+                pIemCpu->cPendingCommit++;
+                VMCPU_FF_SET(IEMCPU_TO_VMCPU(pIemCpu), VMCPU_FF_IEM);
+                Log(("%s: Postponing to ring-3; cbInstr=%#x u32Value=%#x rcStrict2=%Rrc rcStrict=%Rrc\n", __FUNCTION__,
+                     cbInstr, u32Value, VBOXSTRICTRC_VAL(rcStrict2),  VBOXSTRICTRC_VAL(rcStrict)));
+                return iemCImpl_ins_mergePostponedCommitStatuses(rcStrict, rcStrict2);
+            }
+#endif
+            else
+                AssertLogRelMsgFailedReturn(("rcStrict2=%Rrc\n", VBOXSTRICTRC_VAL(rcStrict2)),
+                                            RT_FAILURE(rcStrict2) ? rcStrict2 : VERR_IEM_IPE_1);
 
             pCtx->ADDR_rDI = uAddrReg += cbIncr;
             pCtx->ADDR_rCX = --uCounterReg;
@@ -1249,6 +1346,29 @@ IEM_CIMPL_DEF_1(RT_CONCAT4(iemCImpl_rep_ins_op,OP_SIZE,_addr,ADDR_SIZE), bool, f
     iemRegAddToRipAndClearRF(pIemCpu, cbInstr);
     return VINF_SUCCESS;
 }
+
+# ifdef IN_RING3
+/**
+ * Called in ring-3 when raw-mode or ring-0 was forced to return while
+ * committing the instruction (hit access handler).
+ */
+IEM_CIMPL_DEF_0(RT_CONCAT4(iemR3CImpl_commit_rep_ins_op,OP_SIZE,_addr,ADDR_SIZE))
+{
+    PCPUMCTX     pCtx     = pIemCpu->CTX_SUFF(pCtx);
+    VBOXSTRICTRC rcStrict = RT_CONCAT(iemMemStoreDataU,OP_SIZE)(pIemCpu, X86_SREG_ES, pCtx->ADDR_rDI, (OP_TYPE)pIemCpu->PendingCommit.uValue);
+    if (rcStrict == VINF_SUCCESS)
+    {
+        if (!pCtx->eflags.Bits.u1DF)
+            pCtx->ADDR_rDI += OP_SIZE / 8;
+        else
+            pCtx->ADDR_rDI -= OP_SIZE / 8;
+        pCtx->ADDR_rCX -= 1;
+        if (pCtx->ADDR_rCX == 0)
+            iemRegAddToRipAndClearRF(pIemCpu, cbInstr);
+    }
+    return rcStrict;
+}
+# endif /* IN_RING3 */
 
 
 /**
@@ -1350,6 +1470,7 @@ IEM_CIMPL_DEF_2(RT_CONCAT4(iemCImpl_rep_outs_op,OP_SIZE,_addr,ADDR_SIZE), uint8_
                 || (   uAddrReg < pHid->u32Limit
                     && uAddrReg + (cLeftPage * (OP_SIZE / 8)) <= pHid->u32Limit)
                )
+            && !IEM_VERIFICATION_ENABLED(pIemCpu)
            )
         {
             RTGCPHYS GCPhysMem;
@@ -1358,46 +1479,35 @@ IEM_CIMPL_DEF_2(RT_CONCAT4(iemCImpl_rep_outs_op,OP_SIZE,_addr,ADDR_SIZE), uint8_
                 return rcStrict;
 
             /*
-             * If we can map the page without trouble, we would've liked to use
-             * an string I/O method to do the work, but the current IOM
-             * interface doesn't match our current approach. So, do a regular
-             * loop instead.
+             * If we can map the page without trouble, we use the IOM
+             * string I/O interface to do the job.
              */
-            /** @todo Change the I/O manager interface to make use of
-             *        mapped buffers instead of leaving those bits to the
-             *        device implementation? */
             PGMPAGEMAPLOCK PgLockMem;
             OP_TYPE const *puMem;
             rcStrict = iemMemPageMap(pIemCpu, GCPhysMem, IEM_ACCESS_DATA_R, (void **)&puMem, &PgLockMem);
             if (rcStrict == VINF_SUCCESS)
             {
-                uint32_t off = 0;
-                while (off < cLeftPage)
+                uint32_t cTransfers = cLeftPage;
+                rcStrict = IOMIOPortWriteString(pVM, pVCpu, u16Port, puMem, &cTransfers, OP_SIZE / 8);
+
+                uint32_t cActualTransfers = cLeftPage - cTransfers;
+                Assert(cActualTransfers <= cLeftPage);
+                pCtx->ADDR_rSI = uAddrReg    += cbIncr * cActualTransfers;
+                pCtx->ADDR_rCX = uCounterReg -= cActualTransfers;
+                puMem += cActualTransfers;
+
+                iemMemPageUnmap(pIemCpu, GCPhysMem, IEM_ACCESS_DATA_R, puMem, &PgLockMem);
+
+                if (rcStrict != VINF_SUCCESS)
                 {
-                    uint32_t u32Value = *puMem++;
-                    if (!IEM_VERIFICATION_ENABLED(pIemCpu))
-                        rcStrict = IOMIOPortWrite(pVM, pVCpu, u16Port, u32Value, OP_SIZE / 8);
-                    else
-                        rcStrict = iemVerifyFakeIOPortWrite(pIemCpu, u16Port, u32Value, OP_SIZE / 8);
                     if (IOM_SUCCESS(rcStrict))
                     {
-                        pCtx->ADDR_rSI = uAddrReg += cbIncr;
-                        pCtx->ADDR_rCX = --uCounterReg;
+                        rcStrict = iemSetPassUpStatus(pIemCpu, rcStrict);
+                        if (uCounterReg == 0)
+                            iemRegAddToRipAndClearRF(pIemCpu, cbInstr);
                     }
-                    if (rcStrict != VINF_SUCCESS)
-                    {
-                        if (IOM_SUCCESS(rcStrict))
-                        {
-                            rcStrict = iemSetPassUpStatus(pIemCpu, rcStrict);
-                            if (uCounterReg == 0)
-                                iemRegAddToRipAndClearRF(pIemCpu, cbInstr);
-                        }
-                        iemMemPageUnmap(pIemCpu, GCPhysMem, IEM_ACCESS_DATA_R, puMem, &PgLockMem);
-                        return rcStrict;
-                    }
-                    off++;
+                    return rcStrict;
                 }
-                iemMemPageUnmap(pIemCpu, GCPhysMem, IEM_ACCESS_DATA_R, puMem, &PgLockMem);
 
                 /* If unaligned, we drop thru and do the page crossing access
                    below. Otherwise, do the next page. */

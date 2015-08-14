@@ -74,14 +74,14 @@ void HostVideoInputDevice::uninit()
 {
     LogFlowThisFunc(("\n"));
 
-    m.name.setNull();
-    m.path.setNull();
-    m.alias.setNull();
-
     /* Enclose the state transition Ready->InUninit->NotReady */
     AutoUninitSpan autoUninitSpan(this);
     if (autoUninitSpan.uninitDone())
         return;
+
+    m.name.setNull();
+    m.path.setNull();
+    m.alias.setNull();
 }
 
 static HRESULT hostVideoInputDeviceAdd(HostVideoInputDeviceList *pList,
@@ -181,8 +181,8 @@ static HRESULT fillDeviceList(VirtualBox *pVirtualBox, HostVideoInputDeviceList 
     Utf8Str strLibrary;
 
 #ifdef VBOX_WITH_EXTPACK
-    ExtPackManager *pExtPackMgr = pVirtualBox->getExtPackManager();
-    hr = pExtPackMgr->getLibraryPathForExtPack("VBoxHostWebcam", &strExtPackPuel, &strLibrary);
+    ExtPackManager *pExtPackMgr = pVirtualBox->i_getExtPackManager();
+    hr = pExtPackMgr->i_getLibraryPathForExtPack("VBoxHostWebcam", &strExtPackPuel, &strLibrary);
 #else
     hr = E_NOTIMPL;
 #endif

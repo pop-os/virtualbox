@@ -19,7 +19,7 @@
  */
 
 /*
- * Copyright (C) 2013 Oracle Corporation
+ * Copyright (C) 2013-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1458,7 +1458,7 @@ static int rtDbgModCvLoadDirectory(PRTDBGMODCV pThis)
                 && pThis->u32CvMagic != RTCVHDR_MAGIC_NB02
                 && pThis->u32CvMagic != RTCVHDR_MAGIC_NB00)
             {
-                Log(("CV directory entry #%u uses module index 0 (uSubSectType=%#x)\n", i, pDirEnt->iMod, pDirEnt->uSubSectType));
+                Log(("CV directory entry #%u uses module index 0 (uSubSectType=%#x)\n", i, pDirEnt->uSubSectType));
                 rc = VERR_CV_BAD_FORMAT;
             }
             if (pDirEnt->iMod == 0 || pDirEnt->iMod == 0xffff)
@@ -1476,7 +1476,7 @@ static int rtDbgModCvLoadDirectory(PRTDBGMODCV pThis)
                     }
                     if (pDirEnt->iMod != iModLast + 1)
                     {
-                        Log(("CV directory entry #%u: skips from mod %#x to %#x modules\n", iModLast, pDirEnt->iMod));
+                        Log(("CV directory entry #%u: skips from mod %#x to %#x modules\n", i, iModLast, pDirEnt->iMod));
                         rc = VERR_CV_BAD_FORMAT;
                     }
                     iModLast = pDirEnt->iMod;
@@ -2717,7 +2717,7 @@ static DECLCALLBACK(int) rtDbgModCv_TryOpen(PRTDBGMODINT pMod, RTLDRARCH enmArch
         {
             /* Try the executable in case it has a NBxx tail header. */
             rc2 = rtDbgModCvProbeFile(pMod, pMod->pszImgFile, enmArch);
-            if (RT_FAILURE(rc2) && (RT_SUCCESS(rc) || VERR_DBG_NO_MATCHING_INTERPRETER))
+            if (RT_FAILURE(rc2) && (RT_SUCCESS(rc) || rc == VERR_DBG_NO_MATCHING_INTERPRETER))
                 rc = rc2;
         }
     }

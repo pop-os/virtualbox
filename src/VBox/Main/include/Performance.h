@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2013 Oracle Corporation
+ * Copyright (C) 2008-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -124,7 +124,7 @@ namespace pm
         {
             processes.clear();
             processes.reserve(mProcesses.size());
-            for (ProcessList::const_iterator it = mProcesses.begin(); it != mProcesses.end(); it++)
+            for (ProcessList::const_iterator it = mProcesses.begin(); it != mProcesses.end(); ++it)
                 processes.push_back(it->first);
         }
         const ProcessList& getProcessFlags() const
@@ -138,7 +138,7 @@ namespace pm
         ProcessFlagsPair& findProcess(RTPROCESS process)
         {
             ProcessList::iterator it;
-            for (it = mProcesses.begin(); it != mProcesses.end(); it++)
+            for (it = mProcesses.begin(); it != mProcesses.end(); ++it)
                 if (it->first == process)
                     return *it;
 
@@ -881,16 +881,13 @@ namespace pm
     class Filter
     {
     public:
-        Filter(ComSafeArrayIn(IN_BSTR, metricNames),
-               ComSafeArrayIn(IUnknown * , objects));
-        Filter(const com::Utf8Str name, const ComPtr<IUnknown> &aObject);
+        Filter(const std::vector<com::Utf8Str> &metricNames,
+               const std::vector<ComPtr<IUnknown> > &objects);
+        Filter(const com::Utf8Str &name, const ComPtr<IUnknown> &aObject);
         static bool patternMatch(const char *pszPat, const char *pszName,
                                  bool fSeenColon = false);
         bool match(const ComPtr<IUnknown> object, const RTCString &name) const;
     private:
-        void init(ComSafeArrayIn(IN_BSTR, metricNames),
-                  ComSafeArrayIn(IUnknown * , objects));
-
         typedef std::pair<const ComPtr<IUnknown>, const RTCString> FilterElement;
         typedef std::list<FilterElement> ElementList;
 

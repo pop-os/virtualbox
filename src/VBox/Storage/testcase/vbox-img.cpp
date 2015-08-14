@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2012 Oracle Corporation
+ * Copyright (C) 2010-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -34,7 +34,7 @@
 #include <iprt/filesystem.h>
 #include <iprt/vfs.h>
 
-const char *g_pszProgName = "";
+static const char *g_pszProgName = "";
 static void printUsage(PRTSTREAM pStrm)
 {
     RTStrmPrintf(pStrm,
@@ -44,6 +44,13 @@ static void printUsage(PRTSTREAM pStrm)
                  "                [--uuid <uuid>]\n"
                  "                [--parentuuid <uuid>]\n"
                  "                [--zeroparentuuid]\n"
+                 "\n"
+                 "   geometry     --filename <filename>\n"
+                 "                [--format VDI|VMDK|VHD|...]\n"
+                 "                [--clearchs]\n"
+                 "                [--cylinders <number>]\n"
+                 "                [--heads <number>]\n"
+                 "                [--sectors <number>]\n"
                  "\n"
                  "   convert      --srcfilename <filename>\n"
                  "                --dstfilename <filename>\n"
@@ -77,7 +84,7 @@ static void printUsage(PRTSTREAM pStrm)
                  g_pszProgName);
 }
 
-void showLogo(PRTSTREAM pStrm)
+static void showLogo(PRTSTREAM pStrm)
 {
     static bool s_fShown; /* show only once */
 
@@ -98,7 +105,7 @@ struct HandlerArg
     char **argv;
 };
 
-PVDINTERFACE pVDIfs;
+static PVDINTERFACE pVDIfs;
 
 static DECLCALLBACK(void) handleVDError(void *pvUser, int rc, RT_SRC_POS_DECL,
                                         const char *pszFormat, va_list va)
@@ -118,7 +125,7 @@ static int handleVDMessage(void *pvUser, const char *pszFormat, va_list va)
 /**
  * Print a usage synopsis and the syntax error message.
  */
-int errorSyntax(const char *pszFormat, ...)
+static int errorSyntax(const char *pszFormat, ...)
 {
     va_list args;
     showLogo(g_pStdErr); // show logo even if suppressed
@@ -129,7 +136,7 @@ int errorSyntax(const char *pszFormat, ...)
     return 1;
 }
 
-int errorRuntime(const char *pszFormat, ...)
+static int errorRuntime(const char *pszFormat, ...)
 {
     va_list args;
 
@@ -187,7 +194,7 @@ static int parseDiskVariant(const char *psz, unsigned *puImageFlags)
 }
 
 
-int handleSetUUID(HandlerArg *a)
+static int handleSetUUID(HandlerArg *a)
 {
     const char *pszFilename = NULL;
     char *pszFormat = NULL;
@@ -264,13 +271,13 @@ int handleSetUUID(HandlerArg *a)
     PVBOXHDD pVD = NULL;
     rc = VDCreate(pVDIfs, enmType, &pVD);
     if (RT_FAILURE(rc))
-        return errorRuntime("Cannot create the virtual disk container: %Rrc\n", rc);
+        return errorRuntime("Cannot create the virtual disk container: %Rrf (%Rrc)\n", rc, rc);
 
     /* Open in info mode to be able to open diff images without their parent. */
     rc = VDOpen(pVD, pszFormat, pszFilename, VD_OPEN_FLAGS_INFO, NULL);
     if (RT_FAILURE(rc))
-        return errorRuntime("Cannot open the virtual disk image \"%s\": %Rrc\n",
-                            pszFilename, rc);
+        return errorRuntime("Cannot open the virtual disk image \"%s\": %Rrf (%Rrc)\n",
+                            pszFilename, rc, rc);
 
     RTUUID oldImageUuid;
     rc = VDGetUuid(pVD, VD_LAST_IMAGE, &oldImageUuid);
@@ -293,8 +300,8 @@ int handleSetUUID(HandlerArg *a)
         RTPrintf("New image UUID:  %RTuuid\n", &imageUuid);
         rc = VDSetUuid(pVD, VD_LAST_IMAGE, &imageUuid);
         if (RT_FAILURE(rc))
-            return errorRuntime("Cannot set UUID of virtual disk image \"%s\": %Rrc\n",
-                                pszFilename, rc);
+            return errorRuntime("Cannot set UUID of virtual disk image \"%s\": %Rrf (%Rrc)\n",
+                                pszFilename, rc, rc);
     }
 
     if (fSetParentUuid)
@@ -302,9 +309,144 @@ int handleSetUUID(HandlerArg *a)
         RTPrintf("New parent UUID: %RTuuid\n", &parentUuid);
         rc = VDSetParentUuid(pVD, VD_LAST_IMAGE, &parentUuid);
         if (RT_FAILURE(rc))
-            return errorRuntime("Cannot set parent UUID of virtual disk image \"%s\": %Rrc\n",
-                                pszFilename, rc);
+            return errorRuntime("Cannot set parent UUID of virtual disk image \"%s\": %Rrf (%Rrc)\n",
+                                pszFilename, rc, rc);
     }
+
+    VDDestroy(pVD);
+
+    if (pszFormat)
+    {
+        RTStrFree(pszFormat);
+        pszFormat = NULL;
+    }
+
+    return 0;
+}
+
+
+static int handleGeometry(HandlerArg *a)
+{
+    const char *pszFilename = NULL;
+    char *pszFormat = NULL;
+    VDTYPE enmType = VDTYPE_INVALID;
+    uint16_t cCylinders = 0;
+    uint8_t cHeads = 0;
+    uint8_t cSectors = 0;
+    bool fCylinders = false;
+    bool fHeads = false;
+    bool fSectors = false;
+    int rc;
+
+    /* Parse the command line. */
+    static const RTGETOPTDEF s_aOptions[] =
+    {
+        { "--filename", 'f', RTGETOPT_REQ_STRING },
+        { "--format", 'o', RTGETOPT_REQ_STRING },
+        { "--clearchs", 'C', RTGETOPT_REQ_NOTHING },
+        { "--cylinders", 'c', RTGETOPT_REQ_UINT16 },
+        { "--heads", 'e', RTGETOPT_REQ_UINT8 },
+        { "--sectors", 's', RTGETOPT_REQ_UINT8 }
+    };
+    int ch;
+    RTGETOPTUNION ValueUnion;
+    RTGETOPTSTATE GetState;
+    RTGetOptInit(&GetState, a->argc, a->argv, s_aOptions, RT_ELEMENTS(s_aOptions), 0, 0 /* fFlags */);
+    while ((ch = RTGetOpt(&GetState, &ValueUnion)))
+    {
+        switch (ch)
+        {
+            case 'f':   // --filename
+                pszFilename = ValueUnion.psz;
+                break;
+            case 'o':   // --format
+                pszFormat = RTStrDup(ValueUnion.psz);
+                break;
+            case 'C':   // --clearchs
+                cCylinders = 0;
+                cHeads = 0;
+                cSectors = 0;
+                fCylinders = true;
+                fHeads = true;
+                fSectors = true;
+                break;
+            case 'c':   // --cylinders
+                cCylinders = ValueUnion.u16;
+                fCylinders = true;
+                break;
+            case 'e':   // --heads
+                cHeads = ValueUnion.u8;
+                fHeads = true;
+                break;
+            case 's':   // --sectors
+                cSectors = ValueUnion.u8;
+                fSectors = true;
+                break;
+
+            default:
+                ch = RTGetOptPrintError(ch, &ValueUnion);
+                printUsage(g_pStdErr);
+                return ch;
+        }
+    }
+
+    /* Check for mandatory parameters. */
+    if (!pszFilename)
+        return errorSyntax("Mandatory --filename option missing\n");
+
+    /* Autodetect image format. */
+    if (!pszFormat)
+    {
+        /* Don't pass error interface, as that would triggers error messages
+         * because some backends fail to open the image. */
+        rc = VDGetFormat(NULL, NULL, pszFilename, &pszFormat, &enmType);
+        if (RT_FAILURE(rc))
+            return errorRuntime("Format autodetect failed: %Rrc\n", rc);
+    }
+
+    PVBOXHDD pVD = NULL;
+    rc = VDCreate(pVDIfs, enmType, &pVD);
+    if (RT_FAILURE(rc))
+        return errorRuntime("Cannot create the virtual disk container: %Rrf (%Rrc)\n", rc, rc);
+
+    /* Open in info mode to be able to open diff images without their parent. */
+    rc = VDOpen(pVD, pszFormat, pszFilename, VD_OPEN_FLAGS_INFO, NULL);
+    if (RT_FAILURE(rc))
+        return errorRuntime("Cannot open the virtual disk image \"%s\": %Rrf (%Rrc)\n",
+                            pszFilename, rc, rc);
+
+    VDGEOMETRY oldLCHSGeometry;
+    rc = VDGetLCHSGeometry(pVD, VD_LAST_IMAGE, &oldLCHSGeometry);
+    if (rc == VERR_VD_GEOMETRY_NOT_SET)
+    {
+        memset(&oldLCHSGeometry, 0, sizeof(oldLCHSGeometry));
+        rc = VINF_SUCCESS;
+    }
+    if (RT_FAILURE(rc))
+        return errorRuntime("Cannot get LCHS geometry of virtual disk image \"%s\": %Rrc\n",
+                            pszFilename, rc);
+
+    VDGEOMETRY newLCHSGeometry = oldLCHSGeometry;
+    if (fCylinders)
+        newLCHSGeometry.cCylinders = cCylinders;
+    if (fHeads)
+        newLCHSGeometry.cHeads = cHeads;
+    if (fSectors)
+        newLCHSGeometry.cSectors = cSectors;
+
+    if (fCylinders || fHeads || fSectors)
+    {
+        RTPrintf("Old image LCHS: %u/%u/%u\n", oldLCHSGeometry.cCylinders, oldLCHSGeometry.cHeads, oldLCHSGeometry.cSectors);
+        RTPrintf("New image LCHS: %u/%u/%u\n", newLCHSGeometry.cCylinders, newLCHSGeometry.cHeads, newLCHSGeometry.cSectors);
+
+        rc = VDSetLCHSGeometry(pVD, VD_LAST_IMAGE, &newLCHSGeometry);
+        if (RT_FAILURE(rc))
+            return errorRuntime("Cannot set LCHS geometry of virtual disk image \"%s\": %Rrf (%Rrc)\n",
+                                pszFilename, rc, rc);
+    }
+    else
+        RTPrintf("Current image LCHS: %u/%u/%u\n", oldLCHSGeometry.cCylinders, oldLCHSGeometry.cHeads, oldLCHSGeometry.cSectors);
+
 
     VDDestroy(pVD);
 
@@ -690,7 +832,7 @@ static int convOutFlush(void *pvUser, void *pStorage)
     return VINF_SUCCESS;
 }
 
-int handleConvert(HandlerArg *a)
+static int handleConvert(HandlerArg *a)
 {
     const char *pszSrcFilename = NULL;
     const char *pszDstFilename = NULL;
@@ -870,7 +1012,7 @@ int handleConvert(HandlerArg *a)
         rc = VDCreate(pVDIfs, enmSrcType, &pSrcDisk);
         if (RT_FAILURE(rc))
         {
-            errorRuntime("Error while creating source disk container: %Rrc\n", rc);
+            errorRuntime("Error while creating source disk container: %Rrf (%Rrc)\n", rc, rc);
             break;
         }
 
@@ -879,14 +1021,14 @@ int handleConvert(HandlerArg *a)
                     pIfsImageInput);
         if (RT_FAILURE(rc))
         {
-            errorRuntime("Error while opening source image: %Rrc\n", rc);
+            errorRuntime("Error while opening source image: %Rrf (%Rrc)\n", rc, rc);
             break;
         }
 
         rc = VDCreate(pVDIfs, VDTYPE_HDD, &pDstDisk);
         if (RT_FAILURE(rc))
         {
-            errorRuntime("Error while creating the destination disk container: %Rrc\n", rc);
+            errorRuntime("Error while creating the destination disk container: %Rrf (%Rrc)\n", rc, rc);
             break;
         }
 
@@ -900,7 +1042,7 @@ int handleConvert(HandlerArg *a)
                     pIfsImageOutput, NULL);
         if (RT_FAILURE(rc))
         {
-            errorRuntime("Error while copying the image: %Rrc\n", rc);
+            errorRuntime("Error while copying the image: %Rrf (%Rrc)\n", rc, rc);
             break;
         }
 
@@ -916,7 +1058,7 @@ int handleConvert(HandlerArg *a)
 }
 
 
-int handleInfo(HandlerArg *a)
+static int handleInfo(HandlerArg *a)
 {
     int rc = VINF_SUCCESS;
     PVBOXHDD pDisk = NULL;
@@ -959,12 +1101,12 @@ int handleInfo(HandlerArg *a)
 
     rc = VDCreate(pVDIfs, enmType, &pDisk);
     if (RT_FAILURE(rc))
-        return errorRuntime("Error while creating the virtual disk container: %Rrc\n", rc);
+        return errorRuntime("Error while creating the virtual disk container: %Rrf (%Rrc)\n", rc, rc);
 
     /* Open the image */
     rc = VDOpen(pDisk, pszFormat, pszFilename, VD_OPEN_FLAGS_INFO | VD_OPEN_FLAGS_READONLY, NULL);
     if (RT_FAILURE(rc))
-        return errorRuntime("Error while opening the image: %Rrc\n", rc);
+        return errorRuntime("Error while opening the image: %Rrf (%Rrc)\n", rc, rc);
 
     VDDumpImages(pDisk);
 
@@ -1065,7 +1207,7 @@ typedef struct VBOXIMGVFS
     RTVFS              hVfs;
 } VBOXIMGVFS, *PVBOXIMGVFS;
 
-int handleCompact(HandlerArg *a)
+static int handleCompact(HandlerArg *a)
 {
     int rc = VINF_SUCCESS;
     PVBOXHDD pDisk = NULL;
@@ -1118,12 +1260,12 @@ int handleCompact(HandlerArg *a)
 
     rc = VDCreate(pVDIfs, enmType, &pDisk);
     if (RT_FAILURE(rc))
-        return errorRuntime("Error while creating the virtual disk container: %Rrc\n", rc);
+        return errorRuntime("Error while creating the virtual disk container: %Rrf (%Rrc)\n", rc, rc);
 
     /* Open the image */
     rc = VDOpen(pDisk, pszFormat, pszFilename, VD_OPEN_FLAGS_NORMAL, NULL);
     if (RT_FAILURE(rc))
-        return errorRuntime("Error while opening the image: %Rrc\n", rc);
+        return errorRuntime("Error while opening the image: %Rrf (%Rrc)\n", rc, rc);
 
     if (   RT_SUCCESS(rc)
         && fFilesystemAware)
@@ -1164,7 +1306,7 @@ int handleCompact(HandlerArg *a)
                             /* Release the file handle and continue.*/
                             RTVfsFileRelease(hVfsFile);
                         }
-                        else if RT_FAILURE(rc)
+                        else if (RT_FAILURE(rc))
                             break;
                         else
                         {
@@ -1209,10 +1351,10 @@ int handleCompact(HandlerArg *a)
                     RTPrintf("No known volume format on disk found\n");
                 }
                 else
-                    errorRuntime("Error while opening the volume manager: %Rrc\n", rc);
+                    errorRuntime("Error while opening the volume manager: %Rrf (%Rrc)\n", rc, rc);
             }
             else
-                errorRuntime("Error creating the volume manager: %Rrc\n", rc);
+                errorRuntime("Error creating the volume manager: %Rrf (%Rrc)\n", rc, rc);
         }
         else
         {
@@ -1225,7 +1367,7 @@ int handleCompact(HandlerArg *a)
     {
         rc = VDCompact(pDisk, 0, pIfsCompact);
         if (RT_FAILURE(rc))
-            errorRuntime("Error while compacting image: %Rrc\n", rc);
+            errorRuntime("Error while compacting image: %Rrf (%Rrc)\n", rc, rc);
     }
 
     while (pVBoxImgVfsHead)
@@ -1246,7 +1388,7 @@ int handleCompact(HandlerArg *a)
 }
 
 
-int handleCreateCache(HandlerArg *a)
+static int handleCreateCache(HandlerArg *a)
 {
     int rc = VINF_SUCCESS;
     PVBOXHDD pDisk = NULL;
@@ -1292,12 +1434,12 @@ int handleCreateCache(HandlerArg *a)
     /* just try it */
     rc = VDCreate(pVDIfs, VDTYPE_HDD, &pDisk);
     if (RT_FAILURE(rc))
-        return errorRuntime("Error while creating the virtual disk container: %Rrc\n", rc);
+        return errorRuntime("Error while creating the virtual disk container: %Rrf (%Rrc)\n", rc, rc);
 
     rc = VDCreateCache(pDisk, "VCI", pszFilename, cbSize, VD_IMAGE_FLAGS_DEFAULT,
                        NULL, NULL, VD_OPEN_FLAGS_NORMAL, NULL, NULL);
     if (RT_FAILURE(rc))
-        return errorRuntime("Error while creating the virtual disk cache: %Rrc\n", rc);
+        return errorRuntime("Error while creating the virtual disk cache: %Rrf (%Rrc)\n", rc, rc);
 
     VDDestroy(pDisk);
 
@@ -1341,7 +1483,7 @@ static DECLCALLBACK(int) vdIfCfgCreateBaseQuery(void *pvUser, const char *pszNam
 
 }
 
-int handleCreateBase(HandlerArg *a)
+static int handleCreateBase(HandlerArg *a)
 {
     int rc = VINF_SUCCESS;
     PVBOXHDD pDisk = NULL;
@@ -1355,8 +1497,8 @@ int handleCreateBase(HandlerArg *a)
     PVDINTERFACE pVDIfsOperation = NULL;
     VDINTERFACECONFIG vdIfCfg;
 
-    memset(&LCHSGeometry, 0, sizeof(VDGEOMETRY));
-    memset(&PCHSGeometry, 0, sizeof(VDGEOMETRY));
+    memset(&LCHSGeometry, 0, sizeof(LCHSGeometry));
+    memset(&PCHSGeometry, 0, sizeof(PCHSGeometry));
 
     /* Parse the command line. */
     static const RTGETOPTDEF s_aOptions[] =
@@ -1429,13 +1571,13 @@ int handleCreateBase(HandlerArg *a)
     /* just try it */
     rc = VDCreate(pVDIfs, VDTYPE_HDD, &pDisk);
     if (RT_FAILURE(rc))
-        return errorRuntime("Error while creating the virtual disk container: %Rrc\n", rc);
+        return errorRuntime("Error while creating the virtual disk container: %Rrf (%Rrc)\n", rc, rc);
 
     rc = VDCreateBase(pDisk, pszBackend, pszFilename, cbSize, uImageFlags,
                       NULL, &PCHSGeometry, &LCHSGeometry, NULL, VD_OPEN_FLAGS_NORMAL,
                       NULL, pVDIfsOperation);
     if (RT_FAILURE(rc))
-        return errorRuntime("Error while creating the virtual disk: %Rrc\n", rc);
+        return errorRuntime("Error while creating the virtual disk: %Rrf (%Rrc)\n", rc, rc);
 
     VDDestroy(pDisk);
 
@@ -1443,7 +1585,7 @@ int handleCreateBase(HandlerArg *a)
 }
 
 
-int handleRepair(HandlerArg *a)
+static int handleRepair(HandlerArg *a)
 {
     int rc = VINF_SUCCESS;
     PVBOXHDD pDisk = NULL;
@@ -1502,7 +1644,7 @@ int handleRepair(HandlerArg *a)
 
     rc = VDRepair(pVDIfs, NULL, pszFilename, pszFormat, fDryRun ? VD_REPAIR_DRY_RUN : 0);
     if (RT_FAILURE(rc))
-        rc = errorRuntime("Error while repairing the virtual disk: %Rrc\n", rc);
+        rc = errorRuntime("Error while repairing the virtual disk: %Rrf (%Rrc)\n", rc, rc);
 
     if (pszBackend)
         RTStrFree(pszBackend);
@@ -1510,7 +1652,7 @@ int handleRepair(HandlerArg *a)
 }
 
 
-int handleClearComment(HandlerArg *a)
+static int handleClearComment(HandlerArg *a)
 {
     int rc = VINF_SUCCESS;
     PVBOXHDD pDisk = NULL;
@@ -1554,12 +1696,12 @@ int handleClearComment(HandlerArg *a)
 
     rc = VDCreate(pVDIfs, enmType, &pDisk);
     if (RT_FAILURE(rc))
-        return errorRuntime("Error while creating the virtual disk container: %Rrc\n", rc);
+        return errorRuntime("Error while creating the virtual disk container: %Rrf (%Rrc)\n", rc, rc);
 
     /* Open the image */
     rc = VDOpen(pDisk, pszFormat, pszFilename, VD_OPEN_FLAGS_INFO, NULL);
     if (RT_FAILURE(rc))
-        return errorRuntime("Error while opening the image: %Rrc\n", rc);
+        return errorRuntime("Error while opening the image: %Rrf (%Rrc)\n", rc, rc);
 
     VDSetComment(pDisk, 0, NULL);
 
@@ -1625,16 +1767,16 @@ static int handleClearResize(HandlerArg *a)
 
     rc = VDCreate(pVDIfs, enmType, &pDisk);
     if (RT_FAILURE(rc))
-        return errorRuntime("Error while creating the virtual disk container: %Rrc\n", rc);
+        return errorRuntime("Error while creating the virtual disk container: %Rrf (%Rrc)\n", rc, rc);
 
     /* Open the image */
     rc = VDOpen(pDisk, pszFormat, pszFilename, VD_OPEN_FLAGS_NORMAL, NULL);
     if (RT_FAILURE(rc))
-        return errorRuntime("Error while opening the image: %Rrc\n", rc);
+        return errorRuntime("Error while opening the image: %Rrf (%Rrc)\n", rc, rc);
 
     rc = VDResize(pDisk, cbNew, &PCHSGeometry, &LCHSGeometry, NULL);
     if (RT_FAILURE(rc))
-        rc = errorRuntime("Error while resizing the virtual disk: %Rrc\n", rc);
+        rc = errorRuntime("Error while resizing the virtual disk: %Rrf (%Rrc)\n", rc, rc);
 
     VDDestroy(pDisk);
     return rc;
@@ -1724,6 +1866,7 @@ int main(int argc, char *argv[])
     } s_commandHandlers[] =
     {
         { "setuuid",      handleSetUUID      },
+        { "geometry",     handleGeometry     },
         { "convert",      handleConvert      },
         { "info",         handleInfo         },
         { "compact",      handleCompact      },

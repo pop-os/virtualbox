@@ -1,6 +1,6 @@
 /* $Id: VBoxIChatTheaterWrapper.m $ */
 /** @file
- * Qt GUI - iChat Theater cocoa wrapper.
+ * VBox Qt GUI - iChat Theater cocoa wrapper.
  */
 
 /*

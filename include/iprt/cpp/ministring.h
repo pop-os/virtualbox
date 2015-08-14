@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2007-2012 Oracle Corporation
+ * Copyright (C) 2007-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -171,7 +171,7 @@ public:
      * @sa      printfV
      * @remarks Not part of std::string.
      */
-    RTCString(const char *a_pszFormat, va_list a_va)
+    RTCString(const char *a_pszFormat, va_list a_va) RT_IPRT_FORMAT_ATTR(1, 0)
         : m_psz(NULL),
           m_cch(0),
           m_cbAllocated(0)
@@ -247,14 +247,35 @@ public:
              && cb > m_cch + 1
            )
         {
-            int vrc = RTStrRealloc(&m_psz, cb);
-            if (RT_SUCCESS(vrc))
+            int rc = RTStrRealloc(&m_psz, cb);
+            if (RT_SUCCESS(rc))
                 m_cbAllocated = cb;
 #ifdef RT_EXCEPTIONS_ENABLED
             else
                 throw std::bad_alloc();
 #endif
         }
+    }
+
+    /**
+     * A C like version of the reserve method, i.e. return code instead of throw.
+     *
+     * @returns VINF_SUCCESS or VERR_NO_STRING_MEMORY.
+     * @param   cb              New minimum size (in bytes) of member memory buffer.
+     */
+    int reserveNoThrow(size_t cb)
+    {
+        if (    cb != m_cbAllocated
+             && cb > m_cch + 1
+           )
+        {
+            int rc = RTStrRealloc(&m_psz, cb);
+            if (RT_SUCCESS(rc))
+                m_cbAllocated = cb;
+            else
+                return rc;
+        }
+        return VINF_SUCCESS;
     }
 
     /**
@@ -319,7 +340,7 @@ public:
      *
      * @returns Reference to the object.
      */
-    RTCString &printf(const char *pszFormat, ...);
+    RTCString &printf(const char *pszFormat, ...) RT_IPRT_FORMAT_ATTR(1, 2);
 
     /**
      * Assigns the output of the string format operation (RTStrPrintfV).
@@ -333,7 +354,7 @@ public:
      *
      * @returns Reference to the object.
      */
-    RTCString &printfV(const char *pszFormat, va_list va);
+    RTCString &printfV(const char *pszFormat, va_list va) RT_IPRT_FORMAT_ATTR(1, 0);
 
     /**
      * Appends the string "that" to "this".
@@ -854,6 +875,19 @@ public:
                                           SplitMode a_enmMode = RemoveEmptyParts) const;
 
     /**
+     * Joins a list of strings together using the provided separator and
+     * an optional prefix for each item in the list.
+     *
+     * @param   a_rList         The list to join.
+     * @param   a_rstrPrefix    The prefix used for appending to each item.
+     * @param   a_rstrSep       The separator used for joining.
+     * @returns joined string.
+     */
+    static RTCString joinEx(const RTCList<RTCString, RTCString *> &a_rList,
+                            const RTCString &a_rstrPrefix /* = "" */,
+                            const RTCString &a_rstrSep /* = "" */);
+
+    /**
      * Joins a list of strings together using the provided separator.
      *
      * @param   a_rList     The list to join.
@@ -862,6 +896,28 @@ public:
      */
     static RTCString join(const RTCList<RTCString, RTCString *> &a_rList,
                           const RTCString &a_rstrSep = "");
+
+    /**
+     * Swaps two strings in a fast way.
+     *
+     * Exception safe.
+     *
+     * @param   a_rThat  The string to swap with.
+     */
+    inline void swap(RTCString &a_rThat) throw()
+    {
+        char   *pszTmp         = m_psz;
+        size_t  cchTmp         = m_cch;
+        size_t  cbAllocatedTmp = m_cbAllocated;
+
+        m_psz                  = a_rThat.m_psz;
+        m_cch                  = a_rThat.m_cch;
+        m_cbAllocated          = a_rThat.m_cbAllocated;
+
+        a_rThat.m_psz          = pszTmp;
+        a_rThat.m_cch          = cchTmp;
+        a_rThat.m_cbAllocated  = cbAllocatedTmp;
+    }
 
 protected:
 
@@ -1003,7 +1059,7 @@ public:
      * @param   ...             Ellipsis containing the arguments specified by
      *                          the format string.
      */
-    explicit RTCStringFmt(const char *a_pszFormat, ...)
+    explicit RTCStringFmt(const char *a_pszFormat, ...) RT_IPRT_FORMAT_ATTR(1, 2)
     {
         va_list va;
         va_start(va, a_pszFormat);

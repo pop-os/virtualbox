@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2012 Oracle Corporation
+ * Copyright (C) 2009-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -42,7 +42,9 @@
 RTR0DECL(int) RTR0MemUserCopyFrom(void *pvDst, RTR3PTR R3PtrSrc, size_t cb)
 {
     RT_ASSERT_INTS_ON();
+    IPRT_DARWIN_SAVE_EFL_AC();
     int rc = copyin((const user_addr_t)R3PtrSrc, pvDst, cb);
+    IPRT_DARWIN_RESTORE_EFL_AC();
     if (RT_LIKELY(rc == 0))
         return VINF_SUCCESS;
     return VERR_ACCESS_DENIED;
@@ -52,7 +54,9 @@ RTR0DECL(int) RTR0MemUserCopyFrom(void *pvDst, RTR3PTR R3PtrSrc, size_t cb)
 RTR0DECL(int) RTR0MemUserCopyTo(RTR3PTR R3PtrDst, void const *pvSrc, size_t cb)
 {
     RT_ASSERT_INTS_ON();
+    IPRT_DARWIN_SAVE_EFL_AC();
     int rc = copyout(pvSrc, R3PtrDst, cb);
+    IPRT_DARWIN_RESTORE_EFL_AC();
     if (RT_LIKELY(rc == 0))
         return VINF_SUCCESS;
     return VERR_ACCESS_DENIED;

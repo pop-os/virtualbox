@@ -1,8 +1,6 @@
 /* $Id: VBoxUtils-win.cpp $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * Utility classes and functions for handling Win specific tasks
+ * VBox Qt GUI - Utility classes and functions for handling Win specific tasks.
  */
 
 /*

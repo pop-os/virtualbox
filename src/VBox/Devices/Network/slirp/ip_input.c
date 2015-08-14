@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -193,6 +193,10 @@ ip_input(PNATState pData, struct mbuf *m)
     }
 
     ip->ip_ttl--;
+    if (ip->ip_sum > RT_H2N_U16_C(0xffffU - (1 << 8)))
+        ip->ip_sum += RT_H2N_U16_C(1 << 8) + 1;
+    else
+        ip->ip_sum += RT_H2N_U16_C(1 << 8);
 
     /*
      * Drop multicast (class d) and reserved (class e) here.  The rest

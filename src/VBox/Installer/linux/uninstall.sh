@@ -4,7 +4,7 @@
 # VirtualBox linux uninstallation script
 
 #
-# Copyright (C) 2009-2012 Oracle Corporation
+# Copyright (C) 2009-2015 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -97,11 +97,13 @@ rm -f \
   /usr/bin/VBoxSDL \
   /usr/bin/VBoxVRDP \
   /usr/bin/VBoxHeadless \
+  /usr/bin/VBoxDTrace \
   /usr/bin/VBoxBalloonCtrl \
   /usr/bin/VBoxAutostart \
   /usr/bin/VBoxNetDHCP \
   /usr/bin/VBoxNetNAT \
   /usr/bin/vboxwebsrv \
+  /usr/bin/vbox-img \
   /usr/bin/VBoxAddIF \
   /usr/bin/VBoxDeleteIf \
   /usr/bin/VBoxTunctl \
@@ -115,6 +117,7 @@ rm -f \
   /usr/bin/vboxmanage \
   /usr/bin/vboxsdl \
   /usr/bin/vboxheadless \
+  /usr/bin/vboxdtrace \
   $PREV_INSTALLATION/components/VBoxVMM.so \
   $PREV_INSTALLATION/components/VBoxREM.so \
   $PREV_INSTALLATION/components/VBoxRT.so \

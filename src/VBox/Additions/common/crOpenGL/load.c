@@ -584,6 +584,8 @@ static void stubInitVars(void)
 }
 
 
+#if 0 /* unused */
+
 /**
  * Return a free port number for the mothership to use, or -1 if we
  * can't find one.
@@ -711,6 +713,8 @@ MothershipPhoneHome(int signo)
     crDebug("Got signal %d: mothership is awake!", signo);
     Mothership_Awake = 1;
 }
+
+#endif /* 0 */
 
 void stubSetDefaultConfigurationOptions(void)
 {
@@ -1459,6 +1463,9 @@ BOOL WINAPI DllMain(HINSTANCE hDLLInst, DWORD fdwReason, LPVOID lpvReserved)
             crNetFreeConnection(ns.conn);
         }
 
+#if defined(VBOX_WITH_CRHGSMI) && defined(IN_GUEST)
+        VBoxCrHgsmiInit();
+#endif
         break;
     }
 
@@ -1472,6 +1479,11 @@ BOOL WINAPI DllMain(HINSTANCE hDLLInst, DWORD fdwReason, LPVOID lpvReserved)
             CRASSERT(stub.spu);
             stub.spu->dispatch_table.VBoxDetachThread();
         }
+
+        
+#if defined(VBOX_WITH_CRHGSMI) && defined(IN_GUEST)
+        VBoxCrHgsmiTerm();
+#endif
 
         stubSPUSafeTearDown();
 

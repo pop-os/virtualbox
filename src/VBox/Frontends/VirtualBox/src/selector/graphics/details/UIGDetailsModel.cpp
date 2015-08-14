@@ -1,8 +1,6 @@
 /* $Id: UIGDetailsModel.cpp $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * UIGDetailsModel class implementation
+ * VBox Qt GUI - UIGDetailsModel class implementation.
  */
 
 /*
@@ -17,17 +15,25 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* Qt includes: */
-#include <QGraphicsScene>
-#include <QGraphicsSceneContextMenuEvent>
-#include <QGraphicsView>
+# include <QGraphicsScene>
+# include <QGraphicsSceneContextMenuEvent>
+# include <QGraphicsView>
 
 /* GUI includes: */
-#include "UIGDetailsModel.h"
-#include "UIGDetailsGroup.h"
-#include "UIGDetailsElement.h"
-#include "VBoxGlobal.h"
-#include "UIConverter.h"
+# include "UIGDetailsModel.h"
+# include "UIGDetailsGroup.h"
+# include "UIGDetailsElement.h"
+# include "UIExtraDataManager.h"
+# include "VBoxGlobal.h"
+# include "UIConverter.h"
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 
 UIGDetailsModel::UIGDetailsModel(QObject *pParent)
     : QObject(pParent)
@@ -41,12 +47,18 @@ UIGDetailsModel::UIGDetailsModel(QObject *pParent)
     /* Prepare root: */
     prepareRoot();
 
+    /* Load settings: */
+    loadSettings();
+
     /* Register meta-type: */
     qRegisterMetaType<DetailsElementType>();
 }
 
 UIGDetailsModel::~UIGDetailsModel()
 {
+    /* Save settings: */
+    saveSettings();
+
     /* Cleanup root: */
     cleanupRoot();
 
@@ -155,43 +167,24 @@ void UIGDetailsModel::sltToggleAnimationFinished(DetailsElementType type, bool f
     /* Update layout: */
     updateLayout();
 
-    /* Update details settings: */
-    QStringList detailsSettings = vboxGlobal().virtualBox().GetExtraDataStringList(GUI_DetailsPageBoxes);
-    QString strOldElementName = gpConverter->toInternalString(type);
-    QString strNewElementName = strOldElementName;
-    if (fToggled)
-        strOldElementName += "Closed";
-    else
-        strNewElementName += "Closed";
-    int iIndex = detailsSettings.indexOf(strOldElementName);
-    if (iIndex != -1)
-    {
-        detailsSettings[iIndex] = strNewElementName;
-        vboxGlobal().virtualBox().SetExtraDataStringList(GUI_DetailsPageBoxes, detailsSettings);
-    }
+    /* Update element open/close status: */
+    if (m_settings.contains(type))
+        m_settings[type] = fToggled;
 }
 
 void UIGDetailsModel::sltElementTypeToggled()
 {
     /* Which item was toggled? */
     QAction *pAction = qobject_cast<QAction*>(sender());
-    DetailsElementType elementType = pAction->data().value<DetailsElementType>();
-    QString strElementTypeOpened = gpConverter->toInternalString(elementType);
-    QString strElementTypeClosed = strElementTypeOpened + "Closed";
-    QStringList detailsSettings = vboxGlobal().virtualBox().GetExtraDataStringList(GUI_DetailsPageBoxes);
-    /* Update details settings: */
-    bool fElementExists = detailsSettings.contains(strElementTypeOpened) ||
-                          detailsSettings.contains(strElementTypeClosed);
-    if (fElementExists)
-    {
-        detailsSettings.removeAll(strElementTypeOpened);
-        detailsSettings.removeAll(strElementTypeClosed);
-    }
+    DetailsElementType type = pAction->data().value<DetailsElementType>();
+
+    /* Toggle element visibility status: */
+    if (m_settings.contains(type))
+        m_settings.remove(type);
     else
-    {
-        detailsSettings.append(strElementTypeOpened);
-    }
-    vboxGlobal().virtualBox().SetExtraDataStringList(GUI_DetailsPageBoxes, detailsSettings);
+        m_settings[type] = true;
+
+    /* Rebuild group: */
     m_pRoot->rebuildGroup();
 }
 
@@ -231,6 +224,33 @@ void UIGDetailsModel::prepareRoot()
     m_pRoot = new UIGDetailsGroup(scene());
 }
 
+void UIGDetailsModel::loadSettings()
+{
+    /* Load settings: */
+    m_settings = gEDataManager->selectorWindowDetailsElements();
+    /* If settings are empty: */
+    if (m_settings.isEmpty())
+    {
+        /* Propose the defaults: */
+        m_settings[DetailsElementType_General] = true;
+        m_settings[DetailsElementType_Preview] = true;
+        m_settings[DetailsElementType_System] = true;
+        m_settings[DetailsElementType_Display] = true;
+        m_settings[DetailsElementType_Storage] = true;
+        m_settings[DetailsElementType_Audio] = true;
+        m_settings[DetailsElementType_Network] = true;
+        m_settings[DetailsElementType_USB] = true;
+        m_settings[DetailsElementType_SF] = true;
+        m_settings[DetailsElementType_Description] = true;
+    }
+}
+
+void UIGDetailsModel::saveSettings()
+{
+    /* Save settings: */
+    gEDataManager->setSelectorWindowDetailsElements(m_settings);
+}
+
 void UIGDetailsModel::cleanupRoot()
 {
     delete m_pRoot;
@@ -266,15 +286,13 @@ bool UIGDetailsModel::processContextMenuEvent(QGraphicsSceneContextMenuEvent *pE
 
     /* Prepare context-menu: */
     QMenu contextMenu;
-    QStringList detailsSettings = vboxGlobal().virtualBox().GetExtraDataStringList(GUI_DetailsPageBoxes);
+    /* Enumerate elements settings: */
     for (int iType = DetailsElementType_General; iType <= DetailsElementType_Description; ++iType)
     {
         DetailsElementType currentElementType = (DetailsElementType)iType;
         QAction *pAction = contextMenu.addAction(gpConverter->toString(currentElementType), this, SLOT(sltElementTypeToggled()));
         pAction->setCheckable(true);
-        QString strTypeIdOpened = gpConverter->toInternalString(currentElementType);
-        QString strTypeIdClosed = strTypeIdOpened + "Closed";
-        pAction->setChecked(detailsSettings.contains(strTypeIdOpened) || detailsSettings.contains(strTypeIdClosed));
+        pAction->setChecked(m_settings.contains(currentElementType));
         pAction->setData(QVariant::fromValue(currentElementType));
     }
     /* Exec context-menu: */

@@ -4,7 +4,7 @@
 ;
 
 ;
-; Copyright (C) 2006-2012 Oracle Corporation
+; Copyright (C) 2006-2015 Oracle Corporation
 ;
 ; This file is part of VirtualBox Open Source Edition (OSE), as
 ; available from http://www.virtualbox.org. This file is free software;
@@ -50,9 +50,9 @@ BEGINPROC   TestProc32
         DB 0xF0, 0x0F, 0x22, 0xC0
         DB 0xF0, 0x0F, 0x20, 0xC0
         smsw  word [edx+16]
-        ;    invept      eax, qword [ecx]
+        ;    invept      eax, dqword [ecx]
         DB          0x66, 0x0F, 0x38, 0x80, 0x1
-        ;    invept      eax, qword [ecx]
+        ;    invept      eax, dqword [ecx]
         DB          0x66, 0x0F, 0x38, 0x81, 0x1
         mov   eax, dword [ecx]
         mov   word [edi], 0123ah
@@ -147,6 +147,85 @@ BEGINPROC   TestProc32
         cvtpi2pd    xmm0, mm3
         paddd       mm1, mm3
         paddd       xmm1, xmm3
+
+%if __YASM_VERSION_ID__ >= 001030000h ; Old yasm doesn't support the instructions below
+        adcx        eax, ebx
+        adcx        eax, [edi]
+
+        adox        eax, ebx
+        adox        eax, [edi]
+        adox        eax, [edi + 1000h]
+
+        tzcnt      ax, bx
+        tzcnt      eax, ebx
+        tzcnt      ax, [edi]
+        tzcnt      eax, [edi]
+        tzcnt      eax, [edi + 1000h]
+        vpmovsxbw  ymm0, xmm1
+        vpmovzxbq  ymm1, [100h]
+        vgatherqps xmm0,dword [eax+xmm0*2],xmm0
+        vgatherqpd xmm0,qword [eax+xmm0*2],xmm0
+%endif
+
+        movbe       eax, [edi]
+        movbe       ebx, [edi + 1000h]
+        movbe       ax, [edi]
+        movbe       [edi], eax
+
+        crc32       eax, bl
+        crc32       eax, bx
+        crc32       eax, ebx
+        crc32       eax, byte [edi]
+        crc32       eax, word [edi]
+        crc32       eax, dword [edi]
+
+        popcnt      ax, bx
+        popcnt      eax, ebx
+        popcnt      ax, [edi]
+        popcnt      eax, [edi]
+        popcnt      eax, [edi + 1000h]
+
+        lzcnt      ax, bx
+        lzcnt      eax, ebx
+        lzcnt      ax, [edi]
+        lzcnt      eax, [edi]
+        lzcnt      eax, [edi + 1000h]
+
+        vmread     eax, ebx
+        vmwrite    eax, ebx
+
+        movd       mm0, [edi]
+        movq       mm0, [edi]
+        movq       mm0, mm1
+
+        vmovups    xmm0, xmm1
+        vmovaps    ymm0, ymm1
+        vunpcklps  xmm0, xmm1, xmm2
+        vunpcklps  ymm0, ymm1, ymm2
+
+        lddqu      xmm1, [ds:ebp+edi*8+00f000001h]
+        vlddqu     xmm1, [ds:ebp+edi*8+00f000001h]
+        vlddqu      ymm1, [ds:ebp+edi*8+00f000001h]
+
+        vpmovsxbw xmm0,qword [0x100]
+        vbroadcastf128 ymm0,oword [0x100]
+
+        palignr mm0, mm1, 1
+        vpinsrb xmm0, xmm1, eax, 1
+        vpinsrb xmm0, xmm1, [100h], 1
+        vinsertps xmm0, xmm1, xmm2, 1
+        vinsertps xmm0, xmm1, [100h], 1
+
+        vblendvps xmm0, xmm1, xmm2, xmm3
+        vblendvps ymm0, ymm1, ymm2, ymm3
+
+        aesimc xmm0, xmm1
+
+        pmovzxbq xmm0, xmm1
+        pmovzxbq xmm1, [100h]
+
+        vfmaddsub132pd ymm1, ymm2, ymm3
+
 ENDPROC   TestProc32
 
 
@@ -163,13 +242,13 @@ BEGINPROC TestProc64
         mov rax, [0xfffe0080]
         mov rbx, [0xfffe0080]
         divsd xmm1, xmm0
-        ;    invept      rdi, qword [rsi]
+        ;    invept      rdi, dqword [rsi]
         DB          0x66, 0x0F, 0x38, 0x80, 0x3E
-        ;    invept      rcx, qword [rdx]
+        ;    invept      rcx, dqword [rdx]
         DB          0x66, 0x0F, 0x38, 0x80, 0xA
-        ;invvpid     rdi, qword [rsi]
+        ;invvpid     rdi, dqword [rsi]
         DB          0x66, 0x0F, 0x38, 0x81, 0x3E
-        ;    invvpid     rcx, qword [rdx]
+        ;    invvpid     rcx, dqword [rdx]
         DB          0x66, 0x0F, 0x38, 0x81, 0xA
         mov   rdi, [rsi]
         mov   rcx, [rdx]
@@ -232,6 +311,110 @@ BEGINPROC TestProc64
 
         movss xmm0, xmm14
         movsd xmm6, xmm1
+
+        movbe   eax, [rdi]
+        movbe   ax, [rdi]
+        movbe   rax, [rdi]
+
+        crc32       eax, bl
+        crc32       eax, bx
+        crc32       eax, ebx
+        crc32       eax, byte [edi]
+        crc32       eax, word [edi]
+        crc32       eax, dword [edi]
+
+        crc32       rax, bl
+        crc32       rax, byte [rdi]
+        crc32       rax, qword [rdi]
+
+%if __YASM_VERSION_ID__ >= 001030000h ; Old yasm doesn't support the instructions below
+
+        adcx    eax, ebx
+        adcx    rax, rbx
+        adcx    r8, r11
+        adcx    r8d, edx
+
+        adox    eax, ebx
+        adox    eax, [edi]
+        adox    eax, [edi + 1000h]
+
+        adox    rax, rbx
+        adox    rax, [rdi]
+        adox    rax, [rdi + 1000h]
+        adox    rax, [edi + 1000h]
+
+        tzcnt      ax, bx
+        tzcnt      eax, ebx
+        tzcnt      rax, rbx
+        tzcnt      ax, [edi]
+        tzcnt      eax, [edi]
+        tzcnt      eax, [edi + 1000h]
+
+        vpunpcklbw ymm1, ymm2, ymm3
+        vpmovsxbw  ymm4,[0x100]
+        vgatherqpd xmm0,qword [rbx+xmm11*2],xmm2
+%endif
+
+        popcnt      ax, bx
+        popcnt      eax, ebx
+        popcnt      rax, rbx
+        popcnt      ax, [edi]
+        popcnt      eax, [edi]
+        popcnt      eax, [edi + 1000h]
+        popcnt      rax, [rdi + 1000h]
+
+        lzcnt      ax, bx
+        lzcnt      eax, ebx
+        lzcnt      rax, rbx
+        lzcnt      ax, [edi]
+        lzcnt      eax, [edi]
+        lzcnt      eax, [edi + 1000h]
+        lzcnt      eax, [rdi]
+        lzcnt      ax, [rdi]
+        lzcnt      rax, [rdi]
+        lzcnt      r8d, [rdi]
+
+        vmread     rax, rbx
+        vmwrite    rax, rbx
+
+        getsec
+
+        movd       mm0, [rdi]
+        movq       mm0, [edi]
+        movq       mm0, mm1
+
+        vmovups    xmm0, xmm1
+        vmovaps    ymm0, ymm1
+        vunpcklps  xmm0, xmm1, xmm2
+        vunpcklps  ymm0, ymm1, ymm2
+        vunpcklps  ymm0, ymm10, ymm2
+
+        vmovups    xmm5, xmm9
+
+        vcmpps     xmm1, xmm2, xmm3, 12
+
+        lddqu      xmm1, [ebp+edi*8+00f000001h]
+        vlddqu     xmm1, [rbp+rdi*8+00f000001h]
+        vlddqu     ymm1, [rbp+rdi*8+00f000001h]
+
+        vbroadcastf128 ymm0,oword [0x100]
+        vmovlps   xmm0, xmm1, [100h]
+        vmovlps   xmm0, xmm1, [eax + ebx]
+        vmovlps   xmm0, xmm1, [rax + rbx]
+        vmovlps   xmm10, xmm1, [rax]
+
+        vblendvpd xmm0, xmm1, [100h], xmm3
+
+        dpps xmm0, xmm1, 1
+
+        extractps eax, xmm2, 3
+        vzeroupper
+        vzeroall
+
+        movlps xmm0, [100h]
+        movlps xmm0, [eax + ebx]
+        movlps xmm10, [rax + rbx]
+        movhlps xmm0, xmm1
 
         ret
 ENDPROC   TestProc64

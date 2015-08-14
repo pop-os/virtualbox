@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2011 Oracle Corporation
+ * Copyright (C) 2009-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -68,6 +68,7 @@ static RTDARWINPREEMPTHACK  g_aPreemptHacks[RTCPUSET_MAX_CPUS];
 int rtThreadPreemptDarwinInit(void)
 {
     Assert(g_pDarwinLockGroup);
+    IPRT_DARWIN_SAVE_EFL_AC();
 
     for (size_t i = 0; i < RT_ELEMENTS(g_aPreemptHacks); i++)
     {
@@ -75,6 +76,7 @@ int rtThreadPreemptDarwinInit(void)
         if (!g_aPreemptHacks[i].pSpinLock)
             return VERR_NO_MEMORY; /* (The caller will invoke rtThreadPreemptDarwinTerm) */
     }
+    IPRT_DARWIN_RESTORE_EFL_AC();
     return VINF_SUCCESS;
 }
 
@@ -86,12 +88,16 @@ int rtThreadPreemptDarwinInit(void)
  */
 void rtThreadPreemptDarwinTerm(void)
 {
+    IPRT_DARWIN_SAVE_EFL_AC();
+
     for (size_t i = 0; i < RT_ELEMENTS(g_aPreemptHacks); i++)
         if (g_aPreemptHacks[i].pSpinLock)
         {
             lck_spin_free(g_aPreemptHacks[i].pSpinLock, g_pDarwinLockGroup);
             g_aPreemptHacks[i].pSpinLock = NULL;
         }
+
+    IPRT_DARWIN_RESTORE_EFL_AC();
 }
 
 
@@ -173,7 +179,11 @@ RTDECL(void) RTThreadPreemptRestore(PRTTHREADPREEMPTSTATE pState)
         {
             lck_spin_t *pSpinLock = g_aPreemptHacks[idCpu].pSpinLock;
             if (pSpinLock)
+            {
+                IPRT_DARWIN_SAVE_EFL_AC();
                 lck_spin_unlock(pSpinLock);
+                IPRT_DARWIN_RESTORE_EFL_AC();
+            }
             else
                 AssertFailed();
         }

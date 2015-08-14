@@ -1,3 +1,4 @@
+/* $Id: DisplayResampleImage.cpp $ */
 /** @file
  * Image resampling code, used for snapshot thumbnails.
  */

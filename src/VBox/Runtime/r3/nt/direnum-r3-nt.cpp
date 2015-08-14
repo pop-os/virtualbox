@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -257,12 +257,30 @@ static int rtDirNtFetchMore(PRTDIR pThis)
      * Allocate the buffer the first time around.
      * We do this in lazy fashion as some users of RTDirOpen will not actually
      * list any files, just open it for various reasons.
+     *
+     * We also reduce the buffer size for networked devices as the windows 7-8.1,
+     * server 2012, ++ CIFS servers or/and IFSes screws up buffers larger than 64KB.
+     * There is an alternative hack below, btw.  We'll leave both in for now.
      */
     bool fFirst = false;
     if (!pThis->pabBuffer)
     {
-        fFirst = false;
         pThis->cbBufferAlloc = _256K;
+        if (true) /** @todo skip for known local devices, like the boot device? */
+        {
+            IO_STATUS_BLOCK Ios2 = RTNT_IO_STATUS_BLOCK_INITIALIZER;
+            FILE_FS_DEVICE_INFORMATION Info = { 0, 0 };
+            NTSTATUS rcNt2 = NtQueryVolumeInformationFile(pThis->hDir, &Ios2, &Info, sizeof(Info), FileFsDeviceInformation);
+            if (   !NT_SUCCESS(rcNt2)
+                || (Info.Characteristics & FILE_REMOTE_DEVICE)
+                || Info.DeviceType == FILE_DEVICE_NETWORK
+                || Info.DeviceType == FILE_DEVICE_NETWORK_FILE_SYSTEM
+                || Info.DeviceType == FILE_DEVICE_NETWORK_REDIRECTOR
+                || Info.DeviceType == FILE_DEVICE_SMB)
+                pThis->cbBufferAlloc = _64K;
+        }
+
+        fFirst = false;
         pThis->pabBuffer = (uint8_t *)RTMemAlloc(pThis->cbBufferAlloc);
         if (!pThis->pabBuffer)
         {
@@ -312,8 +330,24 @@ static int rtDirNtFetchMore(PRTDIR pThis)
     else
     {
         /*
-         * The first time around we have figure which info class we can use.
-         * We prefer one which gives us file IDs, but we'll settle for less.
+         * The first time around we have to figure which info class we can use
+         * as well as the right buffer size.  We prefer an info class which
+         * gives us file IDs (Vista+ IIRC) and we prefer large buffers (for long
+         * ReFS file names and such), but we'll settle for whatever works...
+         *
+         * The windows 7 thru 8.1 CIFS servers have been observed to have
+         * trouble with large buffers, but weirdly only when listing large
+         * directories.  Seems 0x10000 is the max.  (Samba does not exhibit
+         * these problems, of course.)
+         *
+         * This complicates things.  The buffer size issues causes an
+         * STATUS_INVALID_PARAMETER error.  Now, you would expect the lack of
+         * FileIdBothDirectoryInformation support to return
+         * STATUS_INVALID_INFO_CLASS, but I'm not entirely sure if we can 100%
+         * depend on third IFSs to get that right.  Nor, am I entirely confident
+         * that we can depend on them to check the class before the buffer size.
+         *
+         * Thus the mess.
          */
         pThis->enmInfoClass = FileIdBothDirectoryInformation;
         rcNt = NtQueryDirectoryFile(pThis->hDir,
@@ -327,20 +361,61 @@ static int rtDirNtFetchMore(PRTDIR pThis)
                                     RTDIR_NT_SINGLE_RECORD /*ReturnSingleEntry */,
                                     pThis->pNtFilterStr,
                                     FALSE /*RestartScan */);
-        if (!NT_SUCCESS(rcNt))
+        if (NT_SUCCESS(rcNt))
+        { /* likely */ }
+        else
         {
-            pThis->enmInfoClass = FileBothDirectoryInformation;
-            rcNt = NtQueryDirectoryFile(pThis->hDir,
-                                        NULL /* Event */,
-                                        NULL /* ApcRoutine */,
-                                        NULL /* ApcContext */,
-                                        &Ios,
-                                        pThis->pabBuffer,
-                                        pThis->cbBufferAlloc,
-                                        pThis->enmInfoClass,
-                                        RTDIR_NT_SINGLE_RECORD /*ReturnSingleEntry */,
-                                        pThis->pNtFilterStr,
-                                        FALSE /*RestartScan */);
+            bool fRestartScan = false;
+            for (unsigned iRetry = 0; iRetry < 2; iRetry++)
+            {
+                if (   rcNt == STATUS_INVALID_INFO_CLASS
+                    || rcNt == STATUS_INVALID_PARAMETER_8
+                    || iRetry != 0)
+                    pThis->enmInfoClass = FileBothDirectoryInformation;
+
+                uint32_t cbBuffer = pThis->cbBufferAlloc;
+                if (   rcNt == STATUS_INVALID_PARAMETER
+                    || rcNt == STATUS_INVALID_PARAMETER_7
+                    || rcNt == STATUS_INVALID_NETWORK_RESPONSE
+                    || iRetry != 0)
+                {
+                    cbBuffer = RT_MIN(cbBuffer / 2, _64K);
+                    fRestartScan = true;
+                }
+
+                for (;;)
+                {
+                    rcNt = NtQueryDirectoryFile(pThis->hDir,
+                                                NULL /* Event */,
+                                                NULL /* ApcRoutine */,
+                                                NULL /* ApcContext */,
+                                                &Ios,
+                                                pThis->pabBuffer,
+                                                cbBuffer,
+                                                pThis->enmInfoClass,
+                                                RTDIR_NT_SINGLE_RECORD /*ReturnSingleEntry */,
+                                                pThis->pNtFilterStr,
+                                                fRestartScan);
+                    if (   NT_SUCCESS(rcNt)
+                        || cbBuffer == pThis->cbBufferAlloc
+                        || cbBuffer <= sizeof(*pThis->uCurData.pBothId) + sizeof(WCHAR) * 260)
+                        break;
+
+                    /* Reduce the buffer size agressivly and try again.  We fall back to
+                       FindFirstFile values for the final lap.  This means we'll do 4 rounds
+                       with the current initial buffer size (64KB, 8KB, 1KB, 0x278/0x268). */
+                    cbBuffer /= 8;
+                    if (cbBuffer < 1024)
+                        cbBuffer = pThis->enmInfoClass == FileIdBothDirectoryInformation
+                                 ? sizeof(*pThis->uCurData.pBothId) + sizeof(WCHAR) * 260
+                                 : sizeof(*pThis->uCurData.pBoth)   + sizeof(WCHAR) * 260;
+                }
+                if (NT_SUCCESS(rcNt))
+                {
+                    pThis->cbBufferAlloc = cbBuffer;
+                    break;
+                }
+            }
         }
     }
     if (!NT_SUCCESS(rcNt))

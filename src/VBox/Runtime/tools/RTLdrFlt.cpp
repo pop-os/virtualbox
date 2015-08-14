@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -224,7 +224,7 @@ int main(int argc, char **argv)
                 return RTEXITCODE_SUCCESS;
 
             case 'V':
-                RTPrintf("$Revision: 87101 $\n");
+                RTPrintf("$Revision: 101690 $\n");
                 return RTEXITCODE_SUCCESS;
 
             case VINF_GETOPT_NOT_OPTION:
@@ -306,7 +306,8 @@ int main(int argc, char **argv)
                                      aMappings[iMapping].Address + SegInfo.cb,
                                      SegInfo.iSeg, SegInfo.szName);
                         else
-                            RTPrintf("  mapping #%u: %RTptr-???????? (segment #%u)", iMapping, aMappings[iMapping].Address);
+                            RTPrintf("  mapping #%u: %RTptr-???????? (segment #%u)",
+                                     iMapping, aMappings[iMapping].Address, aMappings[iMapping].iSeg);
                     }
 
                     if (cVerbosityLevel > 1)
@@ -380,7 +381,7 @@ int main(int argc, char **argv)
                     if (iSeg != UINT32_MAX)
                         RTStrmPrintf(pOutput, "=[%s:%u", RTDbgModName(hDbgMod), iSeg);
                     else
-                        RTStrmPrintf(pOutput, "=[%s", RTDbgModName(hDbgMod), iSeg);
+                        RTStrmPrintf(pOutput, "=[%s", RTDbgModName(hDbgMod));
 
                     /*
                      * Do we have symbols?

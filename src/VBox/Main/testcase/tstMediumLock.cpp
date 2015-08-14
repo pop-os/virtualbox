@@ -1,12 +1,10 @@
 /* $Id: tstMediumLock.cpp $ */
-
 /** @file
- *
  * Medium lock test cases.
  */
 
 /*
- * Copyright (C) 2013 Oracle Corporation
+ * Copyright (C) 2013-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,7 +17,6 @@
 
 #define LOG_ENABLED
 #define LOG_GROUP LOG_GROUP_MAIN
-#define LOG_INSTANCE NULL
 #include <VBox/log.h>
 
 #include <VBox/com/com.h>
@@ -107,7 +104,7 @@ int main(int argc, char *argv[])
     if (!RTTestSubErrorCount(hTest))
     {
         RTTestSub(hTest, "Creating temp hard disk medium");
-        TEST_COM_SUCCESS(hTest, pVirtualBox->CreateHardDisk(Bstr("VDI").raw(), Bstr(szPathTemp).raw(), pMedium.asOutParam()), "create medium");
+        TEST_COM_SUCCESS(hTest, pVirtualBox->CreateMedium(Bstr("VDI").raw(), Bstr(szPathTemp).raw(), AccessMode_ReadWrite, DeviceType_HardDisk, pMedium.asOutParam()), "create medium");
         if (!pMedium.isNull())
         {
             ComPtr<IProgress> pProgress;

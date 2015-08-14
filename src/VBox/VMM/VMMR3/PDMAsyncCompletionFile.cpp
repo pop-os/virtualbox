@@ -799,8 +799,7 @@ static int pdmacFileInitialize(PPDMASYNCCOMPLETIONEPCLASS pClassGlobals, PCFGMNO
 #endif
     if (RT_FAILURE(rc))
     {
-        LogRel(("AIO: Async I/O manager not supported (rc=%Rrc). Falling back to simple manager\n",
-                rc));
+        LogRel(("AIO: Async I/O manager not supported (rc=%Rrc). Falling back to simple manager\n", rc));
         pEpClassFile->enmMgrTypeOverride = PDMACEPFILEMGRTYPE_SIMPLE;
         pEpClassFile->enmEpBackendDefault = PDMACFILEEPBACKEND_BUFFERED;
     }
@@ -821,7 +820,7 @@ static int pdmacFileInitialize(PPDMASYNCCOMPLETIONEPCLASS pClassGlobals, PCFGMNO
             if (RT_FAILURE(rc))
                 return rc;
 
-            LogRel(("AIOMgr: Default manager type is \"%s\"\n", pdmacFileMgrTypeToName(pEpClassFile->enmMgrTypeOverride)));
+            LogRel(("AIOMgr: Default manager type is '%s'\n", pdmacFileMgrTypeToName(pEpClassFile->enmMgrTypeOverride)));
 
             /* Query default backend type */
             rc = CFGMR3QueryStringAllocDef(pCfgNode, "FileBackend", &pszVal, "NonBuffered");
@@ -832,7 +831,7 @@ static int pdmacFileInitialize(PPDMASYNCCOMPLETIONEPCLASS pClassGlobals, PCFGMNO
             if (RT_FAILURE(rc))
                 return rc;
 
-            LogRel(("AIOMgr: Default file backend is \"%s\"\n", pdmacFileBackendTypeToName(pEpClassFile->enmEpBackendDefault)));
+            LogRel(("AIOMgr: Default file backend is '%s'\n", pdmacFileBackendTypeToName(pEpClassFile->enmEpBackendDefault)));
 
 #ifdef RT_OS_LINUX
             if (   pEpClassFile->enmMgrTypeOverride == PDMACEPFILEMGRTYPE_ASYNC
@@ -969,7 +968,7 @@ static int pdmacFileEpInitialize(PPDMASYNCCOMPLETIONENDPOINT pEndpoint,
     if (   rc == VERR_INVALID_FUNCTION
         || rc == VERR_INVALID_PARAMETER)
     {
-        LogRel(("pdmacFileEpInitialize: RTFileOpen %s / %08x failed with %Rrc\n",
+        LogRel(("AIOMgr: pdmacFileEpInitialize: RTFileOpen %s / %08x failed with %Rrc\n",
                pszUri, fFileFlags, rc));
         /*
          * Solaris doesn't support directio on ZFS so far. :-\
@@ -995,7 +994,7 @@ static int pdmacFileEpInitialize(PPDMASYNCCOMPLETIONENDPOINT pEndpoint,
 
         if (RT_FAILURE(rc))
         {
-            LogRel(("pdmacFileEpInitialize: RTFileOpen %s / %08x failed AGAIN(!) with %Rrc\n",
+            LogRel(("AIOMgr: pdmacFileEpInitialize: RTFileOpen %s / %08x failed AGAIN(!) with %Rrc\n",
                         pszUri, fFileFlags, rc));
         }
     }

@@ -1,7 +1,6 @@
+/* $Id: QITreeWidget.h $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * VirtualBox Qt extensions: QITreeWidget class implementation
+ * VBox Qt GUI - Qt extensions: QITreeWidget class implementation.
  */
 
 /*

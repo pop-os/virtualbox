@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,6 +22,7 @@
 #include <VBox/types.h>
 #include <VBox/vmm/stam.h>
 #include <VBox/vmm/cpum.h>
+#include <VBox/vmm/pgm.h>
 #include <VBox/log.h>
 #include <iprt/x86.h>
 
@@ -102,6 +103,12 @@ typedef struct SELM
     /** Flat CS, DS, 64 bit mode CS, TSS & trap 8 TSS. */
     RTSEL                   aHyperSel[SELM_HYPER_SEL_MAX];
 
+    /** @name GDT
+     * @{ */
+    /** Shadow GDT virtual write access handler type. */
+    PGMVIRTHANDLERTYPE      hShadowGdtWriteHandlerType;
+    /** Guest GDT virtual write access handler type. */
+    PGMVIRTHANDLERTYPE      hGuestGdtWriteHandlerType;
     /** Pointer to the GCs - R3 Ptr.
      * This size is governed by SELM_GDT_ELEMENTS. */
     R3PTRTYPE(PX86DESC)     paGdtR3;
@@ -113,10 +120,18 @@ typedef struct SELM
      * The pGdt member is set to RTRCPTR_MAX if we're not monitoring the guest GDT. */
     VBOXGDTR                GuestGdtr;
     /** The current (last) effective Guest GDT size. */
-    RTUINT                  cbEffGuestGdtLimit;
+    uint32_t                cbEffGuestGdtLimit;
+    /** Indicates that the Guest GDT access handler have been registered. */
+    bool                    fGDTRangeRegistered;
+    /** @} */
+    bool                    padding0[3];
 
-    uint32_t                padding0;
-
+    /** @name LDT
+     * @{ */
+    /** Shadow LDT virtual write access handler type. */
+    PGMVIRTHANDLERTYPE      hShadowLdtWriteHandlerType;
+    /** Guest LDT virtual write access handler type. */
+    PGMVIRTHANDLERTYPE      hGuestLdtWriteHandlerType;
     /** R3 pointer to the LDT shadow area in HMA. */
     R3PTRTYPE(void *)       pvLdtR3;
     /** RC pointer to the LDT shadow area in HMA. */
@@ -128,19 +143,25 @@ typedef struct SELM
      * RTRCPTR_MAX if not monitored. */
     RTGCPTR                 GCPtrGuestLdt;
     /** Current LDT limit, both Guest and Shadow. */
-    RTUINT                  cbLdtLimit;
+    uint32_t                cbLdtLimit;
     /** Current LDT offset relative to pvLdtR3/pvLdtRC. */
-    RTUINT                  offLdtHyper;
+    uint32_t                offLdtHyper;
 #if HC_ARCH_BITS == 32 && GC_ARCH_BITS == 64
     uint32_t                padding2[2];
 #endif
+    /** @} */
+
+    /** @name TSS
+     * @{ */
     /** TSS. (This is 16 byte aligned!)
       * @todo I/O bitmap & interrupt redirection table? */
     VBOXTSS                 Tss;
-
     /** TSS for trap 08 (\#DF). */
     VBOXTSS                 TssTrap08;
-
+    /** Shadow TSS virtual write access handler type. */
+    PGMVIRTHANDLERTYPE      hShadowTssWriteHandlerType;
+    /** Guerst TSS virtual write access handler type. */
+    PGMVIRTHANDLERTYPE      hGuestTssWriteHandlerType;
     /** Monitored shadow TSS address. */
     RCPTRTYPE(void *)       pvMonShwTssRC;
 #if GC_ARCH_BITS == 64
@@ -150,24 +171,21 @@ typedef struct SELM
      * RTRCPTR_MAX if not monitored. */
     RTGCPTR                 GCPtrGuestTss;
     /** The size of the guest TSS. */
-    RTUINT                  cbGuestTss;
+    uint32_t                cbGuestTss;
     /** Set if it's a 32-bit TSS. */
     bool                    fGuestTss32Bit;
+    /** Indicates whether the TSS stack selector & base address need to be refreshed.  */
+    bool                    fSyncTSSRing0Stack;
     /** The size of the Guest's TSS part we're monitoring. */
-    RTUINT                  cbMonitoredGuestTss;
+    uint32_t                cbMonitoredGuestTss;
     /** The guest TSS selector at last sync (part of monitoring).
      * Contains RTSEL_MAX if not set. */
     RTSEL                   GCSelTss;
     /** The last known offset of the I/O bitmap.
      * This is only used if we monitor the bitmap. */
     uint16_t                offGuestIoBitmap;
-
-    /** Indicates that the Guest GDT access handler have been registered. */
-    bool                    fGDTRangeRegistered;
-
-    /** Indicates whether the TSS stack selector & base address need to be refreshed.  */
-    bool                    fSyncTSSRing0Stack;
-    bool                    fPadding2[4];
+    /** @} */
+    uint16_t                padding4[3];
 
     /** SELMR3UpdateFromCPUM() profiling. */
     STAMPROFILE             StatUpdateFromCPUM;
@@ -211,17 +229,23 @@ typedef struct SELM
 
 RT_C_DECLS_BEGIN
 
-VMMRCDECL(int) selmRCGuestGDTWriteHandler(PVM pVM, RTGCUINT uErrorCode, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, RTGCPTR pvRange, uintptr_t offRange);
-VMMRCDECL(int) selmRCGuestLDTWriteHandler(PVM pVM, RTGCUINT uErrorCode, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, RTGCPTR pvRange, uintptr_t offRange);
-VMMRCDECL(int) selmRCGuestTSSWriteHandler(PVM pVM, RTGCUINT uErrorCode, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, RTGCPTR pvRange, uintptr_t offRange);
+PGM_ALL_CB2_DECL(FNPGMVIRTHANDLER)  selmGuestGDTWriteHandler;
+DECLEXPORT(FNPGMRCVIRTPFHANDLER)    selmRCGuestGDTWritePfHandler;
+PGM_ALL_CB2_DECL(FNPGMVIRTHANDLER)  selmGuestLDTWriteHandler;
+DECLEXPORT(FNPGMRCVIRTPFHANDLER)    selmRCGuestLDTWritePfHandler;
+PGM_ALL_CB2_DECL(FNPGMVIRTHANDLER)  selmGuestTSSWriteHandler;
+DECLEXPORT(FNPGMRCVIRTPFHANDLER)    selmRCGuestTSSWritePfHandler;
+DECLEXPORT(FNPGMRCVIRTPFHANDLER)    selmRCShadowGDTWritePfHandler;
+DECLEXPORT(FNPGMRCVIRTPFHANDLER)    selmRCShadowLDTWritePfHandler;
+DECLEXPORT(FNPGMRCVIRTPFHANDLER)    selmRCShadowTSSWritePfHandler;
 
-VMMRCDECL(int) selmRCShadowGDTWriteHandler(PVM pVM, RTGCUINT uErrorCode, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, RTGCPTR pvRange, uintptr_t offRange);
-VMMRCDECL(int) selmRCShadowLDTWriteHandler(PVM pVM, RTGCUINT uErrorCode, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, RTGCPTR pvRange, uintptr_t offRange);
-VMMRCDECL(int) selmRCShadowTSSWriteHandler(PVM pVM, RTGCUINT uErrorCode, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, RTGCPTR pvRange, uintptr_t offRange);
-
-void           selmSetRing1Stack(PVM pVM, uint32_t ss, RTGCPTR32 esp);
+void            selmRCSyncGdtSegRegs(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, unsigned iGDTEntry);
+void            selmRCGuestGdtPreWriteCheck(PVM pVM, PVMCPU pVCpu, uint32_t offGuestGdt, uint32_t cbWrite, PCPUMCTX pCtx);
+VBOXSTRICTRC    selmRCGuestGdtPostWriteCheck(PVM pVM, PVMCPU pVCpu, uint32_t offGuestTss, uint32_t cbWrite, PCPUMCTX pCtx);
+VBOXSTRICTRC    selmRCGuestTssPostWriteCheck(PVM pVM, PVMCPU pVCpu, uint32_t offGuestTss, uint32_t cbWrite);
+void            selmSetRing1Stack(PVM pVM, uint32_t ss, RTGCPTR32 esp);
 #ifdef VBOX_WITH_RAW_RING1
-void           selmSetRing2Stack(PVM pVM, uint32_t ss, RTGCPTR32 esp);
+void            selmSetRing2Stack(PVM pVM, uint32_t ss, RTGCPTR32 esp);
 #endif
 
 RT_C_DECLS_END

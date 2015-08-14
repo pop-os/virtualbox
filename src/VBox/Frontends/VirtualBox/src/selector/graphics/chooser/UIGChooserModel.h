@@ -1,7 +1,6 @@
+/* $Id: UIGChooserModel.h $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * UIGChooserModel class declaration
+ * VBox Qt GUI - UIGChooserModel class declaration.
  */
 
 /*
@@ -42,6 +41,8 @@ class QGraphicsSceneContextMenuEvent;
 class QTimer;
 class QPaintDevice;
 class UIVMItem;
+class UIGChooser;
+class UIActionPool;
 class UIGChooserHandlerMouse;
 class UIGChooserHandlerKeyboard;
 class CMachine;
@@ -86,12 +87,17 @@ signals:
 public:
 
     /* Constructor/destructor: */
-    UIGChooserModel(QObject *pParent);
+    UIGChooserModel(UIGChooser *pParent);
     ~UIGChooserModel();
 
     /* API: Prepare/cleanup stuff: */
     void prepare();
     void cleanup();
+
+    /** Returns the chooser reference. */
+    UIGChooser* chooser() const { return m_pChooser; }
+    /** Returns the action-pool reference. */
+    UIActionPool* actionPool() const;
 
     /* API: Scene stuff: */
     QGraphicsScene* scene() const;
@@ -117,6 +123,7 @@ public:
     void unsetCurrentItem();
     void addToCurrentItems(UIGChooserItem *pItem);
     void removeFromCurrentItems(UIGChooserItem *pItem);
+    void makeSureSomeItemIsSelected();
     void notifyCurrentItemChanged();
     bool isSingleGroupSelected() const;
     bool isAllItemsOfOneGroupSelected() const;
@@ -271,6 +278,9 @@ private:
     void makeSureGroupDefinitionsSaveIsFinished();
     void makeSureGroupOrdersSaveIsFinished();
 
+    /** Holds the chooser reference. */
+    UIGChooser *m_pChooser;
+
     /* Variables: */
     QGraphicsScene *m_pScene;
 
@@ -295,6 +305,9 @@ private:
     /* Variables: Lookup stuff: */
     QTimer *m_pLookupTimer;
     QString m_strLookupString;
+
+    /** Holds the Id of last VM created from the GUI side. */
+    QString m_strLastCreatedMachineId;
 };
 
 /* Allows to save group definitions asynchronously: */

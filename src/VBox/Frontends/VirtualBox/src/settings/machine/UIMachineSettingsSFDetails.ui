@@ -22,9 +22,6 @@
     <height>196</height>
    </rect>
   </property>
-  <property name="windowTitle" >
-   <string>Window</string>
-  </property>
   <layout class="QGridLayout" >
    <item row="0" column="0" >
     <widget class="QLabel" name="mLbPath" >
@@ -79,7 +76,7 @@
    <item row="4" column="1" >
     <widget class="QCheckBox" name="mCbPermanent" >
      <property name="toolTip" >
-      <string>If checked, this shared folder will be permanent.</string>
+      <string>When checked, this shared folder will be permanent.</string>
      </property>
      <property name="text" >
       <string>&amp;Make Permanent</string>

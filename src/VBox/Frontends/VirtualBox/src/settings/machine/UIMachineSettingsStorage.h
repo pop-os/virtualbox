@@ -1,7 +1,6 @@
+/* $Id: UIMachineSettingsStorage.h $ */
 /** @file
- *
- * VBox frontends: Qt4 GUI ("VirtualBox"):
- * UIMachineSettingsStorage class declaration
+ * VBox Qt GUI - UIMachineSettingsStorage class declaration.
  */
 
 /*
@@ -47,93 +46,78 @@ Q_DECLARE_METATYPE (SlotsList);
 Q_DECLARE_METATYPE (DeviceTypeList);
 Q_DECLARE_METATYPE (ControllerTypeList);
 
+/** Known item states. */
 enum ItemState
 {
-    State_DefaultItem   = 0,
-    State_CollapsedItem = 1,
-    State_ExpandedItem  = 2,
+    State_DefaultItem,
+    State_CollapsedItem,
+    State_ExpandedItem,
     State_MAX
 };
 
-/* Pixmap Storage Pool */
-class PixmapPool : public QObject
+/** Known pixmap types. */
+enum PixmapType
 {
-    Q_OBJECT;
+    InvalidPixmap,
 
-public:
+    ControllerAddEn,
+    ControllerAddDis,
+    ControllerDelEn,
+    ControllerDelDis,
 
-    enum PixmapType
-    {
-        InvalidPixmap            = -1,
+    AttachmentAddEn,
+    AttachmentAddDis,
+    AttachmentDelEn,
+    AttachmentDelDis,
 
-        ControllerAddEn          =  0,
-        ControllerAddDis         =  1,
-        ControllerDelEn          =  2,
-        ControllerDelDis         =  3,
+    IDEControllerNormal,
+    IDEControllerExpand,
+    IDEControllerCollapse,
+    SATAControllerNormal,
+    SATAControllerExpand,
+    SATAControllerCollapse,
+    SCSIControllerNormal,
+    SCSIControllerExpand,
+    SCSIControllerCollapse,
+    USBControllerNormal,
+    USBControllerExpand,
+    USBControllerCollapse,
+    FloppyControllerNormal,
+    FloppyControllerExpand,
+    FloppyControllerCollapse,
 
-        AttachmentAddEn          =  4,
-        AttachmentAddDis         =  5,
-        AttachmentDelEn          =  6,
-        AttachmentDelDis         =  7,
+    IDEControllerAddEn,
+    IDEControllerAddDis,
+    SATAControllerAddEn,
+    SATAControllerAddDis,
+    SCSIControllerAddEn,
+    SCSIControllerAddDis,
+    USBControllerAddEn,
+    USBControllerAddDis,
+    FloppyControllerAddEn,
+    FloppyControllerAddDis,
 
-        IDEControllerNormal      =  8,
-        IDEControllerExpand      =  9,
-        IDEControllerCollapse    = 10,
-        SATAControllerNormal     = 11,
-        SATAControllerExpand     = 12,
-        SATAControllerCollapse   = 13,
-        SCSIControllerNormal     = 14,
-        SCSIControllerExpand     = 15,
-        SCSIControllerCollapse   = 16,
-        FloppyControllerNormal   = 17,
-        FloppyControllerExpand   = 18,
-        FloppyControllerCollapse = 19,
+    HDAttachmentNormal,
+    CDAttachmentNormal,
+    FDAttachmentNormal,
 
-        IDEControllerAddEn       = 20,
-        IDEControllerAddDis      = 21,
-        SATAControllerAddEn      = 22,
-        SATAControllerAddDis     = 23,
-        SCSIControllerAddEn      = 24,
-        SCSIControllerAddDis     = 25,
-        FloppyControllerAddEn    = 26,
-        FloppyControllerAddDis   = 27,
+    HDAttachmentAddEn,
+    HDAttachmentAddDis,
+    CDAttachmentAddEn,
+    CDAttachmentAddDis,
+    FDAttachmentAddEn,
+    FDAttachmentAddDis,
 
-        HDAttachmentNormal       = 28,
-        CDAttachmentNormal       = 29,
-        FDAttachmentNormal       = 30,
+    ChooseExistingEn,
+    ChooseExistingDis,
+    HDNewEn,
+    HDNewDis,
+    CDUnmountEnabled,
+    CDUnmountDisabled,
+    FDUnmountEnabled,
+    FDUnmountDisabled,
 
-        HDAttachmentAddEn        = 31,
-        HDAttachmentAddDis       = 32,
-        CDAttachmentAddEn        = 33,
-        CDAttachmentAddDis       = 34,
-        FDAttachmentAddEn        = 35,
-        FDAttachmentAddDis       = 36,
-
-        ChooseExistingEn         = 37,
-        ChooseExistingDis        = 38,
-        HDNewEn                  = 39,
-        HDNewDis                 = 40,
-        CDUnmountEnabled         = 41,
-        CDUnmountDisabled        = 42,
-        FDUnmountEnabled         = 43,
-        FDUnmountDisabled        = 44,
-
-        MaxIndex
-    };
-
-    static PixmapPool* pool (QObject *aParent = 0);
-
-    QPixmap pixmap (PixmapType aType) const;
-
-protected:
-
-    PixmapPool (QObject *aParent);
-
-    static QPointer <PixmapPool> mThis;
-
-private:
-
-    QVector <QPixmap> mPool;
+    MaxIndex
 };
 
 /* Abstract Controller Type */
@@ -147,7 +131,7 @@ public:
     KStorageBus busType() const;
     KStorageControllerType ctrType() const;
     ControllerTypeList ctrTypes() const;
-    PixmapPool::PixmapType pixmap (ItemState aState) const;
+    PixmapType pixmap(ItemState aState) const;
 
     void setCtrType (KStorageControllerType aCtrType);
 
@@ -160,7 +144,7 @@ protected:
 
     KStorageBus mBusType;
     KStorageControllerType mCtrType;
-    QList <PixmapPool::PixmapType> mPixmaps;
+    QList<PixmapType> mPixmaps;
 };
 
 /* IDE Controller Type */
@@ -221,6 +205,19 @@ class SASControllerType : public AbstractControllerType
 public:
 
     SASControllerType (KStorageControllerType aSubType);
+
+private:
+
+    KStorageControllerType first() const;
+    uint size() const;
+};
+
+/* USB Controller Type */
+class USBStorageControllerType : public AbstractControllerType
+{
+public:
+
+    USBStorageControllerType (KStorageControllerType aSubType);
 
 private:
 
@@ -310,6 +307,7 @@ public:
     KStorageControllerType ctrType() const;
     ControllerTypeList ctrTypes() const;
     uint portCount();
+    uint maxPortCount();
     bool ctrUseIoCache() const;
 
     void setCtrName (const QString &aCtrName);
@@ -359,6 +357,7 @@ public:
     bool attIsPassthrough() const;
     bool attIsTempEject() const;
     bool attIsNonRotational() const;
+    bool attIsHotPluggable() const;
 
     void setAttSlot (const StorageSlot &aAttSlot);
     void setAttDevice (KDeviceType aAttDeviceType);
@@ -366,6 +365,7 @@ public:
     void setAttIsPassthrough (bool aPassthrough);
     void setAttIsTempEject (bool aTempEject);
     void setAttIsNonRotational (bool aNonRotational);
+    void setAttIsHotPluggable(bool fIsHotPluggable);
 
     QString attSize() const;
     QString attLogicalSize() const;
@@ -373,6 +373,7 @@ public:
     QString attFormat() const;
     QString attDetails() const;
     QString attUsage() const;
+    QString attEncryptionPasswordID() const;
 
 private:
 
@@ -398,6 +399,7 @@ private:
     bool mAttIsPassthrough;
     bool mAttIsTempEject;
     bool mAttIsNonRotational;
+    bool m_fIsHotPluggable;
 
     QString mAttName;
     QString mAttTip;
@@ -409,6 +411,7 @@ private:
     QString mAttFormat;
     QString mAttDetails;
     QString mAttUsage;
+    QString m_strAttEncryptionPasswordID;
 };
 
 /* Storage Model */
@@ -435,6 +438,7 @@ public:
         R_IsMoreSCSIControllersPossible,
         R_IsMoreFloppyControllersPossible,
         R_IsMoreSASControllersPossible,
+        R_IsMoreUSBControllersPossible,
         R_IsMoreAttachmentsPossible,
 
         R_CtrName,
@@ -443,6 +447,7 @@ public:
         R_CtrDevices,
         R_CtrBusType,
         R_CtrPortCount,
+        R_CtrMaxPortCount,
         R_CtrIoCache,
 
         R_AttSlot,
@@ -454,12 +459,14 @@ public:
         R_AttIsPassthrough,
         R_AttIsTempEject,
         R_AttIsNonRotational,
+        R_AttIsHotPluggable,
         R_AttSize,
         R_AttLogicalSize,
         R_AttLocation,
         R_AttFormat,
         R_AttDetails,
         R_AttUsage,
+        R_AttEncryptionPasswordID,
 
         R_Margin,
         R_Spacing,
@@ -516,7 +523,8 @@ public:
     KChipsetType chipsetType() const;
     void setChipsetType(KChipsetType type);
 
-    void setDialogType(SettingsDialogType settingsDialogType);
+    /** Defines configuration access level. */
+    void setConfigurationAccessLevel(ConfigurationAccessLevel newConfigurationAccessLevel);
 
     void clear();
 
@@ -538,7 +546,9 @@ private:
     ToolTipType mToolTipType;
 
     KChipsetType m_chipsetType;
-    SettingsDialogType m_dialogType;
+
+    /** Holds configuration access level. */
+    ConfigurationAccessLevel m_configurationAccessLevel;
 };
 Q_DECLARE_METATYPE (StorageModel::ToolTipType);
 
@@ -569,7 +579,9 @@ struct UIDataSettingsMachineStorageAttachment
         , m_strAttachmentMediumId(QString())
         , m_fAttachmentPassthrough(false)
         , m_fAttachmentTempEject(false)
-        , m_fAttachmentNonRotational(false) {}
+        , m_fAttachmentNonRotational(false)
+        , m_fAttachmentHotPluggable(false)
+    {}
     /* Functions: */
     bool equal(const UIDataSettingsMachineStorageAttachment &other) const
     {
@@ -579,7 +591,8 @@ struct UIDataSettingsMachineStorageAttachment
                (m_strAttachmentMediumId == other.m_strAttachmentMediumId) &&
                (m_fAttachmentPassthrough == other.m_fAttachmentPassthrough) &&
                (m_fAttachmentTempEject == other.m_fAttachmentTempEject) &&
-               (m_fAttachmentNonRotational == other.m_fAttachmentNonRotational);
+               (m_fAttachmentNonRotational == other.m_fAttachmentNonRotational) &&
+               (m_fAttachmentHotPluggable == other.m_fAttachmentHotPluggable);
     }
     /* Operators: */
     bool operator==(const UIDataSettingsMachineStorageAttachment &other) const { return equal(other); }
@@ -592,6 +605,7 @@ struct UIDataSettingsMachineStorageAttachment
     bool m_fAttachmentPassthrough;
     bool m_fAttachmentTempEject;
     bool m_fAttachmentNonRotational;
+    bool m_fAttachmentHotPluggable;
 };
 typedef UISettingsCache<UIDataSettingsMachineStorageAttachment> UICacheSettingsMachineStorageAttachment;
 
@@ -646,6 +660,7 @@ class UIMachineSettingsStorage : public UISettingsPageMachine,
 public:
 
     UIMachineSettingsStorage();
+    ~UIMachineSettingsStorage();
 
     void setChipsetType(KChipsetType type);
 
@@ -691,6 +706,7 @@ private slots:
     void addSCSIController();
     void addFloppyController();
     void addSASController();
+    void addUSBController();
     void delController();
 
     void addAttachment();
@@ -753,7 +769,9 @@ private:
     bool isControllerCouldBeUpdated(const UICacheSettingsMachineStorageController &controllerCache) const;
     bool isAttachmentCouldBeUpdated(const UICacheSettingsMachineStorageAttachment &attachmentCache) const;
 
-    void setDialogType(SettingsDialogType settingsDialogType);
+    /** Defines configuration access level. */
+    void setConfigurationAccessLevel(ConfigurationAccessLevel configurationAccessLevel);
+
     void polishPage();
 
     QString m_strMachineId;
@@ -769,6 +787,7 @@ private:
     QAction *mAddSCSICtrAction;
     QAction *mAddSASCtrAction;
     QAction *mAddFloppyCtrAction;
+    QAction *mAddUSBCtrAction;
     QAction *mAddAttAction;
     QAction *mDelAttAction;
     QAction *mAddHDAttAction;

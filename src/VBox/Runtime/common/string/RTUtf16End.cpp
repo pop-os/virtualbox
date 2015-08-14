@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2014 Oracle Corporation
+ * Copyright (C) 2014-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -42,5 +42,5 @@ RTDECL(PCRTUTF16) RTUtf16End(PCRTUTF16 pwszString, size_t cwcMax)
     }
     return NULL;
 }
-RT_EXPORT_SYMBOL(RTUtf16Cat);
+RT_EXPORT_SYMBOL(RTUtf16End);
 

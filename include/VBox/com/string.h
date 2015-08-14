@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -513,9 +513,9 @@ public:
         copyFrom(that.raw());
     }
 
-    Utf8Str(CBSTR that)
+    Utf8Str(CBSTR that, size_t a_cwcSize = RTSTR_MAX)
     {
-        copyFrom(that);
+        copyFrom(that, a_cwcSize);
     }
 
     Utf8Str(const char *a_pszSrc, size_t a_cchSrc)
@@ -533,7 +533,7 @@ public:
      *                          specified by the format string.
      * @sa      RTCString::printfV
      */
-    Utf8Str(const char *a_pszFormat, va_list a_va)
+    Utf8Str(const char *a_pszFormat, va_list a_va) RT_IPRT_FORMAT_ATTR(1, 0)
         : RTCString(a_pszFormat, a_va)
     {
     }
@@ -563,8 +563,6 @@ public:
         copyFrom(that);
         return *this;
     }
-
-    bool operator<(const RTCString &that) const { return RTCString::operator<(that); }
 
     /**
      * Extended assignment method that returns a COM status code instead of an
@@ -705,10 +703,13 @@ public:
     Utf8Str& stripPath();
 
     /**
-     * Removes a trailing file name extension from the member string, if present.
-     * Calls RTPathStripExt() without having to mess with mutableRaw().
+     * Removes a trailing file name suffix from the member string, if present.
+     * Calls RTPathStripSuffix() without having to mess with mutableRaw().
      */
-    Utf8Str& stripExt();
+    Utf8Str& stripSuffix();
+
+    // Parse key=value pairs from string
+    size_t parseKeyValue(Utf8Str &key, Utf8Str &value, size_t pos = 0, const Utf8Str &pairSeparator = ",", const Utf8Str &keyValueSeparator = "=") const;
 
     /**
      *  Static immutable empty-string object. May be used for comparison purposes.
@@ -716,7 +717,7 @@ public:
     static const Utf8Str Empty;
 protected:
 
-    void copyFrom(CBSTR a_pbstr);
+    void copyFrom(CBSTR a_pbstr, size_t a_cwcMax = RTSTR_MAX);
     HRESULT copyFromEx(CBSTR a_pbstr);
     HRESULT copyFromExNComRC(const char *a_pcszSrc, size_t a_offSrc, size_t a_cchSrc);
 
@@ -748,7 +749,7 @@ public:
      * @param   ...             Ellipsis containing the arguments specified by
      *                          the format string.
      */
-    explicit Utf8StrFmt(const char *a_pszFormat, ...)
+    explicit Utf8StrFmt(const char *a_pszFormat, ...) RT_IPRT_FORMAT_ATTR(1, 2)
     {
         va_list va;
         va_start(va, a_pszFormat);
@@ -779,7 +780,7 @@ public:
      * @param aFormat   printf-like format string (in UTF-8 encoding).
      * @param ...       List of the arguments for the format string.
      */
-    explicit BstrFmt(const char *aFormat, ...)
+    explicit BstrFmt(const char *aFormat, ...) RT_IPRT_FORMAT_ATTR(1, 2)
     {
         va_list args;
         va_start(args, aFormat);
@@ -804,7 +805,7 @@ public:
      * @param aFormat   printf-like format string (in UTF-8 encoding).
      * @param aArgs     List of arguments for the format string
      */
-    BstrFmtVA(const char *aFormat, va_list aArgs)
+    BstrFmtVA(const char *aFormat, va_list aArgs) RT_IPRT_FORMAT_ATTR(1, 0)
     {
         copyFrom(Utf8Str(aFormat, aArgs).c_str());
     }

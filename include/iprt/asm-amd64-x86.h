@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -27,6 +27,7 @@
 #define ___iprt_asm_amd64_x86_h
 
 #include <iprt/types.h>
+#include <iprt/assert.h>
 #if !defined(RT_ARCH_AMD64) && !defined(RT_ARCH_X86)
 # error "Not on AMD64 or x86"
 #endif
@@ -71,6 +72,7 @@
 # if RT_INLINE_ASM_USES_INTRIN >= 15
 #  pragma intrinsic(__readeflags)
 #  pragma intrinsic(__writeeflags)
+#  pragma intrinsic(__rdtscp)
 # endif
 #endif
 
@@ -81,7 +83,8 @@
  * @{
  */
 
-/** @todo find a more proper place for this structure? */
+/** @todo find a more proper place for these structures? */
+
 #pragma pack(1)
 /** IDTR */
 typedef struct RTIDTR
@@ -94,6 +97,30 @@ typedef struct RTIDTR
 #pragma pack()
 
 #pragma pack(1)
+/** @internal */
+typedef struct RTIDTRALIGNEDINT
+{
+    /** Alignment padding.   */
+    uint8_t     au16Padding[ARCH_BITS == 64 ? 3 : 1];
+    /** The IDTR structure.  */
+    RTIDTR      Idtr;
+} RTIDTRALIGNEDINT;
+#pragma pack()
+
+/** Wrapped RTIDTR for preventing misalignment exceptions. */
+typedef union RTIDTRALIGNED
+{
+    /** Try make sure this structure has optimal alignment. */
+    uint64_t            auAlignmentHack[ARCH_BITS == 64 ? 2 : 1];
+    /** Aligned structure. */
+    RTIDTRALIGNEDINT    s;
+} RTIDTRALIGNED;
+AssertCompileSize(RTIDTRALIGNED, ARCH_BITS * 2 / 8);
+/** Pointer to a an RTIDTR alignment wrapper. */
+typedef RTIDTRALIGNED *PRIDTRALIGNED;
+
+
+#pragma pack(1)
 /** GDTR */
 typedef struct RTGDTR
 {
@@ -103,6 +130,29 @@ typedef struct RTGDTR
     uintptr_t   pGdt;
 } RTGDTR, *PRTGDTR;
 #pragma pack()
+
+#pragma pack(1)
+/** @internal */
+typedef struct RTGDTRALIGNEDINT
+{
+    /** Alignment padding.   */
+    uint8_t     au16Padding[ARCH_BITS == 64 ? 3 : 1];
+    /** The GDTR structure.  */
+    RTGDTR      Gdtr;
+} RTGDTRALIGNEDINT;
+#pragma pack()
+
+/** Wrapped RTGDTR for preventing misalignment exceptions. */
+typedef union RTGDTRALIGNED
+{
+    /** Try make sure this structure has optimal alignment. */
+    uint64_t            auAlignmentHack[ARCH_BITS == 64 ? 2 : 1];
+    /** Aligned structure. */
+    RTGDTRALIGNEDINT    s;
+} RTGDTRALIGNED;
+AssertCompileSize(RTGDTRALIGNED, ARCH_BITS * 2 / 8);
+/** Pointer to a an RTGDTR alignment wrapper. */
+typedef RTGDTRALIGNED *PRGDTRALIGNED;
 
 
 /**
@@ -128,6 +178,29 @@ DECLINLINE(void) ASMGetIDTR(PRTIDTR pIdtr)
 #  endif
     }
 # endif
+}
+#endif
+
+
+/**
+ * Gets the content of the IDTR.LIMIT CPU register.
+ * @returns IDTR limit.
+ */
+#if RT_INLINE_ASM_EXTERNAL
+DECLASM(uint16_t) ASMGetIdtrLimit(void);
+#else
+DECLINLINE(uint16_t) ASMGetIdtrLimit(void)
+{
+    RTIDTRALIGNED TmpIdtr;
+# if RT_INLINE_ASM_GNU_STYLE
+    __asm__ __volatile__("sidt %0" : "=m" (TmpIdtr.s.Idtr));
+# else
+    __asm
+    {
+        sidt    [TmpIdtr.s.Idtr]
+    }
+# endif
+    return TmpIdtr.s.Idtr.cbIdt;
 }
 #endif
 
@@ -184,6 +257,35 @@ DECLINLINE(void) ASMGetGDTR(PRTGDTR pGdtr)
 # endif
 }
 #endif
+
+
+/**
+ * Sets the content of the GDTR CPU register.
+ * @param   pIdtr   Where to load the GDTR contents from
+ */
+#if RT_INLINE_ASM_EXTERNAL
+DECLASM(void) ASMSetGDTR(const RTGDTR *pGdtr);
+#else
+DECLINLINE(void) ASMSetGDTR(const RTGDTR *pGdtr)
+{
+# if RT_INLINE_ASM_GNU_STYLE
+    __asm__ __volatile__("lgdt %0" : : "m" (*pGdtr));
+# else
+    __asm
+    {
+#  ifdef RT_ARCH_AMD64
+        mov     rax, [pGdtr]
+        lgdt    [rax]
+#  else
+        mov     eax, [pGdtr]
+        lgdt    [eax]
+#  endif
+    }
+# endif
+}
+#endif
+
+
 
 /**
  * Get the cs register.
@@ -380,11 +482,11 @@ DECLINLINE(RTSEL) ASMGetLDTR(void)
 /**
  * Get the access rights for the segment selector.
  *
- * @returns The access rights on success or ~0U on failure.
+ * @returns The access rights on success or UINT32_MAX on failure.
  * @param   uSel        The selector value.
  *
- * @remarks Using ~0U for failure is chosen because valid access rights always
- *          have bits 0:7 as 0 (on both Intel & AMD).
+ * @remarks Using UINT32_MAX for failure is chosen because valid access rights
+ *          always have bits 0:7 as 0 (on both Intel & AMD).
  */
 #if RT_INLINE_ASM_EXTERNAL
 DECLASM(uint32_t) ASMGetSegAttr(uint32_t uSel);
@@ -495,6 +597,184 @@ DECLINLINE(void) ASMSetFlags(RTCCUINTREG uFlags)
 
 
 /**
+ * Modifies the [RE]FLAGS register.
+ * @returns Original value.
+ * @param   fAndEfl     Flags to keep (applied first).
+ * @param   fOrEfl      Flags to be set.
+ */
+#if RT_INLINE_ASM_EXTERNAL && RT_INLINE_ASM_USES_INTRIN < 15
+DECLASM(RTCCUINTREG) ASMChangeFlags(RTCCUINTREG fAndEfl, RTCCUINTREG fOrEfl);
+#else
+DECLINLINE(RTCCUINTREG) ASMChangeFlags(RTCCUINTREG fAndEfl, RTCCUINTREG fOrEfl)
+{
+    RTCCUINTREG fOldEfl;
+# if RT_INLINE_ASM_GNU_STYLE
+#  ifdef RT_ARCH_AMD64
+    __asm__ __volatile__("pushfq\n\t"
+                         "movq  (%%rsp), %0\n\t"
+                         "andq  %0, %1\n\t"
+                         "orq   %3, %1\n\t"
+                         "mov   %1, (%%rsp)\n\t"
+                         "popfq\n\t"
+                         : "=&r" (fOldEfl),
+                           "=r" (fAndEfl)
+                         : "1" (fAndEfl),
+                           "rn" (fOrEfl) );
+#  else
+    __asm__ __volatile__("pushfl\n\t"
+                         "movl  (%%esp), %0\n\t"
+                         "andl  %1, (%%esp)\n\t"
+                         "orl   %2, (%%esp)\n\t"
+                         "popfl\n\t"
+                         : "=&r" (fOldEfl)
+                         : "rn" (fAndEfl),
+                           "rn" (fOrEfl) );
+#  endif
+# elif RT_INLINE_ASM_USES_INTRIN >= 15
+    fOldEfl = __readeflags();
+    __writeeflags((fOldEfl & fAndEfl) | fOrEfl);
+# else
+    __asm
+    {
+#  ifdef RT_ARCH_AMD64
+        mov     rdx, [fAndEfl]
+        mov     rcx, [fOrEfl]
+        pushfq
+        mov     rax, [rsp]
+        and     rdx, rax
+        or      rdx, rcx
+        mov     [rsp], rdx
+        popfq
+        mov     [fOldEfl], rax
+#  else
+        mov     edx, [fAndEfl]
+        mov     ecx, [fOrEfl]
+        pushfd
+        mov     eax, [esp]
+        and     edx, eax
+        or      edx, ecx
+        mov     [esp], edx
+        popfd
+        mov     [fOldEfl], eax
+#  endif
+    }
+# endif
+    return fOldEfl;
+}
+#endif
+
+
+/**
+ * Modifies the [RE]FLAGS register by ORing in one or more flags.
+ * @returns Original value.
+ * @param   fOrEfl      The flags to be set (ORed in).
+ */
+#if RT_INLINE_ASM_EXTERNAL && RT_INLINE_ASM_USES_INTRIN < 15
+DECLASM(RTCCUINTREG) ASMAddFlags(RTCCUINTREG fOrEfl);
+#else
+DECLINLINE(RTCCUINTREG) ASMAddFlags(RTCCUINTREG fOrEfl)
+{
+    RTCCUINTREG fOldEfl;
+# if RT_INLINE_ASM_GNU_STYLE
+#  ifdef RT_ARCH_AMD64
+    __asm__ __volatile__("pushfq\n\t"
+                         "movq  (%%rsp), %0\n\t"
+                         "orq   %1, (%%rsp)\n\t"
+                         "popfq\n\t"
+                         : "=&r" (fOldEfl)
+                         : "rn" (fOrEfl) );
+#  else
+    __asm__ __volatile__("pushfl\n\t"
+                         "movl  (%%esp), %0\n\t"
+                         "orl   %1, (%%esp)\n\t"
+                         "popfl\n\t"
+                         : "=&r" (fOldEfl)
+                         : "rn" (fOrEfl) );
+#  endif
+# elif RT_INLINE_ASM_USES_INTRIN >= 15
+    fOldEfl = __readeflags();
+    __writeeflags(fOldEfl | fOrEfl);
+# else
+    __asm
+    {
+#  ifdef RT_ARCH_AMD64
+        mov     rcx, [fOrEfl]
+        pushfq
+        mov     rdx, [rsp]
+        or      [rsp], rcx
+        popfq
+        mov     [fOldEfl], rax
+#  else
+        mov     ecx, [fOrEfl]
+        pushfd
+        mov     edx, [esp]
+        or      [esp], ecx
+        popfd
+        mov     [fOldEfl], eax
+#  endif
+    }
+# endif
+    return fOldEfl;
+}
+#endif
+
+
+/**
+ * Modifies the [RE]FLAGS register by AND'ing out one or more flags.
+ * @returns Original value.
+ * @param   fAndEfl      The flags to keep.
+ */
+#if RT_INLINE_ASM_EXTERNAL && RT_INLINE_ASM_USES_INTRIN < 15
+DECLASM(RTCCUINTREG) ASMClearFlags(RTCCUINTREG fAndEfl);
+#else
+DECLINLINE(RTCCUINTREG) ASMClearFlags(RTCCUINTREG fAndEfl)
+{
+    RTCCUINTREG fOldEfl;
+# if RT_INLINE_ASM_GNU_STYLE
+#  ifdef RT_ARCH_AMD64
+    __asm__ __volatile__("pushfq\n\t"
+                         "movq  (%%rsp), %0\n\t"
+                         "andq  %1, (%%rsp)\n\t"
+                         "popfq\n\t"
+                         : "=&r" (fOldEfl)
+                         : "rn" (fAndEfl) );
+#  else
+    __asm__ __volatile__("pushfl\n\t"
+                         "movl  (%%esp), %0\n\t"
+                         "andl  %1, (%%esp)\n\t"
+                         "popfl\n\t"
+                         : "=&r" (fOldEfl)
+                         : "rn" (fAndEfl) );
+#  endif
+# elif RT_INLINE_ASM_USES_INTRIN >= 15
+    fOldEfl = __readeflags();
+    __writeeflags(fOldEfl & fAndEfl);
+# else
+    __asm
+    {
+#  ifdef RT_ARCH_AMD64
+        mov     rdx, [fAndEfl]
+        pushfq
+        mov     rdx, [rsp]
+        and     [rsp], rdx
+        popfq
+        mov     [fOldEfl], rax
+#  else
+        mov     edx, [fAndEfl]
+        pushfd
+        mov     edx, [esp]
+        and     [esp], edx
+        popfd
+        mov     [fOldEfl], eax
+#  endif
+    }
+# endif
+    return fOldEfl;
+}
+#endif
+
+
+/**
  * Gets the content of the CPU timestamp counter register.
  *
  * @returns TSC.
@@ -516,6 +796,42 @@ DECLINLINE(uint64_t) ASMReadTSC(void)
         rdtsc
         mov     [u.s.Lo], eax
         mov     [u.s.Hi], edx
+    }
+#  endif
+# endif
+    return u.u;
+}
+#endif
+
+
+/**
+ * Gets the content of the CPU timestamp counter register and the
+ * assoicated AUX value.
+ *
+ * @returns TSC.
+ * @param   puAux   Where to store the AUX value.
+ */
+#if RT_INLINE_ASM_EXTERNAL && RT_INLINE_ASM_USES_INTRIN < 15
+DECLASM(uint64_t) ASMReadTscWithAux(uint32_t *puAux);
+#else
+DECLINLINE(uint64_t) ASMReadTscWithAux(uint32_t *puAux)
+{
+    RTUINT64U u;
+# if RT_INLINE_ASM_GNU_STYLE
+    /* rdtscp is not supported by ancient linux build VM of course :-( */
+    /*__asm__ __volatile__("rdtscp\n\t" : "=a" (u.s.Lo), "=d" (u.s.Hi), "=c" (*puAux)); */
+    __asm__ __volatile__(".byte 0x0f,0x01,0xf9\n\t" : "=a" (u.s.Lo), "=d" (u.s.Hi), "=c" (*puAux));
+# else
+#  if RT_INLINE_ASM_USES_INTRIN >= 15
+    u.u = __rdtscp(puAux);
+#  else
+    __asm
+    {
+        rdtscp
+        mov     [u.s.Lo], eax
+        mov     [u.s.Hi], edx
+        mov     eax, [puAux]
+        mov     [eax], ecx
     }
 #  endif
 # endif
@@ -1588,6 +1904,34 @@ DECLINLINE(RTCCUINTREG) ASMGetCR8(void)
 
 
 /**
+ * Get XCR0 (eXtended feature Control Register 0).
+ * @returns xcr0.
+ */
+DECLASM(uint64_t) ASMGetXcr0(void);
+
+/**
+ * Sets the XCR0 register.
+ * @param   uXcr0   The new XCR0 value.
+ */
+DECLASM(void) ASMSetXcr0(uint64_t uXcr0);
+
+struct X86XSAVEAREA;
+/**
+ * Save extended CPU state.
+ * @param   pXStateArea     Where to save the state.
+ * @param   fComponents     Which state components to save.
+ */
+DECLASM(void) ASMXSave(struct X86XSAVEAREA *pXStateArea, uint64_t fComponents);
+
+/**
+ * Loads extended CPU state.
+ * @param   pXStateArea     Where to load the state from.
+ * @param   fComponents     Which state components to load.
+ */
+DECLASM(void) ASMXRstor(struct X86XSAVEAREA const *pXStateArea, uint64_t fComponents);
+
+
+/**
  * Enables interrupts (EFLAGS.IF).
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
@@ -1666,7 +2010,7 @@ DECLINLINE(RTCCUINTREG) ASMIntDisableFlags(void)
  *
  * @returns true / false.
  */
-DECLINLINE(RTCCUINTREG) ASMIntAreEnabled(void)
+DECLINLINE(bool) ASMIntAreEnabled(void)
 {
     RTCCUINTREG uFlags = ASMGetFlags();
     return uFlags & 0x200 /* X86_EFL_IF */ ? true : false;

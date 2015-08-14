@@ -5,7 +5,7 @@
 # for Linux Guest Additions
 
 #
-# Copyright (C) 2006-2013 Oracle Corporation
+# Copyright (C) 2006-2015 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -149,10 +149,13 @@ EOF
     # Stop what we can in the way of services and remove them from the
     # system
     for i in $UNINSTALL_SCRIPTS; do
-        stop_init_script "$i"
-        cleanup_init "$i" 1>&2 2>> "$LOGFILE"
-        test -x "./$i" && "./$i" cleanup 1>&2 2>> "$LOGFILE"
-        remove_init_script "$i"
+        stop_init_script "$i" 2>> "${LOGFILE}"
+        test -z "$NO_CLEANUP" && test -x "./$i" && "./$i" cleanup 1>&2 2>> "$LOGFILE"
+        delrunlevel "$i" 2>> "${LOGFILE}"
+        remove_init_script "$i" 2>> "${LOGFILE}"
+    done
+    for i in "/opt/$PACKAGE-"*/init/*; do
+      test -z "$NO_CLEANUP" && grep -q '^# *cleanup_script *$' "${i}" && "${i}" cleanup 1>&2 2>> "$LOGFILE"
     done
 
     # Get rid of any remaining files
@@ -417,9 +420,10 @@ fi
 # Install, set up and start init scripts
 for i in "$INSTALLATION_DIR/init/"*; do
   if test -r "$i"; then
-    install_init_script "$i" "`basename "$i"`"
-    test -n "$DO_SETUP" && setup_init_script "`basename "$i"`" 1>&2
-    start_init_script "`basename "$i"`"
+    install_init_script "$i" "`basename "$i"`" 2>> "${LOGFILE}"
+    addrunlevel "`basename "$i"`" 2>> "${LOGFILE}"
+    test -n "$DO_SETUP" && grep -q '^# *setup_script *$' "${i}" && "${i}" setup 1>&2 2>> "${LOGFILE}"
+    start_init_script "`basename "$i"`" 2>> "${LOGFILE}"
   fi
 done
 
@@ -457,9 +461,10 @@ test -r "$CONFIG_DIR/$CONFIG_FILES" || abort "Required file $CONFIG_FILES not fo
 # Stop and clean up all services
 for i in "$INSTALLATION_DIR/init/"*; do
     if test -r "\$i"; then
-        stop_init_script "\`basename "\$i"\`"
-        test -z "\$NO_CLEANUP" && cleanup_init "\`basename "\$i"\`" 2>> "\$LOGFILE"
-        remove_init_script "\`basename "\$i"\`"
+        stop_init_script "\`basename "\$i"\`" 2>> "${LOGFILE}"
+        test -z "\${NO_CLEANUP}" && grep -q '^# *cleanup_script *$' "\${i}" && "\${i}" cleanup 2>> "\$LOGFILE"
+        delrunlevel "\`basename "\$i"\`" 2>> "${LOGFILE}"
+        remove_init_script "\`basename "\$i"\`" 2>> "${LOGFILE}"
     fi
 done
 
