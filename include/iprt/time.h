@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -92,7 +92,7 @@ DECLINLINE(PRTTIMESPEC) RTTimeSpecSetNano(PRTTIMESPEC pTime, int64_t i64Nano)
  */
 DECLINLINE(int64_t) RTTimeSpecGetMicro(PCRTTIMESPEC pTime)
 {
-    return pTime->i64NanosecondsRelativeToUnixEpoch / 1000;
+    return pTime->i64NanosecondsRelativeToUnixEpoch / RT_NS_1US;
 }
 
 
@@ -105,7 +105,7 @@ DECLINLINE(int64_t) RTTimeSpecGetMicro(PCRTTIMESPEC pTime)
  */
 DECLINLINE(PRTTIMESPEC) RTTimeSpecSetMicro(PRTTIMESPEC pTime, int64_t i64Micro)
 {
-    pTime->i64NanosecondsRelativeToUnixEpoch = i64Micro * 1000;
+    pTime->i64NanosecondsRelativeToUnixEpoch = i64Micro * RT_NS_1US;
     return pTime;
 }
 
@@ -118,7 +118,7 @@ DECLINLINE(PRTTIMESPEC) RTTimeSpecSetMicro(PRTTIMESPEC pTime, int64_t i64Micro)
  */
 DECLINLINE(int64_t) RTTimeSpecGetMilli(PCRTTIMESPEC pTime)
 {
-    return pTime->i64NanosecondsRelativeToUnixEpoch / 1000000;
+    return pTime->i64NanosecondsRelativeToUnixEpoch / RT_NS_1MS;
 }
 
 
@@ -131,7 +131,7 @@ DECLINLINE(int64_t) RTTimeSpecGetMilli(PCRTTIMESPEC pTime)
  */
 DECLINLINE(PRTTIMESPEC) RTTimeSpecSetMilli(PRTTIMESPEC pTime, int64_t i64Milli)
 {
-    pTime->i64NanosecondsRelativeToUnixEpoch = i64Milli * 1000000;
+    pTime->i64NanosecondsRelativeToUnixEpoch = i64Milli * RT_NS_1MS;
     return pTime;
 }
 
@@ -144,7 +144,7 @@ DECLINLINE(PRTTIMESPEC) RTTimeSpecSetMilli(PRTTIMESPEC pTime, int64_t i64Milli)
  */
 DECLINLINE(int64_t) RTTimeSpecGetSeconds(PCRTTIMESPEC pTime)
 {
-    return pTime->i64NanosecondsRelativeToUnixEpoch / 1000000000;
+    return pTime->i64NanosecondsRelativeToUnixEpoch / RT_NS_1SEC;
 }
 
 
@@ -157,7 +157,7 @@ DECLINLINE(int64_t) RTTimeSpecGetSeconds(PCRTTIMESPEC pTime)
  */
 DECLINLINE(PRTTIMESPEC) RTTimeSpecSetSeconds(PRTTIMESPEC pTime, int64_t i64Seconds)
 {
-    pTime->i64NanosecondsRelativeToUnixEpoch = i64Seconds * 1000000000;
+    pTime->i64NanosecondsRelativeToUnixEpoch = i64Seconds * RT_NS_1SEC;
     return pTime;
 }
 
@@ -226,7 +226,7 @@ DECLINLINE(PRTTIMESPEC) RTTimeSpecAddNano(PRTTIMESPEC pTime, int64_t i64Nano)
  */
 DECLINLINE(PRTTIMESPEC) RTTimeSpecAddMicro(PRTTIMESPEC pTime, int64_t i64Micro)
 {
-    pTime->i64NanosecondsRelativeToUnixEpoch += i64Micro * 1000;
+    pTime->i64NanosecondsRelativeToUnixEpoch += i64Micro * RT_NS_1US;
     return pTime;
 }
 
@@ -240,7 +240,7 @@ DECLINLINE(PRTTIMESPEC) RTTimeSpecAddMicro(PRTTIMESPEC pTime, int64_t i64Micro)
  */
 DECLINLINE(PRTTIMESPEC) RTTimeSpecAddMilli(PRTTIMESPEC pTime, int64_t i64Milli)
 {
-    pTime->i64NanosecondsRelativeToUnixEpoch += i64Milli * 1000000;
+    pTime->i64NanosecondsRelativeToUnixEpoch += i64Milli * RT_NS_1MS;
     return pTime;
 }
 
@@ -254,7 +254,7 @@ DECLINLINE(PRTTIMESPEC) RTTimeSpecAddMilli(PRTTIMESPEC pTime, int64_t i64Milli)
  */
 DECLINLINE(PRTTIMESPEC) RTTimeSpecAddSeconds(PRTTIMESPEC pTime, int64_t i64Seconds)
 {
-    pTime->i64NanosecondsRelativeToUnixEpoch += i64Seconds * 1000000000;
+    pTime->i64NanosecondsRelativeToUnixEpoch += i64Seconds * RT_NS_1SEC;
     return pTime;
 }
 
@@ -296,7 +296,7 @@ DECLINLINE(PRTTIMESPEC) RTTimeSpecSubNano(PRTTIMESPEC pTime, int64_t i64Nano)
  */
 DECLINLINE(PRTTIMESPEC) RTTimeSpecSubMicro(PRTTIMESPEC pTime, int64_t i64Micro)
 {
-    pTime->i64NanosecondsRelativeToUnixEpoch -= i64Micro * 1000;
+    pTime->i64NanosecondsRelativeToUnixEpoch -= i64Micro * RT_NS_1US;
     return pTime;
 }
 
@@ -310,7 +310,7 @@ DECLINLINE(PRTTIMESPEC) RTTimeSpecSubMicro(PRTTIMESPEC pTime, int64_t i64Micro)
  */
 DECLINLINE(PRTTIMESPEC) RTTimeSpecSubMilli(PRTTIMESPEC pTime, int64_t i64Milli)
 {
-    pTime->i64NanosecondsRelativeToUnixEpoch -= i64Milli * 1000000;
+    pTime->i64NanosecondsRelativeToUnixEpoch -= i64Milli * RT_NS_1MS;
     return pTime;
 }
 
@@ -324,8 +324,31 @@ DECLINLINE(PRTTIMESPEC) RTTimeSpecSubMilli(PRTTIMESPEC pTime, int64_t i64Milli)
  */
 DECLINLINE(PRTTIMESPEC) RTTimeSpecSubSeconds(PRTTIMESPEC pTime, int64_t i64Seconds)
 {
-    pTime->i64NanosecondsRelativeToUnixEpoch -= i64Seconds * 100000000;
+    pTime->i64NanosecondsRelativeToUnixEpoch -= i64Seconds * RT_NS_1SEC;
     return pTime;
+}
+
+
+/**
+ * Gives the time in seconds and nanoseconds.
+ *
+ * @returns pTime.
+ * @param   pTime           The time spec to interpret.
+ * @param   *pi32Seconds    Where to store the time period in seconds.
+ * @param   *pi32Nano       Where to store the time period in nanoseconds.
+ */
+DECLINLINE(void) RTTimeSpecGetSecondsAndNano(PRTTIMESPEC pTime, int32_t *pi32Seconds, int32_t *pi32Nano)
+{
+    int64_t i64 = RTTimeSpecGetNano(pTime);
+    int32_t i32Nano = (int32_t)(i64 % RT_NS_1SEC);
+    i64 /= RT_NS_1SEC;
+    if (i32Nano < 0)
+    {
+        i32Nano += RT_NS_1SEC;
+        i64--;
+    }
+    *pi32Seconds = (int32_t)i64;
+    *pi32Nano    = i32Nano;
 }
 
 
@@ -341,11 +364,11 @@ DECLINLINE(PRTTIMESPEC) RTTimeSpecSubSeconds(PRTTIMESPEC pTime, int64_t i64Secon
 DECLINLINE(struct timeval *) RTTimeSpecGetTimeval(PCRTTIMESPEC pTime, struct timeval *pTimeval)
 {
     int64_t i64 = RTTimeSpecGetMicro(pTime);
-    int32_t i32Micro = (int32_t)(i64 % 1000000);
-    i64 /= 1000000;
+    int32_t i32Micro = (int32_t)(i64 % RT_US_1SEC);
+    i64 /= RT_US_1SEC;
     if (i32Micro < 0)
     {
-        i32Micro += 1000000;
+        i32Micro += RT_US_1SEC;
         i64--;
     }
     pTimeval->tv_sec = (time_t)i64;
@@ -379,11 +402,11 @@ DECLINLINE(PRTTIMESPEC) RTTimeSpecSetTimeval(PRTTIMESPEC pTime, const struct tim
 DECLINLINE(struct timespec *) RTTimeSpecGetTimespec(PCRTTIMESPEC pTime, struct timespec *pTimespec)
 {
     int64_t i64 = RTTimeSpecGetNano(pTime);
-    int32_t i32Nano = (int32_t)(i64 % 1000000000);
-    i64 /= 1000000000;
+    int32_t i32Nano = (int32_t)(i64 % RT_NS_1SEC);
+    i64 /= RT_NS_1SEC;
     if (i32Nano < 0)
     {
-        i32Nano += 1000000000;
+        i32Nano += RT_NS_1SEC;
         i64--;
     }
     pTimespec->tv_sec = (time_t)i64;
@@ -481,7 +504,7 @@ DECLINLINE(PRTTIMESPEC) RTTimeSpecSetNtFileTime(PRTTIMESPEC pTime, const FILETIM
 DECLINLINE(int64_t) RTTimeSpecGetDosSeconds(PCRTTIMESPEC pTime)
 {
     return (pTime->i64NanosecondsRelativeToUnixEpoch - RTTIME_OFFSET_DOS_TIME)
-        / 1000000000;
+        / RT_NS_1SEC;
 }
 
 
@@ -494,7 +517,7 @@ DECLINLINE(int64_t) RTTimeSpecGetDosSeconds(PCRTTIMESPEC pTime)
  */
 DECLINLINE(PRTTIMESPEC) RTTimeSpecSetDosSeconds(PRTTIMESPEC pTime, int64_t i64Seconds)
 {
-    pTime->i64NanosecondsRelativeToUnixEpoch = i64Seconds * 1000000000
+    pTime->i64NanosecondsRelativeToUnixEpoch = i64Seconds * RT_NS_1SEC
         + RTTIME_OFFSET_DOS_TIME;
     return pTime;
 }
@@ -839,8 +862,18 @@ typedef struct RTTIMENANOTSDATA
      */
     DECLCALLBACKMEMBER(uint64_t, pfnRediscover)(PRTTIMENANOTSDATA pData);
 
-    /** Just a dummy alignment member. */
-    void               *pvDummy;
+    /**
+     * Callback for when some CPU index related stuff goes wrong.
+     *
+     * @returns Nanosecond timestamp.
+     * @param   pData           Pointer to this structure.
+     * @param   idApic          The APIC ID if available, otherwise (UINT16_MAX-1).
+     * @param   iCpuSet         The CPU set index if available, otherwise
+     *                          (UINT16_MAX-1).
+     * @param   iGipCpu         The GIP CPU array index if available, otherwise
+     *                          (UINT16_MAX-1).
+     */
+    DECLCALLBACKMEMBER(uint64_t, pfnBadCpuIndex)(PRTTIMENANOTSDATA pData, uint16_t idApic, uint16_t iCpuSet, uint16_t iGipCpu);
 
     /** Number of 1ns steps because of overshooting the period. */
     uint32_t            c1nsSteps;
@@ -861,7 +894,7 @@ typedef struct RTTIMENANOTSDATAR3
     R3PTRTYPE(uint64_t volatile  *) pu64Prev;
     DECLR3CALLBACKMEMBER(void, pfnBad,(PRTTIMENANOTSDATA pData, uint64_t u64NanoTS, uint64_t u64DeltaPrev, uint64_t u64PrevNanoTS));
     DECLR3CALLBACKMEMBER(uint64_t, pfnRediscover,(PRTTIMENANOTSDATA pData));
-    RTR3PTR             pvDummy;
+    DECLR3CALLBACKMEMBER(uint64_t, pfnBadCpuIndex,(PRTTIMENANOTSDATA pData, uint16_t idApic, uint16_t iCpuSet, uint16_t iGipCpu));
     uint32_t            c1nsSteps;
     uint32_t            cExpired;
     uint32_t            cBadPrev;
@@ -880,7 +913,7 @@ typedef struct RTTIMENANOTSDATAR0
     R0PTRTYPE(uint64_t volatile  *) pu64Prev;
     DECLR0CALLBACKMEMBER(void, pfnBad,(PRTTIMENANOTSDATA pData, uint64_t u64NanoTS, uint64_t u64DeltaPrev, uint64_t u64PrevNanoTS));
     DECLR0CALLBACKMEMBER(uint64_t, pfnRediscover,(PRTTIMENANOTSDATA pData));
-    RTR0PTR             pvDummy;
+    DECLR0CALLBACKMEMBER(uint64_t, pfnBadCpuIndex,(PRTTIMENANOTSDATA pData, uint16_t idApic, uint16_t iCpuSet, uint16_t iGipCpu));
     uint32_t            c1nsSteps;
     uint32_t            cExpired;
     uint32_t            cBadPrev;
@@ -899,7 +932,7 @@ typedef struct RTTIMENANOTSDATARC
     RCPTRTYPE(uint64_t volatile  *) pu64Prev;
     DECLRCCALLBACKMEMBER(void, pfnBad,(PRTTIMENANOTSDATA pData, uint64_t u64NanoTS, uint64_t u64DeltaPrev, uint64_t u64PrevNanoTS));
     DECLRCCALLBACKMEMBER(uint64_t, pfnRediscover,(PRTTIMENANOTSDATA pData));
-    RCPTRTYPE(void *)   pvDummy;
+    DECLRCCALLBACKMEMBER(uint64_t, pfnBadCpuIndex,(PRTTIMENANOTSDATA pData, uint16_t idApic, uint16_t iCpuSet, uint16_t iGipCpu));
     uint32_t            c1nsSteps;
     uint32_t            cExpired;
     uint32_t            cBadPrev;
@@ -913,11 +946,28 @@ typedef RTTIMENANOTSDATA RTTIMENANOTSDATARC;
 typedef DECLCALLBACK(uint64_t) FNTIMENANOTSINTERNAL(PRTTIMENANOTSDATA pData);
 /** Pointer to an internal RTTimeNanoTS worker (assembly). */
 typedef FNTIMENANOTSINTERNAL *PFNTIMENANOTSINTERNAL;
-
-RTDECL(uint64_t) RTTimeNanoTSLegacySync(PRTTIMENANOTSDATA pData);
+RTDECL(uint64_t) RTTimeNanoTSLegacySyncInvarNoDelta(PRTTIMENANOTSDATA pData);
+RTDECL(uint64_t) RTTimeNanoTSLFenceSyncInvarNoDelta(PRTTIMENANOTSDATA pData);
+#ifdef IN_RING3
+RTDECL(uint64_t) RTTimeNanoTSLegacyAsyncUseApicId(PRTTIMENANOTSDATA pData);
+RTDECL(uint64_t) RTTimeNanoTSLegacyAsyncUseRdtscp(PRTTIMENANOTSDATA pData);
+RTDECL(uint64_t) RTTimeNanoTSLegacyAsyncUseIdtrLim(PRTTIMENANOTSDATA pData);
+RTDECL(uint64_t) RTTimeNanoTSLegacySyncInvarWithDeltaUseApicId(PRTTIMENANOTSDATA pData);
+RTDECL(uint64_t) RTTimeNanoTSLegacySyncInvarWithDeltaUseRdtscp(PRTTIMENANOTSDATA pData);
+RTDECL(uint64_t) RTTimeNanoTSLegacySyncInvarWithDeltaUseIdtrLim(PRTTIMENANOTSDATA pData);
+RTDECL(uint64_t) RTTimeNanoTSLFenceAsyncUseApicId(PRTTIMENANOTSDATA pData);
+RTDECL(uint64_t) RTTimeNanoTSLFenceAsyncUseRdtscp(PRTTIMENANOTSDATA pData);
+RTDECL(uint64_t) RTTimeNanoTSLFenceAsyncUseIdtrLim(PRTTIMENANOTSDATA pData);
+RTDECL(uint64_t) RTTimeNanoTSLFenceSyncInvarWithDeltaUseApicId(PRTTIMENANOTSDATA pData);
+RTDECL(uint64_t) RTTimeNanoTSLFenceSyncInvarWithDeltaUseRdtscp(PRTTIMENANOTSDATA pData);
+RTDECL(uint64_t) RTTimeNanoTSLFenceSyncInvarWithDeltaUseIdtrLim(PRTTIMENANOTSDATA pData);
+#else
 RTDECL(uint64_t) RTTimeNanoTSLegacyAsync(PRTTIMENANOTSDATA pData);
-RTDECL(uint64_t) RTTimeNanoTSLFenceSync(PRTTIMENANOTSDATA pData);
+RTDECL(uint64_t) RTTimeNanoTSLegacySyncInvarWithDelta(PRTTIMENANOTSDATA pData);
 RTDECL(uint64_t) RTTimeNanoTSLFenceAsync(PRTTIMENANOTSDATA pData);
+RTDECL(uint64_t) RTTimeNanoTSLFenceSyncInvarWithDelta(PRTTIMENANOTSDATA pData);
+#endif
+
 /** @} */
 
 

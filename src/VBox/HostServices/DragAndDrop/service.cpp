@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2012 Oracle Corporation
+ * Copyright (C) 2011-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -54,47 +54,56 @@
 /******************************************************************************
  *   Header Files                                                             *
  ******************************************************************************/
-#define LOG_GROUP LOG_GROUP_HGCM
+#ifdef LOG_GROUP
+ #undef LOG_GROUP
+#endif
+#define LOG_GROUP LOG_GROUP_GUEST_DND
+
+#include <map>
 
 #include "dndmanager.h"
-
-//# define DO(s) RTPrintf s
-#define DO(s) do {} while(0)
-//#define DO(s) Log s
 
 /******************************************************************************
  *   Service class declaration                                                *
  ******************************************************************************/
 
+/** Map holding pointers to HGCM clients. Key is the (unique) HGCM client ID. */
+typedef std::map<uint32_t, HGCM::Client*> DnDClientMap;
+
 /**
  * Specialized drag & drop service class.
  */
-class DragAndDropService: public HGCM::AbstractService<DragAndDropService>
+class DragAndDropService : public HGCM::AbstractService<DragAndDropService>
 {
 public:
+
     explicit DragAndDropService(PVBOXHGCMSVCHELPERS pHelpers)
-      : HGCM::AbstractService<DragAndDropService>(pHelpers)
-      , m_pManager(0)
-      , m_cClients(0)
-    {}
+        : HGCM::AbstractService<DragAndDropService>(pHelpers)
+        , m_pManager(NULL) {}
 
 protected:
-    /* HGCM service implementation */
+
     int  init(VBOXHGCMSVCFNTABLE *pTable);
-    int  uninit();
+    int  uninit(void);
     int  clientConnect(uint32_t u32ClientID, void *pvClient);
     int  clientDisconnect(uint32_t u32ClientID, void *pvClient);
     void guestCall(VBOXHGCMCALLHANDLE callHandle, uint32_t u32ClientID, void *pvClient, uint32_t u32Function, uint32_t cParms, VBOXHGCMSVCPARM paParms[]);
     int  hostCall(uint32_t u32Function, uint32_t cParms, VBOXHGCMSVCPARM paParms[]);
 
-    static DECLCALLBACK(int) progressCallback(unsigned uPercentage, uint32_t uState, void *pvUser);
-    int      hostMessage(uint32_t u32Function, uint32_t cParms, VBOXHGCMSVCPARM paParms[]);
-    void     modeSet(uint32_t u32Mode);
+    int modeSet(uint32_t u32Mode);
     inline uint32_t modeGet() { return m_u32Mode; };
 
-    DnDManager             *m_pManager;
+protected:
 
-    uint32_t                m_cClients;
+    static DECLCALLBACK(int) progressCallback(uint32_t uStatus, uint32_t uPercentage, int rc, void *pvUser);
+
+protected:
+
+    DnDManager             *m_pManager;
+    /** Map of all connected clients. */
+    DnDClientMap            m_clientMap;
+    /** List of all clients which are queued up (deferred return) and ready
+     *  to process new commands. */
     RTCList<HGCM::Client*>  m_clientQueue;
     uint32_t                m_u32Mode;
 };
@@ -110,52 +119,118 @@ int DragAndDropService::init(VBOXHGCMSVCFNTABLE *pTable)
     pTable->pfnSaveState         = NULL;  /* The service is stateless, so the normal */
     pTable->pfnLoadState         = NULL;  /* construction done before restoring suffices */
     pTable->pfnRegisterExtension = svcRegisterExtension;
+
+    /* Drag'n drop mode is disabled by default. */
     modeSet(VBOX_DRAG_AND_DROP_MODE_OFF);
 
-    m_pManager = new DnDManager(&DragAndDropService::progressCallback, this);
+    int rc = VINF_SUCCESS;
 
-    return VINF_SUCCESS;
+    try
+    {
+        m_pManager = new DnDManager(&DragAndDropService::progressCallback, this);
+    }
+    catch(std::bad_alloc &)
+    {
+        rc = VERR_NO_MEMORY;
+    }
+
+    LogFlowFuncLeaveRC(rc);
+    return rc;
 }
 
-int DragAndDropService::uninit()
+int DragAndDropService::uninit(void)
 {
-    delete m_pManager;
+    if (m_pManager)
+    {
+        delete m_pManager;
+        m_pManager = NULL;
+    }
 
     return VINF_SUCCESS;
 }
 
 int DragAndDropService::clientConnect(uint32_t u32ClientID, void *pvClient)
 {
-    LogFlowFunc(("New client (%ld) connected\n", u32ClientID));
-    DO(("New client (%ld) connected\n", u32ClientID));
-    if (m_cClients < UINT32_MAX)
-        m_cClients++;
-    else
+    if (m_clientMap.size() >= UINT8_MAX) /* Don't allow too much clients at the same time. */
+    {
         AssertMsgFailed(("Maximum number of clients reached\n"));
-    return VINF_SUCCESS;
+        return VERR_BUFFER_OVERFLOW;
+    }
+
+    int rc = VINF_SUCCESS;
+
+    /*
+     * Add client to our client map.
+     */
+    if (m_clientMap.find(u32ClientID) != m_clientMap.end())
+        rc = VERR_ALREADY_EXISTS;
+
+    if (RT_SUCCESS(rc))
+    {
+        try
+        {
+            m_clientMap[u32ClientID] = new HGCM::Client(u32ClientID);
+        }
+        catch(std::bad_alloc &)
+        {
+            rc = VERR_NO_MEMORY;
+        }
+
+        if (RT_SUCCESS(rc))
+        {
+            /*
+             * Clear the message queue as soon as a new clients connect
+             * to ensure that every client has the same state.
+             */
+            if (m_pManager)
+                m_pManager->clear();
+        }
+    }
+
+    LogFlowFunc(("Client %RU32 connected, rc=%Rrc\n", u32ClientID, rc));
+    return rc;
 }
 
 int DragAndDropService::clientDisconnect(uint32_t u32ClientID, void *pvClient)
 {
-    /* Remove all waiters with this clientId. */
-    for (size_t i = 0; i < m_clientQueue.size(); )
+    /* Client not found? Bail out early. */
+    DnDClientMap::iterator itClient =  m_clientMap.find(u32ClientID);
+    if (itClient == m_clientMap.end())
+        return VERR_NOT_FOUND;
+
+    /*
+     * Remove from waiters queue.
+     */
+    for (size_t i = 0; i < m_clientQueue.size(); i++)
     {
         HGCM::Client *pClient = m_clientQueue.at(i);
         if (pClient->clientId() == u32ClientID)
         {
-            m_pHelpers->pfnCallComplete(pClient->handle(), VERR_INTERRUPTED);
+            if (m_pHelpers)
+                m_pHelpers->pfnCallComplete(pClient->handle(), VERR_INTERRUPTED);
+
             m_clientQueue.removeAt(i);
             delete pClient;
+
+            break;
         }
-        else
-            i++;
     }
 
+    /*
+     * Remove from client map and deallocate.
+     */
+    AssertPtr(itClient->second);
+    delete itClient->second;
+
+    m_clientMap.erase(itClient);
+
+    LogFlowFunc(("Client %RU32 disconnected\n", u32ClientID));
     return VINF_SUCCESS;
 }
 
-void DragAndDropService::modeSet(uint32_t u32Mode)
+int DragAndDropService::modeSet(uint32_t u32Mode)
 {
+    /** @todo Validate mode. */
     switch (u32Mode)
     {
         case VBOX_DRAG_AND_DROP_MODE_OFF:
@@ -167,254 +242,478 @@ void DragAndDropService::modeSet(uint32_t u32Mode)
 
         default:
             m_u32Mode = VBOX_DRAG_AND_DROP_MODE_OFF;
+            break;
     }
+
+    return VINF_SUCCESS;
 }
 
-void DragAndDropService::guestCall(VBOXHGCMCALLHANDLE callHandle, uint32_t u32ClientID, void *pvClient, uint32_t u32Function, uint32_t cParms, VBOXHGCMSVCPARM paParms[])
+void DragAndDropService::guestCall(VBOXHGCMCALLHANDLE callHandle, uint32_t u32ClientID,
+                                   void *pvClient, uint32_t u32Function,
+                                   uint32_t cParms, VBOXHGCMSVCPARM paParms[])
 {
-    int rc = VINF_SUCCESS;
-    LogFlowFunc(("u32ClientID = %d, fn = %d, cParms = %d, pparms = %d\n",
-                 u32ClientID, u32Function, cParms, paParms));
-//    RTPrintf("u32ClientID = %d, fn = %d, cParms = %d, pparms = %d\n",
-//                 u32ClientID, u32Function, cParms, paParms);
+    LogFlowFunc(("u32ClientID=%RU32, u32Function=%RU32, cParms=%RU32\n",
+                 u32ClientID, u32Function, cParms));
 
+    /* Check if we've the right mode set. */
+    int rc = VERR_ACCESS_DENIED; /* Play safe. */
     switch (u32Function)
     {
         case DragAndDropSvc::GUEST_DND_GET_NEXT_HOST_MSG:
         {
-            DO(("GUEST_DND_GET_NEXT_HOST_MSG\n"));
-            if (   cParms != 3
-                || paParms[0].type != VBOX_HGCM_SVC_PARM_32BIT /* message */
-                || paParms[1].type != VBOX_HGCM_SVC_PARM_32BIT /* parameter count */
-                || paParms[2].type != VBOX_HGCM_SVC_PARM_32BIT /* blocking */)
-                rc = VERR_INVALID_PARAMETER;
+            if (modeGet() != VBOX_DRAG_AND_DROP_MODE_OFF)
+            {
+                rc = VINF_SUCCESS;
+            }
             else
             {
-                rc = m_pManager->nextMessageInfo(&paParms[0].u.uint32, &paParms[1].u.uint32);
-                if (   RT_FAILURE(rc)
-                    && paParms[2].u.uint32) /* Blocking? */
-                {
-                    m_clientQueue.append(new HGCM::Client(u32ClientID, callHandle, u32Function, cParms, paParms));
-                    rc = VINF_HGCM_ASYNC_EXECUTE;
-                }
-            }
-            break;
-        }
-        case DragAndDropSvc::GUEST_DND_HG_ACK_OP:
-        {
-            DO(("GUEST_DND_HG_ACK_OP\n"));
-            if (   modeGet() != VBOX_DRAG_AND_DROP_MODE_BIDIRECTIONAL
-                && modeGet() != VBOX_DRAG_AND_DROP_MODE_HOST_TO_GUEST)
-            {
-                DO(("=> ignoring!\n"));
-                break;
-            }
-
-            if (   cParms != 1
-                || paParms[0].type != VBOX_HGCM_SVC_PARM_32BIT /* action */)
-                rc = VERR_INVALID_PARAMETER;
-            else
-            {
-                DragAndDropSvc::VBOXDNDCBHGACKOPDATA data;
-                data.hdr.u32Magic = DragAndDropSvc::CB_MAGIC_DND_HG_ACK_OP;
-                paParms[0].getUInt32(&data.uAction);
-                if (m_pfnHostCallback)
-                    rc = m_pfnHostCallback(m_pvHostData, u32Function, &data, sizeof(data));
-//                m_pHelpers->pfnCallComplete(callHandle, rc);
-            }
-            break;
-        }
-        case DragAndDropSvc::GUEST_DND_HG_REQ_DATA:
-        {
-            DO(("GUEST_DND_HG_REQ_DATA\n"));
-            if (   modeGet() != VBOX_DRAG_AND_DROP_MODE_BIDIRECTIONAL
-                && modeGet() != VBOX_DRAG_AND_DROP_MODE_HOST_TO_GUEST)
-            {
-                DO(("=> ignoring!\n"));
-                break;
-            }
-
-            if (   cParms != 1
-                || paParms[0].type != VBOX_HGCM_SVC_PARM_PTR /* format */)
-                rc = VERR_INVALID_PARAMETER;
-            else
-            {
-                DragAndDropSvc::VBOXDNDCBHGREQDATADATA data;
-                data.hdr.u32Magic = DragAndDropSvc::CB_MAGIC_DND_HG_REQ_DATA;
-                uint32_t cTmp;
-                paParms[0].getPointer((void**)&data.pszFormat, &cTmp);
-                if (m_pfnHostCallback)
-                    rc = m_pfnHostCallback(m_pvHostData, u32Function, &data, sizeof(data));
-//                m_pHelpers->pfnCallComplete(callHandle, rc);
-//                if (data.pszFormat)
-//                    RTMemFree(data.pszFormat);
-//                if (data.pszTmpPath)
-//                    RTMemFree(data.pszTmpPath);
-            }
-            break;
-        }
-#ifdef VBOX_WITH_DRAG_AND_DROP_GH
-        case DragAndDropSvc::GUEST_DND_GH_ACK_PENDING:
-        {
-            DO(("GUEST_DND_GH_ACK_PENDING\n"));
-            if (   modeGet() != VBOX_DRAG_AND_DROP_MODE_BIDIRECTIONAL
-                && modeGet() != VBOX_DRAG_AND_DROP_MODE_GUEST_TO_HOST)
-            {
-                DO(("=> ignoring!\n"));
-                break;
-            }
-
-            if (   cParms != 3
-                || paParms[0].type != VBOX_HGCM_SVC_PARM_32BIT /* defaction */
-                || paParms[1].type != VBOX_HGCM_SVC_PARM_32BIT /* allactions */
-                || paParms[2].type != VBOX_HGCM_SVC_PARM_PTR   /* format */)
-                rc = VERR_INVALID_PARAMETER;
-            else
-            {
-                DragAndDropSvc::VBOXDNDCBGHACKPENDINGDATA data;
-                data.hdr.u32Magic = DragAndDropSvc::CB_MAGIC_DND_GH_ACK_PENDING;
-                paParms[0].getUInt32(&data.uDefAction);
-                paParms[1].getUInt32(&data.uAllActions);
-                uint32_t cTmp;
-                paParms[2].getPointer((void**)&data.pszFormat, &cTmp);
-                if (m_pfnHostCallback)
-                    rc = m_pfnHostCallback(m_pvHostData, u32Function, &data, sizeof(data));
-            }
-            break;
-        }
-        case DragAndDropSvc::GUEST_DND_GH_SND_DATA:
-        {
-            DO(("GUEST_DND_GH_SND_DATA\n"));
-            if (   modeGet() != VBOX_DRAG_AND_DROP_MODE_BIDIRECTIONAL
-                && modeGet() != VBOX_DRAG_AND_DROP_MODE_GUEST_TO_HOST)
-            {
-                DO(("=> ignoring\n"));
-                break;
-            }
-
-            if (   cParms != 2
-                || paParms[0].type != VBOX_HGCM_SVC_PARM_PTR   /* data */
-                || paParms[1].type != VBOX_HGCM_SVC_PARM_32BIT /* size */)
-                rc = VERR_INVALID_PARAMETER;
-            else
-            {
-                DragAndDropSvc::VBOXDNDCBSNDDATADATA data;
-                data.hdr.u32Magic = DragAndDropSvc::CB_MAGIC_DND_GH_SND_DATA;
-                paParms[0].getPointer((void**)&data.pvData, &data.cbData);
-                paParms[1].getUInt32(&data.cbAllSize);
-                if (m_pfnHostCallback)
-                    rc = m_pfnHostCallback(m_pvHostData, u32Function, &data, sizeof(data));
-            }
-            break;
-        }
-        case DragAndDropSvc::GUEST_DND_GH_EVT_ERROR:
-        {
-            DO(("GUEST_DND_GH_EVT_ERROR\n"));
-            if (   modeGet() != VBOX_DRAG_AND_DROP_MODE_BIDIRECTIONAL
-                && modeGet() != VBOX_DRAG_AND_DROP_MODE_GUEST_TO_HOST)
-            {
-                DO(("=> ignoring!\n"));
-                break;
-            }
-
-            if (   cParms != 1
-                || paParms[0].type != VBOX_HGCM_SVC_PARM_32BIT /* rc */)
-                rc = VERR_INVALID_PARAMETER;
-            else
-            {
-                DragAndDropSvc::VBOXDNDCBEVTERRORDATA data;
-                data.hdr.u32Magic = DragAndDropSvc::CB_MAGIC_DND_GH_EVT_ERROR;
-                uint32_t rcOp;
-                paParms[0].getUInt32(&rcOp);
-                data.rc = rcOp;
-                if (m_pfnHostCallback)
-                    rc = m_pfnHostCallback(m_pvHostData, u32Function, &data, sizeof(data));
-            }
-            break;
-        }
-#endif
-        default:
-        {
-            /* All other messages are handled by the DnD manager. */
-            rc = m_pManager->nextMessage(u32Function, cParms, paParms);
-            /* Check for error. Buffer overflow is allowed. It signals the
-             * guest to ask for more data in the next event. */
-            if (   RT_FAILURE(rc)
-                && rc != VERR_CANCELLED
-                && rc != VERR_BUFFER_OVERFLOW) /* Buffer overflow is allowed. */
-            {
-                m_clientQueue.append(new HGCM::Client(u32ClientID, callHandle, u32Function, cParms, paParms));
+                LogFlowFunc(("DnD disabled, deferring request\n"));
                 rc = VINF_HGCM_ASYNC_EXECUTE;
             }
             break;
         }
-    }
-    /* If async execute is requested, we didn't notify the guest about
-     * completion. The client is queued into the waiters list and will be
-     * notified as soon as a new event is available. */
-    if (rc != VINF_HGCM_ASYNC_EXECUTE)
-        m_pHelpers->pfnCallComplete(callHandle, rc);
-    DO(("guest call: %Rrc\n", rc));
-}
 
-int DragAndDropService::hostMessage(uint32_t u32Function, uint32_t cParms, VBOXHGCMSVCPARM paParms[])
-{
-    int rc = VINF_SUCCESS;
-#if 0
-    HGCM::Message *pMessage = new HGCM::Message(u32Function, cParms, paParms);
-    m_hostQueue.push(pMessage);
-//    bool fPush = true;
-    RTPrintf("client queue %u\n", m_clientQueue.size());
-    RTPrintf("host   queue %u\n", m_hostQueue.size());
-    if (!m_clientQueue.empty())
-    {
-        pMessage = m_hostQueue.front();
-        HGCM::Client *pClient = m_clientQueue.front();
-        /* Check if this was a request for getting the next host
-         * message. If so, return the message id and the parameter
-         * count. The message itself has to be queued. */
-        if (pClient->message() == DragAndDropSvc::GUEST_GET_NEXT_HOST_MSG)
+        /* Note: New since protocol version 2. */
+        case DragAndDropSvc::GUEST_DND_CONNECT:
+            /* Fall through is intentional. */
+        case DragAndDropSvc::GUEST_DND_HG_ACK_OP:
+        case DragAndDropSvc::GUEST_DND_HG_REQ_DATA:
+        case DragAndDropSvc::GUEST_DND_HG_EVT_PROGRESS:
         {
-            RTPrintf("client is waiting for next host msg\n");
-//            rc = VERR_TOO_MUCH_DATA;
-            pClient->addMessageInfo(pMessage);
-            /* temp */
-//        m_pHelpers->pfnCallComplete(pClient->handle(), rc);
-//        m_clientQueue.pop();
-//        delete pClient;
+            if (   modeGet() == VBOX_DRAG_AND_DROP_MODE_BIDIRECTIONAL
+                || modeGet() == VBOX_DRAG_AND_DROP_MODE_HOST_TO_GUEST)
+            {
+                rc = VINF_SUCCESS;
+            }
+            else
+                LogFlowFunc(("Host -> Guest DnD mode disabled, ignoring request\n"));
+            break;
         }
-        else
+
+        case DragAndDropSvc::GUEST_DND_GH_ACK_PENDING:
+        case DragAndDropSvc::GUEST_DND_GH_SND_DATA:
+        case DragAndDropSvc::GUEST_DND_GH_SND_DIR:
+        case DragAndDropSvc::GUEST_DND_GH_SND_FILE_HDR:
+        case DragAndDropSvc::GUEST_DND_GH_SND_FILE_DATA:
+        case DragAndDropSvc::GUEST_DND_GH_EVT_ERROR:
         {
-            RTPrintf("client is waiting for host msg (%d)\n", u32Function);
-            /* There is a request for a host message pending. Check
-             * if this is the correct message and if so deliver. If
-             * not the message will be queued. */
-            rc = pClient->addMessage(pMessage);
-            m_hostQueue.pop();
-            delete pMessage;
-//            if (RT_SUCCESS(rc))
-//                fPush = false;
+#ifdef VBOX_WITH_DRAG_AND_DROP_GH
+            if (   modeGet() == VBOX_DRAG_AND_DROP_MODE_BIDIRECTIONAL
+                || modeGet() == VBOX_DRAG_AND_DROP_MODE_GUEST_TO_HOST)
+            {
+                rc = VINF_SUCCESS;
+            }
+            else
+#endif
+                LogFlowFunc(("Guest -> Host DnD mode disabled, ignoring request\n"));
+            break;
         }
-        /* In any case mark this client request as done. */
-        m_pHelpers->pfnCallComplete(pClient->handle(), rc);
-        m_clientQueue.pop_front();
-        delete pClient;
+
+        default:
+            /* Reach through to DnD manager. */
+            rc = VINF_SUCCESS;
+            break;
     }
-//    if (fPush)
-//    {
-//        RTPrintf("push message\n");
-//        m_hostQueue.push(pMessage);
-//    }
-//    else
-//        delete pMessage;
+
+#ifdef DEBUG_andy
+    LogFlowFunc(("Mode (%RU32) check rc=%Rrc\n", modeGet(), rc));
 #endif
 
-    return rc;
+#define DO_HOST_CALLBACK();                                                     \
+    if (   RT_SUCCESS(rc)                                                       \
+        && m_pfnHostCallback)                                                   \
+    {                                                                           \
+        rc = m_pfnHostCallback(m_pvHostData, u32Function, &data, sizeof(data)); \
+    }
+
+    if (rc == VINF_SUCCESS) /* Note: rc might be VINF_HGCM_ASYNC_EXECUTE! */
+    {
+        DnDClientMap::iterator itClient =  m_clientMap.find(u32ClientID);
+        Assert(itClient != m_clientMap.end());
+
+        HGCM::Client *pClient = itClient->second;
+        AssertPtr(pClient);
+
+        switch (u32Function)
+        {
+            /*
+             * Note: Older VBox versions with enabled DnD guest->host support (< 5.0)
+             *       used the same message ID (300) for GUEST_DND_GET_NEXT_HOST_MSG and
+             *       HOST_DND_GH_REQ_PENDING, which led this service returning
+             *       VERR_INVALID_PARAMETER when the guest wanted to actually
+             *       handle HOST_DND_GH_REQ_PENDING.
+             */
+            case DragAndDropSvc::GUEST_DND_GET_NEXT_HOST_MSG:
+            {
+                LogFlowFunc(("GUEST_DND_GET_NEXT_HOST_MSG\n"));
+                if (   cParms != 3
+                    || paParms[0].type != VBOX_HGCM_SVC_PARM_32BIT /* message */
+                    || paParms[1].type != VBOX_HGCM_SVC_PARM_32BIT /* parameter count */
+                    || paParms[2].type != VBOX_HGCM_SVC_PARM_32BIT /* blocking */)
+                {
+                    rc = VERR_INVALID_PARAMETER;
+                }
+                else
+                {
+                    rc = m_pManager->nextMessageInfo(&paParms[0].u.uint32 /* uMsg */, &paParms[1].u.uint32 /* cParms */);
+                    if (RT_FAILURE(rc)) /* No queued messages available? */
+                    {
+                        if (m_pfnHostCallback) /* Try asking the host. */
+                        {
+                            DragAndDropSvc::VBOXDNDCBHGGETNEXTHOSTMSG data;
+                            data.hdr.u32Magic = DragAndDropSvc::CB_MAGIC_DND_HG_GET_NEXT_HOST_MSG;
+                            rc = m_pfnHostCallback(m_pvHostData, u32Function, &data, sizeof(data));
+                            if (RT_SUCCESS(rc))
+                            {
+                                paParms[0].u.uint32 = data.uMsg;   /* uMsg */
+                                paParms[1].u.uint32 = data.cParms; /* cParms */
+                                /* Note: paParms[2] was set by the guest as blocking flag. */
+                            }
+                        }
+                        else /* No host callback in place, so drag and drop is not supported by the host. */
+                            rc = VERR_NOT_SUPPORTED;
+
+                        if (RT_FAILURE(rc))
+                            rc = m_pManager->nextMessage(u32Function, cParms, paParms);
+
+                        /* Some error occurred or no (new) messages available? */
+                        if (RT_FAILURE(rc))
+                        {
+                            if (paParms[2].u.uint32) /* Blocking flag set? */
+                            {
+                                /* Defer client returning. */
+                                rc = VINF_HGCM_ASYNC_EXECUTE;
+                            }
+
+                            LogFlowFunc(("Message queue is empty, returning %Rrc to guest\n", rc));
+                        }
+                    }
+                }
+                break;
+            }
+            case DragAndDropSvc::GUEST_DND_CONNECT:
+            {
+                LogFlowFunc(("GUEST_DND_CONNECT\n"));
+                if (   cParms != 2
+                    || paParms[0].type != VBOX_HGCM_SVC_PARM_32BIT /* protocol version */
+                    || paParms[1].type != VBOX_HGCM_SVC_PARM_32BIT /* additional connection flags */)
+                    rc = VERR_INVALID_PARAMETER;
+                else
+                {
+                    uint32_t uProtocol;
+                    rc = paParms[0].getUInt32(&uProtocol); /* Get protocol version. */
+                    if (RT_SUCCESS(rc))
+                        rc = pClient->setProtocol(uProtocol);
+                    if (RT_SUCCESS(rc))
+                    {
+                        /** @todo Handle connection flags (paParms[1]). */
+                    }
+
+                    /* Note: Does not reach the host; the client's protocol version
+                     *       is only kept in this service. */
+                }
+                break;
+            }
+            case DragAndDropSvc::GUEST_DND_HG_ACK_OP:
+            {
+                LogFlowFunc(("GUEST_DND_HG_ACK_OP\n"));
+                if (   cParms != 1
+                    || paParms[0].type != VBOX_HGCM_SVC_PARM_32BIT /* action */)
+                    rc = VERR_INVALID_PARAMETER;
+                else
+                {
+                    DragAndDropSvc::VBOXDNDCBHGACKOPDATA data;
+                    data.hdr.u32Magic = DragAndDropSvc::CB_MAGIC_DND_HG_ACK_OP;
+                    rc = paParms[0].getUInt32(&data.uAction); /* Get drop action. */
+                    DO_HOST_CALLBACK();
+                }
+                break;
+            }
+            case DragAndDropSvc::GUEST_DND_HG_REQ_DATA:
+            {
+                LogFlowFunc(("GUEST_DND_HG_REQ_DATA\n"));
+                if (   cParms != 1
+                    || paParms[0].type != VBOX_HGCM_SVC_PARM_PTR /* format */)
+                    rc = VERR_INVALID_PARAMETER;
+                else
+                {
+                    DragAndDropSvc::VBOXDNDCBHGREQDATADATA data;
+                    data.hdr.u32Magic = DragAndDropSvc::CB_MAGIC_DND_HG_REQ_DATA;
+                    rc = paParms[0].getPointer((void**)&data.pszFormat, &data.cbFormat);
+                    DO_HOST_CALLBACK();
+                }
+                break;
+            }
+            case DragAndDropSvc::GUEST_DND_HG_EVT_PROGRESS:
+            {
+                LogFlowFunc(("GUEST_DND_HG_EVT_PROGRESS\n"));
+                if (   cParms != 3
+                    || paParms[0].type != VBOX_HGCM_SVC_PARM_32BIT /* status */
+                    || paParms[1].type != VBOX_HGCM_SVC_PARM_32BIT /* percent */
+                    || paParms[2].type != VBOX_HGCM_SVC_PARM_32BIT /* rc */)
+                    rc = VERR_INVALID_PARAMETER;
+                else
+                {
+                    DragAndDropSvc::VBOXDNDCBHGEVTPROGRESSDATA data;
+                    data.hdr.u32Magic = DragAndDropSvc::CB_MAGIC_DND_HG_EVT_PROGRESS;
+                    rc = paParms[0].getUInt32(&data.uStatus);
+                    if (RT_SUCCESS(rc))
+                        rc = paParms[1].getUInt32(&data.uPercentage);
+                    if (RT_SUCCESS(rc))
+                        rc = paParms[2].getUInt32(&data.rc);
+                    DO_HOST_CALLBACK();
+                }
+                break;
+            }
+#ifdef VBOX_WITH_DRAG_AND_DROP_GH
+            case DragAndDropSvc::GUEST_DND_GH_ACK_PENDING:
+            {
+                LogFlowFunc(("GUEST_DND_GH_ACK_PENDING\n"));
+                if (   cParms != 3
+                    || paParms[0].type != VBOX_HGCM_SVC_PARM_32BIT /* defaction */
+                    || paParms[1].type != VBOX_HGCM_SVC_PARM_32BIT /* alloctions */
+                    || paParms[2].type != VBOX_HGCM_SVC_PARM_PTR   /* format */)
+                    rc = VERR_INVALID_PARAMETER;
+                else
+                {
+                    DragAndDropSvc::VBOXDNDCBGHACKPENDINGDATA data;
+                    data.hdr.u32Magic = DragAndDropSvc::CB_MAGIC_DND_GH_ACK_PENDING;
+                    rc = paParms[0].getUInt32(&data.uDefAction);
+                    if (RT_SUCCESS(rc))
+                        rc = paParms[1].getUInt32(&data.uAllActions);
+                    if (RT_SUCCESS(rc))
+                        rc = paParms[2].getPointer((void**)&data.pszFormat, &data.cbFormat);
+                    DO_HOST_CALLBACK();
+                }
+                break;
+            }
+            case DragAndDropSvc::GUEST_DND_GH_SND_DATA:
+            {
+                LogFlowFunc(("GUEST_DND_GH_SND_DATA\n"));
+                if (   cParms != 2
+                    || paParms[0].type != VBOX_HGCM_SVC_PARM_PTR   /* data */
+                    || paParms[1].type != VBOX_HGCM_SVC_PARM_32BIT /* size */)
+                    rc = VERR_INVALID_PARAMETER;
+                else
+                {
+                    DragAndDropSvc::VBOXDNDCBSNDDATADATA data;
+                    data.hdr.u32Magic = DragAndDropSvc::CB_MAGIC_DND_GH_SND_DATA;
+                    rc = paParms[0].getPointer((void**)&data.pvData, &data.cbData);
+                    if (RT_SUCCESS(rc))
+                        rc = paParms[1].getUInt32(&data.cbTotalSize);
+                    DO_HOST_CALLBACK();
+                }
+                break;
+            }
+            case DragAndDropSvc::GUEST_DND_GH_SND_DIR:
+            {
+                LogFlowFunc(("GUEST_DND_GH_SND_DIR\n"));
+                if (   cParms != 3
+                    || paParms[0].type != VBOX_HGCM_SVC_PARM_PTR   /* path */
+                    || paParms[1].type != VBOX_HGCM_SVC_PARM_32BIT /* path length */
+                    || paParms[2].type != VBOX_HGCM_SVC_PARM_32BIT /* creation mode */)
+                    rc = VERR_INVALID_PARAMETER;
+                else
+                {
+                    DragAndDropSvc::VBOXDNDCBSNDDIRDATA data;
+                    data.hdr.u32Magic = DragAndDropSvc::CB_MAGIC_DND_GH_SND_DIR;
+                    uint32_t cTmp;
+                    rc = paParms[0].getPointer((void**)&data.pszPath, &cTmp);
+                    if (RT_SUCCESS(rc))
+                        rc = paParms[1].getUInt32(&data.cbPath);
+                    if (RT_SUCCESS(rc))
+                        rc = paParms[2].getUInt32(&data.fMode);
+
+                    LogFlowFunc(("pszPath=%s, cbPath=%RU32, fMode=0x%x\n", data.pszPath, data.cbPath, data.fMode));
+                    DO_HOST_CALLBACK();
+                }
+                break;
+            }
+            /* Note: Since protocol v2 (>= VBox 5.0). */
+            case DragAndDropSvc::GUEST_DND_GH_SND_FILE_HDR:
+            {
+                LogFlowFunc(("GUEST_DND_GH_SND_FILE_HDR\n"));
+                if (   cParms != 6
+                    || paParms[0].type != VBOX_HGCM_SVC_PARM_32BIT /* context ID */
+                    || paParms[1].type != VBOX_HGCM_SVC_PARM_PTR   /* file path */
+                    || paParms[2].type != VBOX_HGCM_SVC_PARM_32BIT /* file path length  */
+                    || paParms[3].type != VBOX_HGCM_SVC_PARM_32BIT /* flags */
+                    || paParms[4].type != VBOX_HGCM_SVC_PARM_32BIT /* file mode */
+                    || paParms[5].type != VBOX_HGCM_SVC_PARM_64BIT /* file size */)
+                    rc = VERR_INVALID_PARAMETER;
+                else
+                {
+                    DragAndDropSvc::VBOXDNDCBSNDFILEHDRDATA data;
+                    data.hdr.u32Magic = DragAndDropSvc::CB_MAGIC_DND_GH_SND_FILE_HDR;
+                    uint32_t cTmp;
+                    /* paParms[0] is context ID; unused yet. */
+                    rc = paParms[1].getPointer((void**)&data.pszFilePath, &cTmp);
+                    if (RT_SUCCESS(rc))
+                        rc = paParms[2].getUInt32(&data.cbFilePath);
+                    if (RT_SUCCESS(rc))
+                        rc = paParms[3].getUInt32(&data.fFlags);
+                    if (RT_SUCCESS(rc))
+                        rc = paParms[4].getUInt32(&data.fMode);
+                    if (RT_SUCCESS(rc))
+                        rc = paParms[5].getUInt64(&data.cbSize);
+
+                    LogFlowFunc(("pszPath=%s, cbPath=%RU32, fMode=0x%x, cbSize=%RU64\n",
+                                 data.pszFilePath, data.cbFilePath, data.fMode, data.cbSize));
+                    DO_HOST_CALLBACK();
+                }
+                break;
+            }
+            case DragAndDropSvc::GUEST_DND_GH_SND_FILE_DATA:
+            {
+                LogFlowFunc(("GUEST_DND_GH_SND_FILE_DATA\n"));
+
+                switch (pClient->protocol())
+                {
+                    case 2: /* Protocol version 2 only sends the next data chunks to reduce traffic. */
+                    {
+                        if (   cParms != 3
+                            /* paParms[0] is context ID; unused yet. */
+                            || paParms[1].type != VBOX_HGCM_SVC_PARM_PTR   /* file data */
+                            || paParms[2].type != VBOX_HGCM_SVC_PARM_32BIT /* file data length */)
+                        {
+                            rc = VERR_INVALID_PARAMETER;
+                        }
+                        else
+                        {
+                            DragAndDropSvc::VBOXDNDCBSNDFILEDATADATA data;
+                            data.hdr.u32Magic = DragAndDropSvc::CB_MAGIC_DND_GH_SND_FILE_DATA;
+                            /* paParms[0] is context ID; unused yet. */
+                            rc = paParms[1].getPointer((void**)&data.pvData, &data.cbData);
+                            if (RT_SUCCESS(rc))
+                                rc = paParms[2].getUInt32(&data.cbData);
+
+                            LogFlowFunc(("cbData=%RU32, pvData=0x%p\n", data.cbData, data.pvData));
+                            DO_HOST_CALLBACK();
+                        }
+                        break;
+                    }
+                    default:
+                    {
+                        if (   cParms != 5
+                            || paParms[0].type != VBOX_HGCM_SVC_PARM_PTR   /* file path */
+                            || paParms[1].type != VBOX_HGCM_SVC_PARM_32BIT /* file path length */
+                            || paParms[2].type != VBOX_HGCM_SVC_PARM_PTR   /* file data */
+                            || paParms[3].type != VBOX_HGCM_SVC_PARM_32BIT /* file data length */
+                            || paParms[4].type != VBOX_HGCM_SVC_PARM_32BIT /* creation mode */)
+                        {
+                            rc = VERR_INVALID_PARAMETER;
+                        }
+                        else
+                        {
+                            DragAndDropSvc::VBOXDNDCBSNDFILEDATADATA data;
+                            data.hdr.u32Magic = DragAndDropSvc::CB_MAGIC_DND_GH_SND_FILE_DATA;
+                            uint32_t cTmp;
+                            rc = paParms[0].getPointer((void**)&data.u.v1.pszFilePath, &cTmp);
+                            if (RT_SUCCESS(rc))
+                                rc = paParms[1].getUInt32(&data.u.v1.cbFilePath);
+                            if (RT_SUCCESS(rc))
+                                rc = paParms[2].getPointer((void**)&data.pvData, &cTmp);
+                            if (RT_SUCCESS(rc))
+                                rc = paParms[3].getUInt32(&data.cbData);
+                            if (RT_SUCCESS(rc))
+                                rc = paParms[4].getUInt32(&data.u.v1.fMode);
+
+                            LogFlowFunc(("pszFilePath=%s, cbData=%RU32, pvData=0x%p, fMode=0x%x\n",
+                                         data.u.v1.pszFilePath, data.cbData, data.pvData, data.u.v1.fMode));
+                            DO_HOST_CALLBACK();
+                        }
+                        break;
+                    }
+                }
+                break;
+            }
+            case DragAndDropSvc::GUEST_DND_GH_EVT_ERROR:
+            {
+                LogFlowFunc(("GUEST_DND_GH_EVT_ERROR\n"));
+                if (   cParms != 1
+                    || paParms[0].type != VBOX_HGCM_SVC_PARM_32BIT /* rc */)
+                    rc = VERR_INVALID_PARAMETER;
+                else
+                {
+                    DragAndDropSvc::VBOXDNDCBEVTERRORDATA data;
+                    data.hdr.u32Magic = DragAndDropSvc::CB_MAGIC_DND_GH_EVT_ERROR;
+
+                    uint32_t rcOp;
+                    rc = paParms[0].getUInt32(&rcOp);
+                    if (RT_SUCCESS(rc))
+                        data.rc = rcOp;
+
+                    DO_HOST_CALLBACK();
+                }
+                break;
+            }
+#endif /* VBOX_WITH_DRAG_AND_DROP_GH */
+            default:
+            {
+                /* All other messages are handled by the DnD manager. */
+                rc = m_pManager->nextMessage(u32Function, cParms, paParms);
+                if (rc == VERR_NO_DATA) /* Manager has no new messsages? Try asking the host. */
+                {
+                    if (m_pfnHostCallback)
+                    {
+                        DragAndDropSvc::VBOXDNDCBHGGETNEXTHOSTMSGDATA data;
+                        data.hdr.u32Magic = DragAndDropSvc::CB_MAGIC_DND_HG_GET_NEXT_HOST_MSG_DATA;
+                        data.uMsg    = u32Function;
+                        data.cParms  = cParms;
+                        data.paParms = paParms;
+
+                        rc = m_pfnHostCallback(m_pvHostData, u32Function, &data, sizeof(data));
+                        if (RT_SUCCESS(rc))
+                        {
+                            cParms  = data.cParms;
+                            paParms = data.paParms;
+                        }
+                    }
+                    else /* No host callback in place, so drag and drop is not supported by the host. */
+                        rc = VERR_NOT_SUPPORTED;
+                }
+                break;
+            }
+        }
+    }
+
+    /*
+     * If async execution is requested, we didn't notify the guest yet about
+     * completion. The client is queued into the waiters list and will be
+     * notified as soon as a new event is available.
+     */
+    if (rc == VINF_HGCM_ASYNC_EXECUTE)
+    {
+        try
+        {
+            LogFlowFunc(("Deferring guest call completion of client ID=%RU32\n", u32ClientID));
+            m_clientQueue.append(new HGCM::Client(u32ClientID, callHandle,
+                                                  u32Function, cParms, paParms));
+        }
+        catch (std::bad_alloc)
+        {
+            rc = VERR_NO_MEMORY;
+            /* Don't report to guest. */
+        }
+    }
+    else if (m_pHelpers)
+    {
+        /* Complete call on guest side. */
+        m_pHelpers->pfnCallComplete(callHandle, rc);
+    }
+    else
+        rc = VERR_NOT_IMPLEMENTED;
+
+    LogFlowFunc(("Returning rc=%Rrc\n", rc));
 }
 
-int DragAndDropService::hostCall(uint32_t u32Function, uint32_t cParms, VBOXHGCMSVCPARM paParms[])
+int DragAndDropService::hostCall(uint32_t u32Function,
+                                 uint32_t cParms, VBOXHGCMSVCPARM paParms[])
 {
-    int rc = VINF_SUCCESS;
+    LogFlowFunc(("u32Function=%RU32, cParms=%RU32, cClients=%zu, cQueue=%zu\n",
+                 u32Function, cParms, m_clientMap.size(), m_clientQueue.size()));
+
+    int rc;
     if (u32Function == DragAndDropSvc::HOST_DND_SET_MODE)
     {
         if (cParms != 1)
@@ -422,61 +721,102 @@ int DragAndDropService::hostCall(uint32_t u32Function, uint32_t cParms, VBOXHGCM
         else if (paParms[0].type != VBOX_HGCM_SVC_PARM_32BIT)
             rc = VERR_INVALID_PARAMETER;
         else
-            modeSet(paParms[0].u.uint32);
+            rc = modeSet(paParms[0].u.uint32);
     }
     else if (modeGet() != VBOX_DRAG_AND_DROP_MODE_OFF)
     {
-        rc = m_pManager->addMessage(u32Function, cParms, paParms);
-        if (    RT_SUCCESS(rc)
-            && !m_clientQueue.isEmpty())
+        if (m_clientMap.size()) /* At least one client on the guest connected? */
         {
-            HGCM::Client *pClient = m_clientQueue.first();
-            /* Check if this was a request for getting the next host
-             * message. If so, return the message id and the parameter
-             * count. The message itself has to be queued. */
-            if (pClient->message() == DragAndDropSvc::GUEST_DND_GET_NEXT_HOST_MSG)
+            rc = m_pManager->addMessage(u32Function, cParms, paParms, true /* fAppend */);
+            if (RT_SUCCESS(rc))
             {
-                DO(("client is waiting for next host msg\n"));
-//              rc = m_pManager->nextMessageInfo(&paParms[0].u.uint32, &paParms[1].u.uint32);
-                uint32_t uMsg1;
-                uint32_t cParms1;
-                rc = m_pManager->nextMessageInfo(&uMsg1, &cParms1);
-                if (RT_SUCCESS(rc))
+                if (m_clientQueue.size()) /* Any clients in our queue ready for processing the next command? */
                 {
-                    pClient->addMessageInfo(uMsg1, cParms1);
-                    m_pHelpers->pfnCallComplete(pClient->handle(), rc);
-                    m_clientQueue.removeFirst();
-                    delete pClient;
+                    HGCM::Client *pClient = m_clientQueue.first();
+                    AssertPtr(pClient);
+
+                    /*
+                     * Check if this was a request for getting the next host
+                     * message. If so, return the message ID and the parameter
+                     * count. The message itself has to be queued.
+                     */
+                    uint32_t uMsg = pClient->message();
+                    if (uMsg == DragAndDropSvc::GUEST_DND_GET_NEXT_HOST_MSG)
+                    {
+                        LogFlowFunc(("Client %RU32 is waiting for next host msg\n", pClient->clientId()));
+
+                        uint32_t uMsg1;
+                        uint32_t cParms1;
+                        rc = m_pManager->nextMessageInfo(&uMsg1, &cParms1);
+                        if (RT_SUCCESS(rc))
+                        {
+                            pClient->addMessageInfo(uMsg1, cParms1);
+                            if (   m_pHelpers
+                                && m_pHelpers->pfnCallComplete)
+                            {
+                                m_pHelpers->pfnCallComplete(pClient->handle(), rc);
+                            }
+
+                            m_clientQueue.removeFirst();
+
+                            delete pClient;
+                            pClient = NULL;
+                        }
+                        else
+                            AssertMsgFailed(("m_pManager::nextMessageInfo failed with rc=%Rrc\n", rc));
+                    }
+                    else
+                        AssertMsgFailed(("Client ID=%RU32 in wrong state with uMsg=%RU32\n",
+                                         pClient->clientId(), uMsg));
                 }
                 else
-                    AssertMsgFailed(("Should not happen!"));
+                    LogFlowFunc(("All clients busy; delaying execution\n"));
             }
             else
-                AssertMsgFailed(("Should not happen!"));
+                AssertMsgFailed(("Adding new message of type=%RU32 failed with rc=%Rrc\n",
+                                 u32Function, rc));
         }
-//      else
-//          AssertMsgFailed(("Should not happen %Rrc!", rc));
+        else
+        {
+            /*
+             * Tell the host that the guest does not support drag'n drop.
+             * This might happen due to not installed Guest Additions or
+             * not running VBoxTray/VBoxClient.
+             */
+            rc = VERR_NOT_SUPPORTED;
+        }
+    }
+    else
+    {
+        /* Tell the host that a wrong drag'n drop mode is set. */
+        rc = VERR_ACCESS_DENIED;
     }
 
-    LogFlowFunc(("rc=%Rrc\n", rc));
+    LogFlowFuncLeaveRC(rc);
     return rc;
 }
 
-DECLCALLBACK(int) DragAndDropService::progressCallback(unsigned uPercentage, uint32_t uState, void *pvUser)
+DECLCALLBACK(int) DragAndDropService::progressCallback(uint32_t uStatus, uint32_t uPercentage, int rc, void *pvUser)
 {
     AssertPtrReturn(pvUser, VERR_INVALID_POINTER);
 
     DragAndDropService *pSelf = static_cast<DragAndDropService *>(pvUser);
+    AssertPtr(pSelf);
 
     if (pSelf->m_pfnHostCallback)
     {
-        DO(("GUEST_DND_HG_EVT_PROGRESS %u\n", uPercentage));
+        LogFlowFunc(("GUEST_DND_HG_EVT_PROGRESS: uStatus=%RU32, uPercentage=%RU32, rc=%Rrc\n",
+                     uStatus, uPercentage, rc));
+
         DragAndDropSvc::VBOXDNDCBHGEVTPROGRESSDATA data;
         data.hdr.u32Magic = DragAndDropSvc::CB_MAGIC_DND_HG_EVT_PROGRESS;
-        data.uPercentage  = uPercentage;
-        data.uState       = uState;
+        data.uPercentage  = RT_MIN(uPercentage, 100);
+        data.uStatus      = uStatus;
+        data.rc           = rc; /** @todo uin32_t vs. int. */
 
-        return pSelf->m_pfnHostCallback(pSelf->m_pvHostData, DragAndDropSvc::GUEST_DND_HG_EVT_PROGRESS, &data, sizeof(data));
+        return pSelf->m_pfnHostCallback(pSelf->m_pvHostData,
+                                        DragAndDropSvc::GUEST_DND_HG_EVT_PROGRESS,
+                                        &data, sizeof(data));
     }
 
     return VINF_SUCCESS;

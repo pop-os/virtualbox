@@ -1,5 +1,5 @@
+/* $Id: tstAPI.cpp $ */
 /** @file
- *
  * tstAPI - test program for our COM/XPCOM interface
  */
 
@@ -31,7 +31,6 @@ using namespace com;
 
 #define LOG_ENABLED
 #define LOG_GROUP LOG_GROUP_MAIN
-#define LOG_INSTANCE NULL
 #include <VBox/log.h>
 
 #include <iprt/initterm.h>

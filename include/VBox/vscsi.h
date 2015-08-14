@@ -86,6 +86,8 @@ typedef enum VSCSILUNTYPE
     VSCSILUNTYPE_SBC,
     /** CD/DVD drive (MMC) */
     VSCSILUNTYPE_MMC,
+    /** Tape drive (SSC) */
+    VSCSILUNTYPE_SSC,
     /** Last value to indicate an invalid device */
     VSCSILUNTYPE_LAST,
     /** 32bit hack */
@@ -231,15 +233,15 @@ VBOXDDU_DECL(int) VSCSIDeviceLunDetach(VSCSIDEVICE hVScsiDevice, uint32_t iLun,
                                        PVSCSILUN phVScsiLun);
 
 /**
- * Return the SCSI LUN handle.
+ * Query the SCSI LUN type.
  *
  * @returns VBox status code.
  * @param   hVScsiDevice    The SCSI device handle.
  * @param   iLun            The LUN number to get.
- * @param   phVScsiLun      Where to store the LUN handle.
+ * @param   pEnmLunType     Where to store the LUN type.
  */
-VBOXDDU_DECL(int) VSCSIDeviceLunGet(VSCSIDEVICE hVScsiDevice, uint32_t iLun,
-                                    PVSCSILUN phVScsiLun);
+VBOXDDU_DECL(int) VSCSIDeviceLunQueryType(VSCSIDEVICE hVScsiDevice, uint32_t iLun,
+                                          PVSCSILUNTYPE pEnmLunType);
 
 /**
  * Enqueue a request to the SCSI device.

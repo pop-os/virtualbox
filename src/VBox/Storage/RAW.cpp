@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -208,7 +208,7 @@ static int rawOpenImage(PRAWIMAGE pImage, unsigned uOpenFlags)
         goto out;
     if (pImage->cbSize % 512)
     {
-        rc = VERR_VD_RAW_INVALID_HEADER;
+        rc = VERR_VD_RAW_SIZE_MODULO_512;
         goto out;
     }
     pImage->uImageFlags |= VD_IMAGE_FLAGS_FIXED;
@@ -300,7 +300,7 @@ static int rawCreateImage(PRAWIMAGE pImage, uint64_t cbSize,
         /* Write data to all image blocks. */
         while (uOff < cbSize)
         {
-            unsigned cbChunk = (unsigned)RT_MIN(cbSize, RAW_FILL_SIZE);
+            unsigned cbChunk = (unsigned)RT_MIN(cbSize - uOff, RAW_FILL_SIZE);
 
             rc = vdIfIoIntFileWriteSync(pImage->pIfIo, pImage->pStorage, uOff,
                                         pvBuf, cbChunk);
@@ -350,7 +350,7 @@ static int rawCheckIfValid(const char *pszFilename, PVDINTERFACE pVDIfsDisk,
     PVDIOSTORAGE pStorage = NULL;
     uint64_t cbFile;
     int rc = VINF_SUCCESS;
-    char *pszExtension = NULL;
+    char *pszSuffix = NULL;
 
     PVDINTERFACEIOINT pIfIo = VDIfIoIntGet(pVDIfsImage);
     AssertPtrReturn(pIfIo, VERR_INVALID_PARAMETER);
@@ -362,7 +362,7 @@ static int rawCheckIfValid(const char *pszFilename, PVDINTERFACE pVDIfsDisk,
         goto out;
     }
 
-    pszExtension = RTPathExt(pszFilename);
+    pszSuffix = RTPathSuffix(pszFilename);
 
     /*
      * Open the file and read the footer.
@@ -376,36 +376,40 @@ static int rawCheckIfValid(const char *pszFilename, PVDINTERFACE pVDIfsDisk,
 
     /* Try to guess the image type based on the extension. */
     if (   RT_SUCCESS(rc)
-        && pszExtension)
+        && pszSuffix)
     {
-        if (   !RTStrICmp(pszExtension, ".iso")
-            || !RTStrICmp(pszExtension, ".cdr")) /* DVD images. */
+        if (   !RTStrICmp(pszSuffix, ".iso")
+            || !RTStrICmp(pszSuffix, ".cdr")) /* DVD images. */
         {
             /* Note that there are ISO images smaller than 1 MB; it is impossible to distinguish
              * between raw floppy and CD images based on their size (and cannot be reliably done
              * based on contents, either).
              */
-            if (cbFile > 32768 && !(cbFile % 2048))
+            if (cbFile % 2048)
+                rc = VERR_VD_RAW_SIZE_MODULO_2048;
+            else if (cbFile <= 32768)
+                rc = VERR_VD_RAW_SIZE_OPTICAL_TOO_SMALL;
+            else
             {
                 *penmType = VDTYPE_DVD;
                 rc = VINF_SUCCESS;
             }
-            else
-                rc = VERR_VD_RAW_INVALID_HEADER;
         }
-        else if (   !RTStrICmp(pszExtension, ".img")
-                 || !RTStrICmp(pszExtension, ".ima")
-                 || !RTStrICmp(pszExtension, ".dsk")
-                 || !RTStrICmp(pszExtension, ".flp")
-                 || !RTStrICmp(pszExtension, ".vfd")) /* Floppy images */
+        else if (   !RTStrICmp(pszSuffix, ".img")
+                 || !RTStrICmp(pszSuffix, ".ima")
+                 || !RTStrICmp(pszSuffix, ".dsk")
+                 || !RTStrICmp(pszSuffix, ".flp")
+                 || !RTStrICmp(pszSuffix, ".vfd")) /* Floppy images */
         {
-            if (!(cbFile % 512) && cbFile <= RAW_MAX_FLOPPY_IMG_SIZE)
+            if (cbFile % 512)
+                rc = VERR_VD_RAW_SIZE_MODULO_512;
+            else if (cbFile > RAW_MAX_FLOPPY_IMG_SIZE)
+                rc = VERR_VD_RAW_SIZE_FLOPPY_TOO_BIG;
+            else
             {
                 *penmType = VDTYPE_FLOPPY;
                 rc = VINF_SUCCESS;
             }
-            else
-                rc = VERR_VD_RAW_INVALID_HEADER;
         }
         else
             rc = VERR_VD_RAW_INVALID_HEADER;
@@ -426,9 +430,11 @@ static int rawOpen(const char *pszFilename, unsigned uOpenFlags,
                    PVDINTERFACE pVDIfsDisk, PVDINTERFACE pVDIfsImage,
                    VDTYPE enmType, void **ppBackendData)
 {
-    LogFlowFunc(("pszFilename=\"%s\" uOpenFlags=%#x pVDIfsDisk=%#p pVDIfsImage=%#p ppBackendData=%#p\n", pszFilename, uOpenFlags, pVDIfsDisk, pVDIfsImage, ppBackendData));
+    LogFlowFunc(("pszFilename=\"%s\" uOpenFlags=%#x pVDIfsDisk=%#p pVDIfsImage=%#p enmType=%u ppBackendData=%#p\n", pszFilename, uOpenFlags, pVDIfsDisk, pVDIfsImage, enmType, ppBackendData));
     int rc;
     PRAWIMAGE pImage;
+
+    NOREF(enmType); /**< @todo r=klaus make use of the type info. */
 
     /* Check open flags. All valid flags are supported. */
     if (uOpenFlags & ~VD_OPEN_FLAGS_MASK)
@@ -481,9 +487,11 @@ static int rawCreate(const char *pszFilename, uint64_t cbSize,
                      PCRTUUID pUuid, unsigned uOpenFlags,
                      unsigned uPercentStart, unsigned uPercentSpan,
                      PVDINTERFACE pVDIfsDisk, PVDINTERFACE pVDIfsImage,
-                     PVDINTERFACE pVDIfsOperation, void **ppBackendData)
+                     PVDINTERFACE pVDIfsOperation, VDTYPE enmType,
+                     void **ppBackendData)
 {
-    LogFlowFunc(("pszFilename=\"%s\" cbSize=%llu uImageFlags=%#x pszComment=\"%s\" pPCHSGeometry=%#p pLCHSGeometry=%#p Uuid=%RTuuid uOpenFlags=%#x uPercentStart=%u uPercentSpan=%u pVDIfsDisk=%#p pVDIfsImage=%#p pVDIfsOperation=%#p ppBackendData=%#p", pszFilename, cbSize, uImageFlags, pszComment, pPCHSGeometry, pLCHSGeometry, pUuid, uOpenFlags, uPercentStart, uPercentSpan, pVDIfsDisk, pVDIfsImage, pVDIfsOperation, ppBackendData));
+    LogFlowFunc(("pszFilename=\"%s\" cbSize=%llu uImageFlags=%#x pszComment=\"%s\" pPCHSGeometry=%#p pLCHSGeometry=%#p Uuid=%RTuuid uOpenFlags=%#x uPercentStart=%u uPercentSpan=%u pVDIfsDisk=%#p pVDIfsImage=%#p pVDIfsOperation=%#p enmType=%u ppBackendData=%#p",
+                 pszFilename, cbSize, uImageFlags, pszComment, pPCHSGeometry, pLCHSGeometry, pUuid, uOpenFlags, uPercentStart, uPercentSpan, pVDIfsDisk, pVDIfsImage, pVDIfsOperation, enmType, ppBackendData));
     int rc;
     PRAWIMAGE pImage;
 
@@ -494,6 +502,14 @@ static int rawCreate(const char *pszFilename, uint64_t cbSize,
     {
         pfnProgress = pIfProgress->pfnProgress;
         pvUser = pIfProgress->Core.pvUser;
+    }
+
+    /* Check the VD container type. Yes, hard disk must be allowed, otherwise
+     * various tools using this backend for hard disk images will fail. */
+    if (enmType != VDTYPE_HDD && enmType != VDTYPE_DVD && enmType != VDTYPE_FLOPPY)
+    {
+        rc = VERR_VD_INVALID_TYPE;
+        goto out;
     }
 
     /* Check open flags. All valid flags are supported. */

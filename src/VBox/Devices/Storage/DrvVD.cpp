@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -45,11 +45,13 @@ RT_C_DECLS_BEGIN
 #include <lwip/inet.h>
 #include <lwip/tcp.h>
 #include <lwip/sockets.h>
-# ifdef VBOX_WITH_NEW_LWIP
+# if LWIP_IPV6
 #  include <lwip/inet6.h>
 # endif
 RT_C_DECLS_END
 #endif /* VBOX_WITH_INIP */
+
+#include "HBDMgmt.h"
 
 #include "VBoxDD.h"
 
@@ -165,7 +167,7 @@ typedef struct VBOXDISK
     /** Flag whether boot acceleration is currently active. */
     bool                     fBootAccelActive;
     /** Size of the disk, used for read truncation. */
-    size_t                   cbDisk;
+    uint64_t                 cbDisk;
     /** Size of the configured buffer. */
     size_t                   cbBootAccelBuffer;
     /** Start offset for which the buffer holds data. */
@@ -186,6 +188,8 @@ typedef struct VBOXDISK
 
     /** The block cache handle if configured. */
     PPDMBLKCACHE             pBlkCache;
+    /** Host block device manager. */
+    HBDMGR                   hHbdMgr;
 
     /** Cryptographic support
      * @{ */
@@ -349,9 +353,29 @@ static DECLCALLBACK(int) drvvdAsyncIOOpen(void *pvUser, const char *pszLocation,
                                           void **ppStorage)
 {
     PVBOXDISK pThis = (PVBOXDISK)pvUser;
-    PDRVVDSTORAGEBACKEND pStorageBackend = (PDRVVDSTORAGEBACKEND)RTMemAllocZ(sizeof(DRVVDSTORAGEBACKEND));
+    PDRVVDSTORAGEBACKEND pStorageBackend = NULL;
     int rc = VINF_SUCCESS;
 
+    /*
+     * Check whether the backend wants to open a block device and try to prepare it
+     * if we didn't claim it yet.
+     *
+     * We only create a block device manager on demand to not waste any resources.
+     */
+    if (HBDMgrIsBlockDevice(pszLocation))
+    {
+        if (pThis->hHbdMgr == NIL_HBDMGR)
+            rc = HBDMgrCreate(&pThis->hHbdMgr);
+
+        if (   RT_SUCCESS(rc)
+            && !HBDMgrIsBlockDeviceClaimed(pThis->hHbdMgr, pszLocation))
+            rc = HBDMgrClaimBlockDevice(pThis->hHbdMgr, pszLocation);
+
+        if (RT_FAILURE(rc))
+            return rc;
+    }
+
+    pStorageBackend = (PDRVVDSTORAGEBACKEND)RTMemAllocZ(sizeof(DRVVDSTORAGEBACKEND));
     if (pStorageBackend)
     {
         pStorageBackend->fSyncIoPending = false;
@@ -414,11 +438,17 @@ static DECLCALLBACK(int) drvvdAsyncIOClose(void *pvUser, void *pStorage)
     PVBOXDISK pThis = (PVBOXDISK)pvUser;
     PDRVVDSTORAGEBACKEND pStorageBackend = (PDRVVDSTORAGEBACKEND)pStorage;
 
+    /*
+     * We don't unclaim any block devices on purpose here because they
+     * might get reopened shortly (switching to readonly during suspend)
+     *
+     * Block devices will get unclaimed during destruction of the driver.
+     */
+
     PDMR3AsyncCompletionEpClose(pStorageBackend->pEndpoint);
     PDMR3AsyncCompletionTemplateDestroy(pStorageBackend->pTemplate);
     RTSemEventDestroy(pStorageBackend->EventSem);
     RTMemFree(pStorageBackend);
-
     return VINF_SUCCESS;;
 }
 
@@ -669,6 +699,34 @@ static DECLCALLBACK(int) drvvdCryptoKeyRelease(void *pvUser, const char *pszId)
     return rc;
 }
 
+static DECLCALLBACK(int) drvvdCryptoKeyStorePasswordRetain(void *pvUser, const char *pszId, const char **ppszPassword)
+{
+    PVBOXDISK pThis = (PVBOXDISK)pvUser;
+    int rc = VINF_SUCCESS;
+
+    AssertPtr(pThis->pIfSecKey);
+    if (pThis->pIfSecKey)
+        rc = pThis->pIfSecKey->pfnPasswordRetain(pThis->pIfSecKey, pszId, ppszPassword);
+    else
+        rc = VERR_NOT_SUPPORTED;
+
+    return rc;
+}
+
+static DECLCALLBACK(int) drvvdCryptoKeyStorePasswordRelease(void *pvUser, const char *pszId)
+{
+    PVBOXDISK pThis = (PVBOXDISK)pvUser;
+    int rc = VINF_SUCCESS;
+
+    AssertPtr(pThis->pIfSecKey);
+    if (pThis->pIfSecKey)
+        rc = pThis->pIfSecKey->pfnPasswordRelease(pThis->pIfSecKey, pszId);
+    else
+        rc = VERR_NOT_SUPPORTED;
+
+    return rc;
+}
+
 #ifdef VBOX_WITH_INIP
 /*******************************************************************************
 *   VD TCP network stack interface implementation - INIP case                  *
@@ -682,7 +740,7 @@ typedef union INIPSOCKADDRUNION
 {
     struct sockaddr     Addr;
     struct sockaddr_in  Ipv4;
-#ifdef VBOX_WITH_NEW_LWIP
+#if LWIP_IPV6
     struct sockaddr_in6 Ipv6;
 #endif
 } INIPSOCKADDRUNION;
@@ -734,7 +792,7 @@ static DECLCALLBACK(int) drvvdINIPClientConnect(VDSOCKET Sock, const char *pszAd
     PINIPSOCKET pSocketInt = (PINIPSOCKET)Sock;
     int iInetFamily = PF_INET;
     struct in_addr ip;
-#ifdef VBOX_WITH_NEW_LWIP
+#if LWIP_IPV6
     ip6_addr_t ip6;
 #endif
 
@@ -748,7 +806,7 @@ static DECLCALLBACK(int) drvvdINIPClientConnect(VDSOCKET Sock, const char *pszAd
     }
     /* Resolve hostname. As there is no standard resolver for lwIP yet,
      * just accept numeric IP addresses for now. */
-#ifdef VBOX_WITH_NEW_LWIP
+#if LWIP_IPV6
     if (inet6_aton(pszAddress, &ip6))
         iInetFamily = PF_INET6;
     else /* concatination with if */
@@ -775,7 +833,7 @@ static DECLCALLBACK(int) drvvdINIPClientConnect(VDSOCKET Sock, const char *pszAd
             InAddr.sin_len = sizeof(InAddr);
             pSockAddr = (struct sockaddr *)&InAddr;
         }
-#ifdef VBOX_WITH_NEW_LWIP
+#if LWIP_IPV6
         else
         {
             In6Addr.sin6_family = AF_INET6;
@@ -980,7 +1038,7 @@ static DECLCALLBACK(int) drvvdINIPGetLocalAddress(VDSOCKET Sock, PRTNETADDR pAdd
             pAddr->uPort        = RT_N2H_U16(u.Ipv4.sin_port);
             pAddr->uAddr.IPv4.u = u.Ipv4.sin_addr.s_addr;
         }
-#ifdef VBOX_WITH_NEW_LWIP
+#if LWIP_IPV6
         else if (   cbAddr == sizeof(struct sockaddr_in6)
             && u.Addr.sa_family == AF_INET6)
         {
@@ -1017,7 +1075,7 @@ static DECLCALLBACK(int) drvvdINIPGetPeerAddress(VDSOCKET Sock, PRTNETADDR pAddr
             pAddr->uPort        = RT_N2H_U16(u.Ipv4.sin_port);
             pAddr->uAddr.IPv4.u = u.Ipv4.sin_addr.s_addr;
         }
-#ifdef VBOX_WITH_NEW_LWIP
+#if LWIP_IPV6
         else if (   cbAddr == sizeof(struct sockaddr_in6)
                  && u.Addr.sa_family == AF_INET6)
         {
@@ -1625,7 +1683,7 @@ static DECLCALLBACK(int) drvvdRead(PPDMIMEDIA pInterface,
     return rc;
 }
 
-/** @copydoc PDMIMEDIA::pfnReadPcBios */
+/** @copydoc PDMIMEDIA::pfnRead */
 static DECLCALLBACK(int) drvvdReadPcBios(PPDMIMEDIA pInterface,
                                          uint64_t off, void *pvBuf, size_t cbRead)
 {
@@ -1678,6 +1736,7 @@ static DECLCALLBACK(int) drvvdReadPcBios(PPDMIMEDIA pInterface,
     LogFlowFunc(("returns %Rrc\n", rc));
     return rc;
 }
+
 
 /** @copydoc PDMIMEDIA::pfnWrite */
 static DECLCALLBACK(int) drvvdWrite(PPDMIMEDIA pInterface,
@@ -1767,7 +1826,7 @@ static DECLCALLBACK(int) drvvdSetSecKeyIf(PPDMIMEDIA pInterface, PPDMISECKEY pIf
             && !pIfSecKey)
         {
             /* Unload the crypto filter first to make sure it doesn't access the keys anymore. */
-            rc = VDFilterRemove(pThis->pDisk);
+            rc = VDFilterRemove(pThis->pDisk, VD_FILTER_FLAGS_DEFAULT);
             AssertRC(rc);
 
             pThis->pIfSecKey = NULL;
@@ -1787,7 +1846,7 @@ static DECLCALLBACK(int) drvvdSetSecKeyIf(PPDMIMEDIA pInterface, PPDMISECKEY pIf
             AssertRC(rc);
 
             /* Load the crypt filter plugin. */
-            rc = VDFilterAdd(pThis->pDisk, "CRYPT", pVDIfFilter);
+            rc = VDFilterAdd(pThis->pDisk, "CRYPT", VD_FILTER_FLAGS_DEFAULT, pVDIfFilter);
             if (RT_FAILURE(rc))
                 pThis->pIfSecKey = NULL;
         }
@@ -2235,7 +2294,7 @@ static int drvvdSetupFilters(PVBOXDISK pThis, PCFGMNODE pCfg)
                                 pCfgFilterConfig, sizeof(VDINTERFACECONFIG), &pVDIfsFilter);
             AssertRC(rc);
 
-            rc = VDFilterAdd(pThis->pDisk, pszFilterName, pVDIfsFilter);
+            rc = VDFilterAdd(pThis->pDisk, pszFilterName, VD_FILTER_FLAGS_DEFAULT, pVDIfsFilter);
 
             MMR3HeapFree(pszFilterName);
         }
@@ -2298,6 +2357,55 @@ static DECLCALLBACK(int) drvvdLoadDone(PPDMDRVINS pDrvIns, PSSMHANDLE pSSM)
 /*******************************************************************************
 *   Driver methods                                                             *
 *******************************************************************************/
+
+/**
+ * Worker for the power off or destruct callback.
+ *
+ * @returns nothing.
+ * @param   pDrvIns    The driver instance.
+ */
+static void drvvdPowerOffOrDestruct(PPDMDRVINS pDrvIns)
+{
+    PVBOXDISK pThis = PDMINS_2_DATA(pDrvIns, PVBOXDISK);
+    LogFlowFunc(("\n"));
+
+    RTSEMFASTMUTEX mutex;
+    ASMAtomicXchgHandle(&pThis->MergeCompleteMutex, NIL_RTSEMFASTMUTEX, &mutex);
+    if (mutex != NIL_RTSEMFASTMUTEX)
+    {
+        /* Request the semaphore to wait until a potentially running merge
+         * operation has been finished. */
+        int rc = RTSemFastMutexRequest(mutex);
+        AssertRC(rc);
+        pThis->fMergePending = false;
+        rc = RTSemFastMutexRelease(mutex);
+        AssertRC(rc);
+        rc = RTSemFastMutexDestroy(mutex);
+        AssertRC(rc);
+    }
+
+    if (RT_VALID_PTR(pThis->pBlkCache))
+    {
+        PDMR3BlkCacheRelease(pThis->pBlkCache);
+        pThis->pBlkCache = NULL;
+    }
+
+    if (RT_VALID_PTR(pThis->pDisk))
+    {
+        VDDestroy(pThis->pDisk);
+        pThis->pDisk = NULL;
+    }
+    drvvdFreeImages(pThis);
+}
+
+/**
+ * @copydoc FNPDMDRVPOWEROFF
+ */
+static DECLCALLBACK(void) drvvdPowerOff(PPDMDRVINS pDrvIns)
+{
+    PDMDRV_CHECK_VERSIONS_RETURN_VOID(pDrvIns);
+    drvvdPowerOffOrDestruct(pDrvIns);
+}
 
 /**
  * VM resume notification that we use to undo what the temporary read-only image
@@ -2403,34 +2511,12 @@ static DECLCALLBACK(void) drvvdDestruct(PPDMDRVINS pDrvIns)
     PVBOXDISK pThis = PDMINS_2_DATA(pDrvIns, PVBOXDISK);
     LogFlowFunc(("\n"));
 
-    RTSEMFASTMUTEX mutex;
-    ASMAtomicXchgHandle(&pThis->MergeCompleteMutex, NIL_RTSEMFASTMUTEX, &mutex);
-    if (mutex != NIL_RTSEMFASTMUTEX)
-    {
-        /* Request the semaphore to wait until a potentially running merge
-         * operation has been finished. */
-        int rc = RTSemFastMutexRequest(mutex);
-        AssertRC(rc);
-        pThis->fMergePending = false;
-        rc = RTSemFastMutexRelease(mutex);
-        AssertRC(rc);
-        rc = RTSemFastMutexDestroy(mutex);
-        AssertRC(rc);
-    }
-
-    if (RT_VALID_PTR(pThis->pBlkCache))
-    {
-        PDMR3BlkCacheRelease(pThis->pBlkCache);
-        pThis->pBlkCache = NULL;
-    }
-
-    if (RT_VALID_PTR(pThis->pDisk))
-    {
-        VDDestroy(pThis->pDisk);
-        pThis->pDisk = NULL;
-    }
-    drvvdFreeImages(pThis);
-
+    /*
+     * Make sure the block cache and disks are closed when this driver is
+     * destroyed. This method will get called without calling the power off
+     * callback first when we reconfigure the driver chain after a snapshot.
+     */
+    drvvdPowerOffOrDestruct(pDrvIns);
     if (pThis->MergeLock != NIL_RTSEMRW)
     {
         int rc = RTSemRWDestroy(pThis->MergeLock);
@@ -2447,6 +2533,8 @@ static DECLCALLBACK(void) drvvdDestruct(PPDMDRVINS pDrvIns)
         MMR3HeapFree(pThis->pszBwGroup);
         pThis->pszBwGroup = NULL;
     }
+    if (pThis->hHbdMgr != NIL_HBDMGR)
+        HBDMgrDestroy(pThis->hHbdMgr);
 }
 
 /**
@@ -2910,8 +2998,10 @@ static DECLCALLBACK(int) drvvdConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint
             pThis->VDIfCfg.pfnQuery         = drvvdCfgQuery;
             pThis->VDIfCfg.pfnQueryBytes    = NULL;
 
-            pThis->VDIfCrypto.pfnKeyRetain  = drvvdCryptoKeyRetain;
-            pThis->VDIfCrypto.pfnKeyRelease = drvvdCryptoKeyRelease;
+            pThis->VDIfCrypto.pfnKeyRetain               = drvvdCryptoKeyRetain;
+            pThis->VDIfCrypto.pfnKeyRelease              = drvvdCryptoKeyRelease;
+            pThis->VDIfCrypto.pfnKeyStorePasswordRetain  = drvvdCryptoKeyStorePasswordRetain;
+            pThis->VDIfCrypto.pfnKeyStorePasswordRelease = drvvdCryptoKeyStorePasswordRelease;
         }
 
         /* Unconditionally insert the TCPNET interface, don't bother to check
@@ -3286,7 +3376,7 @@ const PDMDRVREG g_DrvVD =
     /* pfnDetach */
     NULL,
     /* pfnPowerOff */
-    NULL,
+    drvvdPowerOff,
     /* pfnSoftReset */
     NULL,
     /* u32EndVersion */

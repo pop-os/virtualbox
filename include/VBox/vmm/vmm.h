@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -267,11 +267,13 @@ VMM_INT_DECL(uint32_t)      VMMGetSvnRev(void);
 VMM_INT_DECL(VMMSWITCHER)   VMMGetSwitcher(PVM pVM);
 VMM_INT_DECL(bool)          VMMIsInRing3Call(PVMCPU pVCpu);
 VMM_INT_DECL(void)          VMMTrashVolatileXMMRegs(void);
+VMM_INT_DECL(int)           VMMPatchHypercall(PVM pVM, void *pvBuf, size_t cbBuf, size_t *pcbWritten);
+VMM_INT_DECL(void)          VMMHypercallsEnable(PVMCPU pVCpu);
+VMM_INT_DECL(void)          VMMHypercallsDisable(PVMCPU pVCpu);
 
 
-#ifdef IN_RING3
+#if defined(IN_RING3) || defined(DOXYGEN_RUNNING)
 /** @defgroup grp_vmm_r3    The VMM Host Context Ring 3 API
- * @ingroup grp_vmm
  * @{
  */
 VMMR3_INT_DECL(int)     VMMR3Init(PVM pVM);
@@ -336,7 +338,6 @@ VMMR3_INT_DECL(int)     VMMR3ReadR0Stack(PVM pVM, VMCPUID idCpu, RTHCUINTPTR R0A
 
 
 /** @defgroup grp_vmm_r0    The VMM Host Context Ring 0 API
- * @ingroup grp_vmm
  * @{
  */
 
@@ -503,24 +504,22 @@ typedef struct GCFGMVALUEREQ
  */
 typedef GCFGMVALUEREQ *PGCFGMVALUEREQ;
 
-#ifdef IN_RING0
+#if defined(IN_RING0) || defined(DOXYGEN_RUNNING)
 VMMR0DECL(int)       VMMR0EntryInt(PVM pVM, VMMR0OPERATION enmOperation, void *pvArg);
 VMMR0DECL(void)      VMMR0EntryFast(PVM pVM, VMCPUID idCpu, VMMR0OPERATION enmOperation);
 VMMR0DECL(int)       VMMR0EntryEx(PVM pVM, VMCPUID idCpu, VMMR0OPERATION enmOperation, PSUPVMMR0REQHDR pReq, uint64_t u64Arg, PSUPDRVSESSION);
-VMMR0DECL(int)       VMMR0TermVM(PVM pVM, PGVM pGVM);
+VMMR0_INT_DECL(int)  VMMR0TermVM(PVM pVM, PGVM pGVM);
 VMMR0_INT_DECL(bool) VMMR0IsLongJumpArmed(PVMCPU pVCpu);
 VMMR0_INT_DECL(bool) VMMR0IsInRing3LongJump(PVMCPU pVCpu);
-VMMR0DECL(int)       VMMR0ThreadCtxHooksCreate(PVMCPU pVCpu);
-VMMR0DECL(void)      VMMR0ThreadCtxHooksRelease(PVMCPU pVCpu);
-VMMR0DECL(bool)      VMMR0ThreadCtxHooksAreCreated(PVMCPU pVCpu);
-VMMR0DECL(int)       VMMR0ThreadCtxHooksRegister(PVMCPU pVCpu, PFNRTTHREADCTXHOOK pfnHook);
-VMMR0DECL(int)       VMMR0ThreadCtxHooksDeregister(PVMCPU pVCpu);
-VMMR0DECL(bool)      VMMR0ThreadCtxHooksAreRegistered(PVMCPU pVCpu);
+VMMR0_INT_DECL(int)  VMMR0ThreadCtxHookCreateForEmt(PVMCPU pVCpu);
+VMMR0_INT_DECL(void) VMMR0ThreadCtxHookDestroyForEmt(PVMCPU pVCpu);
+VMMR0_INT_DECL(void) VMMR0ThreadCtxHookDisable(PVMCPU pVCpu);
+VMMR0_INT_DECL(bool) VMMR0ThreadCtxHookIsEnabled(PVMCPU pVCpu);
 
 # ifdef LOG_ENABLED
-VMMR0DECL(void)      VMMR0LogFlushDisable(PVMCPU pVCpu);
-VMMR0DECL(void)      VMMR0LogFlushEnable(PVMCPU pVCpu);
-VMMR0DECL(bool)      VMMR0IsLogFlushDisabled(PVMCPU pVCpu);
+VMMR0_INT_DECL(void) VMMR0LogFlushDisable(PVMCPU pVCpu);
+VMMR0_INT_DECL(void) VMMR0LogFlushEnable(PVMCPU pVCpu);
+VMMR0_INT_DECL(bool) VMMR0IsLogFlushDisabled(PVMCPU pVCpu);
 # else
 #  define            VMMR0LogFlushDisable(pVCpu)     do { } while(0)
 #  define            VMMR0LogFlushEnable(pVCpu)      do { } while(0)
@@ -531,20 +530,18 @@ VMMR0DECL(bool)      VMMR0IsLogFlushDisabled(PVMCPU pVCpu);
 /** @} */
 
 
-#ifdef IN_RC
+#if defined(IN_RC) || defined(DOXYGEN_RUNNING)
 /** @defgroup grp_vmm_rc    The VMM Raw-Mode Context API
- * @ingroup grp_vmm
  * @{
  */
-VMMRCDECL(int)      VMMGCEntry(PVM pVM, unsigned uOperation, unsigned uArg, ...);
-VMMRCDECL(void)     VMMGCGuestToHost(PVM pVM, int rc);
-VMMRCDECL(void)     VMMGCLogFlushIfFull(PVM pVM);
+VMMRCDECL(int)      VMMRCEntry(PVM pVM, unsigned uOperation, unsigned uArg, ...);
+VMMRCDECL(void)     VMMRCGuestToHost(PVM pVM, int rc);
+VMMRCDECL(void)     VMMRCLogFlushIfFull(PVM pVM);
 /** @} */
 #endif /* IN_RC */
 
-#if defined(IN_RC) || defined(IN_RING0)
+#if defined(IN_RC) || defined(IN_RING0) || defined(DOXYGEN_RUNNING)
 /** @defgroup grp_vmm_rz    The VMM Raw-Mode and Ring-0 Context API
- * @ingroup grp_vmm
  * @{
  */
 VMMRZDECL(int)      VMMRZCallRing3(PVM pVM, PVMCPU pVCpu, VMMCALLRING3 enmOperation, uint64_t uArg);

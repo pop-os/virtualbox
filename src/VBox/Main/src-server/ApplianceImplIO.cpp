@@ -36,6 +36,9 @@
 #include <VBox/vd-ifs.h>
 #include <VBox/vd.h>
 
+#include "Logging.h"
+
+
 /******************************************************************************
  *   Structures and Typedefs                                                  *
  ******************************************************************************/
@@ -50,10 +53,11 @@ typedef struct FILESTORAGEINTERNAL
 typedef struct TARSTORAGEINTERNAL
 {
     /** Tar handle. */
-    RTTARFILE      file;
+    RTTARFILE      hTarFile;
     /** Completion callback. */
     PFNVDCOMPLETED pfnCompleted;
 } TARSTORAGEINTERNAL, *PTARSTORAGEINTERNAL;
+
 
 typedef struct SHASTORAGEINTERNAL
 {
@@ -116,6 +120,70 @@ typedef struct SHASTORAGEINTERNAL
 /******************************************************************************
  *   Internal Functions                                                       *
  ******************************************************************************/
+
+
+/** @name VDINTERFACEIO stubs returning not-implemented.
+ * @{
+ */
+
+/** @interface_method_impl{VDINTERFACEIO,pfnDelete}  */
+static DECLCALLBACK(int) notImpl_Delete(void *pvUser, const char *pcszFilename)
+{
+    NOREF(pvUser); NOREF(pcszFilename);
+    Log(("%s\n",  __FUNCTION__)); DEBUG_PRINT_FLOW();
+    return VERR_NOT_IMPLEMENTED;
+}
+
+/** @interface_method_impl{VDINTERFACEIO,pfnMove}  */
+static DECLCALLBACK(int) notImpl_Move(void *pvUser, const char *pcszSrc, const char *pcszDst, unsigned fMove)
+{
+    NOREF(pvUser); NOREF(pcszSrc); NOREF(pcszDst); NOREF(fMove);
+    Log(("%s\n",  __FUNCTION__)); DEBUG_PRINT_FLOW();
+    return VERR_NOT_IMPLEMENTED;
+}
+
+/** @interface_method_impl{VDINTERFACEIO,pfnGetFreeSpace}  */
+static DECLCALLBACK(int) notImpl_GetFreeSpace(void *pvUser, const char *pcszFilename, int64_t *pcbFreeSpace)
+{
+    NOREF(pvUser); NOREF(pcszFilename); NOREF(pcbFreeSpace);
+    Log(("%s\n",  __FUNCTION__)); DEBUG_PRINT_FLOW();
+    return VERR_NOT_IMPLEMENTED;
+}
+
+/** @interface_method_impl{VDINTERFACEIO,pfnGetModificationTime}  */
+static DECLCALLBACK(int) notImpl_GetModificationTime(void *pvUser, const char *pcszFilename, PRTTIMESPEC pModificationTime)
+{
+    NOREF(pvUser); NOREF(pcszFilename); NOREF(pModificationTime);
+    Log(("%s\n",  __FUNCTION__)); DEBUG_PRINT_FLOW();
+    return VERR_NOT_IMPLEMENTED;
+}
+
+/** @interface_method_impl{VDINTERFACEIO,pfnSetSize}  */
+static DECLCALLBACK(int) notImpl_SetSize(void *pvUser, void *pvStorage, uint64_t cb)
+{
+    NOREF(pvUser); NOREF(pvStorage); NOREF(cb);
+    Log(("%s\n",  __FUNCTION__)); DEBUG_PRINT_FLOW();
+    return VERR_NOT_IMPLEMENTED;
+}
+
+/** @interface_method_impl{VDINTERFACEIO,pfnWriteSync}  */
+static DECLCALLBACK(int) notImpl_WriteSync(void *pvUser, void *pvStorage, uint64_t off, const void *pvBuf,
+                                           size_t cbWrite, size_t *pcbWritten)
+{
+    NOREF(pvUser); NOREF(pvStorage); NOREF(off); NOREF(pvBuf); NOREF(cbWrite); NOREF(pcbWritten);
+    Log(("%s\n",  __FUNCTION__)); DEBUG_PRINT_FLOW();
+    return VERR_NOT_IMPLEMENTED;
+}
+
+/** @interface_method_impl{VDINTERFACEIO,pfnFlushSync}  */
+static DECLCALLBACK(int) notImpl_FlushSync(void *pvUser, void *pvStorage)
+{
+    NOREF(pvUser); NOREF(pvStorage);
+    Log(("%s\n",  __FUNCTION__)); DEBUG_PRINT_FLOW();
+    return VERR_NOT_IMPLEMENTED;
+}
+
+/** @} */
 
 
 /******************************************************************************
@@ -260,91 +328,45 @@ static int fileFlushSyncCallback(void * /* pvUser */, void *pvStorage)
     return RTFileFlush(pInt->file);
 }
 
-/******************************************************************************
- *   Internal: RTTar interface
- ******************************************************************************/
 
-static int tarOpenCallback(void *pvUser, const char *pszLocation, uint32_t fOpen,
-                             PFNVDCOMPLETED pfnCompleted, void **ppInt)
+/** @name VDINTERFACEIO implementation that writes TAR files via RTTar.
+ * @{ */
+
+static DECLCALLBACK(int) tarWriter_Open(void *pvUser, const char *pszLocation, uint32_t fOpen,
+                                        PFNVDCOMPLETED pfnCompleted, void **ppInt)
 {
     /* Validate input. */
     AssertPtrReturn(pvUser, VERR_INVALID_POINTER);
     AssertPtrReturn(ppInt, VERR_INVALID_POINTER);
     AssertPtrNullReturn(pfnCompleted, VERR_INVALID_PARAMETER);
-//    AssertReturn(!(fOpen & RTFILE_O_READWRITE), VERR_INVALID_PARAMETER);
-
-    RTTAR tar = (RTTAR)pvUser;
+    AssertReturn(fOpen & RTFILE_O_WRITE, VERR_INVALID_PARAMETER); /* Only for writing. */
 
     DEBUG_PRINT_FLOW();
 
+    /*
+     * Allocate a storage handle.
+     */
+    int rc;
     PTARSTORAGEINTERNAL pInt = (PTARSTORAGEINTERNAL)RTMemAllocZ(sizeof(TARSTORAGEINTERNAL));
-    if (!pInt)
-        return VERR_NO_MEMORY;
-
-    pInt->pfnCompleted = pfnCompleted;
-
-    int rc = VINF_SUCCESS;
-
-    if (fOpen & RTFILE_O_READ
-        && !(fOpen & RTFILE_O_WRITE))
+    if (pInt)
     {
-        /* Read only is a little bit more complicated than writing, cause we
-         * need streaming functionality. First try to open the file on the
-         * current file position. If this is the file the caller requested, we
-         * are fine. If not seek to the next file in the stream and check
-         * again. This is repeated until EOF of the OVA. */
+        pInt->pfnCompleted = pfnCompleted;
+
         /*
-         *
-         *
-         *  TODO: recheck this with more VDMKs (or what else) in an test OVA.
-         *
-         *
+         * Try open the file.
          */
-        bool fFound = false;
-
-        for (;;)
-        {
-            char *pszFilename = 0;
-            rc = RTTarCurrentFile(tar, &pszFilename);
-            if (RT_SUCCESS(rc))
-            {
-                if (rc == VINF_TAR_DIR_PATH)
-                {
-                    break;
-                }
-
-                fFound = !RTStrICmp(pszFilename, pszLocation);
-
-                RTStrFree(pszFilename);
-                if (fFound)
-                    break;
-                else
-                {
-                    rc = RTTarSeekNextFile(tar);
-                    if (RT_FAILURE(rc))
-                    {
-                        break;
-                    }
-                }
-            }
-            else
-                break;
-        }
-        if (fFound)
-            rc = RTTarFileOpenCurrentFile(tar, &pInt->file, 0, fOpen);
+        rc = RTTarFileOpen((RTTAR)pvUser, &pInt->hTarFile, RTPathFilename(pszLocation), fOpen);
+        if (RT_SUCCESS(rc))
+            *ppInt = pInt;
+        else
+            RTMemFree(pInt);
     }
     else
-        rc = RTTarFileOpen(tar, &pInt->file, RTPathFilename(pszLocation), fOpen);
-
-    if (RT_FAILURE(rc))
-        RTMemFree(pInt);
-    else
-        *ppInt = pInt;
-
+        rc = VERR_NO_MEMORY;
     return rc;
 }
 
-static int tarCloseCallback(void *pvUser, void *pvStorage)
+static DECLCALLBACK(int) tarWriter_Close(void *pvUser, void *pvStorage)
 {
     /* Validate input. */
     AssertPtrReturn(pvUser, VERR_INVALID_POINTER);
@@ -354,7 +376,8 @@ static int tarCloseCallback(void *pvUser, void *pvStorage)
 
     DEBUG_PRINT_FLOW();
 
-    int rc = RTTarFileClose(pInt->file);
+    int rc = RTTarFileClose(pInt->hTarFile);
+    pInt->hTarFile = NIL_RTTARFILE;
 
     /* Cleanup */
     RTMemFree(pInt);
@@ -362,54 +385,22 @@ static int tarCloseCallback(void *pvUser, void *pvStorage)
     return rc;
 }
 
-static int tarDeleteCallback(void *pvUser, const char *pcszFilename)
+static DECLCALLBACK(int) tarWriter_GetSize(void *pvUser, void *pvStorage, uint64_t *pcbSize)
 {
+    /** @todo Not sure if this is really required, but it's not a biggie to keep
+     *        around. */
     /* Validate input. */
     AssertPtrReturn(pvUser, VERR_INVALID_POINTER);
-    AssertPtrReturn(pcszFilename, VERR_INVALID_POINTER);
+    AssertPtrReturn(pvStorage, VERR_INVALID_POINTER);
+
+    PTARSTORAGEINTERNAL pInt = (PTARSTORAGEINTERNAL)pvStorage;
 
     DEBUG_PRINT_FLOW();
 
-    return VERR_NOT_IMPLEMENTED;
+    return RTTarFileGetSize(pInt->hTarFile, pcbSize);
 }
 
-static int tarMoveCallback(void *pvUser, const char *pcszSrc, const char *pcszDst, unsigned /* fMove */)
-{
-    /* Validate input. */
-    AssertPtrReturn(pvUser, VERR_INVALID_POINTER);
-    AssertPtrReturn(pcszSrc, VERR_INVALID_POINTER);
-    AssertPtrReturn(pcszDst, VERR_INVALID_POINTER);
-
-    DEBUG_PRINT_FLOW();
-
-    return VERR_NOT_IMPLEMENTED;
-}
-
-static int tarGetFreeSpaceCallback(void *pvUser, const char *pcszFilename, int64_t *pcbFreeSpace)
-{
-    /* Validate input. */
-    AssertPtrReturn(pvUser, VERR_INVALID_POINTER);
-    AssertPtrReturn(pcszFilename, VERR_INVALID_POINTER);
-    AssertPtrReturn(pcbFreeSpace, VERR_INVALID_POINTER);
-
-    DEBUG_PRINT_FLOW();
-
-    return VERR_NOT_IMPLEMENTED;
-}
-
-static int tarGetModificationTimeCallback(void *pvUser, const char *pcszFilename, PRTTIMESPEC pModificationTime)
-{
-    /* Validate input. */
-    AssertPtrReturn(pvUser, VERR_INVALID_POINTER);
-    AssertPtrReturn(pcszFilename, VERR_INVALID_POINTER);
-    AssertPtrReturn(pModificationTime, VERR_INVALID_POINTER);
-
-    DEBUG_PRINT_FLOW();
-
-    return VERR_NOT_IMPLEMENTED;
-}
-
-static int tarGetSizeCallback(void *pvUser, void *pvStorage, uint64_t *pcbSize)
+static DECLCALLBACK(int) tarWriter_SetSize(void *pvUser, void *pvStorage, uint64_t cbSize)
 {
     /* Validate input. */
     AssertPtrReturn(pvUser, VERR_INVALID_POINTER);
@@ -419,10 +410,11 @@ static int tarGetSizeCallback(void *pvUser, void *pvStorage, uint64_t *pcbSize)
 
     DEBUG_PRINT_FLOW();
 
-    return RTTarFileGetSize(pInt->file, pcbSize);
+    return RTTarFileSetSize(pInt->hTarFile, cbSize);
 }
 
-static int tarSetSizeCallback(void *pvUser, void *pvStorage, uint64_t cbSize)
+static DECLCALLBACK(int) tarWriter_WriteSync(void *pvUser, void *pvStorage, uint64_t uOffset,
+                                             const void *pvBuf, size_t cbWrite, size_t *pcbWritten)
 {
     /* Validate input. */
     AssertPtrReturn(pvUser, VERR_INVALID_POINTER);
@@ -432,26 +424,14 @@ static int tarSetSizeCallback(void *pvUser, void *pvStorage, uint64_t cbSize)
 
     DEBUG_PRINT_FLOW();
 
-    return RTTarFileSetSize(pInt->file, cbSize);
+    return RTTarFileWriteAt(pInt->hTarFile, uOffset, pvBuf, cbWrite, pcbWritten);
 }
 
-static int tarWriteSyncCallback(void *pvUser, void *pvStorage, uint64_t uOffset,
-                                  const void *pvBuf, size_t cbWrite, size_t *pcbWritten)
+static DECLCALLBACK(int) tarWriter_ReadSync(void *pvUser, void *pvStorage, uint64_t uOffset,
+                                            void *pvBuf, size_t cbRead, size_t *pcbRead)
 {
-    /* Validate input. */
-    AssertPtrReturn(pvUser, VERR_INVALID_POINTER);
-    AssertPtrReturn(pvStorage, VERR_INVALID_POINTER);
-
-    PTARSTORAGEINTERNAL pInt = (PTARSTORAGEINTERNAL)pvStorage;
-
-    DEBUG_PRINT_FLOW();
-
-    return RTTarFileWriteAt(pInt->file, uOffset, pvBuf, cbWrite, pcbWritten);
-}
-
-static int tarReadSyncCallback(void *pvUser, void *pvStorage, uint64_t uOffset,
-                                 void *pvBuf, size_t cbRead, size_t *pcbRead)
-{
+    /** @todo Not sure if this is really required, but it's not a biggie to keep
+     *        around. */
     /* Validate input. */
     AssertPtrReturn(pvUser, VERR_INVALID_POINTER);
     AssertPtrReturn(pvStorage, VERR_INVALID_POINTER);
@@ -460,19 +440,377 @@ static int tarReadSyncCallback(void *pvUser, void *pvStorage, uint64_t uOffset,
 
 //    DEBUG_PRINT_FLOW();
 
-    return RTTarFileReadAt(pInt->file, uOffset, pvBuf, cbRead, pcbRead);
+    return RTTarFileReadAt(pInt->hTarFile, uOffset, pvBuf, cbRead, pcbRead);
 }
 
-static int tarFlushSyncCallback(void *pvUser, void *pvStorage)
+
+PVDINTERFACEIO tarWriterCreateInterface(void)
 {
-    /* Validate input. */
-    AssertPtrReturn(pvUser, VERR_INVALID_POINTER);
-    AssertPtrReturn(pvStorage, VERR_INVALID_POINTER);
+    PVDINTERFACEIO pCallbacks = (PVDINTERFACEIO)RTMemAllocZ(sizeof(VDINTERFACEIO));
+    if (!pCallbacks)
+        return NULL;
+
+    pCallbacks->pfnOpen                = tarWriter_Open;
+    pCallbacks->pfnClose               = tarWriter_Close;
+    pCallbacks->pfnDelete              = notImpl_Delete;
+    pCallbacks->pfnMove                = notImpl_Move;
+    pCallbacks->pfnGetFreeSpace        = notImpl_GetFreeSpace;
+    pCallbacks->pfnGetModificationTime = notImpl_GetModificationTime;
+    pCallbacks->pfnGetSize             = tarWriter_GetSize;
+    pCallbacks->pfnSetSize             = tarWriter_SetSize;
+    pCallbacks->pfnReadSync            = tarWriter_ReadSync;
+    pCallbacks->pfnWriteSync           = tarWriter_WriteSync;
+    pCallbacks->pfnFlushSync           = notImpl_FlushSync;
+
+    return pCallbacks;
+}
+
+/** @} */
+
+
+/** @name VDINTERFACEIO implementation on top of an IPRT file system stream.
+ * @{ */
+
+/**
+ * Internal data for read only I/O stream (related to FSSRDONLYINTERFACEIO).
+ */
+typedef struct IOSRDONLYINTERNAL
+{
+    /** The I/O stream. */
+    RTVFSIOSTREAM   hVfsIos;
+    /** Completion callback. */
+    PFNVDCOMPLETED  pfnCompleted;
+} IOSRDONLYINTERNAL, *PIOSRDONLYINTERNAL;
+
+/**
+ * Extended VD I/O interface structure that fssRdOnly uses.
+ *
+ * It's passed as pvUser to each call.
+ */
+typedef struct FSSRDONLYINTERFACEIO
+{
+    VDINTERFACEIO   CoreIo;
+
+    /** The file system stream object. */
+    RTVFSFSSTREAM   hVfsFss;
+    /** Set if we've seen VERR_EOF on the file system stream already. */
+    bool            fEndOfFss;
+
+    /** The current object in the stream. */
+    RTVFSOBJ        hVfsCurObj;
+    /** The name of the current object. */
+    char           *pszCurName;
+    /** The type of the current object. */
+    RTVFSOBJTYPE    enmCurType;
+
+} FSSRDONLYINTERFACEIO;
+
+
+/** @interface_method_impl{VDINTERFACEIO,pfnOpen}  */
+static DECLCALLBACK(int) fssRdOnly_Open(void *pvUser, const char *pszLocation, uint32_t fOpen,
+                                        PFNVDCOMPLETED pfnCompleted, void **ppInt)
+{
+    PFSSRDONLYINTERFACEIO pThis = (PFSSRDONLYINTERFACEIO)pvUser;
+
+    /*
+     * Validate input.
+     */
+    AssertPtrReturn(ppInt, VERR_INVALID_POINTER);
+    AssertPtrNullReturn(pfnCompleted, VERR_INVALID_PARAMETER);
+    AssertReturn((fOpen & RTFILE_O_ACCESS_MASK) == RTFILE_O_READ, VERR_INVALID_PARAMETER);
 
     DEBUG_PRINT_FLOW();
 
-    return VERR_NOT_IMPLEMENTED;
+    /*
+     * Scan the stream until a matching file is found.
+     */
+    for (;;)
+    {
+        if (pThis->hVfsCurObj != NIL_RTVFSOBJ)
+        {
+            if (RTStrICmp(pThis->pszCurName, pszLocation) == 0)
+            {
+                switch (pThis->enmCurType)
+                {
+                    case RTVFSOBJTYPE_IO_STREAM:
+                    case RTVFSOBJTYPE_FILE:
+                    {
+                        PIOSRDONLYINTERNAL pFile = (PIOSRDONLYINTERNAL)RTMemAlloc(sizeof(*pFile));
+                        if (!pFile)
+                            return VERR_NO_MEMORY;
+                        pFile->hVfsIos      = RTVfsObjToIoStream(pThis->hVfsCurObj);
+                        pFile->pfnCompleted = pfnCompleted;
+                        *ppInt = pFile;
+
+                        /* Force stream to be advanced on next open call. */
+                        RTVfsObjRelease(pThis->hVfsCurObj);
+                        pThis->hVfsCurObj = NIL_RTVFSOBJ;
+                        RTStrFree(pThis->pszCurName);
+                        pThis->pszCurName = NULL;
+
+                        return VINF_SUCCESS;
+                    }
+
+                    case RTVFSOBJTYPE_DIR:
+                        return VERR_IS_A_DIRECTORY;
+                    default:
+                        return VERR_UNEXPECTED_FS_OBJ_TYPE;
+                }
+            }
+
+            /*
+             * Drop the current stream object.
+             */
+            RTVfsObjRelease(pThis->hVfsCurObj);
+            pThis->hVfsCurObj = NIL_RTVFSOBJ;
+            RTStrFree(pThis->pszCurName);
+            pThis->pszCurName = NULL;
+        }
+
+        /*
+         * Fetch the next object in the stream.
+         */
+        if (pThis->fEndOfFss)
+            return VERR_FILE_NOT_FOUND;
+        int rc = RTVfsFsStrmNext(pThis->hVfsFss, &pThis->pszCurName, &pThis->enmCurType, &pThis->hVfsCurObj);
+        if (RT_FAILURE(rc))
+        {
+            pThis->fEndOfFss = rc == VERR_EOF;
+            return rc == VERR_EOF ? VERR_FILE_NOT_FOUND : rc;
+        }
+    }
 }
+
+/** @interface_method_impl{VDINTERFACEIO,pfnClose}  */
+static int fssRdOnly_Close(void *pvUser, void *pvStorage)
+{
+    PIOSRDONLYINTERNAL      pFile = (PIOSRDONLYINTERNAL)pvStorage;
+    AssertPtrReturn(pvUser, VERR_INVALID_POINTER);
+    AssertPtrReturn(pFile, VERR_INVALID_POINTER);
+    DEBUG_PRINT_FLOW();
+
+    uint32_t cRefs = RTVfsIoStrmRelease(pFile->hVfsIos);
+    pFile->hVfsIos = NIL_RTVFSIOSTREAM;
+    RTMemFree(pFile);
+
+    return cRefs != UINT32_MAX ? VINF_SUCCESS : VERR_INTERNAL_ERROR_3;
+}
+
+
+/** @interface_method_impl{VDINTERFACEIO,pfnGetSize}  */
+static DECLCALLBACK(int) fssRdOnly_GetSize(void *pvUser, void *pvStorage, uint64_t *pcb)
+{
+    PIOSRDONLYINTERNAL      pFile = (PIOSRDONLYINTERNAL)pvStorage;
+    AssertPtrReturn(pvUser, VERR_INVALID_POINTER);
+    AssertPtrReturn(pFile, VERR_INVALID_POINTER);
+    AssertPtrReturn(pcb, VERR_INVALID_POINTER);
+    DEBUG_PRINT_FLOW();
+
+    RTFSOBJINFO ObjInfo;
+    int rc = RTVfsIoStrmQueryInfo(pFile->hVfsIos, &ObjInfo, RTFSOBJATTRADD_NOTHING);
+    if (RT_SUCCESS(rc))
+        *pcb = ObjInfo.cbObject;
+    return rc;
+}
+
+/** @interface_method_impl{VDINTERFACEIO,pfnRead}  */
+static DECLCALLBACK(int) fssRdOnly_ReadSync(void *pvUser, void *pvStorage, uint64_t off, void *pvBuf,
+                                            size_t cbToRead, size_t *pcbRead)
+{
+    PIOSRDONLYINTERNAL      pFile = (PIOSRDONLYINTERNAL)pvStorage;
+    AssertPtrReturn(pvUser, VERR_INVALID_POINTER);
+    AssertPtrReturn(pFile, VERR_INVALID_POINTER);
+    AssertPtrNullReturn(pcbRead, VERR_INVALID_POINTER);
+    DEBUG_PRINT_FLOW();
+
+    return RTVfsIoStrmReadAt(pFile->hVfsIos, off, pvBuf, cbToRead, true /*fBlocking*/, pcbRead);
+}
+
+
+/**
+ * Opens the specified tar file for stream-like reading, returning a VD I/O
+ * interface to it.
+ *
+ * @returns VBox status code.
+ * @param   pszFilename         The path to the TAR file.
+ * @param   ppTarIo             Where to return the VD I/O interface.  This
+ *                              shall be passed as pvUser when using the
+ *                              interface.
+ *
+ *                              Pass to fssRdOnlyDestroyInterface for cleaning
+ *                              up!
+ */
+int fssRdOnlyCreateInterfaceForTarFile(const char *pszFilename, PFSSRDONLYINTERFACEIO *ppTarIo)
+{
+    /*
+     * Open the tar file first.
+     */
+    RTVFSFILE hVfsFile;
+    int rc = RTVfsFileOpenNormal(pszFilename, RTFILE_O_READ | RTFILE_O_DENY_NONE | RTFILE_O_OPEN, &hVfsFile);
+    if (RT_SUCCESS(rc))
+    {
+        RTVFSIOSTREAM hVfsIos = RTVfsFileToIoStream(hVfsFile);
+        RTVFSFSSTREAM hVfsFss;
+        rc = RTZipTarFsStreamFromIoStream(hVfsIos, 0 /*fFlags*/, &hVfsFss);
+        if (RT_SUCCESS(rc))
+        {
+            /*
+             * Allocate and init a callback + instance data structure.
+             */
+            PFSSRDONLYINTERFACEIO pThis = (PFSSRDONLYINTERFACEIO)RTMemAllocZ(sizeof(*pThis));
+            if (pThis)
+            {
+                RTVfsIoStrmRelease(hVfsIos);
+                RTVfsFileRelease(hVfsFile);
+
+                pThis->CoreIo.pfnOpen                = fssRdOnly_Open;
+                pThis->CoreIo.pfnClose               = fssRdOnly_Close;
+                pThis->CoreIo.pfnDelete              = notImpl_Delete;
+                pThis->CoreIo.pfnMove                = notImpl_Move;
+                pThis->CoreIo.pfnGetFreeSpace        = notImpl_GetFreeSpace;
+                pThis->CoreIo.pfnGetModificationTime = notImpl_GetModificationTime;
+                pThis->CoreIo.pfnGetSize             = fssRdOnly_GetSize;
+                pThis->CoreIo.pfnSetSize             = notImpl_SetSize;
+                pThis->CoreIo.pfnReadSync            = fssRdOnly_ReadSync;
+                pThis->CoreIo.pfnWriteSync           = notImpl_WriteSync;
+                pThis->CoreIo.pfnFlushSync           = notImpl_FlushSync;
+
+                pThis->hVfsFss    = hVfsFss;
+                pThis->fEndOfFss  = false;
+                pThis->hVfsCurObj = NIL_RTVFSOBJ;
+                pThis->pszCurName = NULL;
+                pThis->enmCurType = RTVFSOBJTYPE_INVALID;
+
+                *ppTarIo = pThis;
+                return VINF_SUCCESS;
+            }
+            RTVfsFsStrmRelease(hVfsFss);
+        }
+        RTVfsIoStrmRelease(hVfsIos);
+        RTVfsFileRelease(hVfsFile);
+    }
+
+    *ppTarIo = NULL;
+    return rc;
+}
+
+/**
+ * Destroys a read-only FSS interface.
+ *
+ * @param   pFssIo              What TarFssCreateReadOnlyInterfaceForFile
+ *                              returned.
+ */
+void fssRdOnlyDestroyInterface(PFSSRDONLYINTERFACEIO pFssIo)
+{
+    AssertPtr(pFssIo); AssertPtr(pFssIo->hVfsFss);
+
+    RTVfsFsStrmRelease(pFssIo->hVfsFss);
+    pFssIo->hVfsFss = NIL_RTVFSFSSTREAM;
+
+    RTVfsObjRelease(pFssIo->hVfsCurObj);
+    pFssIo->hVfsCurObj = NIL_RTVFSOBJ;
+
+    RTStrFree(pFssIo->pszCurName);
+    pFssIo->pszCurName = NULL;
+
+    RTMemFree(pFssIo);
+}
+
+
+/**
+ * Returns the read-only name of the current stream object.
+ *
+ * @returns VBox status code.
+ * @param   pFssIo              What TarFssCreateReadOnlyInterfaceForFile
+ *                              returned.
+ * @param   ppszName            Where to return the filename.  DO NOT FREE!
+ */
+int fssRdOnlyGetCurrentName(PFSSRDONLYINTERFACEIO pFssIo, const char **ppszName)
+{
+    AssertPtr(pFssIo); AssertPtr(pFssIo->hVfsFss);
+
+    if (pFssIo->hVfsCurObj == NIL_RTVFSOBJ)
+    {
+        if (pFssIo->fEndOfFss)
+            return VERR_EOF;
+        int rc = RTVfsFsStrmNext(pFssIo->hVfsFss, &pFssIo->pszCurName, &pFssIo->enmCurType, &pFssIo->hVfsCurObj);
+        if (RT_FAILURE(rc))
+        {
+            pFssIo->fEndOfFss = rc == VERR_EOF;
+            *ppszName = NULL;
+            return rc;
+        }
+    }
+
+    *ppszName = pFssIo->pszCurName;
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * Skips the current object.
+ *
+ * @returns VBox status code.
+ * @param   pFssIo              What TarFssCreateReadOnlyInterfaceForFile
+ *                              returned.
+ */
+int  fssRdOnlySkipCurrent(PFSSRDONLYINTERFACEIO pFssIo)
+{
+    AssertPtr(pFssIo); AssertPtr(pFssIo->hVfsFss);
+
+    if (pFssIo->hVfsCurObj == NIL_RTVFSOBJ)
+    {
+        if (pFssIo->fEndOfFss)
+            return VERR_EOF;
+        int rc = RTVfsFsStrmNext(pFssIo->hVfsFss, &pFssIo->pszCurName, &pFssIo->enmCurType, &pFssIo->hVfsCurObj);
+        if (RT_FAILURE(rc))
+        {
+            pFssIo->fEndOfFss = rc == VERR_EOF;
+            return rc;
+        }
+    }
+
+    /* Force a RTVfsFsStrmNext call the next time around. */
+    RTVfsObjRelease(pFssIo->hVfsCurObj);
+    pFssIo->hVfsCurObj = NIL_RTVFSOBJ;
+
+    RTStrFree(pFssIo->pszCurName);
+    pFssIo->pszCurName = NULL;
+
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * Checks if the current file is a directory.
+ *
+ * @returns true if directory, false if not (or error).
+ * @param   pFssIo              What TarFssCreateReadOnlyInterfaceForFile
+ *                              returned.
+ */
+bool fssRdOnlyIsCurrentDirectory(PFSSRDONLYINTERFACEIO pFssIo)
+{
+    AssertPtr(pFssIo); AssertPtr(pFssIo->hVfsFss);
+
+    if (pFssIo->hVfsCurObj == NIL_RTVFSOBJ)
+    {
+        if (pFssIo->fEndOfFss)
+            return false;
+        int rc = RTVfsFsStrmNext(pFssIo->hVfsFss, &pFssIo->pszCurName, &pFssIo->enmCurType, &pFssIo->hVfsCurObj);
+        if (RT_FAILURE(rc))
+        {
+            pFssIo->fEndOfFss = rc == VERR_EOF;
+            return false;
+        }
+    }
+
+    return pFssIo->enmCurType == RTVFSOBJTYPE_DIR;
+}
+
+
+
+/** @} */
+
 
 /******************************************************************************
  *   Internal: RTSha interface
@@ -533,7 +871,8 @@ DECLCALLBACK(int) shaCalcWorkerThread(RTTHREAD /* aThread */, void *pvUser)
                             break;
                         size_t cbToWrite = cbMemRead - cbAllWritten;
                         size_t cbWritten = 0;
-                        rc = vdIfIoFileWriteSync(pIfIo, pInt->pvStorage, pInt->cbCurFile, &pcBuf[cbAllWritten], cbToWrite, &cbWritten);
+                        rc = vdIfIoFileWriteSync(pIfIo, pInt->pvStorage, pInt->cbCurFile, &pcBuf[cbAllWritten],
+                                                 cbToWrite, &cbWritten);
 //                        RTPrintf ("%lu %lu %lu %Rrc\n", pInt->cbCurFile, cbToRead, cbRead, rc);
                         if (RT_FAILURE(rc))
                         {
@@ -743,7 +1082,8 @@ static int shaOpenCallback(void *pvUser, const char *pszLocation, uint32_t fOpen
         if (RT_FAILURE(rc))
             break;
         /* Create the worker thread. */
-        rc = RTThreadCreate(&pInt->pWorkerThread, shaCalcWorkerThread, pInt, 0, RTTHREADTYPE_MAIN_HEAVY_WORKER, RTTHREADFLAGS_WAITABLE, "SHA-Worker");
+        rc = RTThreadCreate(&pInt->pWorkerThread, shaCalcWorkerThread, pInt, 0, RTTHREADTYPE_MAIN_HEAVY_WORKER,
+                            RTTHREADFLAGS_WAITABLE, "SHA-Worker");
         if (RT_FAILURE(rc))
             break;
 
@@ -984,7 +1324,8 @@ static int shaWriteSyncCallback(void *pvUser, void *pvStorage, uint64_t uOffset,
     DEBUG_PRINT_FLOW();
 
     /* Check that the write is linear */
-    AssertMsgReturn(pInt->cbCurAll <= uOffset, ("Backward seeking is not allowed (uOffset: %7lu cbCurAll: %7lu)!", uOffset, pInt->cbCurAll), VERR_INVALID_PARAMETER);
+    AssertMsgReturn(pInt->cbCurAll <= uOffset, ("Backward seeking is not allowed (uOffset: %7lu cbCurAll: %7lu)!",
+                    uOffset, pInt->cbCurAll), VERR_INVALID_PARAMETER);
 
     int rc = VINF_SUCCESS;
 
@@ -1225,28 +1566,7 @@ PVDINTERFACEIO FileCreateInterface()
     return pCallbacks;
 }
 
-PVDINTERFACEIO TarCreateInterface()
-{
-    PVDINTERFACEIO pCallbacks = (PVDINTERFACEIO)RTMemAllocZ(sizeof(VDINTERFACEIO));
-    if (!pCallbacks)
-        return NULL;
-
-    pCallbacks->pfnOpen                = tarOpenCallback;
-    pCallbacks->pfnClose               = tarCloseCallback;
-    pCallbacks->pfnDelete              = tarDeleteCallback;
-    pCallbacks->pfnMove                = tarMoveCallback;
-    pCallbacks->pfnGetFreeSpace        = tarGetFreeSpaceCallback;
-    pCallbacks->pfnGetModificationTime = tarGetModificationTimeCallback;
-    pCallbacks->pfnGetSize             = tarGetSizeCallback;
-    pCallbacks->pfnSetSize             = tarSetSizeCallback;
-    pCallbacks->pfnReadSync            = tarReadSyncCallback;
-    pCallbacks->pfnWriteSync           = tarWriteSyncCallback;
-    pCallbacks->pfnFlushSync           = tarFlushSyncCallback;
-
-    return pCallbacks;
-}
-
-int ShaReadBuf(const char *pcszFilename, void **ppvBuf, size_t *pcbSize, PVDINTERFACEIO pIfIo, void *pvUser)
+int readFileIntoBuffer(const char *pcszFilename, void **ppvBuf, size_t *pcbSize, PVDINTERFACEIO pIfIo, void *pvUser)
 {
     /* Validate input. */
     AssertPtrReturn(ppvBuf, VERR_INVALID_POINTER);
@@ -1313,7 +1633,7 @@ int ShaReadBuf(const char *pcszFilename, void **ppvBuf, size_t *pcbSize, PVDINTE
     return rc;
 }
 
-int ShaWriteBuf(const char *pcszFilename, void *pvBuf, size_t cbSize, PVDINTERFACEIO pIfIo, void *pvUser)
+int writeBufferToFile(const char *pcszFilename, void *pvBuf, size_t cbSize, PVDINTERFACEIO pIfIo, void *pvUser)
 {
     /* Validate input. */
     AssertPtrReturn(pvBuf, VERR_INVALID_POINTER);
@@ -1376,7 +1696,7 @@ int decompressImageAndSave(const char *pcszFullFilenameIn, const char *pcszFullF
              * Create the output file, including necessary paths.
              * Any existing file will be overwritten.
              */
-            rc = VirtualBox::ensureFilePathExists(Utf8Str(pcszFullFilenameOut), true /*fCreate*/);
+            rc = VirtualBox::i_ensureFilePathExists(Utf8Str(pcszFullFilenameOut), true /*fCreate*/);
             if (RT_SUCCESS(rc))
             {
                 RTVFSIOSTREAM hVfsIosDst;
@@ -1445,7 +1765,7 @@ int copyFileAndCalcShaDigest(const char *pcszSourceFilename, const char *pcszTar
          * Create the output file, including necessary paths.
          * Any existing file will be overwritten.
          */
-        rc = VirtualBox::ensureFilePathExists(Utf8Str(pcszTargetFilename), true /*fCreate*/);
+        rc = VirtualBox::i_ensureFilePathExists(Utf8Str(pcszTargetFilename), true /*fCreate*/);
         if (RT_SUCCESS(rc))
         {
             RTVFSIOSTREAM hVfsIosDst;

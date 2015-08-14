@@ -1,7 +1,6 @@
+/* $Id: UIDownloaderAdditions.h $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * UIDownloaderAdditions class declaration
+ * VBox Qt GUI - UIDownloaderAdditions class declaration.
  */
 
 /*

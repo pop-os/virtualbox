@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2013 Oracle Corporation
+ * Copyright (C) 2008-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -37,6 +37,48 @@
 /** @name Internal Darwin structures
  * @{ */
 
+/**
+ * 32-bit darwin kernel module info structure (kmod_info_t).
+ */
+typedef struct OSX32_kmod_info
+{
+    uint32_t    next;
+    int32_t     info_version;
+    uint32_t    id;
+    char        name[64];
+    char        version[64];
+    int32_t     reference_count;
+    uint32_t    reference_list;         /**< Points to kmod_reference_t. */
+    uint32_t    address;                /**< Where in memory the kext is loaded. */
+    uint32_t    size;
+    uint32_t    hdr_size;
+    uint32_t    start;                  /**< Address of kmod_start_func_t. */
+    uint32_t    stop;                   /**< Address of kmod_stop_func_t. */
+} OSX32_kmod_info_t;
+
+/**
+ * 32-bit darwin kernel module info structure (kmod_info_t).
+ */
+#pragma pack(1)
+typedef struct OSX64_kmod_info
+{
+    uint64_t    next;
+    int32_t     info_version;
+    uint32_t    id;
+    char        name[64];
+    char        version[64];
+    int32_t     reference_count;
+    uint64_t    reference_list;         /**< Points to kmod_reference_t. Misaligned, duh. */
+    uint64_t    address;                /**< Where in memory the kext is loaded. */
+    uint64_t    size;
+    uint64_t    hdr_size;
+    uint64_t    start;                  /**< Address of kmod_start_func_t. */
+    uint64_t    stop;                   /**< Address of kmod_stop_func_t. */
+} OSX64_kmod_info_t;
+#pragma pack()
+
+/** The value of the info_version field. */
+#define OSX_KMOD_INFO_VERSION   INT32_C(1)
 
 /** @} */
 
@@ -50,12 +92,18 @@ typedef struct DBGDIGGERDARWIN
      * (For fending off illegal interface method calls.) */
     bool fValid;
 
+    /** Set if 64-bit kernel, clear if 32-bit.
+     *  Set during probing. */
+    bool f64Bit;
     /** The address of an kernel version string (there are several).
      * This is set during probing. */
     DBGFADDRESS AddrKernelVersion;
     /** Kernel base address.
      * This is set during probing. */
     DBGFADDRESS AddrKernel;
+
+    /** The kernel message log interface. */
+    DBGFOSIDMESG IDmesg;
 } DBGDIGGERDARWIN;
 /** Pointer to the linux guest OS digger instance data. */
 typedef DBGDIGGERDARWIN *PDBGDIGGERDARWIN;
@@ -64,11 +112,13 @@ typedef DBGDIGGERDARWIN *PDBGDIGGERDARWIN;
 /*******************************************************************************
 *   Defined Constants And Macros                                               *
 *******************************************************************************/
-/** Validates a 32-bit linux kernel address */
-#define DARWIN32_VALID_ADDRESS(Addr)    ((Addr) > UINT32_C(0x80000000) && (Addr) < UINT32_C(0xfffff000))
-
-/** The max kernel size. */
-#define DARWIN_MAX_KERNEL_SIZE          0x0f000000
+/** Validates a 32-bit darwin kernel address */
+#define OSX32_VALID_ADDRESS(Addr)    ((Addr) > UINT32_C(0x00001000) && (Addr) < UINT32_C(0xfffff000))
+/** Validates a 64-bit darwin kernel address */
+#define OSX64_VALID_ADDRESS(Addr)    ((Addr) > UINT64_C(0xffff800000000000) && (Addr) < UINT64_C(0xfffffffffffff000))
+/** Validates a 32-bit or 64-bit darwin kernel address. */
+#define OSX_VALID_ADDRESS(a_f64Bits, a_Addr) \
+    ((a_f64Bits) ? OSX64_VALID_ADDRESS(a_Addr) : OSX32_VALID_ADDRESS(a_Addr))
 
 /** AppleOsX on little endian ASCII systems. */
 #define DIG_DARWIN_MOD_TAG              UINT64_C(0x58734f656c707041)
@@ -80,16 +130,175 @@ typedef DBGDIGGERDARWIN *PDBGDIGGERDARWIN;
 static DECLCALLBACK(int)  dbgDiggerDarwinInit(PUVM pUVM, void *pvData);
 
 
-/*******************************************************************************
-*   Global Variables                                                           *
-*******************************************************************************/
-/** Table of common linux kernel addresses. */
-static uint64_t g_au64LnxKernelAddresses[] =
+/**
+ * @interface_method_impl{DBGFOSIDMESG,pfnQueryKernelLog}
+ */
+static DECLCALLBACK(int) dbgDiggerDarwinIDmsg_QueryKernelLog(PDBGFOSIDMESG pThis, PUVM pUVM, uint32_t fFlags, uint32_t cMessages,
+                                                             char *pszBuf, size_t cbBuf, size_t *pcbActual)
 {
-    UINT64_C(0xc0100000),
-    UINT64_C(0x90100000),
-    UINT64_C(0xffffffff80200000)
-};
+    PDBGDIGGERDARWIN pData = RT_FROM_MEMBER(pThis, DBGDIGGERDARWIN, IDmesg);
+
+    if (cMessages < 1)
+        return VERR_INVALID_PARAMETER;
+
+    /*
+     * The 'msgbufp' variable points to a struct msgbuf (bsd/kern/subr_log.c).
+     */
+    RTDBGAS  hAs = DBGFR3AsResolveAndRetain(pUVM, DBGF_AS_KERNEL);
+    RTDBGMOD hMod;
+    int rc = RTDbgAsModuleByName(hAs, "mach_kernel", 0, &hMod);
+    if (RT_FAILURE(rc))
+        return VERR_NOT_FOUND;
+    RTDbgAsRelease(hAs);
+
+    DBGFADDRESS Addr;
+    RTGCPTR     GCPtrMsgBufP = 0;
+    RTDBGSYMBOL SymInfo;
+    rc = RTDbgModSymbolByName(hMod, "_msgbufp", &SymInfo);
+    if (RT_SUCCESS(rc))
+    {
+        rc = DBGFR3MemRead(pUVM, 0 /*idCpu*/, DBGFR3AddrFromFlat(pUVM, &Addr, SymInfo.Value + pData->AddrKernel.FlatPtr),
+                           &GCPtrMsgBufP, pData->f64Bit ? sizeof(uint64_t) : sizeof(uint32_t));
+        if (RT_FAILURE(rc))
+        {
+            Log(("dbgDiggerDarwinIDmsg_QueryKernelLog: failed to read _msgbufp at %RGv: %Rrc\n", Addr.FlatPtr, rc));
+            return VERR_NOT_FOUND;
+        }
+        if (!OSX_VALID_ADDRESS(pData->f64Bit, GCPtrMsgBufP))
+        {
+            Log(("dbgDiggerDarwinIDmsg_QueryKernelLog: Invalid address for _msgbufp: %RGv\n", GCPtrMsgBufP));
+            return VERR_NOT_FOUND;
+        }
+    }
+    else
+    {
+        rc = RTDbgModSymbolByName(hMod, "_msgbuf", &SymInfo);
+        if (RT_FAILURE(rc))
+        {
+            Log(("dbgDiggerDarwinIDmsg_QueryKernelLog: failed to find _msgbufp and _msgbuf: %Rrc\n", rc));
+            return VERR_NOT_FOUND;
+        }
+        GCPtrMsgBufP = SymInfo.Value + pData->AddrKernel.FlatPtr;
+        if (!OSX_VALID_ADDRESS(pData->f64Bit, GCPtrMsgBufP))
+        {
+            Log(("dbgDiggerDarwinIDmsg_QueryKernelLog: Invalid address for _msgbuf: %RGv\n", GCPtrMsgBufP));
+            return VERR_NOT_FOUND;
+        }
+    }
+
+    /*
+     * Read the msgbuf structure.
+     */
+    struct
+    {
+        uint32_t msg_magic;
+        uint32_t msg_size;
+        uint32_t msg_bufx;
+        uint32_t msg_bufr;
+        uint64_t msg_bufc; /**< Size depends on windows size. */
+    } MsgBuf;
+    rc = DBGFR3MemRead(pUVM, 0 /*idCpu*/, DBGFR3AddrFromFlat(pUVM, &Addr, GCPtrMsgBufP),
+                       &MsgBuf, sizeof(MsgBuf) - (pData->f64Bit ? 0 : sizeof(uint32_t)) );
+    if (RT_FAILURE(rc))
+    {
+        Log(("dbgDiggerDarwinIDmsg_QueryKernelLog: failed to read msgbuf struct at %RGv: %Rrc\n", Addr.FlatPtr, rc));
+        return VERR_NOT_FOUND;
+    }
+    if (!pData->f64Bit)
+        MsgBuf.msg_bufc &= UINT32_MAX;
+
+    /*
+     * Validate the structure.
+     */
+    if (   MsgBuf.msg_magic != UINT32_C(0x63061)
+        || MsgBuf.msg_size < UINT32_C(4096)
+        || MsgBuf.msg_size > 16*_1M
+        || MsgBuf.msg_bufx > MsgBuf.msg_size
+        || MsgBuf.msg_bufr > MsgBuf.msg_size
+        || !OSX_VALID_ADDRESS(pData->f64Bit, MsgBuf.msg_bufc) )
+    {
+        Log(("dbgDiggerDarwinIDmsg_QueryKernelLog: Invalid MsgBuf data: magic=%#x size=%#x bufx=%#x bufr=%#x bufc=%RGv\n",
+             MsgBuf.msg_magic, MsgBuf.msg_size, MsgBuf.msg_bufx, MsgBuf.msg_bufr, MsgBuf.msg_bufc));
+        return VERR_INVALID_STATE;
+    }
+
+    /*
+     * Read the buffer.
+     */
+    char *pchMsgBuf = (char *)RTMemAlloc(MsgBuf.msg_size);
+    if (!pchMsgBuf)
+    {
+        Log(("dbgDiggerDarwinIDmsg_QueryKernelLog: Failed to allocate %#x bytes of memory for the log buffer\n",
+             MsgBuf.msg_size));
+        return VERR_INVALID_STATE;
+    }
+    rc = DBGFR3MemRead(pUVM, 0 /*idCpu*/, DBGFR3AddrFromFlat(pUVM, &Addr, MsgBuf.msg_bufc), pchMsgBuf, MsgBuf.msg_size);
+    if (RT_SUCCESS(rc))
+    {
+        /*
+         * Copy it out raw.
+         */
+        uint32_t offDst = 0;
+        if (MsgBuf.msg_bufr < MsgBuf.msg_bufx)
+        {
+            /* Single chunk between the read and write offsets. */
+            uint32_t cbToCopy = MsgBuf.msg_bufx - MsgBuf.msg_bufr;
+            if (cbToCopy < cbBuf)
+            {
+                memcpy(pszBuf, &pchMsgBuf[MsgBuf.msg_bufr], cbToCopy);
+                pszBuf[cbToCopy] = '\0';
+                rc = VINF_SUCCESS;
+            }
+            else
+            {
+                if (cbBuf)
+                {
+                    memcpy(pszBuf, &pchMsgBuf[MsgBuf.msg_bufr], cbBuf - 1);
+                    pszBuf[cbBuf - 1] = '\0';
+                }
+                rc = VERR_BUFFER_OVERFLOW;
+            }
+            offDst = cbToCopy + 1;
+        }
+        else
+        {
+            /* Two chunks, read offset to end, start to write offset. */
+            uint32_t cbFirst  = MsgBuf.msg_size - MsgBuf.msg_bufr;
+            uint32_t cbSecond = MsgBuf.msg_bufx;
+            if (cbFirst + cbSecond < cbBuf)
+            {
+                memcpy(pszBuf, &pchMsgBuf[MsgBuf.msg_bufr], cbFirst);
+                memcpy(&pszBuf[cbFirst], pchMsgBuf, cbSecond);
+                offDst = cbFirst + cbSecond;
+                pszBuf[offDst++] = '\0';
+                rc = VINF_SUCCESS;
+            }
+            else
+            {
+                offDst = cbFirst + cbSecond + 1;
+                if (cbFirst < cbBuf)
+                {
+                    memcpy(pszBuf, &pchMsgBuf[MsgBuf.msg_bufr], cbFirst);
+                    memcpy(&pszBuf[cbFirst], pchMsgBuf, cbBuf - cbFirst);
+                    pszBuf[cbBuf - 1] = '\0';
+                }
+                else if (cbBuf)
+                {
+                    memcpy(pszBuf, &pchMsgBuf[MsgBuf.msg_bufr], cbBuf - 1);
+                    pszBuf[cbBuf - 1] = '\0';
+                }
+                rc = VERR_BUFFER_OVERFLOW;
+            }
+        }
+
+        if (pcbActual)
+            *pcbActual = offDst;
+    }
+    else
+        Log(("dbgDiggerDarwinIDmsg_QueryKernelLog: Error reading %#x bytes at %RGv: %Rrc\n", MsgBuf.msg_size, MsgBuf.msg_bufc, rc));
+    RTMemFree(pchMsgBuf);
+    return rc;
+}
 
 
 /**
@@ -97,7 +306,15 @@ static uint64_t g_au64LnxKernelAddresses[] =
  */
 static DECLCALLBACK(void *) dbgDiggerDarwinQueryInterface(PUVM pUVM, void *pvData, DBGFOSINTERFACE enmIf)
 {
-    return NULL;
+    PDBGDIGGERDARWIN pThis = (PDBGDIGGERDARWIN)pvData;
+    switch (enmIf)
+    {
+        case DBGFOSINTERFACE_DMESG:
+            return &pThis->IDmesg;
+
+        default:
+            return NULL;
+    }
 }
 
 
@@ -171,7 +388,7 @@ static bool dbgDiggerDarwinIsValidSegOrSectName(const char *pszName, size_t cbNa
     size_t off = 0;
     while (off < cbName && (ch = pszName[off]))
     {
-        if (RT_C_IS_CNTRL(ch) || ch > 127)
+        if (RT_C_IS_CNTRL(ch) || ch >= 127)
             return false;
         off++;
     }
@@ -192,7 +409,7 @@ static bool dbgDiggerDarwinIsValidSegOrSectName(const char *pszName, size_t cbNa
 }
 
 
-static int dbgDiggerDarwinAddModule(PDBGDIGGERDARWIN pThis, PUVM pUVM, uint64_t uModAddr, const char *pszName)
+static int dbgDiggerDarwinAddModule(PDBGDIGGERDARWIN pThis, PUVM pUVM, uint64_t uModAddr, const char *pszName, bool *pf64Bit)
 {
     union
     {
@@ -239,7 +456,7 @@ static int dbgDiggerDarwinAddModule(PDBGDIGGERDARWIN pThis, PUVM pUVM, uint64_t 
     /*
      * Process the load commands.
      */
-    RTDBGSEGMENT    aSegs[12];
+    RTDBGSEGMENT    aSegs[24];
     uint32_t        cSegs  = 0;
     RTUUID          Uuid   = RTUUID_INITIALIZE_NULL;
     uint32_t        cLeft  = uBuf.Hdr32.ncmds;
@@ -271,7 +488,7 @@ static int dbgDiggerDarwinAddModule(PDBGDIGGERDARWIN pThis, PUVM pUVM, uint64_t 
                 if (!dbgDiggerDarwinIsValidSegOrSectName(uLCmd.pSeg32->segname, sizeof(uLCmd.pSeg32->segname)))
                     return VERR_INVALID_NAME;
                 if (!strcmp(uLCmd.pSeg32->segname, "__LINKEDIT"))
-                    continue; /* This usually is discarded or not loaded at all. */
+                    break; /* This usually is discarded or not loaded at all. */
                 if (cSegs >= RT_ELEMENTS(aSegs))
                     return VERR_BUFFER_OVERFLOW;
                 aSegs[cSegs].Address = uLCmd.pSeg32->vmaddr;
@@ -290,7 +507,7 @@ static int dbgDiggerDarwinAddModule(PDBGDIGGERDARWIN pThis, PUVM pUVM, uint64_t 
                 if (!dbgDiggerDarwinIsValidSegOrSectName(uLCmd.pSeg64->segname, sizeof(uLCmd.pSeg64->segname)))
                     return VERR_INVALID_NAME;
                 if (!strcmp(uLCmd.pSeg64->segname, "__LINKEDIT"))
-                    continue; /* This usually is discarded or not loaded at all. */
+                    break; /* This usually is discarded or not loaded at all. */
                 if (cSegs >= RT_ELEMENTS(aSegs))
                     return VERR_BUFFER_OVERFLOW;
                 aSegs[cSegs].Address = uLCmd.pSeg64->vmaddr;
@@ -387,10 +604,24 @@ static int dbgDiggerDarwinAddModule(PDBGDIGGERDARWIN pThis, PUVM pUVM, uint64_t 
     {
         uint64_t uRvaNext = 0;
         uint32_t cLinked  = 0;
-        for (iSeg = 0; iSeg < cSegs; iSeg++)
+        iSeg = cSegs;
+        while (iSeg-- > 0) /* HACK: Map in reverse order to avoid replacing __TEXT. */
             if (aSegs[iSeg].cb)
             {
-                int rc2 = RTDbgAsModuleLinkSeg(hAs, hMod, iSeg, aSegs[iSeg].Address, RTDBGASLINK_FLAGS_REPLACE /*fFlags*/);
+                /* Find matching segment in the debug module. */
+                uint32_t iDbgSeg = 0;
+                while (iDbgSeg < cSegs)
+                {
+                    RTDBGSEGMENT SegInfo;
+                    int rc3 = RTDbgModSegmentByIndex(hMod, iDbgSeg, &SegInfo);
+                    if (RT_SUCCESS(rc3) && !strcmp(SegInfo.szName, aSegs[iSeg].szName))
+                        break;
+                    iDbgSeg++;
+                }
+                AssertMsgStmt(iDbgSeg < cSegs, ("%s\n", aSegs[iSeg].szName), continue);
+
+                /* Map it. */
+                int rc2 = RTDbgAsModuleLinkSeg(hAs, hMod, iDbgSeg, aSegs[iSeg].Address, RTDBGASLINK_FLAGS_REPLACE /*fFlags*/);
                 if (RT_SUCCESS(rc2))
                     cLinked++;
                 else if (RT_SUCCESS(rc))
@@ -401,11 +632,39 @@ static int dbgDiggerDarwinAddModule(PDBGDIGGERDARWIN pThis, PUVM pUVM, uint64_t 
     }
     else
         rc = VERR_INTERNAL_ERROR;
+
     RTDbgModRelease(hMod);
     RTDbgAsRelease(hAs);
 
+    if (pf64Bit)
+        *pf64Bit = f64Bit;
     return rc;
 }
+
+
+static bool dbgDiggerDarwinIsValidName(const char *pszName)
+{
+    char ch;
+    while ((ch = *pszName++) != '\0')
+    {
+        if (ch < 0x20 || ch >= 127)
+            return false;
+    }
+    return true;
+}
+
+
+static bool dbgDiggerDarwinIsValidVersion(const char *pszVersion)
+{
+    char ch;
+    while ((ch = *pszVersion++) != '\0')
+    {
+        if (ch < 0x20 || ch >= 127)
+            return false;
+    }
+    return true;
+}
+
 
 /**
  * @copydoc DBGFOSREG::pfnInit
@@ -416,12 +675,168 @@ static DECLCALLBACK(int)  dbgDiggerDarwinInit(PUVM pUVM, void *pvData)
     Assert(!pThis->fValid);
 
     /*
-     * Add the kernel module (and later the other kernel modules we can find).
+     * Add the kernel module.
      */
-    int rc = dbgDiggerDarwinAddModule(pThis, pUVM, pThis->AddrKernel.FlatPtr, "mach_kernel");
+    bool f64Bit;
+    int rc = dbgDiggerDarwinAddModule(pThis, pUVM, pThis->AddrKernel.FlatPtr, "mach_kernel", &f64Bit);
     if (RT_SUCCESS(rc))
     {
-        /** @todo  */
+        /*
+         * The list of modules can be found at the 'kmod' symbol, that means
+         * that we currently require some kind of symbol file for the kernel
+         * to be loaded at this point.
+         *
+         * Note! Could also use the 'gLoadedKextSummaries', but I don't think
+         *       it's any easier to find without any kernel map than 'kmod'.
+         */
+        RTDBGSYMBOL SymInfo;
+        rc = DBGFR3AsSymbolByName(pUVM, DBGF_AS_KERNEL, "mach_kernel!kmod", &SymInfo, NULL);
+        if (RT_FAILURE(rc))
+            rc = DBGFR3AsSymbolByName(pUVM, DBGF_AS_KERNEL, "mach_kernel!_kmod", &SymInfo, NULL);
+        if (RT_SUCCESS(rc))
+        {
+            DBGFADDRESS AddrModInfo;
+            DBGFR3AddrFromFlat(pUVM, &AddrModInfo, SymInfo.Value);
+
+            /* Read the variable. */
+            RTUINT64U uKmodValue = { 0 };
+            if (f64Bit)
+                rc = DBGFR3MemRead(pUVM, 0 /*idCpu*/, &AddrModInfo, &uKmodValue.u, sizeof(uKmodValue.u));
+            else
+                rc = DBGFR3MemRead (pUVM, 0 /*idCpu*/, &AddrModInfo, &uKmodValue.s.Lo, sizeof(uKmodValue.s.Lo));
+            if (RT_SUCCESS(rc))
+            {
+                DBGFR3AddrFromFlat(pUVM, &AddrModInfo, uKmodValue.u);
+
+                /* Walk the list of modules. */
+                uint32_t cIterations = 0;
+                while (AddrModInfo.FlatPtr != 0)
+                {
+                    /* Some extra loop conditions... */
+                    if (!OSX_VALID_ADDRESS(f64Bit, AddrModInfo.FlatPtr))
+                    {
+                        Log(("OSXDig: Invalid kmod_info pointer: %RGv\n", AddrModInfo.FlatPtr));
+                        break;
+                    }
+                    if (AddrModInfo.FlatPtr == uKmodValue.u && cIterations != 0)
+                    {
+                        Log(("OSXDig: kmod_info list looped back to the start.\n"));
+                        break;
+                    }
+                    if (cIterations++ >= 2048)
+                    {
+                        Log(("OSXDig: Too many mod_info loops (%u)\n", cIterations));
+                        break;
+                    }
+
+                    /*
+                     * Read the kmod_info_t structure.
+                     */
+                    union
+                    {
+                        OSX64_kmod_info_t   Info64;
+                        OSX32_kmod_info_t   Info32;
+                    } uMod;
+                    RT_ZERO(uMod);
+                    rc = DBGFR3MemRead(pUVM, 0 /*idCpu*/, &AddrModInfo, &uMod,
+                                       f64Bit ? sizeof(uMod.Info64) : sizeof(uMod.Info32));
+                    if (RT_FAILURE(rc))
+                    {
+                        Log(("OSXDig: Error reading kmod_info structure at %RGv: %Rrc\n", AddrModInfo.FlatPtr, rc));
+                        break;
+                    }
+
+                    /*
+                     * Validate the kmod_info_t structure.
+                     */
+                    int32_t iInfoVer = f64Bit ? uMod.Info64.info_version : uMod.Info32.info_version;
+                    if (iInfoVer != OSX_KMOD_INFO_VERSION)
+                    {
+                        Log(("OSXDig: kmod_info @%RGv: Bad info_version %d\n", AddrModInfo.FlatPtr, iInfoVer));
+                        break;
+                    }
+
+                    const char *pszName = f64Bit ? uMod.Info64.name : uMod.Info32.name;
+                    if (   !*pszName
+                        || !RTStrEnd(pszName, sizeof(uMod.Info64.name))
+                        || !dbgDiggerDarwinIsValidName(pszName) )
+                    {
+                        Log(("OSXDig: kmod_info @%RGv: Bad name '%.*s'\n", AddrModInfo.FlatPtr,
+                             sizeof(uMod.Info64.name), pszName));
+                        break;
+                    }
+
+                    const char *pszVersion = f64Bit ? uMod.Info64.version : uMod.Info32.version;
+                    if (   !RTStrEnd(pszVersion, sizeof(uMod.Info64.version))
+                        || !dbgDiggerDarwinIsValidVersion(pszVersion) )
+                    {
+                        Log(("OSXDig: kmod_info @%RGv: Bad version '%.*s'\n", AddrModInfo.FlatPtr,
+                             sizeof(uMod.Info64.version), pszVersion));
+                        break;
+                    }
+
+                    int32_t cRefs = f64Bit ? uMod.Info64.reference_count : uMod.Info32.reference_count;
+                    if (cRefs < -1 || cRefs > 16384)
+                    {
+                        Log(("OSXDig: kmod_info @%RGv: Bad reference_count %d\n", AddrModInfo.FlatPtr, cRefs));
+                        break;
+                    }
+
+                    uint64_t uImageAddr = f64Bit ? uMod.Info64.address : uMod.Info32.address;
+                    if (!OSX_VALID_ADDRESS(f64Bit, uImageAddr))
+                    {
+                        Log(("OSXDig: kmod_info @%RGv: Bad address %#llx\n", AddrModInfo.FlatPtr, uImageAddr));
+                        break;
+                    }
+
+                    uint64_t cbImage = f64Bit ? uMod.Info64.size : uMod.Info32.size;
+                    if (cbImage > 64U*_1M)
+                    {
+                        Log(("OSXDig: kmod_info @%RGv: Bad size %#llx\n", AddrModInfo.FlatPtr, cbImage));
+                        break;
+                    }
+
+                    uint64_t cbHdr = f64Bit ? uMod.Info64.hdr_size : uMod.Info32.hdr_size;
+                    if (cbHdr > 16U*_1M)
+                    {
+                        Log(("OSXDig: kmod_info @%RGv: Bad hdr_size %#llx\n", AddrModInfo.FlatPtr, cbHdr));
+                        break;
+                    }
+
+                    uint64_t uStartAddr = f64Bit ? uMod.Info64.start : uMod.Info32.start;
+                    if (!uStartAddr && !OSX_VALID_ADDRESS(f64Bit, uStartAddr))
+                    {
+                        Log(("OSXDig: kmod_info @%RGv: Bad start function %#llx\n", AddrModInfo.FlatPtr, uStartAddr));
+                        break;
+                    }
+
+                    uint64_t uStopAddr = f64Bit ? uMod.Info64.stop : uMod.Info32.stop;
+                    if (!uStopAddr && !OSX_VALID_ADDRESS(f64Bit, uStopAddr))
+                    {
+                        Log(("OSXDig: kmod_info @%RGv: Bad stop function %#llx\n", AddrModInfo.FlatPtr, uStopAddr));
+                        break;
+                    }
+
+                    /*
+                     * Try add the module.
+                     */
+                    Log(("OSXDig: kmod_info @%RGv: '%s' ver '%s', image @%#llx LB %#llx cbHdr=%#llx\n", AddrModInfo.FlatPtr,
+                         pszName, pszVersion, uImageAddr, cbImage, cbHdr));
+                    rc = dbgDiggerDarwinAddModule(pThis, pUVM, uImageAddr, pszName, NULL);
+
+
+                    /*
+                     * Advance to the next kmod_info entry.
+                     */
+                    DBGFR3AddrFromFlat(pUVM, &AddrModInfo, f64Bit ? uMod.Info64.next : uMod.Info32.next);
+                }
+            }
+            else
+                Log(("OSXDig: Error reading the 'kmod' variable: %Rrc\n", rc));
+        }
+        else
+            Log(("OSXDig: Failed to locate the 'kmod' variable in mach_kernel.\n"));
+
         pThis->fValid = true;
         return VINF_SUCCESS;
     }
@@ -500,7 +915,7 @@ static DECLCALLBACK(bool)  dbgDiggerDarwinProbe(PUVM pUVM, void *pvData)
             if (uBuf.Hdr32.ncmds > 256)
                 continue;
             AssertCompileMembersSameSizeAndOffset(mach_header_64_t, sizeofcmds, mach_header_32_t, sizeofcmds);
-            if (uBuf.Hdr32.sizeofcmds > X86_PAGE_4K_SIZE - sizeof(mach_header_64_t))
+            if (uBuf.Hdr32.sizeofcmds > X86_PAGE_4K_SIZE * 2 - sizeof(mach_header_64_t))
                 continue;
 
             /* Seems good enough for now.
@@ -508,6 +923,7 @@ static DECLCALLBACK(bool)  dbgDiggerDarwinProbe(PUVM pUVM, void *pvData)
                If the above causes false positives, check the segments and make
                sure there is a kernel version string in the right one. */
             pThis->AddrKernel = KernelAddr;
+            pThis->f64Bit     = f64Bit;
 
             /*
              * Finally, find the kernel version string.
@@ -537,6 +953,12 @@ static DECLCALLBACK(void)  dbgDiggerDarwinDestruct(PUVM pUVM, void *pvData)
  */
 static DECLCALLBACK(int)  dbgDiggerDarwinConstruct(PUVM pUVM, void *pvData)
 {
+    PDBGDIGGERDARWIN pThis = (PDBGDIGGERDARWIN)pvData;
+
+    pThis->IDmesg.u32Magic = DBGFOSIDMESG_MAGIC;
+    pThis->IDmesg.pfnQueryKernelLog = dbgDiggerDarwinIDmsg_QueryKernelLog;
+    pThis->IDmesg.u32EndMagic = DBGFOSIDMESG_MAGIC;
+
     return VINF_SUCCESS;
 }
 

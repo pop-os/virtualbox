@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -51,7 +51,7 @@ typedef struct DRVSCSIHOST
 
     /** Pointer to the SCSI port interface of the device above. */
     PPDMISCSIPORT           pDevScsiPort;
-    /** The SCSI connector interface .   */
+    /** The SCSI connector interface. */
     PDMISCSICONNECTOR       ISCSIConnector;
 
     /** Path to the device file. */
@@ -285,7 +285,7 @@ static int drvscsihostProcessRequestOne(PDRVSCSIHOST pThis, PPDMSCSIREQUEST pReq
                 ScsiIoReq.iovec_count = pRequest->cScatterGatherEntries;
 
                 paSG = (sg_iovec_t *)RTMemAllocZ(pRequest->cScatterGatherEntries * sizeof(sg_iovec_t));
-                AssertPtrReturn(paSG, VERR_NO_MEMORY);
+                AssertReturn(paSG, VERR_NO_MEMORY);
 
                 for (unsigned i = 0; i < pRequest->cScatterGatherEntries; i++)
                 {
@@ -367,7 +367,7 @@ static int drvscsihostAsyncIOLoopWakeup(PPDMDRVINS pDrvIns, PPDMTHREAD pThread)
     AssertReturn(pThis->hQueueRequests != NIL_RTREQQUEUE, VERR_INVALID_STATE);
 
     rc = RTReqQueueCall(pThis->hQueueRequests, &pReq, 10000 /* 10 sec. */, (PFNRT)drvscsihostAsyncIOLoopWakeupFunc, 0);
-    AssertMsgRC(rc, ("Inserting request into queue failed rc=%Rrc\n"));
+    AssertMsgRC(rc, ("Inserting request into queue failed rc=%Rrc\n", rc));
 
     return rc;
 }
@@ -471,7 +471,7 @@ static DECLCALLBACK(int) drvscsihostConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg
 
     /* Create request queue. */
     int rc = RTReqQueueCreate(&pThis->hQueueRequests);
-    AssertMsgReturn(RT_SUCCESS(rc), ("Failed to create request queue rc=%Rrc\n"), rc);
+    AssertMsgReturn(RT_SUCCESS(rc), ("Failed to create request queue rc=%Rrc\n", rc), rc);
 
     /* Open the device. */
     rc = CFGMR3QueryStringAlloc(pCfg, "DevicePath", &pThis->pszDevicePath);
@@ -487,7 +487,7 @@ static DECLCALLBACK(int) drvscsihostConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg
     /* Create I/O thread. */
     rc = PDMDrvHlpThreadCreate(pDrvIns, &pThis->pAsyncIOThread, pThis, drvscsihostAsyncIOLoop,
                                drvscsihostAsyncIOLoopWakeup, 0, RTTHREADTYPE_IO, "SCSI async IO");
-    AssertMsgReturn(RT_SUCCESS(rc), ("Failed to create async I/O thread rc=%Rrc\n"), rc);
+    AssertMsgReturn(RT_SUCCESS(rc), ("Failed to create async I/O thread rc=%Rrc\n", rc), rc);
 
     return VINF_SUCCESS;
 }

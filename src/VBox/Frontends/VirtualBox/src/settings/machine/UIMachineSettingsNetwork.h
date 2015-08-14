@@ -1,7 +1,6 @@
+/* $Id: UIMachineSettingsNetwork.h $ */
 /** @file
- *
- * VBox frontends: Qt4 GUI ("VirtualBox"):
- * UIMachineSettingsNetwork class declaration
+ * VBox Qt GUI - UIMachineSettingsNetwork class declaration.
  */
 
 /*

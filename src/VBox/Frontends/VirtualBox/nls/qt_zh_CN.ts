@@ -93,7 +93,7 @@
         <source>Warning: You do not seem to have the base GStreamer plugins installed.
           All audio and video support has been disabled</source>
         <translation>警告：看起来，您没有安装基础的 GStreamer 插件。
-    所有的音频和视频支持都已经被关闭。</translation>
+    所有的音频和视频支持都已经被关闭</translation>
     </message>
 </context>
 <context>
@@ -574,7 +574,7 @@ to
     </message>
     <message>
         <source>Contains commands to manipulate the window</source>
-        <translation>包含操作窗口的命令。</translation>
+        <translation>包含操作窗口的命令</translation>
     </message>
     <message>
         <source>Puts a minimized back to normal</source>
@@ -2359,7 +2359,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>The proxy type is invalid for this operation</source>
-        <translation>对于这个操作代理类型是无效的。</translation>
+        <translation>对于这个操作代理类型是无效的</translation>
     </message>
 </context>
 <context>
@@ -2851,7 +2851,6 @@ Please choose a different file name.</source>
     </message>
     <message>
         <source>Executive</source>
-        <translatorcomment>TODO</translatorcomment>
         <translation>决策文书</translation>
     </message>
     <message>
@@ -4583,7 +4582,7 @@ Please choose a different file name.</source>
     </message>
     <message>
         <source>Encoding %1 is unsupported</source>
-        <translation>编码%1不被支持。</translation>
+        <translation>编码%1不被支持</translation>
     </message>
     <message>
         <source>Standalone accepts only yes or no.</source>
@@ -4902,15 +4901,15 @@ Please choose a different file name.</source>
     </message>
     <message>
         <source>No namespace binding exists for the prefix %1</source>
-        <translation>对于前缀 %1，没有存在绑定的命名空间。</translation>
+        <translation>对于前缀 %1，没有存在绑定的命名空间</translation>
     </message>
     <message>
         <source>No namespace binding exists for the prefix %1 in %2</source>
-        <translation>对于 %2 中的前缀 %1，没有存在绑定的命名空间。</translation>
+        <translation>对于 %2 中的前缀 %1，没有存在绑定的命名空间</translation>
     </message>
     <message>
         <source>%1 is an invalid %2</source>
-        <translation>%1 是一个无效的 %2。</translation>
+        <translation>%1 是一个无效的 %2</translation>
     </message>
     <message numerus="yes">
         <source>%1 takes at most %n argument(s). %2 is therefore invalid.</source>
@@ -5042,7 +5041,7 @@ Please choose a different file name.</source>
     </message>
     <message>
         <source>No variable by name %1 exists</source>
-        <translation>没有名称为 %1 的变量存在。</translation>
+        <translation>没有名称为 %1 的变量存在</translation>
     </message>
     <message>
         <source>The variable %1 is unused</source>
@@ -5058,7 +5057,7 @@ Please choose a different file name.</source>
     </message>
     <message>
         <source>No function with signature %1 is available</source>
-        <translation>没有签名为 %1 的可用函数。</translation>
+        <translation>没有签名为 %1 的可用函数</translation>
     </message>
     <message>
         <source>A default namespace declaration must occur before function, variable, and option declarations.</source>
@@ -5138,11 +5137,11 @@ Please choose a different file name.</source>
     </message>
     <message>
         <source>None of the pragma expressions are supported. Therefore, a fallback expression must be present</source>
-        <translation>不支持任何编译指示表达式(pragma expression)。因此，必须呈现一个回调表达式(fallback expression)。</translation>
+        <translation>不支持任何编译指示表达式(pragma expression)。因此，必须呈现一个回调表达式(fallback expression)</translation>
     </message>
     <message>
         <source>The %1-axis is unsupported in XQuery</source>
-        <translation>这个 %1 轴在 XQuery 中是不被支持的。</translation>
+        <translation>这个 %1 轴在 XQuery 中是不被支持的</translation>
     </message>
     <message>
         <source>%1 is not a valid numeric literal.</source>
@@ -5162,7 +5161,7 @@ Please choose a different file name.</source>
     </message>
     <message>
         <source>It is not possible to bind to the prefix %1</source>
-        <translation>无法绑定到这个前缀 %1。</translation>
+        <translation>无法绑定到这个前缀 %1</translation>
     </message>
     <message>
         <source>Namespace %1 can only be bound to %2 (and it is, in either case, pre-declared).</source>
@@ -5262,7 +5261,7 @@ Please choose a different file name.</source>
     </message>
     <message>
         <source>The namespace for a user defined function cannot be empty (try the predefined prefix %1 which exists for cases like this)</source>
-        <translation>用户定义的函数的命名空间不能为空(请试试预定义的前缀 %1，它就是用于这种情况的)</translation>
+        <translation>自定义函数的命名空间不能为空(请试试预定义的前缀 %1，它就是用于这种情况的)</translation>
     </message>
 </context>
 <context>

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2012 Oracle Corporation
+ * Copyright (C) 2012-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -32,7 +32,11 @@
 
 RT_C_DECLS_BEGIN
 
-/** @defgroup grp_filesystem           IPRT Filesystem VFS
+/** @defgroup grp_rt_filesystem           IPRT Filesystem VFS
+ *
+ * @todo r=bird: WRONG WRONG WRONG FILE. We already have a file system API in
+ * IPRT, it is RTFs*, see @ref grp_rt_fs.  NOBODY ADDS ANY NEW APIS HERE!!
+ *
  * @{
  */
 

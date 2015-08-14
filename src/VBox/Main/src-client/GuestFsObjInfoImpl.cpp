@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012 Oracle Corporation
+ * Copyright (C) 2012-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,6 +19,9 @@
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
+#ifndef VBOX_WITH_GUEST_CONTROL
+# error "VBOX_WITH_GUEST_CONTROL must defined in this file"
+#endif
 #include "GuestFsObjInfoImpl.h"
 #include "GuestCtrlImplPrivate.h"
 
@@ -62,7 +65,7 @@ int GuestFsObjInfo::init(const GuestFsObjData &objData)
 
     /* Enclose the state transition NotReady->InInit->Ready. */
     AutoInitSpan autoInitSpan(this);
-    AssertReturn(autoInitSpan.isOk(), E_FAIL);
+    AssertReturn(autoInitSpan.isOk(), E_FAIL); /** @todo r=bird: returning COM or IPRT status codes here?*/
 
     mData = objData;
 
@@ -86,326 +89,141 @@ void GuestFsObjInfo::uninit(void)
         return;
 }
 
-// implementation of public getters/setters for attributes
+// implementation of wrapped private getters/setters for attributes
 /////////////////////////////////////////////////////////////////////////////
 
-STDMETHODIMP GuestFsObjInfo::COMGETTER(AccessTime)(LONG64 *aAccessTime)
+HRESULT GuestFsObjInfo::getAccessTime(LONG64 *aAccessTime)
 {
-#ifndef VBOX_WITH_GUEST_CONTROL
-    ReturnComNotImplemented();
-#else
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    CheckComArgOutPointerValid(aAccessTime);
-
     *aAccessTime = mData.mAccessTime;
 
     return S_OK;
-#endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-STDMETHODIMP GuestFsObjInfo::COMGETTER(AllocatedSize)(LONG64 *aAllocatedSize)
+HRESULT GuestFsObjInfo::getAllocatedSize(LONG64 *aAllocatedSize)
 {
-#ifndef VBOX_WITH_GUEST_CONTROL
-    ReturnComNotImplemented();
-#else
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    CheckComArgOutPointerValid(aAllocatedSize);
-
     *aAllocatedSize = mData.mAllocatedSize;
 
     return S_OK;
-#endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-STDMETHODIMP GuestFsObjInfo::COMGETTER(BirthTime)(LONG64 *aBirthTime)
+HRESULT GuestFsObjInfo::getBirthTime(LONG64 *aBirthTime)
 {
-#ifndef VBOX_WITH_GUEST_CONTROL
-    ReturnComNotImplemented();
-#else
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    CheckComArgOutPointerValid(aBirthTime);
-
     *aBirthTime = mData.mBirthTime;
 
     return S_OK;
-#endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-STDMETHODIMP GuestFsObjInfo::COMGETTER(ChangeTime)(LONG64 *aChangeTime)
+HRESULT GuestFsObjInfo::getChangeTime(LONG64 *aChangeTime)
 {
-#ifndef VBOX_WITH_GUEST_CONTROL
-    ReturnComNotImplemented();
-#else
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    CheckComArgOutPointerValid(aChangeTime);
-
     *aChangeTime = mData.mChangeTime;
 
     return S_OK;
-#endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-STDMETHODIMP GuestFsObjInfo::COMGETTER(DeviceNumber)(ULONG *aDeviceNumber)
+
+
+HRESULT GuestFsObjInfo::getDeviceNumber(ULONG *aDeviceNumber)
 {
-#ifndef VBOX_WITH_GUEST_CONTROL
-    ReturnComNotImplemented();
-#else
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    CheckComArgOutPointerValid(aDeviceNumber);
-
     *aDeviceNumber = mData.mDeviceNumber;
 
     return S_OK;
-#endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-STDMETHODIMP GuestFsObjInfo::COMGETTER(FileAttributes)(BSTR *aAttributes)
+HRESULT GuestFsObjInfo::getFileAttributes(com::Utf8Str &aFileAttributes)
 {
-#ifndef VBOX_WITH_GUEST_CONTROL
-    ReturnComNotImplemented();
-#else
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    CheckComArgOutPointerValid(aAttributes);
-
-    mData.mFileAttrs.cloneTo(aAttributes);
+    aFileAttributes = mData.mFileAttrs;
 
     return S_OK;
-#endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-STDMETHODIMP GuestFsObjInfo::COMGETTER(GenerationId)(ULONG *aGenerationId)
+HRESULT GuestFsObjInfo::getGenerationId(ULONG *aGenerationId)
 {
-#ifndef VBOX_WITH_GUEST_CONTROL
-    ReturnComNotImplemented();
-#else
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    CheckComArgOutPointerValid(aGenerationId);
-
     *aGenerationId = mData.mGenerationID;
 
     return S_OK;
-#endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-STDMETHODIMP GuestFsObjInfo::COMGETTER(GID)(ULONG *aGID)
+HRESULT GuestFsObjInfo::getGID(ULONG *aGID)
 {
-#ifndef VBOX_WITH_GUEST_CONTROL
-    ReturnComNotImplemented();
-#else
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    CheckComArgOutPointerValid(aGID);
-
     *aGID = mData.mGID;
 
     return S_OK;
-#endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-STDMETHODIMP GuestFsObjInfo::COMGETTER(GroupName)(BSTR *aGroupName)
+HRESULT GuestFsObjInfo::getGroupName(com::Utf8Str &aGroupName)
 {
-#ifndef VBOX_WITH_GUEST_CONTROL
-    ReturnComNotImplemented();
-#else
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    CheckComArgOutPointerValid(aGroupName);
-
-    mData.mGroupName.cloneTo(aGroupName);
+    aGroupName = mData.mGroupName;
 
     return S_OK;
-#endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-STDMETHODIMP GuestFsObjInfo::COMGETTER(HardLinks)(ULONG *aHardLinks)
+HRESULT GuestFsObjInfo::getHardLinks(ULONG *aHardLinks)
 {
-#ifndef VBOX_WITH_GUEST_CONTROL
-    ReturnComNotImplemented();
-#else
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    CheckComArgOutPointerValid(aHardLinks);
-
     *aHardLinks = mData.mNumHardLinks;
 
     return S_OK;
-#endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-STDMETHODIMP GuestFsObjInfo::COMGETTER(ModificationTime)(LONG64 *aModificationTime)
+HRESULT GuestFsObjInfo::getModificationTime(LONG64 *aModificationTime)
 {
-#ifndef VBOX_WITH_GUEST_CONTROL
-    ReturnComNotImplemented();
-#else
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    CheckComArgOutPointerValid(aModificationTime);
-
     *aModificationTime = mData.mModificationTime;
 
     return S_OK;
-#endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-STDMETHODIMP GuestFsObjInfo::COMGETTER(Name)(BSTR *aName)
+HRESULT GuestFsObjInfo::getName(com::Utf8Str &aName)
 {
-#ifndef VBOX_WITH_GUEST_CONTROL
-    ReturnComNotImplemented();
-#else
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    CheckComArgOutPointerValid(aName);
-
-    mData.mName.cloneTo(aName);
+    aName = mData.mName;
 
     return S_OK;
-#endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-STDMETHODIMP GuestFsObjInfo::COMGETTER(NodeId)(LONG64 *aNodeId)
+HRESULT GuestFsObjInfo::getNodeId(LONG64 *aNodeId)
 {
-#ifndef VBOX_WITH_GUEST_CONTROL
-    ReturnComNotImplemented();
-#else
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    CheckComArgOutPointerValid(aNodeId);
-
     *aNodeId = mData.mNodeID;
 
     return S_OK;
-#endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-STDMETHODIMP GuestFsObjInfo::COMGETTER(NodeIdDevice)(ULONG *aNodeIdDevice)
+HRESULT GuestFsObjInfo::getNodeIdDevice(ULONG *aNodeIdDevice)
 {
-#ifndef VBOX_WITH_GUEST_CONTROL
-    ReturnComNotImplemented();
-#else
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    CheckComArgOutPointerValid(aNodeIdDevice);
-
     *aNodeIdDevice = mData.mNodeIDDevice;
 
     return S_OK;
-#endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-STDMETHODIMP GuestFsObjInfo::COMGETTER(ObjectSize)(LONG64 *aObjectSize)
+HRESULT GuestFsObjInfo::getObjectSize(LONG64 *aObjectSize)
 {
-#ifndef VBOX_WITH_GUEST_CONTROL
-    ReturnComNotImplemented();
-#else
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    CheckComArgOutPointerValid(aObjectSize);
-
     *aObjectSize = mData.mObjectSize;
 
     return S_OK;
-#endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-STDMETHODIMP GuestFsObjInfo::COMGETTER(Type)(FsObjType_T *aType)
+HRESULT GuestFsObjInfo::getType(FsObjType_T *aType)
 {
-#ifndef VBOX_WITH_GUEST_CONTROL
-    ReturnComNotImplemented();
-#else
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    CheckComArgOutPointerValid(aType);
-
     *aType = mData.mType;
 
     return S_OK;
-#endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-STDMETHODIMP GuestFsObjInfo::COMGETTER(UID)(ULONG *aUID)
+HRESULT GuestFsObjInfo::getUID(ULONG *aUID)
 {
-#ifndef VBOX_WITH_GUEST_CONTROL
-    ReturnComNotImplemented();
-#else
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    CheckComArgOutPointerValid(aUID);
-
     *aUID = mData.mUID;
 
     return S_OK;
-#endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-STDMETHODIMP GuestFsObjInfo::COMGETTER(UserFlags)(ULONG *aUserFlags)
+HRESULT GuestFsObjInfo::getUserFlags(ULONG *aUserFlags)
 {
-#ifndef VBOX_WITH_GUEST_CONTROL
-    ReturnComNotImplemented();
-#else
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    CheckComArgOutPointerValid(aUserFlags);
-
     *aUserFlags = mData.mUserFlags;
 
     return S_OK;
-#endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-STDMETHODIMP GuestFsObjInfo::COMGETTER(UserName)(BSTR *aUserName)
+HRESULT GuestFsObjInfo::getUserName(com::Utf8Str &aUserName)
 {
-#ifndef VBOX_WITH_GUEST_CONTROL
-    ReturnComNotImplemented();
-#else
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    CheckComArgOutPointerValid(aUserName);
-
-    mData.mUserName.cloneTo(aUserName);
+    aUserName = mData.mUserName;
 
     return S_OK;
-#endif /* VBOX_WITH_GUEST_CONTROL */
-}
-
-STDMETHODIMP GuestFsObjInfo::COMGETTER(ACL)(BSTR *aACL)
-{
-#ifndef VBOX_WITH_GUEST_CONTROL
-    ReturnComNotImplemented();
-#else
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    CheckComArgOutPointerValid(aACL);
-
-    mData.mACL.cloneTo(aACL);
-
-    return S_OK;
-#endif /* VBOX_WITH_GUEST_CONTROL */
 }
 

@@ -1,3 +1,4 @@
+/* $Id: helpers.cpp $ */
 /** @file
  *
  * COM helper functions for XPCOM

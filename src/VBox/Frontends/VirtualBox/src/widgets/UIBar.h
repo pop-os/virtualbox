@@ -1,7 +1,6 @@
+/* $Id: UIBar.h $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * UIBar class declaration
+ * VBox Qt GUI - UIBar class declaration.
  */
 
 /*

@@ -4,7 +4,7 @@
 ;
 
 ;
-; Copyright (C) 2006-2010 Oracle Corporation
+; Copyright (C) 2006-2015 Oracle Corporation
 ;
 ; This file is part of VirtualBox Open Source Edition (OSE), as
 ; available from http://www.virtualbox.org. This file is free software;
@@ -28,6 +28,14 @@
 
 %include "iprt/asmdefs.mac"
 %include "VBox/sup.mac"
+
+;
+; Use the C reference implementation for now.
+;
+%error "This is out of date, use C code.  Not worth it for a couple of ticks in some functions and equal or worse performance in others."
+This is out of date
+This is out of date
+This is out of date
 
 
 ;; Keep this in sync with iprt/time.h.
@@ -73,7 +81,6 @@ BEGINDATA
  %endif
 %endif
 
-
 BEGINCODE
 
 ;
@@ -82,29 +89,58 @@ BEGINCODE
 ;
 %undef  ASYNC_GIP
 %undef  USE_LFENCE
+%undef  WITH_TSC_DELTA
+%undef  NEED_APIC_ID
 %define NEED_TRANSACTION_ID
-%define NEED_TO_SAVE_REGS
-%define rtTimeNanoTSInternalAsm    RTTimeNanoTSLegacySync
+%define rtTimeNanoTSInternalAsm    RTTimeNanoTSLegacySyncNoDelta
+%include "timesupA.mac"
+
+%define rtTimeNanoTSInternalAsm    RTTimeNanoTSLegacyInvariantNoDelta
+%include "timesupA.mac"
+
+%define WITH_TSC_DELTA
+%define NEED_APIC_ID
+%define rtTimeNanoTSInternalAsm    RTTimeNanoTSLegacySyncWithDelta
+%include "timesupA.mac"
+
+%define rtTimeNanoTSInternalAsm    RTTimeNanoTSLegacyInvariantWithDelta
 %include "timesupA.mac"
 
 %define ASYNC_GIP
+%undef  WITH_TSC_DELTA
+%define NEED_APIC_ID
 %ifdef IN_RC
  %undef NEED_TRANSACTION_ID
 %endif
 %define rtTimeNanoTSInternalAsm    RTTimeNanoTSLegacyAsync
 %include "timesupA.mac"
 
+
 ;
 ; Alternative implementation that employs lfence instead of cpuid.
 ;
 %undef  ASYNC_GIP
 %define USE_LFENCE
+%undef  WITH_TSC_DELTA
+%undef  NEED_APIC_ID
 %define NEED_TRANSACTION_ID
-%undef  NEED_TO_SAVE_REGS
-%define rtTimeNanoTSInternalAsm    RTTimeNanoTSLFenceSync
+%define rtTimeNanoTSInternalAsm    RTTimeNanoTSLFenceSyncNoDelta
+%include "timesupA.mac"
+
+%define rtTimeNanoTSInternalAsm    RTTimeNanoTSLFenceInvariantNoDelta
+%include "timesupA.mac"
+
+%define WITH_TSC_DELTA
+%define NEED_APIC_ID
+%define rtTimeNanoTSInternalAsm    RTTimeNanoTSLFenceSyncWithDelta
+%include "timesupA.mac"
+
+%define rtTimeNanoTSInternalAsm    RTTimeNanoTSLFenceInvariantWithDelta
 %include "timesupA.mac"
 
 %define ASYNC_GIP
+%undef  WITH_TSC_DELTA
+%define NEED_APIC_ID
 %ifdef IN_RC
  %undef NEED_TRANSACTION_ID
 %endif

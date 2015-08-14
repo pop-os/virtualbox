@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -109,7 +109,7 @@ static int rtCrPkcs7SignedData_CheckSanityExtra(PCRTCRPKCS7SIGNEDDATA pSignedDat
         if (RTAsn1Integer_UnsignedCompareWithU32(&pSignerInfo->Version, RTCRPKCS7SIGNERINFO_V1) != 0)
             return RTErrInfoSetF(pErrInfo, VERR_CR_PKCS7_SIGNER_INFO_VERSION,
                                  "SignedData.SignerInfos[%u] version is %llu, expected %u",
-                                 pSignerInfo->Version.uValue.u, RTCRPKCS7SIGNERINFO_V1);
+                                 i, pSignerInfo->Version.uValue.u, RTCRPKCS7SIGNERINFO_V1);
 
         /* IssuerAndSerialNumber. */
         int rc = RTCrX509Name_CheckSanity(&pSignerInfo->IssuerAndSerialNumber.Name, 0, pErrInfo,

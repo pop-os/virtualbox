@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2012 Oracle Corporation
+# Copyright (C) 2006-2015 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -61,18 +61,6 @@ vboxvideo_drm_DEFS            = \
 	KBUILD_MODNAME=KBUILD_STR\(vboxvideo\) \
 	KBUILD_BASENAME=KBUILD_STR\(vboxvideo\) \
 	DEBUG_HASH=2 DEBUG_HASH2=3
-# detect fc6 2.6.18
-vboxvideo_drm_DEFS           += \
-	$(foreach inc,$(VBOX_LINUX_INCS),\
-		$(if $(wildcard $(inc)/linux/utsrelease.h),\
-		 $(if $(shell if grep -q '"2.6.18.*fc6.*"' $(inc)/linux/utsrelease.h;\
-		               then echo yes; fi),KERNEL_FC6,),))
-# detect rhel5 2.6.18
-vboxvideo_drm_DEFS           += \
-	$(foreach inc,$(VBOX_LINUX_INCS),\
-		$(if $(wildcard $(inc)/linux/utsrelease.h),\
-		 $(if $(shell if grep -q '"2.6.18.*el5.*"' $(inc)/linux/utsrelease.h;\
-		               then echo yes; fi),KERNEL_FC6,),))
 if !defined(VBOX_WITH_GUEST_KMS_DRIVER)
  vboxvideo_drm_SOURCES         = vboxvideo_drm.c
 else
@@ -84,6 +72,7 @@ else
    ../../common/VBoxVideo/Modesetting.cpp \
    ../../common/VBoxVideo/VBVABase.cpp \
    ../../../GuestHost/HGSMI/HGSMICommon.cpp \
+   ../../../GuestHost/HGSMI/HGSMIMemAlloc.cpp \
    ../../../Runtime/common/alloc/heapoffset.cpp \
  	vbox_drv.c \
  	vbox_fb.c \

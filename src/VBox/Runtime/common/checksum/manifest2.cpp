@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2012 Oracle Corporation
+ * Copyright (C) 2010-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1298,7 +1298,7 @@ RTDECL(int) RTManifestReadStandardEx(RTMANIFEST hManifest, RTVFSIOSTREAM hVfsIos
         {
             if (rc == VERR_EOF)
                 return VINF_SUCCESS;
-            RTStrPrintf(pszErr, cbErr, "Error reading line #u: %Rrc", iLine, rc);
+            RTStrPrintf(pszErr, cbErr, "Error reading line #%u: %Rrc", iLine, rc);
             return rc;
         }
         if (rc != VINF_SUCCESS)

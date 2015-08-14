@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -33,7 +33,7 @@
 #include <iprt/thread.h>
 
 #include <iprt/asm.h>
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 5, 28)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 5, 28) || defined(CONFIG_X86_SMAP)
 # include <iprt/asm-amd64-x86.h>
 #endif
 #include <iprt/assert.h>
@@ -59,9 +59,11 @@ RT_EXPORT_SYMBOL(RTThreadNativeSelf);
 
 static int rtR0ThreadLnxSleepCommon(RTMSINTERVAL cMillies)
 {
+    IPRT_LINUX_SAVE_EFL_AC();
     long cJiffies = msecs_to_jiffies(cMillies);
     set_current_state(TASK_INTERRUPTIBLE);
     cJiffies = schedule_timeout(cJiffies);
+    IPRT_LINUX_RESTORE_EFL_AC();
     if (!cJiffies)
         return VINF_SUCCESS;
     return VERR_INTERRUPTED;
@@ -84,6 +86,7 @@ RT_EXPORT_SYMBOL(RTThreadSleepNoLog);
 
 RTDECL(bool) RTThreadYield(void)
 {
+    IPRT_LINUX_SAVE_EFL_AC();
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 4, 20)
     yield();
 #else
@@ -92,6 +95,7 @@ RTDECL(bool) RTThreadYield(void)
     sys_sched_yield();
     schedule();
 #endif
+    IPRT_LINUX_RESTORE_EFL_AC();
     return true;
 }
 RT_EXPORT_SYMBOL(RTThreadYield);

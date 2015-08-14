@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -207,6 +207,8 @@ static void rtR0MemObjSolPageDestroy(page_t *pPage)
 }
 
 
+/* Currently not used on 32-bits, define it to shut up gcc. */
+#if HC_ARCH_BITS == 64
 /**
  * Allocates physical, non-contiguous memory of pages.
  *
@@ -277,6 +279,7 @@ static page_t **rtR0MemObjSolPagesAlloc(uint64_t *puPhys, size_t cb)
 
     return NULL;
 }
+#endif  /* HC_ARCH_BITS == 64 */
 
 
 /**

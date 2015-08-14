@@ -1,3 +1,4 @@
+/* $Id: server.h $ */
 /** @file
  *
  * Common header for XPCOM server and its module counterpart

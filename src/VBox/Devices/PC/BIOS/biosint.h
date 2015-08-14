@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -65,6 +65,7 @@
 #define DEBUG_INT74     0
 #define DEBUG_PCI       0
 #define DEBUG_APM       0
+#define DEBUG_POST      0
 
 #define FP_OFF(p)   ((unsigned)(p))
 #define FP_SEG(p)   ((unsigned)((unsigned long)(void __far*)(p) >> 16))

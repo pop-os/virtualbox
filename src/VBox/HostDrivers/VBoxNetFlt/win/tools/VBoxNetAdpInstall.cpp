@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2012 Oracle Corporation
+ * Copyright (C) 2009-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -18,10 +18,16 @@
 #include <VBox/VBoxNetCfg-win.h>
 #include <VBox/VBoxDrvCfg-win.h>
 #include <stdio.h>
-
 #include <devguid.h>
 
+#define VBOX_NETADP_APP_NAME L"NetAdpInstall"
+
+#define VBOX_NETADP_HWID L"sun_VBoxNetAdp"
+#ifdef NDIS60
+#define VBOX_NETADP_INF L"VBoxNetAdp6.inf"
+#else /* !NDIS60 */
 #define VBOX_NETADP_INF L"VBoxNetAdp.inf"
+#endif /* !NDIS60 */
 
 static VOID winNetCfgLogger(LPCSTR szString)
 {
@@ -35,7 +41,7 @@ static int VBoxNetAdpInstall(void)
     HRESULT hr = CoInitialize(NULL);
     if (SUCCEEDED(hr))
     {
-        printf("adding host-only interface..\n");
+        wprintf(L"adding host-only interface..\n");
 
         DWORD dwErr = ERROR_SUCCESS;
         WCHAR MpInf[MAX_PATH];
@@ -45,6 +51,32 @@ static int VBoxNetAdpInstall(void)
 
         if (dwErr == ERROR_SUCCESS)
         {
+            INetCfg *pnc;
+            LPWSTR lpszLockedBy = NULL;
+            hr = VBoxNetCfgWinQueryINetCfg(&pnc, TRUE, VBOX_NETADP_APP_NAME, 10000, &lpszLockedBy);
+            if(hr == S_OK)
+            {
+
+                hr = VBoxNetCfgWinNetAdpInstall(pnc, MpInf);
+
+                if(hr == S_OK)
+                {
+                    wprintf(L"installed successfully\n");
+                }
+                else
+                {
+                    wprintf(L"error installing VBoxNetAdp (0x%x)\n", hr);
+                }
+
+                VBoxNetCfgWinReleaseINetCfg(pnc, TRUE);
+            }
+            else
+                wprintf(L"VBoxNetCfgWinQueryINetCfg failed: hr = 0x%x\n", hr);
+            /*
+            hr = VBoxDrvCfgInfInstall(MpInf);
+            if (FAILED(hr))
+                printf("VBoxDrvCfgInfInstall failed %#x\n", hr);
+
             GUID guid;
             BSTR name, errMsg;
 
@@ -55,8 +87,8 @@ static int VBoxNetAdpInstall(void)
                 hr = VBoxNetCfgWinGenHostOnlyNetworkNetworkIp(&ip, &mask);
                 if (SUCCEEDED(hr))
                 {
-                    /* ip returned by VBoxNetCfgWinGenHostOnlyNetworkNetworkIp is a network ip,
-                     * i.e. 192.168.xxx.0, assign  192.168.xxx.1 for the hostonly adapter */
+                    // ip returned by VBoxNetCfgWinGenHostOnlyNetworkNetworkIp is a network ip,
+                    // i.e. 192.168.xxx.0, assign  192.168.xxx.1 for the hostonly adapter
                     ip = ip | (1 << 24);
                     hr = VBoxNetCfgWinEnableStaticIpConfig(&guid, ip, mask);
                     if (SUCCEEDED(hr))
@@ -71,17 +103,18 @@ static int VBoxNetAdpInstall(void)
             }
             else
                 printf("VBoxNetCfgWinCreateHostOnlyNetworkInterface failed: hr = 0x%x\n", hr);
+            */
         }
         else
         {
-            printf("GetFullPathNameW failed: winEr = %d\n", dwErr);
+            wprintf(L"GetFullPathNameW failed: winEr = %d\n", dwErr);
             hr = HRESULT_FROM_WIN32(dwErr);
 
         }
         CoUninitialize();
     }
     else
-        printf("Error initializing COM (0x%x)\n", hr);
+        wprintf(L"Error initializing COM (0x%x)\n", hr);
 
     VBoxNetCfgWinSetLogging(NULL);
 
@@ -97,10 +130,10 @@ static int VBoxNetAdpUninstall(void)
     HRESULT hr = CoInitialize(NULL);
     if (SUCCEEDED(hr))
     {
-        hr = VBoxNetCfgWinRemoveAllNetDevicesOfId(L"sun_VBoxNetAdp");
+        hr = VBoxNetCfgWinRemoveAllNetDevicesOfId(VBOX_NETADP_HWID);
         if (SUCCEEDED(hr))
         {
-            hr = VBoxDrvCfgInfUninstallAllSetupDi(&GUID_DEVCLASS_NET, L"Net", L"sun_VBoxNetAdp", 0/* could be SUOI_FORCEDELETE */);
+            hr = VBoxDrvCfgInfUninstallAllSetupDi(&GUID_DEVCLASS_NET, L"Net", VBOX_NETADP_HWID, 0/* could be SUOI_FORCEDELETE */);
             if (SUCCEEDED(hr))
             {
                 printf("uninstallation successful\n");
@@ -130,7 +163,14 @@ static int VBoxNetAdpUpdate(void)
     if (SUCCEEDED(hr))
     {
         BOOL fRebootRequired = FALSE;
-        hr = VBoxNetCfgWinUpdateHostOnlyNetworkInterface(VBOX_NETADP_INF, &fRebootRequired);
+        /*
+         * Before we can update the driver for existing adapters we need to remove
+         * all old driver packages from the driver cache. Otherwise we may end up
+         * with both NDIS5 and NDIS6 versions of VBoxNetAdp in the cache which
+         * will cause all sorts of trouble.
+         */
+        VBoxDrvCfgInfUninstallAllF(L"Net", VBOX_NETADP_HWID, SUOI_FORCEDELETE);
+        hr = VBoxNetCfgWinUpdateHostOnlyNetworkInterface(VBOX_NETADP_INF, &fRebootRequired, VBOX_NETADP_HWID);
         if (SUCCEEDED(hr))
         {
             if (fRebootRequired)
@@ -159,7 +199,7 @@ static int VBoxNetAdpDisable(void)
     HRESULT hr = CoInitialize(NULL);
     if (SUCCEEDED(hr))
     {
-        hr = VBoxNetCfgWinPropChangeAllNetDevicesOfId(L"sun_VBoxNetAdp", VBOXNECTFGWINPROPCHANGE_TYPE_DISABLE);
+        hr = VBoxNetCfgWinPropChangeAllNetDevicesOfId(VBOX_NETADP_HWID, VBOXNECTFGWINPROPCHANGE_TYPE_DISABLE);
         if (SUCCEEDED(hr))
         {
             printf("disabling successful\n");
@@ -186,7 +226,7 @@ static int VBoxNetAdpEnable(void)
     HRESULT hr = CoInitialize(NULL);
     if (SUCCEEDED(hr))
     {
-        hr = VBoxNetCfgWinPropChangeAllNetDevicesOfId(L"sun_VBoxNetAdp", VBOXNECTFGWINPROPCHANGE_TYPE_ENABLE);
+        hr = VBoxNetCfgWinPropChangeAllNetDevicesOfId(VBOX_NETADP_HWID, VBOXNECTFGWINPROPCHANGE_TYPE_ENABLE);
         if (SUCCEEDED(hr))
         {
             printf("enabling successful\n");

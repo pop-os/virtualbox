@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -52,13 +52,13 @@ Hypervisor Memory Area (HMA) Layout: Base 00000000a0000000, 0x00800000 bytes
 00000000a0536000-00000000a05b6000                  MMIO2   0000000000000000 VGA VRam
 00000000a0523000-00000000a0536000 00002aaab3d0c000 LOCKED  autofree         alloc once (PDM_DEVICE)
 00000000a0522000-00000000a0523000                  DYNAMIC                  fence
-00000000a051e000-00000000a0522000 00002aaab36f5000 LOCKED  autofree         VBoxDD2GC.gc
+00000000a051e000-00000000a0522000 00002aaab36f5000 LOCKED  autofree         VBoxDD2RC.rc
 00000000a051d000-00000000a051e000                  DYNAMIC                  fence
-00000000a04eb000-00000000a051d000 00002aaab36c3000 LOCKED  autofree         VBoxDDGC.gc
+00000000a04eb000-00000000a051d000 00002aaab36c3000 LOCKED  autofree         VBoxDDRC.rc
 00000000a04ea000-00000000a04eb000                  DYNAMIC                  fence
 00000000a04e9000-00000000a04ea000 00002aaab36c2000 LOCKED  autofree         ram range (High ROM Region)
 00000000a04e8000-00000000a04e9000                  DYNAMIC                  fence
-00000000a040e000-00000000a04e8000 00002aaab2e6d000 LOCKED  autofree         VMMGC.gc
+00000000a040e000-00000000a04e8000 00002aaab2e6d000 LOCKED  autofree         VMMRC.rc
 00000000a0208000-00000000a040e000 00002aaab2c67000 LOCKED  autofree         alloc once (PATM)
 00000000a01f7000-00000000a0208000 00002aaaab92d000 LOCKED  autofree         alloc once (SELM)
 00000000a01e7000-00000000a01f7000 00002aaaab5e8000 LOCKED  autofree         alloc once (SELM)
@@ -308,7 +308,7 @@ VMMR3DECL(int) MMR3InitPaging(PVM pVM)
         AssertRCReturn(rc, rc);
     }
 
-    /** @cfgm{RamSize, uint64_t, 0, 16TB, 0}
+    /** @cfgm{/RamSize, uint64_t, 0, 16TB, 0}
      * Specifies the size of the base RAM that is to be set up during
      * VM initialization.
      */
@@ -323,7 +323,7 @@ VMMR3DECL(int) MMR3InitPaging(PVM pVM)
     cbRam &= X86_PTE_PAE_PG_MASK;
     pVM->mm.s.cbRamBase = cbRam;
 
-    /** @cfgm{RamHoleSize, uint32_t, 0, 4032MB, 512MB}
+    /** @cfgm{/RamHoleSize, uint32_t, 0, 4032MB, 512MB}
      * Specifies the size of the memory hole. The memory hole is used
      * to avoid mapping RAM to the range normally used for PCI memory regions.
      * Must be aligned on a 4MB boundary. */
@@ -342,7 +342,7 @@ VMMR3DECL(int) MMR3InitPaging(PVM pVM)
     else
         Log(("MM: %RU64 bytes of RAM with a hole at %RU64 up to 4GB.\n", cbRam, offRamHole));
 
-    /** @cfgm{MM/Policy, string, no overcommitment}
+    /** @cfgm{/MM/Policy, string, no overcommitment}
      * Specifies the policy to use when reserving memory for this VM. The recognized
      * value is 'no overcommitment' (default). See GMMPOLICY.
      */
@@ -362,7 +362,7 @@ VMMR3DECL(int) MMR3InitPaging(PVM pVM)
     else
         AssertMsgFailedReturn(("Configuration error: Failed to query string \"MM/Policy\", rc=%Rrc.\n", rc), rc);
 
-    /** @cfgm{MM/Priority, string, normal}
+    /** @cfgm{/MM/Priority, string, normal}
      * Specifies the memory priority of this VM. The priority comes into play when the
      * system is overcommitted and the VMs needs to be milked for memory. The recognized
      * values are 'low', 'normal' (default) and 'high'. See GMMPRIORITY.
@@ -498,6 +498,18 @@ VMMR3DECL(void) MMR3TermUVM(PUVM pUVM)
     }
     mmR3HeapDestroy(pUVM->mm.s.pHeap);
     pUVM->mm.s.pHeap = NULL;
+}
+
+
+/**
+ * Checks if the both VM and UVM parts of MM have been initialized.
+ *
+ * @returns true if initialized, false if not.
+ * @param   pVM         Pointer to the cross context VM structure.
+ */
+VMMR3_INT_DECL(bool) MMR3IsInitialized(PVM pVM)
+{
+    return pVM->mm.s.pHyperHeapR3 != NULL;
 }
 
 

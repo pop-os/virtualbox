@@ -1,12 +1,10 @@
 /* $Id: UIMachineSettingsUSB.cpp $ */
 /** @file
- *
- * VBox frontends: Qt4 GUI ("VirtualBox"):
- * UIMachineSettingsUSB class implementation
+ * VBox Qt GUI - UIMachineSettingsUSB class implementation.
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,31 +15,45 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* Qt includes: */
-#include <QHeaderView>
-#include <QHelpEvent>
-#include <QToolTip>
+# include <QHeaderView>
+# include <QHelpEvent>
+# include <QToolTip>
 
 /* GUI includes: */
-#include "QIWidgetValidator.h"
-#include "UIIconPool.h"
-#include "VBoxGlobal.h"
-#include "UIMessageCenter.h"
-#include "UIToolBar.h"
-#include "UIMachineSettingsUSB.h"
-#include "UIMachineSettingsUSBFilterDetails.h"
-#include "UIConverter.h"
+# include "QIWidgetValidator.h"
+# include "UIIconPool.h"
+# include "VBoxGlobal.h"
+# include "UIMessageCenter.h"
+# include "UIToolBar.h"
+# include "UIMachineSettingsUSB.h"
+# include "UIMachineSettingsUSBFilterDetails.h"
+# include "UIConverter.h"
 
 /* COM includes: */
-#include "CConsole.h"
-#include "CUSBController.h"
-#include "CUSBDeviceFilters.h"
-#include "CUSBDevice.h"
-#include "CUSBDeviceFilter.h"
-#include "CHostUSBDevice.h"
-#include "CHostUSBDeviceFilter.h"
-#include "CExtPackManager.h"
-#include "CExtPack.h"
+# include "CConsole.h"
+# include "CUSBController.h"
+# include "CUSBDeviceFilters.h"
+# include "CUSBDevice.h"
+# include "CUSBDeviceFilter.h"
+# include "CHostUSBDevice.h"
+# include "CHostUSBDeviceFilter.h"
+# include "CExtPackManager.h"
+# include "CExtPack.h"
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
+/* VirtualBox interface declarations: */
+#ifndef VBOX_WITH_XPCOM
+# include "VirtualBox.h"
+#else /* !VBOX_WITH_XPCOM */
+# include "VirtualBox_XPCOM.h"
+#endif /* VBOX_WITH_XPCOM */
+
 
 /**
  *  USB popup menu class.
@@ -174,9 +186,12 @@ UIMachineSettingsUSB::UIMachineSettingsUSB()
     mMdnAction->setIcon(UIIconPool::iconSet(":/usb_movedown_16px.png",
                                             ":/usb_movedown_disabled_16px.png"));
 
+    /* Determine icon metric: */
+    const QStyle *pStyle = QApplication::style();
+    const int iIconMetric = pStyle->pixelMetric(QStyle::PM_SmallIconSize);
+
     /* Prepare tool-bar: */
-    m_pFiltersToolBar->setUsesTextLabel(false);
-    m_pFiltersToolBar->setIconSize(QSize(16, 16));
+    m_pFiltersToolBar->setIconSize(QSize(iIconMetric, iIconMetric));
     m_pFiltersToolBar->setOrientation(Qt::Vertical);
     m_pFiltersToolBar->addAction(mNewAction);
     m_pFiltersToolBar->addAction(mAddAction);
@@ -227,7 +242,7 @@ UIMachineSettingsUSB::UIMachineSettingsUSB()
 #endif /* VBOX_WITH_EHCI */
 }
 
-bool UIMachineSettingsUSB::isOHCIEnabled() const
+bool UIMachineSettingsUSB::isUSBEnabled() const
 {
     return mGbUSB->isChecked();
 }
@@ -246,8 +261,11 @@ void UIMachineSettingsUSB::loadToCacheFrom(QVariant &data)
     UIDataSettingsMachineUSB usbData;
 
     /* Gather USB values: */
-    usbData.m_fUSBEnabled = m_machine.GetUSBControllerCountByType(KUSBControllerType_OHCI) > 0;
-    usbData.m_fEHCIEnabled = m_machine.GetUSBControllerCountByType(KUSBControllerType_EHCI) > 0;
+    usbData.m_fUSBEnabled = !m_machine.GetUSBControllers().isEmpty();
+    usbData.m_USBControllerType = m_machine.GetUSBControllerCountByType(KUSBControllerType_XHCI) > 0 ? KUSBControllerType_XHCI :
+                                  m_machine.GetUSBControllerCountByType(KUSBControllerType_EHCI) > 0 ? KUSBControllerType_EHCI :
+                                  m_machine.GetUSBControllerCountByType(KUSBControllerType_OHCI) > 0 ? KUSBControllerType_OHCI :
+                                  KUSBControllerType_Null;
 
     /* Check if controller is valid: */
     const CUSBDeviceFilters &filters = m_machine.GetUSBDeviceFilters();
@@ -300,7 +318,13 @@ void UIMachineSettingsUSB::getFromCache()
     const UIDataSettingsMachineUSB &usbData = m_cache.base();
     /* Load USB data to page: */
     mGbUSB->setChecked(usbData.m_fUSBEnabled);
-    mCbUSB2->setChecked(usbData.m_fEHCIEnabled);
+    switch (usbData.m_USBControllerType)
+    {
+        default:
+        case KUSBControllerType_OHCI: mRbUSB1->setChecked(true); break;
+        case KUSBControllerType_EHCI: mRbUSB2->setChecked(true); break;
+        case KUSBControllerType_XHCI: mRbUSB3->setChecked(true); break;
+    }
 
     /* For each USB filter => load it to the page: */
     for (int iFilterIndex = 0; iFilterIndex < m_cache.childCount(); ++iFilterIndex)
@@ -326,10 +350,20 @@ void UIMachineSettingsUSB::putToCache()
     /* Prepare USB data: */
     UIDataSettingsMachineUSB usbData = m_cache.base();
 
-    /* USB 1.0 (OHCI): */
+    /* Is USB controller enabled? */
     usbData.m_fUSBEnabled = mGbUSB->isChecked();
-    /* USB 2.0 (EHCI): */
-    usbData.m_fEHCIEnabled = mCbUSB2->isChecked();
+    /* Of which type? */
+    if (!usbData.m_fUSBEnabled)
+        usbData.m_USBControllerType = KUSBControllerType_Null;
+    else
+    {
+        if (mRbUSB1->isChecked())
+            usbData.m_USBControllerType = KUSBControllerType_OHCI;
+        else if (mRbUSB2->isChecked())
+            usbData.m_USBControllerType = KUSBControllerType_EHCI;
+        else if (mRbUSB3->isChecked())
+            usbData.m_USBControllerType = KUSBControllerType_XHCI;
+    }
 
     /* Update USB cache: */
     m_cache.cacheCurrentData(usbData);
@@ -360,16 +394,93 @@ void UIMachineSettingsUSB::saveFromCacheTo(QVariant &data)
             {
                 ULONG cOhciCtls = m_machine.GetUSBControllerCountByType(KUSBControllerType_OHCI);
                 ULONG cEhciCtls = m_machine.GetUSBControllerCountByType(KUSBControllerType_EHCI);
+                ULONG cXhciCtls = m_machine.GetUSBControllerCountByType(KUSBControllerType_XHCI);
 
-                if (!cOhciCtls && usbData.m_fUSBEnabled)
-                    m_machine.AddUSBController("OHCI", KUSBControllerType_OHCI);
-                else if (cOhciCtls && !usbData.m_fUSBEnabled)
-                    m_machine.RemoveUSBController("OHCI");
-
-                if (!cEhciCtls && usbData.m_fEHCIEnabled)
-                    m_machine.AddUSBController("EHCI", KUSBControllerType_EHCI);
-                else if (cEhciCtls && !usbData.m_fEHCIEnabled)
-                    m_machine.RemoveUSBController("EHCI");
+                /* Removing USB controllers: */
+                if (!usbData.m_fUSBEnabled)
+                {
+                    if (cXhciCtls || cEhciCtls || cOhciCtls)
+                    {
+                        CUSBControllerVector ctlvec = m_machine.GetUSBControllers();
+                        for (int i = 0; i < ctlvec.size(); ++i)
+                        {
+                            CUSBController ctl = ctlvec[i];
+                            QString strName = ctl.GetName();
+                            m_machine.RemoveUSBController(strName);
+                        }
+                    }
+                }
+                /* Creating/replacing USB controllers: */
+                else
+                {
+                    switch (usbData.m_USBControllerType)
+                    {
+                        case KUSBControllerType_OHCI:
+                        {
+                            if (cXhciCtls || cEhciCtls)
+                            {
+                                CUSBControllerVector ctlvec = m_machine.GetUSBControllers();
+                                for (int i = 0; i < ctlvec.size(); ++i)
+                                {
+                                    CUSBController ctl = ctlvec[i];
+                                    KUSBControllerType enmType = ctl.GetType();
+                                    if (enmType == KUSBControllerType_XHCI || enmType == KUSBControllerType_EHCI)
+                                    {
+                                        QString strName = ctl.GetName();
+                                        m_machine.RemoveUSBController(strName);
+                                    }
+                                }
+                            }
+                            if (!cOhciCtls)
+                                m_machine.AddUSBController("OHCI", KUSBControllerType_OHCI);
+                            break;
+                        }
+                        case KUSBControllerType_EHCI:
+                        {
+                            if (cXhciCtls)
+                            {
+                                CUSBControllerVector ctlvec = m_machine.GetUSBControllers();
+                                for (int i = 0; i < ctlvec.size(); ++i)
+                                {
+                                    CUSBController ctl = ctlvec[i];
+                                    KUSBControllerType enmType = ctl.GetType();
+                                    if (enmType == KUSBControllerType_XHCI)
+                                    {
+                                        QString strName = ctl.GetName();
+                                        m_machine.RemoveUSBController(strName);
+                                    }
+                                }
+                            }
+                            if (!cOhciCtls)
+                                m_machine.AddUSBController("OHCI", KUSBControllerType_OHCI);
+                            if (!cEhciCtls)
+                                m_machine.AddUSBController("EHCI", KUSBControllerType_EHCI);
+                            break;
+                        }
+                        case KUSBControllerType_XHCI:
+                        {
+                            if (cEhciCtls || cOhciCtls)
+                            {
+                                CUSBControllerVector ctlvec = m_machine.GetUSBControllers();
+                                for (int i = 0; i < ctlvec.size(); ++i)
+                                {
+                                    CUSBController ctl = ctlvec[i];
+                                    KUSBControllerType enmType = ctl.GetType();
+                                    if (enmType == KUSBControllerType_EHCI || enmType == KUSBControllerType_OHCI)
+                                    {
+                                        QString strName = ctl.GetName();
+                                        m_machine.RemoveUSBController(strName);
+                                    }
+                                }
+                            }
+                            if (!cXhciCtls)
+                                m_machine.AddUSBController("xHCI", KUSBControllerType_XHCI);
+                            break;
+                        }
+                        default:
+                            break;
+                    }
+                }
             }
             /* Store USB filters data: */
             if (isMachineInValidMode())
@@ -429,16 +540,18 @@ bool UIMachineSettingsUSB::validate(QList<UIValidationMessage> &messages)
     bool fPass = true;
 
 #ifdef VBOX_WITH_EXTPACK
-    /* USB 2.0 Extension Pack presence test: */
+    /* USB 2.0/3.0 Extension Pack presence test: */
     CExtPack extPack = vboxGlobal().virtualBox().GetExtensionPackManager().Find(GUI_ExtPackName);
-    if (mGbUSB->isChecked() && mCbUSB2->isChecked() && (extPack.isNull() || !extPack.GetUsable()))
+    if (   mGbUSB->isChecked()
+        && (mRbUSB2->isChecked() || mRbUSB3->isChecked())
+        && (extPack.isNull() || !extPack.GetUsable()))
     {
         /* Prepare message: */
         UIValidationMessage message;
-        message.second << tr("USB 2.0 is currently enabled for this virtual machine. "
-                             "However, this requires the <b>%1</b> to be installed. "
+        message.second << tr("USB 2.0/3.0 is currently enabled for this virtual machine. "
+                             "However, this requires the <i>%1</i> to be installed. "
                              "Please install the Extension Pack from the VirtualBox download site "
-                             "or disable USB 2.0 to be able to start the machine.")
+                             "or disable USB 2.0/3.0 to be able to start the machine.")
                              .arg(GUI_ExtPackName);
         /* Serialize message: */
         if (!message.second.isEmpty())
@@ -453,55 +566,50 @@ bool UIMachineSettingsUSB::validate(QList<UIValidationMessage> &messages)
 void UIMachineSettingsUSB::setOrderAfter (QWidget *aWidget)
 {
     setTabOrder (aWidget, mGbUSB);
-    setTabOrder (mGbUSB, mCbUSB2);
-    setTabOrder (mCbUSB2, mTwFilters);
+    setTabOrder (mGbUSB, mRbUSB1);
+    setTabOrder (mRbUSB1, mRbUSB2);
+    setTabOrder (mRbUSB2, mRbUSB3);
+    setTabOrder (mRbUSB3, mTwFilters);
 }
 
 void UIMachineSettingsUSB::retranslateUi()
 {
-    /* Translate uic generated strings */
-    Ui::UIMachineSettingsUSB::retranslateUi (this);
+    /* Translate uic generated strings: */
+    Ui::UIMachineSettingsUSB::retranslateUi(this);
 
-    mNewAction->setText (tr ("&Add Empty Filter"));
-    mAddAction->setText (tr ("A&dd Filter From Device"));
-    mEdtAction->setText (tr ("&Edit Filter"));
-    mDelAction->setText (tr ("&Remove Filter"));
-    mMupAction->setText (tr ("&Move Filter Up"));
-    mMdnAction->setText (tr ("M&ove Filter Down"));
+    mNewAction->setText(tr("Add Empty Filter"));
+    mAddAction->setText(tr("Add Filter From Device"));
+    mEdtAction->setText(tr("Edit Filter"));
+    mDelAction->setText(tr("Remove Filter"));
+    mMupAction->setText(tr("Move Filter Up"));
+    mMdnAction->setText(tr("Move Filter Down"));
 
-    mNewAction->setToolTip (mNewAction->text().remove ('&') +
-        QString (" (%1)").arg (mNewAction->shortcut().toString()));
-    mAddAction->setToolTip (mAddAction->text().remove ('&') +
-        QString (" (%1)").arg (mAddAction->shortcut().toString()));
-    mEdtAction->setToolTip (mEdtAction->text().remove ('&') +
-        QString (" (%1)").arg (mEdtAction->shortcut().toString()));
-    mDelAction->setToolTip (mDelAction->text().remove ('&') +
-        QString (" (%1)").arg (mDelAction->shortcut().toString()));
-    mMupAction->setToolTip (mMupAction->text().remove ('&') +
-        QString (" (%1)").arg (mMupAction->shortcut().toString()));
-    mMdnAction->setToolTip (mMdnAction->text().remove ('&') +
-        QString (" (%1)").arg (mMdnAction->shortcut().toString()));
+    mNewAction->setWhatsThis(tr("Adds new USB filter with all fields initially set to empty strings. "
+                                "Note that such a filter will match any attached USB device."));
+    mAddAction->setWhatsThis(tr("Adds new USB filter with all fields set to the values of the "
+                                "selected USB device attached to the host PC."));
+    mEdtAction->setWhatsThis(tr("Edits selected USB filter."));
+    mDelAction->setWhatsThis(tr("Removes selected USB filter."));
+    mMupAction->setWhatsThis(tr("Moves selected USB filter up."));
+    mMdnAction->setWhatsThis(tr("Moves selected USB filter down."));
 
-    mNewAction->setWhatsThis (tr ("Adds a new USB filter with all fields "
-                                  "initially set to empty strings. Note "
-                                  "that such a filter will match any "
-                                  "attached USB device."));
-    mAddAction->setWhatsThis (tr ("Adds a new USB filter with all fields "
-                                  "set to the values of the selected USB "
-                                  "device attached to the host PC."));
-    mEdtAction->setWhatsThis (tr ("Edits the selected USB filter."));
-    mDelAction->setWhatsThis (tr ("Removes the selected USB filter."));
-    mMupAction->setWhatsThis (tr ("Moves the selected USB filter up."));
-    mMdnAction->setWhatsThis (tr ("Moves the selected USB filter down."));
+    mNewAction->setToolTip(mNewAction->whatsThis());
+    mAddAction->setToolTip(mAddAction->whatsThis());
+    mEdtAction->setToolTip(mEdtAction->whatsThis());
+    mDelAction->setToolTip(mDelAction->whatsThis());
+    mMupAction->setToolTip(mMupAction->whatsThis());
+    mMdnAction->setToolTip(mMdnAction->whatsThis());
 
-    mUSBFilterName = tr ("New Filter %1", "usb");
+    mUSBFilterName = tr("New Filter %1", "usb");
 }
 
 void UIMachineSettingsUSB::usbAdapterToggled(bool fEnabled)
 {
     /* Enable/disable USB children: */
     mUSBChild->setEnabled(isMachineInValidMode() && fEnabled);
-    mCbUSB2->setEnabled(isMachineOffline() && fEnabled);
+    mRbUSB1->setEnabled(isMachineOffline() && fEnabled);
+    mRbUSB2->setEnabled(isMachineOffline() && fEnabled);
+    mRbUSB3->setEnabled(isMachineOffline() && fEnabled);
     if (fEnabled)
     {
         /* If there is no chosen item but there is something to choose => choose it: */
@@ -729,7 +837,9 @@ void UIMachineSettingsUSB::prepareValidation()
 {
     /* Prepare validation: */
     connect(mGbUSB, SIGNAL(stateChanged(int)), this, SLOT(revalidate()));
-    connect(mCbUSB2, SIGNAL(stateChanged(int)), this, SLOT(revalidate()));
+    connect(mRbUSB1, SIGNAL(toggled(bool)), this, SLOT(revalidate()));
+    connect(mRbUSB2, SIGNAL(toggled(bool)), this, SLOT(revalidate()));
+    connect(mRbUSB3, SIGNAL(toggled(bool)), this, SLOT(revalidate()));
 }
 
 void UIMachineSettingsUSB::addUSBFilter(const UIDataSettingsMachineUSBFilter &usbFilterData, bool fIsNew)
@@ -797,7 +907,9 @@ void UIMachineSettingsUSB::polishPage()
 {
     mGbUSB->setEnabled(isMachineOffline());
     mUSBChild->setEnabled(isMachineInValidMode() && mGbUSB->isChecked());
-    mCbUSB2->setEnabled(isMachineOffline() && mGbUSB->isChecked());
+    mRbUSB1->setEnabled(isMachineOffline() && mGbUSB->isChecked());
+    mRbUSB2->setEnabled(isMachineOffline() && mGbUSB->isChecked());
+    mRbUSB3->setEnabled(isMachineOffline() && mGbUSB->isChecked());
 }
 
 #include "UIMachineSettingsUSB.moc"

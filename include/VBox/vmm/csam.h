@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -72,7 +72,6 @@ VMM_INT_DECL(bool)      CSAMIsKnownDangerousInstr(PVM pVM, RTRCUINTPTR GCPtr);
 
 #ifdef IN_RING3
 /** @defgroup grp_csam_r3      The Code Scanning and Analysis API
- * @ingroup grp_csam
  * @{
  */
 
@@ -87,7 +86,7 @@ VMMR3_INT_DECL(int)     CSAMR3Reset(PVM pVM);
 VMMR3_INT_DECL(int)     CSAMR3FlushPage(PVM pVM, RTRCPTR addr);
 VMMR3_INT_DECL(int)     CSAMR3RemovePage(PVM pVM, RTRCPTR addr);
 VMMR3_INT_DECL(int)     CSAMR3CheckCode(PVM pVM, RTRCPTR pInstrGC);
-VMMR3_INT_DECL(int)     CSAMR3CheckCodeEx(PVM pVM, PCPUMCTXCORE pCtxCore, RTRCPTR pInstrGC);
+VMMR3_INT_DECL(int)     CSAMR3CheckCodeEx(PVM pVM, PCPUMCTX pCtx, RTRCPTR pInstrGC);
 VMMR3_INT_DECL(int)     CSAMR3MarkCode(PVM pVM, RTRCPTR pInstr, uint32_t cbInstr, bool fScanned);
 VMMR3_INT_DECL(int)     CSAMR3DoPendingAction(PVM pVM, PVMCPU pVCpu);
 VMMR3_INT_DECL(int)     CSAMR3CheckGates(PVM pVM, uint32_t iGate, uint32_t cGates);

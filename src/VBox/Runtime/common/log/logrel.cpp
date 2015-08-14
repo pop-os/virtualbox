@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -69,13 +69,7 @@ static PRTLOGGER                    g_pRelLogger;
 #endif /* !IN_RC */
 
 
-/**
- * Gets the default release logger instance.
- *
- * @returns Pointer to default release logger instance.
- * @returns NULL if no default release logger instance available.
- */
-RTDECL(PRTLOGGER)   RTLogRelDefaultInstance(void)
+RTDECL(PRTLOGGER)   RTLogRelGetDefaultInstance(void)
 {
 #ifdef IN_RC
     return &g_RelLogger;
@@ -83,7 +77,33 @@ RTDECL(PRTLOGGER)   RTLogRelDefaultInstance(void)
     return g_pRelLogger;
 #endif /* !IN_RC */
 }
-RT_EXPORT_SYMBOL(RTLogRelDefaultInstance);
+RT_EXPORT_SYMBOL(RTLogRelGetDefaultInstance);
+
+
+RTDECL(PRTLOGGER)   RTLogRelGetDefaultInstanceEx(uint32_t fFlagsAndGroup)
+{
+#ifdef IN_RC
+    PRTLOGGER pLogger = &g_RelLogger;
+#else /* !IN_RC */
+    PRTLOGGER pLogger = g_pRelLogger;
+#endif /* !IN_RC */
+    if (pLogger)
+    {
+        if (pLogger->fFlags & RTLOGFLAGS_DISABLED)
+            pLogger = NULL;
+        else
+        {
+            uint16_t const fFlags = RT_LO_U16(fFlagsAndGroup);
+            uint16_t const iGroup = RT_HI_U16(fFlagsAndGroup);
+            if (   iGroup != UINT16_MAX
+                 && (   (pLogger->afGroups[iGroup < pLogger->cGroups ? iGroup : 0] & (fFlags | RTLOGGRPFLAGS_ENABLED))
+                     != (fFlags | RTLOGGRPFLAGS_ENABLED)))
+            pLogger = NULL;
+        }
+    }
+    return pLogger;
+}
+RT_EXPORT_SYMBOL(RTLogRelGetDefaultInstanceEx);
 
 
 #ifndef IN_RC
@@ -122,7 +142,7 @@ RTDECL(void) RTLogRelLoggerV(PRTLOGGER pLogger, unsigned fFlags, unsigned iGroup
      */
     if (!pLogger)
     {
-        pLogger = RTLogRelDefaultInstance();
+        pLogger = RTLogRelGetDefaultInstance();
         if (!pLogger)
             return;
     }
@@ -156,7 +176,7 @@ RT_EXPORT_SYMBOL(RTLogRelPrintfV);
  */
 RTDECL(bool) RTLogRelSetBuffering(bool fBuffered)
 {
-    PRTLOGGER pLogger = RTLogRelDefaultInstance();
+    PRTLOGGER pLogger = RTLogRelGetDefaultInstance();
     if (pLogger)
         return RTLogSetBuffering(pLogger, fBuffered);
     return false;

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2012 Oracle Corporation
+ * Copyright (C) 2008-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -67,6 +67,10 @@ static const char g_aszYasmRegXMM[16][6] =
 {
     "xmm0\0", "xmm1\0", "xmm2\0", "xmm3\0", "xmm4\0", "xmm5\0", "xmm6\0", "xmm7\0", "xmm8\0", "xmm9\0", "xmm10", "xmm11", "xmm12", "xmm13", "xmm14", "xmm15"
 };
+static const char g_aszYasmRegYMM[16][6] =
+{
+    "ymm0\0", "ymm1\0", "ymm2\0", "ymm3\0", "ymm4\0", "ymm5\0", "ymm6\0", "ymm7\0", "ymm8\0", "ymm9\0", "ymm10", "ymm11", "ymm12", "ymm13", "ymm14", "ymm15"
+};
 static const char g_aszYasmRegCRx[16][5] =
 {
     "cr0\0",  "cr1\0",  "cr2\0",  "cr3\0",  "cr4\0",  "cr5\0",  "cr6\0",  "cr7\0",  "cr8\0",  "cr9\0",  "cr10",  "cr11",  "cr12",  "cr13",  "cr14",  "cr15"
@@ -93,8 +97,8 @@ static const char g_aszYasmRegTRx[16][5] =
 static const char *disasmFormatYasmBaseReg(PCDISSTATE pDis, PCDISOPPARAM pParam, size_t *pcchReg)
 {
     switch (pParam->fUse & (  DISUSE_REG_GEN8 | DISUSE_REG_GEN16 | DISUSE_REG_GEN32 | DISUSE_REG_GEN64
-                            | DISUSE_REG_FP   | DISUSE_REG_MMX   | DISUSE_REG_XMM   | DISUSE_REG_CR
-                            | DISUSE_REG_DBG  | DISUSE_REG_SEG   | DISUSE_REG_TEST))
+                            | DISUSE_REG_FP   | DISUSE_REG_MMX   | DISUSE_REG_XMM   | DISUSE_REG_YMM
+                            | DISUSE_REG_CR   | DISUSE_REG_DBG   | DISUSE_REG_SEG   | DISUSE_REG_TEST))
 
     {
         case DISUSE_REG_GEN8:
@@ -113,6 +117,9 @@ static const char *disasmFormatYasmBaseReg(PCDISSTATE pDis, PCDISOPPARAM pParam,
             return psz;
         }
 
+        // VSIB
+        case DISUSE_REG_XMM | DISUSE_REG_GEN32:
+        case DISUSE_REG_YMM | DISUSE_REG_GEN32:
         case DISUSE_REG_GEN32:
         {
             Assert(pParam->Base.idxGenReg < RT_ELEMENTS(g_aszYasmRegGen32));
@@ -121,6 +128,9 @@ static const char *disasmFormatYasmBaseReg(PCDISSTATE pDis, PCDISOPPARAM pParam,
             return psz;
         }
 
+        // VSIB
+        case DISUSE_REG_XMM | DISUSE_REG_GEN64:
+        case DISUSE_REG_YMM | DISUSE_REG_GEN64:
         case DISUSE_REG_GEN64:
         {
             Assert(pParam->Base.idxGenReg < RT_ELEMENTS(g_aszYasmRegGen64));
@@ -148,7 +158,15 @@ static const char *disasmFormatYasmBaseReg(PCDISSTATE pDis, PCDISOPPARAM pParam,
         case DISUSE_REG_XMM:
         {
             Assert(pParam->Base.idxXmmReg < RT_ELEMENTS(g_aszYasmRegXMM));
-            const char *psz = g_aszYasmRegXMM[pParam->Base.idxMmxReg];
+            const char *psz = g_aszYasmRegXMM[pParam->Base.idxXmmReg];
+            *pcchReg = 4 + !!psz[4];
+            return psz;
+        }
+
+        case DISUSE_REG_YMM:
+        {
+            Assert(pParam->Base.idxYmmReg < RT_ELEMENTS(g_aszYasmRegYMM));
+            const char *psz = g_aszYasmRegYMM[pParam->Base.idxYmmReg];
             *pcchReg = 4 + !!psz[4];
             return psz;
         }
@@ -203,6 +221,22 @@ static const char *disasmFormatYasmBaseReg(PCDISSTATE pDis, PCDISOPPARAM pParam,
  */
 static const char *disasmFormatYasmIndexReg(PCDISSTATE pDis, PCDISOPPARAM pParam, size_t *pcchReg)
 {
+    if (pParam->fUse & DISUSE_REG_XMM)
+    {
+        Assert(pParam->Index.idxXmmReg < RT_ELEMENTS(g_aszYasmRegXMM));
+        const char *psz = g_aszYasmRegXMM[pParam->Index.idxXmmReg];
+        *pcchReg = 4 + !!psz[4];
+        return psz;
+    }
+    else if (pParam->fUse & DISUSE_REG_YMM)
+    {
+        Assert(pParam->Index.idxYmmReg < RT_ELEMENTS(g_aszYasmRegYMM));
+        const char *psz = g_aszYasmRegYMM[pParam->Index.idxYmmReg];
+        *pcchReg = 4 + !!psz[4];
+        return psz;
+
+    }
+    else
     switch (pDis->uAddrMode)
     {
         case DISCPUMODE_16BIT:
@@ -564,6 +598,33 @@ DISDECL(size_t) DISFormatYasmEx(PCDISSTATE pDis, char *pszBuf, size_t cchBuf, ui
                     } while (ch != '\0');
                     pszFmt = szTmpFmt;
                 }
+                if (strchr ("#@&", *pszFmt))
+                {
+                    const char *pszDelim = strchr(pszFmt, '/');
+                    const char *pszSpace = (pszDelim ? strchr(pszDelim, ' ') : NULL);
+                    if (pszDelim != NULL)
+                    {
+                        char *pszFmtDst = szTmpFmt;
+                        if (pszSpace == NULL) pszSpace = strchr(pszDelim, 0);
+                        if (   (*pszFmt == '#' && pDis->bVexWFlag)
+                            || (*pszFmt == '@' && !VEXREG_IS256B(pDis->bVexDestReg))
+                            || (*pszFmt == '&' && (   DISUSE_IS_EFFECTIVE_ADDR(pDis->Param1.fUse)
+                                                   || DISUSE_IS_EFFECTIVE_ADDR(pDis->Param2.fUse)
+                                                   || DISUSE_IS_EFFECTIVE_ADDR(pDis->Param3.fUse)
+                                                   || DISUSE_IS_EFFECTIVE_ADDR(pDis->Param4.fUse))))
+                        {
+                            strncpy(pszFmtDst, pszFmt + 1, pszDelim - pszFmt - 1);
+                            pszFmtDst += pszDelim - pszFmt - 1;
+                        }
+                        else
+                        {
+                            strncpy(pszFmtDst, pszDelim + 1, pszSpace - pszDelim - 1);
+                            pszFmtDst += pszSpace - pszDelim - 1;
+                        }
+                        strcpy (pszFmtDst, pszSpace);
+                        pszFmt = szTmpFmt;
+                    }
+                }
                 break;
 
             /*
@@ -602,22 +663,48 @@ DISDECL(size_t) DISFormatYasmEx(PCDISSTATE pDis, char *pszBuf, size_t cchBuf, ui
                 switch (OP_PARM_VSUBTYPE(pParam->fParam)) \
                 { \
                     case OP_PARM_v: \
+                    case OP_PARM_y: \
                         switch (pDis->uOpMode) \
                         { \
-                            case DISCPUMODE_16BIT: PUT_SZ("word "); break; \
-                            case DISCPUMODE_32BIT: PUT_SZ("dword "); break; \
+                            case DISCPUMODE_16BIT: if (OP_PARM_VSUBTYPE(pParam->fParam) != OP_PARM_y) PUT_SZ("word "); break; \
+                            case DISCPUMODE_32BIT: \
+                                if (pDis->pCurInstr->uOpcode != OP_GATHER || pDis->bVexWFlag) { PUT_SZ("dword "); break; } \
                             case DISCPUMODE_64BIT: PUT_SZ("qword "); break; \
                             default: break; \
                         } \
                         break; \
                     case OP_PARM_b: PUT_SZ("byte "); break; \
-                    case OP_PARM_w: PUT_SZ("word "); break; \
-                    case OP_PARM_d: PUT_SZ("dword "); break; \
-                    case OP_PARM_q: PUT_SZ("qword "); break; \
-                    case OP_PARM_dq: \
-                        if (OP_PARM_VTYPE(pParam->fParam) != OP_PARM_W) /* these are 128 bit, pray they are all unambiguous.. */ \
-                            PUT_SZ("qword "); \
+                    case OP_PARM_w: \
+                        if (OP_PARM_VTYPE(pParam->fParam) == OP_PARM_W || \
+                            OP_PARM_VTYPE(pParam->fParam) == OP_PARM_M) \
+                        { \
+                            if (VEXREG_IS256B(pDis->bVexDestReg)) PUT_SZ("dword "); \
+                                else PUT_SZ("word "); \
+                        } \
                         break; \
+                    case OP_PARM_d: \
+                        if (OP_PARM_VTYPE(pParam->fParam) == OP_PARM_W || \
+                            OP_PARM_VTYPE(pParam->fParam) == OP_PARM_M) \
+                        { \
+                            if (VEXREG_IS256B(pDis->bVexDestReg)) PUT_SZ("qword "); \
+                                else PUT_SZ("dword "); \
+                        } \
+                        break; \
+                    case OP_PARM_q: \
+                        if (OP_PARM_VTYPE(pParam->fParam) == OP_PARM_W || \
+                            OP_PARM_VTYPE(pParam->fParam) == OP_PARM_M) \
+                        { \
+                            if (VEXREG_IS256B(pDis->bVexDestReg)) PUT_SZ("oword "); \
+                                else PUT_SZ("qword "); \
+                        } \
+                       break; \
+                    case OP_PARM_ps: \
+                    case OP_PARM_pd: \
+                    case OP_PARM_x: if (VEXREG_IS256B(pDis->bVexDestReg)) { PUT_SZ("yword "); break; } \
+                    case OP_PARM_ss: \
+                    case OP_PARM_sd: \
+                    case OP_PARM_dq: PUT_SZ("oword "); break; \
+                    case OP_PARM_qq: PUT_SZ("yword "); break; \
                     case OP_PARM_p: break; /* see PUT_FAR */ \
                     case OP_PARM_s: if (pParam->fUse & DISUSE_REG_FP) PUT_SZ("tword "); break; /* ?? */ \
                     case OP_PARM_z: break; \
@@ -673,6 +760,8 @@ DISDECL(size_t) DISFormatYasmEx(PCDISSTATE pDis, char *pszBuf, size_t cchBuf, ui
                     case 'T': /* ModRM byte selects a test register (ParseModRM / UseModRM). */
                     case 'V': /* ModRM byte selects an XMM/SSE register (ParseModRM / UseModRM). */
                     case 'P': /* ModRM byte selects MMX register (ParseModRM / UseModRM). */
+                    case 'H': /* The VEX.vvvv field of the VEX prefix selects a XMM/YMM register. */
+                    case 'L': /* The upper 4 bits of the 8-bit immediate selects a XMM/YMM register. */
                     {
                         pszFmt += RT_C_IS_ALPHA(pszFmt[0]) ? RT_C_IS_ALPHA(pszFmt[1]) ? 2 : 1 : 0;
                         Assert(!(pParam->fUse & (DISUSE_INDEX | DISUSE_SCALE) /* No SIB here... */));
@@ -736,6 +825,7 @@ DISDECL(size_t) DISFormatYasmEx(PCDISSTATE pDis, char *pszBuf, size_t cchBuf, ui
                                                    | DISUSE_REG_FP
                                                    | DISUSE_REG_MMX
                                                    | DISUSE_REG_XMM
+                                                   | DISUSE_REG_YMM
                                                    | DISUSE_REG_CR
                                                    | DISUSE_REG_DBG
                                                    | DISUSE_REG_SEG
@@ -783,30 +873,46 @@ DISDECL(size_t) DISFormatYasmEx(PCDISSTATE pDis, char *pszBuf, size_t cchBuf, ui
                                 off2 = 0;
                             }
 
-                            if (fBase || (fUse & DISUSE_INDEX))
+                            int64_t off3 = off2;
+                            if (fBase || (fUse & (DISUSE_INDEX | DISUSE_RIPDISPLACEMENT32)))
                             {
-                                PUT_C(off2 >= 0 ? '+' : '-');
-                                if (off2 < 0)
-                                    off2 = -off2;
+                                PUT_C(off3 >= 0 ? '+' : '-');
+                                if (off3 < 0)
+                                    off3 = -off3;
                             }
                             if (fUse & DISUSE_DISPLACEMENT8)
-                                PUT_NUM_8( off2);
+                                PUT_NUM_8( off3);
                             else if (fUse & DISUSE_DISPLACEMENT16)
-                                PUT_NUM_16(off2);
+                                PUT_NUM_16(off3);
                             else if (fUse & DISUSE_DISPLACEMENT32)
-                                PUT_NUM_32(off2);
+                                PUT_NUM_32(off3);
                             else if (fUse & DISUSE_DISPLACEMENT64)
-                                PUT_NUM_64(off2);
+                                PUT_NUM_64(off3);
                             else
                             {
-                                PUT_NUM_32(off2);
-                                PUT_SZ(" wrt rip"); //??
+                                PUT_NUM_32(off3);
+                                PUT_SZ(" wrt rip (");
+                                off2 += pDis->uInstrAddr + pDis->cbInstr;
+                                PUT_NUM_64(off2);
+                                if (pfnGetSymbol)
+                                    PUT_SYMBOL((pDis->fPrefix & DISPREFIX_SEG)
+                                               ? DIS_FMT_SEL_FROM_REG(pDis->idxSegPrefix)
+                                               : DIS_FMT_SEL_FROM_REG(DISSELREG_DS),
+                                               pDis->uAddrMode == DISCPUMODE_64BIT
+                                               ? (uint64_t)off2
+                                               : pDis->uAddrMode == DISCPUMODE_32BIT
+                                               ? (uint32_t)off2
+                                               : (uint16_t)off2,
+                                               " = ",
+                                               ')');
+                                else
+                                    PUT_C(')');
                             }
                         }
 
                         if (DISUSE_IS_EFFECTIVE_ADDR(fUse))
                         {
-                            if (pfnGetSymbol && !fBase && !(fUse & DISUSE_INDEX) && off2 != 0)
+                            if (pfnGetSymbol && !fBase && !(fUse & (DISUSE_INDEX | DISUSE_RIPDISPLACEMENT32)) && off2 != 0)
                                 PUT_SYMBOL((pDis->fPrefix & DISPREFIX_SEG)
                                            ? DIS_FMT_SEL_FROM_REG(pDis->idxSegPrefix)
                                            : DIS_FMT_SEL_FROM_REG(DISSELREG_DS),
@@ -815,7 +921,8 @@ DISDECL(size_t) DISFormatYasmEx(PCDISSTATE pDis, char *pszBuf, size_t cchBuf, ui
                                            : pDis->uAddrMode == DISCPUMODE_32BIT
                                            ? (uint32_t)off2
                                            : (uint16_t)off2,
-                                           " (=", ')');
+                                           " (=",
+                                           ')');
                             PUT_C(']');
                         }
                         break;
@@ -1121,6 +1228,7 @@ DISDECL(size_t) DISFormatYasmEx(PCDISSTATE pDis, char *pszBuf, size_t cchBuf, ui
                     {
                         case 2: pParam = &pDis->Param2; break;
                         case 3: pParam = &pDis->Param3; break;
+                        case 4: pParam = &pDis->Param4; break;
                         default: pParam = NULL; break;
                     }
                 }

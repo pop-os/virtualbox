@@ -45,7 +45,8 @@
           <glossdef>
             <para>All versions, editions and service packs are fully supported
             (including 64-bit versions, under the preconditions listed below).
-            Guest Additions are available.</para>
+            Guest Additions are available. Windows 8 and later requires hardware
+            virtualization to be enabled.</para>
           </glossdef>
         </glossentry>
 
@@ -97,8 +98,8 @@
           11 Express)</glossterm>
 
           <glossdef>
-            <para>Fully supported (32 bits and 64 bits). Guest Additions are
-            available.</para>
+            <para>Fully supported (64 bits, prior to Solaris 11 11/11 also 32 bits).
+            Guest Additions are available.</para>
           </glossdef>
         </glossentry>
 
@@ -297,11 +298,18 @@
         </listitem>
 
         <listitem>
-          <para><emphasis role="bold">USB.</emphasis> VirtualBox emulates two
-          USB host controllers, EHCI and OHCI. There is a need for two host
-          controllers because OHCI only handles USB low- and full-speed
+          <para><emphasis role="bold">USB.</emphasis> VirtualBox emulates three
+          USB host controllers: xHCI, EHCI, and OHCI. While xHCI handles all USB
+          transfer speeds, only guest operating systems released approximately
+          after 2011 support xHCI. Note that for Windows 7 guests, 3rd party
+          drivers must be installed for xHCI support.</para>
+          <para>
+          Older operating systems typically support OHCI and EHCI. The two
+          controllers are needed because OHCI only handles USB low- and full-speed
           devices (both USB 1.x and 2.0), while EHCI only handles high-speed
-          devices (USB 2.0 only). The emulated USB controllers do not
+          devices (USB 2.0 only).</para>
+          <para>
+          The emulated USB controllers do not
           communicate directly with devices on the host but rather with a
           virtual USB layer which abstracts the USB protocol and allows the
           use of remote USB devices.</para>
@@ -369,7 +377,7 @@
 
       <para><glosslist>
           <glossentry>
-            <glossterm>Snapshot folder</glossterm>
+            <glossterm>Snapshot Folder</glossterm>
 
             <glossdef>
               <para>By default, VirtualBox saves snapshot data together with
@@ -380,7 +388,7 @@
           </glossentry>
 
           <glossentry>
-            <glossterm>Shared clipboard</glossterm>
+            <glossterm>Shared Clipboard</glossterm>
 
             <glossdef>
               <para>You can select here whether the clipboard of the guest
@@ -395,7 +403,7 @@
               otherwise; see <xref linkend="guestadditions" /> for
               details.</para>
 
-            <para>The shared clipboard is disabled by default. See
+              <para>The shared clipboard is disabled by default. See
               <xref linkend="security_clipboard"/> for an explanation. This
               setting can be changed at any time using the "Shared Clipboard"
               menu item in the "Devices" menu of the virtual machine.</para>
@@ -405,29 +413,34 @@
           <glossentry>
             <glossterm>Drag'n'Drop</glossterm>
             <glossdef>
-              <para>This setting allows to enable Drag and Drop: Select a file
-                on the desktop, click the left mouse button, move the mouse
-                to the VM window and release the mouse button. The file is
-                copied from the host to the guest. This feature is currently
-                only implemented for Linux guests and only for copying files
-                from the host to the guest.<footnote><para>Support
-                for Drag'n'Drop was added with VirtualBox 4.2</para></footnote></para>
+              <para>This setting allows to enable support for drag'n drop: Select
+              an object (e.g. a file) from the host or guest and directly copy
+              or open it on the guest or host. Multiple per-VM drag'n drop modes
+              allow restricting access in either direction.</para>
+
+              <para>For drag'n drop to work the Guest Additions need to be
+              installed on the guest.</para>
+
+              <para><note><para>Drag'n drop is disabled by default. This setting can be
+              changed at any time using the "Drag'n'Drop" menu item in the
+              "Devices" menu of the virtual machine.</para></note></para>
+
+              <para>See <xref linkend="guestadd-dnd"/> for more information.
+              <footnote><para>Experimental support for drag and drop was added
+              with VirtualBox 4.2.</para></footnote></para>
             </glossdef>
           </glossentry>
 
           <glossentry>
-            <glossterm>Removable media: remember runtime changes</glossterm>
-
+            <glossterm>Removable Media</glossterm>
             <glossdef>
               <para>If this is checked, VirtualBox will save the state of what
-              media has been mounted between several runs of a virtual
-              machine.</para>
+              media has been mounted between several runs of a virtual machine.</para>
             </glossdef>
           </glossentry>
 
           <glossentry>
-            <glossterm>Mini toolbar</glossterm>
-
+            <glossterm>Mini ToolBar</glossterm>
             <glossdef>
               <para>In full screen or seamless mode, VirtualBox can display a
               small toolbar that contains some of the items that are normally
@@ -524,9 +537,11 @@
               modern ICH9 chipset, which supports PCI express, three PCI
               buses, PCI-to-PCI bridges and Message Signaled Interrupts
               (MSI). This allows modern operating systems to address more PCI
-              devices and no longer requires IRQ sharing. Note that the ICH9
-              support is experimental and not recommended for guest operating
-              systems which do not require it.</para>
+              devices and no longer requires IRQ sharing. Using the ICH9 chipset
+              it is also possible to configure up to 36 network cards (up to 8
+              network adapters with PIIX3). Note that the ICH9 support is
+              experimental and not recommended for guest operating systems which
+              do not require it.</para>
             </glossdef>
           </glossentry>
 
@@ -694,6 +709,14 @@
       VT-x) features, then you can expect a significant performance increase
       by enabling nested paging in addition to hardware virtualization. For
       technical details, see <xref linkend="nestedpaging" />.</para>
+      
+      <para>Starting with version 5.0, VirtualBox provides paravirtualization
+      interfaces to improve time-keeping accuracy and performance of guest
+      operating systems. The options available are documented under the
+      <computeroutput>paravirtprovider</computeroutput> option
+      in <xref linkend="vboxmanage-modifyvm" />. For futher details on
+      the paravirtualization providers, please refer to
+      <xref linkend="gimproviders" />.</para>
     </sect2>
   </sect1>
 
@@ -716,7 +739,7 @@
           screen resolution and the color depth of the host display as well
           as of the activation of <emphasis>3D acceleration</emphasis> and
           <emphasis>2D video acceleration</emphasis>. A rough estimate
-          is (<emphasis>color depth</emphasis> / 8) x 
+          is (<emphasis>color depth</emphasis> / 8) x
           <emphasis>vertical pixels</emphasis> x
           <emphasis>horizontal pixels</emphasis> x
           <emphasis>number of screens</emphasis> = <emphasis>number of bytes</emphasis>.
@@ -978,15 +1001,14 @@
     emulation of an Intel AC'97 controller, an Intel HD Audio
     controller<footnote>
         <para>Intel HD Audio support was added with VirtualBox 4.0 because
-        Windows 7 (32-bit and 64-bit versions) as well as 64-bit Windows Vista
-        do not support the Intel AC'97 controller.</para>
+        Windows 7 and later (as well as 64-bit Windows Vista) do not support
+        the Intel AC'97 controller out of the box.</para>
       </footnote> or a SoundBlaster 16 card. In any case, you can select what
     audio driver VirtualBox will use on the host.</para>
 
     <para>On a Linux host, depending on your host configuration, you can also
     select between the OSS, ALSA or the PulseAudio subsystem. On newer Linux
-    distributions (Fedora 8 and above, Ubuntu 8.04 and above), the PulseAudio
-    subsystem should be preferred.</para>
+    distributions, the PulseAudio subsystem should be preferred.</para>
   </sect1>
 
   <sect1 id="settings-network">
@@ -1026,8 +1048,8 @@
     <para>Ever since the original IBM PC, personal computers have been
     equipped with one or two serial ports (also called COM ports by DOS and
     Windows). Serial ports were commonly used with modems, and some
-    computer mice used to be connected to serial ports before USB became 
-    commonplace. 
+    computer mice used to be connected to serial ports before USB became
+    commonplace.
     </para>
 
     <para>While serial ports are no longer as ubiquitous as they used to be,
@@ -1041,7 +1063,7 @@
 
     <para>If a virtual serial port is enabled, the guest operating system sees
     a standard 16550A compatible UART device. Both receiving and transmitting
-    data is supported. How this virtual serial port is then connected to the 
+    data is supported. How this virtual serial port is then connected to the
     host is configurable, and the details depend on your host operating system.
     </para>
 
@@ -1052,7 +1074,7 @@
     <computeroutput>--uart</computeroutput> and
     <computeroutput>--uartmode</computeroutput> options.</para>
 
-    <para>In either case, you can configure up to two virtual serial ports per 
+    <para>In either case, you can configure up to two virtual serial ports per
     virtual machine. For each such device, you will need to
     determine<orderedlist>
         <listitem>
@@ -1112,31 +1134,21 @@
                     <listitem>
                       <para>On a Windows host, data will be sent and received
                       through a named pipe. The pipe name must be in the format
-                      <computeroutput>\\.\pipe\&lt;name&gt;</computeroutput> 
+                      <computeroutput>\\.\pipe\&lt;name&gt;</computeroutput>
                       where <computeroutput>&lt;name&gt;</computeroutput> should
-                      identify the virtual machine but may be freely 
-                      chosen.</para> 
-                      <para>For forwarding serial traffic, you can use a helper
-                      program called VMware Serial Line Gateway, available for
-                      download at
-                                  <literal> <ulink
-                      url="http://www.l4ka.org/91.php">http://www.l4ka.org/91.php</ulink>
-                      </literal>. This tool provides a fixed server mode named
-                      pipe at
-                      <computeroutput>\\.\pipe\vmwaredebug</computeroutput>
-                      and connects incoming TCP connections on port 567 with
-                      the named pipe.</para>
+                      identify the virtual machine but may be freely
+                      chosen.</para>
                     </listitem>
 
                     <listitem>
                       <para>On a Mac, Linux or Solaris host, a local
                       domain socket is used instead. The socket filename must be
-                      chosen such that the user running VirtualBox has 
-                      sufficient privileges to create and write to it. The 
-                      <computeroutput>/tmp</computeroutput> directory is often a 
+                      chosen such that the user running VirtualBox has
+                      sufficient privileges to create and write to it. The
+                      <computeroutput>/tmp</computeroutput> directory is often a
                       good candidate.</para>
-                      <para>On Linux there are various tools which can connect 
-                      to a local domain socket or create one in server mode. The 
+                      <para>On Linux there are various tools which can connect
+                      to a local domain socket or create one in server mode. The
                       most flexible tool is
                       <computeroutput>socat</computeroutput> and is available
                       as part of many distributions.</para>
@@ -1152,25 +1164,57 @@
                 respectively.</para>
 
                 <para>For a direct connection between two virtual machines
-                (corresponding to a null-modem cable), simply configure one VM 
+                (corresponding to a null-modem cable), simply configure one VM
                 to create a pipe/socket and another to attach to it.
                 </para>
               </listitem>
 
               <listitem>
-                <para>You can send the virtual serial port output to a file. 
-                This option is very useful for capturing diagnostic output from 
-                a guest. Any file may be used for this purpose, as long as the 
-                user running VirtualBox has sufficient privileges to create and 
+                <para>You can send the virtual serial port output to a file.
+                This option is very useful for capturing diagnostic output from
+                a guest. Any file may be used for this purpose, as long as the
+                user running VirtualBox has sufficient privileges to create and
                 write to the file.
                 </para>
               </listitem>
+
+              <listitem>
+                <para>TCP Socket: Useful for forwarding serial traffic over TCP/IP,
+                  acting as a server, or it can act as a TCP client connecting to other
+                  servers. It allows a remote machine to directly connect to the guest's
+                  serial port via TCP.
+                </para>
+                <itemizedlist>
+                  <listitem>
+                    <para>TCP Server: Uncheck the
+                      <emphasis>Connect to existing pipe/socket</emphasis> checkbox and specify
+                      the <emphasis role="bold"><computeroutput>port</computeroutput></emphasis>
+                      number. Typically 23 or 2023. Note that on UNIX-like systems you will
+                      have to use a port a number greater than 1024 for regular users.
+                    </para>
+                    <para>
+                      The client can use software such as <computeroutput>PuTTY</computeroutput>
+                      or the <computeroutput>telnet</computeroutput> command line
+                      tool to access the TCP Server.
+                    </para>
+                  </listitem>
+                  <listitem>
+                    <para>TCP Client: To create a virtual null-modem cable over the Internet or
+                      LAN, the other side can connect via TCP by specifying <emphasis role="bold">
+                      <computeroutput>hostname:port</computeroutput></emphasis>. The TCP socket
+                    will act in client mode if check the <emphasis>Connect to existing pipe/socket</emphasis>
+                    checkbox.
+                    </para>
+                  </listitem>
+                </itemizedlist>
+              </listitem>
+
             </itemizedlist></para>
         </listitem>
-      </orderedlist>Up to two serial ports can be configured per virtual 
+      </orderedlist>Up to two serial ports can be configured per virtual
       machine, but you can pick any port numbers out of the above. However,
-      serial ports cannot reliably share interrupts; if both ports are to be 
-      used at the same time, they must use different interrupt levels, for 
+      serial ports cannot reliably share interrupts; if both ports are to be
+      used at the same time, they must use different interrupt levels, for
       example COM1 and COM2, but not COM1 and COM3.
     </para>
   </sect1>
@@ -1211,11 +1255,10 @@
       this, see <xref linkend="usb-over-rdp" />.</para>
 
       <para>In the Settings dialog, you can first configure whether USB is
-      available in the guest at all, and in addition also optionally enable
-      the USB 2.0 (EHCI) controller for the guest. If so, you can determine in
-      detail which devices are available. For this, you must create so-called
-      "filters" by specifying certain properties of the USB device.<note>
-          <para>The EHCI controller is shipped as a VirtualBox extension
+      available in the guest at all, and then choose the level of USB support:
+      OHCI for USB 1.1, EHCI (which will also enable OHCI) for USB 2.0,
+      or xHCI for all USB speeds. <note>
+          <para>The xHCI and EHCI controllers are shipped as a VirtualBox extension
           package, which must be installed separately. See <xref
           linkend="intro-installing" /> for more information.</para>
         </note></para>
@@ -1356,8 +1399,8 @@
     Alternatively, use the <computeroutput>VBoxManage</computeroutput> command
     line interface like this: <screen>VBoxManage modifyvm "VM name" --firmware efi</screen>
     To switch back to using the BIOS, use: <screen>VBoxManage modifyvm "VM name" --firmware bios</screen>One
-    notable user of EFI is Apple's Mac OS X, but recent Linuxes (such as Fedora
-    11) and Windows (starting with Vista) offer special versions that can be
+    notable user of EFI is Apple's Mac OS X, but more recent Linuxes
+    and Windows (starting with Vista) offer special versions that can be
     booted using EFI as well.</para>
 
     <para>Another possible use of EFI in VirtualBox is development and testing

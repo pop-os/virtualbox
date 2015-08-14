@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -491,7 +491,7 @@ PDMBOTHCBDECL(void) ioapicSendMsi(PPDMDEVINS pDevIns, RTGCPHYS GCAddr, uint32_t 
 {
     PIOAPIC pThis = PDMINS_2_DATA(pDevIns, PIOAPIC);
 
-    LogFlow(("ioapicSendMsi: Address=%p uValue=%\n", GCAddr, uValue));
+    LogFlow(("ioapicSendMsi: Address=%p uValue=%u\n", GCAddr, uValue));
 
     uint8_t  dest = (GCAddr & VBOX_MSI_ADDR_DEST_ID_MASK) >> VBOX_MSI_ADDR_DEST_ID_SHIFT;
     uint8_t  vector_num = (uValue & VBOX_MSI_DATA_VECTOR_MASK) >> VBOX_MSI_DATA_VECTOR_SHIFT;
@@ -865,7 +865,7 @@ const PDMDEVREG g_DeviceIOAPIC =
     /* szName */
     "ioapic",
     /* szRCMod */
-    "VBoxDD2GC.gc",
+    "VBoxDD2RC.rc",
     /* szR0Mod */
     "VBoxDD2R0.r0",
     /* pszDescription */

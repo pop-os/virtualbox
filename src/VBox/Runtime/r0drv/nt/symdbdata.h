@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013 Oracle Corporation
+ * Copyright (C) 2013-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -2908,6 +2908,50 @@ const RTNTSDBSET g_artNtSdbSets[] =
             /* .offDpcQueueDepth             = */ 0x2d98,
             /* .cbDpcQueueDepth              = */ 0x0004,
             /* .offVendorString              = */ 0x5958,
+            /* .cbVendorString               = */ 0x000d,
+        },
+    },
+# endif
+# ifdef RT_ARCH_X86
+    {   /* Source: s:\WinSyms\u\en_windows_10_symbols_x86_6903197\ntkrpamp.pdb\3A07902D18FD40CE929445D1777703241\ntkrpamp.pdb */
+        /*.OsVerInfo = */
+        {
+            /* .uMajorVer = */ 10,
+            /* .uMinorVer = */ 0,
+            /* .fChecked  = */ false,
+            /* .fSmp      = */ true,
+            /* .uCsdNo    = */ 0,
+            /* .uBuildNo  = */ 10240,
+        },
+        /* .KPRCB = */
+        {
+            /* .offQuantumEnd                = */ 0x2239,
+            /* .cbQuantumEnd                 = */ 0x0001,
+            /* .offDpcQueueDepth             = */ 0x21ec,
+            /* .cbDpcQueueDepth              = */ 0x0004,
+            /* .offVendorString              = */ 0x3cfc,
+            /* .cbVendorString               = */ 0x000d,
+        },
+    },
+# endif
+# ifdef RT_ARCH_AMD64
+    {   /* Source: s:\WinSyms\u\en_windows_10_symbols_x64_6903177\ntkrnlmp.pdb\C68EE22FDCF6477895C54A862BE165671\ntkrnlmp.pdb */
+        /*.OsVerInfo = */
+        {
+            /* .uMajorVer = */ 10,
+            /* .uMinorVer = */ 0,
+            /* .fChecked  = */ false,
+            /* .fSmp      = */ true,
+            /* .uCsdNo    = */ 0,
+            /* .uBuildNo  = */ 10240,
+        },
+        /* .KPRCB = */
+        {
+            /* .offQuantumEnd                = */ 0x2de9,
+            /* .cbQuantumEnd                 = */ 0x0001,
+            /* .offDpcQueueDepth             = */ 0x2d98,
+            /* .cbDpcQueueDepth              = */ 0x0004,
+            /* .offVendorString              = */ 0x6258,
             /* .cbVendorString               = */ 0x000d,
         },
     },

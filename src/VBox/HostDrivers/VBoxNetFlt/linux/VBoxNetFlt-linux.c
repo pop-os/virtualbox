@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,6 +23,9 @@
 #include "the-linux-kernel.h"
 #include "version-generated.h"
 #include "product-generated.h"
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 24)
+#include <linux/nsproxy.h>
+#endif
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
 #include <linux/rtnetlink.h>
@@ -442,7 +445,7 @@ static void vboxNetFltLinuxHookDev(PVBOXNETFLTINS pThis, struct net_device *pDev
 # if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
     ASMAtomicXchgPtr((void * volatile *)&pDev->hard_start_xmit, vboxNetFltLinuxStartXmitFilter);
 # endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29) */
-    RTSpinlockReleaseNoInts(pThis->hSpinlock);
+    RTSpinlockRelease(pThis->hSpinlock);
 }
 
 /**
@@ -478,7 +481,7 @@ static void vboxNetFltLinuxUnhookDev(PVBOXNETFLTINS pThis, struct net_device *pD
     }
     else
         pOverride = NULL;
-    RTSpinlockReleaseNoInts(pThis->hSpinlock);
+    RTSpinlockRelease(pThis->hSpinlock);
 
     if (pOverride)
     {
@@ -1501,7 +1504,7 @@ static void vboxNetFltLinuxReportNicGsoCapabilities(PVBOXNETFLTINS pThis)
         else
             fFeatures = 0;
 
-        RTSpinlockReleaseNoInts(pThis->hSpinlock);
+        RTSpinlockRelease(pThis->hSpinlock);
 
         if (pThis->pSwitchPort)
         {
@@ -1615,7 +1618,7 @@ static int vboxNetFltLinuxAttachToInterface(PVBOXNETFLTINS pThis, struct net_dev
 
     RTSpinlockAcquire(pThis->hSpinlock);
     ASMAtomicUoWritePtr(&pThis->u.s.pDev, pDev);
-    RTSpinlockReleaseNoInts(pThis->hSpinlock);
+    RTSpinlockRelease(pThis->hSpinlock);
 
     Log(("vboxNetFltLinuxAttachToInterface: Device %p(%s) retained. ref=%d\n",
           pDev, pDev->name,
@@ -1665,7 +1668,7 @@ static int vboxNetFltLinuxAttachToInterface(PVBOXNETFLTINS pThis, struct net_dev
         ASMAtomicUoWriteBool(&pThis->u.s.fRegistered, true);
         pDev = NULL; /* don't dereference it */
     }
-    RTSpinlockReleaseNoInts(pThis->hSpinlock);
+    RTSpinlockRelease(pThis->hSpinlock);
 
     /*
      * If the above succeeded report GSO capabilities,  if not undo and
@@ -1690,7 +1693,7 @@ static int vboxNetFltLinuxAttachToInterface(PVBOXNETFLTINS pThis, struct net_dev
 #endif
         RTSpinlockAcquire(pThis->hSpinlock);
         ASMAtomicUoWriteNullPtr(&pThis->u.s.pDev);
-        RTSpinlockReleaseNoInts(pThis->hSpinlock);
+        RTSpinlockRelease(pThis->hSpinlock);
         dev_put(pDev);
         Log(("vboxNetFltLinuxAttachToInterface: Device %p(%s) released. ref=%d\n",
              pDev, pDev->name,
@@ -1702,7 +1705,7 @@ static int vboxNetFltLinuxAttachToInterface(PVBOXNETFLTINS pThis, struct net_dev
              ));
     }
 
-    LogRel(("VBoxNetFlt: attached to '%s' / %.*Rhxs\n", pThis->szName, sizeof(pThis->u.s.MacAddr), &pThis->u.s.MacAddr));
+    LogRel(("VBoxNetFlt: attached to '%s' / %RTmac\n", pThis->szName, &pThis->u.s.MacAddr));
     return VINF_SUCCESS;
 }
 
@@ -1729,7 +1732,7 @@ static int vboxNetFltLinuxUnregisterDevice(PVBOXNETFLTINS pThis, struct net_devi
         ASMAtomicWriteBool(&pThis->fDisconnectedFromHost, true);
         ASMAtomicUoWriteNullPtr(&pThis->u.s.pDev);
     }
-    RTSpinlockReleaseNoInts(pThis->hSpinlock);
+    RTSpinlockRelease(pThis->hSpinlock);
 
     if (fRegistered)
     {
@@ -1804,7 +1807,7 @@ static int vboxNetFltLinuxDeviceMtuChange(PVBOXNETFLTINS pThis, struct net_devic
 /** Stringify the NETDEV_XXX constants. */
 static const char *vboxNetFltLinuxGetNetDevEventName(unsigned long ulEventType)
 {
-    const char *pszEvent = "NETDRV_<unknown>";
+    const char *pszEvent = "NETDEV_<unknown>";
     switch (ulEventType)
     {
         case NETDEV_REGISTER: pszEvent = "NETDEV_REGISTER"; break;
@@ -1848,10 +1851,27 @@ static int vboxNetFltLinuxNotifierCallback(struct notifier_block *self, unsigned
     Log(("VBoxNetFlt: got event %s(0x%lx) on %s, pDev=%p pThis=%p pThis->u.s.pDev=%p\n",
          vboxNetFltLinuxGetNetDevEventName(ulEventType), ulEventType, pDev->name, pDev, pThis, pMyDev));
 
-    if (    ulEventType == NETDEV_REGISTER
-        && !strcmp(pDev->name, pThis->szName))
+    if (ulEventType == NETDEV_REGISTER)
     {
-        vboxNetFltLinuxAttachToInterface(pThis, pDev);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 24) /* cgroups/namespaces introduced */
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 26)
+#  define VBOX_DEV_NET(dev)             dev_net(dev)
+#  define VBOX_NET_EQ(n1, n2)           net_eq((n1), (n2))
+# else
+#  define VBOX_DEV_NET(dev)             ((dev)->nd_net)
+#  define VBOX_NET_EQ(n1, n2)           ((n1) == (n2))
+# endif
+        struct net *pMyNet = current->nsproxy->net_ns;
+        struct net *pDevNet = VBOX_DEV_NET(pDev);
+
+        if (VBOX_NET_EQ(pDevNet, pMyNet))
+#endif  /* namespaces */
+        {
+            if (strcmp(pDev->name, pThis->szName) == 0)
+            {
+                vboxNetFltLinuxAttachToInterface(pThis, pDev);
+            }
+        }
     }
     else
     {
@@ -1923,7 +1943,7 @@ static int vboxNetFltLinuxEnumeratorCallback(struct notifier_block *self, unsign
             Log(("%s: %s: IPv4 addr %RTnaipv4 mask %RTnaipv4\n",
                  __FUNCTION__, VBOX_NETDEV_NAME(dev),
                  ifa->ifa_address, ifa->ifa_mask));
-            
+
             pThis->pSwitchPort->pfnNotifyHostAddress(pThis->pSwitchPort,
                 /* :fAdded */ true, kIntNetAddrType_IPv4, &ifa->ifa_address);
         } endfor_ifa(in_dev);
@@ -1998,7 +2018,7 @@ static int vboxNetFltLinuxNotifierIPv4Callback(struct notifier_block *self, unsi
             fAdded = false;
         else
             return NOTIFY_OK;
-            
+
         pThis->pSwitchPort->pfnNotifyHostAddress(pThis->pSwitchPort, fAdded,
                                                  kIntNetAddrType_IPv4, &ifa->ifa_local);
     }
@@ -2040,7 +2060,7 @@ static int vboxNetFltLinuxNotifierIPv6Callback(struct notifier_block *self, unsi
             fAdded = false;
         else
             return NOTIFY_OK;
-            
+
         pThis->pSwitchPort->pfnNotifyHostAddress(pThis->pSwitchPort, fAdded,
                                                  kIntNetAddrType_IPv6, &ifa->addr);
     }
@@ -2059,6 +2079,7 @@ int  vboxNetFltPortOsXmit(PVBOXNETFLTINS pThis, void *pvIfData, PINTNETSG pSG, u
     struct net_device * pDev;
     int err;
     int rc = VINF_SUCCESS;
+    IPRT_LINUX_SAVE_EFL_AC();
     NOREF(pvIfData);
 
     LogFlow(("vboxNetFltPortOsXmit: pThis=%p (%s)\n", pThis, pThis->szName));
@@ -2107,17 +2128,18 @@ int  vboxNetFltPortOsXmit(PVBOXNETFLTINS pThis, void *pvIfData, PINTNETSG pSG, u
         vboxNetFltLinuxReleaseNetDev(pThis, pDev);
     }
 
+    IPRT_LINUX_RESTORE_EFL_AC();
     return rc;
 }
 
 
 void vboxNetFltPortOsSetActive(PVBOXNETFLTINS pThis, bool fActive)
 {
-    struct net_device * pDev;
+    struct net_device *pDev;
+    IPRT_LINUX_SAVE_EFL_AC();
 
-    LogFlow(("vboxNetFltPortOsSetActive: pThis=%p (%s), fActive=%s, fDisablePromiscuous=%s\n",
-             pThis, pThis->szName, fActive?"true":"false",
-             pThis->fDisablePromiscuous?"true":"false"));
+    LogFlow(("vboxNetFltPortOsSetActive: pThis=%p (%s), fActive=%RTbool, fDisablePromiscuous=%RTbool\n",
+             pThis, pThis->szName, fActive, pThis->fDisablePromiscuous));
 
     if (pThis->fDisablePromiscuous)
         return;
@@ -2164,6 +2186,7 @@ void vboxNetFltPortOsSetActive(PVBOXNETFLTINS pThis, bool fActive)
 
         vboxNetFltLinuxReleaseNetDev(pThis, pDev);
     }
+    IPRT_LINUX_RESTORE_EFL_AC();
 }
 
 
@@ -2175,8 +2198,10 @@ int vboxNetFltOsDisconnectIt(PVBOXNETFLTINS pThis)
      */
     if (ASMAtomicCmpXchgBool(&pThis->u.s.fPacketHandler, false, true))
     {
+        IPRT_LINUX_SAVE_EFL_AC();
         dev_remove_pack(&pThis->u.s.PacketType);
         Log(("vboxNetFltOsDisconnectIt: this=%p: Packet handler removed.\n", pThis));
+        IPRT_LINUX_RESTORE_EFL_AC();
     }
     return VINF_SUCCESS;
 }
@@ -2184,6 +2209,8 @@ int vboxNetFltOsDisconnectIt(PVBOXNETFLTINS pThis)
 
 int  vboxNetFltOsConnectIt(PVBOXNETFLTINS pThis)
 {
+    IPRT_LINUX_SAVE_EFL_AC();
+
     /*
      * Report the GSO capabilities of the host and device (if connected).
      * Note! No need to mark ourselves busy here.
@@ -2204,6 +2231,7 @@ int  vboxNetFltOsConnectIt(PVBOXNETFLTINS pThis)
 #endif
     vboxNetFltLinuxReportNicGsoCapabilities(pThis);
 
+    IPRT_LINUX_RESTORE_EFL_AC();
     return VINF_SUCCESS;
 }
 
@@ -2212,6 +2240,7 @@ void vboxNetFltOsDeleteInstance(PVBOXNETFLTINS pThis)
 {
     struct net_device  *pDev;
     bool                fRegistered;
+    IPRT_LINUX_SAVE_EFL_AC();
 
 #ifdef VBOXNETFLT_WITH_HOST2WIRE_FILTER
     vboxNetFltLinuxUnhookDev(pThis, NULL);
@@ -2225,7 +2254,7 @@ void vboxNetFltOsDeleteInstance(PVBOXNETFLTINS pThis)
     RTSpinlockAcquire(pThis->hSpinlock);
     pDev = ASMAtomicUoReadPtrT(&pThis->u.s.pDev, struct net_device *);
     fRegistered = ASMAtomicXchgBool(&pThis->u.s.fRegistered, false);
-    RTSpinlockReleaseNoInts(pThis->hSpinlock);
+    RTSpinlockRelease(pThis->hSpinlock);
 
     if (fRegistered)
     {
@@ -2252,6 +2281,8 @@ void vboxNetFltOsDeleteInstance(PVBOXNETFLTINS pThis)
     Log(("vboxNetFltOsDeleteInstance: this=%p: Notifier removed.\n", pThis));
     unregister_netdevice_notifier(&pThis->u.s.Notifier);
     module_put(THIS_MODULE);
+
+    IPRT_LINUX_RESTORE_EFL_AC();
 }
 
 
@@ -2259,22 +2290,30 @@ int  vboxNetFltOsInitInstance(PVBOXNETFLTINS pThis, void *pvContext)
 {
     int err;
     NOREF(pvContext);
+    IPRT_LINUX_SAVE_EFL_AC();
 
     pThis->u.s.Notifier.notifier_call = vboxNetFltLinuxNotifierCallback;
     err = register_netdevice_notifier(&pThis->u.s.Notifier);
     if (err)
+    {
+        IPRT_LINUX_RESTORE_EFL_AC();
         return VERR_INTNET_FLT_IF_FAILED;
+    }
     if (!pThis->u.s.fRegistered)
     {
         unregister_netdevice_notifier(&pThis->u.s.Notifier);
         LogRel(("VBoxNetFlt: failed to find %s.\n", pThis->szName));
+        IPRT_LINUX_RESTORE_EFL_AC();
         return VERR_INTNET_FLT_IF_NOT_FOUND;
     }
 
     Log(("vboxNetFltOsInitInstance: this=%p: Notifier installed.\n", pThis));
     if (   pThis->fDisconnectedFromHost
         || !try_module_get(THIS_MODULE))
+    {
+        IPRT_LINUX_RESTORE_EFL_AC();
         return VERR_INTNET_FLT_IF_FAILED;
+    }
 
     if (pThis->pSwitchPort->pfnNotifyHostAddress)
     {
@@ -2293,8 +2332,8 @@ int  vboxNetFltOsInitInstance(PVBOXNETFLTINS pThis, void *pvContext)
         err = register_netdevice_notifier(&Enumerator.Notifier);
         if (err)
         {
-            LogRel(("%s: failed to enumerate network devices: error %d\n",
-                    __FUNCTION__, err));
+            LogRel(("%s: failed to enumerate network devices: error %d\n", __FUNCTION__, err));
+            IPRT_LINUX_RESTORE_EFL_AC();
             return VINF_SUCCESS;
         }
 
@@ -2303,21 +2342,22 @@ int  vboxNetFltOsInitInstance(PVBOXNETFLTINS pThis, void *pvContext)
         pThis->u.s.NotifierIPv4.notifier_call = vboxNetFltLinuxNotifierIPv4Callback;
         err = register_inetaddr_notifier(&pThis->u.s.NotifierIPv4);
         if (err)
-            LogRel(("%s: failed to register IPv4 notifier: error %d\n",
-                    __FUNCTION__, err));
+            LogRel(("%s: failed to register IPv4 notifier: error %d\n", __FUNCTION__, err));
 
         pThis->u.s.NotifierIPv6.notifier_call = vboxNetFltLinuxNotifierIPv6Callback;
         err = register_inet6addr_notifier(&pThis->u.s.NotifierIPv6);
         if (err)
-            LogRel(("%s: failed to register IPv6 notifier: error %d\n",
-                    __FUNCTION__, err));
+            LogRel(("%s: failed to register IPv6 notifier: error %d\n", __FUNCTION__, err));
     }
 
+    IPRT_LINUX_RESTORE_EFL_AC();
     return VINF_SUCCESS;
 }
 
 int  vboxNetFltOsPreInitInstance(PVBOXNETFLTINS pThis)
 {
+    IPRT_LINUX_SAVE_EFL_AC();
+
     /*
      * Init the linux specific members.
      */
@@ -2335,6 +2375,7 @@ int  vboxNetFltOsPreInitInstance(PVBOXNETFLTINS pThis)
 # endif
 #endif
 
+    IPRT_LINUX_RESTORE_EFL_AC();
     return VINF_SUCCESS;
 }
 

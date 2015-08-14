@@ -4,7 +4,7 @@
 <chapter id="Introduction">
   <title>First steps</title>
 
-  <para>Welcome to $VBOX_PRODUCT!</para>
+  <para>Welcome to @VBOX_PRODUCT@!</para>
 
   <para>VirtualBox is a cross-platform virtualization application. What does
   that mean? For one thing, it installs on your existing Intel or AMD-based
@@ -22,7 +22,7 @@
   up to datacenter deployments and even Cloud environments.</para>
 
   <para>The following screenshot shows you how VirtualBox, installed on a Mac
-  computer, is running Windows 7 in a virtual machine window:</para>
+  computer, is running Windows 8 in a virtual machine window:</para>
 
   <para><mediaobject>
       <imageobject>
@@ -399,22 +399,18 @@
       <listitem>
         <para><emphasis role="bold">Windows</emphasis> hosts:<itemizedlist>
             <listitem>
-              <para>Windows XP, all service packs (32-bit)</para>
-            </listitem>
-
-            <listitem>
-              <para>Windows Server 2003 (32-bit)</para>
-            </listitem>
-
-            <listitem>
-              <para>Windows Vista (32-bit and 64-bit<footnote>
+              <para>Windows Vista SP1 and later (32-bit and 64-bit<footnote>
                   <para>Support for 64-bit Windows was added with VirtualBox
                   1.5.</para>
                 </footnote>).</para>
             </listitem>
 
             <listitem>
-              <para>Windows Server 2008 (32-bit and 64-bit)</para>
+              <para>Windows Server 2008 (64-bit)</para>
+            </listitem>
+
+            <listitem>
+              <para>Windows Server 2008 R2 (64-bit)</para>
             </listitem>
 
             <listitem>
@@ -426,36 +422,40 @@
             </listitem>
             
             <listitem>
+              <para>Windows 8.1 (32-bit and 64-bit)</para>
+            </listitem>
+            
+            <listitem>
               <para>Windows Server 2012 (64-bit)</para>
+            </listitem>
+
+            <listitem>
+              <para>Windows Server 2012 R2 (64-bit)</para>
             </listitem>
 
           </itemizedlist></para>
       </listitem>
 
       <listitem>
-        <para><emphasis role="bold">Mac OS X</emphasis> hosts:<footnote>
+        <para><emphasis role="bold">Mac OS X</emphasis> hosts (64-bit):<footnote>
             <para>Preliminary Mac OS X support (beta stage) was added with
             VirtualBox 1.4, full support with 1.6. Mac OS X 10.4 (Tiger)
-            support was removed with VirtualBox 3.1.</para>
+            support was removed with VirtualBox 3.1. Mac OS X 10.7 (Lion)
+            and earlier was removed with VirtualBox 5.0.</para>
           </footnote></para>
 
         <itemizedlist>
           <listitem>
-            <para>10.6 (Snow Leopard, 32-bit and 64-bit)</para>
+            <para>10.8 (Mountain Lion)</para>
           </listitem>
 
           <listitem>
-            <para>10.7 (Lion, 32-bit and 64-bit)</para>
+            <para>10.9 (Mavericks)</para>
           </listitem>
 
           <listitem>
-            <para>10.8 (Mountain Lion, 64-bit)</para>
+            <para>10.10 (Yosemite)</para>
           </listitem>
-
-          <listitem>
-            <para>10.9 (Mavericks, 64-bit)</para>
-          </listitem>
-
         </itemizedlist>
 
         <para>Intel hardware is required; please see <xref
@@ -469,26 +469,23 @@
             1.4.</para>
           </footnote>). Among others, this includes:<itemizedlist>
             <listitem>
-              <para>10.04 ("Lucid Lynx"), 10.10 ("Maverick Meerkat),
-              11.04 ("Natty Narwhal"), 11.10 ("Oneiric Oncelot"),
-              12.04 ("Precise Pangolin"), 12.10 ("Quantal Quetzal"),
-              13.04 ("Raring Ringtail"), 13.10 ("Saucy Salamander")</para>
+              <para>Ubuntu 10.04 to 15.04</para>
             </listitem>
 
             <listitem>
-              <para>Debian GNU/Linux 6.0 ("squeeze") and 7.0 ("wheezy")</para>
+              <para>Debian GNU/Linux 6.0 ("Squeeze") and 8.0 ("Jessie")</para>
             </listitem>
 
             <listitem>
-              <para>Oracle Enterprise Linux 5, Oracle Linux 6</para>
+              <para>Oracle Enterprise Linux 5, Oracle Linux 6 and 7</para>
             </listitem>
 
             <listitem>
-              <para>Redhat Enterprise Linux 5 and 6</para>
+              <para>Redhat Enterprise Linux 5, 6 and 7</para>
             </listitem>
 
             <listitem>
-              <para>Fedora Core 6 to 19</para>
+              <para>Fedora Core / Fedora 6 to 22</para>
             </listitem>
 
             <listitem>
@@ -496,11 +493,11 @@
             </listitem>
 
             <listitem>
-              <para>openSUSE 11.0, 11.1, 11.2, 11.3, 11.4, 12.1, 12.2</para>
+              <para>openSUSE 11.4, 12.1, 12.2, 13.1</para>
             </listitem>
 
             <listitem>
-              <para>Mandriva 2010 and 2011</para>
+              <para>Mandriva 2011</para>
             </listitem>
           </itemizedlist></para>
 
@@ -519,11 +516,11 @@
         supported with the restrictions listed in <xref
         linkend="KnownIssues" />:<itemizedlist>
             <listitem>
-              <para>Solaris 11 including Solaris 11 Express</para>
+              <para>Solaris 11</para>
             </listitem>
 
             <listitem>
-              <para>Solaris 10 (u8 and higher)</para>
+              <para>Solaris 10 (U10 and higher)</para>
             </listitem>
           </itemizedlist></para>
       </listitem>
@@ -565,6 +562,11 @@
               </listitem>
 
               <listitem>
+                <para>The virtual USB 3.0 (xHCI) device; see <xref
+                linkend="settings-usb" />.</para>
+              </listitem>
+
+              <listitem>
                 <para>VirtualBox Remote Desktop Protocol (VRDP) support; see
                 <xref linkend="vrde" />.</para>
               </listitem>
@@ -581,6 +583,11 @@
               <listitem>
                 <para>Experimental support for PCI passthrough on Linux hosts;
                   see <xref linkend="pcipassthrough" />.</para>
+              </listitem>
+
+              <listitem>
+                <para>Disk image encryption with AES algorithm;
+                  see <xref linkend="vrde-crypt" />.</para>
               </listitem>
             </orderedlist></para>
 
@@ -1564,8 +1571,8 @@
 
     <para>To experiment with a VM configuration, test different guest OS levels
     or to simply backup a VM, VirtualBox can create a full or a linked copy of
-    an existing VM.<footnote>Cloning support was introduced with VirtualBox
-    4.1.</footnote></para>
+    an existing VM.<footnote><para>Cloning support was introduced with VirtualBox
+    4.1.</para></footnote></para>
     
     <para>A wizard will guide you through the clone process:</para>
 
@@ -1817,8 +1824,9 @@
         <listitem>
           <para>Finally, <computeroutput>VBoxHeadless</computeroutput> is yet
           another front-end that produces no visible output on the host at
-          all, but merely acts as a RDP server if the VirtualBox Remote
-          Desktop Extension (VRDE) is installed. As opposed to the other
+          all, but can act as a RDP server if the VirtualBox Remote
+          Desktop Extension (VRDE) is installed and enabled for the VM.
+          As opposed to the other
           graphical interfaces, the headless front-end requires no graphics
           support. This is useful, for example, if you want to host your
           virtual machines on a headless Linux server that has no X Window

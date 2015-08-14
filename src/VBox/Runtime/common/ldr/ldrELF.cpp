@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -143,7 +143,7 @@ int rtldrELFOpen(PRTLDRREADER pReader, uint32_t fFlags, RTLDRARCH enmArch, PRTLD
     }
     if (e_ident[EI_DATA] != ELFDATA2LSB)
     {
-        Log(("RTLdrELF: %s: ELF endian %x is unsupported\n", e_ident[EI_DATA]));
+        Log(("RTLdrELF: %s: ELF endian %x is unsupported\n", pszLogName, e_ident[EI_DATA]));
         return VERR_LDRELF_ODD_ENDIAN;
     }
     if (e_ident[EI_CLASS] == ELFCLASS32)

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -185,7 +185,7 @@ RTR0DECL(void *) RTMemContAlloc(PRTCCPHYS pPhys, size_t cb)
 
     /* Allocate physically contiguous (< 4GB) page-aligned memory. */
     uint64_t uPhys;
-    void *pvMem = rtR0SolMemAlloc((uint64_t)_4G - 1, &uPhys, cb, PAGESIZE, true);
+    void *pvMem = rtR0SolMemAlloc((uint64_t)_4G - 1, &uPhys, cb, PAGESIZE, true /* fContig */);
     if (RT_UNLIKELY(!pvMem))
     {
         LogRel(("RTMemContAlloc failed to allocate %u bytes\n", cb));

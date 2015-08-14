@@ -1,7 +1,6 @@
+/* $Id: QIAdvancedSlider.h $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * VirtualBox Qt extensions: QIAdvancedSlider class implementation
+ * VBox Qt GUI - Qt extensions: QIAdvancedSlider class implementation
  */
 
 /*

@@ -585,6 +585,50 @@
     </warning>
   </sect1>
 
+  <sect1 id="gimproviders">
+    <title>Paravirtualization providers</title>
+
+    <para>VirtualBox allows exposing a paravirtualization interface to
+    facilitate accurate and efficient execution of software within a
+    virtual machine. These interfaces require the guest operating system
+    to recognize their presence and make use of them in order to leverage
+    the benefits of communicating with the VirtualBox hypervisor.</para>
+
+    <para>Most mainstream, modern operating systems, including Windows and
+    Linux, ship with support for one or more paravirtualization interfaces.
+    Hence, there is typically no need to install additional software in the
+    guest (including VirtualBox Guest Additions) to make use of this
+    feature.</para>
+
+    <para>VirtualBox provides the following interfaces:</para>
+      <itemizedlist>
+        <listitem>
+          <para><emphasis role="bold">Minimal</emphasis>: Announces the
+          presence of a virtualized environment. Additionally, reports the
+          TSC and APIC frequency to the guest operating system. This provider
+          is mandatory for running any Mac OS X guests.</para>
+        </listitem>
+
+        <listitem>
+          <para><emphasis role="bold">KVM</emphasis>: Presents a Linux KVM
+          hypervisor interface which is recognized by Linux kernels starting
+          with version 2.6.25. VirtualBox's implementation currently supports
+          paravirtualized clocks and SMP spinlocks. This provider is
+          recommended for Linux guests.</para>
+        </listitem>
+
+        <listitem>
+          <para><emphasis role="bold">Hyper-V</emphasis>: Presents a Microsoft
+          Hyper-V hypervisor interface which is recognized by Windows 7 and newer
+          operating systems. VirtualBox's implementation currently supports
+          paravirtualized clocks, APIC frequency reporting, guest crash reporting
+          and relaxed timer checks. This provider is recommended for Windows and
+          FreeBSD guests.
+          </para>
+        </listitem>
+     </itemizedlist>
+  </sect1>
+
   <sect1>
     <title>Details about software virtualization</title>
 
@@ -701,8 +745,8 @@
         <listitem>
           <para>There are certain flaws in the implementation of ring 1 in the
           x86 architecture that were never fixed. Certain instructions that
-          <emphasis>should</emphasis> trap in ring 1 don't. This affect for
-          example the LGDT/SGDT, LIDT/SIDT, or POPF/PUSHF instruction pairs.
+          <emphasis>should</emphasis> trap in ring 1 don't. This affects, for
+          example, the LGDT/SGDT, LIDT/SIDT, or POPF/PUSHF instruction pairs.
           Whereas the "load" operation is privileged and can therefore be
           trapped, the "store" instruction always succeed. If the guest is
           allowed to execute these, it will see the true state of the CPU, not

@@ -1,7 +1,6 @@
+/* $Id: UINetworkManagerDialog.h $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * UINetworkManagerDialog stuff declaration
+ * VBox Qt GUI - UINetworkManagerDialog stuff declaration.
  */
 
 /*

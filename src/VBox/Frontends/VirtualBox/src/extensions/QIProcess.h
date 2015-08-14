@@ -1,7 +1,6 @@
+/* $Id: QIProcess.h $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * QIProcess class declaration
+ * VBox Qt GUI - QIProcess class declaration.
  */
 
 /*

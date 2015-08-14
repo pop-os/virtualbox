@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2012 Oracle Corporation
+# Copyright (C) 2012-2015 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -26,7 +26,7 @@ MakeAlternativeSource_TEMPLATE = VBoxAdvBldProg
 MakeAlternativeSource_DEFS     = IN_DIS
 MakeAlternativeSource_SOURCES  = MakeAlternativeSource.cpp
 MakeAlternativeSource_LIBS     = \
-	$(PATH_STAGE_LIB)/DisasmBldProg$(VBOX_SUFF_LIB)
+	$(PATH_STAGE_LIB)/DisasmBldProg$(VBOX_HOSTSUFF_LIB)
 
 
 include $(FILE_KBUILD_SUB_FOOTER)

@@ -1,8 +1,6 @@
 /* $Id: UIWizardCloneVDPageExpert.cpp $ */
 /** @file
- *
- * VBox frontends: Qt4 GUI ("VirtualBox"):
- * UIWizardCloneVDPageExpert class implementation
+ * VBox Qt GUI - UIWizardCloneVDPageExpert class implementation.
  */
 
 /*
@@ -17,26 +15,33 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* Qt includes: */
-#include <QGridLayout>
-#include <QVBoxLayout>
-#include <QHBoxLayout>
-#include <QButtonGroup>
-#include <QGroupBox>
-#include <QRadioButton>
-#include <QCheckBox>
-#include <QLineEdit>
+# include <QGridLayout>
+# include <QVBoxLayout>
+# include <QHBoxLayout>
+# include <QButtonGroup>
+# include <QGroupBox>
+# include <QRadioButton>
+# include <QCheckBox>
+# include <QLineEdit>
 
 /* GUI includes: */
-#include "UIWizardCloneVDPageExpert.h"
-#include "UIWizardCloneVD.h"
-#include "UIMessageCenter.h"
-#include "UIIconPool.h"
-#include "VBoxMediaComboBox.h"
-#include "QIToolButton.h"
+# include "UIWizardCloneVDPageExpert.h"
+# include "UIWizardCloneVD.h"
+# include "UIMessageCenter.h"
+# include "UIIconPool.h"
+# include "VBoxMediaComboBox.h"
+# include "QIToolButton.h"
 
 /* COM includes: */
-#include "CSystemProperties.h"
+# include "CSystemProperties.h"
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 
 UIWizardCloneVDPageExpert::UIWizardCloneVDPageExpert(const CMedium &sourceVirtualDisk)
 {
@@ -224,18 +229,18 @@ void UIWizardCloneVDPageExpert::sltSelectLocationButtonClicked()
 void UIWizardCloneVDPageExpert::retranslateUi()
 {
     /* Translate widgets: */
-    m_pSourceDiskCnt->setTitle(UIWizardCloneVD::tr("Hard drive to &copy"));
-    m_pSourceDiskOpenButton->setToolTip(UIWizardCloneVD::tr("Choose a virtual hard drive file to copy..."));
-    m_pDestinationCnt->setTitle(UIWizardCloneVD::tr("&New hard drive to create"));
-    m_pDestinationDiskOpenButton->setToolTip(UIWizardCloneVD::tr("Choose a location for new virtual hard drive file..."));
-    m_pFormatCnt->setTitle(UIWizardCloneVD::tr("Hard drive file &type"));
+    m_pSourceDiskCnt->setTitle(UIWizardCloneVD::tr("Hard disk to &copy"));
+    m_pSourceDiskOpenButton->setToolTip(UIWizardCloneVD::tr("Choose a virtual hard disk file to copy..."));
+    m_pDestinationCnt->setTitle(UIWizardCloneVD::tr("&New hard disk to create"));
+    m_pDestinationDiskOpenButton->setToolTip(UIWizardCloneVD::tr("Choose a location for new virtual hard disk file..."));
+    m_pFormatCnt->setTitle(UIWizardCloneVD::tr("Hard disk file &type"));
     QList<QAbstractButton*> buttons = m_pFormatButtonGroup->buttons();
     for (int i = 0; i < buttons.size(); ++i)
     {
         QAbstractButton *pButton = buttons[i];
         pButton->setText(VBoxGlobal::fullMediumFormatName(m_formatNames[m_pFormatButtonGroup->id(pButton)]));
     }
-    m_pVariantCnt->setTitle(UIWizardCloneVD::tr("Storage on physical hard drive"));
+    m_pVariantCnt->setTitle(UIWizardCloneVD::tr("Storage on physical hard disk"));
     m_pDynamicalButton->setText(UIWizardCloneVD::tr("&Dynamically allocated"));
     m_pFixedButton->setText(UIWizardCloneVD::tr("&Fixed size"));
     m_pSplitBox->setText(UIWizardCloneVD::tr("&Split into files of less than 2GB"));

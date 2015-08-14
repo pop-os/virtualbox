@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2012 Oracle Corporation
+ * Copyright (C) 2009-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -341,7 +341,7 @@ int main(int argc, char **argv)
             }
 
             RTTESTI_CHECK_RC(SUPSemEventClose(pSession, hEvent), VINF_OBJECT_DESTROYED);
-            RTTestValueF(hTest, cInterrupted, RTTESTUNIT_OCCURRENCES, "VERR_INTERRUPTED returned", cInterrupted);
+            RTTestValueF(hTest, cInterrupted, RTTESTUNIT_OCCURRENCES, "VERR_INTERRUPTED returned");
         }
 
         if (RTTestErrorCount(hTest) == 0)
@@ -395,7 +395,7 @@ int main(int argc, char **argv)
             }
 
             RTTESTI_CHECK_RC(SUPSemEventMultiClose(pSession, hEvent), VINF_OBJECT_DESTROYED);
-            RTTestValueF(hTest, cInterrupted, RTTESTUNIT_OCCURRENCES, "VERR_INTERRUPTED returned", cInterrupted);
+            RTTestValueF(hTest, cInterrupted, RTTESTUNIT_OCCURRENCES, "VERR_INTERRUPTED returned");
         }
     }
 
@@ -457,7 +457,7 @@ int main(int argc, char **argv)
             }
 
             RTTESTI_CHECK_RC(SUPSemEventClose(pSession, hEvent), VINF_OBJECT_DESTROYED);
-            RTTestValueF(hTest, cInterrupted, RTTESTUNIT_OCCURRENCES, "VERR_INTERRUPTED returned", cInterrupted);
+            RTTestValueF(hTest, cInterrupted, RTTESTUNIT_OCCURRENCES, "VERR_INTERRUPTED returned");
         }
 
         if (RTTestErrorCount(hTest) == 0)
@@ -512,7 +512,7 @@ int main(int argc, char **argv)
             }
 
             RTTESTI_CHECK_RC(SUPSemEventMultiClose(pSession, hEvent), VINF_OBJECT_DESTROYED);
-            RTTestValueF(hTest, cInterrupted, RTTESTUNIT_OCCURRENCES, "VERR_INTERRUPTED returned", cInterrupted);
+            RTTestValueF(hTest, cInterrupted, RTTESTUNIT_OCCURRENCES, "VERR_INTERRUPTED returned");
         }
 
         if (RTTestErrorCount(hTest) == 0)
@@ -568,7 +568,7 @@ int main(int argc, char **argv)
             }
 
             RTTESTI_CHECK_RC(SUPSemEventClose(pSession, hEvent), VINF_OBJECT_DESTROYED);
-            RTTestValueF(hTest, cInterrupted, RTTESTUNIT_OCCURRENCES, "VERR_INTERRUPTED returned", cInterrupted);
+            RTTestValueF(hTest, cInterrupted, RTTESTUNIT_OCCURRENCES, "VERR_INTERRUPTED returned");
         }
 
 
@@ -625,7 +625,7 @@ int main(int argc, char **argv)
             }
 
             RTTESTI_CHECK_RC(SUPSemEventMultiClose(pSession, hEvent), VINF_OBJECT_DESTROYED);
-            RTTestValueF(hTest, cInterrupted, RTTESTUNIT_OCCURRENCES, "VERR_INTERRUPTED returned", cInterrupted);
+            RTTestValueF(hTest, cInterrupted, RTTESTUNIT_OCCURRENCES, "VERR_INTERRUPTED returned");
         }
 
     }

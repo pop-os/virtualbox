@@ -1,7 +1,6 @@
+/* $Id: UIKeyboardHandler.h $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * UIKeyboardHandler class declaration
+ * VBox Qt GUI - UIKeyboardHandler class declaration.
  */
 
 /*
@@ -24,19 +23,20 @@
 #include <QMap>
 
 /* GUI includes: */
-#include "UIDefs.h"
+#include "UIExtraDataDefs.h"
 #ifdef Q_WS_MAC
 # include <CoreFoundation/CFBase.h>
 # include <Carbon/Carbon.h>
 #endif /* Q_WS_MAC */
 
 /* COM includes: */
+#include "COMEnums.h"
 #include "CKeyboard.h"
 
 /* Forward declarations: */
 class QWidget;
-class CSession;
 class UISession;
+class UIActionPool;
 class UIMachineLogic;
 class UIMachineWindow;
 class UIMachineView;
@@ -46,11 +46,17 @@ class WinAltGrMonitor;
 #elif defined(Q_WS_X11)
 typedef union  _XEvent XEvent;
 #endif /* Q_WS_X11 */
+class CKeyboard;
 
 /* Delegate to control VM keyboard functionality: */
 class UIKeyboardHandler : public QObject
 {
     Q_OBJECT;
+
+signals:
+
+    /** Notifies listeners about state-change. */
+    void sigStateChange(int iState);
 
 public:
 
@@ -71,7 +77,7 @@ public:
     void releaseAllPressedKeys(bool aReleaseHostKey = true);
 
     /* Current keyboard state: */
-    int keyboardState() const;
+    int state() const;
 
     /* Some getters required by side-code: */
     bool isHostKeyPressed() const { return m_bIsHostComboPressed; }
@@ -95,11 +101,6 @@ public:
     bool x11EventFilter(XEvent *pEvent, ulong uScreenId);
 #endif
 
-signals:
-
-    /* Notifies listeners about keyboard state-change: */
-    void keyboardStateChanged(int iNewState);
-
 protected slots:
 
     /* Machine state-change handler: */
@@ -121,8 +122,11 @@ protected:
 
     /* Common getters: */
     UIMachineLogic* machineLogic() const;
+    UIActionPool* actionPool() const;
     UISession* uisession() const;
-    CSession& session() const;
+
+    /** Returns the console's keyboard reference. */
+    CKeyboard& keyboard() const;
 
     /* Event handler for registered machine-view(s): */
     bool eventFilter(QObject *pWatchedObject, QEvent *pEvent);
@@ -178,7 +182,7 @@ protected:
     bool m_bIsHostComboPressed : 1;
     bool m_bIsHostComboAlone : 1;
     bool m_bIsHostComboProcessed : 1;
-    bool m_fPassCAD : 1;
+    bool m_fPassCADtoGuest : 1;
     /** Whether the debugger is active.
      * Currently only affects auto capturing. */
     bool m_fDebuggerActive : 1;

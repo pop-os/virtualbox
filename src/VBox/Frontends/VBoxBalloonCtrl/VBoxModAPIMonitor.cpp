@@ -1,11 +1,10 @@
-
 /* $Id: VBoxModAPIMonitor.cpp $ */
 /** @file
  * VBoxModAPIMonitor - API monitor module for detecting host isolation.
  */
 
 /*
- * Copyright (C) 2012 Oracle Corporation
+ * Copyright (C) 2012-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -213,6 +212,9 @@ static int apimonMachineControl(const Bstr &strUuid, PVBOXWATCHDOG_MACHINE pMach
                 /* Get the associated console. */
                 ComPtr<IConsole> console;
                 CHECK_ERROR_BREAK(g_pSession, COMGETTER(Console)(console.asOutParam()));
+                /* Get the associated session machine. */
+                ComPtr<IMachine> sessionMachine;
+                CHECK_ERROR_BREAK(g_pSession, COMGETTER(Machine)(sessionMachine.asOutParam()));
 
                 ComPtr<IProgress> progress;
 
@@ -268,7 +270,7 @@ static int apimonMachineControl(const Bstr &strUuid, PVBOXWATCHDOG_MACHINE pMach
                                 break;
                         }
 
-                        CHECK_ERROR(console, SaveState(progress.asOutParam()));
+                        CHECK_ERROR(sessionMachine, SaveState(progress.asOutParam()));
                         if (SUCCEEDED(rc))
                         {
                             progress->WaitForCompletion(ulTimeout);
@@ -326,7 +328,7 @@ static bool apimonHandleVM(const PVBOXWATCHDOG_MACHINE pMachine)
             if (itInGroup != g_vecAPIMonGroups.end())
                 fHandleVM = true;
 
-            itVMGroup++;
+            ++itVMGroup;
         }
     }
     catch (...)
@@ -376,7 +378,7 @@ static int apimonTrigger(APIMON_RESPONSE enmResp)
             AssertFailed();
         }
 
-        it++;
+        ++it;
     }
 
     return rc;
@@ -506,7 +508,7 @@ static DECLCALLBACK(int) VBoxModAPIMonitorInit(void)
         while (itGroups != g_vecAPIMonGroups.end())
         {
             serviceLogVerbose((" %s", itGroups->first.c_str()));
-            itGroups++;
+            ++itGroups;
         }
         serviceLogVerbose(("\n"));
 #endif

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2012 Oracle Corporation
+ * Copyright (C) 2009-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -133,7 +133,7 @@ VMMRZDECL(void) VMMRZCallRing3Disable(PVMCPU pVCpu)
 #endif
 
     Assert(pVCpu->vmm.s.cCallRing3Disabled < 16);
-    if (ASMAtomicIncU32(&pVCpu->vmm.s.cCallRing3Disabled) == 1) /** @todo replace with unordered variant (ASMAtomicUoIncU32). */
+    if (ASMAtomicUoIncU32(&pVCpu->vmm.s.cCallRing3Disabled) == 1)
     {
         /** @todo it might make more sense to just disable logging here, then we
          * won't flush away important bits... but that goes both ways really. */
@@ -154,7 +154,7 @@ VMMRZDECL(void) VMMRZCallRing3Disable(PVMCPU pVCpu)
 
 
 /**
- * Counters VMMRZCallRing3Disable and re-enables host calls.
+ * Counters VMMRZCallRing3Disable() and re-enables host calls.
  *
  * @param   pVCpu               The CPU struct for the calling EMT.
  * @thread  EMT.
@@ -167,7 +167,7 @@ VMMRZDECL(void) VMMRZCallRing3Enable(PVMCPU pVCpu)
 #endif
 
     Assert(pVCpu->vmm.s.cCallRing3Disabled > 0);
-    if (ASMAtomicDecU32(&pVCpu->vmm.s.cCallRing3Disabled) == 0) /** @todo replace with unordered variant (ASMAtomicUoDecU32). */
+    if (ASMAtomicUoDecU32(&pVCpu->vmm.s.cCallRing3Disabled) == 0)
     {
 #ifdef IN_RC
         pVCpu->pVMRC->vmm.s.fRCLoggerFlushingDisabled = false;

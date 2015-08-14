@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -62,7 +62,7 @@
  */
 typedef struct RTSPINLOCKINTERNAL
 {
-    /** Spinlock magic value (RTSPINLOCK_MAGIC). */
+    /** Spinlock magic value (RTSPINLOCK_GEN_MAGIC). */
     uint32_t            u32Magic;
     /** The spinlock creation flags. */
     uint32_t            fFlags;
@@ -88,7 +88,7 @@ RTDECL(int)  RTSpinlockCreate(PRTSPINLOCK pSpinlock, uint32_t fFlags, const char
     /*
      * Initialize and return.
      */
-    pThis->u32Magic  = RTSPINLOCK_MAGIC;
+    pThis->u32Magic  = RTSPINLOCK_GEN_MAGIC;
     pThis->fFlags    = fFlags;
     pThis->fIntSaved = 0;
     ASMAtomicWriteU32(&pThis->fLocked, 0);
@@ -107,7 +107,7 @@ RTDECL(int)  RTSpinlockDestroy(RTSPINLOCK Spinlock)
     PRTSPINLOCKINTERNAL pThis = (PRTSPINLOCKINTERNAL)Spinlock;
     if (!pThis)
         return VERR_INVALID_PARAMETER;
-    if (pThis->u32Magic != RTSPINLOCK_MAGIC)
+    if (pThis->u32Magic != RTSPINLOCK_GEN_MAGIC)
     {
         AssertMsgFailed(("Invalid spinlock %p magic=%#x\n", pThis, pThis->u32Magic));
         return VERR_INVALID_PARAMETER;
@@ -123,7 +123,7 @@ RT_EXPORT_SYMBOL(RTSpinlockDestroy);
 RTDECL(void) RTSpinlockAcquire(RTSPINLOCK Spinlock)
 {
     PRTSPINLOCKINTERNAL pThis = (PRTSPINLOCKINTERNAL)Spinlock;
-    AssertMsg(pThis && pThis->u32Magic == RTSPINLOCK_MAGIC,
+    AssertMsg(pThis && pThis->u32Magic == RTSPINLOCK_GEN_MAGIC,
               ("pThis=%p u32Magic=%08x\n", pThis, pThis ? (int)pThis->u32Magic : 0));
 
     if (pThis->fFlags & RTSPINLOCK_FLAGS_INTERRUPT_SAFE)
@@ -199,7 +199,7 @@ RT_EXPORT_SYMBOL(RTSpinlockAcquire);
 RTDECL(void) RTSpinlockRelease(RTSPINLOCK Spinlock)
 {
     PRTSPINLOCKINTERNAL pThis = (PRTSPINLOCKINTERNAL)Spinlock;
-    AssertMsg(pThis && pThis->u32Magic == RTSPINLOCK_MAGIC,
+    AssertMsg(pThis && pThis->u32Magic == RTSPINLOCK_GEN_MAGIC,
               ("pThis=%p u32Magic=%08x\n", pThis, pThis ? (int)pThis->u32Magic : 0));
 
     if (pThis->fFlags & RTSPINLOCK_FLAGS_INTERRUPT_SAFE)
@@ -223,17 +223,4 @@ RTDECL(void) RTSpinlockRelease(RTSPINLOCK Spinlock)
     }
 }
 RT_EXPORT_SYMBOL(RTSpinlockRelease);
-
-
-RTDECL(void) RTSpinlockReleaseNoInts(RTSPINLOCK Spinlock)
-{
-#if 1
-    if (RT_UNLIKELY(!(Spinlock->fFlags & RTSPINLOCK_FLAGS_INTERRUPT_SAFE)))
-        RTAssertMsg2("RTSpinlockReleaseNoInts: %p (magic=%#x)\n", Spinlock, Spinlock->u32Magic);
-#else
-    AssertRelease(Spinlock->fFlags & RTSPINLOCK_FLAGS_INTERRUPT_SAFE);
-#endif
-    RTSpinlockRelease(Spinlock);
-}
-RT_EXPORT_SYMBOL(RTSpinlockReleaseNoInts);
 

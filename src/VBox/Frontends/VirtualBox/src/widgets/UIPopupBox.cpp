@@ -1,8 +1,6 @@
 /* $Id: UIPopupBox.cpp $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * UIPopupBox/UIPopupBoxGroup classes implementation
+ * VBox Qt GUI - UIPopupBox/UIPopupBoxGroup classes implementation.
  */
 
 /*
@@ -17,17 +15,25 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/* Global includes: */
-#include <QLabel>
-#include <QPaintEvent>
-#include <QPainter>
-#include <QVBoxLayout>
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
-/* Local includes: */
-#include "UIPopupBox.h"
-#ifdef Q_WS_MAC
-# include "UIImageTools.h"
-#endif /* Q_WS_MAC */
+/* Qt includes: */
+# include <QApplication>
+# include <QStyle>
+# include <QLabel>
+# include <QPainter>
+# include <QVBoxLayout>
+# include <QPaintEvent>
+
+/* GUI includes: */
+# include "UIPopupBox.h"
+# ifdef Q_WS_MAC
+#  include "UIImageTools.h"
+# endif /* Q_WS_MAC */
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 UIPopupBox::UIPopupBox(QWidget *pParent)
   : QWidget(pParent)
@@ -238,12 +244,14 @@ void UIPopupBox::paintEvent(QPaintEvent *pEvent)
     /* Base background */
     painter.fillRect(QRect(QPoint(0, 0), size()), pal.brush(QPalette::Active, QPalette::Base));
     /* Top header background */
-    QLinearGradient lg(rect.x(), rect.y(), rect.x(), rect.y() + 2 * 5 + m_pTitleLabel->sizeHint().height());
+    const int iMaxHeightHint = qMax(m_pTitleLabel->sizeHint().height(),
+                                    m_pTitleIcon->sizeHint().height());
+    QLinearGradient lg(rect.x(), rect.y(), rect.x(), rect.y() + 2 * 5 + iMaxHeightHint);
     lg.setColorAt(0, base.darker(95));
     lg.setColorAt(1, base.darker(110));
     int theight = rect.height();
     if (m_fOpen)
-        theight = 2 * 5 + m_pTitleLabel->sizeHint().height();
+        theight = 2 * 5 + iMaxHeightHint;
     painter.fillRect(QRect(rect.x(), rect.y(), rect.width(), theight), lg);
     /* Outer round rectangle line */
     painter.setClipping(false);
@@ -271,7 +279,9 @@ void UIPopupBox::paintEvent(QPaintEvent *pEvent)
 void UIPopupBox::updateTitleIcon()
 {
     /* Assign title-icon: */
-    m_pTitleIcon->setPixmap(m_titleIcon.pixmap(16, 16));
+    const QStyle *pStyle = QApplication::style();
+    const int iIconMetric = pStyle->pixelMetric(QStyle::PM_SmallIconSize);
+    m_pTitleIcon->setPixmap(m_titleIcon.pixmap(iIconMetric, iIconMetric));
 }
 
 void UIPopupBox::updateWarningIcon()
@@ -279,7 +289,9 @@ void UIPopupBox::updateWarningIcon()
     /* Hide warning-icon if its null: */
     m_pWarningIcon->setHidden(m_warningIcon.isNull());
     /* Assign warning-icon: */
-    m_pWarningIcon->setPixmap(m_warningIcon.pixmap(16, 16));
+    const QStyle *pStyle = QApplication::style();
+    const int iIconMetric = pStyle->pixelMetric(QStyle::PM_SmallIconSize);
+    m_pWarningIcon->setPixmap(m_warningIcon.pixmap(iIconMetric, iIconMetric));
 }
 
 void UIPopupBox::updateTitle()

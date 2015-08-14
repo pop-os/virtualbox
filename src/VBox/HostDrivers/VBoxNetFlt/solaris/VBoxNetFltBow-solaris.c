@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2012 Oracle Corporation
+ * Copyright (C) 2008-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -28,10 +28,6 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_NET_FLT_DRV
-#ifdef DEBUG_ramshankar
-# define LOG_ENABLED
-# define LOG_INSTANCE       RTLogRelDefaultInstance()
-#endif
 #include <VBox/log.h>
 #include <VBox/err.h>
 #include <VBox/intnetinline.h>
@@ -81,7 +77,7 @@
  *  @todo move this define into a common header. */
 #define VBOXBOW_VNIC_NAME               "vboxvnic"
 /** The VirtualBox VNIC template name (hardcoded in NetIf-solaris.cpp).
- *   *  @todo move this define into a common header. */
+ *  @todo move this define into a common header. */
 #define VBOXBOW_VNIC_TEMPLATE_NAME      "vboxvnic_template"
 /** Debugging switch for using symbols in kmdb */
 # define LOCAL                          static

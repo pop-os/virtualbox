@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2012 Oracle Corporation
+# Copyright (C) 2006-2015 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -43,15 +43,17 @@ ifndef VBOX_ONLY_DOCS
   LIBRARIES += SUPR0
  endif
 endif
+if !defined(VBOX_ONLY_BUILD) && defined(VBOX_WITH_RAW_MODE)
+ LIBRARIES += SUPRC
+endif
 if  !defined(VBOX_ONLY_DOCS) \
  && !defined(VBOX_ONLY_EXTPACKS) \
- && !defined(VBOX_ONLY_TESTSUITE)
+ && !defined(VBOX_ONLY_VALIDATIONKIT)
  ifdef VBOX_WITH_SUPSVC
   PROGRAMS += VBoxSupSvc
  endif
  ifdef VBOX_WITH_VBOXDRV
   LIBRARIES       += SUPR0IdcClient
-  SYSMODS.freebsd += vboxdrv
   SYSMODS.os2     += VBoxDrv
  endif
  INSTALLS.linux   += vboxdrv-mod
@@ -71,7 +73,7 @@ if  !defined(VBOX_ONLY_DOCS) \
  ifeq ($(KBUILD_TARGET),freebsd)
   include $(PATH_SUB_CURRENT)/freebsd/files_vboxdrv
  endif
-endif # !VBOX_ONLY_DOCS && !VBOX_ONLY_EXTPACKS && !VBOX_ONLY_TESTSUITE
+endif # !VBOX_ONLY_DOCS && !VBOX_ONLY_EXTPACKS && !VBOX_ONLY_VALIDATIONKIT
 
 #
 # Authenticode related trust anchors and certificates -> .cpp
@@ -148,8 +150,10 @@ SUPR3_DEFS          = \
 SUPR3_INCS         := $(PATH_SUB_CURRENT)
 SUPR3_SOURCES       = \
 	SUPLib.cpp \
+	SUPLibLdr.cpp \
 	SUPLibSem.cpp \
 	SUPLibTracerA.asm \
+	SUPLibAll.cpp \
 	SUPR3HardenedIPRT.cpp \
 	SUPR3HardenedVerify.cpp \
 	$(KBUILD_TARGET)/SUPLib-$(KBUILD_TARGET).cpp \
@@ -447,7 +451,7 @@ if1of ($(VBOX_LDR_FMT), pe lx)
  SUPR0_SOURCES       = $(SUPR0_0_OUTDIR)/SUPR0.def
  SUPR0_CLEAN         = $(SUPR0_0_OUTDIR)/SUPR0.def
 $$(SUPR0_0_OUTDIR)/SUPR0.def: \
-		$(PATH_SUB_CURRENT)/SUPDrv.c \
+		$(PATH_SUB_CURRENT)/SUPDrv.cpp \
 		$(PATH_SUB_CURRENT)/SUPR0-def-$(VBOX_LDR_FMT).sed \
 		| $$(dir $$@)
 	$(SED) \
@@ -455,6 +459,14 @@ $$(SUPR0_0_OUTDIR)/SUPR0.def: \
 		--output $@ \
 		$<
 endif
+
+
+#
+# SUPRC - The raw-mode context library.
+#
+SUPRC_TEMPLATE := VBoxRc
+SUPRC_DEFS     := IN_SUP_RC IN_RT_RC IN_VMM_RC
+SUPRC_SOURCES  := SUPLibAll.cpp
 
 
 #
@@ -474,7 +486,7 @@ SUPR0IdcClient_SOURCES = \
 
 if  !defined(VBOX_ONLY_DOCS) \
  && !defined(VBOX_ONLY_EXTPACKS) \
- && !defined(VBOX_ONLY_TESTSUITE)
+ && !defined(VBOX_ONLY_VALIDATIONKIT)
 
 ifeq ($(KBUILD_TARGET),os2)
 
@@ -504,55 +516,18 @@ VBoxDrvLib_INCS      := \
 	$(PATH_ROOT)/src/VBox/Runtime/include
 VBoxDrvLib_SOURCES    = \
 	os2/SUPDrv-os2.cpp \
-	SUPDrv.c \
-	SUPDrvSem.c
+	SUPDrv.cpp \
+	SUPDrvGip.cpp \
+	SUPDrvSem.cpp \
+	SUPLibAll.cpp
 
 endif # os2
-ifeq ($(KBUILD_TARGET),freebsd)
-
-#
-# vboxdrv.ko - The FreeBSD Kernel Module.
-#
-vboxdrv_TEMPLATE      = VBOXR0DRV
-vboxdrv_DEFS          = IN_RT_R0 IN_SUP_R0 SUPDRV_WITH_RELEASE_LOGGER VBOX_SVN_REV=$(VBOX_SVN_REV)
-vboxdrv_INCS         := $(PATH_SUB_CURRENT)
-vboxdrv_LIBS          = $(PATH_STAGE_LIB)/RuntimeR0Drv$(VBOX_SUFF_LIB)
-vboxdrv_SOURCES      := \
-	$(KBUILD_TARGET)/SUPDrv-$(KBUILD_TARGET).c \
-	$(PATH_SUB_CURRENT)/$(KBUILD_TARGET)/SUPDrv-$(KBUILD_TARGET).def \
-	SUPDrv.c \
-	SUPDrvSem.c
-## @todo the SUPDrv-freebsd.def is most probably gonna break it and require build system hacking...
-
-#
-# Targets for installing the freebsd sources.
-#
-vboxdrv-mod_INST    = bin/src/vboxdrv/
-vboxdrv-mod_SOURCES = \
-	$(subst $(DQUOTE),,$(FILES_VBOXDRV_NOBIN)) \
-	$(vboxdrv-mod_0_OUTDIR)/Makefile
-vboxdrv-mod_CLEAN   = \
-	$(vboxdrv-mod_0_OUTDIR)/Makefile
-
-$$(vboxdrv-mod_0_OUTDIR)/Makefile: \
-		$(PATH_SUB_CURRENT)/freebsd/Makefile \
-		$$(if $$(eq $$(Support/freebsd/Makefile_VBOX_HARDENED),$$(VBOX_WITH_HARDENING)),,FORCE) \
-		| $$(dir $$@)
-	$(call MSG_TOOL,Creating,,$@)
-	$(QUIET)$(RM) -f -- $@
- ifndef VBOX_WITH_HARDENING
-	$(QUIET)$(SED) -e "s;-DVBOX_WITH_HARDENING;;g" --output $@ $<
- else
-	$(QUIET)$(CP) -f $< $@
- endif
-
-endif # freebsd
 
 
 #
 # New VBoxDrv target. TODO: Convert all the above to use this!
 #
-if1of ($(KBUILD_TARGET), darwin linux solaris win)
+if1of ($(KBUILD_TARGET), darwin freebsd linux solaris win)
  ifdef VBOX_WITH_VBOXDRV
   SYSMODS += VBoxDrv
  endif
@@ -581,6 +556,9 @@ if1of ($(KBUILD_TARGET), darwin linux solaris win)
  VBoxDrv_DEFS            += VBOX_PERMIT_MORE VBOX_PERMIT_EVEN_MORE
  #VBoxDrv_DEFS.debug      += DEBUG_DARWIN_GIP
  VBoxDrv_DEFS.darwin     := VBOX_WITH_HOST_VMX
+ ifdef VBOX_WITH_RAW_MODE
+  VBoxDrv_DEFS.darwin    += VBOX_WITH_RAW_MODE
+ endif
  VBoxDrv_DEFS.linux      := \
 	KBUILD_MODNAME=KBUILD_STR\(vboxdrv\) KBUILD_BASENAME=KBUILD_STR\(vboxdrv\) MODULE CONFIG_VBOXDRV_AS_MISC
  ifdef VBOX_LINUX_VERSION_2_4
@@ -601,6 +579,9 @@ if1of ($(KBUILD_TARGET), darwin linux solaris win)
  ifdef VBOX_WITH_HARDENING
   VBoxDrv_ASDEFS         += VBOX_WITH_HARDENING
  endif
+ if ($(VBOX_VERSION_BUILD) % 2) == 1
+  VBoxDrv_DEFS           += VBOX_WITH_EFLAGS_AC_SET_IN_VBOXDRV IPRT_WITH_EFLAGS_AC_PRESERVING
+ endif
 
  VBoxDrv_INCS             = . $(VBoxDrv_0_OUTDIR)
  VBoxDrv_INCS.darwin      = ./darwin
@@ -613,7 +594,8 @@ if1of ($(KBUILD_TARGET), darwin linux solaris win)
  	$(PATH_SDK_$(VBOX_WINDDK)_LIB)/ntoskrnl.lib \
  	$(PATH_SDK_$(VBOX_WINDDK)_LIB)/hal.lib
 
- #VBoxDrv_LDFLAGS.darwin    = -v -Wl,-whyload -Wl,-v -Wl,-whatsloaded
+ #VBoxDrv_LDFLAGS.darwin   = -Wl,-sectcreate,__TEXT,__info_plist,$(VBoxDrv.kext_0_OUTDIR)/Info.plist
+ #VBoxDrv_LDFLAGS.darwin   = -v -Wl,-whyload -Wl,-v -Wl,-whatsloaded
  VBoxDrv_LDFLAGS.solaris += -N misc/ctf
  ifdef VBOX_WITH_NATIVE_DTRACE
   VBoxDrv_LDFLAGS.solaris += -N drv/dtrace
@@ -639,9 +621,11 @@ if1of ($(KBUILD_TARGET), darwin linux solaris win)
  endif
  VBoxDrv_SOURCES          = \
  	SUPDrv.d \
- 	SUPDrv.c \
- 	SUPDrvSem.c \
-  	SUPDrvTracer.cpp
+ 	SUPDrv.cpp \
+ 	SUPDrvGip.cpp \
+ 	SUPDrvSem.cpp \
+  	SUPDrvTracer.cpp \
+	SUPLibAll.cpp
  ifdef VBOX_WITH_NATIVE_DTRACE
   VBoxDrv_SOURCES        += \
   	SUPDrv-dtrace.cpp
@@ -664,24 +648,27 @@ if1of ($(KBUILD_TARGET), darwin)
  # Files necessary to make a darwin kernel extension bundle.
  INSTALLS.darwin += VBoxDrv.kext
  VBoxDrv.kext_INST     = $(INST_VBOXDRV)Contents/
- VBoxDrv.kext_SOURCES  = $(VBoxDrv.kext_0_OUTDIR)/Info.plist
- VBoxDrv.kext_CLEAN    = $(VBoxDrv.kext_0_OUTDIR)/Info.plist
+ VBoxDrv.kext_SOURCES  = $(VBoxDrv.kext_0_OUTDIR)/Contents/Info.plist
+ VBoxDrv.kext_CLEAN    = $(VBoxDrv.kext_0_OUTDIR)/Contents/Info.plist
+ VBoxDrv.kext_BLDDIRS  = $(VBoxDrv.kext_0_OUTDIR)/Contents/
 
-$$(VBoxDrv.kext_0_OUTDIR)/Info.plist: \
+ $$(VBoxDrv.kext_0_OUTDIR)/Contents/Info.plist: \
 		$(PATH_SUB_CURRENT)/darwin/Info.plist \
 		$(VBOX_VERSION_MK) | $$(dir $$@)
 	$(call MSG_GENERATE,VBoxDrv,$@,$<)
 	$(QUIET)$(RM) -f $@
 	$(QUIET)$(SED) \
-		-e 's/@VBOX_VERSION_STRING@/$(VBOX_VERSION_STRING)/g' \
-		-e 's/@VBOX_VERSION_MAJOR@/$(VBOX_VERSION_MAJOR)/g' \
-		-e 's/@VBOX_VERSION_MINOR@/$(VBOX_VERSION_MINOR)/g' \
-		-e 's/@VBOX_VERSION_BUILD@/$(VBOX_VERSION_BUILD)/g' \
+		-e 's/@VBOX_VERSION_STRING@/$(if !defined(VBOX_MAVERICS_CODE_SIGNING_HACK),$(VBOX_VERSION_STRING),4.2.51)/g' \
+		-e 's/@VBOX_VERSION_MAJOR@/$(if  !defined(VBOX_MAVERICS_CODE_SIGNING_HACK),$(VBOX_VERSION_MAJOR),4)/g' \
+		-e 's/@VBOX_VERSION_MINOR@/$(if  !defined(VBOX_MAVERICS_CODE_SIGNING_HACK),$(VBOX_VERSION_MINOR),2)/g' \
+		-e 's/@VBOX_VERSION_BUILD@/$(if  !defined(VBOX_MAVERICS_CODE_SIGNING_HACK),$(VBOX_VERSION_BUILD),51)/g' \
 		-e 's/@VBOX_VENDOR@/$(VBOX_VENDOR)/g' \
 		-e 's/@VBOX_PRODUCT@/$(VBOX_PRODUCT)/g' \
 		-e 's/@VBOX_C_YEAR@/$(VBOX_C_YEAR)/g' \
 		--output $@ \
 		$<
+
+ $(evalcall2 VBOX_TEST_SIGN_KEXT,VBoxDrv)
 endif
 
 
@@ -694,7 +681,7 @@ if1of ($(KBUILD_TARGET), darwin solaris)
 endif
 
 
-if1of ($(KBUILD_TARGET), linux)
+if1of ($(KBUILD_TARGET), linux freebsd)
  #
  # Targets for installing the linux sources.
  #
@@ -703,8 +690,9 @@ if1of ($(KBUILD_TARGET), linux)
  	$(subst $(DQUOTE),,$(FILES_VBOXDRV_NOBIN)) \
  	$(vboxdrv-mod_0_OUTDIR)/Makefile
  vboxdrv-mod_EXEC_SOURCES  = \
- 	$(subst $(DQUOTE),,$(FILES_VBOXDRV_BIN)) \
- 	$(PATH_ROOT)/src/VBox/HostDrivers/linux/do_Module.symvers
+ 	$(subst $(DQUOTE),,$(FILES_VBOXDRV_BIN))
+ vboxdrv-mod_EXEC_SOURCES.linux = \
+ 	$(PATH_ROOT)/src/VBox/HostDrivers/$(KBUILD_TARGET)/do_Module.symvers
  vboxdrv-mod_CLEAN   = \
  	$(vboxdrv-mod_0_OUTDIR)/Makefile \
  	$(PATH_TARGET)/vboxdrv-mod-1.dep \
@@ -712,17 +700,18 @@ if1of ($(KBUILD_TARGET), linux)
  # Scripts needed for building the kernel modules
  includedep $(PATH_TARGET)/vboxdrv-mod-1.dep
  $$(vboxdrv-mod_0_OUTDIR)/Makefile: \
-		$(PATH_SUB_CURRENT)/linux/Makefile \
-		$$(if $$(eq $$(Support/linux/Makefile_VBOX_HARDENED),$$(VBOX_WITH_HARDENING)),,FORCE) \
+		$(PATH_SUB_CURRENT)/$(KBUILD_TARGET)/Makefile \
+		$$(if $$(eq $$(Support/$(KBUILD_TARGET)/Makefile_VBOX_HARDENED),$$(VBOX_WITH_HARDENING)),,FORCE) \
 		| $$(dir $$@)
 	$(call MSG_TOOL,Creating,,$@)
- ifndef VBOX_WITH_HARDENING
-	$(QUIET)$(SED) -e "s;-DVBOX_WITH_HARDENING;;g" --output $@ $<
- else
-	$(QUIET)$(CP) -f $< $@
- endif
-	%$(QUIET2)$(APPEND) -t '$(PATH_TARGET)/vboxdrv-mod-1.dep' 'Support/linux/Makefile_VBOX_HARDENED=$(VBOX_WITH_HARDENING)'
-endif # real linux
+	$(QUIET)$(SED) -e "" \
+		$(if-expr !defined(VBOX_WITH_HARDENING)   ,-e "s;-DVBOX_WITH_HARDENING;;g",) \
+		$(if-expr ($(VBOX_VERSION_BUILD) % 2) == 0 \
+		 , -e "s;-DVBOX_WITH_EFLAGS_AC_SET_IN_VBOXDRV;;g" -e "s;-DIPRT_WITH_EFLAGS_AC_PRESERVING;;g",) \
+		--output $@ $<
+	%$(QUIET2)$(APPEND) -t '$(PATH_TARGET)/vboxdrv-mod-1.dep' \
+		'Support/$(KBUILD_TARGET)/Makefile_VBOX_HARDENED=$(VBOX_WITH_HARDENING)'
+endif # linux freebsd
 
 
 ifeq ($(KBUILD_TARGET), win)
@@ -755,6 +744,6 @@ ifeq ($(KBUILD_TARGET), win)
 endif # win
 
 
-endif # !VBOX_ONLY_DOCS && !VBOX_ONLY_EXTPACKS && !VBOX_ONLY_TESTSUITE
+endif # !VBOX_ONLY_DOCS && !VBOX_ONLY_EXTPACKS && !VBOX_ONLY_VALIDATIONKIT
 include $(FILE_KBUILD_SUB_FOOTER)
 

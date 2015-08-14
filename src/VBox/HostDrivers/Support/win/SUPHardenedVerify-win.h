@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -204,7 +204,7 @@ extern SUPSYSROOTDIRBUF g_CommonFilesX86NtPath;
 # endif
 #endif /* IN_RING3 && !VBOX_PERMIT_EVEN_MORE */
 extern SUPSYSROOTDIRBUF g_SupLibHardenedExeNtPath;
-extern uint32_t         g_offSupLibHardenedExeNtName;
+extern SUPSYSROOTDIRBUF g_SupLibHardenedAppBinNtPath;
 
 #   ifdef IN_RING0
 /** Pointer to NtQueryVirtualMemory. */

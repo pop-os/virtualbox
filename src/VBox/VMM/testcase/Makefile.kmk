@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2013 Oracle Corporation
+# Copyright (C) 2006-2015 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -70,9 +70,10 @@ ifndef VBOX_ONLY_EXTPACKS_USE_IMPLIBS
   	tstCompressionBenchmark \
 	tstIEMCheckMc \
   	tstVMMR0CallHost-1 \
-  	tstVMMR0CallHost-2
+  	tstVMMR0CallHost-2 \
+	tstX86-FpuSaveRestore
   ifn1of ($(KBUILD_TARGET).$(KBUILD_TARGET_ARCH), solaris.x86 solaris.amd64 win.amd64 ) ## TODO: Fix the code.
-   PROGRAMS  +=  tstX86-1
+   PROGRAMS += tstX86-1
   endif
   ifdef VBOX_WITH_RAW_MODE
    if defined(VBOX_WITH_HARDENING) && "$(KBUILD_TARGET)" == "win"
@@ -227,8 +228,8 @@ if defined(VBOX_WITH_HARDENING) && "$(KBUILD_TARGET)" == "win"
  tstGlobalConfigHardened_TEMPLATE = VBoxR3HardenedTstExe
  tstGlobalConfigHardened_NAME     = tstGlobalConfig
  tstGlobalConfigHardened_DEFS     = PROGRAM_NAME_STR=\"tstGlobalConfig\"
- tstGlobalConfigHardened_SOURCES  = ../../HostDrivers/Support/SUPR3HardenedMainTemplate.cpp
- tstGlobalConfig_TEMPLATE = VBoxR3TstDll
+ tstGlobalConfigHardened_SOURCES  = ../../HostDrivers/Support/SUPR3HardenedMainTemplateTestcase.cpp
+ tstGlobalConfig_TEMPLATE = VBoxR3HardenedTstDll
 else
  tstGlobalConfig_TEMPLATE = VBOXR3TSTEXE
 endif
@@ -252,8 +253,8 @@ if defined(VBOX_WITH_HARDENING) && "$(KBUILD_TARGET)" == "win"
  tstMMHyperHeapHardened_TEMPLATE = VBoxR3HardenedTstExe
  tstMMHyperHeapHardened_NAME     = tstMMHyperHeap
  tstMMHyperHeapHardened_DEFS     = PROGRAM_NAME_STR=\"tstMMHyperHeap\"
- tstMMHyperHeapHardened_SOURCES  = ../../HostDrivers/Support/SUPR3HardenedMainTemplate.cpp
- tstMMHyperHeap_TEMPLATE = VBoxR3TstDll
+ tstMMHyperHeapHardened_SOURCES  = ../../HostDrivers/Support/SUPR3HardenedMainTemplateTestcase.cpp
+ tstMMHyperHeap_TEMPLATE = VBoxR3HardenedTstDll
 else
  tstMMHyperHeap_TEMPLATE = VBOXR3TSTEXE
 endif
@@ -267,8 +268,8 @@ if defined(VBOX_WITH_HARDENING) && "$(KBUILD_TARGET)" == "win"
  tstSSMHardened_TEMPLATE = VBoxR3HardenedTstExe
  tstSSMHardened_NAME     = tstSSM
  tstSSMHardened_DEFS     = PROGRAM_NAME_STR=\"tstSSM\"
- tstSSMHardened_SOURCES  = ../../HostDrivers/Support/SUPR3HardenedMainTemplate.cpp
- tstSSM_TEMPLATE        = VBoxR3TstDll
+ tstSSMHardened_SOURCES  = ../../HostDrivers/Support/SUPR3HardenedMainTemplateTestcase.cpp
+ tstSSM_TEMPLATE        = VBoxR3HardenedTstDll
 else
  tstSSM_TEMPLATE        = VBOXR3TSTEXE
 endif
@@ -290,8 +291,8 @@ if defined(VBOX_WITH_HARDENING) && "$(KBUILD_TARGET)" == "win"
  tstCFGMHardened_TEMPLATE = VBoxR3HardenedTstExe
  tstCFGMHardened_NAME     = tstCFGM
  tstCFGMHardened_DEFS     = PROGRAM_NAME_STR=\"tstCFGM\"
- tstCFGMHardened_SOURCES  = ../../HostDrivers/Support/SUPR3HardenedMainTemplate.cpp
- tstCFGM_TEMPLATE       = VBoxR3TstDll
+ tstCFGMHardened_SOURCES  = ../../HostDrivers/Support/SUPR3HardenedMainTemplateTestcase.cpp
+ tstCFGM_TEMPLATE       = VBoxR3HardenedTstDll
 else
  tstCFGM_TEMPLATE       = VBOXR3TSTEXE
 endif
@@ -354,6 +355,10 @@ tstX86-1_TEMPLATE       = VBOXR3TSTEXE
 tstX86-1_SOURCES        = tstX86-1.cpp tstX86-1A.asm
 tstX86-1_LIBS           = $(LIB_RUNTIME)
 
+tstX86-FpuSaveRestore_TEMPLATE = VBOXR3TSTEXE
+tstX86-FpuSaveRestore_SOURCES  = tstX86-FpuSaveRestore.cpp tstX86-FpuSaveRestoreA.asm
+tstX86-FpuSaveRestore_LIBS     = $(LIB_RUNTIME)
+
 ifdef VBOX_WITH_RAW_MODE
 
  #
@@ -415,7 +420,7 @@ ifdef VBOX_WITH_RAW_MODE
  ifeq ($(filter-out pe lx,$(VBOX_LDR_FMT32)),)
   tstMicroRC_LIBS        += \
   	$(PATH_STAGE_LIB)/VMMRCBuiltin$(VBOX_SUFF_LIB) \
-  	$(LIB_VMMGC)
+  	$(LIB_VMMRC)
  endif
  tstMicroRC_SOURCES.win = tstMicroRC.def
 
@@ -455,6 +460,13 @@ ifdef VBOX_WITH_PDM_ASYNC_COMPLETION
  tstPDMAsyncCompletionStress_LIBS       = $(LIB_VMM) $(LIB_REM) $(LIB_RUNTIME)
 endif
 
+ifndef VBOX_ONLY_EXTPACKS
+PROGRAMS += tstSSM-2
+tstSSM-2_TEMPLATE       = VBOXR3TSTEXE
+tstSSM-2_DEFS           = IN_VMM_STATIC
+tstSSM-2_SOURCES        = tstSSM-2.cpp
+tstSSM-2_LIBS           = $(PATH_STAGE_LIB)/SSMStandalone$(VBOX_SUFF_LIB)
+endif
 
 #
 # Generate VM structure tests.
@@ -516,16 +528,6 @@ $(VBOX_VMM_TESTCASE_OUT_DIR)/tstInstrEmul.run: $$(tstInstrEmul_1_STAGE_TARGET) |
 #
 # Some handcrafted support targets for tstAsmStructs.
 #
-
-ifeq ($(KBUILD_HOST),win)
- ifndef TOOL_MINGW32
-  include $(KBUILD_PATH)/tools/MINGW32.kmk
- endif
- VBOX_NM ?= $(PATH_TOOL_MINGW32)/bin/nm.exe -p
-else
- VBOX_NM ?= nm -p
-endif
-
 MY_ASA_ASM_STUFF = \
 		$(addprefix -D, \
 			$(DEFS) \
@@ -609,6 +611,7 @@ $(VBOX_VMM_TESTCASE_OUT_DIR)/tstAsmStructsHC.h: $(VBOX_VMM_TESTCASE_OUT_DIR)/tst
 		-e '/VMCPU_size$$/d' \
 		-e '/VMMCPU_size$$/d' \
 		-e '/SUPDRVTRACERUSRCTX32_size$$/d' \
+		-e '/HMCPU_size$$/d' \
 		\
 		-e '/00[0-9a-fA-F]* [aA] [^_.]*_size$$/!d' \
 		-e 's/\(00[0-9a-fA-F]*\) [aA] \([^_.]*\)_size/    CHECK_SIZE(\2, 0x0\1);/' \

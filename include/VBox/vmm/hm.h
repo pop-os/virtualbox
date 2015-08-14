@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -143,6 +143,8 @@ VMM_INT_DECL(bool)              HMHasPendingIrq(PVM pVM);
 VMM_INT_DECL(PX86PDPE)          HMGetPaePdpes(PVMCPU pVCpu);
 VMM_INT_DECL(int)               HMAmdIsSubjectToErratum170(uint32_t *pu32Family, uint32_t *pu32Model, uint32_t *pu32Stepping);
 VMM_INT_DECL(bool)              HMSetSingleInstruction(PVMCPU pVCpu, bool fEnable);
+VMM_INT_DECL(void)              HMHypercallsEnable(PVMCPU pVCpu);
+VMM_INT_DECL(void)              HMHypercallsDisable(PVMCPU pVCpu);
 
 #ifndef IN_RC
 VMM_INT_DECL(int)               HMFlushTLB(PVMCPU pVCpu);
@@ -150,18 +152,21 @@ VMM_INT_DECL(int)               HMFlushTLBOnAllVCpus(PVM pVM);
 VMM_INT_DECL(int)               HMInvalidatePageOnAllVCpus(PVM pVM, RTGCPTR GCVirt);
 VMM_INT_DECL(int)               HMInvalidatePhysPage(PVM pVM, RTGCPHYS GCPhys);
 VMM_INT_DECL(bool)              HMIsNestedPagingActive(PVM pVM);
+VMM_INT_DECL(bool)              HMAreNestedPagingAndFullGuestExecEnabled(PVM pVM);
 VMM_INT_DECL(bool)              HMIsLongModeAllowed(PVM pVM);
+VMM_INT_DECL(bool)              HMAreMsrBitmapsAvailable(PVM pVM);
 VMM_INT_DECL(PGMMODE)           HMGetShwPagingMode(PVM pVM);
 #else /* Nops in RC: */
-# define HMFlushTLB(pVCpu)                  do { } while (0)
-# define HMIsNestedPagingActive(pVM)        false
-# define HMIsLongModeAllowed(pVM)           false
-# define HMFlushTLBOnAllVCpus(pVM)          do { } while (0)
+# define HMFlushTLB(pVCpu)                              do { } while (0)
+# define HMIsNestedPagingActive(pVM)                    false
+# define HMAreNestedPagingAndFullGuestExecEnabled(pVM)  false
+# define HMIsLongModeAllowed(pVM)                       false
+# define HMAreMsrBitmapsAvailable(pVM)                  false
+# define HMFlushTLBOnAllVCpus(pVM)                      do { } while (0)
 #endif
 
 #ifdef IN_RING0
 /** @defgroup grp_hm_r0    The VM Hardware Manager API
- * @ingroup grp_hm
  * @{
  */
 VMMR0_INT_DECL(int)             HMR0Init(void);
@@ -169,13 +174,30 @@ VMMR0_INT_DECL(int)             HMR0Term(void);
 VMMR0_INT_DECL(int)             HMR0InitVM(PVM pVM);
 VMMR0_INT_DECL(int)             HMR0TermVM(PVM pVM);
 VMMR0_INT_DECL(int)             HMR0EnableAllCpus(PVM pVM);
+# ifdef VBOX_WITH_RAW_MODE
 VMMR0_INT_DECL(int)             HMR0EnterSwitcher(PVM pVM, VMMSWITCHER enmSwitcher, bool *pfVTxDisabled);
 VMMR0_INT_DECL(void)            HMR0LeaveSwitcher(PVM pVM, bool fVTxDisabled);
+# endif
 
 VMMR0_INT_DECL(void)            HMR0SavePendingIOPortWrite(PVMCPU pVCpu, RTGCPTR GCPtrRip, RTGCPTR GCPtrRipNext,
                                                            unsigned uPort, unsigned uAndVal, unsigned cbSize);
 VMMR0_INT_DECL(void)            HMR0SavePendingIOPortRead(PVMCPU pVCpu, RTGCPTR GCPtrRip, RTGCPTR GCPtrRipNext,
                                                           unsigned uPort, unsigned uAndVal, unsigned cbSize);
+VMMR0_INT_DECL(int)             HMR0SetupVM(PVM pVM);
+VMMR0_INT_DECL(int)             HMR0RunGuestCode(PVM pVM, PVMCPU pVCpu);
+VMMR0_INT_DECL(int)             HMR0Enter(PVM pVM, PVMCPU pVCpu);
+VMMR0_INT_DECL(int)             HMR0EnterCpu(PVMCPU pVCpu);
+VMMR0_INT_DECL(int)             HMR0LeaveCpu(PVMCPU pVCpu);
+VMMR0_INT_DECL(void)            HMR0ThreadCtxCallback(RTTHREADCTXEVENT enmEvent, void *pvUser);
+VMMR0_INT_DECL(bool)            HMR0SuspendPending(void);
+
+# if HC_ARCH_BITS == 32 && defined(VBOX_WITH_64_BITS_GUESTS)
+VMMR0_INT_DECL(int)             HMR0SaveFPUState(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx);
+VMMR0_INT_DECL(int)             HMR0SaveDebugState(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx);
+VMMR0_INT_DECL(int)             HMR0TestSwitcher3264(PVM pVM);
+# endif
+
+VMMR0_INT_DECL(int)             HMR0EnsureCompleteBasicContext(PVMCPU pVCpu, PCPUMCTX pMixedCtx);
 
 /** @} */
 #endif /* IN_RING0 */
@@ -183,7 +205,6 @@ VMMR0_INT_DECL(void)            HMR0SavePendingIOPortRead(PVMCPU pVCpu, RTGCPTR 
 
 #ifdef IN_RING3
 /** @defgroup grp_hm_r3    The VM Hardware Manager API
- * @ingroup grp_hm
  * @{
  */
 VMMR3DECL(bool)                 HMR3IsEnabled(PUVM pUVM);
@@ -216,48 +237,6 @@ VMMR3_INT_DECL(bool)            HMR3IsVmxPreemptionTimerUsed(PVM pVM);
 
 /** @} */
 #endif /* IN_RING3 */
-
-#ifdef IN_RING0
-/** @addtogroup grp_hm_r0
- * @{
- */
-/** Disables preemption if required. */
-# define HM_DISABLE_PREEMPT_IF_NEEDED() \
-   RTTHREADPREEMPTSTATE PreemptStateInternal = RTTHREADPREEMPTSTATE_INITIALIZER; \
-   bool fPreemptDisabledInternal = false; \
-   if (RTThreadPreemptIsEnabled(NIL_RTTHREAD)) \
-   { \
-       Assert(VMMR0ThreadCtxHooksAreRegistered(pVCpu)); \
-       RTThreadPreemptDisable(&PreemptStateInternal); \
-       fPreemptDisabledInternal = true; \
-   }
-
-/** Restores preemption if previously disabled by HM_DISABLE_PREEMPT(). */
-# define HM_RESTORE_PREEMPT_IF_NEEDED() \
-   do \
-   { \
-        if (fPreemptDisabledInternal) \
-            RTThreadPreemptRestore(&PreemptStateInternal); \
-   } while (0)
-
-VMMR0_INT_DECL(int)             HMR0SetupVM(PVM pVM);
-VMMR0_INT_DECL(int)             HMR0RunGuestCode(PVM pVM, PVMCPU pVCpu);
-VMMR0_INT_DECL(int)             HMR0Enter(PVM pVM, PVMCPU pVCpu);
-VMMR0_INT_DECL(int)             HMR0Leave(PVM pVM, PVMCPU pVCpu);
-VMMR0_INT_DECL(int)             HMR0EnterCpu(PVMCPU pVCpu);
-VMMR0_INT_DECL(int)             HMR0LeaveCpu(PVMCPU pVCpu);
-VMMR0_INT_DECL(void)            HMR0ThreadCtxCallback(RTTHREADCTXEVENT enmEvent, void *pvUser);
-VMMR0_INT_DECL(bool)            HMR0SuspendPending(void);
-
-# if HC_ARCH_BITS == 32 && defined(VBOX_WITH_64_BITS_GUESTS)
-VMMR0_INT_DECL(int)             HMR0SaveFPUState(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx);
-VMMR0_INT_DECL(int)             HMR0SaveDebugState(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx);
-VMMR0_INT_DECL(int)             HMR0TestSwitcher3264(PVM pVM);
-# endif
-
-/** @} */
-#endif /* IN_RING0 */
-
 
 /** @} */
 RT_C_DECLS_END

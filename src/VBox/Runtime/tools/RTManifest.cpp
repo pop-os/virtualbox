@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2011 Oracle Corporation
+ * Copyright (C) 2010-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -75,7 +75,7 @@ static RTEXITCODE rtManifestDoVerify(const char *pszManifest, bool fStdFormat, c
             if (pszError && *pszError)
                 return RTMsgErrorExit(RTEXITCODE_FAILURE,
                                       "RTVfsChainOpenIoStream failed with rc=%Rrc:\n"
-                                      "    '%s'\n",
+                                      "    '%s'\n"
                                       "     %*s^\n",
                                       rc, pszManifest, pszError - pszManifest, "");
             return RTMsgErrorExit(RTEXITCODE_FAILURE,
@@ -150,7 +150,7 @@ static int rtManifestAddFileToManifest(RTMANIFEST hManifest, const char *pszFile
     {
         if (pszError && *pszError)
             RTMsgError("RTVfsChainOpenIoStream failed with rc=%Rrc:\n"
-                       "    '%s'\n",
+                       "    '%s'\n"
                        "     %*s^\n",
                        rc, pszFilename, pszError - pszFilename, "");
         else
@@ -160,7 +160,7 @@ static int rtManifestAddFileToManifest(RTMANIFEST hManifest, const char *pszFile
 
     rc = RTManifestEntryAddIoStream(hManifest, hVfsIos, pszFilename, fAttr);
     if (RT_FAILURE(rc))
-        RTMsgError("RTManifestEntryAddIoStream failed for '%s': %Rrc", rc);
+        RTMsgError("RTManifestEntryAddIoStream failed for '%s': %Rrc", pszFilename, rc);
 
     RTVfsIoStrmRelease(hVfsIos);
     return rc;
@@ -206,7 +206,7 @@ static RTEXITCODE rtManifestDoCreate(const char *pszManifest, bool fStdFormat, c
             if (pszError && *pszError)
                 return RTMsgErrorExit(RTEXITCODE_FAILURE,
                                       "RTVfsChainOpenIoStream failed with rc=%Rrc:\n"
-                                      "    '%s'\n",
+                                      "    '%s'\n"
                                       "     %*s^\n",
                                       rc, pszManifest, pszError - pszManifest, "");
             return RTMsgErrorExit(RTEXITCODE_FAILURE,

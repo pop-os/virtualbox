@@ -1,7 +1,6 @@
+/* $Id:  $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * VirtualBox Qt extensions: QISplitter class declaration
+ * VBox Qt GUI - Qt extensions: QISplitter class declaration.
  */
 
 /*

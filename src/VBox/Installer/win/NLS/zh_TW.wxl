@@ -4,7 +4,7 @@
     <!--
             Language Definition Include for VirtualBox WiX script.
 
-            Copyright (C) 2011-2014 Oracle Corporation
+            Copyright (C) 2011-2015 Oracle Corporation
 
             This file is part of VirtualBox Open Source Edition (OSE), as
             available from http://www.virtualbox.org. This file is free software;
@@ -50,8 +50,10 @@
     <String Id="VB_Network">[ProductName] 網路裝置驅動程式針對網路支援。</String>
     <String Id="VB_NetFltDriver">[ProductName] 驅動程式針對橋接網路。</String>
     <String Id="VB_NetAdpDriver">[ProductName] 虛擬網路介面卡針對「僅限主機」網路。</String>
+    <String Id="VB_NetLwfDriver">[ProductName] driver for NDIS6 Bridged Networking.</String>
+    <String Id="VB_NetAdp6Driver">[ProductName] virtual network adapter driver for NDIS6 Host-Only Networking.</String>
 
-    <String Id="VB_Python">VirtualBox 的 Python 支援。</String>
+  <String Id="VB_Python">VirtualBox 的 Python 支援。</String>
 
     <!---->
 
@@ -124,6 +126,16 @@
     <String Id="Customize2Dlg_CreateShortcut">在桌面建立捷徑</String>
     <String Id="Customize2Dlg_CreateQuickLaunch">在快速啟動列建立捷徑</String>
     <String Id="Customize2Dlg_RegisterFileExtensions">註冊文件關聯</String>
+
+    <!---->
+
+    <String Id="SelectionNetworkTypeDlg_CommonDescription">Please choose which type of network drivers you will use:</String>
+    <String Id="SelectionNetworkTypeDlg_DescriptionNDIS5">NDIS5 network drivers.
+This is default for older versions of Windows (pre-Vista).</String>
+    <String Id="SelectionNetworkTypeDlg_DescriptionNDIS6">NDIS6 network drivers.
+This is default for newer versions of Windows (Vista and newer).</String>
+    <String Id="SelectionNetworkTypeDlg_RadioButtonNDIS5">Use NDIS5 network drivers.</String>
+    <String Id="SelectionNetworkTypeDlg_RadioButtonNDIS6">Use NDIS6 network drivers.</String>
 
     <!---->
 

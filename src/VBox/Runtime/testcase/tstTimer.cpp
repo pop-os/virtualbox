@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -180,7 +180,7 @@ int main()
         rc = RTTimerStart(pTimer, 0);
         if (RT_FAILURE(rc))
         {
-            RTPrintf("tstTimer: FAILURE - RTTimerStart(,0) -> %Rrc\n", aTests[i].uMicroInterval, rc);
+            RTPrintf("tstTimer: FAILURE - RTTimerStart(,0) -> %Rrc\n", rc);
             cErrors++;
         }
 #endif

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -140,41 +140,40 @@ typedef enum
  */
 #define PATMIsEnabled(a_pVM)    ((a_pVM)->fPATMEnabled)
 
-VMMDECL(bool)           PATMIsPatchGCAddr(PVM pVM, RTRCUINTPTR pAddr);
+VMMDECL(bool)           PATMIsPatchGCAddr(PVM pVM, RTRCUINTPTR uGCAddr);
+VMMDECL(bool)           PATMIsPatchGCAddrExclHelpers(PVM pVM, RTRCUINTPTR uGCAddr);
 VMM_INT_DECL(int)       PATMReadPatchCode(PVM pVM, RTGCPTR GCPtrPatchCode, void *pvDst, size_t cbToRead, size_t *pcbRead);
 
-VMM_INT_DECL(void)      PATMRawEnter(PVM pVM, PCPUMCTXCORE pCtxCore);
-VMM_INT_DECL(void)      PATMRawLeave(PVM pVM, PCPUMCTXCORE pCtxCore, int rawRC);
-VMM_INT_DECL(uint32_t)  PATMRawGetEFlags(PVM pVM, PCCPUMCTXCORE pCtxCore);
-VMM_INT_DECL(void)      PATMRawSetEFlags(PVM pVM, PCPUMCTXCORE pCtxCore, uint32_t efl);
+VMM_INT_DECL(void)      PATMRawEnter(PVM pVM, PCPUMCTX pCtx);
+VMM_INT_DECL(void)      PATMRawLeave(PVM pVM, PCPUMCTX pCtx, int rawRC);
+VMM_INT_DECL(uint32_t)  PATMRawGetEFlags(PVM pVM, PCCPUMCTX pCtx);
+VMM_INT_DECL(void)      PATMRawSetEFlags(PVM pVM, PCPUMCTX pCtx, uint32_t efl);
 VMM_INT_DECL(RCPTRTYPE(PPATMGCSTATE)) PATMGetGCState(PVM pVM);
 VMM_INT_DECL(bool)      PATMShouldUseRawMode(PVM pVM, RTRCPTR pAddrGC);
 VMM_INT_DECL(int)       PATMSetMMIOPatchInfo(PVM pVM, RTGCPHYS GCPhys, RTRCPTR pCachedData);
 
 VMM_INT_DECL(bool)      PATMIsInt3Patch(PVM pVM, RTRCPTR pInstrGC, uint32_t *pOpcode, uint32_t *pSize);
 VMM_INT_DECL(bool)      PATMAreInterruptsEnabled(PVM pVM);
-VMM_INT_DECL(bool)      PATMAreInterruptsEnabledByCtxCore(PVM pVM, PCPUMCTXCORE pCtxCore);
+VMM_INT_DECL(bool)      PATMAreInterruptsEnabledByCtx(PVM pVM, PCPUMCTX pCtx);
 #ifdef PATM_EMULATE_SYSENTER
-VMM_INT_DECL(int)       PATMSysCall(PVM pVM, PCPUMCTXCORE pRegFrame, PDISCPUSTATE pCpu);
+VMM_INT_DECL(int)       PATMSysCall(PVM pVM, PCPUMCTX pCtx, PDISCPUSTATE pCpu);
 #endif
 
 #ifdef IN_RC
-/** @defgroup grp_patm_rc    The Patch Manager RC API
- * @ingroup grp_patm
+/** @defgroup grp_patm_rc    The Patch Manager Raw-mode Context API
  * @{
  */
 
-VMMRC_INT_DECL(int)     PATMRCHandleInt3PatchTrap(PVM pVM, PCPUMCTXCORE pRegFrame);
-VMMRC_INT_DECL(int)     PATMRCHandleWriteToPatchPage(PVM pVM, PCPUMCTXCORE pRegFrame, RTRCPTR GCPtr, uint32_t cbWrite);
-VMMRC_INT_DECL(int)     PATMRCHandleIllegalInstrTrap(PVM pVM, PCPUMCTXCORE pRegFrame);
+VMMRC_INT_DECL(int)             PATMRCHandleInt3PatchTrap(PVM pVM, PCPUMCTXCORE pRegFrame);
+VMMRC_INT_DECL(VBOXSTRICTRC)    PATMRCHandleWriteToPatchPage(PVM pVM, PCPUMCTXCORE pRegFrame, RTRCPTR GCPtr, uint32_t cbWrite);
+VMMRC_INT_DECL(int)             PATMRCHandleIllegalInstrTrap(PVM pVM, PCPUMCTXCORE pRegFrame);
 
 /** @} */
 
 #endif
 
 #ifdef IN_RING3
-/** @defgroup grp_patm_r3    The Patch Manager API
- * @ingroup grp_patm
+/** @defgroup grp_patm_r3    The Patch Manager Host Ring-3 Context API
  * @{
  */
 
@@ -183,15 +182,12 @@ VMMR3DECL(bool)                 PATMR3IsEnabled(PUVM pUVM);
 
 VMMR3_INT_DECL(int)             PATMR3Init(PVM pVM);
 VMMR3_INT_DECL(int)             PATMR3InitFinalize(PVM pVM);
-VMMR3_INT_DECL(void)            PATMR3Relocate(PVM pVM);
+VMMR3_INT_DECL(void)            PATMR3Relocate(PVM pVM, RTRCINTPTR offDelta);
 VMMR3_INT_DECL(int)             PATMR3Term(PVM pVM);
 VMMR3_INT_DECL(int)             PATMR3Reset(PVM pVM);
 
-VMMR3_INT_DECL(void *)          PATMR3QueryPatchMemHC(PVM pVM, uint32_t *pcb);
-VMMR3_INT_DECL(RTRCPTR)         PATMR3QueryPatchMemGC(PVM pVM, uint32_t *pcb);
 VMMR3_INT_DECL(bool)            PATMR3IsInsidePatchJump(PVM pVM, RTRCPTR pAddr, PRTGCPTR32 pPatchAddr);
 VMMR3_INT_DECL(RTRCPTR)         PATMR3QueryPatchGCPtr(PVM pVM, RTRCPTR pAddrGC);
-VMMR3_INT_DECL(bool)            PATMR3IsPatchHCAddr(PVM pVM, void *pAddrHC);
 VMMR3_INT_DECL(void *)          PATMR3GCPtrToHCPtr(PVM pVM, RTRCPTR pAddrGC);
 VMMR3_INT_DECL(PPATMGCSTATE)    PATMR3QueryGCStateHC(PVM pVM);
 VMMR3_INT_DECL(int)             PATMR3HandleTrap(PVM pVM, PCPUMCTX pCtx, RTRCPTR pEip, RTGCPTR *ppNewEip);

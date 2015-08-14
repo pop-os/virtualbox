@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2013 Oracle Corporation
+# Copyright (C) 2006-2015 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -39,9 +39,9 @@ ifdef VBOX_ONLY_ADDITIONS
   LIBRARIES.win.x86 += RuntimeGuestR0NT4
  endif
 
-else ifdef VBOX_ONLY_TESTSUITE
+else ifdef VBOX_ONLY_VALIDATIONKIT
  #
- # Only build the testsuite.
+ # Only build the Validation Kit.
  #
  LIBRARIES += RuntimeGuestR3 RuntimeGuestR3Shared RuntimeR3 RuntimeR0 RuntimeBldProg
  LIBRARIES.solaris += RuntimeR0Stub
@@ -57,14 +57,15 @@ else ifdef VBOX_ONLY_DOCS
 
 else ifdef VBOX_ONLY_EXTPACKS_USE_IMPLIBS
  #
- # Build docs only - need just regular R3 runtime.
+ # Build extension packs using import libraries as much as possible (VBoxDTrace
+ # needs Ring-0 IPRT, though).
  #
- LIBRARIES += RuntimeBldProg
+ LIBRARIES += RuntimeBldProg RuntimeR0
  LIBRARIES.solaris += RuntimeR0Stub
  LIBRARIES.win += RuntimeR0Stub RuntimeRCStub
  include $(PATH_SUB_CURRENT)/tools/Makefile.kmk
 
-else # !VBOX_ONLY_ADDITIONS && !VBOX_ONLY_TESTSUITE && !VBOX_ONLY_DOCS
+else # !VBOX_ONLY_ADDITIONS && !VBOX_ONLY_VALIDATIONKIT && !VBOX_ONLY_DOCS
 
  #
  # Normal build.
@@ -180,11 +181,15 @@ RuntimeWin64ASM_SOURCES = \
 	win/amd64/ASMGetDR6.asm \
 	win/amd64/ASMGetDR7.asm \
 	common/asm/ASMAtomicCmpXchgU8.asm \
+	common/asm/ASMMultU32ByU32DivByU32.asm \
 	common/asm/ASMMultU64ByU32DivByU32.asm \
 	common/asm/ASMCpuId_Idx_ECX.asm \
 	common/asm/ASMNopPause.asm \
 	common/asm/ASMGetIDTR.asm \
+	common/asm/ASMGetIdtrLimit.asm \
+	common/asm/ASMSetIDTR.asm \
 	common/asm/ASMGetGDTR.asm \
+	common/asm/ASMSetGDTR.asm \
 	common/asm/ASMGetLDTR.asm \
 	common/asm/ASMGetSegAttr.asm \
 	common/asm/ASMGetTR.asm
@@ -194,6 +199,7 @@ RuntimeWin64ASM_SOURCES = \
 #
 RuntimeWin32ASM_SOURCES = \
 	common/asm/ASMAtomicCmpXchgU8.asm \
+	common/asm/ASMMultU32ByU32DivByU32.asm \
 	common/asm/ASMMultU64ByU32DivByU32.asm \
 	common/asm/ASMCpuId_Idx_ECX.asm \
 	common/asm/ASMGetSegAttr.asm
@@ -297,6 +303,7 @@ RuntimeR3_SOURCES       = \
 	common/asn1/asn1-ut-time-decode.cpp \
 	common/checksum/adler32.cpp \
 	common/checksum/crc32.cpp \
+	common/checksum/crc32c.cpp \
 	common/checksum/crc64.cpp \
 	common/checksum/alt-md2.cpp \
 	common/checksum/alt-md5.cpp \
@@ -320,6 +327,7 @@ RuntimeR3_SOURCES       = \
 	common/checksum/sha512str.cpp \
 	common/checksum/sha512t224str.cpp \
 	common/checksum/sha512t256str.cpp \
+	common/checksum/x509.cpp \
 	common/crypto/digest-core.cpp \
 	common/crypto/digest-builtin.cpp \
 	common/crypto/iprt-openssl.cpp \
@@ -410,6 +418,7 @@ RuntimeR3_SOURCES       = \
 	common/misc/RTFileOpenF.cpp \
 	common/misc/RTFileOpenV.cpp \
 	common/misc/RTMemWipeThoroughly.cpp \
+	common/misc/RTSystemIsInsideVM-amd64-x86.cpp \
 	common/misc/assert.cpp \
 	common/misc/buildconfig.cpp \
 	common/misc/cidr.cpp \
@@ -434,7 +443,6 @@ RuntimeR3_SOURCES       = \
 	common/misc/term.cpp \
 	common/misc/uri.cpp \
 	common/misc/zero.asm \
-	common/net/netaddrstr.cpp \
 	common/net/netaddrstr2.cpp \
 	common/net/macstr.cpp \
 	common/path/rtPathRootSpecLen.cpp \
@@ -641,19 +649,31 @@ RuntimeR3_SOURCES.x86 += \
 	common/asm/ASMCpuIdExSlow.asm \
 	common/asm/ASMAtomicUoAndU64.asm \
 	common/asm/ASMAtomicUoAndU32.asm \
+	common/asm/ASMAtomicUoDecU32.asm \
+	common/asm/ASMAtomicUoIncU32.asm \
 	common/asm/ASMAtomicUoOrU64.asm \
 	common/asm/ASMAtomicUoOrU32.asm \
 	common/asm/ASMRdMsrEx.asm \
 	common/asm/ASMWrMsrEx.asm \
+	common/asm/ASMGetXcr0.asm \
+	common/asm/ASMSetXcr0.asm \
+	common/asm/ASMXSave.asm \
+	common/asm/ASMXRstor.asm \
 	common/math/bignum-amd64-x86.asm
 RuntimeR3_SOURCES.amd64 += \
 	common/asm/ASMCpuIdExSlow.asm \
 	common/asm/ASMAtomicUoAndU64.asm \
 	common/asm/ASMAtomicUoAndU32.asm \
+	common/asm/ASMAtomicUoDecU32.asm \
+	common/asm/ASMAtomicUoIncU32.asm \
 	common/asm/ASMAtomicUoOrU64.asm \
 	common/asm/ASMAtomicUoOrU32.asm \
 	common/asm/ASMRdMsrEx.asm \
 	common/asm/ASMWrMsrEx.asm \
+	common/asm/ASMGetXcr0.asm \
+	common/asm/ASMSetXcr0.asm \
+	common/asm/ASMXSave.asm \
+	common/asm/ASMXRstor.asm \
 	common/math/bignum-amd64-x86.asm \
 	common/math/RTUInt128MulByU64.asm
 
@@ -684,6 +704,7 @@ RuntimeR3_SOURCES += \
 	$(if $(VBOX_WITH_DBUS),VBox/dbus.cpp,)
 endif
 
+VBOX_WITH_NT_DIRENUM = 1
 RuntimeR3_SOURCES.win = \
 	common/dbg/dbgmoddbghelp.cpp \
 	generic/cdrom-generic.cpp \
@@ -739,10 +760,10 @@ RuntimeR3_SOURCES.win = \
 	r3/win/semmutex-win.cpp \
 	r3/win/symlink-win.cpp \
 	r3/win/rtFileNativeSetAttributes-win.cpp \
-	r3/win/rtmemlocked-win.cpp \
 	r3/win/thread-win.cpp \
 	r3/win/thread2-win.cpp \
-	r3/win/time-win.cpp \
+	$(if-expr 1,r3/win/time-win.cpp,r3/nt/time-nt.cpp) \
+	r3/win/time2-win.cpp \
 	r3/win/timer-win.cpp \
 	r3/win/tls-win.cpp \
 	r3/win/utf16locale-win.cpp \
@@ -793,7 +814,6 @@ RuntimeR3_SOURCES.linux = \
 	r3/posix/RTTimeNow-posix.cpp \
 	r3/posix/RTTimeSet-posix.cpp \
 	r3/posix/rtmempage-exec-mmap-heap-posix.cpp \
-	r3/posix/rtmemlocked-posix.cpp \
 	r3/posix/dir-posix.cpp \
 	r3/posix/env-posix.cpp \
 	r3/posix/errvars-posix.cpp \
@@ -968,7 +988,6 @@ RuntimeR3_SOURCES.darwin = \
 	r3/posix/fs3-posix.cpp \
 	r3/posix/ldrNative-posix.cpp \
 	r3/posix/rtmempage-exec-mmap-heap-posix.cpp \
-	r3/posix/rtmemlocked-posix.cpp \
 	r3/posix/path-posix.cpp \
 	r3/posix/path2-posix.cpp \
 	r3/posix/pipe-posix.cpp \
@@ -1015,6 +1034,7 @@ RuntimeR3_SOURCES.freebsd = \
 	generic/RTProcIsRunningByName-generic.cpp \
 	generic/RTThreadGetNativeState-generic.cpp \
 	r3/freebsd/mp-freebsd.cpp \
+	r3/freebsd/systemmem-freebsd.cpp \
 	r3/freebsd/rtProcInitExePath-freebsd.cpp \
 	r3/generic/allocex-r3-generic.cpp \
 	r3/posix/RTFileQueryFsSizes-posix.cpp \
@@ -1022,7 +1042,6 @@ RuntimeR3_SOURCES.freebsd = \
 	r3/posix/RTMemProtect-posix.cpp \
 	r3/posix/RTPathUserHome-posix.cpp \
 	r3/posix/RTSystemQueryOSInfo-posix.cpp \
-	r3/posix/RTSystemQueryTotalRam-posix.cpp \
 	r3/posix/RTTimeNow-posix.cpp \
 	r3/posix/RTTimeSet-posix.cpp \
 	r3/posix/dir-posix.cpp \
@@ -1036,7 +1055,6 @@ RuntimeR3_SOURCES.freebsd = \
 	r3/posix/fs3-posix.cpp \
 	r3/posix/ldrNative-posix.cpp \
 	r3/posix/rtmempage-exec-mmap-heap-posix.cpp \
-	r3/posix/rtmemlocked-posix.cpp \
 	r3/posix/path-posix.cpp \
 	r3/posix/path2-posix.cpp \
 	r3/posix/pathhost-posix.cpp \
@@ -1097,7 +1115,6 @@ RuntimeR3_SOURCES.solaris = \
 	r3/posix/fs3-posix.cpp \
 	r3/posix/ldrNative-posix.cpp \
 	r3/posix/rtmempage-exec-mmap-heap-posix.cpp \
-	r3/posix/rtmemlocked-posix.cpp \
 	r3/posix/path-posix.cpp \
 	r3/posix/path2-posix.cpp \
 	r3/posix/pathhost-posix.cpp \
@@ -1178,7 +1195,6 @@ RuntimeR3_SOURCES.haiku = \
 	r3/posix/fs3-posix.cpp \
 	r3/posix/ldrNative-posix.cpp \
 	r3/posix/rtmempage-exec-mmap-heap-posix.cpp \
-	r3/posix/rtmemlocked-posix.cpp \
 	r3/posix/path-posix.cpp \
 	r3/posix/path2-posix.cpp \
 	r3/posix/pathhost-posix.cpp \
@@ -1215,6 +1231,10 @@ RuntimeBldProg_SOURCES          = $(filter-out \
 	r3/xml.cpp \
 	common/zip/xarvfs.cpp \
 	, $(RuntimeR3_SOURCES))
+if "$(KBUILD_TARGET)" == "win" && "$(KBUILD_HOST)" != "win"
+RuntimeBldProg_SOURCES         += \
+	common/err/errmsgxpcom.cpp
+endif
 
 
 
@@ -1236,7 +1256,7 @@ RuntimeGuestR3_SOURCES                  := $(filter-out \
 	common/time/timesupref.cpp \
 	common/time/timesupA.asm \
 	common/time/timesup.cpp \
-	common/checksum/openssl-% \
+	common/checksum/x509.cpp \
 	generic/RTLogWriteUser-generic.cpp \
 	r3/xml.cpp \
 	common/zip/xarvfs.cpp \
@@ -1301,6 +1321,9 @@ endif
 ifdef VBOX_WITH_LIBCURL
  VBoxRT_DEFS                  += IPRT_WITH_HTTP
 endif
+ifdef RTALLOC_REPLACE_MALLOC
+ VBoxRT_DEFS                  += RTALLOC_REPLACE_MALLOC
+endif
 VBoxRT_DEFS.$(KBUILD_TYPE)    := $(RuntimeR3_DEFS.$(KBUILD_TYPE))
 VBoxRT_SOURCES                := \
 	VBox/VBoxRTDeps.cpp \
@@ -1323,7 +1346,6 @@ VBoxRT_SOURCES.amd64 := $(RuntimeR3_SOURCES.amd64)
 VBoxRT_SOURCES.win            += \
 	r3/win/dllmain-win.cpp \
 	r3/win/fileaio-win.cpp \
-	r3/win/VBoxRT.rc \
 	$(VBoxRT_0_OUTDIR)/VBoxRT.def
 VBoxRT_SOURCES.linux          += \
 	r3/linux/fileaio-linux.cpp
@@ -1360,6 +1382,10 @@ endif
 ifdef IPRT_WITH_LZO
  VBoxRT_LIBS                  += lzo2
 endif
+ifdef RTALLOC_REPLACE_MALLOC
+VBoxRT_LIBS                   += \
+	$(PATH_STAGE_LIB)/DisasmR3$(VBOX_SUFF_LIB)
+endif
 VBoxRT_LIBS.linux              = \
 	crypt
 VBoxRT_LIBS.darwin             = \
@@ -1395,6 +1421,10 @@ $$(VBoxRT_0_OUTDIR)/VBoxRT.def: \
 		$(PATH_SUB_CURRENT)/r3/win/$(if $(VBOX_OSE),VBoxRT-openssl-ose.def,VBoxRT-openssl.def)
 	$(RM) -f -- $@
 	$(REDIRECT) -wto $@ -- $(CAT_EXT) $^
+endif
+
+if1of (VBoxRT,$(DLLS))
+ $(call VBOX_SET_VER_INFO_DLL,VBoxRT,VirtualBox Runtime)
 endif
 
 
@@ -1483,7 +1513,7 @@ VBoxRT-x86_LIBS.win                = \
 	$(PATH_SDK_$(VBOX_WINDDK)_LIB.x86)/wbemuuid.lib \
 	$(PATH_TOOL_$(VBOX_VCC_TOOL_STEM)X86_LIB)/delayimp.lib
 
-VBoxRT-x86_SOURCES.win = $(filter-out %.def,$(VBoxRT_SOURCES.win)) \
+VBoxRT-x86_SOURCES.win = $(filter-out %.def %.rc,$(VBoxRT_SOURCES.win)) \
 	$(VBoxRT-x86_0_OUTDIR)/VBoxRT-x86.def
 if1of ($(DLLS), VBoxRT-x86)
 $$(VBoxRT-x86_0_OUTDIR)/VBoxRT-x86.def: \
@@ -1493,15 +1523,19 @@ $$(VBoxRT-x86_0_OUTDIR)/VBoxRT-x86.def: \
 	$(REDIRECT) -wto $@ -- $(CAT_EXT) $^
 endif
 
+if1of (VBoxRT-x86,$(DLLS))
+ $(call VBOX_SET_VER_INFO_DLL,VBoxRT-x86,VirtualBox 32-bit Runtime)
+endif
+
 #
 # VBoxRTImp - Import library/hack.
 #
 ifeq ($(KBUILD_TARGET).$(KBUILD_TARGET_ARCH),win.amd64)
-$(call VBOX_GENERATE_IMPORT_TARGET_FN,VBoxRTImp,VBoxRT,VBox/VBoxRTImp.def r3/win/VBoxRT-openssl-ose.def r3/win/VBoxRT-win64.def)
+$(call VBOX_GENERATE_IMPORT_TARGET_FN,VBoxRTImp,VBoxRT,VBox/VBoxRTImp.def r3/win/VBoxRT-win64.def)
 else ifeq ($(KBUILD_TARGET).$(KBUILD_TARGET_ARCH),win.x86)
-$(call VBOX_GENERATE_IMPORT_TARGET_FN,VBoxRTImp,VBoxRT,VBox/VBoxRTImp.def r3/win/VBoxRT-openssl-ose.def r3/win/VBoxRT-win32.def)
+$(call VBOX_GENERATE_IMPORT_TARGET_FN,VBoxRTImp,VBoxRT,VBox/VBoxRTImp.def r3/win/VBoxRT-win32.def)
 else
-$(call VBOX_GENERATE_IMPORT_TARGET_FN,VBoxRTImp,VBoxRT,VBox/VBoxRTImp.def r3/win/VBoxRT-openssl-ose.def)
+$(call VBOX_GENERATE_IMPORT_TARGET_FN,VBoxRTImp,VBoxRT,VBox/VBoxRTImp.def)
 endif
 
 
@@ -1671,16 +1705,28 @@ RuntimeR0_SOURCES.x86 += \
 	common/asm/ASMCpuIdExSlow.asm \
 	common/asm/ASMAtomicUoAndU64.asm \
 	common/asm/ASMAtomicUoAndU32.asm \
+	common/asm/ASMAtomicUoDecU32.asm \
+	common/asm/ASMAtomicUoIncU32.asm \
 	common/asm/ASMAtomicUoOrU64.asm \
 	common/asm/ASMAtomicUoOrU32.asm \
+	common/asm/ASMGetXcr0.asm \
+	common/asm/ASMSetXcr0.asm \
+	common/asm/ASMXSave.asm \
+	common/asm/ASMXRstor.asm \
 	common/asm/ASMRdMsrEx.asm \
 	common/asm/ASMWrMsrEx.asm
 RuntimeR0_SOURCES.amd64 += \
 	common/asm/ASMCpuIdExSlow.asm \
 	common/asm/ASMAtomicUoAndU64.asm \
 	common/asm/ASMAtomicUoAndU32.asm \
+	common/asm/ASMAtomicUoDecU32.asm \
+	common/asm/ASMAtomicUoIncU32.asm \
 	common/asm/ASMAtomicUoOrU64.asm \
 	common/asm/ASMAtomicUoOrU32.asm \
+	common/asm/ASMGetXcr0.asm \
+	common/asm/ASMSetXcr0.asm \
+	common/asm/ASMXSave.asm \
+	common/asm/ASMXRstor.asm \
 	common/asm/ASMRdMsrEx.asm \
 	common/asm/ASMWrMsrEx.asm
 
@@ -2017,6 +2063,7 @@ RuntimeR0Drv_SOURCES.darwin = \
 	generic/RTAssertShouldPanic-generic.cpp \
 	generic/RTTimerCreate-generic.cpp \
 	generic/RTMpGetCoreCount-generic.cpp \
+	generic/RTMpOnPair-generic.cpp \
 	generic/mppresent-generic.cpp \
 	generic/timer-generic.cpp \
 	r0drv/generic/mpnotification-r0drv-generic.cpp \
@@ -2114,6 +2161,7 @@ RuntimeR0Drv_SOURCES.freebsd = \
 	generic/RTAssertShouldPanic-generic.cpp \
 	generic/RTLogWriteDebugger-generic.cpp \
 	generic/RTLogWriteStdOut-stub-generic.cpp \
+	generic/RTMpOnPair-generic.cpp \
 	generic/RTTimerCreate-generic.cpp \
 	generic/mppresent-generic.cpp \
 	r0drv/generic/RTMpIsCpuWorkPending-r0drv-generic.cpp \
@@ -2179,6 +2227,7 @@ RuntimeR0Drv_SOURCES.haiku = \
 	common/string/memcmp.asm \
 	common/string/strchr.asm \
 	generic/RTAssertShouldPanic-generic.cpp \
+	generic/RTMpOnPair-generic.cpp \
 	generic/RTTimerCreate-generic.cpp \
 	generic/mppresent-generic.cpp \
 	r0drv/generic/RTMpIsCpuWorkPending-r0drv-generic.cpp \
@@ -2239,9 +2288,13 @@ ifdef VBOX_WITH_RAW_MODE
  # RuntimeRC - Raw-mode context library.
  #
  RuntimeRC_TEMPLATE      = VBoxRc
- RuntimeRC_DEFS          = IN_RT_RC RT_WITH_VBOX
+ RuntimeRC_DEFS          = IN_RT_RC RT_WITH_VBOX IN_SUP_RC IN_VMM_RC
  RuntimeRC_INCS          = include
  RuntimeRC_SOURCES      := \
+	common/asm/ASMGetXcr0.asm \
+	common/asm/ASMSetXcr0.asm \
+	common/asm/ASMXSave.asm \
+	common/asm/ASMXRstor.asm \
 	common/checksum/alt-md5.cpp \
 	common/checksum/crc32.cpp \
 	common/checksum/crc64.cpp \
@@ -2697,7 +2750,7 @@ if1of ($(LIBRARIES),RuntimeR3 RuntimeR0 RuntimeR0Drv RuntimeRC)
 		| $(SED) -nf "$@"
   endif
 	$(call MSG_L1,IPRT: Testing mangling using nm...)
-	$(QUIET)nm $^  2> /dev/null \
+	$(QUIET)$(VBOX_NM) $^  2> /dev/null \
 		| $(SED) -n \
 			-e 's/^[0-9a-f][0-9a-f]* //' \
 			-e '/^[TUDB] /!d' \
@@ -2717,6 +2770,12 @@ if1of ($(LIBRARIES),RuntimeR3 RuntimeR0 RuntimeR0Drv RuntimeRC)
 			-e '/^g_hDbgModStrCache/d'\
 			-e '/^g_pfnR0Darwin/d'\
 			-e '/^g_pDarwinLockGroup/d'\
+			$(if-expr "$(KBUILD_TARGET)" == "solaris", \
+			-e '/^g_kLdrRdrFileOps/d' \
+			-e '/^g_pSUPGlobalInfoPage/d' \
+			-e '/^g_Logger/d' \
+			-e '/^g_RelLogger/d' \
+			-e '/^g_VM/d',) \
 			\
 			-e '/^RTDBusLoadLib/d' \
 			\
@@ -2727,7 +2786,7 @@ if1of ($(LIBRARIES),RuntimeR3 RuntimeR0 RuntimeR0Drv RuntimeRC)
 endif
 	$(QUIET)$(APPEND) -t $@
 
-if !defined(VBOX_ONLY_ADDITIONS) && !defined(VBOX_ONLY_TESTSUITE) && !defined(VBOX_ONLY_DOCS)
+if !defined(VBOX_ONLY_ADDITIONS) && !defined(VBOX_ONLY_VALIDATIONKIT) && !defined(VBOX_ONLY_DOCS)
 #
 # Windows build tool.
 #

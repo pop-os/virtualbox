@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -514,9 +514,9 @@ static int rtSocketCloseIt(RTSOCKETINT *pThis, bool fDestroy)
             {
                 rc = rtSocketError();
 #ifdef RT_OS_WINDOWS
-                AssertMsgFailed(("\"%s\": closesocket(%p) -> %Rrc\n", (uintptr_t)hNative, rc));
+                AssertMsgFailed(("closesocket(%p) -> %Rrc\n", (uintptr_t)hNative, rc));
 #else
-                AssertMsgFailed(("\"%s\": close(%d) -> %Rrc\n", hNative, rc));
+                AssertMsgFailed(("close(%d) -> %Rrc\n", hNative, rc));
 #endif
             }
         }
@@ -665,7 +665,7 @@ RTDECL(int) RTSocketParseInetAddress(const char *pszAddress, unsigned uPort, PRT
     RTNETADDRIPV4 IPv4Quad;
     if (rtSocketIsIPv4Numerical(pszAddress, &IPv4Quad))
     {
-        Log3(("rtSocketIsIPv4Numerical: %#x (%RTnaipv4)\n", pszAddress, IPv4Quad.u, IPv4Quad));
+        Log3(("rtSocketIsIPv4Numerical: %s -> %#x (%RTnaipv4)\n", pszAddress, IPv4Quad.u, IPv4Quad));
         RT_ZERO(*pAddr);
         pAddr->enmType      = RTNETADDRTYPE_IPV4;
         pAddr->uPort        = uPort;
@@ -678,7 +678,7 @@ RTDECL(int) RTSocketParseInetAddress(const char *pszAddress, unsigned uPort, PRT
     if (!pHostEnt)
     {
         rc = rtSocketResolverError();
-        //AssertMsgFailed(("Could not resolve '%s', rc=%Rrc\n", pszAddress, rc));
+        AssertMsgFailed(("Could not resolve '%s', rc=%Rrc\n", pszAddress, rc));
         return rc;
     }
 
@@ -782,9 +782,8 @@ RTDECL(int) RTSocketQueryAddressStr(const char *pszHost, char *pszResult, size_t
     if (pgrResult->ai_family == AF_INET)
     {
         struct sockaddr_in const *pgrSa = (struct sockaddr_in const *)pgrResult->ai_addr;
-        pbDummy = (uint8_t const *)&pgrSa->sin_addr;
-        cchIpAddress = RTStrPrintf(szIpAddress, sizeof(szIpAddress), "%u.%u.%u.%u",
-                                   pbDummy[0], pbDummy[1], pbDummy[2], pbDummy[3]);
+        cchIpAddress = RTStrPrintf(szIpAddress, sizeof(szIpAddress),
+                                   "%RTnaipv4", pgrSa->sin_addr.s_addr);
         Assert(cchIpAddress >= 7 && cchIpAddress < sizeof(szIpAddress) - 1);
         enmAddrType = RTNETADDRTYPE_IPV4;
         rc = VINF_SUCCESS;
@@ -792,27 +791,10 @@ RTDECL(int) RTSocketQueryAddressStr(const char *pszHost, char *pszResult, size_t
     else if (pgrResult->ai_family == AF_INET6)
     {
         struct sockaddr_in6 const *pgrSa6 = (struct sockaddr_in6 const *)pgrResult->ai_addr;
-        pbDummy = (uint8_t const *) &pgrSa6->sin6_addr;
-        char szTmp[32+1];
-        size_t cchTmp = RTStrPrintf(szTmp, sizeof(szTmp),
-                                    "%02x%02x%02x%02x"
-                                    "%02x%02x%02x%02x"
-                                    "%02x%02x%02x%02x"
-                                    "%02x%02x%02x%02x",
-                                    pbDummy[0],  pbDummy[1],  pbDummy[2],  pbDummy[3],
-                                    pbDummy[4],  pbDummy[5],  pbDummy[6],  pbDummy[7],
-                                    pbDummy[8],  pbDummy[9],  pbDummy[10], pbDummy[11],
-                                    pbDummy[12], pbDummy[13], pbDummy[14], pbDummy[15]);
-        Assert(cchTmp == 32);
-        rc = rtStrToIpAddr6Str(szTmp, szIpAddress, sizeof(szIpAddress), NULL, 0, true);
-        if (RT_SUCCESS(rc))
-            cchIpAddress = strlen(szIpAddress);
-        else
-        {
-            szIpAddress[0] = '\0';
-            cchIpAddress = 0;
-        }
+        cchIpAddress = RTStrPrintf(szIpAddress, sizeof(szIpAddress),
+                                   "%RTnaipv6", (PRTNETADDRIPV6)&pgrSa6->sin6_addr);
         enmAddrType = RTNETADDRTYPE_IPV6;
+        rc = VINF_SUCCESS;
     }
     else
     {
@@ -1606,26 +1588,45 @@ RTDECL(int) RTSocketGetPeerAddress(RTSOCKET hSocket, PRTNETADDR pAddr)
  */
 int rtSocketBind(RTSOCKET hSocket, PCRTNETADDR pAddr)
 {
+    RTSOCKADDRUNION u;
+    int             cbAddr;
+    int rc = rtSocketAddrFromNetAddr(pAddr, &u, sizeof(u), &cbAddr);
+    if (RT_SUCCESS(rc))
+        rc = rtSocketBindRawAddr(hSocket, &u.Addr, cbAddr);
+    return rc;
+}
+
+
+/**
+ * Very thin wrapper around bind.
+ *
+ * @returns IPRT status code.
+ * @param   hSocket             The socket handle.
+ * @param   pvAddr              The address to bind to (struct sockaddr and
+ *                              friends).
+ * @param   cbAddr              The size of the address.
+ */
+int rtSocketBindRawAddr(RTSOCKET hSocket, void const *pvAddr, size_t cbAddr)
+{
     /*
      * Validate input.
      */
     RTSOCKETINT *pThis = hSocket;
     AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
     AssertReturn(pThis->u32Magic == RTSOCKET_MAGIC, VERR_INVALID_HANDLE);
+    AssertPtrReturn(pvAddr, VERR_INVALID_POINTER);
     AssertReturn(rtSocketTryLock(pThis), VERR_CONCURRENT_ACCESS);
 
-    RTSOCKADDRUNION u;
-    int             cbAddr;
-    int rc = rtSocketAddrFromNetAddr(pAddr, &u, sizeof(u), &cbAddr);
-    if (RT_SUCCESS(rc))
-    {
-        if (bind(pThis->hNative, &u.Addr, cbAddr) != 0)
-            rc = rtSocketError();
-    }
+    int rc;
+    if (bind(pThis->hNative, (struct sockaddr const *)pvAddr, (int)cbAddr) == 0)
+        rc = VINF_SUCCESS;
+    else
+        rc = rtSocketError();
 
     rtSocketUnlock(pThis);
     return rc;
 }
+
 
 
 /**

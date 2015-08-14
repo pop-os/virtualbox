@@ -1,8 +1,6 @@
 /* $Id: UIMachineViewSeamless.cpp $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * UIMachineViewSeamless class implementation
+ * VBox Qt GUI - UIMachineViewSeamless class implementation.
  */
 
 /*
@@ -17,31 +15,40 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* Qt includes: */
-#include <QApplication>
-#include <QDesktopWidget>
-#include <QMainWindow>
-#include <QTimer>
-#ifdef Q_WS_MAC
-#include <QMenuBar>
-#endif /* Q_WS_MAC */
+# include <QApplication>
+# include <QDesktopWidget>
+# include <QMainWindow>
+# include <QTimer>
+# ifdef Q_WS_MAC
+#  include <QMenuBar>
+# endif /* Q_WS_MAC */
 
 /* GUI includes: */
-#include "VBoxGlobal.h"
-#include "UISession.h"
-#include "UIMachineLogicSeamless.h"
-#include "UIMachineWindow.h"
-#include "UIMachineViewSeamless.h"
-#include "UIFrameBuffer.h"
+# include "VBoxGlobal.h"
+# include "UISession.h"
+# include "UIMachineLogicSeamless.h"
+# include "UIMachineWindow.h"
+# include "UIMachineViewSeamless.h"
+# include "UIFrameBuffer.h"
+# include "UIExtraDataManager.h"
 
 /* COM includes: */
-#include "CConsole.h"
-#include "CDisplay.h"
+# include "CConsole.h"
+# include "CDisplay.h"
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 /* External includes: */
 #ifdef Q_WS_X11
-#include <limits.h>
+# include <limits.h>
 #endif /* Q_WS_X11 */
+
+
 
 UIMachineViewSeamless::UIMachineViewSeamless(  UIMachineWindow *pMachineWindow
                                              , ulong uScreenId
@@ -77,7 +84,7 @@ void UIMachineViewSeamless::sltAdditionsStateChanged()
 void UIMachineViewSeamless::sltHandleSetVisibleRegion(QRegion region)
 {
     /* Apply new seamless-region: */
-    m_pFrameBuffer->applyVisibleRegion(region);
+    m_pFrameBuffer->handleSetVisibleRegion(region);
 }
 
 bool UIMachineViewSeamless::eventFilter(QObject *pWatched, QEvent *pEvent)
@@ -142,29 +149,74 @@ void UIMachineViewSeamless::prepareConsoleConnections()
 void UIMachineViewSeamless::prepareSeamless()
 {
     /* Set seamless feature flag to the guest: */
-    session().GetConsole().GetDisplay().SetSeamlessMode(true);
+    display().SetSeamlessMode(true);
 }
 
 void UIMachineViewSeamless::cleanupSeamless()
 {
-    /* If machine still running: */
+    /* Reset seamless feature flag if possible: */
     if (uisession()->isRunning())
-        /* Reset seamless feature flag of the guest: */
-        session().GetConsole().GetDisplay().SetSeamlessMode(false);
+        display().SetSeamlessMode(false);
 }
 
 void UIMachineViewSeamless::adjustGuestScreenSize()
 {
-    /* Check if we should adjust guest-screen to new size: */
-    if (frameBuffer()->isAutoEnabled() ||
-        (int)frameBuffer()->width() != workingArea().size().width() ||
-        (int)frameBuffer()->height() != workingArea().size().height())
-        if (uisession()->isGuestSupportsGraphics() &&
-            uisession()->isScreenVisible(screenId()))
+    /* Should we adjust guest-screen size? Logging paranoia is required here to reveal the truth. */
+    LogRel(("GUI: UIMachineViewSeamless::adjustGuestScreenSize: Adjust guest-screen size if necessary.\n"));
+    bool fAdjust = false;
+
+    /* Step 1: Was the guest-screen enabled automatically? */
+    if (!fAdjust)
+    {
+        if (frameBuffer()->isAutoEnabled())
         {
-            frameBuffer()->setAutoEnabled(false);
-            sltPerformGuestResize(workingArea().size());
+            LogRel2(("GUI: UIMachineViewSeamless::adjustGuestScreenSize: Guest-screen was enabled automatically, adjustment is required.\n"));
+            fAdjust = true;
         }
+    }
+    /* Step 2: Is the guest-screen of another size than necessary? */
+    if (!fAdjust)
+    {
+        /* Acquire frame-buffer size: */
+        QSize frameBufferSize(frameBuffer()->width(), frameBuffer()->height());
+        /* Take the scale-factor(s) into account: */
+        frameBufferSize = scaledForward(frameBufferSize);
+
+        /* Acquire working-area size: */
+        const QSize workingAreaSize = workingArea().size();
+
+        if (frameBufferSize != workingAreaSize)
+        {
+            LogRel2(("GUI: UIMachineViewSeamless::adjustGuestScreenSize: Guest-screen is of another size than necessary, adjustment is required.\n"));
+            fAdjust = true;
+        }
+    }
+
+    /* Step 3: Is guest-additions supports graphics? */
+    if (fAdjust)
+    {
+        if (!uisession()->isGuestSupportsGraphics())
+        {
+            LogRel2(("GUI: UIMachineViewSeamless::adjustGuestScreenSize: Guest-additions are not supporting graphics, adjustment is omitted.\n"));
+            fAdjust = false;
+        }
+    }
+    /* Step 4: Is guest-screen visible? */
+    if (fAdjust)
+    {
+        if (!uisession()->isScreenVisible(screenId()))
+        {
+            LogRel2(("GUI: UIMachineViewSeamless::adjustGuestScreenSize: Guest-screen is not visible, adjustment is omitted.\n"));
+            fAdjust = false;
+        }
+    }
+
+    /* Final step: Adjust if requested/allowed. */
+    if (fAdjust)
+    {
+        frameBuffer()->setAutoEnabled(false);
+        sltPerformGuestResize(workingArea().size());
+    }
 }
 
 QRect UIMachineViewSeamless::workingArea() const

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2005-2012 Oracle Corporation
+ * Copyright (C) 2005-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -254,7 +254,7 @@ static int vusbHubAttach(PVUSBHUB pHub, PVUSBDEV pDev)
 /* -=-=-=-=-=- PDMUSBHUBREG methods -=-=-=-=-=- */
 
 /** @copydoc PDMUSBHUBREG::pfnAttachDevice */
-static DECLCALLBACK(int) vusbPDMHubAttachDevice(PPDMDRVINS pDrvIns, PPDMUSBINS pUsbIns, uint32_t *piPort)
+static DECLCALLBACK(int) vusbPDMHubAttachDevice(PPDMDRVINS pDrvIns, PPDMUSBINS pUsbIns, const char *pszCaptureFilename, uint32_t *piPort)
 {
     PVUSBROOTHUB pThis = PDMINS_2_DATA(pDrvIns, PVUSBROOTHUB);
 
@@ -263,7 +263,7 @@ static DECLCALLBACK(int) vusbPDMHubAttachDevice(PPDMDRVINS pDrvIns, PPDMUSBINS p
      */
     PVUSBDEV pDev = (PVUSBDEV)RTMemAllocZ(sizeof(*pDev));
     AssertReturn(pDev, VERR_NO_MEMORY);
-    int rc = vusbDevInit(pDev, pUsbIns);
+    int rc = vusbDevInit(pDev, pUsbIns, pszCaptureFilename);
     if (RT_SUCCESS(rc))
     {
         pUsbIns->pvVUsbDev2 = pDev;
@@ -650,6 +650,57 @@ static DECLCALLBACK(void) vusbRhCancelAllUrbs(PVUSBIROOTHUBCONNECTOR pInterface)
     RTCritSectLeave(&pRh->CritSectDevices);
 }
 
+/**
+ * Worker doing the actual cancelling of all outstanding per-EP URBs on the
+ * device I/O thread.
+ *
+ * @returns VBox status code.
+ * @param   pDev    USB device instance data.
+ * @param   EndPt   Endpoint number.
+ * @param   enmDir  Endpoint direction.
+ */
+static DECLCALLBACK(int) vusbRhAbortEpWorker(PVUSBDEV pDev, int EndPt, VUSBDIRECTION enmDir)
+{
+    /*
+     * Iterate the URBs, find ones corresponding to given EP, and cancel them.
+     */
+    PVUSBURB pUrb = pDev->pAsyncUrbHead;
+    while (pUrb)
+    {
+        PVUSBURB pNext = pUrb->VUsb.pNext;
+
+        Assert(pUrb->VUsb.pDev == pDev);
+
+        if (pUrb->EndPt == EndPt && pUrb->enmDir == enmDir)
+        {
+            LogFlow(("%s: vusbRhAbortEpWorker: CANCELING URB\n", pUrb->pszDesc));
+            int rc = vusbUrbCancelWorker(pUrb, CANCELMODE_UNDO);
+            AssertRC(rc);
+        }
+        pUrb = pNext;
+    }
+
+    return VINF_SUCCESS;
+}
+
+
+/** @copydoc VUSBIROOTHUBCONNECTOR::pfnAbortEp */
+static DECLCALLBACK(int) vusbRhAbortEp(PVUSBIROOTHUBCONNECTOR pInterface, PVUSBIDEVICE pDevice, int EndPt, VUSBDIRECTION enmDir)
+{
+    PVUSBROOTHUB pRh = VUSBIROOTHUBCONNECTOR_2_VUSBROOTHUB(pInterface);
+    if (&pRh->Hub != ((PVUSBDEV)pDevice)->pHub)
+        AssertFailedReturn(VERR_INVALID_PARAMETER);
+
+    RTCritSectEnter(&pRh->CritSectDevices);
+    PVUSBDEV pDev = (PVUSBDEV)pDevice;
+    vusbDevIoThreadExecSync(pDev, (PFNRT)vusbRhAbortEpWorker, 3, pDev, EndPt, enmDir);
+    RTCritSectLeave(&pRh->CritSectDevices);
+
+    /* The reaper thread will take care of completing the URB. */
+
+    return VINF_SUCCESS;
+}
+
 
 /** @copydoc VUSBIROOTHUBCONNECTOR::pfnAttachDevice */
 static DECLCALLBACK(int) vusbRhAttachDevice(PVUSBIROOTHUBCONNECTOR pInterface, PVUSBIDEVICE pDevice)
@@ -780,14 +831,14 @@ static int vusbRhHubOpAttach(PVUSBHUB pHub, PVUSBDEV pDev)
         pDev->pNext = pRh->pDevices;
         pRh->pDevices = pDev;
         RTCritSectLeave(&pRh->CritSectDevices);
-        LogRel(("VUSB: attached '%s' to port %d\n", pDev->pUsbIns->pszName, iPort));
+        LogRel(("VUSB: Attached '%s' to port %d\n", pDev->pUsbIns->pszName, iPort));
     }
     else
     {
         ASMBitSet(&pRh->Bitmap, iPort);
         pHub->cDevices--;
         pDev->i16Port = -1;
-        LogRel(("VUSB: failed to attach '%s' to port %d, rc=%Rrc\n", pDev->pUsbIns->pszName, iPort, rc));
+        LogRel(("VUSB: Failed to attach '%s' to port %d, rc=%Rrc\n", pDev->pUsbIns->pszName, iPort, rc));
     }
     return rc;
 }
@@ -827,7 +878,7 @@ static void vusbRhHubOpDetach(PVUSBHUB pHub, PVUSBDEV pDev)
      */
     unsigned uPort = pDev->i16Port;
     pRh->pIRhPort->pfnDetach(pRh->pIRhPort, &pDev->IDevice, uPort);
-    LogRel(("VUSB: detached '%s' from port %u\n", pDev->pUsbIns->pszName, uPort));
+    LogRel(("VUSB: Detached '%s' from port %u\n", pDev->pUsbIns->pszName, uPort));
     ASMBitSet(&pRh->Bitmap, uPort);
     pHub->cDevices--;
 }
@@ -973,6 +1024,7 @@ static DECLCALLBACK(int) vusbRhConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uin
     pThis->IRhConnector.pfnReapAsyncUrbs= vusbRhReapAsyncUrbs;
     pThis->IRhConnector.pfnCancelUrbsEp = vusbRhCancelUrbsEp;
     pThis->IRhConnector.pfnCancelAllUrbs= vusbRhCancelAllUrbs;
+    pThis->IRhConnector.pfnAbortEp      = vusbRhAbortEp;
     pThis->IRhConnector.pfnAttachDevice = vusbRhAttachDevice;
     pThis->IRhConnector.pfnDetachDevice = vusbRhDetachDevice;
     pThis->hSniffer                     = VUSBSNIFFER_NIL;
@@ -1001,7 +1053,8 @@ static DECLCALLBACK(int) vusbRhConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uin
         rc = VUSBSnifferCreate(&pThis->hSniffer, 0, pszCaptureFilename, NULL);
         if (RT_FAILURE(rc))
             return PDMDrvHlpVMSetError(pDrvIns, rc, RT_SRC_POS,
-                                       N_("VUSBSniffer cannot open '%s' for writing. The directory must exist and it must be writable for the current user"));
+                                       N_("VUSBSniffer cannot open '%s' for writing. The directory must exist and it must be writable for the current user"),
+                                       pszCaptureFilename);
 
         MMR3HeapFree(pszCaptureFilename);
     }

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2010 Oracle Corporation
+ * Copyright (C) 2009-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -514,12 +514,10 @@ VBoxVgaControllerDriverStart (
                       &Private->Handle,
                       &gEfiGraphicsOutputProtocolGuid,
                       &Private->GraphicsOutput,
-#if 0
                       &gEfiEdidDiscoveredProtocolGuid,
                       &Private->EdidDiscovered,
                       &gEfiEdidActiveProtocolGuid,
                       &Private->EdidActive,
-#endif
                       NULL
                       );
     }
@@ -897,8 +895,8 @@ DrawLogo (
   )
 {
   DEBUG((DEBUG_INFO, "UGA is %a GOP is %a\n",
-        FeaturePcdGet(PcdSupportGop) ? "on" : "off",
-        FeaturePcdGet(PcdSupportUga) ? "on" : "off"
+        FeaturePcdGet(PcdSupportUga) ? "on" : "off",
+        FeaturePcdGet(PcdSupportGop) ? "on" : "off"
   ));
 }
 
@@ -997,6 +995,7 @@ InitializeGraphicsMode (
   ClearScreen (Private);
 }
 
+/** Aka know as AppleGraphInfoProtocolGuid in other sources. */
 #define EFI_UNKNOWN_2_PROTOCOL_GUID \
   { 0xE316E100, 0x0751, 0x4C49, {0x90, 0x56, 0x48, 0x6C, 0x7E, 0x47, 0x29, 0x03} }
 
@@ -1061,7 +1060,6 @@ InitializeVBoxVga (
              );
   ASSERT_EFI_ERROR (Status);
 
-#if 0
   //
   // Install EFI Driver Supported EFI Version Protocol required for
   // EFI drivers that are on PCI and other plug in cards.
@@ -1071,18 +1069,11 @@ InitializeVBoxVga (
                   &ImageHandle,
                   &gEfiDriverSupportedEfiVersionProtocolGuid,
                   &gVBoxVgaDriverSupportedEfiVersion,
+                  &gEfiAppleFrameBufferInfoGuid,
+                  &gAppleFrameBufferInfo,
                   NULL
                   );
   ASSERT_EFI_ERROR (Status);
-#endif
-  Status = gBS->InstallMultipleProtocolInterfaces (
-      &ImageHandle,
-      &gEfiAppleFrameBufferInfoGuid,
-      &gAppleFrameBufferInfo,
-      NULL
-                                                   );
-  ASSERT_EFI_ERROR (Status);
-
 
   return Status;
 }

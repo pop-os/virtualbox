@@ -1,3 +1,4 @@
+/* $Id: ClientToken.cpp $ */
 /** @file
  *
  * VirtualBox API client session crash token handling

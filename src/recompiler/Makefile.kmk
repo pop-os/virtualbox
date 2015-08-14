@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2012 Oracle Corporation
+# Copyright (C) 2006-2015 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -322,10 +322,9 @@ $$(VBoxREMImp_0_OUTDIR)/VBoxREMRes.o: $(VBOX_PATH_RECOMPILER_SRC)/VBoxREM.rc $(M
 	$(call MSG_GENERATE,,$@)
 	$(QUIET)$(REDIRECT) -E 'COMSPEC=$(VBOX_GOOD_COMSPEC_BS)' -- $(TOOL_MINGWW64_PREFIX)windres \
 	    $(addprefix -I,$(INCS) $(PATH_SDK_$(VBOX_WINPSDK)_INC) $(PATH_TOOL_$(VBOX_VCC_TOOL)_INC)) \
-	    -DVBOX_VERSION_MAJOR_NR=$(VBOX_VERSION_MAJOR) \
-	    -DVBOX_VERSION_MINOR_NR=$(VBOX_VERSION_MINOR) \
-	    -DVBOX_VERSION_BUILD_NR=$(VBOX_VERSION_BUILD) \
-	    -DVBOX_SVN_REV_NR=$(VBOX_SVN_REV) $< $@
+	    -DVBOX_SVN_REV=$(VBOX_SVN_REV) \
+	    -DVBOX_SVN_REV_MOD_5K=$(expr $(VBOX_SVN_REV) % 50000) \
+	    $< $@
 
 #
 # The math testcase as a standalone program for testing and debugging purposes.

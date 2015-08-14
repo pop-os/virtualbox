@@ -1,8 +1,6 @@
 /* $Id: UIWizardNewVDPageBasic3.cpp $ */
 /** @file
- *
- * VBox frontends: Qt4 GUI ("VirtualBox"):
- * UIWizardNewVDPageBasic3 class implementation
+ * VBox Qt GUI - UIWizardNewVDPageBasic3 class implementation.
  */
 
 /*
@@ -17,30 +15,37 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* Qt includes: */
-#include <QDir>
-#include <QRegExpValidator>
-#include <QVBoxLayout>
-#include <QHBoxLayout>
-#include <QLineEdit>
-#include <QSlider>
-#include <QLabel>
-#include <QSpacerItem>
+# include <QDir>
+# include <QRegExpValidator>
+# include <QVBoxLayout>
+# include <QHBoxLayout>
+# include <QLineEdit>
+# include <QSlider>
+# include <QLabel>
+# include <QSpacerItem>
 
 /* GUI includes: */
-#include "UIWizardNewVDPageBasic3.h"
-#include "UIWizardNewVD.h"
-#include "VBoxGlobal.h"
-#include "UIMessageCenter.h"
-#include "UIIconPool.h"
-#include "QIFileDialog.h"
-#include "QIRichTextLabel.h"
-#include "QIToolButton.h"
-#include "QILineEdit.h"
+# include "UIWizardNewVDPageBasic3.h"
+# include "UIWizardNewVD.h"
+# include "VBoxGlobal.h"
+# include "UIMessageCenter.h"
+# include "UIIconPool.h"
+# include "QIFileDialog.h"
+# include "QIRichTextLabel.h"
+# include "QIToolButton.h"
+# include "QILineEdit.h"
 
 /* COM includes: */
-#include "CSystemProperties.h"
-#include "CMediumFormat.h"
+# include "CSystemProperties.h"
+# include "CMediumFormat.h"
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 
 UIWizardNewVDPage3::UIWizardNewVDPage3(const QString &strDefaultName, const QString &strDefaultPath)
     : m_strDefaultName(strDefaultName.isEmpty() ? QString("NewVirtualDisk1") : strDefaultName)
@@ -90,7 +95,7 @@ void UIWizardNewVDPage3::onSelectLocationButtonClicked()
     /* Open corresponding file-dialog: */
     QString strChosenFilePath = QIFileDialog::getSaveFileName(folder.absoluteFilePath(strFileName),
                                                               strBackendsList, thisImp(),
-                                                              VBoxGlobal::tr("Please choose a location for new virtual hard drive file"));
+                                                              VBoxGlobal::tr("Please choose a location for new virtual hard disk file"));
 
     /* If there was something really chosen: */
     if (!strChosenFilePath.isEmpty())
@@ -362,12 +367,12 @@ void UIWizardNewVDPageBasic3::retranslateUi()
     setTitle(UIWizardNewVD::tr("File location and size"));
 
     /* Translate widgets: */
-    m_pLocationLabel->setText(UIWizardNewVD::tr("Please type the name of the new virtual hard drive file into the box below or "
+    m_pLocationLabel->setText(UIWizardNewVD::tr("Please type the name of the new virtual hard disk file into the box below or "
                                                 "click on the folder icon to select a different folder to create the file in."));
-    m_pLocationOpenButton->setToolTip(UIWizardNewVD::tr("Choose a location for new virtual hard drive file..."));
-    m_pSizeLabel->setText(UIWizardNewVD::tr("Select the size of the virtual hard drive in megabytes. "
+    m_pLocationOpenButton->setToolTip(UIWizardNewVD::tr("Choose a location for new virtual hard disk file..."));
+    m_pSizeLabel->setText(UIWizardNewVD::tr("Select the size of the virtual hard disk in megabytes. "
                                             "This size is the limit on the amount of file data "
-                                            "that a virtual machine will be able to store on the hard drive."));
+                                            "that a virtual machine will be able to store on the hard disk."));
 }
 
 void UIWizardNewVDPageBasic3::initializePage()

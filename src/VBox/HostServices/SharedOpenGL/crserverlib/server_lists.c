@@ -39,21 +39,22 @@
 
 static GLuint TranslateListID( GLuint id )
 {
+#ifndef VBOX_WITH_CR_DISPLAY_LISTS
     if (!cr_server.sharedDisplayLists) {
         int client = cr_server.curClient->number;
         return id + client * 100000;
     }
+#endif
     return id;
 }
 
-/* XXXX Note: shared/separate Program ID numbers aren't totally implemented! */
-GLuint crServerTranslateProgramID( GLuint id )
+
+GLuint SERVER_DISPATCH_APIENTRY crServerDispatchGenLists( GLsizei range )
 {
-    if (!cr_server.sharedPrograms && id) {
-        int client = cr_server.curClient->number;
-        return id + client * 100000;
-    }
-    return id;
+    GLuint retval;
+    retval = cr_server.head_spu->dispatch_table.GenLists( range );
+    crServerReturnValue( &retval, sizeof(retval) );
+    return retval; /* WILL PROBABLY BE IGNORED */
 }
 
 
@@ -122,6 +123,7 @@ crServerDispatchCallList( GLuint list )
 }
 
 
+#ifndef VBOX_WITH_CR_DISPLAY_LISTS
 /**
  * Translate an array of display list IDs from various datatypes to GLuint
  * IDs while adding the per-client offset.
@@ -222,11 +224,12 @@ TranslateListIDs(GLsizei n, GLenum type, const GLvoid *lists, GLuint *newLists)
         crWarning("CRServer: invalid display list datatype 0x%x", type);
     }
 }
-
+#endif
 
 void SERVER_DISPATCH_APIENTRY
 crServerDispatchCallLists( GLsizei n, GLenum type, const GLvoid *lists )
 {
+#ifndef VBOX_WITH_CR_DISPLAY_LISTS
     if (!cr_server.sharedDisplayLists) {
         /* need to translate IDs */
         GLuint *newLists = (GLuint *) crAlloc(n * sizeof(GLuint));
@@ -236,6 +239,7 @@ crServerDispatchCallLists( GLsizei n, GLenum type, const GLvoid *lists )
         lists = newLists;
         type = GL_UNSIGNED_INT;
     }
+#endif
 
     if (cr_server.curClient->currentCtxInfo->pContext->lists.mode == 0) {
         /* we're not compiling, so execute the list now */
@@ -248,9 +252,11 @@ crServerDispatchCallLists( GLsizei n, GLenum type, const GLvoid *lists )
         cr_server.head_spu->dispatch_table.CallLists( n, type, lists );
     }
 
+#ifndef VBOX_WITH_CR_DISPLAY_LISTS
     if (!cr_server.sharedDisplayLists) {
         crFree((void *) lists);  /* malloc'd above */
     }
+#endif
 }
 
 
@@ -269,149 +275,4 @@ void SERVER_DISPATCH_APIENTRY crServerDispatchDeleteLists( GLuint list, GLsizei 
     list = TranslateListID( list );
     crStateDeleteLists( list, range );
     cr_server.head_spu->dispatch_table.DeleteLists( list, range );
-}
-
-
-void SERVER_DISPATCH_APIENTRY crServerDispatchBindTexture( GLenum target, GLuint texture )
-{
-    crStateBindTexture( target, texture );
-    cr_server.head_spu->dispatch_table.BindTexture(target, crStateGetTextureHWID(texture));
-}
-
-void SERVER_DISPATCH_APIENTRY crServerDispatchDeleteTextures( GLsizei n, const GLuint *textures)
-{
-    GLuint *newTextures = (GLuint *) crAlloc(n * sizeof(GLuint));
-    GLint i;
-
-    if (!newTextures)
-    {
-        crError("crServerDispatchDeleteTextures: out of memory");
-        return;
-    }
-
-    for (i = 0; i < n; i++)
-    {
-        newTextures[i] = crStateGetTextureHWID(textures[i]);
-    }
-
-//    for (i = 0; i < n; ++i)
-//    {
-//        crDebug("DeleteTexture: %d, pid %d, ctx %d", textures[i], (uint32_t)cr_server.curClient->pid, cr_server.currentCtxInfo->pContext->id);
-//    }
-
-
-    crStateDeleteTextures(n, textures);
-    cr_server.head_spu->dispatch_table.DeleteTextures(n, newTextures);
-    crFree(newTextures);
-}
-
-void SERVER_DISPATCH_APIENTRY crServerDispatchPrioritizeTextures( GLsizei n, const GLuint * textures, const GLclampf * priorities )
-{
-    GLuint *newTextures = (GLuint *) crAlloc(n * sizeof(GLuint));
-    GLint i;
-
-    if (!newTextures)
-    {
-        crError("crServerDispatchDeleteTextures: out of memory");
-        return;
-    }
-
-    crStatePrioritizeTextures(n, textures, priorities);
-
-    for (i = 0; i < n; i++)
-    {
-        newTextures[i] = crStateGetTextureHWID(textures[i]);
-    }
-
-    cr_server.head_spu->dispatch_table.PrioritizeTextures(n, newTextures, priorities);
-    crFree(newTextures);
-}
-
-void SERVER_DISPATCH_APIENTRY crServerDispatchDeleteProgramsARB(GLsizei n, const GLuint * programs)
-{
-    GLuint *pLocalProgs = (GLuint *) crAlloc(n * sizeof(GLuint));
-    GLint i;
-    if (!pLocalProgs) {
-        crError("crServerDispatchDeleteProgramsARB: out of memory");
-        return;
-    }
-    for (i = 0; i < n; i++) {
-        pLocalProgs[i] = crServerTranslateProgramID(programs[i]);
-    }
-    crStateDeleteProgramsARB(n, pLocalProgs);
-    cr_server.head_spu->dispatch_table.DeleteProgramsARB(n, pLocalProgs);
-    crFree(pLocalProgs);
-}
-
-/*@todo will fail for textures loaded from snapshot */
-GLboolean SERVER_DISPATCH_APIENTRY crServerDispatchIsTexture( GLuint texture )
-{
-    GLboolean retval;
-    retval = cr_server.head_spu->dispatch_table.IsTexture(crStateGetTextureHWID(texture));
-    crServerReturnValue( &retval, sizeof(retval) );
-    return retval; /* WILL PROBABLY BE IGNORED */
-}
-
-/*@todo will fail for progs loaded from snapshot */
-GLboolean SERVER_DISPATCH_APIENTRY crServerDispatchIsProgramARB( GLuint program )
-{
-    GLboolean retval;
-    program = crServerTranslateProgramID(program);
-    retval = cr_server.head_spu->dispatch_table.IsProgramARB( program );
-    crServerReturnValue( &retval, sizeof(retval) );
-    return retval; /* WILL PROBABLY BE IGNORED */
-}
-
-GLboolean SERVER_DISPATCH_APIENTRY
-crServerDispatchAreTexturesResident(GLsizei n, const GLuint *textures,
-                                    GLboolean *residences)
-{
-    GLboolean retval;
-    GLsizei i;
-    GLboolean *res = (GLboolean *) crAlloc(n * sizeof(GLboolean));
-    GLuint *textures2 = (GLuint *) crAlloc(n * sizeof(GLuint));
-
-    (void) residences;
-        
-    for (i = 0; i < n; i++)
-    {
-        textures2[i] = crStateGetTextureHWID(textures[i]);
-    }
-    retval = cr_server.head_spu->dispatch_table.AreTexturesResident(n, textures2, res);
-
-    crFree(textures2);
-
-    crServerReturnValue(res, n * sizeof(GLboolean));
-
-    crFree(res);
-
-    return retval; /* WILL PROBABLY BE IGNORED */
-}
-
-
-GLboolean SERVER_DISPATCH_APIENTRY
-crServerDispatchAreProgramsResidentNV(GLsizei n, const GLuint *programs,
-                                                                            GLboolean *residences)
-{
-    GLboolean retval;
-    GLboolean *res = (GLboolean *) crAlloc(n * sizeof(GLboolean));
-    GLsizei i;
-
-    (void) residences;
-
-    if (!cr_server.sharedTextureObjects) {
-        GLuint *programs2 = (GLuint *) crAlloc(n * sizeof(GLuint));
-        for (i = 0; i < n; i++)
-            programs2[i] = crServerTranslateProgramID(programs[i]);
-        retval = cr_server.head_spu->dispatch_table.AreProgramsResidentNV(n, programs2, res);
-        crFree(programs2);
-    }
-    else {
-        retval = cr_server.head_spu->dispatch_table.AreProgramsResidentNV(n, programs, res);
-    }
-
-    crServerReturnValue(res, n * sizeof(GLboolean));
-    crFree(res);
-
-    return retval; /* WILL PROBABLY BE IGNORED */
 }

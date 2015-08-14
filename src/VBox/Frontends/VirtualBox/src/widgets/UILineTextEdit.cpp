@@ -1,8 +1,6 @@
 /* $Id: UILineTextEdit.cpp $ */
 /** @file
- *
- * VBox frontends: Qt4 GUI ("VirtualBox"):
- * UILineTextEdit class definitions
+ * VBox Qt GUI - UILineTextEdit class definitions.
  */
 
 /*
@@ -17,18 +15,25 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* VBox includes */
-#include "VBoxGlobal.h"
-#include "UILineTextEdit.h"
-#include "QIFileDialog.h"
+# include "VBoxGlobal.h"
+# include "UILineTextEdit.h"
+# include "QIFileDialog.h"
 
 /* Qt includes */
-#include <QDialogButtonBox>
-#include <QFile>
-#include <QLineEdit>
-#include <QPushButton>
-#include <QTextEdit>
-#include <QTextStream>
+# include <QDialogButtonBox>
+# include <QFile>
+# include <QLineEdit>
+# include <QPushButton>
+# include <QTextEdit>
+# include <QTextStream>
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // UITextEditor

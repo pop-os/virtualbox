@@ -1,7 +1,6 @@
+/* $Id: UIWizardCloneVDPageBasic1.h $ */
 /** @file
- *
- * VBox frontends: Qt4 GUI ("VirtualBox"):
- * UIWizardCloneVDPageBasic1 class declaration
+ * VBox Qt GUI - UIWizardCloneVDPageBasic1 class declaration.
  */
 
 /*

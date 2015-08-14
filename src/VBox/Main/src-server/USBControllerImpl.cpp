@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2005-2013 Oracle Corporation
+ * Copyright (C) 2005-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -100,7 +100,7 @@ HRESULT USBController::init(Machine *aParent, const Utf8Str &aName, USBControlle
 
     ComAssertRet(aParent && !aName.isEmpty(), E_INVALIDARG);
     if (   (enmType <= USBControllerType_Null)
-        || (enmType >  USBControllerType_EHCI))
+        || (enmType >  USBControllerType_XHCI))
         return setError(E_INVALIDARG,
                         tr("Invalid USB controller type"));
 
@@ -233,28 +233,48 @@ void USBController::uninit()
 }
 
 
-// IUSBController properties
+// Wrapped IUSBController properties
 /////////////////////////////////////////////////////////////////////////////
-STDMETHODIMP USBController::COMGETTER(Name) (BSTR *aName)
+HRESULT USBController::getName(com::Utf8Str &aName)
 {
-    CheckComArgOutPointerValid(aName);
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    /* strName is constant during life time, no need to lock */
-    m->bd->strName.cloneTo(aName);
+    aName = m->bd->strName;
 
     return S_OK;
 }
 
-STDMETHODIMP USBController::COMGETTER(Type)(USBControllerType_T *aType)
+HRESULT USBController::setName(const com::Utf8Str &aName)
 {
-    CheckComArgOutPointerValid(aType);
+    /* the machine needs to be mutable */
+    AutoMutableStateDependency adep(m->pParent);
+    if (FAILED(adep.rc())) return adep.rc();
 
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+    AutoMultiWriteLock2 alock(m->pParent, this COMMA_LOCKVAL_SRC_POS);
 
+    if (m->bd->strName != aName)
+    {
+        ComObjPtr<USBController> ctrl;
+        HRESULT rc = m->pParent->i_getUSBControllerByName(aName, ctrl, false /* aSetError */);
+        if (SUCCEEDED(rc))
+            return setError(VBOX_E_OBJECT_IN_USE,
+                            tr("USB controller named '%s' already exists"),
+                            aName.c_str());
+
+        m->bd.backup();
+        m->bd->strName = aName;
+
+        m->pParent->i_setModified(Machine::IsModified_USB);
+        alock.release();
+
+        m->pParent->i_onUSBControllerChange();
+    }
+
+    return S_OK;
+}
+
+HRESULT USBController::getType(USBControllerType_T *aType)
+{
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     *aType = m->bd->enmType;
@@ -262,13 +282,30 @@ STDMETHODIMP USBController::COMGETTER(Type)(USBControllerType_T *aType)
     return S_OK;
 }
 
-STDMETHODIMP USBController::COMGETTER(USBStandard)(USHORT *aUSBStandard)
+HRESULT USBController::setType(USBControllerType_T aType)
 {
-    CheckComArgOutPointerValid(aUSBStandard);
+    /* the machine needs to be mutable */
+    AutoMutableStateDependency adep(m->pParent);
+    if (FAILED(adep.rc())) return adep.rc();
 
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+    AutoMultiWriteLock2 alock(m->pParent, this COMMA_LOCKVAL_SRC_POS);
 
+    if (m->bd->enmType != aType)
+    {
+        m->bd.backup();
+        m->bd->enmType = aType;
+
+        m->pParent->i_setModified(Machine::IsModified_USB);
+        alock.release();
+
+        m->pParent->i_onUSBControllerChange();
+    }
+
+    return S_OK;
+}
+
+HRESULT USBController::getUSBStandard(USHORT *aUSBStandard)
+{
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     switch (m->bd->enmType)
@@ -277,6 +314,9 @@ STDMETHODIMP USBController::COMGETTER(USBStandard)(USHORT *aUSBStandard)
             *aUSBStandard = 0x0101;
             break;
         case USBControllerType_EHCI:
+            *aUSBStandard = 0x0200;
+            break;
+        case USBControllerType_XHCI:
             *aUSBStandard = 0x0200;
             break;
         default:
@@ -291,7 +331,7 @@ STDMETHODIMP USBController::COMGETTER(USBStandard)(USHORT *aUSBStandard)
 /////////////////////////////////////////////////////////////////////////////
 
 /** @note Locks objects for writing! */
-void USBController::rollback()
+void USBController::i_rollback()
 {
     AutoCaller autoCaller(this);
     AssertComRCReturnVoid(autoCaller.rc());
@@ -309,7 +349,7 @@ void USBController::rollback()
  *  @note Locks this object for writing, together with the peer object (also
  *  for writing) if there is one.
  */
-void USBController::commit()
+void USBController::i_commit()
 {
     /* sanity */
     AutoCaller autoCaller(this);
@@ -339,7 +379,7 @@ void USBController::commit()
  *  @note Locks this object for writing, together with the peer object
  *  represented by @a aThat (locked for reading).
  */
-void USBController::copyFrom(USBController *aThat)
+void USBController::i_copyFrom(USBController *aThat)
 {
     AssertReturnVoid(aThat != NULL);
 
@@ -373,7 +413,7 @@ void USBController::copyFrom(USBController *aThat)
  *  @note Locks this object for writing, together with the peer object
  *  represented by @a aThat (locked for reading).
  */
-void USBController::unshare()
+void USBController::i_unshare()
 {
     /* sanity */
     AutoCaller autoCaller(this);
@@ -399,21 +439,20 @@ void USBController::unshare()
     unconst(m->pPeer) = NULL;
 }
 
-const Utf8Str& USBController::getName() const
+const Utf8Str &USBController::i_getName() const
 {
     return m->bd->strName;
 }
 
-USBControllerType_T USBController::getControllerType() const
+const USBControllerType_T &USBController::i_getControllerType() const
 {
     return m->bd->enmType;
 }
 
-ComObjPtr<USBController> USBController::getPeer()
+ComObjPtr<USBController> USBController::i_getPeer()
 {
     return m->pPeer;
 }
 
-// private methods
 /////////////////////////////////////////////////////////////////////////////
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

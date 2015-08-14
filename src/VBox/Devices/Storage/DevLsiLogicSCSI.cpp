@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -497,12 +497,12 @@ DECLINLINE(void) lsilogicSetIOCFaultCode(PLSILOGICSCSI pThis, uint16_t uIOCFault
 {
     if (pThis->enmState != LSILOGICSTATE_FAULT)
     {
-        Log(("%s: Setting I/O controller into FAULT state: uIOCFaultCode=%u\n", __FUNCTION__, uIOCFaultCode));
+        LogFunc(("Setting I/O controller into FAULT state: uIOCFaultCode=%u\n", uIOCFaultCode));
         pThis->enmState        = LSILOGICSTATE_FAULT;
         pThis->u16IOCFaultCode = uIOCFaultCode;
     }
     else
-        Log(("%s: We are already in FAULT state\n"));
+        LogFunc(("We are already in FAULT state\n"));
 }
 
 /**
@@ -3851,7 +3851,7 @@ static DECLCALLBACK(int) lsilogicR3IsaIOPortWrite(PPDMDEVINS pDevIns, void *pvUs
  * Port I/O Handler for primary port range OUT string operations.}
  */
 static DECLCALLBACK(int) lsilogicR3IsaIOPortWriteStr(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port,
-                                                     PRTGCPTR pGCPtrSrc, PRTGCUINTREG pcTransfer, unsigned cb)
+                                                     uint8_t const *pbSrc, uint32_t *pcTransfers, unsigned cb)
 {
     PLSILOGICSCSI pThis = PDMINS_2_DATA(pDevIns, PLSILOGICSCSI);
     Log2(("#%d %s: pvUser=%#p cb=%d Port=%#x\n", pDevIns->iInstance, __FUNCTION__, pvUser, cb, Port));
@@ -3859,7 +3859,7 @@ static DECLCALLBACK(int) lsilogicR3IsaIOPortWriteStr(PPDMDEVINS pDevIns, void *p
     uint8_t iRegister = pThis->enmCtrlType == LSILOGICCTRLTYPE_SCSI_SPI
                       ? Port - LSILOGIC_BIOS_IO_PORT
                       : Port - LSILOGIC_SAS_BIOS_IO_PORT;
-    int rc = vboxscsiWriteString(pDevIns, &pThis->VBoxSCSI, iRegister, pGCPtrSrc, pcTransfer, cb);
+    int rc = vboxscsiWriteString(pDevIns, &pThis->VBoxSCSI, iRegister, pbSrc, pcTransfers, cb);
     if (rc == VERR_MORE_DATA)
     {
         rc = lsilogicR3PrepareBiosScsiRequest(pThis);
@@ -3875,18 +3875,16 @@ static DECLCALLBACK(int) lsilogicR3IsaIOPortWriteStr(PPDMDEVINS pDevIns, void *p
  * @callback_method_impl{FNIOMIOPORTINSTRING,
  * Port I/O Handler for primary port range IN string operations.}
  */
-static DECLCALLBACK(int) lsilogicR3IsaIOPortReadStr(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, RTGCPTR *pGCPtrDst,
-                                                  PRTGCUINTREG pcTransfer, unsigned cb)
+static DECLCALLBACK(int) lsilogicR3IsaIOPortReadStr(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port,
+                                                    uint8_t *pbDst, uint32_t *pcTransfers, unsigned cb)
 {
     PLSILOGICSCSI pThis = PDMINS_2_DATA(pDevIns, PLSILOGICSCSI);
-
-    LogFlowFunc(("#%d %s: pvUser=%#p cb=%d Port=%#x\n",
-                 pDevIns->iInstance, __FUNCTION__, pvUser, cb, Port));
+    LogFlowFunc(("#%d %s: pvUser=%#p cb=%d Port=%#x\n", pDevIns->iInstance, __FUNCTION__, pvUser, cb, Port));
 
     uint8_t iRegister = pThis->enmCtrlType == LSILOGICCTRLTYPE_SCSI_SPI
                       ? Port - LSILOGIC_BIOS_IO_PORT
                       : Port - LSILOGIC_SAS_BIOS_IO_PORT;
-    return vboxscsiReadString(pDevIns, &pThis->VBoxSCSI, iRegister, pGCPtrDst, pcTransfer, cb);
+    return vboxscsiReadString(pDevIns, &pThis->VBoxSCSI, iRegister, pbDst, pcTransfers, cb);
 }
 
 /**
@@ -4491,20 +4489,7 @@ static DECLCALLBACK(int) lsilogicR3SaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
     else
         AssertMsgFailed(("Invalid controller type %d\n", pThis->enmCtrlType));
 
-    /* Now the data for the BIOS interface. */
-    SSMR3PutU8    (pSSM, pThis->VBoxSCSI.regIdentify);
-    SSMR3PutU8    (pSSM, pThis->VBoxSCSI.uTargetDevice);
-    SSMR3PutU8    (pSSM, pThis->VBoxSCSI.uTxDir);
-    SSMR3PutU8    (pSSM, pThis->VBoxSCSI.cbCDB);
-    SSMR3PutMem   (pSSM, pThis->VBoxSCSI.abCDB, sizeof(pThis->VBoxSCSI.abCDB));
-    SSMR3PutU8    (pSSM, pThis->VBoxSCSI.iCDB);
-    SSMR3PutU32   (pSSM, pThis->VBoxSCSI.cbBuf);
-    SSMR3PutU32   (pSSM, pThis->VBoxSCSI.iBuf);
-    SSMR3PutBool  (pSSM, pThis->VBoxSCSI.fBusy);
-    SSMR3PutU8    (pSSM, pThis->VBoxSCSI.enmState);
-    if (pThis->VBoxSCSI.cbBuf)
-        SSMR3PutMem(pSSM, pThis->VBoxSCSI.pbBuf, pThis->VBoxSCSI.cbBuf);
-
+    vboxscsiR3SaveExec(&pThis->VBoxSCSI, pSSM);
     return SSMR3PutU32(pSSM, ~0);
 }
 
@@ -4834,27 +4819,12 @@ static DECLCALLBACK(int) lsilogicR3LoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM,
             AssertMsgFailed(("Invalid controller type %d\n", pThis->enmCtrlType));
     }
 
-    /* Now the data for the BIOS interface. */
-    SSMR3GetU8  (pSSM, &pThis->VBoxSCSI.regIdentify);
-    SSMR3GetU8  (pSSM, &pThis->VBoxSCSI.uTargetDevice);
-    SSMR3GetU8  (pSSM, &pThis->VBoxSCSI.uTxDir);
-    SSMR3GetU8  (pSSM, &pThis->VBoxSCSI.cbCDB);
-    SSMR3GetMem (pSSM, pThis->VBoxSCSI.abCDB, sizeof(pThis->VBoxSCSI.abCDB));
-    SSMR3GetU8  (pSSM, &pThis->VBoxSCSI.iCDB);
-    SSMR3GetU32 (pSSM, &pThis->VBoxSCSI.cbBuf);
-    SSMR3GetU32 (pSSM, &pThis->VBoxSCSI.iBuf);
-    SSMR3GetBool(pSSM, (bool *)&pThis->VBoxSCSI.fBusy);
-    SSMR3GetU8  (pSSM, (uint8_t *)&pThis->VBoxSCSI.enmState);
-    if (pThis->VBoxSCSI.cbBuf)
+    rc = vboxscsiR3LoadExec(&pThis->VBoxSCSI, pSSM);
+    if (RT_FAILURE(rc))
     {
-        pThis->VBoxSCSI.pbBuf = (uint8_t *)RTMemAllocZ(pThis->VBoxSCSI.cbBuf);
-        if (!pThis->VBoxSCSI.pbBuf)
-        {
-            LogRel(("LsiLogic: Out of memory during restore.\n"));
-            return PDMDEV_SET_ERROR(pDevIns, VERR_NO_MEMORY,
-                                    N_("LsiLogic: Out of memory during restore\n"));
-        }
-        SSMR3GetMem(pSSM, pThis->VBoxSCSI.pbBuf, pThis->VBoxSCSI.cbBuf);
+        LogRel(("LsiLogic: Failed to restore BIOS state: %Rrc.\n", rc));
+        return PDMDEV_SET_ERROR(pDevIns, rc,
+                                N_("LsiLogic: Failed to restore BIOS state\n"));
     }
 
     uint32_t u32;
@@ -5604,7 +5574,7 @@ const PDMDEVREG g_DeviceLsiLogicSCSI =
     /* szName */
     "lsilogicscsi",
     /* szRCMod */
-    "VBoxDDGC.gc",
+    "VBoxDDRC.rc",
     /* szR0Mod */
     "VBoxDDR0.r0",
     /* pszDescription */
@@ -5660,7 +5630,7 @@ const PDMDEVREG g_DeviceLsiLogicSAS =
     /* szName */
     "lsilogicsas",
     /* szRCMod */
-    "VBoxDDGC.gc",
+    "VBoxDDRC.rc",
     /* szR0Mod */
     "VBoxDDR0.r0",
     /* pszDescription */

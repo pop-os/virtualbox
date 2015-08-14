@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -245,8 +245,7 @@ int netPfStrToPf(const char *pcszStrPortForward, int fIPv6, PPORTFORWARDRULE pPf
     AssertReturn(cbRaw > 14, VERR_INVALID_PARAMETER);
 
     pszRaw = RTStrDup(pcszStrPortForward);
-
-    AssertPtrReturn(pszRaw, VERR_NO_MEMORY);
+    AssertReturn(pszRaw, VERR_NO_MEMORY);
 
     pszRawBegin = pszRaw;
 

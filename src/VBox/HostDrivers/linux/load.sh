@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2010-2012 Oracle Corporation
+# Copyright (C) 2010-2015 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -23,7 +23,7 @@ if [ ! -d "${MY_DIR}" ]; then
 fi
 
 set -e
-kmk -C "${MY_DIR}/src/vboxdrv" "$@"
+make -C "${MY_DIR}/src/vboxdrv" "$@"
 sudo make -C "${MY_DIR}/src/" unload
 echo "Installing SUPDrv (aka VBoxDrv/vboxdrv)"
 sudo /sbin/insmod "${MY_DIR}/src/vboxdrv/vboxdrv.ko"

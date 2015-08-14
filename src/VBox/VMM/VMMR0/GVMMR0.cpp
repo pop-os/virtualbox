@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2012 Oracle Corporation
+ * Copyright (C) 2007-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -84,10 +84,57 @@
 /*******************************************************************************
 *   Defined Constants And Macros                                               *
 *******************************************************************************/
-#if defined(RT_OS_LINUX) || defined(DOXYGEN_RUNNING)
+#if defined(RT_OS_LINUX) || defined(RT_OS_SOLARIS) || defined(DOXYGEN_RUNNING)
 /** Define this to enable the periodic preemption timer. */
 # define GVMM_SCHED_WITH_PPT
 #endif
+
+
+/** @def GVMM_CHECK_SMAP_SETUP
+ * SMAP check setup. */
+/** @def GVMM_CHECK_SMAP_CHECK
+ * Checks that the AC flag is set if SMAP is enabled. If AC is not set,
+ * it will be logged and @a a_BadExpr is executed. */
+/** @def GVMM_CHECK_SMAP_CHECK2
+ * Checks that the AC flag is set if SMAP is enabled.  If AC is not set, it will
+ * be logged, written to the VMs assertion text buffer, and @a a_BadExpr is
+ * executed. */
+#if defined(VBOX_STRICT) || 1
+# define GVMM_CHECK_SMAP_SETUP() uint32_t const fKernelFeatures = SUPR0GetKernelFeatures()
+# define GVMM_CHECK_SMAP_CHECK(a_BadExpr) \
+    do { \
+        if (fKernelFeatures & SUPKERNELFEATURES_SMAP) \
+        { \
+            RTCCUINTREG fEflCheck = ASMGetFlags(); \
+            if (RT_LIKELY(fEflCheck & X86_EFL_AC)) \
+            { /* likely */ } \
+            else \
+            { \
+                SUPR0Printf("%s, line %d: EFLAGS.AC is clear! (%#x)\n", __FUNCTION__, __LINE__, (uint32_t)fEflCheck); \
+                a_BadExpr; \
+            } \
+        } \
+    } while (0)
+# define GVMM_CHECK_SMAP_CHECK2(a_pVM, a_BadExpr) \
+    do { \
+        if (fKernelFeatures & SUPKERNELFEATURES_SMAP) \
+        { \
+            RTCCUINTREG fEflCheck = ASMGetFlags(); \
+            if (RT_LIKELY(fEflCheck & X86_EFL_AC)) \
+            { /* likely */ } \
+            else \
+            { \
+                SUPR0BadContext((a_pVM) ? (a_pVM)->pSession : NULL, __FILE__, __LINE__, "EFLAGS.AC is zero!"); \
+                a_BadExpr; \
+            } \
+        } \
+    } while (0)
+#else
+# define GVMM_CHECK_SMAP_SETUP()           uint32_t const fKernelFeatures = 0
+# define GVMM_CHECK_SMAP_CHECK(a_BadExpr)           NOREF(fKernelFeatures)
+# define GVMM_CHECK_SMAP_CHECK2(a_pVM, a_BadExpr)   NOREF(fKernelFeatures)
+#endif
+
 
 
 /*******************************************************************************
@@ -888,7 +935,7 @@ GVMMR0DECL(int) GVMMR0CreateVM(PSUPDRVSESSION pSession, uint32_t cCpus, PVM *ppV
                                         pVM->aCpus[0].hNativeThreadR0 = hEMT0;
                                         pGVMM->cEMTs += cCpus;
 
-                                        rc = VMMR0ThreadCtxHooksCreate(&pVM->aCpus[0]);
+                                        rc = VMMR0ThreadCtxHookCreateForEmt(&pVM->aCpus[0]);
                                         if (RT_SUCCESS(rc))
                                         {
                                             VBOXVMM_R0_GVMM_VM_CREATED(pGVM, pVM, ProcId, (void *)hEMT0, cCpus);
@@ -1122,7 +1169,7 @@ GVMMR0DECL(int) GVMMR0DestroyVM(PVM pVM)
              *        deregistered before releasing (destroying) it? Only until we find a
              *        solution for not deregistering hooks everytime we're leaving HMR0
              *        context. */
-            VMMR0ThreadCtxHooksRelease(&pVM->aCpus[idCpu]);
+            VMMR0ThreadCtxHookDestroyForEmt(&pVM->aCpus[idCpu]);
         }
 
         SUPR0ObjRelease(pvObj, pHandle->pSession);
@@ -1350,8 +1397,7 @@ GVMMR0DECL(int) GVMMR0RegisterVCpu(PVM pVM, VMCPUID idCpu)
 
     pVM->aCpus[idCpu].hNativeThreadR0 = pGVM->aCpus[idCpu].hEMT = RTThreadNativeSelf();
 
-    rc = VMMR0ThreadCtxHooksCreate(&pVM->aCpus[idCpu]);
-    return rc;
+    return VMMR0ThreadCtxHookCreateForEmt(&pVM->aCpus[idCpu]);
 }
 
 
@@ -1777,6 +1823,8 @@ static unsigned gvmmR0SchedDoWakeUps(PGVMM pGVMM, uint64_t u64Now)
 GVMMR0DECL(int) GVMMR0SchedHalt(PVM pVM, VMCPUID idCpu, uint64_t u64ExpireGipTime)
 {
     LogFlow(("GVMMR0SchedHalt: pVM=%p\n", pVM));
+    GVMM_CHECK_SMAP_SETUP();
+    GVMM_CHECK_SMAP_CHECK2(pVM, RT_NOTHING);
 
     /*
      * Validate the VM structure, state and handle.
@@ -1787,6 +1835,7 @@ GVMMR0DECL(int) GVMMR0SchedHalt(PVM pVM, VMCPUID idCpu, uint64_t u64ExpireGipTim
     if (RT_FAILURE(rc))
         return rc;
     pGVM->gvmm.s.StatsSched.cHaltCalls++;
+    GVMM_CHECK_SMAP_CHECK2(pVM, RT_NOTHING);
 
     PGVMCPU pCurGVCpu = &pGVM->aCpus[idCpu];
     Assert(!pCurGVCpu->gvmm.s.u64HaltExpire);
@@ -1798,6 +1847,7 @@ GVMMR0DECL(int) GVMMR0SchedHalt(PVM pVM, VMCPUID idCpu, uint64_t u64ExpireGipTim
      */
     rc = gvmmR0UsedLock(pGVMM);
     AssertRC(rc);
+    GVMM_CHECK_SMAP_CHECK2(pVM, RT_NOTHING);
 
     pCurGVCpu->gvmm.s.iCpuEmt = ASMGetApicId();
 
@@ -1807,7 +1857,9 @@ GVMMR0DECL(int) GVMMR0SchedHalt(PVM pVM, VMCPUID idCpu, uint64_t u64ExpireGipTim
     Assert(ASMGetFlags() & X86_EFL_IF);
     const uint64_t u64NowSys = RTTimeSystemNanoTS();
     const uint64_t u64NowGip = RTTimeNanoTS();
+    GVMM_CHECK_SMAP_CHECK2(pVM, RT_NOTHING);
     pGVM->gvmm.s.StatsSched.cHaltWakeUps += gvmmR0SchedDoWakeUps(pGVMM, u64NowGip);
+    GVMM_CHECK_SMAP_CHECK2(pVM, RT_NOTHING);
 
     /*
      * Go to sleep if we must...
@@ -1827,17 +1879,22 @@ GVMMR0DECL(int) GVMMR0SchedHalt(PVM pVM, VMCPUID idCpu, uint64_t u64ExpireGipTim
         ASMAtomicWriteU64(&pCurGVCpu->gvmm.s.u64HaltExpire, u64ExpireGipTime);
         ASMAtomicIncU32(&pGVMM->cHaltedEMTs);
         gvmmR0UsedUnlock(pGVMM);
+        GVMM_CHECK_SMAP_CHECK2(pVM, RT_NOTHING);
 
         rc = RTSemEventMultiWaitEx(pCurGVCpu->gvmm.s.HaltEventMulti,
                                    RTSEMWAIT_FLAGS_ABSOLUTE | RTSEMWAIT_FLAGS_NANOSECS | RTSEMWAIT_FLAGS_INTERRUPTIBLE,
                                    u64NowGip > u64NowSys ? u64ExpireGipTime : u64NowSys + cNsInterval);
+        GVMM_CHECK_SMAP_CHECK2(pVM, RT_NOTHING);
 
         ASMAtomicWriteU64(&pCurGVCpu->gvmm.s.u64HaltExpire, 0);
         ASMAtomicDecU32(&pGVMM->cHaltedEMTs);
 
         /* Reset the semaphore to try prevent a few false wake-ups. */
         if (rc == VINF_SUCCESS)
+        {
             RTSemEventMultiReset(pCurGVCpu->gvmm.s.HaltEventMulti);
+            GVMM_CHECK_SMAP_CHECK2(pVM, RT_NOTHING);
+        }
         else if (rc == VERR_TIMEOUT)
         {
             pGVM->gvmm.s.StatsSched.cHaltTimeouts++;
@@ -1848,7 +1905,9 @@ GVMMR0DECL(int) GVMMR0SchedHalt(PVM pVM, VMCPUID idCpu, uint64_t u64ExpireGipTim
     {
         pGVM->gvmm.s.StatsSched.cHaltNotBlocking++;
         gvmmR0UsedUnlock(pGVMM);
+        GVMM_CHECK_SMAP_CHECK2(pVM, RT_NOTHING);
         RTSemEventMultiReset(pCurGVCpu->gvmm.s.HaltEventMulti);
+        GVMM_CHECK_SMAP_CHECK2(pVM, RT_NOTHING);
     }
 
     return rc;
@@ -1911,12 +1970,16 @@ DECLINLINE(int) gvmmR0SchedWakeUpOne(PGVM pGVM, PGVMCPU pGVCpu)
  */
 GVMMR0DECL(int) GVMMR0SchedWakeUpEx(PVM pVM, VMCPUID idCpu, bool fTakeUsedLock)
 {
+    GVMM_CHECK_SMAP_SETUP();
+    GVMM_CHECK_SMAP_CHECK2(pVM, RT_NOTHING);
+
     /*
      * Validate input and take the UsedLock.
      */
     PGVM pGVM;
     PGVMM pGVMM;
     int rc = gvmmR0ByVM(pVM, &pGVM, &pGVMM, fTakeUsedLock);
+    GVMM_CHECK_SMAP_CHECK2(pVM, RT_NOTHING);
     if (RT_SUCCESS(rc))
     {
         if (idCpu < pGVM->cCpus)
@@ -1925,6 +1988,7 @@ GVMMR0DECL(int) GVMMR0SchedWakeUpEx(PVM pVM, VMCPUID idCpu, bool fTakeUsedLock)
              * Do the actual job.
              */
             rc = gvmmR0SchedWakeUpOne(pGVM, &pGVM->aCpus[idCpu]);
+            GVMM_CHECK_SMAP_CHECK2(pVM, RT_NOTHING);
 
             if (fTakeUsedLock)
             {
@@ -1934,6 +1998,7 @@ GVMMR0DECL(int) GVMMR0SchedWakeUpEx(PVM pVM, VMCPUID idCpu, bool fTakeUsedLock)
                 Assert(ASMGetFlags() & X86_EFL_IF);
                 const uint64_t u64Now = RTTimeNanoTS(); /* (GIP time) */
                 pGVM->gvmm.s.StatsSched.cWakeUpWakeUps += gvmmR0SchedDoWakeUps(pGVMM, u64Now);
+                GVMM_CHECK_SMAP_CHECK2(pVM, RT_NOTHING);
             }
         }
         else
@@ -1943,6 +2008,7 @@ GVMMR0DECL(int) GVMMR0SchedWakeUpEx(PVM pVM, VMCPUID idCpu, bool fTakeUsedLock)
         {
             int rc2 = gvmmR0UsedUnlock(pGVMM);
             AssertRC(rc2);
+            GVMM_CHECK_SMAP_CHECK2(pVM, RT_NOTHING);
         }
     }
 
@@ -2062,6 +2128,8 @@ GVMMR0DECL(int) GVMMR0SchedWakeUpAndPokeCpus(PVM pVM, PCVMCPUSET pSleepSet, PCVM
 {
     AssertPtrReturn(pSleepSet, VERR_INVALID_POINTER);
     AssertPtrReturn(pPokeSet, VERR_INVALID_POINTER);
+    GVMM_CHECK_SMAP_SETUP();
+    GVMM_CHECK_SMAP_CHECK2(pVM, RT_NOTHING);
     RTNATIVETHREAD hSelf = RTThreadNativeSelf();
 
     /*
@@ -2070,6 +2138,7 @@ GVMMR0DECL(int) GVMMR0SchedWakeUpAndPokeCpus(PVM pVM, PCVMCPUSET pSleepSet, PCVM
     PGVM pGVM;
     PGVMM pGVMM;
     int rc = gvmmR0ByVM(pVM, &pGVM, &pGVMM, true /* fTakeUsedLock */);
+    GVMM_CHECK_SMAP_CHECK2(pVM, RT_NOTHING);
     if (RT_SUCCESS(rc))
     {
         rc = VINF_SUCCESS;
@@ -2082,13 +2151,20 @@ GVMMR0DECL(int) GVMMR0SchedWakeUpAndPokeCpus(PVM pVM, PCVMCPUSET pSleepSet, PCVM
 
             /* just ignore errors for now. */
             if (VMCPUSET_IS_PRESENT(pSleepSet, idCpu))
+            {
                 gvmmR0SchedWakeUpOne(pGVM, &pGVM->aCpus[idCpu]);
+                GVMM_CHECK_SMAP_CHECK2(pVM, RT_NOTHING);
+            }
             else if (VMCPUSET_IS_PRESENT(pPokeSet, idCpu))
+            {
                 gvmmR0SchedPokeOne(pGVM, &pVM->aCpus[idCpu]);
+                GVMM_CHECK_SMAP_CHECK2(pVM, RT_NOTHING);
+            }
         }
 
         int rc2 = gvmmR0UsedUnlock(pGVMM);
         AssertRC(rc2);
+        GVMM_CHECK_SMAP_CHECK2(pVM, RT_NOTHING);
     }
 
     LogFlow(("GVMMR0SchedWakeUpAndPokeCpus: returns %Rrc\n", rc));
@@ -2206,7 +2282,7 @@ static DECLCALLBACK(void) gvmmR0SchedPeriodicPreemptionTimerCallback(PRTTIMER pT
             if (pCpu->Ppt.aHzHistory[i] > uHistMaxHz)
                 uHistMaxHz = pCpu->Ppt.aHzHistory[i];
         if (uHistMaxHz == pCpu->Ppt.uTimerHz)
-            RTSpinlockReleaseNoInts(pCpu->Ppt.hSpinlock);
+            RTSpinlockRelease(pCpu->Ppt.hSpinlock);
         else if (uHistMaxHz)
         {
             /*
@@ -2223,7 +2299,7 @@ static DECLCALLBACK(void) gvmmR0SchedPeriodicPreemptionTimerCallback(PRTTIMER pT
                                                        / cNsInterval;
             else
                 pCpu->Ppt.cTicksHistoriziationInterval = 1;
-            RTSpinlockReleaseNoInts(pCpu->Ppt.hSpinlock);
+            RTSpinlockRelease(pCpu->Ppt.hSpinlock);
 
             /*SUPR0Printf("Cpu%u: change to %u Hz / %u ns\n", pCpu->idxCpuSet, uHistMaxHz, cNsInterval);*/
             RTTimerChangeInterval(pTimer, cNsInterval);
@@ -2236,14 +2312,14 @@ static DECLCALLBACK(void) gvmmR0SchedPeriodicPreemptionTimerCallback(PRTTIMER pT
             pCpu->Ppt.fStarted    = false;
             pCpu->Ppt.uTimerHz    = 0;
             pCpu->Ppt.cNsInterval = 0;
-            RTSpinlockReleaseNoInts(pCpu->Ppt.hSpinlock);
+            RTSpinlockRelease(pCpu->Ppt.hSpinlock);
 
             /*SUPR0Printf("Cpu%u: stopping (%u Hz)\n", pCpu->idxCpuSet, uHistMaxHz);*/
             RTTimerStop(pTimer);
         }
     }
     else
-        RTSpinlockReleaseNoInts(pCpu->Ppt.hSpinlock);
+        RTSpinlockRelease(pCpu->Ppt.hSpinlock);
 }
 #endif /* GVMM_SCHED_WITH_PPT */
 
@@ -2310,7 +2386,7 @@ GVMMR0DECL(void) GVMMR0SchedUpdatePeriodicPreemptionTimer(PVM pVM, RTCPUID idHos
                 pCpu->Ppt.cTicksHistoriziationInterval = 1;
         }
 
-        RTSpinlockReleaseNoInts(pCpu->Ppt.hSpinlock);
+        RTSpinlockRelease(pCpu->Ppt.hSpinlock);
 
         if (cNsInterval)
         {
@@ -2322,7 +2398,7 @@ GVMMR0DECL(void) GVMMR0SchedUpdatePeriodicPreemptionTimer(PVM pVM, RTCPUID idHos
             if (RT_FAILURE(rc))
                 pCpu->Ppt.fStarted = false;
             pCpu->Ppt.fStarting = false;
-            RTSpinlockReleaseNoInts(pCpu->Ppt.hSpinlock);
+            RTSpinlockRelease(pCpu->Ppt.hSpinlock);
         }
     }
 #else  /* !GVMM_SCHED_WITH_PPT */

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2012 Oracle Corporation
+ * Copyright (C) 2011-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -549,7 +549,7 @@ static DECLCALLBACK(int) drvCardReaderDownControl(PPDMICARDREADERDOWN pInterface
         && cbInBuffer)
     {
         pvInBufferCopy = RTMemDup(pvInBuffer, cbInBuffer);
-        AssertPtrReturn(pvInBufferCopy, VERR_NO_MEMORY);
+        AssertReturn(pvInBufferCopy, VERR_NO_MEMORY);
     }
     int rc = RTReqQueueCallEx(pThis->hReqQCardReaderCmd, NULL, 0, RTREQFLAGS_VOID | RTREQFLAGS_NO_WAIT,
                               (PFNRT)drvCardReaderCmdControl, 6,
@@ -606,7 +606,7 @@ static DECLCALLBACK(int) drvCardReaderThreadCmdWakeup(PPDMDRVINS pDrvIns, PPDMTH
 
     PRTREQ pReq;
     int rc = RTReqQueueCall(pThis->hReqQCardReaderCmd, &pReq, 10000, (PFNRT)drvCardReaderWakeupFunc, 1, pThis);
-    AssertMsgRC(rc, ("Inserting request into queue failed rc=%Rrc\n"));
+    AssertMsgRC(rc, ("Inserting request into queue failed rc=%Rrc\n", rc));
 
     if (RT_SUCCESS(rc))
         RTReqRelease(pReq);
@@ -692,7 +692,7 @@ typedef struct UCRREQCTX
 
 int UsbCardReader::vrdeSCardRequest(void *pvUser, uint32_t u32Function, const void *pvData, uint32_t cbData)
 {
-    int rc = mParent->consoleVRDPServer()->SCardRequest(pvUser, u32Function, pvData, cbData);
+    int rc = mParent->i_consoleVRDPServer()->SCardRequest(pvUser, u32Function, pvData, cbData);
     LogFlowFunc(("%d %Rrc\n", u32Function, rc));
     return rc;
 }

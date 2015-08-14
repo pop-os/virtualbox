@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -71,7 +71,8 @@ RTDECL(int)  RTConvVarCreate(PRTCONDVAR phCondVar);
  *                              optional (NULL).  Max length is 32 bytes.
  * @param   ...                 Format string arguments.
  */
-RTDECL(int)  RTConvVarCreateEx(PRTCONDVAR phCondVar, uint32_t fFlags, RTLOCKVALCLASS hClass, const char *pszNameFmt, ...);
+RTDECL(int)  RTConvVarCreateEx(PRTCONDVAR phCondVar, uint32_t fFlags, RTLOCKVALCLASS hClass,
+                               const char *pszNameFmt, ...) RT_IPRT_FORMAT_ATTR(4, 5);
 
 /** @name RTConvVarCreateEx flags
  * @{ */

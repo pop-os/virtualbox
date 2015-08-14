@@ -1,8 +1,6 @@
 /* $Id: UIGlobalSettingsExtension.cpp $ */
 /** @file
- *
- * VBox frontends: Qt4 GUI ("VirtualBox"):
- * UIGlobalSettingsExtension class implementation
+ * VBox Qt GUI - UIGlobalSettingsExtension class implementation.
  */
 
 /*
@@ -17,21 +15,28 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* Qt includes: */
-#include <QHeaderView>
+# include <QHeaderView>
 
 /* GUI includes: */
-#include "UIGlobalSettingsExtension.h"
-#include "UIIconPool.h"
-#include "QIFileDialog.h"
-#include "VBoxGlobal.h"
-#include "UIMessageCenter.h"
-#include "VBoxLicenseViewer.h"
+# include "UIGlobalSettingsExtension.h"
+# include "UIIconPool.h"
+# include "QIFileDialog.h"
+# include "VBoxGlobal.h"
+# include "UIMessageCenter.h"
+# include "VBoxLicenseViewer.h"
 
 /* COM includes: */
-#include "CExtPackManager.h"
-#include "CExtPack.h"
-#include "CExtPackFile.h"
+# include "CExtPackManager.h"
+# include "CExtPack.h"
+# include "CExtPackFile.h"
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 
 /* Extension package item: */
 class UIExtensionPackageItem : public QTreeWidgetItem
@@ -100,9 +105,12 @@ UIGlobalSettingsExtension::UIGlobalSettingsExtension()
     connect(m_pPackagesTree, SIGNAL(customContextMenuRequested(const QPoint&)),
             this, SLOT(sltShowContextMenu(const QPoint&)));
 
+    /* Determine icon metric: */
+    const QStyle *pStyle = QApplication::style();
+    const int iIconMetric = pStyle->pixelMetric(QStyle::PM_SmallIconSize);
+
     /* Setup tool-bar: */
-    m_pPackagesToolbar->setUsesTextLabel(false);
-    m_pPackagesToolbar->setIconSize(QSize(16, 16));
+    m_pPackagesToolbar->setIconSize(QSize(iIconMetric, iIconMetric));
     m_pPackagesToolbar->setOrientation(Qt::Vertical);
     m_pActionAdd = m_pPackagesToolbar->addAction(UIIconPool::iconSet(":/extension_pack_install_16px.png",
                                                                      ":/extension_pack_install_disabled_16px.png"),
@@ -275,8 +283,14 @@ void UIGlobalSettingsExtension::retranslateUi()
     Ui::UIGlobalSettingsExtension::retranslateUi(this);
 
     /* Translate actions: */
-    m_pActionAdd->setText(tr("Add package"));
-    m_pActionRemove->setText(tr("Remove package"));
+    m_pActionAdd->setText(tr("Add Package"));
+    m_pActionRemove->setText(tr("Remove Package"));
+
+    m_pActionAdd->setWhatsThis(tr("Adds new package."));
+    m_pActionRemove->setWhatsThis(tr("Removes selected package."));
+
+    m_pActionAdd->setToolTip(m_pActionAdd->whatsThis());
+    m_pActionRemove->setToolTip(m_pActionRemove->whatsThis());
 }
 
 void UIGlobalSettingsExtension::sltHandleCurrentItemChange(QTreeWidgetItem *pCurrentItem)

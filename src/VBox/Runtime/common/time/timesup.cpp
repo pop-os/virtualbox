@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -51,6 +51,7 @@
 static DECLCALLBACK(void)     rtTimeNanoTSInternalBitch(PRTTIMENANOTSDATA pData, uint64_t u64NanoTS, uint64_t u64DeltaPrev, uint64_t u64PrevNanoTS);
 static DECLCALLBACK(uint64_t) rtTimeNanoTSInternalFallback(PRTTIMENANOTSDATA pData);
 static DECLCALLBACK(uint64_t) rtTimeNanoTSInternalRediscover(PRTTIMENANOTSDATA pData);
+static DECLCALLBACK(uint64_t) rtTimeNanoTSInternalBadCpuIndex(PRTTIMENANOTSDATA pData, uint16_t idApic, uint16_t iCpuSet, uint16_t iGipCpu);
 #endif
 
 
@@ -64,47 +65,56 @@ static uint64_t         g_TimeNanoTSPrev = 0;
 /** The RTTimeNanoTS data structure that's passed down to the worker functions.  */
 static RTTIMENANOTSDATA g_TimeNanoTSData =
 {
-    /* .pu64Prev      = */ &g_TimeNanoTSPrev,
-    /* .pfnBad        = */ rtTimeNanoTSInternalBitch,
-    /* .pfnRediscover = */ rtTimeNanoTSInternalRediscover,
-    /* .pvDummy       = */ NULL,
-    /* .c1nsSteps     = */ 0,
-    /* .cExpired      = */ 0,
-    /* .cBadPrev      = */ 0,
-    /* .cUpdateRaces  = */ 0
+    /* .pu64Prev       = */ &g_TimeNanoTSPrev,
+    /* .pfnBad         = */ rtTimeNanoTSInternalBitch,
+    /* .pfnRediscover  = */ rtTimeNanoTSInternalRediscover,
+    /* .pfnBadCpuIndex = */ rtTimeNanoTSInternalBadCpuIndex,
+    /* .c1nsSteps      = */ 0,
+    /* .cExpired       = */ 0,
+    /* .cBadPrev       = */ 0,
+    /* .cUpdateRaces   = */ 0
 };
 
-/** The index into g_apfnWorkers for the function to use.
- * This cannot be a pointer because that'll break down in GC due to code relocation. */
-static uint32_t             g_iWorker = 0;
+# ifdef IN_RC
 /** Array of rtTimeNanoTSInternal worker functions.
  * This array is indexed by g_iWorker. */
 static const PFNTIMENANOTSINTERNAL g_apfnWorkers[] =
 {
-# define RTTIMENANO_WORKER_DETECT        0
+#  define RTTIMENANO_WORKER_DETECT                                      0
     rtTimeNanoTSInternalRediscover,
-# define RTTIMENANO_WORKER_SYNC_CPUID    1
-    RTTimeNanoTSLegacySync,
-# define RTTIMENANO_WORKER_ASYNC_CPUID   2
+
+#  define RTTIMENANO_WORKER_LEGACY_SYNC_INVAR_NO_DELTA                  1
+    RTTimeNanoTSLegacySyncInvarNoDelta,
+#  define RTTIMENANO_WORKER_LEGACY_SYNC_INVAR_WITH_DELTA                2
+    RTTimeNanoTSLegacySyncInvarWithDelta,
+#  define RTTIMENANO_WORKER_LEGACY_ASYNC                                3
     RTTimeNanoTSLegacyAsync,
-# define RTTIMENANO_WORKER_SYNC_LFENCE   3
-    RTTimeNanoTSLFenceSync,
-# define RTTIMENANO_WORKER_ASYNC_LFENCE  4
+
+#  define RTTIMENANO_WORKER_LFENCE_SYNC_INVAR_NO_DELTA                  4
+    RTTimeNanoTSLFenceSyncInvarNoDelta,
+#  define RTTIMENANO_WORKER_LFENCE_SYNC_INVAR_WITH_DELTA                5
+    RTTimeNanoTSLFenceSyncInvarWithDelta,
+#  define RTTIMENANO_WORKER_LFENCE_ASYNC                                6
     RTTimeNanoTSLFenceAsync,
-# define RTTIMENANO_WORKER_FALLBACK      5
+
+#  define RTTIMENANO_WORKER_FALLBACK                                    7
     rtTimeNanoTSInternalFallback,
 };
+/** The index into g_apfnWorkers for the function to use.
+ * @remarks This cannot be a pointer because that'll break down in RC due to
+ *          code relocation. */
+static uint32_t                 g_iWorker   = RTTIMENANO_WORKER_DETECT;
+# else
+/** Pointer to the worker */
+static PFNTIMENANOTSINTERNAL    g_pfnWorker = rtTimeNanoTSInternalRediscover;
+# endif /* IN_RC */
 
 
 /**
- * Helper function that's used by the assembly routines when something goes bust.
- *
- * @param   pData           Pointer to the data structure.
- * @param   u64NanoTS       The calculated nano ts.
- * @param   u64DeltaPrev    The delta relative to the previously returned timestamp.
- * @param   u64PrevNanoTS   The previously returned timestamp (as it was read it).
+ * @interface_method_impl{RTTIMENANOTSDATA, pfnBad}
  */
-static DECLCALLBACK(void) rtTimeNanoTSInternalBitch(PRTTIMENANOTSDATA pData, uint64_t u64NanoTS, uint64_t u64DeltaPrev, uint64_t u64PrevNanoTS)
+static DECLCALLBACK(void) rtTimeNanoTSInternalBitch(PRTTIMENANOTSDATA pData, uint64_t u64NanoTS, uint64_t u64DeltaPrev,
+                                                    uint64_t u64PrevNanoTS)
 {
     pData->cBadPrev++;
     if ((int64_t)u64DeltaPrev < 0)
@@ -116,6 +126,22 @@ static DECLCALLBACK(void) rtTimeNanoTSInternalBitch(PRTTIMENANOTSDATA pData, uin
 }
 
 /**
+ * @interface_method_impl{RTTIMENANOTSDATA, pfnBadCpuIndex}
+ */
+static DECLCALLBACK(uint64_t) rtTimeNanoTSInternalBadCpuIndex(PRTTIMENANOTSDATA pData, uint16_t idApic,
+                                                              uint16_t iCpuSet, uint16_t iGipCpu)
+{
+# ifndef IN_RC
+    AssertMsgFailed(("idApic=%#x iCpuSet=%#x iGipCpu=%#x\n", idApic, iCpuSet, iGipCpu));
+    return RTTimeSystemNanoTS();
+# else
+    RTAssertReleasePanic();
+    return 0;
+# endif
+}
+
+
+/**
  * Fallback function.
  */
 static DECLCALLBACK(uint64_t) rtTimeNanoTSInternalFallback(PRTTIMENANOTSDATA pData)
@@ -123,13 +149,15 @@ static DECLCALLBACK(uint64_t) rtTimeNanoTSInternalFallback(PRTTIMENANOTSDATA pDa
     PSUPGLOBALINFOPAGE pGip = g_pSUPGlobalInfoPage;
     if (    pGip
         &&  pGip->u32Magic == SUPGLOBALINFOPAGE_MAGIC
-        &&  (   pGip->u32Mode == SUPGIPMODE_SYNC_TSC
+        &&  (   pGip->u32Mode == SUPGIPMODE_INVARIANT_TSC
+             || pGip->u32Mode == SUPGIPMODE_SYNC_TSC
              || pGip->u32Mode == SUPGIPMODE_ASYNC_TSC))
         return rtTimeNanoTSInternalRediscover(pData);
     NOREF(pData);
 # ifndef IN_RC
     return RTTimeSystemNanoTS();
 # else
+    RTAssertReleasePanic();
     return 0;
 # endif
 }
@@ -141,27 +169,110 @@ static DECLCALLBACK(uint64_t) rtTimeNanoTSInternalFallback(PRTTIMENANOTSDATA pDa
  */
 static DECLCALLBACK(uint64_t) rtTimeNanoTSInternalRediscover(PRTTIMENANOTSDATA pData)
 {
-    uint32_t iWorker;
-    PSUPGLOBALINFOPAGE pGip = g_pSUPGlobalInfoPage;
+    PSUPGLOBALINFOPAGE      pGip = g_pSUPGlobalInfoPage;
+# ifdef IN_RC
+    uint32_t                iWorker;
+# else
+    PFNTIMENANOTSINTERNAL   pfnWorker;
+# endif
     if (    pGip
         &&  pGip->u32Magic == SUPGLOBALINFOPAGE_MAGIC
-        &&  (   pGip->u32Mode == SUPGIPMODE_SYNC_TSC
+        &&  (   pGip->u32Mode == SUPGIPMODE_INVARIANT_TSC
+             || pGip->u32Mode == SUPGIPMODE_SYNC_TSC
              || pGip->u32Mode == SUPGIPMODE_ASYNC_TSC))
     {
         if (ASMCpuId_EDX(1) & X86_CPUID_FEATURE_EDX_SSE2)
-            iWorker = pGip->u32Mode == SUPGIPMODE_SYNC_TSC
-                    ? RTTIMENANO_WORKER_SYNC_LFENCE
-                    : RTTIMENANO_WORKER_ASYNC_LFENCE;
+        {
+# ifdef IN_RC
+            iWorker   = pGip->u32Mode == SUPGIPMODE_ASYNC_TSC
+                      ? RTTIMENANO_WORKER_LFENCE_ASYNC
+                      : pGip->enmUseTscDelta <= SUPGIPUSETSCDELTA_ROUGHLY_ZERO
+                      ? RTTIMENANO_WORKER_LFENCE_SYNC_INVAR_NO_DELTA
+                      : RTTIMENANO_WORKER_LFENCE_SYNC_INVAR_WITH_DELTA;
+# elif defined(IN_RING0)
+            pfnWorker = pGip->u32Mode == SUPGIPMODE_ASYNC_TSC
+                      ? RTTimeNanoTSLFenceAsync
+                      : pGip->enmUseTscDelta <= SUPGIPUSETSCDELTA_ROUGHLY_ZERO
+                      ? RTTimeNanoTSLFenceSyncInvarNoDelta
+                      : RTTimeNanoTSLFenceSyncInvarWithDelta;
+# else
+            if (pGip->u32Mode == SUPGIPMODE_ASYNC_TSC)
+                pfnWorker = pGip->fGetGipCpu & SUPGIPGETCPU_IDTR_LIMIT_MASK_MAX_SET_CPUS
+                          ? RTTimeNanoTSLFenceAsyncUseIdtrLim
+                          : pGip->fGetGipCpu & SUPGIPGETCPU_RDTSCP_MASK_MAX_SET_CPUS
+                          ? RTTimeNanoTSLFenceAsyncUseRdtscp
+                          : pGip->fGetGipCpu & SUPGIPGETCPU_APIC_ID
+                          ? RTTimeNanoTSLFenceAsyncUseApicId
+                          : rtTimeNanoTSInternalFallback;
+           else
+               pfnWorker = pGip->fGetGipCpu & SUPGIPGETCPU_IDTR_LIMIT_MASK_MAX_SET_CPUS
+                         ? pGip->enmUseTscDelta <= SUPGIPUSETSCDELTA_PRACTICALLY_ZERO
+                           ? RTTimeNanoTSLFenceSyncInvarNoDelta
+                           : RTTimeNanoTSLFenceSyncInvarWithDeltaUseIdtrLim
+                         : pGip->fGetGipCpu & SUPGIPGETCPU_RDTSCP_MASK_MAX_SET_CPUS
+                         ?   pGip->enmUseTscDelta <= SUPGIPUSETSCDELTA_PRACTICALLY_ZERO
+                           ? RTTimeNanoTSLFenceSyncInvarNoDelta
+                           : RTTimeNanoTSLFenceSyncInvarWithDeltaUseRdtscp
+                         : pGip->fGetGipCpu & SUPGIPGETCPU_APIC_ID
+                         ? pGip->enmUseTscDelta <= SUPGIPUSETSCDELTA_ROUGHLY_ZERO
+                           ? RTTimeNanoTSLFenceSyncInvarNoDelta
+                           : RTTimeNanoTSLFenceSyncInvarWithDeltaUseApicId
+                         : rtTimeNanoTSInternalFallback;
+# endif
+        }
         else
-            iWorker = pGip->u32Mode == SUPGIPMODE_SYNC_TSC
-                    ? RTTIMENANO_WORKER_SYNC_CPUID
-                    : RTTIMENANO_WORKER_ASYNC_CPUID;
+        {
+# ifdef IN_RC
+            iWorker = pGip->u32Mode == SUPGIPMODE_ASYNC_TSC
+                    ? RTTIMENANO_WORKER_LEGACY_ASYNC
+                    : pGip->enmUseTscDelta <= SUPGIPUSETSCDELTA_ROUGHLY_ZERO
+                    ? RTTIMENANO_WORKER_LEGACY_SYNC_INVAR_NO_DELTA :  RTTIMENANO_WORKER_LEGACY_SYNC_INVAR_WITH_DELTA;
+# elif defined(IN_RING0)
+            pfnWorker = pGip->u32Mode == SUPGIPMODE_ASYNC_TSC
+                      ? RTTimeNanoTSLegacyAsync
+                      : pGip->enmUseTscDelta <= SUPGIPUSETSCDELTA_ROUGHLY_ZERO
+                      ? RTTimeNanoTSLegacySyncInvarNoDelta
+                      : RTTimeNanoTSLegacySyncInvarWithDelta;
+# else
+            if (pGip->u32Mode == SUPGIPMODE_ASYNC_TSC)
+                pfnWorker = pGip->fGetGipCpu & SUPGIPGETCPU_RDTSCP_MASK_MAX_SET_CPUS
+                          ? RTTimeNanoTSLegacyAsyncUseRdtscp
+                          : pGip->fGetGipCpu & SUPGIPGETCPU_IDTR_LIMIT_MASK_MAX_SET_CPUS
+                          ? RTTimeNanoTSLegacyAsyncUseIdtrLim
+                          : pGip->fGetGipCpu & SUPGIPGETCPU_APIC_ID
+                          ? RTTimeNanoTSLegacyAsyncUseApicId
+                          : rtTimeNanoTSInternalFallback;
+           else
+               pfnWorker = pGip->fGetGipCpu & SUPGIPGETCPU_RDTSCP_MASK_MAX_SET_CPUS
+                         ?   pGip->enmUseTscDelta <= SUPGIPUSETSCDELTA_PRACTICALLY_ZERO
+                           ? RTTimeNanoTSLegacySyncInvarNoDelta
+                           : RTTimeNanoTSLegacySyncInvarWithDeltaUseRdtscp
+                         : pGip->fGetGipCpu & SUPGIPGETCPU_IDTR_LIMIT_MASK_MAX_SET_CPUS
+                         ? pGip->enmUseTscDelta <= SUPGIPUSETSCDELTA_PRACTICALLY_ZERO
+                           ? RTTimeNanoTSLegacySyncInvarNoDelta
+                           : RTTimeNanoTSLegacySyncInvarWithDeltaUseIdtrLim
+                         : pGip->fGetGipCpu & SUPGIPGETCPU_APIC_ID
+                         ? pGip->enmUseTscDelta <= SUPGIPUSETSCDELTA_ROUGHLY_ZERO
+                           ? RTTimeNanoTSLegacySyncInvarNoDelta
+                           : RTTimeNanoTSLegacySyncInvarWithDeltaUseApicId
+                         : rtTimeNanoTSInternalFallback;
+# endif
+        }
     }
     else
+# ifdef IN_RC
         iWorker = RTTIMENANO_WORKER_FALLBACK;
+# else
+        pfnWorker = rtTimeNanoTSInternalFallback;
+# endif
 
-    ASMAtomicXchgU32((uint32_t volatile *)&g_iWorker, iWorker);
+# ifdef IN_RC
+    ASMAtomicWriteU32((uint32_t volatile *)&g_iWorker, iWorker);
     return g_apfnWorkers[iWorker](pData);
+# else
+    ASMAtomicWritePtr((void * volatile *)&g_pfnWorker, (void *)(uintptr_t)pfnWorker);
+    return pfnWorker(pData);
+# endif
 }
 
 #endif /* !IN_GUEST && !RT_NO_GIP */
@@ -173,7 +284,11 @@ static DECLCALLBACK(uint64_t) rtTimeNanoTSInternalRediscover(PRTTIMENANOTSDATA p
 DECLINLINE(uint64_t) rtTimeNanoTSInternal(void)
 {
 #if !defined(IN_GUEST) && !defined(RT_NO_GIP)
+# ifdef IN_RC
     return g_apfnWorkers[g_iWorker](&g_TimeNanoTSData);
+# else
+    return g_pfnWorker(&g_TimeNanoTSData);
+# endif
 #else
     return RTTimeSystemNanoTS();
 #endif

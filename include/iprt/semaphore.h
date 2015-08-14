@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -130,7 +130,8 @@ RTDECL(int)  RTSemEventCreate(PRTSEMEVENT phEventSem);
  *                              optional (NULL).  Max length is 32 bytes.
  * @param   ...                 Format string arguments.
  */
-RTDECL(int)  RTSemEventCreateEx(PRTSEMEVENT phEventSem, uint32_t fFlags, RTLOCKVALCLASS hClass, const char *pszNameFmt, ...);
+RTDECL(int)  RTSemEventCreateEx(PRTSEMEVENT phEventSem, uint32_t fFlags, RTLOCKVALCLASS hClass,
+                                const char *pszNameFmt, ...) RT_IPRT_FORMAT_ATTR_MAYBE_NULL(4, 5);
 
 /** @name RTSemMutexCreateEx flags
  * @{ */
@@ -300,7 +301,7 @@ RTDECL(int)  RTSemEventMultiCreate(PRTSEMEVENTMULTI phEventMultiSem);
  * @param   ...                 Format string arguments.
  */
 RTDECL(int)  RTSemEventMultiCreateEx(PRTSEMEVENTMULTI phEventMultiSem, uint32_t fFlags, RTLOCKVALCLASS hClass,
-                                     const char *pszNameFmt, ...);
+                                     const char *pszNameFmt, ...) RT_IPRT_FORMAT_ATTR_MAYBE_NULL(4, 5);
 
 /** @name RTSemMutexCreateEx flags
  * @{ */
@@ -480,8 +481,8 @@ RTDECL(int)  RTSemMutexCreate(PRTSEMMUTEX phMutexSem);
  *                              optional (NULL).  Max length is 32 bytes.
  * @param   ...                 Format string arguments.
  */
-RTDECL(int) RTSemMutexCreateEx(PRTSEMMUTEX phMutexSem, uint32_t fFlags,
-                               RTLOCKVALCLASS hClass, uint32_t uSubClass, const char *pszNameFmt, ...);
+RTDECL(int) RTSemMutexCreateEx(PRTSEMMUTEX phMutexSem, uint32_t fFlags, RTLOCKVALCLASS hClass, uint32_t uSubClass,
+                               const char *pszNameFmt, ...) RT_IPRT_FORMAT_ATTR_MAYBE_NULL(5, 6);
 
 /** @name RTSemMutexCreateEx flags
  * @{ */
@@ -844,8 +845,8 @@ RTDECL(int)   RTSemRWCreate(PRTSEMRW phRWSem);
  *                              optional (NULL).  Max length is 32 bytes.
  * @param   ...                 Format string arguments.
  */
-RTDECL(int)   RTSemRWCreateEx(PRTSEMRW phRWSem, uint32_t fFlags,
-                              RTLOCKVALCLASS hClass, uint32_t uSubClass, const char *pszNameFmt, ...);
+RTDECL(int)   RTSemRWCreateEx(PRTSEMRW phRWSem, uint32_t fFlags, RTLOCKVALCLASS hClass, uint32_t uSubClass,
+                              const char *pszNameFmt, ...) RT_IPRT_FORMAT_ATTR_MAYBE_NULL(5, 6);
 
 /** @name RTSemRWCreateEx flags
  * @{ */

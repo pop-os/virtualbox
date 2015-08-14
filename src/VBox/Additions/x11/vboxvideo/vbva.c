@@ -1,3 +1,4 @@
+/* $Id: vbva.c $ */
 /** @file
  * VirtualBox X11 Additions graphics driver 2D acceleration functions
  */
@@ -88,6 +89,25 @@ void vbvxHandleDirtyRect(ScrnInfoPtr pScrn, int iRects, BoxPtr aRects)
     }
 }
 
+static DECLCALLBACK(void *) hgsmiEnvAlloc(void *pvEnv, HGSMISIZE cb)
+{
+    NOREF(pvEnv);
+    return calloc(1, cb);
+}
+
+static DECLCALLBACK(void) hgsmiEnvFree(void *pvEnv, void *pv)
+{
+    NOREF(pvEnv);
+    free(pv);
+}
+
+static HGSMIENV g_hgsmiEnv =
+{
+    NULL,
+    hgsmiEnvAlloc,
+    hgsmiEnvFree
+};
+
 /**
  * Calculate the location in video RAM of and initialise the heap for guest to
  * host messages.  In the VirtualBox 4.3 and earlier Guest Additions this
@@ -103,7 +123,7 @@ void vbvxSetUpHGSMIHeapInGuest(VBOXPtr pVBox, uint32_t cbVRAM)
     VBoxHGSMIGetBaseMappingInfo(cbVRAM, &offVRAMBaseMapping, NULL, &offGuestHeapMemory, &cbGuestHeapMemory, NULL);
     pvGuestHeapMemory = ((uint8_t *)pVBox->base) + offVRAMBaseMapping + offGuestHeapMemory;
     rc = VBoxHGSMISetupGuestContext(&pVBox->guestCtx, pvGuestHeapMemory, cbGuestHeapMemory,
-                                    offVRAMBaseMapping + offGuestHeapMemory);
+                                    offVRAMBaseMapping + offGuestHeapMemory, &g_hgsmiEnv);
     VBVXASSERT(RT_SUCCESS(rc), ("Failed to set up the guest-to-host message buffer heap, rc=%d\n", rc));
     pVBox->cbView = offVRAMBaseMapping;
 }
@@ -219,7 +239,6 @@ vboxEnableVbva(ScrnInfoPtr pScrn)
 void
 vboxDisableVbva(ScrnInfoPtr pScrn)
 {
-    int rc;
     unsigned i;
     VBOXPtr pVBox = pScrn->driverPrivate;
 

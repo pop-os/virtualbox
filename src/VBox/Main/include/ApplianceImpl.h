@@ -19,15 +19,14 @@
 #define ____H_APPLIANCEIMPL
 
 /* VBox includes */
-#include "VirtualBoxBase.h"
+#include <VBox/settings.h>
+#include "VirtualSystemDescriptionWrap.h"
+#include "ApplianceWrap.h"
+#include "MediumFormatImpl.h"
 
 /* Todo: This file needs massive cleanup. Split IAppliance in a public and
  * private classes. */
 #include <iprt/tar.h>
-#include <iprt/circbuf.h>
-#include <VBox/vd.h>
-#include <iprt/sha.h>
-
 #include "ovfreader.h"
 #include <set>
 
@@ -46,7 +45,7 @@ namespace ovf
 {
     struct HardDiskController;
     struct VirtualSystem;
-    class OVFReader;
+    class  OVFReader;
     struct DiskImage;
     struct EnvelopeData;
 }
@@ -63,60 +62,55 @@ namespace settings
 }
 
 class ATL_NO_VTABLE Appliance :
-    public VirtualBoxBase,
-    VBOX_SCRIPTABLE_IMPL(IAppliance)
+    public ApplianceWrap
 {
 public:
-    VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT(Appliance, IAppliance)
 
-    DECLARE_NOT_AGGREGATABLE(Appliance)
+    DECLARE_EMPTY_CTOR_DTOR(Appliance)
 
-    DECLARE_PROTECT_FINAL_CONSTRUCT()
+    HRESULT FinalConstruct();
+    void FinalRelease();
 
-    BEGIN_COM_MAP(Appliance)
-        VBOX_DEFAULT_INTERFACE_ENTRIES(IAppliance)
-    END_COM_MAP()
-
-    DECLARE_EMPTY_CTOR_DTOR (Appliance)
-
-
-
-    // public initializer/uninitializer for internal purposes only
-    HRESULT FinalConstruct() { return BaseFinalConstruct(); }
-    void FinalRelease() { uninit(); BaseFinalRelease(); }
 
     HRESULT init(VirtualBox *aVirtualBox);
     void uninit();
 
-    /* IAppliance properties */
-    STDMETHOD(COMGETTER(Path))(BSTR *aPath);
-    STDMETHOD(COMGETTER(Disks))(ComSafeArrayOut(BSTR, aDisks));
-    STDMETHOD(COMGETTER(VirtualSystemDescriptions))(ComSafeArrayOut(IVirtualSystemDescription*, aVirtualSystemDescriptions));
-    STDMETHOD(COMGETTER(Machines))(ComSafeArrayOut(BSTR, aMachines));
-
-    /* IAppliance methods */
-    /* Import methods */
-    STDMETHOD(Read)(IN_BSTR path, IProgress **aProgress);
-    STDMETHOD(Interpret)(void);
-    STDMETHOD(ImportMachines)(ComSafeArrayIn(ImportOptions_T, options), IProgress **aProgress);
-    /* Export methods */
-    STDMETHOD(CreateVFSExplorer)(IN_BSTR aURI, IVFSExplorer **aExplorer);
-    STDMETHOD(Write)(IN_BSTR format, ComSafeArrayIn(ExportOptions_T, options), IN_BSTR path, IProgress **aProgress);
-
-    STDMETHOD(GetWarnings)(ComSafeArrayOut(BSTR, aWarnings));
-
     /* public methods only for internal purposes */
 
-    static HRESULT setErrorStatic(HRESULT aResultCode,
-                                  const Utf8Str &aText)
+    static HRESULT i_setErrorStatic(HRESULT aResultCode,
+                                    const Utf8Str &aText)
     {
         return setErrorInternal(aResultCode, getStaticClassIID(), getStaticComponentName(), aText, false, true);
     }
 
     /* private instance data */
 private:
+    // wrapped IAppliance properties
+    HRESULT getPath(com::Utf8Str &aPath);
+    HRESULT getDisks(std::vector<com::Utf8Str> &aDisks);
+    HRESULT getVirtualSystemDescriptions(std::vector<ComPtr<IVirtualSystemDescription> > &aVirtualSystemDescriptions);
+    HRESULT getMachines(std::vector<com::Utf8Str> &aMachines);
+
+    // wrapped IAppliance methods
+    HRESULT read(const com::Utf8Str &aFile,
+                 ComPtr<IProgress> &aProgress);
+    HRESULT interpret();
+    HRESULT importMachines(const std::vector<ImportOptions_T> &aOptions,
+                           ComPtr<IProgress> &aProgress);
+    HRESULT createVFSExplorer(const com::Utf8Str &aURI,
+                              ComPtr<IVFSExplorer> &aExplorer);
+    HRESULT write(const com::Utf8Str &aFormat,
+                  const std::vector<ExportOptions_T> &aOptions,
+                  const com::Utf8Str &aPath,
+                  ComPtr<IProgress> &aProgress);
+    HRESULT getWarnings(std::vector<com::Utf8Str> &aWarnings);
+    HRESULT getPasswordIds(std::vector<com::Utf8Str> &aIdentifiers);
+    HRESULT getMediumIdsForPasswordId(const com::Utf8Str &aPasswordId, std::vector<com::Guid> &aIdentifiers);
+    HRESULT addPasswords(const std::vector<com::Utf8Str> &aIdentifiers,
+                         const std::vector<com::Utf8Str> &aPasswords);
+
     /** weak VirtualBox parent */
-    VirtualBox* const   mVirtualBox;
+    VirtualBox* const mVirtualBox;
 
     struct ImportStack;
     struct TaskOVF;
@@ -125,221 +119,210 @@ private:
 
     enum SetUpProgressMode { ImportFile, ImportS3, WriteFile, WriteS3 };
 
-    /*******************************************************************************
-     * General stuff
-     ******************************************************************************/
+    /** @name General stuff
+     * @{
+     */
+    bool i_isApplianceIdle();
+    HRESULT i_searchUniqueVMName(Utf8Str& aName) const;
+    HRESULT i_searchUniqueDiskImageFilePath(Utf8Str& aName) const;
+    HRESULT i_setUpProgress(ComObjPtr<Progress> &pProgress,
+                            const Bstr &bstrDescription,
+                            SetUpProgressMode mode);
+    void i_waitForAsyncProgress(ComObjPtr<Progress> &pProgressThis, ComPtr<IProgress> &pProgressAsync);
+    void i_addWarning(const char* aWarning, ...);
+    void i_disksWeight();
+    void i_parseBucket(Utf8Str &aPath, Utf8Str &aBucket);
 
-    bool isApplianceIdle();
-    HRESULT searchUniqueVMName(Utf8Str& aName) const;
-    HRESULT searchUniqueDiskImageFilePath(Utf8Str& aName) const;
-    HRESULT setUpProgress(ComObjPtr<Progress> &pProgress,
-                          const Bstr &bstrDescription,
-                          SetUpProgressMode mode);
-    void waitForAsyncProgress(ComObjPtr<Progress> &pProgressThis, ComPtr<IProgress> &pProgressAsync);
-    void addWarning(const char* aWarning, ...);
-    void disksWeight();
-    void parseBucket(Utf8Str &aPath, Utf8Str &aBucket);
+    static DECLCALLBACK(int) i_taskThreadImportOrExport(RTTHREAD aThread, void *pvUser);
 
-    static DECLCALLBACK(int) taskThreadImportOrExport(RTTHREAD aThread, void *pvUser);
+    HRESULT i_initSetOfSupportedStandardsURI();
 
-    HRESULT initSetOfSupportedStandardsURI();
+    Utf8Str i_typeOfVirtualDiskFormatFromURI(Utf8Str type) const;
 
-    Utf8Str typeOfVirtualDiskFormatFromURI(Utf8Str type) const;
+    std::set<Utf8Str> i_URIFromTypeOfVirtualDiskFormat(Utf8Str type);
 
-    std::set<Utf8Str> URIFromTypeOfVirtualDiskFormat(Utf8Str type);
+    HRESULT i_initApplianceIONameMap();
 
-    HRESULT initApplianceIONameMap();
+    Utf8Str i_applianceIOName(APPLIANCEIONAME type) const;
 
-    Utf8Str applianceIOName(APPLIANCEIONAME type) const;
+    HRESULT i_findMediumFormatFromDiskImage(const ovf::DiskImage &di, ComObjPtr<MediumFormat>& mf);
+    /** @}  */
 
-    /*******************************************************************************
-     * Read stuff
-     ******************************************************************************/
+    /** @name Read stuff
+     * @{
+     */
+    HRESULT i_readImpl(const LocationInfo &aLocInfo, ComObjPtr<Progress> &aProgress);
 
-    HRESULT readImpl(const LocationInfo &aLocInfo, ComObjPtr<Progress> &aProgress);
+    HRESULT i_readFS(TaskOVF *pTask);
+    HRESULT i_readFSOVF(TaskOVF *pTask);
+    HRESULT i_readFSOVA(TaskOVF *pTask);
+    HRESULT i_readFSImpl(TaskOVF *pTask, const RTCString &strFilename, PVDINTERFACEIO pCallbacks, PSHASTORAGE pStorage);
+    HRESULT i_readS3(TaskOVF *pTask);
+    /** @}  */
 
-    HRESULT readFS(TaskOVF *pTask);
-    HRESULT readFSOVF(TaskOVF *pTask);
-    HRESULT readFSOVA(TaskOVF *pTask);
-    HRESULT readFSImpl(TaskOVF *pTask, const RTCString &strFilename, PVDINTERFACEIO pCallbacks, PSHASTORAGE pStorage);
-    HRESULT readS3(TaskOVF *pTask);
+    /** @name Import stuff
+     * @}
+     */
+    HRESULT i_importImpl(const LocationInfo &aLocInfo, ComObjPtr<Progress> &aProgress);
 
-    /*******************************************************************************
-     * Import stuff
-     ******************************************************************************/
+    HRESULT i_importFS(TaskOVF *pTask);
+    HRESULT i_importFSOVF(TaskOVF *pTask, AutoWriteLockBase& writeLock);
+    HRESULT i_importFSOVA(TaskOVF *pTask, AutoWriteLockBase& writeLock);
+    HRESULT i_importS3(TaskOVF *pTask);
 
-    HRESULT importImpl(const LocationInfo &aLocInfo, ComObjPtr<Progress> &aProgress);
-
-    HRESULT importFS(TaskOVF *pTask);
-    HRESULT importFSOVF(TaskOVF *pTask, AutoWriteLockBase& writeLock);
-    HRESULT importFSOVA(TaskOVF *pTask, AutoWriteLockBase& writeLock);
-    HRESULT importS3(TaskOVF *pTask);
-
-    HRESULT readFileToBuf(const Utf8Str &strFile,
-                             void **ppvBuf,
-                             size_t *pcbSize,
-                             bool fCreateDigest,
-                             PVDINTERFACEIO pCallbacks,
-                             PSHASTORAGE pStorage);
-    HRESULT readTarFileToBuf(RTTAR tar,
-                             const Utf8Str &strFile,
-                             void **ppvBuf,
-                             size_t *pcbSize,
-                             bool fCreateDigest,
-                             PVDINTERFACEIO pCallbacks,
-                             PSHASTORAGE pStorage);
-    HRESULT verifyManifestFile(const Utf8Str &strFile, ImportStack &stack, void *pvBuf, size_t cbSize);
-
-    void convertDiskAttachmentValues(const ovf::HardDiskController &hdc,
-                                     uint32_t ulAddressOnParent,
-                                     Bstr &controllerType,
-                                     int32_t &lControllerPort,
-                                     int32_t &lDevice);
-
-    void importOneDiskImage(const ovf::DiskImage &di,
-                            Utf8Str *strTargetPath,
-                            ComObjPtr<Medium> &pTargetHD,
-                            ImportStack &stack,
+    HRESULT i_readFileToBuf(const Utf8Str &strFile,
+                            void **ppvBuf,
+                            size_t *pcbSize,
+                            bool fCreateDigest,
                             PVDINTERFACEIO pCallbacks,
                             PSHASTORAGE pStorage);
+    HRESULT i_readTarFileToBuf(struct FSSRDONLYINTERFACEIO *pTarIo,
+                               const Utf8Str &strFile,
+                               void **ppvBuf,
+                               size_t *pcbSize,
+                               bool fCreateDigest,
+                               PVDINTERFACEIO pCallbacks,
+                               PSHASTORAGE pStorage);
+    HRESULT i_verifyManifestFile(const Utf8Str &strFile, ImportStack &stack, void *pvBuf, size_t cbSize);
 
-    void importMachineGeneric(const ovf::VirtualSystem &vsysThis,
-                              ComObjPtr<VirtualSystemDescription> &vsdescThis,
-                              ComPtr<IMachine> &pNewMachine,
+    HRESULT i_verifyCertificateFile(void *pvBuf, size_t cbSize, PSHASTORAGE pStorage);
+
+    void i_convertDiskAttachmentValues(const ovf::HardDiskController &hdc,
+                                       uint32_t ulAddressOnParent,
+                                       Bstr &controllerType,
+                                       int32_t &lControllerPort,
+                                       int32_t &lDevice);
+
+    void i_importOneDiskImage(const ovf::DiskImage &di,
+                              Utf8Str *strTargetPath,
+                              ComObjPtr<Medium> &pTargetHD,
                               ImportStack &stack,
                               PVDINTERFACEIO pCallbacks,
                               PSHASTORAGE pStorage);
-    void importVBoxMachine(ComObjPtr<VirtualSystemDescription> &vsdescThis,
-                           ComPtr<IMachine> &pNewMachine,
-                           ImportStack &stack,
-                           PVDINTERFACEIO pCallbacks,
-                           PSHASTORAGE pStorage);
-    void importMachines(ImportStack &stack,
-                        PVDINTERFACEIO pCallbacks,
-                        PSHASTORAGE pStorage);
 
-    /*******************************************************************************
-     * Write stuff
-     ******************************************************************************/
+    void i_importMachineGeneric(const ovf::VirtualSystem &vsysThis,
+                                ComObjPtr<VirtualSystemDescription> &vsdescThis,
+                                ComPtr<IMachine> &pNewMachine,
+                                ImportStack &stack,
+                                PVDINTERFACEIO pCallbacks,
+                                PSHASTORAGE pStorage);
+    void i_importVBoxMachine(ComObjPtr<VirtualSystemDescription> &vsdescThis,
+                             ComPtr<IMachine> &pNewMachine,
+                             ImportStack &stack,
+                             PVDINTERFACEIO pCallbacks,
+                             PSHASTORAGE pStorage);
+    void i_importMachines(ImportStack &stack,
+                          PVDINTERFACEIO pCallbacks,
+                          PSHASTORAGE pStorage);
 
-    HRESULT writeImpl(ovf::OVFVersion_T aFormat, const LocationInfo &aLocInfo, ComObjPtr<Progress> &aProgress);
+    HRESULT i_preCheckImageAvailability(PSHASTORAGE pSHAStorage,
+                                        RTCString &availableImage);
+    /** @} */
 
-    HRESULT writeFS(TaskOVF *pTask);
-    HRESULT writeFSOVF(TaskOVF *pTask, AutoWriteLockBase& writeLock);
-    HRESULT writeFSOVA(TaskOVF *pTask, AutoWriteLockBase& writeLock);
-    HRESULT writeFSImpl(TaskOVF *pTask, AutoWriteLockBase& writeLock, PVDINTERFACEIO pCallbacks, PSHASTORAGE pStorage);
-    HRESULT writeS3(TaskOVF *pTask);
+    /** @name Write stuff
+     * @{
+     */
+    HRESULT i_writeImpl(ovf::OVFVersion_T aFormat, const LocationInfo &aLocInfo, ComObjPtr<Progress> &aProgress);
+
+    HRESULT i_writeFS(TaskOVF *pTask);
+    HRESULT i_writeFSOVF(TaskOVF *pTask, AutoWriteLockBase& writeLock);
+    HRESULT i_writeFSOVA(TaskOVF *pTask, AutoWriteLockBase& writeLock);
+    HRESULT i_writeFSImpl(TaskOVF *pTask, AutoWriteLockBase& writeLock, PVDINTERFACEIO pCallbacks, PSHASTORAGE pStorage);
+    HRESULT i_writeS3(TaskOVF *pTask);
 
     struct XMLStack;
 
-    void buildXML(AutoWriteLockBase& writeLock,
-                  xml::Document &doc,
-                  XMLStack &stack,
-                  const Utf8Str &strPath,
-                  ovf::OVFVersion_T enFormat);
-    void buildXMLForOneVirtualSystem(AutoWriteLockBase& writeLock,
-                                     xml::ElementNode &elmToAddVirtualSystemsTo,
-                                     std::list<xml::ElementNode*> *pllElementsWithUuidAttributes,
-                                     ComObjPtr<VirtualSystemDescription> &vsdescThis,
-                                     ovf::OVFVersion_T enFormat,
-                                     XMLStack &stack);
-
-    HRESULT preCheckImageAvailability(PSHASTORAGE pSHAStorage,
-                                      RTCString &availableImage);
+    void i_buildXML(AutoWriteLockBase& writeLock,
+                    xml::Document &doc,
+                    XMLStack &stack,
+                    const Utf8Str &strPath,
+                    ovf::OVFVersion_T enFormat);
+    void i_buildXMLForOneVirtualSystem(AutoWriteLockBase& writeLock,
+                                       xml::ElementNode &elmToAddVirtualSystemsTo,
+                                       std::list<xml::ElementNode*> *pllElementsWithUuidAttributes,
+                                       ComObjPtr<VirtualSystemDescription> &vsdescThis,
+                                       ovf::OVFVersion_T enFormat,
+                                       XMLStack &stack);
+    /** @} */
 
     friend class Machine;
 };
 
-void parseURI(Utf8Str strUri, LocationInfo &locInfo);
+void i_parseURI(Utf8Str strUri, LocationInfo &locInfo);
 
 struct VirtualSystemDescriptionEntry
 {
-    uint32_t ulIndex;                       // zero-based index of this entry within array
-    VirtualSystemDescriptionType_T type;    // type of this entry
-    Utf8Str strRef;                         // reference number (hard disk controllers only)
-    Utf8Str strOvf;                         // original OVF value (type-dependent)
-    Utf8Str strVBoxSuggested;               // configuration value (type-dependent); original value suggested by interpret()
-    Utf8Str strVBoxCurrent;                 // configuration value (type-dependent); current value, either from interpret() or setFinalValue()
-    Utf8Str strExtraConfigSuggested;        // extra configuration key=value strings (type-dependent); original value suggested by interpret()
-    Utf8Str strExtraConfigCurrent;          // extra configuration key=value strings (type-dependent); current value, either from interpret() or setFinalValue()
+    uint32_t ulIndex;                       ///< zero-based index of this entry within array
+    VirtualSystemDescriptionType_T type;    ///< type of this entry
+    Utf8Str strRef;                         ///< reference number (hard disk controllers only)
+    Utf8Str strOvf;                         ///< original OVF value (type-dependent)
+    Utf8Str strVBoxSuggested;               ///< configuration value (type-dependent); original value suggested by interpret()
+    Utf8Str strVBoxCurrent;                 ///< configuration value (type-dependent); current value, either from interpret() or setFinalValue()
+    Utf8Str strExtraConfigSuggested;        ///< extra configuration key=value strings (type-dependent); original value suggested by interpret()
+    Utf8Str strExtraConfigCurrent;          ///< extra configuration key=value strings (type-dependent); current value, either from interpret() or setFinalValue()
 
-    uint32_t ulSizeMB;                      // hard disk images only: a copy of ovf::DiskImage::ulSuggestedSizeMB
+    uint32_t ulSizeMB;                      ///< hard disk images only: a copy of ovf::DiskImage::ulSuggestedSizeMB
     bool skipIt;                            ///< used during export to skip some parts if it's needed
 };
 
 class ATL_NO_VTABLE VirtualSystemDescription :
-    public VirtualBoxBase,
-    VBOX_SCRIPTABLE_IMPL(IVirtualSystemDescription)
+    public VirtualSystemDescriptionWrap
 {
     friend class Appliance;
 
 public:
-    VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT(VirtualSystemDescription, IVirtualSystemDescription)
 
-    DECLARE_NOT_AGGREGATABLE(VirtualSystemDescription)
+    DECLARE_EMPTY_CTOR_DTOR(VirtualSystemDescription)
 
-    DECLARE_PROTECT_FINAL_CONSTRUCT()
-
-    BEGIN_COM_MAP(VirtualSystemDescription)
-        VBOX_DEFAULT_INTERFACE_ENTRIES(IVirtualSystemDescription)
-    END_COM_MAP()
-
-    DECLARE_EMPTY_CTOR_DTOR (VirtualSystemDescription)
-
-    // public initializer/uninitializer for internal purposes only
-    HRESULT FinalConstruct() { return BaseFinalConstruct(); }
-    void FinalRelease() { uninit(); BaseFinalRelease(); }
+    HRESULT FinalConstruct();
+    void FinalRelease();
 
     HRESULT init();
     void uninit();
 
-    /* IVirtualSystemDescription properties */
-    STDMETHOD(COMGETTER(Count))(ULONG *aCount);
-
-    /* IVirtualSystemDescription methods */
-    STDMETHOD(GetDescription)(ComSafeArrayOut(VirtualSystemDescriptionType_T, aTypes),
-                              ComSafeArrayOut(BSTR, aRefs),
-                              ComSafeArrayOut(BSTR, aOvfValues),
-                              ComSafeArrayOut(BSTR, aVBoxValues),
-                              ComSafeArrayOut(BSTR, aExtraConfigValues));
-
-    STDMETHOD(GetDescriptionByType)(VirtualSystemDescriptionType_T aType,
-                                    ComSafeArrayOut(VirtualSystemDescriptionType_T, aTypes),
-                                    ComSafeArrayOut(BSTR, aRefs),
-                                    ComSafeArrayOut(BSTR, aOvfValues),
-                                    ComSafeArrayOut(BSTR, aVBoxValues),
-                                    ComSafeArrayOut(BSTR, aExtraConfigValues));
-
-    STDMETHOD(GetValuesByType)(VirtualSystemDescriptionType_T aType,
-                               VirtualSystemDescriptionValueType_T aWhich,
-                               ComSafeArrayOut(BSTR, aValues));
-
-    STDMETHOD(SetFinalValues)(ComSafeArrayIn(BOOL, aEnabled),
-                              ComSafeArrayIn(IN_BSTR, aVBoxValues),
-                              ComSafeArrayIn(IN_BSTR, aExtraConfigValues));
-
-    STDMETHOD(AddDescription)(VirtualSystemDescriptionType_T aType,
-                              IN_BSTR aVBoxValue,
-                              IN_BSTR aExtraConfigValue);
-
     /* public methods only for internal purposes */
-    void addEntry(VirtualSystemDescriptionType_T aType,
-                  const Utf8Str &strRef,
-                  const Utf8Str &aOvfValue,
-                  const Utf8Str &aVBoxValue,
-                  uint32_t ulSizeMB = 0,
-                  const Utf8Str &strExtraConfig = "");
+    void i_addEntry(VirtualSystemDescriptionType_T aType,
+                    const Utf8Str &strRef,
+                    const Utf8Str &aOvfValue,
+                    const Utf8Str &aVBoxValue,
+                    uint32_t ulSizeMB = 0,
+                    const Utf8Str &strExtraConfig = "");
 
-    std::list<VirtualSystemDescriptionEntry*> findByType(VirtualSystemDescriptionType_T aType);
-    const VirtualSystemDescriptionEntry* findControllerFromID(uint32_t id);
+    std::list<VirtualSystemDescriptionEntry*> i_findByType(VirtualSystemDescriptionType_T aType);
+    const VirtualSystemDescriptionEntry* i_findControllerFromID(uint32_t id);
 
-    void importVBoxMachineXML(const xml::ElementNode &elmMachine);
-    const settings::MachineConfigFile* getMachineConfig() const;
-
-    void removeByType(VirtualSystemDescriptionType_T aType);
+    void i_importVBoxMachineXML(const xml::ElementNode &elmMachine);
+    const settings::MachineConfigFile* i_getMachineConfig() const;
 
     /* private instance data */
 private:
+
+    // wrapped IVirtualSystemDescription properties
+    HRESULT getCount(ULONG *aCount);
+
+    // wrapped IVirtualSystemDescription methods
+    HRESULT getDescription(std::vector<VirtualSystemDescriptionType_T> &aTypes,
+                           std::vector<com::Utf8Str> &aRefs,
+                           std::vector<com::Utf8Str> &aOVFValues,
+                           std::vector<com::Utf8Str> &aVBoxValues,
+                           std::vector<com::Utf8Str> &aExtraConfigValues);
+    HRESULT getDescriptionByType(VirtualSystemDescriptionType_T aType,
+                                 std::vector<VirtualSystemDescriptionType_T> &aTypes,
+                                 std::vector<com::Utf8Str> &aRefs,
+                                 std::vector<com::Utf8Str> &aOVFValues,
+                                 std::vector<com::Utf8Str> &aVBoxValues,
+                                 std::vector<com::Utf8Str> &aExtraConfigValues);
+    HRESULT getValuesByType(VirtualSystemDescriptionType_T aType,
+                            VirtualSystemDescriptionValueType_T aWhich,
+                            std::vector<com::Utf8Str> &aValues);
+    HRESULT setFinalValues(const std::vector<BOOL> &aEnabled,
+                           const std::vector<com::Utf8Str> &aVBoxValues,
+                           const std::vector<com::Utf8Str> &aExtraConfigValues);
+    HRESULT addDescription(VirtualSystemDescriptionType_T aType,
+                           const com::Utf8Str &aVBoxValue,
+                           const com::Utf8Str &aExtraConfigValue);
+    void i_removeByType(VirtualSystemDescriptionType_T aType);
+
     struct Data;
     Data *m;
 

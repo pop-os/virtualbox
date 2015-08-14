@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -4065,5 +4065,4 @@ RT_DECL_DATA_CONST(const RTUNICASERANGE) g_aRTUniUpperRanges[] =
     { 0x010428, 0x010450, &g_afRTUniUpper0x010428[0] },
     { ~(RTUNICP)0, ~(RTUNICP)0, NULL }
 };
-
 

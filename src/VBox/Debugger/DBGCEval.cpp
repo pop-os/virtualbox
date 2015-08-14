@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -870,7 +870,7 @@ static int dbgcCheckAndTypePromoteArgument(PDBGC pDbgc, DBGCVARCAT enmCategory, 
                     return VINF_SUCCESS;
 
                 default:
-                    AssertMsgFailedReturn(("Invalid type %d\n"), VERR_DBGC_PARSE_INCORRECT_ARG_TYPE);
+                    AssertMsgFailedReturn(("Invalid type %d\n", pArg->enmType), VERR_DBGC_PARSE_INCORRECT_ARG_TYPE);
             }
             break;                      /* (not reached) */
 
@@ -924,7 +924,7 @@ static int dbgcCheckAndTypePromoteArgument(PDBGC pDbgc, DBGCVARCAT enmCategory, 
                 }
 
                 default:
-                    AssertMsgFailedReturn(("Invalid type %d\n"), VERR_DBGC_PARSE_INCORRECT_ARG_TYPE);
+                    AssertMsgFailedReturn(("Invalid type %d\n", pArg->enmType), VERR_DBGC_PARSE_INCORRECT_ARG_TYPE);
             }
             break;                      /* (not reached) */
 
@@ -971,7 +971,7 @@ static int dbgcCheckAndTypePromoteArgument(PDBGC pDbgc, DBGCVARCAT enmCategory, 
                 }
 
                 default:
-                    AssertMsgFailedReturn(("Invalid type %d\n"), VERR_DBGC_PARSE_INCORRECT_ARG_TYPE);
+                    AssertMsgFailedReturn(("Invalid type %d\n", pArg->enmType), VERR_DBGC_PARSE_INCORRECT_ARG_TYPE);
             }
             break;                      /* (not reached) */
 
@@ -1434,7 +1434,7 @@ int dbgcEvalCommand(PDBGC pDbgc, char *pszCmd, size_t cchCmd, bool fNoExecute)
                 break;
             case VERR_DBGC_PARSE_NO_MEMORY:
                 rc = DBGCCmdHlpPrintf(&pDbgc->CmdHlp,
-                    "Error: Out memory in the regular heap! Expect odd stuff to happen...\n", cArgs);
+                    "Error: Out memory in the regular heap! Expect odd stuff to happen...\n");
                 break;
             case VERR_DBGC_PARSE_INCORRECT_ARG_TYPE:
                 rc = DBGCCmdHlpPrintf(&pDbgc->CmdHlp,

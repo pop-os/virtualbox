@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2012 Oracle Corporation
+ * Copyright (C) 2009-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -92,8 +92,8 @@ static void tstBase64(const void *pvData, size_t cbData,
         RTTestIFailed("RTBase64Encode returned %zu bytes, expected %zu.\n",
                       cchOut, cchEnc);
     else if (fNormalEnc && memcmp(szOut, pszEnc, cchOut + 1))
-        RTTestIFailed("RTBase64Encode returned:\n%*s\nexpected:\n%s\n",
-                      szOut, pszEnc);
+        RTTestIFailed("RTBase64Encode returned:\n%.*s\nexpected:\n%s\n",
+                      sizeof(szOut), szOut, pszEnc);
 
     size_t cchOut2 = RTBase64EncodedLength(cbData);
     if (cchOut != cchOut2)

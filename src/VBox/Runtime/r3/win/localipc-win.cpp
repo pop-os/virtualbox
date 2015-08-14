@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2013 Oracle Corporation
+ * Copyright (C) 2008-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -346,10 +346,13 @@ RTDECL(int) RTLocalIpcServerCreate(PRTLOCALIPCSERVER phServer, const char *pszNa
 
     /*
      * Allocate and initialize the instance data.
+     *
+     * We align the size on pointer size here to make sure we get naturally
+     * aligned members in the critsect when the electric fence heap is active.
      */
     size_t cchName = strlen(pszName);
-    size_t cch = RT_OFFSETOF(RTLOCALIPCSERVERINT, szName[cchName + sizeof(RTLOCALIPC_WIN_PREFIX)]);
-    PRTLOCALIPCSERVERINT pThis = (PRTLOCALIPCSERVERINT)RTMemAlloc(cch);
+    size_t cbThis = RT_OFFSETOF(RTLOCALIPCSERVERINT, szName[cchName + sizeof(RTLOCALIPC_WIN_PREFIX)]);
+    PRTLOCALIPCSERVERINT pThis = (PRTLOCALIPCSERVERINT)RTMemAllocVar(cbThis);
     if (!pThis)
         return VERR_NO_MEMORY;
     pThis->u32Magic = RTLOCALIPCSERVER_MAGIC;

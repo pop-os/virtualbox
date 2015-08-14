@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2008-2013 Oracle Corporation
+ * Copyright (C) 2008-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -65,21 +65,34 @@ typedef RTNETADDRIPV4 const *PCRTNETADDRIPV4;
  * Tests if the given string is an IPv4 address.
  *
  * @returns boolean.
- * @param   pszAddress          String which may be an IPv4 address.
+ * @param   pcszAddr        String which may be an IPv4 address.
  */
-RTDECL(bool) RTNetIsIPv4AddrStr(const char *pszAddress);
+RTDECL(bool) RTNetIsIPv4AddrStr(const char *pcszAddr);
 
 /**
- * Converts an stringified IPv4 address into the RTNETADDRIPV4 representation.
+ * Parses dotted-decimal IPv4 address into RTNETADDRIPV4 representation.
  *
  * @returns VINF_SUCCESS on success, VERR_INVALID_PARAMETER on
  *          failure.
  *
- * @param   pszAddr         The value to convert.
+ * @param   pcszAddr        The value to convert.
+ * @param   ppszNext        Where to store the pointer to the first char
+ *                            following the address. (Optional)
  * @param   pAddr           Where to store the result.
  */
-RTDECL(int) RTNetStrToIPv4Addr(const char *pszAddr, PRTNETADDRIPV4 pAddr);
+RTDECL(int) RTNetStrToIPv4AddrEx(const char *pcszAddr, PRTNETADDRIPV4 pAddr, char **ppszNext);
 
+/**
+ * Parses dotted-decimal IPv4 address into RTNETADDRIPV4 representation.
+ * Leading and trailing whitespace is ignored.
+ *
+ * @returns VINF_SUCCESS on success, VERR_INVALID_PARAMETER on
+ *          failure.
+ *
+ * @param   pcszAddr        The value to convert.
+ * @param   pAddr           Where to store the result.
+ */
+RTDECL(int) RTNetStrToIPv4Addr(const char *pcszAddr, PRTNETADDRIPV4 pAddr);
 
 /**
  * IPv6 address.
@@ -99,6 +112,33 @@ typedef RTNETADDRIPV6 const *PCRTNETADDRIPV6;
  */
 RTDECL(bool) RTNetIsIPv6AddrStr(const char *pszAddress);
 
+/**
+ * Parses IPv6 address into RTNETADDRIPV6 representation.
+ *
+ * @returns VINF_SUCCESS on success, VERR_INVALID_PARAMETER on
+ *          failure.
+ *
+ * @param   pcszAddr        The value to convert.
+ * @param   ppszNext        Where to store the pointer to the first char
+ *                            following the address. (Optional)
+ * @param   pAddr           Where to store the result.
+ */
+RTDECL(int) RTNetStrToIPv6AddrEx(const char *pcszAddr, PRTNETADDRIPV6 pAddr, char **ppszNext);
+
+/**
+ * Parses IPv6 address into RTNETADDRIPV6 representation.
+ * Leading and trailing whitespace is ignored.
+ *
+ * @returns VINF_SUCCESS on success, VERR_INVALID_PARAMETER on
+ *          failure.
+ *
+ * @param   pcszAddr        The value to convert.
+ * @param   ppszZone        Where to store the pointer to the first char
+ *                            of the zone id.  NULL is stored if there is
+ *                            no zone id.
+ * @param   pAddr           Where to store the result.
+ */
+RTDECL(int) RTNetStrToIPv6Addr(const char *pcszAddr, PRTNETADDRIPV6 pAddr, char **ppszZone);
 
 /**
  * IPX address.
@@ -887,7 +927,7 @@ typedef struct RTNETARPIPV4
     RTNETADDRIPV4   ar_spa;
     /** The target hardware address. */
     RTMAC           ar_tha;
-    /** The arget protocol address. */
+    /** The target protocol address. */
     RTNETADDRIPV4   ar_tpa;
 } RTNETARPIPV4;
 #pragma pack()

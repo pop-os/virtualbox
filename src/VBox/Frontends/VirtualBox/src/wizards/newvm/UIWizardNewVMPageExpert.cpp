@@ -1,8 +1,6 @@
 /* $Id: UIWizardNewVMPageExpert.cpp $ */
 /** @file
- *
- * VBox frontends: Qt4 GUI ("VirtualBox"):
- * UIWizardNewVMPageExpert class implementation
+ * VBox Qt GUI - UIWizardNewVMPageExpert class implementation.
  */
 
 /*
@@ -17,26 +15,33 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* Global includes: */
-#include <QVBoxLayout>
-#include <QHBoxLayout>
-#include <QGroupBox>
-#include <QGridLayout>
-#include <QSpacerItem>
-#include <QLineEdit>
-#include <QLabel>
-#include <QSpinBox>
-#include <QRadioButton>
+# include <QVBoxLayout>
+# include <QHBoxLayout>
+# include <QGroupBox>
+# include <QGridLayout>
+# include <QSpacerItem>
+# include <QLineEdit>
+# include <QLabel>
+# include <QSpinBox>
+# include <QRadioButton>
 
 /* Local includes: */
-#include "UIWizardNewVMPageExpert.h"
-#include "UIWizardNewVM.h"
-#include "UIIconPool.h"
-#include "UINameAndSystemEditor.h"
-#include "VBoxGuestRAMSlider.h"
-#include "VBoxMediaComboBox.h"
-#include "QIToolButton.h"
-#include "UIMedium.h"
+# include "UIWizardNewVMPageExpert.h"
+# include "UIWizardNewVM.h"
+# include "UIIconPool.h"
+# include "UINameAndSystemEditor.h"
+# include "VBoxGuestRAMSlider.h"
+# include "VBoxMediaComboBox.h"
+# include "QIToolButton.h"
+# include "UIMedium.h"
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 
 UIWizardNewVMPageExpert::UIWizardNewVMPageExpert(const QString &strGroup)
     : UIWizardNewVMPage1(strGroup)
@@ -224,11 +229,11 @@ void UIWizardNewVMPageExpert::retranslateUi()
     m_pRamUnits->setText(VBoxGlobal::tr("MB", "size suffix MBytes=1024 KBytes"));
     m_pRamMin->setText(QString("%1 %2").arg(m_pRamSlider->minRAM()).arg(VBoxGlobal::tr("MB", "size suffix MBytes=1024 KBytes")));
     m_pRamMax->setText(QString("%1 %2").arg(m_pRamSlider->maxRAM()).arg(VBoxGlobal::tr("MB", "size suffix MBytes=1024 KBytes")));
-    m_pDiskCnt->setTitle(UIWizardNewVM::tr("Hard drive"));
-    m_pDiskSkip->setText(UIWizardNewVM::tr("&Do not add a virtual hard drive"));
-    m_pDiskCreate->setText(UIWizardNewVM::tr("&Create a virtual hard drive now"));
-    m_pDiskPresent->setText(UIWizardNewVM::tr("&Use an existing virtual hard drive file"));
-    m_pVMMButton->setToolTip(UIWizardNewVM::tr("Choose a virtual hard drive file..."));
+    m_pDiskCnt->setTitle(UIWizardNewVM::tr("Hard disk"));
+    m_pDiskSkip->setText(UIWizardNewVM::tr("&Do not add a virtual hard disk"));
+    m_pDiskCreate->setText(UIWizardNewVM::tr("&Create a virtual hard disk now"));
+    m_pDiskPresent->setText(UIWizardNewVM::tr("&Use an existing virtual hard disk file"));
+    m_pVMMButton->setToolTip(UIWizardNewVM::tr("Choose a virtual hard disk file..."));
 }
 
 void UIWizardNewVMPageExpert::initializePage()

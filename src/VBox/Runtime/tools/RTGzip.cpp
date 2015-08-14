@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2011 Oracle Corporation
+ * Copyright (C) 2010-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -68,9 +68,9 @@ typedef struct RTGZIPCMDOPTS
     /** The current input filename (for deletion and messages). */
     const char     *pszInput;
 } RTGZIPCMDOPTS;
-/** Pointer to GZIP options.   */
+/** Pointer to GZIP options. */
 typedef RTGZIPCMDOPTS *PRTGZIPCMDOPTS;
-/** Pointer to const GZIP options.   */
+/** Pointer to const GZIP options. */
 typedef RTGZIPCMDOPTS const *PCRTGZIPCMDOPTS;
 
 
@@ -137,7 +137,7 @@ static RTEXITCODE gzipPushFlushAndClose(PRTVFSIOSTREAM phVfsSrc, PCRTGZIPCMDOPTS
     *phVfsSrc = NIL_RTVFSIOSTREAM;
 
     int rc = RTVfsIoStrmFlush(*phVfsDst);
-    if (RT_FAILURE(rc))
+    if (RT_FAILURE(rc) && rc != VERR_INVALID_PARAMETER)
         rcExit = RTMsgErrorExit(RTEXITCODE_FAILURE, "Failed to flush the output file: %Rrc", rc);
     RTVfsIoStrmRelease(*phVfsDst);
     *phVfsDst = NIL_RTVFSIOSTREAM;
@@ -207,8 +207,10 @@ static RTEXITCODE gzipSetupDecompressor(PRTVFSIOSTREAM phVfsSrc)
     /*
      * Attach the decompressor to the input stream.
      */
+    uint32_t fFlags = 0;
+    fFlags |= RTZIPGZIPDECOMP_F_ALLOW_ZLIB_HDR;
     RTVFSIOSTREAM hVfsGunzip;
-    int rc = RTZipGzipDecompressIoStream(*phVfsSrc, 0 /*fFlags*/, &hVfsGunzip);
+    int rc = RTZipGzipDecompressIoStream(*phVfsSrc, fFlags, &hVfsGunzip);
     if (RT_FAILURE(rc))
         return RTMsgErrorExit(RTEXITCODE_FAILURE, "RTZipGzipDecompressIoStream failed: %Rrc", rc);
 
@@ -395,7 +397,7 @@ static RTEXITCODE gzipOpenInput(const char *pszFile, PRTGZIPCMDOPTS pOpts, PRTVF
             if (pszError && *pszError)
                 return RTMsgErrorExit(RTEXITCODE_FAILURE,
                                       "RTVfsChainOpenIoStream failed with rc=%Rrc:\n"
-                                      "    '%s'\n",
+                                      "    '%s'\n"
                                       "     %*s^\n",
                                       rc, pszFile, pszError - pszFile, "");
             return RTMsgErrorExit(RTEXITCODE_FAILURE,

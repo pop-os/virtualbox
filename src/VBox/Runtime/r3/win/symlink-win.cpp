@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2011 Oracle Corporation
+ * Copyright (C) 2010-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -157,6 +157,16 @@ RTDECL(int) RTSymlinkCreate(const char *pszSymlink, const char *pszTarget, RTSYM
         rc = RTStrToUtf16(pszTarget, &pwszNativeTarget);
         if (RT_SUCCESS(rc))
         {
+            /* The link target path must use backslashes to work reliably. */
+            RTUTF16  wc;
+            PRTUTF16 pwsz = pwszNativeTarget;
+            while ((wc = *pwsz) != '\0')
+            {
+                if (wc == '/')
+                    *pwsz = '\\';
+                pwsz++;
+            }
+
             /*
              * Massage the target path, determin the link type.
              */

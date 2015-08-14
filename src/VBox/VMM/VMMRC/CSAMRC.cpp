@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -45,6 +45,8 @@
 #include <iprt/asm-amd64-x86.h>
 #include <iprt/string.h>
 
+
+
 /**
  * \#PF Handler callback for virtual access handler ranges. (CSAM self-modifying
  * code monitor)
@@ -54,19 +56,21 @@
  *
  * @returns VBox status code (appropriate for GC return).
  * @param   pVM         Pointer to the VM.
- * @param   uErrorCode   CPU Error code.
+ * @param   pVCpu       Pointer to the cross context CPU context for the calling
+ *                      EMT.
+ * @param   uErrorCode  CPU Error code.
  * @param   pRegFrame   Trap register frame.
  * @param   pvFault     The fault address (cr2).
  * @param   pvRange     The base address of the handled virtual range.
  * @param   offRange    The offset of the access into this range.
  *                      (If it's a EIP range this is the EIP, if not it's pvFault.)
+ * @param   pvUser      Ignored (NIL).
  */
-VMMRCDECL(int) CSAMGCCodePageWriteHandler(PVM pVM, RTGCUINT uErrorCode, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, RTGCPTR pvRange, uintptr_t offRange)
+DECLEXPORT(VBOXSTRICTRC) csamRCCodePageWritePfHandler(PVM pVM, PVMCPU pVCpu, RTGCUINT uErrorCode, PCPUMCTXCORE pRegFrame,
+                                                      RTGCPTR pvFault, RTGCPTR pvRange, uintptr_t offRange, void *pvUser)
 {
     PPATMGCSTATE pPATMGCState;
     bool         fPatchCode = PATMIsPatchGCAddr(pVM, pRegFrame->eip);
-    int          rc;
-    PVMCPU       pVCpu = VMMGetCpu0(pVM);
     NOREF(uErrorCode);
 
     Assert(pVM->csam.s.cDirtyPages < CSAM_MAX_DIRTY_PAGES);
@@ -80,17 +84,17 @@ VMMRCDECL(int) CSAMGCCodePageWriteHandler(PVM pVM, RTGCUINT uErrorCode, PCPUMCTX
     Assert(pPATMGCState);
 
     Assert(pPATMGCState->fPIF || fPatchCode);
-    /** When patch code is executing instructions that must complete, then we must *never* interrupt it. */
+    /* When patch code is executing instructions that must complete, then we must *never* interrupt it. */
     if (!pPATMGCState->fPIF && fPatchCode)
     {
-        Log(("CSAMGCCodePageWriteHandler: fPIF=0 -> stack fault in patch generated code at %08RX32!\n", pRegFrame->eip));
+        Log(("csamRCCodePageWriteHandler: fPIF=0 -> stack fault in patch generated code at %08RX32!\n", pRegFrame->eip));
         /** @note there are cases when pages previously used for code are now used for stack; patch generated code will fault (pushf))
          *  Just make the page r/w and continue.
          */
         /*
          * Make this particular page R/W.
          */
-        rc = PGMShwMakePageWritable(pVCpu, pvFault, PGM_MK_PG_IS_WRITE_FAULT);
+        int rc = PGMShwMakePageWritable(pVCpu, pvFault, PGM_MK_PG_IS_WRITE_FAULT);
         AssertMsgRC(rc, ("PGMShwModifyPage -> rc=%Rrc\n", rc));
         ASMInvalidatePage((void *)(uintptr_t)pvFault);
         return VINF_SUCCESS;
@@ -103,35 +107,36 @@ VMMRCDECL(int) CSAMGCCodePageWriteHandler(PVM pVM, RTGCUINT uErrorCode, PCPUMCTX
     else
         cpl = (pRegFrame->ss.Sel & X86_SEL_RPL);
 
-    Log(("CSAMGCCodePageWriteHandler: code page write at %RGv original address %RGv (cpl=%d)\n", pvFault, (RTGCUINTPTR)pvRange + offRange, cpl));
+    Log(("csamRCCodePageWriteHandler: code page write at %RGv original address %RGv (cpl=%d)\n", pvFault, (RTGCUINTPTR)pvRange + offRange, cpl));
 
     /* If user code is modifying one of our monitored pages, then we can safely make it r/w as it's no longer being used for supervisor code. */
     if (cpl != 3)
     {
-        rc = PATMRCHandleWriteToPatchPage(pVM, pRegFrame, (RTRCPTR)((RTRCUINTPTR)pvRange + offRange), 4 /** @todo */);
-        if (rc == VINF_SUCCESS)
-            return rc;
-        if (rc == VINF_EM_RAW_EMULATE_INSTR)
+        VBOXSTRICTRC rcStrict = PATMRCHandleWriteToPatchPage(pVM, pRegFrame, (RTRCPTR)((RTRCUINTPTR)pvRange + offRange),
+                                                             4 /** @todo */);
+        if (rcStrict == VINF_SUCCESS)
+            return VBOXSTRICTRC_TODO(rcStrict);
+        if (rcStrict == VINF_EM_RAW_EMULATE_INSTR)
         {
             STAM_COUNTER_INC(&pVM->csam.s.StatDangerousWrite);
             return VINF_EM_RAW_EMULATE_INSTR;
         }
-        Assert(rc == VERR_PATCH_NOT_FOUND);
+        Assert(rcStrict == VERR_PATCH_NOT_FOUND);
     }
 
     VMCPU_FF_SET(pVCpu, VMCPU_FF_CSAM_PENDING_ACTION);
 
     /* Note that pvFault might be a different address in case of aliases. So use pvRange + offset instead!. */
     pVM->csam.s.pvDirtyBasePage[pVM->csam.s.cDirtyPages] = (RTRCPTR)((RTRCUINTPTR)pvRange + offRange);
-    pVM->csam.s.pvDirtyFaultPage[pVM->csam.s.cDirtyPages] = (RTRCPTR)((RTRCUINTPTR)pvRange + offRange);
+    pVM->csam.s.pvDirtyFaultPage[pVM->csam.s.cDirtyPages] = (RTRCPTR)pvFault;
     if (++pVM->csam.s.cDirtyPages == CSAM_MAX_DIRTY_PAGES)
         return VINF_CSAM_PENDING_ACTION;
 
     /*
      * Make this particular page R/W. The VM_FF_CSAM_FLUSH_DIRTY_PAGE handler will reset it to readonly again.
      */
-    Log(("CSAMGCCodePageWriteHandler: enabled r/w for page %RGv\n", pvFault));
-    rc = PGMShwMakePageWritable(pVCpu, pvFault, PGM_MK_PG_IS_WRITE_FAULT);
+    Log(("csamRCCodePageWriteHandler: enabled r/w for page %RGv\n", pvFault));
+    int rc = PGMShwMakePageWritable(pVCpu, pvFault, PGM_MK_PG_IS_WRITE_FAULT);
     AssertMsgRC(rc, ("PGMShwModifyPage -> rc=%Rrc\n", rc));
     ASMInvalidatePage((void *)(uintptr_t)pvFault);
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -31,10 +31,8 @@
 #ifdef IN_SUP_HARDENED_R3
 # undef DEBUG /* Warning: disables RT_STRICT */
 # define LOG_DISABLED
-  /** @todo RTLOGREL_DISABLED */
+# define RTLOG_REL_DISABLED
 # include <iprt/log.h>
-# undef LogRelIt
-# define LogRelIt(pvInst, fFlags, iGroup, fmtargs) do { } while (0)
 #endif
 
 #include <VBox/types.h>
@@ -170,7 +168,7 @@ static int suplibDarwinOpenService(PSUPLIBDATA pThis)
      * instantiated and create a session for this process.
      */
     io_connect_t Connection = NULL;
-    kr = IOServiceOpen(ServiceObject, mach_task_self(), 0, &Connection);
+    kr = IOServiceOpen(ServiceObject, mach_task_self(), SUP_DARWIN_IOSERVICE_COOKIE, &Connection);
     IOObjectRelease(ServiceObject);
     if (kr != kIOReturnSuccess)
     {

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2012 Oracle Corporation
+ * Copyright (C) 2008-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -450,7 +450,7 @@ static int Usage(const char *argv0)
 "    The assembly output style. Default: default\n"
 "  --undef-op|-u <fail|all|db>\n"
 "    How to treat undefined opcodes. Default: fail\n"
-             , argv0, argv0);
+             , argv0, argv0, argv0);
     return 1;
 }
 
@@ -570,7 +570,7 @@ int main(int argc, char **argv)
                 break;
 
             case 'V':
-                RTPrintf("$Revision: 89645 $\n");
+                RTPrintf("$Revision: 101699 $\n");
                 return 0;
 
             default:

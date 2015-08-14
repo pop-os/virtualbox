@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,6 +23,7 @@
 #define LOG_GROUP LOG_GROUP_PATM
 #include <VBox/vmm/patm.h>
 #include <VBox/vmm/stam.h>
+#include <VBox/vmm/pdmapi.h>
 #include <VBox/vmm/pgm.h>
 #include <VBox/vmm/cpum.h>
 #include <VBox/vmm/cpumdis.h>
@@ -90,7 +91,6 @@ typedef struct
 /*******************************************************************************
 *   Internal Functions                                                         *
 *******************************************************************************/
-
 static int          patmDisableUnusablePatch(PVM pVM, RTRCPTR pInstrGC, RTRCPTR pConflictAddr, PPATCHINFO pPatch);
 static int          patmActivateInt3Patch(PVM pVM, PPATCHINFO pPatch);
 static int          patmDeactivateInt3Patch(PVM pVM, PPATCHINFO pPatch);
@@ -108,7 +108,7 @@ static void         patmPrintStat(PVM pVM, void *pvSample, char *pszBuf, size_t 
 #define             patmPatchGCPtr2PatchHCPtr(pVM, pGC)      (pVM->patm.s.pPatchMemHC + (pGC - pVM->patm.s.pPatchMemGC))
 
 static int               patmReinit(PVM pVM);
-static DECLCALLBACK(int) RelocatePatches(PAVLOU32NODECORE pNode, void *pParam);
+static DECLCALLBACK(int) patmR3RelocatePatches(PAVLOU32NODECORE pNode, void *pParam);
 static RTRCPTR      patmR3GuestGCPtrToPatchGCPtrSimple(PVM pVM, RCPTRTYPE(uint8_t*) pInstrGC);
 static int          patmR3MarkDirtyPatch(PVM pVM, PPATCHINFO pPatch);
 
@@ -159,8 +159,8 @@ VMMR3_INT_DECL(int) PATMR3Init(PVM pVM)
     AssertCompile(VMCPU_FF_INTERRUPT_APIC == RT_BIT_32(0));
     AssertCompile(VMCPU_FF_INTERRUPT_PIC == RT_BIT_32(1));
 
-    AssertReleaseMsg(PATMInterruptFlag == (VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC | VMCPU_FF_TIMER | VMCPU_FF_REQUEST),
-                     ("Interrupt flags out of sync!! PATMInterruptFlag=%#x expected %#x. broken assembler?\n", PATMInterruptFlag, VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC | VMCPU_FF_TIMER | VMCPU_FF_REQUEST));
+    AssertReleaseMsg(g_fPatmInterruptFlag == (VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC | VMCPU_FF_TIMER | VMCPU_FF_REQUEST),
+                     ("Interrupt flags out of sync!! g_fPatmInterruptFlag=%#x expected %#x. broken assembler?\n", g_fPatmInterruptFlag, VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC | VMCPU_FF_TIMER | VMCPU_FF_REQUEST));
 
     /* Allocate patch memory and GC patch state memory. */
     pVM->patm.s.cbPatchMem = PATCH_MEMORY_SIZE;
@@ -217,9 +217,19 @@ VMMR3_INT_DECL(int) PATMR3Init(PVM pVM)
         return rc;
 
     /*
+     * Register the virtual page access handler type.
+     */
+    rc = PGMR3HandlerVirtualTypeRegister(pVM, PGMVIRTHANDLERKIND_ALL, false /*fRelocUserRC*/,
+                                         NULL /*pfnInvalidateR3*/,
+                                         patmVirtPageHandler,
+                                         "patmVirtPageHandler", "patmRCVirtPagePfHandler",
+                                         "PATMMonitorPatchJump", &pVM->patm.s.hMonitorPageType);
+    AssertRCReturn(rc, rc);
+
+    /*
      * Register save and load state notifiers.
      */
-    rc = SSMR3RegisterInternal(pVM, "PATM", 0, PATM_SSM_VERSION, sizeof(pVM->patm.s) + PATCH_MEMORY_SIZE  + PAGE_SIZE + PATM_STACK_TOTAL_SIZE + PAGE_SIZE,
+    rc = SSMR3RegisterInternal(pVM, "PATM", 0, PATM_SAVED_STATE_VERSION, sizeof(pVM->patm.s) + PATCH_MEMORY_SIZE  + PAGE_SIZE + PATM_STACK_TOTAL_SIZE + PAGE_SIZE,
                                NULL, NULL, NULL,
                                NULL, patmR3Save, NULL,
                                NULL, patmR3Load, NULL);
@@ -307,14 +317,14 @@ VMMR3_INT_DECL(int) PATMR3Init(PVM pVM)
     STAM_REG(pVM, &pVM->patm.s.StatCheckPendingIRQ,   STAMTYPE_COUNTER, "/PATM/GC/CheckIRQ" ,        STAMUNIT_OCCURENCES,     "Number of traps that ask to check for pending irqs.");
 #endif /* VBOX_WITH_STATISTICS */
 
-    Log(("PATMCallRecord.size           %d\n", PATMCallRecord.size));
-    Log(("PATMCallIndirectRecord.size   %d\n", PATMCallIndirectRecord.size));
-    Log(("PATMRetRecord.size            %d\n", PATMRetRecord.size));
-    Log(("PATMJumpIndirectRecord.size   %d\n", PATMJumpIndirectRecord.size));
-    Log(("PATMPopf32Record.size         %d\n", PATMPopf32Record.size));
-    Log(("PATMIretRecord.size           %d\n", PATMIretRecord.size));
-    Log(("PATMStiRecord.size            %d\n", PATMStiRecord.size));
-    Log(("PATMCheckIFRecord.size        %d\n", PATMCheckIFRecord.size));
+    Log(("g_patmCallRecord.cbFunction           %u\n", g_patmCallRecord.cbFunction));
+    Log(("g_patmCallIndirectRecord.cbFunction   %u\n", g_patmCallIndirectRecord.cbFunction));
+    Log(("g_patmRetRecord.cbFunction            %u\n", g_patmRetRecord.cbFunction));
+    Log(("g_patmJumpIndirectRecord.cbFunction   %u\n", g_patmJumpIndirectRecord.cbFunction));
+    Log(("g_patmPopf32Record.cbFunction         %u\n", g_patmPopf32Record.cbFunction));
+    Log(("g_patmIretRecord.cbFunction           %u\n", g_patmIretRecord.cbFunction));
+    Log(("g_patmStiRecord.cbFunction            %u\n", g_patmStiRecord.cbFunction));
+    Log(("g_patmCheckIFRecord.cbFunction        %u\n", g_patmCheckIFRecord.cbFunction));
 
     return rc;
 }
@@ -330,20 +340,44 @@ VMMR3_INT_DECL(int) PATMR3InitFinalize(PVM pVM)
     if (HMIsEnabled(pVM))
         return VINF_SUCCESS;
 
-    /* The GC state, stack and statistics must be read/write for the guest (supervisor only of course). */
+    /*
+     * The GC state, stack and statistics must be read/write for the guest
+     * (supervisor only of course).
+     *
+     * Remember, we run guest code at ring-1 and ring-2 levels, which are
+     * considered supervisor levels by the paging  structures.  We run the VMM
+     * in ring-0 with CR0.WP=0 and mapping all VMM structures as read-only
+     * pages.  The following structures are exceptions and must be mapped with
+     * write access so the ring-1 and ring-2 code can modify them.
+     */
     int rc = PGMMapSetPage(pVM, pVM->patm.s.pGCStateGC, PAGE_SIZE, X86_PTE_P | X86_PTE_A | X86_PTE_D | X86_PTE_RW);
-    if (RT_FAILURE(rc))
-        Log(("PATMR3InitFinalize: PGMMapSetPage failed with %Rrc!!\n", rc));
+    AssertLogRelMsgReturn(RT_SUCCESS(rc), ("Failed to make the GCState accessible to ring-1 and ring-2 code: %Rrc\n", rc), rc);
 
     rc = PGMMapSetPage(pVM, pVM->patm.s.pGCStackGC, PATM_STACK_TOTAL_SIZE, X86_PTE_P | X86_PTE_A | X86_PTE_D | X86_PTE_RW);
-    if (RT_FAILURE(rc))
-        Log(("PATMR3InitFinalize: PGMMapSetPage failed with %Rrc!!\n", rc));
+    AssertLogRelMsgReturn(RT_SUCCESS(rc), ("Failed to make the GCStack accessible to ring-1 and ring-2 code: %Rrc\n", rc), rc);
 
     rc = PGMMapSetPage(pVM, pVM->patm.s.pStatsGC, PATM_STAT_MEMSIZE, X86_PTE_P | X86_PTE_A | X86_PTE_D | X86_PTE_RW);
-    if (RT_FAILURE(rc))
-        Log(("PATMR3InitFinalize: PGMMapSetPage failed with %Rrc!!\n", rc));
+    AssertLogRelMsgReturn(RT_SUCCESS(rc), ("Failed to make the stats struct accessible to ring-1 and ring-2 code: %Rrc\n", rc), rc);
 
-    return rc;
+    /*
+     * Find the patch helper segment so we can identify code running there as patch code.
+     */
+    rc = PDMR3LdrGetSymbolRC(pVM, NULL, "g_PatchHlpBegin", &pVM->patm.s.pbPatchHelpersRC);
+    AssertLogRelMsgReturn(RT_SUCCESS(rc), ("Failed to resolve g_PatchHlpBegin: %Rrc\n", rc), rc);
+    pVM->patm.s.pbPatchHelpersR3 = (uint8_t *)MMHyperRCToR3(pVM, pVM->patm.s.pbPatchHelpersRC);
+    AssertLogRelReturn(pVM->patm.s.pbPatchHelpersR3 != NULL, VERR_INTERNAL_ERROR_3);
+
+    RTRCPTR RCPtrEnd;
+    rc = PDMR3LdrGetSymbolRC(pVM, NULL, "g_PatchHlpEnd", &RCPtrEnd);
+    AssertLogRelMsgReturn(RT_SUCCESS(rc), ("Failed to resolve g_PatchHlpEnd: %Rrc\n", rc), rc);
+
+    pVM->patm.s.cbPatchHelpers = RCPtrEnd - pVM->patm.s.pbPatchHelpersRC;
+    AssertLogRelMsgReturn(pVM->patm.s.cbPatchHelpers < _128K,
+                          ("%RRv-%RRv => %#x\n", pVM->patm.s.pbPatchHelpersRC, RCPtrEnd, pVM->patm.s.cbPatchHelpers),
+                          VERR_INTERNAL_ERROR_4);
+
+
+    return VINF_SUCCESS;
 }
 
 /**
@@ -459,53 +493,51 @@ static int patmReinit(PVM pVM)
  *
  * The PATM will update the addresses used by the switcher.
  *
- * @param   pVM     The VM.
+ * @param   pVM         The VM.
+ * @param   offDelta    The relocation delta.
  */
-VMMR3_INT_DECL(void) PATMR3Relocate(PVM pVM)
+VMMR3_INT_DECL(void) PATMR3Relocate(PVM pVM, RTRCINTPTR offDelta)
 {
     if (HMIsEnabled(pVM))
         return;
 
     RTRCPTR     GCPtrNew = MMHyperR3ToRC(pVM, pVM->patm.s.pGCStateHC);
-    RTRCINTPTR  delta = GCPtrNew - pVM->patm.s.pGCStateGC;
+    Assert((RTRCINTPTR)(GCPtrNew - pVM->patm.s.pGCStateGC) == offDelta);
 
-    Log(("PATMR3Relocate from %RRv to %RRv - delta %08X\n", pVM->patm.s.pGCStateGC, GCPtrNew, delta));
-    if (delta)
+    Log(("PATMR3Relocate from %RRv to %RRv - delta %08X\n", pVM->patm.s.pGCStateGC, GCPtrNew, offDelta));
+    if (offDelta)
     {
         PCPUMCTX pCtx;
 
         /* Update CPUMCTX guest context pointer. */
-        pVM->patm.s.pCPUMCtxGC   += delta;
+        pVM->patm.s.pCPUMCtxGC += offDelta;
 
-        pVM->patm.s.deltaReloc = delta;
+        pVM->patm.s.deltaReloc = offDelta;
+        RTAvloU32DoWithAll(&pVM->patm.s.PatchLookupTreeHC->PatchTree, true, patmR3RelocatePatches, (void *)pVM);
 
-        RTAvloU32DoWithAll(&pVM->patm.s.PatchLookupTreeHC->PatchTree, true, RelocatePatches, (void *)pVM);
-
-        pCtx = CPUMQueryGuestCtxPtr(VMMGetCpu(pVM));
-
-        /* If we are running patch code right now, then also adjust EIP. */
-        if (PATMIsPatchGCAddr(pVM, pCtx->eip))
-            pCtx->eip += delta;
-
-        pVM->patm.s.pGCStateGC  = GCPtrNew;
-        pVM->patm.s.pPatchMemGC = MMHyperR3ToRC(pVM, pVM->patm.s.pPatchMemHC);
-
-        pVM->patm.s.pGCStackGC  = MMHyperR3ToRC(pVM, pVM->patm.s.pGCStackHC);
-
-        pVM->patm.s.pStatsGC    = MMHyperR3ToRC(pVM, pVM->patm.s.pStatsHC);
-
+        pVM->patm.s.pGCStateGC        = GCPtrNew;
+        pVM->patm.s.pPatchMemGC       = MMHyperR3ToRC(pVM, pVM->patm.s.pPatchMemHC);
+        pVM->patm.s.pGCStackGC        = MMHyperR3ToRC(pVM, pVM->patm.s.pGCStackHC);
+        pVM->patm.s.pStatsGC          = MMHyperR3ToRC(pVM, pVM->patm.s.pStatsHC);
         pVM->patm.s.PatchLookupTreeGC = MMHyperR3ToRC(pVM, pVM->patm.s.PatchLookupTreeHC);
 
         if (pVM->patm.s.pfnSysEnterPatchGC)
-            pVM->patm.s.pfnSysEnterPatchGC += delta;
+            pVM->patm.s.pfnSysEnterPatchGC += offDelta;
+
+        /* If we are running patch code right now, then also adjust EIP. */
+        pCtx = CPUMQueryGuestCtxPtr(VMMGetCpu(pVM));
+        if (PATMIsPatchGCAddr(pVM, pCtx->eip))
+            pCtx->eip += offDelta;
 
         /* Deal with the global patch functions. */
-        pVM->patm.s.pfnHelperCallGC += delta;
-        pVM->patm.s.pfnHelperRetGC  += delta;
-        pVM->patm.s.pfnHelperIretGC += delta;
-        pVM->patm.s.pfnHelperJumpGC += delta;
+        pVM->patm.s.pfnHelperCallGC += offDelta;
+        pVM->patm.s.pfnHelperRetGC  += offDelta;
+        pVM->patm.s.pfnHelperIretGC += offDelta;
+        pVM->patm.s.pfnHelperJumpGC += offDelta;
 
-        RelocatePatches(&pVM->patm.s.pGlobalPatchRec->Core, (void *)pVM);
+        pVM->patm.s.pbPatchHelpersRC += offDelta;
+
+        patmR3RelocatePatches(&pVM->patm.s.pGlobalPatchRec->Core, (void *)pVM);
     }
 }
 
@@ -729,7 +761,7 @@ static void patmLogRawPatchInstr(PVM pVM, PPATCHINFO pPatch, uint32_t fFlags,
  * @param   pNode       Current node
  * @param   pParam      Pointer to the VM.
  */
-static DECLCALLBACK(int) RelocatePatches(PAVLOU32NODECORE pNode, void *pParam)
+static DECLCALLBACK(int) patmR3RelocatePatches(PAVLOU32NODECORE pNode, void *pParam)
 {
     PPATMPATCHREC   pPatch = (PPATMPATCHREC)pNode;
     PVM             pVM = (PVM)pParam;
@@ -747,22 +779,26 @@ static DECLCALLBACK(int) RelocatePatches(PAVLOU32NODECORE pNode, void *pParam)
     delta = (RTRCINTPTR)pVM->patm.s.deltaReloc;
 
     /*
-     * Apply fixups
+     * Apply fixups.
      */
-    PRELOCREC pRec = 0;
-    AVLPVKEY  key  = 0;
-
-    while (true)
+    AVLPVKEY key = NULL;
+    for (;;)
     {
-        /* Get the record that's closest from above */
-        pRec = (PRELOCREC)RTAvlPVGetBestFit(&pPatch->patch.FixupTree, key, true);
-        if (pRec == 0)
+        /* Get the record that's closest from above (after or equal to key). */
+        PRELOCREC pRec = (PRELOCREC)RTAvlPVGetBestFit(&pPatch->patch.FixupTree, key, true);
+        if (!pRec)
             break;
 
-        key = (AVLPVKEY)(pRec->pRelocPos + 1);   /* search for the next record during the next round. */
+        key = (uint8_t *)pRec->Core.Key + 1;   /* search for the next record during the next round. */
 
         switch (pRec->uType)
         {
+        case FIXUP_ABSOLUTE_IN_PATCH_ASM_TMPL:
+            Assert(pRec->pDest == pRec->pSource); Assert(PATM_IS_ASMFIX(pRec->pSource));
+            Log(("Absolute patch template fixup type %#x at %RHv -> %RHv at %RRv\n", pRec->pSource, *(RTRCUINTPTR *)pRec->pRelocPos, *(RTRCINTPTR*)pRec->pRelocPos + delta, pRec->pRelocPos));
+            *(RTRCUINTPTR *)pRec->pRelocPos += delta;
+            break;
+
         case FIXUP_ABSOLUTE:
             Log(("Absolute fixup at %RRv %RHv -> %RHv at %RRv\n", pRec->pSource, *(RTRCUINTPTR *)pRec->pRelocPos, *(RTRCINTPTR*)pRec->pRelocPos + delta, pRec->pRelocPos));
             if (    !pRec->pSource
@@ -792,7 +828,10 @@ static DECLCALLBACK(int) RelocatePatches(PAVLOU32NODECORE pNode, void *pParam)
                     RTRCPTR pPage = pPatch->patch.pPrivInstrGC & PAGE_BASE_GC_MASK;
 
                     Log(("PATM: Patch page not present -> check later!\n"));
-                    rc = PGMR3HandlerVirtualRegister(pVM, PGMVIRTHANDLERTYPE_ALL, pPage, pPage + (PAGE_SIZE - 1) /* inclusive! */, 0, patmVirtPageHandler, "PATMGCMonitorPage", 0, "PATMMonitorPatchJump");
+                    rc = PGMR3HandlerVirtualRegister(pVM, VMMGetCpu(pVM), pVM->patm.s.hMonitorPageType,
+                                                     pPage,
+                                                     pPage + (PAGE_SIZE - 1) /* inclusive! */,
+                                                     (void *)(uintptr_t)pPage, pPage, NULL /*pszDesc*/);
                     Assert(RT_SUCCESS(rc) || rc == VERR_PGM_HANDLER_VIRTUAL_CONFLICT);
                 }
                 else
@@ -870,8 +909,11 @@ static DECLCALLBACK(int) RelocatePatches(PAVLOU32NODECORE pNode, void *pParam)
                     ||  rc == VERR_PAGE_TABLE_NOT_PRESENT)
                 {
                     RTRCPTR pPage = pPatch->patch.pPrivInstrGC & PAGE_BASE_GC_MASK;
-
-                    rc = PGMR3HandlerVirtualRegister(pVM, PGMVIRTHANDLERTYPE_ALL, pPage, pPage + (PAGE_SIZE - 1) /* inclusive! */, 0, patmVirtPageHandler, "PATMGCMonitorPage", 0, "PATMMonitorPatchJump");
+                    Log(("PATM: Patch page not present -> check later!\n"));
+                    rc = PGMR3HandlerVirtualRegister(pVM, VMMGetCpu(pVM), pVM->patm.s.hMonitorPageType,
+                                                     pPage,
+                                                     pPage + (PAGE_SIZE - 1) /* inclusive! */,
+                                                     (void *)(uintptr_t)pPage, pPage, NULL /*pszDesc*/);
                     Assert(RT_SUCCESS(rc) || rc == VERR_PGM_HANDLER_VIRTUAL_CONFLICT);
                 }
                 else
@@ -912,6 +954,13 @@ static DECLCALLBACK(int) RelocatePatches(PAVLOU32NODECORE pNode, void *pParam)
             break;
         }
 
+        case FIXUP_REL_HELPER_IN_PATCH_ASM_TMPL:
+        case FIXUP_CONSTANT_IN_PATCH_ASM_TMPL:
+            /* Only applicable when loading state. */
+            Assert(pRec->pDest == pRec->pSource);
+            Assert(PATM_IS_ASMFIX(pRec->pSource));
+            break;
+
         default:
             AssertMsg(0, ("Invalid fixup type!!\n"));
             return VERR_INVALID_PARAMETER;
@@ -921,34 +970,6 @@ static DECLCALLBACK(int) RelocatePatches(PAVLOU32NODECORE pNode, void *pParam)
     if (pPatch->patch.flags & PATMFL_PATCHED_GUEST_CODE)
         PATM_LOG_PATCH_INSTR(pVM, &pPatch->patch, PATMREAD_RAWCODE, "Rel patch jump:", "");
     return 0;
-}
-
-/**
- * \#PF Handler callback for virtual access handler ranges.
- *
- * Important to realize that a physical page in a range can have aliases, and
- * for ALL and WRITE handlers these will also trigger.
- *
- * @returns VINF_SUCCESS if the handler have carried out the operation.
- * @returns VINF_PGM_HANDLER_DO_DEFAULT if the caller should carry out the access operation.
- * @param   pVM             Pointer to the VM.
- * @param   GCPtr           The virtual address the guest is writing to. (not correct if it's an alias!)
- * @param   pvPtr           The HC mapping of that address.
- * @param   pvBuf           What the guest is reading/writing.
- * @param   cbBuf           How much it's reading/writing.
- * @param   enmAccessType   The access type.
- * @param   pvUser          User argument.
- */
-DECLCALLBACK(int) patmVirtPageHandler(PVM pVM, RTGCPTR GCPtr, void *pvPtr, void *pvBuf, size_t cbBuf,
-                                      PGMACCESSTYPE enmAccessType, void *pvUser)
-{
-    Assert(enmAccessType == PGMACCESSTYPE_WRITE); NOREF(enmAccessType);
-    NOREF(pvPtr); NOREF(pvBuf); NOREF(cbBuf); NOREF(pvUser);
-
-    /** @todo could be the wrong virtual address (alias) */
-    pVM->patm.s.pvFaultMonitor = GCPtr;
-    PATMR3HandleMonitoredPage(pVM);
-    return VINF_PGM_HANDLER_DO_DEFAULT;
 }
 
 #ifdef VBOX_WITH_DEBUGGER
@@ -989,41 +1010,6 @@ static DECLCALLBACK(int) DisableAllPatches(PAVLOU32NODECORE pNode, void *pVM)
 }
 
 #endif /* VBOX_WITH_DEBUGGER */
-#ifdef UNUSED_FUNCTIONS
-
-/**
- * Returns the host context pointer and size of the patch memory block
- *
- * @returns Host context pointer.
- * @param   pVM         Pointer to the VM.
- * @param   pcb         Size of the patch memory block
- * @internal
- */
-VMMR3_INT_DECL(void *) PATMR3QueryPatchMemHC(PVM pVM, uint32_t *pcb)
-{
-    AssertReturn(!HMIsEnabled(pVM), NULL);
-    if (pcb)
-        *pcb = pVM->patm.s.cbPatchMem;
-    return pVM->patm.s.pPatchMemHC;
-}
-
-
-/**
- * Returns the guest context pointer and size of the patch memory block
- *
- * @returns Guest context pointer.
- * @param   pVM         Pointer to the VM.
- * @param   pcb         Size of the patch memory block
- */
-VMMR3_INT_DECL(RTRCPTR) PATMR3QueryPatchMemGC(PVM pVM, uint32_t *pcb)
-{
-    AssertReturn(!HMIsEnabled(pVM), NIL_RTRCPTR);
-    if (pcb)
-        *pcb = pVM->patm.s.cbPatchMem;
-    return pVM->patm.s.pPatchMemGC;
-}
-
-#endif /* UNUSED_FUNCTIONS */
 
 /**
  * Returns the host context pointer of the GC context structure
@@ -1036,22 +1022,6 @@ VMMR3_INT_DECL(PPATMGCSTATE) PATMR3QueryGCStateHC(PVM pVM)
     AssertReturn(!HMIsEnabled(pVM), NULL);
     return pVM->patm.s.pGCStateHC;
 }
-
-
-#ifdef UNUSED_FUNCTION
-/**
- * Checks whether the HC address is part of our patch region
- *
- * @returns true/false.
- * @param   pVM         Pointer to the VM.
- * @param   pAddrHC     Host context ring-3 address to check.
- */
-VMMR3_INT_DECL(bool) PATMR3IsPatchHCAddr(PVM pVM, void *pAddrHC)
-{
-    return (uintptr_t)pAddrHC >= (uintptr_t)pVM->patm.s.pPatchMemHC
-        && (uintptr_t)pAddrHC <  (uintptr_t)pVM->patm.s.pPatchMemHC + pVM->patm.s.cbPatchMem;
-}
-#endif
 
 
 /**
@@ -1100,9 +1070,15 @@ VMMR3DECL(bool) PATMR3IsEnabled(PUVM pUVM)
 VMMR3_INT_DECL(void *) PATMR3GCPtrToHCPtr(PVM pVM, RTRCPTR pAddrGC)
 {
     AssertReturn(!HMIsEnabled(pVM), NULL);
-    if (pVM->patm.s.pPatchMemGC <= pAddrGC && pVM->patm.s.pPatchMemGC + pVM->patm.s.cbPatchMem > pAddrGC)
-        return pVM->patm.s.pPatchMemHC + (pAddrGC - pVM->patm.s.pPatchMemGC);
-    return NULL;
+    RTRCUINTPTR offPatch = (RTRCUINTPTR)pAddrGC - (RTRCUINTPTR)pVM->patm.s.pPatchMemGC;
+    if (offPatch >= pVM->patm.s.cbPatchMem)
+    {
+        offPatch = (RTRCUINTPTR)pAddrGC - (RTRCUINTPTR)pVM->patm.s.pbPatchHelpersRC;
+        if (offPatch >= pVM->patm.s.cbPatchHelpers)
+            return NULL;
+        return pVM->patm.s.pbPatchHelpersR3 + offPatch;
+    }
+    return pVM->patm.s.pPatchMemHC + offPatch;
 }
 
 
@@ -1123,12 +1099,16 @@ R3PTRTYPE(uint8_t *) patmR3GCVirtToHCVirt(PVM pVM, PPATMP2GLOOKUPREC pCacheRec, 
     R3PTRTYPE(uint8_t *) pHCPtr;
     uint32_t offset;
 
-    if (PATMIsPatchGCAddr(pVM, pGCPtr))
+    offset = (RTRCUINTPTR)pGCPtr - (RTRCUINTPTR)pVM->patm.s.pPatchMemGC;
+    if (offset < pVM->patm.s.cbPatchMem)
     {
+#ifdef VBOX_STRICT
         PPATCHINFO pPatch = (PPATCHINFO)pCacheRec->pPatch;
-        Assert(pPatch);
-        return PATCHCODE_PTR_HC(pPatch) + (pGCPtr - PATCHCODE_PTR_GC(pPatch));
+        Assert(pPatch); Assert(offset - pPatch->pPatchBlockOffset < pPatch->cbPatchBlockSize);
+#endif
+        return pVM->patm.s.pPatchMemHC + offset;
     }
+    /* Note! We're _not_ including the patch helpers here. */
 
     offset = pGCPtr & PAGE_OFFSET_MASK;
     if (pCacheRec->pGuestLoc == (pGCPtr & PAGE_BASE_GC_MASK))
@@ -2647,7 +2627,8 @@ static int patmGenJumpToPatch(PVM pVM, PPATCHINFO pPatch, PPATMP2GLOOKUPREC pCac
             // jmp [PatchCode]
             if (fAddFixup)
             {
-                if (patmPatchAddReloc32(pVM, pPatch, &pPB[1], FIXUP_REL_JMPTOPATCH, pPatch->pPrivInstrGC + pPatch->cbPatchJump, pPatch->pPatchJumpDestGC) != VINF_SUCCESS)
+                if (patmPatchAddReloc32(pVM, pPatch, &pPB[1], FIXUP_REL_JMPTOPATCH, pPatch->pPrivInstrGC + pPatch->cbPatchJump,
+                                        pPatch->pPatchJumpDestGC) != VINF_SUCCESS)
                 {
                     Log(("Relocation failed for the jump in the guest code!!\n"));
                     return VERR_PATCHING_REFUSED;
@@ -2663,7 +2644,8 @@ static int patmGenJumpToPatch(PVM pVM, PPATCHINFO pPatch, PPATMP2GLOOKUPREC pCac
             // jmp [PatchCode]
             if (fAddFixup)
             {
-                if (patmPatchAddReloc32(pVM, pPatch, &pPB[2], FIXUP_REL_JMPTOPATCH, pPatch->pPrivInstrGC + pPatch->cbPatchJump, pPatch->pPatchJumpDestGC) != VINF_SUCCESS)
+                if (patmPatchAddReloc32(pVM, pPatch, &pPB[2], FIXUP_REL_JMPTOPATCH, pPatch->pPrivInstrGC + pPatch->cbPatchJump,
+                                        pPatch->pPatchJumpDestGC) != VINF_SUCCESS)
                 {
                     Log(("Relocation failed for the jump in the guest code!!\n"));
                     return VERR_PATCHING_REFUSED;
@@ -2688,7 +2670,8 @@ static int patmGenJumpToPatch(PVM pVM, PPATCHINFO pPatch, PPATMP2GLOOKUPREC pCac
         // jmp [PatchCode]
         if (fAddFixup)
         {
-            if (patmPatchAddReloc32(pVM, pPatch, &pPB[1], FIXUP_REL_JMPTOPATCH, pPatch->pPrivInstrGC + SIZEOF_NEARJUMP32, PATCHCODE_PTR_GC(pPatch)) != VINF_SUCCESS)
+            if (patmPatchAddReloc32(pVM, pPatch, &pPB[1], FIXUP_REL_JMPTOPATCH, pPatch->pPrivInstrGC + SIZEOF_NEARJUMP32,
+                                    PATCHCODE_PTR_GC(pPatch)) != VINF_SUCCESS)
             {
                 Log(("Relocation failed for the jump in the guest code!!\n"));
                 return VERR_PATCHING_REFUSED;
@@ -2782,7 +2765,8 @@ static int patmGenCallToPatch(PVM pVM, PPATCHINFO pPatch, RTRCPTR pTargetGC, PPA
     // jmp [PatchCode]
     if (fAddFixup)
     {
-        if (patmPatchAddReloc32(pVM, pPatch, &pPB[1], FIXUP_REL_JMPTOPATCH, pPatch->pPrivInstrGC + SIZEOF_NEARJUMP32, pTargetGC) != VINF_SUCCESS)
+        if (patmPatchAddReloc32(pVM, pPatch, &pPB[1], FIXUP_REL_JMPTOPATCH,
+                                pPatch->pPrivInstrGC + SIZEOF_NEARJUMP32, pTargetGC) != VINF_SUCCESS)
         {
             Log(("Relocation failed for the jump in the guest code!!\n"));
             return VERR_PATCHING_REFUSED;
@@ -3610,7 +3594,7 @@ VMMR3_INT_DECL(int) PATMR3DuplicateFunctionRequest(PVM pVM, PCPUMCTX pCtx)
 
     if (pPatchTargetGC)
     {
-        /* Create a trampoline that also sets PATM_INTERRUPTFLAG. */
+        /* Create a trampoline that also sets PATM_ASMFIX_INTERRUPTFLAG. */
         rc = PATMR3InstallPatch(pVM, pBranchTarget, PATMFL_CODE32 | PATMFL_TRAMPOLINE);
     }
     else
@@ -4575,21 +4559,22 @@ VMMR3_INT_DECL(int) PATMR3InstallPatch(PVM pVM, RTRCPTR pInstrGC, uint64_t flags
 #ifndef DEBUG_sandervl
             /* Full breakdown for the GUI. */
             STAMR3RegisterF(pVM, &pVM->patm.s.pStatsHC[pPatchRec->patch.uPatchIdx], STAMTYPE_RATIO_U32, STAMVISIBILITY_ALWAYS, STAMUNIT_GOOD_BAD, PATMPatchType(pVM, &pPatchRec->patch),
-                            "/PATM/Stats/PatchBD/0x%RRv", pPatchRec->patch.pPrivInstrGC);
-            STAMR3RegisterF(pVM, &pPatchRec->patch.cbPatchBlockSize,STAMTYPE_U32, STAMVISIBILITY_ALWAYS, STAMUNIT_BYTES,      NULL, "/PATM/Stats/PatchBD/0x%RRv/cbPatchBlockSize", pPatchRec->patch.pPrivInstrGC);
-            STAMR3RegisterF(pVM, &pPatchRec->patch.cbPatchJump,     STAMTYPE_U32, STAMVISIBILITY_ALWAYS, STAMUNIT_BYTES,      NULL, "/PATM/Stats/PatchBD/0x%RRv/cbPatchJump", pPatchRec->patch.pPrivInstrGC);
-            STAMR3RegisterF(pVM, &pPatchRec->patch.cbPrivInstr,     STAMTYPE_U32, STAMVISIBILITY_ALWAYS, STAMUNIT_BYTES,      NULL, "/PATM/Stats/PatchBD/0x%RRv/cbPrivInstr", pPatchRec->patch.pPrivInstrGC);
-            STAMR3RegisterF(pVM, &pPatchRec->patch.cCodeWrites,     STAMTYPE_U32, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES, NULL, "/PATM/Stats/PatchBD/0x%RRv/cCodeWrites", pPatchRec->patch.pPrivInstrGC);
-            STAMR3RegisterF(pVM, &pPatchRec->patch.cInvalidWrites,  STAMTYPE_U32, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES, NULL, "/PATM/Stats/PatchBD/0x%RRv/cInvalidWrites", pPatchRec->patch.pPrivInstrGC);
-            STAMR3RegisterF(pVM, &pPatchRec->patch.cTraps,          STAMTYPE_U32, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES, NULL, "/PATM/Stats/PatchBD/0x%RRv/cTraps", pPatchRec->patch.pPrivInstrGC);
-            STAMR3RegisterF(pVM, &pPatchRec->patch.flags,           STAMTYPE_X32, STAMVISIBILITY_ALWAYS, STAMUNIT_NONE,       NULL, "/PATM/Stats/PatchBD/0x%RRv/flags", pPatchRec->patch.pPrivInstrGC);
-            STAMR3RegisterF(pVM, &pPatchRec->patch.nrJumpRecs,      STAMTYPE_U32, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES, NULL, "/PATM/Stats/PatchBD/0x%RRv/nrJumpRecs", pPatchRec->patch.pPrivInstrGC);
-            STAMR3RegisterF(pVM, &pPatchRec->patch.nrFixups,        STAMTYPE_U32, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES, NULL, "/PATM/Stats/PatchBD/0x%RRv/nrFixups", pPatchRec->patch.pPrivInstrGC);
-            STAMR3RegisterF(pVM, &pPatchRec->patch.opcode,          STAMTYPE_U32, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES, NULL, "/PATM/Stats/PatchBD/0x%RRv/opcode", pPatchRec->patch.pPrivInstrGC);
-            STAMR3RegisterF(pVM, &pPatchRec->patch.uOldState,       STAMTYPE_U32, STAMVISIBILITY_ALWAYS, STAMUNIT_NONE,       NULL, "/PATM/Stats/PatchBD/0x%RRv/uOldState", pPatchRec->patch.pPrivInstrGC);
-            STAMR3RegisterF(pVM, &pPatchRec->patch.uOpMode,         STAMTYPE_U32, STAMVISIBILITY_ALWAYS, STAMUNIT_NONE,       NULL, "/PATM/Stats/PatchBD/0x%RRv/uOpMode", pPatchRec->patch.pPrivInstrGC);
+                            "/PATM/PatchBD/0x%RRv", pPatchRec->patch.pPrivInstrGC);
+            STAMR3RegisterF(pVM, &pPatchRec->patch.pPatchBlockOffset,STAMTYPE_X32, STAMVISIBILITY_ALWAYS, STAMUNIT_BYTES,     NULL, "/PATM/PatchBD/0x%RRv/offPatchBlock", pPatchRec->patch.pPrivInstrGC);
+            STAMR3RegisterF(pVM, &pPatchRec->patch.cbPatchBlockSize,STAMTYPE_U32, STAMVISIBILITY_ALWAYS, STAMUNIT_BYTES,      NULL, "/PATM/PatchBD/0x%RRv/cbPatchBlockSize", pPatchRec->patch.pPrivInstrGC);
+            STAMR3RegisterF(pVM, &pPatchRec->patch.cbPatchJump,     STAMTYPE_U32, STAMVISIBILITY_ALWAYS, STAMUNIT_BYTES,      NULL, "/PATM/PatchBD/0x%RRv/cbPatchJump", pPatchRec->patch.pPrivInstrGC);
+            STAMR3RegisterF(pVM, &pPatchRec->patch.cbPrivInstr,     STAMTYPE_U32, STAMVISIBILITY_ALWAYS, STAMUNIT_BYTES,      NULL, "/PATM/PatchBD/0x%RRv/cbPrivInstr", pPatchRec->patch.pPrivInstrGC);
+            STAMR3RegisterF(pVM, &pPatchRec->patch.cCodeWrites,     STAMTYPE_U32, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES, NULL, "/PATM/PatchBD/0x%RRv/cCodeWrites", pPatchRec->patch.pPrivInstrGC);
+            STAMR3RegisterF(pVM, &pPatchRec->patch.cInvalidWrites,  STAMTYPE_U32, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES, NULL, "/PATM/PatchBD/0x%RRv/cInvalidWrites", pPatchRec->patch.pPrivInstrGC);
+            STAMR3RegisterF(pVM, &pPatchRec->patch.cTraps,          STAMTYPE_U32, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES, NULL, "/PATM/PatchBD/0x%RRv/cTraps", pPatchRec->patch.pPrivInstrGC);
+            STAMR3RegisterF(pVM, &pPatchRec->patch.flags,           STAMTYPE_X64, STAMVISIBILITY_ALWAYS, STAMUNIT_NONE,       NULL, "/PATM/PatchBD/0x%RRv/flags", pPatchRec->patch.pPrivInstrGC);
+            STAMR3RegisterF(pVM, &pPatchRec->patch.nrJumpRecs,      STAMTYPE_U32, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES, NULL, "/PATM/PatchBD/0x%RRv/nrJumpRecs", pPatchRec->patch.pPrivInstrGC);
+            STAMR3RegisterF(pVM, &pPatchRec->patch.nrFixups,        STAMTYPE_U32, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES, NULL, "/PATM/PatchBD/0x%RRv/nrFixups", pPatchRec->patch.pPrivInstrGC);
+            STAMR3RegisterF(pVM, &pPatchRec->patch.opcode,          STAMTYPE_U32, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES, NULL, "/PATM/PatchBD/0x%RRv/opcode", pPatchRec->patch.pPrivInstrGC);
+            STAMR3RegisterF(pVM, &pPatchRec->patch.uOldState,       STAMTYPE_U32, STAMVISIBILITY_ALWAYS, STAMUNIT_NONE,       NULL, "/PATM/PatchBD/0x%RRv/uOldState", pPatchRec->patch.pPrivInstrGC);
+            STAMR3RegisterF(pVM, &pPatchRec->patch.uOpMode,         STAMTYPE_U32, STAMVISIBILITY_ALWAYS, STAMUNIT_NONE,       NULL, "/PATM/PatchBD/0x%RRv/uOpMode", pPatchRec->patch.pPrivInstrGC);
             /// @todo change the state to be a callback so we can get a state mnemonic instead.
-            STAMR3RegisterF(pVM, &pPatchRec->patch.uState,          STAMTYPE_U32, STAMVISIBILITY_ALWAYS, STAMUNIT_NONE,       NULL, "/PATM/Stats/PatchBD/0x%RRv/uState", pPatchRec->patch.pPrivInstrGC);
+            STAMR3RegisterF(pVM, &pPatchRec->patch.uState,          STAMTYPE_U32, STAMVISIBILITY_ALWAYS, STAMUNIT_NONE,       NULL, "/PATM/PatchBD/0x%RRv/uState", pPatchRec->patch.pPrivInstrGC);
 #endif
         }
 #endif
@@ -5628,7 +5613,7 @@ int patmR3RemovePatch(PVM pVM, PPATMPATCHREC pPatchRec, bool fForceRemove)
     if (PATM_STAT_INDEX_IS_VALID(pPatchRec->patch.uPatchIdx))
     {
         STAMR3DeregisterF(pVM->pUVM, "/PATM/Stats/Patch/0x%RRv", pPatchRec->patch.pPrivInstrGC);
-        STAMR3DeregisterF(pVM->pUVM, "/PATM/Stats/PatchBD/0x%RRv*", pPatchRec->patch.pPrivInstrGC);
+        STAMR3DeregisterF(pVM->pUVM, "/PATM/PatchBD/0x%RRv*", pPatchRec->patch.pPrivInstrGC);
     }
 #endif
 
@@ -5741,7 +5726,7 @@ int patmR3RefreshPatch(PVM pVM, PPATMPATCHREC pPatchRec)
     if (PATM_STAT_INDEX_IS_VALID(pPatchRec->patch.uPatchIdx))
     {
         STAMR3DeregisterF(pVM->pUVM, "/PATM/Stats/Patch/0x%RRv", pPatchRec->patch.pPrivInstrGC);
-        STAMR3DeregisterF(pVM->pUVM, "/PATM/Stats/PatchBD/0x%RRv*", pPatchRec->patch.pPrivInstrGC);
+        STAMR3DeregisterF(pVM->pUVM, "/PATM/PatchBD/0x%RRv*", pPatchRec->patch.pPrivInstrGC);
     }
 #endif
 
@@ -6525,13 +6510,15 @@ VMMR3_INT_DECL(int) PATMR3HandleTrap(PVM pVM, PCPUMCTX pCtx, RTRCPTR pEip, RTGCP
         /* Very bad. We crashed in emitted code. Probably stack? */
         if (pPatch)
         {
-            AssertReleaseMsg(pVM->patm.s.pGCStateHC->fPIF == 1,
-                            ("Crash in patch code %RRv (%RRv) esp=%RX32\nPatch state=%x flags=%RX64 fDirty=%d\n%s\n", pEip, pNewEip, CPUMGetGuestESP(pVCpu), pPatch->patch.uState, pPatch->patch.flags, pPatchToGuestRec->fDirty, szBuf));
+            AssertLogRelMsg(pVM->patm.s.pGCStateHC->fPIF == 1,
+                            ("Crash in patch code %RRv (%RRv) esp=%RX32\nPatch state=%x flags=%RX64 fDirty=%d\n%s\n",
+                             pEip, pNewEip, CPUMGetGuestESP(pVCpu), pPatch->patch.uState, pPatch->patch.flags,
+                             pPatchToGuestRec->fDirty, szBuf));
         }
         else
-            AssertReleaseMsg(pVM->patm.s.pGCStateHC->fPIF == 1,
+            AssertLogRelMsg(pVM->patm.s.pGCStateHC->fPIF == 1,
                             ("Crash in patch code %RRv (%RRv) esp=%RX32\n%s\n", pEip, pNewEip, CPUMGetGuestESP(pVCpu), szBuf));
-        EMR3FatalError(pVCpu, VERR_INTERNAL_ERROR);
+        EMR3FatalError(pVCpu, VERR_PATM_IPE_TRAP_IN_PATCH_CODE);
     }
 
     /* From here on, we must have a valid patch to guest translation. */
@@ -6674,11 +6661,12 @@ VMMR3_INT_DECL(int) PATMR3HandleTrap(PVM pVM, PCPUMCTX pCtx, RTRCPTR pEip, RTGCP
 VMMR3_INT_DECL(int) PATMR3HandleMonitoredPage(PVM pVM)
 {
     AssertReturn(!HMIsEnabled(pVM), VERR_PATM_HM_IPE);
+    PVMCPU pVCpu = VMMGetCpu0(pVM);
 
     RTRCPTR addr = pVM->patm.s.pvFaultMonitor;
     addr &= PAGE_BASE_GC_MASK;
 
-    int rc = PGMHandlerVirtualDeregister(pVM, addr);
+    int rc = PGMHandlerVirtualDeregister(pVM, pVCpu, addr, false /*fHypervisor*/);
     AssertRC(rc); NOREF(rc);
 
     PPATMPATCHREC pPatchRec = (PPATMPATCHREC)RTAvloU32GetBestFit(&pVM->patm.s.PatchLookupTreeHC->PatchTree, addr, false);

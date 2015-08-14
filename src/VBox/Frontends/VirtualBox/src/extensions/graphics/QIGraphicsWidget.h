@@ -1,7 +1,6 @@
+/* $Id: QIGraphicsWidget.h $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * QIGraphicsWidget class declaration
+ * VBox Qt GUI - QIGraphicsWidget class declaration.
  */
 
 /*

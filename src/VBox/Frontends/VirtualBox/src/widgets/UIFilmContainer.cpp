@@ -1,8 +1,6 @@
 /* $Id: UIFilmContainer.cpp $ */
 /** @file
- *
- * VBox frontends: Qt4 GUI ("VirtualBox"):
- * UIFilmContainer class implementation
+ * VBox Qt GUI - UIFilmContainer class implementation.
  */
 
 /*
@@ -17,16 +15,23 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* Qt includes: */
-#include <QHBoxLayout>
-#include <QVBoxLayout>
-#include <QScrollArea>
-#include <QScrollBar>
-#include <QCheckBox>
-#include <QPainter>
+# include <QHBoxLayout>
+# include <QVBoxLayout>
+# include <QScrollArea>
+# include <QScrollBar>
+# include <QCheckBox>
+# include <QPainter>
 
 /* GUI includes: */
-#include "UIFilmContainer.h"
+# include "UIFilmContainer.h"
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 
 UIFilmContainer::UIFilmContainer(QWidget *pParent /* = 0*/)
     : QWidget(pParent)
@@ -140,7 +145,7 @@ void UIFilm::retranslateUi()
 {
     /* Translate check-box: */
     m_pCheckBox->setText(QApplication::translate("UIMachineSettingsDisplay", "Screen %1").arg(m_iScreenIndex + 1));
-    m_pCheckBox->setWhatsThis(QApplication::translate("UIMachineSettingsDisplay", "Enable video recording for screen %1.").arg(m_iScreenIndex + 1));
+    m_pCheckBox->setWhatsThis(QApplication::translate("UIMachineSettingsDisplay", "When checked, enables video recording for screen %1.").arg(m_iScreenIndex + 1));
 }
 
 void UIFilm::prepare()

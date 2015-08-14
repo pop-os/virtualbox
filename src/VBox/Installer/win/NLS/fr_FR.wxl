@@ -4,7 +4,7 @@
     <!--
             Language Definition Include for VirtualBox WiX script.
 
-            Copyright (C) 2011-2014 Oracle Corporation
+            Copyright (C) 2011-2015 Oracle Corporation
 
             This file is part of VirtualBox Open Source Edition (OSE), as
             available from http://www.virtualbox.org. This file is free software;
@@ -50,7 +50,10 @@
     <String Id="VB_Network">Pilotes [ProductName] pour le support réseau.</String>
     <String Id="VB_NetFltDriver">Pilote [ProductName] pour l'accès réseau par pont.</String>
     <String Id="VB_NetAdpDriver">Pilote de carte réseau virtuelle [ProductName] pour l'accès réseau privé hôte.</String>
-    <String Id="VB_Python">Python support for VirtualBox.</String>
+    <String Id="VB_NetLwfDriver">[ProductName] driver for NDIS6 Bridged Networking.</String>
+    <String Id="VB_NetAdp6Driver">[ProductName] virtual network adapter driver for NDIS6 Host-Only Networking.</String>
+
+  <String Id="VB_Python">Python support for VirtualBox.</String>
 
     <!---->
 
@@ -112,12 +115,22 @@
     <String Id="CustomizeDlg_SelItemPath">&lt;Chemin de l'entrée sélectionnée&gt;</String>
 
     <!---->
-
+  
     <String Id="Customize2Dlg_Header">Personaliser</String>
     <String Id="Customize2Dlg_Desc">Veuillez choisir une des options suivantes:</String>
     <String Id="Customize2Dlg_CreateShortcut">Créer un raccourci sur le bureau</String>
     <String Id="Customize2Dlg_CreateQuickLaunch">Créer un raccourci dans la barre de lancement rapide</String>
     <String Id="Customize2Dlg_RegisterFileExtensions">Inscription des associations de fichiers</String>
+
+    <!---->
+
+    <String Id="SelectionNetworkTypeDlg_CommonDescription">Veuillez choisir le type de pilotes réseau à utiliser :</String>
+    <String Id="SelectionNetworkTypeDlg_DescriptionNDIS5">NDIS5 network drivers.
+This is default for older versions of Windows (pre-Vista).</String>
+    <String Id="SelectionNetworkTypeDlg_DescriptionNDIS6">NDIS6 network drivers.
+This is default for newer versions of Windows (Vista and newer).</String>
+    <String Id="SelectionNetworkTypeDlg_RadioButtonNDIS5">Utiliser pilotes réseau NDIS5.</String>
+    <String Id="SelectionNetworkTypeDlg_RadioButtonNDIS6">Utiliser pilotes réseau NDIS6.</String>
 
     <!---->
 

@@ -50,26 +50,24 @@ void Bstr::copyFromN(const char *a_pszSrc, size_t a_cchMax)
      */
     size_t cwc;
     int vrc = ::RTStrCalcUtf16LenEx(a_pszSrc, a_cchMax, &cwc);
-    if (RT_FAILURE(vrc))
+    if (RT_SUCCESS(vrc))
     {
-        /* ASSUME: input is valid Utf-8. Fake out of memory error. */
+        m_bstr = ::SysAllocStringByteLen(NULL, (unsigned)(cwc * sizeof(OLECHAR)));
+        if (RT_LIKELY(m_bstr))
+        {
+            PRTUTF16 pwsz = (PRTUTF16)m_bstr;
+            vrc = ::RTStrToUtf16Ex(a_pszSrc, a_cchMax, &pwsz, cwc + 1, NULL);
+            if (RT_SUCCESS(vrc))
+                return;
+
+            /* This should not happen! */
+            AssertRC(vrc);
+            cleanup();
+        }
+    }
+    else /* ASSUME: input is valid Utf-8. Fake out of memory error. */
         AssertLogRelMsgFailed(("%Rrc %.*Rhxs\n", vrc, RTStrNLen(a_pszSrc, a_cchMax), a_pszSrc));
-        throw std::bad_alloc();
-    }
-
-    m_bstr = ::SysAllocStringByteLen(NULL, (unsigned)(cwc * sizeof(OLECHAR)));
-    if (RT_UNLIKELY(!m_bstr))
-        throw std::bad_alloc();
-
-    PRTUTF16 pwsz = (PRTUTF16)m_bstr;
-    vrc = ::RTStrToUtf16Ex(a_pszSrc, a_cchMax, &pwsz, cwc + 1, NULL);
-    if (RT_FAILURE(vrc))
-    {
-        /* This should not happen! */
-        AssertRC(vrc);
-        cleanup();
-        throw std::bad_alloc();
-    }
+    throw std::bad_alloc();
 }
 
 
@@ -80,20 +78,23 @@ const Utf8Str Utf8Str::Empty; /* default ctor is OK */
 void Utf8Str::cloneTo(char **pstr) const
 {
     size_t cb = length() + 1;
-    *pstr = (char*)nsMemory::Alloc(cb);
-    if (RT_UNLIKELY(!*pstr))
+    *pstr = (char *)nsMemory::Alloc(cb);
+    if (RT_LIKELY(*pstr))
+        memcpy(*pstr, c_str(), cb);
+    else
         throw std::bad_alloc();
-    memcpy(*pstr, c_str(), cb);
 }
 
 HRESULT Utf8Str::cloneToEx(char **pstr) const
 {
     size_t cb = length() + 1;
-    *pstr = (char*)nsMemory::Alloc(cb);
-    if (RT_UNLIKELY(!*pstr))
-        return E_OUTOFMEMORY;
-    memcpy(*pstr, c_str(), cb);
-    return S_OK;
+    *pstr = (char *)nsMemory::Alloc(cb);
+    if (RT_LIKELY(*pstr))
+    {
+        memcpy(*pstr, c_str(), cb);
+        return S_OK;
+    }
+    return E_OUTOFMEMORY;
 }
 #endif
 
@@ -134,14 +135,33 @@ Utf8Str& Utf8Str::stripPath()
     return *this;
 }
 
-Utf8Str& Utf8Str::stripExt()
+Utf8Str& Utf8Str::stripSuffix()
 {
     if (length())
     {
-        RTPathStripExt(m_psz);
+        RTPathStripSuffix(m_psz);
         jolt();
     }
     return *this;
+}
+
+size_t Utf8Str::parseKeyValue(Utf8Str &key, Utf8Str &value, size_t pos, const Utf8Str &pairSeparator, const Utf8Str &keyValueSeparator) const
+{
+    size_t start = pos;
+    while(start == (pos = find(pairSeparator.c_str(), pos)))
+        start = ++pos;
+
+    size_t kvSepPos = find(keyValueSeparator.c_str(), start);
+    if (kvSepPos < pos)
+    {
+        key = substr(start, kvSepPos - start);
+        value = substr(kvSepPos + 1, pos - kvSepPos - 1);
+    }
+    else
+    {
+        key = value = "";
+    }
+    return pos;
 }
 
 /**
@@ -159,15 +179,17 @@ Utf8Str& Utf8Str::stripExt()
  *
  * @param   a_pbstr         The source string.  The caller guarantees that this
  *                          is valid UTF-16.
+ * @param   a_cwcMax        The number of characters to be copied. If set to RTSTR_MAX,
+ *                          the entire string will be copied.
  *
  * @sa      RTCString::copyFromN
  */
-void Utf8Str::copyFrom(CBSTR a_pbstr)
+void Utf8Str::copyFrom(CBSTR a_pbstr, size_t a_cwcMax)
 {
     if (a_pbstr && *a_pbstr)
     {
         int vrc = RTUtf16ToUtf8Ex((PCRTUTF16)a_pbstr,
-                                  RTSTR_MAX,        // size_t cwcString: translate entire string
+                                  a_cwcMax,        // size_t cwcString: translate entire string
                                   &m_psz,           // char **ppsz: output buffer
                                   0,                // size_t cch: if 0, func allocates buffer in *ppsz
                                   &m_cch);          // size_t *pcch: receives the size of the output string, excluding the terminator.

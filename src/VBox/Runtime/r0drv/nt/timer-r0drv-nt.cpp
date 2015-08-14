@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -35,7 +35,8 @@
 #include <iprt/err.h>
 #include <iprt/asm.h>
 #include <iprt/assert.h>
-#include <iprt/alloc.h>
+#include <iprt/mem.h>
+#include <iprt/thread.h>
 
 #include "internal-r0drv-nt.h"
 #include "internal/magics.h"
@@ -58,6 +59,8 @@ typedef struct RTTIMERNTSUBTIMER
     uint64_t                iTick;
     /** Pointer to the parent timer. */
     PRTTIMER                pParent;
+    /** Thread active executing the worker function, NIL if inactive. */
+    RTNATIVETHREAD volatile hActiveThread;
     /** The NT DPC object. */
     KDPC                    NtDpc;
 } RTTIMERNTSUBTIMER;
@@ -91,7 +94,7 @@ typedef struct RTTIMER
     /** The timer interval. 0 if one-shot. */
     uint64_t                u64NanoInterval;
 #ifdef RTR0TIMER_NT_MANUAL_RE_ARM
-    /** The NT start time . */
+    /** The desired NT time of the first tick. */
     uint64_t                uNtStartTime;
 #endif
     /** The Nt timer object. */
@@ -186,12 +189,16 @@ static void _stdcall rtTimerNtSimpleCallback(IN PKDPC pDpc, IN PVOID pvUser, IN 
     if (    !ASMAtomicUoReadBool(&pTimer->fSuspended)
         &&  pTimer->u32Magic == RTTIMER_MAGIC)
     {
+        ASMAtomicWriteHandle(&pTimer->aSubTimers[0].hActiveThread, RTThreadNativeSelf());
+
         if (!pTimer->u64NanoInterval)
             ASMAtomicWriteBool(&pTimer->fSuspended, true);
         uint64_t iTick = ++pTimer->aSubTimers[0].iTick;
         if (pTimer->u64NanoInterval)
             rtTimerNtRearmInternval(pTimer, iTick, &pTimer->aSubTimers[0].NtDpc);
         pTimer->pfnTimer(pTimer, pTimer->pvUser, iTick);
+
+        ASMAtomicWriteHandle(&pTimer->aSubTimers[0].hActiveThread, NIL_RTNATIVETHREAD);
     }
 
     NOREF(pDpc); NOREF(SystemArgument1); NOREF(SystemArgument2);
@@ -226,11 +233,15 @@ static void _stdcall rtTimerNtOmniSlaveCallback(IN PKDPC pDpc, IN PVOID pvUser, 
     if (    !ASMAtomicUoReadBool(&pTimer->fSuspended)
         &&  pTimer->u32Magic == RTTIMER_MAGIC)
     {
+        ASMAtomicWriteHandle(&pSubTimer->hActiveThread, RTThreadNativeSelf());
+
         if (!pTimer->u64NanoInterval)
             if (ASMAtomicDecS32(&pTimer->cOmniSuspendCountDown) <= 0)
                 ASMAtomicWriteBool(&pTimer->fSuspended, true);
 
         pTimer->pfnTimer(pTimer, pTimer->pvUser, ++pSubTimer->iTick);
+
+        ASMAtomicWriteHandle(&pSubTimer->hActiveThread, NIL_RTNATIVETHREAD);
     }
 
     NOREF(pDpc); NOREF(SystemArgument1); NOREF(SystemArgument2);
@@ -272,6 +283,8 @@ static void _stdcall rtTimerNtOmniMasterCallback(IN PKDPC pDpc, IN PVOID pvUser,
         RTCPUSET    OnlineSet;
         RTMpGetOnlineSet(&OnlineSet);
 
+        ASMAtomicWriteHandle(&pSubTimer->hActiveThread, RTThreadNativeSelf());
+
         if (pTimer->u64NanoInterval)
         {
             /*
@@ -308,6 +321,8 @@ static void _stdcall rtTimerNtOmniMasterCallback(IN PKDPC pDpc, IN PVOID pvUser,
 
             pTimer->pfnTimer(pTimer, pTimer->pvUser, ++pSubTimer->iTick);
         }
+
+        ASMAtomicWriteHandle(&pSubTimer->hActiveThread, NIL_RTNATIVETHREAD);
     }
 
     NOREF(pDpc); NOREF(SystemArgument1); NOREF(SystemArgument2);
@@ -356,7 +371,7 @@ RTDECL(int) RTTimerStart(PRTTIMER pTimer, uint64_t u64First)
     ASMAtomicWriteS32(&pTimer->cOmniSuspendCountDown, 0);
     ASMAtomicWriteBool(&pTimer->fSuspended, false);
 #ifdef RTR0TIMER_NT_MANUAL_RE_ARM
-    pTimer->uNtStartTime = rtTimerNtQueryInterruptTime();
+    pTimer->uNtStartTime = rtTimerNtQueryInterruptTime() + u64First / 100;
     KeSetTimerEx(&pTimer->NtTimer, DueTime, 0, pMasterDpc);
 #else
     KeSetTimerEx(&pTimer->NtTimer, DueTime, ulInterval, pMasterDpc);
@@ -378,18 +393,11 @@ static void rtTimerNtStopWorker(PRTTIMER pTimer)
      * Just cancel the timer, dequeue the DPCs and flush them (if this is supported).
      */
     ASMAtomicWriteBool(&pTimer->fSuspended, true);
+
     KeCancelTimer(&pTimer->NtTimer);
 
     for (RTCPUID iCpu = 0; iCpu < pTimer->cSubTimers; iCpu++)
         KeRemoveQueueDpc(&pTimer->aSubTimers[iCpu].NtDpc);
-
-    /*
-     * I'm a bit uncertain whether this should be done during RTTimerStop
-     * or only in RTTimerDestroy()... Linux and Solaris will wait AFAIK,
-     * which is why I'm keeping this here for now.
-     */
-    if (g_pfnrtNtKeFlushQueuedDpcs)
-        g_pfnrtNtKeFlushQueuedDpcs();
 }
 
 
@@ -430,12 +438,25 @@ RTDECL(int) RTTimerDestroy(PRTTIMER pTimer)
     AssertReturn(pTimer->u32Magic == RTTIMER_MAGIC, VERR_INVALID_HANDLE);
 
     /*
+     * We do not support destroying a timer from the callback because it is
+     * not 101% safe since we cannot flush DPCs.  Solaris has the same restriction.
+     */
+    AssertReturn(KeGetCurrentIrql() == PASSIVE_LEVEL, VERR_INVALID_CONTEXT);
+
+    /*
      * Invalidate the timer, stop it if it's running and finally
      * free up the memory.
      */
     ASMAtomicWriteU32(&pTimer->u32Magic, ~RTTIMER_MAGIC);
     if (!ASMAtomicUoReadBool(&pTimer->fSuspended))
         rtTimerNtStopWorker(pTimer);
+
+    /*
+     * Flush DPCs to be on the safe side.
+     */
+    if (g_pfnrtNtKeFlushQueuedDpcs)
+        g_pfnrtNtKeFlushQueuedDpcs();
+
     RTMemFree(pTimer);
 
     return VINF_SUCCESS;

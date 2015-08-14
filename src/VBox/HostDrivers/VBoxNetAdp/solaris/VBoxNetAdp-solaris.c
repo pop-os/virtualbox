@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2012 Oracle Corporation
+ * Copyright (C) 2009-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -28,10 +28,6 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_NET_ADP_DRV
-#ifdef DEBUG_ramshankar
-# define LOG_ENABLED
-# define LOG_INSTANCE       RTLogRelDefaultInstance()
-#endif
 #include <VBox/log.h>
 #include <VBox/err.h>
 #include <VBox/version.h>
@@ -64,7 +60,6 @@
 #define DEVICE_NAME              "vboxnet"
 /** The module descriptions as seen in 'modinfo'. */
 #define DEVICE_DESC_DRV          "VirtualBox NetAdp"
-#define VBOXNETADP_MTU           1500
 
 
 /*******************************************************************************
@@ -72,6 +67,7 @@
 *******************************************************************************/
 static int VBoxNetAdpSolarisAttach(dev_info_t *pDip, ddi_attach_cmd_t enmCmd);
 static int VBoxNetAdpSolarisDetach(dev_info_t *pDip, ddi_detach_cmd_t enmCmd);
+static int VBoxNetAdpSolarisQuiesceNotNeeded(dev_info_t *pDip);
 
 /**
  * Streams: module info.
@@ -163,7 +159,8 @@ static struct dev_ops g_VBoxNetAdpSolarisDevOps =
     nodev,                          /* reset */
     &g_VBoxNetAdpSolarisCbOps,
     (struct bus_ops *)0,
-    nodev                           /* power */
+    nodev,                          /* power */
+    VBoxNetAdpSolarisQuiesceNotNeeded
 };
 
 /**
@@ -439,6 +436,20 @@ static int VBoxNetAdpSolarisDetach(dev_info_t *pDip, ddi_detach_cmd_t enmCmd)
         default:
             return DDI_FAILURE;
     }
+}
+
+
+/**
+ * Quiesce not-needed entry point, as Solaris 10 doesn't have any
+ * ddi_quiesce_not_needed() function.
+ *
+ * @param   pDip            The module structure instance.
+ *
+ * @return  corresponding solaris error code.
+ */
+static int VBoxNetAdpSolarisQuiesceNotNeeded(dev_info_t *pDip)
+{
+    return DDI_SUCCESS;
 }
 
 

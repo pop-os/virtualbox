@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2012 Oracle Corporation
+ * Copyright (C) 2010-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1348,7 +1348,7 @@ static int ElfWriteNoteHeader(PRTSOLCORE pSolCore, uint_t Type, const void *pcv,
 
     /*
      * This is a known violation of the 64-bit ELF spec., see xTracker @bugref{5211}
-     * for the historic reasons as to the padding and namesz anomalies.
+     * for the historic reasons as to the padding and 'namesz' anomalies.
      */
     static const char s_achPad[3] = { 0, 0, 0 };
     size_t cbAlign = RT_ALIGN_Z(cb, 4);
@@ -1687,7 +1687,7 @@ static int ElfWriteMappingHeaders(PRTSOLCORE pSolCore)
     while (pMapInfo)
     {
         ProgHdr.p_vaddr  = pMapInfo->pMap.pr_vaddr;     /* Virtual address of this mapping in the process address space */
-        ProgHdr.p_offset = pSolCore->offWrite;         /* Where this mapping is located in the core file */
+        ProgHdr.p_offset = pSolCore->offWrite;          /* Where this mapping is located in the core file */
         ProgHdr.p_memsz  = pMapInfo->pMap.pr_size;      /* Size of the memory image of the mapping */
         ProgHdr.p_filesz = pMapInfo->pMap.pr_size;      /* Size of the file image of the mapping */
 

@@ -105,7 +105,7 @@ DECLINLINE(int32_t) VMCpuSetFindLastPresentInternal(PCVMCPUSET pSet)
     return NIL_VMCPUID;
 }
 
-/** @ */
+/** @} */
 
 #endif
 

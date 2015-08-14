@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -246,11 +246,6 @@ typedef struct CPUMCTXCORE
 #pragma pack(1) /* for VBOXIDTR / VBOXGDTR. */
 typedef struct CPUMCTX
 {
-    /** FPU state. (16-byte alignment)
-     * @todo This doesn't have to be in X86FXSTATE on CPUs without fxsr - we need a type for the
-     *       actual format or convert it (waste of time).  */
-    X86FXSTATE      fpu;
-
     /** CPUMCTXCORE Part.
      * @{ */
 
@@ -403,12 +398,61 @@ typedef struct CPUMCTX
     uint64_t        msrApicBase;        /**< The local APIC base (IA32_APIC_BASE MSR). */
     /** @} */
 
+    /** The XCR0..XCR1 registers. */
+    uint64_t                    aXcr[2];
+    /** The mask to pass to XSAVE/XRSTOR in EDX:EAX.  If zero we use
+     *  FXSAVE/FXRSTOR (since bit 0 will always be set, we only need to test it). */
+    uint64_t                    fXStateMask;
+
+    /** Pointer to the FPU/SSE/AVX/XXXX state ring-0 mapping. */
+    R0PTRTYPE(PX86XSAVEAREA)    pXStateR0;
+    /** Pointer to the FPU/SSE/AVX/XXXX state ring-3 mapping. */
+    R3PTRTYPE(PX86XSAVEAREA)    pXStateR3;
+    /** Pointer to the FPU/SSE/AVX/XXXX state raw-mode mapping. */
+    RCPTRTYPE(PX86XSAVEAREA)    pXStateRC;
+    /** State component offsets into pXState, UINT16_MAX if not present. */
+    uint16_t                    aoffXState[64];
+
     /** Size padding. */
-    uint32_t        au32SizePadding[6];
+    uint32_t        au32SizePadding[HC_ARCH_BITS == 32 ? 13 : 11];
 } CPUMCTX;
 #pragma pack()
 
 #ifndef VBOX_FOR_DTRACE_LIB
+AssertCompileSizeAlignment(CPUMCTX, 64);
+
+/**
+ * Calculates the pointer to the given extended state component.
+ *
+ * @returns Pointer of type @a a_PtrType
+ * @param   a_pCtx          Pointer to the context.
+ * @param   a_iCompBit      The extended state component bit number.  This bit
+ *                          must be set in CPUMCTX::fXStateMask.
+ * @param   a_PtrType       The pointer type of the extended state component.
+ *
+ */
+#if defined(VBOX_STRICT) && defined(RT_COMPILER_SUPPORTS_LAMBDA)
+# define CPUMCTX_XSAVE_C_PTR(a_pCtx, a_iCompBit, a_PtrType) \
+    ([](PCCPUMCTX a_pLambdaCtx) -> a_PtrType \
+    { \
+        AssertCompile((a_iCompBit) < 64U); \
+        AssertMsg(a_pLambdaCtx->fXStateMask & RT_BIT_64(a_iCompBit), (#a_iCompBit "\n")); \
+        AssertMsg(a_pLambdaCtx->aoffXState[(a_iCompBit)] != UINT16_MAX, (#a_iCompBit "\n")); \
+        return (a_PtrType)((uint8_t *)a_pLambdaCtx->CTX_SUFF(pXState) + a_pLambdaCtx->aoffXState[(a_iCompBit)]); \
+    }(a_pCtx))
+#elif defined(VBOX_STRICT) && defined(__GNUC__)
+# define CPUMCTX_XSAVE_C_PTR(a_pCtx, a_iCompBit, a_PtrType) \
+    __extension__ (\
+    { \
+        AssertCompile((a_iCompBit) < 64U); \
+        AssertMsg((a_pCtx)->fXStateMask & RT_BIT_64(a_iCompBit), (#a_iCompBit "\n")); \
+        AssertMsg((a_pCtx)->aoffXState[(a_iCompBit)] != UINT16_MAX, (#a_iCompBit "\n")); \
+        (a_PtrType)((uint8_t *)(a_pCtx)->CTX_SUFF(pXState) + (a_pCtx)->aoffXState[(a_iCompBit)]); \
+    })
+#else
+# define CPUMCTX_XSAVE_C_PTR(a_pCtx, a_iCompBit, a_PtrType) \
+    ((a_PtrType)((uint8_t *)(a_pCtx)->CTX_SUFF(pXState) + (a_pCtx)->aoffXState[(a_iCompBit)]))
+#endif
 
 /**
  * Gets the CPUMCTXCORE part of a CPUMCTX.
@@ -416,7 +460,7 @@ typedef struct CPUMCTX
 # define CPUMCTX2CORE(pCtx) ((PCPUMCTXCORE)(void *)&(pCtx)->rax)
 
 /**
- * Gets the CPUMCTXCORE part of a CPUMCTX.
+ * Gets the CPUMCTX part from a CPUMCTXCORE.
  */
 # define CPUMCTX_FROM_CORE(a_pCtxCore) RT_FROM_MEMBER(a_pCtxCore, CPUMCTX, rax)
 
@@ -467,10 +511,10 @@ typedef const CPUMCTXMSRS *PCCPUMCTXMSRS;
  */
 typedef struct CPUMCPUID
 {
-    uint32_t eax;
-    uint32_t ebx;
-    uint32_t ecx;
-    uint32_t edx;
+    uint32_t uEax;
+    uint32_t uEbx;
+    uint32_t uEcx;
+    uint32_t uEdx;
 } CPUMCPUID;
 /** Pointer to a CPUID leaf. */
 typedef CPUMCPUID *PCPUMCPUID;

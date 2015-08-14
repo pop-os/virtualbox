@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -54,6 +54,7 @@ static const RTGETOPTDEF g_aStorageAttachOptions[] =
     { "--tempeject",        'e', RTGETOPT_REQ_STRING },
     { "--nonrotational",    'n', RTGETOPT_REQ_STRING },
     { "--discard",          'u', RTGETOPT_REQ_STRING },
+    { "--hotpluggable",     'o', RTGETOPT_REQ_STRING },
     { "--bandwidthgroup",   'b', RTGETOPT_REQ_STRING },
     { "--forceunmount",     'f', RTGETOPT_REQ_NOTHING },
     { "--comment",          'C', RTGETOPT_REQ_STRING },
@@ -71,7 +72,7 @@ static const RTGETOPTDEF g_aStorageAttachOptions[] =
     { "--intnet",           'I', RTGETOPT_REQ_NOTHING },
 };
 
-int handleStorageAttach(HandlerArg *a)
+RTEXITCODE handleStorageAttach(HandlerArg *a)
 {
     int c = VERR_INTERNAL_ERROR;        /* initialized to shut up gcc */
     HRESULT rc = S_OK;
@@ -81,7 +82,7 @@ int handleStorageAttach(HandlerArg *a)
     bool fSetMediumType = false;
     bool fSetNewUuid = false;
     bool fSetNewParentUuid = false;
-    MediumType_T mediumType = MediumType_Normal;
+    MediumType_T enmMediumType = MediumType_Normal;
     Bstr bstrComment;
     const char *pszCtl  = NULL;
     DeviceType_T devTypeRequested = DeviceType_Null;
@@ -90,6 +91,7 @@ int handleStorageAttach(HandlerArg *a)
     const char *pszTempEject = NULL;
     const char *pszNonRotational = NULL;
     const char *pszDiscard = NULL;
+    const char *pszHotPluggable = NULL;
     const char *pszBandwidthGroup = NULL;
     Bstr bstrNewUuid;
     Bstr bstrNewParentUuid;
@@ -203,6 +205,15 @@ int handleStorageAttach(HandlerArg *a)
                 break;
             }
 
+            case 'o':   // hotpluggable <on|off>
+            {
+                if (ValueUnion.psz)
+                    pszHotPluggable = ValueUnion.psz;
+                else
+                    rc = E_FAIL;
+                break;
+            }
+
             case 'b':   // bandwidthgroup <name>
             {
                 if (ValueUnion.psz)
@@ -279,9 +290,9 @@ int handleStorageAttach(HandlerArg *a)
 
             case 'M':   // --type
             {
-                int vrc = parseDiskType(ValueUnion.psz, &mediumType);
+                int vrc = parseMediumType(ValueUnion.psz, &enmMediumType);
                 if (RT_FAILURE(vrc))
-                    return errorArgument("Invalid hard disk type '%s'", ValueUnion.psz);
+                    return errorArgument("Invalid medium type '%s'", ValueUnion.psz);
                 fSetMediumType = true;
                 break;
             }
@@ -300,20 +311,20 @@ int handleStorageAttach(HandlerArg *a)
     }
 
     if (FAILED(rc))
-        return 1;
+        return RTEXITCODE_FAILURE;
 
     if (!pszCtl)
         return errorSyntax(USAGE_STORAGEATTACH, "Storage controller name not specified");
 
     /* get the virtualbox system properties */
-    CHECK_ERROR_RET(a->virtualBox, COMGETTER(SystemProperties)(systemProperties.asOutParam()), 1);
+    CHECK_ERROR_RET(a->virtualBox, COMGETTER(SystemProperties)(systemProperties.asOutParam()), RTEXITCODE_FAILURE);
 
     // find the machine, lock it, get the mutable session machine
     CHECK_ERROR_RET(a->virtualBox, FindMachine(Bstr(a->argv[0]).raw(),
-                                               machine.asOutParam()), 1);
-    CHECK_ERROR_RET(machine, LockMachine(a->session, LockType_Shared), 1);
+                                               machine.asOutParam()), RTEXITCODE_FAILURE);
+    CHECK_ERROR_RET(machine, LockMachine(a->session, LockType_Shared), RTEXITCODE_FAILURE);
     SessionType_T st;
-    CHECK_ERROR_RET(a->session, COMGETTER(Type)(&st), 1);
+    CHECK_ERROR_RET(a->session, COMGETTER(Type)(&st), RTEXITCODE_FAILURE);
     a->session->COMGETTER(Machine)(machine.asOutParam());
 
     try
@@ -335,11 +346,11 @@ int handleStorageAttach(HandlerArg *a)
             throw Utf8StrFmt("Could not find a controller named '%s'\n", pszCtl);
 
         StorageBus_T storageBus = StorageBus_Null;
-        CHECK_ERROR_RET(storageCtl, COMGETTER(Bus)(&storageBus), 1);
+        CHECK_ERROR_RET(storageCtl, COMGETTER(Bus)(&storageBus), RTEXITCODE_FAILURE);
         ULONG maxPorts = 0;
-        CHECK_ERROR_RET(systemProperties, GetMaxPortCountForStorageBus(storageBus, &maxPorts), 1);
+        CHECK_ERROR_RET(systemProperties, GetMaxPortCountForStorageBus(storageBus, &maxPorts), RTEXITCODE_FAILURE);
         ULONG maxDevices = 0;
-        CHECK_ERROR_RET(systemProperties, GetMaxDevicesPerPortForStorageBus(storageBus, &maxDevices), 1);
+        CHECK_ERROR_RET(systemProperties, GetMaxDevicesPerPortForStorageBus(storageBus, &maxDevices), RTEXITCODE_FAILURE);
 
         if (port == ~0U)
         {
@@ -540,7 +551,7 @@ int handleStorageAttach(HandlerArg *a)
 
             // find the medium given
             /* host drive? */
-            if (!RTStrNICmp(pszMedium, "host:", 5))
+            if (!RTStrNICmp(pszMedium, RT_STR_TUPLE("host:")))
             {
                 ComPtr<IHost> host;
                 CHECK_ERROR(a->virtualBox, COMGETTER(Host)(host.asOutParam()));
@@ -589,9 +600,11 @@ int handleStorageAttach(HandlerArg *a)
                 else
                     bstrISCSIMedium = BstrFmt("%ls|%ls|%ls", bstrServer.raw(), bstrTarget.raw(), bstrLun.raw());
 
-                CHECK_ERROR(a->virtualBox, CreateHardDisk(Bstr("iSCSI").raw(),
-                                                          bstrISCSIMedium.raw(),
-                                                          pMedium2Mount.asOutParam()));
+                CHECK_ERROR(a->virtualBox, CreateMedium(Bstr("iSCSI").raw(),
+                                                        bstrISCSIMedium.raw(),
+                                                        AccessMode_ReadWrite,
+                                                        DeviceType_HardDisk,
+                                                        pMedium2Mount.asOutParam()));
                 if (FAILED(rc)) goto leave;
                 if (!bstrPort.isEmpty())
                     bstrServer = BstrFmt("%ls:%ls", bstrServer.raw(), bstrPort.raw());
@@ -675,7 +688,7 @@ int handleStorageAttach(HandlerArg *a)
             // set medium type, if so desired
             if (pMedium2Mount && fSetMediumType)
             {
-                CHECK_ERROR(pMedium2Mount, COMSETTER(Type)(mediumType));
+                CHECK_ERROR(pMedium2Mount, COMSETTER(Type)(enmMediumType));
                 if (FAILED(rc))
                     throw  Utf8Str("Failed to set the medium type");
             }
@@ -852,6 +865,31 @@ int handleStorageAttach(HandlerArg *a)
                 throw Utf8StrFmt("Couldn't find the controller attachment for the controller '%s'\n", pszCtl);
         }
 
+        if (   pszHotPluggable
+            && (SUCCEEDED(rc)))
+        {
+            ComPtr<IMediumAttachment> mattach;
+            CHECK_ERROR(machine, GetMediumAttachment(Bstr(pszCtl).raw(), port,
+                                                     device, mattach.asOutParam()));
+
+            if (SUCCEEDED(rc))
+            {
+                if (!RTStrICmp(pszHotPluggable, "on"))
+                {
+                    CHECK_ERROR(machine, SetHotPluggableForDevice(Bstr(pszCtl).raw(),
+                                                                  port, device, TRUE));
+                }
+                else if (!RTStrICmp(pszHotPluggable, "off"))
+                {
+                    CHECK_ERROR(machine, SetHotPluggableForDevice(Bstr(pszCtl).raw(),
+                                                                  port, device, FALSE));
+                }
+                else
+                    throw Utf8StrFmt("Invalid --hotpluggable argument '%s'", pszHotPluggable);
+            }
+            else
+                throw Utf8StrFmt("Couldn't find the controller attachment for the controller '%s'\n", pszCtl);
+        }
 
         if (   pszBandwidthGroup
             && !fRunTime
@@ -897,7 +935,7 @@ int handleStorageAttach(HandlerArg *a)
 leave:
     a->session->UnlockMachine();
 
-    return SUCCEEDED(rc) ? 0 : 1;
+    return SUCCEEDED(rc) ? RTEXITCODE_SUCCESS : RTEXITCODE_FAILURE;
 }
 
 
@@ -908,19 +946,20 @@ static const RTGETOPTDEF g_aStorageControllerOptions[] =
     { "--controller",       'c', RTGETOPT_REQ_STRING },
     { "--portcount",        'p', RTGETOPT_REQ_UINT32 },
     { "--remove",           'r', RTGETOPT_REQ_NOTHING },
+    { "--rename",           'R', RTGETOPT_REQ_STRING },
     { "--hostiocache",      'i', RTGETOPT_REQ_STRING },
     { "--bootable",         'b', RTGETOPT_REQ_STRING },
 };
 
-int handleStorageController(HandlerArg *a)
+RTEXITCODE handleStorageController(HandlerArg *a)
 {
     int               c;
-    HRESULT           rc             = S_OK;
     const char       *pszCtl         = NULL;
     const char       *pszBusType     = NULL;
     const char       *pszCtlType     = NULL;
     const char       *pszHostIOCache = NULL;
     const char       *pszBootable    = NULL;
+    const char       *pszCtlNewName  = NULL;
     ULONG             satabootdev    = ~0U;
     ULONG             sataidedev     = ~0U;
     ULONG             portcount      = ~0U;
@@ -935,80 +974,59 @@ int handleStorageController(HandlerArg *a)
     RTGetOptInit (&GetState, a->argc, a->argv, g_aStorageControllerOptions,
                   RT_ELEMENTS(g_aStorageControllerOptions), 1, RTGETOPTINIT_FLAGS_NO_STD_OPTS);
 
-    while (   SUCCEEDED(rc)
-           && (c = RTGetOpt(&GetState, &ValueUnion)))
+    while ((c = RTGetOpt(&GetState, &ValueUnion)) != 0)
     {
         switch (c)
         {
             case 'n':   // controller name
-            {
-                if (ValueUnion.psz)
-                    pszCtl = ValueUnion.psz;
-                else
-                    rc = E_FAIL;
+                Assert(ValueUnion.psz);
+                pszCtl = ValueUnion.psz;
                 break;
-            }
 
             case 'a':   // controller bus type <ide/sata/scsi/floppy>
-            {
-                if (ValueUnion.psz)
-                    pszBusType = ValueUnion.psz;
-                else
-                    rc = E_FAIL;
+                Assert(ValueUnion.psz);
+                pszBusType = ValueUnion.psz;
                 break;
-            }
 
             case 'c':   // controller <lsilogic/buslogic/intelahci/piix3/piix4/ich6/i82078>
-            {
-                if (ValueUnion.psz)
-                    pszCtlType = ValueUnion.psz;
-                else
-                    rc = E_FAIL;
+                Assert(ValueUnion.psz);
+                pszCtlType = ValueUnion.psz;
                 break;
-            }
 
             case 'p':   // portcount
-            {
                 portcount = ValueUnion.u32;
                 break;
-            }
 
             case 'r':   // remove controller
-            {
                 fRemoveCtl = true;
                 break;
-            }
+
+            case 'R':   // rename controller
+                Assert(ValueUnion.psz);
+                pszCtlNewName = ValueUnion.psz;
+                break;
 
             case 'i':
-            {
                 pszHostIOCache = ValueUnion.psz;
                 break;
-            }
 
             case 'b':
-            {
                 pszBootable = ValueUnion.psz;
                 break;
-            }
 
             default:
-            {
-                errorGetOpt(USAGE_STORAGECONTROLLER, c, &ValueUnion);
-                rc = E_FAIL;
-                break;
-            }
+                return errorGetOpt(USAGE_STORAGECONTROLLER, c, &ValueUnion);
         }
     }
 
-    if (FAILED(rc))
-        return 1;
+    HRESULT rc;
 
     /* try to find the given machine */
     CHECK_ERROR_RET(a->virtualBox, FindMachine(Bstr(a->argv[0]).raw(),
-                                               machine.asOutParam()), 1);
+                                               machine.asOutParam()), RTEXITCODE_FAILURE);
 
     /* open a session for the VM */
-    CHECK_ERROR_RET(machine, LockMachine(a->session, LockType_Write), 1);
+    CHECK_ERROR_RET(machine, LockMachine(a->session, LockType_Write), RTEXITCODE_FAILURE);
 
     /* get the mutable session machine */
     a->session->COMGETTER(Machine)(machine.asOutParam());
@@ -1017,8 +1035,7 @@ int handleStorageController(HandlerArg *a)
     {
         /* it's important to always close sessions */
         a->session->UnlockMachine();
-        errorSyntax(USAGE_STORAGECONTROLLER, "Storage controller name not specified\n");
-        return 1;
+        return errorSyntax(USAGE_STORAGECONTROLLER, "Storage controller name not specified\n");
     }
 
     if (fRemoveCtl)
@@ -1059,6 +1076,12 @@ int handleStorageController(HandlerArg *a)
             {
                 CHECK_ERROR(machine, AddStorageController(Bstr(pszCtl).raw(),
                                                           StorageBus_SAS,
+                                                          ctl.asOutParam()));
+            }
+            else if (!RTStrICmp(pszBusType, "usb"))
+            {
+                CHECK_ERROR(machine, AddStorageController(Bstr(pszCtl).raw(),
+                                                          StorageBus_USB,
                                                           ctl.asOutParam()));
             }
             else
@@ -1109,6 +1132,10 @@ int handleStorageController(HandlerArg *a)
                 else if (!RTStrICmp(pszCtlType, "lsilogicsas"))
                 {
                     CHECK_ERROR(ctl, COMSETTER(ControllerType)(StorageControllerType_LsiLogicSas));
+                }
+                else if (!RTStrICmp(pszCtlType, "usb"))
+                {
+                    CHECK_ERROR(ctl, COMSETTER(ControllerType)(StorageControllerType_USB));
                 }
                 else
                 {
@@ -1198,6 +1225,26 @@ int handleStorageController(HandlerArg *a)
                 rc = E_FAIL;
             }
         }
+
+        if (   pszCtlNewName
+            && SUCCEEDED(rc))
+        {
+            ComPtr<IStorageController> ctl;
+
+            CHECK_ERROR(machine, GetStorageControllerByName(Bstr(pszCtl).raw(),
+                                                            ctl.asOutParam()));
+
+            if (SUCCEEDED(rc))
+            {
+                CHECK_ERROR(ctl, COMSETTER(Name)(Bstr(pszCtlNewName).raw()));
+            }
+            else
+            {
+                errorArgument("Couldn't find the controller with the name: '%s'\n", pszCtl);
+                rc = E_FAIL;
+            }
+        }
+
     }
 
     /* commit changes */
@@ -1207,7 +1254,7 @@ int handleStorageController(HandlerArg *a)
     /* it's important to always close sessions */
     a->session->UnlockMachine();
 
-    return SUCCEEDED(rc) ? 0 : 1;
+    return SUCCEEDED(rc) ? RTEXITCODE_SUCCESS : RTEXITCODE_FAILURE;
 }
 
 #endif /* !VBOX_ONLY_DOCS */

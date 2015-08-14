@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2013 Oracle Corporation
+ * Copyright (C) 2007-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -153,6 +153,7 @@ EIPRTFailure::EIPRTFailure(int aRC, const char *pcszContext, ...)
     va_list args;
     va_start(args, pcszContext);
     RTStrAPrintfV(&pszContext2, pcszContext, args);
+    va_end(args);
     char *newMsg;
     RTStrAPrintf(&newMsg, "%s: %d(%s)", pszContext2, aRC, RTErrGetShort(aRC));
     setWhat(newMsg);
@@ -185,25 +186,31 @@ File::File(Mode aMode, const char *aFileName, bool aFlushIt /* = false */)
     m->flushOnClose = aFlushIt;
 
     uint32_t flags = 0;
+    const char *pcszMode = "???";
     switch (aMode)
     {
         /** @todo change to RTFILE_O_DENY_WRITE where appropriate. */
         case Mode_Read:
             flags = RTFILE_O_READ      | RTFILE_O_OPEN           | RTFILE_O_DENY_NONE;
+            pcszMode = "reading";
             break;
         case Mode_WriteCreate:      // fail if file exists
             flags = RTFILE_O_WRITE     | RTFILE_O_CREATE         | RTFILE_O_DENY_NONE;
+            pcszMode = "writing";
             break;
         case Mode_Overwrite:        // overwrite if file exists
             flags = RTFILE_O_WRITE     | RTFILE_O_CREATE_REPLACE | RTFILE_O_DENY_NONE;
+            pcszMode = "overwriting";
             break;
         case Mode_ReadWrite:
-            flags = RTFILE_O_READWRITE | RTFILE_O_OPEN           | RTFILE_O_DENY_NONE;;
+            flags = RTFILE_O_READWRITE | RTFILE_O_OPEN           | RTFILE_O_DENY_NONE;
+            pcszMode = "reading/writing";
+            break;
     }
 
     int vrc = RTFileOpen(&m->handle, aFileName, flags);
     if (RT_FAILURE(vrc))
-        throw EIPRTFailure(vrc, "Runtime error opening '%s' for reading", aFileName);
+        throw EIPRTFailure(vrc, "Runtime error opening '%s' for %s", aFileName, pcszMode);
 
     m->opened = true;
     m->flushOnClose = aFlushIt && (flags & RTFILE_O_ACCESS_MASK) != RTFILE_O_READ;

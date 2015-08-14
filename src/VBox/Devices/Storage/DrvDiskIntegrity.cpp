@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -798,15 +798,6 @@ static DECLCALLBACK(int) drvdiskintRead(PPDMIMEDIA pInterface,
     return rc;
 }
 
-/** @copydoc PDMIMEDIA::pfnReadPcBios */
-static DECLCALLBACK(int) drvdiskintReadPcBios(PPDMIMEDIA pInterface,
-                                              uint64_t off, void *pvBuf, size_t cbRead)
-{
-    PDRVDISKINTEGRITY pThis = PDMIMEDIA_2_DRVDISKINTEGRITY(pInterface);
-
-    return pThis->pDrvMedia->pfnReadPcBios(pThis->pDrvMedia, off, pvBuf, cbRead);
-}
-
 /** @copydoc PDMIMEDIA::pfnWrite */
 static DECLCALLBACK(int) drvdiskintWrite(PPDMIMEDIA pInterface,
                                          uint64_t off, const void *pvBuf,
@@ -1386,7 +1377,6 @@ static DECLCALLBACK(int) drvdiskintConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg,
 
     /* IMedia */
     pThis->IMedia.pfnRead                = drvdiskintRead;
-    pThis->IMedia.pfnReadPcBios          = drvdiskintReadPcBios;
     pThis->IMedia.pfnWrite               = drvdiskintWrite;
     pThis->IMedia.pfnFlush               = drvdiskintFlush;
     pThis->IMedia.pfnGetSize             = drvdiskintGetSize;

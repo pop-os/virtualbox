@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -65,7 +65,7 @@
 #define PM_TMR_FREQ     3579545
 /* Default base for PM PIIX4 device */
 #define PM_PORT_BASE    0x4000
-/* Port offsets in PM device */    
+/* Port offsets in PM device */
 enum
 {
     PM1a_EVT_OFFSET                     = 0x00,
@@ -892,7 +892,7 @@ static void acpiR3PmTimerReset(ACPIState *pThis, uint64_t uNow)
 
 /**
   * Used by acpiR3PMTimer & acpiPmTmrRead to update TMR_VAL and update TMR_STS
-  * 
+  *
   * The caller is expected to either hold the clock lock or to have made sure
   * the VM is resetting or loading state.
   *
@@ -1511,25 +1511,25 @@ PDMBOTHCBDECL(int) acpiR3PM1aCtlWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT
             case 0x01:                  /* S1 */
                 if (pThis->fS1Enabled)
                 {
-                    LogRel(("Entering S1 power state (powered-on suspend)\n"));
+                    LogRel(("ACPI: Entering S1 power state (powered-on suspend)\n"));
                     rc = acpiR3DoSleep(pThis);
                     break;
                 }
-                LogRel(("Ignoring guest attempt to enter S1 power state (powered-on suspend)!\n"));
+                LogRel(("ACPI: Ignoring guest attempt to enter S1 power state (powered-on suspend)!\n"));
                 /* fall thru */
 
             case 0x04:                  /* S4 */
                 if (pThis->fS4Enabled)
                 {
-                    LogRel(("Entering S4 power state (suspend to disk)\n"));
+                    LogRel(("ACPI: Entering S4 power state (suspend to disk)\n"));
                     rc = acpiR3DoPowerOff(pThis);/* Same behavior as S5 */
                     break;
                 }
-                LogRel(("Ignoring guest attempt to enter S4 power state (suspend to disk)!\n"));
+                LogRel(("ACPI: Ignoring guest attempt to enter S4 power state (suspend to disk)!\n"));
                 /* fall thru */
 
             case 0x05:                  /* S5 */
-                LogRel(("Entering S5 power state (power down)\n"));
+                LogRel(("ACPI: Entering S5 power state (power down)\n"));
                 rc = acpiR3DoPowerOff(pThis);
                 break;
 
@@ -1567,12 +1567,12 @@ PDMBOTHCBDECL(int) acpiPMTmrRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port
     int rc = TMTimerLock(pThis->CTX_SUFF(pPmTimer), VINF_IOM_R3_IOPORT_READ);
     if (rc != VINF_SUCCESS)
         return rc;
-    
+
     rc = PDMCritSectEnter(&pThis->CritSect, VINF_IOM_R3_IOPORT_READ);
     if (rc != VINF_SUCCESS)
     {
-            TMTimerUnlock(pThis->CTX_SUFF(pPmTimer));
-            return rc;
+        TMTimerUnlock(pThis->CTX_SUFF(pPmTimer));
+        return rc;
     }
 
     uint64_t u64Now = TMTimerGet(pThis->CTX_SUFF(pPmTimer));
@@ -1707,7 +1707,7 @@ PDMBOTHCBDECL(int) acpiR3ResetWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT P
     int rc = VINF_SUCCESS;
     if (u32 == ACPI_RESET_REG_VAL)
     {
-        LogRel(("Reset initiated by ACPI\n"));
+        LogRel(("ACPI: Reset initiated by ACPI\n"));
         rc = PDMDevHlpVMReset(pDevIns);
     }
     else
@@ -2641,7 +2641,7 @@ static int acpiR3PlantTables(ACPIState *pThis)
     if (cbRamLow > UINT32_C(0xffe00000)) /* See MEM3. */
     {
         /* Note: This is also enforced by DevPcBios.cpp. */
-        LogRel(("DevACPI: Clipping cbRamLow=%#RX64 down to 0xffe00000.\n", cbRamLow));
+        LogRel(("ACPI: Clipping cbRamLow=%#RX64 down to 0xffe00000.\n", cbRamLow));
         cbRamLow = UINT32_C(0xffe00000);
     }
     pThis->cbRamLow = (uint32_t)cbRamLow;
@@ -3310,7 +3310,8 @@ static DECLCALLBACK(int) acpiR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFG
                         memcpy(&pThis->u32OemRevision, &pThis->pu8CustBin[24], 4);
                         memcpy(&pThis->au8CreatorId[0], &pThis->pu8CustBin[28], 4);
                         memcpy(&pThis->u32CreatorRev, &pThis->pu8CustBin[32], 4);
-                        LogRel(("Reading custom ACPI table from file '%s' (%d bytes)\n", pszCustBinFile, pThis->cbCustBin));
+                        LogRel(("ACPI: Reading custom ACPI table from file '%s' (%d bytes)\n", pszCustBinFile,
+                                pThis->cbCustBin));
                     }
                 }
                 else
@@ -3477,7 +3478,7 @@ const PDMDEVREG g_DeviceACPI =
     /* szName */
     "acpi",
     /* szRCMod */
-    "VBoxDDGC.gc",
+    "VBoxDDRC.rc",
     /* szR0Mod */
     "VBoxDDR0.r0",
     /* pszDescription */

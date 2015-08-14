@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2004-2012 Oracle Corporation
+ * Copyright (C) 2004-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -108,6 +108,15 @@ int scsi_cmd_data_in(uint16_t io_base, uint8_t target_id, uint8_t __far *aCDB,
         status = inb(io_base + VBSCSI_REGISTER_STATUS);
     while (status & VBSCSI_BUSY);
 
+    /* If any error occurred, inform the caller and don't bother reading the data. */
+    if (status & VBSCSI_ERROR) {
+        outb(io_base + VBSCSI_REGISTER_RESET, 0);
+
+        status = inb(io_base + VBSCSI_REGISTER_DEVSTAT);
+        DBG_SCSI("%s: read failed, device status %02X\n", __func__, status);
+        return 4;   /* Sector not found */
+    }
+
     /* Read in the data. The transfer length may be exactly 64K or more,
      * which needs a bit of care when we're using 16-bit 'rep ins'.
      */
@@ -163,6 +172,15 @@ int scsi_cmd_data_out(uint16_t io_base, uint8_t target_id, uint8_t __far *aCDB,
         status = inb(io_base + VBSCSI_REGISTER_STATUS);
     while (status & VBSCSI_BUSY);
 
+    /* If any error occurred, inform the caller. */
+    if (status & VBSCSI_ERROR) {
+        outb(io_base + VBSCSI_REGISTER_RESET, 0);
+
+        status = inb(io_base + VBSCSI_REGISTER_DEVSTAT);
+        DBG_SCSI("%s: write failed, device status %02X\n", __func__, status);
+        return 4;   /* Sector not found */
+    }
+
     return 0;
 }
 
@@ -184,7 +202,7 @@ int scsi_read_sectors(bio_dsk_t __far *bios_dsk)
 
     device_id = VBOX_GET_SCSI_DEVICE(bios_dsk->drqp.dev_id);
     if (device_id > BX_MAX_SCSI_DEVICES)
-        BX_PANIC("scsi_read_sectors: device_id out of range %d\n", device_id);
+        BX_PANIC("%s: device_id out of range %d\n", __func__, device_id);
 
     count    = bios_dsk->drqp.nsect;
 
@@ -233,7 +251,7 @@ int scsi_write_sectors(bio_dsk_t __far *bios_dsk)
 
     device_id = VBOX_GET_SCSI_DEVICE(bios_dsk->drqp.dev_id);
     if (device_id > BX_MAX_SCSI_DEVICES)
-        BX_PANIC("scsi_write_sectors: device_id out of range %d\n", device_id);
+        BX_PANIC("%s: device_id out of range %d\n", __func__, device_id);
 
     count    = bios_dsk->drqp.nsect;
 
@@ -398,6 +416,8 @@ void scsi_enumerate_attached_devices(uint16_t io_base)
         if (rc != 0)
             BX_PANIC("%s: SCSI_INQUIRY failed\n", __func__);
 
+        devcount_scsi = bios_dsk->scsi_devcount;
+
         /* Check the attached device. */
         if (   ((buffer[0] & 0xe0) == 0)
             && ((buffer[0] & 0x1f) == 0x00))
@@ -405,7 +425,7 @@ void scsi_enumerate_attached_devices(uint16_t io_base)
             DBG_SCSI("%s: Disk detected at %d\n", __func__, i);
 
             /* We add the disk only if the maximum is not reached yet. */
-            if (bios_dsk->scsi_devcount < BX_MAX_SCSI_DEVICES)
+            if (devcount_scsi < BX_MAX_SCSI_DEVICES)
             {
                 uint32_t    sectors, sector_size, cylinders;
                 uint16_t    heads, sectors_per_track;
@@ -426,6 +446,7 @@ void scsi_enumerate_attached_devices(uint16_t io_base)
                           | ((uint32_t)buffer[1] << 16)
                           | ((uint32_t)buffer[2] << 8)
                           | ((uint32_t)buffer[3]);
+                ++sectors;  /* Returned value is the last LBA, zero-based. */
 
                 sector_size =   ((uint32_t)buffer[4] << 24)
                               | ((uint32_t)buffer[5] << 16)
@@ -439,8 +460,6 @@ void scsi_enumerate_attached_devices(uint16_t io_base)
                     BX_INFO("Disk %d has an unsupported sector size of %u\n", i, sector_size);
                     continue;
                 }
-
-                devcount_scsi = bios_dsk->scsi_devcount;
 
                 /* Get logical CHS geometry. */
                 switch (devcount_scsi)
@@ -536,7 +555,6 @@ void scsi_enumerate_attached_devices(uint16_t io_base)
                 write_byte(0x40, 0x75, hdcount);
 
                 devcount_scsi++;
-                bios_dsk->scsi_devcount = devcount_scsi;
             }
             else
             {
@@ -571,10 +589,11 @@ void scsi_enumerate_attached_devices(uint16_t io_base)
             bios_dsk->cdcount = cdcount;
 
             devcount_scsi++;
-            bios_dsk->scsi_devcount = devcount_scsi;
         }
         else
             DBG_SCSI("%s: No supported device detected at %d\n", __func__, i);
+
+        bios_dsk->scsi_devcount = devcount_scsi;
     }
 }
 
@@ -599,13 +618,13 @@ void BIOSCALL scsi_init(void)
     if (identifier == 0x55)
     {
         /* Detected - Enumerate attached devices. */
-        DBG_SCSI("scsi_init: BusLogic SCSI adapter detected\n");
+        DBG_SCSI("%s: BusLogic SCSI adapter detected\n", __func__);
         outb(BUSLOGIC_BIOS_IO_PORT+VBSCSI_REGISTER_RESET, 0);
         scsi_enumerate_attached_devices(BUSLOGIC_BIOS_IO_PORT);
     }
     else
     {
-        DBG_SCSI("scsi_init: BusLogic SCSI adapter not detected\n");
+        DBG_SCSI("%s: BusLogic SCSI adapter not detected\n", __func__);
     }
 
     /* Detect the LSI Logic parallel SCSI adapter. */
@@ -615,13 +634,13 @@ void BIOSCALL scsi_init(void)
     if (identifier == 0x55)
     {
         /* Detected - Enumerate attached devices. */
-        DBG_SCSI("scsi_init: LSI Logic SCSI adapter detected\n");
+        DBG_SCSI("%s: LSI Logic SCSI adapter detected\n", __func__);
         outb(LSILOGIC_BIOS_IO_PORT+VBSCSI_REGISTER_RESET, 0);
         scsi_enumerate_attached_devices(LSILOGIC_BIOS_IO_PORT);
     }
     else
     {
-        DBG_SCSI("scsi_init: LSI Logic SCSI adapter not detected\n");
+        DBG_SCSI("%s: LSI Logic SCSI adapter not detected\n", __func__);
     }
 
     /* Detect the LSI Logic SAS adapter. */
@@ -631,12 +650,12 @@ void BIOSCALL scsi_init(void)
     if (identifier == 0x55)
     {
         /* Detected - Enumerate attached devices. */
-        DBG_SCSI("scsi_init: LSI Logic SAS adapter detected\n");
+        DBG_SCSI("%s: LSI Logic SAS adapter detected\n", __func__);
         outb(LSILOGIC_SAS_BIOS_IO_PORT+VBSCSI_REGISTER_RESET, 0);
         scsi_enumerate_attached_devices(LSILOGIC_SAS_BIOS_IO_PORT);
     }
     else
     {
-        DBG_SCSI("scsi_init: LSI Logic SAS adapter not detected\n");
+        DBG_SCSI("%s: LSI Logic SAS adapter not detected\n", __func__);
     }
 }

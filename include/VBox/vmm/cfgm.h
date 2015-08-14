@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -54,7 +54,6 @@ RT_C_DECLS_BEGIN
 
 #ifdef IN_RING3
 /** @defgroup   grp_cfgm_r3     The CFGM Host Context Ring-3 API
- * @ingroup grp_cfgm
  * @{
  */
 
@@ -93,15 +92,19 @@ VMMR3DECL(int)          CFGMR3DuplicateSubTree(PCFGMNODE pRoot, PCFGMNODE *ppCop
 VMMR3DECL(int)          CFGMR3ReplaceSubTree(PCFGMNODE pRoot, PCFGMNODE pNewRoot);
 VMMR3DECL(int)          CFGMR3InsertSubTree(PCFGMNODE pNode, const char *pszName, PCFGMNODE pSubTree, PCFGMNODE *ppChild);
 VMMR3DECL(int)          CFGMR3InsertNode(PCFGMNODE pNode, const char *pszName, PCFGMNODE *ppChild);
-VMMR3DECL(int)          CFGMR3InsertNodeF(PCFGMNODE pNode, PCFGMNODE *ppChild, const char *pszNameFormat, ...);
-VMMR3DECL(int)          CFGMR3InsertNodeFV(PCFGMNODE pNode, PCFGMNODE *ppChild, const char *pszNameFormat, va_list Args);
+VMMR3DECL(int)          CFGMR3InsertNodeF(PCFGMNODE pNode, PCFGMNODE *ppChild,
+                                          const char *pszNameFormat, ...) RT_IPRT_FORMAT_ATTR(3, 4);
+VMMR3DECL(int)          CFGMR3InsertNodeFV(PCFGMNODE pNode, PCFGMNODE *ppChild,
+                                           const char *pszNameFormat, va_list Args) RT_IPRT_FORMAT_ATTR(3, 0);
 VMMR3DECL(void)         CFGMR3SetRestrictedRoot(PCFGMNODE pNode);
 VMMR3DECL(void)         CFGMR3RemoveNode(PCFGMNODE pNode);
 VMMR3DECL(int)          CFGMR3InsertInteger(PCFGMNODE pNode, const char *pszName, uint64_t u64Integer);
 VMMR3DECL(int)          CFGMR3InsertString(PCFGMNODE pNode, const char *pszName, const char *pszString);
 VMMR3DECL(int)          CFGMR3InsertStringN(PCFGMNODE pNode, const char *pszName, const char *pszString, size_t cchString);
-VMMR3DECL(int)          CFGMR3InsertStringF(PCFGMNODE pNode, const char *pszName, const char *pszFormat, ...);
-VMMR3DECL(int)          CFGMR3InsertStringFV(PCFGMNODE pNode, const char *pszName, const char *pszFormat, va_list va);
+VMMR3DECL(int)          CFGMR3InsertStringF(PCFGMNODE pNode, const char *pszName,
+                                            const char *pszFormat, ...) RT_IPRT_FORMAT_ATTR(3, 4);
+VMMR3DECL(int)          CFGMR3InsertStringFV(PCFGMNODE pNode, const char *pszName,
+                                             const char *pszFormat, va_list va) RT_IPRT_FORMAT_ATTR(3, 0);
 VMMR3DECL(int)          CFGMR3InsertStringW(PCFGMNODE pNode, const char *pszName, PCRTUTF16 pwszValue);
 VMMR3DECL(int)          CFGMR3InsertBytes(PCFGMNODE pNode, const char *pszName, const void *pvBytes, size_t cbBytes);
 VMMR3DECL(int)          CFGMR3InsertValue(PCFGMNODE pNode, PCFGMLEAF pValue);
@@ -133,6 +136,7 @@ VMMR3DECL(int)          CFGMR3RemoveValue(PCFGMNODE pNode, const char *pszName);
 /** @} */
 VMMR3DECL(int)          CFGMR3CopyTree(PCFGMNODE pDstTree, PCFGMNODE pSrcTree, uint32_t fFlags);
 
+VMMR3DECL(bool)         CFGMR3Exists(           PCFGMNODE pNode, const char *pszName);
 VMMR3DECL(int)          CFGMR3QueryType(        PCFGMNODE pNode, const char *pszName, PCFGMVALUETYPE penmType);
 VMMR3DECL(int)          CFGMR3QuerySize(        PCFGMNODE pNode, const char *pszName, size_t *pcb);
 VMMR3DECL(int)          CFGMR3QueryInteger(     PCFGMNODE pNode, const char *pszName, uint64_t *pu64);
@@ -190,8 +194,8 @@ VMMR3DECL(PCFGMNODE)    CFGMR3GetRootU(PUVM pUVM);
 VMMR3DECL(PCFGMNODE)    CFGMR3GetParent(PCFGMNODE pNode);
 VMMR3DECL(PCFGMNODE)    CFGMR3GetParentEx(PVM pVM, PCFGMNODE pNode);
 VMMR3DECL(PCFGMNODE)    CFGMR3GetChild(PCFGMNODE pNode, const char *pszPath);
-VMMR3DECL(PCFGMNODE)    CFGMR3GetChildF(PCFGMNODE pNode, const char *pszPathFormat, ...);
-VMMR3DECL(PCFGMNODE)    CFGMR3GetChildFV(PCFGMNODE pNode, const char *pszPathFormat, va_list Args);
+VMMR3DECL(PCFGMNODE)    CFGMR3GetChildF(PCFGMNODE pNode, const char *pszPathFormat, ...) RT_IPRT_FORMAT_ATTR(2, 3);
+VMMR3DECL(PCFGMNODE)    CFGMR3GetChildFV(PCFGMNODE pNode, const char *pszPathFormat, va_list Args) RT_IPRT_FORMAT_ATTR(3, 0);
 VMMR3DECL(PCFGMNODE)    CFGMR3GetFirstChild(PCFGMNODE pNode);
 VMMR3DECL(PCFGMNODE)    CFGMR3GetNextChild(PCFGMNODE pCur);
 VMMR3DECL(int)          CFGMR3GetName(PCFGMNODE pCur, char *pszName, size_t cchName);

@@ -1,7 +1,6 @@
+/* $Id:  $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * VBoxFrameBuffer Overly classes declarations
+ * VBox Qt GUI - VBoxFrameBuffer Overly classes declarations.
  */
 
 /*
@@ -31,6 +30,8 @@
 /* GUI includes: */
 #include "UIDefs.h"
 #include "VBoxFBOverlayCommon.h"
+#include "runtime/UIFrameBuffer.h"
+#include "runtime/UIMachineView.h"
 
 /* COM includes: */
 #include "COMEnums.h"
@@ -83,7 +84,8 @@ private:
 class VBoxVHWASettings
 {
 public:
-    VBoxVHWASettings (CSession &session);
+    VBoxVHWASettings ();
+    void init(CSession &session);
 
     int fourccEnabledCount() const { return mFourccEnabledCount; }
     const uint32_t * fourccEnabledList() const { return mFourccEnabledList; }
@@ -269,10 +271,10 @@ public:
             switch (mFormat)
             {
                 case GL_BGRA_EXT:
-                    return FramebufferPixelFormat_FOURCC_RGB;
+                    return KBitmapFormat_BGR;
             }
         }
-        return FramebufferPixelFormat_Opaque;
+        return KBitmapFormat_Opaque;
     }
 
 private:
@@ -1306,10 +1308,12 @@ private:
     volatile uint32_t m_cRefs;
 };
 
+class VBoxVHWAEntriesCache;
 class VBoxVHWACommandElementProcessor
 {
 public:
-    VBoxVHWACommandElementProcessor(QObject *pNotifyObject);
+    VBoxVHWACommandElementProcessor();
+    void init(QObject *pNotifyObject);
     ~VBoxVHWACommandElementProcessor();
     void postCmd(VBOXVHWA_PIPECMD_TYPE aType, void * pvData);
     VBoxVHWACommandElement *getCmd();
@@ -1330,40 +1334,58 @@ private:
     VBoxVHWACommandElement *mpCurCmd;
     bool mbResetting;
     uint32_t mcDisabled;
+    VBoxVHWAEntriesCache *m_pCmdEntryCache;
 };
 
 /* added to workaround this ** [VBox|UI] duplication */
 class VBoxFBSizeInfo
 {
 public:
-    VBoxFBSizeInfo() {}
-    template<class T> VBoxFBSizeInfo(T * fb) :
-        mPixelFormat(fb->pixelFormat()), mVRAM(fb->address()), mBitsPerPixel(fb->bitsPerPixel()),
-        mBytesPerLine(fb->bytesPerLine()), mWidth(fb->width()), mHeight(fb->height()),
-        mUsesGuestVram(fb->usesGuestVRAM()) {}
 
-    VBoxFBSizeInfo(ulong aPixelFormat, uchar *aVRAM,
-                     ulong aBitsPerPixel, ulong aBytesPerLine,
-                     ulong aWidth, ulong aHeight,
-                     bool bUsesGuestVram) :
-        mPixelFormat (aPixelFormat), mVRAM (aVRAM), mBitsPerPixel (aBitsPerPixel),
-        mBytesPerLine (aBytesPerLine), mWidth (aWidth), mHeight (aHeight),
+    VBoxFBSizeInfo() {}
+    template<class T> VBoxFBSizeInfo(T *pFb) :
+        m_visualState(pFb->visualState()),
+        mPixelFormat(pFb->pixelFormat()), mVRAM(pFb->address()), mBitsPerPixel(pFb->bitsPerPixel()),
+        mBytesPerLine(pFb->bytesPerLine()), mWidth(pFb->width()), mHeight(pFb->height()),
+        m_dScaleFactor(pFb->scaleFactor()), m_scaledSize(pFb->scaledSize()), m_fUseUnscaledHiDPIOutput(pFb->useUnscaledHiDPIOutput()),
+        mUsesGuestVram(true) {}
+
+    VBoxFBSizeInfo(UIVisualStateType visualState,
+                   ulong aPixelFormat, uchar *aVRAM,
+                   ulong aBitsPerPixel, ulong aBytesPerLine,
+                   ulong aWidth, ulong aHeight,
+                   double dScaleFactor, const QSize &scaledSize, bool fUseUnscaledHiDPIOutput,
+                   bool bUsesGuestVram) :
+        m_visualState(visualState),
+        mPixelFormat(aPixelFormat), mVRAM(aVRAM), mBitsPerPixel(aBitsPerPixel),
+        mBytesPerLine(aBytesPerLine), mWidth(aWidth), mHeight(aHeight),
+        m_dScaleFactor(dScaleFactor), m_scaledSize(scaledSize), m_fUseUnscaledHiDPIOutput(fUseUnscaledHiDPIOutput),
         mUsesGuestVram(bUsesGuestVram) {}
+
+    UIVisualStateType visualState() const { return m_visualState; }
     ulong pixelFormat() const { return mPixelFormat; }
     uchar *VRAM() const { return mVRAM; }
     ulong bitsPerPixel() const { return mBitsPerPixel; }
     ulong bytesPerLine() const { return mBytesPerLine; }
     ulong width() const { return mWidth; }
     ulong height() const { return mHeight; }
+    double scaleFactor() const { return m_dScaleFactor; }
+    QSize scaledSize() const { return m_scaledSize; }
+    bool useUnscaledHiDPIOutput() const { return m_fUseUnscaledHiDPIOutput; }
     bool usesGuestVram() const {return mUsesGuestVram;}
 
 private:
+
+    UIVisualStateType m_visualState;
     ulong mPixelFormat;
     uchar *mVRAM;
     ulong mBitsPerPixel;
     ulong mBytesPerLine;
     ulong mWidth;
     ulong mHeight;
+    double m_dScaleFactor;
+    QSize m_scaledSize;
+    bool m_fUseUnscaledHiDPIOutput;
     bool mUsesGuestVram;
 };
 
@@ -1670,7 +1692,8 @@ private:
 class VBoxQGLOverlay
 {
 public:
-    VBoxQGLOverlay(QWidget *pViewport, QObject *pPostEventObject, CSession * aSession, uint32_t id);
+    VBoxQGLOverlay();
+    void init(QWidget *pViewport, QObject *pPostEventObject, CSession * aSession, uint32_t id);
     ~VBoxQGLOverlay()
     {
         if (mpShareWgt)
@@ -1814,107 +1837,6 @@ private:
     QGLWidget *mpShareWgt;
 
     uint32_t m_id;
-};
-
-/* these two additional class V, class R are to workaround the [VBox|UI] duplication,
- * @todo: remove them once VBox stuff is removed */
-template <class T, class V, class R>
-class VBoxOverlayFrameBuffer : public T
-{
-public:
-    VBoxOverlayFrameBuffer (V *pView, CSession * aSession, uint32_t id)
-        : T (pView),
-          mOverlay(pView->viewport(), pView, aSession, id),
-          mpView (pView)
-    {
-        /* sync with framebuffer */
-        mOverlay.onResizeEventPostprocess (VBoxFBSizeInfo(this), QPoint(mpView->contentsX(), mpView->contentsY()));
-    }
-
-    STDMETHOD(ProcessVHWACommand)(BYTE *pCommand)
-    {
-        int rc;
-        T::lock();
-        /* Make sure frame-buffer is used: */
-        if (T::m_fIsMarkedAsUnused)
-        {
-            LogRel2(("ProcessVHWACommand: Postponed!\n"));
-            /* Unlock access to frame-buffer: */
-            T::unlock();
-            /* tell client to pend ProcessVHWACommand */
-            return E_ACCESSDENIED;
-        }
-        rc = mOverlay.onVHWACommand ((struct VBOXVHWACMD*)pCommand);
-        T::unlock();
-        if (rc == VINF_CALLBACK_RETURN)
-            return S_OK;
-        else if (RT_SUCCESS(rc))
-            return S_FALSE;
-        else if (rc == VERR_INVALID_STATE)
-            return E_ACCESSDENIED;
-        return E_FAIL;
-    }
-
-    void doProcessVHWACommand (QEvent * pEvent)
-    {
-        mOverlay.onVHWACommandEvent (pEvent);
-    }
-
-    STDMETHOD(NotifyUpdate) (ULONG aX, ULONG aY,
-                             ULONG aW, ULONG aH)
-    {
-        HRESULT hr = S_OK;
-        T::lock();
-        /* Make sure frame-buffer is used: */
-        if (T::m_fIsMarkedAsUnused)
-        {
-            LogRel2(("NotifyUpdate: Ignored!\n"));
-            mOverlay.onNotifyUpdateIgnore (aX, aY, aW, aH);
-            /* Unlock access to frame-buffer: */
-            T::unlock();
-            /*can we actually ignore the notify update?*/
-            /* Ignore NotifyUpdate: */
-            return E_FAIL;
-        }
-
-        if (!mOverlay.onNotifyUpdate (aX, aY, aW, aH))
-            hr = T::NotifyUpdate (aX, aY, aW, aH);
-        T::unlock();
-        return hr;
-    }
-
-    void resizeEvent (R *re)
-    {
-        T::resizeEvent (re);
-        mOverlay.onResizeEventPostprocess (VBoxFBSizeInfo(this),
-                QPoint(mpView->contentsX(), mpView->contentsY()));
-    }
-
-    void viewportResized (QResizeEvent * re)
-    {
-        mOverlay.onViewportResized (re);
-        T::viewportResized (re);
-    }
-
-    void viewportScrolled (int dx, int dy)
-    {
-        mOverlay.onViewportScrolled (QPoint(mpView->contentsX(), mpView->contentsY()));
-        T::viewportScrolled (dx, dy);
-    }
-
-    void setView(V * pView)
-    {
-        /* lock to ensure we do not collide with the EMT thread passing commands to us */
-        T::lock();
-        T::setView(pView);
-        mpView = pView;
-        mOverlay.updateAttachment(pView ? pView->viewport() : NULL, pView);
-        T::unlock();
-    }
-
-private:
-    VBoxQGLOverlay mOverlay;
-    V *mpView;
 };
 
 #endif

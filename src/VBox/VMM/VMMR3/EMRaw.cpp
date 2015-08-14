@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -128,11 +128,11 @@ int emR3RawResumeHyper(PVM pVM, PVMCPU pVCpu)
     /*
      * Resume execution.
      */
-    CPUMRawEnter(pVCpu, NULL);
+    CPUMRawEnter(pVCpu);
     CPUMSetHyperEFlags(pVCpu, CPUMGetHyperEFlags(pVCpu) | X86_EFL_RF);
     rc = VMMR3ResumeHyper(pVM, pVCpu);
     Log(("emR3RawResumeHyper: cs:eip=%RTsel:%RGr efl=%RGr - returned from GC with rc=%Rrc\n", pCtx->cs.Sel, pCtx->eip, pCtx->eflags, rc));
-    rc = CPUMRawLeave(pVCpu, NULL, rc);
+    rc = CPUMRawLeave(pVCpu, rc);
     VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_RESUME_GUEST_MASK);
 
     /*
@@ -190,7 +190,7 @@ int emR3RawStep(PVM pVM, PVMCPU pVCpu)
      * Single step.
      * We do not start time or anything, if anything we should just do a few nanoseconds.
      */
-    CPUMRawEnter(pVCpu, NULL);
+    CPUMRawEnter(pVCpu);
     do
     {
         if (pVCpu->em.s.enmState == EMSTATE_DEBUG_HYPER)
@@ -203,7 +203,7 @@ int emR3RawStep(PVM pVM, PVMCPU pVCpu)
 #endif
     } while (   rc == VINF_SUCCESS
              || rc == VINF_EM_RAW_INTERRUPT);
-    rc = CPUMRawLeave(pVCpu, NULL, rc);
+    rc = CPUMRawLeave(pVCpu, rc);
     VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_RESUME_GUEST_MASK);
 
     /*
@@ -364,9 +364,7 @@ static int emR3RawExecuteInstructionWorker(PVM pVM, PVMCPU pVCpu, int rcGC)
      * Use IEM and fallback on REM if the functionality is missing.
      * Once IEM gets mature enough, nothing should ever fall back.
      */
-#ifdef VBOX_WITH_FIRST_IEM_STEP
-//# define VBOX_WITH_FIRST_IEM_STEP_B
-#endif
+//#define VBOX_WITH_FIRST_IEM_STEP_B
 #if defined(VBOX_WITH_FIRST_IEM_STEP_B) || !defined(VBOX_WITH_REM)
     Log(("EMINS: %04x:%RGv RSP=%RGv\n", pCtx->cs.Sel, (RTGCPTR)pCtx->rip, (RTGCPTR)pCtx->rsp));
     STAM_PROFILE_START(&pVCpu->em.s.StatIEMEmu, a);
@@ -438,7 +436,6 @@ DECLINLINE(int) emR3RawExecuteInstruction(PVM pVM, PVMCPU pVCpu, const char *psz
  */
 static int emR3RawExecuteIOInstruction(PVM pVM, PVMCPU pVCpu)
 {
-#ifdef VBOX_WITH_FIRST_IEM_STEP
     STAM_PROFILE_START(&pVCpu->em.s.StatIOEmu, a);
 
     /* Hand it over to the interpreter. */
@@ -447,91 +444,6 @@ static int emR3RawExecuteIOInstruction(PVM pVM, PVMCPU pVCpu)
     STAM_COUNTER_INC(&pVCpu->em.s.CTX_SUFF(pStats)->StatIoIem);
     STAM_PROFILE_STOP(&pVCpu->em.s.StatIOEmu, a);
     return VBOXSTRICTRC_TODO(rcStrict);
-
-#else
-    PCPUMCTX pCtx = pVCpu->em.s.pCtx;
-
-    STAM_PROFILE_START(&pVCpu->em.s.StatIOEmu, a);
-
-    /** @todo probably we should fall back to the recompiler; otherwise we'll go back and forth between HC & GC
-     *   as io instructions tend to come in packages of more than one
-     */
-    DISCPUSTATE Cpu;
-    int rc = CPUMR3DisasmInstrCPU(pVM, pVCpu, pCtx, pCtx->rip, &Cpu, "IO EMU");
-    if (RT_SUCCESS(rc))
-    {
-        VBOXSTRICTRC rcStrict = VINF_EM_RAW_EMULATE_INSTR;
-
-        if (!(Cpu.fPrefix & (DISPREFIX_REP | DISPREFIX_REPNE)))
-        {
-            switch (Cpu.pCurInstr->uOpcode)
-            {
-                case OP_IN:
-                {
-                    STAM_COUNTER_INC(&pVCpu->em.s.CTX_SUFF(pStats)->StatIn);
-                    rcStrict = IOMInterpretIN(pVM, pVCpu, CPUMCTX2CORE(pCtx), &Cpu);
-                    break;
-                }
-
-                case OP_OUT:
-                {
-                    STAM_COUNTER_INC(&pVCpu->em.s.CTX_SUFF(pStats)->StatOut);
-                    rcStrict = IOMInterpretOUT(pVM, pVCpu, CPUMCTX2CORE(pCtx), &Cpu);
-                    break;
-                }
-            }
-        }
-        else if (Cpu.fPrefix & DISPREFIX_REP)
-        {
-            switch (Cpu.pCurInstr->uOpcode)
-            {
-                case OP_INSB:
-                case OP_INSWD:
-                {
-                    STAM_COUNTER_INC(&pVCpu->em.s.CTX_SUFF(pStats)->StatIn);
-                    rcStrict = IOMInterpretINS(pVM, pVCpu, CPUMCTX2CORE(pCtx), &Cpu);
-                    break;
-                }
-
-                case OP_OUTSB:
-                case OP_OUTSWD:
-                {
-                    STAM_COUNTER_INC(&pVCpu->em.s.CTX_SUFF(pStats)->StatOut);
-                    rcStrict = IOMInterpretOUTS(pVM, pVCpu, CPUMCTX2CORE(pCtx), &Cpu);
-                    break;
-                }
-            }
-        }
-
-        /*
-         * Handled the I/O return codes.
-         * (The unhandled cases end up with rcStrict == VINF_EM_RAW_EMULATE_INSTR.)
-         */
-        if (IOM_SUCCESS(rcStrict))
-        {
-            pCtx->rip += Cpu.cbInstr;
-            STAM_PROFILE_STOP(&pVCpu->em.s.StatIOEmu, a);
-            return VBOXSTRICTRC_TODO(rcStrict);
-        }
-
-        if (rcStrict == VINF_EM_RAW_GUEST_TRAP)
-        {
-            STAM_PROFILE_STOP(&pVCpu->em.s.StatIOEmu, a);
-            rcStrict = emR3RawGuestTrap(pVM, pVCpu);
-            return VBOXSTRICTRC_TODO(rcStrict);
-        }
-        AssertMsg(rcStrict != VINF_TRPM_XCPT_DISPATCHED, ("Handle VINF_TRPM_XCPT_DISPATCHED\n"));
-
-        if (RT_FAILURE(rcStrict))
-        {
-            STAM_PROFILE_STOP(&pVCpu->em.s.StatIOEmu, a);
-            return VBOXSTRICTRC_TODO(rcStrict);
-        }
-        AssertMsg(rcStrict == VINF_EM_RAW_EMULATE_INSTR || rcStrict == VINF_EM_RESCHEDULE_REM, ("rcStrict=%Rrc\n", VBOXSTRICTRC_VAL(rcStrict)));
-    }
-    STAM_PROFILE_STOP(&pVCpu->em.s.StatIOEmu, a);
-    return emR3RawExecuteInstruction(pVM, pVCpu, "IO: ");
-#endif
 }
 
 
@@ -617,7 +529,7 @@ static int emR3RawGuestTrap(PVM pVM, PVMCPU pVCpu)
         &&  !pCtx->eflags.Bits.u1VM)
     {
         Assert(!PATMIsPatchGCAddr(pVM, pCtx->eip));
-        CSAMR3CheckCodeEx(pVM, CPUMCTX2CORE(pCtx), pCtx->eip);
+        CSAMR3CheckCodeEx(pVM, pCtx, pCtx->eip);
     }
 
     /*
@@ -634,7 +546,7 @@ static int emR3RawGuestTrap(PVM pVM, PVMCPU pVCpu)
             && (cpu.pCurInstr->uOpcode == OP_MONITOR || cpu.pCurInstr->uOpcode == OP_MWAIT))
         {
             uint32_t u32Dummy, u32Features, u32ExtFeatures;
-            CPUMGetGuestCpuId(pVCpu, 1, &u32Dummy, &u32Dummy, &u32ExtFeatures, &u32Features);
+            CPUMGetGuestCpuId(pVCpu, 1, 0, &u32Dummy, &u32Dummy, &u32ExtFeatures, &u32Features);
             if (u32ExtFeatures & X86_CPUID_FEATURE_ECX_MONITOR)
             {
                 rc = TRPMResetTrap(pVCpu);
@@ -1428,7 +1340,7 @@ int emR3RawExecute(PVM pVM, PVMCPU pVCpu, bool *pfFFDone)
          * be modified a bit and some of the state components (IF, SS/CS RPL,
          * and perhaps EIP) needs to be stored with PATM.
          */
-        rc = CPUMRawEnter(pVCpu, NULL);
+        rc = CPUMRawEnter(pVCpu);
         if (rc != VINF_SUCCESS)
         {
             STAM_PROFILE_ADV_STOP(&pVCpu->em.s.StatRAWEntry, b);
@@ -1443,7 +1355,7 @@ int emR3RawExecute(PVM pVM, PVMCPU pVCpu, bool *pfFFDone)
             && !PATMIsPatchGCAddr(pVM, pCtx->eip))
         {
             STAM_PROFILE_ADV_SUSPEND(&pVCpu->em.s.StatRAWEntry, b);
-            CSAMR3CheckCodeEx(pVM, CPUMCTX2CORE(pCtx), pCtx->eip);
+            CSAMR3CheckCodeEx(pVM, pCtx, pCtx->eip);
             STAM_PROFILE_ADV_RESUME(&pVCpu->em.s.StatRAWEntry, b);
             if (    VM_FF_IS_PENDING(pVM, VM_FF_HIGH_PRIORITY_PRE_RAW_MASK)
                 ||  VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_HIGH_PRIORITY_PRE_RAW_MASK))
@@ -1452,7 +1364,7 @@ int emR3RawExecute(PVM pVM, PVMCPU pVCpu, bool *pfFFDone)
                 VBOXVMM_EM_FF_RAW_RET(pVCpu, rc);
                 if (rc != VINF_SUCCESS)
                 {
-                    rc = CPUMRawLeave(pVCpu, NULL, rc);
+                    rc = CPUMRawLeave(pVCpu, rc);
                     break;
                 }
             }
@@ -1512,7 +1424,7 @@ int emR3RawExecute(PVM pVM, PVMCPU pVCpu, bool *pfFFDone)
          * Restore the real CPU state and deal with high priority post
          * execution FFs before doing anything else.
          */
-        rc = CPUMRawLeave(pVCpu, NULL, rc);
+        rc = CPUMRawLeave(pVCpu, rc);
         VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_RESUME_GUEST_MASK);
         if (    VM_FF_IS_PENDING(pVM, VM_FF_HIGH_PRIORITY_POST_MASK)
             ||  VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_HIGH_PRIORITY_POST_MASK))
@@ -1540,7 +1452,7 @@ int emR3RawExecute(PVM pVM, PVMCPU pVCpu, bool *pfFFDone)
 
             default:
                 if (PATMIsPatchGCAddr(pVM, pCtx->eip) && !(pCtx->eflags.u32 & X86_EFL_TF))
-                    LogIt(NULL, 0, LOG_GROUP_PATM, ("Patch code interrupted at %RRv for reason %Rrc\n", (RTRCPTR)CPUMGetGuestEIP(pVCpu), rc));
+                    LogIt(0, LOG_GROUP_PATM, ("Patch code interrupted at %RRv for reason %Rrc\n", (RTRCPTR)CPUMGetGuestEIP(pVCpu), rc));
                 break;
         }
         /*

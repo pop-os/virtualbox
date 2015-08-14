@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -562,7 +562,7 @@ static void doPacketSniffing(INTNETIFHANDLE hIf, PSUPDRVSESSION pSession, PINTNE
                 }
                 else
                 {
-                    RTPrintf("tstIntNet-1: Bad GSO frame: %Rhxs\n", sizeof(*pGso), pGso);
+                    RTPrintf("tstIntNet-1: Bad GSO frame: %.*Rhxs\n", sizeof(*pGso), pGso);
                     STAM_REL_COUNTER_INC(&pBuf->cStatBadFrames);
                     g_cErrors++;
                 }
@@ -806,7 +806,7 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
                 return 1;
 
             case 'V':
-                RTPrintf("$Revision: 94787 $\n");
+                RTPrintf("$Revision: 101707 $\n");
                 return 0;
 
             default:

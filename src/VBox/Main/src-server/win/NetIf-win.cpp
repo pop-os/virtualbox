@@ -319,7 +319,7 @@ static HRESULT netIfNetworkInterfaceHelperClient(SVCHlpClient *aClient,
                         rc = d->iface->init(Bstr(name), Bstr(name), guid, HostNetworkInterfaceType_HostOnly);
                         if (SUCCEEDED(rc))
                         {
-                            rc = d->iface->setVirtualBox(d->vBox);
+                            rc = d->iface->i_setVirtualBox(d->vBox);
                             if (SUCCEEDED(rc))
                             {
                                 rc = d->iface->updateConfig();
@@ -667,7 +667,8 @@ int netIfNetworkInterfaceHelperServer(SVCHlpClient *aClient,
             Bstr name;
             Bstr bstrErr;
 
-            hrc = VBoxNetCfgWinCreateHostOnlyNetworkInterface(NULL, false, guid.asOutParam(), name.asOutParam(), bstrErr.asOutParam());
+            hrc = VBoxNetCfgWinCreateHostOnlyNetworkInterface(NULL, false, guid.asOutParam(), name.asOutParam(),
+                                                              bstrErr.asOutParam());
 
             if (hrc == S_OK)
             {
@@ -1109,7 +1110,7 @@ int NetIfGetLinkSpeed(const char * /*pcszIfName*/, uint32_t * /*puMbits*/)
     return VERR_NOT_IMPLEMENTED;
 }
 
-int NetIfCreateHostOnlyNetworkInterface(VirtualBox *pVBox,
+int NetIfCreateHostOnlyNetworkInterface(VirtualBox *pVirtualBox,
                                         IHostNetworkInterface **aHostNetworkInterface,
                                         IProgress **aProgress,
                                         const char *pcszName)
@@ -1122,10 +1123,10 @@ int NetIfCreateHostOnlyNetworkInterface(VirtualBox *pVBox,
     progress.createObject();
 
     ComPtr<IHost> host;
-    HRESULT rc = pVBox->COMGETTER(Host)(host.asOutParam());
+    HRESULT rc = pVirtualBox->COMGETTER(Host)(host.asOutParam());
     if (SUCCEEDED(rc))
     {
-        rc = progress->init(pVBox, host,
+        rc = progress->init(pVirtualBox, host,
                             Bstr(_T("Creating host only network interface")).raw(),
                             FALSE /* aCancelable */);
         if (SUCCEEDED(rc))
@@ -1146,13 +1147,12 @@ int NetIfCreateHostOnlyNetworkInterface(VirtualBox *pVBox,
             d->msgCode = SVCHlpMsg::CreateHostOnlyNetworkInterface;
 //            d->name = aName;
             d->iface = iface;
-            d->vBox = pVBox;
+            d->vBox = pVirtualBox;
 
-            rc = pVBox->startSVCHelperClient(IsUACEnabled() == TRUE /* aPrivileged */,
-                                             netIfNetworkInterfaceHelperClient,
-                                             static_cast<void *>(d.get()),
-                                             progress);
-
+            rc = pVirtualBox->i_startSVCHelperClient(IsUACEnabled() == TRUE /* aPrivileged */,
+                                                     netIfNetworkInterfaceHelperClient,
+                                                     static_cast<void *>(d.get()),
+                                                     progress);
             if (SUCCEEDED(rc))
             {
                 /* d is now owned by netIfNetworkInterfaceHelperClient(), so release it */
@@ -1165,7 +1165,7 @@ int NetIfCreateHostOnlyNetworkInterface(VirtualBox *pVBox,
 #endif
 }
 
-int NetIfRemoveHostOnlyNetworkInterface(VirtualBox *pVBox, IN_GUID aId,
+int NetIfRemoveHostOnlyNetworkInterface(VirtualBox *pVirtualBox, IN_GUID aId,
                                         IProgress **aProgress)
 {
 #ifndef VBOX_WITH_NETFLT
@@ -1175,10 +1175,10 @@ int NetIfRemoveHostOnlyNetworkInterface(VirtualBox *pVBox, IN_GUID aId,
     ComObjPtr<Progress> progress;
     progress.createObject();
     ComPtr<IHost> host;
-    HRESULT rc = pVBox->COMGETTER(Host)(host.asOutParam());
+    HRESULT rc = pVirtualBox->COMGETTER(Host)(host.asOutParam());
     if (SUCCEEDED(rc))
     {
-        rc = progress->init(pVBox, host,
+        rc = progress->init(pVirtualBox, host,
                            Bstr(_T("Removing host network interface")).raw(),
                            FALSE /* aCancelable */);
         if (SUCCEEDED(rc))
@@ -1194,10 +1194,10 @@ int NetIfRemoveHostOnlyNetworkInterface(VirtualBox *pVBox, IN_GUID aId,
             d->msgCode = SVCHlpMsg::RemoveHostOnlyNetworkInterface;
             d->guid = aId;
 
-            rc = pVBox->startSVCHelperClient(IsUACEnabled() == TRUE /* aPrivileged */,
-                                             netIfNetworkInterfaceHelperClient,
-                                             static_cast<void *>(d.get()),
-                                             progress);
+            rc = pVirtualBox->i_startSVCHelperClient(IsUACEnabled() == TRUE /* aPrivileged */,
+                                                     netIfNetworkInterfaceHelperClient,
+                                                     static_cast<void *>(d.get()),
+                                                     progress);
 
             if (SUCCEEDED(rc))
             {
@@ -1251,10 +1251,10 @@ int NetIfEnableStaticIpConfig(VirtualBox *vBox, HostNetworkInterface * pIf, ULON
                     d->u.StaticIP.IPAddress = ip;
                     d->u.StaticIP.IPNetMask = mask;
 
-                    rc = vBox->startSVCHelperClient(IsUACEnabled() == TRUE /* aPrivileged */,
-                                                    netIfNetworkInterfaceHelperClient,
-                                                    static_cast<void *>(d.get()),
-                                                    progress);
+                    rc = vBox->i_startSVCHelperClient(IsUACEnabled() == TRUE /* aPrivileged */,
+                                                      netIfNetworkInterfaceHelperClient,
+                                                      static_cast<void *>(d.get()),
+                                                      progress);
 
                     if (SUCCEEDED(rc))
                     {
@@ -1272,7 +1272,8 @@ int NetIfEnableStaticIpConfig(VirtualBox *vBox, HostNetworkInterface * pIf, ULON
 #endif
 }
 
-int NetIfEnableStaticIpConfigV6(VirtualBox *vBox, HostNetworkInterface * pIf, IN_BSTR aOldIPV6Address, IN_BSTR aIPV6Address, ULONG aIPV6MaskPrefixLength)
+int NetIfEnableStaticIpConfigV6(VirtualBox *vBox, HostNetworkInterface * pIf, IN_BSTR aOldIPV6Address,
+                                IN_BSTR aIPV6Address, ULONG aIPV6MaskPrefixLength)
 {
 #ifndef VBOX_WITH_NETFLT
     return VERR_NOT_IMPLEMENTED;
@@ -1312,10 +1313,10 @@ int NetIfEnableStaticIpConfigV6(VirtualBox *vBox, HostNetworkInterface * pIf, IN
                     d->u.StaticIPV6.IPV6Address = aIPV6Address;
                     d->u.StaticIPV6.IPV6NetMaskLength = aIPV6MaskPrefixLength;
 
-                    rc = vBox->startSVCHelperClient(IsUACEnabled() == TRUE /* aPrivileged */,
-                                                    netIfNetworkInterfaceHelperClient,
-                                                    static_cast<void *>(d.get()),
-                                                    progress);
+                    rc = vBox->i_startSVCHelperClient(IsUACEnabled() == TRUE /* aPrivileged */,
+                                                      netIfNetworkInterfaceHelperClient,
+                                                      static_cast<void *>(d.get()),
+                                                      progress);
 
                     if (SUCCEEDED(rc))
                     {
@@ -1371,10 +1372,10 @@ int NetIfEnableDynamicIpConfig(VirtualBox *vBox, HostNetworkInterface * pIf)
                     d->guid = guid;
                     d->iface = pIf;
 
-                    rc = vBox->startSVCHelperClient(IsUACEnabled() == TRUE /* aPrivileged */,
-                                                    netIfNetworkInterfaceHelperClient,
-                                                    static_cast<void *>(d.get()),
-                                                    progress);
+                    rc = vBox->i_startSVCHelperClient(IsUACEnabled() == TRUE /* aPrivileged */,
+                                                      netIfNetworkInterfaceHelperClient,
+                                                      static_cast<void *>(d.get()),
+                                                      progress);
 
                     if (SUCCEEDED(rc))
                     {
@@ -1430,10 +1431,10 @@ int NetIfDhcpRediscover(VirtualBox *vBox, HostNetworkInterface * pIf)
                     d->guid = guid;
                     d->iface = pIf;
 
-                    rc = vBox->startSVCHelperClient(IsUACEnabled() == TRUE /* aPrivileged */,
-                                                    netIfNetworkInterfaceHelperClient,
-                                                    static_cast<void *>(d.get()),
-                                                    progress);
+                    rc = vBox->i_startSVCHelperClient(IsUACEnabled() == TRUE /* aPrivileged */,
+                                                      netIfNetworkInterfaceHelperClient,
+                                                      static_cast<void *>(d.get()),
+                                                      progress);
 
                     if (SUCCEEDED(rc))
                     {
@@ -1479,8 +1480,13 @@ int NetIfList(std::list<ComObjPtr<HostNetworkInterface> > &list)
         /* for the protocol-based approach for now we just get all miniports the MS_TCPIP protocol binds to */
         hr = pNc->FindComponent(L"MS_TCPIP", &pTcpIpNcc);
 # else
-        /* for the filter-based approach we get all miniports our filter (sun_VBoxNetFlt)is bound to */
-        hr = pNc->FindComponent(L"sun_VBoxNetFlt", &pTcpIpNcc);
+        /* for the filter-based approach we get all miniports our filter (oracle_VBoxNetLwf)is bound to */
+        hr = pNc->FindComponent(L"oracle_VBoxNetLwf", &pTcpIpNcc);
+        if (hr != S_OK)
+        {
+            /* fall back to NDIS5 miniport lookup (sun_VBoxNetFlt) */
+            hr = pNc->FindComponent(L"sun_VBoxNetFlt", &pTcpIpNcc);
+        }
 #  ifndef VBOX_WITH_HARDENING
         if (hr != S_OK)
         {
@@ -1530,7 +1536,22 @@ int NetIfList(std::list<ComObjPtr<HostNetworkInterface> > &list)
                                                 {
                                                     if (uComponentStatus == 0)
                                                     {
-                                                        vboxNetWinAddComponent(&list, pMpNcc, HostNetworkInterfaceType_Bridged, iDefault);
+                                                        LPWSTR pId;
+                                                        hr = pMpNcc->GetId(&pId);
+                                                        Assert(hr == S_OK);
+                                                        if (hr == S_OK)
+                                                        {
+                                                            /*
+                                                             * Host-only interfaces are ignored here and included into the list
+                                                             * later in netIfListHostAdapters()
+                                                             */
+                                                            if (_wcsnicmp(pId, L"sun_VBoxNetAdp", sizeof(L"sun_VBoxNetAdp")/2))
+                                                            {
+                                                                vboxNetWinAddComponent(&list, pMpNcc, HostNetworkInterfaceType_Bridged,
+                                                                                       iDefault);
+                                                            }
+                                                            CoTaskMemFree(pId);
+                                                        }
                                                     }
                                                 }
                                                 pMpNcc->Release();
@@ -1554,12 +1575,13 @@ int NetIfList(std::list<ComObjPtr<HostNetworkInterface> > &list)
         }
         else
         {
-            LogRel(("failed to get the sun_VBoxNetFlt component, error (0x%x)\n", hr));
+            LogRel(("failed to get the oracle_VBoxNetLwf(sun_VBoxNetFlt) component, error (0x%x)\n", hr));
         }
 
         VBoxNetCfgWinReleaseINetCfg(pNc, FALSE);
     }
 
+    /* Add host-only adapters to the list */
     netIfListHostAdapters(list);
 
     return VINF_SUCCESS;

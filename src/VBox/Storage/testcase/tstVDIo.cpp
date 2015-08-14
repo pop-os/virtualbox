@@ -667,6 +667,41 @@ static DECLCALLBACK(int) vdScriptHandlerOpen(PVDSCRIPTARG paScriptArgs, void *pv
     return rc;
 }
 
+/**
+ * Returns the speed in KB/s from the amount of and the time in nanoseconds it
+ * took to complete the test.
+ *
+ * @returns Speed in KB/s
+ * @param   cbIo     Size of the I/O test
+ * @param   tsNano   Time in nanoseconds it took to complete the test.
+ */
+static uint64_t tstVDIoGetSpeedKBs(uint64_t cbIo, uint64_t tsNano)
+{
+    /* Seen on one of the testboxes, avoid division by 0 below. */
+    if (tsNano == 0)
+        return 0;
+
+    /*
+     * Blow up the value until we can do the calculation without getting 0 as
+     * a result.
+     */
+    uint64_t cbIoTemp = cbIo;
+    uint64_t uSpeedKBs;
+    unsigned cRounds = 0;
+    while (cbIoTemp < tsNano)
+    {
+        cbIoTemp *= 1000;
+        cRounds++;
+    }
+
+    uSpeedKBs = ((cbIoTemp / tsNano) * RT_NS_1SEC) / 1024;
+
+    while (cRounds-- > 0)
+        uSpeedKBs /= 1000;
+
+    return uSpeedKBs;
+}
+
 static DECLCALLBACK(int) vdScriptHandlerIo(PVDSCRIPTARG paScriptArgs, void *pvUser)
 {
     int rc = VINF_SUCCESS;
@@ -954,7 +989,7 @@ static DECLCALLBACK(int) vdScriptHandlerIo(PVDSCRIPTARG paScriptArgs, void *pvUs
                 }
 
                 NanoTS = RTTimeNanoTS() - NanoTS;
-                uint64_t SpeedKBs = (uint64_t)(cbIo / (NanoTS / 1000000000.0) / 1024);
+                uint64_t SpeedKBs = tstVDIoGetSpeedKBs(cbIo, NanoTS);
                 RTTestValue(pGlob->hTest, "Throughput", SpeedKBs, RTTESTUNIT_KILOBYTES_PER_SEC);
 
                 for (unsigned i = 0; i < cMaxTasksOutstanding; i++)
@@ -967,10 +1002,17 @@ static DECLCALLBACK(int) vdScriptHandlerIo(PVDSCRIPTARG paScriptArgs, void *pvUs
                 RTMemFree(paIoReq);
             }
             else
+            {
+                if (paIoReq)
+                    RTMemFree(paIoReq);
+                if RT_SUCCESS(rc)
+                    RTSemEventDestroy(EventSem);
                 rc = VERR_NO_MEMORY;
+            }
 
             tstVDIoTestDestroy(&IoTest);
         }
+        RTTestSubDone(pGlob->hTest);
     }
 
     return rc;
@@ -1757,7 +1799,7 @@ static DECLCALLBACK(int) vdScriptHandlerDumpFile(PVDSCRIPTARG paScriptArgs, void
     if (fFound)
     {
         RTPrintf("Dumping memory file %s to %s, this might take some time\n", pcszFile, pcszPathToDump);
-        //rc = VDMemDiskWriteToFile(pIt->pIo, pcszPathToDump);
+        rc = VDIoBackendDumpToFile(pIt->pIoStorage, pcszPathToDump);
         rc = VERR_NOT_IMPLEMENTED;
     }
     else
@@ -2693,9 +2735,10 @@ static int tstVDIoPatternGetBuffer(PVDPATTERN pPattern, void **ppv, size_t cb)
  * Executes the given script.
  *
  * @returns nothing.
+ * @param   pszName      The script name.
  * @param   pszScript    The script to execute.
  */
-static void tstVDIoScriptExec(const char *pszScript)
+static void tstVDIoScriptExec(const char *pszName, const char *pszScript)
 {
     int rc = VINF_SUCCESS;
     VDTESTGLOB GlobTest;   /**< Global test data. */
@@ -2738,7 +2781,7 @@ static void tstVDIoScriptExec(const char *pszScript)
                         &GlobTest, sizeof(VDINTERFACEIO), &GlobTest.pInterfacesImages);
     AssertRC(rc);
 
-    rc = RTTestCreate("tstVDIo", &GlobTest.hTest);
+    rc = RTTestCreate(pszName, &GlobTest.hTest);
     if (RT_SUCCESS(rc))
     {
         /* Init I/O backend. */
@@ -2765,7 +2808,7 @@ static void tstVDIoScriptExec(const char *pszScript)
             VDIoBackendDestroy(GlobTest.pIoBackend);
         }
         else
-            RTPrintf("Creating the I/O backend failed rc=%Rrc\n");
+            RTPrintf("Creating the I/O backend failed rc=%Rrc\n", rc);
 
         RTTestSummaryAndDestroy(GlobTest.hTest);
     }
@@ -2795,7 +2838,7 @@ static void tstVDIoScriptRun(const char *pcszFilename)
         RTFileReadAllFree(pvFile, cbFile);
 
         AssertPtr(pszScript);
-        tstVDIoScriptExec(pszScript);
+        tstVDIoScriptExec(pcszFilename, pszScript);
         RTStrFree(pszScript);
     }
     else
@@ -2834,7 +2877,7 @@ static void tstVDIoRunBuiltinTests(void)
         char *pszScript = RTStrDupN((const char *)g_aVDIoTests[i].pch, g_aVDIoTests[i].cb);
 
         AssertPtr(pszScript);
-        tstVDIoScriptExec(pszScript);
+        tstVDIoScriptExec(g_aVDIoTests[i].pszName, pszScript);
     }
 #endif
 }

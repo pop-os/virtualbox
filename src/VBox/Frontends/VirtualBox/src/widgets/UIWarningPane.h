@@ -1,7 +1,6 @@
+/* $Id: UIWarningPane.h $ */
 /** @file
- *
- * VBox frontends: Qt4 GUI ("VirtualBox"):
- * UIWarningPane class declaration
+ * VBox Qt GUI - UIWarningPane class declaration.
  */
 
 /*

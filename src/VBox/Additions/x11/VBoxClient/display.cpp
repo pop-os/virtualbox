@@ -219,10 +219,9 @@ static void updateMouseCapabilities(struct DISPLAYSTATE *pState)
 {
     uint32_t fFeatures = 0;
     int rc;
-    unsigned i;
 
     rc = VbglR3GetMouseStatus(&fFeatures, NULL, NULL);
-    
+
     if (rc != VINF_SUCCESS)
         VBClFatalError(("Failed to get mouse status, rc=%Rrc\n", rc));
     XChangeProperty(pState->pDisplay, DefaultRootWindow(pState->pDisplay),
@@ -236,9 +235,8 @@ static void updateMouseCapabilities(struct DISPLAYSTATE *pState)
  */
 static void runDisplay(struct DISPLAYSTATE *pState)
 {
-    int status, rc;
+    int rc;
     unsigned i, cScreensTracked;
-    char szCommand[256];
 
     LogRelFlowFunc(("\n"));
     rc = VbglR3VideoModeGetHighestSavedScreen(&cScreensTracked);
@@ -328,7 +326,7 @@ static int init(struct VBCLSERVICE **ppInterface)
 {
     struct DISPLAYSTATE *pSelf = getStateFromInterface(ppInterface);
     int rc;
-    
+
     if (pSelf->mfInit)
         return VERR_WRONG_ORDER;
     rc = initDisplay(pSelf);
@@ -391,7 +389,7 @@ struct VBCLSERVICE vbclDisplayInterface =
     run,
     pause,
     resume,
-    cleanup    
+    cleanup
 };
 
 struct VBCLSERVICE **VBClGetDisplayService()

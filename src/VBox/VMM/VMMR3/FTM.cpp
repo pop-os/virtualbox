@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2013 Oracle Corporation
+ * Copyright (C) 2010-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -924,7 +924,7 @@ static DECLCALLBACK(int) ftmR3PageTreeDestroyCallback(PAVLGCPHYSNODECORE pBaseNo
     if (pVM)    /* NULL when the VM is destroyed. */
     {
         /* Update the guest memory of the standby VM. */
-        int rc = PGMR3PhysWriteExternal(pVM, pNode->Core.Key, pNode->pPage, PAGE_SIZE, "FTMemSync");
+        int rc = PGMR3PhysWriteExternal(pVM, pNode->Core.Key, pNode->pPage, PAGE_SIZE, PGMACCESSORIGIN_FTM);
         AssertRC(rc);
     }
     RTMemFree(pNode);

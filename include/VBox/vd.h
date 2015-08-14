@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -70,6 +70,7 @@ RT_C_DECLS_BEGIN
 #define VD_IMAGE_CONTENT_UNKNOWN    0xffffffffU
 
 /** @name VBox HDD container image flags
+ * Same values as MediumVariant API enum.
  * @{
  */
 /** No flags. */
@@ -125,6 +126,19 @@ RT_C_DECLS_BEGIN
 #define VD_VFSFILE_FLAGS_MASK                   (VD_VFSFILE_DESTROY_ON_RELEASE)
 /** @} */
 
+/** @name VBox raw disk or partition flags
+ * @{
+ */
+/** No special treatment. */
+#define VBOXHDDRAW_NORMAL       0
+/** Whether this is a raw disk (where the partition information is ignored) or
+ * not. Valid only in the raw disk descriptor. */
+#define VBOXHDDRAW_DISK         RT_BIT(0)
+/** Open the corresponding raw disk or partition for reading only, no matter
+ * how the image is created or opened. */
+#define VBOXHDDRAW_READONLY     RT_BIT(1)
+/** @} */
+
 /**
  * Auxiliary type for describing partitions on raw disks. The entries must be
  * in ascending order (as far as uStart is concerned), and must not overlap.
@@ -148,6 +162,8 @@ typedef struct VBOXHDDRAWPARTDESC
     uint64_t        uStart;
     /** Size of the data area. */
     uint64_t        cbData;
+    /** Flags for special treatment, see VBOXHDDRAW_FLAGS_*. */
+    uint32_t        uFlags;
 } VBOXHDDRAWPARTDESC, *PVBOXHDDRAWPARTDESC;
 
 /**
@@ -168,9 +184,10 @@ typedef struct VBOXHDDRAW
     /** Signature for structure. Must be 'R', 'A', 'W', '\\0'. Actually a trick
      * to make logging of the comment string produce sensible results. */
     char            szSignature[4];
+    /** Flags for special treatment, see VBOXHDDRAW_FLAGS_*. */
     /** Flag whether access to full disk should be given (ignoring the
      * partition information below). */
-    bool            fRawDisk;
+    uint32_t        uFlags;
     /** Filename for the raw disk. Ignored for partitioned raw disks.
      * For Linux e.g. /dev/sda, and for Windows e.g. \\\\.\\PhysicalDisk0. */
     const char      *pszRawDisk;
@@ -180,7 +197,6 @@ typedef struct VBOXHDDRAW
     PVBOXHDDRAWPARTDESC pPartDescs;
     /** Partitioning type of the disk */
     VBOXHDDPARTTYPE uPartitioningType;
-
 } VBOXHDDRAW, *PVBOXHDDRAW;
 
 
@@ -240,6 +256,21 @@ typedef struct VBOXHDDRAW
 #define VD_OPEN_FLAGS_MASK          (VD_OPEN_FLAGS_NORMAL | VD_OPEN_FLAGS_READONLY | VD_OPEN_FLAGS_HONOR_ZEROES | VD_OPEN_FLAGS_HONOR_SAME | VD_OPEN_FLAGS_INFO | VD_OPEN_FLAGS_ASYNC_IO | VD_OPEN_FLAGS_SHAREABLE | VD_OPEN_FLAGS_SEQUENTIAL | VD_OPEN_FLAGS_DISCARD | VD_OPEN_FLAGS_IGNORE_FLUSH | VD_OPEN_FLAGS_INFORM_ABOUT_ZERO_BLOCKS | VD_OPEN_FLAGS_SKIP_CONSISTENCY_CHECKS)
 /** @}*/
 
+/** @name VBox HDD container filter flags
+ * @{
+ */
+/** The filter is applied during writes. */
+#define VD_FILTER_FLAGS_WRITE RT_BIT(0)
+/** The filter is applied during reads. */
+#define VD_FILTER_FLAGS_READ  RT_BIT(1)
+/** Open the filter in info mode. */
+#define VD_FILTER_FLAGS_INFO  RT_BIT(2)
+/** Default set of filter flags. */
+#define VD_FILTER_FLAGS_DEFAULT (VD_FILTER_FLAGS_WRITE | VD_FILTER_FLAGS_READ)
+/** Mask of valid flags. */
+#define VD_FILTER_FLAGS_MASK    (VD_FILTER_FLAGS_WRITE | VD_FILTER_FLAGS_READ | VD_FILTER_FLAGS_INFO)
+/** @} */
+
 /**
  * Helper functions to handle open flags.
  */
@@ -248,31 +279,30 @@ typedef struct VBOXHDDRAW
  * Translate VD_OPEN_FLAGS_* to RTFile open flags.
  *
  * @return  RTFile open flags.
- * @param   uOpenFlags      VD_OPEN_FLAGS_* open flags.
+ * @param   fOpenFlags      VD_OPEN_FLAGS_* open flags.
  * @param   fCreate         Flag that the file should be created.
  */
-DECLINLINE(uint32_t) VDOpenFlagsToFileOpenFlags(unsigned uOpenFlags, bool fCreate)
+DECLINLINE(uint32_t) VDOpenFlagsToFileOpenFlags(unsigned fOpenFlags, bool fCreate)
 {
-    AssertMsg(!((uOpenFlags & VD_OPEN_FLAGS_READONLY) && fCreate), ("Image can't be opened readonly while being created\n"));
+    AssertMsg(!(fOpenFlags & VD_OPEN_FLAGS_READONLY) || !fCreate, ("Image can't be opened readonly while being created\n"));
 
-    uint32_t fOpen = 0;
-
-    if (RT_UNLIKELY(uOpenFlags & VD_OPEN_FLAGS_READONLY))
-        fOpen |= RTFILE_O_READ | RTFILE_O_DENY_NONE;
+    uint32_t fOpen;
+    if (fOpenFlags & VD_OPEN_FLAGS_READONLY)
+        fOpen = RTFILE_O_READ | RTFILE_O_DENY_NONE;
     else
     {
-        fOpen |= RTFILE_O_READWRITE;
+        fOpen = RTFILE_O_READWRITE;
 
-        if (RT_UNLIKELY(uOpenFlags & VD_OPEN_FLAGS_SHAREABLE))
+        if (fOpenFlags & VD_OPEN_FLAGS_SHAREABLE)
             fOpen |= RTFILE_O_DENY_NONE;
         else
             fOpen |= RTFILE_O_DENY_WRITE;
     }
 
-    if (RT_UNLIKELY(fCreate))
-        fOpen |= RTFILE_O_CREATE | RTFILE_O_NOT_CONTENT_INDEXED;
-    else
+    if (!fCreate)
         fOpen |= RTFILE_O_OPEN;
+    else
+        fOpen |= RTFILE_O_CREATE | RTFILE_O_NOT_CONTENT_INDEXED;
 
     return fOpen;
 }
@@ -639,9 +669,11 @@ VBOXDDU_DECL(int) VDCacheOpen(PVBOXHDD pDisk, const char *pszBackend,
  * @returns VBox status code.
  * @param   pDisk           Pointer to the HDD container which should use the filter.
  * @param   pszFilter       Name of the filter backend to use (case insensitive).
+ * @param   fFlags          Flags which apply to the filter, combination of VD_FILTER_FLAGS_*
+ *                          defines.
  * @param   pVDIfsFilter    Pointer to the per-filter VD interface list.
  */
-VBOXDDU_DECL(int) VDFilterAdd(PVBOXHDD pDisk, const char *pszFilter,
+VBOXDDU_DECL(int) VDFilterAdd(PVBOXHDD pDisk, const char *pszFilter, uint32_t fFlags,
                               PVDINTERFACE pVDIfsFilter);
 
 /**
@@ -878,7 +910,7 @@ VBOXDDU_DECL(int) VDCompact(PVBOXHDD pDisk, unsigned nImage,
  *
  * @return  VBox status
  * @return  VERR_VD_IMAGE_READ_ONLY if image is not writable.
- * @return  VERR_NOT_SUPPORTED if this kind of image can be compacted, but
+ * @return  VERR_NOT_SUPPORTED if this kind of image can't be compacted.
  *
  * @param   pDisk           Pointer to the HDD container.
  * @param   cbSize          New size of the image.
@@ -890,6 +922,17 @@ VBOXDDU_DECL(int) VDResize(PVBOXHDD pDisk, uint64_t cbSize,
                            PCVDGEOMETRY pPCHSGeometry,
                            PCVDGEOMETRY pLCHSGeometry,
                            PVDINTERFACE pVDIfsOperation);
+
+/**
+ * Prepares the given disk for use by the added filters. This applies to all
+ * opened images in the chain which might be opened read/write temporary.
+ *
+ * @return  VBox status code.
+ *
+ * @param   pDisk           Pointer to the HDD container.
+ * @param   pVDIfsOperation Pointer to the per-operation VD interface list.
+ */
+VBOXDDU_DECL(int) VDPrepareWithFilters(PVBOXHDD pDisk, PVDINTERFACE pVDIfsOperation);
 
 /**
  * Closes the last opened image file in HDD container.
@@ -905,13 +948,14 @@ VBOXDDU_DECL(int) VDResize(PVBOXHDD pDisk, uint64_t cbSize,
 VBOXDDU_DECL(int) VDClose(PVBOXHDD pDisk, bool fDelete);
 
 /**
- * Removes the last added filter in the HDD container.
+ * Removes the last added filter in the HDD container from the specified chain.
  *
  * @return  VBox status code.
  * @retval  VERR_VD_NOT_OPENED if no filter is present for the disk.
  * @param   pDisk           Pointer to HDD container.
+ * @param   fFlags          Combination of VD_FILTER_FLAGS_* defines.
  */
-VBOXDDU_DECL(int) VDFilterRemove(PVBOXHDD pDisk);
+VBOXDDU_DECL(int) VDFilterRemove(PVBOXHDD pDisk, uint32_t fFlags);
 
 /**
  * Closes the currently opened cache image file in HDD container.

@@ -1,7 +1,6 @@
+/* $Id: UIGlobalSettingsLanguage.h $ */
 /** @file
- *
- * VBox frontends: Qt4 GUI ("VirtualBox"):
- * UIGlobalSettingsLanguage class declaration
+ * VBox Qt GUI - UIGlobalSettingsLanguage class declaration.
  */
 
 /*

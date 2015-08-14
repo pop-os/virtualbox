@@ -1,7 +1,6 @@
+/* $Id: UISpecialControls.h $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * VBoxSpecialButtons declarations
+ * VBox Qt GUI - VBoxSpecialButtons declarations.
  */
 
 /*
@@ -111,7 +110,7 @@ class UIRoundRectSegmentedButton: public UICocoaSegmentedButton
     Q_OBJECT;
 
 public:
-    UIRoundRectSegmentedButton(int cCount, QWidget *pParent = 0);
+    UIRoundRectSegmentedButton(QWidget *pParent, int cCount);
 };
 
 class UITexturedSegmentedButton: public UICocoaSegmentedButton
@@ -119,7 +118,7 @@ class UITexturedSegmentedButton: public UICocoaSegmentedButton
     Q_OBJECT;
 
 public:
-    UITexturedSegmentedButton(int cCount, QWidget *pParent = 0);
+    UITexturedSegmentedButton(QWidget *pParent, int cCount);
 };
 
 /********************************************************************************
@@ -132,7 +131,7 @@ class UISearchField: public UICocoaSearchField
     Q_OBJECT;
 
 public:
-    UISearchField(QWidget *pParent = 0);
+    UISearchField(QWidget *pParent);
 };
 
 #else /* VBOX_DARWIN_USE_NATIVE_CONTROLS */
@@ -228,7 +227,7 @@ class UIRoundRectSegmentedButton: public QWidget
     Q_OBJECT;
 
 public:
-    UIRoundRectSegmentedButton(int aCount, QWidget *pParent = 0);
+    UIRoundRectSegmentedButton(QWidget *pParent, int aCount);
     ~UIRoundRectSegmentedButton();
 
     void setTitle(int iSegment, const QString &aTitle);
@@ -252,7 +251,7 @@ class UITexturedSegmentedButton: public UIRoundRectSegmentedButton
     Q_OBJECT;
 
 public:
-    UITexturedSegmentedButton(int cCount, QWidget *pParent = 0);
+    UITexturedSegmentedButton(QWidget *pParent, int cCount);
 };
 
 /********************************************************************************
@@ -265,7 +264,7 @@ class UISearchField: public QLineEdit
     Q_OBJECT;
 
 public:
-    UISearchField(QWidget *pParent = 0);
+    UISearchField(QWidget *pParent);
 
     void markError();
     void unmarkError();

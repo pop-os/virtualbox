@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -45,7 +45,7 @@ DECLINLINE(uint64_t) rtTimeGetSystemNanoTS(void)
     uint64_t u64;
     struct timespec Ts;
     ktime_get_ts(&Ts);
-    u64 = Ts.tv_sec * UINT64_C(1000000000) + Ts.tv_nsec;
+    u64 = Ts.tv_sec * RT_NS_1SEC_64 + Ts.tv_nsec;
     return u64;
 
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 5, 60)
@@ -148,7 +148,7 @@ RT_EXPORT_SYMBOL(RTTimeNanoTS);
 
 RTDECL(uint64_t) RTTimeMilliTS(void)
 {
-    return rtTimeGetSystemNanoTS() / 1000000;
+    return rtTimeGetSystemNanoTS() / RT_NS_1MS;
 }
 RT_EXPORT_SYMBOL(RTTimeMilliTS);
 
@@ -162,21 +162,24 @@ RT_EXPORT_SYMBOL(RTTimeSystemNanoTS);
 
 RTDECL(uint64_t) RTTimeSystemMilliTS(void)
 {
-    return rtTimeGetSystemNanoTS() / 1000000;
+    return rtTimeGetSystemNanoTS() / RT_NS_1MS;
 }
 RT_EXPORT_SYMBOL(RTTimeSystemMilliTS);
 
 
 RTDECL(PRTTIMESPEC) RTTimeNow(PRTTIMESPEC pTime)
 {
+    IPRT_LINUX_SAVE_EFL_AC();
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 16)
     struct timespec Ts;
     ktime_get_real_ts(&Ts);
+    IPRT_LINUX_RESTORE_EFL_AC();
     return RTTimeSpecSetTimespec(pTime, &Ts);
 
 #else   /* < 2.6.16 */
     struct timeval Tv;
     do_gettimeofday(&Tv);
+    IPRT_LINUX_RESTORE_EFL_AC();
     return RTTimeSpecSetTimeval(pTime, &Tv);
 #endif
 }

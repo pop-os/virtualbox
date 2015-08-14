@@ -1,4 +1,4 @@
-/* $Id: kHlpAssert.h 46 2012-03-17 01:39:33Z bird $ */
+/* $Id: kHlpAssert.h 70 2015-08-13 09:03:02Z bird $ */
 /** @file
  * kHlpAssert - Assertion Macros.
  */
@@ -57,13 +57,22 @@ extern "C" {
 # error "Port Me"
 #endif
 
+/** @def K_FUNCTION
+ * Undecorated function name macro expanded by the compiler.
+ */
+#if defined(__GNUC__)
+# define K_FUNCTION __func__
+#else
+# define K_FUNCTION __FUNCTION__
+#endif
+
 #ifdef K_STRICT
 
 # define kHlpAssert(expr) \
     do { \
         if (!(expr)) \
         { \
-            kHlpAssertMsg1(#expr, __FILE__, __LINE__, __FUNCTION__); \
+            kHlpAssertMsg1(#expr, __FILE__, __LINE__, K_FUNCTION); \
             kHlpAssertBreakpoint(); \
         } \
     } while (0)
@@ -72,7 +81,7 @@ extern "C" {
     do { \
         if (!(expr)) \
         { \
-            kHlpAssertMsg1(#expr, __FILE__, __LINE__, __FUNCTION__); \
+            kHlpAssertMsg1(#expr, __FILE__, __LINE__, K_FUNCTION); \
             kHlpAssertBreakpoint(); \
             stmt; \
         } \
@@ -82,7 +91,7 @@ extern "C" {
     do { \
         if (!(expr)) \
         { \
-            kHlpAssertMsg1(#expr, __FILE__, __LINE__, __FUNCTION__); \
+            kHlpAssertMsg1(#expr, __FILE__, __LINE__, K_FUNCTION); \
             kHlpAssertBreakpoint(); \
             return (rcRet); \
         } \
@@ -92,7 +101,7 @@ extern "C" {
     do { \
         if (!(expr)) \
         { \
-            kHlpAssertMsg1(#expr, __FILE__, __LINE__, __FUNCTION__); \
+            kHlpAssertMsg1(#expr, __FILE__, __LINE__, K_FUNCTION); \
             kHlpAssertBreakpoint(); \
             stmt; \
             return (rcRet); \
@@ -103,7 +112,7 @@ extern "C" {
     do { \
         if (!(expr)) \
         { \
-            kHlpAssertMsg1(#expr, __FILE__, __LINE__, __FUNCTION__); \
+            kHlpAssertMsg1(#expr, __FILE__, __LINE__, K_FUNCTION); \
             kHlpAssertBreakpoint(); \
             return; \
         } \
@@ -113,7 +122,7 @@ extern "C" {
     do { \
         if (!(expr)) \
         { \
-            kHlpAssertMsg1(#expr, __FILE__, __LINE__, __FUNCTION__); \
+            kHlpAssertMsg1(#expr, __FILE__, __LINE__, K_FUNCTION); \
             kHlpAssertBreakpoint(); \
             stmt; \
             return; \
@@ -124,7 +133,7 @@ extern "C" {
     do { \
         if (!(expr)) \
         { \
-            kHlpAssertMsg1(#expr, __FILE__, __LINE__, __FUNCTION__); \
+            kHlpAssertMsg1(#expr, __FILE__, __LINE__, K_FUNCTION); \
             kHlpAssertMsg2 msg; \
             kHlpAssertBreakpoint(); \
         } \
@@ -134,7 +143,7 @@ extern "C" {
     do { \
         if (!(expr)) \
         { \
-            kHlpAssertMsg1(#expr, __FILE__, __LINE__, __FUNCTION__); \
+            kHlpAssertMsg1(#expr, __FILE__, __LINE__, K_FUNCTION); \
             kHlpAssertMsg2 msg; \
             kHlpAssertBreakpoint(); \
             stmt; \
@@ -145,7 +154,7 @@ extern "C" {
     do { \
         if (!(expr)) \
         { \
-            kHlpAssertMsg1(#expr, __FILE__, __LINE__, __FUNCTION__); \
+            kHlpAssertMsg1(#expr, __FILE__, __LINE__, K_FUNCTION); \
             kHlpAssertMsg2 msg; \
             kHlpAssertBreakpoint(); \
             return (rcRet); \
@@ -156,7 +165,7 @@ extern "C" {
     do { \
         if (!(expr)) \
         { \
-            kHlpAssertMsg1(#expr, __FILE__, __LINE__, __FUNCTION__); \
+            kHlpAssertMsg1(#expr, __FILE__, __LINE__, K_FUNCTION); \
             kHlpAssertMsg2 msg; \
             kHlpAssertBreakpoint(); \
             stmt; \
@@ -168,7 +177,7 @@ extern "C" {
     do { \
         if (!(expr)) \
         { \
-            kHlpAssertMsg1(#expr, __FILE__, __LINE__, __FUNCTION__); \
+            kHlpAssertMsg1(#expr, __FILE__, __LINE__, K_FUNCTION); \
             kHlpAssertMsg2 msg; \
             kHlpAssertBreakpoint(); \
             return; \
@@ -179,7 +188,7 @@ extern "C" {
     do { \
         if (!(expr)) \
         { \
-            kHlpAssertMsg1(#expr, __FILE__, __LINE__, __FUNCTION__); \
+            kHlpAssertMsg1(#expr, __FILE__, __LINE__, K_FUNCTION); \
             kHlpAssertMsg2 msg; \
             kHlpAssertBreakpoint(); \
             stmt; \
