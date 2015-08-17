@@ -66,7 +66,8 @@ override_dh_auto_build:
 	    VBOX_WITH_UPDATE_REQUEST= \
 	    KBUILD_VERBOSE=2 \
 	    VBOX_WITH_VMSVGA= \
-	    VBOX_WITH_VMSVGA3D=
+	    VBOX_WITH_VMSVGA3D= \
+	    VBOX_WITH_EXTPACK_VBOXDTRACE=
 
 # VBOX_WITH_VMSVGA and VBOX_WITH_VMSVGA3D are only for versions prior to 4.3.20 to fix CVE-2014-6595, CVE-2014-6590, CVE-2014-6589, CVE-2014-6588 and CVE-2015-0427
 
@@ -173,14 +174,13 @@ override_dh_strip:
 
 	# strip files not handled by dh_strip
 ifeq (,$(filter nostrip,$(DEB_BUILD_OPTIONS)))
-	set -e && for file in debian/$(sname)/usr/lib/virtualbox/*.rc debian/$(sname)/usr/lib/virtualbox/*.r0 debian/$(sname)/usr/lib/virtualbox/ExtensionPacks/Oracle_VBoxDTrace_Extension_Pack/linux.*/*.r0; do \
+	set -e && for file in debian/$(sname)/usr/lib/virtualbox/*.rc debian/$(sname)/usr/lib/virtualbox/*.r0; do \
 	    strip --strip-debug --remove-section=.comment --remove-section=.note $${file}; \
 	done
 endif
 	# I don't see a reason to have these. If any user complains, we can try ship it.
 	rm -f debian/$(sname)/usr/lib/virtualbox/VMMRC.debug
 	rm -f debian/$(sname)/usr/lib/virtualbox/VMMR0.debug
-	rm -f debian/$(sname)/usr/lib/virtualbox/ExtensionPacks/Oracle_VBoxDTrace_Extension_Pack/linux.*/VBoxDTraceR0.debug
 
 override_dh_shlibdeps:
 	dh_shlibdeps -p$(sname) -X debian/$(sname)$(INSTALL_PATH)/VBoxTestOGL -- \
