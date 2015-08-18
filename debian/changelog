@@ -1,3 +1,16 @@
+virtualbox (5.0.2-dfsg-2) unstable; urgency=medium
+
+  * d/rules: re-enable VBOX_WITH_VMSVGA and
+     VBOX_WITH_VMSVGA3D (Closes: #795531).
+     - the CVEs are already fixed
+     - this patch makes it build more coherently
+       with how upstream builds it.
+     - the proper patch should be on upstream changeset 57410
+       but we don't need it anymore
+  * Disable VBoxDTrace (Closes: #795806)
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Sun, 16 Aug 2015 11:33:47 +0200
+
 virtualbox (5.0.2-dfsg-1) unstable; urgency=medium
 
   * New upstream release. (Closes: #795424)
