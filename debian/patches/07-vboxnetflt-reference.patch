@@ -5,7 +5,7 @@ Index: virtualbox/src/VBox/Devices/Network/DrvIntNet.cpp
 ===================================================================
 --- virtualbox.orig/src/VBox/Devices/Network/DrvIntNet.cpp	2013-11-19 03:41:03.413475913 -0500
 +++ virtualbox/src/VBox/Devices/Network/DrvIntNet.cpp	2013-11-19 03:41:03.409475913 -0500
-@@ -1750,7 +1750,7 @@
+@@ -1751,7 +1751,7 @@
              return VERR_PDM_NO_ATTACHED_DRIVER;
          }
          return PDMDrvHlpVMSetError(pDrvIns, rc, RT_SRC_POS,
