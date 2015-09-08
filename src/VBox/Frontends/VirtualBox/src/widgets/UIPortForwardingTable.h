@@ -96,6 +96,28 @@ struct UIPortForwardingData
     PortData guestPort;
 };
 
+/* Port forwarding data, unique part: */
+struct UIPortForwardingDataUnique
+{
+    UIPortForwardingDataUnique(KNATProtocol enmProtocol,
+                               PortData uHostPort,
+                               const IpData &strHostIp)
+        : protocol(enmProtocol)
+        , hostPort(uHostPort)
+        , hostIp(strHostIp) {}
+    bool operator==(const UIPortForwardingDataUnique &other)
+    {
+        return    protocol == other.protocol
+               && hostPort == other.hostPort
+               && (   hostIp.isEmpty()    || other.hostIp.isEmpty()
+                   || hostIp == "0.0.0.0" || other.hostIp == "0.0.0.0"
+                   || hostIp              == other.hostIp);
+    }
+    KNATProtocol protocol;
+    PortData hostPort;
+    IpData hostIp;
+};
+
 /* Port forwarding data list: */
 typedef QList<UIPortForwardingData> UIPortForwardingDataList;
 
@@ -107,12 +129,14 @@ class UIPortForwardingTable : public QIWithRetranslateUI<QWidget>
 public:
 
     /* Constructor: */
-    UIPortForwardingTable(const UIPortForwardingDataList &rules, bool fIPv6);
+    UIPortForwardingTable(const UIPortForwardingDataList &rules, bool fIPv6, bool fAllowEmptyGuestIPs);
 
     /* API: Rules stuff: */
     const UIPortForwardingDataList& rules() const;
     bool validate() const;
-    bool discard() const;
+
+    /** Returns whether the table data was changed. */
+    bool isChanged() const { return m_fIsTableDataChanged; }
 
 private slots:
 
@@ -121,8 +145,10 @@ private slots:
     void sltCopyRule();
     void sltDelRule();
 
+    /** Marks table data as changed. */
+    void sltTableDataChanged() { m_fIsTableDataChanged = true; }
+
     /* Handlers: Table stuff: */
-    void sltTableDataChanged();
     void sltCurrentChanged();
     void sltShowTableContexMenu(const QPoint &position);
     void sltAdjustTable();
@@ -136,6 +162,9 @@ private:
     bool eventFilter(QObject *pObject, QEvent *pEvent);
 
     /* Flags: */
+    bool m_fAllowEmptyGuestIPs;
+
+    /** Holds whether the table data was changed. */
     bool m_fIsTableDataChanged;
 
     /* Widgets: */

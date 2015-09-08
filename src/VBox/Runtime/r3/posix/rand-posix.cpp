@@ -25,9 +25,9 @@
  */
 
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #include <errno.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -87,7 +87,7 @@ static DECLCALLBACK(int) rtRandAdvPosixDestroy(PRTRANDINT pThis)
 }
 
 
-static int rtRandAdvPosixCreateSystem(PRTRAND phRand, const char *pszDev) RT_NO_THROW
+static int rtRandAdvPosixCreateSystem(PRTRAND phRand, const char *pszDev) RT_NO_THROW_DEF
 {
     /*
      * Try open it first and then setup the handle structure.
@@ -125,13 +125,13 @@ static int rtRandAdvPosixCreateSystem(PRTRAND phRand, const char *pszDev) RT_NO_
 }
 
 
-RTDECL(int) RTRandAdvCreateSystemFaster(PRTRAND phRand) RT_NO_THROW
+RTDECL(int) RTRandAdvCreateSystemFaster(PRTRAND phRand) RT_NO_THROW_DEF
 {
     return rtRandAdvPosixCreateSystem(phRand, "/dev/urandom");
 }
 
 
-RTDECL(int) RTRandAdvCreateSystemTruer(PRTRAND phRand) RT_NO_THROW
+RTDECL(int) RTRandAdvCreateSystemTruer(PRTRAND phRand) RT_NO_THROW_DEF
 {
     return rtRandAdvPosixCreateSystem(phRand, "/dev/random");
 }

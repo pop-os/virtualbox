@@ -24,9 +24,10 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #include "the-nt-kernel.h"
 #include "internal/iprt.h"
 #include <iprt/thread.h>
@@ -70,12 +71,6 @@ static int rtR0ThreadNtSleepCommon(RTMSINTERVAL cMillies)
 
 
 RTDECL(int)   RTThreadSleep(RTMSINTERVAL cMillies)
-{
-    return rtR0ThreadNtSleepCommon(cMillies);
-}
-
-
-RTDECL(int)   RTThreadSleepCommon(RTMSINTERVAL cMillies)
 {
     return rtR0ThreadNtSleepCommon(cMillies);
 }

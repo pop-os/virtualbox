@@ -20,11 +20,12 @@
 
 /*
  * DEBUG_DUMP_PCM_DATA enables dumping the raw PCM data
- * to a file on the host. Be sure to adjust the dumping path
+ * to a file on the host. Be sure to adjust DEBUG_DUMP_PCM_DATA_PATH
  * to your needs before using this!
  */
 #ifdef DEBUG
 //# define DEBUG_DUMP_PCM_DATA
+# define DEBUG_DUMP_PCM_DATA_PATH "c:\\temp\\"
 #endif
 
 #include <iprt/asm-math.h>
@@ -212,6 +213,40 @@ int AudioMixBufAcquire(PPDMAUDIOMIXBUF pMixBuf, uint32_t cSamplesToRead,
     *pcSamplesRead = cSamplesRead;
 
     return rc;
+}
+
+/**
+ * Returns available number of samples for reading.
+ *
+ * @return  uint32_t                Number of samples available for reading.
+ * @param   pMixBuf                 Mixing buffer to return value for.
+ */
+uint32_t AudioMixBufAvail(PPDMAUDIOMIXBUF pMixBuf)
+{
+    AssertPtrReturn(pMixBuf, true);
+
+    uint32_t cAvail;
+    if (pMixBuf->pParent) /* Child */
+        cAvail = pMixBuf->cMixed;
+    else
+        cAvail = pMixBuf->cProcessed;
+
+    Assert(cAvail <= pMixBuf->cSamples);
+    return cAvail;
+}
+
+/**
+ * Clears the entire sample buffer.
+ *
+ * @param   pMixBuf                 Mixing buffer to clear.
+ *
+ */
+void AudioMixBufClear(PPDMAUDIOMIXBUF pMixBuf)
+{
+    AssertPtrReturnVoid(pMixBuf);
+
+    if (pMixBuf->cSamples)
+        RT_BZERO(pMixBuf->pSamples, pMixBuf->cSamples * sizeof(PDMAUDIOSAMPLE));
 }
 
 /**
@@ -916,7 +951,7 @@ int AudioMixBufLinkTo(PPDMAUDIOMIXBUF pMixBuf, PPDMAUDIOMIXBUF pParent)
 }
 
 /**
- * Returns the number of audio samples mixed (processed) from
+ * Returns the number of audio samples mixed (processed) by
  * the parent mixing buffer.
  *
  * @return  uint32_t                Number of audio samples mixed (processed).
@@ -947,6 +982,7 @@ static int audioMixBufMixTo(PPDMAUDIOMIXBUF pDst, PPDMAUDIOMIXBUF pSrc, uint32_t
 {
     AssertPtrReturn(pDst, VERR_INVALID_POINTER);
     AssertPtrReturn(pSrc, VERR_INVALID_POINTER);
+    AssertReturn(cSamples, VERR_INVALID_PARAMETER);
     /* pcProcessed is optional. */
 
     /* Live samples indicate how many samples there are in the source buffer
@@ -1248,7 +1284,6 @@ int AudioMixBufReadCircEx(PPDMAUDIOMIXBUF pMixBuf, PDMAUDIOMIXBUFFMT enmFmt,
 {
     AssertPtrReturn(pMixBuf, VERR_INVALID_POINTER);
     AssertPtrReturn(pvBuf, VERR_INVALID_POINTER);
-    AssertReturn(cbBuf, VERR_INVALID_PARAMETER);
     /* pcbRead is optional. */
 
     if (!cbBuf)
@@ -1329,7 +1364,7 @@ int AudioMixBufReadCircEx(PPDMAUDIOMIXBUF pMixBuf, PDMAUDIOMIXBUFFMT enmFmt,
     {
 #ifdef DEBUG_DUMP_PCM_DATA
         RTFILE fh;
-        rc = RTFileOpen(&fh, "c:\\temp\\mixbuf_readcirc.pcm",
+        rc = RTFileOpen(&fh, DEBUG_DUMP_PCM_DATA_PATH "mixbuf_readcirc.pcm",
                         RTFILE_O_OPEN_CREATE | RTFILE_O_APPEND | RTFILE_O_WRITE | RTFILE_O_DENY_NONE);
         if (RT_SUCCESS(rc))
         {
@@ -1369,8 +1404,7 @@ void AudioMixBufReset(PPDMAUDIOMIXBUF pMixBuf)
     pMixBuf->cMixed       = 0;
     pMixBuf->cProcessed   = 0;
 
-    if (pMixBuf->cSamples)
-        RT_BZERO(pMixBuf->pSamples, pMixBuf->cSamples * sizeof(PDMAUDIOSAMPLE));
+    AudioMixBufClear(pMixBuf);
 }
 
 /**
@@ -1532,7 +1566,7 @@ int AudioMixBufWriteAtEx(PPDMAUDIOMIXBUF pMixBuf, PDMAUDIOMIXBUFFMT enmFmt,
 
 #ifdef DEBUG_DUMP_PCM_DATA
     RTFILE fh;
-    rc = RTFileOpen(&fh, "c:\\temp\\mixbuf_writeat.pcm",
+    rc = RTFileOpen(&fh, DEBUG_DUMP_PCM_DATA_PATH "mixbuf_writeat.pcm",
                     RTFILE_O_OPEN_CREATE | RTFILE_O_APPEND | RTFILE_O_WRITE | RTFILE_O_DENY_NONE);
     if (RT_SUCCESS(rc))
     {
@@ -1685,7 +1719,7 @@ int AudioMixBufWriteCircEx(PPDMAUDIOMIXBUF pMixBuf, PDMAUDIOMIXBUFFMT enmFmt,
 
 #ifdef DEBUG_DUMP_PCM_DATA
         RTFILE fh;
-        RTFileOpen(&fh, "c:\\temp\\mixbuf_writeex.pcm",
+        RTFileOpen(&fh, DEBUG_DUMP_PCM_DATA_PATH "mixbuf_writeex.pcm",
                    RTFILE_O_OPEN_CREATE | RTFILE_O_APPEND | RTFILE_O_WRITE | RTFILE_O_DENY_NONE);
         RTFileWrite(fh, pSamplesDst1, AUDIOMIXBUF_S2B(pMixBuf, cLenDst1), NULL);
         RTFileClose(fh);

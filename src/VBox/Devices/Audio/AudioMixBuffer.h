@@ -50,7 +50,9 @@
 
 
 int AudioMixBufAcquire(PPDMAUDIOMIXBUF pMixBuf, uint32_t cSamplesToRead, PPDMAUDIOSAMPLE *ppvSamples, uint32_t *pcSamplesRead);
+uint32_t AudioMixBufAvail(PPDMAUDIOMIXBUF pMixBuf);
 inline uint32_t AudioMixBufBytesToSamples(PPDMAUDIOMIXBUF pMixBuf);
+void AudioMixBufClear(PPDMAUDIOMIXBUF pMixBuf);
 void AudioMixBufDestroy(PPDMAUDIOMIXBUF pMixBuf);
 void AudioMixBufFinish(PPDMAUDIOMIXBUF pMixBuf, uint32_t cSamplesToClear);
 uint32_t AudioMixBufFree(PPDMAUDIOMIXBUF pMixBuf);

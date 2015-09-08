@@ -16,9 +16,9 @@
  */
 
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_SELM
 #include <VBox/vmm/selm.h>
 #include <VBox/vmm/stam.h>
@@ -39,9 +39,9 @@
 #include "SELMInline.h"
 
 
-/*******************************************************************************
-*   Global Variables                                                           *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Global Variables                                                                                                             *
+*********************************************************************************************************************************/
 #if defined(LOG_ENABLED) && defined(VBOX_WITH_RAW_MODE_NOT_R0)
 /** Segment register names. */
 static char const g_aszSRegNms[X86_SREG_COUNT][4] = { "ES", "CS", "SS", "DS", "FS", "GS" };
@@ -1043,7 +1043,7 @@ l_tryagain:
 #endif /* VBOX_WITH_RAW_MODE_NOT_R0 */
 
 
-#if defined(VBOX_WITH_RAW_MODE) || (HC_ARCH_BITS != 64 && !defined(VBOX_WITH_HYBRID_32BIT_KERNEL))
+#if defined(VBOX_WITH_RAW_MODE) || (HC_ARCH_BITS != 64 && defined(VBOX_WITH_64_BITS_GUESTS))
 
 /**
  * Gets the hypervisor code selector (CS).
@@ -1117,7 +1117,7 @@ VMMDECL(RTRCPTR) SELMGetHyperGDT(PVM pVM)
     return (RTRCPTR)MMHyperR3ToRC(pVM, pVM->selm.s.paGdtR3);
 }
 
-#endif /* defined(VBOX_WITH_RAW_MODE) || (HC_ARCH_BITS != 64 && !defined(VBOX_WITH_HYBRID_32BIT_KERNEL)) */
+#endif /* defined(VBOX_WITH_RAW_MODE) || (HC_ARCH_BITS != 64 && defined(VBOX_WITH_64_BITS_GUESTS)) */
 
 /**
  * Gets info about the current TSS.

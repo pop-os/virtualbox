@@ -17,9 +17,10 @@
 
 //#define PDMLDR_FAKE_MODE
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_PDM_LDR
 #include "PDMInternal.h"
 #include <VBox/vmm/pdm.h>
@@ -46,9 +47,9 @@
 #include <limits.h>
 
 
-/*******************************************************************************
-*   Structures and Typedefs                                                    *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
 /**
  * Structure which the user argument of the RTLdrGetBits() callback points to.
  * @internal
@@ -60,9 +61,9 @@ typedef struct PDMGETIMPORTARGS
 } PDMGETIMPORTARGS, *PPDMGETIMPORTARGS;
 
 
-/*******************************************************************************
-*   Internal Functions                                                         *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Internal Functions                                                                                                           *
+*********************************************************************************************************************************/
 static DECLCALLBACK(int) pdmR3GetImportRC(RTLDRMOD hLdrMod, const char *pszModule, const char *pszSymbol, unsigned uSymbol, RTUINTPTR *pValue, void *pvUser);
 static int      pdmR3LoadR0U(PUVM pUVM, const char *pszFilename, const char *pszName, const char *pszSearchPath);
 static char    *pdmR3FileRC(const char *pszFile, const char *pszSearchPath);
@@ -720,8 +721,8 @@ static int pdmR3LoadR0U(PUVM pUVM, const char *pszFilename, const char *pszName,
     LogRel(("PDMLdr: pdmR3LoadR0U: pszName=\"%s\" rc=%Rrc szErr=\"%s\"\n", pszName, rc, ErrInfo.Core.pszMsg));
 
     /* Don't consider VERR_PDM_MODULE_NAME_CLASH and VERR_NO_MEMORY above as these are very unlikely. */
-    if (RT_FAILURE(rc) && pUVM->pVM) /** @todo VMR3SetErrorU. */
-        rc = VMSetError(pUVM->pVM, rc, RT_SRC_POS, N_("Cannot load R0 module %s: %s"), pszFilename, ErrInfo.Core.pszMsg);
+    if (RT_FAILURE(rc))
+        rc = VMR3SetError(pUVM, rc, RT_SRC_POS, N_("Failed to load R0 module %s: %s"), pszFilename, ErrInfo.Core.pszMsg);
 
     RTMemTmpFree(pszFile); /* might be reference thru pszFilename in the above VMSetError call. */
     return rc;

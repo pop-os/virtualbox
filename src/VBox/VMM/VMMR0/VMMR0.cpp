@@ -15,9 +15,10 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_VMM
 #include <VBox/vmm/vmm.h>
 #include <VBox/sup.h>
@@ -60,10 +61,15 @@
 #  pragma intrinsic(_AddressOfReturnAddress)
 #endif
 
+#if defined(RT_OS_DARWIN) && ARCH_BITS == 32
+# error "32-bit darwin is no longer supported. Go back to 4.3 or earlier!"
+#endif
 
-/*******************************************************************************
-*   Defined Constants And Macros                                               *
-*******************************************************************************/
+
+
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
 /** @def VMM_CHECK_SMAP_SETUP
  * SMAP check setup. */
 /** @def VMM_CHECK_SMAP_CHECK
@@ -112,9 +118,9 @@
 #endif
 
 
-/*******************************************************************************
-*   Internal Functions                                                         *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Internal Functions                                                                                                           *
+*********************************************************************************************************************************/
 RT_C_DECLS_BEGIN
 #if defined(RT_ARCH_X86) && (defined(RT_OS_SOLARIS) || defined(RT_OS_FREEBSD))
 extern uint64_t __udivdi3(uint64_t, uint64_t);
@@ -123,9 +129,9 @@ extern uint64_t __umoddi3(uint64_t, uint64_t);
 RT_C_DECLS_END
 
 
-/*******************************************************************************
-*   Global Variables                                                           *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Global Variables                                                                                                             *
+*********************************************************************************************************************************/
 /** Drag in necessary library bits.
  * The runtime lives here (in VMMR0.r0) and VBoxDD*R0.r0 links against us. */
 PFNRT g_VMMR0Deps[] =
@@ -901,29 +907,6 @@ static void vmmR0RecordRC(PVM pVM, PVMCPU pVCpu, int rc)
     }
 }
 #endif /* VBOX_WITH_STATISTICS */
-
-
-/**
- * Unused ring-0 entry point that used to be called from the interrupt gate.
- *
- * Will be removed one of the next times we do a major SUPDrv version bump.
- *
- * @returns VBox status code.
- * @param   pVM             Pointer to the VM.
- * @param   enmOperation    Which operation to execute.
- * @param   pvArg           Argument to the operation.
- * @remarks Assume called with interrupts disabled.
- */
-VMMR0DECL(int) VMMR0EntryInt(PVM pVM, VMMR0OPERATION enmOperation, void *pvArg)
-{
-    /*
-     * We're returning VERR_NOT_SUPPORT here so we've got something else
-     * than -1 which the interrupt gate glue code might return.
-     */
-    Log(("operation %#x is not supported\n", enmOperation));
-    NOREF(enmOperation); NOREF(pvArg); NOREF(pVM);
-    return VERR_NOT_SUPPORTED;
-}
 
 
 /**
@@ -1888,7 +1871,7 @@ static int vmmR0EntryExWorker(PVM pVM, VMCPUID idCpu, VMMR0OPERATION enmOperatio
             return VINF_SUCCESS;
 
 
-#if HC_ARCH_BITS == 32 && defined(VBOX_WITH_64_BITS_GUESTS) && !defined(VBOX_WITH_HYBRID_32BIT_KERNEL)
+#if HC_ARCH_BITS == 32 && defined(VBOX_WITH_64_BITS_GUESTS)
         case VMMR0_DO_TEST_SWITCHER3264:
             if (idCpu == NIL_VMCPUID)
                 return VERR_INVALID_CPU_ID;

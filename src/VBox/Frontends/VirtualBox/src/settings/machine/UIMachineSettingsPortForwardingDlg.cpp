@@ -26,6 +26,7 @@
 /* GUI includes: */
 # include "UIMachineSettingsPortForwardingDlg.h"
 # include "UIIconPool.h"
+# include "UIMessageCenter.h"
 # include "QIDialogButtonBox.h"
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
@@ -44,7 +45,7 @@ UIMachineSettingsPortForwardingDlg::UIMachineSettingsPortForwardingDlg(QWidget *
     QVBoxLayout *pMainLayout = new QVBoxLayout(this);
     {
         /* Create table: */
-        m_pTable = new UIPortForwardingTable(rules, false);
+        m_pTable = new UIPortForwardingTable(rules, false, true);
         /* Create button-box: */
         m_pButtonBox = new QIDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, Qt::Horizontal);
         {
@@ -78,9 +79,9 @@ void UIMachineSettingsPortForwardingDlg::accept()
 
 void UIMachineSettingsPortForwardingDlg::reject()
 {
-    /* Discard table: */
-    bool fPassed = m_pTable->discard();
-    if (!fPassed)
+    /* Ask user to discard table changes if necessary: */
+    if (   m_pTable->isChanged()
+        && !msgCenter().confirmCancelingPortForwardingDialog(window()))
         return;
     /* Call to base-class: */
     QIWithRetranslateUI<QIDialog>::reject();

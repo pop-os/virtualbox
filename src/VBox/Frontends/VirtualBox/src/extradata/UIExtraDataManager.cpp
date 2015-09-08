@@ -22,7 +22,6 @@
 /* Qt includes: */
 # include <QMutex>
 # include <QMetaEnum>
-# include <QDesktopWidget>
 # ifdef DEBUG
 #  include <QMainWindow>
 #  include <QMenuBar>
@@ -1478,7 +1477,7 @@ void UIExtraDataManagerWindow::loadSettings()
 #else /* Q_WS_MAC */
         setGeometry(m_geometry);
 #endif /* !Q_WS_MAC */
-        LogRel(("GUI: UIExtraDataManagerWindow: Geometry loaded to: %dx%d @ %dx%d\n",
+        LogRel(("GUI: UIExtraDataManagerWindow: Geometry loaded to: Origin=%dx%d, Size=%dx%d\n",
                 m_geometry.x(), m_geometry.y(), m_geometry.width(), m_geometry.height()));
 
         /* Maximize (if necessary): */
@@ -1507,7 +1506,7 @@ void UIExtraDataManagerWindow::saveSettings()
 #else /* Q_WS_MAC */
         gEDataManager->setExtraDataManagerGeometry(m_geometry, isMaximized());
 #endif /* !Q_WS_MAC */
-        LogRel(("GUI: UIExtraDataManagerWindow: Geometry saved as: %dx%d @ %dx%d\n",
+        LogRel(("GUI: UIExtraDataManagerWindow: Geometry saved as: Origin=%dx%d, Size=%dx%d\n",
                 m_geometry.x(), m_geometry.y(), m_geometry.width(), m_geometry.height()));
     }
 }
@@ -1803,7 +1802,8 @@ QStringList UIExtraDataManagerWindow::knownExtraDataKeys()
 #ifdef VBOX_WITH_DEBUGGER_GUI
            << GUI_Dbg_Enabled << GUI_Dbg_AutoShow
 #endif /* VBOX_WITH_DEBUGGER_GUI */
-           << GUI_ExtraDataManager_Geometry << GUI_ExtraDataManager_SplitterHints;
+           << GUI_ExtraDataManager_Geometry << GUI_ExtraDataManager_SplitterHints
+           << GUI_LogWindowGeometry;
 }
 #endif /* DEBUG */
 
@@ -2225,20 +2225,20 @@ QRect UIExtraDataManager::selectorWindowGeometry(QWidget *pWidget)
     /* Use geometry (loaded or default): */
     QRect geometry = fOk ? QRect(iX, iY, iW, iH) : QRect(0, 0, 770, 550);
 
-    /* Take widget into account: */
+    /* Take hint-widget into account: */
     if (pWidget)
         geometry.setSize(geometry.size().expandedTo(pWidget->minimumSizeHint()));
 
     /* Get screen-geometry [of screen with point (iX, iY) if possible]: */
-    const QRect screenGeometry = fOk ? QApplication::desktop()->availableGeometry(QPoint(iX, iY)) :
-                                       QApplication::desktop()->availableGeometry();
+    const QRect availableGeometry = fOk ? vboxGlobal().availableGeometry(QPoint(iX, iY)) :
+                                          vboxGlobal().availableGeometry();
 
     /* Make sure resulting geometry is within current bounds: */
-    geometry = geometry.intersected(screenGeometry);
+    geometry = geometry.intersected(availableGeometry);
 
     /* Move default-geometry to screen-geometry' center: */
     if (!fOk)
-        geometry.moveCenter(screenGeometry.center());
+        geometry.moveCenter(availableGeometry.center());
 
     /* Return result: */
     return geometry;
@@ -3426,11 +3426,11 @@ QRect UIExtraDataManager::informationWindowGeometry(QWidget *pWidget, QWidget *p
         geometry.setSize(geometry.size().expandedTo(pWidget->minimumSizeHint()));
 
     /* Get screen-geometry [of screen with point (iX, iY) if possible]: */
-    const QRect screenGeometry = fOk ? QApplication::desktop()->availableGeometry(QPoint(iX, iY)) :
-                                       QApplication::desktop()->availableGeometry();
+    const QRect availableGeometry = fOk ? vboxGlobal().availableGeometry(QPoint(iX, iY)) :
+                                          vboxGlobal().availableGeometry();
 
     /* Make sure resulting geometry is within current bounds: */
-    geometry = geometry.intersected(screenGeometry);
+    geometry = geometry.intersected(availableGeometry);
 
     /* Move default-geometry to pParentWidget' geometry center: */
     if (!fOk && pParentWidget)
@@ -3536,15 +3536,15 @@ QRect UIExtraDataManager::extraDataManagerGeometry(QWidget *pWidget)
         geometry.setSize(geometry.size().expandedTo(pWidget->minimumSizeHint()));
 
     /* Get screen-geometry [of screen with point (iX, iY) if possible]: */
-    const QRect screenGeometry = fOk ? QApplication::desktop()->availableGeometry(QPoint(iX, iY)) :
-                                       QApplication::desktop()->availableGeometry();
+    const QRect availableGeometry = fOk ? vboxGlobal().availableGeometry(QPoint(iX, iY)) :
+                                          vboxGlobal().availableGeometry();
 
     /* Make sure resulting geometry is within current bounds: */
-    geometry = geometry.intersected(screenGeometry);
+    geometry = geometry.intersected(availableGeometry);
 
     /* Move default-geometry to current screen center: */
     if (!fOk)
-        geometry.moveCenter(screenGeometry.center());
+        geometry.moveCenter(availableGeometry.center());
 
     /* Return result: */
     return geometry;
@@ -3619,6 +3619,72 @@ void UIExtraDataManager::setExtraDataManagerSplitterHints(const QList<int> &hint
     setExtraDataStringList(GUI_ExtraDataManager_SplitterHints, data);
 }
 #endif /* DEBUG */
+
+QRect UIExtraDataManager::logWindowGeometry(QWidget *pWidget, const QRect &defaultGeometry)
+{
+    /* Get corresponding extra-data: */
+    const QStringList data = extraDataStringList(GUI_LogWindowGeometry);
+
+    /* Parse loaded data: */
+    int iX = 0, iY = 0, iW = 0, iH = 0;
+    bool fOk = data.size() >= 4;    
+    do
+    {
+        if (!fOk) break;
+        iX = data[0].toInt(&fOk);
+        if (!fOk) break;
+        iY = data[1].toInt(&fOk);
+        if (!fOk) break;
+        iW = data[2].toInt(&fOk);
+        if (!fOk) break;
+        iH = data[3].toInt(&fOk);
+    }
+    while (0);
+
+    /* Use geometry (loaded or default): */
+    QRect geometry = fOk ? QRect(iX, iY, iW, iH) : defaultGeometry;
+
+    /* Take hint-widget into account: */
+    if (pWidget)
+        geometry.setSize(geometry.size().expandedTo(pWidget->minimumSizeHint()));
+
+    /* In Windows Qt fails to reposition out of screen window properly, so moving to centre: */
+#ifdef Q_WS_WIN
+    /* Get screen-geometry [of screen with point (iX, iY) if possible]: */
+    const QRect availableGeometry = vboxGlobal().availableGeometry(QPoint(iX, iY));
+
+    /* Make sure resulting geometry is within current bounds: */
+    if (!availableGeometry.contains(geometry, true))
+        geometry.moveCenter(defaultGeometry.center());
+#endif /* Q_WS_WIN */
+
+    /* Return result: */
+    return geometry;
+}
+
+bool UIExtraDataManager::logWindowShouldBeMaximized()
+{
+    /* Get corresponding extra-data: */
+    const QStringList data = extraDataStringList(GUI_LogWindowGeometry);
+
+    /* Make sure 5th item has required value: */
+    return data.size() == 5 && data[4] == GUI_Geometry_State_Max;
+}
+
+void UIExtraDataManager::setLogWindowGeometry(const QRect &geometry, bool fMaximized)
+{
+    /* Serialize passed values: */
+    QStringList data;
+    data << QString::number(geometry.x());
+    data << QString::number(geometry.y());
+    data << QString::number(geometry.width());
+    data << QString::number(geometry.height());
+    if (fMaximized)
+        data << GUI_Geometry_State_Max;
+
+    /* Re-cache corresponding extra-data: */
+    setExtraDataStringList(GUI_LogWindowGeometry, data);
+}
 
 void UIExtraDataManager::sltExtraDataChange(QString strMachineID, QString strKey, QString strValue)
 {

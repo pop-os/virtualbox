@@ -25,9 +25,9 @@
  */
 
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #include "internal/iprt.h"
 #include <iprt/manifest.h>
 
@@ -40,9 +40,9 @@
 #include <iprt/string.h>
 
 
-/*******************************************************************************
-*   Structures and Typedefs                                                    *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
 /**
  * Internal per file structure used by RTManifestVerify
  */
@@ -89,7 +89,7 @@ DECLINLINE(size_t) rtManifestIndexOfCharInBuf(char const *pv, size_t cb, char c)
     return cb;
 }
 
-int rtSHAProgressCallback(unsigned uPercent, void *pvUser)
+static DECLCALLBACK(int) rtSHAProgressCallback(unsigned uPercent, void *pvUser)
 {
     PRTMANIFESTCALLBACKDATA pData = (PRTMANIFESTCALLBACKDATA)pvUser;
     return pData->pfnProgressCallback((unsigned)(  (uPercent + (float)pData->cCurrentFile * 100.0)

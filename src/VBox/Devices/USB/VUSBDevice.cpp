@@ -16,9 +16,9 @@
  */
 
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_DRV_VUSB
 #include <VBox/vmm/pdm.h>
 #include <VBox/vmm/vmapi.h>
@@ -35,9 +35,10 @@
 
 #include "VUSBSniffer.h"
 
-/*******************************************************************************
-*   Structures and Typedefs                                                    *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
 /**
  * Argument package of vusbDevResetThread().
  */
@@ -54,9 +55,9 @@ typedef struct vusb_reset_args
 } VUSBRESETARGS, *PVUSBRESETARGS;
 
 
-/*******************************************************************************
-*   Global Variables                                                           *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Global Variables                                                                                                             *
+*********************************************************************************************************************************/
 /** Default message pipe. */
 const VUSBDESCENDPOINTEX g_Endpoint0 =
 {
@@ -1423,7 +1424,7 @@ static int vusbDevResetWorker(PVUSBDEV pDev, bool fResetOnLinux, bool fUseTimer,
  *                          on the EMT thread.
  * @thread  EMT
  */
-DECLCALLBACK(int) vusbIDeviceReset(PVUSBIDEVICE pDevice, bool fResetOnLinux, PFNVUSBRESETDONE pfnDone, void *pvUser, PVM pVM)
+static DECLCALLBACK(int) vusbIDeviceReset(PVUSBIDEVICE pDevice, bool fResetOnLinux, PFNVUSBRESETDONE pfnDone, void *pvUser, PVM pVM)
 {
     PVUSBDEV pDev = (PVUSBDEV)pDevice;
     Assert(!pfnDone || pVM);
@@ -1482,7 +1483,7 @@ DECLCALLBACK(int) vusbIDeviceReset(PVUSBIDEVICE pDevice, bool fResetOnLinux, PFN
  * @returns VBox status code.
  * @param   pInterface      Pointer to the device interface structure.
  */
-DECLCALLBACK(int) vusbIDevicePowerOn(PVUSBIDEVICE pInterface)
+static DECLCALLBACK(int) vusbIDevicePowerOn(PVUSBIDEVICE pInterface)
 {
     PVUSBDEV pDev = (PVUSBDEV)pInterface;
     LogFlow(("vusbDevPowerOn: pDev=%p[%s]\n", pDev, pDev->pUsbIns->pszName));
@@ -1518,7 +1519,7 @@ DECLCALLBACK(int) vusbIDevicePowerOn(PVUSBIDEVICE pInterface)
  * @returns VBox status code.
  * @param   pInterface      Pointer to the device interface structure.
  */
-DECLCALLBACK(int) vusbIDevicePowerOff(PVUSBIDEVICE pInterface)
+static DECLCALLBACK(int) vusbIDevicePowerOff(PVUSBIDEVICE pInterface)
 {
     PVUSBDEV pDev = (PVUSBDEV)pInterface;
     LogFlow(("vusbDevPowerOff: pDev=%p[%s]\n", pDev, pDev->pUsbIns->pszName));
@@ -1559,7 +1560,7 @@ DECLCALLBACK(int) vusbIDevicePowerOff(PVUSBIDEVICE pInterface)
  * @returns Device state.
  * @param   pInterface      Pointer to the device interface structure.
  */
-DECLCALLBACK(VUSBDEVICESTATE) vusbIDeviceGetState(PVUSBIDEVICE pInterface)
+static DECLCALLBACK(VUSBDEVICESTATE) vusbIDeviceGetState(PVUSBIDEVICE pInterface)
 {
     return vusbDevGetState((PVUSBDEV)pInterface);
 }
@@ -1568,7 +1569,7 @@ DECLCALLBACK(VUSBDEVICESTATE) vusbIDeviceGetState(PVUSBIDEVICE pInterface)
 /**
  * @interface_method_impl{VUSBIDEVICE,pfnIsSavedStateSupported}
  */
-DECLCALLBACK(bool) vusbIDeviceIsSavedStateSupported(PVUSBIDEVICE pInterface)
+static DECLCALLBACK(bool) vusbIDeviceIsSavedStateSupported(PVUSBIDEVICE pInterface)
 {
     PVUSBDEV pDev = (PVUSBDEV)pInterface;
     bool fSavedStateSupported = RT_BOOL(pDev->pUsbIns->pReg->fFlags & PDM_USBREG_SAVED_STATE_SUPPORTED);
@@ -1583,7 +1584,7 @@ DECLCALLBACK(bool) vusbIDeviceIsSavedStateSupported(PVUSBIDEVICE pInterface)
 /**
  * @interface_method_impl{VUSBIDEVICE,pfnGetState}
  */
-DECLCALLBACK(VUSBSPEED) vusbIDeviceGetSpeed(PVUSBIDEVICE pInterface)
+static DECLCALLBACK(VUSBSPEED) vusbIDeviceGetSpeed(PVUSBIDEVICE pInterface)
 {
     PVUSBDEV pDev = (PVUSBDEV)pInterface;
     VUSBSPEED enmSpeed = pDev->pUsbIns->enmSpeed;

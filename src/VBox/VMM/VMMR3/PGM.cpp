@@ -610,9 +610,10 @@
  * Breakdown of the changes involved?
  */
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_PGM
 #include <VBox/vmm/dbgf.h>
 #include <VBox/vmm/pgm.h>
@@ -647,9 +648,9 @@
 #include <iprt/thread.h>
 
 
-/*******************************************************************************
-*   Structures and Typedefs                                                    *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
 /**
  * Argument package for pgmR3RElocatePhysHnadler, pgmR3RelocateVirtHandler and
  * pgmR3RelocateHyperVirtHandler.
@@ -663,9 +664,9 @@ typedef struct PGMRELOCHANDLERARGS
 typedef PGMRELOCHANDLERARGS const *PCPGMRELOCHANDLERARGS;
 
 
-/*******************************************************************************
-*   Internal Functions                                                         *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Internal Functions                                                                                                           *
+*********************************************************************************************************************************/
 static int                pgmR3InitPaging(PVM pVM);
 static int                pgmR3InitStats(PVM pVM);
 static DECLCALLBACK(void) pgmR3PhysInfo(PVM pVM, PCDBGFINFOHLP pHlp, const char *pszArgs);
@@ -694,9 +695,9 @@ static FNDBGCCMD          pgmR3CmdPhysToFile;
 #endif
 
 
-/*******************************************************************************
-*   Global Variables                                                           *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Global Variables                                                                                                             *
+*********************************************************************************************************************************/
 #ifdef VBOX_WITH_DEBUGGER
 /** Argument descriptors for '.pgmerror' and '.pgmerroroff'. */
 static const DBGCVARDESC g_aPgmErrorArgs[] =
@@ -1652,14 +1653,12 @@ static int pgmR3InitPaging(PVM pVM)
         case SUPPAGINGMODE_AMD64_GLOBAL:
         case SUPPAGINGMODE_AMD64_NX:
         case SUPPAGINGMODE_AMD64_GLOBAL_NX:
-#ifndef VBOX_WITH_HYBRID_32BIT_KERNEL
             if (ARCH_BITS != 64)
             {
                 AssertMsgFailed(("Host mode %d (64-bit) is not supported by non-64bit builds\n", pVM->pgm.s.enmHostMode));
                 LogRel(("PGM: Host mode %d (64-bit) is not supported by non-64bit builds\n", pVM->pgm.s.enmHostMode));
                 return VERR_PGM_UNSUPPORTED_HOST_PAGING_MODE;
             }
-#endif
             break;
         default:
             AssertMsgFailed(("Host mode %d is not supported\n", pVM->pgm.s.enmHostMode));

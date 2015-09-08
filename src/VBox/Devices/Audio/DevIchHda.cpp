@@ -19,9 +19,10 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_DEV_HDA
 #include <VBox/log.h>
 #include <VBox/vmm/pdmdev.h>
@@ -43,9 +44,10 @@
 #include "AudioMixer.h"
 #include "DevIchHdaCodec.h"
 
-/*******************************************************************************
-*   Defined Constants And Macros                                               *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
 //#define HDA_AS_PCI_EXPRESS
 #define VBOX_WITH_INTEL_HDA
 
@@ -514,9 +516,9 @@
 
 
 
-/*******************************************************************************
-*   Structures and Typedefs                                                    *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
 typedef struct HDABDLEDESC
 {
     uint64_t    u64BdleCviAddr;
@@ -686,9 +688,9 @@ typedef HDASTATE *PHDASTATE;
     ( AUDIO_FORMAT_SELECTOR((pThis)->pCodec, Out, SDFMT_BASE_RATE(pThis, 4), SDFMT_MULT(pThis, 4), SDFMT_DIV(pThis, 4)) )
 
 
-/*******************************************************************************
-*   Internal Functions                                                         *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Internal Functions                                                                                                           *
+*********************************************************************************************************************************/
 #ifndef VBOX_DEVICE_STRUCT_TESTCASE
 static FNPDMDEVRESET hdaReset;
 
@@ -740,9 +742,9 @@ static void dump_bd(PHDASTATE pThis, PHDABDLEDESC pBdle, uint64_t u64BaseDMA);
 #endif
 
 
-/*******************************************************************************
-*   Global Variables                                                           *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Global Variables                                                                                                             *
+*********************************************************************************************************************************/
 
 /* see 302349 p 6.2*/
 static const struct HDAREGDESC
@@ -2266,7 +2268,7 @@ static int hdaWriteAudio(PHDASTATE pThis, PHDASTREAMTRANSFERDESC pStreamDesc, ui
 /**
  * @interface_method_impl{HDACODEC,pfnReset}
  */
-DECLCALLBACK(int) hdaCodecReset(PHDACODEC pCodec)
+static DECLCALLBACK(int) hdaCodecReset(PHDACODEC pCodec)
 {
     PHDASTATE pThis = pCodec->pHDAState;
     NOREF(pThis);
@@ -2496,8 +2498,8 @@ static DECLCALLBACK(void) hdaTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pv
     STAM_PROFILE_STOP(&pThis->StatTimer, a);
 }
 
-static DECLCALLBACK(int) hdaTransfer(PHDASTATE pThis,
-                                     ENMSOUNDSOURCE enmSrc, uint32_t cbAvail)
+static int hdaTransfer(PHDASTATE pThis,
+                       ENMSOUNDSOURCE enmSrc, uint32_t cbAvail)
 {
     AssertPtrReturn(pThis, VERR_INVALID_POINTER);
 

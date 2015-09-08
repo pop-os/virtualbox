@@ -20,7 +20,6 @@
 #else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 /* Qt includes: */
-# include <QDesktopWidget>
 # include <QMenu>
 # include <QTimer>
 
@@ -173,19 +172,19 @@ void UIMachineWindowSeamless::placeOnScreen()
     /* Get corresponding host-screen: */
     const int iHostScreen = qobject_cast<UIMachineLogicSeamless*>(machineLogic())->hostScreenForGuestScreen(m_uScreenId);
     /* And corresponding working area: */
-    const QRect workingArea = QApplication::desktop()->availableGeometry(iHostScreen);
+    const QRect workingArea = vboxGlobal().availableGeometry(iHostScreen);
 
     /* Set appropriate geometry for window: */
-    move(workingArea.topLeft());
     resize(workingArea.size());
+    move(workingArea.topLeft());
 
 #if defined(Q_WS_WIN) || defined(Q_WS_X11)
     /* If there is a mini-toolbar: */
     if (m_pMiniToolBar)
     {
         /* Set appropriate geometry for mini-toolbar: */
-        m_pMiniToolBar->move(workingArea.topLeft());
         m_pMiniToolBar->resize(workingArea.size());
+        m_pMiniToolBar->move(workingArea.topLeft());
     }
 #endif /* Q_WS_WIN || Q_WS_X11 */
 }

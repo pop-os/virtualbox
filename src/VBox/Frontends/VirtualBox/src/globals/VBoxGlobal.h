@@ -64,6 +64,9 @@ class QSpinBox;
 class UIMediumEnumerator;
 class UIMedium;
 class UIIconPoolGeneral;
+#ifdef Q_WS_X11
+class UIDesktopWidgetWatchdog;
+#endif /* Q_WS_X11 */
 
 // VBoxGlobal class
 ////////////////////////////////////////////////////////////////////////////////
@@ -119,6 +122,11 @@ public:
     static MacOSXRelease osRelease();
 #endif /* Q_WS_MAC */
 
+    /** Try to acquire COM cleanup protection token for reading. */
+    bool comTokenTryLockForRead() { return m_comCleanupProtectionToken.tryLockForRead(); }
+    /** Unlock previously acquired COM cleanup protection token. */
+    void comTokenUnlock() { return m_comCleanupProtectionToken.unlock(); }
+
     /** Returns the copy of VirtualBox client wrapper. */
     CVirtualBoxClient virtualBoxClient() const { return m_client; }
     /** Returns the copy of VirtualBox object wrapper. */
@@ -130,6 +138,34 @@ public:
 
     /** Returns the VBoxSVC availability value. */
     bool isVBoxSVCAvailable() const { return m_fVBoxSVCAvailable; }
+
+    /** @name Host-screen geometry stuff
+      * @{ */
+        /** Returns the number of host-screens currently available on the system. */
+        int screenCount() const;
+
+        /** Returns the index of the screen which contains contains @a pWidget. */
+        int screenNumber(const QWidget *pWidget) const;
+        /** Returns the index of the screen which contains contains @a point. */
+        int screenNumber(const QPoint &point) const;
+
+        /** Returns the geometry of the host-screen with @a iHostScreenIndex.
+          * @note The default screen is used if @a iHostScreenIndex is -1. */
+        const QRect screenGeometry(int iHostScreenIndex = -1) const;
+        /** Returns the available-geometry of the host-screen with @a iHostScreenIndex.
+          * @note The default screen is used if @a iHostScreenIndex is -1. */
+        const QRect availableGeometry(int iHostScreenIndex = -1) const;
+
+        /** Returns the geometry of the host-screen which contains @a pWidget. */
+        const QRect screenGeometry(const QWidget *pWidget) const;
+        /** Returns the available-geometry of the host-screen which contains @a pWidget. */
+        const QRect availableGeometry(const QWidget *pWidget) const;
+
+        /** Returns the geometry of the host-screen which contains @a point. */
+        const QRect screenGeometry(const QPoint &point) const;
+        /** Returns the available-geometry of the host-screen which contains @a point. */
+        const QRect availableGeometry(const QPoint &point) const;
+    /** @} */
 
     VBoxGlobalSettings &settings() { return gset; }
     bool setSettings (VBoxGlobalSettings &gs);
@@ -481,6 +517,9 @@ private:
 
     bool mValid;
 
+    /** COM cleanup protection token. */
+    QReadWriteLock m_comCleanupProtectionToken;
+
     /** Holds the instance of VirtualBox client wrapper. */
     CVirtualBoxClient m_client;
     /** Holds the copy of VirtualBox object wrapper. */
@@ -513,33 +552,41 @@ private:
 #ifdef Q_WS_X11
     /** X11: Holds the type of the Window Manager we are running under. */
     X11WMType m_enmWindowManagerType;
+
+    /** @name Host-screen geometry stuff
+      * @{ */
+        /** X11: Holds the desktop-widget watchdog instance aware of host-screen geometry changes. */
+        UIDesktopWidgetWatchdog *m_pDesktopWidgetWatchdog;
+    /** @} */
 #endif /* Q_WS_X11 */
 
     /** The --aggressive-caching / --no-aggressive-caching option. */
     bool mAgressiveCaching;
     /** The --restore-current option. */
     bool mRestoreCurrentSnapshot;
+
     /** @name Ad-hoc VM reconfiguration.
      * @{ */
-    /** Floppy image. */
-    QString m_strFloppyImage;
-    /** DVD image. */
-    QString m_strDvdImage;
+        /** Floppy image. */
+        QString m_strFloppyImage;
+        /** DVD image. */
+        QString m_strDvdImage;
     /** @} */
+
     /** @name VMM options
      * @{ */
-    /** The --disable-patm option. */
-    bool mDisablePatm;
-    /** The --disable-csam option. */
-    bool mDisableCsam;
-    /** The --recompile-supervisor option. */
-    bool mRecompileSupervisor;
-    /** The --recompile-user option. */
-    bool mRecompileUser;
-    /** The --execute-all-in-iem option. */
-    bool mExecuteAllInIem;
-    /** The --warp-factor option value. */
-    uint32_t mWarpPct;
+        /** The --disable-patm option. */
+        bool mDisablePatm;
+        /** The --disable-csam option. */
+        bool mDisableCsam;
+        /** The --recompile-supervisor option. */
+        bool mRecompileSupervisor;
+        /** The --recompile-user option. */
+        bool mRecompileUser;
+        /** The --execute-all-in-iem option. */
+        bool mExecuteAllInIem;
+        /** The --warp-factor option value. */
+        uint32_t mWarpPct;
     /** @} */
 
 #ifdef VBOX_WITH_DEBUGGER_GUI

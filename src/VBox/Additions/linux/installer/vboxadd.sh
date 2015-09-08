@@ -1,6 +1,6 @@
 #! /bin/sh
 #
-# Linux Additions kernel module init script ($Revision: 101557 $)
+# Linux Additions kernel module init script ($Revision: 102425 $)
 #
 
 #
@@ -400,10 +400,10 @@ setup_modules()
             --use-module-symvers /tmp/vboxguest-Module.symvers \
             --module-source $MODULE_SRC/vboxvideo \
             --no-print-directory install >> $LOG 2>&1; then
-            show_error "Look at $LOG to find out what went wrong"
-            return 1
+            show_error "Look at $LOG to find out what went wrong. The module is not built but the others are."
+        else
+            succ_msg
         fi
-        succ_msg
     fi
     depmod
     return 0

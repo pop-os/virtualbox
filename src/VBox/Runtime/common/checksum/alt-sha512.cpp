@@ -25,9 +25,9 @@
  */
 
 
-/*******************************************************************************
-*   Defined Constants And Macros                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
 /** The SHA-512 block size (in bytes). */
 #define RTSHA512_BLOCK_SIZE   128U
 
@@ -35,9 +35,9 @@
 #define RTSHA512_UNROLLED 1
 
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #include "internal/iprt.h"
 #include <iprt/types.h>
 #include <iprt/assert.h>
@@ -67,9 +67,9 @@ AssertCompile(RT_SIZEOFMEMB(RTSHA512CONTEXT, abPadding) >= RT_SIZEOFMEMB(RTSHA51
 AssertCompileMemberSize(RTSHA512ALTPRIVATECTX, auH, RTSHA512_HASH_SIZE);
 
 
-/*******************************************************************************
-*   Global Variables                                                           *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Global Variables                                                                                                             *
+*********************************************************************************************************************************/
 #ifndef RTSHA512_UNROLLED
 /** The K constants. */
 static uint64_t const g_auKs[] =
@@ -595,6 +595,21 @@ RTDECL(void) RTSha512(const void *pvBuf, size_t cbBuf, uint8_t pabDigest[RTSHA51
 RT_EXPORT_SYMBOL(RTSha512);
 
 
+RTDECL(bool) RTSha512Check(const void *pvBuf, size_t cbBuf, uint8_t const pabHash[RTSHA512_HASH_SIZE])
+{
+    RTSHA512CONTEXT Ctx;
+    RTSha512Init(&Ctx);
+    RTSha512Update(&Ctx, pvBuf, cbBuf);
+    rtSha512FinalInternal(&Ctx);
+
+    bool fRet = memcmp(pabHash, &Ctx.AltPrivate.auH[0], RTSHA512_HASH_SIZE) == 0;
+
+    RT_ZERO(Ctx.AltPrivate.auH);
+    return fRet;
+}
+RT_EXPORT_SYMBOL(RTSha512Check);
+
+
 
 /*
  * SHA-384 is just SHA-512 with different initial values an a truncated result.
@@ -640,6 +655,21 @@ RTDECL(void) RTSha384(const void *pvBuf, size_t cbBuf, uint8_t pabDigest[RTSHA38
     RTSha384Final(&Ctx, pabDigest);
 }
 RT_EXPORT_SYMBOL(RTSha384);
+
+
+RTDECL(bool) RTSha384Check(const void *pvBuf, size_t cbBuf, uint8_t const pabHash[RTSHA384_HASH_SIZE])
+{
+    RTSHA384CONTEXT Ctx;
+    RTSha384Init(&Ctx);
+    RTSha384Update(&Ctx, pvBuf, cbBuf);
+    rtSha512FinalInternal(&Ctx);
+
+    bool fRet = memcmp(pabHash, &Ctx.AltPrivate.auH[0], RTSHA384_HASH_SIZE) == 0;
+
+    RT_ZERO(Ctx.AltPrivate.auH);
+    return fRet;
+}
+RT_EXPORT_SYMBOL(RTSha384Check);
 
 
 /*
@@ -688,6 +718,21 @@ RTDECL(void) RTSha512t224(const void *pvBuf, size_t cbBuf, uint8_t pabDigest[RTS
 RT_EXPORT_SYMBOL(RTSha512t224);
 
 
+RTDECL(bool) RTSha512t224Check(const void *pvBuf, size_t cbBuf, uint8_t const pabHash[RTSHA512T224_HASH_SIZE])
+{
+    RTSHA512T224CONTEXT Ctx;
+    RTSha512t224Init(&Ctx);
+    RTSha512t224Update(&Ctx, pvBuf, cbBuf);
+    rtSha512FinalInternal(&Ctx);
+
+    bool fRet = memcmp(pabHash, &Ctx.AltPrivate.auH[0], RTSHA512T224_HASH_SIZE) == 0;
+
+    RT_ZERO(Ctx.AltPrivate.auH);
+    return fRet;
+}
+RT_EXPORT_SYMBOL(RTSha512t224Check);
+
+
 /*
  * SHA-512/256 is just SHA-512 with different initial values an a truncated result.
  */
@@ -732,4 +777,19 @@ RTDECL(void) RTSha512t256(const void *pvBuf, size_t cbBuf, uint8_t pabDigest[RTS
     RTSha512t256Final(&Ctx, pabDigest);
 }
 RT_EXPORT_SYMBOL(RTSha512t256);
+
+
+RTDECL(bool) RTSha512t256Check(const void *pvBuf, size_t cbBuf, uint8_t const pabHash[RTSHA512T256_HASH_SIZE])
+{
+    RTSHA512T256CONTEXT Ctx;
+    RTSha512t256Init(&Ctx);
+    RTSha512t256Update(&Ctx, pvBuf, cbBuf);
+    rtSha512FinalInternal(&Ctx);
+
+    bool fRet = memcmp(pabHash, &Ctx.AltPrivate.auH[0], RTSHA512T256_HASH_SIZE) == 0;
+
+    RT_ZERO(Ctx.AltPrivate.auH);
+    return fRet;
+}
+RT_EXPORT_SYMBOL(RTSha512t256Check);
 

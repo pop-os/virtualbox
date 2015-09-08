@@ -25,9 +25,9 @@
  */
 
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP RTLOGGROUP_DIR
 #ifndef _WIN32_WINNT
 # define _WIN32_WINNT 0x0500
@@ -35,20 +35,24 @@
 #include <Windows.h>
 
 #include <iprt/file.h>
-#include <iprt/path.h>
+
+#include <iprt/asm.h>
 #include <iprt/assert.h>
+#include <iprt/path.h>
 #include <iprt/string.h>
 #include <iprt/err.h>
+#include <iprt/ldr.h>
 #include <iprt/log.h>
 #include "internal/file.h"
 #include "internal/fs.h"
 #include "internal/path.h"
 
 
-/*******************************************************************************
-*   Defined Constants And Macros                                               *
-*******************************************************************************/
-
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
+typedef BOOL WINAPI FNVERIFYCONSOLEIOHANDLE(HANDLE);
+typedef FNVERIFYCONSOLEIOHANDLE *PFNVERIFYCONSOLEIOHANDLE; /* No, nobody fell on the keyboard, really! */
 
 /**
  * This is wrapper around the ugly SetFilePointer api.
@@ -823,14 +827,45 @@ RTR3DECL(int) RTFileQueryInfo(RTFILE hFile, PRTFSOBJINFO pObjInfo, RTFSOBJATTRAD
     /*
      * Query file info.
      */
+    HANDLE hHandle = (HANDLE)RTFileToNative(hFile);
+
     BY_HANDLE_FILE_INFORMATION Data;
-    if (!GetFileInformationByHandle((HANDLE)RTFileToNative(hFile), &Data))
+    if (!GetFileInformationByHandle(hHandle, &Data))
     {
+        /*
+         * Console I/O handles make trouble here.  On older windows versions they
+         * end up with ERROR_INVALID_HANDLE when handed to the above API, while on
+         * more recent ones they cause different errors to appear.
+         *
+         * Thus, we must ignore the latter and doubly verify invalid handle claims.
+         * We use the undocumented VerifyConsoleIoHandle to do this, falling back on
+         * GetFileType should it not be there.
+         */
         DWORD dwErr = GetLastError();
-        /* Only return if we *really* don't have a valid handle value,
-         * everything else is fine here ... */
         if (dwErr == ERROR_INVALID_HANDLE)
+        {
+            static PFNVERIFYCONSOLEIOHANDLE s_pfnVerifyConsoleIoHandle = NULL;
+            static bool volatile            s_fInitialized = false;
+            PFNVERIFYCONSOLEIOHANDLE        pfnVerifyConsoleIoHandle;
+            if (s_fInitialized)
+                pfnVerifyConsoleIoHandle = s_pfnVerifyConsoleIoHandle;
+            else
+            {
+                pfnVerifyConsoleIoHandle = (PFNVERIFYCONSOLEIOHANDLE)RTLdrGetSystemSymbol("kernel32.dll", "VerifyConsoleIoHandle");
+                ASMAtomicWriteBool(&s_fInitialized, true);
+            }
+            if (   pfnVerifyConsoleIoHandle
+                ? !pfnVerifyConsoleIoHandle(hHandle)
+                : GetFileType(hHandle) == FILE_TYPE_UNKNOWN && GetLastError() != NO_ERROR)
+                return VERR_INVALID_HANDLE;
+        }
+        /*
+         * On Windows 10 and (hopefully) 8.1 we get ERROR_INVALID_FUNCTION with console I/O
+         * handles.  We must ignore these just like the above invalid handle error.
+         */
+        else if (dwErr != ERROR_INVALID_FUNCTION)
             return RTErrConvertFromWin32(dwErr);
+
         RT_ZERO(Data);
         Data.dwFileAttributes = RTFS_DOS_NT_DEVICE;
     }

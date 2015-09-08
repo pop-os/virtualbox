@@ -1410,7 +1410,7 @@ void sanitiseMachineFilename(Utf8Str &strName)
 
 #ifdef DEBUG
 /** Simple unit test/operation examples for sanitiseMachineFilename(). */
-static unsigned testSanitiseMachineFilename(void (*pfnPrintf)(const char *, ...))
+static unsigned testSanitiseMachineFilename(DECLCALLBACKMEMBER(void, pfnPrintf)(const char *, ...))
 {
     unsigned cErrors = 0;
 
@@ -3883,7 +3883,7 @@ struct SaveMediaRegistriesDesc
     ComObjPtr<VirtualBox> pVirtualBox;
 };
 
-static int fntSaveMediaRegistries(RTTHREAD ThreadSelf, void *pvUser)
+static DECLCALLBACK(int) fntSaveMediaRegistries(RTTHREAD ThreadSelf, void *pvUser)
 {
     NOREF(ThreadSelf);
     SaveMediaRegistriesDesc *pDesc = (SaveMediaRegistriesDesc *)pvUser;

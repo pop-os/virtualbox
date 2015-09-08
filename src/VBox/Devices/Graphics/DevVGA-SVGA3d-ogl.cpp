@@ -16,9 +16,9 @@
  */
 
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 /* Enable to disassemble defined shaders. (Windows host only) */
 #if defined(RT_OS_WINDOWS) && defined(DEBUG) && 0 /* Disabled as we don't have the DirectX SDK avaible atm. */
 # define DUMP_SHADER_DISASSEMBLY
@@ -56,9 +56,9 @@
 #include <float.h>  /* FLT_MIN */
 
 
-/*******************************************************************************
-*   Defined Constants And Macros                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
 #ifndef VBOX_VMSVGA3D_DEFAULT_OGL_PROFILE
 # define VBOX_VMSVGA3D_DEFAULT_OGL_PROFILE 1.0
 #endif
@@ -135,11 +135,11 @@ static void *MyNSGLGetProcAddress(const char *pszSymbol)
 #endif
 
 
-/*******************************************************************************
-*   Global Variables                                                           *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Global Variables                                                                                                             *
+*********************************************************************************************************************************/
 /* Define the default light parameters as specified by MSDN. */
-/* @todo move out; fetched from Wine */
+/** @todo move out; fetched from Wine */
 const SVGA3dLightData vmsvga3d_default_light =
 {
     SVGA3D_LIGHTTYPE_DIRECTIONAL,   /* type */
@@ -157,9 +157,9 @@ const SVGA3dLightData vmsvga3d_default_light =
 };
 
 
-/*******************************************************************************
-*   Internal Functions                                                         *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Internal Functions                                                                                                           *
+*********************************************************************************************************************************/
 static int  vmsvga3dContextDestroyOgl(PVGASTATE pThis, PVMSVGA3DCONTEXT pContext, uint32_t cid);
 static void vmsvgaColor2GLFloatArray(uint32_t color, GLfloat *pRed, GLfloat *pGreen, GLfloat *pBlue, GLfloat *pAlpha);
 
@@ -844,7 +844,7 @@ int vmsvga3dPowerOn(PVGASTATE pThis)
      * ATI does not support higher than SM 2.0 functionality in assembly shaders.
      *
      */
-    /** @todo: distinguish between vertex and pixel shaders??? */
+    /** @todo distinguish between vertex and pixel shaders??? */
     if (   vmsvga3dCheckGLExtension(pState, 0.0f, " GL_NV_gpu_program4 ")
         || strstr(pState->pszOtherExtensions, " GL_NV_gpu_program4 "))
     {
@@ -1096,7 +1096,7 @@ static uint32_t vmsvga3dGetSurfaceFormatSupport(PVMSVGA3DSTATE pState3D, uint32_
 {
     uint32_t result = 0;
 
-    /* @todo missing:
+    /** @todo missing:
      *
      * SVGA3DFORMAT_OP_PIXELSIZE
      */
@@ -1122,7 +1122,7 @@ static uint32_t vmsvga3dGetSurfaceFormatSupport(PVMSVGA3DSTATE pState3D, uint32_
         break;
     }
 
-    /* @todo check hardware caps! */
+    /** @todo check hardware caps! */
     switch (idx3dCaps)
     {
     case SVGA3D_DEVCAP_SURFACEFMT_X8R8G8B8:
@@ -1200,7 +1200,7 @@ static uint32_t vmsvga3dGetDepthFormatSupport(PVMSVGA3DSTATE pState3D, uint32_t 
 {
     uint32_t result = 0;
 
-    /* @todo test this somehow */
+    /** @todo test this somehow */
     result = SVGA3DFORMAT_OP_ZSTENCIL | SVGA3DFORMAT_OP_ZSTENCIL_WITH_ARBITRARY_COLOR_DEPTH;
 
     Log(("CAPS: %s =\n%s\n", vmsvga3dGetCapString(idx3dCaps), vmsvga3dGet3dFormatString(result)));
@@ -1295,7 +1295,7 @@ int vmsvga3dQueryCaps(PVGASTATE pThis, uint32_t idx3dCaps, uint32_t *pu32Val)
         break;
 
     case SVGA3D_DEVCAP_MAX_SHADER_TEXTURES:
-        /* @todo ?? */
+        /** @todo ?? */
         rc = VERR_INVALID_PARAMETER;
         break;
 
@@ -1369,7 +1369,7 @@ int vmsvga3dQueryCaps(PVGASTATE pThis, uint32_t idx3dCaps, uint32_t *pu32Val)
     case SVGA3D_DEVCAP_MAX_VERTEX_SHADER_TEXTURES:
         break;
 
-    case SVGA3D_DEVCAP_MAX_RENDER_TARGETS:  /* @todo same thing? */
+    case SVGA3D_DEVCAP_MAX_RENDER_TARGETS:  /** @todo same thing? */
     case SVGA3D_DEVCAP_MAX_SIMULTANEOUS_RENDER_TARGETS:
         *pu32Val = pState->caps.maxColorAttachments;
         break;
@@ -1801,7 +1801,7 @@ D3DMULTISAMPLE_TYPE vmsvga3dMultipeSampleCount2D3D(uint32_t multisampleCount)
     if (multisampleCount > 16)
         return D3DMULTISAMPLE_NONE;
 
-    /* @todo exact same mapping as d3d? */
+    /** @todo exact same mapping as d3d? */
     return (D3DMULTISAMPLE_TYPE)multisampleCount;
 }
 #endif
@@ -1820,7 +1820,7 @@ void vmsvga3dBackSurfaceDestroy(PVMSVGA3DSTATE pState, PVMSVGA3DSURFACE pSurface
     switch (pSurface->flags & VMSVGA3D_SURFACE_HINT_SWITCH_MASK)
     {
     case SVGA3D_SURFACE_CUBEMAP:
-        AssertFailed(); /** @todo */
+        AssertFailed(); /** @todo destroy SVGA3D_SURFACE_CUBEMAP */
         break;
 
     case SVGA3D_SURFACE_HINT_INDEXBUFFER:
@@ -2025,7 +2025,7 @@ int vmsvga3dBackCreateTexture(PVMSVGA3DSTATE pState, PVMSVGA3DCONTEXT pContext, 
 
     glGenTextures(1, &pSurface->oglId.texture);
     VMSVGA3D_CHECK_LAST_ERROR(pState, pContext);
-    /* @todo Set the mip map generation filter settings. */
+    /** @todo Set the mip map generation filter settings. */
 
     glGetIntegerv(GL_TEXTURE_BINDING_2D, &activeTexture);
     VMSVGA3D_CHECK_LAST_ERROR(pState, pContext);
@@ -2420,7 +2420,7 @@ int vmsvga3dBackSurfaceDMACopyBox(PVGASTATE pThis, PVMSVGA3DSTATE pState, PVMSVG
     }
 
     case SVGA3D_SURFACE_HINT_DEPTHSTENCIL:
-        AssertFailed(); /* @todo */
+        AssertFailed(); /** @todo DMA SVGA3D_SURFACE_HINT_DEPTHSTENCIL */
         break;
 
     case SVGA3D_SURFACE_HINT_VERTEXBUFFER:
@@ -2501,10 +2501,10 @@ int vmsvga3dSurfaceBlitToScreen(PVGASTATE pThis, uint32_t dest, SVGASignedRect d
         Log(("vmsvga3dSurfaceBlitToScreen: clipping rect %d (%d,%d)(%d,%d)\n", i, pRect[i].left, pRect[i].top, pRect[i].right, pRect[i].bottom));
     }
 
-    /* @todo Only screen 0 for now. */
+    /** @todo Only screen 0 for now. */
     AssertReturn(dest == 0, VERR_INTERNAL_ERROR);
     AssertReturn(src.mipmap == 0 && src.face == 0, VERR_INVALID_PARAMETER);
-    /* @todo scaling */
+    /** @todo scaling */
     AssertReturn(destRect.right - destRect.left == srcRect.right - srcRect.left && destRect.bottom - destRect.top == srcRect.bottom - srcRect.top, VERR_INVALID_PARAMETER);
 
     if (cRects == 0)
@@ -2546,7 +2546,7 @@ int vmsvga3dSurfaceBlitToScreen(PVGASTATE pThis, uint32_t dest, SVGASignedRect d
         dst.ptr.offset = 0;
         dst.pitch      = pThis->svga.cbScanline;
 
-        /* @todo merge into one SurfaceDMA call */
+        /** @todo merge into one SurfaceDMA call */
         for (uint32_t i = 0; i < cRects; i++)
         {
             /* The clipping rectangle is relative to the top-left corner of srcRect & destRect. Adjust here. */
@@ -2603,7 +2603,7 @@ int vmsvga3dGenerateMipmaps(PVGASTATE pThis, uint32_t sid, SVGA3dTextureFilter f
     }
     else
     {
-        /* @todo new filter */
+        /** @todo new filter */
         AssertFailed();
     }
 
@@ -2639,7 +2639,6 @@ int vmsvga3dCommandPresent(PVGASTATE pThis, uint32_t sid, uint32_t cRects, SVGA3
 
     pSurface = pState->papSurfaces[sid];
 
-    /* @todo stricter checks for associated context */
     Log(("vmsvga3dCommandPresent: sid=%x cRects=%d\n", sid, cRects));
     for (uint32_t i=0; i < cRects; i++)
         Log(("vmsvga3dCommandPresent: rectangle %d src=(%d,%d) (%d,%d)(%d,%d)\n", i, pRect[i].srcx, pRect[i].srcy, pRect[i].x, pRect[i].y, pRect[i].x + pRect[i].w, pRect[i].y + pRect[i].h));
@@ -2649,6 +2648,7 @@ int vmsvga3dCommandPresent(PVGASTATE pThis, uint32_t sid, uint32_t cRects, SVGA3
     cid = pContext->id;
     VMSVGA3D_CLEAR_GL_ERRORS();
 
+#if 0 /* Can't make sense of this. SVGA3dCopyRect doesn't allow scaling.  non-blit-cube path change to not use it. */
     /*
      * Source surface different size?
      */
@@ -2656,11 +2656,13 @@ int vmsvga3dCommandPresent(PVGASTATE pThis, uint32_t sid, uint32_t cRects, SVGA3
     if (   pSurface->pMipmapLevels[0].size.width  != pThis->svga.uWidth
         || pSurface->pMipmapLevels[0].size.height != pThis->svga.uHeight)
     {
-        float xMultiplier = (float)pSurface->pMipmapLevels[0].size.width / (float)pThis->svga.uWidth;
+        float xMultiplier = (float)pSurface->pMipmapLevels[0].size.width  / (float)pThis->svga.uWidth;
         float yMultiplier = (float)pSurface->pMipmapLevels[0].size.height / (float)pThis->svga.uHeight;
 
-        LogFlow(("size (%d vs %d) (%d vs %d) multiplier (%d,%d)/100\n", pSurface->pMipmapLevels[0].size.width, pThis->svga.uWidth,
-                 pSurface->pMipmapLevels[0].size.height, pThis->svga.uHeight, (int)(xMultiplier * 100.0), (int)(yMultiplier * 100.0)));
+        LogFlow(("size (%d vs %d, %d vs %d) multiplier (" FLOAT_FMT_STR ", " FLOAT_FMT_STR ")\n",
+                 pSurface->pMipmapLevels[0].size.width, pThis->svga.uWidth,
+                 pSurface->pMipmapLevels[0].size.height, pThis->svga.uHeight,
+                 FLOAT_FMT_ARGS(xMultiplier), FLOAT_FMT_ARGS(yMultiplier) ));
 
         srcViewPort.x  = (uint32_t)((float)pThis->svga.viewport.x  * xMultiplier);
         srcViewPort.y  = (uint32_t)((float)pThis->svga.viewport.y  * yMultiplier);
@@ -2679,9 +2681,10 @@ int vmsvga3dCommandPresent(PVGASTATE pThis, uint32_t sid, uint32_t cRects, SVGA3
     SrcViewPortRect.xRight  = srcViewPort.x + srcViewPort.cx;
     SrcViewPortRect.yBottom = srcViewPort.y;
     SrcViewPortRect.yTop    = srcViewPort.y + srcViewPort.cy;
+#endif
 
 
-#ifndef RT_OS_DARWIN /* blit-cube fails in this path... */
+#if 0//ndef RT_OS_DARWIN /* blit-cube fails in this path... */
     /*
      * Note! this path is slightly faster than the glBlitFrameBuffer path below.
      */
@@ -2837,112 +2840,255 @@ int vmsvga3dCommandPresent(PVGASTATE pThis, uint32_t sid, uint32_t cRects, SVGA3
     pState->ext.glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, pSurface->oglId.texture, 0 /* level 0 */);
     VMSVGA3D_CHECK_LAST_ERROR_WARN(pState, pContext);
 
-    /* Blit the surface rectangle(s) to the back buffer. */
-    if (cRects == 0)
 
-    {
-        Log(("view port (%d,%d)(%d,%d)\n", srcViewPort.x, srcViewPort.y, srcViewPort.cx, srcViewPort.cy));
-        pState->ext.glBlitFramebuffer(srcViewPort.x,
-                                      srcViewPort.y,
-                                      srcViewPort.x + srcViewPort.cx,   /* exclusive. */
-                                      srcViewPort.y + srcViewPort.cy,   /* exclusive. (reverse to flip the image) */
-                                      0,
-                                      pThis->svga.viewport.cy, /* exclusive. */
-                                      pThis->svga.viewport.cx, /* exclusive. */
-                                      0,
-                                      GL_COLOR_BUFFER_BIT,
-                                      GL_LINEAR);
-        VMSVGA3D_CHECK_LAST_ERROR_WARN(pState, pContext);
-    }
+    /* Read the destination viewport specs in one go to try avoid some unnecessary update races. */
+    VMSVGAVIEWPORT const DstViewport   = pThis->svga.viewport;
+    ASMCompilerBarrier(); /* paranoia */
+    Assert(DstViewport.yHighWC >= DstViewport.yLowWC);
+
+    /* If there are no recangles specified, just grab a screenful. */
+    SVGA3dCopyRect DummyRect;
+    if (cRects != 0)
+    { /* likely */ }
     else
     {
-        for (uint32_t i = 0; i < cRects; i++)
-        {
-# ifdef RT_OS_DARWIN
-            /* This works better... */
-            RTRECT SrcRect;
-            SrcRect.xLeft   = pRect[i].srcx;
-            SrcRect.xRight  = pRect[i].srcx + pRect[i].w;
-            SrcRect.yBottom = pRect[i].srcy;
-            SrcRect.yTop    = pRect[i].srcy + pRect[i].h;
-            RTRECT DstRect; /* y flipped wrt source */
-            DstRect.xLeft   = pRect[i].x;
-            DstRect.xRight  = pRect[i].x + pRect[i].w;
-            DstRect.yBottom = pRect[i].y + pRect[i].h;
-            DstRect.yTop    = pRect[i].y;
-
-            if (SrcRect.xLeft < SrcViewPortRect.xLeft)
-            {
-                DstRect.xLeft += SrcViewPortRect.xLeft - SrcRect.xLeft;
-                SrcRect.xLeft  = SrcViewPortRect.xLeft;
-            }
-            else if (SrcRect.xLeft >= SrcViewPortRect.xRight)
-                continue;
-
-            if (SrcRect.xRight > SrcViewPortRect.xRight)
-            {
-                DstRect.xRight -= SrcViewPortRect.xRight - SrcRect.xRight;
-                SrcRect.xRight  = SrcViewPortRect.xRight;
-            }
-            else if (SrcRect.xRight <= SrcViewPortRect.xLeft)
-                continue;
-
-            if (SrcRect.xRight <= SrcRect.xLeft)
-                continue;
-
-            if (SrcRect.yBottom < SrcViewPortRect.yBottom)
-            {
-                DstRect.yTop    += SrcViewPortRect.yBottom - SrcRect.yBottom;
-                SrcRect.yBottom  = SrcViewPortRect.yBottom;
-            }
-            else if (SrcRect.yBottom >= SrcViewPortRect.yTop)
-                continue;
-
-            if (SrcRect.yTop > SrcViewPortRect.yTop)
-            {
-                DstRect.yBottom -= SrcViewPortRect.yTop - SrcRect.yTop;
-                SrcRect.yTop     = SrcViewPortRect.yTop;
-            }
-            else if (SrcRect.yTop <= SrcViewPortRect.yBottom)
-                continue;
-
-            if (SrcRect.yTop <= SrcRect.yBottom)
-                continue;
-
-            Log(("SrcRect: (%d,%d)(%d,%d) DstRect: (%d,%d)(%d,%d)\n",
-                 SrcRect.xLeft, SrcRect.yBottom, SrcRect.xRight, SrcRect.yTop,
-                 DstRect.xLeft, DstRect.yBottom, DstRect.xRight, DstRect.yTop));
-            pState->ext.glBlitFramebuffer(SrcRect.xLeft, SrcRect.yBottom, SrcRect.xRight, SrcRect.yTop,
-                                          DstRect.xLeft, DstRect.yBottom, DstRect.xRight, DstRect.yTop,
-                                          GL_COLOR_BUFFER_BIT, GL_LINEAR);
-
-# else
-            if (    pRect[i].x + pRect[i].w <= pThis->svga.viewport.x
-                ||  pThis->svga.viewport.x + pThis->svga.viewport.cx <= pRect[i].x
-                ||  pRect[i].y + pRect[i].h <= pThis->svga.viewport.y
-                ||  pThis->svga.viewport.y + pThis->svga.viewport.cy <= pRect[i].y)
-            {
-                /* Intersection is empty; skip */
-                continue;
-            }
-            pState->ext.glBlitFramebuffer(RT_MAX(pRect[i].srcx, srcViewPort.x),
-                                          pSurface->pMipmapLevels[0].size.width - RT_MAX(pRect[i].srcy, srcViewPort.y),   /* exclusive. (reverse to flip the image) */
-                                          RT_MIN(pRect[i].srcx + pRect[i].w, srcViewPort.x + srcViewPort.cx),  /* exclusive. */
-                                          pSurface->pMipmapLevels[0].size.width - RT_MIN(pRect[i].srcy + pRect[i].h, srcViewPort.y + srcViewPort.cy),
-                                          RT_MAX(pRect[i].x, pThis->svga.viewport.x) - pThis->svga.viewport.x,
-                                          pThis->svga.uHeight - (RT_MIN(pRect[i].y + pRect[i].h, pThis->svga.viewport.y + pThis->svga.viewport.cy) - pThis->svga.viewport.y),  /* exclusive. */
-                                          RT_MIN(pRect[i].x + pRect[i].w, pThis->svga.viewport.x + pThis->svga.viewport.cx) - pThis->svga.viewport.x,  /* exclusive. */
-                                          pThis->svga.uHeight - (RT_MAX(pRect[i].y, pThis->svga.viewport.y) - pThis->svga.viewport.y),
-                                          GL_COLOR_BUFFER_BIT,
-                                          GL_LINEAR);
+        /** @todo Find the usecase for this or check what the original device does.
+         *        The original code was doing some scaling based on the surface
+         *        size... */
+# ifdef DEBUG_bird
+        AssertMsgFailed(("No rects to present. Who is doing that and what do they actually expect?\n"));
 # endif
-        }
+        DummyRect.x = DummyRect.srcx = 0;
+        DummyRect.y = DummyRect.srcy = 0;
+        DummyRect.w = pThis->svga.uWidth;
+        DummyRect.h = pThis->svga.uHeight;
+        cRects = 1;
+        pRect  = &DummyRect;
     }
 
-#endif
-#ifndef RT_OS_DARWIN /* darwin: later */
-    /* Reset the frame buffer association - see below.  */
-    VMSVGA3D_ASSERT_GL_CALL(pState->ext.glBindFramebuffer(GL_FRAMEBUFFER, pContext->idFramebuffer), pState, pContext);
+    /*
+     * Blit the surface rectangle(s) to the back buffer.
+     */
+    uint32_t const cxSurface = pSurface->pMipmapLevels[0].size.width;
+    uint32_t const cySurface = pSurface->pMipmapLevels[0].size.height;
+    for (uint32_t i = 0; i < cRects; i++)
+    {
+        SVGA3dCopyRect ClippedRect = pRect[i];
+
+        /*
+         * Do some sanity checking and limit width and height, all so we
+         * don't need to think about wrap-arounds below.
+         */
+        if (RT_LIKELY(   ClippedRect.w
+                      && ClippedRect.x    < VMSVGA_MAX_X
+                      && ClippedRect.srcx < VMSVGA_MAX_X
+                      && ClippedRect.h
+                      && ClippedRect.y    < VMSVGA_MAX_Y
+                      && ClippedRect.srcy < VMSVGA_MAX_Y
+                         ))
+        { /* likely */ }
+        else
+            continue;
+
+        if (RT_LIKELY(ClippedRect.w < VMSVGA_MAX_Y))
+        { /* likely */ }
+        else
+            ClippedRect.w = VMSVGA_MAX_Y;
+        if (RT_LIKELY(ClippedRect.w < VMSVGA_MAX_Y))
+        { /* likely */ }
+        else
+            ClippedRect.w = VMSVGA_MAX_Y;
+
+
+        /*
+         * Source surface clipping (paranoia). Straight forward.
+         */
+        if (RT_LIKELY(ClippedRect.srcx < cxSurface))
+        { /* likely */ }
+        else
+            continue;
+        if (RT_LIKELY(ClippedRect.srcx + ClippedRect.w <= cxSurface))
+        { /* likely */ }
+        else
+        {
+            AssertFailed(); /* remove if annoying. */
+            ClippedRect.w = cxSurface - ClippedRect.srcx;
+        }
+
+        if (RT_LIKELY(ClippedRect.srcy < cySurface))
+        { /* likely */ }
+        else
+            continue;
+        if (RT_LIKELY(ClippedRect.srcy + ClippedRect.h <= cySurface))
+        { /* likely */ }
+        else
+        {
+            AssertFailed(); /* remove if annoying. */
+            ClippedRect.h = cySurface - ClippedRect.srcy;
+        }
+
+        /*
+         * Destination viewport clipping - real PITA.
+         *
+         * We have to take the following into account here:
+         *  - The source image is Y inverted.
+         *  - The destination framebuffer is in world and not window coordinates,
+         *    just like the source surface.  This means working in the first quadrant.
+         *  - The viewport is in window coordinate, that is fourth quadrant and
+         *    negated Y values.
+         *  - The destination framebuffer is not scrolled, so we have to blit
+         *    what's visible into the top of the framebuffer.
+         *
+         *
+         *  To illustrate:
+         *
+         *        source              destination        0123456789
+         *     8 ^----------       8 ^----------       0 ----------->
+         *     7 |         |       7 |         |       1 |         |
+         *     6 |         |       6 | ******* |       2 | ******* |
+         *     5 |   ***   |       5 |    *    |       3 |    *    |
+         *     4 |    *    |  =>   4 |    *    |  =>   4 |    *    |
+         *     3 |    *    |       3 |   ***   |       5 |   ***   |
+         *     2 | ******* |       2 |         |       6 |         |
+         *     1 |         |       1 |         |       7 |         |
+         *     0 ----------->      0 ----------->      8 v----------
+         *       0123456789          0123456789          Destination window
+         *
+         * From the above, it follows that a destination viewport given in
+         * window coordinates matches the source exactly when srcy = srcx = 0.
+         *
+         * Example (Y only):
+         *  ySrc        =  0
+         *  yDst         =  0
+         *  cyCopy      =  9
+         *  cyScreen    =  cyCopy
+         *  cySurface  >=  cyCopy
+         *  yViewport   = 5
+         *  cyViewport  = 2  (i.e. '|   ***   |'
+         *                         '|         |' )
+         *  yWCViewportHi  = cxScreen - yViewport              = 9 - 5 = 4
+         *  yWCViewportLow = cxScreen - yViewport - cyViewport = 4 - 2 = 2
+         *
+         * We can see from the illustration that the final result should be:
+         *  SrcRect = (0,7) (11, 5)  (cy=2 from y=5)
+         *  DstRect = (0,2) (11, 4)
+         *
+         * Let's postpone the switching of SrcRect.yBottom/yTop to make it
+         * easier to follow:
+         *  SrcRect = (0,5) (11, 7)
+         *
+         * From the top, Y values only:
+         *  0. Copy = { .yDst = 0, .ySrc = 0, .cy = 9 }
+         *
+         *  1. CopyRect.yDst (=0) is lower than yWCViewportLow:
+         *      cyAdjust = yWCViewportLow - CopyRect.yDst = 2;
+         *      Copy.yDst += cyAdjust = 2;
+         *      Copy.ySrc  = unchanged;
+         *      Copy.cx   -= cyAdjust = 7;
+         *   => Copy = { .yDst = 2, .ySrc = 0, .cy = 7 }
+         *
+         *  2. CopyRect.yDst + CopyRect.cx (=9) is higher than yWCViewportHi:
+         *      cyAdjust = CopyRect.yDst + CopyRect.cx - yWCViewportHi = 9 - 4 = 5
+         *      Copy.yDst  = unchanged;
+         *      Copy.ySrc += cyAdjust = 5;
+         *      Copy.cx   -= cyAdjust = 2;
+         *   => Copy = { .yDst = 2, .ySrc = 5, .cy = 2 }
+         *
+         */
+        /* X - no inversion, so kind of simple. */
+        if (ClippedRect.x >= DstViewport.x)
+        {
+            if (ClippedRect.x + ClippedRect.w <= DstViewport.xRight)
+            { /* typical */ }
+            else if (ClippedRect.x < DstViewport.xRight)
+                ClippedRect.w = DstViewport.xRight - ClippedRect.x;
+            else
+                continue;
+        }
+        else
+        {
+            uint32_t cxAdjust = DstViewport.x - ClippedRect.x;
+            if (cxAdjust < ClippedRect.w)
+            {
+                ClippedRect.w    -= cxAdjust;
+                ClippedRect.x    += cxAdjust;
+                ClippedRect.srcx += cxAdjust;
+            }
+            else
+                continue;
+
+            if (ClippedRect.x + ClippedRect.w <= DstViewport.xRight)
+            { /* typical */ }
+            else
+                ClippedRect.w = DstViewport.xRight - ClippedRect.x;
+        }
+
+        /* Y - complicated, see above. */
+        if (ClippedRect.y >= DstViewport.yLowWC)
+        {
+            if (ClippedRect.y + ClippedRect.h <= DstViewport.yHighWC)
+            { /* typical */ }
+            else if (ClippedRect.y < DstViewport.yHighWC)
+            {
+                /* adjustment #2 */
+                uint32_t cyAdjust = ClippedRect.y + ClippedRect.h - DstViewport.yHighWC;
+                ClippedRect.srcy += cyAdjust;
+                ClippedRect.h    -= cyAdjust;
+            }
+            else
+                continue;
+        }
+        else
+        {
+            /* adjustment #1 */
+            uint32_t cyAdjust = DstViewport.yLowWC - ClippedRect.y;
+            if (cyAdjust < ClippedRect.h)
+            {
+                ClippedRect.y    += cyAdjust;
+                ClippedRect.h    -= cyAdjust;
+            }
+            else
+                continue;
+
+            if (ClippedRect.y + ClippedRect.h <= DstViewport.yHighWC)
+            { /* typical */ }
+            else
+            {
+                /* adjustment #2 */
+                uint32_t cyAdjust = ClippedRect.y + ClippedRect.h - DstViewport.yHighWC;
+                ClippedRect.srcy += cyAdjust;
+                ClippedRect.h    -= cyAdjust;
+            }
+        }
+
+        /* Calc source rectangle with y flipping wrt destination. */
+        RTRECT SrcRect;
+        SrcRect.xLeft   = ClippedRect.srcx;
+        SrcRect.xRight  = ClippedRect.srcx + ClippedRect.w;
+        SrcRect.yBottom = ClippedRect.srcy + ClippedRect.h;
+        SrcRect.yTop    = ClippedRect.srcy;
+
+        /* Calc destination rectangle. */
+        RTRECT DstRect;
+        DstRect.xLeft   = ClippedRect.x;
+        DstRect.xRight  = ClippedRect.x + ClippedRect.w;
+        DstRect.yBottom = ClippedRect.y;
+        DstRect.yTop    = ClippedRect.y + ClippedRect.h;
+
+        /* Adjust for viewport. */
+        DstRect.xLeft   -= DstViewport.x;
+        DstRect.xRight  -= DstViewport.x;
+        DstRect.yBottom += DstViewport.y;
+        DstRect.yTop    += DstViewport.y;
+
+        Log(("SrcRect: (%d,%d)(%d,%d) DstRect: (%d,%d)(%d,%d)\n",
+             SrcRect.xLeft, SrcRect.yBottom, SrcRect.xRight, SrcRect.yTop,
+             DstRect.xLeft, DstRect.yBottom, DstRect.xRight, DstRect.yTop));
+        pState->ext.glBlitFramebuffer(SrcRect.xLeft, SrcRect.yBottom, SrcRect.xRight, SrcRect.yTop,
+                                      DstRect.xLeft, DstRect.yBottom, DstRect.xRight, DstRect.yTop,
+                                      GL_COLOR_BUFFER_BIT, GL_LINEAR);
+    }
+
 #endif
 
     /*
@@ -2964,13 +3110,11 @@ int vmsvga3dCommandPresent(PVGASTATE pThis, uint32_t sid, uint32_t cRects, SVGA3
     glXSwapBuffers(pState->display, pContext->window);
 #endif
 
-#if defined(RT_OS_DARWIN)
     /*
      * Now we can reset the frame buffer association.  Doing it earlier means no
      * output on darwin.
      */
     VMSVGA3D_ASSERT_GL_CALL(pState->ext.glBindFramebuffer(GL_FRAMEBUFFER, pContext->idFramebuffer), pState, pContext);
-#endif
     return VINF_SUCCESS;
 }
 
@@ -3154,7 +3298,7 @@ int vmsvga3dContextDefineOgl(PVGASTATE pThis, uint32_t cid, uint32_t fFlags)
     BOOL    ret;
 
     pixelFormat = ChoosePixelFormat(pContext->hdc, &pfd);
-    /* @todo is this really necessary?? */
+    /** @todo is this really necessary?? */
     pixelFormat = ChoosePixelFormat(pContext->hdc, &pfd);
     AssertMsgReturn(pixelFormat != 0, ("ChoosePixelFormat failed with %d\n", GetLastError()), VERR_INTERNAL_ERROR);
 
@@ -3252,7 +3396,7 @@ int vmsvga3dContextDefineOgl(PVGASTATE pThis, uint32_t cid, uint32_t fFlags)
 
     }
 #if 0
-    /* @todo move to shader lib!!! */
+    /** @todo move to shader lib!!! */
     /* Clear the screen */
     VMSVGA3D_SET_CURRENT_CONTEXT(pState, pContext);
 
@@ -3265,7 +3409,7 @@ int vmsvga3dContextDefineOgl(PVGASTATE pThis, uint32_t cid, uint32_t fFlags)
     glLightModeli(GL_LIGHT_MODEL_COLOR_CONTROL, GL_SEPARATE_SPECULAR_COLOR);
     if (pState->ext.glProvokingVertex)
         pState->ext.glProvokingVertex(GL_FIRST_VERTEX_CONVENTION);
-    /* @todo move to shader lib!!! */
+    /** @todo move to shader lib!!! */
 #endif
     return VINF_SUCCESS;
 }
@@ -3614,9 +3758,9 @@ static GLenum vmsvga3dBlendOp2GL(uint32_t blendOp)
     case SVGA3D_BLENDOP_SRCALPHASAT:
         return GL_SRC_ALPHA_SATURATE;
     case SVGA3D_BLENDOP_BLENDFACTOR:
-        return GL_CONSTANT_ALPHA;       /* @todo correct?? */
+        return GL_CONSTANT_ALPHA;       /** @todo correct?? */
     case SVGA3D_BLENDOP_INVBLENDFACTOR:
-        return GL_ONE_MINUS_CONSTANT_ALPHA;       /* @todo correct?? */
+        return GL_ONE_MINUS_CONSTANT_ALPHA;       /** @todo correct?? */
     default:
         AssertFailed();
         return GL_ONE;
@@ -3768,7 +3912,7 @@ int vmsvga3dSetRenderState(PVGASTATE pThis, uint32_t cid, uint32_t cRenderStates
             break;
 
         case SVGA3D_RS_POINTSIZE:              /* float */
-            /* @todo we need to apply scaling for point sizes below the min or above the max; see Wine) */
+            /** @todo we need to apply scaling for point sizes below the min or above the max; see Wine) */
             if (pRenderState[i].floatValue < pState->caps.flPointSize[0])
                 pRenderState[i].floatValue = pState->caps.flPointSize[0];
             if (pRenderState[i].floatValue > pState->caps.flPointSize[1])
@@ -3876,7 +4020,7 @@ int vmsvga3dSetRenderState(PVGASTATE pThis, uint32_t cid, uint32_t cRenderStates
                 break;
             }
 
-            /* @todo how to switch between vertex and pixel fog modes??? */
+            /** @todo how to switch between vertex and pixel fog modes??? */
             Assert(mode.s.type == SVGA3D_FOGTYPE_PIXEL);
 #if 0
             /* The fog type determines the render state. */
@@ -3963,7 +4107,7 @@ int vmsvga3dSetRenderState(PVGASTATE pThis, uint32_t cid, uint32_t cRenderStates
 
         case SVGA3D_RS_LINEPATTERN:            /* SVGA3dLinePattern */
             /* No longer supported by d3d; mesagl comments suggest not all backends support it */
-            /* @todo */
+            /** @todo */
             Log(("WARNING: SVGA3D_RS_LINEPATTERN %x not supported!!\n", pRenderState[i].uintValue));
             /*
             renderState = D3DRS_LINEPATTERN;
@@ -4237,8 +4381,8 @@ int vmsvga3dSetRenderState(PVGASTATE pThis, uint32_t cid, uint32_t cRenderStates
 
         case SVGA3D_RS_CCWSTENCILFUNC:         /* SVGA3dCmpFunc */
         {
-            /* @todo SVGA3D_RS_STENCILFAIL/ZFAIL/PASS for front & back faces
-             *       SVGA3D_RS_CCWSTENCILFAIL/ZFAIL/PASS for back faces ??
+            /** @todo SVGA3D_RS_STENCILFAIL/ZFAIL/PASS for front & back faces
+             *        SVGA3D_RS_CCWSTENCILFAIL/ZFAIL/PASS for back faces ??
              */
             GLint ref;
             GLuint mask;
@@ -4257,8 +4401,8 @@ int vmsvga3dSetRenderState(PVGASTATE pThis, uint32_t cid, uint32_t cRenderStates
         case SVGA3D_RS_CCWSTENCILZFAIL:        /* SVGA3dStencilOp */
         case SVGA3D_RS_CCWSTENCILPASS:         /* SVGA3dStencilOp */
         {
-            /* @todo SVGA3D_RS_STENCILFAIL/ZFAIL/PASS for front & back faces
-             *       SVGA3D_RS_CCWSTENCILFAIL/ZFAIL/PASS for back faces ??
+            /** @todo SVGA3D_RS_STENCILFAIL/ZFAIL/PASS for front & back faces
+             *        SVGA3D_RS_CCWSTENCILFAIL/ZFAIL/PASS for back faces ??
              */
             GLint sfail, dpfail, dppass;
             GLenum stencilop = vmsvgaStencipOp2GL(pRenderState[i].uintValue);
@@ -4292,7 +4436,7 @@ int vmsvga3dSetRenderState(PVGASTATE pThis, uint32_t cid, uint32_t cRenderStates
         }
 
         case SVGA3D_RS_ZBIAS:                  /* float */
-            /* @todo unknown meaning; depth bias is not identical
+            /** @todo unknown meaning; depth bias is not identical
             renderState = D3DRS_DEPTHBIAS;
             val = pRenderState[i].uintValue;
             */
@@ -4303,7 +4447,7 @@ int vmsvga3dSetRenderState(PVGASTATE pThis, uint32_t cid, uint32_t cRenderStates
         {
             GLfloat factor;
 
-            /* @todo not sure if the d3d & ogl definitions are identical. */
+            /** @todo not sure if the d3d & ogl definitions are identical. */
 
             /* Do not change the factor part. */
             glGetFloatv(GL_POLYGON_OFFSET_FACTOR, &factor);
@@ -4318,7 +4462,7 @@ int vmsvga3dSetRenderState(PVGASTATE pThis, uint32_t cid, uint32_t cRenderStates
         {
             GLfloat units;
 
-            /* @todo not sure if the d3d & ogl definitions are identical. */
+            /** @todo not sure if the d3d & ogl definitions are identical. */
 
             /* Do not change the factor part. */
             glGetFloatv(GL_POLYGON_OFFSET_UNITS, &units);
@@ -4415,7 +4559,7 @@ int vmsvga3dSetRenderState(PVGASTATE pThis, uint32_t cid, uint32_t cRenderStates
 
         case SVGA3D_RS_COORDINATETYPE:         /* SVGA3dCoordinateType */
             Assert(pRenderState[i].uintValue == SVGA3D_COORDINATE_LEFTHANDED);
-            /* @todo setup a view matrix to scale the world space by -1 in the z-direction for right handed coordinates. */
+            /** @todo setup a view matrix to scale the world space by -1 in the z-direction for right handed coordinates. */
             /*
             renderState = D3DRS_COORDINATETYPE;
             val = pRenderState[i].uintValue;
@@ -4660,7 +4804,7 @@ int vmsvga3dSetRenderTarget(PVGASTATE pThis, uint32_t cid, SVGA3dRenderTargetTyp
         if (status != GL_FRAMEBUFFER_COMPLETE)
             Log(("vmsvga3dSetRenderTarget: WARNING: glCheckFramebufferStatus returned %x\n", status));
 #endif
-        /* @todo use glDrawBuffers too? */
+        /** @todo use glDrawBuffers too? */
         break;
     }
 
@@ -4706,7 +4850,7 @@ static DWORD vmsvga3dTextureCombiner2D3D(uint32_t value)
     case SVGA3D_TC_MODULATE4X:
         return D3DTOP_MODULATE4X;
     case SVGA3D_TC_DSDT:
-        AssertFailed(); /* @todo ??? */
+        AssertFailed(); /** @todo ??? */
         return D3DTOP_DISABLE;
     case SVGA3D_TC_DOTPRODUCT3:
         return D3DTOP_DOTPRODUCT3;
@@ -4771,13 +4915,13 @@ static DWORD vmsvga3dTextTransformFlags2D3D(uint32_t value)
     case SVGA3D_TEX_TRANSFORM_OFF:
         return D3DTTFF_DISABLE;
     case SVGA3D_TEX_TRANSFORM_S:
-        return D3DTTFF_COUNT1;      /* @todo correct? */
+        return D3DTTFF_COUNT1;      /** @todo correct? */
     case SVGA3D_TEX_TRANSFORM_T:
-        return D3DTTFF_COUNT2;      /* @todo correct? */
+        return D3DTTFF_COUNT2;      /** @todo correct? */
     case SVGA3D_TEX_TRANSFORM_R:
-        return D3DTTFF_COUNT3;      /* @todo correct? */
+        return D3DTTFF_COUNT3;      /** @todo correct? */
     case SVGA3D_TEX_TRANSFORM_Q:
-        return D3DTTFF_COUNT4;      /* @todo correct? */
+        return D3DTTFF_COUNT4;      /** @todo correct? */
     case SVGA3D_TEX_PROJECTED:
         return D3DTTFF_PROJECTED;
     default:
@@ -4801,7 +4945,7 @@ static GLenum vmsvga3dTextureAddress2OGL(SVGA3dTextureAddress value)
         return GL_CLAMP_TO_BORDER;
     case SVGA3D_TEX_ADDRESS_MIRRORONCE:
         AssertFailed();
-        return GL_CLAMP_TO_EDGE_SGIS; /* @todo correct? */
+        return GL_CLAMP_TO_EDGE_SGIS; /** @todo correct? */
 
     case SVGA3D_TEX_ADDRESS_EDGE:
     case SVGA3D_TEX_ADDRESS_INVALID:
@@ -4821,7 +4965,7 @@ static GLenum vmsvga3dTextureFilter2OGL(SVGA3dTextureFilter value)
     case SVGA3D_TEX_FILTER_NEAREST:
         return GL_NEAREST;
     case SVGA3D_TEX_FILTER_ANISOTROPIC:
-        /* @todo */
+        /** @todo */
     case SVGA3D_TEX_FILTER_FLATCUBIC:       // Deprecated, not implemented
     case SVGA3D_TEX_FILTER_GAUSSIANCUBIC:   // Deprecated, not implemented
     case SVGA3D_TEX_FILTER_PYRAMIDALQUAD:   // Not currently implemented
@@ -4909,7 +5053,7 @@ int vmsvga3dSetTextureState(PVGASTATE pThis, uint32_t cid, uint32_t cTextureStat
         case SVGA3D_TS_ALPHAARG0:                   /* SVGA3dTextureArgData */
         case SVGA3D_TS_ALPHAARG1:                   /* SVGA3dTextureArgData */
         case SVGA3D_TS_ALPHAARG2:                   /* SVGA3dTextureArgData */
-            /* @todo; not used by MesaGL */
+            /** @todo not used by MesaGL */
             Log(("vmsvga3dSetTextureState: colorop/alphaop not yet supported!!\n"));
             break;
 #if 0
@@ -5043,13 +5187,13 @@ int vmsvga3dSetTextureState(PVGASTATE pThis, uint32_t cid, uint32_t cTextureStat
 
             vmsvgaColor2GLFloatArray(pTextureState[i].value, &color[0], &color[1], &color[2], &color[3]);
 
-            glTexParameterfv(GL_TEXTURE_2D /* @todo flexible type */, GL_TEXTURE_BORDER_COLOR, color);   /* Identical; default 0.0 identical too */
+            glTexParameterfv(GL_TEXTURE_2D /** @todo flexible type */, GL_TEXTURE_BORDER_COLOR, color);   /* Identical; default 0.0 identical too */
             VMSVGA3D_CHECK_LAST_ERROR(pState, pContext);
             break;
         }
 
         case SVGA3D_TS_TEXTURE_LOD_BIAS:            /* float */
-            glTexParameterf(GL_TEXTURE_2D /* @todo flexible type */, GL_TEXTURE_LOD_BIAS, pTextureState[i].value);   /* Identical; default 0.0 identical too */
+            glTexParameterf(GL_TEXTURE_2D /** @todo flexible type */, GL_TEXTURE_LOD_BIAS, pTextureState[i].value);   /* Identical; default 0.0 identical too */
             VMSVGA3D_CHECK_LAST_ERROR(pState, pContext);
             break;
 
@@ -5085,7 +5229,7 @@ int vmsvga3dSetTextureState(PVGASTATE pThis, uint32_t cid, uint32_t cTextureStat
 
         if (textureType != ~0U)
         {
-            glTexParameteri(GL_TEXTURE_2D /* @todo flexible type */, textureType, val);
+            glTexParameteri(GL_TEXTURE_2D /** @todo flexible type */, textureType, val);
             VMSVGA3D_CHECK_LAST_ERROR(pState, pContext);
         }
     }
@@ -5145,7 +5289,7 @@ int vmsvga3dSetMaterial(PVGASTATE pThis, uint32_t cid, SVGA3dFace face, SVGA3dMa
     return VINF_SUCCESS;
 }
 
-/* @todo Move into separate library as we are using logic from Wine here. */
+/** @todo Move into separate library as we are using logic from Wine here. */
 int vmsvga3dSetLightData(PVGASTATE pThis, uint32_t cid, uint32_t index, SVGA3dLightData *pData)
 {
     PVMSVGA3DCONTEXT      pContext;
@@ -5222,7 +5366,7 @@ int vmsvga3dSetLightData(PVGASTATE pThis, uint32_t cid, uint32_t index, SVGA3dLi
         glLightf(GL_LIGHT0 + index, GL_QUADRATIC_ATTENUATION, (QuadAttenuation < pData->attenuation2) ? pData->attenuation2 : QuadAttenuation);
         VMSVGA3D_CHECK_LAST_ERROR_WARN(pState, pContext);
 
-        /* @todo range */
+        /** @todo range */
         break;
     }
 
@@ -5290,7 +5434,7 @@ int vmsvga3dSetLightData(PVGASTATE pThis, uint32_t cid, uint32_t index, SVGA3dLi
         glLightf(GL_LIGHT0 + index, GL_QUADRATIC_ATTENUATION, (QuadAttenuation < pData->attenuation2) ? pData->attenuation2 : QuadAttenuation);
         VMSVGA3D_CHECK_LAST_ERROR_WARN(pState, pContext);
 
-        /* @todo range */
+        /** @todo range */
         break;
     }
 
@@ -5384,7 +5528,7 @@ int vmsvga3dSetViewPort(PVGASTATE pThis, uint32_t cid, SVGA3dRect *pRect)
     pContext->state.RectViewPort = *pRect;
     pContext->state.u32UpdateFlags |= VMSVGA3D_UPDATE_VIEWPORT;
 
-    /* @todo y-inversion for partial viewport coordinates? */
+    /** @todo y-inversion for partial viewport coordinates? */
     glViewport(pRect->x, pRect->y, pRect->w, pRect->h);
     VMSVGA3D_CHECK_LAST_ERROR(pState, pContext);
 
@@ -5513,7 +5657,7 @@ int vmsvga3dCommandClear(PVGASTATE pThis, uint32_t cid, SVGA3dClearFlag clearFla
     }
     if (clearFlag & SVGA3D_CLEAR_STENCIL)
     {
-        /* @todo possibly the same problem as with glDepthMask */
+        /** @todo possibly the same problem as with glDepthMask */
         glClearStencil(stencil);
         mask |= GL_STENCIL_BUFFER_BIT;
     }
@@ -5625,13 +5769,13 @@ int vmsvga3dVertexDecl2OGL(SVGA3dVertexArrayIdentity &identity, GLint &size, GLe
 
     case SVGA3D_DECLTYPE_UDEC3:
         size = 3;
-        type = GL_UNSIGNED_INT_2_10_10_10_REV;    /* @todo correct? */
+        type = GL_UNSIGNED_INT_2_10_10_10_REV;    /** @todo correct? */
         break;
 
     case SVGA3D_DECLTYPE_DEC3N:
         normalized = true;
         size = 3;
-        type = GL_INT_2_10_10_10_REV;    /* @todo correct? */
+        type = GL_INT_2_10_10_10_REV;    /** @todo correct? */
         break;
 
     case SVGA3D_DECLTYPE_FLOAT16_2:
@@ -5714,7 +5858,7 @@ int vmsvga3dDrawPrimitivesProcessVertexDecls(PVMSVGA3DSTATE pState, PVMSVGA3DCON
         VMSVGA3D_CHECK_LAST_ERROR(pState, pContext);
 
         Assert(pVertexSurface->fDirty);
-        /* @todo rethink usage dynamic/static */
+        /** @todo rethink usage dynamic/static */
         pState->ext.glBufferData(GL_ARRAY_BUFFER, pVertexSurface->pMipmapLevels[0].cbSurface, pVertexSurface->pMipmapLevels[0].pSurfaceData, GL_DYNAMIC_DRAW);
         VMSVGA3D_CHECK_LAST_ERROR(pState, pContext);
 
@@ -5755,7 +5899,7 @@ int vmsvga3dDrawPrimitivesProcessVertexDecls(PVMSVGA3DSTATE pState, PVMSVGA3DCON
             pState->ext.glVertexAttribPointer(index, size, type, normalized, pVertexDecl[iVertex].array.stride,
                                               (const GLvoid *)(uintptr_t)pVertexDecl[iVertex].array.offset);
             VMSVGA3D_CHECK_LAST_ERROR(pState, pContext);
-            /* case SVGA3D_DECLUSAGE_COLOR:    @todo color component order not identical!! test GL_BGRA!!  */
+            /** @todo case SVGA3D_DECLUSAGE_COLOR: color component order not identical!! test GL_BGRA!!  */
         }
         else
         {
@@ -5891,7 +6035,7 @@ int vmsvga3dDrawPrimitivesCleanupVertexDecls(PVMSVGA3DSTATE pState, PVMSVGA3DCON
                 break;
             case SVGA3D_DECLUSAGE_POSITIONT:
                 break;
-            case SVGA3D_DECLUSAGE_COLOR:    /* @todo color component order not identical!! */
+            case SVGA3D_DECLUSAGE_COLOR:    /** @todo color component order not identical!! */
                 glDisableClientState(GL_COLOR_ARRAY);
                 VMSVGA3D_CHECK_LAST_ERROR(pState, pContext);
                 break;
@@ -5926,7 +6070,7 @@ int vmsvga3dDrawPrimitives(PVGASTATE pThis, uint32_t cid, uint32_t numVertexDecl
     AssertReturn(numVertexDecls && numVertexDecls <= SVGA3D_MAX_VERTEX_ARRAYS, VERR_INVALID_PARAMETER);
     AssertReturn(numRanges && numRanges <= SVGA3D_MAX_DRAW_PRIMITIVE_RANGES, VERR_INVALID_PARAMETER);
     AssertReturn(!cVertexDivisor || cVertexDivisor == numVertexDecls, VERR_INVALID_PARAMETER);
-    /* @todo */
+    /** @todo Non-zero cVertexDivisor */
     Assert(!cVertexDivisor);
 
     if (    cid >= pState->cContexts
@@ -6020,7 +6164,7 @@ int vmsvga3dDrawPrimitives(PVGASTATE pThis, uint32_t cid, uint32_t numVertexDecl
 
                 Assert(pIndexSurface->fDirty);
 
-                /* @todo rethink usage dynamic/static */
+                /** @todo rethink usage dynamic/static */
                 pState->ext.glBufferData(GL_ELEMENT_ARRAY_BUFFER, pIndexSurface->pMipmapLevels[0].cbSurface, pIndexSurface->pMipmapLevels[0].pSurfaceData, GL_DYNAMIC_DRAW);
                 VMSVGA3D_CHECK_LAST_ERROR(pState, pContext);
 
@@ -6049,7 +6193,7 @@ int vmsvga3dDrawPrimitives(PVGASTATE pThis, uint32_t cid, uint32_t numVertexDecl
         }
         else
         {
-            Assert(pRange[iPrimitive].indexBias >= 0);  /* @todo */
+            Assert(pRange[iPrimitive].indexBias >= 0);  /** @todo  indexBias */
             Assert(pRange[iPrimitive].indexWidth == pRange[iPrimitive].indexArray.stride);
 
             /* Render with an index buffer */

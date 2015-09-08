@@ -15,9 +15,10 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #include <iprt/alloca.h>
 #include <iprt/cpp/autores.h>
 #include <iprt/buildconfig.h>
@@ -43,9 +44,9 @@
 #endif
 
 
-/*******************************************************************************
-*   Global Variables                                                           *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Global Variables                                                                                                             *
+*********************************************************************************************************************************/
 /** The program name (derived from argv[0]). */
 char const *g_pszProgName = "";
 /** The current verbosity level. */
@@ -601,7 +602,7 @@ static BOOL ResizeDisplayDevice(ULONG Id, DWORD Width, DWORD Height, DWORD BitsP
     return TRUE;
 }
 
-static RTEXITCODE handleSetVideoMode(int argc, char *argv[])
+static DECLCALLBACK(RTEXITCODE) handleSetVideoMode(int argc, char *argv[])
 {
     if (argc != 3 && argc != 4)
     {
@@ -765,7 +766,7 @@ static HKEY getVideoKey(bool writable)
     return hkeyVideo;
 }
 
-static RTEXITCODE handleGetVideoAcceleration(int argc, char *argv[])
+static DECLCALLBACK(RTEXITCODE) handleGetVideoAcceleration(int argc, char *argv[])
 {
     ULONG status;
     HKEY hkeyVideo = getVideoKey(false);
@@ -786,7 +787,7 @@ static RTEXITCODE handleGetVideoAcceleration(int argc, char *argv[])
     return RTEXITCODE_SUCCESS;
 }
 
-static RTEXITCODE handleSetVideoAcceleration(int argc, char *argv[])
+static DECLCALLBACK(RTEXITCODE) handleSetVideoAcceleration(int argc, char *argv[])
 {
     ULONG status;
     HKEY hkeyVideo;
@@ -818,7 +819,7 @@ static RTEXITCODE handleSetVideoAcceleration(int argc, char *argv[])
     return RTEXITCODE_SUCCESS;
 }
 
-static RTEXITCODE videoFlagsGet(void)
+static DECLCALLBACK(RTEXITCODE) videoFlagsGet(void)
 {
     HKEY hkeyVideo = getVideoKey(false);
 
@@ -839,7 +840,7 @@ static RTEXITCODE videoFlagsGet(void)
     return RTEXITCODE_FAILURE;
 }
 
-static RTEXITCODE videoFlagsDelete(void)
+static DECLCALLBACK(RTEXITCODE) videoFlagsDelete(void)
 {
     HKEY hkeyVideo = getVideoKey(true);
 
@@ -855,7 +856,7 @@ static RTEXITCODE videoFlagsDelete(void)
     return RTEXITCODE_FAILURE;
 }
 
-static RTEXITCODE videoFlagsModify(bool fSet, int argc, char *argv[])
+static DECLCALLBACK(RTEXITCODE) videoFlagsModify(bool fSet, int argc, char *argv[])
 {
     if (argc != 1)
     {
@@ -905,7 +906,7 @@ static RTEXITCODE videoFlagsModify(bool fSet, int argc, char *argv[])
     return exitCode;
 }
 
-static RTEXITCODE handleVideoFlags(int argc, char *argv[])
+static DECLCALLBACK(RTEXITCODE) handleVideoFlags(int argc, char *argv[])
 {
     /* Must have a keyword and optional value (32 bit hex string). */
     if (argc != 1 && argc != 2)
@@ -1056,7 +1057,7 @@ void writeCustomModes(HKEY hkeyVideo)
 
 }
 
-static RTEXITCODE handleListCustomModes(int argc, char *argv[])
+static DECLCALLBACK(RTEXITCODE) handleListCustomModes(int argc, char *argv[])
 {
     if (argc != 0)
     {
@@ -1084,7 +1085,7 @@ static RTEXITCODE handleListCustomModes(int argc, char *argv[])
     return RTEXITCODE_SUCCESS;
 }
 
-static RTEXITCODE handleAddCustomMode(int argc, char *argv[])
+static DECLCALLBACK(RTEXITCODE) handleAddCustomMode(int argc, char *argv[])
 {
     if (argc != 3)
     {
@@ -1145,7 +1146,7 @@ static RTEXITCODE handleAddCustomMode(int argc, char *argv[])
     return RTEXITCODE_SUCCESS;
 }
 
-static RTEXITCODE handleRemoveCustomMode(int argc, char *argv[])
+static DECLCALLBACK(RTEXITCODE) handleRemoveCustomMode(int argc, char *argv[])
 {
     if (argc != 3)
     {
@@ -1600,7 +1601,7 @@ static RTEXITCODE waitGuestProperty(int argc, char **argv)
  * @returns 0 on success, 1 on failure
  * @note see the command line API description for parameters
  */
-static RTEXITCODE handleGuestProperty(int argc, char *argv[])
+static DECLCALLBACK(RTEXITCODE) handleGuestProperty(int argc, char *argv[])
 {
     if (0 == argc)
     {
@@ -1696,7 +1697,7 @@ static RTEXITCODE listSharedFolders(int argc, char **argv)
  * @note see the command line API description for parameters
  *      (r=bird: yeah, right. The API description contains nil about params)
  */
-static RTEXITCODE handleSharedFolder(int argc, char *argv[])
+static DECLCALLBACK(RTEXITCODE) handleSharedFolder(int argc, char *argv[])
 {
     if (0 == argc)
     {
@@ -1715,7 +1716,7 @@ static RTEXITCODE handleSharedFolder(int argc, char *argv[])
 /**
  * @callback_method_impl{FNVBOXCTRLCMDHANDLER, Command: writecoredump}
  */
-static RTEXITCODE handleWriteCoreDump(int argc, char *argv[])
+static DECLCALLBACK(RTEXITCODE) handleWriteCoreDump(int argc, char *argv[])
 {
     int rc = VbglR3WriteCoreDump();
     if (RT_SUCCESS(rc))
@@ -1735,7 +1736,7 @@ static RTEXITCODE handleWriteCoreDump(int argc, char *argv[])
 /**
  * @callback_method_impl{FNVBOXCTRLCMDHANDLER, Command: help}
  */
-static RTEXITCODE handleDpc(int argc, char *argv[])
+static DECLCALLBACK(RTEXITCODE) handleDpc(int argc, char *argv[])
 {
 # ifndef VBOX_CONTROL_TEST
     int rc;
@@ -1760,7 +1761,7 @@ static RTEXITCODE handleDpc(int argc, char *argv[])
 /**
  * @callback_method_impl{FNVBOXCTRLCMDHANDLER, Command: writelog}
  */
-static RTEXITCODE handleWriteLog(int argc, char *argv[])
+static DECLCALLBACK(RTEXITCODE) handleWriteLog(int argc, char *argv[])
 {
     static const RTGETOPTDEF s_aOptions[] =
     {
@@ -1823,7 +1824,7 @@ static RTEXITCODE handleWriteLog(int argc, char *argv[])
 /**
  * @callback_method_impl{FNVBOXCTRLCMDHANDLER, Command: takesnapshot}
  */
-static RTEXITCODE handleTakeSnapshot(int argc, char *argv[])
+static DECLCALLBACK(RTEXITCODE) handleTakeSnapshot(int argc, char *argv[])
 {
     //VbglR3VmTakeSnapshot(argv[0], argv[1]);
     return VBoxControlError("not implemented");
@@ -1832,7 +1833,7 @@ static RTEXITCODE handleTakeSnapshot(int argc, char *argv[])
 /**
  * @callback_method_impl{FNVBOXCTRLCMDHANDLER, Command: savestate}
  */
-static RTEXITCODE handleSaveState(int argc, char *argv[])
+static DECLCALLBACK(RTEXITCODE) handleSaveState(int argc, char *argv[])
 {
     //VbglR3VmSaveState();
     return VBoxControlError("not implemented");
@@ -1841,7 +1842,7 @@ static RTEXITCODE handleSaveState(int argc, char *argv[])
 /**
  * @callback_method_impl{FNVBOXCTRLCMDHANDLER, Command: suspend|pause}
  */
-static RTEXITCODE handleSuspend(int argc, char *argv[])
+static DECLCALLBACK(RTEXITCODE) handleSuspend(int argc, char *argv[])
 {
     //VbglR3VmSuspend();
     return VBoxControlError("not implemented");
@@ -1850,7 +1851,7 @@ static RTEXITCODE handleSuspend(int argc, char *argv[])
 /**
  * @callback_method_impl{FNVBOXCTRLCMDHANDLER, Command: poweroff|powerdown}
  */
-static RTEXITCODE handlePowerOff(int argc, char *argv[])
+static DECLCALLBACK(RTEXITCODE) handlePowerOff(int argc, char *argv[])
 {
     //VbglR3VmPowerOff();
     return VBoxControlError("not implemented");
@@ -1859,7 +1860,7 @@ static RTEXITCODE handlePowerOff(int argc, char *argv[])
 /**
  * @callback_method_impl{FNVBOXCTRLCMDHANDLER, Command: version}
  */
-static RTEXITCODE handleVersion(int argc, char *argv[])
+static DECLCALLBACK(RTEXITCODE) handleVersion(int argc, char *argv[])
 {
     if (argc)
         return VBoxControlSyntaxError("getversion does not take any arguments");
@@ -1869,7 +1870,7 @@ static RTEXITCODE handleVersion(int argc, char *argv[])
 /**
  * @callback_method_impl{FNVBOXCTRLCMDHANDLER, Command: help}
  */
-static RTEXITCODE handleHelp(int argc, char *argv[])
+static DECLCALLBACK(RTEXITCODE) handleHelp(int argc, char *argv[])
 {
     /* ignore arguments for now. */
     usage();

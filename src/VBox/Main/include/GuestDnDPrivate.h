@@ -90,6 +90,48 @@ typedef struct GuestDnDData
 } GuestDnDData;
 
 /**
+ * Structure for keeping an URI object's context around.
+ */
+typedef struct GuestDnDURIObjCtx
+{
+    GuestDnDURIObjCtx(void)
+        : pObjURI(NULL)
+        , fAllocated(false)
+        , fHeaderSent(false) { }
+
+    virtual ~GuestDnDURIObjCtx(void)
+    {
+        Reset();
+    }
+
+public:
+
+    void Reset(void)
+    {
+        if (   pObjURI
+            && fAllocated)
+        {
+            delete pObjURI;
+        }
+
+        pObjURI     = NULL;
+
+        fAllocated  = false;
+        fHeaderSent = false;
+    }
+
+
+    /** Pointer to current object being handled. */
+    DnDURIObject             *pObjURI;
+    /** Flag whether pObjURI needs deletion after use. */
+    bool                      fAllocated;
+    /** Flag whether the object's file header has been sent already. */
+    bool                      fHeaderSent;
+    /** @todo Add more statistics / information here. */
+
+} GuestDnDURIObjCtx;
+
+/**
  * Structure for keeping around URI (list) data.
  */
 typedef struct GuestDnDURIData
@@ -106,10 +148,26 @@ typedef struct GuestDnDURIData
         Reset();
     }
 
+    int Init(size_t cbBuf = _64K)
+    {
+        Reset();
+
+        pvScratchBuf = RTMemAlloc(cbBuf);
+        if (!pvScratchBuf)
+            return VERR_NO_MEMORY;
+
+        cbScratchBuf = cbBuf;
+        return VINF_SUCCESS;
+    }
+
+    void * GetBufferMutable(void) { return pvScratchBuf; }
+
+    size_t GetBufferSize(void) { return cbScratchBuf; }
+
     void Reset(void)
     {
         lstURI.Clear();
-        objURI.Close();
+        objCtx.Reset();
 
         DnDDirDroppedFilesRollback(&mDropDir);
         DnDDirDroppedFilesClose(&mDropDir, true /* fRemove */);
@@ -124,10 +182,15 @@ typedef struct GuestDnDURIData
     }
 
     DNDDIRDROPPEDFILES              mDropDir;
-    /** (Non-recursive) List of root URI objects to receive. */
+    /** (Non-recursive) List of URI objects to handle. */
     DnDURIList                      lstURI;
-    /** Current object to receive. */
-    DnDURIObject                    objURI;
+    /** Context to current object being handled.
+     *  As we currently do all transfers one after another we
+     *  only have one context at a time. */
+    GuestDnDURIObjCtx               objCtx;
+
+protected:
+
     /** Pointer to an optional scratch buffer to use for
      *  doing the actual chunk transfers. */
     void                           *pvScratchBuf;

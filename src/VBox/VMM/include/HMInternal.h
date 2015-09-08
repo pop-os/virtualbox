@@ -33,12 +33,16 @@
 #include <iprt/avl.h>
 #include <iprt/string.h>
 
-#if HC_ARCH_BITS == 64 || defined(VBOX_WITH_HYBRID_32BIT_KERNEL) || defined (VBOX_WITH_64_BITS_GUESTS)
+#if defined(RT_OS_DARWIN) && HC_ARCH_BITS == 32
+# error "32-bit darwin is no longer supported. Go back to 4.3 or earlier!"
+#endif
+
+#if HC_ARCH_BITS == 64 || defined (VBOX_WITH_64_BITS_GUESTS)
 /* Enable 64 bits guest support. */
 # define VBOX_ENABLE_64_BITS_GUESTS
 #endif
 
-#if HC_ARCH_BITS == 32 && defined(VBOX_ENABLE_64_BITS_GUESTS) && !defined(VBOX_WITH_HYBRID_32BIT_KERNEL)
+#if HC_ARCH_BITS == 32 && defined(VBOX_ENABLE_64_BITS_GUESTS)
 # define VMX_USE_CACHED_VMCS_ACCESSES
 #endif
 
@@ -209,9 +213,6 @@ RT_C_DECLS_BEGIN
                                                   | HM_CHANGED_GUEST_DEBUG              \
                                                   | HM_CHANGED_GUEST_LAZY_MSRS)
 /** @} */
-
-/** Maximum number of page flushes we are willing to remember before considering a full TLB flush. */
-#define HM_MAX_TLB_SHOOTDOWN_PAGES      8
 
 /** Size for the EPT identity page table (1024 4 MB pages to cover the entire address space). */
 #define HM_EPT_IDENTITY_PG_TABLE_SIZE   PAGE_SIZE
@@ -384,7 +385,7 @@ typedef struct HM
     uint32_t                    cbGuestPatchMem;
     uint32_t                    u32Alignment0;
 
-#if HC_ARCH_BITS == 32 && defined(VBOX_ENABLE_64_BITS_GUESTS) && !defined(VBOX_WITH_HYBRID_32BIT_KERNEL)
+#if HC_ARCH_BITS == 32 && defined(VBOX_ENABLE_64_BITS_GUESTS)
     /** 32 to 64 bits switcher entrypoint. */
     R0PTRTYPE(PFNHMSWITCHERHC)  pfnHost32ToGuest64R0;
     RTR0PTR                     pvR0Alignment0;
@@ -856,14 +857,6 @@ typedef struct HMCPU
      * HMR0Enter and cleared in HMR0Leave. */
     RTCPUID                 idEnteredCpu;
 
-    /** To keep track of pending TLB shootdown pages. (SMP guest only) */
-    struct
-    {
-        RTGCPTR             aPages[HM_MAX_TLB_SHOOTDOWN_PAGES];
-        uint32_t            cPages;
-        uint32_t            u32Alignment0; /**< Explicit alignment padding. */
-    } TlbShootdown;
-
     /** VT-x/AMD-V VM-exit/#VMXEXIT history, circular array. */
     uint16_t                auExitHistory[31];
     /** The index of the next free slot in the history array. */
@@ -882,7 +875,7 @@ typedef struct HMCPU
     STAMPROFILEADV          StatLoadGuestState;
     STAMPROFILEADV          StatInGC;
 
-#if HC_ARCH_BITS == 32 && defined(VBOX_ENABLE_64_BITS_GUESTS) && !defined(VBOX_WITH_HYBRID_32BIT_KERNEL)
+#if HC_ARCH_BITS == 32 && defined(VBOX_ENABLE_64_BITS_GUESTS)
     STAMPROFILEADV          StatWorldSwitch3264;
 #endif
     STAMPROFILEADV          StatPoke;
@@ -999,7 +992,7 @@ typedef struct HMCPU
     STAMCOUNTER             StatVmxCheckBadTr;
     STAMCOUNTER             StatVmxCheckPmOk;
 
-#if HC_ARCH_BITS == 32 && defined(VBOX_ENABLE_64_BITS_GUESTS) && !defined(VBOX_WITH_HYBRID_32BIT_KERNEL)
+#if HC_ARCH_BITS == 32 && defined(VBOX_ENABLE_64_BITS_GUESTS)
     STAMCOUNTER             StatFpu64SwitchBack;
     STAMCOUNTER             StatDebug64SwitchBack;
 #endif
@@ -1038,21 +1031,6 @@ VMMR0DECL(void) HMR0DumpDescriptor(PCX86DESCHC pDesc, RTSEL Sel, const char *psz
 DECLASM(int) HMR0VMXStartVMWrapXMM(RTHCUINT fResume, PCPUMCTX pCtx, PVMCSCACHE pCache, PVM pVM, PVMCPU pVCpu, PFNHMVMXSTARTVM pfnStartVM);
 DECLASM(int) HMR0SVMRunWrapXMM(RTHCPHYS pVmcbHostPhys, RTHCPHYS pVmcbPhys, PCPUMCTX pCtx, PVM pVM, PVMCPU pVCpu, PFNHMSVMVMRUN pfnVMRun);
 # endif
-
-# ifdef VBOX_WITH_HYBRID_32BIT_KERNEL
-/**
- * Gets 64-bit GDTR and IDTR on darwin.
- * @param  pGdtr        Where to store the 64-bit GDTR.
- * @param  pIdtr        Where to store the 64-bit IDTR.
- */
-DECLASM(void) HMR0Get64bitGdtrAndIdtr(PX86XDTR64 pGdtr, PX86XDTR64 pIdtr);
-
-/**
- * Gets 64-bit CR3 on darwin.
- * @returns CR3
- */
-DECLASM(uint64_t) HMR0Get64bitCR3(void);
-# endif  /* VBOX_WITH_HYBRID_32BIT_KERNEL */
 
 #endif /* IN_RING0 */
 

@@ -24,9 +24,10 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define IPRT_NT_MAP_TO_ZW
 #define LOG_GROUP LOG_GROUP_SUP_DRV
 #include "../SUPDrvInternal.h"
@@ -54,9 +55,9 @@
 #endif
 
 
-/*******************************************************************************
-*   Defined Constants And Macros                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
 /** The support service name. */
 #define SERVICE_NAME    "VBoxDrv"
 /** The Pool tag (VBox). */
@@ -85,9 +86,9 @@
 #define VBOXDRV_WITH_FAST_IO
 
 
-/*******************************************************************************
-*   Structures and Typedefs                                                    *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
 /**
  * Device extension used by VBoxDrvU.
  */
@@ -155,7 +156,7 @@ typedef struct SUPDRVNTERRORINFO
     /** Number of bytes of valid info. */
     uint32_t        cchErrorInfo;
     /** The error info. */
-    char            szErrorInfo[2048];
+    char            szErrorInfo[16384 - sizeof(RTLISTNODE) - sizeof(HANDLE)*2 - sizeof(uint64_t) - sizeof(uint32_t) - 0x20];
 } SUPDRVNTERRORINFO;
 /** Pointer to error info. */
 typedef SUPDRVNTERRORINFO *PSUPDRVNTERRORINFO;
@@ -272,9 +273,9 @@ typedef NTSTATUS (NTAPI *PFNZWALPCCREATEPORT)(PHANDLE, POBJECT_ATTRIBUTES, struc
 #endif /* VBOX_WITH_HARDENINIG */
 
 
-/*******************************************************************************
-*   Internal Functions                                                         *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Internal Functions                                                                                                           *
+*********************************************************************************************************************************/
 static void     _stdcall   VBoxDrvNtUnload(PDRIVER_OBJECT pDrvObj);
 static NTSTATUS _stdcall   VBoxDrvNtCreate(PDEVICE_OBJECT pDevObj, PIRP pIrp);
 static NTSTATUS _stdcall   VBoxDrvNtCleanup(PDEVICE_OBJECT pDevObj, PIRP pIrp);
@@ -307,17 +308,17 @@ static void                 supdrvNtErrorInfoCleanupProcess(HANDLE hProcessId);
 #endif
 
 
-/*******************************************************************************
-*   Exported Functions                                                         *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Exported Functions                                                                                                           *
+*********************************************************************************************************************************/
 RT_C_DECLS_BEGIN
 ULONG _stdcall DriverEntry(PDRIVER_OBJECT pDrvObj, PUNICODE_STRING pRegPath);
 RT_C_DECLS_END
 
 
-/*******************************************************************************
-*   Global Variables                                                           *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Global Variables                                                                                                             *
+*********************************************************************************************************************************/
 /** Pointer to the system device instance. */
 static PDEVICE_OBJECT g_pDevObjSys = NULL;
 /** Pointer to the user device instance. */
@@ -1841,15 +1842,16 @@ int  VBOXCALL   supdrvOSLdrValidatePointer(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAG
 
 
 /**
- * memcmp + log.
+ * memcmp + errormsg + log.
  *
  * @returns Same as memcmp.
  * @param   pImage          The image.
  * @param   pbImageBits     The image bits ring-3 uploads.
  * @param   uRva            The RVA to start comparing at.
  * @param   cb              The number of bytes to compare.
+ * @param   pReq            The load request.
  */
-static int supdrvNtCompare(PSUPDRVLDRIMAGE pImage, const uint8_t *pbImageBits, uint32_t uRva, uint32_t cb)
+static int supdrvNtCompare(PSUPDRVLDRIMAGE pImage, const uint8_t *pbImageBits, uint32_t uRva, uint32_t cb, PSUPLDRLOAD pReq)
 {
     int iDiff = memcmp((uint8_t const *)pImage->pvImage + uRva, pbImageBits + uRva, cb);
     if (iDiff)
@@ -1859,20 +1861,28 @@ static int supdrvNtCompare(PSUPDRVLDRIMAGE pImage, const uint8_t *pbImageBits, u
         for (size_t off = uRva; cbLeft > 0; off++, cbLeft--)
             if (pbNativeBits[off] != pbImageBits[off])
             {
-                char szBytes[128];
-                RTStrPrintf(szBytes, sizeof(szBytes), "native: %.*Rhxs  our: %.*Rhxs",
-                            RT_MIN(12, cbLeft), &pbNativeBits[off],
-                            RT_MIN(12, cbLeft), &pbImageBits[off]);
-                SUPR0Printf("VBoxDrv: Mismatch at %#x of %s: %s\n", off, pImage->szName, szBytes);
+                /* Note! We need to copy image bits into a temporary stack buffer here as we'd
+                         otherwise risk overwriting them while formatting the error message. */
+                uint8_t abBytes[64];
+                memcpy(abBytes, &pbImageBits[off], RT_MIN(64, cbLeft));
+                supdrvLdrLoadError(VERR_LDR_MISMATCH_NATIVE, pReq,
+                                   "Mismatch at %#x (%p) of %s loaded at %p:\n"
+                                   "ntld: %.*Rhxs\n"
+                                   "iprt: %.*Rhxs",
+                                   off, &pbNativeBits[off], pImage->szName, pImage->pvImage,
+                                   RT_MIN(64, cbLeft), &pbNativeBits[off],
+                                   RT_MIN(64, cbLeft), &abBytes[0]);
+                SUPR0Printf("VBoxDrv: %s", pReq->u.Out.szError);
                 break;
             }
     }
     return iDiff;
 }
 
+
 int  VBOXCALL   supdrvOSLdrLoad(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, const uint8_t *pbImageBits, PSUPLDRLOAD pReq)
 {
-    NOREF(pDevExt); NOREF(pReq);
+    NOREF(pDevExt);
     if (pImage->pvNtSectionObj)
     {
         /*
@@ -1882,25 +1892,44 @@ int  VBOXCALL   supdrvOSLdrLoad(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, c
             return VINF_SUCCESS;
 
         /*
-         * However, on Windows Server 2003 (sp2 x86) both import thunk tables
-         * are fixed up and we typically get a mismatch in the INIT section.
+         * On Windows 10 the ImageBase member of the optional header is sometimes
+         * updated with the actual load address and sometimes not.  Try compare
+         *
+         */
+        uint32_t const  offNtHdrs = *(uint16_t *)pbImageBits == IMAGE_DOS_SIGNATURE
+                                  ? ((IMAGE_DOS_HEADER const *)pbImageBits)->e_lfanew
+                                  : 0;
+        AssertLogRelReturn(offNtHdrs + sizeof(IMAGE_NT_HEADERS) < pImage->cbImageBits, VERR_INTERNAL_ERROR_5);
+        IMAGE_NT_HEADERS const *pNtHdrsIprt = (IMAGE_NT_HEADERS const *)(pbImageBits + offNtHdrs);
+        IMAGE_NT_HEADERS const *pNtHdrsNtLd = (IMAGE_NT_HEADERS const *)((uintptr_t)pImage->pvImage + offNtHdrs);
+
+        uint32_t const  offImageBase = offNtHdrs + RT_OFFSETOF(IMAGE_NT_HEADERS, OptionalHeader.ImageBase);
+        uint32_t const  cbImageBase  = RT_SIZEOFMEMB(IMAGE_NT_HEADERS, OptionalHeader.ImageBase);
+        if (   pNtHdrsNtLd->OptionalHeader.ImageBase != pNtHdrsIprt->OptionalHeader.ImageBase
+            && (   pNtHdrsNtLd->OptionalHeader.ImageBase == (uintptr_t)pImage->pvImage
+                || pNtHdrsIprt->OptionalHeader.ImageBase == (uintptr_t)pImage->pvImage)
+            && pNtHdrsIprt->Signature == IMAGE_NT_SIGNATURE
+            && pNtHdrsIprt->OptionalHeader.Magic == IMAGE_NT_OPTIONAL_HDR_MAGIC
+            && !memcmp(pImage->pvImage, pbImageBits, offImageBase)
+            && !memcmp((uint8_t const *)pImage->pvImage + offImageBase + cbImageBase,
+                       pbImageBits                      + offImageBase + cbImageBase,
+                       pImage->cbImageBits              - offImageBase - cbImageBase))
+            return VINF_SUCCESS;
+
+        /*
+         * On Windows Server 2003 (sp2 x86) both import thunk tables are fixed
+         * up and we typically get a mismatch in the INIT section.
          *
          * So, lets see if everything matches when excluding the
-         * OriginalFirstThunk tables.  To make life simpler, set the max number
-         * of imports to 16 and just record and sort the locations that needs
-         * to be excluded from the comparison.
+         * OriginalFirstThunk tables and (maybe) the ImageBase member.
+         * For simplicity the max number of exclusion regions is set to 16.
          */
-        IMAGE_NT_HEADERS const *pNtHdrs;
-        pNtHdrs = (IMAGE_NT_HEADERS const *)(pbImageBits
-                                             + (  *(uint16_t *)pbImageBits == IMAGE_DOS_SIGNATURE
-                                                ? ((IMAGE_DOS_HEADER const *)pbImageBits)->e_lfanew
-                                                : 0));
-        if (    pNtHdrs->Signature == IMAGE_NT_SIGNATURE
-            &&  pNtHdrs->OptionalHeader.Magic == IMAGE_NT_OPTIONAL_HDR_MAGIC
-            &&  pNtHdrs->OptionalHeader.NumberOfRvaAndSizes > IMAGE_DIRECTORY_ENTRY_IMPORT
-            &&  pNtHdrs->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].Size >= sizeof(IMAGE_IMPORT_DESCRIPTOR)
-            &&  pNtHdrs->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress > sizeof(IMAGE_NT_HEADERS)
-            &&  pNtHdrs->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress < pImage->cbImageBits
+        if (    pNtHdrsIprt->Signature == IMAGE_NT_SIGNATURE
+            &&  pNtHdrsIprt->OptionalHeader.Magic == IMAGE_NT_OPTIONAL_HDR_MAGIC
+            &&  pNtHdrsIprt->OptionalHeader.NumberOfRvaAndSizes > IMAGE_DIRECTORY_ENTRY_IMPORT
+            &&  pNtHdrsIprt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].Size >= sizeof(IMAGE_IMPORT_DESCRIPTOR)
+            &&  pNtHdrsIprt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress > sizeof(IMAGE_NT_HEADERS)
+            &&  pNtHdrsIprt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress < pImage->cbImageBits
             )
         {
             struct MyRegion
@@ -1909,11 +1938,23 @@ int  VBOXCALL   supdrvOSLdrLoad(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, c
                 uint32_t cb;
             }           aExcludeRgns[16];
             unsigned    cExcludeRgns = 0;
-            uint32_t    cImpsLeft    = pNtHdrs->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].Size
+
+            /* ImageBase: */
+            if (   pNtHdrsNtLd->OptionalHeader.ImageBase != pNtHdrsIprt->OptionalHeader.ImageBase
+                && (   pNtHdrsNtLd->OptionalHeader.ImageBase == (uintptr_t)pImage->pvImage
+                    || pNtHdrsIprt->OptionalHeader.ImageBase == (uintptr_t)pImage->pvImage) )
+            {
+                aExcludeRgns[cExcludeRgns].uRva = offImageBase;
+                aExcludeRgns[cExcludeRgns].cb   = cbImageBase;
+                cExcludeRgns++;
+            }
+
+            /* Imports: */
+            uint32_t    cImpsLeft    = pNtHdrsIprt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].Size
                                      / sizeof(IMAGE_IMPORT_DESCRIPTOR);
-            IMAGE_IMPORT_DESCRIPTOR const *pImp;
-            pImp = (IMAGE_IMPORT_DESCRIPTOR const *)(pbImageBits
-                                                     + pNtHdrs->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress);
+            uint32_t    offImps      = pNtHdrsIprt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress;
+            AssertLogRelReturn(offImps + cImpsLeft * sizeof(IMAGE_IMPORT_DESCRIPTOR) <= pImage->cbImageBits, VERR_INTERNAL_ERROR_3);
+            IMAGE_IMPORT_DESCRIPTOR const *pImp = (IMAGE_IMPORT_DESCRIPTOR const *)(pbImageBits + offImps);
             while (   cImpsLeft-- > 0
                    && cExcludeRgns < RT_ELEMENTS(aExcludeRgns))
             {
@@ -1953,19 +1994,19 @@ int  VBOXCALL   supdrvOSLdrLoad(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, c
             for (unsigned i = 0; !iDiff && i < cExcludeRgns; i++)
             {
                 if (uRvaNext < aExcludeRgns[i].uRva)
-                    iDiff = supdrvNtCompare(pImage, pbImageBits, uRvaNext, aExcludeRgns[i].uRva - uRvaNext);
+                    iDiff = supdrvNtCompare(pImage, pbImageBits, uRvaNext, aExcludeRgns[i].uRva - uRvaNext, pReq);
                 uRvaNext = aExcludeRgns[i].uRva + aExcludeRgns[i].cb;
             }
             if (!iDiff && uRvaNext < pImage->cbImageBits)
-                iDiff = supdrvNtCompare(pImage, pbImageBits, uRvaNext, pImage->cbImageBits - uRvaNext);
+                iDiff = supdrvNtCompare(pImage, pbImageBits, uRvaNext, pImage->cbImageBits - uRvaNext, pReq);
             if (!iDiff)
                 return VINF_SUCCESS;
         }
         else
-            supdrvNtCompare(pImage, pbImageBits, 0, pImage->cbImageBits);
+            supdrvNtCompare(pImage, pbImageBits, 0, pImage->cbImageBits, pReq);
         return VERR_LDR_MISMATCH_NATIVE;
     }
-    return VERR_INTERNAL_ERROR_4;
+    return supdrvLdrLoadError(VERR_INTERNAL_ERROR_4, pReq, "No NT section object! Impossible!");
 }
 
 

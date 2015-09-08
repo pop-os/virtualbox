@@ -15,9 +15,10 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_CSAM
 #include <VBox/vmm/cpum.h>
 #include <VBox/vmm/stam.h>
@@ -67,9 +68,10 @@
 /* Enable to scan beyond ret instructions.
 #define CSAM_ANALYSE_BEYOND_RET */
 
-/*******************************************************************************
-*   Internal Functions                                                         *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Internal Functions                                                                                                           *
+*********************************************************************************************************************************/
 static DECLCALLBACK(int) csamR3Save(PVM pVM, PSSMHANDLE pSSM);
 static DECLCALLBACK(int) csamR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass);
 static FNPGMR3VIRTINVALIDATE csamR3CodePageInvalidate;
@@ -92,9 +94,9 @@ static FNDBGCCMD csamr3CmdOff;
 #endif
 
 
-/*******************************************************************************
-*   Global Variables                                                           *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Global Variables                                                                                                             *
+*********************************************************************************************************************************/
 #ifdef VBOX_WITH_DEBUGGER
 /** Command descriptors. */
 static const DBGCCMD    g_aCmds[] =
@@ -1033,8 +1035,8 @@ DECLINLINE(int) csamR3DISInstr(PVM pVM, RTRCPTR InstrGC, uint8_t *InstrHC, DISCP
  * @param   pUserData   User pointer (callback specific)
  *
  */
-static int CSAMR3AnalyseCallback(PVM pVM, DISCPUSTATE *pCpu, RCPTRTYPE(uint8_t *) pInstrGC, RCPTRTYPE(uint8_t *) pCurInstrGC,
-                                 PCSAMP2GLOOKUPREC pCacheRec, void *pUserData)
+static DECLCALLBACK(int) CSAMR3AnalyseCallback(PVM pVM, DISCPUSTATE *pCpu, RCPTRTYPE(uint8_t *) pInstrGC, RCPTRTYPE(uint8_t *) pCurInstrGC,
+                                               PCSAMP2GLOOKUPREC pCacheRec, void *pUserData)
 {
     PCSAMPAGE pPage = (PCSAMPAGE)pUserData;
     int rc;

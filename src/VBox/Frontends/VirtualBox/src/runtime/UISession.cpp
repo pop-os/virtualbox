@@ -798,11 +798,8 @@ void UISession::sltCheckIfHostDisplayChanged()
 {
     LogRelFlow(("GUI: UISession::sltCheckIfHostDisplayChanged()\n"));
 
-    /* Acquire desktop wrapper: */
-    QDesktopWidget *pDesktop = QApplication::desktop();
-
     /* Check if display count changed: */
-    if (pDesktop->screenCount() != m_hostScreens.size())
+    if (vboxGlobal().screenCount() != m_hostScreens.size())
     {
         /* Reset watchdog: */
         m_pWatchdogDisplayChange->setProperty("tryNumber", 0);
@@ -812,9 +809,9 @@ void UISession::sltCheckIfHostDisplayChanged()
     else
     {
         /* Check if at least one display geometry changed: */
-        for (int iScreenIndex = 0; iScreenIndex < pDesktop->screenCount(); ++iScreenIndex)
+        for (int iScreenIndex = 0; iScreenIndex < vboxGlobal().screenCount(); ++iScreenIndex)
         {
-            if (pDesktop->screenGeometry(iScreenIndex) != m_hostScreens.at(iScreenIndex))
+            if (vboxGlobal().screenGeometry(iScreenIndex) != m_hostScreens.at(iScreenIndex))
             {
                 /* Reset watchdog: */
                 m_pWatchdogDisplayChange->setProperty("tryNumber", 0);
@@ -1241,6 +1238,10 @@ void UISession::prepareScreens()
     m_monitorVisibilityVector.resize(machine().GetMonitorCount());
     m_monitorVisibilityVector.fill(false);
     m_monitorVisibilityVector[0] = true;
+
+    /* Prepare empty last full-screen size vector: */
+    m_monitorLastFullScreenSizeVector.resize(machine().GetMonitorCount());
+    m_monitorLastFullScreenSizeVector.fill(QSize(-1, -1));
 
     /* If machine is in 'saved' state: */
     if (isSaved())
@@ -1924,6 +1925,24 @@ void UISession::setScreenVisible(ulong uScreenId, bool fIsMonitorVisible)
     gEDataManager->setLastGuestScreenVisibilityStatus(uScreenId, fIsMonitorVisible, vboxGlobal().managedVMUuid());
 }
 
+QSize UISession::lastFullScreenSize(ulong uScreenId) const
+{
+    /* Make sure index fits the bounds: */
+    AssertReturn(uScreenId < (ulong)m_monitorLastFullScreenSizeVector.size(), QSize(-1, -1));
+
+    /* Return last full-screen size: */
+    return m_monitorLastFullScreenSizeVector.value((int)uScreenId);
+}
+
+void UISession::setLastFullScreenSize(ulong uScreenId, QSize size)
+{
+    /* Make sure index fits the bounds: */
+    AssertReturnVoid(uScreenId < (ulong)m_monitorLastFullScreenSizeVector.size());
+
+    /* Remember last full-screen size: */
+    m_monitorLastFullScreenSizeVector[(int)uScreenId] = size;
+}
+
 int UISession::countOfVisibleWindows()
 {
     int cCountOfVisibleWindows = 0;
@@ -1949,9 +1968,8 @@ void UISession::setFrameBuffer(ulong uScreenId, UIFrameBuffer* pFrameBuffer)
 void UISession::updateHostScreenData()
 {
     m_hostScreens.clear();
-    QDesktopWidget *pDesktop = QApplication::desktop();
-    for (int iScreenIndex = 0; iScreenIndex < pDesktop->screenCount(); ++iScreenIndex)
-        m_hostScreens << pDesktop->screenGeometry(iScreenIndex);
+    for (int iScreenIndex = 0; iScreenIndex < vboxGlobal().screenCount(); ++iScreenIndex)
+        m_hostScreens << vboxGlobal().screenGeometry(iScreenIndex);
 }
 
 #ifdef VBOX_GUI_WITH_KEYS_RESET_HANDLER

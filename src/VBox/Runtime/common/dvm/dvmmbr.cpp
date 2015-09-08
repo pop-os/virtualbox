@@ -25,9 +25,9 @@
  */
 
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #include <iprt/types.h>
 #include <iprt/assert.h>
 #include <iprt/mem.h>
@@ -36,9 +36,9 @@
 #include "internal/dvm.h"
 
 
-/*******************************************************************************
-*   Structures and Typedefs                                                    *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
 
 /**
  * MBR volume manager data.
@@ -89,9 +89,9 @@ typedef struct RTDVMMBRFS2VOLTYPE
 typedef RTDVMMBRFS2VOLTYPE *PRTDVMMBRFS2VOLTYPE;
 
 
-/*******************************************************************************
-*   Global Variables                                                           *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Global Variables                                                                                                             *
+*********************************************************************************************************************************/
 /**
  * Mapping of FS types to DVM volume types.
  *
@@ -369,10 +369,10 @@ static DECLCALLBACK(uint64_t) rtDvmFmtMbrVolumeGetFlags(RTDVMVOLUMEFMT hVolFmt)
     return fFlags;
 }
 
-DECLCALLBACK(bool) rtDvmFmtMbrVolumeIsRangeIntersecting(RTDVMVOLUMEFMT hVolFmt,
-                                                        uint64_t offStart, size_t cbRange,
-                                                        uint64_t *poffVol,
-                                                        uint64_t *pcbIntersect)
+static DECLCALLBACK(bool) rtDvmFmtMbrVolumeIsRangeIntersecting(RTDVMVOLUMEFMT hVolFmt,
+                                                               uint64_t offStart, size_t cbRange,
+                                                               uint64_t *poffVol,
+                                                               uint64_t *pcbIntersect)
 {
     bool fIntersect = false;
     PRTDVMVOLUMEFMTINTERNAL pVol = hVolFmt;

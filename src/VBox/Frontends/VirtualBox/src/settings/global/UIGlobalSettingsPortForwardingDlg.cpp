@@ -27,6 +27,7 @@
 /* GUI includes: */
 # include "UIGlobalSettingsPortForwardingDlg.h"
 # include "UIIconPool.h"
+# include "UIMessageCenter.h"
 # include "QIDialogButtonBox.h"
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
@@ -50,8 +51,8 @@ UIGlobalSettingsPortForwardingDlg::UIGlobalSettingsPortForwardingDlg(QWidget *pP
         m_pTabWidget = new QTabWidget;
         {
             /* Create table tabs: */
-            m_pIPv4Table = new UIPortForwardingTable(ipv4rules, false);
-            m_pIPv6Table = new UIPortForwardingTable(ipv6rules, true);
+            m_pIPv4Table = new UIPortForwardingTable(ipv4rules, false, false);
+            m_pIPv6Table = new UIPortForwardingTable(ipv6rules, true, false);
             /* Add widgets into tab-widget: */
             m_pTabWidget->addTab(m_pIPv4Table, QString());
             m_pTabWidget->addTab(m_pIPv6Table, QString());
@@ -94,9 +95,9 @@ void UIGlobalSettingsPortForwardingDlg::accept()
 
 void UIGlobalSettingsPortForwardingDlg::reject()
 {
-    /* Discard table: */
-    bool fPassed = m_pIPv4Table->discard() && m_pIPv6Table->discard();
-    if (!fPassed)
+    /* Ask user to discard table changes if necessary: */
+    if (   (m_pIPv4Table->isChanged() || m_pIPv6Table->isChanged())
+        && !msgCenter().confirmCancelingPortForwardingDialog(window()))
         return;
     /* Call to base-class: */
     QIWithRetranslateUI<QIDialog>::reject();

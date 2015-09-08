@@ -24,9 +24,10 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #if defined(RT_OS_OS2)
 # define INCL_BASE
 # define INCL_ERRORS
@@ -79,9 +80,9 @@
 #endif
 
 
-/*******************************************************************************
-*   Defined Constants And Macros                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
 /** The max path length acceptable for a trusted path. */
 #define SUPR3HARDENED_MAX_PATH      260U
 
@@ -97,9 +98,9 @@
 #endif
 
 
-/*******************************************************************************
-*   Global Variables                                                           *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Global Variables                                                                                                             *
+*********************************************************************************************************************************/
 /**
  * The files that gets verified.
  *
@@ -107,6 +108,9 @@
  * @todo The excessive use of kSupID_AppSharedLib needs to be reviewed at some point. For
  *       the time being we're building the linux packages with SharedLib pointing to
  *       AppPrivArch (lazy bird).
+ *
+ * @remarks If you add executables here, you might need to update
+ *          g_apszSupNtVpAllowedVmExes in SUPHardenedVerifyProcess-win.cpp.
  */
 static SUPINSTFILE const    g_aSupInstallFiles[] =
 {
@@ -231,6 +235,7 @@ static SUPINSTFILE const    g_aSupInstallFiles[] =
         {   kSupIFT_TestExe, kSupID_Testcase, true, a_szName SUPLIB_EXE_SUFF }, \
         {   kSupIFT_TestDll, kSupID_Testcase, true, a_szName SUPLIB_DLL_SUFF }
     HARDENED_TESTCASE_ENTRY("tstCFGM"),
+    HARDENED_TESTCASE_ENTRY("tstGIP-2"),
     HARDENED_TESTCASE_ENTRY("tstIntNet-1"),
     HARDENED_TESTCASE_ENTRY("tstMMHyperHeap"),
     HARDENED_TESTCASE_ENTRY("tstRTR0ThreadPreemptionDriver"),

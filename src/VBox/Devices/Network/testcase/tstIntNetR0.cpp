@@ -19,9 +19,9 @@
  */
 
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define IN_INTNET_TESTCASE
 #define IN_INTNET_R3
 #include <VBox/cdefs.h>
@@ -47,9 +47,9 @@ typedef void *MYPSUPDRVSESSION;
 #include <iprt/test.h>
 
 
-/*******************************************************************************
-*   Structures and Typedefs                                                    *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
 /**
  * Security objectype.
  */
@@ -92,9 +92,9 @@ typedef struct OBJREF
 } OBJREF, *POBJREF;
 
 
-/*******************************************************************************
-*   Global Variables                                                           *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Global Variables                                                                                                             *
+*********************************************************************************************************************************/
 /** The test handle.*/
 static RTTEST           g_hTest      = NIL_RTTEST;
 /** The size (in bytes) of the large transfer tests. */
@@ -230,7 +230,7 @@ typedef struct MYFRAMEHDR
  * Send thread.
  * This is constantly sending frames to the other interface.
  */
-DECLCALLBACK(int) SendThread(RTTHREAD hThreadSelf, void *pvArg)
+static DECLCALLBACK(int) SendThread(RTTHREAD hThreadSelf, void *pvArg)
 {
     PMYARGS pArgs = (PMYARGS)pvArg;
     int rc;
@@ -293,7 +293,7 @@ DECLCALLBACK(int) SendThread(RTTHREAD hThreadSelf, void *pvArg)
  * Receive thread.
  * This is reading stuff from the network.
  */
-DECLCALLBACK(int) ReceiveThread(RTTHREAD hThreadSelf, void *pvArg)
+static DECLCALLBACK(int) ReceiveThread(RTTHREAD hThreadSelf, void *pvArg)
 {
     uint32_t    cbReceived  = 0;
     uint32_t    cLostFrames = 0;

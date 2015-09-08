@@ -19,9 +19,10 @@
  * This component implements an I/O cache based on the 2Q cache algorithm.
  */
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_PDM_BLK_CACHE
 #include "PDMInternal.h"
 #include <iprt/asm.h>
@@ -65,9 +66,10 @@
 
 #define PDM_BLK_CACHE_SAVED_STATE_VERSION 1
 
-/*******************************************************************************
-*   Internal Functions                                                         *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Internal Functions                                                                                                           *
+*********************************************************************************************************************************/
 
 static PPDMBLKCACHEENTRY pdmBlkCacheEntryAlloc(PPDMBLKCACHE pBlkCache,
                                                uint64_t off, size_t cbData, uint8_t *pbBuffer);
@@ -1372,7 +1374,7 @@ VMMR3DECL(int) PDMR3BlkCacheRetainInt(PVM pVM, void *pvUser, PPPDMBLKCACHE ppBlk
  * @param    pNode     The node to destroy.
  * @param    pvUser    Opaque user data.
  */
-static int pdmBlkCacheEntryDestroy(PAVLRU64NODECORE pNode, void *pvUser)
+static DECLCALLBACK(int) pdmBlkCacheEntryDestroy(PAVLRU64NODECORE pNode, void *pvUser)
 {
     PPDMBLKCACHEENTRY  pEntry = (PPDMBLKCACHEENTRY)pNode;
     PPDMBLKCACHEGLOBAL pCache = (PPDMBLKCACHEGLOBAL)pvUser;
@@ -2692,7 +2694,7 @@ VMMR3DECL(void) PDMR3BlkCacheIoXferComplete(PPDMBLKCACHE pBlkCache, PPDMBLKCACHE
  * @param    pNode     The node to destroy.
  * @param    pvUser    Opaque user data.
  */
-static int pdmBlkCacheEntryQuiesce(PAVLRU64NODECORE pNode, void *pvUser)
+static DECLCALLBACK(int) pdmBlkCacheEntryQuiesce(PAVLRU64NODECORE pNode, void *pvUser)
 {
     PPDMBLKCACHEENTRY   pEntry    = (PPDMBLKCACHEENTRY)pNode;
     PPDMBLKCACHE        pBlkCache = pEntry->pBlkCache;
