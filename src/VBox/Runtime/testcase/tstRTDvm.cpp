@@ -25,9 +25,9 @@
  */
 
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #include <iprt/dvm.h>
 
 #include <iprt/err.h>
@@ -36,9 +36,9 @@
 #include <iprt/string.h>
 
 
-/*******************************************************************************
-*   Structures and Typedefs                                                    *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
 /**
  * Disk structure.
  */
@@ -58,7 +58,7 @@ typedef struct TSTRTDVMDISK
 
 
 
-static int dvmDiskRead(void *pvUser, uint64_t off, void *pvBuf, size_t cbRead)
+static DECLCALLBACK(int) dvmDiskRead(void *pvUser, uint64_t off, void *pvBuf, size_t cbRead)
 {
     PTSTRTDVMDISK pDisk = (PTSTRTDVMDISK)pvUser;
 
@@ -67,7 +67,7 @@ static int dvmDiskRead(void *pvUser, uint64_t off, void *pvBuf, size_t cbRead)
     return RTDvmVolumeRead(pDisk->hVol, off, pvBuf, cbRead);
 }
 
-static int dvmDiskWrite(void *pvUser, uint64_t off, const void *pvBuf, size_t cbWrite)
+static DECLCALLBACK(int) dvmDiskWrite(void *pvUser, uint64_t off, const void *pvBuf, size_t cbWrite)
 {
     PTSTRTDVMDISK pDisk = (PTSTRTDVMDISK)pvUser;
 

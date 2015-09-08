@@ -24,18 +24,19 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #include "alloc-ef.h"
 
 #include <iprt/asm.h>
 #include <new>
 
 
-/*******************************************************************************
-*   Defined Constants And Macros                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
 /** @todo test this on MSC */
 
 /** MSC declares the operators as cdecl it seems. */
@@ -56,15 +57,18 @@
 #ifdef RT_EXCEPTIONS_ENABLED
 # ifdef _MSC_VER
 #  define RT_EF_THROWS_BAD_ALLOC
+#  define RT_EF_NOTHROW               RT_NO_THROW_DEF
 # else
 #  ifdef _GLIBCXX_THROW
 #   define RT_EF_THROWS_BAD_ALLOC     _GLIBCXX_THROW(std::bad_alloc)
 #  else
 #   define RT_EF_THROWS_BAD_ALLOC     throw(std::bad_alloc)
 #  endif
+#  define RT_EF_NOTHROW               throw()
 # endif
 #else  /* !RT_EXCEPTIONS_ENABLED */
 # define RT_EF_THROWS_BAD_ALLOC
+# define RT_EF_NOTHROW
 #endif /* !RT_EXCEPTIONS_ENABLED */
 
 
@@ -77,20 +81,20 @@ void *RT_EF_CDECL operator new(RT_EF_SIZE_T cb) RT_EF_THROWS_BAD_ALLOC
 }
 
 
-void *RT_EF_CDECL operator new(RT_EF_SIZE_T cb, const std::nothrow_t &) RT_NO_THROW
+void *RT_EF_CDECL operator new(RT_EF_SIZE_T cb, const std::nothrow_t &) RT_EF_NOTHROW
 {
     void *pv = rtR3MemAlloc("new nothrow", RTMEMTYPE_NEW, cb, cb, NULL, ASMReturnAddress(), NULL, 0, NULL);
     return pv;
 }
 
 
-void RT_EF_CDECL operator delete(void *pv) RT_NO_THROW
+void RT_EF_CDECL operator delete(void *pv) RT_EF_NOTHROW
 {
     rtR3MemFree("delete", RTMEMTYPE_DELETE, pv, ASMReturnAddress(), NULL, 0, NULL);
 }
 
 
-void RT_EF_CDECL operator delete(void * pv, const std::nothrow_t &) RT_NO_THROW
+void RT_EF_CDECL operator delete(void * pv, const std::nothrow_t &) RT_EF_NOTHROW
 {
     rtR3MemFree("delete nothrow", RTMEMTYPE_DELETE, pv, ASMReturnAddress(), NULL, 0, NULL);
 }
@@ -113,20 +117,20 @@ void *RT_EF_CDECL operator new[](RT_EF_SIZE_T cb) RT_EF_THROWS_BAD_ALLOC
 }
 
 
-void * RT_EF_CDECL operator new[](RT_EF_SIZE_T cb, const std::nothrow_t &) RT_NO_THROW
+void * RT_EF_CDECL operator new[](RT_EF_SIZE_T cb, const std::nothrow_t &) RT_EF_NOTHROW
 {
     void *pv = rtR3MemAlloc("new[] nothrow", RTMEMTYPE_NEW_ARRAY, cb, cb, NULL, ASMReturnAddress(), NULL, 0, NULL);
     return pv;
 }
 
 
-void RT_EF_CDECL operator delete[](void * pv) RT_NO_THROW
+void RT_EF_CDECL operator delete[](void * pv) RT_EF_NOTHROW
 {
     rtR3MemFree("delete[]", RTMEMTYPE_DELETE_ARRAY, pv, ASMReturnAddress(), NULL, 0, NULL);
 }
 
 
-void RT_EF_CDECL operator delete[](void *pv, const std::nothrow_t &) RT_NO_THROW
+void RT_EF_CDECL operator delete[](void *pv, const std::nothrow_t &) RT_EF_NOTHROW
 {
     rtR3MemFree("delete[] nothrow", RTMEMTYPE_DELETE_ARRAY, pv, ASMReturnAddress(), NULL, 0, NULL);
 }

@@ -22,7 +22,7 @@
 */
 #define USBKEY(vendorId, productId) (((uint32_t)(vendorId) << 16) | (productId))
 
-/** 
+/**
 * Elements of Aliases table
 */
 class Product
@@ -63,7 +63,7 @@ public:
 };
 
 
-/** 
+/**
 * Wrapper for static array of Aliases.
 */
 class AliasDictionary
@@ -78,14 +78,14 @@ public:
     static const char* findProduct(unsigned short vendorId, unsigned short productId)
     {
         Product lookFor = { USBKEY(vendorId, productId) };
-        Product* it = std::lower_bound(productArray, productArray + products_size + 1, lookFor, ProductLess());
+        Product* it = std::lower_bound(productArray, productArray + products_size, lookFor, ProductLess());
         return lookFor.key == it->key ? it->product : NULL;
     }
 
     static const char* findVendor(unsigned short vendorID)
     {
         Vendor lookFor = { vendorID };
-        Vendor* it = std::lower_bound(vendorArray, vendorArray + vendors_size + 1, lookFor, VendorLess());
+        Vendor* it = std::lower_bound(vendorArray, vendorArray + vendors_size, lookFor, VendorLess());
         return lookFor.vendorID == it->vendorID ? it->vendor : NULL;
     }
 };

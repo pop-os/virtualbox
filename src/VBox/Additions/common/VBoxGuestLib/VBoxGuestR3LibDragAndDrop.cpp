@@ -25,9 +25,9 @@
  */
 
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #include <iprt/path.h>
 #include <iprt/dir.h>
 #include <iprt/file.h>
@@ -59,9 +59,10 @@
  *   better done on the host side)
  */
 
-/******************************************************************************
- *    Private internal functions                                              *
- ******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Private internal functions                                                                                                   *
+*********************************************************************************************************************************/
 
 static int vbglR3DnDQueryNextHostMessageType(PVBGLR3GUESTDNDCMDCTX pCtx, uint32_t *puMsg, uint32_t *pcParms, bool fWait)
 {
@@ -412,7 +413,12 @@ static int vbglR3DnDHGProcessURIMessages(PVBGLR3GUESTDNDCMDCTX   pCtx,
                     char *pszPathAbs = RTPathJoinA(pszDropDir, szPathName);
                     if (pszPathAbs)
                     {
-                        rc = RTDirCreate(pszPathAbs, (fMode & RTFS_UNIX_MASK) | RTFS_UNIX_IRWXU, 0);
+#ifdef RT_OS_WINDOWS
+                        uint32_t fCreationMode = (fMode & RTFS_DOS_MASK) | RTFS_DOS_NT_NORMAL;
+#else
+                        uint32_t fCreationMode = (fMode & RTFS_UNIX_MASK) | RTFS_UNIX_IRWXU;
+#endif
+                        rc = RTDirCreate(pszPathAbs, fCreationMode, 0);
                         if (RT_SUCCESS(rc))
                             rc = DnDDirDroppedAddDir(&dirDroppedFiles, pszPathAbs);
 
@@ -453,7 +459,7 @@ static int vbglR3DnDHGProcessURIMessages(PVBGLR3GUESTDNDCMDCTX   pCtx,
 
                     if (   RT_SUCCESS(rc)
                         && (   uNextMsg == DragAndDropSvc::HOST_DND_HG_SND_FILE_HDR
-                             /* Protocol v1 always sends the file name, so try opening every time. */
+                             /* Protocol v1 always sends the file name, so opening the file every time. */
                             || pCtx->uProtocol <= 1)
                        )
                     {
@@ -463,7 +469,7 @@ static int vbglR3DnDHGProcessURIMessages(PVBGLR3GUESTDNDCMDCTX   pCtx,
                             LogFlowFunc(("Opening pszPathName=%s, cbPathName=%RU32, fMode=0x%x, cbFileSize=%zu\n",
                                          szPathName, cbPathName, fMode, cbFileSize));
 
-                            uint64_t fOpen = RTFILE_O_WRITE | RTFILE_O_DENY_ALL;
+                            uint64_t fOpen = RTFILE_O_WRITE | RTFILE_O_DENY_WRITE;
                             if (pCtx->uProtocol <= 1)
                                 fOpen |= RTFILE_O_OPEN_CREATE | RTFILE_O_APPEND;
                             else
@@ -473,8 +479,12 @@ static int vbglR3DnDHGProcessURIMessages(PVBGLR3GUESTDNDCMDCTX   pCtx,
                             if (!objFile.IsOpen())
                             {
                                 RTCString strPathAbs(pszPathAbs);
-                                rc = objFile.OpenEx(strPathAbs, DnDURIObject::File, DnDURIObject::Target, fOpen,
-                                                    (fMode & RTFS_UNIX_MASK) | RTFS_UNIX_IRUSR | RTFS_UNIX_IWUSR);
+#ifdef RT_OS_WINDOWS
+                                uint32_t fCreationMode = (fMode & RTFS_DOS_MASK) | RTFS_DOS_NT_NORMAL;
+#else
+                                uint32_t fCreationMode = (fMode & RTFS_UNIX_MASK) | RTFS_UNIX_IRUSR | RTFS_UNIX_IWUSR;
+#endif
+                                rc = objFile.OpenEx(strPathAbs, DnDURIObject::File, DnDURIObject::Target, fOpen, fCreationMode);
                                 if (RT_SUCCESS(rc))
                                 {
                                     rc = DnDDirDroppedAddFile(&dirDroppedFiles, strPathAbs.c_str());
@@ -898,9 +908,10 @@ static int vbglR3DnDGHProcessDroppedMessage(PVBGLR3GUESTDNDCMDCTX pCtx,
     return rc;
 }
 
-/******************************************************************************
- *    Public functions                                                        *
- ******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Public functions                                                                                                             *
+*********************************************************************************************************************************/
 
 VBGLR3DECL(int) VbglR3DnDConnect(PVBGLR3GUESTDNDCMDCTX pCtx)
 {
@@ -924,11 +935,14 @@ VBGLR3DECL(int) VbglR3DnDConnect(PVBGLR3GUESTDNDCMDCTX pCtx)
         if (rc == VERR_HGCM_SERVICE_NOT_FOUND)
             rc = VINF_PERMISSION_DENIED;
 
-        /* Set the protocol version to use. */
-        pCtx->uProtocol = 2;
+        if (RT_SUCCESS(rc))
+        {
+            /* Set the protocol version to use. */
+            pCtx->uProtocol = 2;
 
-        Assert(Info.u32ClientID);
-        pCtx->uClientID = Info.u32ClientID;
+            Assert(Info.u32ClientID);
+            pCtx->uClientID = Info.u32ClientID;
+        }
     }
 
     if (RT_SUCCESS(rc))
@@ -938,7 +952,7 @@ VBGLR3DECL(int) VbglR3DnDConnect(PVBGLR3GUESTDNDCMDCTX pCtx)
          * Note: This might fail when the Guest Additions run on an older VBox host (< VBox 5.0) which
          *       does not implement this command.
          */
-        DragAndDropSvc::VBOXDNDCONNECTPMSG Msg;
+        DragAndDropSvc::VBOXDNDCONNECTMSG Msg;
         RT_ZERO(Msg);
         Msg.hdr.result      = VERR_WRONG_ORDER;
         Msg.hdr.u32ClientID = pCtx->uClientID;
@@ -1139,12 +1153,13 @@ VBGLR3DECL(int) VbglR3DnDHGRequestData(PVBGLR3GUESTDNDCMDCTX pCtx, const char* p
 VBGLR3DECL(int) VbglR3DnDHGSetProgress(PVBGLR3GUESTDNDCMDCTX pCtx, uint32_t uStatus, uint8_t uPercent, int rcErr)
 {
     AssertPtrReturn(pCtx, VERR_INVALID_POINTER);
+    AssertReturn(uStatus > DragAndDropSvc::DND_PROGRESS_UNKNOWN, VERR_INVALID_PARAMETER);
 
     DragAndDropSvc::VBOXDNDHGEVTPROGRESSMSG Msg;
     RT_ZERO(Msg);
     Msg.hdr.result      = VERR_WRONG_ORDER;
     Msg.hdr.u32ClientID = pCtx->uClientID;
-    Msg.hdr.u32Function = DragAndDropSvc::GUEST_DND_HG_EVT_PROGRESS;
+    Msg.hdr.u32Function = uStatus;
     Msg.hdr.cParms      = 3;
 
     Msg.uStatus.SetUInt32(uStatus);

@@ -23,9 +23,9 @@
  */
 
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_DEV_VMSVGA
 #define VMSVGA_USE_EMT_HALT_CODE
 #include <VBox/vmm/pdmdev.h>
@@ -75,9 +75,9 @@
 #endif
 
 
-/*******************************************************************************
-*   Defined Constants And Macros                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
 /**
  * Macro for checking if a fixed FIFO register is valid according to the
  * current FIFO configuration.
@@ -89,9 +89,9 @@
 #define VMSVGA_IS_VALID_FIFO_REG(a_iIndex, a_offFifoMin) ( ((a_iIndex) + 1) * sizeof(uint32_t) <= (a_offFifoMin) )
 
 
-/*******************************************************************************
-*   Structures and Typedefs                                                    *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
 /**
  * 64-bit GMR descriptor.
  */
@@ -167,9 +167,9 @@ typedef struct VMSVGAR3STATE
 #endif /* IN_RING3 */
 
 
-/*******************************************************************************
-*   Internal Functions                                                         *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Internal Functions                                                                                                           *
+*********************************************************************************************************************************/
 #ifdef IN_RING3
 # ifdef DEBUG_FIFO_ACCESS
 static FNPGMPHYSHANDLER vmsvgaR3FIFOAccessHandler;
@@ -180,9 +180,9 @@ static FNPGMPHYSHANDLER vmsvgaR3GMRAccessHandler;
 #endif
 
 
-/*******************************************************************************
-*   Global Variables                                                           *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Global Variables                                                                                                             *
+*********************************************************************************************************************************/
 #ifdef IN_RING3
 
 /**
@@ -543,11 +543,32 @@ DECLCALLBACK(void) vmsvgaPortSetViewport(PPDMIDISPLAYPORT pInterface, uint32_t u
 
     Log(("vmsvgaPortSetViewPort: screen %d (%d,%d)(%d,%d)\n", uScreenId, x, y, cx, cy));
 
-    pThis->svga.viewport.x  = x;
-    pThis->svga.viewport.y  = y;
-    pThis->svga.viewport.cx = RT_MIN(cx, (uint32_t)pThis->svga.uWidth);
-    pThis->svga.viewport.cy = RT_MIN(cy, (uint32_t)pThis->svga.uHeight);
-    return;
+    if (x < pThis->svga.uWidth)
+    {
+        pThis->svga.viewport.x      = x;
+        pThis->svga.viewport.cx     = RT_MIN(cx, pThis->svga.uWidth - x);
+        pThis->svga.viewport.xRight = x + pThis->svga.viewport.cx;
+    }
+    else
+    {
+        pThis->svga.viewport.x      = pThis->svga.uWidth;
+        pThis->svga.viewport.cx     = 0;
+        pThis->svga.viewport.xRight = pThis->svga.uWidth;
+    }
+    if (y < pThis->svga.uHeight)
+    {
+        pThis->svga.viewport.y       = y;
+        pThis->svga.viewport.cy      = RT_MIN(cy, pThis->svga.uHeight - y);
+        pThis->svga.viewport.yLowWC  = pThis->svga.uHeight - y - pThis->svga.viewport.cy;
+        pThis->svga.viewport.yHighWC = pThis->svga.uHeight - y;
+    }
+    else
+    {
+        pThis->svga.viewport.y       = pThis->svga.uHeight;
+        pThis->svga.viewport.cy      = 0;
+        pThis->svga.viewport.yLowWC  = 0;
+        pThis->svga.viewport.yHighWC = 0;
+    }
 }
 
 /**
@@ -1027,8 +1048,11 @@ int vmsvgaChangeMode(PVGASTATE pThis)
     if (    pThis->svga.viewport.cx == 0
         &&  pThis->svga.viewport.cy == 0)
     {
-        pThis->svga.viewport.cx = pThis->svga.uWidth;
-        pThis->svga.viewport.cy = pThis->svga.uHeight;
+        pThis->svga.viewport.cx      = pThis->svga.uWidth;
+        pThis->svga.viewport.xRight  = pThis->svga.uWidth;
+        pThis->svga.viewport.cy      = pThis->svga.uHeight;
+        pThis->svga.viewport.yHighWC = pThis->svga.uHeight;
+        pThis->svga.viewport.yLowWC  = 0;
     }
     return VINF_SUCCESS;
 }

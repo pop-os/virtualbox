@@ -25,9 +25,9 @@
  */
 
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP RTLOGGROUP_FS
 #include <windows.h>
 
@@ -334,6 +334,12 @@ RTR3DECL(int) RTFsQueryProperties(const char *pszFsPath, PRTFSPROPERTIES pProper
 
     RTUtf16Free(pwszFsRoot);
     return rc;
+}
+
+
+RTR3DECL(bool) RTFsIsCaseSensitive(const char *pszFsPath)
+{
+    return false;
 }
 
 

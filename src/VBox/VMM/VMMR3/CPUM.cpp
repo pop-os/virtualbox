@@ -31,9 +31,10 @@
  * @see grp_cpum
  */
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_CPUM
 #include <VBox/vmm/cpum.h>
 #include <VBox/vmm/cpumdis.h>
@@ -63,9 +64,9 @@
 #include "internal/pgm.h"
 
 
-/*******************************************************************************
-*   Defined Constants And Macros                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
 /**
  * This was used in the saved state up to the early life of version 14.
  *
@@ -75,9 +76,9 @@
 #define CPUM_CHANGED_HIDDEN_SEL_REGS_INVALID    RT_BIT(12)
 
 
-/*******************************************************************************
-*   Structures and Typedefs                                                    *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
 
 /**
  * What kind of cpu info dump to perform.
@@ -92,9 +93,9 @@ typedef enum CPUMDUMPTYPE
 typedef CPUMDUMPTYPE *PCPUMDUMPTYPE;
 
 
-/*******************************************************************************
-*   Internal Functions                                                         *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Internal Functions                                                                                                           *
+*********************************************************************************************************************************/
 static DECLCALLBACK(int)  cpumR3LiveExec(PVM pVM, PSSMHANDLE pSSM, uint32_t uPass);
 static DECLCALLBACK(int)  cpumR3SaveExec(PVM pVM, PSSMHANDLE pSSM);
 static DECLCALLBACK(int)  cpumR3LoadPrep(PVM pVM, PSSMHANDLE pSSM);
@@ -107,9 +108,9 @@ static DECLCALLBACK(void) cpumR3InfoHyper(PVM pVM, PCDBGFINFOHLP pHlp, const cha
 static DECLCALLBACK(void) cpumR3InfoHost(PVM pVM, PCDBGFINFOHLP pHlp, const char *pszArgs);
 
 
-/*******************************************************************************
-*   Global Variables                                                           *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Global Variables                                                                                                             *
+*********************************************************************************************************************************/
 /** Saved state field descriptors for CPUMCTX. */
 static const SSMFIELD g_aCpumCtxFields[] =
 {
@@ -2075,65 +2076,54 @@ static DECLCALLBACK(void) cpumR3InfoHost(PVM pVM, PCDBGFINFOHLP pHlp, const char
      * Format the registers.
      */
 #if HC_ARCH_BITS == 32
-# ifdef VBOX_WITH_HYBRID_32BIT_KERNEL
-    if (!(pCtx->efer & MSR_K6_EFER_LMA))
-# endif
-    {
-        pHlp->pfnPrintf(pHlp,
-            "eax=xxxxxxxx ebx=%08x ecx=xxxxxxxx edx=xxxxxxxx esi=%08x edi=%08x\n"
-            "eip=xxxxxxxx esp=%08x ebp=%08x iopl=%d %31s\n"
-            "cs=%04x ds=%04x es=%04x fs=%04x gs=%04x                       eflags=%08x\n"
-            "cr0=%08RX64 cr2=xxxxxxxx cr3=%08RX64 cr4=%08RX64 gdtr=%08x:%04x ldtr=%04x\n"
-            "dr[0]=%08RX64 dr[1]=%08RX64x dr[2]=%08RX64 dr[3]=%08RX64x dr[6]=%08RX64 dr[7]=%08RX64\n"
-            "SysEnter={cs=%04x eip=%08x esp=%08x}\n"
-            ,
-            /*pCtx->eax,*/ pCtx->ebx, /*pCtx->ecx, pCtx->edx,*/ pCtx->esi, pCtx->edi,
-            /*pCtx->eip,*/ pCtx->esp, pCtx->ebp, X86_EFL_GET_IOPL(efl), szEFlags,
-            pCtx->cs, pCtx->ds, pCtx->es, pCtx->fs, pCtx->gs, efl,
-            pCtx->cr0, /*pCtx->cr2,*/ pCtx->cr3, pCtx->cr4,
-            pCtx->dr0, pCtx->dr1, pCtx->dr2, pCtx->dr3, pCtx->dr6, pCtx->dr7,
-            (uint32_t)pCtx->gdtr.uAddr, pCtx->gdtr.cb, pCtx->ldtr,
-            pCtx->SysEnter.cs, pCtx->SysEnter.eip, pCtx->SysEnter.esp);
-    }
-# ifdef VBOX_WITH_HYBRID_32BIT_KERNEL
-    else
-# endif
-#endif
-#if HC_ARCH_BITS == 64 || defined(VBOX_WITH_HYBRID_32BIT_KERNEL)
-    {
-        pHlp->pfnPrintf(pHlp,
-            "rax=xxxxxxxxxxxxxxxx rbx=%016RX64 rcx=xxxxxxxxxxxxxxxx\n"
-            "rdx=xxxxxxxxxxxxxxxx rsi=%016RX64 rdi=%016RX64\n"
-            "rip=xxxxxxxxxxxxxxxx rsp=%016RX64 rbp=%016RX64\n"
-            " r8=xxxxxxxxxxxxxxxx  r9=xxxxxxxxxxxxxxxx r10=%016RX64\n"
-            "r11=%016RX64 r12=%016RX64 r13=%016RX64\n"
-            "r14=%016RX64 r15=%016RX64\n"
-            "iopl=%d  %31s\n"
-            "cs=%04x  ds=%04x  es=%04x  fs=%04x  gs=%04x                   eflags=%08RX64\n"
-            "cr0=%016RX64 cr2=xxxxxxxxxxxxxxxx cr3=%016RX64\n"
-            "cr4=%016RX64 ldtr=%04x tr=%04x\n"
-            "dr[0]=%016RX64 dr[1]=%016RX64 dr[2]=%016RX64\n"
-            "dr[3]=%016RX64 dr[6]=%016RX64 dr[7]=%016RX64\n"
-            "gdtr=%016RX64:%04x  idtr=%016RX64:%04x\n"
-            "SysEnter={cs=%04x eip=%08x esp=%08x}\n"
-            "FSbase=%016RX64 GSbase=%016RX64 efer=%08RX64\n"
-            ,
-            /*pCtx->rax,*/ pCtx->rbx, /*pCtx->rcx,
-            pCtx->rdx,*/ pCtx->rsi, pCtx->rdi,
-            /*pCtx->rip,*/ pCtx->rsp, pCtx->rbp,
-            /*pCtx->r8,  pCtx->r9,*/  pCtx->r10,
-            pCtx->r11, pCtx->r12, pCtx->r13,
-            pCtx->r14, pCtx->r15,
-            X86_EFL_GET_IOPL(efl), szEFlags,
-            pCtx->cs, pCtx->ds, pCtx->es, pCtx->fs, pCtx->gs, efl,
-            pCtx->cr0, /*pCtx->cr2,*/ pCtx->cr3,
-            pCtx->cr4, pCtx->ldtr, pCtx->tr,
-            pCtx->dr0, pCtx->dr1, pCtx->dr2,
-            pCtx->dr3, pCtx->dr6, pCtx->dr7,
-            pCtx->gdtr.uAddr, pCtx->gdtr.cb, pCtx->idtr.uAddr, pCtx->idtr.cb,
-            pCtx->SysEnter.cs, pCtx->SysEnter.eip, pCtx->SysEnter.esp,
-            pCtx->FSbase, pCtx->GSbase, pCtx->efer);
-    }
+    pHlp->pfnPrintf(pHlp,
+        "eax=xxxxxxxx ebx=%08x ecx=xxxxxxxx edx=xxxxxxxx esi=%08x edi=%08x\n"
+        "eip=xxxxxxxx esp=%08x ebp=%08x iopl=%d %31s\n"
+        "cs=%04x ds=%04x es=%04x fs=%04x gs=%04x                       eflags=%08x\n"
+        "cr0=%08RX64 cr2=xxxxxxxx cr3=%08RX64 cr4=%08RX64 gdtr=%08x:%04x ldtr=%04x\n"
+        "dr[0]=%08RX64 dr[1]=%08RX64x dr[2]=%08RX64 dr[3]=%08RX64x dr[6]=%08RX64 dr[7]=%08RX64\n"
+        "SysEnter={cs=%04x eip=%08x esp=%08x}\n"
+        ,
+        /*pCtx->eax,*/ pCtx->ebx, /*pCtx->ecx, pCtx->edx,*/ pCtx->esi, pCtx->edi,
+        /*pCtx->eip,*/ pCtx->esp, pCtx->ebp, X86_EFL_GET_IOPL(efl), szEFlags,
+        pCtx->cs, pCtx->ds, pCtx->es, pCtx->fs, pCtx->gs, efl,
+        pCtx->cr0, /*pCtx->cr2,*/ pCtx->cr3, pCtx->cr4,
+        pCtx->dr0, pCtx->dr1, pCtx->dr2, pCtx->dr3, pCtx->dr6, pCtx->dr7,
+        (uint32_t)pCtx->gdtr.uAddr, pCtx->gdtr.cb, pCtx->ldtr,
+        pCtx->SysEnter.cs, pCtx->SysEnter.eip, pCtx->SysEnter.esp);
+#else
+    pHlp->pfnPrintf(pHlp,
+        "rax=xxxxxxxxxxxxxxxx rbx=%016RX64 rcx=xxxxxxxxxxxxxxxx\n"
+        "rdx=xxxxxxxxxxxxxxxx rsi=%016RX64 rdi=%016RX64\n"
+        "rip=xxxxxxxxxxxxxxxx rsp=%016RX64 rbp=%016RX64\n"
+        " r8=xxxxxxxxxxxxxxxx  r9=xxxxxxxxxxxxxxxx r10=%016RX64\n"
+        "r11=%016RX64 r12=%016RX64 r13=%016RX64\n"
+        "r14=%016RX64 r15=%016RX64\n"
+        "iopl=%d  %31s\n"
+        "cs=%04x  ds=%04x  es=%04x  fs=%04x  gs=%04x                   eflags=%08RX64\n"
+        "cr0=%016RX64 cr2=xxxxxxxxxxxxxxxx cr3=%016RX64\n"
+        "cr4=%016RX64 ldtr=%04x tr=%04x\n"
+        "dr[0]=%016RX64 dr[1]=%016RX64 dr[2]=%016RX64\n"
+        "dr[3]=%016RX64 dr[6]=%016RX64 dr[7]=%016RX64\n"
+        "gdtr=%016RX64:%04x  idtr=%016RX64:%04x\n"
+        "SysEnter={cs=%04x eip=%08x esp=%08x}\n"
+        "FSbase=%016RX64 GSbase=%016RX64 efer=%08RX64\n"
+        ,
+        /*pCtx->rax,*/ pCtx->rbx, /*pCtx->rcx,
+        pCtx->rdx,*/ pCtx->rsi, pCtx->rdi,
+        /*pCtx->rip,*/ pCtx->rsp, pCtx->rbp,
+        /*pCtx->r8,  pCtx->r9,*/  pCtx->r10,
+        pCtx->r11, pCtx->r12, pCtx->r13,
+        pCtx->r14, pCtx->r15,
+        X86_EFL_GET_IOPL(efl), szEFlags,
+        pCtx->cs, pCtx->ds, pCtx->es, pCtx->fs, pCtx->gs, efl,
+        pCtx->cr0, /*pCtx->cr2,*/ pCtx->cr3,
+        pCtx->cr4, pCtx->ldtr, pCtx->tr,
+        pCtx->dr0, pCtx->dr1, pCtx->dr2,
+        pCtx->dr3, pCtx->dr6, pCtx->dr7,
+        pCtx->gdtr.uAddr, pCtx->gdtr.cb, pCtx->idtr.uAddr, pCtx->idtr.cb,
+        pCtx->SysEnter.cs, pCtx->SysEnter.eip, pCtx->SysEnter.esp,
+        pCtx->FSbase, pCtx->GSbase, pCtx->efer);
 #endif
 }
 

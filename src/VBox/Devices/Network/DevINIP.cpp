@@ -16,9 +16,9 @@
  */
 
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_DEV_INIP
 #include <iprt/cdefs.h>     /* include early to allow RT_C_DECLS_BEGIN hack */
 #include <iprt/mem.h>       /* include anything of ours that the lwip headers use. */
@@ -54,17 +54,18 @@ RT_C_DECLS_END
 #include "VBoxDD.h"
 #include "VBoxLwipCore.h"
 
-/*******************************************************************************
-*   Macros and Defines                                                         *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Macros and Defines                                                                                                           *
+*********************************************************************************************************************************/
 
 /** Maximum frame size this device can handle. */
 #define DEVINIP_MAX_FRAME 1514
 
 
-/*******************************************************************************
-*   Structures and Typedefs                                                    *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
 
 /**
  * Internal Network IP stack device instance data.
@@ -117,9 +118,9 @@ typedef struct DEVINTNETIP
 } DEVINTNETIP, *PDEVINTNETIP;
 
 
-/*******************************************************************************
-*   Global Variables                                                           *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Global Variables                                                                                                             *
+*********************************************************************************************************************************/
 
 /**
  * Pointer to the (only) instance data in this device.
@@ -141,12 +142,12 @@ static const PFNRT g_pDevINILinkHack[] =
 };
 
 
-/*******************************************************************************
-*   Internal Functions                                                         *
-*******************************************************************************/
-static DECLCALLBACK(err_t) devINIPOutput(struct netif *netif, struct pbuf *p, struct ip_addr *ipaddr);
-static DECLCALLBACK(err_t) devINIPOutputRaw(struct netif *netif, struct pbuf *p);
-static DECLCALLBACK(err_t) devINIPInterface(struct netif *netif);
+/*********************************************************************************************************************************
+*   Internal Functions                                                                                                           *
+*********************************************************************************************************************************/
+static err_t devINIPOutput(struct netif *netif, struct pbuf *p, struct ip_addr *ipaddr);
+static err_t devINIPOutputRaw(struct netif *netif, struct pbuf *p);
+static err_t devINIPInterface(struct netif *netif);
 
 
 /**
@@ -158,7 +159,7 @@ static DECLCALLBACK(err_t) devINIPInterface(struct netif *netif);
  * @param   p       Packet data.
  * @param   ipaddr  Destination IP address.
  */
-static DECLCALLBACK(err_t) devINIPOutput(struct netif *netif, struct pbuf *p, struct ip_addr *ipaddr)
+static err_t devINIPOutput(struct netif *netif, struct pbuf *p, struct ip_addr *ipaddr)
 {
     err_t lrc;
     LogFlow(("%s: netif=%p p=%p ipaddr=%#04x\n", __FUNCTION__, netif, p,
@@ -177,7 +178,7 @@ static DECLCALLBACK(err_t) devINIPOutput(struct netif *netif, struct pbuf *p, st
  * @param   netif   Interface on which to send frame.
  * @param   p       Frame data.
  */
-static DECLCALLBACK(err_t) devINIPOutputRaw(struct netif *netif, struct pbuf *p)
+static err_t devINIPOutputRaw(struct netif *netif, struct pbuf *p)
 {
     int rc = VINF_SUCCESS;
 
@@ -249,7 +250,7 @@ static DECLCALLBACK(err_t) devINIPOutputRaw(struct netif *netif, struct pbuf *p)
  * @returns lwIP error code
  * @param   netif   Interface to configure.
  */
-static DECLCALLBACK(err_t) devINIPInterface(struct netif *netif)
+static err_t devINIPInterface(struct netif *netif)
 {
     LogFlow(("%s: netif=%p\n", __FUNCTION__, netif));
     Assert(g_pDevINIPData != NULL);

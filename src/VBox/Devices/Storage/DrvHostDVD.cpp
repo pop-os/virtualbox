@@ -16,9 +16,9 @@
  */
 
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_DRV_HOST_DVD
 #define __STDC_LIMIT_MACROS
 #define __STDC_CONSTANT_MACROS
@@ -112,9 +112,9 @@
 #include "DrvHostBase.h"
 
 
-/*******************************************************************************
-*   Internal Functions                                                         *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Internal Functions                                                                                                           *
+*********************************************************************************************************************************/
 static DECLCALLBACK(int) drvHostDvdDoLock(PDRVHOSTBASE pThis, bool fLock);
 #ifdef VBOX_WITH_SUID_WRAPPER
 static int solarisCheckUserAuth();
@@ -300,7 +300,7 @@ static DECLCALLBACK(int) drvHostDvdDoLock(PDRVHOSTBASE pThis, bool fLock)
  * @param   pThis   The instance data.
  * @param   pcb     Where to store the size.
  */
-static int drvHostDvdGetMediaSize(PDRVHOSTBASE pThis, uint64_t *pcb)
+static DECLCALLBACK(int) drvHostDvdGetMediaSize(PDRVHOSTBASE pThis, uint64_t *pcb)
 {
     /*
      * Query the media size.
@@ -317,7 +317,7 @@ static int drvHostDvdGetMediaSize(PDRVHOSTBASE pThis, uint64_t *pcb)
 /**
  * Do media change polling.
  */
-DECLCALLBACK(int) drvHostDvdPoll(PDRVHOSTBASE pThis)
+static DECLCALLBACK(int) drvHostDvdPoll(PDRVHOSTBASE pThis)
 {
     /*
      * Poll for media change.
@@ -414,9 +414,9 @@ DECLCALLBACK(int) drvHostDvdPoll(PDRVHOSTBASE pThis)
 
 
 /** @copydoc PDMIBLOCK::pfnSendCmd */
-static int drvHostDvdSendCmd(PPDMIBLOCK pInterface, const uint8_t *pbCmd,
-                             PDMBLOCKTXDIR enmTxDir, void *pvBuf, uint32_t *pcbBuf,
-                             uint8_t *pabSense, size_t cbSense, uint32_t cTimeoutMillies)
+static DECLCALLBACK(int) drvHostDvdSendCmd(PPDMIBLOCK pInterface, const uint8_t *pbCmd,
+                                           PDMBLOCKTXDIR enmTxDir, void *pvBuf, uint32_t *pcbBuf,
+                                           uint8_t *pabSense, size_t cbSense, uint32_t cTimeoutMillies)
 {
     PDRVHOSTBASE pThis = PDMIBLOCK_2_DRVHOSTBASE(pInterface);
     int rc;
@@ -725,7 +725,7 @@ static int solarisExitRootMode(uid_t *pEffUserID)
 
 
 /** @copydoc FNPDMDRVDESTRUCT */
-DECLCALLBACK(void) drvHostDvdDestruct(PPDMDRVINS pDrvIns)
+static DECLCALLBACK(void) drvHostDvdDestruct(PPDMDRVINS pDrvIns)
 {
 #ifdef RT_OS_LINUX
     PDRVHOSTBASE pThis = PDMINS_2_DATA(pDrvIns, PDRVHOSTBASE);

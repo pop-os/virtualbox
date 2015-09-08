@@ -77,9 +77,10 @@
 //#define IEM_LOG_MEMORY_WRITES
 #define IEM_IMPLEMENTS_TASKSWITCH
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP   LOG_GROUP_IEM
 #include <VBox/vmm/iem.h>
 #include <VBox/vmm/cpum.h>
@@ -115,9 +116,9 @@
 
 
 
-/*******************************************************************************
-*   Structures and Typedefs                                                    *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
 /** @typedef PFNIEMOP
  * Pointer to an opcode decoder function.
  */
@@ -144,11 +145,11 @@ typedef VBOXSTRICTRC (__attribute__((__fastcall__)) * PFNIEMOP)(PIEMCPU pIemCpu)
 #elif defined(_MSC_VER) && defined(RT_ARCH_X86)
 typedef VBOXSTRICTRC (__fastcall * PFNIEMOP)(PIEMCPU pIemCpu);
 # define FNIEMOP_DEF(a_Name) \
-    IEM_STATIC /*__declspec(naked)*/ VBOXSTRICTRC __fastcall a_Name(PIEMCPU pIemCpu) RT_NO_THROW
+    IEM_STATIC /*__declspec(naked)*/ VBOXSTRICTRC __fastcall a_Name(PIEMCPU pIemCpu) RT_NO_THROW_DEF
 # define FNIEMOP_DEF_1(a_Name, a_Type0, a_Name0) \
-    IEM_STATIC /*__declspec(naked)*/ VBOXSTRICTRC __fastcall a_Name(PIEMCPU pIemCpu, a_Type0 a_Name0) RT_NO_THROW
+    IEM_STATIC /*__declspec(naked)*/ VBOXSTRICTRC __fastcall a_Name(PIEMCPU pIemCpu, a_Type0 a_Name0) RT_NO_THROW_DEF
 # define FNIEMOP_DEF_2(a_Name, a_Type0, a_Name0, a_Type1, a_Name1) \
-    IEM_STATIC /*__declspec(naked)*/ VBOXSTRICTRC __fastcall a_Name(PIEMCPU pIemCpu, a_Type0 a_Name0, a_Type1 a_Name1) RT_NO_THROW
+    IEM_STATIC /*__declspec(naked)*/ VBOXSTRICTRC __fastcall a_Name(PIEMCPU pIemCpu, a_Type0 a_Name0, a_Type1 a_Name1) RT_NO_THROW_DEF
 
 #elif defined(__GNUC__)
 typedef VBOXSTRICTRC (* PFNIEMOP)(PIEMCPU pIemCpu);
@@ -162,11 +163,11 @@ typedef VBOXSTRICTRC (* PFNIEMOP)(PIEMCPU pIemCpu);
 #else
 typedef VBOXSTRICTRC (* PFNIEMOP)(PIEMCPU pIemCpu);
 # define FNIEMOP_DEF(a_Name) \
-    IEM_STATIC VBOXSTRICTRC a_Name(PIEMCPU pIemCpu) RT_NO_THROW
+    IEM_STATIC VBOXSTRICTRC a_Name(PIEMCPU pIemCpu) RT_NO_THROW_DEF
 # define FNIEMOP_DEF_1(a_Name, a_Type0, a_Name0) \
-    IEM_STATIC VBOXSTRICTRC a_Name(PIEMCPU pIemCpu, a_Type0 a_Name0) RT_NO_THROW
+    IEM_STATIC VBOXSTRICTRC a_Name(PIEMCPU pIemCpu, a_Type0 a_Name0) RT_NO_THROW_DEF
 # define FNIEMOP_DEF_2(a_Name, a_Type0, a_Name0, a_Type1, a_Name1) \
-    IEM_STATIC VBOXSTRICTRC a_Name(PIEMCPU pIemCpu, a_Type0 a_Name0, a_Type1 a_Name1) RT_NO_THROW
+    IEM_STATIC VBOXSTRICTRC a_Name(PIEMCPU pIemCpu, a_Type0 a_Name0, a_Type1 a_Name1) RT_NO_THROW_DEF
 
 #endif
 
@@ -185,9 +186,9 @@ typedef union IEMSELDESC
 typedef IEMSELDESC *PIEMSELDESC;
 
 
-/*******************************************************************************
-*   Defined Constants And Macros                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
 /** Temporary hack to disable the double execution.  Will be removed in favor
  * of a dedicated execution mode in EM. */
 //#define IEM_VERIFICATION_MODE_NO_REM
@@ -315,9 +316,9 @@ typedef IEMSELDESC *PIEMSELDESC;
 #define IEM_IS_CANONICAL(a_u64Addr)         X86_IS_CANONICAL(a_u64Addr)
 
 
-/*******************************************************************************
-*   Global Variables                                                           *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Global Variables                                                                                                             *
+*********************************************************************************************************************************/
 extern const PFNIEMOP g_apfnOneByteMap[256]; /* not static since we need to forward declare it. */
 
 
@@ -672,9 +673,9 @@ size_t g_cbIemWrote;
 #endif
 
 
-/*******************************************************************************
-*   Internal Functions                                                         *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Internal Functions                                                                                                           *
+*********************************************************************************************************************************/
 IEM_STATIC VBOXSTRICTRC     iemRaiseTaskSwitchFaultWithErr(PIEMCPU pIemCpu, uint16_t uErr);
 IEM_STATIC VBOXSTRICTRC     iemRaiseTaskSwitchFaultCurrentTSS(PIEMCPU pIemCpu);
 IEM_STATIC VBOXSTRICTRC     iemRaiseTaskSwitchFault0(PIEMCPU pIemCpu);

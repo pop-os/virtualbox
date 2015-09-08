@@ -30,7 +30,7 @@ Foundation, in version 2 as it comes in the "COPYING" file of the
 VirtualBox OSE distribution. VirtualBox OSE is distributed in the
 hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
 """
-__version__ = "$Revision: 100511 $"
+__version__ = "$Revision: 102429 $"
 
 
 import os, sys
@@ -2234,7 +2234,7 @@ def registerHddCmd(ctx, args):
     imageId = ""
     setParentId = False
     parentId = ""
-    hdd = vbox.openMedium(loc, ctx['global'].constants.DeviceType_HardDisk, ctx['global'].constants.AccessMode_ReadWrite, false)
+    hdd = vbox.openMedium(loc, ctx['global'].constants.DeviceType_HardDisk, ctx['global'].constants.AccessMode_ReadWrite, False)
     print "registered HDD as %s" % (hdd.id)
     return 0
 
@@ -2253,7 +2253,7 @@ def attachHddCmd(ctx, args):
     vbox = ctx['vb']
     loc = args[2]
     try:
-        hdd = vbox.openMedium(loc, ctx['global'].constants.DeviceType_HardDisk, ctx['global'].constants.AccessMode_ReadWrite, false)
+        hdd = vbox.openMedium(loc, ctx['global'].constants.DeviceType_HardDisk, ctx['global'].constants.AccessMode_ReadWrite, False)
     except:
         print "no HDD with path %s registered" % (loc)
         return 0
@@ -2288,7 +2288,7 @@ def detachHddCmd(ctx, args):
     vbox = ctx['vb']
     loc = args[2]
     try:
-        hdd = vbox.openMedium(loc, ctx['global'].constants.DeviceType_HardDisk, ctx['global'].constants.AccessMode_ReadWrite, false)
+        hdd = vbox.openMedium(loc, ctx['global'].constants.DeviceType_HardDisk, ctx['global'].constants.AccessMode_ReadWrite, False)
     except:
         print "no HDD with path %s registered" % (loc)
         return 0
@@ -2308,7 +2308,7 @@ def unregisterHddCmd(ctx, args):
     else:
         vmunreg = 0
     try:
-        hdd = vbox.openMedium(loc, ctx['global'].constants.DeviceType_HardDisk, ctx['global'].constants.AccessMode_ReadWrite, false)
+        hdd = vbox.openMedium(loc, ctx['global'].constants.DeviceType_HardDisk, ctx['global'].constants.AccessMode_ReadWrite, False)
     except:
         print "no HDD with path %s registered" % (loc)
         return 0
@@ -2333,7 +2333,7 @@ def removeHddCmd(ctx, args):
     vbox = ctx['vb']
     loc = args[1]
     try:
-        hdd = vbox.openMedium(loc, ctx['global'].constants.DeviceType_HardDisk, ctx['global'].constants.AccessMode_ReadWrite, false)
+        hdd = vbox.openMedium(loc, ctx['global'].constants.DeviceType_HardDisk, ctx['global'].constants.AccessMode_ReadWrite, False)
     except:
         print "no HDD with path %s registered" % (loc)
         return 0
@@ -2350,7 +2350,7 @@ def registerIsoCmd(ctx, args):
 
     vbox = ctx['vb']
     loc = args[1]
-    iso = vbox.openMedium(loc, ctx['global'].constants.DeviceType_DVD, ctx['global'].constants.AccessMode_ReadOnly, false)
+    iso = vbox.openMedium(loc, ctx['global'].constants.DeviceType_DVD, ctx['global'].constants.AccessMode_ReadOnly, False)
     print "registered ISO as %s" % (iso.id)
     return 0
 
@@ -2362,7 +2362,7 @@ def unregisterIsoCmd(ctx, args):
     vbox = ctx['vb']
     loc = args[1]
     try:
-        dvd = vbox.openMedium(loc, ctx['global'].constants.DeviceType_DVD, ctx['global'].constants.AccessMode_ReadOnly, false)
+        dvd = vbox.openMedium(loc, ctx['global'].constants.DeviceType_DVD, ctx['global'].constants.AccessMode_ReadOnly, False)
     except:
         print "no DVD with path %s registered" % (loc)
         return 0
@@ -2380,7 +2380,7 @@ def removeIsoCmd(ctx, args):
     vbox = ctx['vb']
     loc = args[1]
     try:
-        dvd = vbox.openMedium(loc, ctx['global'].constants.DeviceType_DVD, ctx['global'].constants.AccessMode_ReadOnly, false)
+        dvd = vbox.openMedium(loc, ctx['global'].constants.DeviceType_DVD, ctx['global'].constants.AccessMode_ReadOnly, False)
     except:
         print "no DVD with path %s registered" % (loc)
         return 0
@@ -2403,7 +2403,7 @@ def attachIsoCmd(ctx, args):
     vbox = ctx['vb']
     loc = args[2]
     try:
-        dvd = vbox.openMedium(loc, ctx['global'].constants.DeviceType_DVD, ctx['global'].constants.AccessMode_ReadOnly, false)
+        dvd = vbox.openMedium(loc, ctx['global'].constants.DeviceType_DVD, ctx['global'].constants.AccessMode_ReadOnly, False)
     except:
         print "no DVD with path %s registered" % (loc)
         return 0
@@ -2426,7 +2426,7 @@ def detachIsoCmd(ctx, args):
     vbox = ctx['vb']
     loc = args[2]
     try:
-        dvd = vbox.openMedium(loc, ctx['global'].constants.DeviceType_DVD, ctx['global'].constants.AccessMode_ReadOnly, false)
+        dvd = vbox.openMedium(loc, ctx['global'].constants.DeviceType_DVD, ctx['global'].constants.AccessMode_ReadOnly, False)
     except:
         print "no DVD with path %s registered" % (loc)
         return 0
@@ -2445,7 +2445,7 @@ def mountIsoCmd(ctx, args):
     vbox = ctx['vb']
     loc = args[2]
     try:
-        dvd = vbox.openMedium(loc, ctx['global'].constants.DeviceType_DVD, ctx['global'].constants.AccessMode_ReadOnly, false)
+        dvd = vbox.openMedium(loc, ctx['global'].constants.DeviceType_DVD, ctx['global'].constants.AccessMode_ReadOnly, False)
     except:
         print "no DVD with path %s registered" % (loc)
         return 0
@@ -2526,7 +2526,7 @@ def detachCtrCmd(ctx, args):
 
 def usbctr(ctx, mach, console, args):
     if (args[0]):
-        console.attachUSBDevice(args[1])
+        console.attachUSBDevice(args[1], "")
     else:
         console.detachUSBDevice(args[1])
 
@@ -2634,7 +2634,7 @@ def snapshotCmd(ctx, args):
             desc = args[4]
         else:
             desc = ""
-        cmdAnyVm(ctx, mach, lambda ctx, mach, console, args: progressBar(ctx, mach.takeSnapshot(name, desc, true)[1]))
+        cmdAnyVm(ctx, mach, lambda ctx, mach, console, args: progressBar(ctx, mach.takeSnapshot(name, desc, True)[0]))
         return 0
 
     if cmd == 'restore':

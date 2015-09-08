@@ -25,9 +25,9 @@
  */
 
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #include <iprt/types.h>
 #include <iprt/assert.h>
 #include <iprt/mem.h>
@@ -38,9 +38,9 @@
 #include "internal/dvm.h"
 
 
-/*******************************************************************************
-*   Structures and Typedefs                                                    *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
 /** The GPT signature. */
 #define RTDVM_GPT_SIGNATURE "EFI PART"
 
@@ -187,9 +187,9 @@ typedef RTDVMGPTPARTTYPE2VOLTYPE *PRTDVMGPTPARTTYPE2VOLTYPE;
 #define RTDVM_GPT_BYTE2LBA(lba, disk) ((lba) / (disk)->cbSector)
 
 
-/*******************************************************************************
-*   Global Variables                                                           *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Global Variables                                                                                                             *
+*********************************************************************************************************************************/
 /**
  * Mapping of partition types to DVM volume types.
  *
@@ -500,10 +500,10 @@ static DECLCALLBACK(uint64_t) rtDvmFmtGptVolumeGetFlags(RTDVMVOLUMEFMT hVolFmt)
     return 0;
 }
 
-DECLCALLBACK(bool) rtDvmFmtGptVolumeIsRangeIntersecting(RTDVMVOLUMEFMT hVolFmt,
-                                                        uint64_t offStart, size_t cbRange,
-                                                        uint64_t *poffVol,
-                                                        uint64_t *pcbIntersect)
+static DECLCALLBACK(bool) rtDvmFmtGptVolumeIsRangeIntersecting(RTDVMVOLUMEFMT hVolFmt,
+                                                               uint64_t offStart, size_t cbRange,
+                                                               uint64_t *poffVol,
+                                                               uint64_t *pcbIntersect)
 {
     bool fIntersect = false;
     PRTDVMVOLUMEFMTINTERNAL pVol = hVolFmt;

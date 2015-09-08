@@ -15,9 +15,10 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_PGM
 #include <VBox/vmm/pgm.h>
 #include <VBox/vmm/stam.h>
@@ -33,17 +34,17 @@
 #include <VBox/err.h>
 
 
-/*******************************************************************************
-*   Defined Constants And Macros                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
 /** The max needle size that we will bother searching for
  * This must not be more than half a page! */
 #define MAX_NEEDLE_SIZE     256
 
 
-/*******************************************************************************
-*   Structures and Typedefs                                                    *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
 /**
  * State structure for the paging hierarchy dumpers.
  */
@@ -102,22 +103,16 @@ typedef PGMR3DUMPHIERARCHYSTATE *PPGMR3DUMPHIERARCHYSTATE;
  * @param   pvNeedle        Pointer to what we search for.
  * @param   cbNeedle        Size of what we're searching for.
  */
-#if defined(_MSC_VER) || defined(RT_OS_OS2)
-# define DECLASMCALLBACK(type)          type __cdecl
-#elif defined(__GNUC__) && defined(RT_ARCH_X86)
-# define DECLASMCALLBACK(type)          type __attribute__((cdecl,regparm(0)))
-#else
-# define DECLASMCALLBACK(type)          type
-#endif
-typedef DECLASMCALLBACK(uint8_t const *) FNPGMR3DBGFIXEDMEMSCAN(void const *pvHaystack, uint32_t cbHaystack,
-                                                                void const *pvNeedle, size_t cbNeedle);
+
+typedef DECLCALLBACK(uint8_t const *) FNPGMR3DBGFIXEDMEMSCAN(void const *pvHaystack, uint32_t cbHaystack,
+                                                             void const *pvNeedle, size_t cbNeedle);
 /** Pointer to an fixed size and step assembly scanner function. */
 typedef FNPGMR3DBGFIXEDMEMSCAN *PFNPGMR3DBGFIXEDMEMSCAN;
 
 
-/*******************************************************************************
-*   Internal Functions                                                         *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Internal Functions                                                                                                           *
+*********************************************************************************************************************************/
 DECLASM(uint8_t const *) pgmR3DbgFixedMemScan8Wide8Step(void const *, uint32_t, void const *, size_t cbNeedle);
 DECLASM(uint8_t const *) pgmR3DbgFixedMemScan4Wide4Step(void const *, uint32_t, void const *, size_t cbNeedle);
 DECLASM(uint8_t const *) pgmR3DbgFixedMemScan2Wide2Step(void const *, uint32_t, void const *, size_t cbNeedle);

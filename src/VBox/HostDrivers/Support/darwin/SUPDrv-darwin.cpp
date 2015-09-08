@@ -24,9 +24,10 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_SUP_DRV
 #include "../../../Runtime/r0drv/darwin/the-darwin-kernel.h"
 
@@ -75,9 +76,9 @@ RT_C_DECLS_END
                                             proc_selfname(pszProcName, VBOX_PROC_SELFNAME_LEN)
 
 
-/*******************************************************************************
-*   Defined Constants And Macros                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
 
 /** The system device node name. */
 #define DEVICE_NAME_SYS     "vboxdrv"
@@ -86,9 +87,9 @@ RT_C_DECLS_END
 
 
 
-/*******************************************************************************
-*   Internal Functions                                                         *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Internal Functions                                                                                                           *
+*********************************************************************************************************************************/
 RT_C_DECLS_BEGIN
 static kern_return_t    VBoxDrvDarwinStart(struct kmod_info *pKModInfo, void *pvData);
 static kern_return_t    VBoxDrvDarwinStop(struct kmod_info *pKModInfo, void *pvData);
@@ -108,9 +109,9 @@ static int              vboxdrvDarwinResolveSymbols(void);
 static bool             vboxdrvDarwinCpuHasSMAP(void);
 
 
-/*******************************************************************************
-*   Structures and Typedefs                                                    *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
 /**
  * The service class.
  * This is just a formality really.
@@ -160,9 +161,9 @@ OSDefineMetaClassAndStructors(org_virtualbox_SupDrvClient, IOUserClient);
 
 
 
-/*******************************************************************************
-*   Global Variables                                                           *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Global Variables                                                                                                             *
+*********************************************************************************************************************************/
 /**
  * Declare the module stuff.
  */
@@ -715,17 +716,20 @@ static int VBoxDrvDarwinIOCtlSlow(PSUPDRVSESSION pSession, u_long iCmd, caddr_t 
         /*
          * Get the header and figure out how much we're gonna have to read.
          */
+        IPRT_DARWIN_SAVE_EFL_AC();
         SUPREQHDR Hdr;
         pUser = (user_addr_t)*(void **)pData;
         int rc = copyin(pUser, &Hdr, sizeof(Hdr));
         if (RT_UNLIKELY(rc))
         {
             OSDBGPRINT(("VBoxDrvDarwinIOCtlSlow: copyin(%llx,Hdr,) -> %#x; iCmd=%#lx\n", (unsigned long long)pUser, rc, iCmd));
+            IPRT_DARWIN_RESTORE_EFL_AC();
             return rc;
         }
         if (RT_UNLIKELY((Hdr.fFlags & SUPREQHDR_FLAGS_MAGIC_MASK) != SUPREQHDR_FLAGS_MAGIC))
         {
             OSDBGPRINT(("VBoxDrvDarwinIOCtlSlow: bad magic fFlags=%#x; iCmd=%#lx\n", Hdr.fFlags, iCmd));
+            IPRT_DARWIN_SAVE_EFL_AC();
             return EINVAL;
         }
         cbReq = RT_MAX(Hdr.cbIn, Hdr.cbOut);
@@ -734,6 +738,7 @@ static int VBoxDrvDarwinIOCtlSlow(PSUPDRVSESSION pSession, u_long iCmd, caddr_t 
                         ||  cbReq > _1M*16))
         {
             OSDBGPRINT(("VBoxDrvDarwinIOCtlSlow: max(%#x,%#x); iCmd=%#lx\n", Hdr.cbIn, Hdr.cbOut, iCmd));
+            IPRT_DARWIN_SAVE_EFL_AC();
             return EINVAL;
         }
 
@@ -746,6 +751,7 @@ static int VBoxDrvDarwinIOCtlSlow(PSUPDRVSESSION pSession, u_long iCmd, caddr_t 
         if (RT_UNLIKELY(!pHdr))
         {
             OSDBGPRINT(("VBoxDrvDarwinIOCtlSlow: failed to allocate buffer of %d bytes; iCmd=%#lx\n", cbReq, iCmd));
+            IPRT_DARWIN_RESTORE_EFL_AC();
             return ENOMEM;
         }
         rc = copyin(pUser, pHdr, Hdr.cbIn);
@@ -757,10 +763,12 @@ static int VBoxDrvDarwinIOCtlSlow(PSUPDRVSESSION pSession, u_long iCmd, caddr_t 
                 IOFreeAligned(pvPageBuf, RT_ALIGN_Z(cbReq, PAGE_SIZE));
             else
                 RTMemTmpFree(pHdr);
+            IPRT_DARWIN_RESTORE_EFL_AC();
             return rc;
         }
         if (Hdr.cbIn < cbReq)
             RT_BZERO((uint8_t *)pHdr + Hdr.cbIn, cbReq - Hdr.cbIn);
+        IPRT_DARWIN_RESTORE_EFL_AC();
     }
     else
     {
@@ -779,6 +787,7 @@ static int VBoxDrvDarwinIOCtlSlow(PSUPDRVSESSION pSession, u_long iCmd, caddr_t 
          */
         if (pUser)
         {
+            IPRT_DARWIN_SAVE_EFL_AC();
             uint32_t cbOut = pHdr->cbOut;
             if (cbOut > cbReq)
             {
@@ -795,6 +804,7 @@ static int VBoxDrvDarwinIOCtlSlow(PSUPDRVSESSION pSession, u_long iCmd, caddr_t 
                 IOFreeAligned(pvPageBuf, RT_ALIGN_Z(cbReq, PAGE_SIZE));
             else
                 RTMemTmpFree(pHdr);
+            IPRT_DARWIN_RESTORE_EFL_AC();
         }
     }
     else
@@ -805,7 +815,11 @@ static int VBoxDrvDarwinIOCtlSlow(PSUPDRVSESSION pSession, u_long iCmd, caddr_t 
         if (pUser)
         {
             if (pvPageBuf)
+            {
+                IPRT_DARWIN_SAVE_EFL_AC();
                 IOFreeAligned(pvPageBuf, RT_ALIGN_Z(cbReq, PAGE_SIZE));
+                IPRT_DARWIN_RESTORE_EFL_AC();
+            }
             else
                 RTMemTmpFree(pHdr);
         }
@@ -958,6 +972,7 @@ int VBOXCALL supdrvOSEnableVTx(bool fEnable)
 # endif
        )
     {
+        IPRT_DARWIN_SAVE_EFL_AC();
         if (fEnable)
         {
             /*
@@ -982,7 +997,10 @@ int VBOXCALL supdrvOSEnableVTx(bool fEnable)
                             rc = VERR_VMX_NO_VMX;
                     }
                     if (RT_FAILURE(rc))
+                    {
+                        IPRT_DARWIN_RESTORE_EFL_AC();
                         return rc;
+                    }
                 }
                 g_fDoneCleanup = true;
             }
@@ -1018,6 +1036,7 @@ int VBOXCALL supdrvOSEnableVTx(bool fEnable)
             rc = VINF_SUCCESS;
             LogRel(("VBoxDrv: host_vmxoff -> vmx_use_count=%d\n", *g_pVmxUseCount));
         }
+        IPRT_DARWIN_RESTORE_EFL_AC();
     }
     else
     {
@@ -1048,7 +1067,9 @@ bool VBOXCALL supdrvOSSuspendVTxOnCpu(void)
     if (   g_pVmxUseCount
         && *g_pVmxUseCount > 0)
     {
+        IPRT_DARWIN_SAVE_EFL_AC();
         g_pfnVmxSuspend();
+        IPRT_DARWIN_RESTORE_EFL_AC();
         return true;
     }
     return false;
@@ -1071,7 +1092,11 @@ void VBOXCALL   supdrvOSResumeVTxOnCpu(bool fSuspended)
      */
     if (   fSuspended
         && g_pfnVmxResume)
+    {
+        IPRT_DARWIN_SAVE_EFL_AC();
         g_pfnVmxResume();
+        IPRT_DARWIN_RESTORE_EFL_AC();
+    }
     else
         Assert(!fSuspended);
 #else
@@ -1193,7 +1218,11 @@ int VBOXCALL    supdrvOSMsrProberRead(uint32_t uMsr, RTCPUID idCpu, uint64_t *pu
     Args.rc       = -1;
 
     if (idCpu == NIL_RTCPUID)
+    {
+        IPRT_DARWIN_SAVE_EFL_AC();
         supdrvDarwinMsrProberReadOnCpu(idCpu, &Args, NULL);
+        IPRT_DARWIN_RESTORE_EFL_AC();
+    }
     else
     {
         int rc = RTMpOnSpecific(idCpu, supdrvDarwinMsrProberReadOnCpu, &Args, NULL);
@@ -1237,7 +1266,11 @@ int VBOXCALL    supdrvOSMsrProberWrite(uint32_t uMsr, RTCPUID idCpu, uint64_t uV
     Args.rc       = -1;
 
     if (idCpu == NIL_RTCPUID)
+    {
+        IPRT_DARWIN_SAVE_EFL_AC();
         supdrvDarwinMsrProberWriteOnCpu(idCpu, &Args, NULL);
+        IPRT_DARWIN_RESTORE_EFL_AC();
+    }
     else
     {
         int rc = RTMpOnSpecific(idCpu, supdrvDarwinMsrProberWriteOnCpu, &Args, NULL);
@@ -1320,7 +1353,9 @@ int VBOXCALL    supdrvOSMsrProberModify(RTCPUID idCpu, PSUPMSRPROBER pReq)
         return VERR_NOT_SUPPORTED;
     if (idCpu == NIL_RTCPUID)
     {
+        IPRT_DARWIN_SAVE_EFL_AC();
         supdrvDarwinMsrProberModifyOnCpu(idCpu, pReq, NULL);
+        IPRT_DARWIN_RESTORE_EFL_AC();
         return VINF_SUCCESS;
     }
     return RTMpOnSpecific(idCpu, supdrvDarwinMsrProberModifyOnCpu, pReq, NULL);

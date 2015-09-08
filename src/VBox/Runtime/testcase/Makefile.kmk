@@ -84,7 +84,6 @@ PROGRAMS += \
 	tstRTList \
 	tstRTLockValidator \
 	tstLog \
-	tstMemAutoPtr \
 	tstRTMemEf \
 	tstRTMemCache \
 	tstRTMemPool \
@@ -96,6 +95,7 @@ PROGRAMS += \
 	tstRTNetIPv6 \
 	tstOnce \
 	tstRTPath \
+	tstRTPathGlob \
 	tstRTPipe \
 	tstRTPoll \
 	tstRTPrfIO \
@@ -444,9 +444,6 @@ tstRTLockValidator_SOURCES = tstRTLockValidator.cpp
 tstLog_TEMPLATE = VBOXR3TSTEXE
 tstLog_SOURCES = tstLog.cpp
 
-tstMemAutoPtr_TEMPLATE = VBOXR3TSTEXE
-tstMemAutoPtr_SOURCES = tstMemAutoPtr.cpp
-
 tstRTMemEf_TEMPLATE = VBOXR3TSTEXE
 tstRTMemEf_SOURCES = tstRTMemEf.cpp
 
@@ -494,6 +491,9 @@ tstOnce_SOURCES = tstOnce.cpp
 
 tstRTPath_TEMPLATE = VBOXR3TSTEXE
 tstRTPath_SOURCES = tstRTPath.cpp
+
+tstRTPathGlob_TEMPLATE = VBOXR3TSTEXE
+tstRTPathGlob_SOURCES = tstRTPathGlob.cpp
 
 tstRTPipe_TEMPLATE = VBOXR3TSTEXE
 tstRTPipe_SOURCES = tstRTPipe.cpp

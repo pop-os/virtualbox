@@ -25,9 +25,9 @@
  */
 
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #include "internal/iprt.h"
 
 #include <openssl/sha.h>
@@ -36,6 +36,8 @@
 #include <iprt/sha.h>
 
 #include <iprt/assert.h>
+#include <iprt/string.h>
+
 
 AssertCompile(RT_SIZEOFMEMB(RTSHA1CONTEXT, abPadding) >= RT_SIZEOFMEMB(RTSHA1CONTEXT, Private));
 
@@ -48,6 +50,20 @@ RTDECL(void) RTSha1(const void *pvBuf, size_t cbBuf, uint8_t pabDigest[RTSHA1_HA
     RTSha1Final(&Ctx, pabDigest);
 }
 RT_EXPORT_SYMBOL(RTSha1);
+
+
+RTDECL(bool) RTSha1Check(const void *pvBuf, size_t cbBuf, uint8_t const pabDigest[RTSHA1_HASH_SIZE])
+{
+    RTSHA1CONTEXT Ctx;
+    RTSha1Init(&Ctx);
+    RTSha1Update(&Ctx, pvBuf, cbBuf);
+    uint8_t abActualDigest[RTSHA1_HASH_SIZE];
+    RTSha1Final(&Ctx, abActualDigest);
+    bool fRet = memcmp(pabDigest, abActualDigest, RTSHA1_HASH_SIZE) == 0;
+    RT_ZERO(abActualDigest);
+    return fRet;
+}
+RT_EXPORT_SYMBOL(RTSha1Check);
 
 
 RTDECL(void) RTSha1Init(PRTSHA1CONTEXT pCtx)
@@ -64,7 +80,7 @@ RTDECL(void) RTSha1Update(PRTSHA1CONTEXT pCtx, const void *pvBuf, size_t cbBuf)
 RT_EXPORT_SYMBOL(RTSha1Update);
 
 
-RTDECL(void) RTSha1Final(PRTSHA1CONTEXT pCtx, uint8_t pabDigest[32])
+RTDECL(void) RTSha1Final(PRTSHA1CONTEXT pCtx, uint8_t pabDigest[RTSHA1_HASH_SIZE])
 {
     SHA1_Final((unsigned char *)&pabDigest[0], &pCtx->Private);
 }

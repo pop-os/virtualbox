@@ -24,9 +24,10 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #ifdef IN_RING0
 # define IPRT_NT_MAP_TO_ZW
 # include <iprt/nt/nt.h>
@@ -59,9 +60,9 @@
 #include "win/SUPHardenedVerify-win.h"
 
 
-/*******************************************************************************
-*   Defined Constants And Macros                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
 /** The size of static hash (output) buffers.
  * Avoids dynamic allocations and cleanups for of small buffers as well as extra
  * calls for getting the appropriate buffer size.  The largest digest in regular
@@ -75,9 +76,9 @@
 #endif
 
 
-/*******************************************************************************
-*   Structures and Typedefs                                                    *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
 
 #ifdef IN_RING3
 typedef LONG (WINAPI * PFNWINVERIFYTRUST)(HWND hwnd, GUID const *pgActionID, PVOID pWVTData);
@@ -103,9 +104,9 @@ typedef NTSTATUS (WINAPI *PFNBCRYPTOPENALGORTIHMPROVIDER)(BCRYPT_ALG_HANDLE *phA
 #endif
 
 
-/*******************************************************************************
-*   Global Variables                                                           *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Global Variables                                                                                                             *
+*********************************************************************************************************************************/
 /** The build certificate. */
 static RTCRX509CERTIFICATE  g_BuildX509Cert;
 
@@ -195,9 +196,9 @@ static uint32_t volatile                g_idActiveThread = UINT32_MAX;
 #endif
 
 
-/*******************************************************************************
-*   Internal Functions                                                         *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Internal Functions                                                                                                           *
+*********************************************************************************************************************************/
 #ifdef IN_RING3
 static int supR3HardNtViCallWinVerifyTrust(HANDLE hFile, PCRTUTF16 pwszName, uint32_t fFlags, PRTERRINFO pErrInfo,
                                            PFNWINVERIFYTRUST pfnWinVerifyTrust, HRESULT *phrcWinVerifyTrust);
@@ -919,7 +920,17 @@ static int supHardNtViCheckIfNotSignedOk(RTLDRMOD hLdrMod, PCRTUTF16 pwszName, u
 
 
 /**
- * @callback_method_impl{RTCRPKCS7VERIFYCERTCALLBACK,
+ * @callback_method_impl{FNRTDUMPPRINTFV, Formats into RTERRINFO. }
+ */
+static DECLCALLBACK(void) supHardNtViAsn1DumpToErrInfo(void *pvUser, const char *pszFormat, va_list va)
+{
+    PRTERRINFO pErrInfo = (PRTERRINFO)pvUser;
+    RTErrInfoAddV(pErrInfo, pErrInfo->rc, pszFormat, va);
+}
+
+
+/**
+ * @callback_method_impl{FNRTCRPKCS7VERIFYCERTCALLBACK,
  * Standard code signing.  Use this for Microsoft SPC.}
  */
 static DECLCALLBACK(int) supHardNtViCertVerifyCallback(PCRTCRX509CERTIFICATE pCert, RTCRX509CERTPATHS hCertPaths,
@@ -937,7 +948,15 @@ static DECLCALLBACK(int) supHardNtViCertVerifyCallback(PCRTCRX509CERTIFICATE pCe
     {
         if (RTCrX509Certificate_Compare(pCert, &g_BuildX509Cert) == 0) /* healthy paranoia */
             return VINF_SUCCESS;
-        return RTErrInfoSetF(pErrInfo, VERR_SUP_VP_NOT_BUILD_CERT_IPE, "Not valid kernel code signature.");
+        int rc = RTErrInfoSetF(pErrInfo, VERR_SUP_VP_NOT_BUILD_CERT_IPE, "Not valid kernel code signature (fFlags=%#x).", fFlags);
+        if (pErrInfo)
+        {
+            RTErrInfoAdd(pErrInfo, rc, "\n\nExe cert:\n");
+            RTAsn1Dump(&pCert->SeqCore.Asn1Core, 0 /*fFlags*/, 0 /*uLevel*/, supHardNtViAsn1DumpToErrInfo, pErrInfo);
+            RTErrInfoAdd(pErrInfo, rc, "\n\nBuild cert:\n");
+            RTAsn1Dump(&g_BuildX509Cert.SeqCore.Asn1Core, 0 /*fFlags*/, 0 /*uLevel*/, supHardNtViAsn1DumpToErrInfo, pErrInfo);
+        }
+        return rc;
     }
 
     /*

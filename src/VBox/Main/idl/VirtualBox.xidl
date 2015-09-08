@@ -5219,7 +5219,13 @@ and "VAR" for unsetting. -->
           <ul>
             <li><tt>"gui"</tt>: VirtualBox Qt GUI front-end</li>
             <li><tt>"headless"</tt>: VBoxHeadless (VRDE Server) front-end</li>
+            <li><tt>"capture"</tt>: VBoxHeadless (VRDE Server) front-end with
+              video capturing enabled</li>
             <li><tt>"sdl"</tt>: VirtualBox SDL front-end</li>
+            <li><tt>"gui/separate"</tt>: VirtualBox Qt GUI front-end together with
+              a separate headless process</li>
+            <li><tt>"sdl/separate"</tt>: VirtualBox SDL front-end together with
+              a separate headless process</li>
             <li><tt>"emergencystop"</tt>: reserved value, used for aborting
               the currently running VM or session owner. In this case the
               @a session parameter may be @c null (if it is non-null it isn't

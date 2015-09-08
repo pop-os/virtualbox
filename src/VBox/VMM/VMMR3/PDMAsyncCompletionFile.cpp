@@ -16,9 +16,9 @@
  */
 
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_PDM_ASYNC_COMPLETION
 #include "PDMInternal.h"
 #include <VBox/vmm/pdm.h>
@@ -44,9 +44,10 @@
 
 #include "PDMAsyncCompletionFileInternal.h"
 
-/*******************************************************************************
-*   Internal Functions                                                         *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Internal Functions                                                                                                           *
+*********************************************************************************************************************************/
 #ifdef VBOX_WITH_DEBUGGER
 static FNDBGCCMD pdmacEpFileErrorInject;
 # ifdef PDM_ASYNC_COMPLETION_FILE_WITH_DELAY
@@ -54,9 +55,10 @@ static FNDBGCCMD pdmacEpFileDelayInject;
 # endif
 #endif
 
-/*******************************************************************************
-*   Global Variables                                                           *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Global Variables                                                                                                             *
+*********************************************************************************************************************************/
 #ifdef VBOX_WITH_DEBUGGER
 static const DBGCVARDESC g_aInjectErrorArgs[] =
 {
@@ -296,7 +298,7 @@ int pdmacFileEpAddTask(PPDMASYNCCOMPLETIONENDPOINTFILE pEndpoint, PPDMACTASKFILE
     return VINF_SUCCESS;
 }
 
-void pdmacFileEpTaskCompleted(PPDMACTASKFILE pTask, void *pvUser, int rc)
+static DECLCALLBACK(void) pdmacFileEpTaskCompleted(PPDMACTASKFILE pTask, void *pvUser, int rc)
 {
     PPDMASYNCCOMPLETIONTASKFILE pTaskFile = (PPDMASYNCCOMPLETIONTASKFILE)pvUser;
 
@@ -787,7 +789,7 @@ static DECLCALLBACK(void) pdmacR3TimerCallback(PVM pVM, PTMTIMER pTimer, void *p
 
 #endif /* VBOX_WITH_DEBUGGER */
 
-static int pdmacFileInitialize(PPDMASYNCCOMPLETIONEPCLASS pClassGlobals, PCFGMNODE pCfgNode)
+static DECLCALLBACK(int) pdmacFileInitialize(PPDMASYNCCOMPLETIONEPCLASS pClassGlobals, PCFGMNODE pCfgNode)
 {
     PPDMASYNCCOMPLETIONEPCLASSFILE pEpClassFile = (PPDMASYNCCOMPLETIONEPCLASSFILE)pClassGlobals;
     RTFILEAIOLIMITS                AioLimits; /** < Async I/O limitations. */
@@ -871,7 +873,7 @@ static int pdmacFileInitialize(PPDMASYNCCOMPLETIONEPCLASS pClassGlobals, PCFGMNO
     return rc;
 }
 
-static void pdmacFileTerminate(PPDMASYNCCOMPLETIONEPCLASS pClassGlobals)
+static DECLCALLBACK(void) pdmacFileTerminate(PPDMASYNCCOMPLETIONEPCLASS pClassGlobals)
 {
     PPDMASYNCCOMPLETIONEPCLASSFILE pEpClassFile = (PPDMASYNCCOMPLETIONEPCLASSFILE)pClassGlobals;
 
@@ -885,8 +887,8 @@ static void pdmacFileTerminate(PPDMASYNCCOMPLETIONEPCLASS pClassGlobals)
     RTCritSectDelete(&pEpClassFile->CritSect);
 }
 
-static int pdmacFileEpInitialize(PPDMASYNCCOMPLETIONENDPOINT pEndpoint,
-                                 const char *pszUri, uint32_t fFlags)
+static DECLCALLBACK(int) pdmacFileEpInitialize(PPDMASYNCCOMPLETIONENDPOINT pEndpoint,
+                                               const char *pszUri, uint32_t fFlags)
 {
     PPDMASYNCCOMPLETIONENDPOINTFILE pEpFile = (PPDMASYNCCOMPLETIONENDPOINTFILE)pEndpoint;
     PPDMASYNCCOMPLETIONEPCLASSFILE pEpClassFile = (PPDMASYNCCOMPLETIONEPCLASSFILE)pEndpoint->pEpClass;
@@ -1114,14 +1116,14 @@ static int pdmacFileEpInitialize(PPDMASYNCCOMPLETIONENDPOINT pEndpoint,
     return rc;
 }
 
-static int pdmacFileEpRangesLockedDestroy(PAVLRFOFFNODECORE pNode, void *pvUser)
+static DECLCALLBACK(int) pdmacFileEpRangesLockedDestroy(PAVLRFOFFNODECORE pNode, void *pvUser)
 {
     NOREF(pNode); NOREF(pvUser);
     AssertMsgFailed(("The locked ranges tree should be empty at that point\n"));
     return VINF_SUCCESS;
 }
 
-static int pdmacFileEpClose(PPDMASYNCCOMPLETIONENDPOINT pEndpoint)
+static DECLCALLBACK(int) pdmacFileEpClose(PPDMASYNCCOMPLETIONENDPOINT pEndpoint)
 {
     PPDMASYNCCOMPLETIONENDPOINTFILE pEpFile      = (PPDMASYNCCOMPLETIONENDPOINTFILE)pEndpoint;
     PPDMASYNCCOMPLETIONEPCLASSFILE  pEpClassFile = (PPDMASYNCCOMPLETIONEPCLASSFILE)pEndpoint->pEpClass;
@@ -1160,10 +1162,10 @@ static int pdmacFileEpClose(PPDMASYNCCOMPLETIONENDPOINT pEndpoint)
     return VINF_SUCCESS;
 }
 
-static int pdmacFileEpRead(PPDMASYNCCOMPLETIONTASK pTask,
-                           PPDMASYNCCOMPLETIONENDPOINT pEndpoint, RTFOFF off,
-                           PCRTSGSEG paSegments, size_t cSegments,
-                           size_t cbRead)
+static DECLCALLBACK(int) pdmacFileEpRead(PPDMASYNCCOMPLETIONTASK pTask,
+                                         PPDMASYNCCOMPLETIONENDPOINT pEndpoint, RTFOFF off,
+                                         PCRTSGSEG paSegments, size_t cSegments,
+                                         size_t cbRead)
 {
     PPDMASYNCCOMPLETIONENDPOINTFILE pEpFile = (PPDMASYNCCOMPLETIONENDPOINTFILE)pEndpoint;
 
@@ -1182,10 +1184,10 @@ static int pdmacFileEpRead(PPDMASYNCCOMPLETIONTASK pTask,
     return rc;
 }
 
-static int pdmacFileEpWrite(PPDMASYNCCOMPLETIONTASK pTask,
-                            PPDMASYNCCOMPLETIONENDPOINT pEndpoint, RTFOFF off,
-                            PCRTSGSEG paSegments, size_t cSegments,
-                            size_t cbWrite)
+static DECLCALLBACK(int) pdmacFileEpWrite(PPDMASYNCCOMPLETIONTASK pTask,
+                                          PPDMASYNCCOMPLETIONENDPOINT pEndpoint, RTFOFF off,
+                                          PCRTSGSEG paSegments, size_t cSegments,
+                                          size_t cbWrite)
 {
     PPDMASYNCCOMPLETIONENDPOINTFILE pEpFile = (PPDMASYNCCOMPLETIONENDPOINTFILE)pEndpoint;
 
@@ -1204,8 +1206,8 @@ static int pdmacFileEpWrite(PPDMASYNCCOMPLETIONTASK pTask,
     return rc;
 }
 
-static int pdmacFileEpFlush(PPDMASYNCCOMPLETIONTASK pTask,
-                            PPDMASYNCCOMPLETIONENDPOINT pEndpoint)
+static DECLCALLBACK(int) pdmacFileEpFlush(PPDMASYNCCOMPLETIONTASK pTask,
+                                          PPDMASYNCCOMPLETIONENDPOINT pEndpoint)
 {
     PPDMASYNCCOMPLETIONENDPOINTFILE pEpFile   = (PPDMASYNCCOMPLETIONENDPOINTFILE)pEndpoint;
     PPDMASYNCCOMPLETIONTASKFILE     pTaskFile = (PPDMASYNCCOMPLETIONTASKFILE)pTask;
@@ -1228,7 +1230,7 @@ static int pdmacFileEpFlush(PPDMASYNCCOMPLETIONTASK pTask,
     return VINF_AIO_TASK_PENDING;
 }
 
-static int pdmacFileEpGetSize(PPDMASYNCCOMPLETIONENDPOINT pEndpoint, uint64_t *pcbSize)
+static DECLCALLBACK(int) pdmacFileEpGetSize(PPDMASYNCCOMPLETIONENDPOINT pEndpoint, uint64_t *pcbSize)
 {
     PPDMASYNCCOMPLETIONENDPOINTFILE pEpFile = (PPDMASYNCCOMPLETIONENDPOINTFILE)pEndpoint;
 
@@ -1237,7 +1239,7 @@ static int pdmacFileEpGetSize(PPDMASYNCCOMPLETIONENDPOINT pEndpoint, uint64_t *p
     return VINF_SUCCESS;
 }
 
-static int pdmacFileEpSetSize(PPDMASYNCCOMPLETIONENDPOINT pEndpoint, uint64_t cbSize)
+static DECLCALLBACK(int) pdmacFileEpSetSize(PPDMASYNCCOMPLETIONENDPOINT pEndpoint, uint64_t cbSize)
 {
     int rc;
     PPDMASYNCCOMPLETIONENDPOINTFILE pEpFile = (PPDMASYNCCOMPLETIONENDPOINTFILE)pEndpoint;

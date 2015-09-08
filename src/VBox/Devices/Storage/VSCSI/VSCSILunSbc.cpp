@@ -15,9 +15,10 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_VSCSI
 #include <VBox/log.h>
 #include <VBox/err.h>
@@ -51,7 +52,7 @@ typedef struct VSCSILUNSBC
 /** Pointer to a SBC LUN instance */
 typedef VSCSILUNSBC *PVSCSILUNSBC;
 
-static int vscsiLunSbcInit(PVSCSILUNINT pVScsiLun)
+static DECLCALLBACK(int) vscsiLunSbcInit(PVSCSILUNINT pVScsiLun)
 {
     PVSCSILUNSBC pVScsiLunSbc = (PVSCSILUNSBC)pVScsiLun;
     uint64_t cbDisk = 0;
@@ -179,7 +180,7 @@ static int vscsiLunSbcInit(PVSCSILUNINT pVScsiLun)
     return rc;
 }
 
-static int vscsiLunSbcDestroy(PVSCSILUNINT pVScsiLun)
+static DECLCALLBACK(int) vscsiLunSbcDestroy(PVSCSILUNINT pVScsiLun)
 {
     PVSCSILUNSBC pVScsiLunSbc = (PVSCSILUNSBC)pVScsiLun;
 
@@ -188,7 +189,7 @@ static int vscsiLunSbcDestroy(PVSCSILUNINT pVScsiLun)
     return VINF_SUCCESS;
 }
 
-static int vscsiLunSbcReqProcess(PVSCSILUNINT pVScsiLun, PVSCSIREQINT pVScsiReq)
+static DECLCALLBACK(int) vscsiLunSbcReqProcess(PVSCSILUNINT pVScsiLun, PVSCSIREQINT pVScsiReq)
 {
     PVSCSILUNSBC pVScsiLunSbc = (PVSCSILUNSBC)pVScsiLun;
     int rc = VINF_SUCCESS;

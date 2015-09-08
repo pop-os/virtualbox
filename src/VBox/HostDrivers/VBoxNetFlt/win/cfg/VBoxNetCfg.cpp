@@ -56,6 +56,21 @@ static VOID DoLogging(LPCSTR szString, ...);
 #define VBOX_NETCFG_LOCK_TIME_OUT     5000  /** @todo r=bird: What does this do? */
 
 
+/*
+ * For some weird reason we do not want to use IPRT here, hence the following
+ * function provides a replacement for BstrFmt.
+ */
+static bstr_t bstr_printf(const char *cszFmt, ...)
+{
+    char szBuffer[4096];
+    szBuffer[sizeof(szBuffer) - 1] = 0; /* Make sure the string will be null-terminated */
+    va_list va;
+    va_start(va, cszFmt);
+    _vsnprintf(szBuffer, sizeof(szBuffer) - 1, cszFmt, va);
+    va_end(va);
+    return bstr_t(szBuffer);
+}
+
 static HRESULT vboxNetCfgWinINetCfgLock(IN INetCfg *pNetCfg,
                                         IN LPCWSTR pszwClientDescription,
                                         IN DWORD cmsTimeout,
@@ -2462,12 +2477,14 @@ VBOXNETCFGWIN_DECL(HRESULT) VBoxNetCfgWinRenameConnection (LPWSTR pGuid, PCWSTR 
     if (1) { \
         hrc = E_FAIL; \
         NonStandardLog strAndArgs; \
+        bstrError = bstr_printf strAndArgs; \
         break; \
     } else do {} while (0)
 
 VBOXNETCFGWIN_DECL(HRESULT) VBoxNetCfgWinRemoveHostOnlyNetworkInterface(IN const GUID *pGUID, OUT BSTR *pErrMsg)
 {
     HRESULT hrc = S_OK;
+    bstr_t bstrError;
 
     do
     {
@@ -2667,6 +2684,9 @@ VBOXNETCFGWIN_DECL(HRESULT) VBoxNetCfgWinRemoveHostOnlyNetworkInterface(IN const
     }
     while (0);
 
+    if (pErrMsg && bstrError.length())
+        *pErrMsg = bstrError.Detach();
+
     return hrc;
 }
 
@@ -2689,6 +2709,8 @@ VBOXNETCFGWIN_DECL(HRESULT) VBoxNetCfgWinCreateHostOnlyNetworkInterface(IN LPCWS
     BOOL destroyList = FALSE;
     WCHAR pWCfgGuidString [50];
     WCHAR DevName[256];
+    HKEY hkey = (HKEY)INVALID_HANDLE_VALUE;
+    bstr_t bstrError;
 
     do
     {
@@ -2703,7 +2725,6 @@ VBOXNETCFGWIN_DECL(HRESULT) VBoxNetCfgWinCreateHostOnlyNetworkInterface(IN LPCWS
          * of the VBoxNetAdp driver. */
         DWORD detailBuf [2048];
 
-        HKEY hkey = NULL;
         DWORD cbSize;
         DWORD dwValueType;
 
@@ -2989,6 +3010,9 @@ VBOXNETCFGWIN_DECL(HRESULT) VBoxNetCfgWinCreateHostOnlyNetworkInterface(IN LPCWS
                 break;
         }
 
+        if (ret != ERROR_SUCCESS)
+            SetErrBreak(("Querying NetCfgInstanceId failed (0x%08X)", GetLastError()));
+
         /*
          * We need to query the device name after we have succeeded in querying its
          * instance ID to avoid similar waiting-and-retrying loop (see @bugref{7973}).
@@ -3020,16 +3044,15 @@ VBOXNETCFGWIN_DECL(HRESULT) VBoxNetCfgWinCreateHostOnlyNetworkInterface(IN LPCWS
                                               err));
             }
         }
-        RegCloseKey (hkey);
-
-        if (ret != ERROR_SUCCESS)
-            SetErrBreak(("Querying NetCfgInstanceId failed (0x%08X)", GetLastError()));
     }
     while (0);
 
     /*
      * cleanup
      */
+    if (hkey != INVALID_HANDLE_VALUE)
+        RegCloseKey (hkey);
+
     if (pQueueCallbackContext)
         SetupTermDefaultQueueCallback(pQueueCallbackContext);
 
@@ -3117,6 +3140,10 @@ VBOXNETCFGWIN_DECL(HRESULT) VBoxNetCfgWinCreateHostOnlyNetworkInterface(IN LPCWS
         else
             NonStandardLogFlow(("VBoxNetCfgWinQueryINetCfg failed, hr 0x%x\n", hr));
     }
+
+    if (pErrMsg && bstrError.length())
+        *pErrMsg = bstrError.Detach();
+
     return hrc;
 }
 

@@ -352,8 +352,8 @@ static DECLCALLBACK(int) drvHostOSSAudioControlOut(PPDMIHOSTAUDIO pInterface, PP
     {
         case PDMAUDIOSTREAMCMD_ENABLE:
         {
-            audio_pcm_info_clear_buf(&pHstStrmOut->Props,
-                                     pThisStrmOut->pvPCMBuf, AudioMixBufSize(&pHstStrmOut->MixBuf));
+            drvAudioClearBuf(&pHstStrmOut->Props,
+                             pThisStrmOut->pvPCMBuf, AudioMixBufSize(&pHstStrmOut->MixBuf));
 
             mask = PCM_ENABLE_OUTPUT;
             if (ioctl(pThisStrmOut->hFile, SNDCTL_DSP_SETTRIGGER, &mask) < 0)
@@ -775,8 +775,7 @@ static DECLCALLBACK(int) drvHostOSSAudioPlayOut(PPDMIHOSTAUDIO pInterface, PPDMA
     {
         size_t cbBuf = AudioMixBufSizeBytes(&pHstStrmOut->MixBuf);
 
-        uint32_t cLive = drvAudioHstOutSamplesLive(pHstStrmOut,
-                                                   NULL /* pcStreamsLive */);
+        uint32_t cLive = drvAudioHstOutSamplesLive(pHstStrmOut);
         uint32_t cToRead;
 
 #ifndef RT_OS_L4

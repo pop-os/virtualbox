@@ -25,9 +25,9 @@
  */
 
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #include <Windows.h>
 
 #include <iprt/pipe.h>
@@ -47,16 +47,16 @@
 #include "internal/magics.h"
 
 
-/*******************************************************************************
-*   Defined Constants And Macros                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
 /** The pipe buffer size we prefer. */
 #define RTPIPE_NT_SIZE      _64K
 
 
-/*******************************************************************************
-*   Structures and Typedefs                                                    *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
 typedef struct RTPIPEINTERNAL
 {
     /** Magic value (RTPIPE_MAGIC). */
@@ -517,10 +517,11 @@ RTDECL(int)  RTPipeFromNative(PRTPIPE phPipe, RTHCINTPTR hNativePipe, uint32_t f
                            || Info.NamedPipeState == FILE_PIPE_CLOSING_STATE
                            || Info.NamedPipeState == FILE_PIPE_DISCONNECTED_STATE,
                            VERR_INVALID_HANDLE);
-                AssertStmt(   Info.NamedPipeConfiguration
-                           == (   Info.NamedPipeEnd == FILE_PIPE_SERVER_END
-                               ? (pThis->fRead ? FILE_PIPE_INBOUND  : FILE_PIPE_OUTBOUND)
-                               : (pThis->fRead ? FILE_PIPE_OUTBOUND : FILE_PIPE_INBOUND) ),
+                AssertStmt(      Info.NamedPipeConfiguration
+                              == (   Info.NamedPipeEnd == FILE_PIPE_SERVER_END
+                                  ? (pThis->fRead ? FILE_PIPE_INBOUND  : FILE_PIPE_OUTBOUND)
+                                  : (pThis->fRead ? FILE_PIPE_OUTBOUND : FILE_PIPE_INBOUND) )
+                           || Info.NamedPipeConfiguration == FILE_PIPE_FULL_DUPLEX,
                            VERR_INVALID_HANDLE);
                 if (   RT_SUCCESS(rc)
                     && hNative2 == INVALID_HANDLE_VALUE

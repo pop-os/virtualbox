@@ -16,9 +16,10 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/******************************************************************************
- *   Header Files                                                             *
- ******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 
 #include <iprt/dir.h>
 #include <iprt/file.h>
@@ -362,12 +363,12 @@ void DnDURIObject::Reset(void)
 {
     Close();
 
-    m_Type          = Unknown;
-    m_strSrcPath    = "";
-    m_strTgtPath    = "";
-    m_fMode = 0;
-    m_cbSize        = 0;
-    m_cbProcessed   = 0;
+    m_Type        = Unknown;
+    m_strSrcPath  = "";
+    m_strTgtPath  = "";
+    m_fMode       = 0;
+    m_cbSize      = 0;
+    m_cbProcessed = 0;
 }
 
 int DnDURIObject::Write(const void *pvBuf, size_t cbBuf, uint32_t *pcbWritten)

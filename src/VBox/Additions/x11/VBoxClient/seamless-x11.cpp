@@ -15,9 +15,10 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/*****************************************************************************
-*   Header files                                                             *
-*****************************************************************************/
+
+/*********************************************************************************************************************************
+*   Header files                                                                                                                 *
+*********************************************************************************************************************************/
 
 #include <iprt/err.h>
 #include <iprt/assert.h>
@@ -25,6 +26,7 @@
 #include <VBox/log.h>
 
 #include "seamless-x11.h"
+#include "VBoxClient.h"
 
 #include <X11/Xatom.h>
 #include <X11/Xmu/WinUtil.h>
@@ -87,6 +89,8 @@ int SeamlessX11::init(PFNSENDREGIONUPDATE pHostCallback)
         return VERR_ACCESS_DENIED;
     }
     mHostCallback = pHostCallback;
+    mEnabled = false;
+    unmonitorClientList();
     LogRelFlowFunc(("returning %Rrc\n", rc));
     return rc;
 }
@@ -106,6 +110,8 @@ int SeamlessX11::start(void)
     int error, event;
 
     LogRelFlowFunc(("\n"));
+    if (mEnabled)
+        return VINF_SUCCESS;
     mSupportsShape = XShapeQueryExtension(mDisplay, &event, &error);
     mEnabled = true;
     monitorClientList();
@@ -119,6 +125,8 @@ int SeamlessX11::start(void)
 void SeamlessX11::stop(void)
 {
     LogRelFlowFunc(("\n"));
+    if (!mEnabled)
+        return;
     mEnabled = false;
     unmonitorClientList();
     freeWindowTree();
@@ -134,7 +142,7 @@ void SeamlessX11::monitorClientList(void)
 void SeamlessX11::unmonitorClientList(void)
 {
     LogRelFlowFunc(("called\n"));
-    XSelectInput(mDisplay, DefaultRootWindow(mDisplay), 0);
+    XSelectInput(mDisplay, DefaultRootWindow(mDisplay), PropertyChangeMask);
 }
 
 /**
@@ -269,6 +277,7 @@ DECLCALLBACK(int) VBoxGuestWinFree(VBoxGuestWinInfo *pInfo, void *pvParam)
 {
     Display *pDisplay = (Display *)pvParam;
 
+    XShapeSelectInput(pDisplay, pInfo->Core.Key, 0);
     delete pInfo;
     return VINF_SUCCESS;
 }
@@ -297,13 +306,17 @@ void SeamlessX11::nextConfigurationEvent(void)
     LogRelFlowFunc(("\n"));
     /* Start by sending information about the current window setup to the host.  We do this
        here because we want to send all such information from a single thread. */
-    if (mChanged)
+    if (mChanged && mEnabled)
     {
         updateRects();
         mHostCallback(mpRects, mcRects);
     }
     mChanged = false;
+    /* We execute this even when seamless is disabled, as it also waits for
+     * enable and disable notification. */
     XNextEvent(mDisplay, &event);
+    if (!mEnabled)
+        return;
     switch (event.type)
     {
     case ConfigureNotify:
@@ -345,7 +358,7 @@ void SeamlessX11::nextConfigurationEvent(void)
     default:
         break;
     }
-    LogRelFlowFunc(("returning\n"));
+    LogRelFlowFunc(("processed event\n"));
 }
 
 /**
@@ -490,17 +503,18 @@ int SeamlessX11::updateRects(void)
 bool SeamlessX11::interruptEventWait(void)
 {
     bool rc = false;
+    Display *pDisplay = XOpenDisplay(NULL);
 
     LogRelFlowFunc(("\n"));
+    if (pDisplay == NULL)
+        VBClFatalError(("Failed to open X11 display.\n"));
     /* Message contents set to zero. */
     XClientMessageEvent clientMessage = { ClientMessage, 0, 0, 0, 0, 0, 8 };
 
-    if (XSendEvent(mDisplay, DefaultRootWindow(mDisplay), false,
-                   SubstructureNotifyMask, (XEvent *)&clientMessage))
-    {
-        XFlush(mDisplay);
+    if (XSendEvent(pDisplay, DefaultRootWindow(mDisplay), false,
+                   PropertyChangeMask, (XEvent *)&clientMessage))
         rc = true;
-    }
+    XCloseDisplay(pDisplay);
     LogRelFlowFunc(("returning %RTbool\n", rc));
     return rc;
 }

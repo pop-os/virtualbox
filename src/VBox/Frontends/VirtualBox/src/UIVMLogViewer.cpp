@@ -28,6 +28,7 @@
 # include <QLabel>
 # include <QScrollBar>
 # include <QTextEdit>
+# include <QDesktopWidget>
 
 /* GUI includes: */
 # include "UIVMLogViewer.h"
@@ -37,6 +38,7 @@
 # include "VBoxGlobal.h"
 # include "UIMessageCenter.h"
 # include "VBoxUtils.h"
+# include "UIExtraDataManager.h"
 
 /* COM includes: */
 # include "COMEnums.h"
@@ -300,9 +302,17 @@ private:
 
         int iResult = -1;
         if (fForward && (fStartCurrent || iPos < strText.size() - 1))
+        {
             iResult = strText.indexOf(m_pSearchEditor->text(), iAnc + iDiff,
                                       m_pCaseSensitiveCheckBox->isChecked() ?
                                       Qt::CaseSensitive : Qt::CaseInsensitive);
+
+            /* When searchstring is changed, search from beginning of log again: */
+            if (iResult == -1 && fStartCurrent)
+                iResult = strText.indexOf(m_pSearchEditor->text(), 0,
+                                          m_pCaseSensitiveCheckBox->isChecked() ?
+                                          Qt::CaseSensitive : Qt::CaseInsensitive);
+        }
         else if (!fForward && iAnc > 0)
             iResult = strText.lastIndexOf(m_pSearchEditor->text(), iAnc - 1,
                                           m_pCaseSensitiveCheckBox->isChecked() ?
@@ -411,12 +421,18 @@ UIVMLogViewer::UIVMLogViewer(QWidget *pParent, Qt::WindowFlags flags, const CMac
     /* Reading log files: */
     refresh();
 
+    /* Load settings: */
+    loadSettings();
+
     /* Loading language constants */
     retranslateUi();
 }
 
 UIVMLogViewer::~UIVMLogViewer()
 {
+    /* Save settings: */
+    saveSettings();
+
     if (!m_machine.isNull())
         m_viewers.remove(m_machine.GetName());
 }
@@ -478,6 +494,10 @@ void UIVMLogViewer::refresh()
                 /* Create a log viewer page and append the read text to it: */
                 QTextEdit *pLogViewer = createLogPage(QFileInfo(strFileName).fileName());
                 pLogViewer->setPlainText(strText);
+                /* Move the cursor position to end: */
+                QTextCursor cursor = pLogViewer->textCursor();
+                cursor.movePosition(QTextCursor::End, QTextCursor::MoveAnchor);
+                pLogViewer->setTextCursor(cursor);
                 /* Add the actual file name and the QTextEdit containing the content to a list: */
                 m_book << qMakePair(strFileName, pLogViewer);
                 isAnyLogPresent = true;
@@ -559,28 +579,12 @@ void UIVMLogViewer::showEvent(QShowEvent *pEvent)
     if (m_fIsPolished)
         return;
 
-    m_fIsPolished = true;
-
-    /* Resize the whole log-viewer to fit 80 symbols in
-     * text-browser for the first time started: */
-    QTextEdit *pFirstPage = currentLogPage();
-    if (pFirstPage)
-    {
-        int fullWidth = pFirstPage->fontMetrics().width(QChar('x')) * 80 +
-                        pFirstPage->verticalScrollBar()->width() +
-                        pFirstPage->frameWidth() * 2 +
-                        /* m_pViewerContainer margin */ 10 * 2 +
-                        /* CentralWidget margin */ 10 * 2;
-        resize(fullWidth, height());
-    }
+    m_fIsPolished = true;   
 
     /* Make sure the log view widget has the focus */
     QWidget *pCurrentLogPage = currentLogPage();
     if (pCurrentLogPage)
-        pCurrentLogPage->setFocus();
-
-    /* Explicit widget centering relatively to it's parent: */
-    VBoxGlobal::centerWidget(this, parentWidget(), false);
+        pCurrentLogPage->setFocus(); 
 }
 
 void UIVMLogViewer::keyPressEvent(QKeyEvent *pEvent)
@@ -637,6 +641,61 @@ QTextEdit* UIVMLogViewer::createLogPage(const QString &strName)
 
     m_pViewerContainer->addTab(pPageContainer, strName);
     return pLogViewer;
+}
+
+void UIVMLogViewer::loadSettings()
+{
+    /* Restore window geometry: */
+    {
+        /* Getting available geometry to calculate default geometry: */
+        const QRect desktopRect = QApplication::desktop()->availableGeometry(this);
+        int iDefaultWidth = desktopRect.width() * 0.5;
+        int iDefaultHeight = desktopRect.height() * 0.75;
+
+        /* Calculate default width to fit 132 characters: */
+        QTextEdit *pCurrentLogPage = currentLogPage();
+        if (pCurrentLogPage)
+        {
+            iDefaultWidth = pCurrentLogPage->fontMetrics().width(QChar('x')) * 132 +
+                pCurrentLogPage->verticalScrollBar()->width() +
+                pCurrentLogPage->frameWidth() * 2 +
+                /* m_pViewerContainer margin */ 10 * 2 +
+                /* CentralWidget margin */ 10 * 2;
+        }
+        QRect defaultGeometry(0, 0, iDefaultWidth, iDefaultHeight);
+        defaultGeometry.moveCenter(parentWidget()->geometry().center());
+
+        /* Load geometry: */
+        m_geometry = gEDataManager->logWindowGeometry(this, defaultGeometry);
+#ifdef Q_WS_MAC
+        move(m_geometry.topLeft());
+        resize(m_geometry.size());
+#else /* Q_WS_MAC */
+        setGeometry(m_geometry);
+#endif /* !Q_WS_MAC */
+        LogRel(("GUI: UIVMLogViewer: Geometry loaded to: Origin=%dx%d, Size=%dx%d\n",
+                m_geometry.x(), m_geometry.y(), m_geometry.width(), m_geometry.height()));
+
+        /* Maximize (if necessary): */
+        if (gEDataManager->logWindowShouldBeMaximized())
+            showMaximized();
+    }
+}
+
+void UIVMLogViewer::saveSettings()
+{
+    /* Save window geometry: */
+    {
+        /* Save geometry: */
+        const QRect saveGeometry = geometry();
+#ifdef Q_WS_MAC
+        gEDataManager->setLogWindowGeometry(saveGeometry, ::darwinIsWindowMaximized(this));
+#else /* Q_WS_MAC */
+        gEDataManager->setLogWindowGeometry(saveGeometry, isMaximized());
+#endif /* !Q_WS_MAC */
+        LogRel(("GUI: UIVMLogViewer: Geometry saved as: Origin=%dx%d, Size=%dx%d\n",
+                saveGeometry.x(), saveGeometry.y(), saveGeometry.width(), saveGeometry.height()));
+    }
 }
 
 #include "UIVMLogViewer.moc"

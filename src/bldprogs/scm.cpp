@@ -15,9 +15,10 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #include <iprt/assert.h>
 #include <iprt/ctype.h>
 #include <iprt/dir.h>
@@ -38,16 +39,16 @@
 #include "scmdiff.h"
 
 
-/*******************************************************************************
-*   Defined Constants And Macros                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
 /** The name of the settings files. */
 #define SCM_SETTINGS_FILENAME           ".scm-settings"
 
 
-/*******************************************************************************
-*   Structures and Typedefs                                                    *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
 
 /**
  * Option identifiers.
@@ -71,6 +72,9 @@ typedef enum SCMOPT
     SCMOPT_NO_STRIP_TRAILING_BLANKS,
     SCMOPT_STRIP_TRAILING_LINES,
     SCMOPT_NO_STRIP_TRAILING_LINES,
+    SCMOPT_FIX_FLOWER_BOX_MARKERS,
+    SCMOPT_NO_FIX_FLOWER_BOX_MARKERS,
+    SCMOPT_MIN_BLANK_LINES_BEFORE_FLOWER_BOX_MARKERS,
     SCMOPT_ONLY_SVN_DIRS,
     SCMOPT_NOT_ONLY_SVN_DIRS,
     SCMOPT_ONLY_SVN_FILES,
@@ -82,6 +86,7 @@ typedef enum SCMOPT
     SCMOPT_SET_SVN_KEYWORDS,
     SCMOPT_DONT_SET_SVN_KEYWORDS,
     SCMOPT_TAB_SIZE,
+    SCMOPT_WIDTH,
     SCMOPT_FILTER_OUT_DIRS,
     SCMOPT_FILTER_FILES,
     SCMOPT_FILTER_OUT_FILES,
@@ -101,10 +106,18 @@ typedef enum SCMOPT
 } SCMOPT;
 
 
-/*******************************************************************************
-*   Global Variables                                                           *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Global Variables                                                                                                             *
+*********************************************************************************************************************************/
 const char          g_szTabSpaces[16+1]     = "                ";
+const char          g_szAsterisks[255+1]    =
+"****************************************************************************************************"
+"****************************************************************************************************"
+"*******************************************************";
+const char          g_szSpaces[255+1]       =
+"                                                                                                    "
+"                                                                                                    "
+"                                                       ";
 static const char   g_szProgName[]          = "scm";
 static const char  *g_pszChangedSuff        = "";
 static bool         g_fDryRun               = true;
@@ -117,21 +130,24 @@ static int          g_iVerbosity            = 2;//99; //0;
 /** The global settings. */
 static SCMSETTINGSBASE const g_Defaults =
 {
-    /* .fConvertEol = */            true,
-    /* .fConvertTabs = */           true,
-    /* .fForceFinalEol = */         true,
-    /* .fForceTrailingLine = */     false,
-    /* .fStripTrailingBlanks = */   true,
-    /* .fStripTrailingLines = */    true,
-    /* .fOnlySvnFiles = */          false,
-    /* .fOnlySvnDirs = */           false,
-    /* .fSetSvnEol = */             false,
-    /* .fSetSvnExecutable = */      false,
-    /* .fSetSvnKeywords = */        false,
-    /* .cchTab = */                 8,
-    /* .pszFilterFiles = */         (char *)"",
-    /* .pszFilterOutFiles = */      (char *)"*.exe|*.com|20*-*-*.log",
-    /* .pszFilterOutDirs = */       (char *)".svn|.hg|.git|CVS",
+    /* .fConvertEol = */                            true,
+    /* .fConvertTabs = */                           true,
+    /* .fForceFinalEol = */                         true,
+    /* .fForceTrailingLine = */                     false,
+    /* .fStripTrailingBlanks = */                   true,
+    /* .fStripTrailingLines = */                    true,
+    /* .fFixFlowerBoxMarkers = */                   true,
+    /* .cMinBlankLinesBeforeFlowerBoxMakers = */    2,
+    /* .fOnlySvnFiles = */                          false,
+    /* .fOnlySvnDirs = */                           false,
+    /* .fSetSvnEol = */                             false,
+    /* .fSetSvnExecutable = */                      false,
+    /* .fSetSvnKeywords = */                        false,
+    /* .cchTab = */                                 8,
+    /* .cchWidth = */                               130,
+    /* .pszFilterFiles = */                         (char *)"",
+    /* .pszFilterOutFiles = */                      (char *)"*.exe|*.com|20*-*-*.log",
+    /* .pszFilterOutDirs = */                       (char *)".svn|.hg|.git|CVS",
 };
 
 /** Option definitions for the base settings. */
@@ -149,6 +165,9 @@ static RTGETOPTDEF  g_aScmOpts[] =
     { "--no-strip-trailing-blanks",         SCMOPT_NO_STRIP_TRAILING_BLANKS,        RTGETOPT_REQ_NOTHING },
     { "--strip-trailing-lines",             SCMOPT_STRIP_TRAILING_LINES,            RTGETOPT_REQ_NOTHING },
     { "--strip-no-trailing-lines",          SCMOPT_NO_STRIP_TRAILING_LINES,         RTGETOPT_REQ_NOTHING },
+    { "--min-blank-lines-before-flower-box-makers", SCMOPT_FIX_FLOWER_BOX_MARKERS,  RTGETOPT_REQ_UINT8 },
+    { "--fix-flower-box-markers",           SCMOPT_FIX_FLOWER_BOX_MARKERS,          RTGETOPT_REQ_NOTHING },
+    { "--no-fix-flower-box-markers",        SCMOPT_NO_FIX_FLOWER_BOX_MARKERS,       RTGETOPT_REQ_NOTHING },
     { "--only-svn-dirs",                    SCMOPT_ONLY_SVN_DIRS,                   RTGETOPT_REQ_NOTHING },
     { "--not-only-svn-dirs",                SCMOPT_NOT_ONLY_SVN_DIRS,               RTGETOPT_REQ_NOTHING },
     { "--only-svn-files",                   SCMOPT_ONLY_SVN_FILES,                  RTGETOPT_REQ_NOTHING },
@@ -160,6 +179,7 @@ static RTGETOPTDEF  g_aScmOpts[] =
     { "--set-svn-keywords",                 SCMOPT_SET_SVN_KEYWORDS,                RTGETOPT_REQ_NOTHING },
     { "--dont-set-svn-keywords",            SCMOPT_DONT_SET_SVN_KEYWORDS,           RTGETOPT_REQ_NOTHING },
     { "--tab-size",                         SCMOPT_TAB_SIZE,                        RTGETOPT_REQ_UINT8   },
+    { "--width",                            SCMOPT_WIDTH,                           RTGETOPT_REQ_UINT8   },
     { "--filter-out-dirs",                  SCMOPT_FILTER_OUT_DIRS,                 RTGETOPT_REQ_STRING  },
     { "--filter-files",                     SCMOPT_FILTER_FILES,                    RTGETOPT_REQ_STRING  },
     { "--filter-out-files",                 SCMOPT_FILTER_OUT_FILES,                RTGETOPT_REQ_STRING  },
@@ -192,6 +212,7 @@ static PFNSCMREWRITER const g_aRewritersFor_C_and_CPP[] =
     rewrite_AdjustTrailingLines,
     rewrite_SvnNoExecutable,
     rewrite_SvnKeywords,
+    rewrite_FixFlowerBoxMarkers,
     rewrite_C_and_CPP
 };
 
@@ -327,8 +348,8 @@ static void scmSettingsBaseDelete(PSCMSETTINGSBASE pSettings)
 {
     if (pSettings)
     {
-        Assert(pSettings->cchTab != ~(unsigned)0);
-        pSettings->cchTab = ~(unsigned)0;
+        Assert(pSettings->cchTab != UINT8_MAX);
+        pSettings->cchTab = UINT8_MAX;
 
         RTStrFree(pSettings->pszFilterFiles);
         pSettings->pszFilterFiles = NULL;
@@ -385,6 +406,7 @@ static int scmSettingsBaseHandleOpt(PSCMSETTINGSBASE pSettings, int rc, PRTGETOP
             pSettings->fForceTrailingLine = false;
             return VINF_SUCCESS;
 
+
         case SCMOPT_STRIP_TRAILING_BLANKS:
             pSettings->fStripTrailingBlanks = true;
             return VINF_SUCCESS;
@@ -392,11 +414,23 @@ static int scmSettingsBaseHandleOpt(PSCMSETTINGSBASE pSettings, int rc, PRTGETOP
             pSettings->fStripTrailingBlanks = false;
             return VINF_SUCCESS;
 
+        case SCMOPT_MIN_BLANK_LINES_BEFORE_FLOWER_BOX_MARKERS:
+            pSettings->cMinBlankLinesBeforeFlowerBoxMakers = pValueUnion->u8;
+            return VINF_SUCCESS;
+
+
         case SCMOPT_STRIP_TRAILING_LINES:
             pSettings->fStripTrailingLines = true;
             return VINF_SUCCESS;
         case SCMOPT_NO_STRIP_TRAILING_LINES:
             pSettings->fStripTrailingLines = false;
+            return VINF_SUCCESS;
+
+        case SCMOPT_FIX_FLOWER_BOX_MARKERS:
+            pSettings->fFixFlowerBoxMarkers = true;
+            return VINF_SUCCESS;
+        case SCMOPT_NO_FIX_FLOWER_BOX_MARKERS:
+            pSettings->fFixFlowerBoxMarkers = false;
             return VINF_SUCCESS;
 
         case SCMOPT_ONLY_SVN_DIRS:
@@ -443,6 +477,15 @@ static int scmSettingsBaseHandleOpt(PSCMSETTINGSBASE pSettings, int rc, PRTGETOP
                 return VERR_OUT_OF_RANGE;
             }
             pSettings->cchTab = pValueUnion->u8;
+            return VINF_SUCCESS;
+
+        case SCMOPT_WIDTH:
+            if (pValueUnion->u8 < 20 || pValueUnion->u8 > 200)
+            {
+                RTMsgError("Invalid width size: %u - must be in {20..200} range\n", pValueUnion->u8);
+                return VERR_OUT_OF_RANGE;
+            }
+            pSettings->cchWidth = pValueUnion->u8;
             return VINF_SUCCESS;
 
         case SCMOPT_FILTER_OUT_DIRS:
@@ -1441,6 +1484,73 @@ static int scmProcessSomething(const char *pszSomething, PSCMSETTINGS pSettingsS
     return rc;
 }
 
+static void usage(PCRTGETOPTDEF paOpts, size_t cOpts)
+{
+    RTPrintf("VirtualBox Source Code Massager\n"
+             "\n"
+             "Usage: %s [options] <files & dirs>\n"
+             "\n"
+             "Options:\n", g_szProgName);
+    for (size_t i = 0; i < cOpts; i++)
+    {
+        bool fAdvanceTwo = false;
+        if ((paOpts[i].fFlags & RTGETOPT_REQ_MASK) == RTGETOPT_REQ_NOTHING)
+        {
+            fAdvanceTwo = i + 1 < cOpts
+                       && (   strstr(paOpts[i+1].pszLong, "-no-") != NULL
+                           || strstr(paOpts[i+1].pszLong, "-not-") != NULL
+                           || strstr(paOpts[i+1].pszLong, "-dont-") != NULL
+                           || (paOpts[i].iShort == 'q' && paOpts[i+1].iShort == 'v')
+                           || (paOpts[i].iShort == 'd' && paOpts[i+1].iShort == 'D')
+                          );
+            if (fAdvanceTwo)
+                RTPrintf("  %s, %s\n", paOpts[i].pszLong, paOpts[i + 1].pszLong);
+            else
+                RTPrintf("  %s\n", paOpts[i].pszLong);
+        }
+        else if ((paOpts[i].fFlags & RTGETOPT_REQ_MASK) == RTGETOPT_REQ_STRING)
+            RTPrintf("  %s string\n", paOpts[i].pszLong);
+        else
+            RTPrintf("  %s value\n", paOpts[i].pszLong);
+        switch (paOpts[i].iShort)
+        {
+            case 'd':
+            case 'D':                           RTPrintf("      Default: --dry-run\n"); break;
+            case 'f':                           RTPrintf("      Default: none\n"); break;
+            case 'q':
+            case 'v':                           RTPrintf("      Default: -vv\n"); break;
+
+            case SCMOPT_DIFF_IGNORE_EOL:        RTPrintf("      Default: false\n"); break;
+            case SCMOPT_DIFF_IGNORE_SPACE:      RTPrintf("      Default: false\n"); break;
+            case SCMOPT_DIFF_IGNORE_LEADING_SPACE:  RTPrintf("      Default: false\n"); break;
+            case SCMOPT_DIFF_IGNORE_TRAILING_SPACE: RTPrintf("      Default: false\n"); break;
+            case SCMOPT_DIFF_SPECIAL_CHARS:     RTPrintf("      Default: true\n"); break;
+
+            case SCMOPT_CONVERT_EOL:            RTPrintf("      Default: %RTbool\n", g_Defaults.fConvertEol); break;
+            case SCMOPT_CONVERT_TABS:           RTPrintf("      Default: %RTbool\n", g_Defaults.fConvertTabs); break;
+            case SCMOPT_FORCE_FINAL_EOL:        RTPrintf("      Default: %RTbool\n", g_Defaults.fForceFinalEol); break;
+            case SCMOPT_FORCE_TRAILING_LINE:    RTPrintf("      Default: %RTbool\n", g_Defaults.fForceTrailingLine); break;
+            case SCMOPT_STRIP_TRAILING_BLANKS:  RTPrintf("      Default: %RTbool\n", g_Defaults.fStripTrailingBlanks); break;
+            case SCMOPT_STRIP_TRAILING_LINES:   RTPrintf("      Default: %RTbool\n", g_Defaults.fStripTrailingLines); break;
+            case SCMOPT_FIX_FLOWER_BOX_MARKERS: RTPrintf("      Default: %RTbool\n", g_Defaults.fFixFlowerBoxMarkers); break;
+            case SCMOPT_MIN_BLANK_LINES_BEFORE_FLOWER_BOX_MARKERS: RTPrintf("      Default: %u\n", g_Defaults.cMinBlankLinesBeforeFlowerBoxMakers); break;
+            case SCMOPT_ONLY_SVN_DIRS:          RTPrintf("      Default: %RTbool\n", g_Defaults.fOnlySvnDirs); break;
+            case SCMOPT_ONLY_SVN_FILES:         RTPrintf("      Default: %RTbool\n", g_Defaults.fOnlySvnFiles); break;
+            case SCMOPT_SET_SVN_EOL:            RTPrintf("      Default: %RTbool\n", g_Defaults.fSetSvnEol); break;
+            case SCMOPT_SET_SVN_EXECUTABLE:     RTPrintf("      Default: %RTbool\n", g_Defaults.fSetSvnExecutable); break;
+            case SCMOPT_SET_SVN_KEYWORDS:       RTPrintf("      Default: %RTbool\n", g_Defaults.fSetSvnKeywords); break;
+            case SCMOPT_TAB_SIZE:               RTPrintf("      Default: %u\n", g_Defaults.cchTab); break;
+            case SCMOPT_WIDTH:                  RTPrintf("      Default: %u\n", g_Defaults.cchWidth); break;
+            case SCMOPT_FILTER_OUT_DIRS:        RTPrintf("      Default: %s\n", g_Defaults.pszFilterOutDirs); break;
+            case SCMOPT_FILTER_FILES:           RTPrintf("      Default: %s\n", g_Defaults.pszFilterFiles); break;
+            case SCMOPT_FILTER_OUT_FILES:       RTPrintf("      Default: %s\n", g_Defaults.pszFilterOutFiles); break;
+            default: AssertMsgFailed(("i=%d %d %s\n", i, paOpts[i].iShort, paOpts[i].pszLong));
+        }
+        i += fAdvanceTwo;
+    }
+
+}
+
 int main(int argc, char **argv)
 {
     int rc = RTR3InitExe(argc, &argv, 0);
@@ -1504,50 +1614,7 @@ int main(int argc, char **argv)
                 break;
 
             case 'h':
-                RTPrintf("VirtualBox Source Code Massager\n"
-                         "\n"
-                         "Usage: %s [options] <files & dirs>\n"
-                         "\n"
-                         "Options:\n", g_szProgName);
-                for (size_t i = 0; i < RT_ELEMENTS(s_aOpts); i++)
-                {
-                    bool fAdvanceTwo = false;
-                    if ((s_aOpts[i].fFlags & RTGETOPT_REQ_MASK) == RTGETOPT_REQ_NOTHING)
-                    {
-                        fAdvanceTwo = i + 1 < RT_ELEMENTS(s_aOpts)
-                                   && (   strstr(s_aOpts[i+1].pszLong, "-no-") != NULL
-                                       || strstr(s_aOpts[i+1].pszLong, "-not-") != NULL
-                                       || strstr(s_aOpts[i+1].pszLong, "-dont-") != NULL
-                                      );
-                        if (fAdvanceTwo)
-                            RTPrintf("  %s, %s\n", s_aOpts[i].pszLong, s_aOpts[i + 1].pszLong);
-                        else
-                            RTPrintf("  %s\n", s_aOpts[i].pszLong);
-                    }
-                    else if ((s_aOpts[i].fFlags & RTGETOPT_REQ_MASK) == RTGETOPT_REQ_STRING)
-                        RTPrintf("  %s string\n", s_aOpts[i].pszLong);
-                    else
-                        RTPrintf("  %s value\n", s_aOpts[i].pszLong);
-                    switch (s_aOpts[i].iShort)
-                    {
-                        case SCMOPT_CONVERT_EOL:            RTPrintf("      Default: %RTbool\n", g_Defaults.fConvertEol); break;
-                        case SCMOPT_CONVERT_TABS:           RTPrintf("      Default: %RTbool\n", g_Defaults.fConvertTabs); break;
-                        case SCMOPT_FORCE_FINAL_EOL:        RTPrintf("      Default: %RTbool\n", g_Defaults.fForceFinalEol); break;
-                        case SCMOPT_FORCE_TRAILING_LINE:    RTPrintf("      Default: %RTbool\n", g_Defaults.fForceTrailingLine); break;
-                        case SCMOPT_STRIP_TRAILING_BLANKS:  RTPrintf("      Default: %RTbool\n", g_Defaults.fStripTrailingBlanks); break;
-                        case SCMOPT_STRIP_TRAILING_LINES:   RTPrintf("      Default: %RTbool\n", g_Defaults.fStripTrailingLines); break;
-                        case SCMOPT_ONLY_SVN_DIRS:          RTPrintf("      Default: %RTbool\n", g_Defaults.fOnlySvnDirs); break;
-                        case SCMOPT_ONLY_SVN_FILES:         RTPrintf("      Default: %RTbool\n", g_Defaults.fOnlySvnFiles); break;
-                        case SCMOPT_SET_SVN_EOL:            RTPrintf("      Default: %RTbool\n", g_Defaults.fSetSvnEol); break;
-                        case SCMOPT_SET_SVN_EXECUTABLE:     RTPrintf("      Default: %RTbool\n", g_Defaults.fSetSvnExecutable); break;
-                        case SCMOPT_SET_SVN_KEYWORDS:       RTPrintf("      Default: %RTbool\n", g_Defaults.fSetSvnKeywords); break;
-                        case SCMOPT_TAB_SIZE:               RTPrintf("      Default: %u\n", g_Defaults.cchTab); break;
-                        case SCMOPT_FILTER_OUT_DIRS:        RTPrintf("      Default: %s\n", g_Defaults.pszFilterOutDirs); break;
-                        case SCMOPT_FILTER_FILES:           RTPrintf("      Default: %s\n", g_Defaults.pszFilterFiles); break;
-                        case SCMOPT_FILTER_OUT_FILES:       RTPrintf("      Default: %s\n", g_Defaults.pszFilterOutFiles); break;
-                    }
-                    i += fAdvanceTwo;
-                }
+                usage(s_aOpts, RT_ELEMENTS(s_aOpts));
                 return 1;
 
             case 'q':
@@ -1561,7 +1628,7 @@ int main(int argc, char **argv)
             case 'V':
             {
                 /* The following is assuming that svn does it's job here. */
-                static const char s_szRev[] = "$Revision: 101715 $";
+                static const char s_szRev[] = "$Revision: 102132 $";
                 const char *psz = RTStrStripL(strchr(s_szRev, ' '));
                 RTPrintf("r%.*s\n", strchr(psz, ' ') - psz, psz);
                 return 0;

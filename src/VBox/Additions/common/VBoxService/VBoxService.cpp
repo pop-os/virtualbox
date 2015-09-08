@@ -17,9 +17,9 @@
 
 
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 /** @todo LOG_GROUP*/
 #ifndef _MSC_VER
 # include <unistd.h>
@@ -62,9 +62,9 @@
 #endif
 
 
-/*******************************************************************************
-*   Global Variables                                                           *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Global Variables                                                                                                             *
+*********************************************************************************************************************************/
 /** The program name (derived from argv[0]). */
 char                *g_pszProgName =  (char *)"";
 /** The current verbosity level. */
@@ -179,7 +179,7 @@ DECLCALLBACK(void) VBoxServiceDefaultTerm(void)
  * @param   enmPhase
  * @param   pfnLog
  */
-static void VBoxServiceLogHeaderFooter(PRTLOGGER pLoggerRelease, RTLOGPHASE enmPhase, PFNRTLOGPHASEMSG pfnLog)
+static DECLCALLBACK(void) VBoxServiceLogHeaderFooter(PRTLOGGER pLoggerRelease, RTLOGPHASE enmPhase, PFNRTLOGPHASEMSG pfnLog)
 {
     /* Some introductory information. */
     static RTTIMESPEC s_TimeSpec;

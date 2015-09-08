@@ -40,9 +40,10 @@
  * THE SOFTWARE.
  */
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_DEV_DMA
 #include <VBox/vmm/pdmdev.h>
 #include <VBox/err.h>
@@ -782,7 +783,7 @@ static DECLCALLBACK(uint8_t) dmaGetChannelMode(PPDMDEVINS pDevIns, unsigned uCha
 /**
  * @interface_method_impl{PDMDEVREG,pfnReset}
  */
-static void dmaReset(PPDMDEVINS pDevIns)
+static DECLCALLBACK(void) dmaReset(PPDMDEVINS pDevIns)
 {
     DMAState *pThis = PDMINS_2_DATA(pDevIns, DMAState *);
 

@@ -76,8 +76,9 @@
 
 # ifdef Q_WS_X11
 #  include "UIHostComboEditor.h"
+#  include "UIDesktopWidgetWatchdog.h"
 #  ifndef VBOX_OSE
-#  include "VBoxLicenseViewer.h"
+#   include "VBoxLicenseViewer.h"
 #  endif /* VBOX_OSE */
 # endif /* Q_WS_X11 */
 
@@ -217,8 +218,12 @@ void VBoxGlobal::destroy()
         return;
     }
 
-    /* Cleanup instance: */
-    /* Automatically on QApplication::aboutToQuit() signal: */
+    /* Cleanup instance:
+     * 1. By default, automatically on QApplication::aboutToQuit() signal.
+     * 2. But if QApplication was not started at all and we perform
+     *    early shutdown, we should do cleanup ourselves. */
+    if (m_spInstance->isValid())
+        m_spInstance->cleanup();
     /* Destroy instance: */
     delete m_spInstance;
 }
@@ -231,6 +236,7 @@ VBoxGlobal::VBoxGlobal()
     , m_pMediumEnumerator(0)
 #ifdef Q_WS_X11
     , m_enmWindowManagerType(X11WMType_Unknown)
+    , m_pDesktopWidgetWatchdog(0)
 #endif /* Q_WS_X11 */
 #if defined(DEBUG_bird)
     , mAgressiveCaching(false)
@@ -332,6 +338,74 @@ MacOSXRelease VBoxGlobal::osRelease()
     return MacOSXRelease_Unknown;
 }
 #endif /* Q_WS_MAC */
+
+int VBoxGlobal::screenCount() const
+{
+    /* Redirect call to QDesktopWidget: */
+    return QApplication::desktop()->screenCount();
+}
+
+int VBoxGlobal::screenNumber(const QWidget *pWidget) const
+{
+    /* Redirect call to QDesktopWidget: */
+    return QApplication::desktop()->screenNumber(pWidget);
+}
+
+int VBoxGlobal::screenNumber(const QPoint &point) const
+{
+    /* Redirect call to QDesktopWidget: */
+    return QApplication::desktop()->screenNumber(point);
+}
+
+const QRect VBoxGlobal::screenGeometry(int iHostScreenIndex /* = -1 */) const
+{
+#ifdef Q_WS_X11
+    /* Make sure desktop-widget watchdog already created: */
+    AssertPtrReturn(m_pDesktopWidgetWatchdog, QApplication::desktop()->screenGeometry(iHostScreenIndex));
+    /* Redirect call to UIDesktopWidgetWatchdog: */
+    return m_pDesktopWidgetWatchdog->screenGeometry(iHostScreenIndex);
+#endif /* Q_WS_X11 */
+
+    /* Redirect call to QDesktopWidget: */
+    return QApplication::desktop()->screenGeometry(iHostScreenIndex);
+}
+
+const QRect VBoxGlobal::availableGeometry(int iHostScreenIndex /* = -1 */) const
+{
+#ifdef Q_WS_X11
+    /* Make sure desktop-widget watchdog already created: */
+    AssertPtrReturn(m_pDesktopWidgetWatchdog, QApplication::desktop()->availableGeometry(iHostScreenIndex));
+    /* Redirect call to UIDesktopWidgetWatchdog: */
+    return m_pDesktopWidgetWatchdog->availableGeometry(iHostScreenIndex);
+#endif /* Q_WS_X11 */
+
+    /* Redirect call to QDesktopWidget: */
+    return QApplication::desktop()->availableGeometry(iHostScreenIndex);
+}
+
+const QRect VBoxGlobal::screenGeometry(const QWidget *pWidget) const
+{
+    /* Redirect call to existing wrapper: */
+    return screenGeometry(screenNumber(pWidget));
+}
+
+const QRect VBoxGlobal::availableGeometry(const QWidget *pWidget) const
+{
+    /* Redirect call to existing wrapper: */
+    return availableGeometry(screenNumber(pWidget));
+}
+
+const QRect VBoxGlobal::screenGeometry(const QPoint &point) const
+{
+    /* Redirect call to existing wrapper: */
+    return screenGeometry(screenNumber(point));
+}
+
+const QRect VBoxGlobal::availableGeometry(const QPoint &point) const
+{
+    /* Redirect call to existing wrapper: */
+    return availableGeometry(screenNumber(point));
+}
 
 /**
  *  Sets the new global settings and saves them to the VirtualBox server.
@@ -2910,8 +2984,9 @@ quint64 VBoxGlobal::requiredVideoMemory(const QString &strGuestOSTypeId, int cMo
      * correct, but as we can't predict on which host screens the user will
      * open the guest windows, this is the best assumption we can do, cause it
      * is the worst case. */
-    QVector<int> screenSize(qMax(cMonitors, pDW->numScreens()), 0);
-    for (int i = 0; i < pDW->numScreens(); ++i)
+    const int cHostScreens = pDW->screenCount();
+    QVector<int> screenSize(qMax(cMonitors, cHostScreens), 0);
+    for (int i = 0; i < cHostScreens; ++i)
     {
         QRect r = pDW->screenGeometry(i);
         screenSize[i] = r.width() * r.height();
@@ -4039,6 +4114,9 @@ void VBoxGlobal::prepare()
 #ifdef Q_WS_X11
     /* Acquire current Window Manager type: */
     m_enmWindowManagerType = X11WindowManagerType();
+
+    /* Create desktop-widget watchdog instance: */
+    m_pDesktopWidgetWatchdog = new UIDesktopWidgetWatchdog(this);
 #endif /* Q_WS_X11 */
 
 #ifdef VBOX_WITH_DEBUGGER_GUI
@@ -4381,17 +4459,24 @@ void VBoxGlobal::cleanup()
     mFamilyIDs.clear();
     mTypes.clear();
 
-    /* the last steps to ensure we don't use COM any more */
-    m_host.detach();
-    m_vbox.detach();
-    m_client.detach();
+    /* Starting COM cleanup: */
+    m_comCleanupProtectionToken.lockForWrite();
+    {
+        /* First, make sure we don't use COM any more: */
+        m_host.detach();
+        m_vbox.detach();
+        m_client.detach();
 
-    /* There may be UIMedium(s)EnumeratedEvent instances still in the message
-     * queue which reference COM objects. Remove them to release those objects
-     * before uninitializing the COM subsystem. */
-    QApplication::removePostedEvents (this);
+        /* There may be UIMedium(s)EnumeratedEvent instances still in the message
+         * queue which reference COM objects. Remove them to release those objects
+         * before uninitializing the COM subsystem. */
+        QApplication::removePostedEvents(this);
 
-    COMBase::CleanupCOM();
+        /* Finally cleanup COM itself: */
+        COMBase::CleanupCOM();
+    }
+    /* Finishing COM cleanup: */
+    m_comCleanupProtectionToken.unlock();
 
     /* Destroy popup-center: */
     UIPopupCenter::destroy();

@@ -24,9 +24,10 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #include <iprt/nt/nt-and-windows.h>
 #include <AccCtrl.h>
 #include <AclApi.h>
@@ -60,9 +61,9 @@
 #endif
 
 
-/*******************************************************************************
-*   Defined Constants And Macros                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
 /** The first argument of a respawed stub when respawned for the first time.
  * This just needs to be unique enough to avoid most confusion with real
  * executable names,  there are other checks in place to make sure we've respanwed. */
@@ -97,9 +98,9 @@
     } while (0)
 
 
-/*******************************************************************************
-*   Structures and Typedefs                                                    *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
 /**
  * Security descriptor cleanup structure.
  */
@@ -215,7 +216,7 @@ typedef struct SUPR3WINPROCPARAMS
     /** Where if message. */
     char                        szWhere[80];
     /** Error message / path name string space. */
-    char                        szErrorMsg[4096];
+    char                        szErrorMsg[16384+1024];
 } SUPR3WINPROCPARAMS;
 
 
@@ -254,9 +255,9 @@ typedef struct SUPR3HARDNTCHILD
 typedef SUPR3HARDNTCHILD *PSUPR3HARDNTCHILD;
 
 
-/*******************************************************************************
-*   Global Variables                                                           *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Global Variables                                                                                                             *
+*********************************************************************************************************************************/
 /** Process parameters.  Specified by parent if VM process, see
  *  supR3HardenedVmProcessInit. */
 static SUPR3WINPROCPARAMS   g_ProcParams = { NULL, NULL, 0, (SUPR3WINCHILDREQ)0, 0 };
@@ -371,9 +372,9 @@ static uint32_t             g_fSupAdversaries = 0;
 /** @} */
 
 
-/*******************************************************************************
-*   Internal Functions                                                         *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Internal Functions                                                                                                           *
+*********************************************************************************************************************************/
 static NTSTATUS supR3HardenedScreenImage(HANDLE hFile, bool fImage, bool fIgnoreArch, PULONG pfAccess, PULONG pfProtect,
                                          bool *pfCallRealApi, const char *pszCaller, bool fAvoidWinVerifyTrust,
                                          bool *pfQuiet);
@@ -4363,7 +4364,7 @@ static void supR3HardenedWinOpenStubDevice(void)
          * extra information that goes into VBoxStartup.log so that we stand a
          * better chance resolving the issue.
          */
-        char szErrorInfo[_4K];
+        char szErrorInfo[16384];
         int rc = VERR_OPEN_FAILED;
         if (SUP_NT_STATUS_IS_VBOX(rcNt)) /* See VBoxDrvNtErr2NtStatus. */
         {
@@ -4409,7 +4410,7 @@ static void supR3HardenedWinOpenStubDevice(void)
             supR3HardenedFatalMsg("supR3HardenedWinReSpawn", kSupInitOp_Driver, rc,
                                   "NtCreateFile(%ls) failed: %Rrc (rcNt=%#x)%s", s_wszName, rc, rcNt,
                                   supR3HardenedWinReadErrorInfoDevice(szErrorInfo, sizeof(szErrorInfo),
-                                                                    "\nVBoxDrvStub error: "));
+                                                                      "\nVBoxDrvStub error: "));
         }
         else
         {

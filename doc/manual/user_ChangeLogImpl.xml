@@ -3,6 +3,178 @@
 <chapter> <!-- HACK ALERT! Seems we must have a single top level element for xi:include to work.
                            So, we use chapter and xpointer="xpointer(/chapter/)" with xi:include. -->
   <sect1>
+    <title>Version 5.0.4 (2015-09-08)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>VMM: fixed an issue with Windows 10 guest kernel debugging over the
+          network for Hyper-V paravirtualized VMs</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: fixed a bug which prevented reading the saved state of the
+          'PATM' unit from VirtualBox 4.3.x (bug #14512)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: changed default OS type for Windows from Windows XP to Windows 7</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: added another pre-defined guest screen resolution (bug #14384)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: fixed update check which was broken due to changing the
+          location of the root certificates (bug #13096)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: fixed issues with synchronization of Caps lock / Num  lock / Scroll
+          lock on Windows hosts (bug #14302)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: don't crash during VM shutdown if 2D video acceleration and 3D support
+          are enabled (Mac OS X hosts only)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: several seamless fixes for certain X11 window managers, also when
+          used in multi-screen setups</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: Log window size, position and cursor-position fixes</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: fixed playing leftover/deprecated audio samples</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: fixed playing audio after suspending the host (5.0 regression;
+          Linux hosts using the ALSA backend)</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: fixed playing short audio samples which were chopped off
+        formerly</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: fixed distortions on OS X when the sample rate of the guest stream
+          and host device don't match</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: fixed raw disk access and flat VMDK image access which would
+          be always opened readonly (5.0.2 regression; bugs #14425, #14461)</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: fixed initial encryption of VDI images after they were
+          compacted (bug #14496)</para>
+      </listitem>
+
+      <listitem>
+        <para>VGA: fix for certain graphics modes (bug #14516)</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT: don't freeze while the VM is paused if the network attachment
+          mode is changed from/to NAT with activated port forwarding</para>
+      </listitem>
+
+      <listitem>
+        <para>OVF: fixed duplicate USB controller entries in exported OVA/OVF
+          (bug #14462)</para>
+      </listitem>
+
+      <listitem>
+        <para>Shared Folders: fixed a path separator issue (bug #14434)</para>
+      </listitem>
+
+      <listitem>
+        <para>Drag and drop: fixed crashes on OS X hosts when doing host-to-guest
+          transfers</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxManage: another attempt to not deny changing the network adapter
+          type at VM runtime (5.0 regression; bug #14308)</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxManage: fixed broken <computeroutput>guestcontrol &lt;VM-Name&gt; list</computeroutput>
+          command (5.0 regression)</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxManage: fixed broken Guest Control stdout/stderr output (5.0 regression)</para>
+      </listitem>
+
+      <listitem>
+        <para>Mac OS X hosts: fixed remaining problems with activated SMAP (Broadwell
+          and later; bug #14412)</para>
+      </listitem>
+
+      <listitem>
+        <para>Mac OS X hosts: fixed broken 3D support (5.0.2 regression;
+          bug #14476)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts: Linux 4.2 fix</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts: don't crash on older Linux distributions if the DBus
+          service isn't running (bug #14543)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows hosts: fixed the <emphasis>VERR_LDR_MISMATCH_NATIVE</emphasis>
+          error message (bug #14420)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows hosts: fix for Windows 10 build 10525 and later (bug #14502)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows hosts: fixed network adapter enumeration on Windows 10 (bug #14437)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows hosts: prevent intermittent host network disconnects during
+          VM start/shutdown with bridged networking (bug #14500)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows Additions: fixed the call to the memory allocation function
+          (bug #14415)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: be more forgiving if the compilation of the
+          vboxvideo module fails (bug #14547)</para>
+      </listitem>
+
+      <listitem>
+        <para>X11 Additions: fixed a number of small issues with dynamic
+           resizing and full-screen and seamless modes.</para>
+      </listitem>
+
+    </itemizedlist>
+
+  </sect1>
+
+  <sect1>
     <title>Version 5.0.2 (2015-08-13)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or
@@ -57,7 +229,7 @@
 
       <listitem>
         <para>GUI: X11: fixed various mini-toolbar geometry quirks like positioning, z-order,
-          transiency issues on certain window managers (bug #14257)</para>
+          transparency issues on certain window managers (bug #14257)</para>
       </listitem>
 
       <listitem>
@@ -2942,4 +3114,3 @@
   </sect1>
 
 </chapter>
-

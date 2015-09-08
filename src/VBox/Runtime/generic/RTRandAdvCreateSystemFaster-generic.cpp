@@ -25,16 +25,16 @@
  */
 
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #include <iprt/rand.h>
 #include "internal/iprt.h"
 
 #include <iprt/err.h>
 
 
-RTDECL(int) RTRandAdvCreateSystemFaster(PRTRAND phRand) RT_NO_THROW
+RTDECL(int) RTRandAdvCreateSystemFaster(PRTRAND phRand) RT_NO_THROW_DEF
 {
     NOREF(phRand);
     return VERR_NOT_SUPPORTED;

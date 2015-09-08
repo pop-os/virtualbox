@@ -24,9 +24,10 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #ifdef IN_RING0
 # define IPRT_NT_MAP_TO_ZW
 # include <iprt/nt/nt.h>
@@ -51,9 +52,9 @@
 #include "win/SUPHardenedVerify-win.h"
 
 
-/*******************************************************************************
-*   Structures and Typedefs                                                    *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
 /**
  * Virtual address space region.
  */
@@ -168,9 +169,9 @@ typedef struct SUPHNTVPSTATE
 typedef SUPHNTVPSTATE *PSUPHNTVPSTATE;
 
 
-/*******************************************************************************
-*   Global Variables                                                           *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Global Variables                                                                                                             *
+*********************************************************************************************************************************/
 /**
  * System DLLs allowed to be loaded into the process.
  * @remarks supHardNtVpCheckDlls assumes these are lower case.
@@ -205,7 +206,8 @@ static const char *g_apszSupNtVpAllowedDlls[] =
 
 /**
  * VBox executables allowed to start VMs.
- * @remarks Remember to keep in sync with SUPR3HardenedVerify.cpp.
+ * @remarks Remember to keep in sync with g_aSupInstallFiles in
+ *          SUPR3HardenedVerify.cpp.
  */
 static const char *g_apszSupNtVpAllowedVmExes[] =
 {
@@ -221,6 +223,7 @@ static const char *g_apszSupNtVpAllowedVmExes[] =
     "tstVMM.exe",
     "tstVMREQ.exe",
     "tstCFGM.exe",
+    "tstGIP-2.exe",
     "tstIntNet-1.exe",
     "tstMMHyperHeap.exe",
     "tstRTR0ThreadPreemptionDriver.exe",

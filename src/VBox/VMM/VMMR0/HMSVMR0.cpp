@@ -15,9 +15,10 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_HM
 #include <iprt/asm-amd64-x86.h>
 #include <iprt/thread.h>
@@ -41,9 +42,9 @@
 #endif
 
 
-/*******************************************************************************
-*   Defined Constants And Macros                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
 #ifdef VBOX_WITH_STATISTICS
 # define HMSVM_EXITCODE_STAM_COUNTER_INC(u64ExitCode) do { \
         STAM_COUNTER_INC(&pVCpu->hm.s.StatExitAll); \
@@ -260,9 +261,10 @@ typedef enum SVMMSREXITWRITE
  */
 typedef int FNSVMEXITHANDLER(PVMCPU pVCpu, PCPUMCTX pCtx, PSVMTRANSIENT pSvmTransient);
 
-/*******************************************************************************
-*   Internal Functions                                                         *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Internal Functions                                                                                                           *
+*********************************************************************************************************************************/
 static void hmR0SvmSetMsrPermission(PVMCPU pVCpu, unsigned uMsr, SVMMSREXITREAD enmRead, SVMMSREXITWRITE enmWrite);
 static void hmR0SvmPendingEventToTrpmTrap(PVMCPU pVCpu);
 static void hmR0SvmLeave(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx);
@@ -304,9 +306,10 @@ static FNSVMEXITHANDLER hmR0SvmExitXcptDB;
 
 DECLINLINE(int) hmR0SvmHandleExit(PVMCPU pVCpu, PCPUMCTX pMixedCtx, PSVMTRANSIENT pSvmTransient);
 
-/*******************************************************************************
-*   Global Variables                                                           *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Global Variables                                                                                                             *
+*********************************************************************************************************************************/
 /** Ring-0 memory object for the IO bitmap. */
 RTR0MEMOBJ                  g_hMemObjIOBitmap = NIL_RTR0MEMOBJ;
 /** Physical address of the IO bitmap. */
@@ -880,7 +883,7 @@ static void hmR0SvmFlushTaggedTlb(PVMCPU pVCpu)
     /* Set TLB flush state as checked until we return from the world switch. */
     ASMAtomicWriteBool(&pVCpu->hm.s.fCheckedTLBFlush, true);
 
-    /* Check for explicit TLB shootdowns. */
+    /* Check for explicit TLB flushes. */
     if (VMCPU_FF_TEST_AND_CLEAR(pVCpu, VMCPU_FF_TLB_FLUSH))
     {
         pVCpu->hm.s.fForceTLBFlush = true;
@@ -955,25 +958,6 @@ static void hmR0SvmFlushTaggedTlb(PVMCPU pVCpu)
 
         pVCpu->hm.s.fForceTLBFlush = false;
     }
-    /** @todo We never set VMCPU_FF_TLB_SHOOTDOWN anywhere so this path should
-     *        not be executed. See hmQueueInvlPage() where it is commented
-     *        out. Support individual entry flushing someday. */
-#if 0
-    else
-    {
-        if (VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_TLB_SHOOTDOWN))
-        {
-            /* Deal with pending TLB shootdown actions which were queued when we were not executing code. */
-            STAM_COUNTER_INC(&pVCpu->hm.s.StatTlbShootdown);
-            for (uint32_t i = 0; i < pVCpu->hm.s.TlbShootdown.cPages; i++)
-                SVMR0InvlpgA(pVCpu->hm.s.TlbShootdown.aPages[i], pVmcb->ctrl.TLBCtrl.n.u32ASID);
-
-            pVCpu->hm.s.TlbShootdown.cPages = 0;
-            VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_TLB_SHOOTDOWN);
-        }
-    }
-#endif
-
 
     /* Update VMCB with the ASID. */
     if (pVmcb->ctrl.TLBCtrl.n.u32ASID != pVCpu->hm.s.uCurrentAsid)
@@ -1015,7 +999,7 @@ static void hmR0SvmFlushTaggedTlb(PVMCPU pVCpu)
  * bits for the 32->64 switcher.
  *
  * @{ */
-#if HC_ARCH_BITS == 32 && defined(VBOX_ENABLE_64_BITS_GUESTS) && !defined(VBOX_WITH_HYBRID_32BIT_KERNEL)
+#if HC_ARCH_BITS == 32 && defined(VBOX_ENABLE_64_BITS_GUESTS)
 /**
  * Prepares for and executes VMRUN (64-bit guests on a 32-bit host).
  *
@@ -1464,7 +1448,7 @@ static void hmR0SvmLoadSharedDebugState(PVMCPU pVCpu, PSVMVMCB pVmcb, PCPUMCTX p
          *
          * Note! DBGF expects a clean DR6 state before executing guest code.
          */
-#if HC_ARCH_BITS == 32 && defined(VBOX_WITH_64_BITS_GUESTS) && !defined(VBOX_WITH_HYBRID_32BIT_KERNEL)
+#if HC_ARCH_BITS == 32 && defined(VBOX_WITH_64_BITS_GUESTS)
         if (   CPUMIsGuestInLongModeEx(pCtx)
             && !CPUMIsHyperDebugStateActivePending(pVCpu))
         {
@@ -1517,7 +1501,7 @@ static void hmR0SvmLoadSharedDebugState(PVMCPU pVCpu, PSVMVMCB pVmcb, PCPUMCTX p
          */
         if (pCtx->dr[7] & (X86_DR7_ENABLED_MASK | X86_DR7_GD)) /** @todo Why GD? */
         {
-#if HC_ARCH_BITS == 32 && defined(VBOX_WITH_64_BITS_GUESTS) && !defined(VBOX_WITH_HYBRID_32BIT_KERNEL)
+#if HC_ARCH_BITS == 32 && defined(VBOX_WITH_64_BITS_GUESTS)
             if (   CPUMIsGuestInLongModeEx(pCtx)
                 && !CPUMIsGuestDebugStateActivePending(pVCpu))
             {
@@ -1541,7 +1525,7 @@ static void hmR0SvmLoadSharedDebugState(PVMCPU pVCpu, PSVMVMCB pVmcb, PCPUMCTX p
          * If no debugging enabled, we'll lazy load DR0-3. We don't need to
          * intercept #DB as DR6 is updated in the VMCB.
          */
-#if HC_ARCH_BITS == 32 && defined(VBOX_WITH_64_BITS_GUESTS) && !defined(VBOX_WITH_HYBRID_32BIT_KERNEL)
+#if HC_ARCH_BITS == 32 && defined(VBOX_WITH_64_BITS_GUESTS)
         else if (   !CPUMIsGuestDebugStateActivePending(pVCpu)
                  && !CPUMIsGuestDebugStateActive(pVCpu))
 #else
@@ -1685,7 +1669,7 @@ static int hmR0SvmSetupVMRunHandler(PVMCPU pVCpu, PCPUMCTX pCtx)
         return VERR_PGM_UNSUPPORTED_SHADOW_PAGING_MODE;
 #endif
         Assert(pVCpu->CTX_SUFF(pVM)->hm.s.fAllow64BitGuests);    /* Guaranteed by hmR3InitFinalizeR0(). */
-#if HC_ARCH_BITS == 32 && !defined(VBOX_WITH_HYBRID_32BIT_KERNEL)
+#if HC_ARCH_BITS == 32
         /* 32-bit host. We need to switch to 64-bit before running the 64-bit guest. */
         pVCpu->hm.s.svm.pfnVMRun = SVMR0VMSwitcherRun64;
 #else
@@ -2184,7 +2168,7 @@ static int hmR0SvmLongJmpToRing3(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
  * @param   pvUser          The user argument (pointer to the possibly
  *                          out-of-date guest-CPU context).
  */
-DECLCALLBACK(int) hmR0SvmCallRing3Callback(PVMCPU pVCpu, VMMCALLRING3 enmOperation, void *pvUser)
+static DECLCALLBACK(int) hmR0SvmCallRing3Callback(PVMCPU pVCpu, VMMCALLRING3 enmOperation, void *pvUser)
 {
     if (enmOperation == VMMCALLRING3_VM_R0_ASSERTION)
     {
@@ -3131,7 +3115,7 @@ static void hmR0SvmPreRunGuestCommitted(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, PS
         pVmcb->ctrl.u64VmcbCleanBits = 0;
 
     /* Store status of the shared guest-host state at the time of VMRUN. */
-#if HC_ARCH_BITS == 32 && defined(VBOX_WITH_64_BITS_GUESTS) && !defined(VBOX_WITH_HYBRID_32BIT_KERNEL)
+#if HC_ARCH_BITS == 32 && defined(VBOX_WITH_64_BITS_GUESTS)
     if (CPUMIsGuestInLongModeEx(pCtx))
     {
         pSvmTransient->fWasGuestDebugStateActive = CPUMIsGuestDebugStateActivePending(pVCpu);
@@ -3146,7 +3130,7 @@ static void hmR0SvmPreRunGuestCommitted(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, PS
     pSvmTransient->fWasGuestFPUStateActive = CPUMIsGuestFPUStateActive(pVCpu);
 
     /* Flush the appropriate tagged-TLB entries. */
-    ASMAtomicWriteBool(&pVCpu->hm.s.fCheckedTLBFlush, true);    /* Used for TLB-shootdowns, set this across the world switch. */
+    ASMAtomicWriteBool(&pVCpu->hm.s.fCheckedTLBFlush, true);    /* Used for TLB flushing, set this across the world switch. */
     hmR0SvmFlushTaggedTlb(pVCpu);
     Assert(HMR0GetCurrentCpu()->idCpu == pVCpu->hm.s.idLastCpu);
 
@@ -3229,8 +3213,8 @@ static void hmR0SvmPostRunGuest(PVM pVM, PVMCPU pVCpu, PCPUMCTX pMixedCtx, PSVMT
 {
     Assert(!VMMRZCallRing3IsEnabled(pVCpu));
 
-    ASMAtomicWriteBool(&pVCpu->hm.s.fCheckedTLBFlush, false);   /* See HMInvalidatePageOnAllVCpus(): used for TLB-shootdowns. */
-    ASMAtomicIncU32(&pVCpu->hm.s.cWorldSwitchExits);            /* Initialized in vmR3CreateUVM(): used for TLB-shootdowns. */
+    ASMAtomicWriteBool(&pVCpu->hm.s.fCheckedTLBFlush, false);   /* See HMInvalidatePageOnAllVCpus(): used for TLB flushing. */
+    ASMAtomicIncU32(&pVCpu->hm.s.cWorldSwitchExits);            /* Initialized in vmR3CreateUVM(): used for EMT poking. */
 
     PSVMVMCB pVmcb = (PSVMVMCB)pVCpu->hm.s.svm.pvVmcb;
     pVmcb->ctrl.u64VmcbCleanBits = HMSVM_VMCB_CLEAN_ALL;        /* Mark the VMCB-state cache as unmodified by VMM. */

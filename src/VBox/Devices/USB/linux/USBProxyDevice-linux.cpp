@@ -15,9 +15,10 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/*******************************************************************************
-*   Defined Constants And Macros                                               *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
 /** Define NO_PORT_RESET to skip the slow and broken linux port reset.
  * Resetting will break PalmOne. */
 #define NO_PORT_RESET
@@ -25,9 +26,9 @@
 #define NO_LOGICAL_RECONNECT
 
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_DRV_USBPROXY
 
 #include <iprt/stdint.h>
@@ -99,9 +100,10 @@ static inline bool rtcsTrue() { return true; }
 #include <iprt/time.h>
 #include "../USBProxyDevice.h"
 
-/*******************************************************************************
-*   Structures and Typedefs                                                    *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
 /**
  * Wrapper around the linux urb request structure.
  * This is required to track in-flight and landed URBs.
@@ -156,9 +158,9 @@ typedef struct USBPROXYDEVLNX
 } USBPROXYDEVLNX, *PUSBPROXYDEVLNX;
 
 
-/*******************************************************************************
-*   Internal Functions                                                         *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Internal Functions                                                                                                           *
+*********************************************************************************************************************************/
 static int usbProxyLinuxDoIoCtl(PUSBPROXYDEV pProxyDev, unsigned long iCmd, void *pvArg, bool fHandleNoDev, uint32_t cTries);
 static void usbProxLinuxUrbUnplugged(PUSBPROXYDEV pProxyDev);
 static void usbProxyLinuxSetConnected(PUSBPROXYDEV pProyxDev, int iIf, bool fConnect, bool fQuiet);
@@ -1144,7 +1146,7 @@ static DECLCALLBACK(int) usbProxyLinuxClaimInterface(PUSBPROXYDEV pProxyDev, int
  * Releases an interface.
  * @returns success indicator.
  */
-static int usbProxyLinuxReleaseInterface(PUSBPROXYDEV pProxyDev, int iIf)
+static DECLCALLBACK(int) usbProxyLinuxReleaseInterface(PUSBPROXYDEV pProxyDev, int iIf)
 {
     LogFlow(("usbProxyLinuxReleaseInterface: pProxyDev=%s ifnum=%#x\n", usbProxyGetName(pProxyDev), iIf));
 
@@ -1162,7 +1164,7 @@ static int usbProxyLinuxReleaseInterface(PUSBPROXYDEV pProxyDev, int iIf)
  *
  * @returns success indicator.
  */
-static int usbProxyLinuxSetInterface(PUSBPROXYDEV pProxyDev, int iIf, int iAlt)
+static DECLCALLBACK(int) usbProxyLinuxSetInterface(PUSBPROXYDEV pProxyDev, int iIf, int iAlt)
 {
     struct usbdevfs_setinterface SetIf;
     LogFlow(("usbProxyLinuxSetInterface: pProxyDev=%p iIf=%#x iAlt=%#x\n", pProxyDev, iIf, iAlt));
@@ -1181,7 +1183,7 @@ static int usbProxyLinuxSetInterface(PUSBPROXYDEV pProxyDev, int iIf, int iAlt)
 /**
  * Clears the halted endpoint 'EndPt'.
  */
-static int usbProxyLinuxClearHaltedEp(PUSBPROXYDEV pProxyDev, unsigned int EndPt)
+static DECLCALLBACK(int) usbProxyLinuxClearHaltedEp(PUSBPROXYDEV pProxyDev, unsigned int EndPt)
 {
     LogFlow(("usbProxyLinuxClearHaltedEp: pProxyDev=%s EndPt=%u\n", usbProxyGetName(pProxyDev), EndPt));
 

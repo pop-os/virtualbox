@@ -21,7 +21,6 @@
 
 /* Qt includes: */
 # include <QApplication>
-# include <QDesktopWidget>
 # include <QMainWindow>
 # include <QMenuBar>
 # include <QScrollBar>
@@ -144,15 +143,11 @@ void UIMachineViewNormal::resendSizeHint()
     /* Expand current limitations: */
     setMaxGuestSize(sizeHint);
 
-    if (uisession()->isGuestSupportsGraphics())
-    {
-        /* Temporarily restrict the size to prevent a brief resize to the
-         * framebuffer dimensions (see @a UIMachineView::sizeHint()) before
-         * the following resize() is acted upon.  Expand current limitations
-         * too. */
-        setMaximumSize(sizeHint);
-        m_sizeHintOverride = sizeHint;
-    }
+    /* Temporarily restrict the size to prevent a brief resize to the
+     * frame-buffer dimensions when we exit full-screen.  This is only
+     * applied if the frame-buffer is at full-screen dimensions and
+     * until the first machine view resize. */
+    m_sizeHintOverride = QSize(800, 600).expandedTo(sizeHint);
 
     /* Send saved size-hint to the guest: */
     /// @todo What if not m_bIsGuestAutoresizeEnabled?
@@ -223,7 +218,7 @@ void UIMachineViewNormal::adjustGuestScreenSize()
 
 QRect UIMachineViewNormal::workingArea() const
 {
-    return QApplication::desktop()->availableGeometry(this);
+    return vboxGlobal().availableGeometry(this);
 }
 
 QSize UIMachineViewNormal::calculateMaxGuestSize() const

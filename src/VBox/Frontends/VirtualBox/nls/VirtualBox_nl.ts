@@ -962,7 +962,7 @@
     </message>
     <message>
         <source>&amp;Full-screen Mode</source>
-        <translation>&amp;Sschermvullende modus</translation>
+        <translation>&amp;Schermvullende modus</translation>
     </message>
     <message>
         <source>Switch between normal and full-screen mode</source>
@@ -6188,7 +6188,8 @@
     </message>
     <message>
         <source>Remove disk from virtual drive</source>
-        <translation>Verwijder schijf van virtuele station</translation>
+        <translatorcomment>zonder &apos;het&apos; ervoor is het &apos;virtueel station&apos; en niet &apos;virtuele station&apos;</translatorcomment>
+        <translation>Schijf van virtueel station verwijderen</translation>
     </message>
     <message>
         <source>Choose a virtual floppy disk file...</source>
@@ -6396,7 +6397,7 @@
     </message>
     <message>
         <source>Remove Disk from Virtual Drive</source>
-        <translation>Verwijder schijf van virtuele station</translation>
+        <translation>Schijf van virtueel station verwijderen</translation>
     </message>
     <message>
         <source>Choose Virtual Floppy Disk File...</source>
@@ -8680,7 +8681,7 @@
     </message>
     <message>
         <source>Encryption password for &lt;nobr&gt;ID = &apos;%1&apos;&lt;/nobr&gt; is invalid.</source>
-        <translation type="unfinished"></translation>
+        <translation>Ongeldig versleutelwachtwoord voor &lt;nobr&gt;ID = &apos;%1&apos;&lt;/nobr&gt;.</translation>
     </message>
 </context>
 <context>
@@ -10229,7 +10230,7 @@
     </message>
     <message>
         <source>Export Virtual Appliance</source>
-        <translation>Exporteer Virtual Applicance</translation>
+        <translation>Exporteer Virtual Appliance</translation>
     </message>
     <message>
         <source>Restore Defaults</source>
@@ -10249,7 +10250,7 @@
     </message>
     <message>
         <source>Appliance settings</source>
-        <translation>Instellingen Appiance</translation>
+        <translation>Instellingen Appliance</translation>
     </message>
     <message>
         <source>Please choose where to create the virtual appliance. You can create it on your own computer, on the Sun Cloud service or on an S3 storage server.</source>
@@ -10333,7 +10334,7 @@
     </message>
     <message>
         <source>Appliance &amp;settings</source>
-        <translation>In&amp;stellingen Appiance</translation>
+        <translation>In&amp;stellingen Appliance</translation>
     </message>
     <message>
         <source>&amp;Destination</source>
@@ -10465,7 +10466,7 @@
     </message>
     <message>
         <source>Appliance settings</source>
-        <translation>Instellingen Appiance</translation>
+        <translation>Instellingen Appliance</translation>
     </message>
     <message>
         <source>These are the virtual machines contained in the appliance and the suggested settings of the imported VirtualBox machines. You can change many of the properties shown by double-clicking on the items and disable others using the check boxes below.</source>
@@ -10473,7 +10474,7 @@
     </message>
     <message>
         <source>Import Virtual Appliance</source>
-        <translation>Importeer Virtual Applicance</translation>
+        <translation>Importeer Virtual Appliance</translation>
     </message>
     <message>
         <source>Choose a virtual appliance file to import...</source>

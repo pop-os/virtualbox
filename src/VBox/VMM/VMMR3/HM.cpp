@@ -16,9 +16,9 @@
  */
 
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_HM
 #include <VBox/vmm/cpum.h>
 #include <VBox/vmm/stam.h>
@@ -51,9 +51,9 @@
 #include <iprt/thread.h>
 
 
-/*******************************************************************************
-*   Global Variables                                                           *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Global Variables                                                                                                             *
+*********************************************************************************************************************************/
 #ifdef VBOX_WITH_STATISTICS
 # define EXIT_REASON(def, val, str) #def " - " #val " - " str
 # define EXIT_REASON_NIL() NULL
@@ -305,9 +305,9 @@ static const char * const g_apszAmdVExitReasons[MAX_EXITREASON_STAT] =
     } while (0)
 
 
-/*******************************************************************************
-*   Internal Functions                                                         *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Internal Functions                                                                                                           *
+*********************************************************************************************************************************/
 static DECLCALLBACK(int) hmR3Save(PVM pVM, PSSMHANDLE pSSM);
 static DECLCALLBACK(int) hmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass);
 static int hmR3InitCPU(PVM pVM);
@@ -671,7 +671,7 @@ static int hmR3InitCPU(PVM pVM)
                              "/PROF/CPU%d/HM/InGC", i);
         AssertRC(rc);
 
-# if HC_ARCH_BITS == 32 && defined(VBOX_ENABLE_64_BITS_GUESTS) && !defined(VBOX_WITH_HYBRID_32BIT_KERNEL)
+# if HC_ARCH_BITS == 32 && defined(VBOX_ENABLE_64_BITS_GUESTS)
         rc = STAMR3RegisterF(pVM, &pVCpu->hm.s.StatWorldSwitch3264, STAMTYPE_PROFILE, STAMVISIBILITY_USED,
                              STAMUNIT_TICKS_PER_CALL, "Profiling of the 32/64 switcher.",
                              "/PROF/CPU%d/HM/Switcher3264", i);
@@ -797,7 +797,7 @@ static int hmR3InitCPU(PVM pVM)
         HM_REG_COUNTER(&pVCpu->hm.s.StatVmxCheckBadTr,          "/HM/CPU%d/VMXCheck/TR", "Could not use VMX due to unsuitable TR.");
         HM_REG_COUNTER(&pVCpu->hm.s.StatVmxCheckPmOk,           "/HM/CPU%d/VMXCheck/VMX_PM", "VMX execution in protected mode OK.");
 
-#if HC_ARCH_BITS == 32 && defined(VBOX_ENABLE_64_BITS_GUESTS) && !defined(VBOX_WITH_HYBRID_32BIT_KERNEL)
+#if HC_ARCH_BITS == 32 && defined(VBOX_ENABLE_64_BITS_GUESTS)
         HM_REG_COUNTER(&pVCpu->hm.s.StatFpu64SwitchBack,        "/HM/CPU%d/Switch64/Fpu", "Saving guest FPU/XMM state.");
         HM_REG_COUNTER(&pVCpu->hm.s.StatDebug64SwitchBack,      "/HM/CPU%d/Switch64/Debug", "Saving guest debug state.");
 #endif
@@ -1546,7 +1546,7 @@ VMMR3_INT_DECL(void) HMR3Relocate(PVM pVM)
             pVCpu->hm.s.enmShadowMode = PGMGetShadowMode(pVCpu);
         }
     }
-#if HC_ARCH_BITS == 32 && defined(VBOX_ENABLE_64_BITS_GUESTS) && !defined(VBOX_WITH_HYBRID_32BIT_KERNEL)
+#if HC_ARCH_BITS == 32 && defined(VBOX_ENABLE_64_BITS_GUESTS)
     if (HMIsEnabled(pVM))
     {
         switch (PGMGetHostMode(pVM))
@@ -1744,7 +1744,7 @@ VMMR3_INT_DECL(void) HMR3Reset(PVM pVM)
  * @param   pVCpu   The VMCPU for the EMT we're being called on.
  * @param   pvUser  Unused.
  */
-DECLCALLBACK(VBOXSTRICTRC) hmR3RemovePatches(PVM pVM, PVMCPU pVCpu, void *pvUser)
+static DECLCALLBACK(VBOXSTRICTRC) hmR3RemovePatches(PVM pVM, PVMCPU pVCpu, void *pvUser)
 {
     VMCPUID idCpu = (VMCPUID)(uintptr_t)pvUser;
 
@@ -1883,7 +1883,7 @@ VMMR3_INT_DECL(int)  HMR3DisablePatching(PVM pVM, RTGCPTR pPatchMem, unsigned cb
  * @param   pvUser  User specified CPU context.
  *
  */
-DECLCALLBACK(VBOXSTRICTRC) hmR3ReplaceTprInstr(PVM pVM, PVMCPU pVCpu, void *pvUser)
+static DECLCALLBACK(VBOXSTRICTRC) hmR3ReplaceTprInstr(PVM pVM, PVMCPU pVCpu, void *pvUser)
 {
     /*
      * Only execute the handler on the VCPU the original patch request was
@@ -2057,7 +2057,7 @@ DECLCALLBACK(VBOXSTRICTRC) hmR3ReplaceTprInstr(PVM pVM, PVMCPU pVCpu, void *pvUs
  * @param   pvUser  User specified CPU context.
  *
  */
-DECLCALLBACK(VBOXSTRICTRC) hmR3PatchTprInstr(PVM pVM, PVMCPU pVCpu, void *pvUser)
+static DECLCALLBACK(VBOXSTRICTRC) hmR3PatchTprInstr(PVM pVM, PVMCPU pVCpu, void *pvUser)
 {
     /*
      * Only execute the handler on the VCPU the original patch request was

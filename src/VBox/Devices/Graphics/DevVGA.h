@@ -230,6 +230,26 @@ typedef struct
     uint32_t        uPass;
 } VMSVGA_STATE_LOAD, *PVMSVGA_STATE_LOAD;
 
+/** Host screen viewport.
+ * (4th quadrant with negated Y values - usual Windows and X11 world view.) */
+typedef struct VMSVGAVIEWPORT
+{
+    uint32_t        x;                  /**< x coordinate (left). */
+    uint32_t        y;                  /**< y coordinate (top). */
+    uint32_t        cx;                 /**< width. */
+    uint32_t        cy;                 /**< height. */
+    /** Right side coordinate (exclusive). Same as x + cx. */
+    uint32_t        xRight;
+    /** First quadrant low y coordinate.
+     * Same as y + cy - 1 in window coordinates. */
+    uint32_t        yLowWC;
+    /** First quadrant high y coordinate (exclusive) - yLowWC + cy.
+     * Same as y - 1 in window coordinates. */
+    uint32_t        yHighWC;
+    /** Alignment padding. */
+    uint32_t        uAlignment;
+} VMSVGAVIEWPORT;
+
 /** Pointer to the private VMSVGA ring-3 state structure.
  * @todo Still not entirely satisfired with the type name, but better than
  *       the previous lower/upper case only distinction. */
@@ -308,14 +328,10 @@ typedef struct VMSVGAState
     uint32_t                    u32MaxWidth;
     /** Maximum height supported. */
     uint32_t                    u32MaxHeight;
-    /** Viewport rectangle */
-    struct
-    {
-        uint32_t                x;
-        uint32_t                y;
-        uint32_t                cx;
-        uint32_t                cy;
-    } viewport;
+    /** Viewport rectangle, i.e. what's currently visible of the target host
+     *  window.  This is usually (0,0)(uWidth,uHeight), but if the window is
+     *  shrunk and scrolling applied, both the origin and size may differ.  */
+    VMSVGAVIEWPORT              viewport;
     /** Action flags */
     uint32_t                    u32ActionFlags;
     /** SVGA 3d extensions enabled or not. */
@@ -401,7 +417,7 @@ typedef struct VGAState {
     PPDMDEVINSRC                pDevInsRC;
     /** Pointer to the GC vram mapping. */
     RCPTRTYPE(uint8_t *)        vram_ptrRC;
-    uint32_t                    PaddingMinus1;
+    uint32_t                    Padding1;
 
     /** Pointer to the device instance - R3 Ptr. */
     PPDMDEVINSR3                pDevInsR3;
@@ -442,12 +458,13 @@ typedef struct VGAState {
     /** The R0 vram pointer... */
     R0PTRTYPE(uint8_t *)        vram_ptrR0;
 
-#ifdef VBOX_WITH_VMSVGA
 # if HC_ARCH_BITS == 32
     uint32_t                    Padding3;
 # endif
+
+# ifdef VBOX_WITH_VMSVGA
     VMSVGAState                 svga;
-#endif
+# endif
 
     /** The number of monitors. */
     uint32_t                    cMonitors;
@@ -468,13 +485,13 @@ typedef struct VGAState {
     bool                        fRemappedVGA;
     /** Whether to render the guest VRAM to the framebuffer memory. False only for some LFB modes. */
     bool                        fRenderVRAM;
-#ifdef VBOX_WITH_VMSVGA
+# ifdef VBOX_WITH_VMSVGA
     /* Whether the SVGA emulation is enabled or not. */
     bool                        fVMSVGAEnabled;
-    bool                        Padding1[1+4];
-#else
-    bool                        Padding1[2+4];
-#endif
+    bool                        Padding4[1+4];
+# else
+    bool                        Padding4[2+4];
+# endif
 
     /** Physical access type for the linear frame buffer dirty page tracking. */
     PGMPHYSHANDLERTYPE          hLfbAccessHandlerType;
@@ -680,7 +697,7 @@ int VBVAGetInfoViewAndScreen(PVGASTATE pVGAState, uint32_t u32ViewIndex, VBVAINF
 uint32_t HGSMIReset (PHGSMIINSTANCE pIns);
 
 # ifdef VBOX_WITH_VIDEOHWACCEL
-int vbvaVHWACommandCompleteAsync(PPDMIDISPLAYVBVACALLBACKS pInterface, PVBOXVHWACMD pCmd);
+DECLCALLBACK(int) vbvaVHWACommandCompleteAsync(PPDMIDISPLAYVBVACALLBACKS pInterface, PVBOXVHWACMD pCmd);
 int vbvaVHWAConstruct (PVGASTATE pVGAState);
 int vbvaVHWAReset (PVGASTATE pVGAState);
 
@@ -695,14 +712,16 @@ int vboxVBVASaveStateDone (PPDMDEVINS pDevIns, PSSMHANDLE pSSM);
 #endif
 
 # ifdef VBOX_WITH_CRHGSMI
-int vboxVDMACrHgsmiCommandCompleteAsync(PPDMIDISPLAYVBVACALLBACKS pInterface, PVBOXVDMACMD_CHROMIUM_CMD pCmd, int rc);
-int vboxVDMACrHgsmiControlCompleteAsync(PPDMIDISPLAYVBVACALLBACKS pInterface, PVBOXVDMACMD_CHROMIUM_CTL pCmd, int rc);
-int vboxCmdVBVACmdHostCtl(PPDMIDISPLAYVBVACALLBACKS pInterface,
-                                                               struct VBOXCRCMDCTL* pCmd, uint32_t cbCmd,
-                                                               PFNCRCTLCOMPLETION pfnCompletion,
-                                                               void *pvCompletion);
-int vboxCmdVBVACmdHostCtlSync(PPDMIDISPLAYVBVACALLBACKS pInterface,
-                                                               struct VBOXCRCMDCTL* pCmd, uint32_t cbCmd);
+DECLCALLBACK(int) vboxVDMACrHgsmiCommandCompleteAsync(PPDMIDISPLAYVBVACALLBACKS pInterface,
+                                                      PVBOXVDMACMD_CHROMIUM_CMD pCmd, int rc);
+DECLCALLBACK(int) vboxVDMACrHgsmiControlCompleteAsync(PPDMIDISPLAYVBVACALLBACKS pInterface,
+                                                      PVBOXVDMACMD_CHROMIUM_CTL pCmd, int rc);
+DECLCALLBACK(int) vboxCmdVBVACmdHostCtl(PPDMIDISPLAYVBVACALLBACKS pInterface,
+                                        struct VBOXCRCMDCTL* pCmd, uint32_t cbCmd,
+                                        PFNCRCTLCOMPLETION pfnCompletion,
+                                        void *pvCompletion);
+DECLCALLBACK(int) vboxCmdVBVACmdHostCtlSync(PPDMIDISPLAYVBVACALLBACKS pInterface,
+                                            struct VBOXCRCMDCTL* pCmd, uint32_t cbCmd);
 # endif
 
 int vboxVBVASaveStateExec (PPDMDEVINS pDevIns, PSSMHANDLE pSSM);

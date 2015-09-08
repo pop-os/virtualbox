@@ -15,9 +15,10 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_NET_SERVICE
 
 #include <VBox/com/com.h>
@@ -67,9 +68,9 @@
 #endif
 
 
-/*******************************************************************************
-*   Structures and Typedefs                                                    *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
 struct VBoxNetBaseService::Data
 {
     Data(const std::string& aServiceName, const std::string& aNetworkName):
@@ -122,12 +123,13 @@ struct VBoxNetBaseService::Data
     RTTHREAD m_hThrRecv;
 
     bool fShutdown;
-    static int recvLoop(RTTHREAD, void *);
+    static DECLCALLBACK(int) recvLoop(RTTHREAD, void *);
 };
 
-/*******************************************************************************
-*   Global Variables                                                           *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Global Variables                                                                                                             *
+*********************************************************************************************************************************/
 /* Commonly used options for network configuration */
 static RTGETOPTDEF g_aGetOptDef[] =
 {
@@ -143,7 +145,7 @@ static RTGETOPTDEF g_aGetOptDef[] =
 };
 
 
-int VBoxNetBaseService::Data::recvLoop(RTTHREAD, void *pvUser)
+DECLCALLBACK(int) VBoxNetBaseService::Data::recvLoop(RTTHREAD, void *pvUser)
 {
     VBoxNetBaseService *pThis = static_cast<VBoxNetBaseService *>(pvUser);
 

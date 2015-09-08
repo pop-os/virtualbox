@@ -17,9 +17,10 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #include <VBox/types.h>
 #include <iprt/x86.h>
 
@@ -114,9 +115,9 @@
 #include <stdio.h>
 
 
-/*******************************************************************************
-*   Defined Constants And Macros                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
 /**
  * Checks the offset of a data member.
  * @param   type    Type.
@@ -342,8 +343,11 @@ int main()
     CHECK_MEMBER_ALIGNMENT(PITSTATE, StatPITIrq, 8);
     CHECK_MEMBER_ALIGNMENT(SerialState, CritSect, 8);
 #ifdef VBOX_WITH_VMSVGA
+    CHECK_SIZE(VMSVGAState, RT_ALIGN_Z(sizeof(VMSVGAState), 8));
+    CHECK_MEMBER_ALIGNMENT(VGASTATE, svga, 8);
     CHECK_MEMBER_ALIGNMENT(VGASTATE, svga.u64HostWindowId, 8);
 #endif
+    CHECK_MEMBER_ALIGNMENT(VGASTATE, cMonitors, 8);
     CHECK_MEMBER_ALIGNMENT(VGASTATE, GCPhysVRAM, 8);
     CHECK_MEMBER_ALIGNMENT(VGASTATE, Dev, 8);
     CHECK_MEMBER_ALIGNMENT(VGASTATE, CritSect, 8);

@@ -25,9 +25,9 @@
  */
 
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #include "internal/iprt.h"
 #include <iprt/mem.h>
 
@@ -50,9 +50,9 @@
 #endif
 
 
-/*******************************************************************************
-*   Defined Constants And Macros                                               *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
 /** Threshold at which to we switch to simply calling mmap. */
 #define RTMEMPAGEPOSIX_MMAP_THRESHOLD   _128K
 /** The size of a heap block (power of two) - in bytes. */
@@ -62,9 +62,9 @@ AssertCompile(RTMEMPAGEPOSIX_BLOCK_SIZE == (RTMEMPAGEPOSIX_BLOCK_SIZE / PAGE_SIZ
 #define RTMEMPAGEPOSIX_BLOCK_PAGE_COUNT (RTMEMPAGEPOSIX_BLOCK_SIZE / PAGE_SIZE)
 
 
-/*******************************************************************************
-*   Structures and Typedefs                                                    *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
 /** Pointer to a page heap block. */
 typedef struct RTHEAPPAGEBLOCK *PRTHEAPPAGEBLOCK;
 
@@ -134,9 +134,9 @@ typedef struct RTHEAPPAGEALLOCARGS
 } RTHEAPPAGEALLOCARGS;
 
 
-/*******************************************************************************
-*   Global Variables                                                           *
-*******************************************************************************/
+/*********************************************************************************************************************************
+*   Global Variables                                                                                                             *
+*********************************************************************************************************************************/
 /** Initialize once structure. */
 static RTONCE       g_MemPagePosixInitOnce = RTONCE_INITIALIZER;
 /** The page heap. */
@@ -723,19 +723,19 @@ static void rtMemPagePosixFree(void *pv, size_t cb, PRTHEAPPAGE pHeap)
 
 
 
-RTDECL(void *) RTMemPageAllocTag(size_t cb, const char *pszTag) RT_NO_THROW
+RTDECL(void *) RTMemPageAllocTag(size_t cb, const char *pszTag) RT_NO_THROW_DEF
 {
     return rtMemPagePosixAlloc(cb, pszTag, false /*fZero*/, &g_MemPagePosixHeap);
 }
 
 
-RTDECL(void *) RTMemPageAllocZTag(size_t cb, const char *pszTag) RT_NO_THROW
+RTDECL(void *) RTMemPageAllocZTag(size_t cb, const char *pszTag) RT_NO_THROW_DEF
 {
     return rtMemPagePosixAlloc(cb, pszTag, true /*fZero*/, &g_MemPagePosixHeap);
 }
 
 
-RTDECL(void) RTMemPageFree(void *pv, size_t cb) RT_NO_THROW
+RTDECL(void) RTMemPageFree(void *pv, size_t cb) RT_NO_THROW_DEF
 {
     return rtMemPagePosixFree(pv, cb, &g_MemPagePosixHeap);
 }
@@ -744,13 +744,13 @@ RTDECL(void) RTMemPageFree(void *pv, size_t cb) RT_NO_THROW
 
 
 
-RTDECL(void *) RTMemExecAllocTag(size_t cb, const char *pszTag) RT_NO_THROW
+RTDECL(void *) RTMemExecAllocTag(size_t cb, const char *pszTag) RT_NO_THROW_DEF
 {
     return rtMemPagePosixAlloc(cb, pszTag, false /*fZero*/, &g_MemExecPosixHeap);
 }
 
 
-RTDECL(void) RTMemExecFree(void *pv, size_t cb) RT_NO_THROW
+RTDECL(void) RTMemExecFree(void *pv, size_t cb) RT_NO_THROW_DEF
 {
     return rtMemPagePosixFree(pv, cb, &g_MemExecPosixHeap);
 }

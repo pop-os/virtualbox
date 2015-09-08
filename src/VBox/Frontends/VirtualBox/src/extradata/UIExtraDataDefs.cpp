@@ -164,3 +164,6 @@ const char* UIExtraDataDefs::GUI_ExtraDataManager_Geometry = "GUI/ExtraDataManag
 const char* UIExtraDataDefs::GUI_ExtraDataManager_SplitterHints = "GUI/ExtraDataManager/SplitterHints";
 #endif /* DEBUG */
 
+/* Virtual Machine: Log dialog: */
+const char* UIExtraDataDefs::GUI_LogWindowGeometry = "GUI/LogWindowGeometry";
+
