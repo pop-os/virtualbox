@@ -88,7 +88,7 @@ Description: x86 virtualization solution - Qt based user interface
 
 Package: virtualbox
 Architecture: amd64 i386
-Pre-Depends: dpkg (>= 1.15.6~)
+Pre-Depends: dpkg (>= 1.15.6~), virtualbox-dkms (= ${binary:Version})
 Depends: adduser, ${misc:Depends}, ${python:Depends}, ${shlibs:Depends}
 Recommends: virtualbox-dkms (= ${source:Version}) | virtualbox-source (= ${source:Version}),
             virtualbox-qt (= ${binary:Version}),
