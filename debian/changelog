@@ -1,10 +1,17 @@
-virtualbox (5.0.4-dfsg-3) UNRELEASED; urgency=medium
+virtualbox (5.0.4-dfsg-3) unstable; urgency=high
 
+  [ Gianfranco Costamagna ]
   * Add xmllint (libxml2-utils) to build-dependencies, to check documentation
     during build (Closes: #798638)
     - add VBOX_PATH_DOCBOOK_DTD := /usr/share/xml/docbook/schema/dtd/4/ to
       LocalConfig.kmk
     - thanks a lot to Graham Inggs for the hint!
+
+  [ Ritesh Raj Sarraf ]
+  * Demote virtualbox-dkms | virtualbox-source to pre-depends,
+    needed to fully configure virtualbox kernel module prior
+    to reload virtualbox service, avoiding a race condition.
+    (Closes: #798527, #798979)
 
  -- Gianfranco Costamagna <locutusofborg@debian.org>  Fri, 11 Sep 2015 12:53:53 +0200
 
