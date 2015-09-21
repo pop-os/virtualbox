@@ -107,8 +107,9 @@ override_dh_install:
 
 	install -m 644 -p -D out/bin/additions/vboxvideo_drv_system.so \
 	    debian/$(uxname)/usr/lib/xorg/modules/drivers/vboxvideo_drv.so
+	if [ -f debian/$(sxname)/usr/share/icons/hicolor/32x32/apps/virtualbox.png ] ; then \
 	convert debian/$(sxname)/usr/share/icons/hicolor/32x32/apps/virtualbox.png \
-	    debian/$(sxname)/usr/share/pixmaps/virtualbox.xpm
+	    debian/$(sxname)/usr/share/pixmaps/virtualbox.xpm; fi
 
 ifeq ($(DIST_NAME),Ubuntu)
 	install -m 644 -p -D debian/apport-hook.py \
@@ -124,23 +125,24 @@ override_dh_link:
 
 override_dh_fixperms:
 	dh_fixperms
-
-	chmod +s debian/$(sname)$(INSTALL_PATH)/VBoxSDL
-	chmod +s debian/$(sname)$(INSTALL_PATH)/VBoxHeadless
-	chmod +s debian/$(sname)$(INSTALL_PATH)/VBoxNetDHCP
-	chmod +s debian/$(sname)$(INSTALL_PATH)/VBoxNetAdpCtl
-	chmod +s debian/$(sxname)$(INSTALL_PATH)/VirtualBox
-
-	chmod 644 debian/$(sname)$(INSTALL_PATH)/*.rc
-	chmod 644 debian/$(sname)$(INSTALL_PATH)/*.r0
-
-	chmod 644 debian/$(sname)$(INSTALL_PATH)/sdk/bindings/xpcom/python/xpcom/*.py
-	chmod 644 debian/$(sname)$(INSTALL_PATH)/sdk/bindings/xpcom/python/xpcom/server/*.py
-	chmod 644 debian/$(sname)$(INSTALL_PATH)/sdk/bindings/xpcom/python/xpcom/client/*.py
-	chmod 644 debian/$(sname)$(INSTALL_PATH)/sdk/bindings/xpcom/java/vboxjxpcom.jar
-
-	chmod 755 debian/$(uxname)/usr/share/virtualbox/x11config.pl
-	chmod 755 debian/$(sname)/usr/share/virtualbox/VBox.sh
+	if [ -d debian/$(sxname) ] ; then \
+	chmod +s debian/$(sname)$(INSTALL_PATH)/VBoxSDL; \
+	chmod +s debian/$(sname)$(INSTALL_PATH)/VBoxHeadless; \
+	chmod +s debian/$(sname)$(INSTALL_PATH)/VBoxNetDHCP; \
+	chmod +s debian/$(sname)$(INSTALL_PATH)/VBoxNetAdpCtl; \
+	chmod +s debian/$(sxname)$(INSTALL_PATH)/VirtualBox; \
+	\
+	chmod 644 debian/$(sname)$(INSTALL_PATH)/*.rc; \
+	chmod 644 debian/$(sname)$(INSTALL_PATH)/*.r0; \
+	\
+	chmod 644 debian/$(sname)$(INSTALL_PATH)/sdk/bindings/xpcom/python/xpcom/*.py; \
+	chmod 644 debian/$(sname)$(INSTALL_PATH)/sdk/bindings/xpcom/python/xpcom/server/*.py; \
+	chmod 644 debian/$(sname)$(INSTALL_PATH)/sdk/bindings/xpcom/python/xpcom/client/*.py; \
+	chmod 644 debian/$(sname)$(INSTALL_PATH)/sdk/bindings/xpcom/java/vboxjxpcom.jar; \
+	\
+	chmod 755 debian/$(uxname)/usr/share/virtualbox/x11config.pl; \
+	chmod 755 debian/$(sname)/usr/share/virtualbox/VBox.sh; \
+	fi
 
 # check if arch-all packages are being built
 ifneq (,$(filter $(psource), $(shell dh_listpackages)))
