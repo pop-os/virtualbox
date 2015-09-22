@@ -1,5 +1,5 @@
 Source: virtualbox
-Section: misc
+Section: contrib/misc
 Priority: optional
 Maintainer: Debian Virtualbox Team <pkg-virtualbox-devel@lists.alioth.debian.org>
 Uploaders: Ritesh Raj Sarraf <rrs@debian.org>,
@@ -11,7 +11,7 @@ Vcs-Git: git://anonscm.debian.org/pkg-virtualbox/virtualbox.git
 Vcs-Browser: http://anonscm.debian.org/gitweb/?p=pkg-virtualbox/virtualbox.git
 
 Package: virtualbox-modules-_KVERS_
-Section: kernel
+Section: contrib/kernel
 Architecture: amd64 i386
 Depends: linux-modules-_KVERS_ | linux-image-_KVERS_
 Recommends: virtualbox
