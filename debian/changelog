@@ -1,3 +1,10 @@
+virtualbox (5.0.4-dfsg-5) UNRELEASED; urgency=medium
+
+  * Update control.modules.in for -source and guest-source packages.
+    Bump std-version, update VCS, update maintainers and uploaders list.
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Tue, 22 Sep 2015 08:53:36 +0200
+
 virtualbox (5.0.4-dfsg-4) unstable; urgency=medium
 
   * Make package build in arch:all only mode
