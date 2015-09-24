@@ -3,7 +3,10 @@ virtualbox (5.0.4-dfsg-5) UNRELEASED; urgency=medium
   * Update control.modules.in for -source and guest-source packages.
     Bump std-version, update VCS, update maintainers and uploaders list,
     follow the control move to contrib.
-  * move back dkms to Depends
+  * Move back dkms to Depends, the correct fix should be to just depend on it
+    (thanks to the nice -devel discussion)
+  * Remove pre-depends on dpkg because oostable already has a newer version
+    (form zigo).
 
  -- Gianfranco Costamagna <locutusofborg@debian.org>  Tue, 22 Sep 2015 08:53:36 +0200
 
