@@ -75,7 +75,6 @@ Vcs-Browser: http://anonscm.debian.org/gitweb/?p=pkg-virtualbox/virtualbox.git
 
 Package: virtualbox-qt
 Architecture: amd64 i386
-Pre-Depends: dpkg (>= 1.15.6~)
 Depends: virtualbox (= ${binary:Version}), ${misc:Depends}, ${shlibs:Depends}
 Breaks: virtualbox (<< 4.1.6-dfsg-2~)
 Replaces: virtualbox (<< 4.1.6-dfsg-2~)
@@ -88,7 +87,6 @@ Description: x86 virtualization solution - Qt based user interface
 
 Package: virtualbox
 Architecture: amd64 i386
-Pre-Depends: dpkg (>= 1.15.6~)
 Depends: adduser, ${misc:Depends}, ${python:Depends}, ${shlibs:Depends}, virtualbox-dkms (= ${source:Version}) | virtualbox-source (= ${source:Version})
 Recommends: virtualbox-qt (= ${binary:Version}), ${shlibs:Recommends}
 Suggests: vde2, virtualbox-guest-additions-iso
@@ -117,7 +115,6 @@ Package: virtualbox-dbg
 Section: contrib/debug
 Priority: extra
 Architecture: amd64 i386
-Pre-Depends: dpkg (>= 1.15.6~)
 Depends: virtualbox (= ${binary:Version}) | virtualbox-guest-utils (= ${binary:Version}),
          ${misc:Depends}
 Description: x86 virtualization solution - debugging symbols
@@ -130,7 +127,6 @@ Description: x86 virtualization solution - debugging symbols
 Package: virtualbox-dkms
 Section: contrib/kernel
 Architecture: all
-Pre-Depends: dpkg (>= 1.15.6~)
 Depends: ${misc:Depends}
 Recommends: virtualbox (>= ${source:Version})
 Description: x86 virtualization solution - kernel module sources for dkms
@@ -164,7 +160,6 @@ Description: x86 virtualization solution - kernel module source
 Package: virtualbox-guest-dkms
 Section: contrib/kernel
 Architecture: all
-Pre-Depends: dpkg (>= 1.15.6~)
 Depends: virtualbox-guest-utils (>= ${source:Version}), ${misc:Depends}
 XB-Modaliases: ${modaliases}
 Provides: virtualbox-guest-modules
@@ -199,7 +194,6 @@ Description: x86 virtualization solution - guest addition module source
 Package: virtualbox-guest-x11
 Section: contrib/x11
 Architecture: amd64 i386
-Pre-Depends: dpkg (>= 1.15.6~)
 Depends: libnotify-bin,
          virtualbox-guest-utils (= ${binary:Version}),
          ${misc:Depends},
@@ -218,7 +212,6 @@ Description: x86 virtualization solution - X11 guest utilities
 
 Package: virtualbox-guest-utils
 Architecture: amd64 i386
-Pre-Depends: dpkg (>= 1.15.6~)
 Depends: adduser, pciutils, ${misc:Depends}, ${shlibs:Depends}
 Recommends: virtualbox-guest-dkms (= ${source:Version}) | virtualbox-guest-source (= ${source:Version}) | virtualbox-guest-modules,
             virtualbox-guest-x11 (= ${binary:Version})
