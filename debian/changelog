@@ -14,7 +14,7 @@ virtualbox (5.0.4-dfsg-4) unstable; urgency=medium
       virtualbox -> virtualbox-dkms
   * Fix lintian warning about patch missing description.
 
- -- Gianfranco Costamagna <locutusofborg@debian.org>  Mon, 21 Sep 2015 10:50:50 +0200
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Fri, 25 Sep 2015 09:46:55 +0200
 
 virtualbox (5.0.4-dfsg-3) unstable; urgency=high
 
