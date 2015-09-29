@@ -156,6 +156,10 @@ Description: x86 virtualization solution - kernel module source
  This package provides the source code for the virtualbox kernel module.
  The virtualbox package is also required in order to make use of these
  modules. Kernel sources or headers are required to compile this module.
+ .
+ The source is placed under /usr/src, and after decompression it can
+ be built to produce a virtualbox-modules-_KVERS_ providing
+ "virtualbox-modules" package.
 
 Package: virtualbox-guest-dkms
 Section: contrib/kernel
@@ -190,6 +194,10 @@ Description: x86 virtualization solution - guest addition module source
  modules. The virtualbox-guest-utils package is also required in order to
  make use of these modules. Kernel sources or headers are required to compile
  these modules.
+ .
+ The source is placed under /usr/src, and after decompression it can
+ be built to produce a virtualbox-guest-modules-_KVERS_ providing
+ "virtualbox-guest-modules" package.
 
 Package: virtualbox-guest-x11
 Section: contrib/x11
