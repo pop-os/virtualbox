@@ -210,7 +210,13 @@ static RTEXITCODE handleDebugVM_LogXXXX(HandlerArg *pArgs, IMachineDebugger *pDe
         { "--debug",        DEBUGVM_LOG_DEBUG,   RTGETOPT_REQ_NOTHING },
         { "--release",      DEBUGVM_LOG_RELEASE, RTGETOPT_REQ_NOTHING }
     };
-    int rc = RTGetOptInit(&GetState, pArgs->argc, pArgs->argv, s_aOptions, RT_ELEMENTS(s_aOptions), 2, RTGETOPTINIT_FLAGS_OPTS_FIRST);
+    int rc = RTGetOptInit(&GetState, pArgs->argc, pArgs->argv, s_aOptions, RT_ELEMENTS(s_aOptions), 2,
+                          /*
+                           * Note: RTGETOPTINIT_FLAGS_NO_STD_OPTS is needed to not get into an infinite hang in the following
+                           *       while-loop when processing log groups starting with "h",
+                           *       e.g. "VBoxManage debugvm <VM Name> log --debug -hex".
+                           */
+                          RTGETOPTINIT_FLAGS_OPTS_FIRST | RTGETOPTINIT_FLAGS_NO_STD_OPTS);
     AssertRCReturn(rc, RTEXITCODE_FAILURE);
 
     while ((rc = RTGetOpt(&GetState, &ValueUnion)) != 0)
@@ -524,10 +530,10 @@ static RTEXITCODE handleDebugVM_Show_LogDbgSettings(IMachineDebugger *pDebugger,
         RTPrintf("Debug logger settings:\n");
 
     com::Bstr bstr;
-    CHECK_ERROR2I_RET(pDebugger, COMGETTER(LogDbgFlags)(bstr.asOutParam()), RTEXITCODE_FAILURE);
+    CHECK_ERROR2I_RET(pDebugger, COMGETTER(LogDbgGroups)(bstr.asOutParam()), RTEXITCODE_FAILURE);
     handleDebugVM_Show_PrintVar("VBOX_LOG", &bstr, fFlags);
 
-    CHECK_ERROR2I_RET(pDebugger, COMGETTER(LogDbgGroups)(bstr.asOutParam()), RTEXITCODE_FAILURE);
+    CHECK_ERROR2I_RET(pDebugger, COMGETTER(LogDbgFlags)(bstr.asOutParam()), RTEXITCODE_FAILURE);
     handleDebugVM_Show_PrintVar("VBOX_LOG_FLAGS", &bstr, fFlags);
 
     CHECK_ERROR2I_RET(pDebugger, COMGETTER(LogDbgDestinations)(bstr.asOutParam()), RTEXITCODE_FAILURE);
@@ -548,10 +554,10 @@ static RTEXITCODE handleDebugVM_Show_LogRelSettings(IMachineDebugger *pDebugger,
         RTPrintf("Release logger settings:\n");
 
     com::Bstr bstr;
-    CHECK_ERROR2I_RET(pDebugger, COMGETTER(LogRelFlags)(bstr.asOutParam()), RTEXITCODE_FAILURE);
+    CHECK_ERROR2I_RET(pDebugger, COMGETTER(LogRelGroups)(bstr.asOutParam()), RTEXITCODE_FAILURE);
     handleDebugVM_Show_PrintVar("VBOX_RELEASE_LOG", &bstr, fFlags);
 
-    CHECK_ERROR2I_RET(pDebugger, COMGETTER(LogRelGroups)(bstr.asOutParam()), RTEXITCODE_FAILURE);
+    CHECK_ERROR2I_RET(pDebugger, COMGETTER(LogRelFlags)(bstr.asOutParam()), RTEXITCODE_FAILURE);
     handleDebugVM_Show_PrintVar("VBOX_RELEASE_LOG_FLAGS", &bstr, fFlags);
 
     CHECK_ERROR2I_RET(pDebugger, COMGETTER(LogRelDestinations)(bstr.asOutParam()), RTEXITCODE_FAILURE);

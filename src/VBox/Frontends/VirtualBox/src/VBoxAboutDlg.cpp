@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,26 +19,74 @@
 # include <precomp.h>
 #else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
-/* Global includes */
+/* Qt includes: */
 # include <QDir>
+# include <QDialogButtonBox>
 # include <QEvent>
+# include <QLabel>
 # include <QPainter>
-# include <iprt/path.h>
-# include <VBox/version.h> /* VBOX_VENDOR */
+# include <QPushButton>
 
-/* Local includes */
-# include "VBoxAboutDlg.h"
-# include "VBoxGlobal.h"
+/* GUI includes: */
 # include "UIConverter.h"
 # include "UIExtraDataManager.h"
 # include "UIIconPool.h"
+# include "VBoxAboutDlg.h"
+# include "VBoxGlobal.h"
+
+/* Other VBox includes: */
+# include <iprt/path.h>
+# include <VBox/version.h> /* VBOX_VENDOR */
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
-
 VBoxAboutDlg::VBoxAboutDlg(QWidget *pParent, const QString &strVersion)
-    : QIWithRetranslateUI2<QIDialog>(pParent, Qt::CustomizeWindowHint | Qt::WindowTitleHint)
+    : QIWithRetranslateUI2<QIDialog>(pParent)
     , m_strVersion(strVersion)
+    , m_pLabel(0)
+{
+    /* Prepare: */
+    prepare();
+}
+
+bool VBoxAboutDlg::event(QEvent *pEvent)
+{
+    /* Set fixed-size for dialog: */
+    if (pEvent->type() == QEvent::Polish)
+        setFixedSize(m_size);
+    /* Call to base-class: */
+    return QIDialog::event(pEvent);
+}
+
+void VBoxAboutDlg::paintEvent(QPaintEvent* /* pEvent */)
+{
+    QPainter painter(this);
+    /* Draw About-VirtualBox background image: */
+    painter.drawPixmap(0, 0, m_pixmap);
+}
+
+void VBoxAboutDlg::retranslateUi()
+{
+    setWindowTitle(tr("VirtualBox - About"));
+    const QString strAboutText = tr("VirtualBox Graphical User Interface");
+#ifdef VBOX_BLEEDING_EDGE
+    const QString strVersionText = "EXPERIMENTAL build %1 - " + QString(VBOX_BLEEDING_EDGE);
+#else /* !VBOX_BLEEDING_EDGE */
+    const QString strVersionText = tr("Version %1");
+#endif /* !VBOX_BLEEDING_EDGE */
+#if VBOX_OSE
+    m_strAboutText = strAboutText + " " + strVersionText.arg(m_strVersion) + "\n" +
+                     QString("%1 2004-" VBOX_C_YEAR " " VBOX_VENDOR).arg(QChar(0xa9));
+#else /* !VBOX_OSE */
+    m_strAboutText = strAboutText + "\n" + strVersionText.arg(m_strVersion);
+#endif /* !VBOX_OSE */
+    m_strAboutText = m_strAboutText + "\n" + QString("Copyright %1 %2 %3 and/or its affiliates. All rights reserved.")
+                                                     .arg(QChar(0xa9)).arg(VBOX_C_YEAR).arg(VBOX_VENDOR);
+    AssertPtrReturnVoid(m_pLabel);
+    m_pLabel->setText(m_strAboutText);
+}
+
+void VBoxAboutDlg::prepare()
 {
     /* Delete dialog on close: */
     setAttribute(Qt::WA_DeleteOnClose);
@@ -47,7 +95,7 @@ VBoxAboutDlg::VBoxAboutDlg(QWidget *pParent, const QString &strVersion)
     QString strPath(":/about.png");
 
     /* Branding: Use a custom about splash picture if set: */
-    QString strSplash = vboxGlobal().brandingGetKey("UI/AboutSplash");
+    const QString strSplash = vboxGlobal().brandingGetKey("UI/AboutSplash");
     if (vboxGlobal().brandingIsActive() && !strSplash.isEmpty())
     {
         char szExecPath[1024];
@@ -58,67 +106,70 @@ VBoxAboutDlg::VBoxAboutDlg(QWidget *pParent, const QString &strVersion)
     }
 
     /* Load image: */
-    QIcon icon = UIIconPool::iconSet(strPath);
+    const QIcon icon = UIIconPool::iconSet(strPath);
     m_size = icon.availableSizes().first();
     m_pixmap = icon.pixmap(m_size);
+
+    /* Prepare main-layout: */
+    prepareMainLayout();
 
     /* Translate: */
     retranslateUi();
 }
 
-bool VBoxAboutDlg::event(QEvent *pEvent)
+void VBoxAboutDlg::prepareMainLayout()
 {
-    if (pEvent->type() == QEvent::Polish)
-        setFixedSize(m_size);
-    if (pEvent->type() == QEvent::WindowDeactivate)
-        close();
-    return QIDialog::event(pEvent);
+    /* Create main-layout: */
+    m_pMainLayout = new QVBoxLayout(this);
+    AssertPtrReturnVoid(m_pMainLayout);
+    {
+        /* Prepare label: */
+        prepareLabel();
+
+        /* Prepare close-button: */
+        prepareCloseButton();
+    }
 }
 
-void VBoxAboutDlg::paintEvent(QPaintEvent* /* pEvent */)
+void VBoxAboutDlg::prepareLabel()
 {
-    QPainter painter(this);
-    painter.drawPixmap(0, 0, m_pixmap);
-    painter.setFont(font());
+    /* Create label for version text: */
+    m_pLabel = new QLabel;
+    AssertPtrReturnVoid(m_pLabel);
+    {
+        /* Prepare label for version text: */
+        QPalette palette;
+        /* Branding: Set a different text color (because splash also could be white),
+         * otherwise use white as default color: */
+        const QString strColor = vboxGlobal().brandingGetKey("UI/AboutTextColor");
+        if (!strColor.isEmpty())
+            palette.setColor(QPalette::WindowText, QColor(strColor).name());
+        else
+            palette.setColor(QPalette::WindowText, Qt::black);
+        m_pLabel->setPalette(palette);
+        m_pLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
+        m_pLabel->setFont(font());
 
-    /* Branding: Set a different text color (because splash also could be white),
-                 otherwise use white as default color: */
-    QString strColor = vboxGlobal().brandingGetKey("UI/AboutTextColor");
-    if (!strColor.isEmpty())
-        painter.setPen(QColor(strColor).name());
-    else
-        painter.setPen(Qt::black);
-#if VBOX_OSE
-    painter.drawText(QRect(0, 400, 600, 32),
-                     Qt::AlignCenter | Qt::AlignVCenter | Qt::TextWordWrap,
-                     m_strAboutText);
-#else /* VBOX_OSE */
-    painter.drawText(QRect(271, 370, 360, 72),
-                     Qt::AlignLeft | Qt::AlignBottom | Qt::TextWordWrap,
-                     m_strAboutText);
-#endif /* VBOX_OSE */
+        /* Add label to the main-layout: */
+        m_pMainLayout->addWidget(m_pLabel);
+        m_pMainLayout->setAlignment(m_pLabel, Qt::AlignRight | Qt::AlignBottom);
+    }
 }
 
-void VBoxAboutDlg::mouseReleaseEvent(QMouseEvent* /* pEvent */)
+void VBoxAboutDlg::prepareCloseButton()
 {
-    /* Close the dialog on mouse button release: */
-    close();
-}
+    /* Create button-box: */
+    QDialogButtonBox *pButtonBox = new QDialogButtonBox;
+    AssertPtrReturnVoid(pButtonBox);
+    {
+        /* Create close-button: */
+        QPushButton *pCloseButton = pButtonBox->addButton(QDialogButtonBox::Close);
+        AssertPtrReturnVoid(pCloseButton);
+        /* Prepare close-button: */
+        connect(pButtonBox, SIGNAL(rejected()), this, SLOT(reject()));
 
-void VBoxAboutDlg::retranslateUi()
-{
-    setWindowTitle(tr("VirtualBox - About"));
-    QString strAboutText =  tr("VirtualBox Graphical User Interface");
-#ifdef VBOX_BLEEDING_EDGE
-    QString strVersionText = "EXPERIMENTAL build %1 - " + QString(VBOX_BLEEDING_EDGE);
-#else
-    QString strVersionText = tr("Version %1");
-#endif
-#if VBOX_OSE
-    m_strAboutText = strAboutText + " " + strVersionText.arg(m_strVersion) + "\n" +
-                     QString("%1 2004-" VBOX_C_YEAR " " VBOX_VENDOR).arg(QChar(0xa9));
-#else /* VBOX_OSE */
-    m_strAboutText = strAboutText + "\n" + strVersionText.arg(m_strVersion);
-#endif /* VBOX_OSE */
+        /* Add button-box to the main-layout: */
+        m_pMainLayout->addWidget(pButtonBox);
+    }
 }
 

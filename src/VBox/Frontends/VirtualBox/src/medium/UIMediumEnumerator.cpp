@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013 Oracle Corporation
+ * Copyright (C) 2013-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -37,40 +37,38 @@
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 
-
-/* GUI task prototype: Medium enumeration.
- * Extends UITask interface to be executed by the UIThreadWorker. */
+/** UITask extension used for medium enumeration purposes. */
 class UITaskMediumEnumeration : public UITask
 {
     Q_OBJECT;
 
 public:
 
-    /* Constructor: */
+    /** Constructs @a medium enumeration task. */
     UITaskMediumEnumeration(const UIMedium &medium)
-        : UITask(QVariant::fromValue(medium))
-    {}
+        : UITask(UITask::Type_MediumEnumeration)
+    {
+        /* Store medium as property: */
+        setProperty("medium", QVariant::fromValue(medium));
+    }
 
 private:
 
-    /* Helper: Run stuff: */
-    void run();
+    /** Contains medium enumeration task body. */
+    void run()
+    {
+        /* Get medium: */
+        UIMedium medium = property("medium").value<UIMedium>();
+        /* Enumerate it: */
+        medium.blockAndQueryState();
+        /* Put it back: */
+        setProperty("medium", QVariant::fromValue(medium));
+    }
 };
 
-void UITaskMediumEnumeration::run()
-{
-    /* Get medium: */
-    UIMedium medium = m_data.value<UIMedium>();
-    /* Enumerate it: */
-    medium.blockAndQueryState();
-    /* Put medium back: */
-    m_data = QVariant::fromValue(medium);
-}
 
-
-UIMediumEnumerator::UIMediumEnumerator(ulong uWorkerCount /* = 3*/, ulong uWorkerTimeout /* = 5000*/)
-    : m_pThreadPool(0)
-    , m_fMediumEnumerationInProgress(false)
+UIMediumEnumerator::UIMediumEnumerator()
+    : m_fMediumEnumerationInProgress(false)
 {
     /* Allow UIMedium to be used in inter-thread signals: */
     qRegisterMetaType<UIMedium>();
@@ -83,20 +81,8 @@ UIMediumEnumerator::UIMediumEnumerator(ulong uWorkerCount /* = 3*/, ulong uWorke
     connect(gVBoxEvents, SIGNAL(sigSnapshotRestore(QString, QString)), this, SLOT(sltHandleSnapshotDeleted(QString, QString)));
     connect(gVBoxEvents, SIGNAL(sigMachineRegistered(QString, bool)), this, SLOT(sltHandleMachineRegistration(QString, bool)));
 
-    /* Prepare thread-pool: */
-    m_pThreadPool = new UIThreadPool(uWorkerCount, uWorkerTimeout);
-    connect(m_pThreadPool, SIGNAL(sigTaskComplete(UITask*)), this, SLOT(sltHandleMediumEnumerationTaskComplete(UITask*)));
-}
-
-UIMediumEnumerator::~UIMediumEnumerator()
-{
-    /* Delete thread-pool: */
-    delete m_pThreadPool;
-    m_pThreadPool = 0;
-
-    /* Delete all the tasks: */
-    while (!m_tasks.isEmpty())
-        delete m_tasks.takeFirst();
+    /* Listen for global thread-pool: */
+    connect(vboxGlobal().threadPool(), SIGNAL(sigTaskComplete(UITask*)), this, SLOT(sltHandleMediumEnumerationTaskComplete(UITask*)));
 }
 
 QList<QString> UIMediumEnumerator::mediumIDs() const
@@ -280,16 +266,17 @@ void UIMediumEnumerator::sltHandleSnapshotDeleted(QString strMachineID, QString 
 void UIMediumEnumerator::sltHandleMediumEnumerationTaskComplete(UITask *pTask)
 {
     /* Make sure that is one of our tasks: */
-    int iIndexOfTask = m_tasks.indexOf(pTask);
-    AssertReturnVoid(iIndexOfTask != -1);
+    if (pTask->type() != UITask::Type_MediumEnumeration)
+        return;
+    AssertReturnVoid(m_tasks.contains(pTask));
 
     /* Get enumerated UIMedium: */
-    const UIMedium uimedium = pTask->data().value<UIMedium>();
+    const UIMedium uimedium = pTask->property("medium").value<UIMedium>();
     const QString strUIMediumKey = uimedium.key();
     LogRel2(("GUI: UIMediumEnumerator: Medium with key={%s} enumerated\n", strUIMediumKey.toAscii().constData()));
 
-    /* Delete task: */
-    delete m_tasks.takeAt(iIndexOfTask);
+    /* Remove task from internal set: */
+    m_tasks.remove(pTask);
 
     /* Make sure such UIMedium still exists: */
     AssertReturnVoid(m_mediums.contains(strUIMediumKey));
@@ -345,10 +332,10 @@ void UIMediumEnumerator::createMediumEnumerationTask(const UIMedium &medium)
 {
     /* Prepare medium-enumeration task: */
     UITask *pTask = new UITaskMediumEnumeration(medium);
-    /* Append to internal list: */
-    m_tasks.append(pTask);
-    /* Post into thread-pool: */
-    m_pThreadPool->enqueueTask(pTask);
+    /* Append to internal set: */
+    m_tasks << pTask;
+    /* Post into global thread-pool: */
+    vboxGlobal().threadPool()->enqueueTask(pTask);
 }
 
 void UIMediumEnumerator::addNullMediumToMap(UIMediumMap &mediums)

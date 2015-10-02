@@ -20,9 +20,10 @@
 #  NOSUBVER=1       disable generation of the sub-version field (which is
 #                   either the subversion rev [if available] or the build date)
 #  NODOCS=1         don't build docs, use precompiled UserManual.pdf and
-#                   VirtualBox.chm from $HOME
+#                   VirtualBox.chm from $(vboxroot)/prebuild
 #  NOMODS=1         don't build any module
 #  NOQT=1           don't build the Qt GUI
+#  NOSDL=1          don't build VBoxSDL
 #  EFI=1            include the EFI binary from prebuild
 #  VERSUFFIX=<suffix> set a particular package version suffix (e.g. _customer)
 #  HEADLESS=1       build the headless version
@@ -31,6 +32,13 @@
 #  STAGEDISO=<path> don't build the VBoxAdditions, use the precompiled .iso
 #  PKGDIR=<path>    where to store the final package(s)
 #  BLEEDING_EDGE=xyz
+#  svn_revision=xxx do not depend on subversion being available, but use this
+#                   hard-coded revision number instead
+#
+# NODOCS will also be set if UserManual*.pdf and VirtualBox*.chm are placed in
+# $(vboxroot)/prebuild.  STAGEDISO will be set if VBoxGuestAdditions.iso is
+# placed there.  Wine will not be required to be available if both NODOCS and
+# STAGEDISO are set.
 
 ifeq ($(wildcard rpm/rules),)
 $(error call rpm/rules from src/VBox/Installer/linux)
@@ -54,8 +62,8 @@ endif
 
 verpkg   := VirtualBox-5.0
 current  := $(shell pwd)
-vboxroot := $(shell cd ../../../..; pwd)
-pkgdir   := $(if $(PKGDIR),$(PKGDIR),$(shell cd ../../../../..; pwd))
+vboxroot := $(shell while ! test -r configure && ! test "$PWD" = "/"; do cd ..; done; pwd)
+pkgdir   := $(if $(PKGDIR),$(PKGDIR),$(shell cd $(vboxroot)/..; pwd))
 builddir := $(current)/rpm/builddir
 rpmlib   := $(shell if [ `uname -m` = "x86_64" ]; then echo "lib64"; else echo "lib"; fi)
 arch     := $(shell if [ `uname -m` = "x86_64" ]; then echo "amd64"; else echo "i386"; fi)
@@ -67,6 +75,8 @@ svnrev   :=$(if $(svn_revision),$(svn_revision),)
 NOMODS   ?= $(ose)
 NOQT     ?= $(HEADLESS)
 NOWEBSVC ?= $(ose)
+NODOCS   ?= $(if $(wildcard $(vboxroot)/prebuild/UserManual*.pdf),$(if $(wildcard $(vboxroot)/prebuild/VirtualBox*.chm),1,),)
+STAGEDISO ?= $(if $(wildcard $(vboxroot)/prebuild/VBoxGuestAdditions.iso),$(vboxroot)/prebuild,)
 NOWINE   := $(if $(NODOCS),$(if $(STAGEDISO),1,),)$(ose)
 
 ifneq ($(MAKECMDGOALS),clean)
@@ -74,6 +84,18 @@ ifneq ($(MAKECMDGOALS),clean)
  ifeq ($(rpmrel),)
  # look for fedora
   rpmrel  := $(shell cat /etc/fedora-release | sed -e 's/^Fedora  *release  *\([1-9][0-9]*\) .*/fedora\1/')
+ endif
+ ifeq ($(rpmrel),)
+ # look for OL
+  rpmrel  := $(shell cat /etc/enterprise-release | sed -ne 's/^Enterprise Linux[a-zA-Z ]*\([1-9][0-9]*\).*/ol\1/p')
+ endif
+ ifeq ($(rpmrel),)
+ # look for CentOS
+  rpmrel  := $(shell cat /etc/redhat-release | sed -ne 's/^CentOS[a-zA-Z ]*\([1-9][0-9]*\).*/centos\1/p')
+ endif
+ ifeq ($(rpmrel),)
+ # look for Red Hat
+  rpmrel  := $(shell cat /etc/redhat-release | sed -ne 's/^Red Hat[a-zA-Z ]*\([1-9][0-9]*\).*/centos\1/p')
  endif
  ifeq ($(rpmrel),)
   $(error failed to detect the release type. Add /etc/distname or hack the detection.)
@@ -132,13 +154,12 @@ else
 endif
 
 cfg_flags := $(if $(NOQT),--disable-qt,) \
+	     $(if $(NOSDL),--disable-vboxsdl,) \
 	     $(if $(filter sles10.1,$(rpmrel)),--build-libxml2,) \
-	     $(if $(filter el5 el6 sles10.1 sles11.0 mdv2011.0,$(rpmrel)),--build-libvpx,) \
+	     $(if $(filter el5 ol5 centos5 el6 ol6 centos6 sles10.1 sles11.0 mdv2011.0,$(rpmrel)),--build-libvpx,) \
 	     $(if $(filter el5 ol5 centos5 sles10.1 sles11.0,$(rpmrel)),--build-libcurl,) \
-	     $(if $(filter el5 centos5 sles10.1,$(rpmrel)),--disable-sdl-ttf,) \
-	     $(if $(filter sles10.1,$(rpmrel)),--disable-pulse,) \
-	     $(if $(filter el5 ol5 centos5,$(rpmrel)),--enable-pulse,) \
-	     $(if $(filter el5 ol5 centos5 el6 ol6 centos6 sles10.1 sles11.0,$(rpmrel)),--with-qt4-dir=/home/vbox/Qt-4.8.6-stdc++6-$(arch)) \
+	     $(if $(filter el5 ol5 centos5 sles10.1,$(rpmrel)),--disable-sdl-ttf,) \
+	     $(if $(filter el5 ol5 centos5 sles10.1,$(rpmrel)),--disable-pulse,) \
 	     $(if $(ose),--ose,) $(if $(LINUX),--with-linux=$(LINUX),) \
 	     $(if $(HEADLESS),--build-headless,) \
 	     $(if $(DEBUG),--build-debug,) \
@@ -152,7 +173,7 @@ bld_flags := AUTOCFG=$(current)/rpm/AutoConfig.kmk \
 	     PATH_OUT=$(builddir) \
 	     VBOX_WITHOUT_EXTPACK_PUEL_PACKING=1 \
 	     VBOX_WITHOUT_EXTPACK_VNC_PACKING=1 \
-	     $(if $(filter el5 el6 sles10.1 sles11.0,$(rpmrel)),,VBOX_WITH_VMSVGA3D=1) \
+	     $(if $(filter el5 ol5 centos5 el6 ol6 centos6 sles10.1 sles11.0,$(rpmrel)),,VBOX_WITH_VMSVGA3D=1) \
 	     VBOX_DO_STRIP= \
 	     VBOX_WITH_MULTIVERSION_PYTHON= \
 	     $(doc_dir) \
@@ -227,18 +248,19 @@ binary: rpm/build-stamp
 	    -e 's|%PACKAGE%|virtualbox|g' \
 	    -e "s|%VERSION%|$(VBOX_VERSION_STRING)|g" \
 	    -e "s|%GROUP%|$(if $(VBOX_WITHOUT_HARDENING),vboxusers,root)|g" \
-	    vboxdrv.sh.in > $(archdir)/vboxdrv.init
-	cp vboxballoonctrl-service.sh $(archdir)/vboxballoonctrl-service.init
-	cp vboxautostart-service.sh $(archdir)/vboxautostart-service.init
-	cp vboxweb-service.sh $(archdir)/vboxweb-service.init
+	    vboxdrv.sh.in > $(archdir)/vboxdrv.sh
+	cp vboxballoonctrl-service.sh $(archdir)
+	cp vboxautostart-service.sh $(archdir)
+	cp vboxweb-service.sh $(archdir)
 	cp VBox.sh $(archdir)
 	mv rpm/VirtualBox-$(ver) rpm/$(rpmname)
 	tar -cf rpm/VirtualBox.tar -C rpm $(rpmname)
-	rm -f /usr/src/packages/RPMS/*/VirtualBox*rpm
-	rm -f /usr/src/packages/SPECS/*
-	(cd rpm; rpmbuild -tb --clean VirtualBox.tar)
-	mv /usr/src/packages/RPMS/*/$(verpkg)-debug* $(pkgdir) || true
-	file=`find /usr/src/packages/RPMS -name $(verpkg)*rpm -print`; \
+	rm -f rpmbuild/RPMS/*/VirtualBox*rpm
+	rm -f rpmbuild/SPECS/*
+	mkdir -p rpmbuild/BUILD rpmbuild/RPMS/i386 rpmbuild/RPMS/x86_64 rpmbuild/SOURCES rpmbuild/SPECS rpmbuild/SRPMS
+	(cd rpm; rpmbuild --define '_topdir $(current)/rpmbuild' -tb --clean VirtualBox.tar)
+	mv rpmbuild/RPMS/*/$(verpkg)-debug* $(pkgdir) || true
+	file=`find rpmbuild/RPMS -name $(verpkg)*rpm -print`; \
 	    mv $$file $(pkgdir)
 # Note! if rpmbuild fails: sudo chmod a+rw /usr/src/redhat/* /usr/src/redhat/RPMS/*
 # Note! if find/mv fails:  sudo ln -s redhat/ /usr/src/packages

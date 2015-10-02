@@ -70,6 +70,24 @@ RTDECL(int) RTEnvCreate(PRTENV pEnv);
 RTDECL(int) RTEnvClone(PRTENV pEnv, RTENV EnvToClone);
 
 /**
+ * Creates an environment block from an UTF-16 environment raw block.
+ *
+ * This is the reverse of RTEnvQueryUtf16Block.
+ *
+ * @returns IPRT status code.
+ * @retval  VERR_NO_MEMORY
+ * @retval  VERR_NO_STR_MEMORY
+ *
+ * @param   phEnv       Where to store the handle of the new environment block.
+ * @param   pwszzBlock  List of zero terminated string end with a zero length
+ *                      string (or two zero terminators if you prefer).  The
+ *                      strings are on the RTPutEnv format (VAR=VALUE), except
+ *                      they are all expected to include an equal sign.
+ * @param   fFlags      Flags served for the future.
+ */
+RTDECL(int) RTEnvCloneUtf16Block(PRTENV phEnv, PCRTUTF16 pwszzBlock, uint32_t fFlags);
+
+/**
  * Destroys an environment block.
  *
  * @returns IPRT status code.
@@ -383,7 +401,6 @@ RTDECL(bool) RTEnvIsChangeRecord(RTENV hEnv);
  *                      change record.  RTENV_DEFAULT is not supported here.
  */
 RTDECL(int) RTEnvApplyChanges(RTENV hEnvDst, RTENV hEnvChanges);
-
 
 #endif /* IN_RING3 */
 

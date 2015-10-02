@@ -441,8 +441,7 @@ HRESULT HostUSBDevice::i_requestCaptureForVM(SessionMachine *aMachine, bool aSet
      * when the request succeeds (i.e. asynchronously).
      */
     LogFlowThisFunc(("{%s} capturing the device.\n", mName));
-#if (defined(RT_OS_DARWIN) && defined(VBOX_WITH_NEW_USB_CODE_ON_DARWIN)) /* PORTME */ \
- || defined(RT_OS_WINDOWS) || defined(RT_OS_SOLARIS)
+#if defined(RT_OS_DARWIN) || defined(RT_OS_WINDOWS) || defined(RT_OS_SOLARIS) /* PORTME */
     i_setState(kHostUSBDeviceState_Capturing, kHostUSBDeviceState_UsedByVM, kHostUSBDeviceSubState_AwaitingDetach);
 #else
     i_setState(kHostUSBDeviceState_Capturing, kHostUSBDeviceState_UsedByVM);
@@ -455,7 +454,7 @@ HRESULT HostUSBDevice::i_requestCaptureForVM(SessionMachine *aMachine, bool aSet
     if (RT_FAILURE(rc))
     {
         alock.acquire();
-        i_failTransition();
+        i_failTransition(kHostUSBDeviceState_Invalid);
         mMachine.setNull();
         if (rc == VERR_SHARING_VIOLATION)
             return setError(E_FAIL,
@@ -704,8 +703,7 @@ HRESULT HostUSBDevice::i_requestReleaseToHost()
     /*
      * Try release it.
      */
-#if (defined(RT_OS_DARWIN) && defined(VBOX_WITH_NEW_USB_CODE_ON_DARWIN)) /* PORTME */ \
- || defined(RT_OS_WINDOWS)
+#if defined(RT_OS_DARWIN) || defined(RT_OS_WINDOWS) /* PORTME */
     i_startTransition(kHostUSBDeviceState_ReleasingToHost, kHostUSBDeviceState_Unused, kHostUSBDeviceSubState_AwaitingDetach);
 #else
     i_startTransition(kHostUSBDeviceState_ReleasingToHost, kHostUSBDeviceState_Unused);
@@ -715,7 +713,7 @@ HRESULT HostUSBDevice::i_requestReleaseToHost()
     if (RT_FAILURE(rc))
     {
         alock.acquire();
-        i_failTransition();
+        i_failTransition(kHostUSBDeviceState_Invalid);
         return E_FAIL;
     }
     return S_OK;
@@ -758,8 +756,7 @@ HRESULT HostUSBDevice::i_requestHold()
     /*
      * Do the job.
      */
-#if (defined(RT_OS_DARWIN) && defined(VBOX_WITH_NEW_USB_CODE_ON_DARWIN)) /* PORTME */ \
- || defined(RT_OS_WINDOWS)
+#if defined(RT_OS_DARWIN) || defined(RT_OS_WINDOWS) /* PORTME */
     i_startTransition(kHostUSBDeviceState_Capturing, kHostUSBDeviceState_HeldByProxy, kHostUSBDeviceSubState_AwaitingDetach);
 #else
     i_startTransition(kHostUSBDeviceState_Capturing, kHostUSBDeviceState_HeldByProxy);
@@ -769,7 +766,7 @@ HRESULT HostUSBDevice::i_requestHold()
     if (RT_FAILURE(rc))
     {
         alock.acquire();
-        i_failTransition();
+        i_failTransition(kHostUSBDeviceState_Invalid);
         return E_FAIL;
     }
     return S_OK;
@@ -816,7 +813,7 @@ bool HostUSBDevice::i_wasActuallyDetached()
                     if (elapsedNanoseconds > UINT64_C(60000000000)) /* 60 seconds */
                     {
                         LogRel(("USB: Async operation timed out for device %s (state: %s)\n", mName, i_getStateName()));
-                        i_failTransition();
+                        i_failTransition(kHostUSBDeviceState_PhysDetached);
                     }
 #endif
                     return false; /* not physically detached. */
@@ -1198,9 +1195,9 @@ bool HostUSBDevice::i_updateState(PCUSBDEVICE aDev, bool *aRunFilters, SessionMa
 
                     /* Can only mean that we've failed capturing it. */
                     case kHostUSBDeviceState_Capturing:
-                        LogThisFunc(("{%s} capture failed!\n", mName));
+                        LogThisFunc(("{%s} capture failed! (#1)\n", mName));
                         mUSBProxyService->captureDeviceCompleted(this, false /* aSuccess */);
-                        *aRunFilters = i_failTransition();
+                        *aRunFilters = i_failTransition(kHostUSBDeviceState_UsedByHost);
                         mMachine.setNull();
                         break;
 
@@ -1266,9 +1263,9 @@ bool HostUSBDevice::i_updateState(PCUSBDEVICE aDev, bool *aRunFilters, SessionMa
 
                     /* Can only mean that we've failed capturing it. */
                     case kHostUSBDeviceState_Capturing:
-                        LogThisFunc(("{%s} capture failed!\n", mName));
+                        LogThisFunc(("{%s} capture failed! (#2)\n", mName));
                         mUSBProxyService->captureDeviceCompleted(this, false /* aSuccess */);
-                        *aRunFilters = i_failTransition();
+                        *aRunFilters = i_failTransition(kHostUSBDeviceState_Capturable);
                         mMachine.setNull();
                         break;
 
@@ -1334,9 +1331,9 @@ bool HostUSBDevice::i_updateState(PCUSBDEVICE aDev, bool *aRunFilters, SessionMa
                         else
 #endif
                         {
-                            LogThisFunc(("{%s} capture failed!\n", mName));
+                            LogThisFunc(("{%s} capture failed! (#3)\n", mName));
                             mUSBProxyService->captureDeviceCompleted(this, false /* aSuccess */);
-                            *aRunFilters = i_failTransition();
+                            *aRunFilters = i_failTransition(kHostUSBDeviceState_Unused);
                             mMachine.setNull();
                         }
                         break;
@@ -1471,9 +1468,8 @@ bool HostUSBDevice::i_updateState(PCUSBDEVICE aDev, bool *aRunFilters, SessionMa
     else if (   mUniSubState == kHostUSBDeviceSubState_AwaitingDetach
              && i_hasAsyncOperationTimedOut())
     {
-        LogRel(("USB: timeout in %s for {%RTuuid} / {%s}\n",
-                i_getStateName(), mId.raw(), mName));
-        *aRunFilters = i_failTransition();
+        LogRel(("USB: timeout in %s for {%RTuuid} / {%s}\n", i_getStateName(), mId.raw(), mName));
+        *aRunFilters = i_failTransition(kHostUSBDeviceState_Invalid);
         fIsImportant = true;
     }
     else
@@ -2021,7 +2017,7 @@ bool HostUSBDevice::i_setState(HostUSBDeviceState aNewState,
                 case kHostUSBDeviceState_UsedByHost:
                 case kHostUSBDeviceState_Capturable:
                 case kHostUSBDeviceState_Unused:
-                    Assert(aNewState == mPrevUniState);
+                    Assert(aNewState == mPrevUniState); /** @todo This is kind of wrong, see i_failTransition. */
                     Assert(aNewPendingState == kHostUSBDeviceState_Invalid);
                     Assert(aNewSubState == kHostUSBDeviceSubState_Default);
                     break;
@@ -2414,10 +2410,12 @@ bool HostUSBDevice::i_advanceTransition(bool aSkipReAttach /* = false */)
  * A convenience for failing a transitional state.
  *
  * @return true if filters should be applied to the device, false if not.
+ * @param   a_enmStateHint  USB device state hint. kHostUSBDeviceState_Invalid
+ *                          if the caller doesn't have a clue to give.
  *
  * @note    The caller must own the write lock for this object.
  */
-bool HostUSBDevice::i_failTransition()
+bool HostUSBDevice::i_failTransition(HostUSBDeviceState a_enmStateHint)
 {
     AssertReturn(isWriteLockOnCurrentThread(), false);
     HostUSBDeviceSubState enmSub = mUniSubState;
@@ -2443,7 +2441,10 @@ bool HostUSBDevice::i_failTransition()
                     break;
                 case kHostUSBDeviceSubState_AwaitingReAttach:
                     enmSub = kHostUSBDeviceSubState_Default;
-                    enmState = kHostUSBDeviceState_PhysDetached;
+                    if (a_enmStateHint != kHostUSBDeviceState_Invalid)
+                        enmState = mPrevUniState; /** @todo enmState = a_enmStateHint is more correct, but i_setState doesn't like it. It will usually correct itself shortly. */
+                    else
+                        enmState = kHostUSBDeviceState_PhysDetached;
                     break;
                 default:
                     AssertReleaseMsgFailedReturn(("this=%p mUniState=%d\n", this, mUniState), false);

@@ -71,14 +71,14 @@ typedef struct
     /** Called from the worker thread.
      *
      * @returns VBox status code.
-     * @retval  VINF_SUCCESS if exitting because *pfTerminate was set.
-     * @param   pfTerminate     Pointer to a per service termination flag to check
+     * @retval  VINF_SUCCESS if exitting because *pfShutdown was set.
+     * @param   pfShutdown      Pointer to a per service termination flag to check
      *                          before and after blocking.
      */
-    DECLCALLBACKMEMBER(int, pfnWorker)(bool volatile *pfTerminate);
+    DECLCALLBACKMEMBER(int, pfnWorker)(bool volatile *pfShutdown);
 
     /**
-     * Stop an service.
+     * Stops a service.
      */
     DECLCALLBACKMEMBER(void, pfnStop)(void);
 
@@ -158,7 +158,7 @@ typedef VBOXSERVICEVEPROPCACHEENTRY *PVBOXSERVICEVEPROPCACHEENTRY;
 RT_C_DECLS_BEGIN
 
 extern char        *g_pszProgName;
-extern int          g_cVerbosity;
+extern unsigned     g_cVerbosity;
 extern char         g_szLogFile[RTPATH_MAX + 128];
 extern uint32_t     g_DefaultInterval;
 extern VBOXSERVICE  g_TimeSync;
@@ -182,7 +182,7 @@ extern RTCRITSECT   g_csLog; /* For guest process stdout dumping. */
 
 extern RTEXITCODE               VBoxServiceSyntax(const char *pszFormat, ...);
 extern RTEXITCODE               VBoxServiceError(const char *pszFormat, ...);
-extern void                     VBoxServiceVerbose(int iLevel, const char *pszFormat, ...);
+extern void                     VBoxServiceVerbose(unsigned iLevel, const char *pszFormat, ...);
 extern int                      VBoxServiceArgUInt32(int argc, char **argv, const char *psz, int *pi, uint32_t *pu32,
                                                      uint32_t u32Min, uint32_t u32Max);
 extern int                      VBoxServiceStartServices(void);

@@ -24,12 +24,17 @@
 # include <QFile>
 # include <QThread>
 # include <QRegExp>
+# include <QVector>
 
 /* GUI includes: */
 # include "UINetworkReply.h"
 # include "UINetworkManager.h"
-# include "VBoxGlobal.h"
-# include "VBoxUtils.h"
+# ifndef VBOX_GUI_IN_TST_SSL_CERT_DOWNLOADS
+#  include "VBoxGlobal.h"
+#  include "VBoxUtils.h"
+# else
+#  include <VBox/log.h>
+# endif
 
 /* Other VBox includes; */
 # include <iprt/initterm.h>
@@ -42,6 +47,7 @@
 #include <iprt/http.h>
 #include <iprt/path.h>
 #include <iprt/sha.h>
+#include <iprt/string.h>
 #include <iprt/zip.h>
 
 
@@ -50,7 +56,9 @@
  */
 class UINetworkReplyPrivateThread : public QThread
 {
+#ifndef VBOX_GUI_IN_TST_SSL_CERT_DOWNLOADS
     Q_OBJECT;
+#endif
 
 public:
 
@@ -82,17 +90,9 @@ private:
     /* Helper: Main thread runner: */
     void run();
 
-    /** Info about wanted certificate. */
+    /** Additinoal download nfo about wanted certificate. */
     typedef struct CERTINFO
     {
-        /** Gives the s_aCerts index this certificate is an alternative edition of,
-         * UINT8_MAX if no alternative.  This is a complication caused by VeriSign
-         * reissuing certificates signed with md2WithRSAEncryption using
-         * sha1WithRSAEncryption, since MD2 is comprimised.  (Public key unmodified.)
-         * It has no practical meaning for the trusted root anchor use we put it to.  */
-        uint8_t     iAlternativeTo;
-        /** Set if mandatory. */
-        bool        fMandatory;
         /** Filename in the zip file we download (PEM). */
         const char *pszZipFile;
         /** List of direct URLs to PEM formatted files.. */
@@ -105,9 +105,8 @@ private:
     static int applyProxyRules(RTHTTP hHttp, const QString &strHostName, int iPort);
     static int applyRawHeaders(RTHTTP hHttp, const QList<QByteArray> &headers, const QNetworkRequest &request);
     static unsigned countCertsFound(bool const *pafFoundCerts);
-    static bool areAllCertsFound(bool const *pafFoundCerts, bool fOnlyMandatory);
-    static int  adjustCertsFound(int rc, bool *pafFoundCerts);
-    static void refreshCertificates(RTHTTP hHttp, RTCRSTORE hOldStore, bool *pafFoundCerts, const char *pszCaCertFile);
+    static bool areAllCertsFound(bool const *pafFoundCerts);
+    static int refreshCertificates(RTHTTP hHttp, PRTCRSTORE phStore, bool *pafFoundCerts, const char *pszCaCertFile);
     static void downloadMissingCertificates(RTCRSTORE hNewStore, bool *pafNewFoundCerts, RTHTTP hHttp,
                                             PRTERRINFOSTATIC pStaticErrInfo);
     static int convertVerifyAndAddPemCertificateToStore(RTCRSTORE hStore, void const *pvResponse,
@@ -124,48 +123,40 @@ private:
     RTHTTP m_hHttp;
     QByteArray m_reply;
 
-    static const QString s_strCertificateFileName;
-    static const RTCRCERTWANTED s_aCerts[3];
-    static const CERTINFO s_CertInfoPcaCls3Gen1Md2;
-    static const CERTINFO s_CertInfoPcaCls3Gen1Sha1;
+    static const char * const s_apszRootsZipUrls[];
     static const CERTINFO s_CertInfoPcaCls3Gen5;
+    static const RTCRCERTWANTED s_aCerts[];
+    static const QString s_strCertificateFileName;
+
+#ifdef VBOX_GUI_IN_TST_SSL_CERT_DOWNLOADS
+public:
+    static void testIt(RTTEST hTest);
+#endif
 };
 
-/*static*/ const UINetworkReplyPrivateThread::CERTINFO UINetworkReplyPrivateThread::s_CertInfoPcaCls3Gen1Sha1 =
+
+/**
+ * URLs to root zip files containing certificates we want.
+ */
+/*static*/ const char * const UINetworkReplyPrivateThread::s_apszRootsZipUrls[] =
 {
-    /*.iAlternativeTo =*/   1,
-    /*.fMandatory     =*/   false,
-    /*.pszZipFile     =*/
-    "VeriSign Root Certificates/Generation 1 (G1) PCAs/Class 3 Public Primary Certification Authority.pem",
-    /*.apszUrls[3]    =*/
-    {
-        "http://www.symantec.com/content/en/us/enterprise/verisign/roots/Class-3-Public-Primary-Certification-Authority.pem",
-        "http://www.verisign.com/repository/roots/root-certificates/PCA-3.pem", /* dead */
-        NULL,
-        "http://update.virtualbox.org/cacerts-symantec-PCA-3-pem-has-gone-missing-again" /* attention getter */
-    }
+    "http://www.symantec.com/content/en/us/enterprise/verisign/roots/roots.zip"
 };
 
-/*static*/ const UINetworkReplyPrivateThread::CERTINFO UINetworkReplyPrivateThread::s_CertInfoPcaCls3Gen1Md2 =
-{
-    /*.iAlternativeTo =*/   0,
-    /*.fMandatory     =*/   false,
-    /*.pszZipFile     =*/   NULL,
-    /*.apszUrls[3]    =*/   { NULL, NULL, NULL },
-};
 
+/**
+ * Download details for
+ */
 /*static*/ const UINetworkReplyPrivateThread::CERTINFO UINetworkReplyPrivateThread::s_CertInfoPcaCls3Gen5 =
 {
-    /*.iAlternativeTo =*/   UINT8_MAX,
-    /*.fMandatory     =*/   true,
     /*.pszZipFile     =*/
     "VeriSign Root Certificates/Generation 5 (G5) PCA/VeriSign Class 3 Public Primary Certification Authority - G5.pem",
-    /*.apszUrls[3]    =*/
+    /*.apszUrls[]     =*/
     {
         "http://www.symantec.com/content/en/us/enterprise/verisign/roots/VeriSign-Class%203-Public-Primary-Certification-Authority-G5.pem",
         "http://www.symantec.com/content/en/us/enterprise/verisign/roots/VeriSign-Class-3-Public-Primary-Certification-Authority-G5.pem", /* (in case they correct above typo) */
         "http://www.verisign.com/repository/roots/root-certificates/PCA-3G5.pem", /* dead */
-        "http://update.virtualbox.org/cacerts-symantec-PCA-3G5-pem-has-gone-missing-again" /* attention getter */
+        NULL,
     }
 };
 
@@ -174,58 +165,9 @@ private:
  * Details on the certificates we are after.
  * The pvUser member points to a UINetworkReplyPrivateThread::CERTINFO.
  */
-/* static */ const RTCRCERTWANTED UINetworkReplyPrivateThread::s_aCerts[3] =
+/* static */ const RTCRCERTWANTED UINetworkReplyPrivateThread::s_aCerts[] =
 {
-    /*[0] =*/   /* The reissued version with the SHA-1 signature. */
-/** @todo r=bird: Why do we need this certificate? Neither update.virtualbox.org nor www.virtualbox.org uses it...  ElCapitan doesn't ship this. */
-    {
-        /*.pszSubject        =*/    "C=US, O=VeriSign, Inc., OU=Class 3 Public Primary Certification Authority",
-        /*.cbEncoded         =*/    0x240,
-        /*.Sha1Fingerprint   =*/    true,
-        /*.Sha512Fingerprint =*/    true,
-        /*.abSha1            =*/
-        {
-            0xa1, 0xdb, 0x63, 0x93, 0x91, 0x6f, 0x17, 0xe4, 0x18, 0x55,
-            0x09, 0x40, 0x04, 0x15, 0xc7, 0x02, 0x40, 0xb0, 0xae, 0x6b
-        },
-        /*.abSha512          =*/
-        {
-            0xbb, 0xf7, 0x8a, 0x19, 0x9f, 0x37, 0xee, 0xa2,
-            0xce, 0xc8, 0xaf, 0xe3, 0xd6, 0x22, 0x54, 0x20,
-            0x74, 0x67, 0x6e, 0xa5, 0x19, 0xb7, 0x62, 0x1e,
-            0xc1, 0x2f, 0xd5, 0x08, 0xf4, 0x64, 0xc4, 0xc6,
-            0xbb, 0xc2, 0xf2, 0x35, 0xe7, 0xbe, 0x32, 0x0b,
-            0xde, 0xb2, 0xfc, 0x44, 0x92, 0x5b, 0x8b, 0x9b,
-            0x77, 0xa5, 0x40, 0x22, 0x18, 0x12, 0xcb, 0x3d,
-            0x0a, 0x67, 0x83, 0x87, 0xc5, 0x45, 0xc4, 0x99
-        },
-        /*.pvUser */ &UINetworkReplyPrivateThread::s_CertInfoPcaCls3Gen1Sha1
-    },
-    /*[1] =*/   /* The original version with the MD2 signature. */
-    {
-        /*.pszSubject        =*/    "C=US, O=VeriSign, Inc., OU=Class 3 Public Primary Certification Authority",
-        /*.cbEncoded         =*/    0x240,
-        /*.Sha1Fingerprint   =*/    true,
-        /*.Sha512Fingerprint =*/    true,
-        /*.abSha1            =*/
-        {
-            0x74, 0x2c, 0x31, 0x92, 0xe6, 0x07, 0xe4, 0x24, 0xeb, 0x45,
-            0x49, 0x54, 0x2b, 0xe1, 0xbb, 0xc5, 0x3e, 0x61, 0x74, 0xe2
-        },
-        /*.abSha512          =*/
-        {
-            0x7c, 0x2f, 0x94, 0x22, 0x5f, 0x67, 0x98, 0x89,
-            0xb9, 0xde, 0xd7, 0x41, 0xa0, 0x0d, 0xb1, 0x5c,
-            0xc6, 0xca, 0x28, 0x12, 0xbf, 0xbc, 0xa8, 0x2b,
-            0x22, 0x53, 0x7a, 0xf8, 0x32, 0x41, 0x2a, 0xbb,
-            0xc1, 0x05, 0xe0, 0x0c, 0xd0, 0xa3, 0x97, 0x9d,
-            0x5f, 0xcd, 0xe9, 0x9b, 0x68, 0x06, 0xe8, 0xe6,
-            0xce, 0xef, 0xb2, 0x71, 0x8e, 0x91, 0x60, 0xa2,
-            0xc8, 0x0c, 0x5a, 0xe7, 0x8b, 0x33, 0xf2, 0xaa
-        },
-        /*.pvUser */ &UINetworkReplyPrivateThread::s_CertInfoPcaCls3Gen1Md2
-    },
-    /*[2] =*/
+    /*[0] =*/
     {
         /*.pszSubject        =*/
         "C=US, O=VeriSign, Inc., OU=VeriSign Trust Network, OU=(c) 2006 VeriSign, Inc. - For authorized use only, "
@@ -277,15 +219,29 @@ int UINetworkReplyPrivateThread::applyProxyRules()
     /* Set thread context: */
     m_strContext = tr("During proxy configuration");
 
-    /* Make sure proxy is enabled in Proxy Manager: */
+#ifndef VBOX_GUI_IN_TST_SSL_CERT_DOWNLOADS
+    /* Get the proxymanager: */
     UIProxyManager proxyManager(vboxGlobal().settings().proxySettings());
-    if (!proxyManager.proxyEnabled())
-        return VINF_SUCCESS;
 
-    /* Apply proxy rules: */
-    return applyProxyRules(m_hHttp,
-                           proxyManager.proxyHost(),
-                           proxyManager.proxyPort().toUInt());
+    /* If the specific proxy settings aren't enabled, we'll use the
+       system default proxy.  Otherwise assume it's configured. */
+    if (proxyManager.proxyEnabled())
+        return RTHttpSetProxy(m_hHttp,
+                              proxyManager.proxyHost().toUtf8().constData(),
+                              proxyManager.proxyPort().toUInt(),
+                              NULL /* pszProxyUser */, NULL /* pszProxyPwd */);
+
+    /** @todo This should be some kind of tristate:
+     *      - system configured proxy ("proxyDisabled" as well as default "")
+     *      - user configured proxy ("proxyEnabled").
+     *      - user configured "no proxy" (currently missing).
+     * In the two last cases, call RTHttpSetProxy.
+     *
+     * Alternatively, we could opt not to give the user a way of doing "no proxy",
+     * that would require no real changes to the visible GUI... Just a thought.
+     */
+#endif
+    return RTHttpUseSystemProxySettings(m_hHttp);
 }
 
 int UINetworkReplyPrivateThread::applyHttpsCertificates()
@@ -342,7 +298,6 @@ int UINetworkReplyPrivateThread::applyHttpsCertificates()
              * need to do wrt file age.
              */
             rc = RTCrStoreCertCheckWanted(hCurStore, s_aCerts, RT_ELEMENTS(s_aCerts), afCertsFound);
-            rc = adjustCertsFound(rc, afCertsFound);
             AssertRC(rc);
             RTTIMESPEC RefreshAge;
             uint32_t   cSecRefresh = rc == VINF_SUCCESS  ? 28 * RT_SEC_1DAY /* all found */ : 60 /* stuff missing */;
@@ -353,14 +308,14 @@ int UINetworkReplyPrivateThread::applyHttpsCertificates()
          * Refresh the file if necessary.
          */
         if (fRefresh)
-            refreshCertificates(m_hHttp, hCurStore, afCertsFound, pszCaCertFile);
+            refreshCertificates(m_hHttp, &hCurStore, afCertsFound, pszCaCertFile);
 
         RTCrStoreRelease(hCurStore);
 
         /*
          * Final verdict.
          */
-        if (areAllCertsFound(afCertsFound, true /*fOnlyMandatory*/))
+        if (areAllCertsFound(afCertsFound))
             rc = VINF_SUCCESS;
         else
             rc = VERR_NOT_FOUND; /** @todo r=bird: Why not try and let RTHttpGet* bitch if the necessary certs are missing? */
@@ -447,22 +402,12 @@ void UINetworkReplyPrivateThread::run()
 /* static */
 QString UINetworkReplyPrivateThread::fullCertificateFileName()
 {
+#ifndef VBOX_GUI_IN_TST_SSL_CERT_DOWNLOADS
     const QDir homeDir(QDir::toNativeSeparators(vboxGlobal().homeFolder()));
     return QDir::toNativeSeparators(homeDir.absoluteFilePath(s_strCertificateFileName));
-}
-
-/* static */
-int UINetworkReplyPrivateThread::applyProxyRules(RTHTTP hHttp, const QString &strHostName, int iPort)
-{
-    /* Make sure HTTP is created: */
-    if (hHttp == NIL_RTHTTP)
-        return VERR_INVALID_HANDLE;
-
-    /* Apply HTTP proxy: */
-    return RTHttpSetProxy(hHttp,
-                          strHostName.toAscii().constData(),
-                          iPort,
-                          0 /* login */, 0 /* password */);
+#else
+    return QString("/not/such/agency/non-existing-file.cer");
+#endif
 }
 
 /* static */
@@ -489,41 +434,6 @@ int UINetworkReplyPrivateThread::applyRawHeaders(RTHTTP hHttp, const QList<QByte
 }
 
 /**
- * Adjusts the set of found certificates by marking all alternatives found if
- * one is.
- *
- * @returns Adjusted rc (VINF_SUCCESS instead of VWRN_NOT_FOUND if all found).
- * @param   rc                  The status code.
- * @param   pafFoundCerts       Array parallel to s_aCerts with the status of
- *                              each wanted certificate.
- */
-/*static*/ int
-UINetworkReplyPrivateThread::adjustCertsFound(int rc, bool *pafFoundCerts)
-{
-    for (uint32_t i = 0; i < RT_ELEMENTS(s_aCerts); i++)
-        if (pafFoundCerts[i])
-        {
-            uint8_t iAlt = i;
-            for (;;)
-            {
-                const CERTINFO *pCertInfo = (const CERTINFO *)s_aCerts[iAlt].pvUser;
-                iAlt = pCertInfo->iAlternativeTo;
-                if (iAlt >= RT_ELEMENTS(s_aCerts) || iAlt == i)
-                {
-                    Assert(iAlt == UINT8_MAX || iAlt < RT_ELEMENTS(s_aCerts));
-                    break;
-                }
-                if (!pafFoundCerts[iAlt])
-                    pafFoundCerts[iAlt] = true;
-            }
-        }
-
-    if (rc == VINF_SUCCESS || rc == VWRN_NOT_FOUND)
-        rc = countCertsFound(pafFoundCerts) == RT_ELEMENTS(s_aCerts) ? VINF_SUCCESS : VWRN_NOT_FOUND;
-    return rc;
-}
-
-/**
  * Counts the number of certificates found in a search result array.
  *
  * @returns Number of wanted certifcates we've found.
@@ -545,35 +455,43 @@ UINetworkReplyPrivateThread::countCertsFound(bool const *pafFoundCerts)
  * @returns true if we have, false if we haven't.
  * @param   pafFoundCerts       Array parallel to s_aCerts with the status of
  *                              each wanted certificate.
- * @param   fOnlyMandatory      Only require mandatory certificates to be
- *                              present.  If false, all certificates must be
- *                              found before we return true.
  */
 /*static*/ bool
-UINetworkReplyPrivateThread::areAllCertsFound(bool const *pafFoundCerts, bool fOnlyMandatory)
+UINetworkReplyPrivateThread::areAllCertsFound(bool const *pafFoundCerts)
 {
-    if (fOnlyMandatory)
-    {
-        for (uint32_t i = 0; i < RT_ELEMENTS(s_aCerts); i++)
-            if (   !pafFoundCerts[i]
-                && ((const CERTINFO *)s_aCerts[i].pvUser)->fMandatory)
-                return false;
-    }
-    else
-        for (uint32_t i = 0; i < RT_ELEMENTS(s_aCerts); i++)
-            if (!pafFoundCerts[i])
-                return false;
+    for (uint32_t i = 0; i < RT_ELEMENTS(s_aCerts); i++)
+        if (!pafFoundCerts[i])
+            return false;
     return true;
 }
 
-/*static*/ void
-UINetworkReplyPrivateThread::refreshCertificates(RTHTTP hHttp, RTCRSTORE hOldStore, bool *pafOldFoundCerts,
+/**
+ * Refresh the certificates.
+ *
+ * @return  IPRT status code for the testcase.
+ * @param   hHttp               The HTTP client instance.  (Can be NIL when
+ *                              running the testcase.)
+ * @param   phStore             On input, this holds the current store, so that
+ *                              we can fish out wanted certificates from it.
+ *                              On successful return, this is replaced with a
+ *                              new store reflecting the refrehsed content of
+ *                              @a pszCaCertFile.
+ * @param   pafFoundCerts       On input, this holds the certificates found in
+ *                              the current store.  On return, this reflects
+ *                              what is current in the @a pszCaCertFile.  The
+ *                              array runs parallel to s_aCerts.
+ * @param   pszCaCertFile       Where to write the refreshed certificates if
+ *                              we've managed to gather a collection that is at
+ *                              least as good as the old one.
+ */
+/*static*/ int
+UINetworkReplyPrivateThread::refreshCertificates(RTHTTP hHttp, PRTCRSTORE phStore, bool *pafFoundCerts,
                                                  const char *pszCaCertFile)
 {
     /*
      * Collect the standard assortment of SSL certificates.
      */
-    uint32_t  cHint = RTCrStoreCertCount(hOldStore);
+    uint32_t  cHint = RTCrStoreCertCount(*phStore);
     RTCRSTORE hNewStore;
     int rc = RTCrStoreCreateInMem(&hNewStore, cHint > 32 && cHint < _32K ? cHint + 16 : 256);
     if (RT_SUCCESS(rc))
@@ -596,17 +514,15 @@ UINetworkReplyPrivateThread::refreshCertificates(RTHTTP hHttp, RTCRSTORE hOldSto
             RT_ZERO(afNewFoundCerts); /* paranoia */
 
             rc = RTCrStoreCertCheckWanted(hNewStore, s_aCerts, RT_ELEMENTS(s_aCerts), afNewFoundCerts);
-            rc = adjustCertsFound(rc, afNewFoundCerts);
             AssertLogRelRC(rc);
-            Assert(rc != VINF_SUCCESS || areAllCertsFound(afNewFoundCerts, false /*fOnlyMandatory*/));
+            Assert(rc != VINF_SUCCESS || areAllCertsFound(afNewFoundCerts));
             if (rc != VINF_SUCCESS)
             {
                 rc = RTCrStoreCertAddWantedFromStore(hNewStore,
                                                      RTCRCERTCTX_F_ADD_IF_NOT_FOUND | RTCRCERTCTX_F_ADD_CONTINUE_ON_ERROR,
-                                                     hOldStore, s_aCerts, RT_ELEMENTS(s_aCerts), afNewFoundCerts);
-                rc = adjustCertsFound(rc, afNewFoundCerts);
+                                                     *phStore, s_aCerts, RT_ELEMENTS(s_aCerts), afNewFoundCerts);
                 AssertLogRelRC(rc);
-                Assert(rc != VINF_SUCCESS || areAllCertsFound(afNewFoundCerts, false /*fOnlyMandatory*/));
+                Assert(rc != VINF_SUCCESS || areAllCertsFound(afNewFoundCerts));
             }
 
             /*
@@ -620,38 +536,39 @@ UINetworkReplyPrivateThread::refreshCertificates(RTHTTP hHttp, RTCRSTORE hOldSto
                                                                  | RTCRCERTCTX_F_ADD_CONTINUE_ON_ERROR,
                                                                  s_aCerts, RT_ELEMENTS(s_aCerts), afNewFoundCerts,
                                                                  RTErrInfoInitStatic(&StaticErrInfo));
-                rc = adjustCertsFound(rc, afNewFoundCerts);
                 if (RTErrInfoIsSet(&StaticErrInfo.Core))
                     LogRel(("refreshCertificates/#2: %s\n", StaticErrInfo.Core.pszMsg));
-                Assert(rc != VINF_SUCCESS || areAllCertsFound(afNewFoundCerts, false /*fOnlyMandatory*/));
+                Assert(rc != VINF_SUCCESS || areAllCertsFound(afNewFoundCerts));
             }
 
             /*
              * If that didn't help, try download the certificates.
              */
-            if (rc != VINF_SUCCESS)
+            if (rc != VINF_SUCCESS && hHttp != NIL_RTHTTP)
                 downloadMissingCertificates(hNewStore, afNewFoundCerts, hHttp, &StaticErrInfo);
 
             /*
              * If we've got the same or better hit rate than the old store,
              * replace the CA certs file.
              */
-            if (   areAllCertsFound(afNewFoundCerts, false /*fOnlyMandatory*/)
-                || (   countCertsFound(afNewFoundCerts) >= countCertsFound(pafOldFoundCerts)
-                    &&    areAllCertsFound(afNewFoundCerts, true /*fOnlyMandatory*/)
-                       >= areAllCertsFound(pafOldFoundCerts, true /*fOnlyMandatory*/) ) )
+            if (   areAllCertsFound(afNewFoundCerts)
+                || countCertsFound(afNewFoundCerts) >= countCertsFound(pafFoundCerts) )
             {
                 rc = RTCrStoreCertExportAsPem(hNewStore, 0 /*fFlags*/, pszCaCertFile);
                 if (RT_SUCCESS(rc))
                 {
-                    memcpy(pafOldFoundCerts, afNewFoundCerts, sizeof(afNewFoundCerts));
                     LogRel(("refreshCertificates/#3: Found %u/%u SSL certs we/you trust (previously %u/%u).\n",
                             countCertsFound(afNewFoundCerts), RTCrStoreCertCount(hNewStore),
-                            countCertsFound(pafOldFoundCerts), RTCrStoreCertCount(hOldStore) ));
+                            countCertsFound(pafFoundCerts), RTCrStoreCertCount(*phStore) ));
+
+                    memcpy(pafFoundCerts, afNewFoundCerts, sizeof(afNewFoundCerts));
+                    RTCrStoreRelease(*phStore);
+                    *phStore  = hNewStore;
+                    hNewStore = NIL_RTCRSTORE;
                 }
                 else
                 {
-                    RT_ZERO(pafOldFoundCerts);
+                    RT_ZERO(pafFoundCerts);
                     LogRel(("refreshCertificates/#3: RTCrStoreCertExportAsPem unexpectedly failed with %Rrc\n", rc));
                 }
             }
@@ -660,6 +577,7 @@ UINetworkReplyPrivateThread::refreshCertificates(RTHTTP hHttp, RTCRSTORE hOldSto
         }
         RTCrStoreRelease(hNewStore);
     }
+    return rc;
 }
 
 /*static*/ void
@@ -671,16 +589,11 @@ UINetworkReplyPrivateThread::downloadMissingCertificates(RTCRSTORE hNewStore, bo
     /*
      * Try get the roots.zip from symantec (or virtualbox.org) first.
      */
-    static const char * const a_apszRootsZipUrls[] =
-    {
-        "http://www.symantec.com/content/en/us/enterprise/verisign/roots/roots.zip",
-        "http://update.virtualbox.org/cacerts-symantec-roots-zip-has-gone-missing-again" /* Just to try grab our attention. */
-    };
-    for (uint32_t iUrl = 0; iUrl < RT_ELEMENTS(a_apszRootsZipUrls); iUrl++)
+    for (uint32_t iUrl = 0; iUrl < RT_ELEMENTS(s_apszRootsZipUrls); iUrl++)
     {
         void   *pvRootsZip;
         size_t  cbRootsZip;
-        rc = RTHttpGetBinary(hHttp, a_apszRootsZipUrls[iUrl], &pvRootsZip, &cbRootsZip);
+        rc = RTHttpGetBinary(hHttp, s_apszRootsZipUrls[iUrl], &pvRootsZip, &cbRootsZip);
         if (RT_SUCCESS(rc))
         {
             for (uint32_t i = 0; i < RT_ELEMENTS(s_aCerts); i++)
@@ -702,7 +615,7 @@ UINetworkReplyPrivateThread::downloadMissingCertificates(RTCRSTORE hNewStore, bo
                                  * Successfully added. Mark it as found and return if we've got them all.
                                  */
                                 pafNewFoundCerts[i] = true;
-                                if (adjustCertsFound(VWRN_NOT_FOUND, pafNewFoundCerts) == VINF_SUCCESS)
+                                if (areAllCertsFound(pafNewFoundCerts))
                                 {
                                     RTHttpFreeResponse(pvRootsZip);
                                     return;
@@ -735,7 +648,6 @@ UINetworkReplyPrivateThread::downloadMissingCertificates(RTCRSTORE hNewStore, bo
                         if (RT_SUCCESS(rc))
                         {
                             pafNewFoundCerts[i] = true;
-                            adjustCertsFound(VWRN_NOT_FOUND, pafNewFoundCerts);
                             break;
                         }
                     }
@@ -809,6 +721,7 @@ UINetworkReplyPrivateThread::convertVerifyAndAddPemCertificateToStore(RTCRSTORE 
     return rc;
 }
 
+#ifndef VBOX_GUI_IN_TST_SSL_CERT_DOWNLOADS
 
 /**
  * Our network-reply (HTTP) object.
@@ -913,6 +826,11 @@ private:
     QNetworkReply::NetworkError m_error;
     UINetworkReplyPrivateThread *m_pThread;
 };
+
+
+/*********************************************************************************************************************************
+*   Class UINetworkReply implementation.                                                                                         *
+*********************************************************************************************************************************/
 
 UINetworkReply::UINetworkReply(const QNetworkRequest &request, UINetworkRequestType requestType)
     : m_replyType(UINetworkReplyType_Qt)
@@ -1029,4 +947,6 @@ QUrl UINetworkReply::url() const
 }
 
 #include "UINetworkReply.moc"
+
+#endif /* !VBOX_GUI_IN_TST_SSL_CERT_DOWNLOADS */
 

@@ -536,8 +536,8 @@ public:
     void i_copyPathRelativeToMachine(const Utf8Str &strSource, Utf8Str &strTarget);
 
     void i_getLogFolder(Utf8Str &aLogFolder);
-    Utf8Str i_queryLogFilename(ULONG idx);
-    Utf8Str i_getStartupLogFilename(void);
+    Utf8Str i_getLogFilename(ULONG idx);
+    Utf8Str i_getHardeningLogFilename(void);
 
     void i_composeSavedStateFilename(Utf8Str &strStateFilePath);
 

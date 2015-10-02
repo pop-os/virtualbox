@@ -936,6 +936,20 @@ RT_C_DECLS_END
 #define VERR_MISMATCH                       (-22408)
 /** Wrong type. */
 #define VERR_WRONG_TYPE                     (-22409)
+/** This indicates that the process does not have sufficient privileges to
+ * perform the operation. */
+#define VERR_PRIVILEGE_NOT_HELD             (-22410)
+/** Process does not have the trusted code base (TCB) privilege needed for user
+ * authentication or/and process creation as a given user.  TCB is also called
+ * 'Act as part of the operating system'. */
+#define VERR_PROC_TCB_PRIV_NOT_HELD         (-22411)
+/** Process does not have the assign primary token (APT) privilege needed
+ * for creating process as a given user.  APT is also called 'Replace a process
+ * level token'. */
+#define VERR_PROC_APT_PRIV_NOT_HELD         (-22412)
+/** Process does not have the increase quota (IQ) privilege needed for
+ * creating a process as a given user. IQ is also called 'Increase quotas'. */
+#define VERR_PROC_IQ_PRIV_NOT_HELD          (-22413)
 /** @} */
 
 
@@ -1693,6 +1707,10 @@ RT_C_DECLS_END
 #define VERR_HTTP_REDIRECTED                    (-894)
 /** Proxy couldn't be resolved. */
 #define VERR_HTTP_PROXY_NOT_FOUND               (-895)
+/** Unexpected cURL error configure the proxy. */
+#define VERR_HTTP_CURL_PROXY_CONFIG             (-897)
+/** Generic CURL error. */
+#define VERR_HTTP_CURL_ERROR                    (-899)
 /** @} */
 
 /** @name RTManifest status codes
@@ -2493,6 +2511,30 @@ RT_C_DECLS_END
 #define VERR_PATH_MATCH_FEATURE_NOT_IMPLEMENTED     (-24402)
 /** Unknown character class in glob pattern.   */
 #define VERR_PATH_GLOB_UNKNOWN_CHAR_CLASS           (-24403)
+/** @} */
+
+/** @name RTUri status codes.
+ * @{ */
+/** The URI is empty */
+#define VERR_URI_EMPTY                              (-24600)
+/** The URI is too short to be a valid URI. */
+#define VERR_URI_TOO_SHORT                          (-24601)
+/** Invalid scheme.  */
+#define VERR_URI_INVALID_SCHEME                     (-24602)
+/** Invalid port number.  */
+#define VERR_URI_INVALID_PORT_NUMBER                (-24603)
+/** Invalid escape sequence.  */
+#define VERR_URI_INVALID_ESCAPE_SEQ                 (-24604)
+/** Escape URI char decodes as zero (the C string terminator). */
+#define VERR_URI_ESCAPED_ZERO                       (-24605)
+/** Escaped URI characters does not decode to valid UTF-8. */
+#define VERR_URI_ESCAPED_CHARS_NOT_VALID_UTF8       (-24606)
+/** Escaped URI character is not a valid UTF-8 lead byte. */
+#define VERR_URI_INVALID_ESCAPED_UTF8_LEAD_BYTE     (-24607)
+/** Escaped URI character sequence with invalid UTF-8 continutation byte. */
+#define VERR_URI_INVALID_ESCAPED_UTF8_CONTINUATION_BYTE (-24608)
+/** Missing UTF-8 continutation in escaped URI character sequence. */
+#define VERR_URI_MISSING_UTF8_CONTINUATION_BYTE     (-24609)
 /** @} */
 
 /* SED-END */

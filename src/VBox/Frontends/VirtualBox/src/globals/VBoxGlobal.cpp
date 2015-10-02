@@ -58,6 +58,7 @@
 # include "QIMessageBox.h"
 # include "QIDialogButtonBox.h"
 # include "UIIconPool.h"
+# include "UIThreadPool.h"
 # include "UIShortcutPool.h"
 # include "UIExtraDataManager.h"
 # include "QIFileDialog.h"
@@ -230,6 +231,9 @@ void VBoxGlobal::destroy()
 
 VBoxGlobal::VBoxGlobal()
     : mValid (false)
+#ifdef Q_WS_MAC
+    , m_osRelease(MacOSXRelease_Old)
+#endif /* Q_WS_MAC */
     , m_fVBoxSVCAvailable(true)
     , mSelectorWnd (NULL)
     , m_fSeparateProcess(false)
@@ -254,6 +258,7 @@ VBoxGlobal::VBoxGlobal()
     , m3DAvailable(-1)
     , mSettingsPwSet(false)
     , m_pIconPool(0)
+    , m_pThreadPool(0)
 {
     /* Assign instance: */
     m_spInstance = this;
@@ -311,31 +316,30 @@ bool VBoxGlobal::isBeta() const
 }
 
 #ifdef Q_WS_MAC
-/** Returns #MacOSXRelease determined using <i>uname</i> call. */
-MacOSXRelease VBoxGlobal::osRelease()
+/* static */
+MacOSXRelease VBoxGlobal::determineOsRelease()
 {
     /* Prepare 'utsname' struct: */
     utsname info;
     if (uname(&info) != -1)
     {
-        /* Parse known .release types: */
-            if (QString(info.release).startsWith("14."))
-                return MacOSXRelease_Yosemite;
-        else
-            if (QString(info.release).startsWith("13."))
-                return MacOSXRelease_Mavericks;
-        else
-            if (QString(info.release).startsWith("12."))
-                return MacOSXRelease_MountainLion;
-        else
-            if (QString(info.release).startsWith("11."))
-                return MacOSXRelease_Lion;
-        else
-            if (QString(info.release).startsWith("10."))
-                return MacOSXRelease_SnowLeopard;
+        /* Compose map of known releases: */
+        QMap<int, MacOSXRelease> release;
+        release[10] = MacOSXRelease_SnowLeopard;
+        release[11] = MacOSXRelease_Lion;
+        release[12] = MacOSXRelease_MountainLion;
+        release[13] = MacOSXRelease_Mavericks;
+        release[14] = MacOSXRelease_Yosemite;
+        release[15] = MacOSXRelease_ElCapitan;
+
+        /* Cut the major release index of the string we have, s.a. 'man uname': */
+        const int iRelease = QString(info.release).section('.', 0, 0).toInt();
+
+        /* Return release if determined, return 'New' if version more recent than latest, return 'Old' otherwise: */
+        return release.value(iRelease, iRelease > release.keys().last() ? MacOSXRelease_New : MacOSXRelease_Old);
     }
-    /* Unknown by default: */
-    return MacOSXRelease_Unknown;
+    /* Return 'Old' by default: */
+    return MacOSXRelease_Old;
 }
 #endif /* Q_WS_MAC */
 
@@ -4009,6 +4013,11 @@ void VBoxGlobal::prepare()
     /* Make sure QApplication cleanup us on exit: */
     connect(qApp, SIGNAL(aboutToQuit()), this, SLOT(cleanup()));
 
+#ifdef Q_WS_MAC
+    /* Determine OS release early: */
+    m_osRelease = determineOsRelease();
+#endif /* Q_WS_MAC */
+
     /* Create message-center: */
     UIMessageCenter::create();
     /* Create popup-center: */
@@ -4056,6 +4065,9 @@ void VBoxGlobal::prepare()
     /* Watch for the VBoxSVC availability changes: */
     connect(gVBoxEvents, SIGNAL(sigVBoxSVCAvailabilityChange(bool)),
             this, SLOT(sltHandleVBoxSVCAvailabilityChange(bool)));
+
+    /* Prepare thread-pool instance: */
+    m_pThreadPool = new UIThreadPool(3 /* worker count */, 5000 /* worker timeout */);
 
     /* create default non-null global settings */
     gset = VBoxGlobalSettings (false);
@@ -4451,6 +4463,9 @@ void VBoxGlobal::cleanup()
     /* Destroy whatever this converter stuff is: */
     UIConverter::cleanup();
 
+    /* Cleanup thread-pool: */
+    delete m_pThreadPool;
+    m_pThreadPool = 0;
     /* Cleanup general icon-pool: */
     delete m_pIconPool;
     m_pIconPool = 0;

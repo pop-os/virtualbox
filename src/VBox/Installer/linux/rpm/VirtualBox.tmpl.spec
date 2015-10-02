@@ -115,17 +115,19 @@ cd icons
 cd -
 rmdir icons
 mv virtualbox.xml $RPM_BUILD_ROOT/usr/share/mime/packages
-for i in VBoxManage VBoxSVC VBoxSDL VirtualBox VBoxHeadless VBoxDTrace VBoxExtPackHelperApp VBoxBalloonCtrl VBoxAutostart vbox-img; do
+for i in VBoxManage VBoxSVC VirtualBox VBoxHeadless VBoxDTrace VBoxExtPackHelperApp VBoxBalloonCtrl VBoxAutostart vbox-img; do
   mv $i $RPM_BUILD_ROOT/usr/lib/virtualbox; done
 if %WEBSVC%; then
   for i in vboxwebsrv webtest; do
     mv $i $RPM_BUILD_ROOT/usr/lib/virtualbox; done
 fi
-for i in VBoxSDL VirtualBox VBoxHeadless VBoxNetDHCP VBoxNetNAT VBoxNetAdpCtl; do
+test -f VBoxSDL && mv VBoxSDL $RPM_BUILD_ROOT/usr/lib/virtualbox
+for i in VirtualBox VBoxHeadless VBoxNetDHCP VBoxNetNAT VBoxNetAdpCtl; do
   chmod 4511 $RPM_BUILD_ROOT/usr/lib/virtualbox/$i; done
 if [ -f $RPM_BUILD_ROOT/usr/lib/virtualbox/VBoxVolInfo ]; then
   chmod 4511 $RPM_BUILD_ROOT/usr/lib/virtualbox/VBoxVolInfo
 fi
+test -f VBoxSDL && chmod 4511 $RPM_BUILD_ROOT/usr/lib/virtualbox/VBoxSDL
 if [ -d ExtensionPacks/VNC ]; then
   mv ExtensionPacks/VNC $RPM_BUILD_ROOT/usr/lib/virtualbox/ExtensionPacks
 fi
@@ -168,22 +170,19 @@ for i in additions/VBoxGuestAdditions.iso; do
 if [ -d accessible ]; then
   mv accessible $RPM_BUILD_ROOT/usr/lib/virtualbox
 fi
-install -D -m 755 vboxdrv.init $RPM_BUILD_ROOT%{_initrddir}/vboxdrv
-ln -sf %{_initrddir}/vboxdrv $RPM_BUILD_ROOT/sbin/rcvboxdrv
-install -D -m 755 vboxballoonctrl-service.init $RPM_BUILD_ROOT%{_initrddir}/vboxballoonctrl-service
-install -D -m 755 vboxautostart-service.init $RPM_BUILD_ROOT%{_initrddir}/vboxautostart-service
-install -D -m 755 vboxweb-service.init $RPM_BUILD_ROOT%{_initrddir}/vboxweb-service
-%if %{?rpm_suse:1}%{!?rpm_suse:0}
-ln -sf ../etc/init.d/vboxballoonctrl-service $RPM_BUILD_ROOT/sbin/rcvboxballoonctrl-service
-ln -sf ../etc/init.d/vboxautostart-service $RPM_BUILD_ROOT/sbin/rcvboxautostart-service
-ln -sf ../etc/init.d/vboxweb-service $RPM_BUILD_ROOT/sbin/rcvboxweb-service
-%endif
+mv vboxdrv.sh $RPM_BUILD_ROOT/usr/lib/virtualbox
+mv vboxballoonctrl-service.sh $RPM_BUILD_ROOT/usr/lib/virtualbox
+mv vboxautostart-service.sh $RPM_BUILD_ROOT/usr/lib/virtualbox
+mv vboxweb-service.sh $RPM_BUILD_ROOT/usr/lib/virtualbox
+mv postinst-common.sh $RPM_BUILD_ROOT/usr/lib/virtualbox
+mv prerm-common.sh $RPM_BUILD_ROOT/usr/lib/virtualbox
+mv routines.sh $RPM_BUILD_ROOT/usr/lib/virtualbox
 ln -s VBox $RPM_BUILD_ROOT/usr/bin/VirtualBox
 ln -s VBox $RPM_BUILD_ROOT/usr/bin/virtualbox
 ln -s VBox $RPM_BUILD_ROOT/usr/bin/VBoxManage
 ln -s VBox $RPM_BUILD_ROOT/usr/bin/vboxmanage
-ln -s VBox $RPM_BUILD_ROOT/usr/bin/VBoxSDL
-ln -s VBox $RPM_BUILD_ROOT/usr/bin/vboxsdl
+test -f VBoxSDL && ln -s VBox $RPM_BUILD_ROOT/usr/bin/VBoxSDL
+test -f VBoxSDL && ln -s VBox $RPM_BUILD_ROOT/usr/bin/vboxsdl
 ln -s VBox $RPM_BUILD_ROOT/usr/bin/VBoxVRDP
 ln -s VBox $RPM_BUILD_ROOT/usr/bin/VBoxHeadless
 ln -s VBox $RPM_BUILD_ROOT/usr/bin/vboxheadless
@@ -204,33 +203,6 @@ mv VBox.png $RPM_BUILD_ROOT/usr/share/pixmaps/VBox.png
 # defaults
 [ -r /etc/default/virtualbox ] && . /etc/default/virtualbox
 
-# check for active VMs of the installed (old) package
-VBOXSVC_PID=`pidof VBoxSVC 2>/dev/null || true`
-if [ -n "$VBOXSVC_PID" ]; then
-  # executed before the new package is installed!
-  if [ -f /etc/init.d/vboxballoonctrl-service ]; then
-    # try graceful termination; terminate the balloon control service first
-    /etc/init.d/vboxballoonctrl-service stop 2>/dev/null || true
-  fi
-  if [ -f /etc/init.d/vboxautostart-service ]; then
-    # try graceful termination; terminate the autostart service first
-    /etc/init.d/vboxautostart-service stop 2>/dev/null || true
-  fi
-  if [ -f /etc/init.d/vboxweb-service ]; then
-    # try graceful termination; terminate the webservice first
-    /etc/init.d/vboxweb-service stop 2>/dev/null || true
-  fi
-  # ask the daemon to terminate immediately
-  kill -USR1 $VBOXSVC_PID
-  sleep 1
-  if pidof VBoxSVC > /dev/null 2>&1; then
-    echo "A copy of VirtualBox is currently running.  Please close it and try again."
-    echo "Please note that it can take up to ten seconds for VirtualBox (in particular"
-    echo "the VBoxSVC daemon) to finish running."
-    exit 1
-  fi
-fi
-
 # check for old installation
 if [ -r /etc/vbox/vbox.cfg ]; then
   . /etc/vbox/vbox.cfg
@@ -239,6 +211,26 @@ if [ -r /etc/vbox/vbox.cfg ]; then
     echo "old package has to be removed first. Have a look at /etc/vbox/vbox.cfg to"
     echo "determine the installation directory of the previous installation. After"
     echo "uninstalling the old package remove the file /etc/vbox/vbox.cfg."
+    exit 1
+  fi
+fi
+
+# check for active VMs of the installed (old) package
+# Execute the installed packages pre-uninstaller if present.
+/usr/lib/virtualbox/prerm-common.sh 2>/dev/null
+# Stop services from older versions without pre-uninstaller.
+/etc/init.d/vboxballoonctrl-service stop 2>/dev/null
+/etc/init.d/vboxautostart-service stop 2>/dev/null
+/etc/init.d/vboxweb-service stop 2>/dev/null
+VBOXSVC_PID=`pidof VBoxSVC 2>/dev/null || true`
+if [ -n "$VBOXSVC_PID" ]; then
+  # ask the daemon to terminate immediately
+  kill -USR1 $VBOXSVC_PID
+  sleep 1
+  if pidof VBoxSVC > /dev/null 2>&1; then
+    echo "A copy of VirtualBox is currently running.  Please close it and try again."
+    echo "Please note that it can take up to ten seconds for VirtualBox (in particular"
+    echo "the VBoxSVC daemon) to finish running."
     exit 1
   fi
 fi
@@ -287,21 +279,8 @@ fi
 # install udev rule (disable with INSTALL_NO_UDEV=1 in /etc/default/virtualbox)
 # and /dev/vboxdrv and /dev/vboxusb/*/* device nodes
 install_device_node_setup root 0600 /usr/share/virtualbox "${usb_group}"
-%if %{?rpm_redhat:1}%{!?rpm_redhat:0}
-/sbin/chkconfig --add vboxdrv
-/sbin/chkconfig --add vboxballoonctrl-service
-/sbin/chkconfig --add vboxautostart-service
-/sbin/chkconfig --add vboxweb-service
-%endif
-%if %{?rpm_suse:1}%{!?rpm_suse:0}
-%{fillup_and_insserv -f -y -Y vboxdrv vboxballoonctrl-service vboxautostart-service vboxweb-service}
-%endif
 %if %{?rpm_mdv:1}%{!?rpm_mdv:0}
 /sbin/ldconfig
-%_post_service vboxdrv
-%_post_service vboxballoonctrl-service
-%_post_service vboxautostart-service
-%_post_service vboxweb-service
 %update_menus
 %endif
 update-mime-database /usr/share/mime &> /dev/null || :
@@ -332,97 +311,34 @@ if [ "$INSTALL_NO_VBOXDRV" = "1" ]; then
   rm -f /lib/modules/*/misc/vboxpci.ko
 fi
 if [ $BUILD_MODULES -eq 1 ]; then
-  /etc/init.d/vboxdrv setup || true
+  /usr/lib/virtualbox/vboxdrv.sh setup || true
 else
   if lsmod | grep -q "vboxdrv[^_-]"; then
-    /etc/init.d/vboxdrv stop || true
+    /usr/lib/virtualbox/vboxdrv.sh stop || true
   fi
-  if [ $REGISTER_MODULES -eq 1 ]; then
-    DKMS=`which dkms 2>/dev/null`
-    if [ -n "$DKMS" ]; then
-      $DKMS remove -m vboxhost -v %VER% --all > /dev/null 2>&1 || true
-    fi
-  fi
-  /etc/init.d/vboxdrv start > /dev/null
 fi
-/etc/init.d/vboxballoonctrl-service start > /dev/null
-/etc/init.d/vboxautostart-service start > /dev/null
-/etc/init.d/vboxweb-service start > /dev/null
+# Install and start the new service scripts.
+PRERM_DKMS=
+test "${REGISTER_MODULES}" = 1 && PRERM_DKMS="--dkms %VER%"
+POSTINST_START=--start
+test "${INSTALL_NO_VBOXDRV}" = 1 && POSTINST_START=
+/usr/lib/virtualbox/prerm-common.sh ${PRERM_DKMS} || true
+/usr/lib/virtualbox/postinst-common.sh /usr/lib/virtualbox "${POSTINST_START}" > /dev/null || true
 
 
 %preun
+# Called before the package is removed, or during upgrade after (not before)
+# the new version's "post" scriptlet. 
 # $1==0: remove the last version of the package
-# $1==1: install the first time
-# $1>=2: upgrade
-%if %{?rpm_suse:1}%{!?rpm_suse:0}
-%stop_on_removal vboxballoonctrl-service
-%stop_on_removal vboxautostart-service
-%stop_on_removal vboxweb-service
-%endif
-%if %{?rpm_mdv:1}%{!?rpm_mdv:0}
-%_preun_service vboxballoonctrl-service
-%_preun_service vboxautostart-service
-%_preun_service vboxweb-service
-%endif
-%if %{?rpm_redhat:1}%{!?rpm_redhat:0}
+# $1>=1: upgrade
 if [ "$1" = 0 ]; then
-  /sbin/service vboxballoonctrl-service stop > /dev/null
-  /sbin/chkconfig --del vboxballoonctrl-service
-  /sbin/service vboxautostart-service stop > /dev/null
-  /sbin/chkconfig --del vboxautostart-service
-  /sbin/service vboxweb-service stop > /dev/null
-  /sbin/chkconfig --del vboxweb-service
-fi
-%endif
-
-if [ "$1" = 0 ]; then
-  # check for active VMs
-  VBOXSVC_PID=`pidof VBoxSVC 2>/dev/null || true`
-  if [ -n "$VBOXSVC_PID" ]; then
-    kill -USR1 $VBOXSVC_PID
-    sleep 1
-    if pidof VBoxSVC > /dev/null 2>&1; then
-      echo "A copy of VirtualBox is currently running.  Please close it and try again."
-      echo "Please note that it can take up to ten seconds for VirtualBox (in particular"
-      echo "the VBoxSVC daemon) to finish running."
-      exit 1
-    fi
-  fi
-fi
-%if %{?rpm_suse:1}%{!?rpm_suse:0}
-%stop_on_removal vboxdrv
-%endif
-%if %{?rpm_mdv:1}%{!?rpm_mdv:0}
-%_preun_service vboxdrv
-%endif
-if [ "$1" = 0 ]; then
-%if %{?rpm_redhat:1}%{!?rpm_redhat:0}
-  /sbin/service vboxdrv stop > /dev/null
-  /sbin/chkconfig --del vboxdrv
-%endif
+  /usr/lib/virtualbox/prerm-common.sh --dkms || exit 1
   rm -f /etc/udev/rules.d/60-vboxdrv.rules
   rm -f /etc/vbox/license_agreed
   rm -f /etc/vbox/module_not_compiled
 fi
-DKMS=`which dkms 2>/dev/null`
-if [ -n "$DKMS" ]; then
-  $DKMS remove -m vboxhost -v %VER% --all > /dev/null 2>&1 || true
-fi
-
 
 %postun
-%if %{?rpm_redhat:1}%{!?rpm_redhat:0}
-if [ "$1" -ge 1 ]; then
-  /sbin/service vboxdrv restart > /dev/null 2>&1
-  /sbin/service vboxballoonctrl-service restart > /dev/null 2>&1
-  /sbin/service vboxautostart-service restart > /dev/null 2>&1
-  /sbin/service vboxweb-service restart > /dev/null 2>&1
-fi
-%endif
-%if %{?rpm_suse:1}%{!?rpm_suse:0}
-%restart_on_update vboxdrv vboxballoonctrl-service vboxautostart-service vboxweb-service
-%insserv_cleanup
-%endif
 %if %{?rpm_mdv:1}%{!?rpm_mdv:0}
 /sbin/ldconfig
 %{clean_desktop_database}
@@ -444,16 +360,8 @@ rm -rf $RPM_BUILD_ROOT
 %doc %{!?is_ose: LICENSE}
 %doc UserManual*.pdf
 %doc %{!?is_ose: VirtualBox*.chm}
-%{_initrddir}/vboxdrv
-%{_initrddir}/vboxballoonctrl-service
-%{_initrddir}/vboxautostart-service
-%{_initrddir}/vboxweb-service
 %{?rpm_suse: %{py_sitedir}/*}
 %{!?rpm_suse: %{python_sitelib}/*}
-/sbin/rcvboxdrv
-%{?rpm_suse: /sbin/rcvboxballoonctrl-service}
-%{?rpm_suse: /sbin/rcvboxautostart-service}
-%{?rpm_suse: /sbin/rcvboxweb-service}
 /etc/vbox
 /usr/bin/*
 /usr/src/vbox*

@@ -68,8 +68,9 @@
 /** The program name (derived from argv[0]). */
 char                *g_pszProgName =  (char *)"";
 /** The current verbosity level. */
-int                  g_cVerbosity = 0;
+unsigned             g_cVerbosity = 0;
 char                 g_szLogFile[RTPATH_MAX + 128] = "";
+char                 g_szPidFile[RTPATH_MAX] = "";
 /** Logging parameters. */
 /** @todo Make this configurable later. */
 static PRTLOGGER     g_pLoggerRelease = NULL;
@@ -289,6 +290,28 @@ void VBoxServiceLogDestroy(void)
     RTLogDestroy(RTLogRelSetDefaultInstance(NULL));
 }
 
+/*
+ * Create the PID file.
+ */
+int vboxServiceCreatePidFile(const char *pszPidFile)
+{
+    RTFILE hFile;
+    int rc = RTFileOpen(&hFile, pszPidFile, RTFILE_O_WRITE | RTFILE_O_TRUNCATE);
+    if (RT_SUCCESS(rc))
+    {
+        char szPid[32];
+        RTPROCESS Process = RTProcSelf();
+        size_t cb = RTStrPrintf(szPid, sizeof(szPid), "%RU64\n", (uint64_t)Process);
+        rc = RTFileWrite(hFile, szPid, cb, NULL);
+        int rc2 = RTFileClose(hFile);
+        if (RT_SUCCESS(rc))
+            rc = rc2;
+    }
+    if (RT_FAILURE(rc))
+        VBoxServiceError("Failed to create PID file: %Rrc\n", rc);
+    return rc;
+}
+
 
 /**
  * Displays the program usage message.
@@ -299,7 +322,7 @@ static int vboxServiceUsage(void)
 {
     RTPrintf("Usage:\n"
              " %-12s [-f|--foreground] [-v|--verbose] [-l|--logfile <file>]\n"
-             "              [-i|--interval <seconds>]\n"
+             "              [-p|--pidfile <file>] [-i|--interval <seconds>]\n"
              "              [--disable-<service>] [--enable-<service>]\n"
              "              [--only-<service>] [-h|-?|--help]\n", g_pszProgName);
 #ifdef RT_OS_WINDOWS
@@ -313,6 +336,7 @@ static int vboxServiceUsage(void)
              "    -i | --interval         The default interval.\n"
              "    -f | --foreground       Don't daemonize the program. For debugging.\n"
              "    -l | --logfile <file>   Enables logging to a file.\n"
+             "    -p | --pidfile <file>   Write the process ID to a file.\n"
              "    -v | --verbose          Increment the verbosity level. For debugging.\n"
              "    -V | --version          Show version information.\n"
              "    -h | -? | --help        Show this message and exit with status 1.\n"
@@ -370,7 +394,7 @@ RTEXITCODE VBoxServiceError(const char *pszFormat, ...)
  * @param   pszFormat   The message text.
  * @param   ...         Format arguments.
  */
-void VBoxServiceVerbose(int iLevel, const char *pszFormat, ...)
+void VBoxServiceVerbose(unsigned iLevel, const char *pszFormat, ...)
 {
     if (iLevel <= g_cVerbosity)
     {
@@ -865,7 +889,7 @@ int main(int argc, char **argv)
      * handles a guest control session.
      */
     if (fUserSession)
-        return VBoxServiceControlSessionForkInit(argc, argv);
+        return VBoxServiceControlSessionSpawnInit(argc, argv);
 #endif
 
     /*
@@ -907,6 +931,8 @@ int main(int argc, char **argv)
 #endif
             else if (MATCHES("logfile"))
                 psz = "l";
+            else if (MATCHES("pidfile"))
+                psz = "p";
             else if (MATCHES("daemonized"))
             {
                 fDaemonized = true;
@@ -997,6 +1023,16 @@ int main(int argc, char **argv)
                 {
                     rc = VBoxServiceArgString(argc, argv, psz + 1, &i,
                                               g_szLogFile, sizeof(g_szLogFile));
+                    if (rc)
+                        return rc;
+                    psz = NULL;
+                    break;
+                }
+
+                case 'p':
+                {
+                    rc = VBoxServiceArgString(argc, argv, psz + 1, &i,
+                                              g_szPidFile, sizeof(g_szPidFile));
                     if (rc)
                         return rc;
                     psz = NULL;
@@ -1124,9 +1160,15 @@ int main(int argc, char **argv)
 # endif /* !RT_OS_NT4 */
 #endif /* RT_OS_WINDOWS */
         rc = VBoxServiceStartServices();
+        RTFILE hPidFile = NIL_RTFILE;
+        if (RT_SUCCESS(rc))
+            if (g_szPidFile[0])
+                rc = VbglR3PidFile(g_szPidFile, &hPidFile);
         rcExit = RT_SUCCESS(rc) ? RTEXITCODE_SUCCESS : RTEXITCODE_FAILURE;
         if (RT_SUCCESS(rc))
             VBoxServiceMainWait();
+        if (g_szPidFile[0] && hPidFile != NIL_RTFILE)
+            VbglR3ClosePidFile(g_szPidFile, hPidFile);
 #ifdef RT_OS_WINDOWS
 # ifndef RT_OS_NT4
         /* Uninstall console control handler. */

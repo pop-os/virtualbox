@@ -1,10 +1,10 @@
 /* $Id: UIThreadPool.h $ */
 /** @file
- * VBox Qt GUI - UIThreadPool and UITask class declaration.
+ * VBox Qt GUI - UIThreadPool and UITask classes declaration.
  */
 
 /*
- * Copyright (C) 2013 Oracle Corporation
+ * Copyright (C) 2013-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,6 +22,7 @@
 #include <QObject>
 #include <QMutex>
 #include <QQueue>
+#include <QSet>
 #include <QVariant>
 #include <QVector>
 #include <QWaitCondition>
@@ -30,111 +31,124 @@
 class UIThreadWorker;
 class UITask;
 
-/* Worker-thread pool prototype.
- * Schedules COM-related GUI tasks to multiple worker-threads. */
+/** QObject extension used as worker-thread pool.
+  * Schedules COM-related GUI tasks to multiple worker-threads. */
 class UIThreadPool : public QObject
 {
     Q_OBJECT;
 
 signals:
 
-    /* Notifier: Task-queue stuff: */
+    /** Notifies listeners about @a pTask complete. */
     void sigTaskComplete(UITask *pTask);
 
 public:
 
-    /* Constructor/destructor: */
+    /** Constructs worker-thread pool.
+      * @param cMaxWorkers          defines the maximum amount of worker-threads.
+      * @param cMsWorkerIdleTimeout defines the maximum amount of time (in ms) which
+      *                             pool will wait for the worker-thread on cleanup. */
     UIThreadPool(ulong cMaxWorkers = 3, ulong cMsWorkerIdleTimeout = 5000);
+    /** Destructs worker-thread pool. */
     ~UIThreadPool();
 
-    /* API: Task-queue stuff: */
-    void enqueueTask(UITask *pTask);
-
-    /* API: Termination stuff: */
+    /** Returns whether the 'termination sequence' is started. */
     bool isTerminating() const;
+    /** Defines that the 'termination sequence' is started. */
     void setTerminating();
 
-protected:
-
-    /* Protected API: Worker-thread stuff: */
+    /** Enqueues @a pTask into the task-queue. */
+    void enqueueTask(UITask *pTask);
+    /** Returns dequeued top-most task from the task-queue.
+      * @remarks Called by the @a pWorker passed as a hint. */
     UITask* dequeueTask(UIThreadWorker *pWorker);
 
 private slots:
 
-    /* Handler: Task-queue stuff: */
+    /** Handles @a pTask complete signal. */
     void sltHandleTaskComplete(UITask *pTask);
 
-    /* Handler: Worker stuff: */
+    /** Handles @a pWorker finished signal. */
     void sltHandleWorkerFinished(UIThreadWorker *pWorker);
 
 private:
 
-    /** @name Worker thread related variables.
+    /** @name Worker-thread stuff.
      * @{ */
-    QVector<UIThreadWorker*> m_workers;
-    /** Milliseconds  */
-    const ulong m_cMsIdleTimeout;
-    /** The number of worker threads.
-     * @remarks We cannot use the vector size since it may contain NULL pointers. */
-    int m_cWorkers;
-    /** The number of idle worker threads. */
-    int m_cIdleWorkers;
-    /** Set by the destructor to indicate that all worker threads should
-     *  terminate ASAP. */
-    bool m_fTerminating;
+        /** Holds the maximum amount of time (in ms) which
+          * pool will wait for the worker-thread on cleanup. */
+        const ulong m_cMsIdleTimeout;
+        /** Holds the vector of worker-threads. */
+        QVector<UIThreadWorker*> m_workers;
+        /** Holds the number of worker-threads.
+          * @remarks We cannot use the vector size since it may contain 0 pointers. */
+        int m_cWorkers;
+        /** Holds the number of idle worker-threads. */
+        int m_cIdleWorkers;
+        /** Holds whether the 'termination sequence' is started
+          * and all worker-threads should terminate ASAP. */
+        bool m_fTerminating;
     /** @} */
 
-    /** @name Task related variables
+    /** @name Task stuff
      * @{ */
-    /** Queue (FIFO) of pending tasks. */
-    QQueue<UITask*> m_tasks;
-    /** Condition variable that gets signalled when queuing a new task and there are
-     * idle worker threads around.
-     *
-     * Idle threads sits in dequeueTask waiting for this. Thus on thermination
-     * setTerminating() will do a broadcast signal to wake up all workers (after
-     * setting m_fTerminating of course). */
-    QWaitCondition m_taskCondition;
+        /** Holds the queue of pending tasks. */
+        QQueue<UITask*> m_pendingTasks;
+        /** Holds the set of executing tasks. */
+        QSet<UITask*> m_executingTasks;
+        /** Holds the condition variable that gets signalled when
+          * queuing a new task and there are idle worker threads around.
+          * @remarks Idle threads sits in dequeueTask waiting for this.
+          *          Thus on thermination, setTerminating() will send a
+          *          broadcast signal to wake up all workers (after
+          *          setting m_fTerminating of course). */
+        QWaitCondition m_taskCondition;
     /** @} */
 
-
-    /** This mutex is used with the m_taskCondition condition and protects m_tasks,
-     *  m_fTerminating and m_workers. */
+    /** Holds the guard mutex object protecting
+      * all the inter-thread variables. */
     mutable QMutex m_everythingLocker;
-
-    /* Friends: */
-    friend class UIThreadWorker;
 };
 
-/* GUI task interface.
- * Describes executable task to be used with UIThreadPool object. */
+/** QObject extension used as worker-thread task interface.
+  * Describes task to be executed by the UIThreadWorker object. */
 class UITask : public QObject
 {
     Q_OBJECT;
 
 signals:
 
-    /* Notifier: Task stuff: */
+    /** Notifies listeners about @a pTask complete. */
     void sigComplete(UITask *pTask);
 
 public:
 
-    /* Constructor: */
-    UITask(const QVariant &data);
+    /** Task types. */
+    enum Type
+    {
+        Type_MediumEnumeration = 1,
+        Type_DetailsPopulation = 2,
+    };
 
-    /* API: Data stuff: */
-    const QVariant& data() const;
+    /** Constructs the task of passed @a type. */
+    UITask(UITask::Type type) : m_type(type) {}
 
-    /* API: Run stuff: */
+    /** Returns the type of the task. */
+    UITask::Type type() const { return m_type; }
+
+    /** Starts the task. */
     void start();
 
 protected:
 
-    /* Helper: Run stuff: */
+    /** Contains the abstract task body.
+      * @remarks To be reimplemented in sub-class. */
     virtual void run() = 0;
 
-    /* Variable: Data stuff: */
-    QVariant m_data;
+private:
+
+    /** Holds the type of the task. */
+    const UITask::Type m_type;
 };
 
 #endif /* !___UIThreadPool_h___ */
