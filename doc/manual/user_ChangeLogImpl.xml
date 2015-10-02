@@ -3,6 +3,171 @@
 <chapter> <!-- HACK ALERT! Seems we must have a single top level element for xi:include to work.
                            So, we use chapter and xpointer="xpointer(/chapter/)" with xi:include. -->
   <sect1>
+    <title>Version 5.0.6 (2015-10-02)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>GUI: the update check now uses the HTTP system proxy settings by
+          default</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: About dialog improvements. Copyable version text, do not close
+          dialog on mouse-clicks and focus losing, explicit close button at the
+          bottom of dialog and disabled close button fix on OS X. (bugs #9912,
+          #12749)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: fixed bug when re-assigning shortcuts (bug #14565)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: fixed default focus button in message-box dialogs (bug #14486)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: fixed settings dialog which is opened if the network settings
+          need to be changed at VM startup (5.0.0 regression; bug #14601)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: fixed crash during VM start if an early error message needs
+          to be shown, for example Linux kernel modules not present (bug #14646)</para>
+      </listitem>
+
+      <listitem>
+        <para>Bridged Networking: fixed handling of guest DHCP requests without UDP
+          checksum when bridging to a wireless interface (bug #14615).</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: latency fixes (Windows hosts only; bug #4088)</para>
+      </listitem>
+
+      <listitem>
+        <para>Guest Control: correctly set <emphasis>USERNAME</emphasis> and
+          <emphasis>USERPROFILE</emphasis> environment variables (Windows
+          guests only)</para>
+      </listitem>
+
+      <listitem>
+        <para>Guest Control: several fixes</para>
+      </listitem>
+
+      <listitem>
+        <para>API: properly restore NAT port forwarding rules when reverting to
+          a snapshot</para>
+      </listitem>
+
+      <listitem>
+        <para>Parallel ports: Several fixes allowing to enable two parallel ports
+          for a VM</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxManage: fixed wrong output of <computeroutput>debugvm show</computeroutput>
+          command</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxManage: fixed hang when specifying logging groups with
+          <computeroutput>debugvm log</computeroutput> starting with
+          <emphasis>h</emphasis>, for example <emphasis>hex</emphasis></para>
+      </listitem>
+
+      <listitem>
+        <para>Windows hosts: renamed <emphasis>VBoxStartup.log</emphasis> to
+          <emphasis>VBoxHardening.log</emphasis> and provide this log file in
+          the GUI log viewer</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows hosts: fixed a small memory leak in the Windows host interface
+          driver (VBoxNetAdp) which caused a BSOD if the driver verifier is enabled
+          (bug #14562)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows hosts: fixed a failure to start VMs on hosts where dsound.dll
+          is not available (bug #14574)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows hosts: another fix for <emphasis>VERR_LDR_MISMATCH_NATIVE</emphasis>
+          errors (bug #14579)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows hosts: fixed host-to-guest communication with bridged networking
+          (bugs #14326, #14457)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows hosts: fixed broken data receiving from the serial device with
+          the named pipe backend if Kaspersky AV is installed</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts: Linux 4.3 compile fixes</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts: installer fix for certain systems (bug #14627)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts / guests: native systemd support for the host/guest
+          installer scripts. The scripts for re-compiling the kernel modules
+          are now located at /sbin/rcvboxdrv (host) and /sbin/rcvboxadd
+          (Guest Additions)</para>
+      </listitem>
+
+      <listitem>
+        <para>Mac OS X hosts: GUI-related fixes for El Capitan</para>
+      </listitem>
+
+      <listitem>
+        <para>Mac OS X hosts: fixed a problem with capturing USB devices under
+          El Capitan</para>
+      </listitem>
+
+      <listitem>
+        <para>Mac OS X hosts: allow colon character on shared folders (bug #14554)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: properly set the VBoxService process ID in the PID
+          file (bug #14571)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: Guest Control fixes (bug #14573)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows Additions: fixed shutting down VBoxTray when running with
+          older VirtualBox host versions</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows Additions: fixed video playback with VLC and Windows Media
+          Player when the WDDM driver is used and 3D is not used</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows Additions: prevent a possible VLC crash when the WDDM driver
+          is used and 3D is enabled by implementing YV12 surfaces</para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
+
+  <sect1>
     <title>Version 5.0.4 (2015-09-08)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or

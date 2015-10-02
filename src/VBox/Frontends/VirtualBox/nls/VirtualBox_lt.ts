@@ -52,8 +52,8 @@
         <translation>Bandykite iš naujo įdiegti VirtualBox.</translation>
     </message>
     <message>
-        <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. Users of Ubuntu, Fedora or Mandriva should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
-        <translation type="obsolete">VirtualBox Linux branduolio modulis (vboxdrv) arba nėra įkeltas, arba nepakanka leidimų dirbti su /dev/vboxdrv. Iš naujo įdiekite branduolio modulį root teisėmis įvykdydami &lt;br/&gt;&lt;br/&gt;&lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;. Ubuntu, Fedora ir Mandriva platinamųjų paketų naudotojai pirma turi įsidiegti DKMS paketą. Šis paketas seka Linux branduolio pakeitimus ir, jei reikia, perkompiliuoja vboxdrv branduolio modulį.</translation>
+        <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. Users of Ubuntu, Fedora or Mandriva should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
+        <translation type="obsolete">VirtualBox Linux branduolio modulis (vboxdrv) arba nėra įkeltas, arba nepakanka leidimų dirbti su /dev/vboxdrv. Iš naujo įdiekite branduolio modulį root teisėmis įvykdydami &lt;br/&gt;&lt;br/&gt;&lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;. Ubuntu, Fedora ir Mandriva platinamųjų paketų naudotojai pirma turi įsidiegti DKMS paketą. Šis paketas seka Linux branduolio pakeitimus ir, jei reikia, perkompiliuoja vboxdrv branduolio modulį.</translation>
     </message>
     <message>
         <source>Make sure the kernel module has been loaded successfully.</source>
@@ -80,16 +80,16 @@
         <translation>VirtualBox branduolio moduliai neatitinka įdiegtos VirtualBox versijos. Tikriausiai VirtualBox nebuvo pilnai įdiegta. Patariame visiškai pašalinti VirtualBox ir įdiegti iš naujo.</translation>
     </message>
     <message>
-        <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;may correct this. Make sure that you do not mix the OSE version and the PUEL version of VirtualBox.</source>
-        <translation>VirtualBox branduolio moduliai neatitinka įdiegtos VirtualBox versijos. Tikriausiai VirtualBox nebuvo pilnai įdiegta. Galbūt administratoriaus teisėmis įvykdžius &lt;br/&gt;&lt;br/&gt;&lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt; ši problema išsispręs. Įsitikinkite, kad nenaudojate OSE ir PUEL VirtualBox versijų dalių vienu metu.</translation>
+        <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;may correct this. Make sure that you do not mix the OSE version and the PUEL version of VirtualBox.</source>
+        <translation>VirtualBox branduolio moduliai neatitinka įdiegtos VirtualBox versijos. Tikriausiai VirtualBox nebuvo pilnai įdiegta. Galbūt administratoriaus teisėmis įvykdžius &lt;br/&gt;&lt;br/&gt;&lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt; ši problema išsispręs. Įsitikinkite, kad nenaudojate OSE ir PUEL VirtualBox versijų dalių vienu metu.</translation>
     </message>
     <message>
         <source>This error means that the kernel driver was either not able to allocate enough memory or that some mapping operation failed.</source>
         <translation>Ši klaida reiškia, kad branduolio modulis arba negali išnaudoti pakankamai atminties, arba nepavyko atlikti kai kurių planavimo operacijų.</translation>
     </message>
     <message>
-        <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. If it is available in your distribution, you should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
-        <translation>VirtualBox Linux branduolio modulis (vboxdrv) arba nėra įkeltas, arba nepakanka leidimų dirbti su /dev/vboxdrv. Iš naujo įdiekite branduolio modulį root teisėmis įvykdydami &lt;br/&gt;&lt;br/&gt;&lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;. Jei įmanoma pirma turite įsidiegti DKMS paketą. Šis paketas seka Linux branduolio pakeitimus ir, jei reikia, perkompiliuoja vboxdrv branduolio modulį.</translation>
+        <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. If it is available in your distribution, you should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
+        <translation>VirtualBox Linux branduolio modulis (vboxdrv) arba nėra įkeltas, arba nepakanka leidimų dirbti su /dev/vboxdrv. Iš naujo įdiekite branduolio modulį root teisėmis įvykdydami &lt;br/&gt;&lt;br/&gt;&lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;. Jei įmanoma pirma turite įsidiegti DKMS paketą. Šis paketas seka Linux branduolio pakeitimus ir, jei reikia, perkompiliuoja vboxdrv branduolio modulį.</translation>
     </message>
 </context>
 <context>
@@ -7129,7 +7129,7 @@
         <source>VirtualBox - Critical Error</source>
         <comment>msg box title
 </comment>
-        <translation type="obsolete">VirtialBox - lemtinga klaida</translation>
+        <translation type="obsolete">VirtualBox - lemtinga klaida</translation>
     </message>
     <message>
         <source>Do not show this message again</source>
@@ -8009,7 +8009,7 @@
     <message>
         <source>VirtualBox - Critical Error</source>
         <comment>msg box title</comment>
-        <translation>VirtialBox - lemtinga klaida</translation>
+        <translation>VirtualBox - lemtinga klaida</translation>
     </message>
     <message>
         <source>Do not show this message again</source>
@@ -11496,7 +11496,7 @@
     </message>
     <message>
         <source>Holds the host IPv6 address for this adapter if IPv6 is supported.</source>
-        <translation type="obsolete">Rodo šio pagrindinio kompiuterio IPv4 adresą šiai plokštei, jei palaikomas 
+        <translation type="obsolete">Rodo šio pagrindinio kompiuterio IPv4 adresą šiai plokštei, jei palaikomas
 IPv6.</translation>
     </message>
     <message>
@@ -15039,7 +15039,7 @@ IPv6.</translation>
     <name>VBoxSettingsDialog</name>
     <message>
         <source>&lt;i&gt;Select a settings category from the list on the left-hand side and move the mouse over a settings item to get more information&lt;/i&gt;.</source>
-        <translation type="obsolete">&lt;i&gt;Iš sąrašo kairėje pusėje pasirinkite nuostatų grupę. Užvedę pelę virš 
+        <translation type="obsolete">&lt;i&gt;Iš sąrašo kairėje pusėje pasirinkite nuostatų grupę. Užvedę pelę virš
 konkrečių nuostatų, matysite paaiškinimus&lt;i&gt;.</translation>
     </message>
     <message>

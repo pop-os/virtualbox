@@ -142,7 +142,13 @@ RTDECL(int) RTCrStoreCertAddWantedFromFishingExpedition(RTCRSTORE hStore, uint32
             "/System/Library/Java/JavaVirtualMachines/*/Contents/Home/lib/security/cacerts",
 #endif
 #ifdef RT_OS_LINUX
+            PREFIX_UNIXROOT "/etc/ssl/certs/java/cacerts",
+            PREFIX_UNIXROOT "/usr/lib/j*/*/jre/lib/security/cacerts",
             PREFIX_UNIXROOT "/opt/*/jre/lib/security/cacerts",
+#endif
+#ifdef RT_OS_SOLARIS
+            PREFIX_UNIXROOT "/usr/java/jre/lib/security/cacerts",
+            PREFIX_UNIXROOT "/usr/jdk/instances/*/jre/lib/security/cacerts",
 #endif
 #ifdef RT_OS_WINDOWS
             "${AllProgramFiles}/Git/bin/curl-ca-bundle.crt",
@@ -183,7 +189,11 @@ RTDECL(int) RTCrStoreCertAddWantedFromFishingExpedition(RTCRSTORE hStore, uint32
         {
             PREFIX_UNIXROOT "/usr/share/ca-certificates/mozilla/",
 #ifdef RT_OS_DARWIN
-            "/System/Library/Frameworks/Ruby.framework/Versions/2.0/usr/lib/ruby/2.0.0/rubygems/ssl_certs/"
+            "/System/Library/Frameworks/Ruby.framework/Versions/2.0/usr/lib/ruby/2.0.0/rubygems/ssl_certs/",
+#endif
+#ifdef RT_OS_SOLARIS
+            "/etc/certs/",
+            "/etc/crypto/certs/",
 #endif
 #ifdef RT_OS_WINDOWS
             "${AllProgramFiles}/Git/ssl/certs/",

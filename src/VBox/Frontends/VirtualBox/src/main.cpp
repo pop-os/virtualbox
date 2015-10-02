@@ -82,7 +82,7 @@ QString g_QStrHintLinuxNoDriver = QApplication::tr(
   "The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or "
   "there is a permission problem with /dev/vboxdrv. Please reinstall the kernel "
   "module by executing<br/><br/>"
-  "  <font color=blue>'/etc/init.d/vboxdrv setup'</font><br/><br/>"
+  "  <font color=blue>'/sbin/rcvboxdrv setup'</font><br/><br/>"
   "as root. If it is available in your distribution, you should install the "
   "DKMS package first. This package keeps track of Linux kernel changes and "
   "recompiles the vboxdrv kernel module if necessary."
@@ -99,7 +99,7 @@ QString g_QStrHintLinuxWrongDriverVersion = QApplication::tr(
   "The VirtualBox kernel modules do not match this version of "
   "VirtualBox. The installation of VirtualBox was apparently not "
   "successful. Executing<br/><br/>"
-  "  <font color=blue>'/etc/init.d/vboxdrv setup'</font><br/><br/>"
+  "  <font color=blue>'/sbin/rcvboxdrv setup'</font><br/><br/>"
   "may correct this. Make sure that you do not mix the "
   "OSE version and the PUEL version of VirtualBox."
   );
@@ -353,10 +353,11 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char ** /*envp*/)
 
 #ifdef Q_WS_MAC
         /* Font fixes: */
-        switch (VBoxGlobal::osRelease())
+        switch (VBoxGlobal::determineOsRelease())
         {
             case MacOSXRelease_Mavericks: QFont::insertSubstitution(".Lucida Grande UI", "Lucida Grande"); break;
             case MacOSXRelease_Yosemite:  QFont::insertSubstitution(".Helvetica Neue DeskInterface", "Helvetica Neue"); break;
+            case MacOSXRelease_ElCapitan: QFont::insertSubstitution(".SF NS Text", "Helvetica Neue"); break;
             default: break;
         }
 # ifdef QT_MAC_USE_COCOA
@@ -724,9 +725,6 @@ extern "C" DECLEXPORT(void) TrustedError(const char *pszWhere, SUPINITOP enmWhat
             break;
     }
 
-    strText += "</html>";
-
-
 # ifdef RT_OS_LINUX
     /*
      * We have to to make sure that we display the error-message
@@ -735,15 +733,15 @@ extern "C" DECLEXPORT(void) TrustedError(const char *pszWhere, SUPINITOP enmWhat
     sleep(2);
 # endif
 
-    /*
-     * Create the message box and show it.
-     */
-    QString strTitle = QApplication::tr("VirtualBox - Error In %1").arg(pszWhere);
-    QIMessageBox msgBox(strTitle, strText, AlertIconType_Critical, AlertButton_Ok | AlertButtonOption_Default);
+    /* Update strText with strDetails: */
     if (!strDetails.isEmpty())
-        msgBox.setDetailsText(strDetails);
+        strText += QString("<br><br>%1").arg(strDetails);
 
-    msgBox.exec();
+    /* Close the <html> scope: */
+    strText += "</html>";
+
+    /* Create and show the error message-box: */
+    QMessageBox::critical(0, QApplication::tr("VirtualBox - Error In %1").arg(pszWhere), strText);
 
     qFatal("%s", strText.toUtf8().constData());
 }

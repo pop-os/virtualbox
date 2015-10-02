@@ -40,145 +40,246 @@
 *   Test data                                                                                                                    *
 *********************************************************************************************************************************/
 
-static const char *g_apcszTestURIs[] =
+static struct
 {
-    "foo://tt:tt@example.com:8042/over/%20%3C%3E%23%25%22%7B%7D%7C%5E%5B%5D%60/there?name=%20%3C%3E%23%25%22%7B%7D%7C%5E%5B%5D%60ferret#nose%20%3C%3E%23%25%22%7B%7D%7C%5E%5B%5D%60",
-    "foo://tt:tt@example.com:8042/over/%20%3C%3E%23%25%22%7B%7D%7C%5E%5B%5D%60/there?name=%20%3C%3E%23%25%22%7B%7D%7C%5E%5B%5D%60ferret",
-    "foo://tt:tt@example.com:8042/over/%20%3C%3E%23%25%22%7B%7D%7C%5E%5B%5D%60/there",
-    "foo:tt@example.com",
-    "foo:/over/%20%3C%3E%23%25%22%7B%7D%7C%5E%5B%5D%60/there?name=%20%3C%3E%23%25%22%7B%7D%7C%5E%5B%5D%60ferret#nose%20%3C%3E%23%25%22%7B%7D%7C%5E%5B%5D%60",
-    "foo:/over/%20%3C%3E%23%25%22%7B%7D%7C%5E%5B%5D%60/there#nose%20%3C%3E%23%25%22%7B%7D%7C%5E%5B%5D%60",
-    "urn:example:animal:ferret:nose",
-    "foo:?name=%20%3C%3E%23%25%22%7B%7D%7C%5E%5B%5D%60ferret#nose%20%3C%3E%23%25%22%7B%7D%7C%5E%5B%5D%60",
-    "foo:#nose%20%3C%3E%23%25%22%7B%7D%7C%5E%5B%5D%60",
-    "foo://tt:tt@example.com:8042/?name=%20%3C%3E%23%25%22%7B%7D%7C%5E%5B%5D%60ferret#nose%20%3C%3E%23%25%22%7B%7D%7C%5E%5B%5D%60",
-    "foo://tt:tt@example.com:8042/",
-    "foo://tt:tt@example.com:8042?name=%20%3C%3E%23%25%22%7B%7D%7C%5E%5B%5D%60ferret#nose%20%3C%3E%23%25%22%7B%7D%7C%5E%5B%5D%60",
-    "foo://tt:tt@example.com:8042#nose%20%3C%3E%23%25%22%7B%7D%7C%5E%5B%5D%60",
-    "foo://tt:tt@example.com:8042",
-    "foo:///",
-    "foo://"
+    const char *pszUri;
+    const char *pszScheme;
+    const char *pszAuthority;
+    const char *pszPath;
+    const char *pszQuery;
+    const char *pszFragment;
+
+    const char *pszUsername;
+    const char *pszPassword;
+    const char *pszHost;
+    uint32_t    uPort;
+
+    const char *pszCreated;
+} g_aTests[] =
+{
+    {   /* #0 */
+        "foo://tt:yt@example.com:8042/over/%20%3C%3E%23%25%22%7B%7D%7C%5E%5B%5D%60/there?name=%20%3C%3E%23%25%22%7B%7D%7C%5E%5B%5D%60ferret#nose%20%3C%3E%23%25%22%7B%7D%7C%5E%5B%5D%60",
+        /*.pszScheme    =*/ "foo",
+        /*.pszAuthority =*/ "tt:yt@example.com:8042",
+        /*.pszPath      =*/ "/over/ <>#%\"{}|^[]`/there",
+        /*.pszQuery     =*/ "name= <>#%\"{}|^[]`ferret",
+        /*.pszFragment  =*/ "nose <>#%\"{}|^[]`",
+        /*.pszUsername  =*/ "tt",
+        /*.pszPassword  =*/ "yt",
+        /*.pszHost      =*/ "example.com",
+        /*.uPort        =*/ 8042,
+        /*.pszCreated   =*/ NULL /* same as pszUri*/,
+    },
+    {   /* #1 */
+        "foo://tt:yt@example.com:8042/over/%20%3C%3E%23%25%22%7B%7D%7C%5E%5B%5D%60/there?name=%20%3C%3E%23%25%22%7B%7D%7C%5E%5B%5D%60ferret",
+        /*.pszScheme    =*/ "foo",
+        /*.pszAuthority =*/ "tt:yt@example.com:8042",
+        /*.pszPath      =*/ "/over/ <>#%\"{}|^[]`/there",
+        /*.pszQuery     =*/ "name= <>#%\"{}|^[]`ferret",
+        /*.pszFragment  =*/ NULL,
+        /*.pszUsername  =*/ "tt",
+        /*.pszPassword  =*/ "yt",
+        /*.pszHost      =*/ "example.com",
+        /*.uPort        =*/ 8042,
+        /*.pszCreated   =*/ NULL /* same as pszUri*/,
+    },
+    {   /* #2 */
+        "foo://tt:yt@example.com:8042/over/%20%3C%3E%23%25%22%7B%7D%7C%5E%5B%5D%60/there",
+        /*.pszScheme    =*/ "foo",
+        /*.pszAuthority =*/ "tt:yt@example.com:8042",
+        /*.pszPath      =*/ "/over/ <>#%\"{}|^[]`/there",
+        /*.pszQuery     =*/ NULL,
+        /*.pszFragment  =*/ NULL,
+        /*.pszUsername  =*/ "tt",
+        /*.pszPassword  =*/ "yt",
+        /*.pszHost      =*/ "example.com",
+        /*.uPort        =*/ 8042,
+        /*.pszCreated   =*/ NULL /* same as pszUri*/,
+    },
+    {   /* #3 */
+        "foo:tt@example.com",
+        /*.pszScheme    =*/ "foo",
+        /*.pszAuthority =*/ NULL,
+        /*.pszPath      =*/ "tt@example.com",
+        /*.pszQuery     =*/ NULL,
+        /*.pszFragment  =*/ NULL,
+        /*.pszUsername  =*/ NULL,
+        /*.pszPassword  =*/ NULL,
+        /*.pszHost      =*/ NULL,
+        /*.uPort        =*/ UINT32_MAX,
+        /*.pszCreated   =*/ NULL /* same as pszUri*/,
+    },
+    {   /* #4 */
+        "foo:/over/%20%3C%3E%23%25%22%7B%7D%7C%5E%5B%5D%60/there?name=%20%3C%3E%23%25%22%7B%7D%7C%5E%5B%5D%60ferret#nose%20%3C%3E%23%25%22%7B%7D%7C%5E%5B%5D%60",
+        /*.pszScheme    =*/ "foo",
+        /*.pszAuthority =*/ NULL,
+        /*.pszPath      =*/ "/over/ <>#%\"{}|^[]`/there",
+        /*.pszQuery     =*/ "name= <>#%\"{}|^[]`ferret",
+        /*.pszFragment  =*/ "nose <>#%\"{}|^[]`",
+        /*.pszUsername  =*/ NULL,
+        /*.pszPassword  =*/ NULL,
+        /*.pszHost      =*/ NULL,
+        /*.uPort        =*/ UINT32_MAX,
+        /*.pszCreated   =*/ NULL /* same as pszUri*/,
+    },
+    {   /* #5 */
+        "foo:/over/%20%3C%3E%23%25%22%7B%7D%7C%5E%5B%5D%60/there#nose%20%3C%3E%23%25%22%7B%7D%7C%5E%5B%5D%60",
+        /*.pszScheme    =*/ "foo",
+        /*.pszAuthority =*/ NULL,
+        /*.pszPath      =*/ "/over/ <>#%\"{}|^[]`/there",
+        /*.pszQuery     =*/ NULL,
+        /*.pszFragment  =*/ "nose <>#%\"{}|^[]`",
+        /*.pszUsername  =*/ NULL,
+        /*.pszPassword  =*/ NULL,
+        /*.pszHost      =*/ NULL,
+        /*.uPort        =*/ UINT32_MAX,
+        /*.pszCreated   =*/ NULL /* same as pszUri*/,
+    },
+    {   /* #6 */
+        "urn:example:animal:ferret:nose",
+        /*.pszScheme    =*/ "urn",
+        /*.pszAuthority =*/ NULL,
+        /*.pszPath      =*/ "example:animal:ferret:nose",
+        /*.pszQuery     =*/ NULL,
+        /*.pszFragment  =*/ NULL,
+        /*.pszUsername  =*/ NULL,
+        /*.pszPassword  =*/ NULL,
+        /*.pszHost      =*/ NULL,
+        /*.uPort        =*/ UINT32_MAX,
+        /*.pszCreated   =*/ NULL /* same as pszUri*/,
+    },
+    {   /* #7 */
+        "foo:?name=%20%3C%3E%23%25%22%7B%7D%7C%5E%5B%5D%60ferret#nose%20%3C%3E%23%25%22%7B%7D%7C%5E%5B%5D%60",
+        /*.pszScheme    =*/ "foo",
+        /*.pszAuthority =*/ NULL,
+        /*.pszPath      =*/ NULL,
+        /*.pszQuery     =*/ "name= <>#%\"{}|^[]`ferret",
+        /*.pszFragment  =*/ "nose <>#%\"{}|^[]`",
+        /*.pszUsername  =*/ NULL,
+        /*.pszPassword  =*/ NULL,
+        /*.pszHost      =*/ NULL,
+        /*.uPort        =*/ UINT32_MAX,
+        /*.pszCreated   =*/ NULL /* same as pszUri*/,
+    },
+    {   /* #8 */
+        "foo:#nose%20%3C%3E%23%25%22%7B%7D%7C%5E%5B%5D%60",
+        /*.pszScheme    =*/ "foo",
+        /*.pszAuthority =*/ NULL,
+        /*.pszPath      =*/ NULL,
+        /*.pszQuery     =*/ NULL,
+        /*.pszFragment  =*/ "nose <>#%\"{}|^[]`",
+        /*.pszUsername  =*/ NULL,
+        /*.pszPassword  =*/ NULL,
+        /*.pszHost      =*/ NULL,
+        /*.uPort        =*/ UINT32_MAX,
+        /*.pszCreated   =*/ NULL /* same as pszUri*/,
+    },
+    {   /* #9 */
+        "foo://tt:yt@example.com:8042/?name=%20%3C%3E%23%25%22%7B%7D%7C%5E%5B%5D%60ferret#nose%20%3C%3E%23%25%22%7B%7D%7C%5E%5B%5D%60",
+        /*.pszScheme    =*/ "foo",
+        /*.pszAuthority =*/ "tt:yt@example.com:8042",
+        /*.pszPath      =*/ "/",
+        /*.pszQuery     =*/ "name= <>#%\"{}|^[]`ferret",
+        /*.pszFragment  =*/ "nose <>#%\"{}|^[]`",
+        /*.pszUsername  =*/ "tt",
+        /*.pszPassword  =*/ "yt",
+        /*.pszHost      =*/ "example.com",
+        /*.uPort        =*/ 8042,
+        /*.pszCreated   =*/ NULL /* same as pszUri*/,
+    },
+    {   /* #10 */
+        "foo://tt:yt@example.com:8042/",
+        /*.pszScheme    =*/ "foo",
+        /*.pszAuthority =*/ "tt:yt@example.com:8042",
+        /*.pszPath      =*/ "/",
+        /*.pszQuery     =*/ NULL,
+        /*.pszFragment  =*/ NULL,
+        /*.pszUsername  =*/ "tt",
+        /*.pszPassword  =*/ "yt",
+        /*.pszHost      =*/ "example.com",
+        /*.uPort        =*/ 8042,
+        /*.pszCreated   =*/ NULL /* same as pszUri*/,
+    },
+    {   /* #11 */
+        "foo://tt:yt@example.com:8042?name=%20%3C%3E%23%25%22%7B%7D%7C%5E%5B%5D%60ferret#nose%20%3C%3E%23%25%22%7B%7D%7C%5E%5B%5D%60",
+        /*.pszScheme    =*/ "foo",
+        /*.pszAuthority =*/ "tt:yt@example.com:8042",
+        /*.pszPath      =*/ NULL,
+        /*.pszQuery     =*/ "name= <>#%\"{}|^[]`ferret",
+        /*.pszFragment  =*/ "nose <>#%\"{}|^[]`",
+        /*.pszUsername  =*/ "tt",
+        /*.pszPassword  =*/ "yt",
+        /*.pszHost      =*/ "example.com",
+        /*.uPort        =*/ 8042,
+        /*.pszCreated   =*/ NULL /* same as pszUri*/,
+    },
+    {   /* #12 */
+        "foo://tt:yt@example.com:8042#nose%20%3C%3E%23%25%22%7B%7D%7C%5E%5B%5D%60",
+        /*.pszScheme    =*/ "foo",
+        /*.pszAuthority =*/ "tt:yt@example.com:8042",
+        /*.pszPath      =*/ NULL,
+        /*.pszQuery     =*/ NULL,
+        /*.pszFragment  =*/ "nose <>#%\"{}|^[]`",
+        /*.pszUsername  =*/ "tt",
+        /*.pszPassword  =*/ "yt",
+        /*.pszHost      =*/ "example.com",
+        /*.uPort        =*/ 8042,
+        /*.pszCreated   =*/ NULL /* same as pszUri*/,
+    },
+    {   /* #13 */
+        "foo://tt:yt@example.com:8042",
+        /*.pszScheme    =*/ "foo",
+        /*.pszAuthority =*/ "tt:yt@example.com:8042",
+        /*.pszPath      =*/ NULL,
+        /*.pszQuery     =*/ NULL,
+        /*.pszFragment  =*/ NULL,
+        /*.pszUsername  =*/ "tt",
+        /*.pszPassword  =*/ "yt",
+        /*.pszHost      =*/ "example.com",
+        /*.uPort        =*/ 8042,
+        /*.pszCreated   =*/ NULL /* same as pszUri*/,
+    },
+    {   /* #14 */
+        "foo:///",
+        /*.pszScheme    =*/ "foo",
+        /*.pszAuthority =*/ "",
+        /*.pszPath      =*/ "/",
+        /*.pszQuery     =*/ NULL,
+        /*.pszFragment  =*/ NULL,
+        /*.pszUsername  =*/ NULL,
+        /*.pszPassword  =*/ NULL,
+        /*.pszHost      =*/ NULL,
+        /*.uPort        =*/ UINT32_MAX,
+        /*.pszCreated   =*/ NULL /* same as pszUri*/,
+    },
+    {   /* #15 */
+        "foo://",
+        /*.pszScheme    =*/ "foo",
+        /*.pszAuthority =*/ "",
+        /*.pszPath      =*/ NULL,
+        /*.pszQuery     =*/ NULL,
+        /*.pszFragment  =*/ NULL,
+        /*.pszUsername  =*/ NULL,
+        /*.pszPassword  =*/ NULL,
+        /*.pszHost      =*/ NULL,
+        /*.uPort        =*/ UINT32_MAX,
+        /*.pszCreated   =*/ NULL /* same as pszUri*/,
+    },
+    {   /* #16 - UTF-8 escape sequences. */
+        "http://example.com/%ce%b3%ce%bb%cf%83%ce%b1%20%e0%a4%95\xe0\xa4\x95",
+        /*.pszScheme    =*/ "http",
+        /*.pszAuthority =*/ "example.com",
+        /*.pszPath      =*/ "/\xce\xb3\xce\xbb\xcf\x83\xce\xb1 \xe0\xa4\x95\xe0\xa4\x95",
+        /*.pszQuery     =*/ NULL,
+        /*.pszFragment  =*/ NULL,
+        /*.pszUsername  =*/ NULL,
+        /*.pszPassword  =*/ NULL,
+        /*.pszHost      =*/ "example.com",
+        /*.uPort        =*/ UINT32_MAX,
+        /*.pszCreated   =*/ "http://example.com/\xce\xb3\xce\xbb\xcf\x83\xce\xb1%20\xe0\xa4\x95\xe0\xa4\x95",
+    },
 };
 
-static const char *g_apcszSchemeResult[] =
-{
-    "foo",
-    "foo",
-    "foo",
-    "foo",
-    "foo",
-    "foo",
-    "urn",
-    "foo",
-    "foo",
-    "foo",
-    "foo",
-    "foo",
-    "foo",
-    "foo",
-    "foo",
-    "foo"
-};
-
-static const char *g_apcszAuthorityResult[] =
-{
-    "tt:tt@example.com:8042",
-    "tt:tt@example.com:8042",
-    "tt:tt@example.com:8042",
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    "tt:tt@example.com:8042",
-    "tt:tt@example.com:8042",
-    "tt:tt@example.com:8042",
-    "tt:tt@example.com:8042",
-    "tt:tt@example.com:8042",
-    NULL,
-    NULL
-};
-
-static const char *g_apcszPathResult[] =
-{
-    "/over/ <>#%\"{}|^[]`/there",
-    "/over/ <>#%\"{}|^[]`/there",
-    "/over/ <>#%\"{}|^[]`/there",
-    "tt@example.com",
-    "/over/ <>#%\"{}|^[]`/there",
-    "/over/ <>#%\"{}|^[]`/there",
-    "example:animal:ferret:nose",
-    NULL,
-    NULL,
-    "/",
-    "/",
-    NULL,
-    NULL,
-    NULL,
-    "/",
-    NULL
-};
-
-static const char *g_apcszQueryResult[] =
-{
-    "name= <>#%\"{}|^[]`ferret",
-    "name= <>#%\"{}|^[]`ferret",
-    NULL,
-    NULL,
-    "name= <>#%\"{}|^[]`ferret",
-    NULL,
-    NULL,
-    "name= <>#%\"{}|^[]`ferret",
-    NULL,
-    "name= <>#%\"{}|^[]`ferret",
-    NULL,
-    "name= <>#%\"{}|^[]`ferret",
-    NULL,
-    NULL,
-    NULL,
-    NULL
-};
-
-static const char *g_apcszFragmentResult[] =
-{
-    "nose <>#%\"{}|^[]`",
-    NULL,
-    NULL,
-    NULL,
-    "nose <>#%\"{}|^[]`",
-    "nose <>#%\"{}|^[]`",
-    NULL,
-    "nose <>#%\"{}|^[]`",
-    "nose <>#%\"{}|^[]`",
-    "nose <>#%\"{}|^[]`",
-    NULL,
-    "nose <>#%\"{}|^[]`",
-    "nose <>#%\"{}|^[]`",
-    NULL,
-    NULL,
-    NULL
-};
-
-static const char *g_apcszCreateURIs[][5] =
-{
-    { "foo", "tt:tt@example.com:8042", "/over/ <>#%\"{}|^[]`/there", "name= <>#%\"{}|^[]`ferret", "nose <>#%\"{}|^[]`" },
-    { "foo", "tt:tt@example.com:8042", "/over/ <>#%\"{}|^[]`/there", "name= <>#%\"{}|^[]`ferret", NULL },
-    { "foo", "tt:tt@example.com:8042", "/over/ <>#%\"{}|^[]`/there", NULL, NULL },
-    { "foo", NULL, "tt@example.com", NULL, NULL },
-    { "foo", NULL, "/over/ <>#%\"{}|^[]`/there", "name= <>#%\"{}|^[]`ferret", "nose <>#%\"{}|^[]`" },
-    { "foo", NULL, "/over/ <>#%\"{}|^[]`/there", NULL,  "nose <>#%\"{}|^[]`" },
-    { "urn", NULL, "example:animal:ferret:nose", NULL, NULL },
-    { "foo", NULL, NULL, "name= <>#%\"{}|^[]`ferret", "nose <>#%\"{}|^[]`" },
-    { "foo", NULL, NULL, NULL, "nose <>#%\"{}|^[]`" },
-    { "foo", "tt:tt@example.com:8042", "/", "name= <>#%\"{}|^[]`ferret", "nose <>#%\"{}|^[]`" },
-    { "foo", "tt:tt@example.com:8042", "/", NULL, NULL },
-    { "foo", "tt:tt@example.com:8042", NULL, "name= <>#%\"{}|^[]`ferret", "nose <>#%\"{}|^[]`" },
-    { "foo", "tt:tt@example.com:8042", NULL, NULL, "nose <>#%\"{}|^[]`" },
-    { "foo", "tt:tt@example.com:8042", NULL, NULL, NULL },
-    { "foo", "", "/", NULL, NULL },
-    { "foo", "", NULL, NULL, NULL }
-};
 
 struct URIFILETEST
 {
@@ -192,129 +293,53 @@ g_apCreateFileURIs[] =
     { "/over/ <>#%\"{}|^[]`/there", "file:///over/%20%3C%3E%23%25%22%7B%7D%7C%5E%5B%5D%60/there", URI_FILE_FORMAT_UNIX },
     { "/", "file:///", URI_FILE_FORMAT_UNIX },
     { "/C:/over/ <>#%\"{}|^[]`/there", "file:///C:%5Cover%5C%20%3C%3E%23%25%22%7B%7D%7C%5E%5B%5D%60%5Cthere", URI_FILE_FORMAT_UNIX },
-    { "over\\ <>#%\"{}|^[]`\\there", "file:///over/%20%3C%3E%23%25%22%7B%7D%7C%5E%5B%5D%60/there", URI_FILE_FORMAT_WIN }
+    { "\\over\\ <>#%\"{}|^[]`\\there", "file:///over/%20%3C%3E%23%25%22%7B%7D%7C%5E%5B%5D%60/there", URI_FILE_FORMAT_WIN }
 };
 
-/**
- * Basic API checks.
- */
-static void tstScheme(size_t iCount, const char *pszUri, const char *pszTest)
-{
-    char *pszResult = RTUriScheme(pszUri);
-    if (pszTest)
-    {
-        RTTESTI_CHECK_MSG_RETV(pszResult, ("Result '%s' != '%s'", pszResult, pszTest));
-        RTTESTI_CHECK_MSG(RTStrCmp(pszResult, pszTest) == 0, ("Result '%s' != '%s'", pszResult, pszTest));
-    }
-    else
-        RTTESTI_CHECK_MSG(!pszResult, ("Result '%s' != '%s'", pszResult, pszTest));
 
-    if (pszResult)
-        RTStrFree(pszResult);
-}
 
-static void tstAuthority(size_t iCount, const char *pszUri, const char *pszTest)
-{
-    char *pszResult = RTUriAuthority(pszUri);
-    if (pszTest)
-    {
-        RTTESTI_CHECK_MSG_RETV(pszResult, ("Result '%s' != '%s'", pszResult, pszTest));
-        RTTESTI_CHECK_MSG(RTStrCmp(pszResult, pszTest) == 0, ("Result '%s' != '%s'", pszResult, pszTest));
-    }
-    else
-        RTTESTI_CHECK_MSG(!pszResult, ("Result '%s' != '%s'", pszResult, pszTest));
-
-    if (pszResult)
-        RTStrFree(pszResult);
-}
-
-static void tstPath(size_t iCount, const char *pszUri, const char *pszTest)
-{
-    char *pszResult = RTUriPath(pszUri);
-    if (pszTest)
-    {
-        RTTESTI_CHECK_MSG_RETV(pszResult, ("Result '%s' != '%s'", pszResult, pszTest));
-        RTTESTI_CHECK_MSG(RTStrCmp(pszResult, pszTest) == 0, ("Result '%s' != '%s'", pszResult, pszTest));
-    }
-    else
-        RTTESTI_CHECK_MSG(!pszResult, ("Result '%s' != '%s'", pszResult, pszTest));
-
-    if (pszResult)
-        RTStrFree(pszResult);
-}
-
-static void tstQuery(size_t iCount, const char *pszUri, const char *pszTest)
-{
-    char *pszResult = RTUriQuery(pszUri);
-    if (pszTest)
-    {
-        RTTESTI_CHECK_MSG_RETV(pszResult, ("Result '%s' != '%s'", pszResult, pszTest));
-        RTTESTI_CHECK_MSG(RTStrCmp(pszResult, pszTest) == 0, ("Result '%s' != '%s'", pszResult, pszTest));
-    }
-    else
-        RTTESTI_CHECK_MSG(!pszResult, ("Result '%s' != '%s'", pszResult, pszTest));
-
-    if (pszResult)
-        RTStrFree(pszResult);
-}
-
-static void tstFragment(size_t iCount, const char *pszUri, const char *pszTest)
-{
-    char *pszResult = RTUriFragment(pszUri);
-    if (pszTest)
-    {
-        RTTESTI_CHECK_MSG_RETV(pszResult, ("Result '%s' != '%s'", pszResult, pszTest));
-        RTTESTI_CHECK_MSG(RTStrCmp(pszResult, pszTest) == 0, ("Result '%s' != '%s'", pszResult, pszTest));
-    }
-    else
-        RTTESTI_CHECK_MSG(!pszResult, ("Result '%s' != '%s'", pszResult, pszTest));
-
-    if (pszResult)
-        RTStrFree(pszResult);
-}
-
-static void tstCreate(size_t iCount, const char *pszScheme, const char *pszAuthority, const char *pszPath, const char *pszQuery, const char *pszFragment, const char *pszTest)
+static void tstCreate(size_t idxTest, const char *pszScheme, const char *pszAuthority, const char *pszPath, const char *pszQuery, const char *pszFragment, const char *pszTest)
 {
     char *pszResult = RTUriCreate(pszScheme, pszAuthority, pszPath, pszQuery, pszFragment);
     if (pszTest)
     {
-        RTTESTI_CHECK_MSG_RETV(pszResult, ("Result '%s' != '%s'", pszResult, pszTest));
-        RTTESTI_CHECK_MSG(RTStrCmp(pszResult, pszTest) == 0, ("Result '%s' != '%s'", pszResult, pszTest));
+        RTTESTI_CHECK_MSG_RETV(pszResult, ("#%u: Result '%s' != '%s'", idxTest, pszResult, pszTest));
+        RTTESTI_CHECK_MSG(RTStrCmp(pszResult, pszTest) == 0, ("#%u: Result '%s' != '%s'", idxTest, pszResult, pszTest));
     }
     else
-        RTTESTI_CHECK_MSG(!pszResult, ("Result '%s' != '%s'", pszResult, pszTest));
+        RTTESTI_CHECK_MSG(!pszResult, ("#%u: Result '%s' != '%s'", idxTest, pszResult, pszTest));
 
     if (pszResult)
         RTStrFree(pszResult);
     return;
 }
 
-static void tstFileCreate(size_t iCount, const char *pszPath, const char *pszTest)
+static void tstFileCreate(size_t idxTest, const char *pszPath, const char *pszTest)
 {
     char *pszResult = RTUriFileCreate(pszPath);
     if (pszTest)
     {
-        RTTESTI_CHECK_MSG_RETV(pszResult, ("Result '%s' != '%s'", pszResult, pszTest));
-        RTTESTI_CHECK_MSG(RTStrCmp(pszResult, pszTest) == 0, ("Result '%s' != '%s'", pszResult, pszTest));
+        RTTESTI_CHECK_MSG_RETV(pszResult, ("#%u: Result '%s' != '%s'", idxTest, pszResult, pszTest));
+        RTTESTI_CHECK_MSG(RTStrCmp(pszResult, pszTest) == 0, ("#%u: Result '%s' != '%s'", idxTest, pszResult, pszTest));
     }
     else
-        RTTESTI_CHECK_MSG(!pszResult, ("Result '%s' != '%s'", pszResult, pszTest));
+        RTTESTI_CHECK_MSG(!pszResult, ("#%u: Result '%s' != '%s'", idxTest, pszResult, pszTest));
 
     if (pszResult)
         RTStrFree(pszResult);
     return;
 }
 
-static void tstFilePath(size_t iCount, const char *pszUri, const char *pszTest, uint32_t uFormat)
+static void tstFilePath(size_t idxTest, const char *pszUri, const char *pszTest, uint32_t uFormat)
 {
     char *pszResult = RTUriFilePath(pszUri, uFormat);
     if (pszTest)
     {
-        RTTESTI_CHECK_MSG_RETV(pszResult, ("Result '%s' != '%s'", pszResult, pszTest));
-        RTTESTI_CHECK_MSG(RTStrCmp(pszResult, pszTest) == 0, ("Result '%s' != '%s'", pszResult, pszTest));
+        RTTESTI_CHECK_MSG_RETV(pszResult, ("#%u: Result '%s' != '%s'", idxTest, pszResult, pszTest));
+        RTTESTI_CHECK_MSG(RTStrCmp(pszResult, pszTest) == 0, ("#%u: Result '%s' != '%s'", idxTest, pszResult, pszTest));
     }
     else
-        RTTESTI_CHECK_MSG(!pszResult, ("Result '%s' != '%s'", pszResult, pszTest));
+        RTTESTI_CHECK_MSG(!pszResult, ("#%u: Result '%s' != '%s'", idxTest, pszResult, pszTest));
 
     if (pszResult)
         RTStrFree(pszResult);
@@ -329,52 +354,58 @@ int main()
         return rc;
     RTTestBanner(hTest);
 
-    /* Scheme */
-    RTTestISubF("RTUriScheme");
-    Assert(RT_ELEMENTS(g_apcszTestURIs) == RT_ELEMENTS(g_apcszSchemeResult));
-    for (size_t i = 0; i < RT_ELEMENTS(g_apcszTestURIs); ++i)
-        tstScheme(i+1, g_apcszTestURIs[i], g_apcszSchemeResult[i]);
+#define CHECK_STR_API(a_Call, a_pszExpected) \
+        do { \
+            char *pszTmp = a_Call; \
+            if (a_pszExpected) \
+            { \
+                if (!pszTmp) \
+                    RTTestIFailed("#%u: %s returns NULL, expected '%s'", i, #a_Call, a_pszExpected); \
+                else if (strcmp(pszTmp, a_pszExpected)) \
+                        RTTestIFailed("#%u: %s returns '%s', expected '%s'", i, #a_Call, pszTmp, a_pszExpected); \
+            } \
+            else if (pszTmp) \
+                RTTestIFailed("#%u: %s returns '%s', expected NULL", i, #a_Call, pszTmp); \
+            RTStrFree(pszTmp); \
+        } while (0)
 
-    /* Authority */
-    RTTestISubF("RTUriAuthority");
-    Assert(RT_ELEMENTS(g_apcszTestURIs) == RT_ELEMENTS(g_apcszAuthorityResult));
-    for (size_t i = 0; i < RT_ELEMENTS(g_apcszTestURIs); ++i)
-        tstAuthority(i+1, g_apcszTestURIs[i], g_apcszAuthorityResult[i]);
-
-    /* Path */
-    RTTestISubF("RTUriPath");
-    Assert(RT_ELEMENTS(g_apcszTestURIs) == RT_ELEMENTS(g_apcszPathResult));
-    for (size_t i = 0; i < RT_ELEMENTS(g_apcszTestURIs); ++i)
-        tstPath(i+1, g_apcszTestURIs[i], g_apcszPathResult[i]);
-
-    /* Query */
-    RTTestISubF("RTUriQuery");
-    Assert(RT_ELEMENTS(g_apcszTestURIs) == RT_ELEMENTS(g_apcszQueryResult));
-    for (size_t i = 0; i < RT_ELEMENTS(g_apcszTestURIs); ++i)
-        tstQuery(i+1, g_apcszTestURIs[i], g_apcszQueryResult[i]);
-
-    /* Fragment */
-    RTTestISubF("RTUriFragment");
-    Assert(RT_ELEMENTS(g_apcszTestURIs) == RT_ELEMENTS(g_apcszFragmentResult));
-    for (size_t i = 0; i < RT_ELEMENTS(g_apcszTestURIs); ++i)
-        tstFragment(i+1, g_apcszTestURIs[i], g_apcszFragmentResult[i]);
+    RTTestISub("RTUriParse & RTUriParsed*");
+    for (uint32_t i = 0; i < RT_ELEMENTS(g_aTests); i++)
+    {
+        RTURIPARSED Parsed;
+        RTTESTI_CHECK_RC(rc = RTUriParse(g_aTests[i].pszUri, &Parsed), VINF_SUCCESS);
+        if (RT_SUCCESS(rc))
+        {
+            CHECK_STR_API(RTUriParsedScheme(g_aTests[i].pszUri, &Parsed), g_aTests[i].pszScheme);
+            CHECK_STR_API(RTUriParsedAuthority(g_aTests[i].pszUri, &Parsed), g_aTests[i].pszAuthority);
+            CHECK_STR_API(RTUriParsedAuthorityUsername(g_aTests[i].pszUri, &Parsed), g_aTests[i].pszUsername);
+            CHECK_STR_API(RTUriParsedAuthorityPassword(g_aTests[i].pszUri, &Parsed), g_aTests[i].pszPassword);
+            CHECK_STR_API(RTUriParsedAuthorityHost(g_aTests[i].pszUri, &Parsed), g_aTests[i].pszHost);
+            CHECK_STR_API(RTUriParsedPath(g_aTests[i].pszUri, &Parsed), g_aTests[i].pszPath);
+            CHECK_STR_API(RTUriParsedQuery(g_aTests[i].pszUri, &Parsed), g_aTests[i].pszQuery);
+            CHECK_STR_API(RTUriParsedFragment(g_aTests[i].pszUri, &Parsed), g_aTests[i].pszFragment);
+            uint32_t uPort = RTUriParsedAuthorityPort(g_aTests[i].pszUri, &Parsed);
+            if (uPort != g_aTests[i].uPort)
+                RTTestIFailed("#%u: RTUriParsedAuthorityPort returns %#x, expected %#x", i, uPort, g_aTests[i].uPort);
+        }
+    }
 
     /* Creation */
-    RTTestISubF("RTUriCreate");
-    Assert(RT_ELEMENTS(g_apcszTestURIs) == RT_ELEMENTS(g_apcszCreateURIs));
-    for (size_t i = 0; i < RT_ELEMENTS(g_apcszTestURIs); ++i)
-        tstCreate(i+1, g_apcszCreateURIs[i][0], g_apcszCreateURIs[i][1], g_apcszCreateURIs[i][2],
-                  g_apcszCreateURIs[i][3], g_apcszCreateURIs[i][4], g_apcszTestURIs[i]);
+    RTTestISub("RTUriCreate");
+    for (uint32_t i = 0; i < RT_ELEMENTS(g_aTests); i++)
+        CHECK_STR_API(RTUriCreate(g_aTests[i].pszScheme, g_aTests[i].pszAuthority, g_aTests[i].pszPath,
+                                  g_aTests[i].pszQuery, g_aTests[i].pszFragment),
+                      g_aTests[i].pszCreated ? g_aTests[i].pszCreated : g_aTests[i].pszUri);
 
     /* File Uri path */
-    RTTestISubF("RTUriFilePath");
+    RTTestISub("RTUriFilePath");
     for (size_t i = 0; i < RT_ELEMENTS(g_apCreateFileURIs); ++i)
-        tstFilePath(i+1, g_apCreateFileURIs[i].pcszUri, g_apCreateFileURIs[i].pcszPath, g_apCreateFileURIs[i].uFormat);
+        tstFilePath(i, g_apCreateFileURIs[i].pcszUri, g_apCreateFileURIs[i].pcszPath, g_apCreateFileURIs[i].uFormat);
 
     /* File Uri creation */
-    RTTestISubF("RTUriFileCreate");
+    RTTestISub("RTUriFileCreate");
     for (size_t i = 0; i < 3; ++i)
-        tstFileCreate(i+1, g_apCreateFileURIs[i].pcszPath, g_apCreateFileURIs[i].pcszUri);
+        tstFileCreate(i, g_apCreateFileURIs[i].pcszPath, g_apCreateFileURIs[i].pcszUri);
 
     return RTTestSummaryAndDestroy(hTest);
 }

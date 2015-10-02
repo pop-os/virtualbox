@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 100880 $"
+__version__ = "$Revision: 102941 $"
 
 
 # Standard python imports.
@@ -774,7 +774,7 @@ class TestBoxController(object): # pylint: disable=R0903
         (sError, fUnforgivable) = TestResultLogic(oDb).processXmlStream(sXml, self._idTestSet);
         if sError is not None:
             oTestSet = TestSetData().initFromDbWithId(oDb, oStatusData.idTestSet);
-            self.writeToMainLog(oTestSet, '\n!!XML error: %s\n\n' % (sXml,));
+            self.writeToMainLog(oTestSet, '\n!!XML error: %s\n%s\n\n' % (sError, sXml,));
             if fUnforgivable:
                 return self._resultResponse(constants.tbresp.STATUS_NACK);
         return self._resultResponse(constants.tbresp.STATUS_ACK);

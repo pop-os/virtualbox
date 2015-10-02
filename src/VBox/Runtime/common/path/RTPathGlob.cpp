@@ -44,6 +44,7 @@
 
 #if defined(RT_OS_WINDOWS)
 # include <Windows.h>
+# include "../../r3/win/internal-r3-win.h"
 
 #elif defined(RT_OS_OS2)
 # define INCL_BASE
@@ -499,8 +500,9 @@ static DECLCALLBACK(int) rtPathVarQuery_DosSystemDrive(uint32_t iItem, char *psz
 # ifdef RT_OS_WINDOWS
         /* Since this is used at the start of a pattern, we assume
            we've got more than enough buffer space. */
+        AssertReturn(g_pfnGetSystemWindowsDirectoryW, VERR_SYMBOL_NOT_FOUND);
         PRTUTF16 pwszTmp = (PRTUTF16)pszBuf;
-        UINT cch = GetSystemWindowsDirectoryW(pwszTmp, (UINT)(cbBuf / sizeof(WCHAR)));
+        UINT cch = g_pfnGetSystemWindowsDirectoryW(pwszTmp, (UINT)(cbBuf / sizeof(WCHAR)));
         if (cch >= 2)
         {
             RTUTF16 wcDrive = pwszTmp[0];
@@ -546,8 +548,9 @@ static DECLCALLBACK(int) rtPathVarQuery_WinSystemRoot(uint32_t iItem, char *pszB
     if (iItem == 0)
     {
         Assert(pszBuf); Assert(cbBuf);
+        AssertReturn(g_pfnGetSystemWindowsDirectoryW, VERR_SYMBOL_NOT_FOUND);
         RTUTF16 wszSystemRoot[MAX_PATH];
-        UINT cchSystemRoot = GetSystemWindowsDirectoryW(wszSystemRoot, MAX_PATH);
+        UINT cchSystemRoot = g_pfnGetSystemWindowsDirectoryW(wszSystemRoot, MAX_PATH);
         if (cchSystemRoot > 0)
             return RTUtf16ToUtf8Ex(wszSystemRoot, cchSystemRoot, &pszBuf, cbBuf, pcchValue);
         return RTErrConvertFromWin32(GetLastError());
@@ -1324,7 +1327,7 @@ static int rtPathGlobParse(PRTPATHGLOB pGlob, const char *pszPattern, PRTPATHPAR
     {
         AssertReturn(pParsed->aComps[0].cch < sizeof(pGlob->szPath) - 1, VERR_FILENAME_TOO_LONG);
         memcpy(pGlob->szPath, &pszPattern[pParsed->aComps[0].off], pParsed->aComps[0].cch);
-        pGlob->offFirstPath = pParsed->aComps[0].off;
+        pGlob->offFirstPath = pParsed->aComps[0].cch;
         pGlob->iFirstComp   = iComp = 1;
     }
     else
@@ -1698,7 +1701,7 @@ DECL_NO_INLINE(static, int) rtPathGlobExecRecursiveVarExp(PRTPATHGLOB pGlob, siz
         {
             Assert(pGlob->szPath[offPath + cch] == '\0');
 
-            int rc = RTPathQueryInfoEx(pGlob->szPath, &pGlob->u.ObjInfo, RTFSOBJATTRADD_NOTHING, RTPATH_F_ON_LINK);
+            int rc = RTPathQueryInfoEx(pGlob->szPath, &pGlob->u.ObjInfo, RTFSOBJATTRADD_NOTHING, RTPATH_F_FOLLOW_LINK);
             if (RT_SUCCESS(rc))
             {
                 if (pGlob->aComps[iComp].fFinal)
@@ -1793,7 +1796,7 @@ DECL_NO_INLINE(static, int) rtPathGlobExecRecursivePlainText(PRTPATHGLOB pGlob, 
             /*
              * Check if it exists.
              */
-            int rc = RTPathQueryInfoEx(pGlob->szPath, &pGlob->u.ObjInfo, RTFSOBJATTRADD_NOTHING, RTPATH_F_ON_LINK);
+            int rc = RTPathQueryInfoEx(pGlob->szPath, &pGlob->u.ObjInfo, RTFSOBJATTRADD_NOTHING, RTPATH_F_FOLLOW_LINK);
             if (RT_SUCCESS(rc))
             {
                 if (pGlob->aComps[iComp].fFinal)
@@ -2006,7 +2009,7 @@ static int rtPathGlobExec(PRTPATHGLOB pGlob)
          * Special case where we only have a root component or tilde expansion.
          */
         Assert(pGlob->offFirstPath > 0);
-        rc = RTPathQueryInfoEx(pGlob->szPath, &pGlob->u.ObjInfo, RTFSOBJATTRADD_NOTHING, RTPATH_F_ON_LINK);
+        rc = RTPathQueryInfoEx(pGlob->szPath, &pGlob->u.ObjInfo, RTFSOBJATTRADD_NOTHING, RTPATH_F_FOLLOW_LINK);
         if (   RT_SUCCESS(rc)
             && rtPathGlobExecIsMatchFinalWithFileMode(pGlob, pGlob->u.ObjInfo.Attr.fMode))
             rc = rtPathGlobAddResult(pGlob, pGlob->offFirstPath,
@@ -2062,8 +2065,8 @@ RTDECL(int) RTPathGlob(const char *pszPattern, uint32_t fFlags, PPCRTPATHGLOBENT
     int rc = RTPathParse(pszPattern, pParsed, cbParsed, RTPATH_STR_F_STYLE_HOST);
     if (rc == VERR_BUFFER_OVERFLOW)
     {
-        RTMemTmpFree(pParsed);
         cbParsed = RT_OFFSETOF(RTPATHPARSED, aComps[pParsed->cComps + 1]);
+        RTMemTmpFree(pParsed);
         pParsed = (PRTPATHPARSED)RTMemTmpAlloc(cbParsed);
         AssertReturn(pParsed, VERR_NO_MEMORY);
 

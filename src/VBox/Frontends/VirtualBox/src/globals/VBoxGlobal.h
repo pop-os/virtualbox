@@ -64,6 +64,7 @@ class QSpinBox;
 class UIMediumEnumerator;
 class UIMedium;
 class UIIconPoolGeneral;
+class UIThreadPool;
 #ifdef Q_WS_X11
 class UIDesktopWidgetWatchdog;
 #endif /* Q_WS_X11 */
@@ -119,7 +120,10 @@ public:
     bool isSeparateProcess() const { return m_fSeparateProcess; }
 
 #ifdef Q_WS_MAC
-    static MacOSXRelease osRelease();
+    /** Mac OS X: Returns #MacOSXRelease determined using <i>uname</i> call. */
+    static MacOSXRelease determineOsRelease();
+    /** Mac OS X: Returns #MacOSXRelease determined during VBoxGlobal prepare routine. */
+    MacOSXRelease osRelease() const { return m_osRelease; }
 #endif /* Q_WS_MAC */
 
     /** Try to acquire COM cleanup protection token for reading. */
@@ -138,6 +142,9 @@ public:
 
     /** Returns the VBoxSVC availability value. */
     bool isVBoxSVCAvailable() const { return m_fVBoxSVCAvailable; }
+
+    /** Returns the thread-pool instance. */
+    UIThreadPool* threadPool() const { return m_pThreadPool; }
 
     /** @name Host-screen geometry stuff
       * @{ */
@@ -517,6 +524,11 @@ private:
 
     bool mValid;
 
+#ifdef Q_WS_MAC
+    /** Mac OS X: Holds the #MacOSXRelease determined using <i>uname</i> call. */
+    MacOSXRelease m_osRelease;
+#endif /* Q_WS_MAC */
+
     /** COM cleanup protection token. */
     QReadWriteLock m_comCleanupProtectionToken;
 
@@ -637,6 +649,8 @@ private:
 
     /** General icon-pool. */
     UIIconPoolGeneral *m_pIconPool;
+    /** Holds the thread-pool instance. */
+    UIThreadPool *m_pThreadPool;
 
     /* API: Instance stuff: */
     static bool m_sfCleanupInProgress;

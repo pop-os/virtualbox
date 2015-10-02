@@ -31,8 +31,8 @@
 #define LOG_GROUP RTLOGGROUP_PROCESS
 #include <iprt/asm.h> /* hack */
 
+#include <iprt/nt/nt-and-windows.h>
 #include <Userenv.h>
-#include <Windows.h>
 #include <tlhelp32.h>
 #include <process.h>
 #include <errno.h>
@@ -63,48 +63,27 @@
 /*********************************************************************************************************************************
 *   Structures and Typedefs                                                                                                      *
 *********************************************************************************************************************************/
-typedef WINADVAPI BOOL WINAPI FNCREATEPROCESSWITHLOGON(LPCWSTR,
-                                                       LPCWSTR,
-                                                       LPCWSTR,
-                                                       DWORD,
-                                                       LPCWSTR,
-                                                       LPWSTR,
-                                                       DWORD,
-                                                       LPVOID,
-                                                       LPCWSTR,
-                                                       LPSTARTUPINFOW,
-                                                       LPPROCESS_INFORMATION);
-typedef FNCREATEPROCESSWITHLOGON *PFNCREATEPROCESSWITHLOGON;
+/* kernel32.dll: */
+//typedef DWORD   (WINAPI *PFNWTSGETACTIVECONSOLESESSIONID)(VOID);
+typedef HANDLE  (WINAPI *PFNCREATETOOLHELP32SNAPSHOT)(DWORD, DWORD);
+typedef BOOL    (WINAPI *PFNPROCESS32FIRST)(HANDLE, LPPROCESSENTRY32);
+typedef BOOL    (WINAPI *PFNPROCESS32FIRSTW)(HANDLE, LPPROCESSENTRY32W);
+typedef BOOL    (WINAPI *PFNPROCESS32NEXT)(HANDLE, LPPROCESSENTRY32);
+typedef BOOL    (WINAPI *PFNPROCESS32NEXTW)(HANDLE, LPPROCESSENTRY32W);
 
-typedef DWORD WINAPI FNWTSGETACTIVECONSOLESESSIONID();
-typedef FNWTSGETACTIVECONSOLESESSIONID *PFNWTSGETACTIVECONSOLESESSIONID;
+/* psapi.dll: */
+typedef BOOL    (WINAPI *PFNENUMPROCESSES)(LPDWORD, DWORD, LPDWORD);
+typedef DWORD   (WINAPI *PFNGETMODULEBASENAME)(HANDLE, HMODULE, LPTSTR, DWORD);
 
-typedef HANDLE WINAPI FNCREATETOOLHELP32SNAPSHOT(DWORD, DWORD);
-typedef FNCREATETOOLHELP32SNAPSHOT *PFNCREATETOOLHELP32SNAPSHOT;
+/* advapi32.dll: */
+typedef BOOL    (WINAPI *PFNCREATEPROCESSWITHLOGON)(LPCWSTR, LPCWSTR, LPCWSTR, DWORD, LPCWSTR, LPWSTR, DWORD,
+                                                    LPVOID, LPCWSTR, LPSTARTUPINFOW, LPPROCESS_INFORMATION);
 
-typedef BOOL WINAPI FNPROCESS32FIRST(HANDLE, LPPROCESSENTRY32);
-typedef FNPROCESS32FIRST *PFNPROCESS32FIRST;
-
-typedef BOOL WINAPI FNPROCESS32NEXT(HANDLE, LPPROCESSENTRY32);
-typedef FNPROCESS32NEXT *PFNPROCESS32NEXT;
-
-typedef BOOL WINAPI FNENUMPROCESSES(DWORD*, DWORD, DWORD*);
-typedef FNENUMPROCESSES *PFNENUMPROCESSES;
-
-typedef DWORD FNGETMODULEBASENAME(HANDLE, HMODULE, LPTSTR, DWORD);
-typedef FNGETMODULEBASENAME *PFNGETMODULEBASENAME;
-
-typedef BOOL WINAPI FNCREATEENVIRONMENTBLOCK(LPVOID *, HANDLE, BOOL);
-typedef FNCREATEENVIRONMENTBLOCK *PFNCREATEENVIRONMENTBLOCK;
-
-typedef BOOL WINAPI FNPFNDESTROYENVIRONMENTBLOCK(LPVOID);
-typedef FNPFNDESTROYENVIRONMENTBLOCK *PFNPFNDESTROYENVIRONMENTBLOCK;
-
-typedef BOOL WINAPI FNLOADUSERPROFILEW(HANDLE, LPPROFILEINFOW);
-typedef FNLOADUSERPROFILEW *PFNLOADUSERPROFILEW;
-
-typedef BOOL WINAPI FNUNLOADUSERPROFILE(HANDLE, HANDLE);
-typedef FNUNLOADUSERPROFILE *PFNUNLOADUSERPROFILE;
+/* userenv.dll: */
+typedef BOOL    (WINAPI *PFNCREATEENVIRONMENTBLOCK)(LPVOID *, HANDLE, BOOL);
+typedef BOOL    (WINAPI *PFNPFNDESTROYENVIRONMENTBLOCK)(LPVOID);
+typedef BOOL    (WINAPI *PFNLOADUSERPROFILEW)(HANDLE, LPPROFILEINFOW);
+typedef BOOL    (WINAPI *PFNUNLOADUSERPROFILE)(HANDLE, HANDLE);
 
 
 /*********************************************************************************************************************************
@@ -126,6 +105,38 @@ static struct RTPROCWINENTRY
     /** The process handle. */
     HANDLE          hProcess;
 }                  *g_paProcesses;
+
+/** @name userenv.dll imports (we don't unload it).
+ * They're all optional. So in addition to using g_rtProcWinResolveOnce, the
+ * caller must also check if any of the necessary APIs are NULL pointers.
+ * @{ */
+/** Init once structure for run-as-user functions we need.. */
+static RTONCE                           g_rtProcWinResolveOnce          = RTONCE_INITIALIZER;
+/* kernel32.dll: */
+static PFNCREATETOOLHELP32SNAPSHOT      g_pfnCreateToolhelp32Snapshot   = NULL;
+static PFNPROCESS32FIRST                g_pfnProcess32First             = NULL;
+static PFNPROCESS32NEXT                 g_pfnProcess32Next              = NULL;
+static PFNPROCESS32FIRSTW               g_pfnProcess32FirstW            = NULL;
+static PFNPROCESS32NEXTW                g_pfnProcess32NextW             = NULL;
+/* psapi.dll: */
+static PFNGETMODULEBASENAME             g_pfnGetModuleBaseName          = NULL;
+static PFNENUMPROCESSES                 g_pfnEnumProcesses              = NULL;
+/* advapi32.dll: */
+static PFNCREATEPROCESSWITHLOGON        g_pfnCreateProcessWithLogonW    = NULL;
+/* userenv.dll: */
+static PFNCREATEENVIRONMENTBLOCK        g_pfnCreateEnvironmentBlock     = NULL;
+static PFNPFNDESTROYENVIRONMENTBLOCK    g_pfnDestroyEnvironmentBlock    = NULL;
+static PFNLOADUSERPROFILEW              g_pfnLoadUserProfileW           = NULL;
+static PFNUNLOADUSERPROFILE             g_pfnUnloadUserProfile          = NULL;
+/** @} */
+
+
+/*********************************************************************************************************************************
+*   Internal Functions                                                                                                           *
+*********************************************************************************************************************************/
+static int rtProcWinFindExe(uint32_t fFlags, RTENV hEnv, const char *pszExec, PRTUTF16 *ppwszExec);
+static int rtProcWinCreateEnvBlockAndFindExe(uint32_t fFlags, RTENV hEnv, const char *pszExec,
+                                             PRTUTF16 *ppwszzBlock, PRTUTF16 *ppwszExec);
 
 
 /**
@@ -266,6 +277,78 @@ static int rtProcWinAddPid(RTPROCESS pid, HANDLE hProcess)
 }
 
 
+/**
+ * Initialize the import APIs for run-as-user and special environment support.
+ *
+ * @returns IPRT status code.
+ * @param   pvUser              Ignored.
+ */
+static DECLCALLBACK(int) rtProcWinResolveOnce(void *pvUser)
+{
+    int      rc;
+    RTLDRMOD hMod;
+
+    /*
+     * kernel32.dll APIs introduced after NT4.
+     */
+    g_pfnCreateToolhelp32Snapshot   = (PFNCREATETOOLHELP32SNAPSHOT)GetProcAddress(g_hModKernel32, "CreateToolhelp32Snapshot");
+    g_pfnProcess32First             = (PFNPROCESS32FIRST          )GetProcAddress(g_hModKernel32, "Process32First");
+    g_pfnProcess32FirstW            = (PFNPROCESS32FIRSTW         )GetProcAddress(g_hModKernel32, "Process32FirstW");
+    g_pfnProcess32Next              = (PFNPROCESS32NEXT           )GetProcAddress(g_hModKernel32, "Process32Next");
+    g_pfnProcess32NextW             = (PFNPROCESS32NEXTW          )GetProcAddress(g_hModKernel32, "Process32NextW");
+
+    /*
+     * psapi.dll APIs, if none of the above are available.
+     */
+    if (   !g_pfnCreateToolhelp32Snapshot
+        || !g_pfnProcess32First
+        || !g_pfnProcess32Next)
+    {
+        Assert(!g_pfnCreateToolhelp32Snapshot && !g_pfnProcess32First && !g_pfnProcess32Next);
+
+        rc = RTLdrLoadSystem("psapi.dll", true /*fNoUnload*/, &hMod);
+        if (RT_SUCCESS(rc))
+        {
+            rc = RTLdrGetSymbol(hMod, "GetModuleBaseName", (void **)&g_pfnGetModuleBaseName);
+            AssertStmt(RT_SUCCESS(rc), g_pfnGetModuleBaseName = NULL);
+
+            rc = RTLdrGetSymbol(hMod, "EnumProcesses", (void **)&g_pfnEnumProcesses);
+            AssertStmt(RT_SUCCESS(rc), g_pfnEnumProcesses = NULL);
+
+            RTLdrClose(hMod);
+        }
+    }
+
+    /*
+     * advapi32.dll APIs.
+     */
+    g_pfnCreateProcessWithLogonW    = (PFNCREATEPROCESSWITHLOGON)RTLdrGetSystemSymbol("advapi32.dll", "CreateProcessWithLogonW");
+
+    /*
+     * userenv.dll APIs.
+     */
+    rc = RTLdrLoadSystem("userenv.dll", true /*fNoUnload*/, &hMod);
+    if (RT_SUCCESS(rc))
+    {
+        rc = RTLdrGetSymbol(hMod, "LoadUserProfileW", (void **)&g_pfnLoadUserProfileW);
+        AssertStmt(RT_SUCCESS(rc), g_pfnLoadUserProfileW = NULL);
+
+        rc = RTLdrGetSymbol(hMod, "UnloadUserProfile", (void **)&g_pfnUnloadUserProfile);
+        AssertStmt(RT_SUCCESS(rc), g_pfnUnloadUserProfile = NULL);
+
+        rc = RTLdrGetSymbol(hMod, "CreateEnvironmentBlock", (void **)&g_pfnCreateEnvironmentBlock);
+        AssertStmt(RT_SUCCESS(rc), g_pfnCreateEnvironmentBlock = NULL);
+
+        rc = RTLdrGetSymbol(hMod, "DestroyEnvironmentBlock", (void **)&g_pfnDestroyEnvironmentBlock);
+        AssertStmt(RT_SUCCESS(rc), g_pfnDestroyEnvironmentBlock = NULL);
+
+        RTLdrClose(hMod);
+    }
+
+    return VINF_SUCCESS;
+}
+
+
 RTR3DECL(int) RTProcCreate(const char *pszExec, const char * const *papszArgs, RTENV Env, unsigned fFlags, PRTPROCESS pProcess)
 {
     return RTProcCreateEx(pszExec, papszArgs, Env, fFlags,
@@ -276,52 +359,10 @@ RTR3DECL(int) RTProcCreate(const char *pszExec, const char * const *papszArgs, R
 
 
 /**
- * Map some important or much used Windows error codes
- * to our error codes.
- *
- * @return  Mapped IPRT status code.
- * @param   dwError                         Windows error code to map to IPRT code.
- */
-static int rtProcWinMapErrorCodes(DWORD dwError)
-{
-    int rc;
-    switch (dwError)
-    {
-        case ERROR_NOACCESS:
-        case ERROR_PRIVILEGE_NOT_HELD:
-            rc = VERR_PERMISSION_DENIED;
-            break;
-
-        case ERROR_PASSWORD_EXPIRED:
-        case ERROR_ACCOUNT_RESTRICTION: /* See: http://support.microsoft.com/kb/303846/ */
-        case ERROR_PASSWORD_RESTRICTION:
-        case ERROR_ACCOUNT_DISABLED:    /* See: http://support.microsoft.com/kb/263936 */
-            rc = VERR_ACCOUNT_RESTRICTED;
-            break;
-
-        case ERROR_FILE_CORRUPT:
-            rc = VERR_BAD_EXE_FORMAT;
-            break;
-
-        case ERROR_BAD_DEVICE: /* Can happen when opening funny things like "CON". */
-            rc = VERR_INVALID_NAME;
-            break;
-
-        default:
-            /* Could trigger a debug assertion! */
-            rc = RTErrConvertFromWin32(dwError);
-            break;
-    }
-    return rc;
-}
-
-
-/**
  * Get the process token of the process indicated by @a dwPID if the @a pSid
  * matches.
  *
  * @returns IPRT status code.
- *
  * @param   dwPid           The process identifier.
  * @param   pSid            The secure identifier of the user.
  * @param   phToken         Where to return the a duplicate of the process token
@@ -353,11 +394,7 @@ static int rtProcWinGetProcessTokenHandle(DWORD dwPid, PSID pSid, PHANDLE phToke
                 PTOKEN_USER pTokenUser = (PTOKEN_USER)RTMemTmpAllocZ(dwSize);
                 if (pTokenUser)
                 {
-                    if (GetTokenInformation(hTokenProc,
-                                            TokenUser,
-                                            pTokenUser,
-                                            dwSize,
-                                            &dwSize))
+                    if (GetTokenInformation(hTokenProc, TokenUser, pTokenUser, dwSize, &dwSize))
                     {
                         if (   IsValidSid(pTokenUser->User.Sid)
                             && EqualSid(pTokenUser->User.Sid, pSid))
@@ -373,13 +410,13 @@ static int rtProcWinGetProcessTokenHandle(DWORD dwPid, PSID pSid, PHANDLE phToke
                                 rc = VINF_SUCCESS;
                             }
                             else
-                                rc = rtProcWinMapErrorCodes(GetLastError());
+                                rc = RTErrConvertFromWin32(GetLastError());
                         }
                         else
                             rc = VERR_NOT_FOUND;
                     }
                     else
-                        rc = rtProcWinMapErrorCodes(GetLastError());
+                        rc = RTErrConvertFromWin32(GetLastError());
                     RTMemTmpFree(pTokenUser);
                 }
                 else
@@ -388,15 +425,15 @@ static int rtProcWinGetProcessTokenHandle(DWORD dwPid, PSID pSid, PHANDLE phToke
             else if (fRc || dwErr == NO_ERROR)
                 rc = VERR_IPE_UNEXPECTED_STATUS;
             else
-                rc = rtProcWinMapErrorCodes(dwErr);
+                rc = RTErrConvertFromWin32(dwErr);
             CloseHandle(hTokenProc);
         }
         else
-            rc = rtProcWinMapErrorCodes(GetLastError());
+            rc = RTErrConvertFromWin32(GetLastError());
         CloseHandle(hProc);
     }
     else
-        rc = rtProcWinMapErrorCodes(GetLastError());
+        rc = RTErrConvertFromWin32(GetLastError());
     return rc;
 }
 
@@ -417,31 +454,28 @@ static int rtProcWinGetProcessTokenHandle(DWORD dwPid, PSID pSid, PHANDLE phToke
  */
 static bool rtProcWinFindTokenByProcessAndPsApi(const char * const *papszNames, PSID pSid, PHANDLE phToken)
 {
-    bool fFound = false;
-
     /*
      * Load PSAPI.DLL and resolve the two symbols we need.
      */
-    PFNGETMODULEBASENAME pfnGetModuleBaseName = (PFNGETMODULEBASENAME)RTLdrGetSystemSymbol("psapi.dll", "GetModuleBaseName");
-    if (!pfnGetModuleBaseName)
-        return false;
-    PFNENUMPROCESSES pfnEnumProcesses = (PFNENUMPROCESSES)RTLdrGetSystemSymbol("psapi.dll", "EnumProcesses");
-    if (!pfnEnumProcesses)
+    if (   !g_pfnGetModuleBaseName
+        || !g_pfnEnumProcesses)
         return false;
 
     /*
      * Get a list of PID.  We retry if it looks like there are more PIDs
      * to be returned than what we supplied buffer space for.
      */
-    int    rc = VINF_SUCCESS;
+    bool   fFound          = false;
+    int    rc              = VINF_SUCCESS;
     DWORD  cbPidsAllocated = 4096;
-    DWORD  cbPidsReturned  = 0;
+    DWORD  cbPidsReturned;
     DWORD *paPids;
     for (;;)
     {
         paPids = (DWORD *)RTMemTmpAlloc(cbPidsAllocated);
         AssertBreakStmt(paPids, rc = VERR_NO_TMP_MEMORY);
-        if (!pfnEnumProcesses(paPids, cbPidsAllocated, &cbPidsReturned))
+        cbPidsReturned = 0;
+        if (!g_pfnEnumProcesses(paPids, cbPidsAllocated, &cbPidsReturned))
         {
             rc = RTErrConvertFromWin32(GetLastError());
             AssertMsgFailedBreak(("%Rrc\n", rc));
@@ -473,7 +507,7 @@ static bool rtProcWinFindTokenByProcessAndPsApi(const char * const *papszNames, 
                     if (hProc)
                     {
                         *pszProcName = '\0';
-                        DWORD cbRet = pfnGetModuleBaseName(hProc, 0 /*hModule = exe */, pszProcName, cbProcName);
+                        DWORD cbRet = g_pfnGetModuleBaseName(hProc, 0 /*hModule = exe */, pszProcName, cbProcName);
                         if (   cbRet > 0
                             && _stricmp(pszProcName, papszNames[i]) == 0
                             && RT_SUCCESS(rtProcWinGetProcessTokenHandle(paPids[iPid], pSid, phToken)))
@@ -515,32 +549,33 @@ static bool rtProcWinFindTokenByProcess(const char * const *papszNames, PSID pSi
      * On modern systems (W2K+) try the Toolhelp32 API first; this is more stable
      * and reliable.  Fallback to EnumProcess on NT4.
      */
-    PFNCREATETOOLHELP32SNAPSHOT pfnCreateToolhelp32Snapshot;
-    pfnCreateToolhelp32Snapshot = (PFNCREATETOOLHELP32SNAPSHOT)GetProcAddress(g_hModKernel32, "CreateToolhelp32Snapshot");
-    PFNPROCESS32FIRST pfnProcess32First = (PFNPROCESS32FIRST)GetProcAddress(g_hModKernel32, "Process32First");
-    PFNPROCESS32NEXT  pfnProcess32Next  = (PFNPROCESS32NEXT )GetProcAddress(g_hModKernel32, "Process32Next");
     bool fFallback = true;
-    if (pfnProcess32Next && pfnProcess32First && pfnCreateToolhelp32Snapshot)
+    if (g_pfnProcess32Next && g_pfnProcess32First && g_pfnCreateToolhelp32Snapshot)
     {
-        HANDLE hSnap = pfnCreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+        HANDLE hSnap = g_pfnCreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+        Assert(hSnap != INVALID_HANDLE_VALUE);
         if (hSnap != INVALID_HANDLE_VALUE)
         {
             fFallback = false;
             for (size_t i = 0; papszNames[i] && !fFound; i++)
             {
-                PROCESSENTRY32 procEntry;
-                procEntry.dwSize = sizeof(PROCESSENTRY32);
-                if (pfnProcess32First(hSnap, &procEntry))
+                PROCESSENTRY32 ProcEntry;
+                ProcEntry.dwSize = sizeof(PROCESSENTRY32);
+/** @todo use W APIs here.   */
+                if (g_pfnProcess32First(hSnap, &ProcEntry))
                 {
                     do
                     {
-                        if (   _stricmp(procEntry.szExeFile, papszNames[i]) == 0
-                            && RT_SUCCESS(rtProcWinGetProcessTokenHandle(procEntry.th32ProcessID, pSid, phToken)))
+                        if (_stricmp(ProcEntry.szExeFile, papszNames[i]) == 0)
                         {
-                            fFound = true;
-                            break;
+                            int rc = rtProcWinGetProcessTokenHandle(ProcEntry.th32ProcessID, pSid, phToken);
+                            if (RT_SUCCESS(rc))
+                            {
+                                fFound = true;
+                                break;
+                            }
                         }
-                    } while (pfnProcess32Next(hSnap, &procEntry));
+                    } while (g_pfnProcess32Next(hSnap, &ProcEntry));
                 }
 #ifdef RT_STRICT
                 else
@@ -557,7 +592,7 @@ static bool rtProcWinFindTokenByProcess(const char * const *papszNames, PSID pSi
     /* If we couldn't take a process snapshot for some reason or another, fall
        back on the NT4 compatible API. */
     if (fFallback)
-        return rtProcWinFindTokenByProcessAndPsApi(papszNames, pSid, phToken);
+        fFound = rtProcWinFindTokenByProcessAndPsApi(papszNames, pSid, phToken);
     return fFound;
 }
 
@@ -565,8 +600,7 @@ static bool rtProcWinFindTokenByProcess(const char * const *papszNames, PSID pSi
 /**
  * Logs on a specified user and returns its primary token.
  *
- * @return  int
- *
+ * @returns IPRT status code.
  * @param   pwszUser            User name.
  * @param   pwszPassword        Password.
  * @param   pwszDomain          Domain (not used at the moment).
@@ -574,219 +608,672 @@ static bool rtProcWinFindTokenByProcess(const char * const *papszNames, PSID pSi
  */
 static int rtProcWinUserLogon(PRTUTF16 pwszUser, PRTUTF16 pwszPassword, PRTUTF16 pwszDomain, HANDLE *phToken)
 {
-    /** @todo Add domain support! */
+    AssertPtrReturn(pwszUser, VERR_INVALID_POINTER);
+    AssertPtrReturn(pwszPassword, VERR_INVALID_POINTER);
+    NOREF(pwszDomain); /** @todo Add domain support! */
+
+    /*
+     * Because we have to deal with http://support.microsoft.com/kb/245683
+     * for NULL domain names when running on NT4 here, pass an empty string if so.
+     * However, passing FQDNs should work!
+     *
+     * The SE_TCB_NAME (Policy: Act as part of the operating system) right
+     * is required on older windows versions (NT4, W2K, possibly XP).
+     */
+    PCRTUTF16 pwszDomainToUse = g_enmWinVer < kRTWinOSType_2K ? L"" /* NT4 and older */ : NULL /* Windows 2000 and up */;
     BOOL fRc = LogonUserW(pwszUser,
-                          /*
-                           * Because we have to deal with http://support.microsoft.com/kb/245683
-                           * for NULL domain names when running on NT4 here, pass an empty string if so.
-                           * However, passing FQDNs should work!
-                           */
-                          ((DWORD)(LOBYTE(LOWORD(GetVersion()))) < 5)  /* < Windows 2000. */
-                          ? L""   /* NT4 and older. */
-                          : NULL, /* Windows 2000 and up. */
+                          pwszDomainToUse,
                           pwszPassword,
                           LOGON32_LOGON_INTERACTIVE,
                           LOGON32_PROVIDER_DEFAULT,
                           phToken);
-    if (!fRc)
-    {
-        DWORD dwErr = GetLastError();
-        int rc = rtProcWinMapErrorCodes(dwErr);
-        if (rc == VERR_UNRESOLVED_ERROR)
-            LogRelFunc(("dwErr=%u (%#x), rc=%Rrc\n", dwErr, dwErr, rc));
-        return rc;
-    }
-    return VINF_SUCCESS;
+    if (fRc)
+        return VINF_SUCCESS;
+
+    DWORD dwErr = GetLastError();
+    int rc = dwErr == ERROR_PRIVILEGE_NOT_HELD ? VERR_PROC_TCB_PRIV_NOT_HELD : RTErrConvertFromWin32(dwErr);
+    if (rc == VERR_UNRESOLVED_ERROR)
+        LogRelFunc(("dwErr=%u (%#x), rc=%Rrc\n", dwErr, dwErr, rc));
+    return rc;
 }
 
 
 /**
- * Logs off a user, specified by the given token.
+ * Returns the environment to use for the child process.
  *
- * @param   hToken      The token (=user) to log off.
+ * This implements the RTPROC_FLAGS_ENV_CHANGE_RECORD and environment related
+ * parts of RTPROC_FLAGS_PROFILE.
+ *
+ * @returns IPRT status code.
+ * @param   hToken      The user token to use if RTPROC_FLAGS_PROFILE is given.
+ *                      The caller must have loaded profile for this.
+ * @param   hEnv        The environment passed in by the RTProcCreateEx caller.
+ * @param   fFlags      The process creation flags passed in by the
+ *                      RTProcCreateEx caller (RTPROC_FLAGS_XXX).
+ * @param   phEnv       Where to return the environment to use.  This can either
+ *                      be a newly created environment block or @a hEnv.  In the
+ *                      former case, the caller must destroy it.
  */
-static void rtProcWinUserLogoff(HANDLE hToken)
+static int rtProcWinCreateEnvFromToken(HANDLE hToken, RTENV hEnv, uint32_t fFlags, PRTENV phEnv)
 {
-    CloseHandle(hToken);
-}
+    int rc;
 
-
-/**
- * Creates an environment block out of a handed-in Unicode and
- * RTENV block. The RTENV block can overwrite entries already
- * present in the Unicode block.
- *
- * @return  IPRT status code.
- *
- * @param   pvEnvBlock          Unicode block (array) of environment entries;
- *                              in form of "FOO=BAR\0BAR=BAZ".
- * @param   hEnv                Handle of an existing RTENV block to use.
- * @param   fOverwriteExisting  Whether to overwrite existing values of hEnv
- *                              with the ones defined in pvEnvBlock.
- * @param   ppwszBlock          Pointer to the final output.
- */
-static int rtProcWinEnvironmentCreateInternal(VOID *pvEnvBlock, RTENV hEnv,
-                                              bool fOverwriteExisting,
-                                              PRTUTF16 *ppwszBlock)
-{
-    RTENV hEnvTemp;
-    int rc = RTEnvClone(&hEnvTemp, hEnv);
-    if (RT_SUCCESS(rc))
+    /*
+     * Query the environment from the user profile associated with the token if
+     * the caller has specified it directly or indirectly.
+     */
+    if (   (fFlags & RTPROC_FLAGS_PROFILE)
+        && (   hEnv == RTENV_DEFAULT
+            || (fFlags & RTPROC_FLAGS_ENV_CHANGE_RECORD)) )
     {
-        PCRTUTF16 pwch = (PCRTUTF16)pvEnvBlock;
-        while (   pwch
-               && RT_SUCCESS(rc))
+        if (g_pfnCreateEnvironmentBlock && g_pfnDestroyEnvironmentBlock)
         {
-            if (*pwch)
+            LPVOID pvEnvBlockProfile = NULL;
+            if (g_pfnCreateEnvironmentBlock(&pvEnvBlockProfile, hToken, FALSE /* Don't inherit from parent. */))
             {
-                char *pszEntry;
-                rc = RTUtf16ToUtf8(pwch, &pszEntry);
-                if (RT_SUCCESS(rc))
+                rc = RTEnvCloneUtf16Block(phEnv, (PCRTUTF16)pvEnvBlockProfile, 0 /*fFlags*/);
+                if (   (fFlags & RTPROC_FLAGS_ENV_CHANGE_RECORD)
+                    && RT_SUCCESS(rc)
+                    && hEnv != RTENV_DEFAULT)
                 {
-                    const char *pszEq = strchr(pszEntry, '=');
-                    if (   !pszEq
-                        && fOverwriteExisting)
-                    {
-                        rc = RTEnvUnset(pszEntry);
-                    }
-                    else if (pszEq)
-                    {
-                        const char *pszValue = pszEq + 1;
-                        size_t cchVar = pszEq - pszEntry;
-                        char *pszVar = (char *)RTMemAlloc(cchVar + 1);
-                        if (pszVar)
-                        {
-                            memcpy(pszVar, pszEntry, cchVar);
-                            pszVar[cchVar] = '\0';
-                            if (   !RTEnvExistEx(hEnv, pszVar)
-                                || fOverwriteExisting)
-                            {
-                                rc = RTEnvSetEx(hEnvTemp, pszVar, pszValue);
-                            }
-                            RTMemFree(pszVar);
-                        }
-                        else
-                            rc = VERR_NO_MEMORY;
-                    }
-                    RTStrFree(pszEntry);
+                    rc = RTEnvApplyChanges(*phEnv, hEnv);
+                    if (RT_FAILURE(rc))
+                        RTEnvDestroy(*phEnv);
                 }
+                g_pfnDestroyEnvironmentBlock(pvEnvBlockProfile);
             }
             else
-                break;
-            pwch += RTUtf16Len(pwch) + 1;
-            if (!*pwch)
-                break;
+                rc = RTErrConvertFromWin32(GetLastError());
         }
-
-        if (RT_SUCCESS(rc))
-            rc = RTEnvQueryUtf16Block(hEnvTemp, ppwszBlock);
-        RTEnvDestroy(hEnvTemp);
+        else
+            rc = VERR_SYMBOL_NOT_FOUND;
     }
-    return rc;
-}
-
-
-/**
- * Creates the environment block using Userenv.dll.
- *
- * Builds up the environment block for a specified user (identified by a token),
- * whereas hEnv is an additional set of environment variables which overwrite existing
- * values of the user profile.  ppwszBlock needs to be destroyed after usage
- * calling rtProcWinDestoryEnv().
- *
- * @return  IPRT status code.
- *
- * @param   hToken          Token of the user to use.
- * @param   hEnv            Own environment block to extend/overwrite the profile's data with.
- * @param   ppwszBlock      Pointer to a pointer of the final UTF16 environment block.
- */
-static int rtProcWinCreateEnvFromToken(HANDLE hToken, RTENV hEnv, PRTUTF16 *ppwszBlock)
-{
-    Assert(hToken);
-    Assert(hEnv != NIL_RTENV);
-
-    RTLDRMOD hUserenv;
-    int rc = RTLdrLoadSystem("Userenv.dll", true /*fNoUnload*/, &hUserenv);
-    if (RT_SUCCESS(rc))
+    /*
+     * We we've got an incoming change record, combine it with the default environment.
+     */
+    else if (hEnv != RTENV_DEFAULT && (fFlags & RTPROC_FLAGS_ENV_CHANGE_RECORD))
     {
-        PFNCREATEENVIRONMENTBLOCK pfnCreateEnvironmentBlock;
-        rc = RTLdrGetSymbol(hUserenv, "CreateEnvironmentBlock", (void**)&pfnCreateEnvironmentBlock);
+        rc = RTEnvClone(phEnv, RTENV_DEFAULT);
         if (RT_SUCCESS(rc))
         {
-            PFNPFNDESTROYENVIRONMENTBLOCK pfnDestroyEnvironmentBlock;
-            rc = RTLdrGetSymbol(hUserenv, "DestroyEnvironmentBlock", (void**)&pfnDestroyEnvironmentBlock);
-            if (RT_SUCCESS(rc))
-            {
-                LPVOID pvEnvBlockProfile = NULL;
-                if (pfnCreateEnvironmentBlock(&pvEnvBlockProfile, hToken, FALSE /* Don't inherit from parent. */))
-                {
-                    rc = rtProcWinEnvironmentCreateInternal(pvEnvBlockProfile, hEnv,
-                                                            false /* fOverwriteExisting */,
-                                                            ppwszBlock);
-                    pfnDestroyEnvironmentBlock(pvEnvBlockProfile);
-                }
-                else
-                    rc = RTErrConvertFromWin32(GetLastError());
-            }
+            rc = RTEnvApplyChanges(*phEnv, hEnv);
+            if (RT_FAILURE(rc))
+                RTEnvDestroy(*phEnv);
         }
-        RTLdrClose(hUserenv);
+    }
+    /*
+     * Otherwise we can return the incoming environment directly.
+     */
+    else
+    {
+        *phEnv = hEnv;
+        rc = VINF_SUCCESS;
     }
 
-    /* If we don't have the Userenv-API for whatever reason or something with the
-     * native environment block failed, try to return at least our own environment block. */
-    /** @todo this probably isn't a great idea if CreateEnvironmentBlock fails. */
-    if (RT_FAILURE(rc))
-        rc = RTEnvQueryUtf16Block(hEnv, ppwszBlock);
     return rc;
 }
 
 
 /**
- * Builds up the environment block for a specified user (identified by user name, password
- * and domain), whereas hEnv is an additional set of environment variables which overwrite
- * existing values of the user profile.  ppwszBlock needs to be destroyed after usage
- * calling rtProcWinDestoryEnv().
+ * Figures which privilege we're missing for success application of
+ * CreateProcessAsUserW.
  *
- * @return  IPRT status code.
- *
- * @param   pwszUser        User name.
- * @param   pwszPassword    Password.
- * @param   pwszDomain      Domain.
- * @param   hEnv            Own environment block to extend/overwrite the profile's data with.
- * @param   ppwszBlock      Pointer to a pointer of the final UTF16 environment block.
+ * @returns IPRT error status.
  */
-static int rtProcWinCreateEnvFromAccount(PRTUTF16 pwszUser, PRTUTF16 pwszPassword, PRTUTF16 pwszDomain,
-                                         RTENV hEnv, PRTUTF16 *ppwszBlock)
+static int rtProcWinFigureWhichPrivilegeNotHeld2(void)
 {
     HANDLE hToken;
-    int rc = rtProcWinUserLogon(pwszUser, pwszPassword, pwszDomain, &hToken);
-    if (RT_SUCCESS(rc))
+    if (OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY | TOKEN_ADJUST_PRIVILEGES, &hToken))
     {
-        rc = rtProcWinCreateEnvFromToken(hToken, hEnv, ppwszBlock);
-        rtProcWinUserLogoff(hToken);
+        static struct
+        {
+            const char *pszName;
+            int         rc;
+        } const s_aPrivileges[] =
+        {
+            { SE_TCB_NAME,                      VERR_PROC_TCB_PRIV_NOT_HELD },
+            { SE_ASSIGNPRIMARYTOKEN_NAME,       VERR_PROC_APT_PRIV_NOT_HELD },
+            { SE_INCREASE_QUOTA_NAME,           VERR_PROC_IQ_PRIV_NOT_HELD  },
+        };
+        for (uint32_t i = 0; i < RT_ELEMENTS(s_aPrivileges); i++)
+        {
+            union
+            {
+                TOKEN_PRIVILEGES TokPriv;
+                char abAlloced[sizeof(TOKEN_PRIVILEGES) + sizeof(LUID_AND_ATTRIBUTES)];
+            } uNew, uOld;
+            uNew.TokPriv.PrivilegeCount = 1;
+            uNew.TokPriv.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+            AssertStmt(LookupPrivilegeValue(NULL, s_aPrivileges[i].pszName, &uNew.TokPriv.Privileges[0].Luid), continue);
+            uOld = uNew;
+            SetLastError(NO_ERROR);
+            DWORD cbActual = RT_OFFSETOF(TOKEN_PRIVILEGES, Privileges[1]);
+            AdjustTokenPrivileges(hToken, FALSE /*fDisableAllPrivileges*/, &uNew.TokPriv, cbActual, &uOld.TokPriv, &cbActual);
+            if (GetLastError() != NO_ERROR)
+            {
+                CloseHandle(hToken);
+                return s_aPrivileges[i].rc;
+            }
+            if (uOld.TokPriv.Privileges[0].Attributes == 0)
+                AdjustTokenPrivileges(hToken, FALSE /*fDisableAllPrivileges*/, &uOld.TokPriv, 0, NULL, NULL);
+        }
+        AssertFailed();
+        CloseHandle(hToken);
     }
-    return rc;
+    else
+        AssertFailed();
+    return VERR_PRIVILEGE_NOT_HELD;
+}
+
+#if 0 /* debug code */
+
+static char *rtProcWinSidToString(char *psz, PSID pSid)
+{
+     char *pszRet = psz;
+
+     *psz++ = 'S';
+     *psz++ = '-';
+     *psz++ = '1';
+     *psz++ = '-';
+
+     PISID pISid = (PISID)pSid;
+
+     psz += RTStrFormatU32(psz, 32, RT_MAKE_U32_FROM_U8(pISid->IdentifierAuthority.Value[5],
+                                                        pISid->IdentifierAuthority.Value[4],
+                                                        pISid->IdentifierAuthority.Value[3],
+                                                        pISid->IdentifierAuthority.Value[2]),
+                           10, 0, 0, 0);
+     for (unsigned i = 0; i < pISid->SubAuthorityCount; i++)
+     {
+          *psz++ = '-';
+          psz += RTStrFormatU32(psz, 32, pISid->SubAuthority[i], 10, 0, 0, 0);
+     }
+     *psz++ = '\0';
+     return pszRet;
+}
+
+static void rtProcWinLogAcl(PACL pAcl)
+{
+    if (!pAcl)
+        RTAssertMsg2("ACL is NULL\n");
+    else
+    {
+        RTAssertMsg2("AceCount=%d AclSize=%#x AclRevision=%d\n", pAcl->AceCount, pAcl->AclSize, pAcl->AclRevision);
+        for (uint32_t i = 0; i < pAcl->AceCount; i++)
+        {
+            PACE_HEADER pAceHdr = NULL;
+            if (GetAce(pAcl, i, (PVOID *)&pAceHdr))
+            {
+                RTAssertMsg2(" ACE[%u]: Flags=%#x Type=%#x Size=%#x", i, pAceHdr->AceFlags, pAceHdr->AceType, pAceHdr->AceSize);
+                char szTmp[256];
+                if (pAceHdr->AceType == ACCESS_ALLOWED_ACE_TYPE)
+                    RTAssertMsg2(" Mask=%#x %s\n", ((ACCESS_ALLOWED_ACE *)pAceHdr)->Mask,
+                                 rtProcWinSidToString(szTmp, &((ACCESS_ALLOWED_ACE *)pAceHdr)->SidStart));
+                else
+                    RTAssertMsg2(" ACE[%u]: Flags=%#x Type=%#x Size=%#x\n", i, pAceHdr->AceFlags, pAceHdr->AceType, pAceHdr->AceSize);
+            }
+        }
+    }
+}
+
+static bool rtProcWinLogSecAttr(HANDLE hUserObj)
+{
+    /*
+     * Get the security descriptor for the user interface object.
+     */
+    uint32_t             cbSecDesc = _64K;
+    PSECURITY_DESCRIPTOR pSecDesc  = (PSECURITY_DESCRIPTOR)RTMemTmpAlloc(cbSecDesc);
+    SECURITY_INFORMATION SecInfo   = DACL_SECURITY_INFORMATION;
+    DWORD                cbNeeded;
+    AssertReturn(pSecDesc, false);
+    if (!GetUserObjectSecurity(hUserObj, &SecInfo, pSecDesc, cbSecDesc, &cbNeeded))
+    {
+        RTMemTmpFree(pSecDesc);
+        AssertReturn(GetLastError() == ERROR_INSUFFICIENT_BUFFER, false);
+        cbSecDesc = cbNeeded + 128;
+        pSecDesc  = (PSECURITY_DESCRIPTOR)RTMemTmpAlloc(cbSecDesc);
+        AssertReturn(pSecDesc, false);
+        if (!GetUserObjectSecurity(hUserObj, &SecInfo, pSecDesc, cbSecDesc, &cbNeeded))
+        {
+            RTMemTmpFree(pSecDesc);
+            AssertFailedReturn(false);
+        }
+    }
+
+    /*
+     * Get the discretionary access control list (if we have one).
+     */
+    BOOL fDaclDefaulted;
+    BOOL fDaclPresent;
+    PACL pDacl;
+    if (GetSecurityDescriptorDacl(pSecDesc, &fDaclPresent, &pDacl, &fDaclDefaulted))
+        rtProcWinLogAcl(pDacl);
+    else
+        RTAssertMsg2("GetSecurityDescriptorDacl failed\n");
+
+    RTMemFree(pSecDesc);
+    return true;
+}
+
+#endif /* debug */
+
+/**
+ * Get the user SID from a token.
+ *
+ * @returns Pointer to the SID on success. Free by calling RTMemFree.
+ * @param   hToken              The token..
+ */
+static PSID rtProcWinGetTokenUserSid(HANDLE hToken)
+{
+    /*
+     * Get the groups associated with the token.  We just try a size first then
+     * reallocates if it's insufficient.
+     */
+    DWORD       cbUser = _1K;
+    PTOKEN_USER pUser  = (PTOKEN_USER)RTMemTmpAlloc(cbUser);
+    AssertReturn(pUser, NULL);
+    DWORD cbNeeded = 0;
+    if (!GetTokenInformation(hToken, TokenUser, pUser, cbUser, &cbNeeded))
+    {
+        RTMemTmpFree(pUser);
+        AssertReturn(GetLastError() == ERROR_INSUFFICIENT_BUFFER, NULL);
+        cbUser = cbNeeded + 128;
+        pUser = (PTOKEN_USER)RTMemTmpAlloc(cbUser);
+        AssertReturn(pUser, NULL);
+        if (!GetTokenInformation(hToken, TokenUser, pUser, cbUser, &cbNeeded))
+        {
+            RTMemTmpFree(pUser);
+            AssertFailedReturn(NULL);
+        }
+    }
+
+    DWORD cbSid = GetLengthSid(pUser->User.Sid);
+    PSID pSidRet = RTMemDup(pUser->User.Sid, cbSid);
+    Assert(pSidRet);
+    RTMemTmpFree(pUser);
+    return pSidRet;
+}
+
+
+#if 0 /* not used */
+/**
+ * Get the login SID from a token.
+ *
+ * @returns Pointer to the SID on success. Free by calling RTMemFree.
+ * @param   hToken              The token..
+ */
+static PSID rtProcWinGetTokenLogonSid(HANDLE hToken)
+{
+    /*
+     * Get the groups associated with the token.  We just try a size first then
+     * reallocates if it's insufficient.
+     */
+    DWORD         cbGroups = _1K;
+    PTOKEN_GROUPS pGroups = (PTOKEN_GROUPS)RTMemTmpAlloc(cbGroups);
+    AssertReturn(pGroups, NULL);
+    DWORD cbNeeded = 0;
+    if (!GetTokenInformation(hToken, TokenGroups, pGroups, cbGroups, &cbNeeded))
+    {
+        RTMemTmpFree(pGroups);
+        AssertReturn(GetLastError() == ERROR_INSUFFICIENT_BUFFER, NULL);
+        cbGroups = cbNeeded + 128;
+        pGroups = (PTOKEN_GROUPS)RTMemTmpAlloc(cbGroups);
+        AssertReturn(pGroups, NULL);
+        if (!GetTokenInformation(hToken, TokenGroups, pGroups, cbGroups, &cbNeeded))
+        {
+            RTMemTmpFree(pGroups);
+            AssertFailedReturn(NULL);
+        }
+    }
+
+    /*
+     * Locate the logon sid.
+     */
+    PSID     pSidRet = NULL;
+    uint32_t i = pGroups->GroupCount;
+    while (i-- > 0)
+        if ((pGroups->Groups[i].Attributes & SE_GROUP_LOGON_ID) == SE_GROUP_LOGON_ID)
+        {
+            DWORD cbSid = GetLengthSid(pGroups->Groups[i].Sid);
+            pSidRet = RTMemDup(pGroups->Groups[i].Sid, cbSid);
+            break;
+        }
+
+    RTMemTmpFree(pGroups);
+    Assert(pSidRet);
+    return pSidRet;
+}
+#endif /* unused */
+
+
+/**
+ * Retrieves the DACL security descriptor of the give GUI object.
+ *
+ * @returns Pointer to the security descriptor.
+ * @param   hUserObj        The GUI object handle.
+ * @param   pcbSecDesc      Where to return the size of the security descriptor.
+ * @param   ppDacl          Where to return the DACL pointer.
+ * @param   pfDaclPresent   Where to return the DACL-present indicator.
+ * @param   pDaclSizeInfo   Where to return the DACL size information.
+ */
+static PSECURITY_DESCRIPTOR rtProcWinGetUserObjDacl(HANDLE hUserObj, uint32_t *pcbSecDesc, PACL *ppDacl,
+                                                    BOOL *pfDaclPresent, ACL_SIZE_INFORMATION *pDaclSizeInfo)
+{
+    /*
+     * Get the security descriptor for the user interface object.
+     */
+    uint32_t             cbSecDesc = _1K;
+    PSECURITY_DESCRIPTOR pSecDesc  = (PSECURITY_DESCRIPTOR)RTMemTmpAlloc(cbSecDesc);
+    SECURITY_INFORMATION SecInfo   = DACL_SECURITY_INFORMATION;
+    DWORD                cbNeeded;
+    AssertReturn(pSecDesc, NULL);
+    if (!GetUserObjectSecurity(hUserObj, &SecInfo, pSecDesc, cbSecDesc, &cbNeeded))
+    {
+        RTMemTmpFree(pSecDesc);
+        AssertReturn(GetLastError() == ERROR_INSUFFICIENT_BUFFER, NULL);
+        cbSecDesc = cbNeeded + 128;
+        pSecDesc  = (PSECURITY_DESCRIPTOR)RTMemTmpAlloc(cbSecDesc);
+        AssertReturn(pSecDesc, NULL);
+        if (!GetUserObjectSecurity(hUserObj, &SecInfo, pSecDesc, cbSecDesc, &cbNeeded))
+        {
+            RTMemTmpFree(pSecDesc);
+            AssertFailedReturn(NULL);
+        }
+    }
+    *pcbSecDesc = cbNeeded;
+
+    /*
+     * Get the discretionary access control list (if we have one).
+     */
+    BOOL fDaclDefaulted;
+    if (GetSecurityDescriptorDacl(pSecDesc, pfDaclPresent, ppDacl, &fDaclDefaulted))
+    {
+        RT_ZERO(*pDaclSizeInfo);
+        pDaclSizeInfo->AclBytesInUse = sizeof(ACL);
+        if (   !*ppDacl
+            || GetAclInformation(*ppDacl, pDaclSizeInfo, sizeof(*pDaclSizeInfo), AclSizeInformation))
+            return pSecDesc;
+        AssertFailed();
+    }
+    else
+        AssertFailed();
+    RTMemTmpFree(pSecDesc);
+    return NULL;
 }
 
 
 /**
- * Destroys an environment block formerly created by rtProcWinEnvironmentCreateInternal(),
- * rtProcWinCreateEnvFromToken() or rtProcWinCreateEnvFromAccount().
+ * Copy ACEs from one ACL to another.
  *
- * @param   ppwszBlock      Environment block to destroy.
+ * @returns true on success, false on failure.
+ * @param   pDst                The destination ACL.
+ * @param   pSrc                The source ACL.
+ * @param   cAces               The number of ACEs to copy.
  */
-static void rtProcWinDestroyEnv(PRTUTF16 ppwszBlock)
+static bool rtProcWinCopyAces(PACL pDst, PACL pSrc, uint32_t cAces)
 {
-    RTEnvFreeUtf16Block(ppwszBlock);
+    for (uint32_t i = 0; i < cAces; i++)
+    {
+        PACE_HEADER pAceHdr;
+        AssertReturn(GetAce(pSrc, i, (PVOID *)&pAceHdr), false);
+        AssertReturn(AddAce(pDst, ACL_REVISION, MAXDWORD, pAceHdr, pAceHdr->AceSize), false);
+    }
+    return true;
+}
+
+
+/**
+ * Adds an access-allowed access control entry to an ACL.
+ *
+ * @returns true on success, false on failure.
+ * @param   pDstAcl             The ACL.
+ * @param   fAceFlags           The ACE flags.
+ * @param   fMask               The ACE access mask.
+ * @param   pSid                The SID to go with the ACE.
+ * @param   cbSid               The size of the SID.
+ */
+static bool rtProcWinAddAccessAllowedAce(PACL pDstAcl, uint32_t fAceFlags, uint32_t fMask, PSID pSid, uint32_t cbSid)
+{
+    struct
+    {
+        ACCESS_ALLOWED_ACE  Core;
+        DWORD               abPadding[128]; /* More than enough, AFAIK. */
+    } AceBuf;
+    RT_ZERO(AceBuf);
+    uint32_t const cbAllowedAce = RT_OFFSETOF(ACCESS_ALLOWED_ACE, SidStart) + cbSid;
+    AssertReturn(cbAllowedAce <= sizeof(AceBuf), false);
+
+    AceBuf.Core.Header.AceSize     = cbAllowedAce;
+    AceBuf.Core.Header.AceType     = ACCESS_ALLOWED_ACE_TYPE;
+    AceBuf.Core.Header.AceFlags    = fAceFlags;
+    AceBuf.Core.Mask               = fMask;
+    AssertReturn(CopySid(cbSid, &AceBuf.Core.SidStart, pSid), false);
+
+    uint32_t i = pDstAcl->AceCount;
+    while (i-- > 0)
+    {
+        PACE_HEADER pAceHdr;
+        AssertStmt(GetAce(pDstAcl, i, (PVOID *)&pAceHdr), continue);
+        if (   pAceHdr->AceSize == cbAllowedAce
+            && memcmp(pAceHdr, &AceBuf.Core, cbAllowedAce) == 0)
+            return true;
+
+    }
+    AssertMsgReturn(AddAce(pDstAcl, ACL_REVISION, MAXDWORD, &AceBuf.Core, cbAllowedAce), ("%u\n", GetLastError()), false);
+    return true;
+}
+
+
+/** All window station rights we know about   */
+#define MY_WINSTATION_ALL_RIGHTS (  WINSTA_ACCESSCLIPBOARD | WINSTA_ACCESSGLOBALATOMS | WINSTA_CREATEDESKTOP \
+                                  | WINSTA_ENUMDESKTOPS | WINSTA_ENUMERATE | WINSTA_EXITWINDOWS | WINSTA_READATTRIBUTES \
+                                  | WINSTA_READSCREEN | WINSTA_WRITEATTRIBUTES | DELETE | READ_CONTROL | WRITE_DAC | WRITE_OWNER )
+/** All desktop rights we know about   */
+#define MY_DESKTOP_ALL_RIGHTS    (  DESKTOP_CREATEMENU | DESKTOP_CREATEWINDOW | DESKTOP_ENUMERATE | DESKTOP_HOOKCONTROL \
+                                  | DESKTOP_JOURNALPLAYBACK | DESKTOP_JOURNALRECORD | DESKTOP_READOBJECTS \
+                                  | DESKTOP_SWITCHDESKTOP | DESKTOP_WRITEOBJECTS | DELETE | READ_CONTROL | WRITE_DAC \
+                                  | WRITE_OWNER )
+/** Generic rights. */
+#define MY_GENERIC_ALL_RIGHTS    ( GENERIC_READ | GENERIC_WRITE | GENERIC_EXECUTE | GENERIC_ALL )
+
+
+/**
+ * Grants the given SID full access to the given window station.
+ *
+ * @returns true on success, false on failure.
+ * @param   hWinStation         The window station.
+ * @param   pSid                The SID.
+ */
+static bool rtProcWinAddSidToWinStation(HWINSTA hWinStation, PSID pSid)
+{
+    bool fRet = false;
+
+    /*
+     * Get the current DACL.
+     */
+    uint32_t                cbSecDesc;
+    PACL                    pDacl;
+    ACL_SIZE_INFORMATION    DaclSizeInfo;
+    BOOL                    fDaclPresent;
+    PSECURITY_DESCRIPTOR    pSecDesc = rtProcWinGetUserObjDacl(hWinStation, &cbSecDesc, &pDacl, &fDaclPresent, &DaclSizeInfo);
+    if (pSecDesc)
+    {
+        /*
+         * Create a new DACL. This will contain two extra ACEs.
+         */
+        PSECURITY_DESCRIPTOR pNewSecDesc = (PSECURITY_DESCRIPTOR)RTMemTmpAlloc(cbSecDesc);
+        if (   pNewSecDesc
+            && InitializeSecurityDescriptor(pNewSecDesc, SECURITY_DESCRIPTOR_REVISION))
+        {
+            uint32_t const cbSid     = GetLengthSid(pSid);
+            uint32_t const cbNewDacl = DaclSizeInfo.AclBytesInUse + (sizeof(ACCESS_ALLOWED_ACE) + cbSid) * 2;
+            PACL pNewDacl = (PACL)RTMemTmpAlloc(cbNewDacl);
+            if (   pNewDacl
+                && InitializeAcl(pNewDacl, cbNewDacl, ACL_REVISION)
+                && rtProcWinCopyAces(pNewDacl, pDacl, fDaclPresent ? DaclSizeInfo.AceCount : 0))
+            {
+                /*
+                 * Add the two new SID ACEs.
+                 */
+                if (   rtProcWinAddAccessAllowedAce(pNewDacl, CONTAINER_INHERIT_ACE | INHERIT_ONLY_ACE | OBJECT_INHERIT_ACE,
+                                                    MY_GENERIC_ALL_RIGHTS, pSid, cbSid)
+                    && rtProcWinAddAccessAllowedAce(pNewDacl, NO_PROPAGATE_INHERIT_ACE, MY_WINSTATION_ALL_RIGHTS, pSid, cbSid))
+                {
+                    /*
+                     * Now mate the new DECL with the security descriptor and set it.
+                     */
+                    if (SetSecurityDescriptorDacl(pNewSecDesc, TRUE /*fDaclPresent*/, pNewDacl, FALSE /*fDaclDefaulted*/))
+                    {
+                        SECURITY_INFORMATION SecInfo = DACL_SECURITY_INFORMATION;
+                        if (SetUserObjectSecurity(hWinStation, &SecInfo, pNewSecDesc))
+                            fRet = true;
+                        else
+                            AssertFailed();
+                    }
+                    else
+                        AssertFailed();
+                }
+                else
+                    AssertFailed();
+            }
+            else
+                AssertFailed();
+            RTMemTmpFree(pNewDacl);
+        }
+        else
+            AssertFailed();
+        RTMemTmpFree(pNewSecDesc);
+        RTMemTmpFree(pSecDesc);
+    }
+    return fRet;
+}
+
+
+/**
+ * Grants the given SID full access to the given desktop.
+ *
+ * @returns true on success, false on failure.
+ * @param   hWinStation         The window station.
+ * @param   pSid                The SID.
+ */
+static bool rtProcWinAddSidToDesktop(HDESK hDesktop, PSID pSid)
+{
+    bool fRet = false;
+
+    /*
+     * Get the current DACL.
+     */
+    uint32_t                cbSecDesc;
+    PACL                    pDacl;
+    ACL_SIZE_INFORMATION    DaclSizeInfo;
+    BOOL                    fDaclPresent;
+    PSECURITY_DESCRIPTOR    pSecDesc = rtProcWinGetUserObjDacl(hDesktop, &cbSecDesc, &pDacl, &fDaclPresent, &DaclSizeInfo);
+    if (pSecDesc)
+    {
+        /*
+         * Create a new DACL. This will contain one extra ACE.
+         */
+        PSECURITY_DESCRIPTOR pNewSecDesc = (PSECURITY_DESCRIPTOR)RTMemTmpAlloc(cbSecDesc);
+        if (   pNewSecDesc
+            && InitializeSecurityDescriptor(pNewSecDesc, SECURITY_DESCRIPTOR_REVISION))
+        {
+            uint32_t const cbSid     = GetLengthSid(pSid);
+            uint32_t const cbNewDacl = DaclSizeInfo.AclBytesInUse + (sizeof(ACCESS_ALLOWED_ACE) + cbSid) * 1;
+            PACL pNewDacl = (PACL)RTMemTmpAlloc(cbNewDacl);
+            if (   pNewDacl
+                && InitializeAcl(pNewDacl, cbNewDacl, ACL_REVISION)
+                && rtProcWinCopyAces(pNewDacl, pDacl, fDaclPresent ? DaclSizeInfo.AceCount : 0))
+            {
+                /*
+                 * Add the new SID ACE.
+                 */
+                if (rtProcWinAddAccessAllowedAce(pNewDacl, 0 /*fAceFlags*/, MY_DESKTOP_ALL_RIGHTS, pSid, cbSid))
+                {
+                    /*
+                     * Now mate the new DECL with the security descriptor and set it.
+                     */
+                    if (SetSecurityDescriptorDacl(pNewSecDesc, TRUE /*fDaclPresent*/, pNewDacl, FALSE /*fDaclDefaulted*/))
+                    {
+                        SECURITY_INFORMATION SecInfo = DACL_SECURITY_INFORMATION;
+                        if (SetUserObjectSecurity(hDesktop, &SecInfo, pNewSecDesc))
+                            fRet = true;
+                        else
+                            AssertFailed();
+                    }
+                    else
+                        AssertFailed();
+                }
+                else
+                    AssertFailed();
+            }
+            else
+                AssertFailed();
+            RTMemTmpFree(pNewDacl);
+        }
+        else
+            AssertFailed();
+        RTMemTmpFree(pNewSecDesc);
+        RTMemTmpFree(pSecDesc);
+    }
+    return fRet;
+}
+
+
+/**
+ * Preps the window station and desktop for the new app.
+ *
+ * EXPERIMENTAL. Thus no return code.
+ *
+ * @param   hTokenToUse     The access token of the new process.
+ * @param   pStartupInfo    The startup info (we'll change lpDesktop, maybe).
+ * @param   phWinStationOld Where to return an window station handle to restore.
+ *                          Pass this to SetProcessWindowStation if not NULL.
+ */
+static void rtProcWinStationPrep(HANDLE hTokenToUse, STARTUPINFOW *pStartupInfo, HWINSTA *phWinStationOld)
+{
+    /** @todo Always mess with the interactive one? Maybe it's not there...  */
+    *phWinStationOld = GetProcessWindowStation();
+    HWINSTA hWinStation0 = OpenWindowStationW(L"winsta0", FALSE /*fInherit*/, READ_CONTROL | WRITE_DAC);
+    if (hWinStation0)
+    {
+        if (SetProcessWindowStation(hWinStation0))
+        {
+            HDESK hDesktop = OpenDesktop("default", 0 /*fFlags*/, FALSE /*fInherit*/,
+                                         READ_CONTROL | WRITE_DAC | DESKTOP_WRITEOBJECTS | DESKTOP_READOBJECTS);
+            if (hDesktop)
+            {
+                /*PSID pSid = rtProcWinGetTokenLogonSid(hTokenToUse); - Better to use the user SID. Avoid overflowing the ACL. */
+                PSID pSid = rtProcWinGetTokenUserSid(hTokenToUse);
+                if (pSid)
+                {
+                    if (   rtProcWinAddSidToWinStation(hWinStation0, pSid)
+                        && rtProcWinAddSidToDesktop(hDesktop, pSid))
+                    {
+                        pStartupInfo->lpDesktop = L"winsta0\\default";
+                    }
+                    RTMemFree(pSid);
+                }
+                CloseDesktop(hDesktop);
+            }
+            else
+                AssertFailed();
+        }
+        else
+            AssertFailed();
+        CloseWindowStation(hWinStation0);
+    }
+    else
+        AssertFailed();
 }
 
 
 /**
  * Method \#2.
  */
-static int rtProcWinCreateAsUser2(PRTUTF16 pwszUser, PRTUTF16 pwszPassword, PRTUTF16 pwszExec, PRTUTF16 pwszCmdLine,
+static int rtProcWinCreateAsUser2(PRTUTF16 pwszUser, PRTUTF16 pwszPassword, PRTUTF16 *ppwszExec, PRTUTF16 pwszCmdLine,
                                   RTENV hEnv, DWORD dwCreationFlags,
-                                  STARTUPINFOW *pStartupInfo, PROCESS_INFORMATION *pProcInfo, uint32_t fFlags)
+                                  STARTUPINFOW *pStartupInfo, PROCESS_INFORMATION *pProcInfo,
+                                  uint32_t fFlags, const char *pszExec)
 {
     /*
      * So if we want to start a process from a service (RTPROC_FLAGS_SERVICE),
@@ -808,135 +1295,144 @@ static int rtProcWinCreateAsUser2(PRTUTF16 pwszUser, PRTUTF16 pwszPassword, PRTU
      *
      * The following rights are needed in order to use LogonUserW and
      * CreateProcessAsUserW, so the local policy has to be modified to:
-     *  - SE_TCB_NAME = Act as part of the operating system
-     *  - SE_ASSIGNPRIMARYTOKEN_NAME = Create/replace a token object
-     *  - SE_INCREASE_QUOTA_NAME
+     *  - SE_TCB_NAME                = Act as part of the operating system
+     *  - SE_ASSIGNPRIMARYTOKEN_NAME = Create/replace a (process) token object
+     *  - SE_INCREASE_QUOTA_NAME     = Increase quotas
      *
      * We may fail here with ERROR_PRIVILEGE_NOT_HELD.
      */
-    DWORD dwErr = NO_ERROR;
-    PHANDLE phToken = NULL;
-    HANDLE hTokenLogon = INVALID_HANDLE_VALUE;
+    DWORD   dwErr       = NO_ERROR;
+    HANDLE  hTokenLogon = INVALID_HANDLE_VALUE;
     int rc = rtProcWinUserLogon(pwszUser, pwszPassword, NULL /* Domain */, &hTokenLogon);
     if (RT_SUCCESS(rc))
     {
-        DWORD fRc;
-        bool fFound = false;
+        DWORD  fRc;
+        bool   fFound = false;
         HANDLE hTokenUserDesktop = INVALID_HANDLE_VALUE;
 
+        /*
+         * If the SERVICE flag is specified, we do something rather ugly to
+         * make things work at all.  We search for a known desktop process
+         * belonging to the user, grab its token and use it for launching
+         * the new process.  That way the process will have desktop access.
+         */
         if (fFlags & RTPROC_FLAGS_SERVICE)
         {
-            DWORD cbSid = 0; /* Must be zero to query size! */
-            DWORD cchDomain = 0;
-            SID_NAME_USE sidNameUse = SidTypeUser;
-            fRc = LookupAccountNameW(NULL,
-                                     pwszUser,
-                                     NULL,
-                                     &cbSid,
-                                     NULL,
-                                     &cchDomain,
-                                     &sidNameUse);
-            if (!fRc)
-                dwErr = GetLastError();
-            if (   !fRc
-                && dwErr == ERROR_INSUFFICIENT_BUFFER
-                && cbSid > 0)
+            /* Try query the SID and domain sizes first. */
+            DWORD           cbSid      = 0; /* Must be zero to query size! */
+            DWORD           cwcDomain  = 0;
+            SID_NAME_USE    SidNameUse = SidTypeUser;
+            fRc = LookupAccountNameW(NULL, pwszUser, NULL, &cbSid, NULL, &cwcDomain, &SidNameUse);
+
+            /* Allocate memory for the LookupAccountNameW output buffers and do it for real. */
+            cbSid = fRc && cbSid != 0 ? cbSid + 16 : _1K;
+            PSID pSid = (PSID)RTMemAllocZ(cbSid);
+            if (pSid)
             {
-                dwErr = NO_ERROR;
-
-                PSID pSid = (PSID)RTMemAlloc(cbSid * sizeof(wchar_t)); /** @todo r=bird: What's the relationship between wchar_t and PSID? */
-                AssertReturn(pSid, VERR_NO_MEMORY); /** @todo r=bird: Leaking token handles when we're out of memory...  */
-
-                PRTUTF16 pwszDomain = NULL;
-                if (cchDomain > 0)
+                cwcDomain = fRc ? cwcDomain + 2 : _512K;
+                PRTUTF16 pwszDomain = (PRTUTF16)RTMemAllocZ(cwcDomain * sizeof(RTUTF16));
+                if (pwszDomain)
                 {
-                    pwszDomain = (PRTUTF16)RTMemAlloc(cchDomain * sizeof(RTUTF16));
-                    AssertReturn(pwszDomain, VERR_NO_MEMORY); /** @todo r=bird: Leaking token handles when we're out of memory...  */
-                }
-
-                /* Note: Also supports FQDNs! */
-                if (   LookupAccountNameW(NULL,            /* lpSystemName */
-                                          pwszUser,
-                                          pSid,
-                                          &cbSid,
-                                          pwszDomain,
-                                          &cchDomain,
-                                          &sidNameUse)
-                    && IsValidSid(pSid))
-                {
-                    /* Array of process names we want to look for. */
-                    static const char * const s_papszProcNames[] =
+                    /* Note: Also supports FQDNs! */
+                    if (   LookupAccountNameW(NULL /*lpSystemName*/, pwszUser, pSid, &cbSid, pwszDomain, &cwcDomain, &SidNameUse)
+                        && IsValidSid(pSid))
                     {
+                        /* Array of process names we want to look for. */
+                        static const char * const s_papszProcNames[] =
+                        {
 #ifdef VBOX                 /* The explorer entry is a fallback in case GA aren't installed. */
-                        { "VBoxTray.exe" },
+                            { "VBoxTray.exe" },
 #endif
-                        { "explorer.exe" },
-                        NULL
-                    };
-                    fFound = rtProcWinFindTokenByProcess(s_papszProcNames, pSid, &hTokenUserDesktop);
+                            { "explorer.exe" },
+                            NULL
+                        };
+                        fFound = rtProcWinFindTokenByProcess(s_papszProcNames, pSid, &hTokenUserDesktop);
+                    }
+                    else
+                    {
+                        dwErr = GetLastError();
+                        rc = dwErr != NO_ERROR ? RTErrConvertFromWin32(dwErr) : VERR_INTERNAL_ERROR_3;
+                    }
+                    RTMemFree(pwszDomain);
                 }
-                else
-                    dwErr = GetLastError(); /* LookupAccountNameW() failed. */
                 RTMemFree(pSid);
-                RTMemFree(pwszDomain);
             }
         }
-        else /* !RTPROC_FLAGS_SERVICE */
+        /* else: !RTPROC_FLAGS_SERVICE: Nothing to do here right now. */
+
+#if 0
+        /*
+         * If we make LogonUserW to return an impersonation token, enable this
+         * to convert it into a primary token.
+         */
+        if (!fFound && detect-impersonation-token)
         {
-            /* Nothing to do here right now. */
+            HANDLE hNewToken;
+            if (DuplicateTokenEx(hTokenLogon, MAXIMUM_ALLOWED, NULL /*SecurityAttribs*/,
+                                 SecurityIdentification, TokenPrimary, &hNewToken))
+            {
+                CloseHandle(hTokenLogon);
+                hTokenLogon = hNewToken;
+            }
+            else
+                AssertMsgFailed(("%d\n", GetLastError()));
         }
+#endif
 
-        /** @todo Hmm, this function already is too big! We need to split
-         *        it up into several small parts. */
-
-        /* If we got an error due to account lookup/loading above, don't
-         * continue here. */
-        if (dwErr == NO_ERROR)
+        if (RT_SUCCESS(rc))
         {
             /*
              * If we didn't find a matching VBoxTray, just use the token we got
-             * above from LogonUserW(). This enables us to at least run processes with
-             * desktop interaction without UI.
+             * above from LogonUserW().  This enables us to at least run processes
+             * with desktop interaction without UI.
              */
-            phToken = fFound ? &hTokenUserDesktop : &hTokenLogon;
-            RTLDRMOD hUserenv;
-            rc = RTLdrLoadSystem("Userenv.dll", true /*fNoUnload*/, &hUserenv);
-            if (RT_SUCCESS(rc))
+            HANDLE hTokenToUse = fFound ? hTokenUserDesktop : hTokenLogon;
+            if (   !(fFlags & RTPROC_FLAGS_PROFILE)
+                || (g_pfnUnloadUserProfile && g_pfnLoadUserProfileW) )
             {
-                PFNLOADUSERPROFILEW pfnLoadUserProfileW;
-                rc = RTLdrGetSymbol(hUserenv, "LoadUserProfileW", (void**)&pfnLoadUserProfileW);
+                /*
+                 * Load the profile, if requested.  (Must be done prior to
+                 * creating the enviornment.)
+                 */
+                PROFILEINFOW ProfileInfo;
+                RT_ZERO(ProfileInfo);
+                if (fFlags & RTPROC_FLAGS_PROFILE)
+                {
+                    ProfileInfo.dwSize     = sizeof(ProfileInfo);
+                    ProfileInfo.lpUserName = pwszUser;
+                    ProfileInfo.dwFlags    = PI_NOUI; /* Prevents the display of profile error messages. */
+
+                    if (!g_pfnLoadUserProfileW(hTokenToUse, &ProfileInfo))
+                        rc = RTErrConvertFromWin32(GetLastError());
+                }
                 if (RT_SUCCESS(rc))
                 {
-                    PFNUNLOADUSERPROFILE pfnUnloadUserProfile;
-                    rc = RTLdrGetSymbol(hUserenv, "UnloadUserProfile", (void**)&pfnUnloadUserProfile);
+                    /*
+                     * Create the environment.
+                     */
+                    RTENV hEnvFinal;
+                    rc = rtProcWinCreateEnvFromToken(hTokenToUse, hEnv, fFlags, &hEnvFinal);
                     if (RT_SUCCESS(rc))
                     {
-                        PROFILEINFOW profileInfo;
-                        if (!(fFlags & RTPROC_FLAGS_NO_PROFILE))
+                        PRTUTF16 pwszzBlock;
+                        rc = RTEnvQueryUtf16Block(hEnvFinal, &pwszzBlock);
+                        if (RT_SUCCESS(rc))
                         {
-                            RT_ZERO(profileInfo);
-                            profileInfo.dwSize = sizeof(profileInfo);
-                            profileInfo.lpUserName = pwszUser;
-                            profileInfo.dwFlags = PI_NOUI; /* Prevents the display of profile error messages. */
-
-                            if (!pfnLoadUserProfileW(*phToken, &profileInfo))
-                                dwErr = GetLastError();
-                        }
-
-                        if (dwErr == NO_ERROR)
-                        {
-                            PRTUTF16 pwszzBlock;
-                            rc = rtProcWinCreateEnvFromToken(*phToken, hEnv, &pwszzBlock);
+                            rc = rtProcWinFindExe(fFlags, hEnv, pszExec, ppwszExec);
                             if (RT_SUCCESS(rc))
                             {
+                                HWINSTA hOldWinStation = NULL;
+                                if (!fFound && g_enmWinVer <= kRTWinOSType_NT4) /** @todo test newer versions... */
+                                    rtProcWinStationPrep(hTokenToUse, pStartupInfo, &hOldWinStation);
+
                                 /*
                                  * Useful KB articles:
                                  *      http://support.microsoft.com/kb/165194/
                                  *      http://support.microsoft.com/kb/184802/
                                  *      http://support.microsoft.com/kb/327618/
                                  */
-                                fRc = CreateProcessAsUserW(*phToken,
-                                                           pwszExec,
+                                fRc = CreateProcessAsUserW(hTokenToUse,
+                                                           *ppwszExec,
                                                            pwszCmdLine,
                                                            NULL,         /* pProcessAttributes */
                                                            NULL,         /* pThreadAttributes */
@@ -949,39 +1445,48 @@ static int rtProcWinCreateAsUser2(PRTUTF16 pwszUser, PRTUTF16 pwszPassword, PRTU
                                                            pStartupInfo,
                                                            pProcInfo);
                                 if (fRc)
-                                    dwErr = NO_ERROR;
+                                    rc = VINF_SUCCESS;
                                 else
-                                    dwErr = GetLastError(); /* CreateProcessAsUserW() failed. */
-                                rtProcWinDestroyEnv(pwszzBlock);
-                            }
-
-                            if (!(fFlags & RTPROC_FLAGS_NO_PROFILE))
-                            {
-                                fRc = pfnUnloadUserProfile(*phToken, profileInfo.hProfile);
-#ifdef RT_STRICT
-                                if (!fRc)
                                 {
-                                    DWORD dwErr2 = GetLastError();
-                                    AssertMsgFailed(("Unloading user profile failed with error %u (%#x) - Are all handles closed? (dwErr=%u)",
-                                                     dwErr2, dwErr2, dwErr));
+                                    dwErr = GetLastError();
+                                    if (dwErr == ERROR_PRIVILEGE_NOT_HELD)
+                                        rc = rtProcWinFigureWhichPrivilegeNotHeld2();
+                                    else
+                                        rc = RTErrConvertFromWin32(dwErr);
                                 }
-#endif
+
+                                if (hOldWinStation)
+                                    SetProcessWindowStation(hOldWinStation);
                             }
+                            RTEnvFreeUtf16Block(pwszzBlock);
                         }
+
+                        if (hEnvFinal != hEnv)
+                            RTEnvDestroy(hEnvFinal);
+                    }
+
+                    if ((fFlags & RTPROC_FLAGS_PROFILE) && ProfileInfo.hProfile)
+                    {
+                        fRc = g_pfnUnloadUserProfile(hTokenToUse, ProfileInfo.hProfile);
+#ifdef RT_STRICT
+                        if (!fRc)
+                        {
+                            DWORD dwErr2 = GetLastError();
+                            AssertMsgFailed(("Unloading user profile failed with error %u (%#x) - Are all handles closed? (dwErr=%u)",
+                                             dwErr2, dwErr2, dwErr));
+                        }
+#endif
                     }
                 }
-                RTLdrClose(hUserenv);
-            } /* Userenv.dll found/loaded? */
+            }
+            else
+                rc = VERR_SYMBOL_NOT_FOUND;
         } /* Account lookup succeeded? */
+
         if (hTokenUserDesktop != INVALID_HANDLE_VALUE)
             CloseHandle(hTokenUserDesktop);
-        rtProcWinUserLogoff(hTokenLogon);
-    }
+        CloseHandle(hTokenLogon);
 
-    if (   RT_SUCCESS(rc)
-        && dwErr != NO_ERROR)
-    {
-        rc = rtProcWinMapErrorCodes(dwErr);
         if (rc == VERR_UNRESOLVED_ERROR)
             LogRelFunc(("dwErr=%u (%#x), rc=%Rrc\n", dwErr, dwErr, rc));
     }
@@ -990,76 +1495,252 @@ static int rtProcWinCreateAsUser2(PRTUTF16 pwszUser, PRTUTF16 pwszPassword, PRTU
 
 
 /**
+ * Plants a standard handle into a child process on older windows versions.
+ *
+ * This is only needed when using CreateProcessWithLogonW on older windows
+ * versions.  It would appear that newer versions of windows does this for us.
+ *
+ * @param   hSrcHandle              The source handle.
+ * @param   hDstProcess             The child process handle.
+ * @param   offProcParamMember      The offset to RTL_USER_PROCESS_PARAMETERS.
+ * @param   ppvDstProcParamCache    Where where cached the address of
+ *                                  RTL_USER_PROCESS_PARAMETERS in the child.
+ */
+static void rtProcWinDupStdHandleIntoChild(HANDLE hSrcHandle, HANDLE hDstProcess, uint32_t offProcParamMember,
+                                           PVOID *ppvDstProcParamCache)
+{
+    if (hSrcHandle != NULL && hSrcHandle != INVALID_HANDLE_VALUE)
+    {
+        HANDLE hDstHandle;
+        if (DuplicateHandle(GetCurrentProcess(), hSrcHandle, hDstProcess, &hDstHandle,
+                            0 /*IgnoredDesiredAccess*/, FALSE /*fInherit*/, DUPLICATE_SAME_ACCESS))
+        {
+            if (hSrcHandle == hDstHandle)
+                return;
+
+            if (!*ppvDstProcParamCache)
+            {
+                PROCESS_BASIC_INFORMATION BasicInfo;
+                ULONG cbIgn;
+                NTSTATUS rcNt = NtQueryInformationProcess(hDstProcess, ProcessBasicInformation,
+                                                          &BasicInfo, sizeof(BasicInfo), &cbIgn);
+                if (NT_SUCCESS(rcNt))
+                {
+                    SIZE_T cbCopied = 0;
+                    if (!ReadProcessMemory(hDstProcess,
+                                           (char *)BasicInfo.PebBaseAddress + RT_OFFSETOF(PEB_COMMON, ProcessParameters),
+                                           ppvDstProcParamCache, sizeof(*ppvDstProcParamCache), &cbCopied))
+                    {
+                        AssertMsgFailed(("PebBaseAddress=%p %d\n", BasicInfo.PebBaseAddress, GetLastError()));
+                        *ppvDstProcParamCache = NULL;
+                    }
+                }
+                else
+                    AssertMsgFailed(("rcNt=%#x\n", rcNt));
+            }
+            if (*ppvDstProcParamCache)
+            {
+                if (WriteProcessMemory(hDstProcess, (char *)*ppvDstProcParamCache + offProcParamMember,
+                                       &hDstHandle, sizeof(hDstHandle), NULL))
+                    return;
+            }
+
+            /*
+             * Close the handle.
+             */
+            HANDLE hSrcHandle2;
+            if (DuplicateHandle(hDstProcess, hDstHandle, GetCurrentProcess(), &hSrcHandle2,
+                                0 /*IgnoredDesiredAccess*/, FALSE /*fInherit*/, DUPLICATE_SAME_ACCESS | DUPLICATE_CLOSE_SOURCE))
+                CloseHandle(hSrcHandle2);
+            else
+                AssertMsgFailed(("hDstHandle=%p %u\n", hDstHandle, GetLastError()));
+        }
+        else
+            AssertMsg(GetLastError() == ERROR_INVALID_PARAMETER, ("%u\n", GetLastError()));
+    }
+}
+
+
+/**
  * Method \#1.
  *
- * This may fail on too old (NT4) platforms or if the calling process
- * is running on a SYSTEM account (like a service, ERROR_ACCESS_DENIED) on newer
- * platforms (however, this works on W2K!).
+ * This method requires Windows 2000 or later.  It may fail if the process is
+ * running under the SYSTEM account (like a service, ERROR_ACCESS_DENIED) on
+ * newer platforms (however, this works on W2K!).
  */
-static int rtProcWinCreateAsUser1(PRTUTF16 pwszUser, PRTUTF16 pwszPassword, PRTUTF16 pwszExec, PRTUTF16 pwszCmdLine,
+static int rtProcWinCreateAsUser1(PRTUTF16 pwszUser, PRTUTF16 pwszPassword, PRTUTF16 *ppwszExec, PRTUTF16 pwszCmdLine,
                                   RTENV hEnv, DWORD dwCreationFlags,
-                                  STARTUPINFOW *pStartupInfo, PROCESS_INFORMATION *pProcInfo, uint32_t fFlags)
+                                  STARTUPINFOW *pStartupInfo, PROCESS_INFORMATION *pProcInfo,
+                                  uint32_t fFlags, const char *pszExec)
 {
-    PFNCREATEPROCESSWITHLOGON pfnCreateProcessWithLogonW;
-    pfnCreateProcessWithLogonW = (PFNCREATEPROCESSWITHLOGON)RTLdrGetSystemSymbol("Advapi32.dll", "CreateProcessWithLogonW");
-    if (!pfnCreateProcessWithLogonW)
+    /* The CreateProcessWithLogonW API was introduced with W2K and later.  It uses a service
+       for launching the process. */
+    if (!g_pfnCreateProcessWithLogonW)
         return VERR_SYMBOL_NOT_FOUND;
 
-    PRTUTF16 pwszzBlock;
-    int rc = rtProcWinCreateEnvFromAccount(pwszUser, pwszPassword, NULL /* Domain */,
-                                           hEnv, &pwszzBlock);
+    /*
+     * Create the environment block and find the executable first.
+     *
+     * We try to skip this when RTPROC_FLAGS_PROFILE is set so we can sidestep
+     * potential missing TCB privilege issues when calling UserLogonW.  At least
+     * NT4 and W2K requires the trusted code base (TCB) privilege for logon use.
+     * Passing pwszzBlock=NULL and LOGON_WITH_PROFILE means the child process
+     * gets the environment specified by the user profile.
+     */
+    int      rc;
+    PRTUTF16 pwszzBlock = NULL;
+
+    /* Eliminating the path search flags simplifies things a little. */
+    if (   (fFlags & RTPROC_FLAGS_SEARCH_PATH)
+        && (RTPathHasPath(pszExec) || RTPathExists(pszExec)))
+        fFlags &= ~RTPROC_FLAGS_SEARCH_PATH;
+
+    /*
+     * No profile is simple, as is a user specified environment (no change record).
+     */
+    if (   !(fFlags & RTPROC_FLAGS_PROFILE)
+        || (   !(fFlags & RTPROC_FLAGS_ENV_CHANGE_RECORD)
+            && hEnv != RTENV_DEFAULT))
+        rc = rtProcWinCreateEnvBlockAndFindExe(fFlags, hEnv, pszExec, &pwszzBlock, ppwszExec);
+    /*
+     * Default profile environment without changes or path searching we leave
+     * to the service that implements the API.
+     */
+    else if (   hEnv == RTENV_DEFAULT
+             && !(fFlags & (RTPROC_FLAGS_ENV_CHANGE_RECORD | RTPROC_FLAGS_SEARCH_PATH)))
+    {
+        pwszzBlock = NULL;
+        rc = VINF_SUCCESS;
+    }
+    /*
+     * Otherwise, we need to get the user profile environment.
+     */
+    else
+    {
+        RTENV  hEnvToUse = NIL_RTENV;
+        HANDLE hToken;
+        rc = rtProcWinUserLogon(pwszUser, pwszPassword, NULL /* Domain */, &hToken);
+        if (RT_SUCCESS(rc))
+        {
+            /* CreateEnvFromToken docs says we should load the profile, though
+               we haven't observed any difference when not doing it.  Maybe it's
+               only an issue with roaming profiles or something similar... */
+            PROFILEINFOW ProfileInfo;
+            RT_ZERO(ProfileInfo);
+            ProfileInfo.dwSize     = sizeof(ProfileInfo);
+            ProfileInfo.lpUserName = pwszUser;
+            ProfileInfo.dwFlags    = PI_NOUI; /* Prevents the display of profile error messages. */
+
+            if (g_pfnLoadUserProfileW(hToken, &ProfileInfo))
+            {
+                /*
+                 * Do what we need to do.  Don't keep any temp environment object.
+                 */
+                rc = rtProcWinCreateEnvFromToken(hToken, hEnv, fFlags, &hEnvToUse);
+                if (RT_SUCCESS(rc))
+                {
+                    rc = rtProcWinFindExe(fFlags, hEnv, pszExec, ppwszExec);
+                    if (RT_SUCCESS(rc))
+                        rc = RTEnvQueryUtf16Block(hEnvToUse, &pwszzBlock);
+                    if (hEnvToUse != hEnv)
+                        RTEnvDestroy(hEnvToUse);
+                }
+
+                if (!g_pfnUnloadUserProfile(hToken, ProfileInfo.hProfile))
+                    AssertFailed();
+            }
+            else
+                rc = RTErrConvertFromWin32(GetLastError());
+            CloseHandle(hToken);
+        }
+    }
     if (RT_SUCCESS(rc))
     {
-        BOOL fRc = pfnCreateProcessWithLogonW(pwszUser,
-                                              NULL,                       /* lpDomain*/
-                                              pwszPassword,
-                                              1 /*LOGON_WITH_PROFILE*/,   /* dwLogonFlags */
-                                              pwszExec,
-                                              pwszCmdLine,
-                                              dwCreationFlags,
-                                              pwszzBlock,
-                                              NULL,                       /* pCurrentDirectory */
-                                              pStartupInfo,
-                                              pProcInfo);
-        if (!fRc)
+        /*
+         * Create the process.
+         */
+        Assert(!(dwCreationFlags & CREATE_SUSPENDED));
+        bool const fCreatedSuspended = g_enmWinVer < kRTWinOSType_XP;
+        BOOL fRc = g_pfnCreateProcessWithLogonW(pwszUser,
+                                                NULL,                       /* lpDomain*/
+                                                pwszPassword,
+                                                fFlags & RTPROC_FLAGS_PROFILE ? 1 /*LOGON_WITH_ PROFILE*/ : 0,
+                                                *ppwszExec,
+                                                pwszCmdLine,
+                                                dwCreationFlags | (fCreatedSuspended ? CREATE_SUSPENDED : 0),
+                                                pwszzBlock,
+                                                NULL,                       /* pCurrentDirectory */
+                                                pStartupInfo,
+                                                pProcInfo);
+        if (fRc)
+        {
+            if (!fCreatedSuspended)
+                rc = VINF_SUCCESS;
+            else
+            {
+                /*
+                 * Duplicate standard handles into the child process, we ignore failures here as it's
+                 * legal to have bad standard handle values and we cannot dup console I/O handles.*
+                 */
+                PVOID pvDstProcParamCache = NULL;
+                rtProcWinDupStdHandleIntoChild(pStartupInfo->hStdInput, pProcInfo->hProcess,
+                                               RT_OFFSETOF(RTL_USER_PROCESS_PARAMETERS, StandardInput), &pvDstProcParamCache);
+                rtProcWinDupStdHandleIntoChild(pStartupInfo->hStdOutput, pProcInfo->hProcess,
+                                               RT_OFFSETOF(RTL_USER_PROCESS_PARAMETERS, StandardOutput), &pvDstProcParamCache);
+                rtProcWinDupStdHandleIntoChild(pStartupInfo->hStdError,  pProcInfo->hProcess,
+                                               RT_OFFSETOF(RTL_USER_PROCESS_PARAMETERS, StandardError), &pvDstProcParamCache);
+
+                if (ResumeThread(pProcInfo->hThread) != ~(DWORD)0)
+                    rc = VINF_SUCCESS;
+                else
+                    rc = RTErrConvertFromWin32(GetLastError());
+                if (RT_FAILURE(rc))
+                {
+                    TerminateProcess(pProcInfo->hProcess, 127);
+                    CloseHandle(pProcInfo->hThread);
+                    CloseHandle(pProcInfo->hProcess);
+                }
+            }
+        }
+        else
         {
             DWORD dwErr = GetLastError();
-            rc = rtProcWinMapErrorCodes(dwErr);
+            rc = RTErrConvertFromWin32(dwErr);
             if (rc == VERR_UNRESOLVED_ERROR)
-                LogRelFunc(("pfnCreateProcessWithLogonW (%p) failed: dwErr=%u (%#x), rc=%Rrc\n",
-                            pfnCreateProcessWithLogonW, dwErr, dwErr, rc));
+                LogRelFunc(("g_pfnCreateProcessWithLogonW (%p) failed: dwErr=%u (%#x), rc=%Rrc\n",
+                            g_pfnCreateProcessWithLogonW, dwErr, dwErr, rc));
         }
-        rtProcWinDestroyEnv(pwszzBlock);
+        if (pwszzBlock)
+            RTEnvFreeUtf16Block(pwszzBlock);
     }
     return rc;
 }
 
 
-static int rtProcWinCreateAsUser(PRTUTF16 pwszUser, PRTUTF16 pwszPassword, PRTUTF16 pwszExec, PRTUTF16 pwszCmdLine,
+static int rtProcWinCreateAsUser(PRTUTF16 pwszUser, PRTUTF16 pwszPassword, PRTUTF16 *ppwszExec, PRTUTF16 pwszCmdLine,
                                  RTENV hEnv, DWORD dwCreationFlags,
-                                 STARTUPINFOW *pStartupInfo, PROCESS_INFORMATION *pProcInfo, uint32_t fFlags)
+                                 STARTUPINFOW *pStartupInfo, PROCESS_INFORMATION *pProcInfo,
+                                 uint32_t fFlags, const char *pszExec)
 {
     /*
-     * If we run as a service CreateProcessWithLogon will fail,
-     * so don't even try it (because of Local System context).
+     * If we run as a service CreateProcessWithLogon will fail, so don't even
+     * try it (because of Local System context).  This method is very slow on W2K.
      */
-    int rc = VERR_TRY_AGAIN;
     if (!(fFlags & RTPROC_FLAGS_SERVICE))
-        rc = rtProcWinCreateAsUser1(pwszUser, pwszPassword, pwszExec, pwszCmdLine, hEnv, dwCreationFlags, pStartupInfo, pProcInfo, fFlags);
-
-    /*
-     * Did the API call above fail because we're running on a too old OS (NT4) or
-     * we're running as a Windows service?
-     */
-    if (RT_FAILURE(rc))
-        rc = rtProcWinCreateAsUser2(pwszUser, pwszPassword, pwszExec, pwszCmdLine, hEnv, dwCreationFlags, pStartupInfo, pProcInfo, fFlags);
-
-    return rc;
+    {
+        int rc = rtProcWinCreateAsUser1(pwszUser, pwszPassword, ppwszExec, pwszCmdLine,
+                                        hEnv, dwCreationFlags, pStartupInfo, pProcInfo, fFlags, pszExec);
+        if (RT_SUCCESS(rc))
+            return rc;
+    }
+    return rtProcWinCreateAsUser2(pwszUser, pwszPassword, ppwszExec, pwszCmdLine,
+                                  hEnv, dwCreationFlags, pStartupInfo, pProcInfo, fFlags, pszExec);
 }
 
 
 /**
- * RTPathTraverseList callback used by RTProcCreateEx to locate the executable.
+ * RTPathTraverseList callback used by rtProcWinFindExe to locate the
+ * executable.
  */
 static DECLCALLBACK(int) rtPathFindExec(char const *pchPath, size_t cchPath, void *pvUser1, void *pvUser2)
 {
@@ -1071,6 +1752,133 @@ static DECLCALLBACK(int) rtPathFindExec(char const *pchPath, size_t cchPath, voi
     if (RTFileExists(pszRealExec))
         return VINF_SUCCESS;
     return VERR_TRY_AGAIN;
+}
+
+
+/**
+ * Locate the executable file if necessary.
+ *
+ * @returns IPRT status code.
+ * @param   pszExec         The UTF-8 executable string passed in by the user.
+ * @param   fFlags          The process creation flags pass in by the user.
+ * @param   hEnv            The environment to get the path variabel from.
+ * @param   ppwszExec       Pointer to the variable pointing to the UTF-16
+ *                          converted string.  If we find something, the current
+ *                          pointer will be free (RTUtf16Free) and
+ *                          replaced by a new one.
+ */
+static int rtProcWinFindExe(uint32_t fFlags, RTENV hEnv, const char *pszExec, PRTUTF16 *ppwszExec)
+{
+    /*
+     * Return immediately if we're not asked to search, or if the file has a
+     * path already or if it actually exists in the current directory.
+     */
+    if (   !(fFlags & RTPROC_FLAGS_SEARCH_PATH)
+        || RTPathHavePath(pszExec)
+        || RTPathExists(pszExec) )
+        return VINF_SUCCESS;
+
+    /*
+     * Search the Path or PATH variable for the file.
+     */
+    char *pszPath;
+    if (RTEnvExistEx(hEnv, "PATH"))
+        pszPath = RTEnvDupEx(hEnv, "PATH");
+    else if (RTEnvExistEx(hEnv, "Path"))
+        pszPath = RTEnvDupEx(hEnv, "Path");
+    else
+        return VERR_FILE_NOT_FOUND;
+
+    char szRealExec[RTPATH_MAX];
+    int rc = RTPathTraverseList(pszPath, ';', rtPathFindExec, (void *)pszExec, &szRealExec[0]);
+    RTStrFree(pszPath);
+    if (RT_SUCCESS(rc))
+    {
+        /*
+         * Replace the executable string.
+         */
+        RTUtf16Free(*ppwszExec);
+        *ppwszExec = NULL;
+        rc = RTStrToUtf16(szRealExec, ppwszExec);
+    }
+    else if (rc == VERR_END_OF_STRING)
+        rc = VERR_FILE_NOT_FOUND;
+    return rc;
+}
+
+
+/**
+ * Creates the UTF-16 environment block and, if necessary, find the executable.
+ *
+ * @returns IPRT status code.
+ * @param   fFlags          The process creation flags pass in by the user.
+ * @param   hEnv            The environment handle passed by the user.
+ * @param   pszExec         See rtProcWinFindExe.
+ * @param   ppwszzBlock     Where RTEnvQueryUtf16Block returns the block.
+ * @param   ppwszExec       See rtProcWinFindExe.
+ */
+static int rtProcWinCreateEnvBlockAndFindExe(uint32_t fFlags, RTENV hEnv, const char *pszExec,
+                                             PRTUTF16 *ppwszzBlock, PRTUTF16 *ppwszExec)
+{
+    int rc;
+
+    /*
+     * In most cases, we just need to convert the incoming enviornment to a
+     * UTF-16 environment block.
+     */
+    RTENV hEnvToUse;
+    if (   !(fFlags & (RTPROC_FLAGS_PROFILE | RTPROC_FLAGS_ENV_CHANGE_RECORD))
+        || (hEnv == RTENV_DEFAULT && !(fFlags & RTPROC_FLAGS_PROFILE))
+        || (hEnv != RTENV_DEFAULT && !(fFlags & RTPROC_FLAGS_ENV_CHANGE_RECORD)) )
+    {
+        hEnvToUse = hEnv;
+        rc = VINF_SUCCESS;
+    }
+    else if (fFlags & RTPROC_FLAGS_PROFILE)
+    {
+        /*
+         * We need to get the profile environment for the current user.
+         */
+        Assert((fFlags & RTPROC_FLAGS_ENV_CHANGE_RECORD) || hEnv == RTENV_DEFAULT);
+        AssertReturn(g_pfnCreateEnvironmentBlock && g_pfnDestroyEnvironmentBlock, VERR_SYMBOL_NOT_FOUND);
+        AssertReturn(g_pfnLoadUserProfileW && g_pfnUnloadUserProfile, VERR_SYMBOL_NOT_FOUND);
+        HANDLE hToken;
+        if (OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY | TOKEN_DUPLICATE | TOKEN_IMPERSONATE, &hToken))
+        {
+            rc = rtProcWinCreateEnvFromToken(hToken, hEnv, fFlags, &hEnvToUse);
+            CloseHandle(hToken);
+        }
+        else
+            rc = RTErrConvertFromWin32(GetLastError());
+    }
+    else
+    {
+        /*
+         * Apply hEnv as a change record on top of the default environment.
+         */
+        Assert(fFlags & RTPROC_FLAGS_ENV_CHANGE_RECORD);
+        rc = RTEnvClone(&hEnvToUse, RTENV_DEFAULT);
+        if (RT_SUCCESS(rc))
+        {
+            rc = RTEnvApplyChanges(hEnvToUse, hEnv);
+            if (RT_FAILURE(rc))
+                RTEnvDestroy(hEnvToUse);
+        }
+    }
+    if (RT_SUCCESS(rc))
+    {
+        /*
+         * Query the UTF-16 environment block and locate the executable (if needed).
+         */
+        rc = RTEnvQueryUtf16Block(hEnvToUse, ppwszzBlock);
+        if (RT_SUCCESS(rc))
+            rc = rtProcWinFindExe(fFlags, hEnvToUse, pszExec, ppwszExec);
+
+        if (hEnvToUse != hEnv)
+            RTEnvDestroy(hEnvToUse);
+    }
+
+    return rc;
 }
 
 
@@ -1097,26 +1905,10 @@ RTR3DECL(int)   RTProcCreateEx(const char *pszExec, const char * const *papszArg
      */
     int rc = RTOnce(&g_rtProcWinInitOnce, rtProcWinInitOnce, NULL);
     AssertRCReturn(rc, rc);
-
-    /*
-     * Resolve the executable name via the PATH if requested.
-     */
-    char szRealExec[RTPATH_MAX];
-    if (   (fFlags & RTPROC_FLAGS_SEARCH_PATH)
-        && !RTPathHavePath(pszExec)
-        && !RTPathExists(pszExec) )
+    if (pszAsUser || (fFlags & (RTPROC_FLAGS_PROFILE | RTPROC_FLAGS_SERVICE)))
     {
-        /* search */
-        char *pszPath;
-        if (RTEnvExistEx(hEnv, "PATH"))
-            pszPath = RTEnvDupEx(hEnv, "PATH");
-        else
-            pszPath = RTEnvDupEx(hEnv, "Path");
-        rc = RTPathTraverseList(pszPath, ';', rtPathFindExec, (void *)pszExec, &szRealExec[0]);
-        RTStrFree(pszPath);
-        if (RT_FAILURE(rc))
-            return rc == VERR_END_OF_STRING ? VERR_FILE_NOT_FOUND : rc;
-        pszExec = szRealExec;
+        rc = RTOnce(&g_rtProcWinResolveOnce, rtProcWinResolveOnce, NULL);
+        AssertRCReturn(rc, rc);
     }
 
     /*
@@ -1206,42 +1998,42 @@ RTR3DECL(int)   RTProcCreateEx(const char *pszExec, const char * const *papszArg
         }
 
     /*
-     * Create the environment block, command line and convert the executable
-     * name.
+     * Create the command line and convert the executable name.
      */
-    PRTUTF16 pwszzBlock;
+    PRTUTF16 pwszCmdLine;
     if (RT_SUCCESS(rc))
-        rc = RTEnvQueryUtf16Block(hEnv, &pwszzBlock);
-    if (RT_SUCCESS(rc))
-    {
-        PRTUTF16 pwszCmdLine;
         rc = RTGetOptArgvToUtf16String(&pwszCmdLine, papszArgs,
                                        !(fFlags & RTPROC_FLAGS_UNQUOTED_ARGS)
                                        ? RTGETOPTARGV_CNV_QUOTE_MS_CRT : RTGETOPTARGV_CNV_UNQUOTED);
+    if (RT_SUCCESS(rc))
+    {
+        PRTUTF16 pwszExec;
+        rc = RTStrToUtf16(pszExec, &pwszExec);
         if (RT_SUCCESS(rc))
         {
-            PRTUTF16 pwszExec;
-            rc = RTStrToUtf16(pszExec, &pwszExec);
-            if (RT_SUCCESS(rc))
-            {
-                /*
-                 * Get going...
-                 */
-                PROCESS_INFORMATION ProcInfo;
-                RT_ZERO(ProcInfo);
-                DWORD dwCreationFlags = CREATE_UNICODE_ENVIRONMENT;
-                if (fFlags & RTPROC_FLAGS_DETACHED)
-                    dwCreationFlags |= DETACHED_PROCESS;
-                if (fFlags & RTPROC_FLAGS_NO_WINDOW)
-                    dwCreationFlags |= CREATE_NO_WINDOW;
+            /*
+             * Get going...
+             */
+            PROCESS_INFORMATION ProcInfo;
+            RT_ZERO(ProcInfo);
+            DWORD dwCreationFlags = CREATE_UNICODE_ENVIRONMENT;
+            if (fFlags & RTPROC_FLAGS_DETACHED)
+                dwCreationFlags |= DETACHED_PROCESS;
+            if (fFlags & RTPROC_FLAGS_NO_WINDOW)
+                dwCreationFlags |= CREATE_NO_WINDOW;
 
-                /*
-                 * Only use the normal CreateProcess stuff if we have no user name
-                 * and we are not running from a (Windows) service. Otherwise use
-                 * the more advanced version in rtProcWinCreateAsUser().
-                 */
-                if (   pszAsUser == NULL
-                    && !(fFlags & RTPROC_FLAGS_SERVICE))
+            /*
+             * Only use the normal CreateProcess stuff if we have no user name
+             * and we are not running from a (Windows) service. Otherwise use
+             * the more advanced version in rtProcWinCreateAsUser().
+             */
+            if (   pszAsUser == NULL
+                && !(fFlags & RTPROC_FLAGS_SERVICE))
+            {
+                /* Create the environment block first. */
+                PRTUTF16 pwszzBlock;
+                rc = rtProcWinCreateEnvBlockAndFindExe(fFlags, hEnv, pszExec, &pwszzBlock, &pwszExec);
+                if (RT_SUCCESS(rc))
                 {
                     if (CreateProcessW(pwszExec,
                                        pwszCmdLine,
@@ -1256,51 +2048,53 @@ RTR3DECL(int)   RTProcCreateEx(const char *pszExec, const char * const *papszArg
                         rc = VINF_SUCCESS;
                     else
                         rc = RTErrConvertFromWin32(GetLastError());
+                    RTEnvFreeUtf16Block(pwszzBlock);
                 }
-                else
-                {
-                    /*
-                     * Convert the additional parameters and use a helper
-                     * function to do the actual work.
-                     */
-                    PRTUTF16 pwszUser;
-                    rc = RTStrToUtf16(pszAsUser, &pwszUser);
-                    if (RT_SUCCESS(rc))
-                    {
-                        PRTUTF16 pwszPassword;
-                        rc = RTStrToUtf16(pszPassword ? pszPassword : "", &pwszPassword);
-                        if (RT_SUCCESS(rc))
-                        {
-                            rc = rtProcWinCreateAsUser(pwszUser, pwszPassword,
-                                                       pwszExec, pwszCmdLine, hEnv, dwCreationFlags,
-                                                       &StartupInfo, &ProcInfo, fFlags);
-
-                            RTUtf16Free(pwszPassword);
-                        }
-                        RTUtf16Free(pwszUser);
-                    }
-                }
+            }
+            else
+            {
+                /*
+                 * Convert the additional parameters and use a helper
+                 * function to do the actual work.
+                 */
+                PRTUTF16 pwszUser;
+                rc = RTStrToUtf16(pszAsUser, &pwszUser);
                 if (RT_SUCCESS(rc))
                 {
-                    CloseHandle(ProcInfo.hThread);
-                    if (phProcess)
+                    PRTUTF16 pwszPassword;
+                    rc = RTStrToUtf16(pszPassword ? pszPassword : "", &pwszPassword);
+                    if (RT_SUCCESS(rc))
                     {
-                        /*
-                         * Add the process to the child process list so
-                         * RTProcWait can reuse and close the process handle.
-                         */
-                        rtProcWinAddPid(ProcInfo.dwProcessId, ProcInfo.hProcess);
-                        *phProcess = ProcInfo.dwProcessId;
+                        rc = rtProcWinCreateAsUser(pwszUser, pwszPassword,
+                                                   &pwszExec, pwszCmdLine, hEnv, dwCreationFlags,
+                                                   &StartupInfo, &ProcInfo, fFlags, pszExec);
+
+                        if (pwszPassword && *pwszPassword)
+                            RTMemWipeThoroughly(pwszPassword, RTUtf16Len(pwszPassword), 5);
+                        RTUtf16Free(pwszPassword);
                     }
-                    else
-                        CloseHandle(ProcInfo.hProcess);
-                    rc = VINF_SUCCESS;
+                    RTUtf16Free(pwszUser);
                 }
-                RTUtf16Free(pwszExec);
             }
-            RTUtf16Free(pwszCmdLine);
+            if (RT_SUCCESS(rc))
+            {
+                CloseHandle(ProcInfo.hThread);
+                if (phProcess)
+                {
+                    /*
+                     * Add the process to the child process list so
+                     * RTProcWait can reuse and close the process handle.
+                     */
+                    rtProcWinAddPid(ProcInfo.dwProcessId, ProcInfo.hProcess);
+                    *phProcess = ProcInfo.dwProcessId;
+                }
+                else
+                    CloseHandle(ProcInfo.hProcess);
+                rc = VINF_SUCCESS;
+            }
+            RTUtf16Free(pwszExec);
         }
-        RTEnvFreeUtf16Block(pwszzBlock);
+        RTUtf16Free(pwszCmdLine);
     }
 
     /* Undo any handle inherit changes. */
@@ -1457,41 +2251,57 @@ RTR3DECL(uint64_t) RTProcGetAffinityMask(void)
 }
 
 
-RTR3DECL(int) RTProcQueryUsername(RTPROCESS hProcess, char *pszUser, size_t cbUser,
-                                  size_t *pcbUser)
+RTR3DECL(int) RTProcQueryUsername(RTPROCESS hProcess, char *pszUser, size_t cbUser, size_t *pcbUser)
 {
     AssertReturn(   (pszUser && cbUser > 0)
                  || (!pszUser && !cbUser), VERR_INVALID_PARAMETER);
+    AssertReturn(pcbUser || pszUser, VERR_INVALID_PARAMETER);
 
-    if (hProcess != RTProcSelf())
-        return VERR_NOT_SUPPORTED;
-
-    RTUTF16 awszUserName[UNLEN + 1];
-    DWORD   cchUserName = UNLEN + 1;
-
-    if (!GetUserNameW(&awszUserName[0], &cchUserName))
-        return RTErrConvertFromWin32(GetLastError());
-
-    char *pszUserName = NULL;
-    int rc = RTUtf16ToUtf8(awszUserName, &pszUserName);
-    if (RT_SUCCESS(rc))
+    int rc;
+    if (   hProcess == NIL_RTPROCESS
+        || hProcess == RTProcSelf())
     {
-        size_t cbUserName = strlen(pszUserName) + 1;
-
-        if (pcbUser)
-            *pcbUser = cbUserName;
-
-        if (cbUserName > cbUser)
-            rc = VERR_BUFFER_OVERFLOW;
-        else
+        RTUTF16 wszUsername[UNLEN + 1];
+        DWORD   cwcUsername = RT_ELEMENTS(wszUsername);
+        if (GetUserNameW(&wszUsername[0], &cwcUsername))
         {
-            memcpy(pszUser, pszUserName, cbUserName);
-            rc = VINF_SUCCESS;
+            if (pszUser)
+            {
+                rc = RTUtf16ToUtf8Ex(wszUsername, cwcUsername, &pszUser, cbUser, pcbUser);
+                if (pcbUser)
+                    *pcbUser += 1;
+            }
+            else
+            {
+                *pcbUser = RTUtf16CalcUtf8Len(wszUsername) + 1;
+                rc = VERR_BUFFER_OVERFLOW;
+            }
         }
-
-        RTStrFree(pszUserName);
+        else
+            rc = RTErrConvertFromWin32(GetLastError());
     }
+    else
+        rc = VERR_NOT_SUPPORTED;
+    return rc;
+}
 
+
+RTR3DECL(int) RTProcQueryUsernameA(RTPROCESS hProcess, char **ppszUser)
+{
+    AssertPtrReturn(ppszUser, VERR_INVALID_POINTER);
+    int rc;
+    if (   hProcess == NIL_RTPROCESS
+        || hProcess == RTProcSelf())
+    {
+        RTUTF16 wszUsername[UNLEN + 1];
+        DWORD   cwcUsername = RT_ELEMENTS(wszUsername);
+        if (GetUserNameW(&wszUsername[0], &cwcUsername))
+            rc = RTUtf16ToUtf8(wszUsername, ppszUser);
+        else
+            rc = RTErrConvertFromWin32(GetLastError());
+    }
+    else
+        rc = VERR_NOT_SUPPORTED;
     return rc;
 }
 

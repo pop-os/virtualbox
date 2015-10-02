@@ -349,6 +349,85 @@ RTDECL(int) RTEnvClone(PRTENV pEnv, RTENV EnvToClone)
 RT_EXPORT_SYMBOL(RTEnvClone);
 
 
+RTDECL(int) RTEnvCloneUtf16Block(PRTENV phEnv, PCRTUTF16 pwszzBlock, uint32_t fFlags)
+{
+    AssertPtrReturn(pwszzBlock, VERR_INVALID_POINTER);
+    AssertReturn(!fFlags, VERR_INVALID_FLAGS);
+
+    /*
+     * Count the number of variables in the block.
+     */
+    uint32_t  cVars = 0;
+    PCRTUTF16 pwsz  = pwszzBlock;
+    while (*pwsz != '\0')
+    {
+        cVars++;
+        pwsz += RTUtf16Len(pwsz) + 1;
+        AssertReturn(cVars < _256K, VERR_OUT_OF_RANGE);
+    }
+
+    /*
+     * Create the duplicate.
+     */
+    PRTENVINTERNAL pIntEnv;
+    int rc = rtEnvCreate(&pIntEnv, cVars + 1 /* NULL */, false /*fCaseSensitive*/, false /*fPutEnvBlock*/);
+    if (RT_SUCCESS(rc))
+    {
+        pIntEnv->cVars = cVars;
+        pIntEnv->papszEnv[pIntEnv->cVars] = NULL;
+
+        size_t iDst = 0;
+        for (pwsz = pwszzBlock; *pwsz != '\0'; pwsz += RTUtf16Len(pwsz) + 1)
+        {
+            int rc2 = RTUtf16ToUtf8(pwsz, &pIntEnv->papszEnv[iDst]);
+            if (RT_SUCCESS(rc2))
+            {
+                /* Make sure it contains an '='. */
+                const char *pszEqual = strchr(pIntEnv->papszEnv[iDst], '=');
+                if (!pszEqual)
+                {
+                    rc2 = RTStrAAppend(&pIntEnv->papszEnv[iDst], "=");
+                    if (RT_SUCCESS(rc2))
+                        pszEqual = strchr(pIntEnv->papszEnv[iDst], '=');
+
+                }
+                if (pszEqual)
+                {
+                    /* Check for duplicates, keep the last version. */
+                    const char *pchVar        = pIntEnv->papszEnv[iDst];
+                    size_t      cchVarNmAndEq = pszEqual - pchVar;
+                    for (size_t iDst2 = 0; iDst2 < iDst; iDst2++)
+                        if (pIntEnv->pfnCompare(pIntEnv->papszEnv[iDst2], pchVar, cchVarNmAndEq) == 0)
+                        {
+                            RTStrFree(pIntEnv->papszEnv[iDst2]);
+                            pIntEnv->papszEnv[iDst2] = pIntEnv->papszEnv[iDst];
+                            pIntEnv->papszEnv[iDst]  = NULL;
+                            iDst--;
+                            break;
+                        }
+                    iDst++;
+                    continue;
+                }
+                iDst++;
+            }
+
+            /* failed fatally. */
+            pIntEnv->cVars = iDst;
+            RTEnvDestroy(pIntEnv);
+            return rc2;
+        }
+        Assert(iDst <= pIntEnv->cVars);
+        pIntEnv->cVars = iDst;
+
+        /* done */
+        *phEnv = pIntEnv;
+    }
+    return rc;
+}
+RT_EXPORT_SYMBOL(RTEnvCloneUtf16Block);
+
+
+
 RTDECL(int) RTEnvReset(RTENV hEnv)
 {
     PRTENVINTERNAL pIntEnv = hEnv;

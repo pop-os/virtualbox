@@ -129,18 +129,6 @@ check_root
 # Set up logging before anything else
 create_log $LOG
 
-# Now stop the autostart service otherwise it will keep VBoxSVC running
-stop_init_script vboxautostart-service
-
-# Now stop the ballon control service otherwise it will keep VBoxSVC running
-stop_init_script vboxballoonctrl-service
-
-# Now stop the web service otherwise it will keep VBoxSVC running
-stop_init_script vboxweb-service
-
-# Now check if no VBoxSVC daemon is running
-check_running
-
 log "VirtualBox $VERSION r$SVNREV installer, built $BUILD."
 log ""
 log "Testing system setup..."
@@ -159,23 +147,6 @@ if [ "$cpu" != "$ARCH" ]; then
   info "Detected unsupported $cpu environment."
   log "Detected unsupported $cpu environment."
   exit 1
-fi
-
-# Check that the system is setup correctly for the installation
-have_bzip2="`check_bzip2; echo $?`"     # Do we have bzip2?
-have_gmake="`check_gmake; echo $?`"     # Do we have GNU make?
-have_ksource="`check_ksource; echo $?`" # Can we find the kernel source?
-have_gcc="`check_gcc; echo $?`"         # Is GCC installed?
-
-if [ $have_bzip2 -eq 1 -o $have_gmake -eq 1 -o $have_ksource -eq 1 \
-     -o $have_gcc -eq 1 ]; then
-    info "Problems were found which would prevent VirtualBox from installing."
-    info "Please correct these problems and try again."
-    log "Giving up due to the problems mentioned above."
-    exit 1
-else
-    log "System setup appears correct."
-    log ""
 fi
 
 # Sensible default actions
@@ -220,10 +191,7 @@ if [ "$ACTION" = "install" ]; then
     umask 022
 
     # Find previous installation
-    if [ ! -r $CONFIG_DIR/$CONFIG ]; then
-        mkdir -p -m 755 $CONFIG_DIR
-        touch $CONFIG_DIR/$CONFIG
-    else
+    if test -r "$CONFIG_DIR/$CONFIG"; then
         . $CONFIG_DIR/$CONFIG
         PREV_INSTALLATION=$INSTALL_DIR
     fi
@@ -246,38 +214,14 @@ if [ "$ACTION" = "install" ]; then
         fi
     fi
 
-    # Terminate Server and VBoxNetDHCP if running
-    terminate_proc VBoxSVC
-    terminate_proc VBoxNetDHCP
-    terminate_proc VBoxNetNAT
-
     # Remove previous installation
-    if [ -n "$PREV_INSTALLATION" -a -z "$FORCE_UPGRADE" -a ! "$VERSION" = "$INSTALL_VER" ] &&
-      expr "$INSTALL_VER" "<" "1.6.0" > /dev/null 2>&1
-    then
-        info
-        info "If you are upgrading from VirtualBox 1.5 or older and if some of your virtual"
-        info "machines have saved states, then the saved state information will be lost"
-        info "after the upgrade and will have to be discarded.  If you do not want this then"
-        info "you can cancel the upgrade now."
-        info
-        info "Do you wish to continue? [yes or no]"
-        read reply dummy
-        if ! expr "$reply" : [yY] && ! expr "$reply" : [yY][eE][sS]
-        then
-            info
-            info "Cancelling upgrade."
-            log "User requested cancellation of the installation"
-            exit 1
-        fi
-    fi
-
     if [ ! "$VERSION" = "$INSTALL_VER" -a ! "$BUILD_MODULE" = "true" -a -n "$DKMS" ]
     then
         # Not doing this can confuse dkms
         info "Rebuilding the kernel module after version change"
         BUILD_MODULE=true
     fi
+    test "${BUILD_MODULE}" = true || VBOX_DONT_REMOVE_OLD_MODULES=1
 
     if [ -n "$PREV_INSTALLATION" ]; then
         [ -n "$INSTALL_REV" ] && INSTALL_REV=" r$INSTALL_REV"
@@ -285,37 +229,13 @@ if [ "$ACTION" = "install" ]; then
         log "Removing previous installation of VirtualBox $INSTALL_VER$INSTALL_REV from $PREV_INSTALLATION"
         log ""
 
-        stop_init_script vboxnet >/dev/null 2>&1  # Do we need this?
-        delrunlevel vboxnet > /dev/null 2>&1
-        if [ "$BUILD_MODULE" = "true" ]; then
-            stop_init_script vboxdrv
-            if [ -n "$DKMS" ]
-            then
-                $DKMS remove -m vboxhost -v $INSTALL_VER --all > /dev/null 2>&1
-                $DKMS remove -m vboxdrv -v $INSTALL_VER --all > /dev/null 2>&1
-                $DKMS remove -m vboxnetflt -v $INSTALL_VER --all > /dev/null 2>&1
-                $DKMS remove -m vboxnetadp -v $INSTALL_VER --all > /dev/null 2>&1
-            fi
-            # OSE doesn't always have the initscript
-            rmmod vboxpci > /dev/null 2>&1
-            rmmod vboxnetadp > /dev/null 2>&1
-            rmmod vboxnetflt > /dev/null 2>&1
-            rmmod vboxdrv > /dev/null 2>&1
-
-            module_loaded && {
-                info "Warning: could not stop VirtualBox kernel module."
-                info "Please restart your system to apply changes."
-                log "Unable to remove the old VirtualBox kernel module."
-                log "  An old version of VirtualBox may be running."
-            }
-        else
-            VBOX_DONT_REMOVE_OLD_MODULES=1
-        fi
-
         VBOX_NO_UNINSTALL_MESSAGE=1
+        # This also checks $BUILD_MODULE and $VBOX_DONT_REMOVE_OLD_MODULES
         . ./uninstall.sh
-
     fi
+
+    mkdir -p -m 755 $CONFIG_DIR
+    touch $CONFIG_DIR/$CONFIG
 
     info "Installing VirtualBox to $INSTALLATION_DIR"
     log "Installing VirtualBox to $INSTALLATION_DIR"
@@ -323,32 +243,28 @@ if [ "$ACTION" = "install" ]; then
 
     # Verify the archive
     mkdir -p -m 755 $INSTALLATION_DIR
-    bzip2 -d -c VirtualBox.tar.bz2 | tar -tf - > $CONFIG_DIR/$CONFIG_FILES
-    RETVAL=$?
-    if [ $RETVAL != 0 ]; then
+    bzip2 -d -c VirtualBox.tar.bz2 > VirtualBox.tar
+    if ! tar -tf VirtualBox.tar > $CONFIG_DIR/$CONFIG_FILES; then
         rmdir $INSTALLATION_DIR 2> /dev/null
         rm -f $CONFIG_DIR/$CONFIG 2> /dev/null
         rm -f $CONFIG_DIR/$CONFIG_FILES 2> /dev/null
-        log 'Error running "bzip2 -d -c VirtualBox.tar.bz2 | tar -tf - > '"$CONFIG_DIR/$CONFIG_FILES"'".'
+        log 'Error running "bzip2 -d -c VirtualBox.tar.bz2" or "tar -tf VirtualBox.tar".'
         abort "Error installing VirtualBox.  Installation aborted"
     fi
 
     # Create installation directory and install
-    bzip2 -d -c VirtualBox.tar.bz2 | tar -xf - -C $INSTALLATION_DIR
-    RETVAL=$?
-    if [ $RETVAL != 0 ]; then
+    if ! tar -xf VirtualBox.tar -C $INSTALLATION_DIR; then
         cwd=`pwd`
         cd $INSTALLATION_DIR
         rm -f `cat $CONFIG_DIR/$CONFIG_FILES` 2> /dev/null
         cd $pwd
         rmdir $INSTALLATION_DIR 2> /dev/null
         rm -f $CONFIG_DIR/$CONFIG 2> /dev/null
-        log 'Error running "bzip2 -d -c VirtualBox.tar.bz2 | tar -xf - -C '"$INSTALLATION_DIR"'".'
+        log 'Error running "tar -xf VirtualBox.tar -C '"$INSTALLATION_DIR"'".'
         abort "Error installing VirtualBox.  Installation aborted"
     fi
 
-    cp uninstall.sh routines.sh $INSTALLATION_DIR
-    echo "routines.sh" >> $CONFIG_DIR/$CONFIG_FILES
+    cp uninstall.sh $INSTALLATION_DIR
     echo "uninstall.sh" >> $CONFIG_DIR/$CONFIG_FILES
 
     # XXX SELinux: allow text relocation entries
@@ -375,13 +291,7 @@ if [ "$ACTION" = "install" ]; then
     test -e $INSTALLATION_DIR/VBoxNetAdpCtl && chmod 4511 $INSTALLATION_DIR/VBoxNetAdpCtl
     test -e $INSTALLATION_DIR/VBoxVolInfo && chmod 4511 $INSTALLATION_DIR/VBoxVolInfo
 
-    # Install runlevel scripts
-    install_init_script $INSTALLATION_DIR/vboxdrv.sh vboxdrv 2>> $LOG
-    install_init_script $INSTALLATION_DIR/vboxballoonctrl-service.sh vboxballoonctrl-service 2>> $LOG
-    install_init_script $INSTALLATION_DIR/vboxautostart-service.sh vboxautostart-service 2>> $LOG
-    install_init_script $INSTALLATION_DIR/vboxweb-service.sh vboxweb-service 2>> $LOG
-
-    # Write the configuration. Do this before we call /etc/init.d/vboxdrv setup!
+    # Write the configuration. Do this before we call /sbin/rcvboxdrv setup!
     echo "# VirtualBox installation directory" > $CONFIG_DIR/$CONFIG
     echo "INSTALL_DIR='$INSTALLATION_DIR'" >> $CONFIG_DIR/$CONFIG
     echo "# VirtualBox version" >> $CONFIG_DIR/$CONFIG
@@ -390,15 +300,6 @@ if [ "$ACTION" = "install" ]; then
     echo "# Build type and user name for logging purposes" >> $CONFIG_DIR/$CONFIG
     echo "BUILD_TYPE='$BUILD_BUILDTYPE'" >> $CONFIG_DIR/$CONFIG
     echo "USERNAME='$BUILD_USERNAME'" >> $CONFIG_DIR/$CONFIG
-
-    delrunlevel vboxdrv > /dev/null 2>&1
-    addrunlevel vboxdrv 2>> $LOG # This may produce useful output
-    delrunlevel vboxballoonctrl-service > /dev/null 2>&1
-    addrunlevel vboxballoonctrl-service 2>> $LOG # This may produce useful output
-    delrunlevel vboxautostart-service > /dev/null 2>&1
-    addrunlevel vboxautostart-service 2>> $LOG # This may produce useful output
-    delrunlevel vboxweb-service > /dev/null 2>&1
-    addrunlevel vboxweb-service 2>> $LOG # This may produce useful output
 
     # Create users group
     groupadd -r -f $GROUPNAME 2> /dev/null
@@ -417,7 +318,6 @@ if [ "$ACTION" = "install" ]; then
     if [ -f $INSTALLATION_DIR/VBoxDTrace ]; then
         ln -sf $INSTALLATION_DIR/VBox.sh /usr/bin/VBoxDTrace
     fi
-    ln -sf $INSTALLATION_DIR/vboxdrv.sh /sbin/rcvboxdrv
     # Unity and Nautilus seem to look here for their icons
     ln -sf $INSTALLATION_DIR/icons/128x128/virtualbox.png /usr/share/pixmaps/virtualbox.png
     ln -sf $INSTALLATION_DIR/virtualbox.desktop /usr/share/applications/virtualbox.desktop
@@ -477,20 +377,23 @@ if [ "$ACTION" = "install" ]; then
         log "Output from the module build process (the Linux kernel build system) follows:"
         cur=`pwd`
         log ""
-        ./vboxdrv.sh setup
         # Start VirtualBox kernel module
-        if [ $RETVAL -eq 0 ] && ! start_init_script vboxdrv; then
+        if ! ./vboxdrv.sh setup || ! ./vboxdrv.sh start; then
             info "Failed to load the kernel module."
             MODULE_FAILED="true"
             RC_SCRIPT=1
         fi
-        start_init_script vboxballoonctrl-service
-        start_init_script vboxautostart-service
-        start_init_script vboxweb-service
         log ""
         log "End of the output from the Linux kernel build system."
         cd $cur
     fi
+
+    # Do post-installation common to all installer types, currently service
+    # script set-up.
+    START_SERVICES=
+    test "${BUILD_MODULE}" = "true" && test "${MODULE_FAILED}" = "false" &&
+        START_SERVICES="--start"
+    ./postinst-common.sh "${INSTALLATION_DIR}" "${START_SERVICES}" >> "${LOG}"
 
     info ""
     if [ ! "$MODULE_FAILED" = "true" ]
@@ -499,7 +402,7 @@ if [ "$ACTION" = "install" ]; then
     else
         info "VirtualBox has been installed successfully, but the kernel module could not"
         info "be built.  When you have fixed the problems preventing this, execute"
-        info "  /etc/init.d/vboxdrv setup"
+        info "  /sbin/rcvboxdrv setup"
         info "as administrator to build it."
     fi
     info ""

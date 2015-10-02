@@ -109,6 +109,13 @@ char *strpbrk(const char *pszStr, const char *pszChars);
 RT_C_DECLS_END
 #endif
 
+#if !defined(RT_OS_LINUX) || !defined(_GNU_SOURCE)
+RT_C_DECLS_BEGIN
+void *memrchr(const char *pv, int ch, size_t cb);
+RT_C_DECLS_END
+#endif
+
+
 /** @def RT_USE_RTC_3629
  * When defined the UTF-8 range will stop at  0x10ffff.  If not defined, the
  * range stops at 0x7fffffff.
@@ -2531,6 +2538,24 @@ DECLINLINE(char *) RTStrEnd(const char *pszString, size_t cchMax)
 }
 
 RT_C_DECLS_BEGIN
+
+/**
+ * Finds the offset at which a simple character first occurs in a string.
+ *
+ * @returns The offset of the first occurence or the terminator offset.
+ * @param   pszHaystack The string to search.
+ * @param   chNeedle    The character to search for.
+ */
+DECLINLINE(size_t) RTStrOffCharOrTerm(const char *pszHaystack, char chNeedle)
+{
+    const char *psz = pszHaystack;
+    char ch;
+    while (   (ch = *psz) != chNeedle
+           && ch != '\0')
+        psz++;
+    return psz - pszHaystack;
+}
+
 
 /**
  * Matches a simple string pattern.

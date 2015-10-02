@@ -20,6 +20,7 @@
 
 /* Qt includes: */
 #include <QObject>
+#include <QSet>
 
 /* GUI includes: */
 #include "UIMedium.h"
@@ -50,9 +51,8 @@ signals:
 
 public:
 
-    /* Constructor/destructor: */
-    UIMediumEnumerator(ulong uWorkerCount = 3, ulong uWorkerTimeout = 5000);
-    ~UIMediumEnumerator();
+    /** Constructs medium-enumerator object. */
+    UIMediumEnumerator();
 
     /* API: Medium-access stuff: */
     QList<QString> mediumIDs() const;
@@ -93,9 +93,8 @@ private:
     void recacheFromActualUsage(const CMediumMap &currentCMediums, const QStringList &currentCMediumIDs);
 
     /* Variables: */
-    UIThreadPool *m_pThreadPool;
     bool m_fMediumEnumerationInProgress;
-    QList<UITask*> m_tasks;
+    QSet<UITask*> m_tasks;
     UIMediumMap m_mediums;
 };
 
