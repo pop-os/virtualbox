@@ -6,7 +6,7 @@ Index: virtualbox/configure
 ===================================================================
 --- virtualbox.orig/configure	2013-11-19 04:36:42.817631012 -0500
 +++ virtualbox/configure	2013-11-19 04:36:42.813631012 -0500
-@@ -169,11 +169,6 @@
+@@ -176,11 +176,6 @@
  # the restricting tool is ar (mri mode).
  INVALID_CHARS="[^A-Za-z0-9/\\$:._-]"
  

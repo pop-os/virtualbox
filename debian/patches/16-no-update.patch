@@ -21,7 +21,7 @@ Index: virtualbox/src/VBox/Frontends/VirtualBox/src/globals/UIActionPool.cpp
 ===================================================================
 --- virtualbox.orig/src/VBox/Frontends/VirtualBox/src/globals/UIActionPool.cpp
 +++ virtualbox/src/VBox/Frontends/VirtualBox/src/globals/UIActionPool.cpp
-@@ -991,7 +991,6 @@ void UIActionPool::preparePool()
+@@ -996,7 +996,6 @@ void UIActionPool::preparePool()
      m_pool[UIActionIndex_M_Application_S_Preferences] = new UIActionSimplePreferences(this);
  #ifdef VBOX_GUI_WITH_NETWORK_MANAGER
      m_pool[UIActionIndex_M_Application_S_NetworkAccessManager] = new UIActionSimpleNetworkAccessManager(this);
@@ -29,7 +29,7 @@ Index: virtualbox/src/VBox/Frontends/VirtualBox/src/globals/UIActionPool.cpp
  #endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
      m_pool[UIActionIndex_M_Application_S_ResetWarnings] = new UIActionSimpleResetWarnings(this);
      m_pool[UIActionIndex_M_Application_S_Close] = new UIActionSimplePerformClose(this);
-@@ -1034,8 +1033,6 @@ void UIActionPool::prepareConnections()
+@@ -1039,8 +1038,6 @@ void UIActionPool::prepareConnections()
  #ifdef VBOX_GUI_WITH_NETWORK_MANAGER
      connect(action(UIActionIndex_M_Application_S_NetworkAccessManager), SIGNAL(triggered()),
              gNetworkManager, SLOT(show()), Qt::UniqueConnection);
@@ -38,7 +38,7 @@ Index: virtualbox/src/VBox/Frontends/VirtualBox/src/globals/UIActionPool.cpp
  #endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
      connect(action(UIActionIndex_M_Application_S_ResetWarnings), SIGNAL(triggered()),
              &msgCenter(), SLOT(sltResetSuppressedMessages()), Qt::UniqueConnection);
-@@ -1110,7 +1107,7 @@ void UIActionPool::updateConfiguration()
+@@ -1115,7 +1112,7 @@ void UIActionPool::updateConfiguration()
      if (!fUpdateAllowed)
      {
          m_restrictedActionsMenuApplication[UIActionRestrictionLevel_Base] = (UIExtraDataMetaDefs::MenuApplicationActionType)
