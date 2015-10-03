@@ -1,5 +1,8 @@
-virtualbox (5.0.4-dfsg-5) UNRELEASED; urgency=medium
+virtualbox (5.0.6-dfsg-1) unstable; urgency=medium
 
+  * New upstream release, patch refresh.
+    - Drop fix-*.patch patches, upstream.
+  * Fix rules file to build arch:all packages with dh_listpackages features.
   * Make virtualbox depend on dkms, source, modules >= source:Version
     instead of a single "=".
     - Virtualbox needs a kernel module, and the kernel module is retro-compatible
