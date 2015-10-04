@@ -87,7 +87,7 @@ Description: x86 virtualization solution - Qt based user interface
 
 Package: virtualbox
 Architecture: amd64 i386
-Depends: adduser, ${misc:Depends}, ${python:Depends}, ${shlibs:Depends}, virtualbox-dkms (>= ${source:Version}) | virtualbox-source (>= ${source:Version}) | virtualbox-modules (>= ${source:Version})
+Depends: adduser, ${misc:Depends}, ${python:Depends}, ${shlibs:Depends}, virtualbox-dkms (>= ${source:Version}) | virtualbox-source (>= ${source:Version}) | virtualbox-modules
 Recommends: virtualbox-qt (= ${binary:Version}), ${shlibs:Recommends}
 Suggests: vde2, virtualbox-guest-additions-iso
 Conflicts: virtualbox-2.0,
