@@ -50,9 +50,9 @@ RT_C_DECLS_END
 #include <sys/param.h>
 #include <sys/conf.h>
 #include <miscfs/devfs/devfs.h>
-extern "C" {
+RT_C_DECLS_BEGIN
 #include <net/bpf.h>
-}
+RT_C_DECLS_END
 
 #define VBOXNETADP_OS_SPECFIC 1
 #include "../VBoxNetAdpInternal.h"
@@ -143,52 +143,18 @@ static void vboxNetAdpDarwinComposeUUID(PVBOXNETADP pThis, PRTUUID pUuid)
 
 static errno_t vboxNetAdpDarwinOutput(ifnet_t pIface, mbuf_t pMBuf)
 {
-    PVBOXNETADP pThis = VBOXNETADP_FROM_IFACE(pIface);
-    Assert(pThis);
-    if (pThis->u.s.nTapMode & BPF_MODE_OUTPUT)
-    {
-        Log2(("vboxnetadp: out len=%d\n%.*Rhxd\n", mbuf_len(pMBuf), 14, mbuf_data(pMBuf)));
-        bpf_tap_out(pIface, DLT_EN10MB, pMBuf, NULL, 0);
-    }
+    /*
+     * We are a dummy interface with all the real work done in
+     * VBoxNetFlt bridged networking filter.  If anything makes it
+     * this far, it must be a broadcast or a packet for an unknown
+     * guest that intnet didn't know where to dispatch.  In that case
+     * we must still do the BPF tap and stats.
+     */
+    bpf_tap_out(pIface, DLT_EN10MB, pMBuf, NULL, 0);
+    ifnet_stat_increment_out(pIface, 1, mbuf_len(pMBuf), 0);
+
     mbuf_freem_list(pMBuf);
     return 0;
-}
-
-static void vboxNetAdpDarwinAttachFamily(PVBOXNETADP pThis, protocol_family_t Family)
-{
-    u_int32_t i;
-    for (i = 0; i < VBOXNETADP_MAX_FAMILIES; i++)
-        if (pThis->u.s.aAttachedFamilies[i] == 0)
-        {
-            pThis->u.s.aAttachedFamilies[i] = Family;
-            break;
-        }
-}
-
-static void vboxNetAdpDarwinDetachFamily(PVBOXNETADP pThis, protocol_family_t Family)
-{
-    u_int32_t i;
-    for (i = 0; i < VBOXNETADP_MAX_FAMILIES; i++)
-        if (pThis->u.s.aAttachedFamilies[i] == Family)
-            pThis->u.s.aAttachedFamilies[i] = 0;
-}
-
-static errno_t vboxNetAdpDarwinAddProto(ifnet_t pIface, protocol_family_t Family, const struct ifnet_demux_desc *pDemuxDesc, u_int32_t nDesc)
-{
-    PVBOXNETADP pThis = VBOXNETADP_FROM_IFACE(pIface);
-    Assert(pThis);
-    vboxNetAdpDarwinAttachFamily(pThis, Family);
-    LogFlow(("vboxNetAdpAddProto: Family=%d.\n", Family));
-    return ether_add_proto(pIface, Family, pDemuxDesc, nDesc);
-}
-
-static errno_t vboxNetAdpDarwinDelProto(ifnet_t pIface, protocol_family_t Family)
-{
-    PVBOXNETADP pThis = VBOXNETADP_FROM_IFACE(pIface);
-    Assert(pThis);
-    LogFlow(("vboxNetAdpDelProto: Family=%d.\n", Family));
-    vboxNetAdpDarwinDetachFamily(pThis, Family);
-    return ether_del_proto(pIface, Family);
 }
 
 static void vboxNetAdpDarwinDetach(ifnet_t pIface)
@@ -204,31 +170,58 @@ static errno_t vboxNetAdpDarwinDemux(ifnet_t pIface, mbuf_t pMBuf,
                                      char *pFrameHeader,
                                      protocol_family_t *pProtocolFamily)
 {
-    PVBOXNETADP pThis = VBOXNETADP_FROM_IFACE(pIface);
-    Assert(pThis);
-    Log2(("vboxNetAdpDarwinDemux: mode=%d\n", pThis->u.s.nTapMode));
-    if (pThis->u.s.nTapMode & BPF_MODE_INPUT)
-    {
-        Log2(("vboxnetadp: in len=%d\n%.*Rhxd\n", mbuf_len(pMBuf), 14, pFrameHeader));
-        bpf_tap_in(pIface, DLT_EN10MB, pMBuf, pFrameHeader, ETHER_HDR_LEN);
-    }
+    /*
+     * Anything we get here comes from VBoxNetFlt bridged networking
+     * filter where it has already been accounted for and fed to bpf.
+     */
     return ether_demux(pIface, pMBuf, pFrameHeader, pProtocolFamily);
 }
 
-static errno_t vboxNetAdpDarwinBpfTap(ifnet_t pIface, u_int32_t uLinkType, bpf_tap_mode nMode)
-{
-    PVBOXNETADP pThis = VBOXNETADP_FROM_IFACE(pIface);
-    Assert(pThis);
-    Log2(("vboxNetAdpDarwinBpfTap: mode=%d\n", nMode));
-    pThis->u.s.nTapMode = nMode;
-    return 0;
-}
 
-static errno_t vboxNetAdpDarwinBpfSend(ifnet_t pIface, u_int32_t uLinkType, mbuf_t pMBuf)
+static errno_t vboxNetAdpDarwinIfIOCtl(ifnet_t pIface, unsigned long uCmd, void *pvData)
 {
-    LogRel(("vboxnetadp: BPF send function is not implemented (dlt=%d)\n", uLinkType));
-    mbuf_freem_list(pMBuf);
-    return 0;
+    errno_t error = 0;
+
+    if (pvData == NULL)
+    {
+        /*
+         * Common pattern in the kernel code is to make changes in the
+         * net layer and then notify the device driver by calling its
+         * ioctl function with NULL parameter, e.g.:
+         *
+         *   ifnet_set_flags(interface, ...);
+         *   ifnet_ioctl(interface, 0, SIOCSIFFLAGS, NULL);
+         *
+         * These are no-ops for us, so tell the caller we succeeded
+         * because some callers do check that return value.
+         */
+        switch (uCmd)
+        {
+            case SIOCSIFFLAGS:
+                Log2(("VBoxNetAdp: %s%d: SIOCSIFFLAGS (null): flags = 0x%04hx\n",
+                      ifnet_name(pIface), ifnet_unit(pIface),
+                      (uint16_t)ifnet_flags(pIface)));
+                return 0;
+
+            case SIOCADDMULTI:
+            case SIOCDELMULTI:
+                Log2(("VBoxNetAdp: %s%d: SIOC%sMULTI (null)\n",
+                      ifnet_name(pIface), ifnet_unit(pIface),
+                      uCmd == SIOCADDMULTI ? "ADD" : "DEL"));
+                return 0;
+        }
+    }
+
+    Log2(("VBoxNetAdp: %s%d: %c%c '%c' %u len %u\n",
+          ifnet_name(pIface), ifnet_unit(pIface),
+          uCmd & IOC_OUT ? '<' : '-',
+          uCmd & IOC_IN  ? '>' : '-',
+          IOCGROUP(uCmd),
+          uCmd & 0xff,
+          IOCPARM_LEN(uCmd)));
+
+    error = ether_ioctl(pIface, uCmd, pvData);
+    return error;
 }
 
 
@@ -247,8 +240,6 @@ int vboxNetAdpOsCreate(PVBOXNETADP pThis, PCRTMAC pMACAddress)
         return rc;
     }
 
-    pThis->u.s.nTapMode = BPF_MODE_DISABLED;
-
     mac.sdl_len = sizeof(mac);
     mac.sdl_family = AF_LINK;
     mac.sdl_alen = ETHER_ADDR_LEN;
@@ -266,12 +257,12 @@ int vboxNetAdpOsCreate(PVBOXNETADP pThis, PCRTMAC pMACAddress)
     Params.type = IFT_ETHER;
     Params.output = vboxNetAdpDarwinOutput;
     Params.demux = vboxNetAdpDarwinDemux;
-    Params.add_proto = vboxNetAdpDarwinAddProto;
-    Params.del_proto = vboxNetAdpDarwinDelProto;
+    Params.add_proto = ether_add_proto;
+    Params.del_proto = ether_del_proto;
     Params.check_multi = ether_check_multi;
     Params.framer = ether_frameout;
     Params.softc = pThis;
-    Params.ioctl = (ifnet_ioctl_func)ether_ioctl;
+    Params.ioctl = vboxNetAdpDarwinIfIOCtl;
     Params.set_bpf_tap = NULL;
     Params.detach = vboxNetAdpDarwinDetach;
     Params.event = NULL;
@@ -284,12 +275,8 @@ int vboxNetAdpOsCreate(PVBOXNETADP pThis, PCRTMAC pMACAddress)
         err = ifnet_attach(pThis->u.s.pIface, &mac);
         if (!err)
         {
-            err = bpf_attach(pThis->u.s.pIface, DLT_EN10MB, ETHER_HDR_LEN,
-                      vboxNetAdpDarwinBpfSend, vboxNetAdpDarwinBpfTap);
-            if (err)
-            {
-                LogRel(("vboxnetadp: bpf_attach failed with %d\n", err));
-            }
+            bpfattach(pThis->u.s.pIface, DLT_EN10MB, ETHER_HDR_LEN);
+
             err = ifnet_set_flags(pThis->u.s.pIface, IFF_RUNNING | IFF_BROADCAST | IFF_SIMPLEX | IFF_MULTICAST, 0xFFFF);
             if (!err)
             {
@@ -328,10 +315,6 @@ void vboxNetAdpOsDestroy(PVBOXNETADP pThis)
     if (err)
         Log(("vboxNetAdpDarwinUnregisterDevice: Failed to bring down interface "
              "(err=%d).\n", err));
-    /* Detach all protocols. */
-    for (i = 0; i < VBOXNETADP_MAX_FAMILIES; i++)
-        if (pThis->u.s.aAttachedFamilies[i])
-            ifnet_detach_protocol(pThis->u.s.pIface, pThis->u.s.aAttachedFamilies[i]);
     err = ifnet_detach(pThis->u.s.pIface);
     if (err)
         Log(("vboxNetAdpDarwinUnregisterDevice: Failed to detach interface "
@@ -445,7 +428,6 @@ int  vboxNetAdpOsInit(PVBOXNETADP pThis)
      */
     pThis->u.s.pIface = NULL;
     pThis->u.s.hEvtDetached = NIL_RTSEMEVENT;
-    memset(pThis->u.s.aAttachedFamilies, 0, sizeof(pThis->u.s.aAttachedFamilies));
 
     return VINF_SUCCESS;
 }

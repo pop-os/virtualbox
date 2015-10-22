@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2012 Oracle Corporation
+ * Copyright (C) 2010-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,114 +19,154 @@
 # include <precomp.h>
 #else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
-/* Local includes */
-# include "UIWindowMenuManager.h"
-
-/* Global includes */
+/* Qt includes: */
 # include <QApplication>
 # include <QMenu>
 
+/* GUI includes: */
+# include "UIWindowMenuManager.h"
+
+/* Other VBox includes: */
+#include <iprt/assert.h>
+
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
-
-class UIMenuHelper: public QObject
+/** QObject extension
+  * used as Mac OS X 'Window' menu helper. */
+class UIMenuHelper : public QObject
 {
     Q_OBJECT;
 
 public:
-    UIMenuHelper(const QList<QWidget*> &winList)
+
+    /** Constructs menu-helper on the basis of passed @a windows. */
+    UIMenuHelper(const QList<QWidget*> &windows)
     {
-        m_pWindowMenu = new QMenu(0);
+        /* Prepare 'Window' menu: */
+        m_pWindowMenu = new QMenu;
+        /* Prepare action group: */
         m_pGroup = new QActionGroup(this);
         m_pGroup->setExclusive(true);
+        /* Prepare 'Minimize' action: */
         m_pMinimizeAction = new QAction(this);
         m_pWindowMenu->addAction(m_pMinimizeAction);
         connect(m_pMinimizeAction, SIGNAL(triggered(bool)),
-                this, SLOT(minimizeActive(bool)));
-        /* Make sure all already available windows are properly registered on
-         * this menu. */
-        for (int i=0; i < winList.size(); ++i)
-            addWindow(winList.at(i));
-
+                this, SLOT(sltMinimizeActiveWindow()));
+        /* Make sure all already available windows are
+         * properly registered within this menu: */
+        for (int i = 0; i < windows.size(); ++i)
+            addWindow(windows.at(i));
+        /* Translate finally: */
         retranslateUi();
     }
+
+    /** Destructs menu-helper. */
     ~UIMenuHelper()
     {
+        /* Cleanup 'Window' menu: */
         delete m_pWindowMenu;
-        qDeleteAll(m_regWindows);
+        /* Cleanup actions: */
+        qDeleteAll(m_windows);
     }
 
-    QMenu *menu() const { return m_pWindowMenu; }
+    /** Returns 'Window' menu. */
+    QMenu* menu() const { return m_pWindowMenu; }
 
+    /** Adds @a pWindow into 'Window' menu. */
     QAction* addWindow(QWidget *pWindow)
     {
         QAction *pAction = 0;
-        if (    pWindow
-            && !m_regWindows.contains(pWindow->windowTitle()))
+        if (   pWindow
+            && !m_windows.contains(pWindow))
         {
-            if (m_regWindows.size() < 2)
+            if (m_windows.size() < 2)
                 m_pWindowMenu->addSeparator();
-            /* The main window always first */
+            /* The main window always first: */
             pAction = new QAction(this);
             pAction->setText(pWindow->windowTitle());
             pAction->setMenuRole(QAction::NoRole);
-            pAction->setData(qVariantFromValue(pWindow));
+            pAction->setData(QVariant::fromValue(pWindow));
             pAction->setCheckable(true);
-            /* The first registered one is always considered as the main window */
-            if (m_regWindows.size() == 0)
+            /* The first registered one is always
+             * considered as the main window: */
+            if (m_windows.size() == 0)
                 pAction->setShortcut(QKeySequence("Ctrl+0"));
             m_pGroup->addAction(pAction);
             connect(pAction, SIGNAL(triggered(bool)),
-                    this, SLOT(raiseSender(bool)));
+                    this, SLOT(sltRaiseSender()));
             m_pWindowMenu->addAction(pAction);
-            m_regWindows[pWindow->windowTitle()] = pAction;
+            m_windows[pWindow] = pAction;
         }
         return pAction;
     }
+
+    /** Removes @a pWindow from 'Window' menu. */
     void removeWindow(QWidget *pWindow)
     {
-        if (m_regWindows.contains(pWindow->windowTitle()))
+        if (m_windows.contains(pWindow))
         {
-            delete m_regWindows[pWindow->windowTitle()];
-            m_regWindows.remove(pWindow->windowTitle());
+            delete m_windows.value(pWindow);
+            m_windows.remove(pWindow);
         }
     }
 
+    /** Handles translation event. */
     void retranslateUi()
     {
-        m_pWindowMenu->setTitle(tr("&Window"));
-        m_pMinimizeAction->setText(tr("Minimize"));
+        /* Translate menu: */
+        m_pWindowMenu->setTitle(QApplication::translate("UIActionPool", "&Window"));
+
+        /* Translate menu 'Minimize' action: */
+        m_pMinimizeAction->setText(QApplication::translate("UIActionPool", "&Minimize"));
         m_pMinimizeAction->setShortcut(QKeySequence("Ctrl+M"));
+
+        /* Translate other menu-actions: */
+        foreach (QAction *pAction, m_windows.values())
+        {
+            /* Get corresponding window from action's data: */
+            QWidget *pWindow = pAction->data().value<QWidget*>();
+            /* Use the window's title as the action's text: */
+            pAction->setText(pWindow->windowTitle());
+        }
     }
 
-    void updateStatus(QWidget *pActive)
+    /** Updates toggle action states according to passed @a pActiveWindow. */
+    void updateStatus(QWidget *pActiveWindow)
     {
-        m_pMinimizeAction->setEnabled(pActive != 0);
-        if (pActive)
+        /* 'Minimize' action is enabled if there is active-window: */
+        m_pMinimizeAction->setEnabled(pActiveWindow != 0);
+        /* If there is active-window: */
+        if (pActiveWindow)
         {
-            if (m_regWindows.contains(pActive->windowTitle()))
-                m_regWindows[pActive->windowTitle()]->setChecked(true);
+            /* Toggle corresponding action on: */
+            if (m_windows.contains(pActiveWindow))
+                m_windows.value(pActiveWindow)->setChecked(true);
         }
+        /* If there is no active-window: */
         else
         {
+            /* Make sure corresponding action toggled off: */
             if (QAction *pChecked = m_pGroup->checkedAction())
                 pChecked->setChecked(false);
         }
-
     }
 
 private slots:
 
-    void minimizeActive(bool /* fToggle */)
+    /** Handles request to minimize active-window. */
+    void sltMinimizeActiveWindow()
     {
-        if (QWidget *pActive = qApp->activeWindow())
-            pActive->showMinimized();
+        if (QWidget *pActiveWindow = qApp->activeWindow())
+            pActiveWindow->showMinimized();
     }
-    void raiseSender(bool /* fToggle */)
+
+    /** Handles request to raise sender window. */
+    void sltRaiseSender()
     {
-        if (QAction *pAction= qobject_cast<QAction*>(sender()))
+        AssertReturnVoid(sender());
+        if (QAction *pAction = qobject_cast<QAction*>(sender()))
         {
-            if (QWidget *pWidget = qVariantValue<QWidget*>(pAction->data()))
+            if (QWidget *pWidget = pAction->data().value<QWidget*>())
             {
                 pWidget->show();
                 pWidget->raise();
@@ -137,95 +177,125 @@ private slots:
 
 private:
 
-    /* Private member vars */
+    /** Holds the 'Window' menu instance. */
     QMenu *m_pWindowMenu;
+    /** Holds the action group instance. */
     QActionGroup *m_pGroup;
+    /** Holds the 'Minimize' action instance. */
     QAction *m_pMinimizeAction;
-    QHash<QString, QAction*> m_regWindows;
+    /** Holds the hash of the registered menu-helper instances. */
+    QHash<QWidget*, QAction*> m_windows;
 };
 
-UIWindowMenuManager *UIWindowMenuManager::m_pInstance = 0;
+/*********************************************************************************************************************************
+*   Class UIWindowMenuManager implementation.                                                                                    *
+*********************************************************************************************************************************/
 
-UIWindowMenuManager *UIWindowMenuManager::instance(QWidget *pParent /* = 0 */)
+/* static */
+UIWindowMenuManager* UIWindowMenuManager::m_spInstance = 0;
+
+/* static */
+void UIWindowMenuManager::create()
 {
-    if (!m_pInstance)
-        m_pInstance = new UIWindowMenuManager(pParent);
+    /* Make sure 'Window' menu Manager is not created: */
+    AssertReturnVoid(!m_spInstance);
 
-    return m_pInstance;
+    /* Create 'Window' menu Manager: */
+    new UIWindowMenuManager;
 }
 
+/* static */
 void UIWindowMenuManager::destroy()
 {
-    if (!m_pInstance)
-    {
-        delete m_pInstance;
-        m_pInstance = 0;
-    }
+    /* Make sure 'Window' menu Manager is created: */
+    AssertPtrReturnVoid(m_spInstance);
+
+    /* Delete 'Window' menu Manager: */
+    delete m_spInstance;
+}
+
+UIWindowMenuManager::UIWindowMenuManager()
+{
+    /* Assign instance: */
+    m_spInstance = this;
+
+    /* Install global event-filter: */
+    qApp->installEventFilter(this);
+}
+
+UIWindowMenuManager::~UIWindowMenuManager()
+{
+    /* Cleanup all helpers: */
+    qDeleteAll(m_helpers);
+
+    /* Unassign instance: */
+    m_spInstance = 0;
 }
 
 QMenu *UIWindowMenuManager::createMenu(QWidget *pWindow)
 {
-    UIMenuHelper *pHelper = new UIMenuHelper(m_regWindows);
-
+    /* Create helper: */
+    UIMenuHelper *pHelper = new UIMenuHelper(m_windows);
+    /* Register it: */
     m_helpers[pWindow] = pHelper;
 
+    /* Return menu of created helper: */
     return pHelper->menu();
 }
 
 void UIWindowMenuManager::destroyMenu(QWidget *pWindow)
 {
+    /* If window is registered: */
     if (m_helpers.contains(pWindow))
     {
-        delete m_helpers[pWindow];
+        /* Delete helper: */
+        delete m_helpers.value(pWindow);
+        /* Unregister it: */
         m_helpers.remove(pWindow);
     }
 }
 
 void UIWindowMenuManager::addWindow(QWidget *pWindow)
 {
-    m_regWindows.append(pWindow);
-    QHash<QWidget*, UIMenuHelper*>::const_iterator i = m_helpers.constBegin();
-    while (i != m_helpers.constEnd())
-    {
-        i.value()->addWindow(pWindow);
-        ++i;
-    }
+    /* Register window: */
+    m_windows.append(pWindow);
+    /* Add window to all menus we have: */
+    foreach (UIMenuHelper *pHelper, m_helpers.values())
+        pHelper->addWindow(pWindow);
 }
 
 void UIWindowMenuManager::removeWindow(QWidget *pWindow)
 {
-    QHash<QWidget*, UIMenuHelper*>::const_iterator i = m_helpers.constBegin();
-    while (i != m_helpers.constEnd())
-    {
-        i.value()->removeWindow(pWindow);
-        ++i;
-    }
-    m_regWindows.removeAll(pWindow);
+    /* Remove window from all menus we have: */
+    foreach (UIMenuHelper *pHelper, m_helpers.values())
+        pHelper->removeWindow(pWindow);
+    /* Unregister window: */
+    m_windows.removeAll(pWindow);
 }
 
 void UIWindowMenuManager::retranslateUi()
 {
-    QHash<QWidget*, UIMenuHelper*>::const_iterator i = m_helpers.constBegin();
-    while (i != m_helpers.constEnd())
-    {
-        i.value()->retranslateUi();
-        ++i;
-    }
+    /* Translate all the helpers: */
+    foreach (UIMenuHelper *pHelper, m_helpers.values())
+        pHelper->retranslateUi();
 }
 
-bool UIWindowMenuManager::eventFilter(QObject *pObj, QEvent *pEvent)
+bool UIWindowMenuManager::eventFilter(QObject *pObject, QEvent *pEvent)
 {
-    QEvent::Type type = pEvent->type();
+    /* Acquire event type: */
+    const QEvent::Type type = pEvent->type();
+
 #if defined(VBOX_OSE) || (QT_VERSION < 0x040700)
     /* Stupid Qt: Qt doesn't check if a window is minimized when a command is
      * executed. This leads to strange behaviour. The minimized window is
      * partly restored, but not usable. As a workaround we raise the parent
      * window before we let execute the command.
      * Note: fixed in our local Qt build since 4.7.0. */
-    if (type == QEvent::Show)
+    if (pObject && type == QEvent::Show)
     {
-        QWidget *pWidget = (QWidget*)pObj;
-        if (   pWidget->parentWidget()
+        QWidget *pWidget = qobject_cast<QWidget*>(pObject);
+        if (   pWidget
+            && pWidget->parentWidget()
             && pWidget->parentWidget()->isMinimized())
         {
             pWidget->parentWidget()->show();
@@ -233,7 +303,8 @@ bool UIWindowMenuManager::eventFilter(QObject *pObj, QEvent *pEvent)
             pWidget->parentWidget()->activateWindow();
         }
     }
-#endif /* defined(VBOX_OSE) || (QT_VERSION < 0x040700) */
+#endif /* VBOX_OSE || QT_VERSION < 0x040700 */
+
     /* We need to track several events which leads to different window
      * activation and change the menu items in that case. */
     if (   type == QEvent::ActivationChange
@@ -244,32 +315,22 @@ bool UIWindowMenuManager::eventFilter(QObject *pObj, QEvent *pEvent)
         || type == QEvent::Close
         || type == QEvent::Hide)
     {
-        QWidget *pActive = qApp->activeWindow();
-        QHash<QWidget*, UIMenuHelper*>::const_iterator i = m_helpers.constBegin();
-        while (i != m_helpers.constEnd())
-        {
-            i.value()->updateStatus(pActive);
-            ++i;
-        }
+        QWidget *pActiveWindow = qApp->activeWindow();
+        foreach (UIMenuHelper *pHelper, m_helpers.values())
+            pHelper->updateStatus(pActiveWindow);
     }
-    /* Change the strings in all registers window menus */
-    if (   type == QEvent::LanguageChange
-        && pObj == m_pParent)
-        retranslateUi();
 
-    return false;
-}
+    /* Besides our own retranslation, we should also retranslate
+     * everything on any registered widget title change event: */
+    if (pObject && type == QEvent::WindowTitleChange)
+    {
+        QWidget *pWidget = qobject_cast<QWidget*>(pObject);
+        if (pWidget && m_helpers.contains(pWidget))
+            retranslateUi();
+    }
 
-UIWindowMenuManager::UIWindowMenuManager(QWidget *pParent /* = 0 */)
-  : QObject(pParent)
-  , m_pParent(pParent)
-{
-    qApp->installEventFilter(this);
-}
-
-UIWindowMenuManager::~UIWindowMenuManager()
-{
-    qDeleteAll(m_helpers);
+    /* Call to base-class: */
+    return QIWithRetranslateUI3<QObject>::eventFilter(pObject, pEvent);
 }
 
 #include "UIWindowMenuManager.moc"

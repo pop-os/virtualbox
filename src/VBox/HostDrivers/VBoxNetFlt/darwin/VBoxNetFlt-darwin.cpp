@@ -58,6 +58,9 @@ RT_C_DECLS_END
 #include <sys/kpi_socket.h>
 #include <net/if.h>
 #include <net/if_var.h>
+RT_C_DECLS_BEGIN
+#include <net/bpf.h>
+RT_C_DECLS_END
 #include <netinet/in.h>
 #include <netinet/in_var.h>
 #include <netinet6/in6_var.h>
@@ -633,7 +636,7 @@ DECLINLINE(void) vboxNetFltDarwinMBufToSG(PVBOXNETFLTINS pThis, mbuf_t pMBuf, vo
      * yet been padded. The current solution is to add a segment pointing
      * to a buffer containing all zeros and pray that works for all frames...
      */
-    if (pSG->cbTotal < 60 && (fSrc & INTNETTRUNKDIR_HOST))
+    if (pSG->cbTotal < 60 && (fSrc == INTNETTRUNKDIR_HOST))
     {
         AssertReturnVoid(iSeg < cSegs);
 
@@ -902,7 +905,7 @@ static errno_t vboxNetFltDarwinIffInputOutputWorker(PVBOXNETFLTINS pThis, mbuf_t
      * TCP/IP checksums as long as possible.
      * ASSUMES this only applies to outbound IP packets.
      */
-    if (    (fSrc & INTNETTRUNKDIR_HOST)
+    if (    (fSrc == INTNETTRUNKDIR_HOST)
         &&  eProtocol == PF_INET)
     {
         Assert(!pvFrame);
@@ -923,20 +926,39 @@ static errno_t vboxNetFltDarwinIffInputOutputWorker(PVBOXNETFLTINS pThis, mbuf_t
         if (fDropIt)
         {
             /*
-             * Check if this interface is in promiscuous mode. We should not drop
-             * any packets before they get to the driver as it passes them to tap
-             * callbacks in order for BPF to work properly.
+             * If the interface is in promiscuous mode we should let
+             * all inbound packets (this one was for a bridged guest)
+             * reach the driver as it passes them to tap callbacks in
+             * order for BPF to work properly.
              */
-            if (vboxNetFltDarwinIsPromiscuous(pThis))
+            if (   fSrc == INTNETTRUNKDIR_WIRE
+                && vboxNetFltDarwinIsPromiscuous(pThis))
+            {
                 fDropIt = false;
-            else
-                mbuf_freem(pMBuf);
+            }
+
+            /*
+             * A packet from the host to a guest.  As we won't pass it
+             * to the drvier/wire we need to feed it to bpf ourselves.
+             *
+             * XXX: TODO: bpf should be done before; use pfnPreRecv?
+             */
+            if (fSrc == INTNETTRUNKDIR_HOST)
+            {
+                bpf_tap_out(pThis->u.s.pIfNet, DLT_EN10MB, pMBuf, NULL, 0);
+                ifnet_stat_increment_out(pThis->u.s.pIfNet, 1, mbuf_len(pMBuf), 0);
+            }
         }
     }
 
     vboxNetFltRelease(pThis, true /* fBusy */);
 
-    return fDropIt ? EJUSTRETURN : 0;
+    if (fDropIt)
+    {
+        mbuf_freem(pMBuf);
+        return EJUSTRETURN;
+    }
+    return 0;
 }
 
 
@@ -1084,7 +1106,15 @@ static int vboxNetFltDarwinAttachToInterface(PVBOXNETFLTINS pThis, bool fRedisco
         {
             Assert(pThis->pSwitchPort);
             pThis->pSwitchPort->pfnReportMacAddress(pThis->pSwitchPort, &pThis->u.s.MacAddr);
+#if 0
+            /* 
+             * XXX: Don't tell SrvIntNetR0 if the interface is
+             * promiscuous, because there's no code yet to update that
+             * information and we don't want it stuck, spamming all
+             * traffic to the host.
+             */
             pThis->pSwitchPort->pfnReportPromiscuousMode(pThis->pSwitchPort, vboxNetFltDarwinIsPromiscuous(pThis));
+#endif
             pThis->pSwitchPort->pfnReportGsoCapabilities(pThis->pSwitchPort, 0,  INTNETTRUNKDIR_WIRE | INTNETTRUNKDIR_HOST);
             pThis->pSwitchPort->pfnReportNoPreemptDsts(pThis->pSwitchPort, 0 /* none */);
             vboxNetFltRelease(pThis, true /*fBusy*/);
@@ -1123,12 +1153,9 @@ int  vboxNetFltPortOsXmit(PVBOXNETFLTINS pThis, void *pvIfData, PINTNETSG pSG, u
     {
         /*
          * Create a mbuf for the gather list and push it onto the wire.
-         *
-         * Note! If the interface is in the promiscuous mode we need to send the
-         *       packet down the stack so it reaches the driver and Berkeley
-         *       Packet Filter (see @bugref{5817}).
+         * BPF tap and stats will be taken care of by the driver.
          */
-        if ((fDst & INTNETTRUNKDIR_WIRE) || vboxNetFltDarwinIsPromiscuous(pThis))
+        if (fDst & INTNETTRUNKDIR_WIRE)
         {
             mbuf_t pMBuf = vboxNetFltDarwinMBufFromSG(pThis, pSG);
             if (pMBuf)
@@ -1143,20 +1170,43 @@ int  vboxNetFltPortOsXmit(PVBOXNETFLTINS pThis, void *pvIfData, PINTNETSG pSG, u
 
         /*
          * Create a mbuf for the gather list and push it onto the host stack.
+         * BPF tap and stats are on us.
          */
         if (fDst & INTNETTRUNKDIR_HOST)
         {
             mbuf_t pMBuf = vboxNetFltDarwinMBufFromSG(pThis, pSG);
             if (pMBuf)
             {
-                /* This is what IONetworkInterface::inputPacket does. */
+                void *pvEthHdr = mbuf_data(pMBuf);
                 unsigned const cbEthHdr = 14;
-                mbuf_pkthdr_setheader(pMBuf, mbuf_data(pMBuf));
-                mbuf_pkthdr_setlen(pMBuf, mbuf_pkthdr_len(pMBuf) - cbEthHdr);
-                mbuf_setdata(pMBuf, (uint8_t *)mbuf_data(pMBuf) + cbEthHdr, mbuf_len(pMBuf) - cbEthHdr);
-                mbuf_pkthdr_setrcvif(pMBuf, pIfNet); /* will crash without this. */
+                struct ifnet_stat_increment_param stats;
 
-                errno_t err = ifnet_input(pIfNet, pMBuf, NULL);
+                RT_ZERO(stats);
+                stats.packets_in = 1;
+                stats.bytes_in = mbuf_len(pMBuf); /* full ethernet frame */
+
+                mbuf_pkthdr_setrcvif(pMBuf, pIfNet);
+                mbuf_pkthdr_setheader(pMBuf, pvEthHdr); /* link-layer header */
+                mbuf_adj(pMBuf, cbEthHdr);              /* move to payload */
+
+#if 0 /* XXX: disabled since we don't request promiscuous from intnet */
+                /*
+                 * TODO: Since intnet knows whether it forwarded us
+                 * this packet because it's for us or because we are
+                 * promiscuous, it can perhaps set a flag for us in
+                 * INTNETSG::fFlags so that we don't have to re-check
+                 * it here.
+                 */
+                PCRTNETETHERHDR pcEthHdr = (PCRTNETETHERHDR)pvEthHdr;
+                if (   (pcEthHdr->DstMac.au8[0] & 1) == 0 /* unicast? */
+                    && memcmp(&pcEthHdr->DstMac, &pThis->u.s.MacAddr, sizeof(RTMAC)) != 0)
+                {
+                    mbuf_setflags_mask(pMBuf, MBUF_PROMISC, MBUF_PROMISC);
+                }
+#endif
+
+                bpf_tap_in(pIfNet, DLT_EN10MB, pMBuf, pvEthHdr, cbEthHdr);
+                errno_t err = ifnet_input(pIfNet, pMBuf, &stats);
                 if (err)
                     rc = RTErrConvertFromErrno(err);
             }

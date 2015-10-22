@@ -320,10 +320,10 @@ fi
 # Install and start the new service scripts.
 PRERM_DKMS=
 test "${REGISTER_MODULES}" = 1 && PRERM_DKMS="--dkms %VER%"
-POSTINST_START=--start
-test "${INSTALL_NO_VBOXDRV}" = 1 && POSTINST_START=
+POSTINST_START=
+test "${INSTALL_NO_VBOXDRV}" = 1 && POSTINST_START=--nostart
 /usr/lib/virtualbox/prerm-common.sh ${PRERM_DKMS} || true
-/usr/lib/virtualbox/postinst-common.sh /usr/lib/virtualbox "${POSTINST_START}" > /dev/null || true
+/usr/lib/virtualbox/postinst-common.sh ${POSTINST_START} > /dev/null || true
 
 
 %preun
@@ -332,7 +332,7 @@ test "${INSTALL_NO_VBOXDRV}" = 1 && POSTINST_START=
 # $1==0: remove the last version of the package
 # $1>=1: upgrade
 if [ "$1" = 0 ]; then
-  /usr/lib/virtualbox/prerm-common.sh --dkms || exit 1
+  /usr/lib/virtualbox/prerm-common.sh --dkms %VER% || exit 1
   rm -f /etc/udev/rules.d/60-vboxdrv.rules
   rm -f /etc/vbox/license_agreed
   rm -f /etc/vbox/module_not_compiled

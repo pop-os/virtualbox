@@ -3,6 +3,72 @@
 <chapter> <!-- HACK ALERT! Seems we must have a single top level element for xi:include to work.
                            So, we use chapter and xpointer="xpointer(/chapter/)" with xi:include. -->
   <sect1>
+    <title>Version 5.0.8 (2015-10-20)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>GUI: Mac OS X: Restore green zoom button for VM windows
+          (it was hidden in previous release to avoid native full-screen issues).
+          For Yosemite and El Capitan this button should work accordingly to the
+          Apple HIG: Full-screen by default, maximize if the user holds the
+          Option key.</para>
+      </listitem>
+
+      <listitem>
+        <para>Serial ports: fixed wrong IRQ number for the first serial port in
+          the ACPI tables (5.0.6 regression; bug #14659)</para>
+      </listitem>
+
+      <listitem>
+        <para>API: fixed a 5.0 regression in <emphasis>VBoxManage setproperty
+          defaultfrontend</emphasis> (bug #14696)</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxManage/vbox-img: conversion to RAW images could result in
+          a disk image containing all zeroes</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts: several fixes for systemd integration in .deb / .rpm
+          packages (e.g. bug #14665). The command for recompiling the host kernel
+          modules was changed to <emphasis>/sbin/vboxconfig</emphasis></para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts: make host-only interfaces report operstate UP
+          only when they have VMs attached (bug #14526)</para>
+      </listitem>
+
+      <listitem>
+        <para>Mac OS X hosts: fix bpf capture and accounting of traffic
+          on bridged and host-only interfaces (bug #14553)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows guests: fixed 3D rendering issues on high resolution
+          displays</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows Additions: fixed problems with 3D acceleration on Windows
+          hosts with Intel HD graphics (bug #14670)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: fix service starting on Debian systems with
+          systemd installed but not in use (bug #14683)</para>
+      </listitem>
+
+    </itemizedlist>
+
+  </sect1>
+
+  <sect1>
     <title>Version 5.0.6 (2015-10-02)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or
