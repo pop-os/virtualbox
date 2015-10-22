@@ -47,7 +47,7 @@
 
     foo://example.com:8042/over/there?name=ferret#nose
     \_/   \______________/\_________/ \_________/ \__/
-     |           |            |            |        |
+     |           |             |           |        |
   scheme     authority       path        query   fragment
      |   _____________________|__
     / \ /                        \
@@ -118,10 +118,82 @@ static char *rtUriPercentEncodeN(const char *pszString, size_t cchMax)
 }
 
 
+/**
+ * Calculates the encoded string length.
+ *
+ * @returns Number of chars (excluding the terminator).
+ * @param   pszString       The string to encode.
+ * @param   cchMax          The maximum string length (e.g. RTSTR_MAX).
+ * @param   fEncodeDosSlash Whether to encode DOS slashes or not.
+ */
+static size_t rtUriCalcEncodedLength(const char *pszString, size_t cchMax, bool fEncodeDosSlash)
+{
+    size_t cchEncoded = 0;
+    if (pszString)
+    {
+        size_t cchSrcLeft = RTStrNLen(pszString, cchMax);
+        while (cchSrcLeft-- > 0)
+        {
+            char const ch = *pszString++;
+            if (!URI_EXCLUDED(ch) || (ch == '\\' && !fEncodeDosSlash))
+                cchEncoded += 1;
+            else
+                cchEncoded += 3;
+        }
+    }
+    return cchEncoded;
+}
+
+
+/**
+ * Encodes an URI into a caller allocated buffer.
+ *
+ * @returns IPRT status code.
+ * @param   pszString       The string to encode.
+ * @param   cchMax          The maximum string length (e.g. RTSTR_MAX).
+ * @param   fEncodeDosSlash Whether to encode DOS slashes or not.
+ * @param   pszDst          The destination buffer.
+ * @param   cbDst           The size of the destination buffer.
+ */
+static int rtUriEncodeIntoBuffer(const char *pszString, size_t cchMax, bool fEncodeDosSlash, char *pszDst, size_t cbDst)
+{
+    AssertReturn(pszString, VERR_INVALID_POINTER);
+    AssertPtrReturn(pszDst, VERR_INVALID_POINTER);
+
+    /*
+     * We do buffer size checking up front and every time we encode a special
+     * character.  That's faster than checking for each char.
+     */
+    size_t cchSrcLeft = RTStrNLen(pszString, cchMax);
+    AssertMsgReturn(cbDst > cchSrcLeft, ("cbDst=%zu cchSrcLeft=%zu\n", cbDst, cchSrcLeft), VERR_BUFFER_OVERFLOW);
+    cbDst -= cchSrcLeft;
+
+    while (cchSrcLeft-- > 0)
+    {
+        char const ch = *pszString++;
+        if (!URI_EXCLUDED(ch) || (ch == '\\' && !fEncodeDosSlash))
+            *pszDst++ = ch;
+        else
+        {
+            AssertReturn(cbDst >= 3, VERR_BUFFER_OVERFLOW); /* 2 extra bytes + zero terminator. */
+            cbDst -= 2;
+
+            *pszDst++ = '%';
+            ssize_t cchTmp = RTStrFormatU8(pszDst, 3, (unsigned char)ch, 16, 2, 2, RTSTR_F_CAPITAL | RTSTR_F_ZEROPAD);
+            Assert(cchTmp == 2); NOREF(cchTmp);
+            pszDst += 2;
+        }
+    }
+
+    *pszDst = '\0';
+    return VINF_SUCCESS;
+}
+
+
 static char *rtUriPercentDecodeN(const char *pszString, size_t cchString)
 {
-    AssertPtr(pszString);
-    Assert(strlen(pszString) >= cchString);
+    AssertPtrReturn(pszString, NULL);
+    AssertReturn(memchr(pszString, '\0', cchString) == NULL, NULL);
 
     /*
      * The new string can only get smaller, so use the input length as a
@@ -187,11 +259,119 @@ static char *rtUriPercentDecodeN(const char *pszString, size_t cchString)
          */
         size_t cchDecoded = pchDst - pszDecoded;
         Assert(cchDecoded <= cchString);
-        // if (cchString - cchDecoded > 64)  -  enable later!
+        if (cchString - cchDecoded > 64)
             RTStrRealloc(&pszDecoded, cchDecoded + 1);
     }
     return pszDecoded;
 }
+
+
+/**
+ * Calculates the decoded string length.
+ *
+ * @returns Number of chars (excluding the terminator).
+ * @param   pszString       The string to decode.
+ * @param   cchMax          The maximum string length (e.g. RTSTR_MAX).
+ */
+static size_t rtUriCalcDecodedLength(const char *pszString, size_t cchMax)
+{
+    size_t cchDecoded;
+    if (pszString)
+    {
+        size_t cchSrcLeft = cchDecoded = RTStrNLen(pszString, cchMax);
+        while (cchSrcLeft-- > 0)
+        {
+            char const ch = *pszString++;
+            if (ch != '%')
+            { /* typical */}
+            else if (   cchSrcLeft >= 2
+                     && RT_C_IS_XDIGIT(pszString[0])
+                     && RT_C_IS_XDIGIT(pszString[1]))
+            {
+                cchDecoded -= 2;
+                pszString  += 2;
+                cchSrcLeft -= 2;
+            }
+        }
+    }
+    else
+        cchDecoded = 0;
+    return cchDecoded;
+}
+
+
+/**
+ * Decodes a string into a buffer.
+ *
+ * @returns IPRT status code.
+ * @param   pchSrc      The source string.
+ * @param   cchSrc      The max number of bytes to decode in the source string.
+ * @param   pszDst      The destination buffer.
+ * @param   cbDst       The size of the buffer (including terminator).
+ */
+static int rtUriDecodeIntoBuffer(const char *pchSrc, size_t cchSrc, char *pszDst, size_t cbDst)
+{
+    AssertPtrReturn(pchSrc, VERR_INVALID_POINTER);
+    AssertPtrReturn(pszDst, VERR_INVALID_POINTER);
+
+    /*
+     * Knowing that the pszString itself is valid UTF-8, we only have to
+     * validate the escape sequences.
+     */
+    cchSrc = RTStrNLen(pchSrc, cchSrc);
+    while (cchSrc > 0)
+    {
+        const char *pchPct = (const char *)memchr(pchSrc, '%', cchSrc);
+        if (pchPct)
+        {
+            size_t cchBefore = pchPct - pchSrc;
+            AssertReturn(cchBefore + 1 < cbDst, VERR_BUFFER_OVERFLOW);
+            if (cchBefore)
+            {
+                memcpy(pszDst, pchSrc, cchBefore);
+                pszDst += cchBefore;
+                cbDst  -= cchBefore;
+                pchSrc += cchBefore;
+                cchSrc -= cchBefore;
+            }
+
+            char chHigh, chLow;
+            if (   cchSrc >= 3
+                && RT_C_IS_XDIGIT(chHigh = pchSrc[1])
+                && RT_C_IS_XDIGIT(chLow  = pchSrc[2]))
+            {
+                uint8_t b = RT_C_IS_DIGIT(chHigh) ? chHigh - '0' : (chHigh & ~0x20) - 'A' + 10;
+                b <<= 4;
+                b |= RT_C_IS_DIGIT(chLow) ? chLow - '0' : (chLow & ~0x20) - 'A' + 10;
+                *pszDst++ = (char)b;
+                pchSrc += 3;
+                cchSrc -= 3;
+            }
+            else
+            {
+                AssertFailed();
+                *pszDst++ = *pchSrc++;
+                cchSrc--;
+            }
+            cbDst -= 1;
+        }
+        else
+        {
+            AssertReturn(cchSrc < cbDst, VERR_BUFFER_OVERFLOW);
+            memcpy(pszDst, pchSrc, cchSrc);
+            pszDst += cchSrc;
+            cbDst  -= cchSrc;
+            pchSrc += cchSrc;
+            cchSrc  = 0;
+            break;
+        }
+    }
+
+    AssertReturn(cbDst > 0, VERR_BUFFER_OVERFLOW);
+    *pszDst = '\0';
+    return VINF_SUCCESS;
+}
+
 
 
 static int rtUriParse(const char *pszUri, PRTURIPARSED pParsed)
@@ -477,7 +657,6 @@ static int rtUriParse(const char *pszUri, PRTURIPARSED pParsed)
 }
 
 
-
 RTDECL(int) RTUriParse(const char *pszUri, PRTURIPARSED pParsed)
 {
     return rtUriParse(pszUri, pParsed);
@@ -677,93 +856,309 @@ RTDECL(bool)   RTUriIsSchemeMatch(const char *pszUri, const char *pszScheme)
 }
 
 
-/* temporarily kept around till Andy stops using it. */
-RTDECL(char *) RTUriPath(const char *pszUri)
+RTDECL(int) RTUriFileCreateEx(const char *pszPath, uint32_t fPathStyle, char **ppszUri, size_t cbUri, size_t *pcchUri)
 {
-    RTURIPARSED Parsed;
-    int rc = rtUriParse(pszUri, &Parsed);
-    if (RT_SUCCESS(rc))
-        if (Parsed.cchPath)
-            return rtUriPercentDecodeN(&pszUri[Parsed.offPath], Parsed.cchPath);
-    return NULL;
+    /*
+     * Validate and adjust input. (RTPathParse check pszPath out for us)
+     */
+    if (pcchUri)
+    {
+        AssertPtrReturn(pcchUri, VERR_INVALID_POINTER);
+        *pcchUri = ~(size_t)0;
+    }
+    AssertPtrReturn(ppszUri, VERR_INVALID_POINTER);
+    AssertReturn(!(fPathStyle & ~RTPATH_STR_F_STYLE_MASK) && fPathStyle != RTPATH_STR_F_STYLE_RESERVED, VERR_INVALID_FLAGS);
+    if (fPathStyle == RTPATH_STR_F_STYLE_HOST)
+        fPathStyle = RTPATH_STYLE;
+
+    /*
+     * Let the RTPath code parse the stuff (no reason to duplicate path parsing
+     * and get it slightly wrong here).
+     */
+    RTPATHPARSED ParsedPath;
+    int rc = RTPathParse(pszPath, &ParsedPath, sizeof(ParsedPath), fPathStyle);
+    if (RT_SUCCESS(rc) || rc == VERR_BUFFER_OVERFLOW)
+    {
+        /* Skip leading slashes. */
+        if (ParsedPath.fProps & RTPATH_PROP_ROOT_SLASH)
+        {
+            if (fPathStyle == RTPATH_STR_F_STYLE_DOS)
+                while (pszPath[0] == '/' || pszPath[0] == '\\')
+                    pszPath++;
+            else
+                while (pszPath[0] == '/')
+                    pszPath++;
+        }
+        const size_t cchPath = strlen(pszPath);
+
+        /*
+         * Calculate the encoded length and figure destination buffering.
+         */
+        static const char s_szPrefix[] = "file:///";
+        size_t const      cchPrefix    = sizeof(s_szPrefix) - (ParsedPath.fProps & RTPATH_PROP_UNC ? 2 : 1);
+        size_t cchEncoded = rtUriCalcEncodedLength(pszPath, cchPath, fPathStyle != RTPATH_STR_F_STYLE_DOS);
+
+        if (pcchUri)
+            *pcchUri = cchEncoded;
+
+        char  *pszDst;
+        char  *pszFreeMe = NULL;
+        if (!cbUri || *ppszUri == NULL)
+        {
+            cbUri = RT_MAX(cbUri, cchPrefix + cchEncoded + 1);
+            *ppszUri = pszFreeMe = pszDst = RTStrAlloc(cbUri);
+            AssertReturn(pszDst, VERR_NO_STR_MEMORY);
+        }
+        else if (cchEncoded < cbUri)
+            pszDst = *ppszUri;
+        else
+            return VERR_BUFFER_OVERFLOW;
+
+        /*
+         * Construct the URI.
+         */
+        memcpy(pszDst, s_szPrefix, cchPrefix);
+        pszDst[cchPrefix] = '\0';
+        rc = rtUriEncodeIntoBuffer(pszPath, cchPath, fPathStyle != RTPATH_STR_F_STYLE_DOS, &pszDst[cchPrefix], cbUri - cchPrefix);
+        if (RT_SUCCESS(rc))
+        {
+            Assert(strlen(pszDst) == cbUri - 1);
+            if (fPathStyle == RTPATH_STR_F_STYLE_DOS)
+                RTPathChangeToUnixSlashes(pszDst, true /*fForce*/);
+            return VINF_SUCCESS;
+        }
+
+        AssertRC(rc); /* Impossible! rtUriCalcEncodedLength or something above is busted! */
+        if (pszFreeMe)
+            RTStrFree(pszFreeMe);
+    }
+    return rc;
 }
 
 
 RTDECL(char *) RTUriFileCreate(const char *pszPath)
 {
-    char *pszResult = NULL;
-    if (pszPath)
+    char *pszUri = NULL;
+    int rc = RTUriFileCreateEx(pszPath, RTPATH_STR_F_STYLE_HOST, &pszUri, 0 /*cbUri*/, NULL /*pcchUri*/);
+    if (RT_SUCCESS(rc))
+        return pszUri;
+    return NULL;
+}
+
+
+RTDECL(int) RTUriFilePathEx(const char *pszUri, uint32_t fPathStyle, char **ppszPath, size_t cbPath, size_t *pcchPath)
+{
+    /*
+     * Validate and adjust input.
+     */
+    if (pcchPath)
     {
-        /* Create the percent encoded strings and calculate the necessary uri length. */
-        char *pszPath1 = rtUriPercentEncodeN(pszPath, RTSTR_MAX);
-        if (pszPath1)
-        {
-            size_t cbSize = 7 /* file:// */ + strlen(pszPath1) + 1; /* plus zero byte */
-            if (pszPath1[0] != '/')
-                ++cbSize;
-            char *pszTmp = pszResult = RTStrAlloc(cbSize);
-            if (pszResult)
-            {
-                /* Compose the target uri string. */
-                *pszTmp = '\0';
-                RTStrCatP(&pszTmp, &cbSize, "file://");
-                if (pszPath1[0] != '/')
-                    RTStrCatP(&pszTmp, &cbSize, "/");
-                RTStrCatP(&pszTmp, &cbSize, pszPath1);
-            }
-            RTStrFree(pszPath1);
-        }
+        AssertPtrReturn(pcchPath, VERR_INVALID_POINTER);
+        *pcchPath = ~(size_t)0;
     }
-    return pszResult;
-}
+    AssertPtrReturn(ppszPath, VERR_INVALID_POINTER);
+    AssertReturn(!(fPathStyle & ~RTPATH_STR_F_STYLE_MASK) && fPathStyle != RTPATH_STR_F_STYLE_RESERVED, VERR_INVALID_FLAGS);
+    if (fPathStyle == RTPATH_STR_F_STYLE_HOST)
+        fPathStyle = RTPATH_STYLE;
+    AssertPtrReturn(pszUri, VERR_INVALID_POINTER);
 
+    /*
+     * Check that this is a file URI.
+     */
+    if (RTStrNICmp(pszUri, RT_STR_TUPLE("file:")) == 0)
+    { /* likely */ }
+    else
+        return VERR_URI_NOT_FILE_SCHEME;
 
-RTDECL(char *) RTUriFilePath(const char *pszUri, uint32_t uFormat)
-{
-    return RTUriFileNPath(pszUri, uFormat, RTSTR_MAX);
-}
-
-
-RTDECL(char *) RTUriFileNPath(const char *pszUri, uint32_t uFormat, size_t cchMax)
-{
-    AssertPtrReturn(pszUri, NULL);
-    AssertReturn(uFormat == URI_FILE_FORMAT_AUTO || uFormat == URI_FILE_FORMAT_UNIX || uFormat == URI_FILE_FORMAT_WIN, NULL);
-
-    /* Auto is based on the current OS. */
-    if (uFormat == URI_FILE_FORMAT_AUTO)
-#if defined(RT_OS_WINDOWS) || defined(RT_OS_OS2)
-        uFormat = URI_FILE_FORMAT_WIN;
-#else
-        uFormat = URI_FILE_FORMAT_UNIX;
-#endif
-
-    /* Check that this is a file Uri */
-    if (RTStrNICmp(pszUri, RT_STR_TUPLE("file:")) != 0)
-        return NULL;
-
+    /*
+     * We may have a number of variations here, mostly thanks to
+     * various windows software.  First the canonical variations:
+     *     - file:///C:/Windows/System32/kernel32.dll
+     *     - file:///C|/Windows/System32/kernel32.dll
+     *     - file:///C:%5CWindows%5CSystem32%5Ckernel32.dll
+     *     - file://localhost/C:%5CWindows%5CSystem32%5Ckernel32.dll
+     *     - file://cifsserver.dev/systemshare%5CWindows%5CSystem32%5Ckernel32.dll
+     *     - file://cifsserver.dev:139/systemshare%5CWindows%5CSystem32%5Ckernel32.dll  (not quite sure here, but whatever)
+     *
+     * Legacy variant without any slashes after the schema:
+     *     - file:C:/Windows/System32/kernel32.dll
+     *     - file:C|/Windows/System32%5Ckernel32.dll
+     *     - file:~/.bashrc
+     *            \--path-/
+     *
+     * Legacy variant with exactly one slashes after the schema:
+     *     - file:/C:/Windows/System32%5Ckernel32.dll
+     *     - file:/C|/Windows/System32/kernel32.dll
+     *     - file:/usr/bin/env
+     *            \---path---/
+     *
+     * Legacy variant with two slashes after the schema and an unescaped DOS path:
+     *     - file://C:/Windows/System32\kernel32.dll (**)
+     *     - file://C|/Windows/System32\kernel32.dll
+     *                \---path---------------------/
+     *              -- authority, with ':' as non-working port separator
+     *
+     * Legacy variant with exactly four slashes after the schema and an unescaped DOS path.
+     *     - file:////C:/Windows\System32\user32.dll
+     *
+     * Legacy variant with four or more slashes after the schema and an unescaped UNC path:
+     *     - file:////cifsserver.dev/systemshare/System32%\kernel32.dll
+     *     - file://///cifsserver.dev/systemshare/System32\kernel32.dll
+     *              \---path--------------------------------------------/
+     *
+     * The the two unescaped variants shouldn't be handed to rtUriParse, which
+     * is good as we cannot actually handle the one marked by (**).  So, handle
+     * those two special when parsing.
+     */
     RTURIPARSED Parsed;
-    int rc = rtUriParse(pszUri, &Parsed);
-    if (RT_SUCCESS(rc) && Parsed.cchPath)
+    int         rc;
+    size_t      cSlashes = 0;
+    while (pszUri[5 + cSlashes] == '/')
+        cSlashes++;
+    if (   (cSlashes == 2 || cSlashes == 4)
+        && RT_C_IS_ALPHA(pszUri[5 + cSlashes])
+        && (pszUri[5 + cSlashes + 1] == ':' || pszUri[5 + cSlashes + 1] == '|'))
     {
-        /* Special hack for DOS path like file:///c:/WINDOWS/clock.avi where we
-           have to drop the leading slash that was used to separate the authority
-           from the path. */
-        if (  uFormat == URI_FILE_FORMAT_WIN
-            && Parsed.cchPath >= 3
-            && pszUri[Parsed.offPath] == '/'
-            && pszUri[Parsed.offPath + 2] == ':'
-            && RT_C_IS_ALPHA(pszUri[Parsed.offPath + 1]) )
+        RT_ZERO(Parsed); /* RTURIPARSED_F_CONTAINS_ESCAPED_CHARS is now clear. */
+        Parsed.offPath = 5 + cSlashes;
+        Parsed.cchPath = strlen(&pszUri[Parsed.offPath]);
+        rc = RTStrValidateEncoding(&pszUri[Parsed.offPath]);
+    }
+    else if (cSlashes >= 4)
+    {
+        RT_ZERO(Parsed);
+        Parsed.fFlags  = cSlashes > 4 ? RTURIPARSED_F_CONTAINS_ESCAPED_CHARS : 0;
+        Parsed.offPath = 5 + cSlashes - 2;
+        Parsed.cchPath = strlen(&pszUri[Parsed.offPath]);
+        rc = RTStrValidateEncoding(&pszUri[Parsed.offPath]);
+    }
+    else
+        rc = rtUriParse(pszUri, &Parsed);
+    if (RT_SUCCESS(rc))
+    {
+        /*
+         * Ignore localhost as hostname (it's implicit).
+         */
+        static char const s_szLocalhost[] = "localhost";
+        if (    Parsed.cchAuthorityHost == sizeof(s_szLocalhost) - 1U
+            &&  RTStrNICmp(&pszUri[Parsed.offAuthorityHost], RT_STR_TUPLE(s_szLocalhost)) == 0)
+        {
+            Parsed.cchAuthorityHost = 0;
+            Parsed.cchAuthority     = 0;
+        }
+
+        /*
+         * Ignore leading path slash/separator if we detect a DOS drive letter
+         * and we don't have a host name.
+         */
+        if (   Parsed.cchPath >= 3
+            && Parsed.cchAuthorityHost    == 0
+            && pszUri[Parsed.offPath]     == '/'           /* Leading path slash/separator. */
+            && (   pszUri[Parsed.offPath + 2] == ':'       /* Colon after drive letter. */
+                || pszUri[Parsed.offPath + 2] == '|')      /* Colon alternative. */
+            && RT_C_IS_ALPHA(pszUri[Parsed.offPath + 1]) ) /* Drive letter. */
         {
             Parsed.offPath++;
             Parsed.cchPath--;
         }
 
-        char *pszPath = rtUriPercentDecodeN(&pszUri[Parsed.offPath], Parsed.cchPath);
-        if (uFormat == URI_FILE_FORMAT_UNIX)
-            return RTPathChangeToUnixSlashes(pszPath, true);
-        Assert(uFormat == URI_FILE_FORMAT_WIN);
-        return RTPathChangeToDosSlashes(pszPath, true);
+        /*
+         * Calculate the size of the encoded result.
+         *
+         * Since we're happily returning "C:/Windows/System32/kernel.dll"
+         * style paths when the caller requested UNIX style paths, we will
+         * return straight UNC paths too ("//cifsserver/share/dir/file").
+         */
+        size_t cchDecodedHost = 0;
+        size_t cbResult;
+        if (Parsed.fFlags & RTURIPARSED_F_CONTAINS_ESCAPED_CHARS)
+        {
+            cchDecodedHost = rtUriCalcDecodedLength(&pszUri[Parsed.offAuthorityHost], Parsed.cchAuthorityHost);
+            cbResult = cchDecodedHost + rtUriCalcDecodedLength(&pszUri[Parsed.offPath], Parsed.cchPath) + 1;
+        }
+        else
+        {
+            cchDecodedHost = 0;
+            cbResult = Parsed.cchAuthorityHost + Parsed.cchPath + 1;
+        }
+        if (pcchPath)
+            *pcchPath = cbResult - 1;
+        if (cbResult > 1)
+        {
+            /*
+             * Prepare the necessary buffer space for the result.
+             */
+            char  *pszDst;
+            char  *pszFreeMe = NULL;
+            if (!cbPath || *ppszPath == NULL)
+            {
+                cbPath = RT_MAX(cbPath, cbResult);
+                *ppszPath = pszFreeMe = pszDst = RTStrAlloc(cbPath);
+                AssertReturn(pszDst, VERR_NO_STR_MEMORY);
+            }
+            else if (cbResult <= cbPath)
+                pszDst = *ppszPath;
+            else
+                return VERR_BUFFER_OVERFLOW;
+
+            /*
+             * Compose the result.
+             */
+            if (Parsed.fFlags & RTURIPARSED_F_CONTAINS_ESCAPED_CHARS)
+            {
+                rc = rtUriDecodeIntoBuffer(&pszUri[Parsed.offAuthorityHost],Parsed.cchAuthorityHost,
+                                           pszDst, cchDecodedHost + 1);
+                Assert(RT_SUCCESS(rc) && strlen(pszDst) == cchDecodedHost);
+                if (RT_SUCCESS(rc))
+                    rc = rtUriDecodeIntoBuffer(&pszUri[Parsed.offPath], Parsed.cchPath,
+                                               &pszDst[cchDecodedHost], cbResult - cchDecodedHost);
+                Assert(RT_SUCCESS(rc) && strlen(pszDst) == cbResult - 1);
+            }
+            else
+            {
+                memcpy(pszDst, &pszUri[Parsed.offAuthorityHost], Parsed.cchAuthorityHost);
+                memcpy(&pszDst[Parsed.cchAuthorityHost], &pszUri[Parsed.offPath], Parsed.cchPath);
+                pszDst[cbResult - 1] = '\0';
+            }
+            if (RT_SUCCESS(rc))
+            {
+                /*
+                 * Convert colon DOS driver letter colon alternative.
+                 * We do this regardless of the desired path style.
+                 */
+                if (   RT_C_IS_ALPHA(pszDst[0])
+                    && pszDst[1] == '|')
+                    pszDst[1] = ':';
+
+                /*
+                 * Fix slashes.
+                 */
+                if (fPathStyle == RTPATH_STR_F_STYLE_DOS)
+                    RTPathChangeToDosSlashes(pszDst, true);
+                else if (fPathStyle == RTPATH_STR_F_STYLE_UNIX)
+                    RTPathChangeToUnixSlashes(pszDst, true); /** @todo not quite sure how this actually makes sense... */
+                else
+                    AssertFailed();
+                return rc;
+            }
+
+            /* bail out */
+            RTStrFree(pszFreeMe);
+        }
+        else
+            rc = VERR_PATH_ZERO_LENGTH;
     }
+    return rc;
+}
+
+
+RTDECL(char *) RTUriFilePath(const char *pszUri)
+{
+    char *pszPath = NULL;
+    int rc = RTUriFilePathEx(pszUri, RTPATH_STR_F_STYLE_HOST, &pszPath, 0 /*cbPath*/, NULL /*pcchPath*/);
+    if (RT_SUCCESS(rc))
+        return pszPath;
     return NULL;
 }
+
 

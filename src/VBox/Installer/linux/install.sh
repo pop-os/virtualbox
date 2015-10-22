@@ -390,10 +390,10 @@ if [ "$ACTION" = "install" ]; then
 
     # Do post-installation common to all installer types, currently service
     # script set-up.
-    START_SERVICES=
+    START_SERVICES="--nostart"
     test "${BUILD_MODULE}" = "true" && test "${MODULE_FAILED}" = "false" &&
-        START_SERVICES="--start"
-    ./postinst-common.sh "${INSTALLATION_DIR}" "${START_SERVICES}" >> "${LOG}"
+        START_SERVICES=
+    "${INSTALLATION_DIR}/postinst-common.sh" ${START_SERVICES} >> "${LOG}"
 
     info ""
     if [ ! "$MODULE_FAILED" = "true" ]
@@ -402,7 +402,7 @@ if [ "$ACTION" = "install" ]; then
     else
         info "VirtualBox has been installed successfully, but the kernel module could not"
         info "be built.  When you have fixed the problems preventing this, execute"
-        info "  /sbin/rcvboxdrv setup"
+        info "  /sbin/vboxconfig"
         info "as administrator to build it."
     fi
     info ""

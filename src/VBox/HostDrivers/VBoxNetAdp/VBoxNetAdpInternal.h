@@ -101,10 +101,6 @@ struct VBoxNetAdapter
             ifnet_t           pIface;
             /** MAC address. */
             RTMAC             Mac;
-            /** Protocol families attached to this adapter. */
-            protocol_family_t aAttachedFamilies[VBOXNETADP_MAX_FAMILIES];
-            /** Packet sniffer mode. */
-            bpf_tap_mode      nTapMode;
             /** @} */
 # elif defined(RT_OS_LINUX)
             /** @name Darwin instance data.

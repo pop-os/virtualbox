@@ -72,7 +72,6 @@ class UIDesktopWidgetWatchdog;
 // VBoxGlobal class
 ////////////////////////////////////////////////////////////////////////////////
 
-class UISelectorWindow;
 class VBoxUpdateDlg;
 
 class VBoxGlobal : public QObject
@@ -177,10 +176,6 @@ public:
     VBoxGlobalSettings &settings() { return gset; }
     bool setSettings (VBoxGlobalSettings &gs);
 
-    UISelectorWindow &selectorWnd();
-
-    /** Returns current virtual machine. */
-    UIMachine* virtualMachine() const;
     /** Returns currently active virtual machine window. */
     QWidget* activeMachineWindow() const;
 
@@ -197,6 +192,9 @@ public:
     QString brandingGetKey (QString aKey);
 
     bool processArgs();
+
+    /** Shows UI. */
+    bool showUI();
 
     bool switchToMachine(CMachine &machine);
 
@@ -541,12 +539,12 @@ private:
     /** Holds the symbolic VirtualBox home-folder representation. */
     QString m_strHomeFolder;
 
-    /** Holds the VBoxSVC availability value. */
+    /** Holds whether acquired COM wrappers are currently valid. */
+    bool m_fWrappersValid;
+    /** Holds whether VBoxSVC is currently available. */
     bool m_fVBoxSVCAvailable;
 
     VBoxGlobalSettings gset;
-
-    UISelectorWindow *mSelectorWnd;
 
     /** Holds whether GUI is separate (from VM) process. */
     bool m_fSeparateProcess;

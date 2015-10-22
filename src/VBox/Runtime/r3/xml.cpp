@@ -1739,12 +1739,19 @@ void XmlMemParser::read(const void *pvBuf, size_t cbSize,
     const char *pcszFilename = strFilename.c_str();
 
     doc.m->reset();
+    const int options = XML_PARSE_NOBLANKS /* remove blank nodes */
+                      | XML_PARSE_NONET    /* forbit any network access */
+#if LIBXML_VERSION >= 20700
+                      | XML_PARSE_HUGE     /* don't restrict the node depth
+                                              to 256 (bad for snapshots!) */
+#endif
+                ;
     if (!(doc.m->plibDocument = xmlCtxtReadMemory(m_ctxt,
                                                   (const char*)pvBuf,
                                                   (int)cbSize,
                                                   pcszFilename,
                                                   NULL,       // encoding = auto
-                                                  XML_PARSE_NOBLANKS | XML_PARSE_NONET)))
+                                                  options)))
         throw XmlError(xmlCtxtGetLastError(m_ctxt));
 
     doc.refreshInternals();
@@ -1868,13 +1875,20 @@ void XmlFileParser::read(const RTCString &strFilename,
 
     ReadContext context(pcszFilename);
     doc.m->reset();
+    const int options = XML_PARSE_NOBLANKS /* remove blank nodes */
+                      | XML_PARSE_NONET    /* forbit any network access */
+#if LIBXML_VERSION >= 20700
+                      | XML_PARSE_HUGE     /* don't restrict the node depth
+                                              to 256 (bad for snapshots!) */
+#endif
+                ;
     if (!(doc.m->plibDocument = xmlCtxtReadIO(m_ctxt,
                                               ReadCallback,
                                               CloseCallback,
                                               &context,
                                               pcszFilename,
                                               NULL,       // encoding = auto
-                                              XML_PARSE_NOBLANKS | XML_PARSE_NONET)))
+                                              options)))
         throw XmlError(xmlCtxtGetLastError(m_ctxt));
 
     doc.refreshInternals();
