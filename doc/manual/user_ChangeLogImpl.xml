@@ -3,6 +3,139 @@
 <chapter> <!-- HACK ALERT! Seems we must have a single top level element for xi:include to work.
                            So, we use chapter and xpointer="xpointer(/chapter/)" with xi:include. -->
   <sect1>
+    <title>Version 5.0.10 (2015-11-10)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>VMM: improved support for certain Intel Atom CPUs (bug #14773)</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: system register emulation fix (5.0 regression; bug #14515)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: fixed immediate screenshot issue (bug #14108)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: fixed another 3D overlay window reparenting issue when the
+          VM is switched to fullscreen mode on X11 hosts</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: fixed help index (bug #14722)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: fixed state synchronization issue in the VM manager window
+          when VM was paused from its runtime window</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: fixed suspending/resuming audio streams on VM
+          pause/unpause (bug #14784)</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: properly reset AC97 audio streams, otherwise there is
+          silence until a non-48 kHz stream is played</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: fixed a small emulation quirk of the AD1980 codec of the
+          HDA device to make recent linux guests work (bug #14653)</para>
+      </listitem>
+
+      <listitem>
+        <para>USB: serveral fixes for the xHCI controller</para>
+      </listitem>
+
+      <listitem>
+        <para>USB: fixed a crash under certain conditions on hosts with Linux
+          kernels older than version 3.3</para>
+      </listitem>
+
+      <listitem>
+        <para>USB: better identification of certain USB devices</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT: support TCP in DNS proxy (bug #14736)</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT Network: fixed sporadic crashes on Windows hosts (bug #13899)</para>
+      </listitem>
+
+      <listitem>
+        <para>API: when creating differencing images (e.g. as part of a snapshot
+          or cloning a VM) use the same disk image variant as the parent image
+          if possible, which means that e.g. a diff image for a VMDK image
+          split into 2 GB files will also be split (bug #14764)</para>
+      </listitem>
+
+      <listitem>
+        <para>API: event queue handling fixes preventing loss of certain events
+          at runtime (e.g. new webcam attached), particularly important on Mac
+          OS X hosts</para>
+      </listitem>
+
+      <listitem>
+        <para>Webcam: passthrough fix for certain devices (Windows hosts only)</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxManage: don't crash on <emphasis>snapshot restorecurrent /
+            edit</emphasis> if the VM has no snapshots</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxManage: don't crash on <emphasis>controlvm
+            addencpassword</emphasis> (bug #14729)</para>
+      </listitem>
+
+      <listitem>
+        <para>Mac OS X hosts: use the correct kernel on certain hosts</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows hosts: fixed VRDP external authentication</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows hosts: allow to use a shared folder path with extended-length
+          path prefix (5.0 regression; bug #14651)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows hosts: fix a crash in the netfilter host driver under
+          certain conditions (bug #14799)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows host installer: documented and fixed public properties which
+         can be used to control the installation to some extent</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows host installer: fixed not starting the actual installation
+        when showing the version information or help dialogs</para>
+      </listitem>
+
+      <listitem>
+        <para>X11 Additions: added basic support for X.Org Server 1.18 (3D
+          requires additional fixes)</para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
+
+  <sect1>
     <title>Version 5.0.8 (2015-10-20)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or
@@ -98,7 +231,7 @@
 
       <listitem>
         <para>GUI: fixed settings dialog which is opened if the network settings
-          need to be changed at VM startup (5.0.0 regression; bug #14601)</para>
+          need to be changed at VM startup (5.0 regression; bug #14601)</para>
       </listitem>
 
       <listitem>
@@ -419,7 +552,7 @@
       </listitem>
 
       <listitem>
-        <para>VMM: fixed an issue causing artifically high load averages on
+        <para>VMM: fixed an issue causing artificially high load averages on
           Linux hosts</para>
       </listitem>
 

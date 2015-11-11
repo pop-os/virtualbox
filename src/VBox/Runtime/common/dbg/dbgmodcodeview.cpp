@@ -608,7 +608,7 @@ typedef FNDBGMODCVSUBSECTCALLBACK *PFNDBGMODCVSUBSECTCALLBACK;
 /**
  * Reads CodeView information.
  *
- * @returns IPRT status.
+ * @returns IPRT status code.
  * @param   pThis               The CodeView reader instance.
  * @param   off                 The offset to start reading at, relative to the
  *                              CodeView base header.
@@ -629,7 +629,7 @@ static int rtDbgModCvReadAt(PRTDBGMODCV pThis, uint32_t off, void *pvBuf, size_t
 /**
  * Reads CodeView information into an allocated buffer.
  *
- * @returns IPRT status.
+ * @returns IPRT status code.
  * @param   pThis               The CodeView reader instance.
  * @param   off                 The offset to start reading at, relative to the
  *                              CodeView base header.
@@ -800,7 +800,7 @@ static int rtDbgModCvAddSymbol(PRTDBGMODCV pThis, uint32_t iSeg, uint64_t off, c
  *
  * @returns IPRT status code
  * @param   pThis               The CodeView debug info reader instance.
- * @param   pbSymTab            The symbol table.
+ * @param   pvSymTab            The symbol table.
  * @param   cbSymTab            The size of the symbol table.
  * @param   fFlags              Flags reserved for future exploits, MBZ.
  */
@@ -869,7 +869,7 @@ static int rtDbgModCvSsProcessV4SymTab(PRTDBGMODCV pThis, void const *pvSymTab, 
 
 
 /** @callback_method_impl{FNDBGMODCVSUBSECTCALLBACK,
- * Parses kCvSst_GlobalPub, kCvSst_GlobalSym and kCvSst_StaticSym subsections,
+ * Parses kCvSst_GlobalPub\, kCvSst_GlobalSym and kCvSst_StaticSym subsections\,
  * adding symbols it finds to the container.} */
 static DECLCALLBACK(int)
 rtDbgModCvSs_GlobalPub_GlobalSym_StaticSym(PRTDBGMODCV pThis, void const *pvSubSect, size_t cbSubSect, PCRTCVDIRENT32 pDirEnt)
@@ -897,7 +897,7 @@ rtDbgModCvSs_GlobalPub_GlobalSym_StaticSym(PRTDBGMODCV pThis, void const *pvSubS
 
 
 /** @callback_method_impl{FNDBGMODCVSUBSECTCALLBACK,
- * Parses kCvSst_Module subsection, storing the debugging style in pThis.} */
+ * Parses kCvSst_Module subsection\, storing the debugging style in pThis.} */
 static DECLCALLBACK(int)
 rtDbgModCvSs_Module(PRTDBGMODCV pThis, void const *pvSubSect, size_t cbSubSect, PCRTCVDIRENT32 pDirEnt)
 {
@@ -928,7 +928,7 @@ rtDbgModCvSs_Module(PRTDBGMODCV pThis, void const *pvSubSect, size_t cbSubSect, 
 
 
 /** @callback_method_impl{FNDBGMODCVSUBSECTCALLBACK,
- * Parses kCvSst_Symbols, kCvSst_PublicSym and kCvSst_AlignSym subsections,
+ * Parses kCvSst_Symbols\, kCvSst_PublicSym and kCvSst_AlignSym subsections\,
  * adding symbols it finds to the container.} */
 static DECLCALLBACK(int)
 rtDbgModCvSs_Symbols_PublicSym_AlignSym(PRTDBGMODCV pThis, void const *pvSubSect, size_t cbSubSect, PCRTCVDIRENT32 pDirEnt)
@@ -2181,8 +2181,9 @@ static DECLCALLBACK(int) rtDbgModCv_Close(PRTDBGMODINT pMod)
 
 
 
-/** @callback_method_impl{FNRTLDRENUMSEGS,
- * Used to add segments from the image.}  */
+/**
+ * @callback_method_impl{FNRTLDRENUMSEGS, Used to add segments from the image}
+ */
 static DECLCALLBACK(int) rtDbgModCvAddSegmentsCallback(RTLDRMOD hLdrMod, PCRTLDRSEG pSeg, void *pvUser)
 {
     PRTDBGMODCV pThis = (PRTDBGMODCV)pvUser;
@@ -2372,10 +2373,10 @@ static int rtDbgModCvCreateInstance(PRTDBGMODINT pDbgMod, RTCVFILETYPE enmFileTy
  * @returns status code.
  * @param   pDbgMod             The debug module instance.  On success pvDbgPriv
  *                              will point to a valid RTDBGMODCV.
+ * @param   enmFileType         The kind of file this is we're probing.
  * @param   hFile               The file with debug info in it.
  * @param   off                 The offset where to expect CV debug info.
  * @param   cb                  The number of bytes of debug info.
- * @param   enmArch             The desired image architecture.
  * @param   pszFilename         The path to the file (for logging).
  */
 static int rtDbgModCvProbeCoff(PRTDBGMODINT pDbgMod, RTCVFILETYPE enmFileType, RTFILE hFile,
@@ -2467,6 +2468,7 @@ static int rtDbgModCvProbeCoff(PRTDBGMODINT pDbgMod, RTCVFILETYPE enmFileType, R
  * @param   hFile               The file with debug info in it.
  * @param   off                 The offset where to expect CV debug info.
  * @param   cb                  The number of bytes of debug info.
+ * @param   enmArch             The desired image architecture.
  * @param   pszFilename         The path to the file (for logging).
  */
 static int rtDbgModCvProbeCommon(PRTDBGMODINT pDbgMod, PRTCVHDR pCvHdr, RTCVFILETYPE enmFileType, RTFILE hFile,
@@ -2547,7 +2549,7 @@ static DECLCALLBACK(int) rtDbgModCvEnumCallback(RTLDRMOD hLdrMod, PCRTLDRDBGINFO
  * Part two of the external file probing.
  *
  * @returns status code.
- * @param   pDbgMod             The debug module instance.  On success pvDbgPriv
+ * @param   pThis               The debug module instance.  On success pvDbgPriv
  *                              will point to a valid RTDBGMODCV.
  * @param   enmFileType         The kind of file this is we're probing.
  * @param   hFile               The file with debug info in it.

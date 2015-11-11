@@ -62,7 +62,7 @@
  *          current context (raw-mode or ring-0).
  * @retval  VERR_CPUM_RAISE_GP_0 on failure (invalid MSR).
  *
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       The cross context virtual CPU structure.
  * @param   idMsr       The MSR we're reading.
  * @param   pRange      The MSR range descriptor.
  * @param   puValue     Where to return the value.
@@ -80,7 +80,7 @@ typedef FNCPUMRDMSR *PFNCPUMRDMSR;
  *          current context (raw-mode or ring-0).
  * @retval  VERR_CPUM_RAISE_GP_0 on failure.
  *
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       The cross context virtual CPU structure.
  * @param   idMsr       The MSR we're writing.
  * @param   pRange      The MSR range descriptor.
  * @param   uValue      The value to set, ignored bits masked.
@@ -362,7 +362,7 @@ static DECLCALLBACK(VBOXSTRICTRC) cpumMsrWr_Ia32APerf(PVMCPU pVCpu, uint32_t idM
 }
 
 
-/** @callback_method_impl{FNCPUMWRMSR} */
+/** @callback_method_impl{FNCPUMRDMSR} */
 static DECLCALLBACK(VBOXSTRICTRC) cpumMsrRd_Ia32MtrrCap(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t *puValue)
 {
     /* This is currently a bit weird. :-) */
@@ -4906,7 +4906,7 @@ static const PFNCPUMWRMSR g_aCpumWrMsrFns[kCpumMsrWrFn_End] =
  * Looks up the range for the given MSR.
  *
  * @returns Pointer to the range if found, NULL if not.
- * @param   pVM                 The cross context VM structure.
+ * @param   pVM                The cross context VM structure.
  * @param   idMsr               The MSR to look up.
  */
 # ifndef IN_RING3
@@ -4979,7 +4979,7 @@ PCPUMMSRRANGE cpumLookupMsrRange(PVM pVM, uint32_t idMsr)
  *          current context (raw-mode or ring-0).
  * @retval  VERR_CPUM_RAISE_GP_0 on failure (invalid MSR), the caller is
  *          expected to take the appropriate actions. @a *puValue is set to 0.
- * @param   pVCpu               Pointer to the VMCPU.
+ * @param   pVCpu               The cross context virtual CPU structure.
  * @param   idMsr               The MSR.
  * @param   puValue             Where to return the value.
  *
@@ -5048,7 +5048,7 @@ VMMDECL(VBOXSTRICTRC) CPUMQueryGuestMsr(PVMCPU pVCpu, uint32_t idMsr, uint64_t *
  * @retval  VERR_CPUM_RAISE_GP_0 on failure, the caller is expected to take the
  *          appropriate actions.
  *
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       The cross context virtual CPU structure.
  * @param   idMsr       The MSR id.
  * @param   uValue      The value to set.
  *
@@ -5609,7 +5609,7 @@ int cpumR3MsrStrictInitChecks(void)
  * other frequency ratios.
  *
  * @returns Scalable bus frequency in Hz. Will not return CPUM_SBUSFREQ_UNKNOWN.
- * @param   pVM                 Pointer to the shared VM structure.
+ * @param   pVM                 The cross context VM structure.
  */
 VMMDECL(uint64_t) CPUMGetGuestScalableBusFrequency(PVM pVM)
 {
@@ -5626,8 +5626,7 @@ VMMDECL(uint64_t) CPUMGetGuestScalableBusFrequency(PVM pVM)
  * Fast way for HM to access the MSR_K8_TSC_AUX register.
  *
  * @returns The register value.
- * @param   pVCpu               Pointer to the cross context CPU structure for
- *                              the calling EMT.
+ * @param   pVCpu   The cross context virtual CPU structure of the calling EMT.
  * @thread  EMT(pVCpu)
  */
 VMMR0_INT_DECL(uint64_t) CPUMR0GetGuestTscAux(PVMCPU pVCpu)
@@ -5639,9 +5638,8 @@ VMMR0_INT_DECL(uint64_t) CPUMR0GetGuestTscAux(PVMCPU pVCpu)
 /**
  * Fast way for HM to access the MSR_K8_TSC_AUX register.
  *
- * @param   pVCpu               Pointer to the cross context CPU structure for
- *                              the calling EMT.
- * @param   uValue              The new value.
+ * @param   pVCpu   The cross context virtual CPU structure of the calling EMT.
+ * @param   uValue  The new value.
  * @thread  EMT(pVCpu)
  */
 VMMR0_INT_DECL(void) CPUMR0SetGuestTscAux(PVMCPU pVCpu, uint64_t uValue)

@@ -85,7 +85,7 @@
     </message>
     <message>
         <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. If it is available in your distribution, you should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
-        <translation>未載入 VirtualBox Linux 核心驅動程式 (vboxdrv) 或是 /dev/vboxdrv 的權限問題。 請以 root 執行 &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos; 來重新安裝核心模組。 如果在您的發行中可以使用，您應先安裝 DKMS 套件。 這個套件保留 Linux 核心變更的追蹤並在需要時重新編譯 vboxdrv 核心模組。</translation>
+        <translation>未載入 VirtualBox Linux 核心驅動程式 (vboxdrv) 或是 /dev/vboxdrv 的權限問題。 請以 root 執行 &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;來重新安裝核心模組。 如果在您的發行中可以使用，您應先安裝 DKMS 套件。 這個套件保留 Linux 核心變更的追蹤並在需要時重新編譯 vboxdrv 核心模組。</translation>
     </message>
 </context>
 <context>
@@ -2229,11 +2229,11 @@
     <name>UIGlobalSettingsProxy</name>
     <message>
         <source>When checked, VirtualBox will use the proxy settings supplied for tasks like downloading Guest Additions from the network or checking for updates.</source>
-        <translation>勾選時，VirtualBox 將使用提供的 Proxy 設定工作，如從網路下載 Guest Additions 或檢查更新。</translation>
+        <translation type="obsolete">勾選時，VirtualBox 將使用提供的 Proxy 設定工作，如從網路下載 Guest Additions 或檢查更新。</translation>
     </message>
     <message>
         <source>&amp;Enable Proxy</source>
-        <translation>啟用 Proxy(&amp;E)</translation>
+        <translation type="obsolete">啟用 Proxy(&amp;E)</translation>
     </message>
     <message>
         <source>Ho&amp;st:</source>
@@ -2258,6 +2258,30 @@
     <message>
         <source>Holds the proxy port.</source>
         <translation>保留 Proxy 連接埠。</translation>
+    </message>
+    <message>
+        <source>When chosen, VirtualBox will try to auto-detect host proxy settings for tasks like downloading Guest Additions from the network or checking for updates.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Auto-detect Host Proxy Settings</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>When chosen, VirtualBox will use direct Internet connection for tasks like downloading Guest Additions from the network or checking for updates.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Direct Connection to the Internet</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>When chosen, VirtualBox will use the proxy settings supplied for tasks like downloading Guest Additions from the network or checking for updates.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Manual Proxy Configuration</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -5244,6 +5268,14 @@
         <source>Encryption password for &lt;nobr&gt;ID = &apos;%1&apos;&lt;/nobr&gt; is invalid.</source>
         <translation>&lt;nobr&gt;ID = &apos;%1&apos;&lt;/nobr&gt; 的加密密碼無效。</translation>
     </message>
+    <message>
+        <source>The current port forwarding rules are not valid. All of the host or guest address values should be correct or empty.</source>
+        <translation>目前連接埠轉送規則無效。 所有主機或客體位址值必須正確或為空。</translation>
+    </message>
+    <message>
+        <source>The current port forwarding rules are not valid. None of the guest address values may be empty.</source>
+        <translation>目前連接埠轉送規則無效。 沒有客體位址值可能為空。</translation>
+    </message>
 </context>
 <context>
     <name>UIMiniToolBar</name>
@@ -5382,6 +5414,42 @@
     <message>
         <source>Unknown reason</source>
         <translation>不明原因</translation>
+    </message>
+    <message>
+        <source>%1: %2</source>
+        <comment>Context description: Error description</comment>
+        <translation>%1: %2</translation>
+    </message>
+    <message>
+        <source>Unable to initialize HTTP library</source>
+        <translation>無法初始化 HTTP 程式庫</translation>
+    </message>
+    <message>
+        <source>Connection refused</source>
+        <translation>拒絕連線</translation>
+    </message>
+    <message>
+        <source>Content moved</source>
+        <translation>內容移除</translation>
+    </message>
+    <message>
+        <source>Proxy not found</source>
+        <translation>找不到 Proxy</translation>
+    </message>
+</context>
+<context>
+    <name>UINetworkReplyPrivateThread</name>
+    <message>
+        <source>During proxy configuration</source>
+        <translation>Proxy 組態期間</translation>
+    </message>
+    <message>
+        <source>During certificate downloading</source>
+        <translation>憑證下載期間</translation>
+    </message>
+    <message>
+        <source>During network request</source>
+        <translation>請求網路期間</translation>
     </message>
 </context>
 <context>

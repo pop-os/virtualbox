@@ -39,7 +39,8 @@ RT_C_DECLS_END
  * Initializes the both bit of the paging mode data.
  *
  * @returns VBox status code.
- * @param   pVM             Pointer to the VM.
+ * @param   pVM             The cross context VM structure.
+ * @param   pModeData       The pointer table to initialize.
  * @param   fResolveGCAndR0 Indicate whether or not GC and Ring-0 symbols can be resolved now.
  *                          This is used early in the init process to avoid trouble with PDM
  *                          not being initialized yet.
@@ -117,8 +118,7 @@ PGM_BTH_DECL(int, InitData)(PVM pVM, PPGMMODEDATA pModeData, bool fResolveGCAndR
  * Enters the shadow+guest mode.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       The cross context virtual CPU structure.
  * @param   GCPhysCR3   The physical address from the CR3 register.
  */
 PGM_BTH_DECL(int, Enter)(PVMCPU pVCpu, RTGCPHYS GCPhysCR3)
@@ -202,8 +202,7 @@ PGM_BTH_DECL(int, Enter)(PVMCPU pVCpu, RTGCPHYS GCPhysCR3)
  * Relocate any GC pointers related to shadow mode paging.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       The cross context virtual CPU structure.
  * @param   offDelta    The relocation offset.
  */
 PGM_BTH_DECL(int, Relocate)(PVMCPU pVCpu, RTGCPTR offDelta)

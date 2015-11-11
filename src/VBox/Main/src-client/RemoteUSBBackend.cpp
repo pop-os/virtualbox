@@ -1,6 +1,5 @@
 /* $Id: RemoteUSBBackend.cpp $ */
 /** @file
- *
  * VirtualBox Remote USB backend
  */
 

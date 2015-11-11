@@ -32,10 +32,10 @@
 /**
  * Checks whether GIM is being used by this VM.
  *
- * @retval  @c true if used.
- * @retval  @c false if no GIM provider ("none") is used.
+ * @retval  true if used.
+ * @retval  false if no GIM provider ("none") is used.
  *
- * @param   pVM       Pointer to the VM.
+ * @param   pVM       The cross context VM structure.
  */
 VMMDECL(bool) GIMIsEnabled(PVM pVM)
 {
@@ -47,7 +47,7 @@ VMMDECL(bool) GIMIsEnabled(PVM pVM)
  * Gets the GIM provider configured for this VM.
  *
  * @returns The GIM provider Id.
- * @param   pVM     Pointer to the VM.
+ * @param   pVM     The cross context VM structure.
  */
 VMMDECL(GIMPROVIDERID) GIMGetProvider(PVM pVM)
 {
@@ -59,7 +59,7 @@ VMMDECL(GIMPROVIDERID) GIMGetProvider(PVM pVM)
  * Returns whether the guest has configured and enabled calls to the hypervisor.
  *
  * @returns true if hypercalls are enabled and usable, false otherwise.
- * @param   pVCpu           Pointer to the VMCPU.
+ * @param   pVCpu           The cross context virtual CPU structure.
  */
 VMM_INT_DECL(bool) GIMAreHypercallsEnabled(PVMCPU pVCpu)
 {
@@ -85,7 +85,7 @@ VMM_INT_DECL(bool) GIMAreHypercallsEnabled(PVMCPU pVCpu)
  * Implements a GIM hypercall with the provider configured for the VM.
  *
  * @returns VBox status code.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       The cross context virtual CPU structure.
  * @param   pCtx        Pointer to the guest-CPU context.
  */
 VMM_INT_DECL(int) GIMHypercall(PVMCPU pVCpu, PCPUMCTX pCtx)
@@ -119,7 +119,7 @@ VMM_INT_DECL(int) GIMHypercall(PVMCPU pVCpu, PCPUMCTX pCtx)
  * relies on that.
  *
  * @returns true if enabled and usable, false otherwise.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  */
 VMM_INT_DECL(bool) GIMIsParavirtTscEnabled(PVM pVM)
 {
@@ -139,7 +139,7 @@ VMM_INT_DECL(bool) GIMIsParavirtTscEnabled(PVM pVM)
 
 
 /**
- * Whether #UD exceptions in the guest needs to be intercepted by the GIM
+ * Whether \#UD exceptions in the guest needs to be intercepted by the GIM
  * provider.
  *
  * At the moment, the reason why this isn't a more generic interface wrt to
@@ -148,7 +148,7 @@ VMM_INT_DECL(bool) GIMIsParavirtTscEnabled(PVM pVM)
  * really required.
  *
  * @returns true if needed, false otherwise.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       The cross context virtual CPU structure.
  */
 VMM_INT_DECL(bool) GIMShouldTrapXcptUD(PVMCPU pVCpu)
 {
@@ -168,9 +168,9 @@ VMM_INT_DECL(bool) GIMShouldTrapXcptUD(PVMCPU pVCpu)
 
 
 /**
- * Exception handler for #UD when requested by the GIM provider.
+ * Exception handler for \#UD when requested by the GIM provider.
  *
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       The cross context virtual CPU structure.
  * @param   pCtx        Pointer to the guest-CPU context.
  * @param   pDis        Pointer to the disassembled instruction state at RIP.
  *                      Optional, can be NULL.
@@ -198,7 +198,7 @@ VMM_INT_DECL(int) GIMXcptUD(PVMCPU pVCpu, PCPUMCTX pCtx, PDISCPUSTATE pDis)
  * @retval  VINF_CPUM_R3_MSR_READ
  * @retval  VERR_CPUM_RAISE_GP_0
  *
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       The cross context virtual CPU structure.
  * @param   idMsr       The MSR to read.
  * @param   pRange      The range this MSR belongs to.
  * @param   puValue     Where to store the MSR value read.
@@ -232,7 +232,7 @@ VMM_INT_DECL(VBOXSTRICTRC) GIMReadMsr(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRRAN
  * @retval  VINF_CPUM_R3_MSR_WRITE
  * @retval  VERR_CPUM_RAISE_GP_0
  *
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       The cross context virtual CPU structure.
  * @param   idMsr       The MSR to write.
  * @param   pRange      The range this MSR belongs to.
  * @param   uValue      The value to set, ignored bits masked.

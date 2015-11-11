@@ -45,6 +45,12 @@
 #include <iprt/mem.h>
 #include <iprt/cpp/ministring.h>
 
+
+/** @defgroup grp_com_str   Smart String Classes
+ * @ingroup grp_com
+ * @{
+ */
+
 namespace com
 {
 
@@ -455,9 +461,9 @@ protected:
      *
      * @param   a_pszSrc            The source string.  The caller guarantees
      *                              that this is valid UTF-8.
-     * @param   a_cchMax            The maximum number of chars (not
-     *                              codepoints) to copy.  If you pass RTSTR_MAX
-     *                              it'll be exactly like copyFrom().
+     * @param   a_cchSrc            The maximum number of chars (not codepoints) to
+     *                              copy.  If you pass RTSTR_MAX it'll be exactly
+     *                              like copyFrom().
      *
      * @throws  std::bad_alloc - the object is representing an empty string.
      */
@@ -581,7 +587,7 @@ public:
      * exception on failure.
      *
      * @returns S_OK, E_OUTOFMEMORY or E_INVALIDARG.
-     * @param   a_pcszSrc   The source string
+     * @param   a_rSrcStr   The source string
      * @param   a_offSrc    The character (byte) offset of the substring.
      * @param   a_cchSrc    The number of characters (bytes) to copy from the source
      *                      string.
@@ -814,6 +820,8 @@ public:
 };
 
 } /* namespace com */
+
+/** @} */
 
 #endif /* !___VBox_com_string_h */
 

@@ -69,7 +69,7 @@
  *    When caching is enabled, the page isn't flush but remains in the cache.
  *
  *
- * @section sec_pgm_pool_impl       Monitoring
+ * @section sec_pgm_pool_monitoring Monitoring
  *
  * We always monitor PAGE_SIZE chunks of memory. When we've got multiple shadow
  * pages for the same PAGE_SIZE of guest memory (PAE and mixed PD/PT) the pages
@@ -130,7 +130,7 @@ static const DBGCCMD    g_aCmds[] =
  * Initializes the pool
  *
  * @returns VBox status code.
- * @param   pVM     Pointer to the VM.
+ * @param   pVM     The cross context VM structure.
  */
 int pgmR3PoolInit(PVM pVM)
 {
@@ -161,7 +161,7 @@ int pgmR3PoolInit(PVM pVM)
     else
         cMaxPages = (uint16_t)u64MaxPages;
 
-    /** @cfgm{/PGM/Pool/MaxPages, uint16_t, #pages, 16, 0x3fff, F(ram-size)}
+    /** @cfgm{/PGM/Pool/MaxPages, uint16_t, \#pages, 16, 0x3fff, F(ram-size)}
      * The max size of the shadow page pool in pages. The pool will grow dynamically
      * up to this limit.
      */
@@ -186,7 +186,7 @@ int pgmR3PoolInit(PVM pVM)
      * although that depends on the availability of 2 MB chunks on the host.
      */
 
-    /** @cfgm{/PGM/Pool/MaxUsers, uint16_t, #users, MaxUsers, 32K, MaxPages*2}
+    /** @cfgm{/PGM/Pool/MaxUsers, uint16_t, \#users, MaxUsers, 32K, MaxPages*2}
      * The max number of shadow page user tracking records. Each shadow page has
      * zero of other shadow pages (or CR3s) that references it, or uses it if you
      * like. The structures describing these relationships are allocated from a
@@ -198,7 +198,7 @@ int pgmR3PoolInit(PVM pVM)
     AssertLogRelMsgReturn(cMaxUsers >= cMaxPages && cMaxPages <= _32K,
                           ("cMaxUsers=%u (%#x)\n", cMaxUsers, cMaxUsers), VERR_INVALID_PARAMETER);
 
-    /** @cfgm{/PGM/Pool/MaxPhysExts, uint16_t, #extents, 16, MaxPages * 2, MIN(MaxPages*2,8192)}
+    /** @cfgm{/PGM/Pool/MaxPhysExts, uint16_t, \#extents, 16, MaxPages * 2, MIN(MaxPages*2\,8192)}
      * The max number of extents for tracking aliased guest pages.
      */
     uint16_t cMaxPhysExts;
@@ -409,7 +409,7 @@ int pgmR3PoolInit(PVM pVM)
 /**
  * Relocate the page pool data.
  *
- * @param   pVM     Pointer to the VM.
+ * @param   pVM     The cross context VM structure.
  */
 void pgmR3PoolRelocate(PVM pVM)
 {
@@ -426,7 +426,7 @@ void pgmR3PoolRelocate(PVM pVM)
  * I.e. adds more pages to it, assuming that hasn't reached cMaxPages yet.
  *
  * @returns VBox status code.
- * @param   pVM     Pointer to the VM.
+ * @param   pVM     The cross context VM structure.
  */
 VMMR3DECL(int) PGMR3PoolGrow(PVM pVM)
 {
@@ -497,20 +497,20 @@ VMMR3DECL(int) PGMR3PoolGrow(PVM pVM)
  * it to complete this function.
  *
  * @returns VINF_SUCCESS (VBox strict status code).
- * @param   pVM     Pointer to the VM.
- * @param   pVCpu   The VMCPU for the EMT we're being called on. Unused.
+ * @param   pVM     The cross context VM structure.
+ * @param   pVCpu   The cross context virtual CPU structure of the calling EMT. Unused.
  * @param   fpvFlushRemTlb  When not NULL, we'll flush the REM TLB as well.
  *                          (This is the pvUser, so it has to be void *.)
  *
  */
-DECLCALLBACK(VBOXSTRICTRC) pgmR3PoolClearAllRendezvous(PVM pVM, PVMCPU pVCpu, void *fpvFlushRemTbl)
+DECLCALLBACK(VBOXSTRICTRC) pgmR3PoolClearAllRendezvous(PVM pVM, PVMCPU pVCpu, void *fpvFlushRemTlb)
 {
     PPGMPOOL pPool = pVM->pgm.s.CTX_SUFF(pPool);
     STAM_PROFILE_START(&pPool->StatClearAll, c);
     NOREF(pVCpu);
 
     pgmLock(pVM);
-    Log(("pgmR3PoolClearAllRendezvous: cUsedPages=%d fpvFlushRemTbl=%RTbool\n", pPool->cUsedPages, !!fpvFlushRemTbl));
+    Log(("pgmR3PoolClearAllRendezvous: cUsedPages=%d fpvFlushRemTlb=%RTbool\n", pPool->cUsedPages, !!fpvFlushRemTlb));
 
     /*
      * Iterate all the pages until we've encountered all that are in use.
@@ -731,7 +731,7 @@ DECLCALLBACK(VBOXSTRICTRC) pgmR3PoolClearAllRendezvous(PVM pVM, PVMCPU pVCpu, vo
 
     PGM_INVL_ALL_VCPU_TLBS(pVM);
 
-    if (fpvFlushRemTbl)
+    if (fpvFlushRemTlb)
         for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
             CPUMSetChangedFlags(&pVM->aCpus[idCpu], CPUM_CHANGED_GLOBAL_TLB_FLUSH);
 
@@ -743,7 +743,7 @@ DECLCALLBACK(VBOXSTRICTRC) pgmR3PoolClearAllRendezvous(PVM pVM, PVMCPU pVCpu, vo
 /**
  * Clears the shadow page pool.
  *
- * @param   pVM             Pointer to the VM.
+ * @param   pVM             The cross context VM structure.
  * @param   fFlushRemTlb    When set, the REM TLB is scheduled for flushing as
  *                          well.
  */
@@ -757,7 +757,7 @@ void pgmR3PoolClearAll(PVM pVM, bool fFlushRemTlb)
 /**
  * Protect all pgm pool page table entries to monitor writes
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  *
  * @remarks ASSUMES the caller will flush all TLBs!!
  */

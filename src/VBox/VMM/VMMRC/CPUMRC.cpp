@@ -45,7 +45,7 @@ RT_C_DECLS_END
  * context execution.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  * @param   pRegFrame   The register frame.
  * @param   uUser       User argument. In this case a combination of the
  *                      CPUM_HANDLER_* \#defines.
@@ -82,7 +82,7 @@ DECLCALLBACK(int) cpumRCHandleNPAndGP(PVM pVM, PCPUMCTXCORE pRegFrame, uintptr_t
  * Called by TRPM and CPUM assembly code to make sure the guest state is
  * ready for execution.
  *
- * @param   pVM                 The VM handle.
+ * @param   pVM                 The cross context VM structure.
  */
 DECLASM(void) CPUMRCAssertPreExecutionSanity(PVM pVM)
 {
@@ -112,7 +112,7 @@ DECLASM(void) CPUMRCAssertPreExecutionSanity(PVM pVM)
  * Get the current privilege level of the guest.
  *
  * @returns CPL
- * @param   pVCpu       The current virtual CPU.
+ * @param   pVCpu       The cross context virtual CPU structure of the calling EMT.
  * @param   pRegFrame   Pointer to the register frame.
  *
  * @todo    r=bird: This is very similar to CPUMGetGuestCPL and I cannot quite
@@ -172,7 +172,7 @@ VMMDECL(uint32_t) CPUMRCGetGuestCPL(PVMCPU pVCpu, PCPUMCTXCORE pRegFrame)
  *
  * Used by emInterpretIret() after the new state has been loaded.
  *
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       The cross context virtual CPU structure.
  * @param   pCtxCore    The context core (for trap usage).
  * @see     @ref pg_raw
  * @remarks Will be probably obsoleted by #5653 (it will leave and reenter raw

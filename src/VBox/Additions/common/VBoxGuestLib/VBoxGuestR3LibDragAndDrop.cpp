@@ -1482,7 +1482,7 @@ static int vbglR3DnDGHProcessURIMessages(PVBGLR3GUESTDNDCMDCTX pCtx,
         rc = vbglR3DnDGHSendDataInternal(pCtx, pvToSend, cbToSend,
                                          /* Include total bytes of all file paths,
                                           * file sizes etc. */
-                                         lstURI.TotalBytes());
+                                         (uint32_t)lstURI.TotalBytes());
     }
 
     if (RT_SUCCESS(rc))

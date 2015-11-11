@@ -34,7 +34,7 @@ struct vboxvfs_mount_info {
 
 #ifdef _KERNEL
 
-#include "../../common/VBoxGuestLib/VBoxGuestR0LibSharedFolders.h"
+#include <VBox/VBoxGuestLibSharedFolders.h>
 #include <sys/mount.h>
 #include <sys/vnode.h>
 
@@ -53,7 +53,7 @@ struct vboxvfsmount {
 
 /* structs - stolen from the linux shared module code */
 struct sf_glob_info {
-    VBSFMAP map;
+    VBGLSFMAP map;
 /*    struct nls_table *nls;*/
     int ttl;
     int uid;

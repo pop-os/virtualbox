@@ -60,8 +60,8 @@
  * @retval  VINF_SUCCESS on success. FF cleared.
  * @retval  VINF_EM_NO_MEMORY if we're out of memory. The FF is set in this case.
  *
- * @param   pVM         Pointer to the VM.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVM         The cross context VM structure.
+ * @param   pVCpu       The cross context virtual CPU structure.
  *
  * @remarks Must be called from within the PGM critical section. The caller
  *          must clear the new pages.
@@ -176,8 +176,8 @@ VMMR0_INT_DECL(int) PGMR0PhysAllocateHandyPages(PVM pVM, PVMCPU pVCpu)
  * @returns The following VBox status codes.
  * @retval  VINF_SUCCESS on success. FF cleared.
  *
- * @param   pVM         Pointer to the VM.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVM         The cross context VM structure.
+ * @param   pVCpu       The cross context virtual CPU structure.
  *
  * @remarks Must be called from within the PGM critical section.
  */
@@ -207,8 +207,8 @@ VMMR0_INT_DECL(int) PGMR0PhysFlushHandyPages(PVM pVM, PVMCPU pVCpu)
  * @retval  VINF_SUCCESS on success.
  * @retval  VINF_EM_NO_MEMORY if we're out of memory.
  *
- * @param   pVM         Pointer to the VM.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVM         The cross context VM structure.
+ * @param   pVCpu       The cross context virtual CPU structure.
  *
  * @remarks Must be called from within the PGM critical section. The caller
  *          must clear the new pages.
@@ -353,7 +353,7 @@ VMMR0_INT_DECL(int) GPciRawR0GuestPageUpdate(PGVM pGVM, RTGCPHYS GCPhys, RTHCPHY
  *
  * @returns VBox status code.
  *
- * @param   pVM                 Pointer to the VM.
+ * @param   pVM                 The cross context VM structure.
  */
 VMMR0_INT_DECL(int) PGMR0PhysSetupIommu(PVM pVM)
 {
@@ -408,11 +408,11 @@ VMMR0_INT_DECL(int) PGMR0PhysSetupIommu(PVM pVM)
 
 
 /**
- * #PF Handler for nested paging.
+ * \#PF Handler for nested paging.
  *
  * @returns VBox status code (appropriate for trap handling and GC return).
- * @param   pVM                 Pointer to the VM.
- * @param   pVCpu               Pointer to the VMCPU.
+ * @param   pVM                 The cross context VM structure.
+ * @param   pVCpu               The cross context virtual CPU structure.
  * @param   enmShwPagingMode    Paging mode for the nested page tables.
  * @param   uErr                The trap error code.
  * @param   pRegFrame           Trap register frame.
@@ -534,12 +534,12 @@ VMMR0DECL(int) PGMR0Trap0eHandlerNestedPaging(PVM pVM, PVMCPU pVCpu, PGMMODE enm
 
 
 /**
- * #PF Handler for deliberate nested paging misconfiguration (/reserved bit)
+ * \#PF Handler for deliberate nested paging misconfiguration (/reserved bit)
  * employed for MMIO pages.
  *
  * @returns VBox status code (appropriate for trap handling and GC return).
- * @param   pVM                 Pointer to the VM.
- * @param   pVCpu               Pointer to the VMCPU.
+ * @param   pVM                 The cross context VM structure.
+ * @param   pVCpu               The cross context virtual CPU structure.
  * @param   enmShwPagingMode    Paging mode for the nested page tables.
  * @param   pRegFrame           Trap register frame.
  * @param   GCPhysFault         The fault address.

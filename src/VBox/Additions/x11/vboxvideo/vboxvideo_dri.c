@@ -1,5 +1,5 @@
-/** @file $Id: vboxvideo_dri.c $
- *
+/*  $Id: vboxvideo_dri.c $ */
+/** @file
  * VirtualBox X11 Additions graphics driver, DRI support
  */
 

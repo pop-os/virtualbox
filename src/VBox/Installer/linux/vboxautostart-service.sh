@@ -51,10 +51,6 @@ elif [ -f /etc/debian_version ]; then
     system=debian
 elif [ -f /etc/gentoo-release ]; then
     system=gentoo
-elif [ -f /etc/slackware-version ]; then
-    system=slackware
-elif [ -f /etc/lfs-release ]; then
-    system=lfs
 else
     system=other
 fi
@@ -173,53 +169,16 @@ if [ "$system" = "gentoo" ]; then
     fi
 fi
 
-if [ "$system" = "slackware" ]; then
-    killproc() {
-        killall $1
-        rm -f $PIDFILE
-    }
-    if [ -n "$NOLSB" ]; then
-        fail_msg() {
-            echo " ...fail!"
-        }
-        succ_msg() {
-            echo " ...done."
-        }
-        begin_msg() {
-            echo -n "$1"
-        }
-    fi
-    start_daemon() {
-        usr="$1"
-        shift
-        su - $usr -c "$*"
-    }
-fi
-
-if [ "$system" = "lfs" ]; then
-    . /etc/rc.d/init.d/functions
-    if [ -n "$NOLSB" ]; then
-        fail_msg() {
-            echo_failure
-        }
-        succ_msg() {
-            echo_ok
-        }
-        begin_msg() {
-            echo $1
-        }
-    fi
-    start_daemon() {
-        usr="$1"
-        shift
-        su - $usr -c "$*"
-    }
-    status() {
-        statusproc $1
-    }
-fi
-
 if [ "$system" = "other" ]; then
+    killproc() {
+        kp_binary="${1##*/}"
+        pkill "${kp_binary}" || return 0
+        sleep 1
+        pkill "${kp_binary}" || return 0
+        sleep 1
+        pkill -9 "${kp_binary}"
+        return 0
+    }
     if [ -n "$NOLSB" ]; then
         fail_msg() {
             echo " ...fail!"
@@ -231,6 +190,11 @@ if [ "$system" = "other" ]; then
             echo -n "$1"
         }
     fi
+    start_daemon() {
+        usr="$1"
+        shift
+        su - $usr -c "$*"
+    }
 fi
 
 vboxdrvrunning() {

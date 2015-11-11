@@ -22,7 +22,7 @@
 #include "RemoteUSBBackend.h"
 #include "HGCM.h"
 
-#include <VBox/VBoxAuth.h>
+#include "AuthLibrary.h"
 
 #include <VBox/RemoteDesktop/VRDEImage.h>
 #include <VBox/RemoteDesktop/VRDEMousePtr.h>
@@ -244,13 +244,12 @@ private:
     void remoteUSBThreadStop (void);
 #endif /* VBOX_WITH_USB */
 
-    /* External authentication library handle. The library is loaded in the
+#ifndef VBOX_WITH_VRDEAUTH_IN_VBOXSVC
+    /* External authentication library context. The library is loaded in the
      * Authenticate method and unloaded at the object destructor.
      */
-    RTLDRMOD mAuthLibrary;
-    PAUTHENTRY mpfnAuthEntry;
-    PAUTHENTRY2 mpfnAuthEntry2;
-    PAUTHENTRY3 mpfnAuthEntry3;
+    AUTHLIBRARYCONTEXT mAuthLibCtx;
+#endif
 
     uint32_t volatile mu32AudioInputClientId;
 

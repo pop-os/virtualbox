@@ -155,7 +155,7 @@
  * Placeholder.
  *
  *
- * @subsection      sec_pgm_handlers_virt   Virtual Access Handlers
+ * @subsection      sec_pgm_handlers_phys   Physical Access Handlers
  *
  * Placeholder.
  *
@@ -248,7 +248,7 @@
  *      - Moving or mirroring a VM onto a different physical machine.
  *
  *
- * @subsection subsec_pgmPhys_Definitions       Definitions
+ * @section sec_pgmPhys_Definitions       Definitions
  *
  * Allocation chunk - A RTR0MemObjAllocPhysNC object and the tracking
  * machinery associated with it.
@@ -256,7 +256,7 @@
  *
  *
  *
- * @subsection subsec_pgmPhys_AllocPage         Allocating a page.
+ * @section sec_pgmPhys_AllocPage         Allocating a page.
  *
  * Initially we map *all* guest memory to the (per VM) zero page, which
  * means that none of the read functions will cause pages to be allocated.
@@ -285,7 +285,7 @@
  * zeroed pages as they are going to be filled instantly.
  *
  *
- * @subsection subsec_pgmPhys_FreePage          Freeing a page
+ * @section sec_pgmPhys_FreePage          Freeing a page
  *
  * There are a few points where a page can be freed:
  *      - After being replaced by the zero page.
@@ -315,7 +315,7 @@
  * cpu time or memory into this.
  *
  *
- * @subsection subsec_pgmPhys_SharePage         Sharing a page
+ * @section sec_pgmPhys_SharePage         Sharing a page
  *
  * The basic idea is that there there will be a idle priority kernel
  * thread walking the non-shared VM pages hashing them and looking for
@@ -336,7 +336,7 @@
  * per-VM guest memory structures (presently called PGMRAMRANGE).
  *
  *
- * @subsection subsec_pgmPhys_Fragmentation     Fragmentation Concerns and Counter Measures
+ * @section sec_pgmPhys_Fragmentation     Fragmentation Concerns and Counter Measures
  *
  * The pages are organized in allocation chunks in ring-0, this is a necessity
  * if we wish to have an OS agnostic approach to this whole thing. (On Linux we
@@ -364,7 +364,7 @@
  * the same as when telling it to share/zero a page.
  *
  *
- * @subsection subsec_pgmPhys_Tracking      Tracking Structures And Their Cost
+ * @section sec_pgmPhys_Tracking      Tracking Structures And Their Cost
  *
  * There's a difficult balance between keeping the per-page tracking structures
  * (global and guest page) easy to use and keeping them from eating too much
@@ -374,11 +374,11 @@
  * to 32GB of memory on a 32-bit system and essentially unlimited on 64-bit ones.
  *
  *
- * @subsubsection subsubsec_pgmPhys_Tracking_Kernel     Kernel Space
+ * @subsection subsec_pgmPhys_Tracking_Kernel     Kernel Space
  *
  * @see pg_GMM
  *
- * @subsubsection subsubsec_pgmPhys_Tracking_PerVM      Per-VM
+ * @subsection subsec_pgmPhys_Tracking_PerVM      Per-VM
  *
  * Fixed info is the physical address of the page (HCPhys) and the page id
  * (described above). Theoretically we'll need 48(-12) bits for the HCPhys part.
@@ -470,7 +470,7 @@
  * than once will put the GMM off balance.
  *
  *
- * @subsection subsec_pgmPhys_Serializing       Serializing Access
+ * @section sec_pgmPhys_Serializing       Serializing Access
  *
  * Initially, we'll try a simple scheme:
  *
@@ -495,7 +495,7 @@
  *        one, but not the other way around.
  *
  *
- * @subsection subsec_pgmPhys_Request           VM Request interface
+ * @section sec_pgmPhys_Request           VM Request interface
  *
  * When in ring-0 it will become necessary to send requests to a VM so it can
  * for instance move a page while defragmenting during VM destroy. The idle
@@ -551,9 +551,9 @@
  *
  * The ring-0 will be tied to the page allocator since it will operate on the
  * memory objects it contains. It will therefore require the first ring-0 mutex
- * discussed in @ref subsec_pgmPhys_Serializing. We
- * some double house keeping wrt to who has mapped what I think, since both
- * VMMR0.r0 and RTR0MemObj will keep track of mapping relations
+ * discussed in @ref sec_pgmPhys_Serializing.  We some double house keeping wrt
+ * to who has mapped what I think, since both VMMR0.r0 and RTR0MemObj will keep
+ * track of mapping relations
  *
  * The ring-3 part will be protected by the pgm critsect. For simplicity, we'll
  * require anyone that desires to do changes to the mapping cache to do that
@@ -1232,7 +1232,7 @@ static const DBGCCMD    g_aCmds[] =
  * Initiates the paging of VM.
  *
  * @returns VBox status code.
- * @param   pVM     Pointer to VM structure.
+ * @param   pVM     The cross context VM structure.
  */
 VMMR3DECL(int) PGMR3Init(PVM pVM)
 {
@@ -1546,7 +1546,7 @@ VMMR3DECL(int) PGMR3Init(PVM pVM)
  * been initialized.
  *
  * @returns VBox status code.
- * @param   pVM                 Pointer to the VM.
+ * @param   pVM                 The cross context VM structure.
  */
 static int pgmR3InitPaging(PVM pVM)
 {
@@ -2120,7 +2120,7 @@ static int pgmR3InitStats(PVM pVM)
  * page table entries with the dummy page.
  *
  * @returns VBox status code.
- * @param   pVM     Pointer to the VM.
+ * @param   pVM     The cross context VM structure.
  */
 VMMR3DECL(int) PGMR3InitDynMap(PVM pVM)
 {
@@ -2154,7 +2154,7 @@ VMMR3DECL(int) PGMR3InitDynMap(PVM pVM)
  * Ring-3 init finalizing.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  */
 VMMR3DECL(int) PGMR3InitFinalize(PVM pVM)
 {
@@ -2272,7 +2272,7 @@ VMMR3DECL(int) PGMR3InitFinalize(PVM pVM)
  * Init phase completed callback.
  *
  * @returns VBox status code.
- * @param   pVM                 Pointer to the VM.
+ * @param   pVM                 The cross context VM structure.
  * @param   enmWhat             What has been completed.
  * @thread  EMT(0)
  */
@@ -2317,7 +2317,7 @@ VMMR3_INT_DECL(int) PGMR3InitCompleted(PVM pVM, VMINITCOMPLETED enmWhat)
  * This function will be called at init and whenever the VMM need to relocate it
  * self inside the GC.
  *
- * @param   pVM     The VM.
+ * @param   pVM     The cross context VM structure.
  * @param   offDelta    Relocation delta relative to old location.
  */
 VMMR3DECL(void) PGMR3Relocate(PVM pVM, RTGCINTPTR offDelta)
@@ -2531,8 +2531,8 @@ static DECLCALLBACK(int) pgmR3RelocateHyperVirtHandler(PAVLROGCPTRNODECORE pNode
 /**
  * Resets a virtual CPU when unplugged.
  *
- * @param   pVM                 Pointer to the VM.
- * @param   pVCpu               Pointer to the VMCPU.
+ * @param   pVM                 The cross context VM structure.
+ * @param   pVCpu               The cross context virtual CPU structure.
  */
 VMMR3DECL(void) PGMR3ResetCpu(PVM pVM, PVMCPU pVCpu)
 {
@@ -2566,7 +2566,7 @@ VMMR3DECL(void) PGMR3ResetCpu(PVM pVM, PVMCPU pVCpu)
  * For the PGM component this means that any PD write monitors
  * needs to be removed.
  *
- * @param   pVM     Pointer to the VM.
+ * @param   pVM     The cross context VM structure.
  */
 VMMR3_INT_DECL(void) PGMR3Reset(PVM pVM)
 {
@@ -2651,7 +2651,7 @@ VMMR3_INT_DECL(void) PGMR3Reset(PVM pVM)
 /**
  * Memory setup after VM construction or reset.
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  * @param   fAtReset    Indicates the context, after reset if @c true or after
  *                      construction if @c false.
  */
@@ -2698,7 +2698,7 @@ VMMR3_INT_DECL(void) PGMR3ResetNoMorePhysWritesFlag(PVM pVM)
  * Terminates the PGM.
  *
  * @returns VBox status code.
- * @param   pVM     Pointer to VM structure.
+ * @param   pVM     The cross context VM structure.
  */
 VMMR3DECL(int) PGMR3Term(PVM pVM)
 {
@@ -2716,7 +2716,7 @@ VMMR3DECL(int) PGMR3Term(PVM pVM)
 /**
  * Show paging mode.
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  * @param   pHlp        The info helpers.
  * @param   pszArgs     "all" (default), "guest", "shadow" or "host".
  */
@@ -2773,7 +2773,7 @@ static DECLCALLBACK(void) pgmR3InfoMode(PVM pVM, PCDBGFINFOHLP pHlp, const char 
 /**
  * Dump registered MMIO ranges to the log.
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  * @param   pHlp        The info helpers.
  * @param   pszArgs     Arguments, ignored.
  */
@@ -2800,7 +2800,7 @@ static DECLCALLBACK(void) pgmR3PhysInfo(PVM pVM, PCDBGFINFOHLP pHlp, const char 
 /**
  * Dump the page directory to the log.
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  * @param   pHlp        The info helpers.
  * @param   pszArgs     Arguments, ignored.
  */
@@ -2855,7 +2855,7 @@ static DECLCALLBACK(void) pgmR3InfoCr3(PVM pVM, PCDBGFINFOHLP pHlp, const char *
  * Service a VMMCALLRING3_PGM_LOCK call.
  *
  * @returns VBox status code.
- * @param   pVM     Pointer to the VM.
+ * @param   pVM     The cross context VM structure.
  */
 VMMR3DECL(int) PGMR3LockCall(PVM pVM)
 {
@@ -2934,7 +2934,7 @@ DECLINLINE(unsigned) pgmModeDataMaxIndex(void)
 /**
  * Initializes the paging mode data kept in PGM::paModeData.
  *
- * @param   pVM             Pointer to the VM.
+ * @param   pVM             The cross context VM structure.
  * @param   fResolveGCAndR0 Indicate whether or not GC and Ring-0 symbols can be resolved now.
  *                          This is used early in the init process to avoid trouble with PDM
  *                          not being initialized yet.
@@ -3146,8 +3146,8 @@ static int pgmR3ModeDataInit(PVM pVM, bool fResolveGCAndR0)
 /**
  * Switch to different (or relocated in the relocate case) mode data.
  *
- * @param   pVM         Pointer to the VM.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVM         The cross context VM structure.
+ * @param   pVCpu       The cross context virtual CPU structure.
  * @param   enmShw      The shadow paging mode.
  * @param   enmGst      The guest paging mode.
  */
@@ -3227,7 +3227,7 @@ static void pgmR3ModeDataSwitch(PVM pVM, PVMCPU pVCpu, PGMMODE enmShw, PGMMODE e
  * Calculates the shadow paging mode.
  *
  * @returns The shadow paging mode.
- * @param   pVM             Pointer to the VM.
+ * @param   pVM             The cross context VM structure.
  * @param   enmGuestMode    The guest mode.
  * @param   enmHostMode     The host mode.
  * @param   enmShadowMode   The current shadow mode.
@@ -3421,8 +3421,8 @@ static PGMMODE pgmR3CalcShadowMode(PVM pVM, PGMMODE enmGuestMode, SUPPAGINGMODE 
  * @returns VBox status code. May suspend or power off the VM on error, but this
  *          will trigger using FFs and not status codes.
  *
- * @param   pVM             Pointer to the VM.
- * @param   pVCpu           Pointer to the VMCPU.
+ * @param   pVM             The cross context VM structure.
+ * @param   pVCpu           The cross context virtual CPU structure.
  * @param   enmGuestMode    The new guest mode. This is assumed to be different from
  *                          the current mode.
  */
@@ -3717,7 +3717,7 @@ VMMR3DECL(int) PGMR3ChangeMode(PVM pVM, PVMCPU pVCpu, PGMMODE enmGuestMode)
  * Called by pgmPoolFlushAllInt prior to flushing the pool.
  *
  * @returns VBox status code, fully asserted.
- * @param   pVCpu   Pointer to the VMCPU.
+ * @param   pVCpu   The cross context virtual CPU structure.
  */
 int pgmR3ExitShadowModeBeforePoolFlush(PVMCPU pVCpu)
 {
@@ -3737,8 +3737,8 @@ int pgmR3ExitShadowModeBeforePoolFlush(PVMCPU pVCpu)
  * Called by pgmPoolFlushAllInt after flushing the pool.
  *
  * @returns VBox status code, fully asserted.
- * @param   pVM     Pointer to the VM.
- * @param   pVCpu   Pointer to the VMCPU.
+ * @param   pVM     The cross context VM structure.
+ * @param   pVCpu   The cross context virtual CPU structure.
  */
 int pgmR3ReEnterShadowModeAfterPoolFlush(PVM pVM, PVMCPU pVCpu)
 {
@@ -3759,7 +3759,7 @@ int pgmR3ReEnterShadowModeAfterPoolFlush(PVM pVM, PVMCPU pVCpu)
 /**
  * Called by PGMR3PhysSetA20 after changing the A20 state.
  *
- * @param   pVCpu   Pointer to the VMCPU.
+ * @param   pVCpu   The cross context virtual CPU structure.
  */
 void pgmR3RefreshShadowModeAfterA20Change(PVMCPU pVCpu)
 {
@@ -4186,7 +4186,7 @@ static DECLCALLBACK(int) pgmR3CheckIntegrityPhysToVirtHandlerNode(PAVLROGCPHYSNO
  *
  * @returns VINF_SUCCESS if everything is fine.
  * @returns VBox error status after asserting on integrity breach.
- * @param   pVM     Pointer to the VM.
+ * @param   pVM     The cross context VM structure.
  */
 VMMR3DECL(int) PGMR3CheckIntegrity(PVM pVM)
 {

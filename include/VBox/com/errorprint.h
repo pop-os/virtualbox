@@ -32,24 +32,23 @@
 
 #include <VBox/com/ErrorInfo.h>
 
+
+/** @defgroup grp_com_error_reporting   Error Reporting
+ * @ingroup grp_com
+ * @{
+ */
+
 namespace com
 {
 
 // shared prototypes; these are defined in shared glue code and are
 // compiled only once for all front-ends
 void GluePrintErrorInfo(const com::ErrorInfo &info);
-void GluePrintErrorContext(const char *pcszContext, const char *pcszSourceFile, uint32_t ulLine);
+void GluePrintErrorContext(const char *pcszContext, const char *pcszSourceFile, uint32_t uLine);
 void GluePrintRCMessage(HRESULT rc);
-void GlueHandleComError(ComPtr<IUnknown> iface,
-                        const char *pcszContext,
-                        HRESULT rc,
-                        const char *pcszSourceFile,
-                        uint32_t ulLine);
-void GlueHandleComErrorProgress(ComPtr<IProgress> progress,
-                                const char *pcszContext,
-                                HRESULT rc,
-                                const char *pcszSourceFile,
-                                uint32_t ulLine);
+void GlueHandleComError(ComPtr<IUnknown> iface, const char *pcszContext, HRESULT rc, const char *pcszSourceFile, uint32_t uLine);
+void GlueHandleComErrorProgress(ComPtr<IProgress> progress, const char *pcszContext, HRESULT rc,
+                                const char *pcszSourceFile, uint32_t uLine);
 
 /**
  * Extended macro that implements all the other CHECK_ERROR2XXX macros.
@@ -238,6 +237,7 @@ void GlueHandleComErrorProgress(ComPtr<IProgress> progress,
  * Simplified version of CHECK_ERROR2_EX that executes the |return (rcRet)|
  * statement after error reporting.
  *
+ * @param   hrc         The result variable (type HRESULT).
  * @param   iface       The interface pointer (can be a smart pointer object).
  * @param   method      The method to invoke together with the parameters.
  * @param   rcRet       What to return on failure.
@@ -360,4 +360,7 @@ void GlueHandleComErrorProgress(ComPtr<IProgress> progress,
     if (1) { ASSERT(expr); if (!(expr)) break; } else do {} while (0)
 
 } /* namespace com */
+
+/** @} */
+
 

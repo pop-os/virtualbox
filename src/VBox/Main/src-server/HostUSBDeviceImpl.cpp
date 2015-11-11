@@ -168,11 +168,7 @@ HRESULT HostUSBDevice::getManufacturer(com::Utf8Str &aManufacturer)
 
     aManufacturer = mUsb->pszManufacturer;
     if (mUsb->pszManufacturer == NULL || mUsb->pszManufacturer[0] == 0)
-    {
-        const char* vendorName = AliasDictionary::findVendor(mUsb->idVendor);
-        if (vendorName)
-            aManufacturer = vendorName;
-    }
+        aManufacturer = USBIdDatabase::findVendor(mUsb->idVendor);
     return S_OK;
 }
 
@@ -183,11 +179,7 @@ HRESULT HostUSBDevice::getProduct(com::Utf8Str &aProduct)
 
     aProduct = mUsb->pszProduct;
     if (mUsb->pszProduct == NULL || mUsb->pszProduct[0] == 0)
-    {
-        const char* productName = AliasDictionary::findProduct(mUsb->idVendor, mUsb->idProduct);
-        if (productName)
-            aProduct = productName;
-    }
+        aProduct = USBIdDatabase::findProduct(mUsb->idVendor, mUsb->idProduct);
     return S_OK;
 }
 
@@ -334,21 +326,26 @@ com::Utf8Str HostUSBDevice::i_getName()
     if (haveManufacturer && haveProduct)
         name = Utf8StrFmt("%s %s", mUsb->pszManufacturer, mUsb->pszProduct);
     else if (haveManufacturer)
-        name = Utf8StrFmt("%s", mUsb->pszManufacturer);
+        name = mUsb->pszManufacturer;
     else if (haveProduct)
-        name = Utf8StrFmt("%s", mUsb->pszProduct);
+        name = mUsb->pszProduct;
     else
     {
-        const char* vendorName = AliasDictionary::findVendor(mUsb->idVendor);
-        const char* productName = AliasDictionary::findProduct(mUsb->idVendor, mUsb->idProduct);
-        if (vendorName && productName)
-        {
-            name = Utf8StrFmt("%s %s", vendorName, productName);
-        }
+        Utf8Str strProduct;
+        Utf8Str strVendor = USBIdDatabase::findVendorAndProduct(mUsb->idVendor, mUsb->idProduct, &strProduct);
+        if (strVendor.isNotEmpty() && strProduct.isNotEmpty())
+            name = Utf8StrFmt("%s %s", strVendor.c_str(), strProduct.c_str());
         else
         {
-            name = "<unknown>";
-            LogRel(("USB: Unknown USB device detected (idVendor: 0x%04x, idProduct: 0x%04x). Please, report the idVendor and idProduct to virtualbox.org.\n", vendorName, productName));
+            LogRel(("USB: Unknown USB device detected (idVendor: 0x%04x, idProduct: 0x%04x). Please, report the idVendor and idProduct to virtualbox.org.\n",
+                    mUsb->idVendor, mUsb->idProduct));
+            if (strVendor.isNotEmpty())
+                name = strVendor;
+            else
+            {
+                Assert(strProduct.isEmpty());
+                name = "<unknown>";
+            }
         }
     }
 

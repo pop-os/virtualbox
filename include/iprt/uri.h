@@ -311,7 +311,7 @@ RTDECL(int) RTUriFileCreateEx(const char *pszPath, uint32_t fPathStyle, char **p
  * @returns the path if the URI contains one, NULL otherwise.
  * @param   pszUri              The URI to extract from.
  * @param   uFormat             In which format should the path returned.
- * @param   cbMax               The max string length to inspect.
+ * @param   cchMax              The max string length to inspect.
  */
 RTDECL(char *) RTUriFilePath(const char *pszUri);
 

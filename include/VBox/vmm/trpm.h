@@ -32,6 +32,7 @@
 
 RT_C_DECLS_BEGIN
 /** @defgroup grp_trpm The Trap Monitor API
+ * @ingroup grp_vmm
  * @{
  */
 
@@ -123,7 +124,7 @@ VMMR3DECL(RTRCPTR)  TRPMR3GetGuestTrapHandler(PVM pVM, unsigned iTrap);
  *
  * @returns VBox status code (appropriate for GC return).
  *          In this context VINF_SUCCESS means to restart the instruction.
- * @param   pVM         VM handle.
+ * @param   pVM         The cross context VM structure.
  * @param   pRegFrame   Trap register frame.
  */
 typedef DECLCALLBACK(int) FNTRPMGCTRAPHANDLER(PVM pVM, PCPUMCTXCORE pRegFrame);

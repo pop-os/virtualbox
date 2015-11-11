@@ -28,6 +28,10 @@
 
 #include "VBox/com/defs.h"
 
+/** @defgroup grp_com   MS COM / XPCOM Abstraction Layer
+ * @{
+ */
+
 namespace com
 {
 
@@ -36,7 +40,7 @@ namespace com
  *  Must be called on the main thread, before any COM activity in any thread, and by any thread
  *  willing to perform COM operations.
  *
- *  @param fMain     if call is performed on the GUI thread
+ *  @param fGui     if call is performed on the GUI thread
  *  @return COM result code
  */
 HRESULT Initialize(bool fGui = false);
@@ -106,5 +110,6 @@ int VBoxLogRelCreate(const char *pcszEntity, const char *pcszLogFile,
 
 } /* namespace com */
 
+/** @} */
 #endif
 

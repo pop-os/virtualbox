@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2013 Oracle Corporation
+ * Copyright (C) 2012-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,47 +15,102 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef __UINetworkReply_h__
-#define __UINetworkReply_h__
+#ifndef ___UINetworkReply_h___
+#define ___UINetworkReply_h___
 
 /* Qt includes: */
 #include <QPointer>
-#include <QNetworkReply>
+#include <QUrl>
 
 /* GUI includes: */
 #include "UINetworkDefs.h"
 
-/* Network-reply interface: */
+/* Forward declarations: */
+class UINetworkReplyPrivate;
+
+/** QObject extension
+  * used as network-reply interface. */
 class UINetworkReply : public QObject
 {
     Q_OBJECT;
 
 signals:
 
-    /* Notifiers: */
+    /** Notifies listeners about reply progress change.
+      * @param  iBytesReceived  Holds the current amount of bytes received.
+      * @param  iBytesTotal     Holds the total amount of bytes to be received. */
     void downloadProgress(qint64 iBytesReceived, qint64 iBytesTotal);
+
+    /** Notifies listeners about reply has finished processing. */
     void finished();
 
 public:
 
-    /* Constructor/destructor: */
-    UINetworkReply(const QNetworkRequest &request, UINetworkRequestType requestType);
+    /** Known error codes.
+      * Came from QtNetwork module.
+      * More to go on demand when necessary. */
+    enum NetworkError
+    {
+        NoError,
+        ConnectionRefusedError,
+        RemoteHostClosedError,
+        HostNotFoundError,
+        OperationCanceledError,
+        SslHandshakeFailedError,
+        ProxyNotFoundError,
+        ContentAccessDenied,
+        AuthenticationRequiredError,
+        ContentReSendError,
+        UnknownNetworkError,
+        ProtocolFailure,
+    };
+
+    /** Known header types.
+      * Came from QtNetwork module.
+      * More to go on demand when necessary. */
+    enum KnownHeader
+    {
+        ContentTypeHeader,
+        ContentLengthHeader,
+        LastModifiedHeader,
+    };
+
+    /** Known attribute types.
+      * Came from QtNetwork module.
+      * More to go on demand when necessary. */
+    enum KnownAttribute
+    {
+        RedirectionTargetAttribute,
+    };
+
+    /** Constructs network-reply of the passed @a type for the passed @a url and @a requestHeaders. */
+    UINetworkReply(UINetworkRequestType type, const QUrl &url, const UserDictionary &requestHeaders);
+    /** Destructs reply. */
     ~UINetworkReply();
 
-    /* API: */
-    QVariant header(QNetworkRequest::KnownHeaders header) const;
-    QVariant attribute(QNetworkRequest::Attribute code) const;
+    /** Aborts reply. */
     void abort();
-    QNetworkReply::NetworkError error() const;
-    QString errorString() const;
-    QByteArray readAll();
+
+    /** Returns the URL of the reply. */
     QUrl url() const;
+
+    /** Returns the last cached error of the reply. */
+    NetworkError error() const;
+    /** Returns the user-oriented string corresponding to the last cached error of the reply. */
+    QString errorString() const;
+
+    /** Returns binary content of the reply. */
+    QByteArray readAll() const;
+    /** Returns value for the cached reply header of the passed @a type. */
+    QVariant header(UINetworkReply::KnownHeader header) const;
+    /** Returns value for the cached reply attribute of the passed @a code. */
+    QVariant attribute(UINetworkReply::KnownAttribute code) const;
 
 private:
 
-    /* Variables: */
-    UINetworkReplyType m_replyType;
-    QPointer<QObject> m_pReply;
+    /** Holds the reply private data instance. */
+    UINetworkReplyPrivate *m_pReply;
 };
 
-#endif // __UINetworkReply_h__
+#endif /* !___UINetworkReply_h___ */
+

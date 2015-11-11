@@ -226,8 +226,8 @@ static void vmmR3FatalDumpInfoHlpDelete(PVMMR3FATALDUMPINFOHLP pHlp)
 /**
  * Dumps the VM state on a fatal error.
  *
- * @param   pVM         Pointer to the VM.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVM         The cross context VM structure.
+ * @param   pVCpu       The cross context virtual CPU structure.
  * @param   rcErr       VBox status code.
  */
 VMMR3DECL(void) VMMR3FatalDump(PVM pVM, PVMCPU pVCpu, int rcErr)
@@ -602,6 +602,7 @@ VMMR3DECL(void) VMMR3FatalDump(PVM pVM, PVMCPU pVCpu, int rcErr)
         case VERR_IEM_INSTR_NOT_IMPLEMENTED:
         case VERR_IEM_ASPECT_NOT_IMPLEMENTED:
         case VERR_PATM_IPE_TRAP_IN_PATCH_CODE:
+        case VERR_EM_GUEST_CPU_HANG:
         {
             DBGFR3Info(pVM->pUVM, "cpumguest", NULL, pHlp);
             DBGFR3Info(pVM->pUVM, "cpumguestinstr", NULL, pHlp);

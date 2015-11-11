@@ -165,10 +165,21 @@ enum
     AC97_6Ch_Vol_C_LFE_Mute        = 0x36,
     AC97_6Ch_Vol_L_R_Surround_Mute = 0x38,
     AC97_Vendor_Reserved           = 0x58,
+    AC97_AD_Misc                   = 0x76,
     AC97_Vendor_ID1                = 0x7c,
     AC97_Vendor_ID2                = 0x7e
 };
 
+/* Codec models. */
+enum {
+    Codec_STAC9700 = 0,     /* SigmaTel STAC9700 */
+    Codec_AD1980,           /* Analog Devices AD1980 */
+    Codec_AD1981B           /* Analog Devices AD1981B */
+};
+
+/* Analog Devices miscellaneous regiter bits used in AD1980. */
+#define AD_MISC_LOSEL       RT_BIT(5)   /* Surround (rear) goes to line out outputs. */
+#define AD_MISC_HPSEL       RT_BIT(10)  /* PCM (front) goes to headphone outputs. */
 
 /*********************************************************************************************************************************
 *   Structures and Typedefs                                                                                                      *
@@ -301,6 +312,8 @@ typedef struct AC97STATE
     R3PTRTYPE(uint8_t *)    pvReadWriteBuf;
     /** Size of the temporary scratch read/write buffer. */
     uint32_t                cbReadWriteBuf;
+    /** Codec model. */
+    uint32_t                uCodecModel;
 } AC97STATE;
 /** Pointer to the AC97 device state. */
 typedef AC97STATE *PAC97STATE;
@@ -500,7 +513,7 @@ static uint16_t ichac97MixerLoad(PAC97STATE pThis, uint32_t i)
 
     if (i + 2 > sizeof(pThis->mixer_data))
     {
-        LogFlowFunc(("mixer_store: index %d out of bounds %d\n", i, sizeof(pThis->mixer_data)));
+        LogFlowFunc(("mixer_load: index %d out of bounds %d\n", i, sizeof(pThis->mixer_data)));
         val = 0xffff;
     }
     else
@@ -541,9 +554,9 @@ static void ichac97OpenStream(PAC97STATE pThis, int index, uint16_t freq)
                         break;
                     }
 
-                    rc = pDrv->pConnector->pfnOpenIn(pDrv->pConnector,
-                                                     pszDesc, PDMAUDIORECSOURCE_LINE_IN, &streamCfg, &pDrv->LineIn.pStrmIn);
-                    LogFlowFunc(("LUN#%RU8: Opened line input with rc=%Rrc\n", uLUN, rc));
+                    rc = pDrv->pConnector->pfnCreateIn(pDrv->pConnector,
+                                                       pszDesc, PDMAUDIORECSOURCE_LINE_IN, &streamCfg, &pDrv->LineIn.pStrmIn);
+                    LogFlowFunc(("LUN#%RU8: Created line input with rc=%Rrc\n", uLUN, rc));
                     if (rc == VINF_SUCCESS) /* Note: Could return VWRN_ALREADY_EXISTS. */
                     {
                         AudioMixerRemoveStream(pThis->pSinkLineIn, pDrv->LineIn.phStrmIn);
@@ -569,8 +582,8 @@ static void ichac97OpenStream(PAC97STATE pThis, int index, uint16_t freq)
                         break;
                     }
 
-                    rc = pDrv->pConnector->pfnOpenOut(pDrv->pConnector, pszDesc, &streamCfg, &pDrv->Out.pStrmOut);
-                    LogFlowFunc(("LUN#%RU8: Opened output with rc=%Rrc\n", uLUN, rc));
+                    rc = pDrv->pConnector->pfnCreateOut(pDrv->pConnector, pszDesc, &streamCfg, &pDrv->Out.pStrmOut);
+                    LogFlowFunc(("LUN#%RU8: Created output with rc=%Rrc\n", uLUN, rc));
                     if (rc == VINF_SUCCESS) /* Note: Could return VWRN_ALREADY_EXISTS. */
                     {
                         AudioMixerRemoveStream(pThis->pSinkOutput, pDrv->Out.phStrmOut);
@@ -596,9 +609,9 @@ static void ichac97OpenStream(PAC97STATE pThis, int index, uint16_t freq)
                         break;
                     }
 
-                    rc = pDrv->pConnector->pfnOpenIn(pDrv->pConnector,
-                                                     pszDesc, PDMAUDIORECSOURCE_MIC, &streamCfg, &pDrv->MicIn.pStrmIn);
-                    LogFlowFunc(("LUN#%RU8: Opened mic input with rc=%Rrc\n", uLUN, rc));
+                    rc = pDrv->pConnector->pfnCreateIn(pDrv->pConnector,
+                                                       pszDesc, PDMAUDIORECSOURCE_MIC, &streamCfg, &pDrv->MicIn.pStrmIn);
+                    LogFlowFunc(("LUN#%RU8: Created mic input with rc=%Rrc\n", uLUN, rc));
                     if (rc == VINF_SUCCESS) /* Note: Could return VWRN_ALREADY_EXISTS. */
                     {
                         AudioMixerRemoveStream(pThis->pSinkMicIn, pDrv->MicIn.phStrmIn);
@@ -628,7 +641,7 @@ static void ichac97OpenStream(PAC97STATE pThis, int index, uint16_t freq)
             {
                 RTListForEach(&pThis->lstDrv, pDrv, AC97DRIVER, Node)
                 {
-                    pDrv->pConnector->pfnCloseIn(pDrv->pConnector, pDrv->LineIn.pStrmIn);
+                    pDrv->pConnector->pfnDestroyIn(pDrv->pConnector, pDrv->LineIn.pStrmIn);
                     AudioMixerRemoveStream(pThis->pSinkLineIn, pDrv->LineIn.phStrmIn);
 
                     pDrv->LineIn.pStrmIn  = NULL;
@@ -643,7 +656,7 @@ static void ichac97OpenStream(PAC97STATE pThis, int index, uint16_t freq)
             {
                 RTListForEach(&pThis->lstDrv, pDrv, AC97DRIVER, Node)
                 {
-                    pDrv->pConnector->pfnCloseOut(pDrv->pConnector, pDrv->Out.pStrmOut);
+                    pDrv->pConnector->pfnDestroyOut(pDrv->pConnector, pDrv->Out.pStrmOut);
                     AudioMixerRemoveStream(pThis->pSinkOutput, pDrv->Out.phStrmOut);
 
                     pDrv->Out.pStrmOut  = NULL;
@@ -658,7 +671,7 @@ static void ichac97OpenStream(PAC97STATE pThis, int index, uint16_t freq)
             {
                 RTListForEach(&pThis->lstDrv, pDrv, AC97DRIVER, Node)
                 {
-                    pDrv->pConnector->pfnCloseIn(pDrv->pConnector, pDrv->MicIn.pStrmIn);
+                    pDrv->pConnector->pfnDestroyIn(pDrv->pConnector, pDrv->MicIn.pStrmIn);
                     AudioMixerRemoveStream(pThis->pSinkMicIn, pDrv->MicIn.phStrmIn);
 
                     pDrv->MicIn.pStrmIn  = NULL;
@@ -830,32 +843,48 @@ static void ichac97RecordSelect(PAC97STATE pThis, uint32_t val)
     ichac97MixerStore(pThis, AC97_Record_Select, rs | (ls << 8));
 }
 
-static void ichac97MixerReset(PAC97STATE pThis)
+static int ichac97MixerReset(PAC97STATE pThis)
 {
+    AssertPtrReturn(pThis, VERR_INVALID_PARAMETER);
+
     LogFlowFuncEnter();
 
     RT_ZERO(pThis->mixer_data);
 
-    PAC97DRIVER pDrv;
-    RTListForEach(&pThis->lstDrv, pDrv, AC97DRIVER, Node)
-    {
-        pDrv->Out.phStrmOut   = NULL;
-        pDrv->LineIn.phStrmIn = NULL;
-        pDrv->MicIn.phStrmIn  = NULL;
-    }
-
-    pThis->pSinkOutput = NULL;
-    pThis->pSinkLineIn = NULL;
-    pThis->pSinkMicIn  = NULL;
-
+    /*
+     * Tear down mixer and streams.
+     */
     if (pThis->pMixer)
     {
         AudioMixerDestroy(pThis->pMixer);
         pThis->pMixer = NULL;
     }
 
-    int rc2 = AudioMixerCreate("AC'97 Mixer", 0 /* uFlags */, &pThis->pMixer);
-    if (RT_SUCCESS(rc2))
+    pThis->pSinkLineIn = NULL;
+    pThis->pSinkMicIn  = NULL;
+    pThis->pSinkOutput = NULL;
+
+    PAC97DRIVER pDrv;
+    RTListForEach(&pThis->lstDrv, pDrv, AC97DRIVER, Node)
+    {
+        pDrv->pConnector->pfnDestroyIn (pDrv->pConnector, pDrv->LineIn.pStrmIn);
+        RT_ZERO(pDrv->LineIn);
+
+        pDrv->pConnector->pfnDestroyIn (pDrv->pConnector, pDrv->MicIn.pStrmIn);
+        RT_ZERO(pDrv->MicIn);
+
+        pDrv->pConnector->pfnDestroyOut(pDrv->pConnector, pDrv->Out.pStrmOut);
+        RT_ZERO(pDrv->Out);
+    }
+
+    /*
+     * (Re-)Create the mixer. The streams will be created on demand later.
+     */
+    int rc = AudioMixerCreate("AC'97 Mixer", 0 /* uFlags */, &pThis->pMixer);
+    if (RT_FAILURE(rc))
+        return rc;
+
+    do
     {
         /* Set a default audio format for our mixer. */
         PDMAUDIOSTREAMCFG streamCfg;
@@ -864,22 +893,26 @@ static void ichac97MixerReset(PAC97STATE pThis)
         streamCfg.enmFormat     = AUD_FMT_S16;
         streamCfg.enmEndianness = PDMAUDIOHOSTENDIANNESS;
 
-        rc2 = AudioMixerSetDeviceFormat(pThis->pMixer, &streamCfg);
-        AssertRC(rc2);
+        rc = AudioMixerSetDeviceFormat(pThis->pMixer, &streamCfg);
+        if (RT_FAILURE(rc))
+            break;
 
         /* Add all required audio sinks. */
-        rc2 = AudioMixerAddSink(pThis->pMixer, "[Playback] PCM Output",
-                               AUDMIXSINKDIR_OUTPUT, &pThis->pSinkOutput);
-        AssertRC(rc2);
+        rc = AudioMixerAddSink(pThis->pMixer, "[Playback] PCM Output", AUDMIXSINKDIR_OUTPUT, &pThis->pSinkOutput);
+        if (RT_FAILURE(rc))
+            break;
 
-        rc2 = AudioMixerAddSink(pThis->pMixer, "[Recording] Line In",
-                                AUDMIXSINKDIR_INPUT, &pThis->pSinkLineIn);
-        AssertRC(rc2);
+        rc = AudioMixerAddSink(pThis->pMixer, "[Recording] Line In", AUDMIXSINKDIR_INPUT, &pThis->pSinkLineIn);
+        if (RT_FAILURE(rc))
+            break;
 
-        rc2 = AudioMixerAddSink(pThis->pMixer, "[Recording] Microphone In",
-                                AUDMIXSINKDIR_INPUT, &pThis->pSinkMicIn);
-        AssertRC(rc2);
-    }
+        rc = AudioMixerAddSink(pThis->pMixer, "[Recording] Microphone In", AUDMIXSINKDIR_INPUT, &pThis->pSinkMicIn);
+        if (RT_FAILURE(rc))
+            break;
+
+    } while (0);
+
+    /* Note: Make sure to reset all registers first before bailing out on error. */
 
     ichac97MixerStore(pThis, AC97_Reset                   , 0x0000); /* 6940 */
     ichac97MixerStore(pThis, AC97_Master_Volume_Mono_Mute , 0x8000);
@@ -902,11 +935,19 @@ static void ichac97MixerReset(PAC97STATE pThis)
     ichac97MixerStore(pThis, AC97_PCM_LR_ADC_Rate         , 0xbb80);
     ichac97MixerStore(pThis, AC97_MIC_ADC_Rate            , 0xbb80);
 
-    if (PCIDevGetSubSystemVendorId(&pThis->PciDev) == 0x1028)
+    if (pThis->uCodecModel == Codec_AD1980)
     {
         /* Analog Devices 1980 (AD1980) */
+        ichac97MixerStore(pThis, AC97_Reset                   , 0x0010);    /* Headphones. */
         ichac97MixerStore(pThis, AC97_Vendor_ID1              , 0x4144);
         ichac97MixerStore(pThis, AC97_Vendor_ID2              , 0x5370);
+        ichac97MixerStore(pThis, AC97_Headphone_Volume_Mute   , 0x8000);
+    }
+    else if (pThis->uCodecModel == Codec_AD1981B)
+    {
+        /* Analog Devices 1981B (AD1981B) */
+        ichac97MixerStore(pThis, AC97_Vendor_ID1              , 0x4144);
+        ichac97MixerStore(pThis, AC97_Vendor_ID2              , 0x5374);
     }
     else
     {
@@ -923,6 +964,8 @@ static void ichac97MixerReset(PAC97STATE pThis)
     /* Reset all streams. */
     uint8_t active[LAST_INDEX] = { 0 };
     ichac97ResetStreams(pThis, active);
+
+    return rc;
 }
 
 /**
@@ -1705,7 +1748,16 @@ static DECLCALLBACK(int) ichac97IOPortNAMWrite(PPDMDEVINS pDevIns,
                     ichac97MixerStore(pThis, index, u32);
                     break;
                 case AC97_Master_Volume_Mute:
+                    if (pThis->uCodecModel == Codec_AD1980)
+                        if (ichac97MixerLoad(pThis, AC97_AD_Misc) & AD_MISC_LOSEL)
+                            break;  /* Register controls surround (rear), do nothing. */
                     ichac97SetVolume(pThis, index, PDMAUDIOMIXERCTL_VOLUME, u32);
+                    break;
+                case AC97_Headphone_Volume_Mute:
+                    if (pThis->uCodecModel == Codec_AD1980)
+                        if (ichac97MixerLoad(pThis, AC97_AD_Misc) & AD_MISC_HPSEL)
+                            /* Register controls PCM (front) outputs. */
+                            ichac97SetVolume(pThis, index, PDMAUDIOMIXERCTL_VOLUME, u32);
                     break;
                 case AC97_PCM_Out_Volume_Mute:
                     ichac97SetVolume(pThis, index, PDMAUDIOMIXERCTL_PCM, u32);
@@ -1907,6 +1959,11 @@ static DECLCALLBACK(int) ichac97LoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, ui
     V_(AC97_PCM_Out_Volume_Mute, PDMAUDIOMIXERCTL_PCM);
     V_(AC97_Line_In_Volume_Mute, PDMAUDIOMIXERCTL_LINE_IN);
 # undef V_
+    if (pThis->uCodecModel == Codec_AD1980)
+        if (ichac97MixerLoad(pThis, AC97_AD_Misc) & AD_MISC_HPSEL)
+            ichac97SetVolume(pThis, AC97_Headphone_Volume_Mute, PDMAUDIOMIXERCTL_VOLUME,
+                             ichac97MixerLoad(pThis, AC97_Headphone_Volume_Mute));
+
     ichac97ResetStreams(pThis, active);
 
     pThis->bup_flag = 0;
@@ -2096,13 +2153,15 @@ static DECLCALLBACK(int) ichac97Construct(PPDMDEVINS pDevIns, int iInstance, PCF
     /*
      * The AD1980 codec (with corresponding PCI subsystem vendor ID) is whitelisted
      * in the Linux kernel; Linux makes no attempt to measure the data rate and assumes
-     * 48 kHz rate, which is exactly what we need.
+     * 48 kHz rate, which is exactly what we need. Same goes for AD1981B.
      */
     bool fChipAD1980 = false;
     if (!strcmp(szCodec, "STAC9700"))
-        fChipAD1980 = false;
+        pThis->uCodecModel = Codec_STAC9700;
     else if (!strcmp(szCodec, "AD1980"))
-        fChipAD1980 = true;
+        pThis->uCodecModel = Codec_AD1980;
+    else if (!strcmp(szCodec, "AD1981B"))
+        pThis->uCodecModel = Codec_AD1981B;
     else
     {
         return PDMDevHlpVMSetError(pDevIns, VERR_PDM_DEVINS_UNKNOWN_CFG_VALUES, RT_SRC_POS,
@@ -2134,10 +2193,15 @@ static DECLCALLBACK(int) ichac97Construct(PPDMDEVINS pDevIns, int iInstance, PCF
     PCIDevSetInterruptLine    (&pThis->PciDev, 0x00);   /* 3c rw. */                       Assert(pThis->PciDev.config[0x3c] == 0x00);
     PCIDevSetInterruptPin     (&pThis->PciDev, 0x01);   /* 3d ro - INTA#. */               Assert(pThis->PciDev.config[0x3d] == 0x01);
 
-    if (fChipAD1980)
+    if (pThis->uCodecModel == Codec_AD1980)
     {
         PCIDevSetSubSystemVendorId(&pThis->PciDev, 0x1028); /* 2c ro - Dell.) */
         PCIDevSetSubSystemId      (&pThis->PciDev, 0x0177); /* 2e ro. */
+    }
+    else if (pThis->uCodecModel == Codec_AD1981B)
+    {
+        PCIDevSetSubSystemVendorId(&pThis->PciDev, 0x1028); /* 2c ro - Dell.) */
+        PCIDevSetSubSystemId      (&pThis->PciDev, 0x01ad); /* 2e ro. */
     }
     else
     {
@@ -2213,31 +2277,24 @@ static DECLCALLBACK(int) ichac97Construct(PPDMDEVINS pDevIns, int iInstance, PCF
         PPDMIAUDIOCONNECTOR pCon = pDrv->pConnector;
         AssertPtr(pCon);
         if (   !pCon->pfnIsInputOK (pCon, pDrv->LineIn.pStrmIn)
-            && !pCon->pfnIsOutputOK(pCon, pDrv->Out.pStrmOut)
-            && !pCon->pfnIsInputOK (pCon, pDrv->MicIn.pStrmIn))
+            && !pCon->pfnIsInputOK (pCon, pDrv->MicIn.pStrmIn)
+            && !pCon->pfnIsOutputOK(pCon, pDrv->Out.pStrmOut))
         {
-            LogRel(("AC97: Falling back to NULL driver\n"));
+            LogRel(("AC97: Falling back to NULL driver (no sound audible)\n"));
+
+            ac97Reset(pDevIns);
 
             /* Was not able initialize *any* stream.
              * Select the NULL audio driver instead. */
-            pCon->pfnCloseIn (pCon, pDrv->LineIn.pStrmIn);
-            pCon->pfnCloseOut(pCon, pDrv->Out.pStrmOut);
-            pCon->pfnCloseIn (pCon, pDrv->MicIn.pStrmIn);
-
-            pDrv->Out.pStrmOut = NULL;
-            pDrv->LineIn.pStrmIn = NULL;
-            pDrv->MicIn.pStrmIn = NULL;
-
             pCon->pfnInitNull(pCon);
-            ac97Reset(pDevIns);
 
             PDMDevHlpVMSetRuntimeError(pDevIns, 0 /*fFlags*/, "HostAudioNotResponding",
                 N_("No audio devices could be opened. Selecting the NULL audio backend "
                    "with the consequence that no sound is audible"));
         }
         else if (   !pCon->pfnIsInputOK (pCon, pDrv->LineIn.pStrmIn)
-                 || !pCon->pfnIsOutputOK(pCon, pDrv->Out.pStrmOut)
-                 || !pCon->pfnIsInputOK (pCon, pDrv->MicIn.pStrmIn))
+                 || !pCon->pfnIsInputOK (pCon, pDrv->MicIn.pStrmIn)
+                 || !pCon->pfnIsOutputOK(pCon, pDrv->Out.pStrmOut))
         {
             char   szMissingStreams[255];
             size_t len = 0;

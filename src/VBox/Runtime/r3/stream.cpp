@@ -89,7 +89,7 @@ typedef struct RTSTREAM
     bool                fCurrentCodeSet;
     /** Whether the stream was opened in binary mode. */
     bool                fBinary;
-    /** Whether to recheck the stream mode before writing.. */
+    /** Whether to recheck the stream mode before writing. */
     bool                fRecheckMode;
 #ifndef HAVE_FWRITE_UNLOCKED
     /** Critical section for serializing access to the stream. */
@@ -157,7 +157,7 @@ RTDATADECL(PRTSTREAM)   g_pStdOut = &g_StdOut;
 /**
  * Allocates and acquires the lock for the stream.
  *
- * @returns IPRT status.
+ * @returns IPRT status code.
  * @param   pStream     The stream (valid).
  */
 static int rtStrmAllocLock(PRTSTREAM pStream)

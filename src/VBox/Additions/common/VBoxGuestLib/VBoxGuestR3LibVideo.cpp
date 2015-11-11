@@ -97,7 +97,8 @@ VBGLR3DECL(int) VbglR3VideoAccelFlush(void)
  * @param   pvImg       Pointer to the image data (can be NULL).
  * @param   cbImg       Size of the image data pointed to by pvImg.
  */
-VBGLR3DECL(int) VbglR3SetPointerShape(uint32_t fFlags, uint32_t xHot, uint32_t yHot, uint32_t cx, uint32_t cy, const void *pvImg, size_t cbImg)
+VBGLR3DECL(int) VbglR3SetPointerShape(uint32_t fFlags, uint32_t xHot, uint32_t yHot, uint32_t cx, uint32_t cy,
+                                      const void *pvImg, size_t cbImg)
 {
     VMMDevReqMousePointer *pReq;
     size_t cbReq = vmmdevGetMousePointerReqSize(cx, cy);
@@ -152,7 +153,7 @@ VBGLR3DECL(int) VbglR3SetPointerShapeReq(VMMDevReqMousePointer *pReq)
  *                      requested (a value of zero means do not change).
  * @param   pcBits      Where to store the bits per pixel requested (a value
  *                      of zero means do not change).
- * @param   iDisplay    Where to store the display number the request was for
+ * @param   piDisplay   Where to store the display number the request was for
  *                      - 0 for the primary display, 1 for the first
  *                      secondary display, etc.
  * @param   fAck        whether or not to acknowledge the newest request sent by
@@ -211,11 +212,10 @@ static int getDisplayChangeRequest2(uint32_t *pcx, uint32_t *pcy,
  *                      Optional.
  * @param   pdy         New vertical position of the secondary monitor.
  *                      Optional.
- * param    pfEnabled   Secondary monitor is enabled or not.
- *                      Optional.
- * param    pfChangeOrigin  Whether the mode hint retrieved included information
- *                      about origin/display offset inside the frame-buffer.
- *                      Optional.
+ * @param   pfEnabled   Secondary monitor is enabled or not. Optional.
+ * @param   pfChangeOrigin  Whether the mode hint retrieved included
+ *                      information about origin/display offset inside the
+ *                      frame-buffer. Optional.
  *
  */
 VBGLR3DECL(int) VbglR3GetDisplayChangeRequest(uint32_t *pcx, uint32_t *pcy,
@@ -228,6 +228,7 @@ VBGLR3DECL(int) VbglR3GetDisplayChangeRequest(uint32_t *pcx, uint32_t *pcy,
 {
     VMMDevDisplayChangeRequestEx Req;
     int rc = VINF_SUCCESS;
+
     AssertPtrReturn(pcx, VERR_INVALID_PARAMETER);
     AssertPtrReturn(pcy, VERR_INVALID_PARAMETER);
     AssertPtrReturn(pcBits, VERR_INVALID_PARAMETER);
@@ -236,6 +237,7 @@ VBGLR3DECL(int) VbglR3GetDisplayChangeRequest(uint32_t *pcx, uint32_t *pcy,
     AssertPtrReturn(piDisplay, VERR_INVALID_PARAMETER);
     AssertPtrNullReturn(pfEnabled, VERR_INVALID_PARAMETER);
     AssertPtrNullReturn(pfChangeOrigin, VERR_INVALID_PARAMETER);
+
     RT_ZERO(Req);
     rc = vmmdevInitRequest(&Req.header, VMMDevReq_GetDisplayChangeRequestEx);
     AssertRCReturn(rc, rc);
@@ -258,7 +260,9 @@ VBGLR3DECL(int) VbglR3GetDisplayChangeRequest(uint32_t *pcx, uint32_t *pcy,
             *pfEnabled = Req.fEnabled;
         if (pfChangeOrigin)
             *pfChangeOrigin = Req.fChangeOrigin;
+        return VINF_SUCCESS;
     }
+
     /* NEEDS TESTING: test below with current Additions on VBox 4.1 or older. */
     /** @todo Can we find some standard grep-able string for "NEEDS TESTING"? */
     if (rc == VERR_NOT_IMPLEMENTED)  /* Fall back to the old API. */
@@ -312,33 +316,40 @@ VBGLR3DECL(int) VbglR3VideoModeGetHighestSavedScreen(unsigned *pcScreen)
 #if defined(VBOX_WITH_GUEST_PROPS)
     using namespace guestProp;
 
-    int rc, rc2 = VERR_UNRESOLVED_ERROR;
-    uint32_t u32ClientId = 0;
-    const char *pszPattern = VIDEO_PROP_PREFIX"*";
+    int rc;
+    HGCMCLIENTID idClient = 0;
     PVBGLR3GUESTPROPENUM pHandle = NULL;
-    const char *pszName;
+    const char *pszName = NULL;
     unsigned cHighestScreen = 0;
 
+    /* Validate input. */
     AssertPtrReturn(pcScreen, VERR_INVALID_POINTER);
-    rc = VbglR3GuestPropConnect(&u32ClientId);
+
+    /* Query the data. */
+    rc = VbglR3GuestPropConnect(&idClient);
     if (RT_SUCCESS(rc))
-        rc = VbglR3GuestPropEnum(u32ClientId, &pszPattern, 1, &pHandle,
-                                 &pszName, NULL, NULL, NULL);
-    if (u32ClientId != 0)
-        rc2 = VbglR3GuestPropDisconnect(u32ClientId);
-    if (RT_SUCCESS(rc))
-        rc = rc2;
-    while (pszName != NULL && RT_SUCCESS(rc))
+    {
+        const char *pszPattern = VIDEO_PROP_PREFIX"*";
+        rc = VbglR3GuestPropEnum(idClient, &pszPattern, 1, &pHandle, &pszName, NULL, NULL, NULL);
+        int rc2 = VbglR3GuestPropDisconnect(idClient);
+        if (RT_FAILURE(rc2) && RT_SUCCESS(rc))
+            rc = rc2;
+    }
+
+    /* Process the data. */
+    while (RT_SUCCESS(rc) && pszName != NULL)
     {
         uint32_t cScreen;
 
-        rc = RTStrToUInt32Full(pszName + sizeof(VIDEO_PROP_PREFIX) - 1, 10,
-                               &cScreen);
+        rc = RTStrToUInt32Full(pszName + sizeof(VIDEO_PROP_PREFIX) - 1, 10, &cScreen);
         if (RT_SUCCESS(rc))  /* There may be similar properties with text. */
             cHighestScreen = RT_MAX(cHighestScreen, cScreen);
         rc = VbglR3GuestPropEnumNext(pHandle, &pszName, NULL, NULL, NULL);
     }
+
     VbglR3GuestPropEnumFree(pHandle);
+
+    /* Return result. */
     if (RT_SUCCESS(rc))
         *pcScreen = cHighestScreen;
     return rc;
@@ -351,7 +362,7 @@ VBGLR3DECL(int) VbglR3VideoModeGetHighestSavedScreen(unsigned *pcScreen)
  * Save video mode parameters to the guest property store.
  *
  * @returns iprt status value
- * @param   cScreen   virtual screen number
+ * @param   idScreen  The virtual screen number.
  * @param   cx        mode width
  * @param   cy        mode height
  * @param   cBits     bits per pixel for the mode
@@ -359,41 +370,39 @@ VBGLR3DECL(int) VbglR3VideoModeGetHighestSavedScreen(unsigned *pcScreen)
  * @param   y         virtual screen Y offset
  * @param   fEnabled  is this virtual screen enabled?
  */
-VBGLR3DECL(int) VbglR3SaveVideoMode(unsigned cScreen, unsigned cx, unsigned cy,
-                                    unsigned cBits, unsigned x, unsigned y,
-                                    bool fEnabled)
+VBGLR3DECL(int) VbglR3SaveVideoMode(unsigned idScreen, unsigned cx, unsigned cy, unsigned cBits,
+                                    unsigned x, unsigned y, bool fEnabled)
 {
 #if defined(VBOX_WITH_GUEST_PROPS)
     using namespace guestProp;
 
-    char szModeName[MAX_NAME_LEN];
-    char szModeParms[MAX_VALUE_LEN];
-    uint32_t u32ClientId = 0;
+    HGCMCLIENTID idClient = 0;
     unsigned cx2, cy2, cBits2, x2, y2, cHighestScreen, cHighestScreen2;
     bool fEnabled2;
-    int rc, rc2 = VERR_UNRESOLVED_ERROR;
+    int rc;
+    int rc2 = VERR_INTERNAL_ERROR;
 
     rc = VbglR3VideoModeGetHighestSavedScreen(&cHighestScreen);
-    RTStrPrintf(szModeName, sizeof(szModeName), VIDEO_PROP_PREFIX"%u", cScreen);
-    RTStrPrintf(szModeParms, sizeof(szModeParms), "%ux%ux%u,%ux%u,%u", cx, cy,
-                cBits, x, y, (unsigned) fEnabled);
     if (RT_SUCCESS(rc))
-        rc = VbglR3GuestPropConnect(&u32ClientId);
+        rc = VbglR3GuestPropConnect(&idClient);
     if (RT_SUCCESS(rc))
     {
-        rc = VbglR3GuestPropWriteValue(u32ClientId, szModeName, szModeParms);
+        char szModeName[MAX_NAME_LEN];
+        char szModeParms[MAX_VALUE_LEN];
+        RTStrPrintf(szModeName, sizeof(szModeName), VIDEO_PROP_PREFIX "%u", idScreen);
+        RTStrPrintf(szModeParms, sizeof(szModeParms), "%ux%ux%u,%ux%u,%u", cx, cy, cBits, x, y, (unsigned) fEnabled);
+
+        rc = VbglR3GuestPropWriteValue(idClient, szModeName, szModeParms);
         /* Write out the mode using the legacy name too, in case the user
          * re-installs older Additions. */
-        if (cScreen == 0)
+        if (idScreen == 0)
         {
-            RTStrPrintf(szModeParms, sizeof(szModeParms), "%ux%ux%u", cx, cy,
-                        cBits);
-            VbglR3GuestPropWriteValue(u32ClientId, VIDEO_PROP_PREFIX"SavedMode",
-                                      szModeParms);
+            RTStrPrintf(szModeParms, sizeof(szModeParms), "%ux%ux%u", cx, cy, cBits);
+            VbglR3GuestPropWriteValue(idClient, VIDEO_PROP_PREFIX "SavedMode", szModeParms);
         }
     }
-    if (u32ClientId != 0)
-        rc2 = VbglR3GuestPropDisconnect(u32ClientId);
+    if (idClient != 0)
+        rc2 = VbglR3GuestPropDisconnect(idClient);
     if (rc == VINF_PERMISSION_DENIED)
         return rc;
     if (RT_SUCCESS(rc))
@@ -402,18 +411,16 @@ VBGLR3DECL(int) VbglR3SaveVideoMode(unsigned cScreen, unsigned cx, unsigned cy,
      * changing saved settings at the same time as us. */
     if (RT_SUCCESS(rc))
     {
-        rc = VbglR3RetrieveVideoMode(cScreen, &cx2, &cy2, &cBits2, &x2, &y2,
-                                     &fEnabled2);
+        rc = VbglR3RetrieveVideoMode(idScreen, &cx2, &cy2, &cBits2, &x2, &y2, &fEnabled2);
         if (   RT_SUCCESS(rc)
-            && (   cx != cx2 || cy != cy2 || cBits != cBits2
-                || x != x2 || y != y2 || fEnabled != fEnabled2))
+            && (cx != cx2 || cy != cy2 || cBits != cBits2 || x != x2 || y != y2 || fEnabled != fEnabled2))
             rc = VERR_WRITE_ERROR;
     }
     /* Sanity check 2.  Same comment. */
     if (RT_SUCCESS(rc))
         rc = VbglR3VideoModeGetHighestSavedScreen(&cHighestScreen2);
     if (RT_SUCCESS(rc))
-        if (cHighestScreen2 != RT_MAX(cHighestScreen, cScreen))
+        if (cHighestScreen2 != RT_MAX(cHighestScreen, idScreen))
             rc = VERR_INTERNAL_ERROR;
     return rc;
 #else /* !VBOX_WITH_GUEST_PROPS */
@@ -426,7 +433,7 @@ VBGLR3DECL(int) VbglR3SaveVideoMode(unsigned cScreen, unsigned cx, unsigned cy,
  * Retrieve video mode parameters from the guest property store.
  *
  * @returns iprt status value
- * @param   cScreen    the virtual screen number
+ * @param   idScreen   The virtual screen number.
  * @param   pcx        where to store the mode width
  * @param   pcy        where to store the mode height
  * @param   pcBits     where to store the bits per pixel for the mode
@@ -434,7 +441,7 @@ VBGLR3DECL(int) VbglR3SaveVideoMode(unsigned cScreen, unsigned cx, unsigned cy,
  * @param   py         where to store the virtual screen Y offset
  * @param   pfEnabled  where to store whether this virtual screen is enabled
  */
-VBGLR3DECL(int) VbglR3RetrieveVideoMode(unsigned cScreen,
+VBGLR3DECL(int) VbglR3RetrieveVideoMode(unsigned idScreen,
                                         unsigned *pcx, unsigned *pcy,
                                         unsigned *pcBits,
                                         unsigned *px, unsigned *py,
@@ -443,15 +450,14 @@ VBGLR3DECL(int) VbglR3RetrieveVideoMode(unsigned cScreen,
 #if defined(VBOX_WITH_GUEST_PROPS)
     using namespace guestProp;
 
-/*
- * First we retrieve the video mode which is saved as a string in the
- * guest property store.
- */
+    /*
+     * First we retrieve the video mode which is saved as a string in the
+     * guest property store.
+     */
     /* The buffer for VbglR3GuestPropReadValue.  If this is too small then
      * something is wrong with the data stored in the property. */
-    char szModeName[MAX_NAME_LEN];
     char szModeParms[1024];
-    uint32_t u32ClientId = 0;
+    HGCMCLIENTID idClient = 0;
     int cMatches;
     unsigned cx, cy, cBits;
     unsigned x = 0;
@@ -460,33 +466,32 @@ VBGLR3DECL(int) VbglR3RetrieveVideoMode(unsigned cScreen,
     int rc;
     int rc2 = VERR_UNRESOLVED_ERROR;
 
-    /** @todo add a VbglR3GuestPropReadValueF/FV that does the RTStrPrintf for you. */
-    RTStrPrintf(szModeName, sizeof(szModeName), VIDEO_PROP_PREFIX"%u", cScreen);
-    rc = VbglR3GuestPropConnect(&u32ClientId);
+    rc = VbglR3GuestPropConnect(&idClient);
     if (RT_SUCCESS(rc))
     {
-        rc = VbglR3GuestPropReadValue(u32ClientId, szModeName, szModeParms,
-                                      sizeof(szModeParms), NULL);
+        /** @todo add a VbglR3GuestPropReadValueF/FV that does the RTStrPrintf for you. */
+        char szModeName[MAX_NAME_LEN];
+        RTStrPrintf(szModeName, sizeof(szModeName), VIDEO_PROP_PREFIX "%u", idScreen);
+        rc = VbglR3GuestPropReadValue(idClient, szModeName, szModeParms, sizeof(szModeParms), NULL);
         /* Try legacy single screen name. */
-        if (rc == VERR_NOT_FOUND && cScreen == 0)
-            rc = VbglR3GuestPropReadValue(u32ClientId,
+        if (rc == VERR_NOT_FOUND && idScreen == 0)
+            rc = VbglR3GuestPropReadValue(idClient,
                                           VIDEO_PROP_PREFIX"SavedMode",
                                           szModeParms, sizeof(szModeParms),
                                           NULL);
     }
-    if (u32ClientId != 0)
-        rc2 = VbglR3GuestPropDisconnect(u32ClientId);
+    if (idClient != 0)
+        rc2 = VbglR3GuestPropDisconnect(idClient);
     if (RT_SUCCESS(rc))
         rc = rc2;
 
-/*
- * Now we convert the string returned to numeric values.
- */
+    /*
+     * Now we convert the string returned to numeric values.
+     */
     if (RT_SUCCESS(rc))
     {
         char c1, c2;
-        cMatches = sscanf(szModeParms, "%5ux%5ux%2u%c%5ux%5u,%1u%c", &cx, &cy, &cBits,
-                          &c1, &x, &y, &fEnabled, &c2);
+        cMatches = sscanf(szModeParms, "%5ux%5ux%2u%c%5ux%5u,%1u%c", &cx, &cy, &cBits, &c1, &x, &y, &fEnabled, &c2);
         if ((cMatches == 7 && c1 == ',') || cMatches == 3)
             rc = VINF_SUCCESS;
         else if (cMatches < 0)
@@ -494,9 +499,10 @@ VBGLR3DECL(int) VbglR3RetrieveVideoMode(unsigned cScreen,
         else
             rc = VERR_PARSE_ERROR;
     }
-/*
- * And clean up and return the values if we successfully obtained them.
- */
+
+    /*
+     * And clean up and return the values if we successfully obtained them.
+     */
     if (RT_SUCCESS(rc))
     {
         if (pcx)

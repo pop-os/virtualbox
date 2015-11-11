@@ -42,12 +42,7 @@ void UIDownloader::sltStartAcknowledging()
     m_state = UIDownloaderState_Acknowledging;
 
     /* Send HEAD requests: */
-    QList<QNetworkRequest> requests;
-    for (int i = 0; i < m_sources.size(); ++i)
-        requests << QNetworkRequest(m_sources[i]);
-
-    /* Create network request set: */
-    createNetworkRequest(requests, UINetworkRequestType_HEAD, tr("Looking for %1...").arg(m_strDescription));
+    createNetworkRequest(UINetworkRequestType_HEAD, m_sources);
 }
 
 /* Downloading start: */
@@ -57,10 +52,7 @@ void UIDownloader::sltStartDownloading()
     m_state = UIDownloaderState_Downloading;
 
     /* Send GET request: */
-    QNetworkRequest request(m_source);
-
-    /* Create network request: */
-    createNetworkRequest(request, UINetworkRequestType_GET, tr("Downloading %1...").arg(m_strDescription));
+    createNetworkRequest(UINetworkRequestType_GET, QList<QUrl>() << m_source);
 }
 
 /* Constructor: */
@@ -70,6 +62,20 @@ UIDownloader::UIDownloader()
     /* Connect listeners: */
     connect(this, SIGNAL(sigToStartAcknowledging()), this, SLOT(sltStartAcknowledging()), Qt::QueuedConnection);
     connect(this, SIGNAL(sigToStartDownloading()), this, SLOT(sltStartDownloading()), Qt::QueuedConnection);
+}
+
+/* virtual override */
+const QString UIDownloader::description() const
+{
+    /* Look for known state: */
+    switch (m_state)
+    {
+        case UIDownloaderState_Acknowledging: return tr("Looking for %1...");
+        case UIDownloaderState_Downloading:   return tr("Downloading %1...");
+        default:                              break;
+    }
+    /* Return null-string by default: */
+    return QString();
 }
 
 /* Network-reply progress handler: */

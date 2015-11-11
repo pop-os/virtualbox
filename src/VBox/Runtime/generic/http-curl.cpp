@@ -149,6 +149,10 @@ typedef struct RTHTTPINTERNAL
     int                 rcOutput;
     /** Download size hint set by the progress callback. */
     uint64_t            cbDownloadHint;
+    /** Callback called during download. */
+    PRTHTTPDOWNLDPROGRCALLBACK pfnDownloadProgress;
+    /** User pointer parameter for pfnDownloadProgress. */
+    void               *pvDownloadProgressUser;
 } RTHTTPINTERNAL;
 /** Pointer to an internal HTTP client instance. */
 typedef RTHTTPINTERNAL *PRTHTTPINTERNAL;
@@ -176,7 +180,7 @@ typedef char          ** (* PFNLIBPROXYFACTORYGETPROXIES)(PLIBPROXYFACTORY, cons
 /*********************************************************************************************************************************
 *   Defined Constants And Macros                                                                                                 *
 *********************************************************************************************************************************/
-/** @def RTHTTP_MAX_MEM_DOWNLOAD
+/** @def RTHTTP_MAX_MEM_DOWNLOAD_SIZE
  * The max size we are allowed to download to a memory buffer.
  *
  * @remarks The minus 1 is for the trailing zero terminator we always add.
@@ -597,7 +601,13 @@ static bool rtHttpUrlInNoProxyList(const char *pszUrl, const char *pszNoProxyLis
 /**
  * Configures a proxy given a "URL" like specification.
  *
- * Format is [<scheme>"://"][<userid>[@<password>]:]<server>[":"<port>].
+ * The format is:
+ * @verbatim
+ *      [<scheme>"://"][<userid>[@<password>]:]<server>[":"<port>]
+ * @endverbatim
+ *
+ * Where the scheme gives the type of proxy server we're dealing with rather
+ * than the protocol of the external server we wish to talk to.
  *
  * @returns IPRT status code.
  * @param   pThis               The HTTP client instance.
@@ -713,7 +723,9 @@ static int rtHttpConfigureProxyForUrlFromEnv(PRTHTTPINTERNAL pThis, const char *
         rc = RTEnvGetEx(RTENV_DEFAULT, pszNoProxyVar, pszNoProxy, cchActual + _1K, NULL);
     }
     AssertMsg(rc == VINF_SUCCESS || rc == VERR_ENV_VAR_NOT_FOUND, ("rc=%Rrc\n", rc));
-    bool fNoProxy = rtHttpUrlInNoProxyList(pszUrl, RTStrStrip(pszNoProxy));
+    bool fNoProxy = false;
+    if (RT_SUCCESS(rc))
+        fNoProxy = rtHttpUrlInNoProxyList(pszUrl, RTStrStrip(pszNoProxy));
     RTMemTmpFree(pszNoProxyFree);
     if (!fNoProxy)
     {
@@ -2114,6 +2126,9 @@ static int rtHttpProgress(void *pData, double rdTotalDownload, double rdDownload
 
     pThis->cbDownloadHint = (uint64_t)rdTotalDownload;
 
+    if (pThis->pfnDownloadProgress)
+        pThis->pfnDownloadProgress(pThis, pThis->pvDownloadProgressUser, (uint64_t)rdTotalDownload, (uint64_t)rdDownloaded);
+
     return pThis->fAbort ? 1 : 0;
 }
 
@@ -2203,6 +2218,16 @@ static int rtHttpApplySettings(PRTHTTPINTERNAL pThis, const char *pszUrl)
         pThis->fHaveSetUserAgent = true;
     }
 
+    /*
+     * Use GET by default.
+     */
+    rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_NOBODY, 0L);
+    if (CURL_FAILURE(rcCurl))
+        return VERR_HTTP_CURL_ERROR;
+    rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_HEADER, 0L);
+    if (CURL_FAILURE(rcCurl))
+        return VERR_HTTP_CURL_ERROR;
+
     return VINF_SUCCESS;
 }
 
@@ -2274,6 +2299,7 @@ static size_t rtHttpWriteData(void *pvBuf, size_t cbUnit, size_t cUnits, void *p
  * @returns IPRT status code.
  * @param   hHttp               The HTTP/HTTPS client instance.
  * @param   pszUrl              The URL.
+ * @param   fNoBody             Set to suppress the body.
  * @param   ppvResponse         Where to return the pointer to the allocated
  *                              response data (RTMemFree).  There will always be
  *                              an zero terminator char after the response, that
@@ -2283,7 +2309,7 @@ static size_t rtHttpWriteData(void *pvBuf, size_t cbUnit, size_t cUnits, void *p
  * @remarks We ASSUME the API user doesn't do concurrent GETs in different
  *          threads, because that will probably blow up!
  */
-static int rtHttpGetToMem(RTHTTP hHttp, const char *pszUrl, uint8_t **ppvResponse, size_t *pcb)
+static int rtHttpGetToMem(RTHTTP hHttp, const char *pszUrl, bool fNoBody, uint8_t **ppvResponse, size_t *pcb)
 {
     PRTHTTPINTERNAL pThis = hHttp;
     RTHTTP_VALID_RETURN(pThis);
@@ -2315,6 +2341,13 @@ static int rtHttpGetToMem(RTHTTP hHttp, const char *pszUrl, uint8_t **ppvRespons
         int rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_WRITEFUNCTION, &rtHttpWriteData);
         if (!CURL_FAILURE(rcCurl))
             rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_WRITEDATA, (void *)pThis);
+        if (fNoBody)
+        {
+            if (!CURL_FAILURE(rcCurl))
+                rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_NOBODY, 1L);
+            if (!CURL_FAILURE(rcCurl))
+                rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_HEADER, 1L);
+        }
         if (!CURL_FAILURE(rcCurl))
         {
             /*
@@ -2348,7 +2381,7 @@ RTR3DECL(int) RTHttpGetText(RTHTTP hHttp, const char *pszUrl, char **ppszNotUtf8
     Log(("RTHttpGetText: hHttp=%p pszUrl=%s\n", hHttp, pszUrl));
     uint8_t *pv;
     size_t   cb;
-    int rc = rtHttpGetToMem(hHttp, pszUrl, &pv, &cb);
+    int rc = rtHttpGetToMem(hHttp, pszUrl, false /*fNoBody*/, &pv, &cb);
     if (RT_SUCCESS(rc))
     {
         if (pv) /* paranoia */
@@ -2362,6 +2395,26 @@ RTR3DECL(int) RTHttpGetText(RTHTTP hHttp, const char *pszUrl, char **ppszNotUtf8
 }
 
 
+RTR3DECL(int) RTHttpGetHeaderText(RTHTTP hHttp, const char *pszUrl, char **ppszNotUtf8)
+{
+    Log(("RTHttpGetText: hHttp=%p pszUrl=%s\n", hHttp, pszUrl));
+    uint8_t *pv;
+    size_t   cb;
+    int rc = rtHttpGetToMem(hHttp, pszUrl, true /*fNoBody*/, &pv, &cb);
+    if (RT_SUCCESS(rc))
+    {
+        if (pv) /* paranoia */
+            *ppszNotUtf8 = (char *)pv;
+        else
+            *ppszNotUtf8 = (char *)RTMemDup("", 1);
+    }
+    else
+        *ppszNotUtf8 = NULL;
+    return rc;
+
+}
+
+
 RTR3DECL(void) RTHttpFreeResponseText(char *pszNotUtf8)
 {
     RTMemFree(pszNotUtf8);
@@ -2371,7 +2424,14 @@ RTR3DECL(void) RTHttpFreeResponseText(char *pszNotUtf8)
 RTR3DECL(int) RTHttpGetBinary(RTHTTP hHttp, const char *pszUrl, void **ppvResponse, size_t *pcb)
 {
     Log(("RTHttpGetBinary: hHttp=%p pszUrl=%s\n", hHttp, pszUrl));
-    return rtHttpGetToMem(hHttp, pszUrl, (uint8_t **)ppvResponse, pcb);
+    return rtHttpGetToMem(hHttp, pszUrl, false /*fNoBody*/, (uint8_t **)ppvResponse, pcb);
+}
+
+
+RTR3DECL(int) RTHttpGetHeaderBinary(RTHTTP hHttp, const char *pszUrl, void **ppvResponse, size_t *pcb)
+{
+    Log(("RTHttpGetBinary: hHttp=%p pszUrl=%s\n", hHttp, pszUrl));
+    return rtHttpGetToMem(hHttp, pszUrl, true /*fNoBody*/, (uint8_t **)ppvResponse, pcb);
 }
 
 
@@ -2453,3 +2513,13 @@ RTR3DECL(int) RTHttpGetFile(RTHTTP hHttp, const char *pszUrl, const char *pszDst
     return rc;
 }
 
+
+RTR3DECL(int) RTHttpSetDownloadProgressCallback(RTHTTP hHttp, PRTHTTPDOWNLDPROGRCALLBACK pfnDownloadProgress, void *pvUser)
+{
+    PRTHTTPINTERNAL pThis = hHttp;
+    RTHTTP_VALID_RETURN(pThis);
+
+    pThis->pfnDownloadProgress = pfnDownloadProgress;
+    pThis->pvDownloadProgressUser = pvUser;
+    return VINF_SUCCESS;
+}

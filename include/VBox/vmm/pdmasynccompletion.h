@@ -95,7 +95,7 @@ typedef FNPDMASYNCCOMPLETEUSB *PFNPDMASYNCCOMPLETEUSB;
 /**
  * Completion callback for internal.
  *
- * @param   pVM         Pointer to the shared VM structure.
+ * @param   pVM         The cross context VM structure.
  * @param   pvUser      User argument for the task.
  * @param   pvUser2     User argument for the template.
  * @param   rc          The status code of the completed request.
@@ -104,7 +104,8 @@ typedef DECLCALLBACK(void) FNPDMASYNCCOMPLETEINT(PVM pVM, void *pvUser, void *pv
 /** Pointer to a FNPDMASYNCCOMPLETEINT(). */
 typedef FNPDMASYNCCOMPLETEINT *PFNPDMASYNCCOMPLETEINT;
 
-VMMR3DECL(int) PDMR3AsyncCompletionTemplateCreateInternal(PVM pVM, PPPDMASYNCCOMPLETIONTEMPLATE ppTemplate, PFNPDMASYNCCOMPLETEINT pfnCompleted, void *pvUser2, const char *pszDesc);
+VMMR3DECL(int) PDMR3AsyncCompletionTemplateCreateInternal(PVM pVM, PPPDMASYNCCOMPLETIONTEMPLATE ppTemplate,
+                                                          PFNPDMASYNCCOMPLETEINT pfnCompleted, void *pvUser2, const char *pszDesc);
 VMMR3DECL(int) PDMR3AsyncCompletionTemplateDestroy(PPDMASYNCCOMPLETIONTEMPLATE pTemplate);
 VMMR3DECL(int) PDMR3AsyncCompletionEpCreateForFile(PPPDMASYNCCOMPLETIONENDPOINT ppEndpoint,
                                                    const char *pszFilename, uint32_t fFlags,

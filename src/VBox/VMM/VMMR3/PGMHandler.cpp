@@ -71,7 +71,7 @@ static DECLCALLBACK(int) pgmR3InfoHandlersVirtualOne(PAVLROGCPTRNODECORE pNode, 
  * Register a physical page access handler type, extended version.
  *
  * @returns VBox status code.
- * @param   pVM             Pointer to the cross context VM structure.
+ * @param   pVM             The cross context VM structure.
  * @param   enmKind         The kind of access handler.
  * @param   pfnHandlerR3    Pointer to the ring-3 handler callback.
  * @param   pfnHandlerR0    Pointer to the ring-0 handler callback.
@@ -136,15 +136,19 @@ VMMR3_INT_DECL(int) PGMR3HandlerPhysicalTypeRegisterEx(PVM pVM, PGMPHYSHANDLERKI
  * Register a physical page access handler type.
  *
  * @returns VBox status code.
- * @param   pVM             Pointer to the cross context VM structure.
+ * @param   pVM             The cross context VM structure.
  * @param   enmKind         The kind of access handler.
  * @param   pfnHandlerR3    Pointer to the ring-3 handler callback.
  * @param   pszModR0        The name of the ring-0 module, NULL is an alias for
  *                          the main ring-0 module.
+ * @param   pszHandlerR0    The name of the ring-0 handler, NULL if the ring-3
+ *                          handler should be called.
  * @param   pszPfHandlerR0  The name of the ring-0 \#PF handler, NULL if the
  *                          ring-3 handler should be called.
  * @param   pszModRC        The name of the raw-mode context module, NULL is an
  *                          alias for the main RC module.
+ * @param   pszHandlerRC    The name of the raw-mode context handler, NULL if
+ *                          the ring-3 handler should be called.
  * @param   pszPfHandlerRC  The name of the raw-mode context \#PF handler, NULL
  *                          if the ring-3 handler should be called.
  * @param   pszDesc         The type description.
@@ -226,7 +230,7 @@ VMMR3DECL(int) PGMR3HandlerPhysicalTypeRegister(PVM pVM, PGMPHYSHANDLERKIND enmK
 /**
  * Updates the physical page access handlers.
  *
- * @param   pVM     Pointer to the VM.
+ * @param   pVM     The cross context VM structure.
  * @remark  Only used when restoring a saved state.
  */
 void pgmR3HandlerPhysicalUpdateAll(PVM pVM)
@@ -311,7 +315,7 @@ static DECLCALLBACK(int) pgmR3HandlerPhysicalOneSet(PAVLROGCPHYSNODECORE pNode, 
  * Register a virtual page access handler type, extended version.
  *
  * @returns VBox status code.
- * @param   pVM             Pointer to the cross context VM structure.
+ * @param   pVM             The cross context VM structure.
  * @param   enmKind         The kind of access handler.
  * @param   fRelocUserRC    Whether the pvUserRC argument should be
  *                          automatically relocated or not.
@@ -387,7 +391,7 @@ VMMR3_INT_DECL(int) PGMR3HandlerVirtualTypeRegisterEx(PVM pVM, PGMVIRTHANDLERKIN
  * Register a physical page access handler type.
  *
  * @returns VBox status code.
- * @param   pVM             Pointer to the cross context VM structure.
+ * @param   pVM             The cross context VM structure.
  * @param   enmKind         The kind of access handler.
  * @param   fRelocUserRC    Whether the pvUserRC argument should be
  *                          automatically relocated or not.
@@ -447,7 +451,7 @@ VMMR3_INT_DECL(int) PGMR3HandlerVirtualTypeRegister(PVM pVM, PGMVIRTHANDLERKIND 
  * Register a access handler for a virtual range.
  *
  * @returns VBox status code.
- * @param   pVM             Pointer to the VM.
+ * @param   pVM             The cross context VM structure.
  * @param   hType           The handler type.
  * @param   GCPtr           Start address.
  * @param   GCPtrLast       Last address (inclusive).
@@ -580,7 +584,7 @@ VMMR3_INT_DECL(int) PGMR3HandlerVirtualRegister(PVM pVM, PVMCPU pVCpu, PGMVIRTHA
  * The new and old type must have the same access kind.
  *
  * @returns VBox status code.
- * @param   pVM             Pointer to the VM.
+ * @param   pVM             The cross context VM structure.
  * @param   GCPtr           Start address of the virtual handler.
  * @param   hNewType        The new handler type.
  */
@@ -615,9 +619,9 @@ VMMR3_INT_DECL(int) PGMHandlerVirtualChangeType(PVM pVM, RTGCPTR GCPtr, PGMVIRTH
  * Deregister an access handler for a virtual range.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
- * @param   pVCpu       Pointer to the cross context CPU structure for the
- *                      calling EMT.
+ * @param   pVM         The cross context VM structure.
+ * @param   pVCpu       The cross context virtual CPU structure of the calling
+ *                      EMT.
  * @param   GCPtr       Start address.
  * @param   fHypervisor Set if PGMVIRTHANDLERKIND_HYPERVISOR, false if not.
  * @thread  EMT(pVCpu)
@@ -695,6 +699,7 @@ typedef struct PGMHANDLERINFOARG
 /**
  * Info callback for 'pgmhandlers'.
  *
+ * @param   pVM         The cross context VM structure.
  * @param   pHlp        The output helpers.
  * @param   pszArgs     The arguments. phys or virt.
  */

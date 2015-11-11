@@ -163,6 +163,12 @@ private slots:
 
 private:
 
+    /** Returns description of the current network operation. */
+    virtual const QString description() const
+    {
+        return tr("Checking for a new VirtualBox version...");
+    }
+
     /* Prepare network request: */
     void prepareNetworkRequest()
     {
@@ -189,10 +195,9 @@ private:
         QString strUserAgent(QString("VirtualBox %1 <%2>").arg(vboxGlobal().virtualBox().GetVersion()).arg(platformInfo()));
 
         /* Send GET request: */
-        QNetworkRequest request;
-        request.setUrl(url);
-        request.setRawHeader("User-Agent", strUserAgent.toAscii());
-        createNetworkRequest(request, UINetworkRequestType_GET_Our, tr("Checking for a new VirtualBox version..."));
+        UserDictionary headers;
+        headers["User-Agent"] = strUserAgent;
+        createNetworkRequest(UINetworkRequestType_GET, QList<QUrl>() << url, headers);
     }
 
     /* Handle network reply canceled: */

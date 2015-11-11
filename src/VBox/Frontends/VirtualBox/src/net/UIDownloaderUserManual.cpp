@@ -57,9 +57,6 @@ UIDownloaderUserManual::UIDownloaderUserManual()
     if (!m_spInstance)
         m_spInstance = this;
 
-    /* Set description: */
-    setDescription(tr("VirtualBox User Manual"));
-
     /* Compose User Manual filename: */
     QString strUserManualFullFileName = vboxGlobal().helpFile();
     QString strUserManualShortFileName = QFileInfo(strUserManualFullFileName).fileName();
@@ -80,9 +77,15 @@ UIDownloaderUserManual::~UIDownloaderUserManual()
         m_spInstance = 0;
 }
 
+/* virtual override */
+const QString UIDownloaderUserManual::description() const
+{
+    return UIDownloader::description().arg(tr("VirtualBox User Manual"));
+}
+
 bool UIDownloaderUserManual::askForDownloadingConfirmation(UINetworkReply *pReply)
 {
-    return msgCenter().confirmDownloadUserManual(source().toString(), pReply->header(QNetworkRequest::ContentLengthHeader).toInt());
+    return msgCenter().confirmDownloadUserManual(source().toString(), pReply->header(UINetworkReply::ContentLengthHeader).toInt());
 }
 
 void UIDownloaderUserManual::handleDownloadedObject(UINetworkReply *pReply)

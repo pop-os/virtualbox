@@ -57,6 +57,7 @@ RT_C_DECLS_END
  */
 static struct pa_threaded_mainloop *g_pMainLoop;
 static struct pa_context           *g_pContext;
+static volatile bool                g_fAbortMainLoop;
 
 /**
  * Host Pulse audio driver instance data.
@@ -128,6 +129,16 @@ static PULSEAUDIOCFG s_pulseCfg =
 
 static int  drvHostPulseAudioError(PDRVHOSTPULSEAUDIO pThis, const char *szMsg);
 static void drvHostPulseAudioCbSuccess(pa_stream *pStream, int fSuccess, void *pvContext);
+
+/**
+ * Signal the main loop to abort. Just signalling isn't sufficient as the
+ * mainloop might not have been entered yet.
+ */
+static void drvHostPulseAudioAbortMainLoop(void)
+{
+    g_fAbortMainLoop = true;
+    pa_threaded_mainloop_signal(g_pMainLoop, 0);
+}
 
 static pa_sample_format_t drvHostPulseAudioFmtToPulse(PDMAUDIOFMT fmt)
 {
@@ -204,13 +215,13 @@ static int drvHostPulseAudioWaitFor(pa_operation *pOP, RTMSINTERVAL cMsTimeout)
     if (pOP)
     {
         uint64_t u64StartMs = RTTimeMilliTS();
-        uint64_t u64ElapsedMs;
-
         while (pa_operation_get_state(pOP) == PA_OPERATION_RUNNING)
         {
-            pa_threaded_mainloop_wait(g_pMainLoop);
+            if (!g_fAbortMainLoop)
+                pa_threaded_mainloop_wait(g_pMainLoop);
+            g_fAbortMainLoop = false;
 
-            u64ElapsedMs = RTTimeMilliTS() - u64StartMs;
+            uint64_t u64ElapsedMs = RTTimeMilliTS() - u64StartMs;
             if (u64ElapsedMs >= cMsTimeout)
             {
                 rc = VERR_TIMEOUT;
@@ -227,23 +238,21 @@ static int drvHostPulseAudioWaitFor(pa_operation *pOP, RTMSINTERVAL cMsTimeout)
 /**
  * Context status changed.
  */
-static void drvHostPulseAudioCbCtxState(pa_context *pContext, void *pvContext)
+static void drvHostPulseAudioCbCtxState(pa_context *pContext, void *pvUser)
 {
     AssertPtrReturnVoid(pContext);
-
-    PPULSEAUDIOSTREAM pStrm = (PPULSEAUDIOSTREAM)pvContext;
-    NOREF(pStrm);
+    NOREF(pvUser);
 
     switch (pa_context_get_state(pContext))
     {
         case PA_CONTEXT_READY:
         case PA_CONTEXT_TERMINATED:
-            pa_threaded_mainloop_signal(g_pMainLoop, 0);
+            drvHostPulseAudioAbortMainLoop();
             break;
 
         case PA_CONTEXT_FAILED:
             LogRel(("PulseAudio: Audio input/output stopped!\n"));
-            pa_threaded_mainloop_signal(g_pMainLoop, 0);
+            drvHostPulseAudioAbortMainLoop();
             break;
 
         default:
@@ -287,7 +296,7 @@ static void drvHostPulseAudioCbStreamState(pa_stream *pStream, void *pvContext)
         case PA_STREAM_READY:
         case PA_STREAM_FAILED:
         case PA_STREAM_TERMINATED:
-            pa_threaded_mainloop_signal(g_pMainLoop, 0 /* fWait */);
+            drvHostPulseAudioAbortMainLoop();
             break;
 
         default:
@@ -305,11 +314,9 @@ static void drvHostPulseAudioCbSuccess(pa_stream *pStream, int fSuccess, void *p
     pStrm->fOpSuccess = fSuccess;
 
     if (fSuccess)
-    {
-        pa_threaded_mainloop_signal(g_pMainLoop, 0 /* fWait */);
-    }
+        drvHostPulseAudioAbortMainLoop();
     else
-         drvHostPulseAudioError(pStrm->pDrv, "Failed to finish stream operation");
+        drvHostPulseAudioError(pStrm->pDrv, "Failed to finish stream operation");
 }
 
 static int drvHostPulseAudioOpen(bool fIn, const char *pszName,
@@ -392,12 +399,13 @@ static int drvHostPulseAudioOpen(bool fIn, const char *pszName,
         }
 
         /* Wait until the stream is ready. */
-        pa_stream_state_t sstate;
         for (;;)
         {
-            pa_threaded_mainloop_wait(g_pMainLoop);
+            if (!g_fAbortMainLoop)
+                pa_threaded_mainloop_wait(g_pMainLoop);
+            g_fAbortMainLoop = false;
 
-            sstate = pa_stream_get_state(pStream);
+            pa_stream_state_t sstate = pa_stream_get_state(pStream);
             if (sstate == PA_STREAM_READY)
                 break;
             else if (   sstate == PA_STREAM_FAILED
@@ -424,17 +432,17 @@ static int drvHostPulseAudioOpen(bool fIn, const char *pszName,
             LogFunc(("Obtained playback buffer attributes: maxlength=%d, tlength=%d, prebuf=%d, minreq=%d\n",
                      pBufAttr->maxlength, pBufAttr->tlength, pBufAttr->prebuf, pBufAttr->minreq));
 
-        pa_threaded_mainloop_unlock(g_pMainLoop);
     }
     while (0);
 
+    if (   RT_FAILURE(rc)
+        && pStream)
+        pa_stream_disconnect(pStream);
+
+    pa_threaded_mainloop_unlock(g_pMainLoop);
+
     if (RT_FAILURE(rc))
     {
-        if (pStream)
-            pa_stream_disconnect(pStream);
-
-        pa_threaded_mainloop_unlock(g_pMainLoop);
-
         if (pStream)
             pa_stream_unref(pStream);
     }
@@ -486,6 +494,7 @@ static DECLCALLBACK(int) drvHostPulseAudioInit(PPDMIHOSTAUDIO pInterface)
             break;
         }
 
+        g_fAbortMainLoop = false;
         pa_context_set_state_callback(g_pContext, drvHostPulseAudioCbCtxState, NULL);
         pa_threaded_mainloop_lock(g_pMainLoop);
         fLocked = true;
@@ -502,10 +511,11 @@ static DECLCALLBACK(int) drvHostPulseAudioInit(PPDMIHOSTAUDIO pInterface)
         /* Wait until the g_pContext is ready */
         for (;;)
         {
-            pa_context_state_t cstate;
-            pa_threaded_mainloop_wait(g_pMainLoop);
+            if (!g_fAbortMainLoop)
+                pa_threaded_mainloop_wait(g_pMainLoop);
+            g_fAbortMainLoop = false;
 
-            cstate = pa_context_get_state(g_pContext);
+            pa_context_state_t cstate = pa_context_get_state(g_pContext);
             if (cstate == PA_CONTEXT_READY)
                 break;
             else if (   cstate == PA_CONTEXT_TERMINATED
@@ -516,21 +526,16 @@ static DECLCALLBACK(int) drvHostPulseAudioInit(PPDMIHOSTAUDIO pInterface)
                 break;
             }
         }
-
-        pa_threaded_mainloop_unlock(g_pMainLoop);
     }
     while (0);
+
+    if (fLocked)
+        pa_threaded_mainloop_unlock(g_pMainLoop);
 
     if (RT_FAILURE(rc))
     {
         if (g_pMainLoop)
-        {
-            if (fLocked)
-                pa_threaded_mainloop_unlock(g_pMainLoop);
-
-            if (g_pMainLoop)
-                pa_threaded_mainloop_stop(g_pMainLoop);
-        }
+            pa_threaded_mainloop_stop(g_pMainLoop);
 
         if (g_pContext)
         {

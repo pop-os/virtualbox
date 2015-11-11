@@ -28,11 +28,11 @@
 #ifndef	___VBoxFS_prov_Solaris_h
 #define	___VBoxFS_prov_Solaris_h
 
+#include <VBox/VBoxGuestLibSharedFolders.h>
+
 #ifdef	__cplusplus
 extern "C" {
 #endif
-
-#include "../../common/VBoxGuestLib/VBoxGuestR0LibSharedFolders.h"
 
 
 /*
@@ -69,13 +69,13 @@ extern void sfprov_disconnect(sfp_connection_t *);
  * spf_mount_t is the representation of an active mount point.
  */
 typedef struct spf_mount_t {
-	VBSFMAP		map;		/* guest<->host mapping */
-	uid_t		sf_uid;		/* owner of the mount point */
-	gid_t		sf_gid;		/* group of the mount point */
-	mode_t		sf_dmode;   /* mode of all directories if != ~0U */
-	mode_t		sf_fmode;   /* mode of all files if != ~0U */
-	mode_t		sf_dmask;   /* mask of all directories */
-	mode_t		sf_fmask;   /* mask of all files */
+	VBGLSFMAP	map;		/**< guest<->host mapping */
+	uid_t		sf_uid;		/**< owner of the mount point */
+	gid_t		sf_gid;		/**< group of the mount point */
+	mode_t		sf_dmode;   /**< mode of all directories if != ~0U */
+	mode_t		sf_fmode;   /**< mode of all files if != ~0U */
+	mode_t		sf_dmask;   /**< mask of all directories */
+	mode_t		sf_fmask;   /**< mask of all files */
 } sfp_mount_t;
 
 extern int sfprov_mount(sfp_connection_t *, char *, sfp_mount_t **);

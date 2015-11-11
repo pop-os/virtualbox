@@ -4133,11 +4133,11 @@
     <name>UIGlobalSettingsProxy</name>
     <message>
         <source>When checked, VirtualBox will use the proxy settings supplied for tasks like downloading Guest Additions from the network or checking for updates.</source>
-        <translation>Als dit is ingesteld zal VirtualBox de proxy-instellingen gebruiken voor taken als downloaden van Guest Additions van het netwerk of controleren op updates.</translation>
+        <translation type="obsolete">Als dit is ingesteld zal VirtualBox de proxy-instellingen gebruiken voor taken als downloaden van Guest Additions van het netwerk of controleren op updates.</translation>
     </message>
     <message>
         <source>&amp;Enable Proxy</source>
-        <translation>Proxy insch&amp;akelen</translation>
+        <translation type="obsolete">Proxy insch&amp;akelen</translation>
     </message>
     <message>
         <source>Ho&amp;st:</source>
@@ -4194,6 +4194,30 @@
     <message>
         <source>Holds the proxy port.</source>
         <translation>Bevat de proxypoort.</translation>
+    </message>
+    <message>
+        <source>When chosen, VirtualBox will try to auto-detect host proxy settings for tasks like downloading Guest Additions from the network or checking for updates.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Auto-detect Host Proxy Settings</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>When chosen, VirtualBox will use direct Internet connection for tasks like downloading Guest Additions from the network or checking for updates.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Direct Connection to the Internet</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>When chosen, VirtualBox will use the proxy settings supplied for tasks like downloading Guest Additions from the network or checking for updates.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Manual Proxy Configuration</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -8683,6 +8707,14 @@
         <source>Encryption password for &lt;nobr&gt;ID = &apos;%1&apos;&lt;/nobr&gt; is invalid.</source>
         <translation>Ongeldig versleutelwachtwoord voor &lt;nobr&gt;ID = &apos;%1&apos;&lt;/nobr&gt;.</translation>
     </message>
+    <message>
+        <source>The current port forwarding rules are not valid. All of the host or guest address values should be correct or empty.</source>
+        <translation>De huidige regels voor het doorverwijzen van poorten zijn niet geldig. Alle host- of gast-adreswaarden moeten of geldig, of leeg zijn.</translation>
+    </message>
+    <message>
+        <source>The current port forwarding rules are not valid. None of the guest address values may be empty.</source>
+        <translation>De huidige regels voor het doorverwijzen van poorten zijn niet geldig. Geen van de gast-adreswaarden mag leeg zijn..</translation>
+    </message>
 </context>
 <context>
     <name>UIMiniProcessWidgetUserManual</name>
@@ -8862,6 +8894,42 @@
     <message>
         <source>Unknown reason</source>
         <translation>Reden onbekend</translation>
+    </message>
+    <message>
+        <source>%1: %2</source>
+        <comment>Context description: Error description</comment>
+        <translation>%1: %2</translation>
+    </message>
+    <message>
+        <source>Unable to initialize HTTP library</source>
+        <translation>Niet in staat de HTTP-bibliotheek te initialiseren</translation>
+    </message>
+    <message>
+        <source>Connection refused</source>
+        <translation>Verbinding geweigerd</translation>
+    </message>
+    <message>
+        <source>Content moved</source>
+        <translation>Inhoud verplaatst</translation>
+    </message>
+    <message>
+        <source>Proxy not found</source>
+        <translation>Proxy niet gevonden</translation>
+    </message>
+</context>
+<context>
+    <name>UINetworkReplyPrivateThread</name>
+    <message>
+        <source>During proxy configuration</source>
+        <translation>Tijdens proxy configuratie</translation>
+    </message>
+    <message>
+        <source>During certificate downloading</source>
+        <translation>Tijdens downloaden certificaat</translation>
+    </message>
+    <message>
+        <source>During network request</source>
+        <translation>Tijdens netwerkverzoek</translation>
     </message>
 </context>
 <context>

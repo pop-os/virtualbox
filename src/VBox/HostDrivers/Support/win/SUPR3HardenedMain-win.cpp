@@ -312,7 +312,7 @@ static PVERIFIERCACHEENTRY  volatile g_pVerifierCacheTodoWvt = NULL;
 static PVERIFIERCACHEIMPORT volatile g_pVerifierCacheTodoImports = NULL;
 
 /** The windows path to dir \\SystemRoot\\System32 directory (technically
- *  this whatever \KnownDlls\KnownDllPath points to). */
+ *  this whatever \\KnownDlls\\KnownDllPath points to). */
 SUPSYSROOTDIRBUF            g_System32WinPath;
 /** @ */
 
@@ -2957,7 +2957,7 @@ DECLINLINE(bool) suplibCommandLineIsArgSeparator(int ch)
  * argument.
  *
  * @returns Pointer to a command line string (heap).
- * @param   pUniStr         Unicode string structure to initialize to the
+ * @param   pString         Unicode string structure to initialize to the
  *                          command line. Optional.
  * @param   iWhich          Which respawn we're to check for, 1 being the first
  *                          one, and 2 the second and final.
@@ -3748,7 +3748,7 @@ static void supR3HardNtChildFindNtdll(PSUPR3HARDNTCHILD pThis)
 /**
  * Gather child data.
  *
- * @param   This                The child process data structure.
+ * @param   pThis               The child process data structure.
  */
 static void supR3HardNtChildGatherData(PSUPR3HARDNTCHILD pThis)
 {
@@ -5098,11 +5098,11 @@ static void supR3HardenedLogFileInfo(PCRTUTF16 pwszFile, bool fAdversarial)
  *
  * @returns Mask of SUPHARDNT_ADVERSARY_XXX flags.
  *
- * @remarks The enumeration of \Driver normally requires administrator
+ * @remarks The enumeration of \\Driver normally requires administrator
  *          privileges.  So, the detection we're doing here isn't always gonna
  *          work just based on that.
  *
- * @todo    Find drivers in \FileSystems as well, then we could detect VrNsdDrv
+ * @todo    Find drivers in \\FileSystems as well, then we could detect VrNsdDrv
  *          from ViRobot APT Shield 2.0.
  */
 static uint32_t supR3HardenedWinFindAdversaries(void)

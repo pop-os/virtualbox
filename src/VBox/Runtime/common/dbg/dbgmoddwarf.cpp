@@ -590,7 +590,7 @@ typedef RTDWARFLINESTATE *PRTDWARFLINESTATE;
  * @param   pbMember        Pointer to the first byte in the member.
  * @param   pDesc           The attribute descriptor.
  * @param   uForm           The data form.
- * @param   pDataCursor     The cursor to read data from.
+ * @param   pCursor         The cursor to read data from.
  */
 typedef DECLCALLBACK(int) FNRTDWARFATTRDECODER(PRTDWARFDIE pDie, uint8_t *pbMember, PCRTDWARFATTRDESC pDesc,
                                                uint32_t uForm, PRTDWARFCURSOR pCursor);
@@ -1975,7 +1975,7 @@ static uint8_t rtDwarfCursor_GetUByte(PRTDWARFCURSOR pCursor, uint8_t uErrValue)
  * @returns The number. On error RTDWARFCURSOR::rc is set and @a
  *          uErrValue is returned.
  * @param   pCursor             The cursor.
- * @param   uErrValue           What to return on error.
+ * @param   iErrValue           What to return on error.
  */
 static int8_t rtDwarfCursor_GetSByte(PRTDWARFCURSOR pCursor, int8_t iErrValue)
 {
@@ -2136,8 +2136,8 @@ static int rtDwarfCursor_AdvanceToPos(PRTDWARFCURSOR pCursor, uint8_t const *pbN
 /**
  * Check if the cursor is at the end of the current DWARF unit.
  *
- * @retval  @c true if at the end or a cursor error is pending.
- * @retval  @c false if not.
+ * @retval  true if at the end or a cursor error is pending.
+ * @retval  false if not.
  * @param   pCursor             The cursor.
  */
 static bool rtDwarfCursor_IsAtEndOfUnit(PRTDWARFCURSOR pCursor)
@@ -2165,8 +2165,8 @@ static int rtDwarfCursor_SkipUnit(PRTDWARFCURSOR pCursor)
  * Check if the cursor is at the end of the section (or whatever the cursor is
  * processing).
  *
- * @retval  @c true if at the end or a cursor error is pending.
- * @retval  @c false if not.
+ * @retval  true if at the end or a cursor error is pending.
+ * @retval  false if not.
  * @param   pCursor             The cursor.
  */
 static bool rtDwarfCursor_IsAtEnd(PRTDWARFCURSOR pCursor)
@@ -4014,7 +4014,7 @@ static PRTDWARFDIE rtDwarfInfo_NewDie(PRTDBGMODDWARF pThis, PCRTDWARFDIEDESC pDi
  * Free all children of a DIE.
  *
  * @param   pThis               The DWARF instance.
- * @param   pParent             The parent DIE.
+ * @param   pParentDie          The parent DIE.
  */
 static void rtDwarfInfo_FreeChildren(PRTDBGMODDWARF pThis, PRTDWARFDIE pParentDie)
 {

@@ -32,14 +32,14 @@
  * @returns VINF_SUCCESS if it's ok to continue raw mode.
  * @returns VBox status code to return to the EM main loop.
  *
- * @param   pVM     Pointer to the VM.
- * @param   pVCpu   Pointer to the VMCPU.
- * @param   rc      The return code.
+ * @param   pVM     The cross context VM structure.
+ * @param   pVCpu   The cross context virtual CPU structure.
  * @param   pCtx    Pointer to the guest CPU context.
+ * @param   rc      The return code.
  */
 #ifdef EMHANDLERC_WITH_PATM
 int emR3RawHandleRC(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int rc)
-#elif defined(EMHANDLERC_WITH_HM)
+#elif defined(EMHANDLERC_WITH_HM) || defined(DOXYGEN_RUNNING)
 int emR3HmHandleRC(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int rc)
 #endif
 {
@@ -346,6 +346,7 @@ int emR3HmHandleRC(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int rc)
         case VERR_VMM_RING3_CALL_DISABLED:
         case VERR_IEM_INSTR_NOT_IMPLEMENTED:
         case VERR_IEM_ASPECT_NOT_IMPLEMENTED:
+        case VERR_EM_GUEST_CPU_HANG:
             break;
 
 #ifdef EMHANDLERC_WITH_HM

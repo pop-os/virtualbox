@@ -2304,9 +2304,6 @@ HRESULT Console::i_doCPURemove(ULONG aCpu, PUVM pUVM)
                            (PFNRT)i_unplugCpu, 3,
                            this, pUVM, (VMCPUID)aCpu);
 
-        /* release the lock before a VMR3* call (EMT might wait for it, @bugref{7648})! */
-        alock.release();
-
         if (vrc == VERR_TIMEOUT)
             vrc = VMR3ReqWait(pReq, RT_INDEFINITE_WAIT);
         AssertRC(vrc);
@@ -10175,7 +10172,7 @@ DECLCALLBACK(void) Console::i_drvStatus_UnitChanged(PPDMILEDCONNECTORS pInterfac
 /**
  * Notification about a medium eject.
  *
- * @returns VBox status.
+ * @returns VBox status code.
  * @param   pInterface      Pointer to the interface structure containing the called function pointer.
  * @param   uLUN            The unit number.
  */
@@ -10248,7 +10245,7 @@ DECLCALLBACK(void *)  Console::i_drvStatus_QueryInterface(PPDMIBASE pInterface, 
 /**
  * Destruct a status driver instance.
  *
- * @returns VBox status.
+ * @returns VBox status code.
  * @param   pDrvIns     The driver instance data.
  */
 DECLCALLBACK(void) Console::i_drvStatus_Destruct(PPDMDRVINS pDrvIns)

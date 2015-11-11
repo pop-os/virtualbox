@@ -33,6 +33,7 @@
 RT_C_DECLS_BEGIN
 
 /** @defgroup grp_em        The Execution Monitor / Manager API
+ * @ingroup grp_vmm
  * @{
  */
 
@@ -124,7 +125,7 @@ typedef FNEMULATELOCKPARAM3    *PFNEMULATELOCKPARAM3;
  *
  * @returns true if enabled.
  * @returns false if disabled.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         The cross context VM structure.
  */
 #define EMIsRawRing3Enabled(pVM)            (!(pVM)->fRecompileUser)
 
@@ -133,7 +134,7 @@ typedef FNEMULATELOCKPARAM3    *PFNEMULATELOCKPARAM3;
  *
  * @returns true if enabled.
  * @returns false if disabled.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         The cross context VM structure.
  */
 #define EMIsRawRing0Enabled(pVM)            (!(pVM)->fRecompileSupervisor)
 
@@ -143,7 +144,7 @@ typedef FNEMULATELOCKPARAM3    *PFNEMULATELOCKPARAM3;
  *
  * @returns true if enabled.
  * @returns false if disabled.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         The cross context VM structure.
  */
 # define EMIsRawRing1Enabled(pVM)           ((pVM)->fRawRing1Enabled)
 #else
@@ -155,7 +156,7 @@ typedef FNEMULATELOCKPARAM3    *PFNEMULATELOCKPARAM3;
  *
  * @returns true if enabled.
  * @returns false if disabled.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         The cross context VM structure.
  */
 #define EMIsHwVirtExecutionEnabled(pVM)     (!(pVM)->fRecompileSupervisor && !(pVM)->fRecompileUser)
 
@@ -165,7 +166,7 @@ typedef FNEMULATELOCKPARAM3    *PFNEMULATELOCKPARAM3;
  *
  * @returns true if enabled.
  * @returns false if disabled.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         The cross context VM structure.
  */
 #define EMIsSupervisorCodeRecompiled(pVM) ((pVM)->fRecompileSupervisor)
 

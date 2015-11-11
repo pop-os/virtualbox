@@ -1103,7 +1103,7 @@ RTDECL(void) RTLogPrintfEx(void *pvInstance, unsigned fFlags, unsigned iGroup,
 /** @name Misc Logging Macros
  * @{ */
 
-/** @def LogWarning1
+/** @def Log1Warning
  * The same as Log(), but prepents a <tt>"WARNING! "</tt> string to the message.
  *
  * @param   a   Custom log message in format <tt>("string\n" [, args])</tt>.
@@ -1114,7 +1114,7 @@ RTDECL(void) RTLogPrintfEx(void *pvInstance, unsigned fFlags, unsigned iGroup,
 # define Log1Warning(a)     do { Log(("WARNING! ")); Log(a); } while (0)
 #endif
 
-/** @def LogWarningFunc
+/** @def Log1WarningFunc
  * The same as LogWarning(), but prepents the log message with the function name.
  *
  * @param   a   Log message in format <tt>("string\n" [, args])</tt>.
@@ -1127,7 +1127,7 @@ RTDECL(void) RTLogPrintfEx(void *pvInstance, unsigned fFlags, unsigned iGroup,
     do { Log((LOG_FN_FMT ": WARNING! ", __PRETTY_FUNCTION__)); Log(a); } while (0)
 #endif
 
-/** @def LogWarningThisFunc
+/** @def Log1WarningThisFunc
  * The same as LogWarningFunc() but for class functions (methods): the resulting
  * log line is additionally prepended with a hex value of |this| pointer.
  *
@@ -2325,11 +2325,11 @@ RTDECL(void) RTLogPrintf(const char *pszFormat, ...) RT_IPRT_FORMAT_ATTR(1, 2);
  * vprintf like function for writing to the default log.
  *
  * @param   pszFormat   Printf like format string.
- * @param   args        Optional arguments as specified in pszFormat.
+ * @param   va          Optional arguments as specified in pszFormat.
  *
  * @remark The API doesn't support formatting of floating point numbers at the moment.
  */
-RTDECL(void) RTLogPrintfV(const char *pszFormat, va_list args)  RT_IPRT_FORMAT_ATTR(1, 0);
+RTDECL(void) RTLogPrintfV(const char *pszFormat, va_list va)  RT_IPRT_FORMAT_ATTR(1, 0);
 
 /**
  * Dumper vprintf-like function outputting to a logger.

@@ -909,11 +909,6 @@
         </translation>
     </message>
     <message>
-        <source>Status</source>
-        <comment>password table field</comment>
-        <translation type="obsolete">Status</translation>
-    </message>
-    <message>
         <source>ID</source>
         <comment>password table field</comment>
         <translation>ID</translation>
@@ -2238,14 +2233,6 @@
 <context>
     <name>UIGlobalSettingsProxy</name>
     <message>
-        <source>When checked, VirtualBox will use the proxy settings supplied for tasks like downloading Guest Additions from the network or checking for updates.</source>
-        <translation>Durch Aktivieren dieser Einstellung benutzt VirtualBox einen HTTP-Proxy für Aufgaben wie beispielsweise den Test auf neue VirtualBox-Versionen oder das Herunterladen der Gasterweiterungen.</translation>
-    </message>
-    <message>
-        <source>&amp;Enable Proxy</source>
-        <translation>Proxy &amp;aktivieren</translation>
-    </message>
-    <message>
         <source>Ho&amp;st:</source>
         <translation>Ho&amp;st:</translation>
     </message>
@@ -2268,6 +2255,30 @@
     <message>
         <source>Holds the proxy port.</source>
         <translation>Legt den Proxy-Port fest.</translation>
+    </message>
+    <message>
+        <source>When chosen, VirtualBox will try to auto-detect host proxy settings for tasks like downloading Guest Additions from the network or checking for updates.</source>
+        <translation>Versucht, die Proxy-Einstellungen des Hosts für den Test auf eine neue VirtualBox-Version oder für das Herunterladen der Gasterweiterungen automatisch zu erkennen.</translation>
+    </message>
+    <message>
+        <source>&amp;Auto-detect Host Proxy Settings</source>
+        <translation>&amp;Automatische Erkennung der Proxy-Einstellungen</translation>
+    </message>
+    <message>
+        <source>When chosen, VirtualBox will use direct Internet connection for tasks like downloading Guest Additions from the network or checking for updates.</source>
+        <translation>Kein Proxy wird für das Herunterladen der Gasterweiterungen oder für den Test auf eine neue VirtualBox-Version verwendet.</translation>
+    </message>
+    <message>
+        <source>&amp;Direct Connection to the Internet</source>
+        <translation>&amp;Direkte Internetverbindung</translation>
+    </message>
+    <message>
+        <source>When chosen, VirtualBox will use the proxy settings supplied for tasks like downloading Guest Additions from the network or checking for updates.</source>
+        <translation>Die gewählten Proxy-Einstellungen werden für das Herunterladen der Gasterweiterungen oder für die Überprüfung auf eine neue VirtualBox-Version verwendet.</translation>
+    </message>
+    <message>
+        <source>&amp;Manual Proxy Configuration</source>
+        <translation>&amp;Manuelle Proxy-Konfiguration</translation>
     </message>
 </context>
 <context>
@@ -5255,6 +5266,14 @@
         <source>Encryption password for &lt;nobr&gt;ID = &apos;%1&apos;&lt;/nobr&gt; is invalid.</source>
         <translation>Das Passwort für &lt;nobr&gt;ID = &apos;%1&apos;&lt;/nobr&gt; ist falsch.</translation>
     </message>
+    <message>
+        <source>The current port forwarding rules are not valid. All of the host or guest address values should be correct or empty.</source>
+        <translation>Die Regeln für die Port-Weiterleitung enthalten momentan Fehler. Alle Host- oder Gast-Adressen müssen entweder gültig oder leer sein.</translation>
+    </message>
+    <message>
+        <source>The current port forwarding rules are not valid. None of the guest address values may be empty.</source>
+        <translation>Die Regeln für die Port-Weiterleitung enthalten momentan Fehler. Keine der Gast-Adressen darf leer sein.</translation>
+    </message>
 </context>
 <context>
     <name>UIMiniToolBar</name>
@@ -5393,6 +5412,42 @@
     <message>
         <source>Unknown reason</source>
         <translation>Unbekannte Ursache</translation>
+    </message>
+    <message>
+        <source>%1: %2</source>
+        <comment>Context description: Error description</comment>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Unable to initialize HTTP library</source>
+        <translation>Die HTTP-Bibliothek kann nicht initialisiert werden</translation>
+    </message>
+    <message>
+        <source>Connection refused</source>
+        <translation>Verbindung abgewiesen</translation>
+    </message>
+    <message>
+        <source>Content moved</source>
+        <translation>Inhalt verschoben</translation>
+    </message>
+    <message>
+        <source>Proxy not found</source>
+        <translation>Proxy nicht gefunden</translation>
+    </message>
+</context>
+<context>
+    <name>UINetworkReplyPrivateThread</name>
+    <message>
+        <source>During proxy configuration</source>
+        <translation>während der Konfiguration des Proxy</translation>
+    </message>
+    <message>
+        <source>During certificate downloading</source>
+        <translation>während das Zertifikat heruntergeladen wurde</translation>
+    </message>
+    <message>
+        <source>During network request</source>
+        <translation>während der Netzwerkzugriffs</translation>
     </message>
 </context>
 <context>

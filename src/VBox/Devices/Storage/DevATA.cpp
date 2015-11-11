@@ -3825,7 +3825,7 @@ static void ataR3MediumInserted(ATADevState *s)
 
 
 /**
- * @interface_method_impl{PDMIMOUNTNOTIFY, pfnMountNotify}
+ * @interface_method_impl{PDMIMOUNTNOTIFY,pfnMountNotify}
  */
 static DECLCALLBACK(void) ataR3MountNotify(PPDMIMOUNTNOTIFY pInterface)
 {
@@ -3851,7 +3851,7 @@ static DECLCALLBACK(void) ataR3MountNotify(PPDMIMOUNTNOTIFY pInterface)
 }
 
 /**
- * @interface_method_impl{PDMIMOUNTNOTIFY, pfnUnmountNotify}
+ * @interface_method_impl{PDMIMOUNTNOTIFY,pfnUnmountNotify}
  */
 static DECLCALLBACK(void) ataR3UnmountNotify(PPDMIMOUNTNOTIFY pInterface)
 {
@@ -6604,7 +6604,7 @@ static DECLCALLBACK(int)  ataR3Attach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_
 /**
  * Resume notification.
  *
- * @returns VBox status.
+ * @returns VBox status code.
  * @param   pDevIns     The device instance data.
  */
 static DECLCALLBACK(void) ataR3Resume(PPDMDEVINS pDevIns)
@@ -7036,7 +7036,7 @@ static void ataR3SuspendOrPowerOff(PPDMDEVINS pDevIns)
 /**
  * Power Off notification.
  *
- * @returns VBox status.
+ * @returns VBox status code.
  * @param   pDevIns     The device instance data.
  */
 static DECLCALLBACK(void) ataR3PowerOff(PPDMDEVINS pDevIns)
@@ -7049,7 +7049,7 @@ static DECLCALLBACK(void) ataR3PowerOff(PPDMDEVINS pDevIns)
 /**
  * Suspend notification.
  *
- * @returns VBox status.
+ * @returns VBox status code.
  * @param   pDevIns     The device instance data.
  */
 static DECLCALLBACK(void) ataR3Suspend(PPDMDEVINS pDevIns)
@@ -7086,7 +7086,7 @@ static DECLCALLBACK(bool) ataR3IsAsyncResetDone(PPDMDEVINS pDevIns)
 /**
  * Common reset worker for ataR3Reset and ataR3Construct.
  *
- * @returns VBox status.
+ * @returns VBox status code.
  * @param   pDevIns     The device instance data.
  * @param   fConstruct  Indicates who is calling.
  */

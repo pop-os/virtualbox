@@ -90,7 +90,7 @@ static DECLCALLBACK(int) pdmR0DevHlp_PCIPhysRead(PPDMDEVINS pDevIns, RTGCPHYS GC
 }
 
 
-/** @interface_method_impl{PDMDEVHLPR0,pfnPCIPhysRead} */
+/** @interface_method_impl{PDMDEVHLPR0,pfnPCIPhysWrite} */
 static DECLCALLBACK(int) pdmR0DevHlp_PCIPhysWrite(PPDMDEVINS pDevIns, RTGCPHYS GCPhys, const void *pvBuf, size_t cbWrite)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
@@ -896,7 +896,8 @@ static DECLCALLBACK(int) pdmR0DrvHlp_VMSetErrorV(PPDMDRVINS pDrvIns, int rc, RT_
 
 
 /** @interface_method_impl{PDMDRVHLPR0,pfnVMSetRuntimeError} */
-static DECLCALLBACK(int) pdmR0DrvHlp_VMSetRuntimeError(PPDMDRVINS pDrvIns, uint32_t fFlags, const char *pszErrorId, const char *pszFormat, ...)
+static DECLCALLBACK(int) pdmR0DrvHlp_VMSetRuntimeError(PPDMDRVINS pDrvIns, uint32_t fFlags, const char *pszErrorId,
+                                                       const char *pszFormat, ...)
 {
     PDMDRV_ASSERT_DRVINS(pDrvIns);
     va_list va;
@@ -907,8 +908,9 @@ static DECLCALLBACK(int) pdmR0DrvHlp_VMSetRuntimeError(PPDMDRVINS pDrvIns, uint3
 }
 
 
-/** @interface_method_impl{PDMDRVHLPR0,pfnVMSetErrorV} */
-static DECLCALLBACK(int) pdmR0DrvHlp_VMSetRuntimeErrorV(PPDMDRVINS pDrvIns, uint32_t fFlags, const char *pszErrorId, const char *pszFormat, va_list va)
+/** @interface_method_impl{PDMDRVHLPR0,pfnVMSetRuntimeErrorV} */
+static DECLCALLBACK(int) pdmR0DrvHlp_VMSetRuntimeErrorV(PPDMDRVINS pDrvIns, uint32_t fFlags, const char *pszErrorId,
+                                                        const char *pszFormat, va_list va)
 {
     PDMDRV_ASSERT_DRVINS(pDrvIns);
     int rc = VMSetRuntimeErrorV(pDrvIns->Internal.s.pVMR0, fFlags, pszErrorId, pszFormat, va);
@@ -975,7 +977,7 @@ extern DECLEXPORT(const PDMDRVHLPR0) g_pdmR0DrvHlp =
  * Sets an irq on the PIC and I/O APIC.
  *
  * @returns true if delivered, false if postponed.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  * @param   iIrq        The irq.
  * @param   iLevel      The new level.
  * @param   uTagSrc     The IRQ tag and source.
@@ -1015,8 +1017,8 @@ static bool pdmR0IsaSetIrq(PVM pVM, int iIrq, int iLevel, uint32_t uTagSrc)
  * PDMDevHlpCallR0 helper.
  *
  * @returns See PFNPDMDEVREQHANDLERR0.
- * @param   pVM                 Pointer to the VM (for validation).
- * @param   pReq                Pointer to the request buffer.
+ * @param   pVM     The cross context VM structure. (For validation.)
+ * @param   pReq    Pointer to the request buffer.
  */
 VMMR0_INT_DECL(int) PDMR0DeviceCallReqHandler(PVM pVM, PPDMDEVICECALLREQHANDLERREQ pReq)
 {

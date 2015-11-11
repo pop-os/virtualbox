@@ -1,5 +1,5 @@
-/** @file $Id: vboxvideo_drm.c $
- *
+/* $Id: vboxvideo_drm.c $ */
+/** @file
  * VirtualBox Additions Linux kernel driver, DRM support
  */
 

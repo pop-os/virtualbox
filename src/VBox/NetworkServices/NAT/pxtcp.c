@@ -1271,7 +1271,7 @@ pxtcp_pcb_connect(struct pxtcp *pxtcp, const struct fwspec *fwspec)
         goto reset;
     }
 
-    /* nit: comapres PF and AF, but they are the same everywhere */
+    /* nit: compares PF and AF, but they are the same everywhere */
     LWIP_ASSERT1(ss.ss_family == fwspec->sdom);
 
     status = fwany_ipX_addr_set_src(&src_addr, (const struct sockaddr *)&ss);
@@ -2290,12 +2290,20 @@ pxtcp_pcb_sent(void *arg, struct tcp_pcb *pcb, u16_t len)
                 DPRINTF0(("%s: sock %d: %R[sockerr]\n",
                           __func__, pxtcp->sock, sockerr));
 
+#if HAVE_TCP_POLLHUP == POLLIN /* see counterpart in pxtcp_pmgr_pump() */
                 /*
-                 * Since we are pulling, pxtcp is no longer registered
-                 * with poll manager so we can kill it directly.
+                 * It may still be registered with poll manager for POLLOUT.
+                 */
+                pxtcp_chan_send_weak(POLLMGR_CHAN_PXTCP_RESET, pxtcp);
+                return ERR_OK;
+#else
+                /*
+                 * It is no longer registered with poll manager so we
+                 * can kill it directly.
                  */
                 pxtcp_pcb_reset_pxtcp(pxtcp);
                 return ERR_ABRT;
+#endif
             }
         }
     }

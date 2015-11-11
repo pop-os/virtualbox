@@ -44,7 +44,7 @@
  * Check if this VCPU currently owns the IOM lock exclusively.
  *
  * @returns bool owner/not owner
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  */
 VMMDECL(bool) IOMIsLockWriteOwner(PVM pVM)
 {
@@ -70,8 +70,8 @@ VMMDECL(bool) IOMIsLockWriteOwner(PVM pVM)
  *                                      status code must be passed on to EM.
  * @retval  VINF_IOM_R3_IOPORT_READ     Defer the read to ring-3. (R0/RC only)
  *
- * @param   pVM         Pointer to the VM.
- * @param   pVCpu       Pointer to the virtual CPU structure of the caller.
+ * @param   pVM         The cross context VM structure.
+ * @param   pVCpu       The cross context virtual CPU structure of the calling EMT.
  * @param   Port        The port to read.
  * @param   pu32Value   Where to store the value read.
  * @param   cbValue     The size of the register to read in bytes. 1, 2 or 4 bytes.
@@ -237,9 +237,9 @@ VMMDECL(VBOXSTRICTRC) IOMIOPortRead(PVM pVM, PVMCPU pVCpu, RTIOPORT Port, uint32
  *                                      status code must be passed on to EM.
  * @retval  VINF_IOM_R3_IOPORT_READ     Defer the read to ring-3. (R0/RC only)
  *
- * @param   pVM         Pointer to the VM.
- * @param   pVCpu       Pointer to the virtual CPU structure of the caller.
- * @param   Port        The port to read.
+ * @param   pVM         The cross context VM structure.
+ * @param   pVCpu       The cross context virtual CPU structure of the calling EMT.
+ * @param   uPort       The port to read.
  * @param   pvDst       Pointer to the destination buffer.
  * @param   pcTransfers Pointer to the number of transfer units to read, on return remaining transfer units.
  * @param   cb          Size of the transfer unit (1, 2 or 4 bytes).
@@ -298,10 +298,9 @@ VMM_INT_DECL(VBOXSTRICTRC) IOMIOPortReadString(PVM pVM, PVMCPU pVCpu, RTIOPORT u
         { /* likely */ }
         else
         {
-            STAM_STATS({ if (pStats)
-                    STAM_COUNTER_INC(&pStats->InRZToR3); });
+            STAM_STATS({ if (pStats) STAM_COUNTER_INC(&pStats->InRZToR3); });
             IOM_UNLOCK_SHARED(pVM);
-            return VINF_SUCCESS;
+            return VINF_IOM_R3_IOPORT_READ;
         }
 #endif
         void           *pvUser    = pRange->pvUser;
@@ -410,12 +409,13 @@ VMM_INT_DECL(VBOXSTRICTRC) IOMIOPortReadString(PVM pVM, PVMCPU pVCpu, RTIOPORT u
     /*
      * Ok, no handler for this port.
      */
+    *pcTransfers = 0;
+    memset(pvDst, 0xff, cRequestedTransfers * cb);
 #ifdef VBOX_WITH_STATISTICS
     if (pStats)
         STAM_COUNTER_INC(&pStats->CTX_SUFF_Z(In));
 #endif
-
-    Log3(("IOMIOPortReadStr: uPort=%RTiop pvDst=%p pcTransfer=%p:{%#x->%#x} cb=%d rc=VINF_SUCCESS\n",
+    Log3(("IOMIOPortReadStr: uPort=%RTiop (unused) pvDst=%p pcTransfer=%p:{%#x->%#x} cb=%d rc=VINF_SUCCESS\n",
           uPort, pvDst, pcTransfers, cRequestedTransfers, *pcTransfers, cb));
     IOM_UNLOCK_SHARED(pVM);
     return VINF_SUCCESS;
@@ -432,8 +432,8 @@ VMM_INT_DECL(VBOXSTRICTRC) IOMIOPortReadString(PVM pVM, PVMCPU pVCpu, RTIOPORT u
  *                                      status code must be passed on to EM.
  * @retval  VINF_IOM_R3_IOPORT_WRITE    Defer the write to ring-3. (R0/RC only)
  *
- * @param   pVM         Pointer to the VM.
- * @param   pVCpu       Pointer to the virtual CPU structure of the caller.
+ * @param   pVM         The cross context VM structure.
+ * @param   pVCpu       The cross context virtual CPU structure of the calling EMT.
  * @param   Port        The port to write to.
  * @param   u32Value    The value to write.
  * @param   cbValue     The size of the register to read in bytes. 1, 2 or 4 bytes.
@@ -574,8 +574,8 @@ VMMDECL(VBOXSTRICTRC) IOMIOPortWrite(PVM pVM, PVMCPU pVCpu, RTIOPORT Port, uint3
  *                                      status code must be passed on to EM.
  * @retval  VINF_IOM_R3_IOPORT_WRITE    Defer the write to ring-3. (R0/RC only)
  *
- * @param   pVM         Pointer to the VM.
- * @param   pVCpu       Pointer to the virtual CPU structure of the caller.
+ * @param   pVM         The cross context VM structure.
+ * @param   pVCpu       The cross context virtual CPU structure of the calling EMT.
  * @param   uPort       The port to write to.
  * @param   pvSrc       The guest page to read from.
  * @param   pcTransfers Pointer to the number of transfer units to write, on
@@ -640,7 +640,7 @@ VMM_INT_DECL(VBOXSTRICTRC) IOMIOPortWriteString(PVM pVM, PVMCPU pVCpu, RTIOPORT 
         {
             STAM_STATS({ if (pStats) STAM_COUNTER_INC(&pStats->OutRZToR3); });
             IOM_UNLOCK_SHARED(pVM);
-            return VINF_SUCCESS;
+            return VINF_IOM_R3_IOPORT_WRITE;
         }
 #endif
         void           *pvUser    = pRange->pvUser;
@@ -743,12 +743,12 @@ VMM_INT_DECL(VBOXSTRICTRC) IOMIOPortWriteString(PVM pVM, PVMCPU pVCpu, RTIOPORT 
     /*
      * Ok, no handler for this port.
      */
+    *pcTransfers = 0;
 #ifdef VBOX_WITH_STATISTICS
     if (pStats)
         STAM_COUNTER_INC(&pStats->CTX_SUFF_Z(Out));
 #endif
-
-    Log3(("IOMIOPortWriteStr: uPort=%RTiop pvSrc=%p pcTransfer=%p:{%#x->%#x} cb=%d rc=VINF_SUCCESS\n",
+    Log3(("IOMIOPortWriteStr: uPort=%RTiop (unused) pvSrc=%p pcTransfer=%p:{%#x->%#x} cb=%d rc=VINF_SUCCESS\n",
           uPort, pvSrc, pcTransfers, cRequestedTransfers, *pcTransfers, cb));
     IOM_UNLOCK_SHARED(pVM);
     return VINF_SUCCESS;
@@ -766,7 +766,7 @@ VMM_INT_DECL(VBOXSTRICTRC) IOMIOPortWriteString(PVM pVM, PVMCPU pVCpu, RTIOPORT 
  * @retval  VINF_TRPM_XCPT_DISPATCHED   The exception was raised and dispatched for raw-mode execution. (TRPMRaiseXcptErr)
  * @retval  VINF_EM_RESCHEDULE_REM      The exception was dispatched and cannot be executed in raw-mode. (TRPMRaiseXcptErr)
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  * @param   pCtxCore    Pointer to register frame.
  * @param   Port        The I/O port number.
  * @param   cb          The access size.
@@ -857,7 +857,7 @@ VMMDECL(VBOXSTRICTRC) IOMInterpretCheckPortIOAccess(PVM pVM, PCPUMCTXCORE pCtxCo
 /**
  * Fress an MMIO range after the reference counter has become zero.
  *
- * @param   pVM                 Pointer to the VM.
+ * @param   pVM                 The cross context VM structure.
  * @param   pRange              The range to free.
  */
 void iomMmioFreeRange(PVM pVM, PIOMMMIORANGE pRange)

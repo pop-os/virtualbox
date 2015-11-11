@@ -69,8 +69,8 @@
 /*********************************************************************************************************************************
 *   Internal Functions                                                                                                           *
 *********************************************************************************************************************************/
-static DECLCALLBACK(int) gimR3Save(PVM pVM, PSSMHANDLE pSSM);
-static DECLCALLBACK(int) gimR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uSSMVersion, uint32_t uPass);
+static FNSSMINTSAVEEXEC  gimR3Save;
+static FNSSMINTLOADEXEC  gimR3Load;
 static FNPGMPHYSHANDLER gimR3Mmio2WriteHandler;
 
 
@@ -78,7 +78,7 @@ static FNPGMPHYSHANDLER gimR3Mmio2WriteHandler;
  * Initializes the GIM.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  */
 VMMR3_INT_DECL(int) GIMR3Init(PVM pVM)
 {
@@ -162,8 +162,7 @@ VMMR3_INT_DECL(int) GIMR3Init(PVM pVM)
  * This is called after initializing HM and most other VMM components.
  *
  * @returns VBox status code.
- * @param   pVM                 Pointer to the VM.
- * @param   enmWhat             What has been completed.
+ * @param   pVM                 The cross context VM structure.
  * @thread  EMT(0)
  */
 VMMR3_INT_DECL(int) GIMR3InitCompleted(PVM pVM)
@@ -196,7 +195,7 @@ VMMR3_INT_DECL(int) GIMR3InitCompleted(PVM pVM)
  * This function will be called at init and whenever the VMM need to relocate
  * itself inside the GC.
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  * @param   offDelta    Relocation delta relative to old location.
  */
 VMM_INT_DECL(void) GIMR3Relocate(PVM pVM, RTGCINTPTR offDelta)
@@ -237,13 +236,9 @@ VMM_INT_DECL(void) GIMR3Relocate(PVM pVM, RTGCINTPTR offDelta)
 
 
 /**
- * Executes state-save operation.
- *
- * @returns VBox status code.
- * @param   pVM             Pointer to the VM.
- * @param   pSSM            SSM operation handle.
+ * @callback_method_impl{FNSSMINTSAVEEXEC}
  */
-DECLCALLBACK(int) gimR3Save(PVM pVM, PSSMHANDLE pSSM)
+static DECLCALLBACK(int) gimR3Save(PVM pVM, PSSMHANDLE pSSM)
 {
     AssertReturn(pVM,  VERR_INVALID_PARAMETER);
     AssertReturn(pSSM, VERR_SSM_INVALID_STATE);
@@ -288,19 +283,13 @@ DECLCALLBACK(int) gimR3Save(PVM pVM, PSSMHANDLE pSSM)
 
 
 /**
- * Execute state load operation.
- *
- * @returns VBox status code.
- * @param   pVM             Pointer to the VM.
- * @param   pSSM            SSM operation handle.
- * @param   uVersion        Data layout version.
- * @param   uPass           The data pass.
+ * @callback_method_impl{FNSSMINTLOADEXEC}
  */
-DECLCALLBACK(int) gimR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uSSMVersion, uint32_t uPass)
+static DECLCALLBACK(int) gimR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass)
 {
     if (uPass != SSM_PASS_FINAL)
         return VINF_SUCCESS;
-    if (uSSMVersion != GIM_SAVED_STATE_VERSION)
+    if (uVersion != GIM_SAVED_STATE_VERSION)
         return VERR_SSM_UNSUPPORTED_DATA_UNIT_VERSION;
 
     /** @todo Load per-CPU data. */
@@ -338,12 +327,12 @@ DECLCALLBACK(int) gimR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uSSMVersion, uint
     switch (pVM->gim.s.enmProviderId)
     {
         case GIMPROVIDERID_HYPERV:
-            rc = gimR3HvLoad(pVM, pSSM, uSSMVersion);
+            rc = gimR3HvLoad(pVM, pSSM, uVersion);
             AssertRCReturn(rc, rc);
             break;
 
         case GIMPROVIDERID_KVM:
-            rc = gimR3KvmLoad(pVM, pSSM, uSSMVersion);
+            rc = gimR3KvmLoad(pVM, pSSM, uVersion);
             AssertRCReturn(rc, rc);
             break;
 
@@ -362,7 +351,7 @@ DECLCALLBACK(int) gimR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uSSMVersion, uint
  * the VM itself is, at this point, powered off or suspended.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  */
 VMMR3_INT_DECL(int) GIMR3Term(PVM pVM)
 {
@@ -388,7 +377,7 @@ VMMR3_INT_DECL(int) GIMR3Term(PVM pVM)
  * and other provider-specific resets.
  *
  * @returns VBox status code.
- * @param   pVM     Pointer to the VM.
+ * @param   pVM     The cross context VM structure.
  */
 VMMR3_INT_DECL(void) GIMR3Reset(PVM pVM)
 {
@@ -409,7 +398,7 @@ VMMR3_INT_DECL(void) GIMR3Reset(PVM pVM)
 /**
  * Registers the GIM device with VMM.
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  * @param   pDevIns     Pointer to the GIM device instance.
  */
 VMMR3DECL(void) GIMR3GimDeviceRegister(PVM pVM, PPDMDEVINS pDevIns)
@@ -424,7 +413,7 @@ VMMR3DECL(void) GIMR3GimDeviceRegister(PVM pVM, PPDMDEVINS pDevIns)
  * configured for the VM.
  *
  * @returns Pointer to an array of GIM MMIO2 regions, may return NULL.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  * @param   pcRegions   Where to store the number of items in the array.
  *
  * @remarks The caller does not own and therefore must -NOT- try to free the
@@ -454,7 +443,7 @@ VMMR3DECL(PGIMMMIO2REGION) GIMR3GetMmio2Regions(PVM pVM, uint32_t *pcRegions)
  * access handlers for it.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  * @param   pRegion     Pointer to the GIM MMIO2 region.
  */
 VMMR3_INT_DECL(int) GIMR3Mmio2Unmap(PVM pVM, PGIMMMIO2REGION pRegion)
@@ -485,7 +474,7 @@ VMMR3_INT_DECL(int) GIMR3Mmio2Unmap(PVM pVM, PGIMMMIO2REGION pRegion)
  *      Write access handler for mapped MMIO2 pages.  Currently ignores writes.}
  *
  * @todo In the future we might want to let the GIM provider decide what the
- *       handler should do (like throwing #GP faults).
+ *       handler should do (like throwing \#GP faults).
  */
 static DECLCALLBACK(VBOXSTRICTRC)
 gimR3Mmio2WriteHandler(PVM pVM, PVMCPU pVCpu, RTGCPHYS GCPhys, void *pvPhys, void *pvBuf, size_t cbBuf,
@@ -495,16 +484,17 @@ gimR3Mmio2WriteHandler(PVM pVM, PVMCPU pVCpu, RTGCPHYS GCPhys, void *pvPhys, voi
      * Ignore writes to the mapped MMIO2 page.
      */
     Assert(enmAccessType == PGMACCESSTYPE_WRITE);
-    return VINF_SUCCESS;        /** @todo Hyper-V says we should #GP(0) fault for writes to the Hypercall and TSC page. */
+    return VINF_SUCCESS;        /** @todo Hyper-V says we should \#GP(0) fault for writes to the Hypercall and TSC page. */
 }
 
 
 /**
- * Maps a registered MMIO2 region in the guest address space. The region will be
- * made read-only and writes from the guest will be ignored.
+ * Maps a registered MMIO2 region in the guest address space.
+ *
+ * The region will be made read-only and writes from the guest will be ignored.
  *
  * @returns VBox status code.
- * @param   pVM             Pointer to the VM.
+ * @param   pVM             The cross context VM structure.
  * @param   pRegion         Pointer to the GIM MMIO2 region.
  * @param   GCPhysRegion    Where in the guest address space to map the region.
  */
@@ -577,7 +567,7 @@ VMMR3_INT_DECL(int) GIMR3Mmio2Map(PVM pVM, PGIMMMIO2REGION pRegion, RTGCPHYS GCP
  * Registers the physical handler for the registered and mapped MMIO2 region.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  * @param   pRegion     Pointer to the GIM MMIO2 region.
  */
 VMMR3_INT_DECL(int) GIMR3Mmio2HandlerPhysicalRegister(PVM pVM, PGIMMMIO2REGION pRegion)
@@ -600,7 +590,7 @@ VMMR3_INT_DECL(int) GIMR3Mmio2HandlerPhysicalRegister(PVM pVM, PGIMMMIO2REGION p
  * Deregisters the physical handler for the MMIO2 region.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  * @param   pRegion     Pointer to the GIM MMIO2 region.
  */
 VMMR3_INT_DECL(int) GIMR3Mmio2HandlerPhysicalDeregister(PVM pVM, PGIMMMIO2REGION pRegion)

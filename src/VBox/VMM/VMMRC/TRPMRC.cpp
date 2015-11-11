@@ -45,8 +45,8 @@
  *
  * To uninstall the temporary handler, call this function with pfnHandler set to NULL.
  *
- * @returns VBox status.
- * @param   pVM         Pointer to the VM.
+ * @returns VBox status code.
+ * @param   pVM         The cross context VM structure.
  * @param   iTrap       Trap number to install handler [0..255].
  * @param   pfnHandler  Pointer to the handler. Use NULL for uninstalling the handler.
  */
@@ -75,7 +75,7 @@ VMMRCDECL(int) TRPMGCSetTempHandler(PVM pVM, unsigned iTrap, PFNTRPMGCTRAPHANDLE
  * This function will *never* return.
  * It will also reset any traps that are pending.
  *
- * @param   pVM     Pointer to the VM.
+ * @param   pVM     The cross context VM structure.
  * @param   rc      The return code for host context.
  */
 VMMRCDECL(void) TRPMGCHyperReturnToHost(PVM pVM, int rc)
@@ -90,19 +90,8 @@ VMMRCDECL(void) TRPMGCHyperReturnToHost(PVM pVM, int rc)
 
 
 /**
- * \#PF Virtual Handler callback for Guest write access to the Guest's own current IDT.
- *
- * @returns VBox status code (appropriate for trap handling and GC return).
- * @param   pVM         Pointer to the VM.
- * @param   pVCpu       Pointer to the cross context CPU context for the
- *                      calling EMT.
- * @param   uErrorCode   CPU Error code.
- * @param   pRegFrame   Trap register frame.
- * @param   pvFault     The fault address (cr2).
- * @param   pvRange     The base address of the handled virtual range.
- * @param   offRange    The offset of the access into this range.
- *                      (If it's a EIP range this is the EIP, if not it's pvFault.)
- * @param   pvUser      Unused.
+ * @callback_method_impl{FNPGMRCVIRTPFHANDLER,
+ * \#PF Virtual Handler callback for Guest write access to the Guest's own current IDT.}
  */
 DECLEXPORT(VBOXSTRICTRC) trpmRCGuestIDTWritePfHandler(PVM pVM, PVMCPU pVCpu, RTGCUINT uErrorCode, PCPUMCTXCORE pRegFrame,
                                                       RTGCPTR pvFault, RTGCPTR pvRange, uintptr_t offRange, void *pvUser)
@@ -156,19 +145,8 @@ DECLEXPORT(VBOXSTRICTRC) trpmRCGuestIDTWritePfHandler(PVM pVM, PVMCPU pVCpu, RTG
 
 
 /**
- * \#PF Virtual Handler callback for Guest write access to the VBox shadow IDT.
- *
- * @returns VBox status code (appropriate for trap handling and GC return).
- * @param   pVM         Pointer to the VM.
- * @param   pVCpu       Pointer to the cross context CPU context for the
- *                      calling EMT.
- * @param   uErrorCode  CPU Error code.
- * @param   pRegFrame   Trap register frame.
- * @param   pvFault     The fault address (cr2).
- * @param   pvRange     The base address of the handled virtual range.
- * @param   offRange    The offset of the access into this range.
- *                      (If it's a EIP range this is the EIP, if not it's pvFault.)
- * @param   pvUser      Unused.
+ * @callback_method_impl{FNPGMRCVIRTPFHANDLER,
+ * \#PF Virtual Handler callback for Guest write access to the VBox shadow IDT.}
  */
 DECLEXPORT(VBOXSTRICTRC) trpmRCShadowIDTWritePfHandler(PVM pVM, PVMCPU pVCpu, RTGCUINT uErrorCode, PCPUMCTXCORE pRegFrame,
                                                        RTGCPTR pvFault, RTGCPTR pvRange, uintptr_t offRange, void *pvUser)

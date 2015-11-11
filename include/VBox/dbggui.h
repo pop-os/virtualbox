@@ -32,6 +32,7 @@
 RT_C_DECLS_BEGIN
 
 /** @defgroup grp_dbggui    VirtualBox Debugger GUI
+ * @ingroup grp_dbg
  * @{
  */
 
@@ -89,7 +90,7 @@ typedef DBGGUIVT const *PCDBGGUIVT;
  *                      Optional.
  */
 DBGDECL(int) DBGGuiCreate(ISession *pSession, PDBGGUI *ppGui, PCDBGGUIVT *ppGuiVT);
-/** @copydoc DBGGuiCreate. */
+/** @copydoc DBGGuiCreate */
 typedef DECLCALLBACK(int) FNDBGGUICREATE(ISession *pSession, PDBGGUI *ppGui, PCDBGGUIVT *ppGuiVT);
 /** Pointer to DBGGuiCreate. */
 typedef FNDBGGUICREATE *PFNDBGGUICREATE;
@@ -104,7 +105,7 @@ typedef FNDBGGUICREATE *PFNDBGGUICREATE;
  *                      Optional.
  */
 DBGDECL(int) DBGGuiCreateForVM(PUVM pUVM, PDBGGUI *ppGui, PCDBGGUIVT *ppGuiVT);
-/** @copydoc DBGGuiCreateForVM. */
+/** @copydoc DBGGuiCreateForVM */
 typedef DECLCALLBACK(int) FNDBGGUICREATEFORVM(PUVM pUVM, PDBGGUI *ppGui, PCDBGGUIVT *ppGuiVT);
 /** Pointer to DBGGuiCreateForVM. */
 typedef FNDBGGUICREATEFORVM *PFNDBGGUICREATEFORVM;

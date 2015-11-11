@@ -57,9 +57,6 @@ UIDownloaderAdditions::UIDownloaderAdditions()
     if (!m_spInstance)
         m_spInstance = this;
 
-    /* Set description: */
-    setDescription(tr("VirtualBox Guest Additions"));
-
     /* Prepare source/target: */
     const QString &strName = QString("VBoxGuestAdditions_%1.iso").arg(vboxGlobal().vboxVersionStringNormalized());
     const QString &strSource = QString("http://download.virtualbox.org/virtualbox/%1/").arg(vboxGlobal().vboxVersionStringNormalized()) + strName;
@@ -77,9 +74,15 @@ UIDownloaderAdditions::~UIDownloaderAdditions()
         m_spInstance = 0;
 }
 
+/* virtual override */
+const QString UIDownloaderAdditions::description() const
+{
+    return UIDownloader::description().arg(tr("VirtualBox Guest Additions"));
+}
+
 bool UIDownloaderAdditions::askForDownloadingConfirmation(UINetworkReply *pReply)
 {
-    return msgCenter().confirmDownloadGuestAdditions(source().toString(), pReply->header(QNetworkRequest::ContentLengthHeader).toInt());
+    return msgCenter().confirmDownloadGuestAdditions(source().toString(), pReply->header(UINetworkReply::ContentLengthHeader).toInt());
 }
 
 void UIDownloaderAdditions::handleDownloadedObject(UINetworkReply *pReply)

@@ -330,7 +330,7 @@ static DECLCALLBACK(void) netperfStopTimerCallback(RTTIMERLR hTimer, void *pvUse
 /**
  * Sends a statistics packet to our peer.
  *
- * @returns IPRT status.
+ * @returns IPRT status code.
  * @param   pStats              The stats to send.
  * @param   hSocket             The TCP socket to send them to.
  */
@@ -1863,7 +1863,7 @@ int main(int argc, char *argv[])
                 return RTEXITCODE_SUCCESS;
 
             case 'V':
-                RTPrintf("$Revision: 102181 $\n");
+                RTPrintf("$Revision: 103604 $\n");
                 return RTEXITCODE_SUCCESS;
 
             case 'w':

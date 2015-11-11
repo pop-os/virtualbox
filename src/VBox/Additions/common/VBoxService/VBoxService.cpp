@@ -16,6 +16,37 @@
  */
 
 
+/** @page pg_vgsvc VBoxService
+ *
+ * VBoxService is a root daemon for implementing guest additions features.
+ *
+ * It is structured as one binary that contains many sub-services.  The reason
+ * for this is partially historical and partially practical.  The practical
+ * reason is that the VBoxService binary is typically statically linked, at
+ * least with IPRT and the guest library, so we save quite a lot of space having
+ * on single binary instead individual binaries for each sub-service and their
+ * helpers (currently up to 9 subservices and 8 helpers).  The historical is
+ * simply that it started its life on OS/2 dreaming of conquring Windows next,
+ * so it kind of felt natural to have it all in one binary.
+ *
+ * Even if it's structured as a single binary, it is possible, by using command
+ * line options, to start each subservice as an individual process.
+ *
+ * Subservices:
+ *  - @subpage pg_vgsvc_timesync    "Time Synchronization"
+ *  - @subpage pg_vgsvc_vminfo      "VM Information"
+ *  - @subpage pg_vgsvc_vmstats     "VM Statistics"
+ *  - @subpage pg_vgsvc_gstctrl     "Guest Control"
+ *  - @subpage pg_vgsvc_pagesharing "Page Sharing"
+ *  - @subpage pg_vgsvc_memballoon  "Memory Balooning"
+ *  - @subpage pg_vgsvc_cpuhotplug  "CPU Hot-Plugging"
+ *  - @subpage pg_vgsvc_automount   "Shared Folder Automounting"
+ *  - @subpage pg_vgsvc_clipboard   "Clipboard (OS/2 only)"
+ *
+ * Now, since the service predates a lot of stuff, including RTGetOpt, we're
+ * currently doing our own version of argument parsing here, which is kind of
+ * stupid.  That will hopefully be cleaned up eventually.
+ */
 
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
@@ -140,16 +171,24 @@ static struct
 #endif
 };
 
-/* Default call-backs for services which do not need special behaviour. */
 
-/** @copydoc VBOXSERVICE::pfnPreInit */
-DECLCALLBACK(int) VBoxServiceDefaultPreInit(void)
+/*
+ * Default call-backs for services which do not need special behaviour.
+ */
+
+/**
+ * @interface_method_impl{VBOXSERVICE,pfnPreInit, Default Implementation}
+ */
+DECLCALLBACK(int) VGSvcDefaultPreInit(void)
 {
     return VINF_SUCCESS;
 }
 
-/** @copydoc VBOXSERVICE::pfnOption */
-DECLCALLBACK(int) VBoxServiceDefaultOption(const char **ppszShort, int argc,
+
+/**
+ * @interface_method_impl{VBOXSERVICE,pfnOption, Default Implementation}
+ */
+DECLCALLBACK(int) VGSvcDefaultOption(const char **ppszShort, int argc,
                                            char **argv, int *pi)
 {
     NOREF(ppszShort);
@@ -160,27 +199,29 @@ DECLCALLBACK(int) VBoxServiceDefaultOption(const char **ppszShort, int argc,
     return -1;
 }
 
-/** @copydoc VBOXSERVICE::pfnInit */
-DECLCALLBACK(int) VBoxServiceDefaultInit(void)
+
+/**
+ * @interface_method_impl{VBOXSERVICE,pfnInit, Default Implementation}
+ */
+DECLCALLBACK(int) VGSvcDefaultInit(void)
 {
     return VINF_SUCCESS;
 }
 
-/** @copydoc VBOXSERVICE::pfnTerm */
-DECLCALLBACK(void) VBoxServiceDefaultTerm(void)
+
+/**
+ * @interface_method_impl{VBOXSERVICE,pfnTerm, Default Implementation}
+ */
+DECLCALLBACK(void) VGSvcDefaultTerm(void)
 {
     return;
 }
 
+
 /**
- * Release logger callback.
- *
- * @return  IPRT status code.
- * @param   pLoggerRelease
- * @param   enmPhase
- * @param   pfnLog
+ * @callback_method_impl{FNRTLOGPHASE, Release logger callback}
  */
-static DECLCALLBACK(void) VBoxServiceLogHeaderFooter(PRTLOGGER pLoggerRelease, RTLOGPHASE enmPhase, PFNRTLOGPHASEMSG pfnLog)
+static DECLCALLBACK(void) vgsvcLogHeaderFooter(PRTLOGGER pLoggerRelease, RTLOGPHASE enmPhase, PFNRTLOGPHASEMSG pfnLog)
 {
     /* Some introductory information. */
     static RTTIMESPEC s_TimeSpec;
@@ -194,7 +235,7 @@ static DECLCALLBACK(void) VBoxServiceLogHeaderFooter(PRTLOGGER pLoggerRelease, R
         case RTLOGPHASE_BEGIN:
         {
             pfnLog(pLoggerRelease,
-                   "VBoxService %s r%s (verbosity: %d) %s (%s %s) release log\n"
+                   "VBoxService %s r%s (verbosity: %u) %s (%s %s) release log\n"
                    "Log opened %s\n",
                    RTBldCfgVersion(), RTBldCfgRevisionStr(), g_cVerbosity, VBOX_BUILD_TARGET,
                    __DATE__, __TIME__, szTmp);
@@ -208,6 +249,7 @@ static DECLCALLBACK(void) VBoxServiceLogHeaderFooter(PRTLOGGER pLoggerRelease, R
             vrc = RTSystemQueryOSInfo(RTSYSOSINFO_VERSION, szTmp, sizeof(szTmp));
             if (RT_SUCCESS(vrc) || vrc == VERR_BUFFER_OVERFLOW)
                 pfnLog(pLoggerRelease, "OS Version: %s\n", szTmp);
+            vrc = RTSystemQueryOSInfo(RTSYSOSINFO_SERVICE_PACK, szTmp, sizeof(szTmp));
             if (RT_SUCCESS(vrc) || vrc == VERR_BUFFER_OVERFLOW)
                 pfnLog(pLoggerRelease, "OS Service Pack: %s\n", szTmp);
 
@@ -241,19 +283,21 @@ static DECLCALLBACK(void) VBoxServiceLogHeaderFooter(PRTLOGGER pLoggerRelease, R
             break;
 
         default:
-            /* nothing */;
+            /* nothing */
+            break;
     }
 }
 
 
 /**
  * Creates the default release logger outputting to the specified file.
- * Pass NULL for disabled logging.
+ *
+ * Pass NULL to disabled logging.
  *
  * @return  IPRT status code.
- * @param   pszLogFile              Filename for log output.  Optional.
+ * @param   pszLogFile      Filename for log output.  NULL disables logging.
  */
-int VBoxServiceLogCreate(const char *pszLogFile)
+int VGSvcLogCreate(const char *pszLogFile)
 {
     /* Create release logger (stdout + file). */
     static const char * const s_apszGroups[] = VBOX_LOGGROUP_NAMES;
@@ -270,7 +314,7 @@ int VBoxServiceLogCreate(const char *pszLogFile)
 #endif
                            RT_ELEMENTS(s_apszGroups), s_apszGroups,
                            RTLOGDEST_STDOUT | RTLOGDEST_USER,
-                           VBoxServiceLogHeaderFooter, g_cHistory, g_uHistoryFileSize, g_uHistoryFileTime,
+                           vgsvcLogHeaderFooter, g_cHistory, g_uHistoryFileSize, g_uHistoryFileTime,
                            szError, sizeof(szError), pszLogFile);
     if (RT_SUCCESS(rc))
     {
@@ -285,7 +329,7 @@ int VBoxServiceLogCreate(const char *pszLogFile)
 }
 
 
-void VBoxServiceLogDestroy(void)
+void VGSvcLogDestroy(void)
 {
     RTLogDestroy(RTLogRelSetDefaultInstance(NULL));
 }
@@ -308,7 +352,7 @@ int vboxServiceCreatePidFile(const char *pszPidFile)
             rc = rc2;
     }
     if (RT_FAILURE(rc))
-        VBoxServiceError("Failed to create PID file: %Rrc\n", rc);
+        VGSvcError("Failed to create PID file: %Rrc\n", rc);
     return rc;
 }
 
@@ -318,7 +362,7 @@ int vboxServiceCreatePidFile(const char *pszPidFile)
  *
  * @returns 1.
  */
-static int vboxServiceUsage(void)
+static int vgsvcUsage(void)
 {
     RTPrintf("Usage:\n"
              " %-12s [-f|--foreground] [-v|--verbose] [-l|--logfile <file>]\n"
@@ -370,7 +414,7 @@ static int vboxServiceUsage(void)
  * @param   pszFormat   The message text.
  * @param   ...         Format arguments.
  */
-RTEXITCODE VBoxServiceError(const char *pszFormat, ...)
+RTEXITCODE VGSvcError(const char *pszFormat, ...)
 {
     va_list args;
     va_start(args, pszFormat);
@@ -394,7 +438,7 @@ RTEXITCODE VBoxServiceError(const char *pszFormat, ...)
  * @param   pszFormat   The message text.
  * @param   ...         Format arguments.
  */
-void VBoxServiceVerbose(unsigned iLevel, const char *pszFormat, ...)
+void VGSvcVerbose(unsigned iLevel, const char *pszFormat, ...)
 {
     if (iLevel <= g_cVerbosity)
     {
@@ -429,20 +473,19 @@ void VBoxServiceVerbose(unsigned iLevel, const char *pszFormat, ...)
  * @return  IPRT status code.
  * @param   enmStatus               Status to report to the host.
  */
-int VBoxServiceReportStatus(VBoxGuestFacilityStatus enmStatus)
+int VGSvcReportStatus(VBoxGuestFacilityStatus enmStatus)
 {
     /*
      * VBoxGuestFacilityStatus_Failed is sticky.
      */
     static VBoxGuestFacilityStatus s_enmLastStatus = VBoxGuestFacilityStatus_Inactive;
-    VBoxServiceVerbose(4, "Setting VBoxService status to %u\n", enmStatus);
+    VGSvcVerbose(4, "Setting VBoxService status to %u\n", enmStatus);
     if (s_enmLastStatus != VBoxGuestFacilityStatus_Failed)
     {
-        int rc = VbglR3ReportAdditionsStatus(VBoxGuestFacilityType_VBoxService,
-                                             enmStatus, 0 /* Flags */);
+        int rc = VbglR3ReportAdditionsStatus(VBoxGuestFacilityType_VBoxService, enmStatus, 0 /* Flags */);
         if (RT_FAILURE(rc))
         {
-            VBoxServiceError("Could not report VBoxService status (%u), rc=%Rrc\n", enmStatus, rc);
+            VGSvcError("Could not report VBoxService status (%u), rc=%Rrc\n", enmStatus, rc);
             return rc;
         }
         s_enmLastStatus = enmStatus;
@@ -453,7 +496,7 @@ int VBoxServiceReportStatus(VBoxGuestFacilityStatus enmStatus)
 
 /**
  * Gets a 32-bit value argument.
- * @todo Get rid of this and VBoxServiceArgString() as soon as we have RTOpt handling.
+ * @todo Get rid of this and VGSvcArgString() as soon as we have RTOpt handling.
  *
  * @returns 0 on success, non-zero exit code on error.
  * @param   argc    The argument count.
@@ -464,7 +507,7 @@ int VBoxServiceReportStatus(VBoxGuestFacilityStatus enmStatus)
  * @param   u32Min  The minimum value.
  * @param   u32Max  The maximum value.
  */
-int VBoxServiceArgUInt32(int argc, char **argv, const char *psz, int *pi, uint32_t *pu32, uint32_t u32Min, uint32_t u32Max)
+int VGSvcArgUInt32(int argc, char **argv, const char *psz, int *pi, uint32_t *pu32, uint32_t u32Min, uint32_t u32Max)
 {
     if (*psz == ':' || *psz == '=')
         psz++;
@@ -485,8 +528,9 @@ int VBoxServiceArgUInt32(int argc, char **argv, const char *psz, int *pi, uint32
     return 0;
 }
 
-/** @todo Get rid of this and VBoxServiceArgUInt32() as soon as we have RTOpt handling. */
-int VBoxServiceArgString(int argc, char **argv, const char *psz, int *pi, char *pszBuf, size_t cbBuf)
+
+/** @todo Get rid of this and VGSvcArgUInt32() as soon as we have RTOpt handling. */
+static int vgsvcArgString(int argc, char **argv, const char *psz, int *pi, char *pszBuf, size_t cbBuf)
 {
     AssertPtrReturn(pszBuf, VERR_INVALID_POINTER);
     AssertPtrReturn(cbBuf, VERR_INVALID_PARAMETER);
@@ -506,7 +550,6 @@ int VBoxServiceArgString(int argc, char **argv, const char *psz, int *pi, char *
 }
 
 
-
 /**
  * The service thread.
  *
@@ -514,7 +557,7 @@ int VBoxServiceArgString(int argc, char **argv, const char *psz, int *pi, char *
  * @param   ThreadSelf      My thread handle.
  * @param   pvUser          The service index.
  */
-static DECLCALLBACK(int) vboxServiceThread(RTTHREAD ThreadSelf, void *pvUser)
+static DECLCALLBACK(int) vgsvcThread(RTTHREAD ThreadSelf, void *pvUser)
 {
     const unsigned i = (uintptr_t)pvUser;
 
@@ -539,14 +582,14 @@ static DECLCALLBACK(int) vboxServiceThread(RTTHREAD ThreadSelf, void *pvUser)
  *
  * @returns VBox status code, error message displayed.
  */
-static RTEXITCODE vboxServiceLazyPreInit(void)
+static RTEXITCODE vgsvcLazyPreInit(void)
 {
     for (unsigned j = 0; j < RT_ELEMENTS(g_aServices); j++)
         if (!g_aServices[j].fPreInited)
         {
             int rc = g_aServices[j].pDesc->pfnPreInit();
             if (RT_FAILURE(rc))
-                return VBoxServiceError("Service '%s' failed pre-init: %Rrc\n", g_aServices[j].pDesc->pszName, rc);
+                return VGSvcError("Service '%s' failed pre-init: %Rrc\n", g_aServices[j].pDesc->pszName, rc);
             g_aServices[j].fPreInited = true;
         }
     return RTEXITCODE_SUCCESS;
@@ -556,7 +599,7 @@ static RTEXITCODE vboxServiceLazyPreInit(void)
 /**
  * Count the number of enabled services.
  */
-static unsigned vboxServiceCountEnabledServices(void)
+static unsigned vgsvcCountEnabledServices(void)
 {
     unsigned cEnabled = 0;
     for (unsigned i = 0; i < RT_ELEMENTS(g_aServices); i++)
@@ -566,7 +609,16 @@ static unsigned vboxServiceCountEnabledServices(void)
 
 
 #ifdef RT_OS_WINDOWS
-static BOOL WINAPI VBoxServiceConsoleControlHandler(DWORD dwCtrlType)
+/**
+ * Console control event callback.
+ *
+ * @returns TRUE if handled, FALSE if not.
+ * @param   dwCtrlType      The control event type.
+ *
+ * @remarks This is generally called on a new thread, so we're racing every
+ *          other thread in the process.
+ */
+static BOOL WINAPI vgsvcWinConsoleControlHandler(DWORD dwCtrlType)
 {
     int rc = VINF_SUCCESS;
     bool fEventHandled = FALSE;
@@ -577,8 +629,8 @@ static BOOL WINAPI VBoxServiceConsoleControlHandler(DWORD dwCtrlType)
         case CTRL_BREAK_EVENT:
         case CTRL_CLOSE_EVENT:
         case CTRL_C_EVENT:
-            VBoxServiceVerbose(2, "ControlHandler: Received break/close event\n");
-            rc = VBoxServiceStopServices();
+            VGSvcVerbose(2, "ControlHandler: Received break/close event\n");
+            rc = VGSvcStopServices();
             fEventHandled = TRUE;
             break;
         default:
@@ -587,7 +639,7 @@ static BOOL WINAPI VBoxServiceConsoleControlHandler(DWORD dwCtrlType)
     }
 
     if (RT_FAILURE(rc))
-        VBoxServiceError("ControlHandler: Event %ld handled with error rc=%Rrc\n",
+        VGSvcError("ControlHandler: Event %ld handled with error rc=%Rrc\n",
                          dwCtrlType, rc);
     return fEventHandled;
 }
@@ -598,17 +650,19 @@ static BOOL WINAPI VBoxServiceConsoleControlHandler(DWORD dwCtrlType)
  * Starts the service.
  *
  * @returns VBox status code, errors are fully bitched.
+ *
+ * @remarks Also called from VBoxService-win.cpp, thus not static.
  */
-int VBoxServiceStartServices(void)
+int VGSvcStartServices(void)
 {
     int rc;
 
-    VBoxServiceReportStatus(VBoxGuestFacilityStatus_Init);
+    VGSvcReportStatus(VBoxGuestFacilityStatus_Init);
 
     /*
      * Initialize the services.
      */
-    VBoxServiceVerbose(2, "Initializing services ...\n");
+    VGSvcVerbose(2, "Initializing services ...\n");
     for (unsigned j = 0; j < RT_ELEMENTS(g_aServices); j++)
         if (g_aServices[j].fEnabled)
         {
@@ -617,14 +671,12 @@ int VBoxServiceStartServices(void)
             {
                 if (rc != VERR_SERVICE_DISABLED)
                 {
-                    VBoxServiceError("Service '%s' failed to initialize: %Rrc\n",
-                                     g_aServices[j].pDesc->pszName, rc);
-                    VBoxServiceReportStatus(VBoxGuestFacilityStatus_Failed);
+                    VGSvcError("Service '%s' failed to initialize: %Rrc\n", g_aServices[j].pDesc->pszName, rc);
+                    VGSvcReportStatus(VBoxGuestFacilityStatus_Failed);
                     return rc;
                 }
                 g_aServices[j].fEnabled = false;
-                VBoxServiceVerbose(0, "Service '%s' was disabled because of missing functionality\n",
-                                   g_aServices[j].pDesc->pszName);
+                VGSvcVerbose(0, "Service '%s' was disabled because of missing functionality\n", g_aServices[j].pDesc->pszName);
 
             }
         }
@@ -632,19 +684,19 @@ int VBoxServiceStartServices(void)
     /*
      * Start the service(s).
      */
-    VBoxServiceVerbose(2, "Starting services ...\n");
+    VGSvcVerbose(2, "Starting services ...\n");
     rc = VINF_SUCCESS;
     for (unsigned j = 0; j < RT_ELEMENTS(g_aServices); j++)
     {
         if (!g_aServices[j].fEnabled)
             continue;
 
-        VBoxServiceVerbose(2, "Starting service     '%s' ...\n", g_aServices[j].pDesc->pszName);
-        rc = RTThreadCreate(&g_aServices[j].Thread, vboxServiceThread, (void *)(uintptr_t)j, 0,
+        VGSvcVerbose(2, "Starting service     '%s' ...\n", g_aServices[j].pDesc->pszName);
+        rc = RTThreadCreate(&g_aServices[j].Thread, vgsvcThread, (void *)(uintptr_t)j, 0,
                             RTTHREADTYPE_DEFAULT, RTTHREADFLAGS_WAITABLE, g_aServices[j].pDesc->pszName);
         if (RT_FAILURE(rc))
         {
-            VBoxServiceError("RTThreadCreate failed, rc=%Rrc\n", rc);
+            VGSvcError("RTThreadCreate failed, rc=%Rrc\n", rc);
             break;
         }
         g_aServices[j].fStarted = true;
@@ -663,17 +715,17 @@ int VBoxServiceStartServices(void)
         RTThreadUserWait(g_aServices[j].Thread, 60 * 1000);
         if (g_aServices[j].fShutdown)
         {
-            VBoxServiceError("Service '%s' failed to start!\n", g_aServices[j].pDesc->pszName);
+            VGSvcError("Service '%s' failed to start!\n", g_aServices[j].pDesc->pszName);
             rc = VERR_GENERAL_FAILURE;
         }
     }
 
     if (RT_SUCCESS(rc))
-        VBoxServiceVerbose(1, "All services started.\n");
+        VGSvcVerbose(1, "All services started.\n");
     else
     {
-        VBoxServiceError("An error occcurred while the services!\n");
-        VBoxServiceReportStatus(VBoxGuestFacilityStatus_Failed);
+        VGSvcError("An error occcurred while the services!\n");
+        VGSvcReportStatus(VBoxGuestFacilityStatus_Failed);
     }
     return rc;
 }
@@ -684,10 +736,12 @@ int VBoxServiceStartServices(void)
  *
  * This should be called even when VBoxServiceStartServices fails so it can
  * clean up anything that we succeeded in starting.
+ *
+ * @remarks Also called from VBoxService-win.cpp, thus not static.
  */
-int VBoxServiceStopServices(void)
+int VGSvcStopServices(void)
 {
-    VBoxServiceReportStatus(VBoxGuestFacilityStatus_Terminating);
+    VGSvcReportStatus(VBoxGuestFacilityStatus_Terminating);
 
     /*
      * Signal all the services.
@@ -701,11 +755,11 @@ int VBoxServiceStopServices(void)
     for (unsigned j = 0; j < RT_ELEMENTS(g_aServices); j++)
         if (g_aServices[j].fStarted)
         {
-            VBoxServiceVerbose(3, "Calling stop function for service '%s' ...\n", g_aServices[j].pDesc->pszName);
+            VGSvcVerbose(3, "Calling stop function for service '%s' ...\n", g_aServices[j].pDesc->pszName);
             g_aServices[j].pDesc->pfnStop();
         }
 
-    VBoxServiceVerbose(3, "All stop functions for services called\n");
+    VGSvcVerbose(3, "All stop functions for services called\n");
 
     /*
      * Wait for all the service threads to complete.
@@ -717,7 +771,7 @@ int VBoxServiceStopServices(void)
             continue;
         if (g_aServices[j].Thread != NIL_RTTHREAD)
         {
-            VBoxServiceVerbose(2, "Waiting for service '%s' to stop ...\n", g_aServices[j].pDesc->pszName);
+            VGSvcVerbose(2, "Waiting for service '%s' to stop ...\n", g_aServices[j].pDesc->pszName);
             int rc2 = VINF_SUCCESS;
             for (int i = 0; i < 30; i++) /* Wait 30 seconds in total */
             {
@@ -726,16 +780,16 @@ int VBoxServiceStopServices(void)
                     break;
 #ifdef RT_OS_WINDOWS
                 /* Notify SCM that it takes a bit longer ... */
-                VBoxServiceWinSetStopPendingStatus(i + j*32);
+                VGSvcWinSetStopPendingStatus(i + j*32);
 #endif
             }
             if (RT_FAILURE(rc2))
             {
-                VBoxServiceError("Service '%s' failed to stop. (%Rrc)\n", g_aServices[j].pDesc->pszName, rc2);
+                VGSvcError("Service '%s' failed to stop. (%Rrc)\n", g_aServices[j].pDesc->pszName, rc2);
                 rc = rc2;
             }
         }
-        VBoxServiceVerbose(3, "Terminating service '%s' (%d) ...\n", g_aServices[j].pDesc->pszName, j);
+        VGSvcVerbose(3, "Terminating service '%s' (%d) ...\n", g_aServices[j].pDesc->pszName, j);
         g_aServices[j].pDesc->pfnTerm();
     }
 
@@ -747,32 +801,34 @@ int VBoxServiceStopServices(void)
     ASMAtomicWriteBool(&g_fWindowsServiceShutdown, true);
     if (g_hEvtWindowsService != NIL_RTSEMEVENT)
     {
-        VBoxServiceVerbose(3, "Stopping the main thread...\n");
+        VGSvcVerbose(3, "Stopping the main thread...\n");
         int rc2 = RTSemEventSignal(g_hEvtWindowsService);
         AssertRC(rc2);
     }
 #endif
 
-    VBoxServiceVerbose(2, "Stopping services returning: %Rrc\n", rc);
-    VBoxServiceReportStatus(RT_SUCCESS(rc) ? VBoxGuestFacilityStatus_Paused : VBoxGuestFacilityStatus_Failed);
+    VGSvcVerbose(2, "Stopping services returning: %Rrc\n", rc);
+    VGSvcReportStatus(RT_SUCCESS(rc) ? VBoxGuestFacilityStatus_Paused : VBoxGuestFacilityStatus_Failed);
     return rc;
 }
 
 
 /**
  * Block the main thread until the service shuts down.
+ *
+ * @remarks Also called from VBoxService-win.cpp, thus not static.
  */
-void VBoxServiceMainWait(void)
+void VGSvcMainWait(void)
 {
     int rc;
 
-    VBoxServiceReportStatus(VBoxGuestFacilityStatus_Active);
+    VGSvcReportStatus(VBoxGuestFacilityStatus_Active);
 
 #ifdef RT_OS_WINDOWS
     /*
      * Wait for the semaphore to be signalled.
      */
-    VBoxServiceVerbose(1, "Waiting in main thread\n");
+    VGSvcVerbose(1, "Waiting in main thread\n");
     rc = RTSemEventCreate(&g_hEvtWindowsService);
     AssertRC(rc);
     while (!ASMAtomicReadBool(&g_fWindowsServiceShutdown))
@@ -811,7 +867,7 @@ void VBoxServiceMainWait(void)
 # endif
           );
 
-    VBoxServiceVerbose(3, "VBoxServiceMainWait: Received signal %d (rc=%d)\n", iSignal, rc);
+    VGSvcVerbose(3, "VGSvcMainWait: Received signal %d (rc=%d)\n", iSignal, rc);
 #endif /* !RT_OS_WINDOWS */
 }
 
@@ -839,7 +895,7 @@ int main(int argc, char **argv)
      * VBoxService and shouldn't be subject to /dev/vboxguest, pid-files and
      * global mutex restrictions.
      */
-    if (VBoxServiceToolboxMain(argc, argv, &rcExit))
+    if (VGSvcToolboxMain(argc, argv, &rcExit))
         return rcExit;
 #endif
 
@@ -864,7 +920,6 @@ int main(int argc, char **argv)
         rc = VbglR3InitUser();
     else
         rc = VbglR3Init();
-
     if (RT_FAILURE(rc))
     {
         if (rc == VERR_ACCESS_DENIED)
@@ -876,11 +931,11 @@ int main(int argc, char **argv)
 #ifdef RT_OS_WINDOWS
     /*
      * Check if we're the specially spawned VBoxService.exe process that
-     * handles page fusion.  This saves an extra executable.
+     * handles page fusion.  This saves an extra statically linked executable.
      */
     if (   argc == 2
         && !RTStrICmp(argv[1], "pagefusion"))
-        return VBoxServicePageSharingWorkerChild();
+        return VGSvcPageSharingWorkerChild();
 #endif
 
 #ifdef VBOX_WITH_GUEST_CONTROL
@@ -889,7 +944,7 @@ int main(int argc, char **argv)
      * handles a guest control session.
      */
     if (fUserSession)
-        return VBoxServiceControlSessionSpawnInit(argc, argv);
+        return VGSvcGstCtrlSessionSpawnInit(argc, argv);
 #endif
 
     /*
@@ -962,7 +1017,7 @@ int main(int argc, char **argv)
 
                 if (!fFound)
                 {
-                    rcExit = vboxServiceLazyPreInit();
+                    rcExit = vgsvcLazyPreInit();
                     if (rcExit != RTEXITCODE_SUCCESS)
                         return rcExit;
                     for (unsigned j = 0; !fFound && j < RT_ELEMENTS(g_aServices); j++)
@@ -988,7 +1043,7 @@ int main(int argc, char **argv)
             switch (*psz)
             {
                 case 'i':
-                    rc = VBoxServiceArgUInt32(argc, argv, psz + 1, &i,
+                    rc = VGSvcArgUInt32(argc, argv, psz + 1, &i,
                                               &g_DefaultInterval, 1, (UINT32_MAX / 1000) - 1);
                     if (rc)
                         return rc;
@@ -1009,19 +1064,19 @@ int main(int argc, char **argv)
 
                 case 'h':
                 case '?':
-                    return vboxServiceUsage();
+                    return vgsvcUsage();
 
 #ifdef RT_OS_WINDOWS
                 case 'r':
-                    return VBoxServiceWinInstall();
+                    return VGSvcWinInstall();
 
                 case 'u':
-                    return VBoxServiceWinUninstall();
+                    return VGSvcWinUninstall();
 #endif
 
                 case 'l':
                 {
-                    rc = VBoxServiceArgString(argc, argv, psz + 1, &i,
+                    rc = vgsvcArgString(argc, argv, psz + 1, &i,
                                               g_szLogFile, sizeof(g_szLogFile));
                     if (rc)
                         return rc;
@@ -1031,7 +1086,7 @@ int main(int argc, char **argv)
 
                 case 'p':
                 {
-                    rc = VBoxServiceArgString(argc, argv, psz + 1, &i,
+                    rc = vgsvcArgString(argc, argv, psz + 1, &i,
                                               g_szPidFile, sizeof(g_szPidFile));
                     if (rc)
                         return rc;
@@ -1041,7 +1096,7 @@ int main(int argc, char **argv)
 
                 default:
                 {
-                    rcExit = vboxServiceLazyPreInit();
+                    rcExit = vgsvcLazyPreInit();
                     if (rcExit != RTEXITCODE_SUCCESS)
                         return rcExit;
 
@@ -1064,16 +1119,16 @@ int main(int argc, char **argv)
     }
 
     /* Check that at least one service is enabled. */
-    if (vboxServiceCountEnabledServices() == 0)
+    if (vgsvcCountEnabledServices() == 0)
         return RTMsgErrorExit(RTEXITCODE_SYNTAX, "At least one service must be enabled\n");
 
-    rc = VBoxServiceLogCreate(strlen(g_szLogFile) ? g_szLogFile : NULL);
+    rc = VGSvcLogCreate(g_szLogFile[0] ? g_szLogFile : NULL);
     if (RT_FAILURE(rc))
-        return RTMsgErrorExit(RTEXITCODE_FAILURE, "Failed to create release log \"%s\", rc=%Rrc\n",
-                              strlen(g_szLogFile) ? g_szLogFile : "<None>", rc);
+        return RTMsgErrorExit(RTEXITCODE_FAILURE, "Failed to create release log '%s', rc=%Rrc\n",
+                              g_szLogFile[0] ? g_szLogFile : "<None>", rc);
 
     /* Call pre-init if we didn't do it already. */
-    rcExit = vboxServiceLazyPreInit();
+    rcExit = vgsvcLazyPreInit();
     if (rcExit != RTEXITCODE_SUCCESS)
         return rcExit;
 
@@ -1105,11 +1160,11 @@ int main(int argc, char **argv)
         if (   dwErr == ERROR_ALREADY_EXISTS
             || dwErr == ERROR_ACCESS_DENIED)
         {
-            VBoxServiceError("%s is already running! Terminating.\n", g_pszProgName);
+            VGSvcError("%s is already running! Terminating.\n", g_pszProgName);
             return RTEXITCODE_FAILURE;
         }
 
-        VBoxServiceError("CreateMutex failed with last error %u! Terminating.\n", GetLastError());
+        VGSvcError("CreateMutex failed with last error %u! Terminating.\n", GetLastError());
         return RTEXITCODE_FAILURE;
     }
 
@@ -1117,8 +1172,7 @@ int main(int argc, char **argv)
     /** @todo Add PID file creation here? */
 #endif /* !RT_OS_WINDOWS */
 
-    VBoxServiceVerbose(0, "%s r%s started. Verbose level = %d\n",
-                       RTBldCfgVersion(), RTBldCfgRevisionStr(), g_cVerbosity);
+    VGSvcVerbose(0, "%s r%s started. Verbose level = %d\n", RTBldCfgVersion(), RTBldCfgRevisionStr(), g_cVerbosity);
 
     /*
      * Daemonize if requested.
@@ -1126,14 +1180,14 @@ int main(int argc, char **argv)
     if (fDaemonize && !fDaemonized)
     {
 #ifdef RT_OS_WINDOWS
-        VBoxServiceVerbose(2, "Starting service dispatcher ...\n");
-        rcExit = VBoxServiceWinEnterCtrlDispatcher();
+        VGSvcVerbose(2, "Starting service dispatcher ...\n");
+        rcExit = VGSvcWinEnterCtrlDispatcher();
 #else
-        VBoxServiceVerbose(1, "Daemonizing...\n");
+        VGSvcVerbose(1, "Daemonizing...\n");
         rc = VbglR3Daemonize(false /* fNoChDir */, false /* fNoClose */,
                              false /* fRespawn */, NULL /* pcRespawn */);
         if (RT_FAILURE(rc))
-            return VBoxServiceError("Daemon failed: %Rrc\n", rc);
+            return VGSvcError("Daemon failed: %Rrc\n", rc);
         /* in-child */
 #endif
     }
@@ -1150,23 +1204,23 @@ int main(int argc, char **argv)
          *          and return immediately.
          */
 #ifdef RT_OS_WINDOWS
-# ifndef RT_OS_NT4
+# ifndef RT_OS_NT4 /** @todo r=bird: What's RT_OS_NT4??? */
         /* Install console control handler. */
-        if (!SetConsoleCtrlHandler((PHANDLER_ROUTINE)VBoxServiceConsoleControlHandler, TRUE /* Add handler */))
+        if (!SetConsoleCtrlHandler((PHANDLER_ROUTINE)vgsvcWinConsoleControlHandler, TRUE /* Add handler */))
         {
-            VBoxServiceError("Unable to add console control handler, error=%ld\n", GetLastError());
+            VGSvcError("Unable to add console control handler, error=%ld\n", GetLastError());
             /* Just skip this error, not critical. */
         }
 # endif /* !RT_OS_NT4 */
 #endif /* RT_OS_WINDOWS */
-        rc = VBoxServiceStartServices();
+        rc = VGSvcStartServices();
         RTFILE hPidFile = NIL_RTFILE;
         if (RT_SUCCESS(rc))
             if (g_szPidFile[0])
                 rc = VbglR3PidFile(g_szPidFile, &hPidFile);
         rcExit = RT_SUCCESS(rc) ? RTEXITCODE_SUCCESS : RTEXITCODE_FAILURE;
         if (RT_SUCCESS(rc))
-            VBoxServiceMainWait();
+            VGSvcMainWait();
         if (g_szPidFile[0] && hPidFile != NIL_RTFILE)
             VbglR3ClosePidFile(g_szPidFile, hPidFile);
 #ifdef RT_OS_WINDOWS
@@ -1174,7 +1228,7 @@ int main(int argc, char **argv)
         /* Uninstall console control handler. */
         if (!SetConsoleCtrlHandler((PHANDLER_ROUTINE)NULL, FALSE /* Remove handler */))
         {
-            VBoxServiceError("Unable to remove console control handler, error=%ld\n", GetLastError());
+            VGSvcError("Unable to remove console control handler, error=%ld\n", GetLastError());
             /* Just skip this error, not critical. */
         }
 # endif /* !RT_OS_NT4 */
@@ -1182,10 +1236,10 @@ int main(int argc, char **argv)
         /* On Windows - since we're running as a console application - we already stopped all services
          * through the console control handler. So only do the stopping of services here on other platforms
          * where the break/shutdown/whatever signal was just received. */
-        VBoxServiceStopServices();
+        VGSvcStopServices();
 #endif /* RT_OS_WINDOWS */
     }
-    VBoxServiceReportStatus(VBoxGuestFacilityStatus_Terminated);
+    VGSvcReportStatus(VBoxGuestFacilityStatus_Terminated);
 
 #ifdef RT_OS_WINDOWS
     /*
@@ -1194,14 +1248,14 @@ int main(int argc, char **argv)
     CloseHandle(hMutexAppRunning);
 #endif
 
-    VBoxServiceVerbose(0, "Ended.\n");
+    VGSvcVerbose(0, "Ended.\n");
 
 #ifdef DEBUG
     RTCritSectDelete(&g_csLog);
     //RTMemTrackerDumpAllToStdOut();
 #endif
 
-    VBoxServiceLogDestroy();
+    VGSvcLogDestroy();
 
     return rcExit;
 }

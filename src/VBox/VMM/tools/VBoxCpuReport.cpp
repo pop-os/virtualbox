@@ -507,7 +507,11 @@ static int findMsrs(VBCPUREPMSR **ppaMsrs, uint32_t *pcMsrs, uint32_t fMsrMask)
             }
 #endif
             /* Skip 0xc0011012..13 as it seems to be bad for our health (Phenom II X6 1100T). */
-            if ((uMsr >= 0xc0011012 && uMsr <= 0xc0011013) && g_enmVendor == CPUMCPUVENDOR_AMD)
+            /* Ditto for 0x0000002a (EBL_CR_POWERON) and 0x00000277 (MSR_IA32_CR_PAT) on Intel (Atom 330). */
+            if (   ((uMsr >= 0xc0011012 && uMsr <= 0xc0011013) && g_enmVendor == CPUMCPUVENDOR_AMD)
+                || (   (uMsr == 0x2a || uMsr == 0x277)
+                    && g_enmVendor == CPUMCPUVENDOR_INTEL
+                    && g_enmMicroarch == kCpumMicroarch_Intel_Atom_Bonnell))
                 vbCpuRepDebug("Skipping %#x\n", uMsr);
             else
             {
@@ -3516,7 +3520,9 @@ static int reportMsr_Ia32McCtlStatusAddrMiscN(VBCPUREPMSR const *paMsrs, uint32_
     while (   cDetectedRegs < cMsrs
            && (   paMsrs[cDetectedRegs].uMsr == uMsr + cRegs
                || (cRegs & 3) == 2 /* ADDR may or may not be there, depends on STATUS and CPU. */
-               || (cRegs & 3) == 3 /* MISC may or may not be there, depends on STATUS and CPU. */)
+               || (cRegs & 3) == 3 /* MISC may or may not be there, depends on STATUS and CPU. */
+               || cRegs == 0x13 /* MC4_MISC may not be there, depends on CPU. */
+               || cRegs == 0x14 /* MC5_CTL may not be there, depends on CPU. */)
            && cRegs < 0x7f )
     {
         if (paMsrs[cDetectedRegs].uMsr == uMsr + cRegs)

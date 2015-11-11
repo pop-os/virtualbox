@@ -116,7 +116,7 @@ static char const g_aszSRegNms[X86_SREG_COUNT][4] = { "ES", "CS", "SS", "DS", "F
  * Initializes the SELM.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  */
 VMMR3DECL(int) SELMR3Init(PVM pVM)
 {
@@ -327,7 +327,7 @@ VMMR3DECL(int) SELMR3Init(PVM pVM)
  * Finalizes HMA page attributes.
  *
  * @returns VBox status code.
- * @param   pVM     Pointer to the VM.
+ * @param   pVM     The cross context VM structure.
  */
 VMMR3DECL(int) SELMR3InitFinalize(PVM pVM)
 {
@@ -372,7 +372,7 @@ VMMR3DECL(int) SELMR3InitFinalize(PVM pVM)
 /**
  * Setup the hypervisor GDT selectors in our shadow table
  *
- * @param   pVM     Pointer to the VM.
+ * @param   pVM     The cross context VM structure.
  */
 static void selmR3SetupHyperGDTSelectors(PVM pVM)
 {
@@ -473,7 +473,7 @@ static void selmR3SetupHyperGDTSelectors(PVM pVM)
  * component. This function will be called at init and
  * whenever the VMM need to relocate it self inside the GC.
  *
- * @param   pVM     The VM.
+ * @param   pVM     The cross context VM structure.
  */
 VMMR3DECL(void) SELMR3Relocate(PVM pVM)
 {
@@ -605,7 +605,7 @@ VMMR3DECL(void) SELMR3Relocate(PVM pVM)
  * the VM it self is at this point powered off or suspended.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  */
 VMMR3DECL(int) SELMR3Term(PVM pVM)
 {
@@ -620,7 +620,7 @@ VMMR3DECL(int) SELMR3Term(PVM pVM)
  * For the SELM component this means that any GDT/LDT/TSS monitors
  * needs to be removed.
  *
- * @param   pVM     Pointer to the VM.
+ * @param   pVM     The cross context VM structure.
  */
 VMMR3DECL(void) SELMR3Reset(PVM pVM)
 {
@@ -687,7 +687,7 @@ VMMR3DECL(void) SELMR3Reset(PVM pVM)
  * Execute state save operation.
  *
  * @returns VBox status code.
- * @param   pVM             Pointer to the VM.
+ * @param   pVM             The cross context VM structure.
  * @param   pSSM            SSM operation handle.
  */
 static DECLCALLBACK(int) selmR3Save(PVM pVM, PSSMHANDLE pSSM)
@@ -714,7 +714,7 @@ static DECLCALLBACK(int) selmR3Save(PVM pVM, PSSMHANDLE pSSM)
  * Execute state load operation.
  *
  * @returns VBox status code.
- * @param   pVM             Pointer to the VM.
+ * @param   pVM             The cross context VM structure.
  * @param   pSSM            SSM operation handle.
  * @param   uVersion        Data layout version.
  * @param   uPass           The data pass.
@@ -780,7 +780,7 @@ static DECLCALLBACK(int) selmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion,
  * executing GC code.
  *
  * @returns VBox status code.
- * @param   pVM             Pointer to the VM.
+ * @param   pVM             The cross context VM structure.
  * @param   pSSM            SSM operation handle.
  */
 static DECLCALLBACK(int) selmR3LoadDone(PVM pVM, PSSMHANDLE pSSM)
@@ -827,8 +827,8 @@ static DECLCALLBACK(int) selmR3LoadDone(PVM pVM, PSSMHANDLE pSSM)
  * Updates (syncs) the shadow GDT.
  *
  * @returns VBox status code.
- * @param   pVM                 The VM handle.
- * @param   pVCpu               The current virtual CPU.
+ * @param   pVM                 The cross context VM structure.
+ * @param   pVCpu               The cross context virtual CPU structure of the calling EMT.
  */
 static int selmR3UpdateShadowGdt(PVM pVM, PVMCPU pVCpu)
 {
@@ -1086,8 +1086,8 @@ static int selmR3UpdateShadowGdt(PVM pVM, PVMCPU pVCpu)
  * Updates (syncs) the shadow LDT.
  *
  * @returns VBox status code.
- * @param   pVM                 The VM handle.
- * @param   pVCpu               The current virtual CPU.
+ * @param   pVM                 The cross context VM structure.
+ * @param   pVCpu               The cross context virtual CPU structure of the calling EMT.
  */
 static int selmR3UpdateShadowLdt(PVM pVM, PVMCPU pVCpu)
 {
@@ -1322,8 +1322,8 @@ static int selmR3UpdateShadowLdt(PVM pVM, PVMCPU pVCpu)
  * @returns VBox strict status code.
  * @retval  VINF_EM_RESCHEDULE_REM if a stale register was found.
  *
- * @param   pVM                 The VM handle.
- * @param   pVCpu               The current virtual CPU.
+ * @param   pVM                 The cross context VM structure.
+ * @param   pVCpu               The cross context virtual CPU structure of the calling EMT.
  */
 static VBOXSTRICTRC selmR3UpdateSegmentRegisters(PVM pVM, PVMCPU pVCpu)
 {
@@ -1425,8 +1425,8 @@ static VBOXSTRICTRC selmR3UpdateSegmentRegisters(PVM pVM, PVMCPU pVCpu)
  * Updates the Guest GDT & LDT virtualization based on current CPU state.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVM         The cross context VM structure.
+ * @param   pVCpu       The cross context virtual CPU structure.
  */
 VMMR3DECL(VBOXSTRICTRC) SELMR3UpdateFromCPUM(PVM pVM, PVMCPU pVCpu)
 {
@@ -1486,8 +1486,8 @@ VMMR3DECL(VBOXSTRICTRC) SELMR3UpdateFromCPUM(PVM pVM, PVMCPU pVCpu)
  * loaded TR.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVM         The cross context VM structure.
+ * @param   pVCpu       The cross context virtual CPU structure.
  */
 VMMR3DECL(int) SELMR3SyncTSS(PVM pVM, PVMCPU pVCpu)
 {
@@ -1723,7 +1723,7 @@ VMMR3DECL(int) SELMR3SyncTSS(PVM pVM, PVMCPU pVCpu)
  * This is a VBOX_STRICT only function.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  */
 VMMR3DECL(int) SELMR3DebugCheck(PVM pVM)
 {
@@ -1861,7 +1861,7 @@ VMMR3DECL(int) SELMR3DebugCheck(PVM pVM)
  *
  * @returns true if it matches.
  * @returns false and assertions on mismatch..
- * @param   pVM     Pointer to the VM.
+ * @param   pVM     The cross context VM structure.
  */
 VMMR3DECL(bool) SELMR3CheckTSS(PVM pVM)
 {
@@ -2004,7 +2004,7 @@ VMMR3DECL(bool) SELMR3CheckTSS(PVM pVM)
  *
  * @returns true if it matches.
  * @returns false and assertions on mismatch..
- * @param   pVM     Pointer to the VM.
+ * @param   pVM     The cross context VM structure.
  */
 VMMR3DECL(bool) SELMR3CheckShadowTR(PVM pVM)
 {
@@ -2049,7 +2049,7 @@ VMMR3DECL(bool) SELMR3CheckShadowTR(PVM pVM)
  *
  * @returns VBox status code, see SELMR3GetSelectorInfo for details.
  *
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       The cross context virtual CPU structure.
  * @param   Sel         The selector to get info about.
  * @param   pSelInfo    Where to store the information.
  */
@@ -2209,8 +2209,8 @@ DECLINLINE(void) selmR3SelInfoFromDesc32(PDBGFSELINFO pSelInfo, PCX86DESC pDesc)
  *
  * @returns VBox status code, see SELMR3GetSelectorInfo for details.
  *
- * @param   pVM         Pointer to the VM.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVM         The cross context VM structure.
+ * @param   pVCpu       The cross context virtual CPU structure.
  * @param   Sel         The selector to get info about.
  * @param   pSelInfo    Where to store the information.
  */
@@ -2316,8 +2316,8 @@ static int selmR3GetSelectorInfo32(PVM pVM, PVMCPU pVCpu, RTSEL Sel, PDBGFSELINF
  *          pagetable or page backing the selector table wasn't present.
  * @returns Other VBox status code on other errors.
  *
- * @param   pVM         Pointer to the VM.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVM         The cross context VM structure.
+ * @param   pVCpu       The cross context virtual CPU structure.
  * @param   Sel         The selector to get info about.
  * @param   pSelInfo    Where to store the information.
  */
@@ -2346,7 +2346,7 @@ VMMR3DECL(int) SELMR3GetSelectorInfo(PVM pVM, PVMCPU pVCpu, RTSEL Sel, PDBGFSELI
  *          pagetable or page backing the selector table wasn't present.
  * @returns Other VBox status code on other errors.
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  * @param   Sel         The selector to get info about.
  * @param   pSelInfo    Where to store the information.
  *
@@ -2507,7 +2507,7 @@ VMMR3DECL(void) SELMR3DumpDescriptor(X86DESC  Desc, RTSEL Sel, const char *pszMs
 /**
  * Display the shadow gdt.
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  * @param   pHlp        The info helpers.
  * @param   pszArgs     Arguments, ignored.
  */
@@ -2541,7 +2541,7 @@ static DECLCALLBACK(void) selmR3InfoGdt(PVM pVM, PCDBGFINFOHLP pHlp, const char 
 /**
  * Display the guest gdt.
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  * @param   pHlp        The info helpers.
  * @param   pszArgs     Arguments, ignored.
  */
@@ -2584,7 +2584,7 @@ static DECLCALLBACK(void) selmR3InfoGdtGuest(PVM pVM, PCDBGFINFOHLP pHlp, const 
 /**
  * Display the shadow ldt.
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  * @param   pHlp        The info helpers.
  * @param   pszArgs     Arguments, ignored.
  */
@@ -2609,7 +2609,7 @@ static DECLCALLBACK(void) selmR3InfoLdt(PVM pVM, PCDBGFINFOHLP pHlp, const char 
 /**
  * Display the guest ldt.
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  * @param   pHlp        The info helpers.
  * @param   pszArgs     Arguments, ignored.
  */
@@ -2657,7 +2657,7 @@ static DECLCALLBACK(void) selmR3InfoLdtGuest(PVM pVM, PCDBGFINFOHLP pHlp, const 
 /**
  * Dumps the hypervisor GDT
  *
- * @param   pVM     Pointer to the VM.
+ * @param   pVM     The cross context VM structure.
  */
 VMMR3DECL(void) SELMR3DumpHyperGDT(PVM pVM)
 {
@@ -2668,7 +2668,7 @@ VMMR3DECL(void) SELMR3DumpHyperGDT(PVM pVM)
 /**
  * Dumps the hypervisor LDT
  *
- * @param   pVM     Pointer to the VM.
+ * @param   pVM     The cross context VM structure.
  */
 VMMR3DECL(void) SELMR3DumpHyperLDT(PVM pVM)
 {
@@ -2679,7 +2679,7 @@ VMMR3DECL(void) SELMR3DumpHyperLDT(PVM pVM)
 /**
  * Dumps the guest GDT
  *
- * @param   pVM     Pointer to the VM.
+ * @param   pVM     The cross context VM structure.
  */
 VMMR3DECL(void) SELMR3DumpGuestGDT(PVM pVM)
 {
@@ -2690,7 +2690,7 @@ VMMR3DECL(void) SELMR3DumpGuestGDT(PVM pVM)
 /**
  * Dumps the guest LDT
  *
- * @param   pVM     Pointer to the VM.
+ * @param   pVM     The cross context VM structure.
  */
 VMMR3DECL(void) SELMR3DumpGuestLDT(PVM pVM)
 {

@@ -83,8 +83,7 @@ static CPUMMSRRANGE const g_aMsrRanges_HyperV[] =
  * Initializes the Hyper-V GIM provider.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
- * @param   uVersion    The interface version this VM should use.
+ * @param   pVM         The cross context VM structure.
  */
 VMMR3_INT_DECL(int) gimR3HvInit(PVM pVM)
 {
@@ -267,7 +266,7 @@ VMMR3_INT_DECL(int) gimR3HvInit(PVM pVM)
  * This is called after initializing HM and almost all other VMM components.
  *
  * @returns VBox status code.
- * @param   pVM     Pointer to the VM.
+ * @param   pVM     The cross context VM structure.
  */
 VMMR3_INT_DECL(int) gimR3HvInitCompleted(PVM pVM)
 {
@@ -317,7 +316,7 @@ VMMR3_INT_DECL(int) gimR3HvInitFinalize(PVM pVM)
  * Terminates the Hyper-V GIM provider.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  */
 VMMR3_INT_DECL(int) gimR3HvTerm(PVM pVM)
 {
@@ -332,7 +331,7 @@ VMMR3_INT_DECL(int) gimR3HvTerm(PVM pVM)
  * This function will be called at init and whenever the VMM need to relocate
  * itself inside the GC.
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  * @param   offDelta    Relocation delta relative to old location.
  */
 VMMR3_INT_DECL(void) gimR3HvRelocate(PVM pVM, RTGCINTPTR offDelta)
@@ -350,7 +349,7 @@ VMMR3_INT_DECL(void) gimR3HvRelocate(PVM pVM, RTGCINTPTR offDelta)
  *
  * This is called when the VM is being reset.
  *
- * @param   pVM     Pointer to the VM.
+ * @param   pVM     The cross context VM structure.
  * @thread EMT(0).
  */
 VMMR3_INT_DECL(void) gimR3HvReset(PVM pVM)
@@ -391,7 +390,7 @@ VMMR3_INT_DECL(void) gimR3HvReset(PVM pVM)
  * Returns a pointer to the MMIO2 regions supported by Hyper-V.
  *
  * @returns Pointer to an array of MMIO2 regions.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  * @param   pcRegions   Where to store the number of regions in the array.
  */
 VMMR3_INT_DECL(PGIMMMIO2REGION) gimR3HvGetMmio2Regions(PVM pVM, uint32_t *pcRegions)
@@ -409,7 +408,7 @@ VMMR3_INT_DECL(PGIMMMIO2REGION) gimR3HvGetMmio2Regions(PVM pVM, uint32_t *pcRegi
  * Hyper-V state-save operation.
  *
  * @returns VBox status code.
- * @param   pVM     Pointer to the VM.
+ * @param   pVM     The cross context VM structure.
  * @param   pSSM    Pointer to the SSM handle.
  */
 VMMR3_INT_DECL(int) gimR3HvSave(PVM pVM, PSSMHANDLE pSSM)
@@ -474,7 +473,7 @@ VMMR3_INT_DECL(int) gimR3HvSave(PVM pVM, PSSMHANDLE pSSM)
  * Hyper-V state-load operation, final pass.
  *
  * @returns VBox status code.
- * @param   pVM             Pointer to the VM.
+ * @param   pVM             The cross context VM structure.
  * @param   pSSM            Pointer to the SSM handle.
  * @param   uSSMVersion     The GIM saved-state version.
  */
@@ -582,7 +581,7 @@ VMMR3_INT_DECL(int) gimR3HvLoad(PVM pVM, PSSMHANDLE pSSM, uint32_t uSSMVersion)
  * Enables the Hyper-V TSC page.
  *
  * @returns VBox status code.
- * @param   pVM                Pointer to the VM.
+ * @param   pVM                The cross context VM structure.
  * @param   GCPhysTscPage      Where to map the TSC page.
  * @param   fUseThisTscSeq     Whether to set the TSC sequence number to the one
  *                             specified in @a uTscSeq.
@@ -698,7 +697,7 @@ VMMR3_INT_DECL(int) gimR3HvEnableTscPage(PVM pVM, RTGCPHYS GCPhysTscPage, bool f
  * Disables the Hyper-V TSC page.
  *
  * @returns VBox status code.
- * @param   pVM     Pointer to the VM.
+ * @param   pVM     The cross context VM structure.
  */
 VMMR3_INT_DECL(int) gimR3HvDisableTscPage(PVM pVM)
 {
@@ -751,7 +750,7 @@ VMMR3_INT_DECL(int) gimR3HvDisableHypercallPage(PVM pVM)
  * Enables the Hyper-V Hypercall page.
  *
  * @returns VBox status code.
- * @param   pVM                     Pointer to the VM.
+ * @param   pVM                     The cross context VM structure.
  * @param   GCPhysHypercallPage     Where to map the hypercall page.
  */
 VMMR3_INT_DECL(int) gimR3HvEnableHypercallPage(PVM pVM, RTGCPHYS GCPhysHypercallPage)

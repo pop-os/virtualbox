@@ -3773,7 +3773,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Machine Windows:</source>
-        <translation>Vetanas de máquina:</translation>
+        <translation>Ventanas de máquina:</translation>
     </message>
     <message>
         <source>&amp;Raise Window Under Mouse</source>
@@ -4714,11 +4714,11 @@ p, li { white-space: pre-wrap; }
     <name>UIGlobalSettingsProxy</name>
     <message>
         <source>When checked, VirtualBox will use the proxy settings supplied for tasks like downloading Guest Additions from the network or checking for updates.</source>
-        <translation>Seleccionado, VirtualBox usará la configuración proporcionada para tareas como descargar las «Guest Additions» de la red o comprobar las actualizaciones.</translation>
+        <translation type="obsolete">Seleccionado, VirtualBox usará la configuración proporcionada para tareas como descargar las «Guest Additions» de la red o comprobar las actualizaciones.</translation>
     </message>
     <message>
         <source>&amp;Enable Proxy</source>
-        <translation>&amp;Habilitar proxy</translation>
+        <translation type="obsolete">&amp;Habilitar proxy</translation>
     </message>
     <message>
         <source>Ho&amp;st:</source>
@@ -4775,6 +4775,30 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Holds the proxy port.</source>
         <translation>Contiene el puerto anfitrión de «proxy».</translation>
+    </message>
+    <message>
+        <source>When chosen, VirtualBox will try to auto-detect host proxy settings for tasks like downloading Guest Additions from the network or checking for updates.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Auto-detect Host Proxy Settings</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>When chosen, VirtualBox will use direct Internet connection for tasks like downloading Guest Additions from the network or checking for updates.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Direct Connection to the Internet</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>When chosen, VirtualBox will use the proxy settings supplied for tasks like downloading Guest Additions from the network or checking for updates.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Manual Proxy Configuration</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -10331,6 +10355,14 @@ p, li { white-space: pre-wrap; }
         <source>Encryption password for &lt;nobr&gt;ID = &apos;%1&apos;&lt;/nobr&gt; is invalid.</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>The current port forwarding rules are not valid. All of the host or guest address values should be correct or empty.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The current port forwarding rules are not valid. None of the guest address values may be empty.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UIMiniProcessWidgetAdditions</name>
@@ -10541,6 +10573,42 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Unknown reason</source>
         <translation>Razón desconocida</translation>
+    </message>
+    <message>
+        <source>%1: %2</source>
+        <comment>Context description: Error description</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unable to initialize HTTP library</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Connection refused</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Content moved</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Proxy not found</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>UINetworkReplyPrivateThread</name>
+    <message>
+        <source>During proxy configuration</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>During certificate downloading</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>During network request</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
