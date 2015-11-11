@@ -1,5 +1,5 @@
 version=3
 
-opts=dversionmangle=s/-dfsg\d*$//,uversionmangle=s/-.*// \
+opts=downloadurlmangle=s/^/http:/,dversionmangle=s/-dfsg\d*$//,uversionmangle=s/-.*// \
  http://download.virtualbox.org/virtualbox/([\d\.\-]+)/VirtualBox-([\d\.\-]+).tar.bz2 \
  debian /bin/sh debian/get-orig-source.sh

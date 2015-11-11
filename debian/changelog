@@ -1,3 +1,11 @@
+virtualbox (5.0.10-dfsg-1) unstable; urgency=medium
+
+  * New upstream release, patch refresh.
+  * Update watch file, thanks <mattia>!
+  * Remove iasl-fix.patch: upstream.
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 11 Nov 2015 10:29:52 +0100
+
 virtualbox (5.0.8-dfsg-1) unstable; urgency=medium
 
   * New upstream release, patch refresh.
