@@ -101,7 +101,7 @@ AssertCompile(sizeof(PDMUSBINSINT) <= RT_SIZEOFMEMB(PDMUSBINS, Internal.padding)
  * Registers a USB hub driver.
  *
  * @returns VBox status code.
- * @param   pVM             Pointer to the VM.
+ * @param   pVM             The cross context VM structure.
  * @param   pDrvIns         The driver instance of the hub.
  * @param   fVersions       Indicates the kinds of USB devices that can be attached to this HUB.
  * @param   cPorts          The number of ports.
@@ -168,7 +168,7 @@ int pdmR3UsbRegisterHub(PVM pVM, PPDMDRVINS pDrvIns, uint32_t fVersions, uint32_
  * Loads one device module and call the registration entry point.
  *
  * @returns VBox status code.
- * @param   pVM             Pointer to the VM.
+ * @param   pVM             The cross context VM structure.
  * @param   pRegCB          The registration callback stuff.
  * @param   pszFilename     Module filename.
  * @param   pszName         Module name.
@@ -277,7 +277,7 @@ static DECLCALLBACK(int) pdmR3UsbReg_Register(PCPDMUSBREGCB pCallbacks, PCPDMUSB
  * This is called by pdmR3DevInit() after it has loaded it's device modules.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  */
 int pdmR3UsbLoadModules(PVM pVM)
 {
@@ -387,7 +387,7 @@ int pdmR3UsbLoadModules(PVM pVM)
  * This is called from pdmR3DevInit() after it has do its notification round.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  */
 int pdmR3UsbVMInitComplete(PVM pVM)
 {
@@ -428,7 +428,7 @@ PPDMUSB pdmR3UsbLookup(PVM pVM, const char *pszName)
  *
  * @returns VINF_SUCCESS and *ppHub on success.
  *          VERR_PDM_NO_USB_HUBS or VERR_PDM_NO_USB_PORTS on failure.
- * @param   pVM             Pointer to the VM.
+ * @param   pVM             The cross context VM structure.
  * @param   iUsbVersion     The USB device version.
  * @param   ppHub           Where to store the pointer to the USB hub.
  */
@@ -486,7 +486,8 @@ static VUSBSPEED pdmR3UsbVer2Spd(uint32_t iUsbVersion)
  * Creates the device.
  *
  * @returns VBox status code.
- * @param   pVM                 Pointer to the VM.
+ * @param   pVM                 The cross context VM structure.
+ * @param   pHub                The USB hub it'll be attached to.
  * @param   pUsbDev             The USB device emulation.
  * @param   iInstance           -1 if not called by pdmR3UsbInstantiateDevices().
  * @param   pUuid               The UUID for this device.
@@ -698,7 +699,7 @@ static int pdmR3UsbCreateDevice(PVM pVM, PPDMUSBHUB pHub, PPDMUSB pUsbDev, int i
  * around, we'll silently skip the USB devices.
  *
  * @returns VBox status code.
- * @param   pVM
+ * @param   pVM        The cross context VM structure.
  */
 int pdmR3UsbInstantiateDevices(PVM pVM)
 {
@@ -1068,7 +1069,7 @@ VMMR3DECL(int) PDMR3UsbCreateProxyDevice(PUVM pUVM, PCRTUUID pUuid, bool fRemote
  *
  * The device must be detached from the HUB at this point.
  *
- * @param   pVM             Pointer to the VM.
+ * @param   pVM             The cross context VM structure.
  * @param   pUsbIns         The USB device instance to destroy.
  * @thread  EMT
  */
@@ -1235,7 +1236,7 @@ VMMR3DECL(bool) PDMR3UsbHasHub(PUVM pUVM)
  * Locates a LUN.
  *
  * @returns VBox status code.
- * @param   pVM             Pointer to the VM.
+ * @param   pVM             The cross context VM structure.
  * @param   pszDevice       Device name.
  * @param   iInstance       Device instance.
  * @param   iLun            The Logical Unit to obtain the interface of.
@@ -1291,7 +1292,7 @@ static int pdmR3UsbFindLun(PVM pVM, const char *pszDevice, unsigned iInstance, u
  * @returns VBox status code.
  * @param   pUVM            The user mode VM handle.
  * @param   pszDevice       Device name.
- * @param   iInstance       Device instance.
+ * @param   iDevIns         Device instance.
  * @param   iLun            The Logical Unit to obtain the interface of.
  * @param   fFlags          Flags, combination of the PDM_TACH_FLAGS_* \#defines.
  * @param   ppBase          Where to store the base interface pointer. Optional.
@@ -1482,7 +1483,7 @@ VMMR3DECL(int)  PDMR3UsbQueryLun(PUVM pUVM, const char *pszDevice, unsigned iIns
  * @{
  */
 
-/** @interface_method_impl{PDMUSBHLPR3,pfnDriverAttach} */
+/** @interface_method_impl{PDMUSBHLP,pfnDriverAttach} */
 static DECLCALLBACK(int) pdmR3UsbHlp_DriverAttach(PPDMUSBINS pUsbIns, RTUINT iLun, PPDMIBASE pBaseInterface,
                                                   PPDMIBASE *ppBaseInterface, const char *pszDesc)
 {
@@ -1590,12 +1591,13 @@ static DECLCALLBACK(bool) pdmR3UsbHlp_AssertOther(PPDMUSBINS pUsbIns, const char
 
 
 /** @interface_method_impl{PDMUSBHLP,pfnDBGFStopV} */
-static DECLCALLBACK(int) pdmR3UsbHlp_DBGFStopV(PPDMUSBINS pUsbIns, const char *pszFile, unsigned iLine, const char *pszFunction, const char *pszFormat, va_list args)
+static DECLCALLBACK(int) pdmR3UsbHlp_DBGFStopV(PPDMUSBINS pUsbIns, const char *pszFile, unsigned iLine, const char *pszFunction,
+                                               const char *pszFormat, va_list va)
 {
     PDMUSB_ASSERT_USBINS(pUsbIns);
 #ifdef LOG_ENABLED
     va_list va2;
-    va_copy(va2, args);
+    va_copy(va2, va);
     LogFlow(("pdmR3UsbHlp_DBGFStopV: caller='%s'/%d: pszFile=%p:{%s} iLine=%d pszFunction=%p:{%s} pszFormat=%p:{%s} (%N)\n",
              pUsbIns->pReg->szName, pUsbIns->iInstance, pszFile, pszFile, iLine, pszFunction, pszFunction, pszFormat, pszFormat, pszFormat, &va2));
     va_end(va2);
@@ -1603,7 +1605,7 @@ static DECLCALLBACK(int) pdmR3UsbHlp_DBGFStopV(PPDMUSBINS pUsbIns, const char *p
 
     PVM pVM = pUsbIns->Internal.s.pVM;
     VM_ASSERT_EMT(pVM);
-    int rc = DBGFR3EventSrcV(pVM, DBGFEVENT_DEV_STOP, pszFile, iLine, pszFunction, pszFormat, args);
+    int rc = DBGFR3EventSrcV(pVM, DBGFEVENT_DEV_STOP, pszFile, iLine, pszFunction, pszFormat, va);
     if (rc == VERR_DBGF_NOT_ATTACHED)
         rc = VINF_SUCCESS;
 
@@ -1708,13 +1710,13 @@ static DECLCALLBACK(int) pdmR3UsbHlp_SSMRegister(PPDMUSBINS pUsbIns, uint32_t uV
 
 /** @interface_method_impl{PDMUSBHLP,pfnSTAMRegisterV} */
 static DECLCALLBACK(void) pdmR3UsbHlp_STAMRegisterV(PPDMUSBINS pUsbIns, void *pvSample, STAMTYPE enmType, STAMVISIBILITY enmVisibility,
-                                                    STAMUNIT enmUnit, const char *pszDesc, const char *pszName, va_list args)
+                                                    STAMUNIT enmUnit, const char *pszDesc, const char *pszName, va_list va)
 {
     PDMUSB_ASSERT_USBINS(pUsbIns);
     PVM pVM = pUsbIns->Internal.s.pVM;
     VM_ASSERT_EMT(pVM);
 
-    int rc = STAMR3RegisterV(pVM, pvSample, enmType, enmVisibility, enmUnit, pszDesc, pszName, args);
+    int rc = STAMR3RegisterV(pVM, pvSample, enmType, enmVisibility, enmUnit, pszDesc, pszName, va);
     AssertRC(rc);
 
     NOREF(pVM);

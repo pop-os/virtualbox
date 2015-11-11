@@ -37,6 +37,7 @@
 RT_C_DECLS_BEGIN
 
 /** @defgroup grp_stam     The Statistics Manager API
+ * @ingroup grp_vmm
  * @{
  */
 
@@ -342,7 +343,7 @@ typedef enum STAMUNIT
 #endif
 
 
-/** @def STAM_REL_U16_INC
+/** @def STAM_REL_U16_ADD
  * Increments a uint16_t sample by a value.
  *
  * @param   pCounter    Pointer to the uint16_t variable to operate on.
@@ -354,7 +355,7 @@ typedef enum STAMUNIT
 #else
 # define STAM_REL_U16_ADD(pCounter, Addend) do { } while (0)
 #endif
-/** @def STAM_U16_INC
+/** @def STAM_U16_ADD
  * Increments a uint16_t sample by a value.
  *
  * @param   pCounter    Pointer to the uint16_t variable to operate on.
@@ -636,7 +637,7 @@ typedef const STAMPROFILE *PCSTAMPROFILE;
 /** @def STAM_REL_PROFILE_ADD_PERIOD
  * Adds a period.
  *
- * @param   pProfileAdv     Pointer to the STAMPROFILEADV structure to operate on.
+ * @param   pProfile        Pointer to the STAMPROFILE structure to operate on.
  * @param   cTicksInPeriod  The number of tick (or whatever) of the preiod
  *                          being added.  This is only referenced once.
  */
@@ -657,7 +658,7 @@ typedef const STAMPROFILE *PCSTAMPROFILE;
 /** @def STAM_PROFILE_ADD_PERIOD
  * Adds a period.
  *
- * @param   pProfileAdv     Pointer to the STAMPROFILEADV structure to operate on.
+ * @param   pProfile        Pointer to the STAMPROFILE structure to operate on.
  * @param   cTicksInPeriod  The number of tick (or whatever) of the preiod
  *                          being added.  This is only referenced once.
  */
@@ -902,8 +903,9 @@ typedef const STAMPROFILEADV *PCSTAMPROFILEADV;
  * Samples the stop time of a profiling period (if running) and updates the
  * sample.
  *
- * @param   pProfileAdv Pointer to the STAMPROFILEADV structure to operate on.
- * @param   Prefix      Identifier prefix used to internal variables.
+ * @param   pProfileAdv1    Pointer to the STAMPROFILEADV structure to stop.
+ * @param   pProfileAdv2    Pointer to the STAMPROFILEADV structure to start.
+ * @param   Prefix          Identifier prefix used to internal variables.
  */
 #ifdef VBOX_WITH_STATISTICS
 # define STAM_PROFILE_ADV_STOP_START(pProfileAdv1, pProfileAdv2, Prefix) \
@@ -1110,7 +1112,7 @@ VMMR3DECL(int)  STAMR3Register(PVM pVM, void *pvSample, STAMTYPE enmType, STAMVI
 /** @def STAM_REL_REG
  * Registers a statistics sample.
  *
- * @param   pVM         VM Handle.
+ * @param   pVM         The cross context VM structure.
  * @param   pvSample    Pointer to the sample.
  * @param   enmType     Sample type. This indicates what pvSample is pointing at.
  * @param   pszName     Sample name. The name is on this form "/<component>/<sample>".
@@ -1124,7 +1126,7 @@ VMMR3DECL(int)  STAMR3Register(PVM pVM, void *pvSample, STAMTYPE enmType, STAMVI
 /** @def STAM_REG
  * Registers a statistics sample if statistics are enabled.
  *
- * @param   pVM         VM Handle.
+ * @param   pVM         The cross context VM structure.
  * @param   pvSample    Pointer to the sample.
  * @param   enmType     Sample type. This indicates what pvSample is pointing at.
  * @param   pszName     Sample name. The name is on this form "/<component>/<sample>".
@@ -1138,7 +1140,7 @@ VMMR3DECL(int)  STAMR3Register(PVM pVM, void *pvSample, STAMTYPE enmType, STAMVI
 /** @def STAM_REL_REG_USED
  * Registers a statistics sample which only shows when used.
  *
- * @param   pVM         VM Handle.
+ * @param   pVM         The cross context VM structure.
  * @param   pvSample    Pointer to the sample.
  * @param   enmType     Sample type. This indicates what pvSample is pointing at.
  * @param   pszName     Sample name. The name is on this form "/<component>/<sample>".
@@ -1152,7 +1154,7 @@ VMMR3DECL(int)  STAMR3Register(PVM pVM, void *pvSample, STAMTYPE enmType, STAMVI
 /** @def STAM_REG_USED
  * Registers a statistics sample which only shows when used, if statistics are enabled.
  *
- * @param   pVM         VM Handle.
+ * @param   pVM         The cross context VM structure.
  * @param   pvSample    Pointer to the sample.
  * @param   enmType     Sample type. This indicates what pvSample is pointing at.
  * @param   pszName     Sample name. The name is on this form "/<component>/<sample>".
@@ -1174,7 +1176,7 @@ VMMR3DECL(int)  STAMR3RegisterV(PVM pVM, void *pvSample, STAMTYPE enmType, STAMV
 
 /**
  * Resets the sample.
- * @param   pVM         The VM handle.
+ * @param   pVM         The cross context VM structure.
  * @param   pvSample    The sample registered using STAMR3RegisterCallback.
  */
 typedef void FNSTAMR3CALLBACKRESET(PVM pVM, void *pvSample);
@@ -1184,7 +1186,7 @@ typedef FNSTAMR3CALLBACKRESET *PFNSTAMR3CALLBACKRESET;
 /**
  * Prints the sample into the buffer.
  *
- * @param   pVM         The VM handle.
+ * @param   pVM         The cross context VM structure.
  * @param   pvSample    The sample registered using STAMR3RegisterCallback.
  * @param   pszBuf      The buffer to print into.
  * @param   cchBuf      The size of the buffer.

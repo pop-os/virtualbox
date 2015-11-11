@@ -654,7 +654,7 @@ static const SSMFIELD g_aCpumCtxFieldsV16[] =
  *
  * See AMD Instruction Reference for FXSAVE, FXRSTOR.
  *
- * @param   pVM     Pointer to the VM.
+ * @param   pVM     The cross context VM structure.
  */
 static void cpumR3CheckLeakyFpu(PVM pVM)
 {
@@ -682,7 +682,7 @@ static void cpumR3CheckLeakyFpu(PVM pVM)
  * Initializes the CPUM.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  */
 VMMR3DECL(int) CPUMR3Init(PVM pVM)
 {
@@ -862,7 +862,7 @@ VMMR3DECL(int) CPUMR3Init(PVM pVM)
  *
  * The CPUM will update the addresses used by the switcher.
  *
- * @param   pVM     The VM.
+ * @param   pVM     The cross context VM structure.
  */
 VMMR3DECL(void) CPUMR3Relocate(PVM pVM)
 {
@@ -887,7 +887,7 @@ VMMR3DECL(void) CPUMR3Relocate(PVM pVM)
 /**
  * Apply late CPUM property changes based on the fHWVirtEx setting
  *
- * @param   pVM                 Pointer to the VM.
+ * @param   pVM                 The cross context VM structure.
  * @param   fHWVirtExEnabled    HWVirtEx enabled/disabled
  */
 VMMR3DECL(void) CPUMR3SetHWVirtEx(PVM pVM, bool fHWVirtExEnabled)
@@ -915,7 +915,7 @@ VMMR3DECL(void) CPUMR3SetHWVirtEx(PVM pVM, bool fHWVirtExEnabled)
  * the VM it self is at this point powered off or suspended.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  */
 VMMR3DECL(int) CPUMR3Term(PVM pVM)
 {
@@ -941,10 +941,9 @@ VMMR3DECL(int) CPUMR3Term(PVM pVM)
  *
  * Used by CPUMR3Reset and CPU hot plugging.
  *
- * @param   pVM         Pointer to the cross context VM structure.
- * @param   pVCpu       Pointer to the cross context virtual CPU structure of
- *                      the CPU that is being reset.  This may differ from the
- *                      current EMT.
+ * @param   pVM     The cross context VM structure.
+ * @param   pVCpu   The cross context virtual CPU structure of the CPU that is
+ *                  being reset.  This may differ from the current EMT.
  */
 VMMR3DECL(void) CPUMR3ResetCpu(PVM pVM, PVMCPU pVCpu)
 {
@@ -1090,7 +1089,7 @@ VMMR3DECL(void) CPUMR3ResetCpu(PVM pVM, PVMCPU pVCpu)
  * Resets the CPU.
  *
  * @returns VINF_SUCCESS.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  */
 VMMR3DECL(void) CPUMR3Reset(PVM pVM)
 {
@@ -1116,7 +1115,7 @@ VMMR3DECL(void) CPUMR3Reset(PVM pVM)
  * Pass 0 live exec callback.
  *
  * @returns VINF_SSM_DONT_CALL_AGAIN.
- * @param   pVM                 Pointer to the VM.
+ * @param   pVM                 The cross context VM structure.
  * @param   pSSM                The saved state handle.
  * @param   uPass               The pass (0).
  */
@@ -1132,7 +1131,7 @@ static DECLCALLBACK(int) cpumR3LiveExec(PVM pVM, PSSMHANDLE pSSM, uint32_t uPass
  * Execute state save operation.
  *
  * @returns VBox status code.
- * @param   pVM             Pointer to the VM.
+ * @param   pVM             The cross context VM structure.
  * @param   pSSM            SSM operation handle.
  */
 static DECLCALLBACK(int) cpumR3SaveExec(PVM pVM, PSSMHANDLE pSSM)
@@ -1191,7 +1190,7 @@ static DECLCALLBACK(int) cpumR3SaveExec(PVM pVM, PSSMHANDLE pSSM)
 
 
 /**
- * @copydoc FNSSMINTLOADPREP
+ * @callback_method_impl{FNSSMINTLOADPREP}
  */
 static DECLCALLBACK(int) cpumR3LoadPrep(PVM pVM, PSSMHANDLE pSSM)
 {
@@ -1202,7 +1201,7 @@ static DECLCALLBACK(int) cpumR3LoadPrep(PVM pVM, PSSMHANDLE pSSM)
 
 
 /**
- * @copydoc FNSSMINTLOADEXEC
+ * @callback_method_impl{FNSSMINTLOADEXEC}
  */
 static DECLCALLBACK(int) cpumR3LoadExec(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass)
 {
@@ -1508,7 +1507,7 @@ static DECLCALLBACK(int) cpumR3LoadExec(PVM pVM, PSSMHANDLE pSSM, uint32_t uVers
 
 
 /**
- * @copydoc FNSSMINTLOADPREP
+ * @callback_method_impl{FNSSMINTLOADDONE}
  */
 static DECLCALLBACK(int) cpumR3LoadDone(PVM pVM, PSSMHANDLE pSSM)
 {
@@ -1545,7 +1544,7 @@ static DECLCALLBACK(int) cpumR3LoadDone(PVM pVM, PSSMHANDLE pSSM)
  * Checks if the CPUM state restore is still pending.
  *
  * @returns true / false.
- * @param   pVM                 Pointer to the VM.
+ * @param   pVM                 The cross context VM structure.
  */
 VMMDECL(bool) CPUMR3IsStateRestorePending(PVM pVM)
 {
@@ -1603,7 +1602,7 @@ static void cpumR3InfoFormatFlags(char *pszEFlags, uint32_t efl)
 /**
  * Formats a full register dump.
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  * @param   pCtx        The context to format.
  * @param   pCtxCore    The context core to format.
  * @param   pHlp        Output functions.
@@ -1922,7 +1921,7 @@ static void cpumR3InfoOne(PVM pVM, PCPUMCTX pCtx, PCCPUMCTXCORE pCtxCore, PCDBGF
 /**
  * Display all cpu states and any other cpum info.
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  * @param   pHlp        The info helper functions.
  * @param   pszArgs     Arguments, ignored.
  */
@@ -1979,7 +1978,7 @@ static void cpumR3InfoParseArg(const char *pszArgs, CPUMDUMPTYPE *penmType, cons
 /**
  * Display the guest cpu state.
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  * @param   pHlp        The info helper functions.
  * @param   pszArgs     Arguments, ignored.
  */
@@ -2004,7 +2003,7 @@ static DECLCALLBACK(void) cpumR3InfoGuest(PVM pVM, PCDBGFINFOHLP pHlp, const cha
 /**
  * Display the current guest instruction
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  * @param   pHlp        The info helper functions.
  * @param   pszArgs     Arguments, ignored.
  */
@@ -2027,7 +2026,7 @@ static DECLCALLBACK(void) cpumR3InfoGuestInstr(PVM pVM, PCDBGFINFOHLP pHlp, cons
 /**
  * Display the hypervisor cpu state.
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  * @param   pHlp        The info helper functions.
  * @param   pszArgs     Arguments, ignored.
  */
@@ -2048,7 +2047,7 @@ static DECLCALLBACK(void) cpumR3InfoHyper(PVM pVM, PCDBGFINFOHLP pHlp, const cha
 /**
  * Display the host cpu state.
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  * @param   pHlp        The info helper functions.
  * @param   pszArgs     Arguments, ignored.
  */
@@ -2239,8 +2238,8 @@ static DECLCALLBACK(int) cpumR3DisasInstrRead(PDISCPUSTATE pDis, uint8_t offInst
  * Disassemble an instruction and return the information in the provided structure.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVM         The cross context VM structure.
+ * @param   pVCpu       The cross context virtual CPU structure.
  * @param   pCtx        Pointer to the guest CPU context.
  * @param   GCPtrPC     Program counter (relative to CS) to disassemble from.
  * @param   pCpu        Disassembly state.
@@ -2336,7 +2335,7 @@ VMMR3DECL(int) CPUMR3DisasmInstrCPU(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, RTGCPT
  *
  * @returns VBox status code.
  *
- * @param   pVM     Pointer to the VM.
+ * @param   pVM     The cross context VM structure.
  * @param   fOr     The CR4 OR mask.
  * @param   fAnd    The CR4 AND mask.
  */
@@ -2358,7 +2357,7 @@ VMMR3DECL(int) CPUMR3SetCR4Feature(PVM pVM, RTHCUINTREG fOr, RTHCUINTREG fAnd)
  * Only REM should ever call this function!
  *
  * @returns The changed flags.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       The cross context virtual CPU structure.
  * @param   puCpl       Where to return the current privilege level (CPL).
  */
 VMMR3DECL(uint32_t) CPUMR3RemEnter(PVMCPU pVCpu, uint32_t *puCpl)
@@ -2392,7 +2391,7 @@ VMMR3DECL(uint32_t) CPUMR3RemEnter(PVMCPU pVCpu, uint32_t *puCpl)
 /**
  * Leaves REM.
  *
- * @param   pVCpu               Pointer to the VMCPU.
+ * @param   pVCpu               The cross context virtual CPU structure.
  * @param   fNoOutOfSyncSels    This is @c false if there are out of sync
  *                              registers.
  */
@@ -2409,7 +2408,7 @@ VMMR3DECL(void) CPUMR3RemLeave(PVMCPU pVCpu, bool fNoOutOfSyncSels)
  * Called when the ring-3 init phase completes.
  *
  * @returns VBox status code.
- * @param   pVM                 Pointer to the VM.
+ * @param   pVM                 The cross context VM structure.
  */
 VMMR3DECL(int) CPUMR3InitCompleted(PVM pVM)
 {
@@ -2439,7 +2438,7 @@ VMMR3DECL(int) CPUMR3InitCompleted(PVM pVM)
 /**
  * Called when the ring-0 init phases completed.
  *
- * @param   pVM                 Pointer to the VM.
+ * @param   pVM                 The cross context VM structure.
  */
 VMMR3DECL(void) CPUMR3LogCpuIds(PVM pVM)
 {

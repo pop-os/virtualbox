@@ -174,9 +174,8 @@ RTDECL(int) RTCritSectEnter(PRTCRITSECT pCritSect);
  *
  * @param   pCritSect       The critical section.
  * @param   uId             Where we're entering the section.
- * @param   pszFile         The source position - file.
- * @param   iLine           The source position - line.
- * @param   pszFunction     The source position - function.
+ * @param   SRC_POS         The source position where call is being made from.
+ *                          Use RT_SRC_POS when possible.  Optional.
  */
 RTDECL(int) RTCritSectEnterDebug(PRTCRITSECT pCritSect, RTHCUINTPTR uId, RT_SRC_POS_DECL);
 
@@ -204,9 +203,8 @@ RTDECL(int) RTCritSectTryEnter(PRTCRITSECT pCritSect);
  *
  * @param   pCritSect       The critical section.
  * @param   uId             Where we're entering the section.
- * @param   pszFile         The source position - file.
- * @param   iLine           The source position - line.
- * @param   pszFunction     The source position - function.
+ * @param   SRC_POS         The source position where call is being made from.
+ *                          Use RT_SRC_POS when possible.  Optional.
  */
 RTDECL(int) RTCritSectTryEnterDebug(PRTCRITSECT pCritSect, RTHCUINTPTR uId, RT_SRC_POS_DECL);
 
@@ -243,9 +241,8 @@ RTDECL(int) RTCritSectEnterMultiple(size_t cCritSects, PRTCRITSECT *papCritSects
  * @param   cCritSects      Number of critical sections in the array.
  * @param   papCritSects    Array of critical section pointers.
  * @param   uId             Where we're entering the section.
- * @param   pszFile         The source position - file.
- * @param   iLine           The source position - line.
- * @param   pszFunction     The source position - function.
+ * @param   SRC_POS         The source position where call is being made from.
+ *                          Use RT_SRC_POS when possible.  Optional.
  *
  * @remark  See RTCritSectEnterMultiple().
  */
@@ -524,9 +521,8 @@ RTDECL(int) RTCritSectRwEnterShared(PRTCRITSECTRW pThis);
  *
  * @param   pThis           Pointer to the read/write critical section.
  * @param   uId             Where we're entering the section.
- * @param   pszFile         The source position - file.
- * @param   iLine           The source position - line.
- * @param   pszFunction     The source position - function.
+ * @param   SRC_POS         The source position where call is being made from.
+ *                          Use RT_SRC_POS when possible.  Optional.
  */
 RTDECL(int) RTCritSectRwEnterSharedDebug(PRTCRITSECTRW pThis, RTHCUINTPTR uId, RT_SRC_POS_DECL);
 
@@ -556,9 +552,8 @@ RTDECL(int) RTCritSectRwTryEnterShared(PRTCRITSECTRW pThis);
  *
  * @param   pThis           Pointer to the read/write critical section.
  * @param   uId             Where we're entering the section.
- * @param   pszFile         The source position - file.
- * @param   iLine           The source position - line.
- * @param   pszFunction     The source position - function.
+ * @param   SRC_POS         The source position where call is being made from.
+ *                          Use RT_SRC_POS when possible.  Optional.
  */
 RTDECL(int) RTCritSectRwTryEnterSharedDebug(PRTCRITSECTRW pThis, RTHCUINTPTR uId, RT_SRC_POS_DECL);
 
@@ -593,9 +588,8 @@ RTDECL(int) RTCritSectRwEnterExcl(PRTCRITSECTRW pThis);
  *
  * @param   pThis           Pointer to the read/write critical section.
  * @param   uId             Where we're entering the section.
- * @param   pszFile         The source position - file.
- * @param   iLine           The source position - line.
- * @param   pszFunction     The source position - function.
+ * @param   SRC_POS         The source position where call is being made from.
+ *                          Use RT_SRC_POS when possible.  Optional.
  */
 RTDECL(int) RTCritSectRwEnterExclDebug(PRTCRITSECTRW pThis, RTHCUINTPTR uId, RT_SRC_POS_DECL);
 
@@ -625,9 +619,8 @@ RTDECL(int) RTCritSectRwTryEnterExcl(PRTCRITSECTRW pThis);
  *
  * @param   pThis           Pointer to the read/write critical section.
  * @param   uId             Where we're entering the section.
- * @param   pszFile         The source position - file.
- * @param   iLine           The source position - line.
- * @param   pszFunction     The source position - function.
+ * @param   SRC_POS         The source position where call is being made from.
+ *                          Use RT_SRC_POS when possible.  Optional.
  */
 RTDECL(int) RTCritSectRwTryEnterExclDebug(PRTCRITSECTRW pThis, RTHCUINTPTR uId, RT_SRC_POS_DECL);
 
@@ -652,8 +645,8 @@ RTDECL(int) RTCritSectRwDelete(PRTCRITSECTRW pThis);
 /**
  * Checks the caller is the exclusive (write) owner of the critical section.
  *
- * @retval  @c true if owner.
- * @retval  @c false if not owner.
+ * @retval  true if owner.
+ * @retval  false if not owner.
  * @param   pThis           Pointer to the read/write critical section.
  */
 RTDECL(bool) RTCritSectRwIsWriteOwner(PRTCRITSECTRW pThis);
@@ -711,8 +704,8 @@ RTDECL(uint32_t) RTCritSectRwGetReadCount(PRTCRITSECTRW pThis);
 /**
  * Checks if a critical section is initialized or not.
  *
- * @retval  @c true if initialized.
- * @retval  @c false if not initialized.
+ * @retval  true if initialized.
+ * @retval  false if not initialized.
  * @param   pThis           Pointer to the read/write critical section.
  */
 DECLINLINE(bool) RTCritSectRwIsInitialized(PCRTCRITSECTRW pThis)

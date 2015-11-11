@@ -34,6 +34,7 @@
 RT_C_DECLS_BEGIN
 
 /** @defgroup grp_ssm       The Saved State Manager API
+ * @ingroup grp_vmm
  * @{
  */
 
@@ -813,7 +814,7 @@ typedef FNSSMDRVLOADDONE *PFNSSMDRVLOADDONE;
  * Prepare state live save operation.
  *
  * @returns VBox status code.
- * @param   pVM             VM Handle.
+ * @param   pVM             The cross context VM structure.
  * @param   pSSM            SSM operation handle.
  * @thread  Any.
  */
@@ -828,7 +829,7 @@ typedef FNSSMINTLIVEPREP *PFNSSMINTLIVEPREP;
  * been concluded.
  *
  * @returns VBox status code.
- * @param   pVM             VM Handle.
+ * @param   pVM             The cross context VM structure.
  * @param   pSSM            SSM operation handle.
  * @param   uPass           The data pass.
  * @thread  Any.
@@ -850,7 +851,7 @@ typedef FNSSMINTLIVEEXEC *PFNSSMINTLIVEEXEC;
  *          done and there is not need calling it again before the final pass.
  * @retval  VERR_SSM_VOTE_FOR_GIVING_UP if its time to give up.
  *
- * @param   pVM             VM Handle.
+ * @param   pVM             The cross context VM structure.
  * @param   pSSM            SSM operation handle.
  * @param   uPass           The data pass.
  * @thread  Any.
@@ -863,7 +864,7 @@ typedef FNSSMINTLIVEVOTE *PFNSSMINTLIVEVOTE;
  * Prepare state save operation.
  *
  * @returns VBox status code.
- * @param   pVM             VM Handle.
+ * @param   pVM             The cross context VM structure.
  * @param   pSSM            SSM operation handle.
  */
 typedef DECLCALLBACK(int) FNSSMINTSAVEPREP(PVM pVM, PSSMHANDLE pSSM);
@@ -874,7 +875,7 @@ typedef FNSSMINTSAVEPREP *PFNSSMINTSAVEPREP;
  * Execute state save operation.
  *
  * @returns VBox status code.
- * @param   pVM             VM Handle.
+ * @param   pVM             The cross context VM structure.
  * @param   pSSM            SSM operation handle.
  */
 typedef DECLCALLBACK(int) FNSSMINTSAVEEXEC(PVM pVM, PSSMHANDLE pSSM);
@@ -885,7 +886,7 @@ typedef FNSSMINTSAVEEXEC *PFNSSMINTSAVEEXEC;
  * Done state save operation.
  *
  * @returns VBox status code.
- * @param   pVM             VM Handle.
+ * @param   pVM             The cross context VM structure.
  * @param   pSSM            SSM operation handle.
  */
 typedef DECLCALLBACK(int) FNSSMINTSAVEDONE(PVM pVM, PSSMHANDLE pSSM);
@@ -896,7 +897,7 @@ typedef FNSSMINTSAVEDONE *PFNSSMINTSAVEDONE;
  * Prepare state load operation.
  *
  * @returns VBox status code.
- * @param   pVM             VM Handle.
+ * @param   pVM             The cross context VM structure.
  * @param   pSSM            SSM operation handle.
  */
 typedef DECLCALLBACK(int) FNSSMINTLOADPREP(PVM pVM, PSSMHANDLE pSSM);
@@ -907,7 +908,7 @@ typedef FNSSMINTLOADPREP *PFNSSMINTLOADPREP;
  * Execute state load operation.
  *
  * @returns VBox status code.
- * @param   pVM             VM Handle.
+ * @param   pVM             The cross context VM structure.
  * @param   pSSM            SSM operation handle.
  * @param   uVersion        Data layout version.
  * @param   uPass           The pass. This is always SSM_PASS_FINAL for units
@@ -921,7 +922,7 @@ typedef FNSSMINTLOADEXEC *PFNSSMINTLOADEXEC;
  * Done state load operation.
  *
  * @returns VBox load code.
- * @param   pVM             VM Handle.
+ * @param   pVM             The cross context VM structure.
  * @param   pSSM            SSM operation handle.
  */
 typedef DECLCALLBACK(int) FNSSMINTLOADDONE(PVM pVM, PSSMHANDLE pSSM);

@@ -121,17 +121,19 @@ static size_t  g_cbIemWrote;
  * Get the current execution manager status.
  *
  * @returns Current status.
- * @param   pVCpu         Pointer to the VMCPU.
+ * @param   pVCpu         The cross context virtual CPU structure.
  */
 VMM_INT_DECL(EMSTATE) EMGetState(PVMCPU pVCpu)
 {
     return pVCpu->em.s.enmState;
 }
 
+
 /**
  * Sets the current execution manager status. (use only when you know what you're doing!)
  *
- * @param   pVCpu         Pointer to the VMCPU.
+ * @param   pVCpu       The cross context virtual CPU structure.
+ * @param   enmNewState The new state, EMSTATE_WAIT_SIPI or EMSTATE_HALTED.
  */
 VMM_INT_DECL(void)    EMSetState(PVMCPU pVCpu, EMSTATE enmNewState)
 {
@@ -144,7 +146,7 @@ VMM_INT_DECL(void)    EMSetState(PVMCPU pVCpu, EMSTATE enmNewState)
 /**
  * Sets the PC for which interrupts should be inhibited.
  *
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       The cross context virtual CPU structure.
  * @param   PC          The PC.
  */
 VMMDECL(void) EMSetInhibitInterruptsPC(PVMCPU pVCpu, RTGCUINTPTR PC)
@@ -164,7 +166,7 @@ VMMDECL(void) EMSetInhibitInterruptsPC(PVMCPU pVCpu, RTGCUINTPTR PC)
  *      - POP SS
  *
  * @returns The PC for which interrupts should be inhibited.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       The cross context virtual CPU structure.
  *
  */
 VMMDECL(RTGCUINTPTR) EMGetInhibitInterruptsPC(PVMCPU pVCpu)
@@ -177,7 +179,7 @@ VMMDECL(RTGCUINTPTR) EMGetInhibitInterruptsPC(PVMCPU pVCpu)
  * Prepare an MWAIT - essentials of the MONITOR instruction.
  *
  * @returns VINF_SUCCESS
- * @param   pVCpu               The current CPU.
+ * @param   pVCpu               The cross context virtual CPU structure of the calling EMT.
  * @param   rax                 The content of RAX.
  * @param   rcx                 The content of RCX.
  * @param   rdx                 The content of RDX.
@@ -200,7 +202,7 @@ VMM_INT_DECL(int) EMMonitorWaitPrepare(PVMCPU pVCpu, uint64_t rax, uint64_t rcx,
  * Performs an MWAIT.
  *
  * @returns VINF_SUCCESS
- * @param   pVCpu               The current CPU.
+ * @param   pVCpu               The cross context virtual CPU structure of the calling EMT.
  * @param   rax                 The content of RAX.
  * @param   rcx                 The content of RCX.
  */
@@ -225,7 +227,7 @@ VMM_INT_DECL(int) EMMonitorWaitPerform(PVMCPU pVCpu, uint64_t rax, uint64_t rcx)
  * Clears MWAIT flags if returning @c true.
  *
  * @returns true if we should continue, false if we should halt.
- * @param   pVCpu           Pointer to the VMCPU.
+ * @param   pVCpu           The cross context virtual CPU structure.
  * @param   pCtx            Current CPU context.
  */
 VMM_INT_DECL(bool) EMMonitorWaitShouldContinue(PVMCPU pVCpu, PCPUMCTX pCtx)
@@ -249,7 +251,7 @@ VMM_INT_DECL(bool) EMMonitorWaitShouldContinue(PVMCPU pVCpu, PCPUMCTX pCtx)
  * Determine if we should continue after encountering a hlt instruction.
  *
  * @returns true if we should continue, false if we should halt.
- * @param   pVCpu           Pointer to the VMCPU.
+ * @param   pVCpu           The cross context virtual CPU structure.
  * @param   pCtx            Current CPU context.
  */
 VMM_INT_DECL(bool) EMShouldContinueAfterHalt(PVMCPU pVCpu, PCPUMCTX pCtx)
@@ -263,7 +265,7 @@ VMM_INT_DECL(bool) EMShouldContinueAfterHalt(PVMCPU pVCpu, PCPUMCTX pCtx)
 /**
  * Locks REM execution to a single VCPU.
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  */
 VMMDECL(void) EMRemLock(PVM pVM)
 {
@@ -282,7 +284,7 @@ VMMDECL(void) EMRemLock(PVM pVM)
 /**
  * Unlocks REM execution
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  */
 VMMDECL(void) EMRemUnlock(PVM pVM)
 {
@@ -299,7 +301,7 @@ VMMDECL(void) EMRemUnlock(PVM pVM)
  * Check if this VCPU currently owns the REM lock.
  *
  * @returns bool owner/not owner
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  */
 VMMDECL(bool) EMRemIsLockOwner(PVM pVM)
 {
@@ -318,7 +320,7 @@ VMMDECL(bool) EMRemIsLockOwner(PVM pVM)
  * Try to acquire the REM lock.
  *
  * @returns VBox status code
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  */
 VMM_INT_DECL(int) EMRemTryLock(PVM pVM)
 {
@@ -431,8 +433,8 @@ DECLINLINE(int) emDisCoreOne(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pDis, RTGCUINTP
  * @returns VBox status code, see SELMToFlatEx and EMInterpretDisasOneEx for
  *          details.
  *
- * @param   pVM             Pointer to the VM.
- * @param   pVCpu           Pointer to the VMCPU.
+ * @param   pVM             The cross context VM structure.
+ * @param   pVCpu           The cross context virtual CPU structure.
  * @param   pDis            Where to return the parsed instruction info.
  * @param   pcbInstr        Where to return the instruction size. (optional)
  */
@@ -464,8 +466,8 @@ VMM_INT_DECL(int) EMInterpretDisasCurrent(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pD
  *
  * @returns VBox status code.
  *
- * @param   pVM             Pointer to the VM.
- * @param   pVCpu           Pointer to the VMCPU.
+ * @param   pVM             The cross context VM structure.
+ * @param   pVCpu           The cross context virtual CPU structure.
  * @param   GCPtrInstr      The flat address of the instruction.
  * @param   pCtxCore        The context core (used to determine the cpu mode).
  * @param   pDis            Where to return the parsed instruction info.
@@ -695,11 +697,10 @@ static void emCompareWithIem(PVMCPU pVCpu, PCCPUMCTX pEmCtx, PCCPUMCTX pIemCtx,
  * @retval  VERR_EM_INTERPRETER     Something we can't cope with.
  * @retval  VERR_*                  Fatal errors.
  *
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       The cross context virtual CPU structure.
  * @param   pRegFrame   The register frame.
  *                      Updates the EIP if an instruction was executed successfully.
  * @param   pvFault     The fault address (CR2).
- * @param   pcbSize     Size of the write (if applicable).
  *
  * @remark  Invalid opcode exceptions have a higher priority than GP (see Intel
  *          Architecture System Developers Manual, Vol 3, 5.5) so we don't need
@@ -823,8 +824,7 @@ VMM_INT_DECL(VBOXSTRICTRC) EMInterpretInstruction(PVMCPU pVCpu, PCPUMCTXCORE pRe
  * @retval  VERR_EM_INTERPRETER     Something we can't cope with.
  * @retval  VERR_*                  Fatal errors.
  *
- * @param   pVM         Pointer to the VM.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       The cross context virtual CPU structure of the calling EMT.
  * @param   pRegFrame   The register frame.
  *                      Updates the EIP if an instruction was executed successfully.
  * @param   pvFault     The fault address (CR2).
@@ -960,13 +960,11 @@ VMM_INT_DECL(VBOXSTRICTRC) EMInterpretInstructionEx(PVMCPU pVCpu, PCPUMCTXCORE p
  * @retval  VERR_EM_INTERPRETER     Something we can't cope with.
  * @retval  VERR_*                  Fatal errors.
  *
- * @param   pVM         Pointer to the VM.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       The cross context virtual CPU structure of the calling EMT.
  * @param   pDis        The disassembler cpu state for the instruction to be
  *                      interpreted.
  * @param   pRegFrame   The register frame. IP/EIP/RIP *IS* changed!
  * @param   pvFault     The fault address (CR2).
- * @param   pcbSize     Size of the write (if applicable).
  * @param   enmCodeType Code type (user/supervisor)
  *
  * @remark  Invalid opcode exceptions have a higher priority than GP (see Intel
@@ -1069,8 +1067,8 @@ DECLINLINE(int) emRCStackRead(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pCtxCore, void
  * Interpret IRET (currently only to V86 code) - PATM only.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVM         The cross context VM structure.
+ * @param   pVCpu       The cross context virtual CPU structure.
  * @param   pRegFrame   The register frame.
  *
  */
@@ -1206,8 +1204,8 @@ static int emInterpretIret(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pDis, PCPUMCTXCOR
  * Interpret CPUID given the parameters in the CPU context.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVM         The cross context VM structure.
+ * @param   pVCpu       The cross context virtual CPU structure.
  * @param   pRegFrame   The register frame.
  *
  */
@@ -1235,8 +1233,8 @@ VMM_INT_DECL(int) EMInterpretCpuId(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame
  * Interpret RDTSC.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVM         The cross context VM structure.
+ * @param   pVCpu       The cross context virtual CPU structure.
  * @param   pRegFrame   The register frame.
  *
  */
@@ -1265,8 +1263,8 @@ VMM_INT_DECL(int) EMInterpretRdtsc(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame
  * Interpret RDTSCP.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVM         The cross context VM structure.
+ * @param   pVCpu       The cross context virtual CPU structure.
  * @param   pCtx        The CPU context.
  *
  */
@@ -1303,8 +1301,8 @@ VMM_INT_DECL(int) EMInterpretRdtscp(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
  * Interpret RDPMC.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVM         The cross context VM structure.
+ * @param   pVCpu       The cross context virtual CPU structure.
  * @param   pRegFrame   The register frame.
  *
  */
@@ -1324,8 +1322,8 @@ VMM_INT_DECL(int) EMInterpretRdpmc(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame
     /* Just return zero here; rather tricky to properly emulate this, especially as the specs are a mess. */
     pRegFrame->rax = 0;
     pRegFrame->rdx = 0;
-    /** @todo We should trigger a #GP here if the CPU doesn't support the index in ecx
-     *        but see @bugref{3472}! */
+    /** @todo We should trigger a \#GP here if the CPU doesn't support the index in
+     *        ecx but see @bugref{3472}! */
 
     NOREF(pVM);
     return VINF_SUCCESS;
@@ -1406,8 +1404,8 @@ VMM_INT_DECL(int) EMInterpretMonitor(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFra
  * Interpret INVLPG.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVM         The cross context VM structure.
+ * @param   pVCpu       The cross context virtual CPU structure.
  * @param   pRegFrame   The register frame.
  * @param   pAddrGC     Operand address.
  *
@@ -1437,10 +1435,10 @@ VMM_INT_DECL(VBOXSTRICTRC) EMInterpretInvlpg(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE
  * Update CRx.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVM         The cross context VM structure.
+ * @param   pVCpu       The cross context virtual CPU structure.
  * @param   pRegFrame   The register frame.
- * @param   DestRegCRx  CRx register index (DISUSE_REG_CR*)
+ * @param   DestRegCrx  CRx register index (DISUSE_REG_CR*)
  * @param   val         New CRx value
  *
  */
@@ -1491,14 +1489,14 @@ static int emUpdateCRx(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint32_t D
                 if (pRegFrame->cs.Attr.n.u1Long)
                 {
                     AssertMsgFailed(("Illegal enabling of paging with CS.u1Long = 1!!\n"));
-                    return VERR_EM_INTERPRETER; /** @todo generate #GP(0) */
+                    return VERR_EM_INTERPRETER; /** @todo generate \#GP(0) */
                 }
 
                 /* Illegal to switch to long mode before activating PAE first (AMD Arch. Programmer's Manual Volume 2: Table 14-5) */
                 if (!(CPUMGetGuestCR4(pVCpu) & X86_CR4_PAE))
                 {
                     AssertMsgFailed(("Illegal enabling of paging with PAE disabled!!\n"));
-                    return VERR_EM_INTERPRETER; /** @todo generate #GP(0) */
+                    return VERR_EM_INTERPRETER; /** @todo generate \#GP(0) */
                 }
                 msrEFER |= MSR_K6_EFER_LMA;
             }
@@ -1540,7 +1538,7 @@ static int emUpdateCRx(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint32_t D
             &&  (oldval & X86_CR4_PAE)
             &&  !(val & X86_CR4_PAE))
         {
-            return VERR_EM_INTERPRETER; /** @todo generate #GP(0) */
+            return VERR_EM_INTERPRETER; /** @todo generate \#GP(0) */
         }
 
         /* From IEM iemCImpl_load_CrX. */
@@ -1558,7 +1556,7 @@ static int emUpdateCRx(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint32_t D
         if (val & ~(uint64_t)fValid)
         {
             Log(("Trying to set reserved CR4 bits: NewCR4=%#llx InvalidBits=%#llx\n", val, val & ~(uint64_t)fValid));
-            return VERR_EM_INTERPRETER; /** @todo generate #GP(0) */
+            return VERR_EM_INTERPRETER; /** @todo generate \#GP(0) */
         }
 
         rc = VINF_SUCCESS;
@@ -1603,10 +1601,10 @@ static int emUpdateCRx(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint32_t D
  * Interpret CRx write.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVM         The cross context VM structure.
+ * @param   pVCpu       The cross context virtual CPU structure.
  * @param   pRegFrame   The register frame.
- * @param   DestRegCRx  CRx register index (DISUSE_REG_CR*)
+ * @param   DestRegCrx  CRx register index (DISUSE_REG_CR*)
  * @param   SrcRegGen   General purpose register index (USE_REG_E**))
  *
  */
@@ -1690,8 +1688,8 @@ static const char *emMSRtoString(uint32_t uMsr)
  * Interpret RDMSR
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVM         The cross context VM structure.
+ * @param   pVCpu       The cross context virtual CPU structure.
  * @param   pRegFrame   The register frame.
  */
 VMM_INT_DECL(int) EMInterpretRdmsr(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame)
@@ -1724,8 +1722,8 @@ VMM_INT_DECL(int) EMInterpretRdmsr(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame
  * Interpret WRMSR
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVM         The cross context VM structure.
+ * @param   pVCpu       The cross context virtual CPU structure.
  * @param   pRegFrame   The register frame.
  */
 VMM_INT_DECL(int) EMInterpretWrmsr(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame)
@@ -1757,11 +1755,11 @@ VMM_INT_DECL(int) EMInterpretWrmsr(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame
  * Interpret CRx read.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVM         The cross context VM structure.
+ * @param   pVCpu       The cross context virtual CPU structure.
  * @param   pRegFrame   The register frame.
  * @param   DestRegGen  General purpose register index (USE_REG_E**))
- * @param   SrcRegCRx   CRx register index (DISUSE_REG_CR*)
+ * @param   SrcRegCrx   CRx register index (DISUSE_REG_CR*)
  *
  */
 static int emInterpretCRxRead(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint32_t DestRegGen, uint32_t SrcRegCrx)
@@ -1790,10 +1788,10 @@ static int emInterpretCRxRead(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uin
  * Interpret DRx write.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVM         The cross context VM structure.
+ * @param   pVCpu       The cross context virtual CPU structure.
  * @param   pRegFrame   The register frame.
- * @param   DestRegDRx  DRx register index (USE_REG_DR*)
+ * @param   DestRegDrx  DRx register index (USE_REG_DR*)
  * @param   SrcRegGen   General purpose register index (USE_REG_E**))
  *
  */
@@ -1840,12 +1838,11 @@ VMM_INT_DECL(int) EMInterpretDRxWrite(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFr
  * Interpret DRx read.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVM         The cross context VM structure.
+ * @param   pVCpu       The cross context virtual CPU structure.
  * @param   pRegFrame   The register frame.
  * @param   DestRegGen  General purpose register index (USE_REG_E**))
- * @param   SrcRegDRx   DRx register index (USE_REG_DR*)
- *
+ * @param   SrcRegDrx   DRx register index (USE_REG_DR*)
  */
 VMM_INT_DECL(int) EMInterpretDRxRead(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint32_t DestRegGen, uint32_t SrcRegDrx)
 {
@@ -3642,6 +3639,7 @@ static int emInterpretWrmsr(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pDis, PCPUMCTXCO
 /**
  * Internal worker.
  * @copydoc emInterpretInstructionCPUOuter
+ * @param   pVM     The cross context VM structure.
  */
 DECLINLINE(VBOXSTRICTRC) emInterpretInstructionCPU(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pDis, PCPUMCTXCORE pRegFrame,
                                                    RTGCPTR pvFault, EMCODETYPE enmCodeType, uint32_t *pcbSize)
@@ -3932,7 +3930,7 @@ DECLINLINE(VBOXSTRICTRC) emInterpretInstructionCPU(PVM pVM, PVMCPU pVCpu, PDISCP
  * @retval  VERR_EM_INTERPRETER     Something we can't cope with.
  * @retval  VERR_*                  Fatal errors.
  *
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       The cross context virtual CPU structure.
  * @param   pDis        The disassembler cpu state for the instruction to be
  *                      interpreted.
  * @param   pRegFrame   The register frame. EIP is *NOT* changed!

@@ -77,8 +77,8 @@ DECLINLINE(IEMMODE) iomDisModeToIemMode(DISCPUMODE enmDisMode)
  * @retval  VINF_TRPM_XCPT_DISPATCHED   The exception was raised and dispatched for raw-mode execution. (TRPMRaiseXcptErr)
  * @retval  VINF_EM_RESCHEDULE_REM      The exception was dispatched and cannot be executed in raw-mode. (TRPMRaiseXcptErr)
  *
- * @param   pVM         The virtual machine (GC pointer of course).
- * @param   pVCpu       Pointer to the virtual CPU structure of the caller.
+ * @param   pVM         The cross context VM structure.
+ * @param   pVCpu       The cross context virtual CPU structure of the calling EMT.
  * @param   pRegFrame   Pointer to CPUMCTXCORE guest registers structure.
  * @param   pCpu        Disassembler CPU state.
  */
@@ -138,8 +138,8 @@ static VBOXSTRICTRC iomRCInterpretIN(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFra
  * @retval  VINF_TRPM_XCPT_DISPATCHED   The exception was raised and dispatched for raw-mode execution. (TRPMRaiseXcptErr)
  * @retval  VINF_EM_RESCHEDULE_REM      The exception was dispatched and cannot be executed in raw-mode. (TRPMRaiseXcptErr)
  *
- * @param   pVM         The virtual machine (GC pointer of course).
- * @param   pVCpu       Pointer to the virtual CPU structure of the caller.
+ * @param   pVM         The cross context VM structure.
+ * @param   pVCpu       The cross context virtual CPU structure of the calling EMT.
  * @param   pRegFrame   Pointer to CPUMCTXCORE guest registers structure.
  * @param   pCpu        Disassembler CPU state.
  */
@@ -192,8 +192,8 @@ static VBOXSTRICTRC iomRCInterpretOUT(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFr
  * @retval  VINF_TRPM_XCPT_DISPATCHED   The exception was raised and dispatched for raw-mode execution. (TRPMRaiseXcptErr)
  * @retval  VINF_EM_RESCHEDULE_REM      The exception was dispatched and cannot be executed in raw-mode. (TRPMRaiseXcptErr)
  *
- * @param   pVM         The virtual machine.
- * @param   pVCpu       Pointer to the virtual CPU structure of the caller.
+ * @param   pVM         The cross context VM structure.
+ * @param   pVCpu       The cross context virtual CPU structure of the calling EMT.
  * @param   pRegFrame   Pointer to CPUMCTXCORE guest registers structure.
  * @param   pCpu        Disassembler CPU state.
  */
@@ -246,8 +246,8 @@ static VBOXSTRICTRC iomRCInterpretINS(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFr
  * @retval  VINF_TRPM_XCPT_DISPATCHED   The exception was raised and dispatched for raw-mode execution. (TRPMRaiseXcptErr)
  * @retval  VINF_EM_RESCHEDULE_REM      The exception was dispatched and cannot be executed in raw-mode. (TRPMRaiseXcptErr)
  *
- * @param   pVM         The virtual machine.
- * @param   pVCpu       Pointer to the virtual CPU structure of the caller.
+ * @param   pVM         The cross context VM structure.
+ * @param   pVCpu       The cross context virtual CPU structure of the calling EMT.
  * @param   pRegFrame   Pointer to CPUMCTXCORE guest registers structure.
  * @param   pCpu        Disassembler CPU state.
  */
@@ -307,8 +307,8 @@ static VBOXSTRICTRC iomRCInterpretOUTS(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegF
  * @retval  VINF_EM_RAW_GUEST_TRAP      The exception was left pending. (TRPMRaiseXcptErr)
  * @retval  VINF_TRPM_XCPT_DISPATCHED   The exception was raised and dispatched for raw-mode execution. (TRPMRaiseXcptErr)
  *
- * @param   pVM         The virtual machine handle.
- * @param   pVCpu       Pointer to the virtual CPU structure of the caller.
+ * @param   pVM         The cross context VM structure.
+ * @param   pVCpu       The cross context virtual CPU structure of the calling EMT.
  * @param   pRegFrame   Pointer to CPUMCTXCORE guest registers structure.
  * @param   pCpu        Disassembler CPU state.
  */

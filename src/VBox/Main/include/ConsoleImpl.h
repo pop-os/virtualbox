@@ -975,6 +975,7 @@ private:
     ComPtr<IEventListener> mVmListener;
 
     friend struct VMTask;
+    friend class ConsoleVRDPServer;
 };
 
 #endif // !____H_CONSOLEIMPL

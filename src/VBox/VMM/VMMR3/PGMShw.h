@@ -125,7 +125,8 @@ RT_C_DECLS_END
  * Initializes the guest bit of the paging mode data.
  *
  * @returns VBox status code.
- * @param   pVM             Pointer to the VM.
+ * @param   pVM             The cross context VM structure.
+ * @param   pModeData       The pointer table to initialize (our members only).
  * @param   fResolveGCAndR0 Indicate whether or not GC and Ring-0 symbols can be resolved now.
  *                          This is used early in the init process to avoid trouble with PDM
  *                          not being initialized yet.
@@ -168,7 +169,7 @@ PGM_SHW_DECL(int, InitData)(PVM pVM, PPGMMODEDATA pModeData, bool fResolveGCAndR
  * Enters the shadow mode.
  *
  * @returns VBox status code.
- * @param   pVCpu                   Pointer to the VMCPU.
+ * @param   pVCpu                   The cross context virtual CPU structure.
  * @param   fIs64BitsPagingMode     New shadow paging mode is for 64 bits? (only relevant for 64 bits guests on a 32 bits AMD-V nested paging host)
  */
 PGM_SHW_DECL(int, Enter)(PVMCPU pVCpu, bool fIs64BitsPagingMode)
@@ -215,7 +216,7 @@ PGM_SHW_DECL(int, Enter)(PVMCPU pVCpu, bool fIs64BitsPagingMode)
  * Relocate any GC pointers related to shadow mode paging.
  *
  * @returns VBox status code.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       The cross context virtual CPU structure.
  * @param   offDelta    The relocation offset.
  */
 PGM_SHW_DECL(int, Relocate)(PVMCPU pVCpu, RTGCPTR offDelta)
@@ -229,7 +230,7 @@ PGM_SHW_DECL(int, Relocate)(PVMCPU pVCpu, RTGCPTR offDelta)
  * Exits the shadow mode.
  *
  * @returns VBox status code.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       The cross context virtual CPU structure.
  */
 PGM_SHW_DECL(int, Exit)(PVMCPU pVCpu)
 {

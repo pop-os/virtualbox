@@ -134,7 +134,7 @@ typedef struct RTMANIFESTEQUALS
     /** Name of entries to ignore. */
     const char * const *papszIgnoreEntries;
     /** Name of attributes to ignore. */
-    const char * const *papszIgnoreAttr;
+    const char * const *papszIgnoreAttrs;
     /** Flags governing the comparision. */
     uint32_t            fFlags;
     /** Where to return an error message (++) on failure.  Can be NULL. */
@@ -308,7 +308,7 @@ RTDECL(int) RTManifestDup(RTMANIFEST hManifestSrc, PRTMANIFEST phManifestDst)
 
 
 /**
- * @callback_method_impl{FNRTSTRSPACECALLBACK, Prepare equals operation.}
+ * @callback_method_impl{FNRTSTRSPACECALLBACK, Prepare equals operation}
  */
 static DECLCALLBACK(int) rtManifestAttributeClearVisited(PRTSTRSPACECORE pStr, void *pvUser)
 {
@@ -320,7 +320,7 @@ static DECLCALLBACK(int) rtManifestAttributeClearVisited(PRTSTRSPACECORE pStr, v
 
 
 /**
- * @callback_method_impl{FNRTSTRSPACECALLBACK, Prepare equals operation.}
+ * @callback_method_impl{FNRTSTRSPACECALLBACK, Prepare equals operation}
  */
 static DECLCALLBACK(int) rtManifestEntryClearVisited(PRTSTRSPACECORE pStr, void *pvUser)
 {
@@ -333,7 +333,7 @@ static DECLCALLBACK(int) rtManifestEntryClearVisited(PRTSTRSPACECORE pStr, void 
 
 
 /**
- * @callback_method_impl{FNRTSTRSPACECALLBACK, Finds the first missing.}
+ * @callback_method_impl{FNRTSTRSPACECALLBACK, Finds the first missing}
  */
 static DECLCALLBACK(int) rtManifestAttributeFindMissing2(PRTSTRSPACECORE pStr, void *pvUser)
 {
@@ -349,7 +349,7 @@ static DECLCALLBACK(int) rtManifestAttributeFindMissing2(PRTSTRSPACECORE pStr, v
     /*
      * Ignore this entry?
      */
-    char const * const *ppsz = pEquals->papszIgnoreAttr;
+    char const * const *ppsz = pEquals->papszIgnoreAttrs;
     if (ppsz)
     {
         while (*ppsz)
@@ -374,7 +374,7 @@ static DECLCALLBACK(int) rtManifestAttributeFindMissing2(PRTSTRSPACECORE pStr, v
 
 
 /**
- * @callback_method_impl{FNRTSTRSPACECALLBACK, Finds the first missing.}
+ * @callback_method_impl{FNRTSTRSPACECALLBACK, Finds the first missing}
  */
 static DECLCALLBACK(int) rtManifestEntryFindMissing2(PRTSTRSPACECORE pStr, void *pvUser)
 {
@@ -410,7 +410,7 @@ static DECLCALLBACK(int) rtManifestEntryFindMissing2(PRTSTRSPACECORE pStr, void 
 
 
 /**
- * @callback_method_impl{FNRTSTRSPACECALLBACK, Compares attributes.}
+ * @callback_method_impl{FNRTSTRSPACECALLBACK, Compares attributes}
  */
 static DECLCALLBACK(int) rtManifestAttributeCompare(PRTSTRSPACECORE pStr, void *pvUser)
 {
@@ -424,7 +424,7 @@ static DECLCALLBACK(int) rtManifestAttributeCompare(PRTSTRSPACECORE pStr, void *
     /*
      * Ignore this entry?
      */
-    char const * const *ppsz = pEquals->papszIgnoreAttr;
+    char const * const *ppsz = pEquals->papszIgnoreAttrs;
     if (ppsz)
     {
         while (*ppsz)
@@ -488,7 +488,7 @@ static DECLCALLBACK(int) rtManifestAttributeCompare(PRTSTRSPACECORE pStr, void *
 
 
 /**
- * @callback_method_impl{FNRTSTRSPACECALLBACK, Prepare equals operation.}
+ * @callback_method_impl{FNRTSTRSPACECALLBACK, Prepare equals operation}
  */
 DECLINLINE (int) rtManifestEntryCompare2(PRTMANIFESTEQUALS pEquals, PRTMANIFESTENTRY pEntry1, PRTMANIFESTENTRY pEntry2)
 {
@@ -517,7 +517,7 @@ DECLINLINE (int) rtManifestEntryCompare2(PRTMANIFESTEQUALS pEquals, PRTMANIFESTE
 
 
 /**
- * @callback_method_impl{FNRTSTRSPACECALLBACK, Prepare equals operation.}
+ * @callback_method_impl{FNRTSTRSPACECALLBACK, Prepare equals operation}
  */
 static DECLCALLBACK(int) rtManifestEntryCompare(PRTSTRSPACECORE pStr, void *pvUser)
 {
@@ -570,7 +570,7 @@ static DECLCALLBACK(int) rtManifestEntryCompare(PRTSTRSPACECORE pStr, void *pvUs
 
 
 RTDECL(int) RTManifestEqualsEx(RTMANIFEST hManifest1, RTMANIFEST hManifest2, const char * const *papszIgnoreEntries,
-                               const char * const *papszIgnoreAttr, uint32_t fFlags, char *pszError, size_t cbError)
+                               const char * const *papszIgnoreAttrs, uint32_t fFlags, char *pszError, size_t cbError)
 {
     /*
      * Validate input.
@@ -613,7 +613,7 @@ RTDECL(int) RTManifestEqualsEx(RTMANIFEST hManifest1, RTMANIFEST hManifest2, con
     Equals.pThis2               = pThis2;
     Equals.fFlags               = fFlags;
     Equals.papszIgnoreEntries   = papszIgnoreEntries;
-    Equals.papszIgnoreAttr      = papszIgnoreAttr;
+    Equals.papszIgnoreAttrs     = papszIgnoreAttrs;
     Equals.pszError             = pszError;
     Equals.cbError              = cbError;
 

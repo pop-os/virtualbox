@@ -214,9 +214,9 @@ VMMR3DECL(int) PGMR3DbgHCPhys2GCPhys(PUVM pUVM, RTHCPHYS HCPhys, PRTGCPHYS pGCPh
  *
  * @returns VBox status code.
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  * @param   pvDst       Where to store what's read.
- * @param   GCPhysDst   Where to start reading from.
+ * @param   GCPhysSrc   Where to start reading from.
  * @param   cb          The number of bytes to attempt reading.
  * @param   fFlags      Flags, MBZ.
  * @param   pcbRead     For store the actual number of bytes read, pass NULL if
@@ -265,7 +265,7 @@ VMMR3_INT_DECL(int) PGMR3DbgReadGCPhys(PVM pVM, void *pvDst, RTGCPHYS GCPhysSrc,
  *
  * @returns VBox status code.
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  * @param   GCPhysDst   Where to start writing.
  * @param   pvSrc       What to write.
  * @param   cb          The number of bytes to attempt writing.
@@ -316,9 +316,9 @@ VMMR3_INT_DECL(int) PGMR3DbgWriteGCPhys(PVM pVM, RTGCPHYS GCPhysDst, const void 
  *
  * @returns VBox status code.
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  * @param   pvDst       Where to store what's read.
- * @param   GCPtrDst    Where to start reading from.
+ * @param   GCPtrSrc    Where to start reading from.
  * @param   cb          The number of bytes to attempt reading.
  * @param   fFlags      Flags, MBZ.
  * @param   pcbRead     For store the actual number of bytes read, pass NULL if
@@ -372,7 +372,7 @@ VMMR3_INT_DECL(int) PGMR3DbgReadGCPtr(PVM pVM, void *pvDst, RTGCPTR GCPtrSrc, si
  *
  * @returns VBox status code.
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  * @param   GCPtrDst    Where to start writing.
  * @param   pvSrc       What to write.
  * @param   cb          The number of bytes to attempt writing.
@@ -488,6 +488,8 @@ static const uint8_t *pgmR3DbgAlignedMemChr(const uint8_t *pb, uint8_t b, size_t
  * @param   uAlign          The needle alignment. This is of course less than a page.
  * @param   pabNeedle       The byte string to search for.
  * @param   cbNeedle        The length of the byte string.
+ * @param   pfnFixedMemScan Pointer to assembly scan function, if available for
+ *                          the given needle and alignment combination.
  * @param   pabPrev         The buffer that keeps track of a partial match that we
  *                          bring over from the previous page. This buffer must be
  *                          at least cbNeedle - 1 big.
@@ -625,7 +627,7 @@ static void pgmR3DbgSelectMemScanFunction(PFNPGMR3DBGFIXEDMEMSCAN *ppfnMemScan, 
  * @retval  VERR_INVALID_POINTER if any of the pointer arguments are invalid.
  * @retval  VERR_INVALID_ARGUMENT if any other arguments are invalid.
  *
- * @param   pVM             Pointer to the VM.
+ * @param   pVM             The cross context VM structure.
  * @param   GCPhys          Where to start searching.
  * @param   cbRange         The number of bytes to search.
  * @param   GCPhysAlign     The alignment of the needle. Must be a power of two
@@ -787,8 +789,9 @@ VMMR3_INT_DECL(int) PGMR3DbgScanPhysical(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cbRa
  * @retval  VERR_INVALID_POINTER if any of the pointer arguments are invalid.
  * @retval  VERR_INVALID_ARGUMENT if any other arguments are invalid.
  *
- * @param   pVM             Pointer to the VM.
- * @param   pVCpu           The CPU context to search in.
+ * @param   pVM             The cross context VM structure.
+ * @param   pVCpu           The cross context virtual CPU structure of the CPU
+ *                          context to search from.
  * @param   GCPtr           Where to start searching.
  * @param   GCPtrAlign      The alignment of the needle. Must be a power of two
  *                          and less or equal to 4GB.
@@ -992,7 +995,7 @@ VMMR3_INT_DECL(int) PGMR3DbgScanVirtual(PVM pVM, PVMCPU pVCpu, RTGCPTR GCPtr, RT
  * Initializes the dumper state.
  *
  * @param   pState          The state to initialize.
- * @param   pVM             Pointer to the VM.
+ * @param   pVM             The cross context VM structure.
  * @param   fFlags          The flags.
  * @param   u64FirstAddr    The first address.
  * @param   u64LastAddr     The last address.
@@ -1469,7 +1472,7 @@ static int  pgmR3DumpHierarchyShwPaePDPT(PPGMR3DUMPHIERARCHYSTATE pState, RTHCPH
  * Dumps a 32-bit shadow page table.
  *
  * @returns VBox status code (VINF_SUCCESS).
- * @param   pVM         Pointer to the VM.
+ * @param   pState      The dumper state.
  * @param   HCPhys      The physical address of the table.
  * @param   cMaxDepth   The maximum depth.
  */
@@ -1546,8 +1549,8 @@ static int pgmR3DumpHierarchyShwPaePML4(PPGMR3DUMPHIERARCHYSTATE pState, RTHCPHY
  * Dumps a 32-bit shadow page table.
  *
  * @returns VBox status code (VINF_SUCCESS).
- * @param   pVM         Pointer to the VM.
- * @param   pPT         Pointer to the page table.
+ * @param   pState      The dumper state.
+ * @param   HCPhys      The physical address of the table.
  * @param   fMapping    Set if it's a guest mapping.
  */
 static int pgmR3DumpHierarchyShw32BitPT(PPGMR3DUMPHIERARCHYSTATE pState, RTHCPHYS HCPhys, bool fMapping)
@@ -1773,7 +1776,7 @@ static int pgmR3DumpHierarchyShwDoIt(PPGMR3DUMPHIERARCHYSTATE pState, uint64_t c
  * dbgfR3PagingDumpEx worker.
  *
  * @returns VBox status code.
- * @param   pVM             Pointer to the VM.
+ * @param   pVM             The cross context VM structure.
  * @param   cr3             The CR3 register value.
  * @param   fFlags          The flags, DBGFPGDMP_FLAGS_XXX.
  * @param   u64FirstAddr    The start address.
@@ -1801,7 +1804,7 @@ VMMR3_INT_DECL(int) PGMR3DumpHierarchyShw(PVM pVM, uint64_t cr3, uint32_t fFlags
  * Dumps a page table hierarchy use only physical addresses and cr4/lm flags.
  *
  * @returns VBox status code (VINF_SUCCESS).
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  * @param   cr3         The root of the hierarchy.
  * @param   cr4         The cr4, only PAE and PSE is currently used.
  * @param   fLongMode   Set if long mode, false if not long mode.
@@ -2142,7 +2145,7 @@ static int  pgmR3DumpHierarchyGstPaePDPT(PPGMR3DUMPHIERARCHYSTATE pState, RTGCPH
  * Dumps a 32-bit shadow page table.
  *
  * @returns VBox status code (VINF_SUCCESS).
- * @param   pVM         Pointer to the VM.
+ * @param   pState      The dumper state.
  * @param   GCPhys      The physical address of the table.
  * @param   cMaxDepth   The maximum depth.
  */
@@ -2451,7 +2454,7 @@ static int pgmR3DumpHierarchyGstDoIt(PPGMR3DUMPHIERARCHYSTATE pState, uint64_t c
  * dbgfR3PagingDumpEx worker.
  *
  * @returns VBox status code.
- * @param   pVM             Pointer to the VM.
+ * @param   pVM             The cross context VM structure.
  * @param   cr3             The CR3 register value.
  * @param   fFlags          The flags, DBGFPGDMP_FLAGS_XXX.
  * @param   FirstAddr       The start address.

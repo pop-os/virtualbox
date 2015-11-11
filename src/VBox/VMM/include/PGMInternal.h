@@ -151,11 +151,13 @@
 
 /** @def VBOX_WITH_NEW_LAZY_PAGE_ALLOC
  * Enables the experimental lazy page allocation code. */
-/*#define VBOX_WITH_NEW_LAZY_PAGE_ALLOC */
+#ifdef DOXYGEN_RUNNING
+# define VBOX_WITH_NEW_LAZY_PAGE_ALLOC
+#endif
 
 /** @def VBOX_WITH_REAL_WRITE_MONITORED_PAGES
  * Enables real write monitoring of pages, i.e. mapping them read-only and
- * only making them writable when getting a write access #PF. */
+ * only making them writable when getting a write access \#PF. */
 #define VBOX_WITH_REAL_WRITE_MONITORED_PAGES
 
 /** @} */
@@ -211,8 +213,8 @@
 /** @} */
 
 /** Macro for checking if the guest is using paging.
- * @param uGstType     PGM_TYPE_*
- * @param uShwType     PGM_TYPE_*
+ * @param   uGstType   PGM_TYPE_*
+ * @param   uShwType   PGM_TYPE_*
  * @remark  ASSUMES certain order of the PGM_TYPE_* values.
  */
 #define PGM_WITH_PAGING(uGstType, uShwType)  \
@@ -221,8 +223,8 @@
      && (uShwType) != PGM_TYPE_EPT)
 
 /** Macro for checking if the guest supports the NX bit.
- * @param uGstType     PGM_TYPE_*
- * @param uShwType     PGM_TYPE_*
+ * @param   uGstType   PGM_TYPE_*
+ * @param   uShwType   PGM_TYPE_*
  * @remark  ASSUMES certain order of the PGM_TYPE_* values.
  */
 #define PGM_WITH_NX(uGstType, uShwType)  \
@@ -235,8 +237,8 @@
  * Maps a HC physical page pool address to a virtual address.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
- * @param   pVCpu       The current CPU.
+ * @param   pVM         The cross context VM structure.
+ * @param   pVCpu       The cross context virtual CPU structure of the calling EMT.
  * @param   HCPhys      The HC physical address to map to a virtual one.
  * @param   ppv         Where to store the virtual address. No need to cast
  *                      this.
@@ -257,8 +259,8 @@
  * Maps a GC physical page address to a virtual address.
  *
  * @returns VBox status code.
- * @param   pVM     Pointer to the VM.
- * @param   pVCpu   The current CPU.
+ * @param   pVM     The cross context VM structure.
+ * @param   pVCpu   The cross context virtual CPU structure of the calling EMT.
  * @param   GCPhys  The GC physical address to map to a virtual one.
  * @param   ppv     Where to store the virtual address. No need to cast this.
  *
@@ -278,7 +280,7 @@
  * Maps a GC physical page address to a virtual address.
  *
  * @returns VBox status code.
- * @param   pVM     Pointer to the VM.
+ * @param   pVM     The cross context VM structure.
  * @param   GCPhys  The GC physical address to map to a virtual one.
  * @param   ppv     Where to store the virtual address. No need to cast this.
  *
@@ -292,7 +294,7 @@
  * Maps a GC physical page address to a virtual address.
  *
  * @returns VBox status code.
- * @param   pVCpu   The current CPU.
+ * @param   pVCpu   The cross context virtual CPU structure of the calling EMT.
  * @param   GCPhys  The GC physical address to map to a virtual one.
  * @param   ppv     Where to store the virtual address. No need to cast this.
  *
@@ -306,7 +308,7 @@
  * Maps a unaligned GC physical page address to a virtual address.
  *
  * @returns VBox status code.
- * @param   pVM     Pointer to the VM.
+ * @param   pVM     The cross context VM structure.
  * @param   GCPhys  The GC physical address to map to a virtual one.
  * @param   ppv     Where to store the virtual address. No need to cast this.
  *
@@ -328,7 +330,7 @@
  *
  * For best effect only apply this to the page that was mapped most recently.
  *
- * @param   pVCpu   The current CPU.
+ * @param   pVCpu   The cross context virtual CPU structure of the calling EMT.
  * @param   pvPage  The pool page.
  */
 #if defined(IN_RC) || defined(VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0)
@@ -347,7 +349,7 @@
  *
  * For best effect only apply this to the page that was mapped most recently.
  *
- * @param   pVM     Pointer to the VM.
+ * @param   pVM     The cross context VM structure.
  * @param   pvPage  The pool page.
  */
 #define PGM_DYNMAP_UNUSED_HINT_VM(pVM, pvPage)  PGM_DYNMAP_UNUSED_HINT(VMMGetCpu(pVM), pvPage)
@@ -356,7 +358,7 @@
 /** @def PGM_INVL_PG
  * Invalidates a page.
  *
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       The cross context virtual CPU structure.
  * @param   GCVirt      The virtual address of the page to invalidate.
  */
 #ifdef IN_RC
@@ -370,7 +372,7 @@
 /** @def PGM_INVL_PG_ALL_VCPU
  * Invalidates a page on all VCPUs
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  * @param   GCVirt      The virtual address of the page to invalidate.
  */
 #ifdef IN_RC
@@ -384,7 +386,7 @@
 /** @def PGM_INVL_BIG_PG
  * Invalidates a 4MB page directory entry.
  *
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       The cross context virtual CPU structure.
  * @param   GCVirt      The virtual address within the page directory to invalidate.
  */
 #ifdef IN_RC
@@ -398,7 +400,7 @@
 /** @def PGM_INVL_VCPU_TLBS()
  * Invalidates the TLBs of the specified VCPU
  *
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       The cross context virtual CPU structure.
  */
 #ifdef IN_RC
 # define PGM_INVL_VCPU_TLBS(pVCpu)             ASMReloadCR3()
@@ -411,7 +413,7 @@
 /** @def PGM_INVL_ALL_VCPU_TLBS()
  * Invalidates the TLBs of all VCPUs
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  */
 #ifdef IN_RC
 # define PGM_INVL_ALL_VCPU_TLBS(pVM)            ASMReloadCR3()
@@ -608,7 +610,7 @@ typedef PGMPHYSHANDLERTYPEINT *PPGMPHYSHANDLERTYPEINT;
 /**
  * Converts a handle to a pointer.
  * @returns PPGMPHYSHANDLERTYPEINT
- * @param   a_pVM           Pointer to the cross context VM structure.
+ * @param   a_pVM           The cross context VM structure.
  * @param   a_hType         Physical access handler type handle.
  */
 #define PGMPHYSHANDLERTYPEINT_FROM_HANDLE(a_pVM, a_hType) ((PPGMPHYSHANDLERTYPEINT)MMHyperHeapOffsetToPtr(a_pVM, a_hType))
@@ -653,7 +655,7 @@ typedef PGMPHYSHANDLER *PPGMPHYSHANDLER;
 /**
  * Gets the type record for a physical handler (no reference added).
  * @returns PPGMPHYSHANDLERTYPEINT
- * @param   a_pVM           Pointer to the cross context VM structure.
+ * @param   a_pVM           The cross context VM structure.
  * @param   a_pPhysHandler  Pointer to the physical handler structure
  *                          (PGMPHYSHANDLER).
  */
@@ -730,7 +732,7 @@ typedef PGMVIRTHANDLERTYPEINT *PPGMVIRTHANDLERTYPEINT;
 /**
  * Converts a handle to a pointer.
  * @returns PPGMVIRTHANDLERTYPEINT
- * @param   a_pVM           Pointer to the cross context VM structure.
+ * @param   a_pVM           The cross context VM structure.
  * @param   a_hType         Vitual access handler type handle.
  */
 # define PGMVIRTHANDLERTYPEINT_FROM_HANDLE(a_pVM, a_hType) ((PPGMVIRTHANDLERTYPEINT)MMHyperHeapOffsetToPtr(a_pVM, a_hType))
@@ -771,7 +773,7 @@ typedef PGMVIRTHANDLER *PPGMVIRTHANDLER;
 /**
  * Gets the type record for a virtual handler (no reference added).
  * @returns PPGMVIRTHANDLERTYPEINT
- * @param   a_pVM           Pointer to the cross context VM structure.
+ * @param   a_pVM           The cross context VM structure.
  * @param   a_pVirtHandler  Pointer to the virtual handler structure
  *                          (PGMVIRTHANDLER).
  */
@@ -875,6 +877,10 @@ typedef PPGMPAGE *PPPGMPAGE;
 /**
  * Initializes the page structure.
  * @param   a_pPage     Pointer to the physical guest page tracking structure.
+ * @param   a_HCPhys    The host physical address of the page.
+ * @param   a_idPage    The (GMM) page ID of the page.
+ * @param   a_uType     The page type (PGMPAGETYPE).
+ * @param   a_uState    The page state (PGM_PAGE_STATE_XXX).
  */
 #define PGM_PAGE_INIT(a_pPage, a_HCPhys, a_idPage, a_uType, a_uState) \
     do { \
@@ -1552,7 +1558,7 @@ typedef PGMRAMRANGE *PPGMRAMRANGE;
  * Calculates the RAM range TLB index for the physical address.
  *
  * @returns RAM range TLB index.
- * @param   GCPhys      The guest physical address.
+ * @param   a_GCPhys    The guest physical address.
  */
 #define PGM_RAMRANGE_TLB_IDX(a_GCPhys)      ( ((a_GCPhys) >> 20) & (PGM_RAMRANGE_TLB_ENTRIES - 1) )
 
@@ -2073,7 +2079,7 @@ typedef PGMMAPSET *PPGMMAPSET;
  * Pointer to a page mapper unit for current context. */
 /** @typedef PPPGMPAGEMAP
  * Pointer to a page mapper unit pointer for current context. */
-#ifdef IN_RC
+#if defined(IN_RC) && !defined(DOXYGEN_RUNNING)
 // typedef PPGMPAGEGCMAPTLB               PPGMPAGEMAPTLB;
 // typedef PPGMPAGEGCMAPTLBE              PPGMPAGEMAPTLBE;
 // typedef PPGMPAGEGCMAPTLBE             *PPPGMPAGEMAPTLBE;
@@ -3716,7 +3722,7 @@ typedef struct PGMCPUSTATS
     STAMCOUNTER StatRZSyncPagePDNAs;                /**< RC/R0: The number of time we've marked a PD not present from SyncPage to virtualize the accessed bit. */
     STAMCOUNTER StatRZSyncPagePDOutOfSync;          /**< RC/R0: The number of time we've encountered an out-of-sync PD in SyncPage. */
     STAMCOUNTER StatRZAccessedPage;                 /**< RC/R0: The number of pages marked not present for accessed bit emulation. */
-    STAMPROFILE StatRZDirtyBitTracking;             /**< RC/R0: Profiling the dirty bit tracking in CheckPageFault().. */
+    STAMPROFILE StatRZDirtyBitTracking;             /**< RC/R0: Profiling the dirty bit tracking in CheckPageFault(). */
     STAMCOUNTER StatRZDirtyPage;                    /**< RC/R0: The number of pages marked read-only for dirty bit tracking. */
     STAMCOUNTER StatRZDirtyPageBig;                 /**< RC/R0: The number of pages marked read-only for dirty bit tracking. */
     STAMCOUNTER StatRZDirtyPageSkipped;             /**< RC/R0: The number of pages already dirty or readonly. */
@@ -3800,14 +3806,14 @@ typedef struct PGMCPUSTATS
 /**
  * Converts a PGMCPU pointer into a VM pointer.
  * @returns Pointer to the VM structure the PGM is part of.
- * @param   pPGM   Pointer to PGMCPU instance data.
+ * @param   pPGM    Pointer to PGMCPU instance data.
  */
 #define PGMCPU2VM(pPGM)         ( (PVM)((char*)(pPGM) - (pPGM)->offVM) )
 
 /**
  * Converts a PGMCPU pointer into a PGM pointer.
  * @returns Pointer to the VM structure the PGM is part of.
- * @param   pPGM   Pointer to PGMCPU instance data.
+ * @param   pPGMCpu Pointer to PGMCPU instance data.
  */
 #define PGMCPU2PGM(pPGMCpu)     ( (PPGM)((char *)(pPGMCpu) - (pPGMCpu)->offPGM) )
 

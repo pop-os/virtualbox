@@ -40,12 +40,6 @@ elif [ -f /etc/debian_version ]; then
 elif [ -f /etc/gentoo-release ]; then
     system=gentoo
     PIDFILE="/var/run/vboxadd-service"
-elif [ -f /etc/slackware-version ]; then
-    system=slackware
-    PIDFILE="/var/run/vboxadd-service"
-elif [ -f /etc/lfs-release ]; then
-    system=lfs
-    PIDFILE="/var/run/vboxadd-service.pid"
 else
     system=other
     if [ -d /var/run -a -w /var/run ]; then
@@ -144,14 +138,19 @@ if [ "$system" = "gentoo" ]; then
     fi
 fi
 
-if [ "$system" = "slackware" -o "$system" = "other" ]; then
+if [ "$system" = "other" ]; then
     daemon() {
         $1 $2 $3
     }
 
     killproc() {
-        killall $1
-        rm -f $PIDFILE
+        kp_binary="${1##*/}"
+        pkill "${kp_binary}" || return 0
+        sleep 1
+        pkill "${kp_binary}" || return 0
+        sleep 1
+        pkill -9 "${kp_binary}"
+        return 0
     }
 
     fail_msg() {
@@ -166,29 +165,6 @@ if [ "$system" = "slackware" -o "$system" = "other" ]; then
         echo -n "$1"
     }
 
-fi
-
-if [ "$system" = "lfs" ]; then
-    . /etc/rc.d/init.d/functions
-    daemon() {
-        loadproc $1 $2 $3
-    }
-
-    fail_msg() {
-        echo_failure
-    }
-
-    succ_msg() {
-        echo_ok
-    }
-
-    begin() {
-        echo $1
-    }
-
-    status() {
-        statusproc $1
-    }
 fi
 
 binary=/usr/sbin/VBoxService

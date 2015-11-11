@@ -92,21 +92,18 @@ typedef struct VMMDEVCREDS
  */
 typedef struct VMMDEVFACILITYSTATUSENTRY
 {
-    /** The facility, see VBoxGuestFacilityType. */
-    uint32_t    uFacility;
-    /** The status, see VBoxGuestFacilityStatus. */
-    /** @todo r=andy uint16_t vs. uint32_t (VBoxGuestFacilityStatus enum). */
-    uint16_t    uStatus;
+    /** The facility (may contain values other than the defined ones). */
+    VBoxGuestFacilityType       enmFacility;
+    /** The status (may contain values other than the defined ones). */
+    VBoxGuestFacilityStatus     enmStatus;
     /** Whether this entry is fixed and cannot be reused when inactive. */
-    bool        fFixed;
+    bool                        fFixed;
     /** Explicit alignment padding / reserved for future use. MBZ. */
-    bool        fPadding;
+    bool                        afPadding[3];
     /** The facility flags (yet to be defined). */
-    uint32_t    fFlags;
-    /** Explicit alignment padding / reserved for future use. MBZ. */
-    uint32_t    uPadding;
+    uint32_t                    fFlags;
     /** Last update timestamp. */
-    RTTIMESPEC  TimeSpecTS;
+    RTTIMESPEC                  TimeSpecTS;
 } VMMDEVFACILITYSTATUSENTRY;
 /** Pointer to a facility status entry. */
 typedef VMMDEVFACILITYSTATUSENTRY *PVMMDEVFACILITYSTATUSENTRY;
@@ -359,20 +356,25 @@ typedef struct VMMDevState
     RTTEST                  hTestingTest;
 #endif /* !VBOX_WITHOUT_TESTING_FEATURES */
 
+    /** @name Heartbeat
+     * @{ */
     /** Timestamp of the last heartbeat from guest in nanosec. */
-    uint64_t volatile   uLastHBTime;
+    uint64_t volatile   nsLastHeartbeatTS;
     /** Indicates whether we missed HB from guest on last check. */
-    bool volatile       fHasMissedHB;
+    bool volatile       fFlatlined;
     /** Indicates whether heartbeat check is active. */
-    bool volatile       fHBCheckEnabled;
+    bool volatile       fHeartbeatActive;
     /** Alignment padding. */
     bool                afAlignment8[6];
-    /** Guest heartbeat interval in nanoseconds. */
-    uint64_t            u64HeartbeatInterval;
-    /** Guest heartbeat timeout in nanoseconds. */
-    uint64_t            u64HeartbeatTimeout;
-    /** Timer for checking guest heart beat. */
-    PTMTIMERR3          pHBCheckTimer;
+    /** Guest heartbeat interval in nanoseconds.
+     * This is the interval the guest is told to produce heartbeats at. */
+    uint64_t            cNsHeartbeatInterval;
+    /** The amount of time without a heartbeat (nanoseconds) before we
+     * conclude the guest is doing a Dixie Flatline (Neuromancer) impression. */
+    uint64_t            cNsHeartbeatTimeout;
+    /** Timer for signalling a flatlined guest. */
+    PTMTIMERR3          pFlatlinedTimer;
+    /** @} */
 } VMMDevState;
 typedef VMMDevState VMMDEV;
 /** Pointer to the VMM device state. */

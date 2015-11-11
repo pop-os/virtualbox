@@ -1,5 +1,5 @@
-/** @file $Id: vbox_mode.c $
- *
+/* $Id: vbox_mode.c $ */
+/** @file
  * VirtualBox Additions Linux kernel video driver
  */
 

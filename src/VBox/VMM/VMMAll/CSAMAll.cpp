@@ -53,23 +53,8 @@
 
 
 /**
- * Access handler callback for virtual access handler ranges.
- *
- * Important to realize that a physical page in a range can have aliases, and
- * for ALL and WRITE handlers these will also trigger.
- *
- * @returns VINF_SUCCESS if the handler have carried out the operation.
- * @returns VINF_PGM_HANDLER_DO_DEFAULT if the caller should carry out the access operation.
- * @param   pVM             Pointer to the VM.
- * @param   pVCpu       Pointer to the cross context CPU context for the
- *                      calling EMT.
- * @param   GCPtr           The virtual address the guest is writing to. (not correct if it's an alias!)
- * @param   pvPtr           The HC mapping of that address.
- * @param   pvBuf           What the guest is reading/writing.
- * @param   cbBuf           How much it's reading/writing.
- * @param   enmAccessType   The access type.
- * @param   enmOrigin       Who is making this write.
- * @param   pvUser          The CSAMPAGEREC in ring-3, NIL in RC.
+ * @callback_method_impl{FNPGMVIRTHANDLER,
+ * Access handler callback for virtual access handler ranges.}
  */
 PGM_ALL_CB2_DECL(VBOXSTRICTRC)
 csamCodePageWriteHandler(PVM pVM, PVMCPU pVCpu, RTGCPTR GCPtr, void *pvPtr, void *pvBuf, size_t cbBuf,
@@ -170,7 +155,7 @@ csamCodePageWriteHandler(PVM pVM, PVMCPU pVCpu, RTGCPTR GCPtr, void *pvPtr, void
  * Check if this page needs to be analysed by CSAM
  *
  * @returns VBox status code
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  * @param   pvFault     Fault address
  */
 VMM_INT_DECL(int) CSAMExecFault(PVM pVM, RTRCPTR pvFault)
@@ -198,7 +183,7 @@ VMM_INT_DECL(int) CSAMExecFault(PVM pVM, RTRCPTR pvFault)
  * Check if this page was previously scanned by CSAM
  *
  * @returns true -> scanned, false -> not scanned
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  * @param   pPage       GC page address
  */
 VMM_INT_DECL(bool) CSAMIsPageScanned(PVM pVM, RTRCPTR pPage)
@@ -225,7 +210,7 @@ VMM_INT_DECL(bool) CSAMIsPageScanned(PVM pVM, RTRCPTR pPage)
  * @note: we always mark it as scanned, even if we haven't completely done so
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  * @param   pPage       GC page address (not necessarily aligned)
  * @param   fScanned    Mark as scanned or not scanned
  *
@@ -297,7 +282,7 @@ VMM_INT_DECL(int) CSAMMarkPage(PVM pVM, RTRCUINTPTR pPage, bool fScanned)
  * @returns true if the page should be marked not present because
  *          CSAM want need to scan it.
  * @returns false if the page was already scanned.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  * @param   GCPtr       GC pointer of page
  */
 VMM_INT_DECL(bool) CSAMDoesPageNeedScanning(PVM pVM, RTRCUINTPTR GCPtr)
@@ -321,7 +306,7 @@ VMM_INT_DECL(bool) CSAMDoesPageNeedScanning(PVM pVM, RTRCUINTPTR GCPtr)
  * Remember a possible code page for later inspection
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  * @param   GCPtr       GC pointer of page
  */
 VMM_INT_DECL(void) CSAMMarkPossibleCodePage(PVM pVM, RTRCPTR GCPtr)
@@ -340,7 +325,7 @@ VMM_INT_DECL(void) CSAMMarkPossibleCodePage(PVM pVM, RTRCPTR GCPtr)
  * Turn on code scanning
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  */
 VMM_INT_DECL(int) CSAMEnableScanning(PVM pVM)
 {
@@ -353,7 +338,7 @@ VMM_INT_DECL(int) CSAMEnableScanning(PVM pVM)
  * Turn off code scanning
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  */
 VMM_INT_DECL(int) CSAMDisableScanning(PVM pVM)
 {
@@ -370,7 +355,7 @@ VMM_INT_DECL(int) CSAMDisableScanning(PVM pVM)
  * tree lookup is likely to be more expensive. (as it would also have to be offset based)
  *
  * @returns boolean
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  * @param   GCPtr       GC pointer of page table entry
  */
 VMM_INT_DECL(bool) CSAMIsKnownDangerousInstr(PVM pVM, RTRCUINTPTR GCPtr)

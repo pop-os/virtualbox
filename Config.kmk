@@ -208,7 +208,7 @@ VBOX_VERSION_MINOR = 0
 # This is the current build number. It should be increased every time we publish a
 # new build. The define is available in every source file. Only even build numbers
 # will be published, odd numbers are set during development.
-VBOX_VERSION_BUILD = 8
+VBOX_VERSION_BUILD = 10
 # The raw version string. This *must not* contain any other information/fields than
 # major, minor and build revision (as it is now) -- also will be used for host/guest version
 # comparison.
@@ -549,7 +549,7 @@ if1of ($(KBUILD_TARGET).$(KBUILD_TARGET_ARCH), solaris.amd64 win.amd64)
  endif
 endif
 # Whether to generate a database of USB vendor IDs and device IDs into VBoxSVC.
-#VBOX_WITH_MAIN_USB_ID_DATABASE = 1
+VBOX_WITH_MAIN_USB_ID_DATABASE = 1
 # The recompiler.
 VBOX_WITH_REM = 1
 # Set this to prefix all C symbols in XPCOM, to avoid dynamic linking problems
@@ -656,6 +656,10 @@ if1of ($(KBUILD_TARGET), darwin linux solaris win)
    VBOX_WITH_DRAG_AND_DROP_PROMISES = $(VBOX_WITH_DRAG_AND_DROP)
   endif
  endif
+endif
+# Use the VRDE external authentication library from VBoxSVC
+if1of ($(KBUILD_TARGET), win)
+ VBOX_WITH_VRDEAUTH_IN_VBOXSVC = 1
 endif
 # Enables use of merge modules in the windows installer. This will increase
 # the overall installer size significantly because merge modules are not able
@@ -5161,7 +5165,7 @@ ifdef VBOX_WITH_QTGUI
   VBOX_QT4_INFIX=VBox
  endif
 
- VBOX_QT4_MOD = QtCore QtGui QtNetwork $(if $(VBOX_GUI_USE_QGL),QtOpenGL,)
+ VBOX_QT4_MOD = QtCore QtGui $(if $(VBOX_GUI_USE_QGL),QtOpenGL,)
  VBOX_QT4_MOD_NAMES = $(foreach qtmod,$(VBOX_QT4_MOD),$(qtmod)$(VBOX_QT4_INFIX))
 
  # Hack LD_LIBRARY_PATH for stuff in tools.
@@ -6159,7 +6163,7 @@ endif
 SVN                    ?= svn$(HOSTSUFF_EXE)
 VBOX_SVN_REV_KMK        = $(PATH_OUT)/revision.kmk
 ifndef VBOX_SVN_REV
- VBOX_SVN_REV_FALLBACK := $(patsubst %:,,  $Rev: 103449 $  )
+ VBOX_SVN_REV_FALLBACK := $(patsubst %:,,  $Rev: 104061 $  )
  VBOX_SVN_DEP          := $(firstword $(wildcard $(PATH_ROOT)/.svn/wc.db $(abspath $(PATH_ROOT)/../.svn/wc.db) $(abspath $(PATH_ROOT)/../../.svn/wc.db) $(PATH_ROOT)/.svn/entries))
  ifeq ($(which $(SVN)),)
   VBOX_SVN_DEP         :=

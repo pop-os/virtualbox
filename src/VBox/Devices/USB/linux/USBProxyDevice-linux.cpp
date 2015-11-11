@@ -1427,7 +1427,6 @@ static int usbProxyLinuxUrbQueueSplit(PUSBPROXYDEV pProxyDev, PUSBPROXYURBLNX pU
             rc = usbProxyLinuxSubmitURB(pProxyDev, pCur, pUrb, &fUnplugged);
             if (RT_FAILURE(rc))
                 break;
-            usbProxyLinuxUrbLinkInFlight(USBPROXYDEV_2_DATA(pProxyDev, PUSBPROXYDEVLNX), pCur);
         }
     }
 
@@ -1615,8 +1614,9 @@ static VUSBSTATUS vusbProxyLinuxStatusToVUsbStatus(int iStatus)
         //case -ENOSR:
         //    return VUSBSTATUS_BUFFER_UNDERRUN;
 
-        //case -EPROTO:
-        //    return VUSBSTATUS_BIT_STUFFING;
+        case -EPROTO:
+            Log(("vusbProxyLinuxStatusToVUsbStatus: DNR/EPPROTO!!\n"));
+            return VUSBSTATUS_DNR;
 
         case -EPIPE:
             Log(("vusbProxyLinuxStatusToVUsbStatus: STALL/EPIPE!!\n"));

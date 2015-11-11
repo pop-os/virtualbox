@@ -536,7 +536,7 @@ static const char *vmsvgaFIFOCmdToString(uint32_t u32Cmd)
 
 #ifdef IN_RING3
 /**
- * @interface_method_impl{PDMIDISPLAYPORT::pfnSetViewport}
+ * @interface_method_impl{PDMIDISPLAYPORT,pfnSetViewport}
  */
 DECLCALLBACK(void) vmsvgaPortSetViewport(PPDMIDISPLAYPORT pInterface, uint32_t uScreenId, uint32_t x, uint32_t y, uint32_t cx, uint32_t cy)
 {
@@ -2544,14 +2544,16 @@ static DECLCALLBACK(int) vmsvgaFIFOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
             offCurrentCmd = ~UINT32_C(3);
         }
 
-/**
+/** @def VMSVGAFIFO_GET_CMD_BUFFER_BREAK
  * Macro for shortening calls to vmsvgaFIFOGetCmdPayload.
  *
  * Will break out of the switch on failure.
  * Will restart and quit the loop if the thread was requested to stop.
  *
+ * @param   a_PtrVar        Request variable pointer.
+ * @param   a_Type          Request typedef (not pointer) for casting.
  * @param   a_cbPayloadReq  How much payload to fetch.
- * @remarks Access a bunch of variables in the current scope!
+ * @remarks Accesses a bunch of variables in the current scope!
  */
 # define VMSVGAFIFO_GET_CMD_BUFFER_BREAK(a_PtrVar, a_Type, a_cbPayloadReq) \
             if (1) { \
@@ -2559,12 +2561,16 @@ static DECLCALLBACK(int) vmsvgaFIFOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
                                                                pbBounceBuf, &cbPayload, pThread, pThis, pSVGAState); \
                 if (RT_UNLIKELY((uintptr_t)(a_PtrVar) < 2)) { if ((uintptr_t)(a_PtrVar) == 1) continue; break; } \
             } else do {} while (0)
-/**
+/** @def VMSVGAFIFO_GET_MORE_CMD_BUFFER_BREAK
  * Macro for shortening calls to vmsvgaFIFOGetCmdPayload for refetching the
  * buffer after figuring out the actual command size.
+ *
  * Will break out of the switch on failure.
+ *
+ * @param   a_PtrVar        Request variable pointer.
+ * @param   a_Type          Request typedef (not pointer) for casting.
  * @param   a_cbPayloadReq  How much payload to fetch.
- * @remarks Access a bunch of variables in the current scope!
+ * @remarks Accesses a bunch of variables in the current scope!
  */
 # define VMSVGAFIFO_GET_MORE_CMD_BUFFER_BREAK(a_PtrVar, a_Type, a_cbPayloadReq) \
             if (1) { \
@@ -4438,7 +4444,7 @@ static const char * const g_apszVmSvgaDevCapNames[] =
 /**
  * Power On notification.
  *
- * @returns VBox status.
+ * @returns VBox status code.
  * @param   pDevIns     The device instance data.
  *
  * @remarks Caller enters the device critical section.

@@ -120,7 +120,7 @@ extern int      mac_client_set_resources(mac_client_handle_t hClient, mac_resour
 *********************************************************************************************************************************/
 LOCAL int VBoxNetFltSolarisAttach(dev_info_t *pDip, ddi_attach_cmd_t enmCmd);
 LOCAL int VBoxNetFltSolarisDetach(dev_info_t *pDip, ddi_detach_cmd_t enmCmd);
-LOCAL int VBoxNetFltSolarisGetInfo(dev_info_t *pDip, ddi_info_cmd_t enmCmd, void *pArg, void **ppResult);
+LOCAL int VBoxNetFltSolarisGetInfo(dev_info_t *pDip, ddi_info_cmd_t enmCmd, void *pArg, void **ppvResult);
 
 
 /*********************************************************************************************************************************
@@ -263,7 +263,7 @@ LOCAL PVBOXNETFLTVNIC vboxNetFltSolarisAllocVNIC(void);
 LOCAL void vboxNetFltSolarisFreeVNIC(PVBOXNETFLTVNIC pVNIC);
 LOCAL void vboxNetFltSolarisDestroyVNIC(PVBOXNETFLTVNIC pVNIC);
 LOCAL int vboxNetFltSolarisCreateVNIC(PVBOXNETFLTINS pThis, PVBOXNETFLTVNIC *ppVNIC);
-LOCAL inline int vboxNetFltSolarisGetLinkId(const char *pszMacName, datalink_id_t *pLinkId);
+DECLINLINE(int) vboxNetFltSolarisGetLinkId(const char *pszMacName, datalink_id_t *pLinkId);
 
 /**
  * Kernel entry points
@@ -424,7 +424,7 @@ LOCAL int VBoxNetFltSolarisDetach(dev_info_t *pDip, ddi_detach_cmd_t enmCmd)
  *
  * @returns corresponding solaris error code.
  */
-LOCAL int VBoxNetFltSolarisGetInfo(dev_info_t *pDip, ddi_info_cmd_t enmCmd, void *pvArg, void **ppResult)
+LOCAL int VBoxNetFltSolarisGetInfo(dev_info_t *pDip, ddi_info_cmd_t enmCmd, void *pvArg, void **ppvResult)
 {
     Log((DEVICE_NAME ":VBoxNetFltSolarisGetInfo pDip=%p enmCmd=%d pArg=%p instance=%d\n", pDip, enmCmd, getminor((dev_t)pvArg)));
 
@@ -432,14 +432,14 @@ LOCAL int VBoxNetFltSolarisGetInfo(dev_info_t *pDip, ddi_info_cmd_t enmCmd, void
     {
         case DDI_INFO_DEVT2DEVINFO:
         {
-            *ppResult = g_pVBoxNetFltSolarisDip;
+            *ppvResult = g_pVBoxNetFltSolarisDip;
             return DDI_SUCCESS;
         }
 
         case DDI_INFO_DEVT2INSTANCE:
         {
             int instance = getminor((dev_t)pvArg);
-            *ppResult = (void *)(uintptr_t)instance;
+            *ppvResult = (void *)(uintptr_t)instance;
             return DDI_SUCCESS;
         }
     }
@@ -453,10 +453,11 @@ LOCAL int VBoxNetFltSolarisGetInfo(dev_info_t *pDip, ddi_info_cmd_t enmCmd, void
  *
  * @param   pThis           The instance.
  * @param   pSG             Pointer to the scatter-gather list.
+ * @param   fDst            INTNETTRUNKDIR_XXX.
  *
  * @returns Solaris message block.
  */
-LOCAL inline mblk_t *vboxNetFltSolarisMBlkFromSG(PVBOXNETFLTINS pThis, PINTNETSG pSG, uint32_t fDst)
+DECLINLINE(mblk_t *) vboxNetFltSolarisMBlkFromSG(PVBOXNETFLTINS pThis, PINTNETSG pSG, uint32_t fDst)
 {
     Log((DEVICE_NAME ":vboxNetFltSolarisMBlkFromSG pThis=%p pSG=%p\n", pThis, pSG));
 
@@ -811,8 +812,6 @@ LOCAL int vboxNetFltSolarisReportInfo(PVBOXNETFLTINS pThis, mac_handle_t hInterf
  *
  * @param   pThis           The instance.
  * @param   pVNIC           Pointer to the VNIC.
- * @param   pVNICTemplate   Pointer to the VNIC template initialize from, can be
- *                          NULL.
  *
  * @returns VBox status code.
  */
@@ -1010,7 +1009,7 @@ LOCAL PVBOXNETFLTVNIC vboxNetFltSolarisAllocVNIC(void)
  *
  * @param   pVNIC           Pointer to the VNIC.
  */
-LOCAL inline void vboxNetFltSolarisFreeVNIC(PVBOXNETFLTVNIC pVNIC)
+DECLINLINE(void) vboxNetFltSolarisFreeVNIC(PVBOXNETFLTVNIC pVNIC)
 {
     RTMemFree(pVNIC);
 }
@@ -1223,7 +1222,7 @@ LOCAL int vboxNetFltSolarisCreateVNIC(PVBOXNETFLTINS pThis, PVBOXNETFLTVNIC *ppV
  *
  * @returns VBox status code.
  */
-LOCAL inline int vboxNetFltSolarisGetLinkId(const char *pszMacName, datalink_id_t *pLinkId)
+DECLINLINE(int) vboxNetFltSolarisGetLinkId(const char *pszMacName, datalink_id_t *pLinkId)
 {
     /*
      * dls_mgmt_get_linkid() requires to be in a state to answer upcalls. We should always use this
@@ -1249,7 +1248,7 @@ LOCAL inline int vboxNetFltSolarisGetLinkId(const char *pszMacName, datalink_id_
  *
  * @returns VBox status code.
  */
-LOCAL inline int vboxNetFltSolarisSetPromisc(PVBOXNETFLTINS pThis, PVBOXNETFLTVNIC pVNIC)
+DECLINLINE(int) vboxNetFltSolarisSetPromisc(PVBOXNETFLTINS pThis, PVBOXNETFLTVNIC pVNIC)
 {
     int rc = VINF_SUCCESS;
     if (!pVNIC->hPromisc)
@@ -1270,7 +1269,7 @@ LOCAL inline int vboxNetFltSolarisSetPromisc(PVBOXNETFLTINS pThis, PVBOXNETFLTVN
  * @param   pThis           The VM connection instance.
  * @param   pVNIC           Pointer to the VNIC.
  */
-LOCAL inline void vboxNetFltSolarisRemovePromisc(PVBOXNETFLTINS pThis, PVBOXNETFLTVNIC pVNIC)
+DECLINLINE(void) vboxNetFltSolarisRemovePromisc(PVBOXNETFLTINS pThis, PVBOXNETFLTVNIC pVNIC)
 {
     if (pVNIC->hPromisc)
     {

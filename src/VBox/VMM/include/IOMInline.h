@@ -29,7 +29,7 @@
  * @returns Pointer to I/O port range.
  * @returns NULL if no port registered.
  *
- * @param   pVM     Pointer to the VM.
+ * @param   pVM     The cross context VM structure.
  * @param   Port    The I/O port lookup.
  */
 DECLINLINE(CTX_SUFF(PIOMIOPORTRANGE)) iomIOPortGetRange(PVM pVM, RTIOPORT Port)
@@ -45,7 +45,7 @@ DECLINLINE(CTX_SUFF(PIOMIOPORTRANGE)) iomIOPortGetRange(PVM pVM, RTIOPORT Port)
  * @returns Pointer to I/O port range.
  * @returns NULL if no port registered.
  *
- * @param   pVM     Pointer to the VM.
+ * @param   pVM     The cross context VM structure.
  * @param   Port    The I/O port to lookup.
  */
 DECLINLINE(PIOMIOPORTRANGER3) iomIOPortGetRangeR3(PVM pVM, RTIOPORT Port)
@@ -61,8 +61,8 @@ DECLINLINE(PIOMIOPORTRANGER3) iomIOPortGetRangeR3(PVM pVM, RTIOPORT Port)
  * @returns Pointer to MMIO range.
  * @returns NULL if address not in a MMIO range.
  *
- * @param   pVM     Pointer to the VM.
- * @param   pVCpu   Pointer to the virtual CPU structure of the caller.
+ * @param   pVM     The cross context VM structure.
+ * @param   pVCpu   The cross context virtual CPU structure of the calling EMT.
  * @param   GCPhys  Physical address to lookup.
  */
 DECLINLINE(PIOMMMIORANGE) iomMmioGetRange(PVM pVM, PVMCPU pVCpu, RTGCPHYS GCPhys)
@@ -97,8 +97,8 @@ DECLINLINE(void) iomMmioRetainRange(PIOMMMIORANGE pRange)
  * @returns Pointer to MMIO range.
  * @returns NULL if address not in a MMIO range.
  *
- * @param   pVM     Pointer to the VM.
- * @param   pVCpu   Pointer to the virtual CPU structure of the caller.
+ * @param   pVM     The cross context VM structure.
+ * @param   pVCpu   The cross context virtual CPU structure of the calling EMT.
  * @param   GCPhys  Physical address to lookup.
  */
 DECLINLINE(PIOMMMIORANGE) iomMmioGetRangeWithRef(PVM pVM, PVMCPU pVCpu, RTGCPHYS GCPhys)
@@ -122,7 +122,7 @@ DECLINLINE(PIOMMMIORANGE) iomMmioGetRangeWithRef(PVM pVM, PVMCPU pVCpu, RTGCPHYS
 /**
  * Releases a MMIO range.
  *
- * @param   pVM     Pointer to the VM.
+ * @param   pVM     The cross context VM structure.
  * @param   pRange  The range to release.
  */
 DECLINLINE(void) iomMmioReleaseRange(PVM pVM, PIOMMMIORANGE pRange)
@@ -140,8 +140,8 @@ DECLINLINE(void) iomMmioReleaseRange(PVM pVM, PIOMMMIORANGE pRange)
  * @returns Pointer to MMIO range.
  * @returns NULL if address not in a MMIO range.
  *
- * @param   pVM     Pointer to the VM.
- * @param   pVCpu   Pointer to the virtual CPU structure of the caller.
+ * @param   pVM     The cross context VM structure.
+ * @param   pVCpu   The cross context virtual CPU structure of the calling EMT.
  * @param   GCPhys  Physical address to lookup.
  */
 DECLINLINE(PIOMMMIORANGE) iomMMIOGetRangeUnsafe(PVM pVM, PVMCPU pVCpu, RTGCPHYS GCPhys)
@@ -166,8 +166,8 @@ DECLINLINE(PIOMMMIORANGE) iomMMIOGetRangeUnsafe(PVM pVM, PVMCPU pVCpu, RTGCPHYS 
  * @returns Pointer to MMIO stats.
  * @returns NULL if not found (R0/GC), or out of memory (R3).
  *
- * @param   pVM         Pointer to the VM.
- * @param   pVCpu       Pointer to the virtual CPU structure of the caller.
+ * @param   pVM         The cross context VM structure.
+ * @param   pVCpu       The cross context virtual CPU structure of the calling EMT.
  * @param   GCPhys      Physical address to lookup.
  * @param   pRange      The MMIO range.
  *

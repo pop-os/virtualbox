@@ -37,8 +37,8 @@
  *          VINF_SUCCESS means we completely handled this trap,
  *          other codes are passed execution to host context.
  *
- * @param   pVM             Pointer to the VM.
- * @param   pVCpu           Pointer to the VMCPU.
+ * @param   pVM             The cross context VM structure.
+ * @param   pVCpu           The cross context virtual CPU structure.
  * @param   pRegFrame       Pointer to the register frame for the trap.
  * @param   uDr6            The DR6 hypervisor register value.
  * @param   fAltStepping    Alternative stepping indicator.
@@ -107,8 +107,8 @@ VMMRZ_INT_DECL(int) DBGFRZTrap01Handler(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pReg
  *          VINF_SUCCESS means we completely handled this trap,
  *          other codes are passed execution to host context.
  *
- * @param   pVM         Pointer to the VM.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVM         The cross context VM structure.
+ * @param   pVCpu       The cross context virtual CPU structure.
  * @param   pRegFrame   Pointer to the register frame for the trap.
  */
 VMMRZ_INT_DECL(int) DBGFRZTrap03Handler(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame)

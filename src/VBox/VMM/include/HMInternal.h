@@ -48,7 +48,7 @@
 
 /** @def HM_PROFILE_EXIT_DISPATCH
  * Enables profiling of the VM exit handler dispatching. */
-#if 0
+#if 0 || defined(DOXYGEN_RUNNING)
 # define HM_PROFILE_EXIT_DISPATCH
 #endif
 
@@ -64,7 +64,7 @@ RT_C_DECLS_BEGIN
 /** @def HMCPU_CF_CLEAR
  * Clears a HM-context flag.
  *
- * @param   pVCpu   Pointer to the VMCPU.
+ * @param   pVCpu   The cross context virtual CPU structure.
  * @param   fFlag   The flag to clear.
  */
 #define HMCPU_CF_CLEAR(pVCpu, fFlag)              (ASMAtomicUoAndU32(&(pVCpu)->hm.s.fContextUseFlags, ~(fFlag)))
@@ -72,7 +72,7 @@ RT_C_DECLS_BEGIN
 /** @def HMCPU_CF_SET
  * Sets a HM-context flag.
  *
- * @param   pVCpu   Pointer to the VMCPU.
+ * @param   pVCpu   The cross context virtual CPU structure.
  * @param   fFlag   The flag to set.
  */
 #define HMCPU_CF_SET(pVCpu, fFlag)                (ASMAtomicUoOrU32(&(pVCpu)->hm.s.fContextUseFlags, (fFlag)))
@@ -80,7 +80,7 @@ RT_C_DECLS_BEGIN
 /** @def HMCPU_CF_IS_SET
  * Checks if all the flags in the specified HM-context set is pending.
  *
- * @param   pVCpu   Pointer to the VMCPU.
+ * @param   pVCpu   The cross context virtual CPU structure.
  * @param   fFlag   The flag to check.
  */
 #define HMCPU_CF_IS_SET(pVCpu, fFlag)             ((ASMAtomicUoReadU32(&(pVCpu)->hm.s.fContextUseFlags) & (fFlag)) == (fFlag))
@@ -89,7 +89,7 @@ RT_C_DECLS_BEGIN
  * Checks if one or more of the flags in the specified HM-context set is
  * pending.
  *
- * @param   pVCpu   Pointer to the VMCPU.
+ * @param   pVCpu   The cross context virtual CPU structure.
  * @param   fFlags  The flags to check for.
  */
 #define HMCPU_CF_IS_PENDING(pVCpu, fFlags)        RT_BOOL(ASMAtomicUoReadU32(&(pVCpu)->hm.s.fContextUseFlags) & (fFlags))
@@ -97,7 +97,7 @@ RT_C_DECLS_BEGIN
 /** @def HMCPU_CF_IS_PENDING_ONLY
  * Checks if -only- one or more of the specified HM-context flags is pending.
  *
- * @param   pVCpu   Pointer to the VMCPU.
+ * @param   pVCpu   The cross context virtual CPU structure.
  * @param   fFlags  The flags to check for.
  */
 #define HMCPU_CF_IS_PENDING_ONLY(pVCpu, fFlags)   !RT_BOOL(ASMAtomicUoReadU32(&(pVCpu)->hm.s.fContextUseFlags) & ~(fFlags))
@@ -105,7 +105,7 @@ RT_C_DECLS_BEGIN
 /** @def HMCPU_CF_IS_SET_ONLY
  * Checks if -only- all the flags in the specified HM-context set is pending.
  *
- * @param   pVCpu   Pointer to the VMCPU.
+ * @param   pVCpu   The cross context virtual CPU structure.
  * @param   fFlags  The flags to check for.
  */
 #define HMCPU_CF_IS_SET_ONLY(pVCpu, fFlags)       (ASMAtomicUoReadU32(&(pVCpu)->hm.s.fContextUseFlags) == (fFlags))
@@ -113,7 +113,7 @@ RT_C_DECLS_BEGIN
 /** @def HMCPU_CF_RESET_TO
  * Resets the HM-context flags to the specified value.
  *
- * @param   pVCpu   Pointer to the VMCPU.
+ * @param   pVCpu   The cross context virtual CPU structure.
  * @param   fFlags  The new value.
  */
 #define HMCPU_CF_RESET_TO(pVCpu, fFlags)          (ASMAtomicUoWriteU32(&(pVCpu)->hm.s.fContextUseFlags, (fFlags)))
@@ -121,15 +121,15 @@ RT_C_DECLS_BEGIN
 /** @def HMCPU_CF_VALUE
  * Returns the current HM-context flags value.
  *
- * @param   pVCpu   Pointer to the VMCPU.
+ * @param   pVCpu   The cross context virtual CPU structure.
  */
 #define HMCPU_CF_VALUE(pVCpu)                     (ASMAtomicUoReadU32(&(pVCpu)->hm.s.fContextUseFlags))
 
 
-/** Resets/initializes the VM-exit/#VMEXIT history array. */
+/** Resets/initializes the VM-exit/\#VMEXIT history array. */
 #define HMCPU_EXIT_HISTORY_RESET(pVCpu)           (memset(&(pVCpu)->hm.s.auExitHistory, 0xff, sizeof((pVCpu)->hm.s.auExitHistory)))
 
-/** Updates the VM-exit/#VMEXIT history array. */
+/** Updates the VM-exit/\#VMEXIT history array. */
 #define HMCPU_EXIT_HISTORY_ADD(pVCpu, a_ExitReason) \
     do { \
         AssertMsg((pVCpu)->hm.s.idxExitHistoryFree < RT_ELEMENTS((pVCpu)->hm.s.auExitHistory), ("%u\n", (pVCpu)->hm.s.idxExitHistoryFree)); \
@@ -334,7 +334,7 @@ typedef HMTPRPATCH *PHMTPRPATCH;
 /**
  * Switcher function, HC to the special 64-bit RC.
  *
- * @param   pVM             Pointer to the VM.
+ * @param   pVM             The cross context VM structure.
  * @param   offCpumVCpu     Offset from pVM->cpum to pVM->aCpus[idCpu].cpum.
  * @returns Return code indicating the action to take.
  */
@@ -609,13 +609,13 @@ typedef struct HMCPU
     bool                        fLeaveDone;
     /** Whether we're using the hyper DR7 or guest DR7. */
     bool                        fUsingHyperDR7;
-    /** Whether to preload the guest-FPU state to avoid #NM VM-exit overhead. */
+    /** Whether to preload the guest-FPU state to avoid \#NM VM-exit overhead. */
     bool                        fPreloadGuestFpu;
     /** Set if XCR0 needs to be loaded and saved when entering and exiting guest
      * code execution. */
     bool                        fLoadSaveGuestXcr0;
 
-    /** Whether #UD needs to be intercepted (required by certain GIM providers). */
+    /** Whether \#UD needs to be intercepted (required by certain GIM providers). */
     bool                        fGIMTrapXcptUD;
     /** Whether paravirt. hypercalls are enabled. */
     bool                        fHypercallsEnabled;
@@ -857,7 +857,7 @@ typedef struct HMCPU
      * HMR0Enter and cleared in HMR0Leave. */
     RTCPUID                 idEnteredCpu;
 
-    /** VT-x/AMD-V VM-exit/#VMXEXIT history, circular array. */
+    /** VT-x/AMD-V VM-exit/\#VMXEXIT history, circular array. */
     uint16_t                auExitHistory[31];
     /** The index of the next free slot in the history array. */
     uint16_t                idxExitHistoryFree;
@@ -889,7 +889,7 @@ typedef struct HMCPU
     STAMCOUNTER             StatExitAll;
     STAMCOUNTER             StatExitShadowNM;
     STAMCOUNTER             StatExitGuestNM;
-    STAMCOUNTER             StatExitShadowPF;       /* Misleading, currently used for MMIO #PFs as well. */
+    STAMCOUNTER             StatExitShadowPF;       /**< Misleading, currently used for MMIO \#PFs as well. */
     STAMCOUNTER             StatExitShadowPFEM;
     STAMCOUNTER             StatExitGuestPF;
     STAMCOUNTER             StatExitGuestUD;

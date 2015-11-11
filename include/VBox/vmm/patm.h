@@ -34,6 +34,7 @@
 RT_C_DECLS_BEGIN
 
 /** @defgroup grp_patm      The Patch Manager API
+ * @ingroup grp_vmm
  * @{
  */
 #define MAX_PATCHES          512
@@ -135,7 +136,7 @@ typedef enum
  * Query PATM state (enabled/disabled)
  *
  * @returns 0 - disabled, 1 - enabled
- * @param   pVM         The VM to operate on.
+ * @param   a_pVM       The VM to operate on.
  * @internal
  */
 #define PATMIsEnabled(a_pVM)    ((a_pVM)->fPATMEnabled)

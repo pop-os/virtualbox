@@ -1,6 +1,5 @@
 /* $Id: vboxvideo.h $ */
 /** @file
- *
  * VirtualBox X11 Additions graphics driver
  */
 

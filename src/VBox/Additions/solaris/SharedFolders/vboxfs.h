@@ -41,7 +41,7 @@ extern "C" {
 
 #ifdef _KERNEL
 
-#include "../../common/VBoxGuestLib/VBoxGuestR0LibSharedFolders.h"
+#include <VBox/VBoxGuestLibSharedFolders.h>
 #include <sys/vfs.h>
 
 /** VNode for VBoxVFS */
@@ -57,7 +57,7 @@ typedef struct vboxvfs_vnode
 /** Per-file system mount instance data. */
 typedef struct vboxvfs_globinfo
 {
-    VBSFMAP         Map;
+    VBGLSFMAP       Map;
     int             Ttl;
     int             Uid;
     int             Gid;
@@ -68,13 +68,13 @@ typedef struct vboxvfs_globinfo
 
 extern struct vnodeops *g_pVBoxVFS_vnodeops;
 extern const fs_operation_def_t g_VBoxVFS_vnodeops_template[];
-extern VBSFCLIENT g_VBoxVFSClient;
+extern VBGLSFCLIENT g_VBoxVFSClient;
 
 /** Helper functions */
 extern int vboxvfs_Stat(const char *pszCaller, vboxvfs_globinfo_t *pVBoxVFSGlobalInfo, SHFLSTRING *pPath,
-            PSHFLFSOBJINFO pResult, boolean_t fAllowFailure);
+                        PSHFLFSOBJINFO pResult, boolean_t fAllowFailure);
 extern void vboxvfs_InitVNode(vboxvfs_globinfo_t *pVBoxVFSGlobalInfo, vboxvfs_vnode_t *pVBoxVNode,
-            PSHFLFSOBJINFO pFSInfo);
+                              PSHFLFSOBJINFO pFSInfo);
 
 
 /** Helper macros */

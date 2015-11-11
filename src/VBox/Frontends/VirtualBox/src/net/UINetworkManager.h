@@ -18,25 +18,24 @@
 #ifndef __UINetworkManager_h__
 #define __UINetworkManager_h__
 
-/* Global includes: */
-#include <QNetworkAccessManager>
+/* Qt includes: */
+#include <QObject>
 #include <QUuid>
-#include <QMap>
-#include <QNetworkRequest>
 
 /* Local inludes: */
 #include "UINetworkDefs.h"
 
 /* Forward declarations: */
+class QUrl;
 class QWidget;
 class UINetworkRequest;
 class UINetworkCustomer;
 class UINetworkManagerDialog;
 class UINetworkManagerIndicator;
 
-/* QNetworkAccessManager class reimplementation.
+/* QObject class reimplementation.
  * Providing network access for VirtualBox application purposes. */
-class UINetworkManager : public QNetworkAccessManager
+class UINetworkManager : public QObject
 {
     Q_OBJECT;
 
@@ -80,11 +79,10 @@ protected:
 
     /* Allow UINetworkCustomer to create network-request: */
     friend class UINetworkCustomer;
-    /* Network-request creation wrappers for UINetworkCustomer: */
-    void createNetworkRequest(const QNetworkRequest &request, UINetworkRequestType type, const QString &strDescription,
-                              UINetworkCustomer *pCustomer);
-    void createNetworkRequest(const QList<QNetworkRequest> &requests, UINetworkRequestType type, const QString &strDescription,
-                              UINetworkCustomer *pCustomer);
+    /** Creates network-request of the passed @a type
+      * on the basis of the passed @a urls and the @a requestHeaders for the @a pCustomer specified. */
+    void createNetworkRequest(UINetworkRequestType type, const QList<QUrl> &urls,
+                              const UserDictionary &requestHeaders, UINetworkCustomer *pCustomer);
 
 private:
 

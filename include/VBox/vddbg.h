@@ -39,6 +39,7 @@ RT_C_DECLS_BEGIN
 #endif
 
 /** @defgroup grp_vddbg            VD Debug API
+ * @ingroup grp_vd
  * @{
  */
 
@@ -202,7 +203,7 @@ VBOXDDU_DECL(int) VDDbgIoLogEventTypeGetNext(VDIOLOGGER hIoLogger, VDIOLOGEVENT 
  *
  * @returns VBox status code.
  * @param   hIoLogger    The I/O logger to use.
- * @param   penmEvent    Where to store the next event on success.
+ * @param   penmReq      Where to store the next request on success.
  */
 VBOXDDU_DECL(int) VDDbgIoLogReqTypeGetNext(VDIOLOGGER hIoLogger, PVDDBGIOLOGREQ penmReq);
 

@@ -314,9 +314,7 @@ static bool vbvaFetchCmd(VBVADATA *pVBVAData, VBVACMDHDR **ppHdr, uint32_t *pcbC
             /* The command does not cross buffer boundary. Return address in the buffer. */
             *ppHdr = (VBVACMDHDR *)pu8Src;
 
-            /* Advance data offset and sync with guest. */
-            pVBVAData->off32Data = (pVBVAData->off32Data + cbRecord) % pVBVAData->cbData;
-            pVBVAData->guest.pVBVA->off32Data = pVBVAData->off32Data;
+            /* The data offset will be updated in vbvaReleaseCmd. */
         }
         else
         {
@@ -352,17 +350,19 @@ static bool vbvaFetchCmd(VBVADATA *pVBVAData, VBVACMDHDR **ppHdr, uint32_t *pcbC
 static void vbvaReleaseCmd(VBVADATA *pVBVAData, VBVACMDHDR *pHdr, uint32_t cbCmd)
 {
     VBVAPARTIALRECORD *pPartialRecord = &pVBVAData->partialRecord;
-    uint8_t *au8RingBuffer = pVBVAData->guest.pu8Data;
+    const uint8_t *au8RingBuffer = pVBVAData->guest.pu8Data;
 
-    if (   (uint8_t *)pHdr >= au8RingBuffer
-        && (uint8_t *)pHdr < &au8RingBuffer[pVBVAData->cbData])
+    if (   (uintptr_t)pHdr >= (uintptr_t)au8RingBuffer
+        && (uintptr_t)pHdr < (uintptr_t)&au8RingBuffer[pVBVAData->cbData])
     {
         /* The pointer is inside ring buffer. Must be continuous chunk. */
-        Assert(pVBVAData->cbData - ((uint8_t *)pHdr - au8RingBuffer) >= cbCmd);
+        Assert(pVBVAData->cbData - (uint32_t)((uint8_t *)pHdr - au8RingBuffer) >= cbCmd);
 
-        /* Do nothing. */
+        /* Advance data offset and sync with guest. */
+        pVBVAData->off32Data = (pVBVAData->off32Data + cbCmd) % pVBVAData->cbData;
+        pVBVAData->guest.pVBVA->off32Data = pVBVAData->off32Data;
 
-        Assert (!pPartialRecord->pu8 && pPartialRecord->cb == 0);
+        Assert(!pPartialRecord->pu8 && pPartialRecord->cb == 0);
     }
     else
     {
@@ -2424,7 +2424,7 @@ static DECLCALLBACK(void) vbvaNotifyGuest (void *pvCallback)
 
 /** The guest submitted a command buffer. Verify the buffer size and invoke corresponding handler.
  *
- * @return VBox status.
+ * @return VBox status code.
  * @param pvHandler      The VBVA channel context.
  * @param u16ChannelInfo Command code.
  * @param pvBuffer       HGSMI buffer with command data.

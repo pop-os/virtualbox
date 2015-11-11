@@ -44,23 +44,11 @@
 
 #if defined(TRPM_TRACK_GUEST_IDT_CHANGES) && !defined(IN_RING0)
 /**
- * \#PF Handler callback for virtual access handler ranges.
+ * @callback_method_impl{FNPGMVIRTPFHANDLER,
+ * \#PF Handler callback for virtual access handler ranges.}
  *
  * Important to realize that a physical page in a range can have aliases, and
  * for ALL and WRITE handlers these will also trigger.
- *
- * @returns VINF_SUCCESS if the handler have carried out the operation.
- * @returns VINF_PGM_HANDLER_DO_DEFAULT if the caller should carry out the access operation.
- * @param   pVM             Pointer to the VM.
- * @param   pVCpu           Pointer to the cross context CPU context for the
- *                          calling EMT.
- * @param   GCPtr           The virtual address the guest is writing to. (not correct if it's an alias!)
- * @param   pvPtr           The HC mapping of that address.
- * @param   pvBuf           What the guest is reading/writing.
- * @param   cbBuf           How much it's reading/writing.
- * @param   enmAccessType   The access type.
- * @param   enmOrigin       The origin of this call.
- * @param   pvUser          User argument.
  */
 PGM_ALL_CB2_DECL(VBOXSTRICTRC)
 trpmGuestIDTWriteHandler(PVM pVM, PVMCPU pVCpu, RTGCPTR GCPtr, void *pvPtr, void *pvBuf, size_t cbBuf,
@@ -86,7 +74,7 @@ trpmGuestIDTWriteHandler(PVM pVM, PVMCPU pVCpu, RTGCPTR GCPtr, void *pvPtr, void
  * If no trap is active active an error code is returned.
  *
  * @returns VBox status code.
- * @param   pVCpu                   Pointer to the VMCPU.
+ * @param   pVCpu                   The cross context virtual CPU structure.
  * @param   pu8TrapNo               Where to store the trap number.
  * @param   penmType                Where to store the trap type
  */
@@ -115,7 +103,7 @@ VMMDECL(int) TRPMQueryTrap(PVMCPU pVCpu, uint8_t *pu8TrapNo, TRPMEVENT *penmType
  * takes an error code when making this request.
  *
  * @returns The current trap number.
- * @param   pVCpu                   Pointer to the VMCPU.
+ * @param   pVCpu                   The cross context virtual CPU structure.
  */
 VMMDECL(uint8_t) TRPMGetTrapNo(PVMCPU pVCpu)
 {
@@ -131,7 +119,7 @@ VMMDECL(uint8_t) TRPMGetTrapNo(PVMCPU pVCpu)
  * takes an error code when making this request.
  *
  * @returns Error code.
- * @param   pVCpu                   Pointer to the VMCPU.
+ * @param   pVCpu                   The cross context virtual CPU structure.
  */
 VMMDECL(RTGCUINT) TRPMGetErrorCode(PVMCPU pVCpu)
 {
@@ -163,7 +151,7 @@ VMMDECL(RTGCUINT) TRPMGetErrorCode(PVMCPU pVCpu)
  * making this request.
  *
  * @returns Fault address associated with the trap.
- * @param   pVCpu                   Pointer to the VMCPU.
+ * @param   pVCpu                   The cross context virtual CPU structure.
  */
 VMMDECL(RTGCUINTPTR) TRPMGetFaultAddress(PVMCPU pVCpu)
 {
@@ -175,13 +163,13 @@ VMMDECL(RTGCUINTPTR) TRPMGetFaultAddress(PVMCPU pVCpu)
 
 /**
  * Gets the instruction-length for the current trap (only relevant for software
- * interrupts and software exceptions #BP and #OF).
+ * interrupts and software exceptions \#BP and \#OF).
  *
  * The caller is responsible for making sure there is an active trap 0x0e when
  * making this request.
  *
  * @returns Fault address associated with the trap.
- * @param   pVCpu                   Pointer to the VMCPU.
+ * @param   pVCpu                   The cross context virtual CPU structure.
  */
 VMMDECL(uint8_t) TRPMGetInstrLength(PVMCPU pVCpu)
 {
@@ -197,7 +185,7 @@ VMMDECL(uint8_t) TRPMGetInstrLength(PVMCPU pVCpu)
  * when making this request.
  *
  * @returns VBox status code.
- * @param   pVCpu                   Pointer to the VMCPU.
+ * @param   pVCpu                   The cross context virtual CPU structure.
  */
 VMMDECL(int) TRPMResetTrap(PVMCPU pVCpu)
 {
@@ -225,7 +213,7 @@ VMMDECL(int) TRPMResetTrap(PVMCPU pVCpu)
  * when making this request.
  *
  * @returns VBox status code.
- * @param   pVCpu               Pointer to the VMCPU.
+ * @param   pVCpu               The cross context virtual CPU structure.
  * @param   u8TrapNo            The trap vector to assert.
  * @param   enmType             Trap type.
  */
@@ -258,7 +246,7 @@ VMMDECL(int) TRPMAssertTrap(PVMCPU pVCpu, uint8_t u8TrapNo, TRPMEVENT enmType)
  * when making this request.
  *
  * @returns VBox status code.
- * @param   pVCpu               Pointer to the VMCPU.
+ * @param   pVCpu               The cross context virtual CPU structure.
  * @param   uCR2                The new fault address.
  * @param   uErrorCode          The error code for the page-fault.
  */
@@ -291,7 +279,7 @@ VMMDECL(int) TRPMAssertXcptPF(PVMCPU pVCpu, RTGCUINTPTR uCR2, RTGCUINT uErrorCod
  * The caller is responsible for making sure there is an active trap
  * which takes an errorcode when making this request.
  *
- * @param   pVCpu               Pointer to the VMCPU.
+ * @param   pVCpu               The cross context virtual CPU structure.
  * @param   uErrorCode          The new error code.
  */
 VMMDECL(void) TRPMSetErrorCode(PVMCPU pVCpu, RTGCUINT uErrorCode)
@@ -317,13 +305,13 @@ VMMDECL(void) TRPMSetErrorCode(PVMCPU pVCpu, RTGCUINT uErrorCode)
 
 
 /**
- * Sets the fault address of the current #PF trap. (This function is for use in
+ * Sets the fault address of the current \#PF trap. (This function is for use in
  * trap handlers and such.)
  *
  * The caller is responsible for making sure there is an active trap 0e
  * when making this request.
  *
- * @param   pVCpu               Pointer to the VMCPU.
+ * @param   pVCpu               The cross context virtual CPU structure.
  * @param   uCR2                The new fault address (cr2 register).
  */
 VMMDECL(void) TRPMSetFaultAddress(PVMCPU pVCpu, RTGCUINTPTR uCR2)
@@ -337,12 +325,12 @@ VMMDECL(void) TRPMSetFaultAddress(PVMCPU pVCpu, RTGCUINTPTR uCR2)
 
 /**
  * Sets the instruction-length of the current trap (relevant for software
- * interrupts and software exceptions like #BP, #OF).
+ * interrupts and software exceptions like \#BP, \#OF).
  *
  * The caller is responsible for making sure there is an active trap 0e
  * when making this request.
  *
- * @param   pVCpu               Pointer to the VMCPU.
+ * @param   pVCpu               The cross context virtual CPU structure.
  * @param   cbInstr             The instruction length.
  */
 VMMDECL(void) TRPMSetInstrLength(PVMCPU pVCpu, uint8_t cbInstr)
@@ -367,7 +355,7 @@ VMMDECL(void) TRPMSetInstrLength(PVMCPU pVCpu, uint8_t cbInstr)
  *
  * @returns true if software interrupt, false if not.
  *
- * @param   pVCpu               Pointer to the VMCPU.
+ * @param   pVCpu               The cross context virtual CPU structure.
  */
 VMMDECL(bool) TRPMIsSoftwareInterrupt(PVMCPU pVCpu)
 {
@@ -380,7 +368,7 @@ VMMDECL(bool) TRPMIsSoftwareInterrupt(PVMCPU pVCpu)
  * Check if there is an active trap.
  *
  * @returns true if trap active, false if not.
- * @param   pVCpu               Pointer to the VMCPU.
+ * @param   pVCpu               The cross context virtual CPU structure.
  */
 VMMDECL(bool) TRPMHasTrap(PVMCPU pVCpu)
 {
@@ -393,7 +381,7 @@ VMMDECL(bool) TRPMHasTrap(PVMCPU pVCpu)
  * If no trap is active active an error code is returned.
  *
  * @returns VBox status code.
- * @param   pVCpu                   Pointer to the VMCPU.
+ * @param   pVCpu                   The cross context virtual CPU structure.
  * @param   pu8TrapNo               Where to store the trap number.
  * @param   pEnmType                Where to store the trap type
  * @param   puErrorCode             Where to store the error code associated with some traps.
@@ -432,7 +420,7 @@ VMMDECL(int) TRPMQueryTrapAll(PVMCPU pVCpu, uint8_t *pu8TrapNo, TRPMEVENT *pEnmT
  * Any function which uses temporary trap handlers should
  * probably also use this facility to save the original trap.
  *
- * @param   pVM     Pointer to the VM.
+ * @param   pVCpu       The cross context virtual CPU structure.
  */
 VMMDECL(void) TRPMSaveTrap(PVMCPU pVCpu)
 {
@@ -449,7 +437,7 @@ VMMDECL(void) TRPMSaveTrap(PVMCPU pVCpu)
  *
  * Multiple restores of a saved trap is possible.
  *
- * @param   pVM     Pointer to the VM.
+ * @param   pVCpu       The cross context virtual CPU structure.
  */
 VMMDECL(void) TRPMRestoreTrap(PVMCPU pVCpu)
 {
@@ -469,7 +457,7 @@ VMMDECL(void) TRPMRestoreTrap(PVMCPU pVCpu)
  * @returns VBox status code.
  *  or does not return at all (when the trap is actually forwarded)
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  * @param   pRegFrame   Pointer to the register frame for the trap.
  * @param   iGate       Trap or interrupt gate number
  * @param   cbInstr     Instruction size (only relevant for software interrupts)
@@ -896,7 +884,7 @@ failure:
  * @retval  VINF_TRPM_XCPT_DISPATCHED if the exception was raised and dispatched for raw-mode execution.
  * @retval  VINF_EM_RESCHEDULE_REM if the exception was dispatched and cannot be executed in raw-mode.
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pVCpu       The cross context virtual CPU structure of the calling EMT.
  * @param   pCtxCore    The CPU context core.
  * @param   enmXcpt     The exception.
  */
@@ -924,7 +912,7 @@ VMMDECL(int) TRPMRaiseXcpt(PVMCPU pVCpu, PCPUMCTXCORE pCtxCore, X86XCPT enmXcpt)
  * @retval  VINF_TRPM_XCPT_DISPATCHED if the exception was raised and dispatched for raw-mode execution.
  * @retval  VINF_EM_RESCHEDULE_REM if the exception was dispatched and cannot be executed in raw-mode.
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pVCpu       The cross context virtual CPU structure of the calling EMT.
  * @param   pCtxCore    The CPU context core.
  * @param   enmXcpt     The exception.
  * @param   uErr        The error code.
@@ -953,7 +941,7 @@ VMMDECL(int) TRPMRaiseXcptErr(PVMCPU pVCpu, PCPUMCTXCORE pCtxCore, X86XCPT enmXc
  * @retval  VINF_TRPM_XCPT_DISPATCHED if the exception was raised and dispatched for raw-mode execution.
  * @retval  VINF_EM_RESCHEDULE_REM if the exception was dispatched and cannot be executed in raw-mode.
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pVCpu       The cross context virtual CPU structure of the calling EMT.
  * @param   pCtxCore    The CPU context core.
  * @param   enmXcpt     The exception.
  * @param   uErr        The error code.
@@ -978,7 +966,7 @@ VMMDECL(int) TRPMRaiseXcptErrCR2(PVMCPU pVCpu, PCPUMCTXCORE pCtxCore, X86XCPT en
  * Clear guest trap/interrupt gate handler
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  * @param   iTrap       Interrupt/trap number.
  */
 VMMDECL(int) trpmClearGuestTrapHandler(PVM pVM, unsigned iTrap)

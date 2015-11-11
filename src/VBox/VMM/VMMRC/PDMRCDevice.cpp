@@ -87,7 +87,7 @@ static DECLCALLBACK(int) pdmRCDevHlp_PCIPhysRead(PPDMDEVINS pDevIns, RTGCPHYS GC
 }
 
 
-/** @interface_method_impl{PDMDEVHLPRC,pfnPCIPhysRead} */
+/** @interface_method_impl{PDMDEVHLPRC,pfnPCIPhysWrite} */
 static DECLCALLBACK(int) pdmRCDevHlp_PCIPhysWrite(PPDMDEVINS pDevIns, RTGCPHYS GCPhys, const void *pvBuf, size_t cbWrite)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
@@ -164,7 +164,7 @@ static DECLCALLBACK(void) pdmRCDevHlp_PCISetIrq(PPDMDEVINS pDevIns, int iIrq, in
 }
 
 
-/** @interface_method_impl{PDMDRVHLPRC,pfnPCISetIrq} */
+/** @interface_method_impl{PDMDEVHLPRC,pfnISASetIrq} */
 static DECLCALLBACK(void) pdmRCDevHlp_ISASetIrq(PPDMDEVINS pDevIns, int iIrq, int iLevel)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
@@ -281,7 +281,7 @@ static DECLCALLBACK(int) pdmRCDevHlp_VMSetRuntimeError(PPDMDEVINS pDevIns, uint3
 }
 
 
-/** @interface_method_impl{PDMDEVHLPRC,pfnVMSetErrorV} */
+/** @interface_method_impl{PDMDEVHLPRC,pfnVMSetRuntimeErrorV} */
 static DECLCALLBACK(int) pdmRCDevHlp_VMSetRuntimeErrorV(PPDMDEVINS pDevIns, uint32_t fFlags, const char *pszErrorId, const char *pszFormat, va_list va)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
@@ -403,7 +403,7 @@ extern DECLEXPORT(const PDMDEVHLPRC) g_pdmRCDevHlp =
  * @{
  */
 
-/** @interface_method_impl{PDMPICHLPGC,pfnSetInterruptFF} */
+/** @interface_method_impl{PDMPICHLPRC,pfnSetInterruptFF} */
 static DECLCALLBACK(void) pdmRCPicHlp_SetInterruptFF(PPDMDEVINS pDevIns)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
@@ -427,7 +427,7 @@ static DECLCALLBACK(void) pdmRCPicHlp_SetInterruptFF(PPDMDEVINS pDevIns)
 }
 
 
-/** @interface_method_impl{PDMPICHLPGC,pfnClearInterruptFF} */
+/** @interface_method_impl{PDMPICHLPRC,pfnClearInterruptFF} */
 static DECLCALLBACK(void) pdmRCPicHlp_ClearInterruptFF(PPDMDEVINS pDevIns)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
@@ -452,7 +452,7 @@ static DECLCALLBACK(void) pdmRCPicHlp_ClearInterruptFF(PPDMDEVINS pDevIns)
 }
 
 
-/** @interface_method_impl{PDMPICHLPGC,pfnLock} */
+/** @interface_method_impl{PDMPICHLPRC,pfnLock} */
 static DECLCALLBACK(int) pdmRCPicHlp_Lock(PPDMDEVINS pDevIns, int rc)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
@@ -460,7 +460,7 @@ static DECLCALLBACK(int) pdmRCPicHlp_Lock(PPDMDEVINS pDevIns, int rc)
 }
 
 
-/** @interface_method_impl{PDMPICHLPGC,pfnUnlock} */
+/** @interface_method_impl{PDMPICHLPRC,pfnUnlock} */
 static DECLCALLBACK(void) pdmRCPicHlp_Unlock(PPDMDEVINS pDevIns)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
@@ -856,7 +856,7 @@ static DECLCALLBACK(int) pdmRCDrvHlp_VMSetRuntimeError(PPDMDRVINS pDrvIns, uint3
 }
 
 
-/** @interface_method_impl{PDMDRVHLPRC,pfnVMSetErrorV} */
+/** @interface_method_impl{PDMDRVHLPRC,pfnVMSetRuntimeErrorV} */
 static DECLCALLBACK(int) pdmRCDrvHlp_VMSetRuntimeErrorV(PPDMDRVINS pDrvIns, uint32_t fFlags, const char *pszErrorId, const char *pszFormat, va_list va)
 {
     PDMDRV_ASSERT_DRVINS(pDrvIns);
@@ -926,7 +926,7 @@ extern DECLEXPORT(const PDMDRVHLPRC) g_pdmRCDrvHlp =
  * Sets an irq on the PIC and I/O APIC.
  *
  * @returns true if     delivered, false if postponed.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  * @param   iIrq        The irq.
  * @param   iLevel      The new level.
  * @param   uTagSrc     The IRQ tag and source.

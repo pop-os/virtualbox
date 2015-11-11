@@ -1,6 +1,6 @@
 #! /bin/sh
 #
-# Linux Additions X11 setup init script ($Revision: 101523 $)
+# Linux Additions X11 setup init script ($Revision: 104057 $)
 #
 
 #
@@ -76,8 +76,6 @@ elif [ -f /etc/SuSE-release ]; then
     system=suse
 elif [ -f /etc/gentoo-release ]; then
     system=gentoo
-elif [ -f /etc/lfs-release -a -d /etc/rc.d/init.d ]; then
-    system=lfs
 else
     system=other
 fi
@@ -130,19 +128,6 @@ if [ "$system" = "gentoo" ]; then
     if [ "`which $0`" = "/sbin/rc" ]; then
         shift
     fi
-fi
-
-if [ "$system" = "lfs" ]; then
-    . /etc/rc.d/init.d/functions
-    fail_msg() {
-        echo_failure
-    }
-    succ_msg() {
-        echo_ok
-    }
-    begin() {
-        echo $1
-    }
 fi
 
 if [ "$system" = "debian" -o "$system" = "other" ]; then
@@ -323,6 +308,20 @@ setup()
         esac
     fi
     case $x_version in
+        1.17.99.902* )
+            # special case for Fedora 23 :-/
+            x_version_short="1.18"
+            xserver_version="X.Org Server ${x_version_short}"
+            vboxvideo_src=vboxvideo_drv_`echo ${x_version_short} | sed 's/\.//'`.so
+            setupxorgconf=""
+            test -f "${lib_dir}/${vboxvideo_src}" ||
+            {
+                echo "Warning: unknown version of the X Window System installed.  Not installing"
+                echo "X Window System drivers."
+                dox11config=""
+                vboxvideo_src=""
+            }
+            ;;
         1.*.99.* )
             echo "Warning: unsupported pre-release version of X.Org Server installed.  Not"
             echo "installing the X.Org drivers."

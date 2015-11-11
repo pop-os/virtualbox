@@ -38,12 +38,12 @@ RT_C_DECLS_BEGIN
 
 
 /** @defgroup grp_dbgf     The Debugger Facility API
+ * @ingroup grp_vmm
  * @{
  */
 
 #if defined(IN_RC) || defined(IN_RING0)
-/** @addgroup grp_dbgf_rz  The RZ DBGF API
- * @ingroup grp_dbgf
+/** @defgroup grp_dbgf_rz  The RZ DBGF API
  * @{
  */
 VMMRZ_INT_DECL(int) DBGFRZTrap01Handler(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, RTGCUINTREG uDr6, bool fAltStepping);
@@ -273,7 +273,7 @@ typedef const DBGFEVENT *PCDBGFEVENT;
  * Stops the debugger raising a DBGFEVENT_DEVELOPER_STOP event.
  *
  * @returns VBox status code which must be propagated up to EM if not VINF_SUCCESS.
- * @param   pVM     VM Handle.
+ * @param   pVM     The cross context VM structure.
  */
 # ifdef VBOX_STRICT
 #  define DBGFSTOP(pVM)  DBGFR3EventSrc(pVM, DBGFEVENT_DEV_STOP, __FILE__, __LINE__, __PRETTY_FUNCTION__, NULL)
@@ -494,7 +494,7 @@ typedef FNDBGFHANDLERDRV  *PFNDBGFHANDLERDRV;
 /**
  * Info handler, internal version.
  *
- * @param   pVM         The VM handle.
+ * @param   pVM         The cross context VM structure.
  * @param   pHlp        Callback functions for doing output.
  * @param   pszArgs     Argument string. Optional and specific to the handler.
  */
@@ -868,7 +868,7 @@ VMMR3DECL(void)             DBGFR3StackWalkEnd(PCDBGFSTACKFRAME pFirstFrame);
 
 #ifdef IN_RING3 /* The disassembly API only works in ring-3. */
 
-/** Flags to pass to DBGFR3DisasInstrEx().
+/** @name Flags to pass to DBGFR3DisasInstrEx().
  * @{ */
 /** Disassemble the current guest instruction, with annotations. */
 #define DBGF_DISAS_FLAGS_CURRENT_GUEST      RT_BIT(0)

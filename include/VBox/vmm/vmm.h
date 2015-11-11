@@ -35,7 +35,11 @@
 
 RT_C_DECLS_BEGIN
 
-/** @defgroup grp_vmm       The Virtual Machine Monitor API
+/** @defgroup grp_vmm       The Virtual Machine Monitor
+ * @{
+ */
+
+/** @defgroup grp_vmm_api   The Virtual Machine Monitor API
  * @{
  */
 
@@ -125,7 +129,7 @@ typedef enum VMMCALLRING3
  * VMMRZCallRing3 notification callback.
  *
  * @returns VBox status code.
- * @param   pVCpu           Pointer to the VMCPU.
+ * @param   pVCpu           The cross context virtual CPU structure.
  * @param   enmOperation    The operation causing the ring-3 jump.
  * @param   pvUser          The user argument.
  */
@@ -140,9 +144,9 @@ typedef FNVMMR0CALLRING3NOTIFICATION *PFNVMMR0CALLRING3NOTIFICATION;
  *          informational status code other than the ones used by EM for
  *          scheduling.
  *
- * @param   pVM         The VM handle.
- * @param   pVCpu       The handle of the calling virtual CPU.
- * @param   pvUser      The user argument.
+ * @param   pVM     The cross context VM structure.
+ * @param   pVCpu   The cross context virtual CPU structure of the calling EMT.
+ * @param   pvUser  The user argument.
  */
 typedef DECLCALLBACK(VBOXSTRICTRC) FNVMMEMTRENDEZVOUS(PVM pVM, PVMCPU pVCpu, void *pvUser);
 /** Pointer to a rendezvous callback function. */
@@ -246,7 +250,7 @@ typedef struct VMM2USERMETHODS
  * Checks whether we've armed the ring-0 long jump machinery.
  *
  * @returns @c true / @c false
- * @param   pVCpu           The caller's cross context virtual CPU structure.
+ * @param   a_pVCpu     The caller's cross context virtual CPU structure.
  * @thread  EMT
  * @sa      VMMR0IsLongJumpArmed
  */
@@ -273,7 +277,7 @@ VMM_INT_DECL(void)          VMMHypercallsDisable(PVMCPU pVCpu);
 
 
 #if defined(IN_RING3) || defined(DOXYGEN_RUNNING)
-/** @defgroup grp_vmm_r3    The VMM Host Context Ring 3 API
+/** @defgroup grp_vmm_api_r3    The VMM Host Context Ring 3 API
  * @{
  */
 VMMR3_INT_DECL(int)     VMMR3Init(PVM pVM);
@@ -337,7 +341,7 @@ VMMR3_INT_DECL(int)     VMMR3ReadR0Stack(PVM pVM, VMCPUID idCpu, RTHCUINTPTR R0A
 #endif /* IN_RING3 */
 
 
-/** @defgroup grp_vmm_r0    The VMM Host Context Ring 0 API
+/** @defgroup grp_vmm_api_r0    The VMM Host Context Ring 0 API
  * @{
  */
 
@@ -531,7 +535,7 @@ VMMR0_INT_DECL(bool) VMMR0IsLogFlushDisabled(PVMCPU pVCpu);
 
 
 #if defined(IN_RC) || defined(DOXYGEN_RUNNING)
-/** @defgroup grp_vmm_rc    The VMM Raw-Mode Context API
+/** @defgroup grp_vmm_api_rc    The VMM Raw-Mode Context API
  * @{
  */
 VMMRCDECL(int)      VMMRCEntry(PVM pVM, unsigned uOperation, unsigned uArg, ...);
@@ -541,7 +545,7 @@ VMMRCDECL(void)     VMMRCLogFlushIfFull(PVM pVM);
 #endif /* IN_RC */
 
 #if defined(IN_RC) || defined(IN_RING0) || defined(DOXYGEN_RUNNING)
-/** @defgroup grp_vmm_rz    The VMM Raw-Mode and Ring-0 Context API
+/** @defgroup grp_vmm_api_rz    The VMM Raw-Mode and Ring-0 Context API
  * @{
  */
 VMMRZDECL(int)      VMMRZCallRing3(PVM pVM, PVMCPU pVCpu, VMMCALLRING3 enmOperation, uint64_t uArg);
@@ -555,6 +559,8 @@ VMMRZDECL(bool)     VMMRZCallRing3IsNotificationSet(PVMCPU pVCpu);
 /** @} */
 #endif
 
+
+/** @} */
 
 /** @} */
 RT_C_DECLS_END

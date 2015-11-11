@@ -433,8 +433,9 @@ DECLINLINE(bool) pdmacFileAioMgrNormalRcIsFatal(int rcReq)
  * Error handler which will create the failsafe managers and destroy the failed I/O manager.
  *
  * @returns VBox status code
- * @param   pAioMgr    The I/O manager the error occurred on.
- * @param   rc         The error code.
+ * @param   pAioMgr     The I/O manager the error occurred on.
+ * @param   rc          The error code.
+ * @param   SRC_POS     The source location of the error (use RT_SRC_POS).
  */
 static int pdmacFileAioMgrNormalErrorHandler(PPDMACEPFILEMGR pAioMgr, int rc, RT_SRC_POS_DECL)
 {
@@ -1604,8 +1605,8 @@ static void pdmacFileAioMgrNormalReqCompleteRc(PPDMACEPFILEMGR pAioMgr, RTFILEAI
  * The normal I/O manager using the RTFileAio* API
  *
  * @returns VBox status code.
- * @param hThreadSelf   Handle of the thread.
- * @param pvUser        Opaque user data.
+ * @param   hThreadSelf Handle of the thread.
+ * @param   pvUser      Opaque user data.
  */
 DECLCALLBACK(int) pdmacFileAioMgrNormal(RTTHREAD hThreadSelf, void *pvUser)
 {

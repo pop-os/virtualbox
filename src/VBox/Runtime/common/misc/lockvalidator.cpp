@@ -396,9 +396,7 @@ static const char *rtLockValidatorNameThreadHandle(RTTHREAD volatile *phThread)
 /**
  * Launch a simple assertion like complaint w/ panic.
  *
- * @param   pszFile             Where from - file.
- * @param   iLine               Where from - line.
- * @param   pszFunction         Where from - function.
+ * @param   SRC_POS             The source position where call is being made from. 
  * @param   pszWhat             What we're complaining about.
  * @param   ...                 Format arguments.
  */
@@ -1126,9 +1124,8 @@ RTDECL(int) RTLockValidatorClassCreate(PRTLOCKVALCLASS phClass, bool fAutodidact
  * @returns Class handle with a reference that is automatically consumed by the
  *          first retainer.  NIL_RTLOCKVALCLASS if we run into trouble.
  *
- * @param   pszFile             The source position of the call, file.
- * @param   iLine               The source position of the call, line.
- * @param   pszFunction         The source position of the call, function.
+ * @param   SRC_POS             The source position where call is being made from.
+ *                              Use RT_SRC_POS when possible.  Optional.
  * @param   pszNameFmt          Class name format string, optional (NULL).  Max
  *                              length is 32 bytes.
  * @param   ...                 Format string arguments.
@@ -1204,7 +1201,7 @@ DECLINLINE(uint32_t) rtLockValidatorClassRelease(RTLOCKVALCLASSINT *pClass)
 /**
  * Destroys a class once there are not more references to it.
  *
- * @param   Class               The class.
+ * @param   pClass              The class.
  */
 static void rtLockValidatorClassDestroy(RTLOCKVALCLASSINT *pClass)
 {
@@ -2207,6 +2204,9 @@ DECL_FORCE_INLINE(bool) rtLockValidatorIsClassOrderOk(RTLOCKVALCLASSINT *pClass1
  * @param   pThreadSelf         The current thread.
  * @param   pRec                The lock record.
  * @param   pSrcPos             The source position of the locking operation.
+ * @param   pFirstBadClass      The first bad class.
+ * @param   pFirstBadRec        The first bad lock record.
+ * @param   pFirstBadDown       The next record on the lock stack.
  */
 static int rtLockValidatorStackCheckLockingOrder2(RTLOCKVALCLASSINT * const pClass, uint32_t const uSubClass,
                                                   PRTTHREADINT pThreadSelf, PRTLOCKVALRECUNION const pRec,

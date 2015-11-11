@@ -98,7 +98,7 @@ DECLINLINE(bool) selmIsShwDescGoodForSReg(PCCPUMSELREG pSReg, PCX86DESC pShwDesc
  * register.
  *
  * @returns @c true if good, @c false if not.
- * @param   pVCpu               The current virtual CPU.
+ * @param   pVCpu               The cross context virtual CPU structure of the calling EMT.
  * @param   pSReg               The segment register.
  * @param   pGstDesc            The guest descriptor table entry.
  * @param   iSReg               The segment register index (X86_SREG_XXX).
@@ -173,7 +173,7 @@ DECLINLINE(bool) selmIsGstDescGoodForSReg(PVMCPU pVCpu, PCCPUMSELREG pSReg, PCX8
 /**
  * Converts a guest GDT or LDT entry to a shadow table entry.
  *
- * @param   pVM                 The VM handle.
+ * @param   pVM                 The cross context VM structure.
  * @param   pDesc       Guest entry on input, shadow entry on return.
  */
 DECL_FORCE_INLINE(void) selmGuestToShadowDesc(PVM pVM, PX86DESC pDesc)
@@ -292,7 +292,7 @@ DECLINLINE(void) selmLoadHiddenSRegFromShadowDesc(PCPUMSELREG pSReg, PCX86DESC p
  * Loads the hidden bits of a selector register from a guest descriptor table
  * entry.
  *
- * @param   pVCpu               The current virtual CPU.
+ * @param   pVCpu               The cross context virtual CPU structure of the calling EMT.
  * @param   pSReg               The segment register in question.
  * @param   pGstDesc            The guest descriptor table entry.
  */

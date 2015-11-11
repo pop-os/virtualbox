@@ -817,7 +817,9 @@ static DECLCALLBACK(void *)  drvblockQueryInterface(PPDMIBASE pInterface, const 
 
 /* -=-=-=-=- driver interface -=-=-=-=- */
 
-/** @copydoc FNPDMDRVDETACH. */
+/**
+ * @callback_method_impl{FNPDMDRVDETACH}
+ */
 static DECLCALLBACK(void)  drvblockDetach(PPDMDRVINS pDrvIns, uint32_t fFlags)
 {
     PDRVBLOCK pThis = PDMINS_2_DATA(pDrvIns, PDRVBLOCK);
@@ -830,7 +832,7 @@ static DECLCALLBACK(void)  drvblockDetach(PPDMDRVINS pDrvIns, uint32_t fFlags)
 /**
  * Reset notification.
  *
- * @returns VBox status.
+ * @returns VBox status code.
  * @param   pDevIns     The driver instance data.
  */
 static DECLCALLBACK(void)  drvblockReset(PPDMDRVINS pDrvIns)

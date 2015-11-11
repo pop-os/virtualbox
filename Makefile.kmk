@@ -445,7 +445,13 @@ OTHER_CLEAN += \
 VBOX_CORE_DOXYFILE_INPUT_DIRS = \
 	include/iprt \
 	include/iprt/cpp \
+	include/iprt/crypto \
+	include/iprt/formats \
 	include/iprt/linux \
+	include/iprt/nt \
+	include/iprt/solaris \
+	include/iprt/win \
+	include/iprt/nocrt \
 	include/VBox \
 	include/VBox/vmm \
 	include/VBox/com \
@@ -459,12 +465,14 @@ VBOX_CORE_DOXYFILE_INPUT_DIRS = \
 	src/VBox/VMM/VMMR3 \
 	src/VBox/VMM/VMMAll \
 	src/VBox/VMM/VMMSwitcher \
+	src/VBox/VMM/include \
 	src/VBox/Debugger \
 	src/VBox/Devices \
 	src/VBox/Devices/Audio \
 	src/VBox/Devices/Bus \
 	src/VBox/Devices/Graphics \
 	src/VBox/Devices/Graphics/BIOS \
+	src/VBox/Devices/Graphics/shaderlib \
 	src/VBox/Devices/Input \
 	src/VBox/Devices/Networking \
 	src/VBox/Devices/PC \
@@ -577,10 +585,6 @@ VBOX_CORE_DOXYFILE_INPUT_DIRS = \
 	src/VBox/Additions/WINNT/Graphics/Wine_new/libWine \
 	src/VBox/Additions/WINNT/Graphics/Wine_new/switcher \
 	src/VBox/Additions/WINNT/Graphics/Wine_new/vbox \
-	src/VBox/Additions/WINNT/Graphics/Wine_new/vbox/libWineStub \
-	src/VBox/Additions/WINNT/Graphics/Wine_new/vbox/libWineStub/include \
-	src/VBox/Additions/WINNT/Graphics/Wine_new/vbox/libWineStub/include/backup \
-	src/VBox/Additions/WINNT/Graphics/Wine_new/vbox/libWineStub/include/wine \
 	src/VBox/Additions/WINNT/Graphics/Wine_new/wined3d \
 	src/VBox/Additions/WINNT/Installer \
 	src/VBox/Additions/WINNT/Installer/ISO \
@@ -637,7 +641,6 @@ VBOX_CORE_DOXYFILE_INPUT_DIRS = \
 	src/VBox/Additions/os2/VBoxSF \
 	src/VBox/Additions/solaris \
 	src/VBox/Additions/solaris/DRM \
-	src/VBox/Additions/solaris/DRM/include \
 	src/VBox/Additions/solaris/Installer \
 	src/VBox/Additions/solaris/SharedFolders \
 	src/VBox/Additions/solaris/SharedFolders/solaris10 \
@@ -654,7 +657,41 @@ VBOX_CORE_DOXYFILE_INPUT_DIRS = \
 	src/VBox/NetworkServices/DHCP \
 	src/VBox/NetworkServices/NAT \
 	src/VBox/NetworkServices/NetLib \
-	src/VBox/Storage
+	src/VBox/Storage \
+	src/VBox/ValidationKit/ \
+	src/VBox/ValidationKit/docs/ \
+	src/VBox/ValidationKit/testdriver/ \
+	src/VBox/ValidationKit/bootsectors/ \
+	src/VBox/ValidationKit/tests/ \
+	src/VBox/ValidationKit/tests/additions/ \
+	src/VBox/ValidationKit/tests/api/ \
+	src/VBox/ValidationKit/tests/autostart/ \
+	src/VBox/ValidationKit/tests/benchmarks/ \
+	src/VBox/ValidationKit/tests/cpu/ \
+	src/VBox/ValidationKit/tests/installation/ \
+	src/VBox/ValidationKit/tests/network/ \
+	src/VBox/ValidationKit/tests/selftests/ \
+	src/VBox/ValidationKit/tests/smoketests/ \
+	src/VBox/ValidationKit/tests/storage/ \
+	src/VBox/ValidationKit/tests/teleportation/ \
+	src/VBox/ValidationKit/tests/unittests/ \
+	src/VBox/ValidationKit/tests/usb/ \
+	src/VBox/ValidationKit/common/ \
+	src/VBox/ValidationKit/utils/ \
+	src/VBox/ValidationKit/utils/TestExecServ/ \
+	src/VBox/ValidationKit/utils/cpu/ \
+	src/VBox/ValidationKit/utils/misc/ \
+	src/VBox/ValidationKit/utils/network/ \
+	src/VBox/ValidationKit/utils/nt/ \
+	src/VBox/ValidationKit/utils/usb/ \
+	src/VBox/ValidationKit/vms/ \
+	src/VBox/ValidationKit/testmanager/ \
+	src/VBox/ValidationKit/testmanager/core/ \
+	src/VBox/ValidationKit/testmanager/db/ \
+	src/VBox/ValidationKit/testmanager/debug/ \
+	src/VBox/ValidationKit/testmanager/cgi/ \
+	src/VBox/ValidationKit/testmanager/webui/ \
+	src/VBox/ValidationKit/testboxscript/ \
 
 # These must come first in order to make things look nice.
 VBOX_CORE_DOXYFILE_INPUT_FIRST =\
@@ -664,8 +701,8 @@ VBOX_CORE_DOXYFILE_INPUT_FIRST =\
 	$(PATH_ROOT)/src/VBox/VMM/Docs-CodingGuidelines.cpp \
 	$(PATH_ROOT)/src/VBox/VMM/Docs-RawMode.cpp \
 	$(PATH_ROOT)/include/VBox/cdefs.h \
-	$(PATH_ROOT)/include/VBox/vmm/vmapi.h \
 	$(PATH_ROOT)/include/VBox/vmm/vmm.h \
+	$(PATH_ROOT)/include/VBox/vmm/vmapi.h \
 	$(PATH_ROOT)/include/VBox/vmm/cpum.h \
 	$(PATH_ROOT)/include/VBox/vmm/mm.h \
 	$(PATH_ROOT)/include/VBox/vmm/pgm.h \
@@ -675,26 +712,30 @@ VBOX_CORE_DOXYFILE_INPUT_FIRST =\
 	$(PATH_ROOT)/include/VBox/vmm/dbgf.h \
 	$(PATH_ROOT)/include/VBox/vmm/stam.h \
 	$(PATH_ROOT)/include/VBox/vmm/em.h \
+	$(PATH_ROOT)/include/VBox/vmm/hm.h \
+	$(PATH_ROOT)/include/VBox/vmm/hm_svm.h \
+	$(PATH_ROOT)/include/VBox/vmm/hm_vmx.h \
+	$(PATH_ROOT)/include/VBox/vmm/iem.h \
 	$(PATH_ROOT)/include/VBox/vmm/pdm.h \
 	$(PATH_ROOT)/include/VBox/vmm/rem.h \
 	$(PATH_ROOT)/include/VBox/vmm/iom.h \
 	$(PATH_ROOT)/include/VBox/vmm/cfgm.h \
+	$(PATH_ROOT)/include/VBox/vmm/gim.h \
 	$(PATH_ROOT)/include/VBox/vmm/tm.h \
 	$(PATH_ROOT)/include/VBox/vmm/csam.h \
 	$(PATH_ROOT)/include/VBox/vmm/ssm.h \
-	$(PATH_ROOT)/include/VBox/vmm/hm.h \
-	$(PATH_ROOT)/include/VBox/vmm/hm_svm.h \
-	$(PATH_ROOT)/include/VBox/vmm/hm_vmx.h \
 	\
 	$(PATH_ROOT)/src/VBox/VMM/include/CFGMInternal.h \
 	$(PATH_ROOT)/src/VBox/VMM/include/CPUMInternal.h \
 	$(PATH_ROOT)/src/VBox/VMM/include/DBGFInternal.h \
 	$(PATH_ROOT)/src/VBox/VMM/include/EMInternal.h \
 	$(PATH_ROOT)/src/VBox/VMM/include/HMInternal.h \
+	$(PATH_ROOT)/src/VBox/VMM/include/IEMInternal.h \
 	$(PATH_ROOT)/src/VBox/VMM/include/IOMInternal.h \
 	$(PATH_ROOT)/src/VBox/VMM/include/MMInternal.h \
 	$(PATH_ROOT)/src/VBox/VMM/include/PDMInternal.h \
 	$(PATH_ROOT)/src/VBox/VMM/include/PGMInternal.h \
+	$(PATH_ROOT)/src/VBox/VMM/include/GIMInternal.h \
 	$(PATH_ROOT)/src/VBox/VMM/include/CSAMInternal.h \
 	$(PATH_ROOT)/src/VBox/VMM/include/PATMInternal.h \
 	$(PATH_ROOT)/src/VBox/VMM/include/REMInternal.h \
@@ -727,11 +768,14 @@ VBOX_CORE_DOXYFILE_INPUT_FIRST =\
 	\
 	$(PATH_ROOT)/include/VBox/log.h \
 	$(PATH_ROOT)/include/VBox/param.h \
-	$(PATH_ROOT)/include/VBox/version.h
+	$(PATH_ROOT)/include/VBox/version.h \
+       \
+	$(PATH_ROOT)/include/VBox/com/com.h
 
 VBOX_CORE_DOXYFILE_INPUT := \
 	$(filter-out %.cpp.h, $(sort $(wildcard $(addsuffix /*.h, $(VBOX_CORE_DOXYFILE_INPUT_DIRS)))) ) \
-	$(foreach dir, $(VBOX_CORE_DOXYFILE_INPUT_DIRS), $(wildcard $(dir)/*.cpp $(dir)/*.c $(dir)/.asm))
+	$(foreach dir, $(VBOX_CORE_DOXYFILE_INPUT_DIRS) \
+		, $(wildcard $(dir)/*.cpp $(dir)/*.c $(dir)/*.m $(dir)/*.mm $(dir)/*.py $(dir)/.asm))
 VBOX_CORE_DOXYFILE_INPUT := \
 	$(VBOX_CORE_DOXYFILE_INPUT_FIRST) \
 	$(filter-out $(VBOX_CORE_DOXYFILE_INPUT_FIRST), $(VBOX_CORE_DOXYFILE_INPUT))
@@ -752,20 +796,26 @@ $(PATH_TARGET)/Doxyfile.Core: Doxyfile.Core \
 		$(comp-vars VBOX_CORE_DOXYFILE_INPUT,DOXYGEN_INPUT_PREV,FORCE) \
 		$(comp-vars VBOX_CORE_DOXYFILE_OUTPUT,DOXYGEN_OUTPUT_PREV,FORCE) \
 		| $$(dir $$@)
-	$(RM) -f $@ $@.tmp $(PATH_TARGET)/Doxyfile.Core.dep
-	$(CP) -f Doxyfile.Core $@.tmp
-	$(APPEND) $@.tmp
-	$(APPEND) $@.tmp "OUTPUT_DIRECTORY = $(VBOX_CORE_DOXYFILE_OUTPUT)"
-	$(APPEND) $@.tmp "WARN_LOGFILE = $(VBOX_CORE_DOXYFILE_OUTPUT)/errors"
-	$(APPEND) $@.tmp "INCLUDE_PATH = $(PATH_ROOT)/include $(PATH_ROOT)/src/VBox/VMM $(PATH_ROOT)/src/VBox/Main/include "
-	$(APPEND) $@.tmp "INCLUDE_FILE_PATTERNS = *.cpp.h"
-	$(APPEND) $@.tmp
-	$(APPEND) $@.tmp "INPUT = $(VBOX_CORE_DOXYFILE_INPUT)"
-	$(APPEND) $@.tmp
-	$(APPEND) $@.tmp "PREDEFINED += $(DEFS) $(DEFS.$(KBUILD_TARGET)) $(DEFS.$(KBUILD_TARGET_ARCH)) $(ARCH_BITS_DEFS)"
-	$(APPEND) $@.tmp "PREDEFINED += ARCH_BITS=HC_ARCH_BITS R3_ARCH_BITS=HC_ARCH_BITS R0_ARCH_BITS=HC_ARCH_BITS "
-	$(APPEND) $@.tmp
-	$(MV) -f $@.tmp $@
+	$(QUIET)$(RM) -f $@ $@.tmp $(PATH_TARGET)/Doxyfile.Core.dep
+	$(QUIET)$(CP) -f Doxyfile.Core $@.tmp
+	$(QUIET)$(APPEND) $@.tmp
+	$(QUIET)$(APPEND) $@.tmp "OUTPUT_DIRECTORY = $(VBOX_CORE_DOXYFILE_OUTPUT)"
+	$(QUIET)$(APPEND) $@.tmp "WARN_LOGFILE = $(VBOX_CORE_DOXYFILE_OUTPUT)/errors"
+	$(QUIET)$(APPEND) $@.tmp "INCLUDE_PATH = $(PATH_ROOT)/include $(PATH_ROOT)/src/VBox/VMM $(PATH_ROOT)/src/VBox/Main/include "
+	$(QUIET)$(APPEND) $@.tmp "INCLUDE_FILE_PATTERNS = *.cpp.h"
+	$(QUIET)$(APPEND) $@.tmp "EXCLUDE = " \
+		"$(PATH_ROOT)/src/VBox/Additions/common/crOpenGL/utils.c" \
+		"$(PATH_ROOT)/src/VBox/HostServices/SharedOpenGL/crserver/main.c" \
+		"$(PATH_ROOT)/src/VBox/HostServices/SharedOpenGL/crserverlib/server_main.c" \
+		"$(PATH_ROOT)/src/VBox/HostServices/SharedOpenGL/unpacker/unpack_arrays.c" \
+		"$(PATH_ROOT)/src/VBox/Additions/common/crOpenGL/context.c"
+	$(QUIET)$(APPEND) $@.tmp
+	$(QUIET)$(APPEND) $@.tmp 'INPUT = $(foreach x,$(VBOX_CORE_DOXYFILE_INPUT),\$(NLTAB)$(x))'
+	$(QUIET)$(APPEND) $@.tmp
+	$(QUIET)$(APPEND) $@.tmp "PREDEFINED += $(DEFS) $(DEFS.$(KBUILD_TARGET)) $(DEFS.$(KBUILD_TARGET_ARCH)) $(ARCH_BITS_DEFS)"
+	$(QUIET)$(APPEND) $@.tmp "PREDEFINED += ARCH_BITS=HC_ARCH_BITS R3_ARCH_BITS=HC_ARCH_BITS R0_ARCH_BITS=HC_ARCH_BITS "
+	$(QUIET)$(APPEND) $@.tmp
+	$(QUIET)$(MV) -f $@.tmp $@
 	@$(APPEND) $(PATH_TARGET)/Doxyfile.Core.dep "DOXYGEN_OUTPUT_PREV = $(VBOX_CORE_DOXYFILE_OUTPUT)"
 	@$(APPEND) $(PATH_TARGET)/Doxyfile.Core.dep "DOXYGEN_INPUT_PREV = $(VBOX_CORE_DOXYFILE_INPUT)"
 
@@ -774,6 +824,67 @@ $(PATH_TARGET)/docs.Core: $(PATH_TARGET)/Doxyfile.Core $$(VBOX_CORE_DOXYFILE_INP
 	$(RM) -f $(PATH_TARGET)/docs.Core
 	$(RM) -Rf $(VBOX_CORE_DOXYFILE_OUTPUT)/html/
 	doxygen $(PATH_TARGET)/Doxyfile.Core
+	$(SED) -n \
+		-e ':nextwarning' \
+               -e '/^ *$(DOLLAR)/d' \
+		-e '/warning. Unexpected tag .dd. found/d' \
+		-e '/warning. Unsupported xml.html tag .globalScope. found/d' \
+               -e '/\/include\/VBox\/VBoxVideoGuest\.h.* warning/b ignore' \
+               -e '/\/include\/VBox\/sup\.h.* warning/b ignore' \
+               -e '/\/include\/VBox\/settings\.h.* warning/b ignore' \
+               -e '/\/include\/VBox\/com\/EventQueue\.h.* warning/b ignore' \
+               -e '/\/include\/VBox\/com\/NativeEventQueue\.h.* warning/b ignore' \
+               -e '/\/src\/VBox\/Devices\/.* warning/b ignore' \
+               -e '/\/src\/VBox\/Main\/.* warning/b ignore' \
+               -e '/\/src\/VBox\/HostDrivers\/VBoxPci\/VBoxPci\.c.* warning/b ignore' \
+               -e '/\/src\/VBox\/Additions\/WINNT\/Installer\/VBoxDrvInst\.cpp.* warning/b ignore' \
+               -e '/\/src\/VBox\/Additions\/WINNT\/VBoxCredProv\/.* warning/b ignore' \
+               -e '/\/src\/VBox\/Additions\/WINNT\/VBoxGINA\/Helper\.cpp.* warning/b ignore' \
+               -e '/\/src\/VBox\/Additions\/WINNT\/VBoxGINA\/Helper\.h.* warning/b ignore' \
+               -e '/\/src\/VBox\/Additions\/WINNT\/VBoxTray\/VBoxDispIf\.h.* warning/b ignore' \
+               -e '/\/src\/VBox\/Additions\/WINNT\/VBoxTray\/VBoxDnD\.h.* warning/b ignore' \
+               -e '/\/src\/VBox\/Additions\/WINNT\/VBoxTray\/VBoxDnD\.cpp.* warning/b ignore' \
+               -e '/\/src\/VBox\/Additions\/common\/VBoxVideo\/HGSMIBase\.cpp.* warning/b ignore' \
+               -e '/\/src\/VBox\/Additions\/common\/VBoxVideo\/Modesetting\.cpp.* warning/b ignore' \
+               -e '/\/src\/VBox\/Additions\/common\/crOpenGL\/.* warning/b ignore' \
+               -e '/\/src\/VBox\/Additions\/common\/pam\/pam_vbox\.cpp.* warning/b ignore' \
+               -e '/\/src\/VBox\/Additions\/os2\/VBoxMouse\/cmdline\.c.* warning/b ignore' \
+               -e '/\/src\/VBox\/Additions\/solaris\/SharedFolders\/vboxfs_prov\.c.* warning/b ignore' \
+               -e '/\/src\/VBox\/Additions\/solaris\/Virtio\/Virtio-solaris\.c.* warning/b ignore' \
+               -e '/\/src\/VBox\/Additions\/solaris\/Virtio\/Virtio-solaris\.h.* warning/b ignore' \
+               -e '/\/src\/VBox\/Additions\/solaris\/Virtio\/VirtioNet-solaris\.c.* warning/b ignore' \
+               -e '/\/src\/VBox\/Additions\/x11\/VBoxClient\/clipboard\.cpp.* warning/b ignore' \
+               -e '/\/src\/VBox\/Additions\/x11\/VBoxClient\/draganddrop\.cpp.* warning/b ignore' \
+               -e '/\/src\/VBox\/Additions\/x11\/VBoxClient\/seamless-x11\.cpp.* warning/b ignore' \
+               -e '/\/src\/VBox\/Additions\/x11\/VBoxClient\/seamless-x11\.h.* warning/b ignore' \
+               -e '/\/src\/VBox\/Additions\/x11\/vboxvideo\/vbva\.c.* warning/b ignore' \
+               -e '/\/src\/VBox\/Additions\/x11\/vboxvideo\/vboxvideo\.h.* warning/b ignore' \
+               -e '/\/src\/VBox\/Debugger\/.* warning/b ignore' \
+               -e '/\/src\/VBox\/HostServices\/GuestControl\/.* warning/b ignore' \
+               -e '/\/src\/VBox\/HostServices\/GuestProperties\/.* warning/b ignore' \
+               -e '/\/src\/VBox\/HostServices\/SharedClipboard\/.* warning/b ignore' \
+               -e '/\/src\/VBox\/HostServices\/SharedFolders\/.* warning/b ignore' \
+               -e '/\/src\/VBox\/HostServices\/SharedOpenGL\/.* warning/b ignore' \
+               -e '/\/src\/VBox\/NetworkServices\/DHCP\/Config\.cpp.* warning/b ignore' \
+               -e '/\/src\/VBox\/NetworkServices\/DHCP\/Config\.h.* warning/b ignore' \
+               -e '/\/src\/VBox\/Storage\/.* warning/b ignore' \
+               -e '/\/src\/VBox\/ValidationKit\/.* warning/b ignore' \
+               \
+               -e '/unable to resolve link to .dtrace_pops_t./b ignore' \
+               \
+               -e 'b end' \
+               -e ':ignore' \
+               -e 'n' \
+               -e '/^[[:space:]]/b ignore' \
+               -e '/^Possible candidates/b ignore' \
+               -e '/^HRESULT HostDnsService/b ignore' \
+               -e 'b nextwarning' \
+               -e ':end' \
+               -e 'p' \
+               --output $(VBOX_CORE_DOXYFILE_OUTPUT)/errors2 \
+		$(VBOX_CORE_DOXYFILE_OUTPUT)/errors
+	$(CAT) $(VBOX_CORE_DOXYFILE_OUTPUT)/errors2
+	$(SED) -e "/[^ ]/q 1" $(VBOX_CORE_DOXYFILE_OUTPUT)/errors2
 	$(APPEND) $(PATH_TARGET)/docs.Core
 
 

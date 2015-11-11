@@ -91,8 +91,7 @@ VMMR3_INT_DECL(int) PDMR3LdrLoadVMMR0U(PUVM pUVM)
  * Context VMM modules.
  *
  * @returns VBox status code.
- * @param   pUVM        Pointer to the user mode VM structure.
- * @param   pvVMMR0Mod  The opaque returned by PDMR3LdrLoadVMMR0.
+ * @param   pUVM        The user mode VM structure.
  */
 int pdmR3LdrInitU(PUVM pUVM)
 {
@@ -117,7 +116,7 @@ int pdmR3LdrInitU(PUVM pUVM)
  *
  * This will unload and free all modules.
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pUVM        The user mode VM structure.
  *
  * @remarks This is normally called twice during termination.
  */
@@ -448,7 +447,7 @@ static DECLCALLBACK(int) pdmR3GetImportRC(RTLDRMOD hLdrMod, const char *pszModul
  * @retval  VERR_PDM_MODULE_NAME_CLASH if a different file has already been
  *          loaded with the name module name.
  *
- * @param   pVM             The VM to load it into.
+ * @param   pVM             The cross context VM structure.
  * @param   pszFilename     Filename of the module binary.
  * @param   pszName         Module name. Case sensitive and the length is limited!
  */
@@ -734,7 +733,7 @@ static int pdmR3LoadR0U(PUVM pUVM, const char *pszFilename, const char *pszName,
  * Get the address of a symbol in a given HC ring 3 module.
  *
  * @returns VBox status code.
- * @param   pVM             Pointer to the VM.
+ * @param   pVM             The cross context VM structure.
  * @param   pszModule       Module name.
  * @param   pszSymbol       Symbol name. If it's value is less than 64k it's treated like a
  *                          ordinal value rather than a string pointer.
@@ -788,7 +787,7 @@ VMMR3_INT_DECL(int) PDMR3LdrGetSymbolR3(PVM pVM, const char *pszModule, const ch
  * Get the address of a symbol in a given HC ring 0 module.
  *
  * @returns VBox status code.
- * @param   pVM             Pointer to the VM.
+ * @param   pVM             The cross context VM structure.
  * @param   pszModule       Module name. If NULL the main R0 module (VMMR0.r0) is assumes.
  * @param   pszSymbol       Symbol name. If it's value is less than 64k it's treated like a
  *                          ordinal value rather than a string pointer.
@@ -843,7 +842,7 @@ VMMR3DECL(int) PDMR3LdrGetSymbolR0(PVM pVM, const char *pszModule, const char *p
  * Same as PDMR3LdrGetSymbolR0 except that the module will be attempted loaded if not found.
  *
  * @returns VBox status code.
- * @param   pVM             Pointer to the VM.
+ * @param   pVM             The cross context VM structure.
  * @param   pszModule       Module name. If NULL the main R0 module (VMMR0.r0) is assumed.
  * @param   pszSearchPath   List of directories to search if @a pszFile is
  *                          not qualified with a path.  Can be NULL, in which
@@ -896,7 +895,7 @@ VMMR3DECL(int) PDMR3LdrGetSymbolR0Lazy(PVM pVM, const char *pszModule, const cha
  * Get the address of a symbol in a given RC module.
  *
  * @returns VBox status code.
- * @param   pVM             Pointer to the VM.
+ * @param   pVM             The cross context VM structure.
  * @param   pszModule       Module name.  If NULL the main R0 module (VMMRC.rc)
  *                          is assumes.
  * @param   pszSymbol       Symbol name.  If it's value is less than 64k it's
@@ -962,7 +961,7 @@ VMMR3DECL(int) PDMR3LdrGetSymbolRC(PVM pVM, const char *pszModule, const char *p
  * Same as PDMR3LdrGetSymbolRC except that the module will be attempted loaded if not found.
  *
  * @returns VBox status code.
- * @param   pVM             Pointer to the VM.
+ * @param   pVM             The cross context VM structure.
  * @param   pszModule       Module name.  If NULL the main RC module (VMMRC.rc)
  *                          is assumed.
  * @param   pszSearchPath   List of directories to search if @a pszFile is
@@ -1022,7 +1021,10 @@ VMMR3DECL(int) PDMR3LdrGetSymbolRCLazy(PVM pVM, const char *pszModule, const cha
  *          Caller must free this using RTMemTmpFree().
  * @returns NULL on failure.
  *
- * @param   pszFile     File name (no path).
+ * @param   pszFile         File name (no path).
+ * @param   fShared         If true, search in the shared directory (/usr/lib on Unix), else
+ *                          search in the private directory (/usr/lib/virtualbox on Unix).
+ *                          Ignored if VBOX_PATH_SHARED_LIBS is not defined.
  */
 char *pdmR3FileR3(const char *pszFile, bool fShared)
 {
@@ -1283,7 +1285,7 @@ static DECLCALLBACK(int) pdmR3QueryModFromEIPEnumSymbols(RTLDRMOD hLdrMod, const
  *
  * @returns VBox status code.
  *
- * @param   pVM         Pointer to the VM
+ * @param   pVM         The cross context VM structure.
  * @param   uPC         The program counter (eip/rip) to locate the module for.
  * @param   enmType     The module type.
  * @param   pszModName  Where to store the module name.
@@ -1373,7 +1375,7 @@ static int pdmR3LdrQueryModFromPC(PVM pVM, RTUINTPTR uPC, PDMMODTYPE enmType,
  *
  * @returns VBox status code.
  *
- * @param   pVM         Pointer to the VM
+ * @param   pVM         The cross context VM structure.
  * @param   uPC         The program counter (eip/rip) to locate the module for.
  * @param   pszModName  Where to store the module name.
  * @param   cchModName  Size of the module name buffer.
@@ -1417,7 +1419,7 @@ VMMR3_INT_DECL(int) PDMR3LdrQueryRCModFromPC(PVM pVM, RTRCPTR uPC,
  *
  * @returns VBox status code.
  *
- * @param   pVM         Pointer to the VM
+ * @param   pVM         The cross context VM structure.
  * @param   uPC         The program counter (eip/rip) to locate the module for.
  * @param   pszModName  Where to store the module name.
  * @param   cchModName  Size of the module name buffer.
@@ -1457,8 +1459,8 @@ VMMR3_INT_DECL(int) PDMR3LdrQueryR0ModFromPC(PVM pVM, RTR0PTR uPC,
 /**
  * Enumerate all PDM modules.
  *
- * @returns VBox status.
- * @param   pVM             Pointer to the VM.
+ * @returns VBox status code.
+ * @param   pVM             The cross context VM structure.
  * @param   pfnCallback     Function to call back for each of the modules.
  * @param   pvArg           User argument.
  */
@@ -1548,7 +1550,7 @@ static PPDMMOD pdmR3LdrFindModule(PUVM pUVM, const char *pszModule, PDMMODTYPE e
  * Resolves a ring-0 or raw-mode context interface.
  *
  * @returns VBox status code.
- * @param   pVM             Pointer to the VM.
+ * @param   pVM             The cross context VM structure.
  * @param   pvInterface     Pointer to the interface structure.  The symbol list
  *                          describes the layout.
  * @param   cbInterface     The size of the structure pvInterface is pointing

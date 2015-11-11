@@ -34,6 +34,7 @@
 RT_C_DECLS_BEGIN
 
 /** @defgroup grp_tm        The Time Manager API
+ * @ingroup grp_vmm
  * @{
  */
 
@@ -193,7 +194,7 @@ typedef FNTMTIMERSRV *PFNTMTIMERSRV;
 /**
  * Internal timer callback function.
  *
- * @param   pVM             The VM.
+ * @param   pVM             The cross context VM structure.
  * @param   pTimer          The timer handle.
  * @param   pvUser          User argument specified upon timer creation.
  */

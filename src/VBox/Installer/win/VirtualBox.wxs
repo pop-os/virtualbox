@@ -72,11 +72,27 @@
     <!-- Force overwriting all files and re-create shortcuts to guarantee a working environment -->
     <Property Id='REINSTALLMODE' Value='amus'/>
 
-    <!-- VirtualBox properties -->
-    <Property Id="VBOX_INSTALLDESKTOPSHORTCUT" Value="1" />
-    <Property Id="VBOX_INSTALLQUICKLAUNCHSHORTCUT" Value="1" />
-    <Property Id="VBOX_REGISTERFILEEXTENSIONS" Value="1" />
-    <Property Id="VBOX_STARTVBOX" Value="1" />
+    <!-- VirtualBox properties (can be modified from command line) -->
+
+    <!-- Whether or not a desktop shortcut should be created. -->
+    <Property Id="VBOX_INSTALLDESKTOPSHORTCUT" Value="1" Secure="yes"/>
+    <SetProperty Id="VBOX_INSTALLDESKTOPSHORTCUT" After="AppSearch" Sequence="both"
+                 Value="{}"><![CDATA[VBOX_INSTALLDESKTOPSHORTCUT="0"]]></SetProperty>
+
+    <!-- Whether or not a desktop shortcut for the Quick Launch Bar should be created -->
+    <Property Id="VBOX_INSTALLQUICKLAUNCHSHORTCUT" Value="1" Secure="yes"/>
+    <SetProperty Id="VBOX_INSTALLQUICKLAUNCHSHORTCUT" After="AppSearch" Sequence="both"
+                 Value="{}"><![CDATA[VBOX_INSTALLQUICKLAUNCHSHORTCUT="0"]]></SetProperty>
+
+    <!-- Whether or not registering of known desktop shortcut for the Quick Launch Bar should be created -->
+    <Property Id="VBOX_REGISTERFILEEXTENSIONS" Value="1" Secure="yes"/>
+    <SetProperty Id="VBOX_REGISTERFILEEXTENSIONS" After="AppSearch" Sequence="both"
+                 Value="{}"><![CDATA[VBOX_REGISTERFILEEXTENSIONS="0"]]></SetProperty>
+
+    <!-- Whether or not VirtualBox should be started automatically right after successful installation -->
+    <Property Id="VBOX_START" Value="1" Secure="yes"/>
+    <SetProperty Id="VBOX_START" After="AppSearch" Sequence="both"
+                 Value="{}"><![CDATA[VBOX_START="0"]]></SetProperty>
 
     <!-- Make sure installation will not start on anything other but the NT family -->
 <?if $(env.BUILD_TARGET_ARCH) = "amd64" ?>
@@ -107,7 +123,7 @@
         NOT VBOXINNOTEK
     </Condition>
 
-    
+
     <!-- *************************** Upgrade packages only ******************************* -->
     <!-- Minimum and Maximum specify the range of versions we are supposed to update with this upgrade.
          IncludeMaximum and IncludeMinimum specify whether the bound value is actually included in the range or not
@@ -169,7 +185,7 @@
             <FileSearch Name="dependency.dep"/>
         </DirectorySearch>
     </Property>
-    
+
     <!--
                             install upgrade uninstall
     VBOXDEPENDENCY             0      1/0      1/0
@@ -178,12 +194,12 @@
     not final                  1       0        1
     -->
 
-    <Condition Message="It was detected an application which has been using currently installed VirtualBox version. 
-    You must remove this application before continuing installation. 
+    <Condition Message="It was detected an application which has been using currently installed VirtualBox version.
+    You must remove this application before continuing installation.
     See the file dependency.dep in the VirtualBox installation directory for details. ">
         NOT (VBOXDEPENDENCY AND UPGRADINGPRODUCTCODE)
     </Condition>
-    
+
     <!-- Detect old Sun installation -->
     <!-- Force a manual uninstall of an already installed Sun VirtualBox version first -->
     <!--<Property Id="VBOXSUN">
@@ -438,11 +454,11 @@
     <?if $(env.VBOX_WITH_MSM_INSTALL) = "yes" ?>
                 <MergeRef Id="msm_VBoxNetworkAdp" />
                 <MergeRef Id="msm_VBoxNetworkAdp6" />
-                <MergeRef Id="msm_VBoxNetworkLwf" />                
+                <MergeRef Id="msm_VBoxNetworkLwf" />
     <?else ?>
                 <ComponentRef Id="cp_NetAdpDriver" />
                 <ComponentRef Id="cp_NetAdp6Driver" />
-                <ComponentRef Id="cp_NetLwfDriver" />                
+                <ComponentRef Id="cp_NetLwfDriver" />
     <?endif ?>
             </Feature>
 

@@ -38,7 +38,7 @@
  * Handles the Hyper-V hypercall.
  *
  * @returns VBox status code.
- * @param   pVCpu           Pointer to the VMCPU.
+ * @param   pVCpu           The cross context virtual CPU structure.
  * @param   pCtx            Pointer to the guest-CPU context.
  */
 VMM_INT_DECL(int) gimHvHypercall(PVMCPU pVCpu, PCPUMCTX pCtx)
@@ -57,7 +57,7 @@ VMM_INT_DECL(int) gimHvHypercall(PVMCPU pVCpu, PCPUMCTX pCtx)
  * hypercall interface.
  *
  * @returns true if hypercalls are enabled, false otherwise.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       The cross context virtual CPU structure.
  */
 VMM_INT_DECL(bool) gimHvAreHypercallsEnabled(PVMCPU pVCpu)
 {
@@ -70,7 +70,7 @@ VMM_INT_DECL(bool) gimHvAreHypercallsEnabled(PVMCPU pVCpu)
  * paravirtualized TSC.
  *
  * @returns true if paravirt. TSC is enabled, false otherwise.
- * @param   pVM     Pointer to the VM.
+ * @param   pVM     The cross context VM structure.
  */
 VMM_INT_DECL(bool) gimHvIsParavirtTscEnabled(PVM pVM)
 {
@@ -114,7 +114,7 @@ static const char *gimHvGetGuestOsIdVariantName(uint64_t uGuestOsIdMsr)
  * @retval  VINF_CPUM_R3_MSR_READ
  * @retval  VERR_CPUM_RAISE_GP_0
  *
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       The cross context virtual CPU structure.
  * @param   idMsr       The MSR being read.
  * @param   pRange      The range this MSR belongs to.
  * @param   puValue     Where to store the MSR value read.
@@ -214,7 +214,7 @@ VMM_INT_DECL(VBOXSTRICTRC) gimHvReadMsr(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRR
  * @retval  VINF_CPUM_R3_MSR_WRITE
  * @retval  VERR_CPUM_RAISE_GP_0
  *
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       The cross context virtual CPU structure.
  * @param   idMsr       The MSR being written.
  * @param   pRange      The range this MSR belongs to.
  * @param   uRawValue   The raw value with the ignored bits not masked.

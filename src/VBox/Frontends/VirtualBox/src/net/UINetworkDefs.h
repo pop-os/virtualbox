@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2012 Oracle Corporation
+ * Copyright (C) 2011-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,23 +15,21 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef __UINetworkDefs_h__
-#define __UINetworkDefs_h__
+#ifndef ___UINetworkDefs_h___
+#define ___UINetworkDefs_h___
 
-/* Network-request types: */
+/* Qt includes: */
+#include <QMap>
+
+/** Network request types. */
 enum UINetworkRequestType
 {
     UINetworkRequestType_HEAD,
-    UINetworkRequestType_GET,
-    UINetworkRequestType_GET_Our
+    UINetworkRequestType_GET
 };
 
-/* Network-reply types: */
-enum UINetworkReplyType
-{
-    UINetworkReplyType_Qt,
-    UINetworkReplyType_Our
-};
+/** User dictionary. */
+typedef QMap<QString, QString> UserDictionary;
 
-#endif // __UINetworkDefs_h__
+#endif /* !___UINetworkDefs_h___ */
 

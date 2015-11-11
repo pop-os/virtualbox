@@ -33,10 +33,15 @@
 #include <iprt/cpp/list.h>
 
 
+/** @defgroup grp_com_list  List Classes
+ * @ingroup grp_com
+ * @{
+ */
+
 /**
  * Specialized list class for using with com::ComPtr<C>
  *
- * @note: This is necessary cause ComPtr<IFACE> has a size of 8.
+ * @note    This is necessary cause ComPtr<IFACE> has a size of 8.
  */
 template <typename C>
 class RTCList< ComPtr<C> >: public RTCListBase< ComPtr<C>, ComPtr<C>*, false>
@@ -53,7 +58,7 @@ public:
      *
      * This preallocates @a cCapacity elements within the list.
      *
-     * @param   cCapacitiy   The initial capacity the list has.
+     * @param   cCapacity   The initial capacity the list has.
      * @throws  std::bad_alloc
      */
     RTCList(size_t cCapacity = BASE::kDefaultCapacity)
@@ -83,7 +88,7 @@ public:
      *
      * This preallocates @a cCapacity elements within the list.
      *
-     * @param   cCapacitiy   The initial capacity the list has.
+     * @param   cCapacity   The initial capacity the list has.
      * @throws  std::bad_alloc
      */
     RTCList(size_t cCapacity = BASE::kDefaultCapacity)
@@ -113,7 +118,7 @@ public:
      *
      * This preallocates @a cCapacity elements within the list.
      *
-     * @param   cCapacitiy   The initial capacity the list has.
+     * @param   cCapacity    The initial capacity the list has.
      * @throws  std::bad_alloc
      */
     RTCList(size_t cCapacity = BASE::kDefaultCapacity)
@@ -198,6 +203,8 @@ public:
     /* Define our own new and delete. */
     RTMEMEF_NEW_AND_DELETE_OPERATORS();
 };
+
+/** @} */
 
 #endif /* !___VBox_com_list_h */
 

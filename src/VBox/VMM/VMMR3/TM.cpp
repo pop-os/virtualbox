@@ -189,7 +189,7 @@ static DECLCALLBACK(VBOXSTRICTRC) tmR3CpuTickParavirtDisable(PVM pVM, PVMCPU pVC
  * Initializes the TM.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  */
 VMM_INT_DECL(int) TMR3Init(PVM pVM)
 {
@@ -284,7 +284,7 @@ VMM_INT_DECL(int) TMR3Init(PVM pVM)
      */
     pVM->tm.s.pfnVirtualGetRawR3                 = tmVirtualNanoTSRediscover;
     pVM->tm.s.VirtualGetRawDataR3.pfnRediscover  = tmVirtualNanoTSRediscover;
-    pVM->tm.s.VirtualGetRawDataR3.pfnBad         = tmVirtualNanoTSBadPrev;
+    pVM->tm.s.VirtualGetRawDataR3.pfnBad         = tmVirtualNanoTSBad;
     pVM->tm.s.VirtualGetRawDataR3.pfnBadCpuIndex = tmVirtualNanoTSBadCpuIndex;
     pVM->tm.s.VirtualGetRawDataR3.pu64Prev       = &pVM->tm.s.u64VirtualRawPrev;
     pVM->tm.s.VirtualGetRawDataRC.pu64Prev       = MMHyperR3ToRC(pVM, (void *)&pVM->tm.s.u64VirtualRawPrev);
@@ -1008,7 +1008,7 @@ static uint64_t tmR3CalibrateTSC(PVM pVM)
  * Finalizes the TM initialization.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  */
 VMM_INT_DECL(int) TMR3InitFinalize(PVM pVM)
 {
@@ -1019,7 +1019,7 @@ VMM_INT_DECL(int) TMR3InitFinalize(PVM pVM)
      */
     if (!HMIsEnabled(pVM))
     {
-        rc = PDMR3LdrGetSymbolRC(pVM, NULL, "tmVirtualNanoTSBadPrev",       &pVM->tm.s.VirtualGetRawDataRC.pfnBad);
+        rc = PDMR3LdrGetSymbolRC(pVM, NULL, "tmVirtualNanoTSBad",           &pVM->tm.s.VirtualGetRawDataRC.pfnBad);
         AssertRCReturn(rc, rc);
         rc = PDMR3LdrGetSymbolRC(pVM, NULL, "tmVirtualNanoTSBadCpuIndex",   &pVM->tm.s.VirtualGetRawDataRC.pfnBadCpuIndex);
         AssertRCReturn(rc, rc);
@@ -1028,7 +1028,7 @@ VMM_INT_DECL(int) TMR3InitFinalize(PVM pVM)
         pVM->tm.s.pfnVirtualGetRawRC = pVM->tm.s.VirtualGetRawDataRC.pfnRediscover;
     }
 
-    rc = PDMR3LdrGetSymbolR0(pVM, NULL, "tmVirtualNanoTSBadPrev",       &pVM->tm.s.VirtualGetRawDataR0.pfnBad);
+    rc = PDMR3LdrGetSymbolR0(pVM, NULL, "tmVirtualNanoTSBad",           &pVM->tm.s.VirtualGetRawDataR0.pfnBad);
     AssertRCReturn(rc, rc);
     rc = PDMR3LdrGetSymbolR0(pVM, NULL, "tmVirtualNanoTSBadCpuIndex",   &pVM->tm.s.VirtualGetRawDataR0.pfnBadCpuIndex);
     AssertRCReturn(rc, rc);
@@ -1060,7 +1060,7 @@ VMM_INT_DECL(int) TMR3InitFinalize(PVM pVM)
  * component. This function will be called at init and
  * whenever the VMM need to relocate it self inside the GC.
  *
- * @param   pVM     The VM.
+ * @param   pVM     The cross context VM structure.
  * @param   offDelta    Relocation delta relative to old location.
  */
 VMM_INT_DECL(void) TMR3Relocate(PVM pVM, RTGCINTPTR offDelta)
@@ -1098,7 +1098,7 @@ VMM_INT_DECL(void) TMR3Relocate(PVM pVM, RTGCINTPTR offDelta)
  * the VM it self is at this point powered off or suspended.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  */
 VMM_INT_DECL(int) TMR3Term(PVM pVM)
 {
@@ -1121,7 +1121,7 @@ VMM_INT_DECL(int) TMR3Term(PVM pVM)
  * the FF is cleared and but without running the queues. We'll have to
  * check if this makes sense or not, but it seems like a good idea now....
  *
- * @param   pVM     Pointer to the VM.
+ * @param   pVM     The cross context VM structure.
  */
 VMM_INT_DECL(void) TMR3Reset(PVM pVM)
 {
@@ -1185,7 +1185,7 @@ VMM_INT_DECL(void) TMR3Reset(PVM pVM)
  * Called by PDM when loading or relocating GC modules.
  *
  * @returns VBox status
- * @param   pVM             Pointer to the VM.
+ * @param   pVM             The cross context VM structure.
  * @param   pszSymbol       Symbol to resolve.
  * @param   pRCPtrValue     Where to store the symbol value.
  * @remark  This has to     work before TMR3Relocate() is called.
@@ -1205,7 +1205,7 @@ VMM_INT_DECL(int) TMR3GetImportRC(PVM pVM, const char *pszSymbol, PRTRCPTR pRCPt
  * Execute state save operation.
  *
  * @returns VBox status code.
- * @param   pVM             Pointer to the VM.
+ * @param   pVM             The cross context VM structure.
  * @param   pSSM            SSM operation handle.
  */
 static DECLCALLBACK(int) tmR3Save(PVM pVM, PSSMHANDLE pSSM)
@@ -1253,7 +1253,7 @@ static DECLCALLBACK(int) tmR3Save(PVM pVM, PSSMHANDLE pSSM)
  * Execute state load operation.
  *
  * @returns VBox status code.
- * @param   pVM             Pointer to the VM.
+ * @param   pVM             The cross context VM structure.
  * @param   pSSM            SSM operation handle.
  * @param   uVersion        Data layout version.
  * @param   uPass           The data pass.
@@ -1398,7 +1398,7 @@ static DECLCALLBACK(int) tmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, u
  * Internal TMR3TimerCreate worker.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  * @param   enmClock    The timer clock.
  * @param   pszDesc     The timer description.
  * @param   ppTimer     Where to store the timer pointer on success.
@@ -1462,8 +1462,8 @@ static int tmr3TimerCreate(PVM pVM, TMCLOCK enmClock, const char *pszDesc, PPTMT
 /**
  * Creates a device timer.
  *
- * @returns VBox status.
- * @param   pVM             The VM to create the timer in.
+ * @returns VBox status code.
+ * @param   pVM             The cross context VM structure.
  * @param   pDevIns         Device instance.
  * @param   enmClock        The clock to use on this timer.
  * @param   pfnCallback     Callback function.
@@ -1503,8 +1503,8 @@ VMM_INT_DECL(int) TMR3TimerCreateDevice(PVM pVM, PPDMDEVINS pDevIns, TMCLOCK enm
 /**
  * Creates a USB device timer.
  *
- * @returns VBox status.
- * @param   pVM             The VM to create the timer in.
+ * @returns VBox status code.
+ * @param   pVM             The cross context VM structure.
  * @param   pUsbIns         The USB device instance.
  * @param   enmClock        The clock to use on this timer.
  * @param   pfnCallback     Callback function.
@@ -1547,8 +1547,8 @@ VMM_INT_DECL(int) TMR3TimerCreateUsb(PVM pVM, PPDMUSBINS pUsbIns, TMCLOCK enmClo
 /**
  * Creates a driver timer.
  *
- * @returns VBox status.
- * @param   pVM             The VM to create the timer in.
+ * @returns VBox status code.
+ * @param   pVM             The cross context VM structure.
  * @param   pDrvIns         Driver instance.
  * @param   enmClock        The clock to use on this timer.
  * @param   pfnCallback     Callback function.
@@ -1583,8 +1583,8 @@ VMM_INT_DECL(int) TMR3TimerCreateDriver(PVM pVM, PPDMDRVINS pDrvIns, TMCLOCK enm
 /**
  * Creates an internal timer.
  *
- * @returns VBox status.
- * @param   pVM             The VM to create the timer in.
+ * @returns VBox status code.
+ * @param   pVM             The cross context VM structure.
  * @param   enmClock        The clock to use on this timer.
  * @param   pfnCallback     Callback function.
  * @param   pvUser          User argument to be passed to the callback.
@@ -1616,7 +1616,7 @@ VMMR3DECL(int) TMR3TimerCreateInternal(PVM pVM, TMCLOCK enmClock, PFNTMTIMERINT 
  *
  * @returns Timer handle on success.
  * @returns NULL on failure.
- * @param   pVM             The VM to create the timer in.
+ * @param   pVM             The cross context VM structure.
  * @param   enmClock        The clock to use on this timer.
  * @param   pfnCallback     Callback function.
  * @param   pvUser          User argument.
@@ -1646,7 +1646,7 @@ VMMR3DECL(PTMTIMERR3) TMR3TimerCreateExternal(PVM pVM, TMCLOCK enmClock, PFNTMTI
 /**
  * Destroy a timer
  *
- * @returns VBox status.
+ * @returns VBox status code.
  * @param   pTimer          Timer handle as returned by one of the create functions.
  */
 VMMR3DECL(int) TMR3TimerDestroy(PTMTIMER pTimer)
@@ -1810,8 +1810,8 @@ VMMR3DECL(int) TMR3TimerDestroy(PTMTIMER pTimer)
 /**
  * Destroy all timers owned by a device.
  *
- * @returns VBox status.
- * @param   pVM             Pointer to the VM.
+ * @returns VBox status code.
+ * @param   pVM             The cross context VM structure.
  * @param   pDevIns         Device which timers should be destroyed.
  */
 VMM_INT_DECL(int) TMR3TimerDestroyDevice(PVM pVM, PPDMDEVINS pDevIns)
@@ -1843,8 +1843,8 @@ VMM_INT_DECL(int) TMR3TimerDestroyDevice(PVM pVM, PPDMDEVINS pDevIns)
 /**
  * Destroy all timers owned by a USB device.
  *
- * @returns VBox status.
- * @param   pVM             Pointer to the VM.
+ * @returns VBox status code.
+ * @param   pVM             The cross context VM structure.
  * @param   pUsbIns         USB device which timers should be destroyed.
  */
 VMM_INT_DECL(int) TMR3TimerDestroyUsb(PVM pVM, PPDMUSBINS pUsbIns)
@@ -1876,8 +1876,8 @@ VMM_INT_DECL(int) TMR3TimerDestroyUsb(PVM pVM, PPDMUSBINS pUsbIns)
 /**
  * Destroy all timers owned by a driver.
  *
- * @returns VBox status.
- * @param   pVM             Pointer to the VM.
+ * @returns VBox status code.
+ * @param   pVM             The cross context VM structure.
  * @param   pDrvIns         Driver which timers should be destroyed.
  */
 VMM_INT_DECL(int) TMR3TimerDestroyDriver(PVM pVM, PPDMDRVINS pDrvIns)
@@ -1910,7 +1910,7 @@ VMM_INT_DECL(int) TMR3TimerDestroyDriver(PVM pVM, PPDMDRVINS pDrvIns)
  * Internal function for getting the clock time.
  *
  * @returns clock time.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  * @param   enmClock    The clock.
  */
 DECLINLINE(uint64_t) tmClock(PVM pVM, TMCLOCK enmClock)
@@ -1933,7 +1933,7 @@ DECLINLINE(uint64_t) tmClock(PVM pVM, TMCLOCK enmClock)
  *
  * @returns true / false.
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  * @param   enmClock    The queue.
  */
 DECLINLINE(bool) tmR3HasExpiredTimer(PVM pVM, TMCLOCK enmClock)
@@ -1947,7 +1947,7 @@ DECLINLINE(bool) tmR3HasExpiredTimer(PVM pVM, TMCLOCK enmClock)
  * Checks for expired timers in all the queues.
  *
  * @returns true / false.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  */
 DECLINLINE(bool) tmR3AnyExpiredTimers(PVM pVM)
 {
@@ -2027,7 +2027,7 @@ static DECLCALLBACK(void) tmR3TimerCallback(PRTTIMER pTimer, void *pvUser, uint6
  *
  * This is normally called from a forced action handler in EMT.
  *
- * @param   pVM             The VM to run the timers for.
+ * @param   pVM             The cross context VM structure.
  *
  * @thread  EMT (actually EMT0, but we fend off the others)
  */
@@ -2110,7 +2110,7 @@ VMMR3DECL(void) TMR3TimerQueuesDo(PVM pVM)
  *
  * This is normally called from a forced action handler in EMT.
  *
- * @param   pVM             The VM to run the timers for.
+ * @param   pVM             The cross context VM structure.
  * @param   pQueue          The queue to run.
  */
 static void tmR3TimerQueueRun(PVM pVM, PTMTIMERQUEUE pQueue)
@@ -2194,7 +2194,7 @@ static void tmR3TimerQueueRun(PVM pVM, PTMTIMERQUEUE pQueue)
  * to implement the special requirements of the timer synchronous virtual
  * clock, thus this 2nd queue run function.
  *
- * @param   pVM             The VM to run the timers for.
+ * @param   pVM             The cross context VM structure.
  *
  * @remarks The caller must the Virtual Sync lock.  Owning the TM lock is no
  *          longer important.
@@ -2499,8 +2499,8 @@ static void tmR3TimerQueueRunVirtualSync(PVM pVM)
  * will block on the VirtualSyncLock until the pending timers has been executed
  * and the clock restarted.
  *
- * @param   pVM             The VM to run the timers for.
- * @param   pVCpu           The virtual CPU we're running at.
+ * @param   pVM     The cross context VM structure.
+ * @param   pVCpu   The cross context virtual CPU structure of the calling EMT.
  *
  * @thread  EMTs
  */
@@ -2571,7 +2571,7 @@ VMMR3_INT_DECL(void) TMR3VirtualSyncFF(PVM pVM, PVMCPU pVCpu)
 /**
  * Saves the state of a timer to a saved state.
  *
- * @returns VBox status.
+ * @returns VBox status code.
  * @param   pTimer          Timer to save.
  * @param   pSSM            Save State Manager handle.
  */
@@ -2613,7 +2613,7 @@ VMMR3DECL(int) TMR3TimerSave(PTMTIMERR3 pTimer, PSSMHANDLE pSSM)
 /**
  * Loads the state of a timer from a saved state.
  *
- * @returns VBox status.
+ * @returns VBox status code.
  * @param   pTimer          Timer to restore.
  * @param   pSSM            Save State Manager handle.
  */
@@ -2734,7 +2734,7 @@ VMMR3DECL(int) TMR3TimerSetCritSect(PTMTIMERR3 pTimer, PPDMCRITSECT pCritSect)
  * Get the real world UTC time adjusted for VM lag.
  *
  * @returns pTime.
- * @param   pVM             The VM instance.
+ * @param   pVM             The cross context VM structure.
  * @param   pTime           Where to store the time.
  */
 VMMR3_INT_DECL(PRTTIMESPEC) TMR3UtcNow(PVM pVM, PRTTIMESPEC pTime)
@@ -2762,8 +2762,8 @@ VMMR3_INT_DECL(PRTTIMESPEC) TMR3UtcNow(PVM pVM, PRTTIMESPEC pTime)
  * Pauses all clocks except TMCLOCK_REAL.
  *
  * @returns VBox status code, all errors are asserted.
- * @param   pVM         Pointer to the VM.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVM         The cross context VM structure.
+ * @param   pVCpu       The cross context virtual CPU structure.
  * @thread  EMT corresponding to Pointer to the VMCPU.
  */
 VMMR3DECL(int) TMR3NotifySuspend(PVM pVM, PVMCPU pVCpu)
@@ -2810,8 +2810,8 @@ VMMR3DECL(int) TMR3NotifySuspend(PVM pVM, PVMCPU pVCpu)
  * Resumes all clocks except TMCLOCK_REAL.
  *
  * @returns VBox status code, all errors are asserted.
- * @param   pVM         Pointer to the VM.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVM         The cross context VM structure.
+ * @param   pVCpu       The cross context virtual CPU structure.
  * @thread  EMT corresponding to Pointer to the VMCPU.
  */
 VMMR3DECL(int) TMR3NotifyResume(PVM pVM, PVMCPU pVCpu)
@@ -2856,7 +2856,7 @@ VMMR3DECL(int) TMR3NotifyResume(PVM pVM, PVMCPU pVCpu)
  * Sets the warp drive percent of the virtual time.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
+ * @param   pUVM        The user mode VM structure.
  * @param   u32Percent  The new percentage. 100 means normal operation.
  */
 VMMDECL(int) TMR3SetWarpDrive(PUVM pUVM, uint32_t u32Percent)
@@ -2915,7 +2915,7 @@ static DECLCALLBACK(int) tmR3SetWarpDrive(PUVM pUVM, uint32_t u32Percent)
  * Gets the current warp drive percent.
  *
  * @returns The warp drive percent.
- * @param   pVM         Pointer to the VM.
+ * @param   pUVM        The user mode VM structure.
  */
 VMMR3DECL(uint32_t) TMR3GetWarpDrive(PUVM pUVM)
 {
@@ -2937,7 +2937,7 @@ VMMR3DECL(uint32_t) TMR3GetWarpDrive(PUVM pUVM)
  * @retval  VERR_INVALID_STATE if the VM handle is bad.
  * @retval  VERR_INVALID_PARAMETER if idCpu is out of range.
  *
- * @param   pVM             Pointer to the VM.
+ * @param   pVM             The cross context VM structure.
  * @param   idCpu           The ID of the virtual CPU which times to get.
  * @param   pcNsTotal       Where to store the total run time (nano seconds) of
  *                          the CPU, i.e. the sum of the three other returns.
@@ -3002,15 +3002,12 @@ VMMR3DECL(int) TMR3GetCpuLoadTimes(PVM pVM, VMCPUID idCpu, uint64_t *pcNsTotal, 
 /**
  * Helper for tmR3CpuLoadTimer.
  * @returns
- * @param   pState              The state to update.
- * @param   cNsTotalDelta       Total time.
- * @param   cNsExecutingDelta   Time executing.
- * @param   cNsHaltedDelta      Time halted.
+ * @param   pState          The state to update.
+ * @param   cNsTotal        Total time.
+ * @param   cNsExecuting    Time executing.
+ * @param   cNsHalted       Time halted.
  */
-DECLINLINE(void) tmR3CpuLoadTimerMakeUpdate(PTMCPULOADSTATE pState,
-                                            uint64_t cNsTotal,
-                                            uint64_t cNsExecuting,
-                                            uint64_t cNsHalted)
+DECLINLINE(void) tmR3CpuLoadTimerMakeUpdate(PTMCPULOADSTATE pState, uint64_t cNsTotal, uint64_t cNsExecuting, uint64_t cNsHalted)
 {
     /* Calc deltas */
     uint64_t cNsTotalDelta      = cNsTotal     - pState->cNsPrevTotal;
@@ -3048,7 +3045,7 @@ DECLINLINE(void) tmR3CpuLoadTimerMakeUpdate(PTMCPULOADSTATE pState,
  * Timer callback that calculates the CPU load since the last time it was
  * called.
  *
- * @param   pVM                 Pointer to the VM.
+ * @param   pVM                 The cross context VM structure.
  * @param   pTimer              The timer.
  * @param   pvUser              NULL, unused.
  */
@@ -3159,7 +3156,7 @@ static DECLCALLBACK(VBOXSTRICTRC) tmR3CpuTickParavirtEnable(PVM pVM, PVMCPU pVCp
  * This may perform a EMT rendezvous and change the TSC virtualization mode.
  *
  * @returns VBox status code.
- * @param   pVM     Pointer to the VM.
+ * @param   pVM     The cross context VM structure.
  */
 VMMR3_INT_DECL(int) TMR3CpuTickParavirtEnable(PVM pVM)
 {
@@ -3219,7 +3216,7 @@ static DECLCALLBACK(VBOXSTRICTRC) tmR3CpuTickParavirtDisable(PVM pVM, PVMCPU pVC
  * perform an EMT  rendezvous to revert those changes.
  *
  * @returns VBox status code.
- * @param   pVM     Pointer to the VM.
+ * @param   pVM     The cross context VM structure.
  */
 VMMR3_INT_DECL(int) TMR3CpuTickParavirtDisable(PVM pVM)
 {
@@ -3237,7 +3234,7 @@ VMMR3_INT_DECL(int) TMR3CpuTickParavirtDisable(PVM pVM)
  * Check whether the guest can be presented a fixed rate & monotonic TSC.
  *
  * @returns true if TSC is stable, false otherwise.
- * @param   pVM                     Pointer to the VM.
+ * @param   pVM                     The cross context VM structure.
  * @param   fWithParavirtEnabled    Whether it's fixed & monotonic when
  *                                  paravirt. TSC is enabled or not.
  *
@@ -3274,7 +3271,7 @@ DECLINLINE(const char *) tmR3Get5CharClockName(TMCLOCK enmClock)
 /**
  * Display all timers.
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  * @param   pHlp        The info helpers.
  * @param   pszArgs     Arguments, ignored.
  */
@@ -3316,7 +3313,7 @@ static DECLCALLBACK(void) tmR3TimerInfo(PVM pVM, PCDBGFINFOHLP pHlp, const char 
 /**
  * Display all active timers.
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  * @param   pHlp        The info helpers.
  * @param   pszArgs     Arguments, ignored.
  */
@@ -3363,7 +3360,7 @@ static DECLCALLBACK(void) tmR3TimerInfoActive(PVM pVM, PCDBGFINFOHLP pHlp, const
 /**
  * Display all clocks.
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The cross context VM structure.
  * @param   pHlp        The info helpers.
  * @param   pszArgs     Arguments, ignored.
  */
@@ -3441,7 +3438,7 @@ static DECLCALLBACK(void) tmR3InfoClocks(PVM pVM, PCDBGFINFOHLP pHlp, const char
  * Gets the descriptive TM TSC mode name given the enum value.
  *
  * @returns The name.
- * @param   pVM      Pointer to the VM.
+ * @param   enmMode             The mode to name.
  */
 static const char *tmR3GetTSCModeNameEx(TMTSCMODE enmMode)
 {
@@ -3459,7 +3456,7 @@ static const char *tmR3GetTSCModeNameEx(TMTSCMODE enmMode)
  * Gets the descriptive TM TSC mode name.
  *
  * @returns The name.
- * @param   pVM      Pointer to the VM.
+ * @param   pVM      The cross context VM structure.
  */
 static const char *tmR3GetTSCModeName(PVM pVM)
 {

@@ -1,6 +1,5 @@
 /* $Id: setmode.c $ */
 /** @file
- *
  * Linux Additions X11 graphics driver, mode setting
  */
 

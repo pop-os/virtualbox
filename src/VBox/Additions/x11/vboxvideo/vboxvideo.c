@@ -1,6 +1,5 @@
 /* $Id: vboxvideo.c $ */
 /** @file
- *
  * Linux Additions X11 graphics driver
  */
 

@@ -1361,7 +1361,9 @@ ConsoleVRDPServer::ConsoleVRDPServer(Console *console)
 
     mVRDPBindPort = -1;
 
-    mAuthLibrary = 0;
+#ifndef VBOX_WITH_VRDEAUTH_IN_VBOXSVC
+    RT_ZERO(mAuthLibCtx);
+#endif
 
     mu32AudioInputClientId = 0;
     mcClients = 0;
@@ -3003,15 +3005,9 @@ void ConsoleVRDPServer::Stop(void)
         }
     }
 
-    mpfnAuthEntry = NULL;
-    mpfnAuthEntry2 = NULL;
-    mpfnAuthEntry3 = NULL;
-
-    if (mAuthLibrary)
-    {
-        RTLdrClose(mAuthLibrary);
-        mAuthLibrary = 0;
-    }
+#ifndef VBOX_WITH_VRDEAUTH_IN_VBOXSVC
+    AuthLibUnload(&mAuthLibCtx);
+#endif
 }
 
 /* Worker thread for Remote USB. The thread polls the clients for
@@ -3130,93 +3126,49 @@ void ConsoleVRDPServer::remoteUSBThreadStop(void)
 }
 #endif /* VBOX_WITH_USB */
 
-typedef struct AuthCtx
+AuthResult ConsoleVRDPServer::Authenticate(const Guid &uuid, AuthGuestJudgement guestJudgement,
+                                           const char *pszUser, const char *pszPassword, const char *pszDomain,
+                                           uint32_t u32ClientId)
 {
-    AuthResult result;
+    LogFlowFunc(("uuid = %RTuuid, guestJudgement = %d, pszUser = %s, pszPassword = %s, pszDomain = %s, u32ClientId = %d\n",
+                 uuid.raw(), guestJudgement, pszUser, pszPassword, pszDomain, u32ClientId));
 
-    PAUTHENTRY3 pfnAuthEntry3;
-    PAUTHENTRY2 pfnAuthEntry2;
-    PAUTHENTRY  pfnAuthEntry;
-
-    const char         *pszCaller;
-    PAUTHUUID          pUuid;
-    AuthGuestJudgement guestJudgement;
-    const char         *pszUser;
-    const char         *pszPassword;
-    const char         *pszDomain;
-    int                fLogon;
-    unsigned           clientId;
-} AuthCtx;
-
-static DECLCALLBACK(int) authThread(RTTHREAD self, void *pvUser)
-{
-    AuthCtx *pCtx = (AuthCtx *)pvUser;
-
-    if (pCtx->pfnAuthEntry3)
-    {
-        pCtx->result = pCtx->pfnAuthEntry3(pCtx->pszCaller, pCtx->pUuid, pCtx->guestJudgement,
-                                           pCtx->pszUser, pCtx->pszPassword, pCtx->pszDomain,
-                                           pCtx->fLogon, pCtx->clientId);
-    }
-    else if (pCtx->pfnAuthEntry2)
-    {
-        pCtx->result = pCtx->pfnAuthEntry2(pCtx->pUuid, pCtx->guestJudgement,
-                                           pCtx->pszUser, pCtx->pszPassword, pCtx->pszDomain,
-                                           pCtx->fLogon, pCtx->clientId);
-    }
-    else if (pCtx->pfnAuthEntry)
-    {
-        pCtx->result = pCtx->pfnAuthEntry(pCtx->pUuid, pCtx->guestJudgement,
-                                          pCtx->pszUser, pCtx->pszPassword, pCtx->pszDomain);
-    }
-    return VINF_SUCCESS;
-}
-
-static AuthResult authCall(AuthCtx *pCtx)
-{
     AuthResult result = AuthResultAccessDenied;
 
-    /* Use a separate thread because external modules might need a lot of stack space. */
-    RTTHREAD thread = NIL_RTTHREAD;
-    int rc = RTThreadCreate(&thread, authThread, pCtx, 512*_1K,
-                            RTTHREADTYPE_DEFAULT, RTTHREADFLAGS_WAITABLE, "VRDEAuth");
-    LogFlow(("authCall: RTThreadCreate %Rrc\n", rc));
-
-    if (RT_SUCCESS(rc))
+#ifdef VBOX_WITH_VRDEAUTH_IN_VBOXSVC
+    try
     {
-        rc = RTThreadWait(thread, RT_INDEFINITE_WAIT, NULL);
-        LogFlow(("authCall: RTThreadWait %Rrc\n", rc));
-    }
+        /* Init auth parameters. Order is important. */
+        SafeArray<BSTR> authParams;
+        Bstr("VRDEAUTH"          ).detachTo(authParams.appendedRaw());
+        Bstr(uuid.toUtf16()      ).detachTo(authParams.appendedRaw());
+        BstrFmt("%u", guestJudgement).detachTo(authParams.appendedRaw());
+        Bstr(pszUser             ).detachTo(authParams.appendedRaw());
+        Bstr(pszPassword         ).detachTo(authParams.appendedRaw());
+        Bstr(pszDomain           ).detachTo(authParams.appendedRaw());
+        BstrFmt("%u", u32ClientId).detachTo(authParams.appendedRaw());
 
-    if (RT_SUCCESS(rc))
+        Bstr authResult;
+        HRESULT hr = mConsole->mControl->AuthenticateExternal(ComSafeArrayAsInParam(authParams),
+                                                              authResult.asOutParam());
+        LogFlowFunc(("%Rhrc [%ls]\n", hr, authResult.raw()));
+
+        size_t cbPassword = RTUtf16Len((PRTUTF16)authParams[4]) * sizeof(RTUTF16);
+        if (cbPassword)
+            RTMemWipeThoroughly(authParams[4], cbPassword, 10 /* cPasses */);
+
+        if (SUCCEEDED(hr) && authResult == "granted")
+            result = AuthResultAccessGranted;
+    }
+    catch (std::bad_alloc)
     {
-        /* Only update the result if the thread finished without errors. */
-        result = pCtx->result;
     }
-    else
-    {
-        LogRel(("AUTH: unable to execute the auth thread %Rrc\n", rc));
-    }
-
-    return result;
-}
-
-AuthResult ConsoleVRDPServer::Authenticate(const Guid &uuid, AuthGuestJudgement guestJudgement,
-                                                const char *pszUser, const char *pszPassword, const char *pszDomain,
-                                                uint32_t u32ClientId)
-{
-    AUTHUUID rawuuid;
-
-    memcpy(rawuuid, uuid.raw(), sizeof(rawuuid));
-
-    LogFlow(("ConsoleVRDPServer::Authenticate: uuid = %RTuuid, guestJudgement = %d, pszUser = %s, pszPassword = %s, pszDomain = %s, u32ClientId = %d\n",
-             rawuuid, guestJudgement, pszUser, pszPassword, pszDomain, u32ClientId));
-
+#else
     /*
      * Called only from VRDP input thread. So thread safety is not required.
      */
 
-    if (!mAuthLibrary)
+    if (!mAuthLibCtx.hAuthLibrary)
     {
         /* Load the external authentication library. */
         Bstr authLibrary;
@@ -3224,70 +3176,7 @@ AuthResult ConsoleVRDPServer::Authenticate(const Guid &uuid, AuthGuestJudgement 
 
         Utf8Str filename = authLibrary;
 
-        LogRel(("AUTH: loading external authentication library '%ls'\n", authLibrary.raw()));
-
-        int rc;
-        if (RTPathHavePath(filename.c_str()))
-            rc = RTLdrLoad(filename.c_str(), &mAuthLibrary);
-        else
-        {
-            rc = RTLdrLoadAppPriv(filename.c_str(), &mAuthLibrary);
-            if (RT_FAILURE(rc))
-            {
-                /* Backward compatibility with old default 'VRDPAuth' name.
-                 * Try to load new default 'VBoxAuth' instead.
-                 */
-                if (filename == "VRDPAuth")
-                {
-                    LogRel(("AUTH: ConsoleVRDPServer::Authenticate: loading external authentication library VBoxAuth\n"));
-                    rc = RTLdrLoadAppPriv("VBoxAuth", &mAuthLibrary);
-                }
-            }
-        }
-
-        if (RT_FAILURE(rc))
-            LogRel(("AUTH: Failed to load external authentication library. Error code: %Rrc\n", rc));
-
-        if (RT_SUCCESS(rc))
-        {
-            typedef struct AuthEntryInfoStruct
-            {
-                const char *pszName;
-                void **ppvAddress;
-
-            } AuthEntryInfo;
-            AuthEntryInfo entries[] =
-            {
-                { AUTHENTRY3_NAME, (void **)&mpfnAuthEntry3 },
-                { AUTHENTRY2_NAME, (void **)&mpfnAuthEntry2 },
-                { AUTHENTRY_NAME,  (void **)&mpfnAuthEntry },
-                { NULL, NULL }
-            };
-
-            /* Get the entry point. */
-            AuthEntryInfo *pEntryInfo = &entries[0];
-            while (pEntryInfo->pszName)
-            {
-                *pEntryInfo->ppvAddress = NULL;
-
-                int rc2 = RTLdrGetSymbol(mAuthLibrary, pEntryInfo->pszName, pEntryInfo->ppvAddress);
-                if (RT_SUCCESS(rc2))
-                {
-                    /* Found an entry point. */
-                    LogRel(("AUTH: Using entry point '%s'.\n", pEntryInfo->pszName));
-                    rc = VINF_SUCCESS;
-                    break;
-                }
-
-                if (rc2 != VERR_SYMBOL_NOT_FOUND)
-                {
-                    LogRel(("AUTH: Could not resolve import '%s'. Error code: %Rrc\n", pEntryInfo->pszName, rc2));
-                }
-                rc = rc2;
-
-                pEntryInfo++;
-            }
-        }
+        int rc = AuthLibLoad(&mAuthLibCtx, filename.c_str());
 
         if (RT_FAILURE(rc))
         {
@@ -3296,37 +3185,15 @@ AuthResult ConsoleVRDPServer::Authenticate(const Guid &uuid, AuthGuestJudgement 
                                filename.c_str(),
                                rc);
 
-            mpfnAuthEntry = NULL;
-            mpfnAuthEntry2 = NULL;
-            mpfnAuthEntry3 = NULL;
-
-            if (mAuthLibrary)
-            {
-                RTLdrClose(mAuthLibrary);
-                mAuthLibrary = 0;
-            }
-
             return AuthResultAccessDenied;
         }
     }
 
-    Assert(mAuthLibrary && (mpfnAuthEntry || mpfnAuthEntry2 || mpfnAuthEntry3));
-
-    AuthCtx ctx;
-    ctx.result         = AuthResultAccessDenied; /* Denied by default. */
-    ctx.pfnAuthEntry3  = mpfnAuthEntry3;
-    ctx.pfnAuthEntry2  = mpfnAuthEntry2;
-    ctx.pfnAuthEntry   = mpfnAuthEntry;
-    ctx.pszCaller      = "vrde";
-    ctx.pUuid          = &rawuuid;
-    ctx.guestJudgement = guestJudgement;
-    ctx.pszUser        = pszUser;
-    ctx.pszPassword    = pszPassword;
-    ctx.pszDomain      = pszDomain;
-    ctx.fLogon         = true;
-    ctx.clientId       = u32ClientId;
-
-    AuthResult result = authCall(&ctx);
+    result = AuthLibAuthenticate(&mAuthLibCtx,
+                                 uuid.raw(), guestJudgement,
+                                 pszUser, pszPassword, pszDomain,
+                                 u32ClientId);
+#endif /* !VBOX_WITH_VRDEAUTH_IN_VBOXSVC */
 
     switch (result)
     {
@@ -3344,37 +3211,36 @@ AuthResult ConsoleVRDPServer::Authenticate(const Guid &uuid, AuthGuestJudgement 
             result = AuthResultAccessDenied;
     }
 
-    LogFlow(("ConsoleVRDPServer::Authenticate: result = %d\n", result));
+    LogFlowFunc(("result = %d\n", result));
 
     return result;
 }
 
 void ConsoleVRDPServer::AuthDisconnect(const Guid &uuid, uint32_t u32ClientId)
 {
-    AUTHUUID rawuuid;
-
-    memcpy(rawuuid, uuid.raw(), sizeof(rawuuid));
-
     LogFlow(("ConsoleVRDPServer::AuthDisconnect: uuid = %RTuuid, u32ClientId = %d\n",
-             rawuuid, u32ClientId));
+             uuid.raw(), u32ClientId));
 
-    Assert(mAuthLibrary && (mpfnAuthEntry || mpfnAuthEntry2 || mpfnAuthEntry3));
+#ifdef VBOX_WITH_VRDEAUTH_IN_VBOXSVC
+    try
+    {
+        /* Init auth parameters. Order is important. */
+        SafeArray<BSTR> authParams;
+        Bstr("VRDEAUTHDISCONNECT").detachTo(authParams.appendedRaw());
+        Bstr(uuid.toUtf16()      ).detachTo(authParams.appendedRaw());
+        BstrFmt("%u", u32ClientId).detachTo(authParams.appendedRaw());
 
-    AuthCtx ctx;
-    ctx.result         = AuthResultAccessDenied; /* Not used. */
-    ctx.pfnAuthEntry3  = mpfnAuthEntry3;
-    ctx.pfnAuthEntry2  = mpfnAuthEntry2;
-    ctx.pfnAuthEntry   = NULL;                   /* Does not use disconnect notification. */
-    ctx.pszCaller      = "vrde";
-    ctx.pUuid          = &rawuuid;
-    ctx.guestJudgement = AuthGuestNotAsked;
-    ctx.pszUser        = NULL;
-    ctx.pszPassword    = NULL;
-    ctx.pszDomain      = NULL;
-    ctx.fLogon         = false;
-    ctx.clientId       = u32ClientId;
-
-    authCall(&ctx);
+        Bstr authResult;
+        HRESULT hr = mConsole->mControl->AuthenticateExternal(ComSafeArrayAsInParam(authParams),
+                                                              authResult.asOutParam());
+        LogFlowFunc(("%Rhrc [%ls]\n", hr, authResult.raw())); NOREF(hr);
+    }
+    catch (std::bad_alloc)
+    {
+    }
+#else
+    AuthLibDisconnect(&mAuthLibCtx, uuid.raw(), u32ClientId);
+#endif /* !VBOX_WITH_VRDEAUTH_IN_VBOXSVC */
 }
 
 int ConsoleVRDPServer::lockConsoleVRDPServer(void)

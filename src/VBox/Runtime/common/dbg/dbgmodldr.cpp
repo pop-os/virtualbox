@@ -123,8 +123,8 @@ static DECLCALLBACK(int) rtDbgModLdr_MapPart(PRTDBGMODINT pMod, uint32_t iDbgInf
 }
 
 
-/** @interface_method_impl{RTDBGMODVTIMG,pfnGetLoadedSize} */
-static DECLCALLBACK(RTUINTPTR) rtDbgModLdr_GetLoadedSize(PRTDBGMODINT pMod)
+/** @interface_method_impl{RTDBGMODVTIMG,pfnImageSize} */
+static DECLCALLBACK(RTUINTPTR) rtDbgModLdr_ImageSize(PRTDBGMODINT pMod)
 {
     PRTDBGMODLDR pThis = (PRTDBGMODLDR)pMod->pvImgPriv;
     return RTLdrSize(pThis->hLdrMod);
@@ -132,11 +132,10 @@ static DECLCALLBACK(RTUINTPTR) rtDbgModLdr_GetLoadedSize(PRTDBGMODINT pMod)
 
 
 /** @interface_method_impl{RTDBGMODVTIMG,pfnRvaToSegOffset} */
-static DECLCALLBACK(int) rtDbgModLdr_RvaToSegOffset(PRTDBGMODINT pMod, RTLDRADDR uRva,
-                                                    PRTDBGSEGIDX piSeg, PRTLDRADDR poffSeg)
+static DECLCALLBACK(int) rtDbgModLdr_RvaToSegOffset(PRTDBGMODINT pMod, RTLDRADDR Rva, PRTDBGSEGIDX piSeg, PRTLDRADDR poffSeg)
 {
     PRTDBGMODLDR pThis = (PRTDBGMODLDR)pMod->pvImgPriv;
-    return RTLdrRvaToSegOffset(pThis->hLdrMod, uRva, piSeg, poffSeg);
+    return RTLdrRvaToSegOffset(pThis->hLdrMod, Rva, piSeg, poffSeg);
 }
 
 
@@ -149,7 +148,7 @@ static DECLCALLBACK(int) rtDbgModLdr_LinkAddressToSegOffset(PRTDBGMODINT pMod, R
 }
 
 
-/** @interface_method_impl{RTDBGMODVTIMG,pfnEnumSegments} */
+/** @interface_method_impl{RTDBGMODVTIMG,pfnEnumSymbols} */
 static DECLCALLBACK(int) rtDbgModLdr_EnumSymbols(PRTDBGMODINT pMod, uint32_t fFlags, RTLDRADDR BaseAddress,
                                                  PFNRTLDRENUMSYMS pfnCallback, void *pvUser)
 {
@@ -215,7 +214,7 @@ DECL_HIDDEN_CONST(RTDBGMODVTIMG) const g_rtDbgModVtImgLdr =
     /*.pfnEnumDbgInfo = */              rtDbgModLdr_EnumDbgInfo,
     /*.pfnEnumSegments = */             rtDbgModLdr_EnumSegments,
     /*.pfnEnumSymbols = */              rtDbgModLdr_EnumSymbols,
-    /*.pfnGetLoadedSize = */            rtDbgModLdr_GetLoadedSize,
+    /*.pfnImageSize = */                rtDbgModLdr_ImageSize,
     /*.pfnLinkAddressToSegOffset = */   rtDbgModLdr_LinkAddressToSegOffset,
     /*.pfnRvaToSegOffset= */            rtDbgModLdr_RvaToSegOffset,
     /*.pfnMapPart = */                  rtDbgModLdr_MapPart,

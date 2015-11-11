@@ -41,9 +41,9 @@
  *    @code
  *    return VM_SET_ERROR(pVM, VERR_OF_YOUR_CHOICE, "descriptive message");
  *    @endcode
- * @param   pVM             Pointer to the VM. Must be non-NULL.
+ * @param   pVM             The cross context VM structure.
  * @param   rc              VBox status code.
- * @param   RT_SRC_POS_DECL Use RT_SRC_POS.
+ * @param   SRC_POS         Use RT_SRC_POS.
  * @param   pszFormat       Error message format string.
  * @param   ...             Error message arguments.
  * @thread  Any
@@ -65,9 +65,9 @@ VMMDECL(int) VMSetError(PVM pVM, int rc, RT_SRC_POS_DECL, const char *pszFormat,
  *    @code
  *    return VM_SET_ERROR(pVM, VERR_OF_YOUR_CHOICE, "descriptive message");
  *    @endcode
- * @param   pVM             Pointer to the VM. Must be non-NULL.
+ * @param   pVM             The cross context VM structure.
  * @param   rc              VBox status code.
- * @param   RT_SRC_POS_DECL Use RT_SRC_POS.
+ * @param   SRC_POS         Use RT_SRC_POS.
  * @param   pszFormat       Error message format string.
  * @param   args            Error message arguments.
  * @thread  Any
@@ -102,9 +102,9 @@ VMMDECL(int) VMSetErrorV(PVM pVM, int rc, RT_SRC_POS_DECL, const char *pszFormat
  * memory accessible from ring-3. But it's just possible that we might add
  * APIs for retrieving the VMERROR copy later.
  *
- * @param   pVM             Pointer to the VM. Must be non-NULL.
+ * @param   pVM             The cross context VM structure.
  * @param   rc              VBox status code.
- * @param   RT_SRC_POS_DECL Use RT_SRC_POS.
+ * @param   SRC_POS         Use RT_SRC_POS.
  * @param   pszFormat       Error message format string.
  * @param   args            Error message arguments.
  * @thread  EMT
@@ -184,7 +184,7 @@ void vmSetErrorCopy(PVM pVM, int rc, RT_SRC_POS_DECL, const char *pszFormat, va_
  * @returns VBox status code. For some flags the status code <b>must</b> be
  *          propagated up the stack.
  *
- * @param   pVM             Pointer to the VM.
+ * @param   pVM             The cross context VM structure.
  *
  * @param   fFlags          Flags indicating which actions to take.
  *                          See VMSETRTERR_FLAGS_* for details on each flag.
@@ -220,7 +220,7 @@ VMMDECL(int) VMSetRuntimeError(PVM pVM, uint32_t fFlags, const char *pszErrorId,
  * @returns VBox status code. For some flags the status code <b>must</b> be
  *          propagated up the stack.
  *
- * @param   pVM             Pointer to the VM.
+ * @param   pVM             The cross context VM structure.
  * @param   fFlags          Flags indicating which actions to take. See
  *                          VMSETRTERR_FLAGS_*.
  * @param   pszErrorId      Error ID string.
@@ -297,7 +297,7 @@ VMMDECL(int) VMSetRuntimeErrorV(PVM pVM, uint32_t fFlags, const char *pszErrorId
  * memory accessible from ring-3. But it's just possible that we might add
  * APIs for retrieving the VMRUNTIMEERROR copy later.
  *
- * @param   pVM             Pointer to the VM. Must be non-NULL.
+ * @param   pVM             The cross context VM structure.
  * @param   fFlags          The error flags.
  * @param   pszErrorId      Error ID string.
  * @param   pszFormat       Error message format string.

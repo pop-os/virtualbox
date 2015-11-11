@@ -404,7 +404,7 @@ static DECLCALLBACK(int) vmR3HaltOldDoHalt(PUVMCPU pUVCpu, const uint32_t fMask,
  * Initialize the configuration of halt method 1 & 2.
  *
  * @return VBox status code. Failure on invalid CFGM data.
- * @param   pVM     Pointer to the VM.
+ * @param   pUVM        The user mode VM structure.
  */
 static int vmR3HaltMethod12ReadConfigU(PUVM pUVM)
 {
@@ -837,7 +837,7 @@ static DECLCALLBACK(void) vmR3HaltGlobal1NotifyCpuFF(PUVMCPU pUVCpu, uint32_t fF
  * Bootstrap VMR3Wait() worker.
  *
  * @returns VBox status code.
- * @param   pUVMCPU            Pointer to the user mode VMCPU structure.
+ * @param   pUVCpu      Pointer to the user mode VMCPU structure.
  */
 static DECLCALLBACK(int) vmR3BootstrapWait(PUVMCPU pUVCpu)
 {
@@ -905,7 +905,7 @@ static DECLCALLBACK(void) vmR3BootstrapNotifyCpuFF(PUVMCPU pUVCpu, uint32_t fFla
  * Default VMR3Wait() worker.
  *
  * @returns VBox status code.
- * @param   pUVMCPU            Pointer to the user mode VMCPU structure.
+ * @param   pUVCpu          Pointer to the user mode VMCPU structure.
  */
 static DECLCALLBACK(int) vmR3DefaultWait(PUVMCPU pUVCpu)
 {
@@ -1041,8 +1041,8 @@ VMMR3_INT_DECL(void) VMR3NotifyCpuFFU(PUVMCPU pUVCpu, uint32_t fFlags)
  *
  * @returns VINF_SUCCESS unless a fatal error occurred. In the latter
  *          case an appropriate status code is returned.
- * @param   pVM         Pointer to the VM.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVM         The cross context VM structure.
+ * @param   pVCpu       The cross context virtual CPU structure.
  * @param   fIgnoreInterrupts   If set the VM_FF_INTERRUPT flags is ignored.
  * @thread  The emulation thread.
  * @remarks Made visible for implementing vmsvga sync register.
@@ -1193,8 +1193,8 @@ VMMR3_INT_DECL(void) VMR3AsyncPdmNotificationWakeupU(PUVM pUVM)
  * Rendezvous callback that will be called once.
  *
  * @returns VBox strict status code.
- * @param   pVM                 Pointer to the VM.
- * @param   pVCpu               Pointer to the VMCPU of the calling EMT.
+ * @param   pVM                 The cross context VM structure.
+ * @param   pVCpu               The cross context virtual CPU structure of the calling EMT.
  * @param   pvUser              The new g_aHaltMethods index.
  */
 static DECLCALLBACK(VBOXSTRICTRC) vmR3SetHaltMethodCallback(PVM pVM, PVMCPU pVCpu, void *pvUser)
@@ -1307,7 +1307,7 @@ int vmR3SetHaltMethodU(PUVM pUVM, VMHALTMETHOD enmHaltMethod)
  * of the actual EFLAGS.IF state.
  *
  * @returns VBox error status (never informational statuses).
- * @param   pVM                 The VM handle.
+ * @param   pVM                 The cross context VM structure.
  * @param   idCpu               The id of the calling EMT.
  */
 VMMR3DECL(int) VMR3WaitForDeviceReady(PVM pVM, VMCPUID idCpu)
@@ -1334,7 +1334,7 @@ VMMR3DECL(int) VMR3WaitForDeviceReady(PVM pVM, VMCPUID idCpu)
  * Wakes up a CPU that has called VMR3WaitForDeviceReady.
  *
  * @returns VBox error status (never informational statuses).
- * @param   pVM                 The VM handle.
+ * @param   pVM                 The cross context VM structure.
  * @param   idCpu               The id of the calling EMT.
  */
 VMMR3DECL(int) VMR3NotifyCpuDeviceReady(PVM pVM, VMCPUID idCpu)

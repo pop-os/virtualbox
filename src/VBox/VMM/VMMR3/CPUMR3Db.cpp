@@ -176,12 +176,14 @@ typedef struct CPUMDBENTRY
 /** @} */
 
 
+#include "cpus/Intel_Core_i7_5600U.h"
 #include "cpus/Intel_Core_i7_3960X.h"
 #include "cpus/Intel_Core_i5_3570.h"
 #include "cpus/Intel_Core_i7_2635QM.h"
 #include "cpus/Intel_Xeon_X5482_3_20GHz.h"
 #include "cpus/Intel_Pentium_M_processor_2_00GHz.h"
 #include "cpus/Intel_Pentium_4_3_00GHz.h"
+#include "cpus/Intel_Atom_330_1_60GHz.h"
 
 #include "cpus/AMD_FX_8150_Eight_Core.h"
 #include "cpus/AMD_Phenom_II_X6_1100T.h"
@@ -207,6 +209,9 @@ typedef struct CPUMDBENTRY
  */
 static CPUMDBENTRY const * const g_apCpumDbEntries[] =
 {
+#ifdef VBOX_CPUDB_Intel_Core_i7_5600U
+    &g_Entry_Intel_Core_i7_5600U,
+#endif
 #ifdef VBOX_CPUDB_Intel_Core_i5_3570
     &g_Entry_Intel_Core_i5_3570,
 #endif
@@ -215,6 +220,9 @@ static CPUMDBENTRY const * const g_apCpumDbEntries[] =
 #endif
 #ifdef VBOX_CPUDB_Intel_Core_i7_2635QM
     &g_Entry_Intel_Core_i7_2635QM,
+#endif
+#ifdef VBOX_CPUDB_Intel_Atom_330_1_60GHz
+    &g_Entry_Intel_Atom_330_1_60GHz,
 #endif
 #ifdef Intel_Pentium_M_processor_2_00GHz
     &g_Entry_Intel_Pentium_M_processor_2_00GHz,
@@ -298,9 +306,8 @@ static uint32_t cpumR3MsrRangesBinSearch(PCCPUMMSRRANGE paMsrRanges, uint32_t cM
  *
  * @returns Pointer to the MSR ranges on success, NULL on failure.  On failure
  *          @a *ppaMsrRanges is freed and set to NULL.
- * @param   pVM             Pointer to the VM, used as the heap selector.
- *                          Passing NULL uses the host-context heap, otherwise
- *                          the VM's hyper heap is used.
+ * @param   pVM             The cross context VM structure.  If NULL,
+ *                          use the process heap, otherwise the VM's hyper heap.
  * @param   ppaMsrRanges    The variable pointing to the ranges (input/output).
  * @param   cMsrRanges      The current number of ranges.
  * @param   cNewRanges      The number of ranges to be added.
@@ -376,9 +383,8 @@ static PCPUMMSRRANGE cpumR3MsrRangesEnsureSpace(PVM pVM, PCPUMMSRRANGE *ppaMsrRa
  * @retval  VINF_SUCCESS
  * @retval  VERR_NO_MEMORY
  *
- * @param   pVM             Pointer to the VM, used as the heap selector.
- *                          Passing NULL uses the host-context heap, otherwise
- *                          the hyper heap.
+ * @param   pVM             The cross context VM structure.  If NULL,
+ *                          use the process heap, otherwise the VM's hyper heap.
  * @param   ppaMsrRanges    The variable pointing to the ranges (input/output).
  *                          Must be NULL if using the hyper heap.
  * @param   pcMsrRanges     The variable holding number of ranges. Must be NULL
@@ -528,7 +534,7 @@ int cpumR3MsrRangesInsert(PVM pVM, PCPUMMSRRANGE *ppaMsrRanges, uint32_t *pcMsrR
  * Worker for cpumR3MsrApplyFudge that applies one table.
  *
  * @returns VBox status code.
- * @param   pVM                 Pointer to the cross context VM structure.
+ * @param   pVM                 The cross context VM structure.
  * @param   paRanges            Array of MSRs to fudge.
  * @param   cRanges             Number of MSRs in the array.
  */
@@ -554,7 +560,7 @@ static int cpumR3MsrApplyFudgeTable(PVM pVM, PCCPUMMSRRANGE paRanges, size_t cRa
  * for instance the cpu vendor differs.
  *
  * @returns VBox status code.
- * @param   pVM                 Pointer to the cross context VM structure.
+ * @param   pVM                 The cross context VM structure.
  */
 int cpumR3MsrApplyFudge(PVM pVM)
 {
@@ -598,6 +604,122 @@ int cpumR3MsrApplyFudge(PVM pVM)
     }
 
     return rc;
+}
+
+
+/**
+ * Do we consider @a enmConsider a better match for @a enmTarget than
+ * @a enmFound?
+ *
+ * Only called when @a enmConsider isn't exactly what we're looking for.
+ *
+ * @returns true/false.
+ * @param   enmConsider         The new microarch to consider.
+ * @param   enmTarget           The target microarch.
+ * @param   enmFound            The best microarch match we've found thus far.
+ */
+DECLINLINE(bool) cpumR3DbIsBetterMarchMatch(CPUMMICROARCH enmConsider, CPUMMICROARCH enmTarget, CPUMMICROARCH enmFound)
+{
+    Assert(enmConsider != enmTarget);
+
+    /*
+     * If we've got an march match, don't bother with enmConsider.
+     */
+    if (enmFound == enmTarget)
+        return false;
+
+    /*
+     * Found is below: Pick 'consider' if it's closer to the target or above it.
+     */
+    if (enmFound < enmTarget)
+        return enmConsider > enmFound;
+
+    /*
+     * Found is above: Pick 'consider' if it's also above (paranoia: or equal)
+     *                 and but closer to the target.
+     */
+    return enmConsider >= enmTarget && enmConsider < enmFound;
+}
+
+
+/**
+ * Do we consider @a enmConsider a better match for @a enmTarget than
+ * @a enmFound?
+ *
+ * Only called for intel family 06h CPUs.
+ *
+ * @returns true/false.
+ * @param   enmConsider         The new microarch to consider.
+ * @param   enmTarget           The target microarch.
+ * @param   enmFound            The best microarch match we've found thus far.
+ */
+static bool cpumR3DbIsBetterIntelFam06Match(CPUMMICROARCH enmConsider, CPUMMICROARCH enmTarget, CPUMMICROARCH enmFound)
+{
+    /* Check intel family 06h claims. */
+    AssertReturn(enmConsider >= kCpumMicroarch_Intel_P6_Core_Atom_First && enmConsider <= kCpumMicroarch_Intel_P6_Core_Atom_End,
+                 false);
+    AssertReturn(enmTarget   >= kCpumMicroarch_Intel_P6_Core_Atom_First && enmTarget   <= kCpumMicroarch_Intel_P6_Core_Atom_End,
+                 false);
+
+    /* Put matches out of the way. */
+    if (enmConsider == enmTarget)
+        return true;
+    if (enmFound == enmTarget)
+        return false;
+
+    /* If found isn't a family 06h march, whatever we're considering must be a better choice. */
+    if (   enmFound < kCpumMicroarch_Intel_P6_Core_Atom_First
+        || enmFound > kCpumMicroarch_Intel_P6_Core_Atom_End)
+        return true;
+
+    /*
+     * The family 06h stuff is split into three categories:
+     *      - Common P6 heritage
+     *      - Core
+     *      - Atom
+     *
+     * Determin which of the three arguments are Atom marchs, because that's
+     * all we need to make the right choice.
+     */
+    bool const fConsiderAtom = enmConsider >= kCpumMicroarch_Intel_Atom_First;
+    bool const fTargetAtom   = enmTarget   >= kCpumMicroarch_Intel_Atom_First;
+    bool const fFoundAtom    = enmFound    >= kCpumMicroarch_Intel_Atom_First;
+
+    /*
+     * Want atom:
+     */
+    if (fTargetAtom)
+    {
+        /* Pick the atom if we've got one of each.*/
+        if (fConsiderAtom != fFoundAtom)
+            return fConsiderAtom;
+        /* If we haven't got any atoms under consideration, pick a P6 or the earlier core.
+           Note! Not entirely sure Dothan is the best choice, but it'll do for now. */
+        if (!fConsiderAtom)
+        {
+            if (enmConsider > enmFound)
+                return enmConsider <= kCpumMicroarch_Intel_P6_M_Dothan;
+            return enmFound > kCpumMicroarch_Intel_P6_M_Dothan;
+        }
+        /* else: same category, default comparison rules. */
+        Assert(fConsiderAtom && fFoundAtom);
+    }
+    /*
+     * Want non-atom:
+     */
+    /* Pick the non-atom if we've got one of each. */
+    else if (fConsiderAtom != fFoundAtom)
+        return fFoundAtom;
+    /* If we've only got atoms under consideration, pick the older one just to pick something. */
+    else if (fConsiderAtom)
+        return enmConsider < enmFound;
+    else
+        Assert(!fConsiderAtom && !fFoundAtom);
+
+    /*
+     * Same basic category.  Do same compare as caller.
+     */
+    return cpumR3DbIsBetterMarchMatch(enmConsider, enmTarget, enmFound);
 }
 
 
@@ -674,9 +796,11 @@ int cpumR3DbGetCpuInfo(const char *pszName, PCPUMINFO pInfo)
                     else if (   !pEntry
                              || pEntry->uFamily != uFamily)
                         pEntry = pCur;
-                    else if (  pCur->enmMicroarch >= enmMicroarch
-                             ? pCur->enmMicroarch < pEntry->enmMicroarch || pEntry->enmMicroarch < enmMicroarch
-                             : pCur->enmMicroarch > pEntry->enmMicroarch)
+                    /* Special march matching rules applies to intel family 06h. */
+                    else if (     enmVendor == CPUMCPUVENDOR_INTEL
+                               && uFamily   == 6
+                             ? cpumR3DbIsBetterIntelFam06Match(pCur->enmMicroarch, enmMicroarch, pEntry->enmMicroarch)
+                             : cpumR3DbIsBetterMarchMatch(pCur->enmMicroarch, enmMicroarch, pEntry->enmMicroarch))
                         pEntry = pCur;
                 }
                 /* We don't do closeness matching on family, we use the first
@@ -781,7 +905,7 @@ int cpumR3DbGetCpuInfo(const char *pszName, PCPUMINFO pInfo)
  * adjusted/removed to fit in the new one.
  *
  * @returns VBox status code.
- * @param   pVM                 Pointer to the cross context VM structure.
+ * @param   pVM                 The cross context VM structure.
  * @param   pNewRange           Pointer to the MSR range being inserted.
  */
 VMMR3DECL(int) CPUMR3MsrRangesInsert(PVM pVM, PCCPUMMSRRANGE pNewRange)
@@ -800,7 +924,7 @@ VMMR3DECL(int) CPUMR3MsrRangesInsert(PVM pVM, PCCPUMMSRRANGE pNewRange)
  * hyper heap.
  *
  * @returns VBox status code.
- * @param   pVM                 Pointer to the cross context VM structure.
+ * @param   pVM                 The cross context VM structure.
  */
 int cpumR3MsrRegStats(PVM pVM)
 {

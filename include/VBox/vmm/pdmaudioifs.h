@@ -29,9 +29,17 @@
 #include <VBox/types.h>
 #include <iprt/list.h>
 
+
+/** @defgroup grp_pdm_ifs_audio     PDM Audio Interfaces
+ * @ingroup grp_pdm_interfaces
+ * @{
+ */
+
+/** @todo r=bird: Don't be lazy with documentation! */
 typedef uint32_t PDMAUDIODRVFLAGS;
 
 /** No flags set. */
+/** @todo r=bird: s/PDMAUDIODRVFLAG/PDMAUDIODRV_FLAGS/g */
 #define PDMAUDIODRVFLAG_NONE        0
 /** Marks a primary audio driver which is critical
  *  when running the VM. */
@@ -166,6 +174,10 @@ typedef enum PDMAUDIOSTREAMCMD
     PDMAUDIOSTREAMCMD_ENABLE,
     /** Disables the stream. */
     PDMAUDIOSTREAMCMD_DISABLE,
+    /** Pauses the stream. */
+    PDMAUDIOSTREAMCMD_PAUSE,
+    /** Resumes the stream. */
+    PDMAUDIOSTREAMCMD_RESUME,
     /** Hack to blow the type up to 32-bit. */
     PDMAUDIOSTREAMCMD_32BIT_HACK = 0x7fffffff
 } PDMAUDIOSTREAMCMD;
@@ -291,6 +303,23 @@ typedef struct PDMAUDIOMIXBUF
     uint8_t                cShift;
 } PDMAUDIOMIXBUF;
 
+/** Stream status flag. To be used with PDMAUDIOSTRMSTS_FLAG_ flags. */
+typedef uint32_t PDMAUDIOSTRMSTS;
+
+/** No flags being set. */
+#define PDMAUDIOSTRMSTS_FLAG_NONE            0
+/** Whether this stream General Enabled or disabled flag. */
+#define PDMAUDIOSTRMSTS_FLAG_ENABLED         RT_BIT_32(0)
+/** Whether this stream has been paused or not. This also implies
+ *  that this is an enabled stream! */
+#define PDMAUDIOSTRMSTS_FLAG_PAUSED          RT_BIT_32(1)
+/** Whether this stream was marked as being disabled
+ *  but there are still associated guest output streams
+ *  which rely on its data. */
+#define PDMAUDIOSTRMSTS_FLAG_PENDING_DISABLE RT_BIT_32(2)
+/** Validation mask. */
+#define PDMAUDIOSTRMSTS_VALID_MASK           UINT32_C(0x00000007)
+
 /**
  * Represents an audio input on the host of a certain
  * backend (e.g. DirectSound, PulseAudio etc).
@@ -307,8 +336,8 @@ typedef struct PDMAUDIOHSTSTRMIN
     RTLISTNODE             Node;
     /** PCM properties. */
     PDMPCMPROPS            Props;
-    /** Whether this input is enabled or not. */
-    bool                   fEnabled;
+    /** Stream status flag. */
+    PDMAUDIOSTRMSTS        fStatus;
     /** This stream's mixing buffer. */
     PDMAUDIOMIXBUF         MixBuf;
     /** Pointer to (parent) guest stream. */
@@ -328,12 +357,8 @@ typedef struct PDMAUDIOHSTSTRMOUT
     RTLISTNODE             Node;
     /** Stream properites. */
     PDMPCMPROPS            Props;
-    /** Enabled or disabled flag. */
-    bool                   fEnabled;
-    /** Whether this stream was marked as being disabled
-     *  but there are still associated guest output streams
-     *  which rely on its data. */
-    bool                   fPendingDisable;
+    /** Stream status flag. */
+    PDMAUDIOSTRMSTS        fStatus;
     /** This stream's mixing buffer. */
     PDMAUDIOMIXBUF         MixBuf;
     /** Associated guest output streams. */
@@ -351,6 +376,9 @@ typedef struct PDMAUDIOGSTSTRMSTATE
     bool                   fEmpty;
     /** Name of this stream. */
     char                  *pszName;
+    /** Number of references to this stream. Only can be
+     *  destroyed if the reference count is reaching 0. */
+    uint8_t                cRefs;
 } PDMAUDIOGSTSTRMSTATE, *PPDMAUDIOGSTSTRMSTATE;
 
 /**
@@ -425,6 +453,24 @@ typedef struct PDMIAUDIOCONNECTOR
     DECLR3CALLBACKMEMBER(int, pfnWrite, (PPDMIAUDIOCONNECTOR pInterface, PPDMAUDIOGSTSTRMOUT pGstStrmOut, const void *pvBuf, uint32_t cbSize, uint32_t *pcbWritten));
 
     /**
+     * Checks whether a specific guest input stream is active or not.
+     *
+     * @returns Whether the specified stream is active or not.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   pGstStrmIn      Pointer to guest input stream.
+     */
+    DECLR3CALLBACKMEMBER(bool, pfnIsActiveIn, (PPDMIAUDIOCONNECTOR pInterface, PPDMAUDIOGSTSTRMIN pGstStrmIn));
+
+    /**
+     * Checks whether a specific guest output stream is active or not.
+     *
+     * @returns Whether the specified stream is active or not.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   pGstStrmOut     Pointer to guest output stream.
+     */
+    DECLR3CALLBACKMEMBER(bool, pfnIsActiveOut, (PPDMIAUDIOCONNECTOR pInterface, PPDMAUDIOGSTSTRMOUT pGstStrmOut));
+
+    /**
      * Checks whether the specified guest input stream is in a working state.
      *
      * @returns True if a host voice in is available, false if not.
@@ -471,23 +517,7 @@ typedef struct PDMIAUDIOCONNECTOR
     DECLR3CALLBACKMEMBER(int, pfnEnableIn, (PPDMIAUDIOCONNECTOR pInterface, PPDMAUDIOGSTSTRMIN pGstStrmIn, bool fEnable));
 
     /**
-     * Closes a specific guest input stream.
-     *
-     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
-     * @param   pGstStrmIn      Pointer to guest input stream.
-     */
-    DECLR3CALLBACKMEMBER(void, pfnCloseIn, (PPDMIAUDIOCONNECTOR pInterface, PPDMAUDIOGSTSTRMIN pGstStrmIn));
-
-    /**
-     * Closes a specific guest output stream.
-     *
-     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
-     * @param   pGstStrmOut     Pointer to guest output stream.
-     */
-    DECLR3CALLBACKMEMBER(void, pfnCloseOut, (PPDMIAUDIOCONNECTOR pInterface, PPDMAUDIOGSTSTRMOUT pGstStrmOut));
-
-    /**
-     * Opens an input audio channel.
+     * Creates a guest input stream.
      *
      * @returns VBox status code.
      * @param   pInterface           Pointer to the interface structure containing the called function pointer.
@@ -496,12 +526,12 @@ typedef struct PDMIAUDIOCONNECTOR
      * @param   pCfg                 Pointer to PDMAUDIOSTREAMCFG to use.
      * @param   ppGstStrmIn          Pointer where to return the guest guest input stream on success.
      */
-    DECLR3CALLBACKMEMBER(int, pfnOpenIn, (PPDMIAUDIOCONNECTOR pInterface, const char *pszName,
-                                          PDMAUDIORECSOURCE enmRecSource, PPDMAUDIOSTREAMCFG pCfg,
-                                          PPDMAUDIOGSTSTRMIN *ppGstStrmIn));
+    DECLR3CALLBACKMEMBER(int, pfnCreateIn, (PPDMIAUDIOCONNECTOR pInterface, const char *pszName,
+                                            PDMAUDIORECSOURCE enmRecSource, PPDMAUDIOSTREAMCFG pCfg,
+                                            PPDMAUDIOGSTSTRMIN *ppGstStrmIn));
 
     /**
-     * Opens an output audio channel.
+     * Creates a guest output stream.
      *
      * @returns VBox status code.
      * @param   pInterface           Pointer to the interface structure containing the called function pointer.
@@ -509,8 +539,24 @@ typedef struct PDMIAUDIOCONNECTOR
      * @param   pCfg                 Pointer to PDMAUDIOSTREAMCFG to use.
      * @param   ppGstStrmOut         Pointer where to return the guest guest input stream on success.
      */
-    DECLR3CALLBACKMEMBER(int, pfnOpenOut, (PPDMIAUDIOCONNECTOR pInterface, const char *pszName,
-                                           PPDMAUDIOSTREAMCFG pCfg, PPDMAUDIOGSTSTRMOUT *ppGstStrmOut));
+    DECLR3CALLBACKMEMBER(int, pfnCreateOut, (PPDMIAUDIOCONNECTOR pInterface, const char *pszName,
+                                             PPDMAUDIOSTREAMCFG pCfg, PPDMAUDIOGSTSTRMOUT *ppGstStrmOut));
+
+    /**
+     * Destroys a guest input stream.
+     *
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   pGstStrmIn      Pointer to guest input stream.
+     */
+    DECLR3CALLBACKMEMBER(void, pfnDestroyIn, (PPDMIAUDIOCONNECTOR pInterface, PPDMAUDIOGSTSTRMIN pGstStrmIn));
+
+    /**
+     * Destroys a guest output stream.
+     *
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   pGstStrmOut     Pointer to guest output stream.
+     */
+    DECLR3CALLBACKMEMBER(void, pfnDestroyOut, (PPDMIAUDIOCONNECTOR pInterface, PPDMAUDIOGSTSTRMOUT pGstStrmOut));
 
     /**
      * Plays (transfers) all available samples via the connected host backend.
@@ -521,43 +567,32 @@ typedef struct PDMIAUDIOCONNECTOR
      */
     DECLR3CALLBACKMEMBER(int, pfnPlayOut, (PPDMIAUDIOCONNECTOR pInterface, uint32_t *pcSamplesPlayed));
 
-    /**
-     * Checks whether a specific guest input stream is active or not.
-     *
-     * @returns Whether the specified stream is active or not.
-     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
-     * @param   pGstStrmIn      Pointer to guest input stream.
-     */
-    DECLR3CALLBACKMEMBER(bool, pfnIsActiveIn, (PPDMIAUDIOCONNECTOR pInterface, PPDMAUDIOGSTSTRMIN pGstStrmIn));
-
-    /**
-     * Checks whether a specific guest output stream is active or not.
-     *
-     * @returns Whether the specified stream is active or not.
-     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
-     * @param   pGstStrmOut     Pointer to guest output stream.
-     */
-    DECLR3CALLBACKMEMBER(bool, pfnIsActiveOut, (PPDMIAUDIOCONNECTOR pInterface, PPDMAUDIOGSTSTRMOUT pGstStrmOut));
-
 } PDMIAUDIOCONNECTOR;
 
 /** PDMIAUDIOCONNECTOR interface ID. */
-#define PDMIAUDIOCONNECTOR_IID                  "a41ca770-ed07-4f57-a0a6-41377d9d484f"
+#define PDMIAUDIOCONNECTOR_IID                  "7bbb9565-8dd2-4fab-81d6-4d78985e5daa"
 
-/** Defines all needed interface callbacks for an audio backend. */
-#define PDMAUDIO_IHOSTAUDIO_CALLBACKS(_aDrvName) \
-    pThis->IHostAudio.pfnCaptureIn  = _aDrvName##CaptureIn;  \
-    pThis->IHostAudio.pfnControlIn  = _aDrvName##ControlIn;  \
-    pThis->IHostAudio.pfnControlOut = _aDrvName##ControlOut; \
-    pThis->IHostAudio.pfnFiniIn     = _aDrvName##FiniIn;     \
-    pThis->IHostAudio.pfnFiniOut    = _aDrvName##FiniOut;    \
-    pThis->IHostAudio.pfnGetConf    = _aDrvName##GetConf;    \
-    pThis->IHostAudio.pfnInit       = _aDrvName##Init;       \
-    pThis->IHostAudio.pfnInitIn     = _aDrvName##InitIn;     \
-    pThis->IHostAudio.pfnInitOut    = _aDrvName##InitOut;    \
-    pThis->IHostAudio.pfnIsEnabled  = _aDrvName##IsEnabled;  \
-    pThis->IHostAudio.pfnPlayOut    = _aDrvName##PlayOut;    \
-    pThis->IHostAudio.pfnShutdown   = _aDrvName##Shutdown;
+
+/**
+ * Assign all needed interface callbacks for an audio backend.
+ *
+ * @param   a_NamePrefix        The function name prefix.
+ */
+#define PDMAUDIO_IHOSTAUDIO_CALLBACKS(a_NamePrefix) \
+    do { \
+        pThis->IHostAudio.pfnInit       = RT_CONCAT(a_NamePrefix,Init); \
+        pThis->IHostAudio.pfnShutdown   = RT_CONCAT(a_NamePrefix,Shutdown); \
+        pThis->IHostAudio.pfnInitIn     = RT_CONCAT(a_NamePrefix,InitIn); \
+        pThis->IHostAudio.pfnInitOut    = RT_CONCAT(a_NamePrefix,InitOut); \
+        pThis->IHostAudio.pfnControlOut = RT_CONCAT(a_NamePrefix,ControlOut); \
+        pThis->IHostAudio.pfnControlIn  = RT_CONCAT(a_NamePrefix,ControlIn); \
+        pThis->IHostAudio.pfnFiniIn     = RT_CONCAT(a_NamePrefix,FiniIn); \
+        pThis->IHostAudio.pfnFiniOut    = RT_CONCAT(a_NamePrefix,FiniOut); \
+        pThis->IHostAudio.pfnIsEnabled  = RT_CONCAT(a_NamePrefix,IsEnabled); \
+        pThis->IHostAudio.pfnPlayOut    = RT_CONCAT(a_NamePrefix,PlayOut); \
+        pThis->IHostAudio.pfnCaptureIn  = RT_CONCAT(a_NamePrefix,CaptureIn); \
+        pThis->IHostAudio.pfnGetConf    = RT_CONCAT(a_NamePrefix,GetConf); \
+    } while (0)
 
 /** Pointer to a host audio interface. */
 typedef struct PDMIHOSTAUDIO *PPDMIHOSTAUDIO;
@@ -681,7 +716,11 @@ typedef struct PDMIHOSTAUDIO
     DECLR3CALLBACKMEMBER(int, pfnGetConf, (PPDMIHOSTAUDIO pInterface, PPDMAUDIOBACKENDCFG pBackendCfg));
 
 } PDMIHOSTAUDIO;
+
+/** PDMIHOSTAUDIO interface ID. */
 #define PDMIHOSTAUDIO_IID                           "39feea4f-c824-4197-bcff-7d4a6ede7420"
 
-#endif /* ___VBox_vmm_pdmaudioifs_h */
+/** @} */
+
+#endif /* !___VBox_vmm_pdmaudioifs_h */
 

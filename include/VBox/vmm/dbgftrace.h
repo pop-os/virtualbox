@@ -30,13 +30,13 @@
 #include <VBox/types.h>
 
 RT_C_DECLS_BEGIN
-/** @addgroup grp_dbgf_trace  Tracing
+/** @defgroup grp_dbgf_trace  Tracing
  * @ingroup grp_dbgf
  *
  * @{
  */
 
-#if (defined(RTTRACE_ENABLED) || DBGFTRACE_ENABLED) && !defined(DBGFTRACE_DISABLED)
+#if (defined(RTTRACE_ENABLED) || defined(DBGFTRACE_ENABLED)) && !defined(DBGFTRACE_DISABLED)
 # undef DBGFTRACE_ENABLED
 # undef DBGFTRACE_DISABLED
 # define DBGFTRACE_ENABLED
