@@ -1,3 +1,10 @@
+virtualbox (5.0.10-dfsg-2) unstable; urgency=medium
+
+  * Fix lintian error about malformed override.
+  * Bump compat level to 9.
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Fri, 13 Nov 2015 19:36:14 +0100
+
 virtualbox (5.0.10-dfsg-1) unstable; urgency=medium
 
   * New upstream release, patch refresh.
