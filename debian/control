@@ -71,7 +71,7 @@ X-Python-Version: >= 2.5
 Standards-Version: 3.9.6
 Homepage: http://www.virtualbox.org/
 Vcs-Git: git://anonscm.debian.org/pkg-virtualbox/virtualbox.git
-Vcs-Browser: http://anonscm.debian.org/gitweb/?p=pkg-virtualbox/virtualbox.git
+Vcs-Browser: https://anonscm.debian.org/cgit/pkg-virtualbox/virtualbox.git
 
 Package: virtualbox-qt
 Architecture: amd64 i386
