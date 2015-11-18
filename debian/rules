@@ -18,8 +18,6 @@ MAKE:=kmk
 
 upstreamversion := $(shell dpkg-parsechangelog | sed -n 's/^Version: *\([^-]\+\)-.\+/\1/p')
 
-pkgs_xzcompress = $(shell dh_listpackages | grep -v -e source)
-
 DIST_NAME := $(shell lsb_release -si)
 DIST_RELEASE := $(DIST_NAME)/$(shell lsb_release -sc)
 
@@ -192,10 +190,6 @@ override_dh_shlibdeps:
 
 override_dh_compress:
 	dh_compress -X.pdf
-
-override_dh_builddeb:
-	dh_builddeb $(foreach pkg,$(pkgs_xzcompress),-p$(pkg)) -- -Zxz
-	dh_builddeb --remaining-packages
 
 override_dh_auto_clean:
 	dh_auto_clean
