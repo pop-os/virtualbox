@@ -1,8 +1,17 @@
-virtualbox (5.0.10-dfsg-3) UNRELEASED; urgency=medium
+virtualbox (5.0.10-dfsg-3) unstable; urgency=medium
 
   [ Mattia Rizzolo ]
   * Fix cgit VCS field
   * Stop overriding dh_builddeb, the new dpkg already defaults to xz.
+
+  [ Gianfranco Costamagna ]
+  * add x11-xserver-utils to x11 runtime dependencies, needed for xrandr
+    (Closes: #805752). A great thanks to Ross Boylan for digging into the
+    issue and reporting the fix!
+  * Add a missing Provide of virtualbox-module package
+    (and drop the lintian override)
+  * Drop old and useless README.Debian for guest-x11 package.
+    thanks again Ross Boylan for the fix!
 
  -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 18 Nov 2015 12:30:13 +0100
 

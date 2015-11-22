@@ -129,6 +129,7 @@ Section: contrib/kernel
 Architecture: all
 Depends: ${misc:Depends}
 Recommends: virtualbox (>= ${source:Version})
+Provides: virtualbox-modules
 Description: x86 virtualization solution - kernel module sources for dkms
  VirtualBox is a free x86 virtualization solution allowing a wide range
  of x86 operating systems such as Windows, DOS, BSD or Linux to run on a
@@ -203,6 +204,7 @@ Package: virtualbox-guest-x11
 Section: contrib/x11
 Architecture: amd64 i386
 Depends: libnotify-bin, xserver-xorg-legacy,
+         x11-xserver-utils,
          virtualbox-guest-utils (= ${binary:Version}),
          ${misc:Depends},
          ${shlibs:Depends},

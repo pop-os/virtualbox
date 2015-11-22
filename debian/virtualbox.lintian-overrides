@@ -18,4 +18,3 @@ virtualbox: setuid-gid-binary usr/lib/virtualbox/VBoxNetDHCP 6755 root/root
 virtualbox: setuid-gid-binary usr/lib/virtualbox/VBoxSDL 6755 root/root
 virtualbox: jar-not-in-usr-share usr/lib/virtualbox/sdk/bindings/xpcom/java/vboxjxpcom.jar
 virtualbox: embedded-library usr/lib/virtualbox/VBoxXPCOM.so: nspr
-virtualbox: version-substvar-for-external-package
