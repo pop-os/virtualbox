@@ -31,7 +31,7 @@ export DEB_BUILD_HARDENING_FORMAT=0
 export DEB_BUILD_HARDENING_BINDNOW=0
 
 %:
-	dh $@ --with python2,dkms
+	dh $@ --with python2,dkms,systemd
 
 override_dh_auto_configure:
 	@echo Building for $(DIST_RELEASE)
@@ -166,6 +166,10 @@ endif
 override_dh_installinit:
 	dh_installinit -p$(uxname) --no-start --update-rcd-params="start 45 S ."
 	dh_installinit --remaining-packages --no-start
+
+override_dh_systemd_enable:
+	install -m 644 debian/vboxweb.service debian/$(sname)/lib/systemd/system/
+	dh_systemd_enable -p$(sname) --name vboxweb debian/vboxweb.service
 
 override_dh_dkms:
 	dh_dkms -V $(upstreamversion)
