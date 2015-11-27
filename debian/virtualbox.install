@@ -29,3 +29,4 @@ out/bin/sdk/bindings/xpcom/python /usr/lib/virtualbox/sdk/bindings/xpcom
 
 out/bin/VBoxCreateUSBNode.sh /lib/udev
 out/bin/VBoxSysInfo.sh /usr/share/virtualbox
+debian/vboxweb.service /lib/systemd/system/
