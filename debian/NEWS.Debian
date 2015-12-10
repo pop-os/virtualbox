@@ -1,0 +1,8 @@
+virtualbox (5.0.10-dfsg-6) unstable; urgency=medium
+
+  * A new vboxweb.service Web Service has been added, running vboxwebsrv.
+    the service is disabled by default, so it needs to be enabled manually with
+    systemctl enable vboxweb and systemctl start vboxweb.
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Thu, 10 Dec 2015 11:21:32 +0100
+
