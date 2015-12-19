@@ -945,7 +945,7 @@ static DECLCALLBACK(int) drvHostALSAAudioPlayOut(PPDMIHOSTAUDIO pInterface, PPDM
         size_t cbToRead = RT_MIN(AUDIOMIXBUF_S2B(&pHstStrmOut->MixBuf,
                                                  (uint32_t)cAvail), /* cAvail is always >= 0 */
                                  AUDIOMIXBUF_S2B(&pHstStrmOut->MixBuf,
-                                                 drvAudioHstOutSamplesLive(pHstStrmOut)));
+                                                 AudioMixBufAvail(&pHstStrmOut->MixBuf)));
         LogFlowFunc(("cbToRead=%zu, cbAvail=%zu\n",
                      cbToRead, AUDIOMIXBUF_S2B(&pHstStrmOut->MixBuf, cAvail)));
 
@@ -1117,7 +1117,7 @@ static DECLCALLBACK(int) drvHostALSAAudioInitOut(PPDMIHOSTAUDIO pInterface,
         streamCfg.enmFormat     = enmFormat;
         streamCfg.enmEndianness = enmEnd;
 
-        rc = drvAudioStreamCfgToProps(&streamCfg, &pHstStrmOut->Props);
+        rc = DrvAudioStreamCfgToProps(&streamCfg, &pHstStrmOut->Props);
         if (RT_FAILURE(rc))
             break;
 
@@ -1188,7 +1188,7 @@ static DECLCALLBACK(int) drvHostALSAAudioInitIn(PPDMIHOSTAUDIO pInterface,
         streamCfg.enmFormat     = enmFormat;
         streamCfg.enmEndianness = enmEnd;
 
-        rc = drvAudioStreamCfgToProps(&streamCfg, &pHstStrmIn->Props);
+        rc = DrvAudioStreamCfgToProps(&streamCfg, &pHstStrmIn->Props);
         if (RT_FAILURE(rc))
             break;
 
@@ -1239,10 +1239,12 @@ static DECLCALLBACK(int) drvHostALSAAudioControlIn(PPDMIHOSTAUDIO pInterface, PP
     switch (enmStreamCmd)
     {
         case PDMAUDIOSTREAMCMD_ENABLE:
+        case PDMAUDIOSTREAMCMD_RESUME:
             rc = drvHostALSAAudioStreamCtl(pThisStrmIn->phPCM, false /* fStop */);
             break;
 
         case PDMAUDIOSTREAMCMD_DISABLE:
+        case PDMAUDIOSTREAMCMD_PAUSE:
             rc = drvHostALSAAudioStreamCtl(pThisStrmIn->phPCM, true /* fStop */);
             break;
 
@@ -1268,10 +1270,12 @@ static DECLCALLBACK(int) drvHostALSAAudioControlOut(PPDMIHOSTAUDIO pInterface, P
     switch (enmStreamCmd)
     {
         case PDMAUDIOSTREAMCMD_ENABLE:
+        case PDMAUDIOSTREAMCMD_RESUME:
             rc = drvHostALSAAudioStreamCtl(pThisStrmOut->phPCM, false /* fStop */);
             break;
 
         case PDMAUDIOSTREAMCMD_DISABLE:
+        case PDMAUDIOSTREAMCMD_PAUSE:
             rc = drvHostALSAAudioStreamCtl(pThisStrmOut->phPCM, true /* fStop */);
             break;
 

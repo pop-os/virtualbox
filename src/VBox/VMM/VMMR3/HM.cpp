@@ -553,7 +553,7 @@ VMMR3_INT_DECL(int) HMR3Init(PVM pVM)
                     break;
 
                 case VERR_VMX_MSR_ALL_VMX_DISABLED:
-                    pszMsg = "VT-x is disabled in the BIOS for both all CPU modes";
+                    pszMsg = "VT-x is disabled in the BIOS for all CPU modes";
                     break;
 
                 case VERR_VMX_MSR_LOCKING_FAILED:
@@ -1044,6 +1044,7 @@ static int hmR3InitFinalizeR0Intel(PVM pVM)
     LogRel(("HM: Using VT-x implementation 2.0!\n"));
     LogRel(("HM: Host CR4                        = %#RX64\n", pVM->hm.s.vmx.u64HostCr4));
     LogRel(("HM: Host EFER                       = %#RX64\n", pVM->hm.s.vmx.u64HostEfer));
+    LogRel(("HM: MSR_IA32_SMM_MONITOR_CTL        = %#RX64\n", pVM->hm.s.vmx.u64HostSmmMonitorCtl));
     LogRel(("HM: MSR_IA32_FEATURE_CONTROL        = %#RX64\n", pVM->hm.s.vmx.Msrs.u64FeatureCtrl));
     if (!(pVM->hm.s.vmx.Msrs.u64FeatureCtrl & MSR_IA32_FEATURE_CONTROL_LOCK))
         LogRel(("HM:   IA32_FEATURE_CONTROL lock bit not set, possibly bad hardware!\n"));

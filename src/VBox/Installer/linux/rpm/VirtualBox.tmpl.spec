@@ -78,6 +78,8 @@ mv VBoxEFI64.fd $RPM_BUILD_ROOT/usr/lib/virtualbox || true
 mv *.rc $RPM_BUILD_ROOT/usr/lib/virtualbox
 mv *.r0 $RPM_BUILD_ROOT/usr/lib/virtualbox
 mv *.rel $RPM_BUILD_ROOT/usr/lib/virtualbox || true
+install -m 755 -d $RPM_BUILD_ROOT/usr/lib/debug/usr/lib/virtualbox
+mv *.debug $RPM_BUILD_ROOT/usr/lib/debug/usr/lib/virtualbox
 mv VBoxNetDHCP $RPM_BUILD_ROOT/usr/lib/virtualbox
 mv VBoxNetNAT $RPM_BUILD_ROOT/usr/lib/virtualbox
 mv VBoxNetAdpCtl $RPM_BUILD_ROOT/usr/lib/virtualbox

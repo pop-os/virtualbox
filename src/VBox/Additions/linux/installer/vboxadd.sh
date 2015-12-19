@@ -1,6 +1,6 @@
 #! /bin/sh
 #
-# Linux Additions kernel module init script ($Revision: 104011 $)
+# Linux Additions kernel module init script ($Revision: 104307 $)
 #
 
 #
@@ -253,6 +253,13 @@ do_vboxguest_non_udev()
 start()
 {
     begin "Starting the VirtualBox Guest Additions ";
+    if test -r $config; then
+      . $config
+    else
+      fail "Configuration file $config not found"
+    fi
+    test -n "$INSTALL_DIR" -a -n "$INSTALL_VER" ||
+      fail "Configuration file $config not complete"
     uname -r | grep -q -E '^2\.6|^3|^4' 2>/dev/null &&
         ps -A -o comm | grep -q '/*udevd$' 2>/dev/null ||
         no_udev=1
@@ -473,6 +480,7 @@ setup()
     export BUILD_TYPE
     export USERNAME
 
+    rm -f $LOG
     MODULE_SRC="$INSTALL_DIR/src/vboxguest-$INSTALL_VER"
     BUILDINTMP="$MODULE_SRC/build_in_tmp"
     DODKMS="$MODULE_SRC/do_dkms"

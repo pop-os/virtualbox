@@ -1214,6 +1214,13 @@ void UISession::prepareScreens()
         if (countOfVisibleWindows() < 1)
             m_monitorVisibilityVector[0] = true;
     }
+
+    /* Prepare initial screen visibility status of host-desires.
+     * This is mostly dummy initialization as host-desires should get updated later in multi-screen layout.
+     * By default making host-desires same as facts. */
+    m_monitorVisibilityVectorHostDesires.resize(machine().GetMonitorCount());
+    for (int iScreenIndex = 0; iScreenIndex < m_monitorVisibilityVector.size(); ++iScreenIndex)
+        m_monitorVisibilityVectorHostDesires[iScreenIndex] = m_monitorVisibilityVector[iScreenIndex];
 }
 
 void UISession::prepareFramebuffers()
@@ -1447,6 +1454,103 @@ WId UISession::winId() const
     return mainMachineWindow()->winId();
 }
 
+/** Generate a BGRA bitmap which approximates a XOR/AND mouse pointer.
+ *
+ * Pixels which has 1 in the AND mask and not 0 in the XOR mask are replaced by
+ * the inverted pixel and 8 surrounding pixels with the original color.
+ * Fort example a white pixel (W) is replaced with a black (B) pixel:
+ *         WWW
+ *  W   -> WBW
+ *         WWW
+ * The surrounding pixels are written only if the corresponding source pixel
+ * does not affect the screen, i.e. AND bit is 1 and XOR value is 0.
+ */
+static void renderCursorPixels(const uint32_t *pu32XOR, const uint8_t *pu8AND,
+                               uint32_t u32Width, uint32_t u32Height,
+                               uint32_t *pu32Pixels, uint32_t cbPixels)
+{
+    /* Output pixels set to 0 which allow to not write transparent pixels anymore. */
+    memset(pu32Pixels, 0, cbPixels);
+
+    const uint32_t *pu32XORSrc = pu32XOR;  /* Iterator for source XOR pixels. */
+    const uint8_t *pu8ANDSrcLine = pu8AND; /* The current AND mask scanline. */
+    uint32_t *pu32Dst = pu32Pixels;        /* Iterator for all destination BGRA pixels. */
+
+    /* Some useful constants. */
+    const int cbANDLine = ((int)u32Width + 7) / 8;
+
+    int y;
+    for (y = 0; y < (int)u32Height; ++y)
+    {
+        int x;
+        for (x = 0; x < (int)u32Width; ++x)
+        {
+            const uint32_t u32Pixel = *pu32XORSrc; /* Current pixel at (x,y) */
+            const uint8_t *pu8ANDSrc = pu8ANDSrcLine + x / 8; /* Byte which containt current AND bit. */
+
+            if ((*pu8ANDSrc << (x % 8)) & 0x80)
+            {
+                if (u32Pixel)
+                {
+                    const uint32_t u32PixelInverted = ~u32Pixel;
+
+                    /* Scan neighbor pixels and assign them if they are transparent. */
+                    int dy;
+                    for (dy = -1; dy <= 1; ++dy)
+                    {
+                        const int yn = y + dy;
+                        if (yn < 0 || yn >= (int)u32Height)
+                            continue; /* Do not cross the bounds. */
+
+                        int dx;
+                        for (dx = -1; dx <= 1; ++dx)
+                        {
+                            const int xn = x + dx;
+                            if (xn < 0 || xn >= (int)u32Width)
+                                continue;  /* Do not cross the bounds. */
+
+                            if (dx != 0 || dy != 0)
+                            {
+                                /* Check if the neighbor pixel is transparent. */
+                                const uint32_t *pu32XORNeighborSrc = &pu32XORSrc[dy * (int)u32Width + dx];
+                                const uint8_t *pu8ANDNeighborSrc = pu8ANDSrcLine + dy * cbANDLine + xn / 8;
+                                if (   *pu32XORNeighborSrc == 0
+                                    && ((*pu8ANDNeighborSrc << (xn % 8)) & 0x80) != 0)
+                                {
+                                    /* Transparent neighbor pixels are replaced with the source pixel value. */
+                                    uint32_t *pu32PixelNeighborDst = &pu32Dst[dy * (int)u32Width + dx];
+                                    *pu32PixelNeighborDst = u32Pixel | 0xFF000000;
+                                }
+                            }
+                            else
+                            {
+                                /* The pixel itself is replaced with inverted value. */
+                                *pu32Dst = u32PixelInverted | 0xFF000000;
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    /* The pixel does not affect the screen.
+                     * Do nothing. Do not touch destination which can already contain generated pixels.
+                     */
+                }
+            }
+            else
+            {
+                /* AND bit is 0, the pixel will be just drawn. */
+                *pu32Dst = u32Pixel | 0xFF000000;
+            }
+
+            ++pu32XORSrc; /* Next source pixel. */
+            ++pu32Dst;    /* Next destination pixel. */
+        }
+
+        /* Next AND scanline. */
+        pu8ANDSrcLine += cbANDLine;
+    }
+}
 void UISession::setPointerShape(const uchar *pShapeData, bool fHasAlpha,
                                 uint uXHot, uint uYHot, uint uWidth, uint uHeight)
 {
@@ -1595,39 +1699,15 @@ void UISession::setPointerShape(const uchar *pShapeData, bool fHasAlpha,
 
         XcursorPixel *dstShapePtr = img->pixels;
 
-        for (uint y = 0; y < uHeight; y ++)
+        if (fHasAlpha)
         {
-            memcpy (dstShapePtr, srcShapePtr, srcShapePtrScan);
-
-            if (!fHasAlpha)
-            {
-                /* Convert AND mask to the alpha channel: */
-                uchar byte = 0;
-                for (uint x = 0; x < uWidth; x ++)
-                {
-                    if (!(x % 8))
-                        byte = *(srcAndMaskPtr ++);
-                    else
-                        byte <<= 1;
-
-                    if (byte & 0x80)
-                    {
-                        /* Linux doesn't support inverted pixels (XOR ops,
-                         * to be exact) in cursor shapes, so we detect such
-                         * pixels and always replace them with black ones to
-                         * make them visible at least over light colors */
-                        if (dstShapePtr [x] & 0x00FFFFFF)
-                            dstShapePtr [x] = 0xFF000000;
-                        else
-                            dstShapePtr [x] = 0x00000000;
-                    }
-                    else
-                        dstShapePtr [x] |= 0xFF000000;
-                }
-            }
-
-            srcShapePtr += srcShapePtrScan;
-            dstShapePtr += uWidth;
+            memcpy(dstShapePtr, srcShapePtr, uHeight * srcShapePtrScan);
+        }
+        else
+        {
+            renderCursorPixels((uint32_t *)srcShapePtr, srcAndMaskPtr,
+                               uWidth, uHeight,
+                               dstShapePtr, uHeight * srcShapePtrScan);
         }
 
         /* Set the new cursor: */
@@ -1641,33 +1721,16 @@ void UISession::setPointerShape(const uchar *pShapeData, bool fHasAlpha,
 
     /* Create a ARGB image out of the shape data. */
     QImage image  (uWidth, uHeight, QImage::Format_ARGB32);
-    const uint8_t* pbSrcMask = static_cast<const uint8_t*> (srcAndMaskPtr);
-    unsigned cbSrcMaskLine = RT_ALIGN (uWidth, 8) / 8;
-    for (unsigned int y = 0; y < uHeight; ++y)
+
+    if (fHasAlpha)
     {
-        for (unsigned int x = 0; x < uWidth; ++x)
-        {
-           unsigned int color = ((unsigned int*)srcShapePtr)[y*uWidth+x];
-           /* If the alpha channel isn't in the shape data, we have to
-            * create them from the and-mask. This is a bit field where 1
-            * represent transparency & 0 opaque respectively. */
-           if (!fHasAlpha)
-           {
-               if (!(pbSrcMask[x / 8] & (1 << (7 - (x % 8)))))
-                   color  |= 0xff000000;
-               else
-               {
-                   /* This isn't quite right, but it's the best we can do I think... */
-                   if (color & 0x00ffffff)
-                       color = 0xff000000;
-                   else
-                       color = 0x00000000;
-               }
-           }
-           image.setPixel (x, y, color);
-        }
-        /* Move one scanline forward. */
-        pbSrcMask += cbSrcMaskLine;
+        memcpy(image.bits(), srcShapePtr, uHeight * uWidth * 4);
+    }
+    else
+    {
+        renderCursorPixels((uint32_t *)srcShapePtr, srcAndMaskPtr,
+                           uWidth, uHeight,
+                           (uint32_t *)image.bits(), uHeight * uWidth * 4);
     }
 
     /* Set the new cursor: */
@@ -1840,6 +1903,24 @@ bool UISession::postprocessInitialization()
 
     /* True by default: */
     return true;
+}
+
+bool UISession::isScreenVisibleHostDesires(ulong uScreenId) const
+{
+    /* Make sure index feats the bounds: */
+    AssertReturn(uScreenId < (ulong)m_monitorVisibilityVectorHostDesires.size(), false);
+
+    /* Return 'actual' (host-desire) visibility status: */
+    return m_monitorVisibilityVectorHostDesires.value((int)uScreenId);
+}
+
+void UISession::setScreenVisibleHostDesires(ulong uScreenId, bool fIsMonitorVisible)
+{
+    /* Make sure index feats the bounds: */
+    AssertReturnVoid(uScreenId < (ulong)m_monitorVisibilityVectorHostDesires.size());
+
+    /* Remember 'actual' (host-desire) visibility status: */
+    m_monitorVisibilityVectorHostDesires[(int)uScreenId] = fIsMonitorVisible;
 }
 
 bool UISession::isScreenVisible(ulong uScreenId) const

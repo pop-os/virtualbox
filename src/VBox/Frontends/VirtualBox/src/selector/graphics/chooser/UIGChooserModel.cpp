@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2013 Oracle Corporation
+ * Copyright (C) 2012-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1099,9 +1099,10 @@ void UIGChooserModel::sltStartScrolling()
     QGraphicsView *pView = scene()->views()[0];
     QScrollBar *pVerticalScrollBar = pView->verticalScrollBar();
 
-    /* Request still valid? */
+    /* Convert mouse position to view co-ordinates: */
     QPoint mousePos = pView->mapFromGlobal(QCursor::pos());
-    if (mousePos.y() < m_iScrollingTokenSize)
+    /* Mouse position is at the top of view? */
+    if (mousePos.y() < m_iScrollingTokenSize && mousePos.y() > 0)
     {
         int iValue = mousePos.y();
         if (!iValue) iValue = 1;
@@ -1114,7 +1115,8 @@ void UIGChooserModel::sltStartScrolling()
             QTimer::singleShot(10, this, SLOT(sltStartScrolling()));
         }
     }
-    else if (mousePos.y() > pView->height() - m_iScrollingTokenSize)
+    /* Mouse position is at the bottom of view? */
+    else if (mousePos.y() > pView->height() - m_iScrollingTokenSize && mousePos.y() < pView->height())
     {
         int iValue = pView->height() - mousePos.y();
         if (!iValue) iValue = 1;
@@ -1379,9 +1381,12 @@ bool UIGChooserModel::eventFilter(QObject *pWatched, QEvent *pEvent)
         /* Context-menu handler: */
         case QEvent::GraphicsSceneContextMenu:
             return processContextMenuEvent(static_cast<QGraphicsSceneContextMenuEvent*>(pEvent));
-        /* Drag&drop scroll-event handler: */
+        /* Drag&drop scroll-event (drag-move) handler: */
         case QEvent::GraphicsSceneDragMove:
             return processDragMoveEvent(static_cast<QGraphicsSceneDragDropEvent*>(pEvent));
+        /* Drag&drop scroll-event (drag-leave) handler: */
+        case QEvent::GraphicsSceneDragLeave:
+            return processDragLeaveEvent(static_cast<QGraphicsSceneDragDropEvent*>(pEvent));
     }
 
     /* Call to base-class: */
@@ -1679,6 +1684,19 @@ bool UIGChooserModel::processDragMoveEvent(QGraphicsSceneDragDropEvent *pEvent)
         /* Start scrolling: */
         QTimer::singleShot(200, this, SLOT(sltStartScrolling()));
     }
+
+    /* Pass event: */
+    return false;
+}
+
+bool UIGChooserModel::processDragLeaveEvent(QGraphicsSceneDragDropEvent *pEvent)
+{
+    /* Event object is not required here: */
+    Q_UNUSED(pEvent);
+
+    /* Make sure to stop scrolling as drag-leave event happened: */
+    if (m_fIsScrollingInProgress)
+        m_fIsScrollingInProgress = false;
 
     /* Pass event: */
     return false;

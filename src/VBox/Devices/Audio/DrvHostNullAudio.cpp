@@ -54,17 +54,17 @@
 typedef struct NULLAUDIOSTREAMOUT
 {
     /** Note: Always must come first! */
-    PDMAUDIOHSTSTRMOUT hw;
+    PDMAUDIOHSTSTRMOUT streamOut;
     uint64_t u64TicksLast;
     uint64_t csPlayBuffer;
     uint8_t *pu8PlayBuffer;
-} NULLAUDIOSTREAMOUT;
+} NULLAUDIOSTREAMOUT, *PNULLAUDIOSTREAMOUT;
 
 typedef struct NULLAUDIOSTREAMIN
 {
     /** Note: Always must come first! */
-    PDMAUDIOHSTSTRMIN hw;
-} NULLAUDIOSTREAMIN;
+    PDMAUDIOHSTSTRMIN  streamIn;
+} NULLAUDIOSTREAMIN, *PNULLAUDIOSTREAMIN;
 
 /**
  * NULL audio driver instance data.
@@ -111,7 +111,7 @@ static DECLCALLBACK(int) drvHostNullAudioInitIn(PPDMIHOSTAUDIO pInterface,
     NOREF(enmRecSource);
 
     /* Just adopt the wanted stream configuration. */
-    int rc = drvAudioStreamCfgToProps(pCfg, &pHstStrmIn->Props);
+    int rc = DrvAudioStreamCfgToProps(pCfg, &pHstStrmIn->Props);
     if (RT_SUCCESS(rc))
     {
         if (pcSamples)
@@ -128,10 +128,10 @@ static DECLCALLBACK(int) drvHostNullAudioInitOut(PPDMIHOSTAUDIO pInterface,
     NOREF(pInterface);
 
     /* Just adopt the wanted stream configuration. */
-    int rc = drvAudioStreamCfgToProps(pCfg, &pHstStrmOut->Props);
+    int rc = DrvAudioStreamCfgToProps(pCfg, &pHstStrmOut->Props);
     if (RT_SUCCESS(rc))
     {
-        NULLAUDIOSTREAMOUT *pNullStrmOut = (NULLAUDIOSTREAMOUT *)pHstStrmOut;
+        PNULLAUDIOSTREAMOUT pNullStrmOut = (PNULLAUDIOSTREAMOUT)pHstStrmOut;
         pNullStrmOut->u64TicksLast = 0;
         pNullStrmOut->csPlayBuffer = _1K;
         pNullStrmOut->pu8PlayBuffer = (uint8_t *)RTMemAlloc(_1K << pHstStrmOut->Props.cShift);
@@ -160,18 +160,19 @@ static DECLCALLBACK(int) drvHostNullAudioPlayOut(PPDMIHOSTAUDIO pInterface, PPDM
                                                  uint32_t *pcSamplesPlayed)
 {
     PDRVHOSTNULLAUDIO pDrv = RT_FROM_MEMBER(pInterface, DRVHOSTNULLAUDIO, IHostAudio);
-    NULLAUDIOSTREAMOUT *pNullStrmOut = (NULLAUDIOSTREAMOUT *)pHstStrmOut;
+    PNULLAUDIOSTREAMOUT pNullStrmOut = (PNULLAUDIOSTREAMOUT)pHstStrmOut;
 
     /* Consume as many samples as would be played at the current frequency since last call. */
-    uint32_t csLive = drvAudioHstOutSamplesLive(pHstStrmOut);
-    uint64_t u64TicksNow = PDMDrvHlpTMGetVirtualTime(pDrv->pDrvIns);
+    uint32_t csLive          = AudioMixBufAvail(&pHstStrmOut->MixBuf);
+    uint64_t u64TicksNow     = PDMDrvHlpTMGetVirtualTime(pDrv->pDrvIns);
     uint64_t u64TicksElapsed = u64TicksNow  - pNullStrmOut->u64TicksLast;
-    uint64_t u64TicksFreq = PDMDrvHlpTMGetVirtualFreq(pDrv->pDrvIns);
+    uint64_t u64TicksFreq    = PDMDrvHlpTMGetVirtualFreq(pDrv->pDrvIns);
 
     /* Remember when samples were consumed. */
     pNullStrmOut->u64TicksLast = u64TicksNow;
 
-    /* Minimize the rounding error by adding 0.5: samples = int((u64TicksElapsed * samplesFreq) / u64TicksFreq + 0.5).
+    /*
+     * Minimize the rounding error by adding 0.5: samples = int((u64TicksElapsed * samplesFreq) / u64TicksFreq + 0.5).
      * If rounding is not taken into account then the playback rate will be consistently lower that expected.
      */
     uint64_t cSamplesPlayed = (2 * u64TicksElapsed * pHstStrmOut->Props.uHz + u64TicksFreq) / u64TicksFreq / 2;
@@ -183,7 +184,8 @@ static DECLCALLBACK(int) drvHostNullAudioPlayOut(PPDMIHOSTAUDIO pInterface, PPDM
     cSamplesPlayed = RT_MIN(cSamplesPlayed, pNullStrmOut->csPlayBuffer);
 
     uint32_t csRead = 0;
-    AudioMixBufReadCirc(&pHstStrmOut->MixBuf, pNullStrmOut->pu8PlayBuffer, cSamplesPlayed << pHstStrmOut->Props.cShift, &csRead);
+    AudioMixBufReadCirc(&pHstStrmOut->MixBuf, pNullStrmOut->pu8PlayBuffer,
+                        AUDIOMIXBUF_S2B(&pHstStrmOut->MixBuf, cSamplesPlayed), &csRead);
     AudioMixBufFinish(&pHstStrmOut->MixBuf, csRead);
 
     if (pcSamplesPlayed)
@@ -229,8 +231,12 @@ static DECLCALLBACK(int) drvHostNullAudioFiniIn(PPDMIHOSTAUDIO pInterface, PPDMA
 
 static DECLCALLBACK(int) drvHostNullAudioFiniOut(PPDMIHOSTAUDIO pInterface, PPDMAUDIOHSTSTRMOUT pHstStrmOut)
 {
-    NULLAUDIOSTREAMOUT *pNullStrmOut = (NULLAUDIOSTREAMOUT *)pHstStrmOut;
-    RTMemFree(pNullStrmOut->pu8PlayBuffer);
+    PNULLAUDIOSTREAMOUT pNullStrmOut = (PNULLAUDIOSTREAMOUT)pHstStrmOut;
+    if (   pNullStrmOut
+        && pNullStrmOut->pu8PlayBuffer)
+    {
+        RTMemFree(pNullStrmOut->pu8PlayBuffer);
+    }
     return VINF_SUCCESS;
 }
 

@@ -222,6 +222,10 @@ public:
     void setMouseCaptured(bool fIsMouseCaptured) { m_fIsMouseCaptured = fIsMouseCaptured; }
     void setMouseIntegrated(bool fIsMouseIntegrated) { m_fIsMouseIntegrated = fIsMouseIntegrated; }
 
+    /* Screen visibility status for host-desires: */
+    bool isScreenVisibleHostDesires(ulong uScreenId) const;
+    void setScreenVisibleHostDesires(ulong uScreenId, bool fIsMonitorVisible);
+
     /* Screen visibility status: */
     bool isScreenVisible(ulong uScreenId) const;
     void setScreenVisible(ulong uScreenId, bool fIsMonitorVisible);
@@ -229,6 +233,11 @@ public:
     /* Last screen full-screen size: */
     QSize lastFullScreenSize(ulong uScreenId) const;
     void setLastFullScreenSize(ulong uScreenId, QSize size);
+
+    /** Returns whether guest-screen is undrawable.
+     *  @todo: extend this method to all the states when guest-screen is undrawable. */
+    bool isGuestScreenUnDrawable() const { return machineState() == KMachineState_Stopping ||
+                                                  machineState() == KMachineState_Saving; }
 
     /* Returns existing framebuffer for the given screen-number;
      * Returns 0 (asserts) if screen-number attribute is out of bounds: */
@@ -416,6 +425,9 @@ private:
 
     /* Screen visibility vector: */
     QVector<bool> m_monitorVisibilityVector;
+
+    /* Screen visibility vector for host-desires: */
+    QVector<bool> m_monitorVisibilityVectorHostDesires;
 
     /* Screen last full-screen size vector: */
     QVector<QSize> m_monitorLastFullScreenSizeVector;

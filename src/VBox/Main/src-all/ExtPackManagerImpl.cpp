@@ -2525,6 +2525,44 @@ HRESULT ExtPackManager::i_refreshExtPack(const char *a_pszName, bool a_fUnusable
     return hrc;
 }
 
+bool ExtPackManager::isThereAnyRunningVM() const
+{
+    Assert(m->pVirtualBox); /* Only called from VBoxSVC */
+    
+    /*
+     * Get the list of all _running_ VMs
+     */
+    bool fRunning = false;
+    com::SafeIfaceArray<IMachine> machines;
+    com::SafeArray<MachineState_T> states;
+    int rc = m->pVirtualBox->COMGETTER(Machines)(ComSafeArrayAsOutParam(machines));
+    if (SUCCEEDED(rc))
+        rc = m->pVirtualBox->GetMachineStates(ComSafeArrayAsInParam(machines), ComSafeArrayAsOutParam(states));
+    if (SUCCEEDED(rc))
+    {
+        for (size_t i = 0; i < machines.size(); ++i)
+        {
+            if (machines[i])
+            {
+                MachineState_T machineState = states[i];
+                switch (machineState)
+                {
+                    case MachineState_Running:
+                    case MachineState_Teleporting:
+                    case MachineState_LiveSnapshotting:
+                    case MachineState_Paused:
+                    case MachineState_TeleportingPausedVM:
+                        fRunning = true;
+                        break;
+                }
+            }
+            if (fRunning)
+                break;
+        }
+    }
+    return fRunning;
+}
+
 /**
  * Thread wrapper around doInstall.
  *
@@ -2569,13 +2607,24 @@ HRESULT ExtPackManager::i_doInstall(ExtPackFile *a_pExtPackFile, bool a_fReplace
     if (SUCCEEDED(hrc))
     {
         AutoWriteLock autoLock(this COMMA_LOCKVAL_SRC_POS);
-
-        /*
-         * Refresh the data we have on the extension pack as it
-         * may be made stale by direct meddling or some other user.
-         */
         ExtPack *pExtPack;
-        hrc = i_refreshExtPack(pStrName->c_str(), false /*a_fUnusableIsError*/, &pExtPack);
+
+        bool fRunning = isThereAnyRunningVM();
+        if (fRunning)
+        {
+            LogRel(("Install extension pack '%s' failed because at least one VM is still running.", pStrName->c_str()));
+            hrc = setError(E_FAIL, tr("Install extension pack '%s' failed because at least one VM is still running"),
+                           pStrName->c_str());
+        }
+        else
+        {
+            /*
+             * Refresh the data we have on the extension pack as it
+             * may be made stale by direct meddling or some other user.
+             */
+            hrc = i_refreshExtPack(pStrName->c_str(), false /*a_fUnusableIsError*/, &pExtPack);
+        }
+
         if (SUCCEEDED(hrc))
         {
             if (pExtPack && a_fReplace)
@@ -2695,13 +2744,24 @@ HRESULT ExtPackManager::i_doUninstall(Utf8Str const *a_pstrName, bool a_fForcedR
     if (SUCCEEDED(hrc))
     {
         AutoWriteLock autoLock(this COMMA_LOCKVAL_SRC_POS);
-
-        /*
-         * Refresh the data we have on the extension pack as it may be made
-         * stale by direct meddling or some other user.
-         */
         ExtPack *pExtPack;
-        hrc = i_refreshExtPack(a_pstrName->c_str(), false /*a_fUnusableIsError*/, &pExtPack);
+
+        bool fRunning = isThereAnyRunningVM();
+        if (fRunning)
+        {
+            LogRel(("Uninstall extension pack '%s' failed because at least one VM is still running.", a_pstrName->c_str()));
+            hrc = setError(E_FAIL, tr("Uninstall extension pack '%s' failed because at least one VM is still running"),
+                                               a_pstrName->c_str());
+        }
+        else
+        {
+            /*
+             * Refresh the data we have on the extension pack as it may be made
+             * stale by direct meddling or some other user.
+             */
+            hrc = i_refreshExtPack(a_pstrName->c_str(), false /*a_fUnusableIsError*/, &pExtPack);
+        }
+
         if (SUCCEEDED(hrc))
         {
             if (!pExtPack)

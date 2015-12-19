@@ -82,7 +82,7 @@ typedef struct DRVAUDIO
     RTSEMEVENT              hEvent;
     /** Shutdown indicator. */
     bool                    fTerminate;
-    /** The audio interface presented to the device/driver above us. */
+    /** Our audio connector interface. */
     PDMIAUDIOCONNECTOR      IAudioConnector;
     /** Pointer to the driver instance. */
     PPDMDRVINS              pDrvIns;
@@ -97,10 +97,14 @@ typedef struct DRVAUDIO
     /** Audio configuration settings retrieved
      *  from the backend. */
     PDMAUDIOBACKENDCFG      BackendCfg;
-
+#ifdef VBOX_WITH_AUDIO_CALLBACKS
+    /** @todo Use a map with primary key set to the callback type? */
+    RTLISTANCHOR            lstCBIn;
+    RTLISTANCHOR            lstCBOut;
+#endif
 } DRVAUDIO, *PDRVAUDIO;
 
-/** Makes a PDRVBLOCK out of a PPDMIBLOCK. */
+/** Makes a PDRVAUDIO out of a PPDMIAUDIOCONNECTOR. */
 #define PDMIAUDIOCONNECTOR_2_DRVAUDIO(pInterface) \
     ( (PDRVAUDIO)((uintptr_t)pInterface - RT_OFFSETOF(DRVAUDIO, IAudioConnector)) )
 
@@ -109,7 +113,6 @@ const char *drvAudioRecSourceToString(PDMAUDIORECSOURCE enmRecSource);
 PDMAUDIOFMT drvAudioHlpStringToFormat(const char *pszFormat);
 
 bool drvAudioPCMPropsAreEqual(PPDMPCMPROPS info, PPDMAUDIOSTREAMCFG pCfg);
-int drvAudioStreamCfgToProps(PPDMAUDIOSTREAMCFG pCfg, PPDMPCMPROPS pProps);
 void drvAudioStreamCfgPrint(PPDMAUDIOSTREAMCFG pCfg);
 
 /* AUDIO IN function declarations. */
@@ -143,11 +146,8 @@ int drvAudioHlpPcmHwAddOut(PDRVAUDIO pDrvAudio, PPDMAUDIOSTREAMCFG pCfg, PPDMAUD
 int drvAudioHlpPcmCreateVoicePairOut(PDRVAUDIO pDrvAudio, const char *pszName, PPDMAUDIOSTREAMCFG pCfg, PPDMAUDIOGSTSTRMOUT *ppGstStrmOut);
 
 /* Common functions between DrvAudio and backends (host audio drivers). */
-int  drvAudioAttachCapture(PDRVAUDIO pDrvAudio, PPDMAUDIOHSTSTRMOUT pHstStrmOut);
-void drvAudioClearBuf(PPDMPCMPROPS pPCMInfo, void *pvBuf, size_t cbBuf);
-void drvAudioDetachCapture(PPDMAUDIOHSTSTRMOUT pHstStrmOut);
-uint32_t drvAudioHstOutSamplesLive(PPDMAUDIOHSTSTRMOUT pHstStrmOut);
-
+void DrvAudioClearBuf(PPDMPCMPROPS pPCMInfo, void *pvBuf, size_t cbBuf, uint32_t cSamples);
+int DrvAudioStreamCfgToProps(PPDMAUDIOSTREAMCFG pCfg, PPDMPCMPROPS pProps);
 
 typedef struct fixed_settings
 {

@@ -33,6 +33,14 @@
                  Platform="$(var.Property_Platform)"
                  SummaryCodepage="1252"/>
 
+<?if $(env.VBOX_WITH_MSM_INSTALL) = "yes" ?>
+        <Property Id="localMSMNetworkType" Value="Empty" /> 
+        <Configuration Name="passedNetworkType" Format="Text" DefaultValue="Not passed"/> 
+        <Substitution Table="CustomAction" Row="setNetworkTypeFLT" Column="Target" Value="[=passedNetworkType]"/> 
+        <CustomAction Id="setNetworkTypeFLT" Property="localMSMNetworkType" Value="[localMSMNetworkType]" Execute="immediate" /> 
+        <CustomAction Id="correctNetworkTypeFLT" Property="localMSMNetworkType" Value="NDIS5" Execute="immediate" />
+<?endif ?>
+
         <!-- Here comes the file/directory list -->
         <Directory Id="TARGETDIR" Name="SourceDir">
             <Directory Id="msm_VBoxNetworkFltFolder" FileSource=".">
@@ -47,6 +55,12 @@
         <?include VBoxMergeNetFltCA.wxi ?>
 
         <InstallExecuteSequence>
+<?if $(env.VBOX_WITH_MSM_INSTALL) = "yes" ?>
+            <Custom Action="setNetworkTypeFLT" After="CostInitialize"/>
+            <Custom Action="correctNetworkTypeFLT" After="setNetworkTypeFLT">
+                <![CDATA[(VersionNT < 600)]]>
+            </Custom>
+<?endif ?>
             <?include VBoxMergeNetFltSeq.wxi ?>
         </InstallExecuteSequence>
 
