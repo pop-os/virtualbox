@@ -22,6 +22,7 @@
 #define LOG_GROUP LOG_GROUP_DRV_VD
 #include <VBox/cdefs.h>
 #include <VBox/err.h>
+#include <VBox/log.h>
 #include <iprt/assert.h>
 #include <iprt/list.h>
 #include <iprt/mem.h>
@@ -93,6 +94,9 @@ typedef struct HBDMGRDACLBKARGS
     PHBDMGRINT         pThis;
     /** The status code returned by the callback, after the operation completed. */
     DAReturn           rcDA;
+    /** A detailed error string in case of an error, can be NULL.
+     * Must be freed with RTStrFree(). */
+    char              *pszErrDetail;
 } HBDMGRDACLBKARGS;
 typedef HBDMGRDACLBKARGS *PHBDMGRDACLBKARGS;
 
@@ -205,10 +209,23 @@ static int hbdMgrDAReturn2VBoxStatus(DAReturn hReturn)
 static DECLCALLBACK(void) hbdMgrDACallbackComplete(DADiskRef hDiskRef, DADissenterRef hDissenterRef, void *pvContext)
 {
     PHBDMGRDACLBKARGS pArgs = (PHBDMGRDACLBKARGS)pvContext;
+    pArgs->pszErrDetail = NULL;
+
     if (!hDissenterRef)
         pArgs->rcDA = kDAReturnSuccess;
     else
+    {
+        CFStringRef hStrErr = DADissenterGetStatusString(hDissenterRef);
+        if (hStrErr)
+        {
+            const char *pszErrDetail = CFStringGetCStringPtr(hStrErr, kCFStringEncodingUTF8);
+            if (pszErrDetail)
+                pArgs->pszErrDetail = RTStrDup(pszErrDetail);
+            CFRelease(hStrErr);
+        }
         pArgs->rcDA = DADissenterGetStatus(hDissenterRef);
+
+    }
     RTSemEventSignal(pArgs->pThis->hEvtCallback);
 }
 
@@ -449,11 +466,22 @@ DECLHIDDEN(int) HBDMgrClaimBlockDevice(HBDMGR hHbdMgr, const char *pszFilename)
                         rc = VERR_NO_MEMORY;
                 }
                 else if (RT_SUCCESS(rc))
+                {
                     rc = hbdMgrDAReturn2VBoxStatus(CalllbackArgs.rcDA);
+                    LogRel(("HBDMgrClaimBlockDevice: DADiskUnmount(\"%s\") failed with %Rrc (%s)\n",
+                            pszFilename, rc, CalllbackArgs.pszErrDetail ? CalllbackArgs.pszErrDetail : "<no detail>"));
+                    if (CalllbackArgs.pszErrDetail)
+                        RTStrFree(CalllbackArgs.pszErrDetail);
+                }
             }
             else if (RT_SUCCESS(rc))
+            {
                 rc = hbdMgrDAReturn2VBoxStatus(CalllbackArgs.rcDA);
-
+                LogRel(("HBDMgrClaimBlockDevice: DADiskClaim(\"%s\") failed with %Rrc (%s)\n",
+                        pszFilename, rc, CalllbackArgs.pszErrDetail ? CalllbackArgs.pszErrDetail : "<no detail>"));
+                if (CalllbackArgs.pszErrDetail)
+                    RTStrFree(CalllbackArgs.pszErrDetail);
+            }
             if (RT_FAILURE(rc))
                 CFRelease(hDiskRef);
         }

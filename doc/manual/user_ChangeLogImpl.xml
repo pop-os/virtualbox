@@ -3,6 +3,166 @@
 <chapter> <!-- HACK ALERT! Seems we must have a single top level element for xi:include to work.
                            So, we use chapter and xpointer="xpointer(/chapter/)" with xi:include. -->
   <sect1>
+    <title>Version 5.0.12 (2015-12-18)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>GUI: fixed wrong scrolling behaviour in the VM selector window
+          when a VM item is dragged out of the chooser-pane area</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: fixed the validation of IPv6 port-forwarding rules</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: suppress the first-run wizard if a CD/DVD medium is
+          inserted using the selector UI</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: fixed the Ctrl+Break key sequence scan codes
+          (bug #14927)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: improved handling of text selection mouse pointer (bug #750)</para>
+      </listitem>
+
+      <listitem>
+        <para>Host services: fixed a crash during VM shutdown under rare
+          conditions (5.0.6 regression; bug #14841)</para>
+      </listitem>
+
+      <listitem>
+        <para>Shared folders: fixed a sharing violation if a file is opened
+          to check the attributes (Windows hosts only; bug #14450)</para>
+      </listitem>
+
+      <listitem>
+        <para>Webcam: passthrough fix for certain devices (Mac OS X hosts only)</para>
+      </listitem>
+
+      <listitem>
+        <para>XHCI: fixed broken emulation if software virtualization is used</para>
+      </listitem>
+
+      <listitem>
+        <para>XHCI: several fixes</para>
+      </listitem>
+
+      <listitem>
+        <para>3D: fixed state handling under certain conditions (bug #13487)</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: several fixes</para>
+      </listitem>
+
+      <listitem>
+        <para>BIOS: added LBA64 support for being able to boot from huge hard
+          disks(bug #7415)</para>
+      </listitem>
+
+      <listitem>
+        <para>EFI: fix for Windows 10 guests</para>
+      </listitem>
+
+      <listitem>
+        <para>ExtPack: before installing an Extension Pack check if there are
+          VMs running to prevent file system locking issues</para>
+      </listitem>
+
+      <listitem>
+        <para>rdesktop-vrdp: source code tarball fixes</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows hosts: fixed hang when using VBoxAuthSimple library for
+          VRDP external authentication (bug #14931)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows hosts: fixed a regression which prevented it to attach to
+          a physical network adapter having TCP/IP disabled (bug #14578)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows hosts: fixed a regression which caused multi-port adapters
+          to be shown as a single adapter (bugs #14558, #14622)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows hosts: fixed a regression which caused created host-only
+          adapters to not appear in the list (bug #14437)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows hosts: fixed host-only adapter creation issues related
+          to Windows 10 (bugs #14040, #14545)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts: .desktop file compatibility issue (bug #14808)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts / guests: fixes for RHEL 7.2 (bug #14866)</para>
+      </listitem>
+
+      <listitem>
+        <para>The command for recompiling the host kernel modules was changed
+           again, to <emphasis>/sbin/rcvboxdrv setup</emphasis> (bug
+           #14723)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts: some fixes for PCI passthrough (still highly
+          experimental)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux/Mac OS X hosts: fixed a VM hang during startup under certain
+          circumstances (bug #14933)</para>
+      </listitem>
+
+      <listitem>
+        <para>Solaris hosts: added Python 2.7 bindings</para>
+      </listitem>
+
+      <listitem>
+        <para>Mac OS X hosts: fixed a possible crash when the default input or
+          output audio device changes</para>
+      </listitem>
+
+      <listitem>
+        <para>Mac OS X hosts: fixed a panic under certain conditions</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: prevent the compiler from doing dead-code
+          elemination on vital code in guest / host communication (bug #14497)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: when mounting a shared folder, explicitly pass
+          the share name so that /proc/mounts contains this name instead of 'none'</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: workaround for a systemd problem in conjunction
+          with SELinux which prevented to properly enable the 'vboxadd' service
+          during while upgrading the Additions</para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
+
+  <sect1>
     <title>Version 5.0.10 (2015-11-10)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or

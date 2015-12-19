@@ -1480,7 +1480,7 @@ static DECLCALLBACK(int) drvHostCoreAudioPlayOut(PPDMIHOSTAUDIO pInterface, PPDM
 
     /* Not much else to do here. */
 
-    uint32_t cLive = drvAudioHstOutSamplesLive(pHstStrmOut);
+    uint32_t cLive = AudioMixBufAvail(&pHstStrmOut->MixBuf);;
     if (!cLive) /* Not samples to play? Bail out. */
     {
         if (pcSamplesPlayed)
@@ -1507,7 +1507,7 @@ static DECLCALLBACK(int) drvHostCoreAudioPlayOut(PPDMIHOSTAUDIO pInterface, PPDM
         {
             RTCircBufReleaseWriteBlock(pStreamOut->pBuf, cbCopy);
             break;
-        }        
+        }
 
         Assert(cbCopy <= cbToRead);
 
@@ -1566,6 +1566,7 @@ static DECLCALLBACK(int) drvHostCoreAudioControlOut(PPDMIHOSTAUDIO pInterface, P
     switch (enmStreamCmd)
     {
         case PDMAUDIOSTREAMCMD_ENABLE:
+        case PDMAUDIOSTREAMCMD_RESUME:
         {
             /* Only start the device if it is actually stopped */
             if (!drvHostCoreAudioIsRunning(pStreamOut->deviceID))
@@ -1589,6 +1590,7 @@ static DECLCALLBACK(int) drvHostCoreAudioControlOut(PPDMIHOSTAUDIO pInterface, P
         }
 
         case PDMAUDIOSTREAMCMD_DISABLE:
+        case PDMAUDIOSTREAMCMD_PAUSE:
         {
             /* Only stop the device if it is actually running */
             if (drvHostCoreAudioIsRunning(pStreamOut->deviceID))
@@ -1640,6 +1642,7 @@ static DECLCALLBACK(int) drvHostCoreAudioControlIn(PPDMIHOSTAUDIO pInterface, PP
     switch (enmStreamCmd)
     {
         case PDMAUDIOSTREAMCMD_ENABLE:
+        case PDMAUDIOSTREAMCMD_RESUME:
         {
             /* Only start the device if it is actually stopped */
             if (!drvHostCoreAudioIsRunning(pStreamIn->deviceID))
@@ -1663,6 +1666,7 @@ static DECLCALLBACK(int) drvHostCoreAudioControlIn(PPDMIHOSTAUDIO pInterface, PP
         }
 
         case PDMAUDIOSTREAMCMD_DISABLE:
+        case PDMAUDIOSTREAMCMD_PAUSE:
         {
             /* Only stop the device if it is actually running */
             if (drvHostCoreAudioIsRunning(pStreamIn->deviceID))
@@ -1725,7 +1729,7 @@ static DECLCALLBACK(int) drvHostCoreAudioFiniIn(PPDMIHOSTAUDIO pInterface, PPDMA
                                                kAudioObjectPropertyElementMaster };
 #ifdef DEBUG
         err = AudioObjectRemovePropertyListener(pStreamIn->deviceID, &propAdr,
-                                                drvHostCoreAudioRecordingAudioDevicePropertyChanged, NULL);
+                                                drvHostCoreAudioRecordingAudioDevicePropertyChanged, pStreamIn);
         /* Not Fatal */
         if (RT_UNLIKELY(err != noErr))
             LogRel(("CoreAudio: Failed to remove the processor overload listener (%RI32)\n", err));
@@ -1733,7 +1737,7 @@ static DECLCALLBACK(int) drvHostCoreAudioFiniIn(PPDMIHOSTAUDIO pInterface, PPDMA
 
         propAdr.mSelector = kAudioDevicePropertyNominalSampleRate;
         err = AudioObjectRemovePropertyListener(pStreamIn->deviceID, &propAdr,
-                                                drvHostCoreAudioRecordingAudioDevicePropertyChanged, NULL);
+                                                drvHostCoreAudioRecordingAudioDevicePropertyChanged, pStreamIn);
         /* Not Fatal */
         if (RT_UNLIKELY(err != noErr))
             LogRel(("CoreAudio: Failed to remove the sample rate changed listener (%RI32)\n", err));
@@ -1741,8 +1745,8 @@ static DECLCALLBACK(int) drvHostCoreAudioFiniIn(PPDMIHOSTAUDIO pInterface, PPDMA
         if (pStreamIn->fDefDevChgListReg)
         {
             propAdr.mSelector = kAudioHardwarePropertyDefaultInputDevice;
-            err = AudioObjectRemovePropertyListener(pStreamIn->deviceID, &propAdr,
-                                                    drvHostCoreAudioDefaultDeviceChanged, NULL);
+            err = AudioObjectRemovePropertyListener(kAudioObjectSystemObject, &propAdr,
+                                                    drvHostCoreAudioDefaultDeviceChanged, pStreamIn);
             if (RT_LIKELY(err == noErr))
             {
                 pStreamIn->fDefDevChgListReg = false;
@@ -1817,12 +1821,34 @@ static DECLCALLBACK(int) drvHostCoreAudioFiniOut(PPDMIHOSTAUDIO pInterface, PPDM
         ASMAtomicXchgU32(&pStreamOut->status, CA_STATUS_IN_UNINIT);
 
         OSStatus err;
+
+        /*
+         * Unregister playback device callbacks.
+         */
+        AudioObjectPropertyAddress propAdr = { kAudioDeviceProcessorOverload, kAudioObjectPropertyScopeGlobal,
+                                               kAudioObjectPropertyElementMaster };
+#ifdef DEBUG
+        err = AudioObjectRemovePropertyListener(pStreamOut->deviceID, &propAdr,
+                                                drvHostCoreAudioPlaybackAudioDevicePropertyChanged, pStreamOut);
+        /* Not Fatal */
+        if (RT_UNLIKELY(err != noErr))
+            LogRel(("CoreAudio: Failed to remove the processor overload listener (%RI32)\n", err));
+#endif /* DEBUG */
+
+        propAdr.mSelector = kAudioDevicePropertyNominalSampleRate;
+        err = AudioObjectRemovePropertyListener(pStreamOut->deviceID, &propAdr,
+                                                drvHostCoreAudioPlaybackAudioDevicePropertyChanged, pStreamOut);
+        /* Not Fatal */
+        if (RT_UNLIKELY(err != noErr))
+            LogRel(("CoreAudio: Failed to remove the sample rate changed listener (%RI32)\n", err));
+
         if (pStreamOut->fDefDevChgListReg)
         {
-            AudioObjectPropertyAddress propAdr = { kAudioHardwarePropertyDefaultOutputDevice, kAudioObjectPropertyScopeGlobal,
-                                                   kAudioObjectPropertyElementMaster };
-            err = AudioObjectRemovePropertyListener(pStreamOut->deviceID, &propAdr,
-                                                    drvHostCoreAudioDefaultDeviceChanged, NULL);
+            propAdr.mSelector = kAudioHardwarePropertyDefaultOutputDevice;
+            propAdr.mScope    = kAudioObjectPropertyScopeGlobal;
+            propAdr.mElement  = kAudioObjectPropertyElementMaster;
+            err = AudioObjectRemovePropertyListener(kAudioObjectSystemObject, &propAdr,
+                                                    drvHostCoreAudioDefaultDeviceChanged, pStreamOut);
             if (RT_LIKELY(err == noErr))
             {
                 pStreamOut->fDefDevChgListReg = false;
@@ -1878,7 +1904,7 @@ static DECLCALLBACK(int) drvHostCoreAudioInitIn(PPDMIHOSTAUDIO pInterface,
     bool fDeviceByUser = false;
 
     /* Initialize the hardware info section with the audio settings */
-    int rc = drvAudioStreamCfgToProps(pCfg, &pStreamIn->streamIn.Props);
+    int rc = DrvAudioStreamCfgToProps(pCfg, &pStreamIn->streamIn.Props);
     if (RT_SUCCESS(rc))
     {
 #if 0
@@ -1937,7 +1963,7 @@ static DECLCALLBACK(int) drvHostCoreAudioInitOut(PPDMIHOSTAUDIO pInterface,
     pStreamOut->deviceID  = kAudioDeviceUnknown;
 
     /* Initialize the hardware info section with the audio settings */
-    drvAudioStreamCfgToProps(pCfg, &pStreamOut->streamOut.Props);
+    DrvAudioStreamCfgToProps(pCfg, &pStreamOut->streamOut.Props);
 
 #if 0
     /* Try to find the audio device set by the user. Use

@@ -4,7 +4,7 @@
 <context>
     <name>@@@</name>
     <message>
-        <location filename="../src/globals/VBoxGlobal.cpp" line="+2125"/>
+        <location filename="../src/globals/VBoxGlobal.cpp" line="+2132"/>
         <source>English</source>
         <comment>Native language name</comment>
         <translation>Euskara</translation>
@@ -93,8 +93,8 @@
     </message>
     <message>
         <location line="+7"/>
-        <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;may correct this. Make sure that you do not mix the OSE version and the PUEL version of VirtualBox.</source>
-        <translation>VirtualBox kernel moduloak ez datoz bat VirtualBox bertsio honekin. VirtualBox-en ezarpena dirudienez ez da ongi egin. &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt; exekutatzeak hau zuzendu dezake. Zihurtatu ez dituzula VirtualBox-en OSE bertsioa eta PUEL bertsioa nahastu.</translation>
+        <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;may correct this. Make sure that you do not mix the OSE version and the PUEL version of VirtualBox.</source>
+        <translation>VirtualBox kernel moduloak ez datoz bat VirtualBox bertsio honekin. VirtualBox-en ezarpena dirudienez ez da ongi egin. &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt; exekutatzeak hau zuzendu dezake. Zihurtatu ez dituzula VirtualBox-en OSE bertsioa eta PUEL bertsioa nahastu.</translation>
     </message>
     <message>
         <location line="-22"/>
@@ -103,8 +103,8 @@
     </message>
     <message>
         <location line="+5"/>
-        <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. If it is available in your distribution, you should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
-        <translation>VirtualBox Linux kernel gidatzailea (vboxdrv) ez dago gertatuta edo baimen arazo bat dago /dev/vboxdrv-rekin. Mesedez ber-ezarri kernel moduloa &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;exekutatuz erro bezala. Zure banaketan eskuragarri badago, lehenik DKMS paketea ezarri behar duzu. Pakete honek Linux kernelaren aldaketak aztarnatzen ditu eta vboxdrv kernel moduloa berbiltzen du beharrezkoa bada.</translation>
+        <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. If it is available in your distribution, you should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
+        <translation>VirtualBox Linux kernel gidatzailea (vboxdrv) ez dago gertatuta edo baimen arazo bat dago /dev/vboxdrv-rekin. Mesedez ber-ezarri kernel moduloa &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;exekutatuz erro bezala. Zure banaketan eskuragarri badago, lehenik DKMS paketea ezarri behar duzu. Pakete honek Linux kernelaren aldaketak aztarnatzen ditu eta vboxdrv kernel moduloa berbiltzen du beharrezkoa bada.</translation>
     </message>
 </context>
 <context>
@@ -3718,32 +3718,32 @@
     <message>
         <location filename="../src/settings/global/UIGlobalSettingsProxy.ui" line="+24"/>
         <source>When chosen, VirtualBox will try to auto-detect host proxy settings for tasks like downloading Guest Additions from the network or checking for updates.</source>
-        <translation type="unfinished"></translation>
+        <translation>Hautatutakoan, VirtualBox-ek hostalari proxy ezarpenak berez-atzematen saiatuko da Gonbidatu Gehigarriak saretik jeisteko edo eguneraketak egiaztatzeko bezalako eginkizunetarako.</translation>
     </message>
     <message>
         <location line="+3"/>
         <source>&amp;Auto-detect Host Proxy Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Berez-atzeman Hostalari Proxy Ezarpenak</translation>
     </message>
     <message>
         <location line="+7"/>
         <source>When chosen, VirtualBox will use direct Internet connection for tasks like downloading Guest Additions from the network or checking for updates.</source>
-        <translation type="unfinished"></translation>
+        <translation>Hautatutakoan, VirtualBox-ek Interneteko zuzeneko elkarketa erabiliko du Gonbidatu Gehigarriak saretik jeisteko edo eguneraketak egiaztatzeko bezalako eginkizunetarako.</translation>
     </message>
     <message>
         <location line="+3"/>
         <source>&amp;Direct Connection to the Internet</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Zuzeneko Elkarketa Internet-era</translation>
     </message>
     <message>
         <location line="+7"/>
         <source>When chosen, VirtualBox will use the proxy settings supplied for tasks like downloading Guest Additions from the network or checking for updates.</source>
-        <translation type="unfinished"></translation>
+        <translation>Hautatutakoan, VirtualBox-ek proxy ezarpenak erabiliko ditu Gonbidatu Gehigarriak saretik jeisteko edo eguneraketak egiaztatzeko bezalako eginkizunetarako.</translation>
     </message>
     <message>
         <location line="+3"/>
         <source>&amp;Manual Proxy Configuration</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Eskuzko Proxy Itxurapena</translation>
     </message>
     <message>
         <location line="+35"/>
@@ -6136,7 +6136,7 @@
         <translation type="obsolete">Hautatu CD/DVD birtual diska agiri bat...</translation>
     </message>
     <message>
-        <location filename="../src/globals/VBoxGlobal.cpp" line="-335"/>
+        <location filename="../src/globals/VBoxGlobal.cpp" line="-342"/>
         <source>Choose disk image...</source>
         <comment>This is used for hard disks, optical media and floppies</comment>
         <translation>Hautatu diska irudia...</translation>
@@ -7146,12 +7146,12 @@
     <message>
         <location line="+58"/>
         <source>The current port forwarding rules are not valid. All of the host or guest address values should be correct or empty.</source>
-        <translation type="unfinished"></translation>
+        <translation>Oraingo berbidalketa ataka arauak ez dira baliozkoak. Hostalari edo gonbidatu helbide balio guztiak zuzen edo hutsik egon behar dira.</translation>
     </message>
     <message>
         <location line="+8"/>
         <source>The current port forwarding rules are not valid. None of the guest address values may be empty.</source>
-        <translation type="unfinished"></translation>
+        <translation>Oraingo berbidalketa ataka arauak ez dira baliozkoak. Gonbidatu helbide balioetako bat ere ezin daiteke hutsik egon.</translation>
     </message>
     <message>
         <location line="+83"/>
@@ -8730,7 +8730,7 @@
 <context>
     <name>UINetworkReplyPrivate</name>
     <message>
-        <location filename="../src/net/UINetworkReply.cpp" line="+952"/>
+        <location filename="../src/net/UINetworkReply.cpp" line="+953"/>
         <source>Host not found</source>
         <translation>Hostalaria ez da aurkitu</translation>
     </message>
@@ -8747,7 +8747,7 @@
     <message>
         <location line="+1"/>
         <source>Connection refused</source>
-        <translation type="unfinished"></translation>
+        <translation>Elkarketa ukatua</translation>
     </message>
     <message>
         <location line="+2"/>
@@ -8760,25 +8760,30 @@
         <translation>SSL egiaztapen hutsegitea</translation>
     </message>
     <message>
-        <location line="-30"/>
+        <location line="-31"/>
         <source>%1: %2</source>
         <comment>Context description: Error description</comment>
-        <translation type="unfinished"></translation>
+        <translation>%1: %2</translation>
     </message>
     <message>
         <location line="+25"/>
         <source>Unable to initialize HTTP library</source>
-        <translation type="unfinished"></translation>
+        <translation>Ezinezkoa HTTP liburutegia abiaraztea</translation>
+    </message>
+    <message>
+        <location line="+1"/>
+        <source>Url not found on the server</source>
+        <translation>Url-a ez da zerbitzarian aurkitu</translation>
     </message>
     <message>
         <location line="+7"/>
         <source>Content moved</source>
-        <translation type="unfinished"></translation>
+        <translation>Edukia mugituta</translation>
     </message>
     <message>
         <location line="+1"/>
         <source>Proxy not found</source>
-        <translation type="unfinished"></translation>
+        <translation>Proxya ez da aurkitu</translation>
     </message>
     <message>
         <location line="+1"/>
@@ -8789,20 +8794,20 @@
 <context>
     <name>UINetworkReplyPrivateThread</name>
     <message>
-        <location line="-575"/>
+        <location line="-576"/>
         <source>During proxy configuration</source>
-        <translation type="unfinished"></translation>
+        <translation>Proxy itxurapenean zehar</translation>
     </message>
     <message>
         <location line="+33"/>
         <source>During certificate downloading</source>
-        <translation type="unfinished"></translation>
+        <translation>Egiaztagiri jeisketan zehar</translation>
     </message>
     <message>
         <location line="+85"/>
         <location line="+13"/>
         <source>During network request</source>
-        <translation type="unfinished"></translation>
+        <translation>Sare eskaeran zehar</translation>
     </message>
 </context>
 <context>
@@ -8874,7 +8879,7 @@
         <translation>Gonbidatu Ataka</translation>
     </message>
     <message>
-        <location line="+390"/>
+        <location line="+394"/>
         <source>Contains a list of port forwarding rules.</source>
         <translation>Berbidalketa ataka arauen zerrenda bat du.</translation>
     </message>
@@ -11251,14 +11256,14 @@
         <translation>Hostalari Gailua</translation>
     </message>
     <message>
-        <location filename="../src/globals/VBoxGlobal.cpp" line="+673"/>
+        <location filename="../src/globals/VBoxGlobal.cpp" line="+680"/>
         <source>User-defined</source>
         <comment>serial port</comment>
         <translation>Erabiltzaileak-zehaztuta</translation>
     </message>
     <message>
         <location filename="../src/UIVMInfoDialog.cpp" line="-176"/>
-        <location filename="../src/globals/VBoxGlobal.cpp" line="-1040"/>
+        <location filename="../src/globals/VBoxGlobal.cpp" line="-1047"/>
         <location filename="../src/runtime/UIIndicatorsPool.cpp" line="-9"/>
         <source>VT-x/AMD-V</source>
         <comment>details report</comment>
@@ -11522,14 +11527,14 @@
         <translation>Ezarrita</translation>
     </message>
     <message>
-        <location filename="../src/globals/VBoxGlobal.cpp" line="+1002"/>
+        <location filename="../src/globals/VBoxGlobal.cpp" line="+1009"/>
         <source>Differencing</source>
         <comment>DiskType</comment>
         <translation>Bereizlea</translation>
     </message>
     <message>
         <location filename="../src/UIVMInfoDialog.cpp" line="-1"/>
-        <location filename="../src/globals/VBoxGlobal.cpp" line="-1037"/>
+        <location filename="../src/globals/VBoxGlobal.cpp" line="-1044"/>
         <source>Nested Paging</source>
         <comment>details report</comment>
         <translation>Nested Orrialdeztapena</translation>
@@ -11947,7 +11952,7 @@
     <message>
         <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="+76"/>
         <location line="+19"/>
-        <location filename="../src/globals/VBoxGlobal.cpp" line="+1587"/>
+        <location filename="../src/globals/VBoxGlobal.cpp" line="+1594"/>
         <location line="+32"/>
         <source>B</source>
         <comment>size suffix Bytes</comment>
@@ -12027,7 +12032,7 @@
         <translation>Mugagabeko Exekuzioa</translation>
     </message>
     <message>
-        <location filename="../src/globals/VBoxGlobal.cpp" line="-1916"/>
+        <location filename="../src/globals/VBoxGlobal.cpp" line="-1923"/>
         <source>Unknown device</source>
         <comment>USB device details</comment>
         <translation>Gailu ezezaguna</translation>
@@ -12588,7 +12593,7 @@
         <translation>Disketa birtual agiri guztiak (%1)</translation>
     </message>
     <message>
-        <location line="+2052"/>
+        <location line="+2059"/>
         <source>VDI (VirtualBox Disk Image)</source>
         <translation>VDI (VirtualBox Diska Irudia)</translation>
     </message>

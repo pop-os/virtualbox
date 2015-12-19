@@ -522,3 +522,4 @@ void delay_boot(uint16_t secs)
     // Restore PIT ticks
     wait_uninit();
 }
+

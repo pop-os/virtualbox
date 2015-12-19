@@ -33,6 +33,14 @@
                  Platform="$(var.Property_Platform)"
                  SummaryCodepage="1252"/>
 
+<?if $(env.VBOX_WITH_MSM_INSTALL) = "yes" ?>
+        <Property Id="localMSMNetworkType" Value="NDIS6" /> 
+        <Configuration Name="passedNetworkType" Format="Text" DefaultValue="Not passed"/> 
+        <Substitution Table="CustomAction" Row="setNetworkTypeLWF" Column="Target" Value="[=passedNetworkType]"/> 
+        <CustomAction Id="setNetworkTypeLWF" Property="localMSMNetworkType" Value="[localMSMNetworkType]" Execute="immediate" /> 
+        <CustomAction Id="correctNetworkTypeLWF" Property="localMSMNetworkType" Value="NDIS5" Execute="immediate" />
+<?endif ?>
+
         <!-- Here comes the file/directory list -->
         <Directory Id="TARGETDIR" Name="SourceDir">
             <Directory Id="msm_VBoxNetworkLwfFolder" FileSource=".">
@@ -47,6 +55,12 @@
         <?include VBoxMergeNetLwfCA.wxi ?>
 
         <InstallExecuteSequence>
+<?if $(env.VBOX_WITH_MSM_INSTALL) = "yes" ?>
+            <Custom Action="setNetworkTypeLWF" After="CostInitialize"/>
+            <Custom Action="correctNetworkTypeLWF" After="setNetworkTypeLWF">
+                <![CDATA[(VersionNT < 600)]]>
+            </Custom>
+<?endif ?>
             <?include VBoxMergeNetLwfSeq.wxi ?>
         </InstallExecuteSequence>
 

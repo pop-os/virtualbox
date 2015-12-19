@@ -1431,11 +1431,13 @@ void UIMachineLogic::sltTypeCABS()
 
 void UIMachineLogic::sltTypeCtrlBreak()
 {
-    static QVector<LONG> sequence(4);
+    static QVector<LONG> sequence(6);
     sequence[0] = 0x1d;        /* Ctrl down */
-    sequence[1] = 0x46;        /* Break down */
-    sequence[2] = 0x46 | 0x80; /* Break up */
-    sequence[3] = 0x1d | 0x80; /* Ctrl up */
+    sequence[1] = 0xe0;        /* Extended flag */
+    sequence[2] = 0x46;        /* Break down */
+    sequence[3] = 0xe0;        /* Extended flag */
+    sequence[4] = 0x46 | 0x80; /* Break up */
+    sequence[5] = 0x1d | 0x80; /* Ctrl up */
     keyboard().PutScancodes(sequence);
     AssertWrapperOk(keyboard());
 }
@@ -2172,18 +2174,23 @@ void UIMachineLogic::sltSwitchKeyboardLedsToPreviousLeds()
         return;
 
     /* Here we have to restore host LED lock states. */
-    if (m_pHostLedsState)
+    void *pvLedState = m_pHostLedsState;
+    if (pvLedState)
     {
+        /* bird: I've observed recursive calls here when setting m_pHostLedsState to NULL after calling
+                 WinHidDevicesApplyAndReleaseLedsState.  The result is a double free(), which the CRT
+                 usually detects and I could see this->m_pHostLedsState == NULL.  The windows function
+                 does dispatch loop fun, that's probably the reason for it.  Hopefully not an issue on OS X. */
+        m_pHostLedsState = NULL;
 #if defined(Q_WS_MAC)
-        DarwinHidDevicesApplyAndReleaseLedsState(m_pHostLedsState);
+        DarwinHidDevicesApplyAndReleaseLedsState(pvLedState);
 #elif defined(Q_WS_WIN)
         keyboardHandler()->winSkipKeyboardEvents(true);
-        WinHidDevicesApplyAndReleaseLedsState(m_pHostLedsState);
+        WinHidDevicesApplyAndReleaseLedsState(pvLedState);
         keyboardHandler()->winSkipKeyboardEvents(false);
 #else
         LogRelFlow(("UIMachineLogic::sltSwitchKeyboardLedsToPreviousLeds: restore host LED lock states does not supported on this platform\n"));
 #endif
-        m_pHostLedsState = NULL;
     }
 }
 

@@ -64,7 +64,12 @@
     <!-- Default property for network adapter type -->
     <Property Id="NETWORKTYPE" Value="NDIS6" Secure="yes"/>
     <!-- Force NDIS5 on pre-Vista -->
-    <SetProperty Id="NETWORKTYPE" After="CostFinalize" Value="NDIS5"><![CDATA[VersionNT < 600]]></SetProperty>
+<?if $(env.VBOX_WITH_MSM_INSTALL) = "no" ?>
+    <!-- Force NDIS5 on pre-Vista -->
+    <SetProperty Id="NETWORKTYPE" After="CostFinalize" Value="NDIS5">
+      <![CDATA[(VersionNT < 600)]]>
+    </SetProperty>
+<?endif ?>
 
     <!-- Install the product for all users on the system -->
     <Property Id="ALLUSERS"><![CDATA[1]]></Property>
@@ -239,7 +244,11 @@
             <Directory Id="VENDOR" Name="$(env.VBOX_VENDOR_SHORT)">
                 <Directory Id="INSTALLDIR" Name="VirtualBox">
 <?if $(env.VBOX_WITH_MSM_INSTALL) = "yes" ?>
-                <Merge Id="msm_VBoxApp" Language="!(loc.LANG)" SourceFile="$(var.Property_VBoxMergeApp)" DiskId="1" />
+                <Merge Id="msm_VBoxApp" Language="!(loc.LANG)" SourceFile="$(var.Property_VBoxMergeApp)" DiskId="1">
+                    <ConfigurationData Name="argRegesterExtensions" Value="[VBOX_REGISTERFILEEXTENSIONS]"/>
+                    <ConfigurationData Name="argInstallDesktopShortcut" Value="[VBOX_INSTALLDESKTOPSHORTCUT]"/>
+                    <ConfigurationData Name="argInstallQuickLaunchShortcut" Value="[VBOX_INSTALLQUICKLAUNCHSHORTCUT]"/>
+                </Merge>
     <?if $(env.VBOX_WITH_32_ON_64_MAIN_API) = "yes" ?>
                 <Merge Id="msm_VBoxCOM32On64" Language="!(loc.LANG)" SourceFile="$(var.Property_VBoxMergeCOM32On64)" DiskId="1" />
     <?endif ?>
@@ -265,7 +274,9 @@
 <?if $(env.VBOX_WITH_NETFLT) = "yes" ?>
                         <Directory Id="dir_NetFlt" Name="netflt">
     <?if $(env.VBOX_WITH_MSM_INSTALL) = "yes" ?>
-                            <Merge Id="msm_VBoxNetworkFlt" Language="!(loc.LANG)" SourceFile="$(var.Property_VBoxMergeNetworkFlt)" DiskId="1" />
+                            <Merge Id="msm_VBoxNetworkFlt" Language="!(loc.LANG)" SourceFile="$(var.Property_VBoxMergeNetworkFlt)" DiskId="1">
+                            <ConfigurationData Name="passedNetworkType" Value="[NETWORKTYPE]"/> 
+                            </Merge>
     <?else ?>
                             <Directory Id="msm_VBoxNetworkFltFolder" FileSource=".">
                                 <?include VBoxMergeNetFlt.wxi ?>
@@ -275,7 +286,9 @@
 <?endif ?>
                         <Directory Id="dir_NetAdp" Name="netadp">
 <?if $(env.VBOX_WITH_MSM_INSTALL) = "yes" ?>
-                            <Merge Id="msm_VBoxNetworkAdp" Language="!(loc.LANG)" SourceFile="$(var.Property_VBoxMergeNetworkAdp)" DiskId="1" />
+                            <Merge Id="msm_VBoxNetworkAdp" Language="!(loc.LANG)" SourceFile="$(var.Property_VBoxMergeNetworkAdp)" DiskId="1">
+                            <ConfigurationData Name="passedNetworkType" Value="[NETWORKTYPE]"/> 
+                            </Merge>
 <?else ?>
                             <Directory Id="msm_VBoxNetworkAdpFolder" FileSource=".">
                                 <?include VBoxMergeNetAdp.wxi ?>
@@ -286,7 +299,9 @@
 <?if $(env.VBOX_WITH_NETFLT) = "yes" ?>
                         <Directory Id="dir_NetLwf" Name="netlwf">
     <?if $(env.VBOX_WITH_MSM_INSTALL) = "yes" ?>
-                            <Merge Id="msm_VBoxNetworkLwf" Language="!(loc.LANG)" SourceFile="$(var.Property_VBoxMergeNetworkLwf)" DiskId="1" />
+                            <Merge Id="msm_VBoxNetworkLwf" Language="!(loc.LANG)" SourceFile="$(var.Property_VBoxMergeNetworkLwf)" DiskId="1">
+                            <ConfigurationData Name="passedNetworkType" Value="[NETWORKTYPE]"/> 
+                            </Merge>
     <?else ?>
                             <Directory Id="msm_VBoxNetworkLwfFolder" FileSource=".">
                                 <?include VBoxMergeNetLwf.wxi ?>
@@ -296,7 +311,9 @@
 <?endif ?>
                         <Directory Id="dir_NetAdp6" Name="netadp6">
 <?if $(env.VBOX_WITH_MSM_INSTALL) = "yes" ?>
-                            <Merge Id="msm_VBoxNetworkAdp6" Language="!(loc.LANG)" SourceFile="$(var.Property_VBoxMergeNetworkAdp6)" DiskId="1" />
+                            <Merge Id="msm_VBoxNetworkAdp6" Language="!(loc.LANG)" SourceFile="$(var.Property_VBoxMergeNetworkAdp6)" DiskId="1">
+                            <ConfigurationData Name="passedNetworkType" Value="[NETWORKTYPE]"/> 
+                            </Merge>
 <?else ?>
                             <Directory Id="msm_VBoxNetworkAdp6Folder" FileSource=".">
                                 <?include VBoxMergeNetAdp6.wxi ?>
@@ -318,6 +335,7 @@
                     </Directory>
                 </Directory>
 <?endif ?>
+
                 <!-- Set up special directory IDs for referencing to the start menu
                      or the Quick Launch bar.
                      See: http://msdn.microsoft.com/en-us/library/aa368276.aspx
@@ -361,6 +379,7 @@
                     <RegistryValue Root="HKCU" Key="$(var.Property_RegKeyInstall)"
                                    Type="string" Value="installed" KeyPath="yes" />
                 </Component>
+
                 </Directory>
             </Directory>
         </Directory>
@@ -373,10 +392,12 @@
              Description="!(loc.VB_App)"
              ConfigurableDirectory="INSTALLDIR" TypicalDefault="install" Display="expand"
              Absent="disallow" AllowAdvertise="no" >
+
         <!-- Components which are handled only by this installer itself -->
         <ComponentRef Id="cp_StartMenuVBox" />
         <ComponentRef Id="cp_DesktopShortcut" />
         <ComponentRef Id="cp_QuickLaunchVBox" />
+        
         <!-- Components handled either by the installer itself or
              the merge module -->
 <?if $(env.VBOX_WITH_MSM_INSTALL) = "yes" ?>
@@ -385,6 +406,7 @@
             <MergeRef Id="msm_VBoxCOM32On64" />
         <?endif ?>
 <?else ?>
+
     <?if $(env.VBOX_WITH_QTGUI) = "yes" ?>
         <ComponentRef Id="cp_RegisterExtensions" />
     <?endif ?>

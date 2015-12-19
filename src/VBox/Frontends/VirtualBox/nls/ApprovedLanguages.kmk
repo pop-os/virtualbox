@@ -19,6 +19,7 @@
 VBOX_APPROVED_GUI_LANGUAGES := \
 	bg    \
 	cs    \
+	da    \
 	de    \
 	en    \
 	es    \

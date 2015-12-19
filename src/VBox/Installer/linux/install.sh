@@ -402,7 +402,7 @@ if [ "$ACTION" = "install" ]; then
     else
         info "VirtualBox has been installed successfully, but the kernel module could not"
         info "be built.  When you have fixed the problems preventing this, execute"
-        info "  /sbin/vboxconfig"
+        info "  /sbin/rcvboxdrv setup"
         info "as administrator to build it."
     fi
     info ""

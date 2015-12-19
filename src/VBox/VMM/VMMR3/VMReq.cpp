@@ -1193,7 +1193,7 @@ static int  vmR3ReqProcessOneU(PUVM pUVM, PVMREQ pReq)
 {
     LogFlow(("vmR3ReqProcessOneU: pReq=%p type=%d fFlags=%#x\n", pReq, pReq->enmType, pReq->fFlags));
 
-#if 1 /*def VBOX_STRICT */
+#if 0 /* Should not be necessary, see trunk r104712. Fixes out of memory runtime error. */
     /*
      * Disable rendezvous if servicing a priority request.  Priority requests
      * can not make use of the EMT rendezvous API.
@@ -1344,7 +1344,7 @@ static int  vmR3ReqProcessOneU(PUVM pUVM, PVMREQ pReq)
         }
     }
 
-#if 1 /*def VBOX_STRICT */
+#if 0 /* Should not be necessary, see trunk r104712. Fixes out of memory runtime error. */
     /*
      * Restore the rendezvous disabled state.
      */

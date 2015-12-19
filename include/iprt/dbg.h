@@ -1590,11 +1590,13 @@ RTR0DECL(uint32_t)  RTR0DbgKrnlInfoRelease(RTDBGKRNLINFO hKrnlInfo);
  * @retval  VERR_INVALID_POINTER if any of the pointers are bad.
  *
  * @param   hKrnlInfo       The kernel info handle.
+ * @param   pszModule       The name of the module to search, pass NULL to
+ *                          search the default kernel module(s).
  * @param   pszStructure    The structure name.
  * @param   pszMember       The member name.
  * @param   poffMember      Where to return the offset.
  */
-RTR0DECL(int)       RTR0DbgKrnlInfoQueryMember(RTDBGKRNLINFO hKrnlInfo, const char *pszStructure,
+RTR0DECL(int)       RTR0DbgKrnlInfoQueryMember(RTDBGKRNLINFO hKrnlInfo, const char *pszModule, const char *pszStructure,
                                                const char *pszMember, size_t *poffMember);
 
 
@@ -1622,6 +1624,27 @@ RTR0DECL(int)       RTR0DbgKrnlInfoQueryMember(RTDBGKRNLINFO hKrnlInfo, const ch
  */
 RTR0DECL(int)       RTR0DbgKrnlInfoQuerySymbol(RTDBGKRNLINFO hKrnlInfo, const char *pszModule,
                                                const char *pszSymbol, void **ppvSymbol);
+
+
+/**
+ * Queries the size (in bytes) of a kernel data type.
+ *
+ * @returns IPRT status code.
+ * @retval  VINF_SUCCESS and size at @a pcbType.
+ * @retval  VERR_NOT_FOUND if the type was not found.
+ * @retval  VERR_INVALID_HANDLE if hKrnlInfo is bad.
+ * @retval  VERR_INVALID_POINTER if any of the pointers are bad.
+ * @retval  VERR_WRONG_TYPE if the type was not a valid data type (e.g. a
+ *          function)
+ *
+ * @param   hKrnlInfo       The kernel info handle.
+ * @param   pszModule       The name of the module to search, pass NULL to
+ *                          search the default kernel module(s).
+ * @param   pszType         The type name.
+ * @param   pcbType         Where to return the size of the type.
+ */
+RTR0DECL(int)       RTR0DbgKrnlInfoQuerySize(RTDBGKRNLINFO hKrnlInfo, const char *pszModule,
+                                             const char *pszType, size_t *pcbType);
 /** @} */
 
 /** @} */

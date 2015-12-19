@@ -134,6 +134,33 @@ static void rtR0DbgKrnlInfoModRelease(modctl_t *pMod, ctf_file_t *pCTF)
 }
 
 
+/**
+ * Helper for opening the specified kernel module.
+ *
+ * @param pszModule         The name of the module.
+ * @param ppMod             Where to store the module handle.
+ * @param ppCtf             Where to store the module's CTF handle.
+ *
+ * @returns Pointer to the CTF structure for the module.
+ */
+static int rtR0DbgKrnlInfoModRetainEx(const char *pszModule, modctl_t **ppMod, ctf_file_t **ppCtf)
+{
+    char *pszMod = RTStrDup(pszModule);
+    if (RT_LIKELY(pszMod))
+    {
+        int rc = rtR0DbgKrnlInfoModRetain(pszMod, ppMod, ppCtf);
+        RTStrFree(pszMod);
+        if (RT_SUCCESS(rc))
+        {
+            AssertPtrReturn(*ppMod, VERR_INTERNAL_ERROR_2);
+            AssertPtrReturn(*ppCtf, VERR_INTERNAL_ERROR_3);
+        }
+        return rc;
+    }
+    return VERR_NO_MEMORY;
+}
+
+
 RTR0DECL(int) RTR0DbgKrnlInfoOpen(PRTDBGKRNLINFO phKrnlInfo, uint32_t fFlags)
 {
     AssertReturn(fFlags == 0, VERR_INVALID_PARAMETER);
@@ -197,7 +224,7 @@ RTR0DECL(uint32_t) RTR0DbgKrnlInfoRelease(RTDBGKRNLINFO hKrnlInfo)
 }
 
 
-RTR0DECL(int) RTR0DbgKrnlInfoQueryMember(RTDBGKRNLINFO hKrnlInfo, const char *pszStructure,
+RTR0DECL(int) RTR0DbgKrnlInfoQueryMember(RTDBGKRNLINFO hKrnlInfo, const char *pszModule, const char *pszStructure,
                                          const char *pszMember, size_t *poffMember)
 {
     PRTDBGKRNLINFOINT pThis = hKrnlInfo;
@@ -209,19 +236,37 @@ RTR0DECL(int) RTR0DbgKrnlInfoQueryMember(RTDBGKRNLINFO hKrnlInfo, const char *ps
     if (g_frtSolInitDone)
         RT_ASSERT_PREEMPTIBLE();
 
+    ctf_file_t *pCtf = NULL;
+    modctl_t   *pMod = NULL;
+    if (!pszModule)
+    {
+        pCtf = pThis->pGenUnixCTF;
+        pMod = pThis->pGenUnixMod;
+    }
+    else
+    {
+        int rc2 = rtR0DbgKrnlInfoModRetainEx(pszModule, &pMod, &pCtf);
+        if (RT_FAILURE(rc2))
+            return rc2;
+        Assert(pMod);
+        Assert(pCtf);
+    }
+
     int rc = VERR_NOT_FOUND;
-    ctf_id_t TypeIdent = ctf_lookup_by_name(pThis->pGenUnixCTF, pszStructure);
+    ctf_id_t TypeIdent = ctf_lookup_by_name(pCtf, pszStructure);
     if (TypeIdent != CTF_ERR)
     {
         ctf_membinfo_t MemberInfo;
         RT_ZERO(MemberInfo);
-        if (ctf_member_info(pThis->pGenUnixCTF, TypeIdent, pszMember, &MemberInfo) != CTF_ERR)
+        if (ctf_member_info(pCtf, TypeIdent, pszMember, &MemberInfo) != CTF_ERR)
         {
             *poffMember = (MemberInfo.ctm_offset >> 3);
-            return VINF_SUCCESS;
+            rc = VINF_SUCCESS;
         }
     }
 
+    if (pszModule)
+        rtR0DbgKrnlInfoModRelease(pMod, pCtf);
     return rc;
 }
 
@@ -244,5 +289,51 @@ RTR0DECL(int) RTR0DbgKrnlInfoQuerySymbol(RTDBGKRNLINFO hKrnlInfo, const char *ps
     if (uValue)
         return VINF_SUCCESS;
     return VERR_SYMBOL_NOT_FOUND;
+}
+
+
+RTR0DECL(int) RTR0DbgKrnlInfoQuerySize(RTDBGKRNLINFO hKrnlInfo, const char *pszModule, const char *pszType, size_t *pcbType)
+{
+    PRTDBGKRNLINFOINT pThis = hKrnlInfo;
+    AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
+    AssertMsgReturn(pThis->u32Magic == RTDBGKRNLINFO_MAGIC, ("%p: u32Magic=%RX32\n", pThis, pThis->u32Magic), VERR_INVALID_HANDLE);
+    AssertPtrReturn(pszType, VERR_INVALID_PARAMETER);
+    AssertPtrReturn(pcbType, VERR_INVALID_PARAMETER);
+    if (g_frtSolInitDone)
+        RT_ASSERT_PREEMPTIBLE();
+
+    modctl_t   *pMod = NULL;
+    ctf_file_t *pCtf = NULL;
+    if (!pszModule)
+    {
+        pCtf = pThis->pGenUnixCTF;
+        pMod = pThis->pGenUnixMod;
+    }
+    else
+    {
+        int rc2 = rtR0DbgKrnlInfoModRetainEx(pszModule, &pMod, &pCtf);
+        if (RT_FAILURE(rc2))
+            return rc2;
+        Assert(pMod);
+        Assert(pCtf);
+    }
+
+    int rc = VERR_NOT_FOUND;
+    ctf_id_t TypeIdent = ctf_lookup_by_name(pCtf, pszType);
+    if (TypeIdent != CTF_ERR)
+    {
+        ssize_t cbType = ctf_type_size(pCtf, TypeIdent);
+        if (cbType > 0)
+        {
+            *pcbType = cbType;
+            rc = VINF_SUCCESS;
+        }
+        else
+            rc = VERR_WRONG_TYPE;
+    }
+
+    if (pszModule)
+        rtR0DbgKrnlInfoModRelease(pMod, pCtf);
+    return rc;
 }
 
