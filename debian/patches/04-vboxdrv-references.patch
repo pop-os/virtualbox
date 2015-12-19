@@ -12,7 +12,7 @@ Index: virtualbox/src/VBox/VMM/VMMR3/VM.cpp
 -                    pszError = N_("One of the kernel modules was not successfully loaded. Make sure "
 -                                  "that no kernel modules from an older version of VirtualBox exist. "
 -                                  "Then try to recompile and reload the kernel modules by executing "
--                                  "'/sbin/vboxconfig' as root");
+-                                  "'/sbin/rcvboxdrv setup' as root");
 +		    pszError = N_("Please install the virtualbox-dkms package "
 +				  "and execute 'modprobe vboxdrv' as root");
                      break;
@@ -25,7 +25,7 @@ Index: virtualbox/src/VBox/VMM/VMMR3/VM.cpp
 -                    pszError = N_("VirtualBox kernel driver not loaded. The vboxdrv kernel module "
 -                                  "was either not loaded or /dev/vboxdrv is not set up properly. "
 -                                  "Re-setup the kernel module by executing "
--                                  "'/sbin/vboxconfig' as root");
+-                                  "'/sbin/rcvboxdrv setup' as root");
 +                    pszError = N_("Please install the virtualbox-dkms package "
 +		    		  "and execute 'modprobe vboxdrv' as root");
  #else
@@ -38,7 +38,7 @@ Index: virtualbox/src/VBox/VMM/VMMR3/VM.cpp
 -                    pszError = N_("VirtualBox kernel driver not installed. The vboxdrv kernel module "
 -                                  "was either not loaded or /dev/vboxdrv was not created for some "
 -                                  "reason. Re-setup the kernel module by executing "
--                                  "'/sbin/vboxconfig' as root");
+-                                  "'/sbin/rcvboxdrv setup' as root");
 +                    pszError = N_("Please install the virtualbox-dkms package "
 +		    		  "and execute 'modprobe vboxdrv' as root");
  #else
@@ -56,7 +56,7 @@ index 66a1200..e174ae7 100644
 +    "there is a permission problem with /dev/vboxdrv. Please install virtualbox-dkms "
 +    "package and load the kernel "
      "module by executing<br/><br/>"
--    "  <font color=blue>'/sbin/vboxconfig'</font><br/><br/>"
+-    "  <font color=blue>'/sbin/rcvboxdrv setup'</font><br/><br/>"
 +    "  <font color=blue>'modprobe vboxdrv'</font><br/><br/>"
      "as root. If it is available in your distribution, you should install the "
      "DKMS package first. This package keeps track of Linux kernel changes and "
@@ -65,7 +65,7 @@ index 66a1200..e174ae7 100644
      "The VirtualBox kernel modules do not match this version of "
      "VirtualBox. The installation of VirtualBox was apparently not "
      "successful. Executing<br/><br/>"
--    "  <font color=blue>'/sbin/vboxconfig'</font><br/><br/>"
+-    "  <font color=blue>'/sbin/rcvboxdrv setup'</font><br/><br/>"
 +    "  <font color=blue>'modprobe vboxdrv'</font><br/><br/>"
      "may correct this. Make sure that you do not mix the "
      "OSE version and the PUEL version of VirtualBox."
