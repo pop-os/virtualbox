@@ -7,3 +7,13 @@ if [ "$1" = "configure" ]; then
 fi
 
 #DEBHELPER#
+
+# remove stale virtualbox-guest-x11 links
+case "$1" in
+  configure)
+    if dpkg --compare-versions "$2" lt "5.0.12-dfsg-2~" ; then
+      update-rc.d -f virtualbox-guest-x11 remove > /dev/null || true
+    fi
+  ;;
+esac
+
