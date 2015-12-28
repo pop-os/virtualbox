@@ -14,3 +14,12 @@ fi
 if [ "$1" = configure ] && [ -z `getent group vboxsf` ]; then
 	addgroup --system --quiet vboxsf
 fi
+
+# remove stale virtualbox-guest-utils links
+case "$1" in
+  configure)
+    if dpkg --compare-versions "$2" lt "5.0.12-dfsg-2~" ; then
+      update-rc.d -f virtualbox-guest-utils remove > /dev/null || true
+    fi
+  ;;
+esac
