@@ -153,17 +153,25 @@ endif
 ifneq (,$(filter $(psource), $(shell dh_listpackages)))
 	# These files have incorrect permissions, fixing it.
 	chmod 755 debian/$(psource)/usr/src/modules/$(sname)/debian/rules
-	chmod 755 debian/$(gsource)/usr/src/modules/$(gname)/debian/rules
 
 	# this needs all prior work to be finished
 	cd debian/$(psource)/usr/src && \
 	    tar -cjf $(sname).tar.bz2 modules && \
 	    rm -rf modules
+
+	chmod 644 debian/$(psource)/usr/src/$(sname).tar.bz2
+endif
+
+# check if arch-all packages are being built
+ifneq (,$(filter $(gsource), $(shell dh_listpackages)))
+	# These files have incorrect permissions, fixing it.
+	chmod 755 debian/$(gsource)/usr/src/modules/$(gname)/debian/rules
+
+	# this needs all prior work to be finished
 	cd debian/$(gsource)/usr/src && \
 	    tar -cjf $(gname).tar.bz2 modules && \
 	    rm -rf modules
 
-	chmod 644 debian/$(psource)/usr/src/$(sname).tar.bz2
 	chmod 644 debian/$(gsource)/usr/src/$(gname).tar.bz2
 endif
 
