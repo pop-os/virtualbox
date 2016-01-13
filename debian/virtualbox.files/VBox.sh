@@ -1,5 +1,8 @@
 #!/bin/sh
+## @file
+# Oracle VM VirtualBox startup script, Linux hosts.
 #
+
 # written by Patrick Winnertz <patrick.winnertz@skolelinux.org> and
 # Michael Meskes <meskes@debian.org>
 # and placed under GPLv2
@@ -7,7 +10,7 @@
 # this is based on a script by
 # Oracle VirtualBox
 #
-# Copyright (C) 2006-2011 Oracle Corporation
+# Copyright (C) 2006-2015 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -16,6 +19,7 @@
 # Foundation, in version 2 as it comes in the "COPYING" file of the
 # VirtualBox OSE distribution. VirtualBox OSE is distributed in the
 # hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+#
 
 PATH="/usr/bin:/bin:/usr/sbin:/sbin"
 
@@ -48,28 +52,33 @@ fi
 
 APP=`basename $0`
 case "$APP" in
-  VirtualBox|virtualbox)
-    exec "$INSTALL_DIR/VirtualBox" "$@"
-  ;;
-  VBoxManage|vboxmanage)
-    exec "$INSTALL_DIR/VBoxManage" "$@"
-  ;;
-  VBoxSDL|vboxsdl)
-    exec "$INSTALL_DIR/VBoxSDL" "$@"
-  ;;
-  VBoxHeadless|vboxheadless)
-    exec "$INSTALL_DIR/VBoxHeadless" "$@"
-  ;;
-  VBoxBalloonCtrl|vboxballoonctrl)
-    exec "$INSTALL_DIR/VBoxBalloonCtrl" "$@"
-  ;;
-  vboxwebsrv)
-    exec "$INSTALL_DIR/vboxwebsrv" "$@"
-  ;;
-  *)
-    echo "Unknown application - $APP"
-    exit 1
-  ;;
+    VirtualBox|virtualbox)
+        exec "$INSTALL_DIR/VirtualBox" "$@"
+        ;;
+    VBoxManage|vboxmanage)
+        exec "$INSTALL_DIR/VBoxManage" "$@"
+        ;;
+    VBoxSDL|vboxsdl)
+        exec "$INSTALL_DIR/VBoxSDL" "$@"
+        ;;
+    VBoxVRDP|VBoxHeadless|vboxheadless)
+        exec "$INSTALL_DIR/VBoxHeadless" "$@"
+        ;;
+    VBoxAutostart|vboxautostart)
+        exec "$INSTALL_DIR/VBoxAutostart" "$@"
+        ;;
+    VBoxBalloonCtrl|vboxballoonctrl)
+        exec "$INSTALL_DIR/VBoxBalloonCtrl" "$@"
+        ;;
+    VBoxDTrace|vboxdtrace)
+        exec "$INSTALL_DIR/VBoxDTrace" "$@"
+        ;;
+    vboxwebsrv)
+        exec "$INSTALL_DIR/vboxwebsrv" "$@"
+        ;;
+    *)
+        echo "Unknown application - $APP"
+        exit 1
+        ;;
 esac
-
 exit 0
