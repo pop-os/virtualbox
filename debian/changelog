@@ -1,11 +1,12 @@
-virtualbox (5.0.12-dfsg-3) UNRELEASED; urgency=medium
+virtualbox (5.0.14-dfsg-1) unstable; urgency=medium
 
+  * new upstream release.
   * Rework rules file to work also when only guest packages needs to be built.
   * Merge VBox.sh script with upstream, and add procps to runtime dependencies
     thanks Andreas Beckmann <anbe@debian.org>
     -cfr https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=802143#26
 
- -- Gianfranco Costamagna <locutusofborg@debian.org>  Fri, 08 Jan 2016 16:14:58 +0100
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 20 Jan 2016 10:04:40 +0100
 
 virtualbox (5.0.12-dfsg-2) unstable; urgency=low
 
