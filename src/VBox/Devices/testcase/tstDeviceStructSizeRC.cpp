@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1843,6 +1843,7 @@ int main()
     GEN_CHECK_OFF(AC97DRIVER, pAC97State);
     GEN_CHECK_OFF(AC97DRIVER, Flags);
     GEN_CHECK_OFF(AC97DRIVER, uLUN);
+    GEN_CHECK_OFF(AC97DRIVER, fAttached);
     GEN_CHECK_OFF(AC97DRIVER, pConnector);
     GEN_CHECK_OFF(AC97DRIVER, LineIn);
     GEN_CHECK_OFF(AC97DRIVER, MicIn);
@@ -1861,6 +1862,7 @@ int main()
     GEN_CHECK_OFF(HDADRIVER, pHDAState);
     GEN_CHECK_OFF(HDADRIVER, Flags);
     GEN_CHECK_OFF(HDADRIVER, uLUN);
+    GEN_CHECK_OFF(HDADRIVER, fAttached);
     GEN_CHECK_OFF(HDADRIVER, pConnector);
     GEN_CHECK_OFF(HDADRIVER, LineIn);
     GEN_CHECK_OFF(HDADRIVER, MicIn);
@@ -1879,9 +1881,8 @@ int main()
     GEN_CHECK_OFF(HDABDLE, State);
 
     GEN_CHECK_SIZE(HDASTREAMSTATE);
-    GEN_CHECK_OFF(HDASTREAMSTATE, cBDLE);
     GEN_CHECK_OFF(HDASTREAMSTATE, uCurBDLE);
-    GEN_CHECK_OFF(HDASTREAMSTATE, paBDLE);
+    GEN_CHECK_OFF(HDASTREAMSTATE, BDLE);
 
     GEN_CHECK_SIZE(HDASTREAM);
     GEN_CHECK_OFF(HDASTREAM, u8Strm);
@@ -1896,7 +1897,6 @@ int main()
     GEN_CHECK_OFF(HDASTATE, pDevInsR3);
     GEN_CHECK_OFF(HDASTATE, pDevInsR0);
     GEN_CHECK_OFF(HDASTATE, pDevInsRC);
-    GEN_CHECK_OFF(HDASTATE, pDrvBase);
     GEN_CHECK_OFF(HDASTATE, IBase);
     GEN_CHECK_OFF(HDASTATE, MMIOBaseAddr);
     GEN_CHECK_OFF(HDASTATE, au32Regs[0]);

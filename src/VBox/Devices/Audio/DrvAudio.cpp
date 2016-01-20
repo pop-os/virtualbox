@@ -1727,17 +1727,6 @@ static DECLCALLBACK(int) drvAudioInit(PCFGMNODE pCfgHandle, PPDMDRVINS pDrvIns)
     return rc;
 }
 
-static DECLCALLBACK(int) drvAudioInitNull(PPDMIAUDIOCONNECTOR pInterface)
-{
-    PDRVAUDIO pThis = PDMIAUDIOCONNECTOR_2_DRVAUDIO(pInterface);
-    NOREF(pThis);
-
-    LogRel(("Audio: Using NULL driver; no sound will be audible\n"));
-
-    /* Nothing to do here yet. */
-    return VINF_SUCCESS;
-}
-
 static DECLCALLBACK(int) drvAudioRead(PPDMIAUDIOCONNECTOR pInterface, PPDMAUDIOGSTSTRMIN pGstStrmIn,
                                       void *pvBuf, uint32_t cbBuf, uint32_t *pcbRead)
 {
@@ -1881,13 +1870,13 @@ static DECLCALLBACK(int) drvAudioEnableIn(PPDMIAUDIOCONNECTOR pInterface,
     return rc;
 }
 
-static DECLCALLBACK(bool) drvAudioIsInputOK(PPDMIAUDIOCONNECTOR pInterface,
+static DECLCALLBACK(bool) drvAudioIsValidIn(PPDMIAUDIOCONNECTOR pInterface,
                                             PPDMAUDIOGSTSTRMIN  pGstStrmIn)
 {
     return (pGstStrmIn != NULL);
 }
 
-static DECLCALLBACK(bool) drvAudioIsOutputOK(PPDMIAUDIOCONNECTOR pInterface,
+static DECLCALLBACK(bool) drvAudioIsValidOut(PPDMIAUDIOCONNECTOR pInterface,
                                              PPDMAUDIOGSTSTRMOUT pGstStrmOut)
 {
     return (pGstStrmOut != NULL);
@@ -2166,9 +2155,8 @@ static DECLCALLBACK(int) drvAudioConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHan
     pThis->IAudioConnector.pfnWrite                  = drvAudioWrite;
     pThis->IAudioConnector.pfnIsActiveIn             = drvAudioIsActiveIn;
     pThis->IAudioConnector.pfnIsActiveOut            = drvAudioIsActiveOut;
-    pThis->IAudioConnector.pfnIsInputOK              = drvAudioIsInputOK;
-    pThis->IAudioConnector.pfnIsOutputOK             = drvAudioIsOutputOK;
-    pThis->IAudioConnector.pfnInitNull               = drvAudioInitNull;
+    pThis->IAudioConnector.pfnIsValidIn              = drvAudioIsValidIn;
+    pThis->IAudioConnector.pfnIsValidOut             = drvAudioIsValidOut;
     pThis->IAudioConnector.pfnEnableOut              = drvAudioEnableOut;
     pThis->IAudioConnector.pfnEnableIn               = drvAudioEnableIn;
     pThis->IAudioConnector.pfnDestroyIn              = drvAudioDestroyIn;

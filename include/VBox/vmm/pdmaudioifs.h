@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -520,30 +520,22 @@ typedef struct PDMIAUDIOCONNECTOR
     DECLR3CALLBACKMEMBER(bool, pfnIsActiveOut, (PPDMIAUDIOCONNECTOR pInterface, PPDMAUDIOGSTSTRMOUT pGstStrmOut));
 
     /**
-     * Checks whether the specified guest input stream is in a working state.
+     * Checks whether the specified guest input stream is in a valid (working) state.
      *
      * @returns True if a host voice in is available, false if not.
      * @param   pInterface      Pointer to the interface structure containing the called function pointer.
      * @param   pGstStrmIn      Pointer to guest input stream to check.
      */
-    DECLR3CALLBACKMEMBER(bool, pfnIsInputOK, (PPDMIAUDIOCONNECTOR pInterface, PPDMAUDIOGSTSTRMIN pGstStrmIn));
+    DECLR3CALLBACKMEMBER(bool, pfnIsValidIn, (PPDMIAUDIOCONNECTOR pInterface, PPDMAUDIOGSTSTRMIN pGstStrmIn));
 
     /**
-     * Checks whether the specified guest output stream is in a working state.
+     * Checks whether the specified guest output stream is in a valid (working) state.
      *
      * @returns True if a host voice out is available, false if not.
      * @param   pInterface      Pointer to the interface structure containing the called function pointer.
      * @param   pGstStrmOut     Pointer to guest output stream to check.
      */
-    DECLR3CALLBACKMEMBER(bool, pfnIsOutputOK, (PPDMIAUDIOCONNECTOR pInterface, PPDMAUDIOGSTSTRMOUT pGstStrmOut));
-
-    /**
-     * Initializes the NULL audio driver as a fallback in case no host backend is available.
-     *
-     * @returns VBox status code.
-     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
-     */
-    DECLR3CALLBACKMEMBER(int, pfnInitNull, (PPDMIAUDIOCONNECTOR pInterface));
+    DECLR3CALLBACKMEMBER(bool, pfnIsValidOut, (PPDMIAUDIOCONNECTOR pInterface, PPDMAUDIOGSTSTRMOUT pGstStrmOut));
 
     /**
      * Enables a specific guest output stream and starts the audio device.
@@ -624,7 +616,7 @@ typedef struct PDMIAUDIOCONNECTOR
 } PDMIAUDIOCONNECTOR;
 
 /** PDMIAUDIOCONNECTOR interface ID. */
-#define PDMIAUDIOCONNECTOR_IID                  "7bbb9565-8dd2-4fab-81d6-4d78985e5daa"
+#define PDMIAUDIOCONNECTOR_IID                  "7040b289-306f-454e-87ff-e90889004464"
 
 
 /**

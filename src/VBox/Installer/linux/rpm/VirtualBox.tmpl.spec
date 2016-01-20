@@ -79,7 +79,11 @@ mv *.rc $RPM_BUILD_ROOT/usr/lib/virtualbox
 mv *.r0 $RPM_BUILD_ROOT/usr/lib/virtualbox
 mv *.rel $RPM_BUILD_ROOT/usr/lib/virtualbox || true
 install -m 755 -d $RPM_BUILD_ROOT/usr/lib/debug/usr/lib/virtualbox
+%if %{?rpm_suse:1}%{!?rpm_suse:0}
+rm *.debug
+%else
 mv *.debug $RPM_BUILD_ROOT/usr/lib/debug/usr/lib/virtualbox
+%endif
 mv VBoxNetDHCP $RPM_BUILD_ROOT/usr/lib/virtualbox
 mv VBoxNetNAT $RPM_BUILD_ROOT/usr/lib/virtualbox
 mv VBoxNetAdpCtl $RPM_BUILD_ROOT/usr/lib/virtualbox

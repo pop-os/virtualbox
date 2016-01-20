@@ -3,6 +3,73 @@
 <chapter> <!-- HACK ALERT! Seems we must have a single top level element for xi:include to work.
                            So, we use chapter and xpointer="xpointer(/chapter/)" with xi:include. -->
   <sect1>
+    <title>Version 5.0.14 (2016-01-19)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>GUI: properly limit the number of VCPUs to the number of physical
+          cores on Mac OS X (bug #15018)</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: fixed a bug which prevented loading a saved state
+          of a saved guests with HDA emulation (5.0.12 regression; bug #14981)</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: don't crash if the backend is unable to initialize
+          (bug #14960)</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: fixed audio capture on Mac OS X (bug #14386)</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: fixed a possible crash when attaching the same ISO image
+          multiple times to the same VM (bug #14951)</para>
+      </listitem>
+
+      <listitem>
+        <para>BIOS: properly report if two floppy drives are attached</para>
+      </listitem>
+
+      <listitem>
+        <para>USB: fixed a problem with filters which would not capture the
+          device under certain circumstances (5.0.10 regression; bug #15042)</para>
+      </listitem>
+
+      <listitem>
+        <para>ExtPack: black-list Extension Packs older than 4.3.30 due to
+          incompatible changes not being properly handled in the past</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows hosts: fixed a regression which caused robocopy
+          to fail (bug #14958)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts: properly create the <emphasis>/sbin/rcvboxdrv</emphasis>
+          symbolic link (5.0.12 regression; bug #14989)</para>
+      </listitem>
+
+      <listitem>
+        <para>Mac OS X hosts: several fixes for USB on El Capitan (bug #14677)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: fixes for Linux 4.5 (bug #15032)</para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
+
+  <sect1>
     <title>Version 5.0.12 (2015-12-18)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or
@@ -115,8 +182,8 @@
       </listitem>
 
       <listitem>
-        <para>The command for recompiling the host kernel modules was changed
-           again, to <emphasis>/sbin/rcvboxdrv setup</emphasis> (bug
+        <para>Linux hosts: the command for recompiling the host kernel modules
+          was changed again, to <emphasis>/sbin/rcvboxdrv setup</emphasis> (bug
            #14723)</para>
       </listitem>
 

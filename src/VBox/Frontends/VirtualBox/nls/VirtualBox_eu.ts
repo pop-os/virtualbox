@@ -1453,7 +1453,7 @@
         <translation>Aurreikuspen Monitorea %1</translation>
     </message>
     <message>
-        <location line="+1413"/>
+        <location line="+1420"/>
         <source>&amp;Connect Network Adapter</source>
         <translation>&amp;Elkarketatu Sare Egokitzailea</translation>
     </message>
@@ -4316,7 +4316,7 @@
         <translation type="obsolete">Sostengu gabeko gailuak elkartuta hostalari PG-ra</translation>
     </message>
     <message>
-        <location filename="../src/runtime/UIMachineLogic.cpp" line="-653"/>
+        <location filename="../src/runtime/UIMachineLogic.cpp" line="-658"/>
         <source>Select a filename for the screenshot ...</source>
         <translation>Hautatu ikusleiho-argazkiarentzako agirizen bat...</translation>
     </message>
@@ -6207,7 +6207,7 @@
         <translation>Biltegi Zuhaitzean hautatutako SATA biltegiratze kontrolatzailearen ataka kopurua hautatzen du. Hau gutxienez izan behar da erabiltzea behar duzun ataka zenbateko gehiena baino bat gehiago.</translation>
     </message>
     <message>
-        <location filename="../src/UIVMInfoDialog.cpp" line="+707"/>
+        <location filename="../src/UIVMInfoDialog.cpp" line="+757"/>
         <location filename="../src/globals/VBoxGlobal.cpp" line="-708"/>
         <location filename="../src/selector/graphics/details/UIGDetailsElements.cpp" line="-343"/>
         <location filename="../src/settings/machine/UIMachineSettingsStorage.cpp" line="-1720"/>
@@ -9365,7 +9365,7 @@
 <context>
     <name>UIVMInfoDialog</name>
     <message>
-        <location filename="../src/UIVMInfoDialog.cpp" line="-592"/>
+        <location filename="../src/UIVMInfoDialog.cpp" line="-642"/>
         <source>%1 - Session Information</source>
         <translation>%1 - Saio Argibideak</translation>
     </message>
@@ -9394,13 +9394,17 @@
         <location line="+2"/>
         <location line="+35"/>
         <location line="+27"/>
+        <location line="+25"/>
+        <location line="+25"/>
         <source>Data Read</source>
         <translation>Datu Irakurrita</translation>
     </message>
     <message>
-        <location line="-60"/>
+        <location line="-110"/>
         <location line="+35"/>
         <location line="+27"/>
+        <location line="+25"/>
+        <location line="+25"/>
         <source>Data Written</source>
         <translation>Datu Idatzita</translation>
     </message>
@@ -9473,7 +9477,7 @@
         <translation>Biltegi Estatistikak</translation>
     </message>
     <message>
-        <location line="+72"/>
+        <location line="+90"/>
         <source>No Storage Devices</source>
         <translation>Ez dago Biltegi Gailurik</translation>
     </message>
@@ -10506,7 +10510,7 @@
         <translation>Sortu</translation>
     </message>
     <message>
-        <location filename="../src/wizards/newvm/UIWizardNewVMPageBasic1.cpp" line="+302"/>
+        <location filename="../src/wizards/newvm/UIWizardNewVMPageBasic1.cpp" line="+304"/>
         <location filename="../src/wizards/newvm/UIWizardNewVMPageExpert.cpp" line="+227"/>
         <source>Name and operating system</source>
         <translation>Izena eta sistema eragilea</translation>
@@ -10838,7 +10842,7 @@
         <translation>Audioa</translation>
     </message>
     <message>
-        <location filename="../src/UIVMInfoDialog.cpp" line="-204"/>
+        <location filename="../src/UIVMInfoDialog.cpp" line="-222"/>
         <source>off</source>
         <comment>guest monitor status</comment>
         <translation>itzalita</translation>
@@ -10894,7 +10898,7 @@
         <translation>Parabirtualizazio Interfazea</translation>
     </message>
     <message>
-        <location line="+173"/>
+        <location line="+191"/>
         <location filename="../src/globals/VBoxGlobal.cpp" line="+205"/>
         <source>Adapter %1</source>
         <comment>details report (network)</comment>
@@ -11262,7 +11266,7 @@
         <translation>Erabiltzaileak-zehaztuta</translation>
     </message>
     <message>
-        <location filename="../src/UIVMInfoDialog.cpp" line="-176"/>
+        <location filename="../src/UIVMInfoDialog.cpp" line="-194"/>
         <location filename="../src/globals/VBoxGlobal.cpp" line="-1047"/>
         <location filename="../src/runtime/UIIndicatorsPool.cpp" line="-9"/>
         <source>VT-x/AMD-V</source>

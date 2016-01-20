@@ -776,6 +776,7 @@ int UINetworkReplyPrivateThread::refreshCertificates(RTHTTP hHttp, PRTCRSTORE ph
 void UINetworkReplyPrivateThread::downloadMissingCertificates(RTCRSTORE hNewStore, bool *pafNewFoundCerts, RTHTTP hHttp,
                                                               PRTERRINFOSTATIC pStaticErrInfo)
 {
+    NOREF(pStaticErrInfo);
     int rc;
 
     /*

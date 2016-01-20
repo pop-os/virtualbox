@@ -8,7 +8,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -45,6 +45,7 @@
 #include "AudioMixBuffer.h"
 #include "AudioMixer.h"
 #include "DevIchHdaCodec.h"
+#include "DrvAudio.h"
 
 
 /*********************************************************************************************************************************
@@ -53,10 +54,10 @@
 //#define HDA_AS_PCI_EXPRESS
 #define VBOX_WITH_INTEL_HDA
 
-#if (defined(DEBUG) && defined(DEBUG_andy))
+#ifdef DEBUG_andy
 /* Enables experimental support for separate mic-in handling.
    Do not enable this yet for regular builds, as this needs more testing first! */
-# define VBOX_WITH_HDA_MIC_IN
+//# define VBOX_WITH_HDA_MIC_IN
 #endif
 
 #if defined(VBOX_WITH_HP_HDA)
@@ -570,9 +571,6 @@ typedef struct HDABDLE
  */
 typedef struct HDASTREAMSTATE
 {
-    /** Number of BDLEs (Buffer Descriptor List Entry).
-     *  Should be SDnLVI + 1 usually. */
-    uint16_t            cBDLE;
     /** Current BDLE to use. Wraps around to 0 if
      *  maximum (cBDLE) is reached. */
     uint16_t            uCurBDLE;
@@ -588,8 +586,8 @@ typedef struct HDASTREAMSTATE
     bool                fPadding;
     /** Event signalling that the stream's state has been changed. */
     RTSEMEVENT          hStateChangedEvent;
-    /** Array of BDLEs. */
-    R3PTRTYPE(PHDABDLE) paBDLE;
+    /** Current BDLE (Buffer Descriptor List Entry). */
+    HDABDLE             BDLE;
 } HDASTREAMSTATE, *PHDASTREAMSTATE;
 
 /**
@@ -656,11 +654,14 @@ typedef struct HDADRIVER
     R3PTRTYPE(PHDASTATE)               pHDAState;
     /** Driver flags. */
     PDMAUDIODRVFLAGS                   Flags;
-    uint8_t                            u32Padding0[3];
+    uint8_t                            u32Padding0[2];
     /** LUN to which this driver has been assigned. */
     uint8_t                            uLUN;
-    /** Audio connector interface to the underlying
-     *  host backend. */
+    /** Whether this driver is in an attached state or not. */
+    bool                               fAttached;
+    /** Pointer to attached driver base interface. */
+    R3PTRTYPE(PPDMIBASE)               pDrvBase;
+    /** Audio connector interface to the underlying host backend. */
     R3PTRTYPE(PPDMIAUDIOCONNECTOR)     pConnector;
     /** Stream for line input. */
     HDAINPUTSTREAM                     LineIn;
@@ -685,8 +686,6 @@ typedef struct HDASTATE
     PPDMDEVINSRC                       pDevInsRC;
     /** Padding for alignment. */
     uint32_t                           u32Padding;
-    /** Pointer to the attached audio driver. */
-    R3PTRTYPE(PPDMIBASE)               pDrvBase;
     /** The base interface for LUN\#0. */
     PDMIBASE                           IBase;
     RTGCPHYS                           MMIOBaseAddr;
@@ -804,15 +803,16 @@ static int hdaRegWriteBase(PHDASTATE pThis, uint32_t iReg, uint32_t u32Value);
 /*
  * {IOB}SDn read/write functions.
  */
-static int hdaRegWriteSDCBL(PHDASTATE pThis, uint32_t iReg, uint32_t u32Value);
-static int hdaRegWriteSDCTL(PHDASTATE pThis, uint32_t iReg, uint32_t u32Value);
-static int hdaRegWriteSDSTS(PHDASTATE pThis, uint32_t iReg, uint32_t u32Value);
-static int hdaRegWriteSDLVI(PHDASTATE pThis, uint32_t iReg, uint32_t u32Value);
-static int hdaRegWriteSDFIFOW(PHDASTATE pThis, uint32_t iReg, uint32_t u32Value);
-static int hdaRegWriteSDFIFOS(PHDASTATE pThis, uint32_t iReg, uint32_t u32Value);
-static int hdaRegWriteSDFMT(PHDASTATE pThis, uint32_t iReg, uint32_t u32Value);
-static int hdaRegWriteSDBDPL(PHDASTATE pThis, uint32_t iReg, uint32_t u32Value);
-static int hdaRegWriteSDBDPU(PHDASTATE pThis, uint32_t iReg, uint32_t u32Value);
+static int  hdaRegWriteSDCBL(PHDASTATE pThis, uint32_t iReg, uint32_t u32Value);
+static int  hdaRegWriteSDCTL(PHDASTATE pThis, uint32_t iReg, uint32_t u32Value);
+static int  hdaRegWriteSDSTS(PHDASTATE pThis, uint32_t iReg, uint32_t u32Value);
+static int  hdaRegWriteSDLVI(PHDASTATE pThis, uint32_t iReg, uint32_t u32Value);
+static int  hdaRegWriteSDFIFOW(PHDASTATE pThis, uint32_t iReg, uint32_t u32Value);
+static int  hdaRegWriteSDFIFOS(PHDASTATE pThis, uint32_t iReg, uint32_t u32Value);
+static int  hdaRegWriteSDFMT(PHDASTATE pThis, uint32_t iReg, uint32_t u32Value);
+static int  hdaRegWriteSDBDPL(PHDASTATE pThis, uint32_t iReg, uint32_t u32Value);
+static int  hdaRegWriteSDBDPU(PHDASTATE pThis, uint32_t iReg, uint32_t u32Value);
+inline bool hdaRegWriteSDIsAllowed(PHDASTATE pThis, uint32_t iReg, uint32_t u32Value);
 
 /*
  * Generic register read/write functions.
@@ -827,7 +827,6 @@ static int hdaRegReadU8(PHDASTATE pThis, uint32_t iReg, uint32_t *pu32Value);
 static int hdaRegWriteU8(PHDASTATE pThis, uint32_t iReg, uint32_t pu32Value);
 
 #ifdef IN_RING3
-static int hdaStreamInit(PHDASTATE pThis, PHDASTREAM pStrmSt, uint8_t u8Strm);
 static void hdaStreamDestroy(PHDASTREAM pStrmSt);
 static int hdaStreamStart(PHDASTREAM pStrmSt);
 static int hdaStreamStop(PHDASTREAM pStrmSt);
@@ -839,9 +838,8 @@ static int hdaTransfer(PHDASTATE pThis, ENMSOUNDSOURCE enmSrc, uint32_t cbToProc
 static int hdaBDLEFetch(PHDASTATE pThis, PHDABDLE pBDLE, uint64_t u64BaseDMA, uint16_t u16Entry);
 static void hdaStreamUpdateLPIB(PHDASTATE pThis, PHDASTREAM pStrmSt, uint32_t u32LPIB);
 # ifdef LOG_ENABLED
-static void hdaBDLEDumpAll(PHDASTATE pThis, uint64_t u64BaseDMA, uint16_t u16LVI);
+static void hdaBDLEDumpAll(PHDASTATE pThis, uint64_t u64BaseDMA, uint16_t cBDLE);
 # endif
-static void hdaBDLEReset(PHDABDLE pBDLE);
 #endif
 
 
@@ -986,8 +984,17 @@ static const struct
 };
 
 #ifdef IN_RING3
-/** HDABDLESTATE field descriptors for the v5+ saved state. */
-static SSMFIELD const g_aSSMBDLEStateFields5[] =
+/** HDABDLE field descriptors for the v6+ saved state. */
+static SSMFIELD const g_aSSMBDLEFields6[] =
+{
+    SSMFIELD_ENTRY(HDABDLE, u64BufAdr),
+    SSMFIELD_ENTRY(HDABDLE, u32BufSize),
+    SSMFIELD_ENTRY(HDABDLE, fIntOnCompletion),
+    SSMFIELD_ENTRY_TERM()
+};
+
+/** HDABDLESTATE field descriptors for the v6+ saved state. */
+static SSMFIELD const g_aSSMBDLEStateFields6[] =
 {
     SSMFIELD_ENTRY(HDABDLESTATE, u32BDLIndex),
     SSMFIELD_ENTRY(HDABDLESTATE, cbBelowFIFOW),
@@ -996,12 +1003,14 @@ static SSMFIELD const g_aSSMBDLEStateFields5[] =
     SSMFIELD_ENTRY_TERM()
 };
 
-/** HDASTREAMSTATE field descriptors for the v5+ saved state. */
-static SSMFIELD const g_aSSMStreamStateFields5[] =
+/** HDASTREAMSTATE field descriptors for the v6+ saved state. */
+static SSMFIELD const g_aSSMStreamStateFields6[] =
 {
-    SSMFIELD_ENTRY       (HDASTREAMSTATE, cBDLE),
-    SSMFIELD_ENTRY       (HDASTREAMSTATE, uCurBDLE),
-    SSMFIELD_ENTRY_IGNORE(HDASTREAMSTATE, paBDLE),
+    SSMFIELD_ENTRY_OLD(cBDLE, 2),
+    SSMFIELD_ENTRY(HDASTREAMSTATE, uCurBDLE),
+    SSMFIELD_ENTRY(HDASTREAMSTATE, fDoStop),
+    SSMFIELD_ENTRY(HDASTREAMSTATE, fActive),
+    SSMFIELD_ENTRY(HDASTREAMSTATE, fInReset),
     SSMFIELD_ENTRY_TERM()
 };
 #endif
@@ -1032,9 +1041,12 @@ DECLINLINE(void) hdaStreamUpdateLPIB(PHDASTATE pThis, PHDASTREAM pStrmSt, uint32
     if (pThis->fDMAPosition)
     {
         int rc2 = PDMDevHlpPCIPhysWrite(pThis->CTX_SUFF(pDevIns),
-                                        (pThis->u64DPBase & DPBASE_ADDR_MASK) + (pStrmSt->u8Strm * 8),
+                                        (pThis->u64DPBase & DPBASE_ADDR_MASK) + (pStrmSt->u8Strm * 2 * sizeof(uint32_t)),
                                         (void *)&u32LPIB, sizeof(uint32_t));
         AssertRC(rc2);
+#ifdef DEBUG
+        hdaBDLEDumpAll(pThis, pStrmSt->u64BaseDMA, pStrmSt->State.uCurBDLE);
+#endif
     }
 }
 #endif
@@ -1094,36 +1106,18 @@ DECLINLINE(uint8_t) hdaSDFIFOWToBytes(uint32_t u32RegFIFOW)
 
 #ifdef IN_RING3
 /**
- * Returns the current BDLE to use for a stream.
+ * Fetches the next BDLE to use for a stream.
  *
- * @return BDLE to use, NULL if none found.
+ * @return  IPRT status code.
  */
-DECLINLINE(PHDABDLE) hdaStreamGetCurrentBDLE(PHDASTATE pThis, PHDASTREAM pStrmSt)
+DECLINLINE(int) hdaStreamGetNextBDLE(PHDASTATE pThis, PHDASTREAM pStrmSt)
 {
-    AssertPtrReturn(pThis,   NULL);
-    AssertPtrReturn(pStrmSt, NULL);
-
-    Assert(pStrmSt->State.paBDLE);
-    Assert(pStrmSt->State.uCurBDLE < pStrmSt->State.cBDLE);
-
-    PHDABDLE pBDLE = &pStrmSt->State.paBDLE[pStrmSt->State.uCurBDLE];
-    return pBDLE;
-}
-
-/**
- * Returns the next BDLE to use for a stream.
- *
- * @return BDLE to use next, NULL if none found.
- */
-DECLINLINE(PHDABDLE) hdaStreamGetNextBDLE(PHDASTATE pThis, PHDASTREAM pStrmSt)
-{
-    AssertPtrReturn(pThis,   NULL);
-    AssertPtrReturn(pStrmSt, NULL);
+    AssertPtrReturn(pThis,   VERR_INVALID_POINTER);
+    AssertPtrReturn(pStrmSt, VERR_INVALID_POINTER);
 
     NOREF(pThis);
 
-    Assert(pStrmSt->State.paBDLE);
-    Assert(pStrmSt->State.uCurBDLE < pStrmSt->State.cBDLE);
+    Assert(pStrmSt->State.uCurBDLE < pStrmSt->u16LVI + 1);
 
 #ifdef DEBUG
     uint32_t uOldBDLE = pStrmSt->State.uCurBDLE;
@@ -1134,25 +1128,22 @@ DECLINLINE(PHDABDLE) hdaStreamGetNextBDLE(PHDASTATE pThis, PHDASTREAM pStrmSt)
      * if we reached the end of the Buffer Descriptor List (BDL).
      */
     pStrmSt->State.uCurBDLE++;
-    if (pStrmSt->State.uCurBDLE == pStrmSt->State.cBDLE)
+    if (pStrmSt->State.uCurBDLE == pStrmSt->u16LVI + 1)
     {
         pStrmSt->State.uCurBDLE = 0;
 
         hdaStreamUpdateLPIB(pThis, pStrmSt, 0);
     }
 
-    Assert(pStrmSt->State.uCurBDLE < pStrmSt->State.cBDLE);
+    Assert(pStrmSt->State.uCurBDLE < pStrmSt->u16LVI + 1);
 
-    PHDABDLE pBDLE = &pStrmSt->State.paBDLE[pStrmSt->State.uCurBDLE];
-    AssertPtr(pBDLE);
-
-    hdaBDLEReset(pBDLE);
+    int rc = hdaBDLEFetch(pThis, &pStrmSt->State.BDLE, pStrmSt->u64BaseDMA, pStrmSt->State.uCurBDLE);
 
 #ifdef DEBUG
-    LogFlowFunc(("[SD%RU8]: uOldBDLE=%RU16, uCurBDLE=%RU16, cBDLE=%RU32, %R[bdle]\n",
-                 pStrmSt->u8Strm, uOldBDLE, pStrmSt->State.uCurBDLE, pStrmSt->State.cBDLE, pBDLE));
+    LogFlowFunc(("[SD%RU8]: uOldBDLE=%RU16, uCurBDLE=%RU16, LVI=%RU32, %R[bdle]\n",
+                 pStrmSt->u8Strm, uOldBDLE, pStrmSt->State.uCurBDLE, pStrmSt->u16LVI, &pStrmSt->State.BDLE));
 #endif
-    return pBDLE;
+    return rc;
 }
 #endif
 
@@ -1452,6 +1443,8 @@ static int hdaStreamCreate(PHDASTREAM pStrmSt)
     int rc = RTSemEventCreate(&pStrmSt->State.hStateChangedEvent);
     AssertRC(rc);
 
+    pStrmSt->u8Strm         = UINT8_MAX;
+
     pStrmSt->State.fActive  = false;
     pStrmSt->State.fInReset = false;
     pStrmSt->State.fDoStop  = false;
@@ -1460,83 +1453,11 @@ static int hdaStreamCreate(PHDASTREAM pStrmSt)
     return rc;
 }
 
-static int hdaStreamInit(PHDASTATE pThis, PHDASTREAM pStrmSt, uint8_t u8Strm)
-{
-    AssertPtrReturn(pThis,   VERR_INVALID_POINTER);
-    AssertPtrReturn(pStrmSt, VERR_INVALID_POINTER);
-
-#ifdef VBOX_STRICT
-    AssertReleaseMsg(!RT_BOOL(HDA_STREAM_REG(pThis, CTL, u8Strm) & HDA_REG_FIELD_FLAG_MASK(SDCTL, RUN)),
-                     ("Cannot initialize stream %RU8 while in running state\n", u8Strm));
-#endif
-
-    pStrmSt->u8Strm     = u8Strm;
-    pStrmSt->u64BaseDMA = RT_MAKE_U64(HDA_STREAM_REG(pThis, BDPL, u8Strm),
-                                      HDA_STREAM_REG(pThis, BDPU, u8Strm));
-    pStrmSt->u16LVI     = HDA_STREAM_REG(pThis, LVI, u8Strm);
-    pStrmSt->u32CBL     = HDA_STREAM_REG(pThis, CBL, u8Strm);
-    pStrmSt->u16FIFOS   = hdaSDFIFOSToBytes(HDA_STREAM_REG(pThis, FIFOS, u8Strm));
-
-    int rc = VINF_SUCCESS;
-
-    if (pStrmSt->State.paBDLE)
-    {
-        Assert(pStrmSt->State.cBDLE);
-        RTMemFree(pStrmSt->State.paBDLE);
-        pStrmSt->State.paBDLE = NULL;
-    }
-
-    pStrmSt->State.cBDLE = 0;
-
-    if (pStrmSt->u16LVI) /* Any BDLEs to fetch? */
-    {
-        AssertMsg(pStrmSt->u64BaseDMA, ("No base DMA address set for stream %RU8\n", u8Strm));
-
-        uint32_t cbBDLE = 0;
-
-        pStrmSt->State.cBDLE  = pStrmSt->u16LVI + 1; /* See 18.2.37: If LVI is n, then there are n + 1 entries. */
-        pStrmSt->State.paBDLE = (PHDABDLE)RTMemAllocZ(sizeof(HDABDLE) * pStrmSt->State.cBDLE);
-        if (pStrmSt->State.paBDLE)
-        {
-            for (uint16_t i = 0; i < pStrmSt->State.cBDLE; i++)
-            {
-                rc = hdaBDLEFetch(pThis, &pStrmSt->State.paBDLE[i], pStrmSt->u64BaseDMA, i);
-                if (RT_FAILURE(rc))
-                    break;
-
-                cbBDLE += pStrmSt->State.paBDLE[i].u32BufSize;
-            }
-
-#ifdef DEBUG
-            hdaBDLEDumpAll(pThis, pStrmSt->u64BaseDMA, pStrmSt->State.cBDLE);
-#endif
-            if (RT_SUCCESS(rc))
-            {
-                if (pStrmSt->u32CBL != cbBDLE)
-                {
-                    AssertMsgFailed(("CBL (%RU32) does not match BDL entries (%RU32)\n", pStrmSt->u32CBL, cbBDLE));
-                    LogRel(("HDA: Warning: CBL (%RU32) does not match BDL entries (%RU32); expect sound hickups\n",
-                            pStrmSt->u32CBL, cbBDLE));
-                }
-
-                HDA_STREAM_REG(pThis, STS, pStrmSt->u8Strm) |= HDA_REG_FIELD_FLAG_MASK(SDSTS, BCIS);
-            }
-        }
-        else
-            rc = VERR_NO_MEMORY;
-    }
-
-    LogFunc(("[SD%RU8]: DMA=0x%x, LVI=%RU16, CBL=%RU32, FIFOS=%RU16\n",
-             u8Strm, pStrmSt->u64BaseDMA, pStrmSt->u16LVI, pStrmSt->u32CBL, pStrmSt->u16FIFOS));
-
-    return rc;
-}
-
 static void hdaStreamDestroy(PHDASTREAM pStrmSt)
 {
     AssertPtrReturnVoid(pStrmSt);
 
-    LogFlowFuncEnter();
+    LogFlowFunc(("[SD%RU8]: Destroy\n", pStrmSt->u8Strm));
 
     int rc2 = hdaStreamStop(pStrmSt);
     AssertRC(rc2);
@@ -1547,19 +1468,39 @@ static void hdaStreamDestroy(PHDASTREAM pStrmSt)
         AssertRC(rc2);
     }
 
-    /*
-     * Destroy.
-     */
-    if (pStrmSt->State.paBDLE)
-    {
-        Assert(pStrmSt->State.cBDLE);
-        RTMemFree(pStrmSt->State.paBDLE);
-        pStrmSt->State.paBDLE = NULL;
-    }
-
-    pStrmSt->State.cBDLE = 0;
-
     LogFlowFuncLeave();
+}
+
+static int hdaStreamInit(PHDASTATE pThis, PHDASTREAM pStrmSt, uint8_t u8Strm)
+{
+    AssertPtrReturn(pThis,   VERR_INVALID_POINTER);
+    AssertPtrReturn(pStrmSt, VERR_INVALID_POINTER);
+
+    pStrmSt->u8Strm     = u8Strm;
+    pStrmSt->u64BaseDMA = RT_MAKE_U64(HDA_STREAM_REG(pThis, BDPL, pStrmSt->u8Strm),
+                                      HDA_STREAM_REG(pThis, BDPU, pStrmSt->u8Strm));
+    pStrmSt->u16LVI     = HDA_STREAM_REG(pThis, LVI, pStrmSt->u8Strm);
+    pStrmSt->u32CBL     = HDA_STREAM_REG(pThis, CBL, pStrmSt->u8Strm);
+    pStrmSt->u16FIFOS   = hdaSDFIFOSToBytes(HDA_STREAM_REG(pThis, FIFOS, pStrmSt->u8Strm));
+
+    RT_ZERO(pStrmSt->State.BDLE);
+    pStrmSt->State.uCurBDLE = 0;
+
+    LogFlowFunc(("[SD%RU8]: DMA @ 0x%x (%RU32 bytes), LVI=%RU16, FIFOS=%RU16\n",
+                 pStrmSt->u8Strm, pStrmSt->u64BaseDMA, pStrmSt->u32CBL, pStrmSt->u16LVI, pStrmSt->u16FIFOS));
+
+#ifdef DEBUG
+    uint64_t u64BaseDMA = RT_MAKE_U64(HDA_STREAM_REG(pThis, BDPL, u8Strm),
+                                      HDA_STREAM_REG(pThis, BDPU, u8Strm));
+    uint16_t u16LVI     = HDA_STREAM_REG(pThis, LVI, u8Strm);
+    uint32_t u32CBL     = HDA_STREAM_REG(pThis, CBL, u8Strm);
+
+    LogFlowFunc(("\t-> DMA @ 0x%x, LVI=%RU16, CBL=%RU32\n", u64BaseDMA, u16LVI, u32CBL));
+
+    hdaBDLEDumpAll(pThis, u64BaseDMA, u16LVI + 1);
+#endif
+
+    return VINF_SUCCESS;
 }
 
 static void hdaStreamReset(PHDASTATE pThis, PHDASTREAM pStrmSt, uint8_t u8Strm)
@@ -1582,12 +1523,7 @@ static void hdaStreamReset(PHDASTATE pThis, PHDASTREAM pStrmSt, uint8_t u8Strm)
     /*
      * First, reset the internal stream state.
      */
-    pStrmSt->u8Strm     = u8Strm;
-    pStrmSt->u64BaseDMA = 0;
-    pStrmSt->u32CBL     = 0;
-    pStrmSt->u16FMT     = 0;
-    pStrmSt->u16FIFOS   = 0;
-    pStrmSt->u16LVI     = 0;
+    RT_BZERO(pStrmSt, sizeof(HDASTREAM));
 
     /*
      * Second, initialize the registers.
@@ -1606,6 +1542,13 @@ static void hdaStreamReset(PHDASTATE pThis, PHDASTREAM pStrmSt, uint8_t u8Strm)
     HDA_STREAM_REG(pThis, FMT,   u8Strm) = 0;
     HDA_STREAM_REG(pThis, BDPU,  u8Strm) = 0;
     HDA_STREAM_REG(pThis, BDPL,  u8Strm) = 0;
+
+    /*
+     * Third, set the internal state according to the just set registers.
+     */
+    pStrmSt->u8Strm   = u8Strm;
+    pStrmSt->u16FIFOS = HDA_STREAM_REG(pThis, FIFOS, u8Strm);
+
 
     /* Report that we're done resetting this stream. */
     HDA_STREAM_REG(pThis, CTL,   u8Strm) = 0;
@@ -1978,15 +1921,6 @@ static int hdaRegWriteSDCTL(PHDASTATE pThis, uint32_t iReg, uint32_t u32Value)
     {
 #ifdef IN_RING3
         /*
-         * Only (re-)initialize the stream when not running.
-         */
-        if (!fRun && !fInRun)
-        {
-            int rc2 = hdaStreamInit(pThis, pStrmSt, u8Strm);
-            AssertRC(rc2);
-        }
-
-        /*
          * We enter here to change DMA states only.
          */
         if (fInRun != fRun)
@@ -2025,6 +1959,10 @@ static int hdaRegWriteSDCTL(PHDASTATE pThis, uint32_t iReg, uint32_t u32Value)
                     break;
             }
         }
+
+        if (!fInRun && !fRun)
+            hdaStreamInit(pThis, pStrmSt, u8Strm);
+
 #else /* !IN_RING3 */
         return VINF_IOM_R3_MMIO_WRITE;
 #endif /* IN_RING3 */
@@ -2044,13 +1982,8 @@ static int hdaRegWriteSDSTS(PHDASTATE pThis, uint32_t iReg, uint32_t u32Value)
 
 static int hdaRegWriteSDLVI(PHDASTATE pThis, uint32_t iReg, uint32_t u32Value)
 {
-    /* Only can be modified if RUN bit is 0. */
-    bool fIsRunning = RT_BOOL(HDA_REG_IND(pThis, iReg) & HDA_REG_FIELD_FLAG_MASK(SDCTL, RUN));
-    if (fIsRunning)
-    {
-        AssertMsgFailed(("Cannot write to register when RUN bit is set\n"));
+    if (!hdaRegWriteSDIsAllowed(pThis, iReg, u32Value))
         return VINF_SUCCESS;
-    }
 
     int rc = hdaRegWriteU32(pThis, iReg, u32Value);
     if (RT_FAILURE(rc))
@@ -2137,7 +2070,7 @@ static int hdaRegWriteSDFIFOS(PHDASTATE pThis, uint32_t iReg, uint32_t u32Value)
 }
 
 #ifdef IN_RING3
-static int hdaSdFmtToAudSettings(uint32_t u32SdFmt, PPDMAUDIOSTREAMCFG pCfg)
+static int hdaSDFMTToStrmCfg(uint32_t u32SdFmt, PPDMAUDIOSTREAMCFG pCfg)
 {
     AssertPtrReturn(pCfg, VERR_INVALID_POINTER);
 
@@ -2229,8 +2162,8 @@ static int hdaRegWriteSDFMT(PHDASTATE pThis, uint32_t iReg, uint32_t u32Value)
     if (u32Value == HDA_REG_IND(pThis, iReg))
         return VINF_SUCCESS;
 
-    PDMAUDIOSTREAMCFG as;
-    int rc = hdaSdFmtToAudSettings(u32Value, &as);
+    PDMAUDIOSTREAMCFG strmCfg;
+    int rc = hdaSDFMTToStrmCfg(u32Value, &strmCfg);
     if (RT_FAILURE(rc))
         return rc;
 
@@ -2239,12 +2172,12 @@ static int hdaRegWriteSDFMT(PHDASTATE pThis, uint32_t iReg, uint32_t u32Value)
     {
         case HDA_REG_SD0FMT:
             RTListForEach(&pThis->lstDrv, pDrv, HDADRIVER, Node)
-                rc = hdaCodecOpenStream(pThis->pCodec, PI_INDEX, &as);
+                rc = hdaCodecOpenStream(pThis->pCodec, PI_INDEX, &strmCfg);
             break;
 #  ifdef VBOX_WITH_HDA_MIC_IN
         case HDA_REG_SD2FMT:
             RTListForEach(&pThis->lstDrv, pDrv, HDADRIVER, Node)
-                rc = hdaCodecOpenStream(pThis->pCodec, MC_INDEX, &as);
+                rc = hdaCodecOpenStream(pThis->pCodec, MC_INDEX, &strmCfg);
             break;
 #  endif
         default:
@@ -2264,6 +2197,11 @@ static int hdaRegWriteSDFMT(PHDASTATE pThis, uint32_t iReg, uint32_t u32Value)
 
 static int hdaRegWriteSDBDPL(PHDASTATE pThis, uint32_t iReg, uint32_t u32Value)
 {
+    if (!hdaRegWriteSDIsAllowed(pThis, iReg, u32Value))
+        return VINF_SUCCESS;
+
+    LogFlowFunc(("[SD%RU8]: DMA BDPL -> 0x%x\n", HDA_SD_NUM_FROM_REG(pThis, CTL, iReg), u32Value));
+
     int rc = hdaRegWriteU32(pThis, iReg, u32Value);
     if (RT_FAILURE(rc))
         AssertRCReturn(rc, VINF_SUCCESS);
@@ -2272,10 +2210,39 @@ static int hdaRegWriteSDBDPL(PHDASTATE pThis, uint32_t iReg, uint32_t u32Value)
 
 static int hdaRegWriteSDBDPU(PHDASTATE pThis, uint32_t iReg, uint32_t u32Value)
 {
+    if (!hdaRegWriteSDIsAllowed(pThis, iReg, u32Value))
+        return VINF_SUCCESS;
+
+    LogFlowFunc(("[SD%RU8]: DMA BDPU -> 0x%x\n", HDA_SD_NUM_FROM_REG(pThis, CTL, iReg), u32Value));
+
     int rc = hdaRegWriteU32(pThis, iReg, u32Value);
     if (RT_FAILURE(rc))
         AssertRCReturn(rc, VINF_SUCCESS);
     return rc;
+}
+
+/**
+ * Checks whether a write to a specific SDnXXX register is allowed or not.
+ *
+ * @return  bool                Returns @true if write is allowed, @false if not.
+ * @param   pThis               Pointer to HDA state.
+ * @param   iReg                Register to write.
+ * @param   u32Value            Value to write.
+ */
+inline bool hdaRegWriteSDIsAllowed(PHDASTATE pThis, uint32_t iReg, uint32_t u32Value)
+{
+    /* Check if the SD's RUN bit is set. */
+    bool fIsRunning = RT_BOOL(HDA_REG_IND(pThis, iReg) & HDA_REG_FIELD_FLAG_MASK(SDCTL, RUN));
+    if (fIsRunning)
+    {
+#ifdef VBOX_STRICT
+        AssertMsgFailed(("[SD%RU8]: Cannot write to register 0x%x (0x%x) when RUN bit is set\n",
+                         HDA_SD_NUM_FROM_REG(pThis, CTL, iReg), iReg, u32Value));
+#endif
+        return false;
+    }
+
+    return true;
 }
 
 static int hdaRegReadIRS(PHDASTATE pThis, uint32_t iReg, uint32_t *pu32Value)
@@ -2385,12 +2352,8 @@ static int hdaRegWriteBase(PHDASTATE pThis, uint32_t iReg, uint32_t u32Value)
             pThis->u64DPBase |= pThis->au32Regs[iRegMem];
 
             /* Also make sure to handle the DMA position enable bit. */
-            bool fEnabled = pThis->au32Regs[iRegMem] & RT_BIT_32(0);
-            if (pThis->fDMAPosition != fEnabled)
-            {
-                LogRel(("HDA: %s DMA position buffer\n", fEnabled ? "Enabled" : "Disabled"));
-                pThis->fDMAPosition = fEnabled;
-            }
+            pThis->fDMAPosition = pThis->au32Regs[iRegMem] & RT_BIT_32(0);
+            LogRel(("HDA: %s DMA position buffer\n", pThis->fDMAPosition ? "Enabled" : "Disabled"));
             break;
         }
         case HDA_REG_DPUBASE:
@@ -2419,8 +2382,11 @@ static int hdaRegWriteRIRBSTS(PHDASTATE pThis, uint32_t iReg, uint32_t u32Value)
 #ifdef LOG_ENABLED
 static void hdaBDLEDumpAll(PHDASTATE pThis, uint64_t u64BaseDMA, uint16_t cBDLE)
 {
-    uint32_t cbBDLE = 0;
+    LogFlowFunc(("BDLEs @ 0x%x (%RU16):\n", u64BaseDMA, cBDLE));
+    if (!u64BaseDMA)
+        return;
 
+    uint32_t cbBDLE = 0;
     for (uint16_t i = 0; i < cBDLE; i++)
     {
         uint8_t bdle[16]; /** @todo Use a define. */
@@ -2430,7 +2396,7 @@ static void hdaBDLEDumpAll(PHDASTATE pThis, uint64_t u64BaseDMA, uint16_t cBDLE)
         uint32_t len  = *(uint32_t *)&bdle[8];
         uint32_t ioc  = *(uint32_t *)&bdle[12];
 
-        LogFlowFunc(("#%03d BDLE(adr:0x%llx, size:%RU32, ioc:%RTbool)\n",
+        LogFlowFunc(("\t#%03d BDLE(adr:0x%llx, size:%RU32, ioc:%RTbool)\n",
                      i, addr, len, RT_BOOL(ioc & 0x1)));
 
         cbBDLE += len;
@@ -2441,14 +2407,15 @@ static void hdaBDLEDumpAll(PHDASTATE pThis, uint64_t u64BaseDMA, uint16_t cBDLE)
     if (!pThis->u64DPBase) /* No DMA base given? Bail out. */
         return;
 
+    LogFlowFunc(("DMA counters:\n", cbBDLE));
+
     for (int i = 0; i < 8; i++) /** @todo Use a define for MAX_STREAMS! */
     {
         uint32_t uDMACnt;
-        PDMDevHlpPhysRead(pThis->CTX_SUFF(pDevIns), (pThis->u64DPBase & DPBASE_ADDR_MASK) + i * 8, /** @todo Use a define. */
+        PDMDevHlpPhysRead(pThis->CTX_SUFF(pDevIns), (pThis->u64DPBase & DPBASE_ADDR_MASK) + (i * 2 * sizeof(uint32_t)),
                           &uDMACnt, sizeof(&uDMACnt));
 
-        LogFlowFunc(("%s #%02d STREAM(0x%x)\n",
-                     i == HDA_SDCTL_NUM(pThis, 4) || i == HDA_SDCTL_NUM(pThis, 0) ? "*" : " ", i , uDMACnt));
+        LogFlowFunc(("\t#%03d DMA @ 0x%x\n", i , uDMACnt));
     }
 }
 #endif
@@ -2474,6 +2441,8 @@ static int hdaBDLEFetch(PHDASTATE pThis, PHDABDLE pBDLE, uint64_t u64BaseDMA, ui
     if (RT_FAILURE(rc))
         return rc;
 
+    RT_BZERO(pBDLE, sizeof(HDABDLE));
+
     pBDLE->State.u32BDLIndex = u16Entry;
     pBDLE->u64BufAdr         = *(uint64_t *) uBundleEntry;
     pBDLE->u32BufSize        = *(uint32_t *)&uBundleEntry[8];
@@ -2483,14 +2452,6 @@ static int hdaBDLEFetch(PHDASTATE pThis, PHDABDLE pBDLE, uint64_t u64BaseDMA, ui
     pBDLE->fIntOnCompletion  = (*(uint32_t *)&uBundleEntry[12]) & 0x1;
 
     return VINF_SUCCESS;
-}
-
-static void hdaBDLEReset(PHDABDLE pBDLE)
-{
-    AssertPtrReturnVoid(pBDLE);
-
-    pBDLE->State.u32BufOff    = 0;
-    pBDLE->State.cbBelowFIFOW = 0;
 }
 
 /**
@@ -2507,7 +2468,7 @@ DECLINLINE(uint32_t) hdaStreamGetTransferSize(PHDASTATE pThis, PHDASTREAM pStrmS
     if (!cbMax)
         return 0;
 
-    PHDABDLE pBDLE = hdaStreamGetCurrentBDLE(pThis, pStrmSt);
+    PHDABDLE pBDLE = &pStrmSt->State.BDLE;
 
     uint32_t cbFree = pStrmSt->u32CBL - HDA_STREAM_REG(pThis, LPIB, pStrmSt->u8Strm);
     if (cbFree)
@@ -2578,7 +2539,7 @@ DECLINLINE(bool) hdaStreamNeedsNextBDLE(PHDASTATE pThis, PHDASTREAM pStrmSt)
     AssertPtrReturn(pThis,   false);
     AssertPtrReturn(pStrmSt, false);
 
-    PHDABDLE pBDLE   = hdaStreamGetCurrentBDLE(pThis, pStrmSt);
+    PHDABDLE pBDLE   = &pStrmSt->State.BDLE;
     uint32_t u32LPIB = HDA_STREAM_REG(pThis, LPIB, pStrmSt->u8Strm);
 
     /* Did we reach the CBL (Cyclic Buffer List) limit? */
@@ -2587,9 +2548,7 @@ DECLINLINE(bool) hdaStreamNeedsNextBDLE(PHDASTATE pThis, PHDASTREAM pStrmSt)
     /* Do we need to use the next BDLE entry? Either because we reached
      * the CBL limit or our internal DMA buffer is full. */
     bool fNeedsNextBDLE   = (   fCBLLimitReached
-                             || (   pBDLE->State.u32BufOff
-                                 && pBDLE->State.u32BufOff >= pBDLE->u32BufSize)
-                            );
+                             || (pBDLE->State.u32BufOff >= pBDLE->u32BufSize));
 
     Assert(u32LPIB                <= pStrmSt->u32CBL);
     Assert(pBDLE->State.u32BufOff <= pBDLE->u32BufSize);
@@ -2604,12 +2563,6 @@ DECLINLINE(bool) hdaStreamNeedsNextBDLE(PHDASTATE pThis, PHDASTREAM pStrmSt)
         hdaStreamUpdateLPIB(pThis, pStrmSt, u32LPIB);
     }
 
-    if (fNeedsNextBDLE)
-    {
-        /* Reset current BDLE. */
-        hdaBDLEReset(pBDLE);
-    }
-
     return fNeedsNextBDLE;
 }
 
@@ -2622,7 +2575,7 @@ DECLINLINE(void) hdaStreamTransferUpdate(PHDASTATE pThis, PHDASTREAM pStrmSt, ui
 
     Assert(cbInc <= pStrmSt->u16FIFOS);
 
-    PHDABDLE pBDLE = hdaStreamGetCurrentBDLE(pThis, pStrmSt);
+    PHDABDLE pBDLE = &pStrmSt->State.BDLE;
 
     /*
      * If we're below the FIFO watermark (SDFIFOW), it's expected that HDA
@@ -2650,7 +2603,7 @@ static bool hdaStreamTransferIsComplete(PHDASTATE pThis, PHDASTREAM pStrmSt)
 
     bool fIsComplete = false;
 
-    PHDABDLE       pBDLE   = hdaStreamGetCurrentBDLE(pThis, pStrmSt);
+    PHDABDLE       pBDLE   = &pStrmSt->State.BDLE;
     const uint32_t u32LPIB = HDA_STREAM_REG(pThis, LPIB, pStrmSt->u8Strm);
 
     if (   pBDLE->State.u32BufOff >= pBDLE->u32BufSize
@@ -2706,7 +2659,7 @@ static int hdaReadAudio(PHDASTATE pThis, PHDASTREAM pStrmSt, PAUDMIXSINK pSink, 
     AssertPtrReturn(pSink,   VERR_INVALID_POINTER);
     /* pcbRead is optional. */
 
-    PHDABDLE pBDLE = hdaStreamGetCurrentBDLE(pThis, pStrmSt);
+    PHDABDLE pBDLE = &pStrmSt->State.BDLE;
 
     int rc;
     uint32_t cbRead = 0;
@@ -2773,8 +2726,7 @@ static int hdaWriteAudio(PHDASTATE pThis, PHDASTREAM pStrmSt, uint32_t cbMax, ui
     AssertPtrReturn(pcbWritten, VERR_INVALID_POINTER);
     /* pcbWritten is optional. */
 
-    PHDABDLE pBDLE = hdaStreamGetCurrentBDLE(pThis, pStrmSt);
-    int rc;
+    PHDABDLE pBDLE = &pStrmSt->State.BDLE;
 
     uint32_t cbWritten = 0;
     uint32_t cbData    = hdaStreamGetTransferSize(pThis, pStrmSt, cbMax);
@@ -2785,6 +2737,7 @@ static int hdaWriteAudio(PHDASTATE pThis, PHDASTREAM pStrmSt, uint32_t cbMax, ui
      * Copy from DMA to the corresponding stream buffer (if there are any bytes from the
      * previous unreported transfer we write at offset 'pBDLE->State.cbUnderFifoW').
      */
+    int rc;
     if (!cbData)
     {
         rc = VINF_EOF;
@@ -3025,26 +2978,47 @@ static DECLCALLBACK(void) hdaTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pv
 
     pThis->uTimerTS = cTicksNow;
 
+    /*
+     * Calculate the codec's (fixed) sampling rate.
+     */
+    AssertPtr(pThis->pCodec);
+    PDMPCMPROPS codecStrmProps;
+
+    int rc = DrvAudioStreamCfgToProps(&pThis->pCodec->strmCfg, &codecStrmProps);
+    AssertRC(rc);
+
+    uint32_t cCodecSamplesMin  = (int)((2 * cTicksElapsed * pThis->pCodec->strmCfg.uHz + cTicksPerSec) / cTicksPerSec / 2);
+    uint32_t cbCodecSamplesMin = cCodecSamplesMin << codecStrmProps.cShift;
+
+    /*
+     * Process all driver nodes.
+     */
     RTListForEach(&pThis->lstDrv, pDrv, HDADRIVER, Node)
     {
         uint32_t cbIn = 0;
         uint32_t cbOut = 0;
 
-        int rc = pDrv->pConnector->pfnQueryStatus(pDrv->pConnector, &cbIn, &cbOut, NULL /* pcSamplesLive */);
+        rc = pDrv->pConnector->pfnQueryStatus(pDrv->pConnector, &cbIn, &cbOut, NULL /* pcSamplesLive */);
         if (RT_SUCCESS(rc))
             rc = pDrv->pConnector->pfnPlayOut(pDrv->pConnector, NULL /* pcSamplesPlayed */);
 
 #ifdef DEBUG_TIMER
         LogFlowFunc(("LUN#%RU8: rc=%Rrc, cbIn=%RU32, cbOut=%RU32\n", pDrv->uLUN, rc, cbIn, cbOut));
 #endif
-        const bool fIsActiveOut = pDrv->pConnector->pfnIsActiveOut(pDrv->pConnector, pDrv->Out.pStrmOut);
-
         /* If we there was an error handling (available) output or there simply is no output available,
          * then calculate the minimum data rate which must be processed by the device emulation in order
          * to function correctly.
          *
          * This is not the optimal solution, but as we have to deal with this on a timer-based approach
          * (until we have the audio callbacks) we need to have device' DMA engines running. */
+        if (!pDrv->pConnector->pfnIsValidOut(pDrv->pConnector, pDrv->Out.pStrmOut))
+        {
+            /* Use the codec's (fixed) sampling rate. */
+            cbOut = RT_MAX(cbOut, cbCodecSamplesMin);
+            continue;
+        }
+
+        const bool fIsActiveOut = pDrv->pConnector->pfnIsActiveOut(pDrv->pConnector, pDrv->Out.pStrmOut);
         if (   RT_FAILURE(rc)
             || !fIsActiveOut)
         {
@@ -3135,8 +3109,6 @@ static int hdaTransfer(PHDASTATE pThis, ENMSOUNDSOURCE enmSrc, uint32_t cbToProc
     AssertPtrReturn(pThis, VERR_INVALID_POINTER);
     /* pcbProcessed is optional. */
 
-    LogFlowFunc(("enmSrc=%RU32, cbToProcess=%RU32\n", enmSrc, cbToProcess));
-
     if (ASMAtomicReadBool(&pThis->fInReset)) /* HDA controller in reset mode? Bail out. */
     {
         LogFlowFunc(("In reset mode, skipping\n"));
@@ -3191,9 +3163,6 @@ static int hdaTransfer(PHDASTATE pThis, ENMSOUNDSOURCE enmSrc, uint32_t cbToProc
     /* Is the stream not in a running state currently? */
     else if (!(HDA_STREAM_REG(pThis, CTL, pStrmSt->u8Strm) & HDA_REG_FIELD_FLAG_MASK(SDCTL, RUN)))
         fProceed = false;
-    /* There must be BDLEs defined in order to have a working stream. */
-    else if (pStrmSt->State.cBDLE == 0)
-        fProceed = false;
     /* Nothing to process? */
     else if (!cbToProcess)
         fProceed = false;
@@ -3205,13 +3174,14 @@ static int hdaTransfer(PHDASTATE pThis, ENMSOUNDSOURCE enmSrc, uint32_t cbToProc
         return VINF_SUCCESS;
     }
 
+    LogFlowFunc(("enmSrc=%RU32, cbToProcess=%RU32\n", enmSrc, cbToProcess));
+
     /* Sanity checks. */
     Assert(pStrmSt->u8Strm <= 7); /** @todo Use a define for MAX_STREAMS! */
     Assert(pStrmSt->u64BaseDMA);
     Assert(pStrmSt->u32CBL);
 
     /* State sanity checks. */
-    AssertPtr(pStrmSt->State.paBDLE);
     Assert(ASMAtomicReadBool(&pStrmSt->State.fInReset) == false);
 
     uint32_t cbProcessedTotal = 0;
@@ -3254,7 +3224,7 @@ static int hdaTransfer(PHDASTATE pThis, ENMSOUNDSOURCE enmSrc, uint32_t cbToProc
 
         hdaStreamTransferUpdate(pThis, pStrmSt, cbProcessed);
 
-        cbToProcess      -= RT_MIN(cbToProcess,  cbProcessed);
+        cbToProcess      -= RT_MIN(cbToProcess, cbProcessed);
         cbProcessedTotal += cbProcessed;
 
         LogFlowFunc(("cbProcessed=%RU32, cbToProcess=%RU32, cbProcessedTotal=%RU32, rc=%Rrc\n",
@@ -3379,7 +3349,10 @@ PDMBOTHCBDECL(int) hdaMMIORead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhys
 DECLINLINE(int) hdaWriteReg(PHDASTATE pThis, int idxRegDsc, uint32_t u32Value, char const *pszLog)
 {
     if (pThis->fInReset && idxRegDsc != HDA_REG_GCTL)
-        LogFunc(("access to registers except GCTL is blocked while reset\n"));  /** @todo where is this enforced? */
+    {
+        LogRel2(("HDA: Access to register 0x%x is blocked while reset\n", idxRegDsc));
+        return VINF_SUCCESS;
+    }
 
     uint32_t idxRegMem = g_aHdaRegMap[idxRegDsc].mem_idx;
 #ifdef LOG_ENABLED
@@ -3397,8 +3370,8 @@ DECLINLINE(int) hdaWriteReg(PHDASTATE pThis, int idxRegDsc, uint32_t u32Value, c
  */
 PDMBOTHCBDECL(int) hdaMMIOWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void const *pv, unsigned cb)
 {
-    PHDASTATE               pThis  = PDMINS_2_DATA(pDevIns, PHDASTATE);
-    int                     rc;
+    PHDASTATE pThis  = PDMINS_2_DATA(pDevIns, PHDASTATE);
+    int       rc;
 
     /*
      * The behavior of accesses that aren't aligned on natural boundraries is
@@ -3578,20 +3551,59 @@ static DECLCALLBACK(int) hdaPciIoRegionMap(PPCIDEVICE pPciDev, int iRegion, RTGC
 
 static int hdaSaveStream(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, PHDASTREAM pStrm)
 {
+    PHDASTATE pThis = PDMINS_2_DATA(pDevIns, PHDASTATE);
+
+    LogFlowFunc(("[SD%RU8]\n", pStrm->u8Strm));
+
     /* Save stream ID. */
     int rc = SSMR3PutU8(pSSM, pStrm->u8Strm);
     AssertRCReturn(rc, rc);
     Assert(pStrm->u8Strm <= 7); /** @todo Use a define. */
 
-    rc = SSMR3PutStructEx(pSSM, &pStrm->State, sizeof(HDASTREAMSTATE), 0 /*fFlags*/, g_aSSMStreamStateFields5, NULL);
+    rc = SSMR3PutStructEx(pSSM, &pStrm->State, sizeof(HDASTREAMSTATE), 0 /*fFlags*/, g_aSSMStreamStateFields6, NULL);
     AssertRCReturn(rc, rc);
 
-    for (uint32_t i = 0; i < pStrm->State.cBDLE; i++)
-    {
-        rc = SSMR3PutStructEx(pSSM, &pStrm->State.paBDLE[i], sizeof(HDABDLE), 0 /*fFlags*/, g_aSSMBDLEStateFields5, NULL);
-        AssertRCReturn(rc, rc);
-    }
+#ifdef DEBUG /* Sanity checks. */
+    uint64_t u64BaseDMA = RT_MAKE_U64(HDA_STREAM_REG(pThis, BDPL, pStrm->u8Strm),
+                                      HDA_STREAM_REG(pThis, BDPU, pStrm->u8Strm));
+    uint16_t u16LVI     = HDA_STREAM_REG(pThis, LVI, pStrm->u8Strm);
+    uint32_t u32CBL     = HDA_STREAM_REG(pThis, CBL, pStrm->u8Strm);
 
+    hdaBDLEDumpAll(pThis, u64BaseDMA, u16LVI + 1);
+
+    Assert(u64BaseDMA == pStrm->u64BaseDMA);
+    Assert(u16LVI     == pStrm->u16LVI);
+    Assert(u32CBL     == pStrm->u32CBL);
+#endif
+
+    rc = SSMR3PutStructEx(pSSM, &pStrm->State.BDLE, sizeof(HDABDLE),
+                          0 /*fFlags*/, g_aSSMBDLEFields6, NULL);
+    AssertRCReturn(rc, rc);
+
+    rc = SSMR3PutStructEx(pSSM, &pStrm->State.BDLE.State, sizeof(HDABDLESTATE),
+                          0 /*fFlags*/, g_aSSMBDLEStateFields6, NULL);
+    AssertRCReturn(rc, rc);
+
+#ifdef DEBUG /* Sanity checks. */
+    PHDABDLE pBDLE = &pStrm->State.BDLE;
+    if (u64BaseDMA)
+    {
+        Assert(pStrm->State.uCurBDLE <= u16LVI + 1);
+
+        HDABDLE curBDLE;
+        rc = hdaBDLEFetch(pThis, &curBDLE, u64BaseDMA, pStrm->State.uCurBDLE);
+        AssertRC(rc);
+
+        Assert(curBDLE.u32BufSize       == pBDLE->u32BufSize);
+        Assert(curBDLE.u64BufAdr        == pBDLE->u64BufAdr);
+        Assert(curBDLE.fIntOnCompletion == pBDLE->fIntOnCompletion);
+    }
+    else
+    {
+        Assert(pBDLE->u64BufAdr  == 0);
+        Assert(pBDLE->u32BufSize == 0);
+    }
+#endif
     return rc;
 }
 
@@ -3611,13 +3623,19 @@ static DECLCALLBACK(int) hdaSaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
     SSMR3PutMem(pSSM, pThis->au32Regs, sizeof(pThis->au32Regs));
 
     /* Save number of streams. */
+#ifdef VBOX_WITH_HDA_MIC_IN
     SSMR3PutU32(pSSM, 3);
+#else
+    SSMR3PutU32(pSSM, 2);
+#endif
 
     /* Save stream states. */
     int rc = hdaSaveStream(pDevIns, pSSM, &pThis->StrmStOut);
     AssertRCReturn(rc, rc);
+#ifdef VBOX_WITH_HDA_MIC_IN
     rc = hdaSaveStream(pDevIns, pSSM, &pThis->StrmStMicIn);
     AssertRCReturn(rc, rc);
+#endif
     rc = hdaSaveStream(pDevIns, pSSM, &pThis->StrmStLineIn);
     AssertRCReturn(rc, rc);
 
@@ -3634,14 +3652,17 @@ static DECLCALLBACK(int) hdaLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32
 
     Assert(uPass == SSM_PASS_FINAL); NOREF(uPass);
 
-    LogFlowFunc(("uVersion=%RU32, uPass=%RU32\n", uVersion, uPass));
+    LogRel2(("hdaLoadExec: uVersion=%RU32, uPass=0x%x\n", uVersion, uPass));
 
     /*
      * Load Codec nodes states.
      */
     int rc = hdaCodecLoadState(pThis->pCodec, pSSM, uVersion);
     if (RT_FAILURE(rc))
+    {
+        LogRel(("HDA: Failed loading codec state (version %RU32, pass 0x%x), rc=%Rrc\n", uVersion, uPass, rc));
         return rc;
+    }
 
     /*
      * Load MMIO registers.
@@ -3672,6 +3693,7 @@ static DECLCALLBACK(int) hdaLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32
 
         /* Since version 4 we store the register count to stay flexible. */
         case HDA_SSM_VERSION_4:
+        case HDA_SSM_VERSION_5:
         case HDA_SSM_VERSION:
             rc = SSMR3GetU32(pSSM, &cRegs); AssertRCReturn(rc, rc);
             if (cRegs != RT_ELEMENTS(pThis->au32Regs))
@@ -3679,6 +3701,7 @@ static DECLCALLBACK(int) hdaLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32
             break;
 
         default:
+            LogRel(("HDA: Unsupported / too new saved state version (%RU32)\n", uVersion));
             return VERR_SSM_UNSUPPORTED_DATA_UNIT_VERSION;
     }
 
@@ -3700,33 +3723,31 @@ static DECLCALLBACK(int) hdaLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32
      *       there were more than one (and there are at least two entries,
      *       according to the spec).
      */
-#define HDA_SSM_LOAD_BDLE_STATE_PRE_V5(v, x)                        \
-    rc = SSMR3Skip(pSSM, sizeof(uint32_t));    /* Begin marker */   \
-    AssertRCReturn(rc, rc);                                         \
-    rc = SSMR3Skip(pSSM, sizeof(uint64_t));    /* u64BdleCviAddr */ \
-    AssertRCReturn(rc, rc);                                         \
-    rc = SSMR3Skip(pSSM, sizeof(uint32_t));    /* u32BdleMaxCvi */  \
-    AssertRCReturn(rc, rc);                                         \
-    rc = SSMR3GetU32(pSSM, &x->u32BDLIndex);   /* u32BdleCvi */     \
-    AssertRCReturn(rc, rc);                                         \
-    rc = SSMR3Skip(pSSM, sizeof(uint32_t));    /* u32BdleCviLen */  \
-    AssertRCReturn(rc, rc);                                         \
-    rc = SSMR3GetU32(pSSM, &x->u32BufOff);     /* u32BdleCviPos */  \
-    AssertRCReturn(rc, rc);                                         \
-    rc = SSMR3Skip(pSSM, sizeof(uint8_t));     /* fBdleCviIoc */    \
-    AssertRCReturn(rc, rc);                                         \
-    rc = SSMR3GetU32(pSSM, &x->cbBelowFIFOW);  /* cbUnderFifoW */   \
-    AssertRCReturn(rc, rc);                                         \
-    rc = SSMR3GetMem(pSSM, &x->au8FIFO, sizeof(x->au8FIFO));        \
-    AssertRCReturn(rc, rc);                                         \
-    rc = SSMR3Skip(pSSM, sizeof(uint32_t));    /* End marker */     \
-    AssertRCReturn(rc, rc);                                         \
+#define HDA_SSM_LOAD_BDLE_STATE_PRE_V5(v, x)                            \
+    rc = SSMR3Skip(pSSM, sizeof(uint32_t));        /* Begin marker */   \
+    AssertRCReturn(rc, rc);                                             \
+    rc = SSMR3GetU64(pSSM, &x.u64BufAdr);          /* u64BdleCviAddr */ \
+    AssertRCReturn(rc, rc);                                             \
+    rc = SSMR3Skip(pSSM, sizeof(uint32_t));        /* u32BdleMaxCvi */  \
+    AssertRCReturn(rc, rc);                                             \
+    rc = SSMR3GetU32(pSSM, &x.State.u32BDLIndex);  /* u32BdleCvi */     \
+    AssertRCReturn(rc, rc);                                             \
+    rc = SSMR3GetU32(pSSM, &x.u32BufSize);         /* u32BdleCviLen */  \
+    AssertRCReturn(rc, rc);                                             \
+    rc = SSMR3GetU32(pSSM, &x.State.u32BufOff);    /* u32BdleCviPos */  \
+    AssertRCReturn(rc, rc);                                             \
+    rc = SSMR3GetBool(pSSM, &x.fIntOnCompletion);  /* fBdleCviIoc */    \
+    AssertRCReturn(rc, rc);                                             \
+    rc = SSMR3GetU32(pSSM, &x.State.cbBelowFIFOW); /* cbUnderFifoW */   \
+    AssertRCReturn(rc, rc);                                             \
+    rc = SSMR3GetMem(pSSM, &x.State.au8FIFO, sizeof(x.State.au8FIFO));  \
+    AssertRCReturn(rc, rc);                                             \
+    rc = SSMR3Skip(pSSM, sizeof(uint32_t));        /* End marker */     \
+    AssertRCReturn(rc, rc);                                             \
 
     /*
      * Load BDLEs (Buffer Descriptor List Entries) and DMA counters.
      */
-    HDABDLESTATE StateBDLEDummy;
-
     switch (uVersion)
     {
         case HDA_SSM_VERSION_1:
@@ -3737,84 +3758,153 @@ static DECLCALLBACK(int) hdaLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32
             /* Only load the internal states.
              * The rest will be initialized from the saved registers later. */
 
-            /* Note: Only the *current* BDLE for a stream was saved! */
+            /* Note 1: Only the *current* BDLE for a stream was saved! */
+            /* Note 2: The stream's saving order is/was fixed, so don't touch! */
 
             /* Output */
             rc = hdaStreamInit(pThis, &pThis->StrmStOut,    4 /* Stream number, hardcoded */);
-            AssertRCBreak(rc);
-            HDA_SSM_LOAD_BDLE_STATE_PRE_V5(uVersion, (   pThis->StrmStOut.State.cBDLE
-                                                      ? &pThis->StrmStOut.State.paBDLE[0].State : &StateBDLEDummy));
+            if (RT_FAILURE(rc))
+                break;
+            HDA_SSM_LOAD_BDLE_STATE_PRE_V5(uVersion, pThis->StrmStOut.State.BDLE);
+            pThis->StrmStOut.State.uCurBDLE = pThis->StrmStOut.State.BDLE.State.u32BDLIndex;
+
             /* Microphone-In */
             rc = hdaStreamInit(pThis, &pThis->StrmStMicIn,  2 /* Stream number, hardcoded */);
-            AssertRCBreak(rc);
-            HDA_SSM_LOAD_BDLE_STATE_PRE_V5(uVersion, (   pThis->StrmStMicIn.State.cBDLE
-                                                      ? &pThis->StrmStMicIn.State.paBDLE[0].State : &StateBDLEDummy));
+            if (RT_FAILURE(rc))
+                break;
+            HDA_SSM_LOAD_BDLE_STATE_PRE_V5(uVersion, pThis->StrmStMicIn.State.BDLE);
+            pThis->StrmStMicIn.State.uCurBDLE = pThis->StrmStMicIn.State.BDLE.State.u32BDLIndex;
+
             /* Line-In */
             rc = hdaStreamInit(pThis, &pThis->StrmStLineIn, 0 /* Stream number, hardcoded */);
-            AssertRCBreak(rc);
-            HDA_SSM_LOAD_BDLE_STATE_PRE_V5(uVersion, (  pThis->StrmStLineIn.State.cBDLE
-                                                      ? &pThis->StrmStLineIn.State.paBDLE[0].State : &StateBDLEDummy));
+            if (RT_FAILURE(rc))
+                break;
+            HDA_SSM_LOAD_BDLE_STATE_PRE_V5(uVersion, pThis->StrmStLineIn.State.BDLE);
+            pThis->StrmStLineIn.State.uCurBDLE = pThis->StrmStLineIn.State.BDLE.State.u32BDLIndex;
             break;
         }
 
         /* Since v5 we support flexible stream and BDLE counts. */
+        case HDA_SSM_VERSION_5:
         case HDA_SSM_VERSION:
         {
             uint32_t cStreams;
             rc = SSMR3GetU32(pSSM, &cStreams);
-            AssertRCBreak(rc);
+            if (RT_FAILURE(rc))
+                break;
+
+            LogRel2(("hdaLoadExec: cStreams=%RU32\n", cStreams));
 
             /* Load stream states. */
             for (uint32_t i = 0; i < cStreams; i++)
             {
                 uint8_t uStreamID;
                 rc = SSMR3GetU8(pSSM, &uStreamID);
-                AssertRCBreak(rc);
+                if (RT_FAILURE(rc))
+                    break;
 
                 PHDASTREAM pStrm;
                 HDASTREAM  StreamDummy;
 
                 switch (uStreamID)
                 {
-                    case 0: /** @todo Use a define. */
+                    case 0: /** @todo Implement dynamic stream IDs. */
                         pStrm = &pThis->StrmStLineIn;
                         break;
-
-                    case 2: /** @todo Use a define. */
+#ifdef VBOX_WITH_HDA_MIC_IN
+                    case 2: /** @todo Implement dynamic stream IDs. */
                         pStrm = &pThis->StrmStMicIn;
                         break;
-
-                    case 4: /** @todo Use a define. */
+#endif
+                    case 4: /** @todo Implement dynamic stream IDs. */
                         pStrm = &pThis->StrmStOut;
                         break;
 
                     default:
                         pStrm = &StreamDummy;
+
+                        LogRel2(("HDA: Warning: Stream ID=%RU32 not supported, skipping to load ...\n", uStreamID));
                         break;
                 }
 
-                rc = SSMR3GetStructEx(pSSM, &pStrm->State, sizeof(HDASTREAMSTATE), 0 /* fFlags */, g_aSSMStreamStateFields5, NULL);
-                AssertRCBreak(rc);
+                RT_BZERO(pStrm, sizeof(HDASTREAM));
 
                 rc = hdaStreamInit(pThis, pStrm, uStreamID);
-                AssertRCBreak(rc);
-
-                /* Load BDLE states. */
-                for (uint32_t a = 0; a < pStrm->State.cBDLE; a++)
+                if (RT_FAILURE(rc))
                 {
-                    rc = SSMR3GetStructEx(pSSM, &pStrm->State.paBDLE[a].State, sizeof(HDABDLESTATE),
-                                          0 /* fFlags */, g_aSSMBDLEStateFields5, NULL);
-                    AssertRCBreak(rc);
+                    LogRel(("HDA: Stream #%RU32: Initialization of stream %RU8 failed, rc=%Rrc\n", i, uStreamID, rc));
+                    break;
                 }
 
-                /* Destroy dummy again. */
-                if (pStrm == &StreamDummy)
-                    hdaStreamDestroy(pStrm);
+                if (uVersion == HDA_SSM_VERSION_5)
+                {
+                    /* Get the current BDLE entry and skip the rest. */
+                    uint16_t cBDLE;
+
+                    rc = SSMR3Skip(pSSM, sizeof(uint32_t)); /* Begin marker */
+                    AssertRC(rc);
+                    rc = SSMR3GetU16(pSSM, &cBDLE);                 /* cBDLE */
+                    AssertRC(rc);
+                    rc = SSMR3GetU16(pSSM, &pStrm->State.uCurBDLE); /* uCurBDLE */
+                    AssertRC(rc);
+                    rc = SSMR3Skip(pSSM, sizeof(uint32_t));         /* End marker */
+                    AssertRC(rc);
+
+                    uint32_t u32BDLEIndex;
+                    for (uint16_t a = 0; a < cBDLE; a++)
+                    {
+                        rc = SSMR3Skip(pSSM, sizeof(uint32_t)); /* Begin marker */
+                        AssertRC(rc);
+                        rc = SSMR3GetU32(pSSM, &u32BDLEIndex);  /* u32BDLIndex */
+                        AssertRC(rc);
+
+                        /* Does the current BDLE index match the current BDLE to process? */
+                        if (u32BDLEIndex == pStrm->State.uCurBDLE)
+                        {
+                            rc = SSMR3GetU32(pSSM, &pStrm->State.BDLE.State.cbBelowFIFOW); /* cbBelowFIFOW */
+                            AssertRC(rc);
+                            rc = SSMR3GetMem(pSSM,
+                                             &pStrm->State.BDLE.State.au8FIFO,
+                                             sizeof(pStrm->State.BDLE.State.au8FIFO));     /* au8FIFO */
+                            AssertRC(rc);
+                            rc = SSMR3GetU32(pSSM, &pStrm->State.BDLE.State.u32BufOff);    /* u32BufOff */
+                            AssertRC(rc);
+                            rc = SSMR3Skip(pSSM, sizeof(uint32_t));                        /* End marker */
+                            AssertRC(rc);
+                        }
+                        else /* Skip not current BDLEs. */
+                        {
+                            rc = SSMR3Skip(pSSM,   sizeof(uint32_t)      /* cbBelowFIFOW */
+                                                 + sizeof(uint8_t) * 256 /* au8FIFO */
+                                                 + sizeof(uint32_t)      /* u32BufOff */
+                                                 + sizeof(uint32_t));    /* End marker */
+                            AssertRC(rc);
+                        }
+                    }
+                }
+                else
+                {
+                    rc = SSMR3GetStructEx(pSSM, &pStrm->State, sizeof(HDASTREAMSTATE),
+                                          0 /* fFlags */, g_aSSMStreamStateFields6, NULL);
+                    if (RT_FAILURE(rc))
+                        break;
+
+                    rc = SSMR3GetStructEx(pSSM, &pStrm->State.BDLE, sizeof(HDABDLE),
+                                          0 /* fFlags */, g_aSSMBDLEFields6, NULL);
+                    if (RT_FAILURE(rc))
+                        break;
+
+                    rc = SSMR3GetStructEx(pSSM, &pStrm->State.BDLE.State, sizeof(HDABDLESTATE),
+                                          0 /* fFlags */, g_aSSMBDLEStateFields6, NULL);
+                    if (RT_FAILURE(rc))
+                        break;
+                }
             }
             break;
         }
 
         default:
+            AssertReleaseFailed(); /* Never reached. */
             return VERR_SSM_UNSUPPORTED_DATA_UNIT_VERSION;
     }
 
@@ -3825,13 +3915,11 @@ static DECLCALLBACK(int) hdaLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32
         /*
          * Update stuff after the state changes.
          */
-        bool fEnableIn    = RT_BOOL(HDA_SDCTL(pThis, 0) & HDA_REG_FIELD_FLAG_MASK(SDCTL, RUN));
+        bool fEnableIn    = RT_BOOL(HDA_SDCTL(pThis, 0 /** @todo Use a define. */) & HDA_REG_FIELD_FLAG_MASK(SDCTL, RUN));
 #ifdef VBOX_WITH_HDA_MIC_IN
-        bool fEnableMicIn = RT_BOOL(HDA_SDCTL(pThis, 2) & HDA_REG_FIELD_FLAG_MASK(SDCTL, RUN));
-#else
-        bool fEnableMicIn = fEnableIn; /* Mic In == Line In */
+        bool fEnableMicIn = RT_BOOL(HDA_SDCTL(pThis, 2 /** @todo Use a define. */) & HDA_REG_FIELD_FLAG_MASK(SDCTL, RUN));
 #endif
-        bool fEnableOut   = RT_BOOL(HDA_SDCTL(pThis, 4) & HDA_REG_FIELD_FLAG_MASK(SDCTL, RUN));
+        bool fEnableOut   = RT_BOOL(HDA_SDCTL(pThis, 4 /** @todo Use a define. */) & HDA_REG_FIELD_FLAG_MASK(SDCTL, RUN));
 
         PHDADRIVER pDrv;
         RTListForEach(&pThis->lstDrv, pDrv, HDADRIVER, Node)
@@ -3839,9 +3927,11 @@ static DECLCALLBACK(int) hdaLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32
             rc = pDrv->pConnector->pfnEnableIn(pDrv->pConnector, pDrv->LineIn.pStrmIn, fEnableIn);
             if (RT_FAILURE(rc))
                 break;
+#ifdef VBOX_WITH_HDA_MIC_IN
             rc = pDrv->pConnector->pfnEnableIn(pDrv->pConnector, pDrv->MicIn.pStrmIn, fEnableMicIn);
             if (RT_FAILURE(rc))
                 break;
+#endif
             rc = pDrv->pConnector->pfnEnableOut(pDrv->pConnector, pDrv->Out.pStrmOut, fEnableOut);
             if (RT_FAILURE(rc))
                 break;
@@ -3850,10 +3940,15 @@ static DECLCALLBACK(int) hdaLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32
 
     if (RT_SUCCESS(rc))
     {
-        pThis->u64CORBBase = RT_MAKE_U64(HDA_REG(pThis, CORBLBASE), HDA_REG(pThis, CORBUBASE));
-        pThis->u64RIRBBase = RT_MAKE_U64(HDA_REG(pThis, RIRBLBASE), HDA_REG(pThis, RIRBUBASE));
-        pThis->u64DPBase   = RT_MAKE_U64(HDA_REG(pThis, DPLBASE), HDA_REG(pThis, DPUBASE));
+        pThis->u64CORBBase  = RT_MAKE_U64(HDA_REG(pThis, CORBLBASE), HDA_REG(pThis, CORBUBASE));
+        pThis->u64RIRBBase  = RT_MAKE_U64(HDA_REG(pThis, RIRBLBASE), HDA_REG(pThis, RIRBUBASE));
+        pThis->u64DPBase    = RT_MAKE_U64(HDA_REG(pThis, DPLBASE),   HDA_REG(pThis, DPUBASE));
+
+        /* Also make sure to update the DMA position bit if this was enabled when saving the state. */
+        pThis->fDMAPosition = RT_BOOL(HDA_REG(pThis, DPLBASE) & RT_BIT_32(0));
     }
+    else
+        LogRel(("HDA: Failed loading device state (version %RU32, pass 0x%x), rc=%Rrc\n", uVersion, uPass, rc));
 
     LogFlowFuncLeaveRC(rc);
     return rc;
@@ -4086,6 +4181,18 @@ static DECLCALLBACK(void) hdaReset(PPDMDEVINS pDevIns)
 
     LogFunc(("Resetting ...\n"));
 
+# ifndef VBOX_WITH_AUDIO_CALLBACKS
+    /*
+     * Stop the timer, if any.
+     */
+    int rc2;
+    if (pThis->pTimer)
+    {
+        rc2 = TMTimerStop(pThis->pTimer);
+        AssertRC(rc2);
+    }
+# endif
+
     /*
      * Stop any audio currently playing and/or recording.
      */
@@ -4093,8 +4200,10 @@ static DECLCALLBACK(void) hdaReset(PPDMDEVINS pDevIns)
     RTListForEach(&pThis->lstDrv, pDrv, HDADRIVER, Node)
     {
         pDrv->pConnector->pfnEnableIn(pDrv->pConnector, pDrv->LineIn.pStrmIn, false /* Disable */);
+# ifdef VBOX_WITH_HDA_MIC_IN
         /* Ignore rc. */
         pDrv->pConnector->pfnEnableIn(pDrv->pConnector, pDrv->MicIn.pStrmIn, false /* Disable */);
+# endif
         /* Ditto. */
         pDrv->pConnector->pfnEnableOut(pDrv->pConnector, pDrv->Out.pStrmOut, false /* Disable */);
         /* Ditto. */
@@ -4115,27 +4224,17 @@ static DECLCALLBACK(void) hdaReset(PPDMDEVINS pDevIns)
 
     pThis->u64BaseTS = PDMDevHlpTMTimeVirtGetNano(pDevIns);
 
-    /*
-     * Stop the timer, if any.
-     */
-    int rc2;
-    if (pThis->pTimer)
-    {
-        rc2 = TMTimerStop(pThis->pTimer);
-        AssertRC(rc2);
-    }
-
     for (uint8_t u8Strm = 0; u8Strm < 8; u8Strm++) /** @todo Use a define here. */
     {
         PHDASTREAM pStrmSt = NULL;
-        if (u8Strm == 0)
-            pStrmSt = &pThis->StrmStOut;
+        if (u8Strm == 0)      /** @todo Implement dynamic stream IDs. */
+            pStrmSt = &pThis->StrmStLineIn;
 # ifdef VBOX_WITH_HDA_MIC_IN
-        else if (u8Strm == 2)
+        else if (u8Strm == 2) /** @todo Implement dynamic stream IDs. */
             pStrmSt = &pThis->StrmStMicIn;
 # endif
-        else if (u8Strm == 4)
-            pStrmSt = &pThis->StrmStLineIn;
+        else if (u8Strm == 4) /** @todo Implement dynamic stream IDs. */
+            pStrmSt = &pThis->StrmStOut;
 
         if (pStrmSt)
         {
@@ -4149,14 +4248,17 @@ static DECLCALLBACK(void) hdaReset(PPDMDEVINS pDevIns)
     /* Emulation of codec "wake up" (HDA spec 5.5.1 and 6.5). */
     HDA_REG(pThis, STATESTS) = 0x1;
 
+# ifndef VBOX_WITH_AUDIO_CALLBACKS
     /*
      * Start timer again, if any.
      */
     if (pThis->pTimer)
     {
+        LogFunc(("Restarting timer\n"));
         rc2 = TMTimerSet(pThis->pTimer, TMTimerGet(pThis->pTimer) + pThis->cTimerTicks);
         AssertRC(rc2);
     }
+# endif
 
     LogRel(("HDA: Reset\n"));
 }
@@ -4205,43 +4307,46 @@ static DECLCALLBACK(int) hdaDestruct(PPDMDEVINS pDevIns)
     return VINF_SUCCESS;
 }
 
+
 /**
- * Attach command.
+ * Attach command, internal version.
  *
  * This is called to let the device attach to a driver for a specified LUN
  * during runtime. This is not called during VM construction, the device
- * constructor have to attach to all the available drivers.
+ * constructor has to attach to all the available drivers.
  *
  * @returns VBox status code.
  * @param   pDevIns     The device instance.
+ * @param   pDrv        Driver to (re-)use for (re-)attaching to.
+ *                      If NULL is specified, a new driver will be created and appended
+ *                      to the driver list.
  * @param   uLUN        The logical unit which is being detached.
  * @param   fFlags      Flags, combination of the PDMDEVATT_FLAGS_* \#defines.
  */
-static DECLCALLBACK(int) hdaAttach(PPDMDEVINS pDevIns, unsigned uLUN, uint32_t fFlags)
+static int hdaAttachInternal(PPDMDEVINS pDevIns, PHDADRIVER pDrv, unsigned uLUN, uint32_t fFlags)
 {
     PHDASTATE pThis = PDMINS_2_DATA(pDevIns, PHDASTATE);
-
-    AssertMsgReturn(fFlags & PDM_TACH_FLAGS_NOT_HOT_PLUG,
-                    ("HDA device does not support hotplugging\n"),
-                    VERR_INVALID_PARAMETER);
 
     /*
      * Attach driver.
      */
     char *pszDesc = NULL;
     if (RTStrAPrintf(&pszDesc, "Audio driver port (HDA) for LUN#%u", uLUN) <= 0)
-        AssertMsgReturn(pszDesc,
-                        ("Not enough memory for HDA driver port description of LUN #%u\n", uLUN),
-                        VERR_NO_MEMORY);
+        AssertReleaseMsgReturn(pszDesc,
+                               ("Not enough memory for HDA driver port description of LUN #%u\n", uLUN),
+                               VERR_NO_MEMORY);
 
+    PPDMIBASE pDrvBase;
     int rc = PDMDevHlpDriverAttach(pDevIns, uLUN,
-                                   &pThis->IBase, &pThis->pDrvBase, pszDesc);
+                                   &pThis->IBase, &pDrvBase, pszDesc);
     if (RT_SUCCESS(rc))
     {
-        PHDADRIVER pDrv = (PHDADRIVER)RTMemAllocZ(sizeof(HDADRIVER));
+        if (pDrv == NULL)
+            pDrv = (PHDADRIVER)RTMemAllocZ(sizeof(HDADRIVER));
         if (pDrv)
         {
-            pDrv->pConnector = PDMIBASE_QUERY_INTERFACE(pThis->pDrvBase, PDMIAUDIOCONNECTOR);
+            pDrv->pDrvBase   = pDrvBase;
+            pDrv->pConnector = PDMIBASE_QUERY_INTERFACE(pDrvBase, PDMIAUDIOCONNECTOR);
             AssertMsg(pDrv->pConnector != NULL, ("Configuration error: LUN#%u has no host audio interface, rc=%Rrc\n", uLUN, rc));
             pDrv->pHDAState  = pThis;
             pDrv->uLUN       = uLUN;
@@ -4255,14 +4360,17 @@ static DECLCALLBACK(int) hdaAttach(PPDMDEVINS pDevIns, unsigned uLUN, uint32_t f
 
             LogFunc(("LUN#%u: pCon=%p, drvFlags=0x%x\n", uLUN, pDrv->pConnector, pDrv->Flags));
 
-            /* Attach to driver list. */
-            RTListAppend(&pThis->lstDrv, &pDrv->Node);
+            /* Attach to driver list if not attached yet. */
+            if (!pDrv->fAttached)
+            {
+                RTListAppend(&pThis->lstDrv, &pDrv->Node);
+                pDrv->fAttached = true;
+            }
         }
         else
             rc = VERR_NO_MEMORY;
     }
-    else if (   rc == VERR_PDM_NO_ATTACHED_DRIVER
-             || rc == VERR_PDM_CFG_MISSING_DRIVER_NAME)
+    else if (rc == VERR_PDM_NO_ATTACHED_DRIVER)
     {
         LogFunc(("No attached driver for LUN #%u\n", uLUN));
     }
@@ -4270,23 +4378,103 @@ static DECLCALLBACK(int) hdaAttach(PPDMDEVINS pDevIns, unsigned uLUN, uint32_t f
         AssertMsgFailed(("Failed to attach HDA LUN #%u (\"%s\"), rc=%Rrc\n",
                         uLUN, pszDesc, rc));
 
-    RTStrFree(pszDesc);
+    if (RT_FAILURE(rc))
+    {
+        /* Only free this string on failure;
+         * must remain valid for the live of the driver instance. */
+        RTStrFree(pszDesc);
+    }
 
     LogFunc(("uLUN=%u, fFlags=0x%x, rc=%Rrc\n", uLUN, fFlags, rc));
     return rc;
 }
 
-static DECLCALLBACK(void) hdaDetach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_t fFlags)
+/**
+ * Attach command.
+ *
+ * This is called to let the device attach to a driver for a specified LUN
+ * during runtime. This is not called during VM construction, the device
+ * constructor has to attach to all the available drivers.
+ *
+ * @returns VBox status code.
+ * @param   pDevIns     The device instance.
+ * @param   uLUN        The logical unit which is being detached.
+ * @param   fFlags      Flags, combination of the PDMDEVATT_FLAGS_* \#defines.
+ */
+static DECLCALLBACK(int) hdaAttach(PPDMDEVINS pDevIns, unsigned uLUN, uint32_t fFlags)
 {
-    NOREF(pDevIns); NOREF(iLUN); NOREF(fFlags);
+    return hdaAttachInternal(pDevIns, NULL /* pDrv */, uLUN, fFlags);
+}
 
-    LogFlowFuncEnter();
+static DECLCALLBACK(void) hdaDetach(PPDMDEVINS pDevIns, unsigned uLUN, uint32_t fFlags)
+{
+    LogFunc(("iLUN=%u, fFlags=0x%x\n", uLUN, fFlags));
+}
+
+/**
+ * Re-attach.
+ *
+ * @returns VBox status code.
+ * @param   pThis       Device instance.
+ * @param   pDrv        Driver instance used for attaching to.
+ *                      If NULL is specified, a new driver will be created and appended
+ *                      to the driver list.
+ * @param   uLUN        The logical unit which is being re-detached.
+ * @param   pszDriver   Driver name.
+ */
+static int hdaReattach(PHDASTATE pThis, PHDADRIVER pDrv, uint8_t uLUN, const char *pszDriver)
+{
+    AssertPtrReturn(pThis,     VERR_INVALID_POINTER);
+    AssertPtrReturn(pszDriver, VERR_INVALID_POINTER);
+
+    PVM pVM = PDMDevHlpGetVM(pThis->pDevInsR3);
+    PCFGMNODE pRoot = CFGMR3GetRoot(pVM);
+    PCFGMNODE pDev0 = CFGMR3GetChild(pRoot, "Devices/hda/0/");
+
+    /* Remove LUN branch. */
+    CFGMR3RemoveNode(CFGMR3GetChildF(pDev0, "LUN#%u/", uLUN));
+
+    if (pDrv)
+    {
+        /* Re-use a driver instance => detach the driver before. */
+        int rc = PDMDevHlpDriverDetach(pThis->pDevInsR3, PDMIBASE_2_PDMDRV(pDrv->pDrvBase), 0 /* fFlags */);
+        if (RT_FAILURE(rc))
+            return rc;
+    }
+
+#define RC_CHECK() if (RT_FAILURE(rc)) { AssertReleaseRC(rc); break; }
+
+    int rc = VINF_SUCCESS;
+    do
+    {
+        PCFGMNODE pLunL0;
+        rc = CFGMR3InsertNodeF(pDev0, &pLunL0, "LUN#%u/", uLUN);        RC_CHECK();
+        rc = CFGMR3InsertString(pLunL0, "Driver",       "AUDIO");       RC_CHECK();
+        rc = CFGMR3InsertNode(pLunL0,   "Config/",       NULL);         RC_CHECK();
+
+        PCFGMNODE pLunL1, pLunL2;
+        rc = CFGMR3InsertNode  (pLunL0, "AttachedDriver/", &pLunL1);    RC_CHECK();
+        rc = CFGMR3InsertNode  (pLunL1,  "Config/",        &pLunL2);    RC_CHECK();
+        rc = CFGMR3InsertString(pLunL1,  "Driver",          pszDriver); RC_CHECK();
+
+        rc = CFGMR3InsertString(pLunL2, "AudioDriver", pszDriver);      RC_CHECK();
+
+    } while (0);
+
+    if (RT_SUCCESS(rc))
+        rc = hdaAttachInternal(pThis->pDevInsR3, pDrv, uLUN, 0 /* fFlags */);
+
+    LogFunc(("pThis=%p, uLUN=%u, pszDriver=%s, rc=%Rrc\n", pThis, uLUN, pszDriver, rc));
+
+#undef RC_CHECK
+
+    return rc;
 }
 
 /**
  * @interface_method_impl{PDMDEVREG,pfnConstruct}
  */
-static DECLCALLBACK(int) hdaConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfgHandle)
+static DECLCALLBACK(int) hdaConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg)
 {
     PHDASTATE pThis = PDMINS_2_DATA(pDevIns, PHDASTATE);
     Assert(iInstance == 0);
@@ -4295,23 +4483,23 @@ static DECLCALLBACK(int) hdaConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNO
     /*
      * Validations.
      */
-    if (!CFGMR3AreValuesValid(pCfgHandle, "R0Enabled\0"
-                                          "RCEnabled\0"
-                                          "TimerHz\0"))
+    if (!CFGMR3AreValuesValid(pCfg, "R0Enabled\0"
+                                    "RCEnabled\0"
+                                    "TimerHz\0"))
         return PDMDEV_SET_ERROR(pDevIns, VERR_PDM_DEVINS_UNKNOWN_CFG_VALUES,
                                 N_ ("Invalid configuration for the Intel HDA device"));
 
-    int rc = CFGMR3QueryBoolDef(pCfgHandle, "RCEnabled", &pThis->fRCEnabled, false);
+    int rc = CFGMR3QueryBoolDef(pCfg, "RCEnabled", &pThis->fRCEnabled, false);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("HDA configuration error: failed to read RCEnabled as boolean"));
-    rc = CFGMR3QueryBoolDef(pCfgHandle, "R0Enabled", &pThis->fR0Enabled, false);
+    rc = CFGMR3QueryBoolDef(pCfg, "R0Enabled", &pThis->fR0Enabled, false);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("HDA configuration error: failed to read R0Enabled as boolean"));
 #ifndef VBOX_WITH_AUDIO_CALLBACKS
     uint16_t uTimerHz;
-    rc = CFGMR3QueryU16Def(pCfgHandle, "TimerHz", &uTimerHz, 200 /* Hz */);
+    rc = CFGMR3QueryU16Def(pCfg, "TimerHz", &uTimerHz, 200 /* Hz */);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("HDA configuration error: failed to read Hertz (Hz) rate as unsigned integer"));
@@ -4435,19 +4623,25 @@ static DECLCALLBACK(int) hdaConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNO
     RTListInit(&pThis->lstDrv);
 
     uint8_t uLUN;
-    for (uLUN = 0; uLUN < UINT8_MAX; uLUN)
+    for (uLUN = 0; uLUN < UINT8_MAX; ++uLUN)
     {
         LogFunc(("Trying to attach driver for LUN #%RU32 ...\n", uLUN));
-        rc = hdaAttach(pDevIns, uLUN, PDM_TACH_FLAGS_NOT_HOT_PLUG);
+        rc = hdaAttachInternal(pDevIns, NULL /* pDrv */, uLUN, 0 /* fFlags */);
         if (RT_FAILURE(rc))
         {
             if (rc == VERR_PDM_NO_ATTACHED_DRIVER)
                 rc = VINF_SUCCESS;
-
+            else if (rc == VERR_AUDIO_BACKEND_INIT_FAILED)
+            {
+                hdaReattach(pThis, NULL /* pDrv */, uLUN, "NullAudio");
+                PDMDevHlpVMSetRuntimeError(pDevIns, 0 /*fFlags*/, "HostAudioNotResponding",
+                    N_("No audio devices could be opened. Selecting the NULL audio backend "
+                       "with the consequence that no sound is audible"));
+                /* attaching to the NULL audio backend will never fail */
+                rc = VINF_SUCCESS;
+            }
             break;
         }
-
-        uLUN++;
     }
 
     LogFunc(("cLUNs=%RU8, rc=%Rrc\n", uLUN, rc));
@@ -4505,7 +4699,7 @@ static DECLCALLBACK(int) hdaConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNO
         pThis->pCodec->pHDAState = pThis; /* Assign HDA controller state to codec. */
 
         /* Construct the codec. */
-        rc = hdaCodecConstruct(pDevIns, pThis->pCodec, 0 /* Codec index */, pCfgHandle);
+        rc = hdaCodecConstruct(pDevIns, pThis->pCodec, 0 /* Codec index */, pCfg);
         if (RT_FAILURE(rc))
             AssertRCReturn(rc, rc);
 
@@ -4527,6 +4721,77 @@ static DECLCALLBACK(int) hdaConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNO
 #endif
         rc = hdaStreamCreate(&pThis->StrmStOut);
         AssertRC(rc);
+
+        PHDADRIVER pDrv;
+        RTListForEach(&pThis->lstDrv, pDrv, HDADRIVER, Node)
+        {
+            /*
+             * Only primary drivers are critical for the VM to run. Everything else
+             * might not worth showing an own error message box in the GUI.
+             */
+            if (!(pDrv->Flags & PDMAUDIODRVFLAG_PRIMARY))
+                continue;
+
+            PPDMIAUDIOCONNECTOR pCon = pDrv->pConnector;
+            AssertPtr(pCon);
+
+            uint8_t cFailed = 0;
+            if (!pCon->pfnIsValidIn (pCon, pDrv->LineIn.pStrmIn))
+                cFailed++;
+#ifdef VBOX_WITH_HDA_MIC_IN
+            if (!pCon->pfnIsValidIn (pCon, pDrv->MicIn.pStrmIn))
+                cFailed++;
+#endif
+            if (!pCon->pfnIsValidOut(pCon, pDrv->Out.pStrmOut))
+                cFailed++;
+
+#ifdef VBOX_WITH_HDA_MIC_IN
+            if (cFailed == 3)
+#else
+            if (cFailed == 2)
+#endif
+            {
+                LogRel(("HDA: Falling back to NULL backend (no sound audible)\n"));
+
+                hdaReset(pDevIns);
+                hdaReattach(pThis, pDrv, pDrv->uLUN, "NullAudio");
+
+                PDMDevHlpVMSetRuntimeError(pDevIns, 0 /*fFlags*/, "HostAudioNotResponding",
+                    N_("No audio devices could be opened. Selecting the NULL audio backend "
+                       "with the consequence that no sound is audible"));
+            }
+            else if (cFailed)
+            {
+                if (!pDrv->pConnector->pfnIsValidIn (pDrv->pConnector, pDrv->LineIn.pStrmIn))
+                    LogRel(("HDA: WARNING: Unable to open PCM line input for LUN #%RU32!\n",       pDrv->uLUN));
+#ifdef VBOX_WITH_HDA_MIC_IN
+                if (!pDrv->pConnector->pfnIsValidIn (pDrv->pConnector, pDrv->MicIn.pStrmIn))
+                    LogRel(("HDA: WARNING: Unable to open PCM microphone input for LUN #%RU32!\n", pDrv->uLUN));
+#endif
+                if (!pDrv->pConnector->pfnIsValidOut(pDrv->pConnector, pDrv->Out.pStrmOut))
+                    LogRel(("HDA: WARNING: Unable to open PCM output for LUN #%RU32!\n",           pDrv->uLUN));
+
+                char   szMissingStreams[255];
+                size_t len = 0;
+                if (!pCon->pfnIsValidIn (pCon, pDrv->LineIn.pStrmIn))
+                    len = RTStrPrintf(szMissingStreams,
+                                      sizeof(szMissingStreams), "PCM Input");
+#ifdef VBOX_WITH_HDA_MIC_IN
+                if (!pCon->pfnIsValidIn (pCon, pDrv->MicIn.pStrmIn))
+                    len += RTStrPrintf(szMissingStreams + len,
+                                       sizeof(szMissingStreams) - len, len ? ", PCM Microphone" : "PCM Microphone");
+#endif
+                if (!pCon->pfnIsValidOut(pCon, pDrv->Out.pStrmOut))
+                    len += RTStrPrintf(szMissingStreams + len,
+                                       sizeof(szMissingStreams) - len, len ? ", PCM Output" : "PCM Output");
+
+                PDMDevHlpVMSetRuntimeError(pDevIns, 0 /*fFlags*/, "HostAudioNotResponding",
+                    N_("Some HDA audio streams (%s) could not be opened. Guest applications generating audio "
+                    "output or depending on audio input may hang. Make sure your host audio device "
+                    "is working properly. Check the logfile for error messages of the audio "
+                    "subsystem"), szMissingStreams);
+            }
+        }
     }
 
     if (RT_SUCCESS(rc))
@@ -4717,9 +4982,9 @@ const PDMDEVREG g_DeviceICH6_HDA =
     /* pfnResume */
     NULL,
     /* pfnAttach */
-    NULL,
+    hdaAttach,
     /* pfnDetach */
-    NULL,
+    hdaDetach,
     /* pfnQueryInterface. */
     NULL,
     /* pfnInitComplete */
