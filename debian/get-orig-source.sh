@@ -48,5 +48,5 @@ rm -rf ${ORIG_TARBALL_DIR}/src/VBox/HostDrivers/Support/win/winstub.com
 
 tar --exclude .svn --exclude '.git*' --exclude debian --directory ${WORKING_DIR} -cJf ${DEST_TARBALL_NAME} ${ORIG_TARBALL_DIR_STRIP} || exit 1
 rm -rf ${ORIG_TARBALL_DIR}
-echo "Done, now you can run git-import-orig ${DEST_TARBALL_NAME}"
+echo "Done, now you can run gbp import-orig ${DEST_TARBALL_NAME}"
 exit 0
