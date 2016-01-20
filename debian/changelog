@@ -3,7 +3,7 @@ virtualbox (5.0.14-dfsg-1) unstable; urgency=medium
   * new upstream release.
   * Rework rules file to work also when only guest packages needs to be built.
   * Merge VBox.sh script with upstream, and add procps to runtime dependencies
-    thanks Andreas Beckmann <anbe@debian.org>
+    thanks Andreas Beckmann <anbe@debian.org> (Closes: #802143)
     -cfr https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=802143#26
 
  -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 20 Jan 2016 10:04:40 +0100
