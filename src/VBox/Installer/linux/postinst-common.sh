@@ -56,7 +56,7 @@ addrunlevel vboxautostart-service
 delrunlevel vboxweb-service
 addrunlevel vboxweb-service
 
-ln -sf "${MY_PATH}/postinst-common.sh" /sbin/rcvboxdrv setup
+ln -sf "${MY_PATH}/postinst-common.sh" /sbin/rcvboxdrv
 
 test -n "${START}" &&
 {

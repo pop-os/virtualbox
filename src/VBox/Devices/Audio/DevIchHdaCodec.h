@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -76,9 +76,10 @@ typedef struct HDACODEC
     uint8_t                 u8BSKU;
     uint8_t                 u8AssemblyId;
     /** List of assigned HDA drivers to this codec.
-     * A driver only can be assigned to one codec
-     * at a time. */
+     * A driver only can be assigned to one codec at a time. */
     RTLISTANCHOR            lstDrv;
+    /** The codec's current audio stream configuration. */
+    PDMAUDIOSTREAMCFG       strmCfg;
 
 #ifndef VBOX_WITH_HDA_CODEC_EMU
     CODECVERB const        *paVerbs;
@@ -130,12 +131,16 @@ int hdaCodecSaveState(PHDACODEC pThis, PSSMHANDLE pSSM);
 int hdaCodecLoadState(PHDACODEC pThis, PSSMHANDLE pSSM, uint32_t uVersion);
 int hdaCodecOpenStream(PHDACODEC pThis, PDMAUDIORECSOURCE enmRecSource, PDMAUDIOSTREAMCFG *pAudioSettings);
 
-#define HDA_SSM_VERSION   5
-#define HDA_SSM_VERSION_1 1
-#define HDA_SSM_VERSION_2 2
-#define HDA_SSM_VERSION_3 3
-/* Since this version the number of MMIO registers can be flexible. */
+#define HDA_SSM_VERSION   6
+/** Introduced dynamic number of streams + stream identifiers for serialization.
+ *  Bug: Did not save the BDLE states correctly.
+ *  Those will be skipped on load then. */
+#define HDA_SSM_VERSION_5 5
+/** Since this version the number of MMIO registers can be flexible. */
 #define HDA_SSM_VERSION_4 4
+#define HDA_SSM_VERSION_3 3
+#define HDA_SSM_VERSION_2 2
+#define HDA_SSM_VERSION_1 1
 
 # ifdef VBOX_WITH_HDA_CODEC_EMU
 /* */

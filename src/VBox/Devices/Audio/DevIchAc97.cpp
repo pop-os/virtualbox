@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -35,6 +35,7 @@
 
 #include "AudioMixBuffer.h"
 #include "AudioMixer.h"
+#include "DrvAudio.h"
 
 
 /*********************************************************************************************************************************
@@ -312,9 +313,12 @@ typedef struct AC97DRIVER
     uint32_t                           PaddingFlags;
     /** LUN # to which this driver has been assigned. */
     uint8_t                            uLUN;
-    uint8_t                            Padding[5];
-    /** Audio connector interface to the underlying
-     *  host backend. */
+    /** Whether this driver is in an attached state or not. */
+    bool                               fAttached;
+    uint8_t                            Padding[4];
+    /** Pointer to attached driver base interface. */
+    R3PTRTYPE(PPDMIBASE)               pDrvBase;
+    /** Audio connector interface to the underlying host backend. */
     R3PTRTYPE(PPDMIAUDIOCONNECTOR)     pConnector;
     /** Stream for line input. */
     AC97INPUTSTREAM                    LineIn;
@@ -370,8 +374,6 @@ typedef struct AC97STATE
     R3PTRTYPE(PAUDMIXSINK)  pSinkMicIn;
     uint8_t                 silence[128];
     int                     bup_flag;
-    /** Pointer to the attached audio driver. */
-    PPDMIBASE               pDrvBase;
     /** The base interface for LUN\#0. */
     PDMIBASE                IBase;
     /** Base port of the I/O space region. */
@@ -1172,8 +1174,6 @@ static DECLCALLBACK(void) ichac97Timer(PPDMDEVINS pDevIns, PTMTIMER pTimer, void
 
     STAM_PROFILE_START(&pThis->StatTimer, a);
 
-    int rc = VINF_SUCCESS;
-
     uint32_t cbInMax  = 0;
     uint32_t cbOutMin = UINT32_MAX;
 
@@ -1184,6 +1184,22 @@ static DECLCALLBACK(void) ichac97Timer(PPDMDEVINS pDevIns, PTMTIMER pTimer, void
     uint64_t cTicksPerSec  = TMTimerGetFreq(pTimer);
 
     pThis->uTimerTS = cTicksNow;
+
+    /*
+     * Calculate the mixer's (fixed) sampling rate.
+     */
+    AssertPtr(pThis->pMixer);
+
+    PDMAUDIOSTREAMCFG mixerStrmCfg;
+    int rc = AudioMixerGetDeviceFormat(pThis->pMixer, &mixerStrmCfg);
+    AssertRC(rc);
+
+    PDMPCMPROPS mixerStrmProps;
+    rc = DrvAudioStreamCfgToProps(&mixerStrmCfg, &mixerStrmProps);
+    AssertRC(rc);
+
+    uint32_t cMixerSamplesMin  = (int)((2 * cTicksElapsed * mixerStrmCfg.uHz + cTicksPerSec) / cTicksPerSec / 2);
+    uint32_t cbMixerSamplesMin = cMixerSamplesMin << mixerStrmProps.cShift;
 
     RTListForEach(&pThis->lstDrv, pDrv, AC97DRIVER, Node)
     {
@@ -1198,14 +1214,20 @@ static DECLCALLBACK(void) ichac97Timer(PPDMDEVINS pDevIns, PTMTIMER pTimer, void
 #ifdef DEBUG_TIMER
         LogFlowFunc(("LUN#%RU8: rc=%Rrc, cbIn=%RU32, cbOut=%RU32\n", pDrv->uLUN, rc, cbIn, cbOut));
 #endif
-        const bool fIsActiveOut = pDrv->pConnector->pfnIsActiveOut(pDrv->pConnector, pDrv->Out.pStrmOut);
-
         /* If we there was an error handling (available) output or there simply is no output available,
          * then calculate the minimum data rate which must be processed by the device emulation in order
          * to function correctly.
          *
          * This is not the optimal solution, but as we have to deal with this on a timer-based approach
          * (until we have the audio callbacks) we need to have device' DMA engines running. */
+        if (!pDrv->pConnector->pfnIsValidOut(pDrv->pConnector, pDrv->Out.pStrmOut))
+        {
+            /* Use the mixer's (fixed) sampling rate. */
+            cbOut = RT_MAX(cbOut, cbMixerSamplesMin);
+            continue;
+        }
+
+        const bool fIsActiveOut = pDrv->pConnector->pfnIsActiveOut(pDrv->pConnector, pDrv->Out.pStrmOut);
         if (   RT_FAILURE(rc)
             || !fIsActiveOut)
         {
@@ -2154,47 +2176,47 @@ static DECLCALLBACK(int) ichac97Destruct(PPDMDEVINS pDevIns)
 
 
 /**
- * Attach command.
+ * Attach command, internal version.
  *
  * This is called to let the device attach to a driver for a specified LUN
  * during runtime. This is not called during VM construction, the device
- * constructor have to attach to all the available drivers.
+ * constructor has to attach to all the available drivers.
  *
  * @returns VBox status code.
  * @param   pDevIns     The device instance.
+ * @param   pDrv        Driver to (re-)use for (re-)attaching to.
+ *                      If NULL is specified, a new driver will be created and appended
+ *                      to the driver list.
  * @param   uLUN        The logical unit which is being detached.
  * @param   fFlags      Flags, combination of the PDMDEVATT_FLAGS_* \#defines.
  */
-static DECLCALLBACK(int) ichac97Attach(PPDMDEVINS pDevIns, unsigned uLUN, uint32_t fFlags)
+static DECLCALLBACK(int) ichac97AttachInternal(PPDMDEVINS pDevIns, PAC97DRIVER pDrv, unsigned uLUN, uint32_t fFlags)
 {
     PAC97STATE pThis = PDMINS_2_DATA(pDevIns, PAC97STATE);
-
-    AssertMsgReturn(fFlags & PDM_TACH_FLAGS_NOT_HOT_PLUG,
-                    ("AC'97 device does not support hotplugging\n"),
-                    VERR_INVALID_PARAMETER);
 
     /*
      * Attach driver.
      */
     char *pszDesc = NULL;
     if (RTStrAPrintf(&pszDesc, "Audio driver port (AC'97) for LUN #%u", uLUN) <= 0)
-        AssertMsgReturn(pszDesc,
-                        ("Not enough memory for AC'97 driver port description of LUN #%u\n", uLUN),
-                        VERR_NO_MEMORY);
+        AssertReleaseMsgReturn(pszDesc,
+                               ("Not enough memory for AC'97 driver port description of LUN #%u\n", uLUN),
+                               VERR_NO_MEMORY);
 
+    PPDMIBASE pDrvBase;
     int rc = PDMDevHlpDriverAttach(pDevIns, uLUN,
-                                   &pThis->IBase, &pThis->pDrvBase, pszDesc);
+                                   &pThis->IBase, &pDrvBase, pszDesc);
     if (RT_SUCCESS(rc))
     {
-        PAC97DRIVER pDrv = (PAC97DRIVER)RTMemAllocZ(sizeof(AC97DRIVER));
+        if (pDrv == NULL)
+            pDrv = (PAC97DRIVER)RTMemAllocZ(sizeof(AC97DRIVER));
         if (pDrv)
         {
-            pDrv->pConnector = PDMIBASE_QUERY_INTERFACE(pThis->pDrvBase, PDMIAUDIOCONNECTOR);
-            AssertMsg(pDrv->pConnector != NULL,
-                      ("Configuration error: LUN #%u has no host audio interface, rc=%Rrc\n",
-                      uLUN, rc));
+            pDrv->pDrvBase   = pDrvBase;
+            pDrv->pConnector = PDMIBASE_QUERY_INTERFACE(pDrvBase, PDMIAUDIOCONNECTOR);
+            AssertMsg(pDrv->pConnector != NULL, ("Configuration error: LUN #%u has no host audio interface, rc=%Rrc\n", uLUN, rc));
             pDrv->pAC97State = pThis;
-            pDrv->uLUN = uLUN;
+            pDrv->uLUN       = uLUN;
 
             /*
              * For now we always set the driver at LUN 0 as our primary
@@ -2205,8 +2227,12 @@ static DECLCALLBACK(int) ichac97Attach(PPDMDEVINS pDevIns, unsigned uLUN, uint32
 
             LogFunc(("LUN#%RU8: pCon=%p, drvFlags=0x%x\n", uLUN, pDrv->pConnector, pDrv->Flags));
 
-            /* Attach to driver list. */
-            RTListAppend(&pThis->lstDrv, &pDrv->Node);
+            /* Attach to driver list if not attached yet. */
+            if (!pDrv->fAttached)
+            {
+                RTListAppend(&pThis->lstDrv, &pDrv->Node);
+                pDrv->fAttached = true;
+            }
         }
         else
             rc = VERR_NO_MEMORY;
@@ -2219,12 +2245,99 @@ static DECLCALLBACK(int) ichac97Attach(PPDMDEVINS pDevIns, unsigned uLUN, uint32
         AssertMsgFailed(("Failed to attach AC'97 LUN #%u (\"%s\"), rc=%Rrc\n",
                         uLUN, pszDesc, rc));
 
-    RTStrFree(pszDesc);
+    if (RT_FAILURE(rc))
+    {
+        /* Only free this string on failure;
+         * must remain valid for the live of the driver instance. */
+        RTStrFree(pszDesc);
+    }
 
     LogFunc(("iLUN=%u, fFlags=0x%x, rc=%Rrc\n", uLUN, fFlags, rc));
     return rc;
 }
 
+
+/**
+ * Attach command.
+ *
+ * This is called to let the device attach to a driver for a specified LUN
+ * during runtime. This is not called during VM construction, the device
+ * constructor has to attach to all the available drivers.
+ *
+ * @returns VBox status code.
+ * @param   pDevIns     The device instance.
+ * @param   uLUN        The logical unit which is being detached.
+ * @param   fFlags      Flags, combination of the PDMDEVATT_FLAGS_* \#defines.
+ */
+static DECLCALLBACK(int) ichac97Attach(PPDMDEVINS pDevIns, unsigned uLUN, uint32_t fFlags)
+{
+    return ichac97AttachInternal(pDevIns, NULL /* pDrv */, uLUN, fFlags);
+}
+
+static DECLCALLBACK(void) ichac97Detach(PPDMDEVINS pDevIns, unsigned uLUN, uint32_t fFlags)
+{
+    LogFunc(("iLUN=%u, fFlags=0x%x\n", uLUN, fFlags));
+}
+
+/**
+ * Re-attach.
+ *
+ * @returns VBox status code.
+ * @param   pThis       Device instance.
+ * @param   pDrv        Driver instance used for attaching to.
+ *                      If NULL is specified, a new driver will be created and appended
+ *                      to the driver list.
+ * @param   uLUN        The logical unit which is being re-detached.
+ * @param   pszDriver   Driver name.
+ */
+static int ichac97Reattach(PAC97STATE pThis, PAC97DRIVER pDrv, uint8_t uLUN, const char *pszDriver)
+{
+    AssertPtrReturn(pThis,     VERR_INVALID_POINTER);
+    AssertPtrReturn(pszDriver, VERR_INVALID_POINTER);
+
+    PVM pVM = PDMDevHlpGetVM(pThis->pDevInsR3);
+    PCFGMNODE pRoot = CFGMR3GetRoot(pVM);
+    PCFGMNODE pDev0 = CFGMR3GetChild(pRoot, "Devices/ichac97/0/");
+
+    /* Remove LUN branch. */
+    CFGMR3RemoveNode(CFGMR3GetChildF(pDev0, "LUN#%u/", uLUN));
+
+    if (pDrv)
+    {
+        /* Re-use a driver instance => detach the driver before. */
+        int rc = PDMDevHlpDriverDetach(pThis->pDevInsR3, PDMIBASE_2_PDMDRV(pDrv->pDrvBase), 0 /* fFlags */);
+        if (RT_FAILURE(rc))
+            return rc;
+    }
+
+#define RC_CHECK() if (RT_FAILURE(rc)) { AssertReleaseRC(rc); break; }
+
+    int rc = VINF_SUCCESS;
+    do
+    {
+        PCFGMNODE pLunL0;
+        rc = CFGMR3InsertNodeF(pDev0, &pLunL0, "LUN#%u/", uLUN);        RC_CHECK();
+        rc = CFGMR3InsertString(pLunL0, "Driver",       "AUDIO");       RC_CHECK();
+        rc = CFGMR3InsertNode(pLunL0,   "Config/",       NULL);         RC_CHECK();
+
+        PCFGMNODE pLunL1, pLunL2;
+        rc = CFGMR3InsertNode  (pLunL0, "AttachedDriver/", &pLunL1);    RC_CHECK();
+        rc = CFGMR3InsertNode  (pLunL1,  "Config/",        &pLunL2);    RC_CHECK();
+        rc = CFGMR3InsertString(pLunL1,  "Driver",          pszDriver); RC_CHECK();
+
+        rc = CFGMR3InsertString(pLunL2, "AudioDriver", pszDriver);      RC_CHECK();
+
+    } while (0);
+
+    if (RT_SUCCESS(rc))
+        rc = ichac97AttachInternal(pThis->pDevInsR3, pDrv, uLUN, 0 /* fFlags */);
+
+    LogFunc(("pThis=%p, uLUN=%u, pszDriver=%s, rc=%Rrc\n", pThis, uLUN, pszDriver, rc));
+
+#undef RC_CHECK
+
+    return rc;
+}
 
 /**
  * @interface_method_impl{PDMDEVREG,pfnConstruct}
@@ -2348,18 +2461,25 @@ static DECLCALLBACK(int) ichac97Construct(PPDMDEVINS pDevIns, int iInstance, PCF
      * Attach driver.
      */
     uint8_t uLUN;
-    for (uLUN = 0; uLUN < UINT8_MAX; uLUN)
+    for (uLUN = 0; uLUN < UINT8_MAX; ++uLUN)
     {
         LogFunc(("Trying to attach driver for LUN #%RU8 ...\n", uLUN));
-        rc = ichac97Attach(pDevIns, uLUN, PDM_TACH_FLAGS_NOT_HOT_PLUG);
+        rc = ichac97AttachInternal(pDevIns, NULL /* pDrv */, uLUN, 0 /* fFlags */);
         if (RT_FAILURE(rc))
         {
             if (rc == VERR_PDM_NO_ATTACHED_DRIVER)
                 rc = VINF_SUCCESS;
+            else if (rc == VERR_AUDIO_BACKEND_INIT_FAILED)
+            {
+                ichac97Reattach(pThis, NULL /* pDrv */, uLUN, "NullAudio");
+                PDMDevHlpVMSetRuntimeError(pDevIns, 0 /*fFlags*/, "HostAudioNotResponding",
+                        N_("No audio devices could be opened. Selecting the NULL audio backend "
+                            "with the consequence that no sound is audible"));
+                /* attaching to the NULL audio backend will never fail */
+                rc = VINF_SUCCESS;
+            }
             break;
         }
-
-        uLUN++;
     }
 
     LogFunc(("cLUNs=%RU8, rc=%Rrc\n", uLUN, rc));
@@ -2419,22 +2539,19 @@ static DECLCALLBACK(int) ichac97Construct(PPDMDEVINS pDevIns, int iInstance, PCF
             AssertPtr(pCon);
 
             uint8_t cFailed = 0;
-            if (!pCon->pfnIsInputOK (pCon, pDrv->LineIn.pStrmIn))
+            if (!pCon->pfnIsValidIn (pCon, pDrv->LineIn.pStrmIn))
                 cFailed++;
-            if (!pCon->pfnIsInputOK (pCon, pDrv->MicIn.pStrmIn))
+            if (!pCon->pfnIsValidIn (pCon, pDrv->MicIn.pStrmIn))
                 cFailed++;
-            if (!pCon->pfnIsOutputOK(pCon, pDrv->Out.pStrmOut))
+            if (!pCon->pfnIsValidOut(pCon, pDrv->Out.pStrmOut))
                 cFailed++;
 
             if (cFailed == 3)
             {
-                LogRel(("AC97: Falling back to NULL driver (no sound audible)\n"));
+                LogRel(("AC97: Falling back to NULL backend (no sound audible)\n"));
 
                 ichac97Reset(pDevIns);
-
-                /* Was not able initialize *any* stream.
-                 * Select the NULL audio driver instead. */
-                pCon->pfnInitNull(pCon);
+                ichac97Reattach(pThis, pDrv, pDrv->uLUN, "NullAudio");
 
                 PDMDevHlpVMSetRuntimeError(pDevIns, 0 /*fFlags*/, "HostAudioNotResponding",
                     N_("No audio devices could be opened. Selecting the NULL audio backend "
@@ -2442,24 +2559,24 @@ static DECLCALLBACK(int) ichac97Construct(PPDMDEVINS pDevIns, int iInstance, PCF
             }
             else if (cFailed)
             {
-                if (!pDrv->pConnector->pfnIsInputOK(pDrv->pConnector, pDrv->LineIn.pStrmIn))
+                if (!pDrv->pConnector->pfnIsValidIn (pCon, pDrv->LineIn.pStrmIn))
                     LogRel(("AC97: WARNING: Unable to open PCM line input for LUN #%RU32!\n",       pDrv->uLUN));
-                if (!pDrv->pConnector->pfnIsInputOK(pDrv->pConnector, pDrv->MicIn.pStrmIn))
+                if (!pDrv->pConnector->pfnIsValidIn (pCon, pDrv->MicIn.pStrmIn))
                     LogRel(("AC97: WARNING: Unable to open PCM microphone input for LUN #%RU32!\n", pDrv->uLUN));
-                if (!pDrv->pConnector->pfnIsOutputOK(pDrv->pConnector, pDrv->Out.pStrmOut))
+                if (!pDrv->pConnector->pfnIsValidOut(pCon, pDrv->Out.pStrmOut))
                     LogRel(("AC97: WARNING: Unable to open PCM output for LUN #%RU32!\n",           pDrv->uLUN));
 
                 char   szMissingStreams[255];
                 size_t len = 0;
-                if (!pCon->pfnIsInputOK (pCon, pDrv->LineIn.pStrmIn))
+                if (!pCon->pfnIsValidIn (pCon, pDrv->LineIn.pStrmIn))
                     len = RTStrPrintf(szMissingStreams,
                                       sizeof(szMissingStreams), "PCM Input");
-                if (!pCon->pfnIsOutputOK(pCon, pDrv->Out.pStrmOut))
-                    len += RTStrPrintf(szMissingStreams + len,
-                                       sizeof(szMissingStreams) - len, len ? ", PCM Output" : "PCM Output");
-                if (!pCon->pfnIsInputOK (pCon, pDrv->MicIn.pStrmIn))
+                if (!pCon->pfnIsValidIn (pCon, pDrv->MicIn.pStrmIn))
                     len += RTStrPrintf(szMissingStreams + len,
                                        sizeof(szMissingStreams) - len, len ? ", PCM Microphone" : "PCM Microphone");
+                if (!pCon->pfnIsValidOut(pCon, pDrv->Out.pStrmOut))
+                    len += RTStrPrintf(szMissingStreams + len,
+                                       sizeof(szMissingStreams) - len, len ? ", PCM Output" : "PCM Output");
 
                 PDMDevHlpVMSetRuntimeError(pDevIns, 0 /*fFlags*/, "HostAudioNotResponding",
                     N_("Some AC'97 audio streams (%s) could not be opened. Guest applications generating audio "
@@ -2504,7 +2621,7 @@ static DECLCALLBACK(int) ichac97Construct(PPDMDEVINS pDevIns, int iInstance, PCF
         {
             /* Only register primary driver.
              * The device emulation does the output multiplexing then. */
-            if (pDrv->Flags != PDMAUDIODRVFLAG_PRIMARY)
+            if (!(pDrv->Flags & PDMAUDIODRVFLAG_PRIMARY))
                 continue;
 
             PDMAUDIOCALLBACK AudioCallbacks[2];
@@ -2584,9 +2701,9 @@ const PDMDEVREG g_DeviceICHAC97 =
     /* pfnResume */
     NULL,
     /* pfnAttach */
-    NULL,
+    ichac97Attach,
     /* pfnDetach */
-    NULL,
+    ichac97Detach,
     /* pfnQueryInterface. */
     NULL,
     /* pfnInitComplete */

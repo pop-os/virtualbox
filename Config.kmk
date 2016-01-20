@@ -208,7 +208,7 @@ VBOX_VERSION_MINOR = 0
 # This is the current build number. It should be increased every time we publish a
 # new build. The define is available in every source file. Only even build numbers
 # will be published, odd numbers are set during development.
-VBOX_VERSION_BUILD = 12
+VBOX_VERSION_BUILD = 14
 # The raw version string. This *must not* contain any other information/fields than
 # major, minor and build revision (as it is now) -- also will be used for host/guest version
 # comparison.
@@ -1902,6 +1902,9 @@ VBOX_MAKE_ALTERNATIVE_SOURCE ?= $(PATH_OBJ)/MakeAlternativeSource/MakeAlternativ
 # VBoxDef2LazyLoad (lazy dynamic library loader assembly generator)
 VBOX_DEF_2_LAZY_LOAD ?= $(PATH_OBJ)/VBoxDef2LazyLoad/VBoxDef2LazyLoad$(HOSTSUFF_EXE)
 
+# VBoxCheckImports (checks what we imports from on windows)
+VBOX_CHECK_IMPORTS ?= $(PATH_OBJ)/VBoxCheckImports/VBoxCheckImports$(HOSTSUFF_EXE)
+
 # GNU tar if present.
 if1of ($(KBUILD_TARGET), linux os2 win)
  VBOX_GTAR ?= tar
@@ -3004,14 +3007,15 @@ VBOX_EDIT_INF64_FN = $(SED) \
 # @returns  Name of the output file name.  May have leading space, but no trailing.
 # @param    1   Target name.
 # @param    2   The source name.
+# @param    3   Optional prefix to avoid name collisions.
 #
 if defined(VBOX_SIGNING_MODE) && "$(KBUILD_TARGET)" == "win"
- VBOX_RE_SIGN_DLL_FN = $(if-expr !defined($(1)_VBOX_RE_SIGNED_$(notdir $(2))),\
-	$(evalcall VBOX_RE_SIGN_DLL_INTERNAL_FN,$1,$2)\
-	,)$($(1)_0_OUTDIR)/$(notdir $2)
+ VBOX_RE_SIGN_DLL_FN = $(if-expr !defined($(1)_VBOX_RE_SIGNED_$(3)$(notdir $(2))),\
+	$(evalcall VBOX_RE_SIGN_DLL_INTERNAL_FN,$1,$2,$3)\
+	,)$($(1)_0_OUTDIR)/$(3)$(notdir $2)
 
 define VBOX_RE_SIGN_DLL_INTERNAL_FN
-local n = $(notdir $2)
+local n = $(3)$(notdir $2)
 ifndef $(1)_VBOX_RE_SIGNED_$(n)
  $(1)_VBOX_RE_SIGNED_$(n) := 1
  $(eval $(1)_CLEAN += $$($(1)_0_OUTDIR)/$(n))
@@ -6163,7 +6167,7 @@ endif
 SVN                    ?= svn$(HOSTSUFF_EXE)
 VBOX_SVN_REV_KMK        = $(PATH_OUT)/revision.kmk
 ifndef VBOX_SVN_REV
- VBOX_SVN_REV_FALLBACK := $(patsubst %:,,  $Rev: 104815 $  )
+ VBOX_SVN_REV_FALLBACK := $(patsubst %:,,  $Rev: 105127 $  )
  VBOX_SVN_DEP          := $(firstword $(wildcard $(PATH_ROOT)/.svn/wc.db $(abspath $(PATH_ROOT)/../.svn/wc.db) $(abspath $(PATH_ROOT)/../../.svn/wc.db) $(PATH_ROOT)/.svn/entries))
  ifeq ($(which $(SVN)),)
   VBOX_SVN_DEP         :=
@@ -6314,5 +6318,4 @@ st stat status:
 
 quick:
 	$(MAKE) VBOX_QUICK=1
-
 

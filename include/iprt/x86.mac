@@ -333,6 +333,7 @@
 %define MSR_IA32_TSC_ADJUST                 0x3B
 %define MSR_IA32_BIOS_UPDT_TRIG             0x79
 %define MSR_IA32_BIOS_SIGN_ID               0x8B
+%define MSR_IA32_SMM_MONITOR_CTL            0x9B
 %define MSR_IA32_PMC0                       0xC1
 %define MSR_IA32_PMC1                       0xC2
 %define MSR_IA32_PMC2                       0xC3

@@ -80,6 +80,7 @@ TRANSLATIONS = \
 	nls/VirtualBox_ro.ts \
 	nls/VirtualBox_ru.ts \
 	nls/VirtualBox_sk.ts \
+	nls/VirtualBox_sl.ts \
 	nls/VirtualBox_sr.ts \
 	nls/VirtualBox_sv.ts \
 	nls/VirtualBox_tr.ts \

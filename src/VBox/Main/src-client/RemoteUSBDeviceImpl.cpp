@@ -268,6 +268,16 @@ HRESULT RemoteUSBDevice::getRemote(BOOL *aRemote)
     return S_OK;
 }
 
+HRESULT RemoteUSBDevice::getDeviceInfo(std::vector<com::Utf8Str> &aInfo)
+{
+    /* this is const, no need to lock */
+    aInfo.resize(2);
+    aInfo[0] = mData.manufacturer;
+    aInfo[1] = mData.product;
+
+    return S_OK;
+}
+
 // IHostUSBDevice properties
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1806,24 +1806,31 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
          * The USB Controllers.
          */
         com::SafeIfaceArray<IUSBController> usbCtrls;
-        hrc = pMachine->COMGETTER(USBControllers)(ComSafeArrayAsOutParam(usbCtrls));        H();
+        hrc = pMachine->COMGETTER(USBControllers)(ComSafeArrayAsOutParam(usbCtrls));
         bool fOhciPresent = false; /**< Flag whether at least one OHCI controller is present. */
         bool fXhciPresent = false; /**< Flag whether at least one XHCI controller is present. */
 
-        for (size_t i = 0; i < usbCtrls.size(); ++i)
+        if (SUCCEEDED(hrc))
         {
-            USBControllerType_T enmCtrlType;
-            rc = usbCtrls[i]->COMGETTER(Type)(&enmCtrlType);                                   H();
-            if (enmCtrlType == USBControllerType_OHCI)
+            for (size_t i = 0; i < usbCtrls.size(); ++i)
             {
-                fOhciPresent = true;
-                break;
+                USBControllerType_T enmCtrlType;
+                rc = usbCtrls[i]->COMGETTER(Type)(&enmCtrlType);                                   H();
+                if (enmCtrlType == USBControllerType_OHCI)
+                {
+                    fOhciPresent = true;
+                    break;
+                }
+                else if (enmCtrlType == USBControllerType_XHCI)
+                {
+                    fXhciPresent = true;
+                    break;
+                }
             }
-            else if (enmCtrlType == USBControllerType_XHCI)
-            {
-                fXhciPresent = true;
-                break;
-            }
+        }
+        else if (hrc != E_NOTIMPL)
+        {
+            H();
         }
 
         /*
@@ -1897,8 +1904,10 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
                                    "Because the USB 2.0 controller state is part of the saved "
                                    "VM state, the VM cannot be started. To fix "
                                    "this problem, either install the '%s' or disable USB 2.0 "
-                                   "support in the VM settings"),
-                                s_pszUsbExtPackName);
+                                   "support in the VM settings.\n"
+                                   "Note! This error could also mean that an incompatible version of "
+                                   "the '%s' is installed"),
+                                s_pszUsbExtPackName, s_pszUsbExtPackName);
                     }
 # endif
                 }

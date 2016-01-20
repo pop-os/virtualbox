@@ -1230,6 +1230,27 @@ void ExtPack::i_probeAndLoad(void)
     }
 
     /*
+     * Check for possibly incompatible extpack versions.
+     *
+     * - In 4.3.12 the PDMUSBREG structure was modified without updating the
+     *   version number.
+     * - In 4.3.16 (actually r95499) the VUSBIROOTHUBCONNECTOR interface changed without
+     *   also changing the UUID, with the result that our EHCI device could crash the
+     *   host process.
+     * - In 4.3.12 and 4.3.30 the VUSBREQ structure was updated without updating
+     *   the PDMUSBREG or any other version number.
+     *
+     *  Since this was from before VBOXEXTPACKREG::uVBoxFullVersion was
+     *  added, the check isn't all that generic.
+     */
+    if (   m->Desc.strName.equals("Oracle VM VirtualBox Extension Pack")
+        && RTStrVersionCompare(m->Desc.strVersion.c_str(), "4.3.30") < 0)
+    {
+        m->strWhyUnusable.printf(tr("Incompatible extension pack (version '%s'), please update"), m->Desc.strVersion.c_str());
+        return;
+    }
+
+    /*
      * Load the main DLL and call the predefined entry point.
      */
     bool fIsNative;
@@ -2525,42 +2546,31 @@ HRESULT ExtPackManager::i_refreshExtPack(const char *a_pszName, bool a_fUnusable
     return hrc;
 }
 
-bool ExtPackManager::isThereAnyRunningVM() const
+bool ExtPackManager::i_areThereAnyRunningVMs() const
 {
-    Assert(m->pVirtualBox); /* Only called from VBoxSVC */
+    Assert(m->pVirtualBox != NULL); /* Only called from VBoxSVC. */
     
     /*
-     * Get the list of all _running_ VMs
+     * Get list of machines and their states.
      */
-    bool fRunning = false;
-    com::SafeIfaceArray<IMachine> machines;
-    com::SafeArray<MachineState_T> states;
-    int rc = m->pVirtualBox->COMGETTER(Machines)(ComSafeArrayAsOutParam(machines));
-    if (SUCCEEDED(rc))
-        rc = m->pVirtualBox->GetMachineStates(ComSafeArrayAsInParam(machines), ComSafeArrayAsOutParam(states));
-    if (SUCCEEDED(rc))
+    com::SafeIfaceArray<IMachine> SaMachines;
+    HRESULT hrc = m->pVirtualBox->COMGETTER(Machines)(ComSafeArrayAsOutParam(SaMachines));
+    if (SUCCEEDED(hrc))
     {
-        for (size_t i = 0; i < machines.size(); ++i)
+        com::SafeArray<MachineState_T> SaStates;
+        hrc = m->pVirtualBox->GetMachineStates(ComSafeArrayAsInParam(SaMachines), ComSafeArrayAsOutParam(SaStates));
+        if (SUCCEEDED(hrc))
         {
-            if (machines[i])
-            {
-                MachineState_T machineState = states[i];
-                switch (machineState)
-                {
-                    case MachineState_Running:
-                    case MachineState_Teleporting:
-                    case MachineState_LiveSnapshotting:
-                    case MachineState_Paused:
-                    case MachineState_TeleportingPausedVM:
-                        fRunning = true;
-                        break;
-                }
-            }
-            if (fRunning)
-                break;
+            /*
+             * Scan the two parallel arrays for machines in the running state.
+             */
+            Assert(SaStates.size() == SaMachines.size());
+            for (size_t i = 0; i < SaMachines.size(); ++i)
+                if (SaMachines[i] && Global::IsOnline(SaStates[i]))
+                    return true;
         }
     }
-    return fRunning;
+    return false;
 }
 
 /**
@@ -2607,33 +2617,31 @@ HRESULT ExtPackManager::i_doInstall(ExtPackFile *a_pExtPackFile, bool a_fReplace
     if (SUCCEEDED(hrc))
     {
         AutoWriteLock autoLock(this COMMA_LOCKVAL_SRC_POS);
+
+        /*
+         * Refresh the data we have on the extension pack as it
+         * may be made stale by direct meddling or some other user.
+         */
         ExtPack *pExtPack;
-
-        bool fRunning = isThereAnyRunningVM();
-        if (fRunning)
-        {
-            LogRel(("Install extension pack '%s' failed because at least one VM is still running.", pStrName->c_str()));
-            hrc = setError(E_FAIL, tr("Install extension pack '%s' failed because at least one VM is still running"),
-                           pStrName->c_str());
-        }
-        else
-        {
-            /*
-             * Refresh the data we have on the extension pack as it
-             * may be made stale by direct meddling or some other user.
-             */
-            hrc = i_refreshExtPack(pStrName->c_str(), false /*a_fUnusableIsError*/, &pExtPack);
-        }
-
+        hrc = i_refreshExtPack(pStrName->c_str(), false /*a_fUnusableIsError*/, &pExtPack);
         if (SUCCEEDED(hrc))
         {
             if (pExtPack && a_fReplace)
-                hrc = pExtPack->i_callUninstallHookAndClose(m->pVirtualBox, false /*a_ForcedRemoval*/);
+            {
+                if (!i_areThereAnyRunningVMs())
+                    hrc = pExtPack->i_callUninstallHookAndClose(m->pVirtualBox, false /*a_ForcedRemoval*/);
+                else
+                {
+                    LogRel(("Install extension pack '%s' failed because at least one VM is still running.", pStrName->c_str()));
+                    hrc = setError(E_FAIL, tr("Install extension pack '%s' failed because at least one VM is still running"),
+                                   pStrName->c_str());
+                }
+            }
             else if (pExtPack)
                 hrc = setError(E_FAIL,
                                tr("Extension pack '%s' is already installed."
                                   " In case of a reinstallation, please uninstall it first"),
-                               pStrName->c_str());
+                               pStrName->c_str()); 
         }
         if (SUCCEEDED(hrc))
         {
@@ -2741,76 +2749,74 @@ HRESULT ExtPackManager::i_doUninstall(Utf8Str const *a_pstrName, bool a_fForcedR
 
     AutoCaller autoCaller(this);
     HRESULT hrc = autoCaller.rc();
+
     if (SUCCEEDED(hrc))
     {
         AutoWriteLock autoLock(this COMMA_LOCKVAL_SRC_POS);
-        ExtPack *pExtPack;
-
-        bool fRunning = isThereAnyRunningVM();
-        if (fRunning)
-        {
-            LogRel(("Uninstall extension pack '%s' failed because at least one VM is still running.", a_pstrName->c_str()));
-            hrc = setError(E_FAIL, tr("Uninstall extension pack '%s' failed because at least one VM is still running"),
-                                               a_pstrName->c_str());
-        }
-        else
+        if (a_fForcedRemoval || !i_areThereAnyRunningVMs())
         {
             /*
              * Refresh the data we have on the extension pack as it may be made
              * stale by direct meddling or some other user.
              */
+            ExtPack *pExtPack;
             hrc = i_refreshExtPack(a_pstrName->c_str(), false /*a_fUnusableIsError*/, &pExtPack);
-        }
-
-        if (SUCCEEDED(hrc))
-        {
-            if (!pExtPack)
+            if (SUCCEEDED(hrc))
             {
-                LogRel(("ExtPackManager: Extension pack '%s' is not installed, so nothing to uninstall.\n", a_pstrName->c_str()));
-                hrc = S_OK;             /* nothing to uninstall */
-            }
-            else
-            {
-                /*
-                 * Call the uninstall hook and unload the main dll.
-                 */
-                hrc = pExtPack->i_callUninstallHookAndClose(m->pVirtualBox, a_fForcedRemoval);
-                if (SUCCEEDED(hrc))
+                if (!pExtPack)
+                {
+                    LogRel(("ExtPackManager: Extension pack '%s' is not installed, so nothing to uninstall.\n", a_pstrName->c_str()));
+                    hrc = S_OK;             /* nothing to uninstall */
+                }
+                else
                 {
                     /*
-                     * Run the set-uid-to-root binary that performs the
-                     * uninstallation.  Then refresh the object.
-                     *
-                     * This refresh is theorically subject to races, but it's of
-                     * the don't-do-that variety.
+                     * Call the uninstall hook and unload the main dll.
                      */
-                    const char *pszForcedOpt = a_fForcedRemoval ? "--forced" : NULL;
-                    hrc = i_runSetUidToRootHelper(a_pstrDisplayInfo,
-                                                  "uninstall",
-                                                  "--base-dir", m->strBaseDir.c_str(),
-                                                  "--name",     a_pstrName->c_str(),
-                                                  pszForcedOpt, /* Last as it may be NULL. */
-                                                  (const char *)NULL);
+                    hrc = pExtPack->i_callUninstallHookAndClose(m->pVirtualBox, a_fForcedRemoval);
                     if (SUCCEEDED(hrc))
                     {
-                        hrc = i_refreshExtPack(a_pstrName->c_str(), false /*a_fUnusableIsError*/, &pExtPack);
+                        /*
+                         * Run the set-uid-to-root binary that performs the
+                         * uninstallation.  Then refresh the object.
+                         *
+                         * This refresh is theorically subject to races, but it's of
+                         * the don't-do-that variety.
+                         */
+                        const char *pszForcedOpt = a_fForcedRemoval ? "--forced" : NULL;
+                        hrc = i_runSetUidToRootHelper(a_pstrDisplayInfo,
+                                                      "uninstall",
+                                                      "--base-dir", m->strBaseDir.c_str(),
+                                                      "--name",     a_pstrName->c_str(),
+                                                      pszForcedOpt, /* Last as it may be NULL. */
+                                                      (const char *)NULL);
                         if (SUCCEEDED(hrc))
                         {
-                            if (!pExtPack)
-                                LogRel(("ExtPackManager: Successfully uninstalled extension pack '%s'.\n", a_pstrName->c_str()));
-                            else
-                                hrc = setError(E_FAIL,
-                                               tr("Uninstall extension pack '%s' failed under mysterious circumstances"),
-                                               a_pstrName->c_str());
+                            hrc = i_refreshExtPack(a_pstrName->c_str(), false /*a_fUnusableIsError*/, &pExtPack);
+                            if (SUCCEEDED(hrc))
+                            {
+                                if (!pExtPack)
+                                    LogRel(("ExtPackManager: Successfully uninstalled extension pack '%s'.\n", a_pstrName->c_str()));
+                                else
+                                    hrc = setError(E_FAIL,
+                                                   tr("Uninstall extension pack '%s' failed under mysterious circumstances"),
+                                                   a_pstrName->c_str());
+                            }
                         }
-                    }
-                    else
-                    {
-                        ErrorInfoKeeper Eik;
-                        i_refreshExtPack(a_pstrName->c_str(), false /*a_fUnusableIsError*/, NULL);
+                        else
+                        {
+                            ErrorInfoKeeper Eik;
+                            i_refreshExtPack(a_pstrName->c_str(), false /*a_fUnusableIsError*/, NULL);
+                        }
                     }
                 }
             }
+        }
+        else
+        {
+            LogRel(("Uninstall extension pack '%s' failed because at least one VM is still running.", a_pstrName->c_str()));
+            hrc = setError(E_FAIL, tr("Uninstall extension pack '%s' failed because at least one VM is still running"),
+                           a_pstrName->c_str());
         }
 
         /*

@@ -211,7 +211,6 @@ public:
     /** @}  */
 
 private:
-    bool    isThereAnyRunningVM() const;
     // wrapped IExtPackManager properties
     HRESULT getInstalledExtPacks(std::vector<ComPtr<IExtPack> > &aInstalledExtPacks);
 
@@ -229,7 +228,8 @@ private:
                                        std::vector<com::Utf8Str> &aPlugInModules);
     HRESULT isExtPackUsable(const com::Utf8Str &aName,
                             BOOL *aUsable);
-
+							
+    bool        i_areThereAnyRunningVMs(void) const;
     HRESULT     i_runSetUidToRootHelper(Utf8Str const *a_pstrDisplayInfo, const char *a_pszCommand, ...);
     ExtPack    *i_findExtPack(const char *a_pszName);
     void        i_removeExtPack(const char *a_pszName);

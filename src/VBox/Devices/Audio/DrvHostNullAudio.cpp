@@ -55,9 +55,9 @@ typedef struct NULLAUDIOSTREAMOUT
 {
     /** Note: Always must come first! */
     PDMAUDIOHSTSTRMOUT streamOut;
-    uint64_t u64TicksLast;
-    uint64_t csPlayBuffer;
-    uint8_t *pu8PlayBuffer;
+    uint64_t           u64TicksLast;
+    uint64_t           csPlayBuffer;
+    uint8_t           *pu8PlayBuffer;
 } NULLAUDIOSTREAMOUT, *PNULLAUDIOSTREAMOUT;
 
 typedef struct NULLAUDIOSTREAMIN
@@ -132,8 +132,8 @@ static DECLCALLBACK(int) drvHostNullAudioInitOut(PPDMIHOSTAUDIO pInterface,
     if (RT_SUCCESS(rc))
     {
         PNULLAUDIOSTREAMOUT pNullStrmOut = (PNULLAUDIOSTREAMOUT)pHstStrmOut;
-        pNullStrmOut->u64TicksLast = 0;
-        pNullStrmOut->csPlayBuffer = _1K;
+        pNullStrmOut->u64TicksLast  = 0;
+        pNullStrmOut->csPlayBuffer  = _1K;
         pNullStrmOut->pu8PlayBuffer = (uint8_t *)RTMemAlloc(_1K << pHstStrmOut->Props.cShift);
         if (pNullStrmOut->pu8PlayBuffer)
         {
