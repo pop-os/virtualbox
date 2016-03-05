@@ -79,7 +79,7 @@ diff --git a/src/VBox/Frontends/VirtualBox/src/selector/UISelectorWindow.cpp b/s
 index 752afd4..0438cef 100644
 --- a/src/VBox/Frontends/VirtualBox/src/selector/UISelectorWindow.cpp
 +++ b/src/VBox/Frontends/VirtualBox/src/selector/UISelectorWindow.cpp
-@@ -1235,8 +1235,6 @@ void UISelectorWindow::prepareMenuFile(QMenu *pMenu)
+@@ -1239,8 +1239,6 @@ void UISelectorWindow::prepareMenuFile(QMenu *pMenu)
      /* 'About' action goes to Application menu: */
      pMenu->addAction(actionPool()->action(UIActionIndex_M_Application_S_About));
  # ifdef VBOX_GUI_WITH_NETWORK_MANAGER
@@ -88,7 +88,7 @@ index 752afd4..0438cef 100644
      /* 'Network Access Manager' action goes to Application menu: */
      pMenu->addAction(actionPool()->action(UIActionIndex_M_Application_S_NetworkAccessManager));
  # endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
-@@ -1279,8 +1277,6 @@ void UISelectorWindow::prepareMenuFile(QMenu *pMenu)
+@@ -1283,8 +1281,6 @@ void UISelectorWindow::prepareMenuFile(QMenu *pMenu)
  # ifdef VBOX_GUI_WITH_NETWORK_MANAGER
      /* 'Network Access Manager' action goes to 'File' menu: */
      pMenu->addAction(actionPool()->action(UIActionIndex_M_Application_S_NetworkAccessManager));

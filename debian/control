@@ -69,7 +69,7 @@ Build-Depends: bzip2,
                yasm (>= 0.7.0),
                zlib1g-dev
 X-Python-Version: >= 2.5
-Standards-Version: 3.9.6
+Standards-Version: 3.9.7
 Homepage: http://www.virtualbox.org/
 Vcs-Git: git://anonscm.debian.org/pkg-virtualbox/virtualbox.git
 Vcs-Browser: https://anonscm.debian.org/cgit/pkg-virtualbox/virtualbox.git
