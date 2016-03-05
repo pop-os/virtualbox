@@ -8,6 +8,7 @@ out/bin/VBox*.rc /usr/lib/virtualbox
 out/bin/VBox*.r0 /usr/lib/virtualbox
 out/bin/VBoxAutostart /usr/lib/virtualbox
 out/bin/VBoxBalloonCtrl /usr/lib/virtualbox
+out/bin/VBoxBugReport /usr/lib/virtualbox
 out/bin/VBoxEFI* /usr/lib/virtualbox
 out/bin/VBoxExtPackHelperApp /usr/lib/virtualbox
 out/bin/VBoxHeadless /usr/lib/virtualbox

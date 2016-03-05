@@ -1,6 +1,7 @@
-virtualbox (5.0.16-dfsg-2) UNRELEASED; urgency=medium
+virtualbox (5.0.16-dfsg-2) unstable; urgency=medium
 
   * Update copyright year.
+  * Install VBoxBugReport too.
 
  -- Gianfranco Costamagna <locutusofborg@debian.org>  Sat, 05 Mar 2016 17:41:29 +0100
 
