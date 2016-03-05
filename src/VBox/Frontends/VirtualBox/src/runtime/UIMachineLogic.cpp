@@ -399,7 +399,10 @@ void UIMachineLogic::saveState()
         fSuccess = uisession()->pause();
     /* Save-state: */
     if (fSuccess)
+    {
+        LogRel(("GUI: Passing request to save VM state from machine-logic to UI session.\n"));
         fSuccess = uisession()->saveState();
+    }
 
     /* Disable 'manual-override' finally: */
     setManualOverrideMode(false);
@@ -429,6 +432,7 @@ void UIMachineLogic::powerOff(bool fDiscardingState)
     bool fSuccess = true;
     /* Power-off: */
     bool fServerCrashed = false;
+    LogRel(("GUI: Passing request to power VM off from machine-logic to UI session.\n"));
     fSuccess = uisession()->powerOff(fDiscardingState, fServerCrashed) || fServerCrashed;
 
     /* Disable 'manual-override' finally: */
@@ -463,6 +467,7 @@ void UIMachineLogic::closeRuntimeUI()
     }
 
     /* Asynchronously ask UISession to close Runtime UI: */
+    LogRel(("GUI: Passing request to close Runtime UI from machine-logic to UI session.\n"));
     QMetaObject::invokeMethod(uisession(), "sltCloseRuntimeUI", Qt::QueuedConnection);
 }
 
@@ -491,6 +496,7 @@ void UIMachineLogic::sltHandleVBoxSVCAvailabilityChange()
     msgCenter().warnAboutVBoxSVCUnavailable();
 
     /* Power VM off: */
+    LogRel(("GUI: Request to power VM off due to VBoxSVC is unavailable.\n"));
     powerOff(false);
 }
 
@@ -545,12 +551,16 @@ void UIMachineLogic::sltMachineStateChanged()
                 case GuruMeditationHandlerType_Default:
                 {
                     if (msgCenter().remindAboutGuruMeditation(QDir::toNativeSeparators(strLogFolder)))
+                    {
+                        LogRel(("GUI: User request to power VM off on Guru Meditation.\n"));
                         powerOff(false /* do NOT restore current snapshot */);
+                    }
                     break;
                 }
                 /* Power off VM silently: */
                 case GuruMeditationHandlerType_PowerOff:
                 {
+                    LogRel(("GUI: Automatic request to power VM off on Guru Meditation.\n"));
                     powerOff(false /* do NOT restore current snapshot */);
                     break;
                 }
@@ -617,6 +627,7 @@ void UIMachineLogic::sltMachineStateChanged()
                     }
                 }
 
+                LogRel(("GUI: Request to close Runtime UI because VM is powered off already.\n"));
                 closeRuntimeUI();
                 return;
             }
@@ -1193,6 +1204,18 @@ void UIMachineLogic::prepareDock()
     connect(gEDataManager, SIGNAL(sigDockIconAppearanceChange(bool)),
             this, SLOT(sltChangeDockIconUpdate(bool)));
 
+    /* Get dock icon disable overlay action: */
+    QAction *pDockIconDisableOverlay = actionPool()->action(UIActionIndexRT_M_Dock_M_DockSettings_T_DisableOverlay);
+    /* Prepare dock icon disable overlay action with initial data: */
+    pDockIconDisableOverlay->setChecked(gEDataManager->dockIconDisableOverlay(vboxGlobal().managedVMUuid()));
+    /* Connect dock icon disable overlay related signals: */
+    connect(pDockIconDisableOverlay, SIGNAL(triggered(bool)),
+            this, SLOT(sltDockIconDisableOverlayChanged(bool)));
+    connect(gEDataManager, SIGNAL(sigDockIconOverlayAppearanceChange(bool)),
+            this, SLOT(sltChangeDockIconOverlayAppearance(bool)));
+    /* Add dock icon disable overlay action to the dock settings menu: */
+    pDockSettingsMenu->addAction(pDockIconDisableOverlay);
+
     /* Monitor selection if there are more than one monitor */
     int cGuestScreens = machine().GetMonitorCount();
     if (cGuestScreens > 1)
@@ -1568,6 +1591,7 @@ void UIMachineLogic::sltPowerOff()
         return;
     }
 
+    LogRel(("GUI: User request to power VM off.\n"));
     powerOff(machine().GetSnapshotCount() > 0);
 }
 
@@ -1598,6 +1622,7 @@ void UIMachineLogic::sltClose()
     }
 
     /* Try to close active machine-window: */
+    LogRel(("GUI: Request to close active machine-window.\n"));
     activeMachineWindow()->close();
 }
 
@@ -2129,17 +2154,50 @@ void UIMachineLogic::sltChangeDockIconUpdate(bool fEnabled)
         updateDockOverlay();
     }
 }
+
+void UIMachineLogic::sltChangeDockIconOverlayAppearance(bool fDisabled)
+{
+    /* Update dock icon overlay: */
+    if (isMachineWindowsCreated())
+        updateDockOverlay();
+    /* Make sure to update dock icon disable overlay action state when 'GUI_DockIconDisableOverlay' changed from extra-data manager: */
+    QAction *pDockIconDisableOverlay = actionPool()->action(UIActionIndexRT_M_Dock_M_DockSettings_T_DisableOverlay);
+    if (fDisabled != pDockIconDisableOverlay->isChecked())
+    {
+        /* Block signals initially to avoid recursive loop: */
+        pDockIconDisableOverlay->blockSignals(true);
+        /* Update state: */
+        pDockIconDisableOverlay->setChecked(fDisabled);
+        /* Make sure to unblock signals again: */
+        pDockIconDisableOverlay->blockSignals(false);
+    }
+}
+
+void UIMachineLogic::sltDockIconDisableOverlayChanged(bool fDisabled)
+{
+    /* Write dock icon disable overlay flag to extra-data: */
+    gEDataManager->setDockIconDisableOverlay(fDisabled, vboxGlobal().managedVMUuid());
+}
 #endif /* Q_WS_MAC */
 
 void UIMachineLogic::sltSwitchKeyboardLedsToGuestLeds()
 {
+    /* Due to async nature of that feature
+     * it can happen that this slot is called when machine-window is
+     * minimized or not active anymore, we should ignore those cases. */
+    QWidget *pActiveWindow = QApplication::activeWindow();
+    if (   !pActiveWindow                                 // no window is active anymore
+        || !qobject_cast<UIMachineWindow*>(pActiveWindow) // window is not machine one
+        || pActiveWindow->isMinimized())                  // window is minimized
+    {
+        LogRel2(("GUI: HID LEDs Sync: skipping sync because active window is lost or minimized!\n"));
+        return;
+    }
 //    /* Log statement (printf): */
 //    QString strDt = QDateTime::currentDateTime().toString("HH:mm:ss:zzz");
 //    printf("%s: UIMachineLogic: sltSwitchKeyboardLedsToGuestLeds called, machine name is {%s}\n",
 //           strDt.toAscii().constData(),
 //           machineName().toAscii().constData());
-
-    /* Here we have to store host LED lock states. */
 
     /* Here we have to update host LED lock states using values provided by UISession registry.
      * [bool] uisession() -> isNumLock(), isCapsLock(), isScrollLock() can be used for that. */
@@ -2565,6 +2623,7 @@ void UIMachineLogic::askUserForTheDiskEncryptionPasswords()
                 delete pDlg;
 
                 /* Propose the user to close VM: */
+                LogRel(("GUI: Request to close Runtime UI due to DEK was not provided.\n"));
                 QMetaObject::invokeMethod(this, "sltClose", Qt::QueuedConnection);
             }
         }

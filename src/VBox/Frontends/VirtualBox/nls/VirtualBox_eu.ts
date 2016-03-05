@@ -4,7 +4,7 @@
 <context>
     <name>@@@</name>
     <message>
-        <location filename="../src/globals/VBoxGlobal.cpp" line="+2132"/>
+        <location filename="../src/globals/VBoxGlobal.cpp" line="+2138"/>
         <source>English</source>
         <comment>Native language name</comment>
         <translation>Euskara</translation>
@@ -8730,7 +8730,7 @@
 <context>
     <name>UINetworkReplyPrivate</name>
     <message>
-        <location filename="../src/net/UINetworkReply.cpp" line="+953"/>
+        <location filename="../src/net/UINetworkReply.cpp" line="+954"/>
         <source>Host not found</source>
         <translation>Hostalaria ez da aurkitu</translation>
     </message>
@@ -8794,7 +8794,7 @@
 <context>
     <name>UINetworkReplyPrivateThread</name>
     <message>
-        <location line="-576"/>
+        <location line="-577"/>
         <source>During proxy configuration</source>
         <translation>Proxy itxurapenean zehar</translation>
     </message>
@@ -12036,14 +12036,14 @@
         <translation>Mugagabeko Exekuzioa</translation>
     </message>
     <message>
-        <location filename="../src/globals/VBoxGlobal.cpp" line="-1923"/>
+        <location filename="../src/globals/VBoxGlobal.cpp" line="-1929"/>
         <source>Unknown device</source>
         <comment>USB device details</comment>
         <translation>Gailu ezezaguna</translation>
     </message>
     <message>
         <location filename="../src/UIVMInfoDialog.cpp" line="+5"/>
-        <location filename="../src/globals/VBoxGlobal.cpp" line="+316"/>
+        <location filename="../src/globals/VBoxGlobal.cpp" line="+322"/>
         <source>Remote Desktop Server Port</source>
         <comment>details report (VRDE Server)</comment>
         <translation>Hurruneko Mahaigain Zerbitzari Ataka</translation>

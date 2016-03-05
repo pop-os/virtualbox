@@ -3,6 +3,143 @@
 <chapter> <!-- HACK ALERT! Seems we must have a single top level element for xi:include to work.
                            So, we use chapter and xpointer="xpointer(/chapter/)" with xi:include. -->
   <sect1>
+    <title>Version 5.0.16 (2016-03-04)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>VMM: fixed a problem which could lead to a wrong guest behavior on
+          AMD CPUs (tickets #14831 and #15186)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: don't try to synchronize the HID LEDs if the VM window is not
+          active or if it's minimized (Windows / Mac OS X hosts only; bug #14302)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: prevent a crash during startup under rare conditions</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: sub-menu option to disable the guest-OS type overlay in the
+          application dock icon on Mac OS X</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: position off-screen windows to be fully visible again on relaunch</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: hide the VT-x/AMD-V checkbox if raw-mode is not supported
+          (usually Mac OS X hosts; bug #15178)</para>
+      </listitem>
+
+      <listitem>
+        <para>PC speaker passthrough: new experimental feature, available on
+          Linux host only</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: several fixes for Mac OS X hosts + guests</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: properly handle default audio device changes (Windows hosts)</para>
+      </listitem>
+
+      <listitem>
+        <para>USB: serveral fixes for the xHCI controller (e.g. for webcam
+          passthrough)</para>
+      </listitem>
+
+      <listitem>
+        <para>BIOS: fixed int15/AH=83/AL=00 function (4.2.0 regression)</para>
+      </listitem>
+
+      <listitem>
+        <para>iPXE: enable the HTTP download protocol on non-Linux hosts (bug #13628)</para>
+      </listitem>
+
+      <listitem>
+        <para>Shared folders: fixed a failure to load the saved state under
+          certain circumstances (bug #6314)</para>
+      </listitem>
+
+      <listitem>
+        <para>Guest Control: added support for (cached) Active Directory authentication
+          in case the domain controller is not reachable (anymore)</para>
+      </listitem>
+
+      <listitem>
+        <para>Serial ports: raised the number of serial ports per VM from 2 to 4
+          (bug #9109)</para>
+      </listitem>
+
+      <listitem>
+        <para>Serial ports: fix for the TCP/IP backend (Windows hosts only; bug #15188)</para>
+      </listitem>
+
+      <listitem>
+        <para>SDK: make the Python webservice API binding work again (5.0 regression)</para>
+      </listitem>
+
+      <listitem>
+        <para>Seamless mode: fixed a crash under certain circumstances
+          (bug #15106)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts: fixed the /sbin/rcvboxdrv script as well as the missing
+          shebang in two scripts (bugs #15055 and #15057)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts: properly uninstall Python files installed by the
+          .run installer</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows hosts: hardening fix required for recent Windows insider
+          builds (bug #14052)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows hosts: fixed Python installation path (bug #13131)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows hosts: support MTU larger than 2 KB with bridged
+          networking (bug #15140)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows hosts / guests: properly sign binaries using a sha-256
+          certificate (bug #15054)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows Additions: fixed guest property enumeration of logged-in
+          users</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows Additions: fixed sporadical failure of the graphics driver
+          in Windows 10 guests (bug #14409)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows Additions: under rare circumstances no mouse movement
+          events were delivered to the guest</para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
+
+  <sect1>
     <title>Version 5.0.14 (2016-01-19)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or
@@ -1187,7 +1324,7 @@
       </listitem>
 
       <listitem>
-        <para>Serial: new TCP/IP backend (see <xref linkend="serialports"/>)</para>
+        <para>Serial ports: new TCP/IP backend (see <xref linkend="serialports"/>)</para>
       </listitem>
 
       <listitem>

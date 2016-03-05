@@ -1749,7 +1749,7 @@ QString VBoxGlobal::openMedium(UIMediumType mediumType, QString strMediumLocatio
     return QString();
 }
 
-void VBoxGlobal::startMediumEnumeration(bool fForceStart /* = true*/)
+void VBoxGlobal::startMediumEnumeration()
 {
     /* Make sure VBoxGlobal is already valid: */
     AssertReturnVoid(mValid);
@@ -1769,10 +1769,6 @@ void VBoxGlobal::startMediumEnumeration(bool fForceStart /* = true*/)
     /* If asked to restore snapshot, don't do this till *after* we're done
      * restoring or the code with have a heart attack. */
     if (shouldRestoreCurrentSnapshot())
-        return;
-
-    /* Developer doesn't want any unnecessary media caching! */
-    if (!fForceStart && !agressiveCaching())
         return;
 
     if (m_mediumEnumeratorDtorRwLock.tryLockForRead())
@@ -2105,8 +2101,8 @@ void VBoxGlobal::updateMachineStorage(const CMachine &constMachine, const UIMedi
                                                     fMount, false /* retry? */);
             }
         }
-        /* Mounting successful: */
-        else
+        /* If mounting was successful: */
+        if (fWasMounted)
         {
             /* Disable First RUN Wizard: */
             if (gEDataManager->machineFirstTimeStarted(machine.GetId()))
@@ -4311,10 +4307,7 @@ void VBoxGlobal::prepare()
 
     UIConverter::prepare();
 
-    /* Cache IMedium data.
-     * There could be no used mediums at all,
-     * but this method should be run anyway just to enumerate null UIMedium object,
-     * used by some VBox smart widgets, like VBoxMediaComboBox: */
+    /* Create medium enumerator but don't do any immediate caching. */
     m_pMediumEnumerator = new UIMediumEnumerator;
     {
         /* Prepare medium-enumerator: */
@@ -4329,8 +4322,6 @@ void VBoxGlobal::prepare()
         connect(m_pMediumEnumerator, SIGNAL(sigMediumEnumerationFinished()),
                 this, SIGNAL(sigMediumEnumerationFinished()));
     }
-    if (agressiveCaching())
-        startMediumEnumeration();
 
     /* Create shortcut pool: */
     UIShortcutPool::create();
@@ -4621,7 +4612,7 @@ bool VBoxGlobal::isDebuggerWorker(int *piDbgCfgVar, const char *pszExtraDataName
 
 #endif /* VBOX_WITH_DEBUGGER_GUI */
 
-bool VBoxGlobal::showUI()
+void VBoxGlobal::showUI()
 {
     /* Load application settings: */
     VBoxGlobalSettings appSettings = settings();
@@ -4629,11 +4620,11 @@ bool VBoxGlobal::showUI()
     /* Show Selector UI: */
     if (!isVMConsoleProcess())
     {
-        /* Make sure Selector UI is permitted: */
+        /* Make sure Selector UI is permitted, quit if not: */
         if (appSettings.isFeatureActive("noSelector"))
         {
             msgCenter().cannotStartSelector();
-            return false;
+            return QApplication::quit();
         }
 
 #ifdef VBOX_BLEEDING_EDGE
@@ -4655,13 +4646,10 @@ bool VBoxGlobal::showUI()
     /* Show Runtime UI: */
     else
     {
-        /* Make sure machine is started: */
+        /* Make sure machine is started, quit if not: */
         if (!UIMachine::startMachine(vboxGlobal().managedVMUuid()))
-            return false;
+            return QApplication::quit();
     }
-
-    /* True by default: */
-    return true;
 }
 
 bool VBoxGlobal::switchToMachine(CMachine &machine)

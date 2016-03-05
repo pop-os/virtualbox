@@ -1873,7 +1873,7 @@ QStringList UIExtraDataManagerWindow::knownExtraDataKeys()
 #endif /* !Q_WS_MAC */
            << GUI_StatusBar_Enabled << GUI_RestrictedStatusBarIndicators << GUI_StatusBar_IndicatorOrder
 #ifdef Q_WS_MAC
-           << GUI_RealtimeDockIconUpdateEnabled << GUI_RealtimeDockIconUpdateMonitor
+           << GUI_RealtimeDockIconUpdateEnabled << GUI_RealtimeDockIconUpdateMonitor << GUI_DockIconDisableOverlay
 #endif /* Q_WS_MAC */
            << GUI_PassCAD
            << GUI_MouseCapturePolicy
@@ -2313,14 +2313,18 @@ QRect UIExtraDataManager::selectorWindowGeometry(QWidget *pWidget)
     if (pWidget)
         geometry.setSize(geometry.size().expandedTo(pWidget->minimumSizeHint()));
 
-    /* Get screen-geometry [of screen with point (iX, iY) if possible]: */
+    /* Get available-geometry [of screen with point (iX, iY) if possible]: */
     const QRect availableGeometry = fOk ? vboxGlobal().availableGeometry(QPoint(iX, iY)) :
                                           vboxGlobal().availableGeometry();
 
+    /* In Windows Qt fails to reposition out of screen window properly, so moving to centre: */
+#ifdef Q_WS_WIN
     /* Make sure resulting geometry is within current bounds: */
-    geometry = geometry.intersected(availableGeometry);
+    if (fOk && geometry.intersects(availableGeometry))
+        geometry.moveCenter(availableGeometry.center());
+#endif /* Q_WS_WIN */
 
-    /* Move default-geometry to screen-geometry' center: */
+    /* As final fallback, move default-geometry to available-geometry' center: */
     if (!fOk)
         geometry.moveCenter(availableGeometry.center());
 
@@ -3429,6 +3433,18 @@ void UIExtraDataManager::setRealtimeDockIconUpdateMonitor(int iIndex, const QStr
 {
     setExtraDataString(GUI_RealtimeDockIconUpdateMonitor, iIndex ? QString::number(iIndex) : QString(), strID);
 }
+
+bool UIExtraDataManager::dockIconDisableOverlay(const QString &strID)
+{
+    /* 'False' unless feature allowed: */
+    return isFeatureAllowed(GUI_DockIconDisableOverlay, strID);
+}
+
+void UIExtraDataManager::setDockIconDisableOverlay(bool fDisabled, const QString &strID)
+{
+    /* 'True' if feature allowed, null-string otherwise: */
+    setExtraDataString(GUI_DockIconDisableOverlay, toFeatureAllowed(fDisabled), strID);
+}
 #endif /* Q_WS_MAC */
 
 bool UIExtraDataManager::passCADtoGuest(const QString &strID)
@@ -3509,16 +3525,23 @@ QRect UIExtraDataManager::informationWindowGeometry(QWidget *pWidget, QWidget *p
     if (pWidget)
         geometry.setSize(geometry.size().expandedTo(pWidget->minimumSizeHint()));
 
-    /* Get screen-geometry [of screen with point (iX, iY) if possible]: */
+    /* Get available-geometry [of screen with point (iX, iY) if possible]: */
     const QRect availableGeometry = fOk ? vboxGlobal().availableGeometry(QPoint(iX, iY)) :
                                           vboxGlobal().availableGeometry();
 
+    /* In Windows Qt fails to reposition out of screen window properly, so moving to centre: */
+#ifdef Q_WS_WIN
     /* Make sure resulting geometry is within current bounds: */
-    geometry = geometry.intersected(availableGeometry);
+    if (fOk && geometry.intersects(availableGeometry))
+        geometry.moveCenter(availableGeometry.center());
+#endif /* Q_WS_WIN */
 
-    /* Move default-geometry to pParentWidget' geometry center: */
+    /* As a fallback, move default-geometry to pParentWidget' geometry center: */
     if (!fOk && pParentWidget)
         geometry.moveCenter(pParentWidget->geometry().center());
+    /* As final fallback, move default-geometry to available-geometry' center: */
+    else if (!fOk)
+        geometry.moveCenter(availableGeometry.center());
 
     /* Return result: */
     return geometry;
@@ -3619,14 +3642,18 @@ QRect UIExtraDataManager::extraDataManagerGeometry(QWidget *pWidget)
     if (pWidget)
         geometry.setSize(geometry.size().expandedTo(pWidget->minimumSizeHint()));
 
-    /* Get screen-geometry [of screen with point (iX, iY) if possible]: */
+    /* Get available-geometry [of screen with point (iX, iY) if possible]: */
     const QRect availableGeometry = fOk ? vboxGlobal().availableGeometry(QPoint(iX, iY)) :
                                           vboxGlobal().availableGeometry();
 
+    /* In Windows Qt fails to reposition out of screen window properly, so moving to centre: */
+#ifdef Q_WS_WIN
     /* Make sure resulting geometry is within current bounds: */
-    geometry = geometry.intersected(availableGeometry);
+    if (fOk && geometry.intersects(availableGeometry))
+        geometry.moveCenter(availableGeometry.center());
+#endif /* Q_WS_WIN */
 
-    /* Move default-geometry to current screen center: */
+    /* As final fallback, move default-geometry to available-geometry' center: */
     if (!fOk)
         geometry.moveCenter(availableGeometry.center());
 
@@ -3734,8 +3761,9 @@ QRect UIExtraDataManager::logWindowGeometry(QWidget *pWidget, const QRect &defau
 
     /* In Windows Qt fails to reposition out of screen window properly, so moving to centre: */
 #ifdef Q_WS_WIN
-    /* Get screen-geometry [of screen with point (iX, iY) if possible]: */
-    const QRect availableGeometry = vboxGlobal().availableGeometry(QPoint(iX, iY));
+    /* Get available-geometry [of screen with point (iX, iY) if possible]: */
+    const QRect availableGeometry = fOk ? vboxGlobal().availableGeometry(QPoint(iX, iY)) :
+                                          vboxGlobal().availableGeometry();
 
     /* Make sure resulting geometry is within current bounds: */
     if (!availableGeometry.contains(geometry, true))
@@ -3809,9 +3837,12 @@ void UIExtraDataManager::sltExtraDataChange(QString strMachineID, QString strKey
                 emit sigHidLedsSyncStateChange(!isFeatureRestricted(strKey, strMachineID));
 #ifdef Q_WS_MAC
             /* 'Dock icon' appearance changed (allowed if not restricted)? */
-            else if (   strKey == GUI_RealtimeDockIconUpdateEnabled
-                     || strKey == GUI_RealtimeDockIconUpdateMonitor)
+            else if (strKey == GUI_RealtimeDockIconUpdateEnabled ||
+                     strKey == GUI_RealtimeDockIconUpdateMonitor)
                 emit sigDockIconAppearanceChange(!isFeatureRestricted(strKey, strMachineID));
+            /* 'Dock icon overlay' appearance changed (restricted if not allowed)? */
+            else if (strKey == GUI_DockIconDisableOverlay)
+                emit sigDockIconOverlayAppearanceChange(isFeatureAllowed(strKey, strMachineID));
 #endif /* Q_WS_MAC */
         }
 

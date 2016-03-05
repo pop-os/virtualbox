@@ -208,7 +208,7 @@ VBOX_VERSION_MINOR = 0
 # This is the current build number. It should be increased every time we publish a
 # new build. The define is available in every source file. Only even build numbers
 # will be published, odd numbers are set during development.
-VBOX_VERSION_BUILD = 14
+VBOX_VERSION_BUILD = 16
 # The raw version string. This *must not* contain any other information/fields than
 # major, minor and build revision (as it is now) -- also will be used for host/guest version
 # comparison.
@@ -2734,13 +2734,26 @@ ifdef VBOX_SIGNING_MODE
 
   # VBOX_PATH_SELFSIGN points to the Vista WDK bin/SelfSign directory.
   ifndef VBOX_PATH_SELFSIGN
-   VBOX_PATH_SELFSIGN := $(lastword $(sort $(wildcard $(KBUILD_DEVTOOLS)/win.x86/selfsign/*)))
+   VBOX_PATH_SELFSIGN := $(firstword $(rsort $(wildcard $(KBUILD_DEVTOOLS)/win.x86/selfsign/*)))
    ifeq ($(VBOX_PATH_SELFSIGN),)
     VBOX_PATH_SELFSIGN := $(KBUILD_DEVTOOLS)/win.x86/selfsign/r1
    endif
   endif
-  VBOX_SIGNTOOL ?= $(KBUILD_DEVTOOLS)/bin/retry.cmd $(VBOX_PATH_SELFSIGN)/SignTool.exe
-  VBOX_INF2CAT  ?= $(VBOX_PATH_SELFSIGN)/Inf2Cat.exe
+  ifndef VBOX_PATH_SIGN_TOOLS
+   VBOX_PATH_SIGN_TOOLS := $(firstword $(rsort $(wildcard \
+   	$(addprefix $(KBUILD_DEVTOOLS)/win.x86/sdk/v8.1*/Bin/, x86 $(if-expr $(KBUILD_HOST_ARCH)=="amd64",x64,) ) )))
+   ifeq ($(VBOX_PATH_SIGN_TOOLS),)
+    VBOX_PATH_SIGN_TOOLS := $(firstword $(rsort $(wildcard \
+    	$(addprefix $(KBUILD_DEVTOOLS)/win.x86/sdk/v10*/Bin/, x86 $(if-expr $(KBUILD_HOST_ARCH)=="amd64",x64,) ) )))
+    ifeq ($(VBOX_PATH_SIGN_TOOLS),)
+     VBOX_PATH_SIGN_TOOLS := $(VBOX_PATH_SELFSIGN)
+    endif
+   endif
+  endif
+
+  VBOX_RETRY    ?= $(ASH) $(KBUILD_DEVTOOLS)/bin/retry.sh
+  VBOX_SIGNTOOL ?= $(VBOX_RETRY) "$(VBOX_PATH_SIGN_TOOLS)/signtool.exe"
+  VBOX_INF2CAT  ?= $(VBOX_PATH_SELFSIGN)/inf2cat.exe
 
   ifeq ($(VBOX_SIGNING_MODE),test)
    VBOX_CERTIFICATE_SUBJECT_NAME ?= MyTestCertificate
@@ -2748,6 +2761,7 @@ ifdef VBOX_SIGNING_MODE
   else # release
    VBOX_CERTIFICATE_SUBJECT_NAME ?= Oracle Corporation
    VBOX_CERTIFICATE_SUBJECT_NAME_ARGS ?= /n "$(VBOX_CERTIFICATE_SUBJECT_NAME)" /a
+   VBOX_CERTIFICATE_FINGERPRINT ?= 7e 92 b6 6b e5 1b 79 d8 ce 3f f2 5c 15 c2 df 6a b8 c7 f2 f2
    # TEMPORARY HACK!
    if defined(VBOX_ONLY_VALIDATIONKIT)
     VBOX_CROSS_CERTIFICATE_FILE ?= $(VBOX_PATH_SELFSIGN)/MSCV-VSClass3.cer
@@ -2763,13 +2777,61 @@ ifdef VBOX_SIGNING_MODE
   VBOX_CERTIFICATE_FINGERPRINT_ARGS := $(if-expr "$(VBOX_CERTIFICATE_FINGERPRINT)" != "" \
   	,/sha1 "$(subst $(SP),,$(VBOX_CERTIFICATE_FINGERPRINT))",)
 
+  ifeq ($(VBOX_SIGNING_MODE),test)
+   #VBOX_CERTIFICATE_SHA2_SUBJECT_NAME ?= MyTestCertificateSha2
+   VBOX_CERTIFICATE_SHA2_SUBJECT_NAME_ARGS ?= /n "$(VBOX_CERTIFICATE_SHA2_SUBJECT_NAME)"
+  else # release
+   VBOX_CERTIFICATE_SHA2_SUBJECT_NAME_ARGS ?= /n "$(VBOX_CERTIFICATE_SHA2_SUBJECT_NAME)" /a
+   VBOX_CERTIFICATE_SHA2_FINGERPRINT ?= 31 31 bb 58 8b 19 9e 6e 85 0f d3 35 82 b0 c5 82 55 e1 6c 49
+   # TEMPORARY HACK for the validation kitty! The build box is too old.
+   if defined(VBOX_ONLY_VALIDATIONKIT)
+    VBOX_CROSS_CERTIFICATE_SHA2_FILE ?= $(VBOX_PATH_SELFSIGN)/MSCV-VSClass3.cer
+   else
+    VBOX_CERTIFICATE_SHA2_SUBJECT_NAME ?= Oracle Corporation
+    VBOX_CROSS_CERTIFICATE_SHA2_FILE ?= $(VBOX_PATH_SELFSIGN)/VeriSign Class 3 Public Primary Certification Authority - G5.cer
+   endif
+   VBOX_CROSS_CERTIFICATE_SHA2_FILE_ARGS ?= /ac "$(VBOX_CROSS_CERTIFICATE_SHA2_FILE)"
+   VBOX_TSA_SHA2_URL ?= http://sha256timestamp.ws.symantec.com/sha256/timestamp
+   VBOX_TSA_SHA2_URL_ARGS ?= /tr "$(VBOX_TSA_SHA2_URL)"
+  endif
+  VBOX_CERTIFICATE_SHA2_STORE ?= my
+  VBOX_CERTIFICATE_SHA2_STORE_ARGS ?= /s "$(VBOX_CERTIFICATE_SHA2_STORE)"
+  VBOX_CERTIFICATE_SHA2_FINGERPRINT_ARGS := $(if-expr "$(VBOX_CERTIFICATE_SHA2_FINGERPRINT)" != "" \
+  	,/sha1 "$(subst $(SP),,$(VBOX_CERTIFICATE_SHA2_FINGERPRINT))",) # Still using SHA-1 for fingerprinting, it's good enough for that!
+
   ## Commands for signing a driver image after link.
-  VBOX_SIGN_DRIVER_CMDS ?= $(if $(eq $(tool_do),LINK_LIBRARY),,$(call VBOX_SIGN_IMAGE_FN,$(out)))
+  VBOX_SIGN_DRIVER_CMDS ?= $(if $(eq $(tool_do),LINK_LIBRARY),,$(call VBOX_SIGN_IMAGE_FN,$(out),,2))
   ## Sign a file (generic).
   # @param 1  The file to sign.
   # @param 2  File description. Optional.
   # @param 3  Additional parameters. Optional.
-  VBOX_SIGN_FILE_FN     ?= $(VBOX_SIGNTOOL) sign \
+  # @param 4  Set to 2 if the expression will be expanded twice before chopped into commands (for _CMDS).
+  # @param 5  Disables dual signing if non-empty.
+  ifndef VBOX_SIGN_FILE_FN
+   ifdef VBOX_CERTIFICATE_SHA2_SUBJECT_NAME
+    VBOX_SIGN_FILE_FN     = $(VBOX_SIGNTOOL) \
+    	sign /fd sha1\
+	$(VBOX_CROSS_CERTIFICATE_FILE_ARGS) \
+	$(VBOX_CERTIFICATE_STORE_ARGS) \
+	$(VBOX_CERTIFICATE_SUBJECT_NAME_ARGS) \
+       $(VBOX_CERTIFICATE_FINGERPRINT_ARGS) \
+	$(VBOX_TSA_URL_ARGS) \
+	$(if $(strip $(2)),/d "$(strip $(2))",) \
+	$(3) \
+	$(1) \
+    	$(if-expr "$5" == "",\
+	$(if-expr "$4" == "2",$$(NLTAB),$(NLTAB))$(VBOX_SIGNTOOL) \
+    	sign /as /fd sha256 \
+	$(VBOX_CROSS_CERTIFICATE_SHA2_FILE_ARGS) \
+	$(VBOX_CERTIFICATE_SHA2_STORE_ARGS) \
+	$(VBOX_CERTIFICATE_SHA2_SUBJECT_NAME_ARGS) \
+       $(VBOX_CERTIFICATE_SHA2_FINGERPRINT_ARGS) \
+	$(VBOX_TSA_SHA2_URL_ARGS) \
+	$(if $(strip $(2)),/d "$(strip $(2))",) \
+	$(3) \
+	$(1),)
+   else
+    VBOX_SIGN_FILE_FN     = $(VBOX_SIGNTOOL) sign \
 	$(VBOX_CROSS_CERTIFICATE_FILE_ARGS) \
 	$(VBOX_CERTIFICATE_STORE_ARGS) \
 	$(VBOX_CERTIFICATE_SUBJECT_NAME_ARGS) \
@@ -2778,10 +2840,14 @@ ifdef VBOX_SIGNING_MODE
 	$(if $(strip $(2)),/d "$(strip $(2))",) \
 	$(3) \
 	$(1)
+   endif
+  endif
+
   ## Sign an executable image.
   # @param 1  The file to sign.
   # @param 2  File description. Optional.
-  VBOX_SIGN_IMAGE_FN     ?= $(call VBOX_SIGN_FILE_FN,$(1),$(2),/ph)
+  # @param 3  Set to 2 if the expression will be expanded twice before chopped into commands (for _CMDS).
+  VBOX_SIGN_IMAGE_FN     ?= $(call VBOX_SIGN_FILE_FN,$(1),$(2),/ph,$(3))
 
   ## Create a security catalog file.
   # @param 1  The directory containing the stuff to sign.
@@ -2791,7 +2857,7 @@ ifdef VBOX_SIGNING_MODE
 	$(RM) -f $(2)\
 	$(NL)$(TAB)$(VBOX_INF2CAT) /driver:$(strip $(1)) /os:$(strip $(subst ;,$(COMMA),$(3))) /verbose \
 	$(NL)$(TAB)$(MV) $(2) $(2) \
-	$(NL)$(TAB)$(call VBOX_SIGN_FILE_FN,$(2))
+	$(NL)$(TAB)$(call VBOX_SIGN_FILE_FN,$(2),,,$(NL)$(TAB))
   VBOX_MAKE_CAT64_FN   ?= $(call VBOX_MAKE_CAT_HLP_FN,$(1),$(2),XP_X64;Server2003_X64;Vista_X64)
   VBOX_MAKE_CAT32_FN   ?= $(call VBOX_MAKE_CAT_HLP_FN,$(1),$(2),2000;XP_X86;Server2003_X86;Vista_X86)
   ifeq ($(KBUILD_TARGET_ARCH),x86)
@@ -2803,7 +2869,7 @@ ifdef VBOX_SIGNING_MODE
   # Go nuts, sign everything.
   if "$(VBOX_SIGNING_MODE)" == "release" || defined(VBOX_WITH_HARDENING)
    ## Commands for signing an executable or a dll image after link.
-   VBOX_SIGN_IMAGE_CMDS  ?= $(if $(eq $(tool_do),LINK_LIBRARY),,$(call VBOX_SIGN_IMAGE_FN,$(out)))
+   VBOX_SIGN_IMAGE_CMDS  ?= $(if $(eq $(tool_do),LINK_LIBRARY),,$(call VBOX_SIGN_IMAGE_FN,$(out),,2))
   endif
   ## Enable signing of the additions.
   VBOX_SIGN_ADDITIONS   ?= 1
@@ -3249,12 +3315,12 @@ SDK_VBoxOpenSslExtPack_LIBS    = \
 ifdef VBOX_WITH_S3
 VBOX_WITH_LIBCURL = 1
 SDK_VBOX_LIBCURL       = .
-SDK_VBOX_LIBCURL_INCS ?= $(PATH_ROOT)/src/libs/curl-7.45.0/include
+SDK_VBOX_LIBCURL_INCS ?= $(PATH_ROOT)/src/libs/curl-7.47.0/include
 SDK_VBOX_LIBCURL_LIBS ?= $(PATH_STAGE_LIB)/VBox-libcurl$(VBOX_SUFF_LIB)
 SDK_VBOX_LIBCURL_DEFS ?= BUILDING_LIBCURL
 
 SDK_VBOX_LIBCURL-x86           = .
-SDK_VBOX_LIBCURL-x86_INCS     ?= $(PATH_ROOT)/src/libs/curl-7.45.0/include
+SDK_VBOX_LIBCURL-x86_INCS     ?= $(PATH_ROOT)/src/libs/curl-7.47.0/include
 SDK_VBOX_LIBCURL-x86_LIBS.x86 ?= $(PATH_STAGE_LIB)/VBox-libcurl-x86$(VBOX_SUFF_LIB)
 SDK_VBOX_LIBCURL-x86_DEFS     ?= BUILDING_LIBCURL
 endif
@@ -6167,7 +6233,7 @@ endif
 SVN                    ?= svn$(HOSTSUFF_EXE)
 VBOX_SVN_REV_KMK        = $(PATH_OUT)/revision.kmk
 ifndef VBOX_SVN_REV
- VBOX_SVN_REV_FALLBACK := $(patsubst %:,,  $Rev: 105127 $  )
+ VBOX_SVN_REV_FALLBACK := $(patsubst %:,,  $Rev: 105871 $  )
  VBOX_SVN_DEP          := $(firstword $(wildcard $(PATH_ROOT)/.svn/wc.db $(abspath $(PATH_ROOT)/../.svn/wc.db) $(abspath $(PATH_ROOT)/../../.svn/wc.db) $(PATH_ROOT)/.svn/entries))
  ifeq ($(which $(SVN)),)
   VBOX_SVN_DEP         :=
@@ -6318,4 +6384,5 @@ st stat status:
 
 quick:
 	$(MAKE) VBOX_QUICK=1
+
 

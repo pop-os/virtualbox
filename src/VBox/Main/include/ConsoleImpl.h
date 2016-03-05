@@ -820,8 +820,6 @@ private:
     static DECLCALLBACK(int)    i_teleporterTrgServeConnection(RTSOCKET Sock, void *pvUser);
     /** @} */
 
-    void i_reportDriverVersions(void);
-
     bool mSavedStateDataLoaded : 1;
 
     const ComPtr<IMachine> mMachine;

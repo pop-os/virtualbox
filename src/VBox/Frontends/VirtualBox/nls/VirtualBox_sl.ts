@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE TS>
-<TS version="2.1" language="sl_SI">
+<TS version="2.0" language="sl_SI">
 <context>
     <name>@@@</name>
     <message>
@@ -77,7 +77,7 @@
     </message>
     <message>
         <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;may correct this. Make sure that you do not mix the OSE version and the PUEL version of VirtualBox.</source>
-        <translation>Moduli jedra VirtualBox se ne ujemajo s to različico VirtualBoxa.Namestitev VirtualBoxa očitno ni bila uspešna. Izvajanje&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;bo morda to popravilo. Prepričajte se, da ne mešate različic OSE in PUEL VirtualBoxa.</translation>
+        <translation type="obsolete">Moduli jedra VirtualBox se ne ujemajo s to različico VirtualBoxa.Namestitev VirtualBoxa očitno ni bila uspešna. Izvajanje&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;bo morda to popravilo. Prepričajte se, da ne mešate različic OSE in PUEL VirtualBoxa.</translation>
     </message>
     <message>
         <source>This error means that the kernel driver was either not able to allocate enough memory or that some mapping operation failed.</source>
@@ -85,7 +85,15 @@
     </message>
     <message>
         <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. If it is available in your distribution, you should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
-        <translation>Gonilnik jedra Linux VirtualBox (vboxdrv) ni naložen ali obstaja težava z dovoljenji za /dev/vboxdrv. Ponovno namestite modul jedra z izvajanjem &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt; s skrbniškimi dovoljenji. Če v vaši distribuciji ni na voljo, najprej namestite paket DKMS. Ta paket sledi spremembam jedra Linux in po potrebi ponovno kodno prevede modul jedra vboxdrv.</translation>
+        <translation type="obsolete">Gonilnik jedra Linux VirtualBox (vboxdrv) ni naložen ali obstaja težava z dovoljenji za /dev/vboxdrv. Ponovno namestite modul jedra z izvajanjem &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt; s skrbniškimi dovoljenji. Če v vaši distribuciji ni na voljo, najprej namestite paket DKMS. Ta paket sledi spremembam jedra Linux in po potrebi ponovno kodno prevede modul jedra vboxdrv.</translation>
+    </message>
+    <message>
+        <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. If it is available in your distribution, you should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;may correct this. Make sure that you do not mix the OSE version and the PUEL version of VirtualBox.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -2244,11 +2252,11 @@
     <name>UIGlobalSettingsProxy</name>
     <message>
         <source>When checked, VirtualBox will use the proxy settings supplied for tasks like downloading Guest Additions from the network or checking for updates.</source>
-        <translation>Ko je označeno, bo VirtualBox za opravila, kot je prejemanje Dodatkov za gosta iz omrežja ali preverjanje za posodobitve, uporabil nastavitve posredniškega strežnika.</translation>
+        <translation type="obsolete">Ko je označeno, bo VirtualBox za opravila, kot je prejemanje Dodatkov za gosta iz omrežja ali preverjanje za posodobitve, uporabil nastavitve posredniškega strežnika.</translation>
     </message>
     <message>
         <source>&amp;Enable Proxy</source>
-        <translation>&amp;Omogoči posredniški strežnik</translation>
+        <translation type="obsolete">&amp;Omogoči posredniški strežnik</translation>
     </message>
     <message>
         <source>Ho&amp;st:</source>
@@ -2273,6 +2281,30 @@
     <message>
         <source>Holds the proxy port.</source>
         <translation>Vsebuje vrata posredniškega strežnika.</translation>
+    </message>
+    <message>
+        <source>When chosen, VirtualBox will try to auto-detect host proxy settings for tasks like downloading Guest Additions from the network or checking for updates.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Auto-detect Host Proxy Settings</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>When chosen, VirtualBox will use direct Internet connection for tasks like downloading Guest Additions from the network or checking for updates.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Direct Connection to the Internet</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>When chosen, VirtualBox will use the proxy settings supplied for tasks like downloading Guest Additions from the network or checking for updates.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Manual Proxy Configuration</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -5429,6 +5461,10 @@
     <message>
         <source>Proxy not found</source>
         <translation>Posredniški strežnik ni bil najden</translation>
+    </message>
+    <message>
+        <source>Url not found on the server</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>

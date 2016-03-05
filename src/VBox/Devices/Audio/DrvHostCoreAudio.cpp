@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2015 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -65,41 +65,39 @@ typedef struct DRVHOSTCOREAUDIO
  *
  ******************************************************************************/
 
-#ifdef DEBUG
 static void drvHostCoreAudioPrintASBDesc(const char *pszDesc, const AudioStreamBasicDescription *pStreamDesc)
 {
     char pszSampleRate[32];
-    Log(("%s AudioStreamBasicDescription:\n", pszDesc));
-    LogFlowFunc(("Format ID: %RU32 (%c%c%c%c)\n", pStreamDesc->mFormatID,
-                 RT_BYTE4(pStreamDesc->mFormatID), RT_BYTE3(pStreamDesc->mFormatID),
-                 RT_BYTE2(pStreamDesc->mFormatID), RT_BYTE1(pStreamDesc->mFormatID)));
-    LogFlowFunc(("Flags: %RU32", pStreamDesc->mFormatFlags));
+    LogRel2(("CoreAudio: %s description:\n", pszDesc));
+    LogRel2(("CoreAudio: Format ID: %RU32 (%c%c%c%c)\n", pStreamDesc->mFormatID,
+             RT_BYTE4(pStreamDesc->mFormatID), RT_BYTE3(pStreamDesc->mFormatID),
+             RT_BYTE2(pStreamDesc->mFormatID), RT_BYTE1(pStreamDesc->mFormatID)));
+    LogRel2(("CoreAudio: Flags: %RU32", pStreamDesc->mFormatFlags));
     if (pStreamDesc->mFormatFlags & kAudioFormatFlagIsFloat)
-        Log((" Float"));
+        LogRel2((" Float"));
     if (pStreamDesc->mFormatFlags & kAudioFormatFlagIsBigEndian)
-        Log((" BigEndian"));
+        LogRel2((" BigEndian"));
     if (pStreamDesc->mFormatFlags & kAudioFormatFlagIsSignedInteger)
-        Log((" SignedInteger"));
+        LogRel2((" SignedInteger"));
     if (pStreamDesc->mFormatFlags & kAudioFormatFlagIsPacked)
-        Log((" Packed"));
+        LogRel2((" Packed"));
     if (pStreamDesc->mFormatFlags & kAudioFormatFlagIsAlignedHigh)
-        Log((" AlignedHigh"));
+        LogRel2((" AlignedHigh"));
     if (pStreamDesc->mFormatFlags & kAudioFormatFlagIsNonInterleaved)
-        Log((" NonInterleaved"));
+        LogRel2((" NonInterleaved"));
     if (pStreamDesc->mFormatFlags & kAudioFormatFlagIsNonMixable)
-        Log((" NonMixable"));
+        LogRel2((" NonMixable"));
     if (pStreamDesc->mFormatFlags & kAudioFormatFlagsAreAllClear)
-        Log((" AllClear"));
-    Log(("\n"));
+        LogRel2((" AllClear"));
+    LogRel2(("\n"));
     snprintf(pszSampleRate, 32, "%.2f", (float)pStreamDesc->mSampleRate); /** @todo r=andy Use RTStrPrint*. */
-    LogFlowFunc(("SampleRate      : %s\n", pszSampleRate));
-    LogFlowFunc(("ChannelsPerFrame: %RU32\n", pStreamDesc->mChannelsPerFrame));
-    LogFlowFunc(("FramesPerPacket : %RU32\n", pStreamDesc->mFramesPerPacket));
-    LogFlowFunc(("BitsPerChannel  : %RU32\n", pStreamDesc->mBitsPerChannel));
-    LogFlowFunc(("BytesPerFrame   : %RU32\n", pStreamDesc->mBytesPerFrame));
-    LogFlowFunc(("BytesPerPacket  : %RU32\n", pStreamDesc->mBytesPerPacket));
+    LogRel2(("CoreAudio: SampleRate      : %s\n", pszSampleRate));
+    LogRel2(("CoreAudio: ChannelsPerFrame: %RU32\n", pStreamDesc->mChannelsPerFrame));
+    LogRel2(("CoreAudio: FramesPerPacket : %RU32\n", pStreamDesc->mFramesPerPacket));
+    LogRel2(("CoreAudio: BitsPerChannel  : %RU32\n", pStreamDesc->mBitsPerChannel));
+    LogRel2(("CoreAudio: BytesPerFrame   : %RU32\n", pStreamDesc->mBytesPerFrame));
+    LogRel2(("CoreAudio: BytesPerPacket  : %RU32\n", pStreamDesc->mBytesPerPacket));
 }
-#endif /* DEBUG */
 
 static void drvHostCoreAudioPCMInfoToASBDesc(PDMPCMPROPS *pPcmProperties, AudioStreamBasicDescription *pStreamDesc)
 {
@@ -266,18 +264,18 @@ typedef struct COREAUDIOSTREAMOUT
 {
     /** Host stream out. */
     PDMAUDIOHSTSTRMOUT          streamOut;
-    /* Stream description which is default on the device */
+    /** Stream description which is default on the device. */
     AudioStreamBasicDescription deviceFormat;
-    /* Stream description which is selected for using by VBox */
+    /** Stream description which is selected for using with VBox. */
     AudioStreamBasicDescription streamFormat;
-    /* The audio device ID of the currently used device */
+    /** The audio device ID of the currently used device. */
     AudioDeviceID               deviceID;
-    /* The AudioUnit used */
+    /** The AudioUnit being used. */
     AudioUnit                   audioUnit;
-    /* A ring buffer for transferring data to the playback thread. */
+    /** A ring buffer for transferring data to the playback thread. */
     PRTCIRCBUF                  pBuf;
-    /* Initialization status tracker. Used when some of the device parameters
-     * or the device itself is changed during the runtime. */
+    /** Initialization status tracker. Used when some of the device parameters
+     *  or the device itself is changed during the runtime. */
     volatile uint32_t           status;
     /** Flag whether the "default device changed" listener was registered. */
     bool                        fDefDevChgListReg;
@@ -287,26 +285,26 @@ typedef struct COREAUDIOSTREAMIN
 {
     /** Host stream in. */
     PDMAUDIOHSTSTRMIN           streamIn;
-    /* Stream description which is default on the device */
+    /** Stream description which is default on the device. */
     AudioStreamBasicDescription deviceFormat;
-    /* Stream description which is selected for using by VBox */
+    /** Stream description which is selected for using with VBox. */
     AudioStreamBasicDescription streamFormat;
-    /* The audio device ID of the currently used device */
+    /** The audio device ID of the currently used device. */
     AudioDeviceID               deviceID;
-    /* The AudioUnit used */
+    /** The AudioUnit used. */
     AudioUnit                   audioUnit;
-    /* The audio converter if necessary */
+    /** The audio converter if necessary. */
     AudioConverterRef           converter;
-    /* A temporary position value used in the caConverterCallback function */
-    uint32_t                    rpos;
-    /* The ratio between the device & the stream sample rate */
-    Float64                     sampleRatio;
-    /* An extra buffer used for render the audio data in the recording thread */
+    /** Native buffer used for render the audio data in the recording thread. */
     AudioBufferList             bufferList;
-    /* A ring buffer for transferring data from the recording thread */
+    /** Reading offset for the bufferList's buffer. */
+    uint32_t                    offBufferRead;
+    /** The ratio between the device & the stream sample rate. */
+    Float64                     sampleRatio;
+    /** A ring buffer for transferring data from the recording thread. */
     PRTCIRCBUF                  pBuf;
-    /* Initialization status tracker. Used when some of the device parameters
-     * or the device itself is changed during the runtime. */
+    /** Initialization status tracker. Used when some of the device parameters
+     *  or the device itself is changed during the runtime. */
     volatile uint32_t           status;
     /** Flag whether the "default device changed" listener was registered. */
     bool                        fDefDevChgListReg;
@@ -488,9 +486,9 @@ static DECLCALLBACK(OSStatus) drvHostCoreAudioConverterCallback(AudioConverterRe
      *        so go through all buffers not only the first one like now. */
 
     /* Use the lower one of the packets to process & the available packets in the buffer. */
-    Assert(pBufferList->mBuffers[0].mDataByteSize >= pStreamIn->rpos);
+    Assert(pBufferList->mBuffers[0].mDataByteSize >= pStreamIn->offBufferRead);
     UInt32 cSize = RT_MIN(*pcPackets * pStreamIn->deviceFormat.mBytesPerPacket,
-                          pBufferList->mBuffers[0].mDataByteSize - pStreamIn->rpos);
+                          pBufferList->mBuffers[0].mDataByteSize - pStreamIn->offBufferRead);
 
     /* Set the new size on output, so the caller know what we have processed. */
     Assert(pStreamIn->deviceFormat.mBytesPerPacket);
@@ -511,9 +509,9 @@ static DECLCALLBACK(OSStatus) drvHostCoreAudioConverterCallback(AudioConverterRe
     {
         pBufData->mBuffers[0].mNumberChannels = pBufferList->mBuffers[0].mNumberChannels;
         pBufData->mBuffers[0].mDataByteSize   = cSize;
-        pBufData->mBuffers[0].mData           = (uint8_t *)pBufferList->mBuffers[0].mData + pStreamIn->rpos;
+        pBufData->mBuffers[0].mData           = (uint8_t *)pBufferList->mBuffers[0].mData + pStreamIn->offBufferRead;
 
-        pStreamIn->rpos += cSize;
+        pStreamIn->offBufferRead += cSize;
 
         err = noErr;
     }
@@ -572,6 +570,9 @@ static DECLCALLBACK(OSStatus) drvHostCoreAudioRecordingCallback(void            
             AudioBufferList tmpList;
             tmpList.mNumberBuffers = 1;
             tmpList.mBuffers[0].mNumberChannels = pStreamIn->streamFormat.mChannelsPerFrame;
+
+            /* Set the read position to zero. */
+            pStreamIn->offBufferRead = 0;
 
             /* Iterate as long as data is available. */
             uint8_t *puDst = NULL;
@@ -806,7 +807,7 @@ static int drvHostCoreAudioInitInput(PPDMAUDIOHSTSTRMIN pHstStrmIn, uint32_t *pc
         return VERR_AUDIO_BACKEND_INIT_FAILED;
     }
 
-    /* Switch the I/O mode for input to off. This is important, as this is a pure input stream. */
+    /* Switch the I/O mode for output to off. This is important, as this is a pure input stream. */
     uFlag = 0;
     err = AudioUnitSetProperty(pStreamIn->audioUnit, kAudioOutputUnitProperty_EnableIO, kAudioUnitScope_Output,
                                0, &uFlag, sizeof(uFlag));
@@ -855,21 +856,20 @@ static int drvHostCoreAudioInitInput(PPDMAUDIOHSTSTRMIN pHstStrmIn, uint32_t *pc
     /* Create an AudioStreamBasicDescription based on our required audio settings. */
     drvHostCoreAudioPCMInfoToASBDesc(&pStreamIn->streamIn.Props, &pStreamIn->streamFormat);
 
-#ifdef DEBUG
     drvHostCoreAudioPrintASBDesc("CoreAudio: Input device", &pStreamIn->deviceFormat);
     drvHostCoreAudioPrintASBDesc("CoreAudio: Input stream", &pStreamIn->streamFormat);
-#endif /* DEBUG */
 
     /* If the frequency of the device is different from the requested one we
      * need a converter. The same count if the number of channels is different. */
     if (   pStreamIn->deviceFormat.mSampleRate       != pStreamIn->streamFormat.mSampleRate
         || pStreamIn->deviceFormat.mChannelsPerFrame != pStreamIn->streamFormat.mChannelsPerFrame)
     {
+        LogRel(("CoreAudio: Input converter is active\n"));
+
         err = AudioConverterNew(&pStreamIn->deviceFormat, &pStreamIn->streamFormat, &pStreamIn->converter);
         if (RT_UNLIKELY(err != noErr))
         {
-            LogRel(("CoreAudio: Failed to create the audio converte(%RI32). Input Format=%d, Output Foramt=%d\n",
-                     err, pStreamIn->deviceFormat, pStreamIn->streamFormat));
+            LogRel(("CoreAudio: Failed to create the audio converter (%RI32)\n", err));
             return VERR_AUDIO_BACKEND_INIT_FAILED;
         }
 
@@ -888,18 +888,9 @@ static int drvHostCoreAudioInitInput(PPDMAUDIOHSTSTRMIN pHstStrmIn, uint32_t *pc
             err = AudioConverterSetProperty(pStreamIn->converter, kAudioConverterChannelMap, sizeof(channelMap), channelMap);
             if (err != noErr)
             {
-                LogRel(("CoreAudio: Failed to set channel mapping for the audio input converter (%RI32)\n", err));
+                LogRel(("CoreAudio: Failed to set channel mapping (mono -> stereo) for the audio input converter (%RI32)\n", err));
                 return VERR_AUDIO_BACKEND_INIT_FAILED;
             }
-        }
-
-        /* Set the new input format description for the stream. */
-        err = AudioUnitSetProperty(pStreamIn->audioUnit, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Input,
-                                   1, &pStreamIn->streamFormat, sizeof(pStreamIn->streamFormat));
-        if (err != noErr)
-        {
-            LogRel(("CoreAudio: Failed to set input format for input stream (%RI32)\n", err));
-            return VERR_AUDIO_BACKEND_INIT_FAILED;
         }
 #if 0
         /* Set sample rate converter quality to maximum */
@@ -909,17 +900,42 @@ static int drvHostCoreAudioInitInput(PPDMAUDIOHSTSTRMIN pHstStrmIn, uint32_t *pc
         if (err != noErr)
             LogRel(("CoreAudio: Failed to set input audio converter quality to the maximum (%RI32)\n", err));
 #endif
-        LogRel(("CoreAudio: Input converter is active\n"));
+
+        /* Set the new format description for the stream. */
+        err = AudioUnitSetProperty(pStreamIn->audioUnit,
+                                   kAudioUnitProperty_StreamFormat,
+                                   kAudioUnitScope_Output,
+                                   1,
+                                   &pStreamIn->deviceFormat,
+                                   sizeof(pStreamIn->deviceFormat));
+        if (RT_UNLIKELY(err != noErr))
+        {
+            LogRel(("CoreAudio: Failed to set input stream output format (%RI32)\n", err));
+            return VERR_AUDIO_BACKEND_INIT_FAILED;
+        }
+
+        err = AudioUnitSetProperty(pStreamIn->audioUnit,
+                                   kAudioUnitProperty_StreamFormat,
+                                   kAudioUnitScope_Input,
+                                   1,
+                                   &pStreamIn->deviceFormat,
+                                   sizeof(pStreamIn->deviceFormat));
+        if (RT_UNLIKELY(err != noErr))
+        {
+            LogRel(("CoreAudio: Failed to set stream input format (%RI32)\n", err));
+            return VERR_AUDIO_BACKEND_INIT_FAILED;
+        }
     }
     else
     {
-        /* Set the new output format description for the stream. */
+
+        /* Set the new output format description for the input stream. */
         err = AudioUnitSetProperty(pStreamIn->audioUnit, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Output,
                                    1, &pStreamIn->streamFormat, sizeof(pStreamIn->streamFormat));
         if (err != noErr)
         {
             LogRel(("CoreAudio: Failed to set output format for input stream (%RI32)\n", err));
-            return VERR_AUDIO_BACKEND_INIT_FAILED; /** @todo Fudge! */
+            return VERR_AUDIO_BACKEND_INIT_FAILED;
         }
     }
 
@@ -1195,10 +1211,8 @@ static int drvHostCoreAudioInitOutput(PPDMAUDIOHSTSTRMOUT pHstStrmOut, uint32_t 
     /* Create an AudioStreamBasicDescription based on our required audio settings. */
     drvHostCoreAudioPCMInfoToASBDesc(&pStreamOut->streamOut.Props, &pStreamOut->streamFormat);
 
-#ifdef DEBUG
     drvHostCoreAudioPrintASBDesc("CoreAudio: Output device", &pStreamOut->deviceFormat);
     drvHostCoreAudioPrintASBDesc("CoreAudio: Output format", &pStreamOut->streamFormat);
-#endif /* DEBUG */
 
     /* Set the new output format description for the stream. */
     err = AudioUnitSetProperty(pStreamOut->audioUnit, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Input,
@@ -1375,8 +1389,12 @@ static DECLCALLBACK(int) drvHostCoreAudioCaptureIn(PPDMIHOSTAUDIO pInterface, PP
             }
 
             rc = AudioMixBufWriteCirc(&pHstStrmIn->MixBuf, puBuf, cbToRead, &cWritten);
-            if (RT_FAILURE(rc))
+            if (   RT_FAILURE(rc)
+                || !cWritten)
+            {
+                RTCircBufReleaseReadBlock(pStreamIn->pBuf, cbToRead);
                 break;
+            }
 
             cbWritten = AUDIOMIXBUF_S2B(&pHstStrmIn->MixBuf, cWritten);
 
@@ -1388,7 +1406,7 @@ static DECLCALLBACK(int) drvHostCoreAudioCaptureIn(PPDMIHOSTAUDIO pInterface, PP
             cbWrittenTotal += cbWritten;
         }
 
-        LogFlowFunc(("cbToWrite=%zu, cbWrittenTotal=%RU32\n", cbToWrite, cbWrittenTotal));
+        LogFlowFunc(("cbToWrite=%zu, cbToRead=%zu, cbWrittenTotal=%RU32, rc=%Rrc\n", cbToWrite, cbToRead, cbWrittenTotal, rc));
     }
     while (0);
 
@@ -1399,7 +1417,7 @@ static DECLCALLBACK(int) drvHostCoreAudioCaptureIn(PPDMIHOSTAUDIO pInterface, PP
         if (cWrittenTotal)
             rc = AudioMixBufMixToParent(&pHstStrmIn->MixBuf, cWrittenTotal, &cCaptured);
 
-        LogFlowFunc(("cWrittenTotal=%RU32 (%RU32 bytes), cCaptured, rc=%Rrc\n", cWrittenTotal, cbWrittenTotal, cCaptured, rc));
+        LogFlowFunc(("cWrittenTotal=%RU32 (%RU32 bytes), cCaptured=%RU32, rc=%Rrc\n", cWrittenTotal, cbWrittenTotal, cCaptured, rc));
 
         if (pcSamplesCaptured)
             *pcSamplesCaptured = cCaptured;
@@ -1793,11 +1811,11 @@ static DECLCALLBACK(int) drvHostCoreAudioFiniIn(PPDMIHOSTAUDIO pInterface, PPDMA
             {
                 RTCircBufDestroy(pStreamIn->pBuf);
 
-                pStreamIn->audioUnit   = NULL;
-                pStreamIn->deviceID    = kAudioDeviceUnknown;
-                pStreamIn->pBuf        = NULL;
-                pStreamIn->sampleRatio = 1;
-                pStreamIn->rpos        = 0;
+                pStreamIn->audioUnit     = NULL;
+                pStreamIn->deviceID      = kAudioDeviceUnknown;
+                pStreamIn->pBuf          = NULL;
+                pStreamIn->sampleRatio   = 1;
+                pStreamIn->offBufferRead = 0;
 
                 ASMAtomicXchgU32(&pStreamIn->status, CA_STATUS_UNINIT);
             }
@@ -1919,11 +1937,11 @@ static DECLCALLBACK(int) drvHostCoreAudioInitIn(PPDMIHOSTAUDIO pInterface,
 
     ASMAtomicXchgU32(&pStreamIn->status, CA_STATUS_UNINIT);
 
-    pStreamIn->audioUnit   = NULL;
-    pStreamIn->deviceID    = kAudioDeviceUnknown;
-    pStreamIn->converter   = NULL;
-    pStreamIn->sampleRatio = 1;
-    pStreamIn->rpos        = 0;
+    pStreamIn->audioUnit     = NULL;
+    pStreamIn->deviceID      = kAudioDeviceUnknown;
+    pStreamIn->converter     = NULL;
+    pStreamIn->sampleRatio   = 1;
+    pStreamIn->offBufferRead = 0;
 
     bool fDeviceByUser = false;
 
