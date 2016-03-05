@@ -47,6 +47,7 @@ using namespace guestControl;
 enum
 {
     VBOXSERVICESESSIONOPT_FIRST = 1000, /* For initialization. */
+    VBOXSERVICESESSIONOPT_DOMAIN,
 #ifdef DEBUG
     VBOXSERVICESESSIONOPT_DUMP_STDOUT,
     VBOXSERVICESESSIONOPT_DUMP_STDERR,
@@ -1711,6 +1712,12 @@ static int vgsvcVGSvcGstCtrlSessionThreadCreateProcess(const PVBOXSERVICECTRLSES
         {
             apszArgs[idxArg++] = "--user";
             apszArgs[idxArg++] = pSessionThread->StartupInfo.szUser;
+
+            if (strlen(pSessionThread->StartupInfo.szDomain))
+            {
+                apszArgs[idxArg++] = "--domain";
+                apszArgs[idxArg++] = pSessionThread->StartupInfo.szDomain;
+            }
         }
 
         /* Add same verbose flags as parent process. */
@@ -1835,12 +1842,36 @@ static int vgsvcVGSvcGstCtrlSessionThreadCreateProcess(const PVBOXSERVICECTRLSES
             {
                 hStdOutAndErr.enmType = RTHANDLETYPE_FILE;
 
+                const char *pszUser;
+# ifdef RT_OS_WINDOWS
+                /* If a domain name is given, construct an UPN (User Principle Name) with
+                 * the domain name built-in, e.g. "joedoe@example.com". */
+                char *pszUserUPN = NULL;
+                if (strlen(pSessionThread->StartupInfo.szDomain))
+                {
+                    int cbUserUPN = RTStrAPrintf(&pszUserUPN, "%s@%s",
+                                                 pSessionThread->StartupInfo.szUser,
+                                                 pSessionThread->StartupInfo.szDomain);
+                    if (cbUserUPN > 0)
+                    {
+                        pszUser = pszUserUPN;
+                        VGSvcVerbose(3, "Using UPN: %s\n", pszUserUPN);
+                    }
+                }
+
+                if (!pszUserUPN) /* Fallback */
+# endif
+                    pszUser = pSessionThread->StartupInfo.szUser;
+
                 rc = RTProcCreateEx(pszExeName, apszArgs, RTENV_DEFAULT, fProcCreate,
                                     &hStdIn, &hStdOutAndErr, &hStdOutAndErr,
-                                    !fAnonymous ? pSessionThread->StartupInfo.szUser : NULL,
+                                    !fAnonymous ? pszUser : NULL,
                                     !fAnonymous ? pSessionThread->StartupInfo.szPassword : NULL,
                                     &pSessionThread->hProcess);
-
+# ifdef RT_OS_WINDOWS
+                if (pszUserUPN)
+                    RTStrFree(pszUserUPN);
+# endif
                 RTFileClose(hStdOutAndErr.u.hFile);
             }
 
@@ -2085,6 +2116,7 @@ RTEXITCODE VGSvcGstCtrlSessionSpawnInit(int argc, char **argv)
 {
     static const RTGETOPTDEF s_aOptions[] =
     {
+        { "--domain",          VBOXSERVICESESSIONOPT_DOMAIN,          RTGETOPT_REQ_STRING },
 #ifdef DEBUG
         { "--dump-stdout",     VBOXSERVICESESSIONOPT_DUMP_STDOUT,     RTGETOPT_REQ_NOTHING },
         { "--dump-stderr",     VBOXSERVICESESSIONOPT_DUMP_STDERR,     RTGETOPT_REQ_NOTHING },
@@ -2117,13 +2149,9 @@ RTEXITCODE VGSvcGstCtrlSessionSpawnInit(int argc, char **argv)
         /* For options that require an argument, ValueUnion has received the value. */
         switch (ch)
         {
-            case VBOXSERVICESESSIONOPT_LOG_FILE:
-            {
-                int rc = RTStrCopy(g_szLogFile, sizeof(g_szLogFile), ValueUnion.psz);
-                if (RT_FAILURE(rc))
-                    return RTMsgErrorExit(RTEXITCODE_FAILURE, "Error copying log file name: %Rrc", rc);
+            case VBOXSERVICESESSIONOPT_DOMAIN:
+                /* Information not needed right now, skip. */
                 break;
-            }
 #ifdef DEBUG
             case VBOXSERVICESESSIONOPT_DUMP_STDOUT:
                 fSession |= VBOXSERVICECTRLSESSION_FLAG_DUMPSTDOUT;
@@ -2133,10 +2161,6 @@ RTEXITCODE VGSvcGstCtrlSessionSpawnInit(int argc, char **argv)
                 fSession |= VBOXSERVICECTRLSESSION_FLAG_DUMPSTDERR;
                 break;
 #endif
-            case VBOXSERVICESESSIONOPT_USERNAME:
-                /* Information not needed right now, skip. */
-                break;
-
             case VBOXSERVICESESSIONOPT_SESSION_ID:
                 g_Session.StartupInfo.uSessionID = ValueUnion.u32;
                 break;
@@ -2144,12 +2168,23 @@ RTEXITCODE VGSvcGstCtrlSessionSpawnInit(int argc, char **argv)
             case VBOXSERVICESESSIONOPT_SESSION_PROTO:
                 g_Session.StartupInfo.uProtocol = ValueUnion.u32;
                 break;
-
 #ifdef DEBUG
             case VBOXSERVICESESSIONOPT_THREAD_ID:
                 /* Not handled. Mainly for processs listing. */
                 break;
 #endif
+            case VBOXSERVICESESSIONOPT_LOG_FILE:
+            {
+                int rc = RTStrCopy(g_szLogFile, sizeof(g_szLogFile), ValueUnion.psz);
+                if (RT_FAILURE(rc))
+                    return RTMsgErrorExit(RTEXITCODE_FAILURE, "Error copying log file name: %Rrc", rc);
+                break;
+            }
+
+            case VBOXSERVICESESSIONOPT_USERNAME:
+                /* Information not needed right now, skip. */
+                break;
+
             /** @todo Implement help? */
 
             case 'v':

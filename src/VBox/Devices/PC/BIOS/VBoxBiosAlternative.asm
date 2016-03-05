@@ -420,7 +420,7 @@
 ; Source file: system.c
 ;
 ;  
-;  Copyright (C) 2006-2015 Oracle Corporation
+;  Copyright (C) 2006-2016 Oracle Corporation
 ;  
 ;  This file is part of VirtualBox Open Source Edition (OSE), as
 ;  available from http://www.virtualbox.org. This file is free software;
@@ -983,7 +983,7 @@ section CONST progbits vstart=0xb0 align=1 ; size=0xcde class=DATA group=DGROUP
 
 section CONST2 progbits vstart=0xd8e align=1 ; size=0x3fa class=DATA group=DGROUP
 _bios_cvs_version_string:                    ; 0xf0d8e LB 0x12
-    db  'VirtualBox 5.0.14', 000h
+    db  'VirtualBox 5.0.16', 000h
 _bios_prefix_string:                         ; 0xf0da0 LB 0x8
     db  'BIOS: ', 000h, 000h
 _isotag:                                     ; 0xf0da8 LB 0x6
@@ -9089,7 +9089,7 @@ _int15_function:                             ; 0xf64bb LB 0x4cd
     mov word [bp+018h], cx                    ; 89 4e 18
     jmp short 06598h                          ; eb e6
     test byte [bp+012h], 0ffh                 ; f6 46 12 ff
-    je short 06624h                           ; 74 6c
+    jne short 06624h                          ; 75 6c
     mov dx, 000a0h                            ; ba a0 00
     mov ax, strict word 00040h                ; b8 40 00
     call 01650h                               ; e8 8f b0
@@ -16860,4 +16860,4 @@ dummy_iret:                                  ; 0xfff53 LB 0x9d
     db  'XM'
 cpu_reset:                                   ; 0xffff0 LB 0x10
     jmp far 0f000h:0e05bh                     ; ea 5b e0 00 f0
-    db  030h, 036h, 02fh, 032h, 033h, 02fh, 039h, 039h, 000h, 0fch, 083h
+    db  030h, 036h, 02fh, 032h, 033h, 02fh, 039h, 039h, 000h, 0fch, 080h

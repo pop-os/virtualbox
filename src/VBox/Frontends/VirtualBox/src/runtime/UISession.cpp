@@ -208,9 +208,19 @@ bool UISession::initialize()
         if (!powerUp())
             return false;
 
+    /* Make sure all the pending Console events converted to signals
+     * during the powerUp() progress above reached their destinations.
+     * That is necessary to make sure all the pending machine state change events processed.
+     * We can't just use the machine state directly acquired from IMachine because there
+     * will be few places which are using stale machine state, not just this one. */
+    QApplication::sendPostedEvents(0, QEvent::MetaCall);
+
     /* Check if we missed a really quick termination after successful startup: */
     if (isTurnedOff())
+    {
+        LogRel(("GUI: Aborting startup due to invalid machine state detected: %d\n", machineState()));
         return false;
+    }
 
     /* Postprocess initialization: */
     if (!postprocessInitialization())
@@ -264,6 +274,7 @@ bool UISession::powerUp()
     {
         if (vboxGlobal().showStartVMErrors())
             msgCenter().cannotStartMachine(console(), machineName());
+        LogRel(("GUI: Aborting startup due to power up issue detected...\n"));
         return false;
     }
 
@@ -292,6 +303,7 @@ bool UISession::powerUp()
     {
         if (vboxGlobal().showStartVMErrors())
             msgCenter().cannotStartMachine(progress, machineName());
+        LogRel(("GUI: Aborting startup due to power up progress issue detected...\n"));
         return false;
     }
 
@@ -345,6 +357,7 @@ bool UISession::shutdown()
 bool UISession::powerOff(bool fIncludingDiscard, bool &fServerCrashed)
 {
     /* Prepare the power-off progress: */
+    LogRel(("GUI: Powering VM down on UI session power off request...\n"));
     CProgress progress = console().PowerDown();
     if (console().isOk())
     {
@@ -1804,7 +1817,10 @@ bool UISession::preprocessInitialization()
         if (msgCenter().cannotStartWithoutNetworkIf(machineName(), failedInterfaceNames.join(", ")))
             machineLogic()->openNetworkSettingsDialog();
         else
+        {
+            LogRel(("GUI: Aborting startup due to preprocess initialization issue detected...\n"));
             return false;
+        }
     }
 #endif /* VBOX_WITH_NETFLT */
 
@@ -1893,6 +1909,7 @@ bool UISession::postprocessInitialization()
                 machineLogic()->setManualOverrideMode(true);
             /* Power off VM: */
             bool fServerCrashed = false;
+            LogRel(("GUI: Aborting startup due to postprocess initialization issue detected...\n"));
             powerOff(false, fServerCrashed);
             return false;
         }

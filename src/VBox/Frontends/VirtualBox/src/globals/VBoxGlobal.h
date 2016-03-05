@@ -193,9 +193,6 @@ public:
 
     bool processArgs();
 
-    /** Shows UI. */
-    bool showUI();
-
     bool switchToMachine(CMachine &machine);
 
     bool launchMachine(CMachine &machine, LaunchMode enmLaunchMode = LaunchMode_Default);
@@ -350,7 +347,7 @@ public:
     QString openMedium(UIMediumType mediumType, QString strMediumLocation, QWidget *pParent = 0);
 
     /* API: Medium-enumeration stuff: */
-    void startMediumEnumeration(bool fForceStart = true);
+    void startMediumEnumeration();
     bool agressiveCaching() const { return mAgressiveCaching; }
     bool isMediumEnumerationInProgress() const;
     UIMedium medium(const QString &strMediumID) const;
@@ -500,6 +497,9 @@ protected slots:
     /* Handlers: Prepare/cleanup stuff: */
     void prepare();
     void cleanup();
+
+    /** Shows UI. */
+    void showUI();
 
     /** Handles the VBoxSVC availability change. */
     void sltHandleVBoxSVCAvailabilityChange(bool fAvailable);

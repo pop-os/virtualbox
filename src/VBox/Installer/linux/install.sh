@@ -364,7 +364,7 @@ if [ "$ACTION" = "install" ]; then
 
     # If Python is available, install Python bindings
     if [ -n "$PYTHON" ]; then
-      maybe_run_python_bindings_installer $INSTALLATION_DIR
+      maybe_run_python_bindings_installer $INSTALLATION_DIR $CONFIG_DIR $CONFIG_FILES
     fi
 
     install_device_node_setup "$VBOXDRV_GRP" "$VBOXDRV_MODE" "$INSTALLATION_DIR"

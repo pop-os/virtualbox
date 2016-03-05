@@ -1,3 +1,6 @@
+#!/bin/sh
+# $Id: postinst-common.sh $
+## @file
 # Oracle VM VirtualBox
 # VirtualBox Linux post-installer common portions
 #
@@ -56,7 +59,7 @@ addrunlevel vboxautostart-service
 delrunlevel vboxweb-service
 addrunlevel vboxweb-service
 
-ln -sf "${MY_PATH}/postinst-common.sh" /sbin/rcvboxdrv
+ln -sf "${MY_PATH}/postinst-common.sh" /sbin/vboxconfig
 
 test -n "${START}" &&
 {

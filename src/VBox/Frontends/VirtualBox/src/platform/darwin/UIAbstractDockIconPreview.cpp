@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2010 Oracle Corporation
+ * Copyright (C) 2009-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,12 +19,21 @@
 # include <precomp.h>
 #else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
-/* VBox includes */
+/* Qt includes: */
+#include <QStyle>
+
+/* GUI includes: */
 # include "UIAbstractDockIconPreview.h"
+# include "UIConverter.h"
+# include "UIExtraDataManager.h"
 # include "UIFrameBuffer.h"
 # include "UIMachineLogic.h"
 # include "UIMachineView.h"
 # include "UISession.h"
+# include "VBoxGlobal.h"
+
+/* COM includes: */
+# include "COMEnums.h"
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
@@ -62,15 +71,8 @@ UIAbstractDockIconPreviewHelper::UIAbstractDockIconPreviewHelper(UISession *pSes
     , m_updateRect(CGRectMake(0, 0, 0, 0))
     , m_monitorRect(CGRectMake(0, 0, 0, 0))
 {
-    m_overlayImage   = ::darwinToCGImageRef(&overlayImage);
+    m_overlayImage = ::darwinToCGImageRef(&overlayImage);
     Assert(m_overlayImage);
-
-    m_statePaused    = ::darwinToCGImageRef("state_paused_16px.png");
-    Assert(m_statePaused);
-    m_stateSaving    = ::darwinToCGImageRef("state_saving_16px.png");
-    Assert(m_stateSaving);
-    m_stateRestoring = ::darwinToCGImageRef("state_restoring_16px.png");
-    Assert(m_stateRestoring);
 }
 
 void* UIAbstractDockIconPreviewHelper::currentPreviewWindowId() const
@@ -90,10 +92,6 @@ UIAbstractDockIconPreviewHelper::~UIAbstractDockIconPreviewHelper()
         CGImageRelease(m_dockMonitor);
     if (m_dockMonitorGlossy)
         CGImageRelease(m_dockMonitorGlossy);
-
-    CGImageRelease(m_statePaused);
-    CGImageRelease(m_stateSaving);
-    CGImageRelease(m_stateRestoring);
 }
 
 void UIAbstractDockIconPreviewHelper::initPreviewImages()
@@ -113,51 +111,30 @@ void UIAbstractDockIconPreviewHelper::initPreviewImages()
         m_dockMonitorGlossy = ::darwinToCGImageRef("monitor_glossy.png");
         Assert(m_dockMonitorGlossy);
         /* This depends on the content of monitor.png */
-        m_updateRect = CGRectMake(m_monitorRect.origin.x + 7 + 1,
-                                  m_monitorRect.origin.y + 8 + 1,
-                                  118 - 7 - 2,
-                                  103 - 8 - 2);
+        m_updateRect = CGRectMake(m_monitorRect.origin.x + 8 /* left-frame */ + 1 /* indent-size */,
+                                  m_monitorRect.origin.y + 8 /* top-frame  */ + 1 /* indent-size */,
+                                  128 /* .png-width  */ - 8 /* left-frame */ -  8 /* right-frame  */ - 2 * 1 /* indent-size */,
+                                  128 /* .png-height */ - 8 /* top-frame  */ - 25 /* bottom-frame */ - 2 * 1 /* indent-size */);
     }
-}
-
-CGImageRef UIAbstractDockIconPreviewHelper::stateImage() const
-{
-    CGImageRef img;
-    if (   m_pSession->machineState() == KMachineState_Paused
-        || m_pSession->machineState() == KMachineState_TeleportingPausedVM)
-        img = m_statePaused;
-    else if (   m_pSession->machineState() == KMachineState_Restoring
-             || m_pSession->machineState() == KMachineState_TeleportingIn)
-        img = m_stateRestoring;
-    else if (   m_pSession->machineState() == KMachineState_Saving
-             || m_pSession->machineState() == KMachineState_LiveSnapshotting)
-        img = m_stateSaving;
-    else
-        img = NULL;
-    return img;
 }
 
 void UIAbstractDockIconPreviewHelper::drawOverlayIcons(CGContextRef context)
 {
-    CGRect overlayRect = CGRectMake(0, 0, 0, 0);
-    /* The overlay image at bottom/right */
-    if (m_overlayImage)
+    /* Determine whether dock icon overlay is not disabled: */
+    if (!gEDataManager->dockIconDisableOverlay(vboxGlobal().managedVMUuid()))
     {
-        overlayRect = CGRectMake(m_dockIconRect.size.width - CGImageGetWidth(m_overlayImage),
-                                 m_dockIconRect.size.height - CGImageGetHeight(m_overlayImage),
-                                 CGImageGetWidth(m_overlayImage),
-                                 CGImageGetHeight(m_overlayImage));
-        CGContextDrawImage(context, flipRect(overlayRect), m_overlayImage);
-    }
-    CGImageRef sImage = stateImage();
-    /* The state image at bottom/right */
-    if (sImage)
-    {
-        CGRect stateRect = CGRectMake(overlayRect.origin.x - CGImageGetWidth(sImage) / 2.0,
-                                      overlayRect.origin.y - CGImageGetHeight(sImage) / 2.0,
-                                      CGImageGetWidth(sImage),
-                                      CGImageGetHeight(sImage));
-        CGContextDrawImage(context, flipRect(stateRect), sImage);
+        /* Initialize overlay rectangle: */
+        CGRect overlayRect = CGRectMake(0, 0, 0, 0);
+        /* Make sure overlay image is valid: */
+        if (m_overlayImage)
+        {
+            /* Draw overlay image at bottom-right of dock icon: */
+            overlayRect = CGRectMake(m_dockIconRect.size.width - CGImageGetWidth(m_overlayImage),
+                                     m_dockIconRect.size.height - CGImageGetHeight(m_overlayImage),
+                                     CGImageGetWidth(m_overlayImage),
+                                     CGImageGetHeight(m_overlayImage));
+            CGContextDrawImage(context, flipRect(overlayRect), m_overlayImage);
+        }
     }
 }
 

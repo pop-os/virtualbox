@@ -27,6 +27,7 @@
 #define ___VBox_vmm_pdmaudioifs_h
 
 #include <VBox/types.h>
+#include <iprt/critsect.h>
 #include <iprt/list.h>
 
 
@@ -66,10 +67,10 @@ typedef enum PDMAUDIOFMT
  */
 typedef struct PDMAUDIOBACKENDCFG
 {
-    uint32_t    cbStreamOut;
-    uint32_t    cbStreamIn;
-    uint32_t    cMaxHstStrmsOut;
-    uint32_t    cMaxHstStrmsIn;
+    size_t   cbStreamOut;
+    size_t   cbStreamIn;
+    uint32_t cMaxHstStrmsOut;
+    uint32_t cMaxHstStrmsIn;
 } PDMAUDIOBACKENDCFG, *PPDMAUDIOBACKENDCFG;
 
 /**
@@ -338,6 +339,8 @@ typedef struct PDMAUDIOHSTSTRMIN
     PDMPCMPROPS            Props;
     /** Stream status flag. */
     PDMAUDIOSTRMSTS        fStatus;
+    /** Critical section for serializing access. */
+    RTCRITSECT             CritSect;
     /** This stream's mixing buffer. */
     PDMAUDIOMIXBUF         MixBuf;
     /** Pointer to (parent) guest stream. */
@@ -359,6 +362,8 @@ typedef struct PDMAUDIOHSTSTRMOUT
     PDMPCMPROPS            Props;
     /** Stream status flag. */
     PDMAUDIOSTRMSTS        fStatus;
+    /** Critical section for serializing access. */
+    RTCRITSECT             CritSect;
     /** This stream's mixing buffer. */
     PDMAUDIOMIXBUF         MixBuf;
     /** Associated guest output streams. */
@@ -502,6 +507,16 @@ typedef struct PDMIAUDIOCONNECTOR
     DECLR3CALLBACKMEMBER(int, pfnWrite, (PPDMIAUDIOCONNECTOR pInterface, PPDMAUDIOGSTSTRMOUT pGstStrmOut, const void *pvBuf, uint32_t cbBuf, uint32_t *pcbWritten));
 
     /**
+     * Retrieves the current configuration of the host audio backend.
+     *
+     * @returns VBox status code.
+     *
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   pCfg            Where to store the host audio backend configuration data.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnGetConfiguration, (PPDMIAUDIOCONNECTOR pInterface, PPDMAUDIOBACKENDCFG pCfg));
+
+    /**
      * Checks whether a specific guest input stream is active or not.
      *
      * @returns Whether the specified stream is active or not.
@@ -570,7 +585,6 @@ typedef struct PDMIAUDIOCONNECTOR
     DECLR3CALLBACKMEMBER(int, pfnCreateIn, (PPDMIAUDIOCONNECTOR pInterface, const char *pszName,
                                             PDMAUDIORECSOURCE enmRecSource, PPDMAUDIOSTREAMCFG pCfg,
                                             PPDMAUDIOGSTSTRMIN *ppGstStrmIn));
-
     /**
      * Creates a guest output stream.
      *
@@ -616,7 +630,7 @@ typedef struct PDMIAUDIOCONNECTOR
 } PDMIAUDIOCONNECTOR;
 
 /** PDMIAUDIOCONNECTOR interface ID. */
-#define PDMIAUDIOCONNECTOR_IID                  "7040b289-306f-454e-87ff-e90889004464"
+#define PDMIAUDIOCONNECTOR_IID                  "8f8ca10e-9039-423c-9a77-0014aaa98626"
 
 
 /**

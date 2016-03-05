@@ -646,6 +646,7 @@ void Console::uninit()
     if (mpUVM)
     {
         i_powerDown();
+//        AssertReleaseMsgFailed(("THIS MUST NOT HAPPEN!"));
         Assert(mpUVM == NULL);
     }
 

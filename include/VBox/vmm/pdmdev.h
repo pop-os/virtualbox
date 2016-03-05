@@ -3067,16 +3067,6 @@ typedef struct PDMDEVHLPR3
                                                PPDMIBASE *ppBaseInterface, const char *pszDesc));
 
     /**
-     * Detaches an attached driver (chain) from the device again.
-     *
-     * @returns VBox status code.
-     * @param   pDevIns             The device instance.
-     * @param   pDrvIns             The driver instance to detach.
-     * @param   fFlags              Flags, combination of the PDMDEVATT_FLAGS_* \#defines.
-     */
-    DECLR3CALLBACKMEMBER(int, pfnDriverDetach,(PPDMDEVINS pDevIns, PPDMDRVINS pDrvIns, uint32_t fFlags));
-
-    /**
      * Create a queue.
      *
      * @returns VBox status code.
@@ -3486,6 +3476,16 @@ typedef struct PDMDEVHLPR3
      */
     DECLR3CALLBACKMEMBER(VMRESUMEREASON, pfnVMGetResumeReason,(PPDMDEVINS pDevIns));
 
+    /**
+     * Detaches an attached driver (chain) from the device again.
+     *
+     * @returns VBox status code.
+     * @param   pDevIns             The device instance.
+     * @param   pDrvIns             The driver instance to detach.
+     * @param   fFlags              Flags, combination of the PDMDEVATT_FLAGS_* \#defines.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnDriverDetach,(PPDMDEVINS pDevIns, PPDMDRVINS pDrvIns, uint32_t fFlags));
+
 
     /** Space reserved for future members.
      * @{ */
@@ -3495,7 +3495,7 @@ typedef struct PDMDEVHLPR3
     DECLR3CALLBACKMEMBER(void, pfnReserved4,(void));
     DECLR3CALLBACKMEMBER(void, pfnReserved5,(void));
     DECLR3CALLBACKMEMBER(void, pfnReserved6,(void));
-    DECLR3CALLBACKMEMBER(void, pfnReserved7,(void));
+    /*DECLR3CALLBACKMEMBER(void, pfnReserved7,(void));*/
     /*DECLR3CALLBACKMEMBER(void, pfnReserved8,(void));
     DECLR3CALLBACKMEMBER(void, pfnReserved9,(void));*/
     /*DECLR3CALLBACKMEMBER(void, pfnReserved10,(void));*/
@@ -3681,7 +3681,7 @@ typedef R3PTRTYPE(struct PDMDEVHLPR3 *) PPDMDEVHLPR3;
 typedef R3PTRTYPE(const struct PDMDEVHLPR3 *) PCPDMDEVHLPR3;
 
 /** Current PDMDEVHLPR3 version number. */
-#define PDM_DEVHLPR3_VERSION                    PDM_VERSION_MAKE(0xffe7, 15, 1)
+#define PDM_DEVHLPR3_VERSION                    PDM_VERSION_MAKE(0xffe7, 14, 2)
 
 
 /**

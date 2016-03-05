@@ -16,6 +16,8 @@
 #define LOG_GROUP LOG_GROUP_NET_FLT_DRV
 
 //#define VBOXNETLWF_SYNC_SEND
+/* Payload + Ethernet header + VLAN tag = Max Ethernet frame size */
+#define VBOXNETLWF_MAX_FRAME_SIZE(mtu) (mtu +  sizeof(RTNETETHERHDR) + 4)
 
 #include <VBox/version.h>
 #include <VBox/err.h>
@@ -190,6 +192,8 @@ typedef struct _VBOXNETLWF_MODULE {
 #endif /* !VBOXNETLWF_SYNC_SEND */
     /** MAC address of underlying adapter */
     RTMAC MacAddr;
+    /** Saved MTU size */
+    ULONG uMtuSize;
     /** Saved offload configuration */
     NDIS_OFFLOAD SavedOffloadConfig;
     /** the cloned request we have passed down */
@@ -219,6 +223,69 @@ typedef VBOXNETLWF_OIDREQ *PVBOXNETLWF_OIDREQ;
 static VOID vboxNetLwfWinUnloadDriver(IN PDRIVER_OBJECT pDriver);
 static int vboxNetLwfWinInitBase();
 static int vboxNetLwfWinFini();
+
+/**
+ * Logs an error to the system event log.
+ *
+ * @param   ErrCode        Error to report to event log.
+ * @param   ReturnedStatus Error that was reported by the driver to the caller.
+ * @param   uErrId         Unique error id representing the location in the driver.
+ * @param   cbDumpData     Number of bytes at pDumpData.
+ * @param   pDumpData      Pointer to data that will be added to the message (see 'details' tab).
+ */
+static void vboxNetLwfLogErrorEvent(NTSTATUS uErrCode, NTSTATUS uReturnedStatus, ULONG uErrId)
+{
+    /* Figure out how many modules are attached and if they are going to fit into the dump data. */
+    unsigned cMaxModules = (ERROR_LOG_MAXIMUM_SIZE - FIELD_OFFSET(IO_ERROR_LOG_PACKET, DumpData)) / sizeof(RTMAC);
+    unsigned cModules = 0;
+    PVBOXNETLWF_MODULE pModuleCtx = NULL;
+    NdisAcquireSpinLock(&g_VBoxNetLwfGlobals.Lock);
+    RTListForEach(&g_VBoxNetLwfGlobals.listModules, pModuleCtx, VBOXNETLWF_MODULE, node)
+        ++cModules;
+    NdisReleaseSpinLock(&g_VBoxNetLwfGlobals.Lock);
+    /* Prevent overflow */
+    if (cModules > cMaxModules)
+        cModules = cMaxModules;
+
+    /* DumpDataSize must be a multiple of sizeof(ULONG). */
+    unsigned cbDumpData = (cModules * sizeof(RTMAC) + 3) & ~3;
+    /* Prevent underflow */
+    unsigned cbTotal = RT_MAX(FIELD_OFFSET(IO_ERROR_LOG_PACKET, DumpData) + cbDumpData,
+                              sizeof(IO_ERROR_LOG_PACKET));
+
+    PIO_ERROR_LOG_PACKET pErrEntry;
+    pErrEntry = (PIO_ERROR_LOG_PACKET)IoAllocateErrorLogEntry(g_VBoxNetLwfGlobals.pDevObj,
+                                                              (UCHAR)cbTotal);
+    if (pErrEntry)
+    {
+        PRTMAC pDump = (PRTMAC)pErrEntry->DumpData;
+        /*
+         * Initialize the whole structure with zeros in case we are suddenly short
+         * of data because the list is empty or has become smaller.
+         */
+        memset(pErrEntry, 0, cbTotal);
+
+        NdisAcquireSpinLock(&g_VBoxNetLwfGlobals.Lock);
+        RTListForEach(&g_VBoxNetLwfGlobals.listModules, pModuleCtx, VBOXNETLWF_MODULE, node)
+        {
+            /* The list could have been modified while we were allocating the entry, rely on cModules instead! */
+            if (cModules-- == 0)
+                break;
+            *pDump++ = pModuleCtx->MacAddr;
+        }
+        NdisReleaseSpinLock(&g_VBoxNetLwfGlobals.Lock);
+
+        pErrEntry->DumpDataSize     = cbDumpData;
+        pErrEntry->ErrorCode        = uErrCode;
+        pErrEntry->UniqueErrorValue = uErrId;
+        pErrEntry->FinalStatus      = uReturnedStatus;
+        IoWriteErrorLogEntry(pErrEntry);
+    }
+    else
+    {
+        DbgPrint("Failed to allocate error log entry (cb=%u)\n", cbTotal);
+    }
+}
 
 #ifdef DEBUG
 static const char *vboxNetLwfWinStatusToText(NDIS_STATUS code)
@@ -772,7 +839,11 @@ static NDIS_STATUS vboxNetLwfWinAttach(IN NDIS_HANDLE hFilter, IN NDIS_HANDLE hD
     LogFlow(("==>vboxNetLwfWinAttach: filter=%p\n", hFilter));
 
     PVBOXNETLWFGLOBALS pGlobals = (PVBOXNETLWFGLOBALS)hDriverCtx;
-    AssertReturn(pGlobals, NDIS_STATUS_FAILURE);
+    if (!pGlobals)
+    {
+        vboxNetLwfLogErrorEvent(IO_ERR_INTERNAL_ERROR, NDIS_STATUS_FAILURE, 1);
+        return NDIS_STATUS_FAILURE;
+    }
 
     ANSI_STRING strMiniportName;
     /* We use the miniport name to associate this filter module with the netflt instance */
@@ -783,6 +854,7 @@ static NDIS_STATUS vboxNetLwfWinAttach(IN NDIS_HANDLE hFilter, IN NDIS_HANDLE hD
     {
         Log(("ERROR! vboxNetLwfWinAttach: RtlUnicodeStringToAnsiString(%ls) failed with 0x%x\n",
              pParameters->BaseMiniportName, rc));
+        vboxNetLwfLogErrorEvent(IO_ERR_INTERNAL_ERROR, NDIS_STATUS_FAILURE, 2);
         return NDIS_STATUS_FAILURE;
     }
     DbgPrint("vboxNetLwfWinAttach: friendly name=%wZ\n", pParameters->BaseMiniportInstanceName);
@@ -796,6 +868,7 @@ static NDIS_STATUS vboxNetLwfWinAttach(IN NDIS_HANDLE hFilter, IN NDIS_HANDLE hD
     if (!pModuleCtx)
     {
         RtlFreeAnsiString(&strMiniportName);
+        vboxNetLwfLogErrorEvent(IO_ERR_INSUFFICIENT_RESOURCES, NDIS_STATUS_RESOURCES, 3);
         return NDIS_STATUS_RESOURCES;
     }
     Log4(("vboxNetLwfWinAttach: allocated module context 0x%p\n", pModuleCtx));
@@ -810,6 +883,7 @@ static NDIS_STATUS vboxNetLwfWinAttach(IN NDIS_HANDLE hFilter, IN NDIS_HANDLE hD
         Log(("ERROR! vboxNetLwfWinAttach: Failed to allocate work item for %ls\n",
              pParameters->BaseMiniportName));
         NdisFreeMemory(pModuleCtx, 0, 0);
+        vboxNetLwfLogErrorEvent(IO_ERR_INSUFFICIENT_RESOURCES, NDIS_STATUS_RESOURCES, 4);
         return NDIS_STATUS_RESOURCES;
     }
 
@@ -830,29 +904,6 @@ static NDIS_STATUS vboxNetLwfWinAttach(IN NDIS_HANDLE hFilter, IN NDIS_HANDLE hD
     NdisInitializeEvent(&pModuleCtx->EventSendComplete);
     pModuleCtx->cPendingBuffers = 0;
 #endif /* !VBOXNETLWF_SYNC_SEND */
-    /* Allocate buffer pools */
-    NET_BUFFER_LIST_POOL_PARAMETERS PoolParams;
-    NdisZeroMemory(&PoolParams, sizeof(PoolParams));
-    PoolParams.Header.Type = NDIS_OBJECT_TYPE_DEFAULT;
-    PoolParams.Header.Revision = NET_BUFFER_LIST_POOL_PARAMETERS_REVISION_1;
-    PoolParams.Header.Size = sizeof(PoolParams);
-    PoolParams.ProtocolId = NDIS_PROTOCOL_ID_DEFAULT;
-    PoolParams.fAllocateNetBuffer = TRUE;
-    PoolParams.ContextSize = 0; /** @todo Do we need to consider underlying drivers? I think not. */
-    PoolParams.PoolTag = VBOXNETLWF_MEM_TAG;
-#ifndef VBOXNETLWF_SYNC_SEND
-    PoolParams.DataSize = 2048; /** @todo figure out the optimal size, use several pools if necessary, make configurable, etc */
-#endif /* !VBOXNETLWF_SYNC_SEND */
-
-    pModuleCtx->hPool = NdisAllocateNetBufferListPool(hFilter, &PoolParams);
-    if (!pModuleCtx->hPool)
-    {
-        Log(("ERROR! vboxNetLwfWinAttach: NdisAllocateNetBufferListPool failed\n"));
-        NdisFreeIoWorkItem(pModuleCtx->hWorkItem);
-        NdisFreeMemory(pModuleCtx, 0, 0);
-        return NDIS_STATUS_RESOURCES;
-    }
-    Log4(("vboxNetLwfWinAttach: allocated NBL+NB pool 0x%p\n", pModuleCtx->hPool));
 
     NDIS_FILTER_ATTRIBUTES Attributes;
     NdisZeroMemory(&Attributes, sizeof(Attributes));
@@ -868,6 +919,7 @@ static NDIS_STATUS vboxNetLwfWinAttach(IN NDIS_HANDLE hFilter, IN NDIS_HANDLE hD
         Log4(("vboxNetLwfWinAttach: freed NBL+NB pool 0x%p\n", pModuleCtx->hPool));
         NdisFreeIoWorkItem(pModuleCtx->hWorkItem);
         NdisFreeMemory(pModuleCtx, 0, 0);
+        vboxNetLwfLogErrorEvent(IO_ERR_INTERNAL_ERROR, NDIS_STATUS_RESOURCES, 5);
         return NDIS_STATUS_RESOURCES;
     }
     /* Insert into module chain */
@@ -966,8 +1018,61 @@ static NDIS_STATUS vboxNetLwfWinRestart(IN NDIS_HANDLE hModuleCtx, IN PNDIS_FILT
     PVBOXNETLWF_MODULE pModuleCtx = (PVBOXNETLWF_MODULE)hModuleCtx;
     vboxNetLwfWinChangeState(pModuleCtx, LwfState_Restarting, LwfState_Paused);
 
-    vboxNetLwfWinChangeState(pModuleCtx, LwfState_Running, LwfState_Restarting);
     NDIS_STATUS Status = NDIS_STATUS_SUCCESS;
+    ULONG uNewMtuSize = 1500; /* If we fail to find out MTU, we can always assume 1500. */
+    PNDIS_RESTART_ATTRIBUTES pAttributes = pParameters->RestartAttributes;
+    while (pAttributes && pAttributes->Oid != OID_GEN_MINIPORT_RESTART_ATTRIBUTES)
+        pAttributes = pAttributes->Next;
+    if (pAttributes)
+    {
+        PNDIS_RESTART_GENERAL_ATTRIBUTES pGenAttrs = (PNDIS_RESTART_GENERAL_ATTRIBUTES)pAttributes->Data;
+        uNewMtuSize = pGenAttrs->MtuSize;
+    }
+
+    /* Let's see if MTU has changed. Re-allocate the pool if it has. */
+    if (pModuleCtx->uMtuSize != uNewMtuSize)
+    {
+        pModuleCtx->uMtuSize = uNewMtuSize;
+        if (pModuleCtx->hPool)
+        {
+            /*
+             * Don't need to wait for pending sends to complete since we are already
+             * in paused state. Just free the old pool.
+             */
+            NdisFreeNetBufferListPool(pModuleCtx->hPool);
+            pModuleCtx->hPool = NULL;
+        }
+    }
+    if (!pModuleCtx->hPool)
+    {
+        /* Allocate a new pool. */
+        NET_BUFFER_LIST_POOL_PARAMETERS PoolParams;
+        NdisZeroMemory(&PoolParams, sizeof(PoolParams));
+        PoolParams.Header.Type = NDIS_OBJECT_TYPE_DEFAULT;
+        PoolParams.Header.Revision = NET_BUFFER_LIST_POOL_PARAMETERS_REVISION_1;
+        PoolParams.Header.Size = sizeof(PoolParams);
+        PoolParams.ProtocolId = NDIS_PROTOCOL_ID_DEFAULT;
+        PoolParams.fAllocateNetBuffer = TRUE;
+        PoolParams.ContextSize = 0; /** @todo Do we need to consider underlying drivers? I think not. */
+        PoolParams.PoolTag = VBOXNETLWF_MEM_TAG;
+#ifndef VBOXNETLWF_SYNC_SEND
+        PoolParams.DataSize = VBOXNETLWF_MAX_FRAME_SIZE(pModuleCtx->uMtuSize);
+#endif /* !VBOXNETLWF_SYNC_SEND */
+
+        pModuleCtx->hPool = NdisAllocateNetBufferListPool(pModuleCtx->hFilter, &PoolParams);
+        if (!pModuleCtx->hPool)
+        {
+            Log(("ERROR! vboxNetLwfWinRestart: NdisAllocateNetBufferListPool failed\n"));
+            Status = NDIS_STATUS_RESOURCES;
+        }
+        else
+        {
+            Log4(("vboxNetLwfWinRestart: allocated NBL+NB pool 0x%p with MTU=%u\n",
+                  pModuleCtx->hPool, pModuleCtx->uMtuSize));
+        }
+    }
+
+    vboxNetLwfWinChangeState(pModuleCtx, Status == NDIS_STATUS_SUCCESS ? LwfState_Running : LwfState_Paused, LwfState_Restarting);
     LogFlow(("<==vboxNetLwfWinRestart: Status = 0x%x\n", Status));
     return Status;
 }
@@ -1018,7 +1123,7 @@ DECLINLINE(void) vboxNetLwfWinDumpPacket(PCINTNETSG pSG, const char *cszText)
     AssertReturnVoid(pEnd - pHdr >= 14);
     uint16_t uEthType = RT_N2H_U16(*(uint16_t*)(pHdr+12));
     Log2(("NetLWF: %s (%d bytes), %RTmac => %RTmac, EthType=%s(0x%x)\n",
-          cszText, cb, pHdr+6, pHdr, vboxNetLwfWinEthTypeStr(uEthType), uEthType));
+          cszText, pSG->cbTotal, pHdr+6, pHdr, vboxNetLwfWinEthTypeStr(uEthType), uEthType));
     pHdr += sizeof(RTNETETHERHDR);
     if (uEthType == RTNET_ETHERTYPE_VLAN)
     {
@@ -1165,7 +1270,9 @@ DECLINLINE(void) vboxNetLwfWinFreeMdlChain(PMDL pMdl)
 static PNET_BUFFER_LIST vboxNetLwfWinSGtoNB(PVBOXNETLWF_MODULE pModule, PINTNETSG pSG)
 {
     AssertReturn(pSG->cSegsUsed >= 1, NULL);
-    LogFlow(("==>vboxNetLwfWinSGtoNB: segments=%d\n", pSG->cSegsUsed));
+    LogFlow(("==>vboxNetLwfWinSGtoNB: segments=%d hPool=%p cb=%u max=%u\n", pSG->cSegsUsed,
+             pModule->hPool, pSG->cbTotal, VBOXNETLWF_MAX_FRAME_SIZE(pModule->uMtuSize)));
+    AssertReturn(pModule->hPool, NULL);
 
 #ifdef VBOXNETLWF_SYNC_SEND
     PINTNETSEG pSeg = pSG->aSegs;
@@ -1210,7 +1317,7 @@ static PNET_BUFFER_LIST vboxNetLwfWinSGtoNB(PVBOXNETLWF_MODULE pModule, PINTNETS
         vboxNetLwfWinFreeMdlChain(pMdl);
     }
 #else /* !VBOXNETLWF_SYNC_SEND */
-    AssertReturn(pSG->cbTotal < 2048, NULL);
+    AssertReturn(pSG->cbTotal <= VBOXNETLWF_MAX_FRAME_SIZE(pModule->uMtuSize), NULL); 
     PNET_BUFFER_LIST pBufList = NdisAllocateNetBufferList(pModule->hPool,
                                                           0 /** @todo ContextSize */,
                                                           0 /** @todo ContextBackFill */);
@@ -2351,6 +2458,7 @@ int vboxNetFltOsInitInstance(PVBOXNETFLTINS pThis, void *pvContext)
         }
     }
     NdisReleaseSpinLock(&g_VBoxNetLwfGlobals.Lock);
+    vboxNetLwfLogErrorEvent(IO_ERR_INTERNAL_ERROR, STATUS_SUCCESS, 6);
     LogFlow(("<==vboxNetFltOsInitInstance: return VERR_INTNET_FLT_IF_NOT_FOUND\n"));
     return VERR_INTNET_FLT_IF_NOT_FOUND;
 }

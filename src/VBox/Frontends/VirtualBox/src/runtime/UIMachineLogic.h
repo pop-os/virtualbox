@@ -310,6 +310,10 @@ private slots:
     void sltDockPreviewModeChanged(QAction *pAction);
     void sltDockPreviewMonitorChanged(QAction *pAction);
     void sltChangeDockIconUpdate(bool fEnabled);
+    /** Handles dock icon overlay change event. */
+    void sltChangeDockIconOverlayAppearance(bool fDisabled);
+    /** Handles dock icon overlay disable action triggering. */
+    void sltDockIconDisableOverlayChanged(bool fDisabled);
 #endif /* RT_OS_DARWIN */
 
     /* Handlers: Keyboard LEDs sync logic: */
