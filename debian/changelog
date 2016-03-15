@@ -1,3 +1,9 @@
+virtualbox (5.0.16-dfsg-3) unstable; urgency=medium
+
+  * Build without xorg legacy
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Tue, 08 Mar 2016 12:53:39 +0100
+
 virtualbox (5.0.16-dfsg-2) unstable; urgency=medium
 
   * Update copyright year.

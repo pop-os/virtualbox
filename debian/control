@@ -209,7 +209,7 @@ Description: x86 virtualization solution - guest addition module source
 Package: virtualbox-guest-x11
 Section: contrib/x11
 Architecture: amd64 i386
-Depends: libnotify-bin, xserver-xorg-legacy,
+Depends: libnotify-bin,
          x11-xserver-utils,
          virtualbox-guest-utils (= ${binary:Version}),
          ${misc:Depends},

@@ -8,6 +8,7 @@ out/bin/additions/src/vboxsf/*.* /usr/src/virtualbox-guest-CVERSION/vboxsf
 out/bin/additions/src/vboxsf/Makefile /usr/src/virtualbox-guest-CVERSION/vboxsf
 
 out/bin/additions/src/vboxvideo/*.* /usr/src/virtualbox-guest-CVERSION/vboxvideo
+out/bin/additions/src/vboxvideo/include/* /usr/src/virtualbox-guest-CVERSION/include
 out/bin/additions/src/vboxvideo/Makefile /usr/src/virtualbox-guest-CVERSION/vboxvideo
 
 out/bin/additions/src/vboxguest/include/iprt/* /usr/src/virtualbox-guest-CVERSION/include/iprt
