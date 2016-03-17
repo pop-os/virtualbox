@@ -22,6 +22,7 @@ out/bin/VBoxXPCOM* /usr/lib/virtualbox
 out/bin/VMM* /usr/lib/virtualbox
 out/bin/vboxshell.py /usr/lib/virtualbox
 out/bin/vboxwebsrv /usr/lib/virtualbox
+out/bin/vbox-img /usr/lib/virtualbox
 out/bin/webtest /usr/lib/virtualbox
 out/bin/libvboxjxpcom.so /usr/lib/virtualbox
 
