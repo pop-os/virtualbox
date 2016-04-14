@@ -1,6 +1,8 @@
-virtualbox (5.0.16-dfsg-3) unstable; urgency=medium
+virtualbox (5.0.16-dfsg-3) experimental; urgency=low
 
-  * Build without xorg legacy
+  * Build without xorg legacy with the backport of 5.0.17
+    code (revision 106564)
+  * Bump std-version to 3.9.8, no changes required.
   * Add vbox-img (LP: #1558521).
     - thanks sworddragon for the bug report!
 
