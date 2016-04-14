@@ -71,7 +71,7 @@ Build-Depends: bzip2,
 X-Python-Version: >= 2.5
 Standards-Version: 3.9.8
 Homepage: http://www.virtualbox.org/
-Vcs-Git: git://anonscm.debian.org/pkg-virtualbox/virtualbox.git
+Vcs-Git: https://anonscm.debian.org/git/pkg-virtualbox/virtualbox.git
 Vcs-Browser: https://anonscm.debian.org/cgit/pkg-virtualbox/virtualbox.git
 
 Package: virtualbox-qt
