@@ -18,7 +18,7 @@ Index: virtualbox/src/VBox/Additions/common/crOpenGL/Makefile.kmk
 ===================================================================
 --- virtualbox.orig/src/VBox/Additions/common/crOpenGL/Makefile.kmk	2015-04-02 15:44:24.955670965 +0200
 +++ virtualbox/src/VBox/Additions/common/crOpenGL/Makefile.kmk	2015-04-02 15:44:24.955670965 +0200
-@@ -67,18 +67,12 @@
+@@ -68,18 +68,12 @@
  VBoxOGL_INCS           = .
  if1of ($(KBUILD_TARGET), linux solaris freebsd)
   VBoxOGL_INCS     += \
@@ -42,7 +42,7 @@ Index: virtualbox/src/VBox/Additions/common/crOpenGL/Makefile.kmk
   VBoxOGL_DEFS     += VBOX_NO_NATIVEGL
  endif
  
-@@ -213,10 +207,10 @@
+@@ -214,10 +208,10 @@
  
  if1of ($(KBUILD_TARGET), linux solaris freebsd)
   VBoxOGL_LIBS += \
