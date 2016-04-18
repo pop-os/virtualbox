@@ -985,7 +985,11 @@ stubInitLocked(void)
         if (!ns.conn)
         {
             crWarning("Failed to connect to host. Make sure 3D acceleration is enabled for this VM.");
+# ifdef VBOXOGL_FAKEDRI
             return false;
+# else
+            exit(1);
+# endif
         }
         else
         {
@@ -1119,13 +1123,37 @@ stubInit(void)
     return bRc;
 }
 
+#if defined(Linux) && !defined(VBOXOGL_FAKEDRI)
+# include <dlfcn.h>
+/* We only support being used by GLX clients.  If the X server GLX extension
+ * tries to use our OpenGL library it will fail, as it is written specifically
+ * against Mesa.  So we detect this with the assumption that the server will
+ * not have the DISPLAY variable set, and a client will do or we can't do much
+ * with it anyway.  This is only needed on Linux, as Solaris lets us replace
+ * the client library only.  To avoid complications with iprt initialisation
+ * we use native system/C library APIs.
+ * We do this in a very naive way, not even checking for failure (not much we
+ * can do, better for GLX to fail than the whole X server).  To keep things as
+ * simple and fail-safe as possible, we use a fixed path to the system GL
+ * library. */
+#ifndef RTLD_DEEPBIND
+# define RTLD_DEEPBIND 0x8
+#endif
+
+void __attribute__ ((constructor)) checkServerGLX(void)
+{
+    char *pszDisplay = getenv("DISPLAY");
+
+    if (!pszDisplay || !*pszDisplay)
+    {
+        dlopen("/tmp/VBoxOGL/system/libGL.so.1", RTLD_LAZY | RTLD_GLOBAL | RTLD_DEEPBIND);
+        dlopen("/tmp/VBoxOGL/system/libEGL.so.1", RTLD_LAZY | RTLD_GLOBAL | RTLD_DEEPBIND);
+    }
+}
+#endif
+
 /* Sigh -- we can't do initialization at load time, since Windows forbids
  * the loading of other libraries from DLLMain. */
-
-#ifdef LINUX
-/* GCC crap
- *void (*stub_init_ptr)(void) __attribute__((section(".ctors"))) = __stubInit; */
-#endif
 
 #ifdef WINDOWS
 #define WIN32_LEAN_AND_MEAN

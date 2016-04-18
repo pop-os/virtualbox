@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2015 Oracle Corporation
+ * Copyright (C) 2012-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -650,7 +650,8 @@ int GuestSession::i_directoryCreateInternal(const Utf8Str &strPath, uint32_t uMo
     GuestProcessStartupInfo procInfo;
     procInfo.mFlags      = ProcessCreateFlag_Hidden;
     procInfo.mExecutable = Utf8Str(VBOXSERVICE_TOOL_MKDIR);
-    procInfo.mArguments.push_back(procInfo.mExecutable);
+
+    procInfo.mArguments.push_back(procInfo.mExecutable); /* Set argv0. */
 
     try
     {
@@ -808,7 +809,8 @@ int GuestSession::i_objectCreateTempInternal(const Utf8Str &strTemplate, const U
     GuestProcessStartupInfo procInfo;
     procInfo.mFlags      = ProcessCreateFlag_WaitForStdOut;
     procInfo.mExecutable = Utf8Str(VBOXSERVICE_TOOL_MKTEMP);
-    procInfo.mArguments.push_back(procInfo.mExecutable);
+
+    procInfo.mArguments.push_back(procInfo.mExecutable); /* Set argv0. */
 
     try
     {
@@ -1211,7 +1213,8 @@ int GuestSession::i_fileRemoveInternal(const Utf8Str &strPath, int *pGuestRc)
 
     procInfo.mFlags      = ProcessCreateFlag_WaitForStdOut;
     procInfo.mExecutable = Utf8Str(VBOXSERVICE_TOOL_RM);
-    procInfo.mArguments.push_back(procInfo.mExecutable);
+
+    procInfo.mArguments.push_back(procInfo.mExecutable); /* Set argv0. */
 
     try
     {
@@ -1379,7 +1382,8 @@ int GuestSession::i_fsQueryInfoInternal(const Utf8Str &strPath, bool fFollowSyml
     GuestProcessStartupInfo procInfo;
     procInfo.mFlags      = ProcessCreateFlag_WaitForStdOut;
     procInfo.mExecutable = Utf8Str(VBOXSERVICE_TOOL_STAT);
-    procInfo.mArguments.push_back(procInfo.mExecutable);
+
+    procInfo.mArguments.push_back(procInfo.mExecutable); /* Set argv0. */
 
     try
     {
@@ -1443,6 +1447,10 @@ Utf8Str GuestSession::i_guestErrorToString(int guestRc)
 
         case VERR_HGCM_SERVICE_NOT_FOUND:
             strError += Utf8StrFmt(tr("The guest execution service is not available"));
+            break;
+
+        case VERR_ACCOUNT_RESTRICTED:
+            strError += Utf8StrFmt(tr("The specified user account on the guest is restricted and can't be used to logon"));
             break;
 
         case VERR_AUTHENTICATION_FAILURE:

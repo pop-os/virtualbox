@@ -327,7 +327,7 @@ static int usbReadStr(const char *pszValue, const char **ppsz)
     psz = RTStrDup(pszValue);
     if (psz)
     {
-        RTStrPurgeEncoding(psz);
+        USBLibPurgeEncoding(psz);
         *ppsz = psz;
         return VINF_SUCCESS;
     }
@@ -1304,7 +1304,7 @@ static void fillInDeviceFromSysfs(USBDEVICE *Dev, USBDeviceInfo *pInfo)
                                       pszSysfsPath);
     if (cchRead > 0 && (size_t) cchRead < sizeof(szBuf))
     {
-        RTStrPurgeEncoding(szBuf);
+        USBLibPurgeEncoding(szBuf);
         Dev->pszProduct = RTStrDup(szBuf);
     }
 
@@ -1312,7 +1312,7 @@ static void fillInDeviceFromSysfs(USBDEVICE *Dev, USBDeviceInfo *pInfo)
                                       pszSysfsPath);
     if (cchRead > 0 && (size_t) cchRead < sizeof(szBuf))
     {
-        RTStrPurgeEncoding(szBuf);
+        USBLibPurgeEncoding(szBuf);
         Dev->pszSerialNumber = RTStrDup(szBuf);
         Dev->u64SerialHash = USBLibHashSerial(szBuf);
     }
@@ -1321,7 +1321,7 @@ static void fillInDeviceFromSysfs(USBDEVICE *Dev, USBDeviceInfo *pInfo)
                                       pszSysfsPath);
     if (cchRead > 0 && (size_t) cchRead < sizeof(szBuf))
     {
-        RTStrPurgeEncoding(szBuf);
+        USBLibPurgeEncoding(szBuf);
         Dev->pszManufacturer = RTStrDup(szBuf);
     }
 

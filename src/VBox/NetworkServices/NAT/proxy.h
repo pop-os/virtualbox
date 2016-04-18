@@ -114,4 +114,13 @@ err_t pxping_init(struct netif *, SOCKET, SOCKET);
 #define DPRINTF1(a) Log2(a)
 #define DPRINTF2(a) Log3(a)
 
+#if 1 /* XXX: temporary enable it as optional verbose logging */
+#undef  DPRINTF0
+#define DPRINTF0(a) LogRel2(a)
+#undef  DPRINTF1
+#define DPRINTF1(a) LogRel3(a)
+#undef  DPRINTF2
+#define DPRINTF2(a) LogRel4(a)
+#endif
+
 #endif /* _nat_proxy_h_ */

@@ -862,7 +862,7 @@ static void disasmModRMReg(unsigned idx, PCDISOPCODE pOp, PDISSTATE pDis, PDISOP
         Assert(idx < (pDis->fPrefix & DISPREFIX_REX ? 16U : 8U));
 
         /* AH, BH, CH & DH map to DIL, SIL, EBL & SPL when a rex prefix is present. */
-        /* Intel® 64 and IA-32 Architectures Software Developer’s Manual: 3.4.1.1 */
+        /* Intel 64 and IA-32 Architectures Software Developer's Manual: 3.4.1.1 */
         if (    (pDis->fPrefix & DISPREFIX_REX)
             &&  idx >= DISGREG_AH
             &&  idx <= DISGREG_BH)
@@ -2532,7 +2532,8 @@ static size_t ParseVex3b(size_t offInstr, PCDISOPCODE pOp, PDISSTATE pDis, PDISO
     uint8_t implOpcode = (byte1 & 0x1f);
 
     // REX.RXB
-    if (pDis->uCpuMode == DISCPUMODE_64BIT && ~(byte1 & 0xe0))
+    /** @todo Check this! was weird: ~(byte1 & 0xe0) */
+    if (pDis->uCpuMode == DISCPUMODE_64BIT && !(byte1 & 0xe0))
         pDis->fRexPrefix |= (byte1 >> 5) ^ 7;
 
     // VEX.W

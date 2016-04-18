@@ -681,7 +681,10 @@ void     VBVADestroy    (PVGASTATE pVGAState);
 int      VBVAUpdateDisplay (PVGASTATE pVGAState);
 void     VBVAReset (PVGASTATE pVGAState);
 void     VBVAPause (PVGASTATE pVGAState, bool fPause);
+void     VBVAOnVBEChanged(PVGASTATE pVGAState);
+void     VBVAOnResume(PVGASTATE pThis);
 
+bool VBVAIsPaused(PVGASTATE pVGAState);
 bool VBVAIsEnabled(PVGASTATE pVGAState);
 
 void VBVARaiseIrq (PVGASTATE pVGAState, uint32_t fFlags);

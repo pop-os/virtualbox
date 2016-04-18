@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2015 Oracle Corporation
+ * Copyright (C) 2011-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -64,17 +64,21 @@
 #if 0
 # ifdef DEBUG
 #  include <QTextStream>
+#  include <QFile>
 /** Enable this to log debug output of a Qt debug build to a file defined by DEBUG_DND_QT_LOGFILE. */
 #  define DEBUG_DND_QT
-/** File to log Qt debug output to. */
-#  define DEBUG_DND_QT_LOGFILE "/var/tmp/qt.log"
+#  ifdef RT_OS_WINDOWS
+#   define DEBUG_DND_QT_LOGFILE "c:\\temp\\VBoxQt.log"
+#  else
+#   define DEBUG_DND_QT_LOGFILE "/var/tmp/vboxqt.log"
+#  endif
 # endif /* DEBUG */
 #endif
 
 UIDnDHandler::UIDnDHandler(UISession *pSession, QWidget *pParent)
     : m_pSession(pSession)
     , m_pParent(pParent)
-    , m_enmMode(DNDMODE_UNKNOWN)
+    , m_enmOpMode(DNDMODE_UNKNOWN)
     , m_fIsPending(false)
     , m_fDataRetrieved(false)
 #ifndef RT_OS_WINDOWS
@@ -98,11 +102,11 @@ Qt::DropAction UIDnDHandler::dragEnter(ulong screenID, int x, int y,
                                        Qt::DropAction proposedAction, Qt::DropActions possibleActions,
                                        const QMimeData *pMimeData)
 {
-    LogFlowFunc(("enmMode=%RU32, screenID=%RU32, x=%d, y=%d, action=%ld\n",
-                 m_enmMode, screenID, x, y, toVBoxDnDAction(proposedAction)));
+    LogFlowFunc(("enmOpMode=%RU32, screenID=%RU32, x=%d, y=%d, action=%ld\n",
+                 m_enmOpMode, screenID, x, y, toVBoxDnDAction(proposedAction)));
 
-    if (   m_enmMode != DNDMODE_UNKNOWN
-        && m_enmMode != DNDMODE_HOSTTOGUEST)
+    if (   m_enmOpMode != DNDMODE_UNKNOWN
+        && m_enmOpMode != DNDMODE_HOSTTOGUEST)
         return Qt::IgnoreAction;
 
     /* Ask the guest for starting a DnD event. */
@@ -113,20 +117,22 @@ Qt::DropAction UIDnDHandler::dragEnter(ulong screenID, int x, int y,
                                           toVBoxDnDActions(possibleActions),
                                           pMimeData->formats().toVector());
     if (m_dndTarget.isOk())
-        setMode(DNDMODE_HOSTTOGUEST);
+    {
+        setOpMode(DNDMODE_HOSTTOGUEST);
+        return toQtDnDAction(result);
+    }
 
-    /* Set the DnD action returned by the guest. */
-    return toQtDnDAction(result);
+    return Qt::IgnoreAction;
 }
 
 Qt::DropAction UIDnDHandler::dragMove(ulong screenID, int x, int y,
                                       Qt::DropAction proposedAction, Qt::DropActions possibleActions,
                                       const QMimeData *pMimeData)
 {
-    LogFlowFunc(("enmMode=%RU32, screenID=%RU32, x=%d, y=%d, action=%ld\n",
-                 m_enmMode, screenID, x, y, toVBoxDnDAction(proposedAction)));
+    LogFlowFunc(("enmOpMode=%RU32, screenID=%RU32, x=%d, y=%d, action=%ld\n",
+                 m_enmOpMode, screenID, x, y, toVBoxDnDAction(proposedAction)));
 
-    if (m_enmMode != DNDMODE_HOSTTOGUEST)
+    if (m_enmOpMode != DNDMODE_HOSTTOGUEST)
         return Qt::IgnoreAction;
 
     /* Notify the guest that the mouse has been moved while doing
@@ -137,18 +143,20 @@ Qt::DropAction UIDnDHandler::dragMove(ulong screenID, int x, int y,
                                          toVBoxDnDAction(proposedAction),
                                          toVBoxDnDActions(possibleActions),
                                          pMimeData->formats().toVector());
-    /* Set the DnD action returned by the guest. */
-    return toQtDnDAction(result);
+    if (m_dndTarget.isOk())
+        return toQtDnDAction(result);
+
+    return Qt::IgnoreAction;
 }
 
 Qt::DropAction UIDnDHandler::dragDrop(ulong screenID, int x, int y,
                                       Qt::DropAction proposedAction, Qt::DropActions possibleActions,
                                       const QMimeData *pMimeData)
 {
-    LogFlowFunc(("enmMode=%RU32, screenID=%RU32, x=%d, y=%d, action=%ld\n",
-                 m_enmMode, screenID, x, y, toVBoxDnDAction(proposedAction)));
+    LogFlowFunc(("enmOpMode=%RU32, screenID=%RU32, x=%d, y=%d, action=%ld\n",
+                 m_enmOpMode, screenID, x, y, toVBoxDnDAction(proposedAction)));
 
-    if (m_enmMode != DNDMODE_HOSTTOGUEST)
+    if (m_enmOpMode != DNDMODE_HOSTTOGUEST)
         return Qt::IgnoreAction;
 
     /* The format the guest requests. */
@@ -257,19 +265,19 @@ Qt::DropAction UIDnDHandler::dragDrop(ulong screenID, int x, int y,
      * the end of the current transfer direction. So reset the current
      * mode as well here.
      */
-    setMode(DNDMODE_UNKNOWN);
+    setOpMode(DNDMODE_UNKNOWN);
 
     return toQtDnDAction(enmResult);
 }
 
 void UIDnDHandler::dragLeave(ulong screenID)
 {
-    LogFlowFunc(("enmMode=%RU32, screenID=%RU32\n", m_enmMode, screenID));
+    LogFlowFunc(("enmOpMode=%RU32, screenID=%RU32\n", m_enmOpMode, screenID));
 
-    if (m_enmMode == DNDMODE_HOSTTOGUEST)
+    if (m_enmOpMode == DNDMODE_HOSTTOGUEST)
     {
         m_dndTarget.Leave(screenID);
-        setMode(DNDMODE_UNKNOWN);
+        setOpMode(DNDMODE_UNKNOWN);
     }
 }
 
@@ -334,12 +342,11 @@ int UIDnDHandler::dragStartInternal(const QStringList &lstFormats,
 # endif
 
 # ifdef RT_OS_WINDOWS
-
-    UIDnDDropSource *pDropSource = new UIDnDDropSource(m_pParent);
-    if (!pDropSource)
-        return VERR_NO_MEMORY;
     UIDnDDataObject *pDataObject = new UIDnDDataObject(this, lstFormats);
     if (!pDataObject)
+        return VERR_NO_MEMORY;
+    UIDnDDropSource *pDropSource = new UIDnDDropSource(m_pParent, pDataObject);
+    if (!pDropSource)
         return VERR_NO_MEMORY;
 
     DWORD dwOKEffects = DROPEFFECT_NONE;
@@ -448,13 +455,13 @@ int UIDnDHandler::dragCheckPending(ulong screenID)
     int rc;
 #ifdef VBOX_WITH_DRAG_AND_DROP_GH
 
-    LogFlowFunc(("enmMode=%RU32, fIsPending=%RTbool, screenID=%RU32\n", m_enmMode, m_fIsPending, screenID));
+    LogFlowFunc(("enmOpMode=%RU32, fIsPending=%RTbool, screenID=%RU32\n", m_enmOpMode, m_fIsPending, screenID));
 
     {
         QMutexLocker AutoReadLock(&m_ReadLock);
 
-        if (   m_enmMode != DNDMODE_UNKNOWN
-            && m_enmMode != DNDMODE_GUESTTOHOST) /* Wrong mode set? */
+        if (   m_enmOpMode != DNDMODE_UNKNOWN
+            && m_enmOpMode != DNDMODE_GUESTTOHOST) /* Wrong mode set? */
             return VINF_SUCCESS;
 
         if (m_fIsPending) /* Pending operation is in progress. */
@@ -548,7 +555,7 @@ int UIDnDHandler::dragStart(ulong screenID)
         return VERR_INVALID_PARAMETER;
     }
 
-    setMode(DNDMODE_GUESTTOHOST);
+    setOpMode(DNDMODE_GUESTTOHOST);
 
     rc = dragStartInternal(m_dataSource.lstFormats,
                            toQtDnDAction(m_dataSource.defaultAction), toQtDnDActions(m_dataSource.vecActions));
@@ -594,7 +601,7 @@ void UIDnDHandler::reset(void)
     m_fDataRetrieved = false;
     m_fIsPending = false;
 
-    setMode(DNDMODE_UNKNOWN);
+    setOpMode(DNDMODE_UNKNOWN);
 }
 
 int UIDnDHandler::retrieveData(Qt::DropAction          dropAction,
@@ -611,9 +618,9 @@ int UIDnDHandler::retrieveData(Qt::DropAction          dropAction,
          * Retrieve the actual data from the guest.
          */
         rc = retrieveDataInternal(dropAction, strMIMEType, m_vecData);
-        LogRel3(("DnD: Received data, rc=%Rrc\n", rc));
-
-        if (RT_SUCCESS(rc))
+        if (RT_FAILURE(rc))
+            LogRel3(("DnD: Receiving data failed: %Rrc\n", rc));
+        else
             m_fDataRetrieved = true;
     }
     else /* Data already received, supply cached version. */
@@ -650,7 +657,7 @@ int UIDnDHandler::retrieveDataInternal(      Qt::DropAction    dropAction,
                                        const QString          &strMIMEType,
                                              QVector<uint8_t> &vecData)
 {
-    LogFlowFunc(("Retrieving data as '%s', dropAction=%d\n", qPrintable(strMIMEType), dropAction));
+    LogRel3(("DnD: Retrieving data from guest as '%s' (%d)\n", qPrintable(strMIMEType), dropAction));
 
     int rc = VINF_SUCCESS;
 
@@ -684,8 +691,16 @@ int UIDnDHandler::retrieveDataInternal(      Qt::DropAction    dropAction,
             {
                 /* After we successfully retrieved data from the source we query it from Main. */
                 vecData = m_dndSource.ReceiveData(); /** @todo QVector.size() is "int" only!? */
-                if (vecData.isEmpty())
-                    rc = VERR_NO_DATA;
+                if (m_dndSource.isOk())
+                {
+                    if (vecData.isEmpty())
+                        rc = VERR_NO_DATA;
+                }
+                else
+                {
+                    msgCenter().cannotDropDataToHost(m_dndSource, m_pParent);
+                    rc = VERR_GENERAL_FAILURE; /** @todo Fudge; do a GetResultCode() to rc translation. */
+                }
             }
             else
                 msgCenter().cannotDropDataToHost(progress, m_pParent);
@@ -699,17 +714,17 @@ int UIDnDHandler::retrieveDataInternal(      Qt::DropAction    dropAction,
         rc = VERR_GENERAL_FAILURE; /** @todo Fudge; do a GetResultCode() to rc translation. */
     }
 
-    setMode(DNDMODE_UNKNOWN);
+    setOpMode(DNDMODE_UNKNOWN);
 
     LogFlowFuncLeaveRC(rc);
     return rc;
 }
 
-void UIDnDHandler::setMode(DNDMODE enmMode)
+void UIDnDHandler::setOpMode(DNDOPMODE enmMode)
 {
     QMutexLocker AutoWriteLock(&m_WriteLock);
-    m_enmMode = enmMode;
-    LogFlowFunc(("Mode is now: %RU32\n", m_enmMode));
+    m_enmOpMode = enmMode;
+    LogFunc(("Operation mode is now: %RU32\n", m_enmOpMode));
 }
 
 int UIDnDHandler::sltGetData(      Qt::DropAction  dropAction,

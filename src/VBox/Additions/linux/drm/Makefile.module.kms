@@ -23,16 +23,21 @@ include $(obj)/Makefile.include.header
 
 MOD_NAME   = vboxvideo
 
+ifeq ($(filter 1.% 2.% 3.0.% 3.1.% 3.2.% 3.3.% 3.4.% 3.5.% 3.6.% 3.7.% \
+3.8.% 3.9.% 3.10.%,$(KERNELRELEASE)),)
 MOD_OBJS   = HGSMIBase.o HGSMICommon.o HGSMIMemAlloc.o heapoffset.o \
-             Modesetting.o vbox_drv.o vbox_fb.o vbox_main.o vbox_mode.o \
-             vbox_ttm.o VBVABase.o
+             Modesetting.o vbox_drv.o vbox_fb.o vbox_irq.o vbox_main.o \
+             vbox_mode.o vbox_ttm.o VBVABase.o
+else
+MOD_OBJS   = vbox_dummy.o
+endif
 
 ifneq ($(wildcard $(KBUILD_EXTMOD)/vboxvideo),)
  MANGLING := $(KBUILD_EXTMOD)/vboxvideo/include/VBox/VBoxGuestMangling.h
 else
  MANGLING := $(KBUILD_EXTMOD)/include/VBox/VBoxGuestMangling.h
 endif
-MOD_CFLAGS = -fshort-wchar -include $(MANGLING)
+MOD_CFLAGS = -Wno-declaration-after-statement -fshort-wchar -include $(MANGLING)
 MOD_INCL   = $(addprefix -I$(KBUILD_EXTMOD),/ /include)
 # What on earth is this?
 MOD_INCL  += $(addprefix -I$(KBUILD_EXTMOD)/vboxvideo,/ /include)

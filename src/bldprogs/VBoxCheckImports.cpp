@@ -290,7 +290,7 @@ static bool ParseAndCheckImports(MYIMAGE *pThis,  const char **papszAllowed, uns
 
 static int usage(const char *argv0)
 {
-    printf("usage: %s --image <image> [allowed-dll [..]]\n");
+    printf("usage: %s --image <image> [allowed-dll [..]]\n", argv0);
     return RTEXITCODE_SUCCESS;
 }
 
@@ -326,7 +326,7 @@ int main(int argc, char **argv)
             else if (   !strcmp(psz, "--version")
                      || !strcmp(psz, "-V"))
             {
-                printf("$Revision: 104941 $\n");
+                printf("$Revision: 106040 $\n");
                 return RTEXITCODE_SUCCESS;
             }
             else

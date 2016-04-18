@@ -78,10 +78,6 @@
 #include "shadowfb.h"
 /* VGA hardware functions for setting and restoring text mode */
 #include "vgaHW.h"
-#ifdef VBOX_DRI
-# include "xf86drm.h"
-# include "xf86drmMode.h"
-#endif
 #ifdef VBOXVIDEO_13
 /* X.org 1.3+ mode setting */
 # define _HAVE_STRING_ARCH_strsep /* bits/string2.h, __strsep_1c. */
@@ -97,6 +93,11 @@
 #ifdef XORG_7X
 # include <stdlib.h>
 # include <string.h>
+# include <sys/stat.h>
+# define xf86stat stat
+# define xf86stat_s stat
+#else
+# include <xf86_ansic.h>
 #endif
 
 /* Mandatory functions */
@@ -285,10 +286,6 @@ static Bool adjustScreenPixmap(ScrnInfoPtr pScrn, int width, int height)
     }
     pScrn->displayWidth = pScrn->virtualX = adjustedWidth;
     pScrn->virtualY = height;
-#ifdef VBOX_DRI_OLD
-    if (pVBox->useDRI)
-        VBOXDRIUpdateStride(pScrn, pVBox);
-#endif
     return TRUE;
 }
 
@@ -556,12 +553,13 @@ vbox_output_get_modes (xf86OutputPtr output)
 {
     unsigned cIndex = 0;
     DisplayModePtr pModes = NULL;
+    DisplayModePtr pPreferred = NULL;
     ScrnInfoPtr pScrn = output->scrn;
     VBOXPtr pVBox = VBOXGetRec(pScrn);
 
     TRACE_ENTRY();
     uint32_t iScreen = (uintptr_t)output->driver_private;
-    vbox_output_add_mode(pVBox, &pModes, NULL,
+    pPreferred = vbox_output_add_mode(pVBox, &pModes, NULL,
                          RT_CLAMP(pVBox->pScreens[iScreen].aPreferredSize.cx, VBOX_VIDEO_MIN_SIZE, VBOX_VIDEO_MAX_VIRTUAL),
                          RT_CLAMP(pVBox->pScreens[iScreen].aPreferredSize.cy, VBOX_VIDEO_MIN_SIZE, VBOX_VIDEO_MAX_VIRTUAL),
                          TRUE, FALSE);
@@ -577,6 +575,7 @@ vbox_output_get_modes (xf86OutputPtr output)
     vbox_output_add_mode(pVBox, &pModes, NULL, 1024, 768,  FALSE, FALSE);
     vbox_output_add_mode(pVBox, &pModes, NULL, 800,  600,  FALSE, FALSE);
     vbox_output_add_mode(pVBox, &pModes, NULL, 640,  480,  FALSE, FALSE);
+    VBOXEDIDSet(output, pPreferred);
     TRACE_EXIT();
     return pModes;
 }
@@ -728,8 +727,15 @@ VBOXPciProbe(DriverPtr drv, int entity_num, struct pci_device *dev,
              intptr_t match_data)
 {
     ScrnInfoPtr pScrn;
+    struct xf86stat_s sstat;
 
     TRACE_ENTRY();
+
+    if (xf86stat("/dev/dri/card0", &sstat) == 0)
+    {
+        xf86Msg(X_INFO, "vboxvideo: kernel driver found, not loading.\n");
+        return FALSE;
+    }
     pScrn = xf86ConfigPciEntity(NULL, 0, entity_num, VBOXPCIchipsets,
                                 NULL, NULL, NULL, NULL, NULL);
     if (pScrn != NULL) {
@@ -839,15 +845,6 @@ VBOXPreInit(ScrnInfoPtr pScrn, int flags)
     xf86DrvMsg(pScrn->scrnIndex, X_INFO, "VirtualBox guest additions video driver version " VBOX_VERSION_STRING "r%d\n",
                VBOX_SVN_REV);
 
-    /* Get our private data from the ScrnInfoRec structure. */
-    VBOXSetRec(pScrn);
-    pVBox = VBOXGetRec(pScrn);
-    if (!pVBox)
-        return FALSE;
-
-    /* Entity information seems to mean bus information. */
-    pVBox->pEnt = xf86GetEntityInfo(pScrn->entityList[0]);
-
     /* The ramdac module is needed for the hardware cursor. */
     if (!xf86LoadSubModule(pScrn, "ramdac"))
         return FALSE;
@@ -862,17 +859,14 @@ VBOXPreInit(ScrnInfoPtr pScrn, int flags)
     if (!xf86LoadSubModule(pScrn, "vgahw"))
         return FALSE;
 
-#ifdef VBOX_DRI_OLD
-    /* Load the dri module. */
-    if (!xf86LoadSubModule(pScrn, "dri"))
+    /* Get our private data from the ScrnInfoRec structure. */
+    VBOXSetRec(pScrn);
+    pVBox = VBOXGetRec(pScrn);
+    if (!pVBox)
         return FALSE;
-#else
-# ifdef VBOX_DRI
-    /* Load the dri module. */
-    if (!xf86LoadSubModule(pScrn, "dri2"))
-        return FALSE;
-# endif
-#endif
+
+    /* Entity information seems to mean bus information. */
+    pVBox->pEnt = xf86GetEntityInfo(pScrn->entityList[0]);
 
 #ifndef PCIACCESS
     if (pVBox->pEnt->location.type != BUS_PCI)
@@ -946,7 +940,6 @@ VBOXPreInit(ScrnInfoPtr pScrn, int flags)
 
 #endif /* !VBOXVIDEO_13 */
 
-    /* Needed before we initialise DRI. */
     pScrn->displayWidth = pScrn->virtualX;
 
     xf86PrintModes(pScrn);
@@ -1006,127 +999,30 @@ static void updateGraphicsCapability(ScrnInfoPtr pScrn, Bool hasVT)
     int32_t *paData;
     int rc;
 
-    if (pVBox->fHaveHGSMIModeHints)
+    if (!pVBox->fHaveHGSMIModeHints)
         return;
-    rc = vbvxGetIntegerPropery(pScrn, "VBOX_HAS_GRAPHICS", &cData, &paData);
-    if (rc != VINF_SUCCESS || cData != 1)
-        return;
-    if (RT_BOOL(*paData) != hasVT)
-    {
-        uint32_t fFeatures;
-        VbglR3SetGuestCaps(hasVT ? VMMDEV_GUEST_SUPPORTS_GRAPHICS : 0, hasVT ? 0 : VMMDEV_GUEST_SUPPORTS_GRAPHICS);
-        rc = VbglR3GetMouseStatus(&fFeatures, NULL, NULL);
-        fFeatures &= VMMDEV_MOUSE_GUEST_CAN_ABSOLUTE | VMMDEV_MOUSE_NEW_PROTOCOL;
-        if (RT_SUCCESS(rc))
-            VbglR3SetMouseStatus(hasVT ? fFeatures : fFeatures | VMMDEV_MOUSE_GUEST_NEEDS_HOST_CURSOR);
-    }
-    *paData = hasVT;
+    VBoxHGSMISendCapsInfo(&pVBox->guestCtx,   hasVT
+                                            ? VBVACAPS_VIDEO_MODE_HINTS | VBVACAPS_DISABLE_CURSOR_INTEGRATION
+                                            : VBVACAPS_DISABLE_CURSOR_INTEGRATION);
 }
 
-#ifdef VBOXVIDEO_13
+#ifndef VBOXVIDEO_13
 
-static void setVirtualSizeRandR12(ScrnInfoPtr pScrn, bool fScreenInitTime)
-{
-    VBOXPtr pVBox = VBOXGetRec(pScrn);
-    unsigned i;
-    unsigned cx = 0;
-    unsigned cy = 0;
-
-    for (i = 0; i < pVBox->cScreens; ++i)
-    {
-        if (   pVBox->fHaveHGSMIModeHints && pVBox->pScreens[i].afHaveLocation)
-        {
-            pVBox->pScreens[i].paCrtcs->x = pVBox->pScreens[i].aPreferredLocation.x;
-            pVBox->pScreens[i].paCrtcs->y = pVBox->pScreens[i].aPreferredLocation.y;
-        }
-        if (   pVBox->pScreens[i].paOutputs->status == XF86OutputStatusConnected
-            && pVBox->pScreens[i].paCrtcs->x + pVBox->pScreens[i].aPreferredSize.cx < VBOX_VIDEO_MAX_VIRTUAL
-            && pVBox->pScreens[i].paCrtcs->y + pVBox->pScreens[i].aPreferredSize.cy < VBOX_VIDEO_MAX_VIRTUAL)
-        {
-            cx = max(cx, pVBox->pScreens[i].paCrtcs->x + pVBox->pScreens[i].aPreferredSize.cx);
-            cy = max(cy, pVBox->pScreens[i].paCrtcs->y + pVBox->pScreens[i].aPreferredSize.cy);
-        }
-    }
-    if (cx != 0 && cy != 0)
-    {
-        /* Do not set the virtual resolution in limited context as that can
-         * cause problems setting up RandR 1.2 which needs it set to the
-         * maximum size at this point. */
-        if (!fScreenInitTime)
-        {
-            TRACE_LOG("cx=%u, cy=%u\n", cx, cy);
-            xf86ScrnToScreen(pScrn)->width = cx;
-            xf86ScrnToScreen(pScrn)->height = cy;
-            xf86ScrnToScreen(pScrn)->mmWidth = cx * 254 / 960;
-            xf86ScrnToScreen(pScrn)->mmHeight = cy * 254 / 960;
-            adjustScreenPixmap(pScrn, cx, cy);
-            vbvxSetSolarisMouseRange(cx, cy);
-        }
-    }
-}
-
-static void setScreenSizesRandR12(ScrnInfoPtr pScrn, bool fScreenInitTime)
-{
-    VBOXPtr pVBox = VBOXGetRec(pScrn);
-    unsigned i;
-
-    for (i = 0; i < pVBox->cScreens; ++i)
-    {
-        if (!pVBox->pScreens[i].afConnected)
-            continue;
-        /* The Crtc can get "unset" if the screen was disconnected previously.
-         * I couldn't find an API to re-set it which did not have side-effects.
-         */
-        pVBox->pScreens[i].paOutputs->crtc = pVBox->pScreens[i].paCrtcs;
-        xf86CrtcSetMode(pVBox->pScreens[i].paCrtcs, pVBox->pScreens[i].paOutputs->probed_modes, RR_Rotate_0,
-                        pVBox->pScreens[i].paCrtcs->x, pVBox->pScreens[i].paCrtcs->y);
-        if (!fScreenInitTime)
-            RRCrtcNotify(pVBox->pScreens[i].paCrtcs->randr_crtc, pVBox->pScreens[i].paOutputs->randr_output->modes[0],
-                         pVBox->pScreens[i].paCrtcs->x, pVBox->pScreens[i].paCrtcs->y, RR_Rotate_0,
-#if GET_ABI_MAJOR(ABI_VIDEODRV_VERSION) >= 5
-                         NULL,
-#endif
-                         1, &pVBox->pScreens[i].paOutputs->randr_output);
-    }
-}
-
-static void setSizesRandR12(ScrnInfoPtr pScrn, bool fScreenInitTime)
-{
-    VBOXPtr pVBox = VBOXGetRec(pScrn);
-
-    if (!fScreenInitTime)
-    {
-# if GET_ABI_MAJOR(ABI_VIDEODRV_VERSION) >= 5
-        RRGetInfo(xf86ScrnToScreen(pScrn), TRUE);
-# else
-        RRGetInfo(xf86ScrnToScreen(pScrn));
-# endif
-    }
-    setVirtualSizeRandR12(pScrn, fScreenInitTime);
-    setScreenSizesRandR12(pScrn, fScreenInitTime);
-    if (!fScreenInitTime)
-    {
-        /* We use RRScreenSizeSet() here and not RRScreenSizeNotify() because
-         * the first also pushes the virtual screen size to the input driver.
-         * We were doing this manually by setting screenInfo.width and height
-         * and calling xf86UpdateDesktopDimensions() where appropriate, but this
-         * failed on Ubuntu 12.04.0 due to a problematic X server back-port. */
-        RRScreenSizeSet(xf86ScrnToScreen(pScrn), xf86ScrnToScreen(pScrn)->width, xf86ScrnToScreen(pScrn)->height,
-                        xf86ScrnToScreen(pScrn)->mmWidth, xf86ScrnToScreen(pScrn)->mmHeight);
-        RRTellChanged(xf86ScrnToScreen(pScrn));
-    }
-}
-
-#else
+#define PREFERRED_MODE_ATOM_NAME "VBOXVIDEO_PREFERRED_MODE"
 
 static void setSizesRandR11(ScrnInfoPtr pScrn)
 {
     VBOXPtr pVBox = VBOXGetRec(pScrn);
     DisplayModePtr pNewMode;
+    int32_t propertyValue;
 
     pNewMode = pScrn->modes != pScrn->currentMode ? pScrn->modes : pScrn->modes->next;
     pNewMode->HDisplay = RT_CLAMP(pVBox->pScreens[0].aPreferredSize.cx, VBOX_VIDEO_MIN_SIZE, VBOX_VIDEO_MAX_VIRTUAL);
     pNewMode->VDisplay = RT_CLAMP(pVBox->pScreens[0].aPreferredSize.cy, VBOX_VIDEO_MIN_SIZE, VBOX_VIDEO_MAX_VIRTUAL);
+    propertyValue = (pNewMode->HDisplay << 16) + pNewMode->VDisplay;
+    ChangeWindowProperty(ROOT_WINDOW(pScrn), MakeAtom(PREFERRED_MODE_ATOM_NAME,
+                         sizeof(PREFERRED_MODE_ATOM_NAME) - 1, TRUE), XA_INTEGER, 32,
+                         PropModeReplace, 1, &propertyValue, TRUE);
 }
 
 #endif
@@ -1137,7 +1033,11 @@ static void setSizesAndCursorIntegration(ScrnInfoPtr pScrn, bool fScreenInitTime
 
     TRACE_LOG("fScreenInitTime=%d\n", (int)fScreenInitTime);
 #ifdef VBOXVIDEO_13
-    setSizesRandR12(pScrn, fScreenInitTime);
+# if GET_ABI_MAJOR(ABI_VIDEODRV_VERSION) >= 5
+    RRGetInfo(xf86ScrnToScreen(pScrn), TRUE);
+# else
+    RRGetInfo(xf86ScrnToScreen(pScrn));
+# endif
 #else
     setSizesRandR11(pScrn);
 #endif
@@ -1158,14 +1058,8 @@ static void vboxBlockHandler(pointer pData, OSTimePtr pTimeout, pointer pReadmas
 
     (void)pTimeout;
     (void)pReadmask;
-    updateGraphicsCapability(pScrn, pScrn->vtSema);
     if (pScrn->vtSema)
         vbvxReadSizesAndCursorIntegrationFromHGSMI(pScrn, &fNeedUpdate);
-    /* This has to be done even when we are switched out so that VBoxClient can
-     * set a mode using RandR without having to know the virtual terminal state.
-     */
-    if (ROOT_WINDOW(pScrn) != NULL)
-        vbvxReadSizesAndCursorIntegrationFromProperties(pScrn, &fNeedUpdate);
     if (fNeedUpdate)
         setSizesAndCursorIntegration(pScrn, false);
 }
@@ -1207,15 +1101,6 @@ static Bool VBOXScreenInit(ScreenPtr pScreen, int argc, char **argv)
         return (FALSE);
     if (!miSetPixmapDepths())
         return (FALSE);
-
-#ifdef VBOX_DRI
-    pVBox->useDRI = VBOXDRIScreenInit(pScrn, pScreen, pVBox);
-# ifndef VBOX_DRI_OLD  /* DRI2 */
-    if (pVBox->drmFD >= 0)
-        /* Tell the kernel driver, if present, that we are taking over. */
-        drmIoctl(pVBox->drmFD, VBOXVIDEO_IOCTL_DISABLE_HGSMI, NULL);
-# endif
-#endif
 
     if (!fbScreenInit(pScreen, pVBox->base,
                       pScrn->virtualX, pScrn->virtualY,
@@ -1263,10 +1148,6 @@ static Bool VBOXScreenInit(ScreenPtr pScreen, int argc, char **argv)
     if (ShadowFBInit2(pScreen, NULL, vbvxHandleDirtyRect) != TRUE)
         return FALSE;
     VBoxInitialiseSizeHints(pScrn);
-    /* Get any screen size hints from HGSMI.  Do not yet try to access X11
-     * properties, as they are not yet set up, and nor are the clients that
-     * might have set them. */
-    vbvxReadSizesAndCursorIntegrationFromHGSMI(pScrn, NULL);
 
 #ifdef VBOXVIDEO_13
     /* Initialise CRTC and output configuration for use with randr1.2. */
@@ -1323,11 +1204,16 @@ static Bool VBOXScreenInit(ScreenPtr pScreen, int argc, char **argv)
     }
 
     /* set first video mode */
-    setSizesAndCursorIntegration(pScrn, true);
+    if (!xf86SetDesiredModes(pScrn)) {
+        return FALSE;
+    }
 #else
     /* set first video mode */
     setModeRandR11(pScrn, pScrn->currentMode, true, false, 0, 0);
 #endif
+
+    /* Say that we support graphics. */
+    updateGraphicsCapability(pScrn, TRUE);
 
     /* Register block and wake-up handlers for getting new screen size hints. */
     RegisterBlockAndWakeupHandlers(vboxBlockHandler, (WakeupHandlerProcPtr)NoopDDA, (pointer)pScrn);
@@ -1366,11 +1252,6 @@ static Bool VBOXScreenInit(ScreenPtr pScreen, int argc, char **argv)
         xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
                    "Unable to start the VirtualBox mouse pointer integration with the host system.\n");
 
-#ifdef VBOX_DRI_OLD
-    if (pVBox->useDRI)
-        pVBox->useDRI = VBOXDRIFinishScreenInit(pScreen);
-#endif
-
     return (TRUE);
 }
 
@@ -1388,27 +1269,18 @@ static Bool VBOXEnterVT(ScrnInfoPtr pScrn)
 #endif
 
     TRACE_ENTRY();
-    updateGraphicsCapability(pScrn, TRUE);
-#ifdef VBOX_DRI_OLD
-    if (pVBox->useDRI)
-        DRIUnlock(xf86ScrnToScreen(pScrn));
-#elif defined(VBOX_DRI)  /* DRI2 */
-    if (pVBox->drmFD >= 0)
-    {
-        /* Tell the kernel driver, if present, that we are taking over. */
-        drmSetMaster(pVBox->drmFD);
-    }
-#endif
     vbvxSetUpHGSMIHeapInGuest(pVBox, pScrn->videoRam * 1024);
     vboxEnableVbva(pScrn);
     /* Re-set video mode */
 #ifdef VBOXVIDEO_13
-    vbvxReadSizesAndCursorIntegrationFromHGSMI(pScrn, NULL);
-    setSizesAndCursorIntegration(pScrn, false);
+    if (!xf86SetDesiredModes(pScrn)) {
+        return FALSE;
+    }
 #else
     setModeRandR11(pScrn, pScrn->currentMode, false, true, cXOverRide, cYOverRide);
     DeleteProperty(ROOT_WINDOW(pScrn), MakeAtom(NO_VT_ATOM_NAME, sizeof(NO_VT_ATOM_NAME) - 1, TRUE));
 #endif
+    updateGraphicsCapability(pScrn, TRUE);
     return TRUE;
 }
 
@@ -1422,7 +1294,6 @@ static void VBOXLeaveVT(ScrnInfoPtr pScrn)
 #endif
 
     TRACE_ENTRY();
-    updateGraphicsCapability(pScrn, FALSE);
 #ifdef VBOXVIDEO_13
     for (i = 0; i < pVBox->cScreens; ++i)
         vbox_crtc_dpms(pVBox->pScreens[i].paCrtcs, DPMSModeOff);
@@ -1430,15 +1301,9 @@ static void VBOXLeaveVT(ScrnInfoPtr pScrn)
     ChangeWindowProperty(ROOT_WINDOW(pScrn), MakeAtom(NO_VT_ATOM_NAME, sizeof(NO_VT_ATOM_NAME) - 1, FALSE), XA_INTEGER, 32,
                          PropModeReplace, 1, &propertyValue, TRUE);
 #endif
+    updateGraphicsCapability(pScrn, FALSE);
     vboxDisableVbva(pScrn);
     vbvxClearVRAM(pScrn, ((size_t)pScrn->virtualX) * pScrn->virtualY * (pScrn->bitsPerPixel / 8), 0);
-#ifdef VBOX_DRI_OLD
-    if (pVBox->useDRI)
-        DRILock(xf86ScrnToScreen(pScrn), 0);
-#elif defined(VBOX_DRI)  /* DRI2 */
-    if (pVBox->drmFD >= 0)
-        drmDropMaster(pVBox->drmFD);
-#endif
     VBOXRestoreMode(pScrn);
     TRACE_EXIT();
 }
@@ -1447,9 +1312,6 @@ static Bool VBOXCloseScreen(ScreenPtr pScreen)
 {
     ScrnInfoPtr pScrn = xf86ScreenToScrn(pScreen);
     VBOXPtr pVBox = VBOXGetRec(pScrn);
-#if defined(VBOX_DRI) && !defined(VBOX_DRI_OLD)  /* DRI2 */
-    BOOL fRestore = TRUE;
-#endif
     BOOL ret;
 
     if (pScrn->vtSema)
@@ -1463,22 +1325,8 @@ static Bool VBOXCloseScreen(ScreenPtr pScreen)
         vboxDisableVbva(pScrn);
         vbvxClearVRAM(pScrn, ((size_t)pScrn->virtualX) * pScrn->virtualY * (pScrn->bitsPerPixel / 8), 0);
     }
-#ifdef VBOX_DRI
-# ifndef VBOX_DRI_OLD  /* DRI2 */
-    if (   pVBox->drmFD >= 0
-        /* Tell the kernel driver, if present, that we are going away. */
-        && drmIoctl(pVBox->drmFD, VBOXVIDEO_IOCTL_ENABLE_HGSMI, NULL) >= 0)
-        fRestore = false;
-# endif
-    if (pVBox->useDRI)
-        VBOXDRICloseScreen(pScreen, pVBox);
-    pVBox->useDRI = false;
-#endif
-#if defined(VBOX_DRI) && !defined(VBOX_DRI_OLD)  /* DRI2 */
-    if (fRestore)
-#endif
-        if (pScrn->vtSema)
-            VBOXRestoreMode(pScrn);
+    if (pScrn->vtSema)
+        VBOXRestoreMode(pScrn);
     if (pScrn->vtSema)
         VBOXUnmapVidMem(pScrn);
     pScrn->vtSema = FALSE;
@@ -1601,21 +1449,8 @@ VBOXRestoreMode(ScrnInfoPtr pScrn)
 {
     VBOXPtr pVBox = VBOXGetRec(pScrn);
     vgaRegPtr vgaReg;
-#ifdef VBOX_DRI
-    drmModeResPtr pRes;
-#endif
 
     TRACE_ENTRY();
-#ifdef VBOX_DRI
-    /* Do not try to re-set the VGA state if a mode-setting driver is loaded. */
-    if (   pVBox->drmFD >= 0
-        && LoaderSymbol("drmModeGetResources") != NULL
-        && (pRes = drmModeGetResources(pVBox->drmFD)) != NULL)
-    {
-        drmModeFreeResources(pRes);
-        return;
-    }
-#endif
     vgaReg = &VGAHWPTR(pScrn)->SavedReg;
     vgaHWRestore(pScrn, vgaReg, VGA_SR_ALL);
     if (pVBox->fSavedVBEMode)

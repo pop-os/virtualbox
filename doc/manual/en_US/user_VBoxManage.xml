@@ -2025,6 +2025,18 @@ Virtual system 0:
     when a snapshot is restored, the contents of the virtual machine's virtual
     hard disks can be quickly reset by simply dropping the pre-existing
     differencing files.</para>
+  
+   <screen>VBoxManage snapshot         &lt;uuid|vmname&gt;
+                            take &lt;name&gt; [--description &lt;desc&gt;] [--live]
+                                 [--uniquename Number,Timestamp,Space,Force] |
+                            delete &lt;uuid|snapname&gt; |
+                            restore &lt;uuid|snapname&gt; |
+                            restorecurrent |
+                            edit &lt;uuid|snapname&gt;|--current
+                                 [--name &lt;name&gt;]
+                                 [--description &lt;desc&gt;] |
+                            list [--details|--machinereadable]
+                            showvminfo &lt;uuid|snapname&gt;</screen>
 
     <para>The <computeroutput>take</computeroutput> operation takes a snapshot
     of the current state of the virtual machine. You must supply a name for
@@ -2057,6 +2069,9 @@ Virtual system 0:
     <para>With the <computeroutput>edit</computeroutput> operation, you can
     change the name or description of an existing snapshot.</para>
 
+    <para>The <computeroutput>list</computeroutput> operation shows all
+    snapshots of a virtual machine.</para>
+
     <para>With the <computeroutput>showvminfo</computeroutput> operation, you
     can view the virtual machine settings that were stored with an existing
     snapshot.</para>
@@ -2076,6 +2091,9 @@ Virtual system 0:
         a registry.</para>
       </footnote></para>
 
+    <screen>VBoxManage closemedium      [disk|dvd|floppy] &lt;uuid|filename&gt;
+                            [--delete]</screen>
+
     <para>Optionally, you can request that the image be deleted. You will get
     appropriate diagnostics that the deletion failed, however the image will
     become unregistered in any case.</para>
@@ -2094,9 +2112,10 @@ Virtual system 0:
                             [--port &lt;number&gt;]
                             [--device &lt;number&gt;]
                             [--type dvddrive|hdd|fdd]
-                            [--medium none|emptydrive|
+                            [--medium none|emptydrive|additions|
                                       &lt;uuid&gt;|&lt;filename&gt;|host:&lt;drive&gt;|iscsi]
-                            [--mtype normal|writethrough|immutable|shareable]
+                            [--mtype normal|writethrough|immutable|shareable
+                                     readonly|multiattach]
                             [--comment &lt;text&gt;]
                             [--setuuid &lt;uuid&gt;]
                             [--setparentuuid &lt;uuid&gt;]
@@ -2104,6 +2123,7 @@ Virtual system 0:
                             [--tempeject on|off]
                             [--nonrotational on|off]
                             [--discard on|off]
+                            [--hotpluggable on|off]
                             [--bandwidthgroup name|none]
                             [--forceunmount]
                             [--server &lt;name&gt;|&lt;ip&gt;]
@@ -2400,9 +2420,10 @@ Virtual system 0:
                             [--add &lt;ide/sata/scsi/floppy&gt;]
                             [--controller &lt;LsiLogic|LSILogicSAS|BusLogic|
                                           IntelAhci|PIIX3|PIIX4|ICH6|I82078|usb&gt;]
-                            [--sataportcount &lt;1-30&gt;]
+                            [--portcount &lt;1-30&gt;]
                             [--hostiocache on|off]
                             [--bootable on|off]
+                            [--rename &lt;name&gt;]
                             [--remove]</screen>
 
     <para>where the parameters mean: <glosslist>
@@ -2441,10 +2462,10 @@ Virtual system 0:
         </glossentry>
 
         <glossentry>
-          <glossterm><computeroutput>--sataportcount</computeroutput></glossterm>
+          <glossterm><computeroutput>--portcount</computeroutput></glossterm>
 
           <glossdef>
-            <para>This determines how many ports the SATA controller should
+            <para>This determines how many ports the storage controller should
             support.</para>
           </glossdef>
         </glossentry>
@@ -2464,6 +2485,14 @@ Virtual system 0:
 
           <glossdef>
             <para>Selects whether this controller is bootable.</para>
+          </glossdef>
+        </glossentry>
+
+        <glossentry>
+          <glossterm><computeroutput>--rename</computeroutput></glossterm>
+
+          <glossdef>
+            <para>Sets the name of the storage controller.</para>
           </glossdef>
         </glossentry>
 
@@ -2583,7 +2612,7 @@ Virtual system 0:
     follows:</para>
 
     <screen>VBoxManage createhd         --filename &lt;filename&gt;
-                            --size &lt;megabytes&gt;
+                            --size &lt;megabytes&gt;|--sizebyte &lt;bytes&gt;
                             [--format VDI|VMDK|VHD] (default: VDI)
                             [--variant Standard,Fixed,Split2G,Stream,ESX]</screen>
 
@@ -2640,6 +2669,7 @@ Virtual system 0:
                             [--type normal|writethrough|immutable|shareable|
                                     readonly|multiattach]
                             [--autoreset on|off]
+                            [--property &lt;name=[value]&gt;]
                             [--compact]
                             [--resize &lt;megabytes&gt;|--resizebyte &lt;bytes&gt;]</screen><note>
         <para>Despite the "hd" in the subcommand name, the command works with

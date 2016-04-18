@@ -15,9 +15,29 @@
  */
 #define LOG_GROUP LOG_GROUP_NET_FLT_DRV
 
+/*
+ * If VBOXNETLWF_SYNC_SEND is defined we won't allocate data buffers, but use
+ * the original buffers coming from IntNet to build MDLs around them. This
+ * also means that we need to wait for send operation to complete before
+ * returning the buffers, which hinders performance way too much.
+ */
 //#define VBOXNETLWF_SYNC_SEND
-/* Payload + Ethernet header + VLAN tag = Max Ethernet frame size */
-#define VBOXNETLWF_MAX_FRAME_SIZE(mtu) (mtu +  sizeof(RTNETETHERHDR) + 4)
+
+/*
+ * If VBOXNETLWF_FIXED_SIZE_POOLS is defined we pre-allocate data buffers of
+ * fixed size in five pools. Each pool uses different size to accomodate packets
+ * of various sizes. We allocate these buffers once and re-use them when send
+ * operation is complete.
+ * If VBOXNETLWF_FIXED_SIZE_POOLS is not defined we allocate data buffers before
+ * each send operation and free then upon completion.
+ */
+#define VBOXNETLWF_FIXED_SIZE_POOLS
+
+/*
+ * Don't ask me why it is 42. Empirically this is what goes down the stack.
+ * OTOH, as we know from trustworthy sources, 42 is the answer, so be it.
+ */
+#define VBOXNETLWF_MAX_FRAME_SIZE(mtu) (mtu + 42)
 
 #include <VBox/version.h>
 #include <VBox/err.h>
@@ -165,11 +185,19 @@ static VBOXNETFLTGLOBALS g_VBoxNetFltGlobals;
 /* win-specific global data */
 VBOXNETLWFGLOBALS g_VBoxNetLwfGlobals;
 
+#ifdef VBOXNETLWF_FIXED_SIZE_POOLS
+static ULONG g_cbPool[] = { 576+56, 1556, 4096+56, 6192+56, 9056 };
+#endif /* VBOXNETLWF_FIXED_SIZE_POOLS */
+
 typedef struct _VBOXNETLWF_MODULE {
     RTLISTNODE node;
 
     NDIS_HANDLE hFilter;
+#ifndef VBOXNETLWF_FIXED_SIZE_POOLS
     NDIS_HANDLE hPool;
+#else /* VBOXNETLWF_FIXED_SIZE_POOLS */
+    NDIS_HANDLE hPool[RT_ELEMENTS(g_cbPool)];
+#endif /* VBOXNETLWF_FIXED_SIZE_POOLS */
     PVBOXNETLWFGLOBALS pGlobals;
     /** Associated instance of NetFlt, one-to-one relationship */
     PVBOXNETFLTINS pNetFlt; /// @todo Consider automic access!
@@ -192,8 +220,6 @@ typedef struct _VBOXNETLWF_MODULE {
 #endif /* !VBOXNETLWF_SYNC_SEND */
     /** MAC address of underlying adapter */
     RTMAC MacAddr;
-    /** Saved MTU size */
-    ULONG uMtuSize;
     /** Saved offload configuration */
     NDIS_OFFLOAD SavedOffloadConfig;
     /** the cloned request we have passed down */
@@ -461,11 +487,176 @@ static const char *vboxNetLwfWinStateToText(uint32_t enmState)
     return "invalid";
 }
 
+static void vboxNetLwfWinDumpPackets(const char *pszMsg, PNET_BUFFER_LIST pBufLists)
+{
+    for (PNET_BUFFER_LIST pList = pBufLists; pList; pList = NET_BUFFER_LIST_NEXT_NBL(pList))
+    {
+        for (PNET_BUFFER pBuf = NET_BUFFER_LIST_FIRST_NB(pList); pBuf; pBuf = NET_BUFFER_NEXT_NB(pBuf))
+        {
+            Log6(("%s packet: cb=%d offset=%d", pszMsg, NET_BUFFER_DATA_LENGTH(pBuf), NET_BUFFER_DATA_OFFSET(pBuf)));
+            for (PMDL pMdl = NET_BUFFER_FIRST_MDL(pBuf);
+                 pMdl != NULL;
+                 pMdl = NDIS_MDL_LINKAGE(pMdl))
+            {
+                Log6((" MDL: cb=%d", MmGetMdlByteCount(pMdl)));
+            }
+            Log6(("\n"));
+        }
+    }
+}
+
+DECLINLINE(const char *) vboxNetLwfWinEthTypeStr(uint16_t uType)
+{
+    switch (uType)
+    {
+        case RTNET_ETHERTYPE_IPV4: return "IP";
+        case RTNET_ETHERTYPE_IPV6: return "IPv6";
+        case RTNET_ETHERTYPE_ARP:  return "ARP";
+    }
+    return "unknown";
+}
+
+#define VBOXNETLWF_PKTDMPSIZE 0x50
+
+/**
+ * Dump a packet to debug log.
+ *
+ * @param   cpPacket    The packet.
+ * @param   cb          The size of the packet.
+ * @param   cszText     A string denoting direction of packet transfer.
+ */
+DECLINLINE(void) vboxNetLwfWinDumpPacket(PCINTNETSG pSG, const char *cszText)
+{
+    uint8_t bPacket[VBOXNETLWF_PKTDMPSIZE];
+
+    uint32_t cb = pSG->cbTotal < VBOXNETLWF_PKTDMPSIZE ? pSG->cbTotal : VBOXNETLWF_PKTDMPSIZE;
+    IntNetSgReadEx(pSG, 0, cb, bPacket);
+
+    AssertReturnVoid(cb >= 14);
+
+    uint8_t *pHdr = bPacket;
+    uint8_t *pEnd = bPacket + cb;
+    AssertReturnVoid(pEnd - pHdr >= 14);
+    uint16_t uEthType = RT_N2H_U16(*(uint16_t*)(pHdr+12));
+    Log2(("NetLWF: %s (%d bytes), %RTmac => %RTmac, EthType=%s(0x%x)\n",
+          cszText, pSG->cbTotal, pHdr+6, pHdr, vboxNetLwfWinEthTypeStr(uEthType), uEthType));
+    pHdr += sizeof(RTNETETHERHDR);
+    if (uEthType == RTNET_ETHERTYPE_VLAN)
+    {
+        AssertReturnVoid(pEnd - pHdr >= 4);
+        uEthType = RT_N2H_U16(*(uint16_t*)(pHdr+2));
+        Log2((" + VLAN: id=%d EthType=%s(0x%x)\n", RT_N2H_U16(*(uint16_t*)(pHdr)) & 0xFFF,
+              vboxNetLwfWinEthTypeStr(uEthType), uEthType));
+        pHdr += 2 * sizeof(uint16_t);
+    }
+    uint8_t uProto = 0xFF;
+    switch (uEthType)
+    {
+        case RTNET_ETHERTYPE_IPV6:
+            AssertReturnVoid(pEnd - pHdr >= 40);
+            uProto = pHdr[6];
+            Log2((" + IPv6: %RTnaipv6 => %RTnaipv6\n", pHdr+8, pHdr+24));
+            pHdr += 40;
+            break;
+        case RTNET_ETHERTYPE_IPV4:
+            AssertReturnVoid(pEnd - pHdr >= 20);
+            uProto = pHdr[9];
+            Log2((" + IP: %RTnaipv4 => %RTnaipv4\n", *(uint32_t*)(pHdr+12), *(uint32_t*)(pHdr+16)));
+            pHdr += (pHdr[0] & 0xF) * 4;
+            break;
+        case RTNET_ETHERTYPE_ARP:
+            AssertReturnVoid(pEnd - pHdr >= 28);
+            AssertReturnVoid(RT_N2H_U16(*(uint16_t*)(pHdr+2)) == RTNET_ETHERTYPE_IPV4);
+            switch (RT_N2H_U16(*(uint16_t*)(pHdr+6)))
+            {
+                case 1: /* ARP request */
+                    Log2((" + ARP-REQ: who-has %RTnaipv4 tell %RTnaipv4\n",
+                          *(uint32_t*)(pHdr+24), *(uint32_t*)(pHdr+14)));
+                    break;
+                case 2: /* ARP reply */
+                    Log2((" + ARP-RPL: %RTnaipv4 is-at %RTmac\n",
+                          *(uint32_t*)(pHdr+14), pHdr+8));
+                    break;
+                default:
+                    Log2((" + ARP: unknown op %d\n", RT_N2H_U16(*(uint16_t*)(pHdr+6))));
+                    break;
+            }
+            break;
+        /* There is no default case as uProto is initialized with 0xFF */
+    }
+    while (uProto != 0xFF)
+    {
+        switch (uProto)
+        {
+            case 0:  /* IPv6 Hop-by-Hop option*/
+            case 60: /* IPv6 Destination option*/
+            case 43: /* IPv6 Routing option */
+            case 44: /* IPv6 Fragment option */
+                Log2((" + IPv6 option (%d): <not implemented>\n", uProto));
+                uProto = pHdr[0];
+                pHdr += pHdr[1] * 8 + 8; /* Skip to the next extension/protocol */
+                break;
+            case 51: /* IPv6 IPsec AH */
+                Log2((" + IPv6 IPsec AH: <not implemented>\n"));
+                uProto = pHdr[0];
+                pHdr += (pHdr[1] + 2) * 4; /* Skip to the next extension/protocol */
+                break;
+            case 50: /* IPv6 IPsec ESP */
+                /* Cannot decode IPsec, fall through */
+                Log2((" + IPv6 IPsec ESP: <not implemented>\n"));
+                uProto = 0xFF;
+                break;
+            case 59: /* No Next Header */
+                Log2((" + IPv6 No Next Header\n"));
+                uProto = 0xFF;
+                break;
+            case 58: /* IPv6-ICMP */
+                switch (pHdr[0])
+                {
+                    case 1:   Log2((" + IPv6-ICMP: destination unreachable, code %d\n", pHdr[1])); break;
+                    case 128: Log2((" + IPv6-ICMP: echo request\n")); break;
+                    case 129: Log2((" + IPv6-ICMP: echo reply\n")); break;
+                    default:  Log2((" + IPv6-ICMP: unknown type %d, code %d\n", pHdr[0], pHdr[1])); break;
+                }
+                uProto = 0xFF;
+                break;
+            case 1: /* ICMP */
+                switch (pHdr[0])
+                {
+                    case 0:  Log2((" + ICMP: echo reply\n")); break;
+                    case 8:  Log2((" + ICMP: echo request\n")); break;
+                    case 3:  Log2((" + ICMP: destination unreachable, code %d\n", pHdr[1])); break;
+                    default: Log2((" + ICMP: unknown type %d, code %d\n", pHdr[0], pHdr[1])); break;
+                }
+                uProto = 0xFF;
+                break;
+            case 6: /* TCP */
+                Log2((" + TCP: src=%d dst=%d seq=%x ack=%x\n",
+                      RT_N2H_U16(*(uint16_t*)(pHdr)), RT_N2H_U16(*(uint16_t*)(pHdr+2)),
+                      RT_N2H_U32(*(uint32_t*)(pHdr+4)), RT_N2H_U32(*(uint32_t*)(pHdr+8))));
+                uProto = 0xFF;
+                break;
+            case 17: /* UDP */
+                Log2((" + UDP: src=%d dst=%d\n",
+                      RT_N2H_U16(*(uint16_t*)(pHdr)), RT_N2H_U16(*(uint16_t*)(pHdr+2))));
+                uProto = 0xFF;
+                break;
+            default:
+                Log2((" + Unknown: proto=0x%x\n", uProto));
+                uProto = 0xFF;
+                break;
+        }
+    }
+    Log3(("%.*Rhxd\n", cb, bPacket));
+}
+
 #else /* !DEBUG */
 #define vboxNetLwfWinDumpFilterTypes(uFlags)
 #define vboxNetLwfWinDumpOffloadSettings(p)
 #define vboxNetLwfWinDumpSetOffloadSettings(p)
-#endif /* DEBUG */
+#define vboxNetLwfWinDumpPackets(m,l)
+#define vboxNetLwfWinDumpPacket(p,t)
+#endif /* !DEBUG */
 
 DECLINLINE(bool) vboxNetLwfWinChangeState(PVBOXNETLWF_MODULE pModuleCtx, uint32_t enmNew, uint32_t enmOld = LwfState_32BitHack)
 {
@@ -833,6 +1024,20 @@ static void vboxNetLwfWinUpdateSavedOffloadConfig(PVBOXNETLWF_MODULE pModuleCtx,
     pModuleCtx->fOffloadConfigValid = true;
 }
 
+#ifdef VBOXNETLWF_FIXED_SIZE_POOLS
+static void vboxNetLwfWinFreePools(PVBOXNETLWF_MODULE pModuleCtx, int cPools)
+{
+    for (int i = 0; i < cPools; ++i)
+    {
+        if (pModuleCtx->hPool[i])
+        {
+            NdisFreeNetBufferListPool(pModuleCtx->hPool[i]);
+            Log4(("vboxNetLwfWinAttach: freeed NBL+NB pool 0x%p\n", pModuleCtx->hPool[i]));
+        }
+    }
+}
+#endif /* VBOXNETLWF_FIXED_SIZE_POOLS */
+
 static NDIS_STATUS vboxNetLwfWinAttach(IN NDIS_HANDLE hFilter, IN NDIS_HANDLE hDriverCtx,
                                        IN PNDIS_FILTER_ATTACH_PARAMETERS pParameters)
 {
@@ -905,6 +1110,54 @@ static NDIS_STATUS vboxNetLwfWinAttach(IN NDIS_HANDLE hFilter, IN NDIS_HANDLE hD
     pModuleCtx->cPendingBuffers = 0;
 #endif /* !VBOXNETLWF_SYNC_SEND */
 
+#ifdef VBOXNETLWF_FIXED_SIZE_POOLS
+    for (int i = 0; i < RT_ELEMENTS(g_cbPool); ++i)
+    {
+        /* Allocate buffer pools */
+        NET_BUFFER_LIST_POOL_PARAMETERS PoolParams;
+        NdisZeroMemory(&PoolParams, sizeof(PoolParams));
+        PoolParams.Header.Type = NDIS_OBJECT_TYPE_DEFAULT;
+        PoolParams.Header.Revision = NET_BUFFER_LIST_POOL_PARAMETERS_REVISION_1;
+        PoolParams.Header.Size = sizeof(PoolParams);
+        PoolParams.ProtocolId = NDIS_PROTOCOL_ID_DEFAULT;
+        PoolParams.fAllocateNetBuffer = TRUE;
+        PoolParams.ContextSize = 0; /** @todo Do we need to consider underlying drivers? I think not. */
+        PoolParams.PoolTag = VBOXNETLWF_MEM_TAG;
+        PoolParams.DataSize = g_cbPool[i];
+        pModuleCtx->hPool[i] = NdisAllocateNetBufferListPool(hFilter, &PoolParams);
+        if (!pModuleCtx->hPool[i])
+        {
+            Log(("ERROR! vboxNetLwfWinAttach: NdisAllocateNetBufferListPool failed\n"));
+            vboxNetLwfWinFreePools(pModuleCtx, i);
+            NdisFreeIoWorkItem(pModuleCtx->hWorkItem);
+            NdisFreeMemory(pModuleCtx, 0, 0);
+            return NDIS_STATUS_RESOURCES;
+        }
+        Log4(("vboxNetLwfWinAttach: allocated NBL+NB pool (data size=%u) 0x%p\n",
+              PoolParams.DataSize, pModuleCtx->hPool[i]));
+    }
+#else /* !VBOXNETLWF_FIXED_SIZE_POOLS */
+    /* Allocate buffer pools */
+    NET_BUFFER_LIST_POOL_PARAMETERS PoolParams;
+    NdisZeroMemory(&PoolParams, sizeof(PoolParams));
+    PoolParams.Header.Type = NDIS_OBJECT_TYPE_DEFAULT;
+    PoolParams.Header.Revision = NET_BUFFER_LIST_POOL_PARAMETERS_REVISION_1;
+    PoolParams.Header.Size = sizeof(PoolParams);
+    PoolParams.ProtocolId = NDIS_PROTOCOL_ID_DEFAULT;
+    PoolParams.fAllocateNetBuffer = TRUE;
+    PoolParams.ContextSize = 0; /** @todo Do we need to consider underlying drivers? I think not. */
+    PoolParams.PoolTag = VBOXNETLWF_MEM_TAG;
+    pModuleCtx->hPool = NdisAllocateNetBufferListPool(hFilter, &PoolParams);
+    if (!pModuleCtx->hPool)
+    {
+        Log(("ERROR! vboxNetLwfWinAttach: NdisAllocateNetBufferListPool failed\n"));
+        NdisFreeIoWorkItem(pModuleCtx->hWorkItem);
+        NdisFreeMemory(pModuleCtx, 0, 0);
+        return NDIS_STATUS_RESOURCES;
+    }
+    Log4(("vboxNetLwfWinAttach: allocated NBL+NB pool 0x%p\n", pModuleCtx->hPool));
+#endif /* !VBOXNETLWF_FIXED_SIZE_POOLS */
+
     NDIS_FILTER_ATTRIBUTES Attributes;
     NdisZeroMemory(&Attributes, sizeof(Attributes));
     Attributes.Header.Revision = NDIS_FILTER_ATTRIBUTES_REVISION_1;
@@ -915,8 +1168,12 @@ static NDIS_STATUS vboxNetLwfWinAttach(IN NDIS_HANDLE hFilter, IN NDIS_HANDLE hD
     if (Status != NDIS_STATUS_SUCCESS)
     {
         Log(("ERROR! vboxNetLwfWinAttach: NdisFSetAttributes failed with 0x%x\n", Status));
+#ifdef VBOXNETLWF_FIXED_SIZE_POOLS
+        vboxNetLwfWinFreePools(pModuleCtx, RT_ELEMENTS(g_cbPool));
+#else /* !VBOXNETLWF_FIXED_SIZE_POOLS */
         NdisFreeNetBufferListPool(pModuleCtx->hPool);
         Log4(("vboxNetLwfWinAttach: freed NBL+NB pool 0x%p\n", pModuleCtx->hPool));
+#endif /* !VBOXNETLWF_FIXED_SIZE_POOLS */
         NdisFreeIoWorkItem(pModuleCtx->hWorkItem);
         NdisFreeMemory(pModuleCtx, 0, 0);
         vboxNetLwfLogErrorEvent(IO_ERR_INTERNAL_ERROR, NDIS_STATUS_RESOURCES, 5);
@@ -966,11 +1223,15 @@ static VOID vboxNetLwfWinDetach(IN NDIS_HANDLE hModuleCtx)
      * it does not require us to do anything here since it has already been taken care of
      * by vboxNetLwfWinPause().
      */
+#ifdef VBOXNETLWF_FIXED_SIZE_POOLS
+    vboxNetLwfWinFreePools(pModuleCtx, RT_ELEMENTS(g_cbPool));
+#else /* !VBOXNETLWF_FIXED_SIZE_POOLS */
     if (pModuleCtx->hPool)
     {
         NdisFreeNetBufferListPool(pModuleCtx->hPool);
         Log4(("vboxNetLwfWinDetach: freed NBL+NB pool 0x%p\n", pModuleCtx->hPool));
     }
+#endif /* !VBOXNETLWF_FIXED_SIZE_POOLS */
     NdisFreeIoWorkItem(pModuleCtx->hWorkItem);
     NdisFreeMemory(hModuleCtx, 0, 0);
     Log4(("vboxNetLwfWinDetach: freed module context 0x%p\n", pModuleCtx));
@@ -1017,222 +1278,12 @@ static NDIS_STATUS vboxNetLwfWinRestart(IN NDIS_HANDLE hModuleCtx, IN PNDIS_FILT
     LogFlow(("==>vboxNetLwfWinRestart: module=%p\n", hModuleCtx));
     PVBOXNETLWF_MODULE pModuleCtx = (PVBOXNETLWF_MODULE)hModuleCtx;
     vboxNetLwfWinChangeState(pModuleCtx, LwfState_Restarting, LwfState_Paused);
-
+    vboxNetLwfWinChangeState(pModuleCtx, LwfState_Running, LwfState_Restarting);
     NDIS_STATUS Status = NDIS_STATUS_SUCCESS;
-    ULONG uNewMtuSize = 1500; /* If we fail to find out MTU, we can always assume 1500. */
-    PNDIS_RESTART_ATTRIBUTES pAttributes = pParameters->RestartAttributes;
-    while (pAttributes && pAttributes->Oid != OID_GEN_MINIPORT_RESTART_ATTRIBUTES)
-        pAttributes = pAttributes->Next;
-    if (pAttributes)
-    {
-        PNDIS_RESTART_GENERAL_ATTRIBUTES pGenAttrs = (PNDIS_RESTART_GENERAL_ATTRIBUTES)pAttributes->Data;
-        uNewMtuSize = pGenAttrs->MtuSize;
-    }
-
-    /* Let's see if MTU has changed. Re-allocate the pool if it has. */
-    if (pModuleCtx->uMtuSize != uNewMtuSize)
-    {
-        pModuleCtx->uMtuSize = uNewMtuSize;
-        if (pModuleCtx->hPool)
-        {
-            /*
-             * Don't need to wait for pending sends to complete since we are already
-             * in paused state. Just free the old pool.
-             */
-            NdisFreeNetBufferListPool(pModuleCtx->hPool);
-            pModuleCtx->hPool = NULL;
-        }
-    }
-    if (!pModuleCtx->hPool)
-    {
-        /* Allocate a new pool. */
-        NET_BUFFER_LIST_POOL_PARAMETERS PoolParams;
-        NdisZeroMemory(&PoolParams, sizeof(PoolParams));
-        PoolParams.Header.Type = NDIS_OBJECT_TYPE_DEFAULT;
-        PoolParams.Header.Revision = NET_BUFFER_LIST_POOL_PARAMETERS_REVISION_1;
-        PoolParams.Header.Size = sizeof(PoolParams);
-        PoolParams.ProtocolId = NDIS_PROTOCOL_ID_DEFAULT;
-        PoolParams.fAllocateNetBuffer = TRUE;
-        PoolParams.ContextSize = 0; /** @todo Do we need to consider underlying drivers? I think not. */
-        PoolParams.PoolTag = VBOXNETLWF_MEM_TAG;
-#ifndef VBOXNETLWF_SYNC_SEND
-        PoolParams.DataSize = VBOXNETLWF_MAX_FRAME_SIZE(pModuleCtx->uMtuSize);
-#endif /* !VBOXNETLWF_SYNC_SEND */
-
-        pModuleCtx->hPool = NdisAllocateNetBufferListPool(pModuleCtx->hFilter, &PoolParams);
-        if (!pModuleCtx->hPool)
-        {
-            Log(("ERROR! vboxNetLwfWinRestart: NdisAllocateNetBufferListPool failed\n"));
-            Status = NDIS_STATUS_RESOURCES;
-        }
-        else
-        {
-            Log4(("vboxNetLwfWinRestart: allocated NBL+NB pool 0x%p with MTU=%u\n",
-                  pModuleCtx->hPool, pModuleCtx->uMtuSize));
-        }
-    }
-
-    vboxNetLwfWinChangeState(pModuleCtx, Status == NDIS_STATUS_SUCCESS ? LwfState_Running : LwfState_Paused, LwfState_Restarting);
     LogFlow(("<==vboxNetLwfWinRestart: Status = 0x%x\n", Status));
     return Status;
 }
 
-
-static void vboxNetLwfWinDumpPackets(const char *pszMsg, PNET_BUFFER_LIST pBufLists)
-{
-    for (PNET_BUFFER_LIST pList = pBufLists; pList; pList = NET_BUFFER_LIST_NEXT_NBL(pList))
-    {
-        for (PNET_BUFFER pBuf = NET_BUFFER_LIST_FIRST_NB(pList); pBuf; pBuf = NET_BUFFER_NEXT_NB(pBuf))
-        {
-            Log(("%s packet: cb=%d\n", pszMsg, NET_BUFFER_DATA_LENGTH(pBuf)));
-        }
-    }
-}
-
-DECLINLINE(const char *) vboxNetLwfWinEthTypeStr(uint16_t uType)
-{
-    switch (uType)
-    {
-        case RTNET_ETHERTYPE_IPV4: return "IP";
-        case RTNET_ETHERTYPE_IPV6: return "IPv6";
-        case RTNET_ETHERTYPE_ARP:  return "ARP";
-    }
-    return "unknown";
-}
-
-#define VBOXNETLWF_PKTDMPSIZE 0x50
-
-/**
- * Dump a packet to debug log.
- *
- * @param   cpPacket    The packet.
- * @param   cb          The size of the packet.
- * @param   cszText     A string denoting direction of packet transfer.
- */
-DECLINLINE(void) vboxNetLwfWinDumpPacket(PCINTNETSG pSG, const char *cszText)
-{
-    uint8_t bPacket[VBOXNETLWF_PKTDMPSIZE];
-
-    uint32_t cb = pSG->cbTotal < VBOXNETLWF_PKTDMPSIZE ? pSG->cbTotal : VBOXNETLWF_PKTDMPSIZE;
-    IntNetSgReadEx(pSG, 0, cb, bPacket);
-
-    AssertReturnVoid(cb >= 14);
-
-    uint8_t *pHdr = bPacket;
-    uint8_t *pEnd = bPacket + cb;
-    AssertReturnVoid(pEnd - pHdr >= 14);
-    uint16_t uEthType = RT_N2H_U16(*(uint16_t*)(pHdr+12));
-    Log2(("NetLWF: %s (%d bytes), %RTmac => %RTmac, EthType=%s(0x%x)\n",
-          cszText, pSG->cbTotal, pHdr+6, pHdr, vboxNetLwfWinEthTypeStr(uEthType), uEthType));
-    pHdr += sizeof(RTNETETHERHDR);
-    if (uEthType == RTNET_ETHERTYPE_VLAN)
-    {
-        AssertReturnVoid(pEnd - pHdr >= 4);
-        uEthType = RT_N2H_U16(*(uint16_t*)(pHdr+2));
-        Log2((" + VLAN: id=%d EthType=%s(0x%x)\n", RT_N2H_U16(*(uint16_t*)(pHdr)) & 0xFFF,
-              vboxNetLwfWinEthTypeStr(uEthType), uEthType));
-        pHdr += 2 * sizeof(uint16_t);
-    }
-    uint8_t uProto = 0xFF;
-    switch (uEthType)
-    {
-        case RTNET_ETHERTYPE_IPV6:
-            AssertReturnVoid(pEnd - pHdr >= 40);
-            uProto = pHdr[6];
-            Log2((" + IPv6: %RTnaipv6 => %RTnaipv6\n", pHdr+8, pHdr+24));
-            pHdr += 40;
-            break;
-        case RTNET_ETHERTYPE_IPV4:
-            AssertReturnVoid(pEnd - pHdr >= 20);
-            uProto = pHdr[9];
-            Log2((" + IP: %RTnaipv4 => %RTnaipv4\n", *(uint32_t*)(pHdr+12), *(uint32_t*)(pHdr+16)));
-            pHdr += (pHdr[0] & 0xF) * 4;
-            break;
-        case RTNET_ETHERTYPE_ARP:
-            AssertReturnVoid(pEnd - pHdr >= 28);
-            AssertReturnVoid(RT_N2H_U16(*(uint16_t*)(pHdr+2)) == RTNET_ETHERTYPE_IPV4);
-            switch (RT_N2H_U16(*(uint16_t*)(pHdr+6)))
-            {
-                case 1: /* ARP request */
-                    Log2((" + ARP-REQ: who-has %RTnaipv4 tell %RTnaipv4\n",
-                          *(uint32_t*)(pHdr+24), *(uint32_t*)(pHdr+14)));
-                    break;
-                case 2: /* ARP reply */
-                    Log2((" + ARP-RPL: %RTnaipv4 is-at %RTmac\n",
-                          *(uint32_t*)(pHdr+14), pHdr+8));
-                    break;
-                default:
-                    Log2((" + ARP: unknown op %d\n", RT_N2H_U16(*(uint16_t*)(pHdr+6))));
-                    break;
-            }
-            break;
-        /* There is no default case as uProto is initialized with 0xFF */
-    }
-    while (uProto != 0xFF)
-    {
-        switch (uProto)
-        {
-            case 0:  /* IPv6 Hop-by-Hop option*/
-            case 60: /* IPv6 Destination option*/
-            case 43: /* IPv6 Routing option */
-            case 44: /* IPv6 Fragment option */
-                Log2((" + IPv6 option (%d): <not implemented>\n", uProto));
-                uProto = pHdr[0];
-                pHdr += pHdr[1] * 8 + 8; /* Skip to the next extension/protocol */
-                break;
-            case 51: /* IPv6 IPsec AH */
-                Log2((" + IPv6 IPsec AH: <not implemented>\n"));
-                uProto = pHdr[0];
-                pHdr += (pHdr[1] + 2) * 4; /* Skip to the next extension/protocol */
-                break;
-            case 50: /* IPv6 IPsec ESP */
-                /* Cannot decode IPsec, fall through */
-                Log2((" + IPv6 IPsec ESP: <not implemented>\n"));
-                uProto = 0xFF;
-                break;
-            case 59: /* No Next Header */
-                Log2((" + IPv6 No Next Header\n"));
-                uProto = 0xFF;
-                break;
-            case 58: /* IPv6-ICMP */
-                switch (pHdr[0])
-                {
-                    case 1:   Log2((" + IPv6-ICMP: destination unreachable, code %d\n", pHdr[1])); break;
-                    case 128: Log2((" + IPv6-ICMP: echo request\n")); break;
-                    case 129: Log2((" + IPv6-ICMP: echo reply\n")); break;
-                    default:  Log2((" + IPv6-ICMP: unknown type %d, code %d\n", pHdr[0], pHdr[1])); break;
-                }
-                uProto = 0xFF;
-                break;
-            case 1: /* ICMP */
-                switch (pHdr[0])
-                {
-                    case 0:  Log2((" + ICMP: echo reply\n")); break;
-                    case 8:  Log2((" + ICMP: echo request\n")); break;
-                    case 3:  Log2((" + ICMP: destination unreachable, code %d\n", pHdr[1])); break;
-                    default: Log2((" + ICMP: unknown type %d, code %d\n", pHdr[0], pHdr[1])); break;
-                }
-                uProto = 0xFF;
-                break;
-            case 6: /* TCP */
-                Log2((" + TCP: src=%d dst=%d seq=%x ack=%x\n",
-                      RT_N2H_U16(*(uint16_t*)(pHdr)), RT_N2H_U16(*(uint16_t*)(pHdr+2)),
-                      RT_N2H_U32(*(uint32_t*)(pHdr+4)), RT_N2H_U32(*(uint32_t*)(pHdr+8))));
-                uProto = 0xFF;
-                break;
-            case 17: /* UDP */
-                Log2((" + UDP: src=%d dst=%d\n",
-                      RT_N2H_U16(*(uint16_t*)(pHdr)), RT_N2H_U16(*(uint16_t*)(pHdr+2))));
-                uProto = 0xFF;
-                break;
-            default:
-                Log2((" + Unknown: proto=0x%x\n", uProto));
-                uProto = 0xFF;
-                break;
-        }
-    }
-    Log3(("%.*Rhxd\n", cb, bPacket));
-}
 
 static void vboxNetLwfWinDestroySG(PINTNETSG pSG)
 {
@@ -1250,16 +1301,25 @@ DECLINLINE(ULONG) vboxNetLwfWinCalcSegments(PNET_BUFFER pNetBuf)
 
 DECLINLINE(void) vboxNetLwfWinFreeMdlChain(PMDL pMdl)
 {
-#ifdef VBOXNETLWF_SYNC_SEND
+#ifndef VBOXNETLWF_FIXED_SIZE_POOLS
     PMDL pMdlNext;
     while (pMdl)
     {
         pMdlNext = pMdl->Next;
+#ifndef VBOXNETLWF_SYNC_SEND
+        PUCHAR pDataBuf;
+        ULONG cb = 0;
+        NdisQueryMdl(pMdl, &pDataBuf, &cb, NormalPagePriority);
+#endif /* !VBOXNETLWF_SYNC_SEND */
         NdisFreeMdl(pMdl);
         Log4(("vboxNetLwfWinFreeMdlChain: freed MDL 0x%p\n", pMdl));
+#ifndef VBOXNETLWF_SYNC_SEND
+        NdisFreeMemory(pDataBuf, 0, 0);
+        Log4(("vboxNetLwfWinFreeMdlChain: freed data buffer 0x%p\n", pDataBuf));
+#endif /* !VBOXNETLWF_SYNC_SEND */
         pMdl = pMdlNext;
     }
-#endif /* VBOXNETLWF_SYNC_SEND */
+#endif /* VBOXNETLWF_FIXED_SIZE_POOLS */
 }
 
 /** @todo
@@ -1270,8 +1330,8 @@ DECLINLINE(void) vboxNetLwfWinFreeMdlChain(PMDL pMdl)
 static PNET_BUFFER_LIST vboxNetLwfWinSGtoNB(PVBOXNETLWF_MODULE pModule, PINTNETSG pSG)
 {
     AssertReturn(pSG->cSegsUsed >= 1, NULL);
-    LogFlow(("==>vboxNetLwfWinSGtoNB: segments=%d hPool=%p cb=%u max=%u\n", pSG->cSegsUsed,
-             pModule->hPool, pSG->cbTotal, VBOXNETLWF_MAX_FRAME_SIZE(pModule->uMtuSize)));
+    LogFlow(("==>vboxNetLwfWinSGtoNB: segments=%d hPool=%p cb=%u\n", pSG->cSegsUsed,
+             pModule->hPool, pSG->cbTotal));
     AssertReturn(pModule->hPool, NULL);
 
 #ifdef VBOXNETLWF_SYNC_SEND
@@ -1317,11 +1377,29 @@ static PNET_BUFFER_LIST vboxNetLwfWinSGtoNB(PVBOXNETLWF_MODULE pModule, PINTNETS
         vboxNetLwfWinFreeMdlChain(pMdl);
     }
 #else /* !VBOXNETLWF_SYNC_SEND */
-    AssertReturn(pSG->cbTotal <= VBOXNETLWF_MAX_FRAME_SIZE(pModule->uMtuSize), NULL); 
-    PNET_BUFFER_LIST pBufList = NdisAllocateNetBufferList(pModule->hPool,
+
+# ifdef VBOXNETLWF_FIXED_SIZE_POOLS
+    int iPool = 0;
+    ULONG cbFrame = VBOXNETLWF_MAX_FRAME_SIZE(pSG->cbTotal);
+    /* Let's find the appropriate pool first */
+    for (iPool = 0; iPool < RT_ELEMENTS(g_cbPool); ++iPool)
+        if (cbFrame <= g_cbPool[iPool])
+            break;
+    if (iPool >= RT_ELEMENTS(g_cbPool))
+    {
+        Log(("ERROR! vboxNetLwfWinSGtoNB: frame is too big (%u > %u), drop it.\n", cbFrame, g_cbPool[RT_ELEMENTS(g_cbPool)-1]));
+        LogFlow(("<==vboxNetLwfWinSGtoNB: return NULL\n"));
+        return NULL;
+    }
+    PNET_BUFFER_LIST pBufList = NdisAllocateNetBufferList(pModule->hPool[iPool],
                                                           0 /** @todo ContextSize */,
                                                           0 /** @todo ContextBackFill */);
-    NET_BUFFER_LIST_NEXT_NBL(pBufList) = NULL; /** @todo Is it even needed? */
+    if (!pBufList)
+    {
+        Log(("ERROR! vboxNetLwfWinSGtoNB: failed to allocate netbuffer (cb=%u) from pool %d\n", cbFrame, iPool));
+        LogFlow(("<==vboxNetLwfWinSGtoNB: return NULL\n"));
+        return NULL;
+    }
     NET_BUFFER *pBuffer = NET_BUFFER_LIST_FIRST_NB(pBufList);
     NDIS_STATUS Status = NdisRetreatNetBufferDataStart(pBuffer, pSG->cbTotal, 0 /** @todo DataBackfill */, NULL);
     if (Status == NDIS_STATUS_SUCCESS)
@@ -1334,9 +1412,8 @@ static PNET_BUFFER_LIST vboxNetLwfWinSGtoNB(PVBOXNETLWF_MODULE pModule, PINTNETS
                 NdisMoveMemory(pDst, pSG->aSegs[i].pv, pSG->aSegs[i].cb);
                 pDst += pSG->aSegs[i].cb;
             }
-            Log4(("vboxNetLwfWinSGtoNB: allocated NBL+NB+MDL+Data 0x%p\n", pBufList));
+            Log4(("vboxNetLwfWinSGtoNB: allocated NBL+NB 0x%p\n", pBufList));
             pBufList->SourceHandle = pModule->hFilter;
-            /** @todo Do we need to initialize anything else? */
         }
         else
         {
@@ -1352,6 +1429,54 @@ static PNET_BUFFER_LIST vboxNetLwfWinSGtoNB(PVBOXNETLWF_MODULE pModule, PINTNETS
         NdisFreeNetBufferList(pBufList);
         pBufList = NULL;
     }
+# else /* !VBOXNETLWF_FIXED_SIZE_POOLS */
+    PNET_BUFFER_LIST pBufList = NULL;
+    ULONG cbMdl = VBOXNETLWF_MAX_FRAME_SIZE(pSG->cbTotal);
+    ULONG uDataOffset = cbMdl - pSG->cbTotal;
+    PUCHAR pDataBuf = (PUCHAR)NdisAllocateMemoryWithTagPriority(pModule->hFilter, cbMdl,
+                                                                VBOXNETLWF_MEM_TAG, NormalPoolPriority);
+    if (pDataBuf)
+    {
+        Log4(("vboxNetLwfWinSGtoNB: allocated data buffer (cb=%u) 0x%p\n", cbMdl, pDataBuf));
+        PMDL pMdl = NdisAllocateMdl(pModule->hFilter, pDataBuf, cbMdl);
+        if (!pMdl)
+        {
+            NdisFreeMemory(pDataBuf, 0, 0);
+            Log4(("vboxNetLwfWinSGtoNB: freed data buffer 0x%p\n", pDataBuf));
+            Log(("ERROR! vboxNetLwfWinSGtoNB: failed to allocate an MDL (cb=%u)\n", cbMdl));
+            LogFlow(("<==vboxNetLwfWinSGtoNB: return NULL\n"));
+            return NULL;
+        }
+        PUCHAR pDst = pDataBuf + uDataOffset;
+        for (int i = 0; i < pSG->cSegsUsed; i++)
+        {
+            NdisMoveMemory(pDst, pSG->aSegs[i].pv, pSG->aSegs[i].cb);
+            pDst += pSG->aSegs[i].cb;
+        }
+        pBufList = NdisAllocateNetBufferAndNetBufferList(pModule->hPool,
+                                                         0 /* ContextSize */,
+                                                         0 /* ContextBackFill */,
+                                                         pMdl,
+                                                         uDataOffset,
+                                                         pSG->cbTotal);
+        if (pBufList)
+        {
+            Log4(("vboxNetLwfWinSGtoNB: allocated NBL+NB 0x%p\n", pBufList));
+            pBufList->SourceHandle = pModule->hFilter;
+            /** @todo Do we need to initialize anything else? */
+        }
+        else
+        {
+            Log(("ERROR! vboxNetLwfWinSGtoNB: failed to allocate an NBL+NB\n"));
+            vboxNetLwfWinFreeMdlChain(pMdl);
+        }
+    }
+    else
+    {
+        Log(("ERROR! vboxNetLwfWinSGtoNB: failed to allocate data buffer (size=%u)\n", cbMdl));
+    }
+# endif /* !VBOXNETLWF_FIXED_SIZE_POOLS */
+
 #endif /* !VBOXNETLWF_SYNC_SEND */
     LogFlow(("<==vboxNetLwfWinSGtoNB: return %p\n", pBufList));
     return pBufList;
@@ -1528,6 +1653,7 @@ VOID vboxNetLwfWinSendNetBufferLists(IN NDIS_HANDLE hModuleCtx, IN PNET_BUFFER_L
     size_t cb = 0;
     LogFlow(("==>vboxNetLwfWinSendNetBufferLists: module=%p\n", hModuleCtx));
     PVBOXNETLWF_MODULE pModule = (PVBOXNETLWF_MODULE)hModuleCtx;
+    vboxNetLwfWinDumpPackets("vboxNetLwfWinSendNetBufferLists: got", pBufLists);
 
     if (!ASMAtomicReadBool(&pModule->fActive))
     {
@@ -1663,6 +1789,7 @@ VOID vboxNetLwfWinReceiveNetBufferLists(IN NDIS_HANDLE hModuleCtx,
     /// @todo Do we need loopback handling?
     LogFlow(("==>vboxNetLwfWinReceiveNetBufferLists: module=%p\n", hModuleCtx));
     PVBOXNETLWF_MODULE pModule = (PVBOXNETLWF_MODULE)hModuleCtx;
+    vboxNetLwfWinDumpPackets("vboxNetLwfWinReceiveNetBufferLists: got", pBufLists);
 
     if (!ASMAtomicReadBool(&pModule->fActive))
     {
@@ -2172,6 +2299,7 @@ int vboxNetFltPortOsXmit(PVBOXNETFLTINS pThis, void *pvIfData, PINTNETSG pSG, ui
         PNET_BUFFER_LIST pBufList = vboxNetLwfWinSGtoNB(pModule, pSG);
         if (pBufList)
         {
+            vboxNetLwfWinDumpPackets("vboxNetFltPortOsXmit: sending down", pBufList);
 #ifdef VBOXNETLWF_SYNC_SEND
             aEvents[nEvents++] = &pModule->EventWire;
 #else /* !VBOXNETLWF_SYNC_SEND */
@@ -2186,6 +2314,7 @@ int vboxNetFltPortOsXmit(PVBOXNETFLTINS pThis, void *pvIfData, PINTNETSG pSG, ui
         PNET_BUFFER_LIST pBufList = vboxNetLwfWinSGtoNB(pModule, pSG);
         if (pBufList)
         {
+            vboxNetLwfWinDumpPackets("vboxNetFltPortOsXmit: sending up", pBufList);
 #ifdef VBOXNETLWF_SYNC_SEND
             aEvents[nEvents++] = &pModule->EventHost;
 #else /* !VBOXNETLWF_SYNC_SEND */
@@ -2300,9 +2429,9 @@ int vboxNetFltOsConnectIt(PVBOXNETFLTINS pThis)
  * debug purposes only!
  * #define VBOXNETLWFWIN_DEBUGIPADDRNOTIF 1
  */
-static void vboxNetLwfWinIpAddrChangeCallback(IN PVOID pvCtx,
-                                              IN PMIB_UNICASTIPADDRESS_ROW pRow,
-                                              IN MIB_NOTIFICATION_TYPE enmNotifType)
+static void __stdcall vboxNetLwfWinIpAddrChangeCallback(IN PVOID pvCtx,
+                                                        IN PMIB_UNICASTIPADDRESS_ROW pRow,
+                                                        IN MIB_NOTIFICATION_TYPE enmNotifType)
 {
     PVBOXNETFLTINS pThis = (PVBOXNETFLTINS)pvCtx;
     PVBOXNETLWF_MODULE pModule = (PVBOXNETLWF_MODULE)pThis->u.s.WinIf.hModuleCtx;

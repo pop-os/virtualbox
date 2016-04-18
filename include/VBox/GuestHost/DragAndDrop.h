@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2014-2015 Oracle Corporation
+ * Copyright (C) 2014-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -38,33 +38,52 @@
 #include <iprt/cpp/ministring.h>
 
 /**
- * Structure for maintaining a "dropped files" directory
+ * Class for maintaining a "dropped files" directory
  * on the host or guest. This will contain all received files & directories
  * for a single drag and drop operation.
+ *
+ * In case of a failed drag and drop operation this class can also
+ * perform a gentle rollback if required.
  */
-typedef struct DNDDIRDROPPEDFILES
+class DnDDroppedFiles
 {
+
+public:
+
+    DnDDroppedFiles(void);
+    DnDDroppedFiles(const char *pszPath, uint32_t fFlags);
+    virtual ~DnDDroppedFiles(void);
+
+public:
+
+    int AddFile(const char *pszFile);
+    int AddDir(const char *pszDir);
+    int Close(void);
+    bool IsOpen(void) const;
+    int OpenEx(const char *pszPath, uint32_t fFlags);
+    int OpenTemp(uint32_t fFlags);
+    const char *GetDirAbs(void) const;
+    int Reopen(void);
+    int Reset(bool fDeleteContent);
+    int Rollback(void);
+
+protected:
+
+    int closeInternal(void);
+
+protected:
+
+    /** Open flags. */
+    uint32_t                     m_fOpen;
     /** Directory handle for drop directory. */
-    PRTDIR                       hDir;
-    /** Flag indicating whether the drop directory
-     *  has been opened for processing or not. */
-    bool                         fOpen;
+    PRTDIR                       m_hDir;
     /** Absolute path to drop directory. */
-    RTCString                    strPathAbs;
+    RTCString                    m_strPathAbs;
     /** List for holding created directories in the case of a rollback. */
-    RTCList<RTCString>           lstDirs;
+    RTCList<RTCString>           m_lstDirs;
     /** List for holding created files in the case of a rollback. */
-    RTCList<RTCString>           lstFiles;
-
-} DNDDIRDROPPEDFILES, *PDNDDIRDROPPEDFILES;
-
-int DnDDirDroppedAddFile(PDNDDIRDROPPEDFILES pDir, const char *pszFile);
-int DnDDirDroppedAddDir(PDNDDIRDROPPEDFILES pDir, const char *pszDir);
-int DnDDirDroppedFilesCreateAndOpenEx(const char *pszPath, PDNDDIRDROPPEDFILES pDir);
-int DnDDirDroppedFilesCreateAndOpenTemp(PDNDDIRDROPPEDFILES pDir);
-int DnDDirDroppedFilesClose(PDNDDIRDROPPEDFILES pDir, bool fRemove);
-const char *DnDDirDroppedFilesGetDirAbs(PDNDDIRDROPPEDFILES pDir);
-int DnDDirDroppedFilesRollback(PDNDDIRDROPPEDFILES pDir);
+    RTCList<RTCString>           m_lstFiles;
+};
 
 bool DnDMIMEHasFileURLs(const char *pcszFormat, size_t cchFormatMax);
 bool DnDMIMENeedsDropDir(const char *pcszFormat, size_t cchFormatMax);
@@ -148,6 +167,8 @@ protected:
     Type      m_Type;
     RTCString m_strSrcPath;
     RTCString m_strTgtPath;
+    /** Whether the object is in "opened" state. */
+    bool      m_fOpen;
     /** Object (file/directory) mode. */
     uint32_t  m_fMode;
     /** Size (in bytes) to read/write. */
@@ -182,10 +203,10 @@ public:
     bool IsEmpty(void) const { return m_lstTree.isEmpty(); }
     void RemoveFirst(void);
     int RootFromURIData(const void *pvData, size_t cbData, uint32_t fFlags);
-    RTCString RootToString(const RTCString &strPathBase = "", const RTCString &strSeparator = "\r\n");
-    size_t RootCount(void) const { return m_lstRoot.size(); }
-    uint32_t TotalCount(void) const { return m_cTotal; }
-    size_t TotalBytes(void) const { return m_cbTotal; }
+    RTCString RootToString(const RTCString &strPathBase = "", const RTCString &strSeparator = "\r\n") const;
+    uint64_t RootCount(void) const { return m_lstRoot.size(); }
+    uint64_t TotalCount(void) const { return m_cTotal; }
+    uint64_t TotalBytes(void) const { return m_cbTotal; }
 
 protected:
 
@@ -203,10 +224,12 @@ protected:
      *  added (lazy or not). */
     RTCList<DnDURIObject *> m_lstTree;
     /** Total number of all URI objects. */
-    uint32_t                m_cTotal; /** @todo Really needed? m_lstTree.size()? */
+    uint64_t                m_cTotal;
     /** Total size of all URI objects, that is, the file
-     *  size of all objects (in bytes). */
-    size_t                  m_cbTotal;
+     *  size of all objects (in bytes).
+     *  Note: Do *not* size_t here, as we also want to support large files
+     *        on 32-bit guests. */
+    uint64_t                m_cbTotal;
 };
 #endif /* ___VBox_GuestHost_DragAndDrop_h */
 
