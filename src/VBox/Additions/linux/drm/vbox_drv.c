@@ -51,6 +51,7 @@
 
 #include <linux/module.h>
 #include <linux/console.h>
+#include <linux/vt_kern.h>
 
 #include <drm/drmP.h>
 #include <drm/drm_crtc_helper.h>
@@ -84,14 +85,112 @@ static void vbox_pci_remove(struct pci_dev *pdev)
 }
 
 
+
+static int vbox_drm_freeze(struct drm_device *dev)
+{
+    drm_kms_helper_poll_disable(dev);
+
+    pci_save_state(dev->pdev);
+
+    console_lock();
+    vbox_fbdev_set_suspend(dev, 1);
+    console_unlock();
+    return 0;
+}
+
+static int vbox_drm_thaw(struct drm_device *dev)
+{
+    int error = 0;
+
+    drm_mode_config_reset(dev);
+    drm_helper_resume_force_mode(dev);
+
+    console_lock();
+    vbox_fbdev_set_suspend(dev, 0);
+    console_unlock();
+    return error;
+}
+
+static int vbox_drm_resume(struct drm_device *dev)
+{
+    int ret;
+
+    if (pci_enable_device(dev->pdev))
+        return -EIO;
+
+       ret = vbox_drm_thaw(dev);
+    if (ret)
+       return ret;
+
+    drm_kms_helper_poll_enable(dev);
+    return 0;
+}
+
+static int vbox_pm_suspend(struct device *dev)
+{
+    struct pci_dev *pdev = to_pci_dev(dev);
+    struct drm_device *ddev = pci_get_drvdata(pdev);
+    int error;
+
+    error = vbox_drm_freeze(ddev);
+    if (error)
+        return error;
+
+    pci_disable_device(pdev);
+    pci_set_power_state(pdev, PCI_D3hot);
+    return 0;
+}
+
+static int vbox_pm_resume(struct device *dev)
+{
+    struct pci_dev *pdev = to_pci_dev(dev);
+    struct drm_device *ddev = pci_get_drvdata(pdev);
+    return vbox_drm_resume(ddev);
+}
+
+static int vbox_pm_freeze(struct device *dev)
+{
+    struct pci_dev *pdev = to_pci_dev(dev);
+    struct drm_device *ddev = pci_get_drvdata(pdev);
+
+    if (!ddev || !ddev->dev_private)
+        return -ENODEV;
+    return vbox_drm_freeze(ddev);
+
+}
+
+static int vbox_pm_thaw(struct device *dev)
+{
+    struct pci_dev *pdev = to_pci_dev(dev);
+    struct drm_device *ddev = pci_get_drvdata(pdev);
+    return vbox_drm_thaw(ddev);
+}
+
+static int vbox_pm_poweroff(struct device *dev)
+{
+    struct pci_dev *pdev = to_pci_dev(dev);
+    struct drm_device *ddev = pci_get_drvdata(pdev);
+
+    return vbox_drm_freeze(ddev);
+}
+
+static const struct dev_pm_ops vbox_pm_ops = {
+    .suspend = vbox_pm_suspend,
+    .resume = vbox_pm_resume,
+    .freeze = vbox_pm_freeze,
+    .thaw = vbox_pm_thaw,
+    .poweroff = vbox_pm_poweroff,
+    .restore = vbox_pm_resume,
+};
+
 static struct pci_driver vbox_pci_driver =
 {
     .name = DRIVER_NAME,
     .id_table = pciidlist,
     .probe = vbox_pci_probe,
     .remove = vbox_pci_remove,
+    .driver.pm = &vbox_pm_ops,
 };
-
 
 static const struct file_operations vbox_fops =
 {
@@ -110,16 +209,41 @@ static const struct file_operations vbox_fops =
     .read = drm_read,
 };
 
+static int vbox_master_set(struct drm_device *dev,
+                           struct drm_file *file_priv,
+                           bool from_open)
+{
+    struct vbox_private *vbox = dev->dev_private;
+    vbox->initial_mode_queried = false;
+    vbox_disable_accel(vbox);
+    return 0;
+}
+
+static void vbox_master_drop(struct drm_device *dev,
+                             struct drm_file *file_priv,
+                             bool from_release)
+{
+    struct vbox_private *vbox = dev->dev_private;
+    vbox->initial_mode_queried = false;
+    vbox_disable_accel(vbox);
+}
+
 static struct drm_driver driver =
 {
-    .driver_features = DRIVER_MODESET | DRIVER_GEM,
+    .driver_features = DRIVER_MODESET | DRIVER_GEM | DRIVER_HAVE_IRQ | DRIVER_IRQ_SHARED,
     .dev_priv_size = 0,
 
     .load = vbox_driver_load,
     .unload = vbox_driver_unload,
     .lastclose = vbox_driver_lastclose,
+    .master_set = vbox_master_set,
+    .master_drop = vbox_master_drop,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 18, 0)
+    .set_busid = drm_pci_set_busid,
+#endif
 
     .fops = &vbox_fops,
+    .irq_handler = vbox_irq_handler,
     .name = DRIVER_NAME,
     .desc = DRIVER_DESC,
     .date = DRIVER_DATE,
@@ -130,12 +254,18 @@ static struct drm_driver driver =
     .gem_free_object = vbox_gem_free_object,
     .dumb_create = vbox_dumb_create,
     .dumb_map_offset = vbox_dumb_mmap_offset,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 12, 0)
     .dumb_destroy = vbox_dumb_destroy,
+#else
+    .dumb_destroy = drm_gem_dumb_destroy,
+#endif
 
 };
 
 static int __init vbox_init(void)
 {
+    unsigned i;
+
 #ifdef CONFIG_VGA_CONSOLE
     if (vgacon_text_force() && vbox_modeset == -1)
         return -EINVAL;
@@ -143,6 +273,13 @@ static int __init vbox_init(void)
 
     if (vbox_modeset == 0)
         return -EINVAL;
+
+    /* Do not load if any of the virtual consoles is in graphics mode to be
+     * sure that we do not pick a fight with a user-mode driver or VESA. */
+    for (i = 0; i < MAX_NR_CONSOLES - 1; ++i)
+        if (vc_cons[i].d && vc_cons[i].d->vc_mode == KD_GRAPHICS)
+            return -EINVAL;
+
     return drm_pci_init(&driver, &vbox_pci_driver);
 }
 static void __exit vbox_exit(void)

@@ -148,6 +148,7 @@ PROGRAMS.win += \
 	tstRTLocalIpc \
 	tstRTProcWait \
 	tstFileAppendWin-1 \
+	tstRTNtPath-1 \
 	ntGetTimerResolution
 PROGRAMS.linux += \
 	tstRTProcWait \
@@ -485,6 +486,9 @@ tstNoCrt-1_SOURCES = \
 	../common/string/strcmp.asm \
 	../common/string/strcpy.asm \
 	../common/string/strlen.asm
+
+tstRTNtPath-1_TEMPLATE = VBOXR3TSTEXE
+tstRTNtPath-1_SOURCES = tstRTNtPath-1.cpp
 
 tstOnce_TEMPLATE = VBOXR3TSTEXE
 tstOnce_SOURCES = tstOnce.cpp

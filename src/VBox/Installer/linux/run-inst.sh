@@ -78,8 +78,6 @@ add_symlink()
         { echo 1>&2 "$self: no target specified"; return 1; }
     test -d "$link_dir" ||
         { echo 1>&2 "$self: link directory $link_dir does not exist"; return 1; }
-    test ! -e "$link" ||
-        { echo 1>&2 "$self: link file "$link" already exists"; return 1; }
     expr "$link" : "/.*" > /dev/null ||
         { echo 1>&2 "$self: link file name is not absolute"; return 1; }
     rm -f "$link"
@@ -321,6 +319,11 @@ umask 022
 # Set installer modules directory
 INSTALLATION_MODULES_DIR="$INSTALLATION_DIR/installer/"
 
+# install the new version
+mkdir -p -m 755 "$CONFIG_DIR"
+test ! -d "$INSTALLATION_DIR" && REMOVE_INSTALLATION_DIR=1
+mkdir -p -m 755 "$INSTALLATION_DIR"
+
 # install and load installer modules
 if [ -d installer ]; then
   info "Copying additional installer modules ..."
@@ -336,10 +339,6 @@ if [ -d installer ]; then
   done
 fi
 
-# install the new version
-mkdir -p -m 755 "$CONFIG_DIR"
-test ! -d "$INSTALLATION_DIR" && REMOVE_INSTALLATION_DIR=1
-mkdir -p -m 755 "$INSTALLATION_DIR"
 # Create a list of the files in the archive, skipping any directories which
 # already exist in the filesystem.
 bzip2 -d -c "$ARCH_PACKAGE" | tar -tf - |

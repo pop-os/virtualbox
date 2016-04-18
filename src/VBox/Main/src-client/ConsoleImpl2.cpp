@@ -491,20 +491,7 @@ static int SetBiosDiskInfo(ComPtr<IMachine> pMachine, PCFGMNODE pCfg, PCFGMNODE 
                 lPortUsed[u32HDCount++] = lPortNum;
                 LogFlowFunc(("HD port Count=%d\n", u32HDCount));
             }
-
-            /* Configure the hotpluggable flag for the port. */
-            BOOL fHotPluggable = FALSE;
-            hrc = pMediumAtt->COMGETTER(HotPluggable)(&fHotPluggable); H();
-            if (SUCCEEDED(hrc))
-            {
-                PCFGMNODE pPortCfg;
-                char szName[24];
-                RTStrPrintf(szName, sizeof(szName), "Port%d", lPortNum);
-
-                InsertConfigNode(pCfg, szName, &pPortCfg);
-                InsertConfigInteger(pPortCfg, "Hotpluggable", fHotPluggable ? 1 : 0);
-            }
-         }
+        }
     }
 
 
@@ -2039,6 +2026,31 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
                     InsertConfigInteger(pCfg, "PortCount", cPorts);
                     InsertConfigInteger(pCfg, "Bootable",  fBootable);
 
+                    com::SafeIfaceArray<IMediumAttachment> atts;
+                    hrc = pMachine->GetMediumAttachmentsOfController(controllerName.raw(),
+                                                                     ComSafeArrayAsOutParam(atts));  H();
+
+                    /* Configure the hotpluggable flag for the port. */
+                    for (unsigned idxAtt = 0; idxAtt < atts.size(); ++idxAtt)
+                    {
+                        IMediumAttachment *pMediumAtt = atts[idxAtt];
+
+                        LONG lPortNum = 0;
+                        hrc = pMediumAtt->COMGETTER(Port)(&lPortNum);                       H();
+
+                        BOOL fHotPluggable = FALSE;
+                        hrc = pMediumAtt->COMGETTER(HotPluggable)(&fHotPluggable);          H();
+                        if (SUCCEEDED(hrc))
+                        {
+                            PCFGMNODE pPortCfg;
+                            char szName[24];
+                            RTStrPrintf(szName, sizeof(szName), "Port%d", lPortNum);
+
+                            InsertConfigNode(pCfg, szName, &pPortCfg);
+                            InsertConfigInteger(pPortCfg, "Hotpluggable", fHotPluggable ? 1 : 0);
+                        }
+                    }
+
                     /* BIOS configuration values, first AHCI controller only. */
                     if (   !pBusMgr->hasPCIDevice("ahci", 1)
                         && pBiosCfg)
@@ -2424,7 +2436,9 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
             hrc = pMachine->GetSerialPort(ulInstance, serialPort.asOutParam());             H();
             BOOL fEnabledSerPort = FALSE;
             if (serialPort)
+            {
                 hrc = serialPort->COMGETTER(Enabled)(&fEnabledSerPort);                     H();
+            }
             if (!fEnabledSerPort)
                 continue;
 
@@ -2561,7 +2575,9 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
         ComPtr<IAudioAdapter> audioAdapter;
         hrc = pMachine->COMGETTER(AudioAdapter)(audioAdapter.asOutParam());                 H();
         if (audioAdapter)
+        {
             hrc = audioAdapter->COMGETTER(Enabled)(&fAudioEnabled);                         H();
+        }
 
         if (fAudioEnabled)
         {
@@ -3383,6 +3399,8 @@ int Console::i_configGraphicsController(PCFGMNODE pDevices,
             BOOL f3DEnabled;
             hrc = ptrMachine->COMGETTER(Accelerate3DEnabled)(&f3DEnabled);                  H();
             InsertConfigInteger(pCfg, "VMSVGA3dEnabled", f3DEnabled);
+#else  
+            LogRel(("VMSVGA3d not available in this build!\n"));
 #endif
         }
 #endif
@@ -4576,7 +4594,7 @@ int Console::i_configNetwork(const char *pszDevice,
                     size_t pos, ppos;
                     pos = ppos = 0;
 #define ITERATE_TO_NEXT_TERM(res, str, pos, ppos) \
-    do { \
+    { \
         pos = str.find(",", ppos); \
         if (pos == Utf8Str::npos) \
         { \
@@ -4586,7 +4604,7 @@ int Console::i_configNetwork(const char *pszDevice,
         res = str.substr(ppos, pos - ppos); \
         Log2((#res " %s pos:%d, ppos:%d\n", res.c_str(), pos, ppos)); \
         ppos = pos + 1; \
-    } while (0)
+    } /* no do { ... } while because of 'continue' */
                     ITERATE_TO_NEXT_TERM(strName, utf, pos, ppos);
                     ITERATE_TO_NEXT_TERM(strProto, utf, pos, ppos);
                     ITERATE_TO_NEXT_TERM(strHostIP, utf, pos, ppos);

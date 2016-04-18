@@ -524,7 +524,7 @@ GLboolean stubUpdateWindowVisibileRegions(WindowInfo *pWindow)
         pWindow->pVisibleRegions = pXRects;
         pWindow->cVisibleRegions = cRects;
 
-        pGLRects = crAlloc(4*cRects*sizeof(GLint));
+        pGLRects = crAlloc(cRects ? 4*cRects*sizeof(GLint) : 4*sizeof(GLint));
         if (!pGLRects)
         {
             crWarning("stubUpdateWindowVisibileRegions: failed to allocate %lu bytes",

@@ -103,7 +103,7 @@ const int XKeyRelease = KeyRelease;
 #ifdef DEBUG_andy
 /* Macro for debugging drag and drop actions which usually would
  * go to Main's logging group. */
-# define DNDDEBUG(x) LogRel(x)
+# define DNDDEBUG(x) LogFlowFunc(x)
 #else
 # define DNDDEBUG(x)
 #endif

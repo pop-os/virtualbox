@@ -130,8 +130,8 @@ int usbLibVuDeviceValidate(PVBOXUSB_DEV pVuDev)
             break;
         }
 
-        if (version.u32Major != USBDRV_MAJOR_VERSION
-                || version.u32Minor <  USBDRV_MINOR_VERSION)
+        if (   version.u32Major != USBDRV_MAJOR_VERSION
+            || version.u32Minor <  USBDRV_MINOR_VERSION)
         {
             AssertMsgFailed(("Invalid version %d:%d vs %d:%d\n", version.u32Major, version.u32Minor, USBDRV_MAJOR_VERSION, USBDRV_MINOR_VERSION));
             break;
@@ -281,29 +281,6 @@ static int usbLibVuGetDevices(PVBOXUSB_DEV *ppVuDevs, uint32_t *pcVuDevs)
     return VINF_SUCCESS;
 }
 
-static void usbLibDevFree(PUSBDEVICE pDevice)
-{
-    RTStrFree((char*)pDevice->pszAddress);
-    RTStrFree((char*)pDevice->pszHubName);
-    if (pDevice->pszManufacturer)
-        RTStrFree((char*)pDevice->pszManufacturer);
-    if (pDevice->pszProduct)
-        RTStrFree((char*)pDevice->pszProduct);
-    if (pDevice->pszSerialNumber)
-        RTStrFree((char*)pDevice->pszSerialNumber);
-    RTMemFree(pDevice);
-}
-
-static void usbLibDevFreeList(PUSBDEVICE pDevice)
-{
-    while (pDevice)
-    {
-        PUSBDEVICE pNext = pDevice->pNext;
-        usbLibDevFree(pDevice);
-        pDevice = pNext;
-    }
-}
-
 static int usbLibDevPopulate(PUSBDEVICE pDev, PUSB_NODE_CONNECTION_INFORMATION_EX pConInfo, ULONG iPort, LPCSTR lpszDrvKeyName, LPCSTR lpszHubName, PVBOXUSB_STRING_DR_ENTRY pDrList)
 {
     pDev->bcdUSB = pConInfo->DeviceDescriptor.bcdUSB;
@@ -321,45 +298,40 @@ static int usbLibDevPopulate(PUSBDEVICE pDev, PUSB_NODE_CONNECTION_INFORMATION_E
     else
         pDev->enmState = USBDEVICESTATE_USED_BY_HOST_CAPTURABLE;
     pDev->enmSpeed = USBDEVICESPEED_UNKNOWN;
-    pDev->pszAddress = RTStrDup(lpszDrvKeyName);
+    int rc = RTStrAPrintf((char **)&pDev->pszAddress, "%s", lpszDrvKeyName);
+    if (rc < 0)
+        return VERR_NO_MEMORY;
     pDev->pszHubName = RTStrDup(lpszHubName);
     pDev->bNumConfigurations = 0;
     pDev->u64SerialHash = 0;
 
     for (; pDrList; pDrList = pDrList->pNext)
     {
-        char ** lppszString = NULL;
-        if (pConInfo->DeviceDescriptor.iManufacturer && pDrList->iDr == pConInfo->DeviceDescriptor.iManufacturer)
+        char **ppszString = NULL;
+        if (   pConInfo->DeviceDescriptor.iManufacturer
+            && pDrList->iDr == pConInfo->DeviceDescriptor.iManufacturer)
+            ppszString = (char **)&pDev->pszManufacturer;
+        else if (   pConInfo->DeviceDescriptor.iProduct
+                 && pDrList->iDr == pConInfo->DeviceDescriptor.iProduct)
+            ppszString = (char **)&pDev->pszProduct;
+        else if (   pConInfo->DeviceDescriptor.iSerialNumber
+                 && pDrList->iDr == pConInfo->DeviceDescriptor.iSerialNumber)
+            ppszString = (char **)&pDev->pszSerialNumber;
+        if (ppszString)
         {
-            lppszString = (char**)&pDev->pszManufacturer;
-        }
-        else if (pConInfo->DeviceDescriptor.iProduct && pDrList->iDr == pConInfo->DeviceDescriptor.iProduct)
-        {
-            lppszString = (char**)&pDev->pszProduct;
-        }
-        else if (pConInfo->DeviceDescriptor.iSerialNumber && pDrList->iDr == pConInfo->DeviceDescriptor.iSerialNumber)
-        {
-            lppszString = (char**)&pDev->pszSerialNumber;
-        }
+            rc = RTUtf16ToUtf8((PCRTUTF16)pDrList->StrDr.bString, ppszString);
+            if (RT_SUCCESS(rc))
+            {
+                Assert(*ppszString);
+                USBLibPurgeEncoding(*ppszString);
 
-        if (lppszString)
-        {
-/** @todo r=bird: This code is making bad asumptions that strings are sane and
- *  that stuff succeeds:
- *  http://vbox.innotek.de/pipermail/vbox-dev/2011-August/004516.html
- *
- *  */
-            int rc = RTUtf16ToUtf8((PCRTUTF16)pDrList->StrDr.bString, lppszString);
-            if (RT_FAILURE(rc))
+                if (pDrList->iDr == pConInfo->DeviceDescriptor.iSerialNumber)
+                    pDev->u64SerialHash = USBLibHashSerial(*ppszString);
+            }
+            else
             {
                 AssertMsgFailed(("RTUtf16ToUtf8 failed, rc (%d), resuming\n", rc));
-                continue;
-            }
-
-            Assert(lppszString);
-            if (pDrList->iDr == pConInfo->DeviceDescriptor.iSerialNumber)
-            {
-                pDev->u64SerialHash = USBLibHashSerial(pDev->pszSerialNumber);
+                *ppszString = NULL;
             }
         }
     }
@@ -809,14 +781,20 @@ static int usbLibDevGetHubPortDevices(HANDLE hHub, LPCSTR lpcszHubName, ULONG iP
     }
 
     PUSBDEVICE pDev = (PUSBDEVICE)RTMemAllocZ(sizeof (*pDev));
-    rc = usbLibDevPopulate(pDev, pConInfo, iPort, lpszName, lpcszHubName, pList);
-    AssertRC(rc);
-    if (RT_SUCCESS(rc))
+    if (RT_LIKELY(pDev))
     {
-        pDev->pNext = *ppDevs;
-        *ppDevs = pDev;
-        ++*pcDevs;
+        rc = usbLibDevPopulate(pDev, pConInfo, iPort, lpszName, lpcszHubName, pList);
+        if (RT_SUCCESS(rc))
+        {
+            pDev->pNext = *ppDevs;
+            *ppDevs = pDev;
+            ++*pcDevs;
+        }
+        else
+            RTMemFree(pDev);
     }
+    else
+        rc = VERR_NO_MEMORY;
 
     if (pCfgDr)
         usbLibDevCfgDrFree(pCfgDr);
@@ -828,7 +806,7 @@ static int usbLibDevGetHubPortDevices(HANDLE hHub, LPCSTR lpcszHubName, ULONG iP
     if (pList)
         usbLibDevStrDrEntryFreeList(pList);
 
-    return VINF_SUCCESS;
+    return rc;
 }
 
 static int usbLibDevGetHubDevices(LPCSTR lpszName, PUSBDEVICE *ppDevs, uint32_t *pcDevs)
@@ -868,6 +846,7 @@ static int usbLibDevGetHubDevices(LPCSTR lpszName, PUSBDEVICE *ppDevs, uint32_t 
 
         for (ULONG i = 1; i <= NodeInfo.u.HubInformation.HubDescriptor.bNumberOfPorts; ++i)
         {
+            /* Just skip devices for which we failed to create the device structure. */
             usbLibDevGetHubPortDevices(hDev, lpszName, i, ppDevs, pcDevs);
         }
     } while (0);
@@ -1008,7 +987,7 @@ static int usbLibMonDevicesUpdate(PVBOXUSBGLOBALSTATE pGlobal, PUSBDEVICE pDevs,
             else
             {
                 /* dbg breakpoint */
-                Assert(0);
+                AssertFailed();
             }
 #endif
 
@@ -1259,7 +1238,7 @@ static DWORD WINAPI usbLibMsgThreadProc(__in LPVOID lpParameter)
     g_VBoxUsbGlobal.hWnd = NULL;
 
     /*
-     * Register the Window Class and the hitten window create.
+     * Register the Window Class and create the hidden window.
      */
     WNDCLASS wc;
     wc.style         = 0;
@@ -1465,7 +1444,7 @@ USBLIB_DECL(int) USBLibInit(void)
                                     /*
                                      * We're DONE!
                                      *
-                                     * Juse ensure that the event is set so the
+                                     * Just ensure that the event is set so the
                                      * first "wait change" request is processed.
                                      */
                                     SetEvent(g_VBoxUsbGlobal.hNotifyEvent);

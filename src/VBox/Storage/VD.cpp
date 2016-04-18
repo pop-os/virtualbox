@@ -10799,8 +10799,7 @@ VBOXDDU_DECL(int) VDAsyncRead(PVBOXHDD pDisk, uint64_t uOffset, size_t cbRead,
 
     } while (0);
 
-    if (RT_UNLIKELY(fLockRead) && (   rc == VINF_VD_ASYNC_IO_FINISHED
-                                   || rc != VERR_VD_ASYNC_IO_IN_PROGRESS))
+    if (RT_UNLIKELY(fLockRead) && (rc != VERR_VD_ASYNC_IO_IN_PROGRESS))
     {
         rc2 = vdThreadFinishRead(pDisk);
         AssertRC(rc2);
@@ -10870,8 +10869,7 @@ VBOXDDU_DECL(int) VDAsyncWrite(PVBOXHDD pDisk, uint64_t uOffset, size_t cbWrite,
             vdIoCtxFree(pDisk, pIoCtx);
     } while (0);
 
-    if (RT_UNLIKELY(fLockWrite) && (   rc == VINF_VD_ASYNC_IO_FINISHED
-                                    || rc != VERR_VD_ASYNC_IO_IN_PROGRESS))
+    if (RT_UNLIKELY(fLockWrite) && (rc != VERR_VD_ASYNC_IO_IN_PROGRESS))
     {
         rc2 = vdThreadFinishWrite(pDisk);
         AssertRC(rc2);
@@ -10927,8 +10925,7 @@ VBOXDDU_DECL(int) VDAsyncFlush(PVBOXHDD pDisk, PFNVDASYNCTRANSFERCOMPLETE pfnCom
             vdIoCtxFree(pDisk, pIoCtx);
     } while (0);
 
-    if (RT_UNLIKELY(fLockWrite) && (   rc == VINF_VD_ASYNC_IO_FINISHED
-                                    || rc != VERR_VD_ASYNC_IO_IN_PROGRESS))
+    if (RT_UNLIKELY(fLockWrite) && (rc != VERR_VD_ASYNC_IO_IN_PROGRESS))
     {
         rc2 = vdThreadFinishWrite(pDisk);
         AssertRC(rc2);
@@ -10983,8 +10980,7 @@ VBOXDDU_DECL(int) VDAsyncDiscardRanges(PVBOXHDD pDisk, PCRTRANGE paRanges, unsig
             vdIoCtxFree(pDisk, pIoCtx);
     } while (0);
 
-    if (RT_UNLIKELY(fLockWrite) && (   rc == VINF_VD_ASYNC_IO_FINISHED
-                                    || rc != VERR_VD_ASYNC_IO_IN_PROGRESS))
+    if (RT_UNLIKELY(fLockWrite) && (rc != VERR_VD_ASYNC_IO_IN_PROGRESS))
     {
         rc2 = vdThreadFinishWrite(pDisk);
         AssertRC(rc2);

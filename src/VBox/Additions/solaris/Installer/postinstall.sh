@@ -334,21 +334,6 @@ fi
 # be added to this group.
 groupadd vboxsf >/dev/null 2>&1
 
-# install openGL extensions for X.Org
-if test ! -z "$xorgbin"; then
-    # 32-bit crogl opengl library replacement
-    if test -f "/usr/lib/VBoxOGL.so"; then
-        cp -f /usr/X11/lib/mesa/libGL.so.1 /usr/X11/lib/mesa/libGL_original_.so.1
-        ln -sf /usr/lib/VBoxOGL.so /usr/X11/lib/mesa/libGL.so.1
-    fi
-
-    # 64-bit crogl opengl library replacement
-    if test -f "/usr/lib/amd64/VBoxOGL.so"; then
-        cp -f /usr/X11/lib/mesa/amd64/libGL.so.1 /usr/X11/lib/mesa/amd64/libGL_original_.so.1
-        ln -sf /usr/lib/amd64/VBoxOGL.so /usr/X11/lib/mesa/amd64/libGL.so.1
-    fi
-fi
-
 # Move the pointer integration module to kernel/drv & remove the unused module name from pkg and file from disk
 
 # Finalize
@@ -406,6 +391,9 @@ if test "$currentzone" = "global"; then
     fi
 fi
 
+# Set up our OpenGL pass-through library.
+ln -sf $vboxadditions_path/vbox_vendor_select /lib/opengl/ogl_select
+test "$currentzone" = "global" && /lib/svc/method/ogl-select start
 
 echo "Done."
 if test $retval -eq 0; then

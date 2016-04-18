@@ -8548,8 +8548,10 @@ int Console::i_changeDnDMode(DnDMode_T aDnDMode)
     }
 
     int rc = pVMMDev->hgcmHostCall("VBoxDragAndDropSvc",
-                                   DragAndDropSvc::HOST_DND_SET_MODE, 1, &parm);
-    LogFlowFunc(("rc=%Rrc\n", rc));
+                                   DragAndDropSvc::HOST_DND_SET_MODE, 1 /* cParms */, &parm);
+    if (RT_FAILURE(rc))
+        LogRel(("Error changing drag and drop mode: %Rrc\n", rc));
+
     return rc;
 }
 

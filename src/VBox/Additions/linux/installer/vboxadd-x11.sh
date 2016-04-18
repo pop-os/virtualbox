@@ -1,6 +1,6 @@
 #! /bin/sh
 #
-# Linux Additions X11 setup init script ($Revision: 104057 $)
+# Linux Additions X11 setup init script ($Revision: 106429 $)
 #
 
 #
@@ -32,6 +32,11 @@ PATH=$PATH:/bin:/sbin:/usr/sbin
 LOG="/var/log/vboxadd-install-x11.log"
 CONFIG_DIR="/var/lib/VBoxGuestAdditions"
 CONFIG="config"
+MODPROBE=/sbin/modprobe
+
+if $MODPROBE -c 2>/dev/null | grep -q '^allow_unsupported_modules  *0'; then
+  MODPROBE="$MODPROBE --allow-unsupported-modules"
+fi
 
 # Check architecture
 cpu=`uname -m`;
@@ -240,7 +245,6 @@ restart()
     return 0
 }
 
-# setup_script
 setup()
 {
     echo "VirtualBox Guest Additions installation, Window System and desktop setup" > $LOG
@@ -308,20 +312,6 @@ setup()
         esac
     fi
     case $x_version in
-        1.17.99.902* )
-            # special case for Fedora 23 :-/
-            x_version_short="1.18"
-            xserver_version="X.Org Server ${x_version_short}"
-            vboxvideo_src=vboxvideo_drv_`echo ${x_version_short} | sed 's/\.//'`.so
-            setupxorgconf=""
-            test -f "${lib_dir}/${vboxvideo_src}" ||
-            {
-                echo "Warning: unknown version of the X Window System installed.  Not installing"
-                echo "X Window System drivers."
-                dox11config=""
-                vboxvideo_src=""
-            }
-            ;;
         1.*.99.* )
             echo "Warning: unsupported pre-release version of X.Org Server installed.  Not"
             echo "installing the X.Org drivers."
@@ -421,8 +411,7 @@ setup()
                     ;;
             esac
             ;;
-        * )
-            # Anything else, including all X server versions as of 1.12.
+        1.12.* | 1.13.* | 1.14.* | 1.15.* | 1.16.* | 1.17.* | 1.18.* )
             xserver_version="X.Org Server ${x_version_short}"
             vboxvideo_src=vboxvideo_drv_`echo ${x_version_short} | sed 's/\.//'`.so
             setupxorgconf=""
@@ -434,16 +423,26 @@ setup()
                 vboxvideo_src=""
             }
             ;;
+        * )
+            # For anything else, assume kernel drivers.
+            dox11config=""
+            ;;
     esac
     test -n "${dox11config}" &&
         begin "Installing $xserver_version modules"
-    rm "$modules_dir/drivers/vboxvideo_drv$driver_ext" 2>/dev/null
-    rm "$modules_dir/input/vboxmouse_drv$driver_ext" 2>/dev/null
-    case "$vboxvideo_src" in ?*)
-        ln -s "$lib_dir/$vboxvideo_src" "$modules_dir/drivers/vboxvideo_drv$driver_ext";;
+    case "$vboxvideo_src" in
+        ?*)
+        ln -s "$lib_dir/$vboxvideo_src" "$modules_dir/drivers/vboxvideo_drv$driver_ext.new" &&
+            mv "$modules_dir/drivers/vboxvideo_drv$driver_ext.new" "$modules_dir/drivers/vboxvideo_drv$driver_ext";;
+        *)
+        rm "$modules_dir/drivers/vboxvideo_drv$driver_ext" 2>/dev/null
     esac
-    case "$vboxmouse_src" in ?*)
-        ln -s "$lib_dir/$vboxmouse_src" "$modules_dir/input/vboxmouse_drv$driver_ext";;
+    case "$vboxmouse_src" in
+        ?*)
+        ln -s "$lib_dir/$vboxmouse_src" "$modules_dir/input/vboxmouse_drv$driver_ext.new" &&
+            mv "$modules_dir/input/vboxmouse_drv$driver_ext.new" "$modules_dir/input/vboxmouse_drv$driver_ext";;
+        *)
+        rm "$modules_dir/input/vboxmouse_drv$driver_ext" 2>/dev/null
     esac
     succ_msg
 
@@ -528,17 +527,6 @@ EOF
     # completely irrelevant on the target system.
     chcon -t unconfined_execmem_exec_t '/usr/bin/VBoxClient' > /dev/null 2>&1
     semanage fcontext -a -t unconfined_execmem_exec_t '/usr/bin/VBoxClient' > /dev/null 2>&1
-    # Install the guest OpenGL drivers.  For now we don't support
-    # multi-architecture installations
-    for dir in /usr/lib/dri /usr/lib32/dri /usr/lib64/dri \
-        /usr/lib/xorg/modules/dri /usr/lib32/xorg/modules/dri \
-        /usr/lib64/xorg/modules/dri /usr/lib/i386-linux-gnu/dri \
-        /usr/lib/x86_64-linux-gnu/dri; do
-        if [ -d $dir ]; then
-            rm -f "$dir/vboxvideo_dri.so"
-            ln -s "$LIB/VBoxOGL.so" "$dir/vboxvideo_dri.so"
-        fi
-    done
 
     # And set up VBoxClient to start when the X session does
     install_x11_startup_app "$lib_dir/98vboxadd-xclient" "$share_dir/vboxclient.desktop" VBoxClient VBoxClient-all ||
@@ -547,7 +535,6 @@ EOF
     succ_msg
 }
 
-# cleanup_script
 cleanup()
 {
     # Restore xorg.conf files as far as possible

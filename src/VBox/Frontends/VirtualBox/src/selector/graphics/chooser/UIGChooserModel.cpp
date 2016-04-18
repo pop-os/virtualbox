@@ -460,6 +460,7 @@ void UIGChooserModel::indentRoot(UIGChooserItem *pNewRootItem)
     m_pRightRoot->resize(root()->geometry().size());
 
     /* Indent root: */
+    root()->setRoot(false);
     m_rootStack << pNewRootItem;
     root()->setRoot(true);
     m_pAfterSlidingFocus = root()->items().first();
@@ -496,6 +497,7 @@ void UIGChooserModel::unindentRoot()
     /* Unindent root: */
     m_pAfterSlidingFocus = root();
     m_rootStack.removeLast();
+    root()->setRoot(true);
 
     /* Slide root: */
     slideRoot(false);
@@ -742,6 +744,9 @@ void UIGChooserModel::sltSlidingComplete()
 
     /* We are no more sliding: */
     m_fSliding = false;
+
+    /* Update root geometry: */
+    root()->updateGeometry();
 
     /* Update model: */
     cleanupGroupTree();

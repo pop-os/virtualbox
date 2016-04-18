@@ -1590,10 +1590,10 @@ static void activate_port_forwarding(PNATState pData, const uint8_t *h_source)
         continue;
 
     remove_port_forwarding:
-        LogRel(("NAT: failed to redirect %s %RTnaipv4:%d => %RTnaipv4:%d\n",
+        LogRel(("NAT: failed to redirect %s %RTnaipv4:%d => %RTnaipv4:%d (%s)\n",
                 (rule->proto == IPPROTO_UDP ? "UDP" : "TCP"),
                 rule->bind_ip.s_addr, rule->host_port,
-                guest_addr, rule->guest_port));
+                guest_addr, rule->guest_port, strerror(errno)));
         LIST_REMOVE(rule, list);
         pData->cRedirectionsStored--;
         RTMemFree(rule);

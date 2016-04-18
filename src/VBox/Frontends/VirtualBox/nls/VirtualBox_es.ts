@@ -1523,8 +1523,8 @@
         <source>This virtual machine is password protected. Please enter the %n encryption password(s) below.</source>
         <comment>This text is never used with n == 0. Feel free to drop the %n where possible, we only included it because of problems with Qt Linguist (but the user can see how many passwords are in the list and doesn&apos;t need to be told).</comment>
         <translation>
-            <numerusform>Esta máquina virtual está protegida con contraseña. Inserte la contarseña de cifrado abajo.</numerusform>
-            <numerusform>Esta máquina virtual está protegida con contraseña. Inserte la contarseña de cifrado abajo.</numerusform>
+            <numerusform>Esta máquina virtual está protegida con contraseña. Inserte la contraseña de cifrado abajo.</numerusform>
+            <numerusform>Esta máquina virtual está protegida con contraseña. Inserte la contraseña de cifrado abajo.</numerusform>
         </translation>
     </message>
     <message>
@@ -4778,27 +4778,27 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>When chosen, VirtualBox will try to auto-detect host proxy settings for tasks like downloading Guest Additions from the network or checking for updates.</source>
-        <translation type="unfinished"></translation>
+        <translation>Seleccionado, VirtualBox intentará detectar las preferencias del proxy del anfitrión para tareas como descargar las «Guest Additions» de la red o para comprobar actualizaciones.</translation>
     </message>
     <message>
         <source>&amp;Auto-detect Host Proxy Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Autodetectar preferencias del proxy del anfitrión</translation>
     </message>
     <message>
         <source>When chosen, VirtualBox will use direct Internet connection for tasks like downloading Guest Additions from the network or checking for updates.</source>
-        <translation type="unfinished"></translation>
+        <translation>Seleccionado, VirtualBox usará una conexión directa para tareas como descargar las «Guest Additions» de la red o para comprobar actualizaciones.</translation>
     </message>
     <message>
         <source>&amp;Direct Connection to the Internet</source>
-        <translation type="unfinished"></translation>
+        <translation>Conexión &amp;directa a Internet</translation>
     </message>
     <message>
         <source>When chosen, VirtualBox will use the proxy settings supplied for tasks like downloading Guest Additions from the network or checking for updates.</source>
-        <translation type="unfinished"></translation>
+        <translation>Seleccionado, VirtualBox usará las preferencias de proxy proporcionadas para tareas como descargar las «Guest Additions» de la red o para comprobar actualizaciones.</translation>
     </message>
     <message>
         <source>&amp;Manual Proxy Configuration</source>
-        <translation type="unfinished"></translation>
+        <translation>Configuración de proxy &amp;manual</translation>
     </message>
 </context>
 <context>
@@ -7561,7 +7561,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Choose disk image...</source>
         <comment>This is used for hard disks, optical media and floppies</comment>
-        <translation type="unfinished"></translation>
+        <translation>Seleccionar imagen de disco...</translation>
     </message>
 </context>
 <context>
@@ -10353,15 +10353,15 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Encryption password for &lt;nobr&gt;ID = &apos;%1&apos;&lt;/nobr&gt; is invalid.</source>
-        <translation type="unfinished"></translation>
+        <translation>La contraseña de cifrado para &lt;nobr&gt;ID = &apos;%1&apos;&lt;/nobr&gt; es incorrecta.</translation>
     </message>
     <message>
         <source>The current port forwarding rules are not valid. All of the host or guest address values should be correct or empty.</source>
-        <translation type="unfinished"></translation>
+        <translation>Las reglas de reenvío de puertos no son válidas. Todos los valores de direcciones de anfitriones o invitados deben ser correctos o vacíos.</translation>
     </message>
     <message>
         <source>The current port forwarding rules are not valid. None of the guest address values may be empty.</source>
-        <translation type="unfinished"></translation>
+        <translation>Las reglas de reenvío de puertos actuales no son válidas. Ninguno de los valores de direcciones del invitado deberían ser vacíos.</translation>
     </message>
 </context>
 <context>
@@ -10577,42 +10577,42 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>%1: %2</source>
         <comment>Context description: Error description</comment>
-        <translation type="unfinished"></translation>
+        <translation>%1: %2</translation>
     </message>
     <message>
         <source>Unable to initialize HTTP library</source>
-        <translation type="unfinished"></translation>
+        <translation>Incapad de inicializar la librería HTTP</translation>
     </message>
     <message>
         <source>Connection refused</source>
-        <translation type="unfinished"></translation>
+        <translation>Conexión rechazada</translation>
     </message>
     <message>
         <source>Content moved</source>
-        <translation type="unfinished"></translation>
+        <translation>Contenido movido</translation>
     </message>
     <message>
         <source>Proxy not found</source>
-        <translation type="unfinished"></translation>
+        <translation>Proxy no encontrado</translation>
     </message>
     <message>
         <source>Url not found on the server</source>
-        <translation type="unfinished"></translation>
+        <translation>URL no encontrada en el servidor</translation>
     </message>
 </context>
 <context>
     <name>UINetworkReplyPrivateThread</name>
     <message>
         <source>During proxy configuration</source>
-        <translation type="unfinished"></translation>
+        <translation>Durante configuración de proxy</translation>
     </message>
     <message>
         <source>During certificate downloading</source>
-        <translation type="unfinished"></translation>
+        <translation>Durante descarga de certificado</translation>
     </message>
     <message>
         <source>During network request</source>
-        <translation type="unfinished"></translation>
+        <translation>Durante petición de red</translation>
     </message>
 </context>
 <context>

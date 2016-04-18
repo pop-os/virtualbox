@@ -37,6 +37,7 @@
 #include <VBox/err.h>
 #include <VBox/log.h>
 
+#include <iprt/ctype.h>
 #include <iprt/file.h>
 #include <iprt/getopt.h>
 #include <iprt/stream.h>
@@ -1660,14 +1661,31 @@ static RTEXITCODE CmdCreateRawVMDK(int argc, char **argv, ComPtr<IVirtualBox> aV
 #if defined(RT_OS_LINUX) || defined(RT_OS_DARWIN) || defined(RT_OS_FREEBSD)
                     /* Refer to the correct partition and use offset 0. */
                     char *psz;
-                    RTStrAPrintf(&psz,
 #if defined(RT_OS_LINUX)
-                                 "%s%u",
+                    /*
+                     * Check whether raw disk ends with a digit. In that case
+                     * insert a p before adding the partition number.
+                     * This is used for nvme devices only currently which look like
+                     * /dev/nvme0n1p1 but might be extended to other devices in the
+                     * future.
+                     */
+                    size_t cchRawDisk = rawdisk.length();
+                    if (RT_C_IS_DIGIT(pszRawName[cchRawDisk - 1]))
+                        RTStrAPrintf(&psz,
+                                     "%sp%u",
+                                     rawdisk.c_str(),
+                                     partitions.aPartitions[i].uIndex);
+                    else
+                        RTStrAPrintf(&psz,
+                                     "%s%u",
+                                     rawdisk.c_str(),
+                                     partitions.aPartitions[i].uIndex);
 #elif defined(RT_OS_DARWIN) || defined(RT_OS_FREEBSD)
+                    RTStrAPrintf(&psz,
                                  "%ss%u",
-#endif
                                  rawdisk.c_str(),
                                  partitions.aPartitions[i].uIndex);
+#endif
                     if (!psz)
                     {
                         vrc = VERR_NO_STR_MEMORY;

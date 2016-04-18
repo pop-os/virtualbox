@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2014-2015 Oracle Corporation
+ * Copyright (C) 2014-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -37,6 +37,7 @@
 
 DnDURIObject::DnDURIObject(void)
     : m_Type(Unknown)
+    , m_fOpen(false)
     , m_fMode(0)
     , m_cbSize(0)
     , m_cbProcessed(0)
@@ -51,22 +52,11 @@ DnDURIObject::DnDURIObject(Type type,
     : m_Type(type)
     , m_strSrcPath(strSrcPath)
     , m_strTgtPath(strDstPath)
+    , m_fOpen(false)
     , m_fMode(fMode)
     , m_cbSize(cbSize)
     , m_cbProcessed(0)
 {
-    switch (m_Type)
-    {
-        case File:
-            u.m_hFile = NULL;
-            break;
-
-        case Directory:
-            break;
-
-        default:
-            break;
-    }
 }
 
 DnDURIObject::~DnDURIObject(void)
@@ -76,17 +66,17 @@ DnDURIObject::~DnDURIObject(void)
 
 void DnDURIObject::closeInternal(void)
 {
+    LogFlowThisFuncEnter();
+
+    if (!m_fOpen)
+        return;
+
     switch (m_Type)
     {
         case File:
         {
-            if (u.m_hFile)
-            {
-                int rc2 = RTFileClose(u.m_hFile);
-                AssertRC(rc2);
-
-                u.m_hFile = NULL;
-            }
+            RTFileClose(u.m_hFile);
+            u.m_hFile = NIL_RTFILE;
             break;
         }
 
@@ -97,7 +87,7 @@ void DnDURIObject::closeInternal(void)
             break;
     }
 
-    LogFlowThisFuncLeave();
+    m_fOpen = false;
 }
 
 void DnDURIObject::Close(void)
@@ -130,24 +120,7 @@ bool DnDURIObject::IsComplete(void) const
 
 bool DnDURIObject::IsOpen(void) const
 {
-    bool fIsOpen;
-
-    switch (m_Type)
-    {
-        case File:
-            fIsOpen = u.m_hFile != NULL;
-            break;
-
-        case Directory:
-            fIsOpen = true;
-            break;
-
-        default:
-            fIsOpen = false;
-            break;
-    }
-
-    return fIsOpen;
+    return m_fOpen;
 }
 
 int DnDURIObject::Open(Dest enmDest, uint64_t fOpen /* = 0 */, uint32_t fMode /* = 0 */)
@@ -180,20 +153,21 @@ int DnDURIObject::OpenEx(const RTCString &strPath, Type enmType, Dest enmDest,
     if (   RT_SUCCESS(rc)
         && fOpen) /* Opening mode specified? */
     {
+        LogFlowThisFunc(("enmType=%RU32, strPath=%s, fOpen=0x%x, enmType=%RU32, enmDest=%RU32\n",
+                         enmType, strPath.c_str(), fOpen, enmType, enmDest));
         switch (enmType)
         {
             case File:
             {
-                if (!u.m_hFile)
+                if (!m_fOpen)
                 {
                     /*
                      * Open files on the source with RTFILE_O_DENY_WRITE to prevent races
                      * where the OS writes to the file while the destination side transfers
                      * it over.
                      */
+                    LogFlowThisFunc(("Opening ...\n"));
                     rc = RTFileOpen(&u.m_hFile, strPath.c_str(), fOpen);
-                    LogFlowThisFunc(("strPath=%s, fOpen=0x%x, enmType=%RU32, enmDest=%RU32, rc=%Rrc\n",
-                                     strPath.c_str(), fOpen, enmType, enmDest, rc));
                     if (RT_SUCCESS(rc))
                         rc = RTFileGetSize(u.m_hFile, &m_cbSize);
 
@@ -242,7 +216,10 @@ int DnDURIObject::OpenEx(const RTCString &strPath, Type enmType, Dest enmDest,
     }
 
     if (RT_SUCCESS(rc))
-        m_Type = enmType;
+    {
+        m_Type  = enmType;
+        m_fOpen = true;
+    }
 
     LogFlowFuncLeaveRC(rc);
     return rc;
@@ -363,6 +340,8 @@ int DnDURIObject::Read(void *pvBuf, size_t cbBuf, uint32_t *pcbRead)
 
 void DnDURIObject::Reset(void)
 {
+    LogFlowThisFuncEnter();
+
     Close();
 
     m_Type        = Unknown;
@@ -395,7 +374,6 @@ int DnDURIObject::Write(const void *pvBuf, size_t cbBuf, uint32_t *pcbWritten)
                 if (RT_SUCCESS(rc))
                     m_cbProcessed += cbWritten;
             }
-
             break;
         }
 
@@ -416,7 +394,7 @@ int DnDURIObject::Write(const void *pvBuf, size_t cbBuf, uint32_t *pcbWritten)
             *pcbWritten = (uint32_t)cbWritten;
     }
 
-    LogFlowFunc(("Returning strSourcePath=%s, cbWritten=%zu, rc=%Rrc\n", m_strSrcPath.c_str(), cbWritten, rc));
+    LogFlowThisFunc(("Returning strSourcePath=%s, cbWritten=%zu, rc=%Rrc\n", m_strSrcPath.c_str(), cbWritten, rc));
     return rc;
 }
 

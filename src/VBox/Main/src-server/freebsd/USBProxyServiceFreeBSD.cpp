@@ -321,14 +321,21 @@ PUSBDEVICE USBProxyServiceFreeBSD::getDevices(void)
             }
 
             if (UsbDevInfo.udi_vendor[0] != '\0')
+            {
                 pDevice->pszManufacturer = RTStrDupN(UsbDevInfo.udi_vendor, sizeof(UsbDevInfo.udi_vendor));
+                USBLibPurgeEncoding(pDevice->pszManufacturer);
+            }
 
             if (UsbDevInfo.udi_product[0] != '\0')
+            {
                 pDevice->pszProduct = RTStrDupN(UsbDevInfo.udi_product, sizeof(UsbDevInfo.udi_product));
+                USBLibPurgeEncoding(pDevice->pszProduct);
+            }
 
             if (UsbDevInfo.udi_serial[0] != '\0')
             {
                 pDevice->pszSerialNumber = RTStrDupN(UsbDevInfo.udi_serial, sizeof(UsbDevInfo.udi_serial));
+                USBLibPurgeEncoding(pDevice->pszSerialNumber);
                 pDevice->u64SerialHash   = USBLibHashSerial(pDevice->pszSerialNumber);
             }
             rc = ioctl(FileUsb, USB_GET_PLUGTIME, &PlugTime);

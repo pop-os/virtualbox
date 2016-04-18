@@ -3,6 +3,142 @@
 <chapter> <!-- HACK ALERT! Seems we must have a single top level element for xi:include to work.
                            So, we use chapter and xpointer="xpointer(/chapter/)" with xi:include. -->
   <sect1>
+    <title>Version 5.0.18 (2016-04-18)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>GUI: position off-screen windows to be fully visible again on relaunch
+          in consistence with default-behavior (bug #15226)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: fixed the <emphasis>View</emphasis> menu /
+          <emphasis>Full-screen Mode</emphasis> behavior on Mac OS X El Capitan</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: fixed a test which allowed to encrypt a hard disk with an
+          empty password</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: fixed a crash under certain conditions during VM shutdown</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: fixed the size of the VM list scrollbar in the VM selector
+          when entering a group</para>
+      </listitem>
+
+      <listitem>
+        <para>PC speaker passthrough: fixes (Linux hosts only; bug #627)</para>
+      </listitem>
+
+      <listitem>
+        <para>Drag and drop: several fixes</para>
+      </listitem>
+
+      <listitem>
+        <para>SATA: fixed hotplug flag handling when EFI is used</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: fixed handling of encrypted disk images with SCSI
+          controllers (bug #14812)</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: fixed possible crash with Solaris 7 if the BusLogic
+          SCSI controller is used</para>
+      </listitem>
+
+      <listitem>
+        <para>USB: properly purge non-ASCII characters from USB strings
+          (bugs #8801, #15222)</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT Network: fixed 100% CPU load in VBoxNetNAT on Mac OS X
+          under certain circumstances (bug #15223)</para>
+      </listitem>
+
+      <listitem>
+        <para>ACPI: fixed ACPI tables to make the display color management
+          settings available again for older Windows versions (4.3.22
+          regression)</para>
+      </listitem>
+
+      <listitem>
+        <para>Guest Control: fixed <emphasis>VBoxManage copyfrom</emphasis>
+          command (bug #14336)</para>
+      </listitem>
+
+      <listitem>
+        <para>Snapshots: fixed several problems when removing older snapshots
+          (bug #15206)</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxManage: fixed <emphasis>--verbose</emphasis> output of the
+          <emphasis>guestcontrol</emphasis> command</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows hosts: hardening fixes required for recent Windows 10
+          insider builds (bugs #15245, #15296)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows hosts: fixed support of jumbo frames in with bridged
+          networking (5.0.16 regression; bug #15209)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows hosts: don't prevent receiving multicast traffic if
+          host-only adapters are installed (bug #8698)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts: added support for the new naming scheme of NVME disks when
+          creating raw disks</para>
+      </listitem>
+
+      <listitem>
+        <para>Solaris hosts / guests: properly sign the kernel modules (bug #12608)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts / guests: Linux 4.5 fixes (bug #15251)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts / guests: Linux 4.6 fixes (bug #15298)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: added a kernel graphics driver to support graphics
+          when X.Org does not have root rights (bug #14732)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux/Solaris Additions: fixed several issues causing Linux/Solatis
+          guests using software rendering when 3D acceleration is available</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows Additions: fixed a hang with PowerPoint 2010 and the WDDM
+           drivers if Aero is disabled</para>
+      </listitem>
+
+    </itemizedlist>
+
+  </sect1>
+
+  <sect1>
     <title>Version 5.0.16 (2016-03-04)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or
@@ -12,7 +148,7 @@
 
       <listitem>
         <para>VMM: fixed a problem which could lead to a wrong guest behavior on
-          AMD CPUs (tickets #14831 and #15186)</para>
+          AMD CPUs (bugs #14831 and #15186)</para>
       </listitem>
 
       <listitem>
