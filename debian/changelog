@@ -1,3 +1,10 @@
+virtualbox (5.0.18-dfsg-2) unstable; urgency=medium
+
+  [ Adam Conrad ]
+  * Add MODULE_VERSION to the vboxvideo driver, so DKMS can find it.
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Tue, 19 Apr 2016 16:45:36 +0200
+
 virtualbox (5.0.18-dfsg-1) unstable; urgency=medium
 
   * New upstream release.
