@@ -1,0 +1,15 @@
+Description: fix https://www.virtualbox.org/ticket/15317
+cherry-pick from upstream: 
+https://www.virtualbox.org/changeset/60565/vbox/trunk/src/VBox/Devices/Storage/DevLsiLogicSCSI.cpp#file0
+
+--- virtualbox-5.0.18-dfsg.orig/src/VBox/Devices/Storage/DevLsiLogicSCSI.cpp
++++ virtualbox-5.0.18-dfsg/src/VBox/Devices/Storage/DevLsiLogicSCSI.cpp
+@@ -3889,7 +3889,7 @@ static DECLCALLBACK(int) lsilogicR3IsaIO
+     else if (RT_FAILURE(rc))
+         AssertMsgFailed(("Writing BIOS register failed %Rrc\n", rc));
+ 
+-    return rc;
++    return VINF_SUCCESS;
+ }
+ 
+ /**
