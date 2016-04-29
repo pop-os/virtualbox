@@ -60,11 +60,31 @@ static VOID DoLogging(LPCSTR szString, ...);
 
 #define VBOX_NETCFG_LOCK_TIME_OUT     5000  /** @todo r=bird: What does this do? */
 
+#define VBOXNETCFGWIN_NETADP_ID L"sun_VBoxNetAdp"
+
+/*
+* Wrappers for HelpAPI functions
+*/
+typedef void FNINITIALIZEIPINTERFACEENTRY( _Inout_ PMIB_IPINTERFACE_ROW row);
+typedef FNINITIALIZEIPINTERFACEENTRY *PFNINITIALIZEIPINTERFACEENTRY;
+
+typedef NETIOAPI_API FNGETIPINTERFACEENTRY( _Inout_ PMIB_IPINTERFACE_ROW row);
+typedef FNGETIPINTERFACEENTRY *PFNGETIPINTERFACEENTRY;
+
+typedef NETIOAPI_API FNSETIPINTERFACEENTRY( _Inout_ PMIB_IPINTERFACE_ROW row);
+typedef FNSETIPINTERFACEENTRY *PFNSETIPINTERFACEENTRY;
+
+static  PFNINITIALIZEIPINTERFACEENTRY   g_pfnInitializeIpInterfaceEntry = NULL;
+static  PFNGETIPINTERFACEENTRY          g_pfnGetIpInterfaceEntry        = NULL;
+static  PFNSETIPINTERFACEENTRY          g_pfnSetIpInterfaceEntry        = NULL;
+
+
 /*
 * Forward declaration for using vboxNetCfgWinSetupMetric()
 */
 HRESULT vboxNetCfgWinSetupMetric(IN HKEY hKey);
 HRESULT vboxNetCfgWinGetInterfaceLUID(IN HKEY hKey, OUT NET_LUID* pLUID);
+
 
 /*
  * For some weird reason we do not want to use IPRT here, hence the following
@@ -297,7 +317,6 @@ VBOXNETCFGWIN_DECL(HRESULT) VBoxNetCfgWinInstallComponent(IN INetCfg *pNetCfg, I
         if (pTempComponent != NULL)
         {
             HKEY hkey;
-            NET_LUID luid;
             HRESULT res;
 
             /*
@@ -305,17 +324,21 @@ VBOXNETCFGWIN_DECL(HRESULT) VBoxNetCfgWinInstallComponent(IN INetCfg *pNetCfg, I
             *   See @bugref{6379} for details.
             */
             res = pTempComponent->OpenParamKey(&hkey);
-            if(SUCCEEDED(res) && hkey != NULL)
-                res = vboxNetCfgWinSetupMetric(hkey);
-            if (FAILED(res))
+
+            /* Set default metric value for host-only interface only */
+            if (SUCCEEDED(res) && hkey != NULL && wcsnicmp(pszwComponentId, VBOXNETCFGWIN_NETADP_ID, 256) == 0)
             {
-                /*  
-                 *   The setting of Metric is not very important functionality,
-                 *   So we will not break installation process due to this error.
-                 */
-                NonStandardLogFlow(("VBoxNetCfgWinInstallComponent Warning! "
-                                    "vboxNetCfgWinSetupMetric failed, default metric "
-                                    "for new interface will not be set, hr (0x%x)\n", res));
+                res = vboxNetCfgWinSetupMetric(hkey);
+                if (FAILED(res))
+                {
+                    /*
+                     *   The setting of Metric is not very important functionality,
+                     *   So we will not break installation process due to this error.
+                     */
+                    NonStandardLogFlow(("VBoxNetCfgWinInstallComponent Warning! "
+                        "vboxNetCfgWinSetupMetric failed, default metric "
+                        "for new interface will not be set, hr (0x%x)\n", res));
+                }
             }
             if (ppComponent != NULL)
                 *ppComponent = pTempComponent;
@@ -2146,7 +2169,6 @@ VBOXNETCFGWIN_DECL(HRESULT) VBoxNetCfgWinNetFltInstall(IN INetCfg *pNc,
     return hr;
 }
 
-#define VBOXNETCFGWIN_NETADP_ID L"sun_VBoxNetAdp"
 static HRESULT vboxNetCfgWinNetAdpUninstall(IN INetCfg *pNc, LPCWSTR pwszId, DWORD InfRmFlags)
 {
     HRESULT hr = S_OK;
@@ -3356,22 +3378,62 @@ VBOXNETCFGWIN_DECL(HRESULT) VBoxNetCfgWinCreateHostOnlyNetworkInterface(IN LPCWS
 }
 
 
+HRESULT vboxLoadIpHelpFunctions(HINSTANCE& pIpHlpInstance)
+{
+    Assert(pIpHlpInstance != NULL);
+
+    pIpHlpInstance = loadSystemDll("Iphlpapi.dll");
+    if (pIpHlpInstance == NULL)
+        return E_FAIL;
+    
+    g_pfnInitializeIpInterfaceEntry = 
+        (PFNINITIALIZEIPINTERFACEENTRY)GetProcAddress(pIpHlpInstance, "InitializeIpInterfaceEntry");
+    Assert(g_pfnInitializeIpInterfaceEntry);
+
+    if (g_pfnInitializeIpInterfaceEntry)
+    {
+        g_pfnGetIpInterfaceEntry = 
+            (PFNGETIPINTERFACEENTRY)GetProcAddress(pIpHlpInstance, "GetIpInterfaceEntry");
+        Assert(g_pfnGetIpInterfaceEntry);
+    }
+
+    if (g_pfnGetIpInterfaceEntry)
+    {
+        g_pfnSetIpInterfaceEntry = 
+            (PFNSETIPINTERFACEENTRY)GetProcAddress(pIpHlpInstance, "SetIpInterfaceEntry");
+        Assert(g_pfnSetIpInterfaceEntry);
+    }
+
+    if (g_pfnInitializeIpInterfaceEntry == NULL)
+    {
+        FreeLibrary(pIpHlpInstance);
+        pIpHlpInstance = NULL;
+        return E_FAIL;
+    }
+
+    return S_OK;
+}
+
+
 HRESULT vboxNetCfgWinGetLoopbackMetric(OUT int* Metric)
 {
-    HRESULT status = S_OK;
+    HRESULT rc = S_OK;
     MIB_IPINTERFACE_ROW row;
 
-    InitializeIpInterfaceEntry(&row);
+    Assert(g_pfnInitializeIpInterfaceEntry != NULL);
+    Assert(g_pfnGetIpInterfaceEntry != NULL);
+
+    g_pfnInitializeIpInterfaceEntry(&row);
     row.Family = AF_INET;
     row.InterfaceLuid.Info.IfType = IF_TYPE_SOFTWARE_LOOPBACK;
 
-    status = GetIpInterfaceEntry(&row);
-    if (status != 0)
-        return E_FAIL;
+    rc = g_pfnGetIpInterfaceEntry(&row);
+    if (rc != NO_ERROR)
+        return HRESULT_FROM_WIN32(rc);
 
     *Metric = row.Metric;
 
-    return status;
+    return rc;
 }
 
 
@@ -3380,7 +3442,11 @@ HRESULT vboxNetCfgWinSetInterfaceMetric(
     IN DWORD metric)
 {
     MIB_IPINTERFACE_ROW newRow;
-    InitializeIpInterfaceEntry(&newRow);
+
+    Assert(g_pfnInitializeIpInterfaceEntry != NULL);
+    Assert(g_pfnSetIpInterfaceEntry != NULL);
+
+    g_pfnInitializeIpInterfaceEntry(&newRow);
     // identificate the interface to change
     newRow.InterfaceLuid = *pInterfaceLuid;
     newRow.Family = AF_INET;
@@ -3389,7 +3455,7 @@ HRESULT vboxNetCfgWinSetInterfaceMetric(
     newRow.Metric = metric;
 
     // change settings
-    return SetIpInterfaceEntry(&newRow);
+    return HRESULT_FROM_WIN32(g_pfnSetIpInterfaceEntry(&newRow));
 }
 
 
@@ -3406,15 +3472,15 @@ HRESULT vboxNetCfgWinGetInterfaceLUID(IN HKEY hKey, OUT NET_LUID* pLUID)
     
     res = RegQueryValueExW(hKey, L"NetLuidIndex", NULL,
         &dwValueType, (LPBYTE)&luidIndex, &cbSize);
-    if (FAILED(res))
-        return res;
+    if (res != 0)
+        return HRESULT_FROM_WIN32(res);
 
     cbSize = sizeof(ifType);
     dwValueType = REG_DWORD;
     res = RegQueryValueExW(hKey, L"*IfType", NULL,
         &dwValueType, (LPBYTE)&ifType, &cbSize);
-    if (FAILED(res))
-        return res;
+    if (res != 0)
+        return HRESULT_FROM_WIN32(res);
 
     ZeroMemory(pLUID, sizeof(NET_LUID));
     pLUID->Info.IfType = ifType;
@@ -3426,24 +3492,29 @@ HRESULT vboxNetCfgWinGetInterfaceLUID(IN HKEY hKey, OUT NET_LUID* pLUID)
 
 HRESULT vboxNetCfgWinSetupMetric(IN HKEY hKey)
 {
-    HRESULT status = S_OK;
+    HRESULT rc = S_OK;
+    HINSTANCE hModule = NULL;
     NET_LUID luid;
     int loopbackMetric;
+    
+    rc = vboxLoadIpHelpFunctions(hModule);
 
-    status = vboxNetCfgWinGetInterfaceLUID(hKey, &luid);
-    if (FAILED(status))
-        return status;
+    if(SUCCEEDED(rc))
+        rc = vboxNetCfgWinGetInterfaceLUID(hKey, &luid);
 
-    status = vboxNetCfgWinGetLoopbackMetric(&loopbackMetric);
-    if (FAILED(status))
-        return status;
+    if(SUCCEEDED(rc))
+        rc = vboxNetCfgWinGetLoopbackMetric(&loopbackMetric);
 
-    status = vboxNetCfgWinSetInterfaceMetric(&luid, loopbackMetric - 1);
+    if(SUCCEEDED(rc))
+        rc = vboxNetCfgWinSetInterfaceMetric(&luid, loopbackMetric - 1);
 
-    return status;
+    g_pfnInitializeIpInterfaceEntry = NULL;
+    g_pfnSetIpInterfaceEntry = NULL;
+    g_pfnGetIpInterfaceEntry = NULL;
+
+    FreeLibrary(hModule);
+    return rc;
 }
-
-
 #ifdef VBOXNETCFG_DELAYEDRENAME
 VBOXNETCFGWIN_DECL(HRESULT) VBoxNetCfgWinRenameHostOnlyConnection(IN const GUID *pGuid, IN LPCWSTR pwszId, OUT BSTR *pDevName)
 {

@@ -3,6 +3,80 @@
 <chapter> <!-- HACK ALERT! Seems we must have a single top level element for xi:include to work.
                            So, we use chapter and xpointer="xpointer(/chapter/)" with xi:include. -->
   <sect1>
+    <title>Version 5.0.20 (2016-04-28)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>Storage: fixed a regression causing write requests from the BIOS
+          to cause a Guru Meditation with the LsiLogic SCSI controller
+          (5.0.18 regression; bug #15317)</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: several emulation fixes in the BusLogic SCSI
+          controller emulation</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT Network: support TCP in DNS proxy (same problem as
+          in bug #14736 for NAT)</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT: rework handling of port-forwarding rules (bug #13570)</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT: rewrite host resolver to handle more query types
+          and make it asynchronous so that a stalled lookup doesn't block all
+          NAT traffic</para>
+      </listitem>
+
+      <listitem>
+        <para>Snapshots: don't crash when restoring a snapshot which has more
+          network adapters than the current state (ie when the snapshot uses
+          ICH9 and the current state uses PIIX3)</para>
+      </listitem>
+
+      <listitem>
+        <para>Guest Control: various bugfixes for the <emphasis>copyfrom</emphasis>
+          and <emphasis>copyto</emphasis> commands / API (bug #14336)</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxManage: list processor features on <emphasis>list
+            hostinfo</emphasis> (bug #15334)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts: fix for Linux 4.5 if
+          <emphasis>CONFIG_NET_CLS_ACT</emphasis> is enabled (bug #15327)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows hosts: another fix for recent Windows 10 insider builds
+          (bug #15337)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows hosts: make it work on Windows XP again (5.0.18
+          regression)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows Additions: fixed performance issues with PowerPoint
+          2010 and the WDDM graphics drivers if Aero is disabled</para>
+      </listitem>
+
+    </itemizedlist>
+
+  </sect1>
+
+  <sect1>
     <title>Version 5.0.18 (2016-04-18)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or
@@ -769,13 +843,13 @@
       </listitem>
 
       <listitem>
-        <para>VBoxManage: fixed wrong output of <computeroutput>debugvm show</computeroutput>
+        <para>VBoxManage: fixed wrong output of <emphasis>debugvm show</emphasis>
           command</para>
       </listitem>
 
       <listitem>
         <para>VBoxManage: fixed hang when specifying logging groups with
-          <computeroutput>debugvm log</computeroutput> starting with
+          <emphasis>debugvm log</emphasis> starting with
           <emphasis>h</emphasis>, for example <emphasis>hex</emphasis></para>
       </listitem>
 
@@ -974,7 +1048,7 @@
       </listitem>
 
       <listitem>
-        <para>VBoxManage: fixed broken <computeroutput>guestcontrol &lt;VM-Name&gt; list</computeroutput>
+        <para>VBoxManage: fixed broken <emphasis>guestcontrol &lt;VM-Name&gt; list</emphasis>
           command (5.0 regression)</para>
       </listitem>
 
@@ -3857,7 +3931,7 @@
 
       <listitem>
         <para>VBoxManage: list more information about hard disk/DVD/floppy
-          media, and support the <computeroutput>--long</computeroutput>
+          media, and support the <emphasis>--long</emphasis>
           option to show really all available details</para>
       </listitem>
 
@@ -3869,35 +3943,35 @@
       <listitem>
         <para>VBoxManage: added support for listing active guest sessions, guest
           processes and/or guest files via
-          <computeroutput>guestcontrol list &lt;all|sessions|processes|files&gt;</computeroutput>
+          <emphasis>guestcontrol list &lt;all|sessions|processes|files&gt;</emphasis>
         </para>
       </listitem>
 
       <listitem>
         <para>VBoxManage: added support for closing active guest sessions via
-          <computeroutput>guestcontrol session close --session-id &lt;ID&gt;|
-            --session-name &lt;name or pattern&gt;|--all</computeroutput>
+          <emphasis>guestcontrol session close --session-id &lt;ID&gt;|
+            --session-name &lt;name or pattern&gt;|--all</emphasis>
         </para>
       </listitem>
 
       <listitem>
         <para>VBoxManage: added support for terminating active guest processes via
-          <computeroutput>guestcontrol process kill|close|terminate --session-id &lt;ID&gt;|
-            --session-name &lt;name or pattern&gt; &lt;PID&gt; ... &lt;PID n&gt;</computeroutput>
+          <emphasis>guestcontrol process kill|close|terminate --session-id &lt;ID&gt;|
+            --session-name &lt;name or pattern&gt; &lt;PID&gt; ... &lt;PID n&gt;</emphasis>
           or
-          <computeroutput>guestcontrol [p[s]]kill --session-id &lt;ID&gt;|
-            --session-name &lt;name or pattern&gt; &lt;PID&gt; ... &lt;PID n&gt;</computeroutput>
+          <emphasis>guestcontrol [p[s]]kill --session-id &lt;ID&gt;|
+            --session-name &lt;name or pattern&gt; &lt;PID&gt; ... &lt;PID n&gt;</emphasis>
         </para>
       </listitem>
 
       <listitem>
         <para>VBoxManage: added support for watching guest sessions via
-          <computeroutput>guestcontrol watch</computeroutput>
+          <emphasis>guestcontrol watch</emphasis>
         </para>
       </listitem>
 
       <listitem>
-        <para>VBoxManage: added <computeroutput>modifyvm --triplefaultreset</computeroutput>
+        <para>VBoxManage: added <emphasis>modifyvm --triplefaultreset</emphasis>
           to make the VM reset on triple fault instead of triggering a Guru Meditation
           (see <xref linkend="vboxmanage-modifyvm"/>)</para>
       </listitem>

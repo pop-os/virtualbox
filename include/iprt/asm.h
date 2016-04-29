@@ -3520,6 +3520,45 @@ DECLINLINE(void) ASMMemFill32(volatile void *pv, size_t cb, uint32_t u32)
 
 
 /**
+ * Checks if a memory block is all zeros.
+ *
+ * @returns Pointer to the first non-zero byte.
+ * @returns NULL if all zero.
+ *
+ * @param   pv      Pointer to the memory block.
+ * @param   cb      Number of bytes in the block.
+ *
+ * @todo Fix name, it is a predicate function but it's not returning boolean!
+ */
+DECLINLINE(void *) ASMMemFirstNonZero(void const *pv, size_t cb)
+{
+    uint8_t const *pb = (uint8_t const *)pv;
+    for (; cb; cb--, pb++)
+        if (RT_LIKELY(*pb == 0))
+        { /* likely */ }
+        else
+            return (void *)pb;
+    return NULL;
+}
+
+
+/**
+ * Checks if a memory block is all zeros.
+ *
+ * @returns true if zero, false if not.
+ *
+ * @param   pv      Pointer to the memory block.
+ * @param   cb      Number of bytes in the block.
+ *
+ * @sa      ASMMemFirstNonZero
+ */
+DECLINLINE(bool) ASMMemIsZero(void const *pv, size_t cb)
+{
+    return ASMMemFirstNonZero(pv, cb) == NULL;
+}
+
+
+/**
  * Checks if a memory page is all zeros.
  *
  * @returns true / false.
