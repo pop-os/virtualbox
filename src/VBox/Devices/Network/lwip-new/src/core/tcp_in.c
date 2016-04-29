@@ -63,9 +63,7 @@
 #endif /* LWIP_ND6_TCP_REACHABILITY_HINTS */
 
 #if LWIP_CONNECTION_PROXY
-static err_t tcp_proxy_accept_null(void *arg, struct tcp_pcb *pcb, err_t err);
-
-tcp_accept_fn tcp_proxy_accept_callback = tcp_proxy_accept_null;
+tcp_accept_syn_fn tcp_proxy_accept_callback = tcp_accept_syn_null;
 #endif
 
 /* These variables are global to all functions involved in the input
@@ -91,11 +89,12 @@ static err_t tcp_process(struct tcp_pcb *pcb);
 static void tcp_receive(struct tcp_pcb *pcb);
 static void tcp_parseopt(struct tcp_pcb *pcb);
 
-static err_t tcp_listen_input(struct tcp_pcb_listen *pcb);
+static err_t tcp_listen_input(struct tcp_pcb_listen *pcb, struct pbuf *syn);
 static err_t tcp_timewait_input(struct tcp_pcb *pcb);
 
 #if LWIP_CONNECTION_PROXY
-static err_t tcp_proxy_listen_input(struct pbuf *p);
+static err_t tcp_proxy_listen_input(struct pbuf *syn);
+static void tcp_restore_pbuf(struct pbuf *p);
 
 void
 tcp_proxy_input(struct pbuf *p, struct netif *inp)
@@ -256,7 +255,6 @@ tcp_input1(struct pbuf *p, struct netif *inp)
        * IP header so that proxy can save it and use it later to
        * create ICMP datagram.
        */
-      pbuf_header(p, ip_current_header_tot_len() + hdrlen * 4);
       tcp_proxy_listen_input(p);
       pbuf_free(p);
       return;
@@ -315,7 +313,7 @@ tcp_input1(struct pbuf *p, struct netif *inp)
       }
     
       LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_input: packed for LISTENing connection.\n"));
-      tcp_listen_input(lpcb);
+      tcp_listen_input(lpcb, p);
       pbuf_free(p);
       return;
     }
@@ -499,7 +497,7 @@ dropped:
  *       involved is passed as a parameter to this function
  */
 static err_t
-tcp_listen_input(struct tcp_pcb_listen *pcb)
+tcp_listen_input(struct tcp_pcb_listen *pcb, struct pbuf *syn)
 {
   struct tcp_pcb *npcb;
   err_t rc;
@@ -569,6 +567,46 @@ tcp_listen_input(struct tcp_pcb_listen *pcb)
       &npcb->remote_ip, PCB_ISIPV6(npcb));
 #endif /* TCP_CALCULATE_EFF_SEND_MSS */
 
+
+#if LWIP_CONNECTION_PROXY
+    /* Early accept on SYN, like we do in tcp_proxy_listen_input() */
+    if (pcb->accept_on_syn) {
+      tcp_accept_syn_fn accept_syn;
+      err_t err;
+
+      /* back off to "delayed" SYN_RCVD, see comments in proxy */
+      npcb->state = SYN_RCVD_0;
+
+      /*
+       * Call the accept syn function.  Note, that it comes from the
+       * listening pcb and we reset the normal accept callback of the
+       * new pcb.  The latter should be set by the client along with
+       * other callbacks if necessary.
+       */
+      accept_syn = (tcp_accept_syn_fn)npcb->accept;
+      npcb->accept = tcp_accept_null;
+
+      /* TCP_EVENT_ACCEPT_SYN */
+      if (accept_syn != NULL)
+        err = (*accept_syn)(npcb->callback_arg, npcb, syn);
+      else
+        err = ERR_ARG;
+
+      if (err != ERR_OK) {
+        /* If the accept function returns with an error, we abort
+         * the connection. */
+        /* Already aborted? */
+        if (err != ERR_ABRT) {
+          tcp_abort(npcb);
+        }
+        return ERR_ABRT;
+      }
+      /* Don't send SYN|ACK now, client will call
+       * tcp_proxy_accept_confirm(). */
+      return ERR_OK;
+    }
+#endif
+
     snmp_inc_tcppassiveopens();
 
     /* Send a SYN|ACK together with the MSS option. */
@@ -583,23 +621,26 @@ tcp_listen_input(struct tcp_pcb_listen *pcb)
 }
 
 #if LWIP_CONNECTION_PROXY
-/**
- * XXX: This is a copy-pasted tcp_accept_null(), a static function
- * from tcp.c.  For normal listening PCB tcp_pcb::accept is set to
- * that function when PCB is created in tcp_listen_with_backlog().  I
- * don't want to shuffle code around or mess with visibility for now,
- * so just provide a copy here.
- *
- * XXX: tcp_accept_null() is buggy, it should call tcp_abort().
+/*
+ * Proxy accept callback will be passed the pbuf with the SYN segment
+ * so that it can use it for ICMP errors if necessary.  Undo changes
+ * we've done to the pbuf so that it's suitable to be passed to
+ * icmp_send_response().
  */
-static err_t
-tcp_proxy_accept_null(void *arg, struct tcp_pcb *pcb, err_t err)
+static void
+tcp_restore_pbuf(struct pbuf *p)
 {
-  LWIP_UNUSED_ARG(arg);
-  LWIP_UNUSED_ARG(err);
+    u8_t hdrlen = TCPH_HDRLEN(tcphdr);
 
-  tcp_abort(pcb);
-  return ERR_ABRT;
+    /* Reveal IP and TCP headers. */
+    pbuf_header(p, ip_current_header_tot_len() + hdrlen * 4);
+
+    /* Convert fields in the TCP header back to network byte order. */
+    tcphdr->src = htons(tcphdr->src);
+    tcphdr->dest = htons(tcphdr->dest);
+    tcphdr->seqno = htonl(tcphdr->seqno);
+    tcphdr->ackno = htonl(tcphdr->ackno);
+    tcphdr->wnd = htons(tcphdr->wnd);
 }
 
 
@@ -612,7 +653,7 @@ tcp_proxy_accept_null(void *arg, struct tcp_pcb *pcb, err_t err)
  * all ports of all IP addresses.
  */
 static err_t
-tcp_proxy_listen_input(struct pbuf *p)
+tcp_proxy_listen_input(struct pbuf *syn)
 {
   struct tcp_pcb *npcb;
   err_t err;
@@ -667,7 +708,7 @@ tcp_proxy_listen_input(struct pbuf *p)
     npcb->snd_wl1 = seqno - 1;/* initialise to seqno-1 to force window update */
     npcb->callback_arg = /* pcb->callback_arg */ NULL;
 #if LWIP_CALLBACK_API
-    npcb->accept = /* pcb->accept */ tcp_proxy_accept_callback;
+    npcb->accept = /* pcb->accept */ tcp_accept_null;
 #endif /* LWIP_CALLBACK_API */
     /* inherit socket options */
     npcb->so_options = /* pcb->so_options & SOF_INHERITED */ 0;
@@ -697,25 +738,17 @@ tcp_proxy_listen_input(struct pbuf *p)
      *
      * For the proxy to be able to create ICMP unreachable datagram we
      * need to keep the beginning of the pbuf around.  We pass is as
-     * callback arg here and let callback decide.  Payload is already
-     * moved back to the IP header by the caller.
+     * callback arg here and let callback decide.
      */
 
-    /*
-     * Convert fields in the TCP header back to network byte order
-     * (for ICMP).  I think it's safe to do now, as tcphdr will not be
-     * accessed after this.
-     */
-    tcphdr->src = htons(tcphdr->src);
-    tcphdr->dest = htons(tcphdr->dest);
-    tcphdr->seqno = htonl(tcphdr->seqno);
-    tcphdr->ackno = htonl(tcphdr->ackno);
-    tcphdr->wnd = htons(tcphdr->wnd);
+    tcp_restore_pbuf(syn);
 
-    npcb->callback_arg = (void *)p;
- 
-    /* Call the accept function. */
-    TCP_EVENT_ACCEPT(npcb, ERR_OK, err);
+    /* TCP_EVENT_ACCEPT_SYN */
+    if (tcp_proxy_accept_callback != NULL)
+      err = (*tcp_proxy_accept_callback)(NULL, npcb, syn);
+    else
+      err = ERR_ARG;
+
     if (err != ERR_OK) {
         /* If the accept function returns with an error, we abort
          * the connection. */

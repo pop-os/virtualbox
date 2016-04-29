@@ -178,25 +178,37 @@ udp_input(PNATState pData, register struct mbuf *m, int iphlen)
         goto done_free_mbuf;
     }
 
-    LogFunc(("uh src: %RTnaipv4:%d, dst: %RTnaipv4:%d\n", ip->ip_src, RT_H2N_U16_C(uh->uh_sport), ip->ip_dst, RT_H2N_U16_C(uh->uh_dport)));
+    LogFunc(("uh src: %RTnaipv4:%d, dst: %RTnaipv4:%d\n",
+             ip->ip_src.s_addr, RT_N2H_U16(uh->uh_sport),
+             ip->ip_dst.s_addr, RT_N2H_U16(uh->uh_dport)));
+
+    /*
+     * handle DNS host resolver without creating a socket
+     */
     if (   pData->fUseHostResolver
         && uh->uh_dport == RT_H2N_U16_C(53)
         && CTL_CHECK(ip->ip_dst.s_addr, CTL_DNS))
     {
         struct sockaddr_in dst, src;
+
         src.sin_addr.s_addr = ip->ip_dst.s_addr;
         src.sin_port = uh->uh_dport;
         dst.sin_addr.s_addr = ip->ip_src.s_addr;
         dst.sin_port = uh->uh_sport;
 
+        m_adj(m, sizeof(struct udpiphdr));
+
+        m = hostresolver(pData, m, ip->ip_src.s_addr, uh->uh_sport);
+        if (m == NULL)
+            goto done_free_mbuf;
+
         slirpMbufTagService(pData, m, CTL_DNS);
-        /* udp_output2() expects a pointer to the body of UDP packet. */
-        m->m_data += sizeof(struct udpiphdr);
-        m->m_len -= sizeof(struct udpiphdr);
+
         udp_output2(pData, NULL, m, &src, &dst, IPTOS_LOWDELAY);
         LogFlowFuncLeave();
         return;
     }
+
     /*
      *  handle TFTP
      */
@@ -383,7 +395,8 @@ done_free_mbuf:
      * and create new m'buffers to send them to guest, so we'll free their incomming
      * buffers here.
      */
-    m_freem(pData, m);
+    if (m != NULL)
+        m_freem(pData, m);
     LogFlowFuncLeave();
     return;
 }
@@ -462,6 +475,22 @@ int udp_output(PNATState pData, struct socket *so, struct mbuf *m,
     Assert(so->so_type == IPPROTO_UDP);
     LogFlowFunc(("ENTER: so = %R[natsock], m = %p, saddr = %RTnaipv4\n",
                  so, (long)m, addr->sin_addr.s_addr));
+
+    if (so->so_laddr.s_addr == INADDR_ANY)
+    {
+        if (pData->guest_addr_guess.s_addr != INADDR_ANY)
+        {
+            LogRel2(("NAT: port-forward: using %RTnaipv4 for %R[natsock]\n",
+                     pData->guest_addr_guess.s_addr, so));
+            so->so_laddr = pData->guest_addr_guess;
+        }
+        else
+        {
+            LogRel2(("NAT: port-forward: guest address unknown for %R[natsock]\n", so));
+            m_freem(pData, m);
+            return 0;
+        }
+    }
 
     saddr = *addr;
     if ((so->so_faddr.s_addr & RT_H2N_U32(pData->netmask)) == pData->special_addr.s_addr)
@@ -641,7 +670,8 @@ udp_listen(PNATState pData, u_int32_t bind_addr, u_int port, u_int32_t laddr, u_
 
     if (bind(so->s,(struct sockaddr *)&addr, addrlen) < 0)
     {
-        LogRel(("NAT: bind to %RTnaipv4 has been failed\n", addr.sin_addr));
+        LogRel(("NAT: udp bind to %RTnaipv4:%d failed, error %d\n",
+                addr.sin_addr, RT_N2H_U16(port), errno));
         udp_detach(pData, so);
         LogFlowFunc(("LEAVE: NULL\n"));
         return NULL;

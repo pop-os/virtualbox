@@ -1,4 +1,4 @@
-/* $Rev: 103607 $ */
+/* $Rev: 106728 $ */
 /** @file
  * VBoxDrv - The VirtualBox Support Driver - Linux specifics.
  */
@@ -33,6 +33,7 @@
 #include "the-linux-kernel.h"
 #include "version-generated.h"
 #include "product-generated.h"
+#include "revision-generated.h"
 
 #include <iprt/assert.h>
 #include <iprt/spinlock.h>
@@ -1165,7 +1166,7 @@ MODULE_AUTHOR(VBOX_VENDOR);
 MODULE_DESCRIPTION(VBOX_PRODUCT " Support Driver");
 MODULE_LICENSE("GPL");
 #ifdef MODULE_VERSION
-MODULE_VERSION(VBOX_VERSION_STRING " (" RT_XSTR(SUPDRV_IOC_VERSION) ")");
+MODULE_VERSION(VBOX_VERSION_STRING " r" RT_XSTR(VBOX_SVN_REV) " (" RT_XSTR(SUPDRV_IOC_VERSION) ")");
 #endif
 
 module_param(force_async_tsc, int, 0444);

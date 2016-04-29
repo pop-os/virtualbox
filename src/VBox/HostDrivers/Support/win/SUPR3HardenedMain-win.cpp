@@ -367,8 +367,10 @@ static uint32_t             g_fSupAdversaries = 0;
 #define SUPHARDNT_ADVERSARY_ZONE_ALARM              RT_BIT_32(12)
 /** Digital guardian.  */
 #define SUPHARDNT_ADVERSARY_DIGITAL_GUARDIAN        RT_BIT_32(13)
-/** Cylance protect or something (from googling, no available sample copy ).  */
-#define SUPHARDNT_CYLANCE                           RT_BIT_32(14)
+/** Cylance protect or something (from googling, no available sample copy). */
+#define SUPHARDNT_ADVERSARY_CYLANCE                 RT_BIT_32(14)
+/** BeyondTrust / PowerBroker / something (googling, no available sample copy). */
+#define SUPHARDNT_ADVERSARY_BEYONDTRUST             RT_BIT_32(15)
 /** Unknown adversary detected while waiting on child. */
 #define SUPHARDNT_ADVERSARY_UNKNOWN                 RT_BIT_32(31)
 /** @} */
@@ -3563,7 +3565,7 @@ static void supR3HardNtChildSetUpChildInit(PSUPR3HARDNTCHILD pThis)
      * code bits for it.
      */
     PSUPHNTLDRCACHEENTRY pLdrEntry;
-    int rc = supHardNtLdrCacheOpen("ntdll.dll", &pLdrEntry);
+    int rc = supHardNtLdrCacheOpen("ntdll.dll", &pLdrEntry, NULL /*pErrInfo*/);
     if (RT_FAILURE(rc))
         supR3HardenedWinKillChild(pThis, "supR3HardenedWinSetupChildInit", rc,
                                   "supHardNtLdrCacheOpen failed on NTDLL: %Rrc\n", rc);
@@ -5221,7 +5223,9 @@ static uint32_t supR3HardenedWinFindAdversaries(void)
 
         { SUPHARDNT_ADVERSARY_DIGITAL_GUARDIAN,     "dgmaster" }, /* Not verified. */
 
-        { SUPHARDNT_CYLANCE,                        "cyprotectdrv" }, /* Not verified. */
+        { SUPHARDNT_ADVERSARY_CYLANCE,              "cyprotectdrv" }, /* Not verified. */
+
+        { SUPHARDNT_ADVERSARY_BEYONDTRUST,          "privman" }, /* Not verified. */
     };
 
     static const struct
@@ -5337,8 +5341,12 @@ static uint32_t supR3HardenedWinFindAdversaries(void)
 
         { SUPHARDNT_ADVERSARY_DIGITAL_GUARDIAN, L"\\SystemRoot\\System32\\drivers\\dgmaster.sys" },
 
-        { SUPHARDNT_CYLANCE, L"\\SystemRoot\\System32\\drivers\\cyprotectdrv32.sys" },
-        { SUPHARDNT_CYLANCE, L"\\SystemRoot\\System32\\drivers\\cyprotectdrv64.sys" },
+        { SUPHARDNT_ADVERSARY_CYLANCE, L"\\SystemRoot\\System32\\drivers\\cyprotectdrv32.sys" },
+        { SUPHARDNT_ADVERSARY_CYLANCE, L"\\SystemRoot\\System32\\drivers\\cyprotectdrv64.sys" },
+
+        { SUPHARDNT_ADVERSARY_BEYONDTRUST, L"\\SystemRoot\\System32\\drivers\\privman.sys" },
+        { SUPHARDNT_ADVERSARY_BEYONDTRUST, L"\\SystemRoot\\System32\\privman64.dll" },
+        { SUPHARDNT_ADVERSARY_BEYONDTRUST, L"\\SystemRoot\\System32\\privman32.dll" },
     };
 
     uint32_t fFound = 0;
@@ -5733,7 +5741,8 @@ DECLASM(uintptr_t) supR3HardenedEarlyProcessInit(void)
     /*
      * Set up the direct system calls so we can more easily hook NtCreateSection.
      */
-    supR3HardenedWinInitSyscalls(true /*fReportErrors*/);
+    RTERRINFOSTATIC ErrInfo;
+    supR3HardenedWinInitSyscalls(true /*fReportErrors*/, RTErrInfoInitStatic(&ErrInfo));
 
     /*
      * Determine the executable path and name.  Will NOT determine the windows style
@@ -5792,14 +5801,16 @@ DECLASM(uintptr_t) supR3HardenedEarlyProcessInit(void)
      */
     SUP_DPRINTF(("supR3HardenedVmProcessInit: Restoring LdrInitializeThunk...\n"));
     PSUPHNTLDRCACHEENTRY pLdrEntry;
-    int rc = supHardNtLdrCacheOpen("ntdll.dll", &pLdrEntry);
+    int rc = supHardNtLdrCacheOpen("ntdll.dll", &pLdrEntry, RTErrInfoInitStatic(&ErrInfo));
     if (RT_FAILURE(rc))
-        supR3HardenedFatal("supR3HardenedVmProcessInit: supHardNtLdrCacheOpen failed on NTDLL: %Rrc\n", rc);
+        supR3HardenedFatal("supR3HardenedVmProcessInit: supHardNtLdrCacheOpen failed on NTDLL: %Rrc %s\n",
+                           rc, ErrInfo.Core.pszMsg);
 
     uint8_t *pbBits;
-    rc = supHardNtLdrCacheEntryGetBits(pLdrEntry, &pbBits, uNtDllAddr, NULL, NULL, NULL /*pErrInfo*/);
+    rc = supHardNtLdrCacheEntryGetBits(pLdrEntry, &pbBits, uNtDllAddr, NULL, NULL, RTErrInfoInitStatic(&ErrInfo));
     if (RT_FAILURE(rc))
-        supR3HardenedFatal("supR3HardenedVmProcessInit: supHardNtLdrCacheEntryGetBits failed on NTDLL: %Rrc\n", rc);
+        supR3HardenedFatal("supR3HardenedVmProcessInit: supHardNtLdrCacheEntryGetBits failed on NTDLL: %Rrc %s\n",
+                           rc, ErrInfo.Core.pszMsg);
 
     RTLDRADDR uValue;
     rc = RTLdrGetSymbolEx(pLdrEntry->hLdrMod, pbBits, uNtDllAddr, UINT32_MAX, "LdrInitializeThunk", &uValue);

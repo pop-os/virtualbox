@@ -58,7 +58,7 @@ typedef struct
 #define bootp_clients ((BOOTPClient *)pData->pbootp_clients)
 
 /* XXX: only DHCP is supported */
-static const uint8_t rfc1533_cookie[] = { RFC1533_COOKIE };
+static const uint8_t rfc1533_cookie[4] = { RFC1533_COOKIE };
 
 static void bootp_reply(PNATState pData, struct mbuf *m0, int offReply, uint16_t flags);
 
@@ -362,6 +362,7 @@ static int dhcp_send_ack(PNATState pData, struct bootp_t *bp, BOOTPClient *bc, s
     int offReply = 0; /* boot_reply will fill general options and add END before sending response */
 
     dhcp_create_msg(pData, bp, m, DHCPACK);
+    slirp_update_guest_addr_guess(pData, bc->addr.s_addr, "DHCP ACK");
     offReply = dhcp_do_ack_offer(pData, m, bc, fDhcpRequest);
     return offReply;
 }
@@ -472,7 +473,7 @@ static int dhcp_decode_request(PNATState pData, struct bootp_t *bp, struct mbuf 
                 || req_ip
                 || bp->bp_ciaddr.s_addr == INADDR_ANY)
             {
-                LogRel(("NAT: invalid RENEWING dhcp request\n"));
+                LogRel(("NAT: Invalid RENEWING dhcp request\n"));
                 return -1; /* silent ignorance */
             }
             if (bc != NULL)
@@ -492,7 +493,7 @@ static int dhcp_decode_request(PNATState pData, struct bootp_t *bp, struct mbuf 
                bc = bc_alloc_client(pData);
                if (!bc)
                {
-                   LogRel(("NAT: can't alloc address. RENEW has been silently ignored.\n"));
+                   LogRel(("NAT: Can't allocate address. RENEW has been silently ignored\n"));
                    return -1;
                }
 
@@ -527,7 +528,7 @@ static int dhcp_decode_request(PNATState pData, struct bootp_t *bp, struct mbuf 
             ui32 = *(uint32_t *)(req_ip + 2);
             if ((ui32 & RT_H2N_U32(pData->netmask)) != pData->special_addr.s_addr)
             {
-                LogRel(("NAT: address %RTnaipv4 has been requested -- sending NAK\n", ui32));
+                LogRel(("NAT: Address %RTnaipv4 has been requested -- sending NAK\n", ui32));
                 offReply = dhcp_send_nack(pData, bp, bc, m);
                 return offReply;
             }
@@ -538,7 +539,7 @@ static int dhcp_decode_request(PNATState pData, struct bootp_t *bp, struct mbuf 
                 bc = bc_alloc_client(pData);
                 if (!bc)
                 {
-                    LogRel(("NAT: can't alloc address. RENEW has been silently ignored\n"));
+                    LogRel(("NAT: Can't allocate address. RENEW has been silently ignored\n"));
                     return -1;
                 }
             }
@@ -739,7 +740,7 @@ static void dhcp_decode(PNATState pData, struct bootp_t *bp, const uint8_t *buf,
     m = m_getcl(pData, M_DONTWAIT, MT_HEADER, M_PKTHDR);
     if (!m)
     {
-        LogRel(("NAT: can't alocate memory for response!\n"));
+        LogRel(("NAT: Can't allocate memory for response!\n"));
         return;
     }
 
@@ -785,7 +786,7 @@ static void dhcp_decode(PNATState pData, struct bootp_t *bp, const uint8_t *buf,
                 Assert(bc);
                 if (!bc)
                 {
-                    LogRel(("NAT: can't allocate bootp client object\n"));
+                    LogRel(("NAT: Can't allocate bootp client object\n"));
                     break;
                 }
                 bc->addr.s_addr = req_ip.s_addr;

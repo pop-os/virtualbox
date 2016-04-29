@@ -267,7 +267,7 @@ static void pxtcp_pcb_write_inbound(void *);
 static void pxtcp_pcb_pull_inbound(void *);
 
 /* tcp pcb callbacks */
-static err_t pxtcp_pcb_heard(void *, struct tcp_pcb *, err_t); /* global */
+static err_t pxtcp_pcb_heard(void *, struct tcp_pcb *, struct pbuf *); /* global */
 static err_t pxtcp_pcb_accept(void *, struct tcp_pcb *, err_t);
 static err_t pxtcp_pcb_connected(void *, struct tcp_pcb *, err_t);
 static err_t pxtcp_pcb_recv(void *, struct tcp_pcb *, struct pbuf *, err_t);
@@ -286,7 +286,7 @@ DECLINLINE(int) pxtcp_pcb_forward_inbound_done(const struct pxtcp *);
 static void pxtcp_pcb_schedule_poll(struct pxtcp *);
 static void pxtcp_pcb_cancel_poll(struct pxtcp *);
 
-static void pxtcp_pcb_reject(struct netif *, struct tcp_pcb *, struct pbuf *, int);
+static void pxtcp_pcb_reject(struct tcp_pcb *, int, struct netif *, struct pbuf *);
 DECLINLINE(void) pxtcp_pcb_maybe_deferred_delete(struct pxtcp *);
 
 /* poll manager handlers for pxtcp channels */
@@ -903,40 +903,45 @@ pxtcp_schedule_reset(struct pxtcp *pxtcp)
  * send TCP reset.
  */
 static void
-pxtcp_pcb_reject(struct netif *netif, struct tcp_pcb *pcb,
-                 struct pbuf *p, int sockerr)
+pxtcp_pcb_reject(struct tcp_pcb *pcb, int sockerr,
+                 struct netif *netif,  struct pbuf *p)
 {
-    struct netif *oif;
     int reset = 0;
-
-    oif = ip_current_netif();
-    ip_current_netif() = netif;
 
     if (sockerr == ECONNREFUSED) {
         reset = 1;
     }
-    else if (PCB_ISIPV6(pcb)) {
-        if (sockerr == EHOSTDOWN) {
-            icmp6_dest_unreach(p, ICMP6_DUR_ADDRESS); /* XXX: ??? */
-        }
-        else if (sockerr == EHOSTUNREACH
-                 || sockerr == ENETDOWN
-                 || sockerr == ENETUNREACH)
-        {
-            icmp6_dest_unreach(p, ICMP6_DUR_NO_ROUTE);
-        }
-    }
-    else {
-        if (sockerr == EHOSTDOWN
-            || sockerr == EHOSTUNREACH
-            || sockerr == ENETDOWN
-            || sockerr == ENETUNREACH)
-        {
-            icmp_dest_unreach(p, ICMP_DUR_HOST);
-        }
-    }
+    else if (p != NULL) {
+        struct netif *oif;
 
-    ip_current_netif() = oif;
+        LWIP_ASSERT1(netif != NULL);
+
+        oif = ip_current_netif();
+        ip_current_netif() = netif;
+
+        if (PCB_ISIPV6(pcb)) {
+            if (sockerr == EHOSTDOWN) {
+                icmp6_dest_unreach(p, ICMP6_DUR_ADDRESS); /* XXX: ??? */
+            }
+            else if (sockerr == EHOSTUNREACH
+                     || sockerr == ENETDOWN
+                     || sockerr == ENETUNREACH)
+            {
+                icmp6_dest_unreach(p, ICMP6_DUR_NO_ROUTE);
+            }
+        }
+        else {
+            if (sockerr == EHOSTDOWN
+                || sockerr == EHOSTUNREACH
+                || sockerr == ENETDOWN
+                || sockerr == ENETUNREACH)
+            {
+                icmp_dest_unreach(p, ICMP_DUR_HOST);
+            }
+        }
+
+        ip_current_netif() = oif;
+    }
 
     tcp_abandon(pcb, reset);
 }
@@ -965,7 +970,7 @@ pxtcp_pcb_accept_refuse(void *ctx)
     if (pxtcp->pcb != NULL) {
         struct tcp_pcb *pcb = pxtcp->pcb;
         pxtcp_pcb_dissociate(pxtcp);
-        pxtcp_pcb_reject(pxtcp->netif, pcb, pxtcp->unsent, pxtcp->sockerr);
+        pxtcp_pcb_reject(pcb,  pxtcp->sockerr, pxtcp->netif, pxtcp->unsent);
     }
 
     pollmgr_refptr_unref(pxtcp->rp);
@@ -995,17 +1000,25 @@ pxtcp_schedule_reject(struct pxtcp *pxtcp)
  * connections from guest(s).
  */
 static err_t
-pxtcp_pcb_heard(void *arg, struct tcp_pcb *newpcb, err_t error)
+pxtcp_pcb_heard(void *arg, struct tcp_pcb *newpcb, struct pbuf *syn)
 {
-    struct pbuf *p = (struct pbuf *)arg;
+    LWIP_UNUSED_ARG(arg);
+
+    return pxtcp_pcb_accept_outbound(newpcb, syn,
+               PCB_ISIPV6(newpcb), &newpcb->local_ip, newpcb->local_port);
+}
+
+
+err_t
+pxtcp_pcb_accept_outbound(struct tcp_pcb *newpcb, struct pbuf *p,
+                          int is_ipv6, ipX_addr_t *dst_addr, u16_t dst_port)
+{
     struct pxtcp *pxtcp;
-    ipX_addr_t dst_addr;
+    ipX_addr_t mapped_dst_addr;
     int sdom;
     SOCKET sock;
     ssize_t nsent;
     int sockerr = 0;
-
-    LWIP_UNUSED_ARG(error);     /* always ERR_OK */
 
     /*
      * TCP first calls accept callback when it receives the first SYN
@@ -1020,11 +1033,11 @@ pxtcp_pcb_heard(void *arg, struct tcp_pcb *newpcb, err_t error)
 
     tcp_setprio(newpcb, TCP_PRIO_MAX);
 
-    pxremap_outbound_ipX(PCB_ISIPV6(newpcb), &dst_addr, &newpcb->local_ip);
+    pxremap_outbound_ipX(is_ipv6, &mapped_dst_addr, dst_addr);
 
-    sdom = PCB_ISIPV6(newpcb) ? PF_INET6 : PF_INET;
+    sdom = is_ipv6 ? PF_INET6 : PF_INET;
     sock = proxy_connected_socket(sdom, SOCK_STREAM,
-                                  &dst_addr, newpcb->local_port);
+                                  &mapped_dst_addr, dst_port);
     if (sock == INVALID_SOCKET) {
         sockerr = SOCKERRNO();
         goto abort;
@@ -1037,9 +1050,11 @@ pxtcp_pcb_heard(void *arg, struct tcp_pcb *newpcb, err_t error)
     }
 
     /* save initial datagram in case we need to reply with ICMP */
-    pbuf_ref(p);
-    pxtcp->unsent = p;
-    pxtcp->netif = ip_current_netif();
+    if (p != NULL) {
+        pbuf_ref(p);
+        pxtcp->unsent = p;
+        pxtcp->netif = ip_current_netif();
+    }
 
     pxtcp_pcb_associate(pxtcp, newpcb);
     pxtcp->sock = sock;
@@ -1060,7 +1075,7 @@ pxtcp_pcb_heard(void *arg, struct tcp_pcb *newpcb, err_t error)
   abort:
     DPRINTF0(("%s: pcb %p, sock %d: %R[sockerr]\n",
               __func__, (void *)newpcb, sock, sockerr));
-    pxtcp_pcb_reject(ip_current_netif(), newpcb, p, sockerr);
+    pxtcp_pcb_reject(newpcb, sockerr, ip_current_netif(), p);
     return ERR_ABRT;
 }
 
@@ -1207,9 +1222,10 @@ pxtcp_pcb_accept_confirm(void *ctx)
     }
 
     /* we are not going to reply with ICMP, so we can drop initial pbuf */
-    LWIP_ASSERT1(pxtcp->unsent != NULL);
-    pbuf_free(pxtcp->unsent);
-    pxtcp->unsent = NULL;
+    if (pxtcp->unsent != NULL) {
+        pbuf_free(pxtcp->unsent);
+        pxtcp->unsent = NULL;
+    }
 
     error = tcp_proxy_accept_confirm(pxtcp->pcb);
 

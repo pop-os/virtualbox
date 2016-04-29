@@ -57,19 +57,16 @@ LIST_HEAD(dns_domain_list_head, dns_domain_entry);
 #ifdef VBOX_WITH_DNSMAPPING_IN_HOSTRESOLVER
 typedef struct DNSMAPPINGENTRY
 {
-    /** host name to map.
-     * @note If pszCName isn't null pszPattern won't be used (see alias_dns.c for
-     *       details).
-     */
-    char        *pszCName;
-    /** Pattern (simple) of hostnames to map to the specified IP. */
-    char        *pszPattern;
+    /** Literal or pattern. */
+    bool        fPattern;
+    /** Host name or pattern to map. */
+    char        *pszName;
     /** The IP Address. */
     uint32_t    u32IpAddress;
     /** List entry.  */
-    LIST_ENTRY(DNSMAPPINGENTRY) MapList;
+    STAILQ_ENTRY(DNSMAPPINGENTRY) MapList;
 } DNSMAPPINGENTRY, *PDNSMAPPINGENTRY;
-typedef LIST_HEAD(DNSMAPPINGLISTHEAD, DNSMAPPINGENTRY) DNSMAPPINGLISTHEAD;
+typedef STAILQ_HEAD(DNSMAPPINGHEAD, DNSMAPPINGENTRY) DNSMAPPINGHEAD;
 #endif
 
 struct dns_entry
@@ -87,7 +84,6 @@ struct port_forward_rule
     uint16_t guest_port;
     struct in_addr guest_addr;
     struct in_addr bind_ip;
-    uint8_t mac_address[6]; /*need ETH_ALEN here */
     int activated;
     struct socket *so;
     LIST_ENTRY(port_forward_rule) list;
@@ -139,6 +135,7 @@ typedef struct NATState
     struct in_addr our_addr;
     struct in_addr alias_addr;
     struct in_addr special_addr;
+    struct in_addr guest_addr_guess;
 
     int tcp_rcvspace;
     int tcp_sndspace;
@@ -298,13 +295,10 @@ typedef struct NATState
     /** Critical R/W section to protect the handler chain list. */
     RTCRITSECTRW CsRwHandlerChain;
     struct port_forward_rule_list port_forward_rule_head;
-    int cRedirectionsActive;
-    int cRedirectionsStored;
     struct arp_cache_head arp_cache;
     /* libalis modules' handlers*/
     struct proto_handler *ftp_module;
     struct proto_handler *nbt_module;
-    struct proto_handler *dns_module;
 #ifdef VBOX_WITH_NAT_SEND2HOME
     /* array of home addresses */
     struct sockaddr_in *pInSockAddrHomeAddress;
@@ -312,7 +306,8 @@ typedef struct NATState
     int cInHomeAddressSize;
 #endif
 #ifdef VBOX_WITH_DNSMAPPING_IN_HOSTRESOLVER
-    DNSMAPPINGLISTHEAD DNSMapHead;
+    DNSMAPPINGHEAD DNSMapNames;
+    DNSMAPPINGHEAD DNSMapPatterns;
 #endif
 } NATState;
 

@@ -531,16 +531,31 @@ tcp_proxy_bind(struct tcp_pcb *pcb, ip_addr_t *ipaddr, u16_t port)
 /**
  * Default accept callback if no accept callback is specified by the user.
  */
-static err_t
+err_t
 tcp_accept_null(void *arg, struct tcp_pcb *pcb, err_t err)
 {
   LWIP_UNUSED_ARG(arg);
-  LWIP_UNUSED_ARG(pcb);
   LWIP_UNUSED_ARG(err);
 
+  tcp_abort(pcb);
   return ERR_ABRT;
 }
 #endif /* LWIP_CALLBACK_API */
+
+#if LWIP_CONNECTION_PROXY
+/**
+ * Default proxy accept syn callback if no accept callback is specified by the user.
+ */
+err_t
+tcp_accept_syn_null(void *arg, struct tcp_pcb *newpcb, struct pbuf *syn)
+{
+  LWIP_UNUSED_ARG(arg);
+  LWIP_UNUSED_ARG(syn);
+
+  tcp_abort(newpcb);
+  return ERR_ABRT;
+}
+#endif /* LWIP_CONNECTION_PROXY */
 
 /**
  * Set the state of the connection to be LISTEN, which means that it
@@ -600,6 +615,9 @@ tcp_listen_with_backlog(struct tcp_pcb *pcb, u8_t backlog)
   PCB_ISIPV6(lpcb) = PCB_ISIPV6(pcb);
   lpcb->accept_any_ip_version = 0;
 #endif /* LWIP_IPV6 */
+#if LWIP_CONNECTION_PROXY
+  lpcb->accept_on_syn = 0;
+#endif
   ipX_addr_copy(PCB_ISIPV6(pcb), lpcb->local_ip, pcb->local_ip);
   if (pcb->local_port != 0) {
     TCP_RMV(&tcp_bound_pcbs, pcb);
@@ -1555,9 +1573,27 @@ tcp_accept(struct tcp_pcb *pcb, tcp_accept_fn accept)
  *        host
  */ 
 void
-tcp_proxy_accept(tcp_accept_fn accept)
+tcp_proxy_accept(tcp_accept_syn_fn accept_syn)
 {
-  tcp_proxy_accept_callback = accept;
+  tcp_proxy_accept_callback = accept_syn;
+}
+
+
+/**
+ * A cross between normal accept and proxy early accept.  Like with
+ * normal accept there's a normal LISTENing pcb.  Like with proxy, the
+ * accept callback will be called on the first SYN.
+ */
+void
+tcp_accept_syn(struct tcp_pcb *pcb, tcp_accept_syn_fn accept_syn)
+{
+  struct tcp_pcb_listen *lpcb;
+
+  LWIP_ASSERT("invalid socket state for accept callback", pcb->state == LISTEN);
+  lpcb = (struct tcp_pcb_listen *)pcb;
+
+  lpcb->accept = (tcp_accept_fn)accept_syn;
+  lpcb->accept_on_syn = 1;
 }
 #endif /* LWIP_CONNECTION_PROXY */
 
