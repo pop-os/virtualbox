@@ -53,7 +53,7 @@ running()
 
 start()
 {
-	log_begin_msg "Starting VirtualBox kernel modules"
+	log_begin_msg "Loading VirtualBox kernel modules..."
 	
 	if ! running vboxdrv; then
 		if ! modprobe vboxdrv > /dev/null 2>&1; then
@@ -64,6 +64,8 @@ start()
 			fi
 			log_end_msg 1
 			return 1
+		else
+			log_progress_msg "vboxdrv"
 		fi
 	fi
 	
@@ -76,6 +78,8 @@ start()
 			fi
 			log_end_msg 1
 			return 1
+		else
+			log_progress_msg "vboxnetflt"
 		fi
 	fi
 	
@@ -88,6 +92,8 @@ start()
 			fi
 			log_end_msg 1
 			return 1
+		else
+			log_progress_msg "vboxnetadp"
 		fi
 	fi
 	
@@ -100,6 +106,8 @@ start()
 			fi
 			log_end_msg 1
 			return 1
+		else
+			log_progress_msg "vboxpci"
 		fi
 	fi
 	
@@ -108,13 +116,15 @@ start()
 
 stop()
 {
-	log_begin_msg "Stopping VirtualBox kernel modules"
+	log_begin_msg "Unloading VirtualBox kernel modules..."
 	
 	if running vboxnetadp; then
 		if ! rmmod vboxnetadp 2>/dev/null; then
 			log_failure_msg "Cannot unload module vboxnetadp"
 			log_end_msg 1
 			return 1
+		else
+			log_progress_msg "vboxnetadp"
 		fi
 	fi
 	
@@ -123,6 +133,8 @@ stop()
 			log_failure_msg "Cannot unload module vboxnetflt"
 			log_end_msg 1
 			return 1
+		else
+			log_progress_msg "vboxnetflt"
 		fi
 	fi
 	
@@ -131,6 +143,8 @@ stop()
 			log_failure_msg "Cannot unload module vboxpci"
 			log_end_msg 1
 			return 1
+		else
+			log_progress_msg "vboxpci"
 		fi
 	fi
 	
@@ -139,6 +153,8 @@ stop()
 			log_failure_msg "Cannot unload module vboxdrv"
 			log_end_msg 1
 			return 1
+		else
+			log_progress_msg "vboxdrv"
 		fi
 	fi
 	
