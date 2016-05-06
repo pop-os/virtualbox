@@ -97,3 +97,20 @@ index 752afd4..0438cef 100644
  # endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
      /* 'Reset Warnings' action goes 'File' menu: */
      pMenu->addAction(actionPool()->action(UIActionIndex_M_Application_S_ResetWarnings));
+diff --git a/doc/manual/en_US/user_Introduction.xml b/doc/manual/en_US/user_Introduction.xml
+index cb6770b..a1d4496 100644
+--- a/doc/manual/en_US/user_Introduction.xml
++++ b/doc/manual/en_US/user_Introduction.xml
+@@ -1761,10 +1761,12 @@
+          used to trigger certain VM actions (see <xref
+          linkend="specialcharacters"/>)</para>
+       </listitem>
++<!--
+       <listitem>
+          <para><emphasis role="bold">Update</emphasis> Enables the user
+          to specify various settings for Automatic Updates.</para>
+       </listitem>
++-->
+       <listitem>
+          <para><emphasis role="bold">Language</emphasis> Enables the user to
+          specify the GUI language.</para>
