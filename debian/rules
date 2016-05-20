@@ -30,6 +30,8 @@ export DEB_BUILD_HARDENING_PIE=0
 export DEB_BUILD_HARDENING_FORMAT=0
 export DEB_BUILD_HARDENING_BINDNOW=0
 
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all,-pie,-format,-bindnow
+
 %:
 	dh $@ --with python2,dkms,systemd
 
