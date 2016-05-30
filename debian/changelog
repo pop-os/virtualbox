@@ -1,3 +1,10 @@
+virtualbox (5.0.20-dfsg-3) UNRELEASED; urgency=medium
+
+  [ Adam Borowski ]
+  * debian/patches/fix-kernel-4.7.patch (Closes: #825819)
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Mon, 30 May 2016 12:30:24 +0200
+
 virtualbox (5.0.20-dfsg-2) unstable; urgency=medium
 
   [ Guillem Jover ]
