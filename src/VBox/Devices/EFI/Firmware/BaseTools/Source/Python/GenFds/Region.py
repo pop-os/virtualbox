@@ -1,7 +1,7 @@
 ## @file
 # process FD Region generation
 #
-#  Copyright (c) 2007 - 2010, Intel Corporation. All rights reserved.<BR>
+#  Copyright (c) 2007 - 2014, Intel Corporation. All rights reserved.<BR>
 #
 #  This program and the accompanying materials
 #  are licensed and made available under the terms and conditions of the BSD License
@@ -19,10 +19,11 @@ from struct import *
 from GenFdsGlobalVariable import GenFdsGlobalVariable
 import StringIO
 from CommonDataClass.FdfClass import RegionClassObject
-import os
+import Common.LongFilePathOs as os
 from stat import *
 from Common import EdkLogger
 from Common.BuildToolError import *
+from Common.LongFilePathSupport import OpenLongFilePath as open
 
 ## generate Region
 #
@@ -281,7 +282,7 @@ class Region(RegionClassObject):
 
         AlignValue = int(Str)*Granu
         return AlignValue
- 
+
     ## BlockSizeOfRegion()
     #
     #   @param  BlockSizeList        List of block information
@@ -298,7 +299,7 @@ class Region(RegionClassObject):
             if self.Offset >= End:
                 Start = End
                 continue
-            # region located in current blocks 
+            # region located in current blocks
             else:
                 # region ended within current blocks
                 if self.Offset + self.Size <= End:
@@ -315,7 +316,7 @@ class Region(RegionClassObject):
                     Start = End
                     ExpectedList.append((BlockSize, UsedBlockNum))
                     RemindingSize -= BlockSize * UsedBlockNum
-                   
+
         if FvObj.BlockSizeList == []:
             FvObj.BlockSizeList = ExpectedList
         else:
@@ -335,7 +336,7 @@ class Region(RegionClassObject):
             # check whether the BlockStatements in FV section is appropriate
             ExpectedListData = ''
             for Item in ExpectedList:
-                ExpectedListData += "BlockSize = 0x%x\n\tNumBlocks = 0x%x\n\t"%Item 
+                ExpectedListData += "BlockSize = 0x%x\n\tNumBlocks = 0x%x\n\t"%Item
             Index = 0
             for Item in FvObj.BlockSizeList:
                 if Item[0] != ExpectedList[Index][0]:
@@ -350,5 +351,5 @@ class Region(RegionClassObject):
                 else:
                     Index += 1
 
-            
+
 

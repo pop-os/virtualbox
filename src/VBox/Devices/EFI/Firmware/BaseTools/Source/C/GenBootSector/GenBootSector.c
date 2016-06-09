@@ -1,23 +1,17 @@
 /** @file
-
-Copyright (c) 2006 - 2010, Intel Corporation. All rights reserved.<BR>
-This program and the accompanying materials                          
-are licensed and made available under the terms and conditions of the BSD License         
-which accompanies this distribution.  The full text of the license may be found at        
-http://opensource.org/licenses/bsd-license.php                                            
-                                                                                          
-THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,                     
-WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.             
-
-Module Name:
-
-  genbootsector.c
-  
-Abstract:
-  Reading/writing MBR/DBR.
+Reading/writing MBR/DBR.
   NOTE:
     If we write MBR to disk, we just update the MBR code and the partition table wouldn't be over written.
     If we process DBR, we will patch MBR to set first partition active if no active partition exists.
+
+Copyright (c) 2006 - 2014, Intel Corporation. All rights reserved.<BR>
+This program and the accompanying materials
+are licensed and made available under the terms and conditions of the BSD License
+which accompanies this distribution.  The full text of the license may be found at
+http://opensource.org/licenses/bsd-license.php
+
+THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,
+WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 
 **/
 
@@ -39,7 +33,7 @@ Abstract:
 // Utility version information
 //
 #define UTILITY_MAJOR_VERSION 0
-#define UTILITY_MINOR_VERSION 1
+#define UTILITY_MINOR_VERSION 2
 
 #define MAX_DRIVE                             26
 #define PARTITION_TABLE_OFFSET                0x1BE
@@ -172,16 +166,16 @@ Return:
                    );
   if (VolumeHandle == INVALID_HANDLE_VALUE) {
     fprintf (
-      stderr, 
-      "error E0005: CreateFile failed: Volume = %s, LastError = 0x%x\n", 
-      VolumeAccessPath, 
+      stderr,
+      "error E0005: CreateFile failed: Volume = %s, LastError = 0x%x\n",
+      VolumeAccessPath,
       GetLastError ()
       );
     return FALSE;
   }
 
   //
-  // Get Disk Number. It should fail when operating on floppy. That's ok 
+  // Get Disk Number. It should fail when operating on floppy. That's ok
   //  because Disk Number is only needed when operating on Hard or USB disk.
   //
   // To direct write to disk:
@@ -189,13 +183,13 @@ Return:
   //   for floppy:     use path = \\.\X:, where X can be A or B
   //
   Success = DeviceIoControl(
-              VolumeHandle, 
+              VolumeHandle,
               IOCTL_STORAGE_GET_DEVICE_NUMBER,
-              NULL, 
-              0, 
-              &StorageDeviceNumber, 
+              NULL,
+              0,
+              &StorageDeviceNumber,
               sizeof(StorageDeviceNumber),
-              &BytesReturned, 
+              &BytesReturned,
               NULL
               );
   //
@@ -212,7 +206,7 @@ Return:
     DriveInfo->DiskNumber = StorageDeviceNumber.DeviceNumber;
   }
   CloseHandle(VolumeHandle);
-  
+
   //
   // Fill in the type string
   //
@@ -246,7 +240,7 @@ Routine Description:
 {
   UINT       Index;
   DRIVE_INFO DriveInfo;
-  
+
   UINT Mask =  GetLogicalDrives();
 
   for (Index = 0; Index < MAX_DRIVE; Index++) {
@@ -263,9 +257,9 @@ Routine Description:
         } else {
           fprintf (
             stdout,
-            "%c: - DiskNum: %u, Type: %s\n", 
+            "%c: - DiskNum: %u, Type: %s\n",
             DriveInfo.VolumeLetter,
-            (unsigned) DriveInfo.DiskNumber, 
+            (unsigned) DriveInfo.DiskNumber,
             DriveInfo.DriveType->Description
             );
         }
@@ -306,7 +300,7 @@ Return:
 
   DbrOffset = 0;
   HasMbr    = FALSE;
-  
+
   SetFilePointer(DiskHandle, 0, NULL, FILE_BEGIN);
   if (!ReadFile (DiskHandle, DiskPartition, 0x200, &BytesReturn, NULL)) {
     return -1;
@@ -364,12 +358,12 @@ Return:
 }
 
 /**
- * Get window file handle for input/ouput disk/file. 
- *  
+ * Get window file handle for input/ouput disk/file.
+ *
  * @param PathInfo
  * @param ProcessMbr
  * @param FileHandle
- * 
+ *
  * @return ERROR_STATUS
  */
 ERROR_STATUS
@@ -389,11 +383,11 @@ GetFileHandle (
 
   *FileHandle = CreateFile(
                    PathInfo->PhysicalPath,
-                   GENERIC_READ | GENERIC_WRITE, 
-                   FILE_SHARE_READ, 
-                   NULL, 
-                   OpenFlag, 
-                   FILE_ATTRIBUTE_NORMAL, 
+                   GENERIC_READ | GENERIC_WRITE,
+                   FILE_SHARE_READ,
+                   NULL,
+                   OpenFlag,
+                   FILE_ATTRIBUTE_NORMAL,
                    NULL
                    );
   if (*FileHandle == INVALID_HANDLE_VALUE) {
@@ -424,12 +418,12 @@ GetFileHandle (
 }
 
 /**
-  Writing or reading boot sector or MBR according to the argument. 
-   
+  Writing or reading boot sector or MBR according to the argument.
+
   @param InputInfo PATH_INFO instance for input path
   @param OutputInfo PATH_INFO instance for output path
   @param ProcessMbr TRUE is to process MBR, otherwise, processing boot sector
-  
+
   @return ERROR_STATUS
  **/
 ERROR_STATUS
@@ -467,13 +461,13 @@ ProcessBsOrMbr (
 
   //
   // Read boot sector from source disk/file
-  // 
+  //
   if (!ReadFile (InputHandle, DiskPartition, 0x200, &BytesReturn, NULL)) {
     return ErrorFileReadWrite;
   }
 
   if (InputInfo->Type == PathUsb) {
-      // Manually set BS_DrvNum to 0x80 as window's format.exe has a bug which will clear this field discarding USB disk's MBR. 
+      // Manually set BS_DrvNum to 0x80 as window's format.exe has a bug which will clear this field discarding USB disk's MBR.
       // offset of BS_DrvNum is 0x24 for FAT12/16
       //                        0x40 for FAT32
       //
@@ -511,7 +505,7 @@ ProcessBsOrMbr (
 
   //
   // Write boot sector to taget disk/file
-  // 
+  //
   if (!WriteFile (OutputHandle, DiskPartition, 0x200, &BytesReturn, NULL)) {
     return ErrorFileReadWrite;
   }
@@ -542,8 +536,7 @@ Returns:
 
 --*/
 {
-  printf ("%s v%d.%d %s -Utility to retrieve and update the boot sector or MBR.\n", UTILITY_NAME, UTILITY_MAJOR_VERSION, UTILITY_MINOR_VERSION, __BUILD_VERSION);
-  printf ("Copyright (c) 2009 - 2010 Intel Corporation. All rights reserved.\n");
+  printf ("%s Version %d.%d %s\n", UTILITY_NAME, UTILITY_MAJOR_VERSION, UTILITY_MINOR_VERSION, __BUILD_VERSION);
 }
 
 VOID
@@ -551,18 +544,27 @@ PrintUsage (
   void
   )
 {
-  Version();
-  printf ("\nUsage: \n\
-   GenBootSector\n\
-     [-l, --list list disks]\n\
-     [-i, --input Filename]\n\
-     [-o, --output Filename]\n\
-     [-m, --mbr process the MBR also]\n\
-     [-v, --verbose]\n\
-     [--version]\n\
-     [-q, --quiet disable all messages except fatal errors]\n\
-     [-d, --debug[#]\n\
-     [-h, --help]\n");
+  printf ("Usage: GenBootSector [options] --cfg-file CFG_FILE\n\n\
+Copyright (c) 2009 - 2014, Intel Corporation.  All rights reserved.\n\n\
+  Utility to retrieve and update the boot sector or MBR.\n\n\
+optional arguments:\n\
+  -h, --help            Show this help message and exit\n\
+  --version             Show program's version number and exit\n\
+  -d [DEBUG], --debug [DEBUG]\n\
+                        Output DEBUG statements, where DEBUG_LEVEL is 0 (min)\n\
+                        - 9 (max)\n\
+  -v, --verbose         Print informational statements\n\
+  -q, --quiet           Returns the exit code, error messages will be\n\
+                        displayed\n\
+  -s, --silent          Returns only the exit code; informational and error\n\
+                        messages are not displayed\n\
+  -l, --list            List disk drives\n\
+  -i INPUT_FILENAME, --input INPUT_FILENAME\n\
+                        Input file name\n\
+  -o OUTPUT_FILENAME, --output OUTPUT_FILENAME\n\
+                        Output file name\n\
+  -m, --mbr             Also process the MBR\n\
+  --sfo                 Reserved for future use\n");
 
 }
 
@@ -589,7 +591,7 @@ GetPathInfo (
   //
   if (IsLetter(PathInfo->Path[0]) && (PathInfo->Path[1] == ':') && (PathInfo->Path[2] == '\0')) {
     VolumeLetter = PathInfo->Path[0];
-    if ((VolumeLetter == 'A') || (VolumeLetter == 'a') || 
+    if ((VolumeLetter == 'A') || (VolumeLetter == 'a') ||
         (VolumeLetter == 'B') || (VolumeLetter == 'b')) {
       PathInfo->Type = PathFloppy;
       sprintf (PathInfo->PhysicalPath, FloppyPathTemplate, VolumeLetter);
@@ -617,24 +619,24 @@ GetPathInfo (
     }
 
 	return ErrorSuccess;
-  } 
+  }
 
   PathInfo->Type = PathFile;
   if (PathInfo->Input) {
     //
     // If path is file path, check whether file is valid.
     //
-    f = fopen (PathInfo->Path, "r");
+    f = fopen (LongFilePath (PathInfo->Path), "r");
     if (f == NULL) {
       fprintf (stderr, "error E2003: File was not provided!\n");
       return ErrorPath;
-    }  
+    }
   }
   PathInfo->Type = PathFile;
   strcpy(PathInfo->PhysicalPath, PathInfo->Path);
 
   return ErrorSuccess;
-}    
+}
 
 INT
 main (
@@ -656,14 +658,14 @@ main (
   AppName = *argv;
   argv ++;
   argc --;
-  
+
   ProcessMbr    = FALSE;
 
   if (argc == 0) {
     PrintUsage();
     return 0;
   }
-   
+
   //
   // Parse command line
   //
@@ -671,23 +673,23 @@ main (
     if ((stricmp (argv[Index], "-l") == 0) || (stricmp (argv[Index], "--list") == 0)) {
       ListDrive ();
       return 0;
-    } 
-    
+    }
+
     if ((stricmp (argv[Index], "-m") == 0) || (stricmp (argv[Index], "--mbr") == 0)) {
       ProcessMbr = TRUE;
       continue;
-    } 
-    
+    }
+
     if ((stricmp (argv[Index], "-i") == 0) || (stricmp (argv[Index], "--input") == 0)) {
       InputPathInfo.Path  = argv[Index + 1];
       InputPathInfo.Input = TRUE;
       if (InputPathInfo.Path == NULL) {
         Error (NULL, 0, 1003, "Invalid option value", "Input file name can't be NULL");
         return 1;
-      } 
+      }
       if (InputPathInfo.Path[0] == '-') {
         Error (NULL, 0, 1003, "Invalid option value", "Input file is missing");
-        return 1;       
+        return 1;
       }
       ++Index;
       continue;
@@ -699,33 +701,33 @@ main (
       if (OutputPathInfo.Path == NULL) {
         Error (NULL, 0, 1003, "Invalid option value", "Output file name can't be NULL");
         return 1;
-      } 
+      }
       if (OutputPathInfo.Path[0] == '-') {
         Error (NULL, 0, 1003, "Invalid option value", "Output file is missing");
-        return 1;       
+        return 1;
       }
       ++Index;
       continue;
     }
-    
+
     if ((stricmp (argv[Index], "-h") == 0) || (stricmp (argv[Index], "--help") == 0)) {
       PrintUsage ();
       return 0;
-    } 
-    
+    }
+
     if (stricmp (argv[Index], "--version") == 0) {
       Version ();
       return 0;
-    } 
-    
+    }
+
     if ((stricmp (argv[Index], "-v") == 0) || (stricmp (argv[Index], "--verbose") == 0)) {
       continue;
-    } 
-    
+    }
+
     if ((stricmp (argv[Index], "-q") == 0) || (stricmp (argv[Index], "--quiet") == 0)) {
       continue;
-    } 
-    
+    }
+
     if ((stricmp (argv[Index], "-d") == 0) || (stricmp (argv[Index], "--debug") == 0)) {
       EfiStatus = AsciiStringToUint64 (argv[Index + 1], FALSE, &LogLevel);
       if (EFI_ERROR (EfiStatus)) {
@@ -748,7 +750,7 @@ main (
     Error (NULL, 0, 1000, "Unknown option", "%s", argv[Index]);
     return 1;
   }
-  
+
   if (InputPathInfo.Path == NULL) {
     Error (NULL, 0, 1001, "Missing options", "Input file is missing");
     return 1;
@@ -758,7 +760,7 @@ main (
     Error (NULL, 0, 1001, "Missing options", "Output file is missing");
     return 1;
   }
-  
+
   if (GetPathInfo(&InputPathInfo) != ErrorSuccess) {
     Error (NULL, 0, 1003, "Invalid option value", "Input file can't be found.");
     return 1;
@@ -768,7 +770,7 @@ main (
     Error (NULL, 0, 1003, "Invalid option value", "Output file can't be found.");
     return 1;
   }
-  
+
   //
   // Process DBR (Patch or Read)
   //
@@ -776,19 +778,19 @@ main (
 
   if (Status == ErrorSuccess) {
     fprintf (
-      stdout, 
-      "%s %s: successful!\n", 
-      (OutputPathInfo.Type != PathFile) ? "Write" : "Read", 
+      stdout,
+      "%s %s: successful!\n",
+      (OutputPathInfo.Type != PathFile) ? "Write" : "Read",
       ProcessMbr ? "MBR" : "DBR"
       );
     return 0;
   } else {
     fprintf (
-      stderr, 
+      stderr,
       "%s: %s %s: failed - %s (LastError: 0x%x)!\n",
       (Status == ErrorNoMbr) ? "WARNING" : "ERROR",
-      (OutputPathInfo.Type != PathFile) ? "Write" : "Read", 
-      ProcessMbr ? "MBR" : "DBR", 
+      (OutputPathInfo.Type != PathFile) ? "Write" : "Read",
+      ProcessMbr ? "MBR" : "DBR",
       ErrorStatusDesc[Status],
       GetLastError ()
       );

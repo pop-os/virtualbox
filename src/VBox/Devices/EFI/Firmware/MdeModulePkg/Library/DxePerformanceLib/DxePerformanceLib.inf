@@ -1,25 +1,26 @@
 ## @file
 #  Performance library instance used in DXE phase.
-#  
+#
 #  This library instance provides infrastructure for DXE phase drivers to log performance
 #  data. It consumes PerformanceEx or Performance Protocol published by DxeCorePerformanceLib
-#  to log performance data. If both PerformanceEx and Performance Protocol are not available, it does not log any
-#  performance information.
-#  
-#  Copyright (c) 2006 - 2012, Intel Corporation. All rights reserved.<BR>
+#  to log performance data. If both PerformanceEx and Performance Protocol are not available,
+#  it does not log any performance information.
+#
+#  Copyright (c) 2006 - 2014, Intel Corporation. All rights reserved.<BR>
 #  This program and the accompanying materials
 #  are licensed and made available under the terms and conditions of the BSD License
 #  which accompanies this distribution.  The full text of the license may be found at
 #  http://opensource.org/licenses/bsd-license.php
-#  
+#
 #  THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,
 #  WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
-#  
+#
 ##
 
 [Defines]
   INF_VERSION                    = 0x00010005
   BASE_NAME                      = DxePerformanceLib
+  MODULE_UNI_FILE                = DxePerformanceLib.uni
   FILE_GUID                      = 8B8B4CCC-65FC-41a5-8067-308B8E42CCF2
   MODULE_TYPE                    = DXE_DRIVER
   VERSION_STRING                 = 1.0
@@ -47,10 +48,10 @@
 
 
 [Guids]
-  gPerformanceProtocolGuid      ## SOMETIMES_CONSUMES ## PROTOCOL
-  gPerformanceExProtocolGuid    ## SOMETIMES_CONSUMES ## PROTOCOL
+  gPerformanceProtocolGuid      ## SOMETIMES_CONSUMES   ## UNDEFINED # Locate protocol
+  gPerformanceExProtocolGuid    ## SOMETIMES_CONSUMES   ## UNDEFINED # Locate protocol
 
 
 [Pcd]
-  gEfiMdePkgTokenSpaceGuid.PcdPerformanceLibraryPropertyMask
+  gEfiMdePkgTokenSpaceGuid.PcdPerformanceLibraryPropertyMask    ## CONSUMES
 

@@ -1,7 +1,5 @@
 /* $Id: VFSExplorerImpl.h $ */
-
 /** @file
- *
  * VirtualBox COM class implementation
  */
 
@@ -71,7 +69,7 @@ private:
     ////
     //////////////////////////////////////////////////////////////////////////////////
     //
-    struct TaskVFSExplorer;  /* Worker thread helper */
+    class TaskVFSExplorer;  /* Worker thread helper */
     struct Data;
     Data *m;
 
@@ -80,10 +78,8 @@ private:
 
     HRESULT i_updateFS(TaskVFSExplorer *aTask);
     HRESULT i_deleteFS(TaskVFSExplorer *aTask);
-    HRESULT i_updateS3(TaskVFSExplorer *aTask);
-    HRESULT i_deleteS3(TaskVFSExplorer *aTask);
 
 };
 
-#endif /* ____H_VFSEXPLORERIMPL */
+#endif /* !____H_VFSEXPLORERIMPL */
 

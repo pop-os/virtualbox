@@ -1,7 +1,7 @@
 /** @file
   The implementation of a dispatch routine for processing TCP requests.
 
-  Copyright (c) 2009 - 2010, Intel Corporation. All rights reserved.<BR>
+  Copyright (c) 2009 - 2014, Intel Corporation. All rights reserved.<BR>
 
   This program and the accompanying materials
   are licensed and made available under the terms and conditions of the BSD License
@@ -304,12 +304,10 @@ TcpFlushPcb (
   )
 {
   SOCKET                    *Sock;
-  TCP_PROTO_DATA            *TcpProto;
 
   IpIoConfigIp (Tcb->IpInfo, NULL);
 
   Sock     = Tcb->Sk;
-  TcpProto = (TCP_PROTO_DATA *) Sock->ProtoReserved;
 
   if (SOCK_IS_CONFIGURED (Sock)) {
     RemoveEntryList (&Tcb->List);
@@ -327,13 +325,12 @@ TcpFlushPcb (
       FreePool (Sock->DevicePath);
       Sock->DevicePath = NULL;
     }
-
-    TcpSetVariableData (TcpProto->TcpService);
   }
 
   NetbufFreeList (&Tcb->SndQue);
   NetbufFreeList (&Tcb->RcvQue);
   Tcb->State = TCP_CLOSED;
+  Tcb->RemoteIpZero = FALSE;
 }
 
 /**
@@ -353,6 +350,15 @@ TcpAttachPcb (
   TCP_CB          *Tcb;
   TCP_PROTO_DATA  *ProtoData;
   IP_IO           *IpIo;
+  EFI_STATUS      Status;
+  VOID            *Ip;
+  EFI_GUID        *IpProtocolGuid;
+
+  if (Sk->IpVersion == IP_VERSION_4) {
+    IpProtocolGuid = &gEfiIp4ProtocolGuid;
+  } else {
+    IpProtocolGuid = &gEfiIp6ProtocolGuid;
+  }
 
   Tcb = AllocateZeroPool (sizeof (TCP_CB));
 
@@ -374,6 +380,22 @@ TcpAttachPcb (
 
     FreePool (Tcb);
     return EFI_OUT_OF_RESOURCES;
+  }
+
+  //
+  // Open the new created IP instance BY_CHILD.
+  //
+  Status = gBS->OpenProtocol (
+                  Tcb->IpInfo->ChildHandle,
+                  IpProtocolGuid,
+                  &Ip,
+                  IpIo->Image,
+                  Sk->SockHandle,
+                  EFI_OPEN_PROTOCOL_BY_CHILD_CONTROLLER
+                  );
+  if (EFI_ERROR (Status)) {
+    IpIoRemoveIp (IpIo, Tcb->IpInfo);
+    return Status;
   }
 
   InitializeListHead (&Tcb->List);
@@ -400,6 +422,13 @@ TcpDetachPcb (
 {
   TCP_PROTO_DATA   *ProtoData;
   TCP_CB           *Tcb;
+  EFI_GUID         *IpProtocolGuid;
+
+  if (Sk->IpVersion == IP_VERSION_4) {
+    IpProtocolGuid = &gEfiIp4ProtocolGuid;
+  } else {
+    IpProtocolGuid = &gEfiIp6ProtocolGuid;
+  }
 
   ProtoData = (TCP_PROTO_DATA *) Sk->ProtoReserved;
   Tcb       = ProtoData->TcpPcb;
@@ -407,6 +436,16 @@ TcpDetachPcb (
   ASSERT (Tcb != NULL);
 
   TcpFlushPcb (Tcb);
+
+  //
+  // Close the IP protocol.
+  //
+  gBS->CloseProtocol (
+         Tcb->IpInfo->ChildHandle,
+         IpProtocolGuid,
+         ProtoData->TcpService->IpIo->Image,
+         Sk->SockHandle
+         );
 
   IpIoRemoveIp (ProtoData->TcpService->IpIo, Tcb->IpInfo);
 
@@ -711,6 +750,10 @@ TcpConfigurePcb (
 
   if (Sk->IpVersion == IP_VERSION_6) {
     Tcb->Tick          = TCP6_REFRESH_NEIGHBOR_TICK;
+
+    if (NetIp6IsUnspecifiedAddr (&Tcb->RemoteEnd.Ip.v6)) {
+      Tcb->RemoteIpZero = TRUE;
+    }
   }
 
   TcpInsertTcb (Tcb);

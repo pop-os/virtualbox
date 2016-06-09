@@ -126,6 +126,7 @@ OTHER_CLEAN += \
 	$(VBOX_VMM_TESTCASE_OUT_DIR)/tstInstrEmul.run \
 	$(VBOX_VMM_TESTCASE_OUT_DIR)/tstAsmStructs.h \
 	$(VBOX_VMM_TESTCASE_OUT_DIR)/tstAsmStructsAsm.o \
+	$(VBOX_VMM_TESTCASE_OUT_DIR)/tstAsmStructsAsm.o.dep \
 	$(VBOX_VMM_TESTCASE_OUT_DIR)/tstAsmStructsAsm.mac \
 	$(VBOX_VMM_TESTCASE_OUT_DIR)/tstAsmStructsAsm.mac.o \
 	$(VBOX_VMM_TESTCASE_OUT_DIR)/tstAsmStructsAsm.mac.lst \
@@ -150,6 +151,9 @@ ifdef VBOX_WITH_RAW_MODE
  endif
  ifdef VBOX_WITH_VMMR0_DISABLE_LAPIC_NMI
   tstVMStructRC_DEFS    += VBOX_WITH_VMMR0_DISABLE_LAPIC_NMI
+ endif
+ ifdef VBOX_WITH_NEW_APIC
+  tstVMStructRC_DEFS    += VBOX_WITH_NEW_APIC
  endif
  tstVMStructRC_SOURCES   = tstVMStructRC.cpp
  tstVMStructRC_INCS      = \
@@ -176,6 +180,9 @@ endif
 ifdef VBOX_WITH_VMMR0_DISABLE_LAPIC_NMI
  tstVMStructSize_DEFS  += VBOX_WITH_VMMR0_DISABLE_LAPIC_NMI
 endif
+ifdef VBOX_WITH_NEW_APIC
+ tstVMStructSize_DEFS  += VBOX_WITH_NEW_APIC
+endif
 
 tstAsmStructs_TEMPLATE  = VBOXR3AUTOTST
 tstAsmStructs_DEFS      = IN_VMM_R3 IN_DIS
@@ -187,6 +194,9 @@ ifdef VBOX_WITH_R0_LOGGING
 endif
 ifdef VBOX_WITH_VMMR0_DISABLE_LAPIC_NMI
  tstAsmStructs_DEFS    += VBOX_WITH_VMMR0_DISABLE_LAPIC_NMI
+endif
+ifdef VBOX_WITH_NEW_APIC
+ tstAsmStructs_DEFS    += VBOX_WITH_NEW_APIC
 endif
 tstAsmStructs_INCS      = \
 	$(VBOX_PATH_VMM_SRC)/include \
@@ -202,6 +212,9 @@ ifdef VBOX_WITH_RAW_MODE
  endif
  ifdef VBOX_WITH_VMMR0_DISABLE_LAPIC_NMI
   tstAsmStructsRC_DEFS  += VBOX_WITH_VMMR0_DISABLE_LAPIC_NMI
+ endif
+ ifdef VBOX_WITH_NEW_APIC
+  tstAsmStructsRC_DEFS  += VBOX_WITH_NEW_APIC
  endif
  tstAsmStructsRC_INCS    = \
 	$(VBOX_PATH_VMM_SRC)/include \
@@ -344,6 +357,7 @@ tstAnimate_LIBS         = $(LIB_VMM) $(LIB_REM) $(LIB_RUNTIME)
 tstX86-1_TEMPLATE       = VBOXR3TSTEXE
 tstX86-1_SOURCES        = tstX86-1.cpp tstX86-1A.asm
 tstX86-1_LIBS           = $(LIB_RUNTIME)
+tstX86-1_LDFLAGS.linux  = $(VBOX_GCC_no-pie)
 
 tstX86-FpuSaveRestore_TEMPLATE = VBOXR3TSTEXE
 tstX86-FpuSaveRestore_SOURCES  = tstX86-FpuSaveRestore.cpp tstX86-FpuSaveRestoreA.asm
@@ -481,6 +495,9 @@ if !defined(VBOX_ONLY_EXTPACKS) \
  ifdef VBOX_WITH_VMMR0_DISABLE_LAPIC_NMI
   tstVMStructDTrace_DEFS  += VBOX_WITH_VMMR0_DISABLE_LAPIC_NMI
  endif
+ ifdef VBOX_WITH_NEW_APIC
+  tstVMStructDTrace_DEFS  += VBOX_WITH_NEW_APIC
+ endif
 
 
  VMMLibDTraceStructTest_INST = $(VBOX_INST_DTRACE_TST)$(KBUILD_TARGET_ARCH)/
@@ -522,6 +539,7 @@ MY_ASA_ASM_STUFF = \
 			$(DEFS.$(KBUILD_TARGET_ARCH)) \
 			$(DEFS.$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH)) \
 			$(if $(VBOX_WITH_VMMR0_DISABLE_LAPIC_NMI),VBOX_WITH_VMMR0_DISABLE_LAPIC_NMI,) \
+			$(if $(VBOX_WITH_NEW_APIC),VBOX_WITH_NEW_APIC,) \
 		) \
 		-f $(if $(eq $(KBUILD_TARGET),darwin),macho,elf) \
 		$(foreach inc,$(INCS) $(VBOX_PATH_VMM_SRC)/testcase $(VBOX_PATH_VMM_SRC)/include $(VBOX_VMM_TESTCASE_OUT_DIR)\
@@ -556,6 +574,7 @@ else
 endif
 
 # 1b. make an elf/macho object containing the offsets.
+includedep $(VBOX_VMM_TESTCASE_OUT_DIR)/tstAsmStructsAsm.o.dep
 $(VBOX_VMM_TESTCASE_OUT_DIR)/tstAsmStructsAsm.o: \
 		$(VBOX_PATH_VMM_SRC)/testcase/tstAsmStructsAsm.asm \
 		$(VBOX_VMM_TESTCASE_OUT_DIR)/tstAsmStructsAsm.mac \
@@ -572,6 +591,7 @@ $(VBOX_VMM_TESTCASE_OUT_DIR)/tstAsmStructsAsm.o: \
 		$(VBOX_PATH_VMM_SRC)/include/VMMInternal.mac \
 		$(VBOX_PATH_VMM_SRC)/include/VMMSwitcher.mac \
 		$(VBOX_PATH_VMM_SRC)/testcase/Makefile.kmk \
+		$$(if $$(eq $$(tstAsmStructsAsmDep_STUFF),$$(MY_ASA_ASM_STUFF)),,FORCE) \
 		| $$(dir $$@)
 	$(call MSG_COMPILE,tstAsmStructsasm,$<,$@,AS)
 ifndef DONT_USE_YASM
@@ -579,6 +599,8 @@ ifndef DONT_USE_YASM
 else
 	$(QUIET)$(TOOL_NASM_AS) $(MY_ASA_ASM_STUFF) -DDO_GLOBALS -o $@ $<
 endif
+	%$(QUIET2)$(RM) -f -- $(VBOX_VMM_TESTCASE_OUT_DIR)/tstAsmStructsAsm.o.dep
+	%$(QUIET2)$(APPEND) '$(VBOX_VMM_TESTCASE_OUT_DIR)/tstAsmStructsAsm.o.dep' 'tstAsmStructsAsmDep_STUFF=$(MY_ASA_ASM_STUFF)'
 
 # 2. use nm and sed to transform this into the header we want.
 $(VBOX_VMM_TESTCASE_OUT_DIR)/tstAsmStructsHC.h: $(VBOX_VMM_TESTCASE_OUT_DIR)/tstAsmStructsAsm.o
@@ -588,8 +610,8 @@ $(VBOX_VMM_TESTCASE_OUT_DIR)/tstAsmStructsHC.h: $(VBOX_VMM_TESTCASE_OUT_DIR)/tst
 	$(QUIET)$(SED) \
 		-e '/STAMPROFILEADV/d' \
 		\
-		-e '/00[0-9a-fA-F]* [aA] [^_.]*\./!d' \
-		-e 's/\(00[0-9a-fA-F]*\) [aA] \([^.]*\)\.\(.*$$\)/    CHECK_OFF(\2, 0x0\1, \3);/' \
+		-e '/^\(0x\)\{0,1\}00[0-9a-fA-F]* [aAnN] [^_.]*\./!d' \
+		-e 's/^\(0x\)\{0,1\}\(00[0-9a-fA-F]*\) [aAnN] \([^.]*\)\.\(.*$$\)/    CHECK_OFF(\3, 0x0\2, \4);/' \
 		--output $@.tmp $@.dump
 	$(QUIET)$(SED) \
 		-e '/VM_size$$/d' \
@@ -598,8 +620,8 @@ $(VBOX_VMM_TESTCASE_OUT_DIR)/tstAsmStructsHC.h: $(VBOX_VMM_TESTCASE_OUT_DIR)/tst
 		-e '/SUPDRVTRACERUSRCTX32_size$$/d' \
 		-e '/HMCPU_size$$/d' \
 		\
-		-e '/00[0-9a-fA-F]* [aA] [^_.]*_size$$/!d' \
-		-e 's/\(00[0-9a-fA-F]*\) [aA] \([^_.]*\)_size/    CHECK_SIZE(\2, 0x0\1);/' \
+		-e '/^\(0x\)\{0,1\}00[0-9a-fA-F]* [aAnN] [^_.]*_size$$/!d' \
+		-e 's/^\(0x\)\{0,1\}\(00[0-9a-fA-F]*\) [aAnN] \([^_.]*\)_size/    CHECK_SIZE(\3, 0x0\2);/' \
 		--append $@.tmp $@.dump
 	$(QUIET)$(MV) -f $@.tmp $@
 	$(QUIET)$(RM) -f $@.dump

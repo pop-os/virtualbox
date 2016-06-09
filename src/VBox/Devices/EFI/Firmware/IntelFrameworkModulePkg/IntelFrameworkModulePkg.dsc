@@ -3,16 +3,16 @@
 #
 # This file is used to build all modules in IntelFrameworkModulePkg.
 #
-#Copyright (c) 2007 - 2011, Intel Corporation. All rights reserved.<BR>
-#This program and the accompanying materials are licensed and made available under 
-#the terms and conditions of the BSD License that accompanies this distribution.  
+#Copyright (c) 2007 - 2014, Intel Corporation. All rights reserved.<BR>
+#This program and the accompanying materials are licensed and made available under
+#the terms and conditions of the BSD License that accompanies this distribution.
 #The full text of the license may be found at
-#http://opensource.org/licenses/bsd-license.php.                          
+#http://opensource.org/licenses/bsd-license.php.
 #
 # THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,
 # WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 #
-##           
+##
 
 ################################################################################
 #
@@ -22,7 +22,7 @@
 [Defines]
   PLATFORM_NAME                  = IntelFrameworkModuleAll
   PLATFORM_GUID                  = FFF87D9A-E5BB-4AFF-9ADE-8645492E8087
-  PLATFORM_VERSION               = 0.92
+  PLATFORM_VERSION               = 0.94
   DSC_SPECIFICATION              = 0x00010005
   OUTPUT_DIRECTORY               = Build/IntelFrameworkModuleAll
   SUPPORTED_ARCHITECTURES        = IA32|IPF|X64|EBC|ARM
@@ -42,7 +42,7 @@
   CacheMaintenanceLib|MdePkg/Library/BaseCacheMaintenanceLib/BaseCacheMaintenanceLib.inf
   DebugAgentLib|MdeModulePkg/Library/DebugAgentLibNull/DebugAgentLibNull.inf
   DebugLib|MdePkg/Library/BaseDebugLibNull/BaseDebugLibNull.inf
-  DebugPrintErrorLevelLib|MdePkg/Library/BaseDebugPrintErrorLevelLib/BaseDebugPrintErrorLevelLib.inf  
+  DebugPrintErrorLevelLib|MdePkg/Library/BaseDebugPrintErrorLevelLib/BaseDebugPrintErrorLevelLib.inf
   BaseLib|MdePkg/Library/BaseLib/BaseLib.inf
   SynchronizationLib|MdePkg/Library/BaseSynchronizationLib/BaseSynchronizationLib.inf
   BaseMemoryLib|MdePkg/Library/BaseMemoryLib/BaseMemoryLib.inf
@@ -80,6 +80,9 @@
   PcdLib|MdePkg/Library/PeiPcdLib/PeiPcdLib.inf
   MemoryAllocationLib|MdePkg/Library/PeiMemoryAllocationLib/PeiMemoryAllocationLib.inf
 
+[LibraryClasses.EBC.PEIM]
+  IoLib|MdePkg/Library/PeiIoLibCpuIo/PeiIoLibCpuIo.inf
+
 [LibraryClasses.common.DXE_DRIVER]
   LockBoxLib|MdeModulePkg/Library/SmmLockBoxLib/SmmLockBoxDxeLib.inf
 
@@ -89,7 +92,7 @@
 
 [LibraryClasses.common.DXE_RUNTIME_DRIVER]
   DebugLib|MdePkg/Library/UefiDebugLibConOut/UefiDebugLibConOut.inf
- 
+
 ################################################################################
 #
 # Pcd Section - list of all EDK II PCD Entries defined by this Platform
@@ -167,10 +170,11 @@
 
 [Components.IA32,Components.X64]
   IntelFrameworkModulePkg/Universal/Acpi/AcpiS3SaveDxe/AcpiS3SaveDxe.inf
+  IntelFrameworkModulePkg/Library/LzmaCustomDecompressLib/LzmaArchCustomDecompressLib.inf
 
 [Components.IA32,Components.X64,Components.IPF]
   IntelFrameworkModulePkg/Csm/LegacyBiosDxe/LegacyBiosDxe.inf
-  
+
 [Components.IA32]
   IntelFrameworkModulePkg/Universal/StatusCode/RuntimeDxe/StatusCodeRuntimeDxe.inf
   IntelFrameworkModulePkg/Universal/CpuIoDxe/CpuIoDxe.inf {
@@ -184,7 +188,7 @@
     <LibraryClasses>
       IoLib|MdePkg/Library/BaseIoLibIntrinsic/BaseIoLibIntrinsic.inf
   }
-  
+
 [Components.IPF]
   IntelFrameworkModulePkg/Universal/CpuIoDxe/CpuIoDxe.inf {
     <LibraryClasses>

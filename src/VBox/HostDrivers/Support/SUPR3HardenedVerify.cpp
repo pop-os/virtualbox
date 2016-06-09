@@ -128,7 +128,9 @@ static SUPINSTFILE const    g_aSupInstallFiles[] =
 
     {   kSupIFT_Dll,  kSupID_AppSharedLib,      false, "VBoxRT" SUPLIB_DLL_SUFF },
     {   kSupIFT_Dll,  kSupID_AppSharedLib,      false, "VBoxVMM" SUPLIB_DLL_SUFF },
+#ifdef VBOX_WITH_REM
     {   kSupIFT_Dll,  kSupID_AppSharedLib,      false, "VBoxREM" SUPLIB_DLL_SUFF },
+#endif
 #if HC_ARCH_BITS == 32
     {   kSupIFT_Dll,  kSupID_AppSharedLib,       true, "VBoxREM32" SUPLIB_DLL_SUFF },
     {   kSupIFT_Dll,  kSupID_AppSharedLib,       true, "VBoxREM64" SUPLIB_DLL_SUFF },
@@ -136,6 +138,8 @@ static SUPINSTFILE const    g_aSupInstallFiles[] =
     {   kSupIFT_Dll,  kSupID_AppSharedLib,      false, "VBoxDD" SUPLIB_DLL_SUFF },
     {   kSupIFT_Dll,  kSupID_AppSharedLib,      false, "VBoxDD2" SUPLIB_DLL_SUFF },
     {   kSupIFT_Dll,  kSupID_AppSharedLib,      false, "VBoxDDU" SUPLIB_DLL_SUFF },
+    {   kSupIFT_Exe,  kSupID_AppBin,             true, "VBoxVMMPreload" SUPLIB_EXE_SUFF },
+    {   kSupIFT_Dll,  kSupID_AppPrivArch,        true, "VBoxVMMPreload" SUPLIB_DLL_SUFF },
 
 //#ifdef VBOX_WITH_DEBUGGER_GUI
     {   kSupIFT_Dll,  kSupID_AppSharedLib,       true, "VBoxDbg" SUPLIB_DLL_SUFF },
@@ -1820,8 +1824,8 @@ DECLHIDDEN(int) supR3HardenedRecvPreInitData(PCSUPPREINITDATA pPreInitData)
      * Check that we're not called out of order.
      * If dynamic linking it screwed up, we may end up here.
      */
-    if (    ASMMemIsAll8(&g_aSupVerifiedFiles[0], sizeof(g_aSupVerifiedFiles), 0) != NULL
-        ||  ASMMemIsAll8(&g_aSupVerifiedDirs[0], sizeof(g_aSupVerifiedDirs), 0) != NULL)
+    if (   !ASMMemIsZero(&g_aSupVerifiedFiles[0], sizeof(g_aSupVerifiedFiles))
+        || !ASMMemIsZero(&g_aSupVerifiedDirs[0], sizeof(g_aSupVerifiedDirs)))
         return VERR_WRONG_ORDER;
 
     /*

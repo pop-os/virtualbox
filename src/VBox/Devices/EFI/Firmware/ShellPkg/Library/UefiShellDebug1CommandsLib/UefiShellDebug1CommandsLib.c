@@ -13,6 +13,7 @@
 **/
 
 #include "UefiShellDebug1CommandsLib.h"
+#include <Library/BcfgCommandLib.h>
 
 STATIC CONST CHAR16 mFileName[] = L"Debug1Commands";
 EFI_HANDLE gShellDebug1HiiHandle = NULL;
@@ -84,17 +85,9 @@ UefiShellDebug1CommandsLibConstructor (
   ShellCommandRegisterCommandName(L"edit",          ShellCommandRunEdit               , ShellCommandGetManFileNameDebug1, 0, L"Debug1", TRUE, gShellDebug1HiiHandle, STRING_TOKEN(STR_GET_HELP_EDIT)         );
   ShellCommandRegisterCommandName(L"hexedit",       ShellCommandRunHexEdit            , ShellCommandGetManFileNameDebug1, 0, L"Debug1", TRUE, gShellDebug1HiiHandle, STRING_TOKEN(STR_GET_HELP_HEXEDIT)      );
 
-  //
-  // check install profile bit of the profiles mask is set
-  //
-  if ((PcdGet8(PcdShellProfileMask) & BIT2) == 0) {
-    ShellCommandRegisterCommandName(L"bcfg",        ShellCommandRunBcfg               , ShellCommandGetManFileNameDebug1, 0, L"Debug1", TRUE, gShellDebug1HiiHandle, STRING_TOKEN(STR_GET_HELP_BCFG)         );
-  }
-
-
-
-
   ShellCommandRegisterAlias(L"dmem", L"mem");
+
+  BcfgLibraryRegisterBcfgCommand(ImageHandle, SystemTable, L"Debug1");
 
   return (EFI_SUCCESS);
 }
@@ -115,6 +108,8 @@ UefiShellDebug1CommandsLibDestructor (
   if (gShellDebug1HiiHandle != NULL) {
     HiiRemovePackages(gShellDebug1HiiHandle);
   }
+
+  BcfgLibraryUnregisterBcfgCommand(ImageHandle, SystemTable);
   return (EFI_SUCCESS);
 }
 
@@ -180,7 +175,7 @@ DumpHex (
 
     Val[Index * 3]  = 0;
     Str[Index]      = 0;
-    ShellPrintEx(-1, -1, L"%*a%02X: %-.48a *%a*\r\n", Indent, "", Offset, Val, Str);
+    ShellPrintEx(-1, -1, L"%*a%08X: %-48a *%a*\r\n", Indent, "", Offset, Val, Str);
 
     Data += Size;
     Offset += Size;
@@ -300,7 +295,7 @@ ConvertStringToGuid (
     return (EFI_INVALID_PARAMETER);
   } else if (StrLen(StringGuid) != 36) {
     return (EFI_INVALID_PARAMETER);
-  } 
+  }
   TempCopy = NULL;
   TempCopy = StrnCatGrow(&TempCopy, NULL, StringGuid, 0);
   if (TempCopy == NULL) {
@@ -369,7 +364,7 @@ ConvertStringToGuid (
 
 /**
   Clear the line at the specified Row.
-  
+
   @param[in] Row                The row number to be cleared ( start from 1 )
   @param[in] LastCol            The last printable column.
   @param[in] LastRow            The last printable row.
@@ -434,7 +429,7 @@ IsValidFileNameChar (
 
 /**
   Check if file name has illegal characters.
-  
+
   @param Name       The filename to check.
 
   @retval TRUE      The filename is ok.
@@ -490,11 +485,9 @@ EditGetDefaultFileName (
 {
   EFI_STATUS         Status;
   UINTN              Suffix;
-  BOOLEAN            FoundNewFile;
   CHAR16             *FileNameTmp;
 
   Suffix       = 0;
-  FoundNewFile = FALSE;
 
   do {
     FileNameTmp = CatSPrint (NULL, L"NewFile%d.%s", Suffix, Extension);
@@ -518,18 +511,18 @@ EditGetDefaultFileName (
 }
 
 /**
-  Read a file into an allocated buffer.  The buffer is the responsibility 
+  Read a file into an allocated buffer.  The buffer is the responsibility
   of the caller to free.
 
   @param[in]  FileName          The filename of the file to open.
-  @param[out] Buffer            Upon successful return, the pointer to the 
-                                address of the allocated buffer.                                  
+  @param[out] Buffer            Upon successful return, the pointer to the
+                                address of the allocated buffer.
   @param[out] BufferSize        If not NULL, then the pointer to the size
                                 of the allocated buffer.
   @param[out] ReadOnly          Upon successful return TRUE if the file is
                                 read only.  FALSE otherwise.
 
-  @retval EFI_NOT_FOUND         The filename did not represent a file in the 
+  @retval EFI_NOT_FOUND         The filename did not represent a file in the
                                 file system.
   @retval EFI_SUCCESS           The file was read into the buffer.
   @retval EFI_OUT_OF_RESOURCES  A memory allocation failed.
@@ -577,7 +570,7 @@ ReadFileIntoBuffer (
     }
 
     Info = ShellGetFileInfo(FileHandle);
-    
+
     if (Info->Attribute & EFI_FILE_DIRECTORY) {
       FreePool (Info);
       return EFI_INVALID_PARAMETER;

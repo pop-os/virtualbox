@@ -15,10 +15,6 @@
  * SOFTWARE.
  */
 
-#ifndef lint
-static char rcsid[] = "$Id: ns_netint.c $";
-#endif
-
 /* Import. */
 
 #include <sys/types.h>

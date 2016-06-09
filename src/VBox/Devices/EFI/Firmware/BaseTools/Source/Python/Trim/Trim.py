@@ -1,7 +1,7 @@
 ## @file
 # Trim files preprocessed by compiler
 #
-# Copyright (c) 2007 - 2010, Intel Corporation. All rights reserved.<BR>
+# Copyright (c) 2007 - 2014, Intel Corporation. All rights reserved.<BR>
 # This program and the accompanying materials
 # are licensed and made available under the terms and conditions of the BSD License
 # which accompanies this distribution.  The full text of the license may be found at
@@ -14,7 +14,7 @@
 ##
 # Import Modules
 #
-import os
+import Common.LongFilePathOs as os
 import sys
 import re
 
@@ -24,6 +24,7 @@ from Common.BuildToolError import *
 from Common.Misc import *
 from Common.BuildVersion import gBUILD_VERSION
 import Common.EdkLogger as EdkLogger
+from Common.LongFilePathSupport import OpenLongFilePath as open
 
 # Version and Copyright
 __version_number__ = ("0.10" + " " + gBUILD_VERSION)
@@ -225,7 +226,7 @@ def TrimPreprocessedFile(Source, Target, ConvertHex, TrimLong):
 #
 def TrimPreprocessedVfr(Source, Target):
     CreateDirectory(os.path.dirname(Target))
-    
+
     try:
         f = open (Source,'r')
     except:
@@ -302,7 +303,7 @@ def DoInclude(Source, Indent='', IncludePathList=[], LocalSearchPath=None):
             SearchPathList = [LocalSearchPath] + IncludePathList
         else:
             SearchPathList = IncludePathList
-  
+
         for IncludePath in SearchPathList:
             IncludeFile = os.path.join(IncludePath, Source)
             if os.path.isfile(IncludeFile):
@@ -313,7 +314,7 @@ def DoInclude(Source, Indent='', IncludePathList=[], LocalSearchPath=None):
     except:
         EdkLogger.error("Trim", FILE_OPEN_FAILURE, ExtraData=Source)
 
-    
+
     # avoid A "include" B and B "include" A
     IncludeFile = os.path.abspath(os.path.normpath(IncludeFile))
     if IncludeFile in gIncludedAslFile:
@@ -321,7 +322,7 @@ def DoInclude(Source, Indent='', IncludePathList=[], LocalSearchPath=None):
                        ExtraData= "%s -> %s" % (" -> ".join(gIncludedAslFile), IncludeFile))
         return []
     gIncludedAslFile.append(IncludeFile)
-    
+
     for Line in F:
         LocalSearchPath = None
         Result = gAslIncludePattern.findall(Line)
@@ -331,7 +332,7 @@ def DoInclude(Source, Indent='', IncludePathList=[], LocalSearchPath=None):
                 NewFileContent.append("%s%s" % (Indent, Line))
                 continue
             #
-            # We should first search the local directory if current file are using pattern #include "XXX" 
+            # We should first search the local directory if current file are using pattern #include "XXX"
             #
             if Result[0][2] == '"':
                 LocalSearchPath = os.path.dirname(IncludeFile)
@@ -352,20 +353,20 @@ def DoInclude(Source, Indent='', IncludePathList=[], LocalSearchPath=None):
 #
 # @param  Source          File to be trimmed
 # @param  Target          File to store the trimmed content
-# @param  IncludePathFile The file to log the external include path 
+# @param  IncludePathFile The file to log the external include path
 #
 def TrimAslFile(Source, Target, IncludePathFile):
     CreateDirectory(os.path.dirname(Target))
-    
+
     SourceDir = os.path.dirname(Source)
     if SourceDir == '':
         SourceDir = '.'
-    
+
     #
     # Add source directory as the first search directory
     #
     IncludePathList = [SourceDir]
-    
+
     #
     # If additional include path file is specified, append them all
     # to the search directory list.
@@ -564,7 +565,7 @@ def Main():
             EdkLogger.SetLevel(CommandOptions.LogLevel)
     except FatalError, X:
         return 1
-    
+
     try:
         if CommandOptions.FileType == "Vfr":
             if CommandOptions.OutputFile == None:
@@ -593,7 +594,7 @@ def Main():
                     "\nTrim",
                     CODE_ERROR,
                     "Unknown fatal error when trimming [%s]" % InputFile,
-                    ExtraData="\n(Please send email to edk2-buildtools-devel@lists.sourceforge.net for help, attaching following call stack trace!)\n",
+                    ExtraData="\n(Please send email to edk2-devel@lists.sourceforge.net for help, attaching following call stack trace!)\n",
                     RaiseError=False
                     )
         EdkLogger.quiet("(Python %s on %s) " % (platform.python_version(), sys.platform) + traceback.format_exc())

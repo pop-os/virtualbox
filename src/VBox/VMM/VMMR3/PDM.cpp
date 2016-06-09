@@ -31,7 +31,8 @@
  * context synchronization (like critsect), VM centric thread management,
  * asynchronous I/O framework, and so on.
  *
- * @see grp_pdm
+ * @sa  @ref grp_pdm
+ *      @subpage pg_pdm_block_cache
  *
  *
  * @section sec_pdm_dev     The Pluggable Devices
@@ -254,6 +255,7 @@
 #define LOG_GROUP LOG_GROUP_PDM
 #include "PDMInternal.h"
 #include <VBox/vmm/pdm.h>
+#include <VBox/vmm/em.h>
 #include <VBox/vmm/mm.h>
 #include <VBox/vmm/pgm.h>
 #include <VBox/vmm/ssm.h>
@@ -443,6 +445,28 @@ VMMR3_INT_DECL(int) PDMR3Init(PVM pVM)
 
 
 /**
+ * Init phase completed callback.
+ *
+ * We use this for calling PDMDEVREG::pfnInitComplete callback after everything
+ * else has been initialized.
+ *
+ * @returns VBox status code.
+ * @param   pVM         The cross context VM structure.
+ * @param   enmWhat     The phase that was completed.
+ */
+VMMR3_INT_DECL(int) PDMR3InitCompleted(PVM pVM, VMINITCOMPLETED enmWhat)
+{
+#ifdef VBOX_WITH_RAW_MODE
+    if (enmWhat == VMINITCOMPLETED_RC)
+#else
+    if (enmWhat == VMINITCOMPLETED_RING0)
+#endif
+        return pdmR3DevInitComplete(pVM);
+    return VINF_SUCCESS;
+}
+
+
+/**
  * Applies relocations to data and code managed by this
  * component. This function will be called at init and
  * whenever the VMM need to relocate it self inside the GC.
@@ -484,16 +508,16 @@ VMMR3_INT_DECL(void) PDMR3Relocate(PVM pVM, RTGCINTPTR offDelta)
     {
         pVM->pdm.s.Apic.pDevInsRC           += offDelta;
         pVM->pdm.s.Apic.pfnGetInterruptRC   += offDelta;
-        pVM->pdm.s.Apic.pfnSetBaseRC        += offDelta;
-        pVM->pdm.s.Apic.pfnGetBaseRC        += offDelta;
-        pVM->pdm.s.Apic.pfnSetTPRRC         += offDelta;
-        pVM->pdm.s.Apic.pfnGetTPRRC         += offDelta;
+        pVM->pdm.s.Apic.pfnSetBaseMsrRC     += offDelta;
+        pVM->pdm.s.Apic.pfnGetBaseMsrRC     += offDelta;
+        pVM->pdm.s.Apic.pfnSetTprRC         += offDelta;
+        pVM->pdm.s.Apic.pfnGetTprRC         += offDelta;
+        pVM->pdm.s.Apic.pfnWriteMsrRC       += offDelta;
+        pVM->pdm.s.Apic.pfnReadMsrRC        += offDelta;
         pVM->pdm.s.Apic.pfnBusDeliverRC     += offDelta;
         if (pVM->pdm.s.Apic.pfnLocalInterruptRC)
             pVM->pdm.s.Apic.pfnLocalInterruptRC += offDelta;
         pVM->pdm.s.Apic.pfnGetTimerFreqRC   += offDelta;
-        pVM->pdm.s.Apic.pfnWriteMSRRC       += offDelta;
-        pVM->pdm.s.Apic.pfnReadMSRRC        += offDelta;
     }
 
     /*
@@ -505,6 +529,8 @@ VMMR3_INT_DECL(void) PDMR3Relocate(PVM pVM, RTGCINTPTR offDelta)
         pVM->pdm.s.IoApic.pfnSetIrqRC       += offDelta;
         if (pVM->pdm.s.IoApic.pfnSendMsiRC)
             pVM->pdm.s.IoApic.pfnSendMsiRC      += offDelta;
+        if (pVM->pdm.s.IoApic.pfnSetEoiRC)
+            pVM->pdm.s.IoApic.pfnSetEoiRC       += offDelta;
     }
 
     /*
@@ -612,10 +638,21 @@ static void pdmR3TermLuns(PVM pVM, PPDMLUN pLun, const char *pszDevice, unsigned
             }
             pDrvIns->Internal.s.pDrv->cInstances--;
 
-            TMR3TimerDestroyDriver(pVM, pDrvIns);
+            /* Order of resource freeing like in pdmR3DrvDestroyChain, but
+             * not all need to be done as they are done globally later. */
             //PDMR3QueueDestroyDriver(pVM, pDrvIns);
-            //pdmR3ThreadDestroyDriver(pVM, pDrvIns);
+            TMR3TimerDestroyDriver(pVM, pDrvIns);
             SSMR3DeregisterDriver(pVM, pDrvIns, NULL, 0);
+            //pdmR3ThreadDestroyDriver(pVM, pDrvIns);
+            //DBGFR3InfoDeregisterDriver(pVM, pDrvIns, NULL);
+            //pdmR3CritSectBothDeleteDriver(pVM, pDrvIns);
+            //PDMR3BlkCacheReleaseDriver(pVM, pDrvIns);
+#ifdef VBOX_WITH_PDM_ASYNC_COMPLETION
+            //pdmR3AsyncCompletionTemplateDestroyDriver(pVM, pDrvIns);
+#endif
+
+            /* Clear the driver struture to catch sloppy code. */
+            ASMMemFill32(pDrvIns, RT_OFFSETOF(PDMDRVINS, achInstanceData[pDrvIns->pReg->cbInstance]), 0xdeadd0d0);
 
             pDrvIns = pDrvNext;
         }
@@ -1588,6 +1625,84 @@ VMMR3_INT_DECL(void) PDMR3MemSetup(PVM pVM, bool fAtReset)
 
 
 /**
+ * Retrieves and resets the info left behind by PDMDevHlpVMReset.
+ *
+ * @returns True if hard reset, false if soft reset.
+ * @param   pVM             The cross context VM structure.
+ * @param   fOverride       If non-zero, the override flags will be used instead
+ *                          of the reset flags kept by PDM. (For triple faults.)
+ * @param   pfResetFlags    Where to return the reset flags (PDMVMRESET_F_XXX).
+ * @thread  EMT
+ */
+VMMR3_INT_DECL(bool) PDMR3GetResetInfo(PVM pVM, uint32_t fOverride, uint32_t *pfResetFlags)
+{
+    VM_ASSERT_EMT(pVM);
+
+    /*
+     * Get the reset flags.
+     */
+    uint32_t fResetFlags;
+    fResetFlags = ASMAtomicXchgU32(&pVM->pdm.s.fResetFlags, 0);
+    if (fOverride)
+        fResetFlags = fOverride;
+    *pfResetFlags = fResetFlags;
+
+    /*
+     * To try avoid trouble, we never ever do soft/warm resets on SMP systems
+     * with more than CPU #0 active.  However, if only one CPU is active we
+     * will ask the firmware what it wants us to do (because the firmware may
+     * depend on the VMM doing a lot of what is normally its responsibility,
+     * like clearing memory).
+     */
+    bool     fOtherCpusActive = false;
+    VMCPUID  iCpu             = pVM->cCpus;
+    while (iCpu-- > 1)
+    {
+        EMSTATE enmState = EMGetState(&pVM->aCpus[iCpu]);
+        if (   enmState != EMSTATE_WAIT_SIPI
+            && enmState != EMSTATE_NONE)
+        {
+            fOtherCpusActive = true;
+            break;
+        }
+    }
+
+    bool fHardReset = fOtherCpusActive
+                   || (fResetFlags & PDMVMRESET_F_SRC_MASK) < PDMVMRESET_F_LAST_ALWAYS_HARD
+                   || !pVM->pdm.s.pFirmware
+                   || pVM->pdm.s.pFirmware->Reg.pfnIsHardReset(pVM->pdm.s.pFirmware->pDevIns, fResetFlags);
+
+    Log(("PDMR3GetResetInfo: returns fHardReset=%RTbool fResetFlags=%#x\n", fHardReset, fResetFlags));
+    return fHardReset;
+}
+
+
+/**
+ * Performs a soft reset of devices.
+ *
+ * @param   pVM             The cross context VM structure.
+ * @param   fResetFlags     PDMVMRESET_F_XXX.
+ */
+VMMR3_INT_DECL(void) PDMR3SoftReset(PVM pVM, uint32_t fResetFlags)
+{
+    LogFlow(("PDMR3SoftReset: fResetFlags=%#x\n", fResetFlags));
+
+    /*
+     * Iterate thru the device instances and work the callback.
+     */
+    for (PPDMDEVINS pDevIns = pVM->pdm.s.pDevInstances; pDevIns; pDevIns = pDevIns->Internal.s.pNextR3)
+        if (pDevIns->pReg->pfnSoftReset)
+        {
+            PDMCritSectEnter(pDevIns->pCritSectRoR3, VERR_IGNORED);
+            pDevIns->pReg->pfnSoftReset(pDevIns, fResetFlags);
+            PDMCritSectLeave(pDevIns->pCritSectRoR3);
+        }
+
+    LogFlow(("PDMR3SoftReset: returns void\n"));
+}
+
+
+/**
  * Worker for PDMR3Suspend that deals with one driver.
  *
  * @param   pDrvIns             The driver instance.
@@ -2416,56 +2531,15 @@ VMMR3_INT_DECL(int) PDMR3LockCall(PVM pVM)
 
 
 /**
- * Registers the VMM device heap
- *
- * @returns VBox status code.
- * @param   pVM             The cross context VM structure.
- * @param   GCPhys          The physical address.
- * @param   pvHeap          Ring-3 pointer.
- * @param   cbSize          Size of the heap.
- */
-VMMR3_INT_DECL(int) PDMR3VmmDevHeapRegister(PVM pVM, RTGCPHYS GCPhys, RTR3PTR pvHeap, unsigned cbSize)
-{
-    Assert(pVM->pdm.s.pvVMMDevHeap == NULL);
-
-    Log(("PDMR3VmmDevHeapRegister %RGp %RHv %x\n", GCPhys, pvHeap, cbSize));
-    pVM->pdm.s.pvVMMDevHeap     = pvHeap;
-    pVM->pdm.s.GCPhysVMMDevHeap = GCPhys;
-    pVM->pdm.s.cbVMMDevHeap     = cbSize;
-    pVM->pdm.s.cbVMMDevHeapLeft = cbSize;
-    return VINF_SUCCESS;
-}
-
-
-/**
- * Unregisters the VMM device heap
- *
- * @returns VBox status code.
- * @param   pVM             The cross context VM structure.
- * @param   GCPhys          The physical address.
- */
-VMMR3_INT_DECL(int) PDMR3VmmDevHeapUnregister(PVM pVM, RTGCPHYS GCPhys)
-{
-    Assert(pVM->pdm.s.GCPhysVMMDevHeap == GCPhys);
-
-    Log(("PDMR3VmmDevHeapUnregister %RGp\n", GCPhys));
-    pVM->pdm.s.pvVMMDevHeap     = NULL;
-    pVM->pdm.s.GCPhysVMMDevHeap = NIL_RTGCPHYS;
-    pVM->pdm.s.cbVMMDevHeap     = 0;
-    pVM->pdm.s.cbVMMDevHeapLeft = 0;
-    return VINF_SUCCESS;
-}
-
-
-/**
- * Allocates memory from the VMM device heap
+ * Allocates memory from the VMM device heap.
  *
  * @returns VBox status code.
  * @param   pVM             The cross context VM structure.
  * @param   cbSize          Allocation size.
+ * @param   pfnNotify       Mapping/unmapping notification callback.
  * @param   ppv             Ring-3 pointer. (out)
  */
-VMMR3_INT_DECL(int) PDMR3VmmDevHeapAlloc(PVM pVM, size_t cbSize, RTR3PTR *ppv)
+VMMR3_INT_DECL(int) PDMR3VmmDevHeapAlloc(PVM pVM, size_t cbSize, PFNPDMVMMDEVHEAPNOTIFY pfnNotify, RTR3PTR *ppv)
 {
 #ifdef DEBUG_bird
     if (!cbSize || cbSize > pVM->pdm.s.cbVMMDevHeapLeft)
@@ -2479,6 +2553,7 @@ VMMR3_INT_DECL(int) PDMR3VmmDevHeapAlloc(PVM pVM, size_t cbSize, RTR3PTR *ppv)
     /** @todo Not a real heap as there's currently only one user. */
     *ppv = pVM->pdm.s.pvVMMDevHeap;
     pVM->pdm.s.cbVMMDevHeapLeft = 0;
+    pVM->pdm.s.pfnVMMDevHeapNotify = pfnNotify;
     return VINF_SUCCESS;
 }
 
@@ -2496,6 +2571,7 @@ VMMR3_INT_DECL(int) PDMR3VmmDevHeapFree(PVM pVM, RTR3PTR pv)
 
     /** @todo not a real heap as there's currently only one user. */
     pVM->pdm.s.cbVMMDevHeapLeft = pVM->pdm.s.cbVMMDevHeap;
+    pVM->pdm.s.pfnVMMDevHeapNotify = NULL;
     return VINF_SUCCESS;
 }
 

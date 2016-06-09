@@ -1,20 +1,18 @@
 /** @file
   The firmware volume related definitions in PI.
 
-  Copyright (c) 2006 - 2011, Intel Corporation. All rights reserved.<BR>
+  @par Revision Reference:
+  Version 1.2C
+
+  Copyright (c) 2006 - 2014, Intel Corporation. All rights reserved.<BR>
 
   This program and the accompanying materials are licensed and made available
   under the terms and conditions of the BSD License which accompanies this
-  distribution.  The full text of the license may be found at:
+  distribution.  The full text of the license may be found at
     http://opensource.org/licenses/bsd-license.php
 
   THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,
   WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
-
-  File Name: PiFirmwareVolume.h
-
-  @par Revision Reference:
-  Version 1.2C
 
 **/
 
@@ -28,16 +26,16 @@ typedef UINT32  EFI_FV_FILE_ATTRIBUTES;
 
 //
 // Value of EFI_FV_FILE_ATTRIBUTES.
-// 
+//
 #define EFI_FV_FILE_ATTRIB_ALIGNMENT      0x0000001F
 #define EFI_FV_FILE_ATTRIB_FIXED          0x00000100
 #define EFI_FV_FILE_ATTRIB_MEMORY_MAPPED  0x00000200
 
 typedef UINT32  EFI_FVB_ATTRIBUTES_2;
 
-// 
+//
 // Attributes bit definitions
-// 
+//
 #define EFI_FVB2_READ_DISABLED_CAP  0x00000001
 #define EFI_FVB2_READ_ENABLED_CAP   0x00000002
 #define EFI_FVB2_READ_STATUS        0x00000004
@@ -54,6 +52,7 @@ typedef UINT32  EFI_FVB_ATTRIBUTES_2;
 #define EFI_FVB2_WRITE_LOCK_CAP     0x00004000
 #define EFI_FVB2_WRITE_LOCK_STATUS  0x00008000
 #define EFI_FVB2_ALIGNMENT          0x001F0000
+#define EFI_FVB2_WEAK_ALIGNMENT     0x80000000
 #define EFI_FVB2_ALIGNMENT_1        0x00000000
 #define EFI_FVB2_ALIGNMENT_2        0x00010000
 #define EFI_FVB2_ALIGNMENT_4        0x00020000
@@ -110,7 +109,7 @@ typedef struct {
   EFI_FV_BLOCK_MAP_ENTRY    BlockMap[1];
 } EFI_FIRMWARE_VOLUME_HEADER;
 
-#define EFI_FVH_SIGNATURE EFI_SIGNATURE_32 ('_', 'F', 'V', 'H')
+#define EFI_FVH_SIGNATURE SIGNATURE_32 ('_', 'F', 'V', 'H')
 
 ///
 /// Firmware Volume Header Revision definition
@@ -119,7 +118,7 @@ typedef struct {
 
 //
 // Extension header pointed by ExtHeaderOffset of volume header.
-// 
+//
 typedef struct {
   EFI_GUID  FvName;
   UINT32    ExtHeaderSize;
@@ -136,9 +135,9 @@ typedef struct {
   UINT32    TypeMask;
 
   //
-  // Array of GUIDs. 
+  // Array of GUIDs.
   // Each GUID represents an OEM file type.
-  // 
+  //
   // EFI_GUID  Types[1];
   //
 } EFI_FIRMWARE_VOLUME_EXT_ENTRY_OEM_TYPE;

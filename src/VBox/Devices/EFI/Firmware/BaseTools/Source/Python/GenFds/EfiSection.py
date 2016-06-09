@@ -1,7 +1,7 @@
 ## @file
 # process rule section generation
 #
-#  Copyright (c) 2007, Intel Corporation. All rights reserved.<BR>
+#  Copyright (c) 2007 - 2014, Intel Corporation. All rights reserved.<BR>
 #
 #  This program and the accompanying materials
 #  are licensed and made available under the terms and conditions of the BSD License
@@ -20,12 +20,13 @@ import Section
 from GenFdsGlobalVariable import GenFdsGlobalVariable
 import subprocess
 from Ffs import Ffs
-import os
+import Common.LongFilePathOs as os
 from CommonDataClass.FdfClass import EfiSectionClassObject
-import shutil
 from Common import EdkLogger
 from Common.BuildToolError import *
 from Common.Misc import PeImageClass
+from Common.LongFilePathSupport import OpenLongFilePath as open
+from Common.LongFilePathSupport import CopyLongFilePath
 
 ## generate rule section
 #
@@ -53,7 +54,7 @@ class EfiSection (EfiSectionClassObject):
     #   @retval tuple       (Generated file name list, section alignment)
     #
     def GenSection(self, OutputPath, ModuleName, SecNum, KeyStringList, FfsInf = None, Dict = {}) :
-        
+
         if self.FileName != None and self.FileName.startswith('PCD('):
             self.FileName = GenFdsGlobalVariable.GetPcdValue(self.FileName)
         """Prepare the parameter of GenSection"""
@@ -117,7 +118,7 @@ class EfiSection (EfiSectionClassObject):
                 Num = SecNum
                 OutputFile = os.path.join( OutputPath, ModuleName + 'SEC' + str(Num) + Ffs.SectionSuffix.get(SectionType))
                 GenFdsGlobalVariable.GenerateSection(OutputFile, [], 'EFI_SECTION_VERSION',
-                                                     #Ui=StringData, 
+                                                     #Ui=StringData,
                                                      Ver=BuildNum)
                 OutputFileList.append(OutputFile)
 
@@ -133,7 +134,7 @@ class EfiSection (EfiSectionClassObject):
                     if BuildNum != None and BuildNum != '':
                         BuildNumTuple = ('-j', BuildNum)
                     GenFdsGlobalVariable.GenerateSection(OutputFile, [], 'EFI_SECTION_VERSION',
-                                                         #Ui=VerString, 
+                                                         #Ui=VerString,
                                                          Ver=BuildNum)
                     OutputFileList.append(OutputFile)
 
@@ -145,7 +146,7 @@ class EfiSection (EfiSectionClassObject):
                     BuildNumTuple = tuple()
                 BuildNumString = ' ' + ' '.join(BuildNumTuple)
 
-                #if VerString == '' and 
+                #if VerString == '' and
                 if BuildNumString == '':
                     if self.Optional == True :
                         GenFdsGlobalVariable.VerboseLogger( "Optional Section don't exist!")
@@ -155,7 +156,7 @@ class EfiSection (EfiSectionClassObject):
                 Num = SecNum
                 OutputFile = os.path.join( OutputPath, ModuleName + 'SEC' + str(Num) + Ffs.SectionSuffix.get(SectionType))
                 GenFdsGlobalVariable.GenerateSection(OutputFile, [], 'EFI_SECTION_VERSION',
-                                                     #Ui=VerString, 
+                                                     #Ui=VerString,
                                                      Ver=BuildNum)
                 OutputFileList.append(OutputFile)
 
@@ -210,10 +211,10 @@ class EfiSection (EfiSectionClassObject):
             """If File List is empty"""
             if FileList == [] :
                 if self.Optional == True:
-                     GenFdsGlobalVariable.VerboseLogger( "Optional Section don't exist!")
-                     return [], None
+                    GenFdsGlobalVariable.VerboseLogger("Optional Section don't exist!")
+                    return [], None
                 else:
-                     EdkLogger.error("GenFds", GENFDS_ERROR, "Output file for %s section could not be found for %s" % (SectionType, InfFileName))
+                    EdkLogger.error("GenFds", GENFDS_ERROR, "Output file for %s section could not be found for %s" % (SectionType, InfFileName))
 
             else:
                 """Convert the File to Section file one by one """
@@ -223,7 +224,7 @@ class EfiSection (EfiSectionClassObject):
                     Num = '%s.%d' %(SecNum , Index)
                     OutputFile = os.path.join( OutputPath, ModuleName + 'SEC' + Num + Ffs.SectionSuffix.get(SectionType))
                     File = GenFdsGlobalVariable.MacroExtend(File, Dict)
-                    
+
                     #Get PE Section alignment when align is set to AUTO
                     if self.Alignment == 'Auto' and (SectionType == 'PE32' or SectionType == 'TE'):
                         ImageObj = PeImageClass (File)
@@ -237,14 +238,14 @@ class EfiSection (EfiSectionClassObject):
                         if os.path.exists(MapFile):
                             CopyMapFile = os.path.join(OutputPath, ModuleName + '.map')
                             if not os.path.exists(CopyMapFile) or \
-                                (os.path.getmtime(MapFile) > os.path.getmtime(CopyMapFile)):
-                                shutil.copyfile(MapFile, CopyMapFile)
+                                   (os.path.getmtime(MapFile) > os.path.getmtime(CopyMapFile)):
+                                CopyLongFilePath(MapFile, CopyMapFile)
 
                     if not NoStrip:
                         FileBeforeStrip = os.path.join(OutputPath, ModuleName + '.efi')
                         if not os.path.exists(FileBeforeStrip) or \
                             (os.path.getmtime(File) > os.path.getmtime(FileBeforeStrip)):
-                            shutil.copyfile(File, FileBeforeStrip)
+                            CopyLongFilePath(File, FileBeforeStrip)
                         StrippedFile = os.path.join(OutputPath, ModuleName + '.stripped')
                         GenFdsGlobalVariable.GenerateFirmwareImage(
                                                 StrippedFile,
@@ -252,7 +253,7 @@ class EfiSection (EfiSectionClassObject):
                                                 Strip=True
                                                 )
                         File = StrippedFile
-                    
+
                     """For TE Section call GenFw to generate TE image"""
 
                     if SectionType == 'TE':

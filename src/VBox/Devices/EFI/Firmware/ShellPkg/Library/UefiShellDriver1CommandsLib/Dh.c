@@ -1,7 +1,8 @@
 /** @file
   Main file for Dh shell Driver1 function.
 
-  Copyright (c) 2010 - 2011, Intel Corporation. All rights reserved.<BR>
+  Copyright (c) 2014, Hewlett-Packard Development Company, L.P.<BR>
+  Copyright (c) 2010 - 2014, Intel Corporation. All rights reserved.<BR>
   This program and the accompanying materials
   are licensed and made available under the terms and conditions of the BSD License
   which accompanies this distribution.  The full text of the license may be found at
@@ -60,7 +61,6 @@ GetDriverName (
   )
 {
   CHAR8                             *Lang;
-  CHAR8                             *TempChar;
   EFI_STATUS                        Status;
   EFI_COMPONENT_NAME2_PROTOCOL      *CompName2;
   CHAR16                            *NameToReturn;
@@ -87,23 +87,7 @@ GetDriverName (
   if (EFI_ERROR(Status)) {
     return (EFI_NOT_FOUND);
   }
-  if (Language == NULL) {
-    Lang = AllocateZeroPool(AsciiStrSize(CompName2->SupportedLanguages));
-    if (Lang == NULL) {
-      return (EFI_OUT_OF_RESOURCES);
-    }
-    AsciiStrCpy(Lang, CompName2->SupportedLanguages);
-    TempChar = AsciiStrStr(Lang, ";");
-    if (TempChar != NULL){
-      *TempChar = CHAR_NULL;
-    }
-  } else {
-    Lang = AllocateZeroPool(AsciiStrSize(Language));
-    if (Lang == NULL) {
-      return (EFI_OUT_OF_RESOURCES);
-    }
-    AsciiStrCpy(Lang, Language);
-  }
+  Lang = GetBestLanguageForDriver (CompName2->SupportedLanguages, Language, FALSE);
   Status = CompName2->GetDriverName(CompName2, Lang, &NameToReturn);
   FreePool(Lang);
 
@@ -202,7 +186,7 @@ GetProtocolInfoString(
           if (!Verbose) {
             StrnCatGrow(&RetVal, &Size, L"(", 0);
             StrnCatGrow(&RetVal, &Size, Temp, 0);
-            StrnCatGrow(&RetVal, &Size, L")", 0);
+            StrnCatGrow(&RetVal, &Size, L")\r\n", 0);
           } else {
             StrnCatGrow(&RetVal, &Size, Seperator, 0);
             StrnCatGrow(&RetVal, &Size, Temp, 0);
@@ -212,7 +196,7 @@ GetProtocolInfoString(
       }
     }
   }
-  
+
   SHELL_FREE_NON_NULL(ProtocolGuidArray);
 
   if (RetVal == NULL) {
@@ -260,13 +244,13 @@ GetDriverImageName (
     return (Status);
   }
   DevicePath = LoadedImage->FilePath;
-  *Name = gDevPathToText->ConvertDevicePathToText(DevicePath, TRUE, TRUE);
+  *Name = ConvertDevicePathToText(DevicePath, TRUE, TRUE);
   return (EFI_SUCCESS);
 }
 
 /**
   Display driver model information for a given handle.
-  
+
   @param[in] Handle     The handle to display info on.
   @param[in] BestName   Use the best name?
   @param[in] Language   The language to output in.
@@ -299,6 +283,8 @@ DisplayDriverModelHandle (
   EFI_HANDLE                  *ControllerHandleBuffer;
   UINTN                       ChildIndex;
   BOOLEAN                     Image;
+
+  DriverName = NULL;
 
   //
   // See if Handle is a device handle and display its details.
@@ -353,14 +339,14 @@ DisplayDriverModelHandle (
     Status = gEfiShellProtocol->GetDeviceName(Handle, EFI_DEVICE_NAME_USE_COMPONENT_NAME|EFI_DEVICE_NAME_USE_DEVICE_PATH, (CHAR8*)Language, &TempStringPointer);
     ShellPrintHiiEx(-1, -1, NULL, STRING_TOKEN (STR_DH_OUTPUT_DRIVER1), gShellDriver1HiiHandle, TempStringPointer!=NULL?TempStringPointer:L"<Unknown>");
     SHELL_FREE_NON_NULL(TempStringPointer);
-  
-    TempStringPointer = gDevPathToText->ConvertDevicePathToText(DevicePath, TRUE, FALSE);
+
+    TempStringPointer = ConvertDevicePathToText(DevicePath, TRUE, FALSE);
     ShellPrintHiiEx(
-      -1, 
-      -1, 
-      NULL, 
-      STRING_TOKEN (STR_DH_OUTPUT_DRIVER2), 
-      gShellDriver1HiiHandle, 
+      -1,
+      -1,
+      NULL,
+      STRING_TOKEN (STR_DH_OUTPUT_DRIVER2),
+      gShellDriver1HiiHandle,
       TempStringPointer!=NULL?TempStringPointer:L"<None>",
       ParentControllerHandleCount == 0?L"ROOT":(ChildControllerHandleCount > 0)?L"BUS":L"DEVICE",
       ConfigurationStatus?L"YES":L"NO",
@@ -371,20 +357,20 @@ DisplayDriverModelHandle (
 
     if (DriverBindingHandleCount == 0) {
       ShellPrintHiiEx(
-        -1, 
-        -1, 
-        NULL, 
-        STRING_TOKEN (STR_DH_OUTPUT_DRIVER3), 
-        gShellDriver1HiiHandle, 
+        -1,
+        -1,
+        NULL,
+        STRING_TOKEN (STR_DH_OUTPUT_DRIVER3),
+        gShellDriver1HiiHandle,
         L"<None>"
         );
     } else {
       ShellPrintHiiEx(
-        -1, 
-        -1, 
-        NULL, 
-        STRING_TOKEN (STR_DH_OUTPUT_DRIVER3), 
-        gShellDriver1HiiHandle, 
+        -1,
+        -1,
+        NULL,
+        STRING_TOKEN (STR_DH_OUTPUT_DRIVER3),
+        gShellDriver1HiiHandle,
         L""
         );
       for (Index = 0; Index < DriverBindingHandleCount; Index++) {
@@ -394,18 +380,21 @@ DisplayDriverModelHandle (
                   Language,
                   &DriverName
                   );
-        if (DriverName == NULL) {
+        if (EFI_ERROR (Status)) {
           Status = GetDriverImageName (
                     DriverBindingHandleBuffer[Index],
                     &DriverName
                     );
+          if (EFI_ERROR (Status)) {
+            DriverName = NULL;
+          }
         }
 
         if (Image) {
           ShellPrintHiiEx(
-            -1, 
-            -1, 
-            NULL, 
+            -1,
+            -1,
+            NULL,
             STRING_TOKEN (STR_DH_OUTPUT_DRIVER4A),
             gShellDriver1HiiHandle,
             ConvertHandleToHandleIndex (DriverBindingHandleBuffer[Index]),
@@ -413,9 +402,9 @@ DisplayDriverModelHandle (
             );
         } else {
           ShellPrintHiiEx(
-            -1, 
-            -1, 
-            NULL, 
+            -1,
+            -1,
+            NULL,
             STRING_TOKEN (STR_DH_OUTPUT_DRIVER4B),
             gShellDriver1HiiHandle,
             ConvertHandleToHandleIndex (DriverBindingHandleBuffer[Index]),
@@ -428,28 +417,28 @@ DisplayDriverModelHandle (
 
     if (ParentControllerHandleCount == 0) {
       ShellPrintHiiEx(
-        -1, 
-        -1, 
-        NULL, 
-        STRING_TOKEN (STR_DH_OUTPUT_DRIVER5), 
-        gShellDriver1HiiHandle, 
+        -1,
+        -1,
+        NULL,
+        STRING_TOKEN (STR_DH_OUTPUT_DRIVER5),
+        gShellDriver1HiiHandle,
         L"<None>"
         );
     } else {
       ShellPrintHiiEx(
-        -1, 
-        -1, 
-        NULL, 
-        STRING_TOKEN (STR_DH_OUTPUT_DRIVER5), 
-        gShellDriver1HiiHandle, 
+        -1,
+        -1,
+        NULL,
+        STRING_TOKEN (STR_DH_OUTPUT_DRIVER5),
+        gShellDriver1HiiHandle,
         L""
         );
       for (Index = 0; Index < ParentControllerHandleCount; Index++) {
         Status = gEfiShellProtocol->GetDeviceName(ParentControllerHandleBuffer[Index], EFI_DEVICE_NAME_USE_COMPONENT_NAME|EFI_DEVICE_NAME_USE_DEVICE_PATH, (CHAR8*)Language, &TempStringPointer);
         ShellPrintHiiEx(
-          -1, 
-          -1, 
-          NULL, 
+          -1,
+          -1,
+          NULL,
           STRING_TOKEN (STR_DH_OUTPUT_DRIVER5B),
           gShellDriver1HiiHandle,
           ConvertHandleToHandleIndex (ParentControllerHandleBuffer[Index]),
@@ -461,28 +450,28 @@ DisplayDriverModelHandle (
 
     if (ChildControllerHandleCount == 0) {
       ShellPrintHiiEx(
-        -1, 
-        -1, 
-        NULL, 
-        STRING_TOKEN (STR_DH_OUTPUT_DRIVER6), 
-        gShellDriver1HiiHandle, 
+        -1,
+        -1,
+        NULL,
+        STRING_TOKEN (STR_DH_OUTPUT_DRIVER6),
+        gShellDriver1HiiHandle,
         L"<None>"
         );
     } else {
       ShellPrintHiiEx(
-        -1, 
-        -1, 
-        NULL, 
-        STRING_TOKEN (STR_DH_OUTPUT_DRIVER6), 
-        gShellDriver1HiiHandle, 
+        -1,
+        -1,
+        NULL,
+        STRING_TOKEN (STR_DH_OUTPUT_DRIVER6),
+        gShellDriver1HiiHandle,
         L""
         );
       for (Index = 0; Index < ChildControllerHandleCount; Index++) {
         Status = gEfiShellProtocol->GetDeviceName(ChildControllerHandleBuffer[Index], EFI_DEVICE_NAME_USE_COMPONENT_NAME|EFI_DEVICE_NAME_USE_DEVICE_PATH, (CHAR8*)Language, &TempStringPointer);
         ShellPrintHiiEx(
-          -1, 
-          -1, 
-          NULL, 
+          -1,
+          -1,
+          NULL,
           STRING_TOKEN (STR_DH_OUTPUT_DRIVER6B),
           gShellDriver1HiiHandle,
           ConvertHandleToHandleIndex (ChildControllerHandleBuffer[Index]),
@@ -537,26 +526,31 @@ DisplayDriverModelHandle (
   }
 
   Status = GetDriverName (Handle, Language, &DriverName);
+  if (EFI_ERROR (Status)) {
+    DriverName = NULL;
+  }
 
   ShellPrintHiiEx(
-    -1, 
-    -1, 
-    NULL, 
+    -1,
+    -1,
+    NULL,
     STRING_TOKEN (STR_DH_OUTPUT_DRIVER6B),
     gShellDriver1HiiHandle,
     ConvertHandleToHandleIndex(Handle),
     DriverName!=NULL?DriverName:L"<Unknown>"
     );
   SHELL_FREE_NON_NULL(DriverName);
-  DriverName = NULL;
   Status = GetDriverImageName (
             Handle,
             &DriverName
             );
+  if (EFI_ERROR (Status)) {
+    DriverName = NULL;
+  }
   ShellPrintHiiEx(
-    -1, 
-    -1, 
-    NULL, 
+    -1,
+    -1,
+    NULL,
     STRING_TOKEN (STR_DH_OUTPUT_DRIVER7B),
     gShellDriver1HiiHandle,
     DriverName!=NULL?DriverName:L"<Unknown>"
@@ -564,11 +558,11 @@ DisplayDriverModelHandle (
   SHELL_FREE_NON_NULL(DriverName);
 
   ShellPrintHiiEx(
-    -1, 
-    -1, 
-    NULL, 
-    STRING_TOKEN (STR_DH_OUTPUT_DRIVER8), 
-    gShellDriver1HiiHandle, 
+    -1,
+    -1,
+    NULL,
+    STRING_TOKEN (STR_DH_OUTPUT_DRIVER8),
+    gShellDriver1HiiHandle,
     DriverBinding->Version,
     NumberOfChildren > 0?L"Bus":ControllerHandleCount > 0?L"Device":L"<Unknown>",
     ConfigurationStatus?L"YES":L"NO",
@@ -577,29 +571,29 @@ DisplayDriverModelHandle (
 
   if (ControllerHandleCount == 0) {
       ShellPrintHiiEx(
-        -1, 
-        -1, 
-        NULL, 
-        STRING_TOKEN (STR_DH_OUTPUT_DRIVER6), 
-        gShellDriver1HiiHandle, 
+        -1,
+        -1,
+        NULL,
+        STRING_TOKEN (STR_DH_OUTPUT_DRIVER6),
+        gShellDriver1HiiHandle,
         L"None"
         );
   } else {
     ShellPrintHiiEx(
-      -1, 
-      -1, 
-      NULL, 
-      STRING_TOKEN (STR_DH_OUTPUT_DRIVER6), 
-      gShellDriver1HiiHandle, 
+      -1,
+      -1,
+      NULL,
+      STRING_TOKEN (STR_DH_OUTPUT_DRIVER6),
+      gShellDriver1HiiHandle,
       L""
       );
     for (HandleIndex = 0; HandleIndex < ControllerHandleCount; HandleIndex++) {
       Status = gEfiShellProtocol->GetDeviceName(ControllerHandleBuffer[HandleIndex], EFI_DEVICE_NAME_USE_COMPONENT_NAME|EFI_DEVICE_NAME_USE_DEVICE_PATH, (CHAR8*)Language, &TempStringPointer);
 
       ShellPrintHiiEx(
-        -1, 
-        -1, 
-        NULL, 
+        -1,
+        -1,
+        NULL,
         STRING_TOKEN (STR_DH_OUTPUT_DRIVER9B),
         gShellDriver1HiiHandle,
         ConvertHandleToHandleIndex(ControllerHandleBuffer[HandleIndex]),
@@ -618,9 +612,9 @@ DisplayDriverModelHandle (
           Status = gEfiShellProtocol->GetDeviceName(ChildControllerHandleBuffer[ChildIndex], EFI_DEVICE_NAME_USE_COMPONENT_NAME|EFI_DEVICE_NAME_USE_DEVICE_PATH, (CHAR8*)Language, &TempStringPointer);
 
           ShellPrintHiiEx(
-            -1, 
-            -1, 
-            NULL, 
+            -1,
+            -1,
+            NULL,
             STRING_TOKEN (STR_DH_OUTPUT_DRIVER6B),
             gShellDriver1HiiHandle,
             ConvertHandleToHandleIndex(ChildControllerHandleBuffer[ChildIndex]),
@@ -666,9 +660,7 @@ DoDhByHandle(
 {
   CHAR16              *ProtocolInfoString;
   SHELL_STATUS        ShellStatus;
-  EFI_STATUS          Status;
 
-  Status              = EFI_SUCCESS;
   ShellStatus         = SHELL_SUCCESS;
   ProtocolInfoString  = NULL;
 
@@ -728,6 +720,7 @@ DoDhByHandle(
   Display information for all handles on a list.
 
   @param[in] HandleList       The NULL-terminated list of handles.
+  @param[in] Verbose          TRUE for extra info, FALSE otherwise.
   @param[in] Sfo              TRUE to output in standard format output (spec).
   @param[in] Language         Language string per UEFI specification.
   @param[in] DriverInfo       TRUE to show all info about the handle.
@@ -739,6 +732,7 @@ SHELL_STATUS
 EFIAPI
 DoDhForHandleList(
   IN CONST EFI_HANDLE *HandleList,
+  IN CONST BOOLEAN    Verbose,
   IN CONST BOOLEAN    Sfo,
   IN CONST CHAR8      *Language,
   IN CONST BOOLEAN    DriverInfo
@@ -752,12 +746,16 @@ DoDhForHandleList(
   for (HandleWalker = HandleList ; HandleWalker != NULL && *HandleWalker != NULL && ShellStatus == SHELL_SUCCESS; HandleWalker++) {
     ShellStatus = DoDhByHandle(
           *HandleWalker,
-          FALSE,
+          Verbose,
           Sfo,
           Language,
           DriverInfo,
           TRUE
          );
+    if (ShellGetExecutionBreakFlag ()) {
+      ShellStatus = SHELL_ABORTED;
+      break;
+    }
   }
   return (ShellStatus);
 }
@@ -766,6 +764,7 @@ DoDhForHandleList(
   Display information for all handles.
 
   @param[in] Sfo              TRUE to output in standard format output (spec).
+  @param[in] Verbose          TRUE for extra info, FALSE otherwise.
   @param[in] Language         Language string per UEFI specification.
   @param[in] DriverInfo       TRUE to show all info about the handle.
 
@@ -776,6 +775,7 @@ SHELL_STATUS
 EFIAPI
 DoDhForAll(
   IN CONST BOOLEAN  Sfo,
+  IN CONST BOOLEAN  Verbose,
   IN CONST CHAR8    *Language,
   IN CONST BOOLEAN  DriverInfo
   )
@@ -787,6 +787,7 @@ DoDhForAll(
 
   ShellStatus = DoDhForHandleList(
     HandleList,
+    Verbose,
     Sfo,
     Language,
     DriverInfo);
@@ -800,6 +801,7 @@ DoDhForAll(
   Display information for all handles which have a specific protocol.
 
   @param[in] ProtocolName     The pointer to the name of the protocol.
+  @param[in] Verbose          TRUE for extra info, FALSE otherwise.
   @param[in] Sfo              TRUE to output in standard format output (spec).
   @param[in] Language         Language string per UEFI specification.
   @param[in] DriverInfo       TRUE to show all info about the handle.
@@ -811,6 +813,7 @@ SHELL_STATUS
 EFIAPI
 DoDhByProtocol(
   IN CONST CHAR16   *ProtocolName,
+  IN CONST BOOLEAN  Verbose,
   IN CONST BOOLEAN  Sfo,
   IN CONST CHAR8    *Language,
   IN CONST BOOLEAN  DriverInfo
@@ -835,6 +838,7 @@ DoDhByProtocol(
 
   ShellStatus = DoDhForHandleList(
     HandleList,
+    Verbose,
     Sfo,
     Language,
     DriverInfo);
@@ -932,6 +936,7 @@ ShellCommandRunDh (
         //
         ShellStatus = DoDhByProtocol(
           ShellCommandLineGetValue(Package, L"-p"),
+          Verbose,
           SfoMode,
           Lang==NULL?NULL:Language,
           FlagD
@@ -945,6 +950,7 @@ ShellCommandRunDh (
         //
         ShellStatus = DoDhForAll(
           SfoMode,
+          Verbose,
           Lang==NULL?NULL:Language,
           FlagD
          );

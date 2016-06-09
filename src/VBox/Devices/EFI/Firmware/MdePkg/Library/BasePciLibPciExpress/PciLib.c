@@ -2,7 +2,7 @@
   PCI Library functions that use the 256 MB PCI Express MMIO window to perform PCI
   Configuration cycles. Layers on PCI Express Library.
 
-  Copyright (c) 2006 - 2008, Intel Corporation. All rights reserved.<BR>
+  Copyright (c) 2006 - 2012, Intel Corporation. All rights reserved.<BR>
   This program and the accompanying materials
   are licensed and made available under the terms and conditions of the BSD License
   which accompanies this distribution.  The full text of the license may be found at
@@ -20,19 +20,19 @@
 #include <Library/PciExpressLib.h>
 
 /**
-  Registers a PCI device so PCI configuration registers may be accessed after 
+  Registers a PCI device so PCI configuration registers may be accessed after
   SetVirtualAddressMap().
-  
-  Registers the PCI device specified by Address so all the PCI configuration registers 
+
+  Registers the PCI device specified by Address so all the PCI configuration registers
   associated with that PCI device may be accessed after SetVirtualAddressMap() is called.
-  
+
   If Address > 0x0FFFFFFF, then ASSERT().
 
   @param  Address The address that encodes the PCI Bus, Device, Function and
                   Register.
-  
+
   @retval RETURN_SUCCESS           The PCI device was registered for runtime access.
-  @retval RETURN_UNSUPPORTED       An attempt was made to call this function 
+  @retval RETURN_UNSUPPORTED       An attempt was made to call this function
                                    after ExitBootServices().
   @retval RETURN_UNSUPPORTED       The resources required to access the PCI device
                                    at runtime could not be mapped.
@@ -236,6 +236,7 @@ PciBitFieldRead8 (
   If StartBit is greater than 7, then ASSERT().
   If EndBit is greater than 7, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If Value is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Address   The PCI configuration register to write.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -274,6 +275,7 @@ PciBitFieldWrite8 (
   If StartBit is greater than 7, then ASSERT().
   If EndBit is greater than 7, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If OrData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Address   The PCI configuration register to write.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -312,6 +314,7 @@ PciBitFieldOr8 (
   If StartBit is greater than 7, then ASSERT().
   If EndBit is greater than 7, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If AndData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Address   The PCI configuration register to write.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -352,6 +355,8 @@ PciBitFieldAnd8 (
   If StartBit is greater than 7, then ASSERT().
   If EndBit is greater than 7, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If AndData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
+  If OrData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Address   The PCI configuration register to write.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -571,6 +576,7 @@ PciBitFieldRead16 (
   If StartBit is greater than 15, then ASSERT().
   If EndBit is greater than 15, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If Value is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Address   The PCI configuration register to write.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -610,6 +616,7 @@ PciBitFieldWrite16 (
   If StartBit is greater than 15, then ASSERT().
   If EndBit is greater than 15, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If OrData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Address   The PCI configuration register to write.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -649,6 +656,7 @@ PciBitFieldOr16 (
   If StartBit is greater than 15, then ASSERT().
   If EndBit is greater than 15, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If AndData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Address   The PCI configuration register to write.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -690,6 +698,8 @@ PciBitFieldAnd16 (
   If StartBit is greater than 15, then ASSERT().
   If EndBit is greater than 15, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If AndData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
+  If OrData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Address   The PCI configuration register to write.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -909,6 +919,7 @@ PciBitFieldRead32 (
   If StartBit is greater than 31, then ASSERT().
   If EndBit is greater than 31, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If Value is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Address   The PCI configuration register to write.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -948,6 +959,7 @@ PciBitFieldWrite32 (
   If StartBit is greater than 31, then ASSERT().
   If EndBit is greater than 31, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If OrData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Address   The PCI configuration register to write.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -987,6 +999,7 @@ PciBitFieldOr32 (
   If StartBit is greater than 31, then ASSERT().
   If EndBit is greater than 31, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If AndData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Address   The PCI configuration register to write.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -1028,6 +1041,8 @@ PciBitFieldAnd32 (
   If StartBit is greater than 31, then ASSERT().
   If EndBit is greater than 31, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If AndData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
+  If OrData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Address   The PCI configuration register to write.
   @param  StartBit  The ordinal of the least significant bit in the bit field.

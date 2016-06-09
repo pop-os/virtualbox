@@ -74,7 +74,7 @@ DisplayMmioMemory(
     ShellStatus = SHELL_NOT_FOUND;
   } else {
     ShellPrintHiiEx(-1, -1, NULL, STRING_TOKEN (STR_DMEM_MMIO_HEADER_ROW), gShellDebug1HiiHandle, (UINT64)(UINTN)Address, Size);
-    DumpHex(2,0,Size,Buffer);
+    DumpHex(2, (UINTN)Address, Size, Buffer);
   }
 
   FreePool(Buffer);
@@ -152,7 +152,7 @@ ShellCommandRunDmem (
         if (!ShellIsHexOrDecimalNumber(Temp1, TRUE, FALSE) || EFI_ERROR(ShellConvertStringToUint64(Temp1, (UINT64*)&Address, TRUE, FALSE))) {
           ShellPrintHiiEx(-1, -1, NULL, STRING_TOKEN (STR_GEN_PROBLEM), gShellDebug1HiiHandle, Temp1);
           ShellStatus = SHELL_INVALID_PARAMETER;
-        } 
+        }
         Temp1 = ShellCommandLineGetRawValue(Package, 2);
         if (Temp1 == NULL) {
           Size = 512;
@@ -168,7 +168,7 @@ ShellCommandRunDmem (
     if (ShellStatus == SHELL_SUCCESS) {
       if (!ShellCommandLineGetFlag(Package, L"-mmio")) {
         ShellPrintHiiEx(-1, -1, NULL, STRING_TOKEN (STR_DMEM_HEADER_ROW), gShellDebug1HiiHandle, (UINT64)(UINTN)Address, Size);
-        DumpHex(2,0,(UINTN)Size,Address);
+        DumpHex(2, (UINTN)Address, (UINTN)Size, Address);
         if (Address == (VOID*)gST) {
           Acpi20TableAddress  = 0;
           AcpiTableAddress    = 0;
@@ -198,7 +198,7 @@ ShellCommandRunDmem (
             }
           }
 
-          ShellPrintHiiEx(-1, -1, NULL, STRING_TOKEN (STR_DMEM_SYSTEM_TABLE), gShellDebug1HiiHandle, 
+          ShellPrintHiiEx(-1, -1, NULL, STRING_TOKEN (STR_DMEM_SYSTEM_TABLE), gShellDebug1HiiHandle,
             (UINT64)(UINTN)Address,
             gST->Hdr.HeaderSize,
             gST->Hdr.Revision,

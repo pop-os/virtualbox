@@ -3,6 +3,111 @@
 <chapter> <!-- HACK ALERT! Seems we must have a single top level element for xi:include to work.
                            So, we use chapter and xpointer="xpointer(/chapter/)" with xi:include. -->
   <sect1>
+    <title>Version 5.1.0 Beta 1 (2016-06-03)</title>
+
+    <para>This is a major update. The following major new features
+      were added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>VMM: new APIC and I/O APIC implementations that result in significantly improved
+          performance in certain situations (for example with networking, bug #15295)</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: added support for Hyper-V paravirtualized debugging of Windows guests</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: emulate even more MMIO and shadow pagetable exits without going back to
+          user mode</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: overall migration to Qt5</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: passive API event listener improving the VM GUI performance and
+          response time</para>
+      </listitem>
+
+      <!--- (new code currently disabled)
+      <listitem>
+        <para>Audio: added HDA (High Definition Audio) support for newer Linux guests</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: added on-demand timers which should improve the overall performance</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: various bugfixes and infrastructure improvements</para>
+      </listitem>-->
+
+      <listitem>
+        <para>better support for Python 3</para>
+      </listitem>
+
+    </itemizedlist>
+
+    <para>In addition, the following items were fixed and/or added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>VMM: many fixes</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: the <emphasis>Detach UI</emphasis> action is now a part of the
+          VM Machine menu</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: reworked session information window</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: the new VM wizard now allows to choose the VM location for the VM
+          which is being created</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: various bugfixes and internal cleanup</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: use fallocate or similar if present to speed up creating
+          fixed-sized disk images</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: implemented NVMHCI-compatible storage controller</para>
+      </listitem>
+
+      <listitem>
+        <para>EFI: many improvements, for example allow to boot from USB</para>
+      </listitem>
+
+      <listitem>
+        <para>OVF: improved handling of signed manifests</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows hosts: rework COM proxy (e.g. bug #8298)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux installers: no longer rely on DKMS for module rebuilding</para>
+      </listitem>
+
+    </itemizedlist>
+
+  </sect1>
+
+  <sect1>
     <title>Version 5.0.20 (2016-04-28)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or
@@ -1111,7 +1216,6 @@
     </itemizedlist>
 
   </sect1>
-
   <sect1>
     <title>Version 5.0.2 (2015-08-13)</title>
 
@@ -1534,7 +1638,7 @@
       </listitem>
 
       <listitem>
-        <para>Serial ports: new TCP/IP backend (see <xref linkend="serialports"/>)</para>
+        <para>Serial: new TCP/IP backend (see <xref linkend="serialports"/>)</para>
       </listitem>
 
       <listitem>
@@ -3931,7 +4035,7 @@
 
       <listitem>
         <para>VBoxManage: list more information about hard disk/DVD/floppy
-          media, and support the <emphasis>--long</emphasis>
+          media, and support the <computeroutput>--long</computeroutput>
           option to show really all available details</para>
       </listitem>
 
@@ -3943,35 +4047,35 @@
       <listitem>
         <para>VBoxManage: added support for listing active guest sessions, guest
           processes and/or guest files via
-          <emphasis>guestcontrol list &lt;all|sessions|processes|files&gt;</emphasis>
+          <computeroutput>guestcontrol list &lt;all|sessions|processes|files&gt;</computeroutput>
         </para>
       </listitem>
 
       <listitem>
         <para>VBoxManage: added support for closing active guest sessions via
-          <emphasis>guestcontrol session close --session-id &lt;ID&gt;|
-            --session-name &lt;name or pattern&gt;|--all</emphasis>
+          <computeroutput>guestcontrol session close --session-id &lt;ID&gt;|
+            --session-name &lt;name or pattern&gt;|--all</computeroutput>
         </para>
       </listitem>
 
       <listitem>
         <para>VBoxManage: added support for terminating active guest processes via
-          <emphasis>guestcontrol process kill|close|terminate --session-id &lt;ID&gt;|
-            --session-name &lt;name or pattern&gt; &lt;PID&gt; ... &lt;PID n&gt;</emphasis>
+          <computeroutput>guestcontrol process kill|close|terminate --session-id &lt;ID&gt;|
+            --session-name &lt;name or pattern&gt; &lt;PID&gt; ... &lt;PID n&gt;</computeroutput>
           or
-          <emphasis>guestcontrol [p[s]]kill --session-id &lt;ID&gt;|
-            --session-name &lt;name or pattern&gt; &lt;PID&gt; ... &lt;PID n&gt;</emphasis>
+          <computeroutput>guestcontrol [p[s]]kill --session-id &lt;ID&gt;|
+            --session-name &lt;name or pattern&gt; &lt;PID&gt; ... &lt;PID n&gt;</computeroutput>
         </para>
       </listitem>
 
       <listitem>
         <para>VBoxManage: added support for watching guest sessions via
-          <emphasis>guestcontrol watch</emphasis>
+          <computeroutput>guestcontrol watch</computeroutput>
         </para>
       </listitem>
 
       <listitem>
-        <para>VBoxManage: added <emphasis>modifyvm --triplefaultreset</emphasis>
+        <para>VBoxManage: added <computeroutput>modifyvm --triplefaultreset</computeroutput>
           to make the VM reset on triple fault instead of triggering a Guru Meditation
           (see <xref linkend="vboxmanage-modifyvm"/>)</para>
       </listitem>

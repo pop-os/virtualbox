@@ -156,6 +156,11 @@ static int pdmCritSectRwEnterShared(PPDMCRITSECTRW pThis, int rcBusy, bool fTryO
     AssertPtr(pThis);
     AssertReturn(pThis->s.Core.u32Magic == RTCRITSECTRW_MAGIC, VERR_SEM_DESTROYED);
 
+#if !defined(PDMCRITSECTRW_STRICT) || !defined(IN_RING3)
+    NOREF(pSrcPos);
+    NOREF(fNoVal);
+#endif
+
 #if defined(PDMCRITSECTRW_STRICT) && defined(IN_RING3)
     RTTHREAD hThreadSelf = RTThreadSelfAutoAdopt();
     if (!fTryOnly)
@@ -551,6 +556,10 @@ static int pdmCritSectRwLeaveSharedWorker(PPDMCRITSECTRW pThis, bool fNoVal)
     AssertPtr(pThis);
     AssertReturn(pThis->s.Core.u32Magic == RTCRITSECTRW_MAGIC, VERR_SEM_DESTROYED);
 
+#if !defined(PDMCRITSECTRW_STRICT) || !defined(IN_RING3)
+    NOREF(fNoVal);
+#endif
+
     /*
      * Check the direction and take action accordingly.
      */
@@ -696,6 +705,11 @@ static int pdmCritSectRwEnterExcl(PPDMCRITSECTRW pThis, int rcBusy, bool fTryOnl
      */
     AssertPtr(pThis);
     AssertReturn(pThis->s.Core.u32Magic == RTCRITSECTRW_MAGIC, VERR_SEM_DESTROYED);
+
+#if !defined(PDMCRITSECTRW_STRICT) || !defined(IN_RING3)
+    NOREF(pSrcPos);
+    NOREF(fNoVal);
+#endif
 
 #if defined(PDMCRITSECTRW_STRICT) && defined(IN_RING3)
     RTTHREAD hThreadSelf = NIL_RTTHREAD;
@@ -1082,6 +1096,10 @@ static int pdmCritSectRwLeaveExclWorker(PPDMCRITSECTRW pThis, bool fNoVal)
      */
     AssertPtr(pThis);
     AssertReturn(pThis->s.Core.u32Magic == RTCRITSECTRW_MAGIC, VERR_SEM_DESTROYED);
+
+#if !defined(PDMCRITSECTRW_STRICT) || !defined(IN_RING3)
+    NOREF(fNoVal);
+#endif
 
     RTNATIVETHREAD hNativeSelf = pdmCritSectRwGetNativeSelf(pThis);
     RTNATIVETHREAD hNativeWriter;

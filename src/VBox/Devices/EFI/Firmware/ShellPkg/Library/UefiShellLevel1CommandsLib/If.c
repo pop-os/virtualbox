@@ -1,6 +1,7 @@
 /** @file
   Main file for If and else shell level 1 function.
 
+  Copyright (c) 2013, Hewlett-Packard Development Company, L.P.
   Copyright (c) 2009 - 2011, Intel Corporation. All rights reserved.<BR>
   This program and the accompanying materials
   are licensed and made available under the terms and conditions of the BSD License
@@ -166,7 +167,6 @@ TestOperation (
       }
     }
     return (FALSE);
-    break;
   case OperatorUnsignedLessThan:
   case OperatorLessThan:
     if (ForceStringCompare || !ShellIsHexOrDecimalNumber(Compare1, FALSE, FALSE) || !ShellIsHexOrDecimalNumber(Compare2, FALSE, FALSE)) {
@@ -202,7 +202,6 @@ TestOperation (
 
     }
     return (FALSE);
-    break;
   case OperatorEqual:
     if (ForceStringCompare || !ShellIsHexOrDecimalNumber(Compare1, FALSE, FALSE) || !ShellIsHexOrDecimalNumber(Compare2, FALSE, FALSE)) {
       //
@@ -230,7 +229,6 @@ TestOperation (
       }
     }
     return (FALSE);
-    break;
   case OperatorNotEqual:
     if (ForceStringCompare || !ShellIsHexOrDecimalNumber(Compare1, FALSE, FALSE) || !ShellIsHexOrDecimalNumber(Compare2, FALSE, FALSE)) {
       //
@@ -258,7 +256,6 @@ TestOperation (
       }
     }
     return (FALSE);
-    break;
   case OperatorUnsignedGreaterOrEqual:
   case OperatorGreatorOrEqual:
     if (ForceStringCompare || !ShellIsHexOrDecimalNumber(Compare1, FALSE, FALSE) || !ShellIsHexOrDecimalNumber(Compare2, FALSE, FALSE)) {
@@ -293,7 +290,6 @@ TestOperation (
       }
     }
     return (FALSE);
-    break;
   case OperatorLessOrEqual:
   case OperatorUnsignedLessOrEqual:
     if (ForceStringCompare || !ShellIsHexOrDecimalNumber(Compare1, FALSE, FALSE) || !ShellIsHexOrDecimalNumber(Compare2, FALSE, FALSE)) {
@@ -328,7 +324,6 @@ TestOperation (
       }
     }
     return (FALSE);
-    break;
   default:
     ASSERT(FALSE);
     return (FALSE);
@@ -338,7 +333,7 @@ TestOperation (
 /**
   Process an if statement and determine if its is valid or not.
 
-  @param[in, out] PassingState     Opon entry, the current state.  Upon exit, 
+  @param[in, out] PassingState     Opon entry, the current state.  Upon exit,
                                    the new state.
   @param[in] StartParameterNumber  The number of the first parameter of
                                    this statement.
@@ -349,7 +344,7 @@ TestOperation (
   @param[in] ForceStringCompare    TRUE for all string based, FALSE otherwise.
 
   @retval EFI_INVALID_PARAMETER   A parameter was invalid.
-  @retval EFI_SUCCESS             The operation was successful.                                  
+  @retval EFI_SUCCESS             The operation was successful.
 **/
 EFI_STATUS
 EFIAPI
@@ -646,9 +641,9 @@ ProcessStatement (
   Break up the next part of the if statement (until the next 'and', 'or', or 'then').
 
   @param[in] ParameterNumber      The current parameter number.
-  @param[out] EndParameter        Upon successful return, will point to the 
+  @param[out] EndParameter        Upon successful return, will point to the
                                   parameter to start the next iteration with.
-  @param[out] EndTag              Upon successful return, will point to the 
+  @param[out] EndTag              Upon successful return, will point to the
                                   type that was found at the end of this statement.
 
   @retval TRUE    A valid statement was found.
@@ -662,12 +657,9 @@ BuildNextStatement (
   OUT END_TAG_TYPE  *EndTag
   )
 {
-  CHAR16    *Buffer;
-  UINTN     BufferSize;
-
   *EndTag = EndTagMax;
 
-  for(Buffer = NULL, BufferSize = 0
+  for(
     ; ParameterNumber < gEfiShellParametersProtocol->Argc
     ; ParameterNumber++
    ) {
@@ -743,7 +735,11 @@ MoveToTagSpecial (
       continue;
     }
     CommandWalker = CommandName;
-    while (CommandWalker[0] == L' ') {
+
+    //
+    // Skip leading spaces and tabs.
+    //
+    while ((CommandWalker[0] == L' ') || (CommandWalker[0] == L'\t')) {
       CommandWalker++;
     }
     TempLocation  = StrStr(CommandWalker, L" ");
@@ -851,14 +847,14 @@ ShellCommandRunIf (
   CurrentScriptFile = ShellCommandGetCurrentScriptFile();
   if (!MoveToTag(GetNextNode, L"endif", L"if", NULL, CurrentScriptFile, TRUE, TRUE, FALSE)) {
     ShellPrintHiiEx(
-      -1, 
-      -1, 
-      NULL, 
-      STRING_TOKEN (STR_SYNTAX_NO_MATCHING), 
-      gShellLevel1HiiHandle, 
-      L"EnfIf", 
-      L"If", 
-      CurrentScriptFile!=NULL 
+      -1,
+      -1,
+      NULL,
+      STRING_TOKEN (STR_SYNTAX_NO_MATCHING),
+      gShellLevel1HiiHandle,
+      L"EndIf",
+      L"If",
+      CurrentScriptFile!=NULL
         && CurrentScriptFile->CurrentCommand!=NULL
         ? CurrentScriptFile->CurrentCommand->Line:0);
     return (SHELL_DEVICE_ERROR);
@@ -936,14 +932,14 @@ ShellCommandRunIf (
       if (!BuildNextStatement(CurrentParameter, &EndParameter, &Ending)) {
         CurrentScriptFile = ShellCommandGetCurrentScriptFile();
         ShellPrintHiiEx(
-          -1, 
-          -1, 
-          NULL, 
-          STRING_TOKEN (STR_SYNTAX_NO_MATCHING), 
-          gShellLevel1HiiHandle, 
-          L"Then", 
+          -1,
+          -1,
+          NULL,
+          STRING_TOKEN (STR_SYNTAX_NO_MATCHING),
+          gShellLevel1HiiHandle,
+          L"Then",
           L"If",
-          CurrentScriptFile!=NULL 
+          CurrentScriptFile!=NULL
             && CurrentScriptFile->CurrentCommand!=NULL
             ? CurrentScriptFile->CurrentCommand->Line:0);
         ShellStatus = SHELL_INVALID_PARAMETER;
@@ -1013,28 +1009,28 @@ ShellCommandRunElse (
 
   if (!MoveToTag(GetPreviousNode, L"if", L"endif", NULL, CurrentScriptFile, FALSE, TRUE, FALSE)) {
     ShellPrintHiiEx(
-      -1, 
-      -1, 
-      NULL, 
-      STRING_TOKEN (STR_SYNTAX_NO_MATCHING), 
-      gShellLevel1HiiHandle, 
-      L"If", 
-      L"Else", 
-      CurrentScriptFile!=NULL 
+      -1,
+      -1,
+      NULL,
+      STRING_TOKEN (STR_SYNTAX_NO_MATCHING),
+      gShellLevel1HiiHandle,
+      L"If",
+      L"Else",
+      CurrentScriptFile!=NULL
         && CurrentScriptFile->CurrentCommand!=NULL
         ? CurrentScriptFile->CurrentCommand->Line:0);
     return (SHELL_DEVICE_ERROR);
   }
   if (!MoveToTag(GetPreviousNode, L"if", L"else", NULL, CurrentScriptFile, FALSE, TRUE, FALSE)) {
     ShellPrintHiiEx(
-      -1, 
-      -1, 
-      NULL, 
-      STRING_TOKEN (STR_SYNTAX_NO_MATCHING), 
-      gShellLevel1HiiHandle, 
-      L"If", 
-      L"Else", 
-      CurrentScriptFile!=NULL 
+      -1,
+      -1,
+      NULL,
+      STRING_TOKEN (STR_SYNTAX_NO_MATCHING),
+      gShellLevel1HiiHandle,
+      L"If",
+      L"Else",
+      CurrentScriptFile!=NULL
         && CurrentScriptFile->CurrentCommand!=NULL
         ? CurrentScriptFile->CurrentCommand->Line:0);
     return (SHELL_DEVICE_ERROR);
@@ -1042,14 +1038,14 @@ ShellCommandRunElse (
 
   if (!MoveToTag(GetNextNode, L"endif", L"if", NULL, CurrentScriptFile, FALSE, FALSE, FALSE)) {
     ShellPrintHiiEx(
-      -1, 
-      -1, 
-      NULL, 
-      STRING_TOKEN (STR_SYNTAX_NO_MATCHING), 
-      gShellLevel1HiiHandle, 
-      L"EndIf", 
-      "Else", 
-      CurrentScriptFile!=NULL 
+      -1,
+      -1,
+      NULL,
+      STRING_TOKEN (STR_SYNTAX_NO_MATCHING),
+      gShellLevel1HiiHandle,
+      L"EndIf",
+      "Else",
+      CurrentScriptFile!=NULL
         && CurrentScriptFile->CurrentCommand!=NULL
         ? CurrentScriptFile->CurrentCommand->Line:0);
     return (SHELL_DEVICE_ERROR);
@@ -1087,14 +1083,14 @@ ShellCommandRunEndIf (
   CurrentScriptFile = ShellCommandGetCurrentScriptFile();
   if (!MoveToTag(GetPreviousNode, L"if", L"endif", NULL, CurrentScriptFile, FALSE, TRUE, FALSE)) {
     ShellPrintHiiEx(
-      -1, 
-      -1, 
-      NULL, 
-      STRING_TOKEN (STR_SYNTAX_NO_MATCHING), 
-      gShellLevel1HiiHandle, 
-      L"If", 
-      L"EndIf", 
-      CurrentScriptFile!=NULL 
+      -1,
+      -1,
+      NULL,
+      STRING_TOKEN (STR_SYNTAX_NO_MATCHING),
+      gShellLevel1HiiHandle,
+      L"If",
+      L"EndIf",
+      CurrentScriptFile!=NULL
         && CurrentScriptFile->CurrentCommand!=NULL
         ? CurrentScriptFile->CurrentCommand->Line:0);
     return (SHELL_DEVICE_ERROR);

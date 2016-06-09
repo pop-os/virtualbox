@@ -49,6 +49,9 @@
 #ifdef VBOX_WITH_REM
 # include <VBox/vmm/rem.h>
 #endif
+#ifdef VBOX_WITH_NEW_APIC
+# include <VBox/vmm/apic.h>
+#endif
 #include <VBox/vmm/tm.h>
 #include <VBox/vmm/mm.h>
 #include <VBox/vmm/ssm.h>
@@ -476,7 +479,7 @@ VMMR3_INT_DECL(void) EMR3ResetCpu(PVMCPU pVCpu)
 {
     pVCpu->em.s.fForceRAW = false;
 
-    /* VMR3Reset may return VINF_EM_RESET or VINF_EM_SUSPEND, so transition
+    /* VMR3ResetFF may return VINF_EM_RESET or VINF_EM_SUSPEND, so transition
        out of the HALTED state here so that enmPrevState doesn't end up as
        HALTED when EMR3Execute returns. */
     if (pVCpu->em.s.enmState == EMSTATE_HALTED)
@@ -849,6 +852,10 @@ static VBOXSTRICTRC emR3Debug(PVM pVM, PVMCPU pVCpu, VBOXSTRICTRC rc)
                 rc = DBGFR3EventSrc(pVM, DBGFEVENT_DEV_STOP, NULL, 0, NULL, NULL);
                 break;
 
+            case VINF_EM_DBG_EVENT:
+                rc = DBGFR3EventHandlePending(pVM, pVCpu);
+                break;
+
             case VINF_EM_DBG_HYPER_STEPPED:
                 rc = DBGFR3Event(pVM, DBGFEVENT_STEPPED_HYPER);
                 break;
@@ -872,6 +879,9 @@ static VBOXSTRICTRC emR3Debug(PVM pVM, PVMCPU pVCpu, VBOXSTRICTRC rc)
             case VERR_REM_TOO_MANY_TRAPS: /** @todo Make a guru meditation event! */
                 rc = DBGFR3EventSrc(pVM, DBGFEVENT_DEV_STOP, "VERR_REM_TOO_MANY_TRAPS", 0, NULL, NULL);
                 break;
+            case VINF_EM_TRIPLE_FAULT:    /** @todo Make a guru meditation event! */
+                rc = DBGFR3EventSrc(pVM, DBGFEVENT_DEV_STOP, "VINF_EM_TRIPLE_FAULT", 0, NULL, NULL);
+                break;
 
             default: /** @todo don't use default for guru, but make special errors code! */
             {
@@ -893,6 +903,7 @@ static VBOXSTRICTRC emR3Debug(PVM pVM, PVMCPU pVCpu, VBOXSTRICTRC rc)
                  */
                 case VINF_EM_DBG_STEP:
                 case VINF_EM_DBG_STOP:
+                case VINF_EM_DBG_EVENT:
                 case VINF_EM_DBG_STEPPED:
                 case VINF_EM_DBG_BREAKPOINT:
                 case VINF_EM_DBG_HYPER_STEPPED:
@@ -1080,6 +1091,8 @@ static int emR3RemExecute(PVM pVM, PVMCPU pVCpu, bool *pfFFDone)
     *pfFFDone = false;
 #ifdef VBOX_WITH_REM
     bool    fInREMState = false;
+#else
+    uint32_t cLoops     = 0;
 #endif
     int     rc          = VINF_SUCCESS;
     for (;;)
@@ -1194,8 +1207,8 @@ static int emR3RemExecute(PVM pVM, PVMCPU pVCpu, bool *pfFFDone)
                                      VMCPU_FF_ALL_REM_MASK
                                    & VM_WHEN_RAW_MODE(~(VMCPU_FF_CSAM_PENDING_ACTION | VMCPU_FF_CSAM_SCAN_PAGE), UINT32_MAX)) )
         {
-l_REMDoForcedActions:
 #ifdef VBOX_WITH_REM
+l_REMDoForcedActions:
             if (fInREMState)
                 fInREMState = emR3RemExecuteSyncBack(pVM, pVCpu);
 #endif
@@ -1210,6 +1223,19 @@ l_REMDoForcedActions:
                 break;
             }
         }
+
+#ifndef VBOX_WITH_REM
+        /*
+         * Have to check if we can get back to fast execution mode every so often.
+         */
+        if (!(++cLoops & 7))
+        {
+            EMSTATE enmCheck = emR3Reschedule(pVM, pVCpu, pVCpu->em.s.pCtx);
+            if (   enmCheck != EMSTATE_REM
+                && enmCheck != EMSTATE_IEM_THEN_REM)
+                return VINF_EM_RESCHEDULE;
+        }
+#endif
 
     } /* The Inner Loop, recompiled execution mode version. */
 
@@ -1577,7 +1603,11 @@ int emR3HighPriorityPostForcedActions(PVM pVM, PVMCPU pVCpu, int rc)
 
     /* IEM has pending work (typically memory write after INS instruction). */
     if (VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_IEM))
-        rc = VBOXSTRICTRC_TODO(IEMR3DoPendingAction(pVCpu, rc));
+        rc = VBOXSTRICTRC_TODO(IEMR3ProcessForceFlag(pVM, pVCpu, rc));
+
+    /* IOM has pending work (comitting an I/O or MMIO write). */
+    if (VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_IOM))
+        rc = VBOXSTRICTRC_TODO(IOMR3ProcessForceFlag(pVM, pVCpu, rc));
 
 #ifdef VBOX_WITH_RAW_MODE
     if (VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_CSAM_PENDING_ACTION))
@@ -1695,7 +1725,7 @@ int emR3ForcedActions(PVM pVM, PVMCPU pVCpu, int rc)
          */
         if (VM_FF_TEST_AND_CLEAR(pVM, VM_FF_RESET))
         {
-            rc2 = VMR3Reset(pVM->pUVM);
+            rc2 = VBOXSTRICTRC_TODO(VMR3ResetFF(pVM));
             UPDATE_RC();
         }
 
@@ -1883,6 +1913,14 @@ int emR3ForcedActions(PVM pVM, PVMCPU pVCpu, int rc)
             &&  !VM_FF_IS_PENDING(pVM, VM_FF_PGM_NO_MEMORY))
             TMR3TimerQueuesDo(pVM);
 
+#ifdef VBOX_WITH_NEW_APIC
+        /*
+         * Pick up asynchronously posted interrupts into the APIC.
+         */
+        if (VMCPU_FF_TEST_AND_CLEAR(pVCpu, VMCPU_FF_UPDATE_APIC))
+            APICUpdatePendingInterrupts(pVCpu);
+#endif
+
         /*
          * The instruction following an emulated STI should *always* be executed!
          *
@@ -2045,7 +2083,7 @@ int emR3ForcedActions(PVM pVM, PVMCPU pVCpu, int rc)
 
         /* check that we got them all  */
         AssertCompile(VM_FF_HIGH_PRIORITY_PRE_MASK == (VM_FF_TM_VIRTUAL_SYNC | VM_FF_DBGF | VM_FF_CHECK_VM_STATE | VM_FF_DEBUG_SUSPEND | VM_FF_PGM_NEED_HANDY_PAGES | VM_FF_PGM_NO_MEMORY | VM_FF_EMT_RENDEZVOUS));
-        AssertCompile(VMCPU_FF_HIGH_PRIORITY_PRE_MASK == (VMCPU_FF_TIMER | VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC | VMCPU_FF_PGM_SYNC_CR3 | VMCPU_FF_PGM_SYNC_CR3_NON_GLOBAL | VMCPU_FF_INHIBIT_INTERRUPTS | VM_WHEN_RAW_MODE(VMCPU_FF_SELM_SYNC_TSS | VMCPU_FF_TRPM_SYNC_IDT | VMCPU_FF_SELM_SYNC_GDT | VMCPU_FF_SELM_SYNC_LDT, 0)));
+        AssertCompile(VMCPU_FF_HIGH_PRIORITY_PRE_MASK == (VMCPU_FF_TIMER | VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_UPDATE_APIC | VMCPU_FF_INTERRUPT_PIC | VMCPU_FF_PGM_SYNC_CR3 | VMCPU_FF_PGM_SYNC_CR3_NON_GLOBAL | VMCPU_FF_INHIBIT_INTERRUPTS | VM_WHEN_RAW_MODE(VMCPU_FF_SELM_SYNC_TSS | VMCPU_FF_TRPM_SYNC_IDT | VMCPU_FF_SELM_SYNC_GDT | VMCPU_FF_SELM_SYNC_LDT, 0)));
     }
 
 #undef UPDATE_RC
@@ -2356,6 +2394,7 @@ VMMR3_INT_DECL(int) EMR3ExecuteVM(PVM pVM, PVMCPU pVCpu)
                  */
                 case VINF_EM_DBG_STEPPED:
                 case VINF_EM_DBG_STOP:
+                case VINF_EM_DBG_EVENT:
                 case VINF_EM_DBG_BREAKPOINT:
                 case VINF_EM_DBG_STEP:
                     if (enmOldState == EMSTATE_RAW)
@@ -2397,16 +2436,9 @@ VMMR3_INT_DECL(int) EMR3ExecuteVM(PVM pVM, PVMCPU pVCpu)
                     if (!pVM->em.s.fGuruOnTripleFault)
                     {
                         Log(("EMR3ExecuteVM: VINF_EM_TRIPLE_FAULT: CPU reset...\n"));
-                        Assert(pVM->cCpus == 1);
-                        REMR3Reset(pVM);
-                        PGMR3ResetCpu(pVM, pVCpu);
-                        TRPMR3ResetCpu(pVCpu);
-                        CPUMR3ResetCpu(pVM, pVCpu);
-                        EMR3ResetCpu(pVCpu);
-                        HMR3ResetCpu(pVCpu);
-                        pVCpu->em.s.enmState = emR3Reschedule(pVM, pVCpu, pVCpu->em.s.pCtx);
-                        Log2(("EMR3ExecuteVM: VINF_EM_TRIPLE_FAULT: %d -> %d\n", enmOldState, pVCpu->em.s.enmState));
-                        break;
+                        rc = VBOXSTRICTRC_TODO(VMR3ResetTripleFault(pVM));
+                        Log2(("EMR3ExecuteVM: VINF_EM_TRIPLE_FAULT: %d -> %d (rc=%Rrc)\n", enmOldState, pVCpu->em.s.enmState, rc));
+                        continue;
                     }
                     /* Else fall through and trigger a guru. */
                 case VERR_VMM_RING0_ASSERTION:
@@ -2553,12 +2585,18 @@ VMMR3_INT_DECL(int) EMR3ExecuteVM(PVM pVM, PVMCPU pVCpu)
                              ==                            (EMMWAIT_FLAG_ACTIVE | EMMWAIT_FLAG_BREAKIRQIF0))
                     {
                         rc = VMR3WaitHalted(pVM, pVCpu, false /*fIgnoreInterrupts*/);
-                        if (   rc == VINF_SUCCESS
-                            && VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC
-                                                        | VMCPU_FF_INTERRUPT_NMI  | VMCPU_FF_INTERRUPT_SMI | VMCPU_FF_UNHALT))
+                        if (rc == VINF_SUCCESS)
                         {
-                            Log(("EMR3ExecuteVM: Triggering reschedule on pending IRQ after MWAIT\n"));
-                            rc = VINF_EM_RESCHEDULE;
+#ifdef VBOX_WITH_NEW_APIC
+                            if (VMCPU_FF_TEST_AND_CLEAR(pVCpu, VMCPU_FF_UPDATE_APIC))
+                                APICUpdatePendingInterrupts(pVCpu);
+#endif
+                            if (VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC
+                                                         | VMCPU_FF_INTERRUPT_NMI  | VMCPU_FF_INTERRUPT_SMI | VMCPU_FF_UNHALT))
+                            {
+                                Log(("EMR3ExecuteVM: Triggering reschedule on pending IRQ after MWAIT\n"));
+                                rc = VINF_EM_RESCHEDULE;
+                            }
                         }
                     }
                     else

@@ -32,6 +32,9 @@ extern const PDMDEVREG g_DevicePCI;
 extern const PDMDEVREG g_DevicePciIch9;
 extern const PDMDEVREG g_DevicePcArch;
 extern const PDMDEVREG g_DevicePcBios;
+#ifdef VBOX_WITH_NEW_IOAPIC
+extern const PDMDEVREG g_DeviceIOAPIC;
+#endif
 extern const PDMDEVREG g_DevicePS2KeyboardMouse;
 extern const PDMDEVREG g_DeviceI8254;
 extern const PDMDEVREG g_DeviceI8259;
@@ -75,6 +78,9 @@ extern const PDMDEVREG g_DevicePciIch9Bridge;
 extern const PDMDEVREG g_DeviceLsiLogicSCSI;
 extern const PDMDEVREG g_DeviceLsiLogicSAS;
 #endif
+#ifdef VBOX_WITH_NVME_IMPL
+extern const PDMDEVREG g_DeviceNVMe;
+#endif
 #ifdef VBOX_WITH_EFI
 extern const PDMDEVREG g_DeviceEFI;
 #endif
@@ -88,13 +94,10 @@ extern const PDMDEVREG g_DeviceVirtualKD;
 
 extern const PDMDRVREG g_DrvMouseQueue;
 extern const PDMDRVREG g_DrvKeyboardQueue;
-extern const PDMDRVREG g_DrvBlock;
 extern const PDMDRVREG g_DrvVBoxHDD;
 extern const PDMDRVREG g_DrvVD;
 extern const PDMDRVREG g_DrvHostDVD;
 extern const PDMDRVREG g_DrvHostFloppy;
-extern const PDMDRVREG g_DrvMediaISO;
-extern const PDMDRVREG g_DrvRawImage;
 extern const PDMDRVREG g_DrvISCSI;
 extern const PDMDRVREG g_DrvISCSITransportTcp;
 #if defined(RT_OS_LINUX) || defined(RT_OS_FREEBSD)
@@ -142,6 +145,7 @@ extern const PDMDRVREG g_DrvHostWebcam;
 extern const PDMDRVREG g_DrvChar;
 extern const PDMDRVREG g_DrvNamedPipe;
 extern const PDMDRVREG g_DrvTCP;
+extern const PDMDRVREG g_DrvUDP;
 extern const PDMDRVREG g_DrvRawFile;
 extern const PDMDRVREG g_DrvHostParallel;
 extern const PDMDRVREG g_DrvHostSerial;

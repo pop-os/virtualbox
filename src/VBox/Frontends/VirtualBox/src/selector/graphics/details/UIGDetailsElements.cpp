@@ -127,29 +127,14 @@ UIGDetailsElementPreview::UIGDetailsElementPreview(UIGDetailsSet *pParent, bool 
     /* Assign corresponding icon: */
     setIcon(gpConverter->toIcon(elementType()));
 
-    /* Create layout: */
-    QGraphicsLinearLayout *pLayout = new QGraphicsLinearLayout;
-    AssertPtr(pLayout);
+    /* Create preview: */
+    m_pPreview = new UIGMachinePreview(this);
+    AssertPtr(m_pPreview);
     {
-        /* Prepare layout: */
-        const int iMargin = data(ElementData_Margin).toInt();
-        pLayout->setContentsMargins(iMargin, 2 * iMargin + minimumHeaderHeight(), iMargin, iMargin);
-        /* Assign layout to widget: */
-        setLayout(pLayout);
-        /* Create preview: */
-        m_pPreview = new UIGMachinePreview(this);
-        AssertPtr(m_pPreview);
-        {
-            /* Prepare preview: */
-            connect(m_pPreview, SIGNAL(sigSizeHintChanged()),
-                    this, SLOT(sltPreviewSizeHintChanged()));
-            /* Add preview into layout: */
-            pLayout->addItem(m_pPreview);
-        }
+        /* Configure preview: */
+        connect(m_pPreview, SIGNAL(sigSizeHintChanged()),
+                this, SLOT(sltPreviewSizeHintChanged()));
     }
-
-    /* Set fixed size policy finally (after all content constructed): */
-    setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
 
     /* Translate finally: */
     retranslateUi();
@@ -228,6 +213,11 @@ void UIGDetailsElementPreview::updateLayout()
         m_pPreview->hide();
     if (opened() && !m_pPreview->isVisible() && !isAnimationRunning())
         m_pPreview->show();
+
+    /* And update preview layout itself: */
+    const int iMargin = data(ElementData_Margin).toInt();
+    m_pPreview->setPos(iMargin, 2 * iMargin + minimumHeaderHeight());
+    m_pPreview->resize(m_pPreview->minimumSizeHint());
 }
 
 void UIGDetailsElementPreview::updateAppearance()
@@ -237,6 +227,7 @@ void UIGDetailsElementPreview::updateAppearance()
 
     /* Set new machine attribute directly: */
     m_pPreview->setMachine(machine());
+    m_pPreview->resize(m_pPreview->minimumSizeHint());
     emit sigBuildDone();
 }
 
@@ -403,7 +394,7 @@ void UIGDetailsUpdateTaskDisplay::run()
                                          QString::number(dValue, 'f', 2));
         }
 
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
         /* Get 'Unscaled HiDPI Video Output' mode value: */
         const QString strUnscaledHiDPIMode = machine.GetExtraData(UIExtraDataDefs::GUI_HiDPI_UnscaledOutput);
         {
@@ -417,7 +408,7 @@ void UIGDetailsUpdateTaskDisplay::run()
                 table << UITextTableLine(QApplication::translate("UIGDetails", "Unscaled HiDPI Video Output", "details (display)"),
                                          QApplication::translate("UIGDetails", "Enabled", "details (display/Unscaled HiDPI Video Output)"));
         }
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
 
         QStringList acceleration;
 #ifdef VBOX_WITH_VIDEOHWACCEL
@@ -497,7 +488,7 @@ void UIGDetailsUpdateTaskStorage::run()
                 StorageSlot attachmentSlot(controller.GetBus(), attachment.GetPort(), attachment.GetDevice());
                 AssertMsg(controller.isOk(),
                           ("Unable to acquire controller data: %s\n",
-                           msgCenter().formatRC(controller.lastRC()).toAscii().constData()));
+                           msgCenter().formatRC(controller.lastRC()).toUtf8().constData()));
                 if (!controller.isOk())
                     continue;
                 /* Prepare attachment information: */
@@ -854,7 +845,7 @@ void UIGDetailsUpdateTaskUI::run()
     /* Gather information: */
     if (machine.GetAccessible())
     {
-#ifndef Q_WS_MAC
+#ifndef VBOX_WS_MAC
         /* Get menu-bar availability status: */
         const QString strMenubarEnabled = machine.GetExtraData(UIExtraDataDefs::GUI_MenuBar_Enabled);
         {
@@ -868,7 +859,7 @@ void UIGDetailsUpdateTaskUI::run()
                                      fEnabled ? QApplication::translate("UIGDetails", "Enabled", "details (user interface/menu-bar)") :
                                                 QApplication::translate("UIGDetails", "Disabled", "details (user interface/menu-bar)"));
         }
-#endif /* !Q_WS_MAC */
+#endif /* !VBOX_WS_MAC */
 
         /* Get status-bar availability status: */
         const QString strStatusbarEnabled = machine.GetExtraData(UIExtraDataDefs::GUI_StatusBar_Enabled);
@@ -884,7 +875,7 @@ void UIGDetailsUpdateTaskUI::run()
                                                 QApplication::translate("UIGDetails", "Disabled", "details (user interface/status-bar)"));
         }
 
-#ifndef Q_WS_MAC
+#ifndef VBOX_WS_MAC
         /* Get mini-toolbar availability status: */
         const QString strMiniToolbarEnabled = machine.GetExtraData(UIExtraDataDefs::GUI_ShowMiniToolBar);
         {
@@ -920,7 +911,7 @@ void UIGDetailsUpdateTaskUI::run()
                 table << UITextTableLine(QApplication::translate("UIGDetails", "Mini-toolbar", "details (user interface)"),
                                          QApplication::translate("UIGDetails", "Disabled", "details (user interface/mini-toolbar)"));
         }
-#endif /* !Q_WS_MAC */
+#endif /* !VBOX_WS_MAC */
     }
     else
         table << UITextTableLine(QApplication::translate("UIGDetails", "Information Inaccessible", "details"), QString());

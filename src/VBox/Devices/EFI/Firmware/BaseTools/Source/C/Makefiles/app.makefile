@@ -1,6 +1,7 @@
 ## @file
+# Makefiles
 #
-# Copyright (c) 2007 - 2010, Intel Corporation. All rights reserved.<BR>
+# Copyright (c) 2007 - 2014, Intel Corporation. All rights reserved.<BR>
 # This program and the accompanying materials
 # are licensed and made available under the terms and conditions of the BSD License
 # which accompanies this distribution.    The full text of the license may be found at
@@ -17,9 +18,9 @@ include $(MAKEROOT)/Makefiles/header.makefile
 APPLICATION = $(MAKEROOT)/bin/$(APPNAME)
 
 .PHONY:all
-all: $(MAKEROOT)/bin $(APPLICATION) 
+all: $(MAKEROOT)/bin $(APPLICATION)
 
-$(APPLICATION): $(OBJECTS) 
+$(APPLICATION): $(OBJECTS)
 	$(LINKER) -o $(APPLICATION) $(LFLAGS) $(OBJECTS) -L$(MAKEROOT)/libs $(LIBS)
 
 $(OBJECTS): ../Include/Common/BuildVersion.h

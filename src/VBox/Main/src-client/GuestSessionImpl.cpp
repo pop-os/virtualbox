@@ -32,6 +32,7 @@
 #include "ProgressImpl.h"
 #include "VBoxEvents.h"
 #include "VMMDev.h"
+#include "ThreadTask.h"
 
 #include <memory> /* For auto_ptr. */
 
@@ -54,13 +55,14 @@
  * Base class representing an internal
  * asynchronous session task.
  */
-class GuestSessionTaskInternal
+class GuestSessionTaskInternal : public ThreadTask
 {
 public:
 
     GuestSessionTaskInternal(GuestSession *pSession)
-        : mSession(pSession),
-          mRC(VINF_SUCCESS) { }
+        : ThreadTask("GenericGuestSessionTaskInternal")
+        , mSession(pSession)
+        , mRC(VINF_SUCCESS) { }
 
     virtual ~GuestSessionTaskInternal(void) { }
 
@@ -82,7 +84,15 @@ class GuestSessionTaskInternalOpen : public GuestSessionTaskInternal
 public:
 
     GuestSessionTaskInternalOpen(GuestSession *pSession)
-        : GuestSessionTaskInternal(pSession) { }
+        : GuestSessionTaskInternal(pSession)
+    {
+        m_strTaskName = "gctlSesStart";
+    }
+
+    void handler()
+    {
+        int vrc = GuestSession::i_startSessionThread(NULL, this);
+    }
 };
 
 /**
@@ -1476,7 +1486,7 @@ Utf8Str GuestSession::i_guestErrorToString(int guestRc)
             strError += Utf8StrFmt(tr("The session operation was canceled"));
             break;
 
-        case VERR_PERMISSION_DENIED:
+        case VERR_PERMISSION_DENIED: /** @todo r=bird: This is probably completely and utterly misleading. VERR_AUTHENTICATION_FAILURE could have this message. */
             strError += Utf8StrFmt(tr("Invalid user/password credentials"));
             break;
 
@@ -1723,28 +1733,34 @@ int GuestSession::i_startSessionAsync(void)
 {
     LogFlowThisFuncEnter();
 
-    int vrc;
+    HRESULT hr = S_OK;
+    int vrc = VINF_SUCCESS;
 
+    GuestSessionTaskInternalOpen* pTask = NULL;
     try
     {
+        pTask = new GuestSessionTaskInternalOpen(this);
+        if (!pTask->isOk())
+        {
+            delete pTask;
+            LogFlow(("GuestSession: Could not create GuestSessionTaskInternalOpen object \n"));
+            throw VERR_MEMOBJ_INIT_FAILED;
+        }
+
         /* Asynchronously open the session on the guest by kicking off a
          * worker thread. */
-        std::auto_ptr<GuestSessionTaskInternalOpen> pTask(new GuestSessionTaskInternalOpen(this));
-        AssertReturn(pTask->isOk(), pTask->rc());
+        //this function delete pTask in case of exceptions, so there is no need in the call of delete operator
+        hr = pTask->createThread();
 
-        vrc = RTThreadCreate(NULL, GuestSession::i_startSessionThread,
-                             (void *)pTask.get(), 0,
-                             RTTHREADTYPE_MAIN_WORKER, 0,
-                             "gctlSesStart");
-        if (RT_SUCCESS(vrc))
-        {
-            /* pTask is now owned by openSessionThread(), so release it. */
-            pTask.release();
-        }
     }
     catch(std::bad_alloc &)
     {
         vrc = VERR_NO_MEMORY;
+    }
+    catch(int eVRC)
+    {
+        vrc = eVRC;
+        LogFlow(("GuestSession: Could not create thread for GuestSessionTaskInternalOpen task %Rrc\n", vrc));
     }
 
     LogFlowFuncLeaveRC(vrc);
@@ -1756,8 +1772,9 @@ DECLCALLBACK(int) GuestSession::i_startSessionThread(RTTHREAD Thread, void *pvUs
 {
     LogFlowFunc(("pvUser=%p\n", pvUser));
 
-    std::auto_ptr<GuestSessionTaskInternalOpen> pTask(static_cast<GuestSessionTaskInternalOpen*>(pvUser));
-    AssertPtr(pTask.get());
+
+    GuestSessionTaskInternalOpen* pTask = static_cast<GuestSessionTaskInternalOpen*>(pvUser);
+    AssertPtr(pTask);
 
     const ComObjPtr<GuestSession> pSession(pTask->Session());
     Assert(!pSession.isNull());
@@ -2142,7 +2159,6 @@ int GuestSession::i_startTaskAsync(const Utf8Str &strTaskDesc,
 
     /* Initialize our worker task. */
     std::auto_ptr<GuestSessionTask> task(pTask);
-
     int rc = task->RunAsync(strTaskDesc, pProgress);
     if (RT_FAILURE(rc))
         return rc;
@@ -2473,21 +2489,50 @@ HRESULT GuestSession::fileCopyFromGuest(const com::Utf8Str &aSource, const com::
 
     try
     {
+        SessionTaskCopyFrom *pTask = NULL;
         ComObjPtr<Progress> pProgress;
-        SessionTaskCopyFrom *pTask = new SessionTaskCopyFrom(this /* GuestSession */,
-                                                             aSource, aDest, fFlags);
-        int rc = i_startTaskAsync(Utf8StrFmt(tr("Copying \"%s\" from guest to \"%s\" on the host"), aSource.c_str(),
-                                  aDest.c_str()), pTask, pProgress);
-        if (RT_SUCCESS(rc))
+        try
+        {
+            pTask = new SessionTaskCopyFrom(this /* GuestSession */, aSource, aDest, fFlags);
+        }
+        catch(...)
+        {
+            hr = setError(VBOX_E_IPRT_ERROR, tr("Failed to create SessionTaskCopyFrom object "));
+            throw;
+        }
+
+
+        hr = pTask->Init(Utf8StrFmt(tr("Copying \"%s\" from guest to \"%s\" on the host"), aSource.c_str(), aDest.c_str()));
+        if (FAILED(hr))
+        {
+            delete pTask;
+            hr = setError(VBOX_E_IPRT_ERROR,
+                          tr("Creating progress object for SessionTaskCopyFrom object failed"));
+            throw hr;
+        }
+
+        hr = pTask->createThread(NULL, RTTHREADTYPE_MAIN_HEAVY_WORKER);
+
+        if (SUCCEEDED(hr))
+        {
             /* Return progress to the caller. */
+            pProgress = pTask->GetProgressObject();
             hr = pProgress.queryInterfaceTo(aProgress.asOutParam());
+        }
         else
             hr = setError(VBOX_E_IPRT_ERROR,
-                          tr("Starting task for copying file \"%s\" from guest to \"%s\" on the host failed: %Rrc"), rc);
+                          tr("Starting thread for copying file \"%s\" from guest to \"%s\" on the host failed "),
+                          aSource.c_str(), aDest.c_str());
+
     }
     catch(std::bad_alloc &)
     {
         hr = E_OUTOFMEMORY;
+    }
+    catch(HRESULT eHR)
+    {
+        hr = eHR;
+        LogFlowThisFunc(("Exception was caught in the function \n"));
     }
 
     return hr;
@@ -2517,24 +2562,49 @@ HRESULT GuestSession::fileCopyToGuest(const com::Utf8Str &aSource, const com::Ut
 
     try
     {
+        SessionTaskCopyTo *pTask = NULL;
         ComObjPtr<Progress> pProgress;
-        SessionTaskCopyTo *pTask = new SessionTaskCopyTo(this /* GuestSession */,
-                                                         aSource, aDest, fFlags);
-        AssertPtrReturn(pTask, E_OUTOFMEMORY);
-        int rc = i_startTaskAsync(Utf8StrFmt(tr("Copying \"%s\" from host to \"%s\" on the guest"), aSource.c_str(),
-                                  aDest.c_str()), pTask, pProgress);
-        if (RT_SUCCESS(rc))
+        try
+        {
+            pTask = new SessionTaskCopyTo(this /* GuestSession */, aSource, aDest, fFlags);
+        }
+        catch(...)
+        {
+            hr = setError(VBOX_E_IPRT_ERROR, tr("Failed to create SessionTaskCopyTo object "));
+            throw;
+        }
+
+
+        hr = pTask->Init(Utf8StrFmt(tr("Copying \"%s\" from host to \"%s\" on the guest"), aSource.c_str(), aDest.c_str()));
+        if (FAILED(hr))
+        {
+            delete pTask;
+            hr = setError(VBOX_E_IPRT_ERROR,
+                          tr("Creating progress object for SessionTaskCopyTo object failed"));
+            throw hr;
+        }
+
+        hr = pTask->createThread(NULL, RTTHREADTYPE_MAIN_HEAVY_WORKER);
+
+        if (SUCCEEDED(hr))
         {
             /* Return progress to the caller. */
+            pProgress = pTask->GetProgressObject();
             hr = pProgress.queryInterfaceTo(aProgress.asOutParam());
         }
         else
             hr = setError(VBOX_E_IPRT_ERROR,
-                          tr("Starting task for copying file \"%s\" from host to \"%s\" on the guest failed: %Rrc"), rc);
+                          tr("Starting thread for copying file \"%s\" from host to \"%s\" on the guest failed "),
+                          aSource.c_str(), aDest.c_str());
     }
     catch(std::bad_alloc &)
     {
         hr = E_OUTOFMEMORY;
+    }
+    catch(HRESULT eHR)
+    {
+        hr = eHR;
+        LogFlowThisFunc(("Exception was caught in the function \n"));
     }
 
     return hr;

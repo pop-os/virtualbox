@@ -105,8 +105,10 @@ char __far *rep_insb(char __far *buffer, unsigned nbytes, unsigned port);
 char __far *rep_insw(char __far *buffer, unsigned nwords, unsigned port);
 #pragma aux rep_insw = ".286" "rep insw" parm [es di] [cx] [dx] value [es di] modify exact [cx di];
 
+# if VBOX_BIOS_CPU >= 80386
 char __far *rep_insd(char __far *buffer, unsigned ndwords, unsigned port);
-#pragma aux rep_insd = ".386" "rep insd" parm [es di] [cx] [dx] value [es di] modify exact [cx di];
+#  pragma aux rep_insd = ".386" "rep insd" parm [es di] [cx] [dx] value [es di] modify exact [cx di];
+# endif
 
 char __far *rep_outsb(char __far *buffer, unsigned nbytes, unsigned port);
 #pragma aux rep_outsb = ".286" "rep outs dx,byte ptr es:[si]" parm [es si] [cx] [dx] value [es si] modify exact [cx si];
@@ -114,8 +116,10 @@ char __far *rep_outsb(char __far *buffer, unsigned nbytes, unsigned port);
 char __far *rep_outsw(char __far *buffer, unsigned nwords, unsigned port);
 #pragma aux rep_outsw = ".286" "rep outs dx,word ptr es:[si]" parm [es si] [cx] [dx] value [es si] modify exact [cx si];
 
+# if VBOX_BIOS_CPU >= 80386
 char __far *rep_outsd(char __far *buffer, unsigned ndwords, unsigned port);
-#pragma aux rep_outsd = ".386" "rep outs dx,dword ptr es:[si]" parm [es si] [cx] [dx] value [es si] modify exact [cx si];
+#  pragma aux rep_outsd = ".386" "rep outs dx,dword ptr es:[si]" parm [es si] [cx] [dx] value [es si] modify exact [cx si];
+# endif
 
 uint16_t swap_16(uint16_t val);
 #pragma aux swap_16 = "xchg ah,al" parm [ax] value [ax] modify exact [ax] nomemory;
@@ -136,5 +140,40 @@ uint64_t swap_64(uint64_t val);
     "xchg   ax, dx"     \
     "xchg   bx, cx"     \
     parm [ax bx cx dx] value [ax bx cx dx] modify exact [ax bx cx dx] nomemory;
+
+#endif
+
+#if VBOX_BIOS_CPU >= 80386
+
+/* Warning: msr_read/msr_write destroy high bits of 32-bit registers. */
+
+uint64_t msr_read(uint32_t msr);
+#pragma aux msr_read =  \
+    ".586"              \
+    "shl    ecx, 16"    \
+    "mov    cx, ax"     \
+    "rdmsr"             \
+    "xchg   eax, edx"   \
+    "mov    bx, ax"     \
+    "shr    eax, 16"    \
+    "mov    cx, dx"     \
+    "shr    edx, 16"    \
+    "xchg   dx, cx"     \
+    parm [cx ax] value [ax bx cx dx] modify [] nomemory;
+
+void msr_write(uint64_t val, uint32_t msr);
+#pragma aux msr_write =  \
+    ".586"              \
+    "shl    eax, 16"    \
+    "mov    ax, bx"     \
+    "xchg   dx, cx"     \
+    "shl    edx, 16"    \
+    "mov    dx, cx"     \
+    "xchg   eax, edx"   \
+    "mov    cx, di"     \
+    "shl    ecx, 16"    \
+    "mov    cx, si"     \
+    "wrmsr"             \
+    parm [ax bx cx dx] [di si] modify [] nomemory;
 
 #endif

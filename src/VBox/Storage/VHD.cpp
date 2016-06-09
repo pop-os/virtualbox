@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1159,10 +1159,8 @@ static int vhdCreateImage(PVHDIMAGE pImage, uint64_t cbSize,
          */
         pImage->u64DataOffset     = VHD_FOOTER_DATA_OFFSET_FIXED;
         pImage->uCurrentEndOfFile = cbSize;
-        /** @todo r=klaus replace this with actual data writes, see the experience
-         * with VDI files on Windows, can cause long freezes when writing. */
-        rc = vdIfIoIntFileSetSize(pImage->pIfIo, pImage->pStorage,
-                                  pImage->uCurrentEndOfFile + sizeof(VHDFooter));
+        rc = vdIfIoIntFileSetAllocationSize(pImage->pIfIo, pImage->pStorage, pImage->uCurrentEndOfFile + sizeof(VHDFooter),
+                                            0 /* fFlags */, pfnProgress, pvUser, uPercentStart, uPercentSpan);
         if (RT_FAILURE(rc))
         {
             vdIfError(pImage->pIfError, rc, RT_SRC_POS, N_("VHD: cannot set the file size for '%s'"), pImage->pszFilename);
@@ -3208,7 +3206,7 @@ const VBOXHDDBACKEND g_VhdBackend =
     /* uBackendCaps */
     VD_CAP_UUID | VD_CAP_DIFF | VD_CAP_FILE |
     VD_CAP_CREATE_FIXED | VD_CAP_CREATE_DYNAMIC |
-    VD_CAP_ASYNC | VD_CAP_VFS,
+    VD_CAP_ASYNC | VD_CAP_VFS | VD_CAP_PREFERRED,
     /* paFileExtensions */
     s_aVhdFileExtensions,
     /* paConfigInfo */

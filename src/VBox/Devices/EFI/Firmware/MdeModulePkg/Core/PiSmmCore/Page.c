@@ -1,25 +1,20 @@
 /** @file
   SMM Memory page management functions.
 
-  Copyright (c) 2009 - 2010, Intel Corporation. All rights reserved.<BR>
-  This program and the accompanying materials are licensed and made available 
-  under the terms and conditions of the BSD License which accompanies this 
-  distribution.  The full text of the license may be found at        
-  http://opensource.org/licenses/bsd-license.php                                            
+  Copyright (c) 2009 - 2014, Intel Corporation. All rights reserved.<BR>
+  This program and the accompanying materials are licensed and made available
+  under the terms and conditions of the BSD License which accompanies this
+  distribution.  The full text of the license may be found at
+  http://opensource.org/licenses/bsd-license.php
 
-  THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,                     
-  WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.             
+  THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,
+  WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 
 **/
 
 #include "PiSmmCore.h"
 
 #define TRUNCATE_TO_PAGES(a)  ((a) >> EFI_PAGE_SHIFT)
-
-typedef struct {
-  LIST_ENTRY  Link;
-  UINTN       NumberOfPages;
-} FREE_PAGE_LIST;
 
 LIST_ENTRY  mSmmMemoryMap = INITIALIZE_LIST_HEAD_VARIABLE (mSmmMemoryMap);
 
@@ -151,7 +146,7 @@ InternalAllocAddress (
 **/
 EFI_STATUS
 EFIAPI
-SmmAllocatePages (
+SmmInternalAllocatePages (
   IN  EFI_ALLOCATE_TYPE     Type,
   IN  EFI_MEMORY_TYPE       MemoryType,
   IN  UINTN                 NumberOfPages,
@@ -184,7 +179,7 @@ SmmAllocatePages (
                   );
       if (*Memory == (UINTN)-1) {
         return EFI_OUT_OF_RESOURCES;
-      } 
+      }
       break;
     case AllocateAddress:
       *Memory = InternalAllocAddress (
@@ -200,6 +195,40 @@ SmmAllocatePages (
       return EFI_INVALID_PARAMETER;
   }
   return EFI_SUCCESS;
+}
+
+/**
+  Allocates pages from the memory map.
+
+  @param  Type                   The type of allocation to perform.
+  @param  MemoryType             The type of memory to turn the allocated pages
+                                 into.
+  @param  NumberOfPages          The number of pages to allocate.
+  @param  Memory                 A pointer to receive the base allocated memory
+                                 address.
+
+  @retval EFI_INVALID_PARAMETER  Parameters violate checking rules defined in spec.
+  @retval EFI_NOT_FOUND          Could not allocate pages match the requirement.
+  @retval EFI_OUT_OF_RESOURCES   No enough pages to allocate.
+  @retval EFI_SUCCESS            Pages successfully allocated.
+
+**/
+EFI_STATUS
+EFIAPI
+SmmAllocatePages (
+  IN  EFI_ALLOCATE_TYPE     Type,
+  IN  EFI_MEMORY_TYPE       MemoryType,
+  IN  UINTN                 NumberOfPages,
+  OUT EFI_PHYSICAL_ADDRESS  *Memory
+  )
+{
+  EFI_STATUS  Status;
+
+  Status = SmmInternalAllocatePages (Type, MemoryType, NumberOfPages, Memory);
+  if (!EFI_ERROR (Status)) {
+    SmmCoreUpdateProfile ((EFI_PHYSICAL_ADDRESS) (UINTN) RETURN_ADDRESS (0), MemoryProfileActionAllocatePages, MemoryType, EFI_PAGES_TO_SIZE (NumberOfPages), (VOID *) (UINTN) *Memory);
+  }
+  return Status;
 }
 
 /**
@@ -242,7 +271,7 @@ InternalMergeNodes (
 **/
 EFI_STATUS
 EFIAPI
-SmmFreePages (
+SmmInternalFreePages (
   IN EFI_PHYSICAL_ADDRESS  Memory,
   IN UINTN                 NumberOfPages
   )
@@ -294,6 +323,33 @@ SmmFreePages (
 }
 
 /**
+  Frees previous allocated pages.
+
+  @param  Memory                 Base address of memory being freed.
+  @param  NumberOfPages          The number of pages to free.
+
+  @retval EFI_NOT_FOUND          Could not find the entry that covers the range.
+  @retval EFI_INVALID_PARAMETER  Address not aligned.
+  @return EFI_SUCCESS            Pages successfully freed.
+
+**/
+EFI_STATUS
+EFIAPI
+SmmFreePages (
+  IN EFI_PHYSICAL_ADDRESS  Memory,
+  IN UINTN                 NumberOfPages
+  )
+{
+  EFI_STATUS  Status;
+
+  Status = SmmInternalFreePages (Memory, NumberOfPages);
+  if (!EFI_ERROR (Status)) {
+    SmmCoreUpdateProfile ((EFI_PHYSICAL_ADDRESS) (UINTN) RETURN_ADDRESS (0), MemoryProfileActionFreePages, 0, EFI_PAGES_TO_SIZE (NumberOfPages), (VOID *) (UINTN) Memory);
+  }
+  return Status;
+}
+
+/**
   Add free SMRAM region for use by memory service.
 
   @param  MemBase                Base address of memory region.
@@ -318,10 +374,10 @@ SmmAddMemoryRegion (
   if ((Attributes & (EFI_ALLOCATED | EFI_NEEDS_TESTING | EFI_NEEDS_ECC_INITIALIZATION)) != 0) {
     return;
   }
-  
+
   //
   // Align range on an EFI_PAGE_SIZE boundary
-  //  
+  //
   AlignedMemBase = (UINTN)(MemBase + EFI_PAGE_MASK) & ~EFI_PAGE_MASK;
   MemLength -= AlignedMemBase - MemBase;
   SmmFreePages (AlignedMemBase, TRUNCATE_TO_PAGES ((UINTN)MemLength));

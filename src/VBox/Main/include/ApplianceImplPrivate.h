@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,15 +22,24 @@ class VirtualSystemDescription;
 
 #include "ovfreader.h"
 #include "SecretKeyStore.h"
+#include "ThreadTask.h"
+#include "CertificateImpl.h"
 #include <map>
 #include <vector>
+#include <iprt/manifest.h>
 #include <iprt/vfs.h>
+#include <iprt/crypto/x509.h>
 
 ////////////////////////////////////////////////////////////////////////////////
 //
 // Appliance data definition
 //
 ////////////////////////////////////////////////////////////////////////////////
+
+namespace settings
+{
+    struct AttachedDevice;
+}
 
 typedef std::pair<Utf8Str, Utf8Str> STRPAIR;
 
@@ -57,8 +66,22 @@ struct Appliance::Data
 
     Data()
       : state(ApplianceIdle)
+      , fDigestTypes(0)
+      , hOurManifest(NIL_RTMANIFEST)
       , fManifest(true)
       , fSha256(false)
+      , fDeterminedDigestTypes(false)
+      , hTheirManifest(NIL_RTMANIFEST)
+      , hMemFileTheirManifest(NIL_RTVFSFILE)
+      , fSignerCertLoaded(false)
+      , fCertificateIsSelfSigned(false)
+      , fSignatureValid(false)
+      , fCertificateValid(false)
+      , fCertificateMissingPath(true)
+      , fCertificateValidTime(false)
+      , pbSignedDigest(NULL)
+      , cbSignedDigest(0)
+      , enmSignedDigestType(RTDIGESTTYPE_INVALID)
       , fExportISOImages(false)
       , pReader(NULL)
       , ulWeightForXmlOperation(0)
@@ -76,17 +99,111 @@ struct Appliance::Data
             delete pReader;
             pReader = NULL;
         }
+        resetReadData();
+    }
+
+    /**
+     * Resets data used by read.
+     */
+    void resetReadData(void)
+    {
+        strOvfManifestEntry.setNull();
+        if (hOurManifest != NIL_RTMANIFEST)
+        {
+            RTManifestRelease(hOurManifest);
+            hOurManifest = NIL_RTMANIFEST;
+        }
+        if (hTheirManifest != NIL_RTMANIFEST)
+        {
+            RTManifestRelease(hTheirManifest);
+            hTheirManifest = NIL_RTMANIFEST;
+        }
+        if (hMemFileTheirManifest)
+        {
+            RTVfsFileRelease(hMemFileTheirManifest);
+            hMemFileTheirManifest = NIL_RTVFSFILE;
+        }
+        if (pbSignedDigest)
+        {
+            RTMemFree(pbSignedDigest);
+            pbSignedDigest = NULL;
+            cbSignedDigest = 0;
+        }
+        if (fSignerCertLoaded)
+        {
+            RTCrX509Certificate_Delete(&SignerCert);
+            fSignerCertLoaded = false;
+        }
+        enmSignedDigestType      = RTDIGESTTYPE_INVALID;
+        fCertificateIsSelfSigned = false;
+        fSignatureValid          = false;
+        fCertificateValid        = false;
+        fCertificateMissingPath  = true;
+        fCertificateValidTime    = false;
+        fDeterminedDigestTypes   = false;
+        fDigestTypes             = RTMANIFEST_ATTR_SHA1 | RTMANIFEST_ATTR_SHA256 | RTMANIFEST_ATTR_SHA512;
+        ptrCertificateInfo.setNull();
+        strCertError.setNull();
     }
 
     ApplianceState      state;
 
     LocationInfo        locInfo;        // location info for the currently processed OVF
+    /** The digests types to calculate (RTMANIFEST_ATTR_XXX) for the manifest.
+     * This will be a single value when exporting.  Zero, one or two.  */
+    uint32_t            fDigestTypes;
+    /** Manifest created while importing or exporting. */
+    RTMANIFEST          hOurManifest;
+
+    /** @name Write data
+     * @{ */
     bool                fManifest;      // Create a manifest file on export
     bool                fSha256;        // true = SHA256 (OVF 2.0), false = SHA1 (OVF 1.0)
-    Utf8Str             strOVFSHADigest;//SHA digest of OVf file. It is stored here after reading OVF file (before import)
+    /** @} */
+
+    /** @name Read data
+     *  @{ */
+    /** The manifest entry name of the OVF-file. */
+    Utf8Str             strOvfManifestEntry;
+
+    /** Set if we've parsed the manifest and determined the digest types. */
+    bool                fDeterminedDigestTypes;
+
+    /** Manifest read in during read() and kept around for later verification. */
+    RTMANIFEST          hTheirManifest;
+    /** Memorized copy of the manifest file for signature checking purposes. */
+    RTVFSFILE           hMemFileTheirManifest;
+
+    /** The signer certificate from the signature file (.cert).
+     * This will be used in the future provide information about the signer via
+     * the API. */
+    RTCRX509CERTIFICATE SignerCert;
+    /** Set if the SignerCert member contains usable data. */
+    bool                fSignerCertLoaded;
+    /** Cached RTCrX509Validity_IsValidAtTimeSpec result set by read(). */
+    bool                fCertificateIsSelfSigned;
+    /** Set by read() if pbSignedDigest verified correctly against SignerCert. */
+    bool                fSignatureValid;
+    /** Set by read() when the SignerCert checked out fine. */
+    bool                fCertificateValid;
+    /** Set by read() when the SignerCert certificate path couldn't be built. */
+    bool                fCertificateMissingPath;
+    /** Set by read() when the SignerCert (+path) is valid in the temporal sense. */
+    bool                fCertificateValidTime;
+    /** For keeping certificate error messages we delay from read() to import(). */
+    Utf8Str             strCertError;
+    /** The signed digest of the manifest. */
+    uint8_t            *pbSignedDigest;
+    /** The size of the signed digest. */
+    size_t              cbSignedDigest;
+    /** The digest type used to sign the manifest. */
+    RTDIGESTTYPE        enmSignedDigestType;
+    /** The certificate info object.  This is NULL if no signature and
+     *  successfully loaded certificate. */
+    ComObjPtr<Certificate> ptrCertificateInfo;
+    /** @} */
 
     bool                fExportISOImages;// when 1 the ISO images are exported
-    bool                fX509;// wether X509 is used or not
 
     RTCList<ImportOptions_T> optListImport;
     RTCList<ExportOptions_T> optListExport;
@@ -121,8 +238,9 @@ struct Appliance::XMLStack
     std::map<Utf8Str, bool> mapNetworks;
 };
 
-struct Appliance::TaskOVF
+class Appliance::TaskOVF: public ThreadTask
 {
+public:
     enum TaskType
     {
         Read,
@@ -134,17 +252,24 @@ struct Appliance::TaskOVF
             TaskType aType,
             LocationInfo aLocInfo,
             ComObjPtr<Progress> &aProgress)
-      : pAppliance(aThat),
+      : ThreadTask("TaskOVF"),
+        pAppliance(aThat),
         taskType(aType),
         locInfo(aLocInfo),
         pProgress(aProgress),
         enFormat(ovf::OVFVersion_unknown),
         rc(S_OK)
-    {}
+    {
+        switch (taskType)
+        {
+            case TaskOVF::Read:     m_strTaskName = "ApplRead"; break;
+            case TaskOVF::Import:   m_strTaskName = "ApplImp"; break;
+            case TaskOVF::Write:    m_strTaskName = "ApplWrit"; break;
+            default:                m_strTaskName = "ApplTask"; break;
+        }
+    }
 
     static DECLCALLBACK(int) updateProgress(unsigned uPercent, void *pvUser);
-
-    HRESULT startThread();
 
     Appliance *pAppliance;
     TaskType taskType;
@@ -154,12 +279,17 @@ struct Appliance::TaskOVF
     ovf::OVFVersion_T enFormat;
 
     HRESULT rc;
+
+    void handler()
+    {
+        int vrc = Appliance::i_taskThreadImportOrExport(NULL, this); NOREF(vrc);
+    }
 };
 
 struct MyHardDiskAttachment
 {
     ComPtr<IMachine>    pMachine;
-    Bstr                controllerType;
+    Utf8Str             controllerName;
     int32_t             lControllerPort;        // 0-29 for SATA
     int32_t             lDevice;                // IDE: 0 or 1, otherwise 0 always
 };
@@ -195,15 +325,25 @@ struct Appliance::ImportStack
     ComPtr<ISession>                pSession;           // session opened in Appliance::importFS() for machine manipulation
     bool                            fSessionOpen;       // true if the pSession is currently open and needs closing
 
+    /** @name File access related stuff (TAR stream)
+     *  @{  */
+    /** OVA file system stream handle. NIL if not OVA.  */
+    RTVFSFSSTREAM                   hVfsFssOva;
+    /** OVA lookahead I/O stream object. */
+    RTVFSIOSTREAM                   hVfsIosOvaLookAhead;
+    /** OVA lookahead I/O stream object name. */
+    char                           *pszOvaLookAheadName;
+    /** @} */
+
     // a list of images that we created/imported; this is initially empty
     // and will be cleaned up on errors
     std::list<MyHardDiskAttachment> llHardDiskAttachments;      // disks that were attached
-    std::list<STRPAIR>              llSrcDisksDigest;           // Digests of the source disks
-    std::map<Utf8Str , Utf8Str> mapNewUUIDsToOriginalUUIDs;
+    std::map<Utf8Str , Utf8Str>     mapNewUUIDsToOriginalUUIDs;
 
     ImportStack(const LocationInfo &aLocInfo,
                 const ovf::DiskImagesMap &aMapDisks,
-                ComObjPtr<Progress> &aProgress)
+                ComObjPtr<Progress> &aProgress,
+                RTVFSFSSTREAM aVfsFssOva)
         : locInfo(aLocInfo),
           mapDisks(aMapDisks),
           pProgress(aProgress),
@@ -211,17 +351,44 @@ struct Appliance::ImportStack
           fForceHWVirt(false),
           fForceIOAPIC(false),
           ulMemorySizeMB(0),
-          fSessionOpen(false)
+          fSessionOpen(false),
+          hVfsFssOva(aVfsFssOva),
+          hVfsIosOvaLookAhead(NIL_RTVFSIOSTREAM),
+          pszOvaLookAheadName(NULL)
     {
+        if (hVfsFssOva != NIL_RTVFSFSSTREAM)
+            RTVfsFsStrmRetain(hVfsFssOva);
+
         // disk images have to be on the same place as the OVF file. So
         // strip the filename out of the full file path
         strSourceDir = aLocInfo.strPath;
         strSourceDir.stripFilename();
     }
 
+    ~ImportStack()
+    {
+        if (hVfsFssOva != NIL_RTVFSFSSTREAM)
+        {
+            RTVfsFsStrmRelease(hVfsFssOva);
+            hVfsFssOva = NIL_RTVFSFSSTREAM;
+        }
+        if (hVfsIosOvaLookAhead != NIL_RTVFSIOSTREAM)
+        {
+            RTVfsIoStrmRelease(hVfsIosOvaLookAhead);
+            hVfsIosOvaLookAhead = NIL_RTVFSIOSTREAM;
+        }
+        if (pszOvaLookAheadName)
+        {
+            RTStrFree(pszOvaLookAheadName);
+            pszOvaLookAheadName = NULL;
+        }
+    }
+
     HRESULT restoreOriginalUUIDOfAttachedDevice(settings::MachineConfigFile *config);
     HRESULT saveOriginalUUIDOfAttachedDevice(settings::AttachedDevice &device,
                                                   const Utf8Str &newlyUuid);
+    RTVFSIOSTREAM claimOvaLookAHead(void);
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -266,18 +433,7 @@ PVDINTERFACEIO ShaCreateInterface();
 PVDINTERFACEIO FileCreateInterface();
 PVDINTERFACEIO tarWriterCreateInterface(void);
 
-/** Pointer to the instance data for the fssRdOnly_ methods. */
-typedef struct FSSRDONLYINTERFACEIO *PFSSRDONLYINTERFACEIO;
-
-int  fssRdOnlyCreateInterfaceForTarFile(const char *pszFilename, PFSSRDONLYINTERFACEIO *pTarIo);
-void fssRdOnlyDestroyInterface(PFSSRDONLYINTERFACEIO pFssIo);
-int  fssRdOnlyGetCurrentName(PFSSRDONLYINTERFACEIO pFssIo, const char **ppszName);
-int  fssRdOnlySkipCurrent(PFSSRDONLYINTERFACEIO pFssIo);
-bool fssRdOnlyIsCurrentDirectory(PFSSRDONLYINTERFACEIO pFssIo);
-
-int readFileIntoBuffer(const char *pcszFilename, void **ppvBuf, size_t *pcbSize, PVDINTERFACEIO pIfIo, void *pvUser);
 int writeBufferToFile(const char *pcszFilename, void *pvBuf, size_t cbSize, PVDINTERFACEIO pIfIo, void *pvUser);
-int decompressImageAndSave(const char *pcszFullFilenameIn, const char *pcszFullFilenameOut, PVDINTERFACEIO pIfIo, void *pvUser);
-int copyFileAndCalcShaDigest(const char *pcszSourceFilename, const char *pcszTargetFilename, PVDINTERFACEIO pIfIo, void *pvUser);
+
 #endif // !____H_APPLIANCEIMPLPRIVATE
 

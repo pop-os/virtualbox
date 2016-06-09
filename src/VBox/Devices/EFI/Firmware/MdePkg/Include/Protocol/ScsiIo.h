@@ -1,17 +1,17 @@
 /** @file
   EFI_SCSI_IO_PROTOCOL as defined in UEFI 2.0.
-  This protocol is used by code, typically drivers, running in the EFI boot 
-  services environment to access SCSI devices. In particular, functions for 
+  This protocol is used by code, typically drivers, running in the EFI boot
+  services environment to access SCSI devices. In particular, functions for
   managing devices on SCSI buses are defined here.
 
-  Copyright (c) 2006 - 2008, Intel Corporation. All rights reserved.<BR>
-  This program and the accompanying materials                          
-  are licensed and made available under the terms and conditions of the BSD License         
-  which accompanies this distribution.  The full text of the license may be found at        
-  http://opensource.org/licenses/bsd-license.php                                            
+  Copyright (c) 2006 - 2013, Intel Corporation. All rights reserved.<BR>
+  This program and the accompanying materials
+  are licensed and made available under the terms and conditions of the BSD License
+  which accompanies this distribution.  The full text of the license may be found at
+  http://opensource.org/licenses/bsd-license.php
 
-  THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,                     
-  WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.             
+  THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,
+  WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 
 **/
 
@@ -27,6 +27,31 @@
 /// Forward reference for pure ANSI compatability
 ///
 typedef struct _EFI_SCSI_IO_PROTOCOL EFI_SCSI_IO_PROTOCOL;
+
+//
+// SCSI Device type information, defined in the SCSI Primary Commands standard (e.g., SPC-4)
+//
+#define EFI_SCSI_IO_TYPE_DISK                                  0x00    ///< Disk device
+#define EFI_SCSI_IO_TYPE_TAPE                                  0x01    ///< Tape device
+#define EFI_SCSI_IO_TYPE_PRINTER                               0x02    ///< Printer
+#define EFI_SCSI_IO_TYPE_PROCESSOR                             0x03    ///< Processor
+#define EFI_SCSI_IO_TYPE_WORM                                  0x04    ///< Write-once read-multiple
+#define EFI_SCSI_IO_TYPE_CDROM                                 0x05    ///< CD or DVD device
+#define EFI_SCSI_IO_TYPE_SCANNER                               0x06    ///< Scanner device
+#define EFI_SCSI_IO_TYPE_OPTICAL                               0x07    ///< Optical memory device
+#define EFI_SCSI_IO_TYPE_MEDIUMCHANGER                         0x08    ///< Medium Changer device
+#define EFI_SCSI_IO_TYPE_COMMUNICATION                         0x09    ///< Communications device
+#define MFI_SCSI_IO_TYPE_A                                     0x0A    ///< Obsolete
+#define MFI_SCSI_IO_TYPE_B                                     0x0B    ///< Obsolete
+#define MFI_SCSI_IO_TYPE_RAID                                  0x0C    ///< Storage array controller device (e.g., RAID)
+#define MFI_SCSI_IO_TYPE_SES                                   0x0D    ///< Enclosure services device
+#define MFI_SCSI_IO_TYPE_RBC                                   0x0E    ///< Simplified direct-access device (e.g., magnetic disk)
+#define MFI_SCSI_IO_TYPE_OCRW                                  0x0F    ///< Optical card reader/writer device
+#define MFI_SCSI_IO_TYPE_BRIDGE                                0x10    ///< Bridge Controller Commands
+#define MFI_SCSI_IO_TYPE_OSD                                   0x11    ///< Object-based Storage Device
+#define EFI_SCSI_IO_TYPE_RESERVED_LOW                          0x12    ///< Reserved (low)
+#define EFI_SCSI_IO_TYPE_RESERVED_HIGH                         0x1E    ///< Reserved (high)
+#define EFI_SCSI_IO_TYPE_UNKNOWN                               0x1F    ///< Unknown no device type
 
 //
 // SCSI Data Direction definition
@@ -276,12 +301,12 @@ struct _EFI_SCSI_IO_PROTOCOL {
   EFI_SCSI_IO_PROTOCOL_GET_DEVICE_LOCATION  GetDeviceLocation;
   EFI_SCSI_IO_PROTOCOL_RESET_BUS            ResetBus;
   EFI_SCSI_IO_PROTOCOL_RESET_DEVICE         ResetDevice;
-  EFI_SCSI_IO_PROTOCOL_EXEC_SCSI_COMMAND    ExecuteScsiCommand;    
+  EFI_SCSI_IO_PROTOCOL_EXEC_SCSI_COMMAND    ExecuteScsiCommand;
 
   ///
-  /// Supplies the alignment requirement for any buffer used in a data transfer. 
-  /// IoAlign values of 0 and 1 mean that the buffer can be placed anywhere in memory. 
-  /// Otherwise, IoAlign must be a power of 2, and the requirement is that the 
+  /// Supplies the alignment requirement for any buffer used in a data transfer.
+  /// IoAlign values of 0 and 1 mean that the buffer can be placed anywhere in memory.
+  /// Otherwise, IoAlign must be a power of 2, and the requirement is that the
   /// start address of a buffer must be evenly divisible by IoAlign with no remainder.
   ///
   UINT32                                    IoAlign;

@@ -2,7 +2,7 @@
   Firmware Block Services to support emulating non-volatile variables
   by pretending that a memory buffer is storage for the NV variables.
 
-  Copyright (c) 2006 - 2012, Intel Corporation. All rights reserved.<BR>
+  Copyright (c) 2006 - 2013, Intel Corporation. All rights reserved.<BR>
   This program and the accompanying materials
   are licensed and made available under the terms and conditions of the BSD License
   which accompanies this distribution.  The full text of the license may be found at
@@ -33,6 +33,9 @@
 #include <Library/PcdLib.h>
 #include <Library/PlatformFvbLib.h>
 #include "Fvb.h"
+
+#define EFI_AUTHENTICATED_VARIABLE_GUID \
+{ 0xaaf32c78, 0x947b, 0x439a, { 0xa1, 0x80, 0x2e, 0x14, 0x4e, 0xc3, 0x77, 0x92 } }
 
 //
 // Virtual Address Change Event
@@ -117,14 +120,14 @@ FvbVirtualAddressChangeEvent (
   only for memory-mapped firmware volumes.
 
   @param This     Indicates the EFI_FIRMWARE_VOLUME_BLOCK2_PROTOCOL instance.
-  
+
   @param Address  Pointer to a caller-allocated
                   EFI_PHYSICAL_ADDRESS that, on successful
                   return from GetPhysicalAddress(), contains the
                   base address of the firmware volume.
-  
+
   @retval EFI_SUCCESS       The firmware volume base address is returned.
-  
+
   @retval EFI_NOT_SUPPORTED The firmware volume is not memory mapped.
 
 **/
@@ -165,9 +168,9 @@ FvbProtocolGetPhysicalAddress (
                         blocks in this range have a size of
                         BlockSize.
 
-  
+
   @retval EFI_SUCCESS             The firmware volume base address is returned.
-  
+
   @retval EFI_INVALID_PARAMETER   The requested LBA is out of range.
 
 **/
@@ -243,7 +246,7 @@ FvbProtocolGetAttributes (
                       settings of the firmware volume. Type
                       EFI_FVB_ATTRIBUTES_2 is defined in
                       EFI_FIRMWARE_VOLUME_HEADER.
-  
+
   @retval EFI_SUCCESS           The firmware volume attributes were returned.
 
   @retval EFI_INVALID_PARAMETER The attributes requested are in
@@ -299,7 +302,7 @@ FvbProtocolSetAttributes (
 
   @retval EFI_SUCCESS The erase request was successfully
                       completed.
-  
+
   @retval EFI_ACCESS_DENIED   The firmware volume is in the
                               WriteDisabled state.
   @retval EFI_DEVICE_ERROR  The block device is not functioning
@@ -308,7 +311,7 @@ FvbProtocolSetAttributes (
                             partially erased.
   @retval EFI_INVALID_PARAMETER One or more of the LBAs listed
                                 in the variable argument list do
-                                not exist in the firmware volume.  
+                                not exist in the firmware volume.
 
 **/
 EFI_STATUS
@@ -417,29 +420,29 @@ FvbProtocolEraseBlocks (
   returns.
 
   @param This     Indicates the EFI_FIRMWARE_VOLUME_BLOCK2_PROTOCOL instance.
-  
+
   @param Lba      The starting logical block index to write to.
-  
+
   @param Offset   Offset into the block at which to begin writing.
-  
+
   @param NumBytes Pointer to a UINTN. At entry, *NumBytes
                   contains the total size of the buffer. At
                   exit, *NumBytes contains the total number of
                   bytes actually written.
-  
+
   @param Buffer   Pointer to a caller-allocated buffer that
                   contains the source for the write.
-  
+
   @retval EFI_SUCCESS         The firmware volume was written successfully.
-  
+
   @retval EFI_BAD_BUFFER_SIZE The write was attempted across an
                               LBA boundary. On output, NumBytes
                               contains the total number of bytes
                               actually written.
-  
+
   @retval EFI_ACCESS_DENIED   The firmware volume is in the
                               WriteDisabled state.
-  
+
   @retval EFI_DEVICE_ERROR    The block device is malfunctioning
                               and could not be written.
 
@@ -500,7 +503,7 @@ FvbProtocolWrite (
   aware that a read may be partially completed.
 
   @param This     Indicates the EFI_FIRMWARE_VOLUME_BLOCK2_PROTOCOL instance.
-  
+
   @param Lba      The starting logical block index
                   from which to read.
 
@@ -516,15 +519,15 @@ FvbProtocolWrite (
 
   @retval EFI_SUCCESS         The firmware volume was read successfully
                               and contents are in Buffer.
-  
+
   @retval EFI_BAD_BUFFER_SIZE Read attempted across an LBA
                               boundary. On output, NumBytes
                               contains the total number of bytes
                               returned in Buffer.
-  
+
   @retval EFI_ACCESS_DENIED   The firmware volume is in the
                               ReadDisabled state.
-  
+
   @retval EFI_DEVICE_ERROR    The block device is not
                               functioning correctly and could
                               not be read.
@@ -622,6 +625,9 @@ InitializeFvAndVariableStoreHeaders (
   IN  VOID   *Ptr
   )
 {
+  //
+  // Templates for standard (non-authenticated) variable FV header
+  //
   STATIC FVB_FV_HDR_AND_VARS_TEMPLATE FvAndVarTemplate = {
     { // EFI_FIRMWARE_VOLUME_HEADER FvHdr;
       // UINT8                     ZeroVector[16];
@@ -649,14 +655,17 @@ InitializeFvAndVariableStoreHeaders (
       0,
 
       // UINT8                     Reserved[1];
-      0,
+      {0},
 
       // UINT8                     Revision;
       EFI_FVH_REVISION,
 
       // EFI_FV_BLOCK_MAP_ENTRY    BlockMap[1];
-      { 2, // UINT32 NumBlocks;
-        EMU_FVB_BLOCK_SIZE  // UINT32 Length;
+      {
+        {
+          2, // UINT32 NumBlocks;
+          EMU_FVB_BLOCK_SIZE  // UINT32 Length;
+        }
       }
     },
     // EFI_FV_BLOCK_MAP_ENTRY     EndBlockMap;
@@ -684,12 +693,86 @@ InitializeFvAndVariableStoreHeaders (
       0
     }
   };
+
+  //
+  // Templates for authenticated variable FV header
+  //
+  STATIC FVB_FV_HDR_AND_VARS_TEMPLATE FvAndAuthenticatedVarTemplate = {
+    { // EFI_FIRMWARE_VOLUME_HEADER FvHdr;
+      // UINT8                     ZeroVector[16];
+      { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+
+      // EFI_GUID                  FileSystemGuid;
+      EFI_SYSTEM_NV_DATA_FV_GUID,
+
+      // UINT64                    FvLength;
+      EMU_FVB_SIZE,
+
+      // UINT32                    Signature;
+      EFI_FVH_SIGNATURE,
+
+      // EFI_FVB_ATTRIBUTES_2      Attributes;
+      0x4feff,
+
+      // UINT16                    HeaderLength;
+      EMU_FV_HEADER_LENGTH,
+
+      // UINT16                    Checksum;
+      0,
+
+      // UINT16                    ExtHeaderOffset;
+      0,
+
+      // UINT8                     Reserved[1];
+      {0},
+
+      // UINT8                     Revision;
+      EFI_FVH_REVISION,
+
+      // EFI_FV_BLOCK_MAP_ENTRY    BlockMap[1];
+      {
+        {
+          2, // UINT32 NumBlocks;
+          EMU_FVB_BLOCK_SIZE  // UINT32 Length;
+        }
+      }
+    },
+    // EFI_FV_BLOCK_MAP_ENTRY     EndBlockMap;
+    { 0, 0 }, // End of block map
+    { // VARIABLE_STORE_HEADER      VarHdr;
+        // EFI_GUID  Signature;     // need authenticated variables for secure boot
+        EFI_AUTHENTICATED_VARIABLE_GUID,
+
+      // UINT32  Size;
+      (
+        FixedPcdGet32 (PcdVariableStoreSize) -
+        OFFSET_OF (FVB_FV_HDR_AND_VARS_TEMPLATE, VarHdr)
+      ),
+
+      // UINT8   Format;
+      VARIABLE_STORE_FORMATTED,
+
+      // UINT8   State;
+      VARIABLE_STORE_HEALTHY,
+
+      // UINT16  Reserved;
+      0,
+
+      // UINT32  Reserved1;
+      0
+    }
+  };
+
   EFI_FIRMWARE_VOLUME_HEADER  *Fv;
 
   //
   // Copy the template structure into the location
   //
-  CopyMem (Ptr, (VOID*)&FvAndVarTemplate, sizeof (FvAndVarTemplate));
+  if (FeaturePcdGet (PcdSecureBootEnable) == FALSE) {
+    CopyMem (Ptr, (VOID*)&FvAndVarTemplate, sizeof (FvAndVarTemplate));
+  } else {
+    CopyMem (Ptr, (VOID*)&FvAndAuthenticatedVarTemplate, sizeof (FvAndAuthenticatedVarTemplate));
+  }
 
   //
   // Update the checksum for the FV header
@@ -698,58 +781,12 @@ InitializeFvAndVariableStoreHeaders (
   Fv->Checksum = CalculateCheckSum16 (Ptr, Fv->HeaderLength);
 }
 
-
-/**
-  Initializes the Fault Tolerant Write data structure
-
-  This data structure is used by the Fault Tolerant Write driver.
-
-  @param[in]  Buffer - Location for the FTW data structure
-
-**/
-VOID
-InitializeFtwState (
-  IN  VOID   *Buffer
-  )
-{
-  EFI_FAULT_TOLERANT_WORKING_BLOCK_HEADER *Hdr;
-  UINT32                                  TempCrc;
-  STATIC EFI_FAULT_TOLERANT_WORKING_BLOCK_HEADER DefaultFtw = {
-    EFI_SYSTEM_NV_DATA_FV_GUID, // EFI_GUID  Signature;
-    ERASED_UINT32,              // UINT32    Crc;
-    ERASED_BIT,                 // UINT8     WorkingBlockValid : 1;
-    ERASED_BIT,                 // UINT8     WorkingBlockInvalid : 1;
-    0,                          // UINT8     Reserved : 6;
-    { 0, 0, 0 },                // UINT8     Reserved3[3];
-    FTW_WRITE_QUEUE_SIZE        // UINT64    WriteQueueSize;
-  };
-
-  CopyMem (Buffer, (VOID*) &DefaultFtw, sizeof (DefaultFtw));
-
-  Hdr = (EFI_FAULT_TOLERANT_WORKING_BLOCK_HEADER*) Buffer;
-
-  //
-  // Calculate checksum.
-  //
-  // The Crc, WorkingBlockValid and WorkingBlockInvalid bits should
-  // be set to the erased state before computing the checksum.
-  //
-  gBS->CalculateCrc32 (Buffer, sizeof (DefaultFtw), &TempCrc);
-  Hdr->Crc = TempCrc;
-
-  //
-  // Mark as valid.
-  //
-  Hdr->WorkingBlockValid = NOT_ERASED_BIT;
-}
-
-
 /**
   Main entry point.
 
-  @param[in] ImageHandle    The firmware allocated handle for the EFI image.  
+  @param[in] ImageHandle    The firmware allocated handle for the EFI image.
   @param[in] SystemTable    A pointer to the EFI System Table.
-  
+
   @retval EFI_SUCCESS       Successfully initialized.
 
 **/
@@ -780,6 +817,12 @@ FvbInitialize (
      ) {
     DEBUG ((EFI_D_ERROR, "EMU Variable invalid PCD sizes\n"));
     return EFI_INVALID_PARAMETER;
+  }
+
+  if (PcdGet64 (PcdFlashNvStorageVariableBase64) != 0) {
+    DEBUG ((EFI_D_INFO, "Disabling EMU Variable FVB since "
+                        "flash variables appear to be supported.\n"));
+    return EFI_ABORTED;
   }
 
   //
@@ -825,9 +868,6 @@ FvbInitialize (
   // Initialize the Fault Tolerant Write data area
   //
   SubPtr = (VOID*) ((UINT8*) Ptr + PcdGet32 (PcdVariableStoreSize));
-  if (Initialize) {
-    InitializeFtwState (SubPtr);
-  }
   PcdSet32 (PcdFlashNvStorageFtwWorkingBase, (UINT32)(UINTN) SubPtr);
 
   //

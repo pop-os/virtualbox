@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,7 +19,6 @@
 #define ____H_APPLIANCEIMPL
 
 /* VBox includes */
-#include <VBox/settings.h>
 #include "VirtualSystemDescriptionWrap.h"
 #include "ApplianceWrap.h"
 #include "MediumFormatImpl.h"
@@ -31,6 +30,7 @@
 #include <set>
 
 /* VBox forward declarations */
+class Certificate;
 class Progress;
 class VirtualSystemDescription;
 struct VirtualSystemDescriptionEntry;
@@ -88,6 +88,7 @@ private:
     // wrapped IAppliance properties
     HRESULT getPath(com::Utf8Str &aPath);
     HRESULT getDisks(std::vector<com::Utf8Str> &aDisks);
+    HRESULT getCertificate(ComPtr<ICertificate> &aCertificateInfo);
     HRESULT getVirtualSystemDescriptions(std::vector<ComPtr<IVirtualSystemDescription> > &aVirtualSystemDescriptions);
     HRESULT getMachines(std::vector<com::Utf8Str> &aMachines);
 
@@ -113,7 +114,7 @@ private:
     VirtualBox* const mVirtualBox;
 
     struct ImportStack;
-    struct TaskOVF;
+    class TaskOVF;
     struct Data;            // opaque, defined in ApplianceImpl.cpp
     Data *m;
 
@@ -126,7 +127,7 @@ private:
     HRESULT i_searchUniqueVMName(Utf8Str& aName) const;
     HRESULT i_searchUniqueDiskImageFilePath(Utf8Str& aName) const;
     HRESULT i_setUpProgress(ComObjPtr<Progress> &pProgress,
-                            const Bstr &bstrDescription,
+                            const Utf8Str &strDescription,
                             SetUpProgressMode mode);
     void i_waitForAsyncProgress(ComObjPtr<Progress> &pProgressThis, ComPtr<IProgress> &pProgressAsync);
     void i_addWarning(const char* aWarning, ...);
@@ -151,13 +152,15 @@ private:
     /** @name Read stuff
      * @{
      */
-    HRESULT i_readImpl(const LocationInfo &aLocInfo, ComObjPtr<Progress> &aProgress);
+    void    i_readImpl(const LocationInfo &aLocInfo, ComObjPtr<Progress> &aProgress);
 
     HRESULT i_readFS(TaskOVF *pTask);
     HRESULT i_readFSOVF(TaskOVF *pTask);
     HRESULT i_readFSOVA(TaskOVF *pTask);
-    HRESULT i_readFSImpl(TaskOVF *pTask, const RTCString &strFilename, PVDINTERFACEIO pCallbacks, PSHASTORAGE pStorage);
-    HRESULT i_readS3(TaskOVF *pTask);
+    HRESULT i_readOVFFile(TaskOVF *pTask, RTVFSIOSTREAM hIosOvf, const char *pszManifestEntry);
+    HRESULT i_readManifestFile(TaskOVF *pTask, RTVFSIOSTREAM hIosMf, const char *pszSubFileNm);
+    HRESULT i_readSignatureFile(TaskOVF *pTask, RTVFSIOSTREAM hIosCert, const char *pszSubFileNm);
+    HRESULT i_readTailProcessing(TaskOVF *pTask);
     /** @}  */
 
     /** @name Import stuff
@@ -166,57 +169,43 @@ private:
     HRESULT i_importImpl(const LocationInfo &aLocInfo, ComObjPtr<Progress> &aProgress);
 
     HRESULT i_importFS(TaskOVF *pTask);
-    HRESULT i_importFSOVF(TaskOVF *pTask, AutoWriteLockBase& writeLock);
-    HRESULT i_importFSOVA(TaskOVF *pTask, AutoWriteLockBase& writeLock);
-    HRESULT i_importS3(TaskOVF *pTask);
+    HRESULT i_importFSOVF(TaskOVF *pTask, AutoWriteLockBase &rWriteLock);
+    HRESULT i_importFSOVA(TaskOVF *pTask, AutoWriteLockBase &rWriteLock);
+    HRESULT i_importDoIt(TaskOVF *pTask, AutoWriteLockBase &rWriteLock, RTVFSFSSTREAM hVfsFssOva = NIL_RTVFSFSSTREAM);
 
-    HRESULT i_readFileToBuf(const Utf8Str &strFile,
-                            void **ppvBuf,
-                            size_t *pcbSize,
-                            bool fCreateDigest,
-                            PVDINTERFACEIO pCallbacks,
-                            PSHASTORAGE pStorage);
-    HRESULT i_readTarFileToBuf(struct FSSRDONLYINTERFACEIO *pTarIo,
-                               const Utf8Str &strFile,
-                               void **ppvBuf,
-                               size_t *pcbSize,
-                               bool fCreateDigest,
-                               PVDINTERFACEIO pCallbacks,
-                               PSHASTORAGE pStorage);
-    HRESULT i_verifyManifestFile(const Utf8Str &strFile, ImportStack &stack, void *pvBuf, size_t cbSize);
-
-    HRESULT i_verifyCertificateFile(void *pvBuf, size_t cbSize, PSHASTORAGE pStorage);
+    HRESULT i_verifyManifestFile(ImportStack &stack);
 
     void i_convertDiskAttachmentValues(const ovf::HardDiskController &hdc,
                                        uint32_t ulAddressOnParent,
-                                       Bstr &controllerType,
+                                       Utf8Str &controllerType,
                                        int32_t &lControllerPort,
                                        int32_t &lDevice);
 
     void i_importOneDiskImage(const ovf::DiskImage &di,
                               Utf8Str *strTargetPath,
                               ComObjPtr<Medium> &pTargetHD,
-                              ImportStack &stack,
-                              PVDINTERFACEIO pCallbacks,
-                              PSHASTORAGE pStorage);
+                              ImportStack &stack);
 
     void i_importMachineGeneric(const ovf::VirtualSystem &vsysThis,
                                 ComObjPtr<VirtualSystemDescription> &vsdescThis,
                                 ComPtr<IMachine> &pNewMachine,
-                                ImportStack &stack,
-                                PVDINTERFACEIO pCallbacks,
-                                PSHASTORAGE pStorage);
+                                ImportStack &stack);
     void i_importVBoxMachine(ComObjPtr<VirtualSystemDescription> &vsdescThis,
                              ComPtr<IMachine> &pNewMachine,
-                             ImportStack &stack,
-                             PVDINTERFACEIO pCallbacks,
-                             PSHASTORAGE pStorage);
-    void i_importMachines(ImportStack &stack,
-                          PVDINTERFACEIO pCallbacks,
-                          PSHASTORAGE pStorage);
+                             ImportStack &stack);
+    void i_importMachines(ImportStack &stack);
 
-    HRESULT i_preCheckImageAvailability(PSHASTORAGE pSHAStorage,
-                                        RTCString &availableImage);
+    HRESULT i_preCheckImageAvailability(ImportStack &stack);
+    bool    i_importEnsureOvaLookAhead(ImportStack &stack);
+    RTVFSIOSTREAM i_importSetupDigestCalculationForGivenIoStream(RTVFSIOSTREAM hVfsIos, const char *pszManifestEntry);
+    RTVFSIOSTREAM i_importOpenSourceFile(ImportStack &stack, Utf8Str const &rstrSrcPath, const char *pszManifestEntry);
+    HRESULT i_importCreateAndWriteDestinationFile(Utf8Str const &rstrDstPath,
+                                                  RTVFSIOSTREAM hVfsIosSrc, Utf8Str const &rstrSrcLogNm);
+
+    void    i_importCopyFile(ImportStack &stack, Utf8Str const &rstrSrcPath, Utf8Str const &rstrDstPath,
+                             const char *pszManifestEntry);
+    void    i_importDecompressFile(ImportStack &stack, Utf8Str const &rstrSrcPath, Utf8Str const &rstrDstPath,
+                                   const char *pszManifestEntry);
     /** @} */
 
     /** @name Write stuff
@@ -228,7 +217,6 @@ private:
     HRESULT i_writeFSOVF(TaskOVF *pTask, AutoWriteLockBase& writeLock);
     HRESULT i_writeFSOVA(TaskOVF *pTask, AutoWriteLockBase& writeLock);
     HRESULT i_writeFSImpl(TaskOVF *pTask, AutoWriteLockBase& writeLock, PVDINTERFACEIO pCallbacks, PSHASTORAGE pStorage);
-    HRESULT i_writeS3(TaskOVF *pTask);
 
     struct XMLStack;
 
@@ -246,6 +234,7 @@ private:
     /** @} */
 
     friend class Machine;
+    friend class Certificate;
 };
 
 void i_parseURI(Utf8Str strUri, LocationInfo &locInfo);

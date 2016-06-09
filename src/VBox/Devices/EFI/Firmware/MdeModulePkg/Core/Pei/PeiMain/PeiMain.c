@@ -1,7 +1,7 @@
 /** @file
   Pei Core Main Entry Point
-  
-Copyright (c) 2006 - 2011, Intel Corporation. All rights reserved.<BR>
+
+Copyright (c) 2006 - 2014, Intel Corporation. All rights reserved.<BR>
 This program and the accompanying materials
 are licensed and made available under the terms and conditions of the BSD License
 which accompanies this distribution.  The full text of the license may be found at
@@ -46,7 +46,7 @@ EFI_PEI_SERVICES  gPs = {
   PeiFfsFindNextFile,
   PeiFfsFindSectionData,
 
-  PeiInstallPeiMemory,      
+  PeiInstallPeiMemory,
   PeiAllocatePages,
   PeiAllocatePool,
   (EFI_PEI_COPY_MEM)CopyMem,
@@ -61,12 +61,14 @@ EFI_PEI_SERVICES  gPs = {
   PeiFfsFindFileByName,
   PeiFfsGetFileInfo,
   PeiFfsGetVolumeInfo,
-  PeiRegisterForShadow
+  PeiRegisterForShadow,
+  PeiFfsFindSectionData3,
+  PeiFfsGetFileInfo2
 };
 
 /**
   Shadow PeiCore module from flash to installed memory.
-  
+
   @param PrivateData    PeiCore's private data structure
 
   @return PeiCore function address after shadowing.
@@ -118,7 +120,7 @@ ShadowPeiCore (
   from SEC to PEI. After switching stack in the PEI core, it will restart
   with the old core data.
 
-  @param SecCoreData     Points to a data structure containing information about the PEI core's operating
+  @param SecCoreDataPtr  Points to a data structure containing information about the PEI core's operating
                          environment, such as the size and location of temporary RAM, the stack location and
                          the BFV location.
   @param PpiList         Points to a list of one or more PPI descriptors to be installed initially by the PEI core.
@@ -135,23 +137,28 @@ ShadowPeiCore (
 VOID
 EFIAPI
 PeiCore (
-  IN CONST EFI_SEC_PEI_HAND_OFF        *SecCoreData,
+  IN CONST EFI_SEC_PEI_HAND_OFF        *SecCoreDataPtr,
   IN CONST EFI_PEI_PPI_DESCRIPTOR      *PpiList,
   IN VOID                              *Data
   )
 {
   PEI_CORE_INSTANCE           PrivateData;
+  EFI_SEC_PEI_HAND_OFF        *SecCoreData;
+  EFI_SEC_PEI_HAND_OFF        NewSecCoreData;
   EFI_STATUS                  Status;
   PEI_CORE_TEMP_POINTERS      TempPtr;
   PEI_CORE_INSTANCE           *OldCoreData;
   EFI_PEI_CPU_IO_PPI          *CpuIo;
   EFI_PEI_PCI_CFG2_PPI        *PciCfg;
   EFI_HOB_HANDOFF_INFO_TABLE  *HandoffInformationTable;
+  EFI_PEI_TEMPORARY_RAM_DONE_PPI *TemporaryRamDonePpi;
+  UINTN                       Index;
 
   //
   // Retrieve context passed into PEI Core
   //
-  OldCoreData = (PEI_CORE_INSTANCE *)Data;
+  OldCoreData = (PEI_CORE_INSTANCE *) Data;
+  SecCoreData = (EFI_SEC_PEI_HAND_OFF *) SecCoreDataPtr;
 
   //
   // Perform PEI Core phase specific actions.
@@ -175,15 +182,35 @@ PeiCore (
       OldCoreData->CpuIo = &OldCoreData->ServiceTableShadow.CpuIo;
       if (OldCoreData->HeapOffsetPositive) {
         OldCoreData->HobList.Raw = (VOID *)(OldCoreData->HobList.Raw + OldCoreData->HeapOffset);
+        OldCoreData->UnknownFvInfo        = (PEI_CORE_UNKNOW_FORMAT_FV_INFO *) ((UINT8 *) OldCoreData->UnknownFvInfo + OldCoreData->HeapOffset);
+        OldCoreData->CurrentFvFileHandles = (EFI_PEI_FILE_HANDLE *) ((UINT8 *) OldCoreData->CurrentFvFileHandles + OldCoreData->HeapOffset);
+        OldCoreData->PpiData.PpiListPtrs  = (PEI_PPI_LIST_POINTERS *) ((UINT8 *) OldCoreData->PpiData.PpiListPtrs + OldCoreData->HeapOffset);
+        OldCoreData->Fv                   = (PEI_CORE_FV_HANDLE *) ((UINT8 *) OldCoreData->Fv + OldCoreData->HeapOffset);
+        for (Index = 0; Index < PcdGet32 (PcdPeiCoreMaxFvSupported); Index ++) {
+          OldCoreData->Fv[Index].PeimState     = (UINT8 *) OldCoreData->Fv[Index].PeimState + OldCoreData->HeapOffset;
+          OldCoreData->Fv[Index].FvFileHandles = (EFI_PEI_FILE_HANDLE *) ((UINT8 *) OldCoreData->Fv[Index].FvFileHandles + OldCoreData->HeapOffset);
+        }
+        OldCoreData->FileGuid             = (EFI_GUID *) ((UINT8 *) OldCoreData->FileGuid + OldCoreData->HeapOffset);
+        OldCoreData->FileHandles          = (EFI_PEI_FILE_HANDLE *) ((UINT8 *) OldCoreData->FileHandles + OldCoreData->HeapOffset);
       } else {
         OldCoreData->HobList.Raw = (VOID *)(OldCoreData->HobList.Raw - OldCoreData->HeapOffset);
+        OldCoreData->UnknownFvInfo        = (PEI_CORE_UNKNOW_FORMAT_FV_INFO *) ((UINT8 *) OldCoreData->UnknownFvInfo - OldCoreData->HeapOffset);
+        OldCoreData->CurrentFvFileHandles = (EFI_PEI_FILE_HANDLE *) ((UINT8 *) OldCoreData->CurrentFvFileHandles - OldCoreData->HeapOffset);
+        OldCoreData->PpiData.PpiListPtrs  = (PEI_PPI_LIST_POINTERS *) ((UINT8 *) OldCoreData->PpiData.PpiListPtrs - OldCoreData->HeapOffset);
+        OldCoreData->Fv                   = (PEI_CORE_FV_HANDLE *) ((UINT8 *) OldCoreData->Fv - OldCoreData->HeapOffset);
+        for (Index = 0; Index < PcdGet32 (PcdPeiCoreMaxFvSupported); Index ++) {
+          OldCoreData->Fv[Index].PeimState     = (UINT8 *) OldCoreData->Fv[Index].PeimState - OldCoreData->HeapOffset;
+          OldCoreData->Fv[Index].FvFileHandles = (EFI_PEI_FILE_HANDLE *) ((UINT8 *) OldCoreData->Fv[Index].FvFileHandles - OldCoreData->HeapOffset);
+        }
+        OldCoreData->FileGuid             = (EFI_GUID *) ((UINT8 *) OldCoreData->FileGuid - OldCoreData->HeapOffset);
+        OldCoreData->FileHandles          = (EFI_PEI_FILE_HANDLE *) ((UINT8 *) OldCoreData->FileHandles - OldCoreData->HeapOffset);
       }
 
       //
       // Initialize libraries that the PEI Core is linked against
       //
       ProcessLibraryConstructorList (NULL, (CONST EFI_PEI_SERVICES **)&OldCoreData->Ps);
-      
+
       //
       // Fixup for PeiService's address
       //
@@ -218,7 +245,7 @@ PeiCore (
       // Indicate that PeiCore reenter
       //
       OldCoreData->PeimDispatcherReenter = TRUE;
-      
+
       if (PcdGet64(PcdLoadModuleAtFixAddressEnable) != 0 && (OldCoreData->HobList.HandoffInformationTable->BootMode != BOOT_ON_S3_RESUME)) {
         //
         // if Loading Module at Fixed Address is enabled, allocate the PEI code memory range usage bit map array.
@@ -232,12 +259,12 @@ PeiCore (
       // PEI Core and PEIMs to get high performance.
       //
       OldCoreData->ShadowedPeiCore = ShadowPeiCore (OldCoreData);
-      
+
       //
       // PEI Core has now been shadowed to memory.  Restart PEI Core in memory.
       //
       OldCoreData->ShadowedPeiCore (SecCoreData, PpiList, OldCoreData);
-      
+
       //
       // Should never reach here.
       //
@@ -248,18 +275,20 @@ PeiCore (
     //
     // Memory is available to the PEI Core and the PEI Core has been shadowed to memory.
     //
-    
+    CopyMem (&NewSecCoreData, SecCoreDataPtr, sizeof (NewSecCoreData));
+    SecCoreData = &NewSecCoreData;
+
     CopyMem (&PrivateData, OldCoreData, sizeof (PrivateData));
-    
+
     CpuIo = (VOID*)PrivateData.ServiceTableShadow.CpuIo;
     PciCfg = (VOID*)PrivateData.ServiceTableShadow.PciCfg;
-    
+
     CopyMem (&PrivateData.ServiceTableShadow, &gPs, sizeof (gPs));
-    
+
     PrivateData.ServiceTableShadow.CpuIo  = CpuIo;
     PrivateData.ServiceTableShadow.PciCfg = PciCfg;
   }
-  
+
   //
   // Cache a pointer to the PEI Services Table that is either in temporary memory or permanent memory
   //
@@ -277,12 +306,37 @@ PeiCore (
 
   //
   // Initialize PEI Core Services
-  //  
-  InitializeMemoryServices   (&PrivateData,    SecCoreData, OldCoreData);
-  InitializePpiServices      (&PrivateData,    OldCoreData);
-  
   //
-  // Update performance measurements 
+  InitializeMemoryServices   (&PrivateData,    SecCoreData, OldCoreData);
+  if (OldCoreData == NULL) {
+    //
+    // Initialize PEI Core Private Data Buffer
+    //
+    PrivateData.PpiData.PpiListPtrs  = AllocateZeroPool (sizeof (PEI_PPI_LIST_POINTERS) * PcdGet32 (PcdPeiCoreMaxPpiSupported));
+    ASSERT (PrivateData.PpiData.PpiListPtrs != NULL);
+    PrivateData.Fv                   = AllocateZeroPool (sizeof (PEI_CORE_FV_HANDLE) * PcdGet32 (PcdPeiCoreMaxFvSupported));
+    ASSERT (PrivateData.Fv != NULL);
+    PrivateData.Fv[0].PeimState      = AllocateZeroPool (sizeof (UINT8) * PcdGet32 (PcdPeiCoreMaxPeimPerFv) * PcdGet32 (PcdPeiCoreMaxFvSupported));
+    ASSERT (PrivateData.Fv[0].PeimState != NULL);
+    PrivateData.Fv[0].FvFileHandles  = AllocateZeroPool (sizeof (EFI_PEI_FILE_HANDLE) * PcdGet32 (PcdPeiCoreMaxPeimPerFv) * PcdGet32 (PcdPeiCoreMaxFvSupported));
+    ASSERT (PrivateData.Fv[0].FvFileHandles != NULL);
+    for (Index = 1; Index < PcdGet32 (PcdPeiCoreMaxFvSupported); Index ++) {
+      PrivateData.Fv[Index].PeimState     = PrivateData.Fv[Index - 1].PeimState + PcdGet32 (PcdPeiCoreMaxPeimPerFv);
+      PrivateData.Fv[Index].FvFileHandles = PrivateData.Fv[Index - 1].FvFileHandles + PcdGet32 (PcdPeiCoreMaxPeimPerFv);
+    }
+    PrivateData.UnknownFvInfo        = AllocateZeroPool (sizeof (PEI_CORE_UNKNOW_FORMAT_FV_INFO) * PcdGet32 (PcdPeiCoreMaxFvSupported));
+    ASSERT (PrivateData.UnknownFvInfo != NULL);
+    PrivateData.CurrentFvFileHandles = AllocateZeroPool (sizeof (EFI_PEI_FILE_HANDLE) * PcdGet32 (PcdPeiCoreMaxPeimPerFv));
+    ASSERT (PrivateData.CurrentFvFileHandles != NULL);
+    PrivateData.FileGuid             = AllocatePool (sizeof (EFI_GUID) * PcdGet32 (PcdPeiCoreMaxPeimPerFv));
+    ASSERT (PrivateData.FileGuid != NULL);
+    PrivateData.FileHandles          = AllocatePool (sizeof (EFI_PEI_FILE_HANDLE) * (PcdGet32 (PcdPeiCoreMaxPeimPerFv) + 1));
+    ASSERT (PrivateData.FileHandles != NULL);
+  }
+  InitializePpiServices      (&PrivateData,    OldCoreData);
+
+  //
+  // Update performance measurements
   //
   if (OldCoreData == NULL) {
     PERF_START (NULL, "SEC", NULL, 1);
@@ -301,14 +355,14 @@ PeiCore (
 
   //
   // Complete PEI Core Service initialization
-  //  
+  //
   InitializeSecurityServices (&PrivateData.Ps, OldCoreData);
   InitializeDispatcherData   (&PrivateData,    OldCoreData, SecCoreData);
   InitializeImageServices    (&PrivateData,    OldCoreData);
 
   //
   // Perform PEI Core Phase specific actions
-  //  
+  //
   if (OldCoreData == NULL) {
     //
     // Report Status Code EFI_SW_PC_INIT
@@ -317,7 +371,7 @@ PeiCore (
       EFI_PROGRESS_CODE,
       (EFI_SOFTWARE_PEI_CORE | EFI_SW_PC_INIT)
       );
-      
+
     //
     // If SEC provided any PPI services to PEI, install them.
     //
@@ -326,6 +380,22 @@ PeiCore (
       ASSERT_EFI_ERROR (Status);
     }
   } else {
+    //
+    // Try to locate Temporary RAM Done Ppi.
+    //
+    Status = PeiServicesLocatePpi (
+               &gEfiTemporaryRamDonePpiGuid,
+               0,
+               NULL,
+               (VOID**)&TemporaryRamDonePpi
+               );
+    if (!EFI_ERROR (Status)) {
+      //
+      // Disable the use of Temporary RAM after the transition from Temporary RAM to Permanent RAM is complete.
+      //
+      TemporaryRamDonePpi->TemporaryRamDone ();
+    }
+
     //
     // Alert any listeners that there is permanent memory available
     //

@@ -312,7 +312,7 @@ static int rtZipGzip_ReadOneSeg(PRTZIPGZIPSTREAM pThis, void *pvBuf, size_t cbTo
         if (pThis->Zlib.avail_in == 0)
         {
             size_t cbReadIn = ~(size_t)0;
-            rc = RTVfsIoStrmSgRead(pThis->hVfsIos, &pThis->SgBuf, fBlocking, &cbReadIn);
+            rc = RTVfsIoStrmSgRead(pThis->hVfsIos, -1 /*off*/, &pThis->SgBuf, fBlocking, &cbReadIn);
             if (rc != VINF_SUCCESS)
             {
                 AssertMsg(RT_FAILURE(rc) || rc == VINF_TRY_AGAIN || rc == VINF_EOF, ("%Rrc\n", rc));
@@ -424,7 +424,7 @@ static int rtZipGzip_WriteOutputBuffer(PRTZIPGZIPSTREAM pThis, bool fBlocking)
         RTSgBufReset(&pThis->SgBuf);
 
         cbWrittenOut = ~(size_t)0;
-        rc = RTVfsIoStrmSgWrite(pThis->hVfsIos, &pThis->SgBuf, fBlocking, &cbWrittenOut);
+        rc = RTVfsIoStrmSgWrite(pThis->hVfsIos, -1 /*off*/, &pThis->SgBuf, fBlocking, &cbWrittenOut);
         if (rc != VINF_SUCCESS)
         {
             AssertMsg(RT_FAILURE(rc) || rc == VINF_TRY_AGAIN, ("%Rrc\n", rc));
@@ -709,19 +709,16 @@ RTDECL(int) RTZipGzipDecompressIoStream(RTVFSIOSTREAM hVfsIosIn, uint32_t fFlags
 
         memset(&pThis->Zlib, 0, sizeof(pThis->Zlib));
         pThis->Zlib.opaque  = pThis;
-        rc = inflateInit2(&pThis->Zlib,
-                          fFlags & RTZIPGZIPDECOMP_F_ALLOW_ZLIB_HDR
-                          ? MAX_WBITS
-                          : MAX_WBITS + 16 /* autodetect gzip header */);
+        rc = inflateInit2(&pThis->Zlib, MAX_WBITS | RT_BIT(5) /* autodetect gzip header */);
         if (rc >= 0)
         {
             /*
              * Read the gzip header from the input stream to check that it's
              * a gzip stream as specified by the user.
              *
-             * Note!. Since we've told zlib to check for the gzip header, we
-             *        prebuffer what we read in the input buffer so it can
-             *        be handed on to zlib later on.
+             * Note! Since we've told zlib to check for the gzip header, we
+             *       prebuffer what we read in the input buffer so it can
+             *       be handed on to zlib later on.
              */
             rc = RTVfsIoStrmRead(pThis->hVfsIos, pThis->abBuffer, sizeof(RTZIPGZIPHDR), true /*fBlocking*/, NULL /*pcbRead*/);
             if (RT_SUCCESS(rc))

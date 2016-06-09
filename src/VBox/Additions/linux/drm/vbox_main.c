@@ -155,7 +155,6 @@ static int vbox_user_framebuffer_dirty(struct drm_framebuffer *fb,
                                        struct drm_clip_rect *rects,
                                        unsigned num_rects)
 {
-    LogFunc(("vboxvideo: %d, flags=%u\n", __LINE__, flags));
     vbox_framebuffer_dirty_rectangles(fb, rects, num_rects);
     return 0;
 }
@@ -203,7 +202,11 @@ vbox_user_framebuffer_create(struct drm_device *dev,
     int ret;
 
     LogFunc(("vboxvideo: %d\n", __LINE__));
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0)
+    obj = drm_gem_object_lookup(filp, mode_cmd->handles[0]);
+#else
     obj = drm_gem_object_lookup(dev, filp, mode_cmd->handles[0]);
+#endif
     if (obj == NULL)
         return ERR_PTR(-ENOENT);
 
@@ -428,10 +431,10 @@ void vbox_driver_lastclose(struct drm_device *dev)
     if (vbox->fbdev)
         drm_fb_helper_restore_fbdev_mode_unlocked(&vbox->fbdev->helper);
 #else
-    mutex_lock(&dev->mode_config.mutex);
+    drm_modeset_lock_all(dev);
     if (vbox->fbdev)
         drm_fb_helper_restore_fbdev_mode(&vbox->fbdev->helper);
-    mutex_unlock(&dev->mode_config.mutex);
+    drm_modeset_unlock_all(dev);
 #endif
 }
 
@@ -546,7 +549,11 @@ vbox_dumb_mmap_offset(struct drm_file *file,
     LogFunc(("vboxvideo: %d: dev=%p, handle=%u\n", __LINE__,
              dev, (unsigned)handle));
     mutex_lock(&dev->struct_mutex);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0)
+    obj = drm_gem_object_lookup(file, handle);
+#else
     obj = drm_gem_object_lookup(dev, file, handle);
+#endif
     if (obj == NULL) {
         ret = -ENOENT;
         goto out_unlock;

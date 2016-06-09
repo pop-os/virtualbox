@@ -184,6 +184,11 @@ void HostDnsMonitor::releaseMonitorProxy(PCHostDnsMonitorProxy proxy) const
 
 void HostDnsMonitor::shutdown()
 {
+    /** @todo never called.
+     * HostDnsMonitor should be referenced by HostDnsMonitorProxy objects and the Host object
+     * and automatically deleted when not referenced anymore.
+     * Currently HostDnsMonitor can use already deleted m->virtualbox.
+     */
     if (g_monitor)
     {
         delete g_monitor;
@@ -421,12 +426,13 @@ void HostDnsMonitorProxy::updateInfo()
 static void dumpHostDnsInformation(const HostDnsInformation& info)
 {
     dumpHostDnsStrVector("server", info.servers);
-    dumpHostDnsStrVector("search string", info.searchList);
 
     if (!info.domain.empty())
         LogRel(("  domain: %s\n", info.domain.c_str()));
     else
         LogRel(("  no domain set\n"));
+
+    dumpHostDnsStrVector("search string", info.searchList);
 }
 
 

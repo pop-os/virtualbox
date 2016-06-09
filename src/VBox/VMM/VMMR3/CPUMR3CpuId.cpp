@@ -324,8 +324,10 @@ VMMR3DECL(CPUMMICROARCH) CPUMR3CpuIdDetermineMicroarchEx(CPUMCPUVENDOR enmVendor
                 }
                 break;
             /* The following are not kosher but kind of follow intuitively from 6, 5 & 4. */
-            case 1:
+            case 0:
                 return kCpumMicroarch_Intel_8086;
+            case 1:
+                return kCpumMicroarch_Intel_80186;
             case 2:
                 return kCpumMicroarch_Intel_80286;
         }
@@ -514,6 +516,9 @@ VMMR3DECL(const char *) CPUMR3MicroarchName(CPUMMICROARCH enmMicroarch)
         CASE_RET_STR(kCpumMicroarch_Cyrix_M2);
         CASE_RET_STR(kCpumMicroarch_Cyrix_Unknown);
 
+        CASE_RET_STR(kCpumMicroarch_NEC_V20);
+        CASE_RET_STR(kCpumMicroarch_NEC_V30);
+
         CASE_RET_STR(kCpumMicroarch_Unknown);
 
 #undef CASE_RET_STR
@@ -530,6 +535,7 @@ VMMR3DECL(const char *) CPUMR3MicroarchName(CPUMMICROARCH enmMicroarch)
         case kCpumMicroarch_AMD_End:
         case kCpumMicroarch_VIA_End:
         case kCpumMicroarch_Cyrix_End:
+        case kCpumMicroarch_NEC_End:
         case kCpumMicroarch_32BitHack:
             break;
         /* no default! */
@@ -2218,7 +2224,7 @@ typedef struct CPUMCPUIDCONFIG
     uint32_t        uMaxExtLeaf;
     uint32_t        uMaxCentaurLeaf;
     uint32_t        uMaxIntelFamilyModelStep;
-    char        szCpuName[128];
+    char            szCpuName[128];
 } CPUMCPUIDCONFIG;
 /** Pointer to CPUID config (from CFGM). */
 typedef CPUMCPUIDCONFIG *PCPUMCPUIDCONFIG;
@@ -2963,11 +2969,11 @@ static int cpumR3CpuIdSanitize(PVM pVM, PCPUM pCpum, PCPUMCPUIDCONFIG pConfig)
                 pCurLeaf->uEbx &= 0
                                //| X86_CPUID_STEXT_FEATURE_EBX_FSGSBASE          RT_BIT(0)
                                //| X86_CPUID_STEXT_FEATURE_EBX_TSC_ADJUST        RT_BIT(1)
-                               //| RT_BIT(2) - reserved
+                               //| X86_CPUID_STEXT_FEATURE_EBX_SGX               RT_BIT(2)
                                //| X86_CPUID_STEXT_FEATURE_EBX_BMI1              RT_BIT(3)
                                //| X86_CPUID_STEXT_FEATURE_EBX_HLE               RT_BIT(4)
                                | (pConfig->enmAvx2 ? X86_CPUID_STEXT_FEATURE_EBX_AVX2 : 0)
-                               //| RT_BIT(6) - reserved
+                               | X86_CPUID_STEXT_FEATURE_EBX_FDP_EXCPTN_ONLY
                                //| X86_CPUID_STEXT_FEATURE_EBX_SMEP              RT_BIT(7)
                                //| X86_CPUID_STEXT_FEATURE_EBX_BMI2              RT_BIT(8)
                                //| X86_CPUID_STEXT_FEATURE_EBX_ERMS              RT_BIT(9)
@@ -3002,6 +3008,7 @@ static int cpumR3CpuIdSanitize(PVM pVM, PCPUM pCpum, PCPUMCPUIDCONFIG pConfig)
                 if (pCpum->u8PortableCpuIdLevel > 0)
                 {
                     PORTABLE_DISABLE_FEATURE_BIT(    1, pCurLeaf->uEbx, FSGSBASE,   X86_CPUID_STEXT_FEATURE_EBX_FSGSBASE);
+                    PORTABLE_DISABLE_FEATURE_BIT(    1, pCurLeaf->uEbx, SGX,        X86_CPUID_STEXT_FEATURE_EBX_SGX);
                     PORTABLE_DISABLE_FEATURE_BIT_CFG(1, pCurLeaf->uEbx, AVX2,       X86_CPUID_STEXT_FEATURE_EBX_AVX2, pConfig->enmAvx2);
                     PORTABLE_DISABLE_FEATURE_BIT(    1, pCurLeaf->uEbx, SMEP,       X86_CPUID_STEXT_FEATURE_EBX_SMEP);
                     PORTABLE_DISABLE_FEATURE_BIT(    1, pCurLeaf->uEbx, BMI2,       X86_CPUID_STEXT_FEATURE_EBX_BMI2);
@@ -5342,30 +5349,32 @@ static DBGFREGSUBFIELD const g_aLeaf1EcxSubFields[] =
 /** CPUID(7,0).EBX field descriptions. */
 static DBGFREGSUBFIELD const g_aLeaf7Sub0EbxSubFields[] =
 {
-    DBGFREGSUBFIELD_RO("FSGSBASE\0"     "RDFSBASE/RDGSBASE/WRFSBASE/WRGSBASE instr.",    0, 1, 0),
-    DBGFREGSUBFIELD_RO("TSCADJUST\0"    "Supports MSR_IA32_TSC_ADJUST",                  1, 1, 0),
-    DBGFREGSUBFIELD_RO("BMI1\0"         "Advanced Bit Manipulation extension 1",         3, 1, 0),
-    DBGFREGSUBFIELD_RO("HLE\0"          "Hardware Lock Elision",                         4, 1, 0),
-    DBGFREGSUBFIELD_RO("AVX2\0"         "Advanced Vector Extensions 2",                  5, 1, 0),
-    DBGFREGSUBFIELD_RO("SMEP\0"         "Supervisor Mode Execution Prevention",          7, 1, 0),
-    DBGFREGSUBFIELD_RO("BMI2\0"         "Advanced Bit Manipulation extension 2",         8, 1, 0),
-    DBGFREGSUBFIELD_RO("ERMS\0"         "Enhanced REP MOVSB/STOSB instructions",         9, 1, 0),
-    DBGFREGSUBFIELD_RO("INVPCID\0"      "INVPCID instruction",                          10, 1, 0),
-    DBGFREGSUBFIELD_RO("RTM\0"          "Restricted Transactional Memory",              11, 1, 0),
-    DBGFREGSUBFIELD_RO("PQM\0"          "Platform Quality of Service Monitoring",       12, 1, 0),
-    DBGFREGSUBFIELD_RO("DEPFPU_CS_DS\0" "Deprecates FPU CS, FPU DS values if set",      13, 1, 0),
-    DBGFREGSUBFIELD_RO("MPE\0"          "Intel Memory Protection Extensions",           14, 1, 0),
-    DBGFREGSUBFIELD_RO("PQE\0"          "Platform Quality of Service Enforcement",      15, 1, 0),
-    DBGFREGSUBFIELD_RO("AVX512F\0"      "AVX512 Foundation instructions",               16, 1, 0),
-    DBGFREGSUBFIELD_RO("RDSEED\0"       "RDSEED instruction",                           18, 1, 0),
-    DBGFREGSUBFIELD_RO("ADX\0"          "ADCX/ADOX instructions",                       19, 1, 0),
-    DBGFREGSUBFIELD_RO("SMAP\0"         "Supervisor Mode Access Prevention",            20, 1, 0),
-    DBGFREGSUBFIELD_RO("CLFLUSHOPT\0"   "CLFLUSHOPT (Cache Line Flush) instruction",    23, 1, 0),
-    DBGFREGSUBFIELD_RO("INTEL_PT\0"     "Intel Processor Trace",                        25, 1, 0),
-    DBGFREGSUBFIELD_RO("AVX512PF\0"     "AVX512 Prefetch instructions",                 26, 1, 0),
-    DBGFREGSUBFIELD_RO("AVX512ER\0"     "AVX512 Exponential & Reciprocal instructions", 27, 1, 0),
-    DBGFREGSUBFIELD_RO("AVX512CD\0"     "AVX512 Conflict Detection instructions",       28, 1, 0),
-    DBGFREGSUBFIELD_RO("SHA\0"          "Secure Hash Algorithm extensions",             29, 1, 0),
+    DBGFREGSUBFIELD_RO("FSGSBASE\0"         "RDFSBASE/RDGSBASE/WRFSBASE/WRGSBASE instr.",    0, 1, 0),
+    DBGFREGSUBFIELD_RO("TSCADJUST\0"        "Supports MSR_IA32_TSC_ADJUST",                  1, 1, 0),
+    DBGFREGSUBFIELD_RO("SGX\0"              "Supports Software Guard Extensions",            2, 1, 0),
+    DBGFREGSUBFIELD_RO("BMI1\0"             "Advanced Bit Manipulation extension 1",         3, 1, 0),
+    DBGFREGSUBFIELD_RO("HLE\0"              "Hardware Lock Elision",                         4, 1, 0),
+    DBGFREGSUBFIELD_RO("AVX2\0"             "Advanced Vector Extensions 2",                  5, 1, 0),
+    DBGFREGSUBFIELD_RO("FDP_EXCPTN_ONLY\0"  "FPU DP only updated on exceptions",             6, 1, 0),
+    DBGFREGSUBFIELD_RO("SMEP\0"             "Supervisor Mode Execution Prevention",          7, 1, 0),
+    DBGFREGSUBFIELD_RO("BMI2\0"             "Advanced Bit Manipulation extension 2",         8, 1, 0),
+    DBGFREGSUBFIELD_RO("ERMS\0"             "Enhanced REP MOVSB/STOSB instructions",         9, 1, 0),
+    DBGFREGSUBFIELD_RO("INVPCID\0"          "INVPCID instruction",                          10, 1, 0),
+    DBGFREGSUBFIELD_RO("RTM\0"              "Restricted Transactional Memory",              11, 1, 0),
+    DBGFREGSUBFIELD_RO("PQM\0"              "Platform Quality of Service Monitoring",       12, 1, 0),
+    DBGFREGSUBFIELD_RO("DEPFPU_CS_DS\0"     "Deprecates FPU CS, FPU DS values if set",      13, 1, 0),
+    DBGFREGSUBFIELD_RO("MPE\0"              "Intel Memory Protection Extensions",           14, 1, 0),
+    DBGFREGSUBFIELD_RO("PQE\0"              "Platform Quality of Service Enforcement",      15, 1, 0),
+    DBGFREGSUBFIELD_RO("AVX512F\0"          "AVX512 Foundation instructions",               16, 1, 0),
+    DBGFREGSUBFIELD_RO("RDSEED\0"           "RDSEED instruction",                           18, 1, 0),
+    DBGFREGSUBFIELD_RO("ADX\0"              "ADCX/ADOX instructions",                       19, 1, 0),
+    DBGFREGSUBFIELD_RO("SMAP\0"             "Supervisor Mode Access Prevention",            20, 1, 0),
+    DBGFREGSUBFIELD_RO("CLFLUSHOPT\0"       "CLFLUSHOPT (Cache Line Flush) instruction",    23, 1, 0),
+    DBGFREGSUBFIELD_RO("INTEL_PT\0"         "Intel Processor Trace",                        25, 1, 0),
+    DBGFREGSUBFIELD_RO("AVX512PF\0"         "AVX512 Prefetch instructions",                 26, 1, 0),
+    DBGFREGSUBFIELD_RO("AVX512ER\0"         "AVX512 Exponential & Reciprocal instructions", 27, 1, 0),
+    DBGFREGSUBFIELD_RO("AVX512CD\0"         "AVX512 Conflict Detection instructions",       28, 1, 0),
+    DBGFREGSUBFIELD_RO("SHA\0"              "Secure Hash Algorithm extensions",             29, 1, 0),
     DBGFREGSUBFIELD_TERMINATOR()
 };
 

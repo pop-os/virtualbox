@@ -78,6 +78,8 @@ VMMDECL(bool) IOMIsLockWriteOwner(PVM pVM)
  */
 VMMDECL(VBOXSTRICTRC) IOMIOPortRead(PVM pVM, PVMCPU pVCpu, RTIOPORT Port, uint32_t *pu32Value, size_t cbValue)
 {
+    Assert(pVCpu->iom.s.PendingIOPortWrite.cbValue == 0);
+
 /** @todo should initialize *pu32Value here because it can happen that some
  *        handle is buggy and doesn't handle all cases. */
     /* Take the IOM lock before performing any device I/O. */
@@ -247,6 +249,8 @@ VMMDECL(VBOXSTRICTRC) IOMIOPortRead(PVM pVM, PVMCPU pVCpu, RTIOPORT Port, uint32
 VMM_INT_DECL(VBOXSTRICTRC) IOMIOPortReadString(PVM pVM, PVMCPU pVCpu, RTIOPORT uPort,
                                                void *pvDst, uint32_t *pcTransfers, unsigned cb)
 {
+    Assert(pVCpu->iom.s.PendingIOPortWrite.cbValue == 0);
+
     /* Take the IOM lock before performing any device I/O. */
     int rc2 = IOM_LOCK_SHARED(pVM);
 #ifndef IN_RING3
@@ -422,6 +426,29 @@ VMM_INT_DECL(VBOXSTRICTRC) IOMIOPortReadString(PVM pVM, PVMCPU pVCpu, RTIOPORT u
 }
 
 
+#ifndef IN_RING3
+/**
+ * Defers a pending I/O port write to ring-3.
+ *
+ * @returns VINF_IOM_R3_IOPORT_COMMIT_WRITE
+ * @param   pVCpu       The cross context virtual CPU structure of the calling EMT.
+ * @param   Port        The port to write to.
+ * @param   u32Value    The value to write.
+ * @param   cbValue     The size of the value (1, 2, 4).
+ */
+static VBOXSTRICTRC iomIOPortRing3WritePending(PVMCPU pVCpu, RTIOPORT Port, uint32_t u32Value, size_t cbValue)
+{
+    Log5(("iomIOPortRing3WritePending: %#x LB %u -> %RTiop\n", u32Value, cbValue, Port));
+    AssertReturn(pVCpu->iom.s.PendingIOPortWrite.cbValue == 0, VERR_IOM_IOPORT_IPE_1);
+    pVCpu->iom.s.PendingIOPortWrite.IOPort   = Port;
+    pVCpu->iom.s.PendingIOPortWrite.u32Value = u32Value;
+    pVCpu->iom.s.PendingIOPortWrite.cbValue  = (uint32_t)cbValue;
+    VMCPU_FF_SET(pVCpu, VMCPU_FF_IOM);
+    return VINF_IOM_R3_IOPORT_COMMIT_WRITE;
+}
+#endif
+
+
 /**
  * Writes to an I/O port register.
  *
@@ -440,11 +467,15 @@ VMM_INT_DECL(VBOXSTRICTRC) IOMIOPortReadString(PVM pVM, PVMCPU pVCpu, RTIOPORT u
  */
 VMMDECL(VBOXSTRICTRC) IOMIOPortWrite(PVM pVM, PVMCPU pVCpu, RTIOPORT Port, uint32_t u32Value, size_t cbValue)
 {
+#ifndef IN_RING3
+    Assert(pVCpu->iom.s.PendingIOPortWrite.cbValue == 0);
+#endif
+
     /* Take the IOM lock before performing any device I/O. */
     int rc2 = IOM_LOCK_SHARED(pVM);
 #ifndef IN_RING3
     if (rc2 == VERR_SEM_BUSY)
-        return VINF_IOM_R3_IOPORT_WRITE;
+        return iomIOPortRing3WritePending(pVCpu, Port, u32Value, cbValue);
 #endif
     AssertRC(rc2);
 #if defined(IEM_VERIFICATION_MODE) && defined(IN_RING3)
@@ -491,7 +522,7 @@ VMMDECL(VBOXSTRICTRC) IOMIOPortWrite(PVM pVM, PVMCPU pVCpu, RTIOPORT Port, uint3
         {
             STAM_STATS({ if (pStats) STAM_COUNTER_INC(&pStats->OutRZToR3); });
             IOM_UNLOCK_SHARED(pVM);
-            return VINF_IOM_R3_IOPORT_WRITE;
+            return iomIOPortRing3WritePending(pVCpu, Port, u32Value, cbValue);
         }
 #endif
         void           *pvUser    = pRange->pvUser;
@@ -507,6 +538,10 @@ VMMDECL(VBOXSTRICTRC) IOMIOPortWrite(PVM pVM, PVMCPU pVCpu, RTIOPORT Port, uint3
         else
         {
             STAM_STATS({ if (pStats) STAM_COUNTER_INC(&pStats->OutRZToR3); });
+#ifndef IN_RING3
+            if (RT_LIKELY(rcStrict == VINF_IOM_R3_IOPORT_WRITE))
+                return iomIOPortRing3WritePending(pVCpu, Port, u32Value, cbValue);
+#endif
             return rcStrict;
         }
 #ifdef VBOX_WITH_STATISTICS
@@ -530,6 +565,10 @@ VMMDECL(VBOXSTRICTRC) IOMIOPortWrite(PVM pVM, PVMCPU pVCpu, RTIOPORT Port, uint3
 # endif
 #endif
         Log3(("IOMIOPortWrite: Port=%RTiop u32=%08RX32 cb=%d rc=%Rrc\n", Port, u32Value, cbValue, VBOXSTRICTRC_VAL(rcStrict)));
+#ifndef IN_RING3
+        if (rcStrict == VINF_IOM_R3_IOPORT_WRITE)
+            return iomIOPortRing3WritePending(pVCpu, Port, u32Value, cbValue);
+#endif
         return rcStrict;
     }
 
@@ -545,7 +584,7 @@ VMMDECL(VBOXSTRICTRC) IOMIOPortWrite(PVM pVM, PVMCPU pVCpu, RTIOPORT Port, uint3
             STAM_COUNTER_INC(&pStats->OutRZToR3);
 # endif
         IOM_UNLOCK_SHARED(pVM);
-        return VINF_IOM_R3_IOPORT_WRITE;
+        return iomIOPortRing3WritePending(pVCpu, Port, u32Value, cbValue);
     }
 #endif
 
@@ -585,6 +624,7 @@ VMMDECL(VBOXSTRICTRC) IOMIOPortWrite(PVM pVM, PVMCPU pVCpu, RTIOPORT Port, uint3
 VMM_INT_DECL(VBOXSTRICTRC) IOMIOPortWriteString(PVM pVM, PVMCPU pVCpu, RTIOPORT uPort, void const *pvSrc,
                                                 uint32_t *pcTransfers, unsigned cb)
 {
+    Assert(pVCpu->iom.s.PendingIOPortWrite.cbValue == 0);
     Assert(cb == 1 || cb == 2 || cb == 4);
 
     /* Take the IOM lock before performing any device I/O. */
@@ -751,105 +791,6 @@ VMM_INT_DECL(VBOXSTRICTRC) IOMIOPortWriteString(PVM pVM, PVMCPU pVCpu, RTIOPORT 
     Log3(("IOMIOPortWriteStr: uPort=%RTiop (unused) pvSrc=%p pcTransfer=%p:{%#x->%#x} cb=%d rc=VINF_SUCCESS\n",
           uPort, pvSrc, pcTransfers, cRequestedTransfers, *pcTransfers, cb));
     IOM_UNLOCK_SHARED(pVM);
-    return VINF_SUCCESS;
-}
-
-
-/**
- * Checks that the operation is allowed according to the IOPL
- * level and I/O bitmap.
- *
- * @returns Strict VBox status code. Informational status codes other than the one documented
- *          here are to be treated as internal failure.
- * @retval  VINF_SUCCESS                Success.
- * @retval  VINF_EM_RAW_GUEST_TRAP      The exception was left pending. (TRPMRaiseXcptErr)
- * @retval  VINF_TRPM_XCPT_DISPATCHED   The exception was raised and dispatched for raw-mode execution. (TRPMRaiseXcptErr)
- * @retval  VINF_EM_RESCHEDULE_REM      The exception was dispatched and cannot be executed in raw-mode. (TRPMRaiseXcptErr)
- *
- * @param   pVM         The cross context VM structure.
- * @param   pCtxCore    Pointer to register frame.
- * @param   Port        The I/O port number.
- * @param   cb          The access size.
- */
-VMMDECL(VBOXSTRICTRC) IOMInterpretCheckPortIOAccess(PVM pVM, PCPUMCTXCORE pCtxCore, RTIOPORT Port, unsigned cb)
-{
-    PVMCPU pVCpu = VMMGetCpu(pVM);
-
-    /*
-     * If this isn't ring-0, we have to check for I/O privileges.
-     */
-    uint32_t efl = CPUMRawGetEFlags(pVCpu);
-    uint32_t cpl = CPUMGetGuestCPL(pVCpu);
-
-    if (    (    cpl > 0
-             &&  X86_EFL_GET_IOPL(efl) < cpl)
-        ||  pCtxCore->eflags.Bits.u1VM      /* IOPL is ignored in V86 mode; always check TSS bitmap */
-       )
-    {
-        /*
-         * Get TSS location and check if there can be a I/O bitmap.
-         */
-        RTGCUINTPTR GCPtrTss;
-        RTGCUINTPTR cbTss;
-        bool        fCanHaveIOBitmap;
-        int rc2 = SELMGetTSSInfo(pVM, pVCpu, &GCPtrTss, &cbTss, &fCanHaveIOBitmap);
-        if (RT_FAILURE(rc2))
-        {
-            Log(("iomInterpretCheckPortIOAccess: Port=%RTiop cb=%d %Rrc -> #GP(0)\n", Port, cb, rc2));
-            return TRPMRaiseXcptErr(pVCpu, pCtxCore, X86_XCPT_GP, 0);
-        }
-
-        if (    !fCanHaveIOBitmap
-            ||  cbTss <= sizeof(VBOXTSS)) /** @todo r=bird: Should this really include the interrupt redirection bitmap? */
-        {
-            Log(("iomInterpretCheckPortIOAccess: Port=%RTiop cb=%d cbTss=%#x fCanHaveIOBitmap=%RTbool -> #GP(0)\n",
-                 Port, cb, cbTss, fCanHaveIOBitmap));
-            return TRPMRaiseXcptErr(pVCpu, pCtxCore, X86_XCPT_GP, 0);
-        }
-
-        /*
-         * Fetch the I/O bitmap offset.
-         */
-        uint16_t offIOPB;
-        VBOXSTRICTRC rcStrict = PGMPhysInterpretedRead(pVCpu, pCtxCore, &offIOPB, GCPtrTss + RT_OFFSETOF(VBOXTSS, offIoBitmap), sizeof(offIOPB));
-        if (rcStrict != VINF_SUCCESS)
-        {
-            Log(("iomInterpretCheckPortIOAccess: Port=%RTiop cb=%d GCPtrTss=%RGv %Rrc\n",
-                 Port, cb, GCPtrTss, VBOXSTRICTRC_VAL(rcStrict)));
-            return rcStrict;
-        }
-
-        /*
-         * Check the limit and read the two bitmap bytes.
-         */
-        uint32_t offTss = offIOPB + (Port >> 3);
-        if (offTss + 1 >= cbTss)
-        {
-            Log(("iomInterpretCheckPortIOAccess: Port=%RTiop cb=%d offTss=%#x cbTss=%#x -> #GP(0)\n",
-                 Port, cb, offTss, cbTss));
-            return TRPMRaiseXcptErr(pVCpu, pCtxCore, X86_XCPT_GP, 0);
-        }
-        uint16_t u16;
-        rcStrict = PGMPhysInterpretedRead(pVCpu, pCtxCore, &u16, GCPtrTss + offTss, sizeof(u16));
-        if (rcStrict != VINF_SUCCESS)
-        {
-            Log(("iomInterpretCheckPortIOAccess: Port=%RTiop cb=%d GCPtrTss=%RGv offTss=%#x -> %Rrc\n",
-                 Port, cb, GCPtrTss, offTss, VBOXSTRICTRC_VAL(rcStrict)));
-            return rcStrict;
-        }
-
-        /*
-         * All the bits must be clear.
-         */
-        if ((u16 >> (Port & 7)) & ((1 << cb) - 1))
-        {
-            Log(("iomInterpretCheckPortIOAccess: Port=%RTiop cb=%d u16=%#x (offTss=%#x) -> #GP(0)\n",
-                 Port, cb, u16, offTss));
-            return TRPMRaiseXcptErr(pVCpu, pCtxCore, X86_XCPT_GP, 0);
-        }
-        LogFlow(("iomInterpretCheckPortIOAccess: Port=%RTiop cb=%d offTss=%#x cbTss=%#x u16=%#x -> OK\n",
-                 Port, cb, u16, offTss, cbTss));
-    }
     return VINF_SUCCESS;
 }
 

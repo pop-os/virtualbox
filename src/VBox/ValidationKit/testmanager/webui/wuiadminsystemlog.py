@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 100880 $"
+__version__ = "$Revision: 107509 $"
 
 
 # Validation Kit imports.
@@ -51,7 +51,6 @@ class WuiAdminSystemLogList(WuiListContentBase):
         from testmanager.webui.wuiadmin import WuiAdmin;
         oEntry  = self._aoEntries[iEntry];
 
-        oAction = '';
         if    oEntry.sEvent == SystemLogData.ksEvent_TestBoxUnknown \
           and oEntry.sLogText.find('addr=') >= 0 \
           and oEntry.sLogText.find('uuid=') >= 0:
@@ -68,6 +67,8 @@ class WuiAdminSystemLogList(WuiListContentBase):
             oAction = WuiTmLink('Add User', WuiAdmin.ksScriptName,
                                 { WuiAdmin.ksParamAction: WuiAdmin.ksActionUserAdd,
                                   UserAccountData.ksParam_sLoginName: sUserName });
+        else:
+            oAction = ''; # pylint: disable=R0204
 
         return [oEntry.tsCreated, oEntry.sEvent, oEntry.sLogText, oAction];
 

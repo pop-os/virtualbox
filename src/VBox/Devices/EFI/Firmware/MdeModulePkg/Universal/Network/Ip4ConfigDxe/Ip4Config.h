@@ -1,7 +1,7 @@
 /** @file
   Header file for IP4Config driver.
 
-Copyright (c) 2006 - 2011, Intel Corporation. All rights reserved.<BR>
+Copyright (c) 2006 - 2012, Intel Corporation. All rights reserved.<BR>
 This program and the accompanying materials
 are licensed and made available under the terms and conditions of the BSD License
 which accompanies this distribution.  The full text of the license may be found at<BR>
@@ -135,9 +135,14 @@ typedef struct _IP4_CONFIG_INSTANCE {
   EFI_EVENT                       Timer;
 
   //
-  // Underlying media present status. 
+  // Underlying media present status.
   //
-  BOOLEAN                         MediaPresent; 
+  BOOLEAN                         MediaPresent;
+
+  //
+  // A flag to indicate EfiIp4ConfigStart should not run
+  //
+  BOOLEAN                         DoNotStart;
 } IP4_CONFIG_INSTANCE;
 
 #define IP4_CONFIG_INSTANCE_FROM_IP4CONFIG(this) \
@@ -508,7 +513,7 @@ EfiIp4ConfigGetData (
 
 /**
   A dedicated timer is used to poll underlying media status. In case of
-  cable swap, a new round auto configuration will be initiated. The timer 
+  cable swap, a new round auto configuration will be initiated. The timer
   will signal the IP4 to run the auto configuration again. IP4 driver will free
   old IP address related resource, such as route table and Interface, then
   initiate a DHCP round by IP4Config->Start to acquire new IP, eventually

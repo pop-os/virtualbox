@@ -104,10 +104,10 @@ private slots:
         void sltOpenImportApplianceWizard(const QString &strFileName = QString());
         /** Handles call to open Export Appliance wizard. */
         void sltOpenExportApplianceWizard();
-#ifdef DEBUG
+#ifdef VBOX_GUI_WITH_EXTRADATA_MANAGER_UI
         /** Handles call to open Extra-data Manager window. */
         void sltOpenExtraDataManagerWindow();
-#endif /* DEBUG */
+#endif /* VBOX_GUI_WITH_EXTRADATA_MANAGER_UI */
         /** Handles call to open Preferences dialog. */
         void sltOpenPreferencesDialog();
         /** Handles call to exit application. */
@@ -142,6 +142,8 @@ private slots:
         void sltPerformPauseOrResumeMachine(bool fPause);
         /** Handles call to reset machine. */
         void sltPerformResetMachine();
+        /** Handles call to detach machine UI. */
+        void sltPerformDetachMachineUI();
         /** Handles call to save machine state. */
         void sltPerformSaveMachineState();
         /** Handles call to ask machine for shutdown. */
@@ -178,10 +180,10 @@ private:
         virtual void showEvent(QShowEvent *pEvent);
         /** Handles first Qt show @a pEvent. */
         virtual void polishEvent(QShowEvent *pEvent);
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
         /** Mac OS X: Preprocesses any Qt @a pEvent for passed @a pObject. */
         virtual bool eventFilter(QObject *pObject, QEvent *pEvent);
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
     /** @} */
 
     /** @name Prepare/Cleanup cascade.
@@ -270,10 +272,10 @@ private:
     /** Holds the central splitter instance. */
     QISplitter *m_pSplitter;
 
-#ifndef Q_WS_MAC
+#ifndef VBOX_WS_MAC
     /** Holds the main bar instance. */
     UIMainBar *m_pBar;
-#endif /* !Q_WS_MAC */
+#endif /* !VBOX_WS_MAC */
     /** Holds the main toolbar instance. */
     UIToolBar *m_pToolBar;
 

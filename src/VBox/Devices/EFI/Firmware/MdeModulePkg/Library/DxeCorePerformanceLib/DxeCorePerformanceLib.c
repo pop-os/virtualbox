@@ -3,7 +3,7 @@
 
   This library provides the performance measurement interfaces and initializes performance
   logging for DXE phase. It first initializes its private global data structure for
-  performance logging and saves the performance GUIDed HOB passed from PEI phase. 
+  performance logging and saves the performance GUIDed HOB passed from PEI phase.
   It initializes DXE phase performance logging by publishing the Performance and PerformanceEx Protocol,
   which are consumed by DxePerformanceLib to logging performance data in DXE phase.
 
@@ -31,7 +31,7 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 GAUGE_DATA_HEADER    *mGaugeData;
 
 //
-// The current maximum number of logging entries. If current number of 
+// The current maximum number of logging entries. If current number of
 // entries exceeds this value, it will re-allocate a larger array and
 // migration the old data to the larger array.
 //
@@ -88,6 +88,7 @@ InternalSearchForGaugeEntry (
   )
 {
   UINT32                    Index;
+  UINT32                    Index2;
   UINT32                    NumberOfEntries;
   GAUGE_DATA_ENTRY_EX       *GaugeEntryExArray;
 
@@ -101,13 +102,16 @@ InternalSearchForGaugeEntry (
   NumberOfEntries = mGaugeData->NumberOfEntries;
   GaugeEntryExArray = (GAUGE_DATA_ENTRY_EX *) (mGaugeData + 1);
 
+  Index2 = 0;
+
   for (Index = 0; Index < NumberOfEntries; Index++) {
-    if ((GaugeEntryExArray[Index].Handle == (EFI_PHYSICAL_ADDRESS) (UINTN) Handle) &&
-         AsciiStrnCmp (GaugeEntryExArray[Index].Token, Token, DXE_PERFORMANCE_STRING_LENGTH) == 0 &&
-         AsciiStrnCmp (GaugeEntryExArray[Index].Module, Module, DXE_PERFORMANCE_STRING_LENGTH) == 0 &&
-         (GaugeEntryExArray[Index].Identifier == Identifier) &&
-         GaugeEntryExArray[Index].EndTimeStamp == 0
-       ) {
+    Index2 = NumberOfEntries - 1 - Index;
+    if (GaugeEntryExArray[Index2].EndTimeStamp == 0 &&
+        (GaugeEntryExArray[Index2].Handle == (EFI_PHYSICAL_ADDRESS) (UINTN) Handle) &&
+        AsciiStrnCmp (GaugeEntryExArray[Index2].Token, Token, DXE_PERFORMANCE_STRING_LENGTH) == 0 &&
+        AsciiStrnCmp (GaugeEntryExArray[Index2].Module, Module, DXE_PERFORMANCE_STRING_LENGTH) == 0 &&
+        (GaugeEntryExArray[Index2].Identifier == Identifier)) {
+      Index = Index2;
       break;
     }
   }
@@ -649,7 +653,7 @@ EndPerformanceMeasurementEx (
 UINTN
 EFIAPI
 GetPerformanceMeasurementEx (
-  IN  UINTN       LogEntryKey, 
+  IN  UINTN       LogEntryKey,
   OUT CONST VOID  **Handle,
   OUT CONST CHAR8 **Token,
   OUT CONST CHAR8 **Module,
@@ -662,7 +666,7 @@ GetPerformanceMeasurementEx (
   GAUGE_DATA_ENTRY_EX  *GaugeData;
 
   GaugeData = NULL;
-  
+
   ASSERT (Handle != NULL);
   ASSERT (Token != NULL);
   ASSERT (Module != NULL);

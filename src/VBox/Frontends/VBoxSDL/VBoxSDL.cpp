@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -736,15 +736,14 @@ void signal_handler_SIGINT(int sig)
 #endif /* VBOXSDL_WITH_X11 */
 
 
-#ifdef RT_OS_WINDOWS
-// Required for ATL
-static CComModule _Module;
-#endif
-
 /** entry point */
 extern "C"
 DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
 {
+#ifdef RT_OS_WINDOWS
+    ATL::CComModule _Module; /* Required internally by ATL (constructor records instance in global variable). */
+#endif
+
 #ifdef Q_WS_X11
     if (!XInitThreads())
         return 1;

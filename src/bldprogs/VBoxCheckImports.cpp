@@ -19,8 +19,8 @@
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
-#include "../VBox/Runtime/include/internal/ldrPE.h"
-#include "../VBox/Runtime/include/internal/ldrMZ.h"
+#include <iprt/formats/mz.h>
+#include <iprt/formats/pecoff.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -326,7 +326,7 @@ int main(int argc, char **argv)
             else if (   !strcmp(psz, "--version")
                      || !strcmp(psz, "-V"))
             {
-                printf("$Revision: 106040 $\n");
+                printf("$Revision: 106031 $\n");
                 return RTEXITCODE_SUCCESS;
             }
             else

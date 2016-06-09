@@ -166,6 +166,8 @@ private:
             }
         }
     } mData;
+
+    friend class GuestProcessStartTask;
 };
 
 /**
@@ -254,6 +256,7 @@ protected:
     GuestProcessStartupInfo     mStartupInfo;
     GuestProcessStream          mStdOut;
     GuestProcessStream          mStdErr;
+
 };
 
 #endif /* !____H_GUESTPROCESSIMPL */

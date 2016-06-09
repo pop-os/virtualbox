@@ -145,6 +145,7 @@ SUPR3_DEFS          = \
 	$(if $(VBOX_WITH_SUPSVC),VBOX_WITH_SUPSVC) \
 	$(if $(VBOX_WITH_MAIN),VBOX_WITH_MAIN,) \
 	$(if $(VBOX_WITH_RAW_MODE),VBOX_WITH_RAW_MODE,) \
+	$(if $(VBOX_WITH_REM),VBOX_WITH_REM,) \
 	VBOX_PERMIT_MORE \
 	VBOX_PERMIT_EVEN_MORE
 SUPR3_INCS         := $(PATH_SUB_CURRENT)
@@ -187,6 +188,7 @@ SUPR3HardenedStatic_DEFS    += \
 	$(if $(VBOX_WITH_SUPSVC),VBOX_WITH_SUPSVC,) \
 	$(if $(VBOX_WITH_MAIN),VBOX_WITH_MAIN,) \
 	$(if $(VBOX_WITH_RAW_MODE),VBOX_WITH_RAW_MODE,) \
+	$(if $(VBOX_WITH_REM),VBOX_WITH_REM,) \
 	$(if $(VBOX_WITHOUT_DEBUGGER_CHECKS),VBOX_WITHOUT_DEBUGGER_CHECKS,) \
 	$(if $(VBOX_PERMIT_VISUAL_STUDIO_PROFILING),VBOX_PERMIT_VISUAL_STUDIO_PROFILING,) \
 	VBOX_PERMIT_MORE \
@@ -207,6 +209,11 @@ SUPR3HardenedStatic_SOURCES.win = \
        win/SUPHardenedVerifyProcess-win.cpp \
        win/SUPHardenedVerifyImage-win.cpp \
 	$(VBOX_SUP_WIN_CERTS_FILE)
+SUPR3HardenedStatic_SOURCES.x86 += \
+	$(VBOX_PATH_RUNTIME_SRC)/common/asm/ASMMemFirstMismatchingU8.asm
+SUPR3HardenedStatic_SOURCES.amd64 += \
+	$(VBOX_PATH_RUNTIME_SRC)/common/asm/ASMMemFirstMismatchingU8.asm
+
 
 if "$(KBUILD_TARGET)" == "win" && defined(VBOX_WITH_HARDENING) ## @todo some of this move up.
  SUPR3HardenedStatic_DEFS += \
@@ -302,7 +309,6 @@ if "$(KBUILD_TARGET)" == "win" && defined(VBOX_WITH_HARDENING) ## @todo some of 
 	$(VBOX_PATH_RUNTIME_SRC)/common/err/errinfo.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/common/path/RTPathChangeToUnixSlashes.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/common/path/RTPathExt.cpp \
-	$(VBOX_PATH_RUNTIME_SRC)/common/string/RTStrPrintHexBytes.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/common/string/RTUtf16PrintHexBytes.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/common/string/RTUtf16ICmpAscii.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/common/string/RTUtf16CatAscii.cpp \
@@ -325,6 +331,7 @@ if "$(KBUILD_TARGET)" == "win" && defined(VBOX_WITH_HARDENING) ## @todo some of 
 	$(VBOX_PATH_RUNTIME_SRC)/common/string/memmove.asm \
 	$(VBOX_PATH_RUNTIME_SRC)/common/string/mempcpy.asm \
 	$(VBOX_PATH_RUNTIME_SRC)/common/string/memset.asm \
+	$(VBOX_PATH_RUNTIME_SRC)/common/string/RTStrPrintHexBytes.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/common/string/RTStrCat.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/common/string/RTStrCmp.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/common/string/RTStrCopy.cpp \
@@ -337,6 +344,7 @@ if "$(KBUILD_TARGET)" == "win" && defined(VBOX_WITH_HARDENING) ## @todo some of 
 	$(VBOX_PATH_RUNTIME_SRC)/common/string/strformat.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/common/string/strformatrt.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/common/string/strformattype.cpp \
+	$(VBOX_PATH_RUNTIME_SRC)/common/string/strformatnum.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/common/string/stringalloc.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/common/string/strlen.asm \
 	$(VBOX_PATH_RUNTIME_SRC)/common/string/strncmp.asm \
@@ -420,9 +428,9 @@ VBoxSupLib_SOURCES = \
 VBoxSupLib_SOURCES.win = \
 	win/VBoxSupLib.rc
 VBoxSupLib_LIBS.win.x86 = \
- 	$(PATH_TOOL_$(TEMPLATE_VBOXR3STATIC_TOOL.win.x86)_LIB)/libcmt$(VBOX_VCC_CRT_TYPE).lib   # for __chkstk
+ 	$(PATH_TOOL_$(TEMPLATE_VBOXR3STATIC_TOOL.win.x86)_LIB)/libcmt.lib   # for __chkstk
 VBoxSupLib_LIBS.win.amd64 = \
- 	$(PATH_TOOL_$(TEMPLATE_VBOXR3STATIC_TOOL.win.amd64)_LIB)/libcmt$(VBOX_VCC_CRT_TYPE).lib # for __chkstk
+ 	$(PATH_TOOL_$(TEMPLATE_VBOXR3STATIC_TOOL.win.amd64)_LIB)/libcmt.lib # for __chkstk
 
 
 #
@@ -701,8 +709,6 @@ if1of ($(KBUILD_TARGET), linux freebsd)
  	$(vboxdrv-mod_0_OUTDIR)/Makefile
  vboxdrv-mod_EXEC_SOURCES  = \
  	$(subst $(DQUOTE),,$(FILES_VBOXDRV_BIN))
- vboxdrv-mod_EXEC_SOURCES.linux = \
- 	$(PATH_ROOT)/src/VBox/HostDrivers/$(KBUILD_TARGET)/do_Module.symvers
  vboxdrv-mod_CLEAN   = \
  	$(vboxdrv-mod_0_OUTDIR)/Makefile \
  	$(PATH_TARGET)/vboxdrv-mod-1.dep \

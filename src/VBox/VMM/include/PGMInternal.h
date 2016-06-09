@@ -362,7 +362,7 @@
  * @param   GCVirt      The virtual address of the page to invalidate.
  */
 #ifdef IN_RC
-# define PGM_INVL_PG(pVCpu, GCVirt)             ASMInvalidatePage((void *)(uintptr_t)(GCVirt))
+# define PGM_INVL_PG(pVCpu, GCVirt)             ASMInvalidatePage((uintptr_t)(GCVirt))
 #elif defined(IN_RING0)
 # define PGM_INVL_PG(pVCpu, GCVirt)             HMInvalidatePage(pVCpu, (RTGCPTR)(GCVirt))
 #else
@@ -376,7 +376,7 @@
  * @param   GCVirt      The virtual address of the page to invalidate.
  */
 #ifdef IN_RC
-# define PGM_INVL_PG_ALL_VCPU(pVM, GCVirt)      ASMInvalidatePage((void *)(uintptr_t)(GCVirt))
+# define PGM_INVL_PG_ALL_VCPU(pVM, GCVirt)      ASMInvalidatePage((uintptr_t)(GCVirt))
 #elif defined(IN_RING0)
 # define PGM_INVL_PG_ALL_VCPU(pVM, GCVirt)      HMInvalidatePageOnAllVCpus(pVM, (RTGCPTR)(GCVirt))
 #else
@@ -3244,8 +3244,15 @@ typedef struct PGM
     bool                            fPciPassthrough;
     /** The number of MMIO2 regions (serves as the next MMIO2 ID). */
     uint8_t                         cMmio2Regions;
-    /** Alignment padding that makes the next member start on a 8 byte boundary. */
-    bool                            afAlignment1[1];
+    /** Restore original ROM page content when resetting after loading state.
+     * The flag is set by pgmR3LoadRomRanges and cleared at reset.  This
+     * enables the VM to start using an updated ROM without requiring powering
+     * down the VM, just rebooting or resetting it. */
+    bool                            fRestoreRomPagesOnReset;
+    /** Whether to automatically clear all RAM pages on reset. */
+    bool                            fZeroRamPagesOnReset;
+    /** Alignment padding. */
+    bool                            afAlignment3[7];
 
     /** Indicates that PGMR3FinalizeMappings has been called and that further
      * PGMR3MapIntermediate calls will be rejected. */

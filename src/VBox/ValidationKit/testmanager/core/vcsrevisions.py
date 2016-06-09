@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 100880 $"
+__version__ = "$Revision: 107509 $"
 
 
 # Standard python imports.
@@ -50,6 +50,7 @@ class VcsRevisionData(ModelDataBase):
     ksParam_sMessage            = 'VcsRevision_sMessage';
 
     kasAllowNullAttributes      = [ ];
+    kfAllowUnicode_sMessage     = True;
 
     def __init__(self):
         ModelDataBase.__init__(self);
@@ -157,9 +158,9 @@ class VcsRevisionLogic(ModelLogicBase): # pylint: disable=R0903
         """
 
         # Check VcsRevisionData before do anything
-        dDataErrors = oData.validateAndConvert(self._oDb);
+        dDataErrors = oData.validateAndConvert(self._oDb, oData.ksValidateFor_Add);
         if len(dDataErrors) > 0:
-            raise TMExceptionBase('Invalid data passed to addCvsRevision(): %s' % (dDataErrors,));
+            raise TMExceptionBase('Invalid data passed to addVcsRevision(): %s' % (dDataErrors,));
 
         # Does it already exist?
         oOldData = self.tryFetch(oData.sRepository, oData.iRevision);

@@ -1,7 +1,7 @@
 /** @file
   Helper functions for configuring or getting the parameters relating to iSCSI.
 
-Copyright (c) 2004 - 2011, Intel Corporation. All rights reserved.<BR>
+Copyright (c) 2004 - 2014, Intel Corporation. All rights reserved.<BR>
 This program and the accompanying materials
 are licensed and made available under the terms and conditions of the BSD License
 which accompanies this distribution.  The full text of the license may be found at
@@ -39,7 +39,7 @@ HII_VENDOR_DEVICE_PATH  mIScsiHiiVendorDevicePath = {
   {
     END_DEVICE_PATH_TYPE,
     END_ENTIRE_DEVICE_PATH_SUBTYPE,
-    { 
+    {
       (UINT8) (END_DEVICE_PATH_LENGTH),
       (UINT8) ((END_DEVICE_PATH_LENGTH) >> 8)
     }
@@ -94,7 +94,7 @@ IScsiParseIsIdFromString (
   if (StrLen (IsIdStr) != 6) {
     UnicodeSPrint (
       PortString,
-      (UINTN) ISCSI_NAME_IFR_MAX_SIZE,
+      (UINTN) sizeof (PortString),
       L"Error! Input is incorrect, please input 6 hex numbers!\n"
       );
 
@@ -180,7 +180,7 @@ IScsiConvertIsIdToString (
   Update the list of iSCSI devices the iSCSI driver is controlling.
 
   @retval EFI_SUCCESS            The callback successfully handled the action.
-  @retval Others                 Other errors as indicated.   
+  @retval Others                 Other errors as indicated.
 **/
 EFI_STATUS
 IScsiUpdateDeviceList (
@@ -227,6 +227,7 @@ IScsiUpdateDeviceList (
                   );
   if (Status == EFI_BUFFER_TOO_SMALL) {
     DeviceList = (ISCSI_DEVICE_LIST *) AllocatePool (DataSize);
+    ASSERT (DeviceList != NULL);
 
     gRT->GetVariable (
           L"iSCSIDeviceList",
@@ -291,6 +292,7 @@ IScsiUpdateDeviceList (
   //
   DeviceListSize        = sizeof (ISCSI_DEVICE_LIST) + (NumHandles - 1) * sizeof (ISCSI_MAC_INFO);
   DeviceList            = (ISCSI_DEVICE_LIST *) AllocatePool (DeviceListSize);
+  ASSERT (DeviceList != NULL);
   DeviceList->NumDevice = (UINT8) NumHandles;
 
   for (Index = 0; Index < NumHandles; Index++) {
@@ -443,7 +445,7 @@ IScsiConvertDeviceConfigDataToIfrNvData (
                                   would result in this type of
                                   error. In this case, the
                                   Progress parameter would be
-                                  set to NULL. 
+                                  set to NULL.
   @retval EFI_NOT_FOUND           Routing data doesn't match any
                                   known driver. Progress set to the
                                   first character in the routing header.
@@ -577,7 +579,7 @@ IScsiFormExtractConfig (
 
   @param[in]  This           Points to the EFI_HII_CONFIG_ACCESS_PROTOCOL.
   @param[in]  Configuration  A null-terminated Unicode string in
-                             <ConfigString> format.   
+                             <ConfigString> format.
   @param[out] Progress       A pointer to a string filled in with the
                              offset of the most recent '&' before the
                              first failing name / value pair (or the
@@ -587,7 +589,7 @@ IScsiFormExtractConfig (
                              successful.
 
   @retval EFI_SUCCESS             The results have been distributed or are
-                                  awaiting distribution.  
+                                  awaiting distribution.
   @retval EFI_OUT_OF_RESOURCES    Not enough memory to store the
                                   parts of the results that must be
                                   stored awaiting possible future
@@ -632,7 +634,7 @@ IScsiFormRouteConfig (
   @param[in]  Action             Specifies the type of action taken by the browser.
   @param[in]  QuestionId         A unique value which is sent to the original
                                  exporting driver so that it can identify the type
-                                 of data to expect. The format of the data tends to 
+                                 of data to expect. The format of the data tends to
                                  vary based on the opcode that enerated the callback.
   @param[in]  Type               The type of value for the question.
   @param[in]  Value              A pointer to the data being sent to the original
@@ -646,8 +648,8 @@ IScsiFormRouteConfig (
   @retval EFI_DEVICE_ERROR       The variable could not be saved.
   @retval EFI_UNSUPPORTED        The specified Action is not supported by the
                                  callback.Currently not implemented.
-  @retval EFI_INVALID_PARAMETERS Passing in wrong parameter. 
-  @retval Others                 Other errors as indicated. 
+  @retval EFI_INVALID_PARAMETERS Passing in wrong parameter.
+  @retval Others                 Other errors as indicated.
 **/
 EFI_STATUS
 EFIAPI
@@ -700,7 +702,7 @@ IScsiFormCallback (
       ConfigFormEntry = IScsiGetConfigFormEntryByIndex ((UINT32) (QuestionId - KEY_DEVICE_ENTRY_BASE));
       ASSERT (ConfigFormEntry != NULL);
 
-      UnicodeSPrint (PortString, (UINTN) 128, L"Port %s", ConfigFormEntry->MacString);
+      UnicodeSPrint (PortString, (UINTN) sizeof (PortString), L"Port %s", ConfigFormEntry->MacString);
       DeviceFormTitleToken = (EFI_STRING_ID) STR_ISCSI_DEVICE_FORM_TITLE;
       HiiSetString (Private->RegisteredHandle, DeviceFormTitleToken, PortString, NULL);
 
@@ -709,7 +711,7 @@ IScsiFormCallback (
       Private->Current = ConfigFormEntry;
     }
   } else if (Action == EFI_BROWSER_ACTION_CHANGED) {
-    switch (QuestionId) { 
+    switch (QuestionId) {
     case KEY_INITIATOR_NAME:
       IScsiUnicodeStrToAsciiStr (IfrNvData->InitiatorName, IScsiName);
       BufferSize  = AsciiStrSize (IScsiName);
@@ -719,6 +721,7 @@ IScsiFormCallback (
         CreatePopUp (EFI_LIGHTGRAY | EFI_BACKGROUND_BLUE, &Key, L"Invalid iSCSI Name!", NULL);
       }
 
+      *ActionRequest = EFI_BROWSER_ACTION_REQUEST_FORM_APPLY;
       break;
 
     case KEY_LOCAL_IP:
@@ -919,9 +922,9 @@ IScsiFormCallback (
     //
     HiiSetBrowserData (&gIp4IScsiConfigGuid, mVendorStorageName, sizeof (ISCSI_CONFIG_IFR_NVDATA), (UINT8 *) IfrNvData, NULL);
   }
-  
+
   FreePool (IfrNvData);
-  
+
   return Status;
 }
 
@@ -1008,12 +1011,12 @@ IScsiConfigUpdateForm (
                       );
       if (EFI_ERROR (Status)) {
         ZeroMem (&ConfigFormEntry->SessionConfigData, sizeof (ConfigFormEntry->SessionConfigData));
-        
+
         //
         // Generate OUI-format ISID based on MAC address.
         //
         CopyMem (ConfigFormEntry->SessionConfigData.IsId, &MacAddress, 6);
-        ConfigFormEntry->SessionConfigData.IsId[0] = 
+        ConfigFormEntry->SessionConfigData.IsId[0] =
           (UINT8) (ConfigFormEntry->SessionConfigData.IsId[0] & 0x3F);
       }
       //
@@ -1033,13 +1036,13 @@ IScsiConfigUpdateForm (
       //
       // Compose the Port string and create a new EFI_STRING_ID.
       //
-      UnicodeSPrint (PortString, 128, L"Port %s", ConfigFormEntry->MacString);
+      UnicodeSPrint (PortString, sizeof (PortString), L"Port %s", ConfigFormEntry->MacString);
       ConfigFormEntry->PortTitleToken = HiiSetString (mCallbackInfo->RegisteredHandle, 0, PortString, NULL);
 
       //
       // Compose the help string of this port and create a new EFI_STRING_ID.
       //
-      UnicodeSPrint (PortString, 128, L"Set the iSCSI parameters on port %s", ConfigFormEntry->MacString);
+      UnicodeSPrint (PortString, sizeof (PortString), L"Set the iSCSI parameters on port %s", ConfigFormEntry->MacString);
       ConfigFormEntry->PortTitleHelpToken = HiiSetString (mCallbackInfo->RegisteredHandle, 0, PortString, NULL);
 
       InsertTailList (&mIScsiConfigFormList, &ConfigFormEntry->Link);
@@ -1163,14 +1166,14 @@ IScsiConfigFormInit (
                   NULL
                   );
   ASSERT_EFI_ERROR (Status);
-  
+
   //
   // Publish our HII data
   //
   CallbackInfo->RegisteredHandle = HiiAddPackages (
                                      &gIp4IScsiConfigGuid,
                                      CallbackInfo->DriverHandle,
-                                     IScsiDxeStrings,
+                                     IScsi4DxeStrings,
                                      IScsiConfigDxeBin,
                                      NULL
                                      );
@@ -1190,7 +1193,7 @@ IScsiConfigFormInit (
   free the resources used.
 
   @param[in]  DriverBindingHandle The iSCSI driverbinding handle.
-  
+
   @retval EFI_SUCCESS             The iSCSI configuration form is unloaded.
   @retval EFI_OUT_OF_RESOURCES    Failed to allocate memory.
 **/

@@ -42,15 +42,34 @@
 #define VMMDEV_TESTING_MMIO_BASE        UINT32_C(0x00101000)
 /** The size of the MMIO range used for testing.  */
 #define VMMDEV_TESTING_MMIO_SIZE        UINT32_C(0x00001000)
-/** The NOP MMIO register - 1248 RW. */
-#define VMMDEV_TESTING_MMIO_NOP         (VMMDEV_TESTING_MMIO_BASE + 0x000)
-/** The go-to-ring-3-NOP MMIO register - 1248 RW. */
-#define VMMDEV_TESTING_MMIO_NOP_R3      (VMMDEV_TESTING_MMIO_BASE + 0x008)
+
+/** MMIO offset: The NOP register - 1248 RW. */
+#define VMMDEV_TESTING_MMIO_OFF_NOP         (0x000)
+/** MMIO offset: The go-to-ring-3-NOP register - 1248 RW. */
+#define VMMDEV_TESTING_MMIO_OFF_NOP_R3      (0x008)
+/** MMIO offset: The readback registers - 64 bytes of read/write "memory". */
+#define VMMDEV_TESTING_MMIO_OFF_READBACK    (0x040)
+/** MMIO offset: Readback register view that always goes to ring-3. */
+#define VMMDEV_TESTING_MMIO_OFF_READBACK_R3 (0x080)
+/** The size of the MMIO readback registers. */
+#define VMMDEV_TESTING_READBACK_SIZE        (0x40)
+
+/** Default address of VMMDEV_TESTING_MMIO_OFF_NOP. */
+#define VMMDEV_TESTING_MMIO_NOP             (VMMDEV_TESTING_MMIO_BASE + VMMDEV_TESTING_MMIO_OFF_NOP)
+/** Default address of VMMDEV_TESTING_MMIO_OFF_NOP_R3. */
+#define VMMDEV_TESTING_MMIO_NOP_R3          (VMMDEV_TESTING_MMIO_BASE + VMMDEV_TESTING_MMIO_OFF_NOP_R3)
+/** Default address of VMMDEV_TESTING_MMIO_OFF_READBACK. */
+#define VMMDEV_TESTING_MMIO_READBACK        (VMMDEV_TESTING_MMIO_BASE + VMMDEV_TESTING_MMIO_OFF_READBACK)
+/** Default address of VMMDEV_TESTING_MMIO_OFF_READBACK_R3. */
+#define VMMDEV_TESTING_MMIO_READBACK_R3     (VMMDEV_TESTING_MMIO_BASE + VMMDEV_TESTING_MMIO_OFF_READBACK_R3)
+
 /** The real mode selector to use.
  * @remarks Requires that the A20 gate is enabled. */
 #define VMMDEV_TESTING_MMIO_RM_SEL       0xffff
 /** Calculate the real mode offset of a MMIO register. */
 #define VMMDEV_TESTING_MMIO_RM_OFF(val)  ((val) - 0xffff0)
+/** Calculate the real mode offset of a MMIO register offset. */
+#define VMMDEV_TESTING_MMIO_RM_OFF2(off) ((off) + 16 + 0x1000)
 
 /** The base port of the I/O range used for testing. */
 #define VMMDEV_TESTING_IOPORT_BASE      0x0510
@@ -62,7 +81,7 @@
 #define VMMDEV_TESTING_IOPORT_TS_LOW    (VMMDEV_TESTING_IOPORT_BASE + 1)
 /** The high nanosecond timestamp - 4 RO.  Read this after the low one!  */
 #define VMMDEV_TESTING_IOPORT_TS_HIGH   (VMMDEV_TESTING_IOPORT_BASE + 2)
-/** Command register usually used for preparing the data register - 4 WO. */
+/** Command register usually used for preparing the data register - 4/2 WO. */
 #define VMMDEV_TESTING_IOPORT_CMD       (VMMDEV_TESTING_IOPORT_BASE + 3)
 /** Data register which use depends on the current command - 1s, 4 WO. */
 #define VMMDEV_TESTING_IOPORT_DATA      (VMMDEV_TESTING_IOPORT_BASE + 4)
@@ -73,7 +92,7 @@
  * @{ */
 /** Initialize test, sending name (zero terminated string). (RTTestCreate) */
 #define VMMDEV_TESTING_CMD_INIT         UINT32_C(0xcab1e000)
-/** Test done, no data. (RTTestSummaryAndDestroy) */
+/** Test done, sending 32-bit total error count with it. (RTTestSummaryAndDestroy) */
 #define VMMDEV_TESTING_CMD_TERM         UINT32_C(0xcab1e001)
 /** Start a new sub-test, sending name (zero terminated string). (RTTestSub) */
 #define VMMDEV_TESTING_CMD_SUB_NEW      UINT32_C(0xcab1e002)
@@ -89,6 +108,15 @@
 /** Report a value found in a VMM register, sending a string on the form
  * "value-name:register-name". */
 #define VMMDEV_TESTING_CMD_VALUE_REG    UINT32_C(0xcab1e007)
+/** Print string, sending a string including newline. (RTTestPrintf) */
+#define VMMDEV_TESTING_CMD_PRINT        UINT32_C(0xcab1e008)
+
+/** The magic part of the command. */
+#define VMMDEV_TESTING_CMD_MAGIC        UINT32_C(0xcab1e000)
+/** The magic part of the command. */
+#define VMMDEV_TESTING_CMD_MAGIC_MASK   UINT32_C(0xffffff00)
+/** The magic high word automatically supplied to 16-bit CMD writes. */
+#define VMMDEV_TESTING_CMD_MAGIC_HI_WORD UINT32_C(0xcab10000)
 /** @} */
 
 /** @name Value units

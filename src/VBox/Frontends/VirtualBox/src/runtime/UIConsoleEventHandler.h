@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2014 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -18,19 +18,24 @@
 #ifndef ___UIConsoleEventHandler_h___
 #define ___UIConsoleEventHandler_h___
 
+/* Qt includes: */
+#include <QObject>
+
 /* COM includes: */
 #include "COMEnums.h"
-#include "CEventListener.h"
 #include "CVirtualBoxErrorInfo.h"
 #include "CMediumAttachment.h"
 #include "CNetworkAdapter.h"
 #include "CUSBDevice.h"
 
 /* Forward declarations: */
+class UIConsoleEventHandlerProxy;
 class UISession;
 
-/** Active event handler singleton for the CConsole event-source. */
-class UIConsoleEventHandler: public QObject
+
+/** Singleton QObject extension
+  * providing GUI with the CConsole event-source. */
+class UIConsoleEventHandler : public QObject
 {
     Q_OBJECT;
 
@@ -75,40 +80,37 @@ signals:
 
 public:
 
-    /** Static instance wrapper. */
+    /** Returns singleton instance created by the factory. */
     static UIConsoleEventHandler* instance() { return m_spInstance; }
-    /** Static instance constructor. */
+    /** Creates singleton instance created by the factory. */
     static void create(UISession *pSession);
-    /** Static instance destructor. */
+    /** Destroys singleton instance created by the factory. */
     static void destroy();
 
-private slots:
+protected:
 
-    /** Returns whether VM window can be shown. */
-    void sltCanShowWindow(bool &fVeto, QString &strReason);
-    /** Shows VM window if possible. */
-    void sltShowWindow(LONG64 &winId);
+    /** Constructs console event handler for passed @a pSession. */
+    UIConsoleEventHandler(UISession *pSession);
+
+    /** @name Prepare cascade.
+      * @{ */
+        /** Prepares all. */
+        void prepare();
+        /** Prepares connections. */
+        void prepareConnections();
+    /** @} */
 
 private:
 
-    /** Constructor: */
-    UIConsoleEventHandler(UISession *pSession);
-
-    /** Prepare routine. */
-    void prepare();
-    /** Cleanup routine. */
-    void cleanup();
-
-    /** Holds the static instance. */
+    /** Holds the singleton static console event handler instance. */
     static UIConsoleEventHandler *m_spInstance;
 
-    /** Holds the UI session reference. */
-    UISession *m_pSession;
-
-    /** Holds the main event listener instance. */
-    CEventListener m_mainEventListener;
+    /** Holds the console event proxy instance. */
+    UIConsoleEventHandlerProxy *m_pProxy;
 };
 
+/** Defines the globally known name for the console event handler instance. */
 #define gConsoleEvents UIConsoleEventHandler::instance()
 
 #endif /* !___UIConsoleEventHandler_h___ */
+

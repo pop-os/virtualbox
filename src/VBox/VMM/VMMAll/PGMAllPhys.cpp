@@ -67,17 +67,19 @@
     (   (a_rcStrict) == VINF_SUCCESS \
      || (a_rcStrict) == VINF_PGM_HANDLER_DO_DEFAULT)
 #elif defined(IN_RING0) || defined(IN_RC)
-# define PGM_HANDLER_PHYS_IS_VALID_STATUS(a_rcStrict, a_fWrite) \
+#define PGM_HANDLER_PHYS_IS_VALID_STATUS(a_rcStrict, a_fWrite) \
     (   (a_rcStrict) == VINF_SUCCESS \
      || (a_rcStrict) == VINF_PGM_HANDLER_DO_DEFAULT \
      \
      || (a_rcStrict) == ((a_fWrite) ? VINF_IOM_R3_MMIO_WRITE : VINF_IOM_R3_MMIO_READ) \
      || (a_rcStrict) == VINF_IOM_R3_MMIO_READ_WRITE \
+     || ((a_rcStrict) == VINF_IOM_R3_MMIO_COMMIT_WRITE && (a_fWrite)) \
      \
      || ((a_fWrite) ? (a_rcStrict) == VINF_EM_RAW_EMULATE_IO_BLOCK : false) \
      \
      || (a_rcStrict) == VINF_EM_RAW_EMULATE_INSTR  \
      || (a_rcStrict) == VINF_EM_DBG_STOP \
+     || (a_rcStrict) == VINF_EM_DBG_EVENT \
      || (a_rcStrict) == VINF_EM_DBG_BREAKPOINT \
      || (a_rcStrict) == VINF_EM_OFF \
      || (a_rcStrict) == VINF_EM_SUSPEND \
@@ -123,6 +125,7 @@
      \
      || (a_rcStrict) == VINF_EM_RAW_EMULATE_INSTR \
      || (a_rcStrict) == VINF_EM_DBG_STOP \
+     || (a_rcStrict) == VINF_EM_DBG_EVENT \
      || (a_rcStrict) == VINF_EM_DBG_BREAKPOINT \
     )
 #else
@@ -2842,7 +2845,7 @@ static VBOXSTRICTRC pgmPhysWriteHandler(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhys
          */
         VBOXSTRICTRC rcStrict2 = VINF_PGM_HANDLER_DO_DEFAULT;
         uint32_t cbRange = (uint32_t)cbWrite;
-        if (offPhys && offVirt)
+        if (offPhys != 0 && offVirt != 0)
         {
             if (cbRange > offPhys)
                 cbRange = offPhys;
@@ -3062,6 +3065,7 @@ static VBOXSTRICTRC pgmPhysWriteHandler(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhys
  *
  * @retval  VINF_IOM_R3_MMIO_WRITE in RC and R0.
  * @retval  VINF_IOM_R3_MMIO_READ_WRITE in RC and R0.
+ * @retval  VINF_IOM_R3_MMIO_COMMIT_WRITE in RC and R0.
  *
  * @retval  VINF_EM_RAW_EMULATE_IO_BLOCK in R0 only.
  *

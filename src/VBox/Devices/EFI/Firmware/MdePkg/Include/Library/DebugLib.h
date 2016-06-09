@@ -8,7 +8,7 @@
   of size reduction when compiler optimization is disabled. If MDEPKG_NDEBUG is
   defined, then debug and assert related macros wrapped by it are the NULL implementations.
 
-Copyright (c) 2006 - 2012, Intel Corporation. All rights reserved.<BR>
+Copyright (c) 2006 - 2015, Intel Corporation. All rights reserved.<BR>
 This program and the accompanying materials are licensed and made available under
 the terms and conditions of the BSD License that accompanies this distribution.
 The full text of the license may be found at
@@ -220,6 +220,20 @@ DebugClearMemoryEnabled (
   VOID
   );
 
+/**
+  Returns TRUE if any one of the bit is set both in ErrorLevel and PcdFixedDebugPrintErrorLevel.
+
+  This function compares the bit mask of ErrorLevel and PcdFixedDebugPrintErrorLevel.
+
+  @retval  TRUE    Current ErrorLevel is supported.
+  @retval  FALSE   Current ErrorLevel is not supported.
+
+**/
+BOOLEAN
+EFIAPI
+DebugPrintLevelEnabled (
+  IN  CONST UINTN        ErrorLevel
+  );
 
 /**
   Internal worker macro that calls DebugAssert().
@@ -238,13 +252,25 @@ DebugClearMemoryEnabled (
 
   This macro calls DebugPrint() passing in the debug error level, a format
   string, and a variable argument list.
+  __VA_ARGS__ is not supported by ECB compiler, Microsoft Visual Studio .NET 2003
+  and Microsoft Windows Server 2003 Driver Development Kit (Microsoft WINDDK) version 3790.1830.
 
   @param  Expression  Expression containing an error level, a format string,
                       and a variable argument list based on the format string.
 
 **/
-#define _DEBUG(Expression)   DebugPrint Expression
 
+#if !defined(MDE_CPU_EBC) && (!defined (_MSC_VER) || _MSC_VER >= 1400)
+  #define _DEBUG_PRINT(PrintLevel, ...)              \
+    do {                                             \
+      if (DebugPrintLevelEnabled (PrintLevel)) {     \
+        DebugPrint (PrintLevel, ##__VA_ARGS__);      \
+      }                                              \
+    } while (FALSE)
+  #define _DEBUG(Expression)   _DEBUG_PRINT Expression
+#else
+#define _DEBUG(Expression)   DebugPrint Expression
+#endif
 
 /**
   Macro that calls DebugAssert() if an expression evaluates to FALSE.
@@ -503,7 +529,7 @@ VOID EFIAPI VBoxLogWorker(const char *pszFormat, ...);
 #  define VBoxLogFlowFuncMarkHandleDP(dp)\
     VBoxLog(("%a:" VBOX_XSTR(__LINE__) ": " #dp "=%s\n", __FUNCTION__, VBoxDebugHandleDevicePath2Str(dp)))
 #  define VBoxLog(a)                            VBoxLogWorker a
-# else
+# else  /* !EFI_LOG_ENABLED */
 #  define VBoxLogFlowFuncEnter()                do {} while (0)
 #  define VBoxLogFlowFuncLeave()                do {} while (0)
 #  define VBoxLogFlowFuncLeaveRC(rc)            do {} while (0)
@@ -513,6 +539,6 @@ VOID EFIAPI VBoxLogWorker(const char *pszFormat, ...);
 #  define VBoxLogFlowFuncMarkDP(dp)             do {} while (0)
 #  define VBoxLogLogFlowFuncMarkHandleDP(dp)    do {} while (0)
 #  define VBoxLog(a)                            do {} while (0)
-# endif
-#endif
+# endif /* !EFI_LOG_ENABLED */
+#endif /* VBOX */
 #endif

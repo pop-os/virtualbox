@@ -27,10 +27,10 @@
 # include "UIMachine.h"
 # include "UISelectorWindow.h"
 # include "UIModalWindowManager.h"
-# ifdef Q_WS_MAC
+# ifdef VBOX_WS_MAC
 #  include "VBoxUtils.h"
 #  include "UICocoaApplication.h"
-# endif /* Q_WS_MAC */
+# endif /* VBOX_WS_MAC */
 
 /* Other VBox includes: */
 # include <iprt/buildconfig.h>
@@ -40,25 +40,27 @@
 #  include <VBox/sup.h>
 # else /* !VBOX_WITH_HARDENING */
 #  include <iprt/initterm.h>
-#  ifdef Q_WS_MAC
+#  ifdef VBOX_WS_MAC
 #   include <iprt/asm.h>
-#  endif /* Q_WS_MAC */
+#  endif /* VBOX_WS_MAC */
 # endif /* !VBOX_WITH_HARDENING */
-# ifdef Q_WS_X11
+# ifdef VBOX_WS_X11
 #  include <iprt/env.h>
-# endif /* Q_WS_X11 */
+# endif /* VBOX_WS_X11 */
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 /* Qt includes: */
-#ifdef Q_WS_X11
+#ifdef VBOX_WS_X11
 # ifdef Q_OS_SOLARIS
-#  include <QPlastiqueStyle>
+#  if QT_VERSION < 0x050000
+#   include <QPlastiqueStyle>
+#  endif /* QT_VERSION < 0x050000 */
 # endif /* Q_OS_SOLARIS */
 # ifndef Q_OS_SOLARIS
 #  include <QFontDatabase>
 # endif /* !Q_OS_SOLARIS */
-#endif /* Q_WS_X11 */
+#endif /* VBOX_WS_X11 */
 
 /* Other VBox includes: */
 #ifdef VBOX_WITH_HARDENING
@@ -68,11 +70,11 @@
 #endif /* !VBOX_WITH_HARDENING */
 
 /* Other includes: */
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
 # include <dlfcn.h>
 # include <sys/mman.h>
-#endif /* Q_WS_MAC */
-#ifdef Q_WS_X11
+#endif /* VBOX_WS_MAC */
+#ifdef VBOX_WS_X11
 # include <dlfcn.h>
 # include <unistd.h>
 # include <X11/Xlib.h>
@@ -89,7 +91,7 @@
 #   define REG_PC REG_EIP
 #  endif /* !RT_ARCH_AMD64 */
 # endif /* RT_OS_LINUX && DEBUG */
-#endif /* Q_WS_X11 */
+#endif /* VBOX_WS_X11 */
 
 
 /* XXX Temporarily. Don't rely on the user to hack the Makefile himself! */
@@ -102,10 +104,8 @@ QString g_QStrHintLinuxNoDriver = QApplication::tr(
     "The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or "
     "there is a permission problem with /dev/vboxdrv. Please reinstall the kernel "
     "module by executing<br/><br/>"
-    "  <font color=blue>'/sbin/rcvboxdrv setup'</font><br/><br/>"
-    "as root. If it is available in your distribution, you should install the "
-    "DKMS package first. This package keeps track of Linux kernel changes and "
-    "recompiles the vboxdrv kernel module if necessary."
+    "  <font color=blue>'/sbin/vboxconfig'</font><br/><br/>"
+    "as root."
     );
 
 QString g_QStrHintOtherWrongDriverVersion = QApplication::tr(
@@ -119,7 +119,7 @@ QString g_QStrHintLinuxWrongDriverVersion = QApplication::tr(
     "The VirtualBox kernel modules do not match this version of "
     "VirtualBox. The installation of VirtualBox was apparently not "
     "successful. Executing<br/><br/>"
-    "  <font color=blue>'/sbin/rcvboxdrv setup'</font><br/><br/>"
+    "  <font color=blue>'/sbin/vboxconfig'</font><br/><br/>"
     "may correct this. Make sure that you do not mix the "
     "OSE version and the PUEL version of VirtualBox."
     );
@@ -134,7 +134,7 @@ QString g_QStrHintReinstall = QApplication::tr(
     );
 
 
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
 /**
  * Mac OS X: Really ugly hack to bypass a set-uid check in AppKit.
  *
@@ -152,9 +152,9 @@ static void HideSetUidRootFromAppKit()
     if (!rc)
         ASMAtomicWriteU32((volatile uint32_t *)pvAddr, 0xccc3c031); /* xor eax, eax; ret; int3 */
 }
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
 
-#ifdef Q_WS_X11
+#ifdef VBOX_WS_X11
 /** X11: For versions of Xlib which are aware of multi-threaded environments this function
   *      calls for XInitThreads() which initializes Xlib support for concurrent threads.
   * @returns @c non-zero unless it is unsafe to make multi-threaded calls to Xlib.
@@ -225,17 +225,57 @@ static void InstallSignalHandler()
     sigaction(SIGUSR1, &sa, 0);
 }
 # endif /* RT_OS_LINUX && DEBUG */
-#endif /* Q_WS_X11 */
+#endif /* VBOX_WS_X11 */
 
-/** Qt message handler, function that prints out
-  * debug messages, warnings, critical and fatal error messages.
-  * @param type describes the type of message sent to a message handler.
-  * @param pMsg holds the pointer to the message body. */
+#if QT_VERSION >= 0x050000
+/** Qt5 message handler, function that prints out
+  * debug, warning, critical, fatal and system error messages.
+  * @param  type        Holds the type of the message.
+  * @param  context     Holds the message context.
+  * @param  strMessage  Holds the message body. */
+static void QtMessageOutput(QtMsgType type, const QMessageLogContext &context, const QString &strMessage)
+{
+    NOREF(context);
+# ifndef VBOX_WS_X11
+    NOREF(strMessage);
+# endif /* !VBOX_WS_X11 */
+    switch (type)
+    {
+        case QtDebugMsg:
+            Log(("Qt DEBUG: %s\n", strMessage.toUtf8().constData()));
+            break;
+        case QtWarningMsg:
+            Log(("Qt WARNING: %s\n", strMessage.toUtf8().constData()));
+# ifdef VBOX_WS_X11
+            /* Needed for instance for the message ``cannot connect to X server'': */
+            RTStrmPrintf(g_pStdErr, "Qt WARNING: %s\n", strMessage.toUtf8().constData());
+# endif /* VBOX_WS_X11 */
+            break;
+        case QtCriticalMsg:
+            Log(("Qt CRITICAL: %s\n", strMessage.toUtf8().constData()));
+# ifdef VBOX_WS_X11
+            /* Needed for instance for the message ``cannot connect to X server'': */
+            RTStrmPrintf(g_pStdErr, "Qt CRITICAL: %s\n", strMessage.toUtf8().constData());
+# endif /* VBOX_WS_X11 */
+            break;
+        case QtFatalMsg:
+            Log(("Qt FATAL: %s\n", strMessage.toUtf8().constData()));
+# ifdef VBOX_WS_X11
+            /* Needed for instance for the message ``cannot connect to X server'': */
+            RTStrmPrintf(g_pStdErr, "Qt FATAL: %s\n", strMessage.toUtf8().constData());
+# endif /* VBOX_WS_X11 */
+    }
+}
+#else /* QT_VERSION < 0x050000 */
+/** Qt4 message handler, function that prints out
+  * debug, warning, critical, fatal and system error messages.
+  * @param  type  Holds the type of the message.
+  * @param  pMsg  Holds the the message body. */
 static void QtMessageOutput(QtMsgType type, const char *pMsg)
 {
-#ifndef Q_WS_X11
+# ifndef VBOX_WS_X11
     NOREF(pMsg);
-#endif /* !Q_WS_X11 */
+# endif /* !VBOX_WS_X11 */
     switch (type)
     {
         case QtDebugMsg:
@@ -243,26 +283,27 @@ static void QtMessageOutput(QtMsgType type, const char *pMsg)
             break;
         case QtWarningMsg:
             Log(("Qt WARNING: %s\n", pMsg));
-#ifdef Q_WS_X11
+# ifdef VBOX_WS_X11
             /* Needed for instance for the message ``cannot connect to X server'': */
             RTStrmPrintf(g_pStdErr, "Qt WARNING: %s\n", pMsg);
-#endif /* Q_WS_X11 */
+# endif /* VBOX_WS_X11 */
             break;
         case QtCriticalMsg:
             Log(("Qt CRITICAL: %s\n", pMsg));
-#ifdef Q_WS_X11
+# ifdef VBOX_WS_X11
             /* Needed for instance for the message ``cannot connect to X server'': */
             RTStrmPrintf(g_pStdErr, "Qt CRITICAL: %s\n", pMsg);
-#endif /* Q_WS_X11 */
+# endif /* VBOX_WS_X11 */
             break;
         case QtFatalMsg:
             Log(("Qt FATAL: %s\n", pMsg));
-#ifdef Q_WS_X11
+# ifdef VBOX_WS_X11
             /* Needed for instance for the message ``cannot connect to X server'': */
             RTStrmPrintf(g_pStdErr, "Qt FATAL: %s\n", pMsg);
-#endif /* Q_WS_X11 */
+# endif /* VBOX_WS_X11 */
     }
 }
+#endif /* QT_VERSION < 0x050000 */
 
 /** Shows all available command line parameters. */
 static void ShowHelp()
@@ -322,6 +363,10 @@ static void ShowHelp()
 
 extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char ** /*envp*/)
 {
+#ifdef RT_OS_WINDOWS
+    ATL::CComModule _Module; /* Required internally by ATL (constructor records instance in global variable). */
+#endif
+
     /* Failed result initially: */
     int iResultCode = 1;
 
@@ -331,16 +376,16 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char ** /*envp*/)
     /* Simulate try-catch block: */
     do
     {
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
         /* Hide setuid root from AppKit: */
         HideSetUidRootFromAppKit();
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
 
-#ifdef Q_WS_X11
+#ifdef VBOX_WS_X11
         /* Make sure multi-threaded environment is safe: */
         if (!MakeSureMultiThreadingIsSafe())
             break;
-#endif /* Q_WS_X11 */
+#endif /* VBOX_WS_X11 */
 
         /* Console help preprocessing: */
         bool fHelpShown = false;
@@ -367,7 +412,7 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char ** /*envp*/)
         SUPR3HardenedVerifyInit();
 #endif /* VBOX_WITH_HARDENING */
 
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
         /* Apply font fixes (before QApplication get created and instantiated font-hints): */
         switch (VBoxGlobal::determineOsRelease())
         {
@@ -377,26 +422,29 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char ** /*envp*/)
             default: break;
         }
 
-# ifdef QT_MAC_USE_COCOA
         /* Instantiate own NSApplication before QApplication do it for us: */
         UICocoaApplication::instance();
-# endif /* QT_MAC_USE_COCOA */
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
 
-#ifdef Q_WS_X11
+#ifdef VBOX_WS_X11
 # if defined(RT_OS_LINUX) && defined(DEBUG)
         /* Install signal handler to backtrace the call stack: */
         InstallSignalHandler();
 # endif /* RT_OS_LINUX && DEBUG */
-#endif /* Q_WS_X11 */
+#endif /* VBOX_WS_X11 */
 
+#if QT_VERSION >= 0x050000
+        /* Install Qt console message handler: */
+        qInstallMessageHandler(QtMessageOutput);
+#else /* QT_VERSION < 0x050000 */
         /* Install Qt console message handler: */
         qInstallMsgHandler(QtMessageOutput);
+#endif /* QT_VERSION < 0x050000 */
 
         /* Create application: */
         QApplication a(argc, argv);
 
-#ifdef Q_WS_WIN
+#ifdef VBOX_WS_WIN
         /* Drag in the sound drivers and DLLs early to get rid of the delay taking
          * place when the main menu bar (or any action from that menu bar) is
          * activated for the first time. This delay is especially annoying if it
@@ -404,9 +452,9 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char ** /*envp*/)
          * load and slows down the load process that happens on the main GUI
          * thread to several seconds). */
         PlaySound(NULL, NULL, 0);
-#endif /* Q_WS_WIN */
+#endif /* VBOX_WS_WIN */
 
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
 # ifdef VBOX_GUI_WITH_HIDPI
         /* Enable HiDPI icons.
          * For this we require a patched version of Qt 4.x with
@@ -416,9 +464,9 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char ** /*envp*/)
 
         /* Disable menu icons on MacOS X host: */
         ::darwinDisableIconsInMenus();
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
 
-#ifdef Q_WS_X11
+#ifdef VBOX_WS_X11
         /* Make all widget native.
          * We did it to avoid various Qt crashes while testing widget attributes or acquiring winIds.
          * Yes, we aware of note that alien widgets faster to draw but the only widget we need to be fast
@@ -426,8 +474,12 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char ** /*envp*/)
         a.setAttribute(Qt::AA_NativeWindows);
 
 # ifdef Q_OS_SOLARIS
+#  if QT_VERSION < 0x050000
         /* Use plastique look&feel for Solaris instead of the default motif (Qt 4.7.x): */
         QApplication::setStyle(new QPlastiqueStyle);
+#  else /* QT_VERSION >= 0x050000 */
+	a.setStyle("fusion");
+#  endif /* QT_VERSION >= 0x050000 */
 # endif /* Q_OS_SOLARIS */
 
 # ifndef Q_OS_SOLARIS
@@ -438,7 +490,11 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char ** /*envp*/)
         QString subFamily(QFont::substitute(currentFamily));
         bool isSubScaleable = fontDataBase.isScalable(subFamily);
         if (isCurrentScaleable && !isSubScaleable)
+#  if QT_VERSION >= 0x050000
+            QFont::removeSubstitutions(currentFamily);
+#  else /* QT_VERSION < 0x050000 */
             QFont::removeSubstitution(currentFamily);
+#  endif /* QT_VERSION < 0x050000 */
 # endif /* !Q_OS_SOLARIS */
 
         /* Qt version check (major.minor are sensitive, fix number is ignored): */
@@ -453,7 +509,7 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char ** /*envp*/)
             qFatal("%s", strMsg.toUtf8().constData());
             break;
         }
-#endif /* Q_WS_X11 */
+#endif /* VBOX_WS_X11 */
 
         /* Create modal-window manager: */
         UIModalWindowManager::create();
@@ -507,11 +563,11 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char ** /*envp*/)
 
 int main(int argc, char **argv, char **envp)
 {
-#ifdef Q_WS_X11
+#ifdef VBOX_WS_X11
     /* Make sure multi-threaded environment is safe: */
     if (!MakeSureMultiThreadingIsSafe())
         return 1;
-#endif /* Q_WS_X11 */
+#endif /* VBOX_WS_X11 */
 
     /* Initialize VBox Runtime.
      * Initialize the SUPLib as well only if we are really about to start a VM.
@@ -548,8 +604,12 @@ int main(int argc, char **argv, char **envp)
         Q_UNUSED(a);
 
 #ifdef Q_OS_SOLARIS
+# if QT_VERSION < 0x050000
         /* Use plastique look&feel for Solaris instead of the default motif (Qt 4.7.x): */
         QApplication::setStyle(new QPlastiqueStyle);
+#else /* QT_VERSION >= 0x050000 */
+	a.setStyle("fusion");
+# endif /* QT_VERSION >= 0x050000 */
 #endif /* Q_OS_SOLARIS */
 
         /* Prepare the error-message: */
@@ -615,10 +675,10 @@ int main(int argc, char **argv, char **envp)
  */
 extern "C" DECLEXPORT(void) TrustedError(const char *pszWhere, SUPINITOP enmWhat, int rc, const char *pszMsgFmt, va_list va)
 {
-# ifdef Q_WS_MAC
+# ifdef VBOX_WS_MAC
     /* Hide setuid root from AppKit: */
     HideSetUidRootFromAppKit();
-# endif /* Q_WS_MAC */
+# endif /* VBOX_WS_MAC */
 
     char szMsgBuf[_16K];
 
@@ -702,11 +762,11 @@ extern "C" DECLEXPORT(void) TrustedError(const char *pszWhere, SUPINITOP enmWhat
             break;
     }
 
-# ifdef Q_WS_X11
+# ifdef VBOX_WS_X11
     /* We have to to make sure that we display the error-message
      * after the parent displayed its own message. */
     sleep(2);
-# endif /* Q_WS_X11 */
+# endif /* VBOX_WS_X11 */
 
     /* Update strText with strDetails: */
     if (!strDetails.isEmpty())

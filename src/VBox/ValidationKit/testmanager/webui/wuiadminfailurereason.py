@@ -26,15 +26,44 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 100880 $"
+__version__ = "$Revision: 107541 $"
 
 
 # Validation Kit imports.
 from testmanager.webui.wuibase        import WuiException
-from testmanager.webui.wuicontentbase import WuiFormContentBase, WuiListContentBase, WuiTmLink
-from testmanager.core.failurereason   import FailureReasonData
-from testmanager.core.failurecategory import FailureCategoryLogic
-from testmanager.core.db              import TMDatabaseConnection
+from testmanager.webui.wuicontentbase import WuiFormContentBase, WuiListContentBase, WuiContentBase, WuiTmLink;
+from testmanager.core.failurereason   import FailureReasonData;
+from testmanager.core.failurecategory import FailureCategoryLogic;
+from testmanager.core.db              import TMDatabaseConnection;
+
+
+
+class WuiFailureReasonDetailsLink(WuiTmLink):
+    """ Short link to a failure reason. """
+    def __init__(self, idFailureReason, sName = WuiContentBase.ksShortDetailsLink, sTitle = None, fBracketed = None):
+        if fBracketed is None:
+            fBracketed = len(sName) > 2;
+        from testmanager.webui.wuiadmin import WuiAdmin;
+        WuiTmLink.__init__(self, sName = sName,
+                           sUrlBase = WuiAdmin.ksScriptName,
+                           dParams = { WuiAdmin.ksParamAction: WuiAdmin.ksActionFailureReasonDetails,
+                                       FailureReasonData.ksParam_idFailureReason: idFailureReason, },
+                           fBracketed = fBracketed);
+        self.idFailureReason = idFailureReason;
+
+
+
+class WuiFailureReasonAddLink(WuiTmLink):
+    """ Link for adding a failure reason. """
+    def __init__(self, sName = WuiContentBase.ksShortAddLink, sTitle = None, fBracketed = None):
+        if fBracketed is None:
+            fBracketed = len(sName) > 2;
+        from testmanager.webui.wuiadmin import WuiAdmin;
+        WuiTmLink.__init__(self, sName = sName,
+                           sUrlBase = WuiAdmin.ksScriptName,
+                           dParams = { WuiAdmin.ksParamAction: WuiAdmin.ksActionFailureReasonAdd, },
+                           fBracketed = fBracketed);
+
 
 
 class WuiAdminFailureReason(WuiFormContentBase):
@@ -47,17 +76,15 @@ class WuiAdminFailureReason(WuiFormContentBase):
         Prepare & initialize parent
         """
 
+        sTitle = 'Failure Reason';
         if sMode == WuiFormContentBase.ksMode_Add:
-            sTitle = 'Add Failure Reason'
-            sSubmitAction = oDisp.ksActionFailureReasonAdd
+            sTitle = 'Add' + sTitle;
         elif sMode == WuiFormContentBase.ksMode_Edit:
-            sTitle = 'Edit Failure Reason'
-            sSubmitAction = oDisp.ksActionFailureReasonEdit
+            sTitle = 'Edit' + sTitle;
         else:
-            raise WuiException('Unknown parameter')
+            assert sMode == WuiFormContentBase.ksMode_Show;
 
-        WuiFormContentBase.__init__(self, oFailureReasonData, sMode, 'FailureReason', oDisp, sTitle,
-                                    sSubmitAction = sSubmitAction, fEditable = False); ## @todo non-standard action names.
+        WuiFormContentBase.__init__(self, oFailureReasonData, sMode, 'FailureReason', oDisp, sTitle);
 
     def _populateForm(self, oForm, oData):
         """
@@ -68,7 +95,7 @@ class WuiAdminFailureReason(WuiFormContentBase):
         if len(aoFailureCategories) == 0:
             from testmanager.webui.wuiadmin import WuiAdmin
             sExceptionMsg = 'Please <a href="%s?%s=%s">add</a> Failure Category first.' % \
-                (WuiAdmin.ksScriptName, WuiAdmin.ksParamAction, WuiAdmin.ksActionFailureCategoryShowAdd)
+                (WuiAdmin.ksScriptName, WuiAdmin.ksParamAction, WuiAdmin.ksActionFailureCategoryAdd)
 
             raise WuiException(sExceptionMsg)
 
@@ -90,6 +117,7 @@ class WuiAdminFailureReason(WuiFormContentBase):
 
         return True
 
+
 class WuiAdminFailureReasonList(WuiListContentBase):
     """
     WUI Admin Failure Reasons Content Generator.
@@ -107,20 +135,24 @@ class WuiAdminFailureReasonList(WuiListContentBase):
                                  'align="center"',' align="center"', 'align="center"', 'align="center"']
 
     def _formatListEntry(self, iEntry):
-        from testmanager.webui.wuiadmin import WuiAdmin
+        from testmanager.webui.wuiadmin                 import WuiAdmin
+        from testmanager.webui.wuiadminfailurecategory  import WuiFailureReasonCategoryLink;
         oEntry = self._aoEntries[iEntry]
 
         return [ oEntry.idFailureReason,
-                 oEntry.idFailureCategory,
+                 WuiFailureReasonCategoryLink(oEntry.idFailureCategory, sName = oEntry.oCategory.sShort, fBracketed = False),
                  oEntry.sShort,
                  oEntry.sFull,
                  oEntry.iTicket,
                  oEntry.asUrls,
-                 [ WuiTmLink('Modify', WuiAdmin.ksScriptName,
-                             { WuiAdmin.ksParamAction: WuiAdmin.ksActionFailureReasonShowEdit,
+                 [ WuiTmLink('Details', WuiAdmin.ksScriptName,
+                             { WuiAdmin.ksParamAction: WuiAdmin.ksActionFailureReasonDetails,
+                               FailureReasonData.ksParam_idFailureReason: oEntry.idFailureReason } ),
+                   WuiTmLink('Modify', WuiAdmin.ksScriptName,
+                             { WuiAdmin.ksParamAction: WuiAdmin.ksActionFailureReasonEdit,
                                FailureReasonData.ksParam_idFailureReason: oEntry.idFailureReason } ),
                    WuiTmLink('Remove', WuiAdmin.ksScriptName,
-                             { WuiAdmin.ksParamAction: WuiAdmin.ksActionFailureReasonDel,
+                             { WuiAdmin.ksParamAction: WuiAdmin.ksActionFailureReasonDoRemove,
                                FailureReasonData.ksParam_idFailureReason: oEntry.idFailureReason },
                              sConfirm = 'Are you sure you want to remove failure reason #%d?' % (oEntry.idFailureReason,)),
                ] ]

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,8 +22,10 @@
 #define LOG_GROUP LOG_GROUP_DRV_VD
 #include <VBox/vd.h>
 #include <VBox/vmm/pdmdrv.h>
+#include <VBox/vmm/pdmstorageifs.h>
 #include <VBox/vmm/pdmasynccompletion.h>
 #include <VBox/vmm/pdmblkcache.h>
+#include <VBox/vmm/ssm.h>
 #include <iprt/asm.h>
 #include <iprt/alloc.h>
 #include <iprt/assert.h>
@@ -37,6 +39,8 @@
 #include <iprt/pipe.h>
 #include <iprt/system.h>
 #include <iprt/memsafer.h>
+#include <iprt/memcache.h>
+#include <iprt/list.h>
 
 #ifdef VBOX_WITH_INIP
 /* All lwip header files are not C++ safe. So hack around this. */
@@ -52,6 +56,7 @@ RT_C_DECLS_END
 #endif /* VBOX_WITH_INIP */
 
 #include "HBDMgmt.h"
+#include "IOBufMgmt.h"
 
 #include "VBoxDD.h"
 
@@ -60,6 +65,28 @@ RT_C_DECLS_END
 extern bool DevINIPConfigured(void);
 #endif /* VBOX_WITH_INIP */
 
+
+/** @def VBOX_PERIODIC_FLUSH
+ * Enable support for periodically flushing the VDI to disk. This may prove
+ * useful for those nasty problems with the ultra-slow host filesystems.
+ * If this is enabled, it can be configured via the CFGM key
+ * "VBoxInternal/Devices/piix3ide/0/LUN#<x>/Config/FlushInterval". <x>
+ * must be replaced with the correct LUN number of the disk that should
+ * do the periodic flushes. The value of the key is the number of bytes
+ * written between flushes. A value of 0 (the default) denotes no flushes. */
+#define VBOX_PERIODIC_FLUSH
+
+/** @def VBOX_IGNORE_FLUSH
+ * Enable support for ignoring VDI flush requests. This can be useful for
+ * filesystems that show bad guest IDE write performance (especially with
+ * Windows guests). NOTE that this does not disable the flushes caused by
+ * the periodic flush cache feature above.
+ * If this feature is enabled, it can be configured via the CFGM key
+ * "VBoxInternal/Devices/piix3ide/0/LUN#<x>/Config/IgnoreFlush". <x>
+ * must be replaced with the correct LUN number of the disk that should
+ * ignore flush requests. The value of the key is a boolean. The default
+ * is to ignore flushes, i.e. true. */
+#define VBOX_IGNORE_FLUSH
 
 /*********************************************************************************************************************************
 *   Defined types, constants and macros                                                                                          *
@@ -72,6 +99,14 @@ extern bool DevINIPConfigured(void);
 /** Converts a pointer to VBOXDISK::IMediaAsync to a PVBOXDISK. */
 #define PDMIMEDIAASYNC_2_VBOXDISK(pInterface) \
     ( (PVBOXDISK)((uintptr_t)pInterface - RT_OFFSETOF(VBOXDISK, IMediaAsync)) )
+
+/** Saved state version of an I/O request .*/
+#define DRVVD_IOREQ_SAVED_STATE_VERSION UINT32_C(1)
+/** Maximum number of request errors in the release log before muting. */
+#define DRVVD_MAX_LOG_REL_ERRORS        100
+
+/** Forward declaration for the dis kcontainer. */
+typedef struct VBOXDISK *PVBOXDISK;
 
 /**
  * VBox disk container, image information, private part.
@@ -111,10 +146,106 @@ typedef struct DRVVDSTORAGEBACKEND
 } DRVVDSTORAGEBACKEND, *PDRVVDSTORAGEBACKEND;
 
 /**
+ * VD I/O request state.
+ */
+typedef enum VDIOREQSTATE
+{
+    /** Invalid. */
+    VDIOREQSTATE_INVALID = 0,
+    /** The request is not in use and resides on the free list. */
+    VDIOREQSTATE_FREE,
+    /** The request was just allocated and is not active. */
+    VDIOREQSTATE_ALLOCATED,
+    /** The request was allocated and is in use. */
+    VDIOREQSTATE_ACTIVE,
+    /** The request was suspended and is not actively processed. */
+    VDIOREQSTATE_SUSPENDED,
+    /** The request is in the last step of completion and syncs memory. */
+    VDIOREQSTATE_COMPLETING,
+    /** The request completed. */
+    VDIOREQSTATE_COMPLETED,
+    /** The request was aborted but wasn't returned as complete from the storage
+     * layer below us. */
+    VDIOREQSTATE_CANCELED,
+    /** 32bit hack. */
+    VDIOREQSTATE_32BIT_HACK = 0x7fffffff
+} VDIOREQSTATE;
+
+/**
+ * VD I/O Request.
+ */
+typedef struct PDMMEDIAEXIOREQINT
+{
+    /** List node for the list of allocated requests. */
+    RTLISTNODE                    NdAllocatedList;
+    /** List for requests waiting for I/O memory or on the redo list. */
+    RTLISTNODE                    NdLstWait;
+    /** I/O request type. */
+    PDMMEDIAEXIOREQTYPE           enmType;
+    /** Request state. */
+    volatile VDIOREQSTATE         enmState;
+    /** I/O request ID. */
+    PDMMEDIAEXIOREQID             uIoReqId;
+    /** Pointer to the disk container. */
+    PVBOXDISK                     pDisk;
+    /** Flags. */
+    uint32_t                      fFlags;
+    /** Timestamp when the request was submitted. */
+    uint64_t                      tsSubmit;
+    /** Type dependent data. */
+    union
+    {
+        /** Read/Write request sepcific data. */
+        struct
+        {
+            /** Start offset of the request. */
+            uint64_t                      offStart;
+            /** Size of the request. */
+            size_t                        cbReq;
+            /** Size left for this request. */
+            size_t                        cbReqLeft;
+            /** Size of the allocated I/O buffer. */
+            size_t                        cbIoBuf;
+            /** I/O buffer descriptor. */
+            IOBUFDESC                     IoBuf;
+        } ReadWrite;
+        /** Discard specific data. */
+        struct
+        {
+            /** Pointer to array of ranges to discard. */
+            PRTRANGE                      paRanges;
+            /** Number of ranges to discard. */
+            unsigned                      cRanges;
+        } Discard;
+    };
+    /** Allocator specific memory - variable size. */
+    uint8_t                       abAlloc[1];
+} PDMMEDIAEXIOREQINT;
+/** Pointer to a VD I/O request. */
+typedef PDMMEDIAEXIOREQINT *PPDMMEDIAEXIOREQINT;
+
+/**
+ * Structure for holding a list of allocated requests.
+ */
+typedef struct VDLSTIOREQALLOC
+{
+    /** Mutex protecting the table of allocated requests. */
+    RTSEMFASTMUTEX           hMtxLstIoReqAlloc;
+    /** List anchor. */
+    RTLISTANCHOR             LstIoReqAlloc;
+} VDLSTIOREQALLOC;
+typedef VDLSTIOREQALLOC *PVDLSTIOREQALLOC;
+
+/** Number of bins for allocated requests. */
+#define DRVVD_VDIOREQ_ALLOC_BINS    8
+
+/**
  * VBox disk container media main structure, private part.
  *
  * @implements  PDMIMEDIA
  * @implements  PDMIMEDIAASYNC
+ * @implements  PDMIMEDIAEX
+ * @implements  PDMIMOUNT
  * @implements  VDINTERFACEERROR
  * @implements  VDINTERFACETCPNET
  * @implements  VDINTERFACEASYNCIO
@@ -191,6 +322,37 @@ typedef struct VBOXDISK
     /** Host block device manager. */
     HBDMGR                   hHbdMgr;
 
+    /** Drive type. */
+    PDMMEDIATYPE            enmType;
+    /** Locked indicator. */
+    bool                    fLocked;
+    /** Mountable indicator. */
+    bool                    fMountable;
+    /** Visible to the BIOS. */
+    bool                    fBiosVisible;
+#ifdef VBOX_PERIODIC_FLUSH
+    /** HACK: Configuration value for number of bytes written after which to flush. */
+    uint32_t                cbFlushInterval;
+    /** HACK: Current count for the number of bytes written since the last flush. */
+    uint32_t                cbDataWritten;
+#endif /* VBOX_PERIODIC_FLUSH */
+#ifdef VBOX_IGNORE_FLUSH
+    /** HACK: Disable flushes for this drive. */
+    bool                    fIgnoreFlush;
+    /** Disable async flushes for this drive. */
+    bool                    fIgnoreFlushAsync;
+#endif /* VBOX_IGNORE_FLUSH */
+    /** Our mountable interface. */
+    PDMIMOUNT               IMount;
+    /** Pointer to the mount notify interface above us. */
+    PPDMIMOUNTNOTIFY        pDrvMountNotify;
+    /** Uuid of the drive. */
+    RTUUID                  Uuid;
+    /** BIOS PCHS Geometry. */
+    PDMMEDIAGEOMETRY        PCHSGeometry;
+    /** BIOS LCHS Geometry. */
+    PDMMEDIAGEOMETRY        LCHSGeometry;
+
     /** Cryptographic support
      * @{ */
     /** Pointer to the CFGM node containing the config of the crypto filter
@@ -205,12 +367,47 @@ typedef struct VBOXDISK
     /** The secret key helper interface used to notify about missing keys. */
     PPDMISECKEYHLP           pIfSecKeyHlp;
     /** @} */
-} VBOXDISK, *PVBOXDISK;
+
+    /** @name IMEDIAEX interface support specific members.
+     * @{ */
+    /** Pointer to the IMEDIAEXPORT interface above us. */
+    PPDMIMEDIAEXPORT         pDrvMediaExPort;
+    /** Our extended media interface. */
+    PDMIMEDIAEX              IMediaEx;
+    /** Memory cache for the I/O requests. */
+    RTMEMCACHE               hIoReqCache;
+    /** I/O buffer manager. */
+    IOBUFMGR                 hIoBufMgr;
+    /** Active request counter. */
+    volatile uint32_t        cIoReqsActive;
+    /** Bins for allocated requests. */
+    VDLSTIOREQALLOC          aIoReqAllocBins[DRVVD_VDIOREQ_ALLOC_BINS];
+    /** List of requests for I/O memory to be available - VDIOREQ::NdLstWait. */
+    RTLISTANCHOR             LstIoReqIoBufWait;
+    /** Critical section protecting the list of requests waiting for I/O memory. */
+    RTCRITSECT               CritSectIoReqsIoBufWait;
+    /** Number of requests waiting for a I/O buffer. */
+    volatile uint32_t        cIoReqsWaiting;
+    /** Flag whether we have to resubmit requests on resume because the
+     * VM was suspended due to a recoverable I/O error.
+     */
+    volatile bool            fRedo;
+    /** List of requests we have to redo. */
+    RTLISTANCHOR             LstIoReqRedo;
+    /** Criticial section protecting the list of waiting requests. */
+    RTCRITSECT               CritSectIoReqRedo;
+    /** Number of errors logged so far. */
+    unsigned                 cErrors;
+    /** @} */
+} VBOXDISK;
 
 
 /*********************************************************************************************************************************
 *   Internal Functions                                                                                                           *
 *********************************************************************************************************************************/
+
+static DECLCALLBACK(void) drvvdMediaExIoReqComplete(void *pvUser1, void *pvUser2, int rcReq);
+static void drvvdPowerOffOrDestructOrUnmount(PPDMDRVINS pDrvIns);
 
 /**
  * Internal: allocate new image descriptor and put it in the list
@@ -255,7 +452,8 @@ static void drvvdFreeImages(PVBOXDISK pThis)
 static int drvvdSetReadonly(PVBOXDISK pThis)
 {
     int rc = VINF_SUCCESS;
-    if (!VDIsReadOnly(pThis->pDisk))
+    if (   pThis->pDisk
+        && !VDIsReadOnly(pThis->pDisk))
     {
         unsigned uOpenFlags;
         rc = VDGetOpenFlags(pThis->pDisk, VD_LAST_IMAGE, &uOpenFlags);
@@ -605,6 +803,13 @@ static DECLCALLBACK(int) drvvdAsyncIOSetSize(void *pvUser, void *pStorage, uint6
     PDRVVDSTORAGEBACKEND pStorageBackend = (PDRVVDSTORAGEBACKEND)pStorage;
 
     return PDMR3AsyncCompletionEpSetSize(pStorageBackend->pEndpoint, cbSize);
+}
+
+static DECLCALLBACK(int) drvvdAsyncIOSetAllocationSize(void *pvUser, void *pStorage, uint64_t cbSize,
+                                                       uint32_t fFlags)
+{
+    PVBOXDISK pDrvVD = (PVBOXDISK)pvUser;
+    return VERR_NOT_SUPPORTED;
 }
 
 #endif /* VBOX_WITH_PDM_ASYNC_COMPLETION */
@@ -1642,6 +1847,15 @@ static DECLCALLBACK(int) drvvdRead(PPDMIMEDIA pInterface,
     LogFlowFunc(("off=%#llx pvBuf=%p cbRead=%d\n", off, pvBuf, cbRead));
     PVBOXDISK pThis = PDMIMEDIA_2_VBOXDISK(pInterface);
 
+    /*
+     * Check the state.
+     */
+    if (!pThis->pDisk)
+    {
+        AssertMsgFailed(("Invalid state! Not mounted!\n"));
+        return VERR_PDM_MEDIA_NOT_MOUNTED;
+    }
+
     rc = drvvdKeyCheckPrereqs(pThis);
     if (RT_FAILURE(rc))
         return rc;
@@ -1695,6 +1909,15 @@ static DECLCALLBACK(int) drvvdReadPcBios(PPDMIMEDIA pInterface,
 
     LogFlowFunc(("off=%#llx pvBuf=%p cbRead=%d\n", off, pvBuf, cbRead));
     PVBOXDISK pThis = PDMIMEDIA_2_VBOXDISK(pInterface);
+
+    /*
+     * Check the state.
+     */
+    if (!pThis->pDisk)
+    {
+        AssertMsgFailed(("Invalid state! Not mounted!\n"));
+        return VERR_PDM_MEDIA_NOT_MOUNTED;
+    }
 
     if (   pThis->pCfgCrypto
         && !pThis->pIfSecKey)
@@ -1752,6 +1975,18 @@ static DECLCALLBACK(int) drvvdWrite(PPDMIMEDIA pInterface,
     Log2(("%s: off=%#llx pvBuf=%p cbWrite=%d\n%.*Rhxd\n", __FUNCTION__,
           off, pvBuf, cbWrite, cbWrite, pvBuf));
 
+    /*
+     * Check the state.
+     */
+    if (!pThis->pDisk)
+    {
+        AssertMsgFailed(("Invalid state! Not mounted!\n"));
+        return VERR_PDM_MEDIA_NOT_MOUNTED;
+    }
+
+    /* Set an FTM checkpoint as this operation changes the state permanently. */
+    PDMDrvHlpFTSetCheckpoint(pThis->pDrvIns, FTMCHECKPOINTTYPE_STORAGE);
+
     int rc = drvvdKeyCheckPrereqs(pThis);
     if (RT_FAILURE(rc))
         return rc;
@@ -1764,6 +1999,18 @@ static DECLCALLBACK(int) drvvdWrite(PPDMIMEDIA pInterface,
     }
 
     rc = VDWrite(pThis->pDisk, off, pvBuf, cbWrite);
+#ifdef VBOX_PERIODIC_FLUSH
+    if (pThis->cbFlushInterval)
+    {
+        pThis->cbDataWritten += (uint32_t)cbWrite;
+        if (pThis->cbDataWritten > pThis->cbFlushInterval)
+        {
+            pThis->cbDataWritten = 0;
+            VDFlush(pThis->pDisk);
+        }
+    }
+#endif /* VBOX_PERIODIC_FLUSH */
+
     LogFlowFunc(("returns %Rrc\n", rc));
     return rc;
 }
@@ -1773,6 +2020,21 @@ static DECLCALLBACK(int) drvvdFlush(PPDMIMEDIA pInterface)
 {
     LogFlowFunc(("\n"));
     PVBOXDISK pThis = PDMIMEDIA_2_VBOXDISK(pInterface);
+
+    /*
+     * Check the state.
+     */
+    if (!pThis->pDisk)
+    {
+        AssertMsgFailed(("Invalid state! Not mounted!\n"));
+        return VERR_PDM_MEDIA_NOT_MOUNTED;
+    }
+
+#ifdef VBOX_IGNORE_FLUSH
+    if (pThis->fIgnoreFlush)
+        return VINF_SUCCESS;
+#endif /* VBOX_IGNORE_FLUSH */
+
     int rc = VDFlush(pThis->pDisk);
     LogFlowFunc(("returns %Rrc\n", rc));
     return rc;
@@ -1786,6 +2048,15 @@ static DECLCALLBACK(int) drvvdMerge(PPDMIMEDIA pInterface,
     LogFlowFunc(("\n"));
     PVBOXDISK pThis = PDMIMEDIA_2_VBOXDISK(pInterface);
     int rc = VINF_SUCCESS;
+
+    /*
+     * Check the state.
+     */
+    if (!pThis->pDisk)
+    {
+        AssertMsgFailed(("Invalid state! Not mounted!\n"));
+        return VERR_PDM_MEDIA_NOT_MOUNTED;
+    }
 
     /* Note: There is an unavoidable race between destruction and another
      * thread invoking this function. This is handled safely and gracefully by
@@ -1867,6 +2138,13 @@ static DECLCALLBACK(uint64_t) drvvdGetSize(PPDMIMEDIA pInterface)
 {
     LogFlowFunc(("\n"));
     PVBOXDISK pThis = PDMIMEDIA_2_VBOXDISK(pInterface);
+
+    /*
+     * Check the state.
+     */
+    if (!pThis->pDisk)
+        return 0;
+
     uint64_t cb = VDGetSize(pThis->pDisk, VD_LAST_IMAGE);
     LogFlowFunc(("returns %#llx (%llu)\n", cb, cb));
     return cb;
@@ -1877,6 +2155,13 @@ static DECLCALLBACK(uint32_t) drvvdGetSectorSize(PPDMIMEDIA pInterface)
 {
     LogFlowFunc(("\n"));
     PVBOXDISK pThis = PDMIMEDIA_2_VBOXDISK(pInterface);
+
+    /*
+     * Check the state.
+     */
+    if (!pThis->pDisk)
+        return 0;
+
     uint32_t cb = VDGetSectorSize(pThis->pDisk, VD_LAST_IMAGE);
     LogFlowFunc(("returns %u\n", cb));
     return cb;
@@ -1887,6 +2172,13 @@ static DECLCALLBACK(bool) drvvdIsReadOnly(PPDMIMEDIA pInterface)
 {
     LogFlowFunc(("\n"));
     PVBOXDISK pThis = PDMIMEDIA_2_VBOXDISK(pInterface);
+
+    /*
+     * Check the state.
+     */
+    if (!pThis->pDisk)
+        return false;
+
     bool f = VDIsReadOnly(pThis->pDisk);
     LogFlowFunc(("returns %d\n", f));
     return f;
@@ -1899,12 +2191,32 @@ static DECLCALLBACK(int) drvvdBiosGetPCHSGeometry(PPDMIMEDIA pInterface,
     LogFlowFunc(("\n"));
     PVBOXDISK pThis = PDMIMEDIA_2_VBOXDISK(pInterface);
     VDGEOMETRY geo;
+
+    /*
+     * Check the state.
+     */
+    if (!pThis->pDisk)
+        return VERR_PDM_MEDIA_NOT_MOUNTED;
+
+    /*
+     * Use configured/cached values if present.
+     */
+    if (    pThis->PCHSGeometry.cCylinders > 0
+        &&  pThis->PCHSGeometry.cHeads > 0
+        &&  pThis->PCHSGeometry.cSectors > 0)
+    {
+        *pPCHSGeometry = pThis->PCHSGeometry;
+        LogFlow(("%s: returns VINF_SUCCESS {%d,%d,%d}\n", __FUNCTION__, pThis->PCHSGeometry.cCylinders, pThis->PCHSGeometry.cHeads, pThis->PCHSGeometry.cSectors));
+        return VINF_SUCCESS;
+    }
+
     int rc = VDGetPCHSGeometry(pThis->pDisk, VD_LAST_IMAGE, &geo);
     if (RT_SUCCESS(rc))
     {
         pPCHSGeometry->cCylinders = geo.cCylinders;
         pPCHSGeometry->cHeads = geo.cHeads;
         pPCHSGeometry->cSectors = geo.cSectors;
+        pThis->PCHSGeometry = *pPCHSGeometry;
     }
     else
     {
@@ -1924,12 +2236,24 @@ static DECLCALLBACK(int) drvvdBiosSetPCHSGeometry(PPDMIMEDIA pInterface,
                  pPCHSGeometry->cCylinders, pPCHSGeometry->cHeads, pPCHSGeometry->cSectors));
     PVBOXDISK pThis = PDMIMEDIA_2_VBOXDISK(pInterface);
     VDGEOMETRY geo;
+
+    /*
+     * Check the state.
+     */
+    if (!pThis->pDisk)
+    {
+        AssertMsgFailed(("Invalid state! Not mounted!\n"));
+        return VERR_PDM_MEDIA_NOT_MOUNTED;
+    }
+
     geo.cCylinders = pPCHSGeometry->cCylinders;
     geo.cHeads = pPCHSGeometry->cHeads;
     geo.cSectors = pPCHSGeometry->cSectors;
     int rc = VDSetPCHSGeometry(pThis->pDisk, VD_LAST_IMAGE, &geo);
     if (rc == VERR_VD_GEOMETRY_NOT_SET)
         rc = VERR_PDM_GEOMETRY_NOT_SET;
+    if (RT_SUCCESS(rc))
+        pThis->PCHSGeometry = *pPCHSGeometry;
     LogFlowFunc(("returns %Rrc\n", rc));
     return rc;
 }
@@ -1941,12 +2265,32 @@ static DECLCALLBACK(int) drvvdBiosGetLCHSGeometry(PPDMIMEDIA pInterface,
     LogFlowFunc(("\n"));
     PVBOXDISK pThis = PDMIMEDIA_2_VBOXDISK(pInterface);
     VDGEOMETRY geo;
+
+    /*
+     * Check the state.
+     */
+    if (!pThis->pDisk)
+        return VERR_PDM_MEDIA_NOT_MOUNTED;
+
+    /*
+     * Use configured/cached values if present.
+     */
+    if (    pThis->LCHSGeometry.cCylinders > 0
+        &&  pThis->LCHSGeometry.cHeads > 0
+        &&  pThis->LCHSGeometry.cSectors > 0)
+    {
+        *pLCHSGeometry = pThis->LCHSGeometry;
+        LogFlow(("%s: returns VINF_SUCCESS {%d,%d,%d}\n", __FUNCTION__, pThis->LCHSGeometry.cCylinders, pThis->LCHSGeometry.cHeads, pThis->LCHSGeometry.cSectors));
+        return VINF_SUCCESS;
+    }
+
     int rc = VDGetLCHSGeometry(pThis->pDisk, VD_LAST_IMAGE, &geo);
     if (RT_SUCCESS(rc))
     {
         pLCHSGeometry->cCylinders = geo.cCylinders;
         pLCHSGeometry->cHeads = geo.cHeads;
         pLCHSGeometry->cSectors = geo.cSectors;
+        pThis->LCHSGeometry = *pLCHSGeometry;
     }
     else
     {
@@ -1966,14 +2310,42 @@ static DECLCALLBACK(int) drvvdBiosSetLCHSGeometry(PPDMIMEDIA pInterface,
                  pLCHSGeometry->cCylinders, pLCHSGeometry->cHeads, pLCHSGeometry->cSectors));
     PVBOXDISK pThis = PDMIMEDIA_2_VBOXDISK(pInterface);
     VDGEOMETRY geo;
+
+    /*
+     * Check the state.
+     */
+    if (!pThis->pDisk)
+    {
+        AssertMsgFailed(("Invalid state! Not mounted!\n"));
+        return VERR_PDM_MEDIA_NOT_MOUNTED;
+    }
+
     geo.cCylinders = pLCHSGeometry->cCylinders;
     geo.cHeads = pLCHSGeometry->cHeads;
     geo.cSectors = pLCHSGeometry->cSectors;
     int rc = VDSetLCHSGeometry(pThis->pDisk, VD_LAST_IMAGE, &geo);
     if (rc == VERR_VD_GEOMETRY_NOT_SET)
         rc = VERR_PDM_GEOMETRY_NOT_SET;
+    if (RT_SUCCESS(rc))
+        pThis->LCHSGeometry = *pLCHSGeometry;
     LogFlowFunc(("returns %Rrc\n", rc));
     return rc;
+}
+
+/** @interface_method_impl{PDMIMEDIA,pfnBiosIsVisible} */
+static DECLCALLBACK(bool) drvvdBiosIsVisible(PPDMIMEDIA pInterface)
+{
+    PVBOXDISK pThis = PDMIMEDIA_2_VBOXDISK(pInterface);
+    LogFlow(("drvvdBiosIsVisible: returns %d\n", pThis->fBiosVisible));
+    return pThis->fBiosVisible;
+}
+
+/** @interface_method_impl{PDMIMEDIA,pfnGetType} */
+static DECLCALLBACK(PDMMEDIATYPE) drvvdGetType(PPDMIMEDIA pInterface)
+{
+    PVBOXDISK pThis = PDMIMEDIA_2_VBOXDISK(pInterface);
+    LogFlow(("drvvdBiosIsVisible: returns %d\n", pThis->fBiosVisible));
+    return pThis->enmType;
 }
 
 /** @interface_method_impl{PDMIMEDIA,pfnGetUuid} */
@@ -1981,9 +2353,13 @@ static DECLCALLBACK(int) drvvdGetUuid(PPDMIMEDIA pInterface, PRTUUID pUuid)
 {
     LogFlowFunc(("\n"));
     PVBOXDISK pThis = PDMIMEDIA_2_VBOXDISK(pInterface);
-    int rc = VDGetUuid(pThis->pDisk, 0, pUuid);
-    LogFlowFunc(("returns %Rrc ({%RTuuid})\n", rc, pUuid));
-    return rc;
+
+    /*
+     * Copy the uuid.
+     */
+    *pUuid = pThis->Uuid;
+    LogFlowFunc(("returns {%RTuuid}\n", pUuid));
+    return VINF_SUCCESS;
 }
 
 static DECLCALLBACK(int) drvvdDiscard(PPDMIMEDIA pInterface, PCRTRANGE paRanges, unsigned cRanges)
@@ -2043,11 +2419,78 @@ static DECLCALLBACK(int) drvvdIoBufFree(PPDMIMEDIA pInterface, void *pv, size_t 
 }
 
 
+/* -=-=-=-=- IMount -=-=-=-=- */
+
+/** @copydoc PDMIMOUNT::pfnUnmount */
+static DECLCALLBACK(int) drvvdUnmount(PPDMIMOUNT pInterface, bool fForce, bool fEject)
+{
+    PVBOXDISK pThis = RT_FROM_MEMBER(pInterface, VBOXDISK, IMount);
+
+    /*
+     * Validate state.
+     */
+    if (!pThis->pDisk)
+    {
+        Log(("drvvdUnmount: Not mounted\n"));
+        return VERR_PDM_MEDIA_NOT_MOUNTED;
+    }
+    if (pThis->fLocked && !fForce)
+    {
+        Log(("drvvdUnmount: Locked\n"));
+        return VERR_PDM_MEDIA_LOCKED;
+    }
+
+    /* Media is no longer locked even if it was previously. */
+    pThis->fLocked = false;
+    drvvdPowerOffOrDestructOrUnmount(pThis->pDrvIns);
+
+    /*
+     * Notify driver/device above us.
+     */
+    if (pThis->pDrvMountNotify)
+        pThis->pDrvMountNotify->pfnUnmountNotify(pThis->pDrvMountNotify);
+    Log(("drvblockUnmount: success\n"));
+    return VINF_SUCCESS;
+}
+
+
+/** @copydoc PDMIMOUNT::pfnIsMounted */
+static DECLCALLBACK(bool) drvvdIsMounted(PPDMIMOUNT pInterface)
+{
+    PVBOXDISK pThis = RT_FROM_MEMBER(pInterface, VBOXDISK, IMount);
+    return pThis->pDisk != NULL;
+}
+
+/** @copydoc PDMIMOUNT::pfnLock */
+static DECLCALLBACK(int) drvvdLock(PPDMIMOUNT pInterface)
+{
+    PVBOXDISK pThis = RT_FROM_MEMBER(pInterface, VBOXDISK, IMount);
+    Log(("drvblockLock: %d -> %d\n", pThis->fLocked, true));
+    pThis->fLocked = true;
+    return VINF_SUCCESS;
+}
+
+/** @copydoc PDMIMOUNT::pfnUnlock */
+static DECLCALLBACK(int) drvvdUnlock(PPDMIMOUNT pInterface)
+{
+    PVBOXDISK pThis = RT_FROM_MEMBER(pInterface, VBOXDISK, IMount);
+    Log(("drvblockUnlock: %d -> %d\n", pThis->fLocked, false));
+    pThis->fLocked = false;
+    return VINF_SUCCESS;
+}
+
+/** @copydoc PDMIMOUNT::pfnIsLocked */
+static DECLCALLBACK(bool) drvvdIsLocked(PPDMIMOUNT pInterface)
+{
+    PVBOXDISK pThis = RT_FROM_MEMBER(pInterface, VBOXDISK, IMount);
+    return pThis->fLocked;
+}
+
 /*********************************************************************************************************************************
 *   Async Media interface methods                                                                                                *
 *********************************************************************************************************************************/
 
-static void drvvdAsyncReqComplete(void *pvUser1, void *pvUser2, int rcReq)
+static DECLCALLBACK(void) drvvdAsyncReqComplete(void *pvUser1, void *pvUser2, int rcReq)
 {
     PVBOXDISK pThis = (PVBOXDISK)pvUser1;
 
@@ -2069,6 +2512,15 @@ static DECLCALLBACK(int) drvvdStartRead(PPDMIMEDIAASYNC pInterface, uint64_t uOf
                  uOffset, paSeg, cSeg, cbRead, pvUser));
     int rc = VINF_SUCCESS;
     PVBOXDISK pThis = PDMIMEDIAASYNC_2_VBOXDISK(pInterface);
+
+    /*
+     * Check the state.
+     */
+    if (!pThis->pDisk)
+    {
+        AssertMsgFailed(("Invalid state! Not mounted!\n"));
+        return VERR_PDM_MEDIA_NOT_MOUNTED;
+    }
 
     rc = drvvdKeyCheckPrereqs(pThis);
     if (RT_FAILURE(rc))
@@ -2103,6 +2555,15 @@ static DECLCALLBACK(int) drvvdStartWrite(PPDMIMEDIAASYNC pInterface, uint64_t uO
     int rc = VINF_SUCCESS;
     PVBOXDISK pThis = PDMIMEDIAASYNC_2_VBOXDISK(pInterface);
 
+    /*
+     * Check the state.
+     */
+    if (!pThis->pDisk)
+    {
+        AssertMsgFailed(("Invalid state! Not mounted!\n"));
+        return VERR_PDM_MEDIA_NOT_MOUNTED;
+    }
+
     rc = drvvdKeyCheckPrereqs(pThis);
     if (RT_FAILURE(rc))
         return rc;
@@ -2134,6 +2595,20 @@ static DECLCALLBACK(int) drvvdStartFlush(PPDMIMEDIAASYNC pInterface, void *pvUse
     int rc = VINF_SUCCESS;
     PVBOXDISK pThis = PDMIMEDIAASYNC_2_VBOXDISK(pInterface);
 
+    /*
+     * Check the state.
+     */
+    if (!pThis->pDisk)
+    {
+        AssertMsgFailed(("Invalid state! Not mounted!\n"));
+        return VERR_PDM_MEDIA_NOT_MOUNTED;
+    }
+
+#ifdef VBOX_IGNORE_FLUSH
+    if (pThis->fIgnoreFlushAsync)
+        return VINF_VD_ASYNC_IO_FINISHED;
+#endif /* VBOX_IGNORE_FLUSH */
+
     if (!pThis->pBlkCache)
         rc = VDAsyncFlush(pThis->pDisk, drvvdAsyncReqComplete, pThis, pvUser);
     else
@@ -2156,6 +2631,15 @@ static DECLCALLBACK(int) drvvdStartDiscard(PPDMIMEDIAASYNC pInterface, PCRTRANGE
 
     LogFlowFunc(("paRanges=%#p cRanges=%u pvUser=%#p\n",
                  paRanges, cRanges, pvUser));
+
+    /*
+     * Check the state.
+     */
+    if (!pThis->pDisk)
+    {
+        AssertMsgFailed(("Invalid state! Not mounted!\n"));
+        return VERR_PDM_MEDIA_NOT_MOUNTED;
+    }
 
     if (!pThis->pBlkCache)
         rc = VDAsyncDiscardRanges(pThis->pDisk, paRanges, cRanges, drvvdAsyncReqComplete,
@@ -2237,6 +2721,993 @@ static DECLCALLBACK(int) drvvdBlkCacheXferEnqueueDiscard(PPDMDRVINS pDrvIns, PCR
     return VINF_SUCCESS;
 }
 
+/*********************************************************************************************************************************
+*   Extended media interface methods                                                                                             *
+*********************************************************************************************************************************/
+
+static void drvvdMediaExIoReqWarningDiskFull(PPDMDRVINS pDrvIns)
+{
+    int rc;
+    LogRel(("VD#%u: Host disk full\n", pDrvIns->iInstance));
+    rc = PDMDrvHlpVMSetRuntimeError(pDrvIns, VMSETRTERR_FLAGS_SUSPEND | VMSETRTERR_FLAGS_NO_WAIT, "DrvVD_DISKFULL",
+                                    N_("Host system reported disk full. VM execution is suspended. You can resume after freeing some space"));
+    AssertRC(rc);
+}
+
+static void drvvdMediaExIoReqWarningFileTooBig(PPDMDRVINS pDrvIns)
+{
+    int rc;
+    LogRel(("VD#%u: File too big\n", pDrvIns->iInstance));
+    rc = PDMDrvHlpVMSetRuntimeError(pDrvIns, VMSETRTERR_FLAGS_SUSPEND | VMSETRTERR_FLAGS_NO_WAIT, "DrvVD_FILETOOBIG",
+                                    N_("Host system reported that the file size limit of the host file system has been exceeded. VM execution is suspended. You need to move your virtual hard disk to a filesystem which allows bigger files"));
+    AssertRC(rc);
+}
+
+static void drvvdMediaExIoReqWarningISCSI(PPDMDRVINS pDrvIns)
+{
+    int rc;
+    LogRel(("VD#%u: iSCSI target unavailable\n", pDrvIns->iInstance));
+    rc = PDMDrvHlpVMSetRuntimeError(pDrvIns, VMSETRTERR_FLAGS_SUSPEND | VMSETRTERR_FLAGS_NO_WAIT, "DrvVD_ISCSIDOWN",
+                                    N_("The iSCSI target has stopped responding. VM execution is suspended. You can resume when it is available again"));
+    AssertRC(rc);
+}
+
+/**
+ * Checks whether a given status code indicates a recoverable error
+ * suspending the VM if it is.
+ *
+ * @returns Flag indicating whether the status code is a recoverable error
+ *          (full disk, broken network connection).
+ * @param   pThis     VBox disk container instance data.
+ * @param   rc        Status code to check.
+ */
+bool drvvdMediaExIoReqIsRedoSetWarning(PVBOXDISK pThis, int rc)
+{
+    if (rc == VERR_DISK_FULL)
+    {
+        if (ASMAtomicCmpXchgBool(&pThis->fRedo, true, false))
+            drvvdMediaExIoReqWarningDiskFull(pThis->pDrvIns);
+        return true;
+    }
+    if (rc == VERR_FILE_TOO_BIG)
+    {
+        if (ASMAtomicCmpXchgBool(&pThis->fRedo, true, false))
+            drvvdMediaExIoReqWarningFileTooBig(pThis->pDrvIns);
+        return true;
+    }
+    if (rc == VERR_BROKEN_PIPE || rc == VERR_NET_CONNECTION_REFUSED)
+    {
+        /* iSCSI connection abort (first error) or failure to reestablish
+         * connection (second error). Pause VM. On resume we'll retry. */
+        if (ASMAtomicCmpXchgBool(&pThis->fRedo, true, false))
+            drvvdMediaExIoReqWarningISCSI(pThis->pDrvIns);
+        return true;
+    }
+    if (rc == VERR_VD_DEK_MISSING)
+    {
+        /* Error message already set. */
+        ASMAtomicCmpXchgBool(&pThis->fRedo, true, false);
+        return true;
+    }
+
+    return false;
+}
+
+/**
+ * Syncs the memory buffers between the I/O request allocator and the internal buffer.
+ *
+ * @returns VBox status code.
+ * @param   pThis     VBox disk container instance data.
+ * @param   pIoReq    I/O request to sync.
+ * @param   fToIoBuf  Flag indicating the sync direction.
+ *                    true to copy data from the allocators buffer to our internal buffer.
+ *                    false for the other direction.
+ */
+DECLINLINE(int) drvvdMediaExIoReqBufSync(PVBOXDISK pThis, PPDMMEDIAEXIOREQINT pIoReq, bool fToIoBuf)
+{
+    int rc = VINF_SUCCESS;
+
+    Assert(pIoReq->enmType == PDMMEDIAEXIOREQTYPE_READ || pIoReq->enmType == PDMMEDIAEXIOREQTYPE_WRITE);
+
+    /* Make sure the buffer is reset. */
+    RTSgBufReset(&pIoReq->ReadWrite.IoBuf.SgBuf);
+
+    if (fToIoBuf)
+        rc = pThis->pDrvMediaExPort->pfnIoReqCopyToBuf(pThis->pDrvMediaExPort, pIoReq, &pIoReq->abAlloc[0],
+                                                       pIoReq->ReadWrite.cbReq - pIoReq->ReadWrite.cbReqLeft,
+                                                       &pIoReq->ReadWrite.IoBuf.SgBuf,
+                                                       RT_MIN(pIoReq->ReadWrite.cbIoBuf, pIoReq->ReadWrite.cbReqLeft));
+    else
+        rc = pThis->pDrvMediaExPort->pfnIoReqCopyFromBuf(pThis->pDrvMediaExPort, pIoReq, &pIoReq->abAlloc[0],
+                                                         pIoReq->ReadWrite.cbReq - pIoReq->ReadWrite.cbReqLeft,
+                                                         &pIoReq->ReadWrite.IoBuf.SgBuf,
+                                                         RT_MIN(pIoReq->ReadWrite.cbIoBuf, pIoReq->ReadWrite.cbReqLeft));
+
+    RTSgBufReset(&pIoReq->ReadWrite.IoBuf.SgBuf);
+    return rc;
+}
+
+/**
+ * Hashes the I/O request ID to an index for the allocated I/O request bin.
+ */
+DECLINLINE(unsigned) drvvdMediaExIoReqIdHash(PDMMEDIAEXIOREQID uIoReqId)
+{
+    return uIoReqId % DRVVD_VDIOREQ_ALLOC_BINS; /** @todo: Find something better? */
+}
+
+/**
+ * Inserts the given I/O request in to the list of allocated I/O requests.
+ *
+ * @returns VBox status code.
+ * @param   pThis     VBox disk container instance data.
+ * @param   pIoReq    I/O request to insert.
+ */
+static int drvvdMediaExIoReqInsert(PVBOXDISK pThis, PPDMMEDIAEXIOREQINT pIoReq)
+{
+    int rc = VINF_SUCCESS;
+    unsigned idxBin = drvvdMediaExIoReqIdHash(pIoReq->uIoReqId);
+
+    rc = RTSemFastMutexRequest(pThis->aIoReqAllocBins[idxBin].hMtxLstIoReqAlloc);
+    if (RT_SUCCESS(rc))
+    {
+        /* Search for conflicting I/O request ID. */
+        PPDMMEDIAEXIOREQINT pIt;
+        RTListForEach(&pThis->aIoReqAllocBins[idxBin].LstIoReqAlloc, pIt, PDMMEDIAEXIOREQINT, NdAllocatedList)
+        {
+            if (RT_UNLIKELY(pIt->uIoReqId == pIoReq->uIoReqId))
+            {
+                rc = VERR_PDM_MEDIAEX_IOREQID_CONFLICT;
+                break;
+            }
+        }
+        if (RT_SUCCESS(rc))
+            RTListAppend(&pThis->aIoReqAllocBins[idxBin].LstIoReqAlloc, &pIoReq->NdAllocatedList);
+        RTSemFastMutexRelease(pThis->aIoReqAllocBins[idxBin].hMtxLstIoReqAlloc);
+    }
+
+    return rc;
+}
+
+/**
+ * Removes the given I/O request from the list of allocated I/O requests.
+ *
+ * @returns VBox status code.
+ * @param   pThis     VBox disk container instance data.
+ * @param   pIoReq    I/O request to insert.
+ */
+static int drvvdMediaExIoReqRemove(PVBOXDISK pThis, PPDMMEDIAEXIOREQINT pIoReq)
+{
+    int rc = VINF_SUCCESS;
+    unsigned idxBin = drvvdMediaExIoReqIdHash(pIoReq->uIoReqId);
+
+    rc = RTSemFastMutexRequest(pThis->aIoReqAllocBins[idxBin].hMtxLstIoReqAlloc);
+    if (RT_SUCCESS(rc))
+    {
+        RTListNodeRemove(&pIoReq->NdAllocatedList);
+        RTSemFastMutexRelease(pThis->aIoReqAllocBins[idxBin].hMtxLstIoReqAlloc);
+    }
+
+    return rc;
+}
+
+/**
+ * I/O request completion worker.
+ *
+ * @returns VBox status code.
+ * @param   pThis     VBox disk container instance data.
+ * @param   pIoReq    I/O request to complete.
+ * @param   rcReq     The status code the request completed with.
+ * @param   fUpNotify Flag whether to notify the driver/device above us about the completion.
+ */
+static int drvvdMediaExIoReqCompleteWorker(PVBOXDISK pThis, PPDMMEDIAEXIOREQINT pIoReq, int rcReq, bool fUpNotify)
+{
+    int rc;
+    bool fXchg = ASMAtomicCmpXchgU32((volatile uint32_t *)&pIoReq->enmState, VDIOREQSTATE_COMPLETING, VDIOREQSTATE_ACTIVE);
+    if (fXchg)
+        ASMAtomicDecU32(&pThis->cIoReqsActive);
+    else
+    {
+        Assert(pIoReq->enmState == VDIOREQSTATE_CANCELED);
+        rcReq = VERR_PDM_MEDIAEX_IOREQ_CANCELED;
+    }
+
+    ASMAtomicXchgU32((volatile uint32_t *)&pIoReq->enmState, VDIOREQSTATE_COMPLETED);
+
+    /*
+     * Leave a release log entry if the request was active for more than 25 seconds
+     * (30 seconds is the timeout of the guest).
+     */
+    uint64_t tsNow = RTTimeMilliTS();
+    if (tsNow - pIoReq->tsSubmit >= 25 * 1000)
+    {
+        const char *pcszReq = NULL;
+
+        switch (pIoReq->enmType)
+        {
+            case PDMMEDIAEXIOREQTYPE_READ:
+                pcszReq = "Read";
+                break;
+            case PDMMEDIAEXIOREQTYPE_WRITE:
+                pcszReq = "Write";
+                break;
+            case PDMMEDIAEXIOREQTYPE_FLUSH:
+                pcszReq = "Flush";
+                break;
+            case PDMMEDIAEXIOREQTYPE_DISCARD:
+                pcszReq = "Discard";
+                break;
+            default:
+                pcszReq = "<Invalid>";
+        }
+
+        LogRel(("VD#%u: %s request was active for %llu seconds\n",
+                pThis->pDrvIns->iInstance, pcszReq, (tsNow - pIoReq->tsSubmit) / 1000));
+    }
+
+    if (RT_FAILURE(rcReq))
+    {
+        /* Log the error. */
+        if (pThis->cErrors++ < DRVVD_MAX_LOG_REL_ERRORS)
+        {
+            if (rcReq == VERR_PDM_MEDIAEX_IOREQ_CANCELED)
+            {
+                if (pIoReq->enmType == PDMMEDIAEXIOREQTYPE_FLUSH)
+                    LogRel(("VD#%u: Aborted flush returned rc=%Rrc\n",
+                            pThis->pDrvIns->iInstance, rcReq));
+                else
+                    LogRel(("VD#%u: Aborted %s (%u bytes left) returned rc=%Rrc\n",
+                            pThis->pDrvIns->iInstance,
+                            pIoReq->enmType == PDMMEDIAEXIOREQTYPE_READ
+                            ? "read"
+                            : "write",
+                            pIoReq->ReadWrite.cbReqLeft, rcReq));
+            }
+            else
+            {
+                if (pIoReq->enmType == PDMMEDIAEXIOREQTYPE_FLUSH)
+                    LogRel(("VD#%u: Flush returned rc=%Rrc\n",
+                            pThis->pDrvIns->iInstance, rcReq));
+                else
+                    LogRel(("VD#%u: %s (%u bytes left) returned rc=%Rrc\n",
+                            pThis->pDrvIns->iInstance,
+                            pIoReq->enmType == PDMMEDIAEXIOREQTYPE_READ
+                            ? "Read"
+                            : "Write",
+                            pIoReq->ReadWrite.cbReqLeft, rcReq));
+            }
+        }
+    }
+
+    if (fUpNotify)
+    {
+        rc = pThis->pDrvMediaExPort->pfnIoReqCompleteNotify(pThis->pDrvMediaExPort,
+                                                            pIoReq, &pIoReq->abAlloc[0], rcReq);
+        AssertRC(rc);
+    }
+
+    return rcReq;
+}
+
+
+/**
+ * Allocates a memory buffer suitable for I/O for the given request.
+ *
+ * @returns VBox status code.
+ * @param   VINF_PDM_MEDIAEX_IOREQ_IN_PROGRESS if there is no I/O memory available to allocate and
+ *          the request was placed on a waiting list.
+ * @param   pThis     VBox disk container instance data.
+ * @param   pIoReq    I/O request to allocate memory for.
+ * @param   cb        Size of the buffer.
+ */
+DECLINLINE(int) drvvdMediaExIoReqBufAlloc(PVBOXDISK pThis, PPDMMEDIAEXIOREQINT pIoReq, size_t cb)
+{
+    int rc = IOBUFMgrAllocBuf(pThis->hIoBufMgr, &pIoReq->ReadWrite.IoBuf, cb, &pIoReq->ReadWrite.cbIoBuf);
+    if (rc == VERR_NO_MEMORY)
+    {
+        RTCritSectEnter(&pThis->CritSectIoReqsIoBufWait);
+        RTListAppend(&pThis->LstIoReqIoBufWait, &pIoReq->NdLstWait);
+        RTCritSectLeave(&pThis->CritSectIoReqsIoBufWait);
+        ASMAtomicIncU32(&pThis->cIoReqsWaiting);
+        rc = VINF_PDM_MEDIAEX_IOREQ_IN_PROGRESS;
+    }
+
+    return rc;
+}
+
+
+/**
+ * Processes a read/write request.
+ *
+ * @returns VBox status code.
+ * @param   pThis     VBox disk container instance data.
+ * @param   pIoReq    I/O request to process.
+ * @param   fUpNotify Flag whether to notify the driver/device above us about the completion.
+ */
+static int drvvdMediaExIoReqReadWriteProcess(PVBOXDISK pThis, PPDMMEDIAEXIOREQINT pIoReq, bool fUpNotify)
+{
+    int rc = VINF_SUCCESS;
+
+    Assert(pIoReq->enmType == PDMMEDIAEXIOREQTYPE_READ || pIoReq->enmType == PDMMEDIAEXIOREQTYPE_WRITE);
+
+    while (   pIoReq->ReadWrite.cbReqLeft
+           && rc == VINF_SUCCESS)
+    {
+        size_t cbReqIo = RT_MIN(pIoReq->ReadWrite.cbReqLeft, pIoReq->ReadWrite.cbIoBuf);
+
+        if (pIoReq->enmType == PDMMEDIAEXIOREQTYPE_READ)
+            rc = VDAsyncRead(pThis->pDisk, pIoReq->ReadWrite.offStart, cbReqIo, &pIoReq->ReadWrite.IoBuf.SgBuf,
+                             drvvdMediaExIoReqComplete, pThis, pIoReq);
+        else
+        {
+            /* Sync memory buffer from the request initiator. */
+            rc = drvvdMediaExIoReqBufSync(pThis, pIoReq, true /* fToIoBuf */);
+            if (RT_SUCCESS(rc))
+            {
+                rc = VDAsyncWrite(pThis->pDisk, pIoReq->ReadWrite.offStart, cbReqIo,
+                                  &pIoReq->ReadWrite.IoBuf.SgBuf,
+                                  drvvdMediaExIoReqComplete, pThis, pIoReq);
+            }
+        }
+
+        if (rc == VERR_VD_ASYNC_IO_IN_PROGRESS)
+            rc = VINF_PDM_MEDIAEX_IOREQ_IN_PROGRESS;
+        else if (rc == VINF_VD_ASYNC_IO_FINISHED)
+        {
+            if (pIoReq->enmType == PDMMEDIAEXIOREQTYPE_READ)
+                rc = drvvdMediaExIoReqBufSync(pThis, pIoReq, false /* fToIoBuf */);
+            else
+                rc = VINF_SUCCESS;
+            pIoReq->ReadWrite.offStart  += cbReqIo;
+            pIoReq->ReadWrite.cbReqLeft -= cbReqIo;
+        }
+    }
+
+    if (rc != VINF_PDM_MEDIAEX_IOREQ_IN_PROGRESS)
+    {
+        Assert(!pIoReq->ReadWrite.cbReqLeft || RT_FAILURE(rc));
+        rc = drvvdMediaExIoReqCompleteWorker(pThis, pIoReq, rc, fUpNotify);
+    }
+
+    return rc;
+}
+
+
+/**
+ * Frees a I/O memory buffer allocated previously.
+ *
+ * @returns nothing.
+ * @param   pThis     VBox disk container instance data.
+ * @param   pIoReq    I/O request for which to free memory.
+ */
+DECLINLINE(void) drvvdMediaExIoReqBufFree(PVBOXDISK pThis, PPDMMEDIAEXIOREQINT pIoReq)
+{
+    if (   pIoReq->enmType == PDMMEDIAEXIOREQTYPE_READ
+        || pIoReq->enmType == PDMMEDIAEXIOREQTYPE_WRITE)
+    {
+        IOBUFMgrFreeBuf(&pIoReq->ReadWrite.IoBuf);
+
+        if (ASMAtomicReadU32(&pThis->cIoReqsWaiting) > 0)
+        {
+            /* Try to process as many requests as possible. */
+            RTCritSectEnter(&pThis->CritSectIoReqsIoBufWait);
+            PPDMMEDIAEXIOREQINT pIoReqCur, pIoReqNext;
+
+            RTListForEachSafe(&pThis->LstIoReqIoBufWait, pIoReqCur, pIoReqNext, PDMMEDIAEXIOREQINT, NdLstWait)
+            {
+                /* Allocate a suitable I/O buffer for this request. */
+                int rc = IOBUFMgrAllocBuf(pThis->hIoBufMgr, &pIoReqCur->ReadWrite.IoBuf, pIoReqCur->ReadWrite.cbReq,
+                                          &pIoReqCur->ReadWrite.cbIoBuf);
+                if (rc == VINF_SUCCESS)
+                {
+                    ASMAtomicDecU32(&pThis->cIoReqsWaiting);
+                    RTListNodeRemove(&pIoReqCur->NdLstWait);
+
+                    bool fXchg = ASMAtomicCmpXchgU32((volatile uint32_t *)&pIoReqCur->enmState, VDIOREQSTATE_ACTIVE, VDIOREQSTATE_ALLOCATED);
+                    if (RT_UNLIKELY(!fXchg))
+                    {
+                        /* Must have been canceled inbetween. */
+                        Assert(pIoReq->enmState == VDIOREQSTATE_CANCELED);
+                        drvvdMediaExIoReqCompleteWorker(pThis, pIoReqCur, VERR_PDM_MEDIAEX_IOREQ_CANCELED, true /* fUpNotify */);
+                    }
+                    ASMAtomicIncU32(&pThis->cIoReqsActive);
+                    rc = drvvdMediaExIoReqReadWriteProcess(pThis, pIoReqCur, true /* fUpNotify */);
+                }
+                else
+                {
+                    Assert(rc == VERR_NO_MEMORY);
+                    break;
+                }
+            }
+            RTCritSectLeave(&pThis->CritSectIoReqsIoBufWait);
+        }
+    }
+}
+
+
+/**
+ * Returns whether the VM is in a running state.
+ *
+ * @returns Flag indicating whether the VM is currently in a running state.
+ * @param   pThis     VBox disk container instance data.
+ */
+DECLINLINE(bool) drvvdMediaExIoReqIsVmRunning(PVBOXDISK pThis)
+{
+    VMSTATE enmVmState = PDMDrvHlpVMState(pThis->pDrvIns);
+    if (   enmVmState == VMSTATE_RESUMING
+        || enmVmState == VMSTATE_RUNNING
+        || enmVmState == VMSTATE_RUNNING_LS
+        || enmVmState == VMSTATE_RUNNING_FT
+        || enmVmState == VMSTATE_RESETTING
+        || enmVmState == VMSTATE_RESETTING_LS
+        || enmVmState == VMSTATE_SOFT_RESETTING
+        || enmVmState == VMSTATE_SOFT_RESETTING_LS
+        || enmVmState == VMSTATE_SUSPENDING
+        || enmVmState == VMSTATE_SUSPENDING_LS
+        || enmVmState == VMSTATE_SUSPENDING_EXT_LS)
+        return true;
+
+    return false;
+}
+
+/**
+ * @copydoc FNVDASYNCTRANSFERCOMPLETE
+ */
+static DECLCALLBACK(void) drvvdMediaExIoReqComplete(void *pvUser1, void *pvUser2, int rcReq)
+{
+    PVBOXDISK pThis = (PVBOXDISK)pvUser1;
+    PPDMMEDIAEXIOREQINT pIoReq = (PPDMMEDIAEXIOREQINT)pvUser2;
+
+    /*
+     * For a read we need to sync the memory before continuing to process
+     * the request further.
+     */
+    if (   RT_SUCCESS(rcReq)
+        && pIoReq->enmType == PDMMEDIAEXIOREQTYPE_READ)
+        rcReq = drvvdMediaExIoReqBufSync(pThis, pIoReq, false /* fToIoBuf */);
+
+    /*
+     * When the request owner instructs us to handle recoverable errors like full disks
+     * do it. Mark the request as suspended, notify the owner and put the request on the
+     * redo list.
+     */
+    if (   RT_FAILURE(rcReq)
+        && (pIoReq->fFlags & PDMIMEDIAEX_F_SUSPEND_ON_RECOVERABLE_ERR)
+        && drvvdMediaExIoReqIsRedoSetWarning(pThis, rcReq))
+    {
+        int rc;
+        bool fXchg = ASMAtomicCmpXchgU32((volatile uint32_t *)&pIoReq->enmState, VDIOREQSTATE_SUSPENDED, VDIOREQSTATE_ACTIVE);
+        if (fXchg)
+        {
+            /* Put on redo list and adjust active request counter. */
+            RTCritSectEnter(&pThis->CritSectIoReqRedo);
+            RTListAppend(&pThis->LstIoReqRedo, &pIoReq->NdLstWait);
+            RTCritSectLeave(&pThis->CritSectIoReqRedo);
+            ASMAtomicDecU32(&pThis->cIoReqsActive);
+            pThis->pDrvMediaExPort->pfnIoReqStateChanged(pThis->pDrvMediaExPort, pIoReq, &pIoReq->abAlloc[0],
+                                                         PDMMEDIAEXIOREQSTATE_SUSPENDED);
+        }
+        else
+        {
+            /* Request was canceled inbetween, so don't care and notify the owner about the completed request. */
+            Assert(pIoReq->enmState == VDIOREQSTATE_CANCELED);
+            drvvdMediaExIoReqCompleteWorker(pThis, pIoReq, rcReq, true /* fUpNotify */);
+        }
+    }
+    else
+    {
+        /* Adjust the remaining amount to transfer. */
+        size_t cbReqIo = RT_MIN(pIoReq->ReadWrite.cbReqLeft, pIoReq->ReadWrite.cbIoBuf);
+        pIoReq->ReadWrite.offStart  += cbReqIo;
+        pIoReq->ReadWrite.cbReqLeft -= cbReqIo;
+
+        if (   RT_FAILURE(rcReq)
+            || !pIoReq->ReadWrite.cbReqLeft
+            || (   pIoReq->enmType != PDMMEDIAEXIOREQTYPE_READ
+                && pIoReq->enmType != PDMMEDIAEXIOREQTYPE_WRITE))
+            drvvdMediaExIoReqCompleteWorker(pThis, pIoReq, rcReq, true /* fUpNotify */);
+        else
+            drvvdMediaExIoReqReadWriteProcess(pThis, pIoReq, true /* fUpNotify */);
+    }
+}
+
+/**
+ * @interface_method_impl{PDMIMEDIAEX,pfnIoReqAllocSizeSet}
+ */
+static DECLCALLBACK(int) drvvdIoReqAllocSizeSet(PPDMIMEDIAEX pInterface, size_t cbIoReqAlloc)
+{
+    PVBOXDISK pThis = RT_FROM_MEMBER(pInterface, VBOXDISK, IMediaEx);
+    int rc = VINF_SUCCESS;
+
+    if (RT_UNLIKELY(pThis->hIoReqCache != NIL_RTMEMCACHE))
+        return VERR_INVALID_STATE;
+
+    return RTMemCacheCreate(&pThis->hIoReqCache, sizeof(PDMMEDIAEXIOREQINT) + cbIoReqAlloc, 0, UINT32_MAX,
+                            NULL, NULL, NULL, 0);
+}
+
+/**
+ * @interface_method_impl{PDMIMEDIAEX,pfnIoReqAlloc}
+ */
+static DECLCALLBACK(int) drvvdIoReqAlloc(PPDMIMEDIAEX pInterface, PPDMMEDIAEXIOREQ phIoReq, void **ppvIoReqAlloc,
+                                         PDMMEDIAEXIOREQID uIoReqId, uint32_t fFlags)
+{
+    PVBOXDISK pThis = RT_FROM_MEMBER(pInterface, VBOXDISK, IMediaEx);
+
+    AssertReturn(!(fFlags & ~PDMIMEDIAEX_F_VALID), VERR_INVALID_PARAMETER);
+
+    PPDMMEDIAEXIOREQINT pIoReq = (PPDMMEDIAEXIOREQINT)RTMemCacheAlloc(pThis->hIoReqCache);
+
+    if (RT_UNLIKELY(!pIoReq))
+        return VERR_NO_MEMORY;
+
+    pIoReq->uIoReqId      = uIoReqId;
+    pIoReq->fFlags        = fFlags;
+    pIoReq->pDisk         = pThis;
+    pIoReq->enmState      = VDIOREQSTATE_ALLOCATED;
+    pIoReq->enmType       = PDMMEDIAEXIOREQTYPE_INVALID;
+
+    int rc = drvvdMediaExIoReqInsert(pThis, pIoReq);
+    if (RT_SUCCESS(rc))
+    {
+        *phIoReq = pIoReq;
+        *ppvIoReqAlloc = &pIoReq->abAlloc[0];
+    }
+    else
+        RTMemCacheFree(pThis->hIoReqCache, pIoReq);
+
+    return rc;
+}
+
+/**
+ * @interface_method_impl{PDMIMEDIAEX,pfnIoReqFree}
+ */
+static DECLCALLBACK(int) drvvdIoReqFree(PPDMIMEDIAEX pInterface, PDMMEDIAEXIOREQ hIoReq)
+{
+    PVBOXDISK pThis = RT_FROM_MEMBER(pInterface, VBOXDISK, IMediaEx);
+    PPDMMEDIAEXIOREQINT pIoReq = hIoReq;
+
+    if (   pIoReq->enmState != VDIOREQSTATE_COMPLETED
+        && pIoReq->enmState != VDIOREQSTATE_ALLOCATED)
+        return VERR_PDM_MEDIAEX_IOREQ_INVALID_STATE;
+
+    /* Remove from allocated list. */
+    int rc = drvvdMediaExIoReqRemove(pThis, pIoReq);
+    if (RT_FAILURE(rc))
+        return rc;
+
+    /* Free any associated I/O memory. */
+    drvvdMediaExIoReqBufFree(pThis, pIoReq);
+
+    /* For discard request discard the range array. */
+    if (   pIoReq->enmType == PDMMEDIAEXIOREQTYPE_DISCARD
+        && pIoReq->Discard.paRanges)
+    {
+        RTMemFree(pIoReq->Discard.paRanges);
+        pIoReq->Discard.paRanges = NULL;
+    }
+
+    pIoReq->enmState = VDIOREQSTATE_FREE;
+    RTMemCacheFree(pThis->hIoReqCache, pIoReq);
+    return VINF_SUCCESS;
+}
+
+/**
+ * @interface_method_impl{PDMIMEDIAEX,pfnIoReqCancel}
+ */
+static DECLCALLBACK(int) drvvdIoReqCancel(PPDMIMEDIAEX pInterface, PDMMEDIAEXIOREQID uIoReqId)
+{
+    PVBOXDISK pThis = RT_FROM_MEMBER(pInterface, VBOXDISK, IMediaEx);
+    unsigned idxBin = drvvdMediaExIoReqIdHash(uIoReqId);
+
+    int rc = RTSemFastMutexRequest(pThis->aIoReqAllocBins[idxBin].hMtxLstIoReqAlloc);
+    if (RT_SUCCESS(rc))
+    {
+        /* Search for I/O request with ID. */
+        PPDMMEDIAEXIOREQINT pIt;
+        rc = VERR_PDM_MEDIAEX_IOREQID_NOT_FOUND;
+
+        RTListForEach(&pThis->aIoReqAllocBins[idxBin].LstIoReqAlloc, pIt, PDMMEDIAEXIOREQINT, NdAllocatedList)
+        {
+            if (pIt->uIoReqId == uIoReqId)
+            {
+                bool fXchg = true;
+                VDIOREQSTATE enmStateOld = (VDIOREQSTATE)ASMAtomicReadU32((volatile uint32_t *)&pIt->enmState);
+
+                /*
+                 * We might have to try canceling the request multiple times if it transitioned from
+                 * ALLOCATED to ACTIVE or to SUSPENDED between reading the state and trying to change it.
+                 */
+                while (   (   enmStateOld == VDIOREQSTATE_ALLOCATED
+                           || enmStateOld == VDIOREQSTATE_ACTIVE
+                           || enmStateOld == VDIOREQSTATE_SUSPENDED)
+                       && !fXchg)
+                {
+                    fXchg = ASMAtomicCmpXchgU32((volatile uint32_t *)&pIt->enmState, VDIOREQSTATE_CANCELED, enmStateOld);
+                    if (!fXchg)
+                        enmStateOld = (VDIOREQSTATE)ASMAtomicReadU32((volatile uint32_t *)&pIt->enmState);
+                }
+
+                if (fXchg)
+                {
+                    ASMAtomicDecU32(&pThis->cIoReqsActive);
+                    rc = VINF_SUCCESS;
+                }
+                break;
+            }
+        }
+        RTSemFastMutexRelease(pThis->aIoReqAllocBins[idxBin].hMtxLstIoReqAlloc);
+    }
+
+    return rc;
+}
+
+/**
+ * @interface_method_impl{PDMIMEDIAEX,pfnIoReqRead}
+ */
+static DECLCALLBACK(int) drvvdIoReqRead(PPDMIMEDIAEX pInterface, PDMMEDIAEXIOREQ hIoReq, uint64_t off, size_t cbRead)
+{
+    PVBOXDISK pThis = RT_FROM_MEMBER(pInterface, VBOXDISK, IMediaEx);
+    PPDMMEDIAEXIOREQINT pIoReq = hIoReq;
+    VDIOREQSTATE enmState = (VDIOREQSTATE)ASMAtomicReadU32((volatile uint32_t *)&pIoReq->enmState);
+
+    if (RT_UNLIKELY(enmState == VDIOREQSTATE_CANCELED))
+        return VERR_PDM_MEDIAEX_IOREQ_CANCELED;
+
+    if (RT_UNLIKELY(enmState != VDIOREQSTATE_ALLOCATED))
+        return VERR_PDM_MEDIAEX_IOREQ_INVALID_STATE;
+
+    pIoReq->enmType             = PDMMEDIAEXIOREQTYPE_READ;
+    pIoReq->tsSubmit            = RTTimeMilliTS();
+    pIoReq->ReadWrite.offStart  = off;
+    pIoReq->ReadWrite.cbReq     = cbRead;
+    pIoReq->ReadWrite.cbReqLeft = cbRead;
+    /* Allocate a suitable I/O buffer for this request. */
+    int rc = drvvdMediaExIoReqBufAlloc(pThis, pIoReq, cbRead);
+    if (rc == VINF_SUCCESS)
+    {
+        bool fXchg = ASMAtomicCmpXchgU32((volatile uint32_t *)&pIoReq->enmState, VDIOREQSTATE_ACTIVE, VDIOREQSTATE_ALLOCATED);
+        if (RT_UNLIKELY(!fXchg))
+        {
+            /* Must have been canceled inbetween. */
+            Assert(pIoReq->enmState == VDIOREQSTATE_CANCELED);
+            return VERR_PDM_MEDIAEX_IOREQ_CANCELED;
+        }
+        ASMAtomicIncU32(&pThis->cIoReqsActive);
+
+        rc = drvvdMediaExIoReqReadWriteProcess(pThis, pIoReq, false /* fUpNotify */);
+    }
+
+    return rc;
+}
+
+/**
+ * @interface_method_impl{PDMIMEDIAEX,pfnIoReqWrite}
+ */
+static DECLCALLBACK(int) drvvdIoReqWrite(PPDMIMEDIAEX pInterface, PDMMEDIAEXIOREQ hIoReq, uint64_t off, size_t cbWrite)
+{
+    PVBOXDISK pThis = RT_FROM_MEMBER(pInterface, VBOXDISK, IMediaEx);
+    PPDMMEDIAEXIOREQINT pIoReq = hIoReq;
+    VDIOREQSTATE enmState = (VDIOREQSTATE)ASMAtomicReadU32((volatile uint32_t *)&pIoReq->enmState);
+
+    if (RT_UNLIKELY(enmState == VDIOREQSTATE_CANCELED))
+        return VERR_PDM_MEDIAEX_IOREQ_CANCELED;
+
+    if (RT_UNLIKELY(enmState != VDIOREQSTATE_ALLOCATED))
+        return VERR_PDM_MEDIAEX_IOREQ_INVALID_STATE;
+
+    pIoReq->enmType             = PDMMEDIAEXIOREQTYPE_WRITE;
+    pIoReq->tsSubmit            = RTTimeMilliTS();
+    pIoReq->ReadWrite.offStart  = off;
+    pIoReq->ReadWrite.cbReq     = cbWrite;
+    pIoReq->ReadWrite.cbReqLeft = cbWrite;
+    /* Allocate a suitable I/O buffer for this request. */
+    int rc = drvvdMediaExIoReqBufAlloc(pThis, pIoReq, cbWrite);
+    if (rc == VINF_SUCCESS)
+    {
+        bool fXchg = ASMAtomicCmpXchgU32((volatile uint32_t *)&pIoReq->enmState, VDIOREQSTATE_ACTIVE, VDIOREQSTATE_ALLOCATED);
+        if (RT_UNLIKELY(!fXchg))
+        {
+            /* Must have been canceled inbetween. */
+            Assert(pIoReq->enmState == VDIOREQSTATE_CANCELED);
+            return VERR_PDM_MEDIAEX_IOREQ_CANCELED;
+        }
+        ASMAtomicIncU32(&pThis->cIoReqsActive);
+
+        rc = drvvdMediaExIoReqReadWriteProcess(pThis, pIoReq, false /* fUpNotify */);
+    }
+
+    return rc;
+}
+
+/**
+ * @interface_method_impl{PDMIMEDIAEX,pfnIoReqFlush}
+ */
+static DECLCALLBACK(int) drvvdIoReqFlush(PPDMIMEDIAEX pInterface, PDMMEDIAEXIOREQ hIoReq)
+{
+    PVBOXDISK pThis = RT_FROM_MEMBER(pInterface, VBOXDISK, IMediaEx);
+    PPDMMEDIAEXIOREQINT pIoReq = hIoReq;
+    VDIOREQSTATE enmState = (VDIOREQSTATE)ASMAtomicReadU32((volatile uint32_t *)&pIoReq->enmState);
+
+    if (RT_UNLIKELY(enmState == VDIOREQSTATE_CANCELED))
+        return VERR_PDM_MEDIAEX_IOREQ_CANCELED;
+
+    if (RT_UNLIKELY(enmState != VDIOREQSTATE_ALLOCATED))
+        return VERR_PDM_MEDIAEX_IOREQ_INVALID_STATE;
+
+    pIoReq->enmType  = PDMMEDIAEXIOREQTYPE_FLUSH;
+    pIoReq->tsSubmit = RTTimeMilliTS();
+    bool fXchg = ASMAtomicCmpXchgU32((volatile uint32_t *)&pIoReq->enmState, VDIOREQSTATE_ACTIVE, VDIOREQSTATE_ALLOCATED);
+    if (RT_UNLIKELY(!fXchg))
+    {
+        /* Must have been canceled inbetween. */
+        Assert(pIoReq->enmState == VDIOREQSTATE_CANCELED);
+        return VERR_PDM_MEDIAEX_IOREQ_CANCELED;
+    }
+
+    ASMAtomicIncU32(&pThis->cIoReqsActive);
+    int rc = VDAsyncFlush(pThis->pDisk, drvvdMediaExIoReqComplete, pThis, pIoReq);
+    if (rc == VERR_VD_ASYNC_IO_IN_PROGRESS)
+        rc = VINF_PDM_MEDIAEX_IOREQ_IN_PROGRESS;
+    else if (rc == VINF_VD_ASYNC_IO_FINISHED)
+        rc = VINF_SUCCESS;
+
+    if (rc != VINF_PDM_MEDIAEX_IOREQ_IN_PROGRESS)
+        rc = drvvdMediaExIoReqCompleteWorker(pThis, pIoReq, rc, false /* fUpNotify */);
+
+    return rc;
+}
+
+/**
+ * @interface_method_impl{PDMIMEDIAEX,pfnIoReqDiscard}
+ */
+static DECLCALLBACK(int) drvvdIoReqDiscard(PPDMIMEDIAEX pInterface, PDMMEDIAEXIOREQ hIoReq, PCRTRANGE paRanges, unsigned cRanges)
+{
+    PVBOXDISK pThis = RT_FROM_MEMBER(pInterface, VBOXDISK, IMediaEx);
+    PPDMMEDIAEXIOREQINT pIoReq = hIoReq;
+    VDIOREQSTATE enmState = (VDIOREQSTATE)ASMAtomicReadU32((volatile uint32_t *)&pIoReq->enmState);
+
+    if (RT_UNLIKELY(enmState == VDIOREQSTATE_CANCELED))
+        return VERR_PDM_MEDIAEX_IOREQ_CANCELED;
+
+    if (RT_UNLIKELY(enmState != VDIOREQSTATE_ALLOCATED))
+        return VERR_PDM_MEDIAEX_IOREQ_INVALID_STATE;
+
+    pIoReq->enmType  = PDMMEDIAEXIOREQTYPE_DISCARD;
+    pIoReq->tsSubmit = RTTimeMilliTS();
+    /* Copy the ranges over because they might not be valid anymore when this method returns. */
+    pIoReq->Discard.paRanges = (PRTRANGE)RTMemDup(paRanges, cRanges * sizeof(RTRANGE));
+    if (RT_UNLIKELY(!pIoReq->Discard.paRanges))
+        return VERR_NO_MEMORY;
+
+    bool fXchg = ASMAtomicCmpXchgU32((volatile uint32_t *)&pIoReq->enmState, VDIOREQSTATE_ACTIVE, VDIOREQSTATE_ALLOCATED);
+    if (RT_UNLIKELY(!fXchg))
+    {
+        /* Must have been canceled inbetween. */
+        Assert(pIoReq->enmState == VDIOREQSTATE_CANCELED);
+        return VERR_PDM_MEDIAEX_IOREQ_CANCELED;
+    }
+
+    ASMAtomicIncU32(&pThis->cIoReqsActive);
+    int rc = VDAsyncDiscardRanges(pThis->pDisk, paRanges, cRanges,
+                                  drvvdMediaExIoReqComplete, pThis, pIoReq);
+    if (rc == VERR_VD_ASYNC_IO_IN_PROGRESS)
+        rc = VINF_PDM_MEDIAEX_IOREQ_IN_PROGRESS;
+    else if (rc == VINF_VD_ASYNC_IO_FINISHED)
+        rc = VINF_SUCCESS;
+
+    if (rc != VINF_PDM_MEDIAEX_IOREQ_IN_PROGRESS)
+        rc = drvvdMediaExIoReqCompleteWorker(pThis, pIoReq, rc, false /* fUpNotify */);
+
+    return rc;
+}
+
+/**
+ * @interface_method_impl{PDMIMEDIAEX,pfnIoReqGetActiveCount}
+ */
+static DECLCALLBACK(uint32_t) drvvdIoReqGetActiveCount(PPDMIMEDIAEX pInterface)
+{
+    PVBOXDISK pThis = RT_FROM_MEMBER(pInterface, VBOXDISK, IMediaEx);
+    return ASMAtomicReadU32(&pThis->cIoReqsActive);
+}
+
+/**
+ * @interface_method_impl{PDMIMEDIAEX,pfnIoReqGetSuspendedCount}
+ */
+static DECLCALLBACK(uint32_t) drvvdIoReqGetSuspendedCount(PPDMIMEDIAEX pInterface)
+{
+    PVBOXDISK pThis = RT_FROM_MEMBER(pInterface, VBOXDISK, IMediaEx);
+
+    AssertReturn(!drvvdMediaExIoReqIsVmRunning(pThis), 0);
+
+    uint32_t cIoReqSuspended = 0;
+    PPDMMEDIAEXIOREQINT pIoReq;
+    RTCritSectEnter(&pThis->CritSectIoReqRedo);
+    RTListForEach(&pThis->LstIoReqRedo, pIoReq, PDMMEDIAEXIOREQINT, NdLstWait)
+    {
+        cIoReqSuspended++;
+    }
+    RTCritSectLeave(&pThis->CritSectIoReqRedo);
+
+    return cIoReqSuspended;
+}
+
+/**
+ * @interface_method_impl{PDMIMEDIAEX,pfnIoReqQuerySuspendedFirst}
+ */
+static DECLCALLBACK(int) drvvdIoReqQuerySuspendedStart(PPDMIMEDIAEX pInterface, PPDMMEDIAEXIOREQ phIoReq,
+                                                       void **ppvIoReqAlloc)
+{
+    PVBOXDISK pThis = RT_FROM_MEMBER(pInterface, VBOXDISK, IMediaEx);
+
+    AssertReturn(!drvvdMediaExIoReqIsVmRunning(pThis), VERR_INVALID_STATE);
+    AssertReturn(!RTListIsEmpty(&pThis->LstIoReqRedo), VERR_NOT_FOUND);
+
+    RTCritSectEnter(&pThis->CritSectIoReqRedo);
+    PPDMMEDIAEXIOREQINT pIoReq = RTListGetFirst(&pThis->LstIoReqRedo, PDMMEDIAEXIOREQINT, NdLstWait);
+    *phIoReq       = pIoReq;
+    *ppvIoReqAlloc = &pIoReq->abAlloc[0];
+    RTCritSectLeave(&pThis->CritSectIoReqRedo);
+
+    return VINF_SUCCESS;
+}
+
+/**
+ * @interface_method_impl{PDMIMEDIAEX,pfnIoReqQuerySuspendedNext}
+ */
+static DECLCALLBACK(int) drvvdIoReqQuerySuspendedNext(PPDMIMEDIAEX pInterface, PDMMEDIAEXIOREQ hIoReq,
+                                                      PPDMMEDIAEXIOREQ phIoReqNext, void **ppvIoReqAllocNext)
+{
+    PVBOXDISK pThis = RT_FROM_MEMBER(pInterface, VBOXDISK, IMediaEx);
+    PPDMMEDIAEXIOREQINT pIoReq = hIoReq;
+
+    AssertReturn(!drvvdMediaExIoReqIsVmRunning(pThis), VERR_INVALID_STATE);
+    AssertPtrReturn(pIoReq, VERR_INVALID_HANDLE);
+    AssertReturn(!RTListNodeIsLast(&pThis->LstIoReqRedo, &pIoReq->NdLstWait), VERR_NOT_FOUND);
+
+    RTCritSectEnter(&pThis->CritSectIoReqRedo);
+    PPDMMEDIAEXIOREQINT pIoReqNext = RTListNodeGetNext(&pIoReq->NdLstWait, PDMMEDIAEXIOREQINT, NdLstWait);
+    *phIoReqNext       = pIoReqNext;
+    *ppvIoReqAllocNext = &pIoReqNext->abAlloc[0];
+    RTCritSectLeave(&pThis->CritSectIoReqRedo);
+
+    return VINF_SUCCESS;
+}
+
+/**
+ * @interface_method_impl{PDMIMEDIAEX,pfnIoReqSuspendedSave}
+ */
+static DECLCALLBACK(int) drvvdIoReqSuspendedSave(PPDMIMEDIAEX pInterface, PSSMHANDLE pSSM, PDMMEDIAEXIOREQ hIoReq)
+{
+    PVBOXDISK pThis = RT_FROM_MEMBER(pInterface, VBOXDISK, IMediaEx);
+    PPDMMEDIAEXIOREQINT pIoReq = hIoReq;
+
+    AssertReturn(!drvvdMediaExIoReqIsVmRunning(pThis), VERR_INVALID_STATE);
+    AssertPtrReturn(pIoReq, VERR_INVALID_HANDLE);
+    AssertReturn(pIoReq->enmState == VDIOREQSTATE_SUSPENDED, VERR_INVALID_STATE);
+
+    SSMR3PutU32(pSSM, DRVVD_IOREQ_SAVED_STATE_VERSION);
+    SSMR3PutU32(pSSM, (uint32_t)pIoReq->enmType);
+    SSMR3PutU32(pSSM, pIoReq->uIoReqId);
+    SSMR3PutU32(pSSM, pIoReq->fFlags);
+    if (   pIoReq->enmType == PDMMEDIAEXIOREQTYPE_READ
+        || pIoReq->enmType == PDMMEDIAEXIOREQTYPE_WRITE)
+    {
+        SSMR3PutU64(pSSM, pIoReq->ReadWrite.offStart);
+        SSMR3PutU64(pSSM, pIoReq->ReadWrite.cbReq);
+        SSMR3PutU64(pSSM, pIoReq->ReadWrite.cbReqLeft);
+    }
+    else if (pIoReq->enmType == PDMMEDIAEXIOREQTYPE_DISCARD)
+    {
+        SSMR3PutU32(pSSM, pIoReq->Discard.cRanges);
+        for (unsigned i = 0; i < pIoReq->Discard.cRanges; i++)
+        {
+            SSMR3PutU64(pSSM, pIoReq->Discard.paRanges[i].offStart);
+            SSMR3PutU64(pSSM, pIoReq->Discard.paRanges[i].cbRange);
+        }
+    }
+
+    return SSMR3PutU32(pSSM, UINT32_MAX); /* sanity/terminator */
+}
+
+/**
+ * @interface_method_impl{PDMIMEDIAEX,pfnIoReqSuspendedLoad}
+ */
+static DECLCALLBACK(int) drvvdIoReqSuspendedLoad(PPDMIMEDIAEX pInterface, PSSMHANDLE pSSM, PDMMEDIAEXIOREQ hIoReq)
+{
+    PVBOXDISK pThis = RT_FROM_MEMBER(pInterface, VBOXDISK, IMediaEx);
+    PPDMMEDIAEXIOREQINT pIoReq = hIoReq;
+
+    AssertReturn(!drvvdMediaExIoReqIsVmRunning(pThis), VERR_INVALID_STATE);
+    AssertPtrReturn(pIoReq, VERR_INVALID_HANDLE);
+    AssertReturn(pIoReq->enmState == VDIOREQSTATE_ALLOCATED, VERR_INVALID_STATE);
+
+    uint32_t u32;
+    uint64_t u64;
+    int rc = VINF_SUCCESS;
+    bool fPlaceOnRedoList = true;
+
+    SSMR3GetU32(pSSM, &u32);
+    if (u32 <= DRVVD_IOREQ_SAVED_STATE_VERSION)
+    {
+        SSMR3GetU32(pSSM, &u32);
+        AssertReturn(   u32 == PDMMEDIAEXIOREQTYPE_WRITE
+                     || u32 == PDMMEDIAEXIOREQTYPE_READ
+                     || u32 == PDMMEDIAEXIOREQTYPE_DISCARD
+                     || u32 == PDMMEDIAEXIOREQTYPE_FLUSH,
+                     VERR_SSM_DATA_UNIT_FORMAT_CHANGED);
+        pIoReq->enmType = (PDMMEDIAEXIOREQTYPE)u32;
+
+        SSMR3GetU32(pSSM, &u32);
+        AssertReturn(u32 == pIoReq->uIoReqId, VERR_SSM_DATA_UNIT_FORMAT_CHANGED);
+
+        SSMR3GetU32(pSSM, &u32);
+        AssertReturn(u32 == pIoReq->fFlags, VERR_SSM_DATA_UNIT_FORMAT_CHANGED);
+
+        if (   pIoReq->enmType == PDMMEDIAEXIOREQTYPE_READ
+            || pIoReq->enmType == PDMMEDIAEXIOREQTYPE_WRITE)
+        {
+            SSMR3GetU64(pSSM, &pIoReq->ReadWrite.offStart);
+            SSMR3GetU64(pSSM, &u64);
+            pIoReq->ReadWrite.cbReq = (size_t)u64;
+            SSMR3GetU64(pSSM, &u64);
+            pIoReq->ReadWrite.cbReqLeft = (size_t)u64;
+
+            /*
+             * Try to allocate enough I/O buffer, if this fails for some reason put it onto the
+             * waitign list instead of the redo list.
+             */
+            pIoReq->ReadWrite.cbIoBuf = 0;
+            rc = IOBUFMgrAllocBuf(pThis->hIoBufMgr, &pIoReq->ReadWrite.IoBuf, pIoReq->ReadWrite.cbReqLeft,
+                                  &pIoReq->ReadWrite.cbIoBuf);
+            if (rc == VERR_NO_MEMORY)
+            {
+                pIoReq->enmState = VDIOREQSTATE_ALLOCATED;
+                ASMAtomicIncU32(&pThis->cIoReqsWaiting);
+                RTListAppend(&pThis->LstIoReqIoBufWait, &pIoReq->NdLstWait);
+                fPlaceOnRedoList = false;
+                rc = VINF_SUCCESS;
+            }
+        }
+        else if (pIoReq->enmType == PDMMEDIAEXIOREQTYPE_DISCARD)
+        {
+            rc = SSMR3GetU32(pSSM, &pIoReq->Discard.cRanges);
+            if (RT_SUCCESS(rc))
+            {
+                pIoReq->Discard.paRanges = (PRTRANGE)RTMemAllocZ(pIoReq->Discard.cRanges * sizeof(RTRANGE));
+                if (RT_LIKELY(pIoReq->Discard.paRanges))
+                {
+                    for (unsigned i = 0; i < pIoReq->Discard.cRanges; i++)
+                    {
+                        SSMR3GetU64(pSSM, &pIoReq->Discard.paRanges[i].offStart);
+                        SSMR3GetU64(pSSM, &u64);
+                        pIoReq->Discard.paRanges[i].cbRange = (size_t)u64;
+                    }
+                }
+                else
+                    rc = VERR_NO_MEMORY;
+            }
+        }
+
+        if (RT_SUCCESS(rc))
+            rc = SSMR3GetU32(pSSM, &u32); /* sanity/terminator */
+        if (RT_SUCCESS(rc))
+            AssertReturn(u32 == UINT32_MAX, VERR_SSM_DATA_UNIT_FORMAT_CHANGED);
+        if (   RT_SUCCESS(rc)
+            && fPlaceOnRedoList)
+        {
+            /* Mark as suspended */
+            pIoReq->enmState = VDIOREQSTATE_SUSPENDED;
+
+            /* Link into suspended list so it gets kicked off again when we resume. */
+            RTCritSectEnter(&pThis->CritSectIoReqRedo);
+            RTListAppend(&pThis->LstIoReqRedo, &pIoReq->NdLstWait);
+            RTCritSectLeave(&pThis->CritSectIoReqRedo);
+        }
+    }
+
+    return rc;
+}
+
 /**
  * Loads all configured plugins.
  *
@@ -2308,6 +3779,84 @@ static int drvvdSetupFilters(PVBOXDISK pThis, PCFGMNODE pCfg)
 }
 
 
+/**
+ * Translates a PDMMEDIATYPE value into a string.
+ *
+ * @returns Read only string.
+ * @param   enmType             The type value.
+ */
+static const char *drvvdGetTypeName(PDMMEDIATYPE enmType)
+{
+    switch (enmType)
+    {
+        case PDMMEDIATYPE_ERROR:                return "ERROR";
+        case PDMMEDIATYPE_FLOPPY_360:           return "FLOPPY_360";
+        case PDMMEDIATYPE_FLOPPY_720:           return "FLOPPY_720";
+        case PDMMEDIATYPE_FLOPPY_1_20:          return "FLOPPY_1_20";
+        case PDMMEDIATYPE_FLOPPY_1_44:          return "FLOPPY_1_44";
+        case PDMMEDIATYPE_FLOPPY_2_88:          return "FLOPPY_2_88";
+        case PDMMEDIATYPE_FLOPPY_FAKE_15_6:     return "FLOPPY_FAKE_15_6";
+        case PDMMEDIATYPE_FLOPPY_FAKE_63_5:     return "FLOPPY_FAKE_63_5";
+        case PDMMEDIATYPE_CDROM:                return "CDROM";
+        case PDMMEDIATYPE_DVD:                  return "DVD";
+        case PDMMEDIATYPE_HARD_DISK:            return "HARD_DISK";
+        default:                                return "Unknown";
+    }
+}
+
+/**
+ * Returns the appropriate PDMMEDIATYPE for t he given string.
+ *
+ * @returns PDMMEDIATYPE
+ * @param   pszType    The string representation of the media type.
+ */
+static PDMMEDIATYPE drvvdGetMediaTypeFromString(const char *pszType)
+{
+    PDMMEDIATYPE enmType = PDMMEDIATYPE_ERROR;
+
+    if (!strcmp(pszType, "HardDisk"))
+        enmType = PDMMEDIATYPE_HARD_DISK;
+    else if (!strcmp(pszType, "DVD"))
+        enmType = PDMMEDIATYPE_DVD;
+    else if (!strcmp(pszType, "CDROM"))
+        enmType = PDMMEDIATYPE_CDROM;
+    else if (!strcmp(pszType, "Floppy 2.88"))
+        enmType = PDMMEDIATYPE_FLOPPY_2_88;
+    else if (!strcmp(pszType, "Floppy 1.44"))
+        enmType = PDMMEDIATYPE_FLOPPY_1_44;
+    else if (!strcmp(pszType, "Floppy 1.20"))
+        enmType = PDMMEDIATYPE_FLOPPY_1_20;
+    else if (!strcmp(pszType, "Floppy 720"))
+        enmType = PDMMEDIATYPE_FLOPPY_720;
+    else if (!strcmp(pszType, "Floppy 360"))
+        enmType = PDMMEDIATYPE_FLOPPY_360;
+    else if (!strcmp(pszType, "Floppy 15.6"))
+        enmType = PDMMEDIATYPE_FLOPPY_FAKE_15_6;
+    else if (!strcmp(pszType, "Floppy 63.5"))
+        enmType = PDMMEDIATYPE_FLOPPY_FAKE_63_5;
+
+    return enmType;
+}
+
+/**
+ * Converts PDMMEDIATYPE to the appropriate VDTYPE.
+ *
+ * @returns The VDTYPE.
+ * @param   enmType    The PDMMEDIATYPE to convert from.
+ */
+static VDTYPE drvvdGetVDFromMediaType(PDMMEDIATYPE enmType)
+{
+    if (PDMMEDIATYPE_IS_FLOPPY(enmType))
+        return VDTYPE_FLOPPY;
+    else if (enmType == PDMMEDIATYPE_DVD || enmType == PDMMEDIATYPE_CDROM)
+        return VDTYPE_DVD;
+    else if (enmType == PDMMEDIATYPE_HARD_DISK)
+        return VDTYPE_HDD;
+
+    AssertMsgFailed(("Invalid media type %d{%s} given!\n", enmType, drvvdGetTypeName(enmType)));
+    return VDTYPE_HDD;
+}
+
 /*********************************************************************************************************************************
 *   Base interface methods                                                                                                       *
 *********************************************************************************************************************************/
@@ -2322,7 +3871,9 @@ static DECLCALLBACK(void *) drvvdQueryInterface(PPDMIBASE pInterface, const char
 
     PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBASE, &pDrvIns->IBase);
     PDMIBASE_RETURN_INTERFACE(pszIID, PDMIMEDIA, &pThis->IMedia);
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIMOUNT, pThis->fMountable ? &pThis->IMount : NULL);
     PDMIBASE_RETURN_INTERFACE(pszIID, PDMIMEDIAASYNC, pThis->fAsyncIOSupported ? &pThis->IMediaAsync : NULL);
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIMEDIAEX, pThis->pDrvMediaExPort ? &pThis->IMediaEx : NULL);
     return NULL;
 }
 
@@ -2369,7 +3920,7 @@ static DECLCALLBACK(int) drvvdLoadDone(PPDMDRVINS pDrvIns, PSSMHANDLE pSSM)
  * @returns nothing.
  * @param   pDrvIns    The driver instance.
  */
-static void drvvdPowerOffOrDestruct(PPDMDRVINS pDrvIns)
+static void drvvdPowerOffOrDestructOrUnmount(PPDMDRVINS pDrvIns)
 {
     PVBOXDISK pThis = PDMINS_2_DATA(pDrvIns, PVBOXDISK);
     LogFlowFunc(("\n"));
@@ -2409,7 +3960,7 @@ static void drvvdPowerOffOrDestruct(PPDMDRVINS pDrvIns)
 static DECLCALLBACK(void) drvvdPowerOff(PPDMDRVINS pDrvIns)
 {
     PDMDRV_CHECK_VERSIONS_RETURN_VOID(pDrvIns);
-    drvvdPowerOffOrDestruct(pDrvIns);
+    drvvdPowerOffOrDestructOrUnmount(pDrvIns);
 }
 
 /**
@@ -2436,6 +3987,67 @@ static DECLCALLBACK(void) drvvdResume(PPDMDRVINS pDrvIns)
     {
         int rc = PDMR3BlkCacheResume(pThis->pBlkCache);
         AssertRC(rc);
+    }
+
+    if (pThis->pDrvMediaExPort)
+    {
+        /* Kick of any request we have to redo. */
+        PPDMMEDIAEXIOREQINT pIoReq, pIoReqNext;
+        RTCritSectEnter(&pThis->CritSectIoReqRedo);
+        RTListForEachSafe(&pThis->LstIoReqRedo, pIoReq, pIoReqNext, PDMMEDIAEXIOREQINT, NdLstWait)
+        {
+            int rc = VINF_SUCCESS;
+            bool fXchg = ASMAtomicCmpXchgU32((volatile uint32_t *)&pIoReq->enmState, VDIOREQSTATE_ACTIVE, VDIOREQSTATE_SUSPENDED);
+
+            RTListNodeRemove(&pIoReq->NdLstWait);
+            ASMAtomicIncU32(&pThis->cIoReqsActive);
+
+            if (fXchg)
+            {
+                pThis->pDrvMediaExPort->pfnIoReqStateChanged(pThis->pDrvMediaExPort, pIoReq, &pIoReq->abAlloc[0],
+                                                             PDMMEDIAEXIOREQSTATE_ACTIVE);
+                if (   pIoReq->enmType == PDMMEDIAEXIOREQTYPE_READ
+                    || pIoReq->enmType == PDMMEDIAEXIOREQTYPE_WRITE)
+                    rc = drvvdMediaExIoReqReadWriteProcess(pThis, pIoReq, false /* fUpNotify */);
+                else if (pIoReq->enmType == PDMMEDIAEXIOREQTYPE_FLUSH)
+                {
+                    rc = VDAsyncFlush(pThis->pDisk, drvvdMediaExIoReqComplete, pThis, pIoReq);
+                    if (rc == VERR_VD_ASYNC_IO_IN_PROGRESS)
+                        rc = VINF_PDM_MEDIAEX_IOREQ_IN_PROGRESS;
+                    else if (rc == VINF_VD_ASYNC_IO_FINISHED)
+                        rc = VINF_SUCCESS;
+                }
+                else if (pIoReq->enmType == PDMMEDIAEXIOREQTYPE_DISCARD)
+                {
+                    rc = VDAsyncDiscardRanges(pThis->pDisk, pIoReq->Discard.paRanges, pIoReq->Discard.cRanges,
+                                              drvvdMediaExIoReqComplete, pThis, pIoReq);
+                    if (rc == VERR_VD_ASYNC_IO_IN_PROGRESS)
+                        rc = VINF_PDM_MEDIAEX_IOREQ_IN_PROGRESS;
+                    else if (rc == VINF_VD_ASYNC_IO_FINISHED)
+                        rc = VINF_SUCCESS;
+                }
+                else
+                    AssertMsgFailed(("Invalid request type %u\n", pIoReq->enmType));
+
+                if (rc != VINF_PDM_MEDIAEX_IOREQ_IN_PROGRESS)
+                {
+                    Assert(   (   pIoReq->enmType != PDMMEDIAEXIOREQTYPE_WRITE
+                               && pIoReq->enmType != PDMMEDIAEXIOREQTYPE_READ)
+                           || !pIoReq->ReadWrite.cbReqLeft
+                           || RT_FAILURE(rc));
+                    drvvdMediaExIoReqCompleteWorker(pThis, pIoReq, rc, true /* fUpNotify */);
+                }
+
+            }
+            else
+            {
+                /* Request was canceled inbetween, so don't care and notify the owner about the completed request. */
+                Assert(pIoReq->enmState == VDIOREQSTATE_CANCELED);
+                drvvdMediaExIoReqCompleteWorker(pThis, pIoReq, VERR_PDM_MEDIAEX_IOREQ_CANCELED, true /* fUpNotify */);
+            }
+        }
+        Assert(RTListIsEmpty(&pThis->LstIoReqRedo));
+        RTCritSectLeave(&pThis->CritSectIoReqRedo);
     }
 }
 
@@ -2521,7 +4133,7 @@ static DECLCALLBACK(void) drvvdDestruct(PPDMDRVINS pDrvIns)
      * destroyed. This method will get called without calling the power off
      * callback first when we reconfigure the driver chain after a snapshot.
      */
-    drvvdPowerOffOrDestruct(pDrvIns);
+    drvvdPowerOffOrDestructOrUnmount(pDrvIns);
     if (pThis->MergeLock != NIL_RTSEMRW)
     {
         int rc = RTSemRWDestroy(pThis->MergeLock);
@@ -2540,6 +4152,19 @@ static DECLCALLBACK(void) drvvdDestruct(PPDMDRVINS pDrvIns)
     }
     if (pThis->hHbdMgr != NIL_HBDMGR)
         HBDMgrDestroy(pThis->hHbdMgr);
+    if (pThis->hIoReqCache != NIL_RTMEMCACHE)
+        RTMemCacheDestroy(pThis->hIoReqCache);
+    if (pThis->hIoBufMgr != NIL_IOBUFMGR)
+        IOBUFMgrDestroy(pThis->hIoBufMgr);
+    if (RTCritSectIsInitialized(&pThis->CritSectIoReqsIoBufWait))
+        RTCritSectDelete(&pThis->CritSectIoReqsIoBufWait);
+    if (RTCritSectIsInitialized(&pThis->CritSectIoReqRedo))
+        RTCritSectDelete(&pThis->CritSectIoReqRedo);
+    for (unsigned i = 0; i < RT_ELEMENTS(pThis->aIoReqAllocBins); i++)
+    {
+        if (pThis->aIoReqAllocBins[i].hMtxLstIoReqAlloc != NIL_RTSEMFASTMUTEX)
+            RTSemFastMutexDestroy(pThis->aIoReqAllocBins[i].hMtxLstIoReqAlloc);
+    }
 }
 
 /**
@@ -2577,6 +4202,11 @@ static DECLCALLBACK(int) drvvdConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint
     pThis->uMergeTarget                 = VD_LAST_IMAGE;
     pThis->pCfgCrypto                   = NULL;
     pThis->pIfSecKey                    = NULL;
+    pThis->hIoReqCache                  = NIL_RTMEMCACHE;
+    pThis->hIoBufMgr                    = NIL_IOBUFMGR;
+
+    for (unsigned i = 0; i < RT_ELEMENTS(pThis->aIoReqAllocBins); i++)
+        pThis->aIoReqAllocBins[i].hMtxLstIoReqAlloc = NIL_RTSEMFASTMUTEX;
 
     /* IMedia */
     pThis->IMedia.pfnRead               = drvvdRead;
@@ -2592,16 +4222,42 @@ static DECLCALLBACK(int) drvvdConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint
     pThis->IMedia.pfnBiosSetPCHSGeometry = drvvdBiosSetPCHSGeometry;
     pThis->IMedia.pfnBiosGetLCHSGeometry = drvvdBiosGetLCHSGeometry;
     pThis->IMedia.pfnBiosSetLCHSGeometry = drvvdBiosSetLCHSGeometry;
+    pThis->IMedia.pfnBiosIsVisible       = drvvdBiosIsVisible;
+    pThis->IMedia.pfnGetType             = drvvdGetType;
     pThis->IMedia.pfnGetUuid             = drvvdGetUuid;
     pThis->IMedia.pfnDiscard             = drvvdDiscard;
     pThis->IMedia.pfnIoBufAlloc          = drvvdIoBufAlloc;
     pThis->IMedia.pfnIoBufFree           = drvvdIoBufFree;
+    pThis->IMedia.pfnSendCmd             = NULL;
+
+    /* IMount */
+    pThis->IMount.pfnUnmount                = drvvdUnmount;
+    pThis->IMount.pfnIsMounted              = drvvdIsMounted;
+    pThis->IMount.pfnLock                   = drvvdLock;
+    pThis->IMount.pfnUnlock                 = drvvdUnlock;
+    pThis->IMount.pfnIsLocked               = drvvdIsLocked;
 
     /* IMediaAsync */
     pThis->IMediaAsync.pfnStartRead       = drvvdStartRead;
     pThis->IMediaAsync.pfnStartWrite      = drvvdStartWrite;
     pThis->IMediaAsync.pfnStartFlush      = drvvdStartFlush;
     pThis->IMediaAsync.pfnStartDiscard    = drvvdStartDiscard;
+
+    /* IMediaEx */
+    pThis->IMediaEx.pfnIoReqAllocSizeSet        = drvvdIoReqAllocSizeSet;
+    pThis->IMediaEx.pfnIoReqAlloc               = drvvdIoReqAlloc;
+    pThis->IMediaEx.pfnIoReqFree                = drvvdIoReqFree;
+    pThis->IMediaEx.pfnIoReqCancel              = drvvdIoReqCancel;
+    pThis->IMediaEx.pfnIoReqRead                = drvvdIoReqRead;
+    pThis->IMediaEx.pfnIoReqWrite               = drvvdIoReqWrite;
+    pThis->IMediaEx.pfnIoReqFlush               = drvvdIoReqFlush;
+    pThis->IMediaEx.pfnIoReqDiscard             = drvvdIoReqDiscard;
+    pThis->IMediaEx.pfnIoReqGetActiveCount      = drvvdIoReqGetActiveCount;
+    pThis->IMediaEx.pfnIoReqGetSuspendedCount   = drvvdIoReqGetSuspendedCount;
+    pThis->IMediaEx.pfnIoReqQuerySuspendedStart = drvvdIoReqQuerySuspendedStart;
+    pThis->IMediaEx.pfnIoReqQuerySuspendedNext  = drvvdIoReqQuerySuspendedNext;
+    pThis->IMediaEx.pfnIoReqSuspendedSave       = drvvdIoReqSuspendedSave;
+    pThis->IMediaEx.pfnIoReqSuspendedLoad       = drvvdIoReqSuspendedLoad;
 
     /* Initialize supported VD interfaces. */
     pThis->pVDIfsDisk = NULL;
@@ -2622,6 +4278,35 @@ static DECLCALLBACK(int) drvvdConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint
 
     /* Try to attach async media port interface above.*/
     pThis->pDrvMediaAsyncPort = PDMIBASE_QUERY_INTERFACE(pDrvIns->pUpBase, PDMIMEDIAASYNCPORT);
+    pThis->pDrvMountNotify    = PDMIBASE_QUERY_INTERFACE(pDrvIns->pUpBase, PDMIMOUNTNOTIFY);
+
+    /*
+     * Try to attach the optional extended media interface port above and initialize associated
+     * structures if available.
+     */
+    pThis->pDrvMediaExPort = PDMIBASE_QUERY_INTERFACE(pDrvIns->pUpBase, PDMIMEDIAEXPORT);
+    if (pThis->pDrvMediaExPort)
+    {
+        for (unsigned i = 0; i < RT_ELEMENTS(pThis->aIoReqAllocBins); i++)
+        {
+            rc = RTSemFastMutexCreate(&pThis->aIoReqAllocBins[i].hMtxLstIoReqAlloc);
+            if (RT_FAILURE(rc))
+                break;
+            RTListInit(&pThis->aIoReqAllocBins[i].LstIoReqAlloc);
+        }
+
+        if (RT_SUCCESS(rc))
+            rc = RTCritSectInit(&pThis->CritSectIoReqsIoBufWait);
+
+        if (RT_SUCCESS(rc))
+            rc = RTCritSectInit(&pThis->CritSectIoReqRedo);
+
+        if (RT_FAILURE(rc))
+            return PDMDRV_SET_ERROR(pDrvIns, rc, N_("Creating Mutex failed"));
+
+        RTListInit(&pThis->LstIoReqIoBufWait);
+        RTListInit(&pThis->LstIoReqRedo);
+    }
 
     /* Before we access any VD API load all given plugins. */
     rc = drvvdLoadPlugins(pThis, pCfg);
@@ -2638,9 +4323,10 @@ static DECLCALLBACK(int) drvvdConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint
     bool        fDiscard = false;
     bool        fInformAboutZeroBlocks = false;
     bool        fSkipConsistencyChecks = false;
+    bool        fEmptyDrive            = false;
     unsigned    iLevel = 0;
     PCFGMNODE   pCurNode = pCfg;
-    VDTYPE      enmType = VDTYPE_HDD;
+    uint32_t    cbIoBufMax = 0;
 
     for (;;)
     {
@@ -2656,7 +4342,13 @@ static DECLCALLBACK(int) drvvdConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint
                                           "HostIPStack\0UseNewIo\0BootAcceleration\0BootAccelerationBuffer\0"
                                           "SetupMerge\0MergeSource\0MergeTarget\0BwGroup\0Type\0BlockCache\0"
                                           "CachePath\0CacheFormat\0Discard\0InformAboutZeroBlocks\0"
-                                          "SkipConsistencyChecks\0");
+                                          "SkipConsistencyChecks\0"
+                                          "Locked\0BIOSVisible\0Cylinders\0Heads\0Sectors\0Mountable\0"
+                                          "EmptyDrive\0IoBufMax\0"
+#if defined(VBOX_PERIODIC_FLUSH) || defined(VBOX_IGNORE_FLUSH)
+                                          "FlushInterval\0IgnoreFlush\0IgnoreFlushAsync\0"
+#endif /* !(VBOX_PERIODIC_FLUSH || VBOX_IGNORE_FLUSH) */
+                                           );
         }
         else
         {
@@ -2806,25 +4498,17 @@ static DECLCALLBACK(int) drvvdConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint
                 break;
             }
 
-            char *psz;
-            rc = CFGMR3QueryStringAlloc(pCfg, "Type", &psz);
+            char *psz = NULL;
+           rc = CFGMR3QueryStringAlloc(pCfg, "Type", &psz);
             if (RT_FAILURE(rc))
+                return PDMDRV_SET_ERROR(pDrvIns, VERR_PDM_BLOCK_NO_TYPE, N_("Failed to obtain the sub type"));
+            pThis->enmType = drvvdGetMediaTypeFromString(psz);
+            if (pThis->enmType == PDMMEDIATYPE_ERROR)
             {
-                rc = PDMDRV_SET_ERROR(pDrvIns, VERR_PDM_BLOCK_NO_TYPE, N_("Failed to obtain the type"));
-                break;
-            }
-            else if (!strcmp(psz, "HardDisk"))
-                enmType = VDTYPE_HDD;
-            else if (!strcmp(psz, "DVD"))
-                enmType = VDTYPE_DVD;
-            else if (!strcmp(psz, "Floppy"))
-                enmType = VDTYPE_FLOPPY;
-            else
-            {
-                rc = PDMDrvHlpVMSetError(pDrvIns, VERR_PDM_BLOCK_UNKNOWN_TYPE, RT_SRC_POS,
-                                         N_("Unknown type \"%s\""), psz);
+                PDMDrvHlpVMSetError(pDrvIns, VERR_PDM_BLOCK_UNKNOWN_TYPE, RT_SRC_POS,
+                                    N_("Unknown type \"%s\""), psz);
                 MMR3HeapFree(psz);
-                break;
+                return VERR_PDM_BLOCK_UNKNOWN_TYPE;
             }
             MMR3HeapFree(psz); psz = NULL;
 
@@ -2848,6 +4532,92 @@ static DECLCALLBACK(int) drvvdConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint
                     break;
                 }
             }
+
+            /* Mountable */
+            rc = CFGMR3QueryBoolDef(pCfg, "Mountable", &pThis->fMountable, false);
+            if (RT_FAILURE(rc))
+                return PDMDRV_SET_ERROR(pDrvIns, rc, N_("Failed to query \"Mountable\" from the config"));
+
+            /* Locked */
+            rc = CFGMR3QueryBoolDef(pCfg, "Locked", &pThis->fLocked, false);
+            if (RT_FAILURE(rc))
+                return PDMDRV_SET_ERROR(pDrvIns, rc, N_("Failed to query \"Locked\" from the config"));
+
+            /* BIOS visible */
+            rc = CFGMR3QueryBoolDef(pCfg, "BIOSVisible", &pThis->fBiosVisible, true);
+            if (RT_FAILURE(rc))
+                return PDMDRV_SET_ERROR(pDrvIns, rc, N_("Failed to query \"BIOSVisible\" from the config"));
+
+            /* Cylinders */
+            rc = CFGMR3QueryU32Def(pCfg, "Cylinders", &pThis->LCHSGeometry.cCylinders, 0);
+            if (RT_FAILURE(rc))
+                return PDMDRV_SET_ERROR(pDrvIns, rc, N_("Failed to query \"Cylinders\" from the config"));
+
+            /* Heads */
+            rc = CFGMR3QueryU32Def(pCfg, "Heads", &pThis->LCHSGeometry.cHeads, 0);
+            if (RT_FAILURE(rc))
+                return PDMDRV_SET_ERROR(pDrvIns, rc, N_("Failed to query \"Heads\" from the config"));
+
+            /* Sectors */
+            rc = CFGMR3QueryU32Def(pCfg, "Sectors", &pThis->LCHSGeometry.cSectors, 0);
+            if (RT_FAILURE(rc))
+                return PDMDRV_SET_ERROR(pDrvIns, rc, N_("Failed to query \"Sectors\" from the config"));
+
+            /* Uuid */
+            rc = CFGMR3QueryStringAlloc(pCfg, "Uuid", &psz);
+            if (rc == VERR_CFGM_VALUE_NOT_FOUND)
+                RTUuidClear(&pThis->Uuid);
+            else if (RT_SUCCESS(rc))
+            {
+                rc = RTUuidFromStr(&pThis->Uuid, psz);
+                if (RT_FAILURE(rc))
+                {
+                    PDMDrvHlpVMSetError(pDrvIns, rc, RT_SRC_POS, N_("Uuid from string failed on \"%s\""), psz);
+                    MMR3HeapFree(psz);
+                    return rc;
+                }
+                MMR3HeapFree(psz); psz = NULL;
+            }
+            else
+                return PDMDRV_SET_ERROR(pDrvIns, rc, N_("Failed to query \"Uuid\" from the config"));
+
+#ifdef VBOX_PERIODIC_FLUSH
+            rc = CFGMR3QueryU32Def(pCfg, "FlushInterval", &pThis->cbFlushInterval, 0);
+            if (RT_FAILURE(rc))
+                return PDMDRV_SET_ERROR(pDrvIns, rc, N_("Failed to query \"FlushInterval\" from the config"));
+#endif /* VBOX_PERIODIC_FLUSH */
+
+#ifdef VBOX_IGNORE_FLUSH
+            rc = CFGMR3QueryBoolDef(pCfg, "IgnoreFlush", &pThis->fIgnoreFlush, true);
+            if (RT_FAILURE(rc))
+                return PDMDRV_SET_ERROR(pDrvIns, rc, N_("Failed to query \"IgnoreFlush\" from the config"));
+
+            if (pThis->fIgnoreFlush)
+                LogRel(("DrvVD: Flushes will be ignored\n"));
+            else
+                LogRel(("DrvVD: Flushes will be passed to the disk\n"));
+
+            rc = CFGMR3QueryBoolDef(pCfg, "IgnoreFlushAsync", &pThis->fIgnoreFlushAsync, false);
+            if (RT_FAILURE(rc))
+                return PDMDRV_SET_ERROR(pDrvIns, rc, N_("Failed to query \"IgnoreFlushAsync\" from the config"));
+
+            if (pThis->fIgnoreFlushAsync)
+                LogRel(("DrvVD: Async flushes will be ignored\n"));
+            else
+                LogRel(("DrvVD: Async flushes will be passed to the disk\n"));
+#endif /* VBOX_IGNORE_FLUSH */
+
+            rc = CFGMR3QueryBoolDef(pCurNode, "EmptyDrive", &fEmptyDrive, false);
+            if (RT_FAILURE(rc))
+            {
+                rc = PDMDRV_SET_ERROR(pDrvIns, rc,
+                                      N_("DrvVD: Configuration error: Querying \"EmptyDrive\" as boolean failed"));
+                break;
+            }
+
+            rc = CFGMR3QueryU32Def(pCfg, "IoBufMax", &cbIoBufMax, 5 * _1M);
+            if (RT_FAILURE(rc))
+                return PDMDRV_SET_ERROR(pDrvIns, rc, N_("Failed to query \"IoBufMax\" from the config"));
         }
 
         PCFGMNODE pParent = CFGMR3GetChild(pCurNode, "Parent");
@@ -2857,472 +4627,533 @@ static DECLCALLBACK(int) drvvdConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint
         iLevel++;
     }
 
-    /*
-     * Create the image container and the necessary interfaces.
-     */
-    if (RT_SUCCESS(rc))
-    {
-        /*
-         * The image has a bandwidth group but the host cache is enabled.
-         * Use the async I/O framework but tell it to enable the host cache.
-         */
-        if (!fUseNewIo && pThis->pszBwGroup)
-        {
-            pThis->fAsyncIoWithHostCache = true;
-            fUseNewIo = true;
-        }
+    if (pThis->pDrvMediaExPort)
+        rc = IOBUFMgrCreate(&pThis->hIoBufMgr, cbIoBufMax, pThis->pCfgCrypto ? IOBUFMGR_F_REQUIRE_NOT_PAGABLE : IOBUFMGR_F_DEFAULT);
 
-        /** @todo quick hack to work around problems in the async I/O
-         * implementation (rw semaphore thread ownership problem)
-         * while a merge is running. Remove once this is fixed. */
-        if (pThis->fMergePending)
-            fUseNewIo = false;
-
-        if (RT_SUCCESS(rc) && pThis->fMergePending)
-        {
-            rc = RTSemFastMutexCreate(&pThis->MergeCompleteMutex);
-            if (RT_SUCCESS(rc))
-                rc = RTSemRWCreate(&pThis->MergeLock);
-            if (RT_SUCCESS(rc))
-            {
-                pThis->VDIfThreadSync.pfnStartRead   = drvvdThreadStartRead;
-                pThis->VDIfThreadSync.pfnFinishRead  = drvvdThreadFinishRead;
-                pThis->VDIfThreadSync.pfnStartWrite  = drvvdThreadStartWrite;
-                pThis->VDIfThreadSync.pfnFinishWrite = drvvdThreadFinishWrite;
-
-                rc = VDInterfaceAdd(&pThis->VDIfThreadSync.Core, "DrvVD_ThreadSync", VDINTERFACETYPE_THREADSYNC,
-                                    pThis, sizeof(VDINTERFACETHREADSYNC), &pThis->pVDIfsDisk);
-            }
-            else
-            {
-                rc = PDMDRV_SET_ERROR(pDrvIns, rc,
-                                      N_("DrvVD: Failed to create semaphores for \"MergePending\""));
-            }
-        }
-
-        if (RT_SUCCESS(rc))
-        {
-            rc = VDCreate(pThis->pVDIfsDisk, enmType, &pThis->pDisk);
-            /* Error message is already set correctly. */
-        }
-    }
-
-    if (pThis->pDrvMediaAsyncPort && fUseNewIo)
-        pThis->fAsyncIOSupported = true;
-
-    uint64_t tsStart = RTTimeNanoTS();
-
-    unsigned iImageIdx = 0;
-    while (pCurNode && RT_SUCCESS(rc))
-    {
-        /* Allocate per-image data. */
-        PVBOXIMAGE pImage = drvvdNewImage(pThis);
-        if (!pImage)
-        {
-            rc = VERR_NO_MEMORY;
-            break;
-        }
-
-        /*
-         * Read the image configuration.
-         */
-        rc = CFGMR3QueryStringAlloc(pCurNode, "Path", &pszName);
-        if (RT_FAILURE(rc))
-        {
-            rc = PDMDRV_SET_ERROR(pDrvIns, rc,
-                                  N_("DrvVD: Configuration error: Querying \"Path\" as string failed"));
-            break;
-        }
-
-        rc = CFGMR3QueryStringAlloc(pCurNode, "Format", &pszFormat);
-        if (RT_FAILURE(rc))
-        {
-            rc = PDMDRV_SET_ERROR(pDrvIns, rc,
-                                  N_("DrvVD: Configuration error: Querying \"Format\" as string failed"));
-            break;
-        }
-
-        bool fMergeSource;
-        rc = CFGMR3QueryBoolDef(pCurNode, "MergeSource", &fMergeSource, false);
-        if (RT_FAILURE(rc))
-        {
-            rc = PDMDRV_SET_ERROR(pDrvIns, rc,
-                                  N_("DrvVD: Configuration error: Querying \"MergeSource\" as boolean failed"));
-            break;
-        }
-        if (fMergeSource)
-        {
-            if (pThis->uMergeSource == VD_LAST_IMAGE)
-                pThis->uMergeSource = iImageIdx;
-            else
-            {
-                rc = PDMDRV_SET_ERROR(pDrvIns, VERR_PDM_DRIVER_INVALID_PROPERTIES,
-                                      N_("DrvVD: Configuration error: Multiple \"MergeSource\" occurrences"));
-                break;
-            }
-        }
-
-        bool fMergeTarget;
-        rc = CFGMR3QueryBoolDef(pCurNode, "MergeTarget", &fMergeTarget, false);
-        if (RT_FAILURE(rc))
-        {
-            rc = PDMDRV_SET_ERROR(pDrvIns, rc,
-                                  N_("DrvVD: Configuration error: Querying \"MergeTarget\" as boolean failed"));
-            break;
-        }
-        if (fMergeTarget)
-        {
-            if (pThis->uMergeTarget == VD_LAST_IMAGE)
-                pThis->uMergeTarget = iImageIdx;
-            else
-            {
-                rc = PDMDRV_SET_ERROR(pDrvIns, VERR_PDM_DRIVER_INVALID_PROPERTIES,
-                                      N_("DrvVD: Configuration error: Multiple \"MergeTarget\" occurrences"));
-                break;
-            }
-        }
-
-        PCFGMNODE pCfgVDConfig = CFGMR3GetChild(pCurNode, "VDConfig");
-        pImage->VDIfConfig.pfnAreKeysValid = drvvdCfgAreKeysValid;
-        pImage->VDIfConfig.pfnQuerySize    = drvvdCfgQuerySize;
-        pImage->VDIfConfig.pfnQuery        = drvvdCfgQuery;
-        pImage->VDIfConfig.pfnQueryBytes   = NULL;
-        rc = VDInterfaceAdd(&pImage->VDIfConfig.Core, "DrvVD_Config", VDINTERFACETYPE_CONFIG,
-                            pCfgVDConfig, sizeof(VDINTERFACECONFIG), &pImage->pVDIfsImage);
-        AssertRC(rc);
-
-        /* Check VDConfig for encryption config. */
-        if (pCfgVDConfig)
-            pThis->pCfgCrypto = CFGMR3GetChild(pCfgVDConfig, "CRYPT");
-
-        if (pThis->pCfgCrypto)
-        {
-            /* Setup VDConfig interface for disk encryption support. */
-            pThis->VDIfCfg.pfnAreKeysValid  = drvvdCfgAreKeysValid;
-            pThis->VDIfCfg.pfnQuerySize     = drvvdCfgQuerySize;
-            pThis->VDIfCfg.pfnQuery         = drvvdCfgQuery;
-            pThis->VDIfCfg.pfnQueryBytes    = NULL;
-
-            pThis->VDIfCrypto.pfnKeyRetain               = drvvdCryptoKeyRetain;
-            pThis->VDIfCrypto.pfnKeyRelease              = drvvdCryptoKeyRelease;
-            pThis->VDIfCrypto.pfnKeyStorePasswordRetain  = drvvdCryptoKeyStorePasswordRetain;
-            pThis->VDIfCrypto.pfnKeyStorePasswordRelease = drvvdCryptoKeyStorePasswordRelease;
-        }
-
-        /* Unconditionally insert the TCPNET interface, don't bother to check
-         * if an image really needs it. Will be ignored. Since the TCPNET
-         * interface is per image we could make this more flexible in the
-         * future if we want to. */
-        /* Construct TCPNET callback table depending on the config. This is
-         * done unconditionally, as uninterested backends will ignore it. */
-        if (fHostIP)
-        {
-            pImage->VDIfTcpNet.pfnSocketCreate = drvvdTcpSocketCreate;
-            pImage->VDIfTcpNet.pfnSocketDestroy = drvvdTcpSocketDestroy;
-            pImage->VDIfTcpNet.pfnClientConnect = drvvdTcpClientConnect;
-            pImage->VDIfTcpNet.pfnIsClientConnected = drvvdTcpIsClientConnected;
-            pImage->VDIfTcpNet.pfnClientClose = drvvdTcpClientClose;
-            pImage->VDIfTcpNet.pfnSelectOne = drvvdTcpSelectOne;
-            pImage->VDIfTcpNet.pfnRead = drvvdTcpRead;
-            pImage->VDIfTcpNet.pfnWrite = drvvdTcpWrite;
-            pImage->VDIfTcpNet.pfnSgWrite = drvvdTcpSgWrite;
-            pImage->VDIfTcpNet.pfnReadNB = drvvdTcpReadNB;
-            pImage->VDIfTcpNet.pfnWriteNB = drvvdTcpWriteNB;
-            pImage->VDIfTcpNet.pfnSgWriteNB = drvvdTcpSgWriteNB;
-            pImage->VDIfTcpNet.pfnFlush = drvvdTcpFlush;
-            pImage->VDIfTcpNet.pfnSetSendCoalescing = drvvdTcpSetSendCoalescing;
-            pImage->VDIfTcpNet.pfnGetLocalAddress = drvvdTcpGetLocalAddress;
-            pImage->VDIfTcpNet.pfnGetPeerAddress = drvvdTcpGetPeerAddress;
-
-            /*
-             * There is a 15ms delay between receiving the data and marking the socket
-             * as readable on Windows XP which hurts async I/O performance of
-             * TCP backends badly. Provide a different select method without
-             * using poll on XP.
-             * This is only used on XP because it is not as efficient as the one using poll
-             * and all other Windows versions are working fine.
-             */
-            char szOS[64];
-            memset(szOS, 0, sizeof(szOS));
-            rc = RTSystemQueryOSInfo(RTSYSOSINFO_PRODUCT, &szOS[0], sizeof(szOS));
-
-            if (RT_SUCCESS(rc) && !strncmp(szOS, "Windows XP", 10))
-            {
-                LogRel(("VD: Detected Windows XP, disabled poll based waiting for TCP\n"));
-                pImage->VDIfTcpNet.pfnSelectOneEx = drvvdTcpSelectOneExNoPoll;
-            }
-            else
-                pImage->VDIfTcpNet.pfnSelectOneEx = drvvdTcpSelectOneExPoll;
-
-            pImage->VDIfTcpNet.pfnPoke = drvvdTcpPoke;
-        }
-        else
-        {
-#ifndef VBOX_WITH_INIP
-            rc = PDMDrvHlpVMSetError(pDrvIns, VERR_PDM_DRVINS_UNKNOWN_CFG_VALUES,
-                                     RT_SRC_POS, N_("DrvVD: Configuration error: TCP over Internal Networking not compiled in"));
-#else /* VBOX_WITH_INIP */
-            pImage->VDIfTcpNet.pfnSocketCreate = drvvdINIPSocketCreate;
-            pImage->VDIfTcpNet.pfnSocketDestroy = drvvdINIPSocketDestroy;
-            pImage->VDIfTcpNet.pfnClientConnect = drvvdINIPClientConnect;
-            pImage->VDIfTcpNet.pfnClientClose = drvvdINIPClientClose;
-            pImage->VDIfTcpNet.pfnIsClientConnected = drvvdINIPIsClientConnected;
-            pImage->VDIfTcpNet.pfnSelectOne = drvvdINIPSelectOne;
-            pImage->VDIfTcpNet.pfnRead = drvvdINIPRead;
-            pImage->VDIfTcpNet.pfnWrite = drvvdINIPWrite;
-            pImage->VDIfTcpNet.pfnSgWrite = drvvdINIPSgWrite;
-            pImage->VDIfTcpNet.pfnFlush = drvvdINIPFlush;
-            pImage->VDIfTcpNet.pfnSetSendCoalescing = drvvdINIPSetSendCoalescing;
-            pImage->VDIfTcpNet.pfnGetLocalAddress = drvvdINIPGetLocalAddress;
-            pImage->VDIfTcpNet.pfnGetPeerAddress = drvvdINIPGetPeerAddress;
-            pImage->VDIfTcpNet.pfnSelectOneEx = drvvdINIPSelectOneEx;
-            pImage->VDIfTcpNet.pfnPoke = drvvdINIPPoke;
-#endif /* VBOX_WITH_INIP */
-        }
-        rc = VDInterfaceAdd(&pImage->VDIfTcpNet.Core, "DrvVD_TCPNET",
-                            VDINTERFACETYPE_TCPNET, NULL,
-                            sizeof(VDINTERFACETCPNET), &pImage->pVDIfsImage);
-        AssertRC(rc);
-
-        /* Insert the custom I/O interface only if we're told to use new IO.
-         * Since the I/O interface is per image we could make this more
-         * flexible in the future if we want to. */
-        if (fUseNewIo)
-        {
-#ifdef VBOX_WITH_PDM_ASYNC_COMPLETION
-            pImage->VDIfIo.pfnOpen       = drvvdAsyncIOOpen;
-            pImage->VDIfIo.pfnClose      = drvvdAsyncIOClose;
-            pImage->VDIfIo.pfnGetSize    = drvvdAsyncIOGetSize;
-            pImage->VDIfIo.pfnSetSize    = drvvdAsyncIOSetSize;
-            pImage->VDIfIo.pfnReadSync   = drvvdAsyncIOReadSync;
-            pImage->VDIfIo.pfnWriteSync  = drvvdAsyncIOWriteSync;
-            pImage->VDIfIo.pfnFlushSync  = drvvdAsyncIOFlushSync;
-            pImage->VDIfIo.pfnReadAsync  = drvvdAsyncIOReadAsync;
-            pImage->VDIfIo.pfnWriteAsync = drvvdAsyncIOWriteAsync;
-            pImage->VDIfIo.pfnFlushAsync = drvvdAsyncIOFlushAsync;
-#else /* !VBOX_WITH_PDM_ASYNC_COMPLETION */
-            rc = PDMDrvHlpVMSetError(pDrvIns, VERR_PDM_DRVINS_UNKNOWN_CFG_VALUES,
-                                     RT_SRC_POS, N_("DrvVD: Configuration error: Async Completion Framework not compiled in"));
-#endif /* !VBOX_WITH_PDM_ASYNC_COMPLETION */
-            if (RT_SUCCESS(rc))
-                rc = VDInterfaceAdd(&pImage->VDIfIo.Core, "DrvVD_IO", VDINTERFACETYPE_IO,
-                                    pThis, sizeof(VDINTERFACEIO), &pImage->pVDIfsImage);
-            AssertRC(rc);
-        }
-
-        /*
-         * Open the image.
-         */
-        unsigned uOpenFlags;
-        if (fReadOnly || pThis->fTempReadOnly || iLevel != 0)
-            uOpenFlags = VD_OPEN_FLAGS_READONLY;
-        else
-            uOpenFlags = VD_OPEN_FLAGS_NORMAL;
-        if (fHonorZeroWrites)
-            uOpenFlags |= VD_OPEN_FLAGS_HONOR_ZEROES;
-        if (pThis->fAsyncIOSupported)
-            uOpenFlags |= VD_OPEN_FLAGS_ASYNC_IO;
-        if (pThis->fShareable)
-            uOpenFlags |= VD_OPEN_FLAGS_SHAREABLE;
-        if (fDiscard && iLevel == 0)
-            uOpenFlags |= VD_OPEN_FLAGS_DISCARD;
-        if (fInformAboutZeroBlocks)
-            uOpenFlags |= VD_OPEN_FLAGS_INFORM_ABOUT_ZERO_BLOCKS;
-        if (   (uOpenFlags & VD_OPEN_FLAGS_READONLY)
-            && fSkipConsistencyChecks)
-            uOpenFlags |= VD_OPEN_FLAGS_SKIP_CONSISTENCY_CHECKS;
-
-        /* Try to open backend in async I/O mode first. */
-        rc = VDOpen(pThis->pDisk, pszFormat, pszName, uOpenFlags, pImage->pVDIfsImage);
-        if (rc == VERR_NOT_SUPPORTED)
-        {
-            pThis->fAsyncIOSupported = false;
-            uOpenFlags &= ~VD_OPEN_FLAGS_ASYNC_IO;
-            rc = VDOpen(pThis->pDisk, pszFormat, pszName, uOpenFlags, pImage->pVDIfsImage);
-        }
-
-        if (rc == VERR_VD_DISCARD_NOT_SUPPORTED)
-        {
-            fDiscard = false;
-            uOpenFlags &= ~VD_OPEN_FLAGS_DISCARD;
-            rc = VDOpen(pThis->pDisk, pszFormat, pszName, uOpenFlags, pImage->pVDIfsImage);
-        }
-
-        if (!fDiscard)
-        {
-            pThis->IMedia.pfnDiscard = NULL;
-            pThis->IMediaAsync.pfnStartDiscard = NULL;
-        }
-
-        if (RT_SUCCESS(rc))
-        {
-            LogFunc(("%d - Opened '%s' in %s mode\n",
-                     iLevel, pszName,
-                     VDIsReadOnly(pThis->pDisk) ? "read-only" : "read-write"));
-            if (  VDIsReadOnly(pThis->pDisk)
-                && !fReadOnly
-                && !fMaybeReadOnly
-                && !pThis->fTempReadOnly
-                && iLevel == 0)
-            {
-                rc = PDMDrvHlpVMSetError(pDrvIns, VERR_VD_IMAGE_READ_ONLY, RT_SRC_POS,
-                                         N_("Failed to open image '%s' for writing due to wrong permissions"),
-                                         pszName);
-                break;
-            }
-        }
-        else
-        {
-           rc = PDMDrvHlpVMSetError(pDrvIns, rc, RT_SRC_POS,
-                                    N_("Failed to open image '%s' in %s mode"), pszName,
-                                    (uOpenFlags & VD_OPEN_FLAGS_READONLY) ? "read-only" : "read-write");
-           break;
-        }
-
-
-        MMR3HeapFree(pszName);
-        pszName = NULL;
-        MMR3HeapFree(pszFormat);
-        pszFormat = NULL;
-
-        /* next */
-        iLevel--;
-        iImageIdx++;
-        pCurNode = CFGMR3GetParent(pCurNode);
-    }
-
-    LogRel(("VD: Opening the disk took %lld ns\n", RTTimeNanoTS() - tsStart));
-
-    /* Open the cache image if set. */
-    if (   RT_SUCCESS(rc)
-        && RT_VALID_PTR(pszCachePath))
-    {
-        /* Insert the custom I/O interface only if we're told to use new IO.
-         * Since the I/O interface is per image we could make this more
-         * flexible in the future if we want to. */
-        if (fUseNewIo)
-        {
-#ifdef VBOX_WITH_PDM_ASYNC_COMPLETION
-            pThis->VDIfIoCache.pfnOpen       = drvvdAsyncIOOpen;
-            pThis->VDIfIoCache.pfnClose      = drvvdAsyncIOClose;
-            pThis->VDIfIoCache.pfnGetSize    = drvvdAsyncIOGetSize;
-            pThis->VDIfIoCache.pfnSetSize    = drvvdAsyncIOSetSize;
-            pThis->VDIfIoCache.pfnReadSync   = drvvdAsyncIOReadSync;
-            pThis->VDIfIoCache.pfnWriteSync  = drvvdAsyncIOWriteSync;
-            pThis->VDIfIoCache.pfnFlushSync  = drvvdAsyncIOFlushSync;
-            pThis->VDIfIoCache.pfnReadAsync  = drvvdAsyncIOReadAsync;
-            pThis->VDIfIoCache.pfnWriteAsync = drvvdAsyncIOWriteAsync;
-            pThis->VDIfIoCache.pfnFlushAsync = drvvdAsyncIOFlushAsync;
-#else /* !VBOX_WITH_PDM_ASYNC_COMPLETION */
-            rc = PDMDrvHlpVMSetError(pDrvIns, VERR_PDM_DRVINS_UNKNOWN_CFG_VALUES,
-                                     RT_SRC_POS, N_("DrvVD: Configuration error: Async Completion Framework not compiled in"));
-#endif /* !VBOX_WITH_PDM_ASYNC_COMPLETION */
-            if (RT_SUCCESS(rc))
-                rc = VDInterfaceAdd(&pThis->VDIfIoCache.Core, "DrvVD_IO", VDINTERFACETYPE_IO,
-                                    pThis, sizeof(VDINTERFACEIO), &pThis->pVDIfsCache);
-            AssertRC(rc);
-        }
-
-        rc = VDCacheOpen(pThis->pDisk, pszCacheFormat, pszCachePath, VD_OPEN_FLAGS_NORMAL, pThis->pVDIfsCache);
-        if (RT_FAILURE(rc))
-            rc = PDMDRV_SET_ERROR(pDrvIns, rc, N_("DrvVD: Could not open cache image"));
-    }
-
-    if (RT_VALID_PTR(pszCachePath))
-        MMR3HeapFree(pszCachePath);
-    if (RT_VALID_PTR(pszCacheFormat))
-        MMR3HeapFree(pszCacheFormat);
-
-    if (   RT_SUCCESS(rc)
-        && pThis->fMergePending
-        && (   pThis->uMergeSource == VD_LAST_IMAGE
-            || pThis->uMergeTarget == VD_LAST_IMAGE))
-    {
-        rc = PDMDRV_SET_ERROR(pDrvIns, VERR_PDM_DRIVER_INVALID_PROPERTIES,
-                              N_("DrvVD: Configuration error: Inconsistent image merge data"));
-    }
-
-    /* Create the block cache if enabled. */
-    if (   fUseBlockCache
-        && !pThis->fShareable
-        && !fDiscard
-        && !pThis->pCfgCrypto /* Disk encryption disables the block cache for security reasons */
+    if (   !fEmptyDrive
         && RT_SUCCESS(rc))
     {
         /*
-         * We need a unique ID for the block cache (to identify the owner of data
-         * blocks in a saved state). UUIDs are not really suitable because
-         * there are image formats which don't support them. Furthermore it is
-         * possible that a new diff image was attached after a saved state
-         * which changes the UUID.
-         * However the device "name + device instance + LUN" triple the disk is
-         * attached to is always constant for saved states.
+         * Create the image container and the necessary interfaces.
          */
-        char *pszId = NULL;
-        uint32_t iInstance, iLUN;
-        const char *pcszController;
-
-        rc = pThis->pDrvMediaPort->pfnQueryDeviceLocation(pThis->pDrvMediaPort, &pcszController,
-                                                          &iInstance, &iLUN);
-        if (RT_FAILURE(rc))
-            rc = PDMDRV_SET_ERROR(pDrvIns, VERR_PDM_DRIVER_INVALID_PROPERTIES,
-                                  N_("DrvVD: Configuration error: Could not query device data"));
-        else
+        if (RT_SUCCESS(rc))
         {
-            int cbStr = RTStrAPrintf(&pszId, "%s-%d-%d", pcszController, iInstance, iLUN);
-
-            if (cbStr > 0)
+            /*
+             * The image has a bandwidth group but the host cache is enabled.
+             * Use the async I/O framework but tell it to enable the host cache.
+             */
+            if (!fUseNewIo && pThis->pszBwGroup)
             {
-                rc = PDMDrvHlpBlkCacheRetain(pDrvIns, &pThis->pBlkCache,
-                                             drvvdBlkCacheXferComplete,
-                                             drvvdBlkCacheXferEnqueue,
-                                             drvvdBlkCacheXferEnqueueDiscard,
-                                             pszId);
-                if (rc == VERR_NOT_SUPPORTED)
+                pThis->fAsyncIoWithHostCache = true;
+                fUseNewIo = true;
+            }
+
+            /** @todo quick hack to work around problems in the async I/O
+             * implementation (rw semaphore thread ownership problem)
+             * while a merge is running. Remove once this is fixed. */
+            if (pThis->fMergePending)
+                fUseNewIo = false;
+
+            if (RT_SUCCESS(rc) && pThis->fMergePending)
+            {
+                rc = RTSemFastMutexCreate(&pThis->MergeCompleteMutex);
+                if (RT_SUCCESS(rc))
+                    rc = RTSemRWCreate(&pThis->MergeLock);
+                if (RT_SUCCESS(rc))
                 {
-                    LogRel(("VD: Block cache is not supported\n"));
-                    rc = VINF_SUCCESS;
+                    pThis->VDIfThreadSync.pfnStartRead   = drvvdThreadStartRead;
+                    pThis->VDIfThreadSync.pfnFinishRead  = drvvdThreadFinishRead;
+                    pThis->VDIfThreadSync.pfnStartWrite  = drvvdThreadStartWrite;
+                    pThis->VDIfThreadSync.pfnFinishWrite = drvvdThreadFinishWrite;
+
+                    rc = VDInterfaceAdd(&pThis->VDIfThreadSync.Core, "DrvVD_ThreadSync", VDINTERFACETYPE_THREADSYNC,
+                                        pThis, sizeof(VDINTERFACETHREADSYNC), &pThis->pVDIfsDisk);
                 }
                 else
-                    AssertRC(rc);
+                {
+                    rc = PDMDRV_SET_ERROR(pDrvIns, rc,
+                                          N_("DrvVD: Failed to create semaphores for \"MergePending\""));
+                }
+            }
 
-                RTStrFree(pszId);
+            if (RT_SUCCESS(rc))
+            {
+                rc = VDCreate(pThis->pVDIfsDisk, drvvdGetVDFromMediaType(pThis->enmType), &pThis->pDisk);
+                /* Error message is already set correctly. */
+            }
+        }
+
+        if (pThis->pDrvMediaAsyncPort && fUseNewIo)
+            pThis->fAsyncIOSupported = true;
+
+        uint64_t tsStart = RTTimeNanoTS();
+
+        unsigned iImageIdx = 0;
+        while (pCurNode && RT_SUCCESS(rc))
+        {
+            /* Allocate per-image data. */
+            PVBOXIMAGE pImage = drvvdNewImage(pThis);
+            if (!pImage)
+            {
+                rc = VERR_NO_MEMORY;
+                break;
+            }
+
+            /*
+             * Read the image configuration.
+             */
+            rc = CFGMR3QueryStringAlloc(pCurNode, "Path", &pszName);
+            if (RT_FAILURE(rc))
+            {
+                rc = PDMDRV_SET_ERROR(pDrvIns, rc,
+                                      N_("DrvVD: Configuration error: Querying \"Path\" as string failed"));
+                break;
+            }
+
+            rc = CFGMR3QueryStringAlloc(pCurNode, "Format", &pszFormat);
+            if (RT_FAILURE(rc))
+            {
+                rc = PDMDRV_SET_ERROR(pDrvIns, rc,
+                                      N_("DrvVD: Configuration error: Querying \"Format\" as string failed"));
+                break;
+            }
+
+            bool fMergeSource;
+            rc = CFGMR3QueryBoolDef(pCurNode, "MergeSource", &fMergeSource, false);
+            if (RT_FAILURE(rc))
+            {
+                rc = PDMDRV_SET_ERROR(pDrvIns, rc,
+                                      N_("DrvVD: Configuration error: Querying \"MergeSource\" as boolean failed"));
+                break;
+            }
+            if (fMergeSource)
+            {
+                if (pThis->uMergeSource == VD_LAST_IMAGE)
+                    pThis->uMergeSource = iImageIdx;
+                else
+                {
+                    rc = PDMDRV_SET_ERROR(pDrvIns, VERR_PDM_DRIVER_INVALID_PROPERTIES,
+                                          N_("DrvVD: Configuration error: Multiple \"MergeSource\" occurrences"));
+                    break;
+                }
+            }
+
+            bool fMergeTarget;
+            rc = CFGMR3QueryBoolDef(pCurNode, "MergeTarget", &fMergeTarget, false);
+            if (RT_FAILURE(rc))
+            {
+                rc = PDMDRV_SET_ERROR(pDrvIns, rc,
+                                      N_("DrvVD: Configuration error: Querying \"MergeTarget\" as boolean failed"));
+                break;
+            }
+            if (fMergeTarget)
+            {
+                if (pThis->uMergeTarget == VD_LAST_IMAGE)
+                    pThis->uMergeTarget = iImageIdx;
+                else
+                {
+                    rc = PDMDRV_SET_ERROR(pDrvIns, VERR_PDM_DRIVER_INVALID_PROPERTIES,
+                                          N_("DrvVD: Configuration error: Multiple \"MergeTarget\" occurrences"));
+                    break;
+                }
+            }
+
+            PCFGMNODE pCfgVDConfig = CFGMR3GetChild(pCurNode, "VDConfig");
+            pImage->VDIfConfig.pfnAreKeysValid = drvvdCfgAreKeysValid;
+            pImage->VDIfConfig.pfnQuerySize    = drvvdCfgQuerySize;
+            pImage->VDIfConfig.pfnQuery        = drvvdCfgQuery;
+            pImage->VDIfConfig.pfnQueryBytes   = NULL;
+            rc = VDInterfaceAdd(&pImage->VDIfConfig.Core, "DrvVD_Config", VDINTERFACETYPE_CONFIG,
+                                pCfgVDConfig, sizeof(VDINTERFACECONFIG), &pImage->pVDIfsImage);
+            AssertRC(rc);
+
+            /* Check VDConfig for encryption config. */
+            if (pCfgVDConfig)
+                pThis->pCfgCrypto = CFGMR3GetChild(pCfgVDConfig, "CRYPT");
+
+            if (pThis->pCfgCrypto)
+            {
+                /* Setup VDConfig interface for disk encryption support. */
+                pThis->VDIfCfg.pfnAreKeysValid  = drvvdCfgAreKeysValid;
+                pThis->VDIfCfg.pfnQuerySize     = drvvdCfgQuerySize;
+                pThis->VDIfCfg.pfnQuery         = drvvdCfgQuery;
+                pThis->VDIfCfg.pfnQueryBytes    = NULL;
+
+                pThis->VDIfCrypto.pfnKeyRetain               = drvvdCryptoKeyRetain;
+                pThis->VDIfCrypto.pfnKeyRelease              = drvvdCryptoKeyRelease;
+                pThis->VDIfCrypto.pfnKeyStorePasswordRetain  = drvvdCryptoKeyStorePasswordRetain;
+                pThis->VDIfCrypto.pfnKeyStorePasswordRelease = drvvdCryptoKeyStorePasswordRelease;
+            }
+
+            /* Unconditionally insert the TCPNET interface, don't bother to check
+             * if an image really needs it. Will be ignored. Since the TCPNET
+             * interface is per image we could make this more flexible in the
+             * future if we want to. */
+            /* Construct TCPNET callback table depending on the config. This is
+             * done unconditionally, as uninterested backends will ignore it. */
+            if (fHostIP)
+            {
+                pImage->VDIfTcpNet.pfnSocketCreate = drvvdTcpSocketCreate;
+                pImage->VDIfTcpNet.pfnSocketDestroy = drvvdTcpSocketDestroy;
+                pImage->VDIfTcpNet.pfnClientConnect = drvvdTcpClientConnect;
+                pImage->VDIfTcpNet.pfnIsClientConnected = drvvdTcpIsClientConnected;
+                pImage->VDIfTcpNet.pfnClientClose = drvvdTcpClientClose;
+                pImage->VDIfTcpNet.pfnSelectOne = drvvdTcpSelectOne;
+                pImage->VDIfTcpNet.pfnRead = drvvdTcpRead;
+                pImage->VDIfTcpNet.pfnWrite = drvvdTcpWrite;
+                pImage->VDIfTcpNet.pfnSgWrite = drvvdTcpSgWrite;
+                pImage->VDIfTcpNet.pfnReadNB = drvvdTcpReadNB;
+                pImage->VDIfTcpNet.pfnWriteNB = drvvdTcpWriteNB;
+                pImage->VDIfTcpNet.pfnSgWriteNB = drvvdTcpSgWriteNB;
+                pImage->VDIfTcpNet.pfnFlush = drvvdTcpFlush;
+                pImage->VDIfTcpNet.pfnSetSendCoalescing = drvvdTcpSetSendCoalescing;
+                pImage->VDIfTcpNet.pfnGetLocalAddress = drvvdTcpGetLocalAddress;
+                pImage->VDIfTcpNet.pfnGetPeerAddress = drvvdTcpGetPeerAddress;
+
+                /*
+                 * There is a 15ms delay between receiving the data and marking the socket
+                 * as readable on Windows XP which hurts async I/O performance of
+                 * TCP backends badly. Provide a different select method without
+                 * using poll on XP.
+                 * This is only used on XP because it is not as efficient as the one using poll
+                 * and all other Windows versions are working fine.
+                 */
+                char szOS[64];
+                memset(szOS, 0, sizeof(szOS));
+                rc = RTSystemQueryOSInfo(RTSYSOSINFO_PRODUCT, &szOS[0], sizeof(szOS));
+
+                if (RT_SUCCESS(rc) && !strncmp(szOS, "Windows XP", 10))
+                {
+                    LogRel(("VD: Detected Windows XP, disabled poll based waiting for TCP\n"));
+                    pImage->VDIfTcpNet.pfnSelectOneEx = drvvdTcpSelectOneExNoPoll;
+                }
+                else
+                    pImage->VDIfTcpNet.pfnSelectOneEx = drvvdTcpSelectOneExPoll;
+
+                pImage->VDIfTcpNet.pfnPoke = drvvdTcpPoke;
             }
             else
-                rc = PDMDRV_SET_ERROR(pDrvIns, VERR_PDM_DRIVER_INVALID_PROPERTIES,
-                                      N_("DrvVD: Out of memory when creating block cache"));
+            {
+#ifndef VBOX_WITH_INIP
+                rc = PDMDrvHlpVMSetError(pDrvIns, VERR_PDM_DRVINS_UNKNOWN_CFG_VALUES,
+                                         RT_SRC_POS, N_("DrvVD: Configuration error: TCP over Internal Networking not compiled in"));
+#else /* VBOX_WITH_INIP */
+                pImage->VDIfTcpNet.pfnSocketCreate = drvvdINIPSocketCreate;
+                pImage->VDIfTcpNet.pfnSocketDestroy = drvvdINIPSocketDestroy;
+                pImage->VDIfTcpNet.pfnClientConnect = drvvdINIPClientConnect;
+                pImage->VDIfTcpNet.pfnClientClose = drvvdINIPClientClose;
+                pImage->VDIfTcpNet.pfnIsClientConnected = drvvdINIPIsClientConnected;
+                pImage->VDIfTcpNet.pfnSelectOne = drvvdINIPSelectOne;
+                pImage->VDIfTcpNet.pfnRead = drvvdINIPRead;
+                pImage->VDIfTcpNet.pfnWrite = drvvdINIPWrite;
+                pImage->VDIfTcpNet.pfnSgWrite = drvvdINIPSgWrite;
+                pImage->VDIfTcpNet.pfnFlush = drvvdINIPFlush;
+                pImage->VDIfTcpNet.pfnSetSendCoalescing = drvvdINIPSetSendCoalescing;
+                pImage->VDIfTcpNet.pfnGetLocalAddress = drvvdINIPGetLocalAddress;
+                pImage->VDIfTcpNet.pfnGetPeerAddress = drvvdINIPGetPeerAddress;
+                pImage->VDIfTcpNet.pfnSelectOneEx = drvvdINIPSelectOneEx;
+                pImage->VDIfTcpNet.pfnPoke = drvvdINIPPoke;
+#endif /* VBOX_WITH_INIP */
+            }
+            rc = VDInterfaceAdd(&pImage->VDIfTcpNet.Core, "DrvVD_TCPNET",
+                                VDINTERFACETYPE_TCPNET, NULL,
+                                sizeof(VDINTERFACETCPNET), &pImage->pVDIfsImage);
+            AssertRC(rc);
+
+            /* Insert the custom I/O interface only if we're told to use new IO.
+             * Since the I/O interface is per image we could make this more
+             * flexible in the future if we want to. */
+            if (fUseNewIo)
+            {
+#ifdef VBOX_WITH_PDM_ASYNC_COMPLETION
+                pImage->VDIfIo.pfnOpen              = drvvdAsyncIOOpen;
+                pImage->VDIfIo.pfnClose             = drvvdAsyncIOClose;
+                pImage->VDIfIo.pfnGetSize           = drvvdAsyncIOGetSize;
+                pImage->VDIfIo.pfnSetSize           = drvvdAsyncIOSetSize;
+                pImage->VDIfIo.pfnSetAllocationSize = drvvdAsyncIOSetAllocationSize;
+                pImage->VDIfIo.pfnReadSync          = drvvdAsyncIOReadSync;
+                pImage->VDIfIo.pfnWriteSync         = drvvdAsyncIOWriteSync;
+                pImage->VDIfIo.pfnFlushSync         = drvvdAsyncIOFlushSync;
+                pImage->VDIfIo.pfnReadAsync         = drvvdAsyncIOReadAsync;
+                pImage->VDIfIo.pfnWriteAsync        = drvvdAsyncIOWriteAsync;
+                pImage->VDIfIo.pfnFlushAsync        = drvvdAsyncIOFlushAsync;
+#else /* !VBOX_WITH_PDM_ASYNC_COMPLETION */
+                rc = PDMDrvHlpVMSetError(pDrvIns, VERR_PDM_DRVINS_UNKNOWN_CFG_VALUES,
+                                         RT_SRC_POS, N_("DrvVD: Configuration error: Async Completion Framework not compiled in"));
+#endif /* !VBOX_WITH_PDM_ASYNC_COMPLETION */
+                if (RT_SUCCESS(rc))
+                    rc = VDInterfaceAdd(&pImage->VDIfIo.Core, "DrvVD_IO", VDINTERFACETYPE_IO,
+                                        pThis, sizeof(VDINTERFACEIO), &pImage->pVDIfsImage);
+                AssertRC(rc);
+            }
+
+            /*
+             * Open the image.
+             */
+            unsigned uOpenFlags;
+            if (fReadOnly || pThis->fTempReadOnly || iLevel != 0)
+                uOpenFlags = VD_OPEN_FLAGS_READONLY;
+            else
+                uOpenFlags = VD_OPEN_FLAGS_NORMAL;
+            if (fHonorZeroWrites)
+                uOpenFlags |= VD_OPEN_FLAGS_HONOR_ZEROES;
+            if (pThis->fAsyncIOSupported)
+                uOpenFlags |= VD_OPEN_FLAGS_ASYNC_IO;
+            if (pThis->fShareable)
+                uOpenFlags |= VD_OPEN_FLAGS_SHAREABLE;
+            if (fDiscard && iLevel == 0)
+                uOpenFlags |= VD_OPEN_FLAGS_DISCARD;
+            if (fInformAboutZeroBlocks)
+                uOpenFlags |= VD_OPEN_FLAGS_INFORM_ABOUT_ZERO_BLOCKS;
+            if (   (uOpenFlags & VD_OPEN_FLAGS_READONLY)
+                && fSkipConsistencyChecks)
+                uOpenFlags |= VD_OPEN_FLAGS_SKIP_CONSISTENCY_CHECKS;
+
+            /* Try to open backend in async I/O mode first. */
+            rc = VDOpen(pThis->pDisk, pszFormat, pszName, uOpenFlags, pImage->pVDIfsImage);
+            if (rc == VERR_NOT_SUPPORTED)
+            {
+                pThis->fAsyncIOSupported = false;
+                uOpenFlags &= ~VD_OPEN_FLAGS_ASYNC_IO;
+                rc = VDOpen(pThis->pDisk, pszFormat, pszName, uOpenFlags, pImage->pVDIfsImage);
+            }
+
+            if (rc == VERR_VD_DISCARD_NOT_SUPPORTED)
+            {
+                fDiscard = false;
+                uOpenFlags &= ~VD_OPEN_FLAGS_DISCARD;
+                rc = VDOpen(pThis->pDisk, pszFormat, pszName, uOpenFlags, pImage->pVDIfsImage);
+            }
+
+            if (!fDiscard)
+            {
+                pThis->IMedia.pfnDiscard = NULL;
+                pThis->IMediaAsync.pfnStartDiscard = NULL;
+            }
+
+            if (RT_SUCCESS(rc))
+            {
+                LogFunc(("%d - Opened '%s' in %s mode\n",
+                         iLevel, pszName,
+                         VDIsReadOnly(pThis->pDisk) ? "read-only" : "read-write"));
+                if (  VDIsReadOnly(pThis->pDisk)
+                    && !fReadOnly
+                    && !fMaybeReadOnly
+                    && !pThis->fTempReadOnly
+                    && iLevel == 0)
+                {
+                    rc = PDMDrvHlpVMSetError(pDrvIns, VERR_VD_IMAGE_READ_ONLY, RT_SRC_POS,
+                                             N_("Failed to open image '%s' for writing due to wrong permissions"),
+                                             pszName);
+                    break;
+                }
+            }
+            else
+            {
+               rc = PDMDrvHlpVMSetError(pDrvIns, rc, RT_SRC_POS,
+                                        N_("Failed to open image '%s' in %s mode"), pszName,
+                                        (uOpenFlags & VD_OPEN_FLAGS_READONLY) ? "read-only" : "read-write");
+               break;
+            }
+
+            MMR3HeapFree(pszName);
+            pszName = NULL;
+            MMR3HeapFree(pszFormat);
+            pszFormat = NULL;
+
+            /* next */
+            iLevel--;
+            iImageIdx++;
+            pCurNode = CFGMR3GetParent(pCurNode);
         }
-    }
 
-    if (RT_SUCCESS(rc))
-        rc = drvvdSetupFilters(pThis, pCfg);
+        LogRel(("VD: Opening the disk took %lld ns\n", RTTimeNanoTS() - tsStart));
 
-    /*
-     * Register a load-done callback so we can undo TempReadOnly config before
-     * we get to drvvdResume.  Autoamtically deregistered upon destruction.
-     */
-    if (RT_SUCCESS(rc))
-        rc = PDMDrvHlpSSMRegisterEx(pDrvIns, 0 /* version */, 0 /* cbGuess */,
-                                    NULL /*pfnLivePrep*/, NULL /*pfnLiveExec*/, NULL /*pfnLiveVote*/,
-                                    NULL /*pfnSavePrep*/, NULL /*pfnSaveExec*/, NULL /*pfnSaveDone*/,
-                                    NULL /*pfnDonePrep*/, NULL /*pfnLoadExec*/, drvvdLoadDone);
-
-    /* Setup the boot acceleration stuff if enabled. */
-    if (RT_SUCCESS(rc) && pThis->fBootAccelEnabled)
-    {
-        pThis->cbDisk = VDGetSize(pThis->pDisk, VD_LAST_IMAGE);
-        Assert(pThis->cbDisk > 0);
-        pThis->pbData = (uint8_t *)RTMemAllocZ(pThis->cbBootAccelBuffer);
-        if (pThis->pbData)
+        /* Open the cache image if set. */
+        if (   RT_SUCCESS(rc)
+            && RT_VALID_PTR(pszCachePath))
         {
-            pThis->fBootAccelActive = true;
-            pThis->offDisk          = 0;
-            pThis->cbDataValid      = 0;
-            LogRel(("VD: Boot acceleration enabled\n"));
+            /* Insert the custom I/O interface only if we're told to use new IO.
+             * Since the I/O interface is per image we could make this more
+             * flexible in the future if we want to. */
+            if (fUseNewIo)
+            {
+#ifdef VBOX_WITH_PDM_ASYNC_COMPLETION
+                pThis->VDIfIoCache.pfnOpen       = drvvdAsyncIOOpen;
+                pThis->VDIfIoCache.pfnClose      = drvvdAsyncIOClose;
+                pThis->VDIfIoCache.pfnGetSize    = drvvdAsyncIOGetSize;
+                pThis->VDIfIoCache.pfnSetSize    = drvvdAsyncIOSetSize;
+                pThis->VDIfIoCache.pfnReadSync   = drvvdAsyncIOReadSync;
+                pThis->VDIfIoCache.pfnWriteSync  = drvvdAsyncIOWriteSync;
+                pThis->VDIfIoCache.pfnFlushSync  = drvvdAsyncIOFlushSync;
+                pThis->VDIfIoCache.pfnReadAsync  = drvvdAsyncIOReadAsync;
+                pThis->VDIfIoCache.pfnWriteAsync = drvvdAsyncIOWriteAsync;
+                pThis->VDIfIoCache.pfnFlushAsync = drvvdAsyncIOFlushAsync;
+#else /* !VBOX_WITH_PDM_ASYNC_COMPLETION */
+                rc = PDMDrvHlpVMSetError(pDrvIns, VERR_PDM_DRVINS_UNKNOWN_CFG_VALUES,
+                                         RT_SRC_POS, N_("DrvVD: Configuration error: Async Completion Framework not compiled in"));
+#endif /* !VBOX_WITH_PDM_ASYNC_COMPLETION */
+                if (RT_SUCCESS(rc))
+                    rc = VDInterfaceAdd(&pThis->VDIfIoCache.Core, "DrvVD_IO", VDINTERFACETYPE_IO,
+                                        pThis, sizeof(VDINTERFACEIO), &pThis->pVDIfsCache);
+                AssertRC(rc);
+            }
+
+            rc = VDCacheOpen(pThis->pDisk, pszCacheFormat, pszCachePath, VD_OPEN_FLAGS_NORMAL, pThis->pVDIfsCache);
+            if (RT_FAILURE(rc))
+                rc = PDMDRV_SET_ERROR(pDrvIns, rc, N_("DrvVD: Could not open cache image"));
         }
-        else
-            LogRel(("VD: Boot acceleration, out of memory, disabled\n"));
-    }
+
+        if (RT_VALID_PTR(pszCachePath))
+            MMR3HeapFree(pszCachePath);
+        if (RT_VALID_PTR(pszCacheFormat))
+            MMR3HeapFree(pszCacheFormat);
+
+        if (   RT_SUCCESS(rc)
+            && pThis->fMergePending
+            && (   pThis->uMergeSource == VD_LAST_IMAGE
+                || pThis->uMergeTarget == VD_LAST_IMAGE))
+        {
+            rc = PDMDRV_SET_ERROR(pDrvIns, VERR_PDM_DRIVER_INVALID_PROPERTIES,
+                                  N_("DrvVD: Configuration error: Inconsistent image merge data"));
+        }
+
+        /* Create the block cache if enabled. */
+        if (   fUseBlockCache
+            && !pThis->fShareable
+            && !fDiscard
+            && !pThis->pCfgCrypto /* Disk encryption disables the block cache for security reasons */
+            && RT_SUCCESS(rc))
+        {
+            /*
+             * We need a unique ID for the block cache (to identify the owner of data
+             * blocks in a saved state). UUIDs are not really suitable because
+             * there are image formats which don't support them. Furthermore it is
+             * possible that a new diff image was attached after a saved state
+             * which changes the UUID.
+             * However the device "name + device instance + LUN" triple the disk is
+             * attached to is always constant for saved states.
+             */
+            char *pszId = NULL;
+            uint32_t iInstance, iLUN;
+            const char *pcszController;
+
+            rc = pThis->pDrvMediaPort->pfnQueryDeviceLocation(pThis->pDrvMediaPort, &pcszController,
+                                                              &iInstance, &iLUN);
+            if (RT_FAILURE(rc))
+                rc = PDMDRV_SET_ERROR(pDrvIns, VERR_PDM_DRIVER_INVALID_PROPERTIES,
+                                      N_("DrvVD: Configuration error: Could not query device data"));
+            else
+            {
+                int cbStr = RTStrAPrintf(&pszId, "%s-%d-%d", pcszController, iInstance, iLUN);
+
+                if (cbStr > 0)
+                {
+                    rc = PDMDrvHlpBlkCacheRetain(pDrvIns, &pThis->pBlkCache,
+                                                 drvvdBlkCacheXferComplete,
+                                                 drvvdBlkCacheXferEnqueue,
+                                                 drvvdBlkCacheXferEnqueueDiscard,
+                                                 pszId);
+                    if (rc == VERR_NOT_SUPPORTED)
+                    {
+                        LogRel(("VD: Block cache is not supported\n"));
+                        rc = VINF_SUCCESS;
+                    }
+                    else
+                        AssertRC(rc);
+
+                    RTStrFree(pszId);
+                }
+                else
+                    rc = PDMDRV_SET_ERROR(pDrvIns, VERR_PDM_DRIVER_INVALID_PROPERTIES,
+                                          N_("DrvVD: Out of memory when creating block cache"));
+            }
+        }
+
+        if (RT_SUCCESS(rc))
+            rc = drvvdSetupFilters(pThis, pCfg);
+
+        /*
+         * Register a load-done callback so we can undo TempReadOnly config before
+         * we get to drvvdResume.  Autoamtically deregistered upon destruction.
+         */
+        if (RT_SUCCESS(rc))
+            rc = PDMDrvHlpSSMRegisterEx(pDrvIns, 0 /* version */, 0 /* cbGuess */,
+                                        NULL /*pfnLivePrep*/, NULL /*pfnLiveExec*/, NULL /*pfnLiveVote*/,
+                                        NULL /*pfnSavePrep*/, NULL /*pfnSaveExec*/, NULL /*pfnSaveDone*/,
+                                        NULL /*pfnDonePrep*/, NULL /*pfnLoadExec*/, drvvdLoadDone);
+
+        /* Setup the boot acceleration stuff if enabled. */
+        if (RT_SUCCESS(rc) && pThis->fBootAccelEnabled)
+        {
+            pThis->cbDisk = VDGetSize(pThis->pDisk, VD_LAST_IMAGE);
+            Assert(pThis->cbDisk > 0);
+            pThis->pbData = (uint8_t *)RTMemAllocZ(pThis->cbBootAccelBuffer);
+            if (pThis->pbData)
+            {
+                pThis->fBootAccelActive = true;
+                pThis->offDisk          = 0;
+                pThis->cbDataValid      = 0;
+                LogRel(("VD: Boot acceleration enabled\n"));
+            }
+            else
+                LogRel(("VD: Boot acceleration, out of memory, disabled\n"));
+        }
+
+        if (   RTUuidIsNull(&pThis->Uuid)
+            && pThis->enmType == PDMMEDIATYPE_HARD_DISK)
+            VDGetUuid(pThis->pDisk, 0, &pThis->Uuid);
+
+        /*
+         * Automatically upgrade the floppy drive if the specified one is too
+         * small to represent the whole boot time image. (We cannot do this later
+         * since the BIOS (and others) gets the info via CMOS.)
+         *
+         * This trick should make 2.88 images as well as the fake 15.6 and 63.5 MB
+         * images despite the hardcoded default 1.44 drive.
+         */
+        if (   PDMMEDIATYPE_IS_FLOPPY(pThis->enmType)
+            && pThis->pDisk)
+        {
+            uint64_t     const cbFloppyImg = VDGetSize(pThis->pDisk, VD_LAST_IMAGE);
+            PDMMEDIATYPE const enmCfgType  = pThis->enmType;
+            switch (enmCfgType)
+            {
+                default:
+                    AssertFailed();
+                case PDMMEDIATYPE_FLOPPY_360:
+                    if (cbFloppyImg > 40 * 2 * 9 * 512)
+                        pThis->enmType = PDMMEDIATYPE_FLOPPY_720;
+                    /* fall thru */
+                case PDMMEDIATYPE_FLOPPY_720:
+                    if (cbFloppyImg > 80 * 2 * 14 * 512)
+                        pThis->enmType = PDMMEDIATYPE_FLOPPY_1_20;
+                    /* fall thru */
+                case PDMMEDIATYPE_FLOPPY_1_20:
+                    if (cbFloppyImg > 80 * 2 * 20 * 512)
+                        pThis->enmType = PDMMEDIATYPE_FLOPPY_1_44;
+                    /* fall thru */
+                case PDMMEDIATYPE_FLOPPY_1_44:
+                    if (cbFloppyImg > 80 * 2 * 24 * 512)
+                        pThis->enmType = PDMMEDIATYPE_FLOPPY_2_88;
+                    /* fall thru */
+                case PDMMEDIATYPE_FLOPPY_2_88:
+                    if (cbFloppyImg > 80 * 2 * 48 * 512)
+                        pThis->enmType = PDMMEDIATYPE_FLOPPY_FAKE_15_6;
+                    /* fall thru */
+                case PDMMEDIATYPE_FLOPPY_FAKE_15_6:
+                    if (cbFloppyImg > 255 * 2 * 63 * 512)
+                        pThis->enmType = PDMMEDIATYPE_FLOPPY_FAKE_63_5;
+                case PDMMEDIATYPE_FLOPPY_FAKE_63_5:
+                    if (cbFloppyImg > 255 * 2 * 255 * 512)
+                        LogRel(("Warning: Floppy image is larger that 63.5 MB! (%llu bytes)\n", cbFloppyImg));
+                    break;
+            }
+            if (pThis->enmType != enmCfgType)
+                LogRel(("DrvVD: Automatically upgraded floppy drive from %s to %s to better support the %u byte image\n",
+                        drvvdGetTypeName(enmCfgType), drvvdGetTypeName(pThis->enmType), cbFloppyImg));
+        }
+    } /* !fEmptyDrive */
 
     if (RT_FAILURE(rc))
     {

@@ -57,10 +57,18 @@
 #include "../PC/DevPit-i8254.cpp"
 #undef LOG_GROUP
 #include "../PC/DevRTC.cpp"
+# undef LOG_GROUP
+#ifdef VBOX_WITH_NEW_APIC
+# include "../../VMM/VMMR3/APIC.cpp"
+#else
+# include "../PC/DevAPIC.cpp"
+#endif
 #undef LOG_GROUP
-#include "../PC/DevAPIC.cpp"
-#undef LOG_GROUP
-#include "../PC/DevIoApic.cpp"
+#ifdef VBOX_WITH_NEW_IOAPIC
+# include "../PC/DevIOAPIC_New.cpp"
+#else
+# include "../PC/DevIoApic.cpp"
+#endif
 #undef LOG_GROUP
 #include "../PC/DevHPET.cpp"
 #undef LOG_GROUP
@@ -98,6 +106,10 @@
 #ifdef VBOX_WITH_LSILOGIC
 # undef LOG_GROUP
 # include "../Storage/DevLsiLogicSCSI.cpp"
+#endif
+#ifdef VBOX_WITH_NVME_IMPL
+# undef LOG_GROUP
+# include "../Storage/DevNVMe.cpp"
 #endif
 
 #ifdef VBOX_WITH_PCI_PASSTHROUGH_IMPL
@@ -276,8 +288,13 @@ int main()
      */
     CHECK_MEMBER_ALIGNMENT(AHCI, lock, 8);
     CHECK_MEMBER_ALIGNMENT(AHCIPort, StatDMA, 8);
-#ifdef VBOX_WITH_STATISTICS
+#ifdef VBOX_WITH_NEW_APIC
+    CHECK_MEMBER_ALIGNMENT(APICDEV, pDevInsR0, 8);
+    CHECK_MEMBER_ALIGNMENT(APICDEV, pDevInsRC, 8);
+#else
+# ifdef VBOX_WITH_STATISTICS
     CHECK_MEMBER_ALIGNMENT(APICDeviceInfo, StatMMIOReadGC, 8);
+# endif
 #endif
     CHECK_MEMBER_ALIGNMENT(ATADevState, cTotalSectors, 8);
     CHECK_MEMBER_ALIGNMENT(ATADevState, StatATADMA, 8);
@@ -305,6 +322,9 @@ int main()
 #  endif
 # endif
 # ifdef VBOX_WITH_XHCI_IMPL
+    CHECK_MEMBER_ALIGNMENT(XHCI, pWorkerThread, 8);
+    CHECK_MEMBER_ALIGNMENT(XHCI, IBase, 8);
+    CHECK_MEMBER_ALIGNMENT(XHCI, MMIOBase, 8);
     CHECK_MEMBER_ALIGNMENT(XHCI, RootHub2, 8);
     CHECK_MEMBER_ALIGNMENT(XHCI, RootHub3, 8);
     CHECK_MEMBER_ALIGNMENT(XHCI, cmdr_dqp, 8);
@@ -315,9 +335,16 @@ int main()
 # endif
 #endif
     CHECK_MEMBER_ALIGNMENT(E1KSTATE, StatReceiveBytes, 8);
-#ifdef VBOX_WITH_STATISTICS
+#ifdef VBOX_WITH_NEW_IOAPIC
+    CHECK_MEMBER_ALIGNMENT(IOAPIC, au64RedirTable, 8);
+# ifdef VBOX_WITH_STATISTICS
+    CHECK_MEMBER_ALIGNMENT(IOAPIC, StatMmioReadR0, 8);
+# endif
+#else
+# ifdef VBOX_WITH_STATISTICS
     CHECK_MEMBER_ALIGNMENT(IOAPIC, StatMMIOReadGC, 8);
     CHECK_MEMBER_ALIGNMENT(IOAPIC, StatMMIOReadGC, 8);
+# endif
 #endif
     CHECK_MEMBER_ALIGNMENT(LSILOGISCSI, GCPhysMMIOBase, 8);
     CHECK_MEMBER_ALIGNMENT(LSILOGISCSI, aMessage, 8);

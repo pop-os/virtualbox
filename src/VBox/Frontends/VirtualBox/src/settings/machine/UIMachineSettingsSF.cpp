@@ -203,7 +203,11 @@ UIMachineSettingsSF::UIMachineSettingsSF()
     m_pFoldersToolBar->addAction(mDelAction);
 
     /* Setup connections */
+#if QT_VERSION >= 0x050000
+    mTwFolders->header()->setSectionsMovable(false);
+#else /* QT_VERSION < 0x050000 */
     mTwFolders->header()->setMovable (false);
+#endif /* QT_VERSION < 0x050000 */
     connect (mNewAction, SIGNAL (triggered (bool)), this, SLOT (addTriggered()));
     connect (mEdtAction, SIGNAL (triggered (bool)), this, SLOT (edtTriggered()));
     connect (mDelAction, SIGNAL (triggered (bool)), this, SLOT (delTriggered()));
@@ -431,16 +435,7 @@ void UIMachineSettingsSF::addTriggered()
 {
     /* Invoke Add-Box Dialog */
     UIMachineSettingsSFDetails dlg (UIMachineSettingsSFDetails::AddType, isSharedFolderTypeSupported(ConsoleType), usedList (true), this);
-#ifdef Q_WS_MAC
-    /* !!! WORKAROUND !!!
-     * Actually this one dialog should be a window-modal 'Mac Sheet' (not an application-modal 'Window')
-     * but in that one case we have a strange Qt bug under MacOS X host.
-     * Its probably linked somehow with using Mac Sheets and leads to appearing of some strange
-     * empty modal-window (after closing this dialog) which prevents further applicaiton interactions. */
-    if (dlg.exec(true /* show-instantly */, true /* application-modal */) == QDialog::Accepted)
-#else /* Q_WS_MAC */
     if (dlg.exec() == QDialog::Accepted)
-#endif /* !Q_WS_MAC */
     {
         QString name = dlg.name();
         QString path = dlg.path();

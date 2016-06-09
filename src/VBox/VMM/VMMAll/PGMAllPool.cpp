@@ -790,13 +790,39 @@ DECLINLINE(bool) pgmPoolMonitorIsReused(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pReg
                 Log(("pgmPoolMonitorIsReused: OP_STOSQ\n"));
                 return true;
             }
-            return false;
+            break;
+
+        default:
+            /*
+             * Anything having ESP on the left side means stack writes.
+             */
+            if (    (    (pDis->Param1.fUse & DISUSE_REG_GEN32)
+                     ||  (pDis->Param1.fUse & DISUSE_REG_GEN64))
+                &&  (pDis->Param1.Base.idxGenReg == DISGREG_ESP))
+            {
+                Log4(("pgmPoolMonitorIsReused: ESP\n"));
+                return true;
+            }
+            break;
     }
-    if (    (    (pDis->Param1.fUse & DISUSE_REG_GEN32)
-             ||  (pDis->Param1.fUse & DISUSE_REG_GEN64))
-        &&  (pDis->Param1.Base.idxGenReg == DISGREG_ESP))
+
+    /*
+     * Page table updates are very very unlikely to be crossing page boundraries,
+     * and we don't want to deal with that in pgmPoolMonitorChainChanging and such.
+     */
+    uint32_t const cbWrite = DISGetParamSize(pDis, &pDis->Param1);
+    if ( (((uintptr_t)pvFault + cbWrite) >> X86_PAGE_SHIFT) != ((uintptr_t)pvFault >> X86_PAGE_SHIFT) )
     {
-        Log4(("pgmPoolMonitorIsReused: ESP\n"));
+        Log4(("pgmPoolMonitorIsReused: cross page write\n"));
+        return true;
+    }
+
+    /*
+     * Nobody does an unaligned 8 byte write to a page table, right.
+     */
+    if (cbWrite >= 8 && ((uintptr_t)pvFault & 7) != 0)
+    {
+        Log4(("pgmPoolMonitorIsReused: Unaligned 8+ byte write\n"));
         return true;
     }
 
@@ -835,16 +861,14 @@ static int pgmPoolAccessPfHandlerFlush(PVM pVM, PVMCPU pVCpu, PPGMPOOL pPool, PP
     VBOXSTRICTRC rc2 = EMInterpretInstructionDisasState(pVCpu, pDis, pRegFrame, pvFault, EMCODETYPE_ALL);
     if (rc2 == VINF_SUCCESS)
     { /* do nothing */ }
-#ifdef VBOX_WITH_IEM
     else if (rc2 == VINF_EM_RESCHEDULE)
     {
         if (rc == VINF_SUCCESS)
             rc = VBOXSTRICTRC_VAL(rc2);
-# ifndef IN_RING3
+#ifndef IN_RING3
         VMCPU_FF_SET(pVCpu, VMCPU_FF_TO_R3);
-# endif
-    }
 #endif
+    }
     else if (rc2 == VERR_EM_INTERPRETER)
     {
 #ifdef IN_RC
@@ -981,11 +1005,16 @@ DECLINLINE(int) pgmPoolAccessPfHandlerSimple(PVM pVM, PVMCPU pVCpu, PPGMPOOL pPo
     uint32_t cbWrite = DISGetParamSize(pDis, &pDis->Param1);
     if (cbWrite <= 8)
         pgmPoolMonitorChainChanging(pVCpu, pPool, pPage, GCPhysFault, NULL, cbWrite);
-    else
+    else if (cbWrite <= 16)
     {
-        Assert(cbWrite <= 16);
         pgmPoolMonitorChainChanging(pVCpu, pPool, pPage, GCPhysFault, NULL, 8);
         pgmPoolMonitorChainChanging(pVCpu, pPool, pPage, GCPhysFault + 8, NULL, cbWrite - 8);
+    }
+    else
+    {
+        Assert(cbWrite <= 32);
+        for (uint32_t off = 0; off < cbWrite; off += 8)
+            pgmPoolMonitorChainChanging(pVCpu, pPool, pPage, GCPhysFault + off, NULL, RT_MIN(8, cbWrite - off));
     }
 
 #if defined(VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0) || defined(IN_RC)
@@ -1360,7 +1389,7 @@ pgmPoolAccessHandler(PVM pVM, PVMCPU pVCpu, RTGCPHYS GCPhys, void *pvPhys, void 
     LogFlow(("PGM_ALL_CB_DECL: GCPhys=%RGp %p:{.Core=%RHp, .idx=%d, .GCPhys=%RGp, .enmType=%d}\n",
              GCPhys, pPage, pPage->Core.Key, pPage->idx, pPage->GCPhys, pPage->enmKind));
 
-    NOREF(pvBuf); NOREF(enmAccessType);
+    NOREF(pvPhys); NOREF(pvBuf); NOREF(enmAccessType);
 
     /*
      * Make sure the pool page wasn't modified by a different CPU.

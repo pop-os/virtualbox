@@ -8,7 +8,7 @@
   PCI Root Bridges. So it means platform needs install PCI Root Bridge IO protocol for each
   PCI Root Bus and install PCI Host Bridge Resource Allocation Protocol.
 
-Copyright (c) 2006 - 2009, Intel Corporation. All rights reserved.<BR>
+Copyright (c) 2006 - 2012, Intel Corporation. All rights reserved.<BR>
 This program and the accompanying materials
 are licensed and made available under the terms and conditions of the BSD License
 which accompanies this distribution.  The full text of the license may be found at
@@ -139,7 +139,7 @@ PciBusDriverBindingSupported (
   //
   if (RemainingDevicePath != NULL) {
     //
-    // Check if RemainingDevicePath is the End of Device Path Node, 
+    // Check if RemainingDevicePath is the End of Device Path Node,
     // if yes, go on checking other conditions
     //
     if (!IsDevicePathEnd (RemainingDevicePath)) {
@@ -239,14 +239,15 @@ PciBusDriverBindingStart (
   IN EFI_DEVICE_PATH_PROTOCOL     *RemainingDevicePath
   )
 {
-  EFI_STATUS  Status;
+  EFI_STATUS                Status;
+  EFI_DEVICE_PATH_PROTOCOL  *ParentDevicePath;
 
   //
   // Check RemainingDevicePath validation
   //
   if (RemainingDevicePath != NULL) {
     //
-    // Check if RemainingDevicePath is the End of Device Path Node, 
+    // Check if RemainingDevicePath is the End of Device Path Node,
     // if yes, return EFI_SUCCESS
     //
     if (IsDevicePathEnd (RemainingDevicePath)) {
@@ -274,16 +275,42 @@ PciBusDriverBindingStart (
   //
   // If PCI Platform protocol doesn't exist, try to Pci Override Protocol.
   //
-  if (gPciPlatformProtocol == NULL) { 
+  if (gPciPlatformProtocol == NULL) {
     gPciOverrideProtocol = NULL;
     gBS->LocateProtocol (
           &gEfiPciOverrideProtocolGuid,
           NULL,
           (VOID **) &gPciOverrideProtocol
           );
-  }  
+  }
 
-  gFullEnumeration = (BOOLEAN) ((SearchHostBridgeHandle (Controller) ? FALSE : TRUE));
+  if (PcdGetBool (PcdPciDisableBusEnumeration)) {
+    gFullEnumeration = FALSE;
+  } else {
+    gFullEnumeration = (BOOLEAN) ((SearchHostBridgeHandle (Controller) ? FALSE : TRUE));
+  }
+
+  //
+  // Open Device Path Protocol for PCI root bridge
+  //
+  Status = gBS->OpenProtocol (
+                  Controller,
+                  &gEfiDevicePathProtocolGuid,
+                  (VOID **) &ParentDevicePath,
+                  This->DriverBindingHandle,
+                  Controller,
+                  EFI_OPEN_PROTOCOL_GET_PROTOCOL
+                  );
+  ASSERT_EFI_ERROR (Status);
+
+  //
+  // Report Status Code to indicate PCI bus starts
+  //
+  REPORT_STATUS_CODE_WITH_DEVICE_PATH (
+    EFI_PROGRESS_CODE,
+    (EFI_IO_BUS_PCI | EFI_IOB_PC_INIT),
+    ParentDevicePath
+    );
 
   //
   // Enumerate the entire host bridge

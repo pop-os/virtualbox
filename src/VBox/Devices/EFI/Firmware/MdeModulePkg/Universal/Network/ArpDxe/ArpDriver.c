@@ -1,7 +1,7 @@
 /** @file
   ARP driver functions.
-  
-Copyright (c) 2006 - 2011, Intel Corporation. All rights reserved.<BR>
+
+Copyright (c) 2006 - 2012, Intel Corporation. All rights reserved.<BR>
 This program and the accompanying materials
 are licensed and made available under the terms and conditions of the BSD License
 which accompanies this distribution.  The full text of the license may be found at<BR>
@@ -35,7 +35,7 @@ EFI_DRIVER_BINDING_PROTOCOL gArpDriverBinding = {
                                      context data.
 
   @retval EFI_SUCCESS                The arp service context is initialized.
-  
+
   @retval EFI_UNSUPPORTED            The underlayer Snp mode type is not ethernet.
                                      Failed to initialize the service context.
   @retval other                      Failed to initialize the arp service context.
@@ -242,31 +242,61 @@ ArpCleanService (
 }
 
 /**
-  Tests to see if this driver supports a given controller. 
-  
-  If a child device is provided, it further tests to see if this driver supports 
+  Callback function which provided by user to remove one node in NetDestroyLinkList process.
+
+  @param[in]    Entry           The entry to be removed.
+  @param[in]    Context         Pointer to the callback context corresponds to the Context in NetDestroyLinkList.
+
+  @retval EFI_SUCCESS           The entry has been removed successfully.
+  @retval Others                Fail to remove the entry.
+
+**/
+EFI_STATUS
+EFIAPI
+ArpDestroyChildEntryInHandleBuffer (
+  IN LIST_ENTRY         *Entry,
+  IN VOID               *Context
+  )
+{
+  ARP_INSTANCE_DATA             *Instance;
+  EFI_SERVICE_BINDING_PROTOCOL  *ServiceBinding;
+
+  if (Entry == NULL || Context == NULL) {
+    return EFI_INVALID_PARAMETER;
+  }
+
+  Instance = NET_LIST_USER_STRUCT_S (Entry, ARP_INSTANCE_DATA, List, ARP_INSTANCE_DATA_SIGNATURE);
+  ServiceBinding    = (EFI_SERVICE_BINDING_PROTOCOL *) Context;
+
+  return ServiceBinding->DestroyChild (ServiceBinding, Instance->Handle);
+}
+
+/**
+  Tests to see if this driver supports a given controller.
+
+  If a child device is provided, it further tests to see if this driver supports
   creating a handle for the specified child device.
 
   @param[in]  This                 A pointer to the EFI_DRIVER_BINDING_PROTOCOL instance.
-  @param[in]  ControllerHandle     The handle of the controller to test. This handle 
-                                   must support a protocol interface that supplies 
+  @param[in]  ControllerHandle     The handle of the controller to test. This handle
+                                   must support a protocol interface that supplies
                                    an I/O abstraction to the driver.
-  @param[in]  RemainingDevicePath  A pointer to the remaining portion of a device path. 
-                                   This parameter is ignored by device drivers, 
+  @param[in]  RemainingDevicePath  A pointer to the remaining portion of a device path.
+                                   This parameter is ignored by device drivers,
                                    and is optional for bus drivers.
 
   @retval EFI_SUCCESS              The device specified by ControllerHandle and
-                                   RemainingDevicePath is supported by the driver 
+                                   RemainingDevicePath is supported by the driver
                                    specified by This.
   @retval EFI_ALREADY_STARTED      The device specified by ControllerHandle and
-                                   RemainingDevicePath is already being managed 
+                                   RemainingDevicePath is already being managed
                                    by the driver specified by This.
   @retval EFI_ACCESS_DENIED        The device specified by ControllerHandle and
-                                   RemainingDevicePath is already being managed by 
-                                   a different driver or an application that 
+                                   RemainingDevicePath is already being managed by
+                                   a different driver or an application that
                                    requires exclusive acces. Currently not implemented.
   @retval EFI_UNSUPPORTED          The device specified by ControllerHandle and
-                                   RemainingDevicePath is not supported by the 
+                                   RemainingDevicePath is not supported by the
                                    driver specified by This.
 
 **/
@@ -312,32 +342,32 @@ ArpDriverBindingSupported (
 
 
 /**
-  Start this driver on ControllerHandle. 
-  
-  The Start() function is designed to be invoked from the EFI boot service ConnectController(). 
-  As a result, much of the error checking on the parameters to Start() has been 
-  moved into this common boot service. It is legal to call Start() from other locations, 
-  but the following calling restrictions must be followed or the system behavior 
+  Start this driver on ControllerHandle.
+
+  The Start() function is designed to be invoked from the EFI boot service ConnectController().
+  As a result, much of the error checking on the parameters to Start() has been
+  moved into this common boot service. It is legal to call Start() from other locations,
+  but the following calling restrictions must be followed or the system behavior
   will not be deterministic.
   1. ControllerHandle must be a valid EFI_HANDLE.
-  2. If RemainingDevicePath is not NULL, then it must be a pointer to a naturally 
+  2. If RemainingDevicePath is not NULL, then it must be a pointer to a naturally
      aligned EFI_DEVICE_PATH_PROTOCOL.
-  3. Prior to calling Start(), the Supported() function for the driver specified 
-     by This must have been called with the same calling parameters, and Supported() 
-     must have returned EFI_SUCCESS.  
+  3. Prior to calling Start(), the Supported() function for the driver specified
+     by This must have been called with the same calling parameters, and Supported()
+     must have returned EFI_SUCCESS.
 
   @param[in]  This                 A pointer to the EFI_DRIVER_BINDING_PROTOCOL instance.
-  @param[in]  ControllerHandle     The handle of the controller to start. This handle 
-                                   must support a protocol interface that supplies 
+  @param[in]  ControllerHandle     The handle of the controller to start. This handle
+                                   must support a protocol interface that supplies
                                    an I/O abstraction to the driver.
-  @param[in]  RemainingDevicePath  A pointer to the remaining portion of a device path. 
-                                   This parameter is ignored by device drivers, 
+  @param[in]  RemainingDevicePath  A pointer to the remaining portion of a device path.
+                                   This parameter is ignored by device drivers,
                                    and is optional for bus drivers.
 
   @retval EFI_SUCCESS              The device was started.
   @retval EFI_DEVICE_ERROR         The device could not be started due to a device error.
                                    Currently not implemented.
-  @retval EFI_OUT_OF_RESOURCES     The request could not be completed due to a lack of 
+  @retval EFI_OUT_OF_RESOURCES     The request could not be completed due to a lack of
                                    resources.
   @retval Others                   The driver failded to start the device.
 
@@ -405,13 +435,13 @@ ERROR:
 
 
 /**
-  Stop this driver on ControllerHandle. 
-  
+  Stop this driver on ControllerHandle.
+
   Release the control of this controller and remove the IScsi functions. The Stop()
-  function is designed to be invoked from the EFI boot service DisconnectController(). 
-  As a result, much of the error checking on the parameters to Stop() has been moved 
-  into this common boot service. It is legal to call Stop() from other locations, 
-  but the following calling restrictions must be followed or the system behavior 
+  function is designed to be invoked from the EFI boot service DisconnectController().
+  As a result, much of the error checking on the parameters to Stop() has been moved
+  into this common boot service. It is legal to call Stop() from other locations,
+  but the following calling restrictions must be followed or the system behavior
   will not be deterministic.
   1. ControllerHandle must be a valid EFI_HANDLE that was used on a previous call to this
      same driver's Start() function.
@@ -419,14 +449,14 @@ ERROR:
      EFI_HANDLE. In addition, all of these handles must have been created in this driver's
      Start() function, and the Start() function must have called OpenProtocol() on
      ControllerHandle with an Attribute of EFI_OPEN_PROTOCOL_BY_CHILD_CONTROLLER.
-  
+
   @param[in]  This              A pointer to the EFI_DRIVER_BINDING_PROTOCOL instance.
-  @param[in]  ControllerHandle  A handle to the device being stopped. The handle must 
-                                support a bus specific I/O protocol for the driver 
+  @param[in]  ControllerHandle  A handle to the device being stopped. The handle must
+                                support a bus specific I/O protocol for the driver
                                 to use to stop the device.
   @param[in]  NumberOfChildren  The number of child device handles in ChildHandleBuffer.
                                 Not used.
-  @param[in]  ChildHandleBuffer An array of child handles to be freed. May be NULL 
+  @param[in]  ChildHandleBuffer An array of child handles to be freed. May be NULL
                                 if NumberOfChildren is 0.Not used.
 
   @retval EFI_SUCCESS           The device was stopped.
@@ -446,14 +476,14 @@ ArpDriverBindingStop (
   EFI_HANDLE                    NicHandle;
   EFI_SERVICE_BINDING_PROTOCOL  *ServiceBinding;
   ARP_SERVICE_DATA              *ArpService;
-  ARP_INSTANCE_DATA             *Instance;
+  LIST_ENTRY                    *List;
 
   //
   // Get the NicHandle which the arp servicebinding is installed on.
   //
   NicHandle = NetLibGetNicHandle (ControllerHandle, &gEfiManagedNetworkProtocolGuid);
   if (NicHandle == NULL) {
-    return EFI_DEVICE_ERROR;
+    return EFI_SUCCESS;
   }
 
   //
@@ -474,7 +504,21 @@ ArpDriverBindingStop (
 
   ArpService = ARP_SERVICE_DATA_FROM_THIS (ServiceBinding);
 
-  if (NumberOfChildren == 0) {
+  if (NumberOfChildren != 0) {
+    //
+    // NumberOfChildren is not zero, destroy all the ARP children instances.
+    //
+    List = &ArpService->ChildrenList;
+    Status = NetDestroyLinkList (
+               List,
+               ArpDestroyChildEntryInHandleBuffer,
+               ServiceBinding,
+               NULL
+               );
+    ASSERT (IsListEmpty (&ArpService->PendingRequestTable));
+    ASSERT (IsListEmpty (&ArpService->DeniedCacheTable));
+    ASSERT (IsListEmpty (&ArpService->ResolvedCacheTable));
+  } else if (IsListEmpty (&ArpService->ChildrenList)) {
     //
     // Uninstall the ARP ServiceBinding protocol.
     //
@@ -491,17 +535,6 @@ ArpDriverBindingStop (
     ArpCleanService (ArpService);
 
     FreePool (ArpService);
-  } else {
-
-    while (!IsListEmpty (&ArpService->ChildrenList)) {
-      Instance = NET_LIST_HEAD (&ArpService->ChildrenList, ARP_INSTANCE_DATA, List);
-
-      ServiceBinding->DestroyChild (ServiceBinding, Instance->Handle);
-    }
-
-    ASSERT (IsListEmpty (&ArpService->PendingRequestTable));
-    ASSERT (IsListEmpty (&ArpService->DeniedCacheTable));
-    ASSERT (IsListEmpty (&ArpService->ResolvedCacheTable));
   }
 
   return EFI_SUCCESS;
@@ -509,15 +542,15 @@ ArpDriverBindingStop (
 
 /**
   Creates a child handle and installs a protocol.
-  
-  The CreateChild() function installs a protocol on ChildHandle. 
-  If ChildHandle is a pointer to NULL, then a new handle is created and returned 
-  in ChildHandle. If ChildHandle is not a pointer to NULL, then the protocol 
+
+  The CreateChild() function installs a protocol on ChildHandle.
+  If ChildHandle is a pointer to NULL, then a new handle is created and returned
+  in ChildHandle. If ChildHandle is not a pointer to NULL, then the protocol
   installs on the existing ChildHandle.
 
   @param  This        Pointer to the EFI_SERVICE_BINDING_PROTOCOL instance.
   @param  ChildHandle Pointer to the handle of the child to create. If it is NULL,
-                      then a new handle is created. If it is a pointer to an existing 
+                      then a new handle is created. If it is a pointer to an existing
                       UEFI handle, then the protocol is added to the existing UEFI handle.
 
   @retval EFI_SUCCES            The protocol was added to ChildHandle.
@@ -637,16 +670,16 @@ ERROR:
 
 /**
   Destroys a child handle with a protocol installed on it.
-  
-  The DestroyChild() function does the opposite of CreateChild(). It removes a protocol 
-  that was installed by CreateChild() from ChildHandle. If the removed protocol is the 
+
+  The DestroyChild() function does the opposite of CreateChild(). It removes a protocol
+  that was installed by CreateChild() from ChildHandle. If the removed protocol is the
   last protocol on ChildHandle, then ChildHandle is destroyed.
 
   @param  This        Pointer to the EFI_SERVICE_BINDING_PROTOCOL instance.
   @param  ChildHandle Handle of the child to destroy
 
   @retval EFI_SUCCES            The protocol was removed from ChildHandle.
-  @retval EFI_UNSUPPORTED       ChildHandle does not support the protocol that is 
+  @retval EFI_UNSUPPORTED       ChildHandle does not support the protocol that is
                                 being removed.
   @retval EFI_INVALID_PARAMETER Child handle is NULL.
   @retval EFI_ACCESS_DENIED     The protocol could not be removed from the ChildHandle
@@ -690,14 +723,14 @@ ArpServiceBindingDestroyChild (
 
   Instance = ARP_INSTANCE_DATA_FROM_THIS (Arp);
 
-  if (Instance->Destroyed) {
+  if (Instance->InDestroy) {
     return EFI_SUCCESS;
   }
 
   //
-  // Use the Destroyed as a flag to avoid re-entrance.
+  // Use the InDestroy as a flag to avoid re-entrance.
   //
-  Instance->Destroyed = TRUE;
+  Instance->InDestroy = TRUE;
 
   //
   // Close the Managed Network protocol.
@@ -722,7 +755,7 @@ ArpServiceBindingDestroyChild (
     DEBUG ((EFI_D_ERROR, "ArpSBDestroyChild: Failed to uninstall the arp protocol, %r.\n",
       Status));
 
-    Instance->Destroyed = FALSE;
+    Instance->InDestroy = FALSE;
     return Status;
   }
 
@@ -760,7 +793,7 @@ ArpServiceBindingDestroyChild (
   @param[in]  ImageHandle        The image handle of the driver.
   @param[in]  SystemTable        The system table.
 
-  @retval EFI_SUCCESS            if the driver binding and component name protocols 
+  @retval EFI_SUCCESS            if the driver binding and component name protocols
                                  are successfully
   @retval Others                 Failed to install the protocols.
 

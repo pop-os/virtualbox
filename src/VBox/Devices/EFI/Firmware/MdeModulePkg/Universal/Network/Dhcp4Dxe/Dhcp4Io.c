@@ -1,7 +1,7 @@
 /** @file
   EFI DHCP protocol implementation.
-  
-Copyright (c) 2006 - 2011, Intel Corporation. All rights reserved.<BR>
+
+Copyright (c) 2006 - 2014, Intel Corporation. All rights reserved.<BR>
 This program and the accompanying materials
 are licensed and made available under the terms and conditions of the BSD License
 which accompanies this distribution.  The full text of the license may be found at
@@ -41,7 +41,7 @@ DhcpInitRequest (
   // Clear initial time to make sure that elapsed-time is set to 0 for first Discover or REQUEST message.
   //
   DhcpSb->ActiveChild->ElaspedTime= 0;
-  
+
   if (DhcpSb->DhcpState == Dhcp4Init) {
     DhcpSetState (DhcpSb, Dhcp4Selecting, FALSE);
     Status = DhcpSendMessage (DhcpSb, NULL, NULL, DHCP_MSG_DISCOVER, NULL);
@@ -404,6 +404,7 @@ DhcpLeaseAcquired (
 
   if (DhcpSb->Netmask == 0) {
     Class           = NetGetIpClass (DhcpSb->ClientAddr);
+    ASSERT (Class < IP4_ADDR_CLASSE);
     DhcpSb->Netmask = gIp4AllMasks[Class << 3];
   }
 
@@ -972,11 +973,11 @@ DhcpInput (
   DhcpSb  = (DHCP_SERVICE *) Context;
 
   //
-  // Don't restart receive if error occurs or DHCP is destoried.
+  // Don't restart receive if error occurs or DHCP is destroyed.
   //
   if (EFI_ERROR (IoStatus)) {
     return ;
-  } else if (DhcpSb->ServiceState == DHCP_DESTORY) {
+  } else if (DhcpSb->ServiceState == DHCP_DESTROY) {
     NetbufFree (UdpPacket);
     return ;
   }
@@ -1403,13 +1404,13 @@ DhcpSendMessage (
 
   ASSERT (UdpIo != NULL);
   NET_GET_REF (Wrap);
-  
+
   Status = UdpIoSendDatagram (
-             UdpIo, 
-             Wrap, 
-             &EndPoint, 
-             NULL, 
-             DhcpOnPacketSent, 
+             UdpIo,
+             Wrap,
+             &EndPoint,
+             NULL,
+             DhcpOnPacketSent,
              DhcpSb
              );
 
@@ -1462,7 +1463,7 @@ DhcpRetransmit (
   if (Wrap == NULL) {
     return EFI_OUT_OF_RESOURCES;
   }
-  
+
   //
   // Broadcast the message, unless we know the server address.
   //
@@ -1530,7 +1531,7 @@ DhcpOnTimerTick (
   if (Instance != NULL && Instance->ElaspedTime < 0xffff) {
     Instance->ElaspedTime++;
   }
-  
+
   //
   // Check the retransmit timer
   //
@@ -1552,7 +1553,7 @@ DhcpOnTimerTick (
         goto ON_EXIT;
       }
     }
-    
+
     if (++DhcpSb->CurRetry < DhcpSb->MaxRetries) {
       //
       // Still has another try
@@ -1591,7 +1592,7 @@ DhcpOnTimerTick (
       goto END_SESSION;
     }
   }
-  
+
   //
   // If an address has been acquired, check whether need to
   // refresh or whether it has expired.
@@ -1623,8 +1624,8 @@ DhcpOnTimerTick (
 
       if (Instance != NULL) {
         Instance->ElaspedTime= 0;
-      }      
-      
+      }
+
       Status = DhcpSendMessage (
                  DhcpSb,
                  DhcpSb->Selected,
@@ -1647,7 +1648,7 @@ DhcpOnTimerTick (
 
       if (Instance != NULL) {
         Instance->ElaspedTime= 0;
-      }    
+      }
 
       Status = DhcpSendMessage (
                  DhcpSb,

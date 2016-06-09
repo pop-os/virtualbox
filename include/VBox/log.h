@@ -111,6 +111,8 @@ typedef enum LOGGROUP
     LOG_GROUP_DEV_HPET,
     /** IDE Device group. */
     LOG_GROUP_DEV_IDE,
+    /** I/O APIC Device group. */
+    LOG_GROUP_DEV_IOAPIC,
     /** The internal networking IP stack Device group. */
     LOG_GROUP_DEV_INIP,
     /** KeyBoard Controller Device group. */
@@ -121,6 +123,8 @@ typedef enum LOGGROUP
     LOG_GROUP_DEV_LSILOGICSCSI,
     /** NE2000 Device group. */
     LOG_GROUP_DEV_NE2000,
+    /** NVMe Device group. */
+    LOG_GROUP_DEV_NVME,
     /** USB OHCI Device group. */
     LOG_GROUP_DEV_OHCI,
     /** Parallel Device group */
@@ -225,6 +229,8 @@ typedef enum LOGGROUP
     LOG_GROUP_DRV_TRANSPORT_ASYNC,
     /** TUN network transport driver group */
     LOG_GROUP_DRV_TUN,
+    /** UDP socket stream driver group. */
+    LOG_GROUP_DRV_UDP,
     /** UDP tunnet network transport driver group. */
     LOG_GROUP_DRV_UDPTUNNEL,
     /** USB Proxy driver group. */
@@ -345,6 +351,8 @@ typedef enum LOGGROUP
     LOG_GROUP_MAIN_BIOSSETTINGS,
     /** Main group, ICanShowWindowEvent. */
     LOG_GROUP_MAIN_CANSHOWWINDOWEVENT,
+    /** Main group, ICertificate. */
+    LOG_GROUP_MAIN_CERTIFICATE,
     /** Main group, IClipboardModeChangedEvent. */
     LOG_GROUP_MAIN_CLIPBOARDMODECHANGEDEVENT,
     /** Main group, IConsole. */
@@ -611,6 +619,8 @@ typedef enum LOGGROUP
     LOG_GROUP_MAIN_USBDEVICEFILTERS,
     /** Main group, IUSBDeviceStateChangedEvent. */
     LOG_GROUP_MAIN_USBDEVICESTATECHANGEDEVENT,
+    /** Main group, IUSBProxyBackend. */
+    LOG_GROUP_MAIN_USBPROXYBACKEND,
     /** Main group, IVBoxSVCAvailabilityChangedEvent. */
     LOG_GROUP_MAIN_VBOXSVCAVAILABILITYCHANGEDEVENT,
     /** Main group, IVetoEvent. */
@@ -824,11 +834,13 @@ typedef enum LOGGROUP
     "DEV_HDA_CODEC", \
     "DEV_HPET",     \
     "DEV_IDE",      \
+    "DEV_IOAPIC",   \
     "DEV_INIP",     \
     "DEV_KBD",      \
     "DEV_LPC",      \
     "DEV_LSILOGICSCSI", \
     "DEV_NE2000",   \
+    "DEV_NVME",     \
     "DEV_OHCI",     \
     "DEV_PARALLEL", \
     "DEV_PC",       \
@@ -881,6 +893,7 @@ typedef enum LOGGROUP
     "DRV_TELNETSERVER", \
     "DRV_TRANSPORT_ASYNC", \
     "DRV_TUN",      \
+    "DRV_UDP", \
     "DRV_UDPTUNNEL", \
     "DRV_USBPROXY", \
     "DRV_VBOXHDD",  \
@@ -941,6 +954,7 @@ typedef enum LOGGROUP
     "MAIN_BANDWIDTHGROUPCHANGEDEVENT", \
     "MAIN_BIOSSETTINGS", \
     "MAIN_CANSHOWWINDOWEVENT", \
+    "MAIN_CERTIFICATE", \
     "MAIN_CLIPBOARDMODECHANGEDEVENT", \
     "MAIN_CONSOLE", \
     "MAIN_CPUCHANGEDEVENT", \
@@ -1074,6 +1088,7 @@ typedef enum LOGGROUP
     "MAIN_USBDEVICEFILTER", \
     "MAIN_USBDEVICEFILTERS", \
     "MAIN_USBDEVICESTATECHANGEDEVENT", \
+    "MAIN_USBPROXYBACKEND", \
     "MAIN_VBOXSVCAVAILABILITYCHANGEDEVENT", \
     "MAIN_VETOEVENT", \
     "MAIN_VFSEXPLORER", \

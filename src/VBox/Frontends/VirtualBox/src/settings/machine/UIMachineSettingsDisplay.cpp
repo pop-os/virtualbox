@@ -100,9 +100,9 @@ void UIMachineSettingsDisplay::loadToCacheFrom(QVariant &data)
     displayData.m_iCurrentVRAM = m_machine.GetVRAMSize();
     displayData.m_cGuestScreenCount = m_machine.GetMonitorCount();
     displayData.m_dScaleFactor = gEDataManager->scaleFactor(m_machine.GetId());
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
     displayData.m_fUseUnscaledHiDPIOutput = gEDataManager->useUnscaledHiDPIOutput(m_machine.GetId());
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
     displayData.m_f3dAccelerationEnabled = m_machine.GetAccelerate3DEnabled();
 #ifdef VBOX_WITH_VIDEOHWACCEL
     displayData.m_f2dAccelerationEnabled = m_machine.GetAccelerate2DVideoEnabled();
@@ -151,9 +151,9 @@ void UIMachineSettingsDisplay::getFromCache()
     /* Load Screen data to page: */
     m_pEditorVideoScreenCount->setValue(displayData.m_cGuestScreenCount);
     m_pEditorGuestScreenScale->setValue((int)(displayData.m_dScaleFactor * 100));
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
     m_pCheckBoxUnscaledHiDPIOutput->setChecked(displayData.m_fUseUnscaledHiDPIOutput);
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
     m_pCheckbox3D->setChecked(displayData.m_f3dAccelerationEnabled);
 #ifdef VBOX_WITH_VIDEOHWACCEL
     m_pCheckbox2DVideo->setChecked(displayData.m_f2dAccelerationEnabled);
@@ -200,9 +200,9 @@ void UIMachineSettingsDisplay::putToCache()
     displayData.m_iCurrentVRAM = m_pEditorVideoMemorySize->value();
     displayData.m_cGuestScreenCount = m_pEditorVideoScreenCount->value();
     displayData.m_dScaleFactor = (double)m_pEditorGuestScreenScale->value() / 100;
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
     displayData.m_fUseUnscaledHiDPIOutput = m_pCheckBoxUnscaledHiDPIOutput->isChecked();
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
     displayData.m_f3dAccelerationEnabled = m_pCheckbox3D->isChecked();
 #ifdef VBOX_WITH_VIDEOHWACCEL
     displayData.m_f2dAccelerationEnabled = m_pCheckbox2DVideo->isChecked();
@@ -258,9 +258,9 @@ void UIMachineSettingsDisplay::saveFromCacheTo(QVariant &data)
         if (isMachineInValidMode())
         {
             gEDataManager->setScaleFactor(displayData.m_dScaleFactor, m_machine.GetId());
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
             gEDataManager->setUseUnscaledHiDPIOutput(displayData.m_fUseUnscaledHiDPIOutput, m_machine.GetId());
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
         }
 
         /* Check if Remote Display server still valid: */
@@ -368,15 +368,16 @@ bool UIMachineSettingsDisplay::validate(QList<UIValidationMessage> &messages)
                 }
             }
 #endif /* VBOX_WITH_VIDEOHWACCEL */
-#if 0
-# ifdef VBOX_WITH_CRHGSMI
+#ifdef VBOX_WITH_CRHGSMI
             /* 3D acceleration video RAM amount test: */
             else if (m_pCheckbox3D->isChecked() && m_fWddmModeSupported)
             {
+# if 0
                 int cGuestScreenCount = m_pEditorVideoScreenCount->value();
                 uNeedBytes += VBoxGlobal::required3DWddmOffscreenVideoMemory(m_guestOSType.GetId(), cGuestScreenCount);
-                uNeedBytes = qMax(uNeedBytes, 128 * _1M);
                 uNeedBytes = qMin(uNeedBytes, 256 * _1M);
+# endif
+                uNeedBytes = qMax(uNeedBytes, (quint64) 128 * _1M);
                 if ((quint64)m_pEditorVideoMemorySize->value() * _1M < uNeedBytes)
                 {
                     message.second << tr("The virtual machine is set up to use hardware graphics acceleration "
@@ -385,8 +386,7 @@ bool UIMachineSettingsDisplay::validate(QList<UIValidationMessage> &messages)
                                          .arg(vboxGlobal().formatSize(uNeedBytes, 0, FormatSize_RoundUp));
                 }
             }
-# endif /* VBOX_WITH_CRHGSMI */
-#endif /* 0 */
+#endif /* VBOX_WITH_CRHGSMI */
         }
 
 #ifdef VBOX_WITH_VIDEOHWACCEL
@@ -536,13 +536,13 @@ void UIMachineSettingsDisplay::polishPage()
     m_pLabelGuestScreenScaleMin->setEnabled(isMachineInValidMode());
     m_pLabelGuestScreenScaleMax->setEnabled(isMachineInValidMode());
     m_pEditorGuestScreenScale->setEnabled(isMachineInValidMode());
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
     m_pLabelHiDPI->setEnabled(isMachineInValidMode());
     m_pCheckBoxUnscaledHiDPIOutput->setEnabled(isMachineInValidMode());
-#else /* !Q_WS_MAC */
+#else /* !VBOX_WS_MAC */
     m_pLabelHiDPI->hide();
     m_pCheckBoxUnscaledHiDPIOutput->hide();
-#endif /* !Q_WS_MAC */
+#endif /* !VBOX_WS_MAC */
     m_pLabelVideoOptions->setEnabled(isMachineOffline());
     m_pCheckbox3D->setEnabled(isMachineOffline());
 #ifdef VBOX_WITH_VIDEOHWACCEL
@@ -837,7 +837,7 @@ void UIMachineSettingsDisplay::prepareVideoCaptureTab()
 
     /* Prepare filepath selector: */
     m_pEditorVideoCapturePath->setEditable(false);
-    m_pEditorVideoCapturePath->setMode(VBoxFilePathSelectorWidget::Mode_File_Save);
+    m_pEditorVideoCapturePath->setMode(UIFilePathSelector::Mode_File_Save);
 
     /* Prepare frame-size combo-box: */
     m_pComboVideoCaptureSize->addItem(""); /* User Defined */
@@ -861,15 +861,16 @@ void UIMachineSettingsDisplay::prepareVideoCaptureTab()
     m_pComboVideoCaptureSize->addItem("1920 x 1080 (16:9)",  QSize(1920, 1080));
     m_pComboVideoCaptureSize->addItem("1920 x 1200 (16:10)", QSize(1920, 1200));
     m_pComboVideoCaptureSize->addItem("1920 x 1440 (4:3)",   QSize(1920, 1440));
+    m_pComboVideoCaptureSize->addItem("2880 x 1800 (16:10)", QSize(2880, 1800));
     connect(m_pComboVideoCaptureSize, SIGNAL(currentIndexChanged(int)), this, SLOT(sltHandleVideoCaptureFrameSizeComboboxChange()));
 
     /* Prepare frame-width/height editors: */
     vboxGlobal().setMinimumWidthAccordingSymbolCount(m_pEditorVideoCaptureWidth, 5);
     vboxGlobal().setMinimumWidthAccordingSymbolCount(m_pEditorVideoCaptureHeight, 5);
     m_pEditorVideoCaptureWidth->setMinimum(16);
-    m_pEditorVideoCaptureWidth->setMaximum(1920);
+    m_pEditorVideoCaptureWidth->setMaximum(2880);
     m_pEditorVideoCaptureHeight->setMinimum(16);
-    m_pEditorVideoCaptureHeight->setMaximum(1440);
+    m_pEditorVideoCaptureHeight->setMaximum(1800);
     connect(m_pEditorVideoCaptureWidth, SIGNAL(valueChanged(int)), this, SLOT(sltHandleVideoCaptureFrameWidthEditorChange()));
     connect(m_pEditorVideoCaptureHeight, SIGNAL(valueChanged(int)), this, SLOT(sltHandleVideoCaptureFrameHeightEditorChange()));
 
@@ -960,9 +961,9 @@ void UIMachineSettingsDisplay::checkVRAMRequirements()
     {
 # if 0
         uNeedMBytes += VBoxGlobal::required3DWddmOffscreenVideoMemory(m_guestOSType.GetId(), cGuestScreenCount) / _1M;
-        uNeedMBytes = qMax(uNeedMBytes, 128);
         uNeedMBytes = qMin(uNeedMBytes, 256);
 # endif
+        uNeedMBytes = qMax(uNeedMBytes, (quint64) 128);
         /* No less than 256MB (if possible): */
         if (m_iMaxVRAMVisible < 256 && m_iMaxVRAM >= 256)
             m_iMaxVRAMVisible = 256;

@@ -533,7 +533,7 @@ static bool tstVDIoTestRunning(PVDIOTEST pIoTest);
 static void tstVDIoTestDestroy(PVDIOTEST pIoTest);
 static bool tstVDIoTestReqOutstanding(PVDIOREQ pIoReq);
 static int  tstVDIoTestReqInit(PVDIOTEST pIoTest, PVDIOREQ pIoReq, void *pvUser);
-static void tstVDIoTestReqComplete(void *pvUser1, void *pvUser2, int rcReq);
+static DECLCALLBACK(void) tstVDIoTestReqComplete(void *pvUser1, void *pvUser2, int rcReq);
 
 static PVDDISK tstVDIoGetDiskByName(PVDTESTGLOB pGlob, const char *pcszDisk);
 static PVDPATTERN tstVDIoGetPatternByName(PVDTESTGLOB pGlob, const char *pcszName);
@@ -1004,7 +1004,7 @@ static DECLCALLBACK(int) vdScriptHandlerIo(PVDSCRIPTARG paScriptArgs, void *pvUs
             {
                 if (paIoReq)
                     RTMemFree(paIoReq);
-                if RT_SUCCESS(rc)
+                if (RT_SUCCESS(rc))
                     RTSemEventDestroy(EventSem);
                 rc = VERR_NO_MEMORY;
             }
@@ -2178,12 +2178,14 @@ static DECLCALLBACK(int) tstVDIoFileOpen(void *pvUser, const char *pszLocation,
     {
         AssertPtr(pIt);
         PVDSTORAGE pStorage = (PVDSTORAGE)RTMemAllocZ(sizeof(VDSTORAGE));
-        if (!pStorage)
+        if (pStorage)
+        {
+            pStorage->pFile = pIt;
+            pStorage->pfnComplete = pfnCompleted;
+            *ppStorage = pStorage;
+        }
+        else
             rc = VERR_NO_MEMORY;
-
-        pStorage->pFile = pIt;
-        pStorage->pfnComplete = pfnCompleted;
-        *ppStorage = pStorage;
     }
 
     return rc;
@@ -2299,6 +2301,11 @@ static DECLCALLBACK(int) tstVDIoFileSetSize(void *pvUser, void *pStorage, uint64
     PVDSTORAGE pIoStorage = (PVDSTORAGE)pStorage;
 
     return VDIoBackendStorageSetSize(pIoStorage->pFile->pIoStorage, cbSize);
+}
+
+static DECLCALLBACK(int) tstVDIoFileSetAllocationSize(void *pvUser, void *pStorage, uint64_t cbSize, uint32_t fFlags)
+{
+    return VERR_NOT_SUPPORTED;
 }
 
 static DECLCALLBACK(int) tstVDIoFileWriteSync(void *pvUser, void *pStorage, uint64_t uOffset,
@@ -2580,7 +2587,7 @@ static int tstVDIoTestReqInit(PVDIOTEST pIoTest, PVDIOREQ pIoReq, void *pvUser)
     return rc;
 }
 
-static void tstVDIoTestReqComplete(void *pvUser1, void *pvUser2, int rcReq)
+static DECLCALLBACK(void) tstVDIoTestReqComplete(void *pvUser1, void *pvUser2, int rcReq)
 {
     PVDIOREQ pIoReq = (PVDIOREQ)pvUser1;
     RTSEMEVENT hEventSem = (RTSEMEVENT)pvUser2;
@@ -2769,6 +2776,7 @@ static void tstVDIoScriptExec(const char *pszName, const char *pszScript)
     GlobTest.VDIfIo.pfnGetModificationTime = tstVDIoFileGetModificationTime;
     GlobTest.VDIfIo.pfnGetSize             = tstVDIoFileGetSize;
     GlobTest.VDIfIo.pfnSetSize             = tstVDIoFileSetSize;
+    GlobTest.VDIfIo.pfnSetAllocationSize   = tstVDIoFileSetAllocationSize;
     GlobTest.VDIfIo.pfnWriteSync           = tstVDIoFileWriteSync;
     GlobTest.VDIfIo.pfnReadSync            = tstVDIoFileReadSync;
     GlobTest.VDIfIo.pfnFlushSync           = tstVDIoFileFlushSync;

@@ -89,7 +89,7 @@ static struct
     DECLR0CALLBACKMEMBER(int,  pfnEnterSession, (PVM pVM, PVMCPU pVCpu, PHMGLOBALCPUINFO pCpu));
     DECLR0CALLBACKMEMBER(void, pfnThreadCtxCallback, (RTTHREADCTXEVENT enmEvent, PVMCPU pVCpu, bool fGlobalInit));
     DECLR0CALLBACKMEMBER(int,  pfnSaveHostState, (PVM pVM, PVMCPU pVCpu));
-    DECLR0CALLBACKMEMBER(int,  pfnRunGuestCode, (PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx));
+    DECLR0CALLBACKMEMBER(VBOXSTRICTRC, pfnRunGuestCode, (PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx));
     DECLR0CALLBACKMEMBER(int,  pfnEnableCpu, (PHMGLOBALCPUINFO pCpu, PVM pVM, void *pvCpuPage, RTHCPHYS HCPhysCpuPage,
                                               bool fEnabledByHost, void *pvArg));
     DECLR0CALLBACKMEMBER(int,  pfnDisableCpu, (PHMGLOBALCPUINFO pCpu, void *pvCpuPage, RTHCPHYS HCPhysCpuPage));
@@ -274,7 +274,7 @@ static DECLCALLBACK(int) hmR0DummySetupVM(PVM pVM)
     return VINF_SUCCESS;
 }
 
-static DECLCALLBACK(int) hmR0DummyRunGuestCode(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
+static DECLCALLBACK(VBOXSTRICTRC) hmR0DummyRunGuestCode(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
 {
     NOREF(pVM); NOREF(pVCpu); NOREF(pCtx);
     return VINF_SUCCESS;
@@ -621,8 +621,10 @@ VMMR0_INT_DECL(int) HMR0Init(void)
     g_HmR0.EnableAllCpusOnce = s_OnceInit;
     for (unsigned i = 0; i < RT_ELEMENTS(g_HmR0.aCpuInfo); i++)
     {
-        g_HmR0.aCpuInfo[i].hMemObj = NIL_RTR0MEMOBJ;
-        g_HmR0.aCpuInfo[i].idCpu   = NIL_RTCPUID;
+        g_HmR0.aCpuInfo[i].idCpu        = NIL_RTCPUID;
+        g_HmR0.aCpuInfo[i].hMemObj      = NIL_RTR0MEMOBJ;
+        g_HmR0.aCpuInfo[i].HCPhysMemObj = NIL_RTHCPHYS;
+        g_HmR0.aCpuInfo[i].pvMemObj     = NULL;
     }
 
     /* Fill in all callbacks with placeholders. */
@@ -772,7 +774,9 @@ VMMR0_INT_DECL(int) HMR0Term(void)
             if (g_HmR0.aCpuInfo[i].hMemObj != NIL_RTR0MEMOBJ)
             {
                 RTR0MemObjFree(g_HmR0.aCpuInfo[i].hMemObj, false);
-                g_HmR0.aCpuInfo[i].hMemObj = NIL_RTR0MEMOBJ;
+                g_HmR0.aCpuInfo[i].hMemObj      = NIL_RTR0MEMOBJ;
+                g_HmR0.aCpuInfo[i].HCPhysMemObj = NIL_RTHCPHYS;
+                g_HmR0.aCpuInfo[i].pvMemObj     = NULL;
             }
         }
     }
@@ -857,13 +861,10 @@ static int hmR0EnableCpu(PVM pVM, RTCPUID idCpu)
     else
     {
         AssertLogRelMsgReturn(pCpu->hMemObj != NIL_RTR0MEMOBJ, ("hmR0EnableCpu failed idCpu=%u.\n", idCpu), VERR_HM_IPE_1);
-        void    *pvCpuPage     = RTR0MemObjAddress(pCpu->hMemObj);
-        RTHCPHYS HCPhysCpuPage = RTR0MemObjGetPagePhysAddr(pCpu->hMemObj, 0 /* iPage */);
-
         if (g_HmR0.vmx.fSupported)
-            rc = g_HmR0.pfnEnableCpu(pCpu, pVM, pvCpuPage, HCPhysCpuPage, false, &g_HmR0.vmx.Msrs);
+            rc = g_HmR0.pfnEnableCpu(pCpu, pVM, pCpu->pvMemObj, pCpu->HCPhysMemObj, false, &g_HmR0.vmx.Msrs);
         else
-            rc = g_HmR0.pfnEnableCpu(pCpu, pVM, pvCpuPage, HCPhysCpuPage, false, NULL /* pvArg */);
+            rc = g_HmR0.pfnEnableCpu(pCpu, pVM, pCpu->pvMemObj, pCpu->HCPhysMemObj, false, NULL /* pvArg */);
     }
     if (RT_SUCCESS(rc))
         pCpu->fConfigured = true;
@@ -917,6 +918,8 @@ static DECLCALLBACK(int32_t) hmR0EnableAllCpuOnce(void *pvUser)
     for (unsigned i = 0; i < RT_ELEMENTS(g_HmR0.aCpuInfo); i++)
     {
         Assert(g_HmR0.aCpuInfo[i].hMemObj == NIL_RTR0MEMOBJ);
+        Assert(g_HmR0.aCpuInfo[i].HCPhysMemObj == NIL_RTHCPHYS);
+        Assert(g_HmR0.aCpuInfo[i].pvMemObj == NULL);
         Assert(!g_HmR0.aCpuInfo[i].fConfigured);
         Assert(!g_HmR0.aCpuInfo[i].cTlbFlushes);
         Assert(!g_HmR0.aCpuInfo[i].uCurrentAsid);
@@ -952,11 +955,17 @@ static DECLCALLBACK(int32_t) hmR0EnableAllCpuOnce(void *pvUser)
 
             if (RTMpIsCpuPossible(RTMpCpuIdFromSetIndex(i)))
             {
+                /** @todo NUMA */
                 rc = RTR0MemObjAllocCont(&g_HmR0.aCpuInfo[i].hMemObj, PAGE_SIZE, false /* executable R0 mapping */);
                 AssertLogRelRCReturn(rc, rc);
 
-                void *pvR0 = RTR0MemObjAddress(g_HmR0.aCpuInfo[i].hMemObj); Assert(pvR0);
-                ASMMemZeroPage(pvR0);
+                g_HmR0.aCpuInfo[i].HCPhysMemObj = RTR0MemObjGetPagePhysAddr(g_HmR0.aCpuInfo[i].hMemObj, 0);
+                Assert(g_HmR0.aCpuInfo[i].HCPhysMemObj != NIL_RTHCPHYS);
+                Assert(!(g_HmR0.aCpuInfo[i].HCPhysMemObj & PAGE_OFFSET_MASK));
+
+                g_HmR0.aCpuInfo[i].pvMemObj     = RTR0MemObjAddress(g_HmR0.aCpuInfo[i].hMemObj);
+                AssertPtr(g_HmR0.aCpuInfo[i].pvMemObj);
+                ASMMemZeroPage(g_HmR0.aCpuInfo[i].pvMemObj);
             }
         }
 
@@ -1015,14 +1024,13 @@ static int hmR0DisableCpu(RTCPUID idCpu)
 
     if (pCpu->hMemObj == NIL_RTR0MEMOBJ)
         return pCpu->fConfigured ? VERR_NO_MEMORY : VINF_SUCCESS /* not initialized. */;
+    AssertPtr(pCpu->pvMemObj);
+    Assert(pCpu->HCPhysMemObj != NIL_RTHCPHYS);
 
     int rc;
     if (pCpu->fConfigured)
     {
-        void    *pvCpuPage     = RTR0MemObjAddress(pCpu->hMemObj);
-        RTHCPHYS HCPhysCpuPage = RTR0MemObjGetPagePhysAddr(pCpu->hMemObj, 0);
-
-        rc = g_HmR0.pfnDisableCpu(pCpu, pvCpuPage, HCPhysCpuPage);
+        rc = g_HmR0.pfnDisableCpu(pCpu, pCpu->pvMemObj, pCpu->HCPhysMemObj);
         AssertRCReturn(rc, rc);
 
         pCpu->fConfigured = false;
@@ -1462,7 +1470,8 @@ VMMR0_INT_DECL(void) HMR0ThreadCtxCallback(RTTHREADCTXEVENT enmEvent, void *pvUs
 /**
  * Runs guest code in a hardware accelerated VM.
  *
- * @returns VBox status code.
+ * @returns Strict VBox status code. (VBOXSTRICTRC isn't used because it's
+ *          called from setjmp assembly.)
  * @param   pVM         The cross context VM structure.
  * @param   pVCpu       The cross context virtual CPU structure.
  *
@@ -1488,13 +1497,37 @@ VMMR0_INT_DECL(int) HMR0RunGuestCode(PVM pVM, PVMCPU pVCpu)
     PGMRZDynMapStartAutoSet(pVCpu);
 #endif
 
-    int rc = g_HmR0.pfnRunGuestCode(pVM, pVCpu, CPUMQueryGuestCtxPtr(pVCpu));
+    VBOXSTRICTRC rcStrict = g_HmR0.pfnRunGuestCode(pVM, pVCpu, CPUMQueryGuestCtxPtr(pVCpu));
 
 #ifdef VBOX_WITH_2X_4GB_ADDR_SPACE
     PGMRZDynMapReleaseAutoSet(pVCpu);
 #endif
-    return rc;
+    return VBOXSTRICTRC_VAL(rcStrict);
 }
+
+
+/**
+ * Notification from CPUM that it has unloaded the guest FPU/SSE/AVX state from
+ * the host CPU and that guest access to it must be intercepted.
+ *
+ * @param   pVCpu   The cross context virtual CPU structure of the calling EMT.
+ */
+VMMR0_INT_DECL(void) HMR0NotifyCpumUnloadedGuestFpuState(PVMCPU pVCpu)
+{
+    HMCPU_CF_SET(pVCpu, HM_CHANGED_GUEST_CR0);
+}
+
+
+/**
+ * Notification from CPUM that it has modified the host CR0 (because of FPU).
+ *
+ * @param   pVCpu   The cross context virtual CPU structure of the calling EMT.
+ */
+VMMR0_INT_DECL(void) HMR0NotifyCpumModifiedHostCr0(PVMCPU pVCpu)
+{
+    HMCPU_CF_SET(pVCpu, HM_CHANGED_HOST_CONTEXT);
+}
+
 
 #if HC_ARCH_BITS == 32 && defined(VBOX_ENABLE_64_BITS_GUESTS)
 
@@ -1619,29 +1652,6 @@ VMMR0_INT_DECL(void) HMR0SavePendingIOPortRead(PVMCPU pVCpu, RTGCPTR GCPtrRip, R
     return;
 }
 
-
-/**
- * Save a pending IO write.
- *
- * @param   pVCpu           The cross context virtual CPU structure.
- * @param   GCPtrRip        Address of IO instruction.
- * @param   GCPtrRipNext    Address of the next instruction.
- * @param   uPort           Port address.
- * @param   uAndVal         AND mask for fetching the result from eax.
- * @param   cbSize          Read size.
- */
-VMMR0_INT_DECL(void) HMR0SavePendingIOPortWrite(PVMCPU pVCpu, RTGCPTR GCPtrRip, RTGCPTR GCPtrRipNext,
-                                                unsigned uPort, unsigned uAndVal, unsigned cbSize)
-{
-    pVCpu->hm.s.PendingIO.enmType         = HMPENDINGIO_PORT_WRITE;
-    pVCpu->hm.s.PendingIO.GCPtrRip        = GCPtrRip;
-    pVCpu->hm.s.PendingIO.GCPtrRipNext    = GCPtrRipNext;
-    pVCpu->hm.s.PendingIO.s.Port.uPort    = uPort;
-    pVCpu->hm.s.PendingIO.s.Port.uAndVal  = uAndVal;
-    pVCpu->hm.s.PendingIO.s.Port.cbSize   = cbSize;
-    return;
-}
-
 #ifdef VBOX_WITH_RAW_MODE
 
 /**
@@ -1703,12 +1713,10 @@ VMMR0_INT_DECL(int) HMR0EnterSwitcher(PVM pVM, VMMSWITCHER enmSwitcher, bool *pf
 
     /* Ok, disable VT-x. */
     PHMGLOBALCPUINFO pCpu = HMR0GetCurrentCpu();
-    AssertReturn(pCpu && pCpu->hMemObj != NIL_RTR0MEMOBJ, VERR_HM_IPE_2);
+    AssertReturn(pCpu && pCpu->hMemObj != NIL_RTR0MEMOBJ && pCpu->pvMemObj && pCpu->HCPhysMemObj != NIL_RTHCPHYS, VERR_HM_IPE_2);
 
     *pfVTxDisabled = true;
-    void    *pvCpuPage     = RTR0MemObjAddress(pCpu->hMemObj);
-    RTHCPHYS HCPhysCpuPage = RTR0MemObjGetPagePhysAddr(pCpu->hMemObj, 0);
-    return VMXR0DisableCpu(pCpu, pvCpuPage, HCPhysCpuPage);
+    return VMXR0DisableCpu(pCpu, pCpu->pvMemObj, pCpu->HCPhysMemObj);
 }
 
 
@@ -1735,11 +1743,9 @@ VMMR0_INT_DECL(void) HMR0LeaveSwitcher(PVM pVM, bool fVTxDisabled)
         Assert(g_HmR0.fGlobalInit);
 
         PHMGLOBALCPUINFO pCpu = HMR0GetCurrentCpu();
-        AssertReturnVoid(pCpu && pCpu->hMemObj != NIL_RTR0MEMOBJ);
+        AssertReturnVoid(pCpu && pCpu->hMemObj != NIL_RTR0MEMOBJ && pCpu->pvMemObj && pCpu->HCPhysMemObj != NIL_RTHCPHYS);
 
-        void           *pvCpuPage     = RTR0MemObjAddress(pCpu->hMemObj);
-        RTHCPHYS        HCPhysCpuPage = RTR0MemObjGetPagePhysAddr(pCpu->hMemObj, 0);
-        VMXR0EnableCpu(pCpu, pVM, pvCpuPage, HCPhysCpuPage, false, &g_HmR0.vmx.Msrs);
+        VMXR0EnableCpu(pCpu, pVM, pCpu->pvMemObj, pCpu->HCPhysMemObj, false, &g_HmR0.vmx.Msrs);
     }
 }
 
@@ -1851,7 +1857,8 @@ VMMR0DECL(void) HMR0DumpDescriptor(PCX86DESCHC pDesc, RTSEL Sel, const char *psz
     /*
      * Limit and Base and format the output.
      */
-    uint32_t    u32Limit = X86DESC_LIMIT_G(pDesc);
+#ifdef LOG_ENABLED
+    uint32_t u32Limit = X86DESC_LIMIT_G(pDesc);
 
 # if HC_ARCH_BITS == 64
     uint64_t    u32Base  = X86DESC64_BASE(pDesc);
@@ -1862,6 +1869,9 @@ VMMR0DECL(void) HMR0DumpDescriptor(PCX86DESCHC pDesc, RTSEL Sel, const char *psz
     Log(("%s %04x - %08x %08x - base=%08x limit=%08x dpl=%d %s\n", pszMsg,
          Sel, pDesc->au32[0], pDesc->au32[1], u32Base, u32Limit, pDesc->Gen.u2Dpl, szMsg));
 # endif
+#else
+    NOREF(Sel); NOREF(pszMsg);
+#endif
 }
 
 
@@ -2011,6 +2021,8 @@ VMMR0DECL(void) HMDumpRegs(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
         pCtx->msrLSTAR,
         pCtx->msrSFMASK,
         pCtx->msrKERNELGSBASE));
+
+    NOREF(pFpuCtx);
 }
 
 #endif /* VBOX_STRICT */

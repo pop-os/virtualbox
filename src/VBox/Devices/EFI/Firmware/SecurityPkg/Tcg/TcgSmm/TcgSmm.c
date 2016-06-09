@@ -2,13 +2,19 @@
   It updates TPM items in ACPI table and registers SMI callback
   functions for physical presence and ClearMemory.
 
-Copyright (c) 2011 - 2012, Intel Corporation. All rights reserved.<BR>
-This program and the accompanying materials 
-are licensed and made available under the terms and conditions of the BSD License 
-which accompanies this distribution.  The full text of the license may be found at 
+  Caution: This module requires additional review when modified.
+  This driver will have external input - variable and ACPINvs data in SMM mode.
+  This external input must be validated carefully to avoid security issue.
+
+  PhysicalPresenceCallback() and MemoryClearCallback() will receive untrusted input and do some check.
+
+Copyright (c) 2011 - 2015, Intel Corporation. All rights reserved.<BR>
+This program and the accompanying materials
+are licensed and made available under the terms and conditions of the BSD License
+which accompanies this distribution.  The full text of the license may be found at
 http://opensource.org/licenses/bsd-license.php
 
-THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS, 
+THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,
 WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 
 **/
@@ -20,6 +26,10 @@ TCG_NVS                    *mTcgNvs;
 
 /**
   Software SMI callback for TPM physical presence which is called from ACPI method.
+
+  Caution: This function may receive untrusted input.
+  Variable and ACPINvs are external input, so this function will validate
+  its data structure to be valid value.
 
   @param[in]      DispatchHandle  The unique handle assigned to this handler by SmiHandlerRegister().
   @param[in]      Context         Points to an optional handler context which was specified when the
@@ -43,7 +53,7 @@ PhysicalPresenceCallback (
   EFI_STATUS                     Status;
   UINTN                          DataSize;
   EFI_PHYSICAL_PRESENCE          PpData;
-  UINT8                          Flags;
+  EFI_PHYSICAL_PRESENCE_FLAGS    Flags;
   BOOLEAN                        RequestConfirmed;
 
   //
@@ -57,21 +67,31 @@ PhysicalPresenceCallback (
                            &DataSize,
                            &PpData
                            );
-  if (EFI_ERROR (Status)) {
-    return EFI_SUCCESS;
-  }
 
   DEBUG ((EFI_D_INFO, "[TPM] PP callback, Parameter = %x\n", mTcgNvs->PhysicalPresence.Parameter));
   if (mTcgNvs->PhysicalPresence.Parameter == ACPI_FUNCTION_RETURN_REQUEST_RESPONSE_TO_OS) {
+    if (EFI_ERROR (Status)) {
+      mTcgNvs->PhysicalPresence.ReturnCode  = PP_RETURN_TPM_OPERATION_RESPONSE_FAILURE;
+      mTcgNvs->PhysicalPresence.LastRequest = 0;
+      mTcgNvs->PhysicalPresence.Response    = 0;
+      DEBUG ((EFI_D_ERROR, "[TPM] Get PP variable failure! Status = %r\n", Status));
+      return EFI_SUCCESS;
+    }
+    mTcgNvs->PhysicalPresence.ReturnCode  = PP_RETURN_TPM_OPERATION_RESPONSE_SUCCESS;
     mTcgNvs->PhysicalPresence.LastRequest = PpData.LastPPRequest;
     mTcgNvs->PhysicalPresence.Response    = PpData.PPResponse;
-  } else if ((mTcgNvs->PhysicalPresence.Parameter == ACPI_FUNCTION_SUBMIT_REQUEST_TO_BIOS) 
+  } else if ((mTcgNvs->PhysicalPresence.Parameter == ACPI_FUNCTION_SUBMIT_REQUEST_TO_BIOS)
           || (mTcgNvs->PhysicalPresence.Parameter == ACPI_FUNCTION_SUBMIT_REQUEST_TO_BIOS_2)) {
+    if (EFI_ERROR (Status)) {
+      mTcgNvs->PhysicalPresence.ReturnCode = TCG_PP_SUBMIT_REQUEST_TO_PREOS_GENERAL_FAILURE;
+      DEBUG ((EFI_D_ERROR, "[TPM] Get PP variable failure! Status = %r\n", Status));
+      return EFI_SUCCESS;
+    }
     if (mTcgNvs->PhysicalPresence.Request == PHYSICAL_PRESENCE_SET_OPERATOR_AUTH) {
       //
       // This command requires UI to prompt user for Auth data.
       //
-      mTcgNvs->PhysicalPresence.ReturnCode = PP_SUBMIT_REQUEST_NOT_IMPLEMENTED;
+      mTcgNvs->PhysicalPresence.ReturnCode = TCG_PP_SUBMIT_REQUEST_TO_PREOS_NOT_IMPLEMENTED;
       return EFI_SUCCESS;
     }
 
@@ -87,13 +107,49 @@ PhysicalPresenceCallback (
                                );
     }
 
-    if (EFI_ERROR (Status)) { 
-      mTcgNvs->PhysicalPresence.ReturnCode = PP_SUBMIT_REQUEST_GENERAL_FAILURE;
+    if (EFI_ERROR (Status)) {
+      mTcgNvs->PhysicalPresence.ReturnCode = TCG_PP_SUBMIT_REQUEST_TO_PREOS_GENERAL_FAILURE;
       return EFI_SUCCESS;
     }
-    mTcgNvs->PhysicalPresence.ReturnCode = PP_SUBMIT_REQUEST_SUCCESS;
+    mTcgNvs->PhysicalPresence.ReturnCode = TCG_PP_SUBMIT_REQUEST_TO_PREOS_SUCCESS;
+
+    if (mTcgNvs->PhysicalPresence.Request >= TCG_PHYSICAL_PRESENCE_VENDOR_SPECIFIC_OPERATION) {
+      DataSize = sizeof (EFI_PHYSICAL_PRESENCE_FLAGS);
+      Status = mSmmVariable->SmmGetVariable (
+                               PHYSICAL_PRESENCE_FLAGS_VARIABLE,
+                               &gEfiPhysicalPresenceGuid,
+                               NULL,
+                               &DataSize,
+                               &Flags
+                               );
+      if (EFI_ERROR (Status)) {
+        Flags.PPFlags = TCG_BIOS_TPM_MANAGEMENT_FLAG_NO_PPI_PROVISION;
+      }
+      mTcgNvs->PhysicalPresence.ReturnCode = TcgPpVendorLibSubmitRequestToPreOSFunction (mTcgNvs->PhysicalPresence.Request, Flags.PPFlags);
+    }
   } else if (mTcgNvs->PhysicalPresence.Parameter == ACPI_FUNCTION_GET_USER_CONFIRMATION_STATUS_FOR_REQUEST) {
-    Flags = PpData.Flags;  
+    if (EFI_ERROR (Status)) {
+      mTcgNvs->PhysicalPresence.ReturnCode = TCG_PP_GET_USER_CONFIRMATION_BLOCKED_BY_BIOS_CONFIGURATION;
+      DEBUG ((EFI_D_ERROR, "[TPM] Get PP variable failure! Status = %r\n", Status));
+      return EFI_SUCCESS;
+    }
+    //
+    // Get the Physical Presence flags
+    //
+    DataSize = sizeof (EFI_PHYSICAL_PRESENCE_FLAGS);
+    Status = mSmmVariable->SmmGetVariable (
+                             PHYSICAL_PRESENCE_FLAGS_VARIABLE,
+                             &gEfiPhysicalPresenceGuid,
+                             NULL,
+                             &DataSize,
+                             &Flags
+                             );
+    if (EFI_ERROR (Status)) {
+      mTcgNvs->PhysicalPresence.ReturnCode = TCG_PP_GET_USER_CONFIRMATION_BLOCKED_BY_BIOS_CONFIGURATION;
+      DEBUG ((EFI_D_ERROR, "[TPM] Get PP flags failure! Status = %r\n", Status));
+      return EFI_SUCCESS;
+    }
+
     RequestConfirmed = FALSE;
 
     switch (mTcgNvs->PhysicalPresence.Request) {
@@ -107,30 +163,30 @@ PhysicalPresenceCallback (
       case PHYSICAL_PRESENCE_SET_OWNER_INSTALL_FALSE:
       case PHYSICAL_PRESENCE_ENABLE_ACTIVATE_OWNER_TRUE:
       case PHYSICAL_PRESENCE_DEACTIVATE_DISABLE_OWNER_FALSE:
-        if ((Flags & FLAG_NO_PPI_PROVISION) != 0) {
+        if ((Flags.PPFlags & TCG_BIOS_TPM_MANAGEMENT_FLAG_NO_PPI_PROVISION) != 0) {
           RequestConfirmed = TRUE;
         }
         break;
 
       case PHYSICAL_PRESENCE_CLEAR:
       case PHYSICAL_PRESENCE_ENABLE_ACTIVATE_CLEAR:
-        if ((Flags & FLAG_NO_PPI_CLEAR) != 0) {
+        if ((Flags.PPFlags & TCG_BIOS_TPM_MANAGEMENT_FLAG_NO_PPI_CLEAR) != 0) {
           RequestConfirmed = TRUE;
         }
         break;
 
       case PHYSICAL_PRESENCE_DEFERRED_PP_UNOWNERED_FIELD_UPGRADE:
-        if ((Flags & FLAG_NO_PPI_MAINTENANCE) != 0) {
+        if ((Flags.PPFlags & TCG_BIOS_TPM_MANAGEMENT_FLAG_NO_PPI_MAINTENANCE) != 0) {
           RequestConfirmed = TRUE;
         }
         break;
 
       case PHYSICAL_PRESENCE_ENABLE_ACTIVATE_CLEAR_ENABLE_ACTIVATE:
       case PHYSICAL_PRESENCE_CLEAR_ENABLE_ACTIVATE:
-        if ((Flags & FLAG_NO_PPI_CLEAR) != 0 && (Flags & FLAG_NO_PPI_PROVISION) != 0) {
+        if ((Flags.PPFlags & TCG_BIOS_TPM_MANAGEMENT_FLAG_NO_PPI_CLEAR) != 0 && (Flags.PPFlags & TCG_BIOS_TPM_MANAGEMENT_FLAG_NO_PPI_PROVISION) != 0) {
           RequestConfirmed = TRUE;
         }
-        break;  
+        break;
 
       case PHYSICAL_PRESENCE_SET_NO_PPI_PROVISION_FALSE:
       case PHYSICAL_PRESENCE_SET_NO_PPI_CLEAR_FALSE:
@@ -143,16 +199,21 @@ PhysicalPresenceCallback (
         //
         // This command requires UI to prompt user for Auth data
         //
-        mTcgNvs->PhysicalPresence.ReturnCode = PP_REQUEST_NOT_IMPLEMENTED; 
+        mTcgNvs->PhysicalPresence.ReturnCode = TCG_PP_GET_USER_CONFIRMATION_NOT_IMPLEMENTED;
         return EFI_SUCCESS;
+      default:
+        break;
     }
 
     if (RequestConfirmed) {
-      mTcgNvs->PhysicalPresence.ReturnCode = PP_REQUEST_ALLOWED_AND_PPUSER_NOT_REQUIRED;
+      mTcgNvs->PhysicalPresence.ReturnCode = TCG_PP_GET_USER_CONFIRMATION_ALLOWED_AND_PPUSER_NOT_REQUIRED;
     } else {
-      mTcgNvs->PhysicalPresence.ReturnCode = PP_REQUEST_ALLOWED_AND_PPUSER_REQUIRED;
-    }    
-  } 
+      mTcgNvs->PhysicalPresence.ReturnCode = TCG_PP_GET_USER_CONFIRMATION_ALLOWED_AND_PPUSER_REQUIRED;
+    }
+    if (mTcgNvs->PhysicalPresence.Request >= TCG_PHYSICAL_PRESENCE_VENDOR_SPECIFIC_OPERATION) {
+      mTcgNvs->PhysicalPresence.ReturnCode = TcgPpVendorLibGetUserConfirmationStatusFunction (mTcgNvs->PhysicalPresence.Request, Flags.PPFlags);
+    }
+  }
 
   return EFI_SUCCESS;
 }
@@ -160,6 +221,10 @@ PhysicalPresenceCallback (
 
 /**
   Software SMI callback for MemoryClear which is called from ACPI method.
+
+  Caution: This function may receive untrusted input.
+  Variable and ACPINvs are external input, so this function will validate
+  its data structure to be valid value.
 
   @param[in]      DispatchHandle  The unique handle assigned to this handler by SmiHandlerRegister().
   @param[in]      Context         Points to an optional handler context which was specified when the
@@ -197,6 +262,8 @@ MemoryClearCallback (
                              &MorControl
                              );
     if (EFI_ERROR (Status)) {
+      mTcgNvs->MemoryClear.ReturnCode = MOR_REQUEST_GENERAL_FAILURE;
+      DEBUG ((EFI_D_ERROR, "[TPM] Get MOR variable failure! Status = %r\n", Status));
       return EFI_SUCCESS;
     }
 
@@ -214,8 +281,9 @@ MemoryClearCallback (
                            DataSize,
                            &MorControl
                            );
-  if (EFI_ERROR (Status)) { 
+  if (EFI_ERROR (Status)) {
     mTcgNvs->MemoryClear.ReturnCode = MOR_REQUEST_GENERAL_FAILURE;
+    DEBUG ((EFI_D_ERROR, "[TPM] Set MOR variable failure! Status = %r\n", Status));
   }
 
   return EFI_SUCCESS;
@@ -251,7 +319,7 @@ AssignOpRegion (
   for (OpRegion  = (AML_OP_REGION_32_8 *) (Table + 1);
        OpRegion <= (AML_OP_REGION_32_8 *) ((UINT8 *) Table + Table->Length);
        OpRegion  = (AML_OP_REGION_32_8 *) ((UINT8 *) OpRegion + 1)) {
-    if ((OpRegion->OpRegionOp  == AML_EXT_REGION_OP) && 
+    if ((OpRegion->OpRegionOp  == AML_EXT_REGION_OP) &&
         (OpRegion->NameString  == Name) &&
         (OpRegion->DWordPrefix == AML_DWORD_PREFIX) &&
         (OpRegion->BytePrefix  == AML_BYTE_PREFIX)) {
@@ -295,7 +363,22 @@ PublishAcpiTable (
              );
   ASSERT_EFI_ERROR (Status);
 
+
+  //
+  // Measure to PCR[0] with event EV_POST_CODE ACPI DATA
+  //
+  TpmMeasureAndLogData(
+    0,
+    EV_POST_CODE,
+    EV_POSTCODE_INFO_ACPI_DATA,
+    ACPI_DATA_LEN,
+    Table,
+    TableSize
+    );
+
+
   ASSERT (Table->OemTableId == SIGNATURE_64 ('T', 'c', 'g', 'T', 'a', 'b', 'l', 'e'));
+  CopyMem (Table->OemId, PcdGetPtr (PcdAcpiDefaultOemId), sizeof (Table->OemId) );
   mTcgNvs = AssignOpRegion (Table, SIGNATURE_32 ('T', 'N', 'V', 'S'), (UINT16) sizeof (TCG_NVS));
   ASSERT (mTcgNvs != NULL);
 
@@ -320,12 +403,12 @@ PublishAcpiTable (
 /**
   The driver's entry point.
 
-  It install callbacks for TPM physical presence and MemoryClear, and locate 
+  It install callbacks for TPM physical presence and MemoryClear, and locate
   SMM variable to be used in the callback function.
 
-  @param[in] ImageHandle  The firmware allocated handle for the EFI image.  
+  @param[in] ImageHandle  The firmware allocated handle for the EFI image.
   @param[in] SystemTable  A pointer to the EFI System Table.
-  
+
   @retval EFI_SUCCESS     The entry point is executed successfully.
   @retval Others          Some error occurs when executing this entry point.
 
@@ -341,6 +424,11 @@ InitializeTcgSmm (
   EFI_SMM_SW_DISPATCH2_PROTOCOL  *SwDispatch;
   EFI_SMM_SW_REGISTER_CONTEXT    SwContext;
   EFI_HANDLE                     SwHandle;
+
+  if (!CompareGuid (PcdGetPtr(PcdTpmInstanceGuid), &gEfiTpmDeviceInstanceTpm12Guid)){
+    DEBUG ((EFI_D_ERROR, "No TPM12 instance required!\n"));
+    return EFI_UNSUPPORTED;
+  }
 
   Status = PublishAcpiTable ();
   ASSERT_EFI_ERROR (Status);
@@ -365,7 +453,7 @@ InitializeTcgSmm (
     return Status;
   }
   mTcgNvs->MemoryClear.SoftwareSmi = (UINT8) SwContext.SwSmiInputValue;
-  
+
   //
   // Locate SmmVariableProtocol.
   //
