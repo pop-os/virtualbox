@@ -2,7 +2,7 @@
 
 <!--
 
-    Copyright (C) 2006-2015 Oracle Corporation
+    Copyright (C) 2006-2016 Oracle Corporation
 
     This file is part of VirtualBox Open Source Edition (OSE), as
     available from http://www.virtualbox.org. This file is free software;
@@ -446,7 +446,7 @@
 
   <enum
     name="SettingsVersion"
-    uuid="d5b15ca7-3de7-46b2-a63a-ddcce42bfa3f"
+    uuid="b4cc23c2-96f2-419d-830b-bd13c1135dfb"
     >
     <desc>
       Settings version of VirtualBox settings files. This is written to
@@ -564,6 +564,14 @@
       <desc>Settings version "1.15", written by VirtualBox 5.0.x.</desc>
       <!--
           Machine changes: hot-plug flag for storage devices.
+      -->
+    </const>
+    <const name="v1_16" value="18">
+      <desc>Settings version "1.16", written by VirtualBox 5.1.x.</desc>
+      <!--
+          Machine changes: NVMe storage controller, paravirt debug options, CPU
+          profile and BIOS/CPU APIC settings.
+          VirtualBox.xml: Add support for additional USB device sources (e.g. USB/IP)
       -->
     </const>
 
@@ -944,7 +952,7 @@
 
   <enum
     name="CPUPropertyType"
-    uuid="ed4094c1-d00e-483a-93e9-7163549ebd6e"
+    uuid="cc6ecdad-a07c-4e81-9c0e-d767e0678d5a"
     >
     <desc>
       Virtual CPU property type. This enumeration represents possible values of the
@@ -968,8 +976,22 @@
     </const>
     <const name="TripleFaultReset"      value="3">
       <desc>
-        This setting determines whether a triple fault within a guest will trigger an internal
-        error condition and stop the VM (default) or reset the virtual CPU and continue execution.
+        This setting determines whether a triple fault within a guest will
+        trigger an internal error condition and stop the VM (default) or reset
+        the virtual CPU/VM and continue execution.
+      </desc>
+    </const>
+    <const name="APIC"                  value="4">
+      <desc>
+        This setting determines whether an APIC is part of the virtual CPU.
+        This feature can only be turned off when the X2APIC feature is off.
+      </desc>
+    </const>
+    <const name="X2APIC"                value="5">
+      <desc>
+        This setting determines whether an x2APIC is part of the virtual CPU.
+        Since this feature implies that the APIC feature is present, it
+        automatically enables the APIC feature when set.
       </desc>
     </const>
   </enum>
@@ -1045,9 +1067,9 @@
     <const name="HyperV"   value="4">
       <desc>Microsoft Hyper-V.</desc>
     </const>
-	<const name="KVM"      value="5">
-	  <desc>Linux KVM.</desc>
-	</const>
+    <const name="KVM"      value="5">
+      <desc>Linux KVM.</desc>
+    </const>
   </enum>
 
   <enum
@@ -1233,6 +1255,20 @@
     <const name="Disabled"        value="0"/>
     <const name="MenuOnly"        value="1"/>
     <const name="MessageAndMenu"  value="2"/>
+  </enum>
+
+  <enum
+    name="APICMode"
+    uuid="c6884ba5-3cc4-4a92-a7f6-4410f9fd894e"
+    >
+    <desc>
+      BIOS APIC initialization mode. If the hardware does not support the
+      mode then the code falls back to a lower mode.
+    </desc>
+
+    <const name="Disabled"        value="0"/>
+    <const name="APIC"            value="1"/>
+    <const name="X2APIC"          value="2"/>
   </enum>
 
   <enum
@@ -1871,6 +1907,12 @@
 
       To enumerate all the virtual machines on the host, use the
       <link to="IVirtualBox::machines"/> attribute.
+
+      Error information handling is a bit special with IVirtualBox: creating
+      an instance will always succeed. The return of the actual error
+      code/information is postponed to any attribute or method call. The
+      reason for this is that COM likes to mutilate the error code and lose
+      the detailed error information returned by instance creation.
     </desc>
 
     <attribute name="version" type="wstring" readonly="yes">
@@ -2972,17 +3014,128 @@
 
   </enum>
 
+  <enum
+    name="CertificateVersion"
+    uuid="9e232a99-51d0-4dbd-96a0-ffac4bc3e2a8"
+    >
+    <desc>
+      X.509 certificate version numbers.
+    </desc>
+    <const name="V1"       value="1"/>
+    <const name="V2"       value="2"/>
+    <const name="V3"       value="3"/>
+    <const name="Unknown"  value="99"/>
+  </enum>
+
+  <!--
+  // ICertificate
+  /////////////////////////////////////////////////////////////////////////
+  -->
+  <interface
+    name="ICertificate" extends="$unknown"
+    uuid="392f1de4-80e1-4a8a-93a1-67c5f92a838a"
+    wsmap="managed"
+    reservedAttributes="12" reservedMethods="2"
+    >
+    <desc>
+        X.509 certificate details.
+    </desc>
+    <attribute name="versionNumber" type="CertificateVersion" readonly="yes">
+      <desc>Certificate version number.</desc>
+    </attribute>
+    <attribute name="serialNumber" type="wstring" readonly="yes">
+      <desc>Certificate serial number.</desc>
+    </attribute>
+    <attribute name="signatureAlgorithmOID" type="wstring" readonly="yes">
+      <desc>The dotted OID of the signature algorithm.</desc>
+    </attribute>
+    <attribute name="signatureAlgorithmName" type="wstring" readonly="yes">
+      <desc>The signature algorithm name if known (if known).</desc>
+    </attribute>
+    <attribute name="issuerName" type="wstring" readonly="yes" safearray="yes">
+      <desc>Issuer name.  Each member of the array is on the format
+      COMPONENT=NAME, e.g. "C=DE", "ST=Example", "L=For Instance", "O=Beispiel GmbH",
+      "CN=beispiel.example.org".
+      </desc>
+    </attribute>
+    <attribute name="subjectName" type="wstring" readonly="yes" safearray="yes">
+      <desc>Subject name.  Same format as issuerName.</desc>
+    </attribute>
+    <attribute name="friendlyName" type="wstring" readonly="yes">
+      <desc>Friendly subject name or similar.</desc>
+    </attribute>
+    <attribute name="validityPeriodNotBefore" type="wstring" readonly="yes">
+      <desc>Certificate not valid before ISO time stamp.</desc>
+    </attribute>
+    <attribute name="validityPeriodNotAfter" type="wstring" readonly="yes">
+      <desc>Certificate not valid after ISO time stamp.</desc>
+    </attribute>
+    <attribute name="publicKeyAlgorithmOID" type="wstring" readonly="yes">
+      <desc>The dotted OID of the public key algorithm.</desc>
+    </attribute>
+    <attribute name="publicKeyAlgorithm" type="wstring" readonly="yes">
+      <desc>The public key algorithm name (if known).</desc>
+    </attribute>
+    <attribute name="subjectPublicKey" type="octet" safearray="yes" readonly="yes">
+      <desc>The raw public key bytes.</desc>
+    </attribute>
+    <attribute name="issuerUniqueIdentifier" type="wstring" readonly="yes">
+      <desc>Unique identifier of the issuer (empty string if not present).</desc>
+    </attribute>
+    <attribute name="subjectUniqueIdentifier" type="wstring" readonly="yes">
+      <desc>Unique identifier of this certificate (empty string if not present).</desc>
+    </attribute>
+    <attribute name="certificateAuthority" type="boolean" readonly="yes">
+      <desc>Whether this certificate is a certificate authority.  Will return E_FAIL
+      if this attribute is not present.
+      </desc>
+    </attribute>
+    <attribute name="keyUsage" type="unsigned long" readonly="yes">
+      <desc>Key usage mask.  Will return 0 if not present.</desc>
+    </attribute>
+    <attribute name="extendedKeyUsage" type="wstring" safearray="yes" readonly="yes">
+      <desc>Array of dotted extended key usage OIDs.  Empty array if not present.</desc>
+    </attribute>
+    <attribute name="rawCertData" type="octet" safearray="yes" readonly="yes">
+      <desc>The raw certificate bytes.</desc>
+    </attribute>
+    <attribute name="selfSigned" type="boolean" readonly="yes">
+      <desc>Set if self signed certificate.</desc>
+    </attribute>
+
+    <!-- The following is subject to the parent object views. -->
+    <attribute name="trusted" type="boolean" readonly="yes">
+      <desc>Set if the certificate is trusted (by the parent object).</desc>
+    </attribute>
+    <attribute name="expired" type="boolean" readonly="yes"> <!-- isCurrentlyExpired is clearer than isCurrentlyValid. -->
+      <desc>Set if the certificate has expired (relevant to the parent object)/</desc>
+    </attribute>
+
+    <method name="isCurrentlyExpired">
+      <desc>
+        Tests if the certificate has expired at the present time according to
+        the X.509 validity of the certificate.</desc>
+      <param name="result" type="boolean" dir="return" />
+    </method>
+
+    <method name="queryInfo">
+      <desc>Way to extend the interface.</desc>
+      <param name="what" type="long" dir="in"/>
+      <param name="result" type="wstring" dir="return" />
+    </method>
+
+  </interface>
+
 
   <!--
   // IAppliance
   /////////////////////////////////////////////////////////////////////////
   -->
-
   <interface
     name="IAppliance" extends="$unknown"
     uuid="8398f026-4add-4474-5bc3-2f9f2140b23e"
     wsmap="managed"
-    reservedMethods="8" reservedAttributes="8"
+    reservedMethods="8" reservedAttributes="7"
     >
     <desc>
         Represents a platform-independent appliance in OVF format. An instance of this is returned
@@ -3120,6 +3273,13 @@
         Contains the UUIDs of the machines created from the information in this appliances. This is only
         relevant for the import case, and will only contain data after a call to <link to="#importMachines" />
         succeeded.
+      </desc>
+    </attribute>
+
+    <attribute name="certificate" type="ICertificate" readonly="yes">
+      <desc>
+        The X.509 signing certificate, if the imported OVF was signed, @c null
+        if not signed.  This is available after calling <link to="#read"/>.
       </desc>
     </attribute>
 
@@ -3938,7 +4098,7 @@
 
   <interface
     name="IBIOSSettings" extends="$unknown"
-    uuid="c5b5afe3-4a6f-05eb-c9b6-4dbf98538b67"
+    uuid="f13f667d-3624-4ac5-99c1-3d982ebd8d98"
     wsmap="managed"
     reservedMethods="1" reservedAttributes="8"
     >
@@ -3977,6 +4137,12 @@
       <desc>
         IO APIC support flag. If set, VirtualBox will provide an IO APIC
         and support IRQs above 15.
+      </desc>
+    </attribute>
+
+    <attribute name="APICMode" type="APICMode">
+      <desc>
+        APIC mode to set up by the firmware.
       </desc>
     </attribute>
 
@@ -4196,12 +4362,17 @@
 
   <interface
     name="IMachine" extends="$unknown"
-    uuid="f30138d4-e5ea-4b3a-8858-a059de4c93fd"
+    uuid="95565a66-622a-4ad0-4eed-9bb83c91c5be"
     wsmap="managed"
     wrap-hint-server-addinterfaces="IInternalMachineControl"
     wrap-hint-server="manualaddinterfaces"
-    reservedMethods="8" reservedAttributes="16"
+    reservedMethods="8" reservedAttributes="10"
     >
+    <!-- Note! This interface is not compatible between 5.0 and 5.1 as it had too many
+               methods/attributes for midl and the reservedAttributes had to be
+               decreased.  Max methods+attributes is 256, so in 6.0 this interface must
+               be refactored a little!  In the mean time, take from reservedMethods and
+               reservedAttributes and update the UUID like always. -->
     <desc>
       The IMachine interface represents a virtual machine, or guest, created
       in VirtualBox.
@@ -5040,6 +5211,22 @@
       </desc>
     </attribute>
 
+    <attribute name="paravirtDebug" type="wstring">
+      <desc>
+        Debug parameters for the paravirtualized guest interface provider.
+      </desc>
+    </attribute>
+
+    <attribute name="CPUProfile" type="wstring">
+      <desc>
+        Experimental feature to select the guest CPU profile.  The default
+        is "host", which indicates the host CPU.  All other names are subject
+        to change.
+
+        The profiles are found in src/VBox/VMM/VMMR3/cpus/.
+      </desc>
+    </attribute>
+
     <method name="lockMachine">
       <desc>
         Locks the machine for the given session to enable the caller
@@ -5235,13 +5422,7 @@ and "VAR" for unsetting. -->
           <ul>
             <li><tt>"gui"</tt>: VirtualBox Qt GUI front-end</li>
             <li><tt>"headless"</tt>: VBoxHeadless (VRDE Server) front-end</li>
-            <li><tt>"capture"</tt>: VBoxHeadless (VRDE Server) front-end with
-              video capturing enabled</li>
             <li><tt>"sdl"</tt>: VirtualBox SDL front-end</li>
-            <li><tt>"gui/separate"</tt>: VirtualBox Qt GUI front-end together with
-              a separate headless process</li>
-            <li><tt>"sdl/separate"</tt>: VirtualBox SDL front-end together with
-              a separate headless process</li>
             <li><tt>"emergencystop"</tt>: reserved value, used for aborting
               the currently running VM or session owner. In this case the
               @a session parameter may be @c null (if it is non-null it isn't
@@ -7277,10 +7458,10 @@ and "VAR" for unsetting. -->
           to="IVirtualBox::createMachine"/>, and all the settings will be
         transferred except the VM name and the hardware UUID. You can set the
         VM name and the new hardware UUID when creating the target machine. The
-        network MAC addresses are newly created for all network adapters. You
-        can change that behaviour with the options parameter. The operation is
-        performed asynchronously, so the machine object will be not be usable
-        until the @a progress object signals completion.
+        network MAC addresses are newly created for all enabled network
+        adapters. You can change that behaviour with the options parameter.
+        The operation is performed asynchronously, so the machine object will
+        be not be usable until the @a progress object signals completion.
 
         <result name="E_INVALIDARG">
           @a target is @c null.
@@ -8593,7 +8774,7 @@ and "VAR" for unsetting. -->
     name="IHost" extends="$unknown"
     uuid="afca788c-4477-787d-60b2-3fa70e56fbbc"
     wsmap="managed"
-    reservedMethods="2" reservedAttributes="12"
+    reservedMethods="0" reservedAttributes="12"
     >
     <desc>
       The IHost interface represents the physical machine that this VirtualBox
@@ -9055,6 +9236,39 @@ and "VAR" for unsetting. -->
     <attribute name="videoInputDevices" type="IHostVideoInputDevice" safearray="yes" readonly="yes">
       <desc>List of currently available host video capture devices.</desc>
     </attribute>
+
+    <method name="addUSBDeviceSource">
+      <desc>
+        Adds a new USB device source.
+      </desc>
+      <param name="backend" type="wstring" dir="in">
+        <desc>The backend to use as the new device source.</desc>
+      </param>
+      <param name="id" type="wstring" dir="in">
+        <desc>Unique ID to identify the source.</desc>
+      </param>
+      <param name="address" type="wstring" dir="in">
+        <desc>
+          Address to use, the format is dependent on the backend.
+          For USB/IP backends for example the notation is host[:port].
+        </desc>
+      </param>
+      <param name="propertyNames" type="wstring" safearray="yes" dir="in">
+        <desc>Array of property names for more detailed configuration. Not used at the moment.</desc>
+      </param>
+      <param name="propertyValues" type="wstring" safearray="yes" dir="in">
+        <desc>Array of property values for more detailed configuration. Not used at the moment.</desc>
+      </param>
+    </method>
+
+    <method name="removeUSBDeviceSource">
+      <desc>
+        Removes a previously added USB device source.
+      </desc>
+      <param name="id" type="wstring" dir="in">
+        <desc>The identifier used when the source was added.</desc>
+      </param>
+    </method>
 
   </interface>
 
@@ -9545,7 +9759,7 @@ and "VAR" for unsetting. -->
     name="IGuestOSType" extends="$unknown"
     uuid="03cd409d-20f5-43f9-8de1-4a129620990b"
     wsmap="struct"
-    reservedAttributes="16"
+    reservedAttributes="15"
     >
     <desc>
     </desc>
@@ -9660,6 +9874,10 @@ and "VAR" for unsetting. -->
 
     <attribute name="recommendedUSB" type="boolean" readonly="yes">
       <desc>Returns @c true a USB controller is recommended for this OS type.</desc>
+    </attribute>
+
+    <attribute name="recommendedUSB3" type="boolean" readonly="yes">
+      <desc>Returns @c true an xHCI (USB 3) controller is recommended for this OS type.</desc>
     </attribute>
 
     <attribute name="recommendedTFReset" type="boolean" readonly="yes">
@@ -14364,7 +14582,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       </desc>
     </attribute>
 
-    <attribute name="type" type="MediumType">
+    <attribute name="type" type="MediumType" wrap-hint-server="passcaller">
       <desc>
         Type (role) of this medium.
 
@@ -14428,7 +14646,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       </desc>
     </attribute>
 
-    <attribute name="readOnly" type="boolean" readonly="yes">
+    <attribute name="readOnly" type="boolean" readonly="yes" wrap-hint-server="passcaller">
       <desc>
         Returns @c true if this medium is read-only and @c false otherwise.
 
@@ -14982,7 +15200,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
 
     <!-- diff methods -->
 
-    <method name="createDiffStorage">
+    <method name="createDiffStorage" wrap-hint-server="passcaller">
       <desc>
         Starts creating an empty differencing storage unit based on this
         medium in the format and at the location defined by the @a target
@@ -15290,7 +15508,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       </param>
     </method>
 
-    <method name="reset">
+    <method name="reset" wrap-hint-server="passcaller">
       <desc>
         Starts erasing the contents of this differencing medium.
 
@@ -15494,7 +15712,19 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       </desc>
     </const>
 
-    <const name="CapabilityMask" value="0x3FF"/>
+    <const name="Discard" value="0x400">
+      <desc>
+        The format backend supports discarding blocks.
+      </desc>
+    </const>
+
+    <const name="Preferred" value="0x800">
+      <desc>
+        Indicates that this is a frequently used format backend.
+      </desc>
+    </const>
+
+    <const name="CapabilityMask" value="0xFFF"/>
   </enum>
 
   <interface
@@ -16937,8 +17167,10 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
 
     <attribute name="MACAddress" type="wstring">
       <desc>
-        Ethernet MAC address of the adapter, 12 hexadecimal characters. When setting
-        it to @c null or an empty string, VirtualBox will generate a unique MAC address.
+        Ethernet MAC address of the adapter, 12 hexadecimal characters. When
+        setting it to @c null or an empty string for an enabled adapter,
+        VirtualBox will generate a unique MAC address. Disabled adapters can
+        have an empty MAC address.
       </desc>
     </attribute>
 
@@ -18010,7 +18242,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
     name="IUSBDevice" extends="$unknown"
     uuid="5915d179-83c7-4f2b-a323-9a97f46f4e29"
     wsmap="managed"
-    reservedAttributes="3"
+    reservedAttributes="2"
     >
     <desc>
       The IUSBDevice interface represents a virtual USB device attached to the
@@ -18103,6 +18335,12 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
              from an internal database or an empty string if none is found.
           1: The product string, if the device doesn't expose the ID one is taken
              from an internal database or an empty string if none is found.
+      </desc>
+    </attribute>
+
+    <attribute name="backend" type="wstring" readonly="yes">
+      <desc>
+        The backend which will be used to communicate with this device.
       </desc>
     </attribute>
 
@@ -18443,6 +18681,37 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       <desc>
         Action performed by the host when an attached USB device
         matches this filter.
+      </desc>
+    </attribute>
+
+  </interface>
+
+
+  <!--
+  // IUSBProxyBackend
+  /////////////////////////////////////////////////////////////////////////
+  -->
+
+  <interface
+    name="IUSBProxyBackend" extends="$unknown"
+    uuid="dfe56449-6989-4002-80cf-3607f377d40c"
+    wsmap="managed"
+    reservedMethods="4" reservedAttributes="8"
+    >
+    <desc>
+      The USBProxyBackend interface represents a source for USB devices available
+      to the host for attaching to the VM.
+    </desc>
+
+    <attribute name="name" type="wstring" readonly="yes">
+      <desc>
+        The unique name of the proxy backend.
+      </desc>
+    </attribute>
+
+    <attribute name="type" type="wstring" readonly="yes">
+      <desc>
+        The type of the backend.
       </desc>
     </attribute>
 
@@ -19619,7 +19888,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
 
   <enum
     name="StorageBus"
-    uuid="2dab9df1-9683-48fd-8c11-caada236fcb0"
+    uuid="21371490-8542-4b5a-a74d-ee9ac2d45a90"
     >
     <desc>
       The bus type of the storage controller (IDE, SATA, SCSI, SAS or Floppy);
@@ -19634,11 +19903,12 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
     <const name="Floppy"    value="4"/>
     <const name="SAS"       value="5"/>
     <const name="USB"       value="6"/>
+    <const name="PCIe"      value="7"/>
   </enum>
 
   <enum
     name="StorageControllerType"
-    uuid="02e190af-b546-4109-b036-6deaa4ef6e69"
+    uuid="9427f309-82e7-468f-9964-abfefc4d3058"
     >
     <desc>
       The exact variant of storage controller hardware presented
@@ -19674,6 +19944,9 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
     </const>
     <const name="USB"           value="9">
       <desc>Special USB based storage controller.</desc>
+    </const>
+    <const name="NVMe"          value="10">
+      <desc>An NVMe storage controller.</desc>
     </const>
   </enum>
 
@@ -20922,6 +21195,12 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       At the moment only available for clients of the local API (not usable
       via the webservice). Once the session logic is redesigned this might
       change.
+
+      Error information handling is a bit special with IVirtualBoxClient:
+      creating an instance will always succeed. The return of the actual error
+      code/information is postponed to any attribute or method call. The
+      reason for this is that COM likes to mutilate the error code and lose
+      the detailed error information returned by instance creation.
     </desc>
 
     <attribute name="virtualBox" type="IVirtualBox" readonly="yes">

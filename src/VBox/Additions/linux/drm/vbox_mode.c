@@ -688,6 +688,11 @@ static int vbox_cursor_set2(struct drm_crtc *crtc, struct drm_file *file_priv,
     size_t data_size, mask_size;
     bool src_isiomem;
 
+    /* Re-set this regularly as in 5.0.20 and earlier the information was lost
+     * on save and restore. */
+    VBoxHGSMIUpdateInputMapping(&vbox->submit_info, 0, 0,
+                                vbox->input_mapping_width,
+                                vbox->input_mapping_height);
     if (!handle) {
         bool cursor_enabled = false;
         struct drm_crtc *crtci;
@@ -714,7 +719,11 @@ static int vbox_cursor_set2(struct drm_crtc *crtc, struct drm_file *file_priv,
         || !(caps & VMMDEV_MOUSE_HOST_WANTS_ABSOLUTE))
         return -EINVAL;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0)
+    obj = drm_gem_object_lookup(file_priv, handle);
+#else
     obj = drm_gem_object_lookup(crtc->dev, file_priv, handle);
+#endif
     if (obj)
     {
         bo = gem_to_vbox_bo(obj);
@@ -783,7 +792,8 @@ static int vbox_cursor_move(struct drm_crtc *crtc,
         return 0;
     rc = VBoxHGSMICursorPosition(&vbox->submit_info, true, x + crtc->x,
                                  y + crtc->y, &host_x, &host_y);
-    if (RT_FAILURE(rc))
+    /* Work around a bug after save and restore in 5.0.20 and earlier. */
+    if (RT_FAILURE(rc) || (host_x == 0 && host_y == 0))
         return -RTErrConvertToErrno(rc);
     if (x + crtc->x < host_x)
         hot_x = min(host_x - x - crtc->x, vbox->cursor_width);

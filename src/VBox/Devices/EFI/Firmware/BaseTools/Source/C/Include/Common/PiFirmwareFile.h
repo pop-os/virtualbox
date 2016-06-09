@@ -1,20 +1,18 @@
 /** @file
   The firmware file related definitions in PI.
 
-  Copyright (c) 2006 - 2008, Intel Corporation. All rights reserved.<BR>
+  @par Revision Reference:
+  Version 1.0.
+
+  Copyright (c) 2006 - 2014, Intel Corporation. All rights reserved.<BR>
 
   This program and the accompanying materials are licensed and made available
   under the terms and conditions of the BSD License which accompanies this
-  distribution.  The full text of the license may be found at:
+  distribution.  The full text of the license may be found at
     http://opensource.org/licenses/bsd-license.php
 
   THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,
   WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
-
-  File Name: PiFirmwareFile.h
-
-  @par Revision Reference:
-  Version 1.0.
 
 **/
 
@@ -24,7 +22,7 @@
 #pragma pack(1)
 //
 // Used to verify the integrity of the file.
-// 
+//
 typedef union {
   struct {
     UINT8   Header;
@@ -39,7 +37,7 @@ typedef UINT8 EFI_FFS_FILE_STATE;
 
 //
 // File Types Definitions
-// 
+//
 #define EFI_FV_FILETYPE_ALL                   0x00
 #define EFI_FV_FILETYPE_RAW                   0x01
 #define EFI_FV_FILETYPE_FREEFORM              0x02
@@ -61,9 +59,10 @@ typedef UINT8 EFI_FFS_FILE_STATE;
 #define EFI_FV_FILETYPE_FFS_MIN               0xf0
 #define EFI_FV_FILETYPE_FFS_MAX               0xff
 #define EFI_FV_FILETYPE_FFS_PAD               0xf0
-// 
+//
 // FFS File Attributes.
-// 
+//
+#define FFS_ATTRIB_LARGE_FILE         0x01
 #define FFS_ATTRIB_FIXED              0x04
 #define FFS_ATTRIB_DATA_ALIGNMENT     0x38
 #define FFS_ATTRIB_CHECKSUM           0x40
@@ -73,9 +72,9 @@ typedef UINT8 EFI_FFS_FILE_STATE;
 //
 #define FFS_FIXED_CHECKSUM  0xAA
 
-// 
+//
 // FFS File State Bits.
-// 
+//
 #define EFI_FILE_HEADER_CONSTRUCTION  0x01
 #define EFI_FILE_HEADER_VALID         0x02
 #define EFI_FILE_DATA_VALID           0x04
@@ -92,9 +91,9 @@ typedef UINT8 EFI_FFS_FILE_STATE;
                                   )
 
 //
-// Each file begins with the header that describe the 
+// Each file begins with the header that describe the
 // contents and state of the files.
-// 
+//
 typedef struct {
   EFI_GUID                Name;
   EFI_FFS_INTEGRITY_CHECK IntegrityCheck;
@@ -104,6 +103,17 @@ typedef struct {
   EFI_FFS_FILE_STATE      State;
 } EFI_FFS_FILE_HEADER;
 
+typedef struct {
+  EFI_GUID                Name;
+  EFI_FFS_INTEGRITY_CHECK IntegrityCheck;
+  EFI_FV_FILETYPE         Type;
+  EFI_FFS_FILE_ATTRIBUTES Attributes;
+  UINT8                   Size[3];
+  EFI_FFS_FILE_STATE      State;
+  UINT32                  ExtendedSize;
+} EFI_FFS_FILE_HEADER2;
+
+#define MAX_FFS_SIZE        0x1000000
 
 typedef UINT8 EFI_SECTION_TYPE;
 
@@ -142,53 +152,75 @@ typedef struct {
   EFI_SECTION_TYPE  Type;
 } EFI_COMMON_SECTION_HEADER;
 
+typedef struct {
+  UINT8             Size[3];
+  EFI_SECTION_TYPE  Type;
+  UINT32            ExtendedSize;
+} EFI_COMMON_SECTION_HEADER2;
+
+#define MAX_SECTION_SIZE        0x1000000
+
 //
-// Leaf section type that contains an 
+// Leaf section type that contains an
 // IA-32 16-bit executable image.
-// 
+//
 typedef EFI_COMMON_SECTION_HEADER EFI_COMPATIBILITY16_SECTION;
+typedef EFI_COMMON_SECTION_HEADER2 EFI_COMPATIBILITY16_SECTION2;
 
 //
 // CompressionType of EFI_COMPRESSION_SECTION.
-// 
+//
 #define EFI_NOT_COMPRESSED        0x00
 #define EFI_STANDARD_COMPRESSION  0x01
 //
-// An encapsulation section type in which the 
+// An encapsulation section type in which the
 // section data is compressed.
-// 
+//
 typedef struct {
   EFI_COMMON_SECTION_HEADER   CommonHeader;
   UINT32                      UncompressedLength;
   UINT8                       CompressionType;
 } EFI_COMPRESSION_SECTION;
 
+typedef struct {
+  EFI_COMMON_SECTION_HEADER2  CommonHeader;
+  UINT32                      UncompressedLength;
+  UINT8                       CompressionType;
+} EFI_COMPRESSION_SECTION2;
+
 //
 // Leaf section which could be used to determine the dispatch order of DXEs.
-// 
+//
 typedef EFI_COMMON_SECTION_HEADER EFI_DXE_DEPEX_SECTION;
+typedef EFI_COMMON_SECTION_HEADER2 EFI_DXE_DEPEX_SECTION2;
 
 //
 // Leaf section witch contains a PI FV.
-// 
+//
 typedef EFI_COMMON_SECTION_HEADER EFI_FIRMWARE_VOLUME_IMAGE_SECTION;
+typedef EFI_COMMON_SECTION_HEADER2 EFI_FIRMWARE_VOLUME_IMAGE_SECTION2;
 
 //
 // Leaf section which contains a single GUID.
-// 
+//
 typedef struct {
   EFI_COMMON_SECTION_HEADER   CommonHeader;
   EFI_GUID                    SubTypeGuid;
 } EFI_FREEFORM_SUBTYPE_GUID_SECTION;
 
+typedef struct {
+  EFI_COMMON_SECTION_HEADER2  CommonHeader;
+  EFI_GUID                    SubTypeGuid;
+} EFI_FREEFORM_SUBTYPE_GUID_SECTION2;
+
 //
 // Attributes of EFI_GUID_DEFINED_SECTION
-// 
+//
 #define EFI_GUIDED_SECTION_PROCESSING_REQUIRED  0x01
 #define EFI_GUIDED_SECTION_AUTH_STATUS_VALID    0x02
 //
 // Leaf section which is encapsulation defined by specific GUID
-// 
+//
 typedef struct {
   EFI_COMMON_SECTION_HEADER   CommonHeader;
   EFI_GUID                    SectionDefinitionGuid;
@@ -196,55 +228,80 @@ typedef struct {
   UINT16                      Attributes;
 } EFI_GUID_DEFINED_SECTION;
 
+typedef struct {
+  EFI_COMMON_SECTION_HEADER2  CommonHeader;
+  EFI_GUID                    SectionDefinitionGuid;
+  UINT16                      DataOffset;
+  UINT16                      Attributes;
+} EFI_GUID_DEFINED_SECTION2;
+
 //
 // Leaf section which contains PE32+ image.
-// 
+//
 typedef EFI_COMMON_SECTION_HEADER EFI_PE32_SECTION;
+typedef EFI_COMMON_SECTION_HEADER2 EFI_PE32_SECTION2;
 
 //
 // Leaf section which contains PIC image.
-// 
+//
 typedef EFI_COMMON_SECTION_HEADER EFI_PIC_SECTION;
+typedef EFI_COMMON_SECTION_HEADER2 EFI_PIC_SECTION2;
 
 //
 // Leaf section which used to determine the dispatch order of PEIMs.
-// 
+//
 typedef EFI_COMMON_SECTION_HEADER EFI_PEI_DEPEX_SECTION;
+typedef EFI_COMMON_SECTION_HEADER2 EFI_PEI_DEPEX_SECTION2;
 
 //
 // Leaf section which constains the position-independent-code image.
-// 
+//
 typedef EFI_COMMON_SECTION_HEADER EFI_TE_SECTION;
+typedef EFI_COMMON_SECTION_HEADER2 EFI_TE_SECTION2;
 
 //
 // Leaf section which contains an array of zero or more bytes.
-// 
+//
 typedef EFI_COMMON_SECTION_HEADER EFI_RAW_SECTION;
+typedef EFI_COMMON_SECTION_HEADER2 EFI_RAW_SECTION2;
 
 //
-// Leaf section which contains a unicode string that 
+// Leaf section which contains a unicode string that
 // is human readable file name.
-// 
+//
 typedef struct {
   EFI_COMMON_SECTION_HEADER   CommonHeader;
 
   //
   // Array of unicode string.
-  // 
+  //
   CHAR16                      FileNameString[1];
 } EFI_USER_INTERFACE_SECTION;
 
+typedef struct {
+  EFI_COMMON_SECTION_HEADER2  CommonHeader;
+
+  //
+  // Array of unicode string.
+  //
+  CHAR16                      FileNameString[1];
+} EFI_USER_INTERFACE_SECTION2;
 
 //
 // Leaf section which contains a numeric build number and
-// an optional unicode string that represent the file revision. 
-// 
+// an optional unicode string that represent the file revision.
+//
 typedef struct {
   EFI_COMMON_SECTION_HEADER   CommonHeader;
   UINT16                      BuildNumber;
   CHAR16                      VersionString[1];
 } EFI_VERSION_SECTION;
 
+typedef struct {
+  EFI_COMMON_SECTION_HEADER2  CommonHeader;
+  UINT16                      BuildNumber;
+  CHAR16                      VersionString[1];
+} EFI_VERSION_SECTION2;
 
 #define SECTION_SIZE(SectionHeaderPtr) \
     ((UINT32) (*((UINT32 *) ((EFI_COMMON_SECTION_HEADER *) SectionHeaderPtr)->Size) & 0x00ffffff))
@@ -266,6 +323,23 @@ typedef union {
   EFI_FIRMWARE_VOLUME_IMAGE_SECTION *FVImageSection;
   EFI_FREEFORM_SUBTYPE_GUID_SECTION *FreeformSubtypeSection;
   EFI_RAW_SECTION                   *RawSection;
+  //
+  // For section whose size is equal or greater than 0x1000000
+  //
+  EFI_COMMON_SECTION_HEADER2         *CommonHeader2;
+  EFI_COMPRESSION_SECTION2           *CompressionSection2;
+  EFI_GUID_DEFINED_SECTION2          *GuidDefinedSection2;
+  EFI_PE32_SECTION2                  *Pe32Section2;
+  EFI_PIC_SECTION2                   *PicSection2;
+  EFI_TE_SECTION2                    *TeSection2;
+  EFI_PEI_DEPEX_SECTION2             *PeimHeaderSection2;
+  EFI_DXE_DEPEX_SECTION2             *DependencySection2;
+  EFI_VERSION_SECTION2               *VersionSection2;
+  EFI_USER_INTERFACE_SECTION2        *UISection2;
+  EFI_COMPATIBILITY16_SECTION2       *Code16Section2;
+  EFI_FIRMWARE_VOLUME_IMAGE_SECTION2 *FVImageSection2;
+  EFI_FREEFORM_SUBTYPE_GUID_SECTION2 *FreeformSubtypeSection2;
+  EFI_RAW_SECTION2                   *RawSection2;
 } EFI_FILE_SECTION_POINTER;
 
 #endif

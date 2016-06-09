@@ -1,7 +1,7 @@
 /** @file
   iSCSI DHCP6 related configuration routines.
 
-Copyright (c) 2009 - 2011, Intel Corporation. All rights reserved.<BR>
+Copyright (c) 2009 - 2012, Intel Corporation. All rights reserved.<BR>
 This program and the accompanying materials
 are licensed and made available under the terms and conditions of the BSD License
 which accompanies this distribution.  The full text of the license may be found at
@@ -47,7 +47,7 @@ IScsiDhcp6ExtractRootPath (
   UINT8                       Index;
   ISCSI_SESSION_CONFIG_NVDATA *ConfigNvData;
   EFI_IP_ADDRESS              Ip;
-  UINT8                       IpMode;  
+  UINT8                       IpMode;
 
   ConfigNvData = &ConfigData->SessionConfigData;
 
@@ -143,7 +143,7 @@ IScsiDhcp6ExtractRootPath (
   //
   // Get the IP address of the target.
   //
-  Field   = &Fields[RP_FIELD_IDX_SERVERNAME];  
+  Field   = &Fields[RP_FIELD_IDX_SERVERNAME];
   if (ConfigNvData->IpMode < IP_MODE_AUTOCONFIG) {
     IpMode = ConfigNvData->IpMode;
   } else {
@@ -213,11 +213,11 @@ ON_EXIT:
 }
 
 /**
-  EFI_DHCP6_INFO_CALLBACK is provided by the consumer of the EFI DHCPv6 Protocol 
+  EFI_DHCP6_INFO_CALLBACK is provided by the consumer of the EFI DHCPv6 Protocol
   instance to intercept events that occurs in the DHCPv6 Information Request
   exchange process.
 
-  @param[in]  This              Pointer to the EFI_DHCP6_PROTOCOL instance that 
+  @param[in]  This              Pointer to the EFI_DHCP6_PROTOCOL instance that
                                 is used to configure this  callback function.
   @param[in]  Context           Pointer to the context that is initialized in
                                 the EFI_DHCP6_PROTOCOL.InfoRequest().
@@ -250,10 +250,11 @@ IScsiDhcp6ParseReply (
   EFI_DHCP6_PACKET_OPTION     *BootFileOpt;
   EFI_DHCP6_PACKET_OPTION     **OptionList;
   ISCSI_ATTEMPT_CONFIG_NVDATA *ConfigData;
- 
+  UINT16                      ParaLen;
+
   OptionCount = 0;
   BootFileOpt = NULL;
-  
+
   Status      = This->Parse (This, Packet, &OptionCount, NULL);
   if (Status != EFI_BUFFER_TOO_SMALL) {
     return EFI_NOT_READY;
@@ -282,7 +283,7 @@ IScsiDhcp6ParseReply (
     if (OptionList[Index]->OpCode == DHCP6_OPT_DNS_SERVERS) {
 
       if (((OptionList[Index]->OpLen & 0xf) != 0) || (OptionList[Index]->OpLen == 0)) {
-        Status = EFI_INVALID_PARAMETER;
+        Status = EFI_UNSUPPORTED;
         goto Exit;
       }
       //
@@ -302,6 +303,24 @@ IScsiDhcp6ParseReply (
       // The server sends this option to inform the client about an URL to a boot file.
       //
       BootFileOpt = OptionList[Index];
+    } else if (OptionList[Index]->OpCode == DHCP6_OPT_BOOT_FILE_PARA) {
+      //
+      // The server sends this option to inform the client about DHCP6 server address.
+      //
+      if (OptionList[Index]->OpLen < 18) {
+        Status = EFI_UNSUPPORTED;
+        goto Exit;
+      }
+      //
+      // Check param-len 1, should be 16 bytes.
+      //
+      CopyMem (&ParaLen, &OptionList[Index]->Data[0], sizeof (UINT16));
+      if (NTOHS (ParaLen) != 16) {
+        Status = EFI_UNSUPPORTED;
+        goto Exit;
+      }
+
+      CopyMem (&ConfigData->DhcpServer, &OptionList[Index]->Data[2], sizeof (EFI_IPv6_ADDRESS));
     }
   }
 
@@ -309,7 +328,7 @@ IScsiDhcp6ParseReply (
     Status = EFI_UNSUPPORTED;
     goto Exit;
   }
-  
+
   //
   // Get iSCSI root path from Boot File Uniform Resource Locator (URL) Option
   //
@@ -405,7 +424,7 @@ IScsiDoDhcp6 (
     goto ON_EXIT;
   }
 
-  Oro = AllocateZeroPool (sizeof (EFI_DHCP6_PACKET_OPTION) + 3);
+  Oro = AllocateZeroPool (sizeof (EFI_DHCP6_PACKET_OPTION) + 5);
   if (Oro == NULL) {
     Status = EFI_OUT_OF_RESOURCES;
     goto ON_EXIT;
@@ -416,9 +435,10 @@ IScsiDoDhcp6 (
   // All members in EFI_DHCP6_PACKET_OPTION are in network order.
   //
   Oro->OpCode  = HTONS (DHCP6_OPT_REQUEST_OPTION);
-  Oro->OpLen   = HTONS (2 * 2);
+  Oro->OpLen   = HTONS (2 * 3);
   Oro->Data[1] = DHCP6_OPT_DNS_SERVERS;
   Oro->Data[3] = DHCP6_OPT_BOOT_FILE_URL;
+  Oro->Data[5] = DHCP6_OPT_BOOT_FILE_PARA;
 
   InfoReqReXmit.Irt = 4;
   InfoReqReXmit.Mrc = 1;
@@ -478,7 +498,7 @@ ON_EXIT:
 
   if (Oro != NULL) {
     FreePool (Oro);
-  }  
+  }
 
   if (Timer != NULL) {
     gBS->CloseEvent (Timer);

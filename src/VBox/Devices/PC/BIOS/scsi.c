@@ -673,4 +673,3 @@ void BIOSCALL scsi_init(void)
         DBG_SCSI("%s: LSI Logic SAS adapter not detected\n", __func__);
     }
 }
-

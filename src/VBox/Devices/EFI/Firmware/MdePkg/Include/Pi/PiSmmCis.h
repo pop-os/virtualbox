@@ -2,7 +2,7 @@
   Common definitions in the Platform Initialization Specification version 1.2
   VOLUME 4 System Management Mode Core Interface version.
 
-  Copyright (c) 2009 - 2011, Intel Corporation. All rights reserved.<BR>
+  Copyright (c) 2009 - 2013, Intel Corporation. All rights reserved.<BR>
   This program and the accompanying materials
   are licensed and made available under the terms and conditions of the BSD License
   which accompanies this distribution.  The full text of the license may be found at
@@ -29,7 +29,7 @@ typedef struct _EFI_SMM_SYSTEM_TABLE2  EFI_SMM_SYSTEM_TABLE2;
 /// The System Management System Table (SMST) revision is 1.2
 ///
 #define SMM_SPECIFICATION_MAJOR_REVISION  1
-#define SMM_SPECIFICATION_MINOR_REVISION  20
+#define SMM_SPECIFICATION_MINOR_REVISION  30
 #define EFI_SMM_SYSTEM_TABLE2_REVISION    ((SMM_SPECIFICATION_MAJOR_REVISION<<16) | (SMM_SPECIFICATION_MINOR_REVISION))
 
 /**
@@ -63,8 +63,8 @@ EFI_STATUS
   The SmmStartupThisAp() lets the caller to get one distinct application processor
   (AP) in the enabled processor pool to execute a caller-provided code stream
   while in SMM. It runs the given code on this processor and reports the status.
-  It must be noted that the supplied code stream will be run only on an enabled 
-  processor which has also entered SMM. 
+  It must be noted that the supplied code stream will be run only on an enabled
+  processor which has also entered SMM.
 
   @param[in]     Procedure       A pointer to the code stream to be run on the designated AP of the system.
   @param[in]     CpuNumber       The zero-based index of the processor number of the AP on which the code stream is supposed to run.
@@ -103,9 +103,10 @@ EFI_STATUS
 /**
   Register a callback function be called when a particular protocol interface is installed.
 
-  The SmmRegisterProtocolNotify() function creates a registration Function that is to be 
-  called whenever a protocol interface is installed for Protocol by 
+  The SmmRegisterProtocolNotify() function creates a registration Function that is to be
+  called whenever a protocol interface is installed for Protocol by
   SmmInstallProtocolInterface().
+  If Function == NULL and Registration is an existing registration, then the callback is unhooked.
 
   @param[in]  Protocol          The unique ID of the protocol for which the event is to be registered.
   @param[in]  Function          Points to the notification function.
@@ -114,6 +115,7 @@ EFI_STATUS
   @retval EFI_SUCCESS           Successfully returned the registration record that has been added.
   @retval EFI_INVALID_PARAMETER One or more of Protocol, Function and Registration is NULL.
   @retval EFI_OUT_OF_RESOURCES  Not enough memory resource to finish the request.
+  @retval EFI_NOT_FOUND         If the registration is not found when Function == NULL.
 **/
 typedef
 EFI_STATUS
@@ -131,10 +133,10 @@ EFI_STATUS
   @param[in,out] CommBuffer      Points to the optional communication buffer.
   @param[in,out] CommBufferSize  Points to the size of the optional communication buffer.
 
-  @retval EFI_SUCCESS                        Interrupt source was processed successfully but not quiesced.
+  @retval EFI_WARN_INTERRUPT_SOURCE_PENDING  Interrupt source was processed successfully but not quiesced.
   @retval EFI_INTERRUPT_PENDING              One or more SMI sources could not be quiesced.
-  @retval EFI_WARN_INTERRUPT_SOURCE_PENDING  Interrupt source was not handled or quiesced.
-  @retval EFI_WARN_INTERRUPT_SOURCE_QUIESCED Interrupt source was handled and quiesced.
+  @retval EFI_NOT_FOUND                      Interrupt source was not handled or quiesced.
+  @retval EFI_SUCCESS                        Interrupt source was handled and quiesced.
 **/
 typedef
 EFI_STATUS
@@ -155,11 +157,11 @@ EFI_STATUS
                                  be conveyed from a non-SMM environment into an SMM environment.
   @param[in,out] CommBufferSize  The size of the CommBuffer.
 
-  @retval EFI_SUCCESS                         The interrupt was handled and quiesced. No other handlers 
+  @retval EFI_SUCCESS                         The interrupt was handled and quiesced. No other handlers
                                               should still be called.
-  @retval EFI_WARN_INTERRUPT_SOURCE_QUIESCED  The interrupt has been quiesced but other handlers should 
+  @retval EFI_WARN_INTERRUPT_SOURCE_QUIESCED  The interrupt has been quiesced but other handlers should
                                               still be called.
-  @retval EFI_WARN_INTERRUPT_SOURCE_PENDING   The interrupt is still pending and other handlers should still 
+  @retval EFI_WARN_INTERRUPT_SOURCE_PENDING   The interrupt is still pending and other handlers should still
                                               be called.
   @retval EFI_INTERRUPT_PENDING               The interrupt could not be quiesced.
 **/
@@ -211,24 +213,24 @@ EFI_STATUS
 typedef struct _EFI_SMM_ENTRY_CONTEXT {
   EFI_SMM_STARTUP_THIS_AP  SmmStartupThisAp;
   ///
-  /// A number between zero and the NumberOfCpus field. This field designates which 
+  /// A number between zero and the NumberOfCpus field. This field designates which
   /// processor is executing the SMM Foundation.
   ///
   UINTN                    CurrentlyExecutingCpu;
   ///
-  /// The number of current operational processors in the platform.  This is a 1 based 
+  /// The number of possible processors in the platform.  This is a 1 based
   /// counter.  This does not indicate the number of processors that entered SMM.
   ///
   UINTN                    NumberOfCpus;
   ///
-  /// Points to an array, where each element describes the number of bytes in the 
-  /// corresponding save state specified by CpuSaveState. There are always 
-  /// NumberOfCpus entries in the array. 
+  /// Points to an array, where each element describes the number of bytes in the
+  /// corresponding save state specified by CpuSaveState. There are always
+  /// NumberOfCpus entries in the array.
   ///
   UINTN                    *CpuSaveStateSize;
   ///
-  /// Points to an array, where each element is a pointer to a CPU save state. The 
-  /// corresponding element in CpuSaveStateSize specifies the number of bytes in the 
+  /// Points to an array, where each element is a pointer to a CPU save state. The
+  /// corresponding element in CpuSaveStateSize specifies the number of bytes in the
   /// save state area. There are always NumberOfCpus entries in the array.
   ///
   VOID                     **CpuSaveState;
@@ -248,8 +250,8 @@ VOID
 ///
 /// System Management System Table (SMST)
 ///
-/// The System Management System Table (SMST) is a table that contains a collection of common 
-/// services for managing SMRAM allocation and providing basic I/O services. These services are 
+/// The System Management System Table (SMST) is a table that contains a collection of common
+/// services for managing SMRAM allocation and providing basic I/O services. These services are
 /// intended for both preboot and runtime usage.
 ///
 struct _EFI_SMM_SYSTEM_TABLE2 {
@@ -292,23 +294,23 @@ struct _EFI_SMM_SYSTEM_TABLE2 {
   ///
 
   ///
-  /// A number between zero and and the NumberOfCpus field. This field designates 
+  /// A number between zero and and the NumberOfCpus field. This field designates
   /// which processor is executing the SMM infrastructure.
   ///
   UINTN                                CurrentlyExecutingCpu;
   ///
-  /// The number of current operational processors in the platform.  This is a 1 based counter.
+  /// The number of possible processors in the platform.  This is a 1 based counter.
   ///
   UINTN                                NumberOfCpus;
   ///
-  /// Points to an array, where each element describes the number of bytes in the 
-  /// corresponding save state specified by CpuSaveState. There are always 
-  /// NumberOfCpus entries in the array. 
+  /// Points to an array, where each element describes the number of bytes in the
+  /// corresponding save state specified by CpuSaveState. There are always
+  /// NumberOfCpus entries in the array.
   ///
   UINTN                                *CpuSaveStateSize;
   ///
-  /// Points to an array, where each element is a pointer to a CPU save state. The 
-  /// corresponding element in CpuSaveStateSize specifies the number of bytes in the 
+  /// Points to an array, where each element is a pointer to a CPU save state. The
+  /// corresponding element in CpuSaveStateSize specifies the number of bytes in the
   /// save state area. There are always NumberOfCpus entries in the array.
   ///
   VOID                                 **CpuSaveState;
@@ -322,8 +324,8 @@ struct _EFI_SMM_SYSTEM_TABLE2 {
   ///
   UINTN                                NumberOfTableEntries;
   ///
-  /// A pointer to the UEFI Configuration Tables. The number of entries in the table is 
-  /// NumberOfTableEntries. 
+  /// A pointer to the UEFI Configuration Tables. The number of entries in the table is
+  /// NumberOfTableEntries.
   ///
   EFI_CONFIGURATION_TABLE              *SmmConfigurationTable;
 

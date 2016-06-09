@@ -101,7 +101,7 @@
 #include <QListView>
 #include <QListWidget>
 #include <QLocale>
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
 //# include <QMacCocoaViewContainer> - only used once / only used in Objective C++
 #endif
 #include <QMainWindow>
@@ -200,11 +200,11 @@
 #include <QVector>
 #include <QWaitCondition>
 #include <QWidget>
-#include <QWindowsStyle>
+//#include <QWindowsStyle> - only used twice
 //#include <QWindowsVistaStyle> - only used once
 #include <QWizard>
 #include <QWizardPage>
-#ifdef Q_WS_X11
+#ifdef VBOX_WS_X11
 # include <QX11Info>
 #endif
 //#include <QXmlStreamReader> - only used once
@@ -215,7 +215,7 @@
 /*
  * System specific headers.
  */
-#ifdef Q_WS_WIN
+#ifdef VBOX_WS_WIN
 # include <shlobj.h>
 # include <Windows.h>
 #endif
@@ -645,7 +645,7 @@
 //#include "VBoxCocoaSpecialControls.h"
 #include "VBoxFBOverlay.h"
 #include "VBoxFBOverlayCommon.h"
-#include "VBoxFilePathSelectorWidget.h"
+#include "UIFilePathSelector.h"
 #include "VBoxGlobal.h"
 #include "VBoxGlobalSettings.h"
 #include "VBoxGuestRAMSlider.h"
@@ -668,17 +668,7 @@
          the redefinitions, just prevent the inclusion of the header! */
 #include "VBoxUtils.h"
 #include "VBoxVersion.h"
-#ifdef Q_WS_X11
+#ifdef VBOX_WS_X11
 # include "VBoxX11Helper.h"
-#endif
-
-
-/*
- * Final tweaks.
- */
-#ifdef Q_WS_MAC
-# if MAC_LEOPARD_STYLE /* This is defined by UIDefs.h and must come after it was included */
-//#  include <qmacstyle_mac.h> - only used once
-# endif
 #endif
 

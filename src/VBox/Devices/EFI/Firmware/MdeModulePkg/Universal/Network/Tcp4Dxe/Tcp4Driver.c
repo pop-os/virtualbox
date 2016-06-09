@@ -1,7 +1,7 @@
 /** @file
   Tcp driver function.
 
-Copyright (c) 2005 - 2011, Intel Corporation. All rights reserved.<BR>
+Copyright (c) 2005 - 2014, Intel Corporation. All rights reserved.<BR>
 This program and the accompanying materials
 are licensed and made available under the terms and conditions of the BSD License
 which accompanies this distribution.  The full text of the license may be found at
@@ -18,6 +18,7 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 UINT16                                mTcp4RandomPort;
 extern EFI_COMPONENT_NAME_PROTOCOL    gTcp4ComponentName;
 extern EFI_COMPONENT_NAME2_PROTOCOL   gTcp4ComponentName2;
+extern EFI_UNICODE_STRING_TABLE       *gTcpControllerNameTable;
 
 TCP4_HEARTBEAT_TIMER  mTcp4Timer = {
   NULL,
@@ -115,7 +116,7 @@ Tcp4CreateTimer (
 
 /**
   Stop and destroy the heartbeat timer for TCP driver.
-  
+
 **/
 VOID
 Tcp4DestroyTimer (
@@ -133,6 +134,44 @@ Tcp4DestroyTimer (
   gBS->SetTimer (mTcp4Timer.TimerEvent, TimerCancel, 0);
   gBS->CloseEvent (mTcp4Timer.TimerEvent);
   mTcp4Timer.TimerEvent = NULL;
+}
+
+/**
+  Callback function which provided by user to remove one node in NetDestroyLinkList process.
+
+  @param[in]    Entry           The entry to be removed.
+  @param[in]    Context         Pointer to the callback context corresponds to the Context in NetDestroyLinkList.
+
+  @retval EFI_SUCCESS           The entry has been removed successfully.
+  @retval Others                Fail to remove the entry.
+
+**/
+EFI_STATUS
+EFIAPI
+Tcp4DestroyChildEntryInHandleBuffer (
+  IN LIST_ENTRY         *Entry,
+  IN VOID               *Context
+  )
+{
+  SOCKET                        *Sock;
+  EFI_SERVICE_BINDING_PROTOCOL  *ServiceBinding;
+  UINTN                         NumberOfChildren;
+  EFI_HANDLE                    *ChildHandleBuffer;
+
+  if (Entry == NULL || Context == NULL) {
+    return EFI_INVALID_PARAMETER;
+  }
+
+  Sock = NET_LIST_USER_STRUCT_S (Entry, SOCKET, Link, SOCK_SIGNATURE);
+  ServiceBinding    = ((TCP4_DESTROY_CHILD_IN_HANDLE_BUF_CONTEXT *) Context)->ServiceBinding;
+  NumberOfChildren  = ((TCP4_DESTROY_CHILD_IN_HANDLE_BUF_CONTEXT *) Context)->NumberOfChildren;
+  ChildHandleBuffer = ((TCP4_DESTROY_CHILD_IN_HANDLE_BUF_CONTEXT *) Context)->ChildHandleBuffer;
+
+  if (!NetIsInHandleBuffer (Sock->SockHandle, NumberOfChildren, ChildHandleBuffer)) {
+    return EFI_SUCCESS;
+  }
+
+  return ServiceBinding->DestroyChild (ServiceBinding, Sock->SockHandle);
 }
 
 /**
@@ -182,32 +221,32 @@ Tcp4DriverEntryPoint (
 
 /**
   Tests to see if this driver supports a given controller.
-  
-  If a child device is provided, it further tests to see if this driver supports 
+
+  If a child device is provided, it further tests to see if this driver supports
   creating a handle for the specified child device.
 
   @param  This                 A pointer to the EFI_DRIVER_BINDING_PROTOCOL instance.
-  @param  ControllerHandle     The handle of the controller to test. This handle 
-                               must support a protocol interface that supplies 
+  @param  ControllerHandle     The handle of the controller to test. This handle
+                               must support a protocol interface that supplies
                                an I/O abstraction to the driver.
-  @param  RemainingDevicePath  A pointer to the remaining portion of a device path. 
+  @param  RemainingDevicePath  A pointer to the remaining portion of a device path.
                                This parameter is ignored by device drivers, and is optional for bus drivers.
 
 
   @retval EFI_SUCCESS          The device specified by ControllerHandle and
-                               RemainingDevicePath is supported by the driver 
+                               RemainingDevicePath is supported by the driver
                                specified by This.
   @retval EFI_ALREADY_STARTED  The device specified by ControllerHandle and
-                               RemainingDevicePath is already being managed by 
+                               RemainingDevicePath is already being managed by
                                the driver specified by This.
   @retval EFI_ACCESS_DENIED    The device specified by ControllerHandle and
-                               RemainingDevicePath is already being managed by a 
-                               different driver or an application that requires 
+                               RemainingDevicePath is already being managed by a
+                               different driver or an application that requires
                                exclusive access.
   @retval EFI_UNSUPPORTED      The device specified by ControllerHandle and
-                               RemainingDevicePath is not supported by the driver 
+                               RemainingDevicePath is not supported by the driver
                                specified by This.
-                               
+
 **/
 EFI_STATUS
 EFIAPI
@@ -251,31 +290,31 @@ Tcp4DriverBindingSupported (
 
 
 /**
-  Start this driver on ControllerHandle. 
-  
-  The Start() function is designed to be invoked from the EFI boot service 
-  ConnectController(). As a result, much of the error checking on the parameters 
-  to Start() has been moved into this common boot service. It is legal to call 
-  Start() from other locations, but the following calling restrictions must be 
+  Start this driver on ControllerHandle.
+
+  The Start() function is designed to be invoked from the EFI boot service
+  ConnectController(). As a result, much of the error checking on the parameters
+  to Start() has been moved into this common boot service. It is legal to call
+  Start() from other locations, but the following calling restrictions must be
   followed or the system behavior will not be deterministic.
   1. ControllerHandle must be a valid EFI_HANDLE.
-  2. If RemainingDevicePath is not NULL, then it must be a pointer to a naturally 
+  2. If RemainingDevicePath is not NULL, then it must be a pointer to a naturally
      aligned EFI_DEVICE_PATH_PROTOCOL.
-  3. Prior to calling Start(), the Supported() function for the driver specified 
-     by This must have been called with the same calling parameters, and Supported() 
+  3. Prior to calling Start(), the Supported() function for the driver specified
+     by This must have been called with the same calling parameters, and Supported()
      must have returned EFI_SUCCESS.
 
   @param  This                 A pointer to the EFI_DRIVER_BINDING_PROTOCOL instance.
-  @param  ControllerHandle     The handle of the controller to start. This handle 
-                               must support a protocol interface that supplies 
+  @param  ControllerHandle     The handle of the controller to start. This handle
+                               must support a protocol interface that supplies
                                an I/O abstraction to the driver.
-  @param  RemainingDevicePath  A pointer to the remaining portion of a device path. 
-                               This parameter is ignored by device drivers, and is 
+  @param  RemainingDevicePath  A pointer to the remaining portion of a device path.
+                               This parameter is ignored by device drivers, and is
                                optional for bus drivers.
 
   @retval EFI_SUCCESS          The device was started.
   @retval EFI_ALREADY_STARTED  The device could not be started due to a device error.
-  @retval EFI_OUT_OF_RESOURCES The request could not be completed due to a lack 
+  @retval EFI_OUT_OF_RESOURCES The request could not be completed due to a lack
                                of resources.
 
 **/
@@ -379,14 +418,13 @@ Tcp4DriverBindingStart (
 
   InitializeListHead (&TcpServiceData->SocketList);
 
-  TcpSetVariableData (TcpServiceData);
-
   return EFI_SUCCESS;
 
 ON_ERROR:
 
   if (TcpServiceData->IpIo != NULL) {
     IpIoDestroy (TcpServiceData->IpIo);
+    TcpServiceData->IpIo = NULL;
   }
 
   FreePool (TcpServiceData);
@@ -397,25 +435,25 @@ ON_ERROR:
 
 /**
   Stop this driver on ControllerHandle.
-  
-  The Stop() function is designed to be invoked from the EFI boot service 
-  DisconnectController(). As a result, much of the error checking on the parameters 
-  to Stop() has been moved into this common boot service. It is legal to call Stop() 
-  from other locations, but the following calling restrictions must be followed 
+
+  The Stop() function is designed to be invoked from the EFI boot service
+  DisconnectController(). As a result, much of the error checking on the parameters
+  to Stop() has been moved into this common boot service. It is legal to call Stop()
+  from other locations, but the following calling restrictions must be followed
   or the system behavior will not be deterministic.
-  1. ControllerHandle must be a valid EFI_HANDLE that was used on a previous call 
+  1. ControllerHandle must be a valid EFI_HANDLE that was used on a previous call
      to this same driver's Start() function.
   2. The first NumberOfChildren handles of ChildHandleBuffer must all be a valid
-     EFI_HANDLE. In addition, all of these handles must have been created in this 
-     driver's Start() function, and the Start() function must have called OpenProtocol() 
+     EFI_HANDLE. In addition, all of these handles must have been created in this
+     driver's Start() function, and the Start() function must have called OpenProtocol()
      on ControllerHandle with an Attribute of EFI_OPEN_PROTOCOL_BY_CHILD_CONTROLLER.
-  
+
   @param  This              A pointer to the EFI_DRIVER_BINDING_PROTOCOL instance.
-  @param  ControllerHandle  A handle to the device being stopped. The handle must 
-                            support a bus specific I/O protocol for the driver 
+  @param  ControllerHandle  A handle to the device being stopped. The handle must
+                            support a bus specific I/O protocol for the driver
                             to use to stop the device.
   @param  NumberOfChildren  The number of child device handles in ChildHandleBuffer.
-  @param  ChildHandleBuffer An array of child handles to be freed. May be NULL if 
+  @param  ChildHandleBuffer An array of child handles to be freed. May be NULL if
                             NumberOfChildren is 0.
 
   @retval EFI_SUCCESS       The device was stopped.
@@ -431,17 +469,18 @@ Tcp4DriverBindingStop (
   IN  EFI_HANDLE                   *ChildHandleBuffer
   )
 {
-  EFI_STATUS                          Status;
-  EFI_HANDLE                          NicHandle;
-  EFI_SERVICE_BINDING_PROTOCOL        *ServiceBinding;
-  TCP4_SERVICE_DATA                   *TcpServiceData;
-  SOCKET                              *Sock;
+  EFI_STATUS                                Status;
+  EFI_HANDLE                                NicHandle;
+  EFI_SERVICE_BINDING_PROTOCOL              *ServiceBinding;
+  TCP4_SERVICE_DATA                         *TcpServiceData;
+  LIST_ENTRY                                *List;
+  TCP4_DESTROY_CHILD_IN_HANDLE_BUF_CONTEXT  Context;
 
   // Find the NicHandle where Tcp4 ServiceBinding Protocol is installed.
   //
   NicHandle = NetLibGetNicHandle (ControllerHandle, &gEfiIp4ProtocolGuid);
   if (NicHandle == NULL) {
-    return EFI_DEVICE_ERROR;
+    return EFI_SUCCESS;
   }
 
   //
@@ -465,7 +504,18 @@ Tcp4DriverBindingStop (
 
   TcpServiceData = TCP4_FROM_THIS (ServiceBinding);
 
-  if (NumberOfChildren == 0) {
+  if (NumberOfChildren != 0) {
+    List = &TcpServiceData->SocketList;
+    Context.ServiceBinding = ServiceBinding;
+    Context.NumberOfChildren = NumberOfChildren;
+    Context.ChildHandleBuffer = ChildHandleBuffer;
+    Status = NetDestroyLinkList (
+               List,
+               Tcp4DestroyChildEntryInHandleBuffer,
+               &Context,
+               NULL
+               );
+  } else if (IsListEmpty (&TcpServiceData->SocketList)) {
     //
     // Uninstall TCP servicebinding protocol
     //
@@ -480,43 +530,39 @@ Tcp4DriverBindingStop (
     // Destroy the IpIO consumed by TCP driver
     //
     IpIoDestroy (TcpServiceData->IpIo);
+    TcpServiceData->IpIo = NULL;
 
     //
     // Destroy the heartbeat timer.
     //
     Tcp4DestroyTimer ();
 
-    //
-    // Clear the variable.
-    //
-    TcpClearVariableData (TcpServiceData);
+    if (gTcpControllerNameTable != NULL) {
+      FreeUnicodeStringTable (gTcpControllerNameTable);
+      gTcpControllerNameTable = NULL;
+    }
 
     //
     // Release the TCP service data
     //
     FreePool (TcpServiceData);
-  } else {
 
-    while (!IsListEmpty (&TcpServiceData->SocketList)) {
-      Sock = NET_LIST_HEAD (&TcpServiceData->SocketList, SOCKET, Link);
-
-      ServiceBinding->DestroyChild (ServiceBinding, Sock->SockHandle);
-    }
+    Status = EFI_SUCCESS;
   }
 
   return Status;
 }
 
 /**
-  Open Ip4 and device path protocols for a created socket, and insert it in 
+  Open Ip4 and device path protocols for a created socket, and insert it in
   socket list.
-  
+
   @param  This                Pointer to the socket just created
   @param  Context             Context of the socket
-  
+
   @retval EFI_SUCCESS         This protocol is installed successfully.
   @retval other               Some error occured.
-  
+
 **/
 EFI_STATUS
 Tcp4CreateSocketCallback (
@@ -554,7 +600,7 @@ Tcp4CreateSocketCallback (
                   (VOID **) &This->ParentDevicePath,
                   TcpServiceData->DriverBindingHandle,
                   This->SockHandle,
-                  EFI_OPEN_PROTOCOL_BY_CHILD_CONTROLLER
+                  EFI_OPEN_PROTOCOL_GET_PROTOCOL
                   );
   if (EFI_ERROR (Status)) {
     gBS->CloseProtocol (
@@ -574,11 +620,11 @@ Tcp4CreateSocketCallback (
 }
 
 /**
-  Close Ip4 and device path protocols for a socket, and remove it from socket list. 
-    
+  Close Ip4 and device path protocols for a socket, and remove it from socket list.
+
   @param  This                Pointer to the socket to be removed
   @param  Context             Context of the socket
-  
+
 **/
 VOID
 Tcp4DestroySocketCallback (
@@ -596,16 +642,6 @@ Tcp4DestroySocketCallback (
   RemoveEntryList (&This->Link);
 
   //
-  // Close the device path protocol
-  //
-  gBS->CloseProtocol (
-         TcpServiceData->ControllerHandle,
-         &gEfiDevicePathProtocolGuid,
-         TcpServiceData->DriverBindingHandle,
-         This->SockHandle
-         );
-
-  //
   // Close the Ip4 protocol.
   //
   gBS->CloseProtocol (
@@ -618,15 +654,15 @@ Tcp4DestroySocketCallback (
 
 /**
   Creates a child handle and installs a protocol.
-  
-  The CreateChild() function installs a protocol on ChildHandle. If ChildHandle 
-  is a pointer to NULL, then a new handle is created and returned in ChildHandle. 
-  If ChildHandle is not a pointer to NULL, then the protocol installs on the existing 
+
+  The CreateChild() function installs a protocol on ChildHandle. If ChildHandle
+  is a pointer to NULL, then a new handle is created and returned in ChildHandle.
+  If ChildHandle is not a pointer to NULL, then the protocol installs on the existing
   ChildHandle.
 
   @param  This        Pointer to the EFI_SERVICE_BINDING_PROTOCOL instance.
-  @param  ChildHandle Pointer to the handle of the child to create. If it is NULL, then 
-                      a new handle is created. If it is a pointer to an existing UEFI 
+  @param  ChildHandle Pointer to the handle of the child to create. If it is NULL, then
+                      a new handle is created. If it is a pointer to an existing UEFI
                       handle, then the protocol is added to the existing UEFI handle.
 
   @retval EFI_SUCCES            The protocol was added to ChildHandle.
@@ -686,22 +722,22 @@ Tcp4ServiceBindingCreateChild (
 
 /**
   Destroys a child handle with a protocol installed on it.
-  
-  The DestroyChild() function does the opposite of CreateChild(). It removes a protocol 
-  that was installed by CreateChild() from ChildHandle. If the removed protocol is the 
+
+  The DestroyChild() function does the opposite of CreateChild(). It removes a protocol
+  that was installed by CreateChild() from ChildHandle. If the removed protocol is the
   last protocol on ChildHandle, then ChildHandle is destroyed.
 
   @param  This         Pointer to the EFI_SERVICE_BINDING_PROTOCOL instance.
   @param  ChildHandle  Handle of the child to destroy
 
   @retval EFI_SUCCES            The protocol was removed from ChildHandle.
-  @retval EFI_UNSUPPORTED       ChildHandle does not support the protocol that is 
+  @retval EFI_UNSUPPORTED       ChildHandle does not support the protocol that is
                                 being removed.
   @retval EFI_INVALID_PARAMETER Child handle is NULL.
   @retval EFI_ACCESS_DENIED     The protocol could not be removed from the ChildHandle
                                 because its services are being used.
   @retval other                 The child handle was not destroyed.
-  
+
 **/
 EFI_STATUS
 EFIAPI
@@ -713,13 +749,10 @@ Tcp4ServiceBindingDestroyChild (
   EFI_STATUS         Status;
   EFI_TCP4_PROTOCOL  *Tcp4;
   SOCKET             *Sock;
-  EFI_TPL            OldTpl;
 
   if (NULL == This || NULL == ChildHandle) {
     return EFI_INVALID_PARAMETER;
   }
-
-  OldTpl = gBS->RaiseTPL (TPL_CALLBACK);
 
   //
   // retrieve the Tcp4 protocol from ChildHandle
@@ -744,7 +777,6 @@ Tcp4ServiceBindingDestroyChild (
     SockDestroyChild (Sock);
   }
 
-  gBS->RestoreTPL (OldTpl);
   return Status;
 }
 

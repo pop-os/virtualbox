@@ -1,11 +1,11 @@
 ## @file
 # This file is used to parse a Package file of .PKG file
 #
-# Copyright (c) 2011, Intel Corporation. All rights reserved.<BR>
+# Copyright (c) 2011 - 2014, Intel Corporation. All rights reserved.<BR>
 #
-# This program and the accompanying materials are licensed and made available 
-# under the terms and conditions of the BSD License which accompanies this 
-# distribution. The full text of the license may be found at 
+# This program and the accompanying materials are licensed and made available
+# under the terms and conditions of the BSD License which accompanies this
+# distribution. The full text of the license may be found at
 # http://opensource.org/licenses/bsd-license.php
 #
 # THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,
@@ -173,7 +173,7 @@ class PackageSurfaceAreaXml(object):
         if XmlNode(Item, '/PackageSurfaceArea/ClonedFrom'):
             ClonedFrom = Tmp.FromXml(XmlNode(Item, '/PackageSurfaceArea/ClonedFrom'), 'ClonedFrom')
             Package.SetClonedFromList([ClonedFrom])
-        #    
+        #
         # LibraryClass
         #
 
@@ -255,6 +255,16 @@ class PackageSurfaceAreaXml(object):
             PcdEntry = Tmp.FromXml2(SubItem, 'PcdEntry')
             Package.SetPcdList(Package.GetPcdList() + [PcdEntry])
 
+            #
+            # Get PcdErrorCommentDict from PcdError in PcdEntry Node
+            #
+            for PcdErrorObj in PcdEntry.GetPcdErrorsList():
+                PcdErrorMessageList = PcdErrorObj.GetErrorMessageList()
+                if PcdErrorMessageList:
+                    Package.PcdErrorCommentDict[(PcdEntry.GetTokenSpaceGuidCName(), PcdErrorObj.GetErrorNumber())] = \
+                    PcdErrorMessageList
+
+
         if XmlList(Item, '/PackageSurfaceArea/PcdDeclarations') and not \
            XmlList(Item, '/PackageSurfaceArea/PcdDeclarations/PcdEntry'):
             Package.SetPcdList([None])
@@ -275,7 +285,7 @@ class PackageSurfaceAreaXml(object):
             Module = Tmp.FromXml(SubItem, 'ModuleSurfaceArea')
             ModuleDictKey = (Module.GetGuid(), Module.GetVersion(), Module.GetName(), Module.GetModulePath())
             Package.ModuleDict[ModuleDictKey] = Module
-        #    
+        #
         # MiscellaneousFile
         #
         Tmp = MiscellaneousFileXml()
@@ -285,7 +295,7 @@ class PackageSurfaceAreaXml(object):
         else:
             Package.SetMiscFileList([])
 
-        #  
+        #
         # UserExtensions
         #
         for Item in XmlList(Item, '/PackageSurfaceArea/UserExtensions'):
@@ -362,7 +372,7 @@ class PackageSurfaceAreaXml(object):
             GuidProtocolPpiNode.appendChild\
             (Tmp.ToXml(GuidProtocolPpi, 'Entry'))
         DomPackage.appendChild(GuidProtocolPpiNode)
-        # 
+        #
         # Ppi
         #
         GuidProtocolPpiNode = CreateXmlElement('PpiDeclarations', '', [], [])

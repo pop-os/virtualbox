@@ -384,7 +384,10 @@ static void supdrvGipRequestHigherTimerFrequencyFromSystem(PSUPDRVDEVEXT pDevExt
             || RT_SUCCESS_NP(RTTimerRequestSystemGranularity( 2000000 /*  500 HZ */, &u32SystemResolution))
            )
         {
-            Assert(RTTimerGetSystemGranularity() <= u32SystemResolution);
+#if 0 /* def VBOX_STRICT - this is somehow triggers bogus assertions on windows 10 */
+            uint32_t u32After = RTTimerGetSystemGranularity();
+            AssertMsg(u32After <= u32SystemResolution, ("u32After=%u u32SystemResolution=%u\n", u32After, u32SystemResolution));
+#endif
             pDevExt->u32SystemTimerGranularityGrant = u32SystemResolution;
         }
     }

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2012 Oracle Corporation
+ * Copyright (C) 2008-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,139 +19,229 @@
 # include <precomp.h>
 #else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
-/* Global includes: */
+/* Qt includes: */
 # include <QGridLayout>
 # include <QVBoxLayout>
 # include <QLabel>
 # include <QLineEdit>
 # include <QComboBox>
 
-/* Local includes: */
+/* GUI includes: */
 # include "UINameAndSystemEditor.h"
+# include "UIFilePathSelector.h"
+
+/* COM includes: */
+# include "CSystemProperties.h"
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
-
+/** Defines the VM OS type ID. */
 enum
 {
     TypeID = Qt::UserRole + 1
 };
 
-UINameAndSystemEditor::UINameAndSystemEditor(QWidget *pParent)
+
+UINameAndSystemEditor::UINameAndSystemEditor(QWidget *pParent, bool fChooseLocation /* = false */)
     : QIWithRetranslateUI<QWidget>(pParent)
+    , m_fChooseLocation(fChooseLocation)
+    , m_fSupportsHWVirtEx(false)
+    , m_fSupportsLongMode(false)
+    , m_pLabelName(0)
+    , m_pLabelFamily(0)
+    , m_pLabelType(0)
+    , m_pIconType(0)
+    , m_pEditorName(0)
+    , m_pEditorLocation(0)
+    , m_pComboFamily(0)
+    , m_pComboType(0)
 {
-    /* Register CGuestOSType type: */
-    qRegisterMetaType<CGuestOSType>();
+    /* Prepare: */
+    prepare();
+}
 
-    /* Create widgets: */
-    QGridLayout *pMainLayout = new QGridLayout(this);
-    {
-        pMainLayout->setContentsMargins(0, 0, 0, 0);
-        m_pNameLabel = new QLabel(this);
-        {
-            m_pNameLabel->setAlignment(Qt::AlignRight);
-            m_pNameLabel->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Fixed);
-        }
-        m_pNameEditor = new QLineEdit(this);
-        {
-            m_pNameEditor->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-            m_pNameLabel->setBuddy(m_pNameEditor);
-        }
-        m_pFamilyLabel = new QLabel(this);
-        {
-            m_pFamilyLabel->setAlignment(Qt::AlignRight);
-            m_pFamilyLabel->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Fixed);
-        }
-        m_pFamilyCombo = new QComboBox(this);
-        {
-            m_pFamilyCombo->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Fixed);
-            m_pFamilyLabel->setBuddy(m_pFamilyCombo);
-        }
-        m_pTypeLabel = new QLabel(this);
-        {
-            m_pTypeLabel->setAlignment(Qt::AlignRight);
-            m_pTypeLabel->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Fixed);
-        }
-        m_pTypeCombo = new QComboBox(this);
-        {
-            m_pTypeCombo->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Fixed);
-            m_pTypeLabel->setBuddy(m_pTypeCombo);
-        }
-        QVBoxLayout *pIconLayout = new QVBoxLayout;
-        {
-            m_pTypeIcon = new QLabel(this);
-            {
-                m_pTypeIcon->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-            }
-            pIconLayout->addWidget(m_pTypeIcon);
-            pIconLayout->addStretch();
-        }
-        pMainLayout->addWidget(m_pNameLabel, 0, 0);
-        pMainLayout->addWidget(m_pNameEditor, 0, 1, 1, 2);
-        pMainLayout->addWidget(m_pFamilyLabel, 1, 0);
-        pMainLayout->addWidget(m_pFamilyCombo, 1, 1);
-        pMainLayout->addWidget(m_pTypeLabel, 2, 0);
-        pMainLayout->addWidget(m_pTypeCombo, 2, 1);
-        pMainLayout->addLayout(pIconLayout, 1, 2, 2, 1);
-    }
-
-    /* Check if host supports (AMD-V or VT-x) and long mode: */
-    CHost host = vboxGlobal().host();
-    m_fSupportsHWVirtEx = host.GetProcessorFeature(KProcessorFeature_HWVirtEx);
-    m_fSupportsLongMode = host.GetProcessorFeature(KProcessorFeature_LongMode);
-
-    /* Fill OS family selector: */
-    QList<CGuestOSType> families(vboxGlobal().vmGuestOSFamilyList());
-    for (int i = 0; i < families.size(); ++i)
-    {
-        QString familyName(families[i].GetFamilyDescription());
-        m_pFamilyCombo->insertItem(i, familyName);
-        m_pFamilyCombo->setItemData(i, families[i].GetFamilyId(), TypeID);
-    }
-    m_pFamilyCombo->setCurrentIndex(0);
-    sltFamilyChanged(m_pFamilyCombo->currentIndex());
-
-    /* Setup connections: */
-    connect(m_pNameEditor, SIGNAL(textChanged(const QString &)), this, SIGNAL(sigNameChanged(const QString &)));
-    connect(m_pFamilyCombo, SIGNAL(currentIndexChanged(int)), this, SLOT(sltFamilyChanged(int)));
-    connect(m_pTypeCombo, SIGNAL(currentIndexChanged(int)), this, SLOT(sltTypeChanged(int)));
-
+void UINameAndSystemEditor::prepare()
+{
+    /* Prepare this: */
+    prepareThis();
+    /* Prepare widgets: */
+    prepareWidgets();
+    /* Prepare connections: */
+    prepareConnections();
     /* Retranslate: */
     retranslateUi();
 }
 
-QLineEdit* UINameAndSystemEditor::nameEditor() const
+void UINameAndSystemEditor::prepareThis()
 {
-    return m_pNameEditor;
+    /* Check if host supports (AMD-V or VT-x) and long mode: */
+    CHost host = vboxGlobal().host();
+    m_fSupportsHWVirtEx = host.GetProcessorFeature(KProcessorFeature_HWVirtEx);
+    m_fSupportsLongMode = host.GetProcessorFeature(KProcessorFeature_LongMode);
 }
 
-void UINameAndSystemEditor::setName(const QString &strName)
+void UINameAndSystemEditor::prepareWidgets()
 {
-    m_pNameEditor->setText(strName);
+    /* Create main-layout: */
+    QGridLayout *pMainLayout = new QGridLayout(this);
+    AssertPtrReturnVoid(pMainLayout);
+    {
+        /* Configure main-layout: */
+        pMainLayout->setContentsMargins(0, 0, 0, 0);
+
+        /* Create VM name label: */
+        m_pLabelName = new QLabel;
+        AssertPtrReturnVoid(m_pLabelName);
+        {
+            /* Configure VM name label: */
+            m_pLabelName->setAlignment(Qt::AlignRight);
+            m_pLabelName->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Fixed);
+            /* Add VM name label into main-layout: */
+            pMainLayout->addWidget(m_pLabelName, 0, 0);
+        }
+
+        if (!m_fChooseLocation)
+        {
+            /* Create VM name editor: */
+            m_pEditorName = new QLineEdit;
+            AssertPtrReturnVoid(m_pEditorName);
+            {
+                /* Configure VM name editor: */
+                m_pEditorName->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+                m_pLabelName->setBuddy(m_pEditorName);
+                /* Add VM name editor into main-layout: */
+                pMainLayout->addWidget(m_pEditorName, 0, 1, 1, 2);
+            }
+        }
+        else
+        {
+            /* Create VM location editor: */
+            m_pEditorLocation = new UIFilePathSelector;
+            AssertPtrReturnVoid(m_pEditorLocation);
+            {
+                /* Configure advanced VM name editor: */
+                m_pEditorLocation->setResetEnabled(false);
+                m_pEditorLocation->setMode(UIFilePathSelector::Mode_File_Save);
+                m_pEditorLocation->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+                m_pEditorLocation->setHomeDir(vboxGlobal().virtualBox().GetSystemProperties().GetDefaultMachineFolder());
+                m_pLabelName->setBuddy(m_pEditorLocation);
+                /* Add advanced VM name editor into main-layout: */
+                pMainLayout->addWidget(m_pEditorLocation, 0, 1, 1, 2);
+            }
+        }
+
+        /* Create VM OS family label: */
+        m_pLabelFamily = new QLabel;
+        AssertPtrReturnVoid(m_pLabelFamily);
+        {
+            /* Configure VM OS family label: */
+            m_pLabelFamily->setAlignment(Qt::AlignRight);
+            m_pLabelFamily->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Fixed);
+            /* Add VM OS family label into main-layout: */
+            pMainLayout->addWidget(m_pLabelFamily, 1, 0);
+        }
+
+        /* Create VM OS family combo: */
+        m_pComboFamily = new QComboBox;
+        AssertPtrReturnVoid(m_pComboFamily);
+        {
+            /* Configure VM OS family combo: */
+            m_pComboFamily->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Fixed);
+            m_pLabelFamily->setBuddy(m_pComboFamily);
+            /* Add VM OS family combo into main-layout: */
+            pMainLayout->addWidget(m_pComboFamily, 1, 1);
+        }
+
+        /* Create VM OS type label: */
+        m_pLabelType = new QLabel;
+        AssertPtrReturnVoid(m_pLabelType);
+        {
+            /* Configure VM OS type label: */
+            m_pLabelType->setAlignment(Qt::AlignRight);
+            m_pLabelType->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Fixed);
+            /* Add VM OS type label into main-layout: */
+            pMainLayout->addWidget(m_pLabelType, 2, 0);
+        }
+
+        /* Create VM OS type combo: */
+        m_pComboType = new QComboBox;
+        AssertPtrReturnVoid(m_pComboType);
+        {
+            /* Configure VM OS type combo: */
+            m_pComboType->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Fixed);
+            m_pLabelType->setBuddy(m_pComboType);
+            /* Add VM OS type combo into main-layout: */
+            pMainLayout->addWidget(m_pComboType, 2, 1);
+        }
+
+        /* Create sub-layout: */
+        QVBoxLayout *pLayoutIcon = new QVBoxLayout;
+        AssertPtrReturnVoid(pLayoutIcon);
+        {
+            /* Create VM OS type icon: */
+            m_pIconType = new QLabel;
+            AssertPtrReturnVoid(m_pIconType);
+            {
+                /* Configure VM OS type icon: */
+                m_pIconType->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+                /* Add VM OS type icon into sub-layout: */
+                pLayoutIcon->addWidget(m_pIconType);
+            }
+
+            /* Add stretch to sub-layout: */
+            pLayoutIcon->addStretch();
+            /* Add sub-layout into main-layout: */
+            pMainLayout->addLayout(pLayoutIcon, 1, 2, 2, 1);
+        }
+    }
+
+    /* Initialize VM OS family combo
+     * after all widgets were created: */
+    prepareFamilyCombo();
+}
+
+void UINameAndSystemEditor::prepareFamilyCombo()
+{
+    /* Populate VM OS family combo: */
+    const QList<CGuestOSType> families = vboxGlobal().vmGuestOSFamilyList();
+    for (int i = 0; i < families.size(); ++i)
+    {
+        const QString strFamilyName = families.at(i).GetFamilyDescription();
+        m_pComboFamily->insertItem(i, strFamilyName);
+        m_pComboFamily->setItemData(i, families.at(i).GetFamilyId(), TypeID);
+    }
+
+    /* Choose the 1st item to be the current: */
+    m_pComboFamily->setCurrentIndex(0);
+    /* And update the linked widgets accordingly: */
+    sltFamilyChanged(m_pComboFamily->currentIndex());
+}
+
+void UINameAndSystemEditor::prepareConnections()
+{
+    /* Prepare connections: */
+    if (!m_fChooseLocation)
+        connect(m_pEditorName, SIGNAL(textChanged(const QString &)), this, SIGNAL(sigNameChanged(const QString &)));
+    else
+        connect(m_pEditorLocation, SIGNAL(pathChanged(const QString &)), this, SIGNAL(sigNameChanged(const QString &)));
+    connect(m_pComboFamily, SIGNAL(currentIndexChanged(int)), this, SLOT(sltFamilyChanged(int)));
+    connect(m_pComboType, SIGNAL(currentIndexChanged(int)), this, SLOT(sltTypeChanged(int)));
 }
 
 QString UINameAndSystemEditor::name() const
 {
-    return m_pNameEditor->text();
+    if (!m_fChooseLocation)
+        return m_pEditorName->text();
+    else
+        return m_pEditorLocation->path();
 }
 
-void UINameAndSystemEditor::setType(const CGuestOSType &type)
+void UINameAndSystemEditor::setName(const QString &strName)
 {
-    /* Initialize variables: */
-    QString strFamilyId(type.GetFamilyId());
-    QString strTypeId(type.GetId());
-
-    /* Get/check family index: */
-    int iFamilyIndex = m_pFamilyCombo->findData(strFamilyId, TypeID);
-    AssertMsg(iFamilyIndex != -1, ("Invalid family ID: '%s'", strFamilyId.toLatin1().constData()));
-    if (iFamilyIndex != -1)
-        m_pFamilyCombo->setCurrentIndex(iFamilyIndex);
-
-    /* Get/check type index: */
-    int iTypeIndex = m_pTypeCombo->findData(strTypeId, TypeID);
-    AssertMsg(iTypeIndex != -1, ("Invalid type ID: '%s'", strTypeId.toLatin1().constData()));
-    if (iTypeIndex != -1)
-        m_pTypeCombo->setCurrentIndex(iTypeIndex);
+    if (!m_fChooseLocation)
+        m_pEditorName->setText(strName);
+    else
+        m_pEditorLocation->setPath(strName);
 }
 
 CGuestOSType UINameAndSystemEditor::type() const
@@ -159,44 +249,73 @@ CGuestOSType UINameAndSystemEditor::type() const
     return m_type;
 }
 
+void UINameAndSystemEditor::setType(const CGuestOSType &type)
+{
+    /** @todo We're getting here with a NULL type when creating new VMs.  Very
+     *        annoying, so I've just shut it up for now.  Sergey and Santosh can try
+     *        figure out why this happens now with Qt5. */
+    if (type.isNotNull())
+    {
+        /* Initialize variables: */
+        const QString strFamilyId = type.GetFamilyId();
+        const QString strTypeId = type.GetId();
+
+        /* Get/check family index: */
+        const int iFamilyIndex = m_pComboFamily->findData(strFamilyId, TypeID);
+        AssertMsg(iFamilyIndex != -1, ("Invalid family ID: '%s'", strFamilyId.toLatin1().constData()));
+        if (iFamilyIndex != -1)
+            m_pComboFamily->setCurrentIndex(iFamilyIndex);
+
+        /* Get/check type index: */
+        const int iTypeIndex = m_pComboType->findData(strTypeId, TypeID);
+        AssertMsg(iTypeIndex != -1, ("Invalid type ID: '%s'", strTypeId.toLatin1().constData()));
+        if (iTypeIndex != -1)
+            m_pComboType->setCurrentIndex(iTypeIndex);
+    }
+}
+
 void UINameAndSystemEditor::retranslateUi()
 {
-    m_pNameLabel->setText(tr("N&ame:"));
-    m_pNameEditor->setWhatsThis(tr("Holds the name of the virtual machine."));
-    m_pFamilyLabel->setText(tr("&Type:"));
-    m_pFamilyCombo->setWhatsThis(tr("Selects the operating system family that "
+    m_pLabelName->setText(tr("N&ame:"));
+    m_pLabelFamily->setText(tr("&Type:"));
+    m_pLabelType->setText(tr("&Version:"));
+    if (!m_fChooseLocation)
+        m_pEditorName->setWhatsThis(tr("Holds the name of the virtual machine."));
+    else
+        m_pEditorLocation->setWhatsThis(tr("Holds the location of the virtual machine."));
+    m_pComboFamily->setWhatsThis(tr("Selects the operating system family that "
                                     "you plan to install into this virtual machine."));
-    m_pTypeLabel->setText(tr("&Version:"));
-    m_pTypeCombo->setWhatsThis(tr("Selects the operating system type that "
+    m_pComboType->setWhatsThis(tr("Selects the operating system type that "
                                   "you plan to install into this virtual machine "
                                   "(called a guest operating system)."));
 }
 
 void UINameAndSystemEditor::sltFamilyChanged(int iIndex)
 {
-    /* Lock the signals of m_pTypeCombo to prevent it's reaction on clearing: */
-    m_pTypeCombo->blockSignals(true);
-    m_pTypeCombo->clear();
+    /* Lock the signals of m_pComboType to prevent it's reaction on clearing: */
+    m_pComboType->blockSignals(true);
+    m_pComboType->clear();
 
     /* Populate combo-box with OS types related to currently selected family id: */
-    QString strFamilyId(m_pFamilyCombo->itemData(iIndex, TypeID).toString());
-    QList<CGuestOSType> types(vboxGlobal().vmGuestOSTypeList(strFamilyId));
+    const QString strFamilyId = m_pComboFamily->itemData(iIndex, TypeID).toString();
+    const QList<CGuestOSType> types = vboxGlobal().vmGuestOSTypeList(strFamilyId);
     for (int i = 0; i < types.size(); ++i)
     {
-        if (types[i].GetIs64Bit() && (!m_fSupportsHWVirtEx || !m_fSupportsLongMode))
+        /* Skip 64bit OS types is hardware virtualization or long mode is not supported: */
+        if (types.at(i).GetIs64Bit() && (!m_fSupportsHWVirtEx || !m_fSupportsLongMode))
             continue;
-        int iIndex = m_pTypeCombo->count();
-        m_pTypeCombo->insertItem(iIndex, types[i].GetDescription());
-        m_pTypeCombo->setItemData(iIndex, types[i].GetId(), TypeID);
+        const int iIndex = m_pComboType->count();
+        m_pComboType->insertItem(iIndex, types[i].GetDescription());
+        m_pComboType->setItemData(iIndex, types[i].GetId(), TypeID);
     }
 
     /* Select the most recently chosen item: */
     if (m_currentIds.contains(strFamilyId))
     {
-        QString strTypeId(m_currentIds[strFamilyId]);
-        int iTypeIndex = m_pTypeCombo->findData(strTypeId, TypeID);
+        const QString strTypeId = m_currentIds.value(strFamilyId);
+        const int iTypeIndex = m_pComboType->findData(strTypeId, TypeID);
         if (iTypeIndex != -1)
-            m_pTypeCombo->setCurrentIndex(iTypeIndex);
+            m_pComboType->setCurrentIndex(iTypeIndex);
     }
     /* Or select Windows 7 item for Windows family as default: */
     else if (strFamilyId == "Windows")
@@ -204,9 +323,9 @@ void UINameAndSystemEditor::sltFamilyChanged(int iIndex)
         QString strDefaultID = "Windows7";
         if (ARCH_BITS == 64 && m_fSupportsHWVirtEx && m_fSupportsLongMode)
             strDefaultID += "_64";
-        int iIndexWin7 = m_pTypeCombo->findData(strDefaultID, TypeID);
+        const int iIndexWin7 = m_pComboType->findData(strDefaultID, TypeID);
         if (iIndexWin7 != -1)
-            m_pTypeCombo->setCurrentIndex(iIndexWin7);
+            m_pComboType->setCurrentIndex(iIndexWin7);
     }
     /* Or select Ubuntu item for Linux family as default: */
     else if (strFamilyId == "Linux")
@@ -214,26 +333,27 @@ void UINameAndSystemEditor::sltFamilyChanged(int iIndex)
         QString strDefaultID = "Ubuntu";
         if (ARCH_BITS == 64 && m_fSupportsHWVirtEx && m_fSupportsLongMode)
             strDefaultID += "_64";
-        int iIndexUbuntu = m_pTypeCombo->findData(strDefaultID, TypeID);
+        const int iIndexUbuntu = m_pComboType->findData(strDefaultID, TypeID);
         if (iIndexUbuntu != -1)
-            m_pTypeCombo->setCurrentIndex(iIndexUbuntu);
+            m_pComboType->setCurrentIndex(iIndexUbuntu);
     }
     /* Else simply select the first one present: */
-    else m_pTypeCombo->setCurrentIndex(0);
+    else
+        m_pComboType->setCurrentIndex(0);
 
     /* Update all the stuff: */
-    sltTypeChanged(m_pTypeCombo->currentIndex());
+    sltTypeChanged(m_pComboType->currentIndex());
 
-    /* Unlock the signals of m_pTypeCombo: */
-    m_pTypeCombo->blockSignals(false);
+    /* Unlock the signals of m_pComboType: */
+    m_pComboType->blockSignals(false);
 }
 
 void UINameAndSystemEditor::sltTypeChanged(int iIndex)
 {
-    /* Save the new selected OS Type: */
-    m_type = vboxGlobal().vmGuestOSType(m_pTypeCombo->itemData(iIndex, TypeID).toString(),
-                                        m_pFamilyCombo->itemData(m_pFamilyCombo->currentIndex(), TypeID).toString());
-    m_pTypeIcon->setPixmap(vboxGlobal().vmGuestOSTypeIcon(m_type.GetId()));
+    /* Save the new selected OS type: */
+    m_type = vboxGlobal().vmGuestOSType(m_pComboType->itemData(iIndex, TypeID).toString(),
+                                        m_pComboFamily->itemData(m_pComboFamily->currentIndex(), TypeID).toString());
+    m_pIconType->setPixmap(vboxGlobal().vmGuestOSTypeIcon(m_type.GetId()));
 
     /* Save the most recently used item: */
     m_currentIds[m_type.GetFamilyId()] = m_type.GetId();

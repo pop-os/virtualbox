@@ -26,14 +26,14 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 100880 $"
+__version__ = "$Revision: 107509 $"
 
 
 # Standard python imports.
 import unittest;
 
 # Validation Kit imports.
-from testmanager.core.base      import ModelDataBase, ModelDataBaseTestCase, ModelLogicBase, TMExceptionBase;
+from testmanager.core.base      import ModelDataBase, ModelDataBaseTestCase, ModelLogicBase, TMTooManyRows, TMRowNotFound;
 from testmanager.core.testbox   import TestBoxData;
 
 
@@ -91,7 +91,7 @@ class TestBoxStatusData(ModelDataBase):
         """
 
         if aoRow is None:
-            raise TMExceptionBase('TestBoxStatus not found.');
+            raise TMRowNotFound('TestBoxStatus not found.');
 
         self.idTestBox           = aoRow[0];
         self.idGenTestBox        = aoRow[1];
@@ -174,7 +174,7 @@ class TestBoxStatusLogic(ModelLogicBase):
         cRows = self._oDb.getRowCount();
         if cRows != 1:
             if cRows != 0:
-                raise TMExceptionBase('tryFetchStatusForCommandReq got %s rows for idTestBox=%s' % (cRows, idTestBox));
+                raise TMTooManyRows('tryFetchStatusForCommandReq got %s rows for idTestBox=%s' % (cRows, idTestBox));
             return (None, None);
         aoRow = self._oDb.fetchOne();
         return (TestBoxStatusData().initFromDbRow(aoRow[0:5]), TestBoxData().initFromDbRow(aoRow[5:]));

@@ -32,11 +32,11 @@
 # include "UIMachineLogic.h"
 # include "UIMachineWindowScale.h"
 # include "UIMachineView.h"
-# ifdef Q_WS_MAC
+# ifdef VBOX_WS_MAC
 #  include "VBoxUtils.h"
 #  include "UIImageTools.h"
 #  include "UICocoaApplication.h"
-# endif /* Q_WS_MAC */
+# endif /* VBOX_WS_MAC */
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
@@ -58,7 +58,7 @@ void UIMachineWindowScale::prepareMainLayout()
     m_pRightSpacer->changeSize(0, 0, QSizePolicy::Fixed, QSizePolicy::Fixed);
 }
 
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
 void UIMachineWindowScale::prepareVisualState()
 {
     /* Call to base-class: */
@@ -82,7 +82,7 @@ void UIMachineWindowScale::prepareVisualState()
                                                                                 UIMachineWindow::handleStandardWindowButtonCallback);
     }
 }
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
 
 void UIMachineWindowScale::loadSettings()
 {
@@ -137,14 +137,14 @@ void UIMachineWindowScale::saveSettings()
     UIMachineWindow::saveSettings();
 }
 
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
 void UIMachineWindowScale::cleanupVisualState()
 {
     /* Unregister 'Zoom' button from using our full-screen since Yosemite: */
     if (vboxGlobal().osRelease() >= MacOSXRelease_Yosemite)
         UICocoaApplication::instance()->unregisterCallbackForStandardWindowButton(this, StandardWindowButtonType_Zoom);
 }
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
 
 void UIMachineWindowScale::showInNecessaryMode()
 {
@@ -198,7 +198,8 @@ bool UIMachineWindowScale::event(QEvent *pEvent)
     return UIMachineWindow::event(pEvent);
 }
 
-#ifdef Q_WS_WIN
+#ifdef VBOX_WS_WIN
+# if QT_VERSION < 0x050000
 bool UIMachineWindowScale::winEvent(MSG *pMessage, long *pResult)
 {
     /* Try to keep aspect ratio during window resize if:
@@ -243,16 +244,17 @@ bool UIMachineWindowScale::winEvent(MSG *pMessage, long *pResult)
     /* Call to base-class: */
     return UIMachineWindow::winEvent(pMessage, pResult);
 }
-#endif /* Q_WS_WIN */
+# endif /* QT_VERSION < 0x050000 */
+#endif /* VBOX_WS_WIN */
 
 bool UIMachineWindowScale::isMaximizedChecked()
 {
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
     /* On the Mac the WindowStateChange signal doesn't seems to be delivered
      * when the user get out of the maximized state. So check this ourself. */
     return ::darwinIsWindowMaximized(this);
-#else /* Q_WS_MAC */
+#else /* VBOX_WS_MAC */
     return isMaximized();
-#endif /* !Q_WS_MAC */
+#endif /* !VBOX_WS_MAC */
 }
 

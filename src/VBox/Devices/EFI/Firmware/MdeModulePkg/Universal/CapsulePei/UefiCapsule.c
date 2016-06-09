@@ -1,7 +1,7 @@
 /** @file
   Capsule update PEIM for UEFI2.0
 
-Copyright (c) 2006 - 2011, Intel Corporation. All rights reserved.<BR>
+Copyright (c) 2006 - 2014, Intel Corporation. All rights reserved.<BR>
 
 This program and the accompanying materials
 are licensed and made available under the terms and conditions
@@ -43,10 +43,10 @@ GLOBAL_REMOVE_IF_UNREFERENCED CONST IA32_DESCRIPTOR mGdt = {
 
 /**
   Calculate the total size of page table.
-  
+
   @return The size of page table.
-  
-  
+
+
 **/
 UINTN
 CalculatePageTableSize (
@@ -128,7 +128,7 @@ VOID
 CreateIdentityMappingPageTables (
   IN  EFI_PHYSICAL_ADDRESS  PageTablesAddress
   )
-{  
+{
   UINT32                                        RegEax;
   UINT32                                        RegEdx;
   UINT8                                         PhysicalAddressBits;
@@ -192,7 +192,7 @@ CreateIdentityMappingPageTables (
   }
 
   //
-  // Pre-allocate big pages to avoid later allocations. 
+  // Pre-allocate big pages to avoid later allocations.
   //
   BigPageAddress = (UINTN) PageTablesAddress;
 
@@ -221,7 +221,7 @@ CreateIdentityMappingPageTables (
 
     if (Page1GSupport) {
       PageDirectory1GEntry = (VOID *) PageDirectoryPointerEntry;
-    
+
       for (IndexOfPageDirectoryEntries = 0; IndexOfPageDirectoryEntries < 512; IndexOfPageDirectoryEntries++, PageDirectory1GEntry++, PageAddress += SIZE_1GB) {
         //
         // Fill in the Page Directory entries
@@ -236,7 +236,7 @@ CreateIdentityMappingPageTables (
         //
         // Each Directory Pointer entries points to a page of Page Directory entires.
         // So allocate space for them and fill them in in the IndexOfPageDirectoryEntries loop.
-        //       
+        //
         PageDirectoryEntry = (VOID *) BigPageAddress;
         BigPageAddress += SIZE_4KB;
 
@@ -290,20 +290,20 @@ ReturnFunction (
   SWITCH_32_TO_64_CONTEXT  *EntrypointContext,
   SWITCH_64_TO_32_CONTEXT  *ReturnContext
   )
-{ 
+{
   //
   // Restore original GDT
   //
   AsmWriteGdtr (&ReturnContext->Gdtr);
-  
+
   //
   // return to original caller
   //
   LongJump ((BASE_LIBRARY_JUMP_BUFFER  *)(UINTN)EntrypointContext->JumpBuffer, 1);
- 
+
   //
   // never be here
-  // 
+  //
   ASSERT (FALSE);
 }
 
@@ -338,7 +338,7 @@ Thunk32To64 (
     // Build Page Tables for all physical memory processor supports
     //
     CreateIdentityMappingPageTables (PageTableAddress);
-    
+
     //
     // Create 64-bit GDT
     //
@@ -350,6 +350,10 @@ Thunk32To64 (
     AsmWriteCr3 ((UINTN) PageTableAddress);
 
     //
+    // Disable interrupt of Debug timer, since the IDT table cannot work in long mode
+    //
+    SaveAndSetDebugTimerInterrupt (FALSE);
+    //
     // Transfer to long mode
     //
     AsmEnablePaging64 (
@@ -360,7 +364,7 @@ Thunk32To64 (
       Context->StackBufferBase + Context->StackBufferLength
       );
   }
-  
+
   //
   // Convert to 32-bit Status and return
   //
@@ -368,7 +372,7 @@ Thunk32To64 (
   if ((UINTN) ReturnContext->ReturnStatus != 0) {
     Status = ENCODE_ERROR ((UINTN) ReturnContext->ReturnStatus);
   }
-  
+
   return Status;
 }
 
@@ -406,13 +410,13 @@ ModeSwitch (
 
   ZeroMem (&Context, sizeof (SWITCH_32_TO_64_CONTEXT));
   ZeroMem (&ReturnContext, sizeof (SWITCH_64_TO_32_CONTEXT));
-  
+
   MemoryBase64  = (UINT64) (UINTN) *MemoryBase;
   MemorySize64  = (UINT64) (UINTN) *MemorySize;
   MemoryEnd64   = MemoryBase64 + MemorySize64;
 
   //
-  // Merge memory range reserved for stack and page table  
+  // Merge memory range reserved for stack and page table
   //
   if (LongModeBuffer->StackBaseAddress < LongModeBuffer->PageTableAddress) {
     ReservedRangeBase = LongModeBuffer->StackBaseAddress;
@@ -421,7 +425,7 @@ ModeSwitch (
     ReservedRangeBase = LongModeBuffer->PageTableAddress;
     ReservedRangeEnd  = LongModeBuffer->StackBaseAddress + LongModeBuffer->StackSize;
   }
-  
+
   //
   // Check if memory range reserved is overlap with MemoryBase ~ MemoryBase + MemorySize.
   // If they are overlapped, get a larger range to process capsule data.
@@ -440,8 +444,8 @@ ModeSwitch (
     } else {
       MemorySize64 = (UINT64)(UINTN)(ReservedRangeBase - MemoryBase64);
     }
-  }  
-  
+  }
+
   //
   // Initialize context jumping to 64-bit enviroment
   //
@@ -462,14 +466,14 @@ ModeSwitch (
   // Will save the return status of processing capsule
   //
   ReturnContext.ReturnStatus       = 0;
-  
+
   //
   // Save original GDT
   //
   AsmReadGdtr ((IA32_DESCRIPTOR *)&ReturnContext.Gdtr);
-  
+
   Status = Thunk32To64 (LongModeBuffer->PageTableAddress, &Context, &ReturnContext);
-  
+
   if (!EFI_ERROR (Status)) {
     *MemoryBase = (VOID *) (UINTN) MemoryBase64;
     *MemorySize = (UINTN) MemorySize64;
@@ -570,7 +574,8 @@ GetCapsuleDescriptors (
   TempVarName       = NULL;
   CapsuleVarName[0] = 0;
   ValidIndex        = 0;
-  
+  CapsuleDataPtr64  = 0;
+
   Status = PeiServicesLocatePpi (
               &gEfiPeiReadOnlyVariable2PpiGuid,
               0,
@@ -621,7 +626,7 @@ GetCapsuleDescriptors (
         if (EFI_ERROR (Status)) {
           break;
         }
-        
+
         //
         // If this BlockList has been linked before, skip this variable
         //
@@ -637,7 +642,7 @@ GetCapsuleDescriptors (
           continue;
         }
       }
-      
+
       //
       // Cache BlockList which has been processed
       //
@@ -645,7 +650,7 @@ GetCapsuleDescriptors (
       Index ++;
     }
   }
-  
+
   return EFI_SUCCESS;
 }
 
@@ -726,7 +731,7 @@ CapsuleCoalesce (
   UINTN                                VariableCount;
   CHAR16                               CapsuleVarName[30];
   CHAR16                               *TempVarName;
-  EFI_PHYSICAL_ADDRESS                 CapsuleDataPtr64;  
+  EFI_PHYSICAL_ADDRESS                 CapsuleDataPtr64;
   EFI_STATUS                           Status;
   EFI_BOOT_MODE                        BootMode;
   EFI_PEI_READ_ONLY_VARIABLE2_PPI      *PPIVariableServices;
@@ -741,6 +746,7 @@ CapsuleCoalesce (
   Index                   = 0;
   VariableCount           = 0;
   CapsuleVarName[0]       = 0;
+  CapsuleDataPtr64        = 0;
 
   //
   // Someone should have already ascertained the boot mode. If it's not
@@ -748,11 +754,11 @@ CapsuleCoalesce (
   //
   Status = PeiServicesGetBootMode (&BootMode);
   if (EFI_ERROR (Status) || (BootMode != BOOT_ON_FLASH_UPDATE)) {
-    DEBUG ((EFI_D_ERROR, "Boot mode is not correct for capsule update path.\n"));    
+    DEBUG ((EFI_D_ERROR, "Boot mode is not correct for capsule update path.\n"));
     Status = EFI_NOT_FOUND;
     goto Done;
   }
-  
+
   //
   // User may set the same ScatterGatherList with several different variables,
   // so cache all ScatterGatherList for check later.
@@ -791,9 +797,9 @@ CapsuleCoalesce (
     VariableCount++;
     Index++;
   }
-  
+
   DEBUG ((EFI_D_INFO,"Capsule variable count = %d\n", VariableCount));
-  
+
   //
   // The last entry is the end flag.
   //
@@ -806,9 +812,9 @@ CapsuleCoalesce (
     DEBUG ((EFI_D_ERROR, "AllocatePages Failed!, Status = %x\n", Status));
     goto Done;
   }
-  
+
   ZeroMem (VariableArrayAddress, (VariableCount + 1) * sizeof (EFI_PHYSICAL_ADDRESS));
-  
+
   //
   // Find out if we actually have a capsule.
   // GetCapsuleDescriptors depends on variable PPI, so it should run in 32-bit environment.
@@ -835,7 +841,7 @@ CapsuleCoalesce (
       Status = EFI_NOT_FOUND;
       goto Done;
     }
-    
+
     Status = FindCapsuleCoalesceImage (&CoalesceImageEntryPoint, &CoalesceImageMachineType);
     if ((EFI_ERROR (Status)) || (CoalesceImageMachineType != EFI_IMAGE_MACHINE_X64)) {
       DEBUG ((EFI_D_ERROR, "Fail to find CapsuleX64 module in FV!\n"));
@@ -857,13 +863,13 @@ CapsuleCoalesce (
   //
   Status = CapsuleDataCoalesce (PeiServices, (EFI_PHYSICAL_ADDRESS *)(UINTN)VariableArrayAddress, MemoryBase, MemorySize);
 #endif
-  
+
   DEBUG ((EFI_D_INFO, "Capsule Coalesce Status = %r!\n", Status));
 
   if (Status == EFI_BUFFER_TOO_SMALL) {
     DEBUG ((EFI_D_ERROR, "There is not enough memory to process capsule!\n"));
   }
-  
+
   if (Status == EFI_NOT_FOUND) {
     DEBUG ((EFI_D_ERROR, "Fail to parse capsule descriptor in memory!\n"));
     REPORT_STATUS_CODE (
@@ -896,9 +902,9 @@ CheckCapsuleUpdate (
   return Status;
 }
 /**
-  This function will look at a capsule and determine if it's a test pattern. 
+  This function will look at a capsule and determine if it's a test pattern.
   If it is, then it will verify it and emit an error message if corruption is detected.
-  
+
   @param PeiServices   Standard pei services pointer
   @param CapsuleBase   Base address of coalesced capsule, which is preceeded
                        by private data. Very implementation specific.
@@ -983,25 +989,28 @@ CreateState (
   EFI_CAPSULE_PEIM_PRIVATE_DATA *PrivateData;
   UINTN                         Size;
   EFI_PHYSICAL_ADDRESS          NewBuffer;
-  UINT32                        *DataPtr;
-  UINT32                        CapsuleNumber;
+  UINTN                         CapsuleNumber;
   UINT32                        Index;
   EFI_PHYSICAL_ADDRESS          BaseAddress;
   UINT64                        Length;
- 
-  DataPtr        = NULL;
-  CapsuleNumber  = 0;
+
   PrivateData    = (EFI_CAPSULE_PEIM_PRIVATE_DATA *) CapsuleBase;
   if (PrivateData->Signature != EFI_CAPSULE_PEIM_PRIVATE_DATA_SIGNATURE) {
     return EFI_VOLUME_CORRUPTED;
   }
+  if (PrivateData->CapsuleAllImageSize >= MAX_ADDRESS) {
+    DEBUG ((EFI_D_ERROR, "CapsuleAllImageSize too big - 0x%lx\n", PrivateData->CapsuleAllImageSize));
+    return EFI_OUT_OF_RESOURCES;
+  }
+  if (PrivateData->CapsuleNumber >= MAX_ADDRESS) {
+    DEBUG ((EFI_D_ERROR, "CapsuleNumber too big - 0x%lx\n", PrivateData->CapsuleNumber));
+    return EFI_OUT_OF_RESOURCES;
+  }
   //
   // Capsule Number and Capsule Offset is in the tail of Capsule data.
   //
-  Size    = (UINTN) PrivateData->CapsuleSize;
-  DataPtr = (UINT32*)((UINTN)CapsuleBase + (UINTN)sizeof(EFI_CAPSULE_PEIM_PRIVATE_DATA)+ Size);
-  DataPtr = (UINT32*)(((UINTN) DataPtr + sizeof(UINT32) - 1) & ~(sizeof (UINT32) - 1));
-  CapsuleNumber = *DataPtr++;
+  Size          = (UINTN)PrivateData->CapsuleAllImageSize;
+  CapsuleNumber = (UINTN)PrivateData->CapsuleNumber;
   //
   // Allocate the memory so that it gets preserved into DXE
   //
@@ -1018,8 +1027,8 @@ CreateState (
   //
   // Copy to our new buffer for DXE
   //
-  DEBUG ((EFI_D_INFO, "Capsule copy from 0x%8X to 0x%8X with size 0x%8X\n", (UINTN) (PrivateData + 1), (UINTN) NewBuffer, Size));
-  CopyMem ((VOID *) (UINTN) NewBuffer, (VOID *) (UINTN) (PrivateData + 1), Size);
+  DEBUG ((EFI_D_INFO, "Capsule copy from 0x%8X to 0x%8X with size 0x%8X\n", (UINTN)((UINT8 *)PrivateData + sizeof(EFI_CAPSULE_PEIM_PRIVATE_DATA) + (CapsuleNumber - 1) * sizeof(UINT64)), (UINTN) NewBuffer, Size));
+  CopyMem ((VOID *) (UINTN) NewBuffer, (VOID *) (UINTN) ((UINT8 *)PrivateData + sizeof(EFI_CAPSULE_PEIM_PRIVATE_DATA) + (CapsuleNumber - 1) * sizeof(UINT64)), Size);
   //
   // Check for test data pattern. If it is the test pattern, then we'll
   // test it ans still create the HOB so that it can be used to verify
@@ -1035,12 +1044,12 @@ CreateState (
   // Build the UEFI Capsule Hob for each capsule image.
   //
   for (Index = 0; Index < CapsuleNumber; Index ++) {
-    BaseAddress = NewBuffer + DataPtr[Index];
+    BaseAddress = NewBuffer + PrivateData->CapsuleOffset[Index];
     Length      = ((EFI_CAPSULE_HEADER *)((UINTN) BaseAddress))->CapsuleImageSize;
 
     BuildCvHob (BaseAddress, Length);
   }
-  
+
   return EFI_SUCCESS;
 }
 

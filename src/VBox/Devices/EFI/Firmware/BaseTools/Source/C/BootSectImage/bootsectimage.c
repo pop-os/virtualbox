@@ -4,14 +4,14 @@ Abstract:
   Patch the BPB information in boot sector image file.
   Patch the MBR code in MBR image file.
 
-Copyright (c) 2006 - 2010, Intel Corporation. All rights reserved.<BR>
-This program and the accompanying materials                          
-are licensed and made available under the terms and conditions of the BSD License         
-which accompanies this distribution.  The full text of the license may be found at        
-http://opensource.org/licenses/bsd-license.php                                            
-                                                                                          
-THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,                     
-WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.             
+Copyright (c) 2006 - 2014, Intel Corporation. All rights reserved.<BR>
+This program and the accompanying materials
+are licensed and made available under the terms and conditions of the BSD License
+which accompanies this distribution.  The full text of the license may be found at
+http://opensource.org/licenses/bsd-license.php
+
+THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,
+WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 
 **/
 
@@ -56,8 +56,10 @@ Returns:
 
 --*/
 {
-  printf ("%s v%d.%d %s - Utility to break a file into two pieces at the specified offset.\n", UTILITY_NAME, UTILITY_MAJOR_VERSION, UTILITY_MINOR_VERSION, __BUILD_VERSION);
-  printf ("Copyright (c) 1999-2010 Intel Corporation. All rights reserved.\n");
+  printf ("%s Version %d.%d %s\n", UTILITY_NAME, UTILITY_MAJOR_VERSION, UTILITY_MINOR_VERSION, __BUILD_VERSION);
+  printf ("Copyright (c) 1999-2014 Intel Corporation. All rights reserved.\n");
+  printf ("\n  The BootSectImage tool prints information or patch destination file by source\n");
+  printf ("  file for BIOS Parameter Block (BPB) or Master Boot Record (MBR).\n");
 }
 
 void
@@ -96,7 +98,7 @@ Returns:
 }
 
 int WriteToFile (
-  void *BootSector, 
+  void *BootSector,
   char *FileName
   )
 /*++
@@ -116,7 +118,7 @@ Return:
   FILE *FileHandle;
   int  result;
 
-  FileHandle = fopen (FileName, "r+b");
+  FileHandle = fopen (LongFilePath (FileName), "r+b");
   if (FileHandle == NULL) {
     DebugMsg (NULL, 0, DEBUG_ERROR, NULL, "Open file: %s", FileName);
     return 0;
@@ -134,7 +136,7 @@ Return:
 }
 
 int ReadFromFile (
-  void *BootSector, 
+  void *BootSector,
   char *FileName
   )
 /*++
@@ -154,7 +156,7 @@ Return:
   FILE *FileHandle;
   int  result;
 
-  FileHandle = fopen (FileName, "rb");
+  FileHandle = fopen (LongFilePath (FileName), "rb");
   if (FileHandle == NULL) {
     DebugMsg (NULL, 0, DEBUG_ERROR, NULL, "ERROR: E0001: Error opening file: %s", FileName);
     return 0;
@@ -444,17 +446,17 @@ Return:
         FatBpb->Fat32.BS_BootSig, FAT_BS_BOOTSIG);
     return FatTypeUnknown;
   }
-  
+
   if ((FatType == FatTypeFat12) || (FatType == FatTypeFat16)) {
     memcpy (FilSysType, FatBpb->Fat12_16.BS_FilSysType, 8);
     FilSysType[8] = 0;
-    if ((FatType == FatTypeFat12) && 
+    if ((FatType == FatTypeFat12) &&
         (strcmp (FilSysType, FAT12_FILSYSTYPE) != 0) &&
         (strcmp (FilSysType, FAT_FILSYSTYPE) != 0)) {
       DebugMsg (NULL, 0, DEBUG_WARN, NULL, "ERROR: E3003: FAT12 - BS_FilSysType - %s, expected: %s, or %s\n",
           FilSysType, FAT12_FILSYSTYPE, FAT_FILSYSTYPE);
     }
-    if ((FatType == FatTypeFat16) && 
+    if ((FatType == FatTypeFat16) &&
         (strcmp (FilSysType, FAT16_FILSYSTYPE) != 0) &&
         (strcmp (FilSysType, FAT_FILSYSTYPE) != 0)) {
       DebugMsg (NULL, 0, DEBUG_WARN, NULL, "ERROR: E3003: FAT16 - BS_FilSysType - %s, expected: %s, or %s\n",
@@ -484,11 +486,11 @@ ParseBootSector (
 {
   FAT_BPB_STRUCT  FatBpb;
   FAT_TYPE        FatType;
-  
+
   if (ReadFromFile ((void *)&FatBpb, FileName) == 0) {
     return ;
   }
-  
+
   FatType = GetFatType (&FatBpb);
   if (FatType <= FatTypeUnknown || FatType >= FatTypeMax) {
     printf ("ERROR: E3002: Unknown FAT Type!\n");
@@ -606,7 +608,7 @@ ParseBootSector (
   printf ("  1FE    Signature                    %04x\n", FatBpb.Fat12_16.Signature);
   printf ("\n");
 
-  
+
   return ;
 }
 
@@ -632,14 +634,14 @@ Arguments:
   FAT_TYPE        SourceFatType;
   CHAR8           VolLab[11];
   CHAR8           FilSysType[8];
-  
+
   if (ReadFromFile ((void *)&DestFatBpb, DestFileName) == 0) {
     return ;
   }
   if (ReadFromFile ((void *)&SourceFatBpb, SourceFileName) == 0) {
     return ;
   }
-  
+
   DestFatType = GetFatType (&DestFatBpb);
   SourceFatType = GetFatType (&SourceFatBpb);
 
@@ -648,10 +650,10 @@ Arguments:
     // FAT type mismatch
     //
     if (ForcePatch) {
-      DebugMsg (NULL, 0, DEBUG_WARN, NULL, "ERROR: E3004: FAT type mismatch: Source - %s, Dest - %s", 
+      DebugMsg (NULL, 0, DEBUG_WARN, NULL, "ERROR: E3004: FAT type mismatch: Source - %s, Dest - %s",
         FatTypeToString(SourceFatType), FatTypeToString(DestFatType));
     } else {
-      DebugMsg (NULL, 0, DEBUG_ERROR, NULL, "ERROR: E3004: FAT type mismatch: Source - %s, Dest - %s", 
+      DebugMsg (NULL, 0, DEBUG_ERROR, NULL, "ERROR: E3004: FAT type mismatch: Source - %s, Dest - %s",
         FatTypeToString(SourceFatType), FatTypeToString(DestFatType));
       return ;
     }
@@ -705,7 +707,7 @@ Arguments:
     memcpy (DestFatBpb.Fat32.BS_VolLab, VolLab, sizeof(VolLab));
     memcpy (DestFatBpb.Fat32.BS_FilSysType, FilSysType, sizeof(FilSysType));
   }
-  
+
   //
   // Set Signature of DestFatBpb to 55AA
   //
@@ -729,11 +731,11 @@ ParseMbr (
   )
 {
   MASTER_BOOT_RECORD  Mbr;
-  
+
   if (ReadFromFile ((void *)&Mbr, FileName) == 0) {
     return ;
   }
- 
+
   printf ("\nMaster Boot Record:\n");
   printf ("\n");
   printf ("  Offset Title                        Value\n");
@@ -803,14 +805,14 @@ PatchMbr (
 {
   MASTER_BOOT_RECORD  DestMbr;
   MASTER_BOOT_RECORD  SourceMbr;
-  
+
   if (ReadFromFile ((void *)&DestMbr, DestFileName) == 0) {
     return ;
   }
   if (ReadFromFile ((void *)&SourceMbr, SourceFileName) == 0) {
     return ;
   }
-  
+
   if (SourceMbr.Signature != MBR_SIGNATURE) {
     printf ("ERROR: E3000: Invalid MBR!\n");
     return;
@@ -889,6 +891,9 @@ main (
       ProcessMbr = TRUE;
     } else if (strcmp (*argv, "-v") == 0 || strcmp (*argv, "--verbose") == 0) {
       Verbose    = TRUE;
+    } else if (strcmp (*argv, "--version") == 0) {
+      Version();
+      return 0;
     } else if ((stricmp (*argv, "-d") == 0) || (stricmp (*argv, "--debug") == 0)) {
       argc--; argv++;
       if (argc < 1) {

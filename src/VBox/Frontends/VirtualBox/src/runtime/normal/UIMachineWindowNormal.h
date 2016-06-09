@@ -43,10 +43,10 @@ protected:
 
 private slots:
 
-#ifdef Q_WS_X11
+#ifdef VBOX_WS_X11
     /** X11: Performs machine-window async geometry normalization. */
     void sltNormalizeGeometry() { normalizeGeometry(true /* adjust position */); }
-#endif /* Q_WS_X11 */
+#endif /* VBOX_WS_X11 */
 
     /** Handles machine state change event. */
     void sltMachineStateChanged();
@@ -64,6 +64,8 @@ private slots:
     void sltVideoCaptureChange();
     /** Handles CPU execution cap change event. */
     void sltCPUExecutionCapChange();
+    /** Handles UISession initialized event. */
+    void sltHandleSessionInitialized();
 
 #ifndef RT_OS_DARWIN
     /** Handles menu-bar configuration-change. */
@@ -83,10 +85,10 @@ private:
 
     /** Prepare session connections routine. */
     void prepareSessionConnections();
-#ifndef Q_WS_MAC
+#ifndef VBOX_WS_MAC
     /** Prepare menu routine. */
     void prepareMenu();
-#endif /* !Q_WS_MAC */
+#endif /* !VBOX_WS_MAC */
     /** Prepare status-bar routine. */
     void prepareStatusBar();
     /** Prepare visual-state routine. */
@@ -110,10 +112,10 @@ private:
     /** Common update routine. */
     void updateAppearanceOf(int aElement);
 
-#ifndef Q_WS_MAC
+#ifndef VBOX_WS_MAC
     /** Updates menu-bar content. */
     void updateMenu();
-#endif /* !Q_WS_MAC */
+#endif /* !VBOX_WS_MAC */
 
     /** Common @a pEvent handler. */
     bool event(QEvent *pEvent);

@@ -830,6 +830,25 @@ RTDECL(int) RTAsn1Integer_UnsignedCompareWithU32(PCRTASN1INTEGER pInteger, uint3
 RTDECL(int) RTAsn1Integer_ToBigNum(PCRTASN1INTEGER pInteger, PRTBIGNUM pBigNum, uint32_t fBigNumInit);
 RTDECL(int) RTAsn1Integer_FromBigNum(PRTASN1INTEGER pThis, PCRTBIGNUM pBigNum, PCRTASN1ALLOCATORVTABLE pAllocator);
 
+/**
+ * Converts the integer to a string.
+ *
+ * This will produce a hex represenation of the number.  If it fits in 64-bit, a
+ * C style hex number will be produced.  If larger than 64-bit, it will be
+ * printed as a space separated string of hex bytes.
+ *
+ * @returns IPRT status code.
+ * @param   pThis               The ASN.1 integer.
+ * @param   pszBuf              The output buffer.
+ * @param   cbBuf               The buffer size.
+ * @param   fFlags              Flags reserved for future exploits. MBZ.
+ * @param   pcbActual           Where to return the amount of buffer space used
+ *                              (i.e. including terminator). Optional.
+ *
+ * @remarks Currently assume unsigned number.
+ */
+RTDECL(int) RTAsn1Integer_ToString(PRTASN1INTEGER pThis, char *pszBuf, size_t cbBuf, uint32_t fFlags, size_t *pcbActual);
+
 RTASN1_IMPL_GEN_SEQ_OF_TYPEDEFS_AND_PROTOS(RTASN1SEQOFINTEGERS, RTASN1INTEGER, RTDECL, RTAsn1SeqOfIntegers);
 RTASN1_IMPL_GEN_SET_OF_TYPEDEFS_AND_PROTOS(RTASN1SETOFINTEGERS, RTASN1INTEGER, RTDECL, RTAsn1SetOfIntegers);
 
@@ -1191,8 +1210,7 @@ RTASN1_IMPL_GEN_SET_OF_TYPEDEFS_AND_PROTOS(RTASN1SETOFSTRINGS, RTASN1STRING, RTD
  * For the purpose of documenting the format with typedefs as well as possibly
  * making it a little more type safe, there's a set of typedefs for the most
  * commonly used tag values defined.  These typedefs have are identical to
- * RTASN1CONTEXTTAG, except from the C++ type system of view.
- * tag values.  These
+ * RTASN1CONTEXTTAG, except from the C++ type system point of view.
  */
 typedef struct RTASN1CONTEXTTAG
 {
@@ -1204,7 +1222,7 @@ typedef RTASN1CONTEXTTAG *PRTASN1CONTEXTTAG;
 /** Pointer to a const ASN.1 context tag (IPRT thing). */
 typedef RTASN1CONTEXTTAG const *PCRTASN1CONTEXTTAG;
 
-RTDECL(int) RTAsn1ContextTagN_Init(PRTASN1CONTEXTTAG pThis, uint32_t uTag);
+RTDECL(int) RTAsn1ContextTagN_Init(PRTASN1CONTEXTTAG pThis, uint32_t uTag, PCRTASN1COREVTABLE pVtable);
 RTDECL(int) RTAsn1ContextTagN_Clone(PRTASN1CONTEXTTAG pThis, PCRTASN1CONTEXTTAG pSrc, uint32_t uTag);
 
 
@@ -1213,10 +1231,10 @@ RTDECL(int) RTAsn1ContextTagN_Clone(PRTASN1CONTEXTTAG pThis, PCRTASN1CONTEXTTAG 
     typedef struct RT_CONCAT(RTASN1CONTEXTTAG,a_uTag) { RTASN1CORE Asn1Core; } RT_CONCAT(RTASN1CONTEXTTAG,a_uTag); \
     typedef RT_CONCAT(RTASN1CONTEXTTAG,a_uTag) *RT_CONCAT(PRTASN1CONTEXTTAG,a_uTag); \
     DECLINLINE(int) RT_CONCAT3(RTAsn1ContextTag,a_uTag,_Init)(RT_CONCAT(PRTASN1CONTEXTTAG,a_uTag) pThis, \
-                                                              PCRTASN1ALLOCATORVTABLE pAllocator) \
+                                                              PCRTASN1COREVTABLE pVtable, PCRTASN1ALLOCATORVTABLE pAllocator) \
     { \
         NOREF(pAllocator); \
-        return RTAsn1ContextTagN_Init((PRTASN1CONTEXTTAG)pThis, a_uTag); \
+        return RTAsn1ContextTagN_Init((PRTASN1CONTEXTTAG)pThis, a_uTag, pVtable); \
     } \
     DECLINLINE(int) RT_CONCAT3(RTAsn1ContextTag,a_uTag,_Clone)(RT_CONCAT(PRTASN1CONTEXTTAG,a_uTag) pThis, \
                                                                RT_CONCAT(RTASN1CONTEXTTAG,a_uTag) const *pSrc) \
@@ -1466,15 +1484,11 @@ RTDECL(int) RTAsn1EncodePrepare(PRTASN1CORE pRoot, uint32_t fFlags, uint32_t *pc
  * @param   pErrInfo            Where to store extended error information.
  *                              Optional.
  */
-RTDECL(int) RTAsnEncodeWriteHeader(PCRTASN1CORE pAsn1Core, uint32_t fFlags, FNRTASN1ENCODEWRITER pfnWriter, void *pvUser,
-                                   PRTERRINFO pErrInfo);
+RTDECL(int) RTAsn1EncodeWriteHeader(PCRTASN1CORE pAsn1Core, uint32_t fFlags, FNRTASN1ENCODEWRITER pfnWriter, void *pvUser,
+                                    PRTERRINFO pErrInfo);
 
 /**
- * Prepares the ASN.1 structure for encoding.
- *
- * The preparations is mainly calculating accurate object size, but may also
- * involve operations like recoding internal UTF-8 strings to the actual ASN.1
- * format and other things that may require memory to allocated/reallocated.
+ * Encodes and writes an ASN.1 object.
  *
  * @returns IPRT status code
  * @param   pRoot               The root of the ASN.1 object tree to encode.
@@ -1487,6 +1501,21 @@ RTDECL(int) RTAsnEncodeWriteHeader(PCRTASN1CORE pAsn1Core, uint32_t fFlags, FNRT
  */
 RTDECL(int) RTAsn1EncodeWrite(PCRTASN1CORE pRoot, uint32_t fFlags, FNRTASN1ENCODEWRITER pfnWriter, void *pvUser,
                               PRTERRINFO pErrInfo);
+
+/**
+ * Encodes and writes an ASN.1 object into a caller allocated memory buffer.
+ *
+ * @returns IPRT status code
+ * @param   pRoot               The root of the ASN.1 object tree to encode.
+ * @param   fFlags              Valid combination of the RTASN1ENCODE_F_XXX
+ *                              flags.  Must include the encoding type.
+ * @param   pvBuf               The output buffer.
+ * @param   cbBuf               The buffer size.  This should have the size
+ *                              returned by RTAsn1EncodePrepare().
+ * @param   pErrInfo            Where to store extended error information.
+ *                              Optional.
+ */
+RTDECL(int) RTAsn1EncodeToBuffer(PCRTASN1CORE pRoot, uint32_t fFlags, void *pvBuf, size_t cbBuf, PRTERRINFO pErrInfo);
 
 /** @} */
 
@@ -1925,6 +1954,8 @@ RTDECL(int) RTAsn1CursorGetSetCursor(PRTASN1CURSOR pCursor, uint32_t fFlags,
  * @param   pCursor             The cursor we're decoding from.
  * @param   fFlags              RTASN1CURSOR_GET_F_XXX.
  * @param   uExpectedTag        The expected tag.
+ * @param   pVtable             The vtable for the context tag node (see
+ *                              RTASN1TMPL_PASS_XTAG).
  * @param   pCtxTag             The output context tag object.
  * @param   pCtxTagCursor       The output cursor for the context tag content.
  * @param   pszErrorTag         Error tag, this will be associated with the
@@ -1935,7 +1966,8 @@ RTDECL(int) RTAsn1CursorGetSetCursor(PRTASN1CURSOR pCursor, uint32_t fFlags,
  *          RTAsn1CursorGetContextTag0Cursor.
  */
 RTDECL(int) RTAsn1CursorGetContextTagNCursor(PRTASN1CURSOR pCursor, uint32_t fFlags, uint32_t uExpectedTag,
-                                             PRTASN1CONTEXTTAG pCtxTag, PRTASN1CURSOR pCtxTagCursor, const char *pszErrorTag);
+                                             PCRTASN1COREVTABLE pVtable, PRTASN1CONTEXTTAG pCtxTag, PRTASN1CURSOR pCtxTagCursor,
+                                             const char *pszErrorTag);
 
 /**
  * Read a dynamic ASN.1 type.
@@ -1972,10 +2004,11 @@ RTDECL(bool) RTAsn1CursorIsNextEx(PRTASN1CURSOR pCursor, uint32_t uTag, uint8_t 
 /** @internal  */
 #define RTASN1CONTEXTTAG_IMPL_CURSOR_INLINES(a_uTag) \
     DECLINLINE(int) RT_CONCAT3(RTAsn1CursorGetContextTag,a_uTag,Cursor)(PRTASN1CURSOR pCursor, uint32_t fFlags, \
+                                                                        PCRTASN1COREVTABLE pVtable, \
                                                                         RT_CONCAT(PRTASN1CONTEXTTAG,a_uTag) pCtxTag, \
                                                                         PRTASN1CURSOR pCtxTagCursor, const char *pszErrorTag) \
     { /* Constructed is automatically implied if you need a cursor to it. */ \
-        return RTAsn1CursorGetContextTagNCursor(pCursor, fFlags, a_uTag, (PRTASN1CONTEXTTAG)pCtxTag, pCtxTagCursor, pszErrorTag); \
+        return RTAsn1CursorGetContextTagNCursor(pCursor, fFlags, a_uTag, pVtable, (PRTASN1CONTEXTTAG)pCtxTag, pCtxTagCursor, pszErrorTag); \
     } \
     DECLINLINE(int) RT_CONCAT3(RTAsn1ContextTag,a_uTag,InitDefault)(RT_CONCAT(PRTASN1CONTEXTTAG,a_uTag) pCtxTag) \
     { /* Constructed is automatically implied if you need to init it with a default value. */ \

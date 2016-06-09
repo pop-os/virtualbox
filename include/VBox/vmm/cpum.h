@@ -30,6 +30,7 @@
 #include <VBox/types.h>
 #include <VBox/vmm/cpumctx.h>
 #include <VBox/vmm/stam.h>
+#include <VBox/vmm/vmapi.h>
 
 RT_C_DECLS_BEGIN
 
@@ -231,6 +232,11 @@ typedef enum CPUMMICROARCH
     kCpumMicroarch_Cyrix_Unknown,
     kCpumMicroarch_Cyrix_End,
 
+    kCpumMicroarch_NEC_First,
+    kCpumMicroarch_NEC_V20 = kCpumMicroarch_NEC_First,
+    kCpumMicroarch_NEC_V30,
+    kCpumMicroarch_NEC_End,
+
     kCpumMicroarch_Unknown,
 
     kCpumMicroarch_32BitHack = 0x7fffffff
@@ -244,6 +250,10 @@ typedef enum CPUMMICROARCH
 /** Predicate macro for catching Core7 CPUs. */
 #define CPUMMICROARCH_IS_INTEL_CORE7(a_enmMicroarch) \
     ((a_enmMicroarch) >= kCpumMicroarch_Intel_Core7_First && (a_enmMicroarch) <= kCpumMicroarch_Intel_Core7_End)
+
+/** Predicate macro for catching Atom CPUs, Silvermont and upwards. */
+#define CPUMMICROARCH_IS_INTEL_SILVERMONT_PLUS(a_enmMicroarch) \
+    ((a_enmMicroarch) >= kCpumMicroarch_Intel_Atom_Silvermont && (a_enmMicroarch) <= kCpumMicroarch_Intel_Atom_End)
 
 /** Predicate macro for catching AMD Family OFh CPUs (aka K8).    */
 #define CPUMMICROARCH_IS_AMD_FAM_0FH(a_enmMicroarch) \
@@ -299,7 +309,9 @@ typedef struct CPUMCPUIDLEAF
     /** Flags. */
     uint32_t    fFlags;
 } CPUMCPUIDLEAF;
+#ifndef VBOX_FOR_DTRACE_LIB
 AssertCompileSize(CPUMCPUIDLEAF, 32);
+#endif
 /** Pointer to a CPUID leaf. */
 typedef CPUMCPUIDLEAF *PCPUMCPUIDLEAF;
 /** Pointer to a const CPUID leaf. */
@@ -429,6 +441,7 @@ typedef enum CPUMMSRRDFN
     kCpumMsrRdFn_Ia32VmxTrueProcbasedCtls,  /**< Takes real value as reference. */
     kCpumMsrRdFn_Ia32VmxTrueExitCtls,       /**< Takes real value as reference. */
     kCpumMsrRdFn_Ia32VmxTrueEntryCtls,      /**< Takes real value as reference. */
+    kCpumMsrRdFn_Ia32VmxVmFunc,             /**< Takes real value as reference. */
 
     kCpumMsrRdFn_Amd64Efer,
     kCpumMsrRdFn_Amd64SyscallTarget,
@@ -506,11 +519,13 @@ typedef enum CPUMMSRRDFN
     kCpumMsrRdFn_IntelI7UncCBoxConfig,
     kCpumMsrRdFn_IntelI7UncArbPerfCtrN,
     kCpumMsrRdFn_IntelI7UncArbPerfEvtSelN,
+    kCpumMsrRdFn_IntelI7SmiCount,
     kCpumMsrRdFn_IntelCore2EmttmCrTablesN,  /**< Range value returned. */
     kCpumMsrRdFn_IntelCore2SmmCStMiscInfo,
     kCpumMsrRdFn_IntelCore1ExtConfig,
     kCpumMsrRdFn_IntelCore1DtsCalControl,
     kCpumMsrRdFn_IntelCore2PeciControl,
+    kCpumMsrRdFn_IntelAtSilvCoreC1Recidency,
 
     kCpumMsrRdFn_P6LastBranchFromIp,
     kCpumMsrRdFn_P6LastBranchToIp,
@@ -718,7 +733,9 @@ typedef enum CPUMMSRWRFN
     kCpumMsrWrFn_IntelI7PebsLdLat,
     kCpumMsrWrFn_IntelI7SandyVrCurrentConfig,
     kCpumMsrWrFn_IntelI7SandyVrMiscConfig,
+    kCpumMsrWrFn_IntelI7SandyRaplPowerUnit,  /**< R/O but found writable bits on a Silvermont CPU here. */
     kCpumMsrWrFn_IntelI7SandyPkgCnIrtlN,
+    kCpumMsrWrFn_IntelI7SandyPkgC2Residency, /**< R/O but found writable bits on a Silvermont CPU here. */
     kCpumMsrWrFn_IntelI7RaplPkgPowerLimit,
     kCpumMsrWrFn_IntelI7RaplDramPowerLimit,
     kCpumMsrWrFn_IntelI7RaplPp0PowerLimit,
@@ -882,10 +899,12 @@ typedef struct CPUMMSRRANGE
     STAMCOUNTER cGps;
 #endif
 } CPUMMSRRANGE;
-#ifdef VBOX_WITH_STATISTICS
+#ifndef VBOX_FOR_DTRACE_LIB
+# ifdef VBOX_WITH_STATISTICS
 AssertCompileSize(CPUMMSRRANGE, 128);
-#else
+# else
 AssertCompileSize(CPUMMSRRANGE, 96);
+# endif
 #endif
 /** Pointer to an MSR range. */
 typedef CPUMMSRRANGE *PCPUMMSRRANGE;
@@ -1010,6 +1029,7 @@ typedef CPUMFEATURES *PCPUMFEATURES;
 typedef CPUMFEATURES const *PCCPUMFEATURES;
 
 
+#ifndef VBOX_FOR_DTRACE_LIB
 
 /** @name Guest Register Getters.
  * @{ */
@@ -1345,6 +1365,8 @@ VMMDECL(bool)           CPUMSupportsXSave(PVM pVM);
 VMMDECL(bool)           CPUMIsHostUsingSysEnter(PVM pVM);
 VMMDECL(bool)           CPUMIsHostUsingSysCall(PVM pVM);
 VMMDECL(bool)           CPUMIsGuestFPUStateActive(PVMCPU pVCpu);
+VMMDECL(bool)           CPUMIsGuestFPUStateLoaded(PVMCPU pVCpu);
+VMMDECL(bool)           CPUMIsHostFPUStateSaved(PVMCPU pVCpu);
 VMMDECL(bool)           CPUMIsGuestDebugStateActive(PVMCPU pVCpu);
 VMMDECL(bool)           CPUMIsGuestDebugStateActivePending(PVMCPU pVCpu);
 VMMDECL(void)           CPUMDeactivateGuestDebugState(PVMCPU pVCpu);
@@ -1377,7 +1399,7 @@ VMMDECL(uint64_t)       CPUMGetGuestScalableBusFrequency(PVM pVM);
  */
 
 VMMR3DECL(int)          CPUMR3Init(PVM pVM);
-VMMR3DECL(int)          CPUMR3InitCompleted(PVM pVM);
+VMMR3DECL(int)          CPUMR3InitCompleted(PVM pVM, VMINITCOMPLETED enmWhat);
 VMMR3DECL(void)         CPUMR3LogCpuIds(PVM pVM);
 VMMR3DECL(void)         CPUMR3Relocate(PVM pVM);
 VMMR3DECL(int)          CPUMR3Term(PVM pVM);
@@ -1451,6 +1473,7 @@ VMMDECL(uint32_t)       CPUMRCGetGuestCPL(PVMCPU pVCpu, PCPUMCTXCORE pRegFrame);
 #ifdef VBOX_WITH_RAW_RING1
 VMMDECL(void)           CPUMRCRecheckRawState(PVMCPU pVCpu, PCPUMCTXCORE pCtxCore);
 #endif
+VMMRCDECL(void)         CPUMRCProcessForceFlag(PVMCPU pVCpu);
 
 /** @} */
 #endif /* IN_RC */
@@ -1462,9 +1485,11 @@ VMMDECL(void)           CPUMRCRecheckRawState(PVMCPU pVCpu, PCPUMCTXCORE pCtxCor
 VMMR0_INT_DECL(int)     CPUMR0ModuleInit(void);
 VMMR0_INT_DECL(int)     CPUMR0ModuleTerm(void);
 VMMR0_INT_DECL(int)     CPUMR0InitVM(PVM pVM);
-VMMR0_INT_DECL(int)     CPUMR0Trap07Handler(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx);
-VMMR0_INT_DECL(int)     CPUMR0LoadGuestFPU(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx);
-VMMR0_INT_DECL(int)     CPUMR0SaveGuestFPU(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx);
+DECLASM(void)           CPUMR0RegisterVCpuThread(PVMCPU pVCpu);
+DECLASM(void)           CPUMR0TouchHostFpu(void);
+VMMR0_INT_DECL(int)     CPUMR0Trap07Handler(PVM pVM, PVMCPU pVCpu);
+VMMR0_INT_DECL(int)     CPUMR0LoadGuestFPU(PVM pVM, PVMCPU pVCpu);
+VMMR0_INT_DECL(bool)    CPUMR0FpuStateMaybeSaveGuestAndRestoreHost(PVMCPU pVCpu);
 VMMR0_INT_DECL(int)     CPUMR0SaveHostDebugState(PVM pVM, PVMCPU pVCpu);
 VMMR0_INT_DECL(bool)    CPUMR0DebugStateMaybeSaveGuestAndRestoreHost(PVMCPU pVCpu, bool fDr6);
 VMMR0_INT_DECL(bool)    CPUMR0DebugStateMaybeSaveGuest(PVMCPU pVCpu, bool fDr6);
@@ -1478,6 +1503,17 @@ VMMR0_INT_DECL(void)    CPUMR0SetLApic(PVMCPU pVCpu, uint32_t iHostCpuSet);
 /** @} */
 #endif /* IN_RING0 */
 
+/** @defgroup grp_cpum_rz    The CPUM raw-mode and ring-0 context API
+ * @{
+ */
+VMMRZ_INT_DECL(void)    CPUMRZFpuStatePrepareHostCpuForUse(PVMCPU pVCpu);
+VMMRZ_INT_DECL(void)    CPUMRZFpuStateActualizeForRead(PVMCPU pVCpu);
+VMMRZ_INT_DECL(void)    CPUMRZFpuStateActualizeForChange(PVMCPU pVCpu);
+VMMRZ_INT_DECL(void)    CPUMRZFpuStateActualizeSseForRead(PVMCPU pVCpu);
+/** @} */
+
+
+#endif /* !VBOX_FOR_DTRACE_LIB */
 /** @} */
 RT_C_DECLS_END
 

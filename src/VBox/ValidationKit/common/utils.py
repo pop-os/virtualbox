@@ -27,7 +27,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 100880 $"
+__version__ = "$Revision: 107458 $"
 
 
 # Standard Python imports.
@@ -210,7 +210,9 @@ def getHostOsVersion():
                      "7": "Lion",
                      "8": "Mountain Lion",
                      "9": "Mavericks",
-                     "10": "Yosemite"}
+                     "10": "Yosemite",
+                     "11": "El Capitan",
+                     "12": "Fuji" }
         sVersion += ' / OS X ' + sOsxVersion + ' (' + codenames[sOsxVersion.split('.')[1]] + ')'
 
     return sVersion;

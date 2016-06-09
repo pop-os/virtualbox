@@ -5,7 +5,7 @@
  *      (plus static gSOAP server code) to implement the actual webservice
  *      server, to which clients can connect.
  *
- * Copyright (C) 2007-2015 Oracle Corporation
+ * Copyright (C) 2007-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -907,10 +907,35 @@ static void doQueuesLoop()
         // initialize thread queue, mutex and eventsem
         g_pSoapQ = new SoapQ(&soap);
 
-        for (uint64_t i = 1; g_fKeepRunning; i++)
+        uint64_t cAccepted = 1;
+        while (g_fKeepRunning)
         {
+            struct timeval timeout;
+            fd_set fds;
+            int rv;
+            for (;;)
+            {
+                timeout.tv_sec = 60;
+                timeout.tv_usec = 0;
+                FD_ZERO(&fds);
+                FD_SET(soap.master, &fds);
+                rv = select((int)soap.master + 1, &fds, &fds, &fds, &timeout);
+                if (rv > 0)
+                    break; // work is waiting
+                else if (rv == 0)
+                    continue; // timeout, not necessary to bother gsoap
+                else // r < 0, errno
+                {
+                    if (soap_socket_errno(soap.master) == SOAP_EINTR)
+                        rv = 0; // re-check if we should terminate
+                    break;
+                }
+            }
+            if (rv == 0)
+                continue;
+
             // call gSOAP to handle incoming SOAP connection
-            soap.accept_timeout = 10;
+            soap.accept_timeout = -1; // 1usec timeout, actual waiting is above
             s = soap_accept(&soap);
             if (!soap_valid_socket(s))
             {
@@ -922,7 +947,8 @@ static void doQueuesLoop()
             // add the socket to the queue and tell worker threads to
             // pick up the job
             size_t cItemsOnQ = g_pSoapQ->add(s);
-            LogRel(("Request %llu on socket %d queued for processing (%d items on Q)\n", i, s, cItemsOnQ));
+            LogRel(("Request %llu on socket %d queued for processing (%d items on Q)\n", cAccepted, s, cItemsOnQ));
+            cAccepted++;
         }
 
         delete g_pSoapQ;
@@ -962,9 +988,6 @@ static DECLCALLBACK(int) fntQPumper(RTTHREAD ThreadSelf, void *pvUser)
 }
 
 #ifdef RT_OS_WINDOWS
-// Required for ATL
-static CComModule _Module;
-
 /**
  * "Signal" handler for cleanly terminating the event loop.
  */
@@ -980,35 +1003,28 @@ static BOOL WINAPI websrvSignalHandler(DWORD dwCtrlType)
         case CTRL_C_EVENT:
         case CTRL_LOGOFF_EVENT:
         case CTRL_SHUTDOWN_EVENT:
+        {
             ASMAtomicWriteBool(&g_fKeepRunning, false);
+            com::NativeEventQueue *pQ = com::NativeEventQueue::getMainEventQueue();
+            pQ->interruptEventQueueProcessing();
             fEventHandled = TRUE;
             break;
+        }
         default:
             break;
     }
     return fEventHandled;
 }
 #else
-class ForceQuitEvent : public com::NativeEvent
-{
-    void *handler()
-    {
-        LogFlowFunc(("\n"));
-
-        ASMAtomicWriteBool(&g_fKeepRunning, false);
-
-        return NULL;
-    }
-};
-
 /**
  * Signal handler for cleanly terminating the event loop.
  */
 static void websrvSignalHandler(int iSignal)
 {
     NOREF(iSignal);
+    ASMAtomicWriteBool(&g_fKeepRunning, false);
     com::NativeEventQueue *pQ = com::NativeEventQueue::getMainEventQueue();
-    pQ->postEvent(new ForceQuitEvent());
+    pQ->interruptEventQueueProcessing();
 }
 #endif
 
@@ -1029,6 +1045,9 @@ int main(int argc, char *argv[])
     int rc = RTR3InitExe(argc, &argv, 0);
     if (RT_FAILURE(rc))
         return RTMsgInitFailure(rc);
+#ifdef RT_OS_WINDOWS
+    ATL::CComModule _Module; /* Required internally by ATL (constructor records instance in global variable). */
+#endif
 
     // store a log prefix for this thread
     g_mapThreads[RTThreadSelf()] = "[M  ]";
@@ -1327,6 +1346,7 @@ int main(int argc, char *argv[])
     }
 #else
     signal(SIGINT,   websrvSignalHandler);
+    signal(SIGTERM,  websrvSignalHandler);
 # ifdef SIGBREAK
     signal(SIGBREAK, websrvSignalHandler);
 # endif
@@ -1352,14 +1372,23 @@ int main(int argc, char *argv[])
     }
 #else
     signal(SIGINT,   SIG_DFL);
+    signal(SIGTERM,  SIG_DFL);
 # ifdef SIGBREAK
     signal(SIGBREAK, SIG_DFL);
 # endif
 #endif
 
+#ifndef RT_OS_WINDOWS
+    RTThreadPoke(threadQPumper);
+#endif
     RTThreadWait(threadQPumper, 30000, NULL);
     if (threadWatchdog != NIL_RTTHREAD)
+    {
+#ifndef RT_OS_WINDOWS
+        RTThreadPoke(threadWatchdog);
+#endif
         RTThreadWait(threadWatchdog, g_iWatchdogCheckInterval * 1000 + 10000, NULL);
+    }
 
     /* VirtualBoxClient events unregistration. */
     if (vboxClientListener)
@@ -1416,13 +1445,14 @@ static DECLCALLBACK(int) fntWatchdog(RTTHREAD ThreadSelf, void *pvUser)
 
     WEBDEBUG(("Watchdog thread started\n"));
 
+    uint32_t tNextStat = 0;
+
     while (g_fKeepRunning)
     {
         WEBDEBUG(("Watchdog: sleeping %d seconds\n", g_iWatchdogCheckInterval));
         RTThreadSleep(g_iWatchdogCheckInterval * 1000);
 
-        time_t                      tNow;
-        time(&tNow);
+        uint32_t tNow = RTTimeProgramSecTS();
 
         // we're messing with websessions, so lock them
         util::AutoWriteLock lock(g_pWebsessionsLockHandle COMMA_LOCKVAL_SRC_POS);
@@ -1451,6 +1481,28 @@ static DECLCALLBACK(int) fntWatchdog(RTTHREAD ThreadSelf, void *pvUser)
             g_pVirtualBox->COMGETTER(SystemProperties)(pSystemProperties.asOutParam());
             if (pSystemProperties)
                 pSystemProperties->COMSETTER(WebServiceAuthLibrary)(com::Bstr(g_pcszAuthentication).raw());
+        }
+
+        // Log some MOR usage statistics every 5 minutes, but only if there's
+        // something worth logging (at least one reference or a transition to
+        // zero references). Avoids useless log spamming in idle webservice.
+        if (tNow >= tNextStat)
+        {
+            size_t cMOR = 0;
+            it = g_mapWebsessions.begin();
+            itEnd = g_mapWebsessions.end();
+            while (it != itEnd)
+            {
+                cMOR += it->second->CountRefs();
+                ++it;
+            }
+            static bool fLastZero = false;
+            if (cMOR || !fLastZero)
+                LogRel(("Statistics: %zu websessions, %zu references\n",
+                        g_mapWebsessions.size(), cMOR));
+            fLastZero = (cMOR == 0);
+            while (tNextStat <= tNow)
+                tNextStat += 5 * 60; /* 5 minutes */
         }
     }
 
@@ -1982,7 +2034,15 @@ WebServiceSession *WebServiceSession::findWebsessionFromRef(const WSDLT_ID &id)
  */
 void WebServiceSession::touch()
 {
-    time(&_tLastObjectLookup);
+    _tLastObjectLookup = RTTimeProgramSecTS();
+}
+
+/**
+ * Counts the number of managed object references in this websession.
+ */
+size_t WebServiceSession::CountRefs()
+{
+    return _pp->_mapManagedObjectsById.size();
 }
 
 

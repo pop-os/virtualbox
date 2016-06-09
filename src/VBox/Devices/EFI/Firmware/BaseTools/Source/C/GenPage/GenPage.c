@@ -1,23 +1,9 @@
 /** @file
-
-Copyright (c) 2006 - 2011, Intel Corporation. All rights reserved.<BR>
-This program and the accompanying materials                          
-are licensed and made available under the terms and conditions of the BSD License         
-which accompanies this distribution.  The full text of the license may be found at        
-http://opensource.org/licenses/bsd-license.php                                            
-                                                                                          
-THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,                     
-WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.             
-
-Module Name:
-  GenPage.c
-  
-Abstract:
   Pre-Create a 4G page table (2M pages).
   It's used in DUET x64 build needed to enter LongMode.
- 
+
   Create 4G page table (2M pages)
- 
+
                               Linear Address
     63    48 47   39 38           30 29       21 20                          0
    +--------+-------+---------------+-----------+-----------------------------+
@@ -28,6 +14,16 @@ Abstract:
                         (
                           Directory-Ptr Directory {512}
                         ) {4}
+
+Copyright (c) 2006 - 2014, Intel Corporation. All rights reserved.<BR>
+This program and the accompanying materials
+are licensed and made available under the terms and conditions of the BSD License
+which accompanies this distribution.  The full text of the license may be found at
+http://opensource.org/licenses/bsd-license.php
+
+THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,
+WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
+
 **/
 
 #include <stdio.h>
@@ -69,7 +65,7 @@ UINT32 gPageTableOffsetInFile = EFI_PAGE_BASE_OFFSET_IN_LDR;
 // Utility version information
 //
 #define UTILITY_MAJOR_VERSION 0
-#define UTILITY_MINOR_VERSION 1
+#define UTILITY_MINOR_VERSION 2
 
 void
 Version (
@@ -91,8 +87,7 @@ Returns:
 
 --*/
 {
-  printf ("%s v%d.%d %s -Utility to generate the EfiLoader image containing page table.\n", UTILITY_NAME, UTILITY_MAJOR_VERSION, UTILITY_MINOR_VERSION, __BUILD_VERSION);
-  printf ("Copyright (c) 2008 - 2011 Intel Corporation. All rights reserved.\n");
+  printf ("%s Version %d.%d %s\n", UTILITY_NAME, UTILITY_MAJOR_VERSION, UTILITY_MINOR_VERSION, __BUILD_VERSION);
 }
 
 VOID
@@ -100,25 +95,29 @@ Usage (
   void
   )
 {
-  Version();
-  printf ("\nUsage: \n\
-   GenPage\n\
-     -o, --output Filename\n\
-                        The file that contains both non-page table part and\n\
-                        page table\n\
-     [-b, --baseaddr baseaddress]\n\
+  printf ("Usage: GenPage.exe [options] EfiLoaderImageName \n\n\
+Copyright (c) 2008 - 2014, Intel Corporation.  All rights reserved.\n\n\
+  Utility to generate the EfiLoader image containing a page table.\n\n\
+optional arguments:\n\
+  -h, --help            Show this help message and exit\n\
+  --version             Show program's version number and exit\n\
+  -d [DEBUG], --debug [DEBUG]\n\
+                        Output DEBUG statements, where DEBUG_LEVEL is 0 (min)\n\
+                        - 9 (max)\n\
+  -v, --verbose         Print informational statements\n\
+  -q, --quiet           Returns the exit code, error messages will be\n\
+                        displayed\n\
+  -s, --silent          Returns only the exit code; informational and error\n\
+                        messages are not displayed\n\
+  -o OUTPUT_FILENAME, --output OUTPUT_FILENAME\n\
+                        Output file contain both the non-page table part and\n\
+                        the page table\n\
+  -b BASE_ADDRESS, --baseaddr BASE_ADDRESS\n\
                         The page table location\n\
-     [-f, --offset offset]\n\
+  -f OFFSET, --offset OFFSET\n\
                         The position that the page table will appear in the\n\
                         output file\n\
-     [-v, --verbose]    Turn on verbose output with informational messages\n\
-                        printed\n\
-     [--version]        Print version and copyright of this program and exit\n\
-     [-q, --quiet]      Disable all messages except unrecoverable errors\n\
-     [-d, --debug[#]]   Enable debug messages, at level #\n\
-     [-h, --help]       Print copyright, version and usage of this program\n\
-                        and exit\n\
-     EfiLoaderImageName\n");
+  --sfo                 Reserved for future use\n");
 
 }
 
@@ -167,7 +166,7 @@ Return:
   for (PML4Index = 0; PML4Index < EFI_PML4_ENTRY_NUM; PML4Index++, PageMapLevel4Entry++) {
     //
     // Each Page-Map-Level-4-Table Entry points to the base address of a Page-Directory-Pointer-Table Entry
-    //  
+    //
     PageTablePtr += EFI_SIZE_OF_PAGE;
     PageDirectoryPointerEntry = (X64_PAGE_MAP_AND_DIRECTORY_POINTER_2MB_4K *)PageTablePtr;
 
@@ -181,7 +180,7 @@ Return:
     for (PDPTEIndex = 0; PDPTEIndex < EFI_PDPTE_ENTRY_NUM; PDPTEIndex++, PageDirectoryPointerEntry++) {
       //
       // Each Page-Directory-Pointer-Table Entry points to the base address of a Page-Directory Entry
-      //       
+      //
       PageTablePtr += EFI_SIZE_OF_PAGE;
       PageDirectoryEntry2MB = (X64_PAGE_TABLE_ENTRY_2M *)PageTablePtr;
 
@@ -240,13 +239,13 @@ return:
   //
   // Open files
   //
-  PageFile = fopen (PageFileName, "w+b");
+  PageFile = fopen (LongFilePath (PageFileName), "w+b");
   if (PageFile == NULL) {
     Error (NoPageFileName, 0, 0x4002, "Invalid parameter option", "Output File %s open failure", PageFileName);
     return -1;
   }
 
-  NoPageFile = fopen (NoPageFileName, "r+b");
+  NoPageFile = fopen (LongFilePath (NoPageFileName), "r+b");
   if (NoPageFile == NULL) {
     Error (NoPageFileName, 0, 0x4002, "Invalid parameter option", "Input File %s open failure", NoPageFileName);
     fclose (PageFile);
@@ -307,20 +306,20 @@ main (
     Usage();
     return STATUS_ERROR;
   }
-  
+
   argc --;
   argv ++;
 
   if ((stricmp (argv[0], "-h") == 0) || (stricmp (argv[0], "--help") == 0)) {
     Usage();
-    return 0;    
+    return 0;
   }
 
   if (stricmp (argv[0], "--version") == 0) {
     Version();
-    return 0;    
+    return 0;
   }
-  
+
   while (argc > 0) {
     if ((stricmp (argv[0], "-o") == 0) || (stricmp (argv[0], "--output") == 0)) {
       if (argv[1] == NULL || argv[1][0] == '-') {
@@ -330,9 +329,9 @@ main (
       OutputFile = argv[1];
       argc -= 2;
       argv += 2;
-      continue; 
+      continue;
     }
-    
+
     if ((stricmp (argv[0], "-b") == 0) || (stricmp (argv[0], "--baseaddr") == 0)) {
       if (argv[1] == NULL || argv[1][0] == '-') {
         Error (NULL, 0, 1003, "Invalid option value", "Base address is missing for -b option");
@@ -346,9 +345,9 @@ main (
       gPageTableBaseAddress = (UINT32) TempValue;
       argc -= 2;
       argv += 2;
-      continue; 
+      continue;
     }
-    
+
     if ((stricmp (argv[0], "-f") == 0) || (stricmp (argv[0], "--offset") == 0)) {
       if (argv[1] == NULL || argv[1][0] == '-') {
         Error (NULL, 0, 1003, "Invalid option value", "Offset is missing for -f option");
@@ -362,21 +361,21 @@ main (
       gPageTableOffsetInFile = (UINT32) TempValue;
       argc -= 2;
       argv += 2;
-      continue; 
+      continue;
     }
 
     if ((stricmp (argv[0], "-q") == 0) || (stricmp (argv[0], "--quiet") == 0)) {
       argc --;
       argv ++;
-      continue; 
+      continue;
     }
-    
+
     if ((stricmp (argv[0], "-v") ==0) || (stricmp (argv[0], "--verbose") == 0)) {
       argc --;
       argv ++;
-      continue; 
+      continue;
     }
-    
+
     if ((stricmp (argv[0], "-d") == 0) || (stricmp (argv[0], "--debug") == 0)) {
       if (argv[1] == NULL || argv[1][0] == '-') {
         Error (NULL, 0, 1003, "Invalid option value", "Debug Level is not specified.");
@@ -393,14 +392,14 @@ main (
       }
       argc -= 2;
       argv += 2;
-      continue; 
+      continue;
     }
 
     if (argv[0][0] == '-') {
       Error (NULL, 0, 1000, "Unknown option", argv[0]);
       return STATUS_ERROR;
     }
-    
+
     //
     // Don't recognize the paramter.
     //
@@ -408,12 +407,12 @@ main (
     argc--;
     argv++;
   }
-  
+
   if (InputFile == NULL) {
     Error (NULL, 0, 1003, "Invalid option value", "Input file is not specified");
     return STATUS_ERROR;
   }
-  
+
   //
   // Create X64 page table
   //

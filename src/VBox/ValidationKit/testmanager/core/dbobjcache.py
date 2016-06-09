@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 100880 $"
+__version__ = "$Revision: 107509 $"
 
 
 # Validation Kit imports.
@@ -75,9 +75,8 @@ class DatabaseObjCache(ModelLogicBase):
 
     def _handleDbException(self):
         """ Deals with database exceptions. """
-        raise;
         #self._oDb.rollback();
-        #return False;
+        return False;
 
     def getTestResultString(self, idStrName):
         """ Gets a string from the TestResultStrTab. """
@@ -97,7 +96,7 @@ class DatabaseObjCache(ModelLogicBase):
             from testmanager.core.build import BuildCategoryData;
             oRet = BuildCategoryData();
             try:    oRet.initFromDbWithId(self._oDb, idBuildCategory);
-            except: self._handleDbException();
+            except: self._handleDbException(); raise;
             self._adCache[self.ksObjType_BuildCategory_idBuildCategory][idBuildCategory] = oRet;
         return oRet;
 
@@ -109,7 +108,7 @@ class DatabaseObjCache(ModelLogicBase):
             from testmanager.core.testbox import TestBoxData;
             oRet = TestBoxData();
             try:    oRet.initFromDbWithId(self._oDb, idTestBox, self.tsNow, self.sPeriodBack);
-            except: self._handleDbException();
+            except: self._handleDbException(); raise;
             else:   self._adCache[self.ksObjType_TestBox_idGenTestBox][oRet.idGenTestBox] = oRet;
             self._adCache[self.ksObjType_TestBox_idTestBox][idTestBox] = oRet;
         return oRet;
@@ -122,7 +121,7 @@ class DatabaseObjCache(ModelLogicBase):
             from testmanager.core.testcase import TestCaseData;
             oRet = TestCaseData();
             try:    oRet.initFromDbWithId(self._oDb, idTestCase, self.tsNow, self.sPeriodBack);
-            except: self._handleDbException();
+            except: self._handleDbException(); raise;
             else:   self._adCache[self.ksObjType_TestCase_idGenTestCase][oRet.idGenTestCase] = oRet;
             self._adCache[self.ksObjType_TestCase_idTestCase][idTestCase] = oRet;
         return oRet;
@@ -135,7 +134,7 @@ class DatabaseObjCache(ModelLogicBase):
             from testmanager.core.testcaseargs import TestCaseArgsData;
             oRet = TestCaseArgsData();
             try:    oRet.initFromDbWithId(self._oDb, idTestCaseArgs, self.tsNow, self.sPeriodBack);
-            except: self._handleDbException();
+            except: self._handleDbException(); raise;
             else:   self._adCache[self.ksObjType_TestCaseArgs_idGenTestCaseArgs][oRet.idGenTestCaseArgs] = oRet;
             self._adCache[self.ksObjType_TestCaseArgs_idTestCaseArgs][idTestCaseArgs] = oRet;
         return oRet;

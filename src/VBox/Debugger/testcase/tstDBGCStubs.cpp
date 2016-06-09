@@ -97,6 +97,15 @@ VMMR3DECL(int) DBGFR3EventWait(PUVM pUVM, RTMSINTERVAL cMillies, PCDBGFEVENT *pp
 {
     return VERR_INTERNAL_ERROR;
 }
+VMMR3DECL(int) DBGFR3EventConfigEx(PUVM pUVM, PCDBGFEVENTCONFIG paConfigs, size_t cConfigs)
+{
+    return VERR_INTERNAL_ERROR;
+}
+VMMR3DECL(int) DBGFR3InterruptConfigEx(PUVM pUVM, PCDBGFINTERRUPTCONFIG paConfigs, size_t cConfigs)
+{
+    return VERR_INTERNAL_ERROR;
+}
+
 VMMR3DECL(int) DBGFR3Halt(PUVM pUVM)
 {
     return VERR_INTERNAL_ERROR;
@@ -333,10 +342,42 @@ VMMR3DECL(void) DBGFR3PlugInLoadAll(PUVM pUVM)
 {
 }
 
+#include <VBox/vmm/cfgm.h>
+VMMR3DECL(int) CFGMR3ValidateConfig(PCFGMNODE pNode, const char *pszNode,
+                                    const char *pszValidValues, const char *pszValidNodes,
+                                    const char *pszWho, uint32_t uInstance)
+{
+    return VINF_SUCCESS;
+}
+
+VMMR3DECL(PCFGMNODE) CFGMR3GetRootU(PUVM pUVM)
+{
+    return NULL;
+}
+
+VMMR3DECL(PCFGMNODE) CFGMR3GetChild(PCFGMNODE pNode, const char *pszPath)
+{
+    return NULL;
+}
+
+VMMR3DECL(int) CFGMR3QueryString(PCFGMNODE pNode, const char *pszName, char *pszString, size_t cchString)
+{
+    *pszString = '\0';
+    return VINF_SUCCESS;
+}
+
+VMMR3DECL(int) CFGMR3QueryStringDef(PCFGMNODE pNode, const char *pszName, char *pszString, size_t cchString, const char *pszDef)
+{
+    *pszString = '\0';
+    return VINF_SUCCESS;
+}
+
+
 
 //////////////////////////////////////////////////////////////////////////
 // The rest should eventually be replaced by DBGF calls and eliminated. //
 /////////////////////////////////////////////////////////////////////////
+
 
 #include <VBox/vmm/cpum.h>
 
@@ -450,4 +491,9 @@ VMMR3DECL(PVMCPU) VMMR3GetCpuByIdU(PUVM pUVM, RTCPUID idCpu)
 VMMR3DECL(PVM) VMR3GetVM(PUVM pUVM)
 {
     return NULL;
+}
+
+VMMR3DECL(VMSTATE) VMR3GetStateU(PUVM pUVM)
+{
+    return VMSTATE_DESTROYING;
 }

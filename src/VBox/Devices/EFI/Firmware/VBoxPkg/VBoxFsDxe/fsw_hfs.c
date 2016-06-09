@@ -2,7 +2,8 @@
 /** @file
  * fsw_hfs.c - HFS file system driver code, see
  *
- *   http://developer.apple.com/technotes/tn/tn1150.html
+ *   https://developer.apple.com/legacy/library/technotes/tn/tn1150.html
+ *   (formerly http://developer.apple.com/technotes/tn/tn1150.html)
  *
  * Current limitations:
  *  - Doesn't support permissions
@@ -38,11 +39,16 @@
 #define DPRINT(x) printf(x)
 #define DPRINT2(x,y) printf(x,y)
 #define BP(msg)    do { printf("ERROR: %s", msg); asm("int3"); } while (0)
-#else
+#elif defined DEBUG_LEVEL
 #define CONCAT(x,y) x##y
 #define DPRINT(x) Print(CONCAT(L,x))
 #define DPRINT2(x,y) Print(CONCAT(L,x), y)
 #define BP(msg) DPRINT(msg)
+#else
+#include <Library/PrintLib.h>
+#define DPRINT(x) do { } while (0)
+#define DPRINT2(x,y) do { } while (0)
+#define BP(msg) do { } while (0)
 #endif
 
 // functions
@@ -615,6 +621,7 @@ fsw_hfs_btree_search (struct fsw_hfs_btree * btree,
 
     return status;
 }
+
 typedef struct
 {
     fsw_u32                 id;
@@ -624,6 +631,7 @@ typedef struct
     fsw_u64                 used;
     fsw_u32                 ctime;
     fsw_u32                 mtime;
+    fsw_u32                 node_num;
     HFSPlusExtentRecord     extents;
 } file_info_t;
 
@@ -636,6 +644,67 @@ typedef struct
     struct fsw_shandle *    shandle; /* this one track iterator's state */
     file_info_t             file_info;
 } visitor_parameter_t;
+
+static void hfs_fill_info(struct fsw_hfs_volume *vol, HFSPlusCatalogKey *file_key, file_info_t *file_info)
+{
+    fsw_u8    * base;
+    fsw_u16     rec_type;
+
+    /* for plain HFS "-(keySize & 1)" would be needed */
+    base = (fsw_u8*)file_key + be16_to_cpu(file_key->keyLength) + 2;
+    rec_type =  be16_to_cpu(*(fsw_u16*)base);
+
+    /** @todo: read additional info */
+    switch (rec_type)
+    {
+        case kHFSPlusFolderRecord:
+        {
+            HFSPlusCatalogFolder* info = (HFSPlusCatalogFolder*)base;
+
+            file_info->id = be32_to_cpu(info->folderID);
+            file_info->type = FSW_DNODE_TYPE_DIR;
+            /* @todo: return number of elements, maybe use smth else */
+            file_info->size = be32_to_cpu(info->valence);
+            file_info->used = be32_to_cpu(info->valence);
+            file_info->ctime = be32_to_cpu(info->createDate);
+            file_info->mtime = be32_to_cpu(info->contentModDate);
+            break;
+        }
+        case kHFSPlusFileRecord:
+        {
+            HFSPlusCatalogFile* info = (HFSPlusCatalogFile*)base;
+            uint32_t    creator = be32_to_cpu(info->userInfo.fdCreator);
+            uint32_t    crtype  = be32_to_cpu(info->userInfo.fdType);
+
+            file_info->id = be32_to_cpu(info->fileID);
+            file_info->type = FSW_DNODE_TYPE_FILE;
+            file_info->size = be64_to_cpu(info->dataFork.logicalSize);
+            file_info->used = LShiftU64(be32_to_cpu(info->dataFork.totalBlocks), vol->block_size_shift);
+            file_info->ctime = be32_to_cpu(info->createDate);
+            file_info->mtime = be32_to_cpu(info->contentModDate);
+            fsw_memcpy(&file_info->extents, &info->dataFork.extents,
+                       sizeof file_info->extents);
+            if (creator == kHFSPlusCreator && crtype == kHardLinkFileType)
+            {
+                /* Only hard links currently supported. */
+                file_info->type     = FSW_DNODE_TYPE_SYMLINK;
+                file_info->node_num = be32_to_cpu(info->bsdInfo.special.iNodeNum);
+            }
+            break;
+        }
+        case kHFSPlusFolderThreadRecord:
+        case kHFSPlusFileThreadRecord:
+        {
+            /* Do nothing. */
+            break;
+        }
+        default:
+            BP("unknown file type\n");
+            file_info->type = FSW_DNODE_TYPE_UNKNOWN;
+
+            break;
+    }
+}
 
 static int
 fsw_hfs_btree_visit_node(BTreeKey *record, void* param)
@@ -656,46 +725,13 @@ fsw_hfs_btree_visit_node(BTreeKey *record, void* param)
     if (vp->shandle->pos != vp->cur_pos++)
         return 0;
 
-    switch (rec_type)
+    if (rec_type == kHFSPlusFolderThreadRecord || rec_type == kHFSPlusFileThreadRecord)
     {
-        case kHFSPlusFolderRecord:
-        {
-            HFSPlusCatalogFolder* folder_info = (HFSPlusCatalogFolder*)base;
-
-            vp->file_info.id = be32_to_cpu(folder_info->folderID);
-            vp->file_info.type = FSW_DNODE_TYPE_DIR;
-            vp->file_info.size = be32_to_cpu(folder_info->valence);
-            vp->file_info.used = be32_to_cpu(folder_info->valence);
-            vp->file_info.ctime = be32_to_cpu(folder_info->createDate);
-            vp->file_info.mtime = be32_to_cpu(folder_info->contentModDate);
-            break;
-        }
-        case kHFSPlusFileRecord:
-        {
-            HFSPlusCatalogFile* file_info = (HFSPlusCatalogFile*)base;
-
-            vp->file_info.id = be32_to_cpu(file_info->fileID);
-            vp->file_info.type = FSW_DNODE_TYPE_FILE;
-            vp->file_info.size = be64_to_cpu(file_info->dataFork.logicalSize);
-            vp->file_info.used = LShiftU64(be32_to_cpu(file_info->dataFork.totalBlocks),
-                                           vp->vol->block_size_shift);
-            vp->file_info.ctime = be32_to_cpu(file_info->createDate);
-            vp->file_info.mtime = be32_to_cpu(file_info->contentModDate);
-            fsw_memcpy(&vp->file_info.extents, &file_info->dataFork.extents,
-                       sizeof vp->file_info.extents);
-            break;
-        }
-        case kHFSPlusFolderThreadRecord:
-        case kHFSPlusFileThreadRecord:
-        {
-            vp->shandle->pos++;
-            return 0;
-        }
-        default:
-            BP("unknown file type\n");
-            vp->file_info.type = FSW_DNODE_TYPE_UNKNOWN;
-            break;
+        vp->shandle->pos++;
+        return 0;
     }
+
+    hfs_fill_info(vp->vol, cat_key, &vp->file_info);
 
     name_len = be16_to_cpu(cat_key->nodeName.length);
 
@@ -1021,6 +1057,7 @@ create_hfs_dnode(struct fsw_hfs_dnode  * dno,
     baby->used_bytes = file_info->used;
     baby->ctime = file_info->ctime;
     baby->mtime = file_info->mtime;
+    baby->node_num = file_info->node_num;
 
 
     /* Fill-in extents info */
@@ -1050,13 +1087,11 @@ static fsw_status_t fsw_hfs_dir_lookup(struct fsw_hfs_volume * vol,
     fsw_status_t               status;
     struct HFSPlusCatalogKey   catkey;
     fsw_u32                    ptr;
-    fsw_u16                    rec_type;
     BTNodeDescriptor *         node = NULL;
     struct fsw_string          rec_name;
     int                        free_data = 0, i;
     HFSPlusCatalogKey*         file_key;
     file_info_t                file_info;
-    fsw_u8*                    base;
 
 
     fsw_memzero(&file_info, sizeof file_info);
@@ -1103,7 +1138,7 @@ static fsw_status_t fsw_hfs_dir_lookup(struct fsw_hfs_volume * vol,
     }
 #endif
 
-    catkey.keyLength = (fsw_u16)(5 + rec_name.size);
+    catkey.keyLength = (fsw_u16)(6 + rec_name.len);
 
     status = fsw_hfs_btree_search (&vol->catalog_tree,
                                    (BTreeKey*)&catkey,
@@ -1114,46 +1149,8 @@ static fsw_status_t fsw_hfs_dir_lookup(struct fsw_hfs_volume * vol,
         goto done;
 
     file_key = (HFSPlusCatalogKey *)fsw_hfs_btree_rec (&vol->catalog_tree, node, ptr);
-    /* for plain HFS "-(keySize & 1)" would be needed */
-    base = (fsw_u8*)file_key + be16_to_cpu(file_key->keyLength) + 2;
-    rec_type =  be16_to_cpu(*(fsw_u16*)base);
+    hfs_fill_info(vol, file_key, &file_info);
 
-    /** @todo: read additional info */
-    switch (rec_type)
-    {
-        case kHFSPlusFolderRecord:
-        {
-            HFSPlusCatalogFolder* info = (HFSPlusCatalogFolder*)base;
-
-            file_info.id = be32_to_cpu(info->folderID);
-            file_info.type = FSW_DNODE_TYPE_DIR;
-            /* @todo: return number of elements, maybe use smth else */
-            file_info.size = be32_to_cpu(info->valence);
-            file_info.used = be32_to_cpu(info->valence);
-            file_info.ctime = be32_to_cpu(info->createDate);
-            file_info.mtime = be32_to_cpu(info->contentModDate);
-            break;
-        }
-        case kHFSPlusFileRecord:
-        {
-            HFSPlusCatalogFile* info = (HFSPlusCatalogFile*)base;
-
-            file_info.id = be32_to_cpu(info->fileID);
-            file_info.type = FSW_DNODE_TYPE_FILE;
-            file_info.size = be64_to_cpu(info->dataFork.logicalSize);
-            file_info.used = LShiftU64(be32_to_cpu(info->dataFork.totalBlocks), vol->block_size_shift);
-            file_info.ctime = be32_to_cpu(info->createDate);
-            file_info.mtime = be32_to_cpu(info->contentModDate);
-            fsw_memcpy(&file_info.extents, &info->dataFork.extents,
-                       sizeof file_info.extents);
-            break;
-        }
-        default:
-            BP("unknown file type\n");
-            file_info.type = FSW_DNODE_TYPE_UNKNOWN;
-
-            break;
-    }
 #ifdef HFS_FILE_INJECTION
 create:
 #endif
@@ -1233,6 +1230,8 @@ static fsw_status_t fsw_hfs_dir_read(struct fsw_hfs_volume *vol,
     return status;
 }
 
+static const char hfs_priv_prefix[] = "/\0\0\0\0HFS+ Private Data/" HFS_INODE_PREFIX;
+
 /**
  * Get the target path of a symbolic link. This function is called when a symbolic
  * link needs to be resolved. The core makes sure that the fsw_hfs_dnode_fill has been
@@ -1242,6 +1241,33 @@ static fsw_status_t fsw_hfs_dir_read(struct fsw_hfs_volume *vol,
 static fsw_status_t fsw_hfs_readlink(struct fsw_hfs_volume *vol, struct fsw_hfs_dnode *dno,
                                      struct fsw_string *link_target)
 {
+    fsw_status_t    status;
+
+    if (dno->node_num)
+    {
+        struct fsw_string   tgt;
+
+        DPRINT2("hfs_readlink: %d\n", dno->node_num);
+        tgt.type = FSW_STRING_TYPE_ISO88591;
+        tgt.size = sizeof(hfs_priv_prefix) + 10;
+        tgt.len  = tgt.size - 1;
+        status = fsw_alloc(tgt.size, &tgt.data);
+        if (!status)
+        {
+            char *str = tgt.data;
+            fsw_memcpy(tgt.data, hfs_priv_prefix, sizeof(hfs_priv_prefix)); // null chars here!
+#ifdef HOST_POSIX
+            tgt.len = sprintf(&str[sizeof(hfs_priv_prefix) - 1], "%d", dno->node_num);
+#else
+            tgt.len = (int)AsciiSPrint(&str[sizeof(hfs_priv_prefix) - 1], tgt.len, "%d", dno->node_num);
+#endif
+            tgt.len += sizeof(hfs_priv_prefix) - 1;
+            status = fsw_strdup_coerce(link_target, vol->g.host_string_type, &tgt);
+            fsw_strfree(&tgt);
+        }
+        return status;
+    }
+
     return FSW_UNSUPPORTED;
 }
 

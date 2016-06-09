@@ -9,7 +9,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,8 +24,12 @@
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
-/* For some reason Windows burns in sdk\...\winsock.h if this isn't included first. */
-#include "VBox/com/ptr.h"
+
+// VBoxNetCfg-win.h needs winsock2.h and thus MUST be included before any other
+// header file includes Windows.h.
+#if defined(RT_OS_WINDOWS) && defined(VBOX_WITH_NETFLT)
+# include <VBox/VBoxNetCfg-win.h>
+#endif
 
 #include "ConsoleImpl.h"
 #include "DisplayImpl.h"
@@ -67,6 +71,8 @@
 #include <VBox/param.h>
 #include <VBox/vmm/pdmapi.h> /* For PDMR3DriverAttach/PDMR3DriverDetach. */
 #include <VBox/vmm/pdmusb.h> /* For PDMR3UsbCreateEmulatedDevice. */
+#include <VBox/vmm/apic.h>   /* For APICMODE enum. */
+#include <VBox/vmm/pdmstorageifs.h>
 #include <VBox/version.h>
 #include <VBox/HostServices/VBoxClipboardSvc.h>
 #ifdef VBOX_WITH_CROGL
@@ -106,7 +112,6 @@
 #  include <net80211/ieee80211_ioctl.h>
 # endif
 # if defined(RT_OS_WINDOWS)
-#  include <VBox/VBoxNetCfg-win.h>
 #  include <Ntddndis.h>
 #  include <devguid.h>
 # else
@@ -787,6 +792,9 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
     ParavirtProvider_T paravirtProvider;
     hrc = pMachine->GetEffectiveParavirtProvider(&paravirtProvider);                        H();
 
+    Bstr strParavirtDebug;
+    hrc = pMachine->COMGETTER(ParavirtDebug)(strParavirtDebug.asOutParam());                H();
+
     ChipsetType_T chipsetType;
     hrc = pMachine->COMGETTER(ChipsetType)(&chipsetType);                                   H();
     if (chipsetType == ChipsetType_ICH9)
@@ -812,6 +820,26 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
 
     BOOL fIOAPIC;
     hrc = biosSettings->COMGETTER(IOAPICEnabled)(&fIOAPIC);                                 H();
+
+    APICMode_T apicMode;
+    hrc = biosSettings->COMGETTER(APICMode)(&apicMode);                                     H();
+    uint32_t uFwAPIC;
+    switch (apicMode)
+    {
+        case APICMode_Disabled:
+            uFwAPIC = 0;
+            break;
+        case APICMode_APIC:
+            uFwAPIC = 1;
+            break;
+        case APICMode_X2APIC:
+            uFwAPIC = 2;
+            break;
+        default:
+            AssertMsgFailed(("Invalid APICMode=%d\n", apicMode));
+            uFwAPIC = 1;
+            break;
+    }
 
     ComPtr<IGuestOSType> guestOSType;
     hrc = virtualBox->GetGuestOSType(osTypeId.raw(), guestOSType.asOutParam());             H();
@@ -869,6 +897,17 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
         ULONG ulBalloonSize = 0;
         hrc = pMachine->COMGETTER(MemoryBalloonSize)(&ulBalloonSize);                       H();
         InsertConfigInteger(pRoot, "MemBalloonSize",       ulBalloonSize);
+
+        /*
+         * EM values (before CPUM as it may need to set IemExecutesAll).
+         */
+        PCFGMNODE pEM;
+        InsertConfigNode(pRoot, "EM", &pEM);
+
+        /* Triple fault behavior. */
+        BOOL fTripleFaultReset = false;
+        hrc = pMachine->GetCPUProperty(CPUPropertyType_TripleFaultReset, &fTripleFaultReset); H();
+        InsertConfigInteger(pEM, "TripleFaultReset", fTripleFaultReset);
 
         /*
          * CPUM values.
@@ -952,13 +991,61 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
 
         /* CPU Portability level, */
         ULONG uCpuIdPortabilityLevel = 0;
-        hrc = pMachine->COMGETTER(CPUIDPortabilityLevel)(&uCpuIdPortabilityLevel);            H();
+        hrc = pMachine->COMGETTER(CPUIDPortabilityLevel)(&uCpuIdPortabilityLevel);          H();
         InsertConfigInteger(pCPUM, "PortableCpuIdLevel", uCpuIdPortabilityLevel);
 
         /* Physical Address Extension (PAE) */
         BOOL fEnablePAE = false;
         hrc = pMachine->GetCPUProperty(CPUPropertyType_PAE, &fEnablePAE);                   H();
         InsertConfigInteger(pRoot, "EnablePAE", fEnablePAE);
+
+        /* APIC/X2APIC configuration */
+        BOOL fEnableAPIC = true;
+        BOOL fEnableX2APIC = true;
+        hrc = pMachine->GetCPUProperty(CPUPropertyType_APIC, &fEnableAPIC);                 H();
+        hrc = pMachine->GetCPUProperty(CPUPropertyType_X2APIC, &fEnableX2APIC);             H();
+        if (fEnableX2APIC)
+            Assert(fEnableAPIC);
+
+        /* CPUM profile name. */
+        hrc = pMachine->COMGETTER(CPUProfile)(bstr.asOutParam());                           H();
+        InsertConfigString(pCPUM, "GuestCpuName", bstr);
+
+        /*
+         * Temporary(?) hack to make sure we emulate the ancient 16-bit CPUs
+         * correctly.   There are way too many #UDs we'll miss using VT-x,
+         * raw-mode or qemu for the 186 and 286, while we'll get undefined opcodes
+         * dead wrong on 8086 (see http://www.os2museum.com/wp/undocumented-8086-opcodes/).
+         */
+        if (   bstr.equals("Intel 80386") /* just for now */
+            || bstr.equals("Intel 80286")
+            || bstr.equals("Intel 80186")
+            || bstr.equals("Nec V20")
+            || bstr.equals("Intel 8086") )
+        {
+            InsertConfigInteger(pEM, "IemExecutesAll", true);
+            if (!bstr.equals("Intel 80386"))
+            {
+                fEnableAPIC = false;
+                fIOAPIC     = false;
+            }
+            fEnableX2APIC = false;
+        }
+
+        /* Adjust firmware APIC handling to stay within the VCPU limits. */
+        if (uFwAPIC == 2 && !fEnableX2APIC)
+        {
+            if (fEnableAPIC)
+                uFwAPIC = 1;
+            else
+                uFwAPIC = 0;
+            LogRel(("Limiting the firmware APIC level from x2APIC to %s\n", fEnableAPIC ? "APIC" : "Disabled"));
+        }
+        else if (uFwAPIC == 1 && !fEnableAPIC)
+        {
+            uFwAPIC = 0;
+            LogRel(("Limiting the firmware APIC level from APIC to Disabled\n"));
+        }
 
         /*
          * Hardware virtualization extensions.
@@ -1028,15 +1115,6 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
                 LogRel(("fHMForced=true - HWVirtExPropertyType_Force\n"));
         }
         InsertConfigInteger(pRoot, "HMEnabled", fHMEnabled);
-
-        /* /EM/xzy */
-        PCFGMNODE pEM;
-        InsertConfigNode(pRoot, "EM", &pEM);
-
-        /* Triple fault behavior. */
-        BOOL fTripleFaultReset = false;
-        hrc = pMachine->GetCPUProperty(CPUPropertyType_TripleFaultReset, &fTripleFaultReset); H();
-        InsertConfigInteger(pEM, "TripleFaultReset", fTripleFaultReset);
 
         /* /HM/xzy */
         PCFGMNODE pHM;
@@ -1128,6 +1206,75 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
                                     paravirtProvider);
         }
         InsertConfigString(pParavirtNode, "Provider", pcszParavirtProvider);
+
+        /*
+         * Parse paravirt. debug options.
+         */
+        bool         fGimDebug          = false;
+        com::Utf8Str strGimDebugAddress = "127.0.0.1";
+        uint32_t     uGimDebugPort      = 50000;
+        if (strParavirtDebug.isNotEmpty())
+        {
+            /* Hyper-V debug options. */
+            if (paravirtProvider == ParavirtProvider_HyperV)
+            {
+                bool         fGimHvDebug = false;
+                com::Utf8Str strGimHvVendor;
+                bool         fGimHvVsIf;
+                bool         fGimHvHypercallIf;
+
+                size_t       uPos = 0;
+                com::Utf8Str strDebugOptions = strParavirtDebug;
+                do
+                {
+                    com::Utf8Str strKey;
+                    com::Utf8Str strVal;
+                    uPos = strDebugOptions.parseKeyValue(strKey, strVal, uPos);
+                    if (strKey == "enabled")
+                    {
+                        if (strVal.toUInt32() == 1)
+                        {
+                            /* Apply defaults.
+                               The defaults are documented in the user manual,
+                               changes need to be reflected accordingly. */
+                            fGimHvDebug       = true;
+                            strGimHvVendor    = "Microsoft Hv";
+                            fGimHvVsIf        = true;
+                            fGimHvHypercallIf = false;
+                        }
+                        /* else: ignore, i.e. don't assert below with 'enabled=0'. */
+                    }
+                    else if (strKey == "address")
+                        strGimDebugAddress = strVal;
+                    else if (strKey == "port")
+                        uGimDebugPort = strVal.toUInt32();
+                    else if (strKey == "vendor")
+                        strGimHvVendor = strVal;
+                    else if (strKey == "vsinterface")
+                        fGimHvVsIf = RT_BOOL(strVal.toUInt32());
+                    else if (strKey == "hypercallinterface")
+                        fGimHvHypercallIf = RT_BOOL(strVal.toUInt32());
+                    else
+                    {
+                        AssertMsgFailed(("Unrecognized Hyper-V debug option '%s'\n", strKey.c_str()));
+                        return VMR3SetError(pUVM, VERR_INVALID_PARAMETER, RT_SRC_POS,
+                                            N_("Unrecognized Hyper-V debug option '%s' in '%s'"), strKey.c_str(),
+                                            strDebugOptions.c_str());
+                    }
+                } while (uPos != com::Utf8Str::npos);
+
+                /* Update HyperV CFGM node with active debug options. */
+                if (fGimHvDebug)
+                {
+                    PCFGMNODE pHvNode;
+                    InsertConfigNode(pParavirtNode, "HyperV", &pHvNode);
+                    InsertConfigString(pHvNode,  "VendorID", strGimHvVendor);
+                    InsertConfigInteger(pHvNode, "VSInterface", fGimHvVsIf ? 1 : 0);
+                    InsertConfigInteger(pHvNode, "HypercallDebugInterface", fGimHvHypercallIf ? 1 : 0);
+                    fGimDebug = true;
+                }
+            }
+        }
 
         /*
          * MM values.
@@ -1250,6 +1397,15 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
             InsertConfigNode(pDev,     "0", &pInst);
             InsertConfigInteger(pInst, "Trusted",              1); /* boolean */
             //InsertConfigNode(pInst,    "Config", &pCfg);
+
+            if (fGimDebug)
+            {
+                InsertConfigNode(pInst,     "LUN#998", &pLunL0);
+                InsertConfigString(pLunL0,  "Driver", "UDP");
+                InsertConfigNode(pLunL0,    "Config", &pLunL1);
+                InsertConfigString(pLunL1,  "ServerAddress", strGimDebugAddress);
+                InsertConfigInteger(pLunL1, "ServerPort", uGimDebugPort);
+            }
         }
 
         /*
@@ -1439,23 +1595,32 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
          * SMP: Each CPU has a LAPIC, but we have a single device representing all LAPICs states,
          *      thus only single insert
          */
-        InsertConfigNode(pDevices, "apic", &pDev);
-        InsertConfigNode(pDev, "0", &pInst);
-        InsertConfigInteger(pInst, "Trusted",              1); /* boolean */
-        InsertConfigNode(pInst,    "Config", &pCfg);
-        InsertConfigInteger(pCfg,  "IOAPIC", fIOAPIC);
-        InsertConfigInteger(pCfg,  "NumCPUs", cCpus);
-
-        if (fIOAPIC)
+        if (fEnableAPIC)
         {
-            /*
-             * I/O Advanced Programmable Interrupt Controller.
-             */
-            InsertConfigNode(pDevices, "ioapic", &pDev);
-            InsertConfigNode(pDev,     "0", &pInst);
+            InsertConfigNode(pDevices, "apic", &pDev);
+            InsertConfigNode(pDev, "0", &pInst);
             InsertConfigInteger(pInst, "Trusted",          1); /* boolean */
             InsertConfigNode(pInst,    "Config", &pCfg);
+            InsertConfigInteger(pCfg,  "IOAPIC", fIOAPIC);
+            APICMODE enmAPICMode = APICMODE_XAPIC;
+            if (fEnableX2APIC)
+                enmAPICMode = APICMODE_X2APIC;
+            else if (!fEnableAPIC)
+                enmAPICMode = APICMODE_DISABLED;
+            InsertConfigInteger(pCfg,  "Mode", enmAPICMode);
             InsertConfigInteger(pCfg,  "NumCPUs", cCpus);
+
+            if (fIOAPIC)
+            {
+                /*
+                 * I/O Advanced Programmable Interrupt Controller.
+                 */
+                InsertConfigNode(pDevices, "ioapic", &pDev);
+                InsertConfigNode(pDev,     "0", &pInst);
+                InsertConfigInteger(pInst, "Trusted",      1); /* boolean */
+                InsertConfigNode(pInst,    "Config", &pCfg);
+                InsertConfigInteger(pCfg,  "NumCPUs", cCpus);
+            }
         }
 
         /*
@@ -1518,6 +1683,7 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
             InsertConfigString(pBiosCfg,   "HardDiskDevice",       "piix3ide");
             InsertConfigString(pBiosCfg,   "FloppyDevice",         "i82078");
             InsertConfigInteger(pBiosCfg,  "IOAPIC",               fIOAPIC);
+            InsertConfigInteger(pBiosCfg,  "APIC",                 uFwAPIC);
             BOOL fPXEDebug;
             hrc = biosSettings->COMGETTER(PXEDebugEnabled)(&fPXEDebug);                     H();
             InsertConfigInteger(pBiosCfg,  "PXEDebug",             fPXEDebug);
@@ -1622,6 +1788,7 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
             InsertConfigString(pCfg,   "BootArgs",         bootArgs);
             InsertConfigString(pCfg,   "DeviceProps",      deviceProps);
             InsertConfigInteger(pCfg,  "IOAPIC",           fIOAPIC);
+            InsertConfigInteger(pCfg,  "APIC",             uFwAPIC);
             InsertConfigBytes(pCfg,    "UUID", &HardwareUuid,sizeof(HardwareUuid));
             InsertConfigInteger(pCfg,  "64BitEntry", f64BitEntry); /* boolean */
             InsertConfigInteger(pCfg,  "GopMode", u32GopMode);
@@ -1913,7 +2080,7 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
          * Storage controllers.
          */
         com::SafeIfaceArray<IStorageController> ctrls;
-        PCFGMNODE aCtrlNodes[StorageControllerType_LsiLogicSas + 1] = {};
+        PCFGMNODE aCtrlNodes[StorageControllerType_NVMe + 1] = {};
         hrc = pMachine->COMGETTER(StorageControllers)(ComSafeArrayAsOutParam(ctrls));       H();
 
         bool fFdcEnabled = false;
@@ -2154,6 +2321,22 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
                                    "is at least one USB storage device configured for this VM.\n"
                                    "To fix this problem either enable the USB controller or remove\n"
                                    "the storage device from the VM"));
+                    break;
+                }
+
+                case StorageControllerType_NVMe:
+                {
+                    hrc = pBusMgr->assignPCIDevice("nvme", pCtlInst);                       H();
+
+                    ULONG cPorts = 0;
+                    hrc = ctrls[i]->COMGETTER(PortCount)(&cPorts);                          H();
+                    InsertConfigInteger(pCfg, "NamespacesMax", cPorts);
+
+                    /* Attach the status driver */
+                    AssertRelease(cPorts <= cLedSata);
+                    i_attachStatusDriver(pCtlInst, &mapStorageLeds[iLedNvme], 0, cPorts - 1,
+                                       &mapMediumAttachments, pszCtrlDev, ulInstance);
+                    paLedDevType = &maStorageDevType[iLedNvme];
                     break;
                 }
 
@@ -2705,7 +2888,7 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
                     break;
                 }
 #endif
-#if defined(RT_OS_LINUX) || defined(RT_OS_FREEBSD) || defined(VBOX_WITH_SOLARIS_OSS)
+#ifdef VBOX_WITH_OSS
                 case AudioDriverType_OSS:
                 {
                     InsertConfigString(pLunL1, "Driver", "OSSAudio");
@@ -2721,6 +2904,7 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
 #endif
             }
 
+#ifdef VBOX_WITH_VRDE_AUDIO
             /*
              * The VRDE audio backend driver. This one always is there
              * and therefore is hardcoded here.
@@ -2736,7 +2920,7 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
             InsertConfigString(pCfg, "StreamName", bstr);
             InsertConfigInteger(pCfg, "Object", (uintptr_t)mAudioVRDE);
             InsertConfigInteger(pCfg, "ObjectVRDPServer", (uintptr_t)mConsoleVRDPServer);
-
+#endif
             /** @todo Add audio video recording driver here. */
         }
 
@@ -3005,7 +3189,7 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
         }
 
         /*
-         * Configure DBGF (Debug(ger) Facility).
+         * Configure DBGF (Debug(ger) Facility) and DBGC (Debugger Console).
          */
         {
             PCFGMNODE pDbgf;
@@ -3016,16 +3200,19 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
             Utf8Str strSettingsPath(bstr);
             bstr.setNull();
             strSettingsPath.stripFilename();
+            strSettingsPath.append("/");
 
-            char szHomeDir[RTPATH_MAX];
-            rc = RTPathUserHome(szHomeDir, sizeof(szHomeDir));
-            if (RT_FAILURE(rc))
+            char szHomeDir[RTPATH_MAX + 1];
+            int rc2 = RTPathUserHome(szHomeDir, sizeof(szHomeDir) - 1);
+            if (RT_FAILURE(rc2))
                 szHomeDir[0] = '\0';
+            RTPathEnsureTrailingSeparator(szHomeDir, sizeof(szHomeDir));
+
 
             Utf8Str strPath;
-            strPath.append(strSettingsPath).append("/debug/;");
-            strPath.append(strSettingsPath).append("/;");
-            strPath.append(szHomeDir).append("/");
+            strPath.append(strSettingsPath).append("debug/;");
+            strPath.append(strSettingsPath).append(";");
+            strPath.append(szHomeDir);
 
             InsertConfigString(pDbgf, "Path", strPath.c_str());
 
@@ -3043,6 +3230,33 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
             hrc = pMachine->COMGETTER(AllowTracingToAccessVM)(&fAllowTracingToAccessVM);    H();
             if (fAllowTracingToAccessVM)
                 InsertConfigInteger(pPDM, "AllowTracingToAccessVM", 1);
+
+            /* Debugger console config. */
+            PCFGMNODE pDbgc;
+            InsertConfigNode(pRoot, "DBGC", &pDbgc);
+
+            hrc = virtualBox->COMGETTER(HomeFolder)(bstr.asOutParam());                     H();
+            Utf8Str strVBoxHome = bstr;
+            bstr.setNull();
+            if (strVBoxHome.isNotEmpty())
+                strVBoxHome.append("/");
+            else
+            {
+                strVBoxHome = szHomeDir;
+                strVBoxHome.append("/.vbox");
+            }
+
+            Utf8Str strFile(strVBoxHome);
+            strFile.append("dbgc-history");
+            InsertConfigString(pDbgc, "HistoryFile", strFile);
+
+            strFile = strSettingsPath;
+            strFile.append("dbgc-init");
+            InsertConfigString(pDbgc, "LocalInitScript", strFile);
+
+            strFile = strVBoxHome;
+            strFile.append("dbgc-init");
+            InsertConfigString(pDbgc, "GlobalInitScript", strFile);
         }
     }
     catch (ConfigError &x)
@@ -3399,7 +3613,7 @@ int Console::i_configGraphicsController(PCFGMNODE pDevices,
             BOOL f3DEnabled;
             hrc = ptrMachine->COMGETTER(Accelerate3DEnabled)(&f3DEnabled);                  H();
             InsertConfigInteger(pCfg, "VMSVGA3dEnabled", f3DEnabled);
-#else  
+#else
             LogRel(("VMSVGA3d not available in this build!\n"));
 #endif
         }
@@ -4069,7 +4283,15 @@ int Console::i_configMedium(PCFGMNODE pLunL0,
         }
         else
         {
-            InsertConfigString(pLunL0, "Driver", "Block");
+#if 0 /* Enable for I/O debugging */
+            InsertConfigNode(pLunL0, "AttachedDriver", &pLunL0);
+            InsertConfigString(pLunL0, "Driver", "DiskIntegrity");
+            InsertConfigNode(pLunL0, "Config", &pCfg);
+            InsertConfigInteger(pCfg, "CheckConsistency", 0);
+            InsertConfigInteger(pCfg, "CheckDoubleCompletions", 1);
+#endif
+
+            InsertConfigString(pLunL0, "Driver", "VD");
             InsertConfigNode(pLunL0, "Config", &pCfg);
             switch (enmType)
             {
@@ -4125,18 +4347,6 @@ int Console::i_configMedium(PCFGMNODE pLunL0,
                 }
                 /* Index of last image */
                 uImage--;
-
-#if 0 /* Enable for I/O debugging */
-                InsertConfigNode(pLunL0, "AttachedDriver", &pLunL0);
-                InsertConfigString(pLunL0, "Driver", "DiskIntegrity");
-                InsertConfigNode(pLunL0, "Config", &pCfg);
-                InsertConfigInteger(pCfg, "CheckConsistency", 0);
-                InsertConfigInteger(pCfg, "CheckDoubleCompletions", 1);
-#endif
-
-                InsertConfigNode(pLunL0, "AttachedDriver", &pLunL1);
-                InsertConfigString(pLunL1, "Driver", "VD");
-                InsertConfigNode(pLunL1, "Config", &pCfg);
 
 # ifdef VBOX_WITH_EXTPACK
                 static const Utf8Str strExtPackPuel("Oracle VM VirtualBox Extension Pack");
@@ -4211,19 +4421,6 @@ int Console::i_configMedium(PCFGMNODE pLunL0,
                         InsertConfigInteger(pCfg, "MergeTarget", 1);
                 }
 
-                switch (enmType)
-                {
-                    case DeviceType_DVD:
-                        InsertConfigString(pCfg, "Type", "DVD");
-                        break;
-                    case DeviceType_Floppy:
-                        InsertConfigString(pCfg, "Type", "Floppy");
-                        break;
-                    case DeviceType_HardDisk:
-                    default:
-                        InsertConfigString(pCfg, "Type", "HardDisk");
-                }
-
                 if (pcszBwGroup)
                     InsertConfigString(pCfg, "BwGroup", pcszBwGroup);
 
@@ -4275,6 +4472,13 @@ int Console::i_configMedium(PCFGMNODE pLunL0,
 
                 if (fEncrypted)
                     m_cDisksEncrypted++;
+            }
+            else
+            {
+                /* Set empty drive flag for DVD or floppy without media. */
+                if (   enmType == DeviceType_DVD
+                    || enmType == DeviceType_Floppy)
+                    InsertConfigInteger(pCfg, "EmptyDrive", 1);
             }
         }
 #undef H
@@ -4818,7 +5022,7 @@ int Console::i_configNetwork(const char *pszDevice,
                         {
                             DWORD err = GetLastError();
                             hrc = HRESULT_FROM_WIN32(err);
-                            AssertMsgFailed(("%hrc=%Rhrc %#x\n", hrc, hrc));
+                            AssertMsgFailed(("hrc=%Rhrc %#x\n", hrc, hrc));
                             AssertLogRelMsgFailed(("NetworkAttachmentType_Bridged: WideCharToMultiByte failed, hr=%Rhrc (0x%x) err=%u\n",
                                                    hrc, hrc, err));
                         }

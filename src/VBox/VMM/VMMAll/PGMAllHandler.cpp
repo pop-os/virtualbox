@@ -86,6 +86,7 @@ DECLINLINE(uint32_t) pgmHandlerPhysicalTypeRelease(PVM pVM, PPGMPHYSHANDLERTYPEI
  */
 DECLINLINE(uint32_t) pgmHandlerPhysicalTypeRetain(PVM pVM, PPGMPHYSHANDLERTYPEINT pType)
 {
+    NOREF(pVM);
     AssertMsgReturn(pType->u32Magic == PGMPHYSHANDLERTYPEINT_MAGIC, ("%#x\n", pType->u32Magic), UINT32_MAX);
     uint32_t cRefs = ASMAtomicIncU32(&pType->cRefs);
     Assert(cRefs < _1M && cRefs > 0);
@@ -405,12 +406,12 @@ static void pgmHandlerPhysicalDeregisterNotifyREM(PVM pVM, PPGMPHYSHANDLER pCur)
         }
     }
 
+#ifdef VBOX_WITH_REM
     /*
      * Tell REM.
      */
     const bool fRestoreAsRAM = pCurType->pfnHandlerR3
                             && pCurType->enmKind != PGMPHYSHANDLERKIND_MMIO; /** @todo this isn't entirely correct. */
-#ifdef VBOX_WITH_REM
 # ifndef IN_RING3
     REMNotifyHandlerPhysicalDeregister(pVM, pCurType->enmKind, GCPhysStart, GCPhysLast - GCPhysStart + 1,
                                        !!pCurType->pfnHandlerR3, fRestoreAsRAM);
@@ -624,9 +625,11 @@ VMMDECL(int) PGMHandlerPhysicalModify(PVM pVM, RTGCPHYS GCPhysCurrent, RTGCPHYS 
          * Clear the ram flags. (We're gonna move or free it!)
          */
         pgmHandlerPhysicalResetRamFlags(pVM, pCur);
+#ifdef VBOX_WITH_REM
         PPGMPHYSHANDLERTYPEINT pCurType = PGMPHYSHANDLER_GET_TYPE(pVM, pCur);
         const bool fRestoreAsRAM = pCurType->pfnHandlerR3
                                 && pCurType->enmKind != PGMPHYSHANDLERKIND_MMIO; /** @todo this isn't entirely correct. */
+#endif
 
         /*
          * Validate the new range, modify and reinsert.
@@ -648,9 +651,11 @@ VMMDECL(int) PGMHandlerPhysicalModify(PVM pVM, RTGCPHYS GCPhysCurrent, RTGCPHYS 
 
                 if (RTAvlroGCPhysInsert(&pVM->pgm.s.CTX_SUFF(pTrees)->PhysHandlers, &pCur->Core))
                 {
+#ifdef VBOX_WITH_REM
                     RTGCPHYS            cb            = GCPhysLast - GCPhys + 1;
                     PGMPHYSHANDLERKIND  enmKind       = pCurType->enmKind;
                     bool                fHasHCHandler = !!pCurType->pfnHandlerR3;
+#endif
 
                     /*
                      * Set ram flags, flush shadow PT entries and finally tell REM about this.
@@ -1399,6 +1404,7 @@ DECLINLINE(uint32_t) pgmHandlerVirtualTypeRelease(PVM pVM, PPGMVIRTHANDLERTYPEIN
  */
 DECLINLINE(uint32_t) pgmHandlerVirtualTypeRetain(PVM pVM, PPGMVIRTHANDLERTYPEINT pType)
 {
+    NOREF(pVM);
     AssertMsgReturn(pType->u32Magic == PGMVIRTHANDLERTYPEINT_MAGIC, ("%#x\n", pType->u32Magic), UINT32_MAX);
     uint32_t cRefs = ASMAtomicIncU32(&pType->cRefs);
     Assert(cRefs < _1M && cRefs > 0);

@@ -58,7 +58,7 @@ VMMDECL(bool) HMIsEnabledNotMacro(PVM pVM)
  *
  * @returns VBox status code.
  * @param   pVCpu       The cross context virtual CPU structure.
- * @param   GCVirt      Page to invalidate
+ * @param   GCVirt      Page to invalidate.
  */
 static void hmQueueInvlPage(PVMCPU pVCpu, RTGCPTR GCVirt)
 {
@@ -75,7 +75,7 @@ static void hmQueueInvlPage(PVMCPU pVCpu, RTGCPTR GCVirt)
  *
  * @returns VBox status code.
  * @param   pVCpu       The cross context virtual CPU structure.
- * @param   GCVirt      Page to invalidate
+ * @param   GCVirt      Page to invalidate.
  */
 VMM_INT_DECL(int) HMInvalidatePage(PVMCPU pVCpu, RTGCPTR GCVirt)
 {
@@ -121,6 +121,7 @@ static DECLCALLBACK(void) hmFlushHandler(RTCPUID idCpu, void *pvUser1, void *pvU
     NOREF(idCpu); NOREF(pvUser1); NOREF(pvUser2);
     return;
 }
+
 
 /**
  * Wrapper for RTMpPokeCpu to deal with VERR_NOT_SUPPORTED.
@@ -358,14 +359,16 @@ VMM_INT_DECL(PGMMODE) HMGetShwPagingMode(PVM pVM)
     return PGMMODE_EPT;
 }
 
+
 /**
- * Invalidates a guest page by physical address
- *
- * NOTE: Assumes the current instruction references this physical page though a virtual address!!
+ * Invalidates a guest page by physical address.
  *
  * @returns VBox status code.
  * @param   pVM         The cross context VM structure.
- * @param   GCPhys      Page to invalidate
+ * @param   GCPhys      Page to invalidate.
+ *
+ * @remarks Assumes the current instruction references this physical page
+ *          though a virtual address!
  */
 VMM_INT_DECL(int) HMInvalidatePhysPage(PVM pVM, RTGCPHYS GCPhys)
 {
@@ -494,14 +497,16 @@ VMM_INT_DECL(int) HMAmdIsSubjectToErratum170(uint32_t *pu32Family, uint32_t *pu3
  * EMR3HmSingleInstruction.
  *
  * @returns The old flag state.
+ * @param   pVM     The cross context VM structure.
  * @param   pVCpu   The cross context virtual CPU structure of the calling EMT.
  * @param   fEnable The new flag state.
  */
-VMM_INT_DECL(bool) HMSetSingleInstruction(PVMCPU pVCpu, bool fEnable)
+VMM_INT_DECL(bool) HMSetSingleInstruction(PVM pVM, PVMCPU pVCpu, bool fEnable)
 {
     VMCPU_ASSERT_EMT(pVCpu);
     bool fOld = pVCpu->hm.s.fSingleInstruction;
     pVCpu->hm.s.fSingleInstruction = fEnable;
+    pVCpu->hm.s.fUseDebugLoop = fEnable || pVM->hm.s.fUseDebugLoop;
     return fOld;
 }
 

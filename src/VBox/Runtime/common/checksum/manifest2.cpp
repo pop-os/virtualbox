@@ -526,7 +526,7 @@ static DECLCALLBACK(int) rtManifestEntryCompare(PRTSTRSPACECORE pStr, void *pvUs
     PRTMANIFESTENTRY  pEntry2;
 
     /*
-     * Ignore this entry.
+     * Ignore this entry?
      */
     char const * const *ppsz = pEquals->papszIgnoreEntries;
     if (ppsz)
@@ -650,6 +650,26 @@ RTDECL(int) RTManifestEquals(RTMANIFEST hManifest1, RTMANIFEST hManifest2)
 
 
 /**
+ * Translates a attribyte type to a attribute name.
+ *
+ * @returns Attribute name for fFlags, NULL if not translatable.
+ * @param   fType   The type flags.  Only one bit should be set.
+ */
+static const char *rtManifestTypeToAttrName(uint32_t fType)
+{
+    switch (fType)
+    {
+        case RTMANIFEST_ATTR_SIZE:      return "SIZE";
+        case RTMANIFEST_ATTR_MD5:       return "MD5";
+        case RTMANIFEST_ATTR_SHA1:      return "SHA1";
+        case RTMANIFEST_ATTR_SHA256:    return "SHA256";
+        case RTMANIFEST_ATTR_SHA512:    return "SHA512";
+        default:                        return NULL;
+    }
+}
+
+
+/**
  * Worker common to RTManifestSetAttr and RTManifestEntrySetAttr.
  *
  * @returns IPRT status code.
@@ -720,9 +740,11 @@ RTDECL(int) RTManifestSetAttr(RTMANIFEST hManifest, const char *pszAttr, const c
     RTMANIFESTINT *pThis = hManifest;
     AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
     AssertReturn(pThis->u32Magic == RTMANIFEST_MAGIC, VERR_INVALID_HANDLE);
-    AssertPtr(pszAttr);
     AssertPtr(pszValue);
     AssertReturn(RT_IS_POWER_OF_TWO(fType) && fType < RTMANIFEST_ATTR_END, VERR_INVALID_PARAMETER);
+    if (!pszAttr)
+        pszAttr = rtManifestTypeToAttrName(fType);
+    AssertPtr(pszAttr);
 
     return rtManifestSetAttrWorker(&pThis->SelfEntry, pszAttr, pszValue, fType);
 }
@@ -863,6 +885,52 @@ RTDECL(int) RTManifestQueryAttr(RTMANIFEST hManifest, const char *pszAttr, uint3
 
 
 /**
+ * Callback employed by RTManifestQueryAllAttrTypes to collect attribute types.
+ *
+ * @returns VINF_SUCCESS.
+ * @param   pStr                The attribute string node.
+ * @param   pvUser              Pointer to type flags (uint32_t).
+ */
+static DECLCALLBACK(int) rtMainfestQueryAllAttrTypesEnumAttrCallback(PRTSTRSPACECORE pStr, void *pvUser)
+{
+    PRTMANIFESTATTR pAttr   = (PRTMANIFESTATTR)pStr;
+    uint32_t       *pfTypes = (uint32_t *)pvUser;
+    *pfTypes |= pAttr->fType;
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * Callback employed by RTManifestQueryAllAttrTypes to collect attribute types
+ * for an entry.
+ *
+ * @returns VINF_SUCCESS.
+ * @param   pStr                The attribute string node.
+ * @param   pvUser              Pointer to type flags (uint32_t).
+ */
+static DECLCALLBACK(int) rtMainfestQueryAllAttrTypesEnumEntryCallback(PRTSTRSPACECORE pStr, void *pvUser)
+{
+    PRTMANIFESTENTRY pEntry = RT_FROM_MEMBER(pStr, RTMANIFESTENTRY, StrCore);
+    return RTStrSpaceEnumerate(&pEntry->Attributes, rtMainfestQueryAllAttrTypesEnumAttrCallback, pvUser);
+}
+
+
+RTDECL(int) RTManifestQueryAllAttrTypes(RTMANIFEST hManifest, bool fEntriesOnly, uint32_t *pfTypes)
+{
+    RTMANIFESTINT *pThis = hManifest;
+    AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
+    AssertReturn(pThis->u32Magic == RTMANIFEST_MAGIC, VERR_INVALID_HANDLE);
+    AssertPtr(pfTypes);
+
+    *pfTypes = 0;
+    int rc = RTStrSpaceEnumerate(&pThis->Entries, rtMainfestQueryAllAttrTypesEnumEntryCallback, pfTypes);
+    if (RT_SUCCESS(rc) && fEntriesOnly)
+        rc = rtMainfestQueryAllAttrTypesEnumAttrCallback(&pThis->SelfEntry.StrCore, pfTypes);
+    return VINF_SUCCESS;
+}
+
+
+/**
  * Validates the name entry.
  *
  * @returns IPRT status code.
@@ -979,9 +1047,11 @@ RTDECL(int) RTManifestEntrySetAttr(RTMANIFEST hManifest, const char *pszEntry, c
     AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
     AssertReturn(pThis->u32Magic == RTMANIFEST_MAGIC, VERR_INVALID_HANDLE);
     AssertPtr(pszEntry);
-    AssertPtr(pszAttr);
     AssertPtr(pszValue);
     AssertReturn(RT_IS_POWER_OF_TWO(fType) && fType < RTMANIFEST_ATTR_END, VERR_INVALID_PARAMETER);
+    if (!pszAttr)
+        pszAttr = rtManifestTypeToAttrName(fType);
+    AssertPtr(pszAttr);
 
     bool    fNeedNormalization;
     size_t  cchEntry;
@@ -1317,26 +1387,31 @@ RTDECL(int) RTManifestReadStandardEx(RTMANIFEST hManifest, RTVFSIOSTREAM hVfsIos
         /*
          * Read the attribute name.
          */
+        char ch;
         const char * const pszAttr = psz;
         do
             psz++;
-        while (!RT_C_IS_BLANK(*psz) && *psz);
-        if (*psz)
+        while (!RT_C_IS_BLANK((ch = *psz)) && ch && ch != '(');
+        if (ch)
             *psz++ = '\0';
 
         /*
          * The entry name is enclosed in parenthesis and followed by a '='.
          */
-        psz = RTStrStripL(psz);
-        if (*psz != '(')
+        if (ch != '(')
         {
-            RTStrPrintf(pszErr, cbErr, "Expected '(' after %zu on line %u", psz - szLine, iLine);
-            return VERR_PARSE_ERROR;
+            psz = RTStrStripL(psz);
+            ch = *psz++;
+            if (ch != '(')
+            {
+                RTStrPrintf(pszErr, cbErr, "Expected '(' after %zu on line %u", psz - szLine - 1, iLine);
+                return VERR_PARSE_ERROR;
+            }
         }
-        const char * const pszName = ++psz;
-        while (*psz)
+        const char * const pszName = psz;
+        while ((ch = *psz) != '\0')
         {
-            if (*psz == ')')
+            if (ch == ')')
             {
                 char *psz2 = RTStrStripL(psz + 1);
                 if (*psz2 == '=')

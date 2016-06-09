@@ -439,6 +439,19 @@ RTDECL(int)         RTVfsSymlinkRead(RTVFSSYMLINK hVfsSym, char *pszTarget, size
  */
 
 /**
+ * Creates a VFS file from a memory buffer.
+ *
+ * @returns IPRT status code.
+ *
+ * @param   fFlags          A combination of RTFILE_O_READ and RTFILE_O_WRITE.
+ * @param   pvBuf           The buffer.  This will be copied and not referenced
+ *                          after this function returns.
+ * @param   cbBuf           The buffer size.
+ * @param   phVfsIos        Where to return the VFS I/O stream handle.
+ */
+RTDECL(int)         RTVfsIoStrmFromBuffer(uint32_t fFlags, void const *pvBuf, size_t cbBuf, PRTVFSIOSTREAM phVfsIos);
+
+/**
  * Creates a VFS I/O stream handle from a standard IPRT file handle (RTFILE).
  *
  * @returns IPRT status code.
@@ -553,7 +566,59 @@ RTDECL(int)         RTVfsIoStrmQueryInfo(RTVFSIOSTREAM hVfsIos, PRTFSOBJINFO pOb
  *          RTSocketRead
  */
 RTDECL(int)         RTVfsIoStrmRead(RTVFSIOSTREAM hVfsIos, void *pvBuf, size_t cbToRead, bool fBlocking, size_t *pcbRead);
+
+/**
+ * Read bytes from the I/O stream, optionally with offset.
+ *
+ * @returns IPRT status code.
+ * @retval  VINF_SUCCESS and the number of bytes read written to @a pcbRead.
+ * @retval  VINF_TRY_AGAIN if @a fBlocking is @c false, @a pcbRead is not NULL,
+ *          and no data was available. @a *pcbRead will be set to 0.
+ * @retval  VINF_EOF when trying to read __beyond__ the end of the stream and
+ *          @a pcbRead is not NULL (it will be set to the number of bytes read,
+ *          or 0 if the end of the stream was reached before this call).
+ *          When the last byte of the read request is the last byte in the
+ *          stream, this status code will not be used.  However, VINF_EOF is
+ *          returned when attempting to read 0 bytes while standing at the end
+ *          of the stream.
+ * @retval  VERR_EOF when trying to read __beyond__ the end of the stream and
+ *          @a pcbRead is NULL.
+ * @retval  VERR_ACCESS_DENIED if the stream is not readable.
+ *
+ * @param   hVfsIos         The VFS I/O stream handle.
+ * @param   off             Where to read at, -1 for the current position.
+ * @param   pvBuf           Where to store the read bytes.
+ * @param   cbToRead        The number of bytes to read.
+ * @param   fBlocking       Whether the call is blocking (@c true) or not.  If
+ *                          not, the @a pcbRead parameter must not be NULL.
+ * @param   pcbRead         Where to always store the number of bytes actually
+ *                          read.  This can be NULL if @a fBlocking is true.
+ * @sa      RTVfsFileRead, RTFileRead, RTPipeRead, RTPipeReadBlocking,
+ *          RTSocketRead
+ */
 RTDECL(int)         RTVfsIoStrmReadAt(RTVFSIOSTREAM hVfsIos, RTFOFF off, void *pvBuf, size_t cbToRead, bool fBlocking, size_t *pcbRead);
+
+/**
+ * Reads the remainder of the stream into a memory buffer.
+ *
+ * For simplifying string-style processing, the is a zero byte after the
+ * returned buffer, making sure it can be used as a zero terminated string.
+ *
+ * @returns IPRT status code.
+ * @param   hVfsIos         The VFS I/O stream handle.
+ * @param   ppvBuf          Where to return the buffer.  Must pass to
+ *                          RTVfsIoStrmReadAllFree for freeing, not RTMemFree!
+ * @param   pcbBuf          Where to return the buffer size.
+ */
+RTDECL(int)         RTVfsIoStrmReadAll(RTVFSIOSTREAM hVfsIos, void **ppvBuf, size_t *pcbBuf);
+
+/**
+ * Free memory buffer returned by RTVfsIoStrmReadAll.
+ *
+ * @param   pvBuf           What RTVfsIoStrmReadAll returned.
+ * @param   cbBuf           What RTVfsIoStrmReadAll returned.
+ */
+RTDECL(void)        RTVfsIoStrmReadAllFree(void *pvBuf, size_t cbBuf);
 
 /**
  * Write bytes to the I/O stream.
@@ -593,6 +658,7 @@ RTDECL(int)         RTVfsIoStrmWriteAt(RTVFSIOSTREAM hVfsIos, RTFOFF off, const 
  * @retval  VERR_ACCESS_DENIED if the stream is not readable.
  *
  * @param   hVfsIos         The VFS I/O stream handle.
+ * @param   off             Where to read at, -1 for the current position.
  * @param   pSgBuf          Pointer to a scatter buffer descriptor.  The number
  *                          of bytes described by the segments is what will be
  *                          attemted read.
@@ -602,7 +668,7 @@ RTDECL(int)         RTVfsIoStrmWriteAt(RTVFSIOSTREAM hVfsIos, RTFOFF off, const 
  *                          read.  This can be NULL if @a fBlocking is true.
  * @sa      RTFileSgRead, RTSocketSgRead, RTPipeRead, RTPipeReadBlocking
  */
-RTDECL(int)         RTVfsIoStrmSgRead(RTVFSIOSTREAM hVfsIos, PCRTSGBUF pSgBuf, bool fBlocking, size_t *pcbRead);
+RTDECL(int)         RTVfsIoStrmSgRead(RTVFSIOSTREAM hVfsIos, RTFOFF off, PCRTSGBUF pSgBuf, bool fBlocking, size_t *pcbRead);
 
 /**
  * Write bytes to the I/O stream from a gather buffer.
@@ -611,6 +677,7 @@ RTDECL(int)         RTVfsIoStrmSgRead(RTVFSIOSTREAM hVfsIos, PCRTSGBUF pSgBuf, b
  * @retval  VERR_ACCESS_DENIED if the stream is not writable.
  *
  * @param   hVfsIos         The VFS I/O stream handle.
+ * @param   off             Where to write at, -1 for the current position.
  * @param   pSgBuf          Pointer to a gather buffer descriptor.  The number
  *                          of bytes described by the segments is what will be
  *                          attemted written.
@@ -620,7 +687,7 @@ RTDECL(int)         RTVfsIoStrmSgRead(RTVFSIOSTREAM hVfsIos, PCRTSGBUF pSgBuf, b
  *                          written.  This can be NULL if @a fBlocking is true.
  * @sa      RTFileSgWrite, RTSocketSgWrite
  */
-RTDECL(int)         RTVfsIoStrmSgWrite(RTVFSIOSTREAM hVfsIos, PCRTSGBUF pSgBuf, bool fBlocking, size_t *pcbWritten);
+RTDECL(int)         RTVfsIoStrmSgWrite(RTVFSIOSTREAM hVfsIos, RTFOFF off, PCRTSGBUF pSgBuf, bool fBlocking, size_t *pcbWritten);
 
 /**
  * Flush any buffered data to the I/O stream.
@@ -685,7 +752,7 @@ RTDECL(bool)        RTVfsIoStrmIsAtEnd(RTVFSIOSTREAM hVfsIos);
 /**
  * Process the rest of the stream, checking if it's all valid UTF-8 encoding.
  *
- * @returns VBox status cod.e
+ * @returns IPRT status code.
  *
  * @param   hVfsIos         The VFS I/O stream handle.
  * @param   fFlags          Flags governing the validation, see
@@ -784,8 +851,6 @@ RTDECL(int)         RTVfsFileQueryInfo(RTVFSFILE hVfsFile, PRTFSOBJINFO pObjInfo
  *
  * @returns IPRT status code.
  * @retval  VINF_SUCCESS and the number of bytes read written to @a pcbRead.
- * @retval  VINF_TRY_AGAIN if @a fBlocking is @c false, @a pcbRead is not NULL,
- *          and no data was available. @a *pcbRead will be set to 0.
  * @retval  VINF_EOF when trying to read __beyond__ the end of the file and
  *          @a pcbRead is not NULL (it will be set to the number of bytes read,
  *          or 0 if the end of the file was reached before this call).
@@ -889,7 +954,7 @@ RTDECL(int)         RTVfsFileGetMaxSizeEx(RTVFSFILE hVfsFile, PRTFOFF pcbMax);
 /**
  * Memorizes the I/O stream as a file backed by memory.
  *
- * @returns VBox status code.
+ * @returns IPRT status code.
  *
  * @param   hVfsIos         The VFS I/O stream to memorize.  This will be read
  *                          to the end on success, on failure its position is
@@ -900,6 +965,34 @@ RTDECL(int)         RTVfsFileGetMaxSizeEx(RTVFSFILE hVfsFile, PRTFOFF pcbMax);
  */
 RTDECL(int) RTVfsMemorizeIoStreamAsFile(RTVFSIOSTREAM hVfsIos, uint32_t fFlags, PRTVFSFILE phVfsFile);
 
+
+/**
+ * Creates a VFS file from a memory buffer.
+ *
+ * @returns IPRT status code.
+ *
+ * @param   fFlags          A combination of RTFILE_O_READ and RTFILE_O_WRITE.
+ * @param   pvBuf           The buffer.  This will be copied and not referenced
+ *                          after this function returns.
+ * @param   cbBuf           The buffer size.
+ * @param   phVfsFile       Where to return the handle to the memory file on
+ *                          success.
+ */
+RTDECL(int) RTVfsFileFromBuffer(uint32_t fFlags, void const *pvBuf, size_t cbBuf, PRTVFSFILE phVfsFile);
+
+/**
+ * Creates a memory backed VFS file object for read and write.
+ *
+ * @returns IPRT status code.
+ *
+ * @param   hVfsIos         The VFS I/O stream to memorize.  This will be read
+ *                          to the end on success, on failure its position is
+ *                          undefined.
+ * @param   cbEstimate      The estimated file size.
+ * @param   phVfsFile       Where to return the handle to the memory file on
+ *                          success.
+ */
+RTDECL(int) RTVfsMemFileCreate(RTVFSIOSTREAM hVfsIos, size_t cbEstimate, PRTVFSFILE phVfsFile);
 
 /**
  * Pumps data from one I/O stream to another.
@@ -915,6 +1008,46 @@ RTDECL(int) RTVfsMemorizeIoStreamAsFile(RTVFSIOSTREAM hVfsIos, uint32_t fFlags, 
  *                      clueless.
  */
 RTDECL(int) RTVfsUtilPumpIoStreams(RTVFSIOSTREAM hVfsIosSrc, RTVFSIOSTREAM hVfsIosDst, size_t cbBufHint);
+
+/**
+ * Create an I/O stream instance performing simple sequential read-ahead.
+ *
+ * @returns IPRT status code.
+ * @param   hVfsIos     The input stream to perform read ahead on.  If this is
+ *                      actually for a file object, the returned I/O stream
+ *                      handle can also be cast to a file handle.
+ * @param   fFlags      Flags reserved for future use, MBZ.
+ * @param   cBuffers    How many read ahead buffers to use. Specify 0 for
+ *                      default value.
+ * @param   cbBuffer    The size of each read ahead buffer. Specify 0 for
+ *                      default value.
+ * @param   phVfsIos    Where to return the read ahead I/O stream handle.
+ *
+ * @remarks Careful using this on a message pipe or socket.  The reads are
+ *          performed in blocked mode and it may be host and/or implementation
+ *          dependent whether they will return ready data immediate or wait
+ *          until there's a whole @a cbBuffer (or default) worth ready.
+ *
+ * @sa      RTVfsCreateReadAheadForFile
+ */
+RTDECL(int) RTVfsCreateReadAheadForIoStream(RTVFSIOSTREAM hVfsIos, uint32_t fFlags, uint32_t cBuffers, uint32_t cbBuffer,
+                                            PRTVFSIOSTREAM phVfsIos);
+
+/**
+ * Create an I/O stream instance performing simple sequential read-ahead.
+ *
+ * @returns IPRT status code.
+ * @param   hVfsFile    The input file to perform read ahead on.
+ * @param   fFlags      Flags reserved for future use, MBZ.
+ * @param   cBuffers    How many read ahead buffers to use. Specify 0 for
+ *                      default value.
+ * @param   cbBuffer    The size of each read ahead buffer. Specify 0 for
+ *                      default value.
+ * @param   phVfsFile   Where to return the read ahead file handle.
+ * @sa      RTVfsCreateReadAheadForIoStream
+ */
+RTDECL(int) RTVfsCreateReadAheadForFile(RTVFSFILE hVfsFile, uint32_t fFlags, uint32_t cBuffers, uint32_t cbBuffer,
+                                        PRTVFSFILE phVfsFile);
 
 /** @}  */
 

@@ -1863,7 +1863,7 @@ int main(int argc, char *argv[])
                 return RTEXITCODE_SUCCESS;
 
             case 'V':
-                RTPrintf("$Revision: 103604 $\n");
+                RTPrintf("$Revision: 103283 $\n");
                 return RTEXITCODE_SUCCESS;
 
             case 'w':

@@ -1,21 +1,14 @@
 /** @file
+Header file for helper functions useful for accessing files.
 
-Copyright (c) 2004 - 2008, Intel Corporation. All rights reserved.<BR>
-This program and the accompanying materials                          
-are licensed and made available under the terms and conditions of the BSD License         
-which accompanies this distribution.  The full text of the license may be found at        
-http://opensource.org/licenses/bsd-license.php                                            
-                                                                                          
-THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,                     
-WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.             
+Copyright (c) 2004 - 2014, Intel Corporation. All rights reserved.<BR>
+This program and the accompanying materials
+are licensed and made available under the terms and conditions of the BSD License
+which accompanies this distribution.  The full text of the license may be found at
+http://opensource.org/licenses/bsd-license.php
 
-Module Name:
-
-  MemoryFile.h
-
-Abstract:
-
-  Header file for helper functions useful for accessing files.
+THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,
+WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 
 **/
 
@@ -25,10 +18,6 @@ Abstract:
 #include <stdio.h>
 #include <stdlib.h>
 #include <Common/UefiBaseTypes.h>
-
-#ifndef _MAX_PATH
-#define _MAX_PATH 500
-#endif
 
 //
 // Common data structures

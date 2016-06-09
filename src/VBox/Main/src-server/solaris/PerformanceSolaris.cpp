@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2008-2013 Oracle Corporation
+ * Copyright (C) 2008-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -305,7 +305,11 @@ int CollectorSolaris::getProcessMemoryUsage(RTPROCESS process, ULONG *used)
 
     if (h != -1)
     {
-        if (read(h, &psinfo, sizeof(psinfo)) == sizeof(psinfo))
+        /* psinfo_t keeps growing, so only read what we need to maximize
+         * cross-version compatibility. The structures are compatible. */
+        ssize_t cb = RT_OFFSETOF(psinfo_t, pr_rssize) + RT_SIZEOFMEMB(psinfo_t, pr_rssize);
+        AssertCompile(RTASSERT_OFFSET_OF(psinfo_t, pr_rssize) > RTASSERT_OFFSET_OF(psinfo_t, pr_pid));
+        if (read(h, &psinfo, cb) == cb)
         {
             Assert((pid_t)process == psinfo.pr_pid);
             *used = psinfo.pr_rssize;
@@ -397,7 +401,14 @@ int CollectorSolaris::getRawHostNetworkLoad(const char *name, uint64_t *rx, uint
             ksAdapter = kstat_lookup(mKC, szModule, uInstance, (char *)name);
             if (ksAdapter == 0)
             {
-                LogRel(("Failed to get network statistics for %s\n", name));
+                static uint32_t s_tsLogRelLast;
+                uint32_t tsNow = RTTimeProgramSecTS();
+                if (   tsNow < RT_SEC_1HOUR
+                    || (tsNow - s_tsLogRelLast >= 60))
+                {
+                    s_tsLogRelLast = tsNow;
+                    LogRel(("Failed to get network statistics for %s. Max one msg/min.\n", name));
+                }
                 return VERR_INTERNAL_ERROR;
             }
         }

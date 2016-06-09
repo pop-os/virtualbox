@@ -1,14 +1,14 @@
 /** @file
   The file provides services to manipulate string data.
-  
+
 Copyright (c) 2006 - 2011, Intel Corporation. All rights reserved.<BR>
-This program and the accompanying materials are licensed and made available under 
-the terms and conditions of the BSD License that accompanies this distribution.  
+This program and the accompanying materials are licensed and made available under
+the terms and conditions of the BSD License that accompanies this distribution.
 The full text of the license may be found at
-http://opensource.org/licenses/bsd-license.php.                                          
-    
-THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,                     
-WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.             
+http://opensource.org/licenses/bsd-license.php.
+
+THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,
+WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 
 **/
 
@@ -25,8 +25,8 @@ typedef struct _EFI_HII_STRING_PROTOCOL EFI_HII_STRING_PROTOCOL;
 /**
   This function adds the string String to the group of strings owned by PackageList, with the
   specified font information StringFontInfo, and returns a new string id.
-  The new string identifier is guaranteed to be unique within the package list. 
-  That new string identifier is reserved for all languages in the package list. 
+  The new string identifier is guaranteed to be unique within the package list.
+  That new string identifier is reserved for all languages in the package list.
 
   @param  This                   A pointer to the EFI_HII_STRING_PROTOCOL instance.
   @param  PackageList            The handle of the package list where this string will
@@ -61,7 +61,7 @@ EFI_STATUS
   IN        EFI_HII_HANDLE            PackageList,
   OUT       EFI_STRING_ID             *StringId,
   IN CONST  CHAR8                     *Language,
-  IN  CONST CHAR16                    *LanguageName, OPTIONAL  
+  IN  CONST CHAR16                    *LanguageName, OPTIONAL
   IN CONST  EFI_STRING                String,
   IN CONST  EFI_FONT_INFO             *StringFontInfo OPTIONAL
 );
@@ -88,14 +88,16 @@ EFI_STATUS
 
   @retval EFI_SUCCESS            The string was returned successfully.
   @retval EFI_NOT_FOUND          The string specified by StringId is not available.
-  @retval EFI_NOT_FOUND          The string specified by StringId is available but
-                                 not in the specified language.
                                  The specified PackageList is not in the database.
+  @retval EFI_INVALID_LANGUAGE    The string specified by StringId is available but
+                                  not in the specified language.
   @retval EFI_BUFFER_TOO_SMALL   The buffer specified by StringSize is too small to
                                  hold the string.
-  @retval EFI_INVALID_PARAMETER  The String or Language or StringSize was NULL.
-  @retval EFI_OUT_OF_RESOURCES   There were insufficient resources to complete the
-                                 request.
+  @retval EFI_INVALID_PARAMETER   The Language or StringSize was NULL.
+  @retval EFI_INVALID_PARAMETER   The value referenced by StringSize was not zero and
+                                  String was NULL.
+  @retval EFI_OUT_OF_RESOURCES    There were insufficient resources to complete the
+                                  request.
 
 **/
 typedef
@@ -157,7 +159,9 @@ EFI_STATUS
                                  the length of Languages, in bytes.
 
   @retval EFI_SUCCESS            The languages were returned successfully.
-  @retval EFI_INVALID_PARAMETER  The Languages or LanguagesSize was NULL.
+  @retval EFI_INVALID_PARAMETER  The LanguagesSize was NULL.
+  @retval EFI_INVALID_PARAMETER  The value referenced by LanguagesSize is not zero
+                                 and Languages is NULL.
   @retval EFI_BUFFER_TOO_SMALL   The LanguagesSize is too small to hold the list of
                                  supported languages. LanguageSize is updated to
                                  contain the required size.
@@ -196,15 +200,16 @@ EFI_STATUS
                                  points to the length of SecondaryLanguages in bytes.
 
   @retval EFI_SUCCESS            Secondary languages were correctly returned.
-  @retval EFI_INVALID_PARAMETER  PrimaryLanguage or SecondaryLanguages or
-                                 SecondaryLanguagesSize was NULL.
+  @retval EFI_INVALID_PARAMETER  PrimaryLanguage or SecondaryLanguagesSize was NULL.
+  @retval EFI_INVALID_PARAMETER  The value referenced by SecondaryLanguagesSize is not
+                                 zero and SecondaryLanguages is NULL.
   @retval EFI_BUFFER_TOO_SMALL   The buffer specified by SecondaryLanguagesSize is
                                  too small to hold the returned information.
                                  SecondaryLanguageSize is updated to hold the size of
                                  the buffer required.
   @retval EFI_INVALID_LANGUAGE   The language specified by PrimaryLanguage is not
                                  present in the specified package list.
-  @retval EFI_NOT_FOUND          The specified PackageList is not in the Database.                                
+  @retval EFI_NOT_FOUND          The specified PackageList is not in the Database.
 
 **/
 typedef

@@ -108,10 +108,10 @@
 -->
 <xsl:template match="if" mode="begin">
   <xsl:if test="@target='xpidl'">
-    <xsl:text>#if !defined(Q_WS_WIN32)&#x0A;</xsl:text>
+    <xsl:text>#if !defined(Q_WS_WIN)&#x0A;</xsl:text>
   </xsl:if>
   <xsl:if test="@target='midl'">
-    <xsl:text>#if defined(Q_WS_WIN32)&#x0A;</xsl:text>
+    <xsl:text>#if defined(Q_WS_WIN)&#x0A;</xsl:text>
   </xsl:if>
 </xsl:template>
 <xsl:template match="if" mode="end">
@@ -236,7 +236,7 @@
     <xsl:text> * Generated from XIDL (XML interface definition).&#x0A;</xsl:text>
     <xsl:text> *&#x0A;</xsl:text>
     <xsl:text> * Source    : src/VBox/Main/idl/VirtualBox.xidl&#x0A;</xsl:text>
-    <xsl:text> * Generator : src/VBox/Frontends/VirtualBox/include/COMWrappers.xsl&#x0A;</xsl:text>
+    <xsl:text> * Generator : src/VBox/Frontends/VirtualBox/src/globals/COMWrappers.xsl&#x0A;</xsl:text>
     <xsl:text> */&#x0A;&#x0A;</xsl:text>
     <xsl:text>/* VirtualBox interface declarations: */&#x0A;</xsl:text>
     <xsl:text>#ifndef VBOX_WITH_XPCOM&#x0A;</xsl:text>
@@ -280,7 +280,7 @@
     <xsl:text> * Generated from XIDL (XML interface definition).&#x0A;</xsl:text>
     <xsl:text> *&#x0A;</xsl:text>
     <xsl:text> * Source    : src/VBox/Main/idl/VirtualBox.xidl&#x0A;</xsl:text>
-    <xsl:text> * Generator : src/VBox/Frontends/VirtualBox/include/COMWrappers.xsl&#x0A;</xsl:text>
+    <xsl:text> * Generator : src/VBox/Frontends/VirtualBox/src/globals/COMWrappers.xsl&#x0A;</xsl:text>
     <xsl:text> */&#x0A;&#x0A;</xsl:text>
     <xsl:text>#ifndef __C</xsl:text>
     <xsl:value-of select="substring(@name,2)"/>
@@ -302,9 +302,9 @@
 
     <!-- Interface forward declaration: -->
     <xsl:text>/* Interface forward declaration: */&#x0A;</xsl:text>
-    <xsl:text>struct I</xsl:text>
+    <xsl:text>COM_STRUCT_OR_CLASS(I</xsl:text>
     <xsl:value-of select="substring(@name,2)"/>
-    <xsl:text>;&#x0A;&#x0A;</xsl:text>
+    <xsl:text>);&#x0A;&#x0A;</xsl:text>
 
     <!-- Interface wrapper declaration: -->
     <xsl:text>/* Interface wrapper declaration: */&#x0A;</xsl:text>

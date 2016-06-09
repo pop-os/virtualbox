@@ -143,7 +143,7 @@ VMM_INT_DECL(int)               HMInvalidatePage(PVMCPU pVCpu, RTGCPTR GCVirt);
 VMM_INT_DECL(bool)              HMHasPendingIrq(PVM pVM);
 VMM_INT_DECL(PX86PDPE)          HMGetPaePdpes(PVMCPU pVCpu);
 VMM_INT_DECL(int)               HMAmdIsSubjectToErratum170(uint32_t *pu32Family, uint32_t *pu32Model, uint32_t *pu32Stepping);
-VMM_INT_DECL(bool)              HMSetSingleInstruction(PVMCPU pVCpu, bool fEnable);
+VMM_INT_DECL(bool)              HMSetSingleInstruction(PVM pVM, PVMCPU pVCpu, bool fEnable);
 VMM_INT_DECL(void)              HMHypercallsEnable(PVMCPU pVCpu);
 VMM_INT_DECL(void)              HMHypercallsDisable(PVMCPU pVCpu);
 
@@ -180,8 +180,6 @@ VMMR0_INT_DECL(int)             HMR0EnterSwitcher(PVM pVM, VMMSWITCHER enmSwitch
 VMMR0_INT_DECL(void)            HMR0LeaveSwitcher(PVM pVM, bool fVTxDisabled);
 # endif
 
-VMMR0_INT_DECL(void)            HMR0SavePendingIOPortWrite(PVMCPU pVCpu, RTGCPTR GCPtrRip, RTGCPTR GCPtrRipNext,
-                                                           unsigned uPort, unsigned uAndVal, unsigned cbSize);
 VMMR0_INT_DECL(void)            HMR0SavePendingIOPortRead(PVMCPU pVCpu, RTGCPTR GCPtrRip, RTGCPTR GCPtrRipNext,
                                                           unsigned uPort, unsigned uAndVal, unsigned cbSize);
 VMMR0_INT_DECL(int)             HMR0SetupVM(PVM pVM);
@@ -190,6 +188,8 @@ VMMR0_INT_DECL(int)             HMR0Enter(PVM pVM, PVMCPU pVCpu);
 VMMR0_INT_DECL(int)             HMR0EnterCpu(PVMCPU pVCpu);
 VMMR0_INT_DECL(int)             HMR0LeaveCpu(PVMCPU pVCpu);
 VMMR0_INT_DECL(void)            HMR0ThreadCtxCallback(RTTHREADCTXEVENT enmEvent, void *pvUser);
+VMMR0_INT_DECL(void)            HMR0NotifyCpumUnloadedGuestFpuState(PVMCPU VCpu);
+VMMR0_INT_DECL(void)            HMR0NotifyCpumModifiedHostCr0(PVMCPU VCpu);
 VMMR0_INT_DECL(bool)            HMR0SuspendPending(void);
 
 # if HC_ARCH_BITS == 32 && defined(VBOX_WITH_64_BITS_GUESTS)
@@ -210,6 +210,8 @@ VMMR0_INT_DECL(int)             HMR0EnsureCompleteBasicContext(PVMCPU pVCpu, PCP
  */
 VMMR3DECL(bool)                 HMR3IsEnabled(PUVM pUVM);
 VMMR3DECL(bool)                 HMR3IsNestedPagingActive(PUVM pUVM);
+VMMR3DECL(bool)                 HMR3IsVirtApicRegsEnabled(PUVM pUVM);
+VMMR3DECL(bool)                 HMR3IsPostedIntrsEnabled(PUVM pUVM);
 VMMR3DECL(bool)                 HMR3IsVpidActive(PUVM pUVM);
 VMMR3DECL(bool)                 HMR3IsUXActive(PUVM pUVM);
 VMMR3DECL(bool)                 HMR3IsSvmEnabled(PUVM pUVM);
@@ -226,6 +228,8 @@ VMMR3_INT_DECL(void)            HMR3CheckError(PVM pVM, int iStatusCode);
 VMMR3DECL(bool)                 HMR3CanExecuteGuest(PVM pVM, PCPUMCTX pCtx);
 VMMR3_INT_DECL(void)            HMR3NotifyScheduled(PVMCPU pVCpu);
 VMMR3_INT_DECL(void)            HMR3NotifyEmulated(PVMCPU pVCpu);
+VMMR3_INT_DECL(void)            HMR3NotifyDebugEventChanged(PVM pVM);
+VMMR3_INT_DECL(void)            HMR3NotifyDebugEventChangedPerCpu(PVM pVM, PVMCPU pVCpu);
 VMMR3_INT_DECL(bool)            HMR3IsActive(PVMCPU pVCpu);
 VMMR3_INT_DECL(void)            HMR3PagingModeChanged(PVM pVM, PVMCPU pVCpu, PGMMODE enmShadowMode, PGMMODE enmGuestMode);
 VMMR3_INT_DECL(int)             HMR3EmulateIoBlock(PVM pVM, PCPUMCTX pCtx);

@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2008-2015 Oracle Corporation
+# Copyright (C) 2008-2016 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -59,7 +59,6 @@ endif
 VBoxSharedCrOpenGL_INTERMEDIATES = \
 	$(TEMPLATE_VBOXMAINEXE_INTERMEDIATES)
 VBoxSharedCrOpenGL_INCS.win = \
-	$(PATH_TOOL_$(VBOX_VCC_TOOL)_ATLMFC_INC) \
 	$(VBOX_PATH_SDK)/bindings/mscom/include
 ifdef VBOX_WITH_XPCOM
 VBoxSharedCrOpenGL_INCS += \
@@ -84,8 +83,7 @@ VBoxSharedCrOpenGL_LIBS.darwin = \
 	$(LIB_REM)
 ifeq ($(KBUILD_TARGET),win)
  VBoxSharedCrOpenGL_LIBS += \
-	$(PATH_OBJ)/VBoxOGLrenderspu/VBoxOGLrenderspu$(VBOX_SUFF_LIB) \
-	$(PATH_TOOL_$(VBOX_VCC_TOOL)_ATLMFC_LIB)/atls$(VBOX_SUFF_LIB)
+	$(PATH_OBJ)/VBoxOGLrenderspu/VBoxOGLrenderspu$(VBOX_SUFF_LIB)
 else
  VBoxSharedCrOpenGL_LIBS += \
 	$(PATH_STAGE_BIN)/VBoxOGLrenderspu$(VBOX_SUFF_DLL)
@@ -417,10 +415,14 @@ if (   defined(VBOX_WITH_QTGUI) \
     && !defined(VBOX_WITH_DEBUG_VCC_CRT))
  ifneq ($(KBUILD_TARGET),darwin)
   ifdef VBOX_WITH_VIDEOHWACCEL
-   USES += qt4
+   ifndef VBOX_WITH_QTGUI_V5
+    USES += qt4
+   else # VBOX_WITH_QTGUI_V5
+    USES += qt5
+   endif # VBOX_WITH_QTGUI_V5
   endif
   PROGRAMS += VBoxTestOGL
-  VBoxTestOGL_TEMPLATE = $(if $(VBOX_WITH_VIDEOHWACCEL),$(if $(VBOX_WITH_HARDENING),VBOXQT4GUI,VBOXQT4GUIEXE),VBOXMAINEXE)
+  VBoxTestOGL_TEMPLATE = $(if $(VBOX_WITH_VIDEOHWACCEL),$(if $(VBOX_WITH_HARDENING),VBOXQTGUI,VBOXQTGUIEXE),VBOXMAINEXE)
   VBoxTestOGL_SOURCES = OpenGLTest/OpenGLTestApp.cpp
   VBoxTestOGL_SOURCES.win = OpenGLTest/VBoxTestOGL.rc
   VBoxTestOGL_LIBS = \
@@ -436,6 +438,13 @@ if (   defined(VBOX_WITH_QTGUI) \
     $(if $(VBOX_BLEEDING_EDGE),VBOX_BLEEDING_EDGE=\"$(VBOX_BLEEDING_EDGE)\",)
   ifdef VBOX_WITH_VIDEOHWACCEL
    VBoxTestOGL_QT_MODULES     += Core Gui OpenGL
+   ifdef VBOX_WITH_QTGUI_V5
+    # Qt5 requires additional modules:
+    VBoxTestOGL_QT_MODULES += Widgets
+    VBoxTestOGL_LIBS.linux   += xcb
+    VBoxTestOGL_LIBS.solaris += xcb
+    VBoxTestOGL_LIBS.freebsd += xcb
+   endif # VBOX_WITH_QTGUI_V5
    VBoxTestOGL_LDFLAGS.darwin += -framework OpenGL
    VBoxTestOGL_LIBS.win       += $(PATH_SDK_$(VBOX_WINPSDK)_LIB)/Opengl32.lib
    if1of ($(KBUILD_TARGET), solaris linux freebsd)

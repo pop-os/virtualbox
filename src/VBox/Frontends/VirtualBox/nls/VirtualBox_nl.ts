@@ -77,16 +77,16 @@
         <translation>De VirtualBox kernelmodules passen niet bij deze versie van VirtualBox. De installatie van VirtualBox is kennelijk niet goed gelukt. Deïnstalleer VirtualBox eerst volledig en installeer VirtualBox daarna opnieuw.</translation>
     </message>
     <message>
-        <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;may correct this. Make sure that you do not mix the OSE version and the PUEL version of VirtualBox.</source>
-        <translation>De VirtualBox kernelmodules passen niet bij deze versie van VirtualBox. De installatie van VirtualBox is kennelijk niet goed gelukt. Uitvoeren van &lt;br/&gt;&lt;br/&gt;&lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt; zou dit kunnen corrigeren. Controleer of u de OSE versie en de PUEL versie van VirtualBox niet hebt vermengd.</translation>
+        <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;may correct this. Make sure that you do not mix the OSE version and the PUEL version of VirtualBox.</source>
+        <translation>De VirtualBox kernelmodules passen niet bij deze versie van VirtualBox. De installatie van VirtualBox is kennelijk niet goed gelukt. Uitvoeren van &lt;br/&gt;&lt;br/&gt;&lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt; zou dit kunnen corrigeren. Controleer of u de OSE versie en de PUEL versie van VirtualBox niet hebt vermengd.</translation>
     </message>
     <message>
         <source>This error means that the kernel driver was either not able to allocate enough memory or that some mapping operation failed.</source>
         <translation>Deze fout betekent dat de kerneldriver óf te weinig geheugen kan reserveren óf dat uitvoeren van mapping mislukt is.</translation>
     </message>
     <message>
-        <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. If it is available in your distribution, you should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
-        <translation>De VirtualBox Linux-kerneldriver (vboxdrv) is niet geladen of er is een permissie-probleem met /dev/vboxdrv. Herinstalleer de kernelmodule door &lt;br/&gt;&lt;/br&gt;..&lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos; &lt;/font&gt;&lt;br/&gt;&lt;br/&gt;als root uit te voeren. Indien in uw distributie aanwezig, installeer dan eerst het DKMS pakket. Dit pakket houdt Linux kernelveranderingen bij en hercompileert indien nodig de vboxdrv-kernelmodule.</translation>
+        <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. If it is available in your distribution, you should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
+        <translation>De VirtualBox Linux-kerneldriver (vboxdrv) is niet geladen of er is een permissie-probleem met /dev/vboxdrv. Herinstalleer de kernelmodule door &lt;br/&gt;&lt;/br&gt;..&lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos; &lt;/font&gt;&lt;br/&gt;&lt;br/&gt;als root uit te voeren. Indien in uw distributie aanwezig, installeer dan eerst het DKMS pakket. Dit pakket houdt Linux kernelveranderingen bij en hercompileert indien nodig de vboxdrv-kernelmodule.</translation>
     </message>
     <message>
         <source>Frame Size: %1x%2, Frame Rate: %3fps, Bit Rate: %4kbps</source>
@@ -962,7 +962,7 @@
     </message>
     <message>
         <source>&amp;Full-screen Mode</source>
-        <translation>&amp;Schermvullende modus</translation>
+        <translation>&amp;Sschermvullende modus</translation>
     </message>
     <message>
         <source>Switch between normal and full-screen mode</source>
@@ -4133,11 +4133,11 @@
     <name>UIGlobalSettingsProxy</name>
     <message>
         <source>When checked, VirtualBox will use the proxy settings supplied for tasks like downloading Guest Additions from the network or checking for updates.</source>
-        <translation type="obsolete">Als dit is ingesteld zal VirtualBox de proxy-instellingen gebruiken voor taken als downloaden van Guest Additions van het netwerk of controleren op updates.</translation>
+        <translation>Als dit is ingesteld zal VirtualBox de proxy-instellingen gebruiken voor taken als downloaden van Guest Additions van het netwerk of controleren op updates.</translation>
     </message>
     <message>
         <source>&amp;Enable Proxy</source>
-        <translation type="obsolete">Proxy insch&amp;akelen</translation>
+        <translation>Proxy insch&amp;akelen</translation>
     </message>
     <message>
         <source>Ho&amp;st:</source>
@@ -4194,30 +4194,6 @@
     <message>
         <source>Holds the proxy port.</source>
         <translation>Bevat de proxypoort.</translation>
-    </message>
-    <message>
-        <source>When chosen, VirtualBox will try to auto-detect host proxy settings for tasks like downloading Guest Additions from the network or checking for updates.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>&amp;Auto-detect Host Proxy Settings</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>When chosen, VirtualBox will use direct Internet connection for tasks like downloading Guest Additions from the network or checking for updates.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>&amp;Direct Connection to the Internet</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>When chosen, VirtualBox will use the proxy settings supplied for tasks like downloading Guest Additions from the network or checking for updates.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>&amp;Manual Proxy Configuration</source>
-        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -6212,8 +6188,7 @@
     </message>
     <message>
         <source>Remove disk from virtual drive</source>
-        <translatorcomment>zonder &apos;het&apos; ervoor is het &apos;virtueel station&apos; en niet &apos;virtuele station&apos;</translatorcomment>
-        <translation>Schijf van virtueel station verwijderen</translation>
+        <translation>Verwijder schijf van virtuele station</translation>
     </message>
     <message>
         <source>Choose a virtual floppy disk file...</source>
@@ -6421,7 +6396,7 @@
     </message>
     <message>
         <source>Remove Disk from Virtual Drive</source>
-        <translation>Schijf van virtueel station verwijderen</translation>
+        <translation>Verwijder schijf van virtuele station</translation>
     </message>
     <message>
         <source>Choose Virtual Floppy Disk File...</source>
@@ -8705,15 +8680,7 @@
     </message>
     <message>
         <source>Encryption password for &lt;nobr&gt;ID = &apos;%1&apos;&lt;/nobr&gt; is invalid.</source>
-        <translation>Ongeldig versleutelwachtwoord voor &lt;nobr&gt;ID = &apos;%1&apos;&lt;/nobr&gt;.</translation>
-    </message>
-    <message>
-        <source>The current port forwarding rules are not valid. All of the host or guest address values should be correct or empty.</source>
-        <translation>De huidige regels voor het doorverwijzen van poorten zijn niet geldig. Alle host- of gast-adreswaarden moeten of geldig, of leeg zijn.</translation>
-    </message>
-    <message>
-        <source>The current port forwarding rules are not valid. None of the guest address values may be empty.</source>
-        <translation>De huidige regels voor het doorverwijzen van poorten zijn niet geldig. Geen van de gast-adreswaarden mag leeg zijn..</translation>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -8894,46 +8861,6 @@
     <message>
         <source>Unknown reason</source>
         <translation>Reden onbekend</translation>
-    </message>
-    <message>
-        <source>%1: %2</source>
-        <comment>Context description: Error description</comment>
-        <translation>%1: %2</translation>
-    </message>
-    <message>
-        <source>Unable to initialize HTTP library</source>
-        <translation>Niet in staat de HTTP-bibliotheek te initialiseren</translation>
-    </message>
-    <message>
-        <source>Connection refused</source>
-        <translation>Verbinding geweigerd</translation>
-    </message>
-    <message>
-        <source>Content moved</source>
-        <translation>Inhoud verplaatst</translation>
-    </message>
-    <message>
-        <source>Proxy not found</source>
-        <translation>Proxy niet gevonden</translation>
-    </message>
-    <message>
-        <source>Url not found on the server</source>
-        <translation type="unfinished"></translation>
-    </message>
-</context>
-<context>
-    <name>UINetworkReplyPrivateThread</name>
-    <message>
-        <source>During proxy configuration</source>
-        <translation>Tijdens proxy configuratie</translation>
-    </message>
-    <message>
-        <source>During certificate downloading</source>
-        <translation>Tijdens downloaden certificaat</translation>
-    </message>
-    <message>
-        <source>During network request</source>
-        <translation>Tijdens netwerkverzoek</translation>
     </message>
 </context>
 <context>
@@ -10302,7 +10229,7 @@
     </message>
     <message>
         <source>Export Virtual Appliance</source>
-        <translation>Exporteer Virtual Appliance</translation>
+        <translation>Exporteer Virtual Applicance</translation>
     </message>
     <message>
         <source>Restore Defaults</source>
@@ -10322,7 +10249,7 @@
     </message>
     <message>
         <source>Appliance settings</source>
-        <translation>Instellingen Appliance</translation>
+        <translation>Instellingen Appiance</translation>
     </message>
     <message>
         <source>Please choose where to create the virtual appliance. You can create it on your own computer, on the Sun Cloud service or on an S3 storage server.</source>
@@ -10406,7 +10333,7 @@
     </message>
     <message>
         <source>Appliance &amp;settings</source>
-        <translation>In&amp;stellingen Appliance</translation>
+        <translation>In&amp;stellingen Appiance</translation>
     </message>
     <message>
         <source>&amp;Destination</source>
@@ -10538,7 +10465,7 @@
     </message>
     <message>
         <source>Appliance settings</source>
-        <translation>Instellingen Appliance</translation>
+        <translation>Instellingen Appiance</translation>
     </message>
     <message>
         <source>These are the virtual machines contained in the appliance and the suggested settings of the imported VirtualBox machines. You can change many of the properties shown by double-clicking on the items and disable others using the check boxes below.</source>
@@ -10546,7 +10473,7 @@
     </message>
     <message>
         <source>Import Virtual Appliance</source>
-        <translation>Importeer Virtual Appliance</translation>
+        <translation>Importeer Virtual Applicance</translation>
     </message>
     <message>
         <source>Choose a virtual appliance file to import...</source>
@@ -10817,7 +10744,7 @@
     </message>
 </context>
 <context>
-    <name>VBoxEmptyFileSelector</name>
+    <name>UIEmptyFilePathSelector</name>
     <message>
         <source>&amp;Choose...</source>
         <translation type="obsolete">&amp;Kiezen...</translation>
@@ -10828,7 +10755,7 @@
     </message>
 </context>
 <context>
-    <name>VBoxFilePathSelectorWidget</name>
+    <name>UIFilePathSelector</name>
     <message>
         <source>&lt;reset to default&gt;</source>
         <translation>&lt;standaard terugzetten&gt;</translation>

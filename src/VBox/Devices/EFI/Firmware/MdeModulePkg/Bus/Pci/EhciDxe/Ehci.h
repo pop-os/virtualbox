@@ -32,6 +32,7 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 #include <Library/BaseLib.h>
 #include <Library/MemoryAllocationLib.h>
 #include <Library/PcdLib.h>
+#include <Library/ReportStatusCodeLib.h>
 
 #include <IndustryStandard/Pci.h>
 
@@ -115,6 +116,7 @@ struct _USB2_HC_DEV {
   EFI_USB2_HC_PROTOCOL      Usb2Hc;
 
   EFI_PCI_IO_PROTOCOL       *PciIo;
+  EFI_DEVICE_PATH_PROTOCOL  *DevicePath;
   UINT64                    OriginalPciAttributes;
   USBHC_MEM_POOL            *MemPool;
 
@@ -131,7 +133,7 @@ struct _USB2_HC_DEV {
   EFI_EVENT                 PollTimer;
 
   //
-  // ExitBootServicesEvent is used to stop the EHC DMA operation 
+  // ExitBootServicesEvent is used to stop the EHC DMA operation
   // after exit boot service.
   //
   EFI_EVENT                 ExitBootServiceEvent;

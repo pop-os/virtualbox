@@ -113,7 +113,7 @@ char *strpbrk(const char *pszStr, const char *pszChars);
 RT_C_DECLS_END
 #endif
 
-#if !defined(RT_OS_LINUX) || !defined(_GNU_SOURCE)
+#if (!defined(RT_OS_LINUX) || !defined(_GNU_SOURCE)) && !defined(RT_OS_FREEBSD)
 RT_C_DECLS_BEGIN
 void *memrchr(const char *pv, int ch, size_t cb);
 RT_C_DECLS_END
@@ -2156,6 +2156,24 @@ RTDECL(int) RTStrICmp(const char *psz1, const char *psz2);
 RTDECL(int) RTStrNICmp(const char *psz1, const char *psz2, size_t cchMax);
 
 /**
+ * Checks whether @a pszString starts with @a pszStart.
+ *
+ * @returns true / false.
+ * @param   pszString   The string to check.
+ * @param   pszStart    The start string to check for.
+ */
+RTDECL(int) RTStrStartsWith(const char *pszString, const char *pszStart);
+
+/**
+ * Checks whether @a pszString starts with @a pszStart, case insensitive.
+ *
+ * @returns true / false.
+ * @param   pszString   The string to check.
+ * @param   pszStart    The start string to check for.
+ */
+RTDECL(int) RTStrIStartsWith(const char *pszString, const char *pszStart);
+
+/**
  * Locates a case sensitive substring.
  *
  * If any of the two strings are NULL, then NULL is returned. If the needle is
@@ -2809,17 +2827,21 @@ RTDECL(int8_t) RTStrToInt8(const char *pszValue);
  * @retval  VERR_BUFFER_OVERFLOW if the buffer is insufficent to hold the bytes.
  *
  * @param   pszBuf      Output string buffer.
- * @param   cchBuf      The size of the output buffer.
+ * @param   cbBuf       The size of the output buffer.
  * @param   pv          Pointer to the bytes to stringify.
  * @param   cb          The number of bytes to stringify.
  * @param   fFlags      Combination of RTSTRPRINTHEXBYTES_F_XXX values.
  * @sa      RTUtf16PrintHexBytes.
  */
-RTDECL(int) RTStrPrintHexBytes(char *pszBuf, size_t cchBuf, void const *pv, size_t cb, uint32_t fFlags);
+RTDECL(int) RTStrPrintHexBytes(char *pszBuf, size_t cbBuf, void const *pv, size_t cb, uint32_t fFlags);
 /** @name RTSTRPRINTHEXBYTES_F_XXX - flags for RTStrPrintHexBytes and RTUtf16PritnHexBytes.
  * @{ */
 /** Upper case hex digits, the default is lower case. */
 #define RTSTRPRINTHEXBYTES_F_UPPER      RT_BIT(0)
+/** Add a space between each group. */
+#define RTSTRPRINTHEXBYTES_F_SEP_SPACE  RT_BIT(1)
+/** Add a colon between each group. */
+#define RTSTRPRINTHEXBYTES_F_SEP_COLON  RT_BIT(2)
 /** @} */
 
 /**

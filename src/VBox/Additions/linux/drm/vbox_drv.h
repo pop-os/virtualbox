@@ -266,7 +266,7 @@ extern int vbox_dumb_mmap_offset(struct drm_file *file,
                 uint32_t handle,
                 uint64_t *offset);
 
-#define DRM_FILE_PAGE_OFFSET (0x100000000ULL >> PAGE_SHIFT)
+#define DRM_FILE_PAGE_OFFSET (0x10000000ULL >> PAGE_SHIFT)
 
 int vbox_mm_init(struct vbox_private *vbox);
 void vbox_mm_fini(struct vbox_private *vbox);
@@ -285,7 +285,11 @@ static inline int vbox_bo_reserve(struct vbox_bo *bo, bool no_wait)
 {
     int ret;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0) 
+    ret = ttm_bo_reserve(&bo->bo, true, no_wait, NULL);
+#else
     ret = ttm_bo_reserve(&bo->bo, true, no_wait, false, 0);
+#endif
     if (ret)
     {
         if (ret != -ERESTARTSYS && ret != -EBUSY)

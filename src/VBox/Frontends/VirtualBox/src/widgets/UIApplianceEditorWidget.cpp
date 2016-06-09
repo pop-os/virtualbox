@@ -396,13 +396,13 @@ QWidget *HardwareItem::createEditor(QWidget *pParent, const QStyleOptionViewItem
                 /* Fill the background with the highlight color in the case
                  * the button hasn't a rectangle shape. This prevents the
                  * display of parts from the current text on the Mac. */
-#ifdef QT_MAC_USE_COCOA
+#ifdef VBOX_WS_MAC
                 /* Use the palette from the tree view, not the one from the
                  * editor. */
                 QPalette p = e->palette();
                 p.setBrush(QPalette::Highlight, pParent->palette().brush(QPalette::Highlight));
                 e->setPalette(p);
-#endif /* QT_MAC_USE_COCOA */
+#endif /* VBOX_WS_MAC */
                 e->setAutoFillBackground(true);
                 e->setBackgroundRole(QPalette::Highlight);
                 editor = e;
@@ -478,8 +478,8 @@ QWidget *HardwareItem::createEditor(QWidget *pParent, const QStyleOptionViewItem
             case KVirtualSystemDescriptionType_HardDiskImage:
             {
                 /* disabled for now
-                   VBoxFilePathSelectorWidget *e = new VBoxFilePathSelectorWidget(pParent);
-                   e->setMode(VBoxFilePathSelectorWidget::Mode_File);
+                   UIFilePathSelector *e = new UIFilePathSelector(pParent);
+                   e->setMode(UIFilePathSelector::Mode_File);
                    e->setResetEnabled(false);
                    */
                 QLineEdit *e = new QLineEdit(pParent);
@@ -566,7 +566,7 @@ bool HardwareItem::setEditorData(QWidget *pEditor, const QModelIndex & /* idx */
         case KVirtualSystemDescriptionType_HardDiskImage:
         {
             /* disabled for now
-               if (VBoxFilePathSelectorWidget *e = qobject_cast<VBoxFilePathSelectorWidget*>(pEditor))
+               if (UIFilePathSelector *e = qobject_cast<UIFilePathSelector*>(pEditor))
                {
                e->setPath(m_strConfigValue);
                }
@@ -699,7 +699,7 @@ bool HardwareItem::setModelData(QWidget *pEditor, QAbstractItemModel *pModel, co
         case KVirtualSystemDescriptionType_HardDiskImage:
         {
             /* disabled for now
-               if (VBoxFilePathSelectorWidget *e = qobject_cast<VBoxFilePathSelectorWidget*>(pEditor))
+               if (UIFilePathSelector *e = qobject_cast<UIFilePathSelector*>(pEditor))
                {
                m_strConfigValue = e->path();
                }
@@ -998,7 +998,7 @@ void VirtualSystemDelegate::updateEditorGeometry(QWidget *pEditor, const QStyleO
         pEditor->setGeometry(styleOption.rect);
 }
 
-#ifdef QT_MAC_USE_COCOA
+#ifdef VBOX_WS_MAC
 bool VirtualSystemDelegate::eventFilter(QObject *pObject, QEvent *pEvent)
 {
     if (pEvent->type() == QEvent::FocusOut)
@@ -1017,7 +1017,7 @@ bool VirtualSystemDelegate::eventFilter(QObject *pObject, QEvent *pEvent)
 
     return QItemDelegate::eventFilter(pObject, pEvent);
 }
-#endif /* QT_MAC_USE_COCOA */
+#endif /* VBOX_WS_MAC */
 
 ////////////////////////////////////////////////////////////////////////////////
 // VirtualSystemSortProxyModel
@@ -1126,7 +1126,11 @@ UIApplianceEditorWidget::UIApplianceEditorWidget(QWidget *pParent /* = NULL */)
     m_pTvSettings->setAlternatingRowColors(true);
     m_pTvSettings->setAllColumnsShowFocus(true);
     m_pTvSettings->header()->setStretchLastSection(true);
+#if QT_VERSION >= 0x050000
+    m_pTvSettings->header()->setSectionResizeMode(QHeaderView::ResizeToContents);
+#else /* QT_VERSION < 0x050000 */
     m_pTvSettings->header()->setResizeMode(QHeaderView::ResizeToContents);
+#endif /* QT_VERSION < 0x050000 */
 
     /* Hidden by default */
     m_pReinitMACsCheckBox->setHidden(true);

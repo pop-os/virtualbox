@@ -15,6 +15,22 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+/** @page pg_hm     HM - Hardware Assisted Virtualization Manager
+ *
+ * The HM manages guest execution using the VT-x and AMD-V CPU hardware
+ * extensions.
+ *
+ * {summary of what HM does}
+ *
+ * Hardware assisted virtualization manager was originally abbreviated HWACCM,
+ * however that was cumbersome to write and parse for such a central component,
+ * so it was shortened to HM when refactoring the code in the 4.3 development
+ * cycle.
+ *
+ * {add sections with more details}
+ *
+ * @sa @ref grp_hm
+ */
 
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
@@ -54,229 +70,262 @@
 /*********************************************************************************************************************************
 *   Global Variables                                                                                                             *
 *********************************************************************************************************************************/
-#ifdef VBOX_WITH_STATISTICS
-# define EXIT_REASON(def, val, str) #def " - " #val " - " str
-# define EXIT_REASON_NIL() NULL
+#define EXIT_REASON(def, val, str) #def " - " #val " - " str
+#define EXIT_REASON_NIL() NULL
 /** Exit reason descriptions for VT-x, used to describe statistics. */
 static const char * const g_apszVTxExitReasons[MAX_EXITREASON_STAT] =
 {
-    EXIT_REASON(VMX_EXIT_XCPT_OR_NMI        ,  0, "Exception or non-maskable interrupt (NMI)."),
-    EXIT_REASON(VMX_EXIT_EXT_INT            ,  1, "External interrupt."),
-    EXIT_REASON(VMX_EXIT_TRIPLE_FAULT       ,  2, "Triple fault."),
-    EXIT_REASON(VMX_EXIT_INIT_SIGNAL        ,  3, "INIT signal."),
-    EXIT_REASON(VMX_EXIT_SIPI               ,  4, "Start-up IPI (SIPI)."),
-    EXIT_REASON(VMX_EXIT_IO_SMI_IRQ         ,  5, "I/O system-management interrupt (SMI)."),
-    EXIT_REASON(VMX_EXIT_SMI_IRQ            ,  6, "Other SMI."),
-    EXIT_REASON(VMX_EXIT_INT_WINDOW         ,  7, "Interrupt window."),
-    EXIT_REASON(VMX_EXIT_NMI_WINDOW         ,  8, "NMI window."),
-    EXIT_REASON(VMX_EXIT_TASK_SWITCH        ,  9, "Task switch."),
-    EXIT_REASON(VMX_EXIT_CPUID              , 10, "CPUID instruction."),
+    EXIT_REASON(VMX_EXIT_XCPT_OR_NMI            ,   0, "Exception or non-maskable interrupt (NMI)."),
+    EXIT_REASON(VMX_EXIT_EXT_INT                ,   1, "External interrupt."),
+    EXIT_REASON(VMX_EXIT_TRIPLE_FAULT           ,   2, "Triple fault."),
+    EXIT_REASON(VMX_EXIT_INIT_SIGNAL            ,   3, "INIT signal."),
+    EXIT_REASON(VMX_EXIT_SIPI                   ,   4, "Start-up IPI (SIPI)."),
+    EXIT_REASON(VMX_EXIT_IO_SMI_IRQ             ,   5, "I/O system-management interrupt (SMI)."),
+    EXIT_REASON(VMX_EXIT_SMI_IRQ                ,   6, "Other SMI."),
+    EXIT_REASON(VMX_EXIT_INT_WINDOW             ,   7, "Interrupt window."),
+    EXIT_REASON(VMX_EXIT_NMI_WINDOW             ,   8, "NMI window."),
+    EXIT_REASON(VMX_EXIT_TASK_SWITCH            ,   9, "Task switch."),
+    EXIT_REASON(VMX_EXIT_CPUID                  ,  10, "CPUID instruction."),
     EXIT_REASON_NIL(),
-    EXIT_REASON(VMX_EXIT_HLT                , 12, "HLT instruction."),
-    EXIT_REASON(VMX_EXIT_INVD               , 13, "INVD instruction."),
-    EXIT_REASON(VMX_EXIT_INVLPG             , 14, "INVLPG instruction."),
-    EXIT_REASON(VMX_EXIT_RDPMC              , 15, "RDPMCinstruction."),
-    EXIT_REASON(VMX_EXIT_RDTSC              , 16, "RDTSC instruction."),
-    EXIT_REASON(VMX_EXIT_RSM                , 17, "RSM instruction in SMM."),
-    EXIT_REASON(VMX_EXIT_VMCALL             , 18, "VMCALL instruction."),
-    EXIT_REASON(VMX_EXIT_VMCLEAR            , 19, "VMCLEAR instruction."),
-    EXIT_REASON(VMX_EXIT_VMLAUNCH           , 20, "VMLAUNCH instruction."),
-    EXIT_REASON(VMX_EXIT_VMPTRLD            , 21, "VMPTRLD instruction."),
-    EXIT_REASON(VMX_EXIT_VMPTRST            , 22, "VMPTRST instruction."),
-    EXIT_REASON(VMX_EXIT_VMREAD             , 23, "VMREAD instruction."),
-    EXIT_REASON(VMX_EXIT_VMRESUME           , 24, "VMRESUME instruction."),
-    EXIT_REASON(VMX_EXIT_VMWRITE            , 25, "VMWRITE instruction."),
-    EXIT_REASON(VMX_EXIT_VMXOFF             , 26, "VMXOFF instruction."),
-    EXIT_REASON(VMX_EXIT_VMXON              , 27, "VMXON instruction."),
-    EXIT_REASON(VMX_EXIT_MOV_CRX            , 28, "Control-register accesses."),
-    EXIT_REASON(VMX_EXIT_MOV_DRX            , 29, "Debug-register accesses."),
-    EXIT_REASON(VMX_EXIT_PORT_IO            , 30, "I/O instruction."),
-    EXIT_REASON(VMX_EXIT_RDMSR              , 31, "RDMSR instruction."),
-    EXIT_REASON(VMX_EXIT_WRMSR              , 32, "WRMSR instruction."),
+    EXIT_REASON(VMX_EXIT_HLT                    ,  12, "HLT instruction."),
+    EXIT_REASON(VMX_EXIT_INVD                   ,  13, "INVD instruction."),
+    EXIT_REASON(VMX_EXIT_INVLPG                 ,  14, "INVLPG instruction."),
+    EXIT_REASON(VMX_EXIT_RDPMC                  ,  15, "RDPMCinstruction."),
+    EXIT_REASON(VMX_EXIT_RDTSC                  ,  16, "RDTSC instruction."),
+    EXIT_REASON(VMX_EXIT_RSM                    ,  17, "RSM instruction in SMM."),
+    EXIT_REASON(VMX_EXIT_VMCALL                 ,  18, "VMCALL instruction."),
+    EXIT_REASON(VMX_EXIT_VMCLEAR                ,  19, "VMCLEAR instruction."),
+    EXIT_REASON(VMX_EXIT_VMLAUNCH               ,  20, "VMLAUNCH instruction."),
+    EXIT_REASON(VMX_EXIT_VMPTRLD                ,  21, "VMPTRLD instruction."),
+    EXIT_REASON(VMX_EXIT_VMPTRST                ,  22, "VMPTRST instruction."),
+    EXIT_REASON(VMX_EXIT_VMREAD                 ,  23, "VMREAD instruction."),
+    EXIT_REASON(VMX_EXIT_VMRESUME               ,  24, "VMRESUME instruction."),
+    EXIT_REASON(VMX_EXIT_VMWRITE                ,  25, "VMWRITE instruction."),
+    EXIT_REASON(VMX_EXIT_VMXOFF                 ,  26, "VMXOFF instruction."),
+    EXIT_REASON(VMX_EXIT_VMXON                  ,  27, "VMXON instruction."),
+    EXIT_REASON(VMX_EXIT_MOV_CRX                ,  28, "Control-register accesses."),
+    EXIT_REASON(VMX_EXIT_MOV_DRX                ,  29, "Debug-register accesses."),
+    EXIT_REASON(VMX_EXIT_PORT_IO                ,  30, "I/O instruction."),
+    EXIT_REASON(VMX_EXIT_RDMSR                  ,  31, "RDMSR instruction."),
+    EXIT_REASON(VMX_EXIT_WRMSR                  ,  32, "WRMSR instruction."),
     EXIT_REASON(VMX_EXIT_ERR_INVALID_GUEST_STATE,  33, "VM-entry failure due to invalid guest state."),
-    EXIT_REASON(VMX_EXIT_ERR_MSR_LOAD       , 34, "VM-entry failure due to MSR loading."),
+    EXIT_REASON(VMX_EXIT_ERR_MSR_LOAD           ,  34, "VM-entry failure due to MSR loading."),
+    EXIT_REASON(VMX_EXIT_MWAIT                  ,  36, "MWAIT instruction."),
+    EXIT_REASON(VMX_EXIT_MTF                    ,  37, "Monitor Trap Flag."),
+    EXIT_REASON(VMX_EXIT_MONITOR                ,  39, "MONITOR instruction."),
+    EXIT_REASON(VMX_EXIT_PAUSE                  ,  40, "PAUSE instruction."),
+    EXIT_REASON(VMX_EXIT_ERR_MACHINE_CHECK      ,  41, "VM-entry failure due to machine-check."),
     EXIT_REASON_NIL(),
-    EXIT_REASON(VMX_EXIT_MWAIT              , 36, "MWAIT instruction."),
-    EXIT_REASON(VMX_EXIT_MTF                , 37, "Monitor Trap Flag."),
+    EXIT_REASON(VMX_EXIT_TPR_BELOW_THRESHOLD    ,  43, "TPR below threshold (MOV to CR8)."),
+    EXIT_REASON(VMX_EXIT_APIC_ACCESS            ,  44, "APIC access."),
+    EXIT_REASON(VMX_EXIT_XDTR_ACCESS            ,  46, "Access to GDTR or IDTR using LGDT, LIDT, SGDT, or SIDT."),
+    EXIT_REASON(VMX_EXIT_TR_ACCESS              ,  47, "Access to LDTR or TR using LLDT, LTR, SLDT, or STR."),
+    EXIT_REASON(VMX_EXIT_EPT_VIOLATION          ,  48, "EPT violation."),
+    EXIT_REASON(VMX_EXIT_EPT_MISCONFIG          ,  49, "EPT misconfiguration."),
+    EXIT_REASON(VMX_EXIT_INVEPT                 ,  50, "INVEPT instruction."),
+    EXIT_REASON(VMX_EXIT_RDTSCP                 ,  51, "RDTSCP instruction."),
+    EXIT_REASON(VMX_EXIT_PREEMPT_TIMER          ,  52, "VMX-preemption timer expired."),
+    EXIT_REASON(VMX_EXIT_INVVPID                ,  53, "INVVPID instruction."),
+    EXIT_REASON(VMX_EXIT_WBINVD                 ,  54, "WBINVD instruction."),
+    EXIT_REASON(VMX_EXIT_XSETBV                 ,  55, "XSETBV instruction."),
+    EXIT_REASON(VMX_EXIT_RDRAND                 ,  57, "RDRAND instruction."),
+    EXIT_REASON(VMX_EXIT_INVPCID                ,  58, "INVPCID instruction."),
+    EXIT_REASON(VMX_EXIT_VMFUNC                 ,  59, "VMFUNC instruction."),
     EXIT_REASON_NIL(),
-    EXIT_REASON(VMX_EXIT_MONITOR            , 39, "MONITOR instruction."),
-    EXIT_REASON(VMX_EXIT_PAUSE              , 40, "PAUSE instruction."),
-    EXIT_REASON(VMX_EXIT_ERR_MACHINE_CHECK  , 41, "VM-entry failure due to machine-check."),
+    EXIT_REASON(VMX_EXIT_RDSEED                 ,  61, "RDSEED instruction."),
     EXIT_REASON_NIL(),
-    EXIT_REASON(VMX_EXIT_TPR_BELOW_THRESHOLD, 43, "TPR below threshold (MOV to CR8)."),
-    EXIT_REASON(VMX_EXIT_APIC_ACCESS        , 44, "APIC access."),
-    EXIT_REASON_NIL(),
-    EXIT_REASON(VMX_EXIT_XDTR_ACCESS        , 46, "Access to GDTR or IDTR using LGDT, LIDT, SGDT, or SIDT."),
-    EXIT_REASON(VMX_EXIT_TR_ACCESS          , 47, "Access to LDTR or TR using LLDT, LTR, SLDT, or STR."),
-    EXIT_REASON(VMX_EXIT_EPT_VIOLATION      , 48, "EPT violation."),
-    EXIT_REASON(VMX_EXIT_EPT_MISCONFIG      , 49, "EPT misconfiguration."),
-    EXIT_REASON(VMX_EXIT_INVEPT             , 50, "INVEPT instruction."),
-    EXIT_REASON(VMX_EXIT_RDTSCP             , 51, "RDTSCP instruction."),
-    EXIT_REASON(VMX_EXIT_PREEMPT_TIMER      , 52, "VMX-preemption timer expired."),
-    EXIT_REASON(VMX_EXIT_INVVPID            , 53, "INVVPID instruction."),
-    EXIT_REASON(VMX_EXIT_WBINVD             , 54, "WBINVD instruction."),
-    EXIT_REASON(VMX_EXIT_XSETBV             , 55, "XSETBV instruction."),
-    EXIT_REASON_NIL(),
-    EXIT_REASON(VMX_EXIT_RDRAND             , 57, "RDRAND instruction."),
-    EXIT_REASON(VMX_EXIT_INVPCID            , 58, "INVPCID instruction."),
-    EXIT_REASON(VMX_EXIT_VMFUNC             , 59, "VMFUNC instruction."),
-    EXIT_REASON_NIL(),
-    EXIT_REASON(VMX_EXIT_RDSEED             , 61, "RDSEED instruction."),
-    EXIT_REASON_NIL(),
-    EXIT_REASON(VMX_EXIT_XSAVES             , 61, "XSAVES instruction."),
-    EXIT_REASON(VMX_EXIT_XRSTORS            , 62, "XRSTORS instruction.")
+    EXIT_REASON(VMX_EXIT_XSAVES                 ,  63, "XSAVES instruction."),
+    EXIT_REASON(VMX_EXIT_XRSTORS                ,  64, "XRSTORS instruction.")
 };
-/** Exit reason descriptions for AMD-V, used to describe statistics. */
+/** Array index of the last valid VT-x exit reason. */
+#define MAX_EXITREASON_VTX                         64
+
+/** A partial list of Exit reason descriptions for AMD-V, used to describe
+ *  statistics.
+ *
+ *  @note AMD-V have annoyingly large gaps (e.g. \#NPF VMEXIT comes at 1024),
+ *        this array doesn't contain the entire set of exit reasons, we
+ *        handle them via hmSvmGetSpecialExitReasonDesc(). */
 static const char * const g_apszAmdVExitReasons[MAX_EXITREASON_STAT] =
 {
-    EXIT_REASON(SVM_EXIT_READ_CR0           ,  0, "Read CR0."),
-    EXIT_REASON(SVM_EXIT_READ_CR1           ,  1, "Read CR1."),
-    EXIT_REASON(SVM_EXIT_READ_CR2           ,  2, "Read CR2."),
-    EXIT_REASON(SVM_EXIT_READ_CR3           ,  3, "Read CR3."),
-    EXIT_REASON(SVM_EXIT_READ_CR4           ,  4, "Read CR4."),
-    EXIT_REASON(SVM_EXIT_READ_CR5           ,  5, "Read CR5."),
-    EXIT_REASON(SVM_EXIT_READ_CR6           ,  6, "Read CR6."),
-    EXIT_REASON(SVM_EXIT_READ_CR7           ,  7, "Read CR7."),
-    EXIT_REASON(SVM_EXIT_READ_CR8           ,  8, "Read CR8."),
-    EXIT_REASON(SVM_EXIT_READ_CR9           ,  9, "Read CR9."),
-    EXIT_REASON(SVM_EXIT_READ_CR10          , 10, "Read CR10."),
-    EXIT_REASON(SVM_EXIT_READ_CR11          , 11, "Read CR11."),
-    EXIT_REASON(SVM_EXIT_READ_CR12          , 12, "Read CR12."),
-    EXIT_REASON(SVM_EXIT_READ_CR13          , 13, "Read CR13."),
-    EXIT_REASON(SVM_EXIT_READ_CR14          , 14, "Read CR14."),
-    EXIT_REASON(SVM_EXIT_READ_CR15          , 15, "Read CR15."),
-    EXIT_REASON(SVM_EXIT_WRITE_CR0          , 16, "Write CR0."),
-    EXIT_REASON(SVM_EXIT_WRITE_CR1          , 17, "Write CR1."),
-    EXIT_REASON(SVM_EXIT_WRITE_CR2          , 18, "Write CR2."),
-    EXIT_REASON(SVM_EXIT_WRITE_CR3          , 19, "Write CR3."),
-    EXIT_REASON(SVM_EXIT_WRITE_CR4          , 20, "Write CR4."),
-    EXIT_REASON(SVM_EXIT_WRITE_CR5          , 21, "Write CR5."),
-    EXIT_REASON(SVM_EXIT_WRITE_CR6          , 22, "Write CR6."),
-    EXIT_REASON(SVM_EXIT_WRITE_CR7          , 23, "Write CR7."),
-    EXIT_REASON(SVM_EXIT_WRITE_CR8          , 24, "Write CR8."),
-    EXIT_REASON(SVM_EXIT_WRITE_CR9          , 25, "Write CR9."),
-    EXIT_REASON(SVM_EXIT_WRITE_CR10         , 26, "Write CR10."),
-    EXIT_REASON(SVM_EXIT_WRITE_CR11         , 27, "Write CR11."),
-    EXIT_REASON(SVM_EXIT_WRITE_CR12         , 28, "Write CR12."),
-    EXIT_REASON(SVM_EXIT_WRITE_CR13         , 29, "Write CR13."),
-    EXIT_REASON(SVM_EXIT_WRITE_CR14         , 30, "Write CR14."),
-    EXIT_REASON(SVM_EXIT_WRITE_CR15         , 31, "Write CR15."),
-    EXIT_REASON(SVM_EXIT_READ_DR0           , 32, "Read DR0."),
-    EXIT_REASON(SVM_EXIT_READ_DR1           , 33, "Read DR1."),
-    EXIT_REASON(SVM_EXIT_READ_DR2           , 34, "Read DR2."),
-    EXIT_REASON(SVM_EXIT_READ_DR3           , 35, "Read DR3."),
-    EXIT_REASON(SVM_EXIT_READ_DR4           , 36, "Read DR4."),
-    EXIT_REASON(SVM_EXIT_READ_DR5           , 37, "Read DR5."),
-    EXIT_REASON(SVM_EXIT_READ_DR6           , 38, "Read DR6."),
-    EXIT_REASON(SVM_EXIT_READ_DR7           , 39, "Read DR7."),
-    EXIT_REASON(SVM_EXIT_READ_DR8           , 40, "Read DR8."),
-    EXIT_REASON(SVM_EXIT_READ_DR9           , 41, "Read DR9."),
-    EXIT_REASON(SVM_EXIT_READ_DR10          , 42, "Read DR10."),
-    EXIT_REASON(SVM_EXIT_READ_DR11          , 43, "Read DR11"),
-    EXIT_REASON(SVM_EXIT_READ_DR12          , 44, "Read DR12."),
-    EXIT_REASON(SVM_EXIT_READ_DR13          , 45, "Read DR13."),
-    EXIT_REASON(SVM_EXIT_READ_DR14          , 46, "Read DR14."),
-    EXIT_REASON(SVM_EXIT_READ_DR15          , 47, "Read DR15."),
-    EXIT_REASON(SVM_EXIT_WRITE_DR0          , 48, "Write DR0."),
-    EXIT_REASON(SVM_EXIT_WRITE_DR1          , 49, "Write DR1."),
-    EXIT_REASON(SVM_EXIT_WRITE_DR2          , 50, "Write DR2."),
-    EXIT_REASON(SVM_EXIT_WRITE_DR3          , 51, "Write DR3."),
-    EXIT_REASON(SVM_EXIT_WRITE_DR4          , 52, "Write DR4."),
-    EXIT_REASON(SVM_EXIT_WRITE_DR5          , 53, "Write DR5."),
-    EXIT_REASON(SVM_EXIT_WRITE_DR6          , 54, "Write DR6."),
-    EXIT_REASON(SVM_EXIT_WRITE_DR7          , 55, "Write DR7."),
-    EXIT_REASON(SVM_EXIT_WRITE_DR8          , 56, "Write DR8."),
-    EXIT_REASON(SVM_EXIT_WRITE_DR9          , 57, "Write DR9."),
-    EXIT_REASON(SVM_EXIT_WRITE_DR10         , 58, "Write DR10."),
-    EXIT_REASON(SVM_EXIT_WRITE_DR11         , 59, "Write DR11."),
-    EXIT_REASON(SVM_EXIT_WRITE_DR12         , 60, "Write DR12."),
-    EXIT_REASON(SVM_EXIT_WRITE_DR13         , 61, "Write DR13."),
-    EXIT_REASON(SVM_EXIT_WRITE_DR14         , 62, "Write DR14."),
-    EXIT_REASON(SVM_EXIT_WRITE_DR15         , 63, "Write DR15."),
-    EXIT_REASON(SVM_EXIT_EXCEPTION_0        , 64, "Exception Vector 0  (#DE)."),
-    EXIT_REASON(SVM_EXIT_EXCEPTION_1        , 65, "Exception Vector 1  (#DB)."),
-    EXIT_REASON(SVM_EXIT_EXCEPTION_2        , 66, "Exception Vector 2  (#NMI)."),
-    EXIT_REASON(SVM_EXIT_EXCEPTION_3        , 67, "Exception Vector 3  (#BP)."),
-    EXIT_REASON(SVM_EXIT_EXCEPTION_4        , 68, "Exception Vector 4  (#OF)."),
-    EXIT_REASON(SVM_EXIT_EXCEPTION_5        , 69, "Exception Vector 5  (#BR)."),
-    EXIT_REASON(SVM_EXIT_EXCEPTION_6        , 70, "Exception Vector 6  (#UD)."),
-    EXIT_REASON(SVM_EXIT_EXCEPTION_7        , 71, "Exception Vector 7  (#NM)."),
-    EXIT_REASON(SVM_EXIT_EXCEPTION_8        , 72, "Exception Vector 8  (#DF)."),
-    EXIT_REASON(SVM_EXIT_EXCEPTION_9        , 73, "Exception Vector 9  (#CO_SEG_OVERRUN)."),
-    EXIT_REASON(SVM_EXIT_EXCEPTION_A        , 74, "Exception Vector 10 (#TS)."),
-    EXIT_REASON(SVM_EXIT_EXCEPTION_B        , 75, "Exception Vector 11 (#NP)."),
-    EXIT_REASON(SVM_EXIT_EXCEPTION_C        , 76, "Exception Vector 12 (#SS)."),
-    EXIT_REASON(SVM_EXIT_EXCEPTION_D        , 77, "Exception Vector 13 (#GP)."),
-    EXIT_REASON(SVM_EXIT_EXCEPTION_E        , 78, "Exception Vector 14 (#PF)."),
-    EXIT_REASON(SVM_EXIT_EXCEPTION_F        , 79, "Exception Vector 15 (0x0f)."),
-    EXIT_REASON(SVM_EXIT_EXCEPTION_10       , 80, "Exception Vector 16 (#MF)."),
-    EXIT_REASON(SVM_EXIT_EXCEPTION_11       , 81, "Exception Vector 17 (#AC)."),
-    EXIT_REASON(SVM_EXIT_EXCEPTION_12       , 82, "Exception Vector 18 (#MC)."),
-    EXIT_REASON(SVM_EXIT_EXCEPTION_13       , 83, "Exception Vector 19 (#XF)."),
-    EXIT_REASON(SVM_EXIT_EXCEPTION_14       , 84, "Exception Vector 20 (0x14)."),
-    EXIT_REASON(SVM_EXIT_EXCEPTION_15       , 85, "Exception Vector 22 (0x15)."),
-    EXIT_REASON(SVM_EXIT_EXCEPTION_16       , 86, "Exception Vector 22 (0x16)."),
-    EXIT_REASON(SVM_EXIT_EXCEPTION_17       , 87, "Exception Vector 23 (0x17)."),
-    EXIT_REASON(SVM_EXIT_EXCEPTION_18       , 88, "Exception Vector 24 (0x18)."),
-    EXIT_REASON(SVM_EXIT_EXCEPTION_19       , 89, "Exception Vector 25 (0x19)."),
-    EXIT_REASON(SVM_EXIT_EXCEPTION_1A       , 90, "Exception Vector 26 (0x1A)."),
-    EXIT_REASON(SVM_EXIT_EXCEPTION_1B       , 91, "Exception Vector 27 (0x1B)."),
-    EXIT_REASON(SVM_EXIT_EXCEPTION_1C       , 92, "Exception Vector 28 (0x1C)."),
-    EXIT_REASON(SVM_EXIT_EXCEPTION_1D       , 93, "Exception Vector 29 (0x1D)."),
-    EXIT_REASON(SVM_EXIT_EXCEPTION_1E       , 94, "Exception Vector 30 (0x1E)."),
-    EXIT_REASON(SVM_EXIT_EXCEPTION_1F       , 95, "Exception Vector 31 (0x1F)."),
-    EXIT_REASON(SVM_EXIT_INTR               , 96, "Physical maskable interrupt (host)."),
-    EXIT_REASON(SVM_EXIT_NMI                , 97, "Physical non-maskable interrupt (host)."),
-    EXIT_REASON(SVM_EXIT_SMI                , 98, "System management interrupt (host)."),
-    EXIT_REASON(SVM_EXIT_INIT               , 99, "Physical INIT signal (host)."),
-    EXIT_REASON(SVM_EXIT_VINTR              ,100, "Virtual interrupt-window exit."),
-    EXIT_REASON(SVM_EXIT_CR0_SEL_WRITE      ,101, "Write to CR0 that changed any bits other than CR0.TS or CR0.MP."),
-    EXIT_REASON(SVM_EXIT_IDTR_READ          ,102, "Read IDTR"),
-    EXIT_REASON(SVM_EXIT_GDTR_READ          ,103, "Read GDTR"),
-    EXIT_REASON(SVM_EXIT_LDTR_READ          ,104, "Read LDTR."),
-    EXIT_REASON(SVM_EXIT_TR_READ            ,105, "Read TR."),
-    EXIT_REASON(SVM_EXIT_TR_READ            ,106, "Write IDTR."),
-    EXIT_REASON(SVM_EXIT_TR_READ            ,107, "Write GDTR."),
-    EXIT_REASON(SVM_EXIT_TR_READ            ,108, "Write LDTR."),
-    EXIT_REASON(SVM_EXIT_TR_READ            ,109, "Write TR."),
-    EXIT_REASON(SVM_EXIT_RDTSC              ,110, "RDTSC instruction."),
-    EXIT_REASON(SVM_EXIT_RDPMC              ,111, "RDPMC instruction."),
-    EXIT_REASON(SVM_EXIT_PUSHF              ,112, "PUSHF instruction."),
-    EXIT_REASON(SVM_EXIT_POPF               ,113, "POPF instruction."),
-    EXIT_REASON(SVM_EXIT_CPUID              ,114, "CPUID instruction."),
-    EXIT_REASON(SVM_EXIT_RSM                ,115, "RSM instruction."),
-    EXIT_REASON(SVM_EXIT_IRET               ,116, "IRET instruction."),
-    EXIT_REASON(SVM_EXIT_SWINT              ,117, "Software interrupt (INTn instructions)."),
-    EXIT_REASON(SVM_EXIT_INVD               ,118, "INVD instruction."),
-    EXIT_REASON(SVM_EXIT_PAUSE              ,119, "PAUSE instruction."),
-    EXIT_REASON(SVM_EXIT_HLT                ,120, "HLT instruction."),
-    EXIT_REASON(SVM_EXIT_INVLPG             ,121, "INVLPG instruction."),
-    EXIT_REASON(SVM_EXIT_INVLPGA            ,122, "INVLPGA instruction."),
-    EXIT_REASON(SVM_EXIT_IOIO               ,123, "IN/OUT accessing protected port."),
-    EXIT_REASON(SVM_EXIT_MSR                ,124, "RDMSR or WRMSR access to protected MSR."),
-    EXIT_REASON(SVM_EXIT_TASK_SWITCH        ,125, "Task switch."),
-    EXIT_REASON(SVM_EXIT_FERR_FREEZE        ,126, "Legacy FPU handling enabled; processor is frozen in an x87/mmx instruction waiting for an interrupt"),
-    EXIT_REASON(SVM_EXIT_SHUTDOWN           ,127, "Shutdown."),
-    EXIT_REASON(SVM_EXIT_VMRUN              ,128, "VMRUN instruction."),
-    EXIT_REASON(SVM_EXIT_VMMCALL            ,129, "VMCALL instruction."),
-    EXIT_REASON(SVM_EXIT_VMLOAD             ,130, "VMLOAD instruction."),
-    EXIT_REASON(SVM_EXIT_VMSAVE             ,131, "VMSAVE instruction."),
-    EXIT_REASON(SVM_EXIT_STGI               ,132, "STGI instruction."),
-    EXIT_REASON(SVM_EXIT_CLGI               ,133, "CLGI instruction."),
-    EXIT_REASON(SVM_EXIT_SKINIT             ,134, "SKINIT instruction."),
-    EXIT_REASON(SVM_EXIT_RDTSCP             ,135, "RDTSCP instruction."),
-    EXIT_REASON(SVM_EXIT_ICEBP              ,136, "ICEBP instruction."),
-    EXIT_REASON(SVM_EXIT_WBINVD             ,137, "WBINVD instruction."),
-    EXIT_REASON(SVM_EXIT_MONITOR            ,138, "MONITOR instruction."),
-    EXIT_REASON(SVM_EXIT_MWAIT              ,139, "MWAIT instruction."),
-    EXIT_REASON(SVM_EXIT_MWAIT_ARMED        ,140, "MWAIT instruction when armed."),
-    EXIT_REASON(SVM_EXIT_NPF                ,1024, "Nested paging fault."),
-    EXIT_REASON_NIL()
+    EXIT_REASON(SVM_EXIT_READ_CR0     ,    0, "Read CR0."),
+    EXIT_REASON(SVM_EXIT_READ_CR1     ,    1, "Read CR1."),
+    EXIT_REASON(SVM_EXIT_READ_CR2     ,    2, "Read CR2."),
+    EXIT_REASON(SVM_EXIT_READ_CR3     ,    3, "Read CR3."),
+    EXIT_REASON(SVM_EXIT_READ_CR4     ,    4, "Read CR4."),
+    EXIT_REASON(SVM_EXIT_READ_CR5     ,    5, "Read CR5."),
+    EXIT_REASON(SVM_EXIT_READ_CR6     ,    6, "Read CR6."),
+    EXIT_REASON(SVM_EXIT_READ_CR7     ,    7, "Read CR7."),
+    EXIT_REASON(SVM_EXIT_READ_CR8     ,    8, "Read CR8."),
+    EXIT_REASON(SVM_EXIT_READ_CR9     ,    9, "Read CR9."),
+    EXIT_REASON(SVM_EXIT_READ_CR10    ,   10, "Read CR10."),
+    EXIT_REASON(SVM_EXIT_READ_CR11    ,   11, "Read CR11."),
+    EXIT_REASON(SVM_EXIT_READ_CR12    ,   12, "Read CR12."),
+    EXIT_REASON(SVM_EXIT_READ_CR13    ,   13, "Read CR13."),
+    EXIT_REASON(SVM_EXIT_READ_CR14    ,   14, "Read CR14."),
+    EXIT_REASON(SVM_EXIT_READ_CR15    ,   15, "Read CR15."),
+    EXIT_REASON(SVM_EXIT_WRITE_CR0    ,   16, "Write CR0."),
+    EXIT_REASON(SVM_EXIT_WRITE_CR1    ,   17, "Write CR1."),
+    EXIT_REASON(SVM_EXIT_WRITE_CR2    ,   18, "Write CR2."),
+    EXIT_REASON(SVM_EXIT_WRITE_CR3    ,   19, "Write CR3."),
+    EXIT_REASON(SVM_EXIT_WRITE_CR4    ,   20, "Write CR4."),
+    EXIT_REASON(SVM_EXIT_WRITE_CR5    ,   21, "Write CR5."),
+    EXIT_REASON(SVM_EXIT_WRITE_CR6    ,   22, "Write CR6."),
+    EXIT_REASON(SVM_EXIT_WRITE_CR7    ,   23, "Write CR7."),
+    EXIT_REASON(SVM_EXIT_WRITE_CR8    ,   24, "Write CR8."),
+    EXIT_REASON(SVM_EXIT_WRITE_CR9    ,   25, "Write CR9."),
+    EXIT_REASON(SVM_EXIT_WRITE_CR10   ,   26, "Write CR10."),
+    EXIT_REASON(SVM_EXIT_WRITE_CR11   ,   27, "Write CR11."),
+    EXIT_REASON(SVM_EXIT_WRITE_CR12   ,   28, "Write CR12."),
+    EXIT_REASON(SVM_EXIT_WRITE_CR13   ,   29, "Write CR13."),
+    EXIT_REASON(SVM_EXIT_WRITE_CR14   ,   30, "Write CR14."),
+    EXIT_REASON(SVM_EXIT_WRITE_CR15   ,   31, "Write CR15."),
+    EXIT_REASON(SVM_EXIT_READ_DR0     ,   32, "Read DR0."),
+    EXIT_REASON(SVM_EXIT_READ_DR1     ,   33, "Read DR1."),
+    EXIT_REASON(SVM_EXIT_READ_DR2     ,   34, "Read DR2."),
+    EXIT_REASON(SVM_EXIT_READ_DR3     ,   35, "Read DR3."),
+    EXIT_REASON(SVM_EXIT_READ_DR4     ,   36, "Read DR4."),
+    EXIT_REASON(SVM_EXIT_READ_DR5     ,   37, "Read DR5."),
+    EXIT_REASON(SVM_EXIT_READ_DR6     ,   38, "Read DR6."),
+    EXIT_REASON(SVM_EXIT_READ_DR7     ,   39, "Read DR7."),
+    EXIT_REASON(SVM_EXIT_READ_DR8     ,   40, "Read DR8."),
+    EXIT_REASON(SVM_EXIT_READ_DR9     ,   41, "Read DR9."),
+    EXIT_REASON(SVM_EXIT_READ_DR10    ,   42, "Read DR10."),
+    EXIT_REASON(SVM_EXIT_READ_DR11    ,   43, "Read DR11"),
+    EXIT_REASON(SVM_EXIT_READ_DR12    ,   44, "Read DR12."),
+    EXIT_REASON(SVM_EXIT_READ_DR13    ,   45, "Read DR13."),
+    EXIT_REASON(SVM_EXIT_READ_DR14    ,   46, "Read DR14."),
+    EXIT_REASON(SVM_EXIT_READ_DR15    ,   47, "Read DR15."),
+    EXIT_REASON(SVM_EXIT_WRITE_DR0    ,   48, "Write DR0."),
+    EXIT_REASON(SVM_EXIT_WRITE_DR1    ,   49, "Write DR1."),
+    EXIT_REASON(SVM_EXIT_WRITE_DR2    ,   50, "Write DR2."),
+    EXIT_REASON(SVM_EXIT_WRITE_DR3    ,   51, "Write DR3."),
+    EXIT_REASON(SVM_EXIT_WRITE_DR4    ,   52, "Write DR4."),
+    EXIT_REASON(SVM_EXIT_WRITE_DR5    ,   53, "Write DR5."),
+    EXIT_REASON(SVM_EXIT_WRITE_DR6    ,   54, "Write DR6."),
+    EXIT_REASON(SVM_EXIT_WRITE_DR7    ,   55, "Write DR7."),
+    EXIT_REASON(SVM_EXIT_WRITE_DR8    ,   56, "Write DR8."),
+    EXIT_REASON(SVM_EXIT_WRITE_DR9    ,   57, "Write DR9."),
+    EXIT_REASON(SVM_EXIT_WRITE_DR10   ,   58, "Write DR10."),
+    EXIT_REASON(SVM_EXIT_WRITE_DR11   ,   59, "Write DR11."),
+    EXIT_REASON(SVM_EXIT_WRITE_DR12   ,   60, "Write DR12."),
+    EXIT_REASON(SVM_EXIT_WRITE_DR13   ,   61, "Write DR13."),
+    EXIT_REASON(SVM_EXIT_WRITE_DR14   ,   62, "Write DR14."),
+    EXIT_REASON(SVM_EXIT_WRITE_DR15   ,   63, "Write DR15."),
+    EXIT_REASON(SVM_EXIT_EXCEPTION_0  ,   64, "Exception Vector 0  (#DE)."),
+    EXIT_REASON(SVM_EXIT_EXCEPTION_1  ,   65, "Exception Vector 1  (#DB)."),
+    EXIT_REASON(SVM_EXIT_EXCEPTION_2  ,   66, "Exception Vector 2  (#NMI)."),
+    EXIT_REASON(SVM_EXIT_EXCEPTION_3  ,   67, "Exception Vector 3  (#BP)."),
+    EXIT_REASON(SVM_EXIT_EXCEPTION_4  ,   68, "Exception Vector 4  (#OF)."),
+    EXIT_REASON(SVM_EXIT_EXCEPTION_5  ,   69, "Exception Vector 5  (#BR)."),
+    EXIT_REASON(SVM_EXIT_EXCEPTION_6  ,   70, "Exception Vector 6  (#UD)."),
+    EXIT_REASON(SVM_EXIT_EXCEPTION_7  ,   71, "Exception Vector 7  (#NM)."),
+    EXIT_REASON(SVM_EXIT_EXCEPTION_8  ,   72, "Exception Vector 8  (#DF)."),
+    EXIT_REASON(SVM_EXIT_EXCEPTION_9  ,   73, "Exception Vector 9  (#CO_SEG_OVERRUN)."),
+    EXIT_REASON(SVM_EXIT_EXCEPTION_A  ,   74, "Exception Vector 10 (#TS)."),
+    EXIT_REASON(SVM_EXIT_EXCEPTION_B  ,   75, "Exception Vector 11 (#NP)."),
+    EXIT_REASON(SVM_EXIT_EXCEPTION_C  ,   76, "Exception Vector 12 (#SS)."),
+    EXIT_REASON(SVM_EXIT_EXCEPTION_D  ,   77, "Exception Vector 13 (#GP)."),
+    EXIT_REASON(SVM_EXIT_EXCEPTION_E  ,   78, "Exception Vector 14 (#PF)."),
+    EXIT_REASON(SVM_EXIT_EXCEPTION_F  ,   79, "Exception Vector 15 (0x0f)."),
+    EXIT_REASON(SVM_EXIT_EXCEPTION_10 ,   80, "Exception Vector 16 (#MF)."),
+    EXIT_REASON(SVM_EXIT_EXCEPTION_11 ,   81, "Exception Vector 17 (#AC)."),
+    EXIT_REASON(SVM_EXIT_EXCEPTION_12 ,   82, "Exception Vector 18 (#MC)."),
+    EXIT_REASON(SVM_EXIT_EXCEPTION_13 ,   83, "Exception Vector 19 (#XF)."),
+    EXIT_REASON(SVM_EXIT_EXCEPTION_14 ,   84, "Exception Vector 20 (0x14)."),
+    EXIT_REASON(SVM_EXIT_EXCEPTION_15 ,   85, "Exception Vector 22 (0x15)."),
+    EXIT_REASON(SVM_EXIT_EXCEPTION_16 ,   86, "Exception Vector 22 (0x16)."),
+    EXIT_REASON(SVM_EXIT_EXCEPTION_17 ,   87, "Exception Vector 23 (0x17)."),
+    EXIT_REASON(SVM_EXIT_EXCEPTION_18 ,   88, "Exception Vector 24 (0x18)."),
+    EXIT_REASON(SVM_EXIT_EXCEPTION_19 ,   89, "Exception Vector 25 (0x19)."),
+    EXIT_REASON(SVM_EXIT_EXCEPTION_1A ,   90, "Exception Vector 26 (0x1A)."),
+    EXIT_REASON(SVM_EXIT_EXCEPTION_1B ,   91, "Exception Vector 27 (0x1B)."),
+    EXIT_REASON(SVM_EXIT_EXCEPTION_1C ,   92, "Exception Vector 28 (0x1C)."),
+    EXIT_REASON(SVM_EXIT_EXCEPTION_1D ,   93, "Exception Vector 29 (0x1D)."),
+    EXIT_REASON(SVM_EXIT_EXCEPTION_1E ,   94, "Exception Vector 30 (0x1E)."),
+    EXIT_REASON(SVM_EXIT_EXCEPTION_1F ,   95, "Exception Vector 31 (0x1F)."),
+    EXIT_REASON(SVM_EXIT_INTR         ,   96, "Physical maskable interrupt (host)."),
+    EXIT_REASON(SVM_EXIT_NMI          ,   97, "Physical non-maskable interrupt (host)."),
+    EXIT_REASON(SVM_EXIT_SMI          ,   98, "System management interrupt (host)."),
+    EXIT_REASON(SVM_EXIT_INIT         ,   99, "Physical INIT signal (host)."),
+    EXIT_REASON(SVM_EXIT_VINTR        ,  100, "Virtual interrupt-window exit."),
+    EXIT_REASON(SVM_EXIT_CR0_SEL_WRITE,  101, "Write to CR0 that changed any bits other than CR0.TS or CR0.MP."),
+    EXIT_REASON(SVM_EXIT_IDTR_READ    ,  102, "Read IDTR"),
+    EXIT_REASON(SVM_EXIT_GDTR_READ    ,  103, "Read GDTR"),
+    EXIT_REASON(SVM_EXIT_LDTR_READ    ,  104, "Read LDTR."),
+    EXIT_REASON(SVM_EXIT_TR_READ      ,  105, "Read TR."),
+    EXIT_REASON(SVM_EXIT_IDTR_WRITE   ,  106, "Write IDTR."),
+    EXIT_REASON(SVM_EXIT_GDTR_WRITE   ,  107, "Write GDTR."),
+    EXIT_REASON(SVM_EXIT_LDTR_WRITE   ,  108, "Write LDTR."),
+    EXIT_REASON(SVM_EXIT_TR_WRITE     ,  109, "Write TR."),
+    EXIT_REASON(SVM_EXIT_RDTSC        ,  110, "RDTSC instruction."),
+    EXIT_REASON(SVM_EXIT_RDPMC        ,  111, "RDPMC instruction."),
+    EXIT_REASON(SVM_EXIT_PUSHF        ,  112, "PUSHF instruction."),
+    EXIT_REASON(SVM_EXIT_POPF         ,  113, "POPF instruction."),
+    EXIT_REASON(SVM_EXIT_CPUID        ,  114, "CPUID instruction."),
+    EXIT_REASON(SVM_EXIT_RSM          ,  115, "RSM instruction."),
+    EXIT_REASON(SVM_EXIT_IRET         ,  116, "IRET instruction."),
+    EXIT_REASON(SVM_EXIT_SWINT        ,  117, "Software interrupt (INTn instructions)."),
+    EXIT_REASON(SVM_EXIT_INVD         ,  118, "INVD instruction."),
+    EXIT_REASON(SVM_EXIT_PAUSE        ,  119, "PAUSE instruction."),
+    EXIT_REASON(SVM_EXIT_HLT          ,  120, "HLT instruction."),
+    EXIT_REASON(SVM_EXIT_INVLPG       ,  121, "INVLPG instruction."),
+    EXIT_REASON(SVM_EXIT_INVLPGA      ,  122, "INVLPGA instruction."),
+    EXIT_REASON(SVM_EXIT_IOIO         ,  123, "IN/OUT accessing protected port."),
+    EXIT_REASON(SVM_EXIT_MSR          ,  124, "RDMSR or WRMSR access to protected MSR."),
+    EXIT_REASON(SVM_EXIT_TASK_SWITCH  ,  125, "Task switch."),
+    EXIT_REASON(SVM_EXIT_FERR_FREEZE  ,  126, "Legacy FPU handling enabled; CPU frozen in an x87/mmx instr. waiting for interrupt"),
+    EXIT_REASON(SVM_EXIT_SHUTDOWN     ,  127, "Shutdown."),
+    EXIT_REASON(SVM_EXIT_VMRUN        ,  128, "VMRUN instruction."),
+    EXIT_REASON(SVM_EXIT_VMMCALL      ,  129, "VMCALL instruction."),
+    EXIT_REASON(SVM_EXIT_VMLOAD       ,  130, "VMLOAD instruction."),
+    EXIT_REASON(SVM_EXIT_VMSAVE       ,  131, "VMSAVE instruction."),
+    EXIT_REASON(SVM_EXIT_STGI         ,  132, "STGI instruction."),
+    EXIT_REASON(SVM_EXIT_CLGI         ,  133, "CLGI instruction."),
+    EXIT_REASON(SVM_EXIT_SKINIT       ,  134, "SKINIT instruction."),
+    EXIT_REASON(SVM_EXIT_RDTSCP       ,  135, "RDTSCP instruction."),
+    EXIT_REASON(SVM_EXIT_ICEBP        ,  136, "ICEBP instruction."),
+    EXIT_REASON(SVM_EXIT_WBINVD       ,  137, "WBINVD instruction."),
+    EXIT_REASON(SVM_EXIT_MONITOR      ,  138, "MONITOR instruction."),
+    EXIT_REASON(SVM_EXIT_MWAIT        ,  139, "MWAIT instruction."),
+    EXIT_REASON(SVM_EXIT_MWAIT_ARMED  ,  140, "MWAIT instruction when armed."),
+    EXIT_REASON(SVM_EXIT_XSETBV       ,  141, "XSETBV instruction."),
 };
-# undef EXIT_REASON
-# undef EXIT_REASON_NIL
-#endif /* VBOX_WITH_STATISTICS */
+/** Array index of the last valid AMD-V exit reason. */
+#define MAX_EXITREASON_AMDV              141
 
+/** Special exit reasons not covered in the array above. */
+#define SVM_EXIT_REASON_NPF                  EXIT_REASON(SVM_EXIT_NPF                , 1024, "Nested Page Fault.")
+#define SVM_EXIT_REASON_AVIC_INCOMPLETE_IPI  EXIT_REASON(SVM_EXIT_AVIC_INCOMPLETE_IPI, 1025, "AVIC - Incomplete IPI delivery.")
+#define SVM_EXIT_REASON_AVIC_NOACCEL         EXIT_REASON(SVM_EXIT_AVIC_NOACCEL       , 1026, "AVIC - Unhandled register.")
+
+/**
+ * Gets the SVM exit reason if it's one of the reasons not present in the @c
+ * g_apszAmdVExitReasons array.
+ *
+ * @returns The exit reason or NULL if unknown.
+ * @param   uExit       The exit.
+ */
+DECLINLINE(const char *) hmSvmGetSpecialExitReasonDesc(uint16_t uExit)
+{
+    switch (uExit)
+    {
+        case SVM_EXIT_NPF:                 return SVM_EXIT_REASON_NPF;
+        case SVM_EXIT_AVIC_INCOMPLETE_IPI: return SVM_EXIT_REASON_AVIC_INCOMPLETE_IPI;
+        case SVM_EXIT_AVIC_NOACCEL:        return SVM_EXIT_REASON_AVIC_NOACCEL;
+    }
+    return EXIT_REASON_NIL();
+}
+#undef EXIT_REASON_NIL
+#undef EXIT_REASON
+
+/** @def HMVMX_REPORT_FEATURE
+ * Reports VT-x feature to the release log.
+ *
+ * @param   allowed1        Mask of allowed feature bits.
+ * @param   disallowed0     Mask of disallowed feature bits.
+ * @param   featflag        Mask of the feature to report.
+ */
 #define HMVMX_REPORT_FEATURE(allowed1, disallowed0, featflag) \
     do { \
         if ((allowed1) & (featflag)) \
@@ -290,6 +339,12 @@ static const char * const g_apszAmdVExitReasons[MAX_EXITREASON_STAT] =
             LogRel(("HM:   " #featflag " (must be cleared)\n")); \
     } while (0)
 
+/** @def HMVMX_REPORT_ALLOWED_FEATURE
+ * Reports an allowed VT-x feature to the release log.
+ *
+ * @param   allowed1        Mask of allowed feature bits.
+ * @param   featflag        Mask of the feature to report.
+ */
 #define HMVMX_REPORT_ALLOWED_FEATURE(allowed1, featflag) \
     do { \
         if ((allowed1) & (featflag)) \
@@ -298,7 +353,13 @@ static const char * const g_apszAmdVExitReasons[MAX_EXITREASON_STAT] =
             LogRel(("HM:   " #featflag " not supported\n")); \
     } while (0)
 
-#define HMVMX_REPORT_CAPABILITY(msrcaps, cap) \
+/** @def HMVMX_REPORT_MSR_CAPABILITY
+ * Reports MSR feature capability.
+ *
+ * @param   msrcap          Mask of MSR feature bits.
+ * @param   featflag        Mask of the feature to report.
+ */
+#define HMVMX_REPORT_MSR_CAPABILITY(msrcaps, cap) \
     do { \
         if ((msrcaps) & (cap)) \
             LogRel(("HM:   " #cap "\n")); \
@@ -308,13 +369,14 @@ static const char * const g_apszAmdVExitReasons[MAX_EXITREASON_STAT] =
 /*********************************************************************************************************************************
 *   Internal Functions                                                                                                           *
 *********************************************************************************************************************************/
-static DECLCALLBACK(int) hmR3Save(PVM pVM, PSSMHANDLE pSSM);
-static DECLCALLBACK(int) hmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass);
-static int hmR3InitCPU(PVM pVM);
-static int hmR3InitFinalizeR0(PVM pVM);
-static int hmR3InitFinalizeR0Intel(PVM pVM);
-static int hmR3InitFinalizeR0Amd(PVM pVM);
-static int hmR3TermCPU(PVM pVM);
+static DECLCALLBACK(int)  hmR3Save(PVM pVM, PSSMHANDLE pSSM);
+static DECLCALLBACK(int)  hmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass);
+static DECLCALLBACK(void) hmR3InfoExitHistory(PVM pVM, PCDBGFINFOHLP pHlp, const char *pszArgs);
+static int                hmR3InitCPU(PVM pVM);
+static int                hmR3InitFinalizeR0(PVM pVM);
+static int                hmR3InitFinalizeR0Intel(PVM pVM);
+static int                hmR3InitFinalizeR0Amd(PVM pVM);
+static int                hmR3TermCPU(PVM pVM);
 
 
 
@@ -356,16 +418,45 @@ VMMR3_INT_DECL(int) HMR3Init(PVM pVM)
         return rc;
 
     /*
+     * Register info handlers.
+     */
+    rc = DBGFR3InfoRegisterInternalEx(pVM, "exithistory", "Dumps the HM VM-exit history.", hmR3InfoExitHistory,
+                                      DBGFINFO_FLAGS_RUN_ON_EMT);
+    AssertRCReturn(rc, rc);
+
+    /*
      * Read configuration.
      */
-    PCFGMNODE pCfgHM = CFGMR3GetChild(CFGMR3GetRoot(pVM), "HM/");
+    PCFGMNODE pCfgHm = CFGMR3GetChild(CFGMR3GetRoot(pVM), "HM/");
+
+    /*
+     * Validate the HM settings.
+     */
+    rc = CFGMR3ValidateConfig(pCfgHm, "/HM/",
+                              "HMForced"
+                              "|EnableNestedPaging"
+                              "|EnableUX"
+                              "|EnableLargePages"
+                              "|EnableVPID"
+                              "|TPRPatchingEnabled"
+                              "|64bitEnabled"
+                              "|VmxPleGap"
+                              "|VmxPleWindow"
+                              "|SvmPauseFilter"
+                              "|SvmPauseFilterThreshold"
+                              "|Exclusive"
+                              "|MaxResumeLoops"
+                              "|UseVmxPreemptTimer",
+                              "" /* pszValidNodes */, "HM" /* pszWho */, 0 /* uInstance */);
+    if (RT_FAILURE(rc))
+        return rc;
 
     /** @cfgm{/HM/HMForced, bool, false}
      * Forces hardware virtualization, no falling back on raw-mode. HM must be
      * enabled, i.e. /HMEnabled must be true. */
     bool fHMForced;
 #ifdef VBOX_WITH_RAW_MODE
-    rc = CFGMR3QueryBoolDef(pCfgHM, "HMForced", &fHMForced, false);
+    rc = CFGMR3QueryBoolDef(pCfgHm, "HMForced", &fHMForced, false);
     AssertRCReturn(rc, rc);
     AssertLogRelMsgReturn(!fHMForced || pVM->fHMEnabled, ("Configuration error: HM forced but not enabled!\n"),
                           VERR_INVALID_PARAMETER);
@@ -384,28 +475,28 @@ VMMR3_INT_DECL(int) HMR3Init(PVM pVM)
 
     /** @cfgm{/HM/EnableNestedPaging, bool, false}
      * Enables nested paging (aka extended page tables). */
-    rc = CFGMR3QueryBoolDef(pCfgHM, "EnableNestedPaging", &pVM->hm.s.fAllowNestedPaging, false);
+    rc = CFGMR3QueryBoolDef(pCfgHm, "EnableNestedPaging", &pVM->hm.s.fAllowNestedPaging, false);
     AssertRCReturn(rc, rc);
 
     /** @cfgm{/HM/EnableUX, bool, true}
      * Enables the VT-x unrestricted execution feature. */
-    rc = CFGMR3QueryBoolDef(pCfgHM, "EnableUX", &pVM->hm.s.vmx.fAllowUnrestricted, true);
+    rc = CFGMR3QueryBoolDef(pCfgHm, "EnableUX", &pVM->hm.s.vmx.fAllowUnrestricted, true);
     AssertRCReturn(rc, rc);
 
     /** @cfgm{/HM/EnableLargePages, bool, false}
      * Enables using large pages (2 MB) for guest memory, thus saving on (nested)
      * page table walking and maybe better TLB hit rate in some cases. */
-    rc = CFGMR3QueryBoolDef(pCfgHM, "EnableLargePages", &pVM->hm.s.fLargePages, false);
+    rc = CFGMR3QueryBoolDef(pCfgHm, "EnableLargePages", &pVM->hm.s.fLargePages, false);
     AssertRCReturn(rc, rc);
 
     /** @cfgm{/HM/EnableVPID, bool, false}
      * Enables the VT-x VPID feature. */
-    rc = CFGMR3QueryBoolDef(pCfgHM, "EnableVPID", &pVM->hm.s.vmx.fAllowVpid, false);
+    rc = CFGMR3QueryBoolDef(pCfgHm, "EnableVPID", &pVM->hm.s.vmx.fAllowVpid, false);
     AssertRCReturn(rc, rc);
 
     /** @cfgm{/HM/TPRPatchingEnabled, bool, false}
      * Enables TPR patching for 32-bit windows guests with IO-APIC. */
-    rc = CFGMR3QueryBoolDef(pCfgHM, "TPRPatchingEnabled", &pVM->hm.s.fTprPatchingAllowed, false);
+    rc = CFGMR3QueryBoolDef(pCfgHm, "TPRPatchingEnabled", &pVM->hm.s.fTprPatchingAllowed, false);
     AssertRCReturn(rc, rc);
 
     /** @cfgm{/HM/64bitEnabled, bool, 32-bit:false, 64-bit:true}
@@ -413,11 +504,48 @@ VMMR3_INT_DECL(int) HMR3Init(PVM pVM)
      * On 32-bit hosts this isn't default and require host CPU support. 64-bit hosts
      * already have the support. */
 #ifdef VBOX_ENABLE_64_BITS_GUESTS
-    rc = CFGMR3QueryBoolDef(pCfgHM, "64bitEnabled", &pVM->hm.s.fAllow64BitGuests, HC_ARCH_BITS == 64);
+    rc = CFGMR3QueryBoolDef(pCfgHm, "64bitEnabled", &pVM->hm.s.fAllow64BitGuests, HC_ARCH_BITS == 64);
     AssertLogRelRCReturn(rc, rc);
 #else
     pVM->hm.s.fAllow64BitGuests = false;
 #endif
+
+    /** @cfgm{/HM/VmxPleGap, uint32_t, 0}
+     * The pause-filter exiting gap in TSC ticks. When the number of ticks between
+     * two successive PAUSE instructions exceeds VmxPleGap, the CPU considers the
+     * latest PAUSE instruction to be start of a new PAUSE loop.
+     */
+    rc = CFGMR3QueryU32Def(pCfgHm, "VmxPleGap", &pVM->hm.s.vmx.cPleGapTicks, 0);
+    AssertRCReturn(rc, rc);
+
+    /** @cfgm{/HM/VmxPleWindow, uint32_t, 0}
+     * The pause-filter exiting window in TSC ticks. When the number of ticks
+     * between the current PAUSE instruction and first PAUSE of a loop exceeds
+     * VmxPleWindow, a VM-exit is triggered.
+     *
+     * Setting VmxPleGap and VmxPleGap to 0 disables pause-filter exiting.
+     */
+    rc = CFGMR3QueryU32Def(pCfgHm, "VmxPleWindow", &pVM->hm.s.vmx.cPleWindowTicks, 0);
+    AssertRCReturn(rc, rc);
+
+    /** @cfgm{/HM/SvmPauseFilterCount, uint16_t, 0}
+     * A counter that is decrement each time a PAUSE instruction is executed by the
+     * guest. When the counter is 0, a \#VMEXIT is triggered.
+     */
+    rc = CFGMR3QueryU16Def(pCfgHm, "SvmPauseFilter", &pVM->hm.s.svm.cPauseFilter, 0);
+    AssertRCReturn(rc, rc);
+
+    /** @cfgm{/HM/SvmPauseFilterThreshold, uint16_t, 0}
+     * The pause filter threshold in ticks. When the elapsed time between two
+     * successive PAUSE instructions exceeds SvmPauseFilterThreshold, the PauseFilter
+     * count is reset to its initial value. However, if PAUSE is executed PauseFilter
+     * times within PauseFilterThreshold ticks, a VM-exit will be triggered.
+     *
+     * Setting both SvmPauseFilterCount and SvmPauseFilterCount to 0 disables
+     * pause-filter exiting.
+     */
+    rc = CFGMR3QueryU16Def(pCfgHm, "SvmPauseFilterThreshold", &pVM->hm.s.svm.cPauseFilterThresholdTicks, 0);
+    AssertRCReturn(rc, rc);
 
     /** @cfgm{/HM/Exclusive, bool}
      * Determines the init method for AMD-V and VT-x. If set to true, HM will do a
@@ -433,7 +561,7 @@ VMMR3_INT_DECL(int) HMR3Init(PVM pVM)
 #if defined(RT_OS_DARWIN)
     pVM->hm.s.fGlobalInit = true;
 #else
-    rc = CFGMR3QueryBoolDef(pCfgHM, "Exclusive", &pVM->hm.s.fGlobalInit,
+    rc = CFGMR3QueryBoolDef(pCfgHm, "Exclusive", &pVM->hm.s.fGlobalInit,
 # if defined(RT_OS_WINDOWS)
                             false
 # else
@@ -447,13 +575,13 @@ VMMR3_INT_DECL(int) HMR3Init(PVM pVM)
      * The number of times to resume guest execution before we forcibly return to
      * ring-3.  The return value of RTThreadPreemptIsPendingTrusty in ring-0
      * determines the default value. */
-    rc = CFGMR3QueryU32Def(pCfgHM, "MaxResumeLoops", &pVM->hm.s.cMaxResumeLoops, 0 /* set by R0 later */);
+    rc = CFGMR3QueryU32Def(pCfgHm, "MaxResumeLoops", &pVM->hm.s.cMaxResumeLoops, 0 /* set by R0 later */);
     AssertLogRelRCReturn(rc, rc);
 
     /** @cfgm{/HM/UseVmxPreemptTimer, bool}
      * Whether to make use of the VMX-preemption timer feature of the CPU if it's
      * available. */
-    rc = CFGMR3QueryBoolDef(pCfgHM, "UseVmxPreemptTimer", &pVM->hm.s.vmx.fUsePreemptTimer, true);
+    rc = CFGMR3QueryBoolDef(pCfgHm, "UseVmxPreemptTimer", &pVM->hm.s.vmx.fUsePreemptTimer, true);
     AssertLogRelRCReturn(rc, rc);
 
     /*
@@ -611,8 +739,9 @@ static int hmR3InitCPU(PVM pVM)
 #ifdef VBOX_WITH_STATISTICS
     STAM_REG(pVM, &pVM->hm.s.StatTprPatchSuccess,   STAMTYPE_COUNTER, "/HM/TPR/Patch/Success",  STAMUNIT_OCCURENCES, "Number of times an instruction was successfully patched.");
     STAM_REG(pVM, &pVM->hm.s.StatTprPatchFailure,   STAMTYPE_COUNTER, "/HM/TPR/Patch/Failed",   STAMUNIT_OCCURENCES, "Number of unsuccessful patch attempts.");
-    STAM_REG(pVM, &pVM->hm.s.StatTprReplaceSuccess, STAMTYPE_COUNTER, "/HM/TPR/Replace/Success",STAMUNIT_OCCURENCES, "Number of times an instruction was successfully patched.");
-    STAM_REG(pVM, &pVM->hm.s.StatTprReplaceFailure, STAMTYPE_COUNTER, "/HM/TPR/Replace/Failed", STAMUNIT_OCCURENCES, "Number of unsuccessful patch attempts.");
+    STAM_REG(pVM, &pVM->hm.s.StatTprReplaceSuccessCr8, STAMTYPE_COUNTER, "/HM/TPR/Replace/SuccessCR8",STAMUNIT_OCCURENCES, "Number of instruction replacements by MOV CR8.");
+    STAM_REG(pVM, &pVM->hm.s.StatTprReplaceSuccessVmc, STAMTYPE_COUNTER, "/HM/TPR/Replace/SuccessVMC",STAMUNIT_OCCURENCES, "Number of instruction replacements by VMMCALL.");
+    STAM_REG(pVM, &pVM->hm.s.StatTprReplaceFailure, STAMTYPE_COUNTER, "/HM/TPR/Replace/Failed", STAMUNIT_OCCURENCES, "Number of unsuccessful replace attempts.");
 #endif
 
     /*
@@ -747,6 +876,7 @@ static int hmR3InitCPU(PVM pVM)
         HM_REG_COUNTER(&pVCpu->hm.s.StatExitMtf,                "/HM/CPU%d/Exit/MonitorTrapFlag", "Monitor Trap Flag.");
         HM_REG_COUNTER(&pVCpu->hm.s.StatExitApicAccess,         "/HM/CPU%d/Exit/ApicAccess", "APIC access. Guest attempted to access memory at a physical address on the APIC-access page.");
 
+        HM_REG_COUNTER(&pVCpu->hm.s.StatSwitchTprMaskedIrq,     "/HM/CPU%d/Switch/TprMaskedIrq", "PDMGetInterrupt() signals TPR masks pending Irq.");
         HM_REG_COUNTER(&pVCpu->hm.s.StatSwitchGuestIrq,         "/HM/CPU%d/Switch/IrqPending", "PDMGetInterrupt() cleared behind our back!?!.");
         HM_REG_COUNTER(&pVCpu->hm.s.StatPendingHostIrq,         "/HM/CPU%d/Switch/PendingHostIrq", "Exit to ring-3 due to pending host interrupt before executing guest code.");
         HM_REG_COUNTER(&pVCpu->hm.s.StatSwitchHmToR3FF,         "/HM/CPU%d/Switch/HmToR3FF", "Exit to ring-3 due to pending timers, EMT rendezvous, critical section etc.");
@@ -755,7 +885,9 @@ static int hmR3InitCPU(PVM pVM)
         HM_REG_COUNTER(&pVCpu->hm.s.StatSwitchMaxResumeLoops,   "/HM/CPU%d/Switch/MaxResumeToR3", "Maximum VMRESUME inner-loop counter reached.");
         HM_REG_COUNTER(&pVCpu->hm.s.StatSwitchHltToR3,          "/HM/CPU%d/Switch/HltToR3", "HLT causing us to go to ring-3.");
         HM_REG_COUNTER(&pVCpu->hm.s.StatSwitchApicAccessToR3,   "/HM/CPU%d/Switch/ApicAccessToR3", "APIC access causing us to go to ring-3.");
+#endif
         HM_REG_COUNTER(&pVCpu->hm.s.StatSwitchPreempt,          "/HM/CPU%d/Switch/Preempting", "EMT has been preempted while in HM context.");
+#ifdef VBOX_WITH_STATISTICS
         HM_REG_COUNTER(&pVCpu->hm.s.StatSwitchPreemptSaveHostState, "/HM/CPU%d/Switch/SaveHostState", "Preemption caused us to resave host state.");
 
         HM_REG_COUNTER(&pVCpu->hm.s.StatInjectInterrupt,        "/HM/CPU%d/EventInject/Interrupt", "Injected an external interrupt into the guest.");
@@ -1004,7 +1136,7 @@ static int hmR3InitFinalizeR0(PVM pVM)
     }
 
     /*
-     * Do the vendor specific initalization                                                                                                               .
+     * Do the vendor specific initialization                                                                                                               .
      *                                                                                                                                                    .
      * Note! We disable release log buffering here since we're doing relatively                                                                           .
      *       lot of logging and doesn't want to hit the disk with each LogRel                                                                             .
@@ -1025,6 +1157,17 @@ static int hmR3InitFinalizeR0(PVM pVM)
 
 
 /**
+ * @callback_method_impl{FNPDMVMMDEVHEAPNOTIFY}
+ */
+static DECLCALLBACK(void) hmR3VmmDevHeapNotify(PVM pVM, void *pvAllocation, RTGCPHYS GCPhysAllocation)
+{
+    NOREF(pVM);
+    NOREF(pvAllocation);
+    NOREF(GCPhysAllocation);
+}
+
+
+/**
  * Finish VT-x initialization (after ring-0 init).
  *
  * @returns VBox status code.
@@ -1041,7 +1184,7 @@ static int hmR3InitFinalizeR0Intel(PVM pVM)
     uint64_t    zap;
     RTGCPHYS    GCPhys = 0;
 
-    LogRel(("HM: Using VT-x implementation 2.0!\n"));
+    LogRel(("HM: Using VT-x implementation 2.0\n"));
     LogRel(("HM: Host CR4                        = %#RX64\n", pVM->hm.s.vmx.u64HostCr4));
     LogRel(("HM: Host EFER                       = %#RX64\n", pVM->hm.s.vmx.u64HostEfer));
     LogRel(("HM: MSR_IA32_SMM_MONITOR_CTL        = %#RX64\n", pVM->hm.s.vmx.u64HostSmmMonitorCtl));
@@ -1064,6 +1207,7 @@ static int hmR3InitFinalizeR0Intel(PVM pVM)
     HMVMX_REPORT_FEATURE(val, zap, VMX_VMCS_CTRL_PIN_EXEC_NMI_EXIT);
     HMVMX_REPORT_FEATURE(val, zap, VMX_VMCS_CTRL_PIN_EXEC_VIRTUAL_NMI);
     HMVMX_REPORT_FEATURE(val, zap, VMX_VMCS_CTRL_PIN_EXEC_PREEMPT_TIMER);
+    HMVMX_REPORT_FEATURE(val, zap, VMX_VMCS_CTRL_PIN_EXEC_POSTED_INTR);
 
     LogRel(("HM: MSR_IA32_VMX_PROCBASED_CTLS     = %#RX64\n", pVM->hm.s.vmx.Msrs.VmxProcCtls.u));
     val = pVM->hm.s.vmx.Msrs.VmxProcCtls.n.allowed1;
@@ -1102,6 +1246,8 @@ static int hmR3InitFinalizeR0Intel(PVM pVM)
         HMVMX_REPORT_FEATURE(val, zap, VMX_VMCS_CTRL_PROC_EXEC2_VPID);
         HMVMX_REPORT_FEATURE(val, zap, VMX_VMCS_CTRL_PROC_EXEC2_WBINVD_EXIT);
         HMVMX_REPORT_FEATURE(val, zap, VMX_VMCS_CTRL_PROC_EXEC2_UNRESTRICTED_GUEST);
+        HMVMX_REPORT_FEATURE(val, zap, VMX_VMCS_CTRL_PROC_EXEC2_APIC_REG_VIRT);
+        HMVMX_REPORT_FEATURE(val, zap, VMX_VMCS_CTRL_PROC_EXEC2_VIRT_INTR_DELIVERY);
         HMVMX_REPORT_FEATURE(val, zap, VMX_VMCS_CTRL_PROC_EXEC2_PAUSE_LOOP_EXIT);
         HMVMX_REPORT_FEATURE(val, zap, VMX_VMCS_CTRL_PROC_EXEC2_RDRAND_EXIT);
         HMVMX_REPORT_FEATURE(val, zap, VMX_VMCS_CTRL_PROC_EXEC2_INVPCID);
@@ -1140,31 +1286,21 @@ static int hmR3InitFinalizeR0Intel(PVM pVM)
     {
         val = pVM->hm.s.vmx.Msrs.u64EptVpidCaps;
         LogRel(("HM: MSR_IA32_VMX_EPT_VPID_CAP       = %#RX64\n", val));
-        HMVMX_REPORT_CAPABILITY(val, MSR_IA32_VMX_EPT_VPID_CAP_RWX_X_ONLY);
-        HMVMX_REPORT_CAPABILITY(val, MSR_IA32_VMX_EPT_VPID_CAP_RWX_W_ONLY);
-        HMVMX_REPORT_CAPABILITY(val, MSR_IA32_VMX_EPT_VPID_CAP_RWX_WX_ONLY);
-        HMVMX_REPORT_CAPABILITY(val, MSR_IA32_VMX_EPT_VPID_CAP_GAW_21_BITS);
-        HMVMX_REPORT_CAPABILITY(val, MSR_IA32_VMX_EPT_VPID_CAP_GAW_30_BITS);
-        HMVMX_REPORT_CAPABILITY(val, MSR_IA32_VMX_EPT_VPID_CAP_GAW_39_BITS);
-        HMVMX_REPORT_CAPABILITY(val, MSR_IA32_VMX_EPT_VPID_CAP_GAW_48_BITS);
-        HMVMX_REPORT_CAPABILITY(val, MSR_IA32_VMX_EPT_VPID_CAP_GAW_57_BITS);
-        HMVMX_REPORT_CAPABILITY(val, MSR_IA32_VMX_EPT_VPID_CAP_EMT_UC);
-        HMVMX_REPORT_CAPABILITY(val, MSR_IA32_VMX_EPT_VPID_CAP_EMT_WC);
-        HMVMX_REPORT_CAPABILITY(val, MSR_IA32_VMX_EPT_VPID_CAP_EMT_WT);
-        HMVMX_REPORT_CAPABILITY(val, MSR_IA32_VMX_EPT_VPID_CAP_EMT_WP);
-        HMVMX_REPORT_CAPABILITY(val, MSR_IA32_VMX_EPT_VPID_CAP_EMT_WB);
-        HMVMX_REPORT_CAPABILITY(val, MSR_IA32_VMX_EPT_VPID_CAP_SP_21_BITS);
-        HMVMX_REPORT_CAPABILITY(val, MSR_IA32_VMX_EPT_VPID_CAP_SP_30_BITS);
-        HMVMX_REPORT_CAPABILITY(val, MSR_IA32_VMX_EPT_VPID_CAP_SP_39_BITS);
-        HMVMX_REPORT_CAPABILITY(val, MSR_IA32_VMX_EPT_VPID_CAP_SP_48_BITS);
-        HMVMX_REPORT_CAPABILITY(val, MSR_IA32_VMX_EPT_VPID_CAP_INVEPT);
-        HMVMX_REPORT_CAPABILITY(val, MSR_IA32_VMX_EPT_VPID_CAP_INVEPT_SINGLE_CONTEXT);
-        HMVMX_REPORT_CAPABILITY(val, MSR_IA32_VMX_EPT_VPID_CAP_INVEPT_ALL_CONTEXTS);
-        HMVMX_REPORT_CAPABILITY(val, MSR_IA32_VMX_EPT_VPID_CAP_INVVPID);
-        HMVMX_REPORT_CAPABILITY(val, MSR_IA32_VMX_EPT_VPID_CAP_INVVPID_INDIV_ADDR);
-        HMVMX_REPORT_CAPABILITY(val, MSR_IA32_VMX_EPT_VPID_CAP_INVVPID_SINGLE_CONTEXT);
-        HMVMX_REPORT_CAPABILITY(val, MSR_IA32_VMX_EPT_VPID_CAP_INVVPID_ALL_CONTEXTS);
-        HMVMX_REPORT_CAPABILITY(val, MSR_IA32_VMX_EPT_VPID_CAP_INVVPID_SINGLE_CONTEXT_RETAIN_GLOBALS);
+        HMVMX_REPORT_MSR_CAPABILITY(val, MSR_IA32_VMX_EPT_VPID_CAP_RWX_X_ONLY);
+        HMVMX_REPORT_MSR_CAPABILITY(val, MSR_IA32_VMX_EPT_VPID_CAP_PAGE_WALK_LENGTH_4);
+        HMVMX_REPORT_MSR_CAPABILITY(val, MSR_IA32_VMX_EPT_VPID_CAP_EMT_UC);
+        HMVMX_REPORT_MSR_CAPABILITY(val, MSR_IA32_VMX_EPT_VPID_CAP_EMT_WB);
+        HMVMX_REPORT_MSR_CAPABILITY(val, MSR_IA32_VMX_EPT_VPID_CAP_PDE_2M);
+        HMVMX_REPORT_MSR_CAPABILITY(val, MSR_IA32_VMX_EPT_VPID_CAP_PDPTE_1G);
+        HMVMX_REPORT_MSR_CAPABILITY(val, MSR_IA32_VMX_EPT_VPID_CAP_INVEPT);
+        HMVMX_REPORT_MSR_CAPABILITY(val, MSR_IA32_VMX_EPT_VPID_CAP_EPT_ACCESS_DIRTY);
+        HMVMX_REPORT_MSR_CAPABILITY(val, MSR_IA32_VMX_EPT_VPID_CAP_INVEPT_SINGLE_CONTEXT);
+        HMVMX_REPORT_MSR_CAPABILITY(val, MSR_IA32_VMX_EPT_VPID_CAP_INVEPT_ALL_CONTEXTS);
+        HMVMX_REPORT_MSR_CAPABILITY(val, MSR_IA32_VMX_EPT_VPID_CAP_INVVPID);
+        HMVMX_REPORT_MSR_CAPABILITY(val, MSR_IA32_VMX_EPT_VPID_CAP_INVVPID_INDIV_ADDR);
+        HMVMX_REPORT_MSR_CAPABILITY(val, MSR_IA32_VMX_EPT_VPID_CAP_INVVPID_SINGLE_CONTEXT);
+        HMVMX_REPORT_MSR_CAPABILITY(val, MSR_IA32_VMX_EPT_VPID_CAP_INVVPID_ALL_CONTEXTS);
+        HMVMX_REPORT_MSR_CAPABILITY(val, MSR_IA32_VMX_EPT_VPID_CAP_INVVPID_SINGLE_CONTEXT_RETAIN_GLOBALS);
     }
 
     val = pVM->hm.s.vmx.Msrs.u64Misc;
@@ -1230,6 +1366,26 @@ static int hmR3InitFinalizeR0Intel(PVM pVM)
     if (pVM->hm.s.vmx.Msrs.VmxProcCtls2.n.allowed1 & VMX_VMCS_CTRL_PROC_EXEC2_VPID)
         pVM->hm.s.vmx.fVpid = pVM->hm.s.vmx.fAllowVpid;
 
+#ifdef VBOX_WITH_NEW_APIC
+#if 0
+    /*
+     * Enable APIC register virtualization and virtual-interrupt delivery if supported.
+     */
+    if (   (pVM->hm.s.vmx.Msrs.VmxProcCtls2.n.allowed1 & VMX_VMCS_CTRL_PROC_EXEC2_APIC_REG_VIRT)
+        && (pVM->hm.s.vmx.Msrs.VmxProcCtls2.n.allowed1 & VMX_VMCS_CTRL_PROC_EXEC2_VIRT_INTR_DELIVERY))
+        pVM->hm.s.fVirtApicRegs = true;
+
+    /*
+     * Enable posted-interrupt processing if supported.
+     */
+    /** @todo Add and query IPRT API for host OS support for posted-interrupt IPI
+     *        here. */
+    if (   (pVM->hm.s.vmx.Msrs.VmxPinCtls.n.allowed1 & VMX_VMCS_CTRL_PIN_EXEC_POSTED_INTR)
+        && (pVM->hm.s.vmx.Msrs.VmxExit.n.allowed1 & VMX_VMCS_CTRL_EXIT_ACK_EXT_INT))
+        pVM->hm.s.fPostedIntrs = true;
+#endif
+#endif
+
     /*
      * Disallow RDTSCP in the guest if there is no secondary process-based VM execution controls as otherwise
      * RDTSCP would cause a #UD. There might be no CPUs out there where this happens, as RDTSCP was introduced
@@ -1239,13 +1395,13 @@ static int hmR3InitFinalizeR0Intel(PVM pVM)
         && CPUMGetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_RDTSCP))
     {
         CPUMClearGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_RDTSCP);
-        LogRel(("HM: RDTSCP disabled\n"));
+        LogRel(("HM: Disabled RDTSCP\n"));
     }
 
     if (!pVM->hm.s.vmx.fUnrestrictedGuest)
     {
         /* Allocate three pages for the TSS we need for real mode emulation. (2 pages for the IO bitmap) */
-        rc = PDMR3VmmDevHeapAlloc(pVM, HM_VTX_TOTAL_DEVHEAP_MEM, (RTR3PTR *)&pVM->hm.s.vmx.pRealModeTSS);
+        rc = PDMR3VmmDevHeapAlloc(pVM, HM_VTX_TOTAL_DEVHEAP_MEM, hmR3VmmDevHeapNotify, (RTR3PTR *)&pVM->hm.s.vmx.pRealModeTSS);
         if (RT_SUCCESS(rc))
         {
             /* The IO bitmap starts right after the virtual interrupt redirection bitmap.
@@ -1279,14 +1435,17 @@ static int hmR3InitFinalizeR0Intel(PVM pVM)
                                                                   | X86_PDE4M_G;
             }
 
-            /* We convert it here every time as pci regions could be reconfigured. */
-            rc = PDMVmmDevHeapR3ToGCPhys(pVM, pVM->hm.s.vmx.pRealModeTSS, &GCPhys);
-            AssertRCReturn(rc, rc);
-            LogRel(("HM: Real Mode TSS guest physaddr    = %#RGp\n", GCPhys));
+            /* We convert it here every time as PCI regions could be reconfigured. */
+            if (PDMVmmDevHeapIsEnabled(pVM))
+            {
+                rc = PDMVmmDevHeapR3ToGCPhys(pVM, pVM->hm.s.vmx.pRealModeTSS, &GCPhys);
+                AssertRCReturn(rc, rc);
+                LogRel(("HM: Real Mode TSS guest physaddr    = %#RGp\n", GCPhys));
 
-            rc = PDMVmmDevHeapR3ToGCPhys(pVM, pVM->hm.s.vmx.pNonPagingModeEPTPageTable, &GCPhys);
-            AssertRCReturn(rc, rc);
-            LogRel(("HM: Non-Paging Mode EPT CR3         = %#RGp\n", GCPhys));
+                rc = PDMVmmDevHeapR3ToGCPhys(pVM, pVM->hm.s.vmx.pNonPagingModeEPTPageTable, &GCPhys);
+                AssertRCReturn(rc, rc);
+                LogRel(("HM: Non-Paging Mode EPT CR3         = %#RGp\n", GCPhys));
+            }
         }
         else
         {
@@ -1321,7 +1480,7 @@ static int hmR3InitFinalizeR0Intel(PVM pVM)
     }
 
     LogRel(("HM: Supports VMCS EFER fields       = %RTbool\n", pVM->hm.s.vmx.fSupportsVmcsEfer));
-    LogRel(("HM: VMX enabled!\n"));
+    LogRel(("HM: Enabled VMX\n"));
     pVM->hm.s.vmx.fEnabled = true;
 
     hmR3DisableRawMode(pVM); /** @todo make this go away! */
@@ -1354,7 +1513,7 @@ static int hmR3InitFinalizeR0Intel(PVM pVM)
      */
     if (pVM->hm.s.fNestedPaging)
     {
-        LogRel(("HM: Nested paging enabled!\n"));
+        LogRel(("HM: Enabled nested paging\n"));
         if (pVM->hm.s.vmx.enmFlushEpt == VMXFLUSHEPT_SINGLE_CONTEXT)
             LogRel(("HM:   EPT flush type                = VMXFLUSHEPT_SINGLE_CONTEXT\n"));
         else if (pVM->hm.s.vmx.enmFlushEpt == VMXFLUSHEPT_ALL_CONTEXTS)
@@ -1365,23 +1524,29 @@ static int hmR3InitFinalizeR0Intel(PVM pVM)
             LogRel(("HM:   EPT flush type                = %d\n", pVM->hm.s.vmx.enmFlushEpt));
 
         if (pVM->hm.s.vmx.fUnrestrictedGuest)
-            LogRel(("HM: Unrestricted guest execution enabled!\n"));
+            LogRel(("HM: Enabled unrestricted guest execution\n"));
 
 #if HC_ARCH_BITS == 64
         if (pVM->hm.s.fLargePages)
         {
             /* Use large (2 MB) pages for our EPT PDEs where possible. */
             PGMSetLargePageUsage(pVM, true);
-            LogRel(("HM: Large page support enabled\n"));
+            LogRel(("HM: Enabled large page support\n"));
         }
 #endif
     }
     else
         Assert(!pVM->hm.s.vmx.fUnrestrictedGuest);
 
+    if (pVM->hm.s.fVirtApicRegs)
+        LogRel(("HM:   Enabled APIC-register virtualization support\n"));
+
+    if (pVM->hm.s.fPostedIntrs)
+        LogRel(("HM:   Enabled posted-interrupt processing support\n"));
+
     if (pVM->hm.s.vmx.fVpid)
     {
-        LogRel(("HM: VPID enabled!\n"));
+        LogRel(("HM: Enabled VPID\n"));
         if (pVM->hm.s.vmx.enmFlushVpid == VMXFLUSHVPID_INDIV_ADDR)
             LogRel(("HM:   VPID flush type               = VMXFLUSHVPID_INDIV_ADDR\n"));
         else if (pVM->hm.s.vmx.enmFlushVpid == VMXFLUSHVPID_SINGLE_CONTEXT)
@@ -1397,9 +1562,9 @@ static int hmR3InitFinalizeR0Intel(PVM pVM)
         LogRel(("HM: Ignoring VPID capabilities of CPU\n"));
 
     if (pVM->hm.s.vmx.fUsePreemptTimer)
-        LogRel(("HM: VMX-preemption timer enabled (cPreemptTimerShift=%u)\n", pVM->hm.s.vmx.cPreemptTimerShift));
+        LogRel(("HM: Enabled VMX-preemption timer (cPreemptTimerShift=%u)\n", pVM->hm.s.vmx.cPreemptTimerShift));
     else
-        LogRel(("HM: VMX-preemption timer disabled\n"));
+        LogRel(("HM: Disabled VMX-preemption timer\n"));
 
     return VINF_SUCCESS;
 }
@@ -1415,7 +1580,7 @@ static int hmR3InitFinalizeR0Amd(PVM pVM)
 {
     Log(("pVM->hm.s.svm.fSupported = %d\n", pVM->hm.s.svm.fSupported));
 
-    LogRel(("HM: Using AMD-V implementation 2.0!\n"));
+    LogRel(("HM: Using AMD-V implementation 2.0\n"));
 
     uint32_t u32Family;
     uint32_t u32Model;
@@ -1469,6 +1634,13 @@ static int hmR3InitFinalizeR0Amd(PVM pVM)
                        || (pVM->hm.s.svm.u32Features & AMD_CPUID_SVM_FEATURE_EDX_NESTED_PAGING),
                        VERR_HM_IPE_1);
 
+#if 0
+    /** @todo Add and query IPRT API for host OS support for posted-interrupt IPI
+     *        here. */
+    if (RTR0IsPostIpiSupport())
+        pVM->hm.s.fPostedIntrs = true;
+#endif
+
     /*
      * Call ring-0 to set up the VM.
      */
@@ -1480,12 +1652,12 @@ static int hmR3InitFinalizeR0Amd(PVM pVM)
         return VMSetError(pVM, rc, RT_SRC_POS, "AMD-V setup failed: %Rrc", rc);
     }
 
-    LogRel(("HM: AMD-V enabled!\n"));
+    LogRel(("HM: Enabled SVM\n"));
     pVM->hm.s.svm.fEnabled = true;
 
     if (pVM->hm.s.fNestedPaging)
     {
-        LogRel(("HM:   Nested paging enabled!\n"));
+        LogRel(("HM:   Enabled nested paging\n"));
 
         /*
          * Enable large pages (2 MB) if applicable.
@@ -1494,10 +1666,16 @@ static int hmR3InitFinalizeR0Amd(PVM pVM)
         if (pVM->hm.s.fLargePages)
         {
             PGMSetLargePageUsage(pVM, true);
-            LogRel(("HM:   Large page support enabled!\n"));
+            LogRel(("HM:   Enabled large page support\n"));
         }
 #endif
     }
+
+    if (pVM->hm.s.fVirtApicRegs)
+        LogRel(("HM:   Enabled APIC-register virtualization support\n"));
+
+    if (pVM->hm.s.fPostedIntrs)
+        LogRel(("HM:   Enabled posted-interrupt processing support\n"));
 
     hmR3DisableRawMode(pVM);
 
@@ -1517,7 +1695,7 @@ static int hmR3InitFinalizeR0Amd(PVM pVM)
     else if (CPUMGetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_PAE))
         CPUMSetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_NX);
 
-    LogRel(("HM: TPR patching %s\n", (pVM->hm.s.fTprPatchingAllowed) ? "enabled" : "disabled"));
+    LogRel(("HM: %s TPR patching\n", (pVM->hm.s.fTprPatchingAllowed) ? "Enabled" : "Disabled"));
 
     LogRel((pVM->hm.s.fAllow64BitGuests
             ? "HM: Guest support: 32-bit and 64-bit\n"
@@ -1599,17 +1777,6 @@ VMMR3_INT_DECL(void) HMR3PagingModeChanged(PVM pVM, PVMCPU pVCpu, PGMMODE enmSha
         Log(("HMR3PagingModeChanged indicates real mode execution\n"));
         pVCpu->hm.s.vmx.fWasInRealMode = true;
     }
-
-    /** @todo r=ramshankar: Disabling for now. If nothing breaks remove it
-     *        eventually. (Test platforms that use the cache ofc). */
-#if 0
-#ifdef VMX_USE_CACHED_VMCS_ACCESSES
-    /* Reset the contents of the read cache. */
-    PVMCSCACHE pCache = &pVCpu->hm.s.vmx.VMCSCache;
-    for (unsigned j = 0; j < pCache->Read.cValidEntries; j++)
-        pCache->Read.aFieldVal[j] = 0;
-#endif
-#endif
 }
 
 
@@ -1956,6 +2123,7 @@ static DECLCALLBACK(VBOXSTRICTRC) hmR3ReplaceTprInstr(PVM pVM, PVMCPU pVCpu, voi
 
             memcpy(pPatch->aNewOpcode, s_abVMMCall, sizeof(s_abVMMCall));
             pPatch->cbNewOp = sizeof(s_abVMMCall);
+            STAM_COUNTER_INC(&pVM->hm.s.StatTprReplaceSuccessVmc);
         }
         else
         {
@@ -2008,6 +2176,7 @@ static DECLCALLBACK(VBOXSTRICTRC) hmR3ReplaceTprInstr(PVM pVM, PVMCPU pVCpu, voi
 
                 memcpy(pPatch->aNewOpcode, abInstr, pPatch->cbOp);
                 pPatch->cbNewOp = pPatch->cbOp;
+                STAM_COUNTER_INC(&pVM->hm.s.StatTprReplaceSuccessCr8);
 
                 Log(("Acceptable read/shr candidate!\n"));
                 pPatch->enmType = HMTPRINSTR_READ_SHR4;
@@ -2022,6 +2191,7 @@ static DECLCALLBACK(VBOXSTRICTRC) hmR3ReplaceTprInstr(PVM pVM, PVMCPU pVCpu, voi
 
                 memcpy(pPatch->aNewOpcode, s_abVMMCall, sizeof(s_abVMMCall));
                 pPatch->cbNewOp = sizeof(s_abVMMCall);
+                STAM_COUNTER_INC(&pVM->hm.s.StatTprReplaceSuccessVmc);
                 Log(("hmR3ReplaceTprInstr: HMTPRINSTR_READ %u\n", pPatch->uDstOperand));
             }
         }
@@ -2031,7 +2201,6 @@ static DECLCALLBACK(VBOXSTRICTRC) hmR3ReplaceTprInstr(PVM pVM, PVMCPU pVCpu, voi
         AssertRC(rc);
 
         pVM->hm.s.cPatches++;
-        STAM_COUNTER_INC(&pVM->hm.s.StatTprReplaceSuccess);
         return VINF_SUCCESS;
     }
 
@@ -2417,7 +2586,7 @@ static bool hmR3IsStackSelectorOkForVmx(PCPUMSELREG pSel)
      * but as an alternative we for old saved states and AMD<->VT-x migration
      * we also treat segments with all the attributes cleared as unusable.
      */
-    /** @todo r=bird: actually all zeros isn't gonna cut it... SS.DPL == CPL. */
+    /** @todo r=bird: actually all zeroes isn't gonna cut it... SS.DPL == CPL. */
     if (pSel->Attr.n.u1Unusable || !pSel->Attr.u)
         return true;
 
@@ -2694,6 +2863,66 @@ VMMR3_INT_DECL(bool) HMR3IsRescheduleRequired(PVM pVM, PCPUMCTX pCtx)
 
 
 /**
+ * Noticiation callback from DBGF when interrupt breakpoints or generic debug
+ * event settings changes.
+ *
+ * DBGF will call HMR3NotifyDebugEventChangedPerCpu on each CPU afterwards, this
+ * function is just updating the VM globals.
+ *
+ * @param   pVM         The VM cross context VM structure.
+ * @thread  EMT(0)
+ */
+VMMR3_INT_DECL(void) HMR3NotifyDebugEventChanged(PVM pVM)
+{
+    /* Interrupts. */
+    bool fUseDebugLoop = pVM->dbgf.ro.cSoftIntBreakpoints > 0
+                      || pVM->dbgf.ro.cHardIntBreakpoints > 0;
+
+    /* CPU Exceptions. */
+    for (DBGFEVENTTYPE enmEvent = DBGFEVENT_XCPT_FIRST;
+         !fUseDebugLoop && enmEvent <= DBGFEVENT_XCPT_LAST;
+         enmEvent = (DBGFEVENTTYPE)(enmEvent + 1))
+        fUseDebugLoop = DBGF_IS_EVENT_ENABLED(pVM, enmEvent);
+
+    /* Common VM exits. */
+    for (DBGFEVENTTYPE enmEvent = DBGFEVENT_EXIT_FIRST;
+         !fUseDebugLoop && enmEvent <= DBGFEVENT_EXIT_LAST_COMMON;
+         enmEvent = (DBGFEVENTTYPE)(enmEvent + 1))
+        fUseDebugLoop = DBGF_IS_EVENT_ENABLED(pVM, enmEvent);
+
+    /* Vendor specific VM exits. */
+    if (HMR3IsVmxEnabled(pVM->pUVM))
+        for (DBGFEVENTTYPE enmEvent = DBGFEVENT_EXIT_VMX_FIRST;
+             !fUseDebugLoop && enmEvent <= DBGFEVENT_EXIT_VMX_LAST;
+             enmEvent = (DBGFEVENTTYPE)(enmEvent + 1))
+            fUseDebugLoop = DBGF_IS_EVENT_ENABLED(pVM, enmEvent);
+    else
+        for (DBGFEVENTTYPE enmEvent = DBGFEVENT_EXIT_SVM_FIRST;
+             !fUseDebugLoop && enmEvent <= DBGFEVENT_EXIT_SVM_LAST;
+             enmEvent = (DBGFEVENTTYPE)(enmEvent + 1))
+            fUseDebugLoop = DBGF_IS_EVENT_ENABLED(pVM, enmEvent);
+
+    /* Done. */
+    pVM->hm.s.fUseDebugLoop = fUseDebugLoop;
+}
+
+
+/**
+ * Follow up notification callback to HMR3NotifyDebugEventChanged for each CPU.
+ *
+ * HM uses this to combine the decision made by HMR3NotifyDebugEventChanged with
+ * per CPU settings.
+ *
+ * @param   pVM         The VM cross context VM structure.
+ * @param   pVCpu       The cross context virtual CPU structure of the calling EMT.
+ */
+VMMR3_INT_DECL(void) HMR3NotifyDebugEventChangedPerCpu(PVM pVM, PVMCPU pVCpu)
+{
+    pVCpu->hm.s.fUseDebugLoop = pVCpu->hm.s.fSingleInstruction | pVM->hm.s.fUseDebugLoop;
+}
+
+
+/**
  * Notification from EM about a rescheduling into hardware assisted execution
  * mode.
  *
@@ -2796,6 +3025,45 @@ VMMR3DECL(bool) HMR3IsNestedPagingActive(PUVM pUVM)
 
 
 /**
+ * Checks if virtualized APIC registers is enabled.
+ *
+ * When enabled this feature allows the hardware to access most of the
+ * APIC registers in the virtual-APIC page without causing VM-exits. See
+ * Intel spec. 29.1.1 "Virtualized APIC Registers".
+ *
+ * @returns true if virtualized APIC registers is enabled, otherwise
+ *          false.
+ * @param   pUVM        The user mode VM handle.
+ */
+VMMR3DECL(bool) HMR3IsVirtApicRegsEnabled(PUVM pUVM)
+{
+    UVM_ASSERT_VALID_EXT_RETURN(pUVM, false);
+    PVM pVM = pUVM->pVM;
+    VM_ASSERT_VALID_EXT_RETURN(pVM, false);
+    return pVM->hm.s.fVirtApicRegs;
+}
+
+
+/**
+ * Checks if APIC posted-interrupt processing is enabled.
+ *
+ * This returns whether we can deliver interrupts to the guest without
+ * leaving guest-context by updating APIC state from host-context.
+ *
+ * @returns true if APIC posted-interrupt processing is enabled,
+ *          otherwise false.
+ * @param   pUVM        The user mode VM handle.
+ */
+VMMR3DECL(bool) HMR3IsPostedIntrsEnabled(PUVM pUVM)
+{
+    UVM_ASSERT_VALID_EXT_RETURN(pUVM, false);
+    PVM pVM = pUVM->pVM;
+    VM_ASSERT_VALID_EXT_RETURN(pVM, false);
+    return pVM->hm.s.fPostedIntrs;
+}
+
+
+/**
  * Checks if we are currently using VPID in VT-x mode.
  *
  * @returns true if VPID is being used, otherwise false.
@@ -2868,14 +3136,19 @@ VMMR3_INT_DECL(bool) HMR3IsVmxPreemptionTimerUsed(PVM pVM)
  */
 VMMR3_INT_DECL(VBOXSTRICTRC) HMR3RestartPendingIOInstr(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
 {
+    /*
+     * Check if we've got relevant data pending.
+     */
     HMPENDINGIO enmType = pVCpu->hm.s.PendingIO.enmType;
-
+    if (enmType == HMPENDINGIO_INVALID)
+        return VERR_NOT_FOUND;
     pVCpu->hm.s.PendingIO.enmType = HMPENDINGIO_INVALID;
-
-    if (    pVCpu->hm.s.PendingIO.GCPtrRip != pCtx->rip
-        ||  enmType  == HMPENDINGIO_INVALID)
+    if (pVCpu->hm.s.PendingIO.GCPtrRip != pCtx->rip)
         return VERR_NOT_FOUND;
 
+    /*
+     * Execute pending I/O.
+     */
     VBOXSTRICTRC rcStrict;
     switch (enmType)
     {
@@ -2884,8 +3157,7 @@ VMMR3_INT_DECL(VBOXSTRICTRC) HMR3RestartPendingIOInstr(PVM pVM, PVMCPU pVCpu, PC
             uint32_t uAndVal = pVCpu->hm.s.PendingIO.s.Port.uAndVal;
             uint32_t u32Val  = 0;
 
-            rcStrict = IOMIOPortRead(pVM, pVCpu, pVCpu->hm.s.PendingIO.s.Port.uPort,
-                                     &u32Val,
+            rcStrict = IOMIOPortRead(pVM, pVCpu, pVCpu->hm.s.PendingIO.s.Port.uPort, &u32Val,
                                      pVCpu->hm.s.PendingIO.s.Port.cbSize);
             if (IOM_SUCCESS(rcStrict))
             {
@@ -2895,14 +3167,6 @@ VMMR3_INT_DECL(VBOXSTRICTRC) HMR3RestartPendingIOInstr(PVM pVM, PVMCPU pVCpu, PC
             }
             break;
         }
-
-        case HMPENDINGIO_PORT_WRITE:
-            rcStrict = IOMIOPortWrite(pVM, pVCpu, pVCpu->hm.s.PendingIO.s.Port.uPort,
-                                      pCtx->eax & pVCpu->hm.s.PendingIO.s.Port.uAndVal,
-                                      pVCpu->hm.s.PendingIO.s.Port.cbSize);
-            if (IOM_SUCCESS(rcStrict))
-                pCtx->rip = pVCpu->hm.s.PendingIO.GCPtrRipNext;
-            break;
 
         default:
             AssertLogRelFailedReturn(VERR_HM_UNKNOWN_IO_INSTRUCTION);
@@ -3230,5 +3494,59 @@ static DECLCALLBACK(int) hmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, u
 #endif
 
     return VINF_SUCCESS;
+}
+
+
+/**
+ * Displays the guest VM-exit history.
+ *
+ * @param   pVM         The cross context VM structure.
+ * @param   pHlp        The info helper functions.
+ * @param   pszArgs     Arguments, ignored.
+ */
+static DECLCALLBACK(void) hmR3InfoExitHistory(PVM pVM, PCDBGFINFOHLP pHlp, const char *pszArgs)
+{
+    PVMCPU pVCpu = VMMGetCpu(pVM);
+    Assert(pVCpu);
+
+    if (HMIsEnabled(pVM))
+    {
+        bool const fIsVtx = pVM->hm.s.vmx.fSupported;
+        const char * const *papszDesc;
+        unsigned cMaxExitDesc;
+        if (fIsVtx)
+        {
+            cMaxExitDesc = MAX_EXITREASON_VTX;
+            papszDesc    = &g_apszVTxExitReasons[0];
+            pHlp->pfnPrintf(pHlp, "CPU[%u]: VT-x VM-exit history:\n", pVCpu->idCpu);
+        }
+        else
+        {
+            cMaxExitDesc = MAX_EXITREASON_AMDV;
+            papszDesc    = &g_apszAmdVExitReasons[0];
+            pHlp->pfnPrintf(pHlp, "CPU[%u]: AMD-V #VMEXIT history:\n", pVCpu->idCpu);
+        }
+
+        pHlp->pfnPrintf(pHlp, "  idxExitHistoryFree = %u\n", pVCpu->hm.s.idxExitHistoryFree);
+        unsigned const idxLast = pVCpu->hm.s.idxExitHistoryFree > 0 ?
+                                                                    pVCpu->hm.s.idxExitHistoryFree - 1 :
+                                                                    RT_ELEMENTS(pVCpu->hm.s.auExitHistory) - 1;
+        for (unsigned i = 0; i < RT_ELEMENTS(pVCpu->hm.s.auExitHistory); i++)
+        {
+            uint16_t const uExit = pVCpu->hm.s.auExitHistory[i];
+            const char *pszExit  = NULL;
+            if (uExit <= cMaxExitDesc)
+                pszExit = papszDesc[uExit];
+            else if (!fIsVtx)
+                pszExit = hmSvmGetSpecialExitReasonDesc(uExit);
+            else
+                pszExit = NULL;
+
+            pHlp->pfnPrintf(pHlp, "  auExitHistory[%2u] = 0x%04x  %s %s\n", i, uExit, pszExit,
+                            idxLast == i ? "<-- Latest exit" : "");
+        }
+    }
+    else
+        pHlp->pfnPrintf(pHlp, "HM is not enabled for this VM!\n");
 }
 

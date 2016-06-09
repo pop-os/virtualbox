@@ -1,23 +1,14 @@
 /** @file
+This file contains the relevant declarations required to generate Option Rom File
 
-Copyright (c) 1999 - 2008, Intel Corporation. All rights reserved.<BR>
-This program and the accompanying materials are licensed and made available 
-under the terms and conditions of the BSD License which accompanies this 
+Copyright (c) 1999 - 2014, Intel Corporation. All rights reserved.<BR>
+This program and the accompanying materials are licensed and made available
+under the terms and conditions of the BSD License which accompanies this
 distribution.  The full text of the license may be found at
 http://opensource.org/licenses/bsd-license.php
 
 THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,
 WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
-
-
-Module Name:  
-
-  EfiRom.h
-
-Abstract:
-
-  This file contains the relevant declarations required
-  to generate Option Rom File
 
 **/
 
@@ -102,7 +93,7 @@ typedef struct {
   INT8      Pci30;
   INT8      DumpOption;
 //  INT8      Help;
-//  INT8      Version;  
+//  INT8      Version;
   FILE_LIST *FileList;
 } OPTIONS;
 
@@ -183,7 +174,7 @@ Returns:
 
   None
 
---*/  
+--*/
 ;
 
 static
@@ -196,7 +187,7 @@ ParseCommandLine (
 /*++
 
 Routine Description:
-  
+
   Given the Argc/Argv program arguments, and a pointer to an options structure,
   parse the command-line options and check their validity.
 
@@ -224,7 +215,7 @@ CheckPE32File (
 /*++
 
 Routine Description:
-  
+
   Given the Argc/Argv program arguments, and a pointer to an options structure,
   parse the command-line options and check their validity.
 
@@ -239,7 +230,7 @@ Returns:
   STATUS_SUCCESS    success
   non-zero          otherwise
 
---*/  
+--*/
 ;
 
 static
@@ -254,7 +245,7 @@ ProcessEfiFile (
 /*++
 
 Routine Description:
-  
+
   Process a PE32 EFI file.
 
 Arguments:
@@ -282,7 +273,7 @@ ProcessBinFile (
 /*++
 
 Routine Description:
-  
+
   Process a binary input file.
 
 Arguments:
@@ -295,7 +286,7 @@ Returns:
 
   0 - successful
 
---*/  
+--*/
 ;
 
 static

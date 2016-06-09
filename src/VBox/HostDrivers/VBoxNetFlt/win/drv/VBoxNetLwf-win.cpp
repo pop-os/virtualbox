@@ -89,6 +89,8 @@ RT_C_DECLS_BEGIN
 #include <mstcpip.h>
 RT_C_DECLS_END
 
+#define LogError(x) DbgPrint x
+
 #if 0
 #undef Log
 #define Log(x) DbgPrint x
@@ -804,7 +806,7 @@ NDIS_STATUS vboxNetLwfWinOidRequest(IN NDIS_HANDLE hModuleCtx,
     }
     else
     {
-        Log(("ERROR! vboxNetLwfWinOidRequest: NdisAllocateCloneOidRequest failed with 0x%x\n", Status));
+        LogError(("vboxNetLwfWinOidRequest: NdisAllocateCloneOidRequest failed with 0x%x\n", Status));
     }
     LogFlow(("<==vboxNetLwfWinOidRequest: Status=0x%x\n", Status));
     return Status;
@@ -867,12 +869,12 @@ static NDIS_STATUS vboxNetLwfWinGetPacketFilter(PVBOXNETLWF_MODULE pModuleCtx)
     NDIS_STATUS Status = vboxNetLwfWinSyncOidRequest(pModuleCtx, &Rq);
     if (Status != NDIS_STATUS_SUCCESS)
     {
-        Log(("ERROR! vboxNetLwfWinGetPacketFilter: vboxNetLwfWinSyncOidRequest(query, OID_GEN_CURRENT_PACKET_FILTER) failed with 0x%x\n", Status));
+        LogError(("vboxNetLwfWinGetPacketFilter: vboxNetLwfWinSyncOidRequest(query, OID_GEN_CURRENT_PACKET_FILTER) failed with 0x%x\n", Status));
         return FALSE;
     }
     if (Rq.Request.DATA.QUERY_INFORMATION.BytesWritten != sizeof(pModuleCtx->uPacketFilter))
     {
-        Log(("ERROR! vboxNetLwfWinGetPacketFilter: vboxNetLwfWinSyncOidRequest(query, OID_GEN_CURRENT_PACKET_FILTER) failed to write neccessary amount (%d bytes), actually written %d bytes\n", sizeof(pModuleCtx->uPacketFilter), Rq.Request.DATA.QUERY_INFORMATION.BytesWritten));
+        LogError(("vboxNetLwfWinGetPacketFilter: vboxNetLwfWinSyncOidRequest(query, OID_GEN_CURRENT_PACKET_FILTER) failed to write neccessary amount (%d bytes), actually written %d bytes\n", sizeof(pModuleCtx->uPacketFilter), Rq.Request.DATA.QUERY_INFORMATION.BytesWritten));
     }
 
     Log5(("vboxNetLwfWinGetPacketFilter: OID_GEN_CURRENT_PACKET_FILTER query returned the following filters:\n"));
@@ -896,12 +898,12 @@ static NDIS_STATUS vboxNetLwfWinSetPacketFilter(PVBOXNETLWF_MODULE pModuleCtx, b
     NDIS_STATUS Status = vboxNetLwfWinSyncOidRequest(pModuleCtx, &Rq);
     if (Status != NDIS_STATUS_SUCCESS)
     {
-        Log(("ERROR! vboxNetLwfWinSetPacketFilter: vboxNetLwfWinSyncOidRequest(query, OID_GEN_CURRENT_PACKET_FILTER) failed with 0x%x\n", Status));
+        LogError(("vboxNetLwfWinSetPacketFilter: vboxNetLwfWinSyncOidRequest(query, OID_GEN_CURRENT_PACKET_FILTER) failed with 0x%x\n", Status));
         return Status;
     }
     if (Rq.Request.DATA.QUERY_INFORMATION.BytesWritten != sizeof(uFilter))
     {
-        Log(("ERROR! vboxNetLwfWinSetPacketFilter: vboxNetLwfWinSyncOidRequest(query, OID_GEN_CURRENT_PACKET_FILTER) failed to write neccessary amount (%d bytes), actually written %d bytes\n", sizeof(uFilter), Rq.Request.DATA.QUERY_INFORMATION.BytesWritten));
+        LogError(("vboxNetLwfWinSetPacketFilter: vboxNetLwfWinSyncOidRequest(query, OID_GEN_CURRENT_PACKET_FILTER) failed to write neccessary amount (%d bytes), actually written %d bytes\n", sizeof(uFilter), Rq.Request.DATA.QUERY_INFORMATION.BytesWritten));
         return NDIS_STATUS_FAILURE;
     }
 
@@ -932,7 +934,7 @@ static NDIS_STATUS vboxNetLwfWinSetPacketFilter(PVBOXNETLWF_MODULE pModuleCtx, b
     Status = vboxNetLwfWinSyncOidRequest(pModuleCtx, &Rq);
     if (Status != NDIS_STATUS_SUCCESS)
     {
-        Log(("ERROR! vboxNetLwfWinSetPacketFilter: vboxNetLwfWinSyncOidRequest(set, OID_GEN_CURRENT_PACKET_FILTER, vvv below vvv) failed with 0x%x\n", Status));
+        LogError(("vboxNetLwfWinSetPacketFilter: vboxNetLwfWinSyncOidRequest(set, OID_GEN_CURRENT_PACKET_FILTER, vvv below vvv) failed with 0x%x\n", Status));
         vboxNetLwfWinDumpFilterTypes(uFilter);
     }
     LogFlow(("<==vboxNetLwfWinSetPacketFilter: status=0x%x\n", Status));
@@ -1057,13 +1059,13 @@ static NDIS_STATUS vboxNetLwfWinAttach(IN NDIS_HANDLE hFilter, IN NDIS_HANDLE hD
                                                TRUE);
     if (rc != STATUS_SUCCESS)
     {
-        Log(("ERROR! vboxNetLwfWinAttach: RtlUnicodeStringToAnsiString(%ls) failed with 0x%x\n",
+        LogError(("vboxNetLwfWinAttach: RtlUnicodeStringToAnsiString(%ls) failed with 0x%x\n",
              pParameters->BaseMiniportName, rc));
         vboxNetLwfLogErrorEvent(IO_ERR_INTERNAL_ERROR, NDIS_STATUS_FAILURE, 2);
         return NDIS_STATUS_FAILURE;
     }
     DbgPrint("vboxNetLwfWinAttach: friendly name=%wZ\n", pParameters->BaseMiniportInstanceName);
-    DbgPrint("vboxNetLwfWinAttach: name=%Z\n", strMiniportName);
+    DbgPrint("vboxNetLwfWinAttach: name=%Z\n", &strMiniportName);
 
     UINT cbModuleWithNameExtra = sizeof(VBOXNETLWF_MODULE) + strMiniportName.Length;
     PVBOXNETLWF_MODULE pModuleCtx = (PVBOXNETLWF_MODULE)NdisAllocateMemoryWithTagPriority(hFilter,
@@ -1072,6 +1074,7 @@ static NDIS_STATUS vboxNetLwfWinAttach(IN NDIS_HANDLE hFilter, IN NDIS_HANDLE hD
                                                                       LowPoolPriority);
     if (!pModuleCtx)
     {
+        LogError(("vboxNetLwfWinAttach: Failed to allocate module context for %ls\n", pParameters->BaseMiniportName));
         RtlFreeAnsiString(&strMiniportName);
         vboxNetLwfLogErrorEvent(IO_ERR_INSUFFICIENT_RESOURCES, NDIS_STATUS_RESOURCES, 3);
         return NDIS_STATUS_RESOURCES;
@@ -1085,8 +1088,8 @@ static NDIS_STATUS vboxNetLwfWinAttach(IN NDIS_HANDLE hFilter, IN NDIS_HANDLE hD
     pModuleCtx->hWorkItem = NdisAllocateIoWorkItem(g_VBoxNetLwfGlobals.hFilterDriver);
     if (!pModuleCtx->hWorkItem)
     {
-        Log(("ERROR! vboxNetLwfWinAttach: Failed to allocate work item for %ls\n",
-             pParameters->BaseMiniportName));
+        LogError(("vboxNetLwfWinAttach: Failed to allocate work item for %ls\n",
+                pParameters->BaseMiniportName));
         NdisFreeMemory(pModuleCtx, 0, 0);
         vboxNetLwfLogErrorEvent(IO_ERR_INSUFFICIENT_RESOURCES, NDIS_STATUS_RESOURCES, 4);
         return NDIS_STATUS_RESOURCES;
@@ -1127,7 +1130,7 @@ static NDIS_STATUS vboxNetLwfWinAttach(IN NDIS_HANDLE hFilter, IN NDIS_HANDLE hD
         pModuleCtx->hPool[i] = NdisAllocateNetBufferListPool(hFilter, &PoolParams);
         if (!pModuleCtx->hPool[i])
         {
-            Log(("ERROR! vboxNetLwfWinAttach: NdisAllocateNetBufferListPool failed\n"));
+            LogError(("vboxNetLwfWinAttach: NdisAllocateNetBufferListPool failed\n"));
             vboxNetLwfWinFreePools(pModuleCtx, i);
             NdisFreeIoWorkItem(pModuleCtx->hWorkItem);
             NdisFreeMemory(pModuleCtx, 0, 0);
@@ -1150,7 +1153,7 @@ static NDIS_STATUS vboxNetLwfWinAttach(IN NDIS_HANDLE hFilter, IN NDIS_HANDLE hD
     pModuleCtx->hPool = NdisAllocateNetBufferListPool(hFilter, &PoolParams);
     if (!pModuleCtx->hPool)
     {
-        Log(("ERROR! vboxNetLwfWinAttach: NdisAllocateNetBufferListPool failed\n"));
+        LogError(("vboxNetLwfWinAttach: NdisAllocateNetBufferListPool failed\n"));
         NdisFreeIoWorkItem(pModuleCtx->hWorkItem);
         NdisFreeMemory(pModuleCtx, 0, 0);
         return NDIS_STATUS_RESOURCES;
@@ -1167,7 +1170,7 @@ static NDIS_STATUS vboxNetLwfWinAttach(IN NDIS_HANDLE hFilter, IN NDIS_HANDLE hD
     NDIS_STATUS Status = NdisFSetAttributes(hFilter, pModuleCtx, &Attributes);
     if (Status != NDIS_STATUS_SUCCESS)
     {
-        Log(("ERROR! vboxNetLwfWinAttach: NdisFSetAttributes failed with 0x%x\n", Status));
+        LogError(("vboxNetLwfWinAttach: NdisFSetAttributes failed with 0x%x\n", Status));
 #ifdef VBOXNETLWF_FIXED_SIZE_POOLS
         vboxNetLwfWinFreePools(pModuleCtx, RT_ELEMENTS(g_cbPool));
 #else /* !VBOXNETLWF_FIXED_SIZE_POOLS */
@@ -1339,7 +1342,7 @@ static PNET_BUFFER_LIST vboxNetLwfWinSGtoNB(PVBOXNETLWF_MODULE pModule, PINTNETS
     PMDL pMdl = NdisAllocateMdl(pModule->hFilter, pSeg->pv, pSeg->cb);
     if (!pMdl)
     {
-        Log(("ERROR! vboxNetLwfWinSGtoNB: failed to allocate an MDL\n"));
+        LogError(("vboxNetLwfWinSGtoNB: failed to allocate an MDL\n"));
         LogFlow(("<==vboxNetLwfWinSGtoNB: return NULL\n"));
         return NULL;
     }
@@ -1351,7 +1354,7 @@ static PNET_BUFFER_LIST vboxNetLwfWinSGtoNB(PVBOXNETLWF_MODULE pModule, PINTNETS
         pMdlCurr->Next = NdisAllocateMdl(pModule->hFilter, pSeg->pv, pSeg->cb);
         if (!pMdlCurr->Next)
         {
-            Log(("ERROR! vboxNetLwfWinSGtoNB: failed to allocate an MDL\n"));
+            LogError(("vboxNetLwfWinSGtoNB: failed to allocate an MDL\n"));
             /* Tear down all MDL we chained so far */
             vboxNetLwfWinFreeMdlChain(pMdl);
             return NULL;
@@ -1373,7 +1376,7 @@ static PNET_BUFFER_LIST vboxNetLwfWinSGtoNB(PVBOXNETLWF_MODULE pModule, PINTNETS
     }
     else
     {
-        Log(("ERROR! vboxNetLwfWinSGtoNB: failed to allocate an NBL+NB\n"));
+        LogError(("vboxNetLwfWinSGtoNB: failed to allocate an NBL+NB\n"));
         vboxNetLwfWinFreeMdlChain(pMdl);
     }
 #else /* !VBOXNETLWF_SYNC_SEND */
@@ -1387,7 +1390,7 @@ static PNET_BUFFER_LIST vboxNetLwfWinSGtoNB(PVBOXNETLWF_MODULE pModule, PINTNETS
             break;
     if (iPool >= RT_ELEMENTS(g_cbPool))
     {
-        Log(("ERROR! vboxNetLwfWinSGtoNB: frame is too big (%u > %u), drop it.\n", cbFrame, g_cbPool[RT_ELEMENTS(g_cbPool)-1]));
+        LogError(("vboxNetLwfWinSGtoNB: frame is too big (%u > %u), drop it.\n", cbFrame, g_cbPool[RT_ELEMENTS(g_cbPool)-1]));
         LogFlow(("<==vboxNetLwfWinSGtoNB: return NULL\n"));
         return NULL;
     }
@@ -1396,7 +1399,7 @@ static PNET_BUFFER_LIST vboxNetLwfWinSGtoNB(PVBOXNETLWF_MODULE pModule, PINTNETS
                                                           0 /** @todo ContextBackFill */);
     if (!pBufList)
     {
-        Log(("ERROR! vboxNetLwfWinSGtoNB: failed to allocate netbuffer (cb=%u) from pool %d\n", cbFrame, iPool));
+        LogError(("vboxNetLwfWinSGtoNB: failed to allocate netbuffer (cb=%u) from pool %d\n", cbFrame, iPool));
         LogFlow(("<==vboxNetLwfWinSGtoNB: return NULL\n"));
         return NULL;
     }
@@ -1417,7 +1420,7 @@ static PNET_BUFFER_LIST vboxNetLwfWinSGtoNB(PVBOXNETLWF_MODULE pModule, PINTNETS
         }
         else
         {
-            Log(("ERROR! vboxNetLwfWinSGtoNB: failed to obtain the buffer pointer (size=%u)\n", pSG->cbTotal));
+            LogError(("vboxNetLwfWinSGtoNB: failed to obtain the buffer pointer (size=%u)\n", pSG->cbTotal));
             NdisAdvanceNetBufferDataStart(pBuffer, pSG->cbTotal, false, NULL); /** @todo why bother? */
             NdisFreeNetBufferList(pBufList);
             pBufList = NULL;
@@ -1425,7 +1428,7 @@ static PNET_BUFFER_LIST vboxNetLwfWinSGtoNB(PVBOXNETLWF_MODULE pModule, PINTNETS
     }
     else
     {
-        Log(("ERROR! vboxNetLwfWinSGtoNB: NdisRetreatNetBufferDataStart failed with 0x%x (size=%u)\n", Status, pSG->cbTotal));
+        LogError(("vboxNetLwfWinSGtoNB: NdisRetreatNetBufferDataStart failed with 0x%x (size=%u)\n", Status, pSG->cbTotal));
         NdisFreeNetBufferList(pBufList);
         pBufList = NULL;
     }
@@ -1443,7 +1446,7 @@ static PNET_BUFFER_LIST vboxNetLwfWinSGtoNB(PVBOXNETLWF_MODULE pModule, PINTNETS
         {
             NdisFreeMemory(pDataBuf, 0, 0);
             Log4(("vboxNetLwfWinSGtoNB: freed data buffer 0x%p\n", pDataBuf));
-            Log(("ERROR! vboxNetLwfWinSGtoNB: failed to allocate an MDL (cb=%u)\n", cbMdl));
+            LogError(("vboxNetLwfWinSGtoNB: failed to allocate an MDL (cb=%u)\n", cbMdl));
             LogFlow(("<==vboxNetLwfWinSGtoNB: return NULL\n"));
             return NULL;
         }
@@ -1467,13 +1470,13 @@ static PNET_BUFFER_LIST vboxNetLwfWinSGtoNB(PVBOXNETLWF_MODULE pModule, PINTNETS
         }
         else
         {
-            Log(("ERROR! vboxNetLwfWinSGtoNB: failed to allocate an NBL+NB\n"));
+            LogError(("vboxNetLwfWinSGtoNB: failed to allocate an NBL+NB\n"));
             vboxNetLwfWinFreeMdlChain(pMdl);
         }
     }
     else
     {
-        Log(("ERROR! vboxNetLwfWinSGtoNB: failed to allocate data buffer (size=%u)\n", cbMdl));
+        LogError(("vboxNetLwfWinSGtoNB: failed to allocate data buffer (size=%u)\n", cbMdl));
     }
 # endif /* !VBOXNETLWF_FIXED_SIZE_POOLS */
 
@@ -2012,7 +2015,7 @@ DECLHIDDEN(NDIS_STATUS) vboxNetLwfWinRegister(PDRIVER_OBJECT pDriverObject, PUNI
     }
     else
     {
-        Log(("ERROR! vboxNetLwfWinRegister: failed to register filter driver, status=0x%x", Status));
+        LogError(("vboxNetLwfWinRegister: failed to register filter driver, status=0x%x", Status));
     }
     return Status;
 }
@@ -2035,7 +2038,7 @@ static int vboxNetLwfWinStartInitIdcThread()
         Log(("vboxNetLwfWinStartInitIdcThread: create IDC initialization thread, status=0x%x\n", Status));
         if (Status != STATUS_SUCCESS)
         {
-            LogRel(("NETLWF: IDC initialization failed (system thread creation, status=0x%x)\n", Status));
+            LogError(("vboxNetLwfWinStartInitIdcThread: IDC initialization failed (system thread creation, status=0x%x)\n", Status));
             /*
              * We failed to init IDC and there will be no second chance.
              */
@@ -2170,7 +2173,7 @@ static int vboxNetLwfWinTryFiniIdc()
             break;
         case LwfIdcState_Stopping:
             /* Impossible, but another thread is alreading doing FiniIdc, bail out */
-            Log(("ERROR! vboxNetLwfWinTryFiniIdc: called in 'Stopping' state\n"));
+            LogError(("vboxNetLwfWinTryFiniIdc: called in 'Stopping' state\n"));
             rc = VERR_INVALID_STATE;
             break;
         case LwfIdcState_Connecting:
@@ -2185,7 +2188,7 @@ static int vboxNetLwfWinTryFiniIdc()
             }
             else
             {
-                Log(("ERROR! vboxNetLwfWinTryFiniIdc: ObReferenceObjectByHandle(%p) failed with 0x%x\n",
+                LogError(("vboxNetLwfWinTryFiniIdc: ObReferenceObjectByHandle(%p) failed with 0x%x\n",
                      g_VBoxNetLwfGlobals.hInitIdcThread, Status));
             }
             rc = RTErrConvertFromNtStatus(Status);
@@ -2330,7 +2333,7 @@ int vboxNetFltPortOsXmit(PVBOXNETFLTINS pThis, void *pvIfData, PINTNETSG pSG, ui
         NTSTATUS Status = KeWaitForMultipleObjects(nEvents, aEvents, WaitAll, Executive, KernelMode, FALSE, &timeout, NULL);
         if (Status != STATUS_SUCCESS)
         {
-            Log(("ERROR! vboxNetFltPortOsXmit: KeWaitForMultipleObjects() failed with 0x%x\n", Status));
+            LogError(("vboxNetFltPortOsXmit: KeWaitForMultipleObjects() failed with 0x%x\n", Status));
             if (Status == STATUS_TIMEOUT)
                 rc = VERR_TIMEOUT;
             else
@@ -2512,14 +2515,14 @@ void vboxNetLwfWinRegisterIpAddrNotifier(PVBOXNETFLTINS pThis)
                 vboxNetLwfWinIpAddrChangeCallback(pThis, &HostIpAddresses->Table[i], MibAddInstance);
         }
         else
-            Log(("ERROR! vboxNetLwfWinRegisterIpAddrNotifier: GetUnicastIpAddressTable failed with %x\n", Status));
+            LogError(("vboxNetLwfWinRegisterIpAddrNotifier: GetUnicastIpAddressTable failed with %x\n", Status));
         /* Now we can register a callback function to keep track of address changes. */
         Status = NotifyUnicastIpAddressChange(AF_UNSPEC, vboxNetLwfWinIpAddrChangeCallback,
                                               pThis, false, &pThis->u.s.WinIf.hNotifier);
         if (NETIO_SUCCESS(Status))
             Log(("vboxNetLwfWinRegisterIpAddrNotifier: notifier=%p\n", pThis->u.s.WinIf.hNotifier));
         else
-            Log(("ERROR! vboxNetLwfWinRegisterIpAddrNotifier: NotifyUnicastIpAddressChange failed with %x\n", Status));
+            LogError(("vboxNetLwfWinRegisterIpAddrNotifier: NotifyUnicastIpAddressChange failed with %x\n", Status));
     }
     else
         pThis->u.s.WinIf.hNotifier = NULL;

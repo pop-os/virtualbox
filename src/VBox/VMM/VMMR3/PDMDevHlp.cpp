@@ -2614,13 +2614,13 @@ static DECLCALLBACK(int) pdmR3DevHlp_APICRegister(PPDMDEVINS pDevIns, PPDMAPICRE
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
     VM_ASSERT_EMT(pDevIns->Internal.s.pVMR3);
-    LogFlow(("pdmR3DevHlp_APICRegister: caller='%s'/%d: pApicReg=%p:{.u32Version=%#x, .pfnGetInterruptR3=%p, .pfnSetBaseR3=%p, .pfnGetBaseR3=%p, "
-             ".pfnSetTPRR3=%p, .pfnGetTPRR3=%p, .pfnWriteMSR3=%p, .pfnReadMSR3=%p, .pfnBusDeliverR3=%p, .pfnLocalInterruptR3=%p .pfnGetTimerFreqR3=%p, pszGetInterruptRC=%p:{%s}, pszSetBaseRC=%p:{%s}, pszGetBaseRC=%p:{%s}, "
-             ".pszSetTPRRC=%p:{%s}, .pszGetTPRRC=%p:{%s}, .pszWriteMSRRC=%p:{%s}, .pszReadMSRRC=%p:{%s}, .pszBusDeliverRC=%p:{%s}, .pszLocalInterruptRC=%p:{%s}, .pszGetTimerFreqRC=%p:{%s}} ppApicHlpR3=%p\n",
-             pDevIns->pReg->szName, pDevIns->iInstance, pApicReg, pApicReg->u32Version, pApicReg->pfnGetInterruptR3, pApicReg->pfnSetBaseR3,
-             pApicReg->pfnGetBaseR3, pApicReg->pfnSetTPRR3, pApicReg->pfnGetTPRR3, pApicReg->pfnWriteMSRR3, pApicReg->pfnReadMSRR3, pApicReg->pfnBusDeliverR3, pApicReg->pfnLocalInterruptR3, pApicReg->pfnGetTimerFreqR3, pApicReg->pszGetInterruptRC,
-             pApicReg->pszGetInterruptRC, pApicReg->pszSetBaseRC, pApicReg->pszSetBaseRC, pApicReg->pszGetBaseRC, pApicReg->pszGetBaseRC,
-             pApicReg->pszSetTPRRC, pApicReg->pszSetTPRRC, pApicReg->pszGetTPRRC, pApicReg->pszGetTPRRC, pApicReg->pszWriteMSRRC, pApicReg->pszWriteMSRRC, pApicReg->pszReadMSRRC, pApicReg->pszReadMSRRC, pApicReg->pszBusDeliverRC,
+    LogFlow(("pdmR3DevHlp_APICRegister: caller='%s'/%d: pApicReg=%p:{.u32Version=%#x, .pfnGetInterruptR3=%p, .pfnSetBaseMsrR3=%p, .pfnGetBaseMsrR3=%p, "
+             ".pfnSetTprR3=%p, .pfnGetTprR3=%p, .pfnWriteMsr3=%p, .pfnReadMsr3=%p, .pfnBusDeliverR3=%p, .pfnLocalInterruptR3=%p .pfnGetTimerFreqR3=%p, pszGetInterruptRC=%p:{%s}, pszSetBaseMsrRC=%p:{%s}, pszGetBaseMsrRC=%p:{%s}, "
+             ".pszSetTprRC=%p:{%s}, .pszGetTprRC=%p:{%s}, .pszWriteMsrRC=%p:{%s}, .pszReadMsrRC=%p:{%s}, .pszBusDeliverRC=%p:{%s}, .pszLocalInterruptRC=%p:{%s}, .pszGetTimerFreqRC=%p:{%s}} ppApicHlpR3=%p\n",
+             pDevIns->pReg->szName, pDevIns->iInstance, pApicReg, pApicReg->u32Version, pApicReg->pfnGetInterruptR3, pApicReg->pfnSetBaseMsrR3,
+             pApicReg->pfnGetBaseMsrR3, pApicReg->pfnSetTprR3, pApicReg->pfnGetTprR3, pApicReg->pfnWriteMsrR3, pApicReg->pfnReadMsrR3, pApicReg->pfnBusDeliverR3, pApicReg->pfnLocalInterruptR3, pApicReg->pfnGetTimerFreqR3, pApicReg->pszGetInterruptRC,
+             pApicReg->pszGetInterruptRC, pApicReg->pszSetBaseMsrRC, pApicReg->pszSetBaseMsrRC, pApicReg->pszGetBaseMsrRC, pApicReg->pszGetBaseMsrRC,
+             pApicReg->pszSetTprRC, pApicReg->pszSetTprRC, pApicReg->pszGetTprRC, pApicReg->pszGetTprRC, pApicReg->pszWriteMsrRC, pApicReg->pszWriteMsrRC, pApicReg->pszReadMsrRC, pApicReg->pszReadMsrRC, pApicReg->pszBusDeliverRC,
              pApicReg->pszBusDeliverRC, pApicReg->pszLocalInterruptRC, pApicReg->pszLocalInterruptRC, pApicReg->pszGetTimerFreqRC, pApicReg->pszGetTimerFreqRC, ppApicHlpR3));
 
     /*
@@ -2633,25 +2633,23 @@ static DECLCALLBACK(int) pdmR3DevHlp_APICRegister(PPDMDEVINS pDevIns, PPDMAPICRE
         return VERR_INVALID_PARAMETER;
     }
     if (    !pApicReg->pfnGetInterruptR3
-        ||  !pApicReg->pfnHasPendingIrqR3
-        ||  !pApicReg->pfnSetBaseR3
-        ||  !pApicReg->pfnGetBaseR3
-        ||  !pApicReg->pfnSetTPRR3
-        ||  !pApicReg->pfnGetTPRR3
-        ||  !pApicReg->pfnWriteMSRR3
-        ||  !pApicReg->pfnReadMSRR3
+        ||  !pApicReg->pfnSetBaseMsrR3
+        ||  !pApicReg->pfnGetBaseMsrR3
+        ||  !pApicReg->pfnSetTprR3
+        ||  !pApicReg->pfnGetTprR3
+        ||  !pApicReg->pfnWriteMsrR3
+        ||  !pApicReg->pfnReadMsrR3
         ||  !pApicReg->pfnBusDeliverR3
         ||  !pApicReg->pfnLocalInterruptR3
         ||  !pApicReg->pfnGetTimerFreqR3)
     {
         Assert(pApicReg->pfnGetInterruptR3);
-        Assert(pApicReg->pfnHasPendingIrqR3);
-        Assert(pApicReg->pfnSetBaseR3);
-        Assert(pApicReg->pfnGetBaseR3);
-        Assert(pApicReg->pfnSetTPRR3);
-        Assert(pApicReg->pfnGetTPRR3);
-        Assert(pApicReg->pfnWriteMSRR3);
-        Assert(pApicReg->pfnReadMSRR3);
+        Assert(pApicReg->pfnSetBaseMsrR3);
+        Assert(pApicReg->pfnGetBaseMsrR3);
+        Assert(pApicReg->pfnSetTprR3);
+        Assert(pApicReg->pfnGetTprR3);
+        Assert(pApicReg->pfnWriteMsrR3);
+        Assert(pApicReg->pfnReadMsrR3);
         Assert(pApicReg->pfnBusDeliverR3);
         Assert(pApicReg->pfnLocalInterruptR3);
         Assert(pApicReg->pfnGetTimerFreqR3);
@@ -2659,37 +2657,34 @@ static DECLCALLBACK(int) pdmR3DevHlp_APICRegister(PPDMDEVINS pDevIns, PPDMAPICRE
         return VERR_INVALID_PARAMETER;
     }
     if (   (    pApicReg->pszGetInterruptRC
-            ||  pApicReg->pszHasPendingIrqRC
-            ||  pApicReg->pszSetBaseRC
-            ||  pApicReg->pszGetBaseRC
-            ||  pApicReg->pszSetTPRRC
-            ||  pApicReg->pszGetTPRRC
-            ||  pApicReg->pszWriteMSRRC
-            ||  pApicReg->pszReadMSRRC
+            ||  pApicReg->pszSetBaseMsrRC
+            ||  pApicReg->pszGetBaseMsrRC
+            ||  pApicReg->pszSetTprRC
+            ||  pApicReg->pszGetTprRC
+            ||  pApicReg->pszWriteMsrRC
+            ||  pApicReg->pszReadMsrRC
             ||  pApicReg->pszBusDeliverRC
             ||  pApicReg->pszLocalInterruptRC
             ||  pApicReg->pszGetTimerFreqRC)
         &&  (   !VALID_PTR(pApicReg->pszGetInterruptRC)
-            ||  !VALID_PTR(pApicReg->pszHasPendingIrqRC)
-            ||  !VALID_PTR(pApicReg->pszSetBaseRC)
-            ||  !VALID_PTR(pApicReg->pszGetBaseRC)
-            ||  !VALID_PTR(pApicReg->pszSetTPRRC)
-            ||  !VALID_PTR(pApicReg->pszGetTPRRC)
-            ||  !VALID_PTR(pApicReg->pszWriteMSRRC)
-            ||  !VALID_PTR(pApicReg->pszReadMSRRC)
+            ||  !VALID_PTR(pApicReg->pszSetBaseMsrRC)
+            ||  !VALID_PTR(pApicReg->pszGetBaseMsrRC)
+            ||  !VALID_PTR(pApicReg->pszSetTprRC)
+            ||  !VALID_PTR(pApicReg->pszGetTprRC)
+            ||  !VALID_PTR(pApicReg->pszWriteMsrRC)
+            ||  !VALID_PTR(pApicReg->pszReadMsrRC)
             ||  !VALID_PTR(pApicReg->pszBusDeliverRC)
             ||  !VALID_PTR(pApicReg->pszLocalInterruptRC)
             ||  !VALID_PTR(pApicReg->pszGetTimerFreqRC))
        )
     {
         Assert(VALID_PTR(pApicReg->pszGetInterruptRC));
-        Assert(VALID_PTR(pApicReg->pszHasPendingIrqRC));
-        Assert(VALID_PTR(pApicReg->pszSetBaseRC));
-        Assert(VALID_PTR(pApicReg->pszGetBaseRC));
-        Assert(VALID_PTR(pApicReg->pszSetTPRRC));
-        Assert(VALID_PTR(pApicReg->pszGetTPRRC));
-        Assert(VALID_PTR(pApicReg->pszReadMSRRC));
-        Assert(VALID_PTR(pApicReg->pszWriteMSRRC));
+        Assert(VALID_PTR(pApicReg->pszSetBaseMsrRC));
+        Assert(VALID_PTR(pApicReg->pszGetBaseMsrRC));
+        Assert(VALID_PTR(pApicReg->pszSetTprRC));
+        Assert(VALID_PTR(pApicReg->pszGetTprRC));
+        Assert(VALID_PTR(pApicReg->pszReadMsrRC));
+        Assert(VALID_PTR(pApicReg->pszWriteMsrRC));
         Assert(VALID_PTR(pApicReg->pszBusDeliverRC));
         Assert(VALID_PTR(pApicReg->pszLocalInterruptRC));
         Assert(VALID_PTR(pApicReg->pszGetTimerFreqRC));
@@ -2697,37 +2692,34 @@ static DECLCALLBACK(int) pdmR3DevHlp_APICRegister(PPDMDEVINS pDevIns, PPDMAPICRE
         return VERR_INVALID_PARAMETER;
     }
     if (   (    pApicReg->pszGetInterruptR0
-            ||  pApicReg->pszHasPendingIrqR0
-            ||  pApicReg->pszSetBaseR0
-            ||  pApicReg->pszGetBaseR0
-            ||  pApicReg->pszSetTPRR0
-            ||  pApicReg->pszGetTPRR0
-            ||  pApicReg->pszWriteMSRR0
-            ||  pApicReg->pszReadMSRR0
+            ||  pApicReg->pszSetBaseMsrR0
+            ||  pApicReg->pszGetBaseMsrR0
+            ||  pApicReg->pszSetTprR0
+            ||  pApicReg->pszGetTprR0
+            ||  pApicReg->pszWriteMsrR0
+            ||  pApicReg->pszReadMsrR0
             ||  pApicReg->pszBusDeliverR0
             ||  pApicReg->pszLocalInterruptR0
             ||  pApicReg->pszGetTimerFreqR0)
         &&  (   !VALID_PTR(pApicReg->pszGetInterruptR0)
-            ||  !VALID_PTR(pApicReg->pszHasPendingIrqR0)
-            ||  !VALID_PTR(pApicReg->pszSetBaseR0)
-            ||  !VALID_PTR(pApicReg->pszGetBaseR0)
-            ||  !VALID_PTR(pApicReg->pszSetTPRR0)
-            ||  !VALID_PTR(pApicReg->pszGetTPRR0)
-            ||  !VALID_PTR(pApicReg->pszReadMSRR0)
-            ||  !VALID_PTR(pApicReg->pszWriteMSRR0)
+            ||  !VALID_PTR(pApicReg->pszSetBaseMsrR0)
+            ||  !VALID_PTR(pApicReg->pszGetBaseMsrR0)
+            ||  !VALID_PTR(pApicReg->pszSetTprR0)
+            ||  !VALID_PTR(pApicReg->pszGetTprR0)
+            ||  !VALID_PTR(pApicReg->pszReadMsrR0)
+            ||  !VALID_PTR(pApicReg->pszWriteMsrR0)
             ||  !VALID_PTR(pApicReg->pszBusDeliverR0)
             ||  !VALID_PTR(pApicReg->pszLocalInterruptR0)
             ||  !VALID_PTR(pApicReg->pszGetTimerFreqR0))
        )
     {
         Assert(VALID_PTR(pApicReg->pszGetInterruptR0));
-        Assert(VALID_PTR(pApicReg->pszHasPendingIrqR0));
-        Assert(VALID_PTR(pApicReg->pszSetBaseR0));
-        Assert(VALID_PTR(pApicReg->pszGetBaseR0));
-        Assert(VALID_PTR(pApicReg->pszSetTPRR0));
-        Assert(VALID_PTR(pApicReg->pszGetTPRR0));
-        Assert(VALID_PTR(pApicReg->pszReadMSRR0));
-        Assert(VALID_PTR(pApicReg->pszWriteMSRR0));
+        Assert(VALID_PTR(pApicReg->pszSetBaseMsrR0));
+        Assert(VALID_PTR(pApicReg->pszGetBaseMsrR0));
+        Assert(VALID_PTR(pApicReg->pszSetTprR0));
+        Assert(VALID_PTR(pApicReg->pszGetTprR0));
+        Assert(VALID_PTR(pApicReg->pszReadMsrR0));
+        Assert(VALID_PTR(pApicReg->pszWriteMsrR0));
         Assert(VALID_PTR(pApicReg->pszBusDeliverR0));
         Assert(VALID_PTR(pApicReg->pszLocalInterruptR0));
         Assert(VALID_PTR(pApicReg->pszGetTimerFreqR0));
@@ -2762,38 +2754,33 @@ static DECLCALLBACK(int) pdmR3DevHlp_APICRegister(PPDMDEVINS pDevIns, PPDMAPICRE
         AssertMsgRC(rc, ("%s::%s rc=%Rrc\n", pDevIns->pReg->szRCMod, pApicReg->pszGetInterruptRC, rc));
         if (RT_SUCCESS(rc))
         {
-            rc = pdmR3DevGetSymbolRCLazy(pDevIns, pApicReg->pszHasPendingIrqRC, &pVM->pdm.s.Apic.pfnHasPendingIrqRC);
-            AssertMsgRC(rc, ("%s::%s rc=%Rrc\n", pDevIns->pReg->szRCMod, pApicReg->pszHasPendingIrqRC, rc));
+            rc = pdmR3DevGetSymbolRCLazy(pDevIns, pApicReg->pszSetBaseMsrRC, &pVM->pdm.s.Apic.pfnSetBaseMsrRC);
+            AssertMsgRC(rc, ("%s::%s rc=%Rrc\n", pDevIns->pReg->szRCMod, pApicReg->pszSetBaseMsrRC, rc));
         }
         if (RT_SUCCESS(rc))
         {
-            rc = pdmR3DevGetSymbolRCLazy(pDevIns, pApicReg->pszSetBaseRC, &pVM->pdm.s.Apic.pfnSetBaseRC);
-            AssertMsgRC(rc, ("%s::%s rc=%Rrc\n", pDevIns->pReg->szRCMod, pApicReg->pszSetBaseRC, rc));
+            rc = pdmR3DevGetSymbolRCLazy(pDevIns, pApicReg->pszGetBaseMsrRC, &pVM->pdm.s.Apic.pfnGetBaseMsrRC);
+            AssertMsgRC(rc, ("%s::%s rc=%Rrc\n", pDevIns->pReg->szRCMod, pApicReg->pszGetBaseMsrRC, rc));
         }
         if (RT_SUCCESS(rc))
         {
-            rc = pdmR3DevGetSymbolRCLazy(pDevIns, pApicReg->pszGetBaseRC, &pVM->pdm.s.Apic.pfnGetBaseRC);
-            AssertMsgRC(rc, ("%s::%s rc=%Rrc\n", pDevIns->pReg->szRCMod, pApicReg->pszGetBaseRC, rc));
+            rc = pdmR3DevGetSymbolRCLazy(pDevIns, pApicReg->pszSetTprRC, &pVM->pdm.s.Apic.pfnSetTprRC);
+            AssertMsgRC(rc, ("%s::%s rc=%Rrc\n", pDevIns->pReg->szRCMod, pApicReg->pszSetTprRC, rc));
         }
         if (RT_SUCCESS(rc))
         {
-            rc = pdmR3DevGetSymbolRCLazy(pDevIns, pApicReg->pszSetTPRRC, &pVM->pdm.s.Apic.pfnSetTPRRC);
-            AssertMsgRC(rc, ("%s::%s rc=%Rrc\n", pDevIns->pReg->szRCMod, pApicReg->pszSetTPRRC, rc));
+            rc = pdmR3DevGetSymbolRCLazy(pDevIns, pApicReg->pszGetTprRC, &pVM->pdm.s.Apic.pfnGetTprRC);
+            AssertMsgRC(rc, ("%s::%s rc=%Rrc\n", pDevIns->pReg->szRCMod, pApicReg->pszGetTprRC, rc));
         }
         if (RT_SUCCESS(rc))
         {
-            rc = pdmR3DevGetSymbolRCLazy(pDevIns, pApicReg->pszGetTPRRC, &pVM->pdm.s.Apic.pfnGetTPRRC);
-            AssertMsgRC(rc, ("%s::%s rc=%Rrc\n", pDevIns->pReg->szRCMod, pApicReg->pszGetTPRRC, rc));
+            rc = pdmR3DevGetSymbolRCLazy(pDevIns, pApicReg->pszWriteMsrRC, &pVM->pdm.s.Apic.pfnWriteMsrRC);
+            AssertMsgRC(rc, ("%s::%s rc=%Rrc\n", pDevIns->pReg->szRCMod, pApicReg->pszWriteMsrRC, rc));
         }
         if (RT_SUCCESS(rc))
         {
-            rc = pdmR3DevGetSymbolRCLazy(pDevIns, pApicReg->pszWriteMSRRC, &pVM->pdm.s.Apic.pfnWriteMSRRC);
-            AssertMsgRC(rc, ("%s::%s rc=%Rrc\n", pDevIns->pReg->szRCMod, pApicReg->pszWriteMSRRC, rc));
-        }
-        if (RT_SUCCESS(rc))
-        {
-            rc = pdmR3DevGetSymbolRCLazy(pDevIns, pApicReg->pszReadMSRRC, &pVM->pdm.s.Apic.pfnReadMSRRC);
-            AssertMsgRC(rc, ("%s::%s rc=%Rrc\n", pDevIns->pReg->szRCMod, pApicReg->pszReadMSRRC, rc));
+            rc = pdmR3DevGetSymbolRCLazy(pDevIns, pApicReg->pszReadMsrRC, &pVM->pdm.s.Apic.pfnReadMsrRC);
+            AssertMsgRC(rc, ("%s::%s rc=%Rrc\n", pDevIns->pReg->szRCMod, pApicReg->pszReadMsrRC, rc));
         }
         if (RT_SUCCESS(rc))
         {
@@ -2821,13 +2808,12 @@ static DECLCALLBACK(int) pdmR3DevHlp_APICRegister(PPDMDEVINS pDevIns, PPDMAPICRE
     {
         pVM->pdm.s.Apic.pDevInsRC           = 0;
         pVM->pdm.s.Apic.pfnGetInterruptRC   = 0;
-        pVM->pdm.s.Apic.pfnHasPendingIrqRC  = 0;
-        pVM->pdm.s.Apic.pfnSetBaseRC        = 0;
-        pVM->pdm.s.Apic.pfnGetBaseRC        = 0;
-        pVM->pdm.s.Apic.pfnSetTPRRC         = 0;
-        pVM->pdm.s.Apic.pfnGetTPRRC         = 0;
-        pVM->pdm.s.Apic.pfnWriteMSRRC       = 0;
-        pVM->pdm.s.Apic.pfnReadMSRRC        = 0;
+        pVM->pdm.s.Apic.pfnSetBaseMsrRC     = 0;
+        pVM->pdm.s.Apic.pfnGetBaseMsrRC     = 0;
+        pVM->pdm.s.Apic.pfnSetTprRC         = 0;
+        pVM->pdm.s.Apic.pfnGetTprRC         = 0;
+        pVM->pdm.s.Apic.pfnWriteMsrRC       = 0;
+        pVM->pdm.s.Apic.pfnReadMsrRC        = 0;
         pVM->pdm.s.Apic.pfnBusDeliverRC     = 0;
         pVM->pdm.s.Apic.pfnLocalInterruptRC = 0;
         pVM->pdm.s.Apic.pfnGetTimerFreqRC   = 0;
@@ -2842,38 +2828,33 @@ static DECLCALLBACK(int) pdmR3DevHlp_APICRegister(PPDMDEVINS pDevIns, PPDMAPICRE
         AssertMsgRC(rc, ("%s::%s rc=%Rrc\n", pDevIns->pReg->szR0Mod, pApicReg->pszGetInterruptR0, rc));
         if (RT_SUCCESS(rc))
         {
-            rc = pdmR3DevGetSymbolR0Lazy(pDevIns, pApicReg->pszHasPendingIrqR0, &pVM->pdm.s.Apic.pfnHasPendingIrqR0);
-            AssertMsgRC(rc, ("%s::%s rc=%Rrc\n", pDevIns->pReg->szR0Mod, pApicReg->pszHasPendingIrqR0, rc));
+            rc = pdmR3DevGetSymbolR0Lazy(pDevIns, pApicReg->pszSetBaseMsrR0, &pVM->pdm.s.Apic.pfnSetBaseMsrR0);
+            AssertMsgRC(rc, ("%s::%s rc=%Rrc\n", pDevIns->pReg->szR0Mod, pApicReg->pszSetBaseMsrR0, rc));
         }
         if (RT_SUCCESS(rc))
         {
-            rc = pdmR3DevGetSymbolR0Lazy(pDevIns, pApicReg->pszSetBaseR0, &pVM->pdm.s.Apic.pfnSetBaseR0);
-            AssertMsgRC(rc, ("%s::%s rc=%Rrc\n", pDevIns->pReg->szR0Mod, pApicReg->pszSetBaseR0, rc));
+            rc = pdmR3DevGetSymbolR0Lazy(pDevIns, pApicReg->pszGetBaseMsrR0, &pVM->pdm.s.Apic.pfnGetBaseMsrR0);
+            AssertMsgRC(rc, ("%s::%s rc=%Rrc\n", pDevIns->pReg->szR0Mod, pApicReg->pszGetBaseMsrR0, rc));
         }
         if (RT_SUCCESS(rc))
         {
-            rc = pdmR3DevGetSymbolR0Lazy(pDevIns, pApicReg->pszGetBaseR0, &pVM->pdm.s.Apic.pfnGetBaseR0);
-            AssertMsgRC(rc, ("%s::%s rc=%Rrc\n", pDevIns->pReg->szR0Mod, pApicReg->pszGetBaseR0, rc));
+            rc = pdmR3DevGetSymbolR0Lazy(pDevIns, pApicReg->pszSetTprR0, &pVM->pdm.s.Apic.pfnSetTprR0);
+            AssertMsgRC(rc, ("%s::%s rc=%Rrc\n", pDevIns->pReg->szR0Mod, pApicReg->pszSetTprR0, rc));
         }
         if (RT_SUCCESS(rc))
         {
-            rc = pdmR3DevGetSymbolR0Lazy(pDevIns, pApicReg->pszSetTPRR0, &pVM->pdm.s.Apic.pfnSetTPRR0);
-            AssertMsgRC(rc, ("%s::%s rc=%Rrc\n", pDevIns->pReg->szR0Mod, pApicReg->pszSetTPRR0, rc));
+            rc = pdmR3DevGetSymbolR0Lazy(pDevIns, pApicReg->pszGetTprR0, &pVM->pdm.s.Apic.pfnGetTprR0);
+            AssertMsgRC(rc, ("%s::%s rc=%Rrc\n", pDevIns->pReg->szR0Mod, pApicReg->pszGetTprR0, rc));
         }
         if (RT_SUCCESS(rc))
         {
-            rc = pdmR3DevGetSymbolR0Lazy(pDevIns, pApicReg->pszGetTPRR0, &pVM->pdm.s.Apic.pfnGetTPRR0);
-            AssertMsgRC(rc, ("%s::%s rc=%Rrc\n", pDevIns->pReg->szR0Mod, pApicReg->pszGetTPRR0, rc));
+            rc = pdmR3DevGetSymbolR0Lazy(pDevIns, pApicReg->pszWriteMsrR0, &pVM->pdm.s.Apic.pfnWriteMsrR0);
+            AssertMsgRC(rc, ("%s::%s rc=%Rrc\n", pDevIns->pReg->szR0Mod, pApicReg->pszWriteMsrR0, rc));
         }
         if (RT_SUCCESS(rc))
         {
-            rc = pdmR3DevGetSymbolR0Lazy(pDevIns, pApicReg->pszWriteMSRR0, &pVM->pdm.s.Apic.pfnWriteMSRR0);
-            AssertMsgRC(rc, ("%s::%s rc=%Rrc\n", pDevIns->pReg->szR0Mod, pApicReg->pszWriteMSRR0, rc));
-        }
-        if (RT_SUCCESS(rc))
-        {
-            rc = pdmR3DevGetSymbolR0Lazy(pDevIns, pApicReg->pszReadMSRR0, &pVM->pdm.s.Apic.pfnReadMSRR0);
-            AssertMsgRC(rc, ("%s::%s rc=%Rrc\n", pDevIns->pReg->szR0Mod, pApicReg->pszReadMSRR0, rc));
+            rc = pdmR3DevGetSymbolR0Lazy(pDevIns, pApicReg->pszReadMsrR0, &pVM->pdm.s.Apic.pfnReadMsrR0);
+            AssertMsgRC(rc, ("%s::%s rc=%Rrc\n", pDevIns->pReg->szR0Mod, pApicReg->pszReadMsrR0, rc));
         }
         if (RT_SUCCESS(rc))
         {
@@ -2901,13 +2882,12 @@ static DECLCALLBACK(int) pdmR3DevHlp_APICRegister(PPDMDEVINS pDevIns, PPDMAPICRE
     else
     {
         pVM->pdm.s.Apic.pfnGetInterruptR0   = 0;
-        pVM->pdm.s.Apic.pfnHasPendingIrqR0  = 0;
-        pVM->pdm.s.Apic.pfnSetBaseR0        = 0;
-        pVM->pdm.s.Apic.pfnGetBaseR0        = 0;
-        pVM->pdm.s.Apic.pfnSetTPRR0         = 0;
-        pVM->pdm.s.Apic.pfnGetTPRR0         = 0;
-        pVM->pdm.s.Apic.pfnWriteMSRR0       = 0;
-        pVM->pdm.s.Apic.pfnReadMSRR0        = 0;
+        pVM->pdm.s.Apic.pfnSetBaseMsrR0     = 0;
+        pVM->pdm.s.Apic.pfnGetBaseMsrR0     = 0;
+        pVM->pdm.s.Apic.pfnSetTprR0         = 0;
+        pVM->pdm.s.Apic.pfnGetTprR0         = 0;
+        pVM->pdm.s.Apic.pfnWriteMsrR0       = 0;
+        pVM->pdm.s.Apic.pfnReadMsrR0        = 0;
         pVM->pdm.s.Apic.pfnBusDeliverR0     = 0;
         pVM->pdm.s.Apic.pfnLocalInterruptR0 = 0;
         pVM->pdm.s.Apic.pfnGetTimerFreqR0   = 0;
@@ -2919,13 +2899,12 @@ static DECLCALLBACK(int) pdmR3DevHlp_APICRegister(PPDMDEVINS pDevIns, PPDMAPICRE
      */
     pVM->pdm.s.Apic.pDevInsR3           = pDevIns;
     pVM->pdm.s.Apic.pfnGetInterruptR3   = pApicReg->pfnGetInterruptR3;
-    pVM->pdm.s.Apic.pfnHasPendingIrqR3  = pApicReg->pfnHasPendingIrqR3;
-    pVM->pdm.s.Apic.pfnSetBaseR3        = pApicReg->pfnSetBaseR3;
-    pVM->pdm.s.Apic.pfnGetBaseR3        = pApicReg->pfnGetBaseR3;
-    pVM->pdm.s.Apic.pfnSetTPRR3         = pApicReg->pfnSetTPRR3;
-    pVM->pdm.s.Apic.pfnGetTPRR3         = pApicReg->pfnGetTPRR3;
-    pVM->pdm.s.Apic.pfnWriteMSRR3       = pApicReg->pfnWriteMSRR3;
-    pVM->pdm.s.Apic.pfnReadMSRR3        = pApicReg->pfnReadMSRR3;
+    pVM->pdm.s.Apic.pfnSetBaseMsrR3     = pApicReg->pfnSetBaseMsrR3;
+    pVM->pdm.s.Apic.pfnGetBaseMsrR3     = pApicReg->pfnGetBaseMsrR3;
+    pVM->pdm.s.Apic.pfnSetTprR3         = pApicReg->pfnSetTprR3;
+    pVM->pdm.s.Apic.pfnGetTprR3         = pApicReg->pfnGetTprR3;
+    pVM->pdm.s.Apic.pfnWriteMsrR3       = pApicReg->pfnWriteMsrR3;
+    pVM->pdm.s.Apic.pfnReadMsrR3        = pApicReg->pfnReadMsrR3;
     pVM->pdm.s.Apic.pfnBusDeliverR3     = pApicReg->pfnBusDeliverR3;
     pVM->pdm.s.Apic.pfnLocalInterruptR3 = pApicReg->pfnLocalInterruptR3;
     pVM->pdm.s.Apic.pfnGetTimerFreqR3   = pApicReg->pfnGetTimerFreqR3;
@@ -2956,7 +2935,11 @@ static DECLCALLBACK(int) pdmR3DevHlp_IOAPICRegister(PPDMDEVINS pDevIns, PPDMIOAP
         LogFlow(("pdmR3DevHlp_IOAPICRegister: caller='%s'/%d: returns %Rrc (version)\n", pDevIns->pReg->szName, pDevIns->iInstance, VERR_INVALID_PARAMETER));
         return VERR_INVALID_PARAMETER;
     }
-    if (!pIoApicReg->pfnSetIrqR3 || !pIoApicReg->pfnSendMsiR3)
+    if (!pIoApicReg->pfnSetIrqR3 || !pIoApicReg->pfnSendMsiR3
+#ifdef VBOX_WITH_NEW_IOAPIC
+        || !pIoApicReg->pfnSetEoiR3
+#endif
+        )
     {
         Assert(pIoApicReg->pfnSetIrqR3);
         LogFlow(("pdmR3DevHlp_IOAPICRegister: caller='%s'/%d: returns %Rrc (R3 callbacks)\n", pDevIns->pReg->szName, pDevIns->iInstance, VERR_INVALID_PARAMETER));
@@ -2976,6 +2959,13 @@ static DECLCALLBACK(int) pdmR3DevHlp_IOAPICRegister(PPDMDEVINS pDevIns, PPDMIOAP
         LogFlow(("pdmR3DevHlp_IOAPICRegister: caller='%s'/%d: returns %Rrc (GC callbacks)\n", pDevIns->pReg->szName, pDevIns->iInstance, VERR_INVALID_PARAMETER));
         return VERR_INVALID_PARAMETER;
     }
+    if (    pIoApicReg->pszSetEoiRC
+        &&  !VALID_PTR(pIoApicReg->pszSetEoiRC))
+    {
+        Assert(VALID_PTR(pIoApicReg->pszSetEoiRC));
+        LogFlow(("pdmR3DevHlp_IOAPICRegister: caller='%s'/%d: returns %Rrc (GC callbacks)\n", pDevIns->pReg->szName, pDevIns->iInstance, VERR_INVALID_PARAMETER));
+        return VERR_INVALID_PARAMETER;
+    }
     if (    pIoApicReg->pszSetIrqR0
         &&  !VALID_PTR(pIoApicReg->pszSetIrqR0))
     {
@@ -2987,6 +2977,13 @@ static DECLCALLBACK(int) pdmR3DevHlp_IOAPICRegister(PPDMDEVINS pDevIns, PPDMIOAP
         &&  !VALID_PTR(pIoApicReg->pszSendMsiR0))
     {
         Assert(VALID_PTR(pIoApicReg->pszSendMsiR0));
+        LogFlow(("pdmR3DevHlp_IOAPICRegister: caller='%s'/%d: returns %Rrc (GC callbacks)\n", pDevIns->pReg->szName, pDevIns->iInstance, VERR_INVALID_PARAMETER));
+        return VERR_INVALID_PARAMETER;
+    }
+    if (    pIoApicReg->pszSetEoiR0
+        &&  !VALID_PTR(pIoApicReg->pszSetEoiR0))
+    {
+        Assert(VALID_PTR(pIoApicReg->pszSetEoiR0));
         LogFlow(("pdmR3DevHlp_IOAPICRegister: caller='%s'/%d: returns %Rrc (GC callbacks)\n", pDevIns->pReg->szName, pDevIns->iInstance, VERR_INVALID_PARAMETER));
         return VERR_INVALID_PARAMETER;
     }
@@ -3048,7 +3045,7 @@ static DECLCALLBACK(int) pdmR3DevHlp_IOAPICRegister(PPDMDEVINS pDevIns, PPDMIOAP
 
     if (pIoApicReg->pszSendMsiRC)
     {
-        int rc = pdmR3DevGetSymbolRCLazy(pDevIns, pIoApicReg->pszSetIrqRC, &pVM->pdm.s.IoApic.pfnSendMsiRC);
+        int rc = pdmR3DevGetSymbolRCLazy(pDevIns, pIoApicReg->pszSendMsiRC, &pVM->pdm.s.IoApic.pfnSendMsiRC);
         AssertMsgRC(rc, ("%s::%s rc=%Rrc\n", pDevIns->pReg->szRCMod, pIoApicReg->pszSendMsiRC, rc));
         if (RT_FAILURE(rc))
         {
@@ -3059,6 +3056,21 @@ static DECLCALLBACK(int) pdmR3DevHlp_IOAPICRegister(PPDMDEVINS pDevIns, PPDMIOAP
     else
     {
         pVM->pdm.s.IoApic.pfnSendMsiRC = 0;
+    }
+
+    if (pIoApicReg->pszSetEoiRC)
+    {
+        int rc = pdmR3DevGetSymbolRCLazy(pDevIns, pIoApicReg->pszSetEoiRC, &pVM->pdm.s.IoApic.pfnSetEoiRC);
+        AssertMsgRC(rc, ("%s::%s rc=%Rrc\n", pDevIns->pReg->szRCMod, pIoApicReg->pszSetEoiRC, rc));
+        if (RT_FAILURE(rc))
+        {
+            LogFlow(("pdmR3DevHlp_IOAPICRegister: caller='%s'/%d: returns %Rrc\n", pDevIns->pReg->szName, pDevIns->iInstance, rc));
+            return rc;
+        }
+    }
+    else
+    {
+        pVM->pdm.s.IoApic.pfnSetEoiRC = 0;
     }
 
     /*
@@ -3097,13 +3109,29 @@ static DECLCALLBACK(int) pdmR3DevHlp_IOAPICRegister(PPDMDEVINS pDevIns, PPDMIOAP
         pVM->pdm.s.IoApic.pfnSendMsiR0 = 0;
     }
 
+    if (pIoApicReg->pszSetEoiR0)
+    {
+        int rc = pdmR3DevGetSymbolR0Lazy(pDevIns, pIoApicReg->pszSetEoiR0, &pVM->pdm.s.IoApic.pfnSetEoiR0);
+        AssertMsgRC(rc, ("%s::%s rc=%Rrc\n", pDevIns->pReg->szR0Mod, pIoApicReg->pszSetEoiR0, rc));
+        if (RT_FAILURE(rc))
+        {
+            LogFlow(("pdmR3DevHlp_IOAPICRegister: caller='%s'/%d: returns %Rrc\n", pDevIns->pReg->szName, pDevIns->iInstance, rc));
+            return rc;
+        }
+    }
+    else
+    {
+        pVM->pdm.s.IoApic.pfnSetEoiR0 = 0;
+    }
+
 
     /*
      * Initialize the R3 bits.
      */
     pVM->pdm.s.IoApic.pDevInsR3   = pDevIns;
-    pVM->pdm.s.IoApic.pfnSetIrqR3 = pIoApicReg->pfnSetIrqR3;
+    pVM->pdm.s.IoApic.pfnSetIrqR3  = pIoApicReg->pfnSetIrqR3;
     pVM->pdm.s.IoApic.pfnSendMsiR3 = pIoApicReg->pfnSendMsiR3;
+    pVM->pdm.s.IoApic.pfnSetEoiR3  = pIoApicReg->pfnSetEoiR3;
     Log(("PDM: Registered I/O APIC device '%s'/%d pDevIns=%p\n", pDevIns->pReg->szName, pDevIns->iInstance, pDevIns));
 
     /* set the helper pointer and return. */
@@ -3261,37 +3289,121 @@ static DECLCALLBACK(int) pdmR3DevHlp_DMACRegister(PPDMDEVINS pDevIns, PPDMDMACRE
 /**
  * @copydoc PDMDEVHLPR3::pfnRegisterVMMDevHeap
  */
-static DECLCALLBACK(int) pdmR3DevHlp_RegisterVMMDevHeap(PPDMDEVINS pDevIns, RTGCPHYS GCPhys, RTR3PTR pvHeap, unsigned cbSize)
+static DECLCALLBACK(int) pdmR3DevHlp_RegisterVMMDevHeap(PPDMDEVINS pDevIns, RTGCPHYS GCPhys, RTR3PTR pvHeap, unsigned cbHeap)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
-    VM_ASSERT_EMT(pDevIns->Internal.s.pVMR3);
+    PVM pVM = pDevIns->Internal.s.pVMR3;
+    VM_ASSERT_EMT(pVM);
+    LogFlow(("pdmR3DevHlp_RegisterVMMDevHeap: caller='%s'/%d: GCPhys=%RGp pvHeap=%p cbHeap=%#x\n",
+             pDevIns->pReg->szName, pDevIns->iInstance, GCPhys, pvHeap, cbHeap));
 
-    int rc = PDMR3VmmDevHeapRegister(pDevIns->Internal.s.pVMR3, GCPhys, pvHeap, cbSize);
-    return rc;
+    if (pVM->pdm.s.pvVMMDevHeap == NULL)
+    {
+        pVM->pdm.s.pvVMMDevHeap     = pvHeap;
+        pVM->pdm.s.GCPhysVMMDevHeap = GCPhys;
+        pVM->pdm.s.cbVMMDevHeap     = cbHeap;
+        pVM->pdm.s.cbVMMDevHeapLeft = cbHeap;
+    }
+    else
+    {
+        Assert(pVM->pdm.s.pvVMMDevHeap == pvHeap);
+        Assert(pVM->pdm.s.cbVMMDevHeap == cbHeap);
+        Assert(pVM->pdm.s.GCPhysVMMDevHeap != GCPhys || GCPhys == NIL_RTGCPHYS);
+        if (pVM->pdm.s.GCPhysVMMDevHeap != GCPhys)
+        {
+            pVM->pdm.s.GCPhysVMMDevHeap = GCPhys;
+            if (pVM->pdm.s.pfnVMMDevHeapNotify)
+                pVM->pdm.s.pfnVMMDevHeapNotify(pVM, pvHeap, GCPhys);
+        }
+    }
+
+    LogFlow(("pdmR3DevHlp_RegisterVMMDevHeap: caller='%s'/%d: returns %Rrc\n",
+             pDevIns->pReg->szName, pDevIns->iInstance, VINF_SUCCESS));
+    return VINF_SUCCESS;
 }
 
 
 /**
- * @copydoc PDMDEVHLPR3::pfnUnregisterVMMDevHeap
+ * @interface_method_impl{PDMDEVHLPR3,pfnFirmwareRegister}
  */
-static DECLCALLBACK(int) pdmR3DevHlp_UnregisterVMMDevHeap(PPDMDEVINS pDevIns, RTGCPHYS GCPhys)
+static DECLCALLBACK(int) pdmR3DevHlp_FirmwareRegister(PPDMDEVINS pDevIns, PCPDMFWREG pFwReg, PCPDMFWHLPR3 *ppFwHlp)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
     VM_ASSERT_EMT(pDevIns->Internal.s.pVMR3);
+    LogFlow(("pdmR3DevHlp_FirmwareRegister: caller='%s'/%d: pFWReg=%p:{.u32Version=%#x, .pfnIsHardReset=%p, .u32TheEnd=%#x} ppFwHlp=%p\n",
+             pDevIns->pReg->szName, pDevIns->iInstance, pFwReg, pFwReg->u32Version, pFwReg->pfnIsHardReset, pFwReg->u32TheEnd, ppFwHlp));
 
-    int rc = PDMR3VmmDevHeapUnregister(pDevIns->Internal.s.pVMR3, GCPhys);
+    /*
+     * Validate input.
+     */
+    if (pFwReg->u32Version != PDM_FWREG_VERSION)
+    {
+        AssertMsgFailed(("u32Version=%#x expected %#x\n", pFwReg->u32Version, PDM_FWREG_VERSION));
+        LogFlow(("pdmR3DevHlp_FirmwareRegister: caller='%s'/%d: returns %Rrc (version)\n",
+                 pDevIns->pReg->szName, pDevIns->iInstance, VERR_INVALID_PARAMETER));
+        return VERR_INVALID_PARAMETER;
+    }
+    if (!pFwReg->pfnIsHardReset)
+    {
+        Assert(pFwReg->pfnIsHardReset);
+        LogFlow(("pdmR3DevHlp_FirmwareRegister: caller='%s'/%d: returns %Rrc (callbacks)\n",
+                 pDevIns->pReg->szName, pDevIns->iInstance, VERR_INVALID_PARAMETER));
+        return VERR_INVALID_PARAMETER;
+    }
+
+    if (!ppFwHlp)
+    {
+        Assert(ppFwHlp);
+        LogFlow(("pdmR3DevHlp_FirmwareRegister: caller='%s'/%d: returns %Rrc (ppFwHlp)\n",
+                 pDevIns->pReg->szName, pDevIns->iInstance, VERR_INVALID_PARAMETER));
+        return VERR_INVALID_PARAMETER;
+    }
+
+    /*
+     * Only one DMA device.
+     */
+    PVM pVM = pDevIns->Internal.s.pVMR3;
+    if (pVM->pdm.s.pFirmware)
+    {
+        AssertMsgFailed(("Only one firmware device is supported!\n"));
+        LogFlow(("pdmR3DevHlp_FirmwareRegister: caller='%s'/%d: returns %Rrc\n",
+                 pDevIns->pReg->szName, pDevIns->iInstance, VERR_INVALID_PARAMETER));
+        return VERR_INVALID_PARAMETER;
+    }
+
+    /*
+     * Allocate and initialize pci bus structure.
+     */
+    int rc = VINF_SUCCESS;
+    PPDMFW pFirmware = (PPDMFW)MMR3HeapAlloc(pDevIns->Internal.s.pVMR3, MM_TAG_PDM_DEVICE, sizeof(*pFirmware));
+    if (pFirmware)
+    {
+        pFirmware->pDevIns   = pDevIns;
+        pFirmware->Reg       = *pFwReg;
+        pVM->pdm.s.pFirmware = pFirmware;
+
+        /* set the helper pointer. */
+        *ppFwHlp = &g_pdmR3DevFirmwareHlp;
+        Log(("PDM: Registered firmware device '%s'/%d pDevIns=%p\n",
+             pDevIns->pReg->szName, pDevIns->iInstance, pDevIns));
+    }
+    else
+        rc = VERR_NO_MEMORY;
+
+    LogFlow(("pdmR3DevHlp_FirmwareRegister: caller='%s'/%d: returns %Rrc\n",
+             pDevIns->pReg->szName, pDevIns->iInstance, rc));
     return rc;
 }
 
 
 /** @interface_method_impl{PDMDEVHLPR3,pfnVMReset} */
-static DECLCALLBACK(int) pdmR3DevHlp_VMReset(PPDMDEVINS pDevIns)
+static DECLCALLBACK(int) pdmR3DevHlp_VMReset(PPDMDEVINS pDevIns, uint32_t fFlags)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
     PVM pVM = pDevIns->Internal.s.pVMR3;
     VM_ASSERT_EMT(pVM);
-    LogFlow(("pdmR3DevHlp_VMReset: caller='%s'/%d: VM_FF_RESET %d -> 1\n",
-             pDevIns->pReg->szName, pDevIns->iInstance, VM_FF_IS_SET(pVM, VM_FF_RESET)));
+    LogFlow(("pdmR3DevHlp_VMReset: caller='%s'/%d: fFlags=%#x VM_FF_RESET %d -> 1\n",
+             pDevIns->pReg->szName, pDevIns->iInstance, fFlags, VM_FF_IS_SET(pVM, VM_FF_RESET)));
 
     /*
      * We postpone this operation because we're likely to be inside a I/O instruction
@@ -3307,6 +3419,7 @@ static DECLCALLBACK(int) pdmR3DevHlp_VMReset(PPDMDEVINS pDevIns)
     }
     else
     {
+        pVM->pdm.s.fResetFlags = fFlags;
         VM_FF_SET(pVM, VM_FF_RESET);
         rc = VINF_EM_RESET;
     }
@@ -3538,6 +3651,7 @@ const PDMDEVHLPR3 g_pdmR3DevHlpTrusted =
     pdmR3DevHlp_ISASetIrq,
     pdmR3DevHlp_ISASetIrqNoWait,
     pdmR3DevHlp_DriverAttach,
+    pdmR3DevHlp_DriverDetach,
     pdmR3DevHlp_QueueCreate,
     pdmR3DevHlp_CritSectInit,
     pdmR3DevHlp_CritSectGetNop,
@@ -3570,7 +3684,7 @@ const PDMDEVHLPR3 g_pdmR3DevHlpTrusted =
     pdmR3DevHlp_CallR0,
     pdmR3DevHlp_VMGetSuspendReason,
     pdmR3DevHlp_VMGetResumeReason,
-    pdmR3DevHlp_DriverDetach,
+    0,
     0,
     0,
     0,
@@ -3582,7 +3696,7 @@ const PDMDEVHLPR3 g_pdmR3DevHlpTrusted =
     pdmR3DevHlp_GetVMCPU,
     pdmR3DevHlp_GetCurrentCpuId,
     pdmR3DevHlp_RegisterVMMDevHeap,
-    pdmR3DevHlp_UnregisterVMMDevHeap,
+    pdmR3DevHlp_FirmwareRegister,
     pdmR3DevHlp_VMReset,
     pdmR3DevHlp_VMSuspend,
     pdmR3DevHlp_VMSuspendSaveAndPowerOff,
@@ -3637,29 +3751,30 @@ static DECLCALLBACK(VMCPUID) pdmR3DevHlp_Untrusted_GetCurrentCpuId(PPDMDEVINS pD
 
 
 /** @interface_method_impl{PDMDEVHLPR3,pfnRegisterVMMDevHeap} */
-static DECLCALLBACK(int) pdmR3DevHlp_Untrusted_RegisterVMMDevHeap(PPDMDEVINS pDevIns, RTGCPHYS GCPhys, RTR3PTR pvHeap, unsigned cbSize)
+static DECLCALLBACK(int) pdmR3DevHlp_Untrusted_RegisterVMMDevHeap(PPDMDEVINS pDevIns, RTGCPHYS GCPhys,
+                                                                  RTR3PTR pvHeap, unsigned cbHeap)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
-    NOREF(GCPhys); NOREF(pvHeap); NOREF(cbSize);
+    NOREF(GCPhys); NOREF(pvHeap); NOREF(cbHeap);
     AssertReleaseMsgFailed(("Untrusted device called trusted helper! '%s'/%d\n", pDevIns->pReg->szName, pDevIns->iInstance));
     return VERR_ACCESS_DENIED;
 }
 
 
-/** @interface_method_impl{PDMDEVHLPR3,pfnUnregisterVMMDevHeap} */
-static DECLCALLBACK(int) pdmR3DevHlp_Untrusted_UnregisterVMMDevHeap(PPDMDEVINS pDevIns, RTGCPHYS GCPhys)
+/** @interface_method_impl{PDMDEVHLPR3,pfnFirmwareRegister} */
+static DECLCALLBACK(int) pdmR3DevHlp_Untrusted_FirmwareRegister(PPDMDEVINS pDevIns, PCPDMFWREG pFwReg, PCPDMFWHLPR3 *ppFwHlp)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
-    NOREF(GCPhys);
+    NOREF(pFwReg); NOREF(ppFwHlp);
     AssertReleaseMsgFailed(("Untrusted device called trusted helper! '%s'/%d\n", pDevIns->pReg->szName, pDevIns->iInstance));
     return VERR_ACCESS_DENIED;
 }
 
 
 /** @interface_method_impl{PDMDEVHLPR3,pfnVMReset} */
-static DECLCALLBACK(int) pdmR3DevHlp_Untrusted_VMReset(PPDMDEVINS pDevIns)
+static DECLCALLBACK(int) pdmR3DevHlp_Untrusted_VMReset(PPDMDEVINS pDevIns, uint32_t fFlags)
 {
-    PDMDEV_ASSERT_DEVINS(pDevIns);
+    PDMDEV_ASSERT_DEVINS(pDevIns); NOREF(fFlags);
     AssertReleaseMsgFailed(("Untrusted device called trusted helper! '%s'/%d\n", pDevIns->pReg->szName, pDevIns->iInstance));
     return VERR_ACCESS_DENIED;
 }
@@ -3789,6 +3904,7 @@ const PDMDEVHLPR3 g_pdmR3DevHlpUnTrusted =
     pdmR3DevHlp_ISASetIrq,
     pdmR3DevHlp_ISASetIrqNoWait,
     pdmR3DevHlp_DriverAttach,
+    pdmR3DevHlp_DriverDetach,
     pdmR3DevHlp_QueueCreate,
     pdmR3DevHlp_CritSectInit,
     pdmR3DevHlp_CritSectGetNop,
@@ -3821,7 +3937,7 @@ const PDMDEVHLPR3 g_pdmR3DevHlpUnTrusted =
     pdmR3DevHlp_CallR0,
     pdmR3DevHlp_VMGetSuspendReason,
     pdmR3DevHlp_VMGetResumeReason,
-    pdmR3DevHlp_DriverDetach,
+    0,
     0,
     0,
     0,
@@ -3833,7 +3949,7 @@ const PDMDEVHLPR3 g_pdmR3DevHlpUnTrusted =
     pdmR3DevHlp_Untrusted_GetVMCPU,
     pdmR3DevHlp_Untrusted_GetCurrentCpuId,
     pdmR3DevHlp_Untrusted_RegisterVMMDevHeap,
-    pdmR3DevHlp_Untrusted_UnregisterVMMDevHeap,
+    pdmR3DevHlp_Untrusted_FirmwareRegister,
     pdmR3DevHlp_Untrusted_VMReset,
     pdmR3DevHlp_Untrusted_VMSuspend,
     pdmR3DevHlp_Untrusted_VMSuspendSaveAndPowerOff,

@@ -1,20 +1,20 @@
 /** @file
   SimpleFileSystem protocol as defined in the UEFI 2.0 specification.
 
-  The SimpleFileSystem protocol is the programmatic access to the FAT (12,16,32) 
-  file system specified in UEFI 2.0. It can also be used to abstract a file  
+  The SimpleFileSystem protocol is the programmatic access to the FAT (12,16,32)
+  file system specified in UEFI 2.0. It can also be used to abstract a file
   system other than FAT.
 
   UEFI 2.0 can boot from any valid EFI image contained in a SimpleFileSystem.
 
-Copyright (c) 2006 - 2011, Intel Corporation. All rights reserved.<BR>
-This program and the accompanying materials are licensed and made available under 
-the terms and conditions of the BSD License that accompanies this distribution.  
+Copyright (c) 2006 - 2014, Intel Corporation. All rights reserved.<BR>
+This program and the accompanying materials are licensed and made available under
+the terms and conditions of the BSD License that accompanies this distribution.
 The full text of the license may be found at
-http://opensource.org/licenses/bsd-license.php.                                          
-    
-THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,                     
-WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.             
+http://opensource.org/licenses/bsd-license.php.
+
+THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,
+WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 
 **/
 
@@ -33,12 +33,12 @@ typedef struct _EFI_FILE_PROTOCOL         *EFI_FILE_HANDLE;
 
 ///
 /// Protocol GUID name defined in EFI1.1.
-/// 
+///
 #define SIMPLE_FILE_SYSTEM_PROTOCOL       EFI_SIMPLE_FILE_SYSTEM_PROTOCOL_GUID
 
 ///
 /// Protocol name defined in EFI1.1.
-/// 
+///
 typedef EFI_SIMPLE_FILE_SYSTEM_PROTOCOL   EFI_FILE_IO_INTERFACE;
 typedef EFI_FILE_PROTOCOL                 EFI_FILE;
 
@@ -73,7 +73,7 @@ EFI_STATUS
 
 ///
 /// Revision defined in EFI1.1
-/// 
+///
 #define EFI_FILE_IO_INTERFACE_REVISION  EFI_SIMPLE_FILE_SYSTEM_PROTOCOL_REVISION
 
 struct _EFI_SIMPLE_FILE_SYSTEM_PROTOCOL {
@@ -99,7 +99,7 @@ struct _EFI_SIMPLE_FILE_SYSTEM_PROTOCOL {
                      and "..".
   @param  OpenMode   The mode to open the file. The only valid combinations that the
                      file may be opened with are: Read, Read/Write, or Create/Read/Write.
-  @param  Attributes Only valid for EFI_FILE_MODE_CREATE, in which case these are the 
+  @param  Attributes Only valid for EFI_FILE_MODE_CREATE, in which case these are the
                      attribute bits for the newly created file.
 
   @retval EFI_SUCCESS          The file was opened.
@@ -147,7 +147,7 @@ EFI_STATUS
 /**
   Closes a specified file handle.
 
-  @param  This          A pointer to the EFI_FILE_PROTOCOL instance that is the file 
+  @param  This          A pointer to the EFI_FILE_PROTOCOL instance that is the file
                         handle to close.
 
   @retval EFI_SUCCESS   The file was closed.
@@ -190,7 +190,7 @@ EFI_STATUS
   @retval EFI_DEVICE_ERROR     An attempt was made to read from a deleted file.
   @retval EFI_DEVICE_ERROR     On entry, the current file position is beyond the end of the file.
   @retval EFI_VOLUME_CORRUPTED The file system structures are corrupted.
-  @retval EFI_BUFFER_TO_SMALL  The BufferSize is too small to read the current directory
+  @retval EFI_BUFFER_TOO_SMALL The BufferSize is too small to read the current directory
                                entry. BufferSize has been updated with the size
                                needed to complete the request.
 
@@ -345,7 +345,7 @@ EFI_STATUS
 /**
   Flushes all modified data associated with a file to a device.
 
-  @param  This A pointer to the EFI_FILE_PROTOCOL instance that is the file 
+  @param  This A pointer to the EFI_FILE_PROTOCOL instance that is the file
                handle to flush.
 
   @retval EFI_SUCCESS          The data was flushed.
@@ -363,24 +363,181 @@ EFI_STATUS
   IN EFI_FILE_PROTOCOL  *This
   );
 
-#define EFI_FILE_PROTOCOL_REVISION   0x00010000
+typedef struct {
+  //
+  // If Event is NULL, then blocking I/O is performed.
+  // If Event is not NULL and non-blocking I/O is supported, then non-blocking I/O is performed,
+  // and Event will be signaled when the read request is completed.
+  // The caller must be prepared to handle the case where the callback associated with Event
+  // occurs before the original asynchronous I/O request call returns.
+  //
+  EFI_EVENT                   Event;
+
+  //
+  // Defines whether or not the signaled event encountered an error.
+  //
+  EFI_STATUS                  Status;
+
+  //
+  // For OpenEx():  Not Used, ignored.
+  // For ReadEx():  On input, the size of the Buffer. On output, the amount of data returned in Buffer.
+  //                In both cases, the size is measured in bytes.
+  // For WriteEx(): On input, the size of the Buffer. On output, the amount of data actually written.
+  //                In both cases, the size is measured in bytes.
+  // For FlushEx(): Not used, ignored.
+  //
+  UINTN                       BufferSize;
+
+  //
+  // For OpenEx():  Not Used, ignored.
+  // For ReadEx():  The buffer into which the data is read.
+  // For WriteEx(): The buffer of data to write.
+  // For FlushEx(): Not Used, ignored.
+  //
+  VOID                        *Buffer;
+} EFI_FILE_IO_TOKEN;
+
+/**
+  Opens a new file relative to the source directory's location.
+
+  @param  This       A pointer to the EFI_FILE_PROTOCOL instance that is the file
+                     handle to the source location.
+  @param  NewHandle  A pointer to the location to return the opened handle for the new
+                     file.
+  @param  FileName   The Null-terminated string of the name of the file to be opened.
+                     The file name may contain the following path modifiers: "\", ".",
+                     and "..".
+  @param  OpenMode   The mode to open the file. The only valid combinations that the
+                     file may be opened with are: Read, Read/Write, or Create/Read/Write.
+  @param  Attributes Only valid for EFI_FILE_MODE_CREATE, in which case these are the
+                     attribute bits for the newly created file.
+  @param  Token      A pointer to the token associated with the transaction.
+
+  @retval EFI_SUCCESS          If Event is NULL (blocking I/O): The data was read successfully.
+                               If Event is not NULL (asynchronous I/O): The request was successfully
+                                                                        queued for processing.
+  @retval EFI_NOT_FOUND        The specified file could not be found on the device.
+  @retval EFI_NO_MEDIA         The device has no medium.
+  @retval EFI_MEDIA_CHANGED    The device has a different medium in it or the medium is no
+                               longer supported.
+  @retval EFI_DEVICE_ERROR     The device reported an error.
+  @retval EFI_VOLUME_CORRUPTED The file system structures are corrupted.
+  @retval EFI_WRITE_PROTECTED  An attempt was made to create a file, or open a file for write
+                               when the media is write-protected.
+  @retval EFI_ACCESS_DENIED    The service denied access to the file.
+  @retval EFI_OUT_OF_RESOURCES Not enough resources were available to open the file.
+  @retval EFI_VOLUME_FULL      The volume is full.
+
+**/
+typedef
+EFI_STATUS
+(EFIAPI *EFI_FILE_OPEN_EX)(
+  IN EFI_FILE_PROTOCOL        *This,
+  OUT EFI_FILE_PROTOCOL       **NewHandle,
+  IN CHAR16                   *FileName,
+  IN UINT64                   OpenMode,
+  IN UINT64                   Attributes,
+  IN OUT EFI_FILE_IO_TOKEN    *Token
+  );
+
+
+/**
+  Reads data from a file.
+
+  @param  This       A pointer to the EFI_FILE_PROTOCOL instance that is the file handle to read data from.
+  @param  Token      A pointer to the token associated with the transaction.
+
+  @retval EFI_SUCCESS          If Event is NULL (blocking I/O): The data was read successfully.
+                               If Event is not NULL (asynchronous I/O): The request was successfully
+                                                                        queued for processing.
+  @retval EFI_NO_MEDIA         The device has no medium.
+  @retval EFI_DEVICE_ERROR     The device reported an error.
+  @retval EFI_DEVICE_ERROR     An attempt was made to read from a deleted file.
+  @retval EFI_DEVICE_ERROR     On entry, the current file position is beyond the end of the file.
+  @retval EFI_VOLUME_CORRUPTED The file system structures are corrupted.
+  @retval EFI_OUT_OF_RESOURCES Unable to queue the request due to lack of resources.
+**/
+typedef
+EFI_STATUS
+(EFIAPI *EFI_FILE_READ_EX) (
+  IN EFI_FILE_PROTOCOL        *This,
+  IN OUT EFI_FILE_IO_TOKEN    *Token
+);
+
+
+/**
+  Writes data to a file.
+
+  @param  This       A pointer to the EFI_FILE_PROTOCOL instance that is the file handle to write data to.
+  @param  Token      A pointer to the token associated with the transaction.
+
+  @retval EFI_SUCCESS          If Event is NULL (blocking I/O): The data was read successfully.
+                               If Event is not NULL (asynchronous I/O): The request was successfully
+                                                                        queued for processing.
+  @retval EFI_UNSUPPORTED      Writes to open directory files are not supported.
+  @retval EFI_NO_MEDIA         The device has no medium.
+  @retval EFI_DEVICE_ERROR     The device reported an error.
+  @retval EFI_DEVICE_ERROR     An attempt was made to write to a deleted file.
+  @retval EFI_VOLUME_CORRUPTED The file system structures are corrupted.
+  @retval EFI_WRITE_PROTECTED  The file or medium is write-protected.
+  @retval EFI_ACCESS_DENIED    The file was opened read only.
+  @retval EFI_VOLUME_FULL      The volume is full.
+  @retval EFI_OUT_OF_RESOURCES Unable to queue the request due to lack of resources.
+**/
+typedef
+EFI_STATUS
+(EFIAPI *EFI_FILE_WRITE_EX) (
+  IN EFI_FILE_PROTOCOL        *This,
+  IN OUT EFI_FILE_IO_TOKEN    *Token
+);
+
+/**
+  Flushes all modified data associated with a file to a device.
+
+  @param  This  A pointer to the EFI_FILE_PROTOCOL instance that is the file
+                handle to flush.
+  @param  Token A pointer to the token associated with the transaction.
+
+  @retval EFI_SUCCESS          If Event is NULL (blocking I/O): The data was read successfully.
+                               If Event is not NULL (asynchronous I/O): The request was successfully
+                                                                        queued for processing.
+  @retval EFI_NO_MEDIA         The device has no medium.
+  @retval EFI_DEVICE_ERROR     The device reported an error.
+  @retval EFI_VOLUME_CORRUPTED The file system structures are corrupted.
+  @retval EFI_WRITE_PROTECTED  The file or medium is write-protected.
+  @retval EFI_ACCESS_DENIED    The file was opened read-only.
+  @retval EFI_VOLUME_FULL      The volume is full.
+  @retval EFI_OUT_OF_RESOURCES Unable to queue the request due to lack of resources.
+
+**/
+typedef
+EFI_STATUS
+(EFIAPI *EFI_FILE_FLUSH_EX) (
+  IN EFI_FILE_PROTOCOL        *This,
+  IN OUT EFI_FILE_IO_TOKEN    *Token
+  );
+
+#define EFI_FILE_PROTOCOL_REVISION        0x00010000
+#define EFI_FILE_PROTOCOL_REVISION2       0x00020000
+#define EFI_FILE_PROTOCOL_LATEST_REVISION EFI_FILE_PROTOCOL_REVISION2
+
 //
 // Revision defined in EFI1.1.
-// 
+//
 #define EFI_FILE_REVISION   EFI_FILE_PROTOCOL_REVISION
 
 ///
 /// The EFI_FILE_PROTOCOL provides file IO access to supported file systems.
-/// An EFI_FILE_PROTOCOL provides access to a file's or directory's contents, 
-/// and is also a reference to a location in the directory tree of the file system 
-/// in which the file resides. With any given file handle, other files may be opened 
+/// An EFI_FILE_PROTOCOL provides access to a file's or directory's contents,
+/// and is also a reference to a location in the directory tree of the file system
+/// in which the file resides. With any given file handle, other files may be opened
 /// relative to this file's location, yielding new file handles.
 ///
 struct _EFI_FILE_PROTOCOL {
   ///
-  /// The version of the EFI_FILE_PROTOCOL interface. The version specified 
-  /// by this specification is 0x00010000. Future versions are required 
-  /// to be backward compatible to version 1.0.
+  /// The version of the EFI_FILE_PROTOCOL interface. The version specified
+  /// by this specification is EFI_FILE_PROTOCOL_LATEST_REVISION.
+  /// Future versions are required to be backward compatible to version 1.0.
   ///
   UINT64                Revision;
   EFI_FILE_OPEN         Open;
@@ -393,6 +550,10 @@ struct _EFI_FILE_PROTOCOL {
   EFI_FILE_GET_INFO     GetInfo;
   EFI_FILE_SET_INFO     SetInfo;
   EFI_FILE_FLUSH        Flush;
+  EFI_FILE_OPEN_EX      OpenEx;
+  EFI_FILE_READ_EX      ReadEx;
+  EFI_FILE_WRITE_EX     WriteEx;
+  EFI_FILE_FLUSH_EX     FlushEx;
 };
 
 

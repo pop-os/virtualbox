@@ -306,34 +306,40 @@ VMMR3DECL(void)         VMMR3FatalDump(PVM pVM, PVMCPU pVCpu, int rcErr);
 VMMR3_INT_DECL(void)    VMMR3YieldSuspend(PVM pVM);
 VMMR3_INT_DECL(void)    VMMR3YieldStop(PVM pVM);
 VMMR3_INT_DECL(void)    VMMR3YieldResume(PVM pVM);
-VMMR3_INT_DECL(void)    VMMR3SendSipi(PVM pVM, VMCPUID idCpu, uint32_t uVector);
+VMMR3_INT_DECL(void)    VMMR3SendStartupIpi(PVM pVM, VMCPUID idCpu, uint32_t uVector);
 VMMR3_INT_DECL(void)    VMMR3SendInitIpi(PVM pVM, VMCPUID idCpu);
 VMMR3DECL(int)          VMMR3RegisterPatchMemory(PVM pVM, RTGCPTR pPatchMem, unsigned cbPatchMem);
 VMMR3DECL(int)          VMMR3DeregisterPatchMemory(PVM pVM, RTGCPTR pPatchMem, unsigned cbPatchMem);
 VMMR3DECL(int)          VMMR3EmtRendezvous(PVM pVM, uint32_t fFlags, PFNVMMEMTRENDEZVOUS pfnRendezvous, void *pvUser);
-VMMR3_INT_DECL(bool)    VMMR3EmtRendezvousSetDisabled(PVMCPU pVCpu, bool fDisabled);
 /** @defgroup grp_VMMR3EmtRendezvous_fFlags     VMMR3EmtRendezvous flags
  *  @{ */
 /** Execution type mask. */
 #define VMMEMTRENDEZVOUS_FLAGS_TYPE_MASK            UINT32_C(0x00000007)
 /** Invalid execution type. */
 #define VMMEMTRENDEZVOUS_FLAGS_TYPE_INVALID         UINT32_C(0)
-/** Let the EMTs execute the callback one by one (in no particular order). */
+/** Let the EMTs execute the callback one by one (in no particular order).
+ * Recursion from within the callback possible.  */
 #define VMMEMTRENDEZVOUS_FLAGS_TYPE_ONE_BY_ONE      UINT32_C(1)
-/** Let all the EMTs execute the callback at the same time. */
+/** Let all the EMTs execute the callback at the same time.
+ * Cannot recurse from the callback.  */
 #define VMMEMTRENDEZVOUS_FLAGS_TYPE_ALL_AT_ONCE     UINT32_C(2)
-/** Only execute the callback on one EMT (no particular one). */
+/** Only execute the callback on one EMT (no particular one).
+ * Recursion from within the callback possible.  */
 #define VMMEMTRENDEZVOUS_FLAGS_TYPE_ONCE            UINT32_C(3)
-/** Let the EMTs execute the callback one by one in ascending order. */
+/** Let the EMTs execute the callback one by one in ascending order.
+ * Recursion from within the callback possible. */
 #define VMMEMTRENDEZVOUS_FLAGS_TYPE_ASCENDING       UINT32_C(4)
-/** Let the EMTs execute the callback one by one in descending order. */
+/** Let the EMTs execute the callback one by one in descending order.
+ * Recursion from within the callback possible. */
 #define VMMEMTRENDEZVOUS_FLAGS_TYPE_DESCENDING      UINT32_C(5)
 /** Stop after the first error.
  * This is not valid for any execution type where more than one EMT is active
  * at a time. */
 #define VMMEMTRENDEZVOUS_FLAGS_STOP_ON_ERROR        UINT32_C(0x00000008)
+/** Use VMREQFLAGS_PRIORITY when contacting the EMTs. */
+#define VMMEMTRENDEZVOUS_FLAGS_PRIORITY             UINT32_C(0x00000010)
 /** The valid flags. */
-#define VMMEMTRENDEZVOUS_FLAGS_VALID_MASK           UINT32_C(0x0000000f)
+#define VMMEMTRENDEZVOUS_FLAGS_VALID_MASK           UINT32_C(0x0000001f)
 /** @} */
 VMMR3_INT_DECL(int)     VMMR3EmtRendezvousFF(PVM pVM, PVMCPU pVCpu);
 VMMR3_INT_DECL(int)     VMMR3ReadR0Stack(PVM pVM, VMCPUID idCpu, RTHCUINTPTR R0Addr, void *pvBuf, size_t cbRead);

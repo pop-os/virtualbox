@@ -1,13 +1,13 @@
 /** @file
   HII Config Access protocol implementation of TCG configuration module.
 
-Copyright (c) 2011 - 2012, Intel Corporation. All rights reserved.<BR>
-This program and the accompanying materials 
-are licensed and made available under the terms and conditions of the BSD License 
-which accompanies this distribution.  The full text of the license may be found at 
+Copyright (c) 2011 - 2014, Intel Corporation. All rights reserved.<BR>
+This program and the accompanying materials
+are licensed and made available under the terms and conditions of the BSD License
+which accompanies this distribution.  The full text of the license may be found at
 http://opensource.org/licenses/bsd-license.php
 
-THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS, 
+THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,
 WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 
 **/
@@ -40,7 +40,7 @@ HII_VENDOR_DEVICE_PATH          mTcgHiiVendorDevicePath = {
   {
     END_DEVICE_PATH_TYPE,
     END_ENTIRE_DEVICE_PATH_SUBTYPE,
-    { 
+    {
       (UINT8) (END_DEVICE_PATH_LENGTH),
       (UINT8) ((END_DEVICE_PATH_LENGTH) >> 8)
     }
@@ -73,7 +73,7 @@ GetTpmState (
   UINT8                         CmdBuf[64];
 
   ASSERT (TcgProtocol != NULL);
-  
+
   //
   // Get TPM Permanent flags (TpmEnable, TpmActivate)
   //
@@ -82,7 +82,7 @@ GetTpmState (
     *(UINT16*)&CmdBuf[0]  = SwapBytes16 (TPM_TAG_RQU_COMMAND);
     *(UINT32*)&CmdBuf[2]  = SwapBytes32 (TpmSendSize);
     *(UINT32*)&CmdBuf[6]  = SwapBytes32 (TPM_ORD_GetCapability);
-  
+
     *(UINT32*)&CmdBuf[10] = SwapBytes32 (TPM_CAP_FLAG);
     *(UINT32*)&CmdBuf[14] = SwapBytes32 (sizeof (TPM_CAP_FLAG_PERMANENT));
     *(UINT32*)&CmdBuf[18] = SwapBytes32 (TPM_CAP_FLAG_PERMANENT);
@@ -93,12 +93,12 @@ GetTpmState (
                             CmdBuf,
                             sizeof (CmdBuf),
                             CmdBuf
-                            ); 
+                            );
     TpmRsp = (TPM_RSP_COMMAND_HDR *) &CmdBuf[0];
     if (EFI_ERROR (Status) || (TpmRsp->tag != SwapBytes16 (TPM_TAG_RSP_COMMAND)) || (TpmRsp->returnCode != 0)) {
       return EFI_DEVICE_ERROR;
     }
-  
+
     TpmPermanentFlags = (TPM_PERMANENT_FLAGS *) &CmdBuf[sizeof (TPM_RSP_COMMAND_HDR) + sizeof (UINT32)];
 
     if (TpmEnable != NULL) {
@@ -109,8 +109,8 @@ GetTpmState (
       *TpmActivate = (BOOLEAN) !TpmPermanentFlags->deactivated;
     }
   }
- 
-  return EFI_SUCCESS;  
+
+  return EFI_SUCCESS;
 }
 
 /**
@@ -178,16 +178,10 @@ TcgExtractConfig (
 
   //
   // Convert buffer data to <ConfigResp> by helper function BlockToConfig()
-  //  
+  //
   ZeroMem (&Configuration, sizeof (TCG_CONFIGURATION));
 
-  Configuration.MorState        = PcdGetBool (PcdMorEnable);
   Configuration.TpmOperation    = PHYSICAL_PRESENCE_ENABLE;
-  Configuration.HideTpm         = (BOOLEAN) (PcdGetBool (PcdHideTpmSupport) && PcdGetBool (PcdHideTpm));
-  //
-  // Read the original value of HideTpm from PrivateData which won't be changed by Setup in this boot.
-  //
-  Configuration.OriginalHideTpm = PrivateData->HideTpm;
 
   //
   // Display current TPM state.
@@ -308,9 +302,6 @@ TcgRouteConfig (
     return Status;
   }
 
-  PcdSetBool (PcdMorEnable,  TcgConfiguration.MorState);
-  PcdSetBool (PcdHideTpm,    TcgConfiguration.HideTpm);
-
   return EFI_SUCCESS;
 }
 
@@ -345,8 +336,8 @@ SavePpRequest (
                   );
   if (EFI_ERROR (Status)) {
     return Status;
-  }                
-                  
+  }
+
   PpData.PPRequest = PpRequest;
   Status = gRT->SetVariable (
                   PHYSICAL_PRESENCE_VARIABLE,
@@ -405,7 +396,7 @@ TcgCallback (
 
   SavePpRequest (Value->u8);
   *ActionRequest = EFI_BROWSER_ACTION_REQUEST_SUBMIT;
-  
+
   return EFI_SUCCESS;
 }
 
@@ -427,11 +418,6 @@ InstallTcgConfigForm (
   EFI_STATUS                      Status;
   EFI_HII_HANDLE                  HiiHandle;
   EFI_HANDLE                      DriverHandle;
-  VOID                            *StartOpCodeHandle;
-  VOID                            *EndOpCodeHandle;
-  EFI_IFR_GUID_LABEL              *StartLabel;
-  EFI_IFR_GUID_LABEL              *EndLabel;
-
   EFI_HII_CONFIG_ACCESS_PROTOCOL  *ConfigAccess;
 
   DriverHandle = NULL;
@@ -468,47 +454,14 @@ InstallTcgConfigForm (
            &gEfiHiiConfigAccessProtocolGuid,
            ConfigAccess,
            NULL
-           );  
+           );
 
     return EFI_OUT_OF_RESOURCES;
   }
-  
+
   PrivateData->HiiHandle = HiiHandle;
 
-  //
-  // Remove the Hide TPM question from the IFR
-  //
-  if (!PcdGetBool (PcdHideTpmSupport)) {
-    //
-    // Allocate space for creation of UpdateData Buffer
-    //
-    StartOpCodeHandle = HiiAllocateOpCodeHandle ();
-    ASSERT (StartOpCodeHandle != NULL);
-
-    EndOpCodeHandle = HiiAllocateOpCodeHandle ();
-    ASSERT (EndOpCodeHandle != NULL);
-
-    //
-    // Create Hii Extend Label OpCode as the start opcode
-    //
-    StartLabel = (EFI_IFR_GUID_LABEL *) HiiCreateGuidOpCode (StartOpCodeHandle, &gEfiIfrTianoGuid, NULL, sizeof (EFI_IFR_GUID_LABEL));
-    StartLabel->ExtendOpCode = EFI_IFR_EXTEND_OP_LABEL;
-    StartLabel->Number       = LABEL_TCG_CONFIGURATION_HIDETPM;
-
-    //
-    // Create Hii Extend Label OpCode as the end opcode
-    //
-    EndLabel = (EFI_IFR_GUID_LABEL *) HiiCreateGuidOpCode (EndOpCodeHandle, &gEfiIfrTianoGuid, NULL, sizeof (EFI_IFR_GUID_LABEL));
-    EndLabel->ExtendOpCode = EFI_IFR_EXTEND_OP_LABEL;
-    EndLabel->Number       = LABEL_END;
-    
-    HiiUpdateForm (HiiHandle, NULL, TCG_CONFIGURATION_FORM_ID, StartOpCodeHandle, EndOpCodeHandle);
-
-    HiiFreeOpCodeHandle (StartOpCodeHandle);
-    HiiFreeOpCodeHandle (EndOpCodeHandle);
-  }
-
-  return EFI_SUCCESS;  
+  return EFI_SUCCESS;
 }
 
 /**
@@ -544,6 +497,6 @@ UninstallTcgConfigForm (
            );
     PrivateData->DriverHandle = NULL;
   }
-  
+
   FreePool (PrivateData);
 }

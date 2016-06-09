@@ -23,35 +23,48 @@
 #include <QEventLoop>
 
 /* GUI includes: */
-#ifdef VBOX_WITH_DRAG_AND_DROP
-# include "UIDnDHandler.h"
-#endif
 #include "UIExtraDataDefs.h"
 #include "UIMachineDefs.h"
-#ifdef Q_WS_MAC
-# include <CoreFoundation/CFBase.h>
-#endif /* Q_WS_MAC */
+#ifdef VBOX_WITH_DRAG_AND_DROP
+# include "UIDnDHandler.h"
+#endif /* VBOX_WITH_DRAG_AND_DROP */
 
 /* COM includes: */
 #include "COMEnums.h"
 
 /* Other VBox includes: */
 #include "VBox/com/ptr.h"
+#ifdef VBOX_WS_MAC
+# if QT_VERSION >= 0x050000
+#  include <ApplicationServices/ApplicationServices.h>
+# endif /* QT_VERSION >= 0x050000 */
+#endif /* VBOX_WS_MAC */
+
+/* External includes: */
+#ifdef VBOX_WS_MAC
+# include <CoreFoundation/CFBase.h>
+#endif /* VBOX_WS_MAC */
 
 /* Forward declarations: */
-class UISession;
 class UIActionPool;
+class UISession;
 class UIMachineLogic;
 class UIMachineWindow;
 class UIFrameBuffer;
-#ifdef VBOX_WITH_DRAG_AND_DROP
- class CDnDTarget;
-#endif
-class CSession;
-class CMachine;
 class CConsole;
 class CDisplay;
 class CGuest;
+class CMachine;
+class CSession;
+#ifdef VBOX_WS_X11
+# if QT_VERSION < 0x050000
+typedef union _XEvent XEvent;
+# endif /* QT_VERSION < 0x050000 */
+#endif /* VBOX_WS_X11 */
+#ifdef VBOX_WITH_DRAG_AND_DROP
+ class CDnDTarget;
+#endif /* VBOX_WITH_DRAG_AND_DROP */
+
 
 class UIMachineView : public QAbstractScrollArea
 {
@@ -90,8 +103,10 @@ public:
     /* Factory function to destroy required machine-view: */
     static void destroy(UIMachineView *pMachineView);
 
-    /* Public setters: */
-    virtual void setGuestAutoresizeEnabled(bool /* fEnabled */) {}
+    /** Returns whether the guest-screen auto-resize is enabled. */
+    virtual bool isGuestAutoresizeEnabled() const { return true; }
+    /** Defines whether the guest-screen auto-resize is @a fEnabled. */
+    virtual void setGuestAutoresizeEnabled(bool fEnabled) { Q_UNUSED(fEnabled); }
 
     /** Send saved guest-screen size-hint to the guest.
       * @note Reimplemented in sub-classes. Base implementation does nothing. */
@@ -156,24 +171,25 @@ protected:
 #endif /* VBOX_WITH_VIDEOHWACCEL */
     );
     /* Machine-view destructor: */
-    virtual ~UIMachineView();
+    virtual ~UIMachineView() {}
 
     /* Prepare routines: */
-    void prepareViewport();
-    void prepareFrameBuffer();
+    virtual void loadMachineViewSettings();
+    virtual void prepareViewport();
+    virtual void prepareFrameBuffer();
     virtual void prepareCommon();
     virtual void prepareFilters();
     virtual void prepareConnections();
     virtual void prepareConsoleConnections();
-    void loadMachineViewSettings();
 
     /* Cleanup routines: */
-    //virtual void saveMachineViewSettings() {}
     //virtual void cleanupConsoleConnections() {}
+    //virtual void cleanupConnections() {}
     //virtual void cleanupFilters() {}
     //virtual void cleanupCommon() {}
     virtual void cleanupFrameBuffer();
     //virtual void cleanupViewport();
+    //virtual void saveMachineViewSettings() {}
 
     /** Returns the session UI reference. */
     UISession* uisession() const;
@@ -247,11 +263,11 @@ protected:
     void scrollBy(int dx, int dy);
     static void dimImage(QImage &img);
     void scrollContentsBy(int dx, int dy);
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
     void updateDockIcon();
     CGImageRef vmContentImage();
     CGImageRef frameBuffertoCGImageRef(UIFrameBuffer *pFrameBuffer);
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
     /** What view mode (normal, fullscreen etc.) are we in? */
     UIVisualStateType visualStateType() const;
     /** Is this a fullscreen-type view? */
@@ -330,12 +346,30 @@ protected:
     void dropEvent(QDropEvent *pEvent);
 #endif /* VBOX_WITH_DRAG_AND_DROP */
 
-    /* Platform specific event processors: */
-#if defined(Q_WS_WIN)
-    bool winEvent(MSG *pMsg, long *puResult);
-#elif defined(Q_WS_X11)
-    bool x11Event(XEvent *event);
-#endif
+#if QT_VERSION < 0x050000
+# if defined(VBOX_WS_MAC)
+    /** Qt4: Mac: Performs pre-processing of all the native events.
+      * @note     Take into account this function is _not_ called by
+      *           the Qt itself because it has another signature,
+      *           only by the keyboard-hook of the keyboard-handler. */
+    virtual bool macEvent(const void *pvCocoaEvent, EventRef event);
+# elif defined(VBOX_WS_WIN)
+    /** Qt4: Win: Performs pre-processing of all the native events.
+      * @note     Take into account this function is called by
+      *           the Qt as well opposing to other host (Mac)
+      *           because it has required signature. */
+    virtual bool winEvent(MSG *pMsg, long *piResult);
+# elif defined(VBOX_WS_X11)
+    /** Qt4: X11: Performs pre-processing of all the native events.
+      * @note     Take into account this function is called by
+      *           the Qt as well opposing to other host (Mac)
+      *           because it has required signature. */
+    virtual bool x11Event(XEvent *pEvent);
+# endif /* VBOX_WS_X11 */
+#else /* QT_VERSION >= 0x050000 */
+    /** Qt5: Performs pre-processing of all the native events. */
+    virtual bool nativeEventPreprocessor(const QByteArray &eventType, void *pMessage);
+#endif /* QT_VERSION >= 0x050000 */
 
     /** Scales passed size forward. */
     QSize scaledForward(QSize size) const;
@@ -352,10 +386,10 @@ protected:
      * Not explicitly initialised (i.e. invalid by default). */
     QSize m_sizeHintOverride;
 
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
     /** Holds current host-screen number. */
     int m_iHostScreenNumber;
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
 
     /** The policy for calculating the maximum guest resolution which we wish
      * to handle. */

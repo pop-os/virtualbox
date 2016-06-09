@@ -371,6 +371,8 @@ static uint32_t             g_fSupAdversaries = 0;
 #define SUPHARDNT_ADVERSARY_CYLANCE                 RT_BIT_32(14)
 /** BeyondTrust / PowerBroker / something (googling, no available sample copy). */
 #define SUPHARDNT_ADVERSARY_BEYONDTRUST             RT_BIT_32(15)
+/** Avecto / Defendpoint / Privilege Guard (details from support guy, hoping to get sample copy). */
+#define SUPHARDNT_ADVERSARY_AVECTO                  RT_BIT_32(16)
 /** Unknown adversary detected while waiting on child. */
 #define SUPHARDNT_ADVERSARY_UNKNOWN                 RT_BIT_32(31)
 /** @} */
@@ -1691,6 +1693,37 @@ supR3HardenedMonitor_LdrLoadDll(PWSTR pwszSearchPath, PULONG pfFlags, PUNICODE_S
         SUP_DPRINTF(("supR3HardenedMonitor_LdrLoadDll: returns rcNt=%#x\n", STATUS_NAME_TOO_LONG));
         RtlRestoreLastWin32Error(dwSavedLastError);
         return STATUS_NAME_TOO_LONG;
+    }
+
+    /*
+     * Reject PGHook.dll as it creates a thread from its DllMain that breaks
+     * our preconditions respawning the 2nd process, resulting in
+     * VERR_SUP_VP_THREAD_NOT_ALONE.   The DLL is being loaded by a user APC
+     * scheduled during kernel32.dll load notification from a kernel driver,
+     * so failing the load attempt should not upset anyone.
+     */
+    if (g_enmSupR3HardenedMainState == SUPR3HARDENEDMAINSTATE_WIN_EARLY_STUB_DEVICE_OPENED)
+    {
+        static const struct { const char *psz; size_t cch; } s_aUnwantedEarlyDlls[] =
+        {
+            { RT_STR_TUPLE("PGHook.dll") },
+        };
+
+        for (unsigned i = 0; i < RT_ELEMENTS(s_aUnwantedEarlyDlls); i++)
+        {
+            if (pName->Length < s_aUnwantedEarlyDlls[i].cch * 2)
+                continue;
+            PCRTUTF16 pwszTmp = &pName->Buffer[pName->Length / sizeof(RTUTF16) - s_aUnwantedEarlyDlls[i].cch];
+            if (   pName->Length != s_aUnwantedEarlyDlls[i].cch * 2
+                && pwszTmp[-1] != '\\'
+                && pwszTmp[-1] != '/')
+                continue;
+            if (RTUtf16ICmpAscii(pwszTmp, s_aUnwantedEarlyDlls[i].psz) != 0)
+                continue;
+            SUP_DPRINTF(("supR3HardenedMonitor_LdrLoadDll: Refusing to load '%.*ls' as it is expected to create undesirable threads that will upset our respawn checks (returning STATUS_TOO_MANY_THREADS)\n",
+                         pName->Length / sizeof(RTUTF16), pName->Buffer));
+            return STATUS_TOO_MANY_THREADS;
+        }
     }
 
     /*
@@ -4513,7 +4546,7 @@ DECLHIDDEN(int) supR3HardenedWinReSpawn(int iWhich)
 
     /*
      * Make sure we're alone in the stub process before creating the VM process
-     * and that there isn't any debuggers attached.
+     * and that there aren't any debuggers attached.
      */
     if (iWhich == 2)
     {
@@ -5226,6 +5259,8 @@ static uint32_t supR3HardenedWinFindAdversaries(void)
         { SUPHARDNT_ADVERSARY_CYLANCE,              "cyprotectdrv" }, /* Not verified. */
 
         { SUPHARDNT_ADVERSARY_BEYONDTRUST,          "privman" }, /* Not verified. */
+
+        { SUPHARDNT_ADVERSARY_AVECTO,               "PGDriver" },
     };
 
     static const struct
@@ -5347,6 +5382,8 @@ static uint32_t supR3HardenedWinFindAdversaries(void)
         { SUPHARDNT_ADVERSARY_BEYONDTRUST, L"\\SystemRoot\\System32\\drivers\\privman.sys" },
         { SUPHARDNT_ADVERSARY_BEYONDTRUST, L"\\SystemRoot\\System32\\privman64.dll" },
         { SUPHARDNT_ADVERSARY_BEYONDTRUST, L"\\SystemRoot\\System32\\privman32.dll" },
+
+        { SUPHARDNT_ADVERSARY_AVECTO, L"\\SystemRoot\\System32\\drivers\\PGDriver.sys" },
     };
 
     uint32_t fFound = 0;
@@ -5627,7 +5664,7 @@ DECLHIDDEN(void) supR3HardenedWinReportErrorToParent(const char *pszWhere, SUPIN
 
 /**
  * Routine called by the supR3HardenedEarlyProcessInitThunk assembly routine
- * when LdrInitializeThunk is executed in during process initialization.
+ * when LdrInitializeThunk is executed during process initialization.
  *
  * This initializes the Stub and VM processes, hooking NTDLL APIs and opening
  * the device driver before any other DLLs gets loaded into the process.  This
@@ -5779,15 +5816,16 @@ DECLASM(uintptr_t) supR3HardenedEarlyProcessInit(void)
     {
         SUP_DPRINTF(("supR3HardenedVmProcessInit: Opening vboxdrv stub...\n"));
         supR3HardenedWinOpenStubDevice();
+        g_enmSupR3HardenedMainState = SUPR3HARDENEDMAINSTATE_WIN_EARLY_STUB_DEVICE_OPENED;
     }
     else if (cArgs >= 1 && suplibHardenedStrCmp(papszArgs[0], SUPR3_RESPAWN_2_ARG0) == 0)
     {
         SUP_DPRINTF(("supR3HardenedVmProcessInit: Opening vboxdrv...\n"));
         supR3HardenedMainOpenDevice();
+        g_enmSupR3HardenedMainState = SUPR3HARDENEDMAINSTATE_WIN_EARLY_REAL_DEVICE_OPENED;
     }
     else
         supR3HardenedFatal("Unexpected first argument '%s'!\n", papszArgs[0]);
-    g_enmSupR3HardenedMainState = SUPR3HARDENEDMAINSTATE_WIN_EARLY_DEVICE_OPENED;
 
     /*
      * Reinstall the NtDll patches since there is a slight possibility that

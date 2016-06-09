@@ -48,6 +48,9 @@
                  Platform="$(var.Property_Platform)"
                  SummaryCodepage="1252"/>
 
+        <?include PublicProperties.wxi ?>
+
+
         <Property Id="local_VBOX_REGISTERFILEEXTENSIONS" Value="Empty" /> 
         <Configuration Name="argRegesterExtensions" Format="Text" DefaultValue="Not passed"/> 
         <Substitution Table="CustomAction" Row="registerExtensions" Column="Target" Value="[=argRegesterExtensions]"/> 

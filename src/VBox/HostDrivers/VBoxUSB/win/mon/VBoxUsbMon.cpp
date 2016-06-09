@@ -565,7 +565,7 @@ VOID vboxUsbMonHubDevWalk(PFNVBOXUSBMONDEVWALKER pfnWalker, PVOID pvWalker, ULON
             Status = IoGetDeviceObjectPointer(&UnicodeName, FILE_READ_DATA, &pHubFileObj, &pHubDevObj);
             if (Status == STATUS_SUCCESS)
             {
-                LOG(("IoGetDeviceObjectPointer for %S returned %p %p", szwHubName, pHubDevObj, pHubFileObj));
+                LOG(("IoGetDeviceObjectPointer for \\Device\\USBPDO-%d returned %p %p", i, pHubDevObj, pHubFileObj));
 
                 VBOXUSBOBJDRVOBJSEARCHER Data = {0};
                 Data.pDrvName = &szStandardHubName;
@@ -598,12 +598,12 @@ VOID vboxUsbMonHubDevWalk(PFNVBOXUSBMONDEVWALKER pfnWalker, PVOID pvWalker, ULON
             }
             else
             {
-                LOG(("IoGetDeviceObjectPointer returned Status (0x%x) for (%S)", Status, szwHubName));
+                LOG(("IoGetDeviceObjectPointer returned Status (0x%x) for (\\Device\\USBPDO-%d)", Status, i));
             }
         }
         else
         {
-            WARN(("RtlAnsiStringToUnicodeString failed, Status (0x%x) for Ansu name (%s)", Status, szHubName));
+            WARN(("RtlAnsiStringToUnicodeString failed, Status (0x%x) for Ansu name (\\Device\\USBPDO-%d)", Status, i));
         }
     }
 #else /* VBOX_USB3PORT */
@@ -626,8 +626,10 @@ VOID vboxUsbMonHubDevWalk(PFNVBOXUSBMONDEVWALKER pfnWalker, PVOID pvWalker, ULON
             Status = IoGetDeviceObjectPointer(&UnicodeName, FILE_READ_DATA, &pHubFileObj, &pHubDevObj);
             if (Status == STATUS_SUCCESS)
             {
-                /** @todo Replace %S with something else as it does not work for PWSTR. */
-                LOG(("IoGetDeviceObjectPointer for %S returned %p %p", szwHubName, pHubDevObj, pHubFileObj));
+                /* We could not log hub name here.
+                 * It is the paged memory and we cannot use it in logger cause it increases the IRQL
+                 */
+                LOG(("IoGetDeviceObjectPointer returned %p %p", pHubDevObj, pHubFileObj));
                 if (!pfnWalker(pHubFileObj, pHubDevObj, pHubDevObj, pvWalker))
                 {
                     LOG(("the walker said to stop"));
@@ -656,7 +658,7 @@ static DECLCALLBACK(BOOLEAN) vboxUsbMonFindHubDrvObjWalker(PFILE_OBJECT pFile, P
     PDRIVER_OBJECT pDrvObj = pHubDo->DriverObject;
 
     ASSERT_WARN(!pData->pDrvObj, ("pDrvObj expected null on enter, but was(0x%p)", pData->pDrvObj));
-    if(pDrvObj)
+    if (pDrvObj)
     {
         LOG(("found driver object 0x%p", pDrvObj));
         ObReferenceObject(pDrvObj);
@@ -788,7 +790,7 @@ static NTSTATUS vboxUsbMonHandlePnPIoctl(PDEVICE_OBJECT pDevObj, PIO_STACK_LOCAT
                             NTSTATUS Status = VBoxUsbFltPdoAdd(pDevObj, &bFiltered);
                             if (Status != STATUS_SUCCESS || !bFiltered)
                             {
-                                if(Status == STATUS_SUCCESS)
+                                if (Status == STATUS_SUCCESS)
                                 {
                                     LOG(("PDO (0x%p) is NOT filtered", pDevObj));
                                 }
@@ -810,10 +812,10 @@ static NTSTATUS vboxUsbMonHandlePnPIoctl(PDEVICE_OBJECT pDevObj, PIO_STACK_LOCAT
                     {
                         LOG(("BusQueryHardwareIDs"));
 #ifdef VBOX_USB_WITH_VERBOSE_LOGGING
-                        while(*pId) //MULTI_SZ
+                        while (*pId) //MULTI_SZ
                         {
                             LOG_STRW(pId);
-                            while(*pId) pId++;
+                            while (*pId) pId++;
                             pId++;
                         }
 #endif
@@ -828,7 +830,7 @@ static NTSTATUS vboxUsbMonHandlePnPIoctl(PDEVICE_OBJECT pDevObj, PIO_STACK_LOCAT
                         NTSTATUS Status = VBoxUsbFltPdoAdd(pDevObj, &bFiltered);
                         if (Status != STATUS_SUCCESS || !bFiltered)
                         {
-                            if(Status == STATUS_SUCCESS)
+                            if (Status == STATUS_SUCCESS)
                             {
                                 LOG(("PDO (0x%p) is NOT filtered", pDevObj));
                             }
@@ -846,11 +848,11 @@ static NTSTATUS vboxUsbMonHandlePnPIoctl(PDEVICE_OBJECT pDevObj, PIO_STACK_LOCAT
 #ifdef VBOX_USB_WITH_VERBOSE_LOGGING
                         LOG(("NEW BusQueryHardwareIDs"));
                         pTmp = pId;
-                        while(*pTmp) //MULTI_SZ
+                        while (*pTmp) //MULTI_SZ
                         {
 
                             LOG_STRW(pTmp);
-                            while(*pTmp) pTmp++;
+                            while (*pTmp) pTmp++;
                             pTmp++;
                         }
 #endif
@@ -861,10 +863,10 @@ static NTSTATUS vboxUsbMonHandlePnPIoctl(PDEVICE_OBJECT pDevObj, PIO_STACK_LOCAT
                     case BusQueryCompatibleIDs:
                         LOG(("BusQueryCompatibleIDs"));
 #ifdef VBOX_USB_WITH_VERBOSE_LOGGING
-                        while(*pId) //MULTI_SZ
+                        while (*pId) //MULTI_SZ
                         {
                             LOG_STRW(pId);
-                            while(*pId) pId++;
+                            while (*pId) pId++;
                             pId++;
                         }
 #endif
@@ -881,10 +883,10 @@ static NTSTATUS vboxUsbMonHandlePnPIoctl(PDEVICE_OBJECT pDevObj, PIO_STACK_LOCAT
 #ifdef VBOX_USB_WITH_VERBOSE_LOGGING
                             LOG(("NEW BusQueryCompatibleIDs"));
                             pTmp = pId;
-                            while(*pTmp) //MULTI_SZ
+                            while (*pTmp) //MULTI_SZ
                             {
                                 LOG_STRW(pTmp);
-                                while(*pTmp) pTmp++;
+                                while (*pTmp) pTmp++;
                                 pTmp++;
                             }
 #endif
@@ -1087,7 +1089,7 @@ NTSTATUS _stdcall VBoxUsbMonPnPHook(IN PDEVICE_OBJECT pDevObj, IN PIRP pIrp)
 #endif /* !VBOX_USB3PORT */
     LOG(("==>PnP: Mn(%s), PDO(0x%p), IRP(0x%p), Status(0x%x)", vboxUsbDbgStrPnPMn(IoGetCurrentIrpStackLocation(pIrp)->MinorFunction), pDevObj, pIrp, pIrp->IoStatus.Status));
 
-    if(!VBoxUsbHookRetain(pHook))
+    if (!VBoxUsbHookRetain(pHook))
     {
         WARN(("VBoxUsbHookRetain failed"));
         return VBoxUsbHookRequestPassDownHookSkip(pHook, pDevObj, pIrp);

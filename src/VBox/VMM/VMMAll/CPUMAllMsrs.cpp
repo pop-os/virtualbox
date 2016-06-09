@@ -204,30 +204,14 @@ static DECLCALLBACK(VBOXSTRICTRC) cpumMsrRd_Ia32PlatformId(PVMCPU pVCpu, uint32_
 /** @callback_method_impl{FNCPUMRDMSR} */
 static DECLCALLBACK(VBOXSTRICTRC) cpumMsrRd_Ia32ApicBase(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t *puValue)
 {
-    PVM pVM = pVCpu->CTX_SUFF(pVM);
-#if 0 /** @todo Sort this one out properly.  Evidence from ticks 12240 and 12875 suggest the apic base is still readable even
-       * after the apic has been diabled.  That makes common sense too.  What we need to do here, though, is check whether
-       * there is an APIC device associated with the VM, and GP if there isn't.  But that's for later. */
-    if (   !pVM->cpum.s.GuestFeatures.fApic
-        && !pVM->cpum.s.GuestFeatures.fX2Apic)
-    {
-        Log(("CPUM: %s, apic not present -> GP\n", pRange->szName));
-        return VERR_CPUM_RAISE_GP_0;
-    }
-#endif
-
-    *puValue = pVCpu->cpum.s.Guest.msrApicBase;
-    return VINF_SUCCESS;
+    return PDMApicGetBaseMsr(pVCpu, puValue, false /* fIgnoreErrors */);
 }
 
 
 /** @callback_method_impl{FNCPUMWRMSR} */
 static DECLCALLBACK(VBOXSTRICTRC) cpumMsrWr_Ia32ApicBase(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t uValue, uint64_t uRawValue)
 {
-    int rc = PDMApicSetBase(pVCpu, uValue);
-    if (rc != VINF_SUCCESS)
-        rc = VERR_CPUM_RAISE_GP_0;
-    return VINF_SUCCESS;
+    return PDMApicSetBaseMsr(pVCpu, uValue);
 }
 
 
@@ -1124,26 +1108,14 @@ static DECLCALLBACK(VBOXSTRICTRC) cpumMsrWr_Ia32TscDeadline(PVMCPU pVCpu, uint32
 /** @callback_method_impl{FNCPUMRDMSR} */
 static DECLCALLBACK(VBOXSTRICTRC) cpumMsrRd_Ia32X2ApicN(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t *puValue)
 {
-    int rc = PDMApicReadMSR(pVCpu->CTX_SUFF(pVM), pVCpu->idCpu, idMsr, puValue);
-    if (rc != VINF_SUCCESS)
-    {
-        Log(("CPUM: X2APIC %#x read => %Rrc => #GP\n", idMsr, rc));
-        return VERR_CPUM_RAISE_GP_0;
-    }
-    return VINF_SUCCESS;
+    return PDMApicReadMsr(pVCpu, idMsr, puValue);
 }
 
 
 /** @callback_method_impl{FNCPUMWRMSR} */
 static DECLCALLBACK(VBOXSTRICTRC) cpumMsrWr_Ia32X2ApicN(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t uValue, uint64_t uRawValue)
 {
-    int rc = PDMApicWriteMSR(pVCpu->CTX_SUFF(pVM), pVCpu->idCpu, idMsr, uValue);
-    if (rc != VINF_SUCCESS)
-    {
-        Log(("CPUM: X2APIC %#x write %#llx => %Rrc => #GP\n", idMsr, rc, uValue));
-        return VERR_CPUM_RAISE_GP_0;
-    }
-    return VINF_SUCCESS;
+    return PDMApicWriteMsr(pVCpu, idMsr, uValue);
 }
 
 
@@ -1294,6 +1266,14 @@ static DECLCALLBACK(VBOXSTRICTRC) cpumMsrRd_Ia32VmxTrueExitCtls(PVMCPU pVCpu, ui
 
 /** @callback_method_impl{FNCPUMRDMSR} */
 static DECLCALLBACK(VBOXSTRICTRC) cpumMsrRd_Ia32VmxTrueEntryCtls(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t *puValue)
+{
+    *puValue = 0;
+    return VINF_SUCCESS;
+}
+
+
+/** @callback_method_impl{FNCPUMRDMSR} */
+static DECLCALLBACK(VBOXSTRICTRC) cpumMsrRd_Ia32VmxVmFunc(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t *puValue)
 {
     *puValue = 0;
     return VINF_SUCCESS;
@@ -2199,6 +2179,15 @@ static DECLCALLBACK(VBOXSTRICTRC) cpumMsrRd_IntelI7SandyRaplPowerUnit(PVMCPU pVC
 }
 
 
+/** @callback_method_impl{FNCPUMWRMSR} */
+static DECLCALLBACK(VBOXSTRICTRC) cpumMsrWr_IntelI7SandyRaplPowerUnit(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t uValue, uint64_t uRawValue)
+{
+    /* Note! This is documented as read only and except for a Silvermont sample has
+             always been classified as read only.  This is just here to make it compile. */
+    return VINF_SUCCESS;
+}
+
+
 /** @callback_method_impl{FNCPUMRDMSR} */
 static DECLCALLBACK(VBOXSTRICTRC) cpumMsrRd_IntelI7SandyPkgCnIrtlN(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t *puValue)
 {
@@ -2221,6 +2210,15 @@ static DECLCALLBACK(VBOXSTRICTRC) cpumMsrRd_IntelI7SandyPkgC2Residency(PVMCPU pV
 {
     /** @todo intel power management.  */
     *puValue = 0;
+    return VINF_SUCCESS;
+}
+
+
+/** @callback_method_impl{FNCPUMWRMSR} */
+static DECLCALLBACK(VBOXSTRICTRC) cpumMsrWr_IntelI7SandyPkgC2Residency(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t uValue, uint64_t uRawValue)
+{
+    /* Note! This is documented as read only and except for a Silvermont sample has
+             always been classified as read only.  This is just here to make it compile. */
     return VINF_SUCCESS;
 }
 
@@ -2598,6 +2596,18 @@ static DECLCALLBACK(VBOXSTRICTRC) cpumMsrWr_IntelI7UncArbPerfEvtSelN(PVMCPU pVCp
 
 
 /** @callback_method_impl{FNCPUMRDMSR} */
+static DECLCALLBACK(VBOXSTRICTRC) cpumMsrRd_IntelI7SmiCount(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t *puValue)
+{
+    /*
+     * 31:0 is SMI count (read only), 63:32 reserved.
+     * Since we don't do SMI, the count is always zero.
+     */
+    *puValue = 0;
+    return VINF_SUCCESS;
+}
+
+
+/** @callback_method_impl{FNCPUMRDMSR} */
 static DECLCALLBACK(VBOXSTRICTRC) cpumMsrRd_IntelCore2EmttmCrTablesN(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t *puValue)
 {
     /** @todo implement enhanced multi thread termal monitoring? */
@@ -2681,6 +2691,13 @@ static DECLCALLBACK(VBOXSTRICTRC) cpumMsrWr_IntelCore2PeciControl(PVMCPU pVCpu, 
     return VINF_SUCCESS;
 }
 
+
+/** @callback_method_impl{FNCPUMRDMSR} */
+static DECLCALLBACK(VBOXSTRICTRC) cpumMsrRd_IntelAtSilvCoreC1Recidency(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t *puValue)
+{
+    *puValue = 0;
+    return VINF_SUCCESS;
+}
 
 
 /*
@@ -4502,6 +4519,7 @@ static const PFNCPUMRDMSR g_aCpumRdMsrFns[kCpumMsrRdFn_End] =
     cpumMsrRd_Ia32VmxTrueProcbasedCtls,
     cpumMsrRd_Ia32VmxTrueExitCtls,
     cpumMsrRd_Ia32VmxTrueEntryCtls,
+    cpumMsrRd_Ia32VmxVmFunc,
 
     cpumMsrRd_Amd64Efer,
     cpumMsrRd_Amd64SyscallTarget,
@@ -4579,11 +4597,13 @@ static const PFNCPUMRDMSR g_aCpumRdMsrFns[kCpumMsrRdFn_End] =
     cpumMsrRd_IntelI7UncCBoxConfig,
     cpumMsrRd_IntelI7UncArbPerfCtrN,
     cpumMsrRd_IntelI7UncArbPerfEvtSelN,
+    cpumMsrRd_IntelI7SmiCount,
     cpumMsrRd_IntelCore2EmttmCrTablesN,
     cpumMsrRd_IntelCore2SmmCStMiscInfo,
     cpumMsrRd_IntelCore1ExtConfig,
     cpumMsrRd_IntelCore1DtsCalControl,
     cpumMsrRd_IntelCore2PeciControl,
+    cpumMsrRd_IntelAtSilvCoreC1Recidency,
 
     cpumMsrRd_P6LastBranchFromIp,
     cpumMsrRd_P6LastBranchToIp,
@@ -4783,7 +4803,9 @@ static const PFNCPUMWRMSR g_aCpumWrMsrFns[kCpumMsrWrFn_End] =
     cpumMsrWr_IntelI7PebsLdLat,
     cpumMsrWr_IntelI7SandyVrCurrentConfig,
     cpumMsrWr_IntelI7SandyVrMiscConfig,
+    cpumMsrWr_IntelI7SandyRaplPowerUnit,
     cpumMsrWr_IntelI7SandyPkgCnIrtlN,
+    cpumMsrWr_IntelI7SandyPkgC2Residency,
     cpumMsrWr_IntelI7RaplPkgPowerLimit,
     cpumMsrWr_IntelI7RaplDramPowerLimit,
     cpumMsrWr_IntelI7RaplPp0PowerLimit,
@@ -5210,6 +5232,7 @@ int cpumR3MsrStrictInitChecks(void)
     CPUM_ASSERT_RD_MSR_FN(Ia32VmxTrueProcbasedCtls);
     CPUM_ASSERT_RD_MSR_FN(Ia32VmxTrueExitCtls);
     CPUM_ASSERT_RD_MSR_FN(Ia32VmxTrueEntryCtls);
+    CPUM_ASSERT_RD_MSR_FN(Ia32VmxVmFunc);
 
     CPUM_ASSERT_RD_MSR_FN(Amd64Efer);
     CPUM_ASSERT_RD_MSR_FN(Amd64SyscallTarget);
@@ -5287,11 +5310,13 @@ int cpumR3MsrStrictInitChecks(void)
     CPUM_ASSERT_RD_MSR_FN(IntelI7UncCBoxConfig);
     CPUM_ASSERT_RD_MSR_FN(IntelI7UncArbPerfCtrN);
     CPUM_ASSERT_RD_MSR_FN(IntelI7UncArbPerfEvtSelN);
+    CPUM_ASSERT_RD_MSR_FN(IntelI7SmiCount);
     CPUM_ASSERT_RD_MSR_FN(IntelCore2EmttmCrTablesN);
     CPUM_ASSERT_RD_MSR_FN(IntelCore2SmmCStMiscInfo);
     CPUM_ASSERT_RD_MSR_FN(IntelCore1ExtConfig);
     CPUM_ASSERT_RD_MSR_FN(IntelCore1DtsCalControl);
     CPUM_ASSERT_RD_MSR_FN(IntelCore2PeciControl);
+    CPUM_ASSERT_RD_MSR_FN(IntelAtSilvCoreC1Recidency);
 
     CPUM_ASSERT_RD_MSR_FN(P6LastBranchFromIp);
     CPUM_ASSERT_RD_MSR_FN(P6LastBranchToIp);
@@ -5481,6 +5506,7 @@ int cpumR3MsrStrictInitChecks(void)
     CPUM_ASSERT_WR_MSR_FN(IntelI7SandyVrCurrentConfig);
     CPUM_ASSERT_WR_MSR_FN(IntelI7SandyVrMiscConfig);
     CPUM_ASSERT_WR_MSR_FN(IntelI7SandyPkgCnIrtlN);
+    CPUM_ASSERT_WR_MSR_FN(IntelI7SandyPkgC2Residency);
     CPUM_ASSERT_WR_MSR_FN(IntelI7RaplPkgPowerLimit);
     CPUM_ASSERT_WR_MSR_FN(IntelI7RaplDramPowerLimit);
     CPUM_ASSERT_WR_MSR_FN(IntelI7RaplPp0PowerLimit);

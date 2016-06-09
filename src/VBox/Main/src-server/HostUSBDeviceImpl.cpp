@@ -22,7 +22,7 @@
 #include "MachineImpl.h"
 #include "HostImpl.h"
 #include "VirtualBoxErrorInfoImpl.h"
-#include "USBProxyService.h"
+#include "USBProxyBackend.h"
 #include "USBIdDatabase.h"
 
 #include "AutoCaller.h"
@@ -38,7 +38,7 @@ DEFINE_EMPTY_CTOR_DTOR(HostUSBDevice)
 
 HRESULT HostUSBDevice::FinalConstruct()
 {
-    mUSBProxyService = NULL;
+    mUSBProxyBackend = NULL;
     mUsb = NULL;
 
     return BaseFinalConstruct();
@@ -60,9 +60,9 @@ void HostUSBDevice::FinalRelease()
  * @param   aUsb                Pointer to the usb device structure for which the object is to be a wrapper.
  *                              This structure is now fully owned by the HostUSBDevice object and will be
  *                              freed when it is destructed.
- * @param   aUSBProxyService    Pointer to the USB Proxy Service object.
+ * @param   aUSBProxyBackend    Pointer to the USB Proxy Backend object owning the device.
  */
-HRESULT HostUSBDevice::init(PUSBDEVICE aUsb, USBProxyService *aUSBProxyService)
+HRESULT HostUSBDevice::init(PUSBDEVICE aUsb, USBProxyBackend *aUSBProxyBackend)
 {
     ComAssertRet(aUsb, E_INVALIDARG);
 
@@ -89,7 +89,7 @@ HRESULT HostUSBDevice::init(PUSBDEVICE aUsb, USBProxyService *aUSBProxyService)
     mIsPhysicallyDetached = false;
 
     /* Other data members */
-    mUSBProxyService = aUSBProxyService;
+    mUSBProxyBackend = aUSBProxyBackend;
     mUsb = aUsb;
 
     /* Set the name. */
@@ -115,11 +115,11 @@ void HostUSBDevice::uninit()
 
     if (mUsb != NULL)
     {
-        USBProxyService::freeDevice(mUsb);
+        USBProxyBackend::freeDevice(mUsb);
         mUsb = NULL;
     }
 
-    mUSBProxyService = NULL;
+    mUSBProxyBackend = NULL;
     mUniState = kHostUSBDeviceState_Invalid;
 }
 
@@ -302,6 +302,15 @@ HRESULT HostUSBDevice::getState(USBDeviceState_T *aState)
 }
 
 
+HRESULT HostUSBDevice::getBackend(com::Utf8Str &aBackend)
+{
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    aBackend = mUsb->pszBackend;
+
+    return S_OK;
+}
+
 
 HRESULT HostUSBDevice::getDeviceInfo(std::vector<com::Utf8Str> &aInfo)
 {
@@ -459,16 +468,16 @@ HRESULT HostUSBDevice::i_requestCaptureForVM(SessionMachine *aMachine, bool aSet
      * when the request succeeds (i.e. asynchronously).
      */
     LogFlowThisFunc(("{%s} capturing the device.\n", mName));
-#if defined(RT_OS_DARWIN) || defined(RT_OS_WINDOWS) || defined(RT_OS_SOLARIS) /* PORTME */
-    i_setState(kHostUSBDeviceState_Capturing, kHostUSBDeviceState_UsedByVM, kHostUSBDeviceSubState_AwaitingDetach);
-#else
-    i_setState(kHostUSBDeviceState_Capturing, kHostUSBDeviceState_UsedByVM);
-#endif
+    if (mUSBProxyBackend->i_isDevReEnumerationRequired())
+        i_setState(kHostUSBDeviceState_Capturing, kHostUSBDeviceState_UsedByVM, kHostUSBDeviceSubState_AwaitingDetach);
+    else
+        i_setState(kHostUSBDeviceState_Capturing, kHostUSBDeviceState_UsedByVM);
+
     mMachine = aMachine;
     mMaskedIfs = aMaskedIfs;
     mCaptureFilename = aCaptureFilename;
     alock.release();
-    int rc = mUSBProxyService->captureDevice(this);
+    int rc = mUSBProxyBackend->captureDevice(this);
     if (RT_FAILURE(rc))
     {
         alock.acquire();
@@ -721,13 +730,13 @@ HRESULT HostUSBDevice::i_requestReleaseToHost()
     /*
      * Try release it.
      */
-#if defined(RT_OS_DARWIN) || defined(RT_OS_WINDOWS) /* PORTME */
-    i_startTransition(kHostUSBDeviceState_ReleasingToHost, kHostUSBDeviceState_Unused, kHostUSBDeviceSubState_AwaitingDetach);
-#else
-    i_startTransition(kHostUSBDeviceState_ReleasingToHost, kHostUSBDeviceState_Unused);
-#endif
+    if (mUSBProxyBackend->i_isDevReEnumerationRequired())
+        i_startTransition(kHostUSBDeviceState_ReleasingToHost, kHostUSBDeviceState_Unused, kHostUSBDeviceSubState_AwaitingDetach);
+    else
+        i_startTransition(kHostUSBDeviceState_ReleasingToHost, kHostUSBDeviceState_Unused);
+
     alock.release();
-    int rc = mUSBProxyService->releaseDevice(this);
+    int rc = mUSBProxyBackend->releaseDevice(this);
     if (RT_FAILURE(rc))
     {
         alock.acquire();
@@ -774,13 +783,13 @@ HRESULT HostUSBDevice::i_requestHold()
     /*
      * Do the job.
      */
-#if defined(RT_OS_DARWIN) || defined(RT_OS_WINDOWS) /* PORTME */
-    i_startTransition(kHostUSBDeviceState_Capturing, kHostUSBDeviceState_HeldByProxy, kHostUSBDeviceSubState_AwaitingDetach);
-#else
-    i_startTransition(kHostUSBDeviceState_Capturing, kHostUSBDeviceState_HeldByProxy);
-#endif
+    if (mUSBProxyBackend->i_isDevReEnumerationRequired())
+        i_startTransition(kHostUSBDeviceState_Capturing, kHostUSBDeviceState_HeldByProxy, kHostUSBDeviceSubState_AwaitingDetach);
+    else
+        i_startTransition(kHostUSBDeviceState_Capturing, kHostUSBDeviceState_HeldByProxy);
+
     alock.release();
-    int rc = mUSBProxyService->captureDevice(this);
+    int rc = mUSBProxyBackend->captureDevice(this);
     if (RT_FAILURE(rc))
     {
         alock.acquire();
@@ -1000,6 +1009,9 @@ int HostUSBDevice::i_compare(PCUSBDEVICE aDev2)
 /*static*/
 int HostUSBDevice::i_compare(PCUSBDEVICE aDev1, PCUSBDEVICE aDev2, bool aIsAwaitingReAttach /*= false */)
 {
+    /* Comparing devices from different backends doesn't make any sense and should not happen. */
+    AssertReturn(!strcmp(aDev1->pszBackend, aDev2->pszBackend), -1);
+
     /*
      * Things that stays the same everywhere.
      *
@@ -1039,11 +1051,17 @@ int HostUSBDevice::i_compare(PCUSBDEVICE aDev1, PCUSBDEVICE aDev2, bool aIsAwait
 
     /* The hub/bus + port should help a lot in a re-attach situation. */
 #ifdef RT_OS_WINDOWS
-    iDiff = strcmp(aDev1->pszHubName, aDev2->pszHubName);
-    if (iDiff)
+    /* The hub name makes only sense for the host backend. */
+    if (   !strcmp(aDev1->pszBackend, "host")
+        && aDev1->pszHubName
+        && aDev2->pszHubName)
     {
-        //Log3(("compare: HubName: %s != %s\n", aDev1->pszHubName, aDev2->pszHubName));
-        return iDiff;
+        iDiff = strcmp(aDev1->pszHubName, aDev2->pszHubName);
+        if (iDiff)
+        {
+            //Log3(("compare: HubName: %s != %s\n", aDev1->pszHubName, aDev2->pszHubName));
+            return iDiff;
+        }
     }
 #else
     iDiff = aDev1->bBus - aDev2->bBus;
@@ -1172,7 +1190,7 @@ bool HostUSBDevice::i_updateState(PCUSBDEVICE aDev, bool *aRunFilters, SessionMa
 #endif
         aDev->pNext = mUsb->pNext;
         aDev->pPrev = mUsb->pPrev;
-        USBProxyService::freeDevice(mUsb);
+        USBProxyBackend::freeDevice(mUsb);
         mUsb = aDev;
     }
 
@@ -1214,7 +1232,7 @@ bool HostUSBDevice::i_updateState(PCUSBDEVICE aDev, bool *aRunFilters, SessionMa
                     /* Can only mean that we've failed capturing it. */
                     case kHostUSBDeviceState_Capturing:
                         LogThisFunc(("{%s} capture failed! (#1)\n", mName));
-                        mUSBProxyService->captureDeviceCompleted(this, false /* aSuccess */);
+                        mUSBProxyBackend->captureDeviceCompleted(this, false /* aSuccess */);
                         *aRunFilters = i_failTransition(kHostUSBDeviceState_UsedByHost);
                         mMachine.setNull();
                         break;
@@ -1222,7 +1240,7 @@ bool HostUSBDevice::i_updateState(PCUSBDEVICE aDev, bool *aRunFilters, SessionMa
                     /* Guess we've successfully released it. */
                     case kHostUSBDeviceState_ReleasingToHost:
                         LogThisFunc(("{%s} %s -> %s\n", mName, i_getStateName(), i_stateName(kHostUSBDeviceState_UsedByHost)));
-                        mUSBProxyService->releaseDeviceCompleted(this, true /* aSuccess */);
+                        mUSBProxyBackend->releaseDeviceCompleted(this, true /* aSuccess */);
                         *aRunFilters = i_setState(kHostUSBDeviceState_UsedByHost);
                         break;
 
@@ -1282,7 +1300,7 @@ bool HostUSBDevice::i_updateState(PCUSBDEVICE aDev, bool *aRunFilters, SessionMa
                     /* Can only mean that we've failed capturing it. */
                     case kHostUSBDeviceState_Capturing:
                         LogThisFunc(("{%s} capture failed! (#2)\n", mName));
-                        mUSBProxyService->captureDeviceCompleted(this, false /* aSuccess */);
+                        mUSBProxyBackend->captureDeviceCompleted(this, false /* aSuccess */);
                         *aRunFilters = i_failTransition(kHostUSBDeviceState_Capturable);
                         mMachine.setNull();
                         break;
@@ -1290,7 +1308,7 @@ bool HostUSBDevice::i_updateState(PCUSBDEVICE aDev, bool *aRunFilters, SessionMa
                     /* Guess we've successfully released it. */
                     case kHostUSBDeviceState_ReleasingToHost:
                         LogThisFunc(("{%s} %s -> %s\n", mName, i_getStateName(), i_stateName(kHostUSBDeviceState_Capturable)));
-                        mUSBProxyService->releaseDeviceCompleted(this, true /* aSuccess */);
+                        mUSBProxyBackend->releaseDeviceCompleted(this, true /* aSuccess */);
                         *aRunFilters = i_setState(kHostUSBDeviceState_Capturable);
                         break;
 
@@ -1350,7 +1368,7 @@ bool HostUSBDevice::i_updateState(PCUSBDEVICE aDev, bool *aRunFilters, SessionMa
 #endif
                         {
                             LogThisFunc(("{%s} capture failed! (#3)\n", mName));
-                            mUSBProxyService->captureDeviceCompleted(this, false /* aSuccess */);
+                            mUSBProxyBackend->captureDeviceCompleted(this, false /* aSuccess */);
                             *aRunFilters = i_failTransition(kHostUSBDeviceState_Unused);
                             mMachine.setNull();
                         }
@@ -1359,7 +1377,7 @@ bool HostUSBDevice::i_updateState(PCUSBDEVICE aDev, bool *aRunFilters, SessionMa
                     /* Guess we've successfully released it. */
                     case kHostUSBDeviceState_ReleasingToHost:
                         LogThisFunc(("{%s} %s -> %s\n", mName, i_getStateName(), i_stateName(kHostUSBDeviceState_Unused)));
-                        mUSBProxyService->releaseDeviceCompleted(this, true /* aSuccess */);
+                        mUSBProxyBackend->releaseDeviceCompleted(this, true /* aSuccess */);
                         *aRunFilters = i_setState(kHostUSBDeviceState_Unused);
                         break;
 
@@ -1400,7 +1418,7 @@ bool HostUSBDevice::i_updateState(PCUSBDEVICE aDev, bool *aRunFilters, SessionMa
                     /* Guess we've successfully captured it. */
                     case kHostUSBDeviceState_Capturing:
                         LogThisFunc(("{%s} capture succeeded!\n", mName));
-                        mUSBProxyService->captureDeviceCompleted(this, true /* aSuccess */);
+                        mUSBProxyBackend->captureDeviceCompleted(this, true /* aSuccess */);
                         *aRunFilters = i_advanceTransition(true /* fast forward thru re-attach */);
 
                         /* Take action if we're supposed to attach it to a VM. */
@@ -1415,7 +1433,7 @@ bool HostUSBDevice::i_updateState(PCUSBDEVICE aDev, bool *aRunFilters, SessionMa
                     /* Can only mean that we've failed capturing it. */
                     case kHostUSBDeviceState_ReleasingToHost:
                         LogThisFunc(("{%s} %s failed!\n", mName, i_getStateName()));
-                        mUSBProxyService->releaseDeviceCompleted(this, false /* aSuccess */);
+                        mUSBProxyBackend->releaseDeviceCompleted(this, false /* aSuccess */);
                         *aRunFilters = i_setState(kHostUSBDeviceState_HeldByProxy);
                         break;
 
@@ -1530,15 +1548,15 @@ bool HostUSBDevice::i_updateStateFake(PCUSBDEVICE aDev, bool *aRunFilters, Sessi
             {
                 aDev->pNext = mUsb->pNext;
                 aDev->pPrev = mUsb->pPrev;
-                USBProxyService::freeDevice(mUsb);
+                USBProxyBackend::freeDevice(mUsb);
                 mUsb = aDev;
             }
 
             /* call the completion method */
             if (enmState == kHostUSBDeviceState_Capturing)
-                mUSBProxyService->captureDeviceCompleted(this, true /* aSuccess */);
+                mUSBProxyBackend->captureDeviceCompleted(this, true /* aSuccess */);
             else
-                mUSBProxyService->releaseDeviceCompleted(this, true /* aSuccess */);
+                mUSBProxyBackend->releaseDeviceCompleted(this, true /* aSuccess */);
 
             /* Take action if we're supposed to attach it to a VM. */
             if (mUniState == kHostUSBDeviceState_AttachingToVM)

@@ -412,7 +412,7 @@
       created by <computeroutput>VBoxManage debugvm</computeroutput>; see
       <xref linkend="vboxmanage-debugvm" />. The VM core file contain the
       memory and CPU dumps of the VM and can be useful for debugging your
-      guest OS. The 64-bit ELF object format specficiation can be obtained
+      guest OS. The 64-bit ELF object format specification can be obtained
       here: <literal><ulink
       url="http://downloads.openwatcom.org/ftp/devel/docs/elf-64-gen.pdf">http://downloads.openwatcom.org/ftp/devel/docs/elf-64-gen.pdf</ulink></literal>.</para>
 
@@ -659,6 +659,25 @@
     <title>Windows guests</title>
 
     <sect2>
+      <title>No USB 3.0 support in Windows 7 guests</title>
+
+      <para>If a Windows 7 or Windows Server 2008 R2 guest is configured for USB 3.0 (xHCI) support,
+      the guest OS will not have any USB support at all. This happens because Windows 7 predates
+      USB 3.0 and therefore does not ship with any xHCI drivers; Microsoft also does not offer any
+      vendor-provided xHCI drivers via Windows Update.
+      </para>
+
+      <para>To solve this problem, it is necessary to download and install the Intel xHCI driver
+      in the guest. Intel offers the driver as the USB 3.0 eXtensible Host Controller (xHCI) driver
+      for Intel 7 Series/C216 chipsets.
+      </para>
+
+      <para>Note that the driver only supports Windows 7 and Windows Server 2008 R2. The driver
+      package includes support for both 32-bit and 64-bit OS variants.
+      </para>
+    </sect2>
+
+    <sect2>
       <title>Windows bluescreens after changing VM configuration</title>
 
       <para>Changing certain virtual machine settings can cause Windows guests
@@ -894,8 +913,8 @@
       <note><para>Starting at Windows 7 the 3D desktop (aka Aero) uses DirectX 10
           for rendering so that corrupted d3d8.dll and d3d9.dll system files will
           have no effect on the actual rendering.</para></note>
-          
-      <para>This is why such a detected file corruption is not considered as fatal 
+
+      <para>This is why such a detected file corruption is not considered as fatal
           for the basic Direct3D installation on all supported Windows guests,
           and for WDDM Direct3D installation on Windows 7 and later guests.</para>
 
@@ -978,7 +997,7 @@
       Microsoft XMS manager) shipped with MS-DOS and Microsoft Windows 3.x can only use
       up to 64 MB on standard PCs.</para>
 
-      <para>This is a HIMEM.SYS limitation documented by Microsoft in Knowledge base 
+      <para>This is a HIMEM.SYS limitation documented by Microsoft in Knowledge base
       article KB 116256.
       Windows 3.1 memory limits are described in detail in Microsoft Knowledge base
       article KB 84388.</para>
@@ -1084,18 +1103,18 @@ VBoxClient --seamless</screen> when your X11 user session is started if you
       <title>Older Solaris 10 releases crash in 64-bit mode</title>
 
       <para>Solaris 10 releases up to and including Solaris 10 8/07 ("S10U4")
-          incorrectly detect newer Intel processors produced since 2007. This 
+          incorrectly detect newer Intel processors produced since 2007. This
           problem leads to the 64-bit Solaris kernel crashing (and usually causing
           a triple fault) almost immediately during startup, in both virtualized
           and physical environments.
       </para>
       <para>
-          The recommended solution is upgrading to at least Solaris 10 5/08 
-          ("S10U5"). Alternative solutions include forcing Solaris to always 
-          boot the 32-bit kernel or applying a patch for bug 6574102 (while 
+          The recommended solution is upgrading to at least Solaris 10 5/08
+          ("S10U5"). Alternative solutions include forcing Solaris to always
+          boot the 32-bit kernel or applying a patch for bug 6574102 (while
           Solaris is using the 32-bit kernel).
       </para>
-    
+
     </sect2>
 
     <sect2>
@@ -1104,13 +1123,13 @@ VBoxClient --seamless</screen> when your X11 user session is started if you
       <para>
           Solaris 2.6, 7 and 8 releases up to and including Solaris 8 4/01 ("S8U4")
           incorrectly set up Machine Check Exception (MCE) MSRs on Pentium 4 and
-          somene later Intel CPUs. The problem leads to the Solaris kernel crashing
+          some later Intel CPUs. The problem leads to the Solaris kernel crashing
           (and usually causing a triple fault) almost immediately during startup, in both
           virtualized and physical environments. Solaris 9 and later releases are
           not affected by this problem, and neither is Solaris 2.5.1 and earlier.
       </para>
       <para>
-          The recommended solution is upgrading to at least Solaris 8 7/01 
+          The recommended solution is upgrading to at least Solaris 8 7/01
           ("S8U5"). Alternative solutions include applying a patch for bugs 4408508
           and 4414557 (on an unaffected system).
       </para>
@@ -1437,58 +1456,11 @@ VirtualBox</screen>
 
       <para>If USB is not working on your Linux host, make sure that the
       current user is a member of the
-      <computeroutput>vboxusers</computeroutput> group. On older hosts, you
-      need to make sure that the user has permission to access the USB
-      filesystem (<computeroutput>usbfs</computeroutput>), which VirtualBox
-      relies on to retrieve valid information about your host's USB devices.
-      The rest of this section only applies to those older systems.</para>
-
-      <para>As <computeroutput>usbfs</computeroutput> is a virtual filesystem,
-      a <computeroutput>chmod</computeroutput> on
-      <computeroutput>/proc/bus/usb</computeroutput> has no effect. The
-      permissions for <computeroutput>usbfs</computeroutput> can therefore
-      <emphasis>only</emphasis> be changed by editing the
-      <computeroutput>/etc/fstab</computeroutput> file.</para>
-
-      <para>For example, most Linux distributions have a user group called
-      <computeroutput>usb</computeroutput> or similar, of which the current
-      user must be a member. To give all users of that group access to usbfs,
-      make sure the following line is present:<screen># 85 is the USB group
-none     /proc/bus/usb     usbfs      devgid=85,devmode=664    0    0</screen>Replace
-      85 with the group ID that matches your system (search
-      <computeroutput>/etc/group</computeroutput> for "usb" or similar).
-      Alternatively, if you don't mind the security hole, give all users
-      access to USB by changing "664" to "666".</para>
-
-      <para>The various distributions are very creative from which script the
-      <computeroutput>usbfs</computeroutput> filesystem is mounted. Sometimes
-      the command is hidden in unexpected places. For SuSE 10.0 the mount
-      command is part of the udev configuration file
-      <computeroutput>/etc/udev/rules.d/50-udev.rules</computeroutput>. As
-      this distribution has no user group called
-      <computeroutput>usb</computeroutput>, you may e.g. use the
-      <computeroutput>vboxusers</computeroutput> group which was created by
-      the VirtualBox installer. Since group numbers are allocated dynamically,
-      the following example uses 85 as a placeholder. Modify the line
-      containing (a linebreak has been inserted to improve
-      readability)<screen>DEVPATH="/module/usbcore", ACTION=="add",
-    RUN+="/bin/mount -t usbfs usbfs /proc/bus/usb"</screen> and add the
-      necessary options (make sure that everything is in a single
-      line):<screen>DEVPATH="/module/usbcore", ACTION=="add",
-    RUN+="/bin/mount -t usbfs usbfs /proc/bus/usb -o devgid=85,devmode=664"</screen></para>
-
-      <para>Debian Etch has the mount command in
-      <computeroutput>/etc/init.d/mountkernfs.sh</computeroutput>. Since that
-      distribution has no group <computeroutput>usb</computeroutput>, it is
-      also the easiest solution to allow all members of the group
-      <computeroutput>vboxusers</computeroutput> to access the USB subsystem.
-      Modify the line <screen>domount usbfs usbdevfs /proc/bus/usb -onoexec,nosuid,nodev</screen>
-      so that it contains <screen>domount usbfs usbdevfs /proc/bus/usb -onoexec,nosuid,nodev,devgid=85,devmode=664</screen>
-      As usual, replace the 85 with the actual group number which should get
-      access to USB devices.</para>
-
-      <para>Other distributions do similar operations in scripts stored in the
-      <computeroutput>/etc/init.d</computeroutput> directory.</para>
+      <computeroutput>vboxusers</computeroutput> group.
+      Please keep in mind that group membership does not take effect immediately
+      but rather at the next login. If available, the 
+      <computeroutput>newgrp</computeroutput> command may avoid the need for 
+      logout/login.</para>
     </sect2>
 
     <sect2>

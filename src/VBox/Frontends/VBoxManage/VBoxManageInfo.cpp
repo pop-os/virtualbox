@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -35,6 +35,7 @@
 #endif
 
 #include <VBox/log.h>
+#include <VBox/version.h>
 #include <iprt/stream.h>
 #include <iprt/time.h>
 #include <iprt/string.h>
@@ -348,6 +349,47 @@ HRESULT showBandwidthGroups(ComPtr<IBandwidthControl> &bwCtrl,
     return rc;
 }
 
+static const char *paravirtProviderToString(ParavirtProvider_T provider, VMINFO_DETAILS details)
+{
+    switch (provider)
+    {
+        case ParavirtProvider_None:
+            if (details == VMINFO_MACHINEREADABLE)
+                return "none";
+            return "None";
+
+        case ParavirtProvider_Default:
+            if (details == VMINFO_MACHINEREADABLE)
+                return "default";
+            return "Default";
+
+        case ParavirtProvider_Legacy:
+            if (details == VMINFO_MACHINEREADABLE)
+                return "legacy";
+            return "Legacy";
+
+        case ParavirtProvider_Minimal:
+            if (details == VMINFO_MACHINEREADABLE)
+                return "minimal";
+            return "Minimal";
+
+        case ParavirtProvider_HyperV:
+            if (details == VMINFO_MACHINEREADABLE)
+                return "hyperv";
+            return "HyperV";
+
+        case ParavirtProvider_KVM:
+            if (details == VMINFO_MACHINEREADABLE)
+                return "kvm";
+            return "KVM";
+
+        default:
+            if (details == VMINFO_MACHINEREADABLE)
+                return "unknown";
+            return "Unknown";
+    }
+}
+
 
 /* Disable global optimizations for MSC 8.0/64 to make it compile in reasonable
    time. MSC 7.1/32 doesn't have quite as much trouble with it, but still
@@ -401,6 +443,22 @@ HRESULT showVMInfo(ComPtr<IVirtualBox> pVirtualBox,
             outputMachineReadableString(a_szMachine, &bstr); \
         else \
             RTPrintf("%-16s %ls\n", a_szHuman ":", bstr.raw()); \
+    } while (0)
+
+    /** @def SHOW_STRING_PROP_MAJ
+     * For not breaking the output in a dot release we don't show default values. */
+#define SHOW_STRING_PROP_MAJ(a_pObj, a_Prop, a_szMachine, a_szHuman, a_szUnless, a_uMajorVer) \
+    do \
+    { \
+        Bstr bstr; \
+        CHECK_ERROR2I_RET(a_pObj, COMGETTER(a_Prop)(bstr.asOutParam()), hrcCheck); \
+        if ((a_uMajorVer) <= VBOX_VERSION_MAJOR || !bstr.equals(a_szUnless)) \
+        { \
+            if (details == VMINFO_MACHINEREADABLE)\
+                outputMachineReadableString(a_szMachine, &bstr); \
+            else \
+                RTPrintf("%-16s %ls\n", a_szHuman ":", bstr.raw()); \
+        } \
     } while (0)
 
 #define SHOW_STRINGARRAY_PROP(a_pObj, a_Prop, a_szMachine, a_szHuman) \
@@ -522,6 +580,7 @@ HRESULT showVMInfo(ComPtr<IVirtualBox> pVirtualBox,
     SHOW_ULONG_PROP(       machine, VRAMSize,                   "vram",                 "VRAM size",        "MB");
     SHOW_ULONG_PROP(       machine, CPUExecutionCap,            "cpuexecutioncap",      "CPU exec cap",     "%%");
     SHOW_BOOLEAN_PROP(     machine, HPETEnabled,                "hpet",                 "HPET");
+    SHOW_STRING_PROP_MAJ(  machine, CPUProfile,                 "cpu-profile",          "CPUProfile",       "host", 6);
 
     ChipsetType_T chipsetType;
     CHECK_ERROR2I_RET(machine, COMGETTER(ChipsetType)(&chipsetType), hrcCheck);
@@ -558,6 +617,9 @@ HRESULT showVMInfo(ComPtr<IVirtualBox> pVirtualBox,
     SHOW_ULONG_PROP(       machine, CPUCount,                   "cpus",                 "Number of CPUs", "");
     SHOW_BOOLEAN_METHOD(   machine, GetCPUProperty(CPUPropertyType_PAE, &f), "pae", "PAE");
     SHOW_BOOLEAN_METHOD(   machine, GetCPUProperty(CPUPropertyType_LongMode, &f), "longmode", "Long Mode");
+    SHOW_BOOLEAN_METHOD(   machine, GetCPUProperty(CPUPropertyType_TripleFaultReset, &f), "triplefaultreset", "Triple Fault Reset");
+    SHOW_BOOLEAN_METHOD(   machine, GetCPUProperty(CPUPropertyType_APIC, &f), "apic", "APIC");
+    SHOW_BOOLEAN_METHOD(   machine, GetCPUProperty(CPUPropertyType_X2APIC, &f), "x2apic", "X2APIC");
     SHOW_ULONG_PROP(       machine, CPUIDPortabilityLevel, "cpuid-portability-level",   "CPUID Portability Level", "");
 
     if (details != VMINFO_MACHINEREADABLE)
@@ -678,6 +740,34 @@ HRESULT showVMInfo(ComPtr<IVirtualBox> pVirtualBox,
 
     SHOW_BOOLEAN_PROP(biosSettings, ACPIEnabled,                "acpi",                 "ACPI");
     SHOW_BOOLEAN_PROP(biosSettings, IOAPICEnabled,              "ioapic",               "IOAPIC");
+
+    APICMode_T apicMode;
+    CHECK_ERROR2I_RET(biosSettings, COMGETTER(APICMode)(&apicMode), hrcCheck);
+    const char *pszAPIC;
+    switch (apicMode)
+    {
+        case APICMode_Disabled:
+            pszAPIC = "disabled";
+            break;
+        case APICMode_APIC:
+        default:
+            if (details == VMINFO_MACHINEREADABLE)
+                pszAPIC = "apic";
+            else
+                pszAPIC = "APIC";
+            break;
+        case APICMode_X2APIC:
+            if (details == VMINFO_MACHINEREADABLE)
+                pszAPIC = "x2apic";
+            else
+                pszAPIC = "x2APIC";
+            break;
+    }
+    if (details == VMINFO_MACHINEREADABLE)
+        RTPrintf("biosapic=\"%s\"\n", pszAPIC);
+    else
+        RTPrintf("BIOS APIC mode:  %s\n", pszAPIC);
+
     SHOW_LONG64_PROP(biosSettings,  TimeOffset,                 "biossystemtimeoffset", "Time offset",  "ms");
     SHOW_BOOLEAN_PROP_EX(machine,   RTCUseUTC,                  "rtcuseutc",            "RTC",          "UTC", "local time");
     SHOW_BOOLEAN_METHOD(machine, GetHWVirtExProperty(HWVirtExPropertyType_Enabled,   &f),   "hwvirtex",     "Hardw. virt.ext");
@@ -688,62 +778,29 @@ HRESULT showVMInfo(ComPtr<IVirtualBox> pVirtualBox,
 
     ParavirtProvider_T paravirtProvider;
     CHECK_ERROR2I_RET(machine, COMGETTER(ParavirtProvider)(&paravirtProvider), hrcCheck);
-    const char *pszParavirtProvider;
-    switch (paravirtProvider)
-    {
-        case ParavirtProvider_None:
-            if (details == VMINFO_MACHINEREADABLE)
-                pszParavirtProvider = "none";
-            else
-                pszParavirtProvider = "None";
-            break;
-
-        case ParavirtProvider_Default:
-            if (details == VMINFO_MACHINEREADABLE)
-                pszParavirtProvider = "default";
-            else
-                pszParavirtProvider = "Default";
-            break;
-
-        case ParavirtProvider_Legacy:
-            if (details == VMINFO_MACHINEREADABLE)
-                pszParavirtProvider = "legacy";
-            else
-                pszParavirtProvider = "Legacy";
-            break;
-
-        case ParavirtProvider_Minimal:
-            if (details == VMINFO_MACHINEREADABLE)
-                pszParavirtProvider = "minimal";
-            else
-                pszParavirtProvider = "Minimal";
-            break;
-
-        case ParavirtProvider_HyperV:
-            if (details == VMINFO_MACHINEREADABLE)
-                pszParavirtProvider = "hyperv";
-            else
-                pszParavirtProvider = "HyperV";
-            break;
-
-        case ParavirtProvider_KVM:
-            if (details == VMINFO_MACHINEREADABLE)
-                pszParavirtProvider = "kvm";
-            else
-                pszParavirtProvider = "KVM";
-            break;
-
-        default:
-            if (details == VMINFO_MACHINEREADABLE)
-                pszParavirtProvider = "unknown";
-            else
-                pszParavirtProvider = "Unknown";
-    }
+    const char *pszParavirtProvider = paravirtProviderToString(paravirtProvider, details);
     if (details == VMINFO_MACHINEREADABLE)
         RTPrintf("paravirtprovider=\"%s\"\n", pszParavirtProvider);
     else
         RTPrintf("Paravirt. Provider: %s\n", pszParavirtProvider);
 
+    ParavirtProvider_T effParavirtProvider;
+    CHECK_ERROR2I_RET(machine, GetEffectiveParavirtProvider(&effParavirtProvider), hrcCheck);
+    const char *pszEffParavirtProvider = paravirtProviderToString(effParavirtProvider, details);
+    if (details == VMINFO_MACHINEREADABLE)
+        RTPrintf("effparavirtprovider=\"%s\"\n", pszEffParavirtProvider);
+    else
+        RTPrintf("Effective Paravirt. Provider: %s\n", pszEffParavirtProvider);
+
+    Bstr paravirtDebug;
+    CHECK_ERROR2I_RET(machine, COMGETTER(ParavirtDebug)(paravirtDebug.asOutParam()), hrcCheck);
+    if (paravirtDebug.isNotEmpty())
+    {
+        if (details == VMINFO_MACHINEREADABLE)
+            RTPrintf("paravirtdebug=\"%ls\"\n", paravirtDebug.raw());
+        else
+            RTPrintf("Paravirt. Debug: %ls\n", paravirtDebug.raw());
+    }
 
     MachineState_T machineState;
     CHECK_ERROR2I_RET(machine, COMGETTER(State)(&machineState), hrcCheck);

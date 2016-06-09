@@ -8,7 +8,7 @@ VirtualBox Specific base testdriver.
 
 __copyright__ = \
 """
-Copyright (C) 2010-2015 Oracle Corporation
+Copyright (C) 2010-2016 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -27,7 +27,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 101455 $"
+__version__ = "$Revision: 107766 $"
 
 
 # Standard Python imports.
@@ -477,11 +477,12 @@ class EventHandlerBase(object):
                 break;
             if oEvt:
                 self.handleEvent(oEvt);
-                try:
-                    self.oEventSrc.eventProcessed(self.oListener, oEvt);
-                except:
-                    reporter.logXcpt();
-                    break;
+                if not self.fShutdown:
+                    try:
+                        self.oEventSrc.eventProcessed(self.oListener, oEvt);
+                    except:
+                        reporter.logXcpt();
+                        break;
         self.unregister(fWaitForThread = False);
         return None;
 
@@ -499,31 +500,32 @@ class EventHandlerBase(object):
         """
         Unregister the event handler.
         """
-        self.fShutdown = True;
-
         fRc = False;
-        if self.oEventSrc is not None:
-            if self.fpApiVer < 3.3:
-                try:
-                    self.oEventSrc.unregisterCallback(self.oListener);
-                    fRc = True;
-                except:
-                    reporter.errorXcpt('unregisterCallback failed on %s' % (self.oListener,));
-            else:
-                try:
-                    self.oEventSrc.unregisterListener(self.oListener);
-                    fRc = True;
-                except:
-                    if self.oVBoxMgr.xcptIsDeadInterface():
-                        reporter.log('unregisterListener failed on %s because of dead interface (%s)'
-                                     % (self.oListener, self.oVBoxMgr.xcptToString(),));
-                    else:
-                        reporter.errorXcpt('unregisterListener failed on %s' % (self.oListener,));
+        if not self.fShutdown:
+            self.fShutdown = True;
 
-        if    self.oThread is not None \
-          and self.oThread != threading.current_thread():
-            self.oThread.join();
-            self.oThread = None;
+            if self.oEventSrc is not None:
+                if self.fpApiVer < 3.3:
+                    try:
+                        self.oEventSrc.unregisterCallback(self.oListener);
+                        fRc = True;
+                    except:
+                        reporter.errorXcpt('unregisterCallback failed on %s' % (self.oListener,));
+                else:
+                    try:
+                        self.oEventSrc.unregisterListener(self.oListener);
+                        fRc = True;
+                    except:
+                        if self.oVBoxMgr.xcptIsDeadInterface():
+                            reporter.log('unregisterListener failed on %s because of dead interface (%s)'
+                                         % (self.oListener, self.oVBoxMgr.xcptToString(),));
+                        else:
+                            reporter.errorXcpt('unregisterListener failed on %s' % (self.oListener,));
+
+            if    self.oThread is not None \
+              and self.oThread != threading.current_thread():
+                self.oThread.join();
+                self.oThread = None;
 
         _ = fWaitForThread;
         return fRc;
@@ -798,6 +800,7 @@ class TestDriver(base.TestDriver):                                              
         self.sVBoxBootSectors   = None;
         self.fAlwaysUploadLogs  = False;
         self.fAlwaysUploadScreenshots = False;
+        self.fEnableDebugger          = True;
 
         # Quietly detect build and validation kit.
         self._detectBuild(False);
@@ -929,6 +932,18 @@ class TestDriver(base.TestDriver):                                              
         self.sVBoxBootSectors   = os.path.join(sCandidate, 'bootsectors');
         return fRc;
 
+    def _makeEnvironmentChanges(self):
+        """
+        Make the necessary VBox related environment changes.
+        Children not importing the VBox API should call this.
+        """
+        # Make sure we've got our own VirtualBox config and VBoxSVC (on XPCOM at least).
+        if not self.fUseDefaultSvc:
+            os.environ['VBOX_USER_HOME']    = os.path.join(self.sScratchPath, 'VBoxUserHome');
+            sUser = os.environ.get('USERNAME', os.environ.get('USER', os.environ.get('LOGNAME', 'unknown')));
+            os.environ['VBOX_IPC_SOCKETID'] = sUser + '-VBoxTest';
+        return True;
+
     def importVBoxApi(self):
         """
         Import the 'vboxapi' module from the VirtualBox build we're using and
@@ -940,13 +955,7 @@ class TestDriver(base.TestDriver):                                              
         if self.fImportedVBoxApi:
             return True;
 
-        ## @todo split up this messy function.
-
-        # Make sure we've got our own VirtualBox config and VBoxSVC (on XPCOM at least).
-        if not self.fUseDefaultSvc:
-            os.environ['VBOX_USER_HOME']    = os.path.join(self.sScratchPath, 'VBoxUserHome');
-            sUser = os.environ.get('USERNAME', os.environ.get('USER', os.environ.get('LOGNAME', 'unknown')));
-            os.environ['VBOX_IPC_SOCKETID'] = sUser + '-VBoxTest';
+        self._makeEnvironmentChanges();
 
         # Do the detecting.
         self._detectBuild();
@@ -1260,15 +1269,20 @@ class TestDriver(base.TestDriver):                                              
             self.oVBoxMgr = None;
             reporter.logXcpt('VirtualBoxManager exception');
             return False;
+        reporter.log("oVBoxMgr=%s" % (self.oVBoxMgr,)); # Temporary - debugging hang somewhere after 'sys.path' log line above.
 
         # Figure the API version.
         try:
             oVBox = self.oVBoxMgr.getVirtualBox();
+            reporter.log("oVBox=%s" % (oVBox,));        # Temporary - debugging hang somewhere after 'sys.path' log line above.
             try:
                 sVer = oVBox.version;
             except:
                 reporter.logXcpt('Failed to get VirtualBox version, assuming 4.0.0');
                 sVer = "4.0.0";
+            reporter.log("sVer=%s" % (sVer,));          # Temporary - debugging hang somewhere after 'sys.path' log line above.
+            if sVer.startswith("5.1"):
+                self.fpApiVer = 5.1;
             if sVer.startswith("5.0") or (sVer.startswith("4.3.5") and len(sVer) == 6):
                 self.fpApiVer = 5.0;
             elif sVer.startswith("4.3") or (sVer.startswith("4.2.5") and len(sVer) == 6):
@@ -1517,6 +1531,9 @@ class TestDriver(base.TestDriver):                                              
         reporter.log('      Whether to always upload log files, or only do so on failure.');
         reporter.log('  --vbox-always-upload-screenshots');
         reporter.log('      Whether to always upload final screen shots, or only do so on failure.');
+        reporter.log('  --vbox-debugger, --no-vbox-debugger');
+        reporter.log('      Enables the VBox debugger, port at 5000');
+        reporter.log('      Default: --vbox-debugger');
         if self.oTestVmSet is not None:
             self.oTestVmSet.showUsage();
         return rc;
@@ -1618,6 +1635,10 @@ class TestDriver(base.TestDriver):                                              
             self.fAlwaysUploadLogs = True;
         elif asArgs[iArg] == '--vbox-always-upload-screenshots':
             self.fAlwaysUploadScreenshots = True;
+        elif asArgs[iArg] == '--vbox-debugger':
+            self.fEnableDebugger = True;
+        elif asArgs[iArg] == '--no-vbox-debugger':
+            self.fEnableDebugger = False;
         else:
             # Relevant for selecting VMs to test?
             if self.oTestVmSet is not None:
@@ -1812,7 +1833,13 @@ class TestDriver(base.TestDriver):                                              
         reporter.log("  RAM:                %sMB" % (oVM.memorySize));
         reporter.log("  VRAM:               %sMB" % (oVM.VRAMSize));
         reporter.log("  Monitors:           %s" % (oVM.monitorCount));
-        reporter.log("  Firmware:           %s" % (oVM.firmwareType));
+        if   oVM.firmwareType == vboxcon.FirmwareType_BIOS:    sType = "BIOS";
+        elif oVM.firmwareType == vboxcon.FirmwareType_EFI:     sType = "EFI";
+        elif oVM.firmwareType == vboxcon.FirmwareType_EFI32:   sType = "EFI32";
+        elif oVM.firmwareType == vboxcon.FirmwareType_EFI64:   sType = "EFI64";
+        elif oVM.firmwareType == vboxcon.FirmwareType_EFIDUAL: sType = "EFIDUAL";
+        else: sType = "unknown %s" % (oVM.firmwareType);
+        reporter.log("  Firmware:           %s" % (sType));
         reporter.log("  HwVirtEx:           %s" % (oVM.getHWVirtExProperty(vboxcon.HWVirtExPropertyType_Enabled)));
         reporter.log("  VPID support:       %s" % (oVM.getHWVirtExProperty(vboxcon.HWVirtExPropertyType_VPID)));
         reporter.log("  Nested paging:      %s" % (oVM.getHWVirtExProperty(vboxcon.HWVirtExPropertyType_NestedPaging)));
@@ -1839,6 +1866,10 @@ class TestDriver(base.TestDriver):                                              
         reporter.log("  TeleporterAddress:  %s" % (oVM.teleporterAddress));
         reporter.log("  TeleporterPassword: %s" % (oVM.teleporterPassword));
         reporter.log("  Clipboard mode:     %s" % (oVM.clipboardMode));
+        if self.fpApiVer >= 5.0:
+            reporter.log("  Drag and drop mode: %s" % (oVM.dnDMode));
+        elif self.fpApiVer >= 4.3:
+            reporter.log("  Drag and drop mode: %s" % (oVM.dragAndDropMode));
         if self.fpApiVer >= 4.0:
             reporter.log("  VRDP server:        %s" % (oVM.VRDEServer.enabled));
             try:    sPorts = oVM.VRDEServer.getVRDEProperty("TCP/Ports");
@@ -1855,6 +1886,13 @@ class TestDriver(base.TestDriver):                                              
             reporter.log("  Controllers:");
         for oCtrl in aoControllers:
             reporter.log("    %s %s bus: %s type: %s" % (oCtrl.name, oCtrl.controllerType, oCtrl.bus, oCtrl.controllerType));
+        oAudioAdapter = oVM.audioAdapter;
+        if   oAudioAdapter.audioController == vboxcon.AudioControllerType_AC97: sType = "AC97";
+        elif oAudioAdapter.audioController == vboxcon.AudioControllerType_SB16: sType = "SB16";
+        elif oAudioAdapter.audioController == vboxcon.AudioControllerType_HDA:  sType = "HDA";
+        else: sType = "unknown %s" % (oAudioAdapter.audioController);
+        reporter.log("    AudioController: %s" % (sType));
+        reporter.log("    AudioEnabled: %s" % (oAudioAdapter.enabled));
 
         self.processPendingEvents();
         aoAttachments = self.oVBoxMgr.getArray(oVM, 'mediumAttachments')
@@ -2015,7 +2053,7 @@ class TestDriver(base.TestDriver):                                              
                      sDvdImage = None, sKind = "Other", fIoApic = None, fPae = None, fFastBootLogo = True, \
                      eNic0Type = None, eNic0AttachType = None, sNic0NetName = 'default', sNic0MacAddr = 'grouped', \
                      sFloppy = None, fNatForwardingForTxs = None, sHddControllerType = 'IDE Controller', \
-                     fVmmDevTestingPart = None, fVmmDevTestingMmio = False):
+                     fVmmDevTestingPart = None, fVmmDevTestingMmio = False, sFirmwareType = 'bios'):
         """
         Creates a test VM with a immutable HD from the test resources.
         """
@@ -2097,6 +2135,12 @@ class TestDriver(base.TestDriver):                                              
                 fRc = oSession.setupVrdp(True, self.uVrdpBasePort + iGroup);
             if fRc and fVmmDevTestingPart is not None:
                 fRc = oSession.enableVmmDevTestingPart(fVmmDevTestingPart, fVmmDevTestingMmio);
+            if fRc and sFirmwareType == 'bios':
+                fRc = oSession.setFirmwareType(vboxcon.FirmwareType_BIOS);
+            elif sFirmwareType == 'efi':
+                fRc = oSession.setFirmwareType(vboxcon.FirmwareType_EFI);
+            if fRc and self.fEnableDebugger:
+                fRc = oSession.setExtraData('VBoxInternal/DBGC/Enabled', '1');
 
             if fRc: fRc = oSession.saveSettings();
             if not fRc:   oSession.discardSettings(True);
@@ -2315,7 +2359,7 @@ class TestDriver(base.TestDriver):                                              
         if sName is None:
             try:    sName = oVM.name;
             except: sName = 'bad-vm-handle';
-        reporter.log2('startVmEx: sName=%s fWait=%s sType=%s' % (sName, fWait, sType));
+        reporter.log('startVmEx: sName=%s fWait=%s sType=%s' % (sName, fWait, sType));
         if oVM is None:
             return (None, None);
 
@@ -2500,12 +2544,19 @@ class TestDriver(base.TestDriver):                                              
         #
         # Take Screenshot and upload it (see below) to Test Manager if appropriate/requested.
         #
-        sLastScreenshotPath = None
+        sLastScreenshotPath = None;
         if fTakeScreenshot is True  or  self.fAlwaysUploadScreenshots  or  reporter.testErrorCount() > 0:
-            sLastScreenshotPath = os.path.join(self.sScratchPath, "LastScreenshot-%s.png" % oSession.sName)
-            fRc = oSession.takeScreenshot(sLastScreenshotPath)
+            sLastScreenshotPath = os.path.join(self.sScratchPath, "LastScreenshot-%s.png" % oSession.sName);
+            fRc = oSession.takeScreenshot(sLastScreenshotPath);
             if fRc is not True:
-                sLastScreenshotPath = None
+                sLastScreenshotPath = None;
+
+        #
+        # Query the OS kernel log from the debugger if appropriate/requested.
+        #
+        sOsKernelLog = None;
+        if self.fAlwaysUploadLogs or reporter.testErrorCount() > 0:
+            sOsKernelLog = oSession.queryOsKernelLog();
 
         #
         # Terminate the VM
@@ -2576,6 +2627,10 @@ class TestDriver(base.TestDriver):                                              
                 reporter.addLogFile(sLastScreenshotPath, 'screenshot/failure', 'Last VM screenshot');
             else:
                 reporter.addLogFile(sLastScreenshotPath, 'screenshot/success', 'Last VM screenshot');
+
+        # Add the guest OS log if it has been requested and taken successfully.
+        if sOsKernelLog is not None:
+            reporter.addLogString(sOsKernelLog, 'kernel.log', 'log/guest/kernel', 'Guest OS kernel log');
 
         return fRc;
 

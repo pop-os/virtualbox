@@ -611,7 +611,7 @@ static bool disCopySegmentGap(uint32_t uFlatAddr, uint32_t cbPadding)
         outputPrintf("\n"
                      "  ; Padding %#x bytes at %#x\n", cbPadding, uFlatAddr);
     uint8_t const  *pb = &g_pbImg[uFlatAddr - g_uBiosFlatBase];
-    if (!ASMMemIsAll8(pb, cbPadding, 0))
+    if (ASMMemIsZero(pb, cbPadding))
         return outputPrintf("  times %u db 0\n", cbPadding);
 
     return disByteData(uFlatAddr, cbPadding);
@@ -954,9 +954,9 @@ static bool disCode(uint32_t uFlatAddr, uint32_t cb, bool fIs16Bit)
     {
         /* Trailing zero padding detection. */
         if (   *pb == '\0'
-            && ASMMemIsAll8(pb, RT_MIN(cb, 8), 0) == NULL)
+            && ASMMemIsZero(pb, RT_MIN(cb, 8)))
         {
-            void    *pv      = ASMMemIsAll8(pb, cb, 0);
+            void    *pv      = ASMMemFirstNonZero(pb, cb);
             uint32_t cbZeros = pv ? (uint32_t)((uint8_t const *)pv - pb) : cb;
             if (!outputPrintf("    times %#x db 0\n", cbZeros))
                 return false;
@@ -2020,7 +2020,15 @@ int main(int argc, char **argv)
             case 'V':
             {
                 /* The following is assuming that svn does it's job here. */
-                RTPrintf("r%u\n", RTBldCfgRevision());
+                char szRev[] = "$Revision: 106926 $";
+                char *psz = szRev;
+                while (*psz && !RT_C_IS_DIGIT(*psz))
+                    psz++;
+                size_t i = strlen(psz);
+                while (i > 0 && !RT_C_IS_DIGIT(psz[i - 1]))
+                    psz[--i] = '\0';
+
+                RTPrintf("r%s\n", psz);
                 return RTEXITCODE_SUCCESS;
             }
 

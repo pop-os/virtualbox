@@ -20,6 +20,8 @@
 #include <iprt/err.h>
 #include <iprt/path.h>
 #include <iprt/log.h>
+#include <iprt/string.h>
+#include <iprt/uni.h>
 
 namespace com
 {
@@ -36,7 +38,7 @@ const Bstr Bstr::Empty; /* default ctor is OK */
 void Bstr::copyFromN(const char *a_pszSrc, size_t a_cchMax)
 {
     /*
-     * Initialie m_bstr first in case of throws further down in the code, then
+     * Initialize m_bstr first in case of throws further down in the code, then
      * check for empty input (m_bstr == NULL means empty, there are no NULL
      * strings).
      */
@@ -68,6 +70,50 @@ void Bstr::copyFromN(const char *a_pszSrc, size_t a_cchMax)
     else /* ASSUME: input is valid Utf-8. Fake out of memory error. */
         AssertLogRelMsgFailed(("%Rrc %.*Rhxs\n", vrc, RTStrNLen(a_pszSrc, a_cchMax), a_pszSrc));
     throw std::bad_alloc();
+}
+
+int Bstr::compareUtf8(const char *a_pszRight, CaseSensitivity a_enmCase /*= CaseSensitive*/) const
+{
+    PCRTUTF16 pwszLeft = m_bstr;
+
+    /*
+     * Special case for null/empty strings.  Unlike RTUtf16Cmp we
+     * treat null and empty equally.
+     */
+    if (!pwszLeft)
+        return !a_pszRight || *a_pszRight == '\0' ? 0 : -1;
+    if (!a_pszRight)
+        return *pwszLeft == '\0'                  ? 0 :  1;
+
+    /*
+     * Compare with a UTF-8 string by enumerating them char by char.
+     */
+    for (;;)
+    {
+        RTUNICP ucLeft;
+        int rc = RTUtf16GetCpEx(&pwszLeft, &ucLeft);
+        AssertRCReturn(rc, 1);
+
+        RTUNICP ucRight;
+        rc = RTStrGetCpEx(&a_pszRight, &ucRight);
+        AssertRCReturn(rc, -1);
+        if (ucLeft == ucRight)
+        {
+            if (ucLeft)
+                continue;
+            return 0;
+        }
+
+        if (a_enmCase == CaseInsensitive)
+        {
+            if (RTUniCpToUpper(ucLeft) == RTUniCpToUpper(ucRight))
+                continue;
+            if (RTUniCpToLower(ucLeft) == RTUniCpToLower(ucRight))
+                continue;
+        }
+
+        return ucLeft < ucRight ? -1 : 1;
+    }
 }
 
 

@@ -58,6 +58,7 @@ private:
     HRESULT getPortVersion(USHORT *aPortVersion);
     HRESULT getSpeed(USBConnectionSpeed_T *aSpeed);
     HRESULT getRemote(BOOL *aRemote);
+    HRESULT getBackend(com::Utf8Str &aBackend);
     HRESULT getDeviceInfo(std::vector<com::Utf8Str> &aInfo);
 
     struct Data
@@ -84,6 +85,8 @@ private:
         const com::Utf8Str serialNumber;
         /** The host specific address of the device. */
         const com::Utf8Str address;
+        /** The device specific backend. */
+        const com::Utf8Str backend;
         /** The host port number. */
         const USHORT port;
         /** The major USB version number of the device. */

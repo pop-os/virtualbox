@@ -42,6 +42,11 @@ import xpcom.server
 import operator
 import types
 import logging
+import sys
+
+# Python 3 hacks:
+if sys.version_info[0] >= 3:
+    long = int      # pylint: disable=W0622,C0103
 
 
 IID_nsISupports = _xpcom.IID_nsISupports
@@ -60,8 +65,11 @@ VARIANT_UNICODE_TYPES = xpcom_consts.VTYPE_WCHAR, xpcom_consts.VTYPE_DOMSTRING, 
 
 _supports_primitives_map_ = {} # Filled on first use.
 
-_interface_sequence_types_ = types.TupleType, types.ListType
-_string_types_ = types.StringType, types.UnicodeType
+_interface_sequence_types_ = tuple, list
+if sys.version_info[0] <= 2:
+    _string_types_ = str, unicode
+else:
+    _string_types_ = bytes, str
 XPTI_GetInterfaceInfoManager = _xpcom.XPTI_GetInterfaceInfoManager
 
 def _GetNominatedInterfaces(obj):
@@ -141,7 +149,7 @@ class DefaultPolicy:
         self._nominated_interfaces_ = ni = _GetNominatedInterfaces(instance)
         self._iid_ = iid
         if ni is None:
-            raise ValueError, "The object '%r' can not be used as a COM object" % (instance,)
+            raise ValueError("The object '%r' can not be used as a COM object" % (instance,))
         # This is really only a check for the user
         if __debug__:
             if iid != IID_nsISupports and iid not in ni:
@@ -285,7 +293,10 @@ class DefaultPolicy:
             # Trick things!
             if logger.isEnabledFor(logging.DEBUG):
                 try:
-                    raise exc_info[0], exc_info[1], exc_info[2]
+                    if sys.version_info[0] <= 2:
+                        exec('raise exc_info[0], exc_info[1], exc_info[2]')
+                    else:
+                        raise exc_info[0](exc_info[1]).with_traceback(exc_info[2])
                 except:
                     logger.debug("'%s' raised COM Exception %s",
                              func_name, exc_val, exc_info = 1)
@@ -293,7 +304,10 @@ class DefaultPolicy:
         # Unhandled exception - always print a warning and the traceback.
         # As above, trick the logging module to handle Python 2.3
         try:
-            raise exc_info[0], exc_info[1], exc_info[2]
+            if sys.version_info[0] <= 2:
+                exec('raise exc_info[0], exc_info[1], exc_info[2]')
+            else:
+                raise exc_info[0](exc_info[1]).with_traceback(exc_info[2])
         except:
             logger.exception("Unhandled exception calling '%s'", func_name)
         return nsError.NS_ERROR_FAILURE
@@ -328,20 +342,36 @@ class DefaultPolicy:
     def _GatewayException_(self, name, exc_info):
         return self._doHandleException(name, exc_info)
 
-_supports_primitives_data_ = [
-    ("nsISupportsCString", "__str__", str),
-    ("nsISupportsString", "__unicode__", unicode),
-    ("nsISupportsPRUint64", "__long__", long),
-    ("nsISupportsPRInt64", "__long__", long),
-    ("nsISupportsPRUint32", "__int__", int),
-    ("nsISupportsPRInt32", "__int__", int),
-    ("nsISupportsPRUint16", "__int__", int),
-    ("nsISupportsPRInt16", "__int__", int),
-    ("nsISupportsPRUint8", "__int__", int),
-    ("nsISupportsPRBool", "__nonzero__", operator.truth),
-    ("nsISupportsDouble", "__float__", float),
-    ("nsISupportsFloat", "__float__", float),
-]
+if sys.version_info[0] <= 2:
+    _supports_primitives_data_ = [
+        ("nsISupportsCString", "__str__", str),
+        ("nsISupportsString", "__unicode__", unicode),
+        ("nsISupportsPRUint64", "__long__", long),
+        ("nsISupportsPRInt64", "__long__", long),
+        ("nsISupportsPRUint32", "__int__", int),
+        ("nsISupportsPRInt32", "__int__", int),
+        ("nsISupportsPRUint16", "__int__", int),
+        ("nsISupportsPRInt16", "__int__", int),
+        ("nsISupportsPRUint8", "__int__", int),
+        ("nsISupportsPRBool", "__nonzero__", operator.truth),
+        ("nsISupportsDouble", "__float__", float),
+        ("nsISupportsFloat", "__float__", float),
+    ]
+else:
+    _supports_primitives_data_ = [
+        ("nsISupportsCString", "__str__", str),
+        ("nsISupportsString", "__unicode__", str),
+        ("nsISupportsPRUint64", "__long__", int),
+        ("nsISupportsPRInt64", "__long__", int),
+        ("nsISupportsPRUint32", "__int__", int),
+        ("nsISupportsPRInt32", "__int__", int),
+        ("nsISupportsPRUint16", "__int__", int),
+        ("nsISupportsPRInt16", "__int__", int),
+        ("nsISupportsPRUint8", "__int__", int),
+        ("nsISupportsPRBool", "__nonzero__", operator.truth),
+        ("nsISupportsDouble", "__float__", float),
+        ("nsISupportsFloat", "__float__", float),
+    ]
 
 # Support for the nsISupports primitives:
 class SupportsPrimitive:

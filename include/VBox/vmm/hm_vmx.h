@@ -172,6 +172,14 @@ AssertCompileSizeAlignment(VMXRESTOREHOST, 8);
 #define VMX_UFC_CTRL_PROC_EXEC2                                 8
 /** Invalid unrestricted-guest execution controls combo. */
 #define VMX_UFC_INVALID_UX_COMBO                                9
+/** EPT flush type not supported. */
+#define VMX_UFC_EPT_FLUSH_TYPE_UNSUPPORTED                      10
+/** EPT paging structure memory type is not write-back. */
+#define VMX_UFC_EPT_MEM_TYPE_NOT_WB                             11
+/** EPT requires INVEPT instr. support but it's not available. */
+#define VMX_UFC_EPT_INVEPT_UNAVAILABLE                          12
+/** EPT requires page-walk length of 4. */
+#define VMX_UFC_EPT_PAGE_WALK_LENGTH_UNSUPPORTED                13
 /** @} */
 
 /** @name VMX HM-error codes for VERR_VMX_INVALID_GUEST_STATE.
@@ -762,7 +770,7 @@ typedef const EPTPT *PCEPTPT;
 /** @} */
 
 /** VMX VPID flush types.
- * Warning!! Valid enum members are in accordance to the VT-x spec.
+ * @note Valid enum members are in accordance to the VT-x spec.
  */
 typedef enum
 {
@@ -782,7 +790,7 @@ typedef enum
 AssertCompileSize(VMXFLUSHVPID, 4);
 
 /** VMX EPT flush types.
- * @note Warning!! Valid enums values below are in accordance to the VT-x spec.
+ * @note Valid enums values are in accordance to the VT-x spec.
  */
 typedef enum
 {
@@ -797,10 +805,27 @@ typedef enum
 } VMXFLUSHEPT;
 AssertCompileSize(VMXFLUSHEPT, 4);
 
-/** VMX MSR autoload/store element.
- * In accordance to VT-x spec.
+/** VMX Posted Interrupt Descriptor.
+ * In accordance to the VT-x spec.
  */
-typedef struct
+typedef struct VMXPOSTEDINTRDESC
+{
+    uint32_t    aVectorBitmap[8];
+    uint32_t    fOutstandingNotification : 1;
+    uint32_t    uReserved0               : 31;
+    uint8_t     au8Reserved0[28];
+} VMXPOSTEDINTRDESC;
+AssertCompileMemberSize(VMXPOSTEDINTRDESC, aVectorBitmap, 32);
+AssertCompileSize(VMXPOSTEDINTRDESC, 64);
+/** Pointer to a posted interrupt descriptor. */
+typedef VMXPOSTEDINTRDESC *PVMXPOSTEDINTRDESC;
+/** Pointer to a const posted interrupt descriptor. */
+typedef const VMXPOSTEDINTRDESC *PCVMXPOSTEDINTRDESC;
+
+/** VMX MSR autoload/store element.
+ * In accordance to the VT-x spec.
+ */
+typedef struct VMXAUTOMSR
 {
     /** The MSR Id. */
     uint32_t    u32Msr;
@@ -975,6 +1000,8 @@ typedef VMXMSRS *PVMXMSRS;
 #define VMX_EXIT_WBINVD                                         54
 /** 55 XSETBV. Guest software attempted to execute XSETBV. */
 #define VMX_EXIT_XSETBV                                         55
+/** 56 APIC write. Guest completed write to virtual-APIC. */
+#define VMX_EXIT_APIC_WRITE                                     56
 /** 57 RDRAND. Guest software attempted to execute RDRAND. */
 #define VMX_EXIT_RDRAND                                         57
 /** 58 INVPCID. Guest software attempted to execute INVPCID. */
@@ -1113,23 +1140,13 @@ typedef VMXMSRS *PVMXMSRS;
  * @{
  */
 #define MSR_IA32_VMX_EPT_VPID_CAP_RWX_X_ONLY                             RT_BIT_64(0)
-#define MSR_IA32_VMX_EPT_VPID_CAP_RWX_W_ONLY                             RT_BIT_64(1)
-#define MSR_IA32_VMX_EPT_VPID_CAP_RWX_WX_ONLY                            RT_BIT_64(2)
-#define MSR_IA32_VMX_EPT_VPID_CAP_GAW_21_BITS                            RT_BIT_64(3)
-#define MSR_IA32_VMX_EPT_VPID_CAP_GAW_30_BITS                            RT_BIT_64(4)
-#define MSR_IA32_VMX_EPT_VPID_CAP_GAW_39_BITS                            RT_BIT_64(5)
-#define MSR_IA32_VMX_EPT_VPID_CAP_GAW_48_BITS                            RT_BIT_64(6)
-#define MSR_IA32_VMX_EPT_VPID_CAP_GAW_57_BITS                            RT_BIT_64(7)
+#define MSR_IA32_VMX_EPT_VPID_CAP_PAGE_WALK_LENGTH_4                     RT_BIT_64(6)
 #define MSR_IA32_VMX_EPT_VPID_CAP_EMT_UC                                 RT_BIT_64(8)
-#define MSR_IA32_VMX_EPT_VPID_CAP_EMT_WC                                 RT_BIT_64(9)
-#define MSR_IA32_VMX_EPT_VPID_CAP_EMT_WT                                 RT_BIT_64(12)
-#define MSR_IA32_VMX_EPT_VPID_CAP_EMT_WP                                 RT_BIT_64(13)
 #define MSR_IA32_VMX_EPT_VPID_CAP_EMT_WB                                 RT_BIT_64(14)
-#define MSR_IA32_VMX_EPT_VPID_CAP_SP_21_BITS                             RT_BIT_64(16)
-#define MSR_IA32_VMX_EPT_VPID_CAP_SP_30_BITS                             RT_BIT_64(17)
-#define MSR_IA32_VMX_EPT_VPID_CAP_SP_39_BITS                             RT_BIT_64(18)
-#define MSR_IA32_VMX_EPT_VPID_CAP_SP_48_BITS                             RT_BIT_64(19)
+#define MSR_IA32_VMX_EPT_VPID_CAP_PDE_2M                                 RT_BIT_64(16)
+#define MSR_IA32_VMX_EPT_VPID_CAP_PDPTE_1G                               RT_BIT_64(17)
 #define MSR_IA32_VMX_EPT_VPID_CAP_INVEPT                                 RT_BIT_64(20)
+#define MSR_IA32_VMX_EPT_VPID_CAP_EPT_ACCESS_DIRTY                       RT_BIT_64(21)
 #define MSR_IA32_VMX_EPT_VPID_CAP_INVEPT_SINGLE_CONTEXT                  RT_BIT_64(25)
 #define MSR_IA32_VMX_EPT_VPID_CAP_INVEPT_ALL_CONTEXTS                    RT_BIT_64(26)
 #define MSR_IA32_VMX_EPT_VPID_CAP_INVVPID                                RT_BIT_64(32)
@@ -1159,36 +1176,39 @@ typedef VMXMSRS *PVMXMSRS;
 /** @name VMCS field encoding - 16 bits guest fields
  * @{
  */
-#define VMX_VMCS16_GUEST_FIELD_VPID                             0x0
-#define VMX_VMCS16_GUEST_FIELD_ES                               0x800
-#define VMX_VMCS16_GUEST_FIELD_CS                               0x802
-#define VMX_VMCS16_GUEST_FIELD_SS                               0x804
-#define VMX_VMCS16_GUEST_FIELD_DS                               0x806
-#define VMX_VMCS16_GUEST_FIELD_FS                               0x808
-#define VMX_VMCS16_GUEST_FIELD_GS                               0x80A
-#define VMX_VMCS16_GUEST_FIELD_LDTR                             0x80C
-#define VMX_VMCS16_GUEST_FIELD_TR                               0x80E
+#define VMX_VMCS16_VPID                                         0x000
+#define VMX_VMCS16_POSTED_INTR_NOTIFY_VECTOR                    0x002
+#define VMX_VMCS16_EPTP_INDEX                                   0x004
+#define VMX_VMCS16_GUEST_ES_SEL                                 0x800
+#define VMX_VMCS16_GUEST_CS_SEL                                 0x802
+#define VMX_VMCS16_GUEST_SS_SEL                                 0x804
+#define VMX_VMCS16_GUEST_DS_SEL                                 0x806
+#define VMX_VMCS16_GUEST_FS_SEL                                 0x808
+#define VMX_VMCS16_GUEST_GS_SEL                                 0x80A
+#define VMX_VMCS16_GUEST_LDTR_SEL                               0x80C
+#define VMX_VMCS16_GUEST_TR_SEL                                 0x80E
+#define VMX_VMCS16_GUEST_INTR_STATUS                            0x810
 /** @} */
 
 /** @name VMCS field encoding - 16 bits host fields
  * @{
  */
-#define VMX_VMCS16_HOST_FIELD_ES                                0xC00
-#define VMX_VMCS16_HOST_FIELD_CS                                0xC02
-#define VMX_VMCS16_HOST_FIELD_SS                                0xC04
-#define VMX_VMCS16_HOST_FIELD_DS                                0xC06
-#define VMX_VMCS16_HOST_FIELD_FS                                0xC08
-#define VMX_VMCS16_HOST_FIELD_GS                                0xC0A
-#define VMX_VMCS16_HOST_FIELD_TR                                0xC0C
+#define VMX_VMCS16_HOST_ES_SEL                                  0xC00
+#define VMX_VMCS16_HOST_CS_SEL                                  0xC02
+#define VMX_VMCS16_HOST_SS_SEL                                  0xC04
+#define VMX_VMCS16_HOST_DS_SEL                                  0xC06
+#define VMX_VMCS16_HOST_FS_SEL                                  0xC08
+#define VMX_VMCS16_HOST_GS_SEL                                  0xC0A
+#define VMX_VMCS16_HOST_TR_SEL                                  0xC0C
 /** @}          */
 
 /** @name VMCS field encoding - 64 bits host fields
  * @{
  */
-#define VMX_VMCS64_HOST_FIELD_PAT_FULL                          0x2C00
-#define VMX_VMCS64_HOST_FIELD_PAT_HIGH                          0x2C01
-#define VMX_VMCS64_HOST_FIELD_EFER_FULL                         0x2C02
-#define VMX_VMCS64_HOST_FIELD_EFER_HIGH                         0x2C03
+#define VMX_VMCS64_HOST_PAT_FULL                                0x2C00
+#define VMX_VMCS64_HOST_PAT_HIGH                                0x2C01
+#define VMX_VMCS64_HOST_EFER_FULL                               0x2C02
+#define VMX_VMCS64_HOST_EFER_HIGH                               0x2C03
 #define VMX_VMCS64_HOST_PERF_GLOBAL_CTRL_FULL                   0x2C04      /**< MSR IA32_PERF_GLOBAL_CTRL */
 #define VMX_VMCS64_HOST_PERF_GLOBAL_CTRL_HIGH                   0x2C05      /**< MSR IA32_PERF_GLOBAL_CTRL */
 /** @}          */
@@ -1229,16 +1249,56 @@ typedef VMXMSRS *PVMXMSRS;
 #define VMX_VMCS64_CTRL_APIC_ACCESSADDR_HIGH                    0x2015
 
 /** Optional (VMX_VMCS_CTRL_PROC_EXEC2_VMFUNC) */
+#define VMX_VMCS64_CTRL_POSTED_INTR_DESC_FULL                   0x2016
+#define VMX_VMCS64_CTRL_POSTED_INTR_DESC_HIGH                   0x2017
+
+/** Optional (VMX_VMCS_CTRL_PROC_EXEC2_VMFUNC) */
 #define VMX_VMCS64_CTRL_VMFUNC_CTRLS_FULL                       0x2018
 #define VMX_VMCS64_CTRL_VMFUNC_CTRLS_HIGH                       0x2019
 
 /** Extended page table pointer. */
-#define VMX_VMCS64_CTRL_EPTP_FULL                               0x201a
-#define VMX_VMCS64_CTRL_EPTP_HIGH                               0x201b
+#define VMX_VMCS64_CTRL_EPTP_FULL                               0x201A
+#define VMX_VMCS64_CTRL_EPTP_HIGH                               0x201B
+
+/** EOI-exit bitmap 0. */
+#define VMX_VMCS64_CTRL_EOI_BITMAP_0_FULL                       0x201C
+#define VMX_VMCS64_CTRL_EOI_BITMAP_0_HIGH                       0x201D
+
+/** EOI-exit bitmap 1. */
+#define VMX_VMCS64_CTRL_EOI_BITMAP_1_FULL                       0x201E
+#define VMX_VMCS64_CTRL_EOI_BITMAP_1_HIGH                       0x201F
+
+/** EOI-exit bitmap 2. */
+#define VMX_VMCS64_CTRL_EOI_BITMAP_2_FULL                       0x2020
+#define VMX_VMCS64_CTRL_EOI_BITMAP_2_HIGH                       0x2021
+
+/** EOI-exit bitmap 3. */
+#define VMX_VMCS64_CTRL_EOI_BITMAP_3_FULL                       0x2022
+#define VMX_VMCS64_CTRL_EOI_BITMAP_3_HIGH                       0x2023
 
 /** Extended page table pointer lists. */
 #define VMX_VMCS64_CTRL_EPTP_LIST_FULL                          0x2024
 #define VMX_VMCS64_CTRL_EPTP_LIST_HIGH                          0x2025
+
+/** VM-read bitmap. */
+#define VMX_VMCS64_CTRL_VMREAD_BITMAP_FULL                      0x2026
+#define VMX_VMCS64_CTRL_VMREAD_BITMAP_HIGH                      0x2027
+
+/** VM-write bitmap. */
+#define VMX_VMCS64_CTRL_VMWRITE_BITMAP_FULL                     0x2028
+#define VMX_VMCS64_CTRL_VMWRITE_BITMAP_HIGH                     0x2029
+
+/** Virtualization-exception information address. */
+#define VMX_VMCS64_CTRL_VIRTXCPT_INFO_ADDR_FULL                 0x202A
+#define VMX_VMCS64_CTRL_VIRTXCPT_INFO_ADDR_HIGH                 0x202B
+
+/** XSS-exiting bitmap. */
+#define VMX_VMCS64_CTRL_XSS_EXITING_BITMAP_FULL                 0x202C
+#define VMX_VMCS64_CTRL_XSS_EXITING_BITMAP_HIGH                 0x202D
+
+/** TSC multiplier. */
+#define VMX_VMCS64_CTRL_TSC_MULTIPLIER_FULL                     0x2032
+#define VMX_VMCS64_CTRL_TSC_MULTIPLIER_HIGH                     0x2033
 
 /** VM-exit guest physical address. */
 #define VMX_VMCS64_EXIT_GUEST_PHYS_ADDR_FULL                    0x2400
@@ -1289,6 +1349,8 @@ typedef VMXMSRS *PVMXMSRS;
 #define VMX_VMCS32_CTRL_ENTRY_INSTR_LENGTH                      0x401A
 #define VMX_VMCS32_CTRL_TPR_THRESHOLD                           0x401C
 #define VMX_VMCS32_CTRL_PROC_EXEC2                              0x401E
+#define VMX_VMCS32_CTRL_PLE_GAP                                 0x4020
+#define VMX_VMCS32_CTRL_PLE_WINDOW                              0x4022
 /** @} */
 
 
@@ -1303,6 +1365,8 @@ typedef VMXMSRS *PVMXMSRS;
 #define VMX_VMCS_CTRL_PIN_EXEC_VIRTUAL_NMI                      RT_BIT(5)
 /** Activate VMX preemption timer. */
 #define VMX_VMCS_CTRL_PIN_EXEC_PREEMPT_TIMER                    RT_BIT(6)
+/** Process interrupts with the posted-interrupt notification vector. */
+#define VMX_VMCS_CTRL_PIN_EXEC_POSTED_INTR                      RT_BIT(7)
 /* All other bits are reserved and must be set according to MSR IA32_VMX_PROCBASED_CTLS. */
 /** @} */
 
@@ -1372,6 +1436,10 @@ typedef VMXMSRS *PVMXMSRS;
 #define VMX_VMCS_CTRL_PROC_EXEC2_WBINVD_EXIT                    RT_BIT(6)
 /** Unrestricted guest execution. */
 #define VMX_VMCS_CTRL_PROC_EXEC2_UNRESTRICTED_GUEST             RT_BIT(7)
+/** APIC register virtualization. */
+#define VMX_VMCS_CTRL_PROC_EXEC2_APIC_REG_VIRT                  RT_BIT(8)
+/** Virtual-interrupt delivery. */
+#define VMX_VMCS_CTRL_PROC_EXEC2_VIRT_INTR_DELIVERY             RT_BIT(9)
 /** A specified number of pause loops cause a VM-exit. */
 #define VMX_VMCS_CTRL_PROC_EXEC2_PAUSE_LOOP_EXIT                RT_BIT(10)
 /** VM-exit when executing RDRAND instructions. */
@@ -1386,7 +1454,7 @@ typedef VMXMSRS *PVMXMSRS;
 #define VMX_VMCS_CTRL_PROC_EXEC2_RDSEED_EXIT                    RT_BIT_64(16)
 /** Controls whether EPT-violations may cause \#VE instead of exits. */
 #define VMX_VMCS_CTRL_PROC_EXEC2_EPT_VE                         RT_BIT_64(18)
-/** Enables XSAVES/XRSTORS. */
+/** Enables XSAVES/XRSTORS instructions. */
 #define VMX_VMCS_CTRL_PROC_EXEC2_XSAVES                         RT_BIT_64(20)
 
 /** @} */
@@ -1760,6 +1828,115 @@ typedef VMXMSRS *PVMXMSRS;
 #define VMX_APIC_ACCESS_TYPE_PHYSICAL_EVENT_DELIVERY            10
 /** Physical access for an instruction fetch or during instruction execution. */
 #define VMX_APIC_ACCESS_TYPE_PHYSICAL_INSTR                     15
+/** @} */
+
+/** @name VMX_XDTR_INSINFO_XXX - VMX_EXIT_XDTR_ACCESS instruction information
+ * Found in VMX_VMCS32_RO_EXIT_INSTR_INFO.
+ * @{
+ */
+/** Address calculation scaling field (powers of two). */
+#define VMX_XDTR_INSINFO_SCALE_SHIFT                            0
+#define VMX_XDTR_INSINFO_SCALE_MASK                             UINT32_C(0x00000003)
+/** Bits 2 thru 6 are undefined. */
+#define VMX_XDTR_INSINFO_UNDEF_2_6_SHIFT                        2
+#define VMX_XDTR_INSINFO_UNDEF_2_6_MASK                         UINT32_C(0x0000007c)
+/** Address size, only 0(=16), 1(=32) and 2(=64) are defined.
+ * @remarks anyone's guess why this is a 3 bit field...  */
+#define VMX_XDTR_INSINFO_ADDR_SIZE_SHIFT                        7
+#define VMX_XDTR_INSINFO_ADDR_SIZE_MASK                         UINT32_C(0x00000380)
+/** Bit 10 is defined as zero. */
+#define VMX_XDTR_INSINFO_ZERO_10_SHIFT                          10
+#define VMX_XDTR_INSINFO_ZERO_10_MASK                           UINT32_C(0x00000400)
+/** Operand size, either (1=)32-bit or (0=)16-bit, but get this, it's undefined
+ * for exits from 64-bit code as the operand size there is fixed. */
+#define VMX_XDTR_INSINFO_OP_SIZE_SHIFT                          11
+#define VMX_XDTR_INSINFO_OP_SIZE_MASK                           UINT32_C(0x00000800)
+/** Bits 12 thru 14 are undefined. */
+#define VMX_XDTR_INSINFO_UNDEF_12_14_SHIFT                      12
+#define VMX_XDTR_INSINFO_UNDEF_12_14_MASK                       UINT32_C(0x00007000)
+/** Applicable segment register (X86_SREG_XXX values). */
+#define VMX_XDTR_INSINFO_SREG_SHIFT                             15
+#define VMX_XDTR_INSINFO_SREG_MASK                              UINT32_C(0x00038000)
+/** Index register (X86_GREG_XXX values). Undefined if HAS_INDEX_REG is clear. */
+#define VMX_XDTR_INSINFO_INDEX_REG_SHIFT                        18
+#define VMX_XDTR_INSINFO_INDEX_REG_MASK                         UINT32_C(0x003c0000)
+/** Is VMX_XDTR_INSINFO_INDEX_REG_XXX valid (=1) or not (=0). */
+#define VMX_XDTR_INSINFO_HAS_INDEX_REG_SHIFT                    22
+#define VMX_XDTR_INSINFO_HAS_INDEX_REG_MASK                     UINT32_C(0x00400000)
+/** Base register (X86_GREG_XXX values). Undefined if HAS_BASE_REG is clear. */
+#define VMX_XDTR_INSINFO_BASE_REG_SHIFT                         23
+#define VMX_XDTR_INSINFO_BASE_REG_MASK                          UINT32_C(0x07800000)
+/** Is VMX_XDTR_INSINFO_BASE_REG_XXX valid (=1) or not (=0). */
+#define VMX_XDTR_INSINFO_HAS_BASE_REG_SHIFT                     27
+#define VMX_XDTR_INSINFO_HAS_BASE_REG_MASK                      UINT32_C(0x08000000)
+/** The instruction identity (VMX_XDTR_INSINFO_II_XXX values) */
+#define VMX_XDTR_INSINFO_INSTR_ID_SHIFT                         28
+#define VMX_XDTR_INSINFO_INSTR_ID_MASK                          UINT32_C(0x30000000)
+#define VMX_XDTR_INSINFO_II_SGDT                                0 /**< Instruction ID: SGDT */
+#define VMX_XDTR_INSINFO_II_SIDT                                1 /**< Instruction ID: SIDT */
+#define VMX_XDTR_INSINFO_II_LGDT                                2 /**< Instruction ID: LGDT */
+#define VMX_XDTR_INSINFO_II_LIDT                                3 /**< Instruction ID: LIDT */
+/** Bits 30 & 31 are undefined. */
+#define VMX_XDTR_INSINFO_UNDEF_30_31_SHIFT                      30
+#define VMX_XDTR_INSINFO_UNDEF_30_31_MASK                       UINT32_C(0xc0000000)
+RT_BF_ASSERT_COMPILE_CHECKS(VMX_XDTR_INSINFO_, UINT32_C(0), UINT32_MAX,
+                            (SCALE, UNDEF_2_6, ADDR_SIZE, ZERO_10, OP_SIZE, UNDEF_12_14, SREG, INDEX_REG, HAS_INDEX_REG,
+                             BASE_REG, HAS_BASE_REG, INSTR_ID, UNDEF_30_31));
+/** @} */
+
+
+/** @name VMX_YYTR_INSINFO_XXX - VMX_EXIT_TR_ACCESS instruction information
+ * Found in VMX_VMCS32_RO_EXIT_INSTR_INFO.
+ * This is similar to VMX_XDTR_INSINFO_XXX.
+ * @{
+ */
+/** Address calculation scaling field (powers of two). */
+#define VMX_YYTR_INSINFO_SCALE_SHIFT                            0
+#define VMX_YYTR_INSINFO_SCALE_MASK                             UINT32_C(0x00000003)
+/** Bit 2 is undefined. */
+#define VMX_YYTR_INSINFO_UNDEF_2_SHIFT                          2
+#define VMX_YYTR_INSINFO_UNDEF_2_MASK                           UINT32_C(0x00000004)
+/** Register operand 1. Undefined if VMX_YYTR_INSINFO_HAS_REG1 is clear. */
+#define VMX_YYTR_INSINFO_REG1_SHIFT                             3
+#define VMX_YYTR_INSINFO_REG1_MASK                              UINT32_C(0x00000078)
+/** Address size, only 0(=16), 1(=32) and 2(=64) are defined.
+ * @remarks anyone's guess why this is a 3 bit field...  */
+#define VMX_YYTR_INSINFO_ADDR_SIZE_SHIFT                        7
+#define VMX_YYTR_INSINFO_ADDR_SIZE_MASK                         UINT32_C(0x00000380)
+/** Is VMX_YYTR_INSINFO_REG1_XXX valid (=1) or not (=0). */
+#define VMX_YYTR_INSINFO_HAS_REG1_SHIFT                         10
+#define VMX_YYTR_INSINFO_HAS_REG1_MASK                          UINT32_C(0x00000400)
+/** Bits 11 thru 14 are undefined. */
+#define VMX_YYTR_INSINFO_UNDEF_11_14_SHIFT                      11
+#define VMX_YYTR_INSINFO_UNDEF_11_14_MASK                       UINT32_C(0x00007800)
+/** Applicable segment register (X86_SREG_XXX values). */
+#define VMX_YYTR_INSINFO_SREG_SHIFT                             15
+#define VMX_YYTR_INSINFO_SREG_MASK                              UINT32_C(0x00038000)
+/** Index register (X86_GREG_XXX values). Undefined if HAS_INDEX_REG is clear. */
+#define VMX_YYTR_INSINFO_INDEX_REG_SHIFT                        18
+#define VMX_YYTR_INSINFO_INDEX_REG_MASK                         UINT32_C(0x003c0000)
+/** Is VMX_YYTR_INSINFO_INDEX_REG_XXX valid (=1) or not (=0). */
+#define VMX_YYTR_INSINFO_HAS_INDEX_REG_SHIFT                    22
+#define VMX_YYTR_INSINFO_HAS_INDEX_REG_MASK                     UINT32_C(0x00400000)
+/** Base register (X86_GREG_XXX values). Undefined if HAS_BASE_REG is clear. */
+#define VMX_YYTR_INSINFO_BASE_REG_SHIFT                         23
+#define VMX_YYTR_INSINFO_BASE_REG_MASK                          UINT32_C(0x07800000)
+/** Is VMX_YYTR_INSINFO_BASE_REG_XXX valid (=1) or not (=0). */
+#define VMX_YYTR_INSINFO_HAS_BASE_REG_SHIFT                     27
+#define VMX_YYTR_INSINFO_HAS_BASE_REG_MASK                      UINT32_C(0x08000000)
+/** The instruction identity (VMX_YYTR_INSINFO_II_XXX values) */
+#define VMX_YYTR_INSINFO_INSTR_ID_SHIFT                         28
+#define VMX_YYTR_INSINFO_INSTR_ID_MASK                          UINT32_C(0x30000000)
+#define VMX_YYTR_INSINFO_II_SLDT                                0 /**< Instruction ID: SLDT */
+#define VMX_YYTR_INSINFO_II_STR                                 1 /**< Instruction ID: STR */
+#define VMX_YYTR_INSINFO_II_LLDT                                2 /**< Instruction ID: LLDT */
+#define VMX_YYTR_INSINFO_II_LTR                                 3 /**< Instruction ID: LTR */
+/** Bits 30 & 31 are undefined. */
+#define VMX_YYTR_INSINFO_UNDEF_30_31_SHIFT                      30
+#define VMX_YYTR_INSINFO_UNDEF_30_31_MASK                       UINT32_C(0xc0000000)
+RT_BF_ASSERT_COMPILE_CHECKS(VMX_YYTR_INSINFO_, UINT32_C(0), UINT32_MAX,
+                            (SCALE, UNDEF_2, REG1, ADDR_SIZE, HAS_REG1, UNDEF_11_14, SREG, INDEX_REG, HAS_INDEX_REG,
+                             BASE_REG, HAS_BASE_REG, INSTR_ID, UNDEF_30_31));
 /** @} */
 
 

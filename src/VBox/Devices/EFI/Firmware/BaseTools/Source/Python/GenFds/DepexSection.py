@@ -1,7 +1,7 @@
 ## @file
 # process depex section generation
 #
-#  Copyright (c) 2007, Intel Corporation. All rights reserved.<BR>
+#  Copyright (c) 2007 - 2014, Intel Corporation. All rights reserved.<BR>
 #
 #  This program and the accompanying materials
 #  are licensed and made available under the terms and conditions of the BSD License
@@ -19,12 +19,12 @@ import Section
 from GenFdsGlobalVariable import GenFdsGlobalVariable
 import subprocess
 from Ffs import Ffs
-import os
+import Common.LongFilePathOs as os
 from CommonDataClass.FdfClass import DepexSectionClassObject
 from AutoGen.GenDepex import DependencyExpression
-import shutil
 from Common import EdkLogger
 from Common.BuildToolError import *
+from Common.Misc import PathClass
 
 ## generate data section
 #
@@ -39,10 +39,22 @@ class DepexSection (DepexSectionClassObject):
 
     def __FindGuidValue(self, CName):
         for Arch in GenFdsGlobalVariable.ArchList:
-            for PkgDb in GenFdsGlobalVariable.WorkSpace.GetPackageList(GenFdsGlobalVariable.ActivePlatform, 
-                                                                       Arch, 
-                                                                       GenFdsGlobalVariable.TargetName, 
-                                                                       GenFdsGlobalVariable.ToolChainTag):
+            PkgList = GenFdsGlobalVariable.WorkSpace.GetPackageList(GenFdsGlobalVariable.ActivePlatform,
+                                                                    Arch,
+                                                                    GenFdsGlobalVariable.TargetName,
+                                                                    GenFdsGlobalVariable.ToolChainTag)
+            for Inf in GenFdsGlobalVariable.FdfParser.Profile.InfList:
+                ModuleFile = PathClass(Inf, GenFdsGlobalVariable.WorkSpaceDir)
+                ModuleData = GenFdsGlobalVariable.WorkSpace.BuildObject[
+                                                            ModuleFile,
+                                                            Arch,
+                                                            GenFdsGlobalVariable.TargetName,
+                                                            GenFdsGlobalVariable.ToolChainTag
+                                                            ]
+                for Pkg in ModuleData.Packages:
+                    if Pkg not in PkgList:
+                        PkgList.append(Pkg)
+            for PkgDb in PkgList:
                 if CName in PkgDb.Ppis:
                     return PkgDb.Ppis[CName]
                 if CName in PkgDb.Protocols:
@@ -65,7 +77,7 @@ class DepexSection (DepexSectionClassObject):
     #   @retval tuple       (Generated file name list, section alignment)
     #
     def GenSection(self, OutputPath, ModuleName, SecNum, keyStringList, FfsFile = None, Dict = {}):
-        
+
         if self.ExpressionProcessed == False:
             self.Expression = self.Expression.replace("\n", " ").replace("\r", " ")
             ExpList = self.Expression.split()

@@ -81,12 +81,14 @@ template<> bool canConvert<UIExtraDataMetaDefs::RuntimeMenuDevicesActionType>();
 #ifdef VBOX_WITH_DEBUGGER_GUI
 template<> bool canConvert<UIExtraDataMetaDefs::RuntimeMenuDebuggerActionType>();
 #endif /* VBOX_WITH_DEBUGGER_GUI */
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
 template<> bool canConvert<UIExtraDataMetaDefs::MenuWindowActionType>();
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
 template<> bool canConvert<UIVisualStateType>();
 template<> bool canConvert<DetailsElementType>();
+template<> bool canConvert<InformationElementType>();
 template<> bool canConvert<PreviewUpdateIntervalType>();
+template<> bool canConvert<EventHandlingType>();
 template<> bool canConvert<GlobalSettingsPageType>();
 template<> bool canConvert<MachineSettingsPageType>();
 template<> bool canConvert<WizardType>();
@@ -96,9 +98,9 @@ template<> bool canConvert<MouseCapturePolicy>();
 template<> bool canConvert<GuruMeditationHandlerType>();
 template<> bool canConvert<ScalingOptimizationType>();
 template<> bool canConvert<HiDPIOptimizationType>();
-#ifndef Q_WS_MAC
+#ifndef VBOX_WS_MAC
 template<> bool canConvert<MiniToolbarAlignment>();
-#endif /* !Q_WS_MAC */
+#endif /* !VBOX_WS_MAC */
 
 /* Declare COM canConvert specializations: */
 template<> bool canConvert<KMachineState>();
@@ -148,10 +150,10 @@ template<> UIExtraDataMetaDefs::RuntimeMenuDevicesActionType fromInternalString<
 template<> QString toInternalString(const UIExtraDataMetaDefs::RuntimeMenuDebuggerActionType &runtimeMenuDebuggerActionType);
 template<> UIExtraDataMetaDefs::RuntimeMenuDebuggerActionType fromInternalString<UIExtraDataMetaDefs::RuntimeMenuDebuggerActionType>(const QString &strRuntimeMenuDebuggerActionType);
 #endif /* VBOX_WITH_DEBUGGER_GUI */
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
 template<> QString toInternalString(const UIExtraDataMetaDefs::MenuWindowActionType &menuWindowActionType);
 template<> UIExtraDataMetaDefs::MenuWindowActionType fromInternalString<UIExtraDataMetaDefs::MenuWindowActionType>(const QString &strMenuWindowActionType);
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
 template<> QString toInternalString(const UIVisualStateType &visualStateType);
 template<> UIVisualStateType fromInternalString<UIVisualStateType>(const QString &strVisualStateType);
 template<> QString toString(const DetailsElementType &detailsElementType);
@@ -163,6 +165,7 @@ template<> QString toInternalString(const PreviewUpdateIntervalType &previewUpda
 template<> PreviewUpdateIntervalType fromInternalString<PreviewUpdateIntervalType>(const QString &strPreviewUpdateIntervalType);
 template<> int toInternalInteger(const PreviewUpdateIntervalType &previewUpdateIntervalType);
 template<> PreviewUpdateIntervalType fromInternalInteger<PreviewUpdateIntervalType>(const int &iPreviewUpdateIntervalType);
+template<> EventHandlingType fromInternalString<EventHandlingType>(const QString &strEventHandlingType);
 template<> QString toInternalString(const GlobalSettingsPageType &globalSettingsPageType);
 template<> GlobalSettingsPageType fromInternalString<GlobalSettingsPageType>(const QString &strGlobalSettingsPageType);
 template<> QPixmap toWarningPixmap(const GlobalSettingsPageType &globalSettingsPageType);
@@ -184,10 +187,15 @@ template<> QString toInternalString(const ScalingOptimizationType &optimizationT
 template<> ScalingOptimizationType fromInternalString<ScalingOptimizationType>(const QString &strOptimizationType);
 template<> QString toInternalString(const HiDPIOptimizationType &optimizationType);
 template<> HiDPIOptimizationType fromInternalString<HiDPIOptimizationType>(const QString &strOptimizationType);
-#ifndef Q_WS_MAC
+#ifndef VBOX_WS_MAC
 template<> QString toInternalString(const MiniToolbarAlignment &miniToolbarAlignment);
 template<> MiniToolbarAlignment fromInternalString<MiniToolbarAlignment>(const QString &strMiniToolbarAlignment);
-#endif /* !Q_WS_MAC */
+#endif /* !VBOX_WS_MAC */
+template<> QString toString(const InformationElementType &informationElementType);
+template<> InformationElementType fromString<InformationElementType>(const QString &strInformationElementType);
+template<> QString toInternalString(const InformationElementType &informationElementType);
+template<> InformationElementType fromInternalString<InformationElementType>(const QString &strInformationElementType);
+template<> QIcon toIcon(const InformationElementType &informationElementType);
 
 /* Declare COM conversion specializations: */
 template<> QColor toColor(const KMachineState &state);

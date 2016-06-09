@@ -1,7 +1,7 @@
 /** @file
   USB Mouse Driver that manages USB mouse and produces Absolute Pointer Protocol.
 
-Copyright (c) 2004 - 2010, Intel Corporation. All rights reserved.<BR>
+Copyright (c) 2004 - 2012, Intel Corporation. All rights reserved.<BR>
 This program and the accompanying materials
 are licensed and made available under the terms and conditions of the BSD License
 which accompanies this distribution.  The full text of the license may be found at
@@ -91,7 +91,7 @@ USBMouseAbsolutePointerDriverBindingSupported (
   if (EFI_ERROR (Status)) {
     return Status;
   }
-  
+
   //
   // Use the USB I/O Protocol interface to check whether Controller is
   // a mouse device that can be managed by this driver.
@@ -100,14 +100,14 @@ USBMouseAbsolutePointerDriverBindingSupported (
   if (!IsUsbMouse (UsbIo)) {
     Status = EFI_UNSUPPORTED;
   }
-  
+
   gBS->CloseProtocol (
         Controller,
         &gEfiUsbIoProtocolGuid,
         This->DriverBindingHandle,
         Controller
         );
-        
+
   return Status;
 }
 
@@ -161,12 +161,12 @@ USBMouseAbsolutePointerDriverBindingStart (
                   (VOID **) &UsbIo,
                   This->DriverBindingHandle,
                   Controller,
-                  EFI_OPEN_PROTOCOL_BY_DRIVER                  
+                  EFI_OPEN_PROTOCOL_BY_DRIVER
                   );
   if (EFI_ERROR (Status)) {
     goto ErrorExit1;
   }
-  
+
   UsbMouseAbsolutePointerDevice = AllocateZeroPool (sizeof (USB_MOUSE_ABSOLUTE_POINTER_DEV));
   ASSERT (UsbMouseAbsolutePointerDevice != NULL);
 
@@ -188,6 +188,16 @@ USBMouseAbsolutePointerDriverBindingStart (
   if (EFI_ERROR (Status)) {
     goto ErrorExit;
   }
+
+  //
+  // Report Status Code here since USB mouse will be detected next.
+  //
+  REPORT_STATUS_CODE_WITH_DEVICE_PATH (
+    EFI_PROGRESS_CODE,
+    (EFI_PERIPHERAL_MOUSE | EFI_P_PC_PRESENCE_DETECT),
+    UsbMouseAbsolutePointerDevice->DevicePath
+    );
+
   //
   // Get interface & endpoint descriptor
   //
@@ -221,11 +231,27 @@ USBMouseAbsolutePointerDriverBindingStart (
 
   if (!Found) {
     //
+    // Report Status Code to indicate that there is no USB mouse
+    //
+    REPORT_STATUS_CODE (
+      EFI_ERROR_CODE | EFI_ERROR_MINOR,
+      (EFI_PERIPHERAL_MOUSE | EFI_P_EC_NOT_DETECTED)
+      );
+    //
     // No interrupt endpoint found, then return unsupported.
     //
     Status = EFI_UNSUPPORTED;
     goto ErrorExit;
   }
+
+  //
+  // Report Status Code here since USB mouse has be detected.
+  //
+  REPORT_STATUS_CODE_WITH_DEVICE_PATH (
+    EFI_PROGRESS_CODE,
+    (EFI_PERIPHERAL_MOUSE | EFI_P_PC_DETECTED),
+    UsbMouseAbsolutePointerDevice->DevicePath
+    );
 
   Status = InitializeUsbMouseDevice (UsbMouseAbsolutePointerDevice);
   if (EFI_ERROR (Status)) {
@@ -444,7 +470,7 @@ USBMouseAbsolutePointerDriverBindingStop (
   // Free all resources.
   //
   gBS->CloseEvent (UsbMouseAbsolutePointerDevice->AbsolutePointerProtocol.WaitForInput);
-  
+
   if (UsbMouseAbsolutePointerDevice->DelayedRecoveryEvent != NULL) {
     gBS->CloseEvent (UsbMouseAbsolutePointerDevice->DelayedRecoveryEvent);
     UsbMouseAbsolutePointerDevice->DelayedRecoveryEvent = NULL;
@@ -521,46 +547,106 @@ InitializeUsbMouseDevice (
   IN  USB_MOUSE_ABSOLUTE_POINTER_DEV           *UsbMouseAbsolutePointerDev
   )
 {
-  EFI_USB_IO_PROTOCOL     *UsbIo;
-  UINT8                   Protocol;
-  EFI_STATUS              Status;
-  EFI_USB_HID_DESCRIPTOR  MouseHidDesc;
-  UINT8                   *ReportDesc;
-  UINT8                   ReportId;
-  UINT8                   Duration;
+  EFI_USB_IO_PROTOCOL       *UsbIo;
+  UINT8                     Protocol;
+  EFI_STATUS                Status;
+  EFI_USB_HID_DESCRIPTOR    *MouseHidDesc;
+  UINT8                     *ReportDesc;
+  EFI_USB_CONFIG_DESCRIPTOR ConfigDesc;
+  VOID                      *Buf;
+  UINT32                    TransferResult;
+  UINT16                    Total;
+  USB_DESC_HEAD             *Head;
+  BOOLEAN                   Start;
 
   UsbIo = UsbMouseAbsolutePointerDev->UsbIo;
 
   //
-  // Get HID descriptor
+  // Get the current configuration descriptor. Note that it doesn't include other descriptors.
   //
-  Status = UsbGetHidDescriptor (
-             UsbIo,
-             UsbMouseAbsolutePointerDev->InterfaceDescriptor.InterfaceNumber,
-             &MouseHidDesc
-             );
+  Status = UsbIo->UsbGetConfigDescriptor (
+                    UsbIo,
+                    &ConfigDesc
+                    );
   if (EFI_ERROR (Status)) {
     return Status;
   }
 
   //
-  // Get report descriptor
+  // By issuing Get_Descriptor(Configuration) request with total length, we get the Configuration descriptor,
+  // all Interface descriptors, all Endpoint descriptors, and the HID descriptor for each interface.
   //
-  if (MouseHidDesc.HidClassDesc[0].DescriptorType != USB_DESC_TYPE_REPORT) {
+  Buf = AllocateZeroPool (ConfigDesc.TotalLength);
+  if (Buf == NULL) {
+    return EFI_OUT_OF_RESOURCES;
+  }
+
+  Status = UsbGetDescriptor (
+             UsbIo,
+             (UINT16)((USB_DESC_TYPE_CONFIG << 8) | (ConfigDesc.ConfigurationValue - 1)),
+             0,
+             ConfigDesc.TotalLength,
+             Buf,
+             &TransferResult
+             );
+  if (EFI_ERROR (Status)) {
+    FreePool (Buf);
+    return Status;
+  }
+
+  Total = 0;
+  Start = FALSE;
+  Head  = (USB_DESC_HEAD *)Buf;
+  MouseHidDesc = NULL;
+
+  //
+  // Get HID descriptor from the receipt of Get_Descriptor(Configuration) request.
+  // This algorithm is based on the fact that the HID descriptor shall be interleaved
+  // between the interface and endpoint descriptors for HID interfaces.
+  //
+  while (Total < ConfigDesc.TotalLength) {
+    if (Head->Type == USB_DESC_TYPE_INTERFACE) {
+      if ((((USB_INTERFACE_DESCRIPTOR *)Head)->InterfaceNumber == UsbMouseAbsolutePointerDev->InterfaceDescriptor.InterfaceNumber) &&
+        (((USB_INTERFACE_DESCRIPTOR *)Head)->AlternateSetting == UsbMouseAbsolutePointerDev->InterfaceDescriptor.AlternateSetting)) {
+        Start = TRUE;
+      }
+    }
+    if (Start && (Head->Type == USB_DESC_TYPE_ENDPOINT)) {
+      break;
+    }
+    if (Start && (Head->Type == USB_DESC_TYPE_HID)) {
+      MouseHidDesc = (EFI_USB_HID_DESCRIPTOR *)Head;
+      break;
+    }
+    Total = Total + (UINT16)Head->Len;
+    Head  = (USB_DESC_HEAD*)((UINT8 *)Buf + Total);
+  }
+
+  if (MouseHidDesc == NULL) {
+    FreePool (Buf);
     return EFI_UNSUPPORTED;
   }
 
-  ReportDesc = AllocateZeroPool (MouseHidDesc.HidClassDesc[0].DescriptorLength);
+  //
+  // Get report descriptor
+  //
+  if (MouseHidDesc->HidClassDesc[0].DescriptorType != USB_DESC_TYPE_REPORT) {
+    FreePool (Buf);
+    return EFI_UNSUPPORTED;
+  }
+
+  ReportDesc = AllocateZeroPool (MouseHidDesc->HidClassDesc[0].DescriptorLength);
   ASSERT (ReportDesc != NULL);
 
   Status = UsbGetReportDescriptor (
              UsbIo,
              UsbMouseAbsolutePointerDev->InterfaceDescriptor.InterfaceNumber,
-             MouseHidDesc.HidClassDesc[0].DescriptorLength,
+             MouseHidDesc->HidClassDesc[0].DescriptorLength,
              ReportDesc
              );
 
   if (EFI_ERROR (Status)) {
+    FreePool (Buf);
     FreePool (ReportDesc);
     return Status;
   }
@@ -571,10 +657,11 @@ InitializeUsbMouseDevice (
   Status = ParseMouseReportDescriptor (
              UsbMouseAbsolutePointerDev,
              ReportDesc,
-             MouseHidDesc.HidClassDesc[0].DescriptorLength
+             MouseHidDesc->HidClassDesc[0].DescriptorLength
              );
 
   if (EFI_ERROR (Status)) {
+    FreePool (Buf);
     FreePool (ReportDesc);
     return Status;
   }
@@ -586,7 +673,7 @@ InitializeUsbMouseDevice (
   UsbMouseAbsolutePointerDev->Mode.AbsoluteMinY = 0;
   UsbMouseAbsolutePointerDev->Mode.AbsoluteMinZ = 0;
   UsbMouseAbsolutePointerDev->Mode.Attributes   = 0x3;
-  
+
   //
   // Set boot protocol for the USB mouse.
   // This driver only supports boot protocol.
@@ -604,28 +691,13 @@ InitializeUsbMouseDevice (
                );
 
     if (EFI_ERROR (Status)) {
+      FreePool (Buf);
       FreePool (ReportDesc);
       return Status;
     }
   }
 
-  //
-  // ReportId is zero, which means the idle rate applies to all input reports.
-  //
-  ReportId = 0;
-  //
-  // Duration is zero, which means the duration is infinite.
-  // so the endpoint will inhibit reporting forever,
-  // and only reporting when a change is detected in the report data.
-  //
-  Duration = 0;
-  UsbSetIdleRequest (
-    UsbIo,
-    UsbMouseAbsolutePointerDev->InterfaceDescriptor.InterfaceNumber,
-    ReportId,
-    Duration
-    );
-
+  FreePool (Buf);
   FreePool (ReportDesc);
 
   //
@@ -704,7 +776,7 @@ OnMouseInterruptComplete (
 
     //
     // Delete & Submit this interrupt again
-    // Handler of DelayedRecoveryEvent triggered by timer will re-submit the interrupt. 
+    // Handler of DelayedRecoveryEvent triggered by timer will re-submit the interrupt.
     //
     UsbIo->UsbAsyncInterruptTransfer (
              UsbIo,
@@ -749,7 +821,7 @@ OnMouseInterruptComplete (
   //
   UsbMouseAbsolutePointerDevice->State.CurrentX += *((INT8 *) Data + 1);
   UsbMouseAbsolutePointerDevice->State.CurrentY += *((INT8 *) Data + 2);
-  
+
   if (DataLength > 3) {
     UsbMouseAbsolutePointerDevice->State.CurrentZ += *((INT8 *) Data + 3);
   }
@@ -761,15 +833,15 @@ OnMouseInterruptComplete (
 /**
   Retrieves the current state of a pointer device.
 
-  @param  This                  A pointer to the EFI_ABSOLUTE_POINTER_PROTOCOL instance.                                   
+  @param  This                  A pointer to the EFI_ABSOLUTE_POINTER_PROTOCOL instance.
   @param  MouseState            A pointer to the state information on the pointer device.
 
   @retval EFI_SUCCESS           The state of the pointer device was returned in State.
   @retval EFI_NOT_READY         The state of the pointer device has not changed since the last call to
-                                GetState().                                                           
+                                GetState().
   @retval EFI_DEVICE_ERROR      A device error occurred while attempting to retrieve the pointer device's
-                                current state.                                                           
-  @retval EFI_INVALID_PARAMETER State is NULL.                                                           
+                                current state.
+  @retval EFI_INVALID_PARAMETER State is NULL.
 
 **/
 EFI_STATUS

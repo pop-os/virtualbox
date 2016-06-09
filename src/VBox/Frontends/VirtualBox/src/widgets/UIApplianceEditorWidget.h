@@ -198,6 +198,7 @@ private:
 class VirtualSystemDelegate: public QItemDelegate
 {
 public:
+
     VirtualSystemDelegate(QAbstractProxyModel *pProxy, QObject *pParent = NULL);
 
     QWidget *createEditor(QWidget *pParent, const QStyleOptionViewItem &styleOption, const QModelIndex &idx) const;
@@ -208,21 +209,23 @@ public:
     QSize sizeHint(const QStyleOptionViewItem &styleOption, const QModelIndex &idx) const
     {
         QSize size = QItemDelegate::sizeHint(styleOption, idx);
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
         int h = 28;
-#else /* Q_WS_MAC */
+#else /* VBOX_WS_MAC */
         int h = 24;
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
         size.setHeight(RT_MAX(h, size.height()));
         return size;
     }
 
 protected:
-#ifdef QT_MAC_USE_COCOA
+
+#ifdef VBOX_WS_MAC
     bool eventFilter(QObject *pObject, QEvent *pEvent);
-#endif /* QT_MAC_USE_COCOA */
+#endif /* VBOX_WS_MAC */
 
 private:
+
     /* Private member vars */
     QAbstractProxyModel *mProxy;
 };

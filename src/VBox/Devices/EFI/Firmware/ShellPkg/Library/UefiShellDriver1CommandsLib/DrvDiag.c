@@ -1,7 +1,7 @@
 /** @file
   Main file for DrvDiag shell Driver1 function.
 
-  Copyright (c) 2010 - 2011, Intel Corporation. All rights reserved.<BR>
+  Copyright (c) 2010 - 2013, Intel Corporation. All rights reserved.<BR>
   This program and the accompanying materials
   are licensed and made available under the terms and conditions of the BSD License
   which accompanies this distribution.  The full text of the license may be found at
@@ -71,7 +71,6 @@ DoDiagnostics (
   UINTN                               HandleIndex1;
   UINTN                               HandleIndex2;
   CHAR8                               *Language;
-  CHAR8                               *TempChar;
   BOOLEAN                             Found;
 
   if ((ChildHandle != NULL && AllChilds) || (Mode >= TestModeMax)){
@@ -103,7 +102,7 @@ DoDiagnostics (
       ShellPrintHiiEx(-1, -1, NULL, STRING_TOKEN (STR_GEN_PROTOCOL_NF), gShellDriver1HiiHandle, L"gEfiDriverDiagnosticsProtocolGuid", &gEfiDriverDiagnosticsProtocolGuid);
       ShellPrintHiiEx(-1, -1, NULL, STRING_TOKEN (STR_GEN_PROTOCOL_NF), gShellDriver1HiiHandle, L"gEfiDriverDiagnostics2ProtocolGuid", &gEfiDriverDiagnostics2ProtocolGuid);
       return (EFI_NOT_FOUND);
-    } 
+    }
     for (Walker = DriverHandleList ; Walker != NULL && *Walker != NULL ; DriverHandleListCount++, Walker++);
   }
 
@@ -142,7 +141,7 @@ DoDiagnostics (
     }
     if (ControllerHandle == NULL) {
       PARSE_HANDLE_DATABASE_DEVICES(DriverHandleList[DriverHandleListLoop], &ControllerHandleListCount, &ControllerHandleList);
-    } 
+    }
     if (ControllerHandleListCount == 0) {
       if (Mode == TestModeList) {
         ShellPrintHiiEx(-1, -1, NULL, STRING_TOKEN (STR_DRVDIAG_DRIVER_NO_HANDLES), gShellDriver1HiiHandle);
@@ -158,7 +157,7 @@ DoDiagnostics (
         if (AllChilds) {
           ASSERT(ChildHandleList == NULL);
           PARSE_HANDLE_DATABASE_MANAGED_CHILDREN(
-            DriverHandleList[DriverHandleListLoop], 
+            DriverHandleList[DriverHandleListLoop],
             ControllerHandleList[ControllerHandleListLoop],
             &ChildHandleListCount,
             &ChildHandleList);
@@ -180,24 +179,8 @@ DoDiagnostics (
                 gImageHandle,
                 NULL,
                 EFI_OPEN_PROTOCOL_GET_PROTOCOL);
-              if (!EFI_ERROR(Status)) {
-                if (Lang == NULL) {
-                  Language = AllocateZeroPool(AsciiStrSize(DriverDiagnostics2->SupportedLanguages));
-                  if (Language == NULL) {
-                    return (EFI_OUT_OF_RESOURCES);
-                  }
-                  AsciiStrCpy(Language, DriverDiagnostics2->SupportedLanguages);
-                  TempChar = AsciiStrStr(Language, ";");
-                  if (TempChar != NULL){
-                    *TempChar = CHAR_NULL;
-                  }
-                } else {
-                  Language = AllocateZeroPool(AsciiStrSize(Lang));
-                  if (Language == NULL) {
-                    return (EFI_OUT_OF_RESOURCES);
-                  }
-                  AsciiStrCpy(Language, Lang);
-                }
+              if (!EFI_ERROR(Status) && (DriverDiagnostics2 != NULL)) {
+                Language = GetBestLanguageForDriver(DriverDiagnostics2->SupportedLanguages, Lang, FALSE);
                 Found = TRUE;
                 Status = DriverDiagnostics2->RunDiagnostics(
                   DriverDiagnostics2,
@@ -210,7 +193,7 @@ DoDiagnostics (
                   &OutBuffer);
                 FreePool(Language);
               }
-            } 
+            }
             if (!Found && (Lang == NULL||(Lang!=NULL&&(Lang[2]!='-')))){
               Status = gBS->OpenProtocol(
                 DriverHandleList[DriverHandleListLoop],
@@ -220,23 +203,7 @@ DoDiagnostics (
                 NULL,
                 EFI_OPEN_PROTOCOL_GET_PROTOCOL);
               if (!EFI_ERROR(Status)) {
-                if (Lang == NULL) {
-                  Language = AllocateZeroPool(AsciiStrSize(DriverDiagnostics2->SupportedLanguages));
-                  if (Language == NULL) {
-                    return (EFI_OUT_OF_RESOURCES);
-                  }
-                  AsciiStrCpy(Language, DriverDiagnostics2->SupportedLanguages);
-                  TempChar = AsciiStrStr(Language, ";");
-                  if (TempChar != NULL){
-                    *TempChar = CHAR_NULL;
-                  }
-                } else {
-                  Language = AllocateZeroPool(AsciiStrSize(Lang));
-                  if (Language == NULL) {
-                    return (EFI_OUT_OF_RESOURCES);
-                  }
-                  AsciiStrCpy(Language, Lang);
-                }
+                Language = GetBestLanguageForDriver(DriverDiagnostics->SupportedLanguages, Lang, FALSE);
                 Status = DriverDiagnostics->RunDiagnostics(
                   DriverDiagnostics,
                   ControllerHandleList[ControllerHandleListLoop],
@@ -462,8 +429,8 @@ ShellCommandRunDrvDiag (
       Mode,
       Language,
       ShellCommandLineGetFlag(Package, L"-c"),
-      Handle1, 
-      Handle2, 
+      Handle1,
+      Handle2,
       Handle3
       );
 

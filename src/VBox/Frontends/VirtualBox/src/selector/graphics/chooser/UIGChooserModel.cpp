@@ -28,6 +28,7 @@
 # include <QPropertyAnimation>
 # include <QScrollBar>
 # include <QTimer>
+# include <QDrag>
 
 /* GUI includes: */
 # include "UIGChooser.h"
@@ -52,11 +53,12 @@
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
+/* Qt includes: */
 #include <QParallelAnimationGroup>
-
 
 /* Type defs: */
 typedef QSet<QString> UIStringSet;
+
 
 UIGChooserModel::UIGChooserModel(UIGChooser *pParent)
     : QObject(pParent)
@@ -1728,27 +1730,27 @@ void UIGChooserModel::addMachineIntoTheTree(const CMachine &machine, bool fMakeI
     AssertReturnVoid(!machine.isNull());
 
     /* Which VM we are loading: */
-    LogRelFlow(("UIGChooserModel: Loading VM with ID={%s}...\n", machine.GetId().toAscii().constData()));
+    LogRelFlow(("UIGChooserModel: Loading VM with ID={%s}...\n", machine.GetId().toUtf8().constData()));
     /* Is that machine accessible? */
     if (machine.GetAccessible())
     {
         /* VM is accessible: */
         QString strName = machine.GetName();
-        LogRelFlow(("UIGChooserModel:  VM {%s} is accessible.\n", strName.toAscii().constData()));
+        LogRelFlow(("UIGChooserModel:  VM {%s} is accessible.\n", strName.toUtf8().constData()));
         /* Which groups passed machine attached to? */
         QVector<QString> groups = machine.GetGroups();
         QStringList groupList = groups.toList();
         QString strGroups = groupList.join(", ");
-        LogRelFlow(("UIGChooserModel:  VM {%s} has groups: {%s}.\n", strName.toAscii().constData(),
-                                                                     strGroups.toAscii().constData()));
+        LogRelFlow(("UIGChooserModel:  VM {%s} has groups: {%s}.\n", strName.toUtf8().constData(),
+                                                                     strGroups.toUtf8().constData()));
         foreach (QString strGroup, groups)
         {
             /* Remove last '/' if any: */
             if (strGroup.right(1) == "/")
                 strGroup.truncate(strGroup.size() - 1);
             /* Create machine-item with found group-item as parent: */
-            LogRelFlow(("UIGChooserModel:   Creating item for VM {%s} in group {%s}.\n", strName.toAscii().constData(),
-                                                                                         strGroup.toAscii().constData()));
+            LogRelFlow(("UIGChooserModel:   Creating item for VM {%s} in group {%s}.\n", strName.toUtf8().constData(),
+                                                                                         strGroup.toUtf8().constData()));
             createMachineItem(machine, getGroupItem(strGroup, mainRoot(), fMakeItVisible));
         }
         /* Update group definitions: */
@@ -1758,7 +1760,7 @@ void UIGChooserModel::addMachineIntoTheTree(const CMachine &machine, bool fMakeI
     else
     {
         /* VM is accessible: */
-        LogRelFlow(("UIGChooserModel:  VM {%s} is inaccessible.\n", machine.GetId().toAscii().constData()));
+        LogRelFlow(("UIGChooserModel:  VM {%s} is inaccessible.\n", machine.GetId().toUtf8().constData()));
         /* Create machine-item with main-root group-item as parent: */
         createMachineItem(machine, mainRoot());
     }

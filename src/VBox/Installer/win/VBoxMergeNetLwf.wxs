@@ -33,6 +33,9 @@
                  Platform="$(var.Property_Platform)"
                  SummaryCodepage="1252"/>
 
+
+        <?include PublicProperties.wxi ?>
+
 <?if $(env.VBOX_WITH_MSM_INSTALL) = "yes" ?>
         <Property Id="localMSMNetworkType" Value="NDIS6" /> 
         <Configuration Name="passedNetworkType" Format="Text" DefaultValue="Not passed"/> 

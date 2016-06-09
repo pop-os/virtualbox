@@ -450,6 +450,8 @@ static int      vboxDtPOps_Enable(void *pvProv, dtrace_id_t idProbe, void *pvPro
             {
                 pProbeLocEn->fEnabled = 1;
                 ASMAtomicIncU32(&pProv->pacProbeEnabled[idxProbe]);
+                ASMAtomicIncU32(&pProv->pDesc->cProbesEnabled);
+                ASMAtomicIncU32(&pProv->pDesc->uSettingsSerialNo);
             }
         }
         else
@@ -459,6 +461,8 @@ static int      vboxDtPOps_Enable(void *pvProv, dtrace_id_t idProbe, void *pvPro
             {
                 pProv->paR0ProbeLocs[idxProbeLoc].fEnabled = 1;
                 ASMAtomicIncU32(&pProv->paR0Probes[idxProbe].cEnabled);
+                ASMAtomicIncU32(&pProv->pDesc->cProbesEnabled);
+                ASMAtomicIncU32(&pProv->pDesc->uSettingsSerialNo);
             }
 
             /* Update user mode structure. */
@@ -495,6 +499,8 @@ static void     vboxDtPOps_Disable(void *pvProv, dtrace_id_t idProbe, void *pvPr
             {
                 pProbeLocEn->fEnabled = 0;
                 ASMAtomicDecU32(&pProv->pacProbeEnabled[idxProbe]);
+                ASMAtomicIncU32(&pProv->pDesc->cProbesEnabled);
+                ASMAtomicIncU32(&pProv->pDesc->uSettingsSerialNo);
             }
         }
         else
@@ -504,6 +510,8 @@ static void     vboxDtPOps_Disable(void *pvProv, dtrace_id_t idProbe, void *pvPr
             {
                 pProv->paR0ProbeLocs[idxProbeLoc].fEnabled = 0;
                 ASMAtomicDecU32(&pProv->paR0Probes[idxProbe].cEnabled);
+                ASMAtomicDecU32(&pProv->pDesc->cProbesEnabled);
+                ASMAtomicIncU32(&pProv->pDesc->uSettingsSerialNo);
             }
 
             /* Update user mode structure. */

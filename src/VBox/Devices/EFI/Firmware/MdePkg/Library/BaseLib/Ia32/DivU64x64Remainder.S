@@ -37,7 +37,7 @@ ASM_PFX(InternalMathDivRemU64x64):
     jnz     Hard                        # call _@DivRemU64x64 if Divisor > 2^32
     movl    20(%esp), %ecx
     jecxz   L1
-    and     $0, 4(%ecx)                 # zero high dword of remainder
+    andl     $0, 4(%ecx)                # zero high dword of remainder
     movl    %ecx, 16(%esp)              # set up stack frame to match DivRemU64x32
 L1:
     jmp     ASM_PFX(InternalMathDivRemU64x32)
@@ -57,22 +57,22 @@ L2:
     shrl    %ecx
     jnz     L2
     divl    %ebx
-    movl    %eax, %ebx                  # ebx <- quotient                     
-    movl    28(%esp), %ecx              # ecx <- high dword of divisor        
+    movl    %eax, %ebx                  # ebx <- quotient
+    movl    28(%esp), %ecx              # ecx <- high dword of divisor
     mull    24(%esp)                    # edx:eax <- quotient * divisor[0..31]
-    imull   %ebx, %ecx                  # ecx <- quotient * divisor[32..63]   
-    addl    %ecx, %edx                  # edx <- (quotient * divisor)[32..63] 
-    mov     32(%esp), %ecx              # ecx <- addr for Remainder           
-    jc      TooLarge                    # product > 2^64                      
-    cmpl    %edx, %edi                  # compare high 32 bits                
-    ja      Correct                                                           
-    jb      TooLarge                    # product > dividend                  
-    cmpl    %eax, %esi                                                        
-    jae     Correct                     # product <= dividend                 
+    imull   %ebx, %ecx                  # ecx <- quotient * divisor[32..63]
+    addl    %ecx, %edx                  # edx <- (quotient * divisor)[32..63]
+    mov     32(%esp), %ecx              # ecx <- addr for Remainder
+    jc      TooLarge                    # product > 2^64
+    cmpl    %edx, %edi                  # compare high 32 bits
+    ja      Correct
+    jb      TooLarge                    # product > dividend
+    cmpl    %eax, %esi
+    jae     Correct                     # product <= dividend
 TooLarge:
-    decl    %ebx                        # adjust quotient by -1              
-    jecxz   Return                      # return if Remainder == NULL        
-    sub     24(%esp), %eax                                                   
+    decl    %ebx                        # adjust quotient by -1
+    jecxz   Return                      # return if Remainder == NULL
+    sub     24(%esp), %eax
     sbb     28(%esp), %edx              # edx:eax <- (quotient - 1) * divisor
 Correct:
     jecxz   Return
@@ -81,7 +81,7 @@ Correct:
     movl    %esi, (%ecx)
     movl    %edi, 4(%ecx)
 Return:
-    movl    %ebx, %eax                  # eax <- quotient         
+    movl    %ebx, %eax                  # eax <- quotient
     xorl    %edx, %edx                  # quotient is 32 bits long
     pop     %edi
     pop     %esi

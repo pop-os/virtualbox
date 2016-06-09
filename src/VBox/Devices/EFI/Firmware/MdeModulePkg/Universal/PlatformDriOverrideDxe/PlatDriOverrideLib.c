@@ -1,7 +1,7 @@
 /** @file
   Implementation of the shared functions to do the platform driver vverride mapping.
 
-  Copyright (c) 2007 - 2009, Intel Corporation. All rights reserved.<BR>
+  Copyright (c) 2007 - 2014, Intel Corporation. All rights reserved.<BR>
   This program and the accompanying materials
   are licensed and made available under the terms and conditions of the BSD License
   which accompanies this distribution.  The full text of the license may be found at
@@ -691,12 +691,17 @@ InitOverridesMapping (
   //
   VariableNum = 1;
   Corrupted = FALSE;
+  NotEnd = 0;
   do {
     VariableIndex = VariableBuffer;
-    //
-    // End flag
-    //
-    NotEnd = *(UINT32*) VariableIndex;
+    if (VariableIndex + sizeof (UINT32) > (UINT8 *) VariableBuffer + BufferSize) {
+      Corrupted = TRUE;
+    } else {
+      //
+      // End flag
+      //
+      NotEnd = *(UINT32*) VariableIndex;
+    }
     //
     // Traverse the entries containing the mapping that Controller Device Path
     // to a set of Driver Device Paths within this variable.
@@ -706,6 +711,10 @@ InitOverridesMapping (
       //
       // Check signature of this entry
       //
+      if (VariableIndex + sizeof (UINT32) > (UINT8 *) VariableBuffer + BufferSize) {
+        Corrupted = TRUE;
+        break;
+      }
       Signature = *(UINT32 *) VariableIndex;
       if (Signature != PLATFORM_OVERRIDE_ITEM_SIGNATURE) {
         Corrupted = TRUE;
@@ -722,6 +731,10 @@ InitOverridesMapping (
       //
       // Get DriverNum
       //
+      if (VariableIndex + sizeof (UINT32) >= (UINT8 *) VariableBuffer + BufferSize) {
+        Corrupted = TRUE;
+        break;
+      }
       DriverNumber = *(UINT32*) VariableIndex;
       OverrideItem->DriverInfoNum = DriverNumber;
       VariableIndex = VariableIndex + sizeof (UINT32);
@@ -735,6 +748,14 @@ InitOverridesMapping (
       // Align the VariableIndex since the controller device path may not be aligned, refer to the SaveOverridesMapping()
       //
       VariableIndex += ((sizeof(UINT32) - ((UINTN) (VariableIndex))) & (sizeof(UINT32) - 1));
+      //
+      // Check buffer overflow.
+      //
+      if ((OverrideItem->ControllerDevicePath == NULL) || (VariableIndex < (UINT8 *) ControllerDevicePath) ||
+          (VariableIndex > (UINT8 *) VariableBuffer + BufferSize)) {
+        Corrupted = TRUE;
+        break;
+      }
 
       //
       // Get all DriverImageDevicePath[]
@@ -756,8 +777,20 @@ InitOverridesMapping (
         VariableIndex += ((sizeof(UINT32) - ((UINTN) (VariableIndex))) & (sizeof(UINT32) - 1));
 
         InsertTailList (&OverrideItem->DriverInfoList, &DriverImageInfo->Link);
+
+        //
+        // Check buffer overflow
+        //
+        if ((DriverImageInfo->DriverImagePath == NULL) || (VariableIndex < (UINT8 *) DriverDevicePath) ||
+            (VariableIndex < (UINT8 *) VariableBuffer + BufferSize)) {
+          Corrupted = TRUE;
+          break;
+        }
       }
       InsertTailList (MappingDataBase, &OverrideItem->Link);
+      if (Corrupted) {
+        break;
+      }
     }
 
     FreePool (VariableBuffer);
@@ -866,11 +899,11 @@ DeleteOverridesVariables (
   //
   // Check NotEnd to get all PlatDriOverX variable(s)
   //
-  while ((*(UINT32*)VariableBuffer) != 0) {
+  while ((VariableBuffer != NULL) && ((*(UINT32*)VariableBuffer) != 0)) {
+    FreePool (VariableBuffer);
     UnicodeSPrint (OverrideVariableName, sizeof (OverrideVariableName), L"PlatDriOver%d", VariableNum);
     VariableBuffer = GetVariableAndSize (OverrideVariableName, &gEfiCallerIdGuid, &BufferSize);
     VariableNum++;
-    ASSERT (VariableBuffer != NULL);
   }
 
   //
@@ -879,7 +912,7 @@ DeleteOverridesVariables (
   Status = gRT->SetVariable (
                   L"PlatDriOver",
                   &gEfiCallerIdGuid,
-                  EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_RUNTIME_ACCESS | EFI_VARIABLE_NON_VOLATILE,
+                  EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_NON_VOLATILE,
                   0,
                   NULL
                   );
@@ -889,7 +922,7 @@ DeleteOverridesVariables (
     Status = gRT->SetVariable (
                     OverrideVariableName,
                     &gEfiCallerIdGuid,
-                    EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_RUNTIME_ACCESS | EFI_VARIABLE_NON_VOLATILE,
+                    EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_NON_VOLATILE,
                     0,
                     NULL
                     );
@@ -944,7 +977,7 @@ SaveOverridesMapping (
   // Get the the maximum size of an individual EFI variable in current system
   //
   gRT->QueryVariableInfo (
-          EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_RUNTIME_ACCESS | EFI_VARIABLE_NON_VOLATILE,
+          EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_NON_VOLATILE,
           &MaximumVariableStorageSize,
           &RemainingVariableStorageSize,
           &MaximumVariableSize
@@ -1053,14 +1086,23 @@ SaveOverridesMapping (
     Status = gRT->SetVariable (
                     OverrideVariableName,
                     &gEfiCallerIdGuid,
-                    EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_RUNTIME_ACCESS | EFI_VARIABLE_NON_VOLATILE,
+                    EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_NON_VOLATILE,
                     VariableNeededSize,
                     VariableBuffer
                     );
-    ASSERT (!EFI_ERROR(Status));
+    FreePool (VariableBuffer);
+
+    if (EFI_ERROR (Status)) {
+      if (NumIndex > 0) {
+        //
+        // Delete all PlatDriOver variables when full mapping can't be set.
+        //
+        DeleteOverridesVariables ();
+      }
+      return Status;
+    }
 
     NumIndex ++;
-    FreePool (VariableBuffer);
   }
 
   return EFI_SUCCESS;
@@ -1071,7 +1113,7 @@ SaveOverridesMapping (
 
   @param  ImageHandle          The Image handle
   @param  BindingHandle        The BindingHandle of the found Driver Binding protocol.
-                               If Binding protocol is not found, it is set to NULL. 
+                               If Binding protocol is not found, it is set to NULL.
 
   @return                      Pointer into the Binding Protocol interface
   @retval NULL                 The paramter is not valid or the binding protocol is not found.
@@ -1510,8 +1552,8 @@ GetDriverFromMapping (
 
   @retval EFI_INVALID_PARAMETER    ControllerDevicePath or MappingDataBase is NULL.
   @retval EFI_NOT_FOUND            ControllerDevicePath is not found in MappingDataBase or
-                                   DriverImageDevicePath is not found in the found DriverImage Info list. 
-  @retval EFI_SUCCESS              The controller's total override driver number and 
+                                   DriverImageDevicePath is not found in the found DriverImage Info list.
+  @retval EFI_SUCCESS              The controller's total override driver number and
                                    input DriverImage's order number is correctly return.
 **/
 EFI_STATUS
@@ -1627,14 +1669,14 @@ CheckMapping (
                                    override driver image item
   @param  DriverImageDevicePath    The driver image device path need to be insert
   @param  MappingDataBase          Mapping database list entry pointer
-  @param  DriverImageNO            The inserted order number. If this number is taken, 
+  @param  DriverImageNO            The inserted order number. If this number is taken,
                                    the larger available number will be used.
 
   @retval EFI_INVALID_PARAMETER    ControllerDevicePath is NULL, or DriverImageDevicePath is NULL
                                    or MappingDataBase is NULL
-  @retval EFI_ALREADY_STARTED      The input Controller to input DriverImage has been 
+  @retval EFI_ALREADY_STARTED      The input Controller to input DriverImage has been
                                    recorded into the mapping database.
-  @retval EFI_SUCCESS              The Controller and DriverImage are inserted into 
+  @retval EFI_SUCCESS              The Controller and DriverImage are inserted into
                                    the mapping database successfully.
 
 **/
@@ -1758,7 +1800,7 @@ InsertDriverImage (
 /**
   Delete a controller's override driver from the mapping database.
 
-  @param  ControllerDevicePath     The controller device path will be deleted 
+  @param  ControllerDevicePath     The controller device path will be deleted
                                    when all drivers images on it are removed.
   @param  DriverImageDevicePath    The driver image device path will be delete.
                                    If NULL, all driver image will be delete.
@@ -1766,7 +1808,7 @@ InsertDriverImage (
 
   @retval EFI_INVALID_PARAMETER    ControllerDevicePath is NULL, or MappingDataBase is NULL
   @retval EFI_NOT_FOUND            ControllerDevicePath is not found in MappingDataBase or
-                                   DriverImageDevicePath is not found in the found DriverImage Info list. 
+                                   DriverImageDevicePath is not found in the found DriverImage Info list.
   @retval EFI_SUCCESS              Delete the specified driver successfully.
 
 **/
