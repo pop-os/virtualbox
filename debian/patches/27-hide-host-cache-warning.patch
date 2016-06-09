@@ -6,7 +6,7 @@ Index: virtualbox/src/VBox/Main/src-client/ConsoleImpl2.cpp
 ===================================================================
 --- virtualbox.orig/src/VBox/Main/src-client/ConsoleImpl2.cpp	2015-04-02 15:46:54.415740583 +0200
 +++ virtualbox/src/VBox/Main/src-client/ConsoleImpl2.cpp	2015-04-02 15:46:54.411740580 +0200
-@@ -3861,34 +3861,12 @@
+@@ -4075,34 +4075,12 @@
                      if (   enmFsTypeFile == RTFSTYPE_EXT4
                          || enmFsTypeFile == RTFSTYPE_XFS)
                      {

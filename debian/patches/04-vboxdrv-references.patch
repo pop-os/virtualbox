@@ -5,67 +5,67 @@ Index: virtualbox/src/VBox/VMM/VMMR3/VM.cpp
 ===================================================================
 --- virtualbox.orig/src/VBox/VMM/VMMR3/VM.cpp	2015-04-02 14:37:11.989792459 +0200
 +++ virtualbox/src/VBox/VMM/VMMR3/VM.cpp	2015-04-02 14:37:11.989792459 +0200
-@@ -312,10 +312,8 @@
+@@ -316,10 +316,8 @@
  
  #ifdef RT_OS_LINUX
                  case VERR_SUPDRV_COMPONENT_NOT_FOUND:
 -                    pszError = N_("One of the kernel modules was not successfully loaded. Make sure "
 -                                  "that no kernel modules from an older version of VirtualBox exist. "
 -                                  "Then try to recompile and reload the kernel modules by executing "
--                                  "'/sbin/rcvboxdrv setup' as root");
+-                                  "'/sbin/vboxconfig' as root");
 +		    pszError = N_("Please install the virtualbox-dkms package "
 +				  "and execute 'modprobe vboxdrv' as root");
                      break;
  #endif
  
-@@ -378,10 +376,8 @@
+@@ -382,10 +380,8 @@
              {
                  case VERR_VM_DRIVER_LOAD_ERROR:
  #ifdef RT_OS_LINUX
 -                    pszError = N_("VirtualBox kernel driver not loaded. The vboxdrv kernel module "
 -                                  "was either not loaded or /dev/vboxdrv is not set up properly. "
 -                                  "Re-setup the kernel module by executing "
--                                  "'/sbin/rcvboxdrv setup' as root");
+-                                  "'/sbin/vboxconfig' as root");
 +                    pszError = N_("Please install the virtualbox-dkms package "
 +		    		  "and execute 'modprobe vboxdrv' as root");
  #else
                      pszError = N_("VirtualBox kernel driver not loaded");
  #endif
-@@ -420,10 +416,8 @@
+@@ -424,10 +420,8 @@
                  case VERR_INVALID_HANDLE: /** @todo track down and fix this error. */
                  case VERR_VM_DRIVER_NOT_INSTALLED:
  #ifdef RT_OS_LINUX
 -                    pszError = N_("VirtualBox kernel driver not installed. The vboxdrv kernel module "
 -                                  "was either not loaded or /dev/vboxdrv was not created for some "
 -                                  "reason. Re-setup the kernel module by executing "
--                                  "'/sbin/rcvboxdrv setup' as root");
+-                                  "'/sbin/vboxconfig' as root");
 +                    pszError = N_("Please install the virtualbox-dkms package "
 +		    		  "and execute 'modprobe vboxdrv' as root");
  #else
                      pszError = N_("VirtualBox kernel driver not installed");
  #endif
 diff --git a/src/VBox/Frontends/VirtualBox/src/main.cpp b/src/VBox/Frontends/VirtualBox/src/main.cpp
-index 66a1200..e174ae7 100644
+index b4c8f19..4d1e83d 100644
 --- a/src/VBox/Frontends/VirtualBox/src/main.cpp
 +++ b/src/VBox/Frontends/VirtualBox/src/main.cpp
-@@ -100,9 +100,10 @@ QString g_QStrHintLinuxNoMemory = QApplication::tr(
+@@ -102,9 +102,9 @@ QString g_QStrHintLinuxNoMemory = QApplication::tr(
  
  QString g_QStrHintLinuxNoDriver = QApplication::tr(
      "The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or "
 -    "there is a permission problem with /dev/vboxdrv. Please reinstall the kernel "
-+    "there is a permission problem with /dev/vboxdrv. Please install virtualbox-dkms "
-+    "package and load the kernel "
-     "module by executing<br/><br/>"
--    "  <font color=blue>'/sbin/rcvboxdrv setup'</font><br/><br/>"
+-    "module by executing<br/><br/>"
+-    "  <font color=blue>'/sbin/vboxconfig'</font><br/><br/>"
++    "there is a permission problem with /dev/vboxdrv. Please reinstall virtualbox-dkms "
++    "package and load the kernel module by executing<br/><br/>"
 +    "  <font color=blue>'modprobe vboxdrv'</font><br/><br/>"
-     "as root. If it is available in your distribution, you should install the "
-     "DKMS package first. This package keeps track of Linux kernel changes and "
-     "recompiles the vboxdrv kernel module if necessary."
-@@ -119,7 +120,7 @@ QString g_QStrHintLinuxWrongDriverVersion = QApplication::tr(
+     "as root."
+     );
+ 
+@@ -119,7 +119,7 @@ QString g_QStrHintLinuxWrongDriverVersion = QApplication::tr(
      "The VirtualBox kernel modules do not match this version of "
      "VirtualBox. The installation of VirtualBox was apparently not "
      "successful. Executing<br/><br/>"
--    "  <font color=blue>'/sbin/rcvboxdrv setup'</font><br/><br/>"
+-    "  <font color=blue>'/sbin/vboxconfig'</font><br/><br/>"
 +    "  <font color=blue>'modprobe vboxdrv'</font><br/><br/>"
      "may correct this. Make sure that you do not mix the "
      "OSE version and the PUEL version of VirtualBox."
