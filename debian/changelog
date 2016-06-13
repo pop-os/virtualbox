@@ -1,10 +1,15 @@
-virtualbox (5.0.20-dfsg-3) UNRELEASED; urgency=medium
+virtualbox (5.0.20-dfsg-3) unstable; urgency=medium
 
   [ Adam Borowski ]
   * debian/patches/fix-kernel-4.7.patch (Closes: #825819)
 
   [ Gianfranco Costamagna ]
   * Conflict with virtualbox-5.1
+  * Upload to unstable.
+
+  [ Mateusz Łukasik ]
+  * debian/patches/fix-detect-gcc-5.4.patch:
+    - Fix build failure with gcc-5.4 and 6.1 (Closes: #827193)
 
  -- Gianfranco Costamagna <locutusofborg@debian.org>  Mon, 30 May 2016 12:30:24 +0200
 
