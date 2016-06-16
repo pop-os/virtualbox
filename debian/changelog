@@ -1,3 +1,11 @@
+virtualbox (5.0.22-dfsg-1) unstable; urgency=medium
+
+  * New upstream release, patch refresh.
+    - drop fix-detect-gcc-5.4.patch, fix-kernel-4.7.patch,
+      fix-gcc-pie.patch: upstream
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Fri, 17 Jun 2016 00:24:15 +0200
+
 virtualbox (5.0.20-dfsg-3) unstable; urgency=medium
 
   [ Adam Borowski ]
