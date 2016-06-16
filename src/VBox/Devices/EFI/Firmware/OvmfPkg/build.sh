@@ -1,7 +1,7 @@
-#!/usr/bin/env bash
+#!/bin/bash
 #
 # Copyright (c) 2008 - 2009, Apple Inc. All rights reserved.<BR>
-# Copyright (c) 2010 - 2014, Intel Corporation. All rights reserved.<BR>
+# Copyright (c) 2010 - 2011, Intel Corporation. All rights reserved.<BR>
 #
 # This program and the accompanying materials
 # are licensed and made available under the terms and conditions of the BSD License
@@ -41,15 +41,12 @@ fi
 # Configure defaults for various options
 #
 
-ARCH_IA32=no
-ARCH_X64=no
+PROCESSOR=X64
 BUILDTARGET=DEBUG
 BUILD_OPTIONS=
 PLATFORMFILE=
-THREADNUMBER=1
 LAST_ARG=
 RUN_QEMU=no
-ENABLE_FLASH=no
 
 #
 # Pick a default tool type for a given OS
@@ -60,20 +57,15 @@ case `uname` in
     echo Cygwin not fully supported yet.
     ;;
   Darwin*)
-    Major=$(uname -r | cut -f 1 -d '.')
-    case $Major in
-      10)
-        TARGET_TOOLS=XCODE32
-        ;;
-      1[12])
-        TARGET_TOOLS=XCLANG
-        ;;
-       *)
+      Major=$(uname -r | cut -f 1 -d '.')
+      if [[ $Major == 9 ]]
+      then
         echo OvmfPkg requires Snow Leopard or later OS
         exit 1
-        ;;
-    esac
-    ;;
+      else
+        TARGET_TOOLS=XCODE32
+      fi
+      ;;
   Linux*)
     gcc_version=$(gcc -v 2>&1 | tail -1 | awk '{print $3}')
     case $gcc_version in
@@ -82,15 +74,6 @@ case `uname` in
         ;;
       4.6.*)
         TARGET_TOOLS=GCC46
-        ;;
-      4.7.*)
-        TARGET_TOOLS=GCC47
-        ;;
-      4.8.*)
-        TARGET_TOOLS=GCC48
-        ;;
-      4.9.*|4.1[0-9].*)
-        TARGET_TOOLS=GCC49
         ;;
       *)
         TARGET_TOOLS=GCC44
@@ -106,16 +89,13 @@ for arg in "$@"
 do
   if [ -z "$LAST_ARG" ]; then
     case $arg in
-      -a|-b|-t|-p|-n)
+      -a|-b|-t|-p)
         LAST_ARG=$arg
         ;;
       qemu)
         RUN_QEMU=yes
         shift
         break
-        ;;
-      --enable-flash)
-        ENABLE_FLASH=yes
         ;;
       *)
         BUILD_OPTIONS="$BUILD_OPTIONS $arg"
@@ -124,12 +104,7 @@ do
   else
     case $LAST_ARG in
       -a)
-        if [[ x"$arg" != x"IA32" && x"$arg" != x"X64" ]]; then
-          echo Unsupported processor architecture: $arg
-          echo Only IA32 or X64 is supported
-          exit 1
-        fi
-        eval ARCH_$arg=yes
+        PROCESSOR=$arg
         ;;
       -b)
         BUILDTARGET=$arg
@@ -140,9 +115,6 @@ do
       -t)
         TARGET_TOOLS=$arg
         ;;
-      -n)
-        THREADNUMBER=$arg
-        ;;
       *)
         BUILD_OPTIONS="$BUILD_OPTIONS $arg"
         ;;
@@ -152,51 +124,14 @@ do
   shift
 done
 
-if [[ "$ARCH_IA32" == "yes" && "$ARCH_X64" == "yes" ]]; then
-  PROCESSOR=IA32X64
-  Processor=Ia32X64
-  BUILD_OPTIONS="$BUILD_OPTIONS -a IA32 -a X64"
-  PLATFORM_BUILD_DIR=Ovmf3264
-  BUILD_ROOT_ARCH=X64
-elif [[ "$ARCH_IA32" == "yes" && "$ARCH_X64" == "no" ]]; then
-  PROCESSOR=IA32
-  Processor=Ia32
-  BUILD_OPTIONS="$BUILD_OPTIONS -a IA32"
-  PLATFORM_BUILD_DIR=Ovmf$Processor
-  BUILD_ROOT_ARCH=$PROCESSOR
-else
-  PROCESSOR=X64
-  Processor=X64
-  BUILD_OPTIONS="$BUILD_OPTIONS -a X64"
-  PLATFORM_BUILD_DIR=Ovmf$Processor
-  BUILD_ROOT_ARCH=X64
-fi
-
 case $PROCESSOR in
   IA32)
-    if [ -n "$QEMU_COMMAND" ]; then
-      #
-      # The user set the QEMU_COMMAND variable. We'll use it to run QEMU.
-      #
-      :
-    elif  [ -x `which qemu-system-i386` ]; then
-      QEMU_COMMAND=qemu-system-i386
-    elif  [ -x `which qemu-system-x86_64` ]; then
-      QEMU_COMMAND=qemu-system-x86_64
-    elif  [ -x `which qemu` ]; then
-      QEMU_COMMAND=qemu
-    else
-      echo Unable to find QEMU for IA32 architecture!
-      exit 1
-    fi
+    Processor=Ia32
+    QEMU_COMMAND=qemu
     ;;
-  X64|IA32X64)
-    if [ -z "$QEMU_COMMAND" ]; then
-      #
-      # The user didn't set the QEMU_COMMAND variable.
-      #
-      QEMU_COMMAND=qemu-system-x86_64
-    fi
+  X64)
+    Processor=X64
+    QEMU_COMMAND=qemu-system-x86_64
     ;;
   *)
     echo Unsupported processor architecture: $PROCESSOR
@@ -209,25 +144,16 @@ if [ -z "$PLATFORMFILE" ]; then
   PLATFORMFILE=$WORKSPACE/OvmfPkg/OvmfPkg$Processor.dsc
 fi
 
-if [[ "$RUN_QEMU" == "yes" ]]; then
-  qemu_version=$($QEMU_COMMAND -version 2>&1 | tail -1 | awk '{print $4}')
-  case $qemu_version in
-    1.[6-9].*|1.[1-9][0-9].*|2.*.*)
-      ENABLE_FLASH=yes
+ADD_QEMU_HDA=yes
+for arg in "$@"
+do
+  case $arg in
+    -hd[a-d]|-fd[ab]|-cdrom)
+      ADD_QEMU_HDA=no
+      break
       ;;
   esac
-
-  ADD_QEMU_HDA=yes
-  for arg in "$@"
-  do
-    case $arg in
-      -hd[a-d]|-fd[ab]|-cdrom)
-        ADD_QEMU_HDA=no
-        break
-        ;;
-    esac
-  done
-fi
+done
 
 #
 # Uncomment this block for parameter parsing debug
@@ -240,9 +166,9 @@ fi
 #echo Remaining for qemu: $*
 #exit 1
 
-BUILD_ROOT=$WORKSPACE/Build/$PLATFORM_BUILD_DIR/"$BUILDTARGET"_"$TARGET_TOOLS"
+BUILD_ROOT=$WORKSPACE/Build/Ovmf$Processor/"$BUILDTARGET"_"$TARGET_TOOLS"
 FV_DIR=$BUILD_ROOT/FV
-BUILD_ROOT_ARCH=$BUILD_ROOT/$BUILD_ROOT_ARCH
+BUILD_ROOT_ARCH=$BUILD_ROOT/$PROCESSOR
 QEMU_FIRMWARE_DIR=$BUILD_ROOT/QEMU
 
 if  [[ ! -f `which build` || ! -f `which GenFv` ]];
@@ -265,15 +191,13 @@ if [[ "$RUN_QEMU" == "yes" ]]; then
     mkdir $QEMU_FIRMWARE_DIR
   fi
   ln -sf $FV_DIR/OVMF.fd $QEMU_FIRMWARE_DIR/bios.bin
-  if [[ "$ENABLE_FLASH" == "yes" ]]; then
-    QEMU_COMMAND="$QEMU_COMMAND -pflash $QEMU_FIRMWARE_DIR/bios.bin"
-  else
-    QEMU_COMMAND="$QEMU_COMMAND -L $QEMU_FIRMWARE_DIR"
-  fi
+  ln -sf $FV_DIR/OvmfVideo.rom $QEMU_FIRMWARE_DIR/vgabios-cirrus.bin
   if [[ "$ADD_QEMU_HDA" == "yes" ]]; then
-    QEMU_COMMAND="$QEMU_COMMAND -hda fat:$BUILD_ROOT_ARCH"
+    AUTO_QEMU_HDA="-hda fat:$BUILD_ROOT_ARCH"
+  else
+    AUTO_QEMU_HDA=
   fi
-  QEMU_COMMAND="$QEMU_COMMAND $*"
+  QEMU_COMMAND="$QEMU_COMMAND -L $QEMU_FIRMWARE_DIR $AUTO_QEMU_HDA $*"
   echo Running: $QEMU_COMMAND
   $QEMU_COMMAND
   exit $?
@@ -283,6 +207,6 @@ fi
 # Build the edk2 OvmfPkg
 #
 echo Running edk2 build for OvmfPkg$Processor
-build -p $PLATFORMFILE $BUILD_OPTIONS -b $BUILDTARGET -t $TARGET_TOOLS -n $THREADNUMBER
+build -p $PLATFORMFILE $BUILD_OPTIONS -a $PROCESSOR -b $BUILDTARGET -t $TARGET_TOOLS
 exit $?
 

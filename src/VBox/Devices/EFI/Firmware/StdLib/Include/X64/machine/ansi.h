@@ -1,7 +1,7 @@
 /** @file
     Machine dependent ANSI type definitions.
 
-    Copyright (c) 2010-2012, Intel Corporation. All rights reserved.<BR>
+    Copyright (c) 2010, Intel Corporation. All rights reserved.<BR>
     This program and the accompanying materials are licensed and made available
     under the terms and conditions of the BSD License that accompanies this
     distribution.  The full text of the license may be found at
@@ -94,12 +94,9 @@
  * mbstate_t is an opaque object to keep conversion state, during multibyte
  * stream conversions.  The content must not be referenced by user programs.
  */
-typedef struct {
-  UINT32  A;      // Np;
-  UINT32  B;      // U;
-  UINT32  E;      // L
-  UINT8   C[4];   // n[4]
-  UINT16  D[2];   // w[2]
+typedef union {
+  __int64_t __mbstateL; /* for alignment */
+  char __mbstate8[128];
 } __mbstate_t;
 #define _BSD_MBSTATE_T_   __mbstate_t /* mbstate_t */
 

@@ -52,15 +52,13 @@ UIWizardNewVM::UIWizardNewVM(QWidget *pParent, const QString &strGroup /* = QStr
     , m_iSASCount(0)
     , m_iUSBCount(0)
 {
-#ifndef VBOX_WS_MAC
+#ifndef Q_WS_MAC
     /* Assign watermark: */
     assignWatermark(":/vmw_new_welcome.png");
-#else /* VBOX_WS_MAC */
+#else /* Q_WS_MAC */
     /* Assign background image: */
     assignBackground(":/vmw_new_welcome_bg.png");
-#endif /* VBOX_WS_MAC */
-    /* Register classes: */
-    qRegisterMetaType<CGuestOSType>();
+#endif /* Q_WS_MAC */
 }
 
 void UIWizardNewVM::prepare()
@@ -105,9 +103,7 @@ bool UIWizardNewVM::createVM()
         QVector<QString> groups;
         if (!m_strGroup.isEmpty())
             groups << m_strGroup;
-        m_machine = vbox.CreateMachine(field("machineFilePath").toString(),
-                                       field("machineBaseName").toString(),
-                                       groups, strTypeId, QString());
+        m_machine = vbox.CreateMachine(QString(), field("name").toString(), groups, strTypeId, QString::null);
         if (!vbox.isOk())
         {
             msgCenter().cannotCreateMachine(vbox, this);
@@ -142,19 +138,7 @@ bool UIWizardNewVM::createVM()
     /* Enable the OHCI and EHCI controller by default for new VMs. (new in 2.2): */
     CUSBDeviceFilters usbDeviceFilters = m_machine.GetUSBDeviceFilters();
     bool fOhciEnabled = false;
-    if (!usbDeviceFilters.isNull() && type.GetRecommendedUSB3() && m_machine.GetUSBProxyAvailable())
-    {
-        /* USB 3.0 is only available if the proper ExtPack is installed. */
-        CExtPackManager manager = vboxGlobal().virtualBox().GetExtensionPackManager();
-        if (manager.IsExtPackUsable(GUI_ExtPackName))
-        {
-            m_machine.AddUSBController("XHCI", KUSBControllerType_XHCI);
-            /* xHci includes OHCI */
-            fOhciEnabled = true;
-        }
-    }
-    if (   !fOhciEnabled
-        && !usbDeviceFilters.isNull() && type.GetRecommendedUSB() && m_machine.GetUSBProxyAvailable())
+    if (!usbDeviceFilters.isNull() && type.GetRecommendedUSB() && m_machine.GetUSBProxyAvailable())
     {
         m_machine.AddUSBController("OHCI", KUSBControllerType_OHCI);
         fOhciEnabled = true;

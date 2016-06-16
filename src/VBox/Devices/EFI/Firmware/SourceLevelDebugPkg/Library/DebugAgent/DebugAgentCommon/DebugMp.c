@@ -1,7 +1,7 @@
 /** @file
   Multi-Processor support functions implementation.
 
-  Copyright (c) 2010 - 2014, Intel Corporation. All rights reserved.<BR>
+  Copyright (c) 2010 - 2011, Intel Corporation. All rights reserved.<BR>
   This program and the accompanying materials
   are licensed and made available under the terms and conditions of the BSD License
   which accompanies this distribution.  The full text of the license may be found at
@@ -14,30 +14,27 @@
 
 #include "DebugAgent.h"
 
-GLOBAL_REMOVE_IF_UNREFERENCED DEBUG_MP_CONTEXT volatile  mDebugMpContext = {0,0,0,{0},{0},0,0,0,0,FALSE,FALSE};
+DEBUG_MP_CONTEXT volatile  mDebugMpContext = {0,0,0,0,0,0,0,0,FALSE,FALSE};
 
-GLOBAL_REMOVE_IF_UNREFERENCED DEBUG_CPU_DATA volatile  mDebugCpuData = {0};
+DEBUG_CPU_DATA volatile  mDebugCpuData = {0};
 
 /**
-  Acquire a spin lock when Multi-processor supported.
+  Acquire access control on debug port.
 
   It will block in the function if cannot get the access control.
-  If Multi-processor is not supported, return directly.
-
-  @param[in, out] MpSpinLock      A pointer to the spin lock.
 
 **/
 VOID
-AcquireMpSpinLock (
-  IN OUT SPIN_LOCK           *MpSpinLock
+AcquireDebugPortControl (
+  VOID
   )
 {
-  if (!MultiProcessorDebugSupport()) {
+  if (!MultiProcessorDebugSupport) {
     return;
   }
 
   while (TRUE) {
-    if (AcquireSpinLockOrFail (MpSpinLock)) {
+    if (AcquireSpinLockOrFail (&mDebugMpContext.DebugPortSpinLock)) {
       break;
     }
     CpuPause ();
@@ -46,21 +43,51 @@ AcquireMpSpinLock (
 }
 
 /**
-  Release a spin lock when Multi-processor supported.
-
-  @param[in, out] MpSpinLock      A pointer to the spin lock.
+  Release access control on debug port.
 
 **/
 VOID
-ReleaseMpSpinLock (
-  IN OUT SPIN_LOCK           *MpSpinLock
+ReleaseDebugPortControl (
+  VOID
   )
 {
-  if (!MultiProcessorDebugSupport()) {
+  if (!MultiProcessorDebugSupport) {
     return;
   }
 
-  ReleaseSpinLock (MpSpinLock);
+  ReleaseSpinLock (&mDebugMpContext.DebugPortSpinLock);
+}
+
+/**
+  Acquire access control on MP context.
+
+  It will block in the function if cannot get the access control.
+
+**/
+VOID
+AcquireMpContextControl (
+  VOID
+  )
+{
+  while (TRUE) {
+    if (AcquireSpinLockOrFail (&mDebugMpContext.MpContextSpinLock)) {
+      break;
+    }
+    CpuPause ();
+    continue;
+  }
+}
+
+/**
+  Release access control on MP context.
+
+**/
+VOID
+ReleaseMpContextControl (
+  VOID
+  )
+{
+  ReleaseSpinLock (&mDebugMpContext.MpContextSpinLock);
 }
 
 /**
@@ -74,7 +101,7 @@ HaltOtherProcessors (
   IN UINT32             CurrentProcessorIndex
   )
 {
-  DebugAgentMsgPrint (DEBUG_AGENT_INFO, "processor[%x]:Try to halt other processors.\n", CurrentProcessorIndex);
+
   if (!IsBsp (CurrentProcessorIndex)) {
     SetIpiSentByApFlag (TRUE);;
   }
@@ -90,7 +117,7 @@ HaltOtherProcessors (
   // Send fixed IPI to other processors.
   //
   SendFixedIpiAllExcludingSelf (DEBUG_TIMER_VECTOR);
-
+  
 }
 
 /**
@@ -109,7 +136,7 @@ GetProcessorIndex (
 
   LocalApicID = (UINT16) GetApicId ();
 
-  AcquireMpSpinLock (&mDebugMpContext.MpContextSpinLock);
+  AcquireMpContextControl ();
 
   for (Index = 0; Index < mDebugCpuData.CpuCount; Index ++) {
     if (mDebugCpuData.ApicID[Index] == LocalApicID) {
@@ -122,7 +149,7 @@ GetProcessorIndex (
     mDebugCpuData.CpuCount ++ ;
   }
 
-  ReleaseMpSpinLock (&mDebugMpContext.MpContextSpinLock);
+  ReleaseMpContextControl ();
 
   return Index;
 }
@@ -143,9 +170,9 @@ IsBsp (
 {
   if (AsmMsrBitFieldRead64 (MSR_IA32_APIC_BASE_ADDRESS, 8, 8) == 1) {
     if (mDebugMpContext.BspIndex != ProcessorIndex) {
-      AcquireMpSpinLock (&mDebugMpContext.MpContextSpinLock);
+      AcquireMpContextControl ();
       mDebugMpContext.BspIndex = ProcessorIndex;
-      ReleaseMpSpinLock (&mDebugMpContext.MpContextSpinLock);
+      ReleaseMpContextControl ();
     }
     return TRUE;
   } else {
@@ -170,7 +197,7 @@ SetCpuStopFlagByIndex (
   UINT8                 Value;
   UINTN                 Index;
 
-  AcquireMpSpinLock (&mDebugMpContext.MpContextSpinLock);
+  AcquireMpContextControl ();
 
   Value = mDebugMpContext.CpuStopStatusMask[ProcessorIndex / 8];
   Index = ProcessorIndex % 8;
@@ -181,7 +208,7 @@ SetCpuStopFlagByIndex (
   }
   mDebugMpContext.CpuStopStatusMask[ProcessorIndex / 8] = Value;
 
-  ReleaseMpSpinLock (&mDebugMpContext.MpContextSpinLock);
+  ReleaseMpContextControl ();
 }
 
 /**
@@ -201,7 +228,7 @@ SetCpuBreakFlagByIndex (
   UINT8                 Value;
   UINTN                 Index;
 
-  AcquireMpSpinLock (&mDebugMpContext.MpContextSpinLock);
+  AcquireMpContextControl ();
 
   Value = mDebugMpContext.CpuBreakMask[ProcessorIndex / 8];
   Index = ProcessorIndex % 8;
@@ -212,7 +239,7 @@ SetCpuBreakFlagByIndex (
   }
   mDebugMpContext.CpuBreakMask[ProcessorIndex / 8] = Value;
 
-  ReleaseMpSpinLock (&mDebugMpContext.MpContextSpinLock);
+  ReleaseMpContextControl ();
 }
 
 /**
@@ -252,9 +279,11 @@ SetCpuRunningFlag (
   IN BOOLEAN            RunningFlag
   )
 {
-  AcquireMpSpinLock (&mDebugMpContext.MpContextSpinLock);
+  AcquireMpContextControl ();
+
   mDebugMpContext.RunCommandSet = RunningFlag;
-  ReleaseMpSpinLock (&mDebugMpContext.MpContextSpinLock);
+
+  ReleaseMpContextControl ();
 }
 
 /**
@@ -268,13 +297,15 @@ SetDebugViewPoint (
   IN UINT32             ProcessorIndex
   )
 {
-  AcquireMpSpinLock (&mDebugMpContext.MpContextSpinLock);
+  AcquireMpContextControl ();
+
   mDebugMpContext.ViewPointIndex = ProcessorIndex;
-  ReleaseMpSpinLock (&mDebugMpContext.MpContextSpinLock);
+
+  ReleaseMpContextControl ();
 }
 
 /**
-  Set the IPI send by BPS/AP flag.
+  Initialize debug timer.
 
   @param[in] IpiSentByApFlag   TRUE means this IPI is sent by AP.
                                FALSE means this IPI is sent by BSP.
@@ -285,13 +316,15 @@ SetIpiSentByApFlag (
   IN BOOLEAN            IpiSentByApFlag
   )
 {
-  AcquireMpSpinLock (&mDebugMpContext.MpContextSpinLock);
+  AcquireMpContextControl ();
+
   mDebugMpContext.IpiSentByAp = IpiSentByApFlag;
-  ReleaseMpSpinLock (&mDebugMpContext.MpContextSpinLock);
+
+  ReleaseMpContextControl ();
 }
 
 /**
-  Check the next pending breaking CPU.
+  Check if any processor breaks.
 
   @retval others      There is at least one processor broken, the minimum
                       index number of Processor returned.
@@ -299,12 +332,12 @@ SetIpiSentByApFlag (
 
 **/
 UINT32
-FindNextPendingBreakCpu (
+FindCpuNotRunning (
   VOID
   )
 {
   UINT32               Index;
-
+  
   for (Index = 0; Index < DEBUG_CPU_MAX_COUNT / 8; Index ++) {
     if (mDebugMpContext.CpuBreakMask[Index] != 0) {
       return  (UINT32) LowBitSet32 (mDebugMpContext.CpuBreakMask[Index]) + Index * 8;
@@ -312,7 +345,7 @@ FindNextPendingBreakCpu (
   }
   return (UINT32)-1;
 }
-
+  
 /**
   Check if all processors are in running status.
 
@@ -326,44 +359,10 @@ IsAllCpuRunning (
   )
 {
   UINTN              Index;
-
+  
   for (Index = 0; Index < DEBUG_CPU_MAX_COUNT / 8; Index ++) {
     if (mDebugMpContext.CpuStopStatusMask[Index] != 0) {
       return FALSE;
-    }
-  }
-  return TRUE;
-}
-
-/**
-  Check if the current processor is the first breaking processor.
-
-  If yes, halt other processors.
-
-  @param[in] ProcessorIndex   Processor index value.
-
-  @return TRUE       This processor is the first breaking processor.
-  @return FALSE      This processor is not the first breaking processor.
-
-**/
-BOOLEAN
-IsFirstBreakProcessor (
-  IN UINT32              ProcessorIndex
-  )
-{
-  if (MultiProcessorDebugSupport()) {
-    if (mDebugMpContext.BreakAtCpuIndex != (UINT32) -1) {
-      //
-      // The current processor is not the first breaking one.
-      //
-      SetCpuBreakFlagByIndex (ProcessorIndex, TRUE);
-      return FALSE;
-    } else {
-      //
-      // If no any processor breaks, try to halt other processors
-      //
-      HaltOtherProcessors (ProcessorIndex);
-      return TRUE;
     }
   }
   return TRUE;

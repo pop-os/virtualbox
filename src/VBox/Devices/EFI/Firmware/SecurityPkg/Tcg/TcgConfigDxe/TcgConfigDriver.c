@@ -1,19 +1,18 @@
 /** @file
   The module entry point for Tcg configuration module.
 
-Copyright (c) 2011 - 2014, Intel Corporation. All rights reserved.<BR>
-This program and the accompanying materials
-are licensed and made available under the terms and conditions of the BSD License
-which accompanies this distribution.  The full text of the license may be found at
+Copyright (c) 2011, Intel Corporation. All rights reserved.<BR>
+This program and the accompanying materials 
+are licensed and made available under the terms and conditions of the BSD License 
+which accompanies this distribution.  The full text of the license may be found at 
 http://opensource.org/licenses/bsd-license.php
 
-THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,
+THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS, 
 WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 
 **/
 
 #include "TcgConfigImpl.h"
-#include <Guid/TpmInstance.h>
 
 /**
   The entry point for Tcg configuration driver.
@@ -38,11 +37,6 @@ TcgConfigDriverEntryPoint (
   TCG_CONFIG_PRIVATE_DATA   *PrivateData;
   EFI_TCG_PROTOCOL          *TcgProtocol;
 
-  if (!CompareGuid (PcdGetPtr(PcdTpmInstanceGuid), &gEfiTpmDeviceInstanceTpm12Guid)){
-    DEBUG ((EFI_D_ERROR, "No TPM12 instance required!\n"));
-    return EFI_UNSUPPORTED;
-  }
-
   Status = TisPcRequestUseTpm ((TIS_TPM_HANDLE) (UINTN) TPM_BASE_ADDRESS);
   if (EFI_ERROR (Status)) {
     DEBUG ((EFI_D_ERROR, "TPM not detected!\n"));
@@ -53,7 +47,7 @@ TcgConfigDriverEntryPoint (
   if (EFI_ERROR (Status)) {
     TcgProtocol = NULL;
   }
-
+  
   Status = gBS->OpenProtocol (
                   ImageHandle,
                   &gEfiCallerIdGuid,
@@ -65,7 +59,7 @@ TcgConfigDriverEntryPoint (
   if (!EFI_ERROR (Status)) {
     return EFI_ALREADY_STARTED;
   }
-
+  
   //
   // Create a private data structure.
   //
@@ -73,9 +67,10 @@ TcgConfigDriverEntryPoint (
   if (PrivateData == NULL) {
     return EFI_OUT_OF_RESOURCES;
   }
-
+  
   PrivateData->TcgProtocol = TcgProtocol;
-
+  PrivateData->HideTpm     = (BOOLEAN) (PcdGetBool (PcdHideTpmSupport) && PcdGetBool (PcdHideTpm));
+  
   //
   // Install TCG configuration form
   //
@@ -86,7 +81,7 @@ TcgConfigDriverEntryPoint (
 
   //
   // Install private GUID.
-  //
+  //    
   Status = gBS->InstallMultipleProtocolInterfaces (
                   &ImageHandle,
                   &gEfiCallerIdGuid,
@@ -103,8 +98,8 @@ TcgConfigDriverEntryPoint (
 ErrorExit:
   if (PrivateData != NULL) {
     UninstallTcgConfigForm (PrivateData);
-  }
-
+  }  
+  
   return Status;
 }
 
@@ -130,11 +125,11 @@ TcgConfigDriverUnload (
                   ImageHandle,
                   &gEfiCallerIdGuid,
                   (VOID **) &PrivateData
-                  );
+                  );  
   if (EFI_ERROR (Status)) {
-    return Status;
+    return Status;  
   }
-
+  
   ASSERT (PrivateData->Signature == TCG_CONFIG_PRIVATE_DATA_SIGNATURE);
 
   gBS->UninstallMultipleProtocolInterfaces (
@@ -143,7 +138,7 @@ TcgConfigDriverUnload (
          PrivateData,
          NULL
          );
-
+  
   UninstallTcgConfigForm (PrivateData);
 
   return EFI_SUCCESS;

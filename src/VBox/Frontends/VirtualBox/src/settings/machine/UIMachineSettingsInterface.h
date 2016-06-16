@@ -31,9 +31,9 @@ struct UIDataSettingsMachineInterface
     /* Constructor: */
     UIDataSettingsMachineInterface()
         : m_fStatusBarEnabled(false)
-#ifndef VBOX_WS_MAC
+#ifndef Q_WS_MAC
         , m_fMenuBarEnabled(false)
-#endif /* !VBOX_WS_MAC */
+#endif /* !Q_WS_MAC */
         , m_restrictionsOfMenuBar(UIExtraDataMetaDefs::MenuType_Invalid)
         , m_restrictionsOfMenuApplication(UIExtraDataMetaDefs::MenuApplicationActionType_Invalid)
         , m_restrictionsOfMenuMachine(UIExtraDataMetaDefs::RuntimeMenuMachineActionType_Invalid)
@@ -43,14 +43,14 @@ struct UIDataSettingsMachineInterface
 #ifdef VBOX_WITH_DEBUGGER_GUI
         , m_restrictionsOfMenuDebug(UIExtraDataMetaDefs::RuntimeMenuDebuggerActionType_Invalid)
 #endif /* VBOX_WITH_DEBUGGER_GUI */
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
         , m_restrictionsOfMenuWindow(UIExtraDataMetaDefs::MenuWindowActionType_Invalid)
-#endif /* VBOX_WS_MAC */
+#endif /* Q_WS_MAC */
         , m_restrictionsOfMenuHelp(UIExtraDataMetaDefs::MenuHelpActionType_Invalid)
-#ifndef VBOX_WS_MAC
+#ifndef Q_WS_MAC
         , m_fShowMiniToolBar(false)
         , m_fMiniToolBarAtTop(false)
-#endif /* !VBOX_WS_MAC */
+#endif /* !Q_WS_MAC */
     {}
 
     /* Functions: */
@@ -59,9 +59,9 @@ struct UIDataSettingsMachineInterface
         return    (m_fStatusBarEnabled == other.m_fStatusBarEnabled)
                && (m_statusBarRestrictions == other.m_statusBarRestrictions)
                && (m_statusBarOrder == other.m_statusBarOrder)
-#ifndef VBOX_WS_MAC
+#ifndef Q_WS_MAC
                && (m_fMenuBarEnabled == other.m_fMenuBarEnabled)
-#endif /* !VBOX_WS_MAC */
+#endif /* !Q_WS_MAC */
                && (m_restrictionsOfMenuBar == other.m_restrictionsOfMenuBar)
                && (m_restrictionsOfMenuApplication == other.m_restrictionsOfMenuApplication)
                && (m_restrictionsOfMenuMachine == other.m_restrictionsOfMenuMachine)
@@ -71,14 +71,14 @@ struct UIDataSettingsMachineInterface
 #ifdef VBOX_WITH_DEBUGGER_GUI
                && (m_restrictionsOfMenuDebug == other.m_restrictionsOfMenuDebug)
 #endif /* VBOX_WITH_DEBUGGER_GUI */
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
                && (m_restrictionsOfMenuWindow == other.m_restrictionsOfMenuWindow)
-#endif /* VBOX_WS_MAC */
+#endif /* Q_WS_MAC */
                && (m_restrictionsOfMenuHelp == other.m_restrictionsOfMenuHelp)
-#ifndef VBOX_WS_MAC
+#ifndef Q_WS_MAC
                && (m_fShowMiniToolBar == other.m_fShowMiniToolBar)
                && (m_fMiniToolBarAtTop == other.m_fMiniToolBarAtTop)
-#endif /* !VBOX_WS_MAC */
+#endif /* !Q_WS_MAC */
                ;
     }
 
@@ -90,9 +90,9 @@ struct UIDataSettingsMachineInterface
     bool m_fStatusBarEnabled;
     QList<IndicatorType> m_statusBarRestrictions;
     QList<IndicatorType> m_statusBarOrder;
-#ifndef VBOX_WS_MAC
+#ifndef Q_WS_MAC
     bool m_fMenuBarEnabled;
-#endif /* !VBOX_WS_MAC */
+#endif /* !Q_WS_MAC */
     UIExtraDataMetaDefs::MenuType m_restrictionsOfMenuBar;
     UIExtraDataMetaDefs::MenuApplicationActionType m_restrictionsOfMenuApplication;
     UIExtraDataMetaDefs::RuntimeMenuMachineActionType m_restrictionsOfMenuMachine;
@@ -102,14 +102,14 @@ struct UIDataSettingsMachineInterface
 #ifdef VBOX_WITH_DEBUGGER_GUI
     UIExtraDataMetaDefs::RuntimeMenuDebuggerActionType m_restrictionsOfMenuDebug;
 #endif /* VBOX_WITH_DEBUGGER_GUI */
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
     UIExtraDataMetaDefs::MenuWindowActionType m_restrictionsOfMenuWindow;
-#endif /* VBOX_WS_MAC */
+#endif /* Q_WS_MAC */
     UIExtraDataMetaDefs::MenuHelpActionType m_restrictionsOfMenuHelp;
-#ifndef VBOX_WS_MAC
+#ifndef Q_WS_MAC
     bool m_fShowMiniToolBar;
     bool m_fMiniToolBarAtTop;
-#endif /* !VBOX_WS_MAC */
+#endif /* !Q_WS_MAC */
 };
 typedef UISettingsCache<UIDataSettingsMachineInterface> UICacheSettingsMachineInterface;
 

@@ -1193,6 +1193,21 @@ static int  vmR3ReqProcessOneU(PUVM pUVM, PVMREQ pReq)
 {
     LogFlow(("vmR3ReqProcessOneU: pReq=%p type=%d fFlags=%#x\n", pReq, pReq->enmType, pReq->fFlags));
 
+#if 0 /* Should not be necessary, see trunk r104712. Fixes out of memory runtime error. */
+    /*
+     * Disable rendezvous if servicing a priority request.  Priority requests
+     * can not make use of the EMT rendezvous API.
+     */
+    PVMCPU      pVCpu               = NULL;
+    bool        fSavedInRendezvous  = true;
+    bool const  fPriorityReq        = RT_BOOL(pReq->fFlags & VMREQFLAGS_PRIORITY);
+    if (fPriorityReq && pUVM->pVM)
+    {
+        pVCpu = VMMGetCpu(pUVM->pVM);
+        fSavedInRendezvous = VMMR3EmtRendezvousSetDisabled(pVCpu, true /*fDisabled*/);
+    }
+#endif
+
     /*
      * Process the request.
      */
@@ -1329,6 +1344,13 @@ static int  vmR3ReqProcessOneU(PUVM pUVM, PVMREQ pReq)
         }
     }
 
+#if 0 /* Should not be necessary, see trunk r104712. Fixes out of memory runtime error. */
+    /*
+     * Restore the rendezvous disabled state.
+     */
+    if (!fSavedInRendezvous)
+        VMMR3EmtRendezvousSetDisabled(pVCpu, false /*fDisabled*/);
+#endif
     return rcRet;
 }
 

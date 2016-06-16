@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2016 Oracle Corporation
+ * Copyright (C) 2010-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,111 +22,42 @@
 /* GUI includes: */
 # include "UIVirtualBoxEventHandler.h"
 # include "UIMainEventListener.h"
-# include "UIExtraDataManager.h"
 # include "VBoxGlobal.h"
 
 /* COM includes: */
-# include "CEventListener.h"
 # include "CEventSource.h"
-# include "CVirtualBox.h"
-# include "CVirtualBoxClient.h"
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 
-/** Private QObject extension
-  * providing UIVirtualBoxEventHandler with the CVirtualBoxClient and CVirtualBox event-sources. */
-class UIVirtualBoxEventHandlerProxy : public QObject
+/* static */
+UIVirtualBoxEventHandler *UIVirtualBoxEventHandler::m_pInstance = 0;
+
+/* static */
+UIVirtualBoxEventHandler* UIVirtualBoxEventHandler::instance()
 {
-    Q_OBJECT;
-
-signals:
-
-    /** Notifies about the VBoxSVC become @a fAvailable. */
-    void sigVBoxSVCAvailabilityChange(bool fAvailable);
-
-    /** Notifies about @a state change event for the machine with @a strId. */
-    void sigMachineStateChange(QString strId, KMachineState state);
-    /** Notifies about data change event for the machine with @a strId. */
-    void sigMachineDataChange(QString strId);
-    /** Notifies about machine with @a strId was @a fRegistered. */
-    void sigMachineRegistered(QString strId, bool fRegistered);
-    /** Notifies about @a state change event for the session of the machine with @a strId. */
-    void sigSessionStateChange(QString strId, KSessionState state);
-    /** Notifies about snapshot with @a strSnapshotId was taken for the machine with @a strId. */
-    void sigSnapshotTake(QString strId, QString strSnapshotId);
-    /** Notifies about snapshot with @a strSnapshotId was deleted for the machine with @a strId. */
-    void sigSnapshotDelete(QString strId, QString strSnapshotId);
-    /** Notifies about snapshot with @a strSnapshotId was changed for the machine with @a strId. */
-    void sigSnapshotChange(QString strId, QString strSnapshotId);
-    /** Notifies about snapshot with @a strSnapshotId was restored for the machine with @a strId. */
-    void sigSnapshotRestore(QString strId, QString strSnapshotId);
-
-public:
-
-    /** Constructs event proxy object on the basis of passed @a pParent. */
-    UIVirtualBoxEventHandlerProxy(QObject *pParent);
-    /** Destructs event proxy object. */
-    ~UIVirtualBoxEventHandlerProxy();
-
-protected:
-
-    /** @name Prepare/Cleanup cascade.
-      * @{ */
-        /** Prepares all. */
-        void prepare();
-        /** Prepares listener. */
-        void prepareListener();
-        /** Prepares connections. */
-        void prepareConnections();
-
-        /** Cleanups connections. */
-        void cleanupConnections();
-        /** Cleanups listener. */
-        void cleanupListener();
-        /** Cleanups all. */
-        void cleanup();
-    /** @} */
-
-private:
-
-    /** Holds the Qt event listener instance. */
-    ComObjPtr<UIMainEventListenerImpl> m_pQtListener;
-    /** Holds the COM event listener instance. */
-    CEventListener m_comEventListener;
-};
-
-
-/*********************************************************************************************************************************
-*   Class UIVirtualBoxEventHandlerProxy implementation.                                                                          *
-*********************************************************************************************************************************/
-
-UIVirtualBoxEventHandlerProxy::UIVirtualBoxEventHandlerProxy(QObject *pParent)
-    : QObject(pParent)
-{
-    /* Prepare: */
-    prepare();
+    if (!m_pInstance)
+        m_pInstance = new UIVirtualBoxEventHandler;
+    return m_pInstance;
 }
 
-UIVirtualBoxEventHandlerProxy::~UIVirtualBoxEventHandlerProxy()
+/* static */
+void UIVirtualBoxEventHandler::destroy()
 {
-    /* Cleanup: */
-    cleanup();
+    if (m_pInstance)
+    {
+        delete m_pInstance;
+        m_pInstance = 0;
+    }
 }
 
-void UIVirtualBoxEventHandlerProxy::prepare()
+UIVirtualBoxEventHandler::UIVirtualBoxEventHandler()
 {
-    /* Prepare: */
-    prepareListener();
-    prepareConnections();
-}
-
-void UIVirtualBoxEventHandlerProxy::prepareListener()
-{
-    /* Create Main event listener instance: */
-    m_pQtListener.createObject();
-    m_pQtListener->init(new UIMainEventListener, this);
-    m_comEventListener = CEventListener(m_pQtListener);
+    /* Create Main-event listener instance: */
+    ComObjPtr<UIMainEventListenerImpl> pListener;
+    pListener.createObject();
+    pListener->init(new UIMainEventListener, this);
+    m_mainEventListener = CEventListener(pListener);
 
     /* Get VirtualBoxClient: */
     const CVirtualBoxClient vboxClient = vboxGlobal().virtualBoxClient();
@@ -138,8 +69,7 @@ void UIVirtualBoxEventHandlerProxy::prepareListener()
     QVector<KVBoxEventType> vboxClientEvents;
     vboxClientEvents
         << KVBoxEventType_OnVBoxSVCAvailabilityChanged;
-    eventSourceVirtualBoxClient.RegisterListener(m_comEventListener, vboxClientEvents,
-        gEDataManager->eventHandlingType() == EventHandlingType_Active ? TRUE : FALSE);
+    eventSourceVirtualBoxClient.RegisterListener(m_mainEventListener, vboxClientEvents, TRUE);
     AssertWrapperOk(eventSourceVirtualBoxClient);
 
     /* Get VirtualBox: */
@@ -159,65 +89,41 @@ void UIVirtualBoxEventHandlerProxy::prepareListener()
         << KVBoxEventType_OnSnapshotDeleted
         << KVBoxEventType_OnSnapshotChanged
         << KVBoxEventType_OnSnapshotRestored;
-    eventSourceVirtualBox.RegisterListener(m_comEventListener, vboxEvents,
-        gEDataManager->eventHandlingType() == EventHandlingType_Active ? TRUE : FALSE);
+    eventSourceVirtualBox.RegisterListener(m_mainEventListener, vboxEvents, TRUE);
     AssertWrapperOk(eventSourceVirtualBox);
 
-    /* If event listener registered as passive one: */
-    if (gEDataManager->eventHandlingType() == EventHandlingType_Passive)
-    {
-        /* Register event sources in their listeners as well: */
-        m_pQtListener->getWrapped()->registerSource(eventSourceVirtualBoxClient, m_comEventListener);
-        m_pQtListener->getWrapped()->registerSource(eventSourceVirtualBox, m_comEventListener);
-    }
-}
-
-void UIVirtualBoxEventHandlerProxy::prepareConnections()
-{
-    /* Create direct (sync) connections for signals of main listener: */
-    connect(m_pQtListener->getWrapped(), SIGNAL(sigVBoxSVCAvailabilityChange(bool)),
+    /* Prepare connections: */
+    connect(pListener->getWrapped(), SIGNAL(sigVBoxSVCAvailabilityChange(bool)),
             this, SIGNAL(sigVBoxSVCAvailabilityChange(bool)),
-            Qt::DirectConnection);
-    connect(m_pQtListener->getWrapped(), SIGNAL(sigMachineStateChange(QString, KMachineState)),
+            Qt::QueuedConnection);
+    connect(pListener->getWrapped(), SIGNAL(sigMachineStateChange(QString, KMachineState)),
             this, SIGNAL(sigMachineStateChange(QString, KMachineState)),
-            Qt::DirectConnection);
-    connect(m_pQtListener->getWrapped(), SIGNAL(sigMachineDataChange(QString)),
+            Qt::QueuedConnection);
+    connect(pListener->getWrapped(), SIGNAL(sigMachineDataChange(QString)),
             this, SIGNAL(sigMachineDataChange(QString)),
-            Qt::DirectConnection);
-    connect(m_pQtListener->getWrapped(), SIGNAL(sigMachineRegistered(QString, bool)),
+            Qt::QueuedConnection);
+    connect(pListener->getWrapped(), SIGNAL(sigMachineRegistered(QString, bool)),
             this, SIGNAL(sigMachineRegistered(QString, bool)),
-            Qt::DirectConnection);
-    connect(m_pQtListener->getWrapped(), SIGNAL(sigSessionStateChange(QString, KSessionState)),
+            Qt::QueuedConnection);
+    connect(pListener->getWrapped(), SIGNAL(sigSessionStateChange(QString, KSessionState)),
             this, SIGNAL(sigSessionStateChange(QString, KSessionState)),
-            Qt::DirectConnection);
-    connect(m_pQtListener->getWrapped(), SIGNAL(sigSnapshotTake(QString, QString)),
+            Qt::QueuedConnection);
+    connect(pListener->getWrapped(), SIGNAL(sigSnapshotTake(QString, QString)),
             this, SIGNAL(sigSnapshotTake(QString, QString)),
-            Qt::DirectConnection);
-    connect(m_pQtListener->getWrapped(), SIGNAL(sigSnapshotDelete(QString, QString)),
+            Qt::QueuedConnection);
+    connect(pListener->getWrapped(), SIGNAL(sigSnapshotDelete(QString, QString)),
             this, SIGNAL(sigSnapshotDelete(QString, QString)),
-            Qt::DirectConnection);
-    connect(m_pQtListener->getWrapped(), SIGNAL(sigSnapshotChange(QString, QString)),
+            Qt::QueuedConnection);
+    connect(pListener->getWrapped(), SIGNAL(sigSnapshotChange(QString, QString)),
             this, SIGNAL(sigSnapshotChange(QString, QString)),
-            Qt::DirectConnection);
-    connect(m_pQtListener->getWrapped(), SIGNAL(sigSnapshotRestore(QString, QString)),
+            Qt::QueuedConnection);
+    connect(pListener->getWrapped(), SIGNAL(sigSnapshotRestore(QString, QString)),
             this, SIGNAL(sigSnapshotRestore(QString, QString)),
-            Qt::DirectConnection);
+            Qt::QueuedConnection);
 }
 
-void UIVirtualBoxEventHandlerProxy::cleanupConnections()
+UIVirtualBoxEventHandler::~UIVirtualBoxEventHandler()
 {
-    /* Nothing for now. */
-}
-
-void UIVirtualBoxEventHandlerProxy::cleanupListener()
-{
-    /* If event listener registered as passive one: */
-    if (gEDataManager->eventHandlingType() == EventHandlingType_Passive)
-    {
-        /* Unregister everything: */
-        m_pQtListener->getWrapped()->unregisterSources();
-    }
-
     /* Get VirtualBox: */
     const CVirtualBox vbox = vboxGlobal().virtualBox();
     AssertWrapperOk(vbox);
@@ -225,7 +131,7 @@ void UIVirtualBoxEventHandlerProxy::cleanupListener()
     CEventSource eventSourceVirtualBox = vbox.GetEventSource();
     AssertWrapperOk(eventSourceVirtualBox);
     /* Unregister listener: */
-    eventSourceVirtualBox.UnregisterListener(m_comEventListener);
+    eventSourceVirtualBox.UnregisterListener(m_mainEventListener);
 
     /* Get VirtualBoxClient: */
     const CVirtualBoxClient vboxClient = vboxGlobal().virtualBoxClient();
@@ -234,86 +140,6 @@ void UIVirtualBoxEventHandlerProxy::cleanupListener()
     CEventSource eventSourceVirtualBoxClient = vboxClient.GetEventSource();
     AssertWrapperOk(eventSourceVirtualBoxClient);
     /* Unregister listener: */
-    eventSourceVirtualBoxClient.UnregisterListener(m_comEventListener);
+    eventSourceVirtualBoxClient.UnregisterListener(m_mainEventListener);
 }
-
-void UIVirtualBoxEventHandlerProxy::cleanup()
-{
-    /* Cleanup: */
-    cleanupConnections();
-    cleanupListener();
-}
-
-
-/*********************************************************************************************************************************
-*   Class UIVirtualBoxEventHandler implementation.                                                                               *
-*********************************************************************************************************************************/
-
-/* static */
-UIVirtualBoxEventHandler *UIVirtualBoxEventHandler::m_spInstance = 0;
-
-/* static */
-UIVirtualBoxEventHandler* UIVirtualBoxEventHandler::instance()
-{
-    if (!m_spInstance)
-        m_spInstance = new UIVirtualBoxEventHandler;
-    return m_spInstance;
-}
-
-/* static */
-void UIVirtualBoxEventHandler::destroy()
-{
-    if (m_spInstance)
-    {
-        delete m_spInstance;
-        m_spInstance = 0;
-    }
-}
-
-UIVirtualBoxEventHandler::UIVirtualBoxEventHandler()
-    : m_pProxy(new UIVirtualBoxEventHandlerProxy(this))
-{
-    /* Prepare: */
-    prepare();
-}
-
-void UIVirtualBoxEventHandler::prepare()
-{
-    /* Prepare: */
-    prepareConnections();
-}
-
-void UIVirtualBoxEventHandler::prepareConnections()
-{
-    /* Create queued (async) connections for signals of event proxy object: */
-    connect(m_pProxy, SIGNAL(sigVBoxSVCAvailabilityChange(bool)),
-            this, SIGNAL(sigVBoxSVCAvailabilityChange(bool)),
-            Qt::QueuedConnection);
-    connect(m_pProxy, SIGNAL(sigMachineStateChange(QString, KMachineState)),
-            this, SIGNAL(sigMachineStateChange(QString, KMachineState)),
-            Qt::QueuedConnection);
-    connect(m_pProxy, SIGNAL(sigMachineDataChange(QString)),
-            this, SIGNAL(sigMachineDataChange(QString)),
-            Qt::QueuedConnection);
-    connect(m_pProxy, SIGNAL(sigMachineRegistered(QString, bool)),
-            this, SIGNAL(sigMachineRegistered(QString, bool)),
-            Qt::QueuedConnection);
-    connect(m_pProxy, SIGNAL(sigSessionStateChange(QString, KSessionState)),
-            this, SIGNAL(sigSessionStateChange(QString, KSessionState)),
-            Qt::QueuedConnection);
-    connect(m_pProxy, SIGNAL(sigSnapshotTake(QString, QString)),
-            this, SIGNAL(sigSnapshotTake(QString, QString)),
-            Qt::QueuedConnection);
-    connect(m_pProxy, SIGNAL(sigSnapshotDelete(QString, QString)),
-            this, SIGNAL(sigSnapshotDelete(QString, QString)),
-            Qt::QueuedConnection);
-    connect(m_pProxy, SIGNAL(sigSnapshotChange(QString, QString)),
-            this, SIGNAL(sigSnapshotChange(QString, QString)),
-            Qt::QueuedConnection);
-    connect(m_pProxy, SIGNAL(sigSnapshotRestore(QString, QString)),
-            this, SIGNAL(sigSnapshotRestore(QString, QString)),
-            Qt::QueuedConnection);
-}
-
-#include "UIVirtualBoxEventHandler.moc"
 

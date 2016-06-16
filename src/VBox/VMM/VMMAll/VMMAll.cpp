@@ -115,17 +115,13 @@ static DECLCALLBACK(size_t) vmmFormatTypeVmCpuSet(PFNRTSTROUTPUT pfnOutput, void
             int off = 0;
             if (cCpus != 0)
                 szTmp[off++] = ',';
-            cCpus++;
             off += vmmFormatTypeShortNumber(&szTmp[off], iCpu);
 
             /* Check for sequence. */
             uint32_t const iStart = ++iCpu;
             while (   iCpu < RT_ELEMENTS(pSet->au32Bitmap) * 32
                    && VMCPUSET_IS_PRESENT(pSet, iCpu))
-            {
                 iCpu++;
-                cCpus++;
-            }
             if (iCpu != iStart)
             {
                 szTmp[off++] = '-';
@@ -413,37 +409,28 @@ VMM_INT_DECL(int) VMMPatchHypercall(PVM pVM, void *pvBuf, size_t cbBuf, size_t *
     AssertReturn(pvBuf, VERR_INVALID_POINTER);
     AssertReturn(pcbWritten, VERR_INVALID_POINTER);
 
-    CPUMCPUVENDOR enmHostCpu = CPUMGetHostCpuVendor(pVM);
-    switch (enmHostCpu)
+    if (ASMIsAmdCpu())
     {
-        case CPUMCPUVENDOR_AMD:
+        uint8_t abHypercall[] = { 0x0F, 0x01, 0xD9 };   /* VMMCALL */
+        if (RT_LIKELY(cbBuf >= sizeof(abHypercall)))
         {
-            uint8_t abHypercall[] = { 0x0F, 0x01, 0xD9 };   /* VMMCALL */
-            if (RT_LIKELY(cbBuf >= sizeof(abHypercall)))
-            {
-                memcpy(pvBuf, abHypercall, sizeof(abHypercall));
-                *pcbWritten = sizeof(abHypercall);
-                return VINF_SUCCESS;
-            }
-            return VERR_BUFFER_OVERFLOW;
+            memcpy(pvBuf, abHypercall, sizeof(abHypercall));
+            *pcbWritten = sizeof(abHypercall);
+            return VINF_SUCCESS;
         }
-
-        case CPUMCPUVENDOR_INTEL:
-        case CPUMCPUVENDOR_VIA:
+        return VERR_BUFFER_OVERFLOW;
+    }
+    else
+    {
+        AssertReturn(ASMIsIntelCpu() || ASMIsViaCentaurCpu(), VERR_UNSUPPORTED_CPU);
+        uint8_t abHypercall[] = { 0x0F, 0x01, 0xC1 };   /* VMCALL */
+        if (RT_LIKELY(cbBuf >= sizeof(abHypercall)))
         {
-            uint8_t abHypercall[] = { 0x0F, 0x01, 0xC1 };   /* VMCALL */
-            if (RT_LIKELY(cbBuf >= sizeof(abHypercall)))
-            {
-                memcpy(pvBuf, abHypercall, sizeof(abHypercall));
-                *pcbWritten = sizeof(abHypercall);
-                return VINF_SUCCESS;
-            }
-            return VERR_BUFFER_OVERFLOW;
+            memcpy(pvBuf, abHypercall, sizeof(abHypercall));
+            *pcbWritten = sizeof(abHypercall);
+            return VINF_SUCCESS;
         }
-
-        default:
-            AssertFailed();
-            return VERR_UNSUPPORTED_CPU;
+        return VERR_BUFFER_OVERFLOW;
     }
 }
 

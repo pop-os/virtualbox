@@ -26,15 +26,15 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 107602 $"
+__version__ = "$Revision: 100880 $"
 
 
 # Standard python imports.
 import unittest;
 
 # Validation Kit imports.
-from testmanager.core.base  import ModelDataBase, ModelDataBaseTestCase, ModelLogicBase, TMExceptionBase, TMInFligthCollision, \
-                                   TMInvalidData, TMTooManyRows, TMRowNotFound, ChangeLogEntry, AttributeChangeEntry;
+from testmanager.core.base  import ModelDataBase, ModelDataBaseTestCase, ModelLogicBase, TMExceptionBase, \
+                                   ChangeLogEntry, AttributeChangeEntry;
 
 
 # pylint: disable=C0103
@@ -170,7 +170,7 @@ class TestBoxData(ModelDataBase):  # pylint: disable=R0902
         """
 
         if aoRow is None:
-            raise TMRowNotFound('TestBox not found.');
+            raise TMExceptionBase('TestBox not found.');
 
         self.idTestBox           = aoRow[0];
         self.tsEffective         = aoRow[1];
@@ -216,7 +216,7 @@ class TestBoxData(ModelDataBase):  # pylint: disable=R0902
                                                        , ( idTestBox, ), tsNow, sPeriodBack));
         aoRow = oDb.fetchOne()
         if aoRow is None:
-            raise TMRowNotFound('idTestBox=%s not found (tsNow=%s sPeriodBack=%s)' % (idTestBox, tsNow, sPeriodBack,));
+            raise TMExceptionBase('idTestBox=%s not found (tsNow=%s sPeriodBack=%s)' % (idTestBox, tsNow, sPeriodBack,));
         return self.initFromDbRow(aoRow);
 
     def initFromDbWithGenId(self, oDb, idGenTestBox):
@@ -229,9 +229,9 @@ class TestBoxData(ModelDataBase):  # pylint: disable=R0902
                     , (idGenTestBox, ) );
         return self.initFromDbRow(oDb.fetchOne());
 
-    def _validateAndConvertWorker(self, asAllowNullAttributes, oDb, enmValidateFor = ModelDataBase.ksValidateFor_Other):
+    def _validateAndConvertWorker(self, asAllowNullAttributes, oDb):
         # Override to do extra ipLom checks.
-        dErrors = ModelDataBase._validateAndConvertWorker(self, asAllowNullAttributes, oDb, enmValidateFor);
+        dErrors = ModelDataBase._validateAndConvertWorker(self, asAllowNullAttributes, oDb);
         if    self.ksParam_ipLom      not in dErrors \
           and self.ksParam_enmLomKind not in dErrors \
           and self.enmLomKind != self.ksLomKind_None \
@@ -269,146 +269,6 @@ class TestBoxData(ModelDataBase):  # pylint: disable=R0902
             return 0;
         return (self.lCpuRevision & 0xff);
 
-    # The following is a translation of the g_aenmIntelFamily06 array in CPUMR3CpuId.cpp:
-    kdIntelFamily06 = {
-        0x00: 'P6',
-        0x01: 'P6',
-        0x03: 'P6_II',
-        0x05: 'P6_II',
-        0x06: 'P6_II',
-        0x07: 'P6_III',
-        0x08: 'P6_III',
-        0x09: 'P6_M_Banias',
-        0x0a: 'P6_III',
-        0x0b: 'P6_III',
-        0x0d: 'P6_M_Dothan',
-        0x0e: 'Core_Yonah',
-        0x0f: 'Core2_Merom',
-        0x15: 'P6_M_Dothan',
-        0x16: 'Core2_Merom',
-        0x17: 'Core2_Penryn',
-        0x1a: 'Core7_Nehalem',
-        0x1c: 'Atom_Bonnell',
-        0x1d: 'Core2_Penryn',
-        0x1e: 'Core7_Nehalem',
-        0x1f: 'Core7_Nehalem',
-        0x25: 'Core7_Westmere',
-        0x26: 'Atom_Lincroft',
-        0x27: 'Atom_Saltwell',
-        0x2a: 'Core7_SandyBridge',
-        0x2c: 'Core7_Westmere',
-        0x2d: 'Core7_SandyBridge',
-        0x2e: 'Core7_Nehalem',
-        0x2f: 'Core7_Westmere',
-        0x35: 'Atom_Saltwell',
-        0x36: 'Atom_Saltwell',
-        0x37: 'Atom_Silvermont',
-        0x3a: 'Core7_IvyBridge',
-        0x3c: 'Core7_Haswell',
-        0x3d: 'Core7_Broadwell',
-        0x3e: 'Core7_IvyBridge',
-        0x3f: 'Core7_Haswell',
-        0x45: 'Core7_Haswell',
-        0x46: 'Core7_Haswell',
-        0x47: 'Core7_Broadwell',
-        0x4a: 'Atom_Silvermont',
-        0x4c: 'Atom_Airmount',
-        0x4d: 'Atom_Silvermont',
-        0x4e: 'Core7_Skylake',
-        0x4f: 'Core7_Broadwell',
-        0x55: 'Core7_Skylake',
-        0x56: 'Core7_Broadwell',
-        0x5a: 'Atom_Silvermont',
-        0x5c: 'Atom_Goldmont',
-        0x5d: 'Atom_Silvermont',
-        0x5e: 'Core7_Skylake',
-        0x66: 'Core7_Cannonlake',
-    };
-    # Also from CPUMR3CpuId.cpp, but the switch.
-    kdIntelFamily15 = {
-        0x00: 'NB_Willamette',
-        0x01: 'NB_Willamette',
-        0x02: 'NB_Northwood',
-        0x03: 'NB_Prescott',
-        0x04: 'NB_Prescott2M',
-        0x05: 'NB_Unknown',
-        0x06: 'NB_CedarMill',
-        0x07: 'NB_Gallatin',
-    };
-
-    def queryCpuMicroarch(self):
-        """ Try guess the microarch name for the cpu.  Returns None if we cannot. """
-        if self.lCpuRevision is None or self.sCpuVendor is None:
-            return None;
-        uFam = self.getCpuFamily();
-        uMod = self.getCpuModel();
-        if self.sCpuVendor == 'GenuineIntel':
-            if uFam == 6:
-                return self.kdIntelFamily06.get(uMod, None);
-            if uFam == 15:
-                return self.kdIntelFamily15.get(uMod, None);
-        elif self.sCpuVendor == 'AuthenticAMD':
-            if uFam == 0xf:
-                if uMod < 0x10:                             return 'K8_130nm';
-                if uMod >= 0x60 and uMod < 0x80:            return 'K8_65nm';
-                if uMod >= 0x40:                            return 'K8_90nm_AMDV';
-                if uMod in [0x21, 0x23, 0x2b, 0x37, 0x3f]:  return 'K8_90nm_DualCore';
-                return 'AMD_K8_90nm';
-            if uFam == 0x10:                                return 'K10';
-            if uFam == 0x11:                                return 'K10_Lion';
-            if uFam == 0x12:                                return 'K10_Llano';
-            if uFam == 0x14:                                return 'Bobcat';
-            if uFam == 0x15:
-                if uMod <= 0x01:                            return 'Bulldozer';
-                if uMod in [0x02, 0x10, 0x13]:              return 'Piledriver';
-                return None;
-            if uFam == 0x16:
-                return 'Jaguar';
-        elif self.sCpuVendor == 'CentaurHauls':
-            if uFam == 0x05:
-                if uMod == 0x01: return 'Centaur_C6';
-                if uMod == 0x04: return 'Centaur_C6';
-                if uMod == 0x08: return 'Centaur_C2';
-                if uMod == 0x09: return 'Centaur_C3';
-            if uFam == 0x06:
-                if uMod == 0x05: return 'VIA_C3_M2';
-                if uMod == 0x06: return 'VIA_C3_C5A';
-                if uMod == 0x07: return 'VIA_C3_C5B' if self.getCpuStepping() < 8 else 'VIA_C3_C5C';
-                if uMod == 0x08: return 'VIA_C3_C5N';
-                if uMod == 0x09: return 'VIA_C3_C5XL' if self.getCpuStepping() < 8 else 'VIA_C3_C5P';
-                if uMod == 0x0a: return 'VIA_C7_C5J';
-                if uMod == 0x0f: return 'VIA_Isaiah';
-        return None;
-
-    def getPrettyCpuVersion(self):
-        """ Pretty formatting of the family/model/stepping with microarch optimizations. """
-        if self.lCpuRevision is None or self.sCpuVendor is None:
-            return u'<none>';
-        sMarch = self.queryCpuMicroarch();
-        if sMarch is not None:
-            return '%s m%02X s%02X' % (sMarch, self.getCpuModel(), self.getCpuStepping());
-        return 'fam%02X m%02X s%02X' % (self.getCpuFamily(), self.getCpuModel(), self.getCpuStepping());
-
-    def getArchBitString(self):
-        """ Returns 32-bit, 64-bit, <none>, or sCpuArch. """
-        if self.sCpuArch is None:
-            return '<none>';
-        if self.sCpuArch in [ 'x86',]:
-            return '32-bit';
-        if self.sCpuArch in [ 'amd64',]:
-            return '64-bit';
-        return self.sCpuArch;
-
-    def getPrettyCpuVendor(self):
-        """ Pretty vendor name."""
-        if self.sCpuVendor is None:
-            return '<none>';
-        if self.sCpuVendor == 'GenuineIntel':     return 'Intel';
-        if self.sCpuVendor == 'AuthenticAMD':     return 'AMD';
-        if self.sCpuVendor == 'CentaurHauls':     return 'VIA';
-        return self.sCpuVendor;
-
-
 
 class TestBoxLogic(ModelLogicBase):
     """
@@ -418,7 +278,6 @@ class TestBoxLogic(ModelLogicBase):
 
     def __init__(self, oDb):
         ModelLogicBase.__init__(self, oDb);
-        self.dCache = None;
 
     def tryFetchTestBoxByUuid(self, sTestBoxUuid):
         """
@@ -433,7 +292,7 @@ class TestBoxLogic(ModelLogicBase):
         if self._oDb.getRowCount() == 0:
             return None;
         if self._oDb.getRowCount() != 1:
-            raise TMTooManyRows('Database integrity error: %u hits' % (self._oDb.getRowCount(),));
+            raise TMExceptionBase('Database integrity error: %u hits' % (self._oDb.getRowCount(),));
         oData = TestBoxData();
         oData.initFromDbRow(self._oDb.fetchOne());
         return oData;
@@ -537,9 +396,9 @@ class TestBoxLogic(ModelLogicBase):
         Returns the testbox ID, testbox generation ID and effective timestamp
         of the created testbox on success.  Throws error on failure.
         """
-        dDataErrors = oData.validateAndConvert(self._oDb, oData.ksValidateFor_Add);
+        dDataErrors = oData.validateAndConvert(self._oDb);
         if len(dDataErrors) > 0:
-            raise TMInvalidData('Invalid data passed to create(): %s' % (dDataErrors,));
+            raise TMExceptionBase('Invalid data passed to create(): %s' % (dDataErrors,));
 
         self._oDb.execute('INSERT INTO TestBoxes (\n'
                           '         idTestBox,\n'
@@ -647,9 +506,9 @@ class TestBoxLogic(ModelLogicBase):
         Returns the new generation ID and effective date.
         """
 
-        dDataErrors = oData.validateAndConvert(self._oDb, oData.ksValidateFor_Edit);
+        dDataErrors = oData.validateAndConvert(self._oDb);
         if len(dDataErrors) > 0:
-            raise TMInvalidData('Invalid data passed to create(): %s' % (dDataErrors,));
+            raise TMExceptionBase('Invalid data passed to create(): %s' % (dDataErrors,));
 
         ## @todo check if the data changed.
 
@@ -663,12 +522,6 @@ class TestBoxLogic(ModelLogicBase):
             tsEffective = self._oDb.fetchOne()[0];
 
             # Would be easier to do this using an insert or update hook, I think. Much easier.
-
-            ##
-            ## @todo The table is growing too fast.  Rows are too long.  Mixing data from here and there.  Split it and
-            ##       rethink storage and update strategy!
-            ##
-
             self._oDb.execute('INSERT INTO TestBoxes (\n'
                               '         idGenTestBox,\n'
                               '         idTestBox,\n'
@@ -696,7 +549,6 @@ class TestBoxLogic(ModelLogicBase):
                               '         fChipsetIoMmu,\n'
                               '         cMbMemory,\n'
                               '         cMbScratch,\n'
-                              '         sReport,\n'
                               '         iTestBoxScriptRev,\n'
                               '         iPythonHexVersion,\n'
                               '         enmPendingCmd\n'
@@ -727,7 +579,6 @@ class TestBoxLogic(ModelLogicBase):
                               '         fChipsetIoMmu,\n'
                               '         cMbMemory,\n'
                               '         cMbScratch,\n'
-                              '         sReport,\n'
                               '         iTestBoxScriptRev,\n'
                               '         iPythonHexVersion,\n'
                               '         %s\n'           # enmPendingCmd
@@ -871,13 +722,11 @@ class TestBoxLogic(ModelLogicBase):
 
         return idGenTestBox;
 
-    def setCommand(self, idTestBox, sOldCommand, sNewCommand, uidAuthor = None, fCommit = False, sComment = None,
-                   fNoRollbackOnInFlightCollision = False):
+    def setCommand(self, idTestBox, sOldCommand, sNewCommand, uidAuthor = None, fCommit = False):
         """
         Sets or resets the pending command on a testbox.
         Returns (idGenTestBox, tsEffective) of the new row.
         """
-        _ = sComment;
         try:
             # Would be easier to do this using an insert or update hook, I think. Much easier.
             self._oDb.execute('UPDATE ONLY TestBoxes\n'
@@ -887,8 +736,6 @@ class TestBoxLogic(ModelLogicBase):
                               '     AND enmPendingCmd = %s\n'
                               'RETURNING tsExpire\n',
                               (idTestBox, sOldCommand,));
-            if self._oDb.getRowCount() == 0:
-                raise TMInFligthCollision();
             tsEffective = self._oDb.fetchOne()[0];
 
             self._oDb.execute('INSERT INTO TestBoxes (\n'
@@ -969,11 +816,6 @@ class TestBoxLogic(ModelLogicBase):
             idGenTestBox = self._oDb.fetchOne()[0];
             if fCommit is True:
                 self._oDb.commit();
-
-        except TMInFligthCollision: # This is pretty stupid, but don't want to touch testboxcontroller.py now.
-            if not fNoRollbackOnInFlightCollision:
-                self._oDb.rollback();
-            raise;
         except:
             self._oDb.rollback();
             raise;
@@ -1026,101 +868,6 @@ class TestBoxLogic(ModelLogicBase):
             self._oDb.maybeCommit(fCommit);
 
         return fRc
-
-
-    def cachedLookup(self, idTestBox):
-        """
-        Looks up the most recent TestBoxData object for idTestBox via
-        an object cache.
-
-        Returns a shared TestBoxData object.  None if not found.
-        Raises exception on DB error.
-        """
-        if self.dCache is None:
-            self.dCache = self._oDb.getCache('TestBoxData');
-        oEntry = self.dCache.get(idTestBox, None);
-        if oEntry is None:
-            self._oDb.execute('SELECT   *\n'
-                              'FROM     TestBoxes\n'
-                              'WHERE    idTestBox  = %s\n'
-                              '     AND tsExpire   = \'infinity\'::TIMESTAMP\n'
-                              , (idTestBox, ));
-            if self._oDb.getRowCount() == 0:
-                # Maybe it was deleted, try get the last entry.
-                self._oDb.execute('SELECT   *\n'
-                                  'FROM     TestBoxes\n'
-                                  'WHERE    idTestBox = %s\n'
-                                  'ORDER BY tsExpire DESC\n'
-                                  'LIMIT 1\n'
-                                  , (idTestBox, ));
-            elif self._oDb.getRowCount() > 1:
-                raise self._oDb.integrityException('%s infinity rows for %s' % (self._oDb.getRowCount(), idTestBox));
-
-            if self._oDb.getRowCount() == 1:
-                aaoRow = self._oDb.fetchOne();
-                oEntry = TestBoxData().initFromDbRow(aaoRow);
-                self.dCache[idTestBox] = oEntry;
-        return oEntry;
-
-
-
-    #
-    # The virtual test sheriff interface.
-    #
-
-    def hasTestBoxRecentlyBeenRebooted(self, idTestBox, cHoursBack = 2, tsNow = None):
-        """
-        Checks if the testbox has been rebooted in the specified time period.
-
-        This does not include already pending reboots, though under some
-        circumstances it may.  These being the test box entry being edited for
-        other reasons.
-
-        Returns True / False.
-        """
-        if tsNow is None:
-            tsNow = self._oDb.getCurrentTimestamp();
-        self._oDb.execute('SELECT COUNT(idTestBox)\n'
-                          'FROM   TestBoxes\n'
-                          'WHERE  idTestBox      = %s\n'
-                          '   AND tsExpire       < %s\n'
-                          '   AND tsExpire      >= %s - interval \'%s hours\'\n'
-                          '   AND enmPendingCmd IN (%s, %s)\n'
-                          , ( idTestBox, tsNow, tsNow, cHoursBack,
-                              TestBoxData.ksTestBoxCmd_Reboot, TestBoxData.ksTestBoxCmd_UpgradeAndReboot, ));
-        return self._oDb.fetchOne()[0] > 0;
-
-
-    def rebootTestBox(self, idTestBox, uidAuthor, sComment, sOldCommand = TestBoxData.ksTestBoxCmd_None, fCommit = False):
-        """
-        Issues a reboot command for the given test box.
-        Return True on succes, False on in-flight collision.
-        May raise DB exception with rollback on other trouble.
-        """
-        try:
-            self.setCommand(idTestBox, sOldCommand, TestBoxData.ksTestBoxCmd_Reboot,
-                            uidAuthor = uidAuthor, fCommit = fCommit, sComment = sComment,
-                            fNoRollbackOnInFlightCollision = True);
-        except TMInFligthCollision:
-            return False;
-        except:
-            raise;
-        return True;
-
-
-    def disableTestBox(self, idTestBox, uidAuthor, sComment, fCommit = False):
-        """
-        Disables the given test box.
-
-        Raises exception on trouble, without rollback.
-        """
-        oTestBox = TestBoxData().initFromDbWithId(self._oDb, idTestBox);
-        if oTestBox.fEnabled:
-            oTestBox.fEnabled = False;
-            if sComment is not None:
-                _ = sComment; # oTestBox.sComment = sComment;
-            self.editEntry(oTestBox, uidAuthor = uidAuthor, fCommit = fCommit);
-        return None;
 
 
 #

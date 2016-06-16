@@ -46,9 +46,9 @@
 
 # include <VBox/VBoxGL2D.h>
 
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
 # include "VBoxUtils-darwin.h"
-#endif /* VBOX_WS_MAC */
+#endif /* Q_WS_MAC */
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
@@ -500,7 +500,7 @@ int VBoxVHWAGlShaderComponent::init()
     QTextStream is(&fi);
     QString program = is.readAll();
 
-    mSource = program.toUtf8();
+    mSource = program.toAscii();
 
     mInitialized = true;
     return VINF_SUCCESS;
@@ -718,7 +718,7 @@ int VBoxVHWAGlProgram::init()
         vboxglGetProgramInfoLog(mProgram, 16300, NULL, pBuf);
         VBOXQGLLOG(("link log: %s\n", pBuf));
         Assert(linked);
-        delete[] pBuf;
+        delete pBuf;
 #endif
 
         if(linked)
@@ -3665,11 +3665,7 @@ void VBoxVHWAImage::vboxDoUpdateViewport(const QRect & aRect)
 
     const OverlayList & overlays = mDisplay.overlays();
     QRect overInter = overlaysRectIntersection();
-#if QT_VERSION >= 0x050000
-    overInter = overInter.intersected(aRect);
-#else /* QT_VERSION < 0x050000 */
     overInter = overInter.intersect(aRect);
-#endif /* QT_VERSION < 0x050000 */
 
     bool bDisplayPrimary = true;
 
@@ -4443,7 +4439,7 @@ bool VBoxQGLOverlay::onNotifyUpdate(ULONG uX, ULONG uY,
                            (int)ceil((double)rect.height() * yScaleFactor) + 2));
     }
 
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
     /* Take the backing-scale-factor into account: */
     if (mSizeInfo.useUnscaledHiDPIOutput())
     {
@@ -4456,7 +4452,7 @@ bool VBoxQGLOverlay::onNotifyUpdate(ULONG uX, ULONG uY,
                                (int)ceil((double)rect.height() / dBackingScaleFactor) + 2));
         }
     }
-#endif /* VBOX_WS_MAC */
+#endif /* Q_WS_MAC */
 
     /* we do not to miss notify updates, because we have to update bg textures for it,
      * so no not check for m_fUnused here,

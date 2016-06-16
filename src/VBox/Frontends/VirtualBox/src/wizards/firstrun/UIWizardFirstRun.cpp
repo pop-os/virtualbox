@@ -38,13 +38,13 @@ UIWizardFirstRun::UIWizardFirstRun(QWidget *pParent, const CMachine &machine)
     , m_machine(machine)
     , m_fHardDiskWasSet(isBootHardDiskAttached(m_machine))
 {
-#ifndef VBOX_WS_MAC
+#ifndef Q_WS_MAC
     /* Assign watermark: */
     assignWatermark(":/vmw_first_run.png");
-#else /* VBOX_WS_MAC */
+#else /* Q_WS_MAC */
     /* Assign background image: */
     assignBackground(":/vmw_first_run_bg.png");
-#endif /* VBOX_WS_MAC */
+#endif /* Q_WS_MAC */
 }
 
 bool UIWizardFirstRun::insertMedium()

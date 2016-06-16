@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,7 +21,6 @@
 
 #include "VBox/com/defs.h"
 #include "VBox/com/AutoLock.h"
-#include "VBox/com/ErrorInfo.h"
 
 // Forward declaration needed, but nothing more.
 class VirtualBoxBase;
@@ -97,7 +96,7 @@ public:
     void releaseCaller();
 
     bool autoInitSpanConstructor(State aExpectedState);
-    void autoInitSpanDestructor(State aNewState, HRESULT aFailedRC, com::ErrorInfo *aFailedEI);
+    void autoInitSpanDestructor(State aNewState);
     State autoUninitSpanConstructor();
     void autoUninitSpanDestructor();
 
@@ -114,10 +113,6 @@ private:
     State mState;
     /** Thread that caused the last state change */
     RTTHREAD mStateChangeThread;
-    /** Result code for failed object initialization */
-    HRESULT mFailedRC;
-    /** Error information for failed object initialization */
-    com::ErrorInfo *mpFailedEI;
     /** Total number of active calls to this object */
     unsigned mCallers;
     /** Posted when the number of callers drops to zero */

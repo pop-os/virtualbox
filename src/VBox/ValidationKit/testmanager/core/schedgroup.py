@@ -26,15 +26,14 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 107509 $"
+__version__ = "$Revision: 100880 $"
 
 
 # Standard python imports.
 import unittest;
 
 # Validation Kit imports.
-from testmanager.core.base          import ModelDataBase, ModelDataBaseTestCase, ModelLogicBase, TMExceptionBase, \
-                                           TMRowInUse, TMInvalidData, TMRowAlreadyExists, TMRowNotFound;
+from testmanager.core.base          import ModelDataBase, ModelDataBaseTestCase, ModelLogicBase, TMExceptionBase;
 from testmanager.core.buildsource   import BuildSourceData;
 from testmanager.core.testcase      import TestCaseData;
 from testmanager.core.testcaseargs  import TestCaseArgsData;
@@ -89,7 +88,7 @@ class SchedGroupMemberData(ModelDataBase):
         """
 
         if aoRow is None:
-            raise TMRowNotFound('SchedGroupMember not found.');
+            raise TMExceptionBase('SchedGroupMember not found.');
 
         self.idSchedGroup        = aoRow[0];
         self.idTestGroup         = aoRow[1];
@@ -132,8 +131,8 @@ class SchedGroupMemberDataEx(SchedGroupMemberData):
         asAttributes.remove('oTestGroup');
         return asAttributes;
 
-    def _validateAndConvertWorker(self, asAllowNullAttributes, oDb, enmValidateFor = ModelDataBase.ksValidateFor_Other):
-        dErrors = SchedGroupMemberData._validateAndConvertWorker(self, asAllowNullAttributes, oDb, enmValidateFor);
+    def _validateAndConvertWorker(self, asAllowNullAttributes, oDb):
+        dErrors = SchedGroupMemberData._validateAndConvertWorker(self, asAllowNullAttributes, oDb);
         if self.ksParam_idTestGroup not in dErrors:
             self.oTestGroup = TestGroupData();
             try:
@@ -206,7 +205,7 @@ class SchedGroupData(ModelDataBase):
         """
 
         if aoRow is None:
-            raise TMRowNotFound('SchedGroup not found.');
+            raise TMExceptionBase('SchedGroup not found.');
 
         self.idSchedGroup            = aoRow[0];
         self.tsEffective             = aoRow[1];
@@ -231,7 +230,7 @@ class SchedGroupData(ModelDataBase):
                                                        , ( idSchedGroup,), tsNow, sPeriodBack));
         aoRow = oDb.fetchOne()
         if aoRow is None:
-            raise TMRowNotFound('idSchedGroup=%s not found (tsNow=%s, sPeriodBack=%s)' % (idSchedGroup, tsNow, sPeriodBack));
+            raise TMExceptionBase('idSchedGroup=%s not found (tsNow=%s, sPeriodBack=%s)' % (idSchedGroup, tsNow, sPeriodBack));
         return self.initFromDbRow(aoRow);
 
 
@@ -389,12 +388,12 @@ class SchedGroupDataEx(SchedGroupData):
             oNewMember = SchedGroupMemberDataEx().initFromOther(oOldMember);
             aoNewMembers.append(oNewMember);
 
-            dErrors = oNewMember.validateAndConvert(oDb, ModelDataBase.ksValidateFor_Other);
+            dErrors = oNewMember.validateAndConvert(oDb);
             if len(dErrors) > 0:
                 asErrors.append(str(dErrors));
 
         if len(asErrors) == 0:
-            for i, _ in enumerate(aoNewMembers):
+            for i in range(len(aoNewMembers)):
                 idTestGroup = aoNewMembers[i];
                 for j in range(i + 1, len(aoNewMembers)):
                     if aoNewMembers[j].idTestGroup == idTestGroup:
@@ -403,8 +402,8 @@ class SchedGroupDataEx(SchedGroupData):
 
         return (aoNewMembers, None if len(asErrors) == 0 else '<br>\n'.join(asErrors));
 
-    def _validateAndConvertWorker(self, asAllowNullAttributes, oDb, enmValidateFor = ModelDataBase.ksValidateFor_Other):
-        dErrors = SchedGroupData._validateAndConvertWorker(self, asAllowNullAttributes, oDb, enmValidateFor);
+    def _validateAndConvertWorker(self, asAllowNullAttributes, oDb):
+        dErrors = SchedGroupData._validateAndConvertWorker(self, asAllowNullAttributes, oDb);
 
         #
         # Fetch the extended build source bits.
@@ -479,11 +478,11 @@ class SchedGroupLogic(ModelLogicBase): # pylint: disable=R0903
         #
         # Validate.
         #
-        dDataErrors = oData.validateAndConvert(self._oDb, idPrimaryMustBeNullOrNot = True);
+        dDataErrors = oData.validateAndConvert(self._oDb);
         if len(dDataErrors) > 0:
-            raise TMInvalidData('Invalid data passed to addEntry: %s' % (dDataErrors,));
+            raise TMExceptionBase('Invalid data passed to addEntry: %s' % (dDataErrors,));
         if self.exists(oData.sName):
-            raise TMRowAlreadyExists('Scheduling group "%s" already exists.' % (oData.sName,));
+            raise TMExceptionBase('Scheduling group "%s" already exists.' % (oData.sName,));
 
         #
         # Add it.
@@ -521,9 +520,9 @@ class SchedGroupLogic(ModelLogicBase): # pylint: disable=R0903
         #
         # Validate input and retrieve the old data.
         #
-        dErrors = oData.validateAndConvert(self._oDb, oData.ksValidateFor_Edit);
+        dErrors = oData.validateAndConvert(self._oDb);
         if len(dErrors) > 0:
-            raise TMInvalidData('editEntry got invalid data: %s' % (dErrors,));
+            raise TMExceptionBase('editEntry got invalid data: %s' % (dErrors,));
         self._assertUnique(oData.sName, oData.idSchedGroup);
         oOldData = SchedGroupDataEx().initFromDbWithId(self._oDb, oData.idSchedGroup);
 
@@ -572,7 +571,7 @@ class SchedGroupLogic(ModelLogicBase): # pylint: disable=R0903
         # Input validation and retrival of current data.
         #
         if idSchedGroup == 1:
-            raise TMRowInUse('Cannot remove the default scheduling group (id 1).');
+            raise TMExceptionBase('Cannot remove the default scheduling group (id 1).');
         oData = SchedGroupDataEx().initFromDbWithId(self._oDb, idSchedGroup);
 
         #
@@ -583,8 +582,8 @@ class SchedGroupLogic(ModelLogicBase): # pylint: disable=R0903
             if fCascade is not True:
                 # Complain about there being associated testboxes.
                 asTestBoxes = ['%s (#%d)' % (oTestBox.sName, oTestBox.idTestBox) for oTestBox in oData.aoTestBoxes];
-                raise TMRowInUse('Scheduling group #%d is associated with one or more test boxes: %s'
-                                 % (idSchedGroup, ', '.join(asTestBoxes),));
+                raise TMExceptionBase('Scheduling group #%d is associated with one or more test boxes: %s'
+                                      % (idSchedGroup, ', '.join(asTestBoxes),));
             else:
                 # Reassign testboxes to scheduling group #1 (the default group).
                 oTbLogic = TestBoxLogic(self._oDb);
@@ -595,7 +594,7 @@ class SchedGroupLogic(ModelLogicBase): # pylint: disable=R0903
 
                 oData = SchedGroupDataEx().initFromDbWithId(self._oDb, idSchedGroup);
                 if len(oData.aoTestBoxes) != 0:
-                    raise TMRowInUse('More testboxes was added to the scheduling group as we were trying to delete it.');
+                    raise TMExceptionBase('More testboxes was added to the scheduling group as we were trying to delete it.');
 
         #
         # Remove the group and all member records.
@@ -859,7 +858,7 @@ class SchedGroupLogic(ModelLogicBase): # pylint: disable=R0903
                               '   AND   idSchedGroup <> %s\n'
                               , ( sName, idSchedGroupIgnore, ) );
         if self._oDb.getRowCount() > 0:
-            raise TMRowInUse('Scheduling group name (%s) is already in use.' % (sName,));
+            raise TMExceptionBase('Scheduling group name (%s) is already in use.' % (sName,));
         return True;
 
     def _readdEntry(self, uidAuthor, oData, tsEffective = None):

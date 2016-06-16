@@ -261,8 +261,6 @@ static int mmHyperAllocInternal(PVM pVM, size_t cb, unsigned uAlignment, MMTAG e
         AssertMsgFailed(("Failed to allocate statistics!\n"));
         return VERR_MM_HYPER_NO_MEMORY;
     }
-#else
-    NOREF(enmTag);
 #endif
     if (uAlignment < PAGE_SIZE)
     {
@@ -838,7 +836,7 @@ static int mmHyperFreeInternal(PVM pVM, void *pv)
     AssertMsgReturn(pHeap->u32Magic == MMHYPERHEAP_MAGIC,
                     ("%p: u32Magic=%#x\n", pv, pHeap->u32Magic),
                     VERR_INVALID_POINTER);
-    Assert(pHeap == pVM->mm.s.CTX_SUFF(pHyperHeap)); NOREF(pVM);
+    Assert(pHeap == pVM->mm.s.CTX_SUFF(pHyperHeap));
 
     /* Some more verifications using additional info from pHeap. */
     AssertMsgReturn((uintptr_t)pChunk + offPrev >= (uintptr_t)pHeap->CTX_SUFF(pbHeap),
@@ -1112,7 +1110,7 @@ static int mmHyperFree(PMMHYPERHEAP pHeap, PMMHYPERCHUNK pChunk)
 }
 
 
-#if defined(DEBUG) || defined(MMHYPER_HEAP_STRICT_FENCE)
+#if defined(DEBUG) || defined(MMHYPER_HEAP_STRICT)
 /**
  * Dumps a heap chunk to the log.
  *
@@ -1138,7 +1136,6 @@ static void mmHyperHeapDumpOne(PMMHYPERHEAP pHeap, PMMHYPERCHUNKFREE pCur)
                  pCur->core.offNext, -MMHYPERCHUNK_GET_OFFPREV(&pCur->core),
                  (MMTAG)pStat->Core.Key, pszSelf));
 #endif
-            NOREF(pStat); NOREF(pszSelf);
         }
         else
             Log(("%p  %06x USED offNext=%06x offPrev=-%06x\n",
@@ -1189,7 +1186,7 @@ static void mmHyperHeapCheck(PMMHYPERHEAP pHeap)
                 Assert(cbFence >= MMHYPER_HEAP_STRICT_FENCE_SIZE);
             }
 
-            uint32_t *pu32Bad = ASMMemFirstMismatchingU32((uint8_t *)pu32End - cbFence, cbFence - sizeof(uint32_t), MMHYPER_HEAP_STRICT_FENCE_U32);
+            uint32_t *pu32Bad = ASMMemIsAllU32((uint8_t *)pu32End - cbFence, cbFence - sizeof(uint32_t), MMHYPER_HEAP_STRICT_FENCE_U32);
             if (RT_UNLIKELY(pu32Bad))
             {
                 mmHyperHeapDumpOne(pHeap, pCur);
@@ -1223,8 +1220,6 @@ VMMDECL(void) MMHyperHeapCheck(PVM pVM)
     AssertRC(rc);
     mmHyperHeapCheck(pVM->mm.s.CTX_SUFF(pHyperHeap));
     mmHyperUnlock(pVM);
-#else
-    NOREF(pVM);
 #endif
 }
 

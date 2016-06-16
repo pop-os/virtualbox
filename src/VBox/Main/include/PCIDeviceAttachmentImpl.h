@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2010-2016 Oracle Corporation
+ * Copyright (C) 2010-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,11 +21,7 @@
 #define ____H_PCIDEVICEATTACHMENTIMPL
 
 #include "PCIDeviceAttachmentWrap.h"
-
-namespace settings
-{
-    struct HostPCIDeviceAttachment;
-}
+#include <VBox/settings.h>
 
 class ATL_NO_VTABLE PCIDeviceAttachment :
     public PCIDeviceAttachmentWrap
@@ -36,7 +32,7 @@ public:
 
     // public initializer/uninitializer for internal purposes only
     HRESULT init(IMachine *    aParent,
-                 const Utf8Str &aName,
+                 const Bstr    &aName,
                  LONG          aHostAddess,
                  LONG          aGuestAddress,
                  BOOL          fPhysical);

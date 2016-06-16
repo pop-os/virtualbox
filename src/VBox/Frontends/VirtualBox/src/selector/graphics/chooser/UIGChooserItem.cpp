@@ -29,7 +29,6 @@
 # include <QStateMachine>
 # include <QPropertyAnimation>
 # include <QSignalTransition>
-# include <QDrag>
 
 /* GUI includes: */
 # include "UIGChooserItem.h"
@@ -71,10 +70,8 @@ UIGChooserItem::UIGChooserItem(UIGChooserItem *pParent, bool fTemporary)
         m_pHighlightMachine = new QStateMachine(this);
         /* Create 'default' state: */
         QState *pStateDefault = new QState(m_pHighlightMachine);
-        pStateDefault->assignProperty(this, "animationDarkness", m_iDefaultDarkness);
         /* Create 'highlighted' state: */
         QState *pStateHighlighted = new QState(m_pHighlightMachine);
-        pStateHighlighted->assignProperty(this, "animationDarkness", m_iHighlightDarkness);
 
         /* Forward animation: */
         m_pForwardAnimation = new QPropertyAnimation(this, "animationDarkness", this);
@@ -244,9 +241,6 @@ void UIGChooserItem::hoverMoveEvent(QGraphicsSceneHoverEvent*)
     {
         m_fHovered = true;
         emit sigHoverEnter();
-#if QT_VERSION >= 0x050000
-        update();
-#endif /* QT_VERSION >= 0x050000 */
     }
 }
 
@@ -256,9 +250,6 @@ void UIGChooserItem::hoverLeaveEvent(QGraphicsSceneHoverEvent*)
     {
         m_fHovered = false;
         emit sigHoverLeave();
-#if QT_VERSION >= 0x050000
-        update();
-#endif /* QT_VERSION >= 0x050000 */
     }
 }
 

@@ -28,7 +28,6 @@
 
 **/
 ssize_t
-EFIAPI
 BslSocketWrite (
   struct __filedes *pDescriptor,
   off_t * pOffset,

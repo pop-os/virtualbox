@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2016 Oracle Corporation
+ * Copyright (C) 2011-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -89,7 +89,7 @@ static bool          g_fDaemonize = false;
 /**
  * The details of the services that has been compiled in.
  */
-typedef struct VBOXWATCHDOGMOD
+static struct
 {
     /** Pointer to the service descriptor. */
     PCVBOXMODULE    pDesc;
@@ -97,9 +97,7 @@ typedef struct VBOXWATCHDOGMOD
     bool            fPreInited;
     /** Whether the module is enabled or not. */
     bool            fEnabled;
-} VBOXWATCHDOGMOD, *PVBOXWATCHDOGMOD;
-
-static VBOXWATCHDOGMOD g_aModules[] =
+} g_aModules[] =
 {
     { &g_ModBallooning, false /* Pre-inited */, true /* Enabled */ },
     { &g_ModAPIMonitor, false /* Pre-inited */, true /* Enabled */ }
@@ -107,8 +105,7 @@ static VBOXWATCHDOGMOD g_aModules[] =
 
 enum GETOPTDEF_WATCHDOG
 {
-    GETOPTDEF_WATCHDOG_DISABLE_MODULE = 1000,
-    GETOPTDEF_WATCHDOG_DRYRUN
+    GETOPTDEF_WATCHDOG_DRYRUN = 1000
 };
 
 /**
@@ -119,15 +116,14 @@ static const RTGETOPTDEF g_aOptions[] = {
     { "--background",           'b',                                       RTGETOPT_REQ_NOTHING },
 #endif
     /** For displayHelp(). */
-    { "--disable-<module>",     GETOPTDEF_WATCHDOG_DISABLE_MODULE, RTGETOPT_REQ_NOTHING },
-    { "--dryrun",               GETOPTDEF_WATCHDOG_DRYRUN,         RTGETOPT_REQ_NOTHING },
-    { "--help",                 'h',                               RTGETOPT_REQ_NOTHING },
-    { "--verbose",              'v',                               RTGETOPT_REQ_NOTHING },
-    { "--pidfile",              'P',                               RTGETOPT_REQ_STRING },
-    { "--logfile",              'F',                               RTGETOPT_REQ_STRING },
-    { "--logrotate",            'R',                               RTGETOPT_REQ_UINT32 },
-    { "--logsize",              'S',                               RTGETOPT_REQ_UINT64 },
-    { "--loginterval",          'I',                               RTGETOPT_REQ_UINT32 }
+    { "--dryrun",               GETOPTDEF_WATCHDOG_DRYRUN,                 RTGETOPT_REQ_NOTHING },
+    { "--help",                 'h',                                       RTGETOPT_REQ_NOTHING },
+    { "--verbose",              'v',                                       RTGETOPT_REQ_NOTHING },
+    { "--pidfile",              'P',                                       RTGETOPT_REQ_STRING },
+    { "--logfile",              'F',                                       RTGETOPT_REQ_STRING },
+    { "--logrotate",            'R',                                       RTGETOPT_REQ_UINT32 },
+    { "--logsize",              'S',                                       RTGETOPT_REQ_UINT64 },
+    { "--loginterval",          'I',                                       RTGETOPT_REQ_UINT32 }
 };
 
 /** Global static objects. */
@@ -143,6 +139,10 @@ static int machineRemove(const Bstr &strUuid);
 static int watchdogSetup();
 static void watchdogShutdown();
 
+#ifdef RT_OS_WINDOWS
+/* Required for ATL. */
+static CComModule _Module;
+#endif
 
 /**
  *  Handler for global events.
@@ -364,8 +364,6 @@ static int machineAdd(const Bstr &strUuid)
          */
         VBOXWATCHDOG_MACHINE m;
         m.machine = machine;
-        CHECK_ERROR_BREAK(machine, COMGETTER(Name)(m.strName.asOutParam()));
-
         int rc2 = groupAdd(m.groups, strGroups.c_str(), 0 /* Flags */);
         AssertRC(rc2);
 
@@ -630,26 +628,23 @@ static int watchdogStartModules()
     int rc = VINF_SUCCESS;
 
     for (unsigned j = 0; j < RT_ELEMENTS(g_aModules); j++)
-    {
-        const PVBOXWATCHDOGMOD pMod = &g_aModules[j];
-        if (pMod->fEnabled)
+        if (g_aModules[j].fEnabled)
         {
-            int rc2 = pMod->pDesc->pfnInit();
-            if (RT_FAILURE(rc2))
+            rc = g_aModules[j].pDesc->pfnInit();
+            if (RT_FAILURE(rc))
             {
-                if (rc2 != VERR_SERVICE_DISABLED)
+                if (rc != VERR_SERVICE_DISABLED)
                 {
-                    serviceLog("Module '%s' failed to initialize: %Rrc\n", pMod->pDesc->pszName, rc2);
+                    serviceLog("Module '%s' failed to initialize: %Rrc\n",
+                               g_aModules[j].pDesc->pszName, rc);
                     return rc;
                 }
-                pMod->fEnabled = false;
-                serviceLog("Module '%s' was disabled because of missing functionality\n", pMod->pDesc->pszName);
+                g_aModules[j].fEnabled = false;
+                serviceLog(0, "Module '%s' was disabled because of missing functionality\n",
+                           g_aModules[j].pDesc->pszName);
 
             }
         }
-        else
-            serviceLog("Module '%s' disabled, skipping ...\n", pMod->pDesc->pszName);
-    }
 
     return rc;
 }
@@ -851,10 +846,6 @@ static void displayHelp(const char *pszImage)
 
         switch (g_aOptions[i].iShort)
         {
-            case GETOPTDEF_WATCHDOG_DISABLE_MODULE:
-                pcszDescr = "Disables a module. See module list for built-in modules.";
-                break;
-
             case GETOPTDEF_WATCHDOG_DRYRUN:
                 pcszDescr = "Dryrun mode -- do not perform any actions.";
                 break;
@@ -895,20 +886,11 @@ static void displayHelp(const char *pszImage)
     for (unsigned j = 0; j < RT_ELEMENTS(g_aModules); j++)
     {
         if (g_aModules[j].pDesc->pszOptions)
-            RTStrmPrintf(g_pStdErr, "%s", g_aModules[j].pDesc->pszOptions);
+            RTPrintf("%s", g_aModules[j].pDesc->pszOptions);
     }
 
     /** @todo Change VBOXBALLOONCTRL_RELEASE_LOG to WATCHDOG*. */
     RTStrmPrintf(g_pStdErr, "\nUse environment variable VBOXBALLOONCTRL_RELEASE_LOG for logging options.\n");
-
-    RTStrmPrintf(g_pStdErr, "\nValid module names are: ");
-    for (unsigned j = 0; j < RT_ELEMENTS(g_aModules); j++)
-    {
-        if (j > 0)
-            RTStrmPrintf(g_pStdErr, ", ");
-        RTStrmPrintf(g_pStdErr, "%s", g_aModules[j].pDesc->pszName);
-    }
-    RTStrmPrintf(g_pStdErr, "\n\n");
 }
 
 /**
@@ -983,13 +965,10 @@ int main(int argc, char *argv[])
     int rc = RTR3InitExe(argc, &argv, 0);
     if (RT_FAILURE(rc))
         return RTMsgInitFailure(rc);
-#ifdef RT_OS_WINDOWS
-    ATL::CComModule _Module; /* Required internally by ATL (constructor records instance in global variable). */
-#endif
 
     /*
      * Parse the global options
-     */
+    */
     int c;
     const char *pszLogFile = NULL;
     const char *pszPidFile = NULL;
@@ -1046,18 +1025,7 @@ int main(int argc, char *argv[])
             {
                 bool fFound = false;
 
-                char szModDisable[64];
-                for (unsigned j = 0; !fFound && j < RT_ELEMENTS(g_aModules); j++)
-                {
-                    if (!RTStrPrintf(szModDisable, sizeof(szModDisable), "--disable-%s", g_aModules[j].pDesc->pszName))
-                        continue;
-
-                    if (!RTStrICmp(szModDisable, ValueUnion.psz))
-                    {
-                        g_aModules[j].fEnabled = false;
-                        fFound = true;
-                    }
-                }
+                /** @todo Add "--disable-<module>" etc. here! */
 
                 if (!fFound)
                 {
@@ -1067,9 +1035,6 @@ int main(int argc, char *argv[])
 
                     for (unsigned j = 0; !fFound && j < RT_ELEMENTS(g_aModules); j++)
                     {
-                        if (!g_aModules[j].fEnabled)
-                            continue;
-
                         int iArgCnt = argc - GetState.iNext + 1;
                         int iArgIndex = GetState.iNext - 1;
                         int iConsumed = 0;

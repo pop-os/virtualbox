@@ -27,7 +27,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 107717 $"
+__version__ = "$Revision: 102048 $"
 
 
 # Standard Python imports.
@@ -61,9 +61,6 @@ class tdUnitTest1(vbox.TestDriver):
         'darwin': {
             'testcase/tstX86-1': '',                    # 'FSTP M32R, ST0' fails; no idea why.
         },
-        'linux': {
-            'testcase/tstRTFileAio': '',                # See xTracker #8035.
-        },
         'solaris': {
             'testcase/tstIntNet-1': '',                 # Fails opening rge0, probably a generic issue figuring which nic to use.
             'testcase/tstIprtList': '',                 # Crashes in the multithreaded test, I think.
@@ -93,9 +90,6 @@ class tdUnitTest1(vbox.TestDriver):
             'testcase/tstX86-1': '',                    # Fails on win.x86.
             'tscpasswd': '',                            # ??
             'tstVMREQ': '',                            # ?? Same as darwin.x86?
-        },
-        'win.x86': {
-            'testcase/tstRTR0TimerDriver': '',          # See xTracker #8041.
         }
     };
 
@@ -103,13 +97,10 @@ class tdUnitTest1(vbox.TestDriver):
         'testcase/tstGuestPropSvc': '',     # GET_NOTIFICATION fails on testboxlin5.de.oracle.com and others.
         'testcase/tstRTProcCreateEx': '',   # Seen failing on wei01-b6ka-9.de.oracle.com.
         'testcase/tstTimer': '',            # Sometimes fails on linux, not important atm.
-        'testcase/tstGIP-2': '',            # 2015-09-10: Fails regularly. E.g. TestSetID 2744205 (testboxsh2),
-                                            #             2743961 (wei01-b6kc-6). The responsible engineer should reenable
-                                            #             it once it has been fixed.
     };
 
     ## The permanent exclude list.
-    # @note Stripped of extensions!
+    # @note Stripped extensions!
     kdTestCasesBlackList = {
         'testcase/tstClipboardX11Smoke': '',
         'testcase/tstFileLock': '',
@@ -138,7 +129,7 @@ class tdUnitTest1(vbox.TestDriver):
         'testcase/tstVBoxControl': '',      # works only inside a guest
         'testcase/tstVDCopy': '',           # parameters required
         'tstAnimate': '',                   # parameters required
-        'testcase/tstAPI': '',              # user interaction required
+        'tstAPI': '',                       # user interaction required
         'tstCollector': '',                 # takes forever
         'testcase/tstHeadless': '',         # parameters required
         'tstHeadless': '',                  # parameters required
@@ -195,8 +186,6 @@ class tdUnitTest1(vbox.TestDriver):
         'tstDeviceStructSizeRC': '',        # This is a C-code generator.
         'testcase/tstTSC': '',              # Doesn't test anything and might fail with HT or/and too many cores.
         'testcase/tstOpenUSBDev': '',       # Not a useful testcase.
-        'testcase/tstX86-1': '',            # Really more guest side.
-        'testcase/tstX86-FpuSaveRestore': '', # Experiments, could be useful for the guest not the host.
     };
 
     # Suffix exclude list.
@@ -377,7 +366,6 @@ class tdUnitTest1(vbox.TestDriver):
             return False;
 
         self._figureVersion();
-        self._makeEnvironmentChanges();
 
         self.testRunUnitTestsSet(r'^tst*', 'testcase')
         self.testRunUnitTestsSet(r'^tst*', '.')
@@ -708,7 +696,6 @@ class tdUnitTest1(vbox.TestDriver):
 
         # Determin the host OS specific exclusion lists.
         dTestCasesBuggyForHostOs = self.kdTestCasesBuggyPerOs.get(utils.getHostOs(), []);
-        dTestCasesBuggyForHostOs.update(self.kdTestCasesBuggyPerOs.get(utils.getHostOsDotArch(), []));
 
         #
         # Process the file list and run everything looking like a testcase.

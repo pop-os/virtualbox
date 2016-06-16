@@ -133,14 +133,12 @@ public:
     /* Wrapper to open Machine settings / Network page: */
     void openNetworkSettingsDialog() { sltOpenNetworkSettingsDialog(); }
 
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
     void updateDockIcon();
     void updateDockIconSize(int screenId, int width, int height);
     UIMachineView* dockPreviewView() const;
-#endif /* VBOX_WS_MAC */
+#endif /* Q_WS_MAC */
 
-    /** Detach and close Runtime UI. */
-    void detach();
     /** Save VM state, then close Runtime UI. */
     void saveState();
     /** Call for guest shutdown to close Runtime UI. */
@@ -207,11 +205,11 @@ protected:
     void setMouseHandler(UIMouseHandler *pMouseHandler);
     void addMachineWindow(UIMachineWindow *pMachineWindow);
     void retranslateUi();
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
     bool isDockIconPreviewEnabled() const { return m_fIsDockIconEnabled; }
     void setDockIconPreviewEnabled(bool fIsDockIconPreviewEnabled) { m_fIsDockIconEnabled = fIsDockIconPreviewEnabled; }
     void updateDockOverlay();
-#endif /* VBOX_WS_MAC */
+#endif /* Q_WS_MAC */
 
     /* Prepare helpers: */
     virtual void prepareRequiredFeatures();
@@ -222,9 +220,9 @@ protected:
     virtual void prepareHandlers();
     virtual void prepareMachineWindows() = 0;
     virtual void prepareMenu() {}
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
     virtual void prepareDock();
-#endif /* VBOX_WS_MAC */
+#endif /* Q_WS_MAC */
 #ifdef VBOX_WITH_DEBUGGER_GUI
     virtual void prepareDebugger();
 #endif /* VBOX_WITH_DEBUGGER_GUI */
@@ -235,9 +233,9 @@ protected:
 #ifdef VBOX_WITH_DEBUGGER_GUI
     virtual void cleanupDebugger();
 #endif /* VBOX_WITH_DEBUGGER_GUI */
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
     virtual void cleanupDock();
-#endif /* VBOX_WS_MAC */
+#endif /* Q_WS_MAC */
     virtual void cleanupMenu() {}
     virtual void cleanupMachineWindows() = 0;
     virtual void cleanupHandlers();
@@ -259,16 +257,15 @@ private slots:
     void sltShowKeyboardSettings();
     void sltToggleMouseIntegration(bool fEnabled);
     void sltTypeCAD();
-#ifdef VBOX_WS_X11
+#ifdef Q_WS_X11
     void sltTypeCABS();
-#endif /* VBOX_WS_X11 */
+#endif /* Q_WS_X11 */
     void sltTypeCtrlBreak();
     void sltTypeInsert();
     void sltTakeSnapshot();
     void sltShowInformationDialog();
     void sltReset();
     void sltPause(bool fOn);
-    void sltDetach();
     void sltSaveState();
     void sltShutdown();
     void sltPowerOff();
@@ -348,10 +345,10 @@ private:
     /** Update 'Debug' menu routine. */
     void updateMenuDebug(QMenu *pMenu);
 #endif /* VBOX_WITH_DEBUGGER_GUI */
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
     /** Update 'Window' menu routine. */
     void updateMenuWindow(QMenu *pMenu);
-#endif /* VBOX_WS_MAC */
+#endif /* Q_WS_MAC */
 
     /** Show Global Preferences on the page defined by @a strCategory and tab defined by @a strControl. */
     void showGlobalPreferences(const QString &strCategory = QString(), const QString &strControl = QString());
@@ -397,12 +394,12 @@ private:
     PCDBGGUIVT m_pDbgGuiVT;
 #endif /* VBOX_WITH_DEBUGGER_GUI */
 
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
     bool m_fIsDockIconEnabled;
     UIDockIconPreview *m_pDockIconPreview;
     QActionGroup *m_pDockPreviewSelectMonitorGroup;
     int m_DockIconPreviewMonitor;
-#endif /* VBOX_WS_MAC */
+#endif /* Q_WS_MAC */
 
     void *m_pHostLedsState;
 

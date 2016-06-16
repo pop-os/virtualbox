@@ -53,6 +53,14 @@ UIMachineViewNormal::UIMachineViewNormal(  UIMachineWindow *pMachineWindow
                     )
     , m_bIsGuestAutoresizeEnabled(actionPool()->action(UIActionIndexRT_M_View_T_GuestAutoresize)->isChecked())
 {
+    /* Resend the last resize hint: */
+    resendSizeHint();
+}
+
+UIMachineViewNormal::~UIMachineViewNormal()
+{
+    /* Cleanup frame buffer: */
+    cleanupFrameBuffer();
 }
 
 void UIMachineViewNormal::sltAdditionsStateChanged()
@@ -80,25 +88,6 @@ bool UIMachineViewNormal::eventFilter(QObject *pWatched, QEvent *pEvent)
         }
     }
 
-    /* For scroll-bars of the machine-view: */
-    if (   pWatched == verticalScrollBar()
-        || pWatched == horizontalScrollBar())
-    {
-        switch (pEvent->type())
-        {
-            /* On show/hide event: */
-            case QEvent::Show:
-            case QEvent::Hide:
-            {
-                /* Set maximum-size to size-hint: */
-                setMaximumSize(sizeHint());
-                break;
-            }
-            default:
-                break;
-        }
-    }
-
     return UIMachineView::eventFilter(pWatched, pEvent);
 }
 
@@ -109,7 +98,7 @@ void UIMachineViewNormal::prepareCommon()
 
     /* Setup size-policy: */
     setSizePolicy(QSizePolicy(QSizePolicy::Maximum, QSizePolicy::Maximum));
-    /* Set maximum-size to size-hint: */
+    /* Maximum size to sizehint: */
     setMaximumSize(sizeHint());
 }
 
@@ -118,14 +107,10 @@ void UIMachineViewNormal::prepareFilters()
     /* Base class filters: */
     UIMachineView::prepareFilters();
 
-    /* Install scroll-bars event-filters: */
-    verticalScrollBar()->installEventFilter(this);
-    horizontalScrollBar()->installEventFilter(this);
-
-#ifdef VBOX_WS_WIN
+#ifdef Q_WS_WIN
     /* Install menu-bar event-filter: */
     machineWindow()->menuBar()->installEventFilter(this);
-#endif /* VBOX_WS_WIN */
+#endif /* Q_WS_WIN */
 }
 
 void UIMachineViewNormal::prepareConsoleConnections()
@@ -230,26 +215,6 @@ void UIMachineViewNormal::adjustGuestScreenSize()
     {
         sltPerformGuestResize(machineWindow()->centralWidget()->size());
     }
-}
-
-QSize UIMachineViewNormal::sizeHint() const
-{
-    /* Call to base-class: */
-    QSize size = UIMachineView::sizeHint();
-
-    /* If guest-screen auto-resize is not enabled
-     * or the guest-additions doesn't support graphics
-     * we should take scroll-bars size-hints into account: */
-    if (!m_bIsGuestAutoresizeEnabled || !uisession()->isGuestSupportsGraphics())
-    {
-        if (verticalScrollBar()->isVisible())
-            size += QSize(verticalScrollBar()->sizeHint().width(), 0);
-        if (horizontalScrollBar()->isVisible())
-            size += QSize(0, horizontalScrollBar()->sizeHint().height());
-    }
-
-    /* Return resulting size-hint finally: */
-    return size;
 }
 
 QRect UIMachineViewNormal::workingArea() const

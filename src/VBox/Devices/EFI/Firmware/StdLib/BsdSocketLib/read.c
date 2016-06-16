@@ -33,7 +33,6 @@
 
 **/
 ssize_t
-EFIAPI
 BslSocketRead (
   struct __filedes *pDescriptor,
   off_t * pOffset,

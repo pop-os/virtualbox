@@ -37,15 +37,21 @@ BEGINCODE
 ; @param    pu64     x86:ebp+8   gcc:rdi  msc:rcx
 ; @param    u64New   x86:ebp+c   gcc:rsi  msc:rdx
 ;
-; @returns Current (i.e. old) *pu64 value (x86:eax:edx, 64-bit: rax)
+; @returns  bool result: true if successfully exchanged, false if not.
+;           x86:al
 ;
 BEGINPROC_EXPORTED ASMAtomicXchgU64
 %ifdef RT_ARCH_AMD64
  %ifdef ASM_CALL64_MSC
-        xchg    [rcx], rdx
+        mov     rax, r8
+.try_again:
+        lock cmpxchg [rcx], rdx
  %else
-        xchg    [rdi], rsi
+.try_again:
+        mov     rax, rcx
+        lock cmpxchg [rdi], rsi
  %endif
+        jnz     .try_again
         ret
 %endif
 %ifdef RT_ARCH_X86

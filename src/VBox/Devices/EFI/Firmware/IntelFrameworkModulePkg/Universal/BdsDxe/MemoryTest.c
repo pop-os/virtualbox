@@ -1,7 +1,7 @@
 /** @file
   Perform the platform memory test
 
-Copyright (c) 2004 - 2014, Intel Corporation. All rights reserved.<BR>
+Copyright (c) 2004 - 2012, Intel Corporation. All rights reserved.<BR>
 This program and the accompanying materials
 are licensed and made available under the terms and conditions of the BSD License
 which accompanies this distribution.  The full text of the license may be found at
@@ -230,13 +230,11 @@ BdsMemoryTest (
   EFI_GRAPHICS_OUTPUT_BLT_PIXEL     Color;
   BOOLEAN                           IsFirstBoot;
   UINT32                            TempData;
-  UINTN                             StrTotalMemorySize;
 
   ReturnStatus = EFI_SUCCESS;
   ZeroMem (&Key, sizeof (EFI_INPUT_KEY));
 
-  StrTotalMemorySize = 128;
-  Pos = AllocateZeroPool (StrTotalMemorySize);
+  Pos = AllocatePool (128);
 
   if (Pos == NULL) {
     return ReturnStatus;
@@ -282,7 +280,7 @@ BdsMemoryTest (
     FreePool (Pos);
     return EFI_SUCCESS;
   }
-
+  
   if (!FeaturePcdGet(PcdBootlogoOnlyEnable)) {
     TmpStr = GetStringById (STRING_TOKEN (STR_ESC_TO_SKIP_MEM_TEST));
 
@@ -310,7 +308,7 @@ BdsMemoryTest (
 
       ASSERT (0);
     }
-
+    
     if (!FeaturePcdGet(PcdBootlogoOnlyEnable)) {
       TempData = (UINT32) DivU64x32 (TotalMemorySize, 16);
       TestPercent = (UINTN) DivU64x32 (
@@ -324,7 +322,7 @@ BdsMemoryTest (
           //
           // TmpStr size is 64, StrPercent is reserved to 16.
           //
-          StrnCat (StrPercent, TmpStr, sizeof (StrPercent) / sizeof (CHAR16) - StrLen (StrPercent) - 1);
+          StrCat (StrPercent, TmpStr);
           PrintXY (10, 10, NULL, NULL, StrPercent);
           FreePool (TmpStr);
         }
@@ -348,32 +346,30 @@ BdsMemoryTest (
       DEBUG ((EFI_D_INFO, "Perform memory test (ESC to skip).\n"));
     }
 
-    if (!PcdGetBool (PcdConInConnectOnDemand)) {
-      KeyStatus     = gST->ConIn->ReadKeyStroke (gST->ConIn, &Key);
-      if (!EFI_ERROR (KeyStatus) && (Key.ScanCode == SCAN_ESC)) {
-        if (!RequireSoftECCInit) {
-          if (!FeaturePcdGet(PcdBootlogoOnlyEnable)) {
-            TmpStr = GetStringById (STRING_TOKEN (STR_PERFORM_MEM_TEST));
-            if (TmpStr != NULL) {
-              PlatformBdsShowProgress (
-                Foreground,
-                Background,
-                TmpStr,
-                Color,
-                100,
-                (UINTN) PreviousValue
-                );
-              FreePool (TmpStr);
-            }
-
-            PrintXY (10, 10, NULL, NULL, L"100");
+    KeyStatus     = gST->ConIn->ReadKeyStroke (gST->ConIn, &Key);
+    if (!EFI_ERROR (KeyStatus) && (Key.ScanCode == SCAN_ESC)) {
+      if (!RequireSoftECCInit) {
+        if (!FeaturePcdGet(PcdBootlogoOnlyEnable)) {
+          TmpStr = GetStringById (STRING_TOKEN (STR_PERFORM_MEM_TEST));
+          if (TmpStr != NULL) {
+            PlatformBdsShowProgress (
+              Foreground,
+              Background,
+              TmpStr,
+              Color,
+              100,
+              (UINTN) PreviousValue
+              );
+            FreePool (TmpStr);
           }
-          Status = GenMemoryTest->Finished (GenMemoryTest);
-          goto Done;
-        }
 
-        TestAbort = TRUE;
+          PrintXY (10, 10, NULL, NULL, L"100");
+        }
+        Status = GenMemoryTest->Finished (GenMemoryTest);
+        goto Done;
       }
+
+      TestAbort = TRUE;
     }
   } while (Status != EFI_NOT_FOUND);
 
@@ -384,12 +380,11 @@ Done:
     UnicodeValueToString (StrTotalMemory, COMMA_TYPE, TotalMemorySize, 0);
     if (StrTotalMemory[0] == L',') {
       StrTotalMemory++;
-      StrTotalMemorySize -= sizeof (CHAR16);
     }
 
     TmpStr = GetStringById (STRING_TOKEN (STR_MEM_TEST_COMPLETED));
     if (TmpStr != NULL) {
-      StrnCat (StrTotalMemory, TmpStr, StrTotalMemorySize / sizeof (CHAR16) - StrLen (StrTotalMemory) - 1);
+      StrCat (StrTotalMemory, TmpStr);
       FreePool (TmpStr);
     }
 
@@ -402,11 +397,11 @@ Done:
       100,
       (UINTN) PreviousValue
       );
-
+    
   } else {
     DEBUG ((EFI_D_INFO, "%d bytes of system memory tested OK\r\n", TotalMemorySize));
   }
-
+  
   FreePool (Pos);
 
 

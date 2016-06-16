@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 107509 $"
+__version__ = "$Revision: 100880 $"
 
 
 # Standard python imports.
@@ -36,8 +36,7 @@ import unittest;
 # Validation Kit imports.
 from testmanager                        import config;
 from testmanager.core                   import coreconsts;
-from testmanager.core.base              import ModelDataBase, ModelDataBaseTestCase, ModelLogicBase, TMExceptionBase, \
-                                               TMTooManyRows, TMInvalidData, TMRowNotFound, TMRowInUse;
+from testmanager.core.base              import ModelDataBase, ModelDataBaseTestCase, ModelLogicBase, TMExceptionBase;
 
 
 class BuildCategoryData(ModelDataBase):
@@ -76,7 +75,7 @@ class BuildCategoryData(ModelDataBase):
         Returns self.  Raises exception if aoRow is None.
         """
         if aoRow is None:
-            raise TMRowNotFound('BuildCategory not found.');
+            raise TMExceptionBase('BuildCategory not found.');
 
         self.idBuildCategory     = aoRow[0];
         self.sProduct            = aoRow[1];
@@ -94,7 +93,7 @@ class BuildCategoryData(ModelDataBase):
         oDb.execute('SELECT * FROM BuildCategories WHERE idBuildCategory = %s', (idBuildCategory,));
         aoRow = oDb.fetchOne()
         if aoRow is None:
-            raise TMRowNotFound('idBuildCategory=%s not found' % (idBuildCategory, ));
+            raise TMExceptionBase('idBuildCategory=%s not found' % (idBuildCategory, ));
         return self.initFromDbRow(aoRow);
 
     def initFromValues(self, sProduct, sRepository, sBranch, sType, asOsArches, idBuildCategory = None):
@@ -220,8 +219,8 @@ class BuildCategoryLogic(ModelLogicBase): # pylint: disable=R0903
                           , (idBuildCategory,));
         cBuilds = self._oDb.fetchOne()[0];
         if cBuilds > 0:
-            raise TMRowInUse('Build category #%d is used by %d builds and can therefore not be deleted.'
-                             % (idBuildCategory, cBuilds,));
+            raise TMExceptionBase('Build category #%d is used by %d builds and can therefore not be deleted.'
+                                  % (idBuildCategory, cBuilds,));
 
         #
         # Ok, it's not used, so just delete it.
@@ -294,9 +293,9 @@ class BuildCategoryLogic(ModelLogicBase): # pylint: disable=R0903
         """
 
         # Check BuildCategoryData before do anything
-        dDataErrors = oData.validateAndConvert(self._oDb, oData.ksValidateFor_Add);
+        dDataErrors = oData.validateAndConvert(self._oDb);
         if len(dDataErrors) > 0:
-            raise TMInvalidData('Invalid data passed to addBuildCategory(): %s' % (dDataErrors,));
+            raise TMExceptionBase('Invalid data passed to addBuildCategory(): %s' % (dDataErrors,));
 
         # Does it already exist?
         if self.tryFindByData(oData) is None:
@@ -363,7 +362,7 @@ class BuildData(ModelDataBase):
         Returns self.  Raises exception if aoRow is None.
         """
         if aoRow is None:
-            raise TMRowNotFound('Build not found.');
+            raise TMExceptionBase('Build not found.');
 
         self.idBuild            = aoRow[0];
         self.tsCreated          = aoRow[1];
@@ -389,7 +388,7 @@ class BuildData(ModelDataBase):
                                                        , ( idBuild,), tsNow, sPeriodBack));
         aoRow = oDb.fetchOne()
         if aoRow is None:
-            raise TMRowNotFound('idBuild=%s not found (tsNow=%s sPeriodBack=%s)' % (idBuild, tsNow, sPeriodBack,));
+            raise TMExceptionBase('idBuild=%s not found (tsNow=%s sPeriodBack=%s)' % (idBuild, tsNow, sPeriodBack,));
         return self.initFromDbRow(aoRow);
 
     def areFilesStillThere(self):
@@ -443,7 +442,7 @@ class BuildDataEx(BuildData):
         Returns self.  Raises exception if aoRow is None.
         """
         if aoRow is None:
-            raise TMRowNotFound('Build not found.');
+            raise TMExceptionBase('Build not found.');
         BuildData.initFromDbRow(self, aoRow);
         self.oCat = BuildCategoryData().initFromDbRow(aoRow[11:]);
         return self;
@@ -461,7 +460,7 @@ class BuildDataEx(BuildData):
                                                        , ( idBuild,), tsNow, sPeriodBack, 'Builds.'));
         aoRow = oDb.fetchOne()
         if aoRow is None:
-            raise TMRowNotFound('idBuild=%s not found (tsNow=%s sPeriodBack=%s)' % (idBuild, tsNow, sPeriodBack,));
+            raise TMExceptionBase('idBuild=%s not found (tsNow=%s sPeriodBack=%s)' % (idBuild, tsNow, sPeriodBack,));
         return self.initFromDbRow(aoRow);
 
     def convertFromParamNull(self):
@@ -556,9 +555,9 @@ class BuildLogic(ModelLogicBase): # pylint: disable=R0903
         #
         # Validate input and get current data.
         #
-        dErrors = oData.validateAndConvert(self._oDb, oData.ksValidateFor_Edit);
+        dErrors = oData.validateAndConvert(self._oDb);
         if len(dErrors) > 0:
-            raise TMInvalidData('editEntry invalid input: %s' % (dErrors,));
+            raise TMExceptionBase('editEntry invalid input: %s' % (dErrors,));
         oOldData = BuildData().initFromDbWithId(self._oDb, oData.idBuild);
 
         #
@@ -714,7 +713,7 @@ class BuildLogic(ModelLogicBase): # pylint: disable=R0903
 
         aRows = self._oDb.fetchAll()
         if len(aRows) not in (0, 1):
-            raise TMTooManyRows('Found more than one build with the same credentials. Database structure is corrupted.')
+            raise TMExceptionBase('Found more than one build with the same credentials. Database structure is corrupted.')
         try:
             return BuildDataEx().initFromDbRow(aRows[0])
         except IndexError:

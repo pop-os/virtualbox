@@ -26,47 +26,51 @@
 
 /* GUI includes: */
 # include "VBoxGlobal.h"
-# include "UIExtraDataManager.h"
 # include "UIMessageCenter.h"
 # include "UIPopupCenter.h"
+# include "UIKeyboardHandler.h"
+# include "UIMouseHandler.h"
 # include "UISession.h"
 # include "UIMachineLogic.h"
 # include "UIMachineWindow.h"
 # include "UIMachineView.h"
-# include "UIKeyboardHandler.h"
-# include "UIMouseHandler.h"
 # include "UIFrameBuffer.h"
-# ifdef VBOX_WS_MAC
-#  include "VBoxUtils-darwin.h"
-# endif /* VBOX_WS_MAC */
-# ifdef VBOX_WS_WIN
+# include "UIExtraDataManager.h"
+
+# ifdef Q_WS_WIN
 #  include "VBoxUtils-win.h"
-# endif /* VBOX_WS_WIN */
+# endif /* Q_WS_WIN */
+
+# ifdef Q_WS_MAC
+#  include "VBoxUtils-darwin.h"
+# endif /* Q_WS_MAC */
 
 /* COM includes: */
+# include "CConsole.h"
 # include "CDisplay.h"
 
-/* Other VBox includes: */
 # include <iprt/time.h>
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
-/* Qt includes: */
 #include <QTouchEvent>
 
-/* COM includes: */
 #include "CMouse.h"
 
-/* External includes: */
-#ifdef VBOX_WS_X11
-# if QT_VERSION < 0x050000
-#  include <X11/Xlib.h>
-#  ifdef FocusOut
+
+#ifdef Q_WS_X11
+# include <X11/XKBlib.h>
+# ifdef KeyPress
 const int XFocusOut = FocusOut;
-#   undef FocusOut
-#  endif /* FocusOut */
-# endif /* QT_VERSION < 0x050000 */
-#endif /* VBOX_WS_X11 */
+const int XFocusIn = FocusIn;
+const int XKeyPress = KeyPress;
+const int XKeyRelease = KeyRelease;
+#  undef KeyRelease
+#  undef KeyPress
+#  undef FocusOut
+#  undef FocusIn
+# endif /* KeyPress */
+#endif /* Q_WS_X11 */
 
 
 /* Factory function to create mouse-handler: */
@@ -185,21 +189,21 @@ void UIMouseHandler::captureMouse(ulong uScreenId)
         visibleRectangle.translate(visibleRectanglePos);
         visibleRectangle = visibleRectangle.intersected(vboxGlobal().availableGeometry(machineLogic()->machineWindows()[m_iMouseCaptureViewIndex]));
 
-#ifdef VBOX_WS_WIN
+#ifdef Q_WS_WIN
         /* Move the mouse to the center of the visible area: */
         m_lastMousePos = visibleRectangle.center();
         QCursor::setPos(m_lastMousePos);
         /* Update mouse clipping: */
         updateMouseCursorClipping();
-#elif defined (VBOX_WS_MAC)
+#elif defined (Q_WS_MAC)
         /* Grab all mouse events: */
         ::darwinMouseGrab(m_viewports[m_iMouseCaptureViewIndex]);
-#else /* VBOX_WS_MAC */
+#else /* Q_WS_MAC */
         /* Remember current mouse position: */
         m_lastMousePos = QCursor::pos();
         /* Grab all mouse events: */
         m_viewports[m_iMouseCaptureViewIndex]->grabMouse();
-#endif /* !VBOX_WS_MAC */
+#endif /* !Q_WS_MAC */
 
         /* Switch guest mouse to the relative mode: */
         mouse().PutMouseEvent(0, 0, 0, 0, 0);
@@ -223,16 +227,16 @@ void UIMouseHandler::releaseMouse()
 
         /* Return the cursor to where it was when we captured it: */
         QCursor::setPos(m_capturedMousePos);
-#ifdef VBOX_WS_WIN
+#ifdef Q_WS_WIN
         /* Update mouse clipping: */
         updateMouseCursorClipping();
-#elif defined(VBOX_WS_MAC)
+#elif defined(Q_WS_MAC)
         /* Releasing grabbed mouse from that view: */
         ::darwinMouseRelease(m_viewports[m_iMouseCaptureViewIndex]);
-#else /* VBOX_WS_MAC */
+#else /* Q_WS_MAC */
         /* Releasing grabbed mouse from that view: */
         m_viewports[m_iMouseCaptureViewIndex]->releaseMouse();
-#endif /* !VBOX_WS_MAC */
+#endif /* !Q_WS_MAC */
         /* Reset mouse-capture index: */
         m_iMouseCaptureViewIndex = -1;
 
@@ -263,8 +267,7 @@ int UIMouseHandler::state() const
            (uisession()->isMouseIntegrated() ? 0 : UIMouseStateType_MouseAbsoluteDisabled);
 }
 
-#ifdef VBOX_WS_X11
-# if QT_VERSION < 0x050000
+#ifdef Q_WS_X11
 bool UIMouseHandler::x11EventFilter(XEvent *pEvent, ulong /* uScreenId */)
 {
     /* Check if some system event should be filtered-out.
@@ -292,8 +295,7 @@ bool UIMouseHandler::x11EventFilter(XEvent *pEvent, ulong /* uScreenId */)
     /* Return result: */
     return fResult;
 }
-# endif /* QT_VERSION < 0x050000 */
-#endif /* VBOX_WS_X11 */
+#endif /* Q_WS_X11 */
 
 /* Machine state-change handler: */
 void UIMouseHandler::sltMachineStateChanged()
@@ -435,11 +437,11 @@ void UIMouseHandler::sltMaybeActivateHoveredWindow()
     {
         /* Activate it: */
         m_pHoveredWindow->activateWindow();
-#ifdef VBOX_WS_X11
+#ifdef Q_WS_X11
         /* On X11 its not enough to just activate window if you
          * want to raise it also, so we will make it separately: */
         m_pHoveredWindow->raise();
-#endif /* VBOX_WS_X11 */
+#endif /* Q_WS_X11 */
     }
 }
 
@@ -502,7 +504,7 @@ bool UIMouseHandler::eventFilter(QObject *pWatched, QEvent *pEvent)
         /* Check if that widget is in windows list: */
         if (m_windows.values().contains(pWatchedWidget))
         {
-#ifdef VBOX_WS_WIN
+#ifdef Q_WS_WIN
             /* Handle window events: */
             switch (pEvent->type())
             {
@@ -516,7 +518,7 @@ bool UIMouseHandler::eventFilter(QObject *pWatched, QEvent *pEvent)
                 default:
                     break;
             }
-#endif /* VBOX_WS_WIN */
+#endif /* Q_WS_WIN */
         }
 
         else
@@ -552,7 +554,7 @@ bool UIMouseHandler::eventFilter(QObject *pWatched, QEvent *pEvent)
             /* Handle viewport events: */
             switch (pEvent->type())
             {
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
                 case UIGrabMouseEvent::GrabMouseEvent:
                 {
                     UIGrabMouseEvent *pDeltaEvent = static_cast<UIGrabMouseEvent*>(pEvent);
@@ -565,7 +567,7 @@ bool UIMouseHandler::eventFilter(QObject *pWatched, QEvent *pEvent)
                         return true;
                     break;
                 }
-#endif /* VBOX_WS_MAC */
+#endif /* Q_WS_MAC */
                 case QEvent::MouseMove:
                 case QEvent::MouseButtonRelease:
                 {
@@ -603,14 +605,14 @@ bool UIMouseHandler::eventFilter(QObject *pWatched, QEvent *pEvent)
                         return true;
                     }
 
-#ifdef VBOX_WS_X11
+#ifdef Q_WS_X11
                     /* Make sure that we are focused after a click.  Rather
                      * ugly, but works around a problem with GNOME
                      * screensaver, which sometimes removes our input focus
                      * and gives us no way to get it back. */
                     if (pEvent->type() == QEvent::MouseButtonRelease)
                         pWatchedWidget->window()->activateWindow();
-#endif /* VBOX_WS_X11 */
+#endif /* Q_WS_X11 */
                     /* Check if we should activate window under cursor: */
                     if (gEDataManager->activateHoveredMachineWindow() &&
                         !uisession()->isMouseCaptured() &&
@@ -666,19 +668,19 @@ bool UIMouseHandler::eventFilter(QObject *pWatched, QEvent *pEvent)
                     }
                     if (mouseEvent(pWheelEvent->type(), uScreenId,
                                    pWheelEvent->pos(), pWheelEvent->globalPos(),
-#ifdef VBOX_WS_MAC
+#ifdef QT_MAC_USE_COCOA
                                    /* Qt Cocoa is buggy. It always reports a left button pressed when the
                                     * mouse wheel event occurs. A workaround is to ask the application which
                                     * buttons are pressed currently: */
                                    QApplication::mouseButtons(),
-#else /* !VBOX_WS_MAC */
+#else /* QT_MAC_USE_COCOA */
                                    pWheelEvent->buttons(),
-#endif /* !VBOX_WS_MAC */
+#endif /* !QT_MAC_USE_COCOA */
                                    iDelta, pWheelEvent->orientation()))
                         return true;
                     break;
                 }
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
                 case QEvent::Leave:
                 {
                     /* Enable mouse event compression if we leave the VM view.
@@ -696,15 +698,15 @@ bool UIMouseHandler::eventFilter(QObject *pWatched, QEvent *pEvent)
                         darwinSetMouseCoalescingEnabled(false);
                     break;
                 }
-#endif /* VBOX_WS_MAC */
-#ifdef VBOX_WS_WIN
+#endif /* Q_WS_MAC */
+#ifdef Q_WS_WIN
                 case QEvent::Resize:
                 {
                     /* Update mouse clipping: */
                     updateMouseCursorClipping();
                     break;
                 }
-#endif /* VBOX_WS_WIN */
+#endif /* Q_WS_WIN */
                 default:
                     break;
             }
@@ -714,7 +716,7 @@ bool UIMouseHandler::eventFilter(QObject *pWatched, QEvent *pEvent)
 }
 
 /* Try to detect if the mouse event is fake and actually generated by a touch device. */
-#ifdef VBOX_WS_WIN
+#ifdef Q_WS_WIN
 #if (WINVER < 0x0601)
 typedef enum tagINPUT_MESSAGE_DEVICE_TYPE {
   IMDT_UNAVAILABLE  = 0, // 0x0
@@ -775,7 +777,7 @@ static bool mouseIsTouchSource(int iEventType, Qt::MouseButtons mouseButtons)
     return deviceType == IMDT_TOUCH || deviceType == IMDT_PEN;
 }
 #else
-/* Apparently VBOX_WS_MAC does not generate fake mouse events.
+/* Apparently Q_WS_MAC does not generate fake mouse events.
  * Other platforms, which have no known method to detect fake events are handled here too.
  */
 static bool mouseIsTouchSource(int iEventType, Qt::MouseButtons mouseButtons)
@@ -816,13 +818,13 @@ bool UIMouseHandler::mouseEvent(int iEventType, ulong uScreenId,
     if (mouseButtons & Qt::XButton2)
         iMouseButtonsState |= KMouseButtonState_XButton2;
 
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
     /* Simulate the right click on host-key + left-mouse-button: */
     if (machineLogic()->keyboardHandler()->isHostKeyPressed() &&
         machineLogic()->keyboardHandler()->isHostKeyAlone() &&
         iMouseButtonsState == KMouseButtonState_LeftButton)
         iMouseButtonsState = KMouseButtonState_RightButton;
-#endif /* VBOX_WS_MAC */
+#endif /* Q_WS_MAC */
 
     int iWheelVertical = 0;
     int iWheelHorizontal = 0;
@@ -838,15 +840,15 @@ bool UIMouseHandler::mouseEvent(int iEventType, ulong uScreenId,
 
     if (uisession()->isMouseCaptured())
     {
-#ifdef VBOX_WS_WIN
+#ifdef Q_WS_WIN
         /* Send pending WM_PAINT events: */
-        ::UpdateWindow((HWND)m_viewports[uScreenId]->winId());
+        ::UpdateWindow(m_viewports[uScreenId]->winId());
 #endif
         mouse().PutMouseEvent(globalPos.x() - m_lastMousePos.x(),
                               globalPos.y() - m_lastMousePos.y(),
                               iWheelVertical, iWheelHorizontal, iMouseButtonsState);
 
-#ifdef VBOX_WS_WIN
+#ifdef Q_WS_WIN
         /* Bringing mouse to the opposite side to simulate the endless moving: */
 
         /* Get visible-viewport-rectangle in global coordinates: */
@@ -879,7 +881,7 @@ bool UIMouseHandler::mouseEvent(int iEventType, ulong uScreenId,
         }
         else
             m_lastMousePos = globalPos;
-#else /* VBOX_WS_WIN */
+#else /* Q_WS_WIN */
         int iWe = QApplication::desktop()->width() - 1;
         int iHe = QApplication::desktop()->height() - 1;
         QPoint p = globalPos;
@@ -896,13 +898,13 @@ bool UIMouseHandler::mouseEvent(int iEventType, ulong uScreenId,
         {
             m_lastMousePos =  p;
             /* No need for cursor updating on the Mac, there is no one. */
-# ifndef VBOX_WS_MAC
+# ifndef Q_WS_MAC
             QCursor::setPos(m_lastMousePos);
-# endif /* VBOX_WS_MAC */
+# endif /* Q_WS_MAC */
         }
         else
             m_lastMousePos = globalPos;
-#endif /* !VBOX_WS_WIN */
+#endif /* !Q_WS_WIN */
         return true; /* stop further event handling */
     }
     else /* !uisession()->isMouseCaptured() */
@@ -939,7 +941,7 @@ bool UIMouseHandler::mouseEvent(int iEventType, ulong uScreenId,
                 }
             }
 
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
             /* Take the backing-scale-factor into account: */
             if (pFrameBuffer->useUnscaledHiDPIOutput())
             {
@@ -950,7 +952,7 @@ bool UIMouseHandler::mouseEvent(int iEventType, ulong uScreenId,
                     cpnt.setY((int)(cpnt.y() * dBackingScaleFactor));
                 }
             }
-#endif /* VBOX_WS_MAC */
+#endif /* Q_WS_MAC */
 
 #ifdef VBOX_WITH_DRAG_AND_DROP
 # ifdef VBOX_WITH_DRAG_AND_DROP_GH
@@ -1023,11 +1025,11 @@ bool UIMouseHandler::mouseEvent(int iEventType, ulong uScreenId,
                      * may happen asynchronously on some platforms, after we return from this code): */
                     if (ok)
                     {
-#ifdef VBOX_WS_X11
+#ifdef Q_WS_X11
                         /* Make sure that pending FocusOut events from the previous message box are handled,
                          * otherwise the mouse is immediately ungrabbed again: */
                         qApp->processEvents();
-#endif /* VBOX_WS_X11 */
+#endif /* Q_WS_X11 */
                         machineLogic()->keyboardHandler()->captureKeyboard(uScreenId);
                         const MouseCapturePolicy mcp = gEDataManager->mouseCapturePolicy(vboxGlobal().managedVMUuid());
                         if (mcp == MouseCapturePolicy_Default)
@@ -1100,7 +1102,7 @@ bool UIMouseHandler::multiTouchEvent(QTouchEvent *pTouchEvent, ulong uScreenId)
     return true;
 }
 
-#ifdef VBOX_WS_WIN
+#ifdef Q_WS_WIN
 /* This method is actually required only because under win-host
  * we do not really grab the mouse in case of capturing it: */
 void UIMouseHandler::updateMouseCursorClipping()
@@ -1147,5 +1149,5 @@ void UIMouseHandler::updateMouseCursorClipping()
         ::ClipCursor(NULL);
     }
 }
-#endif /* VBOX_WS_WIN */
+#endif /* Q_WS_WIN */
 

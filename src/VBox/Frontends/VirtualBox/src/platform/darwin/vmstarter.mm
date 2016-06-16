@@ -18,9 +18,8 @@
 #import <Cocoa/Cocoa.h>
 
 @interface AppDelegate: NSObject
-{
+{}
 NSString *m_strVBoxPath;
-}
 @end
 
 @implementation AppDelegate

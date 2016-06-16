@@ -100,9 +100,9 @@ void UIMachineSettingsDisplay::loadToCacheFrom(QVariant &data)
     displayData.m_iCurrentVRAM = m_machine.GetVRAMSize();
     displayData.m_cGuestScreenCount = m_machine.GetMonitorCount();
     displayData.m_dScaleFactor = gEDataManager->scaleFactor(m_machine.GetId());
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
     displayData.m_fUseUnscaledHiDPIOutput = gEDataManager->useUnscaledHiDPIOutput(m_machine.GetId());
-#endif /* VBOX_WS_MAC */
+#endif /* Q_WS_MAC */
     displayData.m_f3dAccelerationEnabled = m_machine.GetAccelerate3DEnabled();
 #ifdef VBOX_WITH_VIDEOHWACCEL
     displayData.m_f2dAccelerationEnabled = m_machine.GetAccelerate2DVideoEnabled();
@@ -151,9 +151,9 @@ void UIMachineSettingsDisplay::getFromCache()
     /* Load Screen data to page: */
     m_pEditorVideoScreenCount->setValue(displayData.m_cGuestScreenCount);
     m_pEditorGuestScreenScale->setValue((int)(displayData.m_dScaleFactor * 100));
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
     m_pCheckBoxUnscaledHiDPIOutput->setChecked(displayData.m_fUseUnscaledHiDPIOutput);
-#endif /* VBOX_WS_MAC */
+#endif /* Q_WS_MAC */
     m_pCheckbox3D->setChecked(displayData.m_f3dAccelerationEnabled);
 #ifdef VBOX_WITH_VIDEOHWACCEL
     m_pCheckbox2DVideo->setChecked(displayData.m_f2dAccelerationEnabled);
@@ -200,9 +200,9 @@ void UIMachineSettingsDisplay::putToCache()
     displayData.m_iCurrentVRAM = m_pEditorVideoMemorySize->value();
     displayData.m_cGuestScreenCount = m_pEditorVideoScreenCount->value();
     displayData.m_dScaleFactor = (double)m_pEditorGuestScreenScale->value() / 100;
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
     displayData.m_fUseUnscaledHiDPIOutput = m_pCheckBoxUnscaledHiDPIOutput->isChecked();
-#endif /* VBOX_WS_MAC */
+#endif /* Q_WS_MAC */
     displayData.m_f3dAccelerationEnabled = m_pCheckbox3D->isChecked();
 #ifdef VBOX_WITH_VIDEOHWACCEL
     displayData.m_f2dAccelerationEnabled = m_pCheckbox2DVideo->isChecked();
@@ -258,9 +258,9 @@ void UIMachineSettingsDisplay::saveFromCacheTo(QVariant &data)
         if (isMachineInValidMode())
         {
             gEDataManager->setScaleFactor(displayData.m_dScaleFactor, m_machine.GetId());
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
             gEDataManager->setUseUnscaledHiDPIOutput(displayData.m_fUseUnscaledHiDPIOutput, m_machine.GetId());
-#endif /* VBOX_WS_MAC */
+#endif /* Q_WS_MAC */
         }
 
         /* Check if Remote Display server still valid: */
@@ -536,13 +536,13 @@ void UIMachineSettingsDisplay::polishPage()
     m_pLabelGuestScreenScaleMin->setEnabled(isMachineInValidMode());
     m_pLabelGuestScreenScaleMax->setEnabled(isMachineInValidMode());
     m_pEditorGuestScreenScale->setEnabled(isMachineInValidMode());
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
     m_pLabelHiDPI->setEnabled(isMachineInValidMode());
     m_pCheckBoxUnscaledHiDPIOutput->setEnabled(isMachineInValidMode());
-#else /* !VBOX_WS_MAC */
+#else /* !Q_WS_MAC */
     m_pLabelHiDPI->hide();
     m_pCheckBoxUnscaledHiDPIOutput->hide();
-#endif /* !VBOX_WS_MAC */
+#endif /* !Q_WS_MAC */
     m_pLabelVideoOptions->setEnabled(isMachineOffline());
     m_pCheckbox3D->setEnabled(isMachineOffline());
 #ifdef VBOX_WITH_VIDEOHWACCEL
@@ -837,7 +837,7 @@ void UIMachineSettingsDisplay::prepareVideoCaptureTab()
 
     /* Prepare filepath selector: */
     m_pEditorVideoCapturePath->setEditable(false);
-    m_pEditorVideoCapturePath->setMode(UIFilePathSelector::Mode_File_Save);
+    m_pEditorVideoCapturePath->setMode(VBoxFilePathSelectorWidget::Mode_File_Save);
 
     /* Prepare frame-size combo-box: */
     m_pComboVideoCaptureSize->addItem(""); /* User Defined */

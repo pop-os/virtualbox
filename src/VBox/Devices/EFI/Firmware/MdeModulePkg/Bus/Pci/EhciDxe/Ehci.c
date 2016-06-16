@@ -1,17 +1,16 @@
-/** @file
+/** @file  
   The Ehci controller driver.
 
-  EhciDxe driver is responsible for managing the behavior of EHCI controller.
-  It implements the interfaces of monitoring the status of all ports and transferring
+  EhciDxe driver is responsible for managing the behavior of EHCI controller. 
+  It implements the interfaces of monitoring the status of all ports and transferring 
   Control, Bulk, Interrupt and Isochronous requests to Usb2.0 device.
 
   Note that EhciDxe driver is enhanced to guarantee that the EHCI controller get attached
-  to the EHCI controller before a UHCI or OHCI driver attaches to the companion UHCI or
-  OHCI controller.  This way avoids the control transfer on a shared port between EHCI
-  and companion host controller when UHCI or OHCI gets attached earlier than EHCI and a
-  USB 2.0 device inserts.
+  to the EHCI controller before the UHCI driver attaches to the companion UHCI controller. 
+  This way avoids the control transfer on a shared port between EHCI and companion host
+  controller when UHCI gets attached earlier than EHCI and a USB 2.0 device inserts.
 
-Copyright (c) 2006 - 2014, Intel Corporation. All rights reserved.<BR>
+Copyright (c) 2006 - 2012, Intel Corporation. All rights reserved.<BR>
 This program and the accompanying materials
 are licensed and made available under the terms and conditions of the BSD License
 which accompanies this distribution.  The full text of the license may be found at
@@ -123,20 +122,8 @@ EhcReset (
   EFI_STATUS              Status;
   UINT32                  DbgCtrlStatus;
 
-  Ehc = EHC_FROM_THIS (This);
-
-  if (Ehc->DevicePath != NULL) {
-    //
-    // Report Status Code to indicate reset happens
-    //
-    REPORT_STATUS_CODE_WITH_DEVICE_PATH (
-      EFI_PROGRESS_CODE,
-      (EFI_IO_BUS_USB | EFI_IOB_PC_RESET),
-      Ehc->DevicePath
-      );
-  }
-
   OldTpl  = gBS->RaiseTPL (EHC_TPL);
+  Ehc     = EHC_FROM_THIS (This);
 
   switch (Attributes) {
   case EFI_USB_HC_RESET_GLOBAL:
@@ -1404,7 +1391,7 @@ EhcDriverBindingSupported (
   // Test whether the controller belongs to Ehci type
   //
   if ((UsbClassCReg.BaseCode != PCI_CLASS_SERIAL) || (UsbClassCReg.SubClassCode != PCI_CLASS_SERIAL_USB)
-      || ((UsbClassCReg.ProgInterface != PCI_IF_EHCI) && (UsbClassCReg.ProgInterface != PCI_IF_UHCI) && (UsbClassCReg.ProgInterface != PCI_IF_OHCI))) {
+      || ((UsbClassCReg.ProgInterface != PCI_IF_EHCI) && (UsbClassCReg.ProgInterface !=PCI_IF_UHCI))) {
 
     Status = EFI_UNSUPPORTED;
   }
@@ -1548,7 +1535,6 @@ EhcGetUsbDebugPortInfo (
   Create and initialize a USB2_HC_DEV.
 
   @param  PciIo                  The PciIo on this device.
-  @param  DevicePath             The device path of host controller.
   @param  OriginalPciAttributes  Original PCI attributes.
 
   @return  The allocated and initialized USB2_HC_DEV structure if created,
@@ -1557,9 +1543,8 @@ EhcGetUsbDebugPortInfo (
 **/
 USB2_HC_DEV *
 EhcCreateUsb2Hc (
-  IN EFI_PCI_IO_PROTOCOL       *PciIo,
-  IN EFI_DEVICE_PATH_PROTOCOL  *DevicePath,
-  IN UINT64                    OriginalPciAttributes
+  IN EFI_PCI_IO_PROTOCOL  *PciIo,
+  IN UINT64               OriginalPciAttributes
   )
 {
   USB2_HC_DEV             *Ehc;
@@ -1593,7 +1578,6 @@ EhcCreateUsb2Hc (
   Ehc->Usb2Hc.MinorRevision             = 0x0;
 
   Ehc->PciIo                 = PciIo;
-  Ehc->DevicePath            = DevicePath;
   Ehc->OriginalPciAttributes = OriginalPciAttributes;
 
   InitializeListHead (&Ehc->AsyncIntTransfers);
@@ -1611,7 +1595,7 @@ EhcCreateUsb2Hc (
     gBS->FreePool (Ehc);
     return NULL;
   }
-
+  
   EhcGetUsbDebugPortInfo (Ehc);
 
   //
@@ -1637,7 +1621,7 @@ EhcCreateUsb2Hc (
   One notified function to stop the Host Controller when gBS->ExitBootServices() called.
 
   @param  Event                   Pointer to this event
-  @param  Context                 Event handler private data
+  @param  Context                 Event hanlder private data
 
 **/
 VOID
@@ -1691,16 +1675,15 @@ EhcDriverBindingStart (
   EFI_HANDLE              *HandleBuffer;
   UINTN                   NumberOfHandles;
   UINTN                   Index;
-  UINTN                   CompanionSegmentNumber;
-  UINTN                   CompanionBusNumber;
-  UINTN                   CompanionDeviceNumber;
-  UINTN                   CompanionFunctionNumber;
+  UINTN                   UhciSegmentNumber;
+  UINTN                   UhciBusNumber;
+  UINTN                   UhciDeviceNumber;
+  UINTN                   UhciFunctionNumber;
   UINTN                   EhciSegmentNumber;
   UINTN                   EhciBusNumber;
   UINTN                   EhciDeviceNumber;
   UINTN                   EhciFunctionNumber;
   UINT32                  State;
-  EFI_DEVICE_PATH_PROTOCOL  *HcDevicePath;
 
   //
   // Open the PciIo Protocol, then enable the USB host controller
@@ -1717,19 +1700,6 @@ EhcDriverBindingStart (
   if (EFI_ERROR (Status)) {
     return Status;
   }
-
-  //
-  // Open Device Path Protocol for on USB host controller
-  //
-  HcDevicePath = NULL;
-  Status = gBS->OpenProtocol (
-                  Controller,
-                  &gEfiDevicePathProtocolGuid,
-                  (VOID **) &HcDevicePath,
-                  This->DriverBindingHandle,
-                  Controller,
-                  EFI_OPEN_PROTOCOL_GET_PROTOCOL
-                  );
 
   PciAttributesSaved = FALSE;
   //
@@ -1754,7 +1724,7 @@ EhcDriverBindingStart (
                     &Supports
                     );
   if (!EFI_ERROR (Status)) {
-    Supports &= (UINT64)EFI_PCI_DEVICE_ENABLE;
+    Supports &= EFI_PCI_DEVICE_ENABLE;
     Status = PciIo->Attributes (
                       PciIo,
                       EfiPciIoAttributeOperationEnable,
@@ -1784,19 +1754,19 @@ EhcDriverBindingStart (
     goto CLOSE_PCIIO;
   }
   //
-  // Determine if the device is UHCI or OHCI host controller or not. If yes, then find out the
+  // determine if the device is UHCI host controller or not. If yes, then find out the 
   // companion usb ehci host controller and force EHCI driver get attached to it before
-  // UHCI or OHCI driver attaches to UHCI or OHCI host controller.
+  // UHCI driver attaches to UHCI host controller.
   //
-  if ((UsbClassCReg.ProgInterface == PCI_IF_UHCI || UsbClassCReg.ProgInterface == PCI_IF_OHCI) &&
-       (UsbClassCReg.BaseCode == PCI_CLASS_SERIAL) &&
+  if ((UsbClassCReg.ProgInterface == PCI_IF_UHCI) &&
+       (UsbClassCReg.BaseCode == PCI_CLASS_SERIAL) && 
        (UsbClassCReg.SubClassCode == PCI_CLASS_SERIAL_USB)) {
     Status = PciIo->GetLocation (
                     PciIo,
-                    &CompanionSegmentNumber,
-                    &CompanionBusNumber,
-                    &CompanionDeviceNumber,
-                    &CompanionFunctionNumber
+                    &UhciSegmentNumber,
+                    &UhciBusNumber,
+                    &UhciDeviceNumber,
+                    &UhciFunctionNumber
                     );
     if (EFI_ERROR (Status)) {
       goto CLOSE_PCIIO;
@@ -1838,7 +1808,7 @@ EhcDriverBindingStart (
       }
 
       if ((UsbClassCReg.ProgInterface == PCI_IF_EHCI) &&
-           (UsbClassCReg.BaseCode == PCI_CLASS_SERIAL) &&
+           (UsbClassCReg.BaseCode == PCI_CLASS_SERIAL) && 
            (UsbClassCReg.SubClassCode == PCI_CLASS_SERIAL_USB)) {
         Status = Instance->GetLocation (
                     Instance,
@@ -1854,7 +1824,7 @@ EhcDriverBindingStart (
         // Currently, the judgment on the companion usb host controller is through the
         // same bus number, which may vary on different platform.
         //
-        if (EhciBusNumber == CompanionBusNumber) {
+        if (EhciBusNumber == UhciBusNumber) {
           gBS->CloseProtocol (
                     Controller,
                     &gEfiPciIoProtocolGuid,
@@ -1872,7 +1842,7 @@ EhcDriverBindingStart (
   //
   // Create then install USB2_HC_PROTOCOL
   //
-  Ehc = EhcCreateUsb2Hc (PciIo, HcDevicePath, OriginalPciAttributes);
+  Ehc = EhcCreateUsb2Hc (PciIo, OriginalPciAttributes);
 
   if (Ehc == NULL) {
     DEBUG ((EFI_D_ERROR, "EhcDriverBindingStart: failed to create USB2_HC\n"));
@@ -2049,6 +2019,13 @@ EhcDriverBindingStop (
   Ehc   = EHC_FROM_THIS (Usb2Hc);
   PciIo = Ehc->PciIo;
 
+  //
+  // Stop AsyncRequest Polling timer then stop the EHCI driver
+  // and uninstall the EHCI protocl.
+  //
+  gBS->SetTimer (Ehc->PollTimer, TimerCancel, EHC_ASYNC_POLL_INTERVAL);
+  EhcHaltHC (Ehc, EHC_GENERIC_TIMEOUT);
+
   Status = gBS->UninstallProtocolInterface (
                   Controller,
                   &gEfiUsb2HcProtocolGuid,
@@ -2058,13 +2035,6 @@ EhcDriverBindingStop (
   if (EFI_ERROR (Status)) {
     return Status;
   }
-
-  //
-  // Stop AsyncRequest Polling timer then stop the EHCI driver
-  // and uninstall the EHCI protocl.
-  //
-  gBS->SetTimer (Ehc->PollTimer, TimerCancel, EHC_ASYNC_POLL_INTERVAL);
-  EhcHaltHC (Ehc, EHC_GENERIC_TIMEOUT);
 
   if (Ehc->PollTimer != NULL) {
     gBS->CloseEvent (Ehc->PollTimer);
@@ -2081,8 +2051,8 @@ EhcDriverBindingStop (
   }
 
   //
-  // Disable routing of all ports to EHCI controller, so all ports are
-  // routed back to the UHCI or OHCI controller.
+  // Disable routing of all ports to EHCI controller, so all ports are 
+  // routed back to the UHCI controller.
   //
   EhcClearOpRegBit (Ehc, EHC_CONFIG_FLAG_OFFSET, CONFIGFLAG_ROUTE_EHC);
 

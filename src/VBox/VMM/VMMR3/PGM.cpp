@@ -18,9 +18,9 @@
 
 /** @page pg_pgm PGM - The Page Manager and Monitor
  *
- * @sa  @ref grp_pgm
- *      @subpage pg_pgm_pool
- *      @subpage pg_pgm_phys
+ * @see grp_pgm,
+ * @ref pg_pgm_pool,
+ * @ref pg_pgm_phys.
  *
  *
  * @section         sec_pgm_modes           Paging Modes
@@ -1252,7 +1252,6 @@ VMMR3DECL(int) PGMR3Init(PVM pVM)
      */
     pVM->pgm.s.offVM       = RT_OFFSETOF(VM, pgm.s);
     pVM->pgm.s.offVCpuPGM  = RT_OFFSETOF(VMCPU, pgm.s);
-    /*pVM->pgm.s.fRestoreRomPagesAtReset = false;*/
 
     for (unsigned i = 0; i < RT_ELEMENTS(pVM->pgm.s.aHandyPages); i++)
     {
@@ -1362,11 +1361,6 @@ VMMR3DECL(int) PGMR3Init(PVM pVM)
     AssertLogRelReturn(!pVM->pgm.s.fPciPassthrough || pVM->pgm.s.fRamPreAlloc, VERR_INVALID_PARAMETER);
 
     rc = CFGMR3QueryBoolDef(CFGMR3GetRoot(pVM), "PageFusionAllowed", &pVM->pgm.s.fPageFusionAllowed, false);
-    AssertLogRelRCReturn(rc, rc);
-
-    /** @cfgm{/PGM/ZeroRamPagesOnReset, boolean, true}
-     * Whether to clear RAM pages on (hard) reset. */
-    rc = CFGMR3QueryBoolDef(pCfgPGM, "ZeroRamPagesOnReset", &pVM->pgm.s.fZeroRamPagesOnReset, true);
     AssertLogRelRCReturn(rc, rc);
 
 #ifdef VBOX_WITH_STATISTICS

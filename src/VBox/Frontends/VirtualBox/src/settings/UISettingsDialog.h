@@ -164,9 +164,9 @@ private:
     QPointer<QWidget> m_pWhatsThisCandidate;
 
     QMap<int, int> m_pages;
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
     QList<QSize> m_sizeList;
-#endif /* VBOX_WS_MAC */
+#endif /* Q_WS_MAC */
 };
 
 #endif // __UISettingsDialog_h__

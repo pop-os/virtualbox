@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2016 Oracle Corporation
+ * Copyright (C) 2010-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -207,13 +207,10 @@ HRESULT VBoxEvent::waitProcessed(LONG aTimeout, BOOL *aResult)
         return S_OK;
     }
 
-    // must drop lock while waiting, because setProcessed() needs synchronization.
-    alock.release();
     /* @todo: maybe while loop for spurious wakeups? */
     int vrc = ::RTSemEventWait(m->mWaitEvent, aTimeout);
     AssertMsg(RT_SUCCESS(vrc) || vrc == VERR_TIMEOUT || vrc == VERR_INTERRUPTED,
               ("RTSemEventWait returned %Rrc\n", vrc));
-    alock.acquire();
 
     if (RT_SUCCESS(vrc))
     {
@@ -1260,10 +1257,7 @@ public:
     DECLARE_PROTECT_FINAL_CONSTRUCT()
 
     BEGIN_COM_MAP(PassiveEventListener)
-        COM_INTERFACE_ENTRY(ISupportErrorInfo)
-        COM_INTERFACE_ENTRY(IEventListener)
-        COM_INTERFACE_ENTRY2(IDispatch, IEventListener)
-        VBOX_TWEAK_INTERFACE_ENTRY(IEventListener)
+        VBOX_DEFAULT_INTERFACE_ENTRIES(IEventListener)
     END_COM_MAP()
 
     PassiveEventListener()
@@ -1303,10 +1297,7 @@ public:
     DECLARE_PROTECT_FINAL_CONSTRUCT()
 
     BEGIN_COM_MAP(ProxyEventListener)
-        COM_INTERFACE_ENTRY(ISupportErrorInfo)
-        COM_INTERFACE_ENTRY(IEventListener)
-        COM_INTERFACE_ENTRY2(IDispatch, IEventListener)
-        VBOX_TWEAK_INTERFACE_ENTRY(IEventListener)
+        VBOX_DEFAULT_INTERFACE_ENTRIES(IEventListener)
     END_COM_MAP()
 
     ProxyEventListener()
@@ -1361,10 +1352,7 @@ public:
     DECLARE_PROTECT_FINAL_CONSTRUCT()
 
     BEGIN_COM_MAP(EventSourceAggregator)
-        COM_INTERFACE_ENTRY(ISupportErrorInfo)
-        COM_INTERFACE_ENTRY(IEventSource)
-        COM_INTERFACE_ENTRY2(IDispatch, IEventSource)
-        VBOX_TWEAK_INTERFACE_ENTRY(IEventSource)
+        VBOX_DEFAULT_INTERFACE_ENTRIES(IEventSource)
     END_COM_MAP()
 
     EventSourceAggregator()

@@ -1,14 +1,14 @@
 /** @file
   Timer Architectural Protocol as defined in the DXE CIS
 
-Copyright (c) 2005 - 2012, Intel Corporation. All rights reserved.<BR>
-This program and the accompanying materials
-are licensed and made available under the terms and conditions of the BSD License
-which accompanies this distribution.  The full text of the license may be found at
-http://opensource.org/licenses/bsd-license.php
-
-THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,
-WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
+Copyright (c) 2005 - 2010, Intel Corporation. All rights reserved.<BR>
+This program and the accompanying materials                          
+are licensed and made available under the terms and conditions of the BSD License         
+which accompanies this distribution.  The full text of the license may be found at        
+http://opensource.org/licenses/bsd-license.php                                            
+                                                                                          
+THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,                     
+WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.             
 
 **/
 
@@ -219,7 +219,9 @@ TimerDriverSetTimerPeriod (
     //
     if (TimerCount >= 65536) {
       TimerCount = 0;
-      TimerPeriod = MAX_TIMER_TICK_DURATION;
+      if (TimerPeriod >= DEFAULT_TIMER_TICK_DURATION) {
+        TimerPeriod = DEFAULT_TIMER_TICK_DURATION;
+      }
     }
     //
     // Program the 8254 timer with the new count value
@@ -297,7 +299,7 @@ TimerDriverGenerateSoftInterrupt (
   EFI_STATUS  Status;
   UINT16      IRQMask;
   EFI_TPL     OriginalTPL;
-
+  
   //
   // If the timer interrupt is enabled, then the registered handler will be invoked.
   //
@@ -315,7 +317,7 @@ TimerDriverGenerateSoftInterrupt (
       //
       mTimerNotifyFunction (mTimerPeriod);
     }
-
+   
     gBS->RestoreTPL (OriginalTPL);
   } else {
     return EFI_UNSUPPORTED;

@@ -16,7 +16,6 @@
  */
 #define LOG_GROUP LOG_GROUP_DRV_HOST_AUDIO
 #include <VBox/log.h>
-#include <VBox/vmm/pdmaudioifs.h>
 
 #include "DrvAudio.h"
 #include "AudioMixBuffer.h"
@@ -66,7 +65,7 @@ typedef struct DRVHOSTCOREAUDIO
  *
  ******************************************************************************/
 
-static void coreAudioPrintASBDesc(const char *pszDesc, const AudioStreamBasicDescription *pStreamDesc)
+static void drvHostCoreAudioPrintASBDesc(const char *pszDesc, const AudioStreamBasicDescription *pStreamDesc)
 {
     char pszSampleRate[32];
     LogRel2(("CoreAudio: %s description:\n", pszDesc));
@@ -100,7 +99,7 @@ static void coreAudioPrintASBDesc(const char *pszDesc, const AudioStreamBasicDes
     LogRel2(("CoreAudio: BytesPerPacket  : %RU32\n", pStreamDesc->mBytesPerPacket));
 }
 
-static void coreAudioPCMInfoToASBDesc(PDMPCMPROPS *pPcmProperties, AudioStreamBasicDescription *pStreamDesc)
+static void drvHostCoreAudioPCMInfoToASBDesc(PDMPCMPROPS *pPcmProperties, AudioStreamBasicDescription *pStreamDesc)
 {
     pStreamDesc->mFormatID         = kAudioFormatLinearPCM;
     pStreamDesc->mFormatFlags      = kAudioFormatFlagIsPacked;
@@ -114,7 +113,7 @@ static void coreAudioPCMInfoToASBDesc(PDMPCMPROPS *pPcmProperties, AudioStreamBa
     pStreamDesc->mBytesPerPacket   = pStreamDesc->mFramesPerPacket * pStreamDesc->mBytesPerFrame;
 }
 
-static OSStatus coreAudioSetFrameBufferSize(AudioDeviceID deviceID, bool fInput, UInt32 cReqSize, UInt32 *pcActSize)
+static OSStatus drvHostCoreAudioSetFrameBufferSize(AudioDeviceID deviceID, bool fInput, UInt32 cReqSize, UInt32 *pcActSize)
 {
     AudioObjectPropertyScope propScope = fInput
                                        ? kAudioDevicePropertyScopeInput : kAudioDevicePropertyScopeOutput;
@@ -122,7 +121,7 @@ static OSStatus coreAudioSetFrameBufferSize(AudioDeviceID deviceID, bool fInput,
                                            kAudioObjectPropertyElementMaster };
 
     /* First try to set the new frame buffer size. */
-    OSStatus err = AudioObjectSetPropertyData(deviceID, &propAdr, NULL, 0, sizeof(cReqSize), &cReqSize);
+    OSStatus err = AudioObjectSetPropertyData(deviceID, &propAdr, 0, NULL, sizeof(cReqSize), &cReqSize);
 
     /* Check if it really was set. */
     UInt32 cSize = sizeof(*pcActSize);
@@ -187,7 +186,7 @@ static OSStatus coreAudioSetFrameBufferSize(AudioDeviceID deviceID, bool fInput,
     return err;
 }
 
-DECL_FORCE_INLINE(bool) coreAudioIsRunning(AudioDeviceID deviceID)
+DECL_FORCE_INLINE(bool) drvHostCoreAudioIsRunning(AudioDeviceID deviceID)
 {
     AudioObjectPropertyAddress propAdr = { kAudioDevicePropertyDeviceIsRunning, kAudioObjectPropertyScopeGlobal,
                                            kAudioObjectPropertyElementMaster };
@@ -200,7 +199,7 @@ DECL_FORCE_INLINE(bool) coreAudioIsRunning(AudioDeviceID deviceID)
     return (uFlag >= 1);
 }
 
-static int coreAudioCFStringToCString(const CFStringRef pCFString, char **ppszString)
+static int drvHostCoreAudioCFStringToCString(const CFStringRef pCFString, char **ppszString)
 {
     CFIndex cLen = CFStringGetLength(pCFString) + 1;
     char *pszResult = (char *)RTMemAllocZ(cLen * sizeof(char));
@@ -214,7 +213,7 @@ static int coreAudioCFStringToCString(const CFStringRef pCFString, char **ppszSt
     return VINF_SUCCESS;
 }
 
-static AudioDeviceID coreAudioDeviceUIDtoID(const char* pszUID)
+static AudioDeviceID drvHostCoreAudioDeviceUIDtoID(const char* pszUID)
 {
     /* Create a CFString out of our CString. */
     CFStringRef strUID = CFStringCreateWithCString(NULL, pszUID, kCFStringEncodingMacRoman);
@@ -261,11 +260,36 @@ static AudioDeviceID coreAudioDeviceUIDtoID(const char* pszUID)
 /* Error code which indicates "End of data" */
 static const OSStatus caConverterEOFDErr = 0x656F6664; /* 'eofd' */
 
+/* Prototypes needed for COREAUDIOSTREAMCBCTX. */
+struct COREAUDIOSTREAMIN;
+typedef struct COREAUDIOSTREAMIN *PCOREAUDIOSTREAMIN;
+struct COREAUDIOSTREAMOUT;
+typedef struct COREAUDIOSTREAMOUT *PCOREAUDIOSTREAMOUT;
+
+/**
+ * Simple structure for maintaining a stream's callback context.
+ ** @todo Remove this as soon as we have unified input/output streams in this backend.
+ */
+typedef struct COREAUDIOSTREAMCBCTX
+{
+    /** Pointer to driver instance. */
+    PDRVHOSTCOREAUDIO       pThis;
+    /** The stream's direction. */
+    PDMAUDIODIR             enmDir;
+    union
+    {
+        /** Pointer to self, if it's an input stream. */
+        PCOREAUDIOSTREAMIN  pIn;
+        /** Pointer to self, if it's an output stream. */
+        PCOREAUDIOSTREAMOUT pOut;
+    };
+} COREAUDIOSTREAMCBCTX, *PCOREAUDIOSTREAMCBCTX;
+
+/** @todo Unify COREAUDIOSTREAMOUT / COREAUDIOSTREAMIN. */
 typedef struct COREAUDIOSTREAMOUT
 {
-    /** Host output stream.
-     *  Note: Always must come first in this structure! */
-    PDMAUDIOSTREAM              Stream;
+    /** Host stream out. */
+    PDMAUDIOHSTSTRMOUT          streamOut;
     /** Stream description which is default on the device. */
     AudioStreamBasicDescription deviceFormat;
     /** Stream description which is selected for using with VBox. */
@@ -281,13 +305,18 @@ typedef struct COREAUDIOSTREAMOUT
     volatile uint32_t           status;
     /** Flag whether the "default device changed" listener was registered. */
     bool                        fDefDevChgListReg;
+    /** Flag whether the "device state changed" listener was registered. */
+    bool                        fDevStateChgListReg;
+    /** Callback context for this stream for handing this stream in to
+     *  a CoreAudio callback.
+     ** @todo Remove this as soon as we have unified input/output streams in this backend. */
+    COREAUDIOSTREAMCBCTX        cbCtx;
 } COREAUDIOSTREAMOUT, *PCOREAUDIOSTREAMOUT;
 
 typedef struct COREAUDIOSTREAMIN
 {
-    /** Host input stream.
-     *  Note: Always must come first in this structure! */
-    PDMAUDIOSTREAM              Stream;
+    /** Host stream in. */
+    PDMAUDIOHSTSTRMIN           streamIn;
     /** Stream description which is default on the device. */
     AudioStreamBasicDescription deviceFormat;
     /** Stream description which is selected for using with VBox. */
@@ -311,30 +340,258 @@ typedef struct COREAUDIOSTREAMIN
     volatile uint32_t           status;
     /** Flag whether the "default device changed" listener was registered. */
     bool                        fDefDevChgListReg;
+    /** Flag whether the "device state changed" listener was registered. */
+    bool                        fDevStateChgListReg;
+    /** Callback context for this stream for handing this stream in to
+     *  a CoreAudio callback.
+     ** @todo Remove this as soon as we have unified input/output streams in this backend. */
+    COREAUDIOSTREAMCBCTX        cbCtx;
 } COREAUDIOSTREAMIN, *PCOREAUDIOSTREAMIN;
 
+static int drvHostCoreAudioControlIn(PPDMIHOSTAUDIO pInterface, PPDMAUDIOHSTSTRMIN pHstStrmIn, PDMAUDIOSTREAMCMD enmStreamCmd);
+static int drvHostCoreAudioInitInput(PPDMIHOSTAUDIO pInterface, PPDMAUDIOHSTSTRMIN pHstStrmIn, uint32_t *pcSamples);
+static int drvHostCoreAudioFiniIn(PPDMIHOSTAUDIO pInterface, PPDMAUDIOHSTSTRMIN pHstStrmIn);
+static int drvHostCoreAudioReinitInput(PPDMIHOSTAUDIO pInterface, PPDMAUDIOHSTSTRMIN pHstStrmIn);
 
-static int coreAudioInitIn(PPDMAUDIOSTREAM pStream, uint32_t *pcSamples);
-static int coreAudioReinitIn(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM pStream);
-static int coreAudioInitOut(PPDMAUDIOSTREAM pStream, uint32_t *pcSamples);
-static int coreAudioReinitOut(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM pStream);
-static OSStatus coreAudioPlaybackAudioDevicePropertyChanged(AudioObjectID propertyID, UInt32 nAddresses, const AudioObjectPropertyAddress properties[], void *pvUser);
-static OSStatus coreAudioPlaybackCb(void *pvUser, AudioUnitRenderActionFlags *pActionFlags, const AudioTimeStamp *pAudioTS, UInt32 uBusID, UInt32 cFrames, AudioBufferList* pBufData);
+static int drvHostCoreAudioControlOut(PPDMIHOSTAUDIO pInterface, PPDMAUDIOHSTSTRMOUT pHstStrmOut, PDMAUDIOSTREAMCMD enmStreamCmd);
+static int drvHostCoreAudioInitOutput(PPDMIHOSTAUDIO pInterface, PPDMAUDIOHSTSTRMOUT pHstStrmOut, uint32_t *pcSamples);
+static int drvHostCoreAudioFiniOut(PPDMIHOSTAUDIO pInterface, PPDMAUDIOHSTSTRMOUT pHstStrmOut);
+static int drvHostCoreAudioReinitOutput(PPDMIHOSTAUDIO pInterface, PPDMAUDIOHSTSTRMOUT pHstStrmOut);
+static OSStatus drvHostCoreAudioPlaybackAudioDevicePropertyChanged(AudioObjectID propertyID, UInt32 nAddresses, const AudioObjectPropertyAddress properties[], void *pvUser);
+static OSStatus drvHostCoreAudioPlaybackCallback(void *pvUser, AudioUnitRenderActionFlags *pActionFlags, const AudioTimeStamp *pAudioTS, UInt32 uBusID, UInt32 cFrames, AudioBufferList* pBufData);
 
-static int coreAudioControlStreamIn(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM pStream, PDMAUDIOSTREAMCMD enmStreamCmd);
-static int coreAudioControlStreamOut(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM pStream, PDMAUDIOSTREAMCMD enmStreamCmd);
-static int coreAudioDestroyStreamIn(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM pStream);
-static int coreAudioDestroyStreamOut(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM pStream);
+/**
+ * Does a (Re-)enumeration of the host's playback + capturing devices.
+ *
+ * @return  IPRT status code.
+ * @param   pThis               Host audio driver instance.
+ * @param   pCfg                Where to store the enumeration results.
+ * @param   fEnum               Enumeration flags.
+ */
+static int drvHostCoreAudioDevicesEnumerate(PDRVHOSTCOREAUDIO pThis, PPDMAUDIOBACKENDCFG pCfg, bool fIn, uint32_t fEnum)
+{
+    AssertPtrReturn(pThis, VERR_INVALID_POINTER);
+    /* pCfg is optional. */
 
-/* Callback for getting notified when the default input/output device has been changed. */
-static DECLCALLBACK(OSStatus) coreAudioDefaultDeviceChanged(AudioObjectID propertyID,
-                                                            UInt32 nAddresses,
-                                                            const AudioObjectPropertyAddress properties[],
-                                                            void *pvUser)
+    int rc = VINF_SUCCESS;
+
+    do
+    {
+        AudioObjectPropertyAddress propAdrDevList = { kAudioHardwarePropertyDevices, kAudioObjectPropertyScopeGlobal,
+                                                      kAudioObjectPropertyElementMaster };
+        UInt32 uSize = 0;
+        OSStatus err = AudioObjectGetPropertyDataSize(kAudioObjectSystemObject, &propAdrDevList, 0, NULL, &uSize);
+        if (err != kAudioHardwareNoError)
+            break;
+
+        AudioDeviceID *pDevIDs = (AudioDeviceID *)alloca(uSize);
+        if (pDevIDs == NULL)
+            break;
+
+        err = AudioObjectGetPropertyData(kAudioObjectSystemObject, &propAdrDevList, 0, NULL, &uSize, pDevIDs);
+        if (err != kAudioHardwareNoError)
+            break;
+
+        UInt32 cDevices = uSize / sizeof (AudioDeviceID);
+        for (UInt32 i = 0; i < cDevices; i++)
+        {
+            AudioDeviceID curDevID = pDevIDs[i];
+
+            /* Check if the device is valid. */
+            AudioObjectPropertyAddress propAddrCfg = { kAudioDevicePropertyStreamConfiguration,
+                                                       fIn ? kAudioDevicePropertyScopeInput : kAudioDevicePropertyScopeOutput,
+                                                       kAudioObjectPropertyElementMaster };
+
+            err = AudioObjectGetPropertyDataSize(curDevID, &propAddrCfg, 0, NULL, &uSize);
+            if (err != noErr)
+                continue;
+
+            AudioBufferList *pBufList = (AudioBufferList *)RTMemAlloc(uSize);
+            if (!pBufList)
+                continue;
+
+            bool fIsValid = false;
+
+            err = AudioObjectGetPropertyData(curDevID, &propAddrCfg, 0, NULL, &uSize, pBufList);
+            if (err == noErr)
+            {
+                for (UInt32 a = 0; a < pBufList->mNumberBuffers; a++)
+                {
+                    fIsValid = pBufList->mBuffers[a].mNumberChannels > 0;
+                    if (fIsValid)
+                        break;
+                }
+            }
+
+            if (pBufList)
+            {
+                RTMemFree(pBufList);
+                pBufList = NULL;
+            }
+
+            if (!fIsValid)
+                continue;
+
+            /* Resolve the device's name. */
+            AudioObjectPropertyAddress propAddrName = { kAudioObjectPropertyName,
+                                                        fIn ? kAudioDevicePropertyScopeInput : kAudioDevicePropertyScopeOutput,
+                                                        kAudioObjectPropertyElementMaster };
+            uSize = sizeof(CFStringRef);
+            CFStringRef pcfstrName = NULL;
+
+            err = AudioObjectGetPropertyData(curDevID, &propAddrName, 0, NULL, &uSize, &pcfstrName);
+            if (err != kAudioHardwareNoError)
+                continue;
+
+            CFIndex uMax = CFStringGetMaximumSizeForEncoding(CFStringGetLength(pcfstrName), kCFStringEncodingUTF8) + 1;
+            if (uMax)
+            {
+                char *pszName = (char *)RTStrAlloc(uMax);
+                if (   pszName
+                    && CFStringGetCString(pcfstrName, pszName, uMax, kCFStringEncodingUTF8))
+                {
+                    LogRel2(("CoreAudio: Found %s device '%s'\n", fIn ? "recording" : "playback", pszName));
+
+                    if (pCfg)
+                    {
+                        if (fIn)
+                            pCfg->cMaxHstStrmsIn++;
+                        else
+                            pCfg->cMaxHstStrmsOut++;
+                    }
+                }
+
+                if (pszName)
+                {
+                    RTStrFree(pszName);
+                    pszName = NULL;
+                }
+            }
+
+            CFRelease(pcfstrName);
+        }
+
+    } while (0);
+
+    LogFlowFuncLeaveRC(rc);
+    return rc;
+}
+
+/**
+ * Updates this host driver's internal status, according to the global, overall input/output
+ * state and all connected (native) audio streams.
+ *
+ * @param   pThis               Host audio driver instance.
+ * @param   pCfg                Where to store the backend configuration. Optional.
+ * @param   fEnum               Enumeration flags.
+ */
+int coreAudioUpdateStatusInternalEx(PDRVHOSTCOREAUDIO pThis, PPDMAUDIOBACKENDCFG pCfg, uint32_t fEnum)
+{
+    AssertPtrReturn(pThis, VERR_INVALID_POINTER);
+    /* pCfg is optional. */
+
+    PDMAUDIOBACKENDCFG Cfg;
+    RT_ZERO(Cfg);
+
+    Cfg.cbStreamOut = sizeof(COREAUDIOSTREAMOUT);
+    Cfg.cbStreamIn  = sizeof(COREAUDIOSTREAMIN);
+
+    int rc = drvHostCoreAudioDevicesEnumerate(pThis, &Cfg, false /* fIn */, 0 /* fEnum */);
+    AssertRC(rc);
+    rc = drvHostCoreAudioDevicesEnumerate(pThis, &Cfg, true /* fIn */, 0 /* fEnum */);
+    AssertRC(rc);
+
+    if (pCfg)
+        memcpy(pCfg, &Cfg, sizeof(PDMAUDIOBACKENDCFG));
+
+    LogFlowFuncLeaveRC(rc);
+    return rc;
+}
+
+static DECLCALLBACK(OSStatus) drvHostCoreAudioDeviceStateChanged(AudioObjectID propertyID,
+                                                                   UInt32 nAddresses,
+                                                                   const AudioObjectPropertyAddress properties[],
+                                                                   void *pvUser)
+{
+    LogFlowFunc(("propertyID=%u nAddresses=%u pvUser=%p\n", propertyID, nAddresses, pvUser));
+
+    PCOREAUDIOSTREAMCBCTX pCbCtx = (PCOREAUDIOSTREAMCBCTX)pvUser;
+    AssertPtr(pCbCtx);
+
+    UInt32 uAlive = 1;
+    UInt32 uSize  = sizeof(UInt32);
+
+    AudioObjectPropertyAddress propAdr = { kAudioDevicePropertyDeviceIsAlive, kAudioObjectPropertyScopeGlobal,
+                                           kAudioObjectPropertyElementMaster };
+
+    AudioDeviceID deviceID = pCbCtx->enmDir == PDMAUDIODIR_IN
+                           ? pCbCtx->pIn->deviceID : pCbCtx->pOut->deviceID;
+
+    OSStatus err = AudioObjectGetPropertyData(deviceID, &propAdr, 0, NULL, &uSize, &uAlive);
+
+    bool fIsDead = false;
+
+    if (err == kAudioHardwareBadDeviceError)
+        fIsDead = true; /* Unplugged. */
+    else if ((err == kAudioHardwareNoError) && (!RT_BOOL(uAlive)))
+        fIsDead = true; /* Something else happened. */
+
+    if (fIsDead)
+    {
+        switch (pCbCtx->enmDir)
+        {
+            case PDMAUDIODIR_IN:
+            {
+                PCOREAUDIOSTREAMIN pStreamIn = pCbCtx->pIn;
+
+                /* We move the reinitialization to the next output event.
+                 * This make sure this thread isn't blocked and the
+                 * reinitialization is done when necessary only. */
+                ASMAtomicXchgU32(&pStreamIn->status, CA_STATUS_REINIT);
+
+                LogRel(("CoreAudio: Capturing device stopped functioning\n"));
+                break;
+            }
+
+            case PDMAUDIODIR_OUT:
+            {
+                PCOREAUDIOSTREAMOUT pStreamOut = pCbCtx->pOut;
+
+                /* We move the reinitialization to the next output event.
+                 * This make sure this thread isn't blocked and the
+                 * reinitialization is done when necessary only. */
+                ASMAtomicXchgU32(&pStreamOut->status, CA_STATUS_REINIT);
+
+                LogRel(("CoreAudio: Playback device stopped functioning\n"));
+                break;
+            }
+
+            default:
+                AssertMsgFailed(("Not implemented\n"));
+                break;
+        }
+    }
+
+    int rc2 = drvHostCoreAudioDevicesEnumerate(pCbCtx->pThis, NULL /* pCfg */, false /* fIn */, 0 /* fEnum */);
+    AssertRC(rc2);
+    rc2 = drvHostCoreAudioDevicesEnumerate(pCbCtx->pThis, NULL /* pCfg */, true /* fIn */, 0 /* fEnum */);
+    AssertRC(rc2);
+
+    return noErr;
+}
+
+/* Callback for getting notified when the default recording/playback device has been changed. */
+static DECLCALLBACK(OSStatus) drvHostCoreAudioDefaultDeviceChanged(AudioObjectID propertyID,
+                                                                   UInt32 nAddresses,
+                                                                   const AudioObjectPropertyAddress properties[],
+                                                                   void *pvUser)
 {
     OSStatus err = noErr;
 
     LogFlowFunc(("propertyID=%u nAddresses=%u pvUser=%p\n", propertyID, nAddresses, pvUser));
+
+    PCOREAUDIOSTREAMCBCTX pCbCtx = (PCOREAUDIOSTREAMCBCTX)pvUser;
+    AssertPtr(pCbCtx);
 
     for (UInt32 idxAddress = 0; idxAddress < nAddresses; idxAddress++)
     {
@@ -344,7 +601,7 @@ static DECLCALLBACK(OSStatus) coreAudioDefaultDeviceChanged(AudioObjectID proper
         {
             case kAudioHardwarePropertyDefaultInputDevice:
             {
-                PCOREAUDIOSTREAMIN pStreamIn = (PCOREAUDIOSTREAMIN)pvUser;
+                PCOREAUDIOSTREAMIN pStreamIn = pCbCtx->pIn;
 
                 /* This listener is called on every change of the hardware
                  * device. So check if the default device has really changed. */
@@ -369,7 +626,7 @@ static DECLCALLBACK(OSStatus) coreAudioDefaultDeviceChanged(AudioObjectID proper
 
             case kAudioHardwarePropertyDefaultOutputDevice:
             {
-                PCOREAUDIOSTREAMOUT pStreamOut = (PCOREAUDIOSTREAMOUT)pvUser;
+                PCOREAUDIOSTREAMOUT pStreamOut = pCbCtx->pOut;
 
                 /* This listener is called on every change of the hardware
                  * device. So check if the default device has really changed. */
@@ -384,7 +641,7 @@ static DECLCALLBACK(OSStatus) coreAudioDefaultDeviceChanged(AudioObjectID proper
                 {
                     if (pStreamOut->deviceID != uResp)
                     {
-                        LogRel(("CoreAudio: Default output device has changed\n"));
+                        LogRel(("CoreAudio: Default playback device has changed\n"));
 
                         /* We move the reinitialization to the next input event.
                          * This make sure this thread isn't blocked and the
@@ -400,25 +657,27 @@ static DECLCALLBACK(OSStatus) coreAudioDefaultDeviceChanged(AudioObjectID proper
         }
     }
 
+    int rc2 = drvHostCoreAudioDevicesEnumerate(pCbCtx->pThis, NULL /* pCfg */, false /* fIn */, 0 /* fEnum */);
+    AssertRC(rc2);
+    rc2 = drvHostCoreAudioDevicesEnumerate(pCbCtx->pThis, NULL /* pCfg */, true /* fIn */, 0 /* fEnum */);
+    AssertRC(rc2);
+
     /** @todo Implement callback notification here to let the audio connector / device emulation
      *        know that something has changed. */
 
     return noErr;
 }
 
-static int coreAudioReinitIn(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM pStream)
+static int drvHostCoreAudioReinitInput(PPDMIHOSTAUDIO pInterface, PPDMAUDIOHSTSTRMIN pHstStrmIn)
 {
-    PPDMDRVINS pDrvIns      = PDMIBASE_2_PDMDRV(pInterface);
-    PDRVHOSTCOREAUDIO pThis = PDMINS_2_DATA(pDrvIns, PDRVHOSTCOREAUDIO);
+    PCOREAUDIOSTREAMIN pStreamIn = (PCOREAUDIOSTREAMIN)pHstStrmIn;
 
-    PCOREAUDIOSTREAMIN pStreamIn = (PCOREAUDIOSTREAMIN)pStream;
-
-    int rc = coreAudioDestroyStreamIn(pInterface, &pStreamIn->Stream);
+    int rc = drvHostCoreAudioFiniIn(pInterface, &pStreamIn->streamIn);
     if (RT_SUCCESS(rc))
     {
-        rc = coreAudioInitIn(&pStreamIn->Stream, NULL /* pcSamples */);
+        rc = drvHostCoreAudioInitInput(pInterface, &pStreamIn->streamIn, NULL /* pcSamples */);
         if (RT_SUCCESS(rc))
-            rc = coreAudioControlStreamIn(pInterface, &pStreamIn->Stream, PDMAUDIOSTREAMCMD_ENABLE);
+            rc = drvHostCoreAudioControlIn(pInterface, &pStreamIn->streamIn, PDMAUDIOSTREAMCMD_ENABLE);
     }
 
     if (RT_FAILURE(rc))
@@ -427,19 +686,16 @@ static int coreAudioReinitIn(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM pStream)
     return rc;
 }
 
-static int coreAudioReinitOut(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM pStream)
+static int drvHostCoreAudioReinitOutput(PPDMIHOSTAUDIO pInterface, PPDMAUDIOHSTSTRMOUT pHstStrmOut)
 {
-    PPDMDRVINS pDrvIns      = PDMIBASE_2_PDMDRV(pInterface);
-    PDRVHOSTCOREAUDIO pThis = PDMINS_2_DATA(pDrvIns, PDRVHOSTCOREAUDIO);
+    PCOREAUDIOSTREAMOUT pStreamOut = (PCOREAUDIOSTREAMOUT)pHstStrmOut;
 
-    PCOREAUDIOSTREAMOUT pStreamOut = (PCOREAUDIOSTREAMOUT)pStream;
-
-    int rc = coreAudioDestroyStreamOut(pInterface, &pStreamOut->Stream);
+    int rc = drvHostCoreAudioFiniOut(pInterface, &pStreamOut->streamOut);
     if (RT_SUCCESS(rc))
     {
-        rc = coreAudioInitOut(&pStreamOut->Stream, NULL /* pcSamples */);
+        rc = drvHostCoreAudioInitOutput(pInterface, &pStreamOut->streamOut, NULL /* pcSamples */);
         if (RT_SUCCESS(rc))
-            rc = coreAudioControlStreamOut(pInterface, &pStreamOut->Stream, PDMAUDIOSTREAMCMD_ENABLE);
+            rc = drvHostCoreAudioControlOut(pInterface, &pStreamOut->streamOut, PDMAUDIOSTREAMCMD_ENABLE);
     }
 
     if (RT_FAILURE(rc))
@@ -449,10 +705,10 @@ static int coreAudioReinitOut(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM pStream
 }
 
 /* Callback for getting notified when some of the properties of an audio device has changed. */
-static DECLCALLBACK(OSStatus) coreAudioRecordingAudioDevicePropertyChanged(AudioObjectID                     propertyID,
-                                                                           UInt32                            cAdresses,
-                                                                           const AudioObjectPropertyAddress  aProperties[],
-                                                                           void                             *pvUser)
+static DECLCALLBACK(OSStatus) drvHostCoreAudioRecordingAudioDevicePropertyChanged(AudioObjectID                     propertyID,
+                                                                                  UInt32                            cAdresses,
+                                                                                  const AudioObjectPropertyAddress  aProperties[],
+                                                                                  void                             *pvUser)
 {
     PCOREAUDIOSTREAMIN pStreamIn = (PCOREAUDIOSTREAMIN)pvUser;
 
@@ -484,11 +740,11 @@ static DECLCALLBACK(OSStatus) coreAudioRecordingAudioDevicePropertyChanged(Audio
 }
 
 /* Callback to convert audio input data from one format to another. */
-static DECLCALLBACK(OSStatus) coreAudioConverterCb(AudioConverterRef              converterID,
-                                                   UInt32                        *pcPackets,
-                                                   AudioBufferList               *pBufData,
-                                                   AudioStreamPacketDescription **ppPacketDesc,
-                                                   void                          *pvUser)
+static DECLCALLBACK(OSStatus) drvHostCoreAudioConverterCallback(AudioConverterRef              converterID,
+                                                                UInt32                        *pcPackets,
+                                                                AudioBufferList               *pBufData,
+                                                                AudioStreamPacketDescription **ppPacketDesc,
+                                                                void                          *pvUser)
 {
     /** @todo Check incoming pointers. */
 
@@ -539,15 +795,15 @@ static DECLCALLBACK(OSStatus) coreAudioConverterCb(AudioConverterRef            
 }
 
 /* Callback to feed audio input buffer. */
-static DECLCALLBACK(OSStatus) coreAudioRecordingCb(void *pvUser,
-                                                   AudioUnitRenderActionFlags *pActionFlags,
-                                                   const AudioTimeStamp       *pAudioTS,
-                                                   UInt32                      uBusID,
-                                                   UInt32                      cFrames,
-                                                   AudioBufferList            *pBufData)
+static DECLCALLBACK(OSStatus) drvHostCoreAudioRecordingCallback(void                       *pvUser,
+                                                                AudioUnitRenderActionFlags *pActionFlags,
+                                                                const AudioTimeStamp       *pAudioTS,
+                                                                UInt32                      uBusID,
+                                                                UInt32                      cFrames,
+                                                                AudioBufferList            *pBufData)
 {
     PCOREAUDIOSTREAMIN pStreamIn  = (PCOREAUDIOSTREAMIN)pvUser;
-    PPDMAUDIOSTREAM pStream = &pStreamIn->Stream;
+    PPDMAUDIOHSTSTRMIN pHstStrmIN = &pStreamIn->streamIn;
 
     if (ASMAtomicReadU32(&pStreamIn->status) != CA_STATUS_INIT)
         return noErr;
@@ -614,7 +870,7 @@ static DECLCALLBACK(OSStatus) coreAudioRecordingCb(void *pvUser,
 
                 AudioConverterReset(pStreamIn->pConverter);
 
-                err = AudioConverterFillComplexBuffer(pStreamIn->pConverter, coreAudioConverterCb, pStreamIn,
+                err = AudioConverterFillComplexBuffer(pStreamIn->pConverter, drvHostCoreAudioConverterCallback, pStreamIn,
                                                       &ioOutputDataPacketSize, &tmpList, NULL);
                 if(   err != noErr
                    && err != caConverterEOFDErr)
@@ -710,31 +966,34 @@ static DECLCALLBACK(OSStatus) coreAudioRecordingCb(void *pvUser,
 }
 
 /** @todo Eventually split up this function, as this already is huge! */
-static int coreAudioInitIn(PPDMAUDIOSTREAM pStream, uint32_t *pcSamples)
+static int drvHostCoreAudioInitInput(PPDMIHOSTAUDIO pInterface, PPDMAUDIOHSTSTRMIN pHstStrmIn, uint32_t *pcSamples)
 {
+    PPDMDRVINS        pDrvIns = PDMIBASE_2_PDMDRV(pInterface);
+    PDRVHOSTCOREAUDIO pThis   = PDMINS_2_DATA(pDrvIns, PDRVHOSTCOREAUDIO);
+
     OSStatus err = noErr;
 
-    PCOREAUDIOSTREAMIN pStreamIn = (PCOREAUDIOSTREAMIN)pStream;
+    PCOREAUDIOSTREAMIN pStreamIn = (PCOREAUDIOSTREAMIN)pHstStrmIn;
 
     ASMAtomicXchgU32(&pStreamIn->status, CA_STATUS_IN_INIT);
 
     UInt32 uSize = 0;
     if (pStreamIn->deviceID == kAudioDeviceUnknown)
     {
-        /* Fetch the default audio input device currently in use. */
+        /* Fetch the default audio recording device currently in use. */
         AudioObjectPropertyAddress propAdr = { kAudioHardwarePropertyDefaultInputDevice,
                                                kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMaster };
         uSize = sizeof(pStreamIn->deviceID);
         err = AudioObjectGetPropertyData(kAudioObjectSystemObject, &propAdr, 0, NULL, &uSize,  &pStreamIn->deviceID);
         if (err != noErr)
         {
-            LogRel(("CoreAudio: Unable to determine default input device (%RI32)\n", err));
+            LogRel(("CoreAudio: Unable to determine default recording device (%RI32)\n", err));
             return VERR_NOT_FOUND;
         }
     }
 
     /*
-     * Try to get the name of the input device and log it. It's not fatal if it fails.
+     * Try to get the name of the recording device and log it. It's not fatal if it fails.
      */
     CFStringRef strTemp;
 
@@ -745,7 +1004,7 @@ static int coreAudioInitIn(PPDMAUDIOSTREAM pStream, uint32_t *pcSamples)
     if (err == noErr)
     {
         char *pszDevName = NULL;
-        err = coreAudioCFStringToCString(strTemp, &pszDevName);
+        err = drvHostCoreAudioCFStringToCString(strTemp, &pszDevName);
         if (err == noErr)
         {
             CFRelease(strTemp);
@@ -756,11 +1015,11 @@ static int coreAudioInitIn(PPDMAUDIOSTREAM pStream, uint32_t *pcSamples)
             if (err == noErr)
             {
                 char *pszUID = NULL;
-                err = coreAudioCFStringToCString(strTemp, &pszUID);
+                err = drvHostCoreAudioCFStringToCString(strTemp, &pszUID);
                 if (err == noErr)
                 {
                     CFRelease(strTemp);
-                    LogRel(("CoreAudio: Using input device: %s (UID: %s)\n", pszDevName, pszUID));
+                    LogRel(("CoreAudio: Using recording device: %s (UID: %s)\n", pszDevName, pszUID));
 
                     RTMemFree(pszUID);
                 }
@@ -770,7 +1029,7 @@ static int coreAudioInitIn(PPDMAUDIOSTREAM pStream, uint32_t *pcSamples)
         }
     }
     else
-        LogRel(("CoreAudio: Unable to determine input device name (%RI32)\n", err));
+        LogRel(("CoreAudio: Unable to determine recording device name (%RI32)\n", err));
 
     /* Get the default frames buffer size, so that we can setup our internal buffers. */
     UInt32 cFrames;
@@ -780,15 +1039,17 @@ static int coreAudioInitIn(PPDMAUDIOSTREAM pStream, uint32_t *pcSamples)
     err = AudioObjectGetPropertyData(pStreamIn->deviceID, &propAdr, 0, NULL, &uSize, &cFrames);
     if (err != noErr)
     {
-        LogRel(("CoreAudio: Failed to determine frame buffer size of the audio input device (%RI32)\n", err));
+        /* Can happen if no recording device is available by default. Happens on some Macs,
+         * so don't log this by default to not scare people. */
+        LogRel2(("CoreAudio: Failed to determine frame buffer size of the audio recording device (%RI32)\n", err));
         return VERR_AUDIO_BACKEND_INIT_FAILED;
     }
 
     /* Set the frame buffer size and honor any minimum/maximum restrictions on the device. */
-    err = coreAudioSetFrameBufferSize(pStreamIn->deviceID, true /* fInput */, cFrames, &cFrames);
+    err = drvHostCoreAudioSetFrameBufferSize(pStreamIn->deviceID, true /* fInput */, cFrames, &cFrames);
     if (err != noErr)
     {
-        LogRel(("CoreAudio: Failed to set frame buffer size for the audio input device (%RI32)\n", err));
+        LogRel(("CoreAudio: Failed to set frame buffer size for the audio recording device (%RI32)\n", err));
         return VERR_AUDIO_BACKEND_INIT_FAILED;
     }
 
@@ -836,7 +1097,7 @@ static int coreAudioInitIn(PPDMAUDIOSTREAM pStream, uint32_t *pcSamples)
         return VERR_AUDIO_BACKEND_INIT_FAILED;
     }
 
-    /* Set the default audio input device as the device for the new AudioUnit. */
+    /* Set the default audio recording device as the device for the new AudioUnit. */
     err = AudioUnitSetProperty(pStreamIn->audioUnit, kAudioOutputUnitProperty_CurrentDevice, kAudioUnitScope_Global,
                                0, &pStreamIn->deviceID, sizeof(pStreamIn->deviceID));
     if (err != noErr)
@@ -851,7 +1112,7 @@ static int coreAudioInitIn(PPDMAUDIOSTREAM pStream, uint32_t *pcSamples)
      */
     AURenderCallbackStruct cb;
     RT_ZERO(cb);
-    cb.inputProc       = coreAudioRecordingCb;
+    cb.inputProc       = drvHostCoreAudioRecordingCallback;
     cb.inputProcRefCon = pStreamIn;
 
     err = AudioUnitSetProperty(pStreamIn->audioUnit, kAudioOutputUnitProperty_SetInputCallback, kAudioUnitScope_Global,
@@ -873,10 +1134,10 @@ static int coreAudioInitIn(PPDMAUDIOSTREAM pStream, uint32_t *pcSamples)
     }
 
     /* Create an AudioStreamBasicDescription based on our required audio settings. */
-    coreAudioPCMInfoToASBDesc(&pStreamIn->Stream.Props, &pStreamIn->streamFormat);
+    drvHostCoreAudioPCMInfoToASBDesc(&pStreamIn->streamIn.Props, &pStreamIn->streamFormat);
 
-    coreAudioPrintASBDesc("CoreAudio: Input device", &pStreamIn->deviceFormat);
-    coreAudioPrintASBDesc("CoreAudio: Input stream", &pStreamIn->streamFormat);
+    drvHostCoreAudioPrintASBDesc("CoreAudio: recording device", &pStreamIn->deviceFormat);
+    drvHostCoreAudioPrintASBDesc("CoreAudio: Input stream", &pStreamIn->streamFormat);
 
     /* If the frequency of the device is different from the requested one we
      * need a converter. The same count if the number of channels is different. */
@@ -983,7 +1244,7 @@ static int coreAudioInitIn(PPDMAUDIOSTREAM pStream, uint32_t *pcSamples)
                                1, &pStreamIn->deviceFormat, &uSize);
     if (err != noErr)
     {
-        LogRel(("CoreAudio: Failed to get input device format (%RI32)\n", err));
+        LogRel(("CoreAudio: Failed to get recording device format (%RI32)\n", err));
         return VERR_AUDIO_BACKEND_INIT_FAILED;
     }
 
@@ -1039,21 +1300,21 @@ static int coreAudioInitIn(PPDMAUDIOSTREAM pStream, uint32_t *pcSamples)
 
     /* Create the internal ring buffer. */
     if (RT_SUCCESS(rc))
-        rc = RTCircBufCreate(&pStreamIn->pBuf, cSamples << pStream->Props.cShift);
+        rc = RTCircBufCreate(&pStreamIn->pBuf, cSamples << pHstStrmIn->Props.cShift);
     if (RT_SUCCESS(rc))
     {
 #ifdef DEBUG
         propAdr.mSelector = kAudioDeviceProcessorOverload;
         propAdr.mScope    = kAudioUnitScope_Global;
         err = AudioObjectAddPropertyListener(pStreamIn->deviceID, &propAdr,
-                                             coreAudioRecordingAudioDevicePropertyChanged, (void *)pStreamIn);
+                                             drvHostCoreAudioRecordingAudioDevicePropertyChanged, (void *)pStreamIn);
         if (RT_UNLIKELY(err != noErr))
             LogRel(("CoreAudio: Failed to add the processor overload listener for input stream (%RI32)\n", err));
 #endif /* DEBUG */
         propAdr.mSelector = kAudioDevicePropertyNominalSampleRate;
         propAdr.mScope    = kAudioUnitScope_Global;
         err = AudioObjectAddPropertyListener(pStreamIn->deviceID, &propAdr,
-                                             coreAudioRecordingAudioDevicePropertyChanged, (void *)pStreamIn);
+                                             drvHostCoreAudioRecordingAudioDevicePropertyChanged, (void *)pStreamIn);
         /* Not fatal. */
         if (RT_UNLIKELY(err != noErr))
             LogRel(("CoreAudio: Failed to register sample rate changed listener for input stream (%RI32)\n", err));
@@ -1061,6 +1322,11 @@ static int coreAudioInitIn(PPDMAUDIOSTREAM pStream, uint32_t *pcSamples)
 
     if (RT_SUCCESS(rc))
     {
+        /* Set callback context. */
+        pStreamIn->cbCtx.pThis  = pThis;
+        pStreamIn->cbCtx.enmDir = PDMAUDIODIR_IN;
+        pStreamIn->cbCtx.pIn    = pStreamIn;
+
         ASMAtomicXchgU32(&pStreamIn->status, CA_STATUS_INIT);
 
         if (pcSamples)
@@ -1082,9 +1348,12 @@ static int coreAudioInitIn(PPDMAUDIOSTREAM pStream, uint32_t *pcSamples)
 }
 
 /** @todo Eventually split up this function, as this already is huge! */
-static int coreAudioInitOut(PPDMAUDIOSTREAM pStream, uint32_t *pcSamples)
+static int drvHostCoreAudioInitOutput(PPDMIHOSTAUDIO pInterface, PPDMAUDIOHSTSTRMOUT pHstStrmOut, uint32_t *pcSamples)
 {
-    PCOREAUDIOSTREAMOUT pStreamOut = (PCOREAUDIOSTREAMOUT)pStream;
+    PPDMDRVINS        pDrvIns = PDMIBASE_2_PDMDRV(pInterface);
+    PDRVHOSTCOREAUDIO pThis   = PDMINS_2_DATA(pDrvIns, PDRVHOSTCOREAUDIO);
+
+    PCOREAUDIOSTREAMOUT pStreamOut = (PCOREAUDIOSTREAMOUT)pHstStrmOut;
 
     ASMAtomicXchgU32(&pStreamOut->status, CA_STATUS_IN_INIT);
 
@@ -1093,20 +1362,20 @@ static int coreAudioInitOut(PPDMAUDIOSTREAM pStream, uint32_t *pcSamples)
     UInt32 uSize = 0;
     if (pStreamOut->deviceID == kAudioDeviceUnknown)
     {
-        /* Fetch the default audio input device currently in use. */
+        /* Fetch the default audio recording device currently in use. */
         AudioObjectPropertyAddress propAdr = { kAudioHardwarePropertyDefaultOutputDevice,
                                                kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMaster };
         uSize = sizeof(pStreamOut->deviceID);
         err = AudioObjectGetPropertyData(kAudioObjectSystemObject, &propAdr, 0, NULL, &uSize, &pStreamOut->deviceID);
         if (err != noErr)
         {
-            LogRel(("CoreAudio: Unable to determine default output device (%RI32)\n", err));
+            LogRel(("CoreAudio: Unable to determine default playback device (%RI32)\n", err));
             return VERR_NOT_FOUND;
         }
     }
 
     /*
-     * Try to get the name of the output device and log it. It's not fatal if it fails.
+     * Try to get the name of the playback device and log it. It's not fatal if it fails.
      */
     CFStringRef strTemp;
 
@@ -1117,7 +1386,7 @@ static int coreAudioInitOut(PPDMAUDIOSTREAM pStream, uint32_t *pcSamples)
     if (err == noErr)
     {
         char *pszDevName = NULL;
-        err = coreAudioCFStringToCString(strTemp, &pszDevName);
+        err = drvHostCoreAudioCFStringToCString(strTemp, &pszDevName);
         if (err == noErr)
         {
             CFRelease(strTemp);
@@ -1128,11 +1397,11 @@ static int coreAudioInitOut(PPDMAUDIOSTREAM pStream, uint32_t *pcSamples)
             if (err == noErr)
             {
                 char *pszUID = NULL;
-                err = coreAudioCFStringToCString(strTemp, &pszUID);
+                err = drvHostCoreAudioCFStringToCString(strTemp, &pszUID);
                 if (err == noErr)
                 {
                     CFRelease(strTemp);
-                    LogRel(("CoreAudio: Using output device: %s (UID: %s)\n", pszDevName, pszUID));
+                    LogRel(("CoreAudio: Using playback device: %s (UID: %s)\n", pszDevName, pszUID));
 
                     RTMemFree(pszUID);
                 }
@@ -1142,7 +1411,7 @@ static int coreAudioInitOut(PPDMAUDIOSTREAM pStream, uint32_t *pcSamples)
         }
     }
     else
-        LogRel(("CoreAudio: Unable to determine output device name (%RI32)\n", err));
+        LogRel(("CoreAudio: Unable to determine playback device name (%RI32)\n", err));
 
     /* Get the default frames buffer size, so that we can setup our internal buffers. */
     UInt32 cFrames;
@@ -1152,15 +1421,15 @@ static int coreAudioInitOut(PPDMAUDIOSTREAM pStream, uint32_t *pcSamples)
     err = AudioObjectGetPropertyData(pStreamOut->deviceID, &propAdr, 0, NULL, &uSize, &cFrames);
     if (err != noErr)
     {
-        LogRel(("CoreAudio: Failed to determine frame buffer size of the audio output device (%RI32)\n", err));
+        LogRel(("CoreAudio: Failed to determine frame buffer size of the audio playback device (%RI32)\n", err));
         return VERR_AUDIO_BACKEND_INIT_FAILED;
     }
 
     /* Set the frame buffer size and honor any minimum/maximum restrictions on the device. */
-    err = coreAudioSetFrameBufferSize(pStreamOut->deviceID, false /* fInput */, cFrames, &cFrames);
+    err = drvHostCoreAudioSetFrameBufferSize(pStreamOut->deviceID, false /* fInput */, cFrames, &cFrames);
     if (err != noErr)
     {
-        LogRel(("CoreAudio: Failed to set frame buffer size for the audio output device (%RI32)\n", err));
+        LogRel(("CoreAudio: Failed to set frame buffer size for the audio playback device (%RI32)\n", err));
         return VERR_AUDIO_BACKEND_INIT_FAILED;
     }
 
@@ -1196,7 +1465,7 @@ static int coreAudioInitOut(PPDMAUDIOSTREAM pStream, uint32_t *pcSamples)
         return VERR_AUDIO_BACKEND_INIT_FAILED;
     }
 
-    /* Set the default audio output device as the device for the new AudioUnit. */
+    /* Set the default audio playback device as the device for the new AudioUnit. */
     err = AudioUnitSetProperty(pStreamOut->audioUnit, kAudioOutputUnitProperty_CurrentDevice, kAudioUnitScope_Global,
                                0, &pStreamOut->deviceID, sizeof(pStreamOut->deviceID));
     if (err != noErr)
@@ -1211,7 +1480,7 @@ static int coreAudioInitOut(PPDMAUDIOSTREAM pStream, uint32_t *pcSamples)
      */
     AURenderCallbackStruct cb;
     RT_ZERO(cb);
-    cb.inputProc       = coreAudioPlaybackCb; /* pvUser */
+    cb.inputProc       = drvHostCoreAudioPlaybackCallback; /* pvUser */
     cb.inputProcRefCon = pStreamOut;
 
     err = AudioUnitSetProperty(pStreamOut->audioUnit, kAudioUnitProperty_SetRenderCallback, kAudioUnitScope_Input,
@@ -1233,10 +1502,10 @@ static int coreAudioInitOut(PPDMAUDIOSTREAM pStream, uint32_t *pcSamples)
     }
 
     /* Create an AudioStreamBasicDescription based on our required audio settings. */
-    coreAudioPCMInfoToASBDesc(&pStreamOut->Stream.Props, &pStreamOut->streamFormat);
+    drvHostCoreAudioPCMInfoToASBDesc(&pStreamOut->streamOut.Props, &pStreamOut->streamFormat);
 
-    coreAudioPrintASBDesc("CoreAudio: Output device", &pStreamOut->deviceFormat);
-    coreAudioPrintASBDesc("CoreAudio: Output format", &pStreamOut->streamFormat);
+    drvHostCoreAudioPrintASBDesc("CoreAudio: playback device", &pStreamOut->deviceFormat);
+    drvHostCoreAudioPrintASBDesc("CoreAudio: Output format", &pStreamOut->streamFormat);
 
     /* Set the new output format description for the stream. */
     err = AudioUnitSetProperty(pStreamOut->audioUnit, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Input,
@@ -1317,7 +1586,7 @@ static int coreAudioInitOut(PPDMAUDIOSTREAM pStream, uint32_t *pcSamples)
     }
 
     /* Create the internal ring buffer. */
-    rc = RTCircBufCreate(&pStreamOut->pBuf, cSamples << pStream->Props.cShift);
+    rc = RTCircBufCreate(&pStreamOut->pBuf, cSamples << pHstStrmOut->Props.cShift);
     if (RT_SUCCESS(rc))
     {
         /*
@@ -1327,7 +1596,7 @@ static int coreAudioInitOut(PPDMAUDIOSTREAM pStream, uint32_t *pcSamples)
         propAdr.mSelector = kAudioDeviceProcessorOverload;
         propAdr.mScope    = kAudioUnitScope_Global;
         err = AudioObjectAddPropertyListener(pStreamOut->deviceID, &propAdr,
-                                             coreAudioPlaybackAudioDevicePropertyChanged, (void *)pStreamOut);
+                                             drvHostCoreAudioPlaybackAudioDevicePropertyChanged, (void *)pStreamOut);
         if (err != noErr)
             LogRel(("CoreAudio: Failed to register processor overload listener for output stream (%RI32)\n", err));
 #endif /* DEBUG */
@@ -1335,7 +1604,7 @@ static int coreAudioInitOut(PPDMAUDIOSTREAM pStream, uint32_t *pcSamples)
         propAdr.mSelector = kAudioDevicePropertyNominalSampleRate;
         propAdr.mScope    = kAudioUnitScope_Global;
         err = AudioObjectAddPropertyListener(pStreamOut->deviceID, &propAdr,
-                                             coreAudioPlaybackAudioDevicePropertyChanged, (void *)pStreamOut);
+                                             drvHostCoreAudioPlaybackAudioDevicePropertyChanged, (void *)pStreamOut);
         /* Not fatal. */
         if (err != noErr)
             LogRel(("CoreAudio: Failed to register sample rate changed listener for output stream (%RI32)\n", err));
@@ -1343,6 +1612,11 @@ static int coreAudioInitOut(PPDMAUDIOSTREAM pStream, uint32_t *pcSamples)
 
     if (RT_SUCCESS(rc))
     {
+        /* Set callback context. */
+        pStreamOut->cbCtx.pThis  = pThis;
+        pStreamOut->cbCtx.enmDir = PDMAUDIODIR_OUT;
+        pStreamOut->cbCtx.pOut   = pStreamOut;
+
         ASMAtomicXchgU32(&pStreamOut->status, CA_STATUS_INIT);
 
         if (pcSamples)
@@ -1363,12 +1637,106 @@ static int coreAudioInitOut(PPDMAUDIOSTREAM pStream, uint32_t *pcSamples)
     return rc;
 }
 
+static DECLCALLBACK(int) drvHostCoreAudioInit(PPDMIHOSTAUDIO pInterface)
+{
+    NOREF(pInterface);
+
+    LogFlowFuncEnter();
+
+    return VINF_SUCCESS;
+}
+
+static DECLCALLBACK(int) drvHostCoreAudioCaptureIn(PPDMIHOSTAUDIO pInterface, PPDMAUDIOHSTSTRMIN pHstStrmIn,
+                                                   uint32_t *pcSamplesCaptured)
+{
+    PPDMDRVINS pDrvIns      = PDMIBASE_2_PDMDRV(pInterface);
+    PDRVHOSTCOREAUDIO pThis = PDMINS_2_DATA(pDrvIns, PDRVHOSTCOREAUDIO);
+
+    PCOREAUDIOSTREAMIN pStreamIn = (PCOREAUDIOSTREAMIN)pHstStrmIn;
+
+    size_t csReads = 0;
+    char *pcSrc;
+    PPDMAUDIOSAMPLE psDst;
+
+    /* Check if the audio device should be reinitialized. If so do it. */
+    if (ASMAtomicReadU32(&pStreamIn->status) == CA_STATUS_REINIT)
+        drvHostCoreAudioReinitInput(pInterface, &pStreamIn->streamIn);
+
+    if (ASMAtomicReadU32(&pStreamIn->status) != CA_STATUS_INIT)
+    {
+        if (pcSamplesCaptured)
+            *pcSamplesCaptured = 0;
+        return VINF_SUCCESS;
+    }
+
+    int rc = VINF_SUCCESS;
+    uint32_t cbWrittenTotal = 0;
+
+    do
+    {
+        size_t cbBuf = AudioMixBufSizeBytes(&pHstStrmIn->MixBuf);
+        size_t cbToWrite = RT_MIN(cbBuf, RTCircBufUsed(pStreamIn->pBuf));
+
+        uint32_t cWritten, cbWritten;
+        uint8_t *puBuf;
+        size_t   cbToRead;
+
+        LogFlowFunc(("cbBuf=%zu, cbToWrite=%zu\n", cbBuf, cbToWrite));
+
+        while (cbToWrite)
+        {
+            /* Try to acquire the necessary block from the ring buffer. */
+            RTCircBufAcquireReadBlock(pStreamIn->pBuf, cbToWrite, (void **)&puBuf, &cbToRead);
+            if (!cbToRead)
+            {
+                RTCircBufReleaseReadBlock(pStreamIn->pBuf, cbToRead);
+                break;
+            }
+
+            rc = AudioMixBufWriteCirc(&pHstStrmIn->MixBuf, puBuf, cbToRead, &cWritten);
+            if (   RT_FAILURE(rc)
+                || !cWritten)
+            {
+                RTCircBufReleaseReadBlock(pStreamIn->pBuf, cbToRead);
+                break;
+            }
+
+            cbWritten = AUDIOMIXBUF_S2B(&pHstStrmIn->MixBuf, cWritten);
+
+            /* Release the read buffer, so it could be used for new data. */
+            RTCircBufReleaseReadBlock(pStreamIn->pBuf, cbWritten);
+
+            Assert(cbToWrite >= cbWritten);
+            cbToWrite      -= cbWritten;
+            cbWrittenTotal += cbWritten;
+        }
+
+        LogFlowFunc(("cbToWrite=%zu, cbToRead=%zu, cbWrittenTotal=%RU32, rc=%Rrc\n", cbToWrite, cbToRead, cbWrittenTotal, rc));
+    }
+    while (0);
+
+    if (RT_SUCCESS(rc))
+    {
+        uint32_t cCaptured     = 0;
+        uint32_t cWrittenTotal = AUDIOMIXBUF_B2S(&pHstStrmIn->MixBuf, cbWrittenTotal);
+        if (cWrittenTotal)
+            rc = AudioMixBufMixToParent(&pHstStrmIn->MixBuf, cWrittenTotal, &cCaptured);
+
+        LogFlowFunc(("cWrittenTotal=%RU32 (%RU32 bytes), cCaptured=%RU32, rc=%Rrc\n", cWrittenTotal, cbWrittenTotal, cCaptured, rc));
+
+        if (pcSamplesCaptured)
+            *pcSamplesCaptured = cCaptured;
+    }
+
+    LogFlowFuncLeaveRC(rc);
+    return rc;
+}
 
 /* Callback for getting notified when some of the properties of an audio device has changed. */
-static DECLCALLBACK(OSStatus) coreAudioPlaybackAudioDevicePropertyChanged(AudioObjectID propertyID,
-                                                                          UInt32 nAddresses,
-                                                                          const AudioObjectPropertyAddress properties[],
-                                                                          void *pvUser)
+static DECLCALLBACK(OSStatus) drvHostCoreAudioPlaybackAudioDevicePropertyChanged(AudioObjectID propertyID,
+                                                                                 UInt32 nAddresses,
+                                                                                 const AudioObjectPropertyAddress properties[],
+                                                                                 void *pvUser)
 {
     switch (propertyID)
     {
@@ -1387,15 +1755,15 @@ static DECLCALLBACK(OSStatus) coreAudioPlaybackAudioDevicePropertyChanged(AudioO
 }
 
 /* Callback to feed audio output buffer. */
-static DECLCALLBACK(OSStatus) coreAudioPlaybackCb(void *pvUser,
-                                                  AudioUnitRenderActionFlags *pActionFlags,
-                                                  const AudioTimeStamp       *pAudioTS,
-                                                  UInt32                      uBusID,
-                                                  UInt32                      cFrames,
-                                                  AudioBufferList            *pBufData)
+static DECLCALLBACK(OSStatus) drvHostCoreAudioPlaybackCallback(void                       *pvUser,
+                                                               AudioUnitRenderActionFlags *pActionFlags,
+                                                               const AudioTimeStamp       *pAudioTS,
+                                                               UInt32                      uBusID,
+                                                               UInt32                      cFrames,
+                                                               AudioBufferList            *pBufData)
 {
     PCOREAUDIOSTREAMOUT pStreamOut = (PCOREAUDIOSTREAMOUT)pvUser;
-    PPDMAUDIOSTREAM pStream        = &pStreamOut->Stream;
+    PPDMAUDIOHSTSTRMOUT pHstStrmOut = &pStreamOut->streamOut;
 
     if (ASMAtomicReadU32(&pStreamOut->status) != CA_STATUS_INIT)
     {
@@ -1445,122 +1813,27 @@ static DECLCALLBACK(OSStatus) coreAudioPlaybackCb(void *pvUser,
     return noErr;
 }
 
-static DECLCALLBACK(int) drvHostCoreAudioInit(PPDMIHOSTAUDIO pInterface)
-{
-    NOREF(pInterface);
-
-    LogFlowFuncEnter();
-
-    return VINF_SUCCESS;
-}
-
-static DECLCALLBACK(int) drvHostCoreAudioStreamCapture(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM pStream,
-                                                       uint32_t *pcSamplesCaptured)
+static DECLCALLBACK(int) drvHostCoreAudioPlayOut(PPDMIHOSTAUDIO pInterface, PPDMAUDIOHSTSTRMOUT pHstStrmOut,
+                                                 uint32_t *pcSamplesPlayed)
 {
     PPDMDRVINS pDrvIns      = PDMIBASE_2_PDMDRV(pInterface);
     PDRVHOSTCOREAUDIO pThis = PDMINS_2_DATA(pDrvIns, PDRVHOSTCOREAUDIO);
 
-    PCOREAUDIOSTREAMIN pStreamIn = (PCOREAUDIOSTREAMIN)pStream;
-
-    size_t csReads = 0;
-    char *pcSrc;
-    PPDMAUDIOSAMPLE psDst;
-
-    /* Check if the audio device should be reinitialized. If so do it. */
-    if (ASMAtomicReadU32(&pStreamIn->status) == CA_STATUS_REINIT)
-        coreAudioReinitIn(pInterface, &pStreamIn->Stream);
-
-    if (ASMAtomicReadU32(&pStreamIn->status) != CA_STATUS_INIT)
-    {
-        if (pcSamplesCaptured)
-            *pcSamplesCaptured = 0;
-        return VINF_SUCCESS;
-    }
-
-    int rc = VINF_SUCCESS;
-    uint32_t cbWrittenTotal = 0;
-
-    do
-    {
-        size_t cbBuf = AudioMixBufSizeBytes(&pStream->MixBuf);
-        size_t cbToWrite = RT_MIN(cbBuf, RTCircBufUsed(pStreamIn->pBuf));
-
-        uint32_t cWritten, cbWritten;
-        uint8_t *puBuf;
-        size_t   cbToRead;
-
-        LogFlowFunc(("cbBuf=%zu, cbToWrite=%zu\n", cbBuf, cbToWrite));
-
-        while (cbToWrite)
-        {
-            /* Try to acquire the necessary block from the ring buffer. */
-            RTCircBufAcquireReadBlock(pStreamIn->pBuf, cbToWrite, (void **)&puBuf, &cbToRead);
-            if (!cbToRead)
-            {
-                RTCircBufReleaseReadBlock(pStreamIn->pBuf, cbToRead);
-                break;
-            }
-
-            rc = AudioMixBufWriteCirc(&pStream->MixBuf, puBuf, cbToRead, &cWritten);
-            if (   RT_FAILURE(rc)
-                || !cWritten)
-            {
-                RTCircBufReleaseReadBlock(pStreamIn->pBuf, cbToRead);
-                break;
-            }
-
-            cbWritten = AUDIOMIXBUF_S2B(&pStream->MixBuf, cWritten);
-
-            /* Release the read buffer, so it could be used for new data. */
-            RTCircBufReleaseReadBlock(pStreamIn->pBuf, cbWritten);
-
-            Assert(cbToWrite >= cbWritten);
-            cbToWrite      -= cbWritten;
-            cbWrittenTotal += cbWritten;
-        }
-
-        LogFlowFunc(("cbToWrite=%zu, cbToRead=%zu, cbWrittenTotal=%RU32, rc=%Rrc\n", cbToWrite, cbToRead, cbWrittenTotal, rc));
-    }
-    while (0);
-
-    if (RT_SUCCESS(rc))
-    {
-        uint32_t cCaptured     = 0;
-        uint32_t cWrittenTotal = AUDIOMIXBUF_B2S(&pStream->MixBuf, cbWrittenTotal);
-        if (cWrittenTotal)
-            rc = AudioMixBufMixToParent(&pStream->MixBuf, cWrittenTotal, &cCaptured);
-
-        LogFlowFunc(("cWrittenTotal=%RU32 (%RU32 bytes), cCaptured=%RU32, rc=%Rrc\n", cWrittenTotal, cbWrittenTotal, cCaptured, rc));
-
-        if (pcSamplesCaptured)
-            *pcSamplesCaptured = cCaptured;
-    }
-
-    LogFlowFuncLeaveRC(rc);
-    return rc;
-}
-
-static DECLCALLBACK(int) drvHostCoreAudioStreamPlay(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM pStream,
-                                                    uint32_t *pcSamplesPlayed)
-{
-    PPDMDRVINS pDrvIns      = PDMIBASE_2_PDMDRV(pInterface);
-    PDRVHOSTCOREAUDIO pThis = PDMINS_2_DATA(pDrvIns, PDRVHOSTCOREAUDIO);
-
-    PCOREAUDIOSTREAMOUT pStreamOut = (PCOREAUDIOSTREAMOUT)pStream;
+    PCOREAUDIOSTREAMOUT pStreamOut = (PCOREAUDIOSTREAMOUT)pHstStrmOut;
 
     int rc = VINF_SUCCESS;
 
     /* Check if the audio device should be reinitialized. If so do it. */
     if (ASMAtomicReadU32(&pStreamOut->status) == CA_STATUS_REINIT)
     {
-        rc = coreAudioReinitOut(pInterface, &pStreamOut->Stream);
+        rc = drvHostCoreAudioReinitOutput(pInterface, &pStreamOut->streamOut);
         if (RT_FAILURE(rc))
             return rc;
     }
 
     /* Not much else to do here. */
 
-    uint32_t cLive = AudioMixBufAvail(&pStream->MixBuf);;
+    uint32_t cLive = AudioMixBufAvail(&pHstStrmOut->MixBuf);;
     if (!cLive) /* Not samples to play? Bail out. */
     {
         if (pcSamplesPlayed)
@@ -1569,8 +1842,8 @@ static DECLCALLBACK(int) drvHostCoreAudioStreamPlay(PPDMIHOSTAUDIO pInterface, P
     }
 
     uint32_t cbReadTotal = 0;
-    uint32_t cAvail = AudioMixBufAvail(&pStream->MixBuf);
-    size_t cbAvail  = AUDIOMIXBUF_S2B(&pStream->MixBuf, cAvail);
+    uint32_t cAvail = AudioMixBufAvail(&pHstStrmOut->MixBuf);
+    size_t cbAvail  = AUDIOMIXBUF_S2B(&pHstStrmOut->MixBuf, cAvail);
     size_t cbToRead = RT_MIN(cbAvail, RTCircBufFree(pStreamOut->pBuf));
     LogFlowFunc(("cbToRead=%zu\n", cbToRead));
 
@@ -1590,7 +1863,7 @@ static DECLCALLBACK(int) drvHostCoreAudioStreamPlay(PPDMIHOSTAUDIO pInterface, P
 
         Assert(cbCopy <= cbToRead);
 
-        rc = AudioMixBufReadCirc(&pStream->MixBuf,
+        rc = AudioMixBufReadCirc(&pHstStrmOut->MixBuf,
                                  puBuf, cbCopy, &cRead);
 
         if (   RT_FAILURE(rc)
@@ -1600,7 +1873,7 @@ static DECLCALLBACK(int) drvHostCoreAudioStreamPlay(PPDMIHOSTAUDIO pInterface, P
             break;
         }
 
-        cbRead = AUDIOMIXBUF_S2B(&pStream->MixBuf, cRead);
+        cbRead = AUDIOMIXBUF_S2B(&pHstStrmOut->MixBuf, cRead);
 
         /* Release the ring buffer, so the read thread could start reading this data. */
         RTCircBufReleaseWriteBlock(pStreamOut->pBuf, cbRead);
@@ -1612,9 +1885,9 @@ static DECLCALLBACK(int) drvHostCoreAudioStreamPlay(PPDMIHOSTAUDIO pInterface, P
 
     if (RT_SUCCESS(rc))
     {
-        uint32_t cReadTotal = AUDIOMIXBUF_B2S(&pStream->MixBuf, cbReadTotal);
+        uint32_t cReadTotal = AUDIOMIXBUF_B2S(&pHstStrmOut->MixBuf, cbReadTotal);
         if (cReadTotal)
-            AudioMixBufFinish(&pStream->MixBuf, cReadTotal);
+            AudioMixBufFinish(&pHstStrmOut->MixBuf, cReadTotal);
 
         LogFlowFunc(("cReadTotal=%RU32 (%RU32 bytes)\n", cReadTotal, cbReadTotal));
 
@@ -1625,10 +1898,10 @@ static DECLCALLBACK(int) drvHostCoreAudioStreamPlay(PPDMIHOSTAUDIO pInterface, P
     return rc;
 }
 
-static DECLCALLBACK(int) coreAudioControlStreamOut(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM pStream,
-                                                   PDMAUDIOSTREAMCMD enmStreamCmd)
+static DECLCALLBACK(int) drvHostCoreAudioControlOut(PPDMIHOSTAUDIO pInterface, PPDMAUDIOHSTSTRMOUT pHstStrmOut,
+                                                    PDMAUDIOSTREAMCMD enmStreamCmd)
 {
-    PCOREAUDIOSTREAMOUT pStreamOut = (PCOREAUDIOSTREAMOUT)pStream;
+    PCOREAUDIOSTREAMOUT pStreamOut = (PCOREAUDIOSTREAMOUT)pHstStrmOut;
 
     LogFlowFunc(("enmStreamCmd=%ld\n", enmStreamCmd));
 
@@ -1648,7 +1921,7 @@ static DECLCALLBACK(int) coreAudioControlStreamOut(PPDMIHOSTAUDIO pInterface, PP
         case PDMAUDIOSTREAMCMD_RESUME:
         {
             /* Only start the device if it is actually stopped */
-            if (!coreAudioIsRunning(pStreamOut->deviceID))
+            if (!drvHostCoreAudioIsRunning(pStreamOut->deviceID))
             {
                 err = AudioUnitReset(pStreamOut->audioUnit, kAudioUnitScope_Input, 0);
                 if (err != noErr)
@@ -1672,7 +1945,7 @@ static DECLCALLBACK(int) coreAudioControlStreamOut(PPDMIHOSTAUDIO pInterface, PP
         case PDMAUDIOSTREAMCMD_PAUSE:
         {
             /* Only stop the device if it is actually running */
-            if (coreAudioIsRunning(pStreamOut->deviceID))
+            if (drvHostCoreAudioIsRunning(pStreamOut->deviceID))
             {
                 err = AudioOutputUnitStop(pStreamOut->audioUnit);
                 if (err != noErr)
@@ -1701,10 +1974,10 @@ static DECLCALLBACK(int) coreAudioControlStreamOut(PPDMIHOSTAUDIO pInterface, PP
     return rc;
 }
 
-static int coreAudioControlStreamIn(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM pStream,
-                                     PDMAUDIOSTREAMCMD enmStreamCmd)
+static DECLCALLBACK(int) drvHostCoreAudioControlIn(PPDMIHOSTAUDIO pInterface, PPDMAUDIOHSTSTRMIN pHstStrmIn,
+                                                   PDMAUDIOSTREAMCMD enmStreamCmd)
 {
-    PCOREAUDIOSTREAMIN pStreamIn = (PCOREAUDIOSTREAMIN)pStream;
+    PCOREAUDIOSTREAMIN pStreamIn = (PCOREAUDIOSTREAMIN)pHstStrmIn;
 
     LogFlowFunc(("enmStreamCmd=%ld\n", enmStreamCmd));
 
@@ -1716,7 +1989,7 @@ static int coreAudioControlStreamIn(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM p
     }
 
     int rc = VINF_SUCCESS;
-    OSStatus err = noErr;
+    OSStatus err;
 
     switch (enmStreamCmd)
     {
@@ -1724,7 +1997,7 @@ static int coreAudioControlStreamIn(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM p
         case PDMAUDIOSTREAMCMD_RESUME:
         {
             /* Only start the device if it is actually stopped */
-            if (!coreAudioIsRunning(pStreamIn->deviceID))
+            if (!drvHostCoreAudioIsRunning(pStreamIn->deviceID))
             {
                 RTCircBufReset(pStreamIn->pBuf);
                 err = AudioOutputUnitStart(pStreamIn->audioUnit);
@@ -1735,12 +2008,6 @@ static int coreAudioControlStreamIn(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM p
                     break;
                 }
             }
-
-            if (err != noErr)
-            {
-                LogRel(("CoreAudio: Failed to start recording (%RI32)\n", err));
-                rc = VERR_GENERAL_FAILURE; /** @todo Fudge! */
-            }
             break;
         }
 
@@ -1748,7 +2015,7 @@ static int coreAudioControlStreamIn(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM p
         case PDMAUDIOSTREAMCMD_PAUSE:
         {
             /* Only stop the device if it is actually running */
-            if (coreAudioIsRunning(pStreamIn->deviceID))
+            if (drvHostCoreAudioIsRunning(pStreamIn->deviceID))
             {
                 err = AudioOutputUnitStop(pStreamIn->audioUnit);
                 if (err != noErr)
@@ -1778,12 +2045,9 @@ static int coreAudioControlStreamIn(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM p
     return rc;
 }
 
-static int coreAudioDestroyStreamIn(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM pStream)
+static DECLCALLBACK(int) drvHostCoreAudioFiniIn(PPDMIHOSTAUDIO pInterface, PPDMAUDIOHSTSTRMIN pHstStrmIn)
 {
-    PCOREAUDIOSTREAMIN pStreamIn = (PCOREAUDIOSTREAMIN) pStream;
-
-    PPDMDRVINS pDrvIns = PDMIBASE_2_PDMDRV(pInterface);
-    PDRVHOSTCOREAUDIO  pThis   = PDMINS_2_DATA(pDrvIns, PDRVHOSTCOREAUDIO);
+    PCOREAUDIOSTREAMIN pStreamIn = (PCOREAUDIOSTREAMIN) pHstStrmIn;
 
     LogFlowFuncEnter();
 
@@ -1796,42 +2060,56 @@ static int coreAudioDestroyStreamIn(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM p
 
     OSStatus err = noErr;
 
-    int rc = coreAudioControlStreamIn(pInterface, &pStreamIn->Stream, PDMAUDIOSTREAMCMD_DISABLE);
+    int rc = drvHostCoreAudioControlIn(pInterface, &pStreamIn->streamIn, PDMAUDIOSTREAMCMD_DISABLE);
     if (RT_SUCCESS(rc))
     {
         ASMAtomicXchgU32(&pStreamIn->status, CA_STATUS_IN_UNINIT);
 
         /*
-         * Unregister input device callbacks.
+         * Unregister recording device callbacks.
          */
         AudioObjectPropertyAddress propAdr = { kAudioDeviceProcessorOverload, kAudioObjectPropertyScopeGlobal,
                                                kAudioObjectPropertyElementMaster };
 #ifdef DEBUG
         err = AudioObjectRemovePropertyListener(pStreamIn->deviceID, &propAdr,
-                                                coreAudioRecordingAudioDevicePropertyChanged, pStreamIn);
+                                                drvHostCoreAudioRecordingAudioDevicePropertyChanged, pStreamIn);
         /* Not Fatal */
         if (RT_UNLIKELY(err != noErr))
-            LogRel(("CoreAudio: Failed to remove the processor overload listener (%RI32)\n", err));
+            LogRel(("CoreAudio: Failed to remove the recording processor overload listener (%RI32)\n", err));
 #endif /* DEBUG */
 
         propAdr.mSelector = kAudioDevicePropertyNominalSampleRate;
         err = AudioObjectRemovePropertyListener(pStreamIn->deviceID, &propAdr,
-                                                coreAudioRecordingAudioDevicePropertyChanged, pStreamIn);
+                                                drvHostCoreAudioRecordingAudioDevicePropertyChanged, pStreamIn);
         /* Not Fatal */
         if (RT_UNLIKELY(err != noErr))
-            LogRel(("CoreAudio: Failed to remove the sample rate changed listener (%RI32)\n", err));
+            LogRel(("CoreAudio: Failed to remove the recording sample rate changed listener (%RI32)\n", err));
 
         if (pStreamIn->fDefDevChgListReg)
         {
             propAdr.mSelector = kAudioHardwarePropertyDefaultInputDevice;
             err = AudioObjectRemovePropertyListener(kAudioObjectSystemObject, &propAdr,
-                                                    coreAudioDefaultDeviceChanged, pStreamIn);
+                                                    drvHostCoreAudioDefaultDeviceChanged, pStreamIn);
             if (RT_LIKELY(err == noErr))
             {
                 pStreamIn->fDefDevChgListReg = false;
             }
             else
-                LogRel(("CoreAudio: [Output] Failed to remove the default input device changed listener (%RI32)\n", err));
+                LogRel(("CoreAudio: Failed to remove the default recording device changed listener (%RI32)\n", err));
+        }
+
+        if (pStreamIn->fDevStateChgListReg)
+        {
+            AudioObjectPropertyAddress propAdr2 = { kAudioDevicePropertyDeviceIsAlive, kAudioObjectPropertyScopeGlobal,
+                                                    kAudioObjectPropertyElementMaster };
+            err = AudioObjectRemovePropertyListener(pStreamIn->deviceID, &propAdr2,
+                                                    drvHostCoreAudioDeviceStateChanged, &pStreamIn->cbCtx);
+            if (RT_LIKELY(err == noErr))
+            {
+                pStreamIn->fDevStateChgListReg = false;
+            }
+            else
+                LogRel(("CoreAudio: Failed to remove the recording device state changed listener (%RI32)\n", err));
         }
 
         if (pStreamIn->pConverter)
@@ -1860,13 +2138,13 @@ static int coreAudioDestroyStreamIn(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM p
             }
             else
             {
-                LogRel(("CoreAudio: Failed to close the AudioUnit (%RI32)\n", err));
+                LogRel(("CoreAudio: Failed to close the recording unit (%RI32)\n", err));
                 rc = VERR_GENERAL_FAILURE; /** @todo Fudge! */
             }
         }
         else
         {
-            LogRel(("CoreAudio: Failed to uninitialize the AudioUnit (%RI32)\n", err));
+            LogRel(("CoreAudio: Failed to uninitialize the recording unit (%RI32)\n", err));
             rc = VERR_GENERAL_FAILURE; /** @todo Fudge! */
         }
     }
@@ -1880,12 +2158,9 @@ static int coreAudioDestroyStreamIn(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM p
     return rc;
 }
 
-static int coreAudioDestroyStreamOut(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM pStream)
+static DECLCALLBACK(int) drvHostCoreAudioFiniOut(PPDMIHOSTAUDIO pInterface, PPDMAUDIOHSTSTRMOUT pHstStrmOut)
 {
-    PPDMDRVINS pDrvIns      = PDMIBASE_2_PDMDRV(pInterface);
-    PDRVHOSTCOREAUDIO pThis = PDMINS_2_DATA(pDrvIns, PDRVHOSTCOREAUDIO);
-
-    PCOREAUDIOSTREAMOUT pStreamOut = (PCOREAUDIOSTREAMOUT)pStream;
+    PCOREAUDIOSTREAMOUT pStreamOut = (PCOREAUDIOSTREAMOUT)pHstStrmOut;
 
     LogFlowFuncEnter();
 
@@ -1896,7 +2171,7 @@ static int coreAudioDestroyStreamOut(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM 
         return VINF_SUCCESS;
     }
 
-    int rc = coreAudioControlStreamOut(pInterface, &pStreamOut->Stream, PDMAUDIOSTREAMCMD_DISABLE);
+    int rc = drvHostCoreAudioControlOut(pInterface, &pStreamOut->streamOut, PDMAUDIOSTREAMCMD_DISABLE);
     if (RT_SUCCESS(rc))
     {
         ASMAtomicXchgU32(&pStreamOut->status, CA_STATUS_IN_UNINIT);
@@ -1910,18 +2185,18 @@ static int coreAudioDestroyStreamOut(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM 
                                                kAudioObjectPropertyElementMaster };
 #ifdef DEBUG
         err = AudioObjectRemovePropertyListener(pStreamOut->deviceID, &propAdr,
-                                                coreAudioPlaybackAudioDevicePropertyChanged, pStreamOut);
+                                                drvHostCoreAudioPlaybackAudioDevicePropertyChanged, pStreamOut);
         /* Not Fatal */
         if (RT_UNLIKELY(err != noErr))
-            LogRel(("CoreAudio: Failed to remove the processor overload listener (%RI32)\n", err));
+            LogRel(("CoreAudio: Failed to remove the playback processor overload listener (%RI32)\n", err));
 #endif /* DEBUG */
 
         propAdr.mSelector = kAudioDevicePropertyNominalSampleRate;
         err = AudioObjectRemovePropertyListener(pStreamOut->deviceID, &propAdr,
-                                                coreAudioPlaybackAudioDevicePropertyChanged, pStreamOut);
+                                                drvHostCoreAudioPlaybackAudioDevicePropertyChanged, pStreamOut);
         /* Not Fatal */
         if (RT_UNLIKELY(err != noErr))
-            LogRel(("CoreAudio: Failed to remove the sample rate changed listener (%RI32)\n", err));
+            LogRel(("CoreAudio: Failed to remove the playback sample rate changed listener (%RI32)\n", err));
 
         if (pStreamOut->fDefDevChgListReg)
         {
@@ -1929,13 +2204,27 @@ static int coreAudioDestroyStreamOut(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM 
             propAdr.mScope    = kAudioObjectPropertyScopeGlobal;
             propAdr.mElement  = kAudioObjectPropertyElementMaster;
             err = AudioObjectRemovePropertyListener(kAudioObjectSystemObject, &propAdr,
-                                                    coreAudioDefaultDeviceChanged, pStreamOut);
+                                                    drvHostCoreAudioDefaultDeviceChanged, pStreamOut);
             if (RT_LIKELY(err == noErr))
             {
                 pStreamOut->fDefDevChgListReg = false;
             }
             else
-                LogRel(("CoreAudio: [Output] Failed to remove the default playback device changed listener (%RI32)\n", err));
+                LogRel(("CoreAudio: Failed to remove the default playback device changed listener (%RI32)\n", err));
+        }
+
+        if (pStreamOut->fDevStateChgListReg)
+        {
+            AudioObjectPropertyAddress propAdr2 = { kAudioDevicePropertyDeviceIsAlive, kAudioObjectPropertyScopeGlobal,
+                                                    kAudioObjectPropertyElementMaster };
+            err = AudioObjectRemovePropertyListener(pStreamOut->deviceID, &propAdr2,
+                                                    drvHostCoreAudioDeviceStateChanged, &pStreamOut->cbCtx);
+            if (RT_LIKELY(err == noErr))
+            {
+                pStreamOut->fDevStateChgListReg = false;
+            }
+            else
+                LogRel(("CoreAudio: Failed to remove the playback device state changed listener (%RI32)\n", err));
         }
 
         err = AudioUnitUninitialize(pStreamOut->audioUnit);
@@ -1955,10 +2244,10 @@ static int coreAudioDestroyStreamOut(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM 
                 ASMAtomicXchgU32(&pStreamOut->status, CA_STATUS_UNINIT);
             }
             else
-                LogRel(("CoreAudio: Failed to close the AudioUnit (%RI32)\n", err));
+                LogRel(("CoreAudio: Failed to close the playback unit (%RI32)\n", err));
         }
         else
-            LogRel(("CoreAudio: Failed to uninitialize the AudioUnit (%RI32)\n", err));
+            LogRel(("CoreAudio: Failed to uninitialize the playback unit (%RI32)\n", err));
     }
     else
         LogRel(("CoreAudio: Failed to stop playback, rc=%Rrc\n", rc));
@@ -1967,12 +2256,14 @@ static int coreAudioDestroyStreamOut(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM 
     return rc;
 }
 
-static int coreAudioCreateStreamIn(PPDMIHOSTAUDIO pInterface,
-                                   PPDMAUDIOSTREAM pStream, PPDMAUDIOSTREAMCFG pCfg, uint32_t *pcSamples)
+static DECLCALLBACK(int) drvHostCoreAudioInitIn(PPDMIHOSTAUDIO pInterface,
+                                                PPDMAUDIOHSTSTRMIN pHstStrmIn, PPDMAUDIOSTREAMCFG pCfg,
+                                                PDMAUDIORECSOURCE enmRecSource,
+                                                uint32_t *pcSamples)
 {
-    PCOREAUDIOSTREAMIN pStreamIn = (PCOREAUDIOSTREAMIN)pStream;
+    PCOREAUDIOSTREAMIN pStreamIn = (PCOREAUDIOSTREAMIN)pHstStrmIn;
 
-    LogFlowFunc(("enmRecSource=%ld\n", pCfg->DestSource.Source));
+    LogFlowFunc(("enmRecSource=%ld\n", enmRecSource));
 
     pStreamIn->deviceID                  = kAudioDeviceUnknown;
     pStreamIn->audioUnit                 = NULL;
@@ -1983,11 +2274,12 @@ static int coreAudioCreateStreamIn(PPDMIHOSTAUDIO pInterface,
     pStreamIn->pBuf                      = NULL;
     pStreamIn->status                    = CA_STATUS_UNINIT;
     pStreamIn->fDefDevChgListReg         = false;
+    pStreamIn->fDevStateChgListReg       = false;
 
     bool fDeviceByUser = false; /* Do we use a device which was set by the user? */
 
     /* Initialize the hardware info section with the audio settings */
-    int rc = DrvAudioHlpStreamCfgToProps(pCfg, &pStreamIn->Stream.Props);
+    int rc = DrvAudioStreamCfgToProps(pCfg, &pStreamIn->streamIn.Props);
     if (RT_SUCCESS(rc))
     {
 #if 0
@@ -1997,42 +2289,57 @@ static int coreAudioCreateStreamIn(PPDMIHOSTAUDIO pInterface,
             pStreamIn->deviceID = drvHostCoreAudioDeviceUIDtoID(DeviceUID.pszInputDeviceUID);
             /* Not fatal */
             if (pStreamIn->deviceID == kAudioDeviceUnknown)
-                LogRel(("CoreAudio: Unable to find input device %s. Falling back to the default audio device. \n", DeviceUID.pszInputDeviceUID));
+                LogRel(("CoreAudio: Unable to find recording device %s. Falling back to the default audio device. \n", DeviceUID.pszInputDeviceUID));
             else
                 fDeviceByUser = true;
         }
 #endif
-        rc = coreAudioInitIn(&pStreamIn->Stream, pcSamples);
+        rc = drvHostCoreAudioInitInput(pInterface, &pStreamIn->streamIn, pcSamples);
     }
 
     if (RT_SUCCESS(rc))
     {
+        OSStatus err;
+
         /* When the devices isn't forced by the user, we want default device change notifications. */
         if (!fDeviceByUser)
         {
             AudioObjectPropertyAddress propAdr = { kAudioHardwarePropertyDefaultInputDevice, kAudioObjectPropertyScopeGlobal,
                                                    kAudioObjectPropertyElementMaster };
-            OSStatus err = AudioObjectAddPropertyListener(kAudioObjectSystemObject, &propAdr,
-                                                          coreAudioDefaultDeviceChanged, (void *)pStreamIn);
+            err = AudioObjectAddPropertyListener(kAudioObjectSystemObject, &propAdr,
+                                                 drvHostCoreAudioDefaultDeviceChanged, &pStreamIn->cbCtx);
             /* Not fatal. */
             if (RT_LIKELY(err == noErr))
             {
                 pStreamIn->fDefDevChgListReg = true;
             }
             else
-                LogRel(("CoreAudio: Failed to add the default input device changed listener (%RI32)\n", err));
+                LogRel(("CoreAudio: Failed to add the default recording device changed listener (%RI32)\n", err));
         }
+
+        /* Register callback for being notified if the device stops being alive. */
+        AudioObjectPropertyAddress propAdr = { kAudioDevicePropertyDeviceIsAlive, kAudioObjectPropertyScopeGlobal,
+                                               kAudioObjectPropertyElementMaster };
+        err = AudioObjectAddPropertyListener(pStreamIn->deviceID, &propAdr, drvHostCoreAudioDeviceStateChanged,
+                                             &pStreamIn->cbCtx);
+        /* Not fatal. */
+        if (RT_LIKELY(err == noErr))
+        {
+            pStreamIn->fDevStateChgListReg = true;
+        }
+        else
+            LogRel(("CoreAudio: Failed to add the recording device state changed listener (%RI32)\n", err));
     }
 
     LogFlowFuncLeaveRC(rc);
     return rc;
 }
 
-static int coreAudioCreateStreamOut(PPDMIHOSTAUDIO pInterface,
-                                    PPDMAUDIOSTREAM pStream, PPDMAUDIOSTREAMCFG pCfg,
-                                    uint32_t *pcSamples)
+static DECLCALLBACK(int) drvHostCoreAudioInitOut(PPDMIHOSTAUDIO pInterface,
+                                                 PPDMAUDIOHSTSTRMOUT pHstStrmOut, PPDMAUDIOSTREAMCFG pCfg,
+                                                 uint32_t *pcSamples)
 {
-    PCOREAUDIOSTREAMOUT pStreamOut = (PCOREAUDIOSTREAMOUT)pStream;
+    PCOREAUDIOSTREAMOUT pStreamOut = (PCOREAUDIOSTREAMOUT)pHstStrmOut;
 
     LogFlowFuncEnter();
 
@@ -2041,11 +2348,12 @@ static int coreAudioCreateStreamOut(PPDMIHOSTAUDIO pInterface,
     pStreamOut->pBuf                      = NULL;
     pStreamOut->status                    = CA_STATUS_UNINIT;
     pStreamOut->fDefDevChgListReg         = false;
+    pStreamOut->fDevStateChgListReg       = false;
 
     bool fDeviceByUser = false; /* Do we use a device which was set by the user? */
 
     /* Initialize the hardware info section with the audio settings */
-    int rc = DrvAudioHlpStreamCfgToProps(pCfg, &pStreamOut->Stream.Props);
+    int rc = DrvAudioStreamCfgToProps(pCfg, &pStreamOut->streamOut.Props);
     if (RT_SUCCESS(rc))
     {
 #if 0
@@ -2057,128 +2365,65 @@ static int coreAudioCreateStreamOut(PPDMIHOSTAUDIO pInterface,
             pStreamOut->audioDeviceId = drvHostCoreAudioDeviceUIDtoID(DeviceUID.pszOutputDeviceUID);
             /* Not fatal */
             if (pStreamOut->audioDeviceId == kAudioDeviceUnknown)
-                LogRel(("CoreAudio: Unable to find output device %s. Falling back to the default audio device. \n", DeviceUID.pszOutputDeviceUID));
+                LogRel(("CoreAudio: Unable to find playback device %s. Falling back to the default audio device. \n", DeviceUID.pszOutputDeviceUID));
             else
                 fDeviceByUser = true;
         }
 #endif
-        rc = coreAudioInitOut(pStream, pcSamples);
+        rc = drvHostCoreAudioInitOutput(pInterface, pHstStrmOut, pcSamples);
     }
 
     if (RT_SUCCESS(rc))
     {
+        OSStatus err;
+
         /* When the devices isn't forced by the user, we want default device change notifications. */
         if (!fDeviceByUser)
         {
             AudioObjectPropertyAddress propAdr = { kAudioHardwarePropertyDefaultOutputDevice, kAudioObjectPropertyScopeGlobal,
                                                    kAudioObjectPropertyElementMaster };
-            OSStatus err = AudioObjectAddPropertyListener(kAudioObjectSystemObject, &propAdr,
-                                                          coreAudioDefaultDeviceChanged, (void *)pStreamOut);
+            err = AudioObjectAddPropertyListener(kAudioObjectSystemObject, &propAdr,
+                                                 drvHostCoreAudioDefaultDeviceChanged, &pStreamOut->cbCtx);
             /* Not fatal. */
             if (RT_LIKELY(err == noErr))
             {
                 pStreamOut->fDefDevChgListReg = true;
             }
             else
-                LogRel(("CoreAudio: Failed to add the default output device changed listener (%RI32)\n", err));
+                LogRel(("CoreAudio: Failed to add the default playback device changed listener (%RI32)\n", err));
         }
+
+        /* Register callback for being notified if the device stops being alive. */
+        AudioObjectPropertyAddress propAdr = { kAudioDevicePropertyDeviceIsAlive, kAudioObjectPropertyScopeGlobal,
+                                               kAudioObjectPropertyElementMaster };
+        err = AudioObjectAddPropertyListener(pStreamOut->deviceID, &propAdr, drvHostCoreAudioDeviceStateChanged,
+                                             (void *)&pStreamOut->cbCtx);
+        /* Not fatal. */
+        if (RT_LIKELY(err == noErr))
+        {
+            pStreamOut->fDevStateChgListReg = true;
+        }
+        else
+            LogRel(("CoreAudio: Failed to add the playback device state changed listener (%RI32)\n", err));
     }
 
     LogFlowFuncLeaveRC(rc);
     return rc;
 }
 
-static DECLCALLBACK(int) drvHostCoreAudioGetConfig(PPDMIHOSTAUDIO pInterface, PPDMAUDIOBACKENDCFG pCfg)
+static DECLCALLBACK(bool) drvHostCoreAudioIsEnabled(PPDMIHOSTAUDIO pInterface, PDMAUDIODIR enmDir)
 {
     NOREF(pInterface);
-    AssertPtrReturn(pCfg, VERR_INVALID_POINTER);
-
-    LogFlowFuncEnter();
-
-    pCfg->cbStreamIn      = sizeof(COREAUDIOSTREAMIN);
-    pCfg->cbStreamOut     = sizeof(COREAUDIOSTREAMOUT);
-    pCfg->cMaxStreamsIn   = UINT32_MAX;
-    pCfg->cMaxStreamsOut  = UINT32_MAX;
-
-    /** @todo Implement a proper device detection. */
-    pCfg->cSources        = 1;
-    pCfg->cSinks          = 1;
-
-    return VINF_SUCCESS;
+    NOREF(enmDir);
+    return true; /* Always all enabled. */
 }
 
-static DECLCALLBACK(PDMAUDIOBACKENDSTS) drvHostCoreAudioGetStatus(PPDMIHOSTAUDIO pInterface, PDMAUDIODIR enmDir)
+static DECLCALLBACK(int) drvHostCoreAudioGetConf(PPDMIHOSTAUDIO pInterface, PPDMAUDIOBACKENDCFG pCfg)
 {
-    AssertPtrReturn(pInterface, PDMAUDIOBACKENDSTS_UNKNOWN);
+    PPDMDRVINS        pDrvIns = PDMIBASE_2_PDMDRV(pInterface);
+    PDRVHOSTCOREAUDIO pThis   = PDMINS_2_DATA(pDrvIns, PDRVHOSTCOREAUDIO);
 
-    return PDMAUDIOBACKENDSTS_RUNNING;
-}
-
-static DECLCALLBACK(int) drvHostCoreAudioStreamCreate(PPDMIHOSTAUDIO pInterface,
-                                                       PPDMAUDIOSTREAM pStream, PPDMAUDIOSTREAMCFG pCfg, uint32_t *pcSamples)
-{
-    AssertPtrReturn(pInterface, VERR_INVALID_POINTER);
-    AssertPtrReturn(pStream,    VERR_INVALID_POINTER);
-    AssertPtrReturn(pCfg,       VERR_INVALID_POINTER);
-
-    int rc;
-    if (pCfg->enmDir == PDMAUDIODIR_IN)
-        rc = coreAudioCreateStreamIn(pInterface,  pStream, pCfg, pcSamples);
-    else
-        rc = coreAudioCreateStreamOut(pInterface, pStream, pCfg, pcSamples);
-
-    LogFlowFunc(("%s: rc=%Rrc\n", pStream->szName, rc));
-    return rc;
-}
-
-static DECLCALLBACK(int) drvHostCoreAudioStreamDestroy(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM pStream)
-{
-    AssertPtrReturn(pInterface, VERR_INVALID_POINTER);
-    AssertPtrReturn(pStream,    VERR_INVALID_POINTER);
-
-    int rc;
-    if (pStream->enmDir == PDMAUDIODIR_IN)
-        rc = coreAudioDestroyStreamIn(pInterface,  pStream);
-    else
-        rc = coreAudioDestroyStreamOut(pInterface, pStream);
-
-    return rc;
-}
-
-static DECLCALLBACK(int) drvHostCoreAudioStreamControl(PPDMIHOSTAUDIO pInterface,
-                                                       PPDMAUDIOSTREAM pStream, PDMAUDIOSTREAMCMD enmStreamCmd)
-{
-    AssertPtrReturn(pInterface, VERR_INVALID_POINTER);
-    AssertPtrReturn(pStream,    VERR_INVALID_POINTER);
-
-    Assert(pStream->enmCtx == PDMAUDIOSTREAMCTX_HOST);
-
-    int rc;
-    if (pStream->enmDir == PDMAUDIODIR_IN)
-        rc = coreAudioControlStreamIn(pInterface,  pStream, enmStreamCmd);
-    else
-        rc = coreAudioControlStreamOut(pInterface, pStream, enmStreamCmd);
-
-    return rc;
-}
-
-static DECLCALLBACK(PDMAUDIOSTRMSTS) drvHostCoreAudioStreamGetStatus(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM pStream)
-{
-    NOREF(pInterface);
-    NOREF(pStream);
-
-    return (PDMAUDIOSTRMSTS_FLAG_INITIALIZED | PDMAUDIOSTRMSTS_FLAG_ENABLED);
-}
-
-static DECLCALLBACK(int) drvHostCoreAudioStreamIterate(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM pStream)
-{
-    AssertPtrReturn(pInterface, VERR_INVALID_POINTER);
-    AssertPtrReturn(pStream,    VERR_INVALID_POINTER);
-
-    LogFlowFuncEnter();
-
-    /* Nothing to do here for Core Audio. */
-    return VINF_SUCCESS;
+    return coreAudioUpdateStatusInternalEx(pThis, pCfg, 0 /* fEnum */);
 }
 
 static DECLCALLBACK(void) drvHostCoreAudioShutdown(PPDMIHOSTAUDIO pInterface)

@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2010-2016 Oracle Corporation
+ * Copyright (C) 2010-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -295,7 +295,6 @@ int main(int argc, char *argv[])
     std::list<Utf8Str> llFiles2Delete;
     std::list<Guid> llMachinesCreated;
 
-    ComPtr<IVirtualBoxClient> pVirtualBoxClient;
     ComPtr<IVirtualBox> pVirtualBox;
 
     try
@@ -307,9 +306,7 @@ int main(int argc, char *argv[])
         ComPtr<ISession> pSession;
 
         RTPrintf("Creating VirtualBox object...\n");
-        rc = pVirtualBoxClient.createInprocObject(CLSID_VirtualBoxClient);
-        if (SUCCEEDED(rc))
-            rc = pVirtualBoxClient->COMGETTER(VirtualBox)(pVirtualBox.asOutParam());
+        rc = pVirtualBox.createLocalObject(CLSID_VirtualBox);
         if (FAILED(rc)) throw MyError(rc, "failed to create the VirtualBox object!\n");
 
         rc = pSession.createInprocObject(CLSID_Session);
@@ -386,7 +383,6 @@ int main(int argc, char *argv[])
     }
 
     pVirtualBox.setNull();
-    pVirtualBoxClient.setNull();
 
     RTPrintf("Shutting down COM...\n");
     com::Shutdown();

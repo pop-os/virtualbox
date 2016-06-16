@@ -26,15 +26,14 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 107509 $"
+__version__ = "$Revision: 100880 $"
 
 
 # Standard python imports.
 import unittest;
 
 # Validation Kit imports.
-from testmanager.core.base              import ModelDataBase, ModelDataBaseTestCase, ModelLogicBase, TMRowInUse, \
-                                               TMTooManyRows, TMInvalidData, TMRowNotFound, TMRowAlreadyExists;
+from testmanager.core.base              import ModelDataBase, ModelDataBaseTestCase, ModelLogicBase, TMExceptionBase
 from testmanager.core.testcase          import TestCaseData, TestCaseDataEx;
 
 
@@ -75,7 +74,7 @@ class TestGroupMemberData(ModelDataBase):
         Return self. Raises exception if no row.
         """
         if aoRow is None:
-            raise TMRowNotFound('Test group member not found.')
+            raise TMExceptionBase('Test group member not found.')
 
         self.idTestGroup     = aoRow[0];
         self.idTestCase      = aoRow[1];
@@ -144,8 +143,8 @@ class TestGroupMemberDataEx(TestGroupMemberData):
         asAttributes.remove('oTestCase');
         return asAttributes;
 
-    def _validateAndConvertWorker(self, asAllowNullAttributes, oDb, enmValidateFor = ModelDataBase.ksValidateFor_Other):
-        dErrors = TestGroupMemberData._validateAndConvertWorker(self, asAllowNullAttributes, oDb, enmValidateFor);
+    def _validateAndConvertWorker(self, asAllowNullAttributes, oDb):
+        dErrors = TestGroupMemberData._validateAndConvertWorker(self, asAllowNullAttributes, oDb);
         if self.ksParam_idTestCase not in dErrors:
             self.oTestCase = TestCaseDataEx()
             try:
@@ -230,7 +229,7 @@ class TestGroupData(ModelDataBase):
         Returns object of type TestGroupData. Raises exception if no row.
         """
         if aoRow is None:
-            raise TMRowNotFound('Test group not found.')
+            raise TMExceptionBase('Test group not found.')
 
         self.idTestGroup     = aoRow[0]
         self.tsEffective     = aoRow[1]
@@ -251,7 +250,7 @@ class TestGroupData(ModelDataBase):
                                                        , ( idTestGroup,), tsNow, sPeriodBack));
         aoRow = oDb.fetchOne()
         if aoRow is None:
-            raise TMRowNotFound('idTestGroup=%s not found (tsNow=%s sPeriodBack=%s)' % (idTestGroup, tsNow, sPeriodBack,));
+            raise TMExceptionBase('idTestGroup=%s not found (tsNow=%s sPeriodBack=%s)' % (idTestGroup, tsNow, sPeriodBack,));
         return self.initFromDbRow(aoRow);
 
 
@@ -355,12 +354,12 @@ class TestGroupDataEx(TestGroupData):
             oNewMember = TestGroupMemberDataEx().initFromOther(oOldMember);
             aoNewMembers.append(oNewMember);
 
-            dErrors = oNewMember.validateAndConvert(oDb, ModelDataBase.ksValidateFor_Other);
+            dErrors = oNewMember.validateAndConvert(oDb);
             if len(dErrors) > 0:
                 asErrors.append(str(dErrors));
 
         if len(asErrors) == 0:
-            for i, _ in enumerate(aoNewMembers):
+            for i in range(len(aoNewMembers)):
                 idTestCase = aoNewMembers[i];
                 for j in range(i + 1, len(aoNewMembers)):
                     if aoNewMembers[j].idTestCase == idTestCase:
@@ -416,9 +415,9 @@ class TestGroupLogic(ModelLogicBase):
         # Validate inputs.
         #
         assert isinstance(oData, TestGroupDataEx);
-        dErrors = oData.validateAndConvert(self._oDb, oData.ksValidateFor_Add);
+        dErrors = oData.validateAndConvert(self._oDb);
         if len(dErrors) > 0:
-            raise TMInvalidData('addEntry invalid input: %s' % (dErrors,));
+            raise TMExceptionBase('addEntry invalid input: %s' % (dErrors,));
         self._assertUniq(oData, None);
 
         #
@@ -449,9 +448,9 @@ class TestGroupLogic(ModelLogicBase):
         # Validate inputs and read in the old(/current) data.
         #
         assert isinstance(oData, TestGroupDataEx);
-        dErrors = oData.validateAndConvert(self._oDb, oData.ksValidateFor_Edit);
+        dErrors = oData.validateAndConvert(self._oDb);
         if len(dErrors) > 0:
-            raise TMInvalidData('editEntry invalid input: %s' % (dErrors,));
+            raise TMExceptionBase('editEntry invalid input: %s' % (dErrors,));
         self._assertUniq(oData, oData.idTestGroup);
 
         oOldData = TestGroupDataEx().initFromDbWithId(self._oDb, oData.idTestGroup);
@@ -481,8 +480,8 @@ class TestGroupLogic(ModelLogicBase):
         for oNewMember in oData.aoMembers:
             oNewMember.idTestGroup = oData.idTestGroup;
             if oNewMember.idTestCase in dNew:
-                raise TMRowAlreadyExists('Duplicate test group member: idTestCase=%d (%s / %s)'
-                                         % (oNewMember.idTestCase, oNewMember, dNew[oNewMember.idTestCase],));
+                raise TMExceptionBase('Duplicate test group member: idTestCase=%d (%s / %s)'
+                                      % (oNewMember.idTestCase, oNewMember, dNew[oNewMember.idTestCase],));
             dNew[oNewMember.idTestCase] = oNewMember;
 
             oOldMember = dOld.get(oNewMember.idTestCase, None);
@@ -525,8 +524,8 @@ class TestGroupLogic(ModelLogicBase):
             aoGroups = self._oDb.fetchAll();
             if len(aoGroups) > 0:
                 asGroups = ['%s (#%d)' % (sName, idSchedGroup) for idSchedGroup, sName in aoGroups];
-                raise TMRowInUse('Test group #%d is member of one or more scheduling groups: %s'
-                                 % (idTestGroup, ', '.join(asGroups),));
+                raise TMExceptionBase('Test group #%d is member of one ore more scheduling groups: %s'
+                                      % (idTestGroup, ', '.join(asGroups),));
         else:
             self._oDb.execute('UPDATE   SchedGroupMembers\n'
                               'SET      tsExpire = CURRENT_TIMESTAMP\n'
@@ -645,7 +644,7 @@ class TestGroupLogic(ModelLogicBase):
 
         aRows = self._oDb.fetchAll()
         if len(aRows) not in (0, 1):
-            raise TMTooManyRows('Found more than one test groups with the same credentials. Database structure is corrupted.')
+            raise TMExceptionBase('Found more than one test groups with the same credentials. Database structure is corrupted.')
         try:
             return TestGroupData().initFromDbRow(aRows[0])
         except IndexError:
@@ -664,7 +663,7 @@ class TestGroupLogic(ModelLogicBase):
                           + ('' if idTestGroupIgnore is None else  '   AND idTestGroup <> %d\n' % (idTestGroupIgnore,))
                           , ( oData.sName, ))
         if self._oDb.getRowCount() > 0:
-            raise TMRowAlreadyExists('A Test group with name "%s" already exist.' % (oData.sName,));
+            raise TMExceptionBase('A Test group with name "%s" already exist.' % (oData.sName,));
         return True;
 
     def _historizeTestGroup(self, idTestGroup):

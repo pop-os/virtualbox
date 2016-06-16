@@ -209,18 +209,13 @@ USBLIB_DECL(int) USBLibResetDevice(char *pszDevicePath, bool fReattach)
 {
     LogFlow((USBLIBR3 ":USBLibResetDevice pszDevicePath=%s\n", pszDevicePath));
 
-    size_t cbPath = strlen(pszDevicePath) + 1;
-    size_t cbReq  = sizeof(VBOXUSBREQ_RESET_DEVICE) + cbPath;
+    size_t cbReq = sizeof(VBOXUSBREQ_RESET_DEVICE) + strlen(pszDevicePath);
     VBOXUSBREQ_RESET_DEVICE *pReq = (VBOXUSBREQ_RESET_DEVICE *)RTMemTmpAllocZ(cbReq);
     if (RT_UNLIKELY(!pReq))
         return VERR_NO_MEMORY;
 
     pReq->fReattach = fReattach;
-    if (strlcpy(pReq->szDevicePath, pszDevicePath, cbPath) >= cbPath)
-    {
-        LogRel((USBLIBR3 ":USBLibResetDevice buffer overflow. cbPath=%u pszDevicePath=%s\n", cbPath, pszDevicePath));
-        return VERR_BUFFER_OVERFLOW;
-    }
+    strcpy(pReq->szDevicePath, pszDevicePath);
 
     int rc = usblibDoIOCtl(VBOXUSBMON_IOCTL_RESET_DEVICE, pReq, cbReq);
     if (RT_FAILURE(rc))

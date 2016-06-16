@@ -20,11 +20,9 @@
 
 /* Qt includes: */
 #include <QMetaType>
-#include <QObject>
 
 /* Other VBox includes: */
 #include <iprt/cdefs.h>
-
 
 /** Extra-data namespace. */
 namespace UIExtraDataDefs
@@ -33,9 +31,6 @@ namespace UIExtraDataDefs
       * @{ */
         /** VBox language ID. */
         extern const char* GUI_LanguageId;
-
-        /** Holds event handling type. */
-        extern const char* GUI_EventHandlingType;
     /** @} */
 
     /** @name Messaging
@@ -139,12 +134,12 @@ namespace UIExtraDataDefs
         extern const char* GUI_PreventSnapshotOperations;
         /** Holds whether this machine is first time started. */
         extern const char* GUI_FirstRun;
-#ifndef VBOX_WS_MAC
+#ifndef Q_WS_MAC
         /** Except Mac OS X: Holds redefined machine-window icon names. */
         extern const char* GUI_MachineWindowIcons;
         /** Except Mac OS X: Holds redefined machine-window name postfix. */
         extern const char* GUI_MachineWindowNamePostfix;
-#endif /* !VBOX_WS_MAC */
+#endif /* !Q_WS_MAC */
         /** Prefix used by composite extra-data keys,
           * which holds normal machine-window geometry per screen-index. */
         extern const char* GUI_LastNormalWindowPosition;
@@ -153,10 +148,10 @@ namespace UIExtraDataDefs
         extern const char* GUI_LastScaleWindowPosition;
         /** Holds machine-window geometry maximized state flag. */
         extern const char* GUI_Geometry_State_Max;
-#ifndef VBOX_WS_MAC
+#ifndef Q_WS_MAC
         /** Holds Runtime UI menu-bar availability status. */
         extern const char* GUI_MenuBar_Enabled;
-#endif /* !VBOX_WS_MAC */
+#endif /* !Q_WS_MAC */
         /** Holds restricted Runtime UI menu types. */
         extern const char* GUI_RestrictedRuntimeMenus;
         /** Holds restricted Runtime UI action types for 'Application' menu. */
@@ -173,10 +168,10 @@ namespace UIExtraDataDefs
         /** Holds restricted Runtime UI action types for Debugger menu. */
         extern const char* GUI_RestrictedRuntimeDebuggerMenuActions;
 #endif /* VBOX_WITH_DEBUGGER_GUI */
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
         /** Mac OS X: Holds restricted Runtime UI action types for 'Window' menu. */
         extern const char* GUI_RestrictedRuntimeWindowMenuActions;
-#endif /* VBOX_WS_MAC */
+#endif /* Q_WS_MAC */
         /** Holds restricted Runtime UI action types for Help menu. */
         extern const char* GUI_RestrictedRuntimeHelpMenuActions;
         /** Holds restricted Runtime UI visual-states. */
@@ -187,10 +182,10 @@ namespace UIExtraDataDefs
         extern const char* GUI_Seamless;
         /** Holds whether scaled visual-state is requested. */
         extern const char* GUI_Scale;
-#ifdef VBOX_WS_X11
+#ifdef Q_WS_X11
         /** Holds whether legacy full-screen mode is requested. */
         extern const char* GUI_Fullscreen_LegacyMode;
-#endif /* VBOX_WS_X11 */
+#endif /* Q_WS_X11 */
         /** Holds whether guest-screen auto-resize according machine-window size is enabled. */
         extern const char* GUI_AutoresizeGuest;
         /** Prefix used by composite extra-data keys,
@@ -220,28 +215,28 @@ namespace UIExtraDataDefs
         extern const char* GUI_HiDPI_UnscaledOutput;
         /** Holds Runtime UI HiDPI optimization type. */
         extern const char* GUI_HiDPI_Optimization;
-#ifndef VBOX_WS_MAC
+#ifndef Q_WS_MAC
         /** Holds whether mini-toolbar is enabled for full and seamless screens. */
         extern const char* GUI_ShowMiniToolBar;
         /** Holds whether mini-toolbar should auto-hide itself. */
         extern const char* GUI_MiniToolBarAutoHide;
         /** Holds mini-toolbar alignment. */
         extern const char* GUI_MiniToolBarAlignment;
-#endif /* !VBOX_WS_MAC */
+#endif /* !Q_WS_MAC */
         /** Holds Runtime UI status-bar availability status. */
         extern const char* GUI_StatusBar_Enabled;
         /** Holds restricted Runtime UI status-bar indicators. */
         extern const char* GUI_RestrictedStatusBarIndicators;
         /** Holds Runtime UI status-bar indicator order. */
         extern const char* GUI_StatusBar_IndicatorOrder;
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
         /** Mac OS X: Holds whether Dock icon should be updated at runtime. */
         extern const char* GUI_RealtimeDockIconUpdateEnabled;
         /** Mac OS X: Holds guest-screen which Dock icon should reflect at runtime. */
         extern const char* GUI_RealtimeDockIconUpdateMonitor;
         /** Mac OS X: Holds whether Dock icon should have overlay disabled. */
         extern const char* GUI_DockIconDisableOverlay;
-#endif /* VBOX_WS_MAC */
+#endif /* Q_WS_MAC */
         /** Holds whether machine should pass CAD to guest. */
         extern const char* GUI_PassCAD;
         /** Holds the mouse capture policy. */
@@ -260,8 +255,6 @@ namespace UIExtraDataDefs
       * @{ */
         /** Holds information-window geometry. */
         extern const char* GUI_InformationWindowGeometry;
-        /** Holds information-window elements. */
-        extern const char* GUI_InformationWindowElements;
     /** @} */
 
     /** @name Virtual Machine: Close dialog
@@ -286,7 +279,7 @@ namespace UIExtraDataDefs
     /** @} */
 #endif /* VBOX_WITH_DEBUGGER_GUI */
 
-#ifdef VBOX_GUI_WITH_EXTRADATA_MANAGER_UI
+#ifdef DEBUG
     /** @name VirtualBox: Extra-data Manager window
       * @{ */
         /** Holds extra-data manager geometry. */
@@ -294,7 +287,7 @@ namespace UIExtraDataDefs
         /** Holds extra-data manager splitter hints. */
         extern const char* GUI_ExtraDataManager_SplitterHints;
     /** @} */
-#endif /* VBOX_GUI_WITH_EXTRADATA_MANAGER_UI */
+#endif /* DEBUG */
 
     /** @name Virtual Machine: Log dialog
       * @{ */
@@ -365,11 +358,8 @@ public:
         MenuHelpActionType_Invalid              = 0,
         MenuHelpActionType_Contents             = RT_BIT(0),
         MenuHelpActionType_WebSite              = RT_BIT(1),
-        MenuHelpActionType_BugTracker           = RT_BIT(2),
-        MenuHelpActionType_Forums               = RT_BIT(3),
-        MenuHelpActionType_Oracle               = RT_BIT(4),
 #ifndef RT_OS_DARWIN
-        MenuHelpActionType_About                = RT_BIT(5),
+        MenuHelpActionType_About                = RT_BIT(2),
 #endif /* !RT_OS_DARWIN */
         MenuHelpActionType_All                  = 0xFFFF
     };
@@ -383,11 +373,10 @@ public:
         RuntimeMenuMachineActionType_InformationDialog = RT_BIT(2),
         RuntimeMenuMachineActionType_Pause             = RT_BIT(3),
         RuntimeMenuMachineActionType_Reset             = RT_BIT(4),
-        RuntimeMenuMachineActionType_Detach            = RT_BIT(5),
-        RuntimeMenuMachineActionType_SaveState         = RT_BIT(6),
-        RuntimeMenuMachineActionType_Shutdown          = RT_BIT(7),
-        RuntimeMenuMachineActionType_PowerOff          = RT_BIT(8),
-        RuntimeMenuMachineActionType_Nothing           = RT_BIT(9),
+        RuntimeMenuMachineActionType_SaveState         = RT_BIT(5),
+        RuntimeMenuMachineActionType_Shutdown          = RT_BIT(6),
+        RuntimeMenuMachineActionType_PowerOff          = RT_BIT(7),
+        RuntimeMenuMachineActionType_Nothing           = RT_BIT(8),
         RuntimeMenuMachineActionType_All               = 0xFFFF
     };
 
@@ -429,9 +418,9 @@ public:
         RuntimeMenuInputActionType_Keyboard          = RT_BIT(0),
         RuntimeMenuInputActionType_KeyboardSettings  = RT_BIT(1),
         RuntimeMenuInputActionType_TypeCAD           = RT_BIT(2),
-#ifdef VBOX_WS_X11
+#ifdef Q_WS_X11
         RuntimeMenuInputActionType_TypeCABS          = RT_BIT(3),
-#endif /* VBOX_WS_X11 */
+#endif /* Q_WS_X11 */
         RuntimeMenuInputActionType_TypeCtrlBreak     = RT_BIT(4),
         RuntimeMenuInputActionType_TypeInsert        = RT_BIT(5),
         RuntimeMenuInputActionType_Mouse             = RT_BIT(6),
@@ -484,13 +473,6 @@ public:
         MenuWindowActionType_All      = 0xFFFF
     };
 #endif /* RT_OS_DARWIN */
-};
-
-/** Common UI: Event handling types. */
-enum EventHandlingType
-{
-    EventHandlingType_Active,
-    EventHandlingType_Passive
 };
 
 /** Common UI: Global settings page types. */
@@ -665,40 +647,14 @@ enum HiDPIOptimizationType
     HiDPIOptimizationType_Performance
 };
 
-#ifndef VBOX_WS_MAC
+#ifndef Q_WS_MAC
 /** Runtime UI: Mini-toolbar alignment. */
 enum MiniToolbarAlignment
 {
     MiniToolbarAlignment_Bottom,
     MiniToolbarAlignment_Top
 };
-#endif /* !VBOX_WS_MAC */
-
-/** Runtime UI: Information-element types. */
-enum InformationElementType
-{
-    InformationElementType_Invalid,
-    InformationElementType_General,
-    InformationElementType_System,
-    InformationElementType_Preview,
-    InformationElementType_Display,
-    InformationElementType_Storage,
-    InformationElementType_Audio,
-    InformationElementType_Network,
-    InformationElementType_Serial,
-#ifdef VBOX_WITH_PARALLEL_PORTS
-    InformationElementType_Parallel,
-#endif /* VBOX_WITH_PARALLEL_PORTS */
-    InformationElementType_USB,
-    InformationElementType_SF,
-    InformationElementType_UI,
-    InformationElementType_Description,
-    InformationElementType_SharedFolders,
-    InformationElementType_RuntimeAttributes,
-    InformationElementType_StorageStatistics,
-    InformationElementType_NetworkStatistics
-};
-Q_DECLARE_METATYPE(InformationElementType);
+#endif /* !Q_WS_MAC */
 
 #endif /* !___UIExtraDataDefs_h___ */
 

@@ -27,7 +27,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 107578 $"
+__version__ = "$Revision: 100880 $"
 
 
 # Standard python imports.
@@ -37,7 +37,7 @@ import unittest;
 # Validation Kit imports.
 from common                             import utils;
 from testmanager.core.base              import ModelDataBase, ModelDataBaseTestCase, ModelLogicBase, TMExceptionBase, \
-                                               TMInvalidData, TMRowNotFound, ChangeLogEntry, AttributeChangeEntry;
+                                               ChangeLogEntry, AttributeChangeEntry;
 from testmanager.core.globalresource    import GlobalResourceData;
 from testmanager.core.useraccount       import UserAccountLogic;
 
@@ -74,7 +74,7 @@ class TestCaseGlobalRsrcDepData(ModelDataBase):
         Reinitialize from a SELECT * FROM TestCaseDeps row.
         """
         if aoRow is None:
-            raise TMRowNotFound('Test case not found.');
+            raise TMExceptionBase('Test case not found.');
 
         self.idTestCase         = aoRow[0];
         self.idGlobalRsrc       = aoRow[1];
@@ -213,7 +213,7 @@ class TestCaseDependencyData(ModelDataBase):
         Reinitialize from a SELECT * FROM TestCaseDeps row.
         """
         if aoRow is None:
-            raise TMRowNotFound('Test case not found.');
+            raise TMExceptionBase('Test case not found.');
 
         self.idTestCase         = aoRow[0];
         self.idTestCasePreReq   = aoRow[1];
@@ -241,7 +241,7 @@ class TestCaseDependencyData(ModelDataBase):
 
         return True
 
-    def validateAndConvert(self, oDb = None, enmValidateFor = ModelDataBase.ksValidateFor_Other):
+    def validateAndConvert(self, oDb = None):
         """
         Validates the input and converts valid fields to their right type.
         Returns a dictionary with per field reports, only invalid fields will
@@ -258,7 +258,6 @@ class TestCaseDependencyData(ModelDataBase):
         self.uidAuthor          = self._validateInt(   dErrors, self.ksParam_uidAuthor,         self.uidAuthor);
 
         _ = oDb;
-        _ = enmValidateFor;
         return dErrors
 
     def convertFromParamNull(self):
@@ -469,7 +468,7 @@ class TestCaseData(ModelDataBase):
         Returns self. Raises exception if no row.
         """
         if aoRow is None:
-            raise TMRowNotFound('Test case not found.');
+            raise TMExceptionBase('Test case not found.');
 
         self.idTestCase         = aoRow[0];
         self.tsEffective        = aoRow[1];
@@ -497,7 +496,7 @@ class TestCaseData(ModelDataBase):
                                                        , ( idTestCase,), tsNow, sPeriodBack));
         aoRow = oDb.fetchOne()
         if aoRow is None:
-            raise TMRowNotFound('idTestCase=%s not found (tsNow=%s sPeriodBack=%s)' % (idTestCase, tsNow, sPeriodBack,));
+            raise TMExceptionBase('idTestCase=%s not found (tsNow=%s sPeriodBack=%s)' % (idTestCase, tsNow, sPeriodBack,));
         return self.initFromDbRow(aoRow);
 
     def initFromDbWithGenId(self, oDb, idGenTestCase, tsNow = None):
@@ -810,7 +809,7 @@ class TestCaseDataEx(TestCaseData):
         Initialize the object from the database.
         """
         TestCaseData.initFromDbWithGenId(self, oDb, idGenTestCase);
-        if tsNow is None and not oDb.isTsInfinity(self.tsExpire):
+        if tsNow == None and not oDb.isTsInfinity(self.tsExpire):
             tsNow = self.tsEffective;
         return self._initExtraMembersFromDb(oDb, tsNow);
 
@@ -890,7 +889,7 @@ class TestCaseDataEx(TestCaseData):
             for iVar in range(len(self.aoTestCaseArgs)):
                 oVar = copy.copy(self.aoTestCaseArgs[iVar]);
                 oVar.idTestCase = self.idTestCase;
-                dCurErrors = oVar.validateAndConvert(oDb, ModelDataBase.ksValidateFor_Other);
+                dCurErrors = oVar.validateAndConvert(oDb);
                 if len(dCurErrors) == 0:
                     pass; ## @todo figure out the ID?
                 else:
@@ -915,8 +914,8 @@ class TestCaseDataEx(TestCaseData):
 
         return (aoNewValues, None if len(asErrors) == 0 else ' <br>'.join(asErrors));
 
-    def _validateAndConvertWorker(self, asAllowNullAttributes, oDb, enmValidateFor = ModelDataBase.ksValidateFor_Other):
-        dErrors = TestCaseData._validateAndConvertWorker(self, asAllowNullAttributes, oDb, enmValidateFor);
+    def _validateAndConvertWorker(self, asAllowNullAttributes, oDb):
+        dErrors = TestCaseData._validateAndConvertWorker(self, asAllowNullAttributes, oDb);
 
         # Validate dependencies a wee bit for paranoid reasons. The scheduler
         # queue generation code does the real validation here!
@@ -929,18 +928,10 @@ class TestCaseDataEx(TestCaseData):
                         dErrors[self.ksParam_aoDepTestCases]   = 'Depending on itself!';
         return dErrors;
 
-
-
-
-
 class TestCaseLogic(ModelLogicBase):
     """
     Test case management logic.
     """
-
-    def __init__(self, oDb):
-        ModelLogicBase.__init__(self, oDb)
-        self.dCache = None;
 
     def getAll(self):
         """
@@ -1135,9 +1126,9 @@ class TestCaseLogic(ModelLogicBase):
         # Validate the input first.
         #
         assert isinstance(oData, TestCaseDataEx);
-        dErrors = oData.validateAndConvert(self._oDb, oData.ksValidateFor_Add);
+        dErrors = oData.validateAndConvert(self._oDb);
         if len(dErrors) > 0:
-            raise TMInvalidData('Invalid input data: %s' % (dErrors,));
+            raise TMExceptionBase('Invalid input data: %s' % (dErrors,));
 
         #
         # Add the testcase.
@@ -1161,10 +1152,10 @@ class TestCaseLogic(ModelLogicBase):
         for oVar in oData.aoTestCaseArgs:
             self._oDb.execute('INSERT INTO TestCaseArgs (\n'
                              '          idTestCase, uidAuthor, sArgs, cSecTimeout,\n'
-                              '         sTestBoxReqExpr, sBuildReqExpr, cGangMembers, sSubName)\n'
-                              'VALUES   (%s, %s, %s, %s, %s, %s, %s, %s)'
+                              '         sTestBoxReqExpr, sBuildReqExpr, cGangMembers)\n'
+                              'VALUES   (%s, %s, %s, %s, %s, %s, %s)'
                               , ( oData.idTestCase, uidAuthor, oVar.sArgs, oVar.cSecTimeout,
-                                  oVar.sTestBoxReqExpr, oVar.sBuildReqExpr, oVar.cGangMembers, oVar.sSubName, ));
+                                  oVar.sTestBoxReqExpr, oVar.sBuildReqExpr, oVar.cGangMembers,));
 
         self._oDb.maybeCommit(fCommit);
         return True;
@@ -1179,9 +1170,9 @@ class TestCaseLogic(ModelLogicBase):
         # Validate the input.
         #
         assert isinstance(oData, TestCaseDataEx);
-        dErrors = oData.validateAndConvert(self._oDb, oData.ksValidateFor_Edit);
+        dErrors = oData.validateAndConvert(self._oDb);
         if len(dErrors) > 0:
-            raise TMInvalidData('Invalid input data: %s' % (dErrors,));
+            raise TMExceptionBase('Invalid input data: %s' % (dErrors,));
 
         #
         # Did anything change? If not return straight away.
@@ -1284,10 +1275,10 @@ class TestCaseLogic(ModelLogicBase):
                 # New
                 self._oDb.execute('INSERT INTO TestCaseArgs (\n'
                                  '          idTestCase, uidAuthor, sArgs, cSecTimeout,\n'
-                                  '         sTestBoxReqExpr, sBuildReqExpr, cGangMembers, sSubName)\n'
-                                  'VALUES   (%s, %s, %s, %s, %s, %s, %s, %s)'
+                                  '         sTestBoxReqExpr, sBuildReqExpr, cGangMembers)\n'
+                                  'VALUES   (%s, %s, %s, %s, %s, %s, %s)'
                                   , ( oData.idTestCase, uidAuthor, oNewVar.sArgs, oNewVar.cSecTimeout,
-                                      oNewVar.sTestBoxReqExpr, oNewVar.sBuildReqExpr, oNewVar.cGangMembers, oNewVar.sSubName));
+                                      oNewVar.sTestBoxReqExpr, oNewVar.sBuildReqExpr, oNewVar.cGangMembers,));
             else:
                 oCurVar = TestCaseArgsData().initFromDbRow(aoRow);
                 if self._oDb.isTsInfinity(oCurVar.tsExpire):
@@ -1295,8 +1286,7 @@ class TestCaseLogic(ModelLogicBase):
                     if    oNewVar.cSecTimeout     == oCurVar.cSecTimeout \
                       and oNewVar.sTestBoxReqExpr == oCurVar.sTestBoxReqExpr \
                       and oNewVar.sBuildReqExpr   == oCurVar.sBuildReqExpr \
-                      and oNewVar.cGangMembers    == oCurVar.cGangMembers \
-                      and oNewVar.sSubName        == oCurVar.sSubName:
+                      and oNewVar.cGangMembers    == oCurVar.cGangMembers:
                         oNewVar.idTestCaseArgs    = oCurVar.idTestCaseArgs;
                         oNewVar.idGenTestCaseArgs = oCurVar.idGenTestCaseArgs;
                         continue; # Unchanged.
@@ -1307,11 +1297,11 @@ class TestCaseLogic(ModelLogicBase):
                     pass;
                 self._oDb.execute('INSERT INTO TestCaseArgs (\n'
                                   '         idTestCaseArgs, idTestCase, uidAuthor, sArgs, cSecTimeout,\n'
-                                  '         sTestBoxReqExpr, sBuildReqExpr, cGangMembers, sSubName)\n'
-                                  'VALUES   (%s, %s, %s, %s, %s, %s, %s, %s, %s)\n'
+                                  '         sTestBoxReqExpr, sBuildReqExpr, cGangMembers)\n'
+                                  'VALUES   (%s, %s, %s, %s, %s, %s, %s, %s)\n'
                                   'RETURNING idGenTestCaseArgs\n'
                                   , ( oCurVar.idTestCaseArgs, oData.idTestCase, uidAuthor, oNewVar.sArgs, oNewVar.cSecTimeout,
-                                      oNewVar.sTestBoxReqExpr, oNewVar.sBuildReqExpr, oNewVar.cGangMembers, oNewVar.sSubName));
+                                      oNewVar.sTestBoxReqExpr, oNewVar.sBuildReqExpr, oNewVar.cGangMembers,));
                 oNewVar.idGenTestCaseArgs = self._oDb.fetchOne()[0];
 
         self._oDb.maybeCommit(fCommit);
@@ -1354,46 +1344,6 @@ class TestCaseLogic(ModelLogicBase):
         for aoRow in self._oDb.fetchAll():
             aidPreReqs.append(aoRow[0]);
         return aidPreReqs;
-
-
-    def cachedLookup(self, idTestCase):
-        """
-        Looks up the most recent TestCaseDataEx object for idTestCase
-        via an object cache.
-
-        Returns a shared TestCaseDataEx object.  None if not found.
-        Raises exception on DB error.
-        """
-        if self.dCache is None:
-            self.dCache = self._oDb.getCache('TestCaseDataEx');
-        oEntry = self.dCache.get(idTestCase, None);
-        if oEntry is None:
-            fNeedTsNow = False;
-            self._oDb.execute('SELECT   *\n'
-                              'FROM     TestCases\n'
-                              'WHERE    idTestCase = %s\n'
-                              '     AND tsExpire   = \'infinity\'::TIMESTAMP\n'
-                              , (idTestCase, ));
-            if self._oDb.getRowCount() == 0:
-                # Maybe it was deleted, try get the last entry.
-                self._oDb.execute('SELECT   *\n'
-                                  'FROM     TestCases\n'
-                                  'WHERE    idTestCase = %s\n'
-                                  'ORDER BY tsExpire DESC\n'
-                                  'LIMIT 1\n'
-                                  , (idTestCase, ));
-                fNeedTsNow = True;
-            elif self._oDb.getRowCount() > 1:
-                raise self._oDb.integrityException('%s infinity rows for %s' % (self._oDb.getRowCount(), idTestCase));
-
-            if self._oDb.getRowCount() == 1:
-                aaoRow = self._oDb.fetchOne();
-                oEntry = TestCaseDataEx();
-                tsNow  = oEntry.initFromDbRow(aaoRow).tsEffective if fNeedTsNow else None;
-                oEntry.initFromDbRowEx(aaoRow, self._oDb, tsNow);
-                self.dCache[idTestCase] = oEntry;
-        return oEntry;
-
 
 
 #

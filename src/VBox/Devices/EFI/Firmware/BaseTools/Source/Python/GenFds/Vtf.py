@@ -1,7 +1,7 @@
 ## @file
 # process VTF generation
 #
-#  Copyright (c) 2007 - 2014, Intel Corporation. All rights reserved.<BR>
+#  Copyright (c) 2007, Intel Corporation. All rights reserved.<BR>
 #
 #  This program and the accompanying materials
 #  are licensed and made available under the terms and conditions of the BSD License
@@ -16,16 +16,15 @@
 # Import Modules
 #
 from GenFdsGlobalVariable import GenFdsGlobalVariable
-import Common.LongFilePathOs as os
+import os
 from CommonDataClass.FdfClass import VtfClassObject
-from Common.LongFilePathSupport import OpenLongFilePath as open
 T_CHAR_LF = '\n'
 
 ## generate VTF
 #
 #
 class Vtf (VtfClassObject):
-
+    
     ## The constructor
     #
     #   @param  self        The object pointer
@@ -46,7 +45,7 @@ class Vtf (VtfClassObject):
         OutputFile = os.path.join(GenFdsGlobalVariable.FvDir, self.UiName + '.Vtf')
         BaseAddArg = self.GetBaseAddressArg(FdAddressDict)
         OutputArg, VtfRawDict = self.GenOutputArg()
-
+        
         Cmd = (
             'GenVtf',
             ) + OutputArg + (
@@ -55,9 +54,9 @@ class Vtf (VtfClassObject):
 
         GenFdsGlobalVariable.CallExternalTool(Cmd, "GenFv -Vtf Failed!")
         GenFdsGlobalVariable.SharpCounter = 0
-
+        
         return VtfRawDict
-
+        
     ## GenBsfInf() method
     #
     #   Generate inf used to generate VTF
@@ -75,7 +74,7 @@ class Vtf (VtfClassObject):
                                GenFdsGlobalVariable.MacroExtend(GenFdsGlobalVariable.ReplaceWorkspaceMacro(self.ResetBin)) + \
                                T_CHAR_LF )
             BsfInf.writelines (T_CHAR_LF )
-
+        
         BsfInf.writelines ("[COMPONENTS]" + T_CHAR_LF)
 
         for ComponentObj in self.ComponentStatementList :
@@ -88,7 +87,7 @@ class Vtf (VtfClassObject):
                                    " = "             + \
                                    'N'               + \
                                    T_CHAR_LF )
-
+            
             elif ComponentObj.FilePos != None:
                 BsfInf.writelines ("COMP_LOC"        + \
                                    " = "             + \
@@ -106,7 +105,7 @@ class Vtf (VtfClassObject):
                                        " = "             + \
                                        'S'                 + \
                                        T_CHAR_LF )
-
+                
             BsfInf.writelines ("COMP_TYPE"        + \
                                " = "              + \
                                ComponentObj.CompType + \
@@ -119,7 +118,7 @@ class Vtf (VtfClassObject):
                                " = "            + \
                                ComponentObj.CompCs + \
                                T_CHAR_LF )
-
+            
             BinPath = ComponentObj.CompBin
             if BinPath != '-':
                 BinPath = GenFdsGlobalVariable.MacroExtend(GenFdsGlobalVariable.ReplaceWorkspaceMacro(BinPath))
@@ -127,7 +126,7 @@ class Vtf (VtfClassObject):
                                " = "             + \
                                BinPath + \
                                T_CHAR_LF )
-
+            
             SymPath = ComponentObj.CompSym
             if SymPath != '-':
                 SymPath = GenFdsGlobalVariable.MacroExtend(GenFdsGlobalVariable.ReplaceWorkspaceMacro(SymPath))
@@ -140,7 +139,7 @@ class Vtf (VtfClassObject):
                                ComponentObj.CompSize + \
                                T_CHAR_LF )
             BsfInf.writelines (T_CHAR_LF )
-
+            
         BsfInf.close()
 
     ## GenFvList() method
@@ -154,7 +153,7 @@ class Vtf (VtfClassObject):
         for component in self.ComponentStatementList :
             if component.CompLoc.upper() != 'NONE' and not (component.CompLoc.upper() in FvList):
                 FvList.append(component.CompLoc.upper())
-
+                
         return FvList
 
     ## GetBaseAddressArg() method
@@ -173,13 +172,13 @@ class Vtf (VtfClassObject):
                 '-s', '0x%x' %Size,
                 )
         return CmdStr
-
+    
     ## GenOutputArg() method
     #
     #   Get output arguments for GenVtf
     #
     #   @param  self        The object pointer
-    #
+    #                 
     def GenOutputArg(self):
         FvVtfDict = {}
         OutputFileName = ''
@@ -192,6 +191,6 @@ class Vtf (VtfClassObject):
             OutputFileName = os.path.join(GenFdsGlobalVariable.FvDir, OutputFileName)
             Arg += ('-o', OutputFileName)
             FvVtfDict[FvObj.upper()] = OutputFileName
-
+            
         return Arg, FvVtfDict
-
+                

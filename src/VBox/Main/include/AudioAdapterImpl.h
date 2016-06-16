@@ -72,7 +72,8 @@ private:
 
     Machine * const     mParent;
     const ComObjPtr<AudioAdapter> mPeer;
-    Backupable<settings::AudioAdapter> mData;
+    struct Data;
+    Data *mData;
 };
 
 #endif // ____H_AUDIOADAPTER

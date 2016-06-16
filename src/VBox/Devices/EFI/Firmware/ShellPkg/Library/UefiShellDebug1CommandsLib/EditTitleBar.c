@@ -1,8 +1,7 @@
 /** @file
   Implements titlebar interface functions.
 
-  Copyright (c) 2013, Hewlett-Packard Development Company, L.P.
-  Copyright (c) 2005 - 2014, Intel Corporation. All rights reserved. <BR>
+  Copyright (c) 2005 - 2011, Intel Corporation. All rights reserved. <BR>
   This program and the accompanying materials
   are licensed and made available under the terms and conditions of the BSD License
   which accompanies this distribution.  The full text of the license may be found at
@@ -108,11 +107,10 @@ MainTitleBarRefresh (
   // backup the old screen attributes
   //
   Orig.Data             = gST->ConOut->Mode->Attribute;
-  New.Data              = 0;
-  New.Colors.Foreground = Orig.Colors.Background & 0xF;
-  New.Colors.Background = Orig.Colors.Foreground & 0x7;
+  New.Colors.Foreground = Orig.Colors.Background;
+  New.Colors.Background = Orig.Colors.Foreground;
 
-  gST->ConOut->SetAttribute (gST->ConOut, New.Data & 0x7F);
+  gST->ConOut->SetAttribute (gST->ConOut, New.Data);
 
   //
   // clear the title line
@@ -171,8 +169,6 @@ MainTitleBarRefresh (
     case FileTypeAscii:
     case FileTypeUnicode:
       if (FileType == FileTypeAscii){
-        ShellPrintEx (-1,-1, L"     ASCII     ");
-      } else {
         ShellPrintEx (-1,-1, L"     UNICODE   ");
       }
       //

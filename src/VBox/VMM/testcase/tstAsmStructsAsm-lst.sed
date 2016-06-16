@@ -22,7 +22,6 @@ s/[[:space:]][[:space:]]*/ /g
 /^[[:alpha:]_][[:alnum:]_]*_size EQU \$ - .*$/b struct_equ
 /<gap>/b member
 /^\.[[:alpha:]_][[:alnum:]_.:]* res.*$/b member_two
-/^\.[[:alpha:]_][[:alnum:]_.:]*:$/b member_alias
 b error
 b member_two
 
@@ -69,12 +68,6 @@ s/\n//m
 
 b end
 
-#
-# Alias member like Host.cr0Fpu in 64-bit.  Drop it.
-#
-:member_alias
-d
-b end
 
 :error
 s/^/\nSed script logic error!\nBuffer: /

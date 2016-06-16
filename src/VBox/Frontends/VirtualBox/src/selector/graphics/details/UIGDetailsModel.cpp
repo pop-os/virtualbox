@@ -80,7 +80,7 @@ QGraphicsView* UIGDetailsModel::paintDevice() const
 
 QGraphicsItem* UIGDetailsModel::itemAt(const QPointF &position) const
 {
-    return scene()->itemAt(position, QTransform());
+    return scene()->itemAt(position);
 }
 
 void UIGDetailsModel::updateLayout()

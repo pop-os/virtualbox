@@ -29,9 +29,9 @@
 
 /* GUI includes: */
 # include "UIPopupBox.h"
-# ifdef VBOX_WS_MAC
+# ifdef Q_WS_MAC
 #  include "UIImageTools.h"
-# endif /* VBOX_WS_MAC */
+# endif /* Q_WS_MAC */
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 

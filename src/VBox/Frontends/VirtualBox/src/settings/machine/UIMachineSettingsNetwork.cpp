@@ -364,8 +364,6 @@ void UIMachineSettingsNetwork::polishTab()
                                         attachmentType() == KNetworkAttachmentType_NAT);
 
     /* Postprocessing: */
-    if ((m_pParent->isMachinePoweredOff() || m_pParent->isMachineSaved() || m_pParent->isMachineOnline()) && !m_pAdvancedArrow->isExpanded())
-        m_pAdvancedArrow->animateClick();
     sltHandleAdvancedButtonStateChange();
 }
 
@@ -573,7 +571,7 @@ void UIMachineSettingsNetwork::sltOpenPortForwardingDlg()
 void UIMachineSettingsNetwork::prepareValidation()
 {
     /* Configure validation: */
-    connect(m_pMACEditor, SIGNAL(textChanged(const QString &)), m_pParent, SLOT(revalidate()));
+    connect(m_pMACEditor, SIGNAL(textEdited(const QString &)), m_pParent, SLOT(revalidate()));
 }
 
 void UIMachineSettingsNetwork::populateComboboxes()

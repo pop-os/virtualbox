@@ -29,9 +29,7 @@
 #else
 # include <sys/types.h>
 # include <limits.h>        /* Workaround for syslimit.h bug in gcc 4.8.3 on gentoo. */
-# ifdef RT_OS_DARWIN
-#  include <sys/syslimits.h> /* PATH_MAX */
-# elif !defined(RT_OS_SOLARIS)
+# ifndef RT_OS_SOLARIS
 #  include <syslimits.h>    /* PATH_MAX */
 # endif
 # include <libgen.h>        /* basename */

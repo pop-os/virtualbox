@@ -1,7 +1,7 @@
 /** @file
   The general interfaces of the IKEv2.
 
-  Copyright (c) 2010 - 2014, Intel Corporation. All rights reserved.<BR>
+  Copyright (c) 2010 - 2011, Intel Corporation. All rights reserved.<BR>
 
   This program and the accompanying materials
   are licensed and made available under the terms and conditions of the BSD License
@@ -467,7 +467,8 @@ Ikev2HandleSa (
   //
   // Validate the IKE packet header.
   //
-  if (!Ikev2ValidateHeader (IkeSaSession, IkePacket->Header)) {
+  Status = Ikev2ValidateHeader (IkeSaSession, IkePacket->Header);
+  if (EFI_ERROR (Status)) {
     //
     // Drop the packet if invalid IKE header.
     //

@@ -19,6 +19,7 @@ PATH=$PATH:/bin:/sbin:/usr/sbin
 
 # Include routines and utilities needed by the installer
 . ./routines.sh
+#include installer-common.sh
 
 LOG="/var/log/vbox-install.log"
 VERSION="_VERSION_"
@@ -41,6 +42,7 @@ PREV_INSTALLATION=""
 PYTHON="_PYTHON_"
 ACTION=""
 SELF=$1
+DKMS=`which dkms 2> /dev/null`
 RC_SCRIPT=0
 if [ -n "$HARDENED" ]; then
     VBOXDRV_MODE=0600
@@ -212,10 +214,13 @@ if [ "$ACTION" = "install" ]; then
         fi
     fi
 
-    # Do additional clean-up in case some-one is running from a build folder.
-    ./prerm-common.sh || exit 1
-
     # Remove previous installation
+    if [ ! "$VERSION" = "$INSTALL_VER" -a ! "$BUILD_MODULE" = "true" -a -n "$DKMS" ]
+    then
+        # Not doing this can confuse dkms
+        info "Rebuilding the kernel module after version change"
+        BUILD_MODULE=true
+    fi
     test "${BUILD_MODULE}" = true || VBOX_DONT_REMOVE_OLD_MODULES=1
 
     if [ -n "$PREV_INSTALLATION" ]; then
@@ -262,6 +267,10 @@ if [ "$ACTION" = "install" ]; then
     cp uninstall.sh $INSTALLATION_DIR
     echo "uninstall.sh" >> $CONFIG_DIR/$CONFIG_FILES
 
+    # XXX SELinux: allow text relocation entries
+    set_selinux_permissions "$INSTALLATION_DIR" \
+                            "$INSTALLATION_DIR"
+
     # Hardened build: Mark selected binaries set-user-ID-on-execution,
     #                 create symlinks for working around unsupported $ORIGIN/.. in VBoxC.so (setuid),
     #                 and finally make sure the directory is only writable by the user (paranoid).
@@ -282,8 +291,7 @@ if [ "$ACTION" = "install" ]; then
     test -e $INSTALLATION_DIR/VBoxNetAdpCtl && chmod 4511 $INSTALLATION_DIR/VBoxNetAdpCtl
     test -e $INSTALLATION_DIR/VBoxVolInfo && chmod 4511 $INSTALLATION_DIR/VBoxVolInfo
 
-    # Write the configuration.  Needs to be done before the vboxdrv service is
-    # started.
+    # Write the configuration. Do this before we call /sbin/rcvboxdrv setup!
     echo "# VirtualBox installation directory" > $CONFIG_DIR/$CONFIG
     echo "INSTALL_DIR='$INSTALLATION_DIR'" >> $CONFIG_DIR/$CONFIG
     echo "# VirtualBox version" >> $CONFIG_DIR/$CONFIG
@@ -326,16 +334,6 @@ if [ "$ACTION" = "install" ]; then
         ln -sf VBoxDTrace /usr/bin/vboxdtrace > /dev/null 2>&1
     fi
 
-    # Create legacy symlinks if necesary for Qt5/xcb stuff.
-    if [ -d $INSTALLATION_DIR/legacy ]; then
-        if ! /sbin/ldconfig -p | grep -q "\<libxcb\.so\.1\>"; then
-            for f in `ls -1 $INSTALLATION_DIR/legacy/`; do
-                ln -s $INSTALLATION_DIR/legacy/$f $INSTALLATION_DIR/$f
-                echo $INSTALLATION_DIR/$f >> $CONFIG_DIR/$CONFIG_FILES
-            done
-        fi
-    fi
-
     # Icons
     cur=`pwd`
     cd $INSTALLATION_DIR/icons
@@ -369,18 +367,44 @@ if [ "$ACTION" = "install" ]; then
       maybe_run_python_bindings_installer $INSTALLATION_DIR $CONFIG_DIR $CONFIG_FILES
     fi
 
+    install_device_node_setup "$VBOXDRV_GRP" "$VBOXDRV_MODE" "$INSTALLATION_DIR"
+
+    # Make kernel module
+    MODULE_FAILED="false"
+    if [ "$BUILD_MODULE" = "true" ]
+    then
+        info "Building the VirtualBox kernel modules"
+        log "Output from the module build process (the Linux kernel build system) follows:"
+        cur=`pwd`
+        log ""
+        # Start VirtualBox kernel module
+        if ! ./vboxdrv.sh setup || ! ./vboxdrv.sh start; then
+            info "Failed to load the kernel module."
+            MODULE_FAILED="true"
+            RC_SCRIPT=1
+        fi
+        log ""
+        log "End of the output from the Linux kernel build system."
+        cd $cur
+    fi
+
     # Do post-installation common to all installer types, currently service
     # script set-up.
-    if test "${BUILD_MODULE}" = "true"; then
-      START_SERVICES=
-    else
-      START_SERVICES="--nostart"
-    fi
-    "${INSTALLATION_DIR}/prerm-common.sh" >> "${LOG}"
+    START_SERVICES="--nostart"
+    test "${BUILD_MODULE}" = "true" && test "${MODULE_FAILED}" = "false" &&
+        START_SERVICES=
     "${INSTALLATION_DIR}/postinst-common.sh" ${START_SERVICES} >> "${LOG}"
 
     info ""
-    info "VirtualBox has been installed successfully."
+    if [ ! "$MODULE_FAILED" = "true" ]
+    then
+        info "VirtualBox has been installed successfully."
+    else
+        info "VirtualBox has been installed successfully, but the kernel module could not"
+        info "be built.  When you have fixed the problems preventing this, execute"
+        info "  /sbin/rcvboxdrv setup"
+        info "as administrator to build it."
+    fi
     info ""
     info "You will find useful information about using VirtualBox in the user manual"
     info "  $INSTALLATION_DIR/UserManual.pdf"

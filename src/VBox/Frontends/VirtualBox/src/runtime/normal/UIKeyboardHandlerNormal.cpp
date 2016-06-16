@@ -20,28 +20,28 @@
 #else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 /* Qt includes: */
-# ifndef VBOX_WS_MAC
+# ifndef Q_WS_MAC
 #  include <QMainWindow>
 #  include <QMenuBar>
 #  include <QKeyEvent>
 #  include <QTimer>
-# endif /* !VBOX_WS_MAC */
+# endif /* !Q_WS_MAC */
 
 /* GUI includes: */
 # include "UIKeyboardHandlerNormal.h"
-# ifndef VBOX_WS_MAC
+# ifndef Q_WS_MAC
 #  include "UIMachineLogic.h"
 #  include "UIMachineWindow.h"
 #  include "UIShortcutPool.h"
-# endif /* !VBOX_WS_MAC */
+# endif /* !Q_WS_MAC */
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 
 /* Namespaces: */
-#ifndef VBOX_WS_MAC
+#ifndef Q_WS_MAC
 using namespace UIExtraDataDefs;
-#endif /* !VBOX_WS_MAC */
+#endif /* !Q_WS_MAC */
 
 UIKeyboardHandlerNormal::UIKeyboardHandlerNormal(UIMachineLogic* pMachineLogic)
     : UIKeyboardHandler(pMachineLogic)
@@ -52,7 +52,7 @@ UIKeyboardHandlerNormal::~UIKeyboardHandlerNormal()
 {
 }
 
-#ifndef VBOX_WS_MAC
+#ifndef Q_WS_MAC
 bool UIKeyboardHandlerNormal::eventFilter(QObject *pWatchedObject, QEvent *pEvent)
 {
     /* Check if pWatchedObject object is view: */
@@ -71,7 +71,7 @@ bool UIKeyboardHandlerNormal::eventFilter(QObject *pWatchedObject, QEvent *pEven
                 /* Get key-event: */
                 QKeyEvent *pKeyEvent = static_cast<QKeyEvent*>(pEvent);
                 /* Process Host+Home as menu-bar activator: */
-                if (isHostKeyPressed() && QKeySequence(pKeyEvent->key()) == gShortcutPool->shortcut(GUI_Input_MachineShortcuts, QString("PopupMenu")).sequence())
+                if (isHostKeyPressed() && pKeyEvent->key() == gShortcutPool->shortcut(GUI_Input_MachineShortcuts, QString("PopupMenu")).sequence())
                 {
                     /* Trying to get menu-bar: */
                     QMenuBar *pMenuBar = qobject_cast<QMainWindow*>(m_windows[uScreenId])->menuBar();
@@ -90,11 +90,11 @@ bool UIKeyboardHandlerNormal::eventFilter(QObject *pWatchedObject, QEvent *pEven
                             {
                                 /* Activate 'active' menu-bar action: */
                                 pMenuBar->activeAction()->activate(QAction::Trigger);
-#ifdef VBOX_WS_WIN
+#ifdef Q_WS_WIN
                                 /* Windows host needs separate 'focus set'
                                  * to let menubar operate while popped up: */
                                 pMenuBar->setFocus();
-#endif /* VBOX_WS_WIN */
+#endif /* Q_WS_WIN */
                             }
                         }
                         else
@@ -116,5 +116,5 @@ bool UIKeyboardHandlerNormal::eventFilter(QObject *pWatchedObject, QEvent *pEven
     /* Else just propagate to base-class: */
     return UIKeyboardHandler::eventFilter(pWatchedObject, pEvent);
 }
-#endif /* !VBOX_WS_MAC */
+#endif /* !Q_WS_MAC */
 

@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -90,13 +90,10 @@ DECLEXPORT(AuthResult) AUTHCALL AuthEntry(const char *szCaller,
 
     dprintf("VBoxAuth: uuid: %s, user: %s, szPassword: %s\n", uuid, user, szPassword);
 
-    ComPtr<IVirtualBoxClient> virtualBoxClient;
     ComPtr<IVirtualBox> virtualBox;
     HRESULT rc;
 
-    rc = virtualBoxClient.createInprocObject(CLSID_VirtualBoxClient);
-    if (SUCCEEDED(rc))
-        rc = virtualBoxClient->COMGETTER(VirtualBox)(virtualBox.asOutParam());
+    rc = virtualBox.createLocalObject(CLSID_VirtualBox);
     if (SUCCEEDED(rc))
     {
         Bstr key = BstrFmt("VBoxAuthSimple/users/%s", user);
@@ -125,8 +122,6 @@ DECLEXPORT(AuthResult) AUTHCALL AuthEntry(const char *szCaller,
                 result = AuthResultAccessGranted;
         }
     }
-    else
-        dprintf("VBoxAuth: failed to get VirtualBox object reference: %Rhrc\n", rc);
 
     return result;
 }

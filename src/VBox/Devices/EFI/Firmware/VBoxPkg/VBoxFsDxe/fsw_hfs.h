@@ -88,7 +88,6 @@ struct fsw_hfs_dnode
   fsw_u32                   ctime;
   fsw_u32                   mtime;
   fsw_u64                   used_bytes;
-  fsw_u32                   node_num;
 };
 
 /**

@@ -37,7 +37,7 @@ TdesGetContextSize (
   Initializes user-supplied memory as TDES context for subsequent use.
 
   This function initializes user-supplied memory pointed by TdesContext as TDES context.
-  In addition, it sets up all TDES key materials for subsequent encryption and decryption
+  In addtion, it sets up all TDES key materials for subsequent encryption and decryption
   operations.
   There are 3 key options as follows:
   KeyLength = 64,  Keying option 1: K1 == K2 == K3 (Backward compatibility with DES)
@@ -76,9 +76,9 @@ TdesInit (
   KeySchedule = (DES_key_schedule *) TdesContext;
 
   //
-  // If input Key is a weak key, return error.
+  // 
   //
-  if (DES_is_weak_key ((const_DES_cblock *) Key) == 1) {
+  if (DES_is_weak_key ((const_DES_cblock *) Key)) {
     return FALSE;
   }
 
@@ -90,7 +90,7 @@ TdesInit (
     return TRUE;
   }
 
-  if (DES_is_weak_key ((const_DES_cblock *) Key + 8) == 1) {
+  if (DES_is_weak_key ((const_DES_cblock *) Key + 8)) {
     return FALSE;
   }
 
@@ -101,7 +101,7 @@ TdesInit (
     return TRUE;
   }
 
-  if (DES_is_weak_key ((const_DES_cblock *) Key + 16) == 1) {
+  if (DES_is_weak_key ((const_DES_cblock *) Key + 16)) {
     return FALSE;
   }
 
@@ -275,11 +275,7 @@ TdesCbcEncrypt (
   //
   // Check input parameters.
   //
-  if (TdesContext == NULL || Input == NULL || (InputSize % TDES_BLOCK_SIZE) != 0) {
-    return FALSE;
-  }
-
-  if (Ivec == NULL || Output == NULL || InputSize > INT_MAX) {
+  if (TdesContext == NULL || Input == NULL || (InputSize % TDES_BLOCK_SIZE) != 0 || Ivec == NULL || Output == NULL) {
     return FALSE;
   }
 
@@ -343,11 +339,7 @@ TdesCbcDecrypt (
   //
   // Check input parameters.
   //
-  if (TdesContext == NULL || Input == NULL || (InputSize % TDES_BLOCK_SIZE) != 0) {
-    return FALSE;
-  }
-
-  if (Ivec == NULL || Output == NULL || InputSize > INT_MAX) {
+  if (TdesContext == NULL || Input == NULL || (InputSize % TDES_BLOCK_SIZE) != 0 || Ivec == NULL || Output == NULL) {
     return FALSE;
   }
 

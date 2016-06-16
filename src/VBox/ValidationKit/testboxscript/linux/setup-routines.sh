@@ -67,12 +67,14 @@ os_install_service() {
 }
 
 os_enable_service() {
-    stop_init_script testboxscript-service
+    /etc/init.d/testboxscript-service start
     return 0;
 }
 
 os_disable_service() {
-    stop_init_script testboxscript-service 2>&1 || true # Ignore
+    if [ -f /etc/init.d/testboxscript-service ]; then
+        /etc/init.d/testboxscript-service stop || true # Ignore
+    fi
     return 0;
 }
 
@@ -94,19 +96,3 @@ check_for_cifs() {
     return 0;
 }
 
-##
-# Test if core dumps are enabled. See https://wiki.ubuntu.com/Apport!
-#
-test_coredumps() {
-    if test "`lsb_release -is`" = "Ubuntu"; then
-        if grep -q "apport" /proc/sys/kernel/core_pattern; then
-            if grep -q "#.*problem_types" /etc/apport/crashdb.conf; then
-                echo "It looks like core dumps are properly configured, good!"
-            else
-                echo "Warning: Core dumps will be not always generated!"
-            fi
-        else
-            echo "Warning: Apport not installed! This package is required for core dump handling!"
-        fi
-    fi
-}

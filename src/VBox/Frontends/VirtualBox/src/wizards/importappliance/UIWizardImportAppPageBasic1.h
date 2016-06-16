@@ -22,7 +22,7 @@
 #include "UIWizardPage.h"
 
 /* Forward declarations: */
-class UIEmptyFilePathSelector;
+class VBoxEmptyFileSelector;
 class QIRichTextLabel;
 
 /* 1st page of the Import Appliance wizard (base part): */
@@ -34,7 +34,7 @@ protected:
     UIWizardImportAppPage1();
 
     /* Widgets: */
-    UIEmptyFilePathSelector *m_pFileSelector;
+    VBoxEmptyFileSelector *m_pFileSelector;
 };
 
 /* 1st page of the Import Appliance wizard (basic extension): */

@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 104519 $"
+__version__ = "$Revision: 101626 $"
 
 # Standard Python imports.
 import re;
@@ -177,7 +177,7 @@ class TestVm(object):
     def __init__(self, oSet, sVmName, sHd = None, sKind = None, acCpusSup = None, asVirtModesSup = None, # pylint: disable=R0913
                  fIoApic = None, fPae = None, sNic0AttachType = None, sHddControllerType = 'IDE Controller',
                  sFloppy = None, fVmmDevTestingPart = None, fVmmDevTestingMmio = False, asParavirtModesSup = None,
-                 fRandomPvPMode = False, sFirmwareType = 'bios'):
+                 fRandomPvPMode = False):
         self.oSet                    = oSet;
         self.sVmName                 = sVmName;
         self.sHd                     = sHd;          # Relative to the testrsrc root.
@@ -194,7 +194,6 @@ class TestVm(object):
         self.sFloppy                 = sFloppy;      # Relative to the testrsrc root, except when it isn't...
         self.fVmmDevTestingPart      = fVmmDevTestingPart;
         self.fVmmDevTestingMmio      = fVmmDevTestingMmio;
-        self.sFirmwareType           = sFirmwareType;
 
         self.fSnapshotRestoreCurrent = False;        # Whether to restore execution on the current snapshot.
         self.fSkip                   = False;        # All VMs are included in the configured set by default.
@@ -660,8 +659,7 @@ class TestVmSet(object):
                                             sHddControllerType = oTestVm.sHddControllerType,
                                             sFloppy            = oTestVm.sFloppy,
                                             fVmmDevTestingPart = oTestVm.fVmmDevTestingPart,
-                                            fVmmDevTestingMmio = oTestVm.fVmmDevTestingPart,
-                                            sFirmwareType = oTestVm.sFirmwareType);
+                                            fVmmDevTestingMmio = oTestVm.fVmmDevTestingPart);
             if oVM is None:
                 return False;
 
@@ -825,18 +823,6 @@ class TestVmManager(object):
 
         oSet = TestVmSet(oTestVmManager = self);
 
-        oTestVm = TestVm(oSet, 'tst-win10-efi', sHd = '4.2/efi/win10-efi-x86.vdi',
-                         sKind = 'Windows10', acCpusSup = range(1, 33), fIoApic = True, sFirmwareType = 'efi');
-        oSet.aoTestVms.append(oTestVm);
-
-        oTestVm = TestVm(oSet, 'tst-win10-64-efi', sHd = '4.2/efi/win10-efi-amd64.vdi',
-                         sKind = 'Windows10_64', acCpusSup = range(1, 33), fIoApic = True, sFirmwareType = 'efi');
-        oSet.aoTestVms.append(oTestVm);
-
-        oTestVm = TestVm(oSet, 'tst-ubuntu-15_10-64-efi', sHd = '4.2/efi/ubuntu-15_10-efi-amd64.vdi',
-                         sKind = 'Ubuntu_64', acCpusSup = range(1, 33), fIoApic = True, sFirmwareType = 'efi');
-        oSet.aoTestVms.append(oTestVm);
-
         oTestVm = TestVm(oSet, 'tst-nt4sp1', sHd = '4.2/' + sTxsTransport + '/nt4sp1/t-nt4sp1.vdi',
                          sKind = 'WindowsNT4', acCpusSup = [1]);
         oSet.aoTestVms.append(oTestVm);
@@ -893,18 +879,6 @@ class TestVmManager(object):
         """
 
         oSet = TestVmSet(oTestVmManager = self);
-
-        oTestVm = TestVm(oSet, 'tst-win10-efi', sHd = '4.2/efi/win10-efi-x86.vdi',
-                         sKind = 'Windows10', acCpusSup = range(1, 33), fIoApic = True, sFirmwareType = 'efi');
-        oSet.aoTestVms.append(oTestVm);
-
-        oTestVm = TestVm(oSet, 'tst-win10-64-efi', sHd = '4.2/efi/win10-efi-amd64.vdi',
-                         sKind = 'Windows10_64', acCpusSup = range(1, 33), fIoApic = True, sFirmwareType = 'efi');
-        oSet.aoTestVms.append(oTestVm);
-
-        oTestVm = TestVm(oSet, 'tst-ubuntu-15_10-64-efi', sHd = '4.2/efi/ubuntu-15_10-efi-amd64.vdi',
-                         sKind = 'Ubuntu_64', acCpusSup = range(1, 33), fIoApic = True, sFirmwareType = 'efi');
-        oSet.aoTestVms.append(oTestVm);
 
         oTestVm = TestVm(oSet, 'tst-nt4sp1', sHd = '4.2/nat/nt4sp1/t-nt4sp1.vdi',
                          sKind = 'WindowsNT4', acCpusSup = [1], sNic0AttachType = 'nat');

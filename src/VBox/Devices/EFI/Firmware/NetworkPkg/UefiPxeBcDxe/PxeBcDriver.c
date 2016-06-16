@@ -1,7 +1,7 @@
 /** @file
   Driver Binding functions implementationfor for UefiPxeBc Driver.
 
-  Copyright (c) 2007 - 2013, Intel Corporation. All rights reserved.<BR>
+  Copyright (c) 2007 - 2011, Intel Corporation. All rights reserved.<BR>
 
   This program and the accompanying materials
   are licensed and made available under the terms and conditions of the BSD License
@@ -16,19 +16,10 @@
 #include "PxeBcImpl.h"
 
 
-EFI_DRIVER_BINDING_PROTOCOL gPxeBcIp4DriverBinding = {
-  PxeBcIp4DriverBindingSupported,
-  PxeBcIp4DriverBindingStart,
-  PxeBcIp4DriverBindingStop,
-  0xa,
-  NULL,
-  NULL
-};
-
-EFI_DRIVER_BINDING_PROTOCOL gPxeBcIp6DriverBinding = {
-  PxeBcIp6DriverBindingSupported,
-  PxeBcIp6DriverBindingStart,
-  PxeBcIp6DriverBindingStop,
+EFI_DRIVER_BINDING_PROTOCOL gPxeBcDriverBinding = {
+  PxeBcDriverBindingSupported,
+  PxeBcDriverBindingStart,
+  PxeBcDriverBindingStop,
   0xa,
   NULL,
   NULL
@@ -254,7 +245,7 @@ PxeBcDestroyIp4Children (
            NULL
            );
 
-    if (Private->Snp != NULL) {
+    if (Private->Snp != NULL) { 
       //
       // Close SNP from the child virtual handle
       //
@@ -264,7 +255,7 @@ PxeBcDestroyIp4Children (
              This->DriverBindingHandle,
              Private->Ip4Nic->Controller
              );
-
+             
       gBS->UninstallProtocolInterface (
              Private->Ip4Nic->Controller,
              &gEfiSimpleNetworkProtocolGuid,
@@ -701,7 +692,7 @@ PxeBcCreateIp4Children (
     }
 
     //
-    // Open SNP on the child handle BY_DRIVER. It will prevent any additionally
+    // Open SNP on the child handle BY_DRIVER. It will prevent any additionally 
     // layering to perform the experiment.
     //
     Status = gBS->OpenProtocol (
@@ -788,7 +779,6 @@ PxeBcCreateIp6Children (
   EFI_IP6_MODE_DATA               Ip6ModeData;
   PXEBC_PRIVATE_PROTOCOL          *Id;
   EFI_SIMPLE_NETWORK_PROTOCOL     *Snp;
-  UINTN                           Index;
 
   if (Private->Ip6Nic != NULL) {
     //
@@ -829,16 +819,6 @@ PxeBcCreateIp6Children (
                   );
   if (EFI_ERROR (Status)) {
     goto ON_ERROR;
-  }
-
-  //
-  // Generate a random IAID for the Dhcp6 assigned address.
-  //
-  Private->IaId = NET_RANDOM (NetRandomInitSeed ());
-  if (Private->Snp != NULL) {
-    for (Index = 0; Index < Private->Snp->Mode->HwAddressSize; Index++) {
-      Private->IaId |= (Private->Snp->Mode->CurrentAddress.Addr[Index] << ((Index << 3) & 31));
-    }
   }
 
   //
@@ -1003,7 +983,7 @@ PxeBcCreateIp6Children (
   if (EFI_ERROR (Status)) {
     goto ON_ERROR;
   }
-
+  
   if (Private->Snp != NULL) {
     //
     // Install SNP protocol on purpose is for some OS loader backward
@@ -1020,7 +1000,7 @@ PxeBcCreateIp6Children (
     }
 
     //
-    // Open SNP on the child handle BY_DRIVER. It will prevent any additionally
+    // Open SNP on the child handle BY_DRIVER. It will prevent any additionally 
     // layering to perform the experiment.
     //
     Status = gBS->OpenProtocol (
@@ -1098,53 +1078,29 @@ PxeBcDriverEntryPoint (
   IN EFI_SYSTEM_TABLE       *SystemTable
   )
 {
-  EFI_STATUS  Status;
-
-  Status = EfiLibInstallDriverBindingComponentName2 (
-             ImageHandle,
-             SystemTable,
-             &gPxeBcIp4DriverBinding,
-             ImageHandle,
-             &gPxeBcComponentName,
-             &gPxeBcComponentName2
-             );
-  if (EFI_ERROR (Status)) {
-    return Status;
-  }
-
-  Status = EfiLibInstallDriverBindingComponentName2 (
-             ImageHandle,
-             SystemTable,
-             &gPxeBcIp6DriverBinding,
-             NULL,
-             &gPxeBcComponentName,
-             &gPxeBcComponentName2
-             );
-  if (EFI_ERROR (Status)) {
-    gBS->UninstallMultipleProtocolInterfaces (
+  return EfiLibInstallDriverBindingComponentName2 (
            ImageHandle,
-           &gEfiDriverBindingProtocolGuid,
-           &gPxeBcIp4DriverBinding,
-           &gEfiComponentName2ProtocolGuid,
-           &gPxeBcComponentName2,
-           &gEfiComponentNameProtocolGuid,
+           SystemTable,
+           &gPxeBcDriverBinding,
+           ImageHandle,
            &gPxeBcComponentName,
-           NULL
+           &gPxeBcComponentName2
            );
-  }
-
-  return Status;
 }
 
+
 /**
-  Test to see if this driver supports ControllerHandle. This is the worker function for
-  PxeBcIp4(6)DriverBindingSupported.
+  Test to see if this driver supports ControllerHandle. This service
+  is called by the EFI boot service ConnectController(). In
+  order to make drivers as small as possible, there are a few calling
+  restrictions for this service. ConnectController() must
+  follow these calling restrictions. If any other agent wishes to call
+  Supported() it must also follow these calling restrictions.
 
   @param[in]  This                The pointer to the driver binding protocol.
   @param[in]  ControllerHandle    The handle of device to be tested.
   @param[in]  RemainingDevicePath Optional parameter used to pick a specific child
                                   device to be started.
-  @param[in]  IpVersion           IP_VERSION_4 or IP_VERSION_6.
 
   @retval EFI_SUCCESS         This driver supports this device.
   @retval EFI_UNSUPPORTED     This driver does not support this device.
@@ -1152,40 +1108,30 @@ PxeBcDriverEntryPoint (
 **/
 EFI_STATUS
 EFIAPI
-PxeBcSupported (
+PxeBcDriverBindingSupported (
   IN EFI_DRIVER_BINDING_PROTOCOL  *This,
   IN EFI_HANDLE                   ControllerHandle,
-  IN EFI_DEVICE_PATH_PROTOCOL     *RemainingDevicePath OPTIONAL,
-  IN UINT8                        IpVersion
+  IN EFI_DEVICE_PATH_PROTOCOL     *RemainingDevicePath OPTIONAL
   )
 {
-  EFI_STATUS                      Status;
-  EFI_GUID                        *DhcpServiceBindingGuid;
-  EFI_GUID                        *MtftpServiceBindingGuid;
-
-  if (IpVersion == IP_VERSION_4) {
-    DhcpServiceBindingGuid  = &gEfiDhcp4ServiceBindingProtocolGuid;
-    MtftpServiceBindingGuid = &gEfiMtftp4ServiceBindingProtocolGuid;
-  } else {
-    DhcpServiceBindingGuid  = &gEfiDhcp6ServiceBindingProtocolGuid;
-    MtftpServiceBindingGuid = &gEfiMtftp6ServiceBindingProtocolGuid;
-  }
+  EFI_STATUS                      Ip4Status;
+  EFI_STATUS                      Ip6Status;
 
   //
-  // Try to open the Mtftp and Dhcp protocol to test whether IP stack is ready.
+  // Try to open the Mtftp4 and Dhcp4 protocol to test whether IPv4 stack is ready.
   //
-  Status = gBS->OpenProtocol (
+  Ip4Status = gBS->OpenProtocol (
                      ControllerHandle,
-                     DhcpServiceBindingGuid,
+                     &gEfiDhcp4ServiceBindingProtocolGuid,
                      NULL,
                      This->DriverBindingHandle,
                      ControllerHandle,
                      EFI_OPEN_PROTOCOL_TEST_PROTOCOL
                      );
-  if (!EFI_ERROR (Status)) {
-    Status = gBS->OpenProtocol (
+  if (!EFI_ERROR (Ip4Status)) {
+    Ip4Status = gBS->OpenProtocol (
                        ControllerHandle,
-                       MtftpServiceBindingGuid,
+                       &gEfiMtftp4ServiceBindingProtocolGuid,
                        NULL,
                        This->DriverBindingHandle,
                        ControllerHandle,
@@ -1194,25 +1140,50 @@ PxeBcSupported (
   }
 
   //
-  // It's unsupported case if IP stack are not ready.
+  // Try to open the Mtftp6 and Dhcp6 protocol to test whether IPv4 stack is ready.
   //
-  if (EFI_ERROR (Status)) {
+  Ip6Status = gBS->OpenProtocol (
+                     ControllerHandle,
+                     &gEfiDhcp6ServiceBindingProtocolGuid,
+                     NULL,
+                     This->DriverBindingHandle,
+                     ControllerHandle,
+                     EFI_OPEN_PROTOCOL_TEST_PROTOCOL
+                     );
+  if (!EFI_ERROR (Ip6Status)) {
+    Ip6Status = gBS->OpenProtocol (
+                       ControllerHandle,
+                       &gEfiMtftp6ServiceBindingProtocolGuid,
+                       NULL,
+                       This->DriverBindingHandle,
+                       ControllerHandle,
+                       EFI_OPEN_PROTOCOL_TEST_PROTOCOL
+                       );
+  }
+
+  //
+  // It's unsupported case if both stack are not ready.
+  //
+  if (EFI_ERROR (Ip4Status) && EFI_ERROR (Ip6Status)) {
     return EFI_UNSUPPORTED;
   }
 
   return EFI_SUCCESS;
 }
 
+
 /**
-  Start this driver on ControllerHandle. This is the worker function for
-  PxeBcIp4(6)DriverBindingStart.
+  Start this driver on ControllerHandle. This service is called by the
+  EFI boot service ConnectController(). In order to make
+  drivers as small as possible, there are a few calling restrictions for
+  this service. ConnectController() must follow these
+  calling restrictions. If any other agent wishes to call Start() it
+  must also follow these calling restrictions.
 
   @param[in]  This                 The pointer to the driver binding protocol.
   @param[in]  ControllerHandle     The handle of device to be started.
   @param[in]  RemainingDevicePath  Optional parameter used to pick a specific child
                                    device to be started.
-  @param[in]  IpVersion            IP_VERSION_4 or IP_VERSION_6.
-
 
   @retval EFI_SUCCESS          This driver is installed to ControllerHandle.
   @retval EFI_ALREADY_STARTED  This driver is already running on ControllerHandle.
@@ -1221,19 +1192,18 @@ PxeBcSupported (
 **/
 EFI_STATUS
 EFIAPI
-PxeBcStart (
+PxeBcDriverBindingStart (
   IN EFI_DRIVER_BINDING_PROTOCOL  *This,
   IN EFI_HANDLE                   ControllerHandle,
-  IN EFI_DEVICE_PATH_PROTOCOL     *RemainingDevicePath OPTIONAL,
-  IN UINT8                        IpVersion
+  IN EFI_DEVICE_PATH_PROTOCOL     *RemainingDevicePath OPTIONAL
   )
 {
   PXEBC_PRIVATE_DATA              *Private;
   EFI_STATUS                      Status;
+  EFI_STATUS                      Ip4Status;
+  EFI_STATUS                      Ip6Status;
   PXEBC_PRIVATE_PROTOCOL          *Id;
-  BOOLEAN                         FirstStart;
 
-  FirstStart = FALSE;
   Status = gBS->OpenProtocol (
                   ControllerHandle,
                   &gEfiCallerIdGuid,
@@ -1248,7 +1218,6 @@ PxeBcStart (
     //
     Private = PXEBC_PRIVATE_DATA_FROM_ID (Id);
   } else {
-    FirstStart = TRUE;
     //
     // If the driver has not been started yet, it should do initialization.
     //
@@ -1305,7 +1274,7 @@ PxeBcStart (
 
     //
     // Install PxeBaseCodePrivate protocol onto the real NIC handler.
-    // PxeBaseCodePrivate protocol is only used to keep the relationship between
+    // PxeBaseCodePrivate protocol is only used to keep the relationship between 
     // NIC handle and virtual child handles.
     // gEfiCallerIdGuid will be used as its protocol guid.
     //
@@ -1322,21 +1291,20 @@ PxeBcStart (
     //
     // Try to locate SNP protocol.
     //
-    NetLibGetSnpHandle(ControllerHandle, &Private->Snp);
+    NetLibGetSnpHandle(ControllerHandle, &Private->Snp);    
   }
 
-  if (IpVersion == IP_VERSION_4) {
-    //
-    // Try to create virtual NIC handle for IPv4.
-    //
-    Status = PxeBcCreateIp4Children (This, ControllerHandle, Private);
-  } else {
-    //
-    // Try to create virtual NIC handle for IPv6.
-    //
-    Status = PxeBcCreateIp6Children (This, ControllerHandle, Private);
-  }
-  if (EFI_ERROR (Status)) {
+  //
+  // Try to create virtual NIC handle for IPv4.
+  //
+  Ip4Status = PxeBcCreateIp4Children (This, ControllerHandle, Private);
+
+  //
+  // Try to create virtual NIC handle for IPv6.
+  //
+  Ip6Status = PxeBcCreateIp6Children (This, ControllerHandle, Private);
+
+  if (EFI_ERROR (Ip4Status) && EFI_ERROR (Ip6Status)) {
     //
     // Failed to start PXE driver if IPv4 and IPv6 stack are both not available.
     //
@@ -1347,38 +1315,32 @@ PxeBcStart (
   return EFI_SUCCESS;
 
 ON_ERROR:
-  if (FirstStart) {
-    gBS->UninstallProtocolInterface (
-           ControllerHandle,
-           &gEfiCallerIdGuid,
-           &Private->Id
-           );
-  }
-
-  if (IpVersion == IP_VERSION_4) {
-    PxeBcDestroyIp4Children (This, Private);
-  } else {
-    PxeBcDestroyIp6Children (This, Private);
-  }
-
-  if (FirstStart && Private != NULL) {
-    FreePool (Private);
-  }
+  gBS->UninstallProtocolInterface (
+         ControllerHandle,
+         &gEfiCallerIdGuid,
+         &Private->Id
+         );
+  PxeBcDestroyIp4Children (This, Private);
+  PxeBcDestroyIp6Children (This, Private);
+  FreePool (Private);
 
   return Status;
 }
 
 
 /**
-  Stop this driver on ControllerHandle. This is the worker function for
-  PxeBcIp4(6)DriverBindingStop.
+  Stop this driver on ControllerHandle. This service is called by the
+  EFI boot service DisconnectController(). In order to
+  make drivers as small as possible, there are a few calling
+  restrictions for this service. DisconnectController()
+  must follow these calling restrictions. If any other agent wishes
+  to call Stop() it must also follow these calling restrictions.
 
   @param[in]  This              Protocol instance pointer.
   @param[in]  ControllerHandle  Handle of device to stop driver on.
   @param[in]  NumberOfChildren  Number of Handles in ChildHandleBuffer. If number of
                                 children is zero stop the entire bus driver.
   @param[in]  ChildHandleBuffer List of Child Handles to Stop.
-  @param[in]  IpVersion         IP_VERSION_4 or IP_VERSION_6.
 
   @retval EFI_SUCCESS           This driver was removed ControllerHandle.
   @retval EFI_DEVICE_ERROR      An unexpected system or network error occurred.
@@ -1387,12 +1349,11 @@ ON_ERROR:
 **/
 EFI_STATUS
 EFIAPI
-PxeBcStop (
+PxeBcDriverBindingStop (
   IN EFI_DRIVER_BINDING_PROTOCOL  *This,
   IN EFI_HANDLE                   ControllerHandle,
   IN UINTN                        NumberOfChildren,
-  IN EFI_HANDLE                   *ChildHandleBuffer,
-  IN UINT8                        IpVersion
+  IN EFI_HANDLE                   *ChildHandleBuffer
   )
 {
   PXEBC_PRIVATE_DATA              *Private;
@@ -1422,13 +1383,14 @@ PxeBcStop (
     //
     // Get the Nic handle by any pass-over service child handle.
     //
-    if (IpVersion == IP_VERSION_4) {
-      NicHandle = PxeBcGetNicByIp4Children (ControllerHandle);
-    } else {
-      NicHandle = PxeBcGetNicByIp6Children (ControllerHandle);
-    }
+    NicHandle = PxeBcGetNicByIp4Children (ControllerHandle);
     if (NicHandle == NULL) {
-      return EFI_SUCCESS;
+      NicHandle = PxeBcGetNicByIp6Children (ControllerHandle);
+      if (NicHandle == NULL) {
+        return EFI_DEVICE_ERROR;
+      } else {
+        IsIpv6 = TRUE;
+      }
     }
 
     //
@@ -1466,6 +1428,10 @@ PxeBcStop (
     VirtualNic = PXEBC_VIRTUAL_NIC_FROM_LOADFILE (LoadFile);
     Private    = VirtualNic->Private;
     NicHandle  = Private->Controller;
+
+    if (Private->Ip6Nic == VirtualNic) {
+      IsIpv6   = TRUE;
+    }
   }
 
   //
@@ -1477,11 +1443,11 @@ PxeBcStop (
   }
 
 
-  if (Private->Ip4Nic != NULL && IpVersion == IP_VERSION_4) {
+  if (Private->Ip4Nic != NULL && !IsIpv6) {
     PxeBcDestroyIp4Children (This, Private);
   }
 
-  if (Private->Ip6Nic != NULL && IpVersion == IP_VERSION_6) {
+  if (Private->Ip6Nic != NULL && IsIpv6) {
     PxeBcDestroyIp6Children (This, Private);
   }
 
@@ -1495,212 +1461,4 @@ PxeBcStop (
   }
 
   return EFI_SUCCESS;
-}
-
-/**
-  Test to see if this driver supports ControllerHandle. This service
-  is called by the EFI boot service ConnectController(). In
-  order to make drivers as small as possible, there are a few calling
-  restrictions for this service. ConnectController() must
-  follow these calling restrictions. If any other agent wishes to call
-  Supported() it must also follow these calling restrictions.
-
-  @param[in]  This                The pointer to the driver binding protocol.
-  @param[in]  ControllerHandle    The handle of device to be tested.
-  @param[in]  RemainingDevicePath Optional parameter used to pick a specific child
-                                  device to be started.
-
-  @retval EFI_SUCCESS         This driver supports this device.
-  @retval EFI_UNSUPPORTED     This driver does not support this device.
-
-**/
-EFI_STATUS
-EFIAPI
-PxeBcIp4DriverBindingSupported (
-  IN EFI_DRIVER_BINDING_PROTOCOL  *This,
-  IN EFI_HANDLE                   ControllerHandle,
-  IN EFI_DEVICE_PATH_PROTOCOL     *RemainingDevicePath OPTIONAL
-  )
-{
-  return PxeBcSupported (
-           This,
-           ControllerHandle,
-           RemainingDevicePath,
-           IP_VERSION_4
-           );
-}
-
-/**
-  Start this driver on ControllerHandle. This service is called by the
-  EFI boot service ConnectController(). In order to make
-  drivers as small as possible, there are a few calling restrictions for
-  this service. ConnectController() must follow these
-  calling restrictions. If any other agent wishes to call Start() it
-  must also follow these calling restrictions.
-
-  @param[in]  This                 The pointer to the driver binding protocol.
-  @param[in]  ControllerHandle     The handle of device to be started.
-  @param[in]  RemainingDevicePath  Optional parameter used to pick a specific child
-                                   device to be started.
-
-  @retval EFI_SUCCESS          This driver is installed to ControllerHandle.
-  @retval EFI_ALREADY_STARTED  This driver is already running on ControllerHandle.
-  @retval other                This driver does not support this device.
-
-**/
-EFI_STATUS
-EFIAPI
-PxeBcIp4DriverBindingStart (
-  IN EFI_DRIVER_BINDING_PROTOCOL  *This,
-  IN EFI_HANDLE                   ControllerHandle,
-  IN EFI_DEVICE_PATH_PROTOCOL     *RemainingDevicePath OPTIONAL
-  )
-{
-  return PxeBcStart (
-           This,
-           ControllerHandle,
-           RemainingDevicePath,
-           IP_VERSION_4
-           );
-}
-
-/**
-  Stop this driver on ControllerHandle. This service is called by the
-  EFI boot service DisconnectController(). In order to
-  make drivers as small as possible, there are a few calling
-  restrictions for this service. DisconnectController()
-  must follow these calling restrictions. If any other agent wishes
-  to call Stop() it must also follow these calling restrictions.
-
-  @param[in]  This              Protocol instance pointer.
-  @param[in]  ControllerHandle  Handle of device to stop driver on
-  @param[in]  NumberOfChildren  Number of Handles in ChildHandleBuffer. If number of
-                                children is zero stop the entire bus driver.
-  @param[in]  ChildHandleBuffer List of Child Handles to Stop.
-
-  @retval EFI_SUCCESS           This driver is removed ControllerHandle
-  @retval EFI_DEVICE_ERROR      An unexpected system or network error occurred.
-  @retval Others                This driver was not removed from this device.
-
-**/
-EFI_STATUS
-EFIAPI
-PxeBcIp4DriverBindingStop (
-  IN EFI_DRIVER_BINDING_PROTOCOL  *This,
-  IN EFI_HANDLE                   ControllerHandle,
-  IN UINTN                        NumberOfChildren,
-  IN EFI_HANDLE                   *ChildHandleBuffer
-  )
-{
-  return PxeBcStop (
-           This,
-           ControllerHandle,
-           NumberOfChildren,
-           ChildHandleBuffer,
-           IP_VERSION_4
-           );
-}
-
-/**
-  Test to see if this driver supports ControllerHandle. This service
-  is called by the EFI boot service ConnectController(). In
-  order to make drivers as small as possible, there are a few calling
-  restrictions for this service. ConnectController() must
-  follow these calling restrictions. If any other agent wishes to call
-  Supported() it must also follow these calling restrictions.
-
-  @param[in]  This                The pointer to the driver binding protocol.
-  @param[in]  ControllerHandle    The handle of device to be tested.
-  @param[in]  RemainingDevicePath Optional parameter use to pick a specific child
-                                  device to be started.
-
-  @retval EFI_SUCCESS         This driver supports this device.
-  @retval EFI_UNSUPPORTED     This driver does not support this device.
-
-**/
-EFI_STATUS
-EFIAPI
-PxeBcIp6DriverBindingSupported (
-  IN EFI_DRIVER_BINDING_PROTOCOL  *This,
-  IN EFI_HANDLE                   ControllerHandle,
-  IN EFI_DEVICE_PATH_PROTOCOL     *RemainingDevicePath OPTIONAL
-  )
-{
-  return PxeBcSupported (
-           This,
-           ControllerHandle,
-           RemainingDevicePath,
-           IP_VERSION_6
-           );
-}
-
-/**
-  Start this driver on ControllerHandle. This service is called by the
-  EFI boot service ConnectController(). In order to make
-  drivers as small as possible, there are a few calling restrictions for
-  this service. ConnectController() must follow these
-  calling restrictions. If any other agent wishes to call Start() it
-  must also follow these calling restrictions.
-
-  @param[in]  This                 The pointer to the driver binding protocol.
-  @param[in]  ControllerHandle     The handle of device to be started.
-  @param[in]  RemainingDevicePath  Optional parameter used to pick a specific child
-                                   device to be started.
-
-  @retval EFI_SUCCESS          This driver is installed to ControllerHandle.
-  @retval EFI_ALREADY_STARTED  This driver is already running on ControllerHandle.
-  @retval other                This driver does not support this device.
-
-**/
-EFI_STATUS
-EFIAPI
-PxeBcIp6DriverBindingStart (
-  IN EFI_DRIVER_BINDING_PROTOCOL  *This,
-  IN EFI_HANDLE                   ControllerHandle,
-  IN EFI_DEVICE_PATH_PROTOCOL     *RemainingDevicePath OPTIONAL
-  )
-{
-  return PxeBcStart (
-           This,
-           ControllerHandle,
-           RemainingDevicePath,
-           IP_VERSION_6
-           );
-}
-
-/**
-  Stop this driver on ControllerHandle. This service is called by the
-  EFI boot service DisconnectController(). In order to
-  make drivers as small as possible, there are a few calling
-  restrictions for this service. DisconnectController()
-  must follow these calling restrictions. If any other agent wishes
-  to call Stop() it must also follow these calling restrictions.
-
-  @param[in]  This              Protocol instance pointer.
-  @param[in]  ControllerHandle  Handle of device to stop driver on
-  @param[in]  NumberOfChildren  Number of Handles in ChildHandleBuffer. If number of
-                                children is zero stop the entire bus driver.
-  @param[in]  ChildHandleBuffer List of Child Handles to Stop.
-
-  @retval EFI_SUCCESS           This driver is removed ControllerHandle
-  @retval EFI_DEVICE_ERROR      An unexpected system or network error occurred.
-  @retval Others                This driver was not removed from this device.
-
-**/
-EFI_STATUS
-EFIAPI
-PxeBcIp6DriverBindingStop (
-  IN EFI_DRIVER_BINDING_PROTOCOL  *This,
-  IN EFI_HANDLE                   ControllerHandle,
-  IN UINTN                        NumberOfChildren,
-  IN EFI_HANDLE                   *ChildHandleBuffer
-  )
-{
-  return PxeBcStop (
-           This,
-           ControllerHandle,
-           NumberOfChildren,
-           ChildHandleBuffer,
-           IP_VERSION_6
-           );
 }

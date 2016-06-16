@@ -27,7 +27,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 107656 $"
+__version__ = "$Revision: 101366 $"
 
 
 # Standard Python imports.
@@ -167,14 +167,6 @@ class ReporterBase(object):
         Returns True on success, False on failure.
         """
         _ = oSrcFile; _ = sSrcFilename; _ = sAltName; _ = sDescription; _ = sKind; _ = sCaller; _ = sTsPrf;
-        return True;
-
-    def addLogString(self, sLog, sLogName, sDescription, sKind, sCaller, sTsPrf):
-        """
-        Adds the file to the report.
-        Returns True on success, False on failure.
-        """
-        _ = sLog; _ = sLogName; _ = sDescription; _ = sKind; _ = sCaller; _ = sTsPrf;
         return True;
 
     #
@@ -466,39 +458,10 @@ class LocalReporter(ReporterBase):
             oDstFile.close();
 
             # Leave a mark in the XML log.
-            self._xmlWrite(['<LogFile timestamp="%s" filename="%s" source="%s" kind="%s" ok="%s">%s</LogFile>\n'
+            self._xmlWrite('<LogFile timestamp="%s" filename="%s" source="%s" kind="%s" ok="%s">%s</LogFile>\n'
                 % (utils.getIsoTimestamp(), self._xmlEscAttr(os.path.basename(sDstFilename)), self._xmlEscAttr(sSrcFilename), \
-                   self._xmlEscAttr(sKind), fRc, self._xmlEscAttr(sDescription))] );
+                   self._xmlEscAttr(sKind), fRc, self._xmlEscAttr(sDescription)) );
         _ = sAltName;
-        return fRc;
-
-    def addLogString(self, sLog, sLogName, sDescription, sKind, sCaller, sTsPrf):
-        # Figure the destination filename.
-        iOtherFile = self.iOtherFile;
-        self.iOtherFile += 1;
-        sDstFilename = os.path.join(self.sLogDir, 'other-%d-%s.log' \
-                                    % (iOtherFile, os.path.splitext(os.path.basename(sLogName))[0]));
-        self.log(0, '** Other log file: %s - %s (%s)' % (sDstFilename, sDescription, sLogName), sCaller, sTsPrf);
-
-        # Open the destination file and copy over the data.
-        fRc = True;
-        try:
-            oDstFile = utils.openNoInherit(sDstFilename, 'w');
-        except Exception, oXcpt:
-            self.log(0, 'error opening %s: %s' % (sDstFilename, oXcpt), sCaller, sTsPrf);
-        else:
-            try:
-                oDstFile.write(sLog);
-            except Exception, oXcpt:
-                fRc = False;
-                self.log(0, 'error writing %s: %s' % (sDstFilename, oXcpt), sCaller, sTsPrf);
-
-            oDstFile.close();
-
-            # Leave a mark in the XML log.
-            self._xmlWrite(['<LogFile timestamp="%s" filename="%s" source="%s" kind="%s" ok="%s">%s</LogFile>\n'
-                % (utils.getIsoTimestamp(), self._xmlEscAttr(os.path.basename(sDstFilename)), self._xmlEscAttr(sLogName), \
-                   self._xmlEscAttr(sKind), fRc, self._xmlEscAttr(sDescription))] );
         return fRc;
 
     def subXmlStart(self, oFileWrapper):
@@ -512,8 +475,8 @@ class LocalReporter(ReporterBase):
             errorXcpt('open(%s)' % oFileWrapper.oSubXmlName);
             oFileWrapper.oSubXmlFile = None;
         else:
-            self._xmlWrite(['<Include timestamp="%s" filename="%s"/>\n'
-                    % (utils.getIsoTimestamp(), self._xmlEscAttr(os.path.basename(sSubXmlName)))]);
+            self._xmlWrite('<Include timestamp="%s" filename="%s"/>\n'
+                    % (utils.getIsoTimestamp(), self._xmlEscAttr(os.path.basename(sSubXmlName))));
         return None;
 
     def subXmlWrite(self, oFileWrapper, sRawXml, sCaller):
@@ -718,45 +681,6 @@ class RemoteReporter(ReporterBase):
 
         return False;
 
-    def _doUploadString(self, sSrc, sSrcName, sDescription, sKind, sMime):
-        """ Uploads the given string as a separate file to the test manager. """
-
-        # Prepare header and url.
-        dHeader = dict(self._dHttpHeader);
-        dHeader['Content-Type'] = 'application/octet-stream';
-        self._writeOutput('%s: _doUploadString: sHeader=%s' % (utils.getTimePrefix(), dHeader,));
-        self._writeOutput('%s: _doUploadString: size=%d' % (utils.getTimePrefix(), sys.getsizeof(sSrc),));
-
-        from common import constants;
-        sUrl = self._sTmServerPath + '&' \
-             + self._fnUrlEncode({ constants.tbreq.UPLOAD_PARAM_NAME: os.path.basename(sSrcName),
-                                   constants.tbreq.UPLOAD_PARAM_DESC: sDescription,
-                                   constants.tbreq.UPLOAD_PARAM_KIND: sKind,
-                                   constants.tbreq.UPLOAD_PARAM_MIME: sMime,
-                                   constants.tbreq.ALL_PARAM_ACTION:  constants.tbreq.UPLOAD,
-                                });
-
-        # Retry loop.
-        secStart = utils.timestampSecond();
-        while True:
-            try:
-                oConn = self._fnTmConnect();
-                oConn.request('POST', sUrl, sSrc, dHeader);
-                fRc = self._processTmStatusResponse(oConn, '_doUploadString', fClose = True);
-                oConn.close();
-                if fRc is not None:
-                    return fRc;
-            except:
-                logXcpt('warning: exception during UPLOAD request');
-
-            if utils.timestampSecond() - secStart >= self.kcSecTestManagerRetryTimeout:
-                self._writeOutput('%s: _doUploadString: Timed out.' % (utils.getTimePrefix(),));
-                break;
-            self._writeOutput('%s: _doUploadString: Retrying...' % (utils.getTimePrefix(), ));
-            time.sleep(2);
-
-        return False;
-
     def _xmlDoFlush(self, asXml, fRetry = False, fDtor = False):
         """
         The code that does the actual talking to the server.
@@ -818,34 +742,18 @@ class RemoteReporter(ReporterBase):
         if sKind in [ 'text', 'log', ]  or  sKind.startswith('log/'):
             self.log(0, '*** Uploading "%s" - KIND: "%s" - DESC: "%s" ***'
                         % (sSrcFilename, sKind, sDescription),  sCaller, sTsPrf);
-            self.xmlFlush();
             g_oLock.release();
             self._doUploadFile(oSrcFile, sAltName, sDescription, sKind, 'text/plain');
             g_oLock.acquire();
         elif sKind.startswith('screenshot/'):
             self.log(0, '*** Uploading "%s" - KIND: "%s" - DESC: "%s" ***'
                         % (sSrcFilename, sKind, sDescription),  sCaller, sTsPrf);
-            self.xmlFlush();
             g_oLock.release();
             self._doUploadFile(oSrcFile, sAltName, sDescription, sKind, 'image/png');
             g_oLock.acquire();
         else:
             self.log(0, '*** UNKNOWN FILE "%s" - KIND "%s" - DESC "%s" ***'
                      % (sSrcFilename, sKind, sDescription),  sCaller, sTsPrf);
-        return fRc;
-
-    def addLogString(self, sLog, sLogName, sDescription, sKind, sCaller, sTsPrf):
-        fRc = True;
-        if sKind in [ 'text', 'log', ]  or  sKind.startswith('log/'):
-            self.log(0, '*** Uploading "%s" - KIND: "%s" - DESC: "%s" ***'
-                        % (sLogName, sKind, sDescription),  sCaller, sTsPrf);
-            self.xmlFlush();
-            g_oLock.release();
-            self._doUploadString(sLog, sLogName, sDescription, sKind, 'text/plain');
-            g_oLock.acquire();
-        else:
-            self.log(0, '*** UNKNOWN FILE "%s" - KIND "%s" - DESC "%s" ***'
-                     % (sLogName, sKind, sDescription),  sCaller, sTsPrf);
         return fRc;
 
     def xmlFlush(self, fRetry = False, fForce = False):
@@ -996,14 +904,6 @@ class FileWrapper(object):
     def __init__(self, sPrefix):
         self.sPrefix = sPrefix;
 
-    def __del__(self):
-        self.close();
-
-    def close(self):
-        """ file.close """
-        # Nothing to be done.
-        return;
-
     def read(self, cb):
         """file.read"""
         _ = cb;
@@ -1031,10 +931,9 @@ class FileWrapper(object):
 class FileWrapperTestPipe(object):
     """ File like class for the test pipe (TXS EXEC and similar). """
     def __init__(self):
-        self.sPrefix    = '';
-        self.fStarted   = False;
-        self.fClosed    = False;
-        self.sTagBuffer = None;
+        self.sPrefix  = '';
+        self.fStarted = False;
+        self.fClosed  = False;
 
     def __del__(self):
         self.close();
@@ -1071,69 +970,9 @@ class FileWrapperTestPipe(object):
                 pass;
         try:
             g_oReporter.subXmlWrite(self, sText, utils.getCallerName());
-            # Parse the supplied text and look for <Failed.../> tags to keep track of the
-            # error counter. This is only a very lazy aproach.
-            sText.strip();
-            idxText = 0;
-            while len(sText) > 0:
-                if self.sTagBuffer is None:
-                    # Look for the start of a tag.
-                    idxStart = sText[idxText:].find('<');
-                    if idxStart != -1:
-                        # Look for the end of the tag.
-                        idxEnd = sText[idxStart:].find('>');
-
-                        # If the end was found inside the current buffer, parse the line,
-                        # else we have to save it for later.
-                        if idxEnd != -1:
-                            idxEnd += idxStart + 1;
-                            self._processXmlElement(sText[idxStart:idxEnd]);
-                            idxText = idxEnd;
-                        else:
-                            self.sTagBuffer = sText[idxStart:];
-                            idxText = len(sText);
-                    else:
-                        idxText = len(sText);
-                else:
-                    # Search for the end of the tag and parse the whole tag.
-                    idxEnd = sText[idxText:].find('>');
-                    if idxEnd != -1:
-                        idxEnd += idxStart + 1;
-                        self._processXmlElement(self.sTagBuffer + sText[idxText:idxEnd]);
-                        self.sTagBuffer = None;
-                        idxText = idxEnd;
-                    else:
-                        self.sTagBuffer = self.sTagBuffer + sText[idxText:];
-                        idxText = len(sText);
-
-                sText = sText[idxText:];
-                sText = sText.lstrip();
         except:
             traceback.print_exc();
         return None;
-
-    def _processXmlElement(self, sElement):
-        """
-        Processes a complete XML tag (so far we only search for the Failed to tag
-        to keep track of the error counter.
-        """
-        # Make sure we don't parse any space between < and the element name.
-        sElement = sElement.strip();
-
-        # Find the end of the name
-        idxEndName = sElement.find(' ');
-        if idxEndName == -1:
-            idxEndName = sElement.find('/');
-        if idxEndName == -1:
-            idxEndName = sElement.find('>');
-
-        if idxEndName != -1:
-            if sElement[1:idxEndName] == 'Failed':
-                g_oLock.acquire();
-                g_oReporter.testIncErrors();
-                g_oLock.release();
-        else:
-            error('_processXmlElement(%s)' % sElement);
 
 
 #
@@ -1310,28 +1149,6 @@ def addLogFile(sFilename, sKind, sDescription = '', sAltName = None):
         fRc = g_oReporter.addLogFile(oSrcFile, sFilename, sAltName, sDescription, sKind, sCaller, sTsPrf);
         g_oLock.release();
         oSrcFile.close();
-    return fRc;
-
-def addLogString(sLog, sLogName, sKind, sDescription = ''):
-    """
-    Adds the specified log string to the report.
-
-    The sLog parameter sets the name of the log file.
-
-    The sDescription is a free form description of the log file.
-
-    The sKind parameter is for adding some machine parsable hint what kind of
-    log file this really is.
-
-    Returns True on success, False on failure (no ENOENT errors are logged).
-    """
-    sTsPrf  = utils.getTimePrefix();
-    sCaller = utils.getCallerName();
-    fRc     = False;
-
-    g_oLock.acquire();
-    fRc = g_oReporter.addLogString(sLog, sLogName, sDescription, sKind, sCaller, sTsPrf);
-    g_oLock.release();
     return fRc;
 
 def isLocal():

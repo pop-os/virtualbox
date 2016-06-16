@@ -29,8 +29,7 @@
   @param [in] Controller       Handle of device to work with.
 
   @retval EFI_SUCCESS          This driver is added to Controller.
-  @retval EFI_OUT_OF_RESOURCES No more memory available.
-  @retval EFI_UNSUPPORTED      This driver does not support this device.
+  @retval other                This driver does not support this device.
 
 **/
 EFI_STATUS
@@ -41,7 +40,6 @@ EslServiceConnect (
   )
 {
   BOOLEAN bInUse;
-  EFI_STATUS ExitStatus;
   UINTN LengthInBytes;
   UINT8 * pBuffer;
   CONST ESL_SOCKET_BINDING * pEnd;
@@ -58,7 +56,7 @@ EslServiceConnect (
   //
   //  Assume the list is empty
   //
-  ExitStatus = EFI_UNSUPPORTED;
+  Status = EFI_UNSUPPORTED;
   bInUse = FALSE;
 
   //
@@ -173,9 +171,28 @@ EslServiceConnect (
               RESTORE_TPL ( TplPrevious );
 
               //
-              //  At least one service was made available
+              //  Determine if the initialization was successful
               //
-              ExitStatus = EFI_SUCCESS;
+              if ( EFI_ERROR ( Status )) {
+                DEBUG (( DEBUG_ERROR | DEBUG_POOL | DEBUG_INIT,
+                          "ERROR - Failed to initialize service %s on 0x%08x, Status: %r\r\n",
+                          pSocketBinding->pName,
+                          Controller,
+                          Status ));
+
+                //
+                //  Free the network service binding if necessary
+                //
+                gBS->UninstallMultipleProtocolInterfaces (
+                          Controller,
+                          pSocketBinding->pTagGuid,
+                          pService,
+                          NULL );
+                DEBUG (( DEBUG_POOL | DEBUG_INIT | DEBUG_INFO,
+                            "Removed:   %s TagGuid from 0x%08x\r\n",
+                            pSocketBinding->pName,
+                            Controller ));
+              }
             }
             else {
               DEBUG (( DEBUG_ERROR | DEBUG_POOL | DEBUG_INIT,
@@ -224,23 +241,21 @@ EslServiceConnect (
           DEBUG (( DEBUG_ERROR | DEBUG_INIT,
                     "ERROR - Failed service allocation, Status: %r\r\n",
                     Status ));
-          ExitStatus = EFI_OUT_OF_RESOURCES;
-          break;
         }
       }
     }
-
+  
     //
     //  Set the next network protocol
     //
     pSocketBinding += 1;
   }
-
+  
   //
   //  Display the driver start status
   //
-  DBG_EXIT_STATUS ( ExitStatus );
-  return ExitStatus;
+  DBG_EXIT_STATUS ( Status );
+  return Status;
 }
 
 
@@ -274,7 +289,7 @@ EslServiceDisconnect (
   CONST ESL_SOCKET_BINDING * pSocketBinding;
   EFI_STATUS Status;
   EFI_TPL TplPrevious;
-
+  
   DBG_ENTER ( );
 
   //
@@ -316,7 +331,7 @@ EslServiceDisconnect (
         //
         pPort->pService = NULL;
         pService->pPortList = pPort->pLinkService;
-
+  
         //
         //  Close the port
         //
@@ -329,7 +344,7 @@ EslServiceDisconnect (
         //
         pPort = pService->pPortList;
       }
-
+    
       //
       //  Remove the service from the service list
       //

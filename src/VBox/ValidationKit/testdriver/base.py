@@ -27,7 +27,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 105703 $"
+__version__ = "$Revision: 100880 $"
 
 
 # Standard Python imports.
@@ -1574,7 +1574,7 @@ class TestDriverBase(object): # pylint: disable=R0902
         return iRc;
 
 
-    def innerMain(self, asArgs = None): # pylint: disable=R0915
+    def innerMain(self, asArgs = None):
         """
         Exception wrapped main() worker.
         """
@@ -1648,18 +1648,16 @@ class TestDriverBase(object): # pylint: disable=R0902
                 asActions.remove('config');
                 reporter.log('*** config action ***');
                 fRc = self.actionConfig();
-                if fRc is True:     reporter.log("config succeeded");
-                elif fRc is None:   reporter.log("config skipping test");
-                else:               reporter.log("config failed");
+                if fRc is True: reporter.log("config succeeded");
+                else:           reporter.log("config failed");
                 reporter.log('*** config action completed (fRc=%s) ***' % (fRc,));
 
             if 'execute' in asActions and fRc is True:
                 asActions.remove('execute');
                 reporter.log('*** execute action ***');
                 fRc = self.actionExecute();
-                if fRc is True:     reporter.log("execute succeeded");
-                elif fRc is None:   reporter.log("execute skipping test");
-                else:               reporter.log("execute failed (fRc=%s)" % (fRc,));
+                if fRc is True: reporter.log("execute succeeded");
+                else:           reporter.log("execute failed (fRc=%s)" % (fRc,));
                 reporter.testCleanup();
                 reporter.log('*** execute action completed (fRc=%s) ***' % (fRc,));
 

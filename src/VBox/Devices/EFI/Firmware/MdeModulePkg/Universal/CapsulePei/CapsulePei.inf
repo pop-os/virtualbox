@@ -1,12 +1,9 @@
 ## @file
-# Capsule update PEIM supports EFI and UEFI.
+# Component description file for Capsule module.
 #
-#  Caution: This module requires additional review when modified.
-#  This driver will have external input - capsule image.
-#  This external input must be validated carefully to avoid security issue like
-#  buffer overflow, integer overflow.
+# Capsule update module supports EFI and UEFI.
 #
-# Copyright (c) 2006 - 2014, Intel Corporation. All rights reserved.<BR>
+# Copyright (c) 2006 - 2011, Intel Corporation. All rights reserved.<BR>
 #
 # This program and the accompanying materials
 # are licensed and made available under the terms and conditions
@@ -22,7 +19,6 @@
 [Defines]
   INF_VERSION                    = 0x00010005
   BASE_NAME                      = CapsulePei
-  MODULE_UNI_FILE                = CapsulePei.uni
   FILE_GUID                      = C779F6D8-7113-4AA1-9648-EB1633C7D53B
   MODULE_TYPE                    = PEIM
   VERSION_STRING                 = 1.0
@@ -38,7 +34,7 @@
 [Sources]
   UefiCapsule.c
   Capsule.h
-  Common/CapsuleCoalesce.c
+  Common/CapsuleCoalesce.c  
 
 [Packages]
   MdePkg/MdePkg.dec
@@ -58,39 +54,27 @@
 [LibraryClasses.IA32]
   PeCoffGetEntryPointLib
   PcdLib
-  DebugAgentLib
 
 [Guids]
-  ## SOMETIMES_CONSUMES   ## Variable:L"CapsuleUpdateData"
-  ## SOMETIMES_CONSUMES   ## Variable:L"CapsuleLongModeBuffer"
-  gEfiCapsuleVendorGuid
+  gEfiCapsuleVendorGuid                         # ALWAYS_CONSUMED
 
 [Ppis]
-  gEfiPeiReadOnlyVariable2PpiGuid               ## CONSUMES
-  gPeiCapsulePpiGuid                            ## PRODUCES
-
-[Ppis.IA32]
-  gEfiPeiLoadFilePpiGuid                        ## SOMETIMES_CONSUMES
+  gEfiPeiReadOnlyVariable2PpiGuid               # PPI ALWAYS_CONSUMED
+  gPeiCapsulePpiGuid                            # PPI ALWAYS_CONSUMED
+  
+[Ppis.IA32]  
+  gEfiPeiLoadFilePpiGuid                        # PPI ALWAYS_CONSUMED
 
 [Pcd.IA32]
-  gEfiMdeModulePkgTokenSpaceGuid.PcdCapsuleCoalesceFile     ## SOMETIMES_CONSUMES
-  gEfiMdeModulePkgTokenSpaceGuid.PcdUse1GPageTable          ## SOMETIMES_CONSUMES
+  gEfiMdeModulePkgTokenSpaceGuid.PcdCapsuleCoalesceFile
+
+[Pcd.IA32]
+  gEfiMdeModulePkgTokenSpaceGuid.PcdUse1GPageTable
 
 [FeaturePcd.IA32]
-  gEfiMdeModulePkgTokenSpaceGuid.PcdDxeIplSwitchToLongMode  ## CONSUMES
+  gEfiMdeModulePkgTokenSpaceGuid.PcdDxeIplSwitchToLongMode
 
 [Depex]
   gEfiPeiReadOnlyVariable2PpiGuid
 
-# [BootMode]
-# FLASH_UPDATE              ## SOMETIMES_CONSUMES
 
-# [Hob.IA32]
-# UNDEFINED                 ## SOMETIMES_CONSUMES # CPU
-
-# [Hob]
-# UNDEFINED                 ## SOMETIMES_PRODUCES # UEFI_CAPSULE
-
-
-[UserExtensions.TianoCore."ExtraFiles"]
-  CapsulePeiExtra.uni

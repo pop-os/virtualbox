@@ -24,29 +24,23 @@
 /* GUI includes: */
 #include "QIWithRetranslateUI.h"
 #include "UIExtraDataDefs.h"
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
 # include "VBoxUtils-darwin.h"
-#endif /* VBOX_WS_MAC */
+#endif /* Q_WS_MAC */
 
 /* COM includes: */
 #include "COMEnums.h"
 #include "CMachine.h"
 
 /* Forward declarations: */
-class QCloseEvent;
 class QGridLayout;
 class QSpacerItem;
-class UIActionPool;
+class QCloseEvent;
+class CSession;
 class UISession;
 class UIMachineLogic;
 class UIMachineView;
-class CSession;
-#ifdef VBOX_WS_X11
-# if QT_VERSION < 0x050000
-typedef union _XEvent XEvent;
-# endif /* QT_VERSION < 0x050000 */
-#endif /* VBOX_WS_X11 */
-
+class UIActionPool;
 
 /* Machine-window interface: */
 class UIMachineWindow : public QIWithRetranslateUI2<QMainWindow>
@@ -121,12 +115,10 @@ protected:
     void retranslateUi();
 
     /* Event handlers: */
-#ifdef VBOX_WS_X11
-# if QT_VERSION < 0x050000
-    /** X11: Qt4: Handles all native events. */
+#ifdef Q_WS_X11
+    /** X11: Native event handler. */
     bool x11Event(XEvent *pEvent);
-# endif /* QT_VERSION < 0x050000 */
-#endif /* VBOX_WS_X11 */
+#endif /* Q_WS_X11 */
 
     /** Show event handler. */
     void showEvent(QShowEvent *pShowEvent);
@@ -134,7 +126,7 @@ protected:
     /** Close event handler. */
     void closeEvent(QCloseEvent *pCloseEvent);
 
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
     /** Mac OS X: Handles native notifications.
       * @param  strNativeNotificationName  Native notification name. */
     virtual void handleNativeNotification(const QString & /* strNativeNotificationName */) {}
@@ -143,7 +135,7 @@ protected:
       * @param  enmButtonType   Brings standard window button type.
       * @param  fWithOptionKey  Brings whether the Option key was held. */
     virtual void handleStandardWindowButtonCallback(StandardWindowButtonType enmButtonType, bool fWithOptionKey);
-#endif /* VBOX_WS_MAC */
+#endif /* Q_WS_MAC */
 
     /* Prepare helpers: */
     virtual void prepareSessionConnections();
@@ -175,7 +167,7 @@ protected:
     const QString& defaultWindowTitle() const { return m_strWindowTitlePrefix; }
     static Qt::Alignment viewAlignment(UIVisualStateType visualStateType);
 
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
     /** Mac OS X: Handles native notifications.
       * @param  strNativeNotificationName  Native notification name.
       * @param  pWidget                    Widget, notification related to. */
@@ -186,7 +178,7 @@ protected:
       * @param  fWithOptionKey  Brings whether the Option key was held.
       * @param  pWidget         Brings widget, callback related to. */
     static void handleStandardWindowButtonCallback(StandardWindowButtonType enmButtonType, bool fWithOptionKey, QWidget *pWidget);
-#endif /* VBOX_WS_MAC */
+#endif /* Q_WS_MAC */
 
     /* Variables: */
     UIMachineLogic *m_pMachineLogic;

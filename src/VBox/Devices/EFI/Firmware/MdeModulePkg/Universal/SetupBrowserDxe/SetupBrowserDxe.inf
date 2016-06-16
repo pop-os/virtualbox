@@ -1,9 +1,7 @@
 ## @file
-# The DXE driver produces FORM BROWSER2 protocol defined in UEFI specification.
+# The DXE driver produces FORM BROWSER protocols defined in UEFI HII 2.1 specificatin.
 #
-# It also produces FormBrowserEx(2) protocol to let user register the different Hot key service.
-#
-# Copyright (c) 2007 - 2014, Intel Corporation. All rights reserved.<BR>
+# Copyright (c) 2007 - 2011, Intel Corporation. All rights reserved.<BR>
 #
 #  This program and the accompanying materials
 #  are licensed and made available under the terms and conditions of the BSD License
@@ -19,10 +17,9 @@
 [Defines]
   INF_VERSION                    = 0x00010005
   BASE_NAME                      = SetupBrowser
-  MODULE_UNI_FILE                = SetupBrowser.uni
   FILE_GUID                      = EBf342FE-B1D3-4EF8-957C-8048606FF671
   MODULE_TYPE                    = DXE_DRIVER
-  VERSION_STRING                 = 2.0
+  VERSION_STRING                 = 1.0
   ENTRY_POINT                    = InitializeSetup
 
 #
@@ -32,12 +29,19 @@
 #
 
 [Sources]
+  SetupBrowserStr.uni
   Setup.c
   Setup.h
   IfrParse.c
   Expression.c
+  InputHandler.c
+  Print.c
   Presentation.c
-  Expression.h
+  ProcessOptions.c
+  Ui.c
+  Ui.h
+  Colors.h
+
 
 [Packages]
   MdePkg/MdePkg.dec
@@ -54,33 +58,34 @@
   PrintLib
   HiiLib
   DevicePathLib
-  PcdLib
-  UefiLib
 
 [Guids]
-  gEfiIfrFrameworkGuid                          ## SOMETIMES_CONSUMES  ## GUID
-  gEfiHiiPlatformSetupFormsetGuid               ## SOMETIMES_CONSUMES  ## GUID
-  gEfiHiiStandardFormGuid                       ## SOMETIMES_CONSUMES  ## GUID
+  gEfiIfrTianoGuid                              ## CONSUMES  ## GUID
+  gEfiIfrFrameworkGuid                          ## CONSUMES  ## GUID
+  gEfiHiiPlatformSetupFormsetGuid
+  gEfiHiiStandardFormGuid                       ## SOMETIMES_CONSUMES ## GUID
 
 [Protocols]
-  gEfiHiiConfigAccessProtocolGuid               ## SOMETIMES_CONSUMES
+  gEfiHiiConfigAccessProtocolGuid               ## CONSUMES
+  gEfiHiiStringProtocolGuid                     ## CONSUMES
   gEfiFormBrowser2ProtocolGuid                  ## PRODUCES
-  gEdkiiFormBrowserEx2ProtocolGuid              ## PRODUCES
+  gEfiFormBrowserExProtocolGuid                 ## PRODUCES
   gEfiHiiConfigRoutingProtocolGuid              ## CONSUMES
   gEfiHiiDatabaseProtocolGuid                   ## CONSUMES
-  gEfiUnicodeCollation2ProtocolGuid             ## SOMETIMES_CONSUMES
+  gEfiUnicodeCollation2ProtocolGuid             ## CONSUMES
   gEfiUserManagerProtocolGuid                   ## SOMETIMES_CONSUMES
-  gEfiDevicePathFromTextProtocolGuid            ## SOMETIMES_CONSUMES
-  ## CONSUMES
-  ## NOTIFY
-  gEdkiiFormDisplayEngineProtocolGuid
-  gEfiFormBrowserExProtocolGuid                 ## PRODUCES
 
 [FeaturePcd]
   gEfiMdeModulePkgTokenSpaceGuid.PcdFrameworkCompatibilitySupport          ## CONSUMES
+  gEfiMdeModulePkgTokenSpaceGuid.PcdBrowserGrayOutTextStatement            ## CONSUMES
+
+[Pcd]
+  gEfiMdeModulePkgTokenSpaceGuid.PcdBrowserSubtitleTextColor               ## CONSUMES
+  gEfiMdeModulePkgTokenSpaceGuid.PcdBrowserFieldTextColor                  ## CONSUMES
+  gEfiMdeModulePkgTokenSpaceGuid.PcdBrowserFieldTextHighlightColor         ## CONSUMES
+  gEfiMdeModulePkgTokenSpaceGuid.PcdBrowserFieldBackgroundHighlightColor   ## CONSUMES
 
 [Depex]
   gEfiHiiDatabaseProtocolGuid AND gEfiHiiConfigRoutingProtocolGuid
 
-[UserExtensions.TianoCore."ExtraFiles"]
-  SetupBrowserExtra.uni
+

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -62,10 +62,7 @@ enum
     MODIFYVM_LONGMODE,
     MODIFYVM_CPUID_PORTABILITY,
     MODIFYVM_TFRESET,
-    MODIFYVM_APIC,
-    MODIFYVM_X2APIC,
     MODIFYVM_PARAVIRTPROVIDER,
-    MODIFYVM_PARAVIRTDEBUG,
     MODIFYVM_HWVIRTEX,
     MODIFYVM_NESTEDPAGING,
     MODIFYVM_LARGEPAGES,
@@ -73,7 +70,6 @@ enum
     MODIFYVM_VTXUX,
     MODIFYVM_CPUS,
     MODIFYVM_CPUHOTPLUG,
-    MODIFYVM_CPU_PROFILE,
     MODIFYVM_PLUGCPU,
     MODIFYVM_UNPLUGCPU,
     MODIFYVM_SETCPUID,
@@ -90,7 +86,6 @@ enum
     MODIFYVM_BIOSLOGODISPLAYTIME,
     MODIFYVM_BIOSLOGOIMAGEPATH,
     MODIFYVM_BIOSBOOTMENU,
-    MODIFYVM_BIOSAPIC,
     MODIFYVM_BIOSSYSTEMTIMEOFFSET,
     MODIFYVM_BIOSPXEDEBUG,
     MODIFYVM_BOOT,
@@ -220,9 +215,6 @@ enum
 
 static const RTGETOPTDEF g_aModifyVMOptions[] =
 {
-/** @todo Convert to dash separated names like --triple-fault-reset! Please
- *        do that for all new options as we don't need more character soups
- *        around VirtualBox - typedefs more than covers that demand! */
     { "--name",                     MODIFYVM_NAME,                      RTGETOPT_REQ_STRING },
     { "--groups",                   MODIFYVM_GROUPS,                    RTGETOPT_REQ_STRING },
     { "--description",              MODIFYVM_DESCRIPTION,               RTGETOPT_REQ_STRING },
@@ -238,10 +230,7 @@ static const RTGETOPTDEF g_aModifyVMOptions[] =
     { "--longmode",                 MODIFYVM_LONGMODE,                  RTGETOPT_REQ_BOOL_ONOFF },
     { "--cpuid-portability-level",  MODIFYVM_CPUID_PORTABILITY,         RTGETOPT_REQ_UINT32 },
     { "--triplefaultreset",         MODIFYVM_TFRESET,                   RTGETOPT_REQ_BOOL_ONOFF },
-    { "--apic",                     MODIFYVM_APIC,                      RTGETOPT_REQ_BOOL_ONOFF },
-    { "--x2apic",                   MODIFYVM_X2APIC,                    RTGETOPT_REQ_BOOL_ONOFF },
     { "--paravirtprovider",         MODIFYVM_PARAVIRTPROVIDER,          RTGETOPT_REQ_STRING },
-    { "--paravirtdebug",            MODIFYVM_PARAVIRTDEBUG,             RTGETOPT_REQ_STRING },
     { "--hwvirtex",                 MODIFYVM_HWVIRTEX,                  RTGETOPT_REQ_BOOL_ONOFF },
     { "--nestedpaging",             MODIFYVM_NESTEDPAGING,              RTGETOPT_REQ_BOOL_ONOFF },
     { "--largepages",               MODIFYVM_LARGEPAGES,                RTGETOPT_REQ_BOOL_ONOFF },
@@ -252,7 +241,6 @@ static const RTGETOPTDEF g_aModifyVMOptions[] =
     { "--cpuidremoveall",           MODIFYVM_DELALLCPUID,               RTGETOPT_REQ_NOTHING},
     { "--cpus",                     MODIFYVM_CPUS,                      RTGETOPT_REQ_UINT32 },
     { "--cpuhotplug",               MODIFYVM_CPUHOTPLUG,                RTGETOPT_REQ_BOOL_ONOFF },
-    { "--cpu-profile",              MODIFYVM_CPU_PROFILE,               RTGETOPT_REQ_STRING },
     { "--plugcpu",                  MODIFYVM_PLUGCPU,                   RTGETOPT_REQ_UINT32 },
     { "--unplugcpu",                MODIFYVM_UNPLUGCPU,                 RTGETOPT_REQ_UINT32 },
     { "--cpuexecutioncap",          MODIFYVM_CPU_EXECTUION_CAP,         RTGETOPT_REQ_UINT32 },
@@ -269,7 +257,6 @@ static const RTGETOPTDEF g_aModifyVMOptions[] =
     { "--bioslogoimagepath",        MODIFYVM_BIOSLOGOIMAGEPATH,         RTGETOPT_REQ_STRING },
     { "--biosbootmenu",             MODIFYVM_BIOSBOOTMENU,              RTGETOPT_REQ_STRING },
     { "--biossystemtimeoffset",     MODIFYVM_BIOSSYSTEMTIMEOFFSET,      RTGETOPT_REQ_INT64 },
-    { "--biosapic",                 MODIFYVM_BIOSAPIC,                  RTGETOPT_REQ_STRING },
     { "--biospxedebug",             MODIFYVM_BIOSPXEDEBUG,              RTGETOPT_REQ_BOOL_ONOFF },
     { "--boot",                     MODIFYVM_BOOT,                      RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX },
     { "--hda",                      MODIFYVM_HDA,                       RTGETOPT_REQ_STRING },
@@ -677,18 +664,6 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                 break;
             }
 
-            case MODIFYVM_APIC:
-            {
-                CHECK_ERROR(sessionMachine, SetCPUProperty(CPUPropertyType_APIC, ValueUnion.f));
-                break;
-            }
-
-            case MODIFYVM_X2APIC:
-            {
-                CHECK_ERROR(sessionMachine, SetCPUProperty(CPUPropertyType_X2APIC, ValueUnion.f));
-                break;
-            }
-
             case MODIFYVM_PARAVIRTPROVIDER:
             {
                 if (   !RTStrICmp(ValueUnion.psz, "none")
@@ -709,12 +684,6 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                     errorArgument("Invalid --paravirtprovider argument '%s'", ValueUnion.psz);
                     rc = E_FAIL;
                 }
-                break;
-            }
-
-            case MODIFYVM_PARAVIRTDEBUG:
-            {
-                CHECK_ERROR(sessionMachine, COMSETTER(ParavirtDebug)(Bstr(ValueUnion.psz).raw()));
                 break;
             }
 
@@ -793,12 +762,6 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
             case MODIFYVM_CPUHOTPLUG:
             {
                 CHECK_ERROR(sessionMachine, COMSETTER(CPUHotPlugEnabled)(ValueUnion.f));
-                break;
-            }
-
-            case MODIFYVM_CPU_PROFILE:
-            {
-                CHECK_ERROR(sessionMachine, COMSETTER(CPUProfile)(Bstr(ValueUnion.psz).raw()));
                 break;
             }
 
@@ -904,30 +867,6 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                 else
                 {
                     errorArgument("Invalid --biosbootmenu argument '%s'", ValueUnion.psz);
-                    rc = E_FAIL;
-                }
-                break;
-            }
-
-            case MODIFYVM_BIOSAPIC:
-            {
-                if (!RTStrICmp(ValueUnion.psz, "disabled"))
-                {
-                    CHECK_ERROR(biosSettings, COMSETTER(APICMode)(APICMode_Disabled));
-                }
-                else if (   !RTStrICmp(ValueUnion.psz, "apic")
-                         || !RTStrICmp(ValueUnion.psz, "lapic")
-                         || !RTStrICmp(ValueUnion.psz, "xapic"))
-                {
-                    CHECK_ERROR(biosSettings, COMSETTER(APICMode)(APICMode_APIC));
-                }
-                else if (!RTStrICmp(ValueUnion.psz, "x2apic"))
-                {
-                    CHECK_ERROR(biosSettings, COMSETTER(APICMode)(APICMode_X2APIC));
-                }
-                else
-                {
-                    errorArgument("Invalid --biosapic argument '%s'", ValueUnion.psz);
                     rc = E_FAIL;
                 }
                 break;

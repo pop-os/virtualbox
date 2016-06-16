@@ -18,13 +18,10 @@
 SUB_DEPTH = ../../..
 include $(KBUILD_PATH)/subheader.kmk
 
-# VBoxNetDHCP and VBoxNetNAT require COM/XPCOM
-ifdef VBOX_WITH_MAIN
- # Include sub-makefiles.
- include $(PATH_SUB_CURRENT)/DHCP/Makefile.kmk
- ifdef VBOX_WITH_NAT_SERVICE
-  include $(PATH_SUB_CURRENT)/NAT/Makefile.kmk
- endif
+# Include sub-makefiles.
+include $(PATH_SUB_CURRENT)/DHCP/Makefile.kmk
+ifdef VBOX_WITH_NAT_SERVICE
+include $(PATH_SUB_CURRENT)/NAT/Makefile.kmk
 endif
 
 include $(FILE_KBUILD_SUB_FOOTER)

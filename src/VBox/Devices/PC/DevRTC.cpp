@@ -1053,9 +1053,25 @@ static DECLCALLBACK(void) rtcReset(PPDMDEVINS pDevIns)
 {
     PRTCSTATE pThis = PDMINS_2_DATA(pDevIns, PRTCSTATE);
 
+    /* If shutdown status is non-zero, log its value. */
+    if (pThis->cmos_data[0xF])
+    {
+        LogRel(("CMOS shutdown status byte is %02X\n", pThis->cmos_data[0xF]));
+
+#if 0   /* It would be nice to log the warm reboot vector but alas, we already trashed it. */
+        uint32_t u32WarmVector;
+        int rc;
+        rc = PDMDevHlpPhysRead(pDevIns, 0x467, &u32WarmVector, sizeof(u32WarmVector));
+        AssertRC(rc);
+        LogRel((", 40:67 contains %04X:%04X\n", u32WarmVector >> 16, u32WarmVector & 0xFFFF));
+#endif
+        /* If we're going to trash the VM's memory, we also have to clear this. */
+        pThis->cmos_data[0xF] = 0;
+    }
+
     /* Reset index values (important for second bank). */
-    pThis->cmos_index[0] = 0;
-    pThis->cmos_index[1] = CMOS_BANK_SIZE;   /* Point to start of second bank. */
+    pThis->cmos_index[0]        = 0;
+    pThis->cmos_index[1]        = CMOS_BANK_SIZE;   /* Point to start of second bank. */
 }
 
 
@@ -1075,7 +1091,7 @@ static DECLCALLBACK(int)  rtcConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
                               "Irq\0"
                               "Base\0"
                               "UseUTC\0"
-                              "RCEnabled\0"
+                              "GCEnabled\0"
                               "R0Enabled\0"))
         return VERR_PDM_DEVINS_UNKNOWN_CFG_VALUES;
 
@@ -1099,8 +1115,8 @@ static DECLCALLBACK(int)  rtcConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: Querying \"UseUTC\" as a bool failed"));
 
-    bool fRCEnabled;
-    rc = CFGMR3QueryBoolDef(pCfg, "RCEnabled", &fRCEnabled, true);
+    bool fGCEnabled;
+    rc = CFGMR3QueryBoolDef(pCfg, "GCEnabled", &fGCEnabled, true);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: failed to read GCEnabled as boolean"));
@@ -1111,8 +1127,8 @@ static DECLCALLBACK(int)  rtcConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: failed to read R0Enabled as boolean"));
 
-    Log(("RTC: Irq=%#x Base=%#x fRCEnabled=%RTbool fR0Enabled=%RTbool\n",
-         u8Irq, pThis->IOPortBase, fRCEnabled, fR0Enabled));
+    Log(("RTC: Irq=%#x Base=%#x fGCEnabled=%RTbool fR0Enabled=%RTbool\n",
+         u8Irq, pThis->IOPortBase, fGCEnabled, fR0Enabled));
 
 
     pThis->pDevInsR3            = pDevIns;
@@ -1182,7 +1198,7 @@ static DECLCALLBACK(int)  rtcConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
                                  rtcIOPortWrite, rtcIOPortRead, NULL, NULL, "MC146818 RTC/CMOS");
     if (RT_FAILURE(rc))
         return rc;
-    if (fRCEnabled)
+    if (fGCEnabled)
     {
         rc = PDMDevHlpIOPortRegisterRC(pDevIns, pThis->IOPortBase, 4, NIL_RTRCPTR,
                                        "rtcIOPortWrite", "rtcIOPortRead", NULL, NULL, "MC146818 RTC/CMOS");

@@ -2,7 +2,7 @@
 
     Usb Bus Driver Binding and Bus IO Protocol.
 
-Copyright (c) 2004 - 2013, Intel Corporation. All rights reserved.<BR>
+Copyright (c) 2004 - 2011, Intel Corporation. All rights reserved.<BR>
 This program and the accompanying materials
 are licensed and made available under the terms and conditions of the BSD License
 which accompanies this distribution.  The full text of the license may be found at
@@ -813,7 +813,6 @@ UsbIoPortReset (
   USB_DEVICE              *Dev;
   EFI_TPL                 OldTpl;
   EFI_STATUS              Status;
-  UINT8                   DevAddress;
 
   OldTpl = gBS->RaiseTPL (USB_BUS_TPL);
 
@@ -835,20 +834,15 @@ UsbIoPortReset (
     goto ON_EXIT;
   }
 
-  HubIf->HubApi->ClearPortChange (HubIf, Dev->ParentPort);
-
   //
   // Reset the device to its current address. The device now has an address
   // of ZERO after port reset, so need to set Dev->Address to the device again for
   // host to communicate with it.
   //
-  DevAddress   = Dev->Address;
-  Dev->Address = 0;
-  Status  = UsbSetAddress (Dev, DevAddress);
-  Dev->Address = DevAddress;
+  Status  = UsbSetAddress (Dev, Dev->Address);
 
   gBS->Stall (USB_SET_DEVICE_ADDRESS_STALL);
-
+  
   if (EFI_ERROR (Status)) {
     //
     // It may fail due to device disconnection or other reasons.
@@ -970,7 +964,6 @@ UsbBusBuildProtocol (
     // The EFI_USB2_HC_PROTOCOL is produced for XHCI support.
     // Then its max supported devices are 256. Otherwise it's 128.
     //
-    ASSERT (UsbBus->Usb2Hc != NULL);
     if (UsbBus->Usb2Hc->MajorRevision == 0x3) {
       UsbBus->MaxDevices = 256;
     }
@@ -1025,15 +1018,6 @@ UsbBusBuildProtocol (
   RootIf->Signature       = USB_INTERFACE_SIGNATURE;
   RootIf->Device          = RootHub;
   RootIf->DevicePath      = UsbBus->DevicePath;
-
-  //
-  // Report Status Code here since we will enumerate the USB devices
-  //
-  REPORT_STATUS_CODE_WITH_DEVICE_PATH (
-    EFI_PROGRESS_CODE,
-    (EFI_IO_BUS_USB | EFI_IOB_PC_DETECT),
-    UsbBus->DevicePath
-    );
 
   Status                  = mUsbRootHubApi.Init (RootIf);
 
@@ -1146,7 +1130,7 @@ UsbBusControllerDriverSupported (
   //
   if (RemainingDevicePath != NULL) {
     //
-    // Check if RemainingDevicePath is the End of Device Path Node,
+    // Check if RemainingDevicePath is the End of Device Path Node, 
     // if yes, go on checking other conditions
     //
     if (!IsDevicePathEnd (RemainingDevicePath)) {
@@ -1155,13 +1139,13 @@ UsbBusControllerDriverSupported (
       // check its validation
       //
       DevicePathNode.DevPath = RemainingDevicePath;
-
+      
       if ((DevicePathNode.DevPath->Type    != MESSAGING_DEVICE_PATH) ||
           (DevicePathNode.DevPath->SubType != MSG_USB_DP &&
            DevicePathNode.DevPath->SubType != MSG_USB_CLASS_DP
            && DevicePathNode.DevPath->SubType != MSG_USB_WWID_DP
            )) {
-
+      
         return EFI_UNSUPPORTED;
       }
     }
@@ -1197,7 +1181,7 @@ UsbBusControllerDriverSupported (
     if (Status == EFI_ALREADY_STARTED) {
       return EFI_SUCCESS;
     }
-
+  
     if (EFI_ERROR (Status)) {
       return Status;
     }
@@ -1224,7 +1208,7 @@ UsbBusControllerDriverSupported (
            Controller
            );
   }
-
+ 
   //
   // Open the EFI Device Path protocol needed to perform the supported test
   //
@@ -1281,26 +1265,6 @@ UsbBusControllerDriverStart (
 {
   EFI_USB_BUS_PROTOCOL          *UsbBusId;
   EFI_STATUS                    Status;
-  EFI_DEVICE_PATH_PROTOCOL      *ParentDevicePath;
-
-  Status = gBS->OpenProtocol (
-                  Controller,
-                  &gEfiDevicePathProtocolGuid,
-                  (VOID **) &ParentDevicePath,
-                  This->DriverBindingHandle,
-                  Controller,
-                  EFI_OPEN_PROTOCOL_GET_PROTOCOL
-                  );
-  ASSERT_EFI_ERROR (Status);
-
-  //
-  // Report Status Code here since we will initialize the host controller
-  //
-  REPORT_STATUS_CODE_WITH_DEVICE_PATH (
-    EFI_PROGRESS_CODE,
-    (EFI_IO_BUS_USB | EFI_IOB_PC_INIT),
-    ParentDevicePath
-    );
 
   //
   // Locate the USB bus protocol, if it is found, USB bus
@@ -1351,7 +1315,7 @@ UsbBusControllerDriverStart (
         //
         // If RemainingDevicePath is the End of Device Path Node,
         // skip enumerate any device and return EFI_SUCESSS
-        //
+        // 
         return EFI_SUCCESS;
       }
     }
@@ -1402,7 +1366,6 @@ UsbBusControllerDriverStop (
   EFI_TPL               OldTpl;
   UINTN                 Index;
   EFI_STATUS            Status;
-  EFI_STATUS            ReturnStatus;
 
   Status  = EFI_SUCCESS;
 
@@ -1412,7 +1375,6 @@ UsbBusControllerDriverStop (
     //
     OldTpl   = gBS->RaiseTPL (TPL_CALLBACK);
 
-    ReturnStatus = EFI_SUCCESS;
     for (Index = 0; Index < NumberOfChildren; Index++) {
       Status = gBS->OpenProtocol (
                       ChildHandleBuffer[Index],
@@ -1436,11 +1398,11 @@ UsbBusControllerDriverStop (
       UsbIf   = USB_INTERFACE_FROM_USBIO (UsbIo);
       UsbDev  = UsbIf->Device;
 
-      ReturnStatus = UsbRemoveDevice (UsbDev);
+      UsbRemoveDevice (UsbDev);
     }
 
     gBS->RestoreTPL (OldTpl);
-    return ReturnStatus;
+    return EFI_SUCCESS;
   }
 
   DEBUG (( EFI_D_INFO, "UsbBusStop: usb bus stopped on %p\n", Controller));
@@ -1473,60 +1435,53 @@ UsbBusControllerDriverStop (
   RootHub = Bus->Devices[0];
   RootIf  = RootHub->Interfaces[0];
 
+  mUsbRootHubApi.Release (RootIf);
+
   ASSERT (Bus->MaxDevices <= 256);
-  ReturnStatus = EFI_SUCCESS;
   for (Index = 1; Index < Bus->MaxDevices; Index++) {
     if (Bus->Devices[Index] != NULL) {
-      Status = UsbRemoveDevice (Bus->Devices[Index]);
-      if (EFI_ERROR (Status)) {
-        ReturnStatus = Status;
-      }
+      UsbRemoveDevice (Bus->Devices[Index]);
     }
   }
 
   gBS->RestoreTPL (OldTpl);
 
-  if (!EFI_ERROR (ReturnStatus)) {
-    mUsbRootHubApi.Release (RootIf);
-    gBS->FreePool   (RootIf);
-    gBS->FreePool   (RootHub);
+  gBS->FreePool   (RootIf);
+  gBS->FreePool   (RootHub);
+  Status = UsbBusFreeUsbDPList (&Bus->WantedUsbIoDPList);
+  ASSERT (!EFI_ERROR (Status));
 
-    Status = UsbBusFreeUsbDPList (&Bus->WantedUsbIoDPList);
-    ASSERT (!EFI_ERROR (Status));
+  //
+  // Uninstall the bus identifier and close USB_HC/USB2_HC protocols
+  //
+  gBS->UninstallProtocolInterface (Controller, &gEfiCallerIdGuid, &Bus->BusId);
 
-    //
-    // Uninstall the bus identifier and close USB_HC/USB2_HC protocols
-    //
-    gBS->UninstallProtocolInterface (Controller, &gEfiCallerIdGuid, &Bus->BusId);
-
-    if (Bus->Usb2Hc != NULL) {
-      Status = gBS->CloseProtocol (
-                      Controller,
-                      &gEfiUsb2HcProtocolGuid,
-                      This->DriverBindingHandle,
-                      Controller
-                      );
-    }
-
-    if (Bus->UsbHc != NULL) {
-      Status = gBS->CloseProtocol (
-                      Controller,
-                      &gEfiUsbHcProtocolGuid,
-                      This->DriverBindingHandle,
-                      Controller
-                      );
-    }
-
-    if (!EFI_ERROR (Status)) {
-      gBS->CloseProtocol (
-             Controller,
-             &gEfiDevicePathProtocolGuid,
-             This->DriverBindingHandle,
-             Controller
-             );
-
-      gBS->FreePool (Bus);
-    }
+  if (Bus->Usb2Hc != NULL) {
+    gBS->CloseProtocol (
+           Controller,
+           &gEfiUsb2HcProtocolGuid,
+           This->DriverBindingHandle,
+           Controller
+           );
   }
+
+  if (Bus->UsbHc != NULL) {
+    gBS->CloseProtocol (
+           Controller,
+           &gEfiUsbHcProtocolGuid,
+           This->DriverBindingHandle,
+           Controller
+           );
+  }
+
+  gBS->CloseProtocol (
+         Controller,
+         &gEfiDevicePathProtocolGuid,
+         This->DriverBindingHandle,
+         Controller
+         );
+
+  gBS->FreePool (Bus);
+
   return Status;
 }

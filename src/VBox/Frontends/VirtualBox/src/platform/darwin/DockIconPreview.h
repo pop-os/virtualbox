@@ -18,19 +18,17 @@
 #ifndef ___UIDockIconPreview_h___
 #define ___UIDockIconPreview_h___
 
-/* GUI includes: */
+#ifdef QT_MAC_USE_COCOA
+
 #include "UICocoaDockIconPreview.h"
-
-
-/** UICocoaDockIconPreview extension to be used for VM. */
-class UIDockIconPreview : public UICocoaDockIconPreview
+class UIDockIconPreview: public UICocoaDockIconPreview
 {
 public:
-
-    /** Constructor taking passed @a pSession and @a overlayImage. */
     UIDockIconPreview(UISession *pSession, const QPixmap& overlayImage)
-        : UICocoaDockIconPreview(pSession, overlayImage) {}
+      : UICocoaDockIconPreview(pSession, overlayImage) {}
 };
+
+#endif /* QT_MAC_USE_COCOA */
 
 #endif /* !___UIDockIconPreview_h___ */
 

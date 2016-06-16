@@ -1,7 +1,7 @@
 /** @file
   Implementation for EFI_SIMPLE_TEXT_INPUT_PROTOCOL protocol.
 
-Copyright (c) 2006 - 2014, Intel Corporation. All rights reserved.<BR>
+Copyright (c) 2006 - 2011, Intel Corporation. All rights reserved.<BR>
 This program and the accompanying materials
 are licensed and made available under the terms and conditions of the BSD License
 which accompanies this distribution.  The full text of the license may be found at
@@ -157,7 +157,7 @@ TerminalConInReadKeyStroke (
                                    pressed.
 
   @retval TRUE                     Key be pressed matches a registered key.
-  @retval FALSE                    Match failed.
+  @retval FLASE                    Match failed.
 
 **/
 BOOLEAN
@@ -295,10 +295,6 @@ TerminalConInSetState (
     return EFI_INVALID_PARAMETER;
   }
 
-  if ((*KeyToggleState & EFI_TOGGLE_STATE_VALID) != EFI_TOGGLE_STATE_VALID) {
-    return EFI_UNSUPPORTED;
-  }
-
   return EFI_SUCCESS;
 }
 
@@ -328,7 +324,7 @@ TerminalConInRegisterKeyNotify (
   IN EFI_SIMPLE_TEXT_INPUT_EX_PROTOCOL  *This,
   IN EFI_KEY_DATA                       *KeyData,
   IN EFI_KEY_NOTIFY_FUNCTION            KeyNotificationFunction,
-  OUT VOID                              **NotifyHandle
+  OUT EFI_HANDLE                        *NotifyHandle
   )
 {
   TERMINAL_DEV                    *TerminalDevice;
@@ -356,7 +352,7 @@ TerminalConInRegisterKeyNotify (
                       );
     if (IsKeyRegistered (&CurrentNotify->KeyData, KeyData)) {
       if (CurrentNotify->KeyNotificationFn == KeyNotificationFunction) {
-        *NotifyHandle = CurrentNotify;
+        *NotifyHandle = CurrentNotify->NotifyHandle;
         return EFI_SUCCESS;
       }
     }
@@ -372,10 +368,11 @@ TerminalConInRegisterKeyNotify (
 
   NewNotify->Signature         = TERMINAL_CONSOLE_IN_EX_NOTIFY_SIGNATURE;
   NewNotify->KeyNotificationFn = KeyNotificationFunction;
-  CopyMem (&NewNotify->KeyData, KeyData, sizeof (EFI_KEY_DATA));
+  NewNotify->NotifyHandle      = (EFI_HANDLE) NewNotify;
+  CopyMem (&NewNotify->KeyData, KeyData, sizeof (KeyData));
   InsertTailList (&TerminalDevice->NotifyList, &NewNotify->NotifyEntry);
 
-  *NotifyHandle                = NewNotify;
+  *NotifyHandle                = NewNotify->NotifyHandle;
 
   return EFI_SUCCESS;
 }
@@ -397,7 +394,7 @@ EFI_STATUS
 EFIAPI
 TerminalConInUnregisterKeyNotify (
   IN EFI_SIMPLE_TEXT_INPUT_EX_PROTOCOL  *This,
-  IN VOID                               *NotificationHandle
+  IN EFI_HANDLE                         NotificationHandle
   )
 {
   TERMINAL_DEV                    *TerminalDevice;
@@ -409,6 +406,10 @@ TerminalConInUnregisterKeyNotify (
     return EFI_INVALID_PARAMETER;
   }
 
+  if (((TERMINAL_CONSOLE_IN_EX_NOTIFY *) NotificationHandle)->Signature != TERMINAL_CONSOLE_IN_EX_NOTIFY_SIGNATURE) {
+    return EFI_INVALID_PARAMETER;
+  } 
+  
   TerminalDevice = TERMINAL_CON_IN_EX_DEV_FROM_THIS (This);
 
   NotifyList = &TerminalDevice->NotifyList;
@@ -419,7 +420,7 @@ TerminalConInUnregisterKeyNotify (
                       NotifyEntry,
                       TERMINAL_CONSOLE_IN_EX_NOTIFY_SIGNATURE
                       );
-    if (CurrentNotify == NotificationHandle) {
+    if (CurrentNotify->NotifyHandle == NotificationHandle) {
       //
       // Remove the notification function from NotifyList and free resources
       //
@@ -647,7 +648,7 @@ GetOneKeyFromSerial (
   @param  Input                The key will be input.
 
   @retval TRUE                 If insert successfully.
-  @retval FALSE                If Raw Data buffer is full before key insertion,
+  @retval FLASE                If Raw Data buffer is full before key insertion,
                                and the key is lost.
 
 **/
@@ -682,7 +683,7 @@ RawFiFoInsertOneKey (
   @param  Output               The key will be removed.
 
   @retval TRUE                 If insert successfully.
-  @retval FALSE                If Raw Data FIFO buffer is empty before remove operation.
+  @retval FLASE                If Raw Data FIFO buffer is empty before remove operation.
 
 **/
 BOOLEAN
@@ -716,7 +717,7 @@ RawFiFoRemoveOneKey (
   @param  TerminalDevice       Terminal driver private structure
 
   @retval TRUE                 If Raw Data FIFO buffer is empty.
-  @retval FALSE                If Raw Data FIFO buffer is not empty.
+  @retval FLASE                If Raw Data FIFO buffer is not empty.
 
 **/
 BOOLEAN
@@ -737,7 +738,7 @@ IsRawFiFoEmpty (
   @param  TerminalDevice       Terminal driver private structure
 
   @retval TRUE                 If Raw Data FIFO buffer is full.
-  @retval FALSE                If Raw Data FIFO buffer is not full.
+  @retval FLASE                If Raw Data FIFO buffer is not full.
 
 **/
 BOOLEAN
@@ -766,7 +767,7 @@ IsRawFiFoFull (
   @param  Key                  The key will be input.
 
   @retval TRUE                 If insert successfully.
-  @retval FALSE                If FIFO buffer is full before key insertion,
+  @retval FLASE                If FIFO buffer is full before key insertion,
                                and the key is lost.
 
 **/
@@ -824,7 +825,7 @@ EfiKeyFiFoInsertOneKey (
   @param  Output               The key will be removed.
 
   @retval TRUE                 If insert successfully.
-  @retval FALSE                If FIFO buffer is empty before remove operation.
+  @retval FLASE                If FIFO buffer is empty before remove operation.
 
 **/
 BOOLEAN
@@ -860,7 +861,7 @@ EfiKeyFiFoRemoveOneKey (
   @param  TerminalDevice       Terminal driver private structure
 
   @retval TRUE                 If FIFO buffer is empty.
-  @retval FALSE                If FIFO buffer is not empty.
+  @retval FLASE                If FIFO buffer is not empty.
 
 **/
 BOOLEAN
@@ -881,7 +882,7 @@ IsEfiKeyFiFoEmpty (
   @param  TerminalDevice       Terminal driver private structure
 
   @retval TRUE                 If FIFO buffer is full.
-  @retval FALSE                If FIFO buffer is not full.
+  @retval FLASE                If FIFO buffer is not full.
 
 **/
 BOOLEAN
@@ -910,7 +911,7 @@ IsEfiKeyFiFoFull (
   @param  Input                The key will be input.
 
   @retval TRUE                 If insert successfully.
-  @retval FALSE                If Unicode FIFO buffer is full before key insertion,
+  @retval FLASE                If Unicode FIFO buffer is full before key insertion,
                                and the key is lost.
 
 **/
@@ -942,14 +943,15 @@ UnicodeFiFoInsertOneKey (
 
 /**
   Remove one pre-fetched key out of the Unicode FIFO buffer.
-  The caller should guarantee that Unicode FIFO buffer is not empty
-  by IsUnicodeFiFoEmpty ().
 
   @param  TerminalDevice       Terminal driver private structure.
   @param  Output               The key will be removed.
 
+  @retval TRUE                 If insert successfully.
+  @retval FLASE                If Unicode FIFO buffer is empty before remove operation.
+
 **/
-VOID
+BOOLEAN
 UnicodeFiFoRemoveOneKey (
   TERMINAL_DEV  *TerminalDevice,
   UINT16        *Output
@@ -960,9 +962,19 @@ UnicodeFiFoRemoveOneKey (
   Head = TerminalDevice->UnicodeFiFo->Head;
   ASSERT (Head < FIFO_MAX_NUMBER + 1);
 
+  if (IsUnicodeFiFoEmpty (TerminalDevice)) {
+    //
+    //  FIFO is empty
+    //
+    Output = NULL;
+    return FALSE;
+  }
+
   *Output = TerminalDevice->UnicodeFiFo->Data[Head];
 
   TerminalDevice->UnicodeFiFo->Head = (UINT8) ((Head + 1) % (FIFO_MAX_NUMBER + 1));
+
+  return TRUE;
 }
 
 /**
@@ -971,7 +983,7 @@ UnicodeFiFoRemoveOneKey (
   @param  TerminalDevice       Terminal driver private structure
 
   @retval TRUE                 If Unicode FIFO buffer is empty.
-  @retval FALSE                If Unicode FIFO buffer is not empty.
+  @retval FLASE                If Unicode FIFO buffer is not empty.
 
 **/
 BOOLEAN
@@ -992,7 +1004,7 @@ IsUnicodeFiFoEmpty (
   @param  TerminalDevice       Terminal driver private structure
 
   @retval TRUE                 If Unicode FIFO buffer is full.
-  @retval FALSE                If Unicode FIFO buffer is not full.
+  @retval FLASE                If Unicode FIFO buffer is not full.
 
 **/
 BOOLEAN
@@ -1118,10 +1130,10 @@ UnicodeToEfiKeyFlushState (
   There is one special input sequence that will force the system to reset.
   This is ESC R ESC r ESC R.
 
-  Note: current implementation support terminal types include: PC ANSI, VT100+/VTUTF8, VT100.
+  Note: current implementation support terminal types include: PC ANSI, VT100+/VTUTF8, VT100. 
         The table below is not same with UEFI Spec 2.3 Appendix B Table 201(not support ANSI X3.64 /
         DEC VT200-500 and extra support PC ANSI, VT100)since UEFI Table 201 is just an example.
-
+        
   Symbols used in table below
   ===========================
     ESC = 0x1B
@@ -1450,7 +1462,6 @@ UnicodeToEfiKey (
           if (TerminalDevice->TerminalType == PCANSITYPE) {
             Key.ScanCode = SCAN_F10;
           }
-          break;
         case '?':
           if (TerminalDevice->TerminalType == VT100TYPE) {
             Key.ScanCode = SCAN_PAGE_UP;
@@ -1465,7 +1476,6 @@ UnicodeToEfiKey (
           if (TerminalDevice->TerminalType == PCANSITYPE) {
             Key.ScanCode = SCAN_F9;
           }
-          break;
         case '/':
           if (TerminalDevice->TerminalType == VT100TYPE) {
             Key.ScanCode = SCAN_PAGE_DOWN;

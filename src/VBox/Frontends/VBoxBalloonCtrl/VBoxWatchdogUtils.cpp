@@ -157,7 +157,7 @@ int payloadAlloc(PVBOXWATCHDOG_MACHINE pMachine, const char *pszModule,
     AssertPtrReturn(pszModule, VERR_INVALID_POINTER);
     AssertReturn(cbSize, VERR_INVALID_PARAMETER);
 
-    void *pvData = RTMemAllocZ(cbSize);
+    void *pvData = RTMemAlloc(cbSize);
     AssertPtrReturn(pvData, VERR_NO_MEMORY);
 
     mapPayloadIter it = pMachine->payload.find(pszModule);

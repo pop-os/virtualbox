@@ -48,14 +48,12 @@ template<> bool canConvert<UIExtraDataMetaDefs::RuntimeMenuDevicesActionType>() 
 #ifdef VBOX_WITH_DEBUGGER_GUI
 template<> bool canConvert<UIExtraDataMetaDefs::RuntimeMenuDebuggerActionType>() { return true; }
 #endif /* VBOX_WITH_DEBUGGER_GUI */
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
 template<> bool canConvert<UIExtraDataMetaDefs::MenuWindowActionType>() { return true; }
-#endif /* VBOX_WS_MAC */
+#endif /* Q_WS_MAC */
 template<> bool canConvert<UIVisualStateType>() { return true; }
 template<> bool canConvert<DetailsElementType>() { return true; }
-template<> bool canConvert<InformationElementType>() { return true; }
 template<> bool canConvert<PreviewUpdateIntervalType>() { return true; }
-template<> bool canConvert<EventHandlingType>() { return true; }
 template<> bool canConvert<GlobalSettingsPageType>() { return true; }
 template<> bool canConvert<MachineSettingsPageType>() { return true; }
 template<> bool canConvert<WizardType>() { return true; }
@@ -65,9 +63,9 @@ template<> bool canConvert<MouseCapturePolicy>() { return true; }
 template<> bool canConvert<GuruMeditationHandlerType>() { return true; }
 template<> bool canConvert<ScalingOptimizationType>() { return true; }
 template<> bool canConvert<HiDPIOptimizationType>() { return true; }
-#ifndef VBOX_WS_MAC
+#ifndef Q_WS_MAC
 template<> bool canConvert<MiniToolbarAlignment>() { return true; }
-#endif /* !VBOX_WS_MAC */
+#endif /* !Q_WS_MAC */
 
 /* QString <= SizeSuffix: */
 template<> QString toString(const SizeSuffix &sizeSuffix)
@@ -102,7 +100,7 @@ template<> SizeSuffix fromString<SizeSuffix>(const QString &strSizeSuffix)
     list.insert(QApplication::translate("VBoxGlobal", "PB", "size suffix PBytes=1024 TBytes"), SizeSuffix_PetaByte);
     if (!list.contains(strSizeSuffix))
     {
-        AssertMsgFailed(("No value for '%s'", strSizeSuffix.toUtf8().constData()));
+        AssertMsgFailed(("No value for '%s'", strSizeSuffix.toAscii().constData()));
     }
     return list.value(strSizeSuffix);
 }
@@ -217,22 +215,6 @@ template<> QString toString(const StorageSlot &storageSlot)
             strResult = QApplication::translate("VBoxGlobal", "USB Port %1", "StorageSlot").arg(storageSlot.port);
             break;
         }
-        case KStorageBus_PCIe:
-        {
-            int iMaxPort = vboxGlobal().virtualBox().GetSystemProperties().GetMaxPortCountForStorageBus(storageSlot.bus);
-            if (storageSlot.port < 0 || storageSlot.port > iMaxPort)
-            {
-                AssertMsgFailed(("No text for bus=%d & port=%d", storageSlot.bus, storageSlot.port));
-                break;
-            }
-            if (storageSlot.device != 0)
-            {
-                AssertMsgFailed(("No text for bus=%d & port=%d & device=%d", storageSlot.bus, storageSlot.port, storageSlot.device));
-                break;
-            }
-            strResult = QApplication::translate("VBoxGlobal", "NVMe Port %1", "StorageSlot").arg(storageSlot.port);
-            break;
-        }
         default:
         {
             AssertMsgFailed(("No text for bus=%d & port=%d & device=%d", storageSlot.bus, storageSlot.port, storageSlot.device));
@@ -282,12 +264,12 @@ template<> StorageSlot fromString<StorageSlot>(const QString &strStorageSlot)
             LONG iDevice = index % iMaxPort;
             if (iPort < 0 || iPort > iMaxPort)
             {
-                AssertMsgFailed(("No storage slot for text='%s'", strStorageSlot.toUtf8().constData()));
+                AssertMsgFailed(("No storage slot for text='%s'", strStorageSlot.toAscii().constData()));
                 break;
             }
             if (iDevice < 0 || iDevice > iMaxDevice)
             {
-                AssertMsgFailed(("No storage slot for text='%s'", strStorageSlot.toUtf8().constData()));
+                AssertMsgFailed(("No storage slot for text='%s'", strStorageSlot.toAscii().constData()));
                 break;
             }
             result.bus = bus;
@@ -303,7 +285,7 @@ template<> StorageSlot fromString<StorageSlot>(const QString &strStorageSlot)
             LONG iDevice = 0;
             if (iPort < 0 || iPort > iMaxPort)
             {
-                AssertMsgFailed(("No storage slot for text='%s'", strStorageSlot.toUtf8().constData()));
+                AssertMsgFailed(("No storage slot for text='%s'", strStorageSlot.toAscii().constData()));
                 break;
             }
             result.bus = bus;
@@ -319,7 +301,7 @@ template<> StorageSlot fromString<StorageSlot>(const QString &strStorageSlot)
             LONG iDevice = 0;
             if (iPort < 0 || iPort > iMaxPort)
             {
-                AssertMsgFailed(("No storage slot for text='%s'", strStorageSlot.toUtf8().constData()));
+                AssertMsgFailed(("No storage slot for text='%s'", strStorageSlot.toAscii().constData()));
                 break;
             }
             result.bus = bus;
@@ -335,7 +317,7 @@ template<> StorageSlot fromString<StorageSlot>(const QString &strStorageSlot)
             LONG iDevice = 0;
             if (iPort < 0 || iPort > iMaxPort)
             {
-                AssertMsgFailed(("No storage slot for text='%s'", strStorageSlot.toUtf8().constData()));
+                AssertMsgFailed(("No storage slot for text='%s'", strStorageSlot.toAscii().constData()));
                 break;
             }
             result.bus = bus;
@@ -351,7 +333,7 @@ template<> StorageSlot fromString<StorageSlot>(const QString &strStorageSlot)
             LONG iDevice = regExp.cap(1).toInt();
             if (iDevice < 0 || iDevice > iMaxDevice)
             {
-                AssertMsgFailed(("No storage slot for text='%s'", strStorageSlot.toUtf8().constData()));
+                AssertMsgFailed(("No storage slot for text='%s'", strStorageSlot.toAscii().constData()));
                 break;
             }
             result.bus = bus;
@@ -367,7 +349,7 @@ template<> StorageSlot fromString<StorageSlot>(const QString &strStorageSlot)
             LONG iDevice = 0;
             if (iPort < 0 || iPort > iMaxPort)
             {
-                AssertMsgFailed(("No storage slot for text='%s'", strStorageSlot.toUtf8().constData()));
+                AssertMsgFailed(("No storage slot for text='%s'", strStorageSlot.toAscii().constData()));
                 break;
             }
             result.bus = bus;
@@ -377,7 +359,7 @@ template<> StorageSlot fromString<StorageSlot>(const QString &strStorageSlot)
         }
         default:
         {
-            AssertMsgFailed(("No storage slot for text='%s'", strStorageSlot.toUtf8().constData()));
+            AssertMsgFailed(("No storage slot for text='%s'", strStorageSlot.toAscii().constData()));
             break;
         }
     }
@@ -444,9 +426,9 @@ template<> QString toInternalString(const UIExtraDataMetaDefs::MenuApplicationAc
     QString strResult;
     switch (menuApplicationActionType)
     {
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
         case UIExtraDataMetaDefs::MenuApplicationActionType_About:                strResult = "About"; break;
-#endif /* VBOX_WS_MAC */
+#endif /* Q_WS_MAC */
         case UIExtraDataMetaDefs::MenuApplicationActionType_Preferences:          strResult = "Preferences"; break;
 #ifdef VBOX_GUI_WITH_NETWORK_MANAGER
         case UIExtraDataMetaDefs::MenuApplicationActionType_NetworkAccessManager: strResult = "NetworkAccessManager"; break;
@@ -470,9 +452,9 @@ template<> UIExtraDataMetaDefs::MenuApplicationActionType fromInternalString<UIE
     /* Here we have some fancy stuff allowing us
      * to search through the keys using 'case-insensitive' rule: */
     QStringList keys;               QList<UIExtraDataMetaDefs::MenuApplicationActionType> values;
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
     keys << "About";                values << UIExtraDataMetaDefs::MenuApplicationActionType_About;
-#endif /* VBOX_WS_MAC */
+#endif /* Q_WS_MAC */
     keys << "Preferences";          values << UIExtraDataMetaDefs::MenuApplicationActionType_Preferences;
 #ifdef VBOX_GUI_WITH_NETWORK_MANAGER
     keys << "NetworkAccessManager"; values << UIExtraDataMetaDefs::MenuApplicationActionType_NetworkAccessManager;
@@ -496,12 +478,9 @@ template<> QString toInternalString(const UIExtraDataMetaDefs::MenuHelpActionTyp
     {
         case UIExtraDataMetaDefs::MenuHelpActionType_Contents:             strResult = "Contents"; break;
         case UIExtraDataMetaDefs::MenuHelpActionType_WebSite:              strResult = "WebSite"; break;
-        case UIExtraDataMetaDefs::MenuHelpActionType_BugTracker:           strResult = "BugTracker"; break;
-        case UIExtraDataMetaDefs::MenuHelpActionType_Forums:               strResult = "Forums"; break;
-        case UIExtraDataMetaDefs::MenuHelpActionType_Oracle:               strResult = "Oracle"; break;
-#ifndef VBOX_WS_MAC
+#ifndef Q_WS_MAC
         case UIExtraDataMetaDefs::MenuHelpActionType_About:                strResult = "About"; break;
-#endif /* !VBOX_WS_MAC */
+#endif /* !Q_WS_MAC */
         case UIExtraDataMetaDefs::MenuHelpActionType_All:                  strResult = "All"; break;
         default:
         {
@@ -520,12 +499,9 @@ template<> UIExtraDataMetaDefs::MenuHelpActionType fromInternalString<UIExtraDat
     QStringList keys;               QList<UIExtraDataMetaDefs::MenuHelpActionType> values;
     keys << "Contents";             values << UIExtraDataMetaDefs::MenuHelpActionType_Contents;
     keys << "WebSite";              values << UIExtraDataMetaDefs::MenuHelpActionType_WebSite;
-    keys << "BugTracker";           values << UIExtraDataMetaDefs::MenuHelpActionType_BugTracker;
-    keys << "Forums";               values << UIExtraDataMetaDefs::MenuHelpActionType_Forums;
-    keys << "Oracle";               values << UIExtraDataMetaDefs::MenuHelpActionType_Oracle;
-#ifndef VBOX_WS_MAC
+#ifndef Q_WS_MAC
     keys << "About";                values << UIExtraDataMetaDefs::MenuHelpActionType_About;
-#endif /* !VBOX_WS_MAC */
+#endif /* !Q_WS_MAC */
     keys << "All";                  values << UIExtraDataMetaDefs::MenuHelpActionType_All;
     /* Invalid type for unknown words: */
     if (!keys.contains(strMenuHelpActionType, Qt::CaseInsensitive))
@@ -545,7 +521,6 @@ template<> QString toInternalString(const UIExtraDataMetaDefs::RuntimeMenuMachin
         case UIExtraDataMetaDefs::RuntimeMenuMachineActionType_InformationDialog: strResult = "InformationDialog"; break;
         case UIExtraDataMetaDefs::RuntimeMenuMachineActionType_Pause:             strResult = "Pause"; break;
         case UIExtraDataMetaDefs::RuntimeMenuMachineActionType_Reset:             strResult = "Reset"; break;
-        case UIExtraDataMetaDefs::RuntimeMenuMachineActionType_Detach:            strResult = "Detach"; break;
         case UIExtraDataMetaDefs::RuntimeMenuMachineActionType_SaveState:         strResult = "SaveState"; break;
         case UIExtraDataMetaDefs::RuntimeMenuMachineActionType_Shutdown:          strResult = "Shutdown"; break;
         case UIExtraDataMetaDefs::RuntimeMenuMachineActionType_PowerOff:          strResult = "PowerOff"; break;
@@ -571,7 +546,6 @@ template<> UIExtraDataMetaDefs::RuntimeMenuMachineActionType fromInternalString<
     keys << "InformationDialog"; values << UIExtraDataMetaDefs::RuntimeMenuMachineActionType_InformationDialog;
     keys << "Pause";             values << UIExtraDataMetaDefs::RuntimeMenuMachineActionType_Pause;
     keys << "Reset";             values << UIExtraDataMetaDefs::RuntimeMenuMachineActionType_Reset;
-    keys << "Detach";            values << UIExtraDataMetaDefs::RuntimeMenuMachineActionType_Detach;
     keys << "SaveState";         values << UIExtraDataMetaDefs::RuntimeMenuMachineActionType_SaveState;
     keys << "Shutdown";          values << UIExtraDataMetaDefs::RuntimeMenuMachineActionType_Shutdown;
     keys << "PowerOff";          values << UIExtraDataMetaDefs::RuntimeMenuMachineActionType_PowerOff;
@@ -593,9 +567,9 @@ template<> QString toInternalString(const UIExtraDataMetaDefs::RuntimeMenuViewAc
         case UIExtraDataMetaDefs::RuntimeMenuViewActionType_Fullscreen:           strResult = "Fullscreen"; break;
         case UIExtraDataMetaDefs::RuntimeMenuViewActionType_Seamless:             strResult = "Seamless"; break;
         case UIExtraDataMetaDefs::RuntimeMenuViewActionType_Scale:                strResult = "Scale"; break;
-#ifndef VBOX_WS_MAC
+#ifndef Q_WS_MAC
         case UIExtraDataMetaDefs::RuntimeMenuViewActionType_MinimizeWindow:       strResult = "MinimizeWindow"; break;
-#endif /* !VBOX_WS_MAC */
+#endif /* !Q_WS_MAC */
         case UIExtraDataMetaDefs::RuntimeMenuViewActionType_AdjustWindow:         strResult = "AdjustWindow"; break;
         case UIExtraDataMetaDefs::RuntimeMenuViewActionType_GuestAutoresize:      strResult = "GuestAutoresize"; break;
         case UIExtraDataMetaDefs::RuntimeMenuViewActionType_TakeScreenshot:       strResult = "TakeScreenshot"; break;
@@ -605,9 +579,9 @@ template<> QString toInternalString(const UIExtraDataMetaDefs::RuntimeMenuViewAc
         case UIExtraDataMetaDefs::RuntimeMenuViewActionType_VRDEServer:           strResult = "VRDEServer"; break;
         case UIExtraDataMetaDefs::RuntimeMenuViewActionType_MenuBar:              strResult = "MenuBar"; break;
         case UIExtraDataMetaDefs::RuntimeMenuViewActionType_MenuBarSettings:      strResult = "MenuBarSettings"; break;
-#ifndef VBOX_WS_MAC
+#ifndef Q_WS_MAC
         case UIExtraDataMetaDefs::RuntimeMenuViewActionType_ToggleMenuBar:        strResult = "ToggleMenuBar"; break;
-#endif /* !VBOX_WS_MAC */
+#endif /* !Q_WS_MAC */
         case UIExtraDataMetaDefs::RuntimeMenuViewActionType_StatusBar:            strResult = "StatusBar"; break;
         case UIExtraDataMetaDefs::RuntimeMenuViewActionType_StatusBarSettings:    strResult = "StatusBarSettings"; break;
         case UIExtraDataMetaDefs::RuntimeMenuViewActionType_ToggleStatusBar:      strResult = "ToggleStatusBar"; break;
@@ -633,9 +607,9 @@ template<> UIExtraDataMetaDefs::RuntimeMenuViewActionType fromInternalString<UIE
     keys << "Fullscreen";           values << UIExtraDataMetaDefs::RuntimeMenuViewActionType_Fullscreen;
     keys << "Seamless";             values << UIExtraDataMetaDefs::RuntimeMenuViewActionType_Seamless;
     keys << "Scale";                values << UIExtraDataMetaDefs::RuntimeMenuViewActionType_Scale;
-#ifndef VBOX_WS_MAC
+#ifndef Q_WS_MAC
     keys << "MinimizeWindow";       values << UIExtraDataMetaDefs::RuntimeMenuViewActionType_MinimizeWindow;
-#endif /* !VBOX_WS_MAC */
+#endif /* !Q_WS_MAC */
     keys << "AdjustWindow";         values << UIExtraDataMetaDefs::RuntimeMenuViewActionType_AdjustWindow;
     keys << "GuestAutoresize";      values << UIExtraDataMetaDefs::RuntimeMenuViewActionType_GuestAutoresize;
     keys << "TakeScreenshot";       values << UIExtraDataMetaDefs::RuntimeMenuViewActionType_TakeScreenshot;
@@ -645,9 +619,9 @@ template<> UIExtraDataMetaDefs::RuntimeMenuViewActionType fromInternalString<UIE
     keys << "VRDEServer";           values << UIExtraDataMetaDefs::RuntimeMenuViewActionType_VRDEServer;
     keys << "MenuBar";              values << UIExtraDataMetaDefs::RuntimeMenuViewActionType_MenuBar;
     keys << "MenuBarSettings";      values << UIExtraDataMetaDefs::RuntimeMenuViewActionType_MenuBarSettings;
-#ifndef VBOX_WS_MAC
+#ifndef Q_WS_MAC
     keys << "ToggleMenuBar";        values << UIExtraDataMetaDefs::RuntimeMenuViewActionType_ToggleMenuBar;
-#endif /* !VBOX_WS_MAC */
+#endif /* !Q_WS_MAC */
     keys << "StatusBar";            values << UIExtraDataMetaDefs::RuntimeMenuViewActionType_StatusBar;
     keys << "StatusBarSettings";    values << UIExtraDataMetaDefs::RuntimeMenuViewActionType_StatusBarSettings;
     keys << "ToggleStatusBar";      values << UIExtraDataMetaDefs::RuntimeMenuViewActionType_ToggleStatusBar;
@@ -671,9 +645,9 @@ template<> QString toInternalString(const UIExtraDataMetaDefs::RuntimeMenuInputA
         case UIExtraDataMetaDefs::RuntimeMenuInputActionType_Keyboard:          strResult = "Keyboard"; break;
         case UIExtraDataMetaDefs::RuntimeMenuInputActionType_KeyboardSettings:  strResult = "KeyboardSettings"; break;
         case UIExtraDataMetaDefs::RuntimeMenuInputActionType_TypeCAD:           strResult = "TypeCAD"; break;
-#ifdef VBOX_WS_X11
+#ifdef Q_WS_X11
         case UIExtraDataMetaDefs::RuntimeMenuInputActionType_TypeCABS:          strResult = "TypeCABS"; break;
-#endif /* VBOX_WS_X11 */
+#endif /* Q_WS_X11 */
         case UIExtraDataMetaDefs::RuntimeMenuInputActionType_TypeCtrlBreak:     strResult = "TypeCtrlBreak"; break;
         case UIExtraDataMetaDefs::RuntimeMenuInputActionType_TypeInsert:        strResult = "TypeInsert"; break;
         case UIExtraDataMetaDefs::RuntimeMenuInputActionType_Mouse:             strResult = "Mouse"; break;
@@ -697,9 +671,9 @@ template<> UIExtraDataMetaDefs::RuntimeMenuInputActionType fromInternalString<UI
     keys << "Keyboard";          values << UIExtraDataMetaDefs::RuntimeMenuInputActionType_Keyboard;
     keys << "KeyboardSettings";  values << UIExtraDataMetaDefs::RuntimeMenuInputActionType_KeyboardSettings;
     keys << "TypeCAD";           values << UIExtraDataMetaDefs::RuntimeMenuInputActionType_TypeCAD;
-#ifdef VBOX_WS_X11
+#ifdef Q_WS_X11
     keys << "TypeCABS";          values << UIExtraDataMetaDefs::RuntimeMenuInputActionType_TypeCABS;
-#endif /* VBOX_WS_X11 */
+#endif /* Q_WS_X11 */
     keys << "TypeCtrlBreak";     values << UIExtraDataMetaDefs::RuntimeMenuInputActionType_TypeCtrlBreak;
     keys << "TypeInsert";        values << UIExtraDataMetaDefs::RuntimeMenuInputActionType_TypeInsert;
     keys << "Mouse";             values << UIExtraDataMetaDefs::RuntimeMenuInputActionType_Mouse;
@@ -812,7 +786,7 @@ template<> UIExtraDataMetaDefs::RuntimeMenuDebuggerActionType fromInternalString
 }
 #endif /* VBOX_WITH_DEBUGGER_GUI */
 
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
 /* QString <= UIExtraDataMetaDefs::MenuWindowActionType: */
 template<> QString toInternalString(const UIExtraDataMetaDefs::MenuWindowActionType &menuWindowActionType)
 {
@@ -846,7 +820,7 @@ template<> UIExtraDataMetaDefs::MenuWindowActionType fromInternalString<UIExtraD
     /* Corresponding type for known words: */
     return values.at(keys.indexOf(QRegExp(strMenuWindowActionType, Qt::CaseInsensitive)));
 }
-#endif /* VBOX_WS_MAC */
+#endif /* Q_WS_MAC */
 
 /* QString <= UIVisualStateType: */
 template<> QString toInternalString(const UIVisualStateType &visualStateType)
@@ -1102,21 +1076,6 @@ template<> PreviewUpdateIntervalType fromInternalInteger<PreviewUpdateIntervalTy
         AssertMsgFailed(("No value for '%d'", iPreviewUpdateIntervalType));
     /* Return corresponding enum value for passed integer representation: */
     return hash.value(iPreviewUpdateIntervalType);
-}
-
-/* EventHandlingType <= QString: */
-template<> EventHandlingType fromInternalString<EventHandlingType>(const QString &strEventHandlingType)
-{
-    /* Here we have some fancy stuff allowing us
-     * to search through the keys using 'case-insensitive' rule: */
-    QStringList keys;  QList<EventHandlingType> values;
-    keys << "Active";  values << EventHandlingType_Active;
-    keys << "Passive"; values << EventHandlingType_Passive;
-    /* Passive type for unknown words: */
-    if (!keys.contains(strEventHandlingType, Qt::CaseInsensitive))
-        return EventHandlingType_Passive;
-    /* Corresponding type for known words: */
-    return values.at(keys.indexOf(QRegExp(strEventHandlingType, Qt::CaseInsensitive)));
 }
 
 /* QString <= GlobalSettingsPageType: */
@@ -1551,7 +1510,7 @@ template<> HiDPIOptimizationType fromInternalString<HiDPIOptimizationType>(const
     return values.at(keys.indexOf(QRegExp(strOptimizationType, Qt::CaseInsensitive)));
 }
 
-#ifndef VBOX_WS_MAC
+#ifndef Q_WS_MAC
 /* QString <= MiniToolbarAlignment: */
 template<> QString toInternalString(const MiniToolbarAlignment &miniToolbarAlignment)
 {
@@ -1580,157 +1539,5 @@ template<> MiniToolbarAlignment fromInternalString<MiniToolbarAlignment>(const Q
     /* Corresponding type for known words: */
     return values.at(keys.indexOf(QRegExp(strMiniToolbarAlignment, Qt::CaseInsensitive)));
 }
-#endif /* !VBOX_WS_MAC */
-
-/* QString <= InformationElementType: */
-template<> QString toString(const InformationElementType &informationElementType)
-{
-    QString strResult;
-    /* Reusing translations from 'DetailsElementType': */
-    switch (informationElementType)
-    {
-        case InformationElementType_General:           strResult = QApplication::translate("VBoxGlobal", "General", "DetailsElementType"); break;
-        case InformationElementType_Preview:           strResult = QApplication::translate("VBoxGlobal", "Preview", "DetailsElementType"); break;
-        case InformationElementType_System:            strResult = QApplication::translate("VBoxGlobal", "System", "DetailsElementType"); break;
-        case InformationElementType_Display:           strResult = QApplication::translate("VBoxGlobal", "Display", "DetailsElementType"); break;
-        case InformationElementType_Storage:           strResult = QApplication::translate("VBoxGlobal", "Storage", "DetailsElementType"); break;
-        case InformationElementType_Audio:             strResult = QApplication::translate("VBoxGlobal", "Audio", "DetailsElementType"); break;
-        case InformationElementType_Network:           strResult = QApplication::translate("VBoxGlobal", "Network", "DetailsElementType"); break;
-        case InformationElementType_Serial:            strResult = QApplication::translate("VBoxGlobal", "Serial ports", "DetailsElementType"); break;
-#ifdef VBOX_WITH_PARALLEL_PORTS
-        case InformationElementType_Parallel:          strResult = QApplication::translate("VBoxGlobal", "Parallel ports", "DetailsElementType"); break;
-#endif /* VBOX_WITH_PARALLEL_PORTS */
-        case InformationElementType_USB:               strResult = QApplication::translate("VBoxGlobal", "USB", "DetailsElementType"); break;
-        case InformationElementType_SF:                strResult = QApplication::translate("VBoxGlobal", "Shared folders", "DetailsElementType"); break;
-        case InformationElementType_UI:                strResult = QApplication::translate("VBoxGlobal", "User interface", "DetailsElementType"); break;
-        case InformationElementType_Description:       strResult = QApplication::translate("VBoxGlobal", "Description", "DetailsElementType"); break;
-        case InformationElementType_RuntimeAttributes: strResult = QApplication::translate("VBoxGlobal", "RuntimeAttributes", "DetailsElementType"); break;
-        default:
-        {
-            AssertMsgFailed(("No text for information element type=%d", informationElementType));
-            break;
-        }
-    }
-    return strResult;
-}
-
-/* InformationElementType <= QString: */
-template<> InformationElementType fromString<InformationElementType>(const QString &strInformationElementType)
-{
-    /* Here we have some fancy stuff allowing us
-     * to search through the keys using 'case-insensitive' rule: */
-    QStringList keys;                                                                         QList<InformationElementType> values;
-    /* Reusing translations from 'DetailsElementType': */
-    keys << QApplication::translate("VBoxGlobal", "General", "DetailsElementType");           values << InformationElementType_General;
-    keys << QApplication::translate("VBoxGlobal", "Preview", "DetailsElementType");           values << InformationElementType_Preview;
-    keys << QApplication::translate("VBoxGlobal", "System", "DetailsElementType");            values << InformationElementType_System;
-    keys << QApplication::translate("VBoxGlobal", "Display", "DetailsElementType");           values << InformationElementType_Display;
-    keys << QApplication::translate("VBoxGlobal", "Storage", "DetailsElementType");           values << InformationElementType_Storage;
-    keys << QApplication::translate("VBoxGlobal", "Audio", "DetailsElementType");             values << InformationElementType_Audio;
-    keys << QApplication::translate("VBoxGlobal", "Network", "DetailsElementType");           values << InformationElementType_Network;
-    keys << QApplication::translate("VBoxGlobal", "Serial ports", "DetailsElementType");      values << InformationElementType_Serial;
-#ifdef VBOX_WITH_PARALLEL_PORTS
-    keys << QApplication::translate("VBoxGlobal", "Parallel ports", "DetailsElementType");    values << InformationElementType_Parallel;
-#endif /* VBOX_WITH_PARALLEL_PORTS */
-    keys << QApplication::translate("VBoxGlobal", "USB", "DetailsElementType");               values << InformationElementType_USB;
-    keys << QApplication::translate("VBoxGlobal", "Shared folders", "DetailsElementType");    values << InformationElementType_SF;
-    keys << QApplication::translate("VBoxGlobal", "User interface", "DetailsElementType");    values << InformationElementType_UI;
-    keys << QApplication::translate("VBoxGlobal", "Description", "DetailsElementType");       values << InformationElementType_Description;
-    keys << QApplication::translate("VBoxGlobal", "RuntimeAttributes", "DetailsElementType"); values << InformationElementType_RuntimeAttributes;
-    /* Invalid type for unknown words: */
-    if (!keys.contains(strInformationElementType, Qt::CaseInsensitive))
-        return InformationElementType_Invalid;
-    /* Corresponding type for known words: */
-    return values.at(keys.indexOf(QRegExp(strInformationElementType, Qt::CaseInsensitive)));
-}
-
-/* QString <= InformationElementType: */
-template<> QString toInternalString(const InformationElementType &informationElementType)
-{
-    QString strResult;
-    switch (informationElementType)
-    {
-        case InformationElementType_General:           strResult = "general"; break;
-        case InformationElementType_Preview:           strResult = "preview"; break;
-        case InformationElementType_System:            strResult = "system"; break;
-        case InformationElementType_Display:           strResult = "display"; break;
-        case InformationElementType_Storage:           strResult = "storage"; break;
-        case InformationElementType_Audio:             strResult = "audio"; break;
-        case InformationElementType_Network:           strResult = "network"; break;
-        case InformationElementType_Serial:            strResult = "serialPorts"; break;
-#ifdef VBOX_WITH_PARALLEL_PORTS
-        case InformationElementType_Parallel:          strResult = "parallelPorts"; break;
-#endif /* VBOX_WITH_PARALLEL_PORTS */
-        case InformationElementType_USB:               strResult = "usb"; break;
-        case InformationElementType_SF:                strResult = "sharedFolders"; break;
-        case InformationElementType_UI:                strResult = "userInterface"; break;
-        case InformationElementType_Description:       strResult = "description"; break;
-        case InformationElementType_RuntimeAttributes: strResult = "runtime-attributes"; break;
-        default:
-        {
-            AssertMsgFailed(("No text for information element type=%d", informationElementType));
-            break;
-        }
-    }
-    return strResult;
-}
-
-/* InformationElementType <= QString: */
-template<> InformationElementType fromInternalString<InformationElementType>(const QString &strInformationElementType)
-{
-    /* Here we have some fancy stuff allowing us
-     * to search through the keys using 'case-insensitive' rule: */
-    QStringList keys;             QList<InformationElementType> values;
-    keys << "general";            values << InformationElementType_General;
-    keys << "preview";            values << InformationElementType_Preview;
-    keys << "system";             values << InformationElementType_System;
-    keys << "display";            values << InformationElementType_Display;
-    keys << "storage";            values << InformationElementType_Storage;
-    keys << "audio";              values << InformationElementType_Audio;
-    keys << "network";            values << InformationElementType_Network;
-    keys << "serialPorts";        values << InformationElementType_Serial;
-#ifdef VBOX_WITH_PARALLEL_PORTS
-    keys << "parallelPorts";      values << InformationElementType_Parallel;
-#endif /* VBOX_WITH_PARALLEL_PORTS */
-    keys << "usb";                values << InformationElementType_USB;
-    keys << "sharedFolders";      values << InformationElementType_SF;
-    keys << "userInterface";      values << InformationElementType_UI;
-    keys << "description";        values << InformationElementType_Description;
-    keys << "runtime-attributes"; values << InformationElementType_RuntimeAttributes;
-    /* Invalid type for unknown words: */
-    if (!keys.contains(strInformationElementType, Qt::CaseInsensitive))
-        return InformationElementType_Invalid;
-    /* Corresponding type for known words: */
-    return values.at(keys.indexOf(QRegExp(strInformationElementType, Qt::CaseInsensitive)));
-}
-
-/* QIcon <= InformationElementType: */
-template<> QIcon toIcon(const InformationElementType &informationElementType)
-{
-    switch (informationElementType)
-    {
-        case InformationElementType_General:           return UIIconPool::iconSet(":/machine_16px.png");
-        case InformationElementType_Preview:           return UIIconPool::iconSet(":/machine_16px.png");
-        case InformationElementType_System:            return UIIconPool::iconSet(":/chipset_16px.png");
-        case InformationElementType_Display:           return UIIconPool::iconSet(":/vrdp_16px.png");
-        case InformationElementType_Storage:           return UIIconPool::iconSet(":/hd_16px.png");
-        case InformationElementType_Audio:             return UIIconPool::iconSet(":/sound_16px.png");
-        case InformationElementType_Network:           return UIIconPool::iconSet(":/nw_16px.png");
-        case InformationElementType_Serial:            return UIIconPool::iconSet(":/serial_port_16px.png");
-#ifdef VBOX_WITH_PARALLEL_PORTS
-        case InformationElementType_Parallel:          return UIIconPool::iconSet(":/parallel_port_16px.png");
-#endif /* VBOX_WITH_PARALLEL_PORTS */
-        case InformationElementType_USB:               return UIIconPool::iconSet(":/usb_16px.png");
-        case InformationElementType_SF:                return UIIconPool::iconSet(":/sf_16px.png");
-        case InformationElementType_UI:                return UIIconPool::iconSet(":/interface_16px.png");
-        case InformationElementType_Description:       return UIIconPool::iconSet(":/description_16px.png");
-        case InformationElementType_RuntimeAttributes: return UIIconPool::iconSet(":/state_running_16px.png");
-        default:
-        {
-            AssertMsgFailed(("No icon for information element type=%d", informationElementType));
-            break;
-        }
-    }
-    return QIcon();
-}
+#endif /* !Q_WS_MAC */
 

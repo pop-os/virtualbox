@@ -127,12 +127,6 @@ public:
     virtual void stop(IOService *pProvider);
     virtual IOService *probe(IOService *pProvider, SInt32 *pi32Score);
     virtual bool terminate(IOOptionBits fOptions);
-
-    RTR0MEMEF_NEW_AND_DELETE_OPERATORS_IOKIT();
-
-private:
-    /** Guard against the parent class growing and us using outdated headers. */
-    uint8_t m_abSafetyPadding[256];
 };
 
 OSDefineMetaClassAndStructors(org_virtualbox_SupDrv, IOService);
@@ -148,9 +142,6 @@ class org_virtualbox_SupDrvClient : public IOUserClient
     OSDeclareDefaultStructors(org_virtualbox_SupDrvClient);
 
 private:
-    /** Guard against the parent class growing and us using outdated headers. */
-    uint8_t m_abSafetyPadding[256];
-
     PSUPDRVSESSION          m_pSession;     /**< The session. */
     task_t                  m_Task;         /**< The client task. */
     org_virtualbox_SupDrv  *m_pProvider;    /**< The service provider. */
@@ -164,8 +155,6 @@ public:
     virtual bool terminate(IOOptionBits fOptions = 0);
     virtual bool finalize(IOOptionBits fOptions);
     virtual void stop(IOService *pProvider);
-
-    RTR0MEMEF_NEW_AND_DELETE_OPERATORS_IOKIT();
 };
 
 OSDefineMetaClassAndStructors(org_virtualbox_SupDrvClient, IOUserClient);
@@ -1135,44 +1124,10 @@ bool VBOXCALL supdrvOSAreTscDeltasInSync(void)
     return false;
 }
 
-
-int  VBOXCALL   supdrvOSLdrOpen(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, const char *pszFilename)
-{
-    NOREF(pDevExt); NOREF(pImage); NOREF(pszFilename);
-    return VERR_NOT_SUPPORTED;
-}
-
-
-int  VBOXCALL   supdrvOSLdrValidatePointer(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, void *pv, const uint8_t *pbImageBits)
-{
-    NOREF(pDevExt); NOREF(pImage); NOREF(pv); NOREF(pbImageBits);
-    return VERR_NOT_SUPPORTED;
-}
-
-
-int  VBOXCALL   supdrvOSLdrLoad(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, const uint8_t *pbImageBits, PSUPLDRLOAD pReq)
-{
-    NOREF(pDevExt); NOREF(pImage); NOREF(pbImageBits); NOREF(pReq);
-    return VERR_NOT_SUPPORTED;
-}
-
-
-void VBOXCALL   supdrvOSLdrUnload(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage)
-{
-    NOREF(pDevExt); NOREF(pImage);
-}
-
-
-void VBOXCALL   supdrvOSLdrNotifyLoaded(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage)
-{
-    NOREF(pDevExt); NOREF(pImage);
-}
-
-
-void VBOXCALL   supdrvOSLdrNotifyOpened(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, const char *pszFilename)
+void VBOXCALL   supdrvOSLdrNotifyOpened(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage)
 {
 #if 1
-    NOREF(pDevExt); NOREF(pImage); NOREF(pszFilename);
+    NOREF(pDevExt); NOREF(pImage);
 #else
     /*
      * Try store the image load address in NVRAM so we can retrived it on panic.
@@ -1196,7 +1151,28 @@ void VBOXCALL   supdrvOSLdrNotifyOpened(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE p
 }
 
 
-void VBOXCALL   supdrvOSLdrNotifyUnloaded(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage)
+int  VBOXCALL   supdrvOSLdrOpen(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, const char *pszFilename)
+{
+    NOREF(pDevExt); NOREF(pImage); NOREF(pszFilename);
+    return VERR_NOT_SUPPORTED;
+}
+
+
+int  VBOXCALL   supdrvOSLdrValidatePointer(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, void *pv, const uint8_t *pbImageBits)
+{
+    NOREF(pDevExt); NOREF(pImage); NOREF(pv); NOREF(pbImageBits);
+    return VERR_NOT_SUPPORTED;
+}
+
+
+int  VBOXCALL   supdrvOSLdrLoad(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, const uint8_t *pbImageBits, PSUPLDRLOAD pReq)
+{
+    NOREF(pDevExt); NOREF(pImage); NOREF(pbImageBits); NOREF(pReq);
+    return VERR_NOT_SUPPORTED;
+}
+
+
+void VBOXCALL   supdrvOSLdrUnload(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage)
 {
     NOREF(pDevExt); NOREF(pImage);
 }

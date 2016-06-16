@@ -26,14 +26,14 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 107542 $"
+__version__ = "$Revision: 100880 $"
 
 import os;
 
 ## Test Manager version string.
-g_ksVersion             = 'v0.0.3';
+g_ksVersion             = 'v0.0.2';
 ## Test Manager revision string.
-g_ksRevision            = ('$Revision: 107542 $')[11:-2];
+g_ksRevision            = ('$Revision: 100880 $')[11:-2];
 
 ## Enable VBox specific stuff.
 g_kfVBoxSpecific        = True;

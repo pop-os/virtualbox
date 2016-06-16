@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -333,12 +333,7 @@ public:
      * call its uninit() method which is supposed to place the object back
      * to the NotReady state using AutoUninitSpan.
      */
-    void setFailed(HRESULT rc = E_ACCESSDENIED)
-    {
-        mResult = Failed;
-        mFailedRC = rc;
-        mpFailedEI = new ErrorInfo();
-    }
+    void setFailed() { mResult = Failed; }
 
     /** Returns the current initialization result. */
     Result result() { return mResult; }
@@ -351,8 +346,6 @@ private:
     VirtualBoxBase *mObj;
     Result mResult : 3; // must be at least total number of bits + 1 (sign)
     bool mOk : 1;
-    HRESULT mFailedRC;
-    ErrorInfo *mpFailedEI;
 };
 
 /**

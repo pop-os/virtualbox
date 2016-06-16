@@ -48,7 +48,6 @@ TraverseHandleDatabase (
   CHAR16                              *TempString;
   UINTN                               HandleIndex;
   CONST CHAR16                        *Name;
-  UINTN                               ControllerIndex;
 
   if (TheHandle == NULL) {
     return (EFI_INVALID_PARAMETER);
@@ -99,10 +98,9 @@ TraverseHandleDatabase (
                                                         OpenTypeString = StringDriverEx;  break;
             default:                                    OpenTypeString = StringUnknown;   break;
           }
-          HandleIndex     = ConvertHandleToHandleIndex(OpenInfo[OpenInfoIndex].AgentHandle);
-          Name            = GetStringNameFromHandle(OpenInfo[OpenInfoIndex].AgentHandle, NULL);
-          ControllerIndex = ConvertHandleToHandleIndex(OpenInfo[OpenInfoIndex].ControllerHandle);
-          if (ControllerIndex != 0) {
+          HandleIndex = ConvertHandleToHandleIndex(OpenInfo[OpenInfoIndex].AgentHandle);
+          Name        = GetStringNameFromHandle(OpenInfo[OpenInfoIndex].AgentHandle, "en");
+          if (OpenInfo[OpenInfoIndex].ControllerHandle!=NULL) {
             ShellPrintHiiEx(
               -1,
               -1,
@@ -110,7 +108,7 @@ TraverseHandleDatabase (
               STRING_TOKEN(STR_OPENINFO_LINE),
               gShellDriver1HiiHandle,
               HandleIndex,
-              ControllerIndex,
+              ConvertHandleToHandleIndex(OpenInfo[OpenInfoIndex].ControllerHandle),
               OpenInfo[OpenInfoIndex].OpenCount,
               OpenTypeString,
               Name
@@ -126,7 +124,7 @@ TraverseHandleDatabase (
               OpenInfo[OpenInfoIndex].OpenCount,
               OpenTypeString,
               Name
-             );
+             );            
           }
         }
         FreePool (OpenInfo);

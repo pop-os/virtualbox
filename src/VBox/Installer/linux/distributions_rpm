@@ -20,5 +20,5 @@ el6             = EL_6
 el5             = EL_5
 centos6         = CENTOS_6
 centos5         = CENTOS_5
-ol6             = EL_6
-ol5             = EL_5
+ol6             = ORACLE_6
+ol5             = ORACLE_5

@@ -36,31 +36,29 @@ private:
 
     /** Prepare main-layout routine. */
     void prepareMainLayout();
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
     /** Prepare visual-state routine. */
     void prepareVisualState();
-#endif /* VBOX_WS_MAC */
+#endif /* Q_WS_MAC */
     /** Load settings routine. */
     void loadSettings();
 
     /** Save settings routine. */
     void saveSettings();
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
     /** Cleanup visual-state routine. */
     void cleanupVisualState();
-#endif /* VBOX_WS_MAC */
+#endif /* Q_WS_MAC */
 
     /** Updates visibility according to visual-state. */
     void showInNecessaryMode();
 
     /** Common @a pEvent handler. */
     bool event(QEvent *pEvent);
-#ifdef VBOX_WS_WIN
-# if QT_VERSION < 0x050000
-    /** Qt4: Win: Handles all native messages. */
+#ifdef Q_WS_WIN
+    /** Windows: Common native @a pEvent handler. */
     bool winEvent(MSG *pMessage, long *pResult);
-# endif /* QT_VERSION < 0x050000 */
-#endif /* VBOX_WS_WIN */
+#endif /* Q_WS_WIN */
 
     /** Returns whether this window is maximized. */
     bool isMaximizedChecked();

@@ -16,7 +16,7 @@
  */
 
 #ifndef ___USBGetDevices_h
-#define ___USBGetDevices_h
+# define ___USBGetDevices_h
 
 #include <VBox/usb.h>
 #include <iprt/mem.h>
@@ -24,13 +24,12 @@
 
 /**
  * Free all the members of a USB device created by the Linux enumeration code.
- *
- * @note This duplicates a USBProxyService method which we needed access too
+ * @note this duplicates a USBProxyService method which we needed access too
  *       without pulling in the rest of the proxy service code.
  *
  * @param   pDevice     Pointer to the device.
  */
-DECLINLINE(void) deviceFreeMembers(PUSBDEVICE pDevice)
+static inline void deviceFreeMembers(PUSBDEVICE pDevice)
 {
     RTStrFree((char *)pDevice->pszManufacturer);
     pDevice->pszManufacturer = NULL;
@@ -45,31 +44,28 @@ DECLINLINE(void) deviceFreeMembers(PUSBDEVICE pDevice)
 
 /**
  * Free one USB device created by the Linux enumeration code.
- *
- * @note This duplicates a USBProxyService method which we needed access too
+ * @note this duplicates a USBProxyService method which we needed access too
  *       without pulling in the rest of the proxy service code.
  *
- * @param   pDevice     Pointer to the device. NULL is OK.
+ * @param   pDevice     Pointer to the device.
  */
-DECLINLINE(void) deviceFree(PUSBDEVICE pDevice)
+static inline void deviceFree(PUSBDEVICE pDevice)
 {
-    if (pDevice)
-    {
-        deviceFreeMembers(pDevice);
-        RTMemFree(pDevice);
-    }
+    deviceFreeMembers(pDevice);
+    RTMemFree(pDevice);
 }
 
 /**
  * Free a linked list of USB devices created by the Linux enumeration code.
  * @param  pHead  Pointer to the first device in the linked list
  */
-DECLINLINE(void) deviceListFree(PUSBDEVICE *ppHead)
+static inline void deviceListFree(PUSBDEVICE *ppHead)
 {
-    PUSBDEVICE pHead = *ppHead;
+    PUSBDEVICE pHead, pNext;
+    pHead = *ppHead;
     while (pHead)
     {
-        PUSBDEVICE pNext = pHead->pNext;
+        pNext = pHead->pNext;
         deviceFree(pHead);
         pHead = pNext;
     }
@@ -78,7 +74,8 @@ DECLINLINE(void) deviceListFree(PUSBDEVICE *ppHead)
 
 RT_C_DECLS_BEGIN
 
-extern bool USBProxyLinuxCheckDeviceRoot(const char *pcszRoot, bool fIsDeviceNodes);
+extern bool USBProxyLinuxCheckDeviceRoot(const char *pcszRoot,
+                                         bool fIsDeviceNodes);
 
 #ifdef UNIT_TEST
 void TestUSBSetupInit(const char *pcszUsbfsRoot, bool fUsbfsAccessible,
@@ -87,15 +84,16 @@ void TestUSBSetupInit(const char *pcszUsbfsRoot, bool fUsbfsAccessible,
 void TestUSBSetEnv(const char *pcszEnvUsb, const char *pcszEnvUsbRoot);
 #endif
 
-extern int USBProxyLinuxChooseMethod(bool *pfUsingUsbfsDevices, const char **ppcszDevicesRoot);
+extern int USBProxyLinuxChooseMethod(bool *pfUsingUsbfsDevices,
+                                     const char **ppcszDevicesRoot);
 #ifdef UNIT_TEST
 extern void TestUSBSetAvailableUsbfsDevices(const char **pacszDeviceAddresses);
 extern void TestUSBSetAccessibleFiles(const char **pacszAccessibleFiles);
 #endif
 
-extern PUSBDEVICE USBProxyLinuxGetDevices(const char *pcszDevicesRoot, bool fUseSysfs);
+extern PUSBDEVICE USBProxyLinuxGetDevices(const char *pcszDevicesRoot,
+                                          bool fUseSysfs);
 
 RT_C_DECLS_END
 
-#endif /* !___USBGetDevices_h */
-
+#endif /* ___USBGetDevices_h */

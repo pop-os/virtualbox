@@ -37,7 +37,6 @@ PFNRT g_apfnVBoxDDUDeps[] =
 {
     (PFNRT)VDInit,
     (PFNRT)VDIfCreateVfsStream,
-    (PFNRT)VDIfCreateFromVfsStream,
 #ifdef VBOX_WITH_USB
     (PFNRT)USBFilterInit,
     (PFNRT)USBLibHashSerial,

@@ -15,32 +15,16 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
-/* Define GUI log group.
- * This define should go *before* VBox/log.h include: */
 #define LOG_GROUP LOG_GROUP_GUI
 
-/* Qt includes: */
-# include <QString>
-# include <QStringList>
-
-/* Other VBox includes: */
-# include <VBox/log.h>
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
-/* GUI includes: */
-#include <XKeyboard.h>
-
-/* Other VBox includes: */
-#include <VBox/VBoxKeyboard.h>
-
-/* External includes: */
+#include <QString>
+#include <QStringList>
 #include <X11/XKBlib.h>
+#include <X11/Xlib.h>
 #include <X11/keysym.h>
+#include <XKeyboard.h>
+#include <VBox/log.h>
+#include <VBox/VBoxKeyboard.h>
 
 
 /* VBoxKeyboard uses the deprecated XKeycodeToKeysym(3) API, but uses it safely.
@@ -247,12 +231,12 @@ void doXKeyboardLogging(Display *dpy)
 /*
  * Translate an X server scancode to a PC keyboard scancode.
  */
-unsigned handleXKeyEvent(Display *pDisplay, unsigned int iDetail)
+unsigned handleXKeyEvent(XEvent *event)
 {
     // call the WINE event handler
-    unsigned key = X11DRV_KeyEvent(pDisplay, iDetail);
+    unsigned key = X11DRV_KeyEvent(event->xkey.display, event->xkey.keycode);
     LogRel3(("VBoxKeyboard: converting keycode %d to scancode %s0x%x\n",
-             iDetail, key > 0x100 ? "0xe0 " : "", key & 0xff));
+          event->xkey.keycode, key > 0x100 ? "0xe0 " : "", key & 0xff));
     return key;
 }
 
@@ -263,7 +247,7 @@ unsigned handleXKeyEvent(Display *pDisplay, unsigned int iDetail)
  * keyboard scancode that is emitted when the key attached to the X11
  * keycode is pressed.
  */
-void initMappedX11Keyboard(Display *pDisplay, const QString &remapScancodes)
+void initMappedX11Keyboard(Display *pDisplay, QString remapScancodes)
 {
     int (*scancodes)[2] = NULL;
     int (*scancodesTail)[2] = NULL;

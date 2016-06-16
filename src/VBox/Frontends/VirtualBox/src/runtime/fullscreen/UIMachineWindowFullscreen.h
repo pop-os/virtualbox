@@ -21,10 +21,10 @@
 /* GUI includes: */
 #include "UIMachineWindow.h"
 
-#if defined(VBOX_WS_WIN) || defined(VBOX_WS_X11)
+#if defined(Q_WS_WIN) || defined(Q_WS_X11)
 /* Forward declarations: */
 class UIMiniToolBar;
-#endif /* VBOX_WS_WIN || VBOX_WS_X11 */
+#endif /* Q_WS_WIN || Q_WS_X11 */
 
 /** UIMachineWindow reimplementation,
   * providing GUI with machine-window for the full-screen mode. */
@@ -54,22 +54,22 @@ protected:
     /** Handles Qt @a pChangeEvent. */
     void changeEvent(QEvent *pChangeEvent);
 
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
     /** Mac OS X: Handles native notifications @a strNativeNotificationName for 'fullscreen' window. */
     void handleNativeNotification(const QString &strNativeNotificationName);
     /** Mac OS X: Returns whether window is in 'fullscreen' transition. */
     bool isInFullscreenTransition() const { return m_fIsInFullscreenTransition; }
-#endif /* VBOX_WS_MAC */
+#endif /* Q_WS_MAC */
 
 private slots:
 
-#if defined(VBOX_WS_WIN) || defined(VBOX_WS_X11)
+#if defined(Q_WS_WIN) || defined(Q_WS_X11)
     /** Handles machine state change event. */
     void sltMachineStateChanged();
 
     /** Revokes window activation. */
     void sltRevokeWindowActivation();
-#endif /* VBOX_WS_WIN || VBOX_WS_X11 */
+#endif /* Q_WS_WIN || Q_WS_X11 */
 
 #ifdef RT_OS_DARWIN
     /** Mac OS X: Commands @a pMachineWindow to enter native 'fullscreen' mode if possible. */
@@ -82,15 +82,15 @@ private:
 
     /** Prepare visual-state routine. */
     void prepareVisualState();
-#if defined(VBOX_WS_WIN) || defined(VBOX_WS_X11)
+#if defined(Q_WS_WIN) || defined(Q_WS_X11)
     /** Prepare mini-toolbar routine. */
     void prepareMiniToolbar();
-#endif /* VBOX_WS_WIN || VBOX_WS_X11 */
+#endif /* Q_WS_WIN || Q_WS_X11 */
 
-#if defined(VBOX_WS_WIN) || defined(VBOX_WS_X11)
+#if defined(Q_WS_WIN) || defined(Q_WS_X11)
     /** Cleanup mini-toolbar routine. */
     void cleanupMiniToolbar();
-#endif /* VBOX_WS_WIN || VBOX_WS_X11 */
+#endif /* Q_WS_WIN || Q_WS_X11 */
     /** Cleanup visual-state routine. */
     void cleanupVisualState();
 
@@ -99,29 +99,22 @@ private:
     /** Updates visibility according to visual-state. */
     void showInNecessaryMode();
 
-#if defined(VBOX_WS_WIN) || defined(VBOX_WS_X11)
+#if defined(Q_WS_WIN) || defined(Q_WS_X11)
     /** Common update routine. */
     void updateAppearanceOf(int iElement);
-#endif /* VBOX_WS_WIN || VBOX_WS_X11 */
+#endif /* Q_WS_WIN || Q_WS_X11 */
 
-#ifdef VBOX_WS_WIN
-# if QT_VERSION >= 0x050000
-    /** Win: Handles show @a pEvent. */
-    void showEvent(QShowEvent *pEvent);
-# endif /* QT_VERSION >= 0x050000 */
-#endif /* VBOX_WS_WIN */
-
-#if defined(VBOX_WS_WIN) || defined(VBOX_WS_X11)
+#if defined(Q_WS_WIN) || defined(Q_WS_X11)
     /** Holds the mini-toolbar instance. */
     UIMiniToolBar *m_pMiniToolBar;
-#endif /* VBOX_WS_WIN || VBOX_WS_X11 */
+#endif /* Q_WS_WIN || Q_WS_X11 */
 
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
     /** Mac OS X: Reflects whether window is in 'fullscreen' transition. */
     bool m_fIsInFullscreenTransition;
     /** Mac OS X: Allows 'fullscreen' API access: */
     friend class UIMachineLogicFullscreen;
-#endif /* VBOX_WS_MAC */
+#endif /* Q_WS_MAC */
 
     /** Factory support. */
     friend class UIMachineWindow;

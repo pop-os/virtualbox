@@ -114,6 +114,7 @@ static char rcsid[] = "$Id: res_send.c $";
 #endif
 
 #ifdef NOPOLL           /* libc_r doesn't wrap poll yet() */
+static int use_poll = 0;
 #else
 #include <poll.h>
 static int use_poll = 1;    /* adapt to poll() syscall availability */
@@ -854,10 +855,10 @@ read_len:
                ((_res.pfcode & RES_PRF_REPLY) &&
             (_res.pfcode & RES_PRF_HEAD1)),
                (stdout, ";; got answer:\n"));
-        if((_res.options & RES_DEBUG) ||
-            (_res.pfcode & RES_PRF_REPLY)) {
-            __fp_nquery(ans, (resplen>anssiz)?anssiz:resplen, stdout);
-        }
+        DprintQ((_res.options & RES_DEBUG) ||
+            (_res.pfcode & RES_PRF_REPLY),
+            (stdout, ""),
+            ans, (resplen>anssiz)?anssiz:resplen);
         /*
          * If using virtual circuits, we assume that the first server
          * is preferred over the rest (i.e. it is on the local

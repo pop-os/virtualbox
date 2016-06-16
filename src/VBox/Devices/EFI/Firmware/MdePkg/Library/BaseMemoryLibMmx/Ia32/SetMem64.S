@@ -39,5 +39,5 @@ ASM_PFX(InternalMemSetMem64):
 L0:
     movq    %mm0, (%edx)
     lea     8(%edx), %edx
-    loop    L0
+    loopl   L0
     ret

@@ -26,12 +26,11 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 107509 $"
+__version__ = "$Revision: 100880 $"
 
 # Validation Kit imports.
-from common                             import webutils;
 from testmanager.webui.wuihlpgraphbase  import WuiHlpGraphBase;
-from testmanager.webui                  import wuihlpgraphsimple;
+from common                             import webutils;
 
 
 #*******************************************************************************
@@ -45,6 +44,7 @@ class WuiHlpGraphGoogleChartsBase(WuiHlpGraphBase):
 
 
 ## @todo bar graphs later.
+from testmanager.webui import wuihlpgraphsimple;
 WuiHlpBarGraph = wuihlpgraphsimple.WuiHlpBarGraph;
 
 

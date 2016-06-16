@@ -66,8 +66,8 @@
         AssertPtr(a_pBigNum); \
         Assert(!(a_pBigNum)->fCurScrambled); \
         Assert(   (a_pBigNum)->cUsed == (a_pBigNum)->cAllocated \
-               || ASMMemIsZero(&(a_pBigNum)->pauElements[(a_pBigNum)->cUsed], \
-                               ((a_pBigNum)->cAllocated - (a_pBigNum)->cUsed) * RTBIGNUM_ELEMENT_SIZE)); \
+               || ASMMemIsAllU32(&(a_pBigNum)->pauElements[(a_pBigNum)->cUsed], \
+                                 ((a_pBigNum)->cAllocated - (a_pBigNum)->cUsed) * RTBIGNUM_ELEMENT_SIZE, 0) == NULL); \
     } while (0)
 #else
 # define RTBIGNUM_ASSERT_VALID(a_pBigNum) do {} while (0)
@@ -263,7 +263,7 @@ static void rtBigNumElement2xDiv2xBy1x(RTBIGNUMELEMENT2X *puQuotient, RTBIGNUMEL
     uDivisor2x.s.Lo = uDivisor;
     /** @todo optimize this. */
     RTUInt128DivRem(puQuotient, &uRemainder2x, &uDividend, &uDivisor2x);
-    *puRemainder = uRemainder2x.s.Lo;
+    puRemainder->u = uRemainder2x.s.Lo;
 # else
     puQuotient->u  = uDividend.u / uDivisor;
     puRemainder->u = uDividend.u % uDivisor;
@@ -413,7 +413,8 @@ DECLINLINE(int) rtBigNumSetUsed(PRTBIGNUM pBigNum, uint32_t cNewUsed)
             RT_BZERO(&pBigNum->pauElements[cNewUsed], (pBigNum->cUsed - cNewUsed) * RTBIGNUM_ELEMENT_SIZE);
 #ifdef RT_STRICT
         else if (pBigNum->cUsed != cNewUsed)
-            Assert(ASMMemIsZero(&pBigNum->pauElements[pBigNum->cUsed], (cNewUsed - pBigNum->cUsed) * RTBIGNUM_ELEMENT_SIZE));
+            Assert(ASMMemIsAllU32(&pBigNum->pauElements[pBigNum->cUsed],
+                                  (cNewUsed - pBigNum->cUsed) * RTBIGNUM_ELEMENT_SIZE, 0) == NULL);
 #endif
         pBigNum->cUsed = cNewUsed;
         return VINF_SUCCESS;
@@ -442,7 +443,8 @@ DECLINLINE(int) rtBigNumSetUsedEx(PRTBIGNUM pBigNum, uint32_t cNewUsed, uint32_t
             RT_BZERO(&pBigNum->pauElements[cNewUsed], (pBigNum->cUsed - cNewUsed) * RTBIGNUM_ELEMENT_SIZE);
 #ifdef RT_STRICT
         else if (pBigNum->cUsed != cNewUsed)
-            Assert(ASMMemIsZero(&pBigNum->pauElements[pBigNum->cUsed], (cNewUsed - pBigNum->cUsed) * RTBIGNUM_ELEMENT_SIZE));
+            Assert(ASMMemIsAllU32(&pBigNum->pauElements[pBigNum->cUsed],
+                                  (cNewUsed - pBigNum->cUsed) * RTBIGNUM_ELEMENT_SIZE, 0) == NULL);
 #endif
         pBigNum->cUsed = cNewUsed;
         return VINF_SUCCESS;
@@ -466,8 +468,8 @@ DECLINLINE(int) rtBigNumEnsureExtraZeroElements(PRTBIGNUM pBigNum, uint32_t cEle
     if (pBigNum->cAllocated >= cElements)
     {
         Assert(   pBigNum->cAllocated == pBigNum->cUsed
-               || ASMMemIsZero(&pBigNum->pauElements[pBigNum->cUsed],
-                                  (pBigNum->cAllocated - pBigNum->cUsed) * RTBIGNUM_ELEMENT_SIZE));
+               || ASMMemIsAllU32(&pBigNum->pauElements[pBigNum->cUsed],
+                                 (pBigNum->cAllocated - pBigNum->cUsed) * RTBIGNUM_ELEMENT_SIZE, 0) == NULL);
         return VINF_SUCCESS;
     }
     return rtBigNumGrow(pBigNum, pBigNum->cUsed, cElements);
@@ -1765,7 +1767,7 @@ static int rtBigNumMagnitudeShiftLeft(PRTBIGNUM pResult, PCRTBIGNUM pValue, uint
                     PCRTBIGNUMELEMENT   pauSrc = pValue->pauElements;
                     PRTBIGNUMELEMENT    pauDst = pResult->pauElements;
 
-                    Assert(ASMMemIsZero(pauDst, (cBits / RTBIGNUM_ELEMENT_BITS) * RTBIGNUM_ELEMENT_SIZE));
+                    Assert(ASMMemIsAllU32(pauDst, (cBits / RTBIGNUM_ELEMENT_BITS) * RTBIGNUM_ELEMENT_SIZE, 0) == NULL);
                     pauDst += cBits / RTBIGNUM_ELEMENT_BITS;
 
                     cBits &= RTBIGNUM_ELEMENT_BITS - 1;

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -166,20 +166,19 @@
 # include <nsMemory.h>
 #endif
 
-#include "VBox/com/defs.h"
-
-#if RT_GNUC_PREREQ(4, 6) || (defined(_MSC_VER) && (_MSC_VER >= 1600))
-/** @def VBOX_WITH_TYPE_TRAITS
- * Type traits are a C++ 11 feature, so not available everywhere (yet).
- * Only GCC 4.6 or newer and MSVC++ 16.0 (Visual Studio 2010) or newer.
- */
-# define VBOX_WITH_TYPE_TRAITS
+        /* Type traits are a C++ 11 feature, so not available everywhere (yet). */
+        /* Only GCC 4.6 or newer. */
+#if    (defined(__GNUC__) && (__GNUC__ * 100 + __GNUC_MINOR__) >= 406) \
+       /* Only MSVC++ 16.0 (Visual Studio 2010) or newer. */           \
+    || (defined(_MSC_VER) && (_MSC_VER >= 1600))
+    #define VBOX_WITH_TYPE_TRAITS
 #endif
 
 #ifdef VBOX_WITH_TYPE_TRAITS
 # include <type_traits>
 #endif
 
+#include "VBox/com/defs.h"
 #include "VBox/com/ptr.h"
 #include "VBox/com/assert.h"
 #include "iprt/cpp/list.h"
@@ -1455,8 +1454,8 @@ public:
      */
     const nsID &operator[] (size_t aIdx) const
     {
-        AssertReturn(m.arr != NULL,  **((const nsID * *)1));
-        AssertReturn(aIdx < size(), **((const nsID * *)1));
+        AssertReturn(m.arr != NULL,  **((const nsID * *)NULL));
+        AssertReturn(aIdx < size(), **((const nsID * *)NULL));
         return *m.arr[aIdx];
     }
 
@@ -1535,7 +1534,7 @@ protected:
     static SAFEARRAY *CreateSafeArray(VARTYPE aVarType, SAFEARRAYBOUND *aBound)
     {
         NOREF(aVarType);
-        return SafeArrayCreateEx(VT_DISPATCH, 1, aBound, (PVOID)&COM_IIDOF(I));
+        return SafeArrayCreateEx(VT_DISPATCH, 1, aBound, (PVOID)&_ATL_IIDOF(I));
     }
 };
 
@@ -1616,9 +1615,9 @@ public:
             GUID guid;
             rc = SafeArrayGetIID(arg, &guid);
             AssertComRCReturnVoid(rc);
-            AssertMsgReturnVoid(InlineIsEqualGUID(COM_IIDOF(I), guid),
+            AssertMsgReturnVoid(InlineIsEqualGUID(_ATL_IIDOF(I), guid),
                                 ("Expected IID {%RTuuid}, got {%RTuuid}.\n",
-                                 &COM_IIDOF(I), &guid));
+                                 &_ATL_IIDOF(I), &guid));
 
             rc = SafeArrayAccessData(arg, (void HUGEP **)&m.raw);
             AssertComRCReturnVoid(rc);

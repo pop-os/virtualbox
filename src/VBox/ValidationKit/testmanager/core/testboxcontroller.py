@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 107625 $"
+__version__ = "$Revision: 102941 $"
 
 
 # Standard python imports.
@@ -394,12 +394,6 @@ class TestBoxController(object): # pylint: disable=R0903
         #
         # Update the row in TestBoxes if something changed.
         #
-        if oTestBox.cMbScratch != 0:
-            cPctScratchDiff = (cMbScratch - oTestBox.cMbScratch) * 100 / oTestBox.cMbScratch;
-        else:
-            cPctScratchDiff = 100;
-
-        # pylint: disable=R0916
         if   self._sTestBoxAddr != oTestBox.ip \
           or sOs                != oTestBox.sOs \
           or sOsVersion         != oTestBox.sOsVersion \
@@ -413,7 +407,7 @@ class TestBoxController(object): # pylint: disable=R0903
           or fCpu64BitGuest     != oTestBox.fCpu64BitGuest \
           or fChipsetIoMmu      != oTestBox.fChipsetIoMmu \
           or cMbMemory          != oTestBox.cMbMemory \
-          or abs(cPctScratchDiff) >= min(4 + cMbScratch / 10240, 12) \
+          or cMbScratch         != oTestBox.cMbScratch \
           or sReport            != oTestBox.sReport \
           or iTestBoxScriptRev  != oTestBox.iTestBoxScriptRev \
           or iPythonHexVersion  != oTestBox.iPythonHexVersion:
@@ -707,7 +701,6 @@ class TestBoxController(object): # pylint: disable=R0903
                           'log/debug/client',
                           'log/installer',
                           'log/uninstaller',
-                          'log/guest/kernel',
                           'crash/report/vm',
                           'crash/dump/vm',
                           'crash/report/svc',

@@ -1,7 +1,7 @@
 /** @file
   Implementation of driver entry point and driver binding protocol.
 
-Copyright (c) 2005 - 2012, Intel Corporation. All rights reserved.<BR>
+Copyright (c) 2005 - 2011, Intel Corporation. All rights reserved.<BR>
 This program and the accompanying materials
 are licensed and made available under the terms and conditions
 of the BSD License which accompanies this distribution.  The full
@@ -25,52 +25,6 @@ EFI_DRIVER_BINDING_PROTOCOL gMnpDriverBinding = {
   NULL,
   NULL
 };
-
-/**
-  Callback function which provided by user to remove one node in NetDestroyLinkList process.
-
-  @param[in]    Entry           The entry to be removed.
-  @param[in]    Context         Pointer to the callback context corresponds to the Context in NetDestroyLinkList.
-
-  @retval EFI_SUCCESS           The entry has been removed successfully.
-  @retval Others                Fail to remove the entry.
-
-**/
-EFI_STATUS
-EFIAPI
-MnpDestroyServiceDataEntry (
-  IN LIST_ENTRY         *Entry,
-  IN VOID               *Context
-  )
-{
-  MNP_SERVICE_DATA              *MnpServiceData;
-
-  MnpServiceData = MNP_SERVICE_DATA_FROM_LINK (Entry);
-  return MnpDestroyServiceData (MnpServiceData);
-}
-
-/**
-  Callback function which provided by user to remove one node in NetDestroyLinkList process.
-
-  @param[in]    Entry           The entry to be removed.
-  @param[in]    Context         Pointer to the callback context corresponds to the Context in NetDestroyLinkList.
-
-  @retval EFI_SUCCESS           The entry has been removed successfully.
-  @retval Others                Fail to remove the entry.
-
-**/
-EFI_STATUS
-EFIAPI
-MnpDestroyServiceChildEntry (
-  IN LIST_ENTRY         *Entry,
-  IN VOID               *Context
-  )
-{
-  MNP_SERVICE_DATA              *MnpServiceData;
-
-  MnpServiceData = MNP_SERVICE_DATA_FROM_LINK (Entry);
-  return MnpDestroyServiceChild (MnpServiceData);
-}
 
 /**
   Test to see if this driver supports ControllerHandle. This service
@@ -322,8 +276,8 @@ MnpDriverBindingStop (
   EFI_VLAN_CONFIG_PROTOCOL      *VlanConfig;
   MNP_DEVICE_DATA               *MnpDeviceData;
   MNP_SERVICE_DATA              *MnpServiceData;
-  LIST_ENTRY                    *List;
-  UINTN                         ListLength;
+  BOOLEAN                       AllChildrenStopped;
+  LIST_ENTRY                    *Entry;
 
   //
   // Try to retrieve MNP service binding protocol from the ControllerHandle
@@ -363,15 +317,10 @@ MnpDriverBindingStop (
     //
     // Destroy all MNP service data
     //
-    List = &MnpDeviceData->ServiceList;
-    Status = NetDestroyLinkList (
-               List,
-               MnpDestroyServiceDataEntry,
-               NULL,
-               &ListLength
-               );
-    if (EFI_ERROR (Status) || ListLength !=0) {
-      return EFI_DEVICE_ERROR;
+    while (!IsListEmpty (&MnpDeviceData->ServiceList)) {
+      Entry = GetFirstNode (&MnpDeviceData->ServiceList);
+      MnpServiceData = MNP_SERVICE_DATA_FROM_LINK (Entry);
+      MnpDestroyServiceData (MnpServiceData);
     }
 
     //
@@ -392,24 +341,23 @@ MnpDriverBindingStop (
     MnpDestroyDeviceData (MnpDeviceData, This->DriverBindingHandle);
     FreePool (MnpDeviceData);
 
-    if (gMnpControllerNameTable != NULL) {
-      FreeUnicodeStringTable (gMnpControllerNameTable);
-      gMnpControllerNameTable = NULL;
-    }
     return EFI_SUCCESS;
   }
 
   //
   // Stop all MNP child
   //
-  List = &MnpDeviceData->ServiceList;
-  Status = NetDestroyLinkList (
-             List,
-             MnpDestroyServiceChildEntry,
-             NULL,
-             &ListLength
-             );
-  if (EFI_ERROR (Status)) {
+  AllChildrenStopped = TRUE;
+  NET_LIST_FOR_EACH (Entry, &MnpDeviceData->ServiceList) {
+    MnpServiceData = MNP_SERVICE_DATA_FROM_LINK (Entry);
+
+    Status = MnpDestroyServiceChild (MnpServiceData);
+    if (EFI_ERROR (Status)) {
+      AllChildrenStopped = FALSE;
+    }
+  }
+
+  if (!AllChildrenStopped) {
     return EFI_DEVICE_ERROR;
   }
 

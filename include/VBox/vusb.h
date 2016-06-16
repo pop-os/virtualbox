@@ -28,7 +28,6 @@
 
 #include <VBox/cdefs.h>
 #include <VBox/types.h>
-#include <iprt/assert.h>
 
 struct PDMLED;
 
@@ -524,27 +523,6 @@ typedef enum VUSBDIRECTION
     VUSBDIRECTION_INVALID = 0x7f
 } VUSBDIRECTION;
 
-/**
- * VUSB Transfer types.
- */
-typedef enum VUSBXFERTYPE
-{
-    /** Control message. Used to represent a single control transfer. */
-    VUSBXFERTYPE_CTRL = 0,
-    /* Isochronous transfer. */
-    VUSBXFERTYPE_ISOC,
-    /** Bulk transfer. */
-    VUSBXFERTYPE_BULK,
-    /** Interrupt transfer. */
-    VUSBXFERTYPE_INTR,
-    /** Complete control message. Used to represent an entire control message. */
-    VUSBXFERTYPE_MSG,
-    /** Invalid transfer type. */
-    VUSBXFERTYPE_INVALID = 0x7f
-} VUSBXFERTYPE;
-
-/** Number of valid USB transfer types - KEEP in sync with VUSBXFERTYPE!. */
-#define VUSBXFERTYPE_ELEMENTS (5)
 
 /** Pointer to a VBox USB device interface. */
 typedef struct VUSBIDEVICE      *PVUSBIDEVICE;
@@ -645,31 +623,12 @@ typedef struct VUSBIROOTHUBPORT
      */
     DECLR3CALLBACKMEMBER(bool, pfnXferError,(PVUSBIROOTHUBPORT pInterface, PVUSBURB pUrb));
 
-    /**
-     * Processes a new frame if periodic frame processing is enabled.
-     *
-     * @returns Flag whether there was activity which influences the frame rate.
-     * @param   pInterface      Pointer to this structure.
-     * @param   u32FrameNo      The frame number.
-     */
-    DECLR3CALLBACKMEMBER(bool, pfnStartFrame, (PVUSBIROOTHUBPORT pInterface, uint32_t u32FrameNo));
-
-    /**
-     * Informs the callee about a change in the frame rate due to too many idle cycles or
-     * when seeing activity after some idle time.
-     *
-     * @returns nothing.
-     * @param   pInterface      Pointer to this structure.
-     * @param   u32Framerate    The new frame rate.
-     */
-    DECLR3CALLBACKMEMBER(void, pfnFrameRateChanged, (PVUSBIROOTHUBPORT pInterface, uint32_t u32FrameRate));
-
     /** Alignment dummy. */
     RTR3PTR Alignment;
 
 } VUSBIROOTHUBPORT;
 /** VUSBIROOTHUBPORT interface ID. */
-#define VUSBIROOTHUBPORT_IID                    "6571aece-6c33-4714-a8ac-9508a3b8b429"
+#define VUSBIROOTHUBPORT_IID                    "e38e2978-7aa2-4860-94b6-9ef4a066d8a0"
 
 /** Pointer to a VUSB RootHub connector interface. */
 typedef struct VUSBIROOTHUBCONNECTOR *PVUSBIROOTHUBCONNECTOR;
@@ -681,21 +640,6 @@ typedef struct VUSBIROOTHUBCONNECTOR *PVUSBIROOTHUBCONNECTOR;
 typedef struct VUSBIROOTHUBCONNECTOR
 {
     /**
-     * Sets the URB parameters for the caller.
-     *
-     * @returns VBox status code.
-     * @param   pInterface  Pointer to this struct.
-     * @param   cbHci       Size of the data private to the HCI for each URB when allocated.
-     * @param   cbHciTd     Size of one transfer descriptor. The number of transfer descriptors
-     *                      is given VUSBIROOTHUBCONNECTOR::pfnNewUrb for each URB to calculate the
-     *                      final amount of memory required for the TDs.
-     *
-     * @note This must be called before starting to allocate any URB or otherwise there will be no
-     *       data available for the HCI.
-     */
-    DECLR3CALLBACKMEMBER(int, pfnSetUrbParams, (PVUSBIROOTHUBCONNECTOR pInterface, size_t cbHci, size_t cbHciTd));
-
-    /**
      * Allocates a new URB for a transfer.
      *
      * Either submit using pfnSubmitUrb or free using VUSBUrbFree().
@@ -706,28 +650,10 @@ typedef struct VUSBIROOTHUBCONNECTOR
      *          at submit time, since that makes the usage of this api simpler.
      * @param   pInterface  Pointer to this struct.
      * @param   DstAddress  The destination address of the URB.
-     * @param   pDev        Optional device pointer the URB is for.
-     * @param   enmType     Type of the URB.
-     * @param   enmDir      Data transfer direction.
      * @param   cbData      The amount of data space required.
      * @param   cTds        The amount of TD space.
-     * @param   pszTag      Custom URB tag assigned by the caller, only for
-     *                      logged builds and optional.
-     *
-     * @note pDev should be NULL in most cases. The only useful case is for USB3 where
-     *       it is required for the SET_ADDRESS request because USB3 uses unicast traffic.
      */
-    DECLR3CALLBACKMEMBER(PVUSBURB, pfnNewUrb,(PVUSBIROOTHUBCONNECTOR pInterface, uint8_t DstAddress, PVUSBIDEVICE pDev,
-                                              VUSBXFERTYPE enmType, VUSBDIRECTION enmDir, uint32_t cbData, uint32_t cTds, const char *pszTag));
-
-    /**
-     * Free an URB not submitted yet.
-     *
-     * @returns VBox status code.
-     * @param   pInterface  Pointer to this struct.
-     * @param   pUrb        Pointer to the URB to free returned by VUSBIROOTHUBCONNECTOR::pfnNewUrb.
-     */
-    DECLR3CALLBACKMEMBER(int, pfnFreeUrb, (PVUSBIROOTHUBCONNECTOR pInterface, PVUSBURB pUrb));
+    DECLR3CALLBACKMEMBER(PVUSBURB, pfnNewUrb,(PVUSBIROOTHUBCONNECTOR pInterface, uint8_t DstAddress, uint32_t cbData, uint32_t cTds));
 
     /**
      * Submits a URB for transfer.
@@ -808,50 +734,19 @@ typedef struct VUSBIROOTHUBCONNECTOR
      */
     DECLR3CALLBACKMEMBER(int, pfnDetachDevice,(PVUSBIROOTHUBCONNECTOR pInterface, PVUSBIDEVICE pDevice));
 
-    /**
-     * Sets periodic frame processing.
-     *
-     * @returns VBox status code.
-     * @param   pInterface  Pointer to this struct.
-     * @param   uFrameRate  The target frame rate in Hertz, 0 disables periodic frame processing.
-     *                      The real frame rate might be lower if there is no activity for a certain period or
-     *                      higher if there is a need for catching up with where the guest expects the device to be.
-     */
-    DECLR3CALLBACKMEMBER(int, pfnSetPeriodicFrameProcessing, (PVUSBIROOTHUBCONNECTOR pInterface, uint32_t uFrameRate));
-
-    /**
-     * Returns the current frame rate for the periodic frame processing.
-     *
-     * @returns Frame rate for periodic frame processing.
-     * @retval  0 if disabled.
-     * @param   pInterface  Pointer to this struct.
-     */
-    DECLR3CALLBACKMEMBER(uint32_t, pfnGetPeriodicFrameRate, (PVUSBIROOTHUBCONNECTOR pInterface));
+    /** Alignment dummy. */
+    RTR3PTR Alignment;
 
 } VUSBIROOTHUBCONNECTOR;
-AssertCompileSizeAlignment(VUSBIROOTHUBCONNECTOR, 8);
 /** VUSBIROOTHUBCONNECTOR interface ID. */
-#define VUSBIROOTHUBCONNECTOR_IID               "662d7822-b9c6-43b5-88b6-5d59f0106e46"
+#define VUSBIROOTHUBCONNECTOR_IID               "d9a90c59-e3ff-4dff-9754-844557c3f7a1"
 
 
 #ifdef IN_RING3
-/** @copydoc VUSBIROOTHUBCONNECTOR::pfnSetUrbParams */
-DECLINLINE(int) VUSBIRhSetUrbParams(PVUSBIROOTHUBCONNECTOR pInterface, size_t cbHci, size_t cbHciTd)
-{
-    return pInterface->pfnSetUrbParams(pInterface, cbHci, cbHciTd);
-}
-
 /** @copydoc VUSBIROOTHUBCONNECTOR::pfnNewUrb */
-DECLINLINE(PVUSBURB) VUSBIRhNewUrb(PVUSBIROOTHUBCONNECTOR pInterface, uint32_t DstAddress, PVUSBIDEVICE pDev,
-                                   VUSBXFERTYPE enmType, VUSBDIRECTION enmDir, uint32_t cbData, uint32_t cTds, const char *pszTag)
+DECLINLINE(PVUSBURB) VUSBIRhNewUrb(PVUSBIROOTHUBCONNECTOR pInterface, uint32_t DstAddress, uint32_t cbData, uint32_t cTds)
 {
-    return pInterface->pfnNewUrb(pInterface, DstAddress, pDev, enmType, enmDir, cbData, cTds, pszTag);
-}
-
-/** @copydoc VUSBIROOTHUBCONNECTOR::pfnFreeUrb */
-DECLINLINE(int) VUSBIRhFreeUrb(PVUSBIROOTHUBCONNECTOR pInterface, PVUSBURB pUrb)
-{
-    return pInterface->pfnFreeUrb(pInterface, pUrb);
+    return pInterface->pfnNewUrb(pInterface, DstAddress, cbData, cTds);
 }
 
 /** @copydoc VUSBIROOTHUBCONNECTOR::pfnSubmitUrb */
@@ -882,18 +777,6 @@ DECLINLINE(int) VUSBIRhAttachDevice(PVUSBIROOTHUBCONNECTOR pInterface, PVUSBIDEV
 DECLINLINE(int) VUSBIRhDetachDevice(PVUSBIROOTHUBCONNECTOR pInterface, PVUSBIDEVICE pDevice)
 {
     return pInterface->pfnDetachDevice(pInterface, pDevice);
-}
-
-/** @copydoc VUSBIROOTHUBCONNECTOR::pfnSetPeriodicFrameProcessing */
-DECLINLINE(int) VUSBIRhSetPeriodicFrameProcessing(PVUSBIROOTHUBCONNECTOR pInterface, uint32_t uFrameRate)
-{
-    return pInterface->pfnSetPeriodicFrameProcessing(pInterface, uFrameRate);
-}
-
-/** @copydoc VUSBIROOTHUBCONNECTOR::pfnGetPeriodicFrameRate */
-DECLINLINE(uint32_t) VUSBIRhGetPeriodicFrameRate(PVUSBIROOTHUBCONNECTOR pInterface)
-{
-    return pInterface->pfnGetPeriodicFrameRate(pInterface);
 }
 #endif /* IN_RING3 */
 
@@ -1019,7 +902,7 @@ typedef struct VUSBIDEVICE
 
 } VUSBIDEVICE;
 /** VUSBIDEVICE interface ID. */
-#define VUSBIDEVICE_IID                         "af576b38-e8ca-4db7-810a-2596d8d57ca0"
+#define VUSBIDEVICE_IID                         "f3facb2b-edd3-4b5b-b07e-2cc4d52a471e"
 
 
 #ifdef IN_RING3
@@ -1126,11 +1009,29 @@ typedef enum VUSBSTATUS
     VUSBSTATUS_NOT_ACCESSED,
     /** Canceled/undone URB (VUSB internal). */
     VUSBSTATUS_UNDO,
-    /** Canceled URB. */
-    VUSBSTATUS_CANCELED,
     /** Invalid status. */
     VUSBSTATUS_INVALID = 0x7f
 } VUSBSTATUS;
+
+
+/**
+ * VUSB Transfer types.
+ */
+typedef enum VUSBXFERTYPE
+{
+    /** Control message. Used to represent a single control transfer. */
+    VUSBXFERTYPE_CTRL = 0,
+    /* Isochronous transfer. */
+    VUSBXFERTYPE_ISOC,
+    /** Bulk transfer. */
+    VUSBXFERTYPE_BULK,
+    /** Interrupt transfer. */
+    VUSBXFERTYPE_INTR,
+    /** Complete control message. Used to represent an entire control message. */
+    VUSBXFERTYPE_MSG,
+    /** Invalid transfer type. */
+    VUSBXFERTYPE_INVALID = 0x7f
+} VUSBXFERTYPE;
 
 
 /**
@@ -1184,13 +1085,6 @@ typedef VUSBURBISOCPKT *PVUSBURBISOCPTK;
 /** Pointer to a const isochronous packet. */
 typedef const VUSBURBISOCPKT *PCVUSBURBISOCPKT;
 
-/** Private controller emulation specific data for the associated USB request descriptor. */
-typedef struct VUSBURBHCIINT *PVUSBURBHCI;
-/** Private controller emulation specific TD data. */
-typedef struct VUSBURBHCITDINT *PVUSBURBHCITD;
-/** Private VUSB/roothub related state for the associated URB. */
-typedef struct VUSBURBVUSBINT *PVUSBURBVUSB;
-
 /**
  * Asynchronous USB request descriptor
  */
@@ -1218,12 +1112,58 @@ typedef struct VUSBURB
     struct VUSBDEV *pDev;
 #endif
 
-    /** The VUSB stack private data. */
-    PVUSBURBVUSB        pVUsb;
-    /** Private host controller data associated with this URB. */
-    PVUSBURBHCI         pHci;
-    /** Pointer to the host controller transfer descriptor array. */
-    PVUSBURBHCITD       paTds;
+    /** The VUSB data. */
+    struct VUSBURBVUSB
+    {
+        /** URB chain pointer. */
+        PVUSBURB        pNext;
+        /** URB chain pointer. */
+        PVUSBURB       *ppPrev;
+        /** Pointer to the original for control messages. */
+        PVUSBURB        pCtrlUrb;
+        /** Pointer to the VUSB device.
+         * This may be NULL if the destination address is invalid. */
+        struct VUSBDEV *pDev;
+        /** Sepcific to the pfnFree function. */
+        void           *pvFreeCtx;
+        /**
+         * Callback which will free the URB once it's reaped and completed.
+         * @param   pUrb    The URB.
+         */
+        DECLCALLBACKMEMBER(void, pfnFree)(PVUSBURB pUrb);
+        /** Submit timestamp. (logging only) */
+        uint64_t        u64SubmitTS;
+        /** The allocated data length. */
+        uint32_t        cbDataAllocated;
+        /** The allocated TD length. */
+        uint32_t        cTdsAllocated;
+    } VUsb;
+
+    /** The host controller data. */
+    struct VUSBURBHCI
+    {
+        /** The endpoint descriptor address. */
+        RTGCPHYS32      EdAddr;
+        /** Number of Tds in the array. */
+        uint32_t        cTds;
+        /** Pointer to an array of TD info items.*/
+        struct VUSBURBHCITD
+        {
+            /** Type of TD (private) */
+            uint32_t        TdType;
+            /** The address of the */
+            RTGCPHYS32      TdAddr;
+            /** A copy of the TD. */
+            uint32_t        TdCopy[16];
+        }              *paTds;
+        /** URB chain pointer. */
+        PVUSBURB        pNext;
+        /** When this URB was created.
+         * (Used for isochronous frames and for logging.) */
+        uint32_t        u32FrameNo;
+        /** Flag indicating that the TDs have been unlinked. */
+        bool            fUnlinked;
+    } Hci;
 
     /** The device data. */
     struct VUSBURBDEV
@@ -1234,6 +1174,11 @@ typedef struct VUSBURB
         PVUSBURB          pNext;
     } Dev;
 
+#ifndef RDESKTOP
+    /** The USB device instance this belongs to.
+     * This is NULL if the device address is invalid, in which case this belongs to the hub. */
+    PPDMUSBINS      pUsbIns;
+#endif
     /** The device address.
      * This is set at allocation time. */
     uint8_t         DstAddress;
@@ -1243,10 +1188,10 @@ typedef struct VUSBURB
      * @remark This does not have the high bit (direction) set! */
     uint8_t         EndPt;
     /** The transfer type.
-     * IN: Set at allocation time. */
+     * IN: Must be set before submitting the URB. */
     VUSBXFERTYPE    enmType;
     /** The transfer direction.
-     * IN: Set at allocation time. */
+     * IN: Must be set before submitting the URB. */
     VUSBDIRECTION   enmDir;
     /** Indicates whether it is OK to receive/send less data than requested.
      * IN: Must be initialized before submitting the URB. */

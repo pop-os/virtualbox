@@ -31,26 +31,26 @@ public:
     QIToolButton(QWidget *pParent = 0)
         : QToolButton(pParent)
     {
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
         /* Keep size-hint alive: */
         const QSize sh = sizeHint();
         setStyleSheet("QToolButton { border: 0px none black; margin: 0px 0px 0px 0px; } QToolButton::menu-indicator {image: none;}");
         setFixedSize(sh);
-#else /* !VBOX_WS_MAC */
+#else /* !Q_WS_MAC */
         setAutoRaise(true);
-#endif /* !VBOX_WS_MAC */
+#endif /* !Q_WS_MAC */
     }
 
     /** Sets the auto-raise status. */
     virtual void setAutoRaise(bool fEnable)
     {
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
         /* Ignore for Mac OS X: */
         Q_UNUSED(fEnable);
-#else /* !VBOX_WS_MAC */
+#else /* !Q_WS_MAC */
         /* Call to base-class: */
         QToolButton::setAutoRaise(fEnable);
-#endif /* !VBOX_WS_MAC */
+#endif /* !Q_WS_MAC */
     }
 
     void removeBorder()

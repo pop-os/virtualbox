@@ -1,7 +1,7 @@
 /** @file
   ACPI Firmware Performance Data Table (FPDT) implementation specific definitions.
 
-  Copyright (c) 2011 - 2013, Intel Corporation. All rights reserved.<BR>
+  Copyright (c) 2011 - 2012, Intel Corporation. All rights reserved.<BR>
   This program and the accompanying materials
   are licensed and made available under the terms and conditions of the BSD License
   which accompanies this distribution.  The full text of the license may be found at
@@ -15,8 +15,8 @@
 #ifndef _FIRMWARE_PERFORMANCE_GUID_H_
 #define _FIRMWARE_PERFORMANCE_GUID_H_
 
+#include <IndustryStandard/Acpi50.h>
 #include <PiPei.h>
-#include <IndustryStandard/Acpi.h>
 #include <Ppi/SecPerformance.h>
 
 ///
@@ -49,15 +49,6 @@
   }
 
 #define EFI_FIRMWARE_PERFORMANCE_VARIABLE_NAME  L"FirmwarePerformance"
-
-/// LockBox:
-///   GUID - gFirmwarePerformanceS3PointerGuid
-///   Data - S3 performance table pointer
-///
-#define FIRMWARE_PERFORMANCE_S3_POINTER_GUID \
-  { \
-    0xdc65adc, 0xa973, 0x4130, { 0x8d, 0xf0, 0x2a, 0xdb, 0xeb, 0x9e, 0x4a, 0x31 } \
-  }
 
 #pragma pack(1)
 
@@ -104,7 +95,7 @@ typedef struct {
 
 ///
 /// Variable defined for FPDT implementation.
-/// This Variable is produced by FPDT DXE module.
+/// This Variable is produced by FPDT DXE module and consumed by FPDT PEIM.
 ///
 typedef struct {
   EFI_PHYSICAL_ADDRESS  BootPerformanceTablePointer; ///< Pointer to Boot Performance Table.
@@ -127,6 +118,5 @@ typedef struct {
 } SMM_BOOT_RECORD_COMMUNICATE;
 
 extern EFI_GUID gEfiFirmwarePerformanceGuid;
-extern EFI_GUID gFirmwarePerformanceS3PointerGuid;
 
 #endif

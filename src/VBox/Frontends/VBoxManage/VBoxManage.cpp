@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -90,6 +90,10 @@ typedef VBMGCMD const *PCVBMGCMD;
 /** Set by the signal handler. */
 static volatile bool    g_fCanceled = false;
 
+# ifdef RT_OS_WINDOWS
+// Required for ATL
+static CComModule       _Module;
+# endif
 
 /**
  * All registered command handlers
@@ -154,7 +158,6 @@ static const VBMGCMD g_aCommands[] =
     { "debugvm",            USAGE_DEBUGVM,       HELP_CMD_DEBUGVM, handleDebugVM,              0 },
     { "convertfromraw",     USAGE_CONVERTFROMRAW,   VBMG_CMD_TODO, handleConvertFromRaw,       VBMG_CMD_F_NO_COM },
     { "convertdd",          USAGE_CONVERTFROMRAW,   VBMG_CMD_TODO, handleConvertFromRaw,       VBMG_CMD_F_NO_COM },
-    { "usbdevsource",       USAGE_USBDEVSOURCE,     VBMG_CMD_TODO, handleUSBDevSource,         0 }
 };
 
 
@@ -459,9 +462,6 @@ int main(int argc, char *argv[])
      * the support driver.
      */
     RTR3InitExe(argc, &argv, 0);
-#if defined(RT_OS_WINDOWS) && !defined(VBOX_ONLY_DOCS)
-    ATL::CComModule _Module; /* Required internally by ATL (constructor records instance in global variable). */
-#endif
 
     /*
      * Parse the global options
@@ -494,7 +494,6 @@ int main(int argc, char *argv[])
             continue;
         }
 
-#ifndef VBOX_ONLY_DOCS
         if (   !strcmp(argv[i], "-V")
             || !strcmp(argv[i], "--version")
             || !strcmp(argv[i], "-v")       /* deprecated */
@@ -505,7 +504,6 @@ int main(int argc, char *argv[])
             RTPrintf("%sr%u\n", VBOX_VERSION_STRING, RTBldCfgRevision());
             return 0;
         }
-#endif
 
         if (   !strcmp(argv[i], "--dumpopts")
             || !strcmp(argv[i], "-dumpopts") /* deprecated */)
@@ -617,11 +615,8 @@ int main(int argc, char *argv[])
          * Get the remote VirtualBox object and create a local session object.
          */
         rcExit = RTEXITCODE_FAILURE;
-        ComPtr<IVirtualBoxClient> virtualBoxClient;
         ComPtr<IVirtualBox> virtualBox;
-        hrc = virtualBoxClient.createInprocObject(CLSID_VirtualBoxClient);
-        if (SUCCEEDED(hrc))
-            hrc = virtualBoxClient->COMGETTER(VirtualBox)(virtualBox.asOutParam());
+        hrc = virtualBox.createLocalObject(CLSID_VirtualBox);
         if (SUCCEEDED(hrc))
         {
             ComPtr<ISession> session;
@@ -680,7 +675,6 @@ int main(int argc, char *argv[])
          * Terminate COM, make sure the virtualBox object has been released.
          */
         virtualBox.setNull();
-        virtualBoxClient.setNull();
         NativeEventQueue::getMainEventQueue()->processEventQueue(0);
         com::Shutdown();
     }

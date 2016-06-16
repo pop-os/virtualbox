@@ -1,15 +1,23 @@
-/** @file
-This file contains functions required to generate a boot strap file (BSF) also
-known as the Volume Top File (VTF)
+/**
 
-Copyright (c) 1999 - 2014, Intel Corporation. All rights reserved.<BR>
-This program and the accompanying materials are licensed and made available
-under the terms and conditions of the BSD License which accompanies this
+Copyright (c) 1999 - 2011, Intel Corporation. All rights reserved.<BR>
+This program and the accompanying materials are licensed and made available 
+under the terms and conditions of the BSD License which accompanies this 
 distribution.  The full text of the license may be found at
 http://opensource.org/licenses/bsd-license.php
 
 THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,
 WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
+
+
+Module Name:
+
+  GenVtf.c
+
+Abstract:
+
+  This file contains functions required to generate a boot strap file (BSF)
+  also known as the Volume Top File (VTF)
 
 **/
 
@@ -133,7 +141,7 @@ Returns:
     } else {
       strncpy (TemStr, Str + Length - 4, 4);
     }
-
+  
     sscanf (
       TemStr,
       "%02x%02x",
@@ -1062,7 +1070,7 @@ Returns:
   CHAR8   Buff5[10];
   CHAR8   Token[50];
 
-  Fp = fopen (LongFilePath (VtfInfo->CompSymName), "rb");
+  Fp = fopen (VtfInfo->CompSymName, "rb");
 
   if (Fp == NULL) {
     Error (NULL, 0, 0001, "Error opening file", VtfInfo->CompSymName);
@@ -1144,7 +1152,7 @@ Returns:
     return EFI_SUCCESS;
   }
 
-  Fp = fopen (LongFilePath (VtfInfo->CompBinName), "rb");
+  Fp = fopen (VtfInfo->CompBinName, "rb");
 
   if (Fp == NULL) {
     Error (NULL, 0, 0001, "Error opening file", VtfInfo->CompBinName);
@@ -1324,7 +1332,7 @@ Returns:
   FILE        *Fp;
   FIT_TABLE   *PalFitPtr;
 
-  Fp = fopen (LongFilePath (VtfInfo->CompBinName), "rb");
+  Fp = fopen (VtfInfo->CompBinName, "rb");
 
   if (Fp == NULL) {
     Error (NULL, 0, 0001, "Error opening file", VtfInfo->CompBinName);
@@ -1543,7 +1551,7 @@ Returns:
     VtfBuffer = (VOID *) RelativeAddress;
   }
 
-  Fp = fopen (LongFilePath (FileName), "wb");
+  Fp = fopen (FileName, "wb");
   if (Fp == NULL) {
     Error (NULL, 0, 0001, "Error opening file", FileName);
     return EFI_ABORTED;
@@ -1714,7 +1722,7 @@ Returns:
 
 --*/
 {
-  if ((FwVolSize > 0x40) && ((BaseAddress + FwVolSize) % 8 == 0)) {
+  if ((BaseAddress >= 0) && (FwVolSize > 0x40) && ((BaseAddress + FwVolSize) % 8 == 0)) {
     return EFI_SUCCESS;
   }
 
@@ -1755,7 +1763,7 @@ Returns:
     return EFI_INVALID_PARAMETER;
   }
 
-  Fp = fopen (LongFilePath (FileName), "rb");
+  Fp = fopen (FileName, "rb");
 
   if (Fp == NULL) {
     Error (NULL, 0, 0001, "Error opening file", FileName);
@@ -2117,7 +2125,7 @@ Returns:
   }
   *StartAddressPtr = StartAddress;
 
-  Fp = fopen (LongFilePath (OutFileName1), "rb");
+  Fp = fopen (OutFileName1, "rb");
 
   if (Fp == NULL) {
     Error (NULL, 0, 0001, "Error opening file", OutFileName1);
@@ -2175,12 +2183,12 @@ Returns:
 {
   FILE    *SourceFile;
   FILE    *DestFile;
-  CHAR8   Buffer[MAX_LONG_FILE_PATH];
-  CHAR8   Type[MAX_LONG_FILE_PATH];
-  CHAR8   Address[MAX_LONG_FILE_PATH];
-  CHAR8   Section[MAX_LONG_FILE_PATH];
-  CHAR8   Token[MAX_LONG_FILE_PATH];
-  CHAR8   BaseToken[MAX_LONG_FILE_PATH];
+  CHAR8   Buffer[_MAX_PATH];
+  CHAR8   Type[_MAX_PATH];
+  CHAR8   Address[_MAX_PATH];
+  CHAR8   Section[_MAX_PATH];
+  CHAR8   Token[_MAX_PATH];
+  CHAR8   BaseToken[_MAX_PATH];
   UINT64  TokenAddress;
   long    StartLocation;
 
@@ -2194,7 +2202,7 @@ Returns:
   //
   // Open the source file
   //
-  SourceFile = fopen (LongFilePath (SourceFileName), "r");
+  SourceFile = fopen (SourceFileName, "r");
   if (SourceFile == NULL) {
 
     //
@@ -2213,7 +2221,7 @@ Returns:
   //
   // Open the destination file
   //
-  DestFile = fopen (LongFilePath (DestFileName), "a+");
+  DestFile = fopen (DestFileName, "a+");
   if (DestFile == NULL) {
     fclose (SourceFile);
     Error (NULL, 0, 0001, "Error opening file", DestFileName);
@@ -2244,7 +2252,7 @@ Returns:
   //
   // Read the first line
   //
-  if (fgets (Buffer, MAX_LONG_FILE_PATH, SourceFile) == NULL) {
+  if (fgets (Buffer, _MAX_PATH, SourceFile) == NULL) {
     Buffer[0] = 0;
   }
 
@@ -2285,7 +2293,7 @@ Returns:
       TokenAddress += BaseAddress &~IPF_CACHE_BIT;
 
       fprintf (DestFile, "%s | %016llX | ", Type, (unsigned long long) TokenAddress);
-      fprintf (DestFile, "%s | %s\n    %s\n", Section, Token, BaseToken);
+      fprintf (DestFile, "%s | %s\n    %s\n", Section, Token, BaseToken); 
     }
   }
 
@@ -2402,7 +2410,7 @@ Returns:
   //
   // Copyright declaration
   //
-  fprintf (stdout, "Copyright (c) 2007 - 2014, Intel Corporation. All rights reserved.\n\n");
+  fprintf (stdout, "Copyright (c) 2007 - 2010, Intel Corporation. All rights reserved.\n\n");
   //
   // Details Option
   //
@@ -2538,14 +2546,14 @@ Returns:
       // Get the input VTF file name
       //
       VtfFileName = argv[Index+1];
-      VtfFP = fopen (LongFilePath (VtfFileName), "rb");
+      VtfFP = fopen(VtfFileName, "rb");
       if (VtfFP == NULL) {
         Error (NULL, 0, 0001, "Error opening file", VtfFileName);
         goto ERROR;
       }
       continue;
     }
-
+    
     if ((stricmp (argv[Index], "-r") == 0) || (stricmp (argv[Index], "--baseaddr") == 0)) {
       if (FirstRoundB) {
         Status      = AsciiStringToUint64 (argv[Index + 1], FALSE, &StartAddress1);
@@ -2556,7 +2564,7 @@ Returns:
       if (Status != EFI_SUCCESS) {
         Error (NULL, 0, 2000, "Invalid option value", "%s is Bad FV start address.", argv[Index + 1]);
         goto ERROR;
-      }
+      }  
       continue;
     }
 

@@ -1,15 +1,22 @@
 /** @file
-This file contains describes the public interfaces to the GenFvImage Library.
-The basic purpose of the library is to create Firmware Volume images.
 
-Copyright (c) 2004 - 2014, Intel Corporation. All rights reserved.<BR>
-This program and the accompanying materials
-are licensed and made available under the terms and conditions of the BSD License
-which accompanies this distribution.  The full text of the license may be found at
-http://opensource.org/licenses/bsd-license.php
+Copyright (c) 2004 - 2011, Intel Corporation. All rights reserved.<BR>
+This program and the accompanying materials                          
+are licensed and made available under the terms and conditions of the BSD License         
+which accompanies this distribution.  The full text of the license may be found at        
+http://opensource.org/licenses/bsd-license.php                                            
+                                                                                          
+THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,                     
+WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.             
 
-THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,
-WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
+Module Name:
+  
+  GenFvInternalLib.h
+
+Abstract:
+
+  This file contains describes the public interfaces to the GenFvImage Library.
+  The basic purpose of the library is to create Firmware Volume images.
 
 **/
 
@@ -71,11 +78,10 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 #define EFI_BLOCK_SIZE_STRING             "EFI_BLOCK_SIZE"
 #define EFI_GUID_STRING                   "EFI_GUID"
 #define EFI_FV_FILESYSTEMGUID_STRING      "EFI_FV_GUID"
-#define EFI_FV_NAMEGUID_STRING            "EFI_FVNAME_GUID"
+#define EFI_FV_NAMEGUID_STRING            "EFI_FVNAME_GUID" 
 #define EFI_CAPSULE_GUID_STRING           "EFI_CAPSULE_GUID"
 #define EFI_CAPSULE_HEADER_SIZE_STRING    "EFI_CAPSULE_HEADER_SIZE"
 #define EFI_CAPSULE_FLAGS_STRING          "EFI_CAPSULE_FLAGS"
-#define EFI_OEM_CAPSULE_FLAGS_STRING      "EFI_OEM_CAPSULE_FLAGS"
 #define EFI_CAPSULE_VERSION_STRING        "EFI_CAPSULE_VERSION"
 
 #define EFI_FV_TOTAL_SIZE_STRING    "EFI_FV_TOTAL_SIZE"
@@ -105,40 +111,38 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 #define EFI_FVB2_WRITE_LOCK_CAP_STRING     "EFI_WRITE_LOCK_CAP"
 #define EFI_FVB2_WRITE_LOCK_STATUS_STRING  "EFI_WRITE_LOCK_STATUS"
 
-#define EFI_FVB2_ALIGNMENT_1_STRING       "EFI_FVB2_ALIGNMENT_1"
-#define EFI_FVB2_ALIGNMENT_2_STRING       "EFI_FVB2_ALIGNMENT_2"
-#define EFI_FVB2_ALIGNMENT_4_STRING       "EFI_FVB2_ALIGNMENT_4"
-#define EFI_FVB2_ALIGNMENT_8_STRING       "EFI_FVB2_ALIGNMENT_8"
-#define EFI_FVB2_ALIGNMENT_16_STRING      "EFI_FVB2_ALIGNMENT_16"
-#define EFI_FVB2_ALIGNMENT_32_STRING      "EFI_FVB2_ALIGNMENT_32"
-#define EFI_FVB2_ALIGNMENT_64_STRING      "EFI_FVB2_ALIGNMENT_64"
-#define EFI_FVB2_ALIGNMENT_128_STRING     "EFI_FVB2_ALIGNMENT_128"
-#define EFI_FVB2_ALIGNMENT_256_STRING     "EFI_FVB2_ALIGNMENT_256"
-#define EFI_FVB2_ALIGNMENT_512_STRING     "EFI_FVB2_ALIGNMENT_512"
-#define EFI_FVB2_ALIGNMENT_1K_STRING      "EFI_FVB2_ALIGNMENT_1K"
-#define EFI_FVB2_ALIGNMENT_2K_STRING      "EFI_FVB2_ALIGNMENT_2K"
-#define EFI_FVB2_ALIGNMENT_4K_STRING      "EFI_FVB2_ALIGNMENT_4K"
-#define EFI_FVB2_ALIGNMENT_8K_STRING      "EFI_FVB2_ALIGNMENT_8K"
-#define EFI_FVB2_ALIGNMENT_16K_STRING     "EFI_FVB2_ALIGNMENT_16K"
-#define EFI_FVB2_ALIGNMENT_32K_STRING     "EFI_FVB2_ALIGNMENT_32K"
-#define EFI_FVB2_ALIGNMENT_64K_STRING     "EFI_FVB2_ALIGNMENT_64K"
+#define EFI_FVB2_ALIGNMENT_1_STRING       "EFI_FVB2_ALIGNMENT_1"   
+#define EFI_FVB2_ALIGNMENT_2_STRING       "EFI_FVB2_ALIGNMENT_2"   
+#define EFI_FVB2_ALIGNMENT_4_STRING       "EFI_FVB2_ALIGNMENT_4"   
+#define EFI_FVB2_ALIGNMENT_8_STRING       "EFI_FVB2_ALIGNMENT_8"   
+#define EFI_FVB2_ALIGNMENT_16_STRING      "EFI_FVB2_ALIGNMENT_16"  
+#define EFI_FVB2_ALIGNMENT_32_STRING      "EFI_FVB2_ALIGNMENT_32"  
+#define EFI_FVB2_ALIGNMENT_64_STRING      "EFI_FVB2_ALIGNMENT_64"  
+#define EFI_FVB2_ALIGNMENT_128_STRING     "EFI_FVB2_ALIGNMENT_128" 
+#define EFI_FVB2_ALIGNMENT_256_STRING     "EFI_FVB2_ALIGNMENT_256" 
+#define EFI_FVB2_ALIGNMENT_512_STRING     "EFI_FVB2_ALIGNMENT_512" 
+#define EFI_FVB2_ALIGNMENT_1K_STRING      "EFI_FVB2_ALIGNMENT_1K"  
+#define EFI_FVB2_ALIGNMENT_2K_STRING      "EFI_FVB2_ALIGNMENT_2K"  
+#define EFI_FVB2_ALIGNMENT_4K_STRING      "EFI_FVB2_ALIGNMENT_4K"  
+#define EFI_FVB2_ALIGNMENT_8K_STRING      "EFI_FVB2_ALIGNMENT_8K"  
+#define EFI_FVB2_ALIGNMENT_16K_STRING     "EFI_FVB2_ALIGNMENT_16K" 
+#define EFI_FVB2_ALIGNMENT_32K_STRING     "EFI_FVB2_ALIGNMENT_32K" 
+#define EFI_FVB2_ALIGNMENT_64K_STRING     "EFI_FVB2_ALIGNMENT_64K" 
 #define EFI_FVB2_ALIGNMENT_128K_STRING    "EFI_FVB2_ALIGNMENT_128K"
 #define EFI_FVB2_ALIGNMENT_256K_STRING    "EFI_FVB2_ALIGNMENT_256K"
 #define EFI_FVB2_ALIGNMENT_512K_STRING    "EFI_FVB2_ALIGNMENT_512K"
-#define EFI_FVB2_ALIGNMENT_1M_STRING      "EFI_FVB2_ALIGNMENT_1M"
-#define EFI_FVB2_ALIGNMENT_2M_STRING      "EFI_FVB2_ALIGNMENT_2M"
-#define EFI_FVB2_ALIGNMENT_4M_STRING      "EFI_FVB2_ALIGNMENT_4M"
-#define EFI_FVB2_ALIGNMENT_8M_STRING      "EFI_FVB2_ALIGNMENT_8M"
-#define EFI_FVB2_ALIGNMENT_16M_STRING     "EFI_FVB2_ALIGNMENT_16M"
-#define EFI_FVB2_ALIGNMENT_32M_STRING     "EFI_FVB2_ALIGNMENT_32M"
-#define EFI_FVB2_ALIGNMENT_64M_STRING     "EFI_FVB2_ALIGNMENT_64M"
+#define EFI_FVB2_ALIGNMENT_1M_STRING      "EFI_FVB2_ALIGNMENT_1M"  
+#define EFI_FVB2_ALIGNMENT_2M_STRING      "EFI_FVB2_ALIGNMENT_2M"  
+#define EFI_FVB2_ALIGNMENT_4M_STRING      "EFI_FVB2_ALIGNMENT_4M"  
+#define EFI_FVB2_ALIGNMENT_8M_STRING      "EFI_FVB2_ALIGNMENT_8M"  
+#define EFI_FVB2_ALIGNMENT_16M_STRING     "EFI_FVB2_ALIGNMENT_16M" 
+#define EFI_FVB2_ALIGNMENT_32M_STRING     "EFI_FVB2_ALIGNMENT_32M" 
+#define EFI_FVB2_ALIGNMENT_64M_STRING     "EFI_FVB2_ALIGNMENT_64M" 
 #define EFI_FVB2_ALIGNMENT_128M_STRING    "EFI_FVB2_ALIGNMENT_128M"
 #define EFI_FVB2_ALIGNMENT_256M_STRING    "EFI_FVB2_ALIGNMENT_256M"
 #define EFI_FVB2_ALIGNMENT_512M_STRING    "EFI_FVB2_ALIGNMENT_512M"
-#define EFI_FVB2_ALIGNMENT_1G_STRING      "EFI_FVB2_ALIGNMENT_1G"
-#define EFI_FVB2_ALIGNMENT_2G_STRING      "EFI_FVB2_ALIGNMENT_2G"
-
-#define EFI_FV_WEAK_ALIGNMENT_STRING      "EFI_WEAK_ALIGNMENT"
+#define EFI_FVB2_ALIGNMENT_1G_STRING      "EFI_FVB2_ALIGNMENT_1G"  
+#define EFI_FVB2_ALIGNMENT_2G_STRING      "EFI_FVB2_ALIGNMENT_2G"  
 
 //
 // File sections
@@ -161,7 +165,7 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 // VTF (Firmware Volume Top File) signatures
 //
 #define IA32_X64_VTF_SIGNATURE_OFFSET    0x14
-#define IA32_X64_VTF0_SIGNATURE SIGNATURE_32('V','T','F',0)
+#define IA32_X64_VTF0_SIGNATURE EFI_SIGNATURE_32('V','T','F',0)
 
 //
 // Defines to calculate the offset for PEI CORE entry points
@@ -207,7 +211,7 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 //
 typedef struct {
   UINTN Size;
-  CHAR8 ComponentName[MAX_LONG_FILE_PATH];
+  CHAR8 ComponentName[_MAX_PATH];
 } COMPONENT_INFO;
 
 //
@@ -220,12 +224,12 @@ typedef struct {
   BOOLEAN                 FvFileSystemGuidSet;
   EFI_GUID                FvNameGuid;
   BOOLEAN                 FvNameGuidSet;
-  CHAR8                   FvExtHeaderFile[MAX_LONG_FILE_PATH];
+  CHAR8                   FvExtHeaderFile[_MAX_PATH];
   UINTN                   Size;
   EFI_FVB_ATTRIBUTES_2    FvAttributes;
-  CHAR8                   FvName[MAX_LONG_FILE_PATH];
+  CHAR8                   FvName[_MAX_PATH];
   EFI_FV_BLOCK_MAP_ENTRY  FvBlocks[MAX_NUMBER_OF_FV_BLOCKS];
-  CHAR8                   FvFiles[MAX_NUMBER_OF_FILES_IN_FV][MAX_LONG_FILE_PATH];
+  CHAR8                   FvFiles[MAX_NUMBER_OF_FILES_IN_FV][_MAX_PATH];
   UINT32                  SizeofFvFiles[MAX_NUMBER_OF_FILES_IN_FV];
   BOOLEAN                 IsPiFvImage;
   INT8                    ForceRebase;
@@ -235,8 +239,8 @@ typedef struct {
   EFI_GUID                CapGuid;
   UINT32                  HeaderSize;
   UINT32                  Flags;
-  CHAR8                   CapName[MAX_LONG_FILE_PATH];
-  CHAR8                   CapFiles[MAX_NUMBER_OF_FILES_IN_CAP][MAX_LONG_FILE_PATH];
+  CHAR8                   CapName[_MAX_PATH];
+  CHAR8                   CapFiles[MAX_NUMBER_OF_FILES_IN_CAP][_MAX_PATH];
 } CAP_INFO;
 
 #pragma pack(1)
@@ -255,7 +259,6 @@ typedef struct {
 extern FV_INFO    mFvDataInfo;
 extern CAP_INFO   mCapDataInfo;
 extern EFI_GUID   mEfiFirmwareFileSystem2Guid;
-extern EFI_GUID   mEfiFirmwareFileSystem3Guid;
 extern UINT32     mFvTotalSize;
 extern UINT32     mFvTakenSize;
 
@@ -336,7 +339,7 @@ EFI_STATUS
 FindApResetVectorPosition (
   IN  MEMORY_FILE  *FvImage,
   OUT UINT8        **Pointer
-  );
+  ); 
 
 EFI_STATUS
 CalculateFvSize (
@@ -344,9 +347,9 @@ CalculateFvSize (
   );
 
 EFI_STATUS
-FfsRebase (
-  IN OUT  FV_INFO               *FvInfo,
-  IN      CHAR8                 *FileName,
+FfsRebase ( 
+  IN OUT  FV_INFO               *FvInfo, 
+  IN      CHAR8                 *FileName,           
   IN OUT  EFI_FFS_FILE_HEADER   *FfsFile,
   IN      UINTN                 XipOffset,
   IN      FILE                  *FvMapFile
@@ -365,7 +368,7 @@ GenerateCapImage (
 
 Routine Description:
 
-  This is the main function which will be called from application to
+  This is the main function which will be called from application to 
   generate UEFI Capsule image.
 
 Arguments:
@@ -388,14 +391,14 @@ EFI_STATUS
 GenerateFvImage (
   IN CHAR8                *InfFileImage,
   IN UINTN                InfFileSize,
-  IN CHAR8                *FvFileName,
+  IN CHAR8                *FvFileName,  
   IN CHAR8                *MapFileName
   )
 /*++
 
 Routine Description:
 
-  This is the main function which will be called from application to
+  This is the main function which will be called from application to 
   generate Firmware Image conforms to PI spec.
 
 Arguments:
@@ -404,9 +407,9 @@ Arguments:
   InfFileSize    Size of the contents of the InfFileImage buffer.
   FvFileName     Requested name for the FV file.
   MapFileName    Fv map file to log fv driver information.
-
+    
 Returns:
-
+ 
   EFI_SUCCESS             Function completed successfully.
   EFI_OUT_OF_RESOURCES    Could not allocate required resources.
   EFI_ABORTED             Error encountered.

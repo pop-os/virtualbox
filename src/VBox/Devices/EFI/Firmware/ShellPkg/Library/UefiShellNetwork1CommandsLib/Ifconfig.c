@@ -1,8 +1,7 @@
 /** @file
   The implementation for ifcommand shell command.
 
-  Copyright (c) 2013 Hewlett-Packard Development Company, L.P.
-  Copyright (c) 2006 - 2012, Intel Corporation. All rights reserved.<BR>
+  Copyright (c) 2006 - 2011, Intel Corporation. All rights reserved.<BR>
 
   This program and the accompanying materials
   are licensed and made available under the terms and conditions of the BSD License
@@ -87,7 +86,7 @@ CountSubItems (
   Find the NIC_INFO by the specified nic name.
 
   @param[in] Name     The pointer to the string containing the NIC name.
-
+  
   @return The pointer to the NIC_INFO if there is a NIC_INFO named by Name.
   @retval NULL  No NIC_INFO was found for Name.
 **/
@@ -178,7 +177,7 @@ TestChildHandle (
 
   @retval EFI_SUCCESS         Successfully to get child handle.
 **/
-EFI_STATUS
+EFI_STATUS 
 GetChildHandle (
   IN EFI_HANDLE         Controller,
   OUT EFI_HANDLE        *ChildHandle
@@ -208,7 +207,7 @@ GetChildHandle (
   Status = EFI_NOT_FOUND;
 
   for (Index = 0; Index < HandleCount; Index++) {
-
+  
     Status = TestChildHandle (Controller, Handles[Index], &gEfiManagedNetworkServiceBindingProtocolGuid);
     if (!EFI_ERROR (Status)) {
       //
@@ -219,14 +218,14 @@ GetChildHandle (
                      &gEfiDevicePathProtocolGuid,
                      (VOID **) &ChildDeviceDevicePath
                      );
-
+      
       if (!EFI_ERROR (Status)) {
         while (!IsDevicePathEnd (ChildDeviceDevicePath)) {
           ChildDeviceDevicePath = NextDevicePathNode (ChildDeviceDevicePath);
           //
           // Parse one instance
           //
-          if (ChildDeviceDevicePath->Type == HARDWARE_DEVICE_PATH &&
+          if (ChildDeviceDevicePath->Type == HARDWARE_DEVICE_PATH && 
               ChildDeviceDevicePath->SubType == HW_VENDOR_DP) {
             VendorDeviceNode = (VENDOR_DEVICE_PATH *) ChildDeviceDevicePath;
             if (CompareMem (&VendorDeviceNode->Guid, &gEfiNicIp4ConfigVariableGuid, sizeof (EFI_GUID)) == 0) {
@@ -239,12 +238,12 @@ GetChildHandle (
             }
           }
         }
-      }
+      }      
     }
   }
 
   FreePool (Handles);
-  return Status;
+  return Status;  
 }
 
 /**
@@ -271,22 +270,22 @@ AppendOffsetWidthValue (
 
   OriString = String;
 
-  StrnCpy (String, L"&OFFSET=", 9);
+  StrCpy (String, L"&OFFSET=");
   String += StrLen (L"&OFFSET=");
   String += UnicodeSPrint (String, 20, L"%x", Offset);
 
-  StrnCpy (String,L"&WIDTH=", 8);
+  StrCpy (String,L"&WIDTH=");
   String += StrLen (L"&WIDTH=");
   String += UnicodeSPrint (String, 20, L"%x", Width);
 
   if (Block != NULL) {
-    StrnCpy (String,L"&VALUE=", 8);
+    StrCpy (String,L"&VALUE=");
     String += StrLen (L"&VALUE=");
     while ((Width--) != 0) {
       String += UnicodeSPrint (String, 20, L"%x", Block[Width]);
     }
   }
-
+  
   return String - OriString;
 }
 
@@ -296,7 +295,7 @@ AppendOffsetWidthValue (
 
   @param ConfigString  String to be converted
 **/
-CHAR16*
+CHAR16* 
 EFIAPI
 HiiToLower (
   IN CHAR16   *ConfigString
@@ -366,10 +365,10 @@ ConstructConfigHdr (
   ConfigHdr = AllocateZeroPool ((5 + sizeof (EFI_GUID) * 2 + 6 + NameLength * 4 + 6 + DevicePathLength * 2 + 1) * sizeof (CHAR16));
   if (ConfigHdr == NULL) {
     return NULL;
-  }
+  } 
 
   String = ConfigHdr;
-  StrnCpy (String, L"GUID=", 6);
+  StrCpy (String, L"GUID=");
   String += StrLen (L"GUID=");
 
   //
@@ -382,16 +381,16 @@ ConstructConfigHdr (
   //
   // Append L"&NAME="
   //
-  StrnCpy (String, L"&NAME=", 7);
+  StrCpy (String, L"&NAME=");
   String += StrLen (L"&NAME=");
   for (Index = 0; Index < NameLength ; Index++) {
     String += UnicodeSPrint (String, 10, L"00%x", Name[Index]);
   }
-
+  
   //
   // Append L"&PATH="
   //
-  StrnCpy (String, L"&PATH=", 7);
+  StrCpy (String, L"&PATH=");
   String += StrLen (L"&PATH=");
   for (Index = 0, Buffer = (UINT8 *) DevicePath; Index < DevicePathLength; Index++) {
     String += UnicodeSPrint (String, 6, L"%02x", *Buffer++);
@@ -407,13 +406,13 @@ ConstructConfigHdr (
   @param[out] NicAddr       NIC information.
 
   @retval EFI_SUCCESS         Get NIC information successfully.
-**/
+**/                  
 EFI_STATUS
 EFIAPI
 IfConfigGetNicMacInfo (
   IN  EFI_HANDLE                    Handle,
   OUT NIC_ADDR                      *NicAddr
-  )
+  )    
 {
   EFI_STATUS                    Status;
   EFI_HANDLE                    MnpHandle;
@@ -425,7 +424,7 @@ IfConfigGetNicMacInfo (
 
   Status = NetLibCreateServiceChild (
              Handle,
-             gImageHandle,
+             gImageHandle, 
              &gEfiManagedNetworkServiceBindingProtocolGuid,
              &MnpHandle
              );
@@ -446,7 +445,7 @@ IfConfigGetNicMacInfo (
   if (EFI_ERROR (Status) && (Status != EFI_NOT_STARTED)) {
     goto ON_ERROR;
   }
-
+ 
   NicAddr->Type    = (UINT16) SnpMode.IfType;
   NicAddr->Len     = (UINT8) SnpMode.HwAddressSize;
   CopyMem (&NicAddr->MacAddr, &SnpMode.CurrentAddress, NicAddr->Len);
@@ -455,7 +454,7 @@ ON_ERROR:
 
   NetLibDestroyServiceChild (
     Handle,
-    gImageHandle,
+    gImageHandle, 
     &gEfiManagedNetworkServiceBindingProtocolGuid,
     MnpHandle
     );
@@ -469,9 +468,9 @@ ON_ERROR:
 
   @param[in] Handle         The network physical device handle.
   @param[out] MediaPresentSupported
-                            Upon successful return, TRUE is media present
+                            Upon successful return, TRUE is media present 
                             is supported.  FALSE otherwise.
-  @param[out] MediaPresent  Upon successful return, TRUE is media present
+  @param[out] MediaPresent  Upon successful return, TRUE is media present 
                             is enabled.  FALSE otherwise.
 
   @retval EFI_SUCCESS       The operation was successful.
@@ -482,8 +481,8 @@ IfConfigGetNicMediaStatus (
   IN  EFI_HANDLE                    Handle,
   OUT BOOLEAN                       *MediaPresentSupported,
   OUT BOOLEAN                       *MediaPresent
-  )
-
+  )    
+                  
 {
   EFI_STATUS                    Status;
   EFI_HANDLE                    MnpHandle;
@@ -495,7 +494,7 @@ IfConfigGetNicMediaStatus (
 
   Status = NetLibCreateServiceChild (
              Handle,
-             gImageHandle,
+             gImageHandle, 
              &gEfiManagedNetworkServiceBindingProtocolGuid,
              &MnpHandle
              );
@@ -516,7 +515,7 @@ IfConfigGetNicMediaStatus (
   if (EFI_ERROR (Status) && (Status != EFI_NOT_STARTED)) {
     goto ON_ERROR;
   }
-
+ 
   *MediaPresentSupported = SnpMode.MediaPresentSupported;
   *MediaPresent = SnpMode.MediaPresent;
 
@@ -524,7 +523,7 @@ ON_ERROR:
 
   NetLibDestroyServiceChild (
     Handle,
-    gImageHandle,
+    gImageHandle, 
     &gEfiManagedNetworkServiceBindingProtocolGuid,
     MnpHandle
     );
@@ -618,9 +617,9 @@ IfconfigGetAllNicInfoByHii (
       goto ON_ERROR;
     }
     if (ConfigHdr != NULL) {
-      StrnCpy (ConfigResp, ConfigHdr, Length + NIC_ITEM_CONFIG_SIZE * 2 + 100 - 1);
+      StrCpy (ConfigResp, ConfigHdr);
     }
-
+ 
     //
     // Append OFFSET/WIDTH pair
     //
@@ -712,7 +711,7 @@ IfconfigGetAllNicInfoByHii (
   FreePool (Handles);
 
   return EFI_SUCCESS;
-
+ 
 ON_ERROR:
   if (AccessResults != NULL) {
     FreePool (AccessResults);
@@ -791,7 +790,7 @@ IfconfigSetNicAddrByHii (
     goto ON_EXIT;
   }
   if (ConfigHdr != NULL) {
-    StrnCpy (ConfigResp, ConfigHdr, Length + NIC_ITEM_CONFIG_SIZE * 2 + 100 - 1);
+    StrCpy (ConfigResp, ConfigHdr);
   }
 
   NicConfig = AllocateZeroPool (NIC_ITEM_CONFIG_SIZE);
@@ -868,14 +867,14 @@ IfconfigOnArpResolved (
   ASSERT (Request != NULL);
 
   Request->Duplicate = FALSE;
-
+  
   if (0 == CompareMem (&Request->LocalMac, &Request->DestMac, Request->MacLen)) {
     ShellPrintHiiEx(
-      -1,
-      -1,
+      -1, 
+      -1, 
       NULL,
-      STRING_TOKEN (STR_IFCONFIG_SHOW_IP_ADDR),
-      gShellNetwork1HiiHandle,
+      STRING_TOKEN (STR_IFCONFIG_SHOW_IP_ADDR), 
+      gShellNetwork1HiiHandle, 
       L"Already Configured",
       (UINTN)Request->DestIp.v4.Addr[0],
       (UINTN)Request->DestIp.v4.Addr[1],
@@ -885,7 +884,7 @@ IfconfigOnArpResolved (
     ArpResolved = TRUE;
     return;
   }
-
+  
   for (Index = 0; Index < Request->MacLen; Index++) {
     if (Request->DestMac.Addr[Index] != 0) {
       Request->Duplicate = TRUE;
@@ -897,15 +896,15 @@ IfconfigOnArpResolved (
     -1,
     -1,
     NULL,
-    STRING_TOKEN(STR_IFCONFIG_CONF_IP_ADDR),
-    gShellNetwork1HiiHandle,
-    (UINTN)Request->DestMac.Addr[0],
-    (UINTN)Request->DestMac.Addr[1],
+    STRING_TOKEN(STR_IFCONFIG_CONF_IP_ADDR), 
+    gShellNetwork1HiiHandle, 
+    (UINTN)Request->DestMac.Addr[0], 
+    (UINTN)Request->DestMac.Addr[1], 
     (UINTN)Request->DestMac.Addr[2],
-    (UINTN)Request->DestMac.Addr[3],
-    (UINTN)Request->DestMac.Addr[4],
+    (UINTN)Request->DestMac.Addr[3], 
+    (UINTN)Request->DestMac.Addr[4], 
     (UINTN)Request->DestMac.Addr[5]
-    );
+    );    
   }
 
   ArpResolved = TRUE;
@@ -940,7 +939,7 @@ IfconfigIsIpDuplicate (
 
   Status = NetLibCreateServiceChild (
              NicInfo->Handle,
-             gImageHandle,
+             gImageHandle, 
              &gEfiArpServiceBindingProtocolGuid,
              &ArpHandle
              );
@@ -969,7 +968,7 @@ IfconfigIsIpDuplicate (
   EFI_IP4_TO_U32 (Request.LocalIp.v4) = 0xffffffff;
   Request.LocalMac                    = NicInfo->NicAddress.MacAddr;
   Request.MacLen                      = NicInfo->NicAddress.Len;
-
+  
   Status = gBS->CreateEvent (
                  EVT_NOTIFY_SIGNAL,
                  TPL_CALLBACK,
@@ -977,20 +976,20 @@ IfconfigIsIpDuplicate (
                  (VOID *) &Request,
                  &Request.OnResolved
                  );
-
+  
   if (EFI_ERROR (Status)) {
     goto ON_EXIT;
   }
-
+  
   ArpCfgData.SwAddressType    = 0x0800;
   ArpCfgData.SwAddressLength  = 4;
   ArpCfgData.StationAddress   = &Request.LocalIp;
   ArpCfgData.EntryTimeOut     = 0;
   ArpCfgData.RetryCount       = 3;
   ArpCfgData.RetryTimeOut     = 0;
-
+  
   Status = Arp->Configure (Arp, &ArpCfgData);
-
+  
   if (EFI_ERROR (Status)) {
     goto ON_EXIT;
   }
@@ -1001,13 +1000,13 @@ IfconfigIsIpDuplicate (
                   Request.OnResolved,
                   &Request.DestMac
                   );
-
+  
   if (EFI_ERROR (Status) && (Status != EFI_NOT_READY)) {
     goto ON_EXIT;
   }
 
   while (!ArpResolved) {
-
+    
   }
 
 ON_EXIT:
@@ -1016,9 +1015,9 @@ ON_EXIT:
   }
 
   NetLibDestroyServiceChild (
-    NicInfo->Handle,
-    gImageHandle,
-    &gEfiArpServiceBindingProtocolGuid,
+    NicInfo->Handle, 
+    gImageHandle, 
+    &gEfiArpServiceBindingProtocolGuid, 
     ArpHandle
     );
 
@@ -1043,7 +1042,7 @@ TimeoutToGetMap (
 }
 
 /**
-  Create an IP child, use it to start the auto configuration, then destroy it.
+  Create an IP child, use it to start the auto configuration, then destory it.
 
   @param[in] NicInfo    The pointer to the NIC_INFO of the Nic to be configured.
 
@@ -1116,47 +1115,47 @@ IfconfigStartIp4(
     mTimeout = FALSE;
     Status  = gBS->CreateEvent (
                     EVT_NOTIFY_SIGNAL | EVT_TIMER,
-                    TPL_CALLBACK,
+                    TPL_CALLBACK - 1,
                     TimeoutToGetMap,
                     NULL,
                     &TimerToGetMap
                     );
-
+    
     if (EFI_ERROR (Status)) {
       goto ON_EXIT;
     }
-
+    
     Status = gBS->SetTimer (
                    TimerToGetMap,
                    TimerRelative,
                    MultU64x32 (SecondsToNanoSeconds, 5)
                    );
-
+    
     if (EFI_ERROR (Status)) {
       goto ON_EXIT;
     }
 
     ShellPrintHiiEx(-1, -1, NULL,STRING_TOKEN (STR_IFCONFIG_WAIT_SET_DONE), gShellNetwork1HiiHandle);
-
+    
     while (!mTimeout) {
       Ip4->Poll (Ip4);
-
-      if (!EFI_ERROR (Ip4->GetModeData (Ip4, &Ip4Mode, NULL, NULL)) &&
-          Ip4Mode.IsConfigured) {
+  
+      if (!EFI_ERROR (Ip4->GetModeData (Ip4, &Ip4Mode, NULL, NULL)) && 
+          Ip4Mode.IsConfigured) {       
         break;
       }
-    }
+    }    
   }
 
   Status = Ip4->GetModeData (Ip4, &Ip4Mode, NULL, NULL);
 
   if ((Status == EFI_SUCCESS) && Ip4Mode.IsConfigured) {
     ShellPrintHiiEx(
-      -1,
-      -1,
+      -1, 
+      -1, 
       NULL,
-      STRING_TOKEN (STR_IFCONFIG_SHOW_IP_ADDR),
-      gShellNetwork1HiiHandle,
+      STRING_TOKEN (STR_IFCONFIG_SHOW_IP_ADDR), 
+      gShellNetwork1HiiHandle, 
       L"Default",
       (UINTN)Ip4Mode.ConfigData.StationAddress.Addr[0],
       (UINTN)Ip4Mode.ConfigData.StationAddress.Addr[1],
@@ -1164,8 +1163,8 @@ IfconfigStartIp4(
       (UINTN)Ip4Mode.ConfigData.StationAddress.Addr[3]
       );
   }
-
-ON_EXIT:
+  
+ON_EXIT: 
 
   if (EFI_ERROR (Status)) {
     ShellPrintHiiEx(-1, -1, NULL,STRING_TOKEN (STR_IFCONFIG_GET_DEF_ADDR_FAIL), gShellNetwork1HiiHandle);
@@ -1182,7 +1181,7 @@ ON_EXIT:
     &gEfiIp4ServiceBindingProtocolGuid,
     Ip4Handle
     );
-
+  
   return Status;
 }
 
@@ -1247,10 +1246,10 @@ IfconfigSetNicAddr (
 
   DhcpTemp = DhcpString;
   StaticTemp = StaticString;
-
+  
   if (StringNoCaseCompare(&Temp, &DhcpTemp) == 0) {
     //
-    // Validate the parameter for DHCP, two valid forms: eth0 DHCP and eth0 DHCP permanent
+    // Validate the parameter for DHCP, two valid forms: eth0 DHCP and eth0 DHCP perment
     //
     if ((Argc != 2) && (Argc!= 3)) {
       ShellPrintHiiEx(-1, -1, NULL,STRING_TOKEN (STR_GEN_PROBLEM_VAL), gShellNetwork1HiiHandle, Temp);
@@ -1275,7 +1274,7 @@ IfconfigSetNicAddr (
     }
 
     if ((OldConfig != NULL) && (OldConfig->Source == IP4_CONFIG_SOURCE_DHCP) &&
-        (OldConfig->Permanent == Permanent)) {
+        (OldConfig->Perment == Permanent)) {
 
       ShellPrintHiiEx(-1, -1, NULL,STRING_TOKEN (STR_IFCONFIG_INTERFACE_CONFIGURED), gShellNetwork1HiiHandle, Info->Name);
       ShellStatus = SHELL_ALREADY_STARTED;
@@ -1286,7 +1285,7 @@ IfconfigSetNicAddr (
   } else if (StringNoCaseCompare(&Temp, &StaticTemp) == 0) {
     //
     // validate the parameter, two forms: eth0 static IP NETMASK GATEWAY and
-    // eth0 static IP NETMASK GATEWAY permanent
+    // eth0 static IP NETMASK GATEWAY perment
     //
     if ((Argc != 5) && (Argc != 6)) {
       ShellPrintHiiEx(-1, -1, NULL,STRING_TOKEN (STR_GEN_PROBLEM_VAL), gShellNetwork1HiiHandle, Temp);
@@ -1358,7 +1357,7 @@ IfconfigSetNicAddr (
     NetworkBytes1 = NTOHL (Gateway.Addr[0]);
     if (!IP4_NET_EQUAL (Ip.Addr[0], Gateway.Addr[0], Mask.Addr[0]) ||
         !NetIp4IsUnicast (NetworkBytes1, NetworkBytes2)) {
-
+        
       ShellPrintHiiEx(-1, -1, NULL,STRING_TOKEN (STR_IFCONFIG_INVALID_GATEWAY), gShellNetwork1HiiHandle);
       ASSERT(ShellStatus == SHELL_INVALID_PARAMETER);
       goto ON_EXIT;
@@ -1366,7 +1365,7 @@ IfconfigSetNicAddr (
 
     //
     // Set the configuration up, two route table entries are added:
-    // one for the direct connected network, and another for the
+    // one for the direct connected network, and another for the 
     // default gateway. Remember, some structure members are cleared
     // by AllocateZeroPool
     //
@@ -1389,7 +1388,7 @@ IfconfigSetNicAddr (
   }
 
   CopyMem (&Config->NicAddr, &Info->NicAddress, sizeof (NIC_ADDR));
-  Config->Permanent = Permanent;
+  Config->Perment = Permanent;
 
   //
   // Use HII service to set NIC address
@@ -1398,7 +1397,7 @@ IfconfigSetNicAddr (
   if (ShellStatus != SHELL_SUCCESS) {
     ShellPrintHiiEx(-1, -1, NULL,STRING_TOKEN (STR_IFCONFIG_SET_FAIL), gShellNetwork1HiiHandle, ShellStatus^MAX_BIT);
     goto ON_EXIT;
-  }
+  } 
 
   Status = IfconfigStartIp4 (Info);
   if (EFI_ERROR(Status)) {
@@ -1408,17 +1407,17 @@ IfconfigSetNicAddr (
   if (ShellStatus != SHELL_SUCCESS) {
     ShellPrintHiiEx(-1, -1, NULL,STRING_TOKEN (STR_IFCONFIG_IP_CHILD_FAIL), gShellNetwork1HiiHandle, ShellStatus^MAX_BIT);
   }
-
+  
 ON_EXIT:
   SHELL_FREE_NON_NULL(Config);
-
+  
   return ShellStatus;
 }
 
 /**
   Show the address information for the nic specified.
 
-  @param[in] Name   A pointer to the string containg the nic's name, if NULL,
+  @param[in] Name   A pointer to the string containg the nic's name, if NULL, 
                     all nics' information is shown.
 **/
 VOID
@@ -1449,22 +1448,22 @@ IfconfigShowNicInfo (
     -1,
     -1,
     NULL,
-    STRING_TOKEN(STR_IFCONFIG_SHOW_MAC_ADDR),
-    gShellNetwork1HiiHandle,
-    (UINTN)NicInfo->NicAddress.MacAddr.Addr[0],
-    (UINTN)NicInfo->NicAddress.MacAddr.Addr[1],
+    STRING_TOKEN(STR_IFCONFIG_SHOW_MAC_ADDR), 
+    gShellNetwork1HiiHandle, 
+    (UINTN)NicInfo->NicAddress.MacAddr.Addr[0], 
+    (UINTN)NicInfo->NicAddress.MacAddr.Addr[1], 
     (UINTN)NicInfo->NicAddress.MacAddr.Addr[2],
-    (UINTN)NicInfo->NicAddress.MacAddr.Addr[3],
-    (UINTN)NicInfo->NicAddress.MacAddr.Addr[4],
+    (UINTN)NicInfo->NicAddress.MacAddr.Addr[3], 
+    (UINTN)NicInfo->NicAddress.MacAddr.Addr[4], 
     (UINTN)NicInfo->NicAddress.MacAddr.Addr[5]
-    );
+    );    
 
     Print (L"  Media State: %s\n", NicInfo->MediaPresent ? L"Media present" : L"Media disconnected");
 
     if (NicInfo->ConfigInfo == NULL) {
       ShellPrintHiiEx(-1, -1, NULL,STRING_TOKEN (STR_IFCONFIG_NIC_NOT_CONFIGURED), gShellNetwork1HiiHandle);
       continue;
-    }
+    } 
 
     if (NicInfo->ConfigInfo->Source == IP4_CONFIG_SOURCE_DHCP) {
       ShellPrintHiiEx(-1, -1, NULL,STRING_TOKEN (STR_IFCONFIG_CONFIG_SOURCE), gShellNetwork1HiiHandle, L"DHCP");
@@ -1475,19 +1474,19 @@ IfconfigShowNicInfo (
     }
 
     ShellPrintHiiEx(-1, -1, NULL,
-      STRING_TOKEN (STR_IFCONFIG_PERMANENT_STATUS),
+      STRING_TOKEN (STR_IFCONFIG_PERMENT_STATUS),
       gShellNetwork1HiiHandle,
-      (NicInfo->ConfigInfo->Permanent? L"TRUE":L"FALSE")
+      (NicInfo->ConfigInfo->Perment? L"TRUE":L"FALSE")
       );
 
     Ip4Config = &NicInfo->ConfigInfo->Ip4Info;
 
     ShellPrintHiiEx(
-      -1,
-      -1,
+      -1, 
+      -1, 
       NULL,
-      STRING_TOKEN (STR_IFCONFIG_SHOW_IP_ADDR),
-      gShellNetwork1HiiHandle,
+      STRING_TOKEN (STR_IFCONFIG_SHOW_IP_ADDR), 
+      gShellNetwork1HiiHandle, 
       L"IP address",
       (UINTN)Ip4Config->StationAddress.Addr[0],
       (UINTN)Ip4Config->StationAddress.Addr[1],
@@ -1495,11 +1494,11 @@ IfconfigShowNicInfo (
       (UINTN)Ip4Config->StationAddress.Addr[3]
       );
     ShellPrintHiiEx(
-      -1,
-      -1,
+      -1, 
+      -1, 
       NULL,
-      STRING_TOKEN (STR_IFCONFIG_SHOW_IP_ADDR),
-      gShellNetwork1HiiHandle,
+      STRING_TOKEN (STR_IFCONFIG_SHOW_IP_ADDR), 
+      gShellNetwork1HiiHandle, 
       L"Mask",
       (UINTN)Ip4Config->SubnetMask.Addr[0],
       (UINTN)Ip4Config->SubnetMask.Addr[1],
@@ -1508,20 +1507,20 @@ IfconfigShowNicInfo (
       );
 
     ZeroMem (&Gateway, sizeof (EFI_IPv4_ADDRESS));
-
+    
     for (Index = 0; Index < Ip4Config->RouteTableSize; Index++) {
       if ((CompareMem (&Ip4Config->RouteTable[Index].SubnetAddress, &mZeroIp4Addr, sizeof (EFI_IPv4_ADDRESS)) == 0) &&
           (CompareMem (&Ip4Config->RouteTable[Index].SubnetMask   , &mZeroIp4Addr, sizeof (EFI_IPv4_ADDRESS)) == 0) ){
         CopyMem (&Gateway, &Ip4Config->RouteTable[Index].GatewayAddress, sizeof (EFI_IPv4_ADDRESS));
       }
     }
-
+   
     ShellPrintHiiEx(
-      -1,
-      -1,
+      -1, 
+      -1, 
       NULL,
-      STRING_TOKEN (STR_IFCONFIG_SHOW_IP_ADDR),
-      gShellNetwork1HiiHandle,
+      STRING_TOKEN (STR_IFCONFIG_SHOW_IP_ADDR), 
+      gShellNetwork1HiiHandle, 
       L"Gateway",
       (UINTN)Gateway.Addr[0],
       (UINTN)Gateway.Addr[1],
@@ -1535,11 +1534,11 @@ IfconfigShowNicInfo (
       ShellPrintHiiEx(-1, -1, NULL,STRING_TOKEN (STR_IFCONFIG_ROUTES_ENTRY_INDEX), gShellNetwork1HiiHandle, Index);
 
       ShellPrintHiiEx(
-        -1,
-        -1,
+        -1, 
+        -1, 
         NULL,
-        STRING_TOKEN (STR_IFCONFIG_SHOW_IP_ADDR),
-        gShellNetwork1HiiHandle,
+        STRING_TOKEN (STR_IFCONFIG_SHOW_IP_ADDR), 
+        gShellNetwork1HiiHandle, 
         L"Subnet",
         (UINTN)Ip4Config->RouteTable[Index].SubnetAddress.Addr[0],
         (UINTN)Ip4Config->RouteTable[Index].SubnetAddress.Addr[1],
@@ -1548,11 +1547,11 @@ IfconfigShowNicInfo (
         );
 
       ShellPrintHiiEx(
-        -1,
-        -1,
+        -1, 
+        -1, 
         NULL,
-        STRING_TOKEN (STR_IFCONFIG_SHOW_IP_ADDR),
-        gShellNetwork1HiiHandle,
+        STRING_TOKEN (STR_IFCONFIG_SHOW_IP_ADDR), 
+        gShellNetwork1HiiHandle, 
         L"Netmask",
         (UINTN)Ip4Config->RouteTable[Index].SubnetMask.Addr[0],
         (UINTN)Ip4Config->RouteTable[Index].SubnetMask.Addr[1],
@@ -1561,11 +1560,11 @@ IfconfigShowNicInfo (
         );
 
       ShellPrintHiiEx(
-        -1,
-        -1,
+        -1, 
+        -1, 
         NULL,
-        STRING_TOKEN (STR_IFCONFIG_SHOW_IP_ADDR),
-        gShellNetwork1HiiHandle,
+        STRING_TOKEN (STR_IFCONFIG_SHOW_IP_ADDR), 
+        gShellNetwork1HiiHandle, 
         L"Gateway",
         (UINTN)Ip4Config->RouteTable[Index].GatewayAddress.Addr[0],
         (UINTN)Ip4Config->RouteTable[Index].GatewayAddress.Addr[1],
@@ -1581,7 +1580,7 @@ IfconfigShowNicInfo (
 /**
   Clear address configuration for the nic specified.
 
-  @param[in] Name     A pointer to the string containg the nic's name,
+  @param[in] Name     A pointer to the string containg the nic's name, 
                       if NULL, all nics address configurations are cleared.
 
   @retval EFI_SUCCESS The address configuration is cleared.
@@ -1597,7 +1596,7 @@ IfconfigClearNicAddr (
   LIST_ENTRY                    *NextEntry;
   NIC_INFO                      *Info;
   EFI_STATUS                    Status;
-
+  
   NET_LIST_FOR_EACH_SAFE (Entry, NextEntry, &NicInfoList) {
     Info = BASE_CR (Entry, NIC_INFO, Link);
 
@@ -1605,7 +1604,7 @@ IfconfigClearNicAddr (
       continue;
     }
 
-//    if (Info->NicIp4Config == NULL) {
+//    if (Info->NicIp4Config == NULL) { 
       Status = IfconfigSetNicAddrByHii (Info, NULL);
 //    } else {
 //      Status = Info->NicIp4Config->SetInfo (Info->NicIp4Config, NULL, TRUE);
@@ -1617,7 +1616,7 @@ IfconfigClearNicAddr (
   }
 
   return EFI_SUCCESS;
-
+  
 }
 
 /**
@@ -1686,8 +1685,8 @@ ShellCommandRunIfconfig (
     ShellStatus = SHELL_INVALID_PARAMETER;
     goto Done;
   }
-
-
+    
+    
   Status = IfconfigGetAllNicInfoByHii ();
   if (EFI_ERROR (Status)) {
     if (mIp4ConfigExist) {
@@ -1706,8 +1705,8 @@ ShellCommandRunIfconfig (
       ShellPrintHiiEx(-1, -1, NULL, STRING_TOKEN (STR_GEN_PROBLEM_VAL), gShellNetwork1HiiHandle, L"-l");
       ShellStatus = SHELL_INVALID_PARAMETER;
       goto Done;
-    }
-
+    } 
+    
     //
     // Show the configuration.
     //
@@ -1717,8 +1716,8 @@ ShellCommandRunIfconfig (
 
     //
     // The correct command line arguments for setting address are:
-    // IfConfig -s eth0 DHCP [permanent]
-    // IfConfig -s eth0 static ip netmask gateway [permanent]
+    // IfConfig -s eth0 DHCP [perment]
+    // IfConfig -s eth0 static ip netmask gateway [perment]
     //
     if (Item == NULL || (CountSubItems(Item) < 2) || (CountSubItems(Item) > 6) || (CountSubItems(Item) == 4)) {
       ShellPrintHiiEx(-1, -1, NULL,STRING_TOKEN (STR_GEN_PROBLEM_VAL), gShellNetwork1HiiHandle, L"-s");

@@ -138,9 +138,8 @@ RTDECL(RTCPUID) RTMpGetMaxCpuId(void)
 RTDECL(bool) RTMpIsCpuOnline(RTCPUID idCpu)
 {
     /** @todo check if there is a simpler interface than this... */
-    int64_t i = 0;
-    int rc = RTLinuxSysFsReadIntFile(0, &i, "devices/system/cpu/cpu%d/online", (int)idCpu);
-    if (    RT_FAILURE(rc)
+    int i = RTLinuxSysFsReadIntFile(0, "devices/system/cpu/cpu%d/online", (int)idCpu);
+    if (    i == -1
         &&  RTLinuxSysFsExists("devices/system/cpu/cpu%d", (int)idCpu))
     {
         /** @todo Assert(!RTLinuxSysFsExists("devices/system/cpu/cpu%d/online",
@@ -148,11 +147,10 @@ RTDECL(bool) RTMpIsCpuOnline(RTCPUID idCpu)
          * Unfortunately, the online file wasn't always world readable (centos
          * 2.6.18-164). */
         i = 1;
-        rc = VINF_SUCCESS;
     }
 
     AssertMsg(i == 0 || i == -1 || i == 1, ("i=%d\n", i));
-    return RT_SUCCESS(rc) && i != 0;
+    return i != 0 && i != -1;
 }
 
 
@@ -192,27 +190,18 @@ RTDECL(RTCPUID) RTMpGetCoreCount(void)
     {
         if (RTMpIsCpuPossible(idCpu))
         {
-            int64_t idCore = 0;
-            int64_t idPckg = 0;
-
-            int rc = RTLinuxSysFsReadIntFile(0, &idCore, "devices/system/cpu/cpu%d/topology/core_id", (int)idCpu);
-            if (RT_SUCCESS(rc))
-                rc = RTLinuxSysFsReadIntFile(0, &idPckg, "devices/system/cpu/cpu%d/topology/physical_package_id", (int)idCpu);
-
-            if (RT_SUCCESS(rc))
+            uint32_t idCore = (uint32_t)RTLinuxSysFsReadIntFile(0, "devices/system/cpu/cpu%d/topology/core_id", (int)idCpu);
+            uint32_t idPckg = (uint32_t)RTLinuxSysFsReadIntFile(0, "devices/system/cpu/cpu%d/topology/physical_package_id", (int)idCpu);
+            uint32_t i;
+            for (i = 0; i < cCores; i++)
+                if (   paidCores[i] == idCore
+                    && paidPckgs[i] == idPckg)
+                    break;
+            if (i >= cCores)
             {
-                uint32_t i;
-
-                for (i = 0; i < cCores; i++)
-                    if (   paidCores[i] == (uint32_t)idCore
-                        && paidPckgs[i] == (uint32_t)idPckg)
-                        break;
-                if (i >= cCores)
-                {
-                    paidCores[cCores] = (uint32_t)idCore;
-                    paidPckgs[cCores] = (uint32_t)idPckg;
-                    cCores++;
-                }
+                paidCores[cCores] = idCore;
+                paidPckgs[cCores] = idPckg;
+                cCores++;
             }
         }
     }
@@ -250,27 +239,18 @@ RTDECL(RTCPUID) RTMpGetOnlineCoreCount(void)
     {
         if (RTMpIsCpuOnline(idCpu))
         {
-            int64_t idCore = 0;
-            int64_t idPckg = 0;
-
-            int rc = RTLinuxSysFsReadIntFile(0, &idCore, "devices/system/cpu/cpu%d/topology/core_id", (int)idCpu);
-            if (RT_SUCCESS(rc))
-                rc = RTLinuxSysFsReadIntFile(0, &idPckg, "devices/system/cpu/cpu%d/topology/physical_package_id", (int)idCpu);
-
-            if (RT_SUCCESS(rc))
+            uint32_t idCore = (uint32_t)RTLinuxSysFsReadIntFile(0, "devices/system/cpu/cpu%d/topology/core_id", (int)idCpu);
+            uint32_t idPckg = (uint32_t)RTLinuxSysFsReadIntFile(0, "devices/system/cpu/cpu%d/topology/physical_package_id", (int)idCpu);
+            uint32_t i;
+            for (i = 0; i < cCores; i++)
+                if (   paidCores[i] == idCore
+                    && paidPckgs[i] == idPckg)
+                    break;
+            if (i >= cCores)
             {
-                uint32_t i;
-
-                for (i = 0; i < cCores; i++)
-                    if (   paidCores[i] == idCore
-                        && paidPckgs[i] == idPckg)
-                        break;
-                if (i >= cCores)
-                {
-                    paidCores[cCores] = idCore;
-                    paidPckgs[cCores] = idPckg;
-                    cCores++;
-                }
+                paidCores[cCores] = idCore;
+                paidPckgs[cCores] = idPckg;
+                cCores++;
             }
         }
     }
@@ -282,9 +262,8 @@ RTDECL(RTCPUID) RTMpGetOnlineCoreCount(void)
 
 RTDECL(uint32_t) RTMpGetCurFrequency(RTCPUID idCpu)
 {
-    int64_t kHz = 0;
-    int rc = RTLinuxSysFsReadIntFile(0, &kHz, "devices/system/cpu/cpu%d/cpufreq/cpuinfo_cur_freq", (int)idCpu);
-    if (RT_FAILURE(rc))
+    int64_t kHz = RTLinuxSysFsReadIntFile(0, "devices/system/cpu/cpu%d/cpufreq/cpuinfo_cur_freq", (int)idCpu);
+    if (kHz == -1)
     {
         /*
          * The file may be just unreadable - in that case use plan B, i.e.
@@ -301,9 +280,8 @@ RTDECL(uint32_t) RTMpGetCurFrequency(RTCPUID idCpu)
 
 RTDECL(uint32_t) RTMpGetMaxFrequency(RTCPUID idCpu)
 {
-    int64_t kHz = 0;
-    int rc = RTLinuxSysFsReadIntFile(0, &kHz, "devices/system/cpu/cpu%d/cpufreq/cpuinfo_max_freq", (int)idCpu);
-    if (RT_FAILURE(rc))
+    int64_t kHz = RTLinuxSysFsReadIntFile(0, "devices/system/cpu/cpu%d/cpufreq/cpuinfo_max_freq", (int)idCpu);
+    if (kHz == -1)
     {
         /*
          * Check if the file isn't there - if it is there, then /proc/cpuinfo

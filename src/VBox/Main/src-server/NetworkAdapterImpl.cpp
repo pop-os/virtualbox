@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -64,13 +64,13 @@ void NetworkAdapter::FinalRelease()
  *
  *  @param aParent  Handle of the parent object.
  */
-HRESULT NetworkAdapter::init(Machine *aParent, ULONG uSlot)
+HRESULT NetworkAdapter::init(Machine *aParent, ULONG aSlot)
 {
-    LogFlowThisFunc(("aParent=%p, uSlot=%d\n", aParent, uSlot));
+    LogFlowThisFunc(("aParent=%p, aSlot=%d\n", aParent, aSlot));
 
     ComAssertRet(aParent, E_INVALIDARG);
     uint32_t maxNetworkAdapters = Global::getMaxNetworkAdapters(aParent->i_getChipsetType());
-    ComAssertRet(uSlot < maxNetworkAdapters, E_INVALIDARG);
+    ComAssertRet(aSlot < maxNetworkAdapters, E_INVALIDARG);
 
     /* Enclose the state transition NotReady->InInit->Ready */
     AutoInitSpan autoInitSpan(this);
@@ -84,10 +84,15 @@ HRESULT NetworkAdapter::init(Machine *aParent, ULONG uSlot)
     mData.allocate();
 
     /* initialize data */
-    mData->ulSlot = uSlot;
+    mData->mSlot = aSlot;
 
     /* default to Am79C973 */
-    mData->type = NetworkAdapterType_Am79C973;
+    mData->mAdapterType = NetworkAdapterType_Am79C973;
+
+    /* generate the MAC address early to guarantee it is the same both after
+     * changing some other property (i.e. after mData.backup()) and after the
+     * subsequent mData.rollback(). */
+    i_generateMACAddress();
 
     /* Confirm a successful initialization */
     autoInitSpan.setSucceeded();
@@ -213,7 +218,7 @@ HRESULT NetworkAdapter::getAdapterType(NetworkAdapterType_T *aAdapterType)
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    *aAdapterType = mData->type;
+    *aAdapterType = mData->mAdapterType;
 
     return S_OK;
 }
@@ -246,10 +251,10 @@ HRESULT NetworkAdapter::setAdapterType(NetworkAdapterType_T aAdapterType)
                             aAdapterType);
     }
 
-    if (mData->type != aAdapterType)
+    if (mData->mAdapterType != aAdapterType)
     {
         mData.backup();
-        mData->type = aAdapterType;
+        mData->mAdapterType = aAdapterType;
 
         // leave the lock before informing callbacks
         alock.release();
@@ -267,11 +272,11 @@ HRESULT NetworkAdapter::setAdapterType(NetworkAdapterType_T aAdapterType)
 }
 
 
-HRESULT NetworkAdapter::getSlot(ULONG *uSlot)
+HRESULT NetworkAdapter::getSlot(ULONG *aSlot)
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    *uSlot = mData->ulSlot;
+    *aSlot = mData->mSlot;
 
     return S_OK;
 }
@@ -280,7 +285,7 @@ HRESULT NetworkAdapter::getEnabled(BOOL *aEnabled)
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    *aEnabled = mData->fEnabled;
+    *aEnabled = mData->mEnabled;
 
     return S_OK;
 }
@@ -293,12 +298,10 @@ HRESULT NetworkAdapter::setEnabled(BOOL aEnabled)
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    if (mData->fEnabled != RT_BOOL(aEnabled))
+    if (mData->mEnabled != aEnabled)
     {
         mData.backup();
-        mData->fEnabled = RT_BOOL(aEnabled);
-        if (RT_BOOL(aEnabled) && mData->strMACAddress.isEmpty())
-            i_generateMACAddress();
+        mData->mEnabled = aEnabled;
 
         // leave the lock before informing callbacks
         alock.release();
@@ -319,9 +322,9 @@ HRESULT NetworkAdapter::getMACAddress(com::Utf8Str &aMACAddress)
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    ComAssertRet(!mData->fEnabled || !mData->strMACAddress.isEmpty(), E_FAIL);
+    ComAssertRet(!mData->mMACAddress.isEmpty(), E_FAIL);
 
-    aMACAddress = mData->strMACAddress;
+    aMACAddress = mData->mMACAddress;
 
     return S_OK;
 }
@@ -333,47 +336,44 @@ HRESULT NetworkAdapter::i_updateMacAddress(Utf8Str aMACAddress)
     /*
      * Are we supposed to generate a MAC?
      */
-    if (mData->fEnabled && aMACAddress.isEmpty())
+    if (aMACAddress.isEmpty())
         i_generateMACAddress();
     else
     {
-        if (mData->strMACAddress != aMACAddress)
+        if (mData->mMACAddress != aMACAddress)
         {
-            if (mData->fEnabled || !aMACAddress.isEmpty())
+            /*
+             * Verify given MAC address
+             */
+            char *macAddressStr = aMACAddress.mutableRaw();
+            int i = 0;
+            while ((i < 13) && macAddressStr && *macAddressStr && (rc == S_OK))
             {
-                /*
-                 * Verify given MAC address
-                 */
-                char *macAddressStr = aMACAddress.mutableRaw();
-                int i = 0;
-                while ((i < 13) && macAddressStr && *macAddressStr && (rc == S_OK))
+                char c = *macAddressStr;
+                /* canonicalize hex digits to capital letters */
+                if (c >= 'a' && c <= 'f')
                 {
-                    char c = *macAddressStr;
-                    /* canonicalize hex digits to capital letters */
-                    if (c >= 'a' && c <= 'f')
-                    {
-                        /** @todo the runtime lacks an ascii lower/upper conv */
-                        c &= 0xdf;
-                        *macAddressStr = c;
-                    }
-                    /* we only accept capital letters */
-                    if (((c < '0') || (c > '9')) &&
-                        ((c < 'A') || (c > 'F')))
-                        rc = setError(E_INVALIDARG, tr("Invalid MAC address format"));
-                    /* the second digit must have even value for unicast addresses */
-                    if ((i == 1) && (!!(c & 1) == (c >= '0' && c <= '9')))
-                        rc = setError(E_INVALIDARG, tr("Invalid MAC address format"));
-
-                    macAddressStr++;
-                    i++;
+                    /** @todo the runtime lacks an ascii lower/upper conv */
+                    c &= 0xdf;
+                    *macAddressStr = c;
                 }
-                /* we must have parsed exactly 12 characters */
-                if (i != 12)
+                /* we only accept capital letters */
+                if (((c < '0') || (c > '9')) &&
+                    ((c < 'A') || (c > 'F')))
                     rc = setError(E_INVALIDARG, tr("Invalid MAC address format"));
+                /* the second digit must have even value for unicast addresses */
+                if ((i == 1) && (!!(c & 1) == (c >= '0' && c <= '9')))
+                    rc = setError(E_INVALIDARG, tr("Invalid MAC address format"));
+
+                macAddressStr++;
+                i++;
             }
+            /* we must have parsed exactly 12 characters */
+            if (i != 12)
+                rc = setError(E_INVALIDARG, tr("Invalid MAC address format"));
 
             if (SUCCEEDED(rc))
-                mData->strMACAddress = aMACAddress;
+                mData->mMACAddress = aMACAddress;
         }
     }
 
@@ -411,7 +411,7 @@ HRESULT NetworkAdapter::getAttachmentType(NetworkAttachmentType_T *aAttachmentTy
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    *aAttachmentType = mData->mode;
+    *aAttachmentType = mData->mAttachmentType;
 
     return S_OK;
 }
@@ -424,26 +424,26 @@ HRESULT NetworkAdapter::setAttachmentType(NetworkAttachmentType_T aAttachmentTyp
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    if (mData->mode != aAttachmentType)
+    if (mData->mAttachmentType != aAttachmentType)
     {
         mData.backup();
 
         /* there must an internal network name */
-        if (mData->strInternalNetworkName.isEmpty())
+        if (mData->mInternalNetwork.isEmpty())
         {
             Log(("Internal network name not defined, setting to default \"intnet\"\n"));
-            mData->strInternalNetworkName = "intnet";
+            mData->mInternalNetwork = "intnet";
         }
 
         /* there must a NAT network name */
-        if (mData->strNATNetworkName.isEmpty())
+        if (mData->mNATNetwork.isEmpty())
         {
             Log(("NAT network name not defined, setting to default \"NatNetwork\"\n"));
-            mData->strNATNetworkName = "NatNetwork";
+            mData->mNATNetwork = "NatNetwork";
         }
 
-        NetworkAttachmentType_T oldAttachmentType = mData->mode;
-        mData->mode = aAttachmentType;
+        NetworkAttachmentType_T oldAttachmentType = mData->mAttachmentType;
+        mData->mAttachmentType = aAttachmentType;
 
         // leave the lock before informing callbacks
         alock.release();
@@ -453,10 +453,10 @@ HRESULT NetworkAdapter::setAttachmentType(NetworkAttachmentType_T aAttachmentTyp
         mlock.release();
 
         if (oldAttachmentType == NetworkAttachmentType_NATNetwork)
-            i_checkAndSwitchFromNatNetworking(mData->strNATNetworkName);
+            i_checkAndSwitchFromNatNetworking(mData->mNATNetwork);
 
         if (aAttachmentType == NetworkAttachmentType_NATNetwork)
-            i_switchToNatNetworking(mData->strNATNetworkName);
+            i_switchToNatNetworking(mData->mNATNetwork);
 
         /* Adapt the CFGM logic and notify the guest => changeAdapter=TRUE. */
         mParent->i_onNetworkAdapterChange(this, TRUE);
@@ -469,7 +469,7 @@ HRESULT NetworkAdapter::getBridgedInterface(com::Utf8Str &aBridgedInterface)
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    aBridgedInterface = mData->strBridgedName;
+    aBridgedInterface = mData->mBridgedInterface;
 
     return S_OK;
 }
@@ -482,19 +482,19 @@ HRESULT NetworkAdapter::setBridgedInterface(const com::Utf8Str &aBridgedInterfac
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    if (mData->strBridgedName != aBridgedInterface)
+    if (mData->mBridgedInterface != aBridgedInterface)
     {
         /* if an empty/null string is to be set, bridged interface must be
          * turned off */
         if (aBridgedInterface.isEmpty()
-            && mData->mode == NetworkAttachmentType_Bridged)
+            && mData->mAttachmentType == NetworkAttachmentType_Bridged)
         {
             return setError(E_FAIL,
                             tr("Empty or null bridged interface name is not valid"));
         }
 
         mData.backup();
-        mData->strBridgedName = aBridgedInterface;
+        mData->mBridgedInterface = aBridgedInterface;
 
         // leave the lock before informing callbacks
         alock.release();
@@ -516,7 +516,7 @@ HRESULT NetworkAdapter::getHostOnlyInterface(com::Utf8Str &aHostOnlyInterface)
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    aHostOnlyInterface = mData->strHostOnlyName;
+    aHostOnlyInterface = mData->mHostOnlyInterface;
 
     return S_OK;
 }
@@ -529,19 +529,19 @@ HRESULT NetworkAdapter::setHostOnlyInterface(const com::Utf8Str &aHostOnlyInterf
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    if (mData->strHostOnlyName != aHostOnlyInterface)
+    if (mData->mHostOnlyInterface != aHostOnlyInterface)
     {
         /* if an empty/null string is to be set, host only interface must be
          * turned off */
         if ( aHostOnlyInterface.isEmpty()
-             && mData->mode == NetworkAttachmentType_HostOnly)
+             && mData->mAttachmentType == NetworkAttachmentType_HostOnly)
         {
             return setError(E_FAIL,
                             tr("Empty or null host only interface name is not valid"));
         }
 
         mData.backup();
-        mData->strHostOnlyName = aHostOnlyInterface;
+        mData->mHostOnlyInterface = aHostOnlyInterface;
 
         // leave the lock before informing callbacks
         alock.release();
@@ -564,7 +564,7 @@ HRESULT NetworkAdapter::getInternalNetwork(com::Utf8Str &aInternalNetwork)
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    aInternalNetwork = mData->strInternalNetworkName;
+    aInternalNetwork = mData->mInternalNetwork;
 
     return S_OK;
 }
@@ -577,17 +577,17 @@ HRESULT NetworkAdapter::setInternalNetwork(const com::Utf8Str &aInternalNetwork)
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    if (mData->strInternalNetworkName != aInternalNetwork)
+    if (mData->mInternalNetwork != aInternalNetwork)
     {
         /* if an empty/null string is to be set, internal networking must be
          * turned off */
-        if (aInternalNetwork.isEmpty() && mData->mode == NetworkAttachmentType_Internal)
+        if (aInternalNetwork.isEmpty() && mData->mAttachmentType == NetworkAttachmentType_Internal)
         {
             return setError(E_FAIL,
                             tr("Empty or null internal network name is not valid"));
         }
         mData.backup();
-        mData->strInternalNetworkName = aInternalNetwork;
+        mData->mInternalNetwork = aInternalNetwork;
 
         // leave the lock before informing callbacks
         alock.release();
@@ -609,7 +609,7 @@ HRESULT NetworkAdapter::getNATNetwork(com::Utf8Str &aNATNetwork)
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    aNATNetwork = mData->strNATNetworkName;
+    aNATNetwork = mData->mNATNetwork;
 
     return S_OK;
 }
@@ -623,19 +623,19 @@ HRESULT NetworkAdapter::setNATNetwork(const com::Utf8Str &aNATNetwork)
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    if (mData->strNATNetworkName != aNATNetwork)
+    if (mData->mNATNetwork != aNATNetwork)
     {
         /* if an empty/null string is to be set, host only interface must be
          * turned off */
         if (aNATNetwork.isEmpty()
-            && mData->mode == NetworkAttachmentType_NATNetwork)
+            && mData->mAttachmentType == NetworkAttachmentType_NATNetwork)
             return setError(E_FAIL,
                             tr("Empty or null NAT network name is not valid"));
 
         mData.backup();
 
-        Bstr oldNatNetworkName = mData->strNATNetworkName;
-        mData->strNATNetworkName = aNATNetwork;
+        Bstr oldNatNetworkName = mData->mNATNetwork;
+        mData->mNATNetwork = aNATNetwork;
 
         // leave the lock before informing callbacks
         alock.release();
@@ -659,7 +659,7 @@ HRESULT NetworkAdapter::getGenericDriver(com::Utf8Str &aGenericDriver)
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    aGenericDriver = mData->strGenericDriver;
+    aGenericDriver = mData->mGenericDriver;
 
     return S_OK;
 }
@@ -672,10 +672,10 @@ HRESULT NetworkAdapter::setGenericDriver(const com::Utf8Str &aGenericDriver)
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    if (mData->strGenericDriver != aGenericDriver)
+    if (mData->mGenericDriver != aGenericDriver)
     {
         mData.backup();
-        mData->strGenericDriver = aGenericDriver;
+        mData->mGenericDriver = aGenericDriver;
 
         /* leave the lock before informing callbacks */
         alock.release();
@@ -691,7 +691,7 @@ HRESULT NetworkAdapter::getCableConnected(BOOL *aConnected)
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    *aConnected = mData->fCableConnected;
+    *aConnected = mData->mCableConnected;
 
     return S_OK;
 }
@@ -705,10 +705,10 @@ HRESULT NetworkAdapter::setCableConnected(BOOL aConnected)
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    if (RT_BOOL(aConnected) != mData->fCableConnected)
+    if (aConnected != mData->mCableConnected)
     {
         mData.backup();
-        mData->fCableConnected = RT_BOOL(aConnected);
+        mData->mCableConnected = aConnected;
 
         // leave the lock before informing callbacks
         alock.release();
@@ -729,7 +729,7 @@ HRESULT NetworkAdapter::getLineSpeed(ULONG *aSpeed)
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    *aSpeed = mData->ulLineSpeed;
+    *aSpeed = mData->mLineSpeed;
 
     return S_OK;
 }
@@ -742,10 +742,10 @@ HRESULT NetworkAdapter::setLineSpeed(ULONG aSpeed)
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    if (aSpeed != mData->ulLineSpeed)
+    if (aSpeed != mData->mLineSpeed)
     {
         mData.backup();
-        mData->ulLineSpeed = aSpeed;
+        mData->mLineSpeed = aSpeed;
 
         // leave the lock before informing callbacks
         alock.release();
@@ -765,7 +765,7 @@ HRESULT NetworkAdapter::getPromiscModePolicy(NetworkAdapterPromiscModePolicy_T *
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    *aPromiscModePolicy = mData->enmPromiscModePolicy;
+    *aPromiscModePolicy = mData->mPromiscModePolicy;
 
     return S_OK;
 }
@@ -792,10 +792,10 @@ HRESULT NetworkAdapter::setPromiscModePolicy(NetworkAdapterPromiscModePolicy_T a
     if (SUCCEEDED(hrc))
     {
         AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-        if (aPromiscModePolicy != mData->enmPromiscModePolicy)
+        if (aPromiscModePolicy != mData->mPromiscModePolicy)
         {
             mData.backup();
-            mData->enmPromiscModePolicy = aPromiscModePolicy;
+            mData->mPromiscModePolicy = aPromiscModePolicy;
 
             alock.release();
             mParent->i_setModifiedLock(Machine::IsModified_NetworkAdapters);
@@ -812,7 +812,7 @@ HRESULT NetworkAdapter::getTraceEnabled(BOOL *aEnabled)
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    *aEnabled = mData->fTraceEnabled;
+    *aEnabled = mData->mTraceEnabled;
 
     return S_OK;
 }
@@ -825,10 +825,10 @@ HRESULT NetworkAdapter::setTraceEnabled(BOOL aEnabled)
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    if (RT_BOOL(aEnabled) != mData->fTraceEnabled)
+    if (aEnabled != mData->mTraceEnabled)
     {
         mData.backup();
-        mData->fTraceEnabled = RT_BOOL(aEnabled);
+        mData->mTraceEnabled = aEnabled;
 
         // leave the lock before informing callbacks
         alock.release();
@@ -848,7 +848,7 @@ HRESULT NetworkAdapter::getTraceFile(com::Utf8Str &aTraceFile)
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    aTraceFile = mData->strTraceFile;
+    aTraceFile = mData->mTraceFile;
 
     return S_OK;
 }
@@ -862,10 +862,10 @@ HRESULT NetworkAdapter::setTraceFile(const com::Utf8Str &aTraceFile)
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    if (mData->strTraceFile != aTraceFile)
+    if (mData->mTraceFile != aTraceFile)
     {
         mData.backup();
-        mData->strTraceFile = aTraceFile;
+        mData->mTraceFile = aTraceFile;
 
         // leave the lock before informing callbacks
         alock.release();
@@ -894,7 +894,7 @@ HRESULT NetworkAdapter::getBootPriority(ULONG *aBootPriority)
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    *aBootPriority = mData->ulBootPriority;
+    *aBootPriority = mData->mBootPriority;
 
     return S_OK;
 }
@@ -907,10 +907,10 @@ HRESULT NetworkAdapter::setBootPriority(ULONG aBootPriority)
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    if (aBootPriority != mData->ulBootPriority)
+    if (aBootPriority != mData->mBootPriority)
     {
         mData.backup();
-        mData->ulBootPriority = aBootPriority;
+        mData->mBootPriority = aBootPriority;
 
         // leave the lock before informing callbacks
         alock.release();
@@ -933,8 +933,8 @@ HRESULT NetworkAdapter::getProperty(const com::Utf8Str &aKey, com::Utf8Str &aVal
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
     aValue = "";
-    settings::StringsMap::const_iterator it = mData->genericProperties.find(aKey);
-    if (it != mData->genericProperties.end())
+    settings::StringsMap::const_iterator it = mData->mGenericProperties.find(aKey);
+    if (it != mData->mGenericProperties.end())
         aValue = it->second; // source is a Utf8Str
 
     return S_OK;
@@ -947,21 +947,21 @@ HRESULT NetworkAdapter::setProperty(const com::Utf8Str &aKey, const com::Utf8Str
     AutoMutableOrSavedOrRunningStateDependency adep(mParent);
     if (FAILED(adep.rc())) return adep.rc();
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-    bool fGenericChange = (mData->mode == NetworkAttachmentType_Generic);
+    bool fGenericChange = (mData->mAttachmentType == NetworkAttachmentType_Generic);
     /* Generic properties processing.
      * Look up the old value first; if nothing's changed then do nothing.
      */
     Utf8Str strOldValue;
-    settings::StringsMap::const_iterator it = mData->genericProperties.find(aKey);
-    if (it != mData->genericProperties.end())
+    settings::StringsMap::const_iterator it = mData->mGenericProperties.find(aKey);
+    if (it != mData->mGenericProperties.end())
         strOldValue = it->second;
 
     if (strOldValue != aValue)
     {
         if (aValue.isEmpty())
-            mData->genericProperties.erase(aKey);
+            mData->mGenericProperties.erase(aKey);
         else
-            mData->genericProperties[aKey] = aValue;
+            mData->mGenericProperties[aKey] = aValue;
 
         /* leave the lock before informing callbacks */
         alock.release();
@@ -988,13 +988,13 @@ HRESULT NetworkAdapter::getProperties(const com::Utf8Str &aNames,
 
     /// @todo make use of aNames according to the documentation
     NOREF(aNames);
-    aReturnNames.resize(mData->genericProperties.size());
-    aReturnValues.resize(mData->genericProperties.size());
+    aReturnNames.resize(mData->mGenericProperties.size());
+    aReturnValues.resize(mData->mGenericProperties.size());
 
     size_t i = 0;
 
-    for (settings::StringsMap::const_iterator it = mData->genericProperties.begin();
-         it != mData->genericProperties.end();
+    for (settings::StringsMap::const_iterator it = mData->mGenericProperties.begin();
+         it != mData->mGenericProperties.end();
          ++it, ++i)
     {
         aReturnNames[i] = it->first;
@@ -1038,13 +1038,24 @@ HRESULT NetworkAdapter::i_loadSettings(BandwidthControl *bwctl,
 
     HRESULT rc = S_OK;
 
+    mData->mAdapterType = data.type;
+    mData->mEnabled = data.fEnabled;
     /* MAC address (can be null) */
     rc = i_updateMacAddress(data.strMACAddress);
     if (FAILED(rc)) return rc;
-
-    mData.assignCopy(&data);
-
-    if (mData->strBandwidthGroup.isNotEmpty())
+    /* cable (required) */
+    mData->mCableConnected = data.fCableConnected;
+    /* line speed (defaults to 100 Mbps) */
+    mData->mLineSpeed = data.ulLineSpeed;
+    mData->mPromiscModePolicy = data.enmPromiscModePolicy;
+    /* tracing (defaults to false) */
+    mData->mTraceEnabled = data.fTraceEnabled;
+    mData->mTraceFile = data.strTraceFile;
+    /* boot priority (defaults to 0, i.e. lowest) */
+    mData->mBootPriority = data.ulBootPriority;
+    /* bandwidth group */
+    mData->mBandwidthGroup = data.strBandwidthGroup;
+    if (mData->mBandwidthGroup.isNotEmpty())
     {
         ComObjPtr<BandwidthGroup> group;
         rc = bwctl->i_getBandwidthGroupByName(data.strBandwidthGroup, group, true);
@@ -1052,8 +1063,13 @@ HRESULT NetworkAdapter::i_loadSettings(BandwidthControl *bwctl,
         group->i_reference();
     }
 
-    // Load NAT engine settings.
     mNATEngine->i_loadSettings(data.nat);
+    mData->mBridgedInterface = data.strBridgedName;
+    mData->mInternalNetwork = data.strInternalNetworkName;
+    mData->mHostOnlyInterface = data.strHostOnlyName;
+    mData->mGenericDriver = data.strGenericDriver;
+    mData->mGenericProperties = data.genericProperties;
+    mData->mNATNetwork = data.strNATNetworkName;
 
     // leave the lock before setting attachment type
     alock.release();
@@ -1080,9 +1096,37 @@ HRESULT NetworkAdapter::i_saveSettings(settings::NetworkAdapter &data)
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    data = *mData.data();
+    data.fEnabled = !!mData->mEnabled;
+    data.strMACAddress = mData->mMACAddress;
+    data.fCableConnected = !!mData->mCableConnected;
+
+    data.enmPromiscModePolicy = mData->mPromiscModePolicy;
+    data.ulLineSpeed = mData->mLineSpeed;
+
+    data.fTraceEnabled = !!mData->mTraceEnabled;
+
+    data.strTraceFile = mData->mTraceFile;
+
+    data.ulBootPriority = mData->mBootPriority;
+
+    data.strBandwidthGroup = mData->mBandwidthGroup;
+
+    data.type = mData->mAdapterType;
+
+    data.mode = mData->mAttachmentType;
 
     mNATEngine->i_saveSettings(data.nat);
+
+    data.strBridgedName = mData->mBridgedInterface;
+
+    data.strHostOnlyName = mData->mHostOnlyInterface;
+
+    data.strInternalNetworkName = mData->mInternalNetwork;
+
+    data.strGenericDriver = mData->mGenericDriver;
+    data.genericProperties = mData->mGenericProperties;
+
+    data.strNATNetworkName = mData->mNATNetwork;
 
     return S_OK;
 }
@@ -1096,7 +1140,7 @@ bool NetworkAdapter::i_isModified() {
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     bool fChanged = mData.isBackedUp();
-    fChanged |= (mData->type == NetworkAttachmentType_NAT? mNATEngine->i_isModified() : false);
+    fChanged |= (mData->mAdapterType == NetworkAttachmentType_NAT? mNATEngine->i_isModified() : false);
     return fChanged;
 }
 
@@ -1172,7 +1216,6 @@ void NetworkAdapter::i_copyFrom(NetworkAdapter *aThat)
 
     /* this will back up current data */
     mData.assignCopy(aThat->mData);
-
 }
 
 void NetworkAdapter::i_applyDefaults(GuestOSType *aOsType)
@@ -1197,19 +1240,17 @@ void NetworkAdapter::i_applyDefaults(GuestOSType *aOsType)
         defaultType == NetworkAdapterType_I82543GC ||
         defaultType == NetworkAdapterType_I82545EM)
     {
-        if (e1000enabled) mData->type = defaultType;
+        if (e1000enabled) mData->mAdapterType = defaultType;
     }
-    else mData->type = defaultType;
+    else mData->mAdapterType = defaultType;
 
-    /* Enable the first one adapter to the NAT */
-    if (mData->ulSlot == 0)
+    /* Enable and connect the first one adapter to the NAT */
+    if (mData->mSlot == 0)
     {
-        mData->fEnabled = true;
-        if (mData->strMACAddress.isEmpty())
-            i_generateMACAddress();
-        mData->mode = NetworkAttachmentType_NAT;
+        mData->mEnabled = true;
+        mData->mAttachmentType = NetworkAttachmentType_NAT;
+        mData->mCableConnected = true;
     }
-    mData->fCableConnected = true;
 }
 
 ComObjPtr<NetworkAdapter> NetworkAdapter::i_getPeer()
@@ -1233,7 +1274,7 @@ void NetworkAdapter::i_generateMACAddress()
     Utf8Str mac;
     Host::i_generateMACAddress(mac);
     LogFlowThisFunc(("generated MAC: '%s'\n", mac.c_str()));
-    mData->strMACAddress = mac;
+    mData->mMACAddress = mac;
 }
 
 HRESULT NetworkAdapter::getBandwidthGroup(ComPtr<IBandwidthGroup> &aBandwidthGroup)
@@ -1244,10 +1285,10 @@ HRESULT NetworkAdapter::getBandwidthGroup(ComPtr<IBandwidthGroup> &aBandwidthGro
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    if (mData->strBandwidthGroup.isNotEmpty())
+    if (mData->mBandwidthGroup.isNotEmpty())
     {
         ComObjPtr<BandwidthGroup> pBwGroup;
-        hrc = mParent->i_getBandwidthGroup(mData->strBandwidthGroup, pBwGroup, true /* fSetError */);
+        hrc = mParent->i_getBandwidthGroup(mData->mBandwidthGroup, pBwGroup, true /* fSetError */);
 
         Assert(SUCCEEDED(hrc)); /* This is not allowed to fail because the existence
                                  * of the group was checked when it was attached. */
@@ -1274,7 +1315,7 @@ HRESULT NetworkAdapter::setBandwidthGroup(const ComPtr<IBandwidthGroup> &aBandwi
     if (aBandwidthGroup)
         strBwGroup = static_cast<BandwidthGroup *>(iBw)->i_getName();
 
-    if (mData->strBandwidthGroup != strBwGroup)
+    if (mData->mBandwidthGroup != strBwGroup)
     {
         ComObjPtr<BandwidthGroup> pBwGroup;
         if (!strBwGroup.isEmpty())
@@ -1308,9 +1349,9 @@ void NetworkAdapter::i_updateBandwidthGroup(BandwidthGroup *aBwGroup)
     Assert(isWriteLockOnCurrentThread());
 
     ComObjPtr<BandwidthGroup> pOldBwGroup;
-    if (!mData->strBandwidthGroup.isEmpty())
+    if (!mData->mBandwidthGroup.isEmpty())
         {
-            HRESULT hrc = mParent->i_getBandwidthGroup(mData->strBandwidthGroup, pOldBwGroup, false /* fSetError */);
+            HRESULT hrc = mParent->i_getBandwidthGroup(mData->mBandwidthGroup, pOldBwGroup, false /* fSetError */);
             NOREF(hrc);
             Assert(SUCCEEDED(hrc)); /* This is not allowed to fail because the existence of
                                        the group was checked when it was attached. */
@@ -1320,12 +1361,12 @@ void NetworkAdapter::i_updateBandwidthGroup(BandwidthGroup *aBwGroup)
     if (!pOldBwGroup.isNull())
     {
         pOldBwGroup->i_release();
-        mData->strBandwidthGroup = Utf8Str::Empty;
+        mData->mBandwidthGroup = Utf8Str::Empty;
     }
 
     if (aBwGroup)
     {
-        mData->strBandwidthGroup = aBwGroup->i_getName();
+        mData->mBandwidthGroup = aBwGroup->i_getName();
         aBwGroup->i_reference();
     }
 

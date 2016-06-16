@@ -36,10 +36,10 @@
 ASM_GLOBAL ASM_PFX(InternalMemSetMem64)
 ASM_PFX(InternalMemSetMem64):
     movd      %r8, %mm0                 #Value
-    movq      %rcx, %rax                #rax <- Buffer
+    movw      %rcx, %rax                #rax <- Buffer
     xchg      %rdx, %rcx                #rcx <- Count
 L0:
-    movntq  %mm0, (%rdx)
+    movntq  %mm0, (%rdx) 
     addq    $8, %rdx
     loop    L0
     mfence

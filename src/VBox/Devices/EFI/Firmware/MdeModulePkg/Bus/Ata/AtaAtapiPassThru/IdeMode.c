@@ -1,7 +1,7 @@
 /** @file
   Header file for AHCI mode of ATA host controller.
 
-  Copyright (c) 2010 - 2014, Intel Corporation. All rights reserved.<BR>
+  Copyright (c) 2010 - 2011, Intel Corporation. All rights reserved.<BR>
   This program and the accompanying materials
   are licensed and made available under the terms and conditions of the BSD License
   which accompanies this distribution.  The full text of the license may be found at
@@ -353,20 +353,13 @@ DRQClear (
   IN  UINT64                    Timeout
   )
 {
-  UINT64  Delay;
+  UINT32  Delay;
   UINT8   StatusRegister;
-  BOOLEAN InfiniteWait;
 
   ASSERT (PciIo != NULL);
   ASSERT (IdeRegisters != NULL);
 
-  if (Timeout == 0) {
-    InfiniteWait = TRUE;
-  } else {
-    InfiniteWait = FALSE;
-  }
-
-  Delay = DivU64x32(Timeout, 1000) + 1;
+  Delay = (UINT32) (DivU64x32(Timeout, 1000) + 1);
   do {
     StatusRegister = IdeReadPortB (PciIo, IdeRegisters->CmdOrStatus);
 
@@ -388,7 +381,7 @@ DRQClear (
 
     Delay--;
 
-  } while (InfiniteWait || (Delay > 0));
+  } while (Delay > 0);
 
   return EFI_TIMEOUT;
 }
@@ -416,20 +409,13 @@ DRQClear2 (
   IN  UINT64               Timeout
   )
 {
-  UINT64  Delay;
+  UINT32  Delay;
   UINT8   AltRegister;
-  BOOLEAN InfiniteWait;
 
   ASSERT (PciIo != NULL);
   ASSERT (IdeRegisters != NULL);
 
-  if (Timeout == 0) {
-    InfiniteWait = TRUE;
-  } else {
-    InfiniteWait = FALSE;
-  }
-
-  Delay = DivU64x32(Timeout, 1000) + 1;
+  Delay = (UINT32) (DivU64x32(Timeout, 1000) + 1);
   do {
     AltRegister = IdeReadPortB (PciIo, IdeRegisters->AltOrDev);
 
@@ -451,7 +437,7 @@ DRQClear2 (
 
     Delay--;
 
-  } while (InfiniteWait || (Delay > 0));
+  } while (Delay > 0);
 
   return EFI_TIMEOUT;
 }
@@ -482,21 +468,14 @@ DRQReady (
   IN  UINT64               Timeout
   )
 {
-  UINT64  Delay;
+  UINT32  Delay;
   UINT8   StatusRegister;
   UINT8   ErrorRegister;
-  BOOLEAN InfiniteWait;
 
   ASSERT (PciIo != NULL);
   ASSERT (IdeRegisters != NULL);
 
-  if (Timeout == 0) {
-    InfiniteWait = TRUE;
-  } else {
-    InfiniteWait = FALSE;
-  }
-
-  Delay = DivU64x32(Timeout, 1000) + 1;
+  Delay = (UINT32) (DivU64x32(Timeout, 1000) + 1);
   do {
     //
     // Read Status Register will clear interrupt
@@ -529,7 +508,7 @@ DRQReady (
     MicroSecondDelay (100);
 
     Delay--;
-  } while (InfiniteWait || (Delay > 0));
+  } while (Delay > 0);
 
   return EFI_TIMEOUT;
 }
@@ -556,21 +535,14 @@ DRQReady2 (
   IN  UINT64               Timeout
   )
 {
-  UINT64  Delay;
+  UINT32  Delay;
   UINT8   AltRegister;
   UINT8   ErrorRegister;
-  BOOLEAN InfiniteWait;
 
   ASSERT (PciIo != NULL);
   ASSERT (IdeRegisters != NULL);
 
-  if (Timeout == 0) {
-    InfiniteWait = TRUE;
-  } else {
-    InfiniteWait = FALSE;
-  }
-
-  Delay = DivU64x32(Timeout, 1000) + 1;
+  Delay = (UINT32) (DivU64x32(Timeout, 1000) + 1);
 
   do {
     //
@@ -603,7 +575,7 @@ DRQReady2 (
     MicroSecondDelay (100);
 
     Delay--;
-  } while (InfiniteWait || (Delay > 0));
+  } while (Delay > 0);
 
   return EFI_TIMEOUT;
 }
@@ -630,21 +602,14 @@ DRDYReady (
   IN  UINT64               Timeout
   )
 {
-  UINT64  Delay;
+  UINT32  Delay;
   UINT8   StatusRegister;
   UINT8   ErrorRegister;
-  BOOLEAN InfiniteWait;
 
   ASSERT (PciIo != NULL);
   ASSERT (IdeRegisters != NULL);
 
-  if (Timeout == 0) {
-    InfiniteWait = TRUE;
-  } else {
-    InfiniteWait = FALSE;
-  }
-
-  Delay = DivU64x32(Timeout, 1000) + 1;
+  Delay = (UINT32) (DivU64x32(Timeout, 1000) + 1);
   do {
     StatusRegister = IdeReadPortB (PciIo, IdeRegisters->CmdOrStatus);
     //
@@ -673,7 +638,7 @@ DRDYReady (
     MicroSecondDelay (100);
 
     Delay--;
-  } while (InfiniteWait || (Delay > 0));
+  } while (Delay > 0);
 
   return EFI_TIMEOUT;
 }
@@ -701,21 +666,14 @@ DRDYReady2 (
   IN  UINT64               Timeout
   )
 {
-  UINT64  Delay;
+  UINT32  Delay;
   UINT8   AltRegister;
   UINT8   ErrorRegister;
-  BOOLEAN InfiniteWait;
 
   ASSERT (PciIo != NULL);
   ASSERT (IdeRegisters != NULL);
 
-  if (Timeout == 0) {
-    InfiniteWait = TRUE;
-  } else {
-    InfiniteWait = FALSE;
-  }
-
-  Delay = DivU64x32(Timeout, 1000) + 1;
+  Delay = (UINT32) (DivU64x32(Timeout, 1000) + 1);
   do {
     AltRegister = IdeReadPortB (PciIo, IdeRegisters->AltOrDev);
     //
@@ -744,7 +702,7 @@ DRDYReady2 (
     MicroSecondDelay (100);
 
     Delay--;
-  } while (InfiniteWait || (Delay > 0));
+  } while (Delay > 0);
 
   return EFI_TIMEOUT;
 }
@@ -770,20 +728,13 @@ WaitForBSYClear (
   IN  UINT64               Timeout
   )
 {
-  UINT64  Delay;
+  UINT32  Delay;
   UINT8   StatusRegister;
-  BOOLEAN InfiniteWait;
 
   ASSERT (PciIo != NULL);
   ASSERT (IdeRegisters != NULL);
 
-  if (Timeout == 0) {
-    InfiniteWait = TRUE;
-  } else {
-    InfiniteWait = FALSE;
-  }
-
-  Delay = DivU64x32(Timeout, 1000) + 1;
+  Delay = (UINT32) (DivU64x32(Timeout, 1000) + 1);
   do {
     StatusRegister = IdeReadPortB (PciIo, IdeRegisters->CmdOrStatus);
 
@@ -798,7 +749,7 @@ WaitForBSYClear (
 
     Delay--;
 
-  } while (InfiniteWait || (Delay > 0));
+  } while (Delay > 0);
 
   return EFI_TIMEOUT;
 }
@@ -824,20 +775,13 @@ WaitForBSYClear2 (
   IN  UINT64               Timeout
   )
 {
-  UINT64  Delay;
+  UINT32  Delay;
   UINT8   AltStatusRegister;
-  BOOLEAN InfiniteWait;
 
   ASSERT (PciIo != NULL);
   ASSERT (IdeRegisters != NULL);
 
-  if (Timeout == 0) {
-    InfiniteWait = TRUE;
-  } else {
-    InfiniteWait = FALSE;
-  }
-
-  Delay = DivU64x32(Timeout, 1000) + 1;
+  Delay = (UINT32) (DivU64x32(Timeout, 1000) + 1);
   do {
     AltStatusRegister = IdeReadPortB (PciIo, IdeRegisters->AltOrDev);
 
@@ -852,7 +796,7 @@ WaitForBSYClear2 (
 
     Delay--;
 
-  } while (InfiniteWait || (Delay > 0));
+  } while (Delay > 0);
 
   return EFI_TIMEOUT;
 }
@@ -1368,7 +1312,6 @@ Exit:
 
   @param[in]  PciIo           The PCI IO protocol instance.
   @param[in]  IdeRegisters    A pointer to EFI_IDE_REGISTERS data structure.
-  @param[in]  Timeout         The time to complete the command, uses 100ns as a unit.
 
   @retval EFI_DEVICE_ERROR  The memory is not set.
   @retval EFI_TIMEOUT       The memory setting is time out.
@@ -1377,26 +1320,18 @@ Exit:
 **/
 EFI_STATUS
 AtaUdmStatusWait (
-  IN  EFI_PCI_IO_PROTOCOL       *PciIo,
-  IN  EFI_IDE_REGISTERS         *IdeRegisters,
-  IN  UINT64                    Timeout
+  IN     EFI_PCI_IO_PROTOCOL       *PciIo,
+  IN     EFI_IDE_REGISTERS         *IdeRegisters
  )
 {
   UINT8                         RegisterValue;
   EFI_STATUS                    Status;
   UINT16                        IoPortForBmis;
-  UINT64                        Delay;
-  BOOLEAN                       InfiniteWait;
+  UINT64                        Timeout;
 
-  if (Timeout == 0) {
-    InfiniteWait = TRUE;
-  } else {
-    InfiniteWait = FALSE;
-  }
+  Timeout = 2000;
 
-  Delay = DivU64x32 (Timeout, 1000) + 1;
-
-  do {
+  while (TRUE) {
     Status = CheckStatusRegister (PciIo, IdeRegisters);
     if (EFI_ERROR (Status)) {
       Status = EFI_DEVICE_ERROR;
@@ -1416,11 +1351,11 @@ AtaUdmStatusWait (
       break;
     }
     //
-    // Stall for 100 microseconds.
+    // Stall for 1 milliseconds.
     //
-    MicroSecondDelay (100);
-    Delay--;
-  } while (InfiniteWait || (Delay > 0));
+    MicroSecondDelay (1000);
+    Timeout--;
+  }
 
   return Status;
 }
@@ -1469,7 +1404,7 @@ AtaUdmStatusCheck (
     return EFI_SUCCESS;
   }
 
-  if (!Task->InfiniteWait && (Task->RetryTimes == 0)) {
+  if (Task->RetryTimes == 0) {
     return EFI_TIMEOUT;
   } else {
     //
@@ -1729,6 +1664,12 @@ AtaUdmaInOut (
     IdeWritePortB (PciIo, IoPortForBmic, RegisterValue);
 
     if (Task != NULL) {
+      //
+      // Max transfer number of sectors for one command is 65536(32Mbyte),
+      // it will cost 1 second to transfer these data in UDMA mode 2(33.3MBps).
+      // So set the variable Count to 2000, for about 2 second Timeout time.
+      //
+      Task->RetryTimes     = 2000;
       Task->Map            = BufferMap;
       Task->TableMap       = PrdTableMap;
       Task->MapBaseAddress = PrdBaseAddr;
@@ -1762,11 +1703,14 @@ AtaUdmaInOut (
 
   //
   // Check the INTERRUPT and ERROR bit of BMIS
+  // Max transfer number of sectors for one command is 65536(32Mbyte),
+  // it will cost 1 second to transfer these data in UDMA mode 2(33.3MBps).
+  // So set the variable Count to 2000, for about 2 second Timeout time.
   //
   if (Task != NULL) {
     Status = AtaUdmStatusCheck (PciIo, Task, IdeRegisters);
   } else {
-    Status = AtaUdmStatusWait (PciIo, IdeRegisters, Timeout);
+    Status = AtaUdmStatusWait (PciIo, IdeRegisters);
   }
 
   //
@@ -1998,6 +1942,56 @@ AtaPacketReadWrite (
 }
 
 /**
+  Sumbit ATAPI request sense command.
+
+  @param[in] PciIo           Pointer to the EFI_PCI_IO_PROTOCOL instance
+  @param[in] IdeRegisters    Pointer to EFI_IDE_REGISTERS which is used to
+                             store the IDE i/o port registers' base addresses
+  @param[in] Channel         The channel number of device.
+  @param[in] Device          The device number of device.
+  @param[in] SenseData       A pointer to store sense data.
+  @param[in] SenseDataLength The sense data length.
+  @param[in] Timeout         The timeout value to execute this cmd, uses 100ns as a unit.
+
+  @retval EFI_SUCCESS        Send out the ATAPI packet command successfully.
+  @retval EFI_DEVICE_ERROR   The device failed to send data.
+
+**/
+EFI_STATUS
+EFIAPI
+AtaPacketRequestSense (
+  IN  EFI_PCI_IO_PROTOCOL               *PciIo,
+  IN  EFI_IDE_REGISTERS                 *IdeRegisters,
+  IN  UINT8                             Channel,
+  IN  UINT8                             Device,
+  IN  VOID                              *SenseData,
+  IN  UINT8                             SenseDataLength,
+  IN  UINT64                            Timeout
+  )
+{
+  EFI_EXT_SCSI_PASS_THRU_SCSI_REQUEST_PACKET  Packet;
+  UINT8                                       Cdb[12];
+  EFI_STATUS                                  Status;
+
+  ZeroMem (&Packet, sizeof (EFI_EXT_SCSI_PASS_THRU_SCSI_REQUEST_PACKET));
+  ZeroMem (Cdb, 12);
+
+  Cdb[0] = ATA_CMD_REQUEST_SENSE;
+  Cdb[4] = SenseDataLength;
+
+  Packet.Timeout          = Timeout;
+  Packet.Cdb              = Cdb;
+  Packet.CdbLength        = 12;
+  Packet.DataDirection    = EFI_EXT_SCSI_DATA_DIRECTION_READ;
+  Packet.InDataBuffer     = SenseData;
+  Packet.InTransferLength = SenseDataLength;
+
+  Status = AtaPacketCommandExecute (PciIo, IdeRegisters, Channel, Device, &Packet);
+
+  return Status;
+}
+
+/**
   This function is used to send out ATAPI commands conforms to the Packet Command
   with PIO Data In Protocol.
 
@@ -2023,6 +2017,7 @@ AtaPacketCommandExecute (
   IN  EFI_EXT_SCSI_PASS_THRU_SCSI_REQUEST_PACKET    *Packet
   )
 {
+  EFI_STATUS                  PacketCommandStatus;
   EFI_ATA_COMMAND_BLOCK       AtaCommandBlock;
   EFI_STATUS                  Status;
   UINT8                       Count;
@@ -2088,26 +2083,56 @@ AtaPacketCommandExecute (
   // Read/Write the data of ATAPI Command
   //
   if (Packet->DataDirection == EFI_EXT_SCSI_DATA_DIRECTION_READ) {
-    Status = AtaPacketReadWrite (
-               PciIo,
-               IdeRegisters,
-               Packet->InDataBuffer,
-               Packet->InTransferLength,
-               TRUE,
-               Packet->Timeout
-               );
+    PacketCommandStatus = AtaPacketReadWrite (
+                            PciIo,
+                            IdeRegisters,
+                            Packet->InDataBuffer,
+                            Packet->InTransferLength,
+                            TRUE,
+                            Packet->Timeout
+                            );
   } else {
-    Status = AtaPacketReadWrite (
-               PciIo,
-               IdeRegisters,
-               Packet->OutDataBuffer,
-               Packet->OutTransferLength,
-               FALSE,
-               Packet->Timeout
-               );
+    PacketCommandStatus = AtaPacketReadWrite (
+                            PciIo,
+                            IdeRegisters,
+                            Packet->OutDataBuffer,
+                            Packet->OutTransferLength,
+                            FALSE,
+                            Packet->Timeout
+                            );
   }
 
-  return Status;
+  if (!EFI_ERROR (PacketCommandStatus)) {
+    return PacketCommandStatus;
+  }
+
+  //
+  // Return SenseData if PacketCommandStatus matches
+  // the following return codes.
+  //
+  if ((PacketCommandStatus == EFI_BAD_BUFFER_SIZE) ||
+      (PacketCommandStatus == EFI_DEVICE_ERROR) ||
+      (PacketCommandStatus == EFI_TIMEOUT)) {
+
+    //
+    // avoid submit request sense command continuously.
+    //
+    if ((Packet->SenseData == NULL) || (((UINT8 *)Packet->Cdb)[0] == ATA_CMD_REQUEST_SENSE)) {
+      return PacketCommandStatus;
+    }
+
+    AtaPacketRequestSense (
+      PciIo,
+      IdeRegisters,
+      Channel,
+      Device,
+      Packet->SenseData,
+      Packet->SenseDataLength,
+      Packet->Timeout
+      );
+  }
+
+  return PacketCommandStatus;
 }
 
 
@@ -2271,17 +2296,8 @@ IdeAtaSmartReturnStatusCheck (
              );
 
   if (EFI_ERROR (Status)) {
-    REPORT_STATUS_CODE (
-      EFI_ERROR_CODE | EFI_ERROR_MINOR,
-      (EFI_IO_BUS_ATA_ATAPI | EFI_IOB_ATA_BUS_SMART_DISABLED)
-      );
     return EFI_DEVICE_ERROR;
   }
-
-  REPORT_STATUS_CODE (
-    EFI_PROGRESS_CODE,
-    (EFI_IO_BUS_ATA_ATAPI | EFI_IOB_ATA_BUS_SMART_ENABLE)
-    );
 
   LBAMid  = IdeReadPortB (Instance->PciIo, Instance->IdeRegisters[Channel].CylinderLsb);
   LBAHigh = IdeReadPortB (Instance->PciIo, Instance->IdeRegisters[Channel].CylinderMsb);
@@ -2291,19 +2307,12 @@ IdeAtaSmartReturnStatusCheck (
     // The threshold exceeded condition is not detected by the device
     //
     DEBUG ((EFI_D_INFO, "The S.M.A.R.T threshold exceeded condition is not detected\n"));
-    REPORT_STATUS_CODE (
-          EFI_PROGRESS_CODE,
-          (EFI_IO_BUS_ATA_ATAPI | EFI_IOB_ATA_BUS_SMART_UNDERTHRESHOLD)
-          );
+
   } else if ((LBAMid == 0xf4) && (LBAHigh == 0x2c)) {
     //
     // The threshold exceeded condition is detected by the device
     //
     DEBUG ((EFI_D_INFO, "The S.M.A.R.T threshold exceeded condition is detected\n"));
-    REPORT_STATUS_CODE (
-         EFI_PROGRESS_CODE,
-         (EFI_IO_BUS_ATA_ATAPI | EFI_IOB_ATA_BUS_SMART_OVERTHRESHOLD)
-         );
   }
 
   return EFI_SUCCESS;
@@ -2341,20 +2350,11 @@ IdeAtaSmartSupport (
     //
     DEBUG ((EFI_D_INFO, "S.M.A.R.T feature is not supported at [%a] channel [%a] device!\n",
             (Channel == 1) ? "secondary" : "primary", (Device == 1) ? "slave" : "master"));
-    REPORT_STATUS_CODE (
-      EFI_ERROR_CODE | EFI_ERROR_MINOR,
-      (EFI_IO_BUS_ATA_ATAPI | EFI_IOB_ATA_BUS_SMART_NOTSUPPORTED)
-      );
   } else {
     //
     // Check if the feature is enabled. If not, then enable S.M.A.R.T.
     //
     if ((IdentifyData->AtaData.command_set_feature_enb_85 & 0x0001) != 0x0001) {
-
-      REPORT_STATUS_CODE (
-        EFI_PROGRESS_CODE,
-        (EFI_IO_BUS_ATA_ATAPI | EFI_IOB_ATA_BUS_SMART_DISABLE)
-        );
 
       ZeroMem (&AtaCommandBlock, sizeof (EFI_ATA_COMMAND_BLOCK));
 
@@ -2667,7 +2667,7 @@ DetectAndConfigIdeDevice (
     //
     // If the device is a hard disk, then try to enable S.M.A.R.T feature
     //
-    if ((DeviceType == EfiIdeHarddisk) && PcdGetBool (PcdAtaSmartEnable)) {
+    if (DeviceType == EfiIdeHarddisk) {
       IdeAtaSmartSupport (
         Instance,
         IdeChannel,

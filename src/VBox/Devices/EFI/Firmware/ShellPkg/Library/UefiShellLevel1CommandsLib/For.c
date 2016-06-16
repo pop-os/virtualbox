@@ -1,7 +1,7 @@
 /** @file
   Main file for endfor and for shell level 1 functions.
 
-  Copyright (c) 2009 - 2014, Intel Corporation. All rights reserved.<BR>
+  Copyright (c) 2009 - 2011, Intel Corporation. All rights reserved.<BR>
   This program and the accompanying materials
   are licensed and made available under the terms and conditions of the BSD License
   which accompanies this distribution.  The full text of the license may be found at
@@ -89,13 +89,13 @@ ShellCommandRunEndFor (
   if (!Found) {
     CurrentScriptFile = ShellCommandGetCurrentScriptFile();
     ShellPrintHiiEx(
-      -1,
-      -1,
-      NULL,
-      STRING_TOKEN (STR_SYNTAX_NO_MATCHING),
-      gShellLevel1HiiHandle,
-      L"For",
-      L"EndFor",
+      -1, 
+      -1, 
+      NULL, 
+      STRING_TOKEN (STR_SYNTAX_NO_MATCHING), 
+      gShellLevel1HiiHandle, 
+      L"For", 
+      L"EndFor", 
       CurrentScriptFile!=NULL
         && CurrentScriptFile->CurrentCommand!=NULL
           ? CurrentScriptFile->CurrentCommand->Line:0);
@@ -254,29 +254,6 @@ InternalRemoveAliasFromList(
 }
 
 /**
-  Function to determine whether a string is decimal or hex representation of a number
-  and return the number converted from the string.
-
-  @param[in] String   String representation of a number
-
-  @return             the number
-  @retval (UINTN)(-1) An error ocurred.
-**/
-UINTN
-EFIAPI
-ReturnUintn(
-  IN CONST CHAR16 *String
-  )
-{
-  UINT64        RetVal;
-
-  if (!EFI_ERROR(ShellConvertStringToUint64(String, &RetVal, FALSE, TRUE))) {
-    return ((UINTN)RetVal);
-  }
-  return ((UINTN)(-1));
-}
-
-/**
   Function for 'for' command.
 
   @param[in] ImageHandle  Handle to the Image (NULL if Internal).
@@ -294,7 +271,6 @@ ShellCommandRunFor (
   SCRIPT_FILE         *CurrentScriptFile;
   CHAR16              *ArgSet;
   CHAR16              *ArgSetWalker;
-  CHAR16              *Parameter;
   UINTN               ArgSize;
   UINTN               LoopVar;
   SHELL_FOR_INFO      *Info;
@@ -310,7 +286,6 @@ ShellCommandRunFor (
   ShellStatus         = SHELL_SUCCESS;
   ArgSetWalker        = NULL;
   TempString          = NULL;
-  Parameter           = NULL;
   FirstPass           = FALSE;
 
   //
@@ -335,7 +310,7 @@ ShellCommandRunFor (
   CurrentScriptFile = ShellCommandGetCurrentScriptFile();
   ASSERT(CurrentScriptFile != NULL);
 
-  if ((CurrentScriptFile->CurrentCommand != NULL) && (CurrentScriptFile->CurrentCommand->Data == NULL)) {
+  if (CurrentScriptFile->CurrentCommand->Data == NULL) {
     FirstPass = TRUE;
 
     //
@@ -343,14 +318,15 @@ ShellCommandRunFor (
     //
     if (!MoveToTag(GetNextNode, L"endfor", L"for", NULL, CurrentScriptFile, TRUE, TRUE, FALSE)) {
       ShellPrintHiiEx(
-        -1,
-        -1,
-        NULL,
-        STRING_TOKEN (STR_SYNTAX_NO_MATCHING),
-        gShellLevel1HiiHandle,
-        L"EndFor",
-        L"For",
-        CurrentScriptFile->CurrentCommand->Line);
+        -1, 
+        -1, 
+        NULL, 
+        STRING_TOKEN (STR_SYNTAX_NO_MATCHING), 
+        gShellLevel1HiiHandle, 
+        L"EndFor", 
+        L"For", 
+        CurrentScriptFile->CurrentCommand!=NULL
+          ?CurrentScriptFile->CurrentCommand->Line:0);
       return (SHELL_DEVICE_ERROR);
     }
 
@@ -371,6 +347,11 @@ ShellCommandRunFor (
         gEfiShellParametersProtocol->Argv[2]) == 0) {
       for (LoopVar = 0x3 ; LoopVar < gEfiShellParametersProtocol->Argc ; LoopVar++) {
         ASSERT((ArgSet == NULL && ArgSize == 0) || (ArgSet != NULL));
+        if (ArgSet == NULL) {
+  //        ArgSet = StrnCatGrow(&ArgSet, &ArgSize, L"\"", 0);
+        } else {
+          ArgSet = StrnCatGrow(&ArgSet, &ArgSize, L" \"", 0);
+        }
         if (StrStr(gEfiShellParametersProtocol->Argv[LoopVar], L"*") != NULL
           ||StrStr(gEfiShellParametersProtocol->Argv[LoopVar], L"?") != NULL
           ||StrStr(gEfiShellParametersProtocol->Argv[LoopVar], L"[") != NULL
@@ -378,9 +359,7 @@ ShellCommandRunFor (
           FileList = NULL;
           Status = ShellOpenFileMetaArg ((CHAR16*)gEfiShellParametersProtocol->Argv[LoopVar], EFI_FILE_MODE_READ, &FileList);
           if (EFI_ERROR(Status) || FileList == NULL || IsListEmpty(&FileList->Link)) {
-            ArgSet = StrnCatGrow(&ArgSet, &ArgSize, L" \"", 0);
             ArgSet = StrnCatGrow(&ArgSet, &ArgSize, gEfiShellParametersProtocol->Argv[LoopVar], 0);
-            ArgSet = StrnCatGrow(&ArgSet, &ArgSize, L"\"", 0);
           } else {
             for (Node = (EFI_SHELL_FILE_INFO *)GetFirstNode(&FileList->Link)
               ;  !IsNull(&FileList->Link, &Node->Link)
@@ -393,16 +372,9 @@ ShellCommandRunFor (
             ShellCloseFileMetaArg(&FileList);
           }
         } else {
-          Parameter = gEfiShellParametersProtocol->Argv[LoopVar];
-          if (Parameter[0] == L'\"' && Parameter[StrLen(Parameter)-1] == L'\"') {
-            ArgSet = StrnCatGrow(&ArgSet, &ArgSize, L" ", 0);
-            ArgSet = StrnCatGrow(&ArgSet, &ArgSize, Parameter, 0);
-          } else {
-            ArgSet = StrnCatGrow(&ArgSet, &ArgSize, L" \"", 0);
-            ArgSet = StrnCatGrow(&ArgSet, &ArgSize, Parameter, 0);
-            ArgSet = StrnCatGrow(&ArgSet, &ArgSize, L"\"", 0);
-          }
+          ArgSet = StrnCatGrow(&ArgSet, &ArgSize, gEfiShellParametersProtocol->Argv[LoopVar], 0);
         }
+        ArgSet = StrnCatGrow(&ArgSet, &ArgSize, L"\"", 0);
       }
       if (ArgSet == NULL) {
         ShellStatus = SHELL_OUT_OF_RESOURCES;
@@ -453,20 +425,21 @@ ShellCommandRunFor (
         //
         Info = AllocateZeroPool(sizeof(SHELL_FOR_INFO)+StrSize(gEfiShellParametersProtocol->Argv[1]));
         ASSERT(Info != NULL);
-        Info->Signature = SHELL_FOR_INFO_SIGNATURE;
         CopyMem(Info->Set, gEfiShellParametersProtocol->Argv[1], StrSize(gEfiShellParametersProtocol->Argv[1]));
         Info->ReplacementName = Info->Set;
         Info->CurrentValue    = NULL;
         ArgSetWalker            = ArgSet;
         if (ArgSetWalker[0] != L'(') {
           ShellPrintHiiEx(
-            -1,
-            -1,
-            NULL,
-            STRING_TOKEN (STR_GEN_PROBLEM_SCRIPT),
-            gShellLevel1HiiHandle,
-            ArgSet,
-            CurrentScriptFile->CurrentCommand->Line);
+            -1, 
+            -1, 
+            NULL, 
+            STRING_TOKEN (STR_GEN_PROBLEM_SCRIPT), 
+            gShellLevel1HiiHandle, 
+            ArgSet, 
+            CurrentScriptFile!=NULL 
+              && CurrentScriptFile->CurrentCommand!=NULL
+              ? CurrentScriptFile->CurrentCommand->Line:0);
           ShellStatus = SHELL_INVALID_PARAMETER;
         } else {
           TempSpot = StrStr(ArgSetWalker, L")");
@@ -483,12 +456,14 @@ ShellCommandRunFor (
           }
           if (TempSpot == NULL) {
             ShellPrintHiiEx(
-              -1,
-              -1,
-              NULL,
-              STRING_TOKEN (STR_GEN_PROBLEM_SCRIPT),
-              gShellLevel1HiiHandle,
-              CurrentScriptFile->CurrentCommand->Line);
+              -1, 
+              -1, 
+              NULL, 
+              STRING_TOKEN (STR_GEN_PROBLEM_SCRIPT), 
+              gShellLevel1HiiHandle, 
+              CurrentScriptFile!=NULL 
+                && CurrentScriptFile->CurrentCommand!=NULL
+                ? CurrentScriptFile->CurrentCommand->Line:0);
             ShellStatus = SHELL_INVALID_PARAMETER;
           } else {
             *TempSpot = CHAR_NULL;
@@ -498,19 +473,21 @@ ShellCommandRunFor (
             }
             if (!ShellIsValidForNumber(ArgSetWalker)) {
               ShellPrintHiiEx(
-                -1,
-                -1,
-                NULL,
-                STRING_TOKEN (STR_GEN_PROBLEM_SCRIPT),
-                gShellLevel1HiiHandle,
-                ArgSet,
-                CurrentScriptFile->CurrentCommand->Line);
+                -1, 
+                -1, 
+                NULL, 
+                STRING_TOKEN (STR_GEN_PROBLEM_SCRIPT), 
+                gShellLevel1HiiHandle, 
+                ArgSet, 
+                CurrentScriptFile!=NULL 
+                  && CurrentScriptFile->CurrentCommand!=NULL
+                  ? CurrentScriptFile->CurrentCommand->Line:0);
               ShellStatus = SHELL_INVALID_PARAMETER;
             } else {
               if (ArgSetWalker[0] == L'-') {
-                Info->Current = 0 - (INTN)ReturnUintn(ArgSetWalker+1);
+                Info->Current = 0 - (INTN)ShellStrToUintn(ArgSetWalker+1);
               } else {
-                Info->Current = (INTN)ReturnUintn(ArgSetWalker);
+                Info->Current = (INTN)ShellStrToUintn(ArgSetWalker);
               }
               ArgSetWalker  = StrStr(ArgSetWalker, L" ");
               while (ArgSetWalker != NULL && ArgSetWalker[0] == L' ') {
@@ -518,19 +495,21 @@ ShellCommandRunFor (
               }
               if (ArgSetWalker == NULL || *ArgSetWalker == CHAR_NULL || !ShellIsValidForNumber(ArgSetWalker)){
                 ShellPrintHiiEx(
-                  -1,
-                  -1,
-                  NULL,
-                  STRING_TOKEN (STR_GEN_PROBLEM_SCRIPT),
-                  gShellLevel1HiiHandle,
-                  ArgSet,
-                  CurrentScriptFile->CurrentCommand->Line);
+                  -1, 
+                  -1, 
+                  NULL, 
+                  STRING_TOKEN (STR_GEN_PROBLEM_SCRIPT), 
+                  gShellLevel1HiiHandle, 
+                  ArgSet, 
+                  CurrentScriptFile!=NULL 
+                    && CurrentScriptFile->CurrentCommand!=NULL
+                    ? CurrentScriptFile->CurrentCommand->Line:0);
                 ShellStatus = SHELL_INVALID_PARAMETER;
               } else {
                 if (ArgSetWalker[0] == L'-') {
-                  Info->End = 0 - (INTN)ReturnUintn(ArgSetWalker+1);
+                  Info->End = 0 - (INTN)ShellStrToUintn(ArgSetWalker+1);
                 } else {
-                  Info->End = (INTN)ReturnUintn(ArgSetWalker);
+                  Info->End = (INTN)ShellStrToUintn(ArgSetWalker);
                 }
                 if (Info->Current < Info->End) {
                   Info->Step            = 1;
@@ -545,38 +524,42 @@ ShellCommandRunFor (
                 if (ArgSetWalker != NULL && *ArgSetWalker != CHAR_NULL) {
                   if (ArgSetWalker == NULL || *ArgSetWalker == CHAR_NULL || !ShellIsValidForNumber(ArgSetWalker)){
                     ShellPrintHiiEx(
-                      -1,
-                      -1,
-                      NULL,
-                      STRING_TOKEN (STR_GEN_PROBLEM_SCRIPT),
-                      gShellLevel1HiiHandle,
-                      ArgSet,
-                      CurrentScriptFile->CurrentCommand->Line);
+                      -1, 
+                      -1, 
+                      NULL, 
+                      STRING_TOKEN (STR_GEN_PROBLEM_SCRIPT), 
+                      gShellLevel1HiiHandle, 
+                      ArgSet, 
+                      CurrentScriptFile!=NULL 
+                        && CurrentScriptFile->CurrentCommand!=NULL
+                        ? CurrentScriptFile->CurrentCommand->Line:0);
                     ShellStatus = SHELL_INVALID_PARAMETER;
                   } else {
                     if (*ArgSetWalker == L')') {
                       ASSERT(Info->Step == 1 || Info->Step == -1);
                     } else {
                       if (ArgSetWalker[0] == L'-') {
-                        Info->Step = 0 - (INTN)ReturnUintn(ArgSetWalker+1);
+                        Info->Step = 0 - (INTN)ShellStrToUintn(ArgSetWalker+1);
                       } else {
-                        Info->Step = (INTN)ReturnUintn(ArgSetWalker);
+                        Info->Step = (INTN)ShellStrToUintn(ArgSetWalker);
                       }
 
                       if (StrStr(ArgSetWalker, L" ") != NULL) {
                         ShellPrintHiiEx(
-                          -1,
-                          -1,
-                          NULL,
-                          STRING_TOKEN (STR_GEN_PROBLEM_SCRIPT),
-                          gShellLevel1HiiHandle,
-                          ArgSet,
-                          CurrentScriptFile->CurrentCommand->Line);
+                          -1, 
+                          -1, 
+                          NULL, 
+                          STRING_TOKEN (STR_GEN_PROBLEM_SCRIPT), 
+                          gShellLevel1HiiHandle, 
+                          ArgSet, 
+                          CurrentScriptFile!=NULL 
+                            && CurrentScriptFile->CurrentCommand!=NULL
+                            ? CurrentScriptFile->CurrentCommand->Line:0);
                         ShellStatus = SHELL_INVALID_PARAMETER;
                       }
                     }
                   }
-
+                  
                 }
               }
             }
@@ -595,13 +578,13 @@ ShellCommandRunFor (
       }
     } else {
       ShellPrintHiiEx(
-        -1,
-        -1,
-        NULL,
-        STRING_TOKEN (STR_GEN_PROBLEM_SCRIPT),
-        gShellLevel1HiiHandle,
-        ArgSet,
-        CurrentScriptFile!=NULL
+        -1, 
+        -1, 
+        NULL, 
+        STRING_TOKEN (STR_GEN_PROBLEM_SCRIPT), 
+        gShellLevel1HiiHandle, 
+        ArgSet, 
+        CurrentScriptFile!=NULL 
           && CurrentScriptFile->CurrentCommand!=NULL
           ? CurrentScriptFile->CurrentCommand->Line:0);
       ShellStatus = SHELL_INVALID_PARAMETER;
@@ -650,14 +633,14 @@ ShellCommandRunFor (
         //
         if (!MoveToTag(GetNextNode, L"endfor", L"for", NULL, CurrentScriptFile, TRUE, FALSE, FALSE)) {
           ShellPrintHiiEx(
-            -1,
-            -1,
-            NULL,
-            STRING_TOKEN (STR_SYNTAX_NO_MATCHING),
-            gShellLevel1HiiHandle,
-            L"EndFor",
-            L"For",
-            CurrentScriptFile!=NULL
+            -1, 
+            -1, 
+            NULL, 
+            STRING_TOKEN (STR_SYNTAX_NO_MATCHING), 
+            gShellLevel1HiiHandle, 
+            L"EndFor", 
+            L"For", 
+            CurrentScriptFile!=NULL 
               && CurrentScriptFile->CurrentCommand!=NULL
               ? CurrentScriptFile->CurrentCommand->Line:0);
           ShellStatus = SHELL_DEVICE_ERROR;
@@ -676,9 +659,12 @@ ShellCommandRunFor (
       //
       ASSERT(Info->Set != NULL);
       if (Info->CurrentValue != NULL && *Info->CurrentValue != CHAR_NULL) {
-        if (Info->CurrentValue[0] == L' ') {
+        if (Info->CurrentValue[0] == L'\"') {
           Info->CurrentValue++;
         }
+//        while (Info->CurrentValue[0] == L' ') {
+//          Info->CurrentValue++;
+//        }
         if (Info->CurrentValue[0] == L'\"') {
           Info->CurrentValue++;
         }
@@ -703,6 +689,12 @@ ShellCommandRunFor (
           if (Info->CurrentValue[0] == L'\"') {
             Info->CurrentValue++;
           }
+          while (Info->CurrentValue[0] == L' ') {
+            Info->CurrentValue++;
+          }
+          if (Info->CurrentValue[0] == L'\"') {
+            Info->CurrentValue++;
+          }
           FreePool(TempString);
         }
       } else {
@@ -712,14 +704,14 @@ ShellCommandRunFor (
         //
         if (!MoveToTag(GetNextNode, L"endfor", L"for", NULL, CurrentScriptFile, TRUE, FALSE, FALSE)) {
           ShellPrintHiiEx(
-            -1,
-            -1,
-            NULL,
-            STRING_TOKEN (STR_SYNTAX_NO_MATCHING),
-            gShellLevel1HiiHandle,
-            L"EndFor",
-            L"For",
-            CurrentScriptFile!=NULL
+            -1, 
+            -1, 
+            NULL, 
+            STRING_TOKEN (STR_SYNTAX_NO_MATCHING), 
+            gShellLevel1HiiHandle, 
+            L"EndFor", 
+            L"For", 
+            CurrentScriptFile!=NULL 
               && CurrentScriptFile->CurrentCommand!=NULL
               ? CurrentScriptFile->CurrentCommand->Line:0);
           ShellStatus = SHELL_DEVICE_ERROR;

@@ -12,7 +12,7 @@
 
 
   \section ConnectionManagement Connection Management
-
+  
   The ::EslTcp4Listen routine initially places the SOCK_STREAM or
   SOCK_SEQPACKET socket into a listen state.   When a remote machine
   makes a connection to the socket, the TCPv4 network layer calls
@@ -233,13 +233,6 @@ EslTcp4ConnectComplete (
               pTcp4->ConfigData.AccessPoint.RemotePort ));
 
     //
-    //  Start the receive operations
-    //
-    pSocket->bConfigured = TRUE;
-    pSocket->State = SOCKET_STATE_CONNECTED;
-    EslSocketRxStart ( pPort );
-
-    //
     //  Remove the rest of the ports
     //
     bRemovePorts = TRUE;
@@ -248,17 +241,15 @@ EslTcp4ConnectComplete (
     //
     //  The connection failed
     //
-    if ( pPort->bConfigured ) {
-      DEBUG (( DEBUG_CONNECT,
-                "0x%08x: Port connection to %d.%d.%d.%d:%d failed, Status: %r\r\n",
-                pPort,
-                pTcp4->ConfigData.AccessPoint.RemoteAddress.Addr[0],
-                pTcp4->ConfigData.AccessPoint.RemoteAddress.Addr[1],
-                pTcp4->ConfigData.AccessPoint.RemoteAddress.Addr[2],
-                pTcp4->ConfigData.AccessPoint.RemoteAddress.Addr[3],
-                pTcp4->ConfigData.AccessPoint.RemotePort,
-                Status ));
-    }
+    DEBUG (( DEBUG_CONNECT,
+              "0x%08x: Port connection to %d.%d.%d.%d:%d failed, Status: %r\r\n",
+              pPort,
+              pTcp4->ConfigData.AccessPoint.RemoteAddress.Addr[0],
+              pTcp4->ConfigData.AccessPoint.RemoteAddress.Addr[1],
+              pTcp4->ConfigData.AccessPoint.RemoteAddress.Addr[2],
+              pTcp4->ConfigData.AccessPoint.RemoteAddress.Addr[3],
+              pTcp4->ConfigData.AccessPoint.RemotePort,
+              Status ));
 
     //
     //  Close the current port
@@ -281,6 +272,7 @@ EslTcp4ConnectComplete (
     //
     Status = EslTcp4ConnectStart ( pSocket );
     if ( EFI_NOT_READY != Status ) {
+      pSocket->ConnectStatus = Status;
       bRemoveFirstPort = TRUE;
     }
   }
@@ -382,47 +374,29 @@ EslTcp4ConnectPoll (
       break;
 
     case EFI_ABORTED:
-      pSocket->errno = ECONNABORTED;
-      break;
-
-    case EFI_ACCESS_DENIED:
-      pSocket->errno = EACCES;
-      break;
-
-    case EFI_CONNECTION_RESET:
-      pSocket->errno = ECONNRESET;
+      pSocket->errno = ECONNREFUSED;
       break;
 
     case EFI_INVALID_PARAMETER:
-      pSocket->errno = EADDRNOTAVAIL;
+      pSocket->errno = EINVAL;
       break;
 
-    case EFI_HOST_UNREACHABLE:
+    case EFI_NO_MAPPING:
     case EFI_NO_RESPONSE:
       pSocket->errno = EHOSTUNREACH;
       break;
 
-    case EFI_NO_MAPPING:
-      pSocket->errno = EAFNOSUPPORT;
-      break;
-
     case EFI_NO_MEDIA:
-    case EFI_NETWORK_UNREACHABLE:
       pSocket->errno = ENETDOWN;
       break;
 
     case EFI_OUT_OF_RESOURCES:
-      pSocket->errno = ENOBUFS;
-      break;
-
-    case EFI_PORT_UNREACHABLE:
-    case EFI_PROTOCOL_UNREACHABLE:
-    case EFI_CONNECTION_REFUSED:
-      pSocket->errno = ECONNREFUSED;
+      pSocket->errno = ENOMEM;
       break;
 
     case EFI_SUCCESS:
       pSocket->errno = 0;
+      pSocket->bConfigured = TRUE;
       break;
 
     case EFI_TIMEOUT:
@@ -430,17 +404,13 @@ EslTcp4ConnectPoll (
       break;
 
     case EFI_UNSUPPORTED:
-      pSocket->errno = EOPNOTSUPP;
+      pSocket->errno = ENOTSUP;
+      break;
+
+    case 0x80000069:
+      pSocket->errno = ECONNRESET;
       break;
     }
-
-    //
-    //  Display the translation
-    //
-    DEBUG (( DEBUG_CONNECT,
-              "ERROR - errno: %d, Status: %r\r\n",
-              pSocket->errno,
-              Status ));
   }
 
   //
@@ -483,11 +453,10 @@ EslTcp4ConnectStart (
   ESL_PORT * pPort;
   ESL_TCP4_CONTEXT * pTcp4;
   EFI_TCP4_PROTOCOL * pTcp4Protocol;
-  EFI_SIMPLE_NETWORK_MODE SnpModeData;
   EFI_STATUS Status;
 
   DBG_ENTER ( );
-
+  
   //
   //  Determine if any more local adapters are available
   //
@@ -506,6 +475,32 @@ EslTcp4ConnectStart (
       DEBUG (( DEBUG_CONNECT,
                 "ERROR - Failed to configure the Tcp4 port, Status: %r\r\n",
                 Status ));
+      switch ( Status ) {
+      case EFI_ACCESS_DENIED:
+        pSocket->errno = EACCES;
+        break;
+    
+      default:
+      case EFI_DEVICE_ERROR:
+        pSocket->errno = EIO;
+        break;
+    
+      case EFI_INVALID_PARAMETER:
+        pSocket->errno = EADDRNOTAVAIL;
+        break;
+    
+      case EFI_NO_MAPPING:
+        pSocket->errno = EAFNOSUPPORT;
+        break;
+    
+      case EFI_OUT_OF_RESOURCES:
+        pSocket->errno = ENOBUFS;
+        break;
+    
+      case EFI_UNSUPPORTED:
+        pSocket->errno = EOPNOTSUPP;
+        break;
+      }
     }
     else {
       DEBUG (( DEBUG_CONNECT,
@@ -514,31 +509,26 @@ EslTcp4ConnectStart (
       pPort->bConfigured = TRUE;
 
       //
-      //  Verify the port connection
+      //  Attempt the connection to the remote system
       //
-      Status = pTcp4Protocol->GetModeData ( pTcp4Protocol,
-                                            NULL,
-                                            NULL,
-                                            NULL,
-                                            NULL,
-                                            &SnpModeData );
+      Status = pTcp4Protocol->Connect ( pTcp4Protocol,
+                                        &pTcp4->ConnectToken );
       if ( !EFI_ERROR ( Status )) {
-        if ( SnpModeData.MediaPresentSupported
-          && ( !SnpModeData.MediaPresent )) {
-          //
-          //  Port is not connected to the network
-          //
-          Status = EFI_NO_MEDIA;
-        }
-        else {
-          //
-          //  Attempt the connection to the remote system
-          //
-          Status = pTcp4Protocol->Connect ( pTcp4Protocol,
-                                            &pTcp4->ConnectToken );
-        }
+        //
+        //  Connection in progress
+        //
+        pSocket->errno = EINPROGRESS;
+        Status = EFI_NOT_READY;
+        DEBUG (( DEBUG_CONNECT,
+                  "0x%08x: Port attempting connection to %d.%d.%d.%d:%d\r\n",
+                  pPort,
+                  pTcp4->ConfigData.AccessPoint.RemoteAddress.Addr[0],
+                  pTcp4->ConfigData.AccessPoint.RemoteAddress.Addr[1],
+                  pTcp4->ConfigData.AccessPoint.RemoteAddress.Addr[2],
+                  pTcp4->ConfigData.AccessPoint.RemoteAddress.Addr[3],
+                  pTcp4->ConfigData.AccessPoint.RemotePort ));
       }
-      if ( EFI_ERROR ( Status )) {
+      else {
         //
         //  Connection error
         //
@@ -546,38 +536,42 @@ EslTcp4ConnectStart (
                   "ERROR - Port 0x%08x not connected, Status: %r\r\n",
                   pPort,
                   Status ));
+        //
+        //  Determine the errno value
+        //
+        switch ( Status ) {
+        default:
+          pSocket->errno = EIO;
+          break;
+
+        case EFI_OUT_OF_RESOURCES:
+          pSocket->errno = ENOBUFS;
+          break;
+
+        case EFI_TIMEOUT:
+          pSocket->errno = ETIMEDOUT;
+          break;
+
+        case EFI_NETWORK_UNREACHABLE:
+          pSocket->errno = ENETDOWN;
+          break;
+
+        case EFI_HOST_UNREACHABLE:
+          pSocket->errno = EHOSTUNREACH;
+          break;
+
+        case EFI_PORT_UNREACHABLE:
+        case EFI_PROTOCOL_UNREACHABLE:
+        case EFI_CONNECTION_REFUSED:
+          pSocket->errno = ECONNREFUSED;
+          break;
+
+        case EFI_CONNECTION_RESET:
+          pSocket->errno = ECONNRESET;
+          break;
+        }
       }
     }
-    if ( !EFI_ERROR ( Status )) {
-      //
-      //  Connection in progress
-      //
-      pSocket->errno = EINPROGRESS;
-      DEBUG (( DEBUG_CONNECT,
-                "0x%08x: Port attempting connection to %d.%d.%d.%d:%d\r\n",
-                pPort,
-                pTcp4->ConfigData.AccessPoint.RemoteAddress.Addr[0],
-                pTcp4->ConfigData.AccessPoint.RemoteAddress.Addr[1],
-                pTcp4->ConfigData.AccessPoint.RemoteAddress.Addr[2],
-                pTcp4->ConfigData.AccessPoint.RemoteAddress.Addr[3],
-                pTcp4->ConfigData.AccessPoint.RemotePort ));
-    }
-    else {
-      //
-      //  Error return path is through EslTcp4ConnectComplete to
-      //  enable retry on other ports
-      //
-      //  Status to errno translation gets done in EslTcp4ConnectPoll
-      //
-      pTcp4->ConnectToken.CompletionToken.Status = Status;
-
-      //
-      //  Continue with the next port
-      //
-      gBS->CheckEvent ( pTcp4->ConnectToken.CompletionToken.Event );
-      gBS->SignalEvent ( pTcp4->ConnectToken.CompletionToken.Event );
-    }
-    Status = EFI_NOT_READY;
   }
   else {
     //
@@ -776,7 +770,7 @@ EslTcp4Listen (
       //
       pPort = pNextPort;
     }
-
+    
     //
     //  Determine if any ports are in the listen state
     //
@@ -796,8 +790,6 @@ EslTcp4Listen (
     //  Mark the socket as configured
     //
     pSocket->bConfigured = TRUE;
-    Status = EFI_SUCCESS;
-    pSocket->errno = 0;
 
     //
     //  All done
@@ -1041,7 +1033,7 @@ EslTcp4ListenComplete (
     //  Process:
     //    Call close
     //    Release the resources
-
+    
   }
 
   DBG_EXIT ( );
@@ -1151,7 +1143,7 @@ EslTcp4LocalAddressSet (
     //  Determine if the default address is used
     //
     pAccessPoint->UseDefaultAddress = (BOOLEAN)( 0 == pIpAddress->sin_addr.s_addr );
-
+    
     //
     //  Set the subnet mask
     //
@@ -1163,9 +1155,9 @@ EslTcp4LocalAddressSet (
     }
     else {
       pAccessPoint->SubnetMask.Addr[0] = 0xff;
-      pAccessPoint->SubnetMask.Addr[1] = ( 128 <= pAccessPoint->StationAddress.Addr[0]) ? 0xff : 0;
-      pAccessPoint->SubnetMask.Addr[2] = ( 192 <= pAccessPoint->StationAddress.Addr[0]) ? 0xff : 0;
-      pAccessPoint->SubnetMask.Addr[3] = ( 224 <= pAccessPoint->StationAddress.Addr[0]) ? 0xff : 0;
+      pAccessPoint->SubnetMask.Addr[1] = 0xff;
+      pAccessPoint->SubnetMask.Addr[2] = 0xff;
+      pAccessPoint->SubnetMask.Addr[3] = 0xff;
     }
 
     //
@@ -1179,7 +1171,6 @@ EslTcp4LocalAddressSet (
       //  Set the port number
       //
       pAccessPoint->StationPort = SwapBytes16 ( pIpAddress->sin_port );
-      pPort->pSocket->bAddressSet = TRUE;
 
       //
       //  Display the local address
@@ -1316,7 +1307,6 @@ EslTcp4PortAllocate (
     //  pPort->pfnRxCancel = NULL; since the UEFI implementation returns EFI_UNSUPPORTED
     //
     pPort->pfnConfigure = (PFN_NET_CONFIGURE)pPort->pProtocol.TCPv4->Configure;
-    pPort->pfnRxPoll = (PFN_NET_POLL)pPort->pProtocol.TCPv4->Poll;
     pPort->pfnRxStart = (PFN_NET_IO_START)pPort->pProtocol.TCPv4->Receive;
     pPort->pfnTxStart = (PFN_NET_IO_START)pPort->pProtocol.TCPv4->Transmit;
 
@@ -1345,7 +1335,7 @@ EslTcp4PortAllocate (
 
   This routine is called by ::EslSocketPortClose.
   See the \ref PortCloseStateMachine section.
-
+  
   @param [in] pPort       Address of an ::ESL_PORT structure.
 
   @retval EFI_SUCCESS     The port is closed
@@ -1360,7 +1350,7 @@ EslTcp4PortClose (
   UINTN DebugFlags;
   ESL_TCP4_CONTEXT * pTcp4;
   EFI_STATUS Status;
-
+  
   DBG_ENTER ( );
 
   //
@@ -1504,13 +1494,13 @@ EslTcp4PortCloseOp (
   @param [in] pPort           Address of an ::ESL_PORT structure.
 
   @param [in] pPacket         Address of an ::ESL_PACKET structure.
-
+  
   @param [in] pbConsumePacket Address of a BOOLEAN indicating if the packet is to be consumed
-
+  
   @param [in] BufferLength    Length of the the buffer
-
+  
   @param [in] pBuffer         Address of a buffer to receive the data.
-
+  
   @param [in] pDataLength     Number of received data bytes in the buffer.
 
   @param [out] pAddress       Network address to receive the remote system address
@@ -1578,11 +1568,6 @@ EslTcp4Receive (
             pBuffer,
             DataLength ));
   CopyMem ( pBuffer, pPacket->pBuffer, DataLength );
-
-  //
-  //  Set the next buffer address
-  //
-  pBuffer += DataLength;
 
   //
   //  Determine if the data is being read
@@ -1888,13 +1873,13 @@ EslTcp4RxStart (
   during the current transmission attempt.
 
   @param [in] pSocket         Address of an ::ESL_SOCKET structure
-
+  
   @param [in] Flags           Message control flags
-
+  
   @param [in] BufferLength    Length of the the buffer
-
+  
   @param [in] pBuffer         Address of a buffer to receive the data.
-
+  
   @param [in] pDataLength     Number of received data bytes in the buffer.
 
   @param [in] pAddress        Network address of the remote system address
@@ -2142,7 +2127,7 @@ EslTcp4TxComplete (
   ESL_PORT * pPort;
   ESL_SOCKET * pSocket;
   EFI_STATUS Status;
-
+  
   DBG_ENTER ( );
 
   //
@@ -2232,159 +2217,6 @@ EslTcp4TxOobComplete (
 
 
 /**
-  Verify the adapter's IP address
-
-  This support routine is called by EslSocketBindTest.
-
-  @param [in] pPort       Address of an ::ESL_PORT structure.
-  @param [in] pConfigData Address of the configuration data
-
-  @retval EFI_SUCCESS - The IP address is valid
-  @retval EFI_NOT_STARTED - The IP address is invalid
-
- **/
-EFI_STATUS
-EslTcp4VerifyLocalIpAddress (
-  IN ESL_PORT * pPort,
-  IN EFI_TCP4_CONFIG_DATA * pConfigData
-  )
-{
-  UINTN DataSize;
-  EFI_TCP4_ACCESS_POINT * pAccess;
-  EFI_IP4_IPCONFIG_DATA * pIpConfigData;
-  EFI_IP4_CONFIG_PROTOCOL * pIpConfigProtocol;
-  ESL_SERVICE * pService;
-  EFI_STATUS Status;
-
-  DBG_ENTER ( );
-
-  //
-  //  Use break instead of goto
-  //
-  pIpConfigData = NULL;
-  for ( ; ; ) {
-    //
-    //  Determine if the IP address is specified
-    //
-    pAccess = &pConfigData->AccessPoint;
-    DEBUG (( DEBUG_BIND,
-              "UseDefaultAddress: %s\r\n",
-              pAccess->UseDefaultAddress ? L"TRUE" : L"FALSE" ));
-    DEBUG (( DEBUG_BIND,
-              "Requested IP address: %d.%d.%d.%d\r\n",
-              pAccess->StationAddress.Addr [ 0 ],
-              pAccess->StationAddress.Addr [ 1 ],
-              pAccess->StationAddress.Addr [ 2 ],
-              pAccess->StationAddress.Addr [ 3 ]));
-    if ( pAccess->UseDefaultAddress
-      || (( 0 == pAccess->StationAddress.Addr [ 0 ])
-      && ( 0 == pAccess->StationAddress.Addr [ 1 ])
-      && ( 0 == pAccess->StationAddress.Addr [ 2 ])
-      && ( 0 == pAccess->StationAddress.Addr [ 3 ])))
-    {
-      Status = EFI_SUCCESS;
-      break;
-    }
-
-    //
-    //  Open the configuration protocol
-    //
-    pService = pPort->pService;
-    Status = gBS->OpenProtocol ( pService->Controller,
-                                 &gEfiIp4ConfigProtocolGuid,
-                                 (VOID **)&pIpConfigProtocol,
-                                 NULL,
-                                 NULL,
-                                 EFI_OPEN_PROTOCOL_GET_PROTOCOL );
-    if ( EFI_ERROR ( Status )) {
-      DEBUG (( DEBUG_ERROR,
-                "ERROR - IP Configuration Protocol not available, Status: %r\r\n",
-                Status ));
-      break;
-    }
-
-    //
-    //  Get the IP configuration data size
-    //
-    DataSize = 0;
-    Status = pIpConfigProtocol->GetData ( pIpConfigProtocol,
-                                          &DataSize,
-                                          NULL );
-    if ( EFI_BUFFER_TOO_SMALL != Status ) {
-      DEBUG (( DEBUG_ERROR,
-                "ERROR - Failed to get IP Configuration data size, Status: %r\r\n",
-                Status ));
-      break;
-    }
-
-    //
-    //  Allocate the configuration data buffer
-    //
-    pIpConfigData = AllocatePool ( DataSize );
-    if ( NULL == pIpConfigData ) {
-      DEBUG (( DEBUG_ERROR,
-                "ERROR - Not enough memory to allocate IP Configuration data!\r\n" ));
-      Status = EFI_OUT_OF_RESOURCES;
-      break;
-    }
-
-    //
-    //  Get the IP configuration
-    //
-    Status = pIpConfigProtocol->GetData ( pIpConfigProtocol,
-                                          &DataSize,
-                                          pIpConfigData );
-    if ( EFI_ERROR ( Status )) {
-      DEBUG (( DEBUG_ERROR,
-                "ERROR - Failed to return IP Configuration data, Status: %r\r\n",
-                Status ));
-      break;
-    }
-
-    //
-    //  Display the current configuration
-    //
-    DEBUG (( DEBUG_BIND,
-              "Actual adapter IP address: %d.%d.%d.%d\r\n",
-              pIpConfigData->StationAddress.Addr [ 0 ],
-              pIpConfigData->StationAddress.Addr [ 1 ],
-              pIpConfigData->StationAddress.Addr [ 2 ],
-              pIpConfigData->StationAddress.Addr [ 3 ]));
-
-    //
-    //  Assume the port is not configured
-    //
-    Status = EFI_SUCCESS;
-    if (( pAccess->StationAddress.Addr [ 0 ] == pIpConfigData->StationAddress.Addr [ 0 ])
-      && ( pAccess->StationAddress.Addr [ 1 ] == pIpConfigData->StationAddress.Addr [ 1 ])
-      && ( pAccess->StationAddress.Addr [ 2 ] == pIpConfigData->StationAddress.Addr [ 2 ])
-      && ( pAccess->StationAddress.Addr [ 3 ] == pIpConfigData->StationAddress.Addr [ 3 ])) {
-      break;
-    }
-
-    //
-    //  The IP address did not match
-    //
-    Status = EFI_NOT_STARTED;
-    break;
-  }
-
-  //
-  //  Free the buffer if necessary
-  //
-  if ( NULL != pIpConfigData ) {
-    FreePool ( pIpConfigData );
-  }
-
-  //
-  //  Return the IP address status
-  //
-  DBG_EXIT_STATUS ( Status );
-  return Status;
-}
-
-
-/**
   Interface between the socket layer and the network specific
   code that supports SOCK_STREAM and SOCK_SEQPACKET sockets
   over TCPv4.
@@ -2423,6 +2255,5 @@ CONST ESL_PROTOCOL_API cEslTcp4Api = {
   EslTcp4RxStart,
   EslTcp4TxBuffer,
   EslTcp4TxComplete,
-  EslTcp4TxOobComplete,
-  (PFN_API_VERIFY_LOCAL_IP_ADDRESS)EslTcp4VerifyLocalIpAddress
+  EslTcp4TxOobComplete
 };

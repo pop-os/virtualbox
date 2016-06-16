@@ -34,10 +34,10 @@
 # include "COMEnums.h"
 # include "CVirtualBox.h"
 
-# ifdef VBOX_WS_MAC
+# ifdef Q_WS_MAC
 /* Namespaces: */
 using namespace UIExtraDataDefs;
-# endif /* VBOX_WS_MAC */
+# endif /* Q_WS_MAC */
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
@@ -51,11 +51,11 @@ using namespace UIExtraDataDefs;
 VBoxGlobalSettingsData::VBoxGlobalSettingsData()
 {
     /* default settings */
-#if defined (VBOX_WS_WIN)
+#if defined (Q_WS_WIN)
     hostCombo = "163"; // VK_RCONTROL
-#elif defined (VBOX_WS_X11)
+#elif defined (Q_WS_X11)
     hostCombo = "65508"; // XK_Control_R
-#elif defined (VBOX_WS_MAC)
+#elif defined (Q_WS_MAC)
     hostCombo = "55"; // QZ_LMETA
 #else
 # warning "port me!"

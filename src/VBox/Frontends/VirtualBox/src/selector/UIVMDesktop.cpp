@@ -23,9 +23,9 @@
 # include <QLabel>
 # include <QStackedWidget>
 # include <QToolButton>
-# ifdef VBOX_WS_MAC
+# ifdef Q_WS_MAC
 #  include <QTimer>
-# endif /* VBOX_WS_MAC */
+# endif /* Q_WS_MAC */
 
 /* GUI includes */
 # include "UIBar.h"
@@ -46,21 +46,21 @@
 #include <QStackedLayout>
 
 
-//#ifdef VBOX_WS_MAC
+//#ifdef Q_WS_MAC
 # define USE_TOOLBAR
-//#endif /* VBOX_WS_MAC */
+//#endif /* Q_WS_MAC */
 
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
 static const int gsLeftMargin = 5;
 static const int gsTopMargin = 5;
 static const int gsRightMargin = 5;
 static const int gsBottomMargin = 5;
-#else /* VBOX_WS_MAC */
+#else /* Q_WS_MAC */
 static const int gsLeftMargin = 0;
 static const int gsTopMargin = 5;
 static const int gsRightMargin = 5;
 static const int gsBottomMargin = 5;
-#endif /* !VBOX_WS_MAC */
+#endif /* !Q_WS_MAC */
 
 /* Container to store VM desktop panes. */
 class UIVMDesktopPrivate : public QIWithRetranslateUI<QStackedWidget>
@@ -254,14 +254,14 @@ UIVMDesktop::UIVMDesktop(UIToolBar *pToolBar, QAction *pRefreshAction, QWidget *
         }
     }
 
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
     /* Cocoa stuff should be async...
      * Do not ask me why but otherwise
      * it conflicts with native handlers. */
     QTimer::singleShot(0, this, SLOT(sltInit()));
-#else /* !VBOX_WS_MAC */
+#else /* !Q_WS_MAC */
     sltInit();
-#endif /* !VBOX_WS_MAC */
+#endif /* !Q_WS_MAC */
 
     /* Prepare main layout: */
     QVBoxLayout *pMainLayout = new QVBoxLayout(this);
@@ -281,9 +281,9 @@ UIVMDesktop::UIVMDesktop(UIToolBar *pToolBar, QAction *pRefreshAction, QWidget *
         else
             pSpace->setFixedSize(10, 1);
         pToolBar->addWidget(pSpace);
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
         pToolBar->updateLayout();
-#endif /* VBOX_WS_MAC */
+#endif /* Q_WS_MAC */
     }
     else
 #else /* USE_TOOLBAR */

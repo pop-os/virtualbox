@@ -252,9 +252,10 @@ int CollectorLinux::getHostDiskSize(const char *pszFile, uint64_t *size)
         rc = VERR_FILE_NOT_FOUND;
     else
     {
-        int64_t cSize = 0;
-        rc = RTLinuxSysFsReadIntFile(0, &cSize, pszPath);
-        if (RT_SUCCESS(rc))
+        int64_t cSize = RTLinuxSysFsReadIntFile(0, pszPath);
+        if (cSize < 0)
+            rc = VERR_ACCESS_DENIED;
+        else
             *size = cSize * 512;
     }
     RTStrFree(pszPath);
@@ -323,10 +324,9 @@ int CollectorLinux::getRawHostNetworkLoad(const char *pszFile, uint64_t *rx, uin
     if (!RTLinuxSysFsExists(szIfName))
         return VERR_FILE_NOT_FOUND;
 
-    int64_t cSize = 0;
-    int rc = RTLinuxSysFsReadIntFile(0, &cSize, szIfName);
-    if (RT_FAILURE(rc))
-        return rc;
+    int64_t cSize = RTLinuxSysFsReadIntFile(0, szIfName);
+    if (cSize < 0)
+        return VERR_ACCESS_DENIED;
 
     *rx = cSize;
 
@@ -334,9 +334,9 @@ int CollectorLinux::getRawHostNetworkLoad(const char *pszFile, uint64_t *rx, uin
     if (!RTLinuxSysFsExists(szIfName))
         return VERR_FILE_NOT_FOUND;
 
-    rc = RTLinuxSysFsReadIntFile(0, &cSize, szIfName);
-    if (RT_FAILURE(rc))
-        return rc;
+    cSize = RTLinuxSysFsReadIntFile(0, szIfName);
+    if (cSize < 0)
+        return VERR_ACCESS_DENIED;
 
     *tx = cSize;
     return VINF_SUCCESS;

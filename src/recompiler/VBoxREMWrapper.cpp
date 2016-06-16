@@ -533,12 +533,6 @@ static const REMPARMDESC g_aArgsIsPageAccessHandled[] =
 # ifndef VBOX_USE_BITNESS_SELECTOR
 
 /* VMM args */
-#ifdef VBOX_WITH_NEW_APIC
-static const REMPARMDESC g_aArgsAPICUpdatePendingInterrupts[] =
-{
-    { REMPARMDESC_FLAGS_INT,        sizeof(PVMCPU),             NULL }
-};
-#endif
 static const REMPARMDESC g_aArgsCPUMGetGuestCpl[] =
 {
     { REMPARMDESC_FLAGS_INT,        sizeof(PVMCPU),             NULL },
@@ -1218,9 +1212,6 @@ static const REMFNDESC g_aExports[] =
  */
 static REMFNDESC g_aVMMImports[] =
 {
-#ifdef VBOX_WITH_NEW_APIC
-    { "APICUpdatePendingInterrupts",            VMM_FN(APICUpdatePendingInterrupts),    &g_aArgsAPICUpdatePendingInterrupts[0],     RT_ELEMENTS(g_aArgsAPICUpdatePendingInterrupts),       REMFNDESC_FLAGS_RET_VOID,   0,                  NULL },
-#endif
     { "CPUMR3RemEnter",                         VMM_FN(CPUMR3RemEnter),                 &g_aArgsCPUMR3RemEnter[0],                  RT_ELEMENTS(g_aArgsCPUMR3RemEnter),                    REMFNDESC_FLAGS_RET_INT,    sizeof(uint32_t),   NULL },
     { "CPUMR3RemLeave",                         VMM_FN(CPUMR3RemLeave),                 &g_aArgsCPUMR3RemLeave[0],                  RT_ELEMENTS(g_aArgsCPUMR3RemLeave),                    REMFNDESC_FLAGS_RET_VOID,   0,                  NULL },
     { "CPUMSetChangedFlags",                    VMM_FN(CPUMSetChangedFlags),            &g_aArgsCPUMSetChangedFlags[0],             RT_ELEMENTS(g_aArgsCPUMSetChangedFlags),               REMFNDESC_FLAGS_RET_VOID,   0,                  NULL },
@@ -1239,7 +1230,7 @@ static REMFNDESC g_aVMMImports[] =
     { "CPUMGetGuestESP",                        VMM_FN(CPUMGetGuestESP),                &g_aArgsVMCPU[0],                           RT_ELEMENTS(g_aArgsVMCPU),                             REMFNDESC_FLAGS_RET_INT,    sizeof(uint32_t),   NULL },
     { "CPUMGetGuestCS",                         VMM_FN(CPUMGetGuestCS),                 &g_aArgsVMCPU[0],                           RT_ELEMENTS(g_aArgsVMCPU),                             REMFNDESC_FLAGS_RET_INT,    sizeof(RTSEL),      NULL },
     { "CPUMGetGuestSS",                         VMM_FN(CPUMGetGuestSS),                 &g_aArgsVMCPU[0],                           RT_ELEMENTS(g_aArgsVMCPU),                             REMFNDESC_FLAGS_RET_INT,    sizeof(RTSEL),      NULL },
-    { "CPUMGetGuestCpuVendor",                  VMM_FN(CPUMGetGuestCpuVendor),          &g_aArgsVM[0],                              RT_ELEMENTS(g_aArgsVMCPU),                             REMFNDESC_FLAGS_RET_INT, sizeof(CPUMCPUVENDOR), NULL },
+    { "CPUMGetGuestCpuVendor",                  VMM_FN(CPUMGetGuestCpuVendor),          &g_aArgsVM[0],                           RT_ELEMENTS(g_aArgsVMCPU),                                REMFNDESC_FLAGS_RET_INT, sizeof(CPUMCPUVENDOR), NULL },
     { "CPUMQueryGuestCtxPtr",                   VMM_FN(CPUMQueryGuestCtxPtr),           &g_aArgsCPUMQueryGuestCtxPtr[0],            RT_ELEMENTS(g_aArgsCPUMQueryGuestCtxPtr),              REMFNDESC_FLAGS_RET_INT,    sizeof(PCPUMCTX),   NULL },
     { "CSAMR3MonitorPage",                      VMM_FN(CSAMR3MonitorPage),              &g_aArgsCSAMR3MonitorPage[0],               RT_ELEMENTS(g_aArgsCSAMR3MonitorPage),                 REMFNDESC_FLAGS_RET_INT,    sizeof(int),        NULL },
     { "CSAMR3UnmonitorPage",                    VMM_FN(CSAMR3UnmonitorPage),            &g_aArgsCSAMR3UnmonitorPage[0],             RT_ELEMENTS(g_aArgsCSAMR3UnmonitorPage),               REMFNDESC_FLAGS_RET_INT,    sizeof(int),        NULL },
@@ -1271,9 +1262,9 @@ static REMFNDESC g_aVMMImports[] =
     { "MMR3PhysGetRamSize",                     VMM_FN(MMR3PhysGetRamSize),             &g_aArgsVM[0],                              RT_ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_INT,    sizeof(uint64_t),   NULL },
     { "PATMIsPatchGCAddr",                      VMM_FN(PATMIsPatchGCAddr),              &g_aArgsPATMIsPatchGCAddr[0],               RT_ELEMENTS(g_aArgsPATMIsPatchGCAddr),                 REMFNDESC_FLAGS_RET_INT,    sizeof(bool),       NULL },
     { "PATMR3QueryOpcode",                      VMM_FN(PATMR3QueryOpcode),              &g_aArgsPATMR3QueryOpcode[0],               RT_ELEMENTS(g_aArgsPATMR3QueryOpcode),                 REMFNDESC_FLAGS_RET_INT,    sizeof(int),        NULL },
-    { "PDMApicGetBaseMsr",                      VMM_FN(PDMApicGetBaseMsr),              &g_aArgsPDMApicGetBaseMsr[0],               RT_ELEMENTS(g_aArgsPDMApicGetBase),                    REMFNDESC_FLAGS_RET_INT,    sizeof(int),        NULL },
+    { "PDMApicGetBase",                         VMM_FN(PDMApicGetBase),                 &g_aArgsPDMApicGetBase[0],                  RT_ELEMENTS(g_aArgsPDMApicGetBase),                    REMFNDESC_FLAGS_RET_INT,    sizeof(int),        NULL },
     { "PDMApicGetTPR",                          VMM_FN(PDMApicGetTPR),                  &g_aArgsPDMApicGetTPR[0],                   RT_ELEMENTS(g_aArgsPDMApicGetTPR),                     REMFNDESC_FLAGS_RET_INT,    sizeof(int),        NULL },
-    { "PDMApicSetBase",                         VMM_FN(PDMApicSetBaseMsr),              &g_aArgsPDMApicSetBaseMsr[0],               RT_ELEMENTS(g_aArgsPDMApicSetBase),                    REMFNDESC_FLAGS_RET_INT,    sizeof(int),        NULL },
+    { "PDMApicSetBase",                         VMM_FN(PDMApicSetBase),                 &g_aArgsPDMApicSetBase[0],                  RT_ELEMENTS(g_aArgsPDMApicSetBase),                    REMFNDESC_FLAGS_RET_INT,    sizeof(int),        NULL },
     { "PDMApicSetTPR",                          VMM_FN(PDMApicSetTPR),                  &g_aArgsPDMApicSetTPR[0],                   RT_ELEMENTS(g_aArgsPDMApicSetTPR),                     REMFNDESC_FLAGS_RET_INT,    sizeof(int),        NULL },
     { "PDMR3DmaRun",                            VMM_FN(PDMR3DmaRun),                    &g_aArgsVM[0],                              RT_ELEMENTS(g_aArgsVM),                                REMFNDESC_FLAGS_RET_VOID,   0,                  NULL },
     { "PDMR3CritSectInit",                      VMM_FN(PDMR3CritSectInit),              &g_aArgsPDMR3CritSectInit[0],               RT_ELEMENTS(g_aArgsPDMR3CritSectInit),                 REMFNDESC_FLAGS_RET_INT,    sizeof(int),        NULL },

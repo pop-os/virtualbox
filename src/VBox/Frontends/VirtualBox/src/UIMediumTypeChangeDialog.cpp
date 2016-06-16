@@ -41,12 +41,12 @@
 UIMediumTypeChangeDialog::UIMediumTypeChangeDialog(QWidget *pParent, const QString &strMediumId)
     : QIWithRetranslateUI<QIDialog>(pParent)
 {
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
     setWindowFlags(Qt::Sheet);
-#else /* VBOX_WS_MAC */
+#else /* Q_WS_MAC */
     /* Enable size-grip: */
     setSizeGripEnabled(true);
-#endif /* VBOX_WS_MAC */
+#endif /* Q_WS_MAC */
 
     /* Search for corresponding medium: */
     m_medium = vboxGlobal().medium(strMediumId).medium();

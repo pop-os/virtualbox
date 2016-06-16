@@ -760,6 +760,9 @@ static DECLCALLBACK(int) vgsvcPageSharingWorkerProcess(bool volatile *pfShutdown
     if (hProcess != NIL_RTPROCESS)
         RTProcTerminate(hProcess);
 
+    RTSemEventMultiDestroy(g_PageSharingEvent);
+    g_PageSharingEvent = NIL_RTSEMEVENTMULTI;
+
     VGSvcVerbose(3, "vgsvcPageSharingWorkerProcess: finished thread\n");
     return 0;
 }
@@ -772,19 +775,6 @@ static DECLCALLBACK(int) vgsvcPageSharingWorkerProcess(bool volatile *pfShutdown
 static DECLCALLBACK(void) vgsvcPageSharingStop(void)
 {
     RTSemEventMultiSignal(g_PageSharingEvent);
-}
-
-
-/**
- * @interface_method_impl{VBOXSERVICE,pfnTerm}
- */
-static DECLCALLBACK(void) vgsvcPageSharingTerm(void)
-{
-    if (g_PageSharingEvent != NIL_RTSEMEVENTMULTI)
-    {
-        RTSemEventMultiDestroy(g_PageSharingEvent);
-        g_PageSharingEvent = NIL_RTSEMEVENTMULTI;
-    }
 }
 
 
@@ -811,6 +801,6 @@ VBOXSERVICE g_PageSharing =
     vgsvcPageSharingWorker,
 #endif
     vgsvcPageSharingStop,
-    vgsvcPageSharingTerm
+    VGSvcDefaultTerm
 };
 

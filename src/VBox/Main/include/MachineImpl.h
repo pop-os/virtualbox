@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -35,6 +35,7 @@
 #include "USBControllerImpl.h"              // required for MachineImpl.h to compile on Windows
 #include "BandwidthControlImpl.h"
 #include "BandwidthGroupImpl.h"
+#include "VBox/settings.h"
 #ifdef VBOX_WITH_RESOURCE_USAGE_API
 #include "Performance.h"
 #include "PerformanceImpl.h"
@@ -53,10 +54,6 @@
 #include <vector>
 
 #include "MachineWrap.h"
-
-/** @todo r=klaus after moving the various Machine settings structs to
- * MachineImpl.cpp it should be possible to eliminate this include. */
-#include <VBox/settings.h>
 
 // defines
 ////////////////////////////////////////////////////////////////////////////////
@@ -77,6 +74,16 @@ class SharedFolder;
 class HostUSBDevice;
 class StorageController;
 class SessionMachine;
+
+namespace settings
+{
+    class MachineConfigFile;
+    struct Snapshot;
+    struct Hardware;
+    struct Storage;
+    struct StorageController;
+    struct MachineRegistryEntry;
+}
 
 // Machine class
 ////////////////////////////////////////////////////////////////////////////////
@@ -221,6 +228,8 @@ public:
     struct UserData
     {
         settings::MachineUserData s;
+        typedef  std::vector<uint8_t> IconBlob;
+        IconBlob mIcon;
     };
 
     /**
@@ -276,13 +285,10 @@ public:
         BOOL                mPAEEnabled;
         settings::Hardware::LongModeType mLongMode;
         BOOL                mTripleFaultReset;
-        BOOL                mAPIC;
-        BOOL                mX2APIC;
         ULONG               mCPUCount;
         BOOL                mCPUHotPlugEnabled;
         ULONG               mCpuExecutionCap;
         uint32_t            mCpuIdPortabilityLevel;
-        Utf8Str             mCpuProfile;
         BOOL                mAccelerate3DEnabled;
         BOOL                mHPETEnabled;
 
@@ -307,7 +313,6 @@ public:
         PointingHIDType_T   mPointingHIDType;
         ChipsetType_T       mChipsetType;
         ParavirtProvider_T  mParavirtProvider;
-        Utf8Str             mParavirtDebug;
         BOOL                mEmulatedUSBCardReaderEnabled;
 
         BOOL                mIOCacheEnabled;
@@ -495,7 +500,6 @@ public:
      */
     ChipsetType_T i_getChipsetType() const { return mHWData->mChipsetType; }
     ParavirtProvider_T i_getParavirtProvider() const { return mHWData->mParavirtProvider; }
-    Utf8Str i_getParavirtDebug() const { return mHWData->mParavirtDebug; }
 
     void i_setModified(uint32_t fl, bool fAllowStateModification = true);
     void i_setModifiedLock(uint32_t fl, bool fAllowStateModification = true);
@@ -635,10 +639,7 @@ protected:
     HRESULT i_loadSnapshot(const settings::Snapshot &data,
                            const Guid &aCurSnapshotId,
                            Snapshot *aParentSnapshot);
-    HRESULT i_loadHardware(const Guid *puuidRegistry,
-                           const Guid *puuidSnapshot,
-                           const settings::Hardware &data,
-                           const settings::Debugging *pDbg,
+    HRESULT i_loadHardware(const settings::Hardware &data, const settings::Debugging *pDbg,
                            const settings::Autostart *pAutostart);
     HRESULT i_loadDebugging(const settings::Debugging *pDbg);
     HRESULT i_loadAutostart(const settings::Autostart *pAutostart);
@@ -871,8 +872,6 @@ private:
     HRESULT setCPUExecutionCap(ULONG aCPUExecutionCap);
     HRESULT getCPUIDPortabilityLevel(ULONG *aCPUIDPortabilityLevel);
     HRESULT setCPUIDPortabilityLevel(ULONG aCPUIDPortabilityLevel);
-    HRESULT getCPUProfile(com::Utf8Str &aCPUProfile);
-    HRESULT setCPUProfile(const com::Utf8Str &aCPUProfile);
     HRESULT getMemorySize(ULONG *aMemorySize);
     HRESULT setMemorySize(ULONG aMemorySize);
     HRESULT getMemoryBalloonSize(ULONG *aMemoryBalloonSize);
@@ -958,8 +957,6 @@ private:
     HRESULT setTeleporterPassword(const com::Utf8Str &aTeleporterPassword);
     HRESULT getParavirtProvider(ParavirtProvider_T *aParavirtProvider);
     HRESULT setParavirtProvider(ParavirtProvider_T aParavirtProvider);
-    HRESULT getParavirtDebug(com::Utf8Str &aParavirtDebug);
-    HRESULT setParavirtDebug(const com::Utf8Str &aParavirtDebug);
     HRESULT getFaultToleranceState(FaultToleranceState_T *aFaultToleranceState);
     HRESULT setFaultToleranceState(FaultToleranceState_T aFaultToleranceState);
     HRESULT getFaultTolerancePort(ULONG *aFaultTolerancePort);
@@ -1289,11 +1286,8 @@ public:
     DECLARE_PROTECT_FINAL_CONSTRUCT()
 
     BEGIN_COM_MAP(SessionMachine)
-        COM_INTERFACE_ENTRY(ISupportErrorInfo)
-        COM_INTERFACE_ENTRY(IMachine)
-        COM_INTERFACE_ENTRY2(IDispatch, IMachine)
+        VBOX_DEFAULT_INTERFACE_ENTRIES(IMachine)
         COM_INTERFACE_ENTRY(IInternalMachineControl)
-        VBOX_TWEAK_INTERFACE_ENTRY(IMachine)
     END_COM_MAP()
 
     DECLARE_EMPTY_CTOR_DTOR(SessionMachine)
@@ -1546,10 +1540,7 @@ public:
     DECLARE_PROTECT_FINAL_CONSTRUCT()
 
     BEGIN_COM_MAP(SnapshotMachine)
-        COM_INTERFACE_ENTRY(ISupportErrorInfo)
-        COM_INTERFACE_ENTRY(IMachine)
-        COM_INTERFACE_ENTRY2(IDispatch, IMachine)
-        VBOX_TWEAK_INTERFACE_ENTRY(IMachine)
+        VBOX_DEFAULT_INTERFACE_ENTRIES(IMachine)
     END_COM_MAP()
 
     DECLARE_EMPTY_CTOR_DTOR(SnapshotMachine)
@@ -1565,6 +1556,7 @@ public:
                              const settings::Hardware &hardware,
                              const settings::Debugging *pDbg,
                              const settings::Autostart *pAutostart,
+                             const settings::Storage &storage,
                              IN_GUID aSnapshotId,
                              const Utf8Str &aStateFilePath);
     void uninit();

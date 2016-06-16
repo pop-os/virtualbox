@@ -41,7 +41,7 @@ private slots:
 
     /** Assigns property value. */
     void sltAssignProperty(const QString &strValue)
-        { parent()->setProperty(m_strName.toLatin1().constData(), strValue); }
+        { parent()->setProperty(m_strName.toAscii().constData(), strValue); }
 
 private:
 
@@ -275,9 +275,9 @@ private:
     QString m_strAuthPassword;
 };
 
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
 # include "VBoxUtils-darwin.h"
-#endif /* VBOX_WS_MAC */
+#endif /* Q_WS_MAC */
 
 #endif // !___VBoxUtils_h___
 

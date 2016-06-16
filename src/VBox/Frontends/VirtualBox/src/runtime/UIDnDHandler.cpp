@@ -24,7 +24,6 @@
 #include <QKeyEvent>
 #include <QStringList>
 #include <QTimer>
-#include <QDrag>
 #include <QUrl>
 
 /* VirtualBox interface declarations: */
@@ -75,7 +74,6 @@
 #  endif
 # endif /* DEBUG */
 #endif
-
 
 UIDnDHandler::UIDnDHandler(UISession *pSession, QWidget *pParent)
     : m_pSession(pSession)
@@ -175,7 +173,7 @@ Qt::DropAction UIDnDHandler::dragDrop(ulong screenID, int x, int y,
     if (   m_dndTarget.isOk()
         && enmResult != KDnDAction_Ignore)
     {
-        LogFlowFunc(("strFormat=%s ...\n", strFormat.toUtf8().constData()));
+        LogFlowFunc(("strFormat=%s ...\n", strFormat.toAscii().constData()));
 
         QByteArray arrBytes;
 
@@ -200,14 +198,14 @@ Qt::DropAction UIDnDHandler::dragDrop(ulong screenID, int x, int y,
          **/
         else
         {
-            LogRel3(("DnD: Guest requested a different format '%s'\n", strFormat.toUtf8().constData()));
+            LogRel3(("DnD: Guest requested a different format '%s'\n", strFormat.toAscii().constData()));
             LogRel3(("DnD: The host offered:\n"));
 #if 0
             for (QStringList::iterator itFmt  = pMimeData->formats().begin();
                                        itFmt != pMimeData->formats().end(); itFmt++)
             {
                 QString strTemp = *itFmt;
-                LogRel3(("DnD: \t%s\n", strTemp.toUtf8().constData()));
+                LogRel3(("DnD: \t%s\n", strTemp.toAscii().constData()));
             }
 #endif
             if (pMimeData->hasText())
@@ -231,7 +229,7 @@ Qt::DropAction UIDnDHandler::dragDrop(ulong screenID, int x, int y,
             memcpy(vecData.data(), arrBytes.constData(), arrBytes.size());
 
             /* Send data to the guest. */
-            LogRel3(("DnD: Host is sending %d bytes of data as '%s'\n", vecData.size(), strFormat.toUtf8().constData()));
+            LogRel3(("DnD: Host is sending %d bytes of data as '%s'\n", vecData.size(), strFormat.toAscii().constData()));
             CProgress progress = m_dndTarget.SendData(screenID, strFormat, vecData);
 
             if (m_dndTarget.isOk())
@@ -286,32 +284,6 @@ void UIDnDHandler::dragLeave(ulong screenID)
 #ifdef DEBUG_DND_QT
 QTextStream *g_pStrmLogQt = NULL; /* Output stream for Qt debug logging. */
 
-# if QT_VERSION >= 0x050000
-/* static */
-void UIDnDHandler::debugOutputQt(QtMsgType type, const QMessageLogContext &context, const QString &strMessage)
-{
-    QString strMsg;
-    switch (type)
-    {
-    case QtWarningMsg:
-        strMsg += "[W]";
-        break;
-    case QtCriticalMsg:
-        strMsg += "[C]";
-        break;
-    case QtFatalMsg:
-        strMsg += "[F]";
-        break;
-    case QtDebugMsg:
-    default:
-        strMsg += "[D]";
-        break;
-    }
-
-    if (g_pStrmLogQt)
-        (*g_pStrmLogQt) << strMsg << " " << strMessage << endl;
-}
-# else /* QT_VERSION < 0x050000 */
 /* static */
 void UIDnDHandler::debugOutputQt(QtMsgType type, const char *pszMsg)
 {
@@ -338,7 +310,6 @@ void UIDnDHandler::debugOutputQt(QtMsgType type, const char *pszMsg)
     if (g_pStrmLogQt)
         (*g_pStrmLogQt) << strMsg << " " << pszMsg << endl;
 }
-# endif /* QT_VERSION < 0x050000 */
 #endif /* DEBUG_DND_QT */
 
 /*
@@ -356,7 +327,7 @@ int UIDnDHandler::dragStartInternal(const QStringList &lstFormats,
     LogFlowFunc(("Number of formats: %d\n", lstFormats.size()));
 # ifdef DEBUG
     for (int i = 0; i < lstFormats.size(); i++)
-        LogFlowFunc(("\tFormat %d: %s\n", i, lstFormats.at(i).toUtf8().constData()));
+        LogFlowFunc(("\tFormat %d: %s\n", i, lstFormats.at(i).toAscii().constData()));
 # endif
 
 # ifdef DEBUG_DND_QT
@@ -365,11 +336,7 @@ int UIDnDHandler::dragStartInternal(const QStringList &lstFormats,
     {
         g_pStrmLogQt = new QTextStream(pFileDebugQt);
 
-#if QT_VERSION >= 0x050000
-        qInstallMessageHandler(UIDnDHandler::debugOutputQt);
-#else /* QT_VERSION < 0x050000 */
         qInstallMsgHandler(UIDnDHandler::debugOutputQt);
-#endif /* QT_VERSION < 0x050000 */
         qDebug("========================================================================");
     }
 # endif
@@ -436,11 +403,7 @@ int UIDnDHandler::dragStartInternal(const QStringList &lstFormats,
     Qt::DropAction dropAction;
 #  ifdef RT_OS_DARWIN
 #    ifdef VBOX_WITH_DRAG_AND_DROP_PROMISES
-#     if QT_VERSION < 0x050000
         dropAction = pDrag->exec(actions, defAction, true /* fUsePromises */);
-#     else /* QT_VERSION >= 0x050000 */
-        dropAction = pDrag->exec(actions, defAction);
-#     endif /* QT_VERSION >= 0x050000 */
 #    else
         /* Without having VBOX_WITH_DRAG_AND_DROP_PROMISES enabled drag and drop
          * will not work on OS X! It also requires some handcrafted patches within Qt
@@ -539,7 +502,7 @@ int UIDnDHandler::dragCheckPending(ulong screenID)
         for (int i = 0; i < vecFormats.size(); i++)
         {
             const QString &strFmtGuest = vecFormats.at(i);
-            LogRelMax3(10, ("DnD: \tFormat %d: %s\n", i, strFmtGuest.toUtf8().constData()));
+            LogRelMax3(10, ("DnD: \tFormat %d: %s\n", i, strFmtGuest.toAscii().constData()));
         }
 
     LogFlowFunc(("defaultAction=0x%x, vecFormatsSize=%d, vecActionsSize=%d\n",

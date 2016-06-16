@@ -1,7 +1,7 @@
 ## @file
-#  DXE LockBox library instance.
+#  Component description file for LockBox library.
 #
-#  Copyright (c) 2010 - 2014, Intel Corporation. All rights reserved.<BR>
+#  Copyright (c) 2010, Intel Corporation. All rights reserved.<BR>
 #
 #  This program and the accompanying materials
 #  are licensed and made available under the terms and conditions
@@ -17,7 +17,6 @@
 [Defines]
   INF_VERSION                    = 0x00010005
   BASE_NAME                      = SmmLockBoxDxeLib
-  MODULE_UNI_FILE                = SmmLockBoxDxeLib.uni
   FILE_GUID                      = 4A0054B4-3CA8-4e1b-9339-9B58D5FBB7D2
   MODULE_TYPE                    = DXE_DRIVER
   VERSION_STRING                 = 1.0
@@ -26,7 +25,7 @@
 #
 # The following information is for reference only and not required by the build tools.
 #
-#  VALID_ARCHITECTURES           = IA32 X64
+#  VALID_ARCHITECTURES           = IA32 X64 
 #
 
 [Sources]
@@ -39,12 +38,13 @@
 
 [LibraryClasses]
   UefiBootServicesTableLib
+  UefiRuntimeServicesTableLib
   BaseLib
   BaseMemoryLib
   DebugLib
 
 [Guids]
-  gEfiSmmLockBoxCommunicationGuid       ## SOMETIMES_CONSUMES ## GUID # Used to do smm communication
+  gEfiSmmLockBoxCommunicationGuid       ## CONSUMED
 
 [Protocols]
-  gEfiSmmCommunicationProtocolGuid      ## SOMETIMES_CONSUMES
+  gEfiSmmCommunicationProtocolGuid   ## CONSUMED

@@ -35,6 +35,8 @@
 #include <VBox/com/defs.h>
 
 /* Defines: */
+#define MAC_LEOPARD_STYLE defined(Q_WS_MAC) && (QT_VERSION >= 0x040300)
+
 #ifdef DEBUG
 # define AssertWrapperOk(w)      \
     AssertMsg (w.isOk(), (#w " is not okay (RC=0x%08X)", w.lastRC()))
@@ -58,13 +60,13 @@ namespace UIDefs
           ResizeEventType = QEvent::User + 101
         , SetRegionEventType
         , ModifierKeyChangeEventType
-#ifdef VBOX_WS_WIN
+#ifdef Q_WS_WIN
         , ShellExecuteEventType
-#endif /* VBOX_WS_WIN */
+#endif /* Q_WS_WIN */
         , ActivateActionEventType
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
         , ShowWindowEventType
-#endif /* VBOX_WS_MAC */
+#endif /* Q_WS_MAC */
         , AddVDMUrlsEventType
 #ifdef VBOX_GUI_USE_QGL
         , VHWACommandProcessType
@@ -89,7 +91,7 @@ namespace UIDefs
 }
 using namespace UIDefs /* if header included */;
 
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
 /** Mac OS X: Known OS releases. */
 enum MacOSXRelease
 {
@@ -102,7 +104,7 @@ enum MacOSXRelease
     MacOSXRelease_ElCapitan,
     MacOSXRelease_New,
 };
-#endif /* VBOX_WS_MAC */
+#endif /* Q_WS_MAC */
 
 /** Common UI: Size suffixes. */
 enum SizeSuffix

@@ -66,7 +66,7 @@ protected:
     void resizeToGoldenRatio();
 
     /* Design stuff: */
-#ifndef VBOX_WS_MAC
+#ifndef Q_WS_MAC
     void assignWatermark(const QString &strWaterMark);
 #else
     void assignBackground(const QString &strBackground);
@@ -81,17 +81,17 @@ private:
     void configurePage(UIWizardPage *pPage);
     void resizeAccordingLabelWidth(int iLabelWidth);
     double ratio();
-#ifndef VBOX_WS_MAC
+#ifndef Q_WS_MAC
     int proposedWatermarkHeight();
     void assignWatermarkHelper();
-#endif /* !VBOX_WS_MAC */
+#endif /* !Q_WS_MAC */
 
     /* Variables: */
     WizardType m_type;
     WizardMode m_mode;
-#ifndef VBOX_WS_MAC
+#ifndef Q_WS_MAC
     QString m_strWatermarkName;
-#endif /* !VBOX_WS_MAC */
+#endif /* !Q_WS_MAC */
 };
 
 typedef QPointer<UIWizard> UISafePointerWizard;

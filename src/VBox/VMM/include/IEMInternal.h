@@ -49,20 +49,6 @@ RT_C_DECLS_BEGIN
 #endif
 
 
-/** @def IEM_CFG_TARGET_CPU
- * The minimum target CPU for the IEM emulation (IEMTARGETCPU_XXX value).
- *
- * By default we allow this to be configured by the user via the
- * CPUM/GuestCpuName config string, but this comes at a slight cost during
- * decoding.  So, for applications of this code where there is no need to
- * be dynamic wrt target CPU, just modify this define.
- */
-#if !defined(IEM_CFG_TARGET_CPU) || defined(DOXYGEN_RUNNING)
-# define IEM_CFG_TARGET_CPU     IEMTARGETCPU_DYNAMIC
-#endif
-
-
-
 /** Finish and move to types.h */
 typedef union
 {
@@ -139,6 +125,44 @@ typedef IEMFPURESULTTWO *PIEMFPURESULTTWO;
 typedef IEMFPURESULTTWO const *PCIEMFPURESULTTWO;
 
 
+/**
+ * IEM pending commit function index.
+ */
+typedef enum IEMCOMMIT
+{
+    /** Invalid / nothing pending. */
+    IEMCOMMIT_INVALID = 0,
+    /** @name INS
+     * @{  */
+    IEMCOMMIT_INS_OP8_ADDR16,
+    IEMCOMMIT_INS_OP8_ADDR32,
+    IEMCOMMIT_INS_OP8_ADDR64,
+    IEMCOMMIT_INS_OP16_ADDR16,
+    IEMCOMMIT_INS_OP16_ADDR32,
+    IEMCOMMIT_INS_OP16_ADDR64,
+    IEMCOMMIT_INS_OP32_ADDR16,
+    IEMCOMMIT_INS_OP32_ADDR32,
+    IEMCOMMIT_INS_OP32_ADDR64,
+    /** @} */
+    /** @name REP INS
+     * @{  */
+    IEMCOMMIT_REP_INS_OP8_ADDR16,
+    IEMCOMMIT_REP_INS_OP8_ADDR32,
+    IEMCOMMIT_REP_INS_OP8_ADDR64,
+    IEMCOMMIT_REP_INS_OP16_ADDR16,
+    IEMCOMMIT_REP_INS_OP16_ADDR32,
+    IEMCOMMIT_REP_INS_OP16_ADDR64,
+    IEMCOMMIT_REP_INS_OP32_ADDR16,
+    IEMCOMMIT_REP_INS_OP32_ADDR32,
+    IEMCOMMIT_REP_INS_OP32_ADDR64,
+    /** @} */
+    /** End of valid functions. */
+    IEMCOMMIT_END,
+    /** Make sure the type is int in call contexts. */
+    IEMCOMMIT_32BIT_HACK = 0x7fffffff
+} IEMCOMMIT;
+AssertCompile(sizeof(IEMCOMMIT) == 4);
+
 
 #ifdef IEM_VERIFICATION_MODE_FULL
 
@@ -150,8 +174,6 @@ typedef enum IEMVERIFYEVENT
     IEMVERIFYEVENT_INVALID = 0,
     IEMVERIFYEVENT_IOPORT_READ,
     IEMVERIFYEVENT_IOPORT_WRITE,
-    IEMVERIFYEVENT_IOPORT_STR_READ,
-    IEMVERIFYEVENT_IOPORT_STR_WRITE,
     IEMVERIFYEVENT_RAM_WRITE,
     IEMVERIFYEVENT_RAM_READ
 } IEMVERIFYEVENT;
@@ -175,32 +197,16 @@ typedef struct IEMVERIFYEVTREC
         struct
         {
             RTIOPORT    Port;
-            uint8_t     cbValue;
+            uint32_t    cbValue;
         } IOPortRead;
 
         /** IEMVERIFYEVENT_IOPORT_WRITE */
         struct
         {
             RTIOPORT    Port;
-            uint8_t     cbValue;
+            uint32_t    cbValue;
             uint32_t    u32Value;
         } IOPortWrite;
-
-        /** IEMVERIFYEVENT_IOPORT_STR_READ */
-        struct
-        {
-            RTIOPORT    Port;
-            uint8_t     cbValue;
-            RTGCUINTREG cTransfers;
-        } IOPortStrRead;
-
-        /** IEMVERIFYEVENT_IOPORT_STR_WRITE */
-        struct
-        {
-            RTIOPORT    Port;
-            uint8_t     cbValue;
-            RTGCUINTREG cTransfers;
-        } IOPortStrWrite;
 
         /** IEMVERIFYEVENT_RAM_READ */
         struct
@@ -296,8 +302,6 @@ typedef struct IEMCPU
     /** Set if no comparison to REM is currently performed.
      * This is used to skip past really slow bits.  */
     bool                    fNoRem;
-    /** Saved fNoRem flag used by #iemInitExec and #iemUninitExec. */
-    bool                    fNoRemSavedByExec;
     /** Indicates that RAX and RDX differences should be ignored since RDTSC
      *  and RDTSCP are timing sensitive.  */
     bool                    fIgnoreRaxRdx;
@@ -309,10 +313,7 @@ typedef struct IEMCPU
     /** This is used to communicate a CPL changed caused by IEMInjectTrap that
      * CPUM doesn't yet reflect. */
     uint8_t                 uInjectCpl;
-    /** To prevent EMR3HmSingleInstruction from triggering endless recursion via
-     *  emR3ExecuteInstruction and iemExecVerificationModeCheck. */
-    uint8_t                 cVerifyDepth;
-    bool                    afAlignment2[2];
+    bool                    afAlignment2[3];
     /** Mask of undefined eflags.
      * The verifier will any difference in these flags. */
     uint32_t                fUndefinedEFlags;
@@ -360,7 +361,7 @@ typedef struct IEMCPU
      * instruction result is committed. */
     uint8_t                 offFpuOpcode;
 
-    /** @} */
+    /** @}*/
 
     /** The number of active guest memory mappings. */
     uint8_t                 cActiveMappings;
@@ -414,14 +415,21 @@ typedef struct IEMCPU
         uint8_t             ab[512];
     } aBounceBuffers[3];
 
+    /** @name Pending Instruction Commit (R0/RC postponed it to Ring-3).
+     * @{ */
+    struct
+    {
+        /** The commit function to call. */
+        IEMCOMMIT           enmFn;
+        /** The instruction size. */
+        uint8_t             cbInstr;
+        /** Generic value to commit. */
+        uint64_t            uValue;
+    } PendingCommit;
+    /** @} */
+
     /** @name Target CPU information.
      * @{ */
-#if IEM_CFG_TARGET_CPU == IEMTARGETCPU_DYNAMIC
-    /** The target CPU. */
-    uint32_t                uTargetCpu;
-#else
-    uint32_t                u32TargetCpuPadding;
-#endif
     /** The CPU vendor. */
     CPUMCPUVENDOR           enmCpuVendor;
     /** @} */
@@ -431,8 +439,6 @@ typedef struct IEMCPU
     /** The CPU vendor. */
     CPUMCPUVENDOR           enmHostCpuVendor;
     /** @} */
-
-    uint32_t                u32Alignment6; /**< Alignment padding. */
 
 #ifdef IEM_VERIFICATION_MODE_FULL
     /** The event verification records for what IEM did (LIFO). */
@@ -464,16 +470,6 @@ typedef IEMCPU const *PCIEMCPU;
  */
 #define IEMCPU_TO_VM(a_pIemCpu)     ((PVM)( (uintptr_t)(a_pIemCpu) + a_pIemCpu->offVM ))
 
-/** Gets the current IEMTARGETCPU value.
- * @returns IEMTARGETCPU value.
- * @param   a_pIemCpu       The IEM per CPU instance data.
- */
-#if IEM_CFG_TARGET_CPU != IEMTARGETCPU_DYNAMIC
-# define IEM_GET_TARGET_CPU(a_pIemCpu)   (IEM_CFG_TARGET_CPU)
-#else
-# define IEM_GET_TARGET_CPU(a_pIemCpu)   ((a_pIemCpu)->uTargetCpu)
-#endif
-
 /** @name IEM_ACCESS_XXX - Access details.
  * @{ */
 #define IEM_ACCESS_INVALID              UINT32_C(0x000000ff)
@@ -491,12 +487,6 @@ typedef IEMCPU const *PCIEMCPU;
 #define IEM_ACCESS_PARTIAL_WRITE        UINT32_C(0x00000100)
 /** Used in aMemMappings to indicate that the entry is bounce buffered. */
 #define IEM_ACCESS_BOUNCE_BUFFERED      UINT32_C(0x00000200)
-/** Bounce buffer with ring-3 write pending, first page. */
-#define IEM_ACCESS_PENDING_R3_WRITE_1ST UINT32_C(0x00000400)
-/** Bounce buffer with ring-3 write pending, second page. */
-#define IEM_ACCESS_PENDING_R3_WRITE_2ND UINT32_C(0x00000800)
-/** Valid bit mask. */
-#define IEM_ACCESS_VALID_MASK           UINT32_C(0x00000fff)
 /** Read+write data alias. */
 #define IEM_ACCESS_DATA_RW              (IEM_ACCESS_TYPE_READ  | IEM_ACCESS_TYPE_WRITE | IEM_ACCESS_WHAT_DATA)
 /** Write data alias. */

@@ -4,7 +4,7 @@
   All assertions for bit field operations are handled bit field functions in the
   Base Library.
 
-  Copyright (c) 2006 - 2012, Intel Corporation. All rights reserved.<BR>
+  Copyright (c) 2006 - 2010, Intel Corporation. All rights reserved.<BR>
   This program and the accompanying materials
   are licensed and made available under the terms and conditions of the BSD License
   which accompanies this distribution.  The full text of the license may be found at
@@ -80,7 +80,7 @@ IoAnd8 (
 }
 
 /**
-  Reads an 8-bit I/O port, performs a bitwise AND followed by a bitwise
+  Reads an 8-bit I/O port, performs a bitwise AND followed by a bitwise 
   OR, and writes the result back to the 8-bit I/O port.
 
   Reads the 8-bit I/O port specified by Port, performs a bitwise AND between
@@ -146,13 +146,12 @@ IoBitFieldRead8 (
 
   Writes Value to the bit field of the I/O register. The bit field is specified
   by the StartBit and the EndBit. All other bits in the destination I/O
-  register are preserved. The value written to the I/O port is returned.
+  register are preserved. The value written to the I/O port is returned. 
 
   If 8-bit I/O port operations are not supported, then ASSERT().
   If StartBit is greater than 7, then ASSERT().
   If EndBit is greater than 7, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
-  If Value is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Port      The I/O port to write.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -193,7 +192,6 @@ IoBitFieldWrite8 (
   If StartBit is greater than 7, then ASSERT().
   If EndBit is greater than 7, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
-  If OrData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Port      The I/O port to write.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -234,7 +232,6 @@ IoBitFieldOr8 (
   If StartBit is greater than 7, then ASSERT().
   If EndBit is greater than 7, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
-  If AndData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Port      The I/O port to write.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -277,8 +274,6 @@ IoBitFieldAnd8 (
   If StartBit is greater than 7, then ASSERT().
   If EndBit is greater than 7, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
-  If AndData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
-  If OrData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Port      The I/O port to write.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -348,7 +343,7 @@ IoOr16 (
 
   If 16-bit I/O port operations are not supported, then ASSERT().
   If Port is not aligned on a 16-bit boundary, then ASSERT().
-
+  
   @param  Port    The I/O port to write.
   @param  AndData The value to AND with the read value from the I/O port.
 
@@ -366,7 +361,7 @@ IoAnd16 (
 }
 
 /**
-  Reads a 16-bit I/O port, performs a bitwise AND followed by a bitwise
+  Reads a 16-bit I/O port, performs a bitwise AND followed by a bitwise 
   OR, and writes the result back to the 16-bit I/O port.
 
   Reads the 16-bit I/O port specified by Port, performs a bitwise AND between
@@ -378,7 +373,7 @@ IoAnd16 (
 
   If 16-bit I/O port operations are not supported, then ASSERT().
   If Port is not aligned on a 16-bit boundary, then ASSERT().
-
+  
   @param  Port    The I/O port to write.
   @param  AndData The value to AND with the read value from the I/O port.
   @param  OrData  The value to OR with the result of the AND operation.
@@ -442,7 +437,6 @@ IoBitFieldRead16 (
   If StartBit is greater than 15, then ASSERT().
   If EndBit is greater than 15, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
-  If Value is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Port      The I/O port to write.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -484,7 +478,6 @@ IoBitFieldWrite16 (
   If StartBit is greater than 15, then ASSERT().
   If EndBit is greater than 15, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
-  If OrData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Port      The I/O port to write.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -526,7 +519,6 @@ IoBitFieldOr16 (
   If StartBit is greater than 15, then ASSERT().
   If EndBit is greater than 15, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
-  If AndData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Port      The I/O port to write.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -570,8 +562,6 @@ IoBitFieldAnd16 (
   If StartBit is greater than 15, then ASSERT().
   If EndBit is greater than 15, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
-  If AndData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
-  If OrData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Port      The I/O port to write.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -659,7 +649,7 @@ IoAnd32 (
 }
 
 /**
-  Reads a 32-bit I/O port, performs a bitwise AND followed by a bitwise
+  Reads a 32-bit I/O port, performs a bitwise AND followed by a bitwise 
   OR, and writes the result back to the 32-bit I/O port.
 
   Reads the 32-bit I/O port specified by Port, performs a bitwise AND between
@@ -735,7 +725,6 @@ IoBitFieldRead32 (
   If StartBit is greater than 31, then ASSERT().
   If EndBit is greater than 31, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
-  If Value is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Port      The I/O port to write.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -777,7 +766,6 @@ IoBitFieldWrite32 (
   If StartBit is greater than 31, then ASSERT().
   If EndBit is greater than 31, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
-  If OrData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Port      The I/O port to write.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -819,7 +807,6 @@ IoBitFieldOr32 (
   If StartBit is greater than 31, then ASSERT().
   If EndBit is greater than 31, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
-  If AndData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Port      The I/O port to write.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -863,8 +850,6 @@ IoBitFieldAnd32 (
   If StartBit is greater than 31, then ASSERT().
   If EndBit is greater than 31, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
-  If AndData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
-  If OrData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Port      The I/O port to write.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -952,7 +937,7 @@ IoAnd64 (
 }
 
 /**
-  Reads a 64-bit I/O port, performs a bitwise AND followed by a bitwise
+  Reads a 64-bit I/O port, performs a bitwise AND followed by a bitwise 
   OR, and writes the result back to the 64-bit I/O port.
 
   Reads the 64-bit I/O port specified by Port, performs a bitwise AND between
@@ -1028,7 +1013,6 @@ IoBitFieldRead64 (
   If StartBit is greater than 63, then ASSERT().
   If EndBit is greater than 63, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
-  If Value is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Port      The I/O port to write.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -1070,7 +1054,6 @@ IoBitFieldWrite64 (
   If StartBit is greater than 63, then ASSERT().
   If EndBit is greater than 63, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
-  If OrData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Port      The I/O port to write.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -1112,7 +1095,6 @@ IoBitFieldOr64 (
   If StartBit is greater than 63, then ASSERT().
   If EndBit is greater than 63, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
-  If AndData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Port      The I/O port to write.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -1156,8 +1138,6 @@ IoBitFieldAnd64 (
   If StartBit is greater than 63, then ASSERT().
   If EndBit is greater than 63, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
-  If AndData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
-  If OrData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Port      The I/O port to write.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -1190,7 +1170,7 @@ IoBitFieldAndThenOr64 (
   Reads an 8-bit MMIO register, performs a bitwise OR, and writes the
   result back to the 8-bit MMIO register.
 
-  Reads the 8-bit MMIO register specified by Address, performs a bitwise
+  Reads the 8-bit MMIO register specified by Address, performs a bitwise 
   OR between the read result and the value specified by OrData, and
   writes the result to the 8-bit MMIO register specified by Address. The value
   written to the MMIO register is returned. This function must guarantee that
@@ -1243,7 +1223,7 @@ MmioAnd8 (
 }
 
 /**
-  Reads an 8-bit MMIO register, performs a bitwise AND followed by a bitwise
+  Reads an 8-bit MMIO register, performs a bitwise AND followed by a bitwise 
   OR, and writes the result back to the 8-bit MMIO register.
 
   Reads the 8-bit MMIO register specified by Address, performs a bitwise AND
@@ -1316,7 +1296,6 @@ MmioBitFieldRead8 (
   If StartBit is greater than 7, then ASSERT().
   If EndBit is greater than 7, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
-  If Value is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Address   The MMIO register to write.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -1347,7 +1326,7 @@ MmioBitFieldWrite8 (
   Reads a bit field in an 8-bit MMIO register, performs a bitwise OR, and
   writes the result back to the bit field in the 8-bit MMIO register.
 
-  Reads the 8-bit MMIO register specified by Address, performs a bitwise
+  Reads the 8-bit MMIO register specified by Address, performs a bitwise 
   OR between the read result and the value specified by OrData, and
   writes the result to the 8-bit MMIO register specified by Address. The value
   written to the MMIO register is returned. This function must guarantee that
@@ -1358,7 +1337,6 @@ MmioBitFieldWrite8 (
   If StartBit is greater than 7, then ASSERT().
   If EndBit is greater than 7, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
-  If OrData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Address   The MMIO register to write.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -1400,7 +1378,6 @@ MmioBitFieldOr8 (
   If StartBit is greater than 7, then ASSERT().
   If EndBit is greater than 7, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
-  If AndData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Address   The MMIO register to write.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -1443,8 +1420,6 @@ MmioBitFieldAnd8 (
   If StartBit is greater than 7, then ASSERT().
   If EndBit is greater than 7, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
-  If AndData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
-  If OrData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Address   The MMIO register to write.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -1477,7 +1452,7 @@ MmioBitFieldAndThenOr8 (
   Reads a 16-bit MMIO register, performs a bitwise OR, and writes the
   result back to the 16-bit MMIO register.
 
-  Reads the 16-bit MMIO register specified by Address, performs a bitwise
+  Reads the 16-bit MMIO register specified by Address, performs a bitwise 
   OR between the read result and the value specified by OrData, and
   writes the result to the 16-bit MMIO register specified by Address. The value
   written to the MMIO register is returned. This function must guarantee that
@@ -1532,7 +1507,7 @@ MmioAnd16 (
 }
 
 /**
-  Reads a 16-bit MMIO register, performs a bitwise AND followed by a bitwise
+  Reads a 16-bit MMIO register, performs a bitwise AND followed by a bitwise 
   OR, and writes the result back to the 16-bit MMIO register.
 
   Reads the 16-bit MMIO register specified by Address, performs a bitwise AND
@@ -1607,7 +1582,6 @@ MmioBitFieldRead16 (
   If StartBit is greater than 15, then ASSERT().
   If EndBit is greater than 15, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
-  If Value is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Address   The MMIO register to write.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -1638,7 +1612,7 @@ MmioBitFieldWrite16 (
   Reads a bit field in a 16-bit MMIO register, performs a bitwise OR, and
   writes the result back to the bit field in the 16-bit MMIO register.
 
-  Reads the 16-bit MMIO register specified by Address, performs a bitwise
+  Reads the 16-bit MMIO register specified by Address, performs a bitwise 
   OR between the read result and the value specified by OrData, and
   writes the result to the 16-bit MMIO register specified by Address. The value
   written to the MMIO register is returned. This function must guarantee that
@@ -1650,7 +1624,6 @@ MmioBitFieldWrite16 (
   If StartBit is greater than 15, then ASSERT().
   If EndBit is greater than 15, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
-  If OrData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Address   The MMIO register to write.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -1693,7 +1666,6 @@ MmioBitFieldOr16 (
   If StartBit is greater than 15, then ASSERT().
   If EndBit is greater than 15, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
-  If AndData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Address   The MMIO register to write.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -1737,8 +1709,6 @@ MmioBitFieldAnd16 (
   If StartBit is greater than 15, then ASSERT().
   If EndBit is greater than 15, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
-  If AndData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
-  If OrData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Address   The MMIO register to write.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -1771,7 +1741,7 @@ MmioBitFieldAndThenOr16 (
   Reads a 32-bit MMIO register, performs a bitwise OR, and writes the
   result back to the 32-bit MMIO register.
 
-  Reads the 32-bit MMIO register specified by Address, performs a bitwise
+  Reads the 32-bit MMIO register specified by Address, performs a bitwise 
   OR between the read result and the value specified by OrData, and
   writes the result to the 32-bit MMIO register specified by Address. The value
   written to the MMIO register is returned. This function must guarantee that
@@ -1826,7 +1796,7 @@ MmioAnd32 (
 }
 
 /**
-  Reads a 32-bit MMIO register, performs a bitwise AND followed by a bitwise
+  Reads a 32-bit MMIO register, performs a bitwise AND followed by a bitwise 
   OR, and writes the result back to the 32-bit MMIO register.
 
   Reads the 32-bit MMIO register specified by Address, performs a bitwise AND
@@ -1901,7 +1871,6 @@ MmioBitFieldRead32 (
   If StartBit is greater than 31, then ASSERT().
   If EndBit is greater than 31, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
-  If Value is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Address   The MMIO register to write.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -1932,7 +1901,7 @@ MmioBitFieldWrite32 (
   Reads a bit field in a 32-bit MMIO register, performs a bitwise OR, and
   writes the result back to the bit field in the 32-bit MMIO register.
 
-  Reads the 32-bit MMIO register specified by Address, performs a bitwise
+  Reads the 32-bit MMIO register specified by Address, performs a bitwise 
   OR between the read result and the value specified by OrData, and
   writes the result to the 32-bit MMIO register specified by Address. The value
   written to the MMIO register is returned. This function must guarantee that
@@ -1944,7 +1913,6 @@ MmioBitFieldWrite32 (
   If StartBit is greater than 31, then ASSERT().
   If EndBit is greater than 31, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
-  If OrData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Address   The MMIO register to write.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -1987,7 +1955,6 @@ MmioBitFieldOr32 (
   If StartBit is greater than 31, then ASSERT().
   If EndBit is greater than 31, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
-  If AndData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Address   The MMIO register to write.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -2031,8 +1998,6 @@ MmioBitFieldAnd32 (
   If StartBit is greater than 31, then ASSERT().
   If EndBit is greater than 31, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
-  If AndData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
-  If OrData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Address   The MMIO register to write.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -2065,7 +2030,7 @@ MmioBitFieldAndThenOr32 (
   Reads a 64-bit MMIO register, performs a bitwise OR, and writes the
   result back to the 64-bit MMIO register.
 
-  Reads the 64-bit MMIO register specified by Address, performs a bitwise
+  Reads the 64-bit MMIO register specified by Address, performs a bitwise 
   OR between the read result and the value specified by OrData, and
   writes the result to the 64-bit MMIO register specified by Address. The value
   written to the MMIO register is returned. This function must guarantee that
@@ -2120,7 +2085,7 @@ MmioAnd64 (
 }
 
 /**
-  Reads a 64-bit MMIO register, performs a bitwise AND followed by a bitwise
+  Reads a 64-bit MMIO register, performs a bitwise AND followed by a bitwise 
   OR, and writes the result back to the 64-bit MMIO register.
 
   Reads the 64-bit MMIO register specified by Address, performs a bitwise AND
@@ -2195,7 +2160,6 @@ MmioBitFieldRead64 (
   If StartBit is greater than 63, then ASSERT().
   If EndBit is greater than 63, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
-  If Value is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Address   The MMIO register to write.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -2226,7 +2190,7 @@ MmioBitFieldWrite64 (
   Reads a bit field in a 64-bit MMIO register, performs a bitwise OR, and
   writes the result back to the bit field in the 64-bit MMIO register.
 
-  Reads the 64-bit MMIO register specified by Address, performs a bitwise
+  Reads the 64-bit MMIO register specified by Address, performs a bitwise 
   OR between the read result and the value specified by OrData, and
   writes the result to the 64-bit MMIO register specified by Address. The value
   written to the MMIO register is returned. This function must guarantee that
@@ -2238,7 +2202,6 @@ MmioBitFieldWrite64 (
   If StartBit is greater than 63, then ASSERT().
   If EndBit is greater than 63, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
-  If OrData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Address   The MMIO register to write.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -2281,7 +2244,6 @@ MmioBitFieldOr64 (
   If StartBit is greater than 63, then ASSERT().
   If EndBit is greater than 63, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
-  If AndData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Address   The MMIO register to write.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -2325,8 +2287,6 @@ MmioBitFieldAnd64 (
   If StartBit is greater than 63, then ASSERT().
   If EndBit is greater than 63, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
-  If AndData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
-  If OrData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Address   The MMIO register to write.
   @param  StartBit  The ordinal of the least significant bit in the bit field.

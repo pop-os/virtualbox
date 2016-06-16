@@ -1,6 +1,6 @@
 /** @file
 
-Copyright (c) 2005 - 2014, Intel Corporation. All rights reserved.<BR>
+Copyright (c) 2005 - 2010, Intel Corporation. All rights reserved.<BR>
 This program and the accompanying materials
 are licensed and made available under the terms and conditions of the BSD License
 which accompanies this distribution.  The full text of the license may be found at
@@ -562,9 +562,6 @@ Ip4AutoConfigCallBackDpc (
   IP4_ADDR                  SubnetMask;
   IP4_ADDR                  SubnetAddress;
   IP4_ADDR                  GatewayAddress;
-  IP4_PROTOCOL              *Ip4Instance;
-  EFI_ARP_PROTOCOL          *Arp;
-  LIST_ENTRY                *Entry;
 
   IpSb      = (IP4_SERVICE *) Context;
   NET_CHECK_SIGNATURE (IpSb, IP4_SERVICE_SIGNATURE);
@@ -653,31 +650,9 @@ Ip4AutoConfigCallBackDpc (
   StationAddress = EFI_NTOHL (Data->StationAddress);
   SubnetMask = EFI_NTOHL (Data->SubnetMask);
   Status = Ip4SetAddress (IpIf, StationAddress, SubnetMask);
+
   if (EFI_ERROR (Status)) {
     goto ON_EXIT;
-  }
-
-  if (IpIf->Arp != NULL) {
-    //
-    // A non-NULL IpIf->Arp here means a new ARP child is created when setting default address,
-    // but some IP children may have referenced the default interface before it is configured,
-    // these IP instances also consume this ARP protocol so they need to open it BY_CHILD_CONTROLLER.
-    //
-    Arp = NULL;
-    NET_LIST_FOR_EACH (Entry, &IpIf->IpInstances) {
-      Ip4Instance = NET_LIST_USER_STRUCT_S (Entry, IP4_PROTOCOL, AddrLink, IP4_PROTOCOL_SIGNATURE);
-      Status = gBS->OpenProtocol (
-                      IpIf->ArpHandle,
-                      &gEfiArpProtocolGuid,
-                      (VOID **) &Arp,
-                      gIp4DriverBinding.DriverBindingHandle,
-                      Ip4Instance->Handle,
-                      EFI_OPEN_PROTOCOL_BY_CHILD_CONTROLLER
-                      );
-      if (EFI_ERROR (Status)) {
-        goto ON_EXIT;
-      }
-    }
   }
 
   Ip4AddRoute (
@@ -700,6 +675,8 @@ Ip4AutoConfigCallBackDpc (
   }
 
   IpSb->State = IP4_SERVICE_CONFIGED;
+
+  Ip4SetVariableData (IpSb);
 
 ON_EXIT:
   FreePool (Data);
@@ -891,7 +868,6 @@ Ip4ConfigProtocol (
   EFI_STATUS                Status;
   IP4_ADDR                  Ip;
   IP4_ADDR                  Netmask;
-  EFI_ARP_PROTOCOL          *Arp;
 
   IpSb = IpInstance->Service;
 
@@ -996,20 +972,6 @@ Ip4ConfigProtocol (
   }
 
   IpInstance->Interface = IpIf;
-  if (IpIf->Arp != NULL) {
-    Arp = NULL;
-    Status = gBS->OpenProtocol (
-                    IpIf->ArpHandle,
-                    &gEfiArpProtocolGuid,
-                    (VOID **) &Arp,
-                    gIp4DriverBinding.DriverBindingHandle,
-                    IpInstance->Handle,
-                    EFI_OPEN_PROTOCOL_BY_CHILD_CONTROLLER
-                    );
-    if (EFI_ERROR (Status)) {
-      goto ON_ERROR;
-    }
-  }
   InsertTailList (&IpIf->IpInstances, &IpInstance->AddrLink);
 
   CopyMem (&IpInstance->ConfigData, Config, sizeof (IpInstance->ConfigData));
@@ -1066,14 +1028,6 @@ Ip4CleanProtocol (
 
   if (IpInstance->Interface != NULL) {
     RemoveEntryList (&IpInstance->AddrLink);
-    if (IpInstance->Interface->Arp != NULL) {
-      gBS->CloseProtocol (
-             IpInstance->Interface->ArpHandle,
-             &gEfiArpProtocolGuid,
-             gIp4DriverBinding.DriverBindingHandle,
-             IpInstance->Handle
-             );
-    }
     Ip4FreeInterface (IpInstance->Interface, IpInstance);
     IpInstance->Interface = NULL;
   }
@@ -1239,6 +1193,14 @@ EfiIp4Configure (
   // Validate the configuration first.
   //
   if (IpConfigData != NULL) {
+    //
+    // This implementation doesn't support RawData
+    //
+    if (IpConfigData->RawData) {
+      Status = EFI_UNSUPPORTED;
+      goto ON_EXIT;
+    }
+
 
     CopyMem (&IpAddress, &IpConfigData->StationAddress, sizeof (IP4_ADDR));
     CopyMem (&SubnetMask, &IpConfigData->SubnetMask, sizeof (IP4_ADDR));
@@ -1294,7 +1256,7 @@ EfiIp4Configure (
     Status = Ip4CleanProtocol (IpInstance);
 
     //
-    // Don't change the state if it is DESTROY, consider the following
+    // Don't change the state if it is DESTORY, consider the following
     // valid sequence: Mnp is unloaded-->Ip Stopped-->Udp Stopped,
     // Configure (ThisIp, NULL). If the state is changed to UNCONFIGED,
     // the unload fails miserably.
@@ -1309,6 +1271,11 @@ EfiIp4Configure (
   // whether it is necessary to reconfigure the MNP.
   //
   Ip4ServiceConfigMnp (IpInstance->Service, FALSE);
+
+  //
+  // Update the variable data.
+  //
+  Ip4SetVariableData (IpInstance->Service);
 
 ON_EXIT:
   gBS->RestoreTPL (OldTpl);
@@ -1653,23 +1620,22 @@ Ip4TokenExist (
   return EFI_SUCCESS;
 }
 
+
 /**
   Validate the user's token against current station address.
 
-  @param[in]  Token              User's token to validate.
-  @param[in]  IpIf               The IP4 child's interface.
-  @param[in]  RawData            Set to TRUE to send unformatted packets.
+  @param[in]  Token                  User's token to validate
+  @param[in]  IpIf                   The IP4 child's interface.
 
-  @retval EFI_INVALID_PARAMETER  Some parameters are invalid.
+  @retval EFI_INVALID_PARAMETER  Some parameters are invalid
   @retval EFI_BAD_BUFFER_SIZE    The user's option/data is too long.
-  @retval EFI_SUCCESS            The token is valid.
+  @retval EFI_SUCCESS            The token is OK
 
 **/
 EFI_STATUS
 Ip4TxTokenValid (
   IN EFI_IP4_COMPLETION_TOKEN   *Token,
-  IN IP4_INTERFACE              *IpIf,
-  IN BOOLEAN                    RawData
+  IN IP4_INTERFACE              *IpIf
   )
 {
   EFI_IP4_TRANSMIT_DATA     *TxData;
@@ -1687,17 +1653,26 @@ Ip4TxTokenValid (
   TxData = Token->Packet.TxData;
 
   //
-  // Check the fragment table: no empty fragment, and length isn't bogus.
+  // Check the IP options: no more than 40 bytes and format is OK
+  //
+  if (TxData->OptionsLength != 0) {
+    if ((TxData->OptionsLength > 40) || (TxData->OptionsBuffer == NULL)) {
+      return EFI_INVALID_PARAMETER;
+    }
+
+    if (!Ip4OptionIsValid (TxData->OptionsBuffer, TxData->OptionsLength, FALSE)) {
+      return EFI_INVALID_PARAMETER;
+    }
+  }
+
+  //
+  // Check the fragment table: no empty fragment, and length isn't bogus
   //
   if ((TxData->TotalDataLength == 0) || (TxData->FragmentCount == 0)) {
     return EFI_INVALID_PARAMETER;
   }
 
   Offset = TxData->TotalDataLength;
-
-  if (Offset > IP4_MAX_PACKET_SIZE) {
-    return EFI_BAD_BUFFER_SIZE;
-  }
 
   for (Index = 0; Index < TxData->FragmentCount; Index++) {
     if ((TxData->FragmentTable[Index].FragmentBuffer == NULL) ||
@@ -1711,27 +1686,6 @@ Ip4TxTokenValid (
 
   if (Offset != 0) {
     return EFI_INVALID_PARAMETER;
-  }
-
-  //
-  // NOTE that OptionsLength/OptionsBuffer/OverrideData are ignored if RawData
-  // is TRUE.
-  //
-  if (RawData) {
-    return EFI_SUCCESS;
-  }
-
-  //
-  // Check the IP options: no more than 40 bytes and format is OK
-  //
-  if (TxData->OptionsLength != 0) {
-    if ((TxData->OptionsLength > 40) || (TxData->OptionsBuffer == NULL)) {
-      return EFI_INVALID_PARAMETER;
-    }
-
-    if (!Ip4OptionIsValid (TxData->OptionsBuffer, TxData->OptionsLength, FALSE)) {
-      return EFI_INVALID_PARAMETER;
-    }
   }
 
   //
@@ -1934,10 +1888,6 @@ EfiIp4Transmit (
   EFI_TPL                   OldTpl;
   BOOLEAN                   DontFragment;
   UINT32                    HeadLen;
-  UINT8                     RawHdrLen;
-  UINT32                    OptionsLength;
-  UINT8                     *OptionsBuffer;
-  VOID                      *FirstFragment;
 
   if (This == NULL) {
     return EFI_INVALID_PARAMETER;
@@ -1963,7 +1913,7 @@ EfiIp4Transmit (
   //
   // make sure that token is properly formated
   //
-  Status = Ip4TxTokenValid (Token, IpIf, Config->RawData);
+  Status = Ip4TxTokenValid (Token, IpIf);
 
   if (EFI_ERROR (Status)) {
     goto ON_EXIT;
@@ -1983,84 +1933,32 @@ EfiIp4Transmit (
   //
   TxData = Token->Packet.TxData;
 
-  FirstFragment = NULL;
+  CopyMem (&Head.Dst, &TxData->DestinationAddress, sizeof (IP4_ADDR));
+  Head.Dst = NTOHL (Head.Dst);
 
-  if (Config->RawData) {
-    //
-    // When RawData is TRUE, first buffer in FragmentTable points to a raw
-    // IPv4 fragment including IPv4 header and options.
-    //
-    FirstFragment = TxData->FragmentTable[0].FragmentBuffer;
-    CopyMem (&RawHdrLen, FirstFragment, sizeof (UINT8));
+  if (TxData->OverrideData != NULL) {
+    Override      = TxData->OverrideData;
+    Head.Protocol = Override->Protocol;
+    Head.Tos      = Override->TypeOfService;
+    Head.Ttl      = Override->TimeToLive;
+    DontFragment  = Override->DoNotFragment;
 
-    RawHdrLen = (UINT8) (RawHdrLen & 0x0f);
-    if (RawHdrLen < 5) {
-      Status = EFI_INVALID_PARAMETER;
-      goto ON_EXIT;
-    }
+    CopyMem (&Head.Src, &Override->SourceAddress, sizeof (IP4_ADDR));
+    CopyMem (&GateWay, &Override->GatewayAddress, sizeof (IP4_ADDR));
 
-    RawHdrLen = (UINT8) (RawHdrLen << 2);
-
-    CopyMem (&Head, FirstFragment, IP4_MIN_HEADLEN);
-
-    Ip4NtohHead (&Head);
-    HeadLen      = 0;
-    DontFragment = IP4_DO_NOT_FRAGMENT (Head.Fragment);
-
-    if (!DontFragment) {
-      Status = EFI_INVALID_PARAMETER;
-      goto ON_EXIT;
-    }
-
-    GateWay = IP4_ALLZERO_ADDRESS;
-
-    //
-    // Get IPv4 options from first fragment.
-    //
-    if (RawHdrLen == IP4_MIN_HEADLEN) {
-      OptionsLength = 0;
-      OptionsBuffer = NULL;
-    } else {
-      OptionsLength = RawHdrLen - IP4_MIN_HEADLEN;
-      OptionsBuffer = (UINT8 *) FirstFragment + IP4_MIN_HEADLEN;
-    }
-
-    //
-    // Trim off IPv4 header and options from first fragment.
-    //
-    TxData->FragmentTable[0].FragmentBuffer = (UINT8 *) FirstFragment + RawHdrLen;
-    TxData->FragmentTable[0].FragmentLength = TxData->FragmentTable[0].FragmentLength - RawHdrLen;
+    Head.Src = NTOHL (Head.Src);
+    GateWay  = NTOHL (GateWay);
   } else {
-    CopyMem (&Head.Dst, &TxData->DestinationAddress, sizeof (IP4_ADDR));
-    Head.Dst = NTOHL (Head.Dst);
-
-    if (TxData->OverrideData != NULL) {
-      Override      = TxData->OverrideData;
-      Head.Protocol = Override->Protocol;
-      Head.Tos      = Override->TypeOfService;
-      Head.Ttl      = Override->TimeToLive;
-      DontFragment  = Override->DoNotFragment;
-
-      CopyMem (&Head.Src, &Override->SourceAddress, sizeof (IP4_ADDR));
-      CopyMem (&GateWay, &Override->GatewayAddress, sizeof (IP4_ADDR));
-
-      Head.Src = NTOHL (Head.Src);
-      GateWay  = NTOHL (GateWay);
-    } else {
-      Head.Src      = IpIf->Ip;
-      GateWay       = IP4_ALLZERO_ADDRESS;
-      Head.Protocol = Config->DefaultProtocol;
-      Head.Tos      = Config->TypeOfService;
-      Head.Ttl      = Config->TimeToLive;
-      DontFragment  = Config->DoNotFragment;
-    }
-
-    Head.Fragment = IP4_HEAD_FRAGMENT_FIELD (DontFragment, FALSE, 0);
-    HeadLen       = (TxData->OptionsLength + 3) & (~0x03);
-
-    OptionsLength = TxData->OptionsLength;
-    OptionsBuffer = (UINT8 *) (TxData->OptionsBuffer);
+    Head.Src      = IpIf->Ip;
+    GateWay       = IP4_ALLZERO_ADDRESS;
+    Head.Protocol = Config->DefaultProtocol;
+    Head.Tos      = Config->TypeOfService;
+    Head.Ttl      = Config->TimeToLive;
+    DontFragment  = Config->DoNotFragment;
   }
+
+  Head.Fragment = IP4_HEAD_FRAGMENT_FIELD (DontFragment, FALSE, 0);
+  HeadLen       = (TxData->OptionsLength + 3) & (~0x03);
 
   //
   // If don't fragment and fragment needed, return error
@@ -2106,13 +2004,6 @@ EfiIp4Transmit (
     // free the IP4_TXTOKEN_WRAP. Now, the token wrap hasn't been
     // enqueued.
     //
-    if (Config->RawData) {
-      //
-      // Restore pointer of first fragment in RawData mode.
-      //
-      TxData->FragmentTable[0].FragmentBuffer = (UINT8 *) FirstFragment;
-    }
-
     NetbufFree (Wrap->Packet);
     goto ON_EXIT;
   }
@@ -2128,8 +2019,8 @@ EfiIp4Transmit (
              IpInstance,
              Wrap->Packet,
              &Head,
-             OptionsBuffer,
-             OptionsLength,
+             TxData->OptionsBuffer,
+             TxData->OptionsLength,
              GateWay,
              Ip4OnPacketSent,
              Wrap
@@ -2137,22 +2028,7 @@ EfiIp4Transmit (
 
   if (EFI_ERROR (Status)) {
     Wrap->Sent = FALSE;
-
-    if (Config->RawData) {
-      //
-      // Restore pointer of first fragment in RawData mode.
-      //
-      TxData->FragmentTable[0].FragmentBuffer = (UINT8 *) FirstFragment;
-    }
-
     NetbufFree (Wrap->Packet);
-  }
-
-  if (Config->RawData) {
-    //
-    // Restore pointer of first fragment in RawData mode.
-    //
-    TxData->FragmentTable[0].FragmentBuffer = (UINT8 *) FirstFragment;
   }
 
 ON_EXIT:

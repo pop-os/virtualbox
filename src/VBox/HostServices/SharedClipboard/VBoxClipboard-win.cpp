@@ -110,7 +110,6 @@ void vboxClipboardDump(const void *pv, size_t cb, uint32_t u32Format)
 #define vboxClipboardDump(__pv, __cb, __format) do { NOREF(__pv); NOREF(__cb); NOREF(__format); } while (0)
 #endif /* LOG_ENABLED */
 
-
 static void vboxClipboardInitNewAPI(VBOXCLIPBOARDCONTEXT *pCtx)
 {
     RTLDRMOD hUser32 = NIL_RTLDRMOD;
@@ -539,6 +538,7 @@ static LRESULT CALLBACK vboxClipboardWndProc(HWND hwnd, UINT msg, WPARAM wParam,
             /* Do nothing. The clipboard formats will be unavailable now, because the
              * windows is to be destroyed and therefore the guest side becomes inactive.
              */
+
             int vboxrc = vboxOpenClipboard(hwnd);
             if (RT_SUCCESS(vboxrc))
             {

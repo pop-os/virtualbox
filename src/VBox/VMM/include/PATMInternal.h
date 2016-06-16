@@ -531,8 +531,10 @@ typedef struct PATM
      * PATMGCMonitorPage). */
     PGMVIRTHANDLERTYPE          hMonitorPageType;
 
+#if HC_ARCH_BITS == 64
     /** Align statistics on a 8 byte boundary. */
     uint32_t                    u32Alignment1;
+#endif
 
     STAMCOUNTER                 StatNrOpcodeRead;
     STAMCOUNTER                 StatDisabled;

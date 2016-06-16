@@ -29,7 +29,7 @@ static NDIS_STATUS vboxNetFltWinMpInitialize(OUT PNDIS_STATUS OpenErrorStatus,
     PVBOXNETFLTINS pNetFlt = (PVBOXNETFLTINS)NdisIMGetDeviceContext(MiniportAdapterHandle);
     NDIS_STATUS Status = NDIS_STATUS_FAILURE;
 
-    LogFlowFunc(("ENTER: pNetFlt (0x%p)\n", pNetFlt));
+    LogFlow(("==>"__FUNCTION__": pNetFlt (0x%p)\n", pNetFlt));
 
     pNetFlt->u.s.WinIf.hMiniport = MiniportAdapterHandle;
     Assert(vboxNetFltWinGetOpState(&pNetFlt->u.s.WinIf.MpState) == kVBoxNetDevOpState_Initializing);
@@ -85,7 +85,7 @@ static NDIS_STATUS vboxNetFltWinMpInitialize(OUT PNDIS_STATUS OpenErrorStatus,
 
     NdisSetEvent(&pNetFlt->u.s.WinIf.MpInitCompleteEvent);
 
-    LogFlowFunc(("LEAVE: pNetFlt (0x%p), Status (0x%x)\n", pNetFlt, Status));
+    LogFlow(("<=="__FUNCTION__": pNetFlt (0x%p), Status (0x%x)\n", pNetFlt, Status));
 
     *OpenErrorStatus = Status;
 
@@ -234,7 +234,7 @@ DECLHIDDEN(NDIS_STATUS) vboxNetFltWinMpDoInitialization(PVBOXNETFLTINS pNetFlt, 
     NDIS_STATUS Status;
     pNetFlt->u.s.WinIf.hMiniport = hMiniportAdapter;
 
-    LogFlowFunc(("ENTER: pNetFlt 0x%p\n", pNetFlt));
+    LogFlow(("==>"__FUNCTION__" : pNetFlt 0x%p\n", pNetFlt));
 
     Assert(vboxNetFltWinGetOpState(&pNetFlt->u.s.WinIf.MpState) == kVBoxNetDevOpState_Deinitialized);
     vboxNetFltWinSetOpState(&pNetFlt->u.s.WinIf.MpState, kVBoxNetDevOpState_Initializing);
@@ -254,7 +254,7 @@ DECLHIDDEN(NDIS_STATUS) vboxNetFltWinMpDoInitialization(PVBOXNETFLTINS pNetFlt, 
 
     Status = NDIS_STATUS_SUCCESS;
 
-    LogFlowFunc(("pNetFlt 0x%p, Status 0x%x\n", pNetFlt, Status));
+    LogFlow(("<=="__FUNCTION__" : pNetFlt 0x%p, Status 0x%x\n", pNetFlt, Status));
 
     return Status;
 }
@@ -270,7 +270,7 @@ static NDIS_STATUS vboxNetFltWinMpInitialize(OUT PNDIS_STATUS OpenErrorStatus,
     NDIS_STATUS Status = NDIS_STATUS_FAILURE;
     UINT i = 0;
 
-    LogFlowFuncEnter();
+    LogFlow(("==>"__FUNCTION__"\n"));
 
     for (; i < MediumArraySize; i++)
     {
@@ -383,7 +383,7 @@ static NDIS_STATUS vboxNetFltWinMpInitialize(OUT PNDIS_STATUS OpenErrorStatus,
     /* TODO: */
     *OpenErrorStatus = Status;
 
-    LogFlowFunc(("LEAVE: Status (0x%x)\n", Status));
+    LogFlow(("<=="__FUNCTION__": Status (0x%x)\n", Status));
 
     return Status;
 }
@@ -397,7 +397,7 @@ static VOID vboxNetFltWinMpSendPackets(IN NDIS_HANDLE hMiniportAdapterContext,
     NDIS_STATUS Status = NDIS_STATUS_SUCCESS;
     bool bNetFltActive;
 
-    LogFlowFunc(("ENTER: pNetFlt (0x%p)\n", pNetFlt));
+    LogFlow(("==>"__FUNCTION__": pNetFlt (0x%p)\n", pNetFlt));
 
     Assert(cNumberOfPackets);
 
@@ -497,7 +497,7 @@ static VOID vboxNetFltWinMpSendPackets(IN NDIS_HANDLE hMiniportAdapterContext,
         }
     }
 
-    LogFlowFunc(("LEAVE: pNetFlt (0x%p)\n", pNetFlt));
+    LogFlow(("<=="__FUNCTION__": pNetFlt (0x%p)\n", pNetFlt));
 }
 
 #ifndef VBOXNETADP
@@ -599,7 +599,7 @@ static NDIS_STATUS vboxNetFltWinMpQueryInformation(IN NDIS_HANDLE MiniportAdapte
     PVBOXNETFLTINS pNetFlt = (PVBOXNETFLTINS)MiniportAdapterContext;
     NDIS_STATUS Status = NDIS_STATUS_FAILURE;
 
-    LogFlowFunc(("ENTER: pNetFlt (0x%p), Oid (%s)\n", pNetFlt, vboxNetFltWinMpDumpOid(Oid)));
+    LogFlow(("==>"__FUNCTION__": pNetFlt (0x%p), Oid (%s)\n", pNetFlt, vboxNetFltWinMpDumpOid(Oid)));
 
     /* fist check if this is the oid we want to pass down */
     switch (Oid)
@@ -637,7 +637,7 @@ static NDIS_STATUS vboxNetFltWinMpQueryInformation(IN NDIS_HANDLE MiniportAdapte
         }
     }
 
-    LogFlowFunc(("LEAVE: pNetFlt (0x%p), Oid (%s), Status (0x%x)\n", pNetFlt, vboxNetFltWinMpDumpOid(Oid), Status));
+    LogFlow(("<=="__FUNCTION__": pNetFlt (0x%p), Oid (%s), Status (0x%x)\n", pNetFlt, vboxNetFltWinMpDumpOid(Oid), Status));
 
     return Status;
 }
@@ -774,7 +774,7 @@ static NDIS_STATUS vboxNetFltWinMpSetInformation(IN NDIS_HANDLE MiniportAdapterC
     PVBOXNETFLTINS pNetFlt = (PVBOXNETFLTINS)MiniportAdapterContext;
     NDIS_STATUS Status = NDIS_STATUS_FAILURE;
 
-    LogFlowFunc(("ENTER: pNetFlt (0x%p), Oid (%s)\n", pNetFlt, vboxNetFltWinMpDumpOid(Oid)));
+    LogFlow(("==>"__FUNCTION__": pNetFlt (0x%p), Oid (%s)\n", pNetFlt, vboxNetFltWinMpDumpOid(Oid)));
 
     switch (Oid)
     {
@@ -828,7 +828,7 @@ static NDIS_STATUS vboxNetFltWinMpSetInformation(IN NDIS_HANDLE MiniportAdapterC
         }
     }
 
-    LogFlowFunc(("LEAVE: pNetFlt (0x%p), Oid (%s), Status (0x%x)\n", pNetFlt, vboxNetFltWinMpDumpOid(Oid), Status));
+    LogFlow(("<=="__FUNCTION__": pNetFlt (0x%p), Oid (%s), Status (0x%x)\n", pNetFlt, vboxNetFltWinMpDumpOid(Oid), Status));
 
     return Status;
 }
@@ -905,7 +905,7 @@ static NDIS_STATUS vboxNetFltWinMpQueryInformation(IN NDIS_HANDLE MiniportAdapte
     const void* pvInfo = (void*)&u32Info;
     ULONG cbInfo = sizeof (u32Info);
 
-    LogFlowFunc(("ENTER: pNetFlt (0x%p), Oid (%s)\n", pNetFlt, vboxNetFltWinMpDumpOid(Oid)));
+    LogFlow(("==>"__FUNCTION__": pNetFlt (0x%p), Oid (%s)\n", pNetFlt, vboxNetFltWinMpDumpOid(Oid)));
 
     *BytesWritten = 0;
     *BytesNeeded = 0;
@@ -1132,7 +1132,7 @@ static NDIS_STATUS vboxNetFltWinMpQueryInformation(IN NDIS_HANDLE MiniportAdapte
     }
 
 
-    LogFlowFunc(("LEAVE: pNetFlt (0x%p), Oid (%s), Status (0x%x)\n", pNetFlt, vboxNetFltWinMpDumpOid(Oid), Status));
+    LogFlow(("<=="__FUNCTION__": pNetFlt (0x%p), Oid (%s), Status (0x%x)\n", pNetFlt, vboxNetFltWinMpDumpOid(Oid), Status));
 
     return Status;
 }
@@ -1147,7 +1147,7 @@ static NDIS_STATUS vboxNetFltWinMpSetInformation(IN NDIS_HANDLE MiniportAdapterC
     PVBOXNETFLTINS pNetFlt = (PVBOXNETFLTINS) MiniportAdapterContext;
     NDIS_STATUS Status = NDIS_STATUS_SUCCESS;
 
-    LogFlowFunc(("ENTER: pNetFlt (0x%p), Oid (%s)\n", pNetFlt, vboxNetFltWinMpDumpOid(Oid)));
+    LogFlow(("==>"__FUNCTION__": pNetFlt (0x%p), Oid (%s)\n", pNetFlt, vboxNetFltWinMpDumpOid(Oid)));
 
     *BytesRead = 0;
     *BytesNeeded = 0;
@@ -1219,7 +1219,7 @@ static NDIS_STATUS vboxNetFltWinMpSetInformation(IN NDIS_HANDLE MiniportAdapterC
             break;
     }
 
-    LogFlowFunc(("LEAVE: pNetFlt (0x%p), Oid (%s), Status (0x%x)\n", pNetFlt, vboxNetFltWinMpDumpOid(Oid), Status));
+    LogFlow(("<=="__FUNCTION__": pNetFlt (0x%p), Oid (%s), Status (0x%x)\n", pNetFlt, vboxNetFltWinMpDumpOid(Oid), Status));
 
     return Status;
 }
@@ -1329,7 +1329,7 @@ DECLHIDDEN(VOID) vboxNetFltWinMpReturnPacket(IN NDIS_HANDLE hMiniportAdapterCont
     PNDIS_PACKET pOrigPacket = pInfo->pOrigPacket;
     PVOID pBufToFree = pInfo->pBufToFree;
 
-    LogFlowFunc(("ENTER: pNetFlt (0x%p)\n", pNetFlt));
+    LogFlow(("==>"__FUNCTION__": pNetFlt (0x%p)\n", pNetFlt));
 
     if (pOrigPacket)
     {
@@ -1350,7 +1350,7 @@ DECLHIDDEN(VOID) vboxNetFltWinMpReturnPacket(IN NDIS_HANDLE hMiniportAdapterCont
 
     vboxNetFltWinDereferenceWinIf(pNetFlt);
 
-    LogFlowFunc(("LEAVE: pNetFlt (0x%p)\n", pNetFlt));
+    LogFlow(("<=="__FUNCTION__": pNetFlt (0x%p)\n", pNetFlt));
 }
 
 static NDIS_STATUS vboxNetFltWinMpTransferData(OUT PNDIS_PACKET Packet,
@@ -1364,25 +1364,25 @@ static NDIS_STATUS vboxNetFltWinMpTransferData(OUT PNDIS_PACKET Packet,
     PVBOXNETFLTINS pNetFlt = (PVBOXNETFLTINS)hContext;
     NDIS_STATUS Status;
 
-    LogFlowFunc(("ENTER: pNetFlt (0x%p)\n", pNetFlt));
+    LogFlow(("==>"__FUNCTION__": pNetFlt (0x%p)\n", pNetFlt));
 
     if (vboxNetFltWinGetPowerState(&pNetFlt->u.s.WinIf.PtState) != NdisDeviceStateD0
             || vboxNetFltWinGetPowerState(&pNetFlt->u.s.WinIf.MpState) != NdisDeviceStateD0)
     {
-        LogFlowFunc(("LEAVE: pNetFlt (0x%p), Status (0x%x)\n", pNetFlt, NDIS_STATUS_FAILURE));
+        LogFlow(("<=="__FUNCTION__": pNetFlt (0x%p), Status (0x%x)\n", pNetFlt, NDIS_STATUS_FAILURE));
         return NDIS_STATUS_FAILURE;
     }
 
     NdisTransferData(&Status, pNetFlt->u.s.WinIf.hBinding, MiniportReceiveContext,
             ByteOffset, BytesToTransfer, Packet, BytesTransferred);
 
-    LogFlowFunc(("LEAVE: pNetFlt (0x%p), Status (0x%x)\n", pNetFlt, Status));
+    LogFlow(("<=="__FUNCTION__": pNetFlt (0x%p), Status (0x%x)\n", pNetFlt, Status));
     return Status;
 #else
-    LogFlowFunc(("ENTER: pNetFlt (0x%p)\n", hContext));
+    LogFlow(("==>"__FUNCTION__": pNetFlt (0x%p)\n", hContext));
     /* should never be here */
     Assert(0);
-    LogFlowFunc(("LEAVE: pNetFlt (0x%p), Status (0x%x)\n", hContext, NDIS_STATUS_FAILURE));
+    LogFlow(("<=="__FUNCTION__": pNetFlt (0x%p), Status (0x%x)\n", hContext, NDIS_STATUS_FAILURE));
     return NDIS_STATUS_FAILURE;
 #endif
 }
@@ -1392,7 +1392,7 @@ static void vboxNetFltWinMpHalt(IN NDIS_HANDLE hContext)
     PVBOXNETFLTINS pNetFlt = (PVBOXNETFLTINS)hContext;
     NDIS_STATUS Status;
 
-    LogFlowFunc(("ENTER: pNetFlt (0x%p)\n", pNetFlt));
+    LogFlow(("==>"__FUNCTION__": pNetFlt (0x%p)\n", pNetFlt));
 
 #ifndef VBOXNETADP
     if (vboxNetFltWinGetWinIfState(pNetFlt) == kVBoxWinIfState_Disconnecting)
@@ -1418,7 +1418,7 @@ static void vboxNetFltWinMpHalt(IN NDIS_HANDLE hContext)
         Assert(Status == NDIS_STATUS_SUCCESS);
     }
 
-    LogFlowFunc(("LEAVE: pNetFlt (0x%p)\n", pNetFlt));
+    LogFlow(("<=="__FUNCTION__": pNetFlt (0x%p)\n", pNetFlt));
 }
 
 /**

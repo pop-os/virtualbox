@@ -59,8 +59,7 @@ testboxscript_SOURCES.solaris = \
 
 testboxscript_SOURCES.win = \
 	win/autoexec-testbox.cmd=>win/autoexec-testbox.cmd \
-	win/readme.txt=>win/readme.txt \
-	$(if $(VBOX_OSE),,win/fix_stale_refs.py=>win/fix_stale_refs.py)
+	win/readme.txt=>win/readme.txt
 
 
 #

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2014-2016 Oracle Corporation
+ * Copyright (C) 2014-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,6 +15,13 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  * --------------------------------------------------------------------
  */
+#define LOG_GROUP LOG_GROUP_DRV_HOST_AUDIO
+#include <VBox/log.h>
+#include "DrvAudio.h"
+#include "AudioMixBuffer.h"
+
+#include "VBoxDD.h"
+
 #include <errno.h>
 #include <fcntl.h>
 #include <sys/ioctl.h>
@@ -24,33 +31,7 @@
 
 #include <iprt/alloc.h>
 #include <iprt/uuid.h> /* For PDMIBASE_2_PDMDRV. */
-
-#define LOG_GROUP LOG_GROUP_DRV_HOST_AUDIO
-#include <VBox/log.h>
 #include <VBox/vmm/pdmaudioifs.h>
-
-#include "DrvAudio.h"
-#include "AudioMixBuffer.h"
-
-#include "VBoxDD.h"
-
-/*********************************************************************************************************************************
-*   Defines                                                                                                                      *
-*********************************************************************************************************************************/
-
-#if ((SOUND_VERSION > 360) && (defined(OSS_SYSINFO)))
-/* OSS > 3.6 has a new syscall available for querying a bit more detailed information
- * about OSS' audio capabilities. This is handy for e.g. Solaris. */
-# define VBOX_WITH_OSS_SYSINFO 1
-#endif
-
-/** Makes DRVHOSTOSSAUDIO out of PDMIHOSTAUDIO. */
-#define PDMIHOSTAUDIO_2_DRVHOSTOSSAUDIO(pInterface) \
-    ( (PDRVHOSTOSSAUDIO)((uintptr_t)pInterface - RT_OFFSETOF(DRVHOSTOSSAUDIO, IHostAudio)) )
-
-/*********************************************************************************************************************************
-*   Structures                                                                                                                   *
-*********************************************************************************************************************************/
 
 /**
  * OSS host audio driver instance data.
@@ -80,21 +61,21 @@ typedef struct OSSAUDIOSTREAMCFG
 typedef struct OSSAUDIOSTREAMIN
 {
     /** Note: Always must come first! */
-    PDMAUDIOSTREAM     pStreamIn;
+    PDMAUDIOHSTSTRMIN  pStreamIn;
     int                hFile;
     int                cFragments;
     int                cbFragmentSize;
     /** Own PCM buffer. */
-    void              *pvBuf;
+    void              *pvPCMBuf;
     /** Size (in bytes) of own PCM buffer. */
-    size_t             cbBuf;
+    size_t             cbPCMBuf;
     int                old_optr;
 } OSSAUDIOSTREAMIN, *POSSAUDIOSTREAMIN;
 
 typedef struct OSSAUDIOSTREAMOUT
 {
     /** Note: Always must come first! */
-    PDMAUDIOSTREAM      pStreamOut;
+    PDMAUDIOHSTSTRMOUT  pStreamOut;
     int                 hFile;
     int                 cFragments;
     int                 cbFragmentSize;
@@ -104,9 +85,9 @@ typedef struct OSSAUDIOSTREAMOUT
     bool                fMemMapped;
 #endif
     /** Own PCM buffer in case memory mapping is unavailable. */
-    void               *pvBuf;
+    void               *pvPCMBuf;
     /** Size (in bytes) of own PCM buffer. */
-    size_t              cbBuf;
+    size_t              cbPCMBuf;
     int                 old_optr;
 } OSSAUDIOSTREAMOUT, *POSSAUDIOSTREAMOUT;
 
@@ -151,20 +132,20 @@ static uint32_t lsbindex(uint32_t u)
     return popcount ((u&-u)-1);
 }
 
-static int ossAudioFmtToOSS(PDMAUDIOFMT fmt)
+static int drvHostOSSAudioFmtToOSS(PDMAUDIOFMT fmt)
 {
     switch (fmt)
     {
-        case PDMAUDIOFMT_S8:
+        case AUD_FMT_S8:
             return AFMT_S8;
 
-        case PDMAUDIOFMT_U8:
+        case AUD_FMT_U8:
             return AFMT_U8;
 
-        case PDMAUDIOFMT_S16:
+        case AUD_FMT_S16:
             return AFMT_S16_LE;
 
-        case PDMAUDIOFMT_U16:
+        case AUD_FMT_U16:
             return AFMT_U16_LE;
 
         default:
@@ -175,42 +156,43 @@ static int ossAudioFmtToOSS(PDMAUDIOFMT fmt)
     return AFMT_U8;
 }
 
-static int ossOSSToAudioFmt(int fmt, PDMAUDIOFMT *pFmt, PDMAUDIOENDIANNESS *pENDIANNESS)
+static int drvHostOSSAudioOSSToFmt(int fmt,
+                                   PDMAUDIOFMT *pFmt, PDMAUDIOENDIANNESS *pENDIANNESS)
 {
     switch (fmt)
     {
         case AFMT_S8:
-            *pFmt = PDMAUDIOFMT_S8;
+            *pFmt = AUD_FMT_S8;
             if (pENDIANNESS)
                 *pENDIANNESS = PDMAUDIOENDIANNESS_LITTLE;
             break;
 
         case AFMT_U8:
-            *pFmt = PDMAUDIOFMT_U8;
+            *pFmt = AUD_FMT_U8;
             if (pENDIANNESS)
                 *pENDIANNESS = PDMAUDIOENDIANNESS_LITTLE;
             break;
 
         case AFMT_S16_LE:
-            *pFmt = PDMAUDIOFMT_S16;
+            *pFmt = AUD_FMT_S16;
             if (pENDIANNESS)
                 *pENDIANNESS = PDMAUDIOENDIANNESS_LITTLE;
             break;
 
         case AFMT_U16_LE:
-            *pFmt = PDMAUDIOFMT_U16;
+            *pFmt = AUD_FMT_U16;
             if (pENDIANNESS)
                 *pENDIANNESS = PDMAUDIOENDIANNESS_LITTLE;
             break;
 
         case AFMT_S16_BE:
-            *pFmt = PDMAUDIOFMT_S16;
+            *pFmt = AUD_FMT_S16;
             if (pENDIANNESS)
                 *pENDIANNESS = PDMAUDIOENDIANNESS_BIG;
             break;
 
         case AFMT_U16_BE:
-            *pFmt = PDMAUDIOFMT_U16;
+            *pFmt = AUD_FMT_U16;
             if (pENDIANNESS)
                 *pENDIANNESS = PDMAUDIOENDIANNESS_BIG;
             break;
@@ -223,7 +205,7 @@ static int ossOSSToAudioFmt(int fmt, PDMAUDIOFMT *pFmt, PDMAUDIOENDIANNESS *pEND
     return VINF_SUCCESS;
 }
 
-static int ossStreamClose(int *phFile)
+static int drvHostOSSAudioClose(int *phFile)
 {
     if (!phFile || !*phFile)
         return VINF_SUCCESS;
@@ -231,7 +213,8 @@ static int ossStreamClose(int *phFile)
     int rc;
     if (close(*phFile))
     {
-        LogRel(("OSS: Closing stream failed: %s\n", strerror(errno)));
+        LogRel(("OSS: Closing descriptor failed: %s\n",
+                strerror(errno)));
         rc = VERR_GENERAL_FAILURE; /** @todo */
     }
     else
@@ -243,30 +226,40 @@ static int ossStreamClose(int *phFile)
     return rc;
 }
 
-static int ossStreamOpen(const char *pszDev, int fOpen, POSSAUDIOSTREAMCFG pReq, POSSAUDIOSTREAMCFG pObt, int *phFile)
+static int drvHostOSSAudioOpen(bool fIn,
+                               POSSAUDIOSTREAMCFG pReq, POSSAUDIOSTREAMCFG pObt,
+                               int *phFile)
 {
-    AssertPtrReturn(pszDev, VERR_INVALID_POINTER);
-    AssertPtrReturn(pReq,   VERR_INVALID_POINTER);
-    AssertPtrReturn(pObt,   VERR_INVALID_POINTER);
+    AssertPtrReturn(pReq, VERR_INVALID_POINTER);
+    AssertPtrReturn(pObt, VERR_INVALID_POINTER);
     AssertPtrReturn(phFile, VERR_INVALID_POINTER);
 
     int rc;
+    int hFile;
 
-    int hFile = -1;
     do
     {
-        hFile = open(pszDev, fOpen);
+        const char *pszDev = fIn ? s_OSSConf.devpath_in : s_OSSConf.devpath_out;
+        if (!pszDev)
+        {
+            LogRel(("OSS: Invalid or no %s device name set\n",
+                    fIn ? "input" : "output"));
+            rc = VERR_INVALID_PARAMETER;
+            break;
+        }
+
+        hFile = open(pszDev, (fIn ? O_RDONLY : O_WRONLY) | O_NONBLOCK);
         if (hFile == -1)
         {
-            LogRel(("OSS: Failed to open %s: %s (%d)\n", pszDev, strerror(errno), errno));
+            LogRel(("OSS: Failed to open %s: %s(%d)\n", pszDev, strerror(errno), errno));
             rc = RTErrConvertFromErrno(errno);
             break;
         }
 
-        int iFormat = ossAudioFmtToOSS(pReq->enmFormat);
+        int iFormat = drvHostOSSAudioFmtToOSS(pReq->enmFormat);
         if (ioctl(hFile, SNDCTL_DSP_SAMPLESIZE, &iFormat))
         {
-            LogRel(("OSS: Failed to set audio format to %ld: %s (%d)\n", iFormat, strerror(errno), errno));
+            LogRel(("OSS: Failed to set audio format to %ld errno=%s(%d)\n", iFormat, strerror(errno), errno));
             rc = RTErrConvertFromErrno(errno);
             break;
         }
@@ -274,7 +267,7 @@ static int ossStreamOpen(const char *pszDev, int fOpen, POSSAUDIOSTREAMCFG pReq,
         int cChannels = pReq->cChannels;
         if (ioctl(hFile, SNDCTL_DSP_CHANNELS, &cChannels))
         {
-            LogRel(("OSS: Failed to set number of audio channels (%d): %s (%d)\n", pReq->cChannels, strerror(errno), errno));
+            LogRel(("OSS: Failed to set number of audio channels (%d): %s(%d)\n", pReq->cChannels, strerror(errno), errno));
             rc = RTErrConvertFromErrno(errno);
             break;
         }
@@ -282,7 +275,7 @@ static int ossStreamOpen(const char *pszDev, int fOpen, POSSAUDIOSTREAMCFG pReq,
         int freq = pReq->uFreq;
         if (ioctl(hFile, SNDCTL_DSP_SPEED, &freq))
         {
-            LogRel(("OSS: Failed to set audio frequency (%dHZ): %s (%d)\n", pReq->uFreq, strerror(errno), errno));
+            LogRel(("OSS: Failed to set audio frequency (%dHZ): %s(%d)\n", pReq->uFreq, strerror(errno), errno));
             rc = RTErrConvertFromErrno(errno);
             break;
         }
@@ -291,7 +284,7 @@ static int ossStreamOpen(const char *pszDev, int fOpen, POSSAUDIOSTREAMCFG pReq,
 #if !(defined(VBOX) && defined(RT_OS_SOLARIS))
         if (ioctl(hFile, SNDCTL_DSP_NONBLOCK))
         {
-            LogRel(("OSS: Failed to set non-blocking mode: %s (%d)\n", strerror(errno), errno));
+            LogRel(("OSS: Failed to set non-blocking mode: %s(%d)\n", strerror(errno), errno));
             rc = RTErrConvertFromErrno(errno);
             break;
         }
@@ -299,21 +292,21 @@ static int ossStreamOpen(const char *pszDev, int fOpen, POSSAUDIOSTREAMCFG pReq,
         int mmmmssss = (pReq->cFragments << 16) | lsbindex(pReq->cbFragmentSize);
         if (ioctl(hFile, SNDCTL_DSP_SETFRAGMENT, &mmmmssss))
         {
-            LogRel(("OSS: Failed to set %RU16 fragments to %RU32 bytes each: %s (%d)\n",
+            LogRel(("OSS: Failed to set %RU16 fragments to %RU32 bytes each: %s(%d)\n",
                     pReq->cFragments, pReq->cbFragmentSize, strerror(errno), errno));
             rc = RTErrConvertFromErrno(errno);
             break;
         }
 
         audio_buf_info abinfo;
-        if (ioctl(hFile, (fOpen & O_RDONLY) ? SNDCTL_DSP_GETISPACE : SNDCTL_DSP_GETOSPACE, &abinfo))
+        if (ioctl(hFile, fIn ? SNDCTL_DSP_GETISPACE : SNDCTL_DSP_GETOSPACE, &abinfo))
         {
-            LogRel(("OSS: Failed to retrieve buffer length: %s (%d)\n", strerror(errno), errno));
+            LogRel(("OSS: Failed to retrieve buffer length: %s(%d)\n", strerror(errno), errno));
             rc = RTErrConvertFromErrno(errno);
             break;
         }
 
-        rc = ossOSSToAudioFmt(iFormat, &pObt->enmFormat, &pObt->enmENDIANNESS);
+        rc = drvHostOSSAudioOSSToFmt(iFormat, &pObt->enmFormat, &pObt->enmENDIANNESS);
         if (RT_SUCCESS(rc))
         {
             pObt->cChannels      = cChannels;
@@ -327,17 +320,17 @@ static int ossStreamOpen(const char *pszDev, int fOpen, POSSAUDIOSTREAMCFG pReq,
     while (0);
 
     if (RT_FAILURE(rc))
-        ossStreamClose(&hFile);
+        drvHostOSSAudioClose(&hFile);
 
     LogFlowFuncLeaveRC(rc);
     return rc;
 }
 
-static int ossControlStreamIn(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM pStream,
-                              PDMAUDIOSTREAMCMD enmStreamCmd)
+static DECLCALLBACK(int) drvHostOSSAudioControlIn(PPDMIHOSTAUDIO pInterface, PPDMAUDIOHSTSTRMIN pHstStrmIn,
+                                                   PDMAUDIOSTREAMCMD enmStreamCmd)
 {
     NOREF(pInterface);
-    NOREF(pStream);
+    NOREF(pHstStrmIn);
     NOREF(enmStreamCmd);
 
     /** @todo Nothing to do here right now!? */
@@ -345,18 +338,18 @@ static int ossControlStreamIn(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM pStream
     return VINF_SUCCESS;
 }
 
-static int ossControlStreamOut(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM pStream,
-                               PDMAUDIOSTREAMCMD enmStreamCmd)
+static DECLCALLBACK(int) drvHostOSSAudioControlOut(PPDMIHOSTAUDIO pInterface, PPDMAUDIOHSTSTRMOUT pHstStrmOut,
+                                                   PDMAUDIOSTREAMCMD enmStreamCmd)
 {
     NOREF(pInterface);
-    AssertPtrReturn(pStream, VERR_INVALID_POINTER);
+    AssertPtrReturn(pHstStrmOut, VERR_INVALID_POINTER);
 
-    POSSAUDIOSTREAMOUT pThisStream = (POSSAUDIOSTREAMOUT)pStream;
+    POSSAUDIOSTREAMOUT pThisStrmOut = (POSSAUDIOSTREAMOUT)pHstStrmOut;
 
 #ifdef RT_OS_L4
     return VINF_SUCCESS;
 #else
-    if (!pThisStream->fMemMapped)
+    if (!pThisStrmOut->fMemMapped)
         return VINF_SUCCESS;
 #endif
 
@@ -367,11 +360,11 @@ static int ossControlStreamOut(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM pStrea
         case PDMAUDIOSTREAMCMD_ENABLE:
         case PDMAUDIOSTREAMCMD_RESUME:
         {
-            DrvAudioHlpClearBuf(&pStream->Props,
-                             pThisStream->pvBuf, pThisStream->cbBuf, AudioMixBufSize(&pStream->MixBuf));
+            DrvAudioClearBuf(&pHstStrmOut->Props,
+                             pThisStrmOut->pvPCMBuf, pThisStrmOut->cbPCMBuf, AudioMixBufSize(&pHstStrmOut->MixBuf));
 
             mask = PCM_ENABLE_OUTPUT;
-            if (ioctl(pThisStream->hFile, SNDCTL_DSP_SETTRIGGER, &mask) < 0)
+            if (ioctl(pThisStrmOut->hFile, SNDCTL_DSP_SETTRIGGER, &mask) < 0)
             {
                 LogRel(("OSS: Failed to enable output stream: %s\n", strerror(errno)));
                 rc = RTErrConvertFromErrno(errno);
@@ -384,7 +377,7 @@ static int ossControlStreamOut(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM pStrea
         case PDMAUDIOSTREAMCMD_PAUSE:
         {
             mask = 0;
-            if (ioctl(pThisStream->hFile, SNDCTL_DSP_SETTRIGGER, &mask) < 0)
+            if (ioctl(pThisStrmOut->hFile, SNDCTL_DSP_SETTRIGGER, &mask) < 0)
             {
                 LogRel(("OSS: Failed to disable output stream: %s\n", strerror(errno)));
                 rc = RTErrConvertFromErrno(errno);
@@ -412,17 +405,17 @@ static DECLCALLBACK(int) drvHostOSSAudioInit(PPDMIHOSTAUDIO pInterface)
     return VINF_SUCCESS;
 }
 
-static DECLCALLBACK(int) drvHostOSSAudioStreamCapture(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM pStream,
-                                                      uint32_t *pcSamplesCaptured)
+static DECLCALLBACK(int) drvHostOSSAudioCaptureIn(PPDMIHOSTAUDIO pInterface, PPDMAUDIOHSTSTRMIN pHstStrmIn,
+                                                  uint32_t *pcSamplesCaptured)
 {
     NOREF(pInterface);
-    AssertPtrReturn(pStream, VERR_INVALID_POINTER);
+    AssertPtrReturn(pHstStrmIn, VERR_INVALID_POINTER);
 
-    POSSAUDIOSTREAMIN pStrm = (POSSAUDIOSTREAMIN)pStream;
+    POSSAUDIOSTREAMIN pThisStrmIn = (POSSAUDIOSTREAMIN)pHstStrmIn;
 
     int rc = VINF_SUCCESS;
-    size_t cbToRead = RT_MIN(pStrm->cbBuf,
-                             AudioMixBufFreeBytes(&pStream->MixBuf));
+    size_t cbToRead = RT_MIN(pThisStrmIn->cbPCMBuf,
+                             AudioMixBufFreeBytes(&pHstStrmIn->MixBuf));
 
     LogFlowFunc(("cbToRead=%zu\n", cbToRead));
 
@@ -433,11 +426,12 @@ static DECLCALLBACK(int) drvHostOSSAudioStreamCapture(PPDMIHOSTAUDIO pInterface,
 
     while (cbToRead)
     {
-        cbTemp = RT_MIN(cbToRead, pStrm->cbBuf);
+        cbTemp = RT_MIN(cbToRead, pThisStrmIn->cbPCMBuf);
         AssertBreakStmt(cbTemp, rc = VERR_NO_DATA);
-        cbRead = read(pStrm->hFile, (uint8_t *)pStrm->pvBuf + offWrite, cbTemp);
+        cbRead = read(pThisStrmIn->hFile, (uint8_t *)pThisStrmIn->pvPCMBuf + offWrite, cbTemp);
 
-        LogFlowFunc(("cbRead=%zi, cbTemp=%RU32, cbToRead=%zu\n", cbRead, cbTemp, cbToRead));
+        LogFlowFunc(("cbRead=%zi, cbTemp=%RU32, cbToRead=%zu\n",
+                     cbRead, cbTemp, cbToRead));
 
         if (cbRead < 0)
         {
@@ -456,8 +450,9 @@ static DECLCALLBACK(int) drvHostOSSAudioStreamCapture(PPDMIHOSTAUDIO pInterface,
                     break;
 
                 default:
-                    LogFlowFunc(("Failed to read %zu input frames, rc=%Rrc\n", cbTemp, rc));
-                    rc = VERR_GENERAL_FAILURE; /** @todo Fix this. */
+                    LogFlowFunc(("Failed to read %zu input frames, rc=%Rrc\n",
+                                 cbTemp, rc));
+                    rc = VERR_GENERAL_FAILURE; /** @todo */
                     break;
             }
 
@@ -467,11 +462,13 @@ static DECLCALLBACK(int) drvHostOSSAudioStreamCapture(PPDMIHOSTAUDIO pInterface,
         else if (cbRead)
         {
             uint32_t cWritten;
-            rc = AudioMixBufWriteCirc(&pStream->MixBuf, pStrm->pvBuf, cbRead, &cWritten);
+            rc = AudioMixBufWriteCirc(&pHstStrmIn->MixBuf,
+                                      pThisStrmIn->pvPCMBuf, cbRead,
+                                      &cWritten);
             if (RT_FAILURE(rc))
                 break;
 
-            uint32_t cbWritten = AUDIOMIXBUF_S2B(&pStream->MixBuf, cWritten);
+            uint32_t cbWritten = AUDIOMIXBUF_S2B(&pHstStrmIn->MixBuf, cWritten);
 
             Assert(cbToRead >= cbWritten);
             cbToRead      -= cbWritten;
@@ -489,7 +486,8 @@ static DECLCALLBACK(int) drvHostOSSAudioStreamCapture(PPDMIHOSTAUDIO pInterface,
     {
         uint32_t cProcessed = 0;
         if (cWrittenTotal)
-            rc = AudioMixBufMixToParent(&pStream->MixBuf, cWrittenTotal, &cProcessed);
+            rc = AudioMixBufMixToParent(&pHstStrmIn->MixBuf, cWrittenTotal,
+                                        &cProcessed);
 
         if (pcSamplesCaptured)
             *pcSamplesCaptured = cWrittenTotal;
@@ -502,158 +500,77 @@ static DECLCALLBACK(int) drvHostOSSAudioStreamCapture(PPDMIHOSTAUDIO pInterface,
     return rc;
 }
 
-static int ossDestroyStreamIn(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM pStream)
+static DECLCALLBACK(int) drvHostOSSAudioFiniIn(PPDMIHOSTAUDIO pInterface, PPDMAUDIOHSTSTRMIN pHstStrmIn)
 {
     NOREF(pInterface);
-    AssertPtrReturn(pStream, VERR_INVALID_POINTER);
+    AssertPtrReturn(pHstStrmIn, VERR_INVALID_POINTER);
 
-    POSSAUDIOSTREAMIN pStrm = (POSSAUDIOSTREAMIN)pStream;
+    POSSAUDIOSTREAMIN pThisStrmIn = (POSSAUDIOSTREAMIN)pHstStrmIn;
 
     LogFlowFuncEnter();
 
-    if (pStrm->pvBuf)
+    if (pThisStrmIn->pvPCMBuf)
     {
-        Assert(pStrm->cbBuf);
+        Assert(pThisStrmIn->cbPCMBuf);
 
-        RTMemFree(pStrm->pvBuf);
-        pStrm->pvBuf = NULL;
+        RTMemFree(pThisStrmIn->pvPCMBuf);
+        pThisStrmIn->pvPCMBuf = NULL;
     }
 
-    pStrm->cbBuf = 0;
-
-    ossStreamClose(&pStrm->hFile);
+    pThisStrmIn->cbPCMBuf = 0;
 
     return VINF_SUCCESS;
 }
 
-static int ossDestroyStreamOut(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM pStream)
+static DECLCALLBACK(int) drvHostOSSAudioFiniOut(PPDMIHOSTAUDIO pInterface, PPDMAUDIOHSTSTRMOUT pHstStrmOut)
 {
     NOREF(pInterface);
-    AssertPtrReturn(pStream, VERR_INVALID_POINTER);
+    AssertPtrReturn(pHstStrmOut, VERR_INVALID_POINTER);
 
-    POSSAUDIOSTREAMOUT pStrm = (POSSAUDIOSTREAMOUT)pStream;
+    POSSAUDIOSTREAMOUT pThisStrmOut = (POSSAUDIOSTREAMOUT)pHstStrmOut;
 
     LogFlowFuncEnter();
 
 #ifndef RT_OS_L4
-    if (pStrm->fMemMapped)
+    if (!pThisStrmOut->fMemMapped)
     {
-        if (pStrm->pvBuf)
+        if (pThisStrmOut->pvPCMBuf)
         {
-            Assert(pStrm->cbBuf);
+            Assert(pThisStrmOut->cbPCMBuf);
 
-            int rc2 = munmap(pStrm->pvBuf, pStrm->cbBuf);
-            if (rc2 == 0)
-            {
-                pStrm->pvBuf      = NULL;
-                pStrm->cbBuf      = 0;
-
-                pStrm->fMemMapped = false;
-            }
-            else
-                LogRel(("OSS: Failed to memory unmap playback buffer on close: %s\n", strerror(errno)));
-        }
-    }
-    else
-    {
-#endif
-        if (pStrm->pvBuf)
-        {
-            Assert(pStrm->cbBuf);
-
-            RTMemFree(pStrm->pvBuf);
-            pStrm->pvBuf = NULL;
+            RTMemFree(pThisStrmOut->pvPCMBuf);
+            pThisStrmOut->pvPCMBuf = NULL;
         }
 
-        pStrm->cbBuf = 0;
-#ifndef RT_OS_L4
+        pThisStrmOut->cbPCMBuf = 0;
     }
 #endif
-
-    ossStreamClose(&pStrm->hFile);
 
     return VINF_SUCCESS;
 }
 
-static DECLCALLBACK(int) drvHostOSSAudioGetConfig(PPDMIHOSTAUDIO pInterface, PPDMAUDIOBACKENDCFG pCfg)
+static DECLCALLBACK(int) drvHostOSSAudioGetConf(PPDMIHOSTAUDIO pInterface, PPDMAUDIOBACKENDCFG pCfg)
 {
     NOREF(pInterface);
 
-    pCfg->cbStreamIn  = sizeof(OSSAUDIOSTREAMIN);
     pCfg->cbStreamOut = sizeof(OSSAUDIOSTREAMOUT);
-
-    pCfg->cSources    = 0;
-    pCfg->cSinks      = 0;
-
-    int hFile = open("/dev/dsp", O_WRONLY | O_NONBLOCK, 0);
-    if (hFile == -1)
-    {
-        /* Try opening the mixing device instead. */
-        hFile = open("/dev/mixer", O_RDONLY | O_NONBLOCK, 0);
-    }
-
-    int ossVer = -1;
-
-#ifdef VBOX_WITH_OSS_SYSINFO
-    oss_sysinfo ossInfo;
-    RT_ZERO(ossInfo);
-#endif
-
-    if (hFile != -1)
-    {
-        int err = ioctl(hFile, OSS_GETVERSION, &ossVer);
-        if (err == 0)
-        {
-            LogRel2(("OSS: Using version: %d\n", ossVer));
-#ifdef VBOX_WITH_OSS_SYSINFO
-            err = ioctl(hFile, OSS_SYSINFO, &ossInfo);
-            if (err == 0)
-            {
-                LogRel2(("OSS: Number of DSPs: %d\n", ossInfo.numaudios));
-                LogRel2(("OSS: Number of mixers: %d\n", ossInfo.nummixers));
-
-                int cDev = ossInfo.nummixers;
-                if (!cDev)
-                    cDev = ossInfo.numaudios;
-
-                pCfg->cSources        = cDev;
-                pCfg->cSinks          = cDev;
-
-                pCfg->cMaxStreamsIn   = UINT32_MAX;
-                pCfg->cMaxStreamsOut  = UINT32_MAX;
-            }
-            else
-            {
-#endif
-                /* Since we cannot query anything, assume that we have at least
-                 * one input and one output if we found "/dev/dsp" or "/dev/mixer". */
-                pCfg->cSources        = 1;
-                pCfg->cSinks          = 1;
-
-                pCfg->cMaxStreamsIn   = UINT32_MAX;
-                pCfg->cMaxStreamsOut  = UINT32_MAX;
-#ifdef VBOX_WITH_OSS_SYSINFO
-            }
-#endif
-        }
-        else
-            LogRel(("OSS: Unable to determine installed version: %s (%d)\n", strerror(err), err));
-    }
-    else
-        LogRel(("OSS: No devices found, audio is not available\n"));
+    pCfg->cbStreamIn = sizeof(OSSAUDIOSTREAMIN);
+    pCfg->cMaxHstStrmsOut = INT_MAX;
+    pCfg->cMaxHstStrmsIn = INT_MAX;
 
     return VINF_SUCCESS;
 }
 
-static int ossCreateStreamIn(PPDMIHOSTAUDIO pInterface,
-                             PPDMAUDIOSTREAM pStream, PPDMAUDIOSTREAMCFG pCfg, uint32_t *pcSamples)
+static DECLCALLBACK(int) drvHostOSSAudioInitIn(PPDMIHOSTAUDIO pInterface,
+                                               PPDMAUDIOHSTSTRMIN pHstStrmIn, PPDMAUDIOSTREAMCFG pCfg,
+                                               PDMAUDIORECSOURCE enmRecSource,
+                                               uint32_t *pcSamples)
 {
-    AssertPtrReturn(pInterface, VERR_INVALID_POINTER);
-    AssertPtrReturn(pStream, VERR_INVALID_POINTER);
-    AssertPtrReturn(pCfg,       VERR_INVALID_POINTER);
+    NOREF(pInterface);
+    AssertPtrReturn(pHstStrmIn, VERR_INVALID_POINTER);
+    AssertPtrReturn(pCfg, VERR_INVALID_POINTER);
 
-    PDRVHOSTOSSAUDIO  pThis = PDMIHOSTAUDIO_2_DRVHOSTOSSAUDIO(pInterface);
-    POSSAUDIOSTREAMIN pStrm = (POSSAUDIOSTREAMIN)pStream;
+    POSSAUDIOSTREAMIN pThisStrmIn = (POSSAUDIOSTREAMIN)pHstStrmIn;
 
     int rc;
     int hFile = -1;
@@ -669,13 +586,16 @@ static int ossCreateStreamIn(PPDMIHOSTAUDIO pInterface,
         reqStream.cFragments     = s_OSSConf.nfrags;
         reqStream.cbFragmentSize = s_OSSConf.fragsize;
 
-        rc = ossStreamOpen(s_OSSConf.devpath_in, O_RDONLY | O_NONBLOCK, &reqStream, &obtStream, &hFile);
+        rc = drvHostOSSAudioOpen(true /* fIn */,
+                                 &reqStream, &obtStream, &hFile);
         if (RT_SUCCESS(rc))
         {
-            if (obtStream.cFragments * obtStream.cbFragmentSize & pStream->Props.uAlign)
-                LogRel(("OSS: Warning: Misaligned capturing buffer: Size = %zu, Alignment = %u\n",
+            if (obtStream.cFragments * obtStream.cbFragmentSize & pHstStrmIn->Props.uAlign)
+                LogRel(("OSS: Warning: Misaligned DAC output buffer: Size = %zu, Alignment = %u\n",
                         obtStream.cFragments * obtStream.cbFragmentSize,
-                        pStream->Props.uAlign + 1));
+                        pHstStrmIn->Props.uAlign + 1));
+
+            pThisStrmIn->hFile = hFile;
 
             PDMAUDIOSTREAMCFG streamCfg;
             streamCfg.enmFormat     = obtStream.enmFormat;
@@ -683,11 +603,11 @@ static int ossCreateStreamIn(PPDMIHOSTAUDIO pInterface,
             streamCfg.cChannels     = pCfg->cChannels;
             streamCfg.enmEndianness = obtStream.enmENDIANNESS;
 
-            rc = DrvAudioHlpStreamCfgToProps(&streamCfg, &pStream->Props);
+            rc = DrvAudioStreamCfgToProps(&streamCfg, &pHstStrmIn->Props);
             if (RT_SUCCESS(rc))
             {
                 cSamples = (obtStream.cFragments * obtStream.cbFragmentSize)
-                           >> pStream->Props.cShift;
+                           >> pHstStrmIn->Props.cShift;
                 if (!cSamples)
                     rc = VERR_INVALID_PARAMETER;
             }
@@ -695,21 +615,16 @@ static int ossCreateStreamIn(PPDMIHOSTAUDIO pInterface,
 
         if (RT_SUCCESS(rc))
         {
-            size_t cbSample = (1 << pStream->Props.cShift);
-
-            size_t cbBuf = cSamples * cbSample;
-            void  *pvBuf = RTMemAlloc(cbBuf);
-            if (!pvBuf)
+            size_t cbSample = (1 << pHstStrmIn->Props.cShift);
+            size_t cbBuf    = cSamples * cbSample;
+            pThisStrmIn->pvPCMBuf = RTMemAlloc(cbBuf);
+            if (!pThisStrmIn->pvPCMBuf)
             {
-                LogRel(("OSS: Failed allocating capturing buffer with %RU32 samples (%zu bytes per sample)\n",
-                        cSamples, cbSample));
+                LogRel(("OSS: Failed allocating ADC buffer with %RU32 samples (%zu bytes per sample)\n", cSamples, cbSample));
                 rc = VERR_NO_MEMORY;
-                break;
             }
 
-            pStrm->hFile = hFile;
-            pStrm->pvBuf = pvBuf;
-            pStrm->cbBuf = cbBuf;
+            pThisStrmIn->cbPCMBuf = cbBuf;
 
             if (pcSamples)
                 *pcSamples = cSamples;
@@ -718,22 +633,21 @@ static int ossCreateStreamIn(PPDMIHOSTAUDIO pInterface,
     } while (0);
 
     if (RT_FAILURE(rc))
-        ossStreamClose(&hFile);
+        drvHostOSSAudioClose(&hFile);
 
     LogFlowFuncLeaveRC(rc);
     return rc;
 }
 
-static int ossCreateStreamOut(PPDMIHOSTAUDIO pInterface,
-                              PPDMAUDIOSTREAM pStream, PPDMAUDIOSTREAMCFG pCfg,
-                              uint32_t *pcSamples)
+static DECLCALLBACK(int) drvHostOSSAudioInitOut(PPDMIHOSTAUDIO pInterface,
+                                                PPDMAUDIOHSTSTRMOUT pHstStrmOut, PPDMAUDIOSTREAMCFG pCfg,
+                                                uint32_t *pcSamples)
 {
-    AssertPtrReturn(pInterface,  VERR_INVALID_POINTER);
-    AssertPtrReturn(pStream, VERR_INVALID_POINTER);
-    AssertPtrReturn(pCfg,        VERR_INVALID_POINTER);
+    NOREF(pInterface);
+    AssertPtrReturn(pHstStrmOut, VERR_INVALID_POINTER);
+    AssertPtrReturn(pCfg, VERR_INVALID_POINTER);
 
-    PDRVHOSTOSSAUDIO   pThis = PDMIHOSTAUDIO_2_DRVHOSTOSSAUDIO(pInterface);
-    POSSAUDIOSTREAMOUT pStrm = (POSSAUDIOSTREAMOUT)pStream;
+    POSSAUDIOSTREAMOUT pThisStrmOut = (POSSAUDIOSTREAMOUT)pHstStrmOut;
 
     int rc;
     int hFile = -1;
@@ -749,13 +663,16 @@ static int ossCreateStreamOut(PPDMIHOSTAUDIO pInterface,
         reqStream.cFragments     = s_OSSConf.nfrags;
         reqStream.cbFragmentSize = s_OSSConf.fragsize;
 
-        rc = ossStreamOpen(s_OSSConf.devpath_out, O_WRONLY | O_NONBLOCK, &reqStream, &obtStream, &hFile);
+        rc = drvHostOSSAudioOpen(false /* fIn */,
+                                 &reqStream, &obtStream, &hFile);
         if (RT_SUCCESS(rc))
         {
-            if (obtStream.cFragments * obtStream.cbFragmentSize & pStream->Props.uAlign)
-                LogRel(("OSS: Warning: Misaligned playback buffer: Size = %zu, Alignment = %u\n",
+            if (obtStream.cFragments * obtStream.cbFragmentSize & pHstStrmOut->Props.uAlign)
+                LogRel(("OSS: Warning: Misaligned DAC output buffer: Size = %zu, Alignment = %u\n",
                         obtStream.cFragments * obtStream.cbFragmentSize,
-                        pStream->Props.uAlign + 1));
+                        pHstStrmOut->Props.uAlign + 1));
+
+            pThisStrmOut->hFile = hFile;
 
             PDMAUDIOSTREAMCFG streamCfg;
             streamCfg.enmFormat     = obtStream.enmFormat;
@@ -763,26 +680,24 @@ static int ossCreateStreamOut(PPDMIHOSTAUDIO pInterface,
             streamCfg.cChannels     = pCfg->cChannels;
             streamCfg.enmEndianness = obtStream.enmENDIANNESS;
 
-            rc = DrvAudioHlpStreamCfgToProps(&streamCfg, &pStream->Props);
+            rc = DrvAudioStreamCfgToProps(&streamCfg, &pHstStrmOut->Props);
             if (RT_SUCCESS(rc))
                 cSamples = (obtStream.cFragments * obtStream.cbFragmentSize)
-                           >> pStream->Props.cShift;
+                           >> pHstStrmOut->Props.cShift;
         }
 
         if (RT_SUCCESS(rc))
         {
-            pStrm->fMemMapped = false;
-
-            size_t cbSamples =  cSamples << pStream->Props.cShift;
-            Assert(cbSamples);
-
 #ifndef RT_OS_L4
+            pThisStrmOut->fMemMapped = false;
             if (s_OSSConf.try_mmap)
             {
-                pStrm->pvBuf = mmap(0, cbSamples, PROT_READ | PROT_WRITE, MAP_SHARED, hFile, 0);
-                if (pStrm->pvBuf == MAP_FAILED)
+                pThisStrmOut->pvPCMBuf = mmap(0, cSamples << pHstStrmOut->Props.cShift,
+                                              PROT_READ | PROT_WRITE, MAP_SHARED, hFile, 0);
+                if (pThisStrmOut->pvPCMBuf == MAP_FAILED)
                 {
-                    LogRel(("OSS: Failed to memory map %zu bytes of playback buffer: %s\n", cbSamples, strerror(errno)));
+                    LogRel(("OSS: Failed to memory map %zu bytes of DAC output file: %s\n",
+                            cSamples << pHstStrmOut->Props.cShift, strerror(errno)));
                     rc = RTErrConvertFromErrno(errno);
                     break;
                 }
@@ -791,7 +706,8 @@ static int ossCreateStreamOut(PPDMIHOSTAUDIO pInterface,
                     int mask = 0;
                     if (ioctl(hFile, SNDCTL_DSP_SETTRIGGER, &mask) < 0)
                     {
-                        LogRel(("OSS: Failed to retrieve initial trigger mask for playback buffer: %s\n", strerror(errno)));
+                        LogRel(("OSS: Failed to retrieve initial trigger mask: %s\n",
+                                strerror(errno)));
                         rc = RTErrConvertFromErrno(errno);
                         /* Note: No break here, need to unmap file first! */
                     }
@@ -800,19 +716,21 @@ static int ossCreateStreamOut(PPDMIHOSTAUDIO pInterface,
                         mask = PCM_ENABLE_OUTPUT;
                         if (ioctl (hFile, SNDCTL_DSP_SETTRIGGER, &mask) < 0)
                         {
-                            LogRel(("OSS: Failed to retrieve PCM_ENABLE_OUTPUT mask: %s\n", strerror(errno)));
+                            LogRel(("OSS: Failed to retrieve PCM_ENABLE_OUTPUT mask: %s\n",
+                                    strerror(errno)));
                             rc = RTErrConvertFromErrno(errno);
                             /* Note: No break here, need to unmap file first! */
                         }
                         else
-                            pStrm->fMemMapped = true;
+                            pThisStrmOut->fMemMapped = true;
                     }
 
-                    if (RT_FAILURE(rc))
+                    if (!pThisStrmOut->fMemMapped)
                     {
-                        int rc2 = munmap(pStrm->pvBuf, cbSamples);
+                        int rc2 = munmap(pThisStrmOut->pvPCMBuf,
+                                         cSamples << pHstStrmOut->Props.cShift);
                         if (rc2)
-                            LogRel(("OSS: Failed to memory unmap playback buffer: %s\n", strerror(errno)));
+                            LogRel(("OSS: Failed to unmap DAC output file: %s\n", strerror(errno)));
                         break;
                     }
                 }
@@ -821,20 +739,23 @@ static int ossCreateStreamOut(PPDMIHOSTAUDIO pInterface,
 
             /* Memory mapping failed above? Try allocating an own buffer. */
 #ifndef RT_OS_L4
-            if (!pStrm->fMemMapped)
+            if (!pThisStrmOut->fMemMapped)
             {
 #endif
-                void *pvBuf = RTMemAlloc(cbSamples);
-                if (!pvBuf)
+                size_t cbSample = (1 << pHstStrmOut->Props.cShift);
+                size_t cbPCMBuf = cSamples * cbSample;
+
+                LogFlowFunc(("cSamples=%RU32\n", cSamples));
+
+                pThisStrmOut->pvPCMBuf = RTMemAlloc(cbPCMBuf);
+                if (!pThisStrmOut->pvPCMBuf)
                 {
-                    LogRel(("OSS: Failed allocating playback buffer with %RU32 samples (%zu bytes)\n", cSamples, cbSamples));
+                    LogRel(("OSS: Failed allocating DAC buffer with %RU32 samples (%zu bytes per sample)\n", cSamples, cbSample));
                     rc = VERR_NO_MEMORY;
                     break;
                 }
 
-                pStrm->hFile = hFile;
-                pStrm->pvBuf = pvBuf;
-                pStrm->cbBuf = cbSamples;
+                pThisStrmOut->cbPCMBuf = cbPCMBuf;
 #ifndef RT_OS_L4
             }
 #endif
@@ -845,7 +766,7 @@ static int ossCreateStreamOut(PPDMIHOSTAUDIO pInterface,
     } while (0);
 
     if (RT_FAILURE(rc))
-        ossStreamClose(&hFile);
+        drvHostOSSAudioClose(&hFile);
 
     LogFlowFuncLeaveRC(rc);
     return rc;
@@ -858,13 +779,13 @@ static DECLCALLBACK(bool) drvHostOSSAudioIsEnabled(PPDMIHOSTAUDIO pInterface, PD
     return true; /* Always all enabled. */
 }
 
-static DECLCALLBACK(int) drvHostOSSAudioStreamPlay(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM pStream,
-                                                   uint32_t *pcSamplesPlayed)
+static DECLCALLBACK(int) drvHostOSSAudioPlayOut(PPDMIHOSTAUDIO pInterface, PPDMAUDIOHSTSTRMOUT pHstStrmOut,
+                                                uint32_t *pcSamplesPlayed)
 {
     NOREF(pInterface);
-    AssertPtrReturn(pStream, VERR_INVALID_POINTER);
+    AssertPtrReturn(pHstStrmOut, VERR_INVALID_POINTER);
 
-    POSSAUDIOSTREAMOUT pStrm = (POSSAUDIOSTREAMOUT)pStream;
+    POSSAUDIOSTREAMOUT pThisStrmOut = (POSSAUDIOSTREAMOUT)pHstStrmOut;
 
     int rc = VINF_SUCCESS;
     uint32_t cbReadTotal = 0;
@@ -872,16 +793,16 @@ static DECLCALLBACK(int) drvHostOSSAudioStreamPlay(PPDMIHOSTAUDIO pInterface, PP
 
     do
     {
-        size_t cbBuf = AudioMixBufSizeBytes(&pStream->MixBuf);
+        size_t cbBuf = AudioMixBufSizeBytes(&pHstStrmOut->MixBuf);
 
-        uint32_t cLive = AudioMixBufAvail(&pStream->MixBuf);
+        uint32_t cLive = AudioMixBufAvail(&pHstStrmOut->MixBuf);
         uint32_t cToRead;
 
 #ifndef RT_OS_L4
-        if (pStrm->fMemMapped)
+        if (pThisStrmOut->fMemMapped)
         {
             /* Get current playback pointer. */
-            int rc2 = ioctl(pStrm->hFile, SNDCTL_DSP_GETOPTR, &cntinfo);
+            int rc2 = ioctl(pThisStrmOut->hFile, SNDCTL_DSP_GETOPTR, &cntinfo);
             if (!rc2)
             {
                 LogRel(("OSS: Failed to retrieve current playback pointer: %s\n",
@@ -891,63 +812,69 @@ static DECLCALLBACK(int) drvHostOSSAudioStreamPlay(PPDMIHOSTAUDIO pInterface, PP
             }
 
             /* Nothing to play? */
-            if (cntinfo.ptr == pStrm->old_optr)
+            if (cntinfo.ptr == pThisStrmOut->old_optr)
                 break;
 
             int cbData;
-            if (cntinfo.ptr > pStrm->old_optr)
-                cbData = cntinfo.ptr - pStrm->old_optr;
+            if (cntinfo.ptr > pThisStrmOut->old_optr)
+                cbData = cntinfo.ptr - pThisStrmOut->old_optr;
             else
-                cbData = cbBuf + cntinfo.ptr - pStrm->old_optr;
+                cbData = cbBuf + cntinfo.ptr - pThisStrmOut->old_optr;
             Assert(cbData);
 
-            cToRead = RT_MIN((uint32_t)AUDIOMIXBUF_B2S(&pStream->MixBuf, cbData),
+            cToRead = RT_MIN((uint32_t)AUDIOMIXBUF_B2S(&pHstStrmOut->MixBuf, cbData),
                              cLive);
         }
         else
         {
 #endif
             audio_buf_info abinfo;
-            int rc2 = ioctl(pStrm->hFile, SNDCTL_DSP_GETOSPACE, &abinfo);
+            int rc2 = ioctl(pThisStrmOut->hFile, SNDCTL_DSP_GETOSPACE, &abinfo);
             if (rc2 < 0)
             {
-                LogRel(("OSS: Failed to retrieve current playback buffer: %s\n", strerror(errno)));
+                LogRel(("OSS: Failed to retrieve current playback buffer: %s\n",
+                        strerror(errno)));
                 rc = RTErrConvertFromErrno(errno);
                 break;
             }
 
             if ((size_t)abinfo.bytes > cbBuf)
             {
-                LogFlowFunc(("Warning: Invalid available size, size=%d, bufsize=%zu\n", abinfo.bytes, cbBuf));
+                LogFlowFunc(("Warning: Invalid available size, size=%d, bufsize=%d\n",
+                             abinfo.bytes, cbBuf));
                 abinfo.bytes = cbBuf;
                 /* Keep going. */
             }
 
             if (abinfo.bytes < 0)
             {
-                LogFlowFunc(("Warning: Invalid available size, size=%d, bufsize=%zu\n", abinfo.bytes, cbBuf));
+                LogFlowFunc(("Warning: Invalid available size, size=%d, bufsize=%d\n",
+                             abinfo.bytes, cbBuf));
                 rc = VERR_INVALID_PARAMETER;
                 break;
             }
 
-            cToRead = RT_MIN((uint32_t)AUDIOMIXBUF_B2S(&pStream->MixBuf, abinfo.bytes), cLive);
+            cToRead = RT_MIN((uint32_t)AUDIOMIXBUF_B2S(&pHstStrmOut->MixBuf, abinfo.bytes),
+                             cLive);
             if (!cToRead)
                 break;
 #ifndef RT_OS_L4
         }
 #endif
-        size_t cbToRead = AUDIOMIXBUF_S2B(&pStream->MixBuf, cToRead);
+        size_t cbToRead = AUDIOMIXBUF_S2B(&pHstStrmOut->MixBuf, cToRead);
         LogFlowFunc(("cbToRead=%zu\n", cbToRead));
 
         uint32_t cRead, cbRead;
         while (cbToRead)
         {
-            rc = AudioMixBufReadCirc(&pStream->MixBuf, pStrm->pvBuf, cbToRead, &cRead);
+            rc = AudioMixBufReadCirc(&pHstStrmOut->MixBuf,
+                                     pThisStrmOut->pvPCMBuf, cbToRead, &cRead);
             if (RT_FAILURE(rc))
                 break;
 
-            cbRead = AUDIOMIXBUF_S2B(&pStream->MixBuf, cRead);
-            ssize_t cbWritten = write(pStrm->hFile, pStrm->pvBuf, cbRead);
+            cbRead = AUDIOMIXBUF_S2B(&pHstStrmOut->MixBuf, cRead);
+            ssize_t cbWritten = write(pThisStrmOut->hFile, pThisStrmOut->pvPCMBuf,
+                                      cbRead);
             if (cbWritten == -1)
             {
                 LogRel(("OSS: Failed writing output data: %s\n", strerror(errno)));
@@ -956,28 +883,29 @@ static DECLCALLBACK(int) drvHostOSSAudioStreamPlay(PPDMIHOSTAUDIO pInterface, PP
             }
 
             Assert(cbToRead >= cbRead);
-            cbToRead    -= cbRead;
+            cbToRead -= cbRead;
             cbReadTotal += cbRead;
         }
 
 #ifndef RT_OS_L4
         /* Update read pointer. */
-        if (pStrm->fMemMapped)
-            pStrm->old_optr = cntinfo.ptr;
+        if (pThisStrmOut->fMemMapped)
+            pThisStrmOut->old_optr = cntinfo.ptr;
 #endif
 
     } while(0);
 
     if (RT_SUCCESS(rc))
     {
-        uint32_t cReadTotal = AUDIOMIXBUF_B2S(&pStream->MixBuf, cbReadTotal);
+        uint32_t cReadTotal = AUDIOMIXBUF_B2S(&pHstStrmOut->MixBuf, cbReadTotal);
         if (cReadTotal)
-            AudioMixBufFinish(&pStream->MixBuf, cReadTotal);
+            AudioMixBufFinish(&pHstStrmOut->MixBuf, cReadTotal);
 
         if (pcSamplesPlayed)
             *pcSamplesPlayed = cReadTotal;
 
-        LogFlowFunc(("cReadTotal=%RU32 (%RU32 bytes), rc=%Rrc\n", cReadTotal, cbReadTotal, rc));
+        LogFlowFunc(("cReadTotal=%RU32 (%RU32 bytes), rc=%Rrc\n",
+                     cReadTotal, cbReadTotal, rc));
     }
 
     LogFlowFuncLeaveRC(rc);
@@ -989,86 +917,6 @@ static DECLCALLBACK(void) drvHostOSSAudioShutdown(PPDMIHOSTAUDIO pInterface)
     NOREF(pInterface);
 }
 
-static DECLCALLBACK(PDMAUDIOBACKENDSTS) drvHostOSSAudioGetStatus(PPDMIHOSTAUDIO pInterface, PDMAUDIODIR enmDir)
-{
-    AssertPtrReturn(pInterface, PDMAUDIOBACKENDSTS_UNKNOWN);
-
-    return PDMAUDIOBACKENDSTS_RUNNING;
-}
-
-static DECLCALLBACK(int) drvHostOSSAudioStreamCreate(PPDMIHOSTAUDIO pInterface,
-                                                     PPDMAUDIOSTREAM pStream, PPDMAUDIOSTREAMCFG pCfg, uint32_t *pcSamples)
-{
-    AssertPtrReturn(pInterface, VERR_INVALID_POINTER);
-    AssertPtrReturn(pStream,    VERR_INVALID_POINTER);
-    AssertPtrReturn(pCfg,       VERR_INVALID_POINTER);
-
-    int rc;
-    if (pCfg->enmDir == PDMAUDIODIR_IN)
-        rc = ossCreateStreamIn(pInterface,  pStream, pCfg, pcSamples);
-    else
-        rc = ossCreateStreamOut(pInterface, pStream, pCfg, pcSamples);
-
-    LogFlowFunc(("%s: rc=%Rrc\n", pStream->szName, rc));
-    return rc;
-}
-
-static DECLCALLBACK(int) drvHostOSSAudioStreamDestroy(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM pStream)
-{
-    AssertPtrReturn(pInterface, VERR_INVALID_POINTER);
-    AssertPtrReturn(pStream,    VERR_INVALID_POINTER);
-
-    int rc;
-    if (pStream->enmDir == PDMAUDIODIR_IN)
-        rc = ossDestroyStreamIn(pInterface,  pStream);
-    else
-        rc = ossDestroyStreamOut(pInterface, pStream);
-
-    return rc;
-}
-
-static DECLCALLBACK(int) drvHostOSSAudioStreamControl(PPDMIHOSTAUDIO pInterface,
-                                                      PPDMAUDIOSTREAM pStream, PDMAUDIOSTREAMCMD enmStreamCmd)
-{
-    AssertPtrReturn(pInterface, VERR_INVALID_POINTER);
-    AssertPtrReturn(pStream,    VERR_INVALID_POINTER);
-
-    Assert(pStream->enmCtx == PDMAUDIOSTREAMCTX_HOST);
-
-    int rc;
-    if (pStream->enmDir == PDMAUDIODIR_IN)
-        rc = ossControlStreamIn(pInterface,  pStream, enmStreamCmd);
-    else
-        rc = ossControlStreamOut(pInterface, pStream, enmStreamCmd);
-
-    return rc;
-}
-
-static DECLCALLBACK(int) drvHostOSSAudioStreamIterate(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM pStream)
-{
-    AssertPtrReturn(pInterface, VERR_INVALID_POINTER);
-    AssertPtrReturn(pStream,    VERR_INVALID_POINTER);
-
-    LogFlowFuncEnter();
-
-    /* Nothing to do here for OSS. */
-    return VINF_SUCCESS;
-}
-
-static DECLCALLBACK(PDMAUDIOSTRMSTS) drvHostOSSAudioStreamGetStatus(PPDMIHOSTAUDIO pInterface, PPDMAUDIOSTREAM pStream)
-{
-    NOREF(pInterface);
-    NOREF(pStream);
-
-    PDMAUDIOSTRMSTS strmSts =   PDMAUDIOSTRMSTS_FLAG_INITIALIZED
-                              | PDMAUDIOSTRMSTS_FLAG_ENABLED;
-
-    strmSts |=   pStream->enmDir == PDMAUDIODIR_IN
-               ? PDMAUDIOSTRMSTS_FLAG_DATA_READABLE
-               : PDMAUDIOSTRMSTS_FLAG_DATA_WRITABLE;
-
-    return strmSts;
-}
 /**
  * @interface_method_impl{PDMIBASE,pfnQueryInterface}
  */
@@ -1154,4 +1002,3 @@ const PDMDRVREG g_DrvHostOSSAudio =
     /* u32EndVersion */
     PDM_DRVREG_VERSION
 };
-

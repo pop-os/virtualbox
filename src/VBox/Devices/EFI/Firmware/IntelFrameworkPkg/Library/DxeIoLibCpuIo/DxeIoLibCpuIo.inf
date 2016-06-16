@@ -1,7 +1,9 @@
 ## @file
-# I/O Library implementation that uses the CPU I/O Protocol for I/O and MMIO operations.
+# Component description file for Cpu Io Dxe Io Library.
 #
-# Copyright (c) 2006 - 2014, Intel Corporation. All rights reserved.<BR>
+# I/O Library implementation that uses the CPU I/O Protocol for I/O
+#  and MMIO operations.
+# Copyright (c) 2006 - 2011, Intel Corporation. All rights reserved.<BR>
 #
 #  This program and the accompanying materials
 #  are licensed and made available under the terms and conditions of the BSD License
@@ -16,7 +18,6 @@
 [Defines]
   INF_VERSION                    = 0x00010005
   BASE_NAME                      = DxeIoLibCpuIo
-  MODULE_UNI_FILE                = DxeIoLibCpuIo.uni
   FILE_GUID                      = e94cd42a-3aad-4ea0-9b09-945891c60ccd
   MODULE_TYPE                    = DXE_DRIVER
   VERSION_STRING                 = 1.0
@@ -45,8 +46,7 @@
   UefiBootServicesTableLib
 
 [Protocols]
-  gEfiCpuIoProtocolGuid                         ## CONSUMES
+  gEfiCpuIoProtocolGuid                         # PROTOCOL ALWAYS_CONSUMED
 
 [Depex.common.DXE_DRIVER, Depex.common.DXE_RUNTIME_DRIVER, Depex.common.DXE_SAL_DRIVER, Depex.common.DXE_SMM_DRIVER]
   gEfiCpuIoProtocolGuid
-

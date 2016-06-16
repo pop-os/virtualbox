@@ -40,7 +40,6 @@
 #include "Global.h"
 #include "AutoCaller.h"
 #include "VBoxEvents.h"
-#include "ThreadTask.h"
 
 #include <memory> /* For auto_ptr. */
 
@@ -59,14 +58,13 @@
 #include <VBox/log.h>
 
 
-class GuestProcessTask : public ThreadTask
+class GuestProcessTask
 {
 public:
 
     GuestProcessTask(GuestProcess *pProcess)
-        : ThreadTask("GenericGuestProcessTask")
-        , mProcess(pProcess)
-        , mRC(VINF_SUCCESS) { }
+        : mProcess(pProcess),
+          mRC(VINF_SUCCESS) { }
 
     virtual ~GuestProcessTask(void) { }
 
@@ -85,15 +83,7 @@ class GuestProcessStartTask : public GuestProcessTask
 public:
 
     GuestProcessStartTask(GuestProcess *pProcess)
-        : GuestProcessTask(pProcess)
-    {
-        m_strTaskName = "gctlPrcStart";
-    }
-
-    void handler()
-    {
-        int vrc = GuestProcess::i_startProcessThread(NULL, this);
-    }
+        : GuestProcessTask(pProcess) { }
 };
 
 /**
@@ -534,7 +524,7 @@ Utf8Str GuestProcess::i_guestErrorToString(int guestRc)
             strError += Utf8StrFmt(tr("The execution operation was canceled"));
             break;
 
-        case VERR_PERMISSION_DENIED: /** @todo r=bird: This is probably completely and utterly misleading. VERR_AUTHENTICATION_FAILURE could have this message. */
+        case VERR_PERMISSION_DENIED:
             strError += Utf8StrFmt(tr("Invalid user/password credentials"));
             break;
 
@@ -1132,31 +1122,28 @@ int GuestProcess::i_startProcessAsync(void)
 {
     LogFlowThisFuncEnter();
 
-    int vrc = VINF_SUCCESS;
-    HRESULT hr = S_OK;
+    int vrc;
 
-    GuestProcessStartTask* pTask = NULL;
     try
     {
-        pTask = new GuestProcessStartTask(this);
-        if (!pTask->i_isOk())
+        /* Asynchronously start the process on the guest by kicking off a
+         * worker thread. */
+        std::auto_ptr<GuestProcessStartTask> pTask(new GuestProcessStartTask(this));
+        AssertReturn(pTask->i_isOk(), pTask->i_rc());
+
+        vrc = RTThreadCreate(NULL, GuestProcess::i_startProcessThread,
+                             (void *)pTask.get(), 0,
+                             RTTHREADTYPE_MAIN_WORKER, 0,
+                             "gctlPrcStart");
+        if (RT_SUCCESS(vrc))
         {
-            delete pTask;
-            LogFlow(("GuestProcess: Could not create GuestProcessStartTask object \n"));
-            throw VERR_MEMOBJ_INIT_FAILED;
+            /* pTask is now owned by startProcessThread(), so release it. */
+            pTask.release();
         }
-        LogFlow(("GuestProcess: Successfully created GuestProcessStartTask object \n"));
-        //this function delete pTask in case of exceptions, so there is no need in the call of delete operator
-        hr = pTask->createThread();
     }
     catch(std::bad_alloc &)
     {
         vrc = VERR_NO_MEMORY;
-    }
-    catch(int eVRC)
-    {
-        vrc = eVRC;
-        LogFlow(("GuestSession: Could not create thread for GuestProcessStartTask task %Rrc\n", vrc));
     }
 
     LogFlowFuncLeaveRC(vrc);
@@ -1168,7 +1155,8 @@ DECLCALLBACK(int) GuestProcess::i_startProcessThread(RTTHREAD Thread, void *pvUs
 {
     LogFlowFunc(("pvUser=%p\n", pvUser));
 
-    GuestProcessStartTask* pTask = static_cast<GuestProcessStartTask*>(pvUser);
+    std::auto_ptr<GuestProcessStartTask> pTask(static_cast<GuestProcessStartTask*>(pvUser));
+    AssertPtr(pTask.get());
 
     const ComObjPtr<GuestProcess> pProcess(pTask->i_process());
     Assert(!pProcess.isNull());

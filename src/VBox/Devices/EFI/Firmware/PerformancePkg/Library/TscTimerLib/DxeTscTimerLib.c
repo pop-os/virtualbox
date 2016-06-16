@@ -59,13 +59,11 @@ DxeTscTimerLibConstructor (
   EFI_STATUS  Status;
   UINT64      *TscFrequency;
 
-  TscFrequency = NULL;
   //
   // Get TSC frequency from system configuration table with TSC frequency GUID.
   //
   Status = EfiGetSystemConfigurationTable (&gEfiTscFrequencyGuid, (VOID **) &TscFrequency);
   if (Status == EFI_SUCCESS) {
-    ASSERT (TscFrequency != NULL);
     mTscFrequency = *TscFrequency;
     return EFI_SUCCESS;
   }

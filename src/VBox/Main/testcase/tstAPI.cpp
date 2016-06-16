@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -222,7 +222,6 @@ int main(int argc, char *argv[])
     // scopes all the stuff till shutdown
     ////////////////////////////////////////////////////////////////////////////
 
-    ComPtr<IVirtualBoxClient> virtualBoxClient;
     ComPtr<IVirtualBox> virtualBox;
     ComPtr<ISession> session;
 
@@ -242,9 +241,7 @@ int main(int argc, char *argv[])
 #endif
 
     RTPrintf("Creating VirtualBox object...\n");
-    rc = virtualBoxClient.createInprocObject(CLSID_VirtualBoxClient);
-    if (SUCCEEDED(rc))
-        rc = virtualBoxClient->COMGETTER(VirtualBox)(virtualBox.asOutParam());
+    rc = virtualBox.createLocalObject(CLSID_VirtualBox);
     if (FAILED(rc))
         RTPrintf("ERROR: failed to create the VirtualBox object!\n");
     else
@@ -305,7 +302,7 @@ int main(int argc, char *argv[])
             ComPtr<IVirtualBox> virtualBox2;
 
             RTPrintf("Creating one more VirtualBox object...\n");
-            CHECK_RC(virtualBoxClient->COMGETTER(virtualBox2.asOutParam()));
+            CHECK_RC(virtualBox2.createLocalObject(CLSID_VirtualBox));
             if (FAILED(rc))
             {
                 CHECK_ERROR_NOCALL();

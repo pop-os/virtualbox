@@ -642,7 +642,7 @@ public:
     virtual ~CInterface()
     {
         detach();
-#ifdef RT_STRICT
+#ifdef DEBUG
         mDead = true;
 #endif
     }
@@ -656,7 +656,7 @@ public:
             I* pObj = NULL;
 #if !defined(VBOX_WITH_XPCOM)
             B::mRC = CoCreateInstance(aClsId, NULL, CLSCTX_ALL,
-                                      COM_IIDOF(I), (void **)&pObj);
+                                      _ATL_IIDOF(I), (void **)&pObj);
 #else
             nsCOMPtr<nsIComponentManager> manager;
             B::mRC = NS_GetComponentManager(getter_AddRefs(manager));
@@ -684,7 +684,9 @@ public:
     template <class OI>
     void attach(OI *aIface)
     {
+#ifdef DEBUG
         Assert(!mDead);
+#endif
         /* be aware of self assignment */
         I* amIface = ptr();
         this->addref((IUnknown*)aIface);
@@ -706,7 +708,9 @@ public:
     /** Specialization of attach() for our own interface I. Never fails. */
     void attach(I *aIface)
     {
+#ifdef DEBUG
         Assert(!mDead);
+#endif
         /* be aware of self assignment */
         this->addref((IUnknown*)aIface);
         this->release((IUnknown*)ptr());
@@ -717,7 +721,9 @@ public:
     /** Detaches from the underlying interface pointer. */
     void detach()
     {
+#ifdef DEBUG
        Assert(!mDead);
+#endif
        this->release((IUnknown*)ptr());
        setPtr(NULL);
     }
@@ -725,15 +731,10 @@ public:
     /** Returns @c true if not attached to any interface pointer. */
     bool isNull() const
     {
+#ifdef DEBUG
        Assert(!mDead);
+#endif
        return mIface == NULL;
-    }
-
-    /** Returns @c true if attached to an interface pointer. */
-    bool isNotNull() const
-    {
-       Assert(!mDead);
-       return mIface != NULL;
     }
 
     /**
@@ -780,20 +781,25 @@ public:
     bool operator==(const CInterface &that) const { return ptr() == that.ptr(); }
     bool operator!=(const CInterface &that) const { return ptr() != that.ptr(); }
 
-    I *ptr() const
+    I* ptr() const
     {
-        Assert(!mDead);
-        return mIface;
+#ifdef DEBUG
+      Assert(!mDead);
+#endif
+
+      return   mIface;
     }
 
     void setPtr(I* aObj) const
     {
-        Assert(!mDead);
-        mIface = aObj;
+#ifdef DEBUG
+      Assert(!mDead);
+#endif
+      mIface = aObj;
     }
 
 private:
-#ifdef RT_STRICT
+#ifdef DEBUG
     bool          mDead;
 #endif
     mutable I *   mIface;
@@ -801,7 +807,7 @@ private:
     void clear()
     {
        mIface = NULL;
-#ifdef RT_STRICT
+#ifdef DEBUG
        mDead = false;
 #endif
     }

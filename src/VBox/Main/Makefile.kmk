@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2004-2016 Oracle Corporation
+# Copyright (C) 2004-2015 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -65,6 +65,8 @@ VBOX_MAIN_DEFS += \
 	$(if $(VBOX_WITH_VMSVGA3D),VBOX_WITH_VMSVGA3D,) \
 	$(if $(VBOX_WITH_NETFLT),VBOX_WITH_NETFLT,) \
 	$(if $(VBOX_WITH_COPYTOGUEST),VBOX_WITH_COPYTOGUEST,) \
+	$(if $(VBOX_WITH_DRAG_AND_DROP),VBOX_WITH_DRAG_AND_DROP,) \
+	$(if $(VBOX_WITH_DRAG_AND_DROP_GH),VBOX_WITH_DRAG_AND_DROP_GH,) \
 	$(if $(VBOX_WITH_CROGL),VBOX_WITH_CROGL,) \
 	$(if $(VBOX_WITH_CRHGSMI),VBOX_WITH_CRHGSMI,) \
 	$(if $(VBOX_WITH_GUEST_PROPS),VBOX_WITH_GUEST_PROPS,) \
@@ -73,7 +75,6 @@ VBOX_MAIN_DEFS += \
 	$(if $(VBOX_WITH_USB_CARDREADER),VBOX_WITH_USB_CARDREADER,) \
 	$(if $(VBOX_WITH_USB_CARDREADER_TEST),VBOX_WITH_USB_CARDREADER_TEST,) \
 	$(if $(VBOX_WITH_HOSTNETIF_API),VBOX_WITH_HOSTNETIF_API,) \
-	$(if $(VBOX_WITH_MIDL_PROXY_STUB),VBOX_WITH_MIDL_PROXY_STUB,) \
 
 # Unconditionally enable the new semaphore key generation code
 VBOX_MAIN_DEFS += VBOX_WITH_NEW_SYS_V_KEYGEN
@@ -270,11 +271,10 @@ VBoxSVC_DEFS = \
 	$(if $(VBOX_WITH_HEADLESS),VBOX_WITH_HEADLESS,) \
 	$(if $(VBOX_WITH_QTGUI),VBOX_WITH_QTGUI,) \
 	$(if $(VBOX_WITH_HGCM),VBOX_WITH_HGCM,) \
-	$(if $(VBOX_WITH_OSS),VBOX_WITH_OSS,) \
 	$(if $(VBOX_WITH_ALSA),VBOX_WITH_ALSA,) \
 	$(if $(VBOX_WITH_PULSE),VBOX_WITH_PULSE,) \
-	$(if $(VBOX_WITH_VRDE_AUDIO),VBOX_WITH_VRDE_AUDIO,) \
 	$(if $(VBOX_WITH_WINMM),VBOX_WITH_WINMM,) \
+	$(if $(VBOX_WITH_SOLARIS_OSS),VBOX_WITH_SOLARIS_OSS,) \
 	$(if $(VBOX_WITH_E1000),VBOX_WITH_E1000,) \
 	$(if $(VBOX_WITH_VIRTIO),VBOX_WITH_VIRTIO,) \
 	$(if $(VBOX_WITH_AHCI),VBOX_WITH_AHCI,) \
@@ -289,6 +289,7 @@ VBoxSVC_DEFS = \
 	$(if $(VBOX_WITH_LIVE_MIGRATION),VBOX_WITH_LIVE_MIGRATION,) \
 	$(if $(VBOX_WITH_EXTPACK),VBOX_WITH_EXTPACK,) \
 	$(if $(VBOX_WITH_VUSB),VBOX_WITH_VUSB,) \
+	$(if $(VBOX_WITH_S3),VBOX_WITH_S3,) \
 	$(if $(VBOX_WITH_PCI_PASSTHROUGH),VBOX_WITH_PCI_PASSTHROUGH,) \
 	$(if $(VBOX_WITH_NAT_SERVICE),VBOX_WITH_NAT_SERVICE,) \
 	$(if $(VBOX_WITH_CROGL),VBOX_WITH_CROGL,) \
@@ -358,11 +359,9 @@ VBoxSVC_SOURCES = \
 	src-all/SecretKeyStore.cpp \
 	src-all/SharedFolderImpl.cpp \
 	src-all/AutoCaller.cpp \
-        src-all/ThreadTask.cpp \
 	src-all/VirtualBoxBase.cpp \
 	src-all/VirtualBoxErrorInfoImpl.cpp \
 	$(if $(VBOX_WITH_EXTPACK),src-all/ExtPackManagerImpl.cpp src-all/ExtPackUtil.cpp,) \
-	src-server/CertificateImpl.cpp \
 	src-server/ApplianceImpl.cpp \
 	src-server/ApplianceImplExport.cpp \
 	src-server/ApplianceImplImport.cpp \
@@ -449,21 +448,19 @@ VBoxSVC_SOURCES.freebsd = \
 
 ifdef VBOX_WITH_USB
  ifdef VBOX_WITH_SYSFS_BY_DEFAULT
-  src-server/linux/USBProxyBackendLinux.cpp_DEFS += VBOX_WITH_SYSFS_BY_DEFAULT
+  src-server/linux/USBProxyServiceLinux.cpp_DEFS += VBOX_WITH_SYSFS_BY_DEFAULT
  endif
  VBoxSVC_SOURCES  += \
 	src-server/USBDeviceFilterImpl.cpp \
 	src-server/USBProxyService.cpp \
-	src-server/USBProxyBackend.cpp \
-	src-server/generic/USBProxyBackendUsbIp.cpp \
 	src-server/HostUSBDeviceImpl.cpp
- VBoxSVC_SOURCES.darwin  +=  src-server/darwin/USBProxyBackendDarwin.cpp
- VBoxSVC_SOURCES.linux   +=   src-server/linux/USBProxyBackendLinux.cpp
+ VBoxSVC_SOURCES.darwin  +=  src-server/darwin/USBProxyServiceDarwin.cpp
+ VBoxSVC_SOURCES.linux   +=   src-server/linux/USBProxyServiceLinux.cpp
  VBoxSVC_SOURCES.linux   +=   src-server/linux/USBGetDevices.cpp
- VBoxSVC_SOURCES.os2     +=     src-server/os2/USBProxyBackendOs2.cpp
- VBoxSVC_SOURCES.solaris += src-server/solaris/USBProxyBackendSolaris.cpp
- VBoxSVC_SOURCES.win     +=     src-server/win/USBProxyBackendWindows.cpp
- VBoxSVC_SOURCES.freebsd += src-server/freebsd/USBProxyBackendFreeBSD.cpp
+ VBoxSVC_SOURCES.os2     +=     src-server/os2/USBProxyServiceOs2.cpp
+ VBoxSVC_SOURCES.solaris += src-server/solaris/USBProxyServiceSolaris.cpp
+ VBoxSVC_SOURCES.win     +=     src-server/win/USBProxyServiceWindows.cpp
+ VBoxSVC_SOURCES.freebsd += src-server/freebsd/USBProxyServiceFreeBSD.cpp
 endif
 
 ifdef VBOX_WITH_NETFLT
@@ -520,7 +517,7 @@ ifdef VBOX_WITH_MAIN_USB_ID_DATABASE  # Generate a database of USB vendor IDs an
 
  $$(VBoxSVC_0_OUTDIR)/USBIdDatabase.cpp:  $$(USBIdDatabaseGenerator_1_TARGET) \
  		$(PATH_SUB_CURRENT)/src-server/usb.ids $(PATH_SUB_CURRENT)/src-server/custom.ids | $$(dir $$@)
-	$(call MSG_GENERATE,USBIdDatabase,$@,$<)
+	$(call MSG_GENERATE,SchemaDefs,$@,$<)
 	$(QUIET)$(USBIdDatabaseGenerator_1_TARGET) -o "$@" $(filter %.ids,$^)
 
  BLDPROGS += USBIdDatabaseGenerator
@@ -531,17 +528,14 @@ else
 endif
 
 src-server/win/VBoxSVC.rc_INCS  = $(VBoxSVC_0_OUTDIR)
-src-server/win/VBoxSVC.rc_DEPS  = $(VBoxSVC_0_OUTDIR)/VBoxSVC-icon.rc
-src-server/win/VBoxSVC.rc_CLEAN = $(VBoxSVC_0_OUTDIR)/VBoxSVC-icon.rc
+src-server/win/VBoxSVC.rc_DEPS  = $(VBoxSVC_0_OUTDIR)/VBoxSVC.rgs $(VBoxSVC_0_OUTDIR)/VBoxSVC-icon.rc
+src-server/win/VBoxSVC.rc_CLEAN = $(VBoxSVC_0_OUTDIR)/VBoxSVC.rgs $(VBoxSVC_0_OUTDIR)/VBoxSVC-icon.rc
+
 $$(VBoxSVC_0_OUTDIR)/VBoxSVC-icon.rc: $(MAKEFILE_CURRENT) $(VBOX_WINDOWS_ICON_FILE) | $$(dir $$(@D))
 	$(APPEND) -t $@ '1 ICON DISCARDABLE "$(subst /,\\,$(VBOX_WINDOWS_ICON_FILE))"'
 
-ifndef VBOX_WITH_MIDL_PROXY_STUB
-src-server/win/VBoxSVC.rc_DEPS  += $(VBoxSVC_0_OUTDIR)/VBoxSVC.rgs
-src-server/win/VBoxSVC.rc_CLEAN += $(VBoxSVC_0_OUTDIR)/VBoxSVC.rgs
 $$(VBoxSVC_0_OUTDIR)/VBoxSVC.rgs: $(VBOX_PATH_MAIN_SRC)/src-all/win/VirtualBox_rgs.xsl $(VBOX_XIDL_FILE) | $$(dir $$(@D))
 	$(VBOX_XSLTPROC) --stringparam Module VBoxSVC -o $@ $< $(VBOX_XIDL_FILE)
-endif
 
 ## @todo r=klaus unfortunately we don't have xmllint everywhere, would be
 # good to check the validity for every VirtualBox.xidl change.
@@ -640,10 +634,10 @@ VBoxC_DEFS = \
 	$(VBOX_MAIN_DEFS) \
 	VBOX_COM_INPROC \
 	$(if $(VBOX_WITH_HGCM),VBOX_WITH_HGCM,) \
-	$(if $(VBOX_WITH_OSS),VBOX_WITH_OSS,) \
 	$(if $(VBOX_WITH_ALSA),VBOX_WITH_ALSA,) \
 	$(if $(VBOX_WITH_PULSE),VBOX_WITH_PULSE,) \
 	$(if $(VBOX_WITH_WINMM),VBOX_WITH_WINMM,) \
+	$(if $(VBOX_WITH_SOLARIS_OSS),VBOX_WITH_SOLARIS_OSS,) \
 	$(if $(VBOX_WITH_E1000),VBOX_WITH_E1000,) \
 	$(if $(VBOX_WITH_VIRTIO),VBOX_WITH_VIRTIO,) \
 	$(if $(VBOX_WITH_EFI),VBOX_WITH_EFI,) \
@@ -745,7 +739,6 @@ VBoxC_SOURCES = \
 	src-all/SecretKeyStore.cpp \
 	src-all/SharedFolderImpl.cpp \
 	src-all/AutoCaller.cpp \
-        src-all/ThreadTask.cpp \
 	src-all/VirtualBoxBase.cpp \
 	src-all/VirtualBoxErrorInfoImpl.cpp \
 	$(if $(VBOX_WITH_EXTPACK),src-all/ExtPackManagerImpl.cpp src-all/ExtPackUtil.cpp,) \
@@ -776,16 +769,10 @@ VBoxC_SOURCES = \
 	src-client/VirtualBoxClientImpl.cpp \
 	src-client/VMMDevInterface.cpp \
 	$(VBOX_AUTOGEN_EVENT_CPP) \
-	$(VBOX_XML_SCHEMADEFS_CPP)
-
-# Audio bits.
-VBoxC_DEFS    += \
-    $(if $(VBOX_WITH_AUDIO_STABLE), VBOX_WITH_AUDIO_STABLE,)
-
-VBoxC_SOURCES += \
-	../Devices/$(VBOX_AUDIO_PATH_SOURCES)/AudioMixBuffer.cpp \
-	../Devices/$(VBOX_AUDIO_PATH_SOURCES)/DrvAudioCommon.cpp \
-    $(if $(VBOX_WITH_VRDE_AUDIO),src-client/DrvAudioVRDE$(VBOX_AUDIO_FILE_SUFFIX).cpp,)
+	$(VBOX_XML_SCHEMADEFS_CPP) \
+	../Devices/Audio/AudioMixBuffer.cpp \
+	../Devices/Audio/DrvAudioCommon.cpp \
+	src-client/DrvAudioVRDE.cpp
 
 VBoxC_SOURCES.win = \
 	src-client/win/dllmain.cpp \
@@ -867,6 +854,7 @@ ifdef VBOX_WITH_32_ON_64_MAIN_API
  VBoxClient-x86_TEMPLATE = VBoxMainComp-x86
  VBoxClient-x86_EXTENDS  = VBoxC
  VBoxClient-x86_DEFS = VBOX_COM_INPROC_API_CLIENT $(VBoxC_DEFS)
+ VBoxClient-x86_INST.win = $(INST_DLL)x86/
  VBoxClient-x86_INCS.win = \
  	$(VBoxClient-x86_0_OUTDIR) \
  	$(VBoxCOM-x86_0_OUTDIR) \
@@ -875,7 +863,6 @@ ifdef VBOX_WITH_32_ON_64_MAIN_API
  	src-all/EventImpl.cpp \
  	src-all/Global.cpp \
 	src-all/AutoCaller.cpp \
- 	src-all/ThreadTask.cpp \
  	src-all/VirtualBoxBase.cpp \
  	src-all/VirtualBoxErrorInfoImpl.cpp \
  	src-client/ClientTokenHolder.cpp \
@@ -927,26 +914,10 @@ VBoxCOM_SOURCES         = \
 VBoxCOM_INCS          += $(VBOX_MAIN_APIWRAPPER_INCS) \
 	include
 ifeq ($(KBUILD_TARGET),win)
- ifdef VBOX_WITH_MIDL_PROXY_STUB
-  VBoxCOM_DEFS.win      = VBOX_WITH_AUTO_COM_REG_UPDATE
- endif
  VBoxCOM_DEFS.x86       = _WIN32_WINNT=0x0500
  VBoxCOM_DEFS.amd64     = _WIN32_WINNT=0x0510
  VBoxCOM_SOURCES       += \
 	$(VBoxCOM_0_OUTDIR)/VirtualBox_i.c
- VBoxCOM_CLEAN          = \
- 	$(VBoxCOM_0_OUTDIR)/VirtualBox_i.c \
- 	$(VBoxCOM_0_OUTDIR)/VirtualBox_p.c \
- 	$(VBoxCOM_0_OUTDIR)/dlldata.c \
- 	$(VBoxCOM_0_OUTDIR)/VirtualBox.h \
- 	$(VBoxCOM_0_OUTDIR)/VirtualBox.tlb
- VBoxCOM_CLEAN        += \
-	$(VBoxCOM_0_OUTDIR)/legacy/VirtualBox_i.c \
-	$(VBoxCOM_0_OUTDIR)/legacy/VirtualBox_p.c \
-	$(VBoxCOM_0_OUTDIR)/legacy/dlldata.c \
-	$(VBoxCOM_0_OUTDIR)/legacy/VirtualBox.h \
-	$(VBoxCOM_0_OUTDIR)/legacy/VirtualBox.tlb
- VBoxCOM_BLDDIRS      = $(VBoxCOM_0_OUTDIR)/legacy/
 else # !win
  VBoxCOM_SOURCES       += \
 	$(VBoxCOM_0_OUTDIR)/VirtualBox_XPCOM_i.c \
@@ -962,26 +933,6 @@ ifdef VBOX_WITH_32_ON_64_MAIN_API
  LIBRARIES += VBoxCOM-x86
  VBoxCOM-x86_TEMPLATE = VBoxMainLib-x86
  VBoxCOM-x86_EXTENDS  = VBoxCOM
- ifeq ($(KBUILD_TARGET),win)
-  VBoxCOM-x86_CLEAN   = \
- 	$(VBoxCOM-x86_0_OUTDIR)/VirtualBox_i.c \
- 	$(VBoxCOM-x86_0_OUTDIR)/VirtualBox_p.c \
- 	$(VBoxCOM-x86_0_OUTDIR)/dlldata.c \
- 	$(VBoxCOM-x86_0_OUTDIR)/VirtualBox.h \
- 	$(VBoxCOM-x86_0_OUTDIR)/VirtualBox.tlb
- endif
-endif
-
-# -MD version for the GUI in -MDd builds.
-ifeq ($(KBUILD_TARGET).$(VBOX_VCC_CRT_TYPE),win.d)
- LIBRARIES += VBoxCOM-GUI
- ifndef VBOX_WITH_QTGUI_V5
-  USES += qt4
- else # VBOX_WITH_QTGUI_V5
-  USES += qt5
- endif # VBOX_WITH_QTGUI_V5
- VBoxCOM-GUI_TEMPLATE = VBOXQTGUI$(if-expr defined(VBOX_WITH_HARDENING),,EXE)
- VBoxCOM-GUI_EXTENDS  = VBoxCOM
 endif
 
 
@@ -1042,55 +993,28 @@ endif
 
 if defined(VBOX_WITH_MIDL_PROXY_STUB) && "$(KBUILD_TARGET)" == "win"
  #
- # Experimental COM proxy + stub DLL w/ automatic registration updating.
- #
- # The Legacy stub is for older 64-bit windows versions (pre Windows 7) as we
- # were having various problems on windows server 2003 and 2008 with the code
- # MIDL generated.  Also, in windows 7 there are some potentially interesting
- # changes in the generated code where it uses new helpers from OLE32.
+ # Experimental COM proxy + stub DLL.
  #
  DLLS += VBoxProxyStub
  VBoxProxyStub_TEMPLATE = VBOXMAINCOMP
- VBoxProxyStub_DEFS     = REGISTER_PROXY_DLL PROXY_CLSID_IS="$(VBOX_MIDL_PROXY_CLSID_IS)"
+ VBoxProxyStub_DEFS     = REGISTER_PROXY_DLL
  VBoxProxyStub_DEFS.win.x86 = WIN32
- VBoxProxyStub_SDKS     = VBOX_NTDLL
- VBoxProxyStub_DEFPATH  = $(VBoxCOM_0_OUTDIR)/# Hack to workaround drive letter in $(VBoxCOM_0_OUTDIR)/ for CFLAGS hack below.
- VBoxProxyStub_INCS     = $(VBoxCOM_0_OUTDIR)/
- VBoxProxyStub_SOURCES := \
- 	VirtualBox_p.c \
- 	VirtualBox_i.c \
- 	$(PATH_SUB_CURRENT)/src-all/win/VBoxProxyStub.def \
- 	$(PATH_SUB_CURRENT)/src-all/win/VBoxProxyStub.rc \
- 	$(PATH_SUB_CURRENT)/src-all/win/VBoxProxyStub.c
- src-all/win/VBoxProxyStub.rc_DEPS = $(VBoxCOM_0_OUTDIR)/VirtualBox.tlb
- VBoxProxyStub_VirtualBox_p.c_CFLAGS.x86 = /Gz # Workaround for incorrect ObjectStublessClient* prototypes in SDK v7.1.
-
- DLLS += VBoxProxyStubLegacy
- VBoxProxyStubLegacy_TEMPLATE = VBOXMAINCOMP
- VBoxProxyStubLegacy_EXTENDS  = VBoxProxyStub
- VBoxProxyStubLegacy_DEFS     = $(VBoxProxyStub_DEFS) VBOX_IN_PROXY_STUB_LEGACY
- VBoxProxyStubLegacy_INCS     = $(VBoxCOM_0_OUTDIR)/legacy/
- VBoxProxyStubLegacy_SOURCES  = \
- 	$(VBoxCOM_0_OUTDIR)/legacy/VirtualBox_p.c \
- 	$(VBoxCOM_0_OUTDIR)/legacy/VirtualBox_i.c \
- 	src-all/win/VBoxProxyStub.def \
- 	src-all/win/VBoxProxyStubLegacy.rc \
- 	src-all/win/VBoxProxyStub.c
- src-all/win/VBoxProxyStubLegacy.rc_DEPS = $(VBoxCOM_0_OUTDIR)/legacy/VirtualBox.tlb
+ VBoxProxyStub_SOURCES  = \
+ 	$(VBoxCOM_0_OUTDIR)/dlldata.c \
+ 	$(VBoxCOM_0_OUTDIR)/VirtualBox_p.c \
+ 	$(VBoxCOM_0_OUTDIR)/VirtualBox_i.c \
+ 	src-all/win/VBoxProxyStub.def
 
  ifdef VBOX_WITH_32_ON_64_MAIN_API
   DLLS += VBoxProxyStub-x86
   VBoxProxyStub-x86_TEMPLATE = VBoxMainComp-x86
-  VBoxProxyStub-x86_SDKS     = VBOX_NTDLL
-  VBoxProxyStub-x86_DEFS     = $(VBoxProxyStub_DEFS) VBOX_PROXY_STUB_32_ON_64 WIN32
-  VBoxProxyStub-x86_INCS     = $(VBoxCOM-x86_0_OUTDIR)/
+  VBoxProxyStub-x86_DEFS     = REGISTER_PROXY_DLL
+  VBoxProxyStub-x86_DEFS.win.x86 = WIN32
   VBoxProxyStub-x86_SOURCES  = \
+  	$(VBoxCOM-x86_0_OUTDIR)/dlldata.c \
   	$(VBoxCOM-x86_0_OUTDIR)/VirtualBox_p.c \
   	$(VBoxCOM-x86_0_OUTDIR)/VirtualBox_i.c \
- 	src-all/win/VBoxProxyStub.c \
- 	src-all/win/VBoxProxyStub-x86.rc \
- 	src-all/win/VBoxProxyStub.def
-  src-all/win/VBoxProxyStub-x86.rc_DEPS = $(VBoxCOM-x86_0_OUTDIR)/VirtualBox-x86.tlb
+  	src-all/win/VBoxProxyStub.def
  endif
 endif
 
@@ -1140,52 +1064,25 @@ $(VBoxCOM_0_OUTDIR)/VirtualBox_XPCOM_i.c: $(VBOX_PATH_MAIN_SRC)/idl/xpidl_iid.xs
 	$(call MSG_TOOL,xsltproc,VBoxSVC,$<,$@)
 	$(QUIET)$(VBOX_XSLTPROC) -o $@ $< $(VBOX_XIDL_FILE)
 
-# Note! Because we've got a different proxy stub DLL for pre windows 7 64-bit hosts, we target windows 7 for AMD64.
-#       The output is different and hopefully more efficient, at least memory wise (using more helpers in OLE32).
-# Note! We're checking for win.amd64 below when setting the target because of the SDK build which happens on linux.amd64
-#       but with a 32-bit Wine.
-$(if $(VBOX_WITH_MIDL_PROXY_STUB),$(VBoxCOM_0_OUTDIR)/VirtualBox_p.c + $(VBoxCOM_0_OUTDIR)/dlldata.c +,) \
 $(VBoxCOM_0_OUTDIR)/VirtualBox_i.c \
 + $(VBoxCOM_0_OUTDIR)/VirtualBox.h \
+$(if $(VBOX_WITH_MIDL_PROXY_STUB),+ $(VBoxCOM_0_OUTDIR)/VirtualBox_p.c + $(VBoxCOM_0_OUTDIR)/dlldata.c,) \
 + $(VBoxCOM_0_OUTDIR)/VirtualBox.tlb: $(VBOX_IDL_FILE.MSCOM) | $$(dir $$@)
 	$(VBOX_WIN_MIDL) /nologo \
-		/env $(if-expr "$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH)" == "win.amd64" ,amd64,win32) \
-		/robust /protocol all /target $(if-expr defined(VBOX_WITH_MIDL_PROXY_STUB),NT61,NT51) \
+		$(if-expr "$(KBUILD_TARGET_ARCH)" == "amd64" && "$(KBUILD_HOST)" == "win",/env amd64,/env win32) \
+		/robust /protocol all /target NT51 \
 		/out $(call VBOX_FN_MAKE_WIN_PATH,$(VBoxCOM_0_OUTDIR)) \
 		/cpp_cmd $(subst $(EXEC_X86_WIN32),,$(call VBOX_FN_MAKE_WIN_PATH,$(TOOL_$(VBOX_VCC_TOOL)_CC))) \
 		/I $(call VBOX_FN_MAKE_WIN_PATH,$(PATH_SDK_$(VBOX_WINPSDK)_INC)) \
 		/I idl \
 		$(call VBOX_FN_MAKE_WIN_PATH,$<)
 
-if defined(VBOX_WITH_MIDL_PROXY_STUB)
-# -Windows Server 2003 AMD64 SP1 does not like the result when using '/protocol all' and '/target NT51'.
-# -Vista AMD64 SP1 and Windows Server 2008 AMD64 seems to have some objections as well, but it seemed
-#  that using an older MIDL compiler (v7.00.0499 instead of v7.00.0555) helps. But the W2K3 fix also works.
-# To avoid 32-bit vs. 64-bit differences, we do the same for 32-bit windows versions.
-$(VBoxCOM_0_OUTDIR)/legacy/VirtualBox_i.c \
-+ $(VBoxCOM_0_OUTDIR)/legacy/VirtualBox_p.c\
-+ $(VBoxCOM_0_OUTDIR)/legacy/dlldata.c \
-+ $(VBoxCOM_0_OUTDIR)/legacy/VirtualBox.h \
-+ $(VBoxCOM_0_OUTDIR)/legacy/VirtualBox.tlb: $(VBOX_IDL_FILE.MSCOM) | $$(dir $$@)
-	$(VBOX_WIN_MIDL) /nologo \
-		$(if-expr "$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH)" == "win.amd64" \
-		,/env amd64 /x64 /target NT50 /robust \
-		,/env win32      /target NT51 /robust /protocol all ) \
-		/out $(call VBOX_FN_MAKE_WIN_PATH,$(dir $@)) \
-		/cpp_cmd $(subst $(EXEC_X86_WIN32),,$(call VBOX_FN_MAKE_WIN_PATH,$(TOOL_$(VBOX_VCC_TOOL)_CC))) \
-		/I $(call VBOX_FN_MAKE_WIN_PATH,$(PATH_SDK_$(VBOX_WINPSDK)_INC)) \
-		/I idl \
-		$(call VBOX_FN_MAKE_WIN_PATH,$<)
-endif
-
-# The XP targetted 32-bit proxy stub works with all versions of windows (the
-# issues leading to the VBoxProxyStubLegacy.dll are only on 64-bit windows).
-$(if $(VBOX_WITH_MIDL_PROXY_STUB),$(VBoxCOM-x86_0_OUTDIR)/VirtualBox_p.c + $(VBoxCOM-x86_0_OUTDIR)/dlldata.c +,) \
 $(VBoxCOM-x86_0_OUTDIR)/VirtualBox_i.c \
 + $(VBoxCOM-x86_0_OUTDIR)/VirtualBox.h \
+$(if $(VBOX_WITH_MIDL_PROXY_STUB),+ $(VBoxCOM-x86_0_OUTDIR)/VirtualBox_p.c + $(VBoxCOM-x86_0_OUTDIR)/dlldata.c,) \
 + $(VBoxCOM-x86_0_OUTDIR)/VirtualBox-x86.tlb: $(VBOX_IDL_FILE.MSCOM) | $$(dir $$@)
-	$(VBOX_WIN_MIDL) /nologo \
-		/env win32 /target NT51 /robust /protocol all  \
+	$(VBOX_WIN_MIDL) /nologo /env win32 /target NT51 \
+		/robust /protocol all \
 		/out $(call VBOX_FN_MAKE_WIN_PATH,$(VBoxCOM-x86_0_OUTDIR)) \
 		/tlb $(call VBOX_FN_MAKE_WIN_PATH,$(VBoxCOM-x86_0_OUTDIR)/VirtualBox-x86.tlb) \
 		/cpp_cmd $(subst $(EXEC_X86_WIN32),,$(call VBOX_FN_MAKE_WIN_PATH,$(TOOL_$(VBOX_VCC_TOOL_STEM)X86_CC))) \

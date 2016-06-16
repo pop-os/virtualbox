@@ -19,26 +19,26 @@
 # include <precomp.h>
 #else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
-# ifndef VBOX_WS_MAC
+# ifndef Q_WS_MAC
 /* Qt includes: */
 #  include <QKeyEvent>
 #  include <QTimer>
-# endif /* !VBOX_WS_MAC */
+# endif /* !Q_WS_MAC */
 
 /* GUI includes: */
 # include "UIKeyboardHandlerSeamless.h"
-# ifndef VBOX_WS_MAC
+# ifndef Q_WS_MAC
 #  include "UIMachineLogic.h"
 #  include "UIShortcutPool.h"
-# endif /* !VBOX_WS_MAC */
+# endif /* !Q_WS_MAC */
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 
-#ifndef VBOX_WS_MAC
+#ifndef Q_WS_MAC
 /* Namespaces: */
 using namespace UIExtraDataDefs;
-#endif /* !VBOX_WS_MAC */
+#endif /* !Q_WS_MAC */
 
 UIKeyboardHandlerSeamless::UIKeyboardHandlerSeamless(UIMachineLogic* pMachineLogic)
     : UIKeyboardHandler(pMachineLogic)
@@ -49,7 +49,7 @@ UIKeyboardHandlerSeamless::~UIKeyboardHandlerSeamless()
 {
 }
 
-#ifndef VBOX_WS_MAC
+#ifndef Q_WS_MAC
 bool UIKeyboardHandlerSeamless::eventFilter(QObject *pWatchedObject, QEvent *pEvent)
 {
     /* Check if pWatchedObject object is view: */
@@ -66,7 +66,7 @@ bool UIKeyboardHandlerSeamless::eventFilter(QObject *pWatchedObject, QEvent *pEv
                 /* Get key-event: */
                 QKeyEvent *pKeyEvent = static_cast<QKeyEvent*>(pEvent);
                 /* Process Host+Home for menu popup: */
-                if (isHostKeyPressed() && QKeySequence(pKeyEvent->key()) == gShortcutPool->shortcut(GUI_Input_MachineShortcuts, QString("PopupMenu")).sequence())
+                if (isHostKeyPressed() && pKeyEvent->key() == gShortcutPool->shortcut(GUI_Input_MachineShortcuts, QString("PopupMenu")).sequence())
                 {
                     /* Post request to show popup-menu: */
                     QTimer::singleShot(0, m_pMachineLogic, SLOT(sltInvokePopupMenu()));
@@ -83,5 +83,5 @@ bool UIKeyboardHandlerSeamless::eventFilter(QObject *pWatchedObject, QEvent *pEv
     /* Else just propagate to base-class: */
     return UIKeyboardHandler::eventFilter(pWatchedObject, pEvent);
 }
-#endif /* !VBOX_WS_MAC */
+#endif /* !Q_WS_MAC */
 

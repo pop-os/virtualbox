@@ -682,11 +682,11 @@ int main(int argc, char **argv)
 
             case 'h':
                 RTPrintf("no help\n");
-                return RTEXITCODE_SYNTAX;
+                return 1;
 
             case 'V':
                 RTPrintf("%sr%s\n", RTBldCfgVersion(), RTBldCfgRevisionStr());
-                return RTEXITCODE_SUCCESS;
+                return 0;
 
             default:
                 return RTGetOptPrintError(vrc, &ValueUnion);
@@ -751,7 +751,7 @@ int main(int argc, char **argv)
         }
     };
 
-    do /* goto avoidance only */
+    do
     {
         rc = com::Initialize();
         if (NS_FAILED(rc))
@@ -915,5 +915,5 @@ int main(int argc, char **argv)
     if (g_pszPidFile)
         RTFileDelete(g_pszPidFile);
 
-    return RTEXITCODE_SUCCESS;
+    return 0;
 }

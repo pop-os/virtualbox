@@ -61,9 +61,6 @@
 ;
 
 
-; map files should include symbols and everything.
-[map all]
-
 ;*******************************************************************************
 ;*      Header Files                                                           *
 ;*******************************************************************************
@@ -1695,8 +1692,6 @@ ENDPROC Bs2ExitMode_lm64
 %ifdef BS2_INC_CMN_P16
  %define BS2_INC_BS2EXITMODE_P16
 %elifdef BS2_INC_CMN_LM
- %define BS2_INC_BS2EXITMODE_P16
-%elifdef BS2_INC_CMN_P32
  %define BS2_INC_BS2EXITMODE_P16
 %endif
 

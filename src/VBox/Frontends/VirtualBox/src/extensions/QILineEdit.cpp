@@ -19,39 +19,22 @@
 # include <precomp.h>
 #else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
-/* Qt includes: */
-# if QT_VERSION < 0x050000
-#  ifdef VBOX_WS_WIN
-#   include <QLibrary>
-#  endif /* VBOX_WS_WIN */
-# endif /* QT_VERSION < 0x050000 */
-
-/* GUI includes: */
 # include "QILineEdit.h"
 
-/* Other VBox includes: */
-# if QT_VERSION < 0x050000
-#  ifdef VBOX_WS_WIN
-#   include "iprt/ldr.h"
-#  endif /* VBOX_WS_WIN */
-# endif /* QT_VERSION < 0x050000 */
+/* Qt includes */
+# ifdef Q_WS_WIN32
+#  include <QLibrary>
 
-/* External includes: */
-# if QT_VERSION < 0x050000
-#  ifdef VBOX_WS_WIN
-#   include <Windows.h>
-#  endif /* VBOX_WS_WIN */
-# endif /* QT_VERSION < 0x050000 */
+#  include <Windows.h>
+#  include "iprt/ldr.h"
+# endif
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
-/* Qt includes: */
 #include <QStyleOptionFrame>
-#if QT_VERSION < 0x050000
-# ifdef VBOX_WS_WIN
-#  include <QWindowsVistaStyle>
-# endif /* VBOX_WS_WIN */
-#endif /* QT_VERSION < 0x050000 */
+#ifdef Q_WS_WIN32
+# include <QWindowsVistaStyle>
+#endif
 
 
 void QILineEdit::setMinimumWidthByText (const QString &aText)
@@ -79,8 +62,7 @@ QSize QILineEdit::featTextWidth (const QString &aText) const
               fontMetrics().xHeight()     + 2*1);
     QSize sa = style()->sizeFromContents (QStyle::CT_LineEdit, &sof, sc, this);
 
-#if QT_VERSION < 0x050000
-# ifdef VBOX_WS_WIN
+#if defined (Q_WS_WIN32)
     /* Vista l&f style has a bug where the last parameter of sizeFromContents
      * function ('widget' what corresponds to 'this' in our class) is ignored.
      * Due to it QLineEdit processed as QComboBox and size calculation includes
@@ -97,8 +79,7 @@ QSize QILineEdit::featTextWidth (const QString &aText) const
         if (s_pfnIsAppThemed && s_pfnIsAppThemed())
             sa -= QSize(23, 0);
     }
-# endif /* VBOX_WS_WIN */
-#endif /* QT_VERSION < 0x050000 */
+#endif
 
     return sa;
 }

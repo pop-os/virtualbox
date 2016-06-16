@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,13 +19,13 @@
 #define __UIMachineSettingsStorage_h__
 
 /* Qt includes: */
-#include <QtGlobal> /* for VBOX_WS_MAC */
-#ifdef VBOX_WS_MAC
+#include <QtGlobal> /* for Q_WS_MAC */
+#ifdef Q_WS_MAC
 /* Somewhere Carbon.h includes AssertMacros.h which defines the macro "check".
  * In QItemDelegate a class method is called "check" also. As we not used the
  * macro undefine it here. */
 # undef check
-#endif /* VBOX_WS_MAC */
+#endif /* Q_WS_MAC */
 #include <QItemDelegate>
 #include <QPointer>
 
@@ -82,9 +82,6 @@ enum PixmapType
     USBControllerNormal,
     USBControllerExpand,
     USBControllerCollapse,
-    NVMeControllerNormal,
-    NVMeControllerExpand,
-    NVMeControllerCollapse,
     FloppyControllerNormal,
     FloppyControllerExpand,
     FloppyControllerCollapse,
@@ -97,8 +94,6 @@ enum PixmapType
     SCSIControllerAddDis,
     USBControllerAddEn,
     USBControllerAddDis,
-    NVMeControllerAddEn,
-    NVMeControllerAddDis,
     FloppyControllerAddEn,
     FloppyControllerAddDis,
 
@@ -223,19 +218,6 @@ class USBStorageControllerType : public AbstractControllerType
 public:
 
     USBStorageControllerType (KStorageControllerType aSubType);
-
-private:
-
-    KStorageControllerType first() const;
-    uint size() const;
-};
-
-/* NVMe Controller Type */
-class NVMeStorageControllerType : public AbstractControllerType
-{
-public:
-
-    NVMeStorageControllerType (KStorageControllerType aSubType);
 
 private:
 
@@ -412,6 +394,7 @@ private:
 
     StorageSlot mAttSlot;
     QString mAttMediumId;
+    bool mAttIsShowDiffs;
     bool mAttIsHostDrive;
     bool mAttIsPassthrough;
     bool mAttIsTempEject;
@@ -456,7 +439,6 @@ public:
         R_IsMoreFloppyControllersPossible,
         R_IsMoreSASControllersPossible,
         R_IsMoreUSBControllersPossible,
-        R_IsMoreNVMeControllersPossible,
         R_IsMoreAttachmentsPossible,
 
         R_CtrName,
@@ -725,7 +707,6 @@ private slots:
     void addFloppyController();
     void addSASController();
     void addUSBController();
-    void addNVMeController();
     void delController();
 
     void addAttachment();
@@ -807,7 +788,6 @@ private:
     QAction *mAddSASCtrAction;
     QAction *mAddFloppyCtrAction;
     QAction *mAddUSBCtrAction;
-    QAction *mAddNVMeCtrAction;
     QAction *mAddAttAction;
     QAction *mDelAttAction;
     QAction *mAddHDAttAction;

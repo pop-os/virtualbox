@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -405,7 +405,6 @@ RTEXITCODE errorTooManyParameters(char **papszArgs)
 
     /* check if help was requested. */
     if (papszArgs)
-    {
         for (uint32_t i = 0; papszArgs[i]; i++)
             if (   strcmp(papszArgs[i], "--help") == 0
                 || strcmp(papszArgs[i], "-h") == 0
@@ -416,7 +415,6 @@ RTEXITCODE errorTooManyParameters(char **papszArgs)
             }
             else if (!strcmp(papszArgs[i], "--"))
                 break;
-    }
 
     return errorSyntax("Too many parameters");
 }
@@ -527,7 +525,7 @@ RTEXITCODE errorGetOpt(int rcGetOpt, union RTGETOPTUNION const *pValueUnion)
     return RTEXITCODE_SYNTAX;
 }
 
-#endif /* !VBOX_ONLY_DOCS */
+#endif /* VBOX_ONLY_DOCS */
 
 
 
@@ -682,11 +680,8 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
                      "                            [--ioapic on|off]\n"
                      "                            [--hpet on|off]\n"
                      "                            [--triplefaultreset on|off]\n"
-                     "                            [--apic on|off]\n"
-                     "                            [--x2apic on|off]\n"
                      "                            [--paravirtprovider none|default|legacy|minimal|\n"
                      "                                                hyperv|kvm]\n"
-                     "                            [--paravirtdebug <key=value> [,<key=value> ...]]\n"
                      "                            [--hwvirtex on|off]\n"
                      "                            [--nestedpaging on|off]\n"
                      "                            [--largepages on|off]\n"
@@ -694,7 +689,6 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
                      "                            [--vtxux on|off]\n"
                      "                            [--pae on|off]\n"
                      "                            [--longmode on|off]\n"
-                     "                            [--cpu-profile \"host|Intel 80[86|286|386]\"]\n"
                      "                            [--cpuid-portability-level <0..3>\n"
                      "                            [--cpuidset <leaf> <eax> <ebx> <ecx> <edx>]\n"
                      "                            [--cpuidremove <leaf>]\n"
@@ -723,7 +717,6 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
                      "                            [--bioslogodisplaytime <msec>]\n"
                      "                            [--bioslogoimagepath <imagepath>]\n"
                      "                            [--biosbootmenu disabled|menuonly|messageandmenu]\n"
-                     "                            [--biosapic disabled|apic|x2apic]\n"
                      "                            [--biossystemtimeoffset <msec>]\n"
                      "                            [--biospxedebug on|off]\n"
                      "                            [--boot<1-4> none|floppy|dvd|disk|net>]\n"
@@ -897,7 +890,7 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
                      "                            [--videocapfps <fps>]\n"
                      "                            [--videocapmaxtime <ms>]\n"
                      "                            [--videocapmaxsize <MB>]\n"
-                     "                            [--videocapopts <key=value> [,<key=value> ...]]\n"
+                     "                            [--videocapopts <key=value> [<key=value> ...]]\n"
 #endif
                      "                            [--defaultfrontend default|<name>]\n"
                      "\n");
@@ -1088,9 +1081,9 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
         RTStrmPrintf(pStrm,
                            "%s storagectl %s      <uuid|vmname>\n"
                      "                            --name <name>\n"
-                     "                            [--add ide|sata|scsi|floppy|sas|pcie]\n"
+                     "                            [--add ide|sata|scsi|floppy|sas]\n"
                      "                            [--controller LSILogic|LSILogicSAS|BusLogic|\n"
-                     "                                          IntelAHCI|PIIX3|PIIX4|ICH6|I82078|NVMe]\n"
+                     "                                          IntelAHCI|PIIX3|PIIX4|ICH6|I82078]\n"
                      "                            [--portcount <1-n>]\n"
                      "                            [--hostiocache on|off]\n"
                      "                            [--bootable on|off]\n"
@@ -1276,7 +1269,7 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
     {
         RTStrmPrintf(pStrm,
                            "%s debugvm %s         <uuid|vmname>\n"
-                     "                            dumpvmcore --filename <name> |\n"
+                     "                            dumpguestcore --filename <name> |\n"
                      "                            info <item> [args] |\n"
                      "                            injectnmi |\n"
                      "                            log [--release|--debug] <settings> ...|\n"
@@ -1343,9 +1336,8 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
                      "                            [--port-forward-6 <rule>]\n"
                      "                            [--loopback-6 <rule>]\n\n"
                            "%s natnetwork %s      start --netname <name>\n\n"
-                           "%s natnetwork %s      stop --netname <name>\n\n"
-                           "%s natnetwork %s      list [<pattern>]\n"
-                     "\n", SEP, SEP, SEP, SEP, SEP, SEP);
+                           "%s natnetwork %s      stop --netname <name>\n"
+                     "\n", SEP, SEP, SEP, SEP, SEP);
 
 
     }
@@ -1383,16 +1375,6 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
 #if defined(VBOX_WITH_NETFLT)
                      "                                   --ifname <hostonly_if_name>\n"
 #endif
-                     "\n", SEP, SEP);
-    }
-
-    if (fCategory & USAGE_USBDEVSOURCE)
-    {
-        RTStrmPrintf(pStrm,
-                           "%s usbdevsource %s    add <source name>\n"
-                     "                            --backend <backend>\n"
-                     "                            --address <address>\n"
-                           "%s usbdevsource %s    remove <source name>\n"
                      "\n", SEP, SEP);
     }
 
@@ -1468,13 +1450,11 @@ RTEXITCODE errorGetOptEx(USAGECATEGORY fCategory, uint32_t fSubCategory, int rc,
     /*
      * Check if it is an unhandled standard option.
      */
-#ifndef VBOX_ONLY_DOCS
     if (rc == 'V')
     {
         RTPrintf("%sr%d\n", VBOX_VERSION_STRING, RTBldCfgRevision());
         return RTEXITCODE_SUCCESS;
     }
-#endif
 
     if (rc == 'h')
     {

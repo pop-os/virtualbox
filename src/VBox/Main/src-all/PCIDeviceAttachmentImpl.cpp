@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2010-2016 Oracle Corporation
+ * Copyright (C) 2010-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,11 +22,9 @@
 #include "Global.h"
 #include "Logging.h"
 
-#include <VBox/settings.h>
-
 struct PCIDeviceAttachment::Data
 {
-    Data(const Utf8Str &aDevName,
+    Data(const Bstr    &aDevName,
          LONG          aHostAddress,
          LONG          aGuestAddress,
          BOOL          afPhysical)
@@ -36,7 +34,7 @@ struct PCIDeviceAttachment::Data
         DevName = aDevName;
     }
 
-    Utf8Str          DevName;
+    Bstr             DevName;
     LONG             HostAddress;
     LONG             GuestAddress;
     BOOL             fPhysical;
@@ -62,7 +60,7 @@ void PCIDeviceAttachment::FinalRelease()
 // public initializer/uninitializer for internal purposes only
 /////////////////////////////////////////////////////////////////////////////
 HRESULT PCIDeviceAttachment::init(IMachine      *aParent,
-                                  const Utf8Str &aDevName,
+                                  const Bstr   &aDevName,
                                   LONG          aHostAddress,
                                   LONG          aGuestAddress,
                                   BOOL          fPhysical)
@@ -84,7 +82,8 @@ HRESULT PCIDeviceAttachment::init(IMachine      *aParent,
 HRESULT PCIDeviceAttachment::i_loadSettings(IMachine *aParent,
                                             const settings::HostPCIDeviceAttachment &hpda)
 {
-    return init(aParent, hpda.strDeviceName, hpda.uHostAddress, hpda.uGuestAddress, TRUE);
+    Bstr bname(hpda.strDeviceName);
+    return init(aParent, bname,  hpda.uHostAddress, hpda.uGuestAddress, TRUE);
 }
 
 

@@ -26,17 +26,17 @@
 #include <QHash>
 #include <QFileIconProvider>
 #include <QReadWriteLock>
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
 # include <QSet>
-#endif /* VBOX_WS_MAC */
+#endif /* Q_WS_MAC */
 
 /* GUI includes: */
 #include "UIDefs.h"
 #include "UIMediumDefs.h"
 #include "VBoxGlobalSettings.h"
-#ifdef VBOX_WS_X11
+#ifdef Q_WS_X11
 # include "VBoxX11Helper.h"
-#endif /* VBOX_WS_X11 */
+#endif /* Q_WS_X11 */
 
 /* COM includes: */
 #include "VBox/com/Guid.h"
@@ -47,9 +47,9 @@
 #include "CGuestOSType.h"
 
 /* Other includes: */
-#ifdef VBOX_WS_X11
+#ifdef Q_WS_X11
 # include <X11/Xdefs.h>
-#endif /* VBOX_WS_X11 */
+#endif /* Q_WS_X11 */
 
 /* Forward declarations: */
 class QAction;
@@ -65,9 +65,9 @@ class UIMediumEnumerator;
 class UIMedium;
 class UIIconPoolGeneral;
 class UIThreadPool;
-#ifdef VBOX_WS_X11
+#ifdef Q_WS_X11
 class UIDesktopWidgetWatchdog;
-#endif /* VBOX_WS_X11 */
+#endif /* Q_WS_X11 */
 
 // VBoxGlobal class
 ////////////////////////////////////////////////////////////////////////////////
@@ -118,12 +118,12 @@ public:
     /** Returns whether GUI is separate (from VM) process. */
     bool isSeparateProcess() const { return m_fSeparateProcess; }
 
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
     /** Mac OS X: Returns #MacOSXRelease determined using <i>uname</i> call. */
     static MacOSXRelease determineOsRelease();
     /** Mac OS X: Returns #MacOSXRelease determined during VBoxGlobal prepare routine. */
     MacOSXRelease osRelease() const { return m_osRelease; }
-#endif /* VBOX_WS_MAC */
+#endif /* Q_WS_MAC */
 
     /** Try to acquire COM cleanup protection token for reading. */
     bool comTokenTryLockForRead() { return m_comCleanupProtectionToken.tryLockForRead(); }
@@ -202,12 +202,10 @@ public:
     QString managedVMUuid() const { return vmUuid; }
     QList<QUrl> &argUrlList() { return m_ArgUrlList; }
 
-#ifdef VBOX_WS_X11
-    /** X11: Returns whether the Window Manager we are running at is composition one. */
-    bool isCompositingManagerRunning() const { return m_fCompositingManagerRunning; }
+#ifdef Q_WS_X11
     /** X11: Returns the type of the Window Manager we are running under. */
     X11WMType typeOfWindowManager() const { return m_enmWindowManagerType; }
-#endif /* VBOX_WS_X11 */
+#endif /* Q_WS_X11 */
 
     /** Returns whether we should restore current snapshot before VM started. */
     bool shouldRestoreCurrentSnapshot() const { return mRestoreCurrentSnapshot; }
@@ -416,7 +414,7 @@ public:
 
     static bool activateWindow (WId aWId, bool aSwitchDesktop = true);
 
-#ifdef VBOX_WS_X11
+#ifdef Q_WS_X11
     /** X11: Test whether the current window manager supports full screen mode. */
     static bool supportsFullScreenMonitorsProtocolX11();
     /** X11: Performs mapping of the passed @a pWidget to host-screen with passed @a uScreenId. */
@@ -428,7 +426,7 @@ public:
     static bool isFullScreenFlagSet(QWidget *pWidget);
     /** X11: Sets _NET_WM_STATE_FULLSCREEN flag for passed @a pWidget. */
     static void setFullScreenFlag(QWidget *pWidget);
-#endif /* VBOX_WS_X11 */
+#endif /* Q_WS_X11 */
 
     static QString removeAccelMark (const QString &aText);
 
@@ -527,10 +525,10 @@ private:
 
     bool mValid;
 
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
     /** Mac OS X: Holds the #MacOSXRelease determined using <i>uname</i> call. */
     MacOSXRelease m_osRelease;
-#endif /* VBOX_WS_MAC */
+#endif /* Q_WS_MAC */
 
     /** COM cleanup protection token. */
     QReadWriteLock m_comCleanupProtectionToken;
@@ -568,9 +566,7 @@ private:
     UIMediumEnumerator *m_pMediumEnumerator;
     mutable QReadWriteLock m_mediumEnumeratorDtorRwLock;
 
-#ifdef VBOX_WS_X11
-    /** X11: Holds whether the Window Manager we are running at is composition one. */
-    bool m_fCompositingManagerRunning;
+#ifdef Q_WS_X11
     /** X11: Holds the type of the Window Manager we are running under. */
     X11WMType m_enmWindowManagerType;
 
@@ -579,7 +575,7 @@ private:
         /** X11: Holds the desktop-widget watchdog instance aware of host-screen geometry changes. */
         UIDesktopWidgetWatchdog *m_pDesktopWidgetWatchdog;
     /** @} */
-#endif /* VBOX_WS_X11 */
+#endif /* Q_WS_X11 */
 
     /** The --aggressive-caching / --no-aggressive-caching option. */
     bool mAgressiveCaching;
@@ -629,7 +625,7 @@ private:
     enum StartRunning m_enmStartRunning;
 #endif
 
-#if defined (VBOX_WS_WIN)
+#if defined (Q_WS_WIN32)
     DWORD dwHTMLHelpCookie;
 #endif
 

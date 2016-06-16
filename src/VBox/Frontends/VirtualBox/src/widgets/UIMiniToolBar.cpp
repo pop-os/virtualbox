@@ -29,6 +29,9 @@
 # include <QToolButton>
 # include <QStateMachine>
 # include <QPainter>
+# ifdef Q_WS_X11
+#  include <QX11Info>
+# endif /* Q_WS_X11 */
 
 /* GUI includes: */
 # include "UIMiniToolBar.h"
@@ -271,12 +274,12 @@ void UIMiniToolBarPrivate::prepare()
     setIconSize(QSize(iIconMetric, iIconMetric));
 
     /* Left margin: */
-#ifdef VBOX_WS_X11
-    if (vboxGlobal().isCompositingManagerRunning())
+#ifdef Q_WS_X11
+    if (QX11Info::isCompositingManagerRunning())
         m_spacings << widgetForAction(addWidget(new QWidget));
-#else /* !VBOX_WS_X11 */
+#else /* !Q_WS_X11 */
     m_spacings << widgetForAction(addWidget(new QWidget));
-#endif /* !VBOX_WS_X11 */
+#endif /* !Q_WS_X11 */
 
     /* Prepare push-pin: */
     m_pAutoHideAction = new QAction(this);
@@ -326,12 +329,12 @@ void UIMiniToolBarPrivate::prepare()
     addAction(m_pCloseAction);
 
     /* Right margin: */
-#ifdef VBOX_WS_X11
-    if (vboxGlobal().isCompositingManagerRunning())
+#ifdef Q_WS_X11
+    if (QX11Info::isCompositingManagerRunning())
         m_spacings << widgetForAction(addWidget(new QWidget));
-#else /* !VBOX_WS_X11 */
+#else /* !Q_WS_X11 */
     m_spacings << widgetForAction(addWidget(new QWidget));
-#endif /* !VBOX_WS_X11 */
+#endif /* !Q_WS_X11 */
 
     /* Resize to sizehint: */
     resize(sizeHint());
@@ -339,10 +342,10 @@ void UIMiniToolBarPrivate::prepare()
 
 void UIMiniToolBarPrivate::rebuildShape()
 {
-#ifdef VBOX_WS_X11
-    if (!vboxGlobal().isCompositingManagerRunning())
+#ifdef Q_WS_X11
+    if (!QX11Info::isCompositingManagerRunning())
         return;
-#endif /* VBOX_WS_X11 */
+#endif /* Q_WS_X11 */
 
     /* Rebuild shape: */
     QPainterPath shape;
@@ -495,10 +498,10 @@ void UIMiniToolBar::adjustGeometry()
     else
         m_pEmbeddedToolbar->move(m_hiddenToolbarPosition);
 
-#ifdef VBOX_WS_X11
+#ifdef Q_WS_X11
     /* Adjust window mask: */
     setMask(m_pEmbeddedToolbar->geometry());
-#endif /* VBOX_WS_X11 */
+#endif /* Q_WS_X11 */
 
     /* Simulate toolbar auto-hiding: */
     simulateToolbarAutoHiding();
@@ -542,16 +545,16 @@ void UIMiniToolBar::prepare()
      * to handle window activation stealing: */
     installEventFilter(this);
 
-#if   defined(VBOX_WS_WIN)
+#if   defined(Q_WS_WIN)
     /* No background until first paint-event: */
     setAttribute(Qt::WA_NoSystemBackground);
     /* Enable translucency through Qt API: */
     setAttribute(Qt::WA_TranslucentBackground);
-#elif defined(VBOX_WS_X11)
+#elif defined(Q_WS_X11)
     /* Enable translucency through Qt API if supported: */
-    if (vboxGlobal().isCompositingManagerRunning())
+    if (QX11Info::isCompositingManagerRunning())
         setAttribute(Qt::WA_TranslucentBackground);
-#endif /* VBOX_WS_X11 */
+#endif /* Q_WS_X11 */
 
     /* Make sure we have no focus: */
     setFocusPolicy(Qt::NoFocus);
@@ -604,7 +607,7 @@ void UIMiniToolBar::prepare()
     m_pHoverEnterTimer = new QTimer(this);
     {
         m_pHoverEnterTimer->setSingleShot(true);
-        m_pHoverEnterTimer->setInterval(500);
+        m_pHoverEnterTimer->setInterval(50);
         connect(m_pHoverEnterTimer, SIGNAL(timeout()), this, SLOT(sltHoverEnter()));
     }
     m_pHoverLeaveTimer = new QTimer(this);
@@ -675,9 +678,9 @@ bool UIMiniToolBar::eventFilter(QObject *pWatched, QEvent *pEvent)
     /* Detect if we have window activation stolen: */
     if (pWatched == this && pEvent->type() == QEvent::WindowActivate)
     {
-#if   defined(VBOX_WS_WIN)
+#if   defined(Q_WS_WIN)
         emit sigNotifyAboutWindowActivationStolen();
-#elif defined(VBOX_WS_X11)
+#elif defined(Q_WS_X11)
         switch (vboxGlobal().typeOfWindowManager())
         {
             case X11WMType_GNOMEShell:
@@ -697,7 +700,7 @@ bool UIMiniToolBar::eventFilter(QObject *pWatched, QEvent *pEvent)
                 break;
             }
         }
-#endif /* VBOX_WS_X11 */
+#endif /* Q_WS_X11 */
     }
 
     /* Call to base-class: */
@@ -724,10 +727,10 @@ void UIMiniToolBar::setToolbarPosition(QPoint point)
     AssertPtrReturnVoid(m_pEmbeddedToolbar);
     m_pEmbeddedToolbar->move(point);
 
-#ifdef VBOX_WS_X11
+#ifdef Q_WS_X11
     /* Update window mask: */
     setMask(m_pEmbeddedToolbar->geometry());
-#endif /* VBOX_WS_X11 */
+#endif /* Q_WS_X11 */
 }
 
 QPoint UIMiniToolBar::toolbarPosition() const

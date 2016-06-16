@@ -39,13 +39,13 @@ UIWizardCloneVM::UIWizardCloneVM(QWidget *pParent, const CMachine &machine, CSna
     , m_machine(machine)
     , m_snapshot(snapshot)
 {
-#ifndef VBOX_WS_MAC
+#ifndef Q_WS_MAC
     /* Assign watermark: */
     assignWatermark(":/vmw_clone.png");
-#else /* VBOX_WS_MAC */
+#else /* Q_WS_MAC */
     /* Assign background image: */
     assignBackground(":/vmw_clone_bg.png");
-#endif /* VBOX_WS_MAC */
+#endif /* Q_WS_MAC */
 }
 
 bool UIWizardCloneVM::cloneVM()

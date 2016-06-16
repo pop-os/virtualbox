@@ -1,11 +1,9 @@
 ## @file
-# Fault Tolerant Write Dxe Driver.
-#
-# This driver installs Fault Tolerant Write (FTW) protocol,
+# This driver installs Fault Tolerant Write (FTW) protocol, 
 # which provides fault tolerant write capability for block devices.
 # Its implementation depends on the full functionality FVB protocol that support read, write/erase flash access.
 #
-# Copyright (c) 2006 - 2014, Intel Corporation. All rights reserved.<BR>
+# Copyright (c) 2006 - 2011, Intel Corporation. All rights reserved.<BR>
 #
 #  This program and the accompanying materials
 #  are licensed and made available under the terms and conditions of the BSD License
@@ -19,7 +17,6 @@
 [Defines]
   INF_VERSION                    = 0x00010005
   BASE_NAME                      = FaultTolerantWriteDxe
-  MODULE_UNI_FILE                = FaultTolerantWriteDxe.uni
   FILE_GUID                      = FE5CEA76-4F72-49e8-986F-2CD899DFFE5D
   MODULE_TYPE                    = DXE_DRIVER
   VERSION_STRING                 = 1.0
@@ -49,43 +46,26 @@
   UefiDriverEntryPoint
   DebugLib
   UefiLib
-  PcdLib
-  ReportStatusCodeLib
 
 [Guids]
-  #
-  # Signature in EFI_FAULT_TOLERANT_WORKING_BLOCK_HEADER
-  #
-  ## CONSUMES           ## GUID
-  ## PRODUCES           ## GUID
-  gEdkiiWorkingBlockSignatureGuid
+  gEfiSystemNvDataFvGuid                        ## CONSUMES ## FV Signature of Working Space Header
 
 [Protocols]
-  gEfiSwapAddressRangeProtocolGuid | gEfiMdeModulePkgTokenSpaceGuid.PcdFullFtwServiceEnable ## SOMETIMES_CONSUMES
-  ## NOTIFY
-  ## CONSUMES
-  gEfiFirmwareVolumeBlockProtocolGuid
+  gEfiSwapAddressRangeProtocolGuid     | gEfiMdeModulePkgTokenSpaceGuid.PcdFullFtwServiceEnable          ## CONSUMES
+  gEfiFirmwareVolumeBlockProtocolGuid           ## CONSUMES
   gEfiFaultTolerantWriteProtocolGuid            ## PRODUCES
 
 [FeaturePcd]
-  gEfiMdeModulePkgTokenSpaceGuid.PcdFullFtwServiceEnable    ## CONSUMES
+  gEfiMdeModulePkgTokenSpaceGuid.PcdFullFtwServiceEnable
 
 [Pcd]
-  gEfiMdeModulePkgTokenSpaceGuid.PcdFlashNvStorageFtwWorkingBase    ## SOMETIMES_CONSUMES
-  gEfiMdeModulePkgTokenSpaceGuid.PcdFlashNvStorageFtwWorkingBase64  ## CONSUMES
-  gEfiMdeModulePkgTokenSpaceGuid.PcdFlashNvStorageFtwWorkingSize    ## CONSUMES
-  gEfiMdeModulePkgTokenSpaceGuid.PcdFlashNvStorageFtwSpareBase      ## SOMETIMES_CONSUMES
-  gEfiMdeModulePkgTokenSpaceGuid.PcdFlashNvStorageFtwSpareBase64    ## CONSUMES
-  gEfiMdeModulePkgTokenSpaceGuid.PcdFlashNvStorageFtwSpareSize      ## CONSUMES
+  gEfiMdeModulePkgTokenSpaceGuid.PcdFlashNvStorageFtwWorkingBase
+  gEfiMdeModulePkgTokenSpaceGuid.PcdFlashNvStorageFtwWorkingBase64
+  gEfiMdeModulePkgTokenSpaceGuid.PcdFlashNvStorageFtwWorkingSize
+  gEfiMdeModulePkgTokenSpaceGuid.PcdFlashNvStorageFtwSpareBase
+  gEfiMdeModulePkgTokenSpaceGuid.PcdFlashNvStorageFtwSpareBase64
+  gEfiMdeModulePkgTokenSpaceGuid.PcdFlashNvStorageFtwSpareSize
 
-#
-# gBS->CalculateCrc32() is consumed in EntryPoint.
-# PI spec said: When the DXE Foundation is notified that the EFI_RUNTIME_ARCH_PROTOCOL
-# has been installed, then the Boot Service CalculateCrc32() is available.
-# So add gEfiRuntimeArchProtocolGuid Depex here.
-#
 [Depex]
-  gEfiFirmwareVolumeBlockProtocolGuid AND gEfiRuntimeArchProtocolGuid
+  gEfiFirmwareVolumeBlockProtocolGuid
 
-[UserExtensions.TianoCore."ExtraFiles"]
-  FaultTolerantWriteDxeExtra.uni

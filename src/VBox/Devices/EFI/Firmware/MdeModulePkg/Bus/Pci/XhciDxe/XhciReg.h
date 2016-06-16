@@ -2,7 +2,7 @@
 
   This file contains the register definition of XHCI host controller.
 
-Copyright (c) 2011 - 2013, Intel Corporation. All rights reserved.<BR>
+Copyright (c) 2011 - 2012, Intel Corporation. All rights reserved.<BR>
 This program and the accompanying materials
 are licensed and made available under the terms and conditions of the BSD License
 which accompanies this distribution.  The full text of the license may be found at
@@ -28,9 +28,6 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 
 #define USB_HUB_CLASS_CODE          0x09
 #define USB_HUB_SUBCLASS_CODE       0x00
-
-#define XHC_CAP_USB_LEGACY          0x01
-#define XHC_CAP_USB_DEBUG           0x0A
 
 //============================================//
 //           XHCI register offset             //
@@ -69,11 +66,6 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 #define XHC_ERSTSZ_OFFSET                  0x28 // Event Ring Segment Table Size Register Offset
 #define XHC_ERSTBA_OFFSET                  0x30 // Event Ring Segment Table Base Address Register Offset
 #define XHC_ERDP_OFFSET                    0x38 // Event Ring Dequeue Pointer Register Offset
-
-//
-// Debug registers offset
-//
-#define XHC_DC_DCCTRL                      0x20
 
 #define USBLEGSP_BIOS_SEMAPHORE            BIT16 // HC BIOS Owned Semaphore
 #define USBLEGSP_OS_SEMAPHORE              BIT24 // HC OS Owned Semaphore
@@ -169,7 +161,7 @@ typedef union {
 #define XHC_PORTSC_RESET                   BIT4  // Port Reset
 #define XHC_PORTSC_PLS                     (BIT5|BIT6|BIT7|BIT8)     // Port Link State
 #define XHC_PORTSC_PP                      BIT9  // Port Power
-#define XHC_PORTSC_PS                      (BIT10|BIT11|BIT12)       // Port Speed
+#define XHC_PORTSC_PS                      (BIT10|BIT11|BIT12|BIT13) // Port Speed
 #define XHC_PORTSC_LWS                     BIT16 // Port Link State Write Strobe
 #define XHC_PORTSC_CSC                     BIT17 // Connect Status Change
 #define XHC_PORTSC_PEC                     BIT18 // Port Enabled/Disabled Change
@@ -189,22 +181,11 @@ typedef union {
 #define XHC_HUB_PORTSC_PEC                 BIT17 // Hub's Port Enabled/Disabled Change
 #define XHC_HUB_PORTSC_OCC                 BIT19 // Hub's Over-Current Change
 #define XHC_HUB_PORTSC_PRC                 BIT20 // Hub's Port Reset Change
-#define XHC_HUB_PORTSC_BHRC                BIT21 // Hub's Port Warm Reset Change
 #define XHC_IMAN_IP                        BIT0  // Interrupt Pending
 #define XHC_IMAN_IE                        BIT1  // Interrupt Enable
 
 #define XHC_IMODI_MASK                     0x0000FFFF  // Interrupt Moderation Interval
 #define XHC_IMODC_MASK                     0xFFFF0000  // Interrupt Moderation Counter
-
-//
-//  Hub Class Feature Selector for Clear Port Feature Request
-//  It's the extension of hub class feature selector of USB 2.0 in USB 3.0 Spec.
-//  For more details, Please refer to USB 3.0 Spec Table 10-7.
-//
-typedef enum {
-  Usb3PortBHPortReset          = 28,
-  Usb3PortBHPortResetChange    = 29
-} XHC_PORT_FEATURE;
 
 //
 // Structure to map the hardware port states to the
@@ -214,14 +195,6 @@ typedef struct {
   UINT32                  HwState;
   UINT16                  UefiState;
 } USB_PORT_STATE_MAP;
-
-//
-// Structure to map the hardware port states to feature selector for clear port feature request.
-//
-typedef struct {
-  UINT32                  HwState;
-  UINT16                  Selector;
-} USB_CLEAR_PORT_MAP;
 
 /**
   Read 1-byte width XHCI capability register.
@@ -399,7 +372,7 @@ XhcClearOpRegBit (
   @param  Offset       The offset of the operational register.
   @param  Bit          The bit of the register to wait for.
   @param  WaitToSet    Wait the bit to set or clear.
-  @param  Timeout      The time to wait before abort (in microsecond, us).
+  @param  Timeout      The time to wait before abort (in millisecond, ms).
 
   @retval EFI_SUCCESS  The bit successfully changed by host controller.
   @retval EFI_TIMEOUT  The time out occurred.
@@ -475,21 +448,6 @@ XhcClearRuntimeRegBit (
   );
 
 /**
-  Read XHCI extended capability register.
-
-  @param  Xhc          The XHCI Instance.
-  @param  Offset       The offset of the extended capability register.
-
-  @return The register content read
-
-**/
-UINT32
-XhcReadExtCapReg (
-  IN  USB_XHCI_INSTANCE   *Xhc,
-  IN  UINT32              Offset
-  );
-
-/**
   Whether the XHCI host controller is halted.
 
   @param  Xhc     The XHCI Instance.
@@ -521,7 +479,7 @@ XhcIsSysError (
   Reset the XHCI host controller.
 
   @param  Xhc          The XHCI Instance.
-  @param  Timeout      Time to wait before abort (in microsecond, us).
+  @param  Timeout      Time to wait before abort (in millisecond, ms).
 
   @retval EFI_SUCCESS  The XHCI host controller is reset.
   @return Others       Failed to reset the XHCI before Timeout.
@@ -537,7 +495,7 @@ XhcResetHC (
   Halt the XHCI host controller.
 
   @param  Xhc          The XHCI Instance.
-  @param  Timeout      Time to wait before abort (in microsecond, us).
+  @param  Timeout      Time to wait before abort (in millisecond, ms).
 
   @return EFI_SUCCESS  The XHCI host controller is halt.
   @return EFI_TIMEOUT  Failed to halt the XHCI before Timeout.
@@ -553,7 +511,7 @@ XhcHaltHC (
   Set the XHCI host controller to run.
 
   @param  Xhc          The XHCI Instance.
-  @param  Timeout      Time to wait before abort (in microsecond, us).
+  @param  Timeout      Time to wait before abort (in millisecond, ms).
 
   @return EFI_SUCCESS  The XHCI host controller is running.
   @return EFI_TIMEOUT  Failed to set the XHCI to run before Timeout.
@@ -566,18 +524,16 @@ XhcRunHC (
   );
 
 /**
-  Calculate the offset of the XHCI capability.
+  Calculate the XHCI legacy support capability register offset.
 
   @param  Xhc     The XHCI Instance.
-  @param  CapId   The XHCI Capability ID.
 
   @return The offset of XHCI legacy support capability register.
 
 **/
 UINT32
-XhcGetCapabilityAddr (
-  IN USB_XHCI_INSTANCE    *Xhc,
-  IN UINT8                CapId
+XhcGetLegSupCapAddr (
+  IN USB_XHCI_INSTANCE    *Xhc
   );
 
 #endif

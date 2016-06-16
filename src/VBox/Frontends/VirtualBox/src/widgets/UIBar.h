@@ -37,11 +37,11 @@ protected:
 
     void paintEvent(QPaintEvent *pEvent);
 
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
     void paintContentDarwin(QPainter *pPainter);
-#else /* VBOX_WS_MAC */
+#else /* Q_WS_MAC */
     void paintContent(QPainter *pPainter);
-#endif /* !VBOX_WS_MAC */
+#endif /* !Q_WS_MAC */
 
 private:
 

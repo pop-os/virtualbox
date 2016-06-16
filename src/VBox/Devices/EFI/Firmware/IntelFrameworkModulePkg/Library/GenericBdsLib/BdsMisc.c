@@ -1,7 +1,7 @@
 /** @file
   Misc BDS library function
 
-Copyright (c) 2004 - 2014, Intel Corporation. All rights reserved.<BR>
+Copyright (c) 2004 - 2012, Intel Corporation. All rights reserved.<BR>
 This program and the accompanying materials
 are licensed and made available under the terms and conditions of the BSD License
 which accompanies this distribution.  The full text of the license may be found at
@@ -168,7 +168,6 @@ BdsLibGetFreeOptionNumber (
     if (OptionBuffer == NULL) {
       break;
     }
-    FreePool(OptionBuffer);
     Index++;
   } while (TRUE);
 
@@ -218,9 +217,6 @@ BdsLibRegisterNewOption (
   UINT16                    BootOrderEntry;
   UINTN                     OrderItemNum;
 
-  if (DevicePath == NULL) {
-    return EFI_INVALID_PARAMETER;
-  }
 
   OptionPtr             = NULL;
   OptionSize            = 0;
@@ -271,7 +267,6 @@ BdsLibRegisterNewOption (
     // Validate the variable.
     //
     if (!ValidateOption(OptionPtr, OptionSize)) {
-      FreePool(OptionPtr);
       continue;
     }
 
@@ -407,6 +402,7 @@ BdsLibRegisterNewOption (
                   );
   FreePool (TempOptionPtr);
   FreePool (OptionOrderPtr);
+
   VBoxLogFlowFuncLeaveRC(Status);
   return Status;
 }
@@ -468,7 +464,7 @@ GetDevicePathSizeEx (
   bigger than MaxStringLen, return length 0 to indicate that this is an
   invalidate string.
 
-  This function returns the byte length of Unicode characters in the Null-terminated
+  This function returns the number of Unicode characters in the Null-terminated
   Unicode string specified by String.
 
   If String is NULL, then ASSERT().
@@ -492,13 +488,13 @@ StrSizeEx (
   ASSERT (String != NULL && MaxStringLen != 0);
   ASSERT (((UINTN) String & BIT0) == 0);
 
-  for (Length = 0; *String != L'\0' && MaxStringLen != Length; String++, Length+=2);
+  for (Length = 0; *String != L'\0' && MaxStringLen != Length; String++, Length++);
 
   if (*String != L'\0' && MaxStringLen == Length) {
     return 0;
   }
 
-  return Length + 2;
+  return (Length + 1) * sizeof (*String);
 }
 
 /**
@@ -520,16 +516,12 @@ ValidateOption (
   UINT16                    FilePathSize;
   UINT8                     *TempPtr;
   EFI_DEVICE_PATH_PROTOCOL  *DevicePath;
+  EFI_DEVICE_PATH_PROTOCOL  *TempPath;
   UINTN                     TempSize;
 
   VBoxLogFlowFuncEnter();
   VBoxLogFlowFuncMarkVar(Variable, "%s");
   VBoxLogFlowFuncMarkVar(VariableSize, "%d");
-
-  if (VariableSize <= sizeof (UINT16) + sizeof (UINT32)) {
-    return FALSE;
-  }
-
   //
   // Skip the option attribute
   //
@@ -545,14 +537,14 @@ ValidateOption (
   //
   // Get the option's description string size
   //
-  TempSize = StrSizeEx ((CHAR16 *) TempPtr, VariableSize - sizeof (UINT16) - sizeof (UINT32));
+  TempSize = StrSizeEx ((CHAR16 *) TempPtr, VariableSize);
   TempPtr += TempSize;
 
   //
   // Get the option's device path
   //
   DevicePath =  (EFI_DEVICE_PATH_PROTOCOL *) TempPtr;
-  TempPtr   += FilePathSize;
+  TempPtr    += FilePathSize;
 
   //
   // Validation boot option variable.
@@ -562,12 +554,24 @@ ValidateOption (
     return FALSE;
   }
 
-  if (TempSize + FilePathSize + sizeof (UINT16) + sizeof (UINT32) > VariableSize) {
+  if (TempSize + FilePathSize + sizeof (UINT16) + sizeof (UINT16) > VariableSize) {
     VBoxLogFlowFuncLeave();
     return FALSE;
   }
 
-  return (BOOLEAN) (GetDevicePathSizeEx (DevicePath, FilePathSize) != 0);
+  TempPath = DevicePath;
+  while (FilePathSize > 0) {
+    TempSize = GetDevicePathSizeEx (TempPath, FilePathSize);
+    if (TempSize == 0) {
+      VBoxLogFlowFuncLeave();
+      return FALSE;
+    }
+    FilePathSize = (UINT16) (FilePathSize - TempSize);
+    TempPath    += TempSize;
+  }
+
+  VBoxLogFlowFuncLeave();
+  return TRUE;
 }
 
 /**
@@ -620,15 +624,13 @@ BdsLibVariableToOption (
   UINT8                     *TempPtr;
   UINTN                     VariableSize;
   EFI_DEVICE_PATH_PROTOCOL  *DevicePath;
+  EFI_DEVICE_PATH_PROTOCOL  *TempPath;
   BDS_COMMON_OPTION         *Option;
   VOID                      *LoadOptions;
   UINT32                    LoadOptionsSize;
   CHAR16                    *Description;
   UINT8                     NumOff;
-#ifdef VBOX
   UINTN                     TempSize;
-#endif
-
   //
   // Read the variable. We will never free this data.
   //
@@ -651,7 +653,6 @@ BdsLibVariableToOption (
   if (!ValidateOption(Variable, VariableSize)) {
     VBoxLogFlowFuncMarkVar(Variable, "%p");
     VBoxLogFlowFuncLeave();
-    FreePool (Variable);
     return NULL;
   }
 
@@ -680,7 +681,11 @@ BdsLibVariableToOption (
   //
   // Get the option's description string size
   //
-  TempPtr += StrSize((CHAR16 *) TempPtr);
+  TempSize = StrSizeEx ((CHAR16 *) TempPtr, VariableSize);
+  if (TempSize == 0) {
+    return NULL;
+  }
+  TempPtr += TempSize;
 
   //
   // Get the option's device path
@@ -689,9 +694,27 @@ BdsLibVariableToOption (
   TempPtr    += FilePathSize;
 
   //
+  // Validation device path.
+  //
+  TempPath       = DevicePath;
+  while (FilePathSize > 0) {
+    TempSize = GetDevicePathSizeEx (TempPath, FilePathSize);
+    if (TempSize == 0) {
+      return NULL;
+    }
+    FilePathSize = (UINT16) (FilePathSize - TempSize);
+    TempPath    += TempSize;
+  }
+
+  //
   // Get load opion data.
   //
   LoadOptions     = TempPtr;
+  if (VariableSize < (UINTN)(TempPtr - Variable)) {
+    VBoxLogFlowFuncMarkVar(Variable, "%p");
+    VBoxLogFlowFuncLeave();
+    return NULL;
+  }
   LoadOptionsSize = (UINT32) (VariableSize - (UINTN) (TempPtr - Variable));
 
   //
@@ -702,7 +725,6 @@ BdsLibVariableToOption (
   if (Option == NULL) {
     VBoxLogFlowFuncMarkVar(Variable, "%p");
     VBoxLogFlowFuncLeave();
-    FreePool (Variable);
     return NULL;
   }
 
@@ -740,10 +762,27 @@ BdsLibVariableToOption (
                + (UINT16) (CharToUint (VariableName[NumOff+2]) * 0x10)
                + (UINT16) (CharToUint (VariableName[NumOff+3]) * 0x1);
   }
-  InsertTailList (BdsCommonOptionList, &Option->Link);
+  //
+  // Insert active entry to BdsDeviceList
+  //
+  if ((Option->Attribute & LOAD_OPTION_ACTIVE) == LOAD_OPTION_ACTIVE) {
+    InsertTailList (BdsCommonOptionList, &Option->Link);
+    FreePool (Variable);
+    VBoxLogFlowFuncMarkVar(Option, "%p");
+    VBoxLogFlowFuncLeave();
+    return Option;
+  }
+
   FreePool (Variable);
+  FreePool (Option->Description);
+  FreePool (Option->DevicePath);
+  FreePool (Option->LoadOptions);
+#ifdef VBOX
+  FreePool (Option->OptionName);
+#endif
+  FreePool (Option);
   VBoxLogFlowFuncLeave();
-  return Option;
+  return NULL;
 }
 
 /**
@@ -868,7 +907,6 @@ BdsLibGetVariableAndSize (
     //
     Buffer = AllocateZeroPool (BufferSize);
     if (Buffer == NULL) {
-      *VariableSize = 0;
       return NULL;
     }
     //
@@ -877,15 +915,10 @@ BdsLibGetVariableAndSize (
     Status = gRT->GetVariable (Name, VendorGuid, NULL, &BufferSize, Buffer);
     VBoxLogFlowFuncMarkRC(Status);
     if (EFI_ERROR (Status)) {
-      FreePool (Buffer);
       BufferSize = 0;
-      Buffer     = NULL;
     }
   }
 
-  ASSERT (((Buffer == NULL) && (BufferSize == 0)) ||
-          ((Buffer != NULL) && (BufferSize != 0))
-          );
   *VariableSize = BufferSize;
   VBoxLogFlowFuncLeave();
   return Buffer;
@@ -1169,19 +1202,24 @@ SetupResetReminder (
       ASSERT (StringBuffer1 != NULL);
       StringBuffer2 = AllocateZeroPool (MAX_STRING_LEN * sizeof (CHAR16));
       ASSERT (StringBuffer2 != NULL);
-      StrCpy (StringBuffer1, L"Configuration changed. Reset to apply it Now.");
-      StrCpy (StringBuffer2, L"Press ENTER to reset");
+      StrCpy (StringBuffer1, L"Configuration changed. Reset to apply it Now ? ");
+      StrCpy (StringBuffer2, L"Enter (YES)  /   Esc (NO)");
       //
       // Popup a menu to notice user
       //
       do {
         CreatePopUp (EFI_LIGHTGRAY | EFI_BACKGROUND_BLUE, &Key, StringBuffer1, StringBuffer2, NULL);
-      } while (Key.UnicodeChar != CHAR_CARRIAGE_RETURN);
+      } while ((Key.ScanCode != SCAN_ESC) && (Key.UnicodeChar != CHAR_CARRIAGE_RETURN));
 
       FreePool (StringBuffer1);
       FreePool (StringBuffer2);
-
-      gRT->ResetSystem (EfiResetCold, EFI_SUCCESS, 0, NULL);
+      //
+      // If the user hits the YES Response key, reset
+      //
+      if (Key.UnicodeChar == CHAR_CARRIAGE_RETURN) {
+        gRT->ResetSystem (EfiResetCold, EFI_SUCCESS, 0, NULL);
+      }
+      gST->ConOut->ClearScreen (gST->ConOut);
     }
   }
 }
@@ -1290,21 +1328,23 @@ BdsLibGetImageHeader (
   BufferSize = sizeof (EFI_IMAGE_DOS_HEADER);
   Status = ThisFile->Read (ThisFile, &BufferSize, DosHeader);
   VBoxLogFlowFuncMarkRC(Status);
-#ifdef VBOX /** @todo r=bird: It's anyone's wild guess wtf we do this here...
-             * I mean, the read should fail if DosHeader is NULL, right?
-             * So, why don't we just get rid of this non-sense? */
- if (fAnalyzeDosHeader)
- {
+  if (
+#ifdef VBOX
+       fAnalyzeDosHeader &&
 #endif
-  if (EFI_ERROR (Status) ||
-      BufferSize < sizeof (EFI_IMAGE_DOS_HEADER) ||
-      FileSize <= DosHeader->e_lfanew ||
-      DosHeader->e_magic != EFI_IMAGE_DOS_SIGNATURE) {
+         (   EFI_ERROR (Status)
+          || BufferSize < sizeof (EFI_IMAGE_DOS_HEADER)
+          || FileSize <= DosHeader->e_lfanew
+          || DosHeader->e_magic != EFI_IMAGE_DOS_SIGNATURE)) {
     Status = EFI_LOAD_ERROR;
     VBoxLogFlowFuncMarkRC(Status);
     goto Done;
   }
 
+#ifdef VBOX
+    if (fAnalyzeDosHeader)
+ {
+#endif
   //
   // Move to PE signature
   //
@@ -1340,7 +1380,7 @@ BdsLibGetImageHeader (
     goto Done;
   }
 #ifdef VBOX
- }
+    }
 #endif
 
  Done:
@@ -1355,8 +1395,10 @@ BdsLibGetImageHeader (
 }
 
 /**
-  This routine adjust the memory information for different memory type and
-  save them into the variables for next boot.
+  This routine adjusts the memory information for different memory type and
+  saves them into the variables for next boot. It conditionally resets the
+  system when the memory information changes. Platform can reserve memory
+  large enough (125% of actual requirement) to avoid the reset in the first boot.
 **/
 VOID
 BdsSetMemoryTypeInformationVariable (
@@ -1462,14 +1504,13 @@ BdsSetMemoryTypeInformationVariable (
     Next     = Previous;
 
     //
-    // Inconsistent Memory Reserved across bootings may lead to S4 fail
-    // Write next varible to 125% * current when the pre-allocated memory is:
-    //  1. More than 150% of needed memory and boot mode is BOOT_WITH_DEFAULT_SETTING
-    //  2. Less than the needed memory
+    // Write next varible to 125% * current and Inconsistent Memory Reserved across bootings may lead to S4 fail
     //
-    if ((Current + (Current >> 1)) < Previous) {
+    if (Current < Previous) {
       if (BootMode == BOOT_WITH_DEFAULT_SETTINGS) {
         Next = Current + (Current >> 2);
+      } else if (!MemoryTypeInformationVariableExists) {
+        Next = MAX (Current + (Current >> 2), Previous);
       }
     } else if (Current > Previous) {
       Next = Current + (Current >> 2);
@@ -1491,26 +1532,22 @@ BdsSetMemoryTypeInformationVariable (
   // Or create the variable in first boot.
   //
   if (MemoryTypeInformationModified || !MemoryTypeInformationVariableExists) {
-    Status = SetVariableAndReportStatusCodeOnError (
-               EFI_MEMORY_TYPE_INFORMATION_VARIABLE_NAME,
-               &gEfiMemoryTypeInformationGuid,
-               EFI_VARIABLE_NON_VOLATILE  | EFI_VARIABLE_BOOTSERVICE_ACCESS,
-               VariableSize,
-               PreviousMemoryTypeInformation
-               );
+    Status = gRT->SetVariable (
+                    EFI_MEMORY_TYPE_INFORMATION_VARIABLE_NAME,
+                    &gEfiMemoryTypeInformationGuid,
+                    EFI_VARIABLE_NON_VOLATILE  | EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_RUNTIME_ACCESS,
+                    VariableSize,
+                    PreviousMemoryTypeInformation
+                    );
 
-    if (!EFI_ERROR (Status)) {
-      //
-      // If the Memory Type Information settings have been modified, then reset the platform
-      // so the new Memory Type Information setting will be used to guarantee that an S4
-      // entry/resume cycle will not fail.
-      //
-      if (MemoryTypeInformationModified && PcdGetBool (PcdResetOnMemoryTypeInformationChange)) {
-        DEBUG ((EFI_D_INFO, "Memory Type Information settings change. Warm Reset!!!\n"));
-        gRT->ResetSystem (EfiResetWarm, EFI_SUCCESS, 0, NULL);
-      }
-    } else {
-      DEBUG ((EFI_D_ERROR, "Memory Type Information settings cannot be saved. OS S4 may fail!\n"));
+    //
+    // If the Memory Type Information settings have been modified, then reset the platform
+    // so the new Memory Type Information setting will be used to guarantee that an S4
+    // entry/resume cycle will not fail.
+    //
+    if (MemoryTypeInformationModified && PcdGetBool (PcdResetOnMemoryTypeInformationChange)) {
+      DEBUG ((EFI_D_INFO, "Memory Type Information settings change. Warm Reset!!!\n"));
+      gRT->ResetSystem (EfiResetWarm, EFI_SUCCESS, 0, NULL);
     }
   }
 }
@@ -1556,91 +1593,5 @@ BdsLibUserIdentify (
   }
 
   return Manager->Identify (Manager, User);
-}
-
-/**
-  Set the variable and report the error through status code upon failure.
-
-  @param  VariableName           A Null-terminated string that is the name of the vendor's variable.
-                                 Each VariableName is unique for each VendorGuid. VariableName must
-                                 contain 1 or more characters. If VariableName is an empty string,
-                                 then EFI_INVALID_PARAMETER is returned.
-  @param  VendorGuid             A unique identifier for the vendor.
-  @param  Attributes             Attributes bitmask to set for the variable.
-  @param  DataSize               The size in bytes of the Data buffer. Unless the EFI_VARIABLE_APPEND_WRITE,
-                                 EFI_VARIABLE_AUTHENTICATED_WRITE_ACCESS, or
-                                 EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS attribute is set, a size of zero
-                                 causes the variable to be deleted. When the EFI_VARIABLE_APPEND_WRITE attribute is
-                                 set, then a SetVariable() call with a DataSize of zero will not cause any change to
-                                 the variable value (the timestamp associated with the variable may be updated however
-                                 even if no new data value is provided,see the description of the
-                                 EFI_VARIABLE_AUTHENTICATION_2 descriptor below. In this case the DataSize will not
-                                 be zero since the EFI_VARIABLE_AUTHENTICATION_2 descriptor will be populated).
-  @param  Data                   The contents for the variable.
-
-  @retval EFI_SUCCESS            The firmware has successfully stored the variable and its data as
-                                 defined by the Attributes.
-  @retval EFI_INVALID_PARAMETER  An invalid combination of attribute bits, name, and GUID was supplied, or the
-                                 DataSize exceeds the maximum allowed.
-  @retval EFI_INVALID_PARAMETER  VariableName is an empty string.
-  @retval EFI_OUT_OF_RESOURCES   Not enough storage is available to hold the variable and its data.
-  @retval EFI_DEVICE_ERROR       The variable could not be retrieved due to a hardware error.
-  @retval EFI_WRITE_PROTECTED    The variable in question is read-only.
-  @retval EFI_WRITE_PROTECTED    The variable in question cannot be deleted.
-  @retval EFI_SECURITY_VIOLATION The variable could not be written due to EFI_VARIABLE_AUTHENTICATED_WRITE_ACCESS
-                                 or EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACESS being set, but the AuthInfo
-                                 does NOT pass the validation check carried out by the firmware.
-
-  @retval EFI_NOT_FOUND          The variable trying to be updated or deleted was not found.
-**/
-EFI_STATUS
-SetVariableAndReportStatusCodeOnError (
-  IN CHAR16     *VariableName,
-  IN EFI_GUID   *VendorGuid,
-  IN UINT32     Attributes,
-  IN UINTN      DataSize,
-  IN VOID       *Data
-  )
-{
-  EFI_STATUS                 Status;
-  EDKII_SET_VARIABLE_STATUS  *SetVariableStatus;
-  UINTN                      NameSize;
-
-  Status = gRT->SetVariable (
-                  VariableName,
-                  VendorGuid,
-                  Attributes,
-                  DataSize,
-                  Data
-                  );
-  if (EFI_ERROR (Status)) {
-    NameSize = StrSize (VariableName);
-    SetVariableStatus = AllocatePool (sizeof (EDKII_SET_VARIABLE_STATUS) + NameSize + DataSize);
-    if (SetVariableStatus != NULL) {
-      CopyGuid (&SetVariableStatus->Guid, VendorGuid);
-      SetVariableStatus->NameSize   = NameSize;
-      SetVariableStatus->DataSize   = DataSize;
-      SetVariableStatus->SetStatus  = Status;
-      SetVariableStatus->Attributes = Attributes;
-      CopyMem (SetVariableStatus + 1,                          VariableName, NameSize);
-      if ((Data != NULL) && (DataSize != 0)) {
-        CopyMem (((UINT8 *) (SetVariableStatus + 1)) + NameSize, Data,         DataSize);
-      }
-
-      REPORT_STATUS_CODE_EX (
-        EFI_ERROR_CODE,
-        PcdGet32 (PcdErrorCodeSetVariable),
-        0,
-        NULL,
-        &gEdkiiStatusCodeDataTypeVariableGuid,
-        SetVariableStatus,
-        sizeof (EDKII_SET_VARIABLE_STATUS) + NameSize + DataSize
-        );
-
-      FreePool (SetVariableStatus);
-    }
-  }
-
-  return Status;
 }
 

@@ -1,9 +1,8 @@
 ## @file
-# PS2 Mouse Driver.
+# Ps2 Mouse Driver.
 #
-# This dirver provides support for PS2 based mice.
-#
-# Copyright (c) 2006 - 2014, Intel Corporation. All rights reserved.<BR>
+# This dirver directly uses IsaIo protocol service to support Ps2 mouse work.
+# Copyright (c) 2006 - 2011, Intel Corporation. All rights reserved.<BR>
 #
 # This program and the accompanying materials
 # are licensed and made available under the terms and conditions of the BSD License
@@ -19,7 +18,6 @@
 [Defines]
   INF_VERSION                    = 0x00010005
   BASE_NAME                      = Ps2MouseDxe
-  MODULE_UNI_FILE                = Ps2MouseDxe.uni
   FILE_GUID                      = 202A2B0E-9A31-4812-B291-8747DF152439
   MODULE_TYPE                    = UEFI_DRIVER
   VERSION_STRING                 = 1.0
@@ -61,16 +59,14 @@
   gEfiDevicePathProtocolGuid                    ## TO_START
 
 [FeaturePcd]
-  gEfiIntelFrameworkModulePkgTokenSpaceGuid.PcdPs2MouseExtendedVerification   ## CONSUMES
+  gEfiIntelFrameworkModulePkgTokenSpaceGuid.PcdPs2MouseExtendedVerification
 
-#
 # [Event]
-#
 #   ##
-#   # Timer event used to check the mouse state at a regular interval.
+#   # Event for EFI_SIMPLE_POINTER_PROTOCOL.WaitForInput.
 #   #
-#   EVENT_TYPE_PERIODIC_TIMER   ## CONSUMES
+#   EVENT_TYPE_NOTIFY_WAIT                             ## PRODUCES
 #
-
-[UserExtensions.TianoCore."ExtraFiles"]
-  Ps2MouseDxeExtra.uni
+#   # Periodic timer event to poll the Ps2 mouse device and get its packet data.
+#   #
+#   EVENT_TYPE_PERIODIC_TIMER                          ## PRODUCES

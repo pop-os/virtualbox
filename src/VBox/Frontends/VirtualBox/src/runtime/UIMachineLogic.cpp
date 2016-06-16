@@ -26,12 +26,12 @@
 # include <QTimer>
 # include <QDateTime>
 # include <QImageWriter>
-# ifdef VBOX_WS_MAC
+# ifdef Q_WS_MAC
 #  include <QMenuBar>
-# endif /* VBOX_WS_MAC */
-# ifdef VBOX_WS_X11
+# endif /* Q_WS_MAC */
+# ifdef Q_WS_X11
 #  include <QX11Info>
-# endif /* VBOX_WS_X11 */
+# endif /* Q_WS_X11 */
 
 /* GUI includes: */
 # include "QIFileDialog.h"
@@ -64,11 +64,10 @@
 # include "UIMedium.h"
 # include "UIExtraDataManager.h"
 # include "UIAddDiskEncryptionPasswordDialog.h"
-# include "UIVMInformationDialog.h"
-# ifdef VBOX_WS_MAC
+# ifdef Q_WS_MAC
 #  include "DockIconPreview.h"
 #  include "UIExtraDataManager.h"
-# endif /* VBOX_WS_MAC */
+# endif /* Q_WS_MAC */
 
 /* COM includes: */
 # include "CVirtualBoxErrorInfo.h"
@@ -84,9 +83,9 @@
 # include "CHostVideoInputDevice.h"
 # include "CEmulatedUSB.h"
 # include "CNetworkAdapter.h"
-# ifdef VBOX_WS_MAC
+# ifdef Q_WS_MAC
 #  include "CGuest.h"
-# endif /* VBOX_WS_MAC */
+# endif /* Q_WS_MAC */
 
 /* Other VBox includes: */
 # include <iprt/path.h>
@@ -105,17 +104,16 @@
 # include "VirtualBox_XPCOM.h"
 #endif /* VBOX_WITH_XPCOM */
 
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
 # include "DarwinKeyboard.h"
-#endif /* VBOX_WS_MAC */
-#ifdef VBOX_WS_WIN
+#endif /* Q_WS_MAC */
+#ifdef Q_WS_WIN
 # include "WinKeyboard.h"
-#endif /* VBOX_WS_WIN */
-#ifdef VBOX_WS_X11
+#endif /* Q_WS_WIN */
+#ifdef Q_WS_X11
 # include <XKeyboard.h>
-#endif /* VBOX_WS_X11 */
+#endif /* Q_WS_X11 */
 
-#define VBOX_WITH_REWORKED_SESSION_INFORMATION /* Define for reworked session-information window: */
 
 struct USBTarget
 {
@@ -196,10 +194,10 @@ void UIMachineLogic::prepare()
     /* Prepare machine window(s): */
     prepareMachineWindows();
 
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
     /* Prepare dock: */
     prepareDock();
-#endif /* VBOX_WS_MAC */
+#endif /* Q_WS_MAC */
 
 #if 0 /* To early! The debugger needs a VM handle to work. So, must be done after power on.  Moved to initializePostPowerUp. */
 #ifdef VBOX_WITH_DEBUGGER_GUI
@@ -225,10 +223,10 @@ void UIMachineLogic::cleanup()
     cleanupDebugger();
 #endif /* VBOX_WITH_DEBUGGER_GUI */
 
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
     /* Cleanup dock: */
     cleanupDock();
-#endif /* VBOX_WS_MAC */
+#endif /* Q_WS_MAC */
 
     /* Cleanup menu: */
     cleanupMenu();
@@ -351,7 +349,7 @@ void UIMachineLogic::sendMachineWindowsSizeHints()
         pMachineWindow->sendMachineViewSizeHint();
 }
 
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
 void UIMachineLogic::updateDockIcon()
 {
     if (!isMachineWindowsCreated())
@@ -385,23 +383,7 @@ UIMachineView* UIMachineLogic::dockPreviewView() const
         return machineWindows().at(m_DockIconPreviewMonitor)->machineView();
     return 0;
 }
-#endif /* VBOX_WS_MAC */
-
-void UIMachineLogic::detach()
-{
-    /* Enable 'manual-override',
-     * preventing automatic Runtime UI closing: */
-    setManualOverrideMode(true);
-
-    /* Was the step successful? */
-    bool fSuccess = true;
-    LogRel(("GUI: Passing request to detach UI from machine-logic to UI session.\n"));
-    fSuccess = uisession()->detach();
-
-    /* Manually close Runtime UI: */
-    if (fSuccess)
-        closeRuntimeUI();
-}
+#endif /* Q_WS_MAC */
 
 void UIMachineLogic::saveState()
 {
@@ -651,7 +633,7 @@ void UIMachineLogic::sltMachineStateChanged()
             }
             break;
         }
-#ifdef VBOX_WS_X11
+#ifdef Q_WS_X11
         case KMachineState_Starting:
         case KMachineState_Restoring:
         case KMachineState_TeleportingIn:
@@ -666,10 +648,10 @@ void UIMachineLogic::sltMachineStateChanged()
             break;
     }
 
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
     /* Update Dock Overlay: */
     updateDockOverlay();
-#endif /* VBOX_WS_MAC */
+#endif /* Q_WS_MAC */
 }
 
 void UIMachineLogic::sltAdditionsStateChanged()
@@ -716,9 +698,9 @@ void UIMachineLogic::sltKeyboardLedsChanged()
     if (!m_pHostLedsState)
         return;
 
-#if defined(VBOX_WS_MAC)
+#if defined(Q_WS_MAC)
     DarwinHidDevicesBroadcastLeds(m_pHostLedsState, uisession()->isNumLock(), uisession()->isCapsLock(), uisession()->isScrollLock());
-#elif defined(VBOX_WS_WIN)
+#elif defined(Q_WS_WIN)
     if (!winHidLedsInSync(uisession()->isNumLock(), uisession()->isCapsLock(), uisession()->isScrollLock()))
     {
         keyboardHandler()->winSkipKeyboardEvents(true);
@@ -754,7 +736,7 @@ void UIMachineLogic::sltRuntimeError(bool fIsFatal, const QString &strErrorId, c
     msgCenter().showRuntimeError(console(), fIsFatal, strErrorId, strMessage);
 }
 
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
 void UIMachineLogic::sltShowWindows()
 {
     for (int i=0; i < machineWindows().size(); ++i)
@@ -771,7 +753,7 @@ void UIMachineLogic::sltShowWindows()
         pMachineWindow->activateWindow();
     }
 }
-#endif /* VBOX_WS_MAC */
+#endif /* Q_WS_MAC */
 
 void UIMachineLogic::sltGuestMonitorChange(KGuestMonitorChangedEventType, ulong, QRect)
 {
@@ -826,12 +808,12 @@ UIMachineLogic::UIMachineLogic(QObject *pParent, UISession *pSession, UIVisualSt
     , m_pDbgGui(0)
     , m_pDbgGuiVT(0)
 #endif /* VBOX_WITH_DEBUGGER_GUI */
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
     , m_fIsDockIconEnabled(true)
     , m_pDockIconPreview(0)
     , m_pDockPreviewSelectMonitorGroup(0)
     , m_DockIconPreviewMonitor(0)
-#endif /* VBOX_WS_MAC */
+#endif /* Q_WS_MAC */
     , m_pHostLedsState(NULL)
     , m_fIsHidLedsSyncEnabled(false)
 {
@@ -891,7 +873,7 @@ void UIMachineLogic::setMouseHandler(UIMouseHandler *pMouseHandler)
 
 void UIMachineLogic::retranslateUi()
 {
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
     if (m_pDockPreviewSelectMonitorGroup)
     {
         const QList<QAction*> &actions = m_pDockPreviewSelectMonitorGroup->actions();
@@ -901,7 +883,7 @@ void UIMachineLogic::retranslateUi()
             pAction->setText(QApplication::translate("UIActionPool", "Preview Monitor %1").arg(pAction->data().toInt() + 1));
         }
     }
-#endif /* VBOX_WS_MAC */
+#endif /* Q_WS_MAC */
     /* Shared Clipboard actions: */
     if (m_pSharedClipboardActions)
     {
@@ -915,7 +897,7 @@ void UIMachineLogic::retranslateUi()
     }
 }
 
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
 void UIMachineLogic::updateDockOverlay()
 {
     /* Only to an update to the realtime preview if this is enabled by the user
@@ -937,16 +919,16 @@ void UIMachineLogic::updateDockOverlay()
     else if (m_pDockIconPreview)
         m_pDockIconPreview->updateDockOverlay();
 }
-#endif /* VBOX_WS_MAC */
+#endif /* Q_WS_MAC */
 
 void UIMachineLogic::prepareRequiredFeatures()
 {
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
 # ifdef VBOX_WITH_ICHAT_THEATER
     /* Init shared AV manager: */
     initSharedAVManager();
 # endif /* VBOX_WITH_ICHAT_THEATER */
-#endif /* VBOX_WS_MAC */
+#endif /* Q_WS_MAC */
 }
 
 void UIMachineLogic::prepareSessionConnections()
@@ -968,9 +950,9 @@ void UIMachineLogic::prepareSessionConnections()
             this, SLOT(sltUSBDeviceStateChange(const CUSBDevice &, bool, const CVirtualBoxErrorInfo &)));
     connect(uisession(), SIGNAL(sigRuntimeError(bool, const QString &, const QString &)),
             this, SLOT(sltRuntimeError(bool, const QString &, const QString &)));
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
     connect(uisession(), SIGNAL(sigShowWindows()), this, SLOT(sltShowWindows()));
-#endif /* VBOX_WS_MAC */
+#endif /* Q_WS_MAC */
     connect(uisession(), SIGNAL(sigGuestMonitorChange(KGuestMonitorChangedEventType, ulong, QRect)),
             this, SLOT(sltGuestMonitorChange(KGuestMonitorChangedEventType, ulong, QRect)));
 
@@ -1011,22 +993,21 @@ void UIMachineLogic::prepareActionGroups()
     m_pRunningActions->addAction(actionPool()->action(UIActionIndexRT_M_View_T_Scale));
     m_pRunningActions->addAction(actionPool()->action(UIActionIndexRT_M_View_T_GuestAutoresize));
     m_pRunningActions->addAction(actionPool()->action(UIActionIndexRT_M_Input_M_Keyboard_S_TypeCAD));
-#ifdef VBOX_WS_X11
+#ifdef Q_WS_X11
     m_pRunningActions->addAction(actionPool()->action(UIActionIndexRT_M_Input_M_Keyboard_S_TypeCABS));
-#endif /* VBOX_WS_X11 */
+#endif /* Q_WS_X11 */
     m_pRunningActions->addAction(actionPool()->action(UIActionIndexRT_M_Input_M_Keyboard_S_TypeCtrlBreak));
     m_pRunningActions->addAction(actionPool()->action(UIActionIndexRT_M_Input_M_Keyboard_S_TypeInsert));
 
     /* Move actions into running-n-paused actions group: */
-    m_pRunningOrPausedActions->addAction(actionPool()->action(UIActionIndexRT_M_Machine_S_Detach));
     m_pRunningOrPausedActions->addAction(actionPool()->action(UIActionIndexRT_M_Machine_S_SaveState));
     m_pRunningOrPausedActions->addAction(actionPool()->action(UIActionIndexRT_M_Machine_S_Settings));
     m_pRunningOrPausedActions->addAction(actionPool()->action(UIActionIndexRT_M_Machine_S_TakeSnapshot));
     m_pRunningOrPausedActions->addAction(actionPool()->action(UIActionIndexRT_M_Machine_S_ShowInformation));
     m_pRunningOrPausedActions->addAction(actionPool()->action(UIActionIndexRT_M_Machine_T_Pause));
-#ifndef VBOX_WS_MAC
+#ifndef Q_WS_MAC
     m_pRunningOrPausedActions->addAction(actionPool()->action(UIActionIndexRT_M_View_S_MinimizeWindow));
-#endif /* !VBOX_WS_MAC */
+#endif /* !Q_WS_MAC */
     m_pRunningOrPausedActions->addAction(actionPool()->action(UIActionIndexRT_M_View_S_AdjustWindow));
     m_pRunningOrPausedActions->addAction(actionPool()->action(UIActionIndexRT_M_View_S_TakeScreenshot));
     m_pRunningOrPausedActions->addAction(actionPool()->action(UIActionIndexRT_M_View_M_VideoCapture));
@@ -1035,9 +1016,9 @@ void UIMachineLogic::prepareActionGroups()
     m_pRunningOrPausedActions->addAction(actionPool()->action(UIActionIndexRT_M_View_T_VRDEServer));
     m_pRunningOrPausedActions->addAction(actionPool()->action(UIActionIndexRT_M_View_M_MenuBar));
     m_pRunningOrPausedActions->addAction(actionPool()->action(UIActionIndexRT_M_View_M_MenuBar_S_Settings));
-#ifndef VBOX_WS_MAC
+#ifndef Q_WS_MAC
     m_pRunningOrPausedActions->addAction(actionPool()->action(UIActionIndexRT_M_View_M_MenuBar_T_Visibility));
-#endif /* !VBOX_WS_MAC */
+#endif /* !Q_WS_MAC */
     m_pRunningOrPausedActions->addAction(actionPool()->action(UIActionIndexRT_M_View_M_StatusBar));
     m_pRunningOrPausedActions->addAction(actionPool()->action(UIActionIndexRT_M_View_M_StatusBar_S_Settings));
     m_pRunningOrPausedActions->addAction(actionPool()->action(UIActionIndexRT_M_View_M_StatusBar_T_Visibility));
@@ -1060,10 +1041,10 @@ void UIMachineLogic::prepareActionGroups()
     m_pRunningOrPausedActions->addAction(actionPool()->action(UIActionIndexRT_M_Devices_M_SharedFolders));
     m_pRunningOrPausedActions->addAction(actionPool()->action(UIActionIndexRT_M_Devices_M_SharedFolders_S_Settings));
     m_pRunningOrPausedActions->addAction(actionPool()->action(UIActionIndexRT_M_Devices_S_InstallGuestTools));
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
     m_pRunningOrPausedActions->addAction(actionPool()->action(UIActionIndex_M_Window));
     m_pRunningOrPausedActions->addAction(actionPool()->action(UIActionIndex_M_Window_S_Minimize));
-#endif /* VBOX_WS_MAC */
+#endif /* Q_WS_MAC */
 
     /* Move actions into running-n-paused-n-stucked actions group: */
     m_pRunningOrPausedOrStackedActions->addAction(actionPool()->action(UIActionIndexRT_M_Machine_S_PowerOff));
@@ -1088,8 +1069,6 @@ void UIMachineLogic::prepareActionConnections()
             this, SLOT(sltPause(bool)));
     connect(actionPool()->action(UIActionIndexRT_M_Machine_S_Reset), SIGNAL(triggered()),
             this, SLOT(sltReset()));
-    connect(actionPool()->action(UIActionIndexRT_M_Machine_S_Detach), SIGNAL(triggered()),
-            this, SLOT(sltDetach()), Qt::QueuedConnection);
     connect(actionPool()->action(UIActionIndexRT_M_Machine_S_SaveState), SIGNAL(triggered()),
             this, SLOT(sltSaveState()), Qt::QueuedConnection);
     connect(actionPool()->action(UIActionIndexRT_M_Machine_S_Shutdown), SIGNAL(triggered()),
@@ -1098,10 +1077,10 @@ void UIMachineLogic::prepareActionConnections()
             this, SLOT(sltPowerOff()), Qt::QueuedConnection);
 
     /* 'View' actions connections: */
-#ifndef VBOX_WS_MAC
+#ifndef Q_WS_MAC
     connect(actionPool()->action(UIActionIndexRT_M_View_S_MinimizeWindow), SIGNAL(triggered()),
             this, SLOT(sltMinimizeActiveMachineWindow()), Qt::QueuedConnection);
-#endif /* !VBOX_WS_MAC */
+#endif /* !Q_WS_MAC */
     connect(actionPool()->action(UIActionIndexRT_M_View_S_AdjustWindow), SIGNAL(triggered()),
             this, SLOT(sltAdjustMachineWindows()));
     connect(actionPool()->action(UIActionIndexRT_M_View_T_GuestAutoresize), SIGNAL(toggled(bool)),
@@ -1120,10 +1099,10 @@ void UIMachineLogic::prepareActionConnections()
             this, SLOT(sltShowKeyboardSettings()));
     connect(actionPool()->action(UIActionIndexRT_M_Input_M_Keyboard_S_TypeCAD), SIGNAL(triggered()),
             this, SLOT(sltTypeCAD()));
-#ifdef VBOX_WS_X11
+#ifdef Q_WS_X11
     connect(actionPool()->action(UIActionIndexRT_M_Input_M_Keyboard_S_TypeCABS), SIGNAL(triggered()),
             this, SLOT(sltTypeCABS()));
-#endif /* VBOX_WS_X11 */
+#endif /* Q_WS_X11 */
     connect(actionPool()->action(UIActionIndexRT_M_Input_M_Keyboard_S_TypeCtrlBreak), SIGNAL(triggered()),
             this, SLOT(sltTypeCtrlBreak()));
     connect(actionPool()->action(UIActionIndexRT_M_Input_M_Keyboard_S_TypeInsert), SIGNAL(triggered()),
@@ -1156,11 +1135,11 @@ void UIMachineLogic::prepareActionConnections()
             this, SLOT(sltShowLogDialog()));
 #endif /* VBOX_WITH_DEBUGGER_GUI */
 
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
     /* 'Window' action connections: */
     connect(actionPool()->action(UIActionIndex_M_Window_S_Minimize), SIGNAL(triggered()),
             this, SLOT(sltMinimizeActiveMachineWindow()), Qt::QueuedConnection);
-#endif /* VBOX_WS_MAC */
+#endif /* Q_WS_MAC */
 }
 
 void UIMachineLogic::prepareHandlers()
@@ -1176,9 +1155,9 @@ void UIMachineLogic::prepareHandlers()
 #ifdef VBOX_WITH_DEBUGGER_GUI
     m_menuUpdateHandlers[UIActionIndexRT_M_Debug] =                     &UIMachineLogic::updateMenuDebug;
 #endif /* VBOX_WITH_DEBUGGER_GUI */
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
     m_menuUpdateHandlers[UIActionIndex_M_Window] =                      &UIMachineLogic::updateMenuWindow;
-#endif /* VBOX_WS_MAC */
+#endif /* Q_WS_MAC */
 
     /* Create keyboard/mouse handlers: */
     setKeyboardHandler(UIKeyboardHandler::create(this, visualStateType()));
@@ -1188,7 +1167,7 @@ void UIMachineLogic::prepareHandlers()
     uisession()->setMouseState(mouseHandler()->state());
 }
 
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
 void UIMachineLogic::prepareDock()
 {
     QMenu *pDockMenu = actionPool()->action(UIActionIndexRT_M_Dock)->menu();
@@ -1260,13 +1239,8 @@ void UIMachineLogic::prepareDock()
 
     pDockMenu->addMenu(pDockSettingsMenu);
 
-# if QT_VERSION < 0x050000
     /* Add it to the dock. */
     ::darwinSetDockIconMenu(pDockMenu);
-# else /* QT_VERSION >= 0x050000 */
-    /* Add it to the dock: */
-    pDockMenu->setAsDockMenu();
-# endif /* QT_VERSION >= 0x050000 */
 
     /* Now the dock icon preview */
     QString osTypeId = guest().GetOSTypeId();
@@ -1285,7 +1259,7 @@ void UIMachineLogic::prepareDock()
     setDockIconPreviewEnabled(fEnabled);
     updateDockOverlay();
 }
-#endif /* VBOX_WS_MAC */
+#endif /* Q_WS_MAC */
 
 #ifdef VBOX_WITH_DEBUGGER_GUI
 void UIMachineLogic::prepareDebugger()
@@ -1302,12 +1276,12 @@ void UIMachineLogic::prepareDebugger()
 
 void UIMachineLogic::loadSettings()
 {
-#if defined(VBOX_WS_MAC) || defined(VBOX_WS_WIN)
+#if defined(Q_WS_MAC) || defined(Q_WS_WIN)
     /* Read cached extra-data value: */
     m_fIsHidLedsSyncEnabled = gEDataManager->hidLedsSyncState(vboxGlobal().managedVMUuid());
     /* Subscribe to extra-data changes to be able to enable/disable feature dynamically: */
     connect(gEDataManager, SIGNAL(sigHidLedsSyncStateChange(bool)), this, SLOT(sltHidLedsSyncStateChanged(bool)));
-#endif /* VBOX_WS_MAC || VBOX_WS_WIN */
+#endif /* Q_WS_MAC || Q_WS_WIN */
     /* HID LEDs sync initialization: */
     sltSwitchKeyboardLedsToGuestLeds();
 }
@@ -1326,7 +1300,7 @@ void UIMachineLogic::cleanupDebugger()
 }
 #endif /* VBOX_WITH_DEBUGGER_GUI */
 
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
 void UIMachineLogic::cleanupDock()
 {
     if (m_pDockIconPreview)
@@ -1335,7 +1309,7 @@ void UIMachineLogic::cleanupDock()
         m_pDockIconPreview = 0;
     }
 }
-#endif /* VBOX_WS_MAC */
+#endif /* Q_WS_MAC */
 
 void UIMachineLogic::cleanupHandlers()
 {
@@ -1365,9 +1339,9 @@ void UIMachineLogic::cleanupSessionConnections()
                this, SLOT(sltUSBDeviceStateChange(const CUSBDevice &, bool, const CVirtualBoxErrorInfo &)));
     disconnect(uisession(), SIGNAL(sigRuntimeError(bool, const QString &, const QString &)),
                this, SLOT(sltRuntimeError(bool, const QString &, const QString &)));
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
     disconnect(uisession(), SIGNAL(sigShowWindows()), this, SLOT(sltShowWindows()));
-#endif /* VBOX_WS_MAC */
+#endif /* Q_WS_MAC */
     disconnect(uisession(), SIGNAL(sigGuestMonitorChange(KGuestMonitorChangedEventType, ulong, QRect)),
                this, SLOT(sltGuestMonitorChange(KGuestMonitorChangedEventType, ulong, QRect)));
 
@@ -1393,7 +1367,7 @@ bool UIMachineLogic::eventFilter(QObject *pWatched, QEvent *pEvent)
                 /* Handle *window activated* event: */
                 case QEvent::WindowActivate:
                 {
-#ifdef VBOX_WS_WIN
+#ifdef Q_WS_WIN
                     /* We should save current lock states as *previous* and
                      * set current lock states to guest values we have,
                      * As we have no ipc between threads of different VMs
@@ -1408,10 +1382,10 @@ bool UIMachineLogic::eventFilter(QObject *pWatched, QEvent *pEvent)
                         keyboardHandler()->winSkipKeyboardEvents(true);
                         QTimer::singleShot(100, this, SLOT(sltSwitchKeyboardLedsToGuestLeds()));
                     }
-#else /* VBOX_WS_WIN */
+#else /* Q_WS_WIN */
                     /* Trigger callback synchronously for now! */
                     sltSwitchKeyboardLedsToGuestLeds();
-#endif /* !VBOX_WS_WIN */
+#endif /* !Q_WS_WIN */
                     break;
                 }
                 /* Handle *window deactivated* event: */
@@ -1463,7 +1437,7 @@ void UIMachineLogic::sltTypeCAD()
     AssertWrapperOk(keyboard());
 }
 
-#ifdef VBOX_WS_X11
+#ifdef Q_WS_X11
 void UIMachineLogic::sltTypeCABS()
 {
     static QVector<LONG> sequence(6);
@@ -1476,7 +1450,7 @@ void UIMachineLogic::sltTypeCABS()
     keyboard().PutScancodes(sequence);
     AssertWrapperOk(keyboard());
 }
-#endif /* VBOX_WS_X11 */
+#endif /* Q_WS_X11 */
 
 void UIMachineLogic::sltTypeCtrlBreak()
 {
@@ -1563,11 +1537,7 @@ void UIMachineLogic::sltShowInformationDialog()
         return;
 
     /* Invoke VM information dialog: */
-#ifdef VBOX_WITH_REWORKED_SESSION_INFORMATION
-    UIVMInformationDialog::invoke(mainMachineWindow());
-#else /* !VBOX_WITH_REWORKED_SESSION_INFORMATION */
     UIVMInfoDialog::invoke(mainMachineWindow());
-#endif /* !VBOX_WITH_REWORKED_SESSION_INFORMATION */
 }
 
 void UIMachineLogic::sltReset()
@@ -1586,18 +1556,6 @@ void UIMachineLogic::sltReset()
 void UIMachineLogic::sltPause(bool fOn)
 {
     uisession()->setPause(fOn);
-}
-
-void UIMachineLogic::sltDetach()
-{
-    /* Make sure machine is in one of the allowed states: */
-    if (!uisession()->isRunning() && !uisession()->isPaused())
-    {
-        AssertMsgFailed(("Invalid machine-state. Action should be prohibited!"));
-        return;
-    }
-
-    detach();
 }
 
 void UIMachineLogic::sltSaveState()
@@ -1634,8 +1592,7 @@ void UIMachineLogic::sltPowerOff()
     }
 
     LogRel(("GUI: User request to power VM off.\n"));
-    MachineCloseAction enmLastCloseAction = gEDataManager->lastMachineCloseAction(vboxGlobal().managedVMUuid());
-    powerOff(machine().GetSnapshotCount() > 0 && enmLastCloseAction == MachineCloseAction_PowerOff_RestoringSnapshot);
+    powerOff(machine().GetSnapshotCount() > 0);
 }
 
 void UIMachineLogic::sltClose()
@@ -1755,14 +1712,14 @@ void UIMachineLogic::sltTakeScreenshot()
         strFilter = filters.first();
     }
 
-#ifdef VBOX_WS_WIN
+#ifdef Q_WS_WIN
     /* Due to Qt bug, modal QFileDialog appeared above the active machine-window
      * does not retreive the focus from the currently focused machine-view,
      * as the result guest keyboard remains captured, so we should
      * clear the focus from this machine-view initially: */
     if (activeMachineWindow())
         activeMachineWindow()->machineView()->clearFocus();
-#endif /* VBOX_WS_WIN */
+#endif /* Q_WS_WIN */
 
     /* Request the filename from the user: */
     const QString strFilename = QIFileDialog::getSaveFileName(strDefaultFileName,
@@ -1773,7 +1730,7 @@ void UIMachineLogic::sltTakeScreenshot()
                                                               true /* resolve symlinks */,
                                                               true /* confirm overwrite */);
 
-#ifdef VBOX_WS_WIN
+#ifdef Q_WS_WIN
     /* Due to Qt bug, modal QFileDialog appeared above the active machine-window
      * does not retreive the focus from the currently focused machine-view,
      * as the result guest keyboard remains captured, so we already
@@ -1781,7 +1738,7 @@ void UIMachineLogic::sltTakeScreenshot()
      * that focus finally: */
     if (activeMachineWindow())
         activeMachineWindow()->machineView()->setFocus();
-#endif /* VBOX_WS_WIN */
+#endif /* Q_WS_WIN */
 
     if (!strFilename.isEmpty())
     {
@@ -1789,18 +1746,18 @@ void UIMachineLogic::sltTakeScreenshot()
         const QImage tmpImage(strTempFile);
 
         /* On X11 Qt Filedialog returns the filepath without the filetype suffix, so adding it ourselves: */
-#ifdef VBOX_WS_X11
+#ifdef Q_WS_X11
         /* Add filetype suffix only if user has not added it explicitly: */
         if (!strFilename.endsWith(QString(".%1").arg(strFormat)))
             tmpImage.save(QDir::toNativeSeparators(QFile::encodeName(QString("%1.%2").arg(strFilename, strFormat))),
-                          strFormat.toUtf8().constData());
+                          strFormat.toAscii().constData());
         else
             tmpImage.save(QDir::toNativeSeparators(QFile::encodeName(strFilename)),
-                          strFormat.toUtf8().constData());
-#else /* !VBOX_WS_X11 */
+                          strFormat.toAscii().constData());
+#else /* !Q_WS_X11 */
         tmpImage.save(QDir::toNativeSeparators(QFile::encodeName(strFilename)),
-                      strFormat.toUtf8().constData());
-#endif /* !VBOX_WS_X11 */
+                      strFormat.toAscii().constData());
+#endif /* !Q_WS_X11 */
     }
     QFile::remove(strTempFile);
 }
@@ -2144,7 +2101,7 @@ void UIMachineLogic::sltShowLogDialog()
 
 #endif /* VBOX_WITH_DEBUGGER_GUI */
 
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
 void UIMachineLogic::sltSwitchToMachineWindow()
 {
     /* Acquire appropriate sender action: */
@@ -2221,7 +2178,7 @@ void UIMachineLogic::sltDockIconDisableOverlayChanged(bool fDisabled)
     /* Write dock icon disable overlay flag to extra-data: */
     gEDataManager->setDockIconDisableOverlay(fDisabled, vboxGlobal().managedVMUuid());
 }
-#endif /* VBOX_WS_MAC */
+#endif /* Q_WS_MAC */
 
 void UIMachineLogic::sltSwitchKeyboardLedsToGuestLeds()
 {
@@ -2236,14 +2193,11 @@ void UIMachineLogic::sltSwitchKeyboardLedsToGuestLeds()
         LogRel2(("GUI: HID LEDs Sync: skipping sync because active window is lost or minimized!\n"));
         return;
     }
-
 //    /* Log statement (printf): */
 //    QString strDt = QDateTime::currentDateTime().toString("HH:mm:ss:zzz");
 //    printf("%s: UIMachineLogic: sltSwitchKeyboardLedsToGuestLeds called, machine name is {%s}\n",
-//           strDt.toUtf8().constData(),
-//           machineName().toUtf8().constData());
-
-    /* Here we have to store host LED lock states. */
+//           strDt.toAscii().constData(),
+//           machineName().toAscii().constData());
 
     /* Here we have to update host LED lock states using values provided by UISession registry.
      * [bool] uisession() -> isNumLock(), isCapsLock(), isScrollLock() can be used for that. */
@@ -2251,11 +2205,11 @@ void UIMachineLogic::sltSwitchKeyboardLedsToGuestLeds()
     if (!isHidLedsSyncEnabled())
         return;
 
-#if defined(VBOX_WS_MAC)
+#if defined(Q_WS_MAC)
     if (m_pHostLedsState == NULL)
         m_pHostLedsState = DarwinHidDevicesKeepLedsState();
     DarwinHidDevicesBroadcastLeds(m_pHostLedsState, uisession()->isNumLock(), uisession()->isCapsLock(), uisession()->isScrollLock());
-#elif defined(VBOX_WS_WIN)
+#elif defined(Q_WS_WIN)
     if (m_pHostLedsState == NULL)
         m_pHostLedsState = WinHidDevicesKeepLedsState();
     keyboardHandler()->winSkipKeyboardEvents(true);
@@ -2271,8 +2225,8 @@ void UIMachineLogic::sltSwitchKeyboardLedsToPreviousLeds()
 //    /* Log statement (printf): */
 //    QString strDt = QDateTime::currentDateTime().toString("HH:mm:ss:zzz");
 //    printf("%s: UIMachineLogic: sltSwitchKeyboardLedsToPreviousLeds called, machine name is {%s}\n",
-//           strDt.toUtf8().constData(),
-//           machineName().toUtf8().constData());
+//           strDt.toAscii().constData(),
+//           machineName().toAscii().constData());
 
     if (!isHidLedsSyncEnabled())
         return;
@@ -2286,9 +2240,9 @@ void UIMachineLogic::sltSwitchKeyboardLedsToPreviousLeds()
                  usually detects and I could see this->m_pHostLedsState == NULL.  The windows function
                  does dispatch loop fun, that's probably the reason for it.  Hopefully not an issue on OS X. */
         m_pHostLedsState = NULL;
-#if defined(VBOX_WS_MAC)
+#if defined(Q_WS_MAC)
         DarwinHidDevicesApplyAndReleaseLedsState(pvLedState);
-#elif defined(VBOX_WS_WIN)
+#elif defined(Q_WS_WIN)
         keyboardHandler()->winSkipKeyboardEvents(true);
         WinHidDevicesApplyAndReleaseLedsState(pvLedState);
         keyboardHandler()->winSkipKeyboardEvents(false);
@@ -2559,7 +2513,7 @@ void UIMachineLogic::updateMenuDebug(QMenu*)
 }
 #endif /* VBOX_WITH_DEBUGGER_GUI */
 
-#ifdef VBOX_WS_MAC
+#ifdef Q_WS_MAC
 void UIMachineLogic::updateMenuWindow(QMenu *pMenu)
 {
     /* Make sure 'Switch' action(s) are allowed: */
@@ -2582,7 +2536,7 @@ void UIMachineLogic::updateMenuWindow(QMenu *pMenu)
         }
     }
 }
-#endif /* VBOX_WS_MAC */
+#endif /* Q_WS_MAC */
 
 void UIMachineLogic::showGlobalPreferences(const QString &strCategory /* = QString() */, const QString &strControl /* = QString() */)
 {
@@ -2740,7 +2694,7 @@ void UIMachineLogic::takeScreenshot(const QString &strFile, const QString &strFo
     const QString &strPathWithoutSuffix = QDir(fi.absolutePath()).absoluteFilePath(fi.baseName());
     const QString &strSuffix = fi.suffix().isEmpty() ? strFormat : fi.suffix();
     bigImg.save(QDir::toNativeSeparators(QFile::encodeName(QString("%1.%2").arg(strPathWithoutSuffix, strSuffix))),
-                strFormat.toUtf8().constData());
+                strFormat.toAscii().constData());
 }
 
 #ifdef VBOX_WITH_DEBUGGER_GUI

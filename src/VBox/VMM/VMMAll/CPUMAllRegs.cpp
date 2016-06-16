@@ -577,9 +577,11 @@ VMMDECL(PCPUMCTX) CPUMQueryGuestCtxPtr(PVMCPU pVCpu)
 
 VMMDECL(int) CPUMSetGuestGDTR(PVMCPU pVCpu, uint64_t GCPtrBase, uint16_t cbLimit)
 {
-#ifdef VBOX_WITH_RAW_MODE_NOT_R0
+#ifdef VBOX_WITH_IEM
+# ifdef VBOX_WITH_RAW_MODE_NOT_R0
     if (!HMIsEnabled(pVCpu->CTX_SUFF(pVM)))
         VMCPU_FF_SET(pVCpu, VMCPU_FF_SELM_SYNC_GDT);
+# endif
 #endif
     pVCpu->cpum.s.Guest.gdtr.cbGdt = cbLimit;
     pVCpu->cpum.s.Guest.gdtr.pGdt  = GCPtrBase;
@@ -589,9 +591,11 @@ VMMDECL(int) CPUMSetGuestGDTR(PVMCPU pVCpu, uint64_t GCPtrBase, uint16_t cbLimit
 
 VMMDECL(int) CPUMSetGuestIDTR(PVMCPU pVCpu, uint64_t GCPtrBase, uint16_t cbLimit)
 {
-#ifdef VBOX_WITH_RAW_MODE_NOT_R0
+#ifdef VBOX_WITH_IEM
+# ifdef VBOX_WITH_RAW_MODE_NOT_R0
     if (!HMIsEnabled(pVCpu->CTX_SUFF(pVM)))
         VMCPU_FF_SET(pVCpu, VMCPU_FF_TRPM_SYNC_IDT);
+# endif
 #endif
     pVCpu->cpum.s.Guest.idtr.cbIdt = cbLimit;
     pVCpu->cpum.s.Guest.idtr.pIdt  = GCPtrBase;
@@ -601,9 +605,11 @@ VMMDECL(int) CPUMSetGuestIDTR(PVMCPU pVCpu, uint64_t GCPtrBase, uint16_t cbLimit
 
 VMMDECL(int) CPUMSetGuestTR(PVMCPU pVCpu, uint16_t tr)
 {
-#ifdef VBOX_WITH_RAW_MODE_NOT_R0
+#ifdef VBOX_WITH_IEM
+# ifdef VBOX_WITH_RAW_MODE_NOT_R0
     if (!HMIsEnabled(pVCpu->CTX_SUFF(pVM)))
         VMCPU_FF_SET(pVCpu, VMCPU_FF_SELM_SYNC_TSS);
+# endif
 #endif
     pVCpu->cpum.s.Guest.tr.Sel  = tr;
     pVCpu->cpum.s.fChanged |= CPUM_CHANGED_TR;
@@ -612,11 +618,13 @@ VMMDECL(int) CPUMSetGuestTR(PVMCPU pVCpu, uint16_t tr)
 
 VMMDECL(int) CPUMSetGuestLDTR(PVMCPU pVCpu, uint16_t ldtr)
 {
-#ifdef VBOX_WITH_RAW_MODE_NOT_R0
+#ifdef VBOX_WITH_IEM
+# ifdef VBOX_WITH_RAW_MODE_NOT_R0
     if (   (   ldtr != 0
             || pVCpu->cpum.s.Guest.ldtr.Sel != 0)
         && !HMIsEnabled(pVCpu->CTX_SUFF(pVM)))
         VMCPU_FF_SET(pVCpu, VMCPU_FF_SELM_SYNC_LDT);
+# endif
 #endif
     pVCpu->cpum.s.Guest.ldtr.Sel      = ldtr;
     /* The caller will set more hidden bits if it has them. */
@@ -648,10 +656,10 @@ VMMDECL(int) CPUMSetGuestCR0(PVMCPU pVCpu, uint64_t cr0)
     if (    (cr0                     & (X86_CR0_TS | X86_CR0_EM | X86_CR0_MP))
         !=  (pVCpu->cpum.s.Guest.cr0 & (X86_CR0_TS | X86_CR0_EM | X86_CR0_MP)))
     {
-        if (!(pVCpu->cpum.s.fUseFlags & CPUM_USED_FPU_GUEST))
+        if (!(pVCpu->cpum.s.fUseFlags & CPUM_USED_FPU))
         {
             /*
-             * We haven't loaded the guest FPU state yet, so TS and MT are both set
+             * We haven't saved the host FPU state yet, so TS and MT are both set
              * and EM should be reflecting the guest EM (it always does this).
              */
             if ((cr0 & X86_CR0_EM) != (pVCpu->cpum.s.Guest.cr0 & X86_CR0_EM))
@@ -676,7 +684,7 @@ VMMDECL(int) CPUMSetGuestCR0(PVMCPU pVCpu, uint64_t cr0)
         else
         {
             /*
-             * Already loaded the guest FPU state, so we're just mirroring
+             * Already saved the state, so we're just mirroring
              * the guest flags.
              */
             uint32_t HyperCR0 = ASMGetCR0();
@@ -706,12 +714,7 @@ VMMDECL(int) CPUMSetGuestCR0(PVMCPU pVCpu, uint64_t cr0)
     if (((cr0 ^ pVCpu->cpum.s.Guest.cr0) & X86_CR0_WP) && (cr0 & X86_CR0_WP))
         PGMCr0WpEnabled(pVCpu);
 
-    /* The ET flag is settable on a 386 and hardwired on 486+. */
-    if (   !(cr0 & X86_CR0_ET)
-        && pVCpu->CTX_SUFF(pVM)->cpum.s.GuestFeatures.enmMicroarch != kCpumMicroarch_Intel_80386)
-        cr0 |= X86_CR0_ET;
-
-    pVCpu->cpum.s.Guest.cr0 = cr0;
+    pVCpu->cpum.s.Guest.cr0 = cr0 | X86_CR0_ET;
     return VINF_SUCCESS;
 }
 
@@ -1387,12 +1390,12 @@ VMMDECL(void) CPUMSetGuestCpuIdFeature(PVM pVM, CPUMCPUIDFEATURE enmFeature)
                 pVM->cpum.s.aGuestCpuIdPatmExt[1].uEdx = pLeaf->uEdx |= X86_CPUID_AMD_FEATURE_EDX_APIC;
 
             pVM->cpum.s.GuestFeatures.fApic = 1;
-            LogRel(("CPUM: SetGuestCpuIdFeature: Enabled xAPIC\n"));
+            LogRel(("CPUM: SetGuestCpuIdFeature: Enabled APIC\n"));
             break;
 
-        /*
-         * Set the x2APIC bit in the standard feature mask.
-         */
+       /*
+        * Set the x2APIC bit in the standard feature mask.
+        */
         case CPUMCPUIDFEATURE_X2APIC:
             pLeaf = cpumCpuIdGetLeaf(pVM, UINT32_C(0x00000001));
             if (pLeaf)
@@ -1684,7 +1687,7 @@ VMMDECL(void) CPUMClearGuestCpuIdFeature(PVM pVM, CPUMCPUIDFEATURE enmFeature)
                 pVM->cpum.s.aGuestCpuIdPatmExt[1].uEdx = pLeaf->uEdx &= ~X86_CPUID_AMD_FEATURE_EDX_APIC;
 
             pVM->cpum.s.GuestFeatures.fApic = 0;
-            Log(("CPUM: ClearGuestCpuIdFeature: Disabled xAPIC\n"));
+            Log(("CPUM: ClearGuestCpuIdFeature: Disabled APIC\n"));
             break;
 
         case CPUMCPUIDFEATURE_X2APIC:
@@ -2162,7 +2165,7 @@ VMM_INT_DECL(int)   CPUMSetGuestXcr0(PVMCPU pVCpu, uint64_t uNewValue)
         if (fNewComponents)
         {
 #if defined(IN_RING0) || defined(IN_RC)
-            if (pVCpu->cpum.s.fUseFlags & CPUM_USED_FPU_GUEST)
+            if (pVCpu->cpum.s.fUseFlags & CPUM_USED_FPU)
             {
                 if (pVCpu->cpum.s.Guest.fXStateMask != 0)
                     /* Adding more components. */
@@ -2630,42 +2633,13 @@ VMMDECL(int) CPUMHandleLazyFPU(PVMCPU pVCpu)
 
 /**
  * Checks if we activated the FPU/XMM state of the guest OS.
- *
- * This differs from CPUMIsGuestFPUStateLoaded() in that it refers to the next
- * time we'll be executing guest code, so it may return true for 64-on-32 when
- * we still haven't actually loaded the FPU status, just scheduled it to be
- * loaded the next time we go thru the world switcher (CPUM_SYNC_FPU_STATE).
- *
- * @returns true / false.
+ * @returns true if we did.
+ * @returns false if not.
  * @param   pVCpu   The cross context virtual CPU structure.
  */
 VMMDECL(bool) CPUMIsGuestFPUStateActive(PVMCPU pVCpu)
 {
-    return RT_BOOL(pVCpu->cpum.s.fUseFlags & (CPUM_USED_FPU_GUEST | CPUM_SYNC_FPU_STATE));
-}
-
-
-/**
- * Checks if we've really loaded the FPU/XMM state of the guest OS.
- *
- * @returns true / false.
- * @param   pVCpu   The cross context virtual CPU structure.
- */
-VMMDECL(bool) CPUMIsGuestFPUStateLoaded(PVMCPU pVCpu)
-{
-    return RT_BOOL(pVCpu->cpum.s.fUseFlags & CPUM_USED_FPU_GUEST);
-}
-
-
-/**
- * Checks if we saved the FPU/XMM state of the host OS.
- *
- * @returns true / false.
- * @param   pVCpu   The cross context virtual CPU structure.
- */
-VMMDECL(bool) CPUMIsHostFPUStateSaved(PVMCPU pVCpu)
-{
-    return RT_BOOL(pVCpu->cpum.s.fUseFlags & CPUM_USED_FPU_HOST);
+    return RT_BOOL(pVCpu->cpum.s.fUseFlags & CPUM_USED_FPU);
 }
 
 
@@ -2729,7 +2703,6 @@ VMMDECL(bool) CPUMIsHyperDebugStateActivePending(PVMCPU pVCpu)
 VMMDECL(void) CPUMDeactivateGuestDebugState(PVMCPU pVCpu)
 {
     Assert(!(pVCpu->cpum.s.fUseFlags & (CPUM_USED_DEBUG_REGS_GUEST | CPUM_USED_DEBUG_REGS_HYPER | CPUM_USED_DEBUG_REGS_HOST)));
-    NOREF(pVCpu);
 }
 
 

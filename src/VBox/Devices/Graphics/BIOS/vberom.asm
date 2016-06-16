@@ -37,7 +37,6 @@
 ; of the LGPL is applied is otherwise unspecified.
 
 include vgadefs.inc
-include commondefs.inc
 
 public	_vga_compat_setup
 public	dispi_set_enable_
@@ -56,7 +55,7 @@ public	vbe_biosfn_return_protected_mode_interface
 
 VGAROM  segment public 'CODE'
 
-SET_DEFAULT_CPU
+.386
 
 VBE_BYTEWISE_IO EQU 1
 
@@ -123,13 +122,7 @@ dispi_get_bpp:
   cmp  al, 4
   jbe  get_bpp_noinc
   mov  ah, al
-if VBOX_BIOS_CPU gt 8086
   shr  ah, 3
-else
-  shr  ah, 1
-  shr  ah, 1
-  shr  ah, 1
-endif
   test al, 07
   jz   get_bpp_noinc
   inc  ah
@@ -289,13 +282,7 @@ vga_set_virt_width:
   ja   set_width_svga
   shr  bx, 1
 set_width_svga:
-if VBOX_BIOS_CPU gt 8086
   shr  bx, 3
-else
-  shr  bx, 1
-  shr  bx, 1
-  shr  bx, 1
-endif
   mov  dx, VGAREG_VGA_CRTC_ADDRESS
   mov  ah, bl
   mov  al, 13h
@@ -354,13 +341,7 @@ _vga_compat_setup:
   out  dx, ax
   pop  ax
   push ax
-if VBOX_BIOS_CPU gt 8086
   shr  ax, 3
-else
-  shr  ax, 1
-  shr  ax, 1
-  shr  ax, 1
-endif
   dec  ax
   mov  ah, al
   mov  al, 01
@@ -606,13 +587,7 @@ set_logical_scan_line_bytes:
   mov  bl, ah
   or   bl, bl
   jnz  no_4bpp_1
-if VBOX_BIOS_CPU gt 8086
   shl  ax, 3
-else
-  shl  ax, 1
-  shl  ax, 1
-  shl  ax, 1
-endif
   mov  bl, 1
 no_4bpp_1:
   xor  dx, dx
@@ -628,13 +603,7 @@ get_logical_scan_line_length:
   mov  cx, ax
   or   bl, bl
   jnz  no_4bpp_2
-if VBOX_BIOS_CPU gt 8086
   shr  ax, 3
-else
-  shr  ax, 1
-  shr  ax, 1
-  shr  ax, 1
-endif
   mov  bl, 1
 no_4bpp_2:
   mul  bx
@@ -800,7 +769,7 @@ if 0
       ; this is where we could wait for vertical retrace
 endif
 set_palette_data:
-  DO_pushad
+  pushad
   push  ds
   push  es
   pop   ds
@@ -810,7 +779,6 @@ set_palette_data:
   inc   dx
   mov   si, di
 set_pal_loop:
-if VBOX_BIOS_CPU ge 80386
   lodsd
   ror   eax, 16
   out   dx, al
@@ -818,30 +786,19 @@ if VBOX_BIOS_CPU ge 80386
   out   dx, al
   rol   eax, 8
   out   dx, al
-else
-  lodsw
-  mov   bx, ax
-  lodsw
-  out   dx, al
-  mov   al, bh
-  out   dx, al
-  mov   al, bl
-  out   dx, al
-endif
   loop  set_pal_loop
   pop   ds
-  DO_popad
+  popad
 vbe_09_ok:
   mov  ax, 004Fh
   ret
 
 get_palette_data:
-  DO_pushad
+  pushad
   mov   al, dl
   mov   dx, VGAREG_DAC_READ_ADDRESS
   out   dx, al
   add   dl, 2
-if VBOX_BIOS_CPU ge 80386
 get_pal_loop:
   xor   eax, eax
   in    al, dx
@@ -850,20 +807,8 @@ get_pal_loop:
   shl   eax, 8
   in    al, dx
   stosd
-else
-  xor   bx, bx
-get_pal_loop:
-  in    al, dx
-  mov   bl, al
-  in    al, dx
-  mov   ah, al
-  in    al, dx
-  stosw
-  mov   ax, bx
-  stosw
-endif
   loop  get_pal_loop
-  DO_popad
+  popad
   jmp   vbe_09_ok
 
 vbe_09_unsupported:

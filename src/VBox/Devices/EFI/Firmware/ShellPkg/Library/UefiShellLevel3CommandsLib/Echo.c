@@ -1,7 +1,7 @@
 /** @file
   Main file for Echo shell level 3 function.
 
-  Copyright (c) 2009 - 2012, Intel Corporation. All rights reserved. <BR>
+  Copyright (c) 2009 - 2011, Intel Corporation. All rights reserved. <BR>
   This program and the accompanying materials
   are licensed and made available under the terms and conditions of the BSD License
   which accompanies this distribution.  The full text of the license may be found at
@@ -40,12 +40,8 @@ ShellCommandRunEcho (
   SHELL_STATUS        ShellStatus;
   UINTN               ParamCount;
   CHAR16              *ProblemParam;
-  UINTN               Size;
-  CHAR16              *PrintString;
 
-  Size                = 0;
   ProblemParam        = NULL;
-  PrintString         = NULL;
   ShellStatus         = SHELL_SUCCESS;
 
   //
@@ -100,13 +96,13 @@ ShellCommandRunEcho (
           ; ShellCommandLineGetRawValue(Package, ParamCount) != NULL
           ; ParamCount++
          ) {
-        StrnCatGrow(&PrintString, &Size, ShellCommandLineGetRawValue(Package, ParamCount), 0);
         if (ShellCommandLineGetRawValue(Package, ParamCount+1) != NULL) {
-          StrnCatGrow(&PrintString, &Size, L" ", 0);
+          ShellPrintEx(-1, -1, L"%s ", ShellCommandLineGetRawValue(Package, ParamCount));
+        } else {
+          ShellPrintEx(-1, -1, L"%s", ShellCommandLineGetRawValue(Package, ParamCount));
         }
       }
-      ShellPrintEx(-1, -1, L"%s\r\n", PrintString);
-      SHELL_FREE_NON_NULL(PrintString);
+      ShellPrintHiiEx(-1, -1, NULL, STRING_TOKEN (STR_GEN_CRLF), gShellLevel3HiiHandle);
     }
 
     //

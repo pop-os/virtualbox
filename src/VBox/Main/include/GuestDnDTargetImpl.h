@@ -101,8 +101,6 @@ protected:
         /** Maximum data block size (in bytes) the target can handle. */
         uint32_t mcbBlockSize;
     } mData;
-
-    friend class SendDataTask;
 };
 
 #endif /* !____H_GUESTDNDTARGETIMPL */

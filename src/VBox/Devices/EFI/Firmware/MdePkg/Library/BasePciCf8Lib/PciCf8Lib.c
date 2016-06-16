@@ -2,7 +2,7 @@
   PCI CF8 Library functions that use I/O ports 0xCF8 and 0xCFC to perform PCI Configuration cycles.
   Layers on top of an I/O Library instance.
 
-  Copyright (c) 2006 - 2012, Intel Corporation. All rights reserved.<BR>
+  Copyright (c) 2006 - 2010, Intel Corporation. All rights reserved.<BR>
   This program and the accompanying materials
   are licensed and made available under the terms and conditions of the BSD License
   which accompanies this distribution.  The full text of the license may be found at
@@ -61,20 +61,20 @@
   ASSERT (((A) & (~0xffff0ff | (M))) == 0)
 
 /**
-  Registers a PCI device so PCI configuration registers may be accessed after
+  Registers a PCI device so PCI configuration registers may be accessed after 
   SetVirtualAddressMap().
-
-  Registers the PCI device specified by Address so all the PCI configuration registers
+  
+  Registers the PCI device specified by Address so all the PCI configuration registers 
   associated with that PCI device may be accessed after SetVirtualAddressMap() is called.
-
+  
   If Address > 0x0FFFFFFF, then ASSERT().
   If the register specified by Address >= 0x100, then ASSERT().
 
   @param  Address The address that encodes the PCI Bus, Device, Function and
                   Register.
-
+  
   @retval RETURN_SUCCESS           The PCI device was registered for runtime access.
-  @retval RETURN_UNSUPPORTED       An attempt was made to call this function
+  @retval RETURN_UNSUPPORTED       An attempt was made to call this function 
                                    after ExitBootServices().
   @retval RETURN_UNSUPPORTED       The resources required to access the PCI device
                                    at runtime could not be mapped.
@@ -117,7 +117,7 @@ PciCf8Read8 (
   BOOLEAN  InterruptState;
   UINT32   AddressPort;
   UINT8    Result;
-
+  
   ASSERT_INVALID_PCI_ADDRESS (Address, 0);
   InterruptState = SaveAndDisableInterrupts ();
   AddressPort = IoRead32 (PCI_CONFIGURATION_ADDRESS_PORT);
@@ -155,7 +155,7 @@ PciCf8Write8 (
   BOOLEAN  InterruptState;
   UINT32   AddressPort;
   UINT8    Result;
-
+  
   ASSERT_INVALID_PCI_ADDRESS (Address, 0);
   InterruptState = SaveAndDisableInterrupts ();
   AddressPort = IoRead32 (PCI_CONFIGURATION_ADDRESS_PORT);
@@ -200,7 +200,7 @@ PciCf8Or8 (
   BOOLEAN  InterruptState;
   UINT32   AddressPort;
   UINT8    Result;
-
+  
   ASSERT_INVALID_PCI_ADDRESS (Address, 0);
   InterruptState = SaveAndDisableInterrupts ();
   AddressPort = IoRead32 (PCI_CONFIGURATION_ADDRESS_PORT);
@@ -245,7 +245,7 @@ PciCf8And8 (
   BOOLEAN  InterruptState;
   UINT32   AddressPort;
   UINT8    Result;
-
+  
   ASSERT_INVALID_PCI_ADDRESS (Address, 0);
   InterruptState = SaveAndDisableInterrupts ();
   AddressPort = IoRead32 (PCI_CONFIGURATION_ADDRESS_PORT);
@@ -293,7 +293,7 @@ PciCf8AndThenOr8 (
   BOOLEAN  InterruptState;
   UINT32   AddressPort;
   UINT8    Result;
-
+  
   ASSERT_INVALID_PCI_ADDRESS (Address, 0);
   InterruptState = SaveAndDisableInterrupts ();
   AddressPort = IoRead32 (PCI_CONFIGURATION_ADDRESS_PORT);
@@ -341,7 +341,7 @@ PciCf8BitFieldRead8 (
   BOOLEAN  InterruptState;
   UINT32   AddressPort;
   UINT8    Result;
-
+  
   ASSERT_INVALID_PCI_ADDRESS (Address, 0);
   InterruptState = SaveAndDisableInterrupts ();
   AddressPort = IoRead32 (PCI_CONFIGURATION_ADDRESS_PORT);
@@ -369,7 +369,6 @@ PciCf8BitFieldRead8 (
   If StartBit is greater than 7, then ASSERT().
   If EndBit is greater than 7, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
-  If Value is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Address   The PCI configuration register to write.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -393,7 +392,7 @@ PciCf8BitFieldWrite8 (
   BOOLEAN  InterruptState;
   UINT32   AddressPort;
   UINT8    Result;
-
+  
   ASSERT_INVALID_PCI_ADDRESS (Address, 0);
   InterruptState = SaveAndDisableInterrupts ();
   AddressPort = IoRead32 (PCI_CONFIGURATION_ADDRESS_PORT);
@@ -425,7 +424,6 @@ PciCf8BitFieldWrite8 (
   If StartBit is greater than 7, then ASSERT().
   If EndBit is greater than 7, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
-  If OrData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Address   The PCI configuration register to write.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -449,7 +447,7 @@ PciCf8BitFieldOr8 (
   BOOLEAN  InterruptState;
   UINT32   AddressPort;
   UINT8    Result;
-
+  
   ASSERT_INVALID_PCI_ADDRESS (Address, 0);
   InterruptState = SaveAndDisableInterrupts ();
   AddressPort = IoRead32 (PCI_CONFIGURATION_ADDRESS_PORT);
@@ -481,7 +479,6 @@ PciCf8BitFieldOr8 (
   If StartBit is greater than 7, then ASSERT().
   If EndBit is greater than 7, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
-  If AndData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Address   The PCI configuration register to write.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -505,7 +502,7 @@ PciCf8BitFieldAnd8 (
   BOOLEAN  InterruptState;
   UINT32   AddressPort;
   UINT8    Result;
-
+  
   ASSERT_INVALID_PCI_ADDRESS (Address, 0);
   InterruptState = SaveAndDisableInterrupts ();
   AddressPort = IoRead32 (PCI_CONFIGURATION_ADDRESS_PORT);
@@ -539,8 +536,6 @@ PciCf8BitFieldAnd8 (
   If StartBit is greater than 7, then ASSERT().
   If EndBit is greater than 7, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
-  If AndData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
-  If OrData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Address   The PCI configuration register to write.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -566,7 +561,7 @@ PciCf8BitFieldAndThenOr8(
   BOOLEAN  InterruptState;
   UINT32   AddressPort;
   UINT8    Result;
-
+  
   ASSERT_INVALID_PCI_ADDRESS (Address, 0);
   InterruptState = SaveAndDisableInterrupts ();
   AddressPort = IoRead32 (PCI_CONFIGURATION_ADDRESS_PORT);
@@ -609,7 +604,7 @@ PciCf8Read16 (
   BOOLEAN  InterruptState;
   UINT32   AddressPort;
   UINT16   Result;
-
+  
   ASSERT_INVALID_PCI_ADDRESS (Address, 1);
   InterruptState = SaveAndDisableInterrupts ();
   AddressPort = IoRead32 (PCI_CONFIGURATION_ADDRESS_PORT);
@@ -648,7 +643,7 @@ PciCf8Write16 (
   BOOLEAN  InterruptState;
   UINT32   AddressPort;
   UINT16   Result;
-
+  
   ASSERT_INVALID_PCI_ADDRESS (Address, 1);
   InterruptState = SaveAndDisableInterrupts ();
   AddressPort = IoRead32 (PCI_CONFIGURATION_ADDRESS_PORT);
@@ -694,7 +689,7 @@ PciCf8Or16 (
   BOOLEAN  InterruptState;
   UINT32   AddressPort;
   UINT16   Result;
-
+  
   ASSERT_INVALID_PCI_ADDRESS (Address, 1);
   InterruptState = SaveAndDisableInterrupts ();
   AddressPort = IoRead32 (PCI_CONFIGURATION_ADDRESS_PORT);
@@ -740,7 +735,7 @@ PciCf8And16 (
   BOOLEAN  InterruptState;
   UINT32   AddressPort;
   UINT16   Result;
-
+  
   ASSERT_INVALID_PCI_ADDRESS (Address, 1);
   InterruptState = SaveAndDisableInterrupts ();
   AddressPort = IoRead32 (PCI_CONFIGURATION_ADDRESS_PORT);
@@ -789,7 +784,7 @@ PciCf8AndThenOr16 (
   BOOLEAN  InterruptState;
   UINT32   AddressPort;
   UINT16   Result;
-
+  
   ASSERT_INVALID_PCI_ADDRESS (Address, 1);
   InterruptState = SaveAndDisableInterrupts ();
   AddressPort = IoRead32 (PCI_CONFIGURATION_ADDRESS_PORT);
@@ -838,7 +833,7 @@ PciCf8BitFieldRead16 (
   BOOLEAN  InterruptState;
   UINT32   AddressPort;
   UINT16   Result;
-
+  
   ASSERT_INVALID_PCI_ADDRESS (Address, 1);
   InterruptState = SaveAndDisableInterrupts ();
   AddressPort = IoRead32 (PCI_CONFIGURATION_ADDRESS_PORT);
@@ -867,7 +862,6 @@ PciCf8BitFieldRead16 (
   If StartBit is greater than 15, then ASSERT().
   If EndBit is greater than 15, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
-  If Value is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Address   The PCI configuration register to write.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -891,7 +885,7 @@ PciCf8BitFieldWrite16 (
   BOOLEAN  InterruptState;
   UINT32   AddressPort;
   UINT16   Result;
-
+  
   ASSERT_INVALID_PCI_ADDRESS (Address, 1);
   InterruptState = SaveAndDisableInterrupts ();
   AddressPort = IoRead32 (PCI_CONFIGURATION_ADDRESS_PORT);
@@ -924,7 +918,6 @@ PciCf8BitFieldWrite16 (
   If StartBit is greater than 15, then ASSERT().
   If EndBit is greater than 15, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
-  If OrData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Address   The PCI configuration register to write.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -948,7 +941,7 @@ PciCf8BitFieldOr16 (
   BOOLEAN  InterruptState;
   UINT32   AddressPort;
   UINT16   Result;
-
+  
   ASSERT_INVALID_PCI_ADDRESS (Address, 1);
   InterruptState = SaveAndDisableInterrupts ();
   AddressPort = IoRead32 (PCI_CONFIGURATION_ADDRESS_PORT);
@@ -981,7 +974,6 @@ PciCf8BitFieldOr16 (
   If StartBit is greater than 15, then ASSERT().
   If EndBit is greater than 15, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
-  If AndData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Address   The PCI configuration register to write.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -1005,7 +997,7 @@ PciCf8BitFieldAnd16 (
   BOOLEAN  InterruptState;
   UINT32   AddressPort;
   UINT16   Result;
-
+  
   ASSERT_INVALID_PCI_ADDRESS (Address, 1);
   InterruptState = SaveAndDisableInterrupts ();
   AddressPort = IoRead32 (PCI_CONFIGURATION_ADDRESS_PORT);
@@ -1040,8 +1032,6 @@ PciCf8BitFieldAnd16 (
   If StartBit is greater than 15, then ASSERT().
   If EndBit is greater than 15, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
-  If AndData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
-  If OrData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Address   The PCI configuration register to write.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -1067,7 +1057,7 @@ PciCf8BitFieldAndThenOr16(
   BOOLEAN  InterruptState;
   UINT32   AddressPort;
   UINT16   Result;
-
+  
   ASSERT_INVALID_PCI_ADDRESS (Address, 1);
   InterruptState = SaveAndDisableInterrupts ();
   AddressPort = IoRead32 (PCI_CONFIGURATION_ADDRESS_PORT);
@@ -1110,7 +1100,7 @@ PciCf8Read32 (
   BOOLEAN  InterruptState;
   UINT32   AddressPort;
   UINT32   Result;
-
+  
   ASSERT_INVALID_PCI_ADDRESS (Address, 3);
   InterruptState = SaveAndDisableInterrupts ();
   AddressPort = IoRead32 (PCI_CONFIGURATION_ADDRESS_PORT);
@@ -1149,7 +1139,7 @@ PciCf8Write32 (
   BOOLEAN  InterruptState;
   UINT32   AddressPort;
   UINT32   Result;
-
+  
   ASSERT_INVALID_PCI_ADDRESS (Address, 3);
   InterruptState = SaveAndDisableInterrupts ();
   AddressPort = IoRead32 (PCI_CONFIGURATION_ADDRESS_PORT);
@@ -1195,7 +1185,7 @@ PciCf8Or32 (
   BOOLEAN  InterruptState;
   UINT32   AddressPort;
   UINT32   Result;
-
+  
   ASSERT_INVALID_PCI_ADDRESS (Address, 3);
   InterruptState = SaveAndDisableInterrupts ();
   AddressPort = IoRead32 (PCI_CONFIGURATION_ADDRESS_PORT);
@@ -1241,7 +1231,7 @@ PciCf8And32 (
   BOOLEAN  InterruptState;
   UINT32   AddressPort;
   UINT32   Result;
-
+  
   ASSERT_INVALID_PCI_ADDRESS (Address, 3);
   InterruptState = SaveAndDisableInterrupts ();
   AddressPort = IoRead32 (PCI_CONFIGURATION_ADDRESS_PORT);
@@ -1290,7 +1280,7 @@ PciCf8AndThenOr32 (
   BOOLEAN  InterruptState;
   UINT32   AddressPort;
   UINT32   Result;
-
+  
   ASSERT_INVALID_PCI_ADDRESS (Address, 3);
   InterruptState = SaveAndDisableInterrupts ();
   AddressPort = IoRead32 (PCI_CONFIGURATION_ADDRESS_PORT);
@@ -1339,7 +1329,7 @@ PciCf8BitFieldRead32 (
   BOOLEAN  InterruptState;
   UINT32   AddressPort;
   UINT32   Result;
-
+  
   ASSERT_INVALID_PCI_ADDRESS (Address, 3);
   InterruptState = SaveAndDisableInterrupts ();
   AddressPort = IoRead32 (PCI_CONFIGURATION_ADDRESS_PORT);
@@ -1368,7 +1358,6 @@ PciCf8BitFieldRead32 (
   If StartBit is greater than 31, then ASSERT().
   If EndBit is greater than 31, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
-  If Value is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Address   The PCI configuration register to write.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -1392,7 +1381,7 @@ PciCf8BitFieldWrite32 (
   BOOLEAN  InterruptState;
   UINT32   AddressPort;
   UINT32   Result;
-
+  
   ASSERT_INVALID_PCI_ADDRESS (Address, 3);
   InterruptState = SaveAndDisableInterrupts ();
   AddressPort = IoRead32 (PCI_CONFIGURATION_ADDRESS_PORT);
@@ -1425,7 +1414,6 @@ PciCf8BitFieldWrite32 (
   If StartBit is greater than 31, then ASSERT().
   If EndBit is greater than 31, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
-  If OrData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Address   The PCI configuration register to write.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -1449,7 +1437,7 @@ PciCf8BitFieldOr32 (
   BOOLEAN  InterruptState;
   UINT32   AddressPort;
   UINT32   Result;
-
+  
   ASSERT_INVALID_PCI_ADDRESS (Address, 3);
   InterruptState = SaveAndDisableInterrupts ();
   AddressPort = IoRead32 (PCI_CONFIGURATION_ADDRESS_PORT);
@@ -1482,7 +1470,6 @@ PciCf8BitFieldOr32 (
   If StartBit is greater than 31, then ASSERT().
   If EndBit is greater than 31, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
-  If AndData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Address   The PCI configuration register to write.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -1506,7 +1493,7 @@ PciCf8BitFieldAnd32 (
   BOOLEAN  InterruptState;
   UINT32   AddressPort;
   UINT32   Result;
-
+  
   ASSERT_INVALID_PCI_ADDRESS (Address, 3);
   InterruptState = SaveAndDisableInterrupts ();
   AddressPort = IoRead32 (PCI_CONFIGURATION_ADDRESS_PORT);
@@ -1541,8 +1528,6 @@ PciCf8BitFieldAnd32 (
   If StartBit is greater than 31, then ASSERT().
   If EndBit is greater than 31, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
-  If AndData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
-  If OrData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Address   The PCI configuration register to write.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -1568,7 +1553,7 @@ PciCf8BitFieldAndThenOr32(
   BOOLEAN  InterruptState;
   UINT32   AddressPort;
   UINT32   Result;
-
+  
   ASSERT_INVALID_PCI_ADDRESS (Address, 3);
   InterruptState = SaveAndDisableInterrupts ();
   AddressPort = IoRead32 (PCI_CONFIGURATION_ADDRESS_PORT);

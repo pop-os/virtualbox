@@ -181,7 +181,7 @@ BOOLEAN
   IN  VOID         *RsaContext,
   IN  CONST UINT8  *MessageHash,
   IN  UINTN        HashLength,
-  IN  CONST UINT8  *Signature,
+  IN  UINT8        *Signature,
   IN  UINTN        SigLength
   );
 
