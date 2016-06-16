@@ -331,7 +331,6 @@ Config file:     /home/username/.config/VirtualBox/Machines/Windows XP/Windows X
 Memory size:     512MB
 VRAM size:       12MB
 Number of CPUs:  2
-Synthetic Cpu:   off
 Boot menu mode:  message and menu
 Boot Device (1): DVD
 Boot Device (2): HardDisk
@@ -583,13 +582,6 @@ Statistics update:  disabled</screen></para>
             <para><computeroutput>--longmode on|off</computeroutput>: This
             enables/disables long mode (see <xref
             linkend="settings-processor" />).</para>
-          </listitem>
-
-          <listitem>
-            <para><computeroutput>--synthcpu on|off</computeroutput>: This
-            setting determines whether VirtualBox will expose a synthetic CPU
-            to the guest to allow live migration between host systems that
-            differ significantly.</para>
           </listitem>
 
           <listitem>
@@ -900,7 +892,8 @@ Statistics update:  disabled</screen></para>
           <listitem>
             <para><computeroutput>--hostonlyadapter&lt;1-N&gt;
             none|&lt;devicename&gt;</computeroutput>: If host-only networking
-            has been enabled for a virtual network card (see the --nic option
+            has been enabled for a virtual network card (see the
+            <computeroutput>--nic</computeroutput> option
             above; otherwise this setting has no effect), use this option to
             specify which host-only networking interface the given virtual
             network interface will use. For details, please see <xref
@@ -4568,7 +4561,8 @@ Value: 2006.01.01</screen>
           --hostonlyadapter&lt;X&gt;
           &lt;hostonly_if_name&gt;</computeroutput>.</para>
 
-          <para>Alternatively, you can also use the --netname option as with
+          <para>Alternatively, you can also use the
+          <computeroutput>--netname</computeroutput> option as with
           internal networks if you know the host-only network's name; you can
           see the names with <computeroutput>VBoxManage list
           hostonlyifs</computeroutput> (see <xref linkend="vboxmanage-list" />

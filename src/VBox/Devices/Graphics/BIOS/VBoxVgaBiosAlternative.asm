@@ -6769,7 +6769,7 @@ vesa_pm_end:                                 ; 0xc4514 LB 0x1
 
 section _DATA progbits vstart=0x4600 align=1 ; size=0x371f class=DATA group=DGROUP
 _msg_vga_init:                               ; 0xc4600 LB 0x2f
-    db  'Oracle VM VirtualBox Version 5.0.20 VGA BIOS', 00dh, 00ah, 000h
+    db  'Oracle VM VirtualBox Version 5.0.22 VGA BIOS', 00dh, 00ah, 000h
 _vga_modes:                                  ; 0xc462f LB 0x80
     db  000h, 000h, 000h, 004h, 000h, 0b8h, 0ffh, 002h, 001h, 000h, 000h, 004h, 000h, 0b8h, 0ffh, 002h
     db  002h, 000h, 000h, 004h, 000h, 0b8h, 0ffh, 002h, 003h, 000h, 000h, 004h, 000h, 0b8h, 0ffh, 002h
@@ -7664,7 +7664,7 @@ _vbebios_vendor_name:                        ; 0xc7c73 LB 0x13
 _vbebios_product_name:                       ; 0xc7c86 LB 0x21
     db  'Oracle VM VirtualBox VBE Adapter', 000h
 _vbebios_product_revision:                   ; 0xc7ca7 LB 0x24
-    db  'Oracle VM VirtualBox Version 5.0.20', 000h
+    db  'Oracle VM VirtualBox Version 5.0.22', 000h
 _vbebios_info_string:                        ; 0xc7ccb LB 0x2b
     db  'VirtualBox VBE Display Adapter enabled', 00dh, 00ah, 00dh, 00ah, 000h
 _no_vbebios_info_string:                     ; 0xc7cf6 LB 0x29
@@ -7723,4 +7723,4 @@ section CONST2 progbits vstart=0x7d20 align=1 ; size=0x0 class=DATA group=DGROUP
     db  000h, 000h, 000h, 000h, 000h, 000h, 000h, 000h, 000h, 000h, 000h, 000h, 000h, 000h, 000h, 000h
     db  000h, 000h, 000h, 000h, 000h, 000h, 000h, 000h, 000h, 000h, 000h, 000h, 000h, 000h, 000h, 000h
     db  000h, 000h, 000h, 000h, 000h, 000h, 000h, 000h, 000h, 000h, 000h, 000h, 000h, 000h, 000h, 000h
-    db  000h, 000h, 000h, 000h, 000h, 000h, 000h, 000h, 000h, 000h, 000h, 000h, 000h, 000h, 000h, 000h
+    db  000h, 000h, 000h, 000h, 000h, 000h, 000h, 000h, 000h, 000h, 000h, 000h, 000h, 000h, 000h, 0fch

@@ -3,6 +3,150 @@
 <chapter> <!-- HACK ALERT! Seems we must have a single top level element for xi:include to work.
                            So, we use chapter and xpointer="xpointer(/chapter/)" with xi:include. -->
   <sect1>
+    <title>Version 5.0.22 (2016-06-16)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>VMM: fixes for certain Intel Atom hosts (bug #14915)</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: properly restore the complete FPU state for 32-bit guests
+          on 64-bit hosts on Intel Sandy Bridge and Ivy Bridge CPUs</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: new I/O-APIC implementation fixing several bugs and improving
+          the performance under certain conditions (bug #15295 and others)</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: fixed a potential Linux guest panic on AMD hosts</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: fixed a potential hang with 32-bit EFI guests on
+          Intel CPUs (VT-x without unrestricted guest execution)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: don't allow to start subsequent separate VM instances</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: raised upper limit for video capture screen resolution
+          (bug #15432)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: warn if the VM has less than 128MB VRAM configured and 3D
+          enabled</para>
+      </listitem>
+
+      <listitem>
+        <para>Main: when monitoring DNS configuration changes on Windows hosts
+          avoid false positives from competing DHCP renewals.  This should fix
+          NAT link flaps when host has multiple DHCP configured interfaces, in
+          particular when the host uses OpnVPN.</para>
+      </listitem>
+
+      <listitem>
+        <para>Main: properly display an error message if the VRDE server
+          cannot be enabled at runtime, for example because another service
+          is using the same port</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT: Initialize guest address guess for wildcard
+          port-forwarding rules with default guest address (bug #15412)</para>
+      </listitem>
+
+      <listitem>
+        <para>VGA: fix for a problem which made certain legacy guests crash
+          under certain conditions (bug #14811)</para>
+      </listitem>
+
+      <listitem>
+        <para>OVF: fixed import problems for some appliances using an AHCI
+          controller created by 3rd party applications</para>
+      </listitem>
+
+      <listitem>
+        <para>SDK: reduced memory usage in the webservice Java bindings</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows hosts: fixed performance regresson with SMP guests
+          (5.0 regression)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows hosts: fixes for the shared clipboard</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows hosts: Windows hardening fix</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows Additions: fixes to retain the guest display layout
+          when resizing or disabling the guest monitors</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts: EL 6.8 fix (bug #15411)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts: Linux 4.7 fix (bug #15459)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: Linux 4.7 fixes (bug #15444)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: fix for certain 32-bit guests (5.0.18
+          regression; bug #15320)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: fixed mouse pointer offset (5.0.18
+          regression; bug #15324)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: made old X.Org releases work again with
+          kernels 3.11 and later (5.0.18 regression; bug #15319)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: fixed X.Org crash after hard guest reset
+          (5.0.18 regression; bug #15354)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: don't stop the X11 setup if loading the
+          shared folders module fails (5.0.18 regression)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: don't complain if the Drag and Drop service
+          is not available on the host</para>
+      </listitem>
+
+      <listitem>
+        <para>Solaris Additions: added support for X.org 1.18</para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
+
+  <sect1>
     <title>Version 5.0.20 (2016-04-28)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or

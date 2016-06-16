@@ -1313,6 +1313,15 @@ typedef struct PDMAPICHLPRC
     DECLRCCALLBACKMEMBER(void, pfnClearInterruptFF,(PPDMDEVINS pDevIns, PDMAPICIRQ enmType, VMCPUID idCpu));
 
     /**
+     * Broadcasts an EOI for an interrupt vector to the I/O APICs.
+     *
+     * @returns Ring-0 pointer to the critical section.
+     * @param   pDevIns         The APIC device instance.
+     * @param   u8Vector        The interrupt vector.
+     */
+    DECLRCCALLBACKMEMBER(void, pfnBusBroadcastEoi,(PPDMDEVINS pDevIns, uint8_t u8Vector));
+
+    /**
      * Calculates an IRQ tag for a timer, IPI or similar event.
      *
      * @returns The IRQ tag.
@@ -1362,7 +1371,7 @@ typedef RCPTRTYPE(PDMAPICHLPRC *) PPDMAPICHLPRC;
 typedef RCPTRTYPE(const PDMAPICHLPRC *) PCPDMAPICHLPRC;
 
 /** Current PDMAPICHLPRC version number. */
-#define PDM_APICHLPRC_VERSION                   PDM_VERSION_MAKE(0xfff5, 2, 0)
+#define PDM_APICHLPRC_VERSION                   PDM_VERSION_MAKE(0xfff5, 3, 0)
 
 
 /**
@@ -1390,6 +1399,15 @@ typedef struct PDMAPICHLPR0
      * @param   idCpu           Virtual CPU to clear flag upon.
      */
     DECLR0CALLBACKMEMBER(void, pfnClearInterruptFF,(PPDMDEVINS pDevIns, PDMAPICIRQ enmType, VMCPUID idCpu));
+
+    /**
+     * Broadcasts an EOI for an interrupt vector to the I/O APICs.
+     *
+     * @returns Ring-0 pointer to the critical section.
+     * @param   pDevIns         The APIC device instance.
+     * @param   u8Vector        The interrupt vector.
+     */
+    DECLR0CALLBACKMEMBER(void, pfnBusBroadcastEoi,(PPDMDEVINS pDevIns, uint8_t u8Vector));
 
     /**
      * Calculates an IRQ tag for a timer, IPI or similar event.
@@ -1441,7 +1459,7 @@ typedef RCPTRTYPE(PDMAPICHLPR0 *) PPDMAPICHLPR0;
 typedef R0PTRTYPE(const PDMAPICHLPR0 *) PCPDMAPICHLPR0;
 
 /** Current PDMAPICHLPR0 version number. */
-#define PDM_APICHLPR0_VERSION                   PDM_VERSION_MAKE(0xfff4, 2, 0)
+#define PDM_APICHLPR0_VERSION                   PDM_VERSION_MAKE(0xfff4, 3, 0)
 
 /**
  * APIC R3 helpers.
@@ -1468,6 +1486,15 @@ typedef struct PDMAPICHLPR3
      * @param   idCpu           Virtual CPU to clear flag upon.
      */
     DECLR3CALLBACKMEMBER(void, pfnClearInterruptFF,(PPDMDEVINS pDevIns, PDMAPICIRQ enmType, VMCPUID idCpu));
+
+    /**
+     * Broadcasts an EOI for an interrupt vector to the I/O APICs.
+     *
+     * @returns Ring-0 pointer to the critical section.
+     * @param   pDevIns         The APIC device instance.
+     * @param   u8Vector        The interrupt vector.
+     */
+    DECLR3CALLBACKMEMBER(void, pfnBusBroadcastEoi,(PPDMDEVINS pDevIns, uint8_t u8Vector));
 
     /**
      * Calculates an IRQ tag for a timer, IPI or similar event.
@@ -1566,7 +1593,7 @@ typedef R3PTRTYPE(PDMAPICHLPR3 *) PPDMAPICHLPR3;
 typedef R3PTRTYPE(const PDMAPICHLPR3 *) PCPDMAPICHLPR3;
 
 /** Current PDMAPICHLP version number. */
-#define PDM_APICHLPR3_VERSION                   PDM_VERSION_MAKE(0xfff3, 2, 0)
+#define PDM_APICHLPR3_VERSION                   PDM_VERSION_MAKE(0xfff3, 3, 0)
 
 
 /**
@@ -1578,7 +1605,7 @@ typedef struct PDMIOAPICREG
     uint32_t            u32Version;
 
     /**
-     * Set the an IRQ.
+     * Set an IRQ.
      *
      * @param   pDevIns         Device instance of the I/O APIC.
      * @param   iIrq            IRQ number to set.
@@ -1610,12 +1637,27 @@ typedef struct PDMIOAPICREG
 
     /** The name of the R0 SendMsi entry point. */
     const char         *pszSendMsiR0;
+
+    /**
+     * Set the EOI for an interrupt vector.
+     *
+     * @param   pDevIns         Device instance of the I/O APIC.
+     * @param   u8Vector        The vector.
+     * @remarks Caller enters the PDM critical section
+     */
+    DECLR3CALLBACKMEMBER(void, pfnSetEoiR3,(PPDMDEVINS pDevIns, uint8_t u8Vector));
+
+    /** The name of the RC SetEoi entry point. */
+    const char         *pszSetEoiRC;
+
+    /** The name of the R0 SetEoi entry point. */
+    const char         *pszSetEoiR0;
 } PDMIOAPICREG;
 /** Pointer to an APIC registration structure. */
 typedef PDMIOAPICREG *PPDMIOAPICREG;
 
 /** Current PDMAPICREG version number. */
-#define PDM_IOAPICREG_VERSION                   PDM_VERSION_MAKE(0xfff2, 3, 0)
+#define PDM_IOAPICREG_VERSION                   PDM_VERSION_MAKE(0xfff2, 4, 0)
 
 
 /**

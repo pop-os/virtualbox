@@ -464,6 +464,12 @@ DECLINLINE(void) apicCpuClearInterrupt(APICDeviceInfo *pDev, APICState *pApic, P
                                                   getCpuFromLapic(pDev, pApic));
 }
 
+DECLINLINE(void) apicBusBroadcastEoi(APICDeviceInfo *pDev, uint8_t uVector)
+{
+    pDev->CTX_SUFF(pApicHlp)->pfnBusBroadcastEoi(pDev->CTX_SUFF(pDevIns), uVector);
+}
+
+
 # ifdef IN_RING3
 
 DECLINLINE(void) apicR3CpuSendSipi(APICDeviceInfo *pDev, APICState *pApic, int vector)
@@ -1303,8 +1309,14 @@ static void apic_eoi(APICDeviceInfo *pDev, APICState *pApic)
         return;
     Apic256BitReg_ClearBit(&pApic->isr, isrv);
     LogFlow(("CPU%d: apic_eoi isrv=%x\n", pApic->phys_id, isrv));
-    /** @todo XXX: send the EOI packet to the APIC bus to allow the I/O APIC to
-     *             set the remote IRR bit for level triggered interrupts. */
+
+    bool fLevelTriggered = Apic256BitReg_IsBitSet(&pApic->tmr, isrv);
+    if (fLevelTriggered)
+    {
+        LogFlow(("CPU%d: clearing TMR for level triggered interrupt %u\n", pApic->phys_id, isrv));
+        Apic256BitReg_ClearBit(&pApic->tmr, isrv);
+        apicBusBroadcastEoi(pDev, isrv);
+    }
     apic_update_irq(pDev, pApic);
 }
 
@@ -1951,7 +1963,7 @@ static void apicR3InfoBasic(APICDeviceInfo *pDev, APICState *pApic, PCDBGFINFOHL
 {
     uint64_t u64;
 
-    pHlp->pfnPrintf(pHlp, "Local APIC at %08llx:\n", pApic->apicbase);
+    pHlp->pfnPrintf(pHlp, "CPU%u: Local APIC at %08llx:\n", pApic->phys_id, pApic->apicbase);
     u64 = apicR3InfoReadReg(pDev, pApic, 0x2);
     pHlp->pfnPrintf(pHlp, "  LAPIC ID  : %08llx\n", u64);
     pHlp->pfnPrintf(pHlp, "    APIC ID = %02llx\n", (u64 >> 24) & 0xff);
@@ -2051,7 +2063,11 @@ static void apicR3InfoTimer(APICDeviceInfo *pDev, APICState *pApic, PCDBGFINFOHL
 static DECLCALLBACK(void) apicR3Info(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp, const char *pszArgs)
 {
     APICDeviceInfo  *pDev  = PDMINS_2_DATA(pDevIns, APICDeviceInfo *);
-    APICState       *pApic = apicGetStateByCurEmt(pDev);
+    PVM              pVM   = PDMDevHlpGetVM(pDevIns);
+    VMCPUID          idCpu = VMMGetCpuId(pVM);
+    if (idCpu == NIL_VMCPUID)   /* Don't crash if we're not on EMT, just assume EMT0 for now. */
+        idCpu = 0;
+    APICState       *pApic = apicGetStateById(pDev, idCpu);
 
     if (pszArgs == NULL || !*pszArgs || !strcmp(pszArgs, "basic"))
         apicR3InfoBasic(pDev, pApic, pHlp);

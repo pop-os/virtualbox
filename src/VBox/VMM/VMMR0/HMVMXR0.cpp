@@ -3753,7 +3753,11 @@ static int hmR0VmxLoadSharedCR0(PVMCPU pVCpu, PCPUMCTX pMixedCtx)
  * Loads the guest control registers (CR3, CR4) into the guest-state area
  * in the VMCS.
  *
- * @returns VBox status code.
+ * @returns VBox strict status code.
+ * @retval  VINF_EM_RESCHEDULE_REM if we try to emulate non-paged guest code
+ *          without unrestricted guest access and the VMMDev is not presently
+ *          mapped (e.g. EFI32).
+ *
  * @param   pVCpu       The cross context virtual CPU structure.
  * @param   pMixedCtx   Pointer to the guest-CPU context. The data may be
  *                      out-of-sync. Make sure to update the required fields
@@ -3761,7 +3765,7 @@ static int hmR0VmxLoadSharedCR0(PVMCPU pVCpu, PCPUMCTX pMixedCtx)
  *
  * @remarks No-long-jump zone!!!
  */
-static int hmR0VmxLoadGuestCR3AndCR4(PVMCPU pVCpu, PCPUMCTX pMixedCtx)
+static VBOXSTRICTRC hmR0VmxLoadGuestCR3AndCR4(PVMCPU pVCpu, PCPUMCTX pMixedCtx)
 {
     int rc  = VINF_SUCCESS;
     PVM pVM = pVCpu->CTX_SUFF(pVM);
@@ -3825,11 +3829,18 @@ static int hmR0VmxLoadGuestCR3AndCR4(PVMCPU pVCpu, PCPUMCTX pMixedCtx)
                  */
                 RTGCPHYS GCPhys;
                 Assert(pVM->hm.s.vmx.pNonPagingModeEPTPageTable);
-                Assert(PDMVmmDevHeapIsEnabled(pVM));
 
                 /* We obtain it here every time as the guest could have relocated this PCI region. */
                 rc = PDMVmmDevHeapR3ToGCPhys(pVM, pVM->hm.s.vmx.pNonPagingModeEPTPageTable, &GCPhys);
-                AssertRCReturn(rc, rc);
+                if (RT_SUCCESS(rc))
+                { /* likely */ }
+                else if (rc == VERR_PDM_DEV_HEAP_R3_TO_GCPHYS)
+                {
+                    Log4(("Load[%RU32]: VERR_PDM_DEV_HEAP_R3_TO_GCPHYS -> VINF_EM_RESCHEDULE_REM\n", pVCpu->idCpu));
+                    return VINF_EM_RESCHEDULE_REM;  /* We cannot execute now, switch to REM/IEM till the guest maps in VMMDev. */
+                }
+                else
+                    AssertMsgFailedReturn(("%Rrc\n",  rc), rc);
 
                 GCPhysGuestCR3 = GCPhys;
             }
@@ -8125,16 +8136,21 @@ VMMR0DECL(int) VMXR0SaveHostState(PVM pVM, PVMCPU pVCpu)
  * Sets up the appropriate VMX non-root function to execute guest code based on
  * the guest CPU mode.
  *
- * @returns VBox status code.
+ * @returns VBox strict status code.
+ * @retval  VINF_EM_RESCHEDULE_REM if we try to emulate non-paged guest code
+ *          without unrestricted guest access and the VMMDev is not presently
+ *          mapped (e.g. EFI32).
+ *
  * @param   pVM         The cross context VM structure.
  * @param   pVCpu       The cross context virtual CPU structure.
  * @param   pMixedCtx   Pointer to the guest-CPU context. The data may be
  *                      out-of-sync. Make sure to update the required fields
  *                      before using them.
  *
- * @remarks No-long-jump zone!!!
+ * @remarks No-long-jump zone!!!  (Disables and enables long jmps for itself,
+ *          caller disables then again on successfull return.  Confusing.)
  */
-static int hmR0VmxLoadGuestState(PVM pVM, PVMCPU pVCpu, PCPUMCTX pMixedCtx)
+static VBOXSTRICTRC hmR0VmxLoadGuestState(PVM pVM, PVMCPU pVCpu, PCPUMCTX pMixedCtx)
 {
     AssertPtr(pVM);
     AssertPtr(pVCpu);
@@ -8175,8 +8191,15 @@ static int hmR0VmxLoadGuestState(PVM pVM, PVMCPU pVCpu, PCPUMCTX pMixedCtx)
     rc = hmR0VmxLoadGuestActivityState(pVCpu, pMixedCtx);
     AssertLogRelMsgRCReturn(rc, ("hmR0VmxLoadGuestActivityState! rc=%Rrc (pVM=%p pVCpu=%p)\n", rc, pVM, pVCpu), rc);
 
-    rc = hmR0VmxLoadGuestCR3AndCR4(pVCpu, pMixedCtx);
-    AssertLogRelMsgRCReturn(rc, ("hmR0VmxLoadGuestCR3AndCR4: rc=%Rrc (pVM=%p pVCpu=%p)\n", rc, pVM, pVCpu), rc);
+    VBOXSTRICTRC rcStrict = hmR0VmxLoadGuestCR3AndCR4(pVCpu, pMixedCtx);
+    if (rcStrict == VINF_SUCCESS)
+    { /* likely */ }
+    else
+    {
+        VMMRZCallRing3Enable(pVCpu);
+        Assert(rcStrict == VINF_EM_RESCHEDULE_REM || RT_FAILURE_NP(rcStrict));
+        return rcStrict;
+    }
 
     /* Assumes pMixedCtx->cr0 is up-to-date (strict builds require CR0 for segment register validation checks). */
     rc = hmR0VmxLoadGuestSegmentRegs(pVCpu, pMixedCtx);
@@ -8272,13 +8295,18 @@ static void hmR0VmxLoadSharedState(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
 /**
  * Worker for loading the guest-state bits in the inner VT-x execution loop.
  *
+ * @returns Strict VBox status code (i.e. informational status codes too).
+ * @retval  VINF_EM_RESCHEDULE_REM if we try to emulate non-paged guest code
+ *          without unrestricted guest access and the VMMDev is not presently
+ *          mapped (e.g. EFI32).
+ *
  * @param   pVM             The cross context VM structure.
  * @param   pVCpu           The cross context virtual CPU structure.
  * @param   pMixedCtx       Pointer to the guest-CPU context. The data may be
  *                          out-of-sync. Make sure to update the required fields
  *                          before using them.
  */
-DECLINLINE(void) hmR0VmxLoadGuestStateOptimal(PVM pVM, PVMCPU pVCpu, PCPUMCTX pMixedCtx)
+static VBOXSTRICTRC hmR0VmxLoadGuestStateOptimal(PVM pVM, PVMCPU pVCpu, PCPUMCTX pMixedCtx)
 {
     HMVMX_ASSERT_PREEMPT_SAFE();
 
@@ -8287,16 +8315,30 @@ DECLINLINE(void) hmR0VmxLoadGuestStateOptimal(PVM pVM, PVMCPU pVCpu, PCPUMCTX pM
     HMCPU_CF_SET(pVCpu, HM_CHANGED_ALL_GUEST);
 #endif
 
+    VBOXSTRICTRC rcStrict = VINF_SUCCESS;
     if (HMCPU_CF_IS_SET_ONLY(pVCpu, HM_CHANGED_GUEST_RIP))
     {
-        int rc = hmR0VmxLoadGuestRip(pVCpu, pMixedCtx);
-        AssertRC(rc);
+        rcStrict = hmR0VmxLoadGuestRip(pVCpu, pMixedCtx);
+        if (RT_LIKELY(rcStrict == VINF_SUCCESS))
+        { /* likely */}
+        else
+        {
+            AssertMsgFailedReturn(("hmR0VmxLoadGuestStateOptimal: hmR0VmxLoadGuestRip failed! rc=%Rrc\n",
+                                   VBOXSTRICTRC_VAL(rcStrict)), rcStrict);
+        }
         STAM_COUNTER_INC(&pVCpu->hm.s.StatLoadMinimal);
     }
     else if (HMCPU_CF_VALUE(pVCpu))
     {
-        int rc = hmR0VmxLoadGuestState(pVM, pVCpu, pMixedCtx);
-        AssertRC(rc);
+        rcStrict = hmR0VmxLoadGuestState(pVM, pVCpu, pMixedCtx);
+        if (RT_LIKELY(rcStrict == VINF_SUCCESS))
+        { /* likely */}
+        else
+        {
+            AssertMsg(rcStrict == VINF_EM_RESCHEDULE_REM,
+                      ("hmR0VmxLoadGuestStateOptimal: hmR0VmxLoadGuestState failed! rc=%Rrc\n", VBOXSTRICTRC_VAL(rcStrict)));
+            return rcStrict;
+        }
         STAM_COUNTER_INC(&pVCpu->hm.s.StatLoadFull);
     }
 
@@ -8304,6 +8346,7 @@ DECLINLINE(void) hmR0VmxLoadGuestStateOptimal(PVM pVM, PVMCPU pVCpu, PCPUMCTX pM
     AssertMsg(   !HMCPU_CF_IS_PENDING(pVCpu, HM_CHANGED_ALL_GUEST)
               ||  HMCPU_CF_IS_PENDING_ONLY(pVCpu, HM_CHANGED_HOST_CONTEXT | HM_CHANGED_HOST_GUEST_SHARED_STATE),
               ("fContextUseFlags=%#RX32\n", HMCPU_CF_VALUE(pVCpu)));
+    return rcStrict;
 }
 
 
@@ -8399,7 +8442,11 @@ static int hmR0VmxPreRunGuest(PVM pVM, PVMCPU pVCpu, PCPUMCTX pMixedCtx, PVMXTRA
      * RIP and some segment registers, i.e. hmR0VmxInjectPendingEvent()->hmR0VmxInjectEventVmcs().
      * Hence, this needs to be done -after- injection of events.
      */
-    hmR0VmxLoadGuestStateOptimal(pVM, pVCpu, pMixedCtx);
+    VBOXSTRICTRC rcStrict = hmR0VmxLoadGuestStateOptimal(pVM, pVCpu, pMixedCtx);
+    if (RT_LIKELY(rcStrict == VINF_SUCCESS))
+    { /* likely */ }
+    else
+        return VBOXSTRICTRC_VAL(rcStrict);
 
     /*
      * No longjmps to ring-3 from this point on!!!

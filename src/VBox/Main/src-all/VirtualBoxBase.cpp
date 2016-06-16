@@ -517,7 +517,7 @@ HRESULT VirtualBoxBase::setErrorVrc(int vrc)
     return setErrorInternal(Global::vboxStatusCodeToCOM(vrc),
                             this->getClassIID(),
                             this->getComponentName(),
-                            Utf8Str("%Rrc", vrc),
+                            Utf8StrFmt("%Rrc", vrc),
                             false /* aWarning */,
                             true /* aLogIt */,
                             vrc /* aResultDetail */);
@@ -565,7 +565,7 @@ HRESULT VirtualBoxBase::setErrorBoth(HRESULT hrc, int vrc)
     return setErrorInternal(hrc,
                             this->getClassIID(),
                             this->getComponentName(),
-                            Utf8Str("%Rrc", vrc),
+                            Utf8StrFmt("%Rrc", vrc),
                             false /* aWarning */,
                             true /* aLogIt */,
                             vrc /* aResultDetail */);

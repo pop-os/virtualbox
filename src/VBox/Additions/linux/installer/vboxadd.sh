@@ -1,6 +1,6 @@
 #! /bin/sh
 #
-# Linux Additions kernel module init script ($Revision: 106390 $)
+# Linux Additions kernel module init script ($Revision: 107701 $)
 #
 
 #
@@ -33,6 +33,12 @@ PACKAGE=VBoxGuestAdditions
 LOG="/var/log/vboxadd-install.log"
 MODPROBE=/sbin/modprobe
 OLDMODULES="vboxguest vboxadd vboxsf vboxvfs vboxvideo"
+
+# These are getting hard-coded in more and more places...
+test -z "${KERN_DIR}" && KERN_DIR="/lib/modules/`uname -r`/build"
+test -z "${MODULE_DIR}" && MODULE_DIR="/lib/modules/`uname -r`/misc"
+KERN_DIR_SUFFIX="${KERN_DIR#/lib/modules/}"
+KERN_VER="${KERN_DIR_SUFFIX%/*}"
 
 if $MODPROBE -c 2>/dev/null | grep -q '^allow_unsupported_modules  *0'; then
   MODPROBE="$MODPROBE --allow-unsupported-modules"
@@ -287,45 +293,44 @@ start()
 
     running_vboxsf || {
         $MODPROBE vboxsf > /dev/null 2>&1 || {
-            if dmesg | grep "vboxConnect failed" > /dev/null 2>&1; then
+            if dmesg | grep "VbglR0SfConnect failed" > /dev/null 2>&1; then
                 fail_msg
                 echo "Unable to start shared folders support.  Make sure that your VirtualBox build"
                 echo "supports this feature."
-                exit 1
+            else
+                show_error "modprobe vboxsf failed"
             fi
-            fail "modprobe vboxsf failed"
         }
     }
-    # Load the kernel video driver if we can.
-    $MODPROBE vboxvideo > /dev/null 2>&1
 
     # Put the X.Org driver in place.  This is harmless if it is not needed.
     /sbin/rcvboxadd-x11 setup
     # Install the guest OpenGL drivers.  For now we don't support
     # multi-architecture installations
-    rm -rf /etc/ld.so.conf.d/00vboxvideo.conf
-    ldconfig
-    if /usr/bin/VBoxClient --check3d; then
-        rm -r /tmp/VBoxOGL
-        mkdir -m 0755 /tmp/VBoxOGL
-        mkdir -m 0755 /tmp/VBoxOGL/system
+    if /usr/bin/VBoxClient --check3d 2>/dev/null; then
+        rm -f /var/lib/VBoxGuestAdditions/lib/system/tmp.so
+        mkdir -m 0755 -p /var/lib/VBoxGuestAdditions/lib/system
         ldconfig -p | while read -r line; do
             case "${line}" in "libGL.so.1 ${ldconfig_arch} => "*)
-                ln -s "${line#libGL.so.1 ${ldconfig_arch} => }" /tmp/VBoxOGL/system/libGL.so.1
+                ln -s "${line#libGL.so.1 ${ldconfig_arch} => }" /var/lib/VBoxGuestAdditions/lib/system/tmp.so
+                mv /var/lib/VBoxGuestAdditions/lib/system/tmp.so /var/lib/VBoxGuestAdditions/lib/system/libGL.so.1
                 break
             esac
         done
         ldconfig -p | while read -r line; do
             case "${line}" in "libEGL.so.1 ${ldconfig_arch} => "*)
-                ln -s "${line#libEGL.so.1 ${ldconfig_arch} => }" /tmp/VBoxOGL/system/libEGL.so.1
+                ln -s "${line#libEGL.so.1 ${ldconfig_arch} => }" /var/lib/VBoxGuestAdditions/lib/system/tmp.so
+                mv /var/lib/VBoxGuestAdditions/lib/system/tmp.so /var/lib/VBoxGuestAdditions/lib/system/libEGL.so.1
                 break
             esac
         done
-        echo "/tmp/VBoxOGL" > /etc/ld.so.conf.d/00vboxvideo.conf
-        ln -s "${INSTALL_DIR}/lib/VBoxOGL.so" /tmp/VBoxOGL/libGL.so.1
-        ln -s "${INSTALL_DIR}/lib/VBoxEGL.so" /tmp/VBoxOGL/libEGL.so.1
-        ldconfig
+        ln -sf "${INSTALL_DIR}/lib/VBoxOGL.so" /var/lib/VBoxGuestAdditions/lib/libGL.so.1
+        ln -sf "${INSTALL_DIR}/lib/VBoxEGL.so" /var/lib/VBoxGuestAdditions/lib/libEGL.so.1
+        echo "/var/lib/VBoxGuestAdditions/lib" > /etc/ld.so.conf.d/00vboxvideo.conf
+    else
+        rm -f /etc/ld.so.conf.d/00vboxvideo.conf
     fi
+    ldconfig
 
     # Mount all shared folders from /etc/fstab. Normally this is done by some
     # other startup script but this requires the vboxdrv kernel module loaded.
@@ -362,6 +367,26 @@ restart()
 {
     stop && start
     return 0
+}
+
+## Update the initramfs.  Debian and Ubuntu put the graphics driver in, and
+# need the touch(1) command below.  Everyone else that I checked just need
+# the right module alias file from depmod(1) and only use the initramfs to
+# load the root filesystem, not the boot splash.  update-initramfs works
+# for the first two and dracut for every one else I checked.  We are only
+# interested in distributions recent enough to use the KMS vboxvideo driver.
+## @param $1  kernel version to update for.
+update_module_dependencies()
+{
+    depmod "${1}"
+    test -d "/lib/modules/${1}/initrd" &&
+        touch "/lib/modules/${1}/initrd/vboxvideo"
+    test -n "${QUICKSETUP}" && return
+    if type dracut >/dev/null 2>&1; then
+        dracut -f "/boot/initramfs-${1}.img"
+    elif type update-initramfs >/dev/null 2>&1; then
+        update-initramfs -u -k "${1}"
+    fi
 }
 
 # Remove any existing VirtualBox guest kernel modules from the disk, but not
@@ -424,7 +449,7 @@ setup_modules()
         show_error "Look at $LOG to find out what went wrong"
     fi
     succ_msg
-    depmod
+    update_module_dependencies "${KERN_VER}"
     return 0
 }
 
@@ -542,7 +567,9 @@ cleanup()
 
     # Delete old versions of VBox modules.
     cleanup_modules
-    depmod
+    for i in /lib/modules/*; do
+        update_module_dependencies "${i#/lib/modules}"
+    done
 
     # Remove old module sources
     for i in $OLDMODULES; do
@@ -557,6 +584,7 @@ cleanup()
     rm /sbin/rcvboxadd 2>/dev/null
     rm /sbin/rcvboxadd-x11 2>/dev/null
     rm /etc/udev/rules.d/60-vboxadd.rules 2>/dev/null
+    rm -f /lib/modules/*/initrd/vboxvideo
 }
 
 dmnstatus()

@@ -893,6 +893,10 @@
         <source>Power off selected virtual machines</source>
         <translation>Schaltet die ausgewählten virtuelle Maschinen aus</translation>
     </message>
+    <message>
+        <source>Disable Dock Icon Overlay</source>
+        <translation>Dock-Icon-Overlay ausschalten</translation>
+    </message>
 </context>
 <context>
     <name>UIAddDiskEncryptionPasswordDialog</name>
@@ -5436,7 +5440,7 @@
     </message>
     <message>
         <source>Url not found on the server</source>
-        <translation type="unfinished"></translation>
+        <translation>URL auf dem Server nicht vorhanden</translation>
     </message>
 </context>
 <context>

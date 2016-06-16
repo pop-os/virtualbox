@@ -1989,7 +1989,7 @@ Hardware::Hardware()
           pointingHIDType(PointingHIDType_PS2Mouse),
           keyboardHIDType(KeyboardHIDType_PS2Keyboard),
           chipsetType(ChipsetType_PIIX3),
-          paravirtProvider(ParavirtProvider_Legacy),
+          paravirtProvider(ParavirtProvider_Legacy), // default for old VMs, for new ones it's ParavirtProvider_Default
           fEmulatedUSBCardReader(false),
           clipboardMode(ClipboardMode_Disabled),
           dndMode(DnDMode_Disabled),
@@ -2765,6 +2765,13 @@ void MachineConfigFile::readHardware(const xml::ElementNode &elmHardware,
                                      Hardware &hw,
                                      Storage &strg)
 {
+    if (m->sv > SettingsVersion_v1_15)
+    {
+        /* After 5.0 (5.0 itself still needs to use Legacy, because it doesn't
+         * save that setting) the default paravirt provider is Default. */
+        hw.paravirtProvider = ParavirtProvider_Default;
+    }
+
     if (!elmHardware.getAttributeValue("version", hw.strVersion))
     {
         /* KLUDGE ALERT!  For a while during the 3.1 development this was not
@@ -3425,6 +3432,8 @@ void MachineConfigFile::readHardware(const xml::ElementNode &elmHardware,
                 pelmDefault->getAttributeValue("type", hw.strDefaultFrontend);
             }
         }
+        else if (pelmHwChild->nameEquals("StorageControllers"))
+            readStorageControllers(*pelmHwChild, strg);
     }
 
     if (hw.ulMemorySizeMB == (uint32_t)-1)

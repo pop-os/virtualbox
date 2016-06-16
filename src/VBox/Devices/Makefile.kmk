@@ -116,6 +116,7 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
  	VBOX_ACPI \
  	VBOX_HGCM_HOST_CODE \
  	$(if $(VBOX_WITH_HGCM),VBOX_WITH_HGCM,) \
+ 	$(if $(VBOX_WITH_NEW_IOAPIC),VBOX_WITH_NEW_IOAPIC,) \
  	$(if $(VBOX_BIOS_DMI_FALLBACK),VBOX_BIOS_DMI_FALLBACK,) \
  	VBOX_WITH_DMI_CHASSIS \
  	VBOX_WITH_DMI_OEMSTRINGS
@@ -157,6 +158,7 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
  	Audio/DevIchHdaCodec.cpp \
  	PC/DevDMA.cpp \
  	PC/DevHPET.cpp \
+ 	$(if $(VBOX_WITH_NEW_IOAPIC),PC/DevIOAPIC_New.cpp,) \
  	Storage/DevFdc.cpp \
  	Serial/DevSerial.cpp \
  	Parallel/DevParallel.cpp \
@@ -866,6 +868,7 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
  	Input/PS2K.cpp \
  	Input/PS2M.cpp \
   	PC/DevACPI.cpp \
+  	$(if $(VBOX_WITH_NEW_IOAPIC),PC/DevIOAPIC_New.cpp,) \
   	PC/DevPit-i8254.cpp \
   	PC/DevPIC.cpp \
   	PC/DevRTC.cpp \
@@ -984,7 +987,7 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
  VBoxDD2_SOURCES         = \
  	build/VBoxDD2.cpp  \
  	PC/DevAPIC.cpp \
- 	PC/DevIoApic.cpp \
+ 	$(if $(VBOX_WITH_NEW_IOAPIC),,PC/DevIoApic.cpp) \
  	PC/DevLPC.cpp
  VBoxDD2_LIBS            = \
  	$(PATH_STAGE_LIB)/PcBiosBin$(VBOX_SUFF_LIB) \
@@ -1001,6 +1004,9 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
 
  ifdef VBOX_WITH_PXE_ROM
   VBoxDD2_DEFS          += VBOX_WITH_PXE_ROM
+ endif
+ ifdef VBOX_WITH_NEW_IOAPIC
+  VBoxDD2_DEFS          += VBOX_WITH_NEW_IOAPIC
  endif
 
  $(call VBOX_SET_VER_INFO_DLL,VBoxDD2,VirtualBox VMM Devices and Drivers 2) # (last!)
@@ -1026,6 +1032,7 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
  	Input/PS2K.cpp \
  	Input/PS2M.cpp \
  	PC/DevACPI.cpp \
+ 	$(if $(VBOX_WITH_NEW_IOAPIC),PC/DevIOAPIC_New.cpp,) \
  	PC/DevPit-i8254.cpp \
  	PC/DevPIC.cpp \
  	PC/DevRTC.cpp \
@@ -1159,7 +1166,7 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
   VBoxDD2RC_INCS           = build
   VBoxDD2RC_SOURCES        = \
   	PC/DevAPIC.cpp \
-  	PC/DevIoApic.cpp
+  	$(if $(VBOX_WITH_NEW_IOAPIC),,PC/DevIoApic.cpp)
   if1of ($(VBOX_LDR_FMT32), pe lx)
    VBoxDD2RC_LIBS          = \
    	$(PATH_STAGE_LIB)/VMMRCBuiltin$(VBOX_SUFF_LIB) \
@@ -1178,7 +1185,7 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
  VBoxDD2R0_SOURCES        = \
  	build/VBoxDD2R0.cpp \
  	PC/DevAPIC.cpp \
- 	PC/DevIoApic.cpp \
+ 	$(if $(VBOX_WITH_NEW_IOAPIC),,PC/DevIoApic.cpp)
 
  if1of ($(VBOX_LDR_FMT), pe lx)
   VBoxDD2R0_LIBS          = \

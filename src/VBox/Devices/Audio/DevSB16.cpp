@@ -313,7 +313,7 @@ static int sb16Reattach(PSB16STATE pThis, PSB16DRIVER pDrv, uint8_t uLUN, const 
 
     PVM pVM = PDMDevHlpGetVM(pThis->pDevInsR3);
     PCFGMNODE pRoot = CFGMR3GetRoot(pVM);
-    PCFGMNODE pDev0 = CFGMR3GetChild(pRoot, "Devices/SB16/0/");
+    PCFGMNODE pDev0 = CFGMR3GetChild(pRoot, "Devices/sb16/0/");
 
     /* Remove LUN branch. */
     CFGMR3RemoveNode(CFGMR3GetChildF(pDev0, "LUN#%u/", uLUN));
@@ -1015,7 +1015,7 @@ static void complete(PSB16STATE pThis)
                 PDMDevHlpISASetIrq(pThis->pDevInsR3, pThis->irq, 1);
             else
                 TMTimerSet(pThis->pTimerIRQ, TMTimerGet(pThis->pTimerIRQ) + ticks);
-            LogFlowFunc(("mix silence %d %d % %RU64\n", samples, bytes, ticks));
+            LogFlowFunc(("mix silence: %d samples, %d bytes, %RU64 ticks\n", samples, bytes, ticks));
             break;
         }
 
@@ -1633,7 +1633,7 @@ static int sb16WriteAudio(PSB16STATE pThis, int nchan, uint32_t dma_pos,
         {
             int rc2 = pDrv->pConnector->pfnWrite(pDrv->pConnector, pDrv->Out.pStrmOut,
                                                  tmpbuf, cbToRead, &cbWritten);
-            LogFlowFunc(("\tLUN#%RU8: rc=%Rrc, cbWritten=%RU32, cWrittenMin=%RU32\n", pDrv->uLUN, rc2, cbWritten));
+            LogFlowFunc(("\tLUN#%RU8: rc=%Rrc, cbWritten=%RU32\n", pDrv->uLUN, rc2, cbWritten));
         }
 
         Assert(cbToWrite >= cbToRead);

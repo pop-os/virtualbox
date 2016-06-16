@@ -92,6 +92,7 @@
 #include <iprt/asm-math.h>
 #include <iprt/semaphore.h>
 #include <iprt/critsect.h>
+#include <iprt/param.h>
 #ifdef IN_RING3
 # include <iprt/alloca.h>
 # include <iprt/mem.h>
@@ -101,6 +102,9 @@
 #include <VBox/vusb.h>
 #include "VBoxDD.h"
 
+
+//#define VBOX_WITH_OHCI_PHYS_READ_CACHE
+//#define VBOX_WITH_OHCI_PHYS_READ_STATS
 
 /*********************************************************************************************************************************
 *   Structures and Typedefs                                                                                                      *
@@ -215,6 +219,15 @@ typedef struct ohci_load {
 /** Pointer to an OHCILOAD structure. */
 typedef OHCILOAD *POHCILOAD;
 
+#ifdef VBOX_WITH_OHCI_PHYS_READ_CACHE
+typedef struct OHCIPAGECACHE
+{
+    /** Last read physical page address. */
+    RTGCPHYS            GCPhysReadCacheAddr;
+    /** Copy of last read physical page. */
+    uint8_t             au8PhysReadCache[PAGE_SIZE];
+} OHCIPAGECACHE, *POHCIPAGECACHE;
+#endif
 
 /**
  * OHCI device data.
@@ -387,6 +400,12 @@ typedef struct OHCI
     uint64_t                   nsWait;
     /** Critical section to synchronize the framer and URB completion handler. */
     RTCRITSECT                 CritSect;
+#ifdef VBOX_WITH_OHCI_PHYS_READ_CACHE
+    /** Last read physical page for caching ED reads in the framer thread. */
+    R3PTRTYPE(POHCIPAGECACHE)  pCacheED;
+    /** Last read physical page for caching TD reads in the framer thread. */
+    R3PTRTYPE(POHCIPAGECACHE)  pCacheTD;
+#endif
 
 } OHCI;
 
@@ -804,6 +823,9 @@ RT_C_DECLS_BEGIN
 static void                 rhport_power(POHCIROOTHUB pRh, unsigned iPort, bool fPowerUp);
 static void                 ohciBusResume(POHCI ohci, bool fHardware);
 static void                 ohciBusStop(POHCI pThis);
+#ifdef VBOX_WITH_OHCI_PHYS_READ_CACHE
+static void                 ohciPhysReadCacheClear(POHCIPAGECACHE pPageCache);
+#endif
 
 static DECLCALLBACK(void)   ohciRhXferCompletion(PVUSBIROOTHUBPORT pInterface, PVUSBURB pUrb);
 static DECLCALLBACK(bool)   ohciRhXferError(PVUSBIROOTHUBPORT pInterface, PVUSBURB pUrb);
@@ -1167,6 +1189,11 @@ static void ohciDoReset(POHCI pThis, uint32_t fNewMode, bool fResetOnLinux)
     pThis->dqic = 0x7;
     pThis->fno = 0;
 
+#ifdef VBOX_WITH_OHCI_PHYS_READ_CACHE
+    ohciPhysReadCacheClear(pThis->pCacheED);
+    ohciPhysReadCacheClear(pThis->pCacheTD);
+#endif
+
     /*
      * If this is a hardware reset, we will initialize the root hub too.
      * Software resets doesn't do this according to the specs.
@@ -1227,11 +1254,176 @@ DECLINLINE(void) ohciPutDWords(POHCI pThis, uint32_t Addr, const uint32_t *pau32
 
 #ifdef IN_RING3
 
+#ifdef VBOX_WITH_OHCI_PHYS_READ_STATS
+struct DescReadStats
+{
+    uint32_t cReads;
+    uint32_t cPageChange;
+    uint32_t cMinReadsPerPage;
+    uint32_t cMaxReadsPerPage;
+
+    uint32_t cReadsLastPage;
+    uint32_t u32LastPageAddr;
+};
+
+struct PhysReadStats
+{
+    struct DescReadStats ed;
+    struct DescReadStats td;
+    struct DescReadStats all;
+
+    uint32_t cCrossReads;
+    uint32_t cCacheReads;
+    uint32_t cPageReads;
+};
+
+static struct PhysReadStats physReadStats;
+
+static void descReadStatsReset(struct DescReadStats *p)
+{
+    p->cReads = 0;
+    p->cPageChange = 0;
+    p->cMinReadsPerPage = UINT32_MAX;
+    p->cMaxReadsPerPage = 0;
+
+    p->cReadsLastPage = 0;
+    p->u32LastPageAddr = 0;
+}
+
+static void physReadStatsReset(struct PhysReadStats *p)
+{
+    descReadStatsReset(&p->ed);
+    descReadStatsReset(&p->td);
+    descReadStatsReset(&p->all);
+
+    p->cCrossReads = 0;
+    p->cCacheReads = 0;
+    p->cPageReads = 0;
+}
+
+static void physReadStatsUpdateDesc(struct DescReadStats *p, uint32_t u32Addr)
+{
+    const uint32_t u32PageAddr = u32Addr & ~UINT32_C(0xFFF);
+
+    ++p->cReads;
+
+    if (p->u32LastPageAddr == 0)
+    {
+       /* First call. */
+       ++p->cReadsLastPage;
+       p->u32LastPageAddr = u32PageAddr;
+    }
+    else if (u32PageAddr != p->u32LastPageAddr)
+    {
+       /* New page. */
+       ++p->cPageChange;
+
+       p->cMinReadsPerPage = RT_MIN(p->cMinReadsPerPage, p->cReadsLastPage);
+       p->cMaxReadsPerPage = RT_MAX(p->cMaxReadsPerPage, p->cReadsLastPage);;
+
+       p->cReadsLastPage = 1;
+       p->u32LastPageAddr = u32PageAddr;
+    }
+    else
+    {
+        /* Read on the same page. */
+       ++p->cReadsLastPage;
+    }
+}
+
+static void physReadStatsPrint(struct PhysReadStats *p)
+{
+    p->ed.cMinReadsPerPage = RT_MIN(p->ed.cMinReadsPerPage, p->ed.cReadsLastPage);
+    p->ed.cMaxReadsPerPage = RT_MAX(p->ed.cMaxReadsPerPage, p->ed.cReadsLastPage);;
+    
+    p->td.cMinReadsPerPage = RT_MIN(p->td.cMinReadsPerPage, p->td.cReadsLastPage);
+    p->td.cMaxReadsPerPage = RT_MAX(p->td.cMaxReadsPerPage, p->td.cReadsLastPage);;
+    
+    p->all.cMinReadsPerPage = RT_MIN(p->all.cMinReadsPerPage, p->all.cReadsLastPage);
+    p->all.cMaxReadsPerPage = RT_MAX(p->all.cMaxReadsPerPage, p->all.cReadsLastPage);;
+
+    LogRel(("PHYSREAD:\n"
+            "  ED: %d, %d, %d/%d\n"
+            "  TD: %d, %d, %d/%d\n"
+            " ALL: %d, %d, %d/%d\n"
+            "   C: %d, %d, %d\n"
+            "",
+            p->ed.cReads, p->ed.cPageChange, p->ed.cMinReadsPerPage, p->ed.cMaxReadsPerPage,
+            p->td.cReads, p->td.cPageChange, p->td.cMinReadsPerPage, p->td.cMaxReadsPerPage,
+            p->all.cReads, p->all.cPageChange, p->all.cMinReadsPerPage, p->all.cMaxReadsPerPage,
+            p->cCrossReads, p->cCacheReads, p->cPageReads
+          ));
+
+    physReadStatsReset(p);
+}
+#endif /* VBOX_WITH_OHCI_PHYS_READ_STATS */
+
+#ifdef VBOX_WITH_OHCI_PHYS_READ_CACHE
+static POHCIPAGECACHE ohciPhysReadCacheAlloc(void)
+{
+    return (POHCIPAGECACHE)RTMemAlloc(sizeof(OHCIPAGECACHE));
+}
+
+static void ohciPhysReadCacheFree(POHCIPAGECACHE pPageCache)
+{
+    RTMemFree(pPageCache);
+}
+
+static void ohciPhysReadCacheClear(POHCIPAGECACHE pPageCache)
+{
+    pPageCache->GCPhysReadCacheAddr = NIL_RTGCPHYS;
+}
+
+static void ohciPhysReadCacheRead(POHCI pThis, POHCIPAGECACHE pPageCache, RTGCPHYS GCPhys, void *pvBuf, size_t cbBuf)
+{
+    const RTGCPHYS PageAddr = PAGE_ADDRESS(GCPhys);
+
+    if (PageAddr == PAGE_ADDRESS(GCPhys + cbBuf))
+    {
+        if (PageAddr != pPageCache->GCPhysReadCacheAddr)
+        {
+            PDMDevHlpPhysRead(pThis->pDevInsR3, PageAddr,
+                              pPageCache->au8PhysReadCache, sizeof(pPageCache->au8PhysReadCache));
+            pPageCache->GCPhysReadCacheAddr = PageAddr;
+#ifdef VBOX_WITH_OHCI_PHYS_READ_STATS
+            ++physReadStats.cPageReads;
+#endif
+        }
+
+        memcpy(pvBuf, &pPageCache->au8PhysReadCache[GCPhys & PAGE_OFFSET_MASK], cbBuf);
+#ifdef VBOX_WITH_OHCI_PHYS_READ_STATS
+        ++physReadStats.cCacheReads;
+#endif
+    }
+    else
+    {
+        PDMDevHlpPhysRead(pThis->pDevInsR3, GCPhys, pvBuf, cbBuf);
+#ifdef VBOX_WITH_OHCI_PHYS_READ_STATS
+        ++physReadStats.cCrossReads;
+#endif
+    }
+}
+
+static void ohciReadEdCached(POHCI pThis, uint32_t EdAddr, POHCIED pEd)
+{
+    ohciPhysReadCacheRead(pThis, pThis->pCacheED, EdAddr, pEd, sizeof(*pEd));
+}
+
+static void ohciReadTdCached(POHCI pThis, uint32_t TdAddr, POHCITD pTd)
+{
+    ohciPhysReadCacheRead(pThis, pThis->pCacheTD, TdAddr, pTd, sizeof(*pTd));
+}
+#endif /* VBOX_WITH_OHCI_PHYS_READ_CACHE */
+
 /**
  * Reads an OHCIED.
  */
 DECLINLINE(void) ohciReadEd(POHCI pThis, uint32_t EdAddr, POHCIED pEd)
 {
+#ifdef VBOX_WITH_OHCI_PHYS_READ_STATS
+    physReadStatsUpdateDesc(&physReadStats.ed, EdAddr);
+    physReadStatsUpdateDesc(&physReadStats.all, EdAddr);
+#endif
     ohciGetDWords(pThis, EdAddr, (uint32_t *)pEd, sizeof(*pEd) >> 2);
 }
 
@@ -1240,6 +1432,10 @@ DECLINLINE(void) ohciReadEd(POHCI pThis, uint32_t EdAddr, POHCIED pEd)
  */
 DECLINLINE(void) ohciReadTd(POHCI pThis, uint32_t TdAddr, POHCITD pTd)
 {
+#ifdef VBOX_WITH_OHCI_PHYS_READ_STATS
+    physReadStatsUpdateDesc(&physReadStats.td, TdAddr);
+    physReadStatsUpdateDesc(&physReadStats.all, TdAddr);
+#endif
     ohciGetDWords(pThis, TdAddr, (uint32_t *)pTd, sizeof(*pTd) >> 2);
 #ifdef LOG_ENABLED
     if (LogIs3Enabled())
@@ -2824,8 +3020,16 @@ static bool ohciServiceTdMultiple(POHCI pThis, VUSBXFERTYPE enmType, PCOHCIED pE
         struct OHCITDENTRY *pNext;
     }   Head;
 
+#ifdef VBOX_WITH_OHCI_PHYS_READ_CACHE
+    ohciPhysReadCacheClear(pThis->pCacheTD);
+#endif
+
     /* read the head */
+#ifdef VBOX_WITH_OHCI_PHYS_READ_CACHE
+    ohciReadTdCached(pThis, TdAddr, &Head.Td);
+#else
     ohciReadTd(pThis, TdAddr, &Head.Td);
+#endif
     ohciBufInit(&Head.Buf, Head.Td.cbp, Head.Td.be);
     Head.TdAddr = TdAddr;
     Head.pNext = NULL;
@@ -2843,7 +3047,11 @@ static bool ohciServiceTdMultiple(POHCI pThis, VUSBXFERTYPE enmType, PCOHCIED pE
 
         pCur->pNext = NULL;
         pCur->TdAddr = pTail->Td.NextTD & ED_PTR_MASK;
+#ifdef VBOX_WITH_OHCI_PHYS_READ_CACHE
+        ohciReadTdCached(pThis, pCur->TdAddr, &pCur->Td);
+#else
         ohciReadTd(pThis, pCur->TdAddr, &pCur->Td);
+#endif
         ohciBufInit(&pCur->Buf, pCur->Td.cbp, pCur->Td.be);
 
         /* Don't combine if the direction doesn't match up. There can't actually be
@@ -3353,7 +3561,11 @@ static void ohciServiceBulkList(POHCI pThis)
     while (EdAddr)
     {
         OHCIED Ed;
+#ifdef VBOX_WITH_OHCI_PHYS_READ_CACHE
+        ohciReadEdCached(pThis, EdAddr, &Ed);
+#else
         ohciReadEd(pThis, EdAddr, &Ed);
+#endif
         Assert(!(Ed.hwinfo & ED_HWINFO_ISO)); /* the guest is screwing us */
         if (ohciIsEdReady(&Ed))
         {
@@ -3447,7 +3659,11 @@ static void ohciUndoBulkList(POHCI pThis)
     while (EdAddr)
     {
         OHCIED Ed;
+#ifdef VBOX_WITH_OHCI_PHYS_READ_CACHE
+        ohciReadEdCached(pThis, EdAddr, &Ed);
+#else
         ohciReadEd(pThis, EdAddr, &Ed);
+#endif
         Assert(!(Ed.hwinfo & ED_HWINFO_ISO)); /* the guest is screwing us */
         if (ohciIsEdPresent(&Ed))
         {
@@ -3564,7 +3780,11 @@ static void ohciServicePeriodicList(POHCI pThis)
     while (EdAddr)
     {
         OHCIED Ed;
+#ifdef VBOX_WITH_OHCI_PHYS_READ_CACHE
+        ohciReadEdCached(pThis, EdAddr, &Ed);
+#else
         ohciReadEd(pThis, EdAddr, &Ed);
+#endif
 
         if (ohciIsEdReady(&Ed))
         {
@@ -3696,6 +3916,12 @@ static void ohciCancelOrphanedURBs(POHCI pThis)
     }
     Assert(cLeft == 0);
 
+#ifdef VBOX_WITH_OHCI_PHYS_READ_CACHE
+    /* Get hcca data to minimize calls to ohciGetDWords/PDMDevHlpPhysRead. */
+    uint32_t au32HCCA[OHCI_HCCA_NUM_INTR];
+    ohciGetDWords(pThis, pThis->hcca, au32HCCA, OHCI_HCCA_NUM_INTR);
+#endif
+
     /* Go over all bulk/control/interrupt endpoint lists; any URB found in these lists
      * is marked as active again.
      */
@@ -3710,23 +3936,38 @@ static void ohciCancelOrphanedURBs(POHCI pThis)
             EdAddr = pThis->ctrl_head;
             break;
         default:
+#ifdef VBOX_WITH_OHCI_PHYS_READ_CACHE
+            EdAddr = au32HCCA[i];
+#else
             ohciGetDWords(pThis, pThis->hcca + i * sizeof(EdAddr), &EdAddr, 1);
+#endif
             break;
         }
         while (EdAddr)
         {
             OHCIED Ed;
             OHCITD Td;
+#ifdef VBOX_WITH_OHCI_PHYS_READ_CACHE
+            ohciReadEdCached(pThis, EdAddr, &Ed);
+#else
             ohciReadEd(pThis, EdAddr, &Ed);
+#endif
             uint32_t TdAddr = Ed.HeadP & ED_PTR_MASK;
             uint32_t TailP  = Ed.TailP & ED_PTR_MASK;
             unsigned k = 0;
             if (  !(Ed.hwinfo & ED_HWINFO_SKIP)
                 && (TdAddr != TailP))
             {
+#ifdef VBOX_WITH_OHCI_PHYS_READ_CACHE
+                ohciPhysReadCacheClear(pThis->pCacheTD);
+#endif
                 do
                 {
+#ifdef VBOX_WITH_OHCI_PHYS_READ_CACHE
+                    ohciReadTdCached(pThis, TdAddr, &Td);
+#else
                     ohciReadTd(pThis, TdAddr, &Td);
+#endif
                     j = ohci_in_flight_find(pThis, TdAddr);
                     if (j > -1)
                         pThis->aInFlight[j].fInactive = false;
@@ -3922,6 +4163,15 @@ static DECLCALLBACK(int) ohciR3ThreadFrame(PPDMDEVINS pDevIns, PPDMTHREAD pThrea
         /* Reset idle detection flag */
         pThis->fIdle = true;
 
+#ifdef VBOX_WITH_OHCI_PHYS_READ_STATS
+        physReadStatsReset(&physReadStats);
+#endif
+
+#ifdef VBOX_WITH_OHCI_PHYS_READ_CACHE
+        ohciPhysReadCacheClear(pThis->pCacheED);
+        ohciPhysReadCacheClear(pThis->pCacheTD);
+#endif
+
         /*
          * Process new frames until we reached the required amount of
          * frames for this service period. We might need to catch up
@@ -3966,6 +4216,10 @@ static DECLCALLBACK(int) ohciR3ThreadFrame(PPDMDEVINS pDevIns, PPDMTHREAD pThrea
                 cFramesProcessed = 0;
             }
         }
+
+#ifdef VBOX_WITH_OHCI_PHYS_READ_STATS
+        physReadStatsPrint(&physReadStats);
+#endif
 
         RTCritSectLeave(&pThis->CritSect);
 
@@ -5758,6 +6012,13 @@ static DECLCALLBACK(int) ohciR3Destruct(PPDMDEVINS pDevIns)
     POHCI pThis = PDMINS_2_DATA(pDevIns, POHCI);
     PDMDEV_CHECK_VERSIONS_RETURN_QUIET(pDevIns);
 
+#ifdef VBOX_WITH_OHCI_PHYS_READ_CACHE
+    ohciPhysReadCacheFree(pThis->pCacheED);
+    pThis->pCacheED = NULL;
+    ohciPhysReadCacheFree(pThis->pCacheTD);
+    pThis->pCacheTD = NULL;
+#endif
+
     /*
      * Destroy event sempahores.
      */
@@ -5949,6 +6210,14 @@ static DECLCALLBACK(int) ohciR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFG
     if (RT_FAILURE(rc))
         return PDMDevHlpVMSetError(pDevIns, rc, RT_SRC_POS,
                                    N_("OHCI: Failed to create worker thread"));
+
+#ifdef VBOX_WITH_OHCI_PHYS_READ_CACHE
+    pThis->pCacheED = ohciPhysReadCacheAlloc();
+    pThis->pCacheTD = ohciPhysReadCacheAlloc();
+    if (pThis->pCacheED == NULL || pThis->pCacheTD == NULL)
+        return PDMDevHlpVMSetError(pDevIns, VERR_NO_MEMORY, RT_SRC_POS,
+                                   N_("OHCI: Failed to allocate PhysRead cache"));
+#endif
 
     /*
      * Do a hardware reset.

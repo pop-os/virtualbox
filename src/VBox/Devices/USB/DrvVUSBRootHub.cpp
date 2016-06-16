@@ -340,6 +340,8 @@ static DECLCALLBACK(void) vusbRhFreeUrb(PVUSBURB pUrb)
     PVUSBROOTHUB pRh = (PVUSBROOTHUB)pUrb->VUsb.pvFreeCtx;
     Assert(pRh);
 
+    Assert(pUrb->enmState != VUSBURBSTATE_FREE);
+
     /*
      * Free the URB description (logging builds only).
      */
