@@ -2,7 +2,7 @@
   Console Platform DXE Driver, install Console Device Guids and update Console
   Environment Variables.
 
-Copyright (c) 2006 - 2010, Intel Corporation. All rights reserved.<BR>
+Copyright (c) 2006 - 2013, Intel Corporation. All rights reserved.<BR>
 This program and the accompanying materials
 are licensed and made available under the terms and conditions of the BSD License
 which accompanies this distribution.  The full text of the license may be found at
@@ -80,7 +80,7 @@ InitializeConPlatform(
 
 
 /**
-  Test to see if EFI_SIMPLE_TEXT_INPUT_PROTOCOL is supported on ControllerHandle. 
+  Test to see if EFI_SIMPLE_TEXT_INPUT_PROTOCOL is supported on ControllerHandle.
 
   @param  This                Protocol instance pointer.
   @param  ControllerHandle    Handle of device to test.
@@ -108,7 +108,7 @@ ConPlatformTextInDriverBindingSupported (
 
 
 /**
-  Test to see if EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL is supported on ControllerHandle. 
+  Test to see if EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL is supported on ControllerHandle.
 
   @param  This                Protocol instance pointer.
   @param  ControllerHandle    Handle of device to test.
@@ -136,7 +136,7 @@ ConPlatformTextOutDriverBindingSupported (
 
 
 /**
-  Test to see if the specified protocol is supported on ControllerHandle. 
+  Test to see if the specified protocol is supported on ControllerHandle.
 
   @param  This                Protocol instance pointer.
   @param  ControllerHandle    Handle of device to test.
@@ -202,9 +202,9 @@ ConPlatformDriverBindingSupported (
   Start this driver on ControllerHandle by opening Simple Text Input Protocol,
   reading Device Path, and installing Console In Devcice GUID on ControllerHandle.
 
-  If this devcie is not one hot-plug devce, append its device path into the 
+  If this devcie is not one hot-plug devce, append its device path into the
   console environment variables ConInDev.
-  
+
   @param  This                 Protocol instance pointer.
   @param  ControllerHandle     Handle of device to bind driver to
   @param  RemainingDevicePath  Optional parameter use to pick a specific child
@@ -334,9 +334,9 @@ ConPlatformTextInDriverBindingStart (
   reading Device Path, and installing Console Out Devcic GUID, Standard Error
   Device GUID on ControllerHandle.
 
-  If this devcie is not one hot-plug devce, append its device path into the 
+  If this devcie is not one hot-plug devce, append its device path into the
   console environment variables ConOutDev, ErrOutDev.
-  
+
   @param  This                 Protocol instance pointer.
   @param  ControllerHandle     Handle of device to bind driver to
   @param  RemainingDevicePath  Optional parameter use to pick a specific child
@@ -450,7 +450,7 @@ ConPlatformTextOutDriverBindingStart (
     }
   } else {
     //
-    // If it is not a hot-plug device, append the device path to 
+    // If it is not a hot-plug device, append the device path to
     // the ConOutDev and ErrOutDev environment variable.
     // For GOP device path, append the sibling device path as well.
     //
@@ -511,7 +511,7 @@ ConPlatformTextOutDriverBindingStart (
 }
 
 /**
-  Stop this driver on ControllerHandle by removing Console In Devcice GUID 
+  Stop this driver on ControllerHandle by removing Console In Devcice GUID
   and closing the Simple Text Input protocol on ControllerHandle.
 
   @param  This              Protocol instance pointer.
@@ -585,7 +585,7 @@ ConPlatformTextInDriverBindingStop (
 
 
 /**
-  Stop this driver on ControllerHandle by removing Console Out Devcice GUID 
+  Stop this driver on ControllerHandle by removing Console Out Devcice GUID
   and closing the Simple Text Output protocol on ControllerHandle.
 
   @param  This              Protocol instance pointer.
@@ -714,7 +714,7 @@ ConPlatformUnInstallProtocol (
   @param  Name             String part of EFI variable name
 
   @return Dynamically allocated memory that contains a copy of the EFI variable.
-          Caller is repsoncible freeing the buffer. Return NULL means Variable 
+          Caller is repsoncible freeing the buffer. Return NULL means Variable
           was not read.
 
 **/
@@ -769,6 +769,57 @@ ConPlatformGetVariable (
   }
 
   return Buffer;
+}
+
+/**
+  Function returns TRUE when the two input device paths point to the two
+  GOP child handles that have the same parent.
+
+  @param Left    A pointer to a device path data structure.
+  @param Right   A pointer to a device path data structure.
+
+  @retval TRUE  Left and Right share the same parent.
+  @retval FALSE Left and Right don't share the same parent or either of them is not
+                a GOP device path.
+**/
+BOOLEAN
+IsGopSibling (
+  IN EFI_DEVICE_PATH_PROTOCOL  *Left,
+  IN EFI_DEVICE_PATH_PROTOCOL  *Right
+  )
+{
+  EFI_DEVICE_PATH_PROTOCOL  *NodeLeft;
+  EFI_DEVICE_PATH_PROTOCOL  *NodeRight;
+
+  for (NodeLeft = Left; !IsDevicePathEndType (NodeLeft); NodeLeft = NextDevicePathNode (NodeLeft)) {
+    if ((DevicePathType (NodeLeft) == ACPI_DEVICE_PATH && DevicePathSubType (NodeLeft) == ACPI_ADR_DP) ||
+        (DevicePathType (NodeLeft) == HARDWARE_DEVICE_PATH && DevicePathSubType (NodeLeft) == HW_CONTROLLER_DP &&
+         DevicePathType (NextDevicePathNode (NodeLeft)) == ACPI_DEVICE_PATH && DevicePathSubType (NextDevicePathNode (NodeLeft)) == ACPI_ADR_DP)) {
+      break;
+    }
+  }
+
+  if (IsDevicePathEndType (NodeLeft)) {
+    return FALSE;
+  }
+
+  for (NodeRight = Right; !IsDevicePathEndType (NodeRight); NodeRight = NextDevicePathNode (NodeRight)) {
+    if ((DevicePathType (NodeRight) == ACPI_DEVICE_PATH && DevicePathSubType (NodeRight) == ACPI_ADR_DP) ||
+        (DevicePathType (NodeRight) == HARDWARE_DEVICE_PATH && DevicePathSubType (NodeRight) == HW_CONTROLLER_DP &&
+         DevicePathType (NextDevicePathNode (NodeRight)) == ACPI_DEVICE_PATH && DevicePathSubType (NextDevicePathNode (NodeRight)) == ACPI_ADR_DP)) {
+      break;
+    }
+  }
+
+  if (IsDevicePathEndType (NodeRight)) {
+    return FALSE;
+  }
+
+  if (((UINTN) NodeLeft - (UINTN) Left) != ((UINTN) NodeRight - (UINTN) Right)) {
+    return FALSE;
+  }
+
+  return (BOOLEAN) (CompareMem (Left, Right, (UINTN) NodeLeft - (UINTN) Left) == 0);
 }
 
 /**
@@ -830,7 +881,7 @@ ConPlatformMatchDevicePaths (
   // Search for the match of 'Single' in 'Multi'
   //
   while (DevicePathInst != NULL) {
-    if (CompareMem (Single, DevicePathInst, Size) == 0) {
+    if ((CompareMem (Single, DevicePathInst, Size) == 0) || IsGopSibling (Single, DevicePathInst)) {
       if (!Delete) {
         //
         // If Delete is FALSE, return EFI_SUCCESS if Single is found in Multi.
@@ -871,7 +922,7 @@ ConPlatformMatchDevicePaths (
 }
 
 /**
-  Update console environment variables. 
+  Update console environment variables.
 
   @param  VariableName    Console environment variables, ConOutDev, ConInDev
                           ErrOutDev, ConIn ,ConOut or ErrOut.
@@ -907,7 +958,7 @@ ConPlatformUpdateDeviceVariable (
   if (Operation != Delete) {
     //
     // Match specified DevicePath in Console Variable.
-    // 
+    //
     Status = ConPlatformMatchDevicePaths (
                VariableDevicePath,
                DevicePath,
@@ -1001,7 +1052,7 @@ IsHotPlugDevice (
   while (!IsDevicePathEnd (CheckDevicePath)) {
     //
     // Check device whether is hot plug device or not throught Device Path
-    // 
+    //
     if ((DevicePathType (CheckDevicePath) == MESSAGING_DEVICE_PATH) &&
         (DevicePathSubType (CheckDevicePath) == MSG_USB_DP ||
          DevicePathSubType (CheckDevicePath) == MSG_USB_CLASS_DP ||
@@ -1018,7 +1069,7 @@ IsHotPlugDevice (
       //
       return TRUE;
     }
-  
+
     CheckDevicePath = NextDevicePathNode (CheckDevicePath);
   }
 

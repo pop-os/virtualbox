@@ -3,7 +3,7 @@
   The internal header file includes the common header files, defines
   internal structure and functions used by Variable modules.
 
-Copyright (c) 2006 - 2010, Intel Corporation. All rights reserved.<BR>
+Copyright (c) 2006 - 2014, Intel Corporation. All rights reserved.<BR>
 This program and the accompanying materials
 are licensed and made available under the terms and conditions of the BSD License
 which accompanies this distribution.  The full text of the license may be found at
@@ -22,6 +22,7 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 #include <Protocol/FaultTolerantWrite.h>
 #include <Protocol/FirmwareVolumeBlock.h>
 #include <Protocol/Variable.h>
+#include <Protocol/VariableLock.h>
 #include <Library/PcdLib.h>
 #include <Library/HobLib.h>
 #include <Library/UefiDriverEntryPoint.h>
@@ -38,8 +39,17 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 #include <Guid/EventGroup.h>
 #include <Guid/VariableFormat.h>
 #include <Guid/SystemNvDataGuid.h>
+#include <Guid/FaultTolerantWrite.h>
+#include <Guid/HardwareErrorVariable.h>
 
-#define VARIABLE_RECLAIM_THRESHOLD (1024)
+#define VARIABLE_ATTRIBUTE_BS_RT        (EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_RUNTIME_ACCESS)
+#define VARIABLE_ATTRIBUTE_NV_BS_RT     (VARIABLE_ATTRIBUTE_BS_RT | EFI_VARIABLE_NON_VOLATILE)
+#define VARIABLE_ATTRIBUTE_NV_BS_RT_AT  (VARIABLE_ATTRIBUTE_NV_BS_RT | EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS)
+
+typedef struct {
+  CHAR16      *Name;
+  UINT32      Attributes;
+} GLOBAL_VARIABLE_ENTRY;
 
 ///
 /// The size of a 3 character ISO639 language code.
@@ -55,6 +65,13 @@ typedef enum {
 
 typedef struct {
   VARIABLE_HEADER *CurrPtr;
+  //
+  // If both ADDED and IN_DELETED_TRANSITION variable are present,
+  // InDeletedTransitionPtr will point to the IN_DELETED_TRANSITION one.
+  // Otherwise, CurrPtr will point to the ADDED or IN_DELETED_TRANSITION one,
+  // and InDeletedTransitionPtr will be NULL at the same time.
+  //
+  VARIABLE_HEADER *InDeletedTransitionPtr;
   VARIABLE_HEADER *EndPtr;
   VARIABLE_HEADER *StartPtr;
   BOOLEAN         Volatile;
@@ -84,10 +101,27 @@ typedef struct {
 typedef struct {
   EFI_GUID    *Guid;
   CHAR16      *Name;
-  UINT32      Attributes;
-  UINTN       DataSize;
-  VOID        *Data;
-} VARIABLE_CACHE_ENTRY;
+  UINTN       VariableSize;
+} VARIABLE_ENTRY_CONSISTENCY;
+
+typedef struct {
+  EFI_GUID    Guid;
+  CHAR16      *Name;
+  LIST_ENTRY  Link;
+} VARIABLE_ENTRY;
+
+/**
+  Flush the HOB variable to flash.
+
+  @param[in] VariableName       Name of variable has been updated or deleted.
+  @param[in] VendorGuid         Guid of variable has been updated or deleted.
+
+**/
+VOID
+FlushHobVariableToFlash (
+  IN CHAR16                     *VariableName,
+  IN EFI_GUID                   *VendorGuid
+  );
 
 /**
   Writes a buffer to variable storage space, in the working block.
@@ -97,8 +131,7 @@ typedef struct {
   VariableBase. Fault Tolerant Write protocol is used for writing.
 
   @param  VariableBase   Base address of the variable to write.
-  @param  Buffer         Point to the data buffer.
-  @param  BufferSize     The number of bytes of the data Buffer.
+  @param  VariableBuffer Point to the variable data buffer.
 
   @retval EFI_SUCCESS    The function completed successfully.
   @retval EFI_NOT_FOUND  Fail to locate Fault Tolerant Write protocol.
@@ -108,13 +141,12 @@ typedef struct {
 EFI_STATUS
 FtwVariableSpace (
   IN EFI_PHYSICAL_ADDRESS   VariableBase,
-  IN UINT8                  *Buffer,
-  IN UINTN                  BufferSize
+  IN VARIABLE_STORE_HEADER  *VariableBuffer
   );
 
 
 /**
-  Update the variable region with Variable information. These are the same 
+  Update the variable region with Variable information. These are the same
   arguments as the EFI Variable services.
 
   @param[in] VariableName       Name of variable.
@@ -127,7 +159,7 @@ FtwVariableSpace (
 
   @param[in] Attributes         Attribues of the variable.
 
-  @param[in] Variable           The variable information that is used to keep track of variable usage.
+  @param[in, out] Variable      The variable information that is used to keep track of variable usage.
 
   @retval EFI_SUCCESS           The update operation is success.
 
@@ -141,13 +173,13 @@ UpdateVariable (
   IN      VOID            *Data,
   IN      UINTN           DataSize,
   IN      UINT32          Attributes OPTIONAL,
-  IN      VARIABLE_POINTER_TRACK *Variable
+  IN OUT  VARIABLE_POINTER_TRACK *Variable
   );
 
 
 /**
   Return TRUE if ExitBootServices () has been called.
-  
+
   @retval TRUE If ExitBootServices () has been called.
 **/
 BOOLEAN
@@ -158,8 +190,8 @@ AtRuntime (
 /**
   Initializes a basic mutual exclusion lock.
 
-  This function initializes a basic mutual exclusion lock to the released state 
-  and returns the lock.  Each lock provides mutual exclusion access at its task 
+  This function initializes a basic mutual exclusion lock to the released state
+  and returns the lock.  Each lock provides mutual exclusion access at its task
   priority level.  Since there is no preemption or multiprocessor support in EFI,
   acquiring the lock only consists of raising to the locks TPL.
   If Lock is NULL, then ASSERT().
@@ -177,7 +209,7 @@ InitializeLock (
   IN EFI_TPL        Priority
   );
 
-  
+
 /**
   Acquires lock only at boot time. Simply returns at runtime.
 
@@ -211,7 +243,7 @@ AcquireLockOnlyAtBootTime (
 VOID
 ReleaseLockOnlyAtBootTime (
   IN EFI_LOCK  *Lock
-  );  
+  );
 
 /**
   Retrive the FVB protocol interface by HANDLE.
@@ -223,7 +255,7 @@ ReleaseLockOnlyAtBootTime (
   @retval EFI_SUCCESS           The interface information for the specified protocol was returned.
   @retval EFI_UNSUPPORTED       The device does not support the FVB protocol.
   @retval EFI_INVALID_PARAMETER FvBlockHandle is not a valid EFI_HANDLE or FvBlock is NULL.
-  
+
 **/
 EFI_STATUS
 GetFvbByHandle (
@@ -249,7 +281,7 @@ GetSarProtocol (
 
 /**
   Function returns an array of handles that support the FVB protocol
-  in a buffer allocated from pool. 
+  in a buffer allocated from pool.
 
   @param[out]  NumberHandles    The number of handles returned in Buffer.
   @param[out]  Buffer           A pointer to the buffer to return the requested
@@ -260,7 +292,7 @@ GetSarProtocol (
   @retval EFI_NOT_FOUND         No FVB handle was found.
   @retval EFI_OUT_OF_RESOURCES  There is not enough pool memory to store the matching results.
   @retval EFI_INVALID_PARAMETER NumberHandles is NULL or Buffer is NULL.
-  
+
 **/
 EFI_STATUS
 GetFvbCountAndBuffer (
@@ -282,12 +314,12 @@ VariableCommonInitialize (
 
 /**
   This function reclaims variable storage if free size is below the threshold.
-  
+
 **/
 VOID
 ReclaimForOS(
   VOID
-  );  
+  );
 
 
 /**
@@ -301,7 +333,7 @@ EFI_STATUS
 VariableWriteServiceInitialize (
   VOID
   );
-  
+
 /**
   Retrive the SMM Fault Tolerent Write protocol interface.
 
@@ -342,7 +374,7 @@ GetFvbInfoByAddress (
   @param DataSize                   Size of Data found. If size is less than the
                                     data, this value contains the required size.
   @param Data                       Data pointer.
-                      
+
   @return EFI_INVALID_PARAMETER     Invalid parameter.
   @return EFI_SUCCESS               Find the specified variable.
   @return EFI_NOT_FOUND             Not found.
@@ -422,6 +454,31 @@ VariableServiceSetVariable (
   @param MaximumVariableSize            Pointer to the maximum size of an individual EFI variables
                                         associated with the attributes specified.
 
+  @return EFI_SUCCESS                   Query successfully.
+
+**/
+EFI_STATUS
+EFIAPI
+VariableServiceQueryVariableInfoInternal (
+  IN  UINT32                 Attributes,
+  OUT UINT64                 *MaximumVariableStorageSize,
+  OUT UINT64                 *RemainingVariableStorageSize,
+  OUT UINT64                 *MaximumVariableSize
+  );
+
+/**
+
+  This code returns information about the EFI variables.
+
+  @param Attributes                     Attributes bitmask to specify the type of variables
+                                        on which to return information.
+  @param MaximumVariableStorageSize     Pointer to the maximum size of the storage space available
+                                        for the EFI variables associated with the attributes specified.
+  @param RemainingVariableStorageSize   Pointer to the remaining size of the storage space available
+                                        for EFI variables associated with the attributes specified.
+  @param MaximumVariableSize            Pointer to the maximum size of an individual EFI variables
+                                        associated with the attributes specified.
+
   @return EFI_INVALID_PARAMETER         An invalid combination of attribute bits was supplied.
   @return EFI_SUCCESS                   Query successfully.
   @return EFI_UNSUPPORTED               The attribute is not supported on this platform.
@@ -434,8 +491,31 @@ VariableServiceQueryVariableInfo (
   OUT UINT64                 *MaximumVariableStorageSize,
   OUT UINT64                 *RemainingVariableStorageSize,
   OUT UINT64                 *MaximumVariableSize
-  );  
-  
+  );
+
+/**
+  Mark a variable that will become read-only after leaving the DXE phase of execution.
+
+  @param[in] This          The VARIABLE_LOCK_PROTOCOL instance.
+  @param[in] VariableName  A pointer to the variable name that will be made read-only subsequently.
+  @param[in] VendorGuid    A pointer to the vendor GUID that will be made read-only subsequently.
+
+  @retval EFI_SUCCESS           The variable specified by the VariableName and the VendorGuid was marked
+                                as pending to be read-only.
+  @retval EFI_INVALID_PARAMETER VariableName or VendorGuid is NULL.
+                                Or VariableName is an empty string.
+  @retval EFI_ACCESS_DENIED     EFI_END_OF_DXE_EVENT_GROUP_GUID or EFI_EVENT_GROUP_READY_TO_BOOT has
+                                already been signaled.
+  @retval EFI_OUT_OF_RESOURCES  There is not enough resource to hold the lock request.
+**/
+EFI_STATUS
+EFIAPI
+VariableLockRequestToLock (
+  IN CONST EDKII_VARIABLE_LOCK_PROTOCOL *This,
+  IN       CHAR16                       *VariableName,
+  IN       EFI_GUID                     *VendorGuid
+  );
+
 extern VARIABLE_MODULE_GLOBAL  *mVariableModuleGlobal;
 
 #endif

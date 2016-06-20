@@ -96,9 +96,15 @@ UIGlobalSettingsExtension::UIGlobalSettingsExtension()
     /* Setup tree-widget: */
     //m_pPackagesTree->header()->hide();
     m_pPackagesTree->header()->setStretchLastSection(false);
+#if QT_VERSION >= 0x050000
+    m_pPackagesTree->header()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    m_pPackagesTree->header()->setSectionResizeMode(1, QHeaderView::Stretch);
+    m_pPackagesTree->header()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+#else /* QT_VERSION < 0x050000 */
     m_pPackagesTree->header()->setResizeMode(0, QHeaderView::ResizeToContents);
     m_pPackagesTree->header()->setResizeMode(1, QHeaderView::Stretch);
     m_pPackagesTree->header()->setResizeMode(2, QHeaderView::ResizeToContents);
+#endif /* QT_VERSION < 0x050000 */
     m_pPackagesTree->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(m_pPackagesTree, SIGNAL(currentItemChanged(QTreeWidgetItem*, QTreeWidgetItem*)),
             this, SLOT(sltHandleCurrentItemChange(QTreeWidgetItem*)));
@@ -195,10 +201,10 @@ void UIGlobalSettingsExtension::doInstallation(QString const &strFilePath, QStri
      * do a refresh even on failure.
      */
     QString displayInfo;
-#ifdef Q_WS_WIN
+#ifdef VBOX_WS_WIN
     if (pParent)
         displayInfo.sprintf("hwnd=%#llx", (uint64_t)(uintptr_t)pParent->winId());
-#endif /* Q_WS_WIN */
+#endif /* VBOX_WS_WIN */
     /* Prepare installation progress: */
     CProgress progress = extPackFile.Install(fReplaceIt, displayInfo);
     if (extPackFile.isOk())
@@ -413,9 +419,9 @@ void UIGlobalSettingsExtension::sltRemovePackage()
             CExtPackManager manager = vboxGlobal().virtualBox().GetExtensionPackManager();
             /** @todo Refuse this if any VMs are running. */
             QString displayInfo;
-#ifdef Q_WS_WIN
+#ifdef VBOX_WS_WIN
             displayInfo.sprintf("hwnd=%#llx", (uint64_t)(uintptr_t)this->winId());
-#endif /* Q_WS_WIN */
+#endif /* VBOX_WS_WIN */
             /* Prepare uninstallation progress: */
             CProgress progress = manager.Uninstall(strSelectedPackageName, false /* forced removal? */, displayInfo);
             if (manager.isOk())

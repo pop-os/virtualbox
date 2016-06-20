@@ -2,7 +2,7 @@
   Implementation of the command set of USB Mass Storage Specification
   for Bootability, Revision 1.0.
 
-Copyright (c) 2007 - 2012, Intel Corporation. All rights reserved.<BR>
+Copyright (c) 2007 - 2014, Intel Corporation. All rights reserved.<BR>
 This program and the accompanying materials
 are licensed and made available under the terms and conditions of the BSD License
 which accompanies this distribution.  The full text of the license may be found at
@@ -211,7 +211,7 @@ UsbBootExecCmd (
   If the device isn't ready, wait for it. If the device is ready
   and error occurs, retry the command again until it exceeds the
   limit of retrial times.
-  
+
   @param  UsbMass                The device to issue commands to
   @param  Cmd                    The command to execute
   @param  CmdLen                 The length of the command
@@ -399,7 +399,7 @@ UsbBootInquiry (
   @retval EFI_SUCCESS            The disk geometry is successfully retrieved.
   @retval EFI_NOT_READY          The returned block size is zero.
   @retval Other                  READ CAPACITY 16 bytes command execution failed.
- 
+
 **/
 EFI_STATUS
 UsbBootReadCapacity16 (
@@ -429,7 +429,7 @@ UsbBootReadCapacity16 (
   ZeroMem ((CapacityCmd + 2), 8);
 
   CapacityCmd[13] = sizeof (CapacityData);
-  
+
   Status = UsbBootExecCmdWithRetry (
              UsbMass,
              CapacityCmd,
@@ -451,13 +451,13 @@ UsbBootReadCapacity16 (
   Media->LastBlock    = SwapBytes64 (ReadUnaligned64 ((CONST UINT64 *) &(CapacityData.LastLba7)));
 
   BlockSize           = SwapBytes32 (ReadUnaligned32 ((CONST UINT32 *) &(CapacityData.BlockSize3)));
-  
+
   Media->LowestAlignedLba = (CapacityData.LowestAlignLogic2 << 8) |
                              CapacityData.LowestAlignLogic1;
   Media->LogicalBlocksPerPhysicalBlock  = (1 << CapacityData.LogicPerPhysical);
   if (BlockSize == 0) {
     //
-    //  Get sense data  
+    //  Get sense data
     //
     return UsbBootRequestSense (UsbMass);
   } else {
@@ -481,7 +481,7 @@ UsbBootReadCapacity16 (
   @retval EFI_SUCCESS            The disk geometry is successfully retrieved.
   @retval EFI_NOT_READY          The returned block size is zero.
   @retval Other                  READ CAPACITY command execution failed.
- 
+
 **/
 EFI_STATUS
 UsbBootReadCapacity (
@@ -525,7 +525,7 @@ UsbBootReadCapacity (
   BlockSize           = SwapBytes32 (ReadUnaligned32 ((CONST UINT32 *) CapacityData.BlockLen));
   if (BlockSize == 0) {
     //
-    //  Get sense data  
+    //  Get sense data
     //
     return UsbBootRequestSense (UsbMass);
   } else {
@@ -626,6 +626,18 @@ UsbBootGetParams (
   if (EFI_ERROR (Status)) {
     DEBUG ((EFI_D_ERROR, "UsbBootGetParams: UsbBootInquiry (%r)\n", Status));
     return Status;
+  }
+
+  //
+  // According to USB Mass Storage Specification for Bootability, only following
+  // 4 Peripheral Device Types are in spec.
+  //
+  if ((UsbMass->Pdt != USB_PDT_DIRECT_ACCESS) &&
+       (UsbMass->Pdt != USB_PDT_CDROM) &&
+       (UsbMass->Pdt != USB_PDT_OPTICAL) &&
+       (UsbMass->Pdt != USB_PDT_SIMPLE_DIRECT)) {
+    DEBUG ((EFI_D_ERROR, "UsbBootGetParams: Found an unsupported peripheral type[%d]\n", UsbMass->Pdt));
+    return EFI_UNSUPPORTED;
   }
 
   //

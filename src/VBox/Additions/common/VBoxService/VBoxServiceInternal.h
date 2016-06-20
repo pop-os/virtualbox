@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2015 Oracle Corporation
+ * Copyright (C) 2007-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -165,11 +165,11 @@ extern VBOXSERVICE  g_Clipboard;
 extern VBOXSERVICE  g_Control;
 extern VBOXSERVICE  g_VMInfo;
 extern VBOXSERVICE  g_CpuHotPlug;
-#ifdef VBOXSERVICE_MANAGEMENT
+#ifdef VBOX_WITH_VBOXSERVICE_MANAGEMENT
 extern VBOXSERVICE  g_MemBalloon;
 extern VBOXSERVICE  g_VMStatistics;
 #endif
-#ifdef VBOXSERVICE_PAGE_SHARING
+#ifdef VBOX_WITH_VBOXSERVICE_PAGE_SHARING
 extern VBOXSERVICE  g_PageSharing;
 #endif
 #ifdef VBOX_WITH_SHARED_FOLDERS
@@ -199,10 +199,6 @@ extern RTEXITCODE               VGSvcWinEnterCtrlDispatcher(void);
 extern void                     VGSvcWinSetStopPendingStatus(uint32_t uCheckPoint);
 #endif
 
-#ifdef VBOXSERVICE_TOOLBOX
-extern bool                     VGSvcToolboxMain(int argc, char **argv, RTEXITCODE *prcExit);
-#endif
-
 #ifdef RT_OS_WINDOWS
 # ifdef VBOX_WITH_GUEST_PROPS
 extern int                      VGSvcVMInfoWinWriteUsers(PVBOXSERVICEVEPROPCACHE pCache, char **ppszUserList, uint32_t *pcUsersInList);
@@ -210,10 +206,10 @@ extern int                      VGSvcVMInfoWinGetComponentVersions(uint32_t uCli
 # endif /* VBOX_WITH_GUEST_PROPS */
 #endif /* RT_OS_WINDOWS */
 
-#ifdef VBOXSERVICE_MANAGEMENT
+#ifdef VBOX_WITH_VBOXSERVICE_MANAGEMENT
 extern uint32_t                 VGSvcBalloonQueryPages(uint32_t cbPage);
 #endif
-#if defined(VBOXSERVICE_PAGE_SHARING)
+#if defined(VBOX_WITH_VBOXSERVICE_PAGE_SHARING)
 extern RTEXITCODE               VGSvcPageSharingWorkerChild(void);
 #endif
 extern int                      VGSvcVMInfoSignal(void);

@@ -29,7 +29,9 @@
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
+#include <iprt/dir.h>
 #include <iprt/err.h>
+#include <iprt/file.h>
 #include <iprt/getopt.h>
 #include <iprt/path.h>
 #include <iprt/param.h>
@@ -37,7 +39,8 @@
 #include <iprt/stream.h>
 #include <iprt/string.h>
 #include <iprt/test.h>
-#include <iprt/file.h>
+
+#include <iprt/linux/sysfs.h>
 
 #include <unistd.h>
 #include <errno.h>
@@ -54,10 +57,6 @@
 /*********************************************************************************************************************************
 *   Defined Constants And Macros                                                                                                 *
 *********************************************************************************************************************************/
-
-/** Number of tests implemented at the moment. */
-#define USBTEST_TEST_CASES      25
-
 
 /*********************************************************************************************************************************
 *   Structures and Typedefs                                                                                                      *
@@ -111,53 +110,145 @@ typedef struct USBDEVDESC
 
 #define USBTEST_REQUEST _IOWR('U', 100, USBTESTPARMS)
 
+/**
+ * Callback to set up the test parameters for a specific test.
+ *
+ * @returns IPRT status code.
+ * @retval  VINF_SUCCESS    if setting the parameters up succeeded. Any other error code
+ *                          otherwise indicating the kind of error.
+ * @param   idxTest         The test index.
+ * @param   pszTest         Test name.
+ * @param   pParams         The USB test parameters to set up.
+ */
+typedef DECLCALLBACK(int) FNUSBTESTPARAMSSETUP(unsigned idxTest, const char *pszTest, PUSBTESTPARAMS pParams);
+/** Pointer to a USB test parameters setup callback. */
+typedef FNUSBTESTPARAMSSETUP *PFNUSBTESTPARAMSSETUP;
+
+/**
+ * USB test descriptor.
+ */
+typedef struct USBTESTDESC
+{
+    /** (Sort of) Descriptive test name. */
+    const char           *pszName;
+    /** Flag whether the test is excluded. */
+    bool                  fExcluded;
+    /** The parameter setup callback. */
+    PFNUSBTESTPARAMSSETUP pfnParamsSetup;
+} USBTESTDESC;
+/** Pointer a USB test descriptor. */
+typedef USBTESTDESC *PUSBTESTDESC;
+
+/**
+ * USB speed values.
+ */
+typedef enum USBTESTSPEED
+{
+    USBTESTSPEED_ANY = 0,
+    USBTESTSPEED_UNKNOWN,
+    USBTESTSPEED_LOW,
+    USBTESTSPEED_FULL,
+    USBTESTSPEED_HIGH,
+    USBTESTSPEED_SUPER
+} USBTESTSPEED;
 
 /*********************************************************************************************************************************
 *   Global Variables                                                                                                             *
 *********************************************************************************************************************************/
 
+/** Some forward method declarations. */
+static DECLCALLBACK(int) usbTestParamsSetupReadWrite(unsigned idxTest, const char *pszTest, PUSBTESTPARAMS pParams);
+static DECLCALLBACK(int) usbTestParamsSetupControlWrites(unsigned idxTest, const char *pszTest, PUSBTESTPARAMS pParams);
+
 /** Command line parameters */
 static const RTGETOPTDEF g_aCmdOptions[] =
 {
     {"--device",           'd', RTGETOPT_REQ_STRING },
-    {"--help",             'h', RTGETOPT_REQ_NOTHING}
+    {"--help",             'h', RTGETOPT_REQ_NOTHING},
+    {"--exclude",          'e', RTGETOPT_REQ_UINT32},
+    {"--exclude-all",      'a', RTGETOPT_REQ_NOTHING},
+    {"--include",          'i', RTGETOPT_REQ_UINT32},
+    {"--expected-speed",   's', RTGETOPT_REQ_STRING }
 };
 
-/** (Sort of) Descriptive test descriptions. */
-static const char *g_apszTests[] =
+static USBTESTDESC g_aTests[] =
 {
-    "NOP",
-    "Non-queued Bulk write",
-    "Non-queued Bulk read",
-    "Non-queued Bulk write variabe size",
-    "Non-queued Bulk read variabe size",
-    "Queued Bulk write",
-    "Queued Bulk read",
-    "Queued Bulk write variabe size",
-    "Queued Bulk read variabe size",
-    "Chapter 9 Control Test",
-    "Queued control messaging",
-    "Unlink reads",
-    "Unlink writes",
-    "Set/Clear halts",
-    "Control writes",
-    "Isochronous write",
-    "Isochronous read",
-    "Bulk write unaligned (DMA)",
-    "Bulk read unaligned (DMA)",
-    "Bulk write unaligned (no DMA)",
-    "Bulk read unaligned (no DMA)",
-    "Control writes unaligned",
-    "Isochronous write unaligned",
-    "Isochronous read unaligned",
-    "Unlink queued Bulk"
+    /* pszTest                             fExcluded      pfnParamsSetup */
+    {"NOP",                                false,         usbTestParamsSetupReadWrite},
+    {"Non-queued Bulk write",              false,         usbTestParamsSetupReadWrite},
+    {"Non-queued Bulk read",               false,         usbTestParamsSetupReadWrite},
+    {"Non-queued Bulk write variabe size", false,         usbTestParamsSetupReadWrite},
+    {"Non-queued Bulk read variabe size",  false,         usbTestParamsSetupReadWrite},
+    {"Queued Bulk write",                  false,         usbTestParamsSetupReadWrite},
+    {"Queued Bulk read",                   false,         usbTestParamsSetupReadWrite},
+    {"Queued Bulk write variabe size",     false,         usbTestParamsSetupReadWrite},
+    {"Queued Bulk read variabe size",      false,         usbTestParamsSetupReadWrite},
+    {"Chapter 9 Control Test",             false,         usbTestParamsSetupReadWrite},
+    {"Queued control messaging",           false,         usbTestParamsSetupReadWrite},
+    {"Unlink reads",                       false,         usbTestParamsSetupReadWrite},
+    {"Unlink writes",                      false,         usbTestParamsSetupReadWrite},
+    {"Set/Clear halts",                    false,         usbTestParamsSetupReadWrite},
+    {"Control writes",                     false,         usbTestParamsSetupControlWrites},
+    {"Isochronous write",                  false,         usbTestParamsSetupReadWrite},
+    {"Isochronous read",                   false,         usbTestParamsSetupReadWrite},
+    {"Bulk write unaligned (DMA)",         false,         usbTestParamsSetupReadWrite},
+    {"Bulk read unaligned (DMA)",          false,         usbTestParamsSetupReadWrite},
+    {"Bulk write unaligned (no DMA)",      false,         usbTestParamsSetupReadWrite},
+    {"Bulk read unaligned (no DMA)",       false,         usbTestParamsSetupReadWrite},
+    {"Control writes unaligned",           false,         usbTestParamsSetupControlWrites},
+    {"Isochronous write unaligned",        false,         usbTestParamsSetupReadWrite},
+    {"Isochronous read unaligned",         false,         usbTestParamsSetupReadWrite},
+    {"Unlink queued Bulk",                 false,         usbTestParamsSetupReadWrite}
 };
-AssertCompile(RT_ELEMENTS(g_apszTests) == USBTEST_TEST_CASES);
 
 /** The test handle. */
 static RTTEST g_hTest;
+/** The expected device speed. */
+static USBTESTSPEED g_enmSpeed = USBTESTSPEED_ANY;
 
+/**
+ * Setup callback for basic read/write (bulk, isochronous) tests.
+ *
+ * @copydoc FNUSBTESTPARAMSSETUP
+ */
+static DECLCALLBACK(int) usbTestParamsSetupReadWrite(unsigned idxTest, const char *pszTest, PUSBTESTPARAMS pParams)
+{
+    NOREF(idxTest);
+    NOREF(pszTest);
 
+    pParams->cIterations = 1000;
+    pParams->cbData = 512;
+    pParams->cbVariation = 512;
+    pParams->cSgLength = 32;
+
+    return VINF_SUCCESS;
+}
+
+/**
+ * Setup callback for the control writes test.
+ *
+ * @copydoc FNUSBTESTPARAMSSETUP
+ */
+static DECLCALLBACK(int) usbTestParamsSetupControlWrites(unsigned idxTest, const char *pszTest, PUSBTESTPARAMS pParams)
+{
+    NOREF(idxTest);
+    NOREF(pszTest);
+
+    pParams->cIterations = 1000;
+    pParams->cbData = 512;
+    /*
+     * Must be smaller than cbData or the parameter check in the usbtest module fails,
+     * no idea yet why it must be this.
+     */
+    pParams->cbVariation = 256;
+    pParams->cSgLength = 32;
+
+    return VINF_SUCCESS;
+}
+
+/**
+ * Shows tool usage text.
+ */
 static void usbTestUsage(PRTSTREAM pStrm)
 {
     char szExec[RTPATH_MAX];
@@ -178,14 +269,109 @@ static void usbTestUsage(PRTSTREAM pStrm)
             case 'd':
                 pszHelp = "Use the specified test device";
                 break;
+            case 'e':
+                pszHelp = "Exclude the given test id from the list";
+                break;
+            case 'a':
+                pszHelp = "Exclude all tests from the list (useful to enable single tests later with --include)";
+                break;
+            case 'i':
+                pszHelp = "Include the given test id in the list";
+                break;
+            case 's':
+                pszHelp = "The device speed to expect";
+                break;
             default:
                 pszHelp = "Option undocumented";
                 break;
         }
         char szOpt[256];
         RTStrPrintf(szOpt, sizeof(szOpt), "%s, -%c", g_aCmdOptions[i].pszLong, g_aCmdOptions[i].iShort);
-        RTStrmPrintf(pStrm, "  %-20s%s\n", szOpt, pszHelp);
+        RTStrmPrintf(pStrm, "  %-30s%s\n", szOpt, pszHelp);
     }
+}
+
+/**
+ * Searches for a USB test device and returns the bus and device ID and the device speed.
+ */
+static int usbTestDeviceQueryBusAndDevId(uint16_t *pu16BusId, uint16_t *pu16DevId, USBTESTSPEED *penmSpeed)
+{
+    bool fFound = false;
+
+#define USBTEST_USB_DEV_SYSFS "/sys/bus/usb/devices/"
+
+    PRTDIR pDirUsb = NULL;
+    int rc = RTDirOpen(&pDirUsb, USBTEST_USB_DEV_SYSFS);
+    if (RT_SUCCESS(rc))
+    {
+        do
+        {
+            RTDIRENTRY DirUsbBus;
+            rc = RTDirRead(pDirUsb, &DirUsbBus, NULL);
+            if (   RT_SUCCESS(rc)
+                && RTStrNCmp(DirUsbBus.szName, "usb", 3)
+                && RTLinuxSysFsExists(USBTEST_USB_DEV_SYSFS "%s/idVendor", DirUsbBus.szName))
+            {
+                int64_t idVendor  = 0;
+                int64_t idProduct = 0;
+                int64_t iBusId    = 0;
+                int64_t iDevId    = 0;
+                char    aszSpeed[20];
+
+                rc = RTLinuxSysFsReadIntFile(16, &idVendor, USBTEST_USB_DEV_SYSFS "%s/idVendor", DirUsbBus.szName);
+                if (RT_SUCCESS(rc))
+                    rc = RTLinuxSysFsReadIntFile(16, &idProduct, USBTEST_USB_DEV_SYSFS "%s/idProduct", DirUsbBus.szName);
+                if (RT_SUCCESS(rc))
+                    rc = RTLinuxSysFsReadIntFile(16, &iBusId, USBTEST_USB_DEV_SYSFS "%s/busnum", DirUsbBus.szName);
+                if (RT_SUCCESS(rc))
+                    rc = RTLinuxSysFsReadIntFile(16, &iDevId, USBTEST_USB_DEV_SYSFS "%s/devnum", DirUsbBus.szName);
+                if (RT_SUCCESS(rc))
+                    rc = RTLinuxSysFsReadStrFile(&aszSpeed[0], sizeof(aszSpeed), NULL, USBTEST_USB_DEV_SYSFS "%s/speed", DirUsbBus.szName);
+
+                if (   RT_SUCCESS(rc)
+                    && idVendor == 0x0525
+                    && idProduct == 0xa4a0)
+                {
+                    if (penmSpeed)
+                    {
+                        /* Parse the speed. */
+                        if (!RTStrCmp(&aszSpeed[0], "1.5"))
+                            *penmSpeed = USBTESTSPEED_LOW;
+                        else if (!RTStrCmp(&aszSpeed[0], "12"))
+                            *penmSpeed = USBTESTSPEED_FULL;
+                        else if (!RTStrCmp(&aszSpeed[0], "480"))
+                            *penmSpeed = USBTESTSPEED_HIGH;
+                        else if (   !RTStrCmp(&aszSpeed[0], "5000")
+                                 || !RTStrCmp(&aszSpeed[0], "10000"))
+                            *penmSpeed = USBTESTSPEED_SUPER;
+                        else
+                            *penmSpeed = USBTESTSPEED_UNKNOWN;
+                    }
+
+                    if (pu16BusId)
+                        *pu16BusId = (uint16_t)iBusId;
+                    if (pu16DevId)
+                        *pu16DevId = (uint16_t)iDevId;
+                    fFound = true;
+                    break;
+                }
+            }
+            else if (rc != VERR_NO_MORE_FILES)
+                rc = VINF_SUCCESS;
+
+        } while (   RT_SUCCESS(rc)
+                 && !fFound);
+
+        if (rc == VERR_NO_MORE_FILES)
+            rc = VINF_SUCCESS;
+
+        RTDirClose(pDirUsb);
+    }
+
+    if (RT_SUCCESS(rc) && !fFound)
+        rc = VERR_NOT_FOUND;
+
+    return rc;
 }
 
 /**
@@ -199,56 +385,71 @@ static char *usbTestFindDevice(void)
      * Very crude and quick way to search for the correct test device.
      * Assumption is that the path looks like /dev/bus/usb/%3d/%3d.
      */
-    uint8_t uBus = 1;
-    bool fBusExists = false;
-    char aszDevPath[64];
+    char *pszDevPath = NULL;
 
-    RT_ZERO(aszDevPath);
-
-    do
+    PRTDIR pDirUsb = NULL;
+    int rc = RTDirOpen(&pDirUsb, "/dev/bus/usb");
+    if (RT_SUCCESS(rc))
     {
-        RTStrPrintf(aszDevPath, sizeof(aszDevPath), "/dev/bus/usb/%03d", uBus);
-
-        fBusExists = RTPathExists(aszDevPath);
-
-        if (fBusExists)
+        do
         {
-            /* Check every device. */
-            bool fDevExists = false;
-            uint8_t uDev = 1;
-
-            do
+            RTDIRENTRY DirUsbBus;
+            rc = RTDirRead(pDirUsb, &DirUsbBus, NULL);
+            if (RT_SUCCESS(rc))
             {
-                RTStrPrintf(aszDevPath, sizeof(aszDevPath), "/dev/bus/usb/%03d/%03d", uBus, uDev);
+                char aszPath[RTPATH_MAX + 1];
+                RTStrPrintf(&aszPath[0], RT_ELEMENTS(aszPath), "/dev/bus/usb/%s", DirUsbBus.szName);
 
-                fDevExists = RTPathExists(aszDevPath);
-
-                if (fDevExists)
+                PRTDIR pDirUsbBus = NULL;
+                rc = RTDirOpen(&pDirUsbBus, &aszPath[0]);
+                if (RT_SUCCESS(rc))
                 {
-                    RTFILE hFileDev;
-                    int rc = RTFileOpen(&hFileDev, aszDevPath, RTFILE_O_OPEN | RTFILE_O_READ | RTFILE_O_DENY_NONE);
-                    if (RT_SUCCESS(rc))
+                    do
                     {
-                        USBDEVDESC DevDesc;
+                        RTDIRENTRY DirUsbDev;
+                        rc = RTDirRead(pDirUsbBus, &DirUsbDev, NULL);
+                        if (RT_SUCCESS(rc))
+                        {
+                            char aszPathDev[RTPATH_MAX + 1];
+                            RTStrPrintf(&aszPathDev[0], RT_ELEMENTS(aszPathDev), "/dev/bus/usb/%s/%s",
+                                        DirUsbBus.szName, DirUsbDev.szName);
 
-                        rc = RTFileRead(hFileDev, &DevDesc, sizeof(DevDesc), NULL);
-                        RTFileClose(hFileDev);
+                            RTFILE hFileDev;
+                            rc = RTFileOpen(&hFileDev, aszPathDev, RTFILE_O_OPEN | RTFILE_O_READ | RTFILE_O_DENY_NONE);
+                            if (RT_SUCCESS(rc))
+                            {
+                                USBDEVDESC DevDesc;
 
-                        if (   RT_SUCCESS(rc)
-                            && DevDesc.idVendor == 0x0525
-                            && DevDesc.idProduct == 0xa4a0)
-                            return RTStrDup(aszDevPath);
-                    }
+                                rc = RTFileRead(hFileDev, &DevDesc, sizeof(DevDesc), NULL);
+                                RTFileClose(hFileDev);
+
+                                if (   RT_SUCCESS(rc)
+                                    && DevDesc.idVendor == 0x0525
+                                    && DevDesc.idProduct == 0xa4a0)
+                                    pszDevPath = RTStrDup(aszPathDev);
+                            }
+
+                            rc = VINF_SUCCESS;
+                        }
+                        else if (rc != VERR_NO_MORE_FILES)
+                            rc = VINF_SUCCESS;
+
+                    } while (   RT_SUCCESS(rc)
+                             && !pszDevPath);
+
+                    rc = VINF_SUCCESS;
+                    RTDirClose(pDirUsbBus);
                 }
+            }
+            else if (rc != VERR_NO_MORE_FILES)
+                rc = VINF_SUCCESS;
+        } while (   RT_SUCCESS(rc)
+                 && !pszDevPath);
 
-                uDev++;
-            } while (fDevExists);
-        }
+        RTDirClose(pDirUsb);
+    }
 
-        uBus++;
-    } while (fBusExists);
-
-    return NULL;
+    return pszDevPath;
 }
 
 static int usbTestIoctl(int iDevFd, int iInterface, PUSBTESTPARAMS pParams)
@@ -279,36 +480,39 @@ static void usbTestExec(const char *pszDevice)
 
         RTTestPassed(g_hTest, "Opening device successful\n");
 
-        /*
-         * Fill params with some defaults.
-         * @todo: Make them configurable.
-         */
-        Params.cIterations = 1000;
-        Params.cbData = 512;
-        Params.cbVariation = 512;
-        Params.cSgLength = 32;
-
-        for (unsigned i = 0; i < USBTEST_TEST_CASES; i++)
+        for (unsigned i = 0; i < RT_ELEMENTS(g_aTests); i++)
         {
-            RTTestSub(g_hTest, g_apszTests[i]);
+            RTTestSub(g_hTest, g_aTests[i].pszName);
 
-            Params.idxTest = i;
-
-            /* Assume the test interface has the number 0 for now. */
-            int rcPosix = usbTestIoctl(iDevFd, 0, &Params);
-            if (rcPosix < 0 && errno == EOPNOTSUPP)
+            if (g_aTests[i].fExcluded)
             {
-                RTTestSkipped(g_hTest, "Not supported");
+                RTTestSkipped(g_hTest, "Excluded from list");
                 continue;
             }
 
-            if (rcPosix < 0)
-                RTTestFailed(g_hTest, "Test failed with %Rrc\n", RTErrConvertFromErrno(errno));
-            else
+            int rc = g_aTests[i].pfnParamsSetup(i, g_aTests[i].pszName, &Params);
+            if (RT_SUCCESS(rc))
             {
-                uint64_t u64Ns = Params.TimeTest.tv_sec * RT_NS_1SEC + Params.TimeTest.tv_usec * RT_NS_1US;
-                RTTestValue(g_hTest, "Runtime", u64Ns, RTTESTUNIT_NS);
+                Params.idxTest = i;
+
+                /* Assume the test interface has the number 0 for now. */
+                int rcPosix = usbTestIoctl(iDevFd, 0, &Params);
+                if (rcPosix < 0 && errno == EOPNOTSUPP)
+                {
+                    RTTestSkipped(g_hTest, "Not supported");
+                    continue;
+                }
+
+                if (rcPosix < 0)
+                    RTTestFailed(g_hTest, "Test failed with %Rrc\n", RTErrConvertFromErrno(errno));
+                else
+                {
+                    uint64_t u64Ns = Params.TimeTest.tv_sec * RT_NS_1SEC + Params.TimeTest.tv_usec * RT_NS_1US;
+                    RTTestValue(g_hTest, "Runtime", u64Ns, RTTESTUNIT_NS);
+                }
             }
+            else
+                RTTestFailed(g_hTest, "Setting up test parameters failed with %Rrc\n", rc);
             RTTestSubDone(g_hTest);
         }
 
@@ -346,6 +550,46 @@ int main(int argc, char *argv[])
             case 'd':
                 pszDevice = ValueUnion.psz;
                 break;
+            case 's':
+                if (!RTStrICmp(ValueUnion.psz, "Low"))
+                    g_enmSpeed = USBTESTSPEED_LOW;
+                else if (!RTStrICmp(ValueUnion.psz, "Full"))
+                    g_enmSpeed = USBTESTSPEED_FULL;
+                else if (!RTStrICmp(ValueUnion.psz, "High"))
+                    g_enmSpeed = USBTESTSPEED_HIGH;
+                else if (!RTStrICmp(ValueUnion.psz, "Super"))
+                    g_enmSpeed = USBTESTSPEED_SUPER;
+                else
+                {
+                    RTTestPrintf(g_hTest, RTTESTLVL_FAILURE, "Invalid speed passed to --expected-speed\n");
+                    RTTestErrorInc(g_hTest);
+                    return RTGetOptPrintError(VERR_INVALID_PARAMETER, &ValueUnion);
+                }
+                break;
+            case 'e':
+                if (ValueUnion.u32 < RT_ELEMENTS(g_aTests))
+                    g_aTests[ValueUnion.u32].fExcluded = true;
+                else
+                {
+                    RTTestPrintf(g_hTest, RTTESTLVL_FAILURE, "Invalid test number passed to --exclude\n");
+                    RTTestErrorInc(g_hTest);
+                    return RTGetOptPrintError(VERR_INVALID_PARAMETER, &ValueUnion);
+                }
+                break;
+            case 'a':
+                for (unsigned i = 0; i < RT_ELEMENTS(g_aTests); i++)
+                    g_aTests[i].fExcluded = true;
+                break;
+            case 'i':
+                if (ValueUnion.u32 < RT_ELEMENTS(g_aTests))
+                    g_aTests[ValueUnion.u32].fExcluded = false;
+                else
+                {
+                    RTTestPrintf(g_hTest, RTTESTLVL_FAILURE, "Invalid test number passed to --include\n");
+                    RTTestErrorInc(g_hTest);
+                    return RTGetOptPrintError(VERR_INVALID_PARAMETER, &ValueUnion);
+                }
+                break;
             default:
                 return RTGetOptPrintError(rc, &ValueUnion);
         }
@@ -358,14 +602,38 @@ int main(int argc, char *argv[])
 
     /* Find the first test device if none was given. */
     if (!pszDevice)
+    {
+        RTTestSub(g_hTest, "Detecting device");
         pszDevice = usbTestFindDevice();
+        if (!pszDevice)
+            RTTestFailed(g_hTest, "Failed to find suitable device\n");
+
+        RTTestSubDone(g_hTest);
+    }
 
     if (pszDevice)
-        usbTestExec(pszDevice);
-    else
     {
-        RTTestPrintf(g_hTest, RTTESTLVL_FAILURE, "Failed to find a test device\n");
-        RTTestErrorInc(g_hTest);
+        /* First check that the requested speed matches. */
+        if (g_enmSpeed != USBTESTSPEED_ANY)
+        {
+            RTTestSub(g_hTest, "Checking correct device speed");
+
+            USBTESTSPEED enmSpeed = USBTESTSPEED_UNKNOWN;
+            rc = usbTestDeviceQueryBusAndDevId(NULL, NULL, &enmSpeed);
+            if (RT_SUCCESS(rc))
+            {
+                if (enmSpeed == g_enmSpeed)
+                    RTTestPassed(g_hTest, "Reported device speed matches requested speed\n");
+                else
+                    RTTestFailed(g_hTest, "Reported device speed doesn'match requested speed (%u vs %u)\n",
+                                 enmSpeed, g_enmSpeed);
+            }
+            else
+                RTTestFailed(g_hTest, "Failed to query device speed with rc=%Rrc\n", rc);
+
+            RTTestSubDone(g_hTest);
+        }
+        usbTestExec(pszDevice);
     }
 
     RTEXITCODE rcExit = RTTestSummaryAndDestroy(g_hTest);

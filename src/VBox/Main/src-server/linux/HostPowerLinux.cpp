@@ -21,7 +21,6 @@
 #include <iprt/asm.h>
 #include <iprt/power.h>
 #include <iprt/time.h>
-#include <iprt/stream.h>
 
 static bool checkDBusError(DBusError *pError, DBusConnection **pConnection)
 {

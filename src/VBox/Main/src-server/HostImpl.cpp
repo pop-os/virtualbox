@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2004-2015 Oracle Corporation
+ * Copyright (C) 2004-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,6 +17,12 @@
 
 #define __STDC_LIMIT_MACROS
 #define __STDC_CONSTANT_MACROS
+
+// VBoxNetCfg-win.h needs winsock2.h and thus MUST be included before any other
+// header file includes Windows.h.
+#if defined(RT_OS_WINDOWS) && defined(VBOX_WITH_NETFLT)
+# include <VBox/VBoxNetCfg-win.h>
+#endif
 
 // for some reason Windows burns in sdk\...\winsock.h if this isn't included first
 #include "VBox/com/ptr.h"
@@ -52,10 +58,6 @@
 #ifdef VBOX_WITH_RESOURCE_USAGE_API
 # include "PerformanceImpl.h"
 #endif /* VBOX_WITH_RESOURCE_USAGE_API */
-
-#if defined(RT_OS_WINDOWS) && defined(VBOX_WITH_NETFLT)
-# include <VBox/VBoxNetCfg-win.h>
-#endif /* #if defined(RT_OS_WINDOWS) && defined(VBOX_WITH_NETFLT) */
 
 #if defined(RT_OS_DARWIN) && ARCH_BITS == 32
 # include <sys/types.h>
@@ -124,7 +126,7 @@ typedef SOLARISDVD *PSOLARISDVD;
 //# include <setupapi.h>
 # include <shlobj.h>
 # include <cfgmgr32.h>
-
+# include <tchar.h>
 #endif /* RT_OS_WINDOWS */
 
 #ifdef RT_OS_DARWIN
@@ -276,21 +278,7 @@ HRESULT Host::init(VirtualBox *aParent)
     /*
      * Create and initialize the USB Proxy Service.
      */
-# if defined(RT_OS_DARWIN)
-    m->pUSBProxyService = new USBProxyServiceDarwin(this);
-# elif defined(RT_OS_LINUX)
-    m->pUSBProxyService = new USBProxyServiceLinux(this);
-# elif defined(RT_OS_OS2)
-    m->pUSBProxyService = new USBProxyServiceOs2(this);
-# elif defined(RT_OS_SOLARIS)
-    m->pUSBProxyService = new USBProxyServiceSolaris(this);
-# elif defined(RT_OS_WINDOWS)
-    m->pUSBProxyService = new USBProxyServiceWindows(this);
-# elif defined(RT_OS_FREEBSD)
-    m->pUSBProxyService = new USBProxyServiceFreeBSD(this);
-# else
     m->pUSBProxyService = new USBProxyService(this);
-# endif
     hrc = m->pUSBProxyService->init();
     AssertComRCReturn(hrc, hrc);
 #endif /* VBOX_WITH_USB */
@@ -1414,7 +1402,7 @@ HRESULT Host::insertUSBDeviceFilter(ULONG aPosition,
 
     /* notify the proxy (only when the filter is active) */
     if (    m->pUSBProxyService->isActive()
-         && pFilter->i_getData().mActive)
+         && pFilter->i_getData().mData.fActive)
     {
         ComAssertRet(pFilter->i_getId() == NULL, E_FAIL);
         pFilter->i_getId() = m->pUSBProxyService->insertFilter(&pFilter->i_getData().mUSBFilter);
@@ -1468,7 +1456,7 @@ HRESULT Host::removeUSBDeviceFilter(ULONG aPosition)
     }
 
     /* notify the proxy (only when the filter is active) */
-    if (m->pUSBProxyService->isActive() && filter->i_getData().mActive)
+    if (m->pUSBProxyService->isActive() && filter->i_getData().mData.fActive)
     {
         ComAssertRet(filter->i_getId() != NULL, E_FAIL);
         m->pUSBProxyService->removeFilter(filter->i_getId());
@@ -1719,6 +1707,27 @@ HRESULT Host::getVideoInputDevices(std::vector<ComPtr<IHostVideoInputDevice> > &
     return S_OK;
 }
 
+HRESULT Host::addUSBDeviceSource(const com::Utf8Str &aBackend, const com::Utf8Str &aId, const com::Utf8Str &aAddress,
+                                 const std::vector<com::Utf8Str> &aPropertyNames, const std::vector<com::Utf8Str> &aPropertyValues)
+{
+#ifdef VBOX_WITH_USB
+    /* The USB proxy service will do the locking. */
+    return m->pUSBProxyService->addUSBDeviceSource(aBackend, aId, aAddress, aPropertyNames, aPropertyValues);
+#else
+    ReturnComNotImplemented();
+#endif
+}
+
+HRESULT Host::removeUSBDeviceSource(const com::Utf8Str &aId)
+{
+#ifdef VBOX_WITH_USB
+    /* The USB proxy service will do the locking. */
+    return m->pUSBProxyService->removeUSBDeviceSource(aId);
+#else
+    ReturnComNotImplemented();
+#endif
+}
+
 // public methods only for internal purposes
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1747,12 +1756,14 @@ HRESULT Host::i_loadSettings(const settings::Host &data)
         pFilter->mInList = true;
 
         /* notify the proxy (only when the filter is active) */
-        if (pFilter->i_getData().mActive)
+        if (pFilter->i_getData().mData.fActive)
         {
             HostUSBDeviceFilter *flt = pFilter; /* resolve ambiguity */
             flt->i_getId() = m->pUSBProxyService->insertFilter(&pFilter->i_getData().mUSBFilter);
         }
     }
+
+    rc = m->pUSBProxyService->i_loadSettings(data.llUSBDeviceSources);
 #else
     NOREF(data);
 #endif /* VBOX_WITH_USB */
@@ -1779,11 +1790,13 @@ HRESULT Host::i_saveSettings(settings::Host &data)
         pFilter->i_saveSettings(f);
         data.llUSBDeviceFilters.push_back(f);
     }
+    
+    return m->pUSBProxyService->i_saveSettings(data.llUSBDeviceSources);
 #else
     NOREF(data);
+    return S_OK;
 #endif /* VBOX_WITH_USB */
 
-    return S_OK;
 }
 
 /**
@@ -2238,7 +2251,7 @@ HRESULT Host::i_onUSBDeviceFilterChange(HostUSBDeviceFilter *aFilter,
         if (aActiveChanged)
         {
             // insert/remove the filter from the proxy
-            if (aFilter->i_getData().mActive)
+            if (aFilter->i_getData().mData.fActive)
             {
                 ComAssertRet(aFilter->i_getId() == NULL, E_FAIL);
                 aFilter->i_getId() = m->pUSBProxyService->insertFilter(&aFilter->i_getData().mUSBFilter);
@@ -2252,7 +2265,7 @@ HRESULT Host::i_onUSBDeviceFilterChange(HostUSBDeviceFilter *aFilter,
         }
         else
         {
-            if (aFilter->i_getData().mActive)
+            if (aFilter->i_getData().mData.fActive)
             {
                 // update the filter in the proxy
                 ComAssertRet(aFilter->i_getId() != NULL, E_FAIL);

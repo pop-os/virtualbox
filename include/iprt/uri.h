@@ -308,10 +308,15 @@ RTDECL(int) RTUriFileCreateEx(const char *pszPath, uint32_t fPathStyle, char **p
 /**
  * Returns the file path encoded in the file URI.
  *
- * @returns the path if the URI contains one, NULL otherwise.
- * @param   pszUri              The URI to extract from.
- * @param   uFormat             In which format should the path returned.
- * @param   cchMax              The max string length to inspect.
+ * This differs a quite a bit from RTUriParsedPath in that it tries to be
+ * compatible with URL produced by older windows version.  This API is basically
+ * producing the same results as the PathCreateFromUrl API on Windows.
+ *
+ * @returns The path if the URI contains one, system default path style,
+ *          otherwise NULL.
+ * @param   pszUri          The alleged 'file://' URI to extract the path from.
+ *
+ * @sa      RTUriParsedPath, RTUriFilePathEx
  */
 RTDECL(char *) RTUriFilePath(const char *pszUri);
 

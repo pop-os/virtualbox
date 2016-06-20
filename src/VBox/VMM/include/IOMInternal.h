@@ -385,6 +385,45 @@ typedef struct IOMCPU
      * on the stack. */
     DISCPUSTATE                     DisState;
 
+    /**
+     * Pending I/O port write commit (VINF_IOM_R3_IOPORT_COMMIT_WRITE).
+     *
+     * This is a converted VINF_IOM_R3_IOPORT_WRITE handler return that lets the
+     * execution engine commit the instruction and then return to ring-3 to complete
+     * the I/O port write there.  This avoids having to decode the instruction again
+     * in ring-3.
+     */
+    struct
+    {
+        /** The value size (0 if not pending). */
+        uint16_t                        cbValue;
+        /** The I/O port. */
+        RTIOPORT                        IOPort;
+        /** The value. */
+        uint32_t                        u32Value;
+    } PendingIOPortWrite;
+
+    /**
+     * Pending MMIO write commit (VINF_IOM_R3_MMIO_COMMIT_WRITE).
+     *
+     * This is a converted VINF_IOM_R3_MMIO_WRITE handler return that lets the
+     * execution engine commit the instruction, stop any more REPs, and return to
+     * ring-3 to complete the MMIO write there.  The avoid the tedious decoding of
+     * the instruction again once we're in ring-3, more importantly it allows us to
+     * correctly deal with read-modify-write instructions like XCHG, OR, and XOR.
+     */
+    struct
+    {
+        /** Guest physical MMIO address. */
+        RTGCPHYS                        GCPhys;
+        /** The value to write. */
+        uint8_t                         abValue[128];
+        /** The number of bytes to write (0 if nothing pending). */
+        uint32_t                        cbValue;
+        /** Alignment padding. */
+        uint32_t                        uAlignmentPadding;
+    } PendingMmioWrite;
+
     /** @name Caching of I/O Port and MMIO ranges and statistics.
      * (Saves quite some time in rep outs/ins instruction emulation.)
      * @{ */
@@ -450,10 +489,6 @@ PGM_ALL_CB2_DECL(FNPGMPHYSHANDLER)  iomMmioHandler;
 #endif
 #define IOM_LOCK_SHARED(a_pVM)                  IOM_LOCK_SHARED_EX(a_pVM, VERR_SEM_BUSY)
 
-
-/* Disassembly helpers used in IOMAll.cpp & IOMAllMMIO.cpp */
-bool    iomGetRegImmData(PDISCPUSTATE pCpu, PCDISOPPARAM pParam, PCPUMCTXCORE pRegFrame, uint64_t *pu64Data, unsigned *pcbSize);
-bool    iomSaveDataToReg(PDISCPUSTATE pCpu, PCDISOPPARAM pParam, PCPUMCTXCORE pRegFrame, uint64_t u64Data);
 
 RT_C_DECLS_END
 

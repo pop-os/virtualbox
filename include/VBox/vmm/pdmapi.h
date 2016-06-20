@@ -31,6 +31,9 @@
 #define ___VBox_vmm_pdmapi_h
 
 #include <VBox/vmm/pdmcommon.h>
+#ifdef IN_RING3
+# include <VBox/vmm/vmapi.h>
+#endif
 #include <VBox/sup.h>
 
 
@@ -47,29 +50,45 @@ VMM_INT_DECL(bool)      PDMHasIoApic(PVM pVM);
 VMM_INT_DECL(int)       PDMIoApicSetIrq(PVM pVM, uint8_t u8Irq, uint8_t u8Level, uint32_t uTagSrc);
 VMM_INT_DECL(int)       PDMIoApicSendMsi(PVM pVM, RTGCPHYS GCAddr, uint32_t uValue, uint32_t uTagSrc);
 VMM_INT_DECL(bool)      PDMHasApic(PVM pVM);
-VMM_INT_DECL(int)       PDMApicHasPendingIrq(PVM pVM, bool *pfPending);
-VMMDECL(int)            PDMApicSetBase(PVMCPU pVCpu, uint64_t u64Base);
-VMMDECL(int)            PDMApicGetBase(PVMCPU pVCpu, uint64_t *pu64Base);
+VMMDECL(VBOXSTRICTRC)   PDMApicSetBaseMsr(PVMCPU pVCpu, uint64_t u64Base);
+VMMDECL(VBOXSTRICTRC)   PDMApicGetBaseMsr(PVMCPU pVCpu, uint64_t *pu64Base, bool fIgnoreErrors);
+VMMDECL(void)           PDMApicUpdateInterrupts(PVMCPU pVCpu);
 VMMDECL(int)            PDMApicSetTPR(PVMCPU pVCpu, uint8_t u8TPR);
-VMMDECL(int)            PDMApicGetTPR(PVMCPU pVCpu, uint8_t *pu8TPR, bool *pfPending, uint8_t *pu8PendingIrq);
-VMM_INT_DECL(int)       PDMApicWriteMSR(PVM pVM, VMCPUID iCpu, uint32_t u32Reg, uint64_t u64Value);
-VMM_INT_DECL(int)       PDMApicReadMSR(PVM pVM, VMCPUID iCpu, uint32_t u32Reg, uint64_t *pu64Value);
+VMMDECL(int)            PDMApicGetTPR(PVMCPU pVCpu, uint8_t *pu8TPR, bool *pfPending, uint8_t *pu8PendingIntr);
+VMM_INT_DECL(VBOXSTRICTRC) PDMApicWriteMsr(PVMCPU pVCpu, uint32_t u32Reg, uint64_t u64Value);
+VMM_INT_DECL(VBOXSTRICTRC) PDMApicReadMsr(PVMCPU pVCpu, uint32_t u32Reg, uint64_t *pu64Value);
 VMM_INT_DECL(int)       PDMApicGetTimerFreq(PVM pVM, uint64_t *pu64Value);
 VMM_INT_DECL(int)       PDMVmmDevHeapR3ToGCPhys(PVM pVM, RTR3PTR pv, RTGCPHYS *pGCPhys);
 VMM_INT_DECL(bool)      PDMVmmDevHeapIsEnabled(PVM pVM);
 
+/**
+ * Mapping/unmapping callback for an VMMDev heap allocation.
+ *
+ * @param   pVM                 The cross context VM structure.
+ * @param   pvAllocation        The allocation address (ring-3).
+ * @param   GCPhysAllocation    The guest physical address of the mapping if
+ *                              it's being mapped, NIL_RTGCPHYS if it's being
+ *                              unmapped.
+ */
+typedef DECLCALLBACK(void) FNPDMVMMDEVHEAPNOTIFY(PVM pVM, void *pvAllocation, RTGCPHYS GCPhysAllocation);
+/** Pointer (ring-3) to a FNPDMVMMDEVHEAPNOTIFY function. */
+typedef R3PTRTYPE(FNPDMVMMDEVHEAPNOTIFY *) PFNPDMVMMDEVHEAPNOTIFY;
 
+
+#if defined(IN_RING3) || defined(DOXYGEN_RUNNING)
 /** @defgroup grp_pdm_r3    The PDM Host Context Ring-3 API
  * @{
  */
-
 VMMR3_INT_DECL(int)     PDMR3InitUVM(PUVM pUVM);
 VMMR3_INT_DECL(int)     PDMR3LdrLoadVMMR0U(PUVM pUVM);
 VMMR3_INT_DECL(int)     PDMR3Init(PVM pVM);
+VMMR3_INT_DECL(int)     PDMR3InitCompleted(PVM pVM, VMINITCOMPLETED enmWhat);
 VMMR3DECL(void)         PDMR3PowerOn(PVM pVM);
+VMMR3_INT_DECL(bool)    PDMR3GetResetInfo(PVM pVM, uint32_t fOverride, uint32_t *pfResetFlags);
 VMMR3_INT_DECL(void)    PDMR3ResetCpu(PVMCPU pVCpu);
 VMMR3_INT_DECL(void)    PDMR3Reset(PVM pVM);
 VMMR3_INT_DECL(void)    PDMR3MemSetup(PVM pVM, bool fAtReset);
+VMMR3_INT_DECL(void)    PDMR3SoftReset(PVM pVM, uint32_t fResetFlags);
 VMMR3_INT_DECL(void)    PDMR3Suspend(PVM pVM);
 VMMR3_INT_DECL(void)    PDMR3Resume(PVM pVM);
 VMMR3DECL(void)         PDMR3PowerOff(PVM pVM);
@@ -152,14 +171,14 @@ VMMR3DECL(int)          PDMR3DriverReattach(PUVM pVM, const char *pszDevice, uns
                                             PPPDMIBASE ppBase);
 VMMR3DECL(void)         PDMR3DmaRun(PVM pVM);
 VMMR3_INT_DECL(int)     PDMR3LockCall(PVM pVM);
-VMMR3_INT_DECL(int)     PDMR3VmmDevHeapRegister(PVM pVM, RTGCPHYS GCPhys, RTR3PTR pvHeap, unsigned cbSize);
-VMMR3_INT_DECL(int)     PDMR3VmmDevHeapUnregister(PVM pVM, RTGCPHYS GCPhys);
-VMMR3_INT_DECL(int)     PDMR3VmmDevHeapAlloc(PVM pVM, size_t cbSize, RTR3PTR *ppv);
+
+VMMR3_INT_DECL(int)     PDMR3VmmDevHeapAlloc(PVM pVM, size_t cbSize, PFNPDMVMMDEVHEAPNOTIFY pfnNotify, RTR3PTR *ppv);
 VMMR3_INT_DECL(int)     PDMR3VmmDevHeapFree(PVM pVM, RTR3PTR pv);
 VMMR3_INT_DECL(int)     PDMR3TracingConfig(PVM pVM, const char *pszName, size_t cchName, bool fEnable, bool fApply);
 VMMR3_INT_DECL(bool)    PDMR3TracingAreAll(PVM pVM, bool fEnabled);
 VMMR3_INT_DECL(int)     PDMR3TracingQueryConfig(PVM pVM, char *pszConfig, size_t cbConfig);
 /** @} */
+#endif /* IN_RING3 */
 
 
 

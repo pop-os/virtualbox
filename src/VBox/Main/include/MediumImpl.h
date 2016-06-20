@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2015 Oracle Corporation
+ * Copyright (C) 2008-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -157,7 +157,7 @@ public:
                            const Utf8Str &strHardDiskFolder);
 
     HRESULT i_createMediumLockList(bool fFailIfInaccessible,
-                                   bool fMediumLockWrite,
+                                   Medium *pToLock,
                                    bool fMediumLockWriteAll,
                                    Medium *pToBeParent,
                                    MediumLockList &mediumLockList);
@@ -211,7 +211,7 @@ public:
     HRESULT i_importFile(const char *aFilename,
                         const ComObjPtr<MediumFormat> &aFormat,
                         MediumVariant_T aVariant,
-                        PVDINTERFACEIO aVDImageIOIf, void *aVDImageIOUser,
+                        RTVFSIOSTREAM hVfsIosSrc,
                         const ComObjPtr<Medium> &aParent,
                         const ComObjPtr<Progress> &aProgress);
 
@@ -236,13 +236,13 @@ private:
     HRESULT getSize(LONG64 *aSize);
     HRESULT getFormat(com::Utf8Str &aFormat);
     HRESULT getMediumFormat(ComPtr<IMediumFormat> &aMediumFormat);
-    HRESULT getType(MediumType_T *aType);
-    HRESULT setType(MediumType_T aType);
+    HRESULT getType(AutoCaller &autoCaller, MediumType_T *aType);
+    HRESULT setType(AutoCaller &autoCaller, MediumType_T aType);
     HRESULT getAllowedTypes(std::vector<MediumType_T> &aAllowedTypes);
     HRESULT getParent(AutoCaller &autoCaller, ComPtr<IMedium> &aParent);
     HRESULT getChildren(AutoCaller &autoCaller, std::vector<ComPtr<IMedium> > &aChildren);
     HRESULT getBase(AutoCaller &autoCaller, ComPtr<IMedium> &aBase);
-    HRESULT getReadOnly(BOOL *aReadOnly);
+    HRESULT getReadOnly(AutoCaller &autoCaller, BOOL *aReadOnly);
     HRESULT getLogicalSize(LONG64 *aLogicalSize);
     HRESULT getAutoReset(BOOL *aAutoReset);
     HRESULT setAutoReset(BOOL aAutoReset);
@@ -275,7 +275,8 @@ private:
                               const std::vector<MediumVariant_T> &aVariant,
                               ComPtr<IProgress> &aProgress);
     HRESULT deleteStorage(ComPtr<IProgress> &aProgress);
-    HRESULT createDiffStorage(const ComPtr<IMedium> &aTarget,
+    HRESULT createDiffStorage(AutoCaller &autoCaller,
+                              const ComPtr<IMedium> &aTarget,
                               const std::vector<MediumVariant_T> &aVariant,
                               ComPtr<IProgress> &aProgress);
     HRESULT mergeTo(const ComPtr<IMedium> &aTarget,
@@ -292,7 +293,7 @@ private:
     HRESULT compact(ComPtr<IProgress> &aProgress);
     HRESULT resize(LONG64 aLogicalSize,
                    ComPtr<IProgress> &aProgress);
-    HRESULT reset(ComPtr<IProgress> &aProgress);
+    HRESULT reset(AutoCaller &autoCaller, ComPtr<IProgress> &aProgress);
     HRESULT changeEncryption(const com::Utf8Str &aCurrentPassword, const com::Utf8Str &aCipher,
                              const com::Utf8Str &aNewPassword, const com::Utf8Str &aNewPasswordId,
                              ComPtr<IProgress> &aProgress);
@@ -314,6 +315,11 @@ private:
 
     HRESULT i_getFilterProperties(std::vector<com::Utf8Str> &aReturnNames,
                                   std::vector<com::Utf8Str> &aReturnValues);
+
+    HRESULT i_preparationForMoving(const Utf8Str &aLocation);
+    bool    i_isMoveOperation(const ComObjPtr<Medium> &pTarget) const;
+    bool    i_resetMoveOperationData();
+    Utf8Str i_getNewLocationForMoving() const;
 
     static DECLCALLBACK(void) i_vdErrorCall(void *pvUser, int rc, RT_SRC_POS_DECL,
                                             const char *pszFormat, va_list va);
@@ -358,6 +364,7 @@ private:
     class CreateBaseTask;
     class CreateDiffTask;
     class CloneTask;
+    class MoveTask;
     class CompactTask;
     class ResizeTask;
     class ResetTask;
@@ -370,6 +377,7 @@ private:
     friend class CreateBaseTask;
     friend class CreateDiffTask;
     friend class CloneTask;
+    friend class MoveTask;
     friend class CompactTask;
     friend class ResizeTask;
     friend class ResetTask;
@@ -386,6 +394,7 @@ private:
     HRESULT i_taskCreateDiffHandler(Medium::CreateDiffTask &task);
     HRESULT i_taskMergeHandler(Medium::MergeTask &task);
     HRESULT i_taskCloneHandler(Medium::CloneTask &task);
+    HRESULT i_taskMoveHandler(Medium::MoveTask &task);
     HRESULT i_taskDeleteHandler(Medium::DeleteTask &task);
     HRESULT i_taskResetHandler(Medium::ResetTask &task);
     HRESULT i_taskCompactHandler(Medium::CompactTask &task);

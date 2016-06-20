@@ -216,6 +216,7 @@ public:
 
 private:
     // Wrapped IDisplay properties
+    virtual HRESULT getGuestScreenLayout(std::vector<ComPtr<IGuestScreenInfo> > &aGuestScreenLayout);
 
     // Wrapped IDisplay methods
     virtual HRESULT getScreenResolution(ULONG aScreenId,
@@ -271,6 +272,8 @@ private:
                                             ULONG aScaleFactorWMultiplied,
                                             ULONG aScaleFactorHMultiplied);
     virtual HRESULT notifyHiDPIOutputPolicyChange(BOOL fUnscaledHiDPI);
+    virtual HRESULT setScreenLayout(ScreenLayoutMode_T aScreenLayoutMode,
+                                    const std::vector<ComPtr<IGuestScreenInfo> > &aGuestScreenInfo);
 
     // Wrapped IEventListener properties
 

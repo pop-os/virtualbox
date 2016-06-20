@@ -23,6 +23,11 @@
 ; terms and conditions of either the GPL or the CDDL or both.
 ;
 
+; Special hack for bs3kit.
+%ifdef RT_ASMDEFS_INC_FIRST_FILE
+ %include "asmdefs-first.mac"
+%endif
+
 %ifndef ___iprt_asmdefs_mac
 %define ___iprt_asmdefs_mac
 
@@ -116,7 +121,7 @@
 %endmacro
 
 ;;
-; Sets xBP as frame pointer that's pointing to a stack position %1 relative to xSP.
+; Sets xBP as frame pointer that's pointing to a stack position %1 relative to xBP.
 %macro SEH64_SET_FRAME_xBP 1
  %ifdef RT_ASM_WITH_SEH64
   [setframe rbp, %1]
@@ -250,7 +255,7 @@
 
 ;;
 ; Global marker which is DECLASM() compatible.
-%macro GLOBALNAME 1,
+%macro GLOBALNAME 1
 %ifndef ASM_FORMAT_BIN
 global NAME(%1)
 %endif
@@ -259,7 +264,7 @@ NAME(%1):
 
 ;;
 ; Global exported marker which is DECLASM() compatible.
-%macro EXPORTEDNAME 1,
+%macro EXPORTEDNAME 1
  %ifdef ASM_FORMAT_PE
   export %1=NAME(%1)
  %endif
@@ -273,7 +278,7 @@ GLOBALNAME %1
 
 ;;
 ; Global marker which is DECLASM() compatible.
-%macro GLOBALNAME_EX 2,
+%macro GLOBALNAME_EX 2
 %ifndef ASM_FORMAT_BIN
  %ifdef ASM_FORMAT_ELF
 global NAME(%1):%2
@@ -286,7 +291,7 @@ NAME(%1):
 
 ;;
 ; Global exported marker which is DECLASM() compatible.
-%macro EXPORTEDNAME_EX 2,
+%macro EXPORTEDNAME_EX 2
  %ifdef ASM_FORMAT_PE
   export %1=NAME(%1)
  %endif
@@ -331,8 +336,10 @@ endproc_frame
  %endif
 GLOBALNAME_EX %1 %+ _EndProc, function hidden
 %ifdef ASM_FORMAT_ELF
+ %ifndef __NASM__ ; nasm does this in the global directive.
 size NAME(%1)               NAME(%1 %+ _EndProc) - NAME(%1)
 size NAME(%1 %+ _EndProc)   0
+ %endif
 %endif
     db  0xCC, 0xCC, 0xCC, 0xCC
 %endmacro
@@ -345,50 +352,52 @@ size NAME(%1 %+ _EndProc)   0
 ; it's only to make sure the .bss section ends up last (it's not declared here).
 ;
 %ifdef ASM_FORMAT_OMF
+ %ifndef RT_NOINC_SEGMENTS
 
- ; 16-bit segments first (OMF / OS/2 specific).
- %ifdef RT_INCL_16BIT_SEGMENTS
-  segment DATA16 public CLASS=FAR_DATA align=16 use16
-  segment DATA16_INIT public CLASS=FAR_DATA align=16 use16
-  group DGROUP16 DATA16 DATA16_INIT
+  ; 16-bit segments first (OMF / OS/2 specific).
+  %ifdef RT_INCL_16BIT_SEGMENTS
+   segment DATA16 public CLASS=FAR_DATA align=16 use16
+   segment DATA16_INIT public CLASS=FAR_DATA align=16 use16
+   group DGROUP16 DATA16 DATA16_INIT
 
-  ;;
-  ; Begins 16-bit data
-  %macro BEGINDATA16 0
-   segment DATA16
-  %endmacro
+   ;;
+   ; Begins 16-bit data
+   %macro BEGINDATA16 0
+    segment DATA16
+   %endmacro
 
-  ;;
-  ; Begins 16-bit init data
-  %macro BEGINDATA16INIT 0
-   segment DATA16_INIT
-  %endmacro
+   ;;
+   ; Begins 16-bit init data
+   %macro BEGINDATA16INIT 0
+    segment DATA16_INIT
+   %endmacro
 
-  segment CODE16 public CLASS=FAR_CODE align=16 use16
-  segment CODE16_INIT public CLASS=FAR_CODE align=16 use16
-  group CGROUP16 CODE16 CODE16_INIT
+   segment CODE16 public CLASS=FAR_CODE align=16 use16
+   segment CODE16_INIT public CLASS=FAR_CODE align=16 use16
+   group CGROUP16 CODE16 CODE16_INIT
 
-  ;;
-  ; Begins 16-bit code
-  %macro BEGINCODE16 0
-   segment CODE16
-  %endmacro
+   ;;
+   ; Begins 16-bit code
+   %macro BEGINCODE16 0
+    segment CODE16
+   %endmacro
 
-  ;;
-  ; Begins 16-bit init code
-  %macro BEGINCODE16INIT 0
-   segment CODE16_INIT
-  %endmacro
+   ;;
+   ; Begins 16-bit init code
+   %macro BEGINCODE16INIT 0
+    segment CODE16_INIT
+   %endmacro
 
- %endif
+  %endif
 
- ; 32-bit segments.
- segment TEXT32 public CLASS=CODE align=16 use32 flat
- segment DATA32 public CLASS=DATA align=16 use32 flat
- segment BSS32  public CLASS=BSS  align=16 use32 flat
+  ; 32-bit segments.
+  segment TEXT32 public CLASS=CODE align=16 use32 flat
+  segment DATA32 public CLASS=DATA align=16 use32 flat
+  segment BSS32  public CLASS=BSS  align=16 use32 flat
 
- ; Make the TEXT32 segment default.
- segment TEXT32
+  ; Make the TEXT32 segment default.
+  segment TEXT32
+ %endif ; RT_NOINC_SEGMENTS
 %endif
 
 %ifdef ASM_FORMAT_MACHO
@@ -785,6 +794,13 @@ size NAME(%1 %+ _EndProc)   0
    %error "Only one of the ASM_CALL64_* defines should be defined!"
   %endif
  %endif
+%else
+ ;later; %ifdef ASM_CALL64_GCC
+ ;later;  %error "ASM_CALL64_GCC is defined without RT_ARCH_AMD64!" ASM_CALL64_GCC
+ ;later; %endif
+ ;later; %ifdef ASM_CALL64_MSC
+ ;later;  %error "ASM_CALL64_MSC is defined without RT_ARCH_AMD64!" ASM_CALL64_MSC
+ ;later; %endif
 %endif
 
 
@@ -890,15 +906,29 @@ BEGINPROC RT_NOCRT(%1)
 
 
 ;
+; NASM sets __PASS__ to 0 in preprocess-only mode, and to 3 when only generating dependencies.
+; YASM has no such setting which is why we must rely on kBuild to tell us what we're doing.
+; For simplicity, we'll set the kBuild macro when using NASM.
+;
+%ifndef KBUILD_GENERATING_MAKEFILE_DEPENDENCIES
+ %ifdef __NASM__
+  %if __PASS__ == 0 || __PASS__ == 3
+   %define KBUILD_GENERATING_MAKEFILE_DEPENDENCIES
+  %endif
+ %endif
+%endif
+
+
+;
 ; Some simple compile time assertions.
 ;
-; Note! Requires new kBuild to work.
+; Note! Requires new kBuild to work with YASM (see above).
 ;
 
 ;;
 ; Structure size assertion macro.
 %define AssertCompileSize(a_Type, a_Size) AssertCompileSizeML a_Type, a_Size
-%macro AssertCompileSizeML 2,
+%macro AssertCompileSizeML 2
  %ifndef KBUILD_GENERATING_MAKEFILE_DEPENDENCIES
   %assign AssertVar_cbActual   %1 %+ _size
   %assign AssertVar_cbExpected %2
@@ -909,9 +939,23 @@ BEGINPROC RT_NOCRT(%1)
 %endmacro
 
 ;;
-; Structure memember offset assertion macro.
+; Structure size alignment assertion macro.
+
+%define AssertCompileSizeAlignment(a_Type, a_Align) AssertCompileSizeAlignmentML a_Type, a_Align
+%macro AssertCompileSizeAlignmentML 2
+ %ifndef KBUILD_GENERATING_MAKEFILE_DEPENDENCIES
+  %assign AssertVar_cbActual    %1 %+ _size
+  %assign AssertVar_cbAlignment %2
+  %if (AssertVar_cbActual & (AssertVar_cbAlignment - 1)) != 0
+   %error %1 is AssertVar_cbActual bytes, expected size with AssertVar_cbAlignment bytes alignment.
+  %endif
+ %endif
+%endmacro
+
+;;
+; Structure member offset assertion macro.
 %define AssertCompileMemberOffset(a_Type, a_Member, a_off) AssertCompileMemberOffsetML a_Type, a_Member, a_off
-%macro AssertCompileMemberOffsetML 3,
+%macro AssertCompileMemberOffsetML 3
  %ifndef KBUILD_GENERATING_MAKEFILE_DEPENDENCIES
   %assign AssertVar_offActual   %1 %+ . %+ %2
   %assign AssertVar_offExpected %3
@@ -921,4 +965,30 @@ BEGINPROC RT_NOCRT(%1)
  %endif
 %endmacro
 
+;;
+; Structure member alignment assertion macro.
+%define AssertCompileMemberAlignment(a_Type, a_Member, a_cbAlign) AssertCompileMemberAlignmentML a_Type, a_Member, a_cbAlign
+%macro AssertCompileMemberAlignmentML 3
+ %ifndef KBUILD_GENERATING_MAKEFILE_DEPENDENCIES
+  %assign AssertVar_offActual   %1 %+ . %+ %2
+  %assign AssertVar_cbAlign     %3
+  %if AssertVar_offActual & (AssertVar_cbAlign - 1)
+   %error %1 %+ . %+ %2 is at AssertVar_offActual, expected AssertVar_cbAlign alignment
+  %endif
+ %endif
+%endmacro
+
+;;
+; Generic compile time expression assertion.
+%define AssertCompile(a_Expr) AssertCompileML { a_Expr }
+%macro AssertCompileML 1
+ %ifndef KBUILD_GENERATING_MAKEFILE_DEPENDENCIES
+  %if (%1) != 1
+   %assign AssertVar_uResult %1
+   %error %1 => AssertVar_uResult
+  %endif
+ %endif
+%endmacro
+
 %endif
+

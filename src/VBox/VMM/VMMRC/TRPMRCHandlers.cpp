@@ -27,6 +27,9 @@
 #include <VBox/vmm/dbgf.h>
 #include <VBox/vmm/em.h>
 #include <VBox/vmm/gim.h>
+#ifdef VBOX_WITH_NEW_APIC
+# include <VBox/vmm/apic.h>
+#endif
 #include <VBox/vmm/csam.h>
 #include <VBox/vmm/patm.h>
 #include <VBox/vmm/mm.h>
@@ -210,12 +213,12 @@ static int trpmGCExitTrap(PVM pVM, PVMCPU pVCpu, int rc, PCPUMCTXCORE pRegFrame)
      */
     if (    rc == VINF_SUCCESS
         &&  (   VM_FF_IS_PENDING(pVM, VM_FF_TM_VIRTUAL_SYNC | VM_FF_REQUEST | VM_FF_PGM_NO_MEMORY | VM_FF_PDM_DMA)
-             || VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_TIMER | VMCPU_FF_TO_R3 | VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC
-                                          | VMCPU_FF_REQUEST | VMCPU_FF_PGM_SYNC_CR3 | VMCPU_FF_PGM_SYNC_CR3_NON_GLOBAL
-                                          | VMCPU_FF_PDM_CRITSECT
-                                          | VMCPU_FF_IEM
-                                          | VMCPU_FF_SELM_SYNC_GDT | VMCPU_FF_SELM_SYNC_LDT
-                                          | VMCPU_FF_SELM_SYNC_TSS | VMCPU_FF_TRPM_SYNC_IDT
+             || VMCPU_FF_IS_PENDING(pVCpu,  VMCPU_FF_TIMER         | VMCPU_FF_TO_R3
+                                          | VMCPU_FF_UPDATE_APIC   | VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC
+                                          | VMCPU_FF_REQUEST       | VMCPU_FF_PGM_SYNC_CR3   | VMCPU_FF_PGM_SYNC_CR3_NON_GLOBAL
+                                          | VMCPU_FF_PDM_CRITSECT  | VMCPU_FF_IEM            | VMCPU_FF_SELM_SYNC_GDT
+                                          | VMCPU_FF_SELM_SYNC_LDT | VMCPU_FF_SELM_SYNC_TSS  | VMCPU_FF_TRPM_SYNC_IDT
+                                          | VMCPU_FF_IOM           | VMCPU_FF_CPUM
                                    )
             )
        )
@@ -223,67 +226,88 @@ static int trpmGCExitTrap(PVM pVM, PVMCPU pVCpu, int rc, PCPUMCTXCORE pRegFrame)
         /* The out of memory condition naturally outranks the others. */
         if (RT_UNLIKELY(VM_FF_IS_PENDING(pVM, VM_FF_PGM_NO_MEMORY)))
             rc = VINF_EM_NO_MEMORY;
-        /* Pending Ring-3 action. */
-        else if (VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_TO_R3 | VMCPU_FF_PDM_CRITSECT | VMCPU_FF_IEM))
+        else
         {
-            VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_TO_R3);
-            rc = VINF_EM_RAW_TO_R3;
-        }
-        /* Pending timer action. */
-        else if (VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_TIMER))
-            rc = VINF_EM_RAW_TIMER_PENDING;
-        /* The Virtual Sync clock has stopped. */
-        else if (VM_FF_IS_PENDING(pVM, VM_FF_TM_VIRTUAL_SYNC))
-            rc = VINF_EM_RAW_TO_R3;
-        /* DMA work pending? */
-        else if (VM_FF_IS_PENDING(pVM, VM_FF_PDM_DMA))
-            rc = VINF_EM_RAW_TO_R3;
-        /* Pending request packets might contain actions that need immediate
-           attention, such as pending hardware interrupts. */
-        else if (   VM_FF_IS_PENDING(pVM, VM_FF_REQUEST)
-                 || VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_REQUEST))
-            rc = VINF_EM_PENDING_REQUEST;
-        /* Pending GDT/LDT/TSS sync. */
-        else if (VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_SELM_SYNC_GDT | VMCPU_FF_SELM_SYNC_LDT | VMCPU_FF_SELM_SYNC_TSS))
-            rc = VINF_SELM_SYNC_GDT;
-        else if (VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_TRPM_SYNC_IDT))
-            rc = VINF_EM_RAW_TO_R3;
-        /* Pending interrupt: dispatch it. */
-        else if (    VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC)
-                 && !VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS)
-                 &&  PATMAreInterruptsEnabledByCtx(pVM, CPUMCTX_FROM_CORE(pRegFrame))
-           )
-        {
-            uint8_t u8Interrupt;
-            rc = PDMGetInterrupt(pVCpu, &u8Interrupt);
-            Log(("trpmGCExitTrap: u8Interrupt=%d (%#x) rc=%Rrc\n", u8Interrupt, u8Interrupt, rc));
-            AssertFatalMsgRC(rc, ("PDMGetInterrupt failed with %Rrc\n", rc));
-            rc = TRPMForwardTrap(pVCpu, pRegFrame, (uint32_t)u8Interrupt, 0, TRPM_TRAP_NO_ERRORCODE, TRPM_HARDWARE_INT, uOldActiveVector);
-            /* can't return if successful */
-            Assert(rc != VINF_SUCCESS);
-
-            /* Stop the profile counter that was started in TRPMGCHandlersA.asm */
-            Assert(uOldActiveVector <= 16);
-            STAM_PROFILE_ADV_STOP(&pVM->trpm.s.aStatGCTraps[uOldActiveVector], a);
-
-            /* Assert the trap and go to the recompiler to dispatch it. */
-            TRPMAssertTrap(pVCpu, u8Interrupt, TRPM_HARDWARE_INT);
-
-            STAM_PROFILE_ADV_START(&pVM->trpm.s.aStatGCTraps[uOldActiveVector], a);
-            rc = VINF_EM_RAW_INTERRUPT_PENDING;
-        }
-        /*
-         * Try sync CR3?
-         */
-        else if (VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_PGM_SYNC_CR3 | VMCPU_FF_PGM_SYNC_CR3_NON_GLOBAL))
-        {
-#if 1
-            PGMRZDynMapReleaseAutoSet(pVCpu);
-            PGMRZDynMapStartAutoSet(pVCpu);
-            rc = PGMSyncCR3(pVCpu, CPUMGetGuestCR0(pVCpu), CPUMGetGuestCR3(pVCpu), CPUMGetGuestCR4(pVCpu), VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_PGM_SYNC_CR3));
-#else
-            rc = VINF_PGM_SYNC_CR3;
+#ifdef VBOX_WITH_NEW_APIC
+            /* APIC needs updating. */
+            if (VMCPU_FF_TEST_AND_CLEAR(pVCpu, VMCPU_FF_UPDATE_APIC))
+                APICUpdatePendingInterrupts(pVCpu);
 #endif
+            if (VMCPU_FF_TEST_AND_CLEAR(pVCpu, VMCPU_FF_CPUM))
+                CPUMRCProcessForceFlag(pVCpu);
+
+            /* Pending Ring-3 action. */
+            if (VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_TO_R3 | VMCPU_FF_PDM_CRITSECT | VMCPU_FF_IEM | VMCPU_FF_IOM))
+            {
+                VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_TO_R3);
+                rc = VINF_EM_RAW_TO_R3;
+            }
+            /* Pending timer action. */
+            else if (VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_TIMER))
+                rc = VINF_EM_RAW_TIMER_PENDING;
+            /* The Virtual Sync clock has stopped. */
+            else if (VM_FF_IS_PENDING(pVM, VM_FF_TM_VIRTUAL_SYNC))
+                rc = VINF_EM_RAW_TO_R3;
+            /* DMA work pending? */
+            else if (VM_FF_IS_PENDING(pVM, VM_FF_PDM_DMA))
+                rc = VINF_EM_RAW_TO_R3;
+            /* Pending request packets might contain actions that need immediate
+               attention, such as pending hardware interrupts. */
+            else if (   VM_FF_IS_PENDING(pVM, VM_FF_REQUEST)
+                     || VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_REQUEST))
+                rc = VINF_EM_PENDING_REQUEST;
+            /* Pending GDT/LDT/TSS sync. */
+            else if (VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_SELM_SYNC_GDT | VMCPU_FF_SELM_SYNC_LDT | VMCPU_FF_SELM_SYNC_TSS))
+                rc = VINF_SELM_SYNC_GDT;
+            else if (VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_TRPM_SYNC_IDT))
+                rc = VINF_EM_RAW_TO_R3;
+            /* Possibly pending interrupt: dispatch it. */
+            else if (    VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC)
+                     && !VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS)
+                     &&  PATMAreInterruptsEnabledByCtx(pVM, CPUMCTX_FROM_CORE(pRegFrame))
+               )
+            {
+                uint8_t u8Interrupt;
+                rc = PDMGetInterrupt(pVCpu, &u8Interrupt);
+                Log(("trpmGCExitTrap: u8Interrupt=%d (%#x) rc=%Rrc\n", u8Interrupt, u8Interrupt, rc));
+                if (RT_SUCCESS(rc))
+                {
+                    rc = TRPMForwardTrap(pVCpu, pRegFrame, (uint32_t)u8Interrupt, 0, TRPM_TRAP_NO_ERRORCODE, TRPM_HARDWARE_INT, uOldActiveVector);
+                    /* can't return if successful */
+                    Assert(rc != VINF_SUCCESS);
+
+                    /* Stop the profile counter that was started in TRPMRCHandlersA.asm */
+                    Assert(uOldActiveVector <= 16);
+                    STAM_PROFILE_ADV_STOP(&pVM->trpm.s.aStatGCTraps[uOldActiveVector], a);
+
+                    /* Assert the trap and go to the recompiler to dispatch it. */
+                    TRPMAssertTrap(pVCpu, u8Interrupt, TRPM_HARDWARE_INT);
+
+                    STAM_PROFILE_ADV_START(&pVM->trpm.s.aStatGCTraps[uOldActiveVector], a);
+                    rc = VINF_EM_RAW_INTERRUPT_PENDING;
+                }
+                else if (   rc == VERR_APIC_INTR_MASKED_BY_TPR  /* Can happen if TPR is too high for the newly arrived interrupt. */
+                         || rc == VERR_NO_DATA)                 /* Can happen if the APIC is disabled. */
+                {
+                    STAM_PROFILE_ADV_STOP(&pVM->trpm.s.aStatGCTraps[uOldActiveVector], a);
+                    rc = VINF_SUCCESS;
+                }
+                else
+                    AssertFatalMsgRC(rc, ("PDMGetInterrupt failed. rc=%Rrc\n", rc));
+            }
+            /*
+             * Try sync CR3?
+             */
+            else if (VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_PGM_SYNC_CR3 | VMCPU_FF_PGM_SYNC_CR3_NON_GLOBAL))
+            {
+#if 1
+                PGMRZDynMapReleaseAutoSet(pVCpu);
+                PGMRZDynMapStartAutoSet(pVCpu);
+                rc = PGMSyncCR3(pVCpu, CPUMGetGuestCR0(pVCpu), CPUMGetGuestCR3(pVCpu), CPUMGetGuestCR4(pVCpu), VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_PGM_SYNC_CR3));
+#else
+                rc = VINF_PGM_SYNC_CR3;
+#endif
+            }
         }
     }
 
@@ -468,9 +492,10 @@ DECLASM(int) TRPMGCTrap03Handler(PTRPMCPU pTrpmCpu, PCPUMCTXCORE pRegFrame)
     {
         rc = PATMRCHandleInt3PatchTrap(pVM, pRegFrame);
         if (   rc == VINF_SUCCESS
+            || rc == VINF_EM_RESCHEDULE
             || rc == VINF_EM_RAW_EMULATE_INSTR
             || rc == VINF_PATM_PATCH_INT3
-            || rc == VINF_PATM_DUPLICATE_FUNCTION)
+            || rc == VINF_PATM_DUPLICATE_FUNCTION )
         {
             rc = trpmGCExitTrap(pVM, pVCpu, rc, pRegFrame);
             Log6(("TRPMGC03: %Rrc (%04x:%08x EFL=%x) (PATM)\n", rc, pRegFrame->cs.Sel, pRegFrame->eip, CPUMRawGetEFlags(pVCpu)));
@@ -617,10 +642,21 @@ DECLASM(int) TRPMGCTrap06Handler(PTRPMCPU pTrpmCpu, PCPUMCTXCORE pRegFrame)
         else if (GIMShouldTrapXcptUD(pVCpu))
         {
             LogFlow(("TRPMGCTrap06Handler: -> GIMXcptUD\n"));
-            rc = GIMXcptUD(pVCpu, CPUMCTX_FROM_CORE(pRegFrame), &Cpu);
-            if (RT_FAILURE(rc))
+            VBOXSTRICTRC rcStrict = GIMXcptUD(pVCpu, CPUMCTX_FROM_CORE(pRegFrame), &Cpu, NULL /* pcbInstr */);
+            if (rcStrict == VINF_SUCCESS)
             {
-                LogFlow(("TRPMGCTrap06Handler: -> GIMXcptUD -> VINF_EM_RAW_EMULATE_INSTR\n"));
+                /* The interrupt inhibition wrt to EIP will be handled by trpmGCExitTrap() below. */
+                pRegFrame->eip += Cpu.cbInstr;
+                Assert(Cpu.cbInstr);
+            }
+            else if (rcStrict == VINF_GIM_HYPERCALL_CONTINUING)
+                rc = VINF_SUCCESS;
+            else if (rcStrict == VINF_GIM_R3_HYPERCALL)
+                rc = VINF_GIM_R3_HYPERCALL;
+            else
+            {
+                Assert(RT_FAILURE(VBOXSTRICTRC_VAL(rcStrict)));
+                LogFlow(("TRPMGCTrap06Handler: GIMXcptUD returns %Rrc -> VINF_EM_RAW_EMULATE_INSTR\n", rc));
                 rc = VINF_EM_RAW_EMULATE_INSTR;
             }
         }
@@ -1092,55 +1128,8 @@ static int trpmGCTrap0dHandler(PVM pVM, PTRPMCPU pTrpmCpu, PCPUMCTXCORE pRegFram
         &&  (Cpu.pCurInstr->fOpType & DISOPTYPE_PORTIO))
     {
         VBOXSTRICTRC rcStrict = IOMRCIOPortHandler(pVM, pVCpu, pRegFrame, &Cpu);
-        if (IOM_SUCCESS(rcStrict))
-        {
-            pRegFrame->rip += cbOp;
-
-            /*
-             * Check for I/O breakpoints.  A bit clumsy, but should be short lived (moved to IEM).
-             */
-            uint32_t const uDr7 = CPUMGetGuestDR7(pVCpu);
-            if (RT_UNLIKELY(   (   (uDr7 & X86_DR7_ENABLED_MASK)
-                                && X86_DR7_ANY_RW_IO(uDr7)
-                                && (CPUMGetGuestCR4(pVCpu) & X86_CR4_DE))
-                            || DBGFBpIsHwIoArmed(pVM)))
-            {
-                uint64_t    uPort = pRegFrame->dx;
-                unsigned    cbValue;
-                if (   Cpu.pCurInstr->uOpcode == OP_IN
-                    || Cpu.pCurInstr->uOpcode == OP_INSB
-                    || Cpu.pCurInstr->uOpcode == OP_INSWD)
-                {
-                    cbValue = DISGetParamSize(&Cpu, &Cpu.Param1);
-                    if (Cpu.Param2.fUse & DISUSE_IMMEDIATE)
-                        uPort = Cpu.Param2.uValue;
-                }
-                else
-                {
-                    cbValue = DISGetParamSize(&Cpu, &Cpu.Param2);
-                    if (Cpu.Param1.fUse & DISUSE_IMMEDIATE)
-                        uPort = Cpu.Param1.uValue;
-                }
-
-                VBOXSTRICTRC rcStrict2 = DBGFBpCheckIo(pVM, pVCpu, CPUMCTX_FROM_CORE(pRegFrame), uPort, cbValue);
-                if (rcStrict2 == VINF_EM_RAW_GUEST_TRAP)
-                {
-                    /* Raise #DB. */
-                    TRPMResetTrap(pVCpu);
-                    TRPMAssertTrap(pVCpu, X86_XCPT_DE, TRPM_TRAP);
-                    if (rcStrict != VINF_SUCCESS)
-                        LogRel(("trpmGCTrap0dHandler: Overriding %Rrc with #DB on I/O port access.\n", VBOXSTRICTRC_VAL(rcStrict)));
-                    rcStrict = VINF_EM_RAW_GUEST_TRAP;
-                }
-                /* rcStrict is VINF_SUCCESS or in [VINF_EM_FIRST..VINF_EM_LAST]. */
-                else if (   rcStrict2 != VINF_SUCCESS
-                         && (rcStrict == VINF_SUCCESS || rcStrict2 < rcStrict))
-                    rcStrict = rcStrict2;
-            }
-        }
-        rc = VBOXSTRICTRC_TODO(rcStrict);
         TRPM_EXIT_DBG_HOOK(0xd);
-        return trpmGCExitTrap(pVM, pVCpu, rc, pRegFrame);
+        return trpmGCExitTrap(pVM, pVCpu, VBOXSTRICTRC_TODO(rcStrict), pRegFrame);
     }
 
     /*
@@ -1216,7 +1205,9 @@ DECLASM(int) TRPMGCTrap0dHandler(PTRPMCPU pTrpmCpu, PCPUMCTXCORE pRegFrame)
         case VINF_EM_RAW_EMULATE_INSTR:
         case VINF_IOM_R3_IOPORT_READ:
         case VINF_IOM_R3_IOPORT_WRITE:
+        case VINF_IOM_R3_IOPORT_COMMIT_WRITE:
         case VINF_IOM_R3_MMIO_WRITE:
+        case VINF_IOM_R3_MMIO_COMMIT_WRITE:
         case VINF_IOM_R3_MMIO_READ:
         case VINF_IOM_R3_MMIO_READ_WRITE:
         case VINF_CPUM_R3_MSR_READ:
@@ -1295,6 +1286,7 @@ DECLASM(int) TRPMGCTrap0eHandler(PTRPMCPU pTrpmCpu, PCPUMCTXCORE pRegFrame)
             /* no break; */
         case VINF_IOM_R3_MMIO_READ:
         case VINF_IOM_R3_MMIO_WRITE:
+        case VINF_IOM_R3_MMIO_COMMIT_WRITE:
         case VINF_IOM_R3_MMIO_READ_WRITE:
         case VINF_PATM_HC_MMIO_PATCH_READ:
         case VINF_PATM_HC_MMIO_PATCH_WRITE:

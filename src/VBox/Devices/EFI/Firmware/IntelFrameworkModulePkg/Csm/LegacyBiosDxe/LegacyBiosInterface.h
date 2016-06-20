@@ -1,6 +1,6 @@
 /** @file
 
-Copyright (c) 2006 - 2012, Intel Corporation. All rights reserved.<BR>
+Copyright (c) 2006 - 2015, Intel Corporation. All rights reserved.<BR>
 
 This program and the accompanying materials
 are licensed and made available under the terms and conditions
@@ -18,12 +18,15 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 
 
 #include <FrameworkDxe.h>
+#include <IndustryStandard/Pci.h>
+#include <IndustryStandard/SmBios.h>
 
 #include <Guid/SmBios.h>
 #include <Guid/Acpi.h>
 #include <Guid/DxeServices.h>
 #include <Guid/LegacyBios.h>
 #include <Guid/StatusCodeDataTypeId.h>
+#include <Guid/ImageAuthentication.h>
 
 #include <Protocol/BlockIo.h>
 #include <Protocol/LoadedImage.h>
@@ -94,9 +97,9 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 #define PROTECTED_MODE_BASE_VECTOR_SLAVE   0x70
 
 //
-// When we call CSM16 functions, some CSM16 use es:[offset + 0xabcd] to get data passed from CSM32, 
-// offset + 0xabcd could overflow which exceeds 0xFFFF which is invalid in real mode. 
-// So this will keep offset as small as possible to avoid offset overflow in real mode. 
+// When we call CSM16 functions, some CSM16 use es:[offset + 0xabcd] to get data passed from CSM32,
+// offset + 0xabcd could overflow which exceeds 0xFFFF which is invalid in real mode.
+// So this will keep offset as small as possible to avoid offset overflow in real mode.
 //
 #define NORMALIZE_EFI_SEGMENT(_Adr)      (UINT16) (((UINTN) (_Adr)) >> 4)
 #define NORMALIZE_EFI_OFFSET(_Adr)       (UINT16) (((UINT16) ((UINTN) (_Adr))) & 0xf)
@@ -131,6 +134,10 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 #define LEGACY_PCI_TRACE_00E LEGACY_PCI_TRACE + 0x0E
 #define LEGACY_PCI_TRACE_00F LEGACY_PCI_TRACE + 0x0F
 
+#define BDA_VIDEO_MODE      0x49
+
+#define IDE_PI_REGISTER_PNE     BIT0
+#define IDE_PI_REGISTER_SNE     BIT2
 
 typedef struct {
   UINTN   PciSegment;
@@ -474,7 +481,8 @@ typedef enum {
   EfiAcpiAddressRangeMemory   = 1,
   EfiAcpiAddressRangeReserved = 2,
   EfiAcpiAddressRangeACPI     = 3,
-  EfiAcpiAddressRangeNVS      = 4
+  EfiAcpiAddressRangeNVS      = 4,
+  EfiAddressRangePersistentMemory = 7
 } EFI_ACPI_MEMORY_TYPE;
 
 typedef struct {
@@ -530,7 +538,7 @@ extern EFI_GENERIC_MEMORY_TEST_PROTOCOL *gGenMemoryTest;
 //
 // Timer 0, Read/Write LSB then MSB, Square wave output, binary count use.
 //
-#define TIMER0_CONTROL_WORD         0x36      
+#define TIMER0_CONTROL_WORD         0x36
 
 #define LEGACY_BIOS_INSTANCE_SIGNATURE  SIGNATURE_32 ('L', 'B', 'I', 'T')
 typedef struct {
@@ -542,16 +550,16 @@ typedef struct {
   EFI_HANDLE                        ImageHandle;
 
   //
-  // CPU Architectural Protocol 
+  // CPU Architectural Protocol
   //
   EFI_CPU_ARCH_PROTOCOL             *Cpu;
 
   //
-  // Timer Architectural Protocol 
+  // Timer Architectural Protocol
   //
   EFI_TIMER_ARCH_PROTOCOL           *Timer;
-  BOOLEAN                           TimerUses8254; 
-  
+  BOOLEAN                           TimerUses8254;
+
   //
   // Protocol to Lock and Unlock 0xc0000 - 0xfffff
   //
@@ -563,7 +571,7 @@ typedef struct {
   // Interrupt control for thunk and PCI IRQ
   //
   EFI_LEGACY_8259_PROTOCOL          *Legacy8259;
-  
+
   //
   // PCI Interrupt PIRQ control
   //
@@ -659,7 +667,7 @@ typedef struct {
   //
   // Indicate that whether GenericLegacyBoot is entered or not
   //
-  BOOLEAN                           LegacyBootEntered;                              
+  BOOLEAN                           LegacyBootEntered;
 
   //
   // CSM16 PCI Interface Version
@@ -1335,7 +1343,7 @@ ShadowAndStartLegacy16 (
 
 /**
   Checks the state of the floppy and if media is inserted.
-  
+
   This routine checks the state of the floppy and if media is inserted.
   There are 3 cases:
   No floppy present         - Set BBS entry to ignore
@@ -1512,6 +1520,22 @@ InternalLegacyBiosFarCall (
   IN  EFI_IA32_REGISTER_SET           *Regs,
   IN  VOID                            *Stack,
   IN  UINTN                           StackSize
+  );
+
+/**
+  Load a legacy PC-AT OpROM for VGA controller.
+
+  @param  Private                Driver private data.
+
+  @retval EFI_SUCCESS            Legacy ROM successfully installed for this device.
+  @retval EFI_DEVICE_ERROR       No VGA device handle found, or native EFI video
+                                 driver cannot be successfully disconnected, or VGA
+                                 thunk driver cannot be successfully connected.
+
+**/
+EFI_STATUS
+LegacyBiosInstallVgaRom (
+  IN  LEGACY_BIOS_INSTANCE            *Private
   );
 
 #endif

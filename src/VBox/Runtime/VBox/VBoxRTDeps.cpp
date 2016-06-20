@@ -33,6 +33,7 @@
 #endif
 #include <iprt/asm.h>
 #include <iprt/assert.h>
+#include <iprt/localipc.h>
 #include <iprt/buildconfig.h>
 #include <iprt/system.h>
 
@@ -61,6 +62,7 @@ PFNRT g_VBoxRTDeps[] =
     (PFNRT)SUPGetTscDeltaSlow,
 #endif
     (PFNRT)xmlLoadCatalogs,
+    (PFNRT)RTLocalIpcServerCreate,
     (PFNRT)MD5_Init,
     (PFNRT)RC4,
     (PFNRT)RC4_set_key,
@@ -82,6 +84,7 @@ PFNRT g_VBoxRTDeps[] =
     (PFNRT)RTAssertShouldPanic,
     (PFNRT)ASMAtomicReadU64,
     (PFNRT)ASMAtomicCmpXchgU64,
+    (PFNRT)ASMBitFirstSet,
     (PFNRT)RTBldCfgRevision,
     (PFNRT)SSL_free,
     (PFNRT)SSL_library_init,

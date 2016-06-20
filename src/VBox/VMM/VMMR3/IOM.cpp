@@ -86,6 +86,12 @@
  * mapped into the physical memory address space, it can be accessed in a number
  * of ways thru PGM.
  *
+ *
+ * @section sec_iom_logging     Logging Levels
+ *
+ * Following assignments:
+ *      - Level 5 is used for defering I/O port and MMIO writes to ring-3.
+ *
  */
 
 /** @todo MMIO - simplifying the device end.
@@ -1641,6 +1647,155 @@ VMMR3_INT_DECL(int) IOMR3MmioDeregister(PVM pVM, PPDMDEVINS pDevIns, RTGCPHYS GC
 
     IOM_UNLOCK_EXCL(pVM);
     return VINF_SUCCESS;
+}
+
+
+/**
+ * Handles the unlikely and probably fatal merge cases.
+ *
+ * @returns Merged status code.
+ * @param   rcStrict        Current EM status code.
+ * @param   rcStrictCommit  The IOM I/O or MMIO write commit status to merge
+ *                          with @a rcStrict.
+ * @param   rcIom           For logging purposes only.
+ * @param   pVCpu           The cross context virtual CPU structure of the
+ *                          calling EMT.  For logging purposes.
+ */
+DECL_NO_INLINE(static, VBOXSTRICTRC) iomR3MergeStatusSlow(VBOXSTRICTRC rcStrict, VBOXSTRICTRC rcStrictCommit,
+                                                          int rcIom, PVMCPU pVCpu)
+{
+    if (RT_FAILURE_NP(rcStrict))
+        return rcStrict;
+
+    if (RT_FAILURE_NP(rcStrictCommit))
+        return rcStrictCommit;
+
+    if (rcStrict == rcStrictCommit)
+        return rcStrictCommit;
+
+    AssertLogRelMsgFailed(("rcStrictCommit=%Rrc rcStrict=%Rrc IOPort={%#06x<-%#xx/%u} MMIO={%RGp<-%.*Rhxs} (rcIom=%Rrc)\n",
+                           VBOXSTRICTRC_VAL(rcStrictCommit), VBOXSTRICTRC_VAL(rcStrict),
+                           pVCpu->iom.s.PendingIOPortWrite.IOPort,
+                           pVCpu->iom.s.PendingIOPortWrite.u32Value, pVCpu->iom.s.PendingIOPortWrite.cbValue,
+                           pVCpu->iom.s.PendingMmioWrite.GCPhys,
+                           pVCpu->iom.s.PendingMmioWrite.cbValue, &pVCpu->iom.s.PendingMmioWrite.abValue[0], rcIom));
+    return VERR_IOM_FF_STATUS_IPE;
+}
+
+
+/**
+ * Helper for IOMR3ProcessForceFlag.
+ *
+ * @returns Merged status code.
+ * @param   rcStrict        Current EM status code.
+ * @param   rcStrictCommit  The IOM I/O or MMIO write commit status to merge
+ *                          with @a rcStrict.
+ * @param   rcIom           Either VINF_IOM_R3_IOPORT_COMMIT_WRITE or
+ *                          VINF_IOM_R3_MMIO_COMMIT_WRITE.
+ * @param   pVCpu           The cross context virtual CPU structure of the
+ *                          calling EMT.
+ */
+DECLINLINE(VBOXSTRICTRC) iomR3MergeStatus(VBOXSTRICTRC rcStrict, VBOXSTRICTRC rcStrictCommit, int rcIom, PVMCPU pVCpu)
+{
+    /* Simple. */
+    if (RT_LIKELY(rcStrict == rcIom || rcStrict == VINF_EM_RAW_TO_R3 || rcStrict == VINF_SUCCESS))
+        return rcStrictCommit;
+
+    if (RT_LIKELY(rcStrictCommit == VINF_SUCCESS))
+        return rcStrict;
+
+    /* EM scheduling status codes. */
+    if (RT_LIKELY(   rcStrict >= VINF_EM_FIRST
+                  && rcStrict <= VINF_EM_LAST))
+    {
+        if (RT_LIKELY(   rcStrictCommit >= VINF_EM_FIRST
+                      && rcStrictCommit <= VINF_EM_LAST))
+            return rcStrict < rcStrictCommit ? rcStrict : rcStrictCommit;
+    }
+
+    /* Unlikely */
+    return iomR3MergeStatusSlow(rcStrict, rcStrictCommit, rcIom, pVCpu);
+}
+
+
+/**
+ * Called by force-flag handling code when VMCPU_FF_IOM is set.
+ *
+ * @returns Merge between @a rcStrict and what the commit operation returned.
+ * @param   pVM         The cross context VM structure.
+ * @param   pVCpu       The cross context virtual CPU structure of the calling EMT.
+ * @param   rcStrict    The status code returned by ring-0 or raw-mode.
+ * @thread  EMT(pVCpu)
+ *
+ * @remarks The VMCPU_FF_IOM flag is handled before the status codes by EM, so
+ *          we're very likely to see @a rcStrict set to
+ *          VINF_IOM_R3_IOPORT_COMMIT_WRITE and VINF_IOM_R3_MMIO_COMMIT_WRITE
+ *          here.
+ */
+VMMR3_INT_DECL(VBOXSTRICTRC) IOMR3ProcessForceFlag(PVM pVM, PVMCPU pVCpu, VBOXSTRICTRC rcStrict)
+{
+    VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_IOM);
+    Assert(pVCpu->iom.s.PendingIOPortWrite.cbValue || pVCpu->iom.s.PendingMmioWrite.cbValue);
+
+    if (pVCpu->iom.s.PendingIOPortWrite.cbValue)
+    {
+        Log5(("IOM: Dispatching pending I/O port write: %#x LB %u -> %RTiop\n", pVCpu->iom.s.PendingIOPortWrite.u32Value,
+              pVCpu->iom.s.PendingMmioWrite.cbValue, pVCpu->iom.s.PendingIOPortWrite.IOPort));
+        VBOXSTRICTRC rcStrictCommit = IOMIOPortWrite(pVM, pVCpu, pVCpu->iom.s.PendingIOPortWrite.IOPort,
+                                                     pVCpu->iom.s.PendingIOPortWrite.u32Value,
+                                                     pVCpu->iom.s.PendingIOPortWrite.cbValue);
+        pVCpu->iom.s.PendingIOPortWrite.cbValue = 0;
+        rcStrict = iomR3MergeStatus(rcStrict, rcStrictCommit, VINF_IOM_R3_IOPORT_COMMIT_WRITE, pVCpu);
+    }
+
+
+    if (pVCpu->iom.s.PendingMmioWrite.cbValue)
+    {
+        Log5(("IOM: Dispatching pending MMIO write: %RGp LB %#x\n",
+              pVCpu->iom.s.PendingMmioWrite.GCPhys, pVCpu->iom.s.PendingMmioWrite.cbValue));
+        /** @todo Try optimize this some day?  Currently easier and correcter to
+         *        involve PGM here since we never know if the MMIO area is still mapped
+         *        to the same location as when we wrote to it in RC/R0 context. */
+        VBOXSTRICTRC rcStrictCommit = PGMPhysWrite(pVM, pVCpu->iom.s.PendingMmioWrite.GCPhys,
+                                                   pVCpu->iom.s.PendingMmioWrite.abValue, pVCpu->iom.s.PendingMmioWrite.cbValue,
+                                                   PGMACCESSORIGIN_IOM);
+        pVCpu->iom.s.PendingMmioWrite.cbValue = 0;
+        rcStrict = iomR3MergeStatus(rcStrict, rcStrictCommit, VINF_IOM_R3_MMIO_COMMIT_WRITE, pVCpu);
+    }
+
+    return rcStrict;
+}
+
+
+/**
+ * Notification from DBGF that the number of active I/O port or MMIO
+ * breakpoints has change.
+ *
+ * For performance reasons, IOM will only call DBGF before doing I/O and MMIO
+ * accesses where there are armed breakpoints.
+ *
+ * @param   pVM         The cross context VM structure.
+ * @param   fPortIo     True if there are armed I/O port breakpoints.
+ * @param   fMmio       True if there are armed MMIO breakpoints.
+ */
+VMMR3_INT_DECL(void) IOMR3NotifyBreakpointCountChange(PVM pVM, bool fPortIo, bool fMmio)
+{
+    /** @todo I/O breakpoints. */
+}
+
+
+/**
+ * Notification from DBGF that an event has been enabled or disabled.
+ *
+ * For performance reasons, IOM may cache the state of events it implements.
+ *
+ * @param   pVM         The cross context VM structure.
+ * @param   enmEvent    The event.
+ * @param   fEnabled    The new state.
+ */
+VMMR3_INT_DECL(void) IOMR3NotifyDebugEventChange(PVM pVM, DBGFEVENT enmEvent, bool fEnabled)
+{
+    /** @todo IOM debug events. */
 }
 
 

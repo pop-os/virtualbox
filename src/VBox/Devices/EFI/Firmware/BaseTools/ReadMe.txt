@@ -1,6 +1,6 @@
 This directory contains the next generation of EDK II build tools and template files.
 Templates are located in the Conf directory, while the tools executables for
-Microsoft Windows 32-bit Operating Systems are located in the Bin\Win32 directory, other 
+Microsoft Windows 32-bit Operating Systems are located in the Bin\Win32 directory, other
 directory contatins tools source.
 
 1. Build step to generate the binary tools.
@@ -33,20 +33,14 @@ the base directory of the project.
 On Ubuntu, the following command should install all the necessary build
 packages to build all the C BaseTools:
 
-  sudo apt-get install build-essentials uuid-dev
+  sudo apt-get install build-essential uuid-dev
 
 === Python sqlite3 module ===
-On Windows, the cx_freeze will not copy the sqlite3.dll to the frozen 
-binary directory (the same directory as build.exe and GenFds.exe). 
+On Windows, the cx_freeze will not copy the sqlite3.dll to the frozen
+binary directory (the same directory as build.exe and GenFds.exe).
 Please copy it manually from <PythonHome>\DLLs.
 
 The Python distributed with most recent Linux will have sqlite3 module
 built in. If not, please install sqlit3 package separately.
-
-2. The binary tools will be updated only after passing developer testing.
-
-Current state of the tools is Proto-Type - not all tool functions have been implemented
-and there may be bugs in these tools.  These tools are under constant development at
-this time.
 
 26-OCT-2011

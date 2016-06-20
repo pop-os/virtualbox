@@ -2,7 +2,7 @@
   Provides string functions, linked list functions, math functions, synchronization
   functions, and CPU architecture-specific functions.
 
-Copyright (c) 2006 - 2011, Intel Corporation. All rights reserved.<BR>
+Copyright (c) 2006 - 2014, Intel Corporation. All rights reserved.<BR>
 Portions copyright (c) 2008 - 2009, Apple Inc. All rights reserved.<BR>
 This program and the accompanying materials
 are licensed and made available under the terms and conditions of the BSD License
@@ -146,11 +146,346 @@ typedef struct {
 
 #endif  // defined (MDE_CPU_ARM)
 
+#if defined (MDE_CPU_AARCH64)
+typedef struct {
+  // GP regs
+  UINT64    X19;
+  UINT64    X20;
+  UINT64    X21;
+  UINT64    X22;
+  UINT64    X23;
+  UINT64    X24;
+  UINT64    X25;
+  UINT64    X26;
+  UINT64    X27;
+  UINT64    X28;
+  UINT64    FP;
+  UINT64    LR;
+  UINT64    IP0;
+
+  // FP regs
+  UINT64    D8;
+  UINT64    D9;
+  UINT64    D10;
+  UINT64    D11;
+  UINT64    D12;
+  UINT64    D13;
+  UINT64    D14;
+  UINT64    D15;
+} BASE_LIBRARY_JUMP_BUFFER;
+
+#define BASE_LIBRARY_JUMP_BUFFER_ALIGNMENT 8
+
+#endif  // defined (MDE_CPU_AARCH64)
+
+
 //
 // String Services
 //
 
+
 /**
+  Returns the length of a Null-terminated Unicode string.
+
+  If String is not aligned on a 16-bit boundary, then ASSERT().
+
+  @param  String   A pointer to a Null-terminated Unicode string.
+  @param  MaxSize  The maximum number of Destination Unicode
+                   char, including terminating null char.
+
+  @retval 0        If String is NULL.
+  @retval MaxSize  If there is no null character in the first MaxSize characters of String.
+  @return The number of characters that percede the terminating null character.
+
+**/
+UINTN
+EFIAPI
+StrnLenS (
+  IN CONST CHAR16              *String,
+  IN UINTN                     MaxSize
+  );
+
+/**
+  Copies the string pointed to by Source (including the terminating null char)
+  to the array pointed to by Destination.
+
+  If Destination is not aligned on a 16-bit boundary, then ASSERT().
+  If Source is not aligned on a 16-bit boundary, then ASSERT().
+
+  @param  Destination              A pointer to a Null-terminated Unicode string.
+  @param  DestMax                  The maximum number of Destination Unicode
+                                   char, including terminating null char.
+  @param  Source                   A pointer to a Null-terminated Unicode string.
+
+  @retval RETURN_SUCCESS           String is copied.
+  @retval RETURN_BUFFER_TOO_SMALL  If DestMax is NOT greater than StrLen(Source).
+  @retval RETURN_INVALID_PARAMETER If Destination is NULL.
+                                   If Source is NULL.
+                                   If PcdMaximumUnicodeStringLength is not zero,
+                                    and DestMax is greater than
+                                    PcdMaximumUnicodeStringLength.
+                                   If DestMax is 0.
+  @retval RETURN_ACCESS_DENIED     If Source and Destination overlap.
+**/
+RETURN_STATUS
+EFIAPI
+StrCpyS (
+  OUT CHAR16       *Destination,
+  IN  UINTN        DestMax,
+  IN  CONST CHAR16 *Source
+  );
+
+/**
+  Copies not more than Length successive char from the string pointed to by
+  Source to the array pointed to by Destination. If no null char is copied from
+  Source, then Destination[Length] is always set to null.
+
+  If Length > 0 and Destination is not aligned on a 16-bit boundary, then ASSERT().
+  If Length > 0 and Source is not aligned on a 16-bit boundary, then ASSERT().
+
+  @param  Destination              A pointer to a Null-terminated Unicode string.
+  @param  DestMax                  The maximum number of Destination Unicode
+                                   char, including terminating null char.
+  @param  Source                   A pointer to a Null-terminated Unicode string.
+  @param  Length                   The maximum number of Unicode characters to copy.
+
+  @retval RETURN_SUCCESS           String is copied.
+  @retval RETURN_BUFFER_TOO_SMALL  If DestMax is NOT greater than
+                                   MIN(StrLen(Source), Length).
+  @retval RETURN_INVALID_PARAMETER If Destination is NULL.
+                                   If Source is NULL.
+                                   If PcdMaximumUnicodeStringLength is not zero,
+                                    and DestMax is greater than
+                                    PcdMaximumUnicodeStringLength.
+                                   If DestMax is 0.
+  @retval RETURN_ACCESS_DENIED     If Source and Destination overlap.
+**/
+RETURN_STATUS
+EFIAPI
+StrnCpyS (
+  OUT CHAR16       *Destination,
+  IN  UINTN        DestMax,
+  IN  CONST CHAR16 *Source,
+  IN  UINTN        Length
+  );
+
+/**
+  Appends a copy of the string pointed to by Source (including the terminating
+  null char) to the end of the string pointed to by Destination.
+
+  If Destination is not aligned on a 16-bit boundary, then ASSERT().
+  If Source is not aligned on a 16-bit boundary, then ASSERT().
+
+  @param  Destination              A pointer to a Null-terminated Unicode string.
+  @param  DestMax                  The maximum number of Destination Unicode
+                                   char, including terminating null char.
+  @param  Source                   A pointer to a Null-terminated Unicode string.
+
+  @retval RETURN_SUCCESS           String is appended.
+  @retval RETURN_BAD_BUFFER_SIZE   If DestMax is NOT greater than
+                                   StrLen(Destination).
+  @retval RETURN_BUFFER_TOO_SMALL  If (DestMax - StrLen(Destination)) is NOT
+                                   greater than StrLen(Source).
+  @retval RETURN_INVALID_PARAMETER If Destination is NULL.
+                                   If Source is NULL.
+                                   If PcdMaximumUnicodeStringLength is not zero,
+                                    and DestMax is greater than
+                                    PcdMaximumUnicodeStringLength.
+                                   If DestMax is 0.
+  @retval RETURN_ACCESS_DENIED     If Source and Destination overlap.
+**/
+RETURN_STATUS
+EFIAPI
+StrCatS (
+  IN OUT CHAR16       *Destination,
+  IN     UINTN        DestMax,
+  IN     CONST CHAR16 *Source
+  );
+
+/**
+  Appends not more than Length successive char from the string pointed to by
+  Source to the end of the string pointed to by Destination. If no null char is
+  copied from Source, then Destination[StrLen(Destination) + Length] is always
+  set to null.
+
+  If Destination is not aligned on a 16-bit boundary, then ASSERT().
+  If and Source is not aligned on a 16-bit boundary, then ASSERT().
+
+  @param  Destination              A pointer to a Null-terminated Unicode string.
+  @param  DestMax                  The maximum number of Destination Unicode
+                                   char, including terminating null char.
+  @param  Source                   A pointer to a Null-terminated Unicode string.
+  @param  Length                   The maximum number of Unicode characters to copy.
+
+  @retval RETURN_SUCCESS           String is appended.
+  @retval RETURN_BAD_BUFFER_SIZE   If DestMax is NOT greater than
+                                   StrLen(Destination).
+  @retval RETURN_BUFFER_TOO_SMALL  If (DestMax - StrLen(Destination)) is NOT
+                                   greater than MIN(StrLen(Source), Length).
+  @retval RETURN_INVALID_PARAMETER If Destination is NULL.
+                                   If Source is NULL.
+                                   If PcdMaximumUnicodeStringLength is not zero,
+                                    and DestMax is greater than
+                                    PcdMaximumUnicodeStringLength.
+                                   If DestMax is 0.
+  @retval RETURN_ACCESS_DENIED     If Source and Destination overlap.
+**/
+RETURN_STATUS
+EFIAPI
+StrnCatS (
+  IN OUT CHAR16       *Destination,
+  IN     UINTN        DestMax,
+  IN     CONST CHAR16 *Source,
+  IN     UINTN        Length
+  );
+
+/**
+  Returns the length of a Null-terminated Ascii string.
+
+  @param  String   A pointer to a Null-terminated Ascii string.
+  @param  MaxSize  The maximum number of Destination Ascii
+                   char, including terminating null char.
+
+  @retval 0        If String is NULL.
+  @retval MaxSize  If there is no null character in the first MaxSize characters of String.
+  @return The number of characters that percede the terminating null character.
+
+**/
+UINTN
+EFIAPI
+AsciiStrnLenS (
+  IN CONST CHAR8               *String,
+  IN UINTN                     MaxSize
+  );
+
+/**
+  Copies the string pointed to by Source (including the terminating null char)
+  to the array pointed to by Destination.
+
+  @param  Destination              A pointer to a Null-terminated Ascii string.
+  @param  DestMax                  The maximum number of Destination Ascii
+                                   char, including terminating null char.
+  @param  Source                   A pointer to a Null-terminated Ascii string.
+
+  @retval RETURN_SUCCESS           String is copied.
+  @retval RETURN_BUFFER_TOO_SMALL  If DestMax is NOT greater than StrLen(Source).
+  @retval RETURN_INVALID_PARAMETER If Destination is NULL.
+                                   If Source is NULL.
+                                   If PcdMaximumAsciiStringLength is not zero,
+                                    and DestMax is greater than
+                                    PcdMaximumAsciiStringLength.
+                                   If DestMax is 0.
+  @retval RETURN_ACCESS_DENIED     If Source and Destination overlap.
+**/
+RETURN_STATUS
+EFIAPI
+AsciiStrCpyS (
+  OUT CHAR8        *Destination,
+  IN  UINTN        DestMax,
+  IN  CONST CHAR8  *Source
+  );
+
+/**
+  Copies not more than Length successive char from the string pointed to by
+  Source to the array pointed to by Destination. If no null char is copied from
+  Source, then Destination[Length] is always set to null.
+
+  @param  Destination              A pointer to a Null-terminated Ascii string.
+  @param  DestMax                  The maximum number of Destination Ascii
+                                   char, including terminating null char.
+  @param  Source                   A pointer to a Null-terminated Ascii string.
+  @param  Length                   The maximum number of Ascii characters to copy.
+
+  @retval RETURN_SUCCESS           String is copied.
+  @retval RETURN_BUFFER_TOO_SMALL  If DestMax is NOT greater than
+                                   MIN(StrLen(Source), Length).
+  @retval RETURN_INVALID_PARAMETER If Destination is NULL.
+                                   If Source is NULL.
+                                   If PcdMaximumAsciiStringLength is not zero,
+                                    and DestMax is greater than
+                                    PcdMaximumAsciiStringLength.
+                                   If DestMax is 0.
+  @retval RETURN_ACCESS_DENIED     If Source and Destination overlap.
+**/
+RETURN_STATUS
+EFIAPI
+AsciiStrnCpyS (
+  OUT CHAR8        *Destination,
+  IN  UINTN        DestMax,
+  IN  CONST CHAR8  *Source,
+  IN  UINTN        Length
+  );
+
+/**
+  Appends a copy of the string pointed to by Source (including the terminating
+  null char) to the end of the string pointed to by Destination.
+
+  @param  Destination              A pointer to a Null-terminated Ascii string.
+  @param  DestMax                  The maximum number of Destination Ascii
+                                   char, including terminating null char.
+  @param  Source                   A pointer to a Null-terminated Ascii string.
+
+  @retval RETURN_SUCCESS           String is appended.
+  @retval RETURN_BAD_BUFFER_SIZE   If DestMax is NOT greater than
+                                   StrLen(Destination).
+  @retval RETURN_BUFFER_TOO_SMALL  If (DestMax - StrLen(Destination)) is NOT
+                                   greater than StrLen(Source).
+  @retval RETURN_INVALID_PARAMETER If Destination is NULL.
+                                   If Source is NULL.
+                                   If PcdMaximumAsciiStringLength is not zero,
+                                    and DestMax is greater than
+                                    PcdMaximumAsciiStringLength.
+                                   If DestMax is 0.
+  @retval RETURN_ACCESS_DENIED     If Source and Destination overlap.
+**/
+RETURN_STATUS
+EFIAPI
+AsciiStrCatS (
+  IN OUT CHAR8        *Destination,
+  IN     UINTN        DestMax,
+  IN     CONST CHAR8  *Source
+  );
+
+/**
+  Appends not more than Length successive char from the string pointed to by
+  Source to the end of the string pointed to by Destination. If no null char is
+  copied from Source, then Destination[StrLen(Destination) + Length] is always
+  set to null.
+
+  @param  Destination              A pointer to a Null-terminated Ascii string.
+  @param  DestMax                  The maximum number of Destination Ascii
+                                   char, including terminating null char.
+  @param  Source                   A pointer to a Null-terminated Ascii string.
+  @param  Length                   The maximum number of Ascii characters to copy.
+
+  @retval RETURN_SUCCESS           String is appended.
+  @retval RETURN_BAD_BUFFER_SIZE   If DestMax is NOT greater than
+                                   StrLen(Destination).
+  @retval RETURN_BUFFER_TOO_SMALL  If (DestMax - StrLen(Destination)) is NOT
+                                   greater than MIN(StrLen(Source), Length).
+  @retval RETURN_INVALID_PARAMETER If Destination is NULL.
+                                   If Source is NULL.
+                                   If PcdMaximumAsciiStringLength is not zero,
+                                    and DestMax is greater than
+                                    PcdMaximumAsciiStringLength.
+                                   If DestMax is 0.
+  @retval RETURN_ACCESS_DENIED     If Source and Destination overlap.
+**/
+RETURN_STATUS
+EFIAPI
+AsciiStrnCatS (
+  IN OUT CHAR8        *Destination,
+  IN     UINTN        DestMax,
+  IN     CONST CHAR8  *Source,
+  IN     UINTN        Length
+  );
+
+
+#ifndef DISABLE_NEW_DEPRECATED_INTERFACES
+
+/**
+  [ATTENTION] This function will be deprecated for security reason.
+
   Copies one Null-terminated Unicode string to another Null-terminated Unicode
   string and returns the new Unicode string.
 
@@ -182,7 +517,9 @@ StrCpy (
 
 
 /**
-  Copies up to a specified length from one Null-terminated Unicode string to 
+  [ATTENTION] This function will be deprecated for security reason.
+
+  Copies up to a specified length from one Null-terminated Unicode string to
   another Null-terminated Unicode string and returns the new Unicode string.
 
   This function copies the contents of the Unicode string Source to the Unicode
@@ -198,7 +535,7 @@ StrCpy (
   If Length > 0 and Source is NULL, then ASSERT().
   If Length > 0 and Source is not aligned on a 16-bit boundary, then ASSERT().
   If Source and Destination overlap, then ASSERT().
-  If PcdMaximumUnicodeStringLength is not zero, and Length is greater than 
+  If PcdMaximumUnicodeStringLength is not zero, and Length is greater than
   PcdMaximumUnicodeStringLength, then ASSERT().
   If PcdMaximumUnicodeStringLength is not zero, and Source contains more than
   PcdMaximumUnicodeStringLength Unicode characters, not including the Null-terminator,
@@ -218,7 +555,7 @@ StrnCpy (
   IN      CONST CHAR16              *Source,
   IN      UINTN                     Length
   );
-
+#endif
 
 /**
   Returns the length of a Null-terminated Unicode string.
@@ -248,7 +585,7 @@ StrLen (
   Returns the size of a Null-terminated Unicode string in bytes, including the
   Null terminator.
 
-  This function returns the size, in bytes, of the Null-terminated Unicode string 
+  This function returns the size, in bytes, of the Null-terminated Unicode string
   specified by String.
 
   If String is NULL, then ASSERT().
@@ -308,7 +645,7 @@ StrCmp (
 /**
   Compares up to a specified length the contents of two Null-terminated Unicode strings,
   and returns the difference between the first mismatched Unicode characters.
-  
+
   This function compares the Null-terminated Unicode string FirstString to the
   Null-terminated Unicode string SecondString. At most, Length Unicode
   characters will be compared. If Length is 0, then 0 is returned. If
@@ -346,7 +683,11 @@ StrnCmp (
   );
 
 
+#ifndef DISABLE_NEW_DEPRECATED_INTERFACES
+
 /**
+  [ATTENTION] This function will be deprecated for security reason.
+
   Concatenates one Null-terminated Unicode string to another Null-terminated
   Unicode string, and returns the concatenated Unicode string.
 
@@ -387,8 +728,10 @@ StrCat (
 
 
 /**
-  Concatenates up to a specified length one Null-terminated Unicode to the end 
-  of another Null-terminated Unicode string, and returns the concatenated 
+  [ATTENTION] This function will be deprecated for security reason.
+
+  Concatenates up to a specified length one Null-terminated Unicode to the end
+  of another Null-terminated Unicode string, and returns the concatenated
   Unicode string.
 
   This function concatenates two Null-terminated Unicode strings. The contents
@@ -404,7 +747,7 @@ StrCat (
   If Length > 0 and Source is NULL, then ASSERT().
   If Length > 0 and Source is not aligned on a 16-bit boundary, then ASSERT().
   If Source and Destination overlap, then ASSERT().
-  If PcdMaximumUnicodeStringLength is not zero, and Length is greater than 
+  If PcdMaximumUnicodeStringLength is not zero, and Length is greater than
   PcdMaximumUnicodeStringLength, then ASSERT().
   If PcdMaximumUnicodeStringLength is not zero, and Destination contains more
   than PcdMaximumUnicodeStringLength Unicode characters, not including the
@@ -431,6 +774,7 @@ StrnCat (
   IN      CONST CHAR16              *Source,
   IN      UINTN                     Length
   );
+#endif
 
 /**
   Returns the first occurrence of a Null-terminated Unicode sub-string
@@ -543,7 +887,7 @@ EFIAPI
 StrDecimalToUint64 (
   IN      CONST CHAR16              *String
   );
- 
+
 
 /**
   Convert a Null-terminated Unicode hexadecimal string to a value of type UINTN.
@@ -560,7 +904,7 @@ StrDecimalToUint64 (
   The function will ignore the pad space, which includes spaces or tab characters,
   before [zeros], [x] or [hexadecimal digit]. The running zero before [x] or
   [hexadecimal digit] will be ignored. Then, the decoding starts after [x] or the
-  first valid hexadecimal digit. Then, the function stops at the first character 
+  first valid hexadecimal digit. Then, the function stops at the first character
   that is a not a valid hexadecimal character or NULL, whichever one comes first.
 
   If String is NULL, then ASSERT().
@@ -669,7 +1013,11 @@ UnicodeStrToAsciiStr (
   );
 
 
+#ifndef DISABLE_NEW_DEPRECATED_INTERFACES
+
 /**
+  [ATTENTION] This function will be deprecated for security reason.
+
   Copies one Null-terminated ASCII string to another Null-terminated ASCII
   string and returns the new ASCII string.
 
@@ -699,7 +1047,9 @@ AsciiStrCpy (
 
 
 /**
-  Copies up to a specified length one Null-terminated ASCII string to another 
+  [ATTENTION] This function will be deprecated for security reason.
+
+  Copies up to a specified length one Null-terminated ASCII string to another
   Null-terminated ASCII string and returns the new ASCII string.
 
   This function copies the contents of the ASCII string Source to the ASCII
@@ -712,7 +1062,7 @@ AsciiStrCpy (
   If Destination is NULL, then ASSERT().
   If Source is NULL, then ASSERT().
   If Source and Destination overlap, then ASSERT().
-  If PcdMaximumAsciiStringLength is not zero, and Length is greater than 
+  If PcdMaximumAsciiStringLength is not zero, and Length is greater than
   PcdMaximumAsciiStringLength, then ASSERT().
   If PcdMaximumAsciiStringLength is not zero, and Source contains more than
   PcdMaximumAsciiStringLength ASCII characters, not including the Null-terminator,
@@ -732,7 +1082,7 @@ AsciiStrnCpy (
   IN      CONST CHAR8               *Source,
   IN      UINTN                     Length
   );
-
+#endif
 
 /**
   Returns the length of a Null-terminated ASCII string.
@@ -866,7 +1216,7 @@ AsciiStriCmp (
 
   If Length > 0 and FirstString is NULL, then ASSERT().
   If Length > 0 and SecondString is NULL, then ASSERT().
-  If PcdMaximumAsciiStringLength is not zero, and Length is greater than 
+  If PcdMaximumAsciiStringLength is not zero, and Length is greater than
   PcdMaximumAsciiStringLength, then ASSERT().
   If PcdMaximumAsciiStringLength is not zero, and FirstString contains more than
   PcdMaximumAsciiStringLength ASCII characters, not including the Null-terminator,
@@ -878,7 +1228,7 @@ AsciiStriCmp (
   @param  FirstString   The pointer to a Null-terminated ASCII string.
   @param  SecondString  The pointer to a Null-terminated ASCII string.
   @param  Length        The maximum number of ASCII characters for compare.
-  
+
   @retval ==0       FirstString is identical to SecondString.
   @retval !=0       FirstString is not identical to SecondString.
 
@@ -892,7 +1242,11 @@ AsciiStrnCmp (
   );
 
 
+#ifndef DISABLE_NEW_DEPRECATED_INTERFACES
+
 /**
+  [ATTENTION] This function will be deprecated for security reason.
+
   Concatenates one Null-terminated ASCII string to another Null-terminated
   ASCII string, and returns the concatenated ASCII string.
 
@@ -928,8 +1282,10 @@ AsciiStrCat (
 
 
 /**
-  Concatenates up to a specified length one Null-terminated ASCII string to 
-  the end of another Null-terminated ASCII string, and returns the 
+  [ATTENTION] This function will be deprecated for security reason.
+
+  Concatenates up to a specified length one Null-terminated ASCII string to
+  the end of another Null-terminated ASCII string, and returns the
   concatenated ASCII string.
 
   This function concatenates two Null-terminated ASCII strings. The contents
@@ -970,7 +1326,7 @@ AsciiStrnCat (
   IN      CONST CHAR8               *Source,
   IN      UINTN                     Length
   );
-
+#endif
 
 /**
   Returns the first occurrence of a Null-terminated ASCII sub-string
@@ -1291,7 +1647,7 @@ InitializeListHead (
   If Entry is NULL, then ASSERT().
   If ListHead was not initialized with INTIALIZE_LIST_HEAD_VARIABLE() or
   InitializeListHead(), then ASSERT().
-  If PcdMaximumLinkedListLenth is not zero, and prior to insertion the number
+  If PcdMaximumLinkedListLength is not zero, and prior to insertion the number
   of nodes in ListHead, including the ListHead node, is greater than or
   equal to PcdMaximumLinkedListLength, then ASSERT().
 
@@ -1319,9 +1675,9 @@ InsertHeadList (
 
   If ListHead is NULL, then ASSERT().
   If Entry is NULL, then ASSERT().
-  If ListHead was not initialized with INTIALIZE_LIST_HEAD_VARIABLE() or 
+  If ListHead was not initialized with INTIALIZE_LIST_HEAD_VARIABLE() or
   InitializeListHead(), then ASSERT().
-  If PcdMaximumLinkedListLenth is not zero, and prior to insertion the number
+  If PcdMaximumLinkedListLength is not zero, and prior to insertion the number
   of nodes in ListHead, including the ListHead node, is greater than or
   equal to PcdMaximumLinkedListLength, then ASSERT().
 
@@ -1343,21 +1699,21 @@ InsertTailList (
 /**
   Retrieves the first node of a doubly linked list.
 
-  Returns the first node of a doubly linked list.  List must have been 
+  Returns the first node of a doubly linked list.  List must have been
   initialized with INTIALIZE_LIST_HEAD_VARIABLE() or InitializeListHead().
   If List is empty, then List is returned.
 
   If List is NULL, then ASSERT().
-  If List was not initialized with INTIALIZE_LIST_HEAD_VARIABLE() or 
+  If List was not initialized with INTIALIZE_LIST_HEAD_VARIABLE() or
   InitializeListHead(), then ASSERT().
-  If PcdMaximumLinkedListLenth is not zero, and the number of nodes
+  If PcdMaximumLinkedListLength is not zero, and the number of nodes
   in List, including the List node, is greater than or equal to
   PcdMaximumLinkedListLength, then ASSERT().
 
   @param  List  A pointer to the head node of a doubly linked list.
 
   @return The first node of a doubly linked list.
-  @retval NULL  The list is empty.
+  @retval List  The list is empty.
 
 **/
 LIST_ENTRY *
@@ -1370,16 +1726,16 @@ GetFirstNode (
 /**
   Retrieves the next node of a doubly linked list.
 
-  Returns the node of a doubly linked list that follows Node.  
+  Returns the node of a doubly linked list that follows Node.
   List must have been initialized with INTIALIZE_LIST_HEAD_VARIABLE()
   or InitializeListHead().  If List is empty, then List is returned.
 
   If List is NULL, then ASSERT().
   If Node is NULL, then ASSERT().
-  If List was not initialized with INTIALIZE_LIST_HEAD_VARIABLE() or 
+  If List was not initialized with INTIALIZE_LIST_HEAD_VARIABLE() or
   InitializeListHead(), then ASSERT().
-  If PcdMaximumLinkedListLenth is not zero, and List contains more than
-  PcdMaximumLinkedListLenth nodes, then ASSERT().
+  If PcdMaximumLinkedListLength is not zero, and List contains more than
+  PcdMaximumLinkedListLength nodes, then ASSERT().
   If PcdVerifyNodeInList is TRUE and Node is not a node in List, then ASSERT().
 
   @param  List  A pointer to the head node of a doubly linked list.
@@ -1395,27 +1751,27 @@ GetNextNode (
   IN      CONST LIST_ENTRY          *Node
   );
 
-  
+
 /**
   Retrieves the previous node of a doubly linked list.
- 
-  Returns the node of a doubly linked list that precedes Node.  
+
+  Returns the node of a doubly linked list that precedes Node.
   List must have been initialized with INTIALIZE_LIST_HEAD_VARIABLE()
   or InitializeListHead().  If List is empty, then List is returned.
- 
+
   If List is NULL, then ASSERT().
   If Node is NULL, then ASSERT().
-  If List was not initialized with INTIALIZE_LIST_HEAD_VARIABLE() or 
+  If List was not initialized with INTIALIZE_LIST_HEAD_VARIABLE() or
   InitializeListHead(), then ASSERT().
-  If PcdMaximumLinkedListLenth is not zero, and List contains more than
-  PcdMaximumLinkedListLenth nodes, then ASSERT().
+  If PcdMaximumLinkedListLength is not zero, and List contains more than
+  PcdMaximumLinkedListLength nodes, then ASSERT().
   If PcdVerifyNodeInList is TRUE and Node is not a node in List, then ASSERT().
- 
+
   @param  List  A pointer to the head node of a doubly linked list.
   @param  Node  A pointer to a node in the doubly linked list.
- 
+
   @return The pointer to the previous node if one exists. Otherwise List is returned.
- 
+
 **/
 LIST_ENTRY *
 EFIAPI
@@ -1424,7 +1780,7 @@ GetPreviousNode (
   IN      CONST LIST_ENTRY          *Node
   );
 
-  
+
 /**
   Checks to see if a doubly linked list is empty or not.
 
@@ -1432,9 +1788,9 @@ GetPreviousNode (
   zero nodes, this function returns TRUE. Otherwise, it returns FALSE.
 
   If ListHead is NULL, then ASSERT().
-  If ListHead was not initialized with INTIALIZE_LIST_HEAD_VARIABLE() or 
+  If ListHead was not initialized with INTIALIZE_LIST_HEAD_VARIABLE() or
   InitializeListHead(), then ASSERT().
-  If PcdMaximumLinkedListLenth is not zero, and the number of nodes
+  If PcdMaximumLinkedListLength is not zero, and the number of nodes
   in List, including the List node, is greater than or equal to
   PcdMaximumLinkedListLength, then ASSERT().
 
@@ -1462,12 +1818,12 @@ IsListEmpty (
 
   If List is NULL, then ASSERT().
   If Node is NULL, then ASSERT().
-  If List was not initialized with INTIALIZE_LIST_HEAD_VARIABLE() or InitializeListHead(), 
+  If List was not initialized with INTIALIZE_LIST_HEAD_VARIABLE() or InitializeListHead(),
   then ASSERT().
-  If PcdMaximumLinkedListLenth is not zero, and the number of nodes
+  If PcdMaximumLinkedListLength is not zero, and the number of nodes
   in List, including the List node, is greater than or equal to
   PcdMaximumLinkedListLength, then ASSERT().
-  If PcdVerifyNodeInList is TRUE and Node is not a node in List the and Node is not equal 
+  If PcdVerifyNodeInList is TRUE and Node is not a node in List the and Node is not equal
   to List, then ASSERT().
 
   @param  List  A pointer to the head node of a doubly linked list.
@@ -1496,7 +1852,7 @@ IsNull (
   If Node is NULL, then ASSERT().
   If List was not initialized with INTIALIZE_LIST_HEAD_VARIABLE() or
   InitializeListHead(), then ASSERT().
-  If PcdMaximumLinkedListLenth is not zero, and the number of nodes
+  If PcdMaximumLinkedListLength is not zero, and the number of nodes
   in List, including the List node, is greater than or equal to
   PcdMaximumLinkedListLength, then ASSERT().
   If PcdVerifyNodeInList is TRUE and Node is not a node in List, then ASSERT().
@@ -1524,12 +1880,12 @@ IsNodeAtEnd (
   Otherwise, the location of the FirstEntry node is swapped with the location
   of the SecondEntry node in a doubly linked list. SecondEntry must be in the
   same double linked list as FirstEntry and that double linked list must have
-  been initialized with INTIALIZE_LIST_HEAD_VARIABLE() or InitializeListHead(). 
+  been initialized with INTIALIZE_LIST_HEAD_VARIABLE() or InitializeListHead().
   SecondEntry is returned after the nodes are swapped.
 
   If FirstEntry is NULL, then ASSERT().
   If SecondEntry is NULL, then ASSERT().
-  If PcdVerifyNodeInList is TRUE and SecondEntry and FirstEntry are not in the 
+  If PcdVerifyNodeInList is TRUE and SecondEntry and FirstEntry are not in the
   same linked list, then ASSERT().
   If PcdMaximumLinkedListLength is not zero, and the number of nodes in the
   linked list containing the FirstEntry and SecondEntry nodes, including
@@ -1538,7 +1894,7 @@ IsNodeAtEnd (
 
   @param  FirstEntry  A pointer to a node in a linked list.
   @param  SecondEntry A pointer to another node in the same linked list.
-  
+
   @return SecondEntry.
 
 **/
@@ -2106,7 +2462,7 @@ DivU64x64Remainder (
   function returns the 64-bit signed quotient.
 
   It is the caller's responsibility to not call this function with a Divisor of 0.
-  If Divisor is 0, then the quotient and remainder should be assumed to be 
+  If Divisor is 0, then the quotient and remainder should be assumed to be
   the largest negative integer.
 
   If Divisor is 0, then ASSERT().
@@ -2343,6 +2699,7 @@ BitFieldRead8 (
   If StartBit is greater than 7, then ASSERT().
   If EndBit is greater than 7, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If Value is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Operand   Operand on which to perform the bitfield operation.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -2376,6 +2733,7 @@ BitFieldWrite8 (
   If StartBit is greater than 7, then ASSERT().
   If EndBit is greater than 7, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If OrData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Operand   Operand on which to perform the bitfield operation.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -2409,6 +2767,7 @@ BitFieldOr8 (
   If StartBit is greater than 7, then ASSERT().
   If EndBit is greater than 7, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If AndData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Operand   Operand on which to perform the bitfield operation.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -2435,7 +2794,7 @@ BitFieldAnd8 (
   bitwise OR, and returns the result.
 
   Performs a bitwise AND between the bit field specified by StartBit and EndBit
-  in Operand and the value specified by AndData, followed by a bitwise 
+  in Operand and the value specified by AndData, followed by a bitwise
   OR with value specified by OrData. All other bits in Operand are
   preserved. The new 8-bit value is returned.
 
@@ -2443,6 +2802,8 @@ BitFieldAnd8 (
   If StartBit is greater than 7, then ASSERT().
   If EndBit is greater than 7, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If AndData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
+  If OrData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Operand   Operand on which to perform the bitfield operation.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -2505,6 +2866,7 @@ BitFieldRead16 (
   If StartBit is greater than 15, then ASSERT().
   If EndBit is greater than 15, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If Value is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Operand   Operand on which to perform the bitfield operation.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -2538,6 +2900,7 @@ BitFieldWrite16 (
   If StartBit is greater than 15, then ASSERT().
   If EndBit is greater than 15, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If OrData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Operand   Operand on which to perform the bitfield operation.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -2571,6 +2934,7 @@ BitFieldOr16 (
   If StartBit is greater than 15, then ASSERT().
   If EndBit is greater than 15, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If AndData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Operand   Operand on which to perform the bitfield operation.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -2597,7 +2961,7 @@ BitFieldAnd16 (
   bitwise OR, and returns the result.
 
   Performs a bitwise AND between the bit field specified by StartBit and EndBit
-  in Operand and the value specified by AndData, followed by a bitwise 
+  in Operand and the value specified by AndData, followed by a bitwise
   OR with value specified by OrData. All other bits in Operand are
   preserved. The new 16-bit value is returned.
 
@@ -2605,6 +2969,8 @@ BitFieldAnd16 (
   If StartBit is greater than 15, then ASSERT().
   If EndBit is greater than 15, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If AndData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
+  If OrData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Operand   Operand on which to perform the bitfield operation.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -2667,6 +3033,7 @@ BitFieldRead32 (
   If StartBit is greater than 31, then ASSERT().
   If EndBit is greater than 31, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If Value is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Operand   Operand on which to perform the bitfield operation.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -2700,6 +3067,7 @@ BitFieldWrite32 (
   If StartBit is greater than 31, then ASSERT().
   If EndBit is greater than 31, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If OrData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Operand   Operand on which to perform the bitfield operation.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -2733,6 +3101,7 @@ BitFieldOr32 (
   If StartBit is greater than 31, then ASSERT().
   If EndBit is greater than 31, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If AndData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Operand   Operand on which to perform the bitfield operation.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -2759,7 +3128,7 @@ BitFieldAnd32 (
   bitwise OR, and returns the result.
 
   Performs a bitwise AND between the bit field specified by StartBit and EndBit
-  in Operand and the value specified by AndData, followed by a bitwise 
+  in Operand and the value specified by AndData, followed by a bitwise
   OR with value specified by OrData. All other bits in Operand are
   preserved. The new 32-bit value is returned.
 
@@ -2767,6 +3136,8 @@ BitFieldAnd32 (
   If StartBit is greater than 31, then ASSERT().
   If EndBit is greater than 31, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If AndData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
+  If OrData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Operand   Operand on which to perform the bitfield operation.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -2829,6 +3200,7 @@ BitFieldRead64 (
   If StartBit is greater than 63, then ASSERT().
   If EndBit is greater than 63, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If Value is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Operand   Operand on which to perform the bitfield operation.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -2862,6 +3234,7 @@ BitFieldWrite64 (
   If StartBit is greater than 63, then ASSERT().
   If EndBit is greater than 63, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If OrData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Operand   Operand on which to perform the bitfield operation.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -2895,6 +3268,7 @@ BitFieldOr64 (
   If StartBit is greater than 63, then ASSERT().
   If EndBit is greater than 63, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If AndData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Operand   Operand on which to perform the bitfield operation.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -2921,7 +3295,7 @@ BitFieldAnd64 (
   bitwise OR, and returns the result.
 
   Performs a bitwise AND between the bit field specified by StartBit and EndBit
-  in Operand and the value specified by AndData, followed by a bitwise 
+  in Operand and the value specified by AndData, followed by a bitwise
   OR with value specified by OrData. All other bits in Operand are
   preserved. The new 64-bit value is returned.
 
@@ -2929,6 +3303,8 @@ BitFieldAnd64 (
   If StartBit is greater than 63, then ASSERT().
   If EndBit is greater than 63, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If AndData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
+  If OrData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Operand   Operand on which to perform the bitfield operation.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -3215,11 +3591,11 @@ MemoryFence (
 
   If JumpBuffer is NULL, then ASSERT().
   For Itanium processors, if JumpBuffer is not aligned on a 16-byte boundary, then ASSERT().
-  
+
   NOTE: The structure BASE_LIBRARY_JUMP_BUFFER is CPU architecture specific.
   The same structure must never be used for more than one CPU architecture context.
-  For example, a BASE_LIBRARY_JUMP_BUFFER allocated by an IA-32 module must never be used from an x64 module. 
-  SetJump()/LongJump() is not currently supported for the EBC processor type.   
+  For example, a BASE_LIBRARY_JUMP_BUFFER allocated by an IA-32 module must never be used from an x64 module.
+  SetJump()/LongJump() is not currently supported for the EBC processor type.
 
   @param  JumpBuffer  A pointer to CPU context buffer.
 
@@ -3380,9 +3756,9 @@ CpuPause (
                       function.
   @param  NewStack    A pointer to the new stack to use for the EntryPoint
                       function.
-  @param  ...         This variable argument list is ignored for IA-32, x64, and 
-                      EBC architectures.  For Itanium processors, this variable 
-                      argument list is expected to contain a single parameter of 
+  @param  ...         This variable argument list is ignored for IA-32, x64, and
+                      EBC architectures.  For Itanium processors, this variable
+                      argument list is expected to contain a single parameter of
                       type VOID * that specifies the new backing store pointer.
 
 
@@ -3426,19 +3802,19 @@ EFIAPI
 CpuDeadLoop (
   VOID
   );
- 
+
 #if defined (MDE_CPU_IPF)
 
 /**
   Flush a range of  cache lines in the cache coherency domain of the calling
   CPU.
 
-  Flushes the cache lines specified by Address and Length.  If Address is not aligned 
-  on a cache line boundary, then entire cache line containing Address is flushed.  
-  If Address + Length is not aligned on a cache line boundary, then the entire cache 
-  line containing Address + Length - 1 is flushed.  This function may choose to flush 
-  the entire cache if that is more efficient than flushing the specified range.  If 
-  Length is 0, the no cache lines are flushed.  Address is returned.   
+  Flushes the cache lines specified by Address and Length.  If Address is not aligned
+  on a cache line boundary, then entire cache line containing Address is flushed.
+  If Address + Length is not aligned on a cache line boundary, then the entire cache
+  line containing Address + Length - 1 is flushed.  This function may choose to flush
+  the entire cache if that is more efficient than flushing the specified range.  If
+  Length is 0, the no cache lines are flushed.  Address is returned.
   This function is only available on Itanium processors.
 
   If Length is greater than (MAX_ADDRESS - Address + 1), then ASSERT().
@@ -3499,8 +3875,8 @@ AsmFci (
 
 /**
   Reads the current value of a Processor Identifier Register (CPUID).
-  
-  Reads and returns the current value of Processor Identifier Register specified by Index. 
+
+  Reads and returns the current value of Processor Identifier Register specified by Index.
   The Index of largest implemented CPUID (One less than the number of implemented CPUID
   registers) is determined by CPUID [3] bits {7:0}.
   No parameter checking is performed on Index.  If the Index value is beyond the
@@ -3556,8 +3932,8 @@ AsmWritePsr (
 
 /**
   Reads the current value of 64-bit Kernel Register #0 (KR0).
-  
-  Reads and returns the current value of KR0. 
+
+  Reads and returns the current value of KR0.
   This function is only available on Itanium processors.
 
   @return The current value of KR0.
@@ -3573,7 +3949,7 @@ AsmReadKr0 (
 /**
   Reads the current value of 64-bit Kernel Register #1 (KR1).
 
-  Reads and returns the current value of KR1. 
+  Reads and returns the current value of KR1.
   This function is only available on Itanium processors.
 
   @return The current value of KR1.
@@ -3589,7 +3965,7 @@ AsmReadKr1 (
 /**
   Reads the current value of 64-bit Kernel Register #2 (KR2).
 
-  Reads and returns the current value of KR2. 
+  Reads and returns the current value of KR2.
   This function is only available on Itanium processors.
 
   @return The current value of KR2.
@@ -3605,7 +3981,7 @@ AsmReadKr2 (
 /**
   Reads the current value of 64-bit Kernel Register #3 (KR3).
 
-  Reads and returns the current value of KR3. 
+  Reads and returns the current value of KR3.
   This function is only available on Itanium processors.
 
   @return The current value of KR3.
@@ -3621,9 +3997,9 @@ AsmReadKr3 (
 /**
   Reads the current value of 64-bit Kernel Register #4 (KR4).
 
-  Reads and returns the current value of KR4. 
+  Reads and returns the current value of KR4.
   This function is only available on Itanium processors.
-  
+
   @return The current value of KR4.
 
 **/
@@ -3637,7 +4013,7 @@ AsmReadKr4 (
 /**
   Reads the current value of 64-bit Kernel Register #5 (KR5).
 
-  Reads and returns the current value of KR5. 
+  Reads and returns the current value of KR5.
   This function is only available on Itanium processors.
 
   @return The current value of KR5.
@@ -3653,7 +4029,7 @@ AsmReadKr5 (
 /**
   Reads the current value of 64-bit Kernel Register #6 (KR6).
 
-  Reads and returns the current value of KR6. 
+  Reads and returns the current value of KR6.
   This function is only available on Itanium processors.
 
   @return The current value of KR6.
@@ -3669,7 +4045,7 @@ AsmReadKr6 (
 /**
   Reads the current value of 64-bit Kernel Register #7 (KR7).
 
-  Reads and returns the current value of KR7. 
+  Reads and returns the current value of KR7.
   This function is only available on Itanium processors.
 
   @return The current value of KR7.
@@ -3684,8 +4060,8 @@ AsmReadKr7 (
 
 /**
   Write the current value of 64-bit Kernel Register #0 (KR0).
-  
-  Writes the current value of KR0.  The 64-bit value written to 
+
+  Writes the current value of KR0.  The 64-bit value written to
   the KR0 is returned. This function is only available on Itanium processors.
 
   @param  Value   The 64-bit value to write to KR0.
@@ -3703,7 +4079,7 @@ AsmWriteKr0 (
 /**
   Write the current value of 64-bit Kernel Register #1 (KR1).
 
-  Writes the current value of KR1.  The 64-bit value written to 
+  Writes the current value of KR1.  The 64-bit value written to
   the KR1 is returned. This function is only available on Itanium processors.
 
   @param  Value   The 64-bit value to write to KR1.
@@ -3721,7 +4097,7 @@ AsmWriteKr1 (
 /**
   Write the current value of 64-bit Kernel Register #2 (KR2).
 
-  Writes the current value of KR2.  The 64-bit value written to 
+  Writes the current value of KR2.  The 64-bit value written to
   the KR2 is returned. This function is only available on Itanium processors.
 
   @param  Value   The 64-bit value to write to KR2.
@@ -3739,7 +4115,7 @@ AsmWriteKr2 (
 /**
   Write the current value of 64-bit Kernel Register #3 (KR3).
 
-  Writes the current value of KR3.  The 64-bit value written to 
+  Writes the current value of KR3.  The 64-bit value written to
   the KR3 is returned. This function is only available on Itanium processors.
 
   @param  Value   The 64-bit value to write to KR3.
@@ -3757,7 +4133,7 @@ AsmWriteKr3 (
 /**
   Write the current value of 64-bit Kernel Register #4 (KR4).
 
-  Writes the current value of KR4.  The 64-bit value written to 
+  Writes the current value of KR4.  The 64-bit value written to
   the KR4 is returned. This function is only available on Itanium processors.
 
   @param  Value   The 64-bit value to write to KR4.
@@ -3775,7 +4151,7 @@ AsmWriteKr4 (
 /**
   Write the current value of 64-bit Kernel Register #5 (KR5).
 
-  Writes the current value of KR5.  The 64-bit value written to 
+  Writes the current value of KR5.  The 64-bit value written to
   the KR5 is returned. This function is only available on Itanium processors.
 
   @param  Value   The 64-bit value to write to KR5.
@@ -3793,7 +4169,7 @@ AsmWriteKr5 (
 /**
   Write the current value of 64-bit Kernel Register #6 (KR6).
 
-  Writes the current value of KR6.  The 64-bit value written to 
+  Writes the current value of KR6.  The 64-bit value written to
   the KR6 is returned. This function is only available on Itanium processors.
 
   @param  Value   The 64-bit value to write to KR6.
@@ -3811,7 +4187,7 @@ AsmWriteKr6 (
 /**
   Write the current value of 64-bit Kernel Register #7 (KR7).
 
-  Writes the current value of KR7.  The 64-bit value written to 
+  Writes the current value of KR7.  The 64-bit value written to
   the KR7 is returned. This function is only available on Itanium processors.
 
   @param  Value   The 64-bit value to write to KR7.
@@ -3828,7 +4204,7 @@ AsmWriteKr7 (
 
 /**
   Reads the current value of Interval Timer Counter Register (ITC).
-  
+
   Reads and returns the current value of ITC.
   This function is only available on Itanium processors.
 
@@ -3844,8 +4220,8 @@ AsmReadItc (
 
 /**
   Reads the current value of Interval Timer Vector Register (ITV).
-  
-  Reads and returns the current value of ITV. 
+
+  Reads and returns the current value of ITV.
   This function is only available on Itanium processors.
 
   @return The current value of ITV.
@@ -3860,7 +4236,7 @@ AsmReadItv (
 
 /**
   Reads the current value of Interval Timer Match Register (ITM).
-  
+
   Reads and returns the current value of ITM.
   This function is only available on Itanium processors.
 
@@ -3875,8 +4251,8 @@ AsmReadItm (
 
 /**
   Writes the current value of 64-bit Interval Timer Counter Register (ITC).
-  
-  Writes the current value of ITC.  The 64-bit value written to the ITC is returned. 
+
+  Writes the current value of ITC.  The 64-bit value written to the ITC is returned.
   This function is only available on Itanium processors.
 
   @param Value    The 64-bit value to write to ITC.
@@ -3893,8 +4269,8 @@ AsmWriteItc (
 
 /**
   Writes the current value of 64-bit Interval Timer Match Register (ITM).
-  
-  Writes the current value of ITM.  The 64-bit value written to the ITM is returned. 
+
+  Writes the current value of ITM.  The 64-bit value written to the ITM is returned.
   This function is only available on Itanium processors.
 
   @param Value    The 64-bit value to write to ITM.
@@ -3911,8 +4287,8 @@ AsmWriteItm (
 
 /**
   Writes the current value of 64-bit Interval Timer Vector Register (ITV).
-  
-  Writes the current value of ITV.  The 64-bit value written to the ITV is returned.  
+
+  Writes the current value of ITV.  The 64-bit value written to the ITV is returned.
   No parameter checking is performed on Value.  All bits of Value corresponding to
   reserved fields of ITV must be 0 or a Reserved Register/Field fault may occur.
   The caller must either guarantee that Value is valid, or the caller must set up
@@ -3933,7 +4309,7 @@ AsmWriteItv (
 
 /**
   Reads the current value of Default Control Register (DCR).
-  
+
   Reads and returns the current value of DCR.  This function is only available on Itanium processors.
 
   @return The current value of DCR.
@@ -3948,7 +4324,7 @@ AsmReadDcr (
 
 /**
   Reads the current value of Interruption Vector Address Register (IVA).
-  
+
   Reads and returns the current value of IVA.  This function is only available on Itanium processors.
 
   @return The current value of IVA.
@@ -3962,7 +4338,7 @@ AsmReadIva (
 
 /**
   Reads the current value of Page Table Address Register (PTA).
-  
+
   Reads and returns the current value of PTA.  This function is only available on Itanium processors.
 
   @return The current value of PTA.
@@ -3977,8 +4353,8 @@ AsmReadPta (
 
 /**
   Writes the current value of 64-bit Default Control Register (DCR).
-  
-  Writes the current value of DCR.  The 64-bit value written to the DCR is returned. 
+
+  Writes the current value of DCR.  The 64-bit value written to the DCR is returned.
   No parameter checking is performed on Value.  All bits of Value corresponding to
   reserved fields of DCR must be 0 or a Reserved Register/Field fault may occur.
   The caller must either guarantee that Value is valid, or the caller must set up
@@ -3999,8 +4375,8 @@ AsmWriteDcr (
 
 /**
   Writes the current value of 64-bit Interruption Vector Address Register (IVA).
-  
-  Writes the current value of IVA.  The 64-bit value written to the IVA is returned.  
+
+  Writes the current value of IVA.  The 64-bit value written to the IVA is returned.
   The size of vector table is 32 K bytes and is 32 K bytes aligned
   the low 15 bits of Value is ignored when written.
   This function is only available on Itanium processors.
@@ -4019,8 +4395,8 @@ AsmWriteIva (
 
 /**
   Writes the current value of 64-bit Page Table Address Register (PTA).
-  
-  Writes the current value of PTA.  The 64-bit value written to the PTA is returned. 
+
+  Writes the current value of PTA.  The 64-bit value written to the PTA is returned.
   No parameter checking is performed on Value.  All bits of Value corresponding to
   reserved fields of DCR must be 0 or a Reserved Register/Field fault may occur.
   The caller must either guarantee that Value is valid, or the caller must set up
@@ -4040,7 +4416,7 @@ AsmWritePta (
 
 /**
   Reads the current value of Local Interrupt ID Register (LID).
-  
+
   Reads and returns the current value of LID.  This function is only available on Itanium processors.
 
   @return The current value of LID.
@@ -4055,8 +4431,8 @@ AsmReadLid (
 
 /**
   Reads the current value of External Interrupt Vector Register (IVR).
-  
-  Reads and returns the current value of IVR.  This function is only available on Itanium processors. 
+
+  Reads and returns the current value of IVR.  This function is only available on Itanium processors.
 
   @return The current value of IVR.
 
@@ -4070,8 +4446,8 @@ AsmReadIvr (
 
 /**
   Reads the current value of Task Priority Register (TPR).
-  
-  Reads and returns the current value of TPR.  This function is only available on Itanium processors. 
+
+  Reads and returns the current value of TPR.  This function is only available on Itanium processors.
 
   @return The current value of TPR.
 
@@ -4085,8 +4461,8 @@ AsmReadTpr (
 
 /**
   Reads the current value of External Interrupt Request Register #0 (IRR0).
-  
-  Reads and returns the current value of IRR0.  This function is only available on Itanium processors.  
+
+  Reads and returns the current value of IRR0.  This function is only available on Itanium processors.
 
   @return The current value of IRR0.
 
@@ -4100,8 +4476,8 @@ AsmReadIrr0 (
 
 /**
   Reads the current value of External Interrupt Request Register #1 (IRR1).
-  
-  Reads and returns the current value of IRR1.  This function is only available on Itanium processors. 
+
+  Reads and returns the current value of IRR1.  This function is only available on Itanium processors.
 
   @return The current value of IRR1.
 
@@ -4115,7 +4491,7 @@ AsmReadIrr1 (
 
 /**
   Reads the current value of External Interrupt Request Register #2 (IRR2).
-  
+
   Reads and returns the current value of IRR2.  This function is only available on Itanium processors.
 
   @return The current value of IRR2.
@@ -4130,8 +4506,8 @@ AsmReadIrr2 (
 
 /**
   Reads the current value of External Interrupt Request Register #3 (IRR3).
-  
-  Reads and returns the current value of IRR3.  This function is only available on Itanium processors.  
+
+  Reads and returns the current value of IRR3.  This function is only available on Itanium processors.
 
   @return The current value of IRR3.
 
@@ -4145,8 +4521,8 @@ AsmReadIrr3 (
 
 /**
   Reads the current value of Performance Monitor Vector Register (PMV).
-  
-  Reads and returns the current value of PMV.  This function is only available on Itanium processors. 
+
+  Reads and returns the current value of PMV.  This function is only available on Itanium processors.
 
   @return The current value of PMV.
 
@@ -4160,7 +4536,7 @@ AsmReadPmv (
 
 /**
   Reads the current value of Corrected Machine Check Vector Register (CMCV).
-  
+
   Reads and returns the current value of CMCV.  This function is only available on Itanium processors.
 
   @return The current value of CMCV.
@@ -4175,8 +4551,8 @@ AsmReadCmcv (
 
 /**
   Reads the current value of Local Redirection Register #0 (LRR0).
-  
-  Reads and returns the current value of LRR0.  This function is only available on Itanium processors. 
+
+  Reads and returns the current value of LRR0.  This function is only available on Itanium processors.
 
   @return The current value of LRR0.
 
@@ -4190,7 +4566,7 @@ AsmReadLrr0 (
 
 /**
   Reads the current value of Local Redirection Register #1 (LRR1).
-  
+
   Reads and returns the current value of LRR1.  This function is only available on Itanium processors.
 
   @return The current value of LRR1.
@@ -4205,8 +4581,8 @@ AsmReadLrr1 (
 
 /**
   Writes the current value of 64-bit Page Local Interrupt ID Register (LID).
-  
-  Writes the current value of LID.  The 64-bit value written to the LID is returned.  
+
+  Writes the current value of LID.  The 64-bit value written to the LID is returned.
   No parameter checking is performed on Value.  All bits of Value corresponding to
   reserved fields of LID must be 0 or a Reserved Register/Field fault may occur.
   The caller must either guarantee that Value is valid, or the caller must set up
@@ -4227,8 +4603,8 @@ AsmWriteLid (
 
 /**
   Writes the current value of 64-bit Task Priority Register (TPR).
-  
-  Writes the current value of TPR.  The 64-bit value written to the TPR is returned. 
+
+  Writes the current value of TPR.  The 64-bit value written to the TPR is returned.
   No parameter checking is performed on Value.  All bits of Value corresponding to
   reserved fields of TPR must be 0 or a Reserved Register/Field fault may occur.
   The caller must either guarantee that Value is valid, or the caller must set up
@@ -4249,7 +4625,7 @@ AsmWriteTpr (
 
 /**
   Performs a write operation on End OF External Interrupt Register (EOI).
-  
+
   Writes a value of 0 to the EOI Register.  This function is only available on Itanium processors.
 
 **/
@@ -4262,8 +4638,8 @@ AsmWriteEoi (
 
 /**
   Writes the current value of 64-bit Performance Monitor Vector Register (PMV).
-  
-  Writes the current value of PMV.  The 64-bit value written to the PMV is returned.  
+
+  Writes the current value of PMV.  The 64-bit value written to the PMV is returned.
   No parameter checking is performed on Value.  All bits of Value corresponding
   to reserved fields of PMV must be 0 or a Reserved Register/Field fault may occur.
   The caller must either guarantee that Value is valid, or the caller must set up
@@ -4284,8 +4660,8 @@ AsmWritePmv (
 
 /**
   Writes the current value of 64-bit Corrected Machine Check Vector Register (CMCV).
-  
-  Writes the current value of CMCV.  The 64-bit value written to the CMCV is returned. 
+
+  Writes the current value of CMCV.  The 64-bit value written to the CMCV is returned.
   No parameter checking is performed on Value.  All bits of Value corresponding
   to reserved fields of CMCV must be 0 or a Reserved Register/Field fault may occur.
   The caller must either guarantee that Value is valid, or the caller must set up
@@ -4306,8 +4682,8 @@ AsmWriteCmcv (
 
 /**
   Writes the current value of 64-bit Local Redirection Register #0 (LRR0).
-  
-  Writes the current value of LRR0.  The 64-bit value written to the LRR0 is returned.  
+
+  Writes the current value of LRR0.  The 64-bit value written to the LRR0 is returned.
   No parameter checking is performed on Value.  All bits of Value corresponding
   to reserved fields of LRR0 must be 0 or a Reserved Register/Field fault may occur.
   The caller must either guarantee that Value is valid, or the caller must set up
@@ -4328,8 +4704,8 @@ AsmWriteLrr0 (
 
 /**
   Writes the current value of 64-bit Local Redirection Register #1 (LRR1).
-  
-  Writes the current value of LRR1.  The 64-bit value written to the LRR1 is returned. 
+
+  Writes the current value of LRR1.  The 64-bit value written to the LRR1 is returned.
   No parameter checking is performed on Value.  All bits of Value corresponding
   to reserved fields of LRR1 must be 0 or a Reserved Register/Field fault may occur.
   The caller must either guarantee that Value is valid, or the caller must
@@ -4350,7 +4726,7 @@ AsmWriteLrr1 (
 
 /**
   Reads the current value of Instruction Breakpoint Register (IBR).
-  
+
   The Instruction Breakpoint Registers are used in pairs.  The even numbered
   registers contain breakpoint addresses, and the odd numbered registers contain
   breakpoint mask conditions.  At least four instruction registers pairs are implemented
@@ -4643,9 +5019,9 @@ AsmReadSp (
 /**
   Reads a 64-bit control register.
 
-  Reads and returns the control register specified by Index. The valid Index valued 
+  Reads and returns the control register specified by Index. The valid Index valued
   are defined above in "Related Definitions".
-  If Index is invalid then 0xFFFFFFFFFFFFFFFF is returned.  This function is only 
+  If Index is invalid then 0xFFFFFFFFFFFFFFFF is returned.  This function is only
   available on Itanium processors.
 
   @param  Index                     The index of the control register to read.
@@ -4694,9 +5070,9 @@ AsmReadControlRegister (
 /**
   Reads a 64-bit application register.
 
-  Reads and returns the application register specified by Index. The valid Index 
+  Reads and returns the application register specified by Index. The valid Index
   valued are defined above in "Related Definitions".
-  If Index is invalid then 0xFFFFFFFFFFFFFFFF is returned.  This function is only 
+  If Index is invalid then 0xFFFFFFFFFFFFFFFF is returned.  This function is only
   available on Itanium processors.
 
   @param  Index                     The index of the application register to read.
@@ -4722,13 +5098,13 @@ AsmReadApplicationRegister (
 
   @param  Index                     The 8-bit Machine Specific Register index to read.
 
-  @return The current value of the Machine Specific Register specified by Index.  
+  @return The current value of the Machine Specific Register specified by Index.
 
 **/
 UINT64
 EFIAPI
 AsmReadMsr (
-  IN UINT8   Index  
+  IN UINT8   Index
   );
 
 
@@ -4744,14 +5120,14 @@ AsmReadMsr (
   @param  Index                     The 8-bit Machine Specific Register index to write.
   @param  Value                     The 64-bit value to write to the Machine Specific Register.
 
-  @return The 64-bit value to write to the Machine Specific Register.  
+  @return The 64-bit value to write to the Machine Specific Register.
 
 **/
 UINT64
 EFIAPI
 AsmWriteMsr (
-  IN UINT8   Index, 
-  IN UINT64  Value  
+  IN UINT8   Index,
+  IN UINT64  Value
   );
 
 
@@ -5005,7 +5381,7 @@ typedef union {
   struct {
     UINT64  Uint64;
     UINT64  Uint64_1;
-  } Uint128;   
+  } Uint128;
 } IA32_IDT_GATE_DESCRIPTOR;
 
 #endif
@@ -5373,13 +5749,14 @@ AsmMsrBitFieldRead32 (
   Writes Value to a bit field in the lower 32-bits of a 64-bit MSR. The bit
   field is specified by the StartBit and the EndBit. All other bits in the
   destination MSR are preserved. The lower 32-bits of the MSR written is
-  returned. The caller must either guarantee that Index and the data written 
-  is valid, or the caller must set up exception handlers to catch the exceptions. 
+  returned. The caller must either guarantee that Index and the data written
+  is valid, or the caller must set up exception handlers to catch the exceptions.
   This function is only available on IA-32 and x64.
 
   If StartBit is greater than 31, then ASSERT().
   If EndBit is greater than 31, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If Value is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Index     The 32-bit MSR index to write.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -5416,6 +5793,7 @@ AsmMsrBitFieldWrite32 (
   If StartBit is greater than 31, then ASSERT().
   If EndBit is greater than 31, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If OrData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Index     The 32-bit MSR index to write.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -5452,6 +5830,7 @@ AsmMsrBitFieldOr32 (
   If StartBit is greater than 31, then ASSERT().
   If EndBit is greater than 31, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If AndData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Index     The 32-bit MSR index to write.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -5490,6 +5869,8 @@ AsmMsrBitFieldAnd32 (
   If StartBit is greater than 31, then ASSERT().
   If EndBit is greater than 31, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If AndData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
+  If OrData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Index     The 32-bit MSR index to write.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -5612,7 +5993,7 @@ AsmMsrAnd64 (
 
 
 /**
-  Reads a 64-bit MSR, performs a bitwise AND followed by a bitwise 
+  Reads a 64-bit MSR, performs a bitwise AND followed by a bitwise
   OR, and writes the result back to the 64-bit MSR.
 
   Reads the 64-bit MSR specified by Index, performs a bitwise AND between read
@@ -5677,13 +6058,14 @@ AsmMsrBitFieldRead64 (
 
   Writes Value to a bit field in a 64-bit MSR. The bit field is specified by
   the StartBit and the EndBit. All other bits in the destination MSR are
-  preserved. The MSR written is returned. The caller must either guarantee 
-  that Index and the data written is valid, or the caller must set up exception 
+  preserved. The MSR written is returned. The caller must either guarantee
+  that Index and the data written is valid, or the caller must set up exception
   handlers to catch the exceptions. This function is only available on IA-32 and x64.
 
   If StartBit is greater than 63, then ASSERT().
   If EndBit is greater than 63, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If Value is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Index     The 32-bit MSR index to write.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -5720,6 +6102,7 @@ AsmMsrBitFieldWrite64 (
   If StartBit is greater than 63, then ASSERT().
   If EndBit is greater than 63, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If OrData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Index     The 32-bit MSR index to write.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -5756,6 +6139,7 @@ AsmMsrBitFieldOr64 (
   If StartBit is greater than 63, then ASSERT().
   If EndBit is greater than 63, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If AndData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Index     The 32-bit MSR index to write.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -5793,6 +6177,8 @@ AsmMsrBitFieldAnd64 (
   If StartBit is greater than 63, then ASSERT().
   If EndBit is greater than 63, then ASSERT().
   If EndBit is less than StartBit, then ASSERT().
+  If AndData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
+  If OrData is larger than the bitmask value range specified by StartBit and EndBit, then ASSERT().
 
   @param  Index     The 32-bit MSR index to write.
   @param  StartBit  The ordinal of the least significant bit in the bit field.
@@ -7085,7 +7471,7 @@ AsmDisablePaging64 (
   in ExtraStackSize. If parameters are passed to the 16-bit real mode code,
   then the actual minimum stack size is ExtraStackSize plus the maximum number
   of bytes that need to be passed to the 16-bit real mode code.
-  
+
   If RealModeBufferSize is NULL, then ASSERT().
   If ExtraStackSize is NULL, then ASSERT().
 
@@ -7109,7 +7495,7 @@ AsmGetThunk16Properties (
   Prepares all structures a code required to use AsmThunk16().
 
   Prepares all structures and code required to use AsmThunk16().
-  
+
   This interface is limited to be used in either physical mode or virtual modes with paging enabled where the
   virtual to physical mappings for ThunkContext.RealModeBuffer is mapped 1:1.
 
@@ -7122,7 +7508,7 @@ AsmGetThunk16Properties (
 VOID
 EFIAPI
 AsmPrepareThunk16 (
-  OUT     THUNK_CONTEXT             *ThunkContext
+  IN OUT  THUNK_CONTEXT             *ThunkContext
   );
 
 
@@ -7133,43 +7519,43 @@ AsmPrepareThunk16 (
   AsmPrepareThunk16() must be called with ThunkContext before this function is used.
   This function must be called with interrupts disabled.
 
-  The register state from the RealModeState field of ThunkContext is restored just prior 
-  to calling the 16-bit real mode entry point.  This includes the EFLAGS field of RealModeState, 
+  The register state from the RealModeState field of ThunkContext is restored just prior
+  to calling the 16-bit real mode entry point.  This includes the EFLAGS field of RealModeState,
   which is used to set the interrupt state when a 16-bit real mode entry point is called.
   Control is transferred to the 16-bit real mode entry point specified by the CS and Eip fields of RealModeState.
-  The stack is initialized to the SS and ESP fields of RealModeState.  Any parameters passed to 
-  the 16-bit real mode code must be populated by the caller at SS:ESP prior to calling this function.  
+  The stack is initialized to the SS and ESP fields of RealModeState.  Any parameters passed to
+  the 16-bit real mode code must be populated by the caller at SS:ESP prior to calling this function.
   The 16-bit real mode entry point is invoked with a 16-bit CALL FAR instruction,
-  so when accessing stack contents, the 16-bit real mode code must account for the 16-bit segment 
-  and 16-bit offset of the return address that were pushed onto the stack. The 16-bit real mode entry 
-  point must exit with a RETF instruction. The register state is captured into RealModeState immediately 
+  so when accessing stack contents, the 16-bit real mode code must account for the 16-bit segment
+  and 16-bit offset of the return address that were pushed onto the stack. The 16-bit real mode entry
+  point must exit with a RETF instruction. The register state is captured into RealModeState immediately
   after the RETF instruction is executed.
-  
-  If EFLAGS specifies interrupts enabled, or any of the 16-bit real mode code enables interrupts, 
-  or any of the 16-bit real mode code makes a SW interrupt, then the caller is responsible for making sure 
-  the IDT at address 0 is initialized to handle any HW or SW interrupts that may occur while in 16-bit real mode. 
-  
-  If EFLAGS specifies interrupts enabled, or any of the 16-bit real mode code enables interrupts, 
-  then the caller is responsible for making sure the 8259 PIC is in a state compatible with 16-bit real mode.  
+
+  If EFLAGS specifies interrupts enabled, or any of the 16-bit real mode code enables interrupts,
+  or any of the 16-bit real mode code makes a SW interrupt, then the caller is responsible for making sure
+  the IDT at address 0 is initialized to handle any HW or SW interrupts that may occur while in 16-bit real mode.
+
+  If EFLAGS specifies interrupts enabled, or any of the 16-bit real mode code enables interrupts,
+  then the caller is responsible for making sure the 8259 PIC is in a state compatible with 16-bit real mode.
   This includes the base vectors, the interrupt masks, and the edge/level trigger mode.
-  
-  If THUNK_ATTRIBUTE_BIG_REAL_MODE is set in the ThunkAttributes field of ThunkContext, then the user code 
+
+  If THUNK_ATTRIBUTE_BIG_REAL_MODE is set in the ThunkAttributes field of ThunkContext, then the user code
   is invoked in big real mode.  Otherwise, the user code is invoked in 16-bit real mode with 64KB segment limits.
-  
-  If neither THUNK_ATTRIBUTE_DISABLE_A20_MASK_INT_15 nor THUNK_ATTRIBUTE_DISABLE_A20_MASK_KBD_CTRL are set in 
-  ThunkAttributes, then it is assumed that the user code did not enable the A20 mask, and no attempt is made to 
+
+  If neither THUNK_ATTRIBUTE_DISABLE_A20_MASK_INT_15 nor THUNK_ATTRIBUTE_DISABLE_A20_MASK_KBD_CTRL are set in
+  ThunkAttributes, then it is assumed that the user code did not enable the A20 mask, and no attempt is made to
   disable the A20 mask.
-  
-  If THUNK_ATTRIBUTE_DISABLE_A20_MASK_INT_15 is set and THUNK_ATTRIBUTE_DISABLE_A20_MASK_KBD_CTRL is clear in 
-  ThunkAttributes, then attempt to use the INT 15 service to disable the A20 mask.  If this INT 15 call fails, 
+
+  If THUNK_ATTRIBUTE_DISABLE_A20_MASK_INT_15 is set and THUNK_ATTRIBUTE_DISABLE_A20_MASK_KBD_CTRL is clear in
+  ThunkAttributes, then attempt to use the INT 15 service to disable the A20 mask.  If this INT 15 call fails,
   then attempt to disable the A20 mask by directly accessing the 8042 keyboard controller I/O ports.
-  
-  If THUNK_ATTRIBUTE_DISABLE_A20_MASK_INT_15 is clear and THUNK_ATTRIBUTE_DISABLE_A20_MASK_KBD_CTRL is set in 
+
+  If THUNK_ATTRIBUTE_DISABLE_A20_MASK_INT_15 is clear and THUNK_ATTRIBUTE_DISABLE_A20_MASK_KBD_CTRL is set in
   ThunkAttributes, then attempt to disable the A20 mask by directly accessing the 8042 keyboard controller I/O ports.
-    
+
   If ThunkContext is NULL, then ASSERT().
   If AsmPrepareThunk16() was not previously called with ThunkContext, then ASSERT().
-  If both THUNK_ATTRIBUTE_DISABLE_A20_MASK_INT_15 and THUNK_ATTRIBUTE_DISABLE_A20_MASK_KBD_CTRL are set in 
+  If both THUNK_ATTRIBUTE_DISABLE_A20_MASK_INT_15 and THUNK_ATTRIBUTE_DISABLE_A20_MASK_KBD_CTRL are set in
   ThunkAttributes, then ASSERT().
 
   This interface is limited to be used in either physical mode or virtual modes with paging enabled where the

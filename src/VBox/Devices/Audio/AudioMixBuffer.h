@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2014-2015 Oracle Corporation
+ * Copyright (C) 2014-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -50,7 +50,6 @@
 
 
 int AudioMixBufAcquire(PPDMAUDIOMIXBUF pMixBuf, uint32_t cSamplesToRead, PPDMAUDIOSAMPLE *ppvSamples, uint32_t *pcSamplesRead);
-uint32_t AudioMixBufAvail(PPDMAUDIOMIXBUF pMixBuf);
 inline uint32_t AudioMixBufBytesToSamples(PPDMAUDIOMIXBUF pMixBuf);
 void AudioMixBufClear(PPDMAUDIOMIXBUF pMixBuf);
 void AudioMixBufDestroy(PPDMAUDIOMIXBUF pMixBuf);
@@ -60,10 +59,9 @@ uint32_t AudioMixBufFreeBytes(PPDMAUDIOMIXBUF pMixBuf);
 int AudioMixBufInit(PPDMAUDIOMIXBUF pMixBuf, const char *pszName, PPDMPCMPROPS pProps, uint32_t cSamples);
 bool AudioMixBufIsEmpty(PPDMAUDIOMIXBUF pMixBuf);
 int AudioMixBufLinkTo(PPDMAUDIOMIXBUF pMixBuf, PPDMAUDIOMIXBUF pParent);
-uint32_t AudioMixBufMixed(PPDMAUDIOMIXBUF pMixBuf);
-int AudioMixBufMixToChildren(PPDMAUDIOMIXBUF pMixBuf, uint32_t cSamples, uint32_t *pcProcessed);
+uint32_t AudioMixBufLive(PPDMAUDIOMIXBUF pMixBuf);
 int AudioMixBufMixToParent(PPDMAUDIOMIXBUF pMixBuf, uint32_t cSamples, uint32_t *pcProcessed);
-uint32_t AudioMixBufProcessed(PPDMAUDIOMIXBUF pMixBuf);
+uint32_t AudioMixBufUsed(PPDMAUDIOMIXBUF pMixBuf);
 int AudioMixBufReadAt(PPDMAUDIOMIXBUF pMixBuf, uint32_t offSamples, void *pvBuf, uint32_t cbBuf, uint32_t *pcbRead);
 int AudioMixBufReadAtEx(PPDMAUDIOMIXBUF pMixBuf, PDMAUDIOMIXBUFFMT enmFmt, uint32_t offSamples, void *pvBuf, uint32_t cbBuf, uint32_t *pcbRead);
 int AudioMixBufReadCirc(PPDMAUDIOMIXBUF pMixBuf, void *pvBuf, uint32_t cbBuf, uint32_t *pcRead);
@@ -77,6 +75,11 @@ int AudioMixBufWriteAt(PPDMAUDIOMIXBUF pMixBuf, uint32_t offSamples, const void 
 int AudioMixBufWriteAtEx(PPDMAUDIOMIXBUF pMixBuf, PDMAUDIOMIXBUFFMT enmFmt, uint32_t offSamples, const void *pvBuf, uint32_t cbBuf, uint32_t *pcWritten);
 int AudioMixBufWriteCirc(PPDMAUDIOMIXBUF pMixBuf, const void *pvBuf, uint32_t cbBuf, uint32_t *pcWritten);
 int AudioMixBufWriteCircEx(PPDMAUDIOMIXBUF pMixBuf, PDMAUDIOMIXBUFFMT enmFmt, const void *pvBuf, uint32_t cbBuf, uint32_t *pcWritten);
+
+#ifdef DEBUG
+void AudioMixBufDbgPrint(PPDMAUDIOMIXBUF pMixBuf);
+void AudioMixBufDbgPrintChain(PPDMAUDIOMIXBUF pMixBuf);
+#endif
 
 #endif /* AUDIO_MIXBUF_H */
 

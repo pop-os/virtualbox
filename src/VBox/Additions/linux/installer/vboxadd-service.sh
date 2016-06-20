@@ -26,66 +26,42 @@
 ### END INIT INFO
 
 PATH=$PATH:/bin:/sbin:/usr/sbin
+SCRIPTNAME=vboxadd-service.sh
 
-system=unknown
-if [ -f /etc/redhat-release ]; then
-    system=redhat
-    PIDFILE="/var/lock/subsys/vboxadd-service"
-elif [ -f /etc/SuSE-release ]; then
-    system=suse
-    PIDFILE="/var/run/vboxadd-service"
-elif [ -f /etc/debian_version ]; then
-    system=debian
-    PIDFILE="/var/run/vboxadd-service.pid"
-elif [ -f /etc/gentoo-release ]; then
-    system=gentoo
-    PIDFILE="/var/run/vboxadd-service"
-else
-    system=other
-    if [ -d /var/run -a -w /var/run ]; then
-        PIDFILE="/var/run/vboxadd-service"
-    fi
+PIDFILE="/var/run/${SCRIPTNAME}"
+
+# Preamble for Gentoo
+if [ "`which $0`" = "/sbin/rc" ]; then
+    shift
 fi
 
-if [ "$system" = "redhat" ]; then
-    . /etc/init.d/functions
-    fail_msg() {
-        echo_failure
-        echo
-    }
+begin()
+{
+    test -n "${2}" && echo "${SCRIPTNAME}: ${1}."
+    logger -t "${SCRIPTNAME}" "${1}."
+}
 
-    succ_msg() {
-        echo_success
-        echo
-    }
+succ_msg()
+{
+    logger -t "${SCRIPTNAME}" "${1}."
+}
 
-    begin() {
-        echo -n "$1"
-    }
-fi
+fail_msg()
+{
+    echo "${SCRIPTNAME}: ${1}." >&2
+    logger -t "${SCRIPTNAME}" "${1}."
+}
 
-if [ "$system" = "suse" ]; then
-    . /etc/rc.status
-    daemon() {
-        startproc ${1+"$@"}
-    }
+daemon() {
+    $1 $2 $3
+}
 
-    fail_msg() {
-        rc_failed 1
-        rc_status -v
-    }
+killproc() {
+    killall $1
+    rm -f $PIDFILE
+}
 
-    succ_msg() {
-        rc_reset
-        rc_status -v
-    }
-
-    begin() {
-        echo -n "$1"
-    }
-fi
-
-if [ "$system" = "debian" ]; then
+if which start-stop-daemon >/dev/null 2>&1; then
     daemon() {
         start-stop-daemon --start --exec $1 -- $2 $3
     }
@@ -93,78 +69,6 @@ if [ "$system" = "debian" ]; then
     killproc() {
         start-stop-daemon --stop --retry 2 --exec $@
     }
-
-    fail_msg() {
-        echo " ...fail!"
-    }
-
-    succ_msg() {
-        echo " ...done."
-    }
-
-    begin() {
-        echo -n "$1"
-    }
-fi
-
-if [ "$system" = "gentoo" ]; then
-    if [ -f /sbin/functions.sh ]; then
-        . /sbin/functions.sh
-    elif [ -f /etc/init.d/functions.sh ]; then
-        . /etc/init.d/functions.sh
-    fi
-    daemon() {
-        start-stop-daemon --start --exec $1 -- $2 $3
-    }
-
-    killproc() {
-        start-stop-daemon --stop --retry 2 --exec $@
-    }
-
-    fail_msg() {
-        echo " ...fail!"
-    }
-
-    succ_msg() {
-        echo " ...done."
-    }
-
-    begin() {
-        echo -n "$1"
-    }
-
-    if [ "`which $0`" = "/sbin/rc" ]; then
-        shift
-    fi
-fi
-
-if [ "$system" = "other" ]; then
-    daemon() {
-        $1 $2 $3
-    }
-
-    killproc() {
-        kp_binary="${1##*/}"
-        pkill "${kp_binary}" || return 0
-        sleep 1
-        pkill "${kp_binary}" || return 0
-        sleep 1
-        pkill -9 "${kp_binary}"
-        return 0
-    }
-
-    fail_msg() {
-        echo " ...fail!"
-    }
-
-    succ_msg() {
-        echo " ...done."
-    }
-
-    begin() {
-        echo -n "$1"
-    }
-
 fi
 
 binary=/usr/sbin/VBoxService
@@ -182,7 +86,7 @@ vboxaddrunning() {
 
 start() {
     if ! test -f $PIDFILE; then
-        begin "Starting VirtualBox Guest Addition service ";
+        begin "Starting VirtualBox Guest Addition service" console;
         vboxaddrunning || {
             echo "VirtualBox Additions module not loaded!"
             exit 1
@@ -190,21 +94,21 @@ start() {
         testbinary
         daemon $binary --pidfile $PIDFILE > /dev/null
         RETVAL=$?
-        succ_msg
+        succ_msg "VirtualBox Guest Addition service started"
     fi
     return $RETVAL
 }
 
 stop() {
     if test -f $PIDFILE; then
-        begin "Stopping VirtualBox Guest Addition service ";
+        begin "Stopping VirtualBox Guest Addition service" console;
         killproc $binary
         RETVAL=$?
         if ! pidof VBoxService > /dev/null 2>&1; then
             rm -f $PIDFILE
-            succ_msg
+            succ_msg "VirtualBox Guest Addition service stopped"
         else
-            fail_msg
+            fail_msg "VirtualBox Guest Addition service failed to stop"
         fi
     fi
     return $RETVAL

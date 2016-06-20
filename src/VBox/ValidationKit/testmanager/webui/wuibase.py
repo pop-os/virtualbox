@@ -26,16 +26,17 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 100880 $"
+__version__ = "$Revision: 107838 $"
 
 
 # Standard python imports.
 import os;
+import sys;
 
 # Validation Kit imports.
 from common                       import webutils, utils;
 from testmanager                  import config;
-from testmanager.core.base        import ModelDataBase, TMExceptionBase;
+from testmanager.core.base        import ModelDataBase, ModelLogicBase, TMExceptionBase;
 from testmanager.core.db          import TMDatabaseConnection;
 from testmanager.core.systemlog   import SystemLogLogic, SystemLogData;
 from testmanager.core.useraccount import UserAccountLogic
@@ -74,6 +75,9 @@ class WuiDispatcherBase(object):
     ## The name of the effective date (timestamp) parameter.
     ksParamEffectiveDate = 'EffectiveDate';
 
+    ## The name of the redirect-to (test manager relative url) parameter.
+    ksParamRedirectTo    = 'RedirectTo';
+
     ## The name of the list-action parameter (WuiListContentWithActionBase).
     ksParamListAction    = 'ListAction';
 
@@ -100,6 +104,7 @@ class WuiDispatcherBase(object):
     def __init__(self, oSrvGlue, sScriptName):
         self._oSrvGlue          = oSrvGlue;
         self._oDb               = TMDatabaseConnection(self.dprint if config.g_kfWebUiSqlDebug else None, oSrvGlue = oSrvGlue);
+        self._tsNow             = None;  # Set by getEffectiveDateParam.
         self._asCheckedParams   = [];
         self._dParams           = None;  # Set by dispatchRequest.
         self._sAction           = None;  # Set by dispatchRequest.
@@ -146,6 +151,14 @@ class WuiDispatcherBase(object):
         self._oSrvGlue.setRedirect(self._sRedirectTo);
         return True;
 
+    def _isMenuMatch(self, sMenuUrl, sActionParam):
+        """ Overridable menu matcher. """
+        return sMenuUrl.find(sActionParam) > 0;
+
+    def _isSideMenuMatch(self, sSideMenuUrl, sActionParam):
+        """ Overridable side menu matcher. """
+        return sSideMenuUrl.find(sActionParam) > 0;
+
     def _generateMenus(self):
         """
         Generates the two menus, returning them as (sTopMenuItems, sSideMenuItems).
@@ -157,11 +170,11 @@ class WuiDispatcherBase(object):
         for cchAction in range(len(self._sAction), 1, -1):
             sActionParam = '%s=%s' % (self.ksParamAction, self._sAction[:cchAction]);
             for aoItem in self._aaoMenus:
-                if aoItem[1].find(sActionParam) > 0:
+                if self._isMenuMatch(aoItem[1], sActionParam):
                     aasSideMenu = aoItem[2];
                     break;
                 for asSubItem in aoItem[2]:
-                    if asSubItem[1].find(sActionParam) > 0:
+                    if self._isMenuMatch(asSubItem[1], sActionParam):
                         aasSideMenu = aoItem[2];
                         break;
                 if aasSideMenu is not None:
@@ -186,7 +199,7 @@ class WuiDispatcherBase(object):
         sSideMenuItems = '';
         if aasSideMenu is not None:
             for asSubItem in aasSideMenu:
-                if asSubItem[1].find(sActionParam) > 0:
+                if self._isSideMenuMatch(asSubItem[1], sActionParam):
                     sSideMenuItems += '<li class="current_page_item">';
                 else:
                     sSideMenuItems += '<li>';
@@ -291,12 +304,18 @@ class WuiDispatcherBase(object):
         """
         return self._oDb;
 
+    def getNow(self):
+        """
+        Returns the effective date.
+        """
+        return self._tsNow;
+
 
     #
     # Parameter handling.
     #
 
-    def getStringParam(self, sName, asValidValues = None, sDefault = None):
+    def getStringParam(self, sName, asValidValues = None, sDefault = None, fAllowNull = False):
         """
         Gets a string parameter.
         Raises exception if not found and sDefault is None.
@@ -308,7 +327,7 @@ class WuiDispatcherBase(object):
             if isinstance(sValue, list):
                 raise WuiException('%s parameter "%s" is given multiple times: "%s"' % (self._sAction, sName, sValue));
             sValue = sValue.strip();
-        elif sDefault is None:
+        elif sDefault is None and fAllowNull is not True:
             raise WuiException('%s is missing parameters: "%s"' % (self._sAction, sName,));
         else:
             sValue = sDefault;
@@ -494,11 +513,15 @@ class WuiDispatcherBase(object):
 
         return aoListOfTestCases
 
-    def getEffectiveDateParam(self, sParamName=None):
+    def getEffectiveDateParam(self, sParamName = None):
         """
         Gets the effective date parameter.
+
         Returns a timestamp suitable for database and url parameters.
         Returns None if not found or empty.
+
+        The first call with sParamName set to None will set the internal _tsNow
+        value upon successfull return.
         """
 
         sName = sParamName if sParamName is not None else WuiDispatcherBase.ksParamEffectiveDate
@@ -523,6 +546,8 @@ class WuiDispatcherBase(object):
             (sValue, sError) = ModelDataBase.validateTs(sValue);
             if sError is not None:
                 raise WuiException('%s parameter "%s" ("%s") is invalid: %s' % (self._sAction, sName, sValue, sError));
+            if sParamName is None and self._tsNow is None:
+                self._tsNow = sValue;
             return sValue;
 
         #
@@ -543,7 +568,32 @@ class WuiDispatcherBase(object):
         self._oDb.execute('SELECT CURRENT_TIMESTAMP ' + chSign + ' \'' + sInterval + '\'::INTERVAL');
         oDate = self._oDb.fetchOne()[0];
 
-        return str(oDate);
+        sValue = str(oDate);
+        if sParamName is None and self._tsNow is None:
+            self._tsNow = sValue;
+        return sValue;
+
+    def getRedirectToParameter(self, sDefault = None):
+        """
+        Gets the special redirect to parameter if it exists, will Return default
+        if not, with None being a valid default.
+
+        Makes sure the it doesn't got offsite.
+        Raises exception if invalid.
+        """
+        if sDefault is not None or self.ksParamRedirectTo in self._dParams:
+            sValue = self.getStringParam(self.ksParamRedirectTo, sDefault = sDefault);
+            cch = sValue.find("?");
+            if cch < 0:
+                cch = sValue.find("#");
+                if cch < 0:
+                    cch = len(sValue);
+            for ch in (':', '/', '\\', '..'):
+                if sValue.find(ch, 0, cch) >= 0:
+                    raise WuiException('Invalid character (%c) in redirect-to url: %s' % (ch, sValue,));
+        else:
+            sValue = None;
+        return sValue;
 
 
     def _checkForUnknownParameters(self):
@@ -700,21 +750,27 @@ class WuiDispatcherBase(object):
         (self._sPageTitle, self._sPageBody) = oContent.show();
         return True;
 
-    def _actionGenericFormAdd(self, oDataType, oFormType):
+    def _actionGenericFormAdd(self, oDataType, oFormType, sRedirectTo = None):
         """
         Generic add something form display request handler.
 
         oDataType is a ModelDataBase child class.
         oFormType is a WuiFormContentBase child class.
         """
+        assert issubclass(oDataType, ModelDataBase);
+        from testmanager.webui.wuicontentbase import WuiFormContentBase;
+        assert issubclass(oFormType, WuiFormContentBase);
+
         oData = oDataType().initFromParams(oDisp = self, fStrict = False);
+        sRedirectTo = self.getRedirectToParameter(sRedirectTo);
         self._checkForUnknownParameters();
 
         oForm = oFormType(oData, oFormType.ksMode_Add, oDisp = self);
+        oForm.setRedirectTo(sRedirectTo);
         (self._sPageTitle, self._sPageBody) = oForm.showForm();
         return True
 
-    def _actionGenericFormDetails(self, oDataType, oLogicType, oFormType, sIdAttr, sGenIdAttr = None): # pylint: disable=R0914
+    def _actionGenericFormDetails(self, oDataType, oLogicType, oFormType, sIdAttr = None, sGenIdAttr = None): # pylint: disable=R0914
         """
         Generic handler for showing a details form/page.
 
@@ -723,6 +779,17 @@ class WuiDispatcherBase(object):
         oFormType is a WuiFormContentBase child class.
         sIdParamName is the name of the ID parameter (not idGen!).
         """
+        # Input.
+        assert issubclass(oDataType, ModelDataBase);
+        assert issubclass(oLogicType, ModelLogicBase);
+        from testmanager.webui.wuicontentbase import WuiFormContentBase;
+        assert issubclass(oFormType, WuiFormContentBase);
+
+        if sIdAttr is None:
+            sIdAttr = oDataType.ksIdAttr;
+        if sGenIdAttr is None:
+            sGenIdAttr = getattr(oDataType, 'ksGenIdAttr', None);
+
         # Parameters.
         idGenObject = -1;
         if sGenIdAttr is not None:
@@ -755,8 +822,39 @@ class WuiDispatcherBase(object):
             self._sPageBody += oContent.showChangeLog(aoEntries, fMore, iChangeLogPageNo, cChangeLogEntriesPerPage, tsNow);
         return True
 
+    def _actionGenericDoRemove(self, oLogicType, sParamId, sRedirAction):
+        """
+        Delete entry (using oLogicType.removeEntry).
 
-    def _actionGenericFormEdit(self, oDataType, oFormType, sIdParamName):
+        oLogicType is a class that implements addEntry.
+
+        sParamId is the name (ksParam_...) of the HTTP variable hold the ID of
+        the database entry to delete.
+
+        sRedirAction is what action to redirect to on success.
+        """
+        import cgitb;
+
+        idEntry = self.getIntParam(sParamId, iMin = 1, iMax = 0x7ffffffe)
+        fCascade = self.getBoolParam('fCascadeDelete', False);
+        sRedirectTo = self.getRedirectToParameter(self._sActionUrlBase + sRedirAction);
+        self._checkForUnknownParameters()
+
+        try:
+            self._sPageTitle  = None
+            self._sPageBody   = None
+            self._sRedirectTo = sRedirectTo;
+            return oLogicType(self._oDb).removeEntry(self._oCurUser.uid, idEntry, fCascade = fCascade, fCommit = True);
+        except Exception as oXcpt:
+            self._oDb.rollback();
+            self._sPageTitle  = 'Unable to delete entry';
+            self._sPageBody   = str(oXcpt);
+            if config.g_kfDebugDbXcpt:
+                self._sPageBody += cgitb.html(sys.exc_info());
+            self._sRedirectTo = None;
+        return False;
+
+    def _actionGenericFormEdit(self, oDataType, oFormType, sIdParamName = None, sRedirectTo = None):
         """
         Generic edit something form display request handler.
 
@@ -764,12 +862,22 @@ class WuiDispatcherBase(object):
         oFormType is a WuiFormContentBase child class.
         sIdParamName is the name of the ID parameter (not idGen!).
         """
+        assert issubclass(oDataType, ModelDataBase);
+        from testmanager.webui.wuicontentbase import WuiFormContentBase;
+        assert issubclass(oFormType, WuiFormContentBase);
 
+        if sIdParamName is None:
+            sIdParamName = getattr(oDataType, 'ksParam_' + oDataType.ksIdAttr);
+        assert len(sIdParamName) > 1;
+
+        tsNow    = self.getEffectiveDateParam();
         idObject = self.getIntParam(sIdParamName, 0, 0x7ffffffe);
+        sRedirectTo = self.getRedirectToParameter(sRedirectTo);
         self._checkForUnknownParameters();
-        oData = oDataType().initFromDbWithId(self._oDb, idObject);
+        oData = oDataType().initFromDbWithId(self._oDb, idObject, tsNow = tsNow);
 
         oContent = oFormType(oData, oFormType.ksMode_Edit, oDisp = self);
+        oContent.setRedirectTo(sRedirectTo);
         (self._sPageTitle, self._sPageBody) = oContent.showForm();
         return True
 
@@ -808,6 +916,11 @@ class WuiDispatcherBase(object):
         sIdParamName is the name of the ID parameter.
         sGenIdParamName is the name of the generation ID parameter, None if not applicable.
         """
+        # Input.
+        assert issubclass(oDataType, ModelDataBase);
+        from testmanager.webui.wuicontentbase import WuiFormContentBase;
+        assert issubclass(oFormType, WuiFormContentBase);
+
         # Parameters.
         idGenObject = -1;
         if sGenIdAttr is not None:
@@ -837,7 +950,7 @@ class WuiDispatcherBase(object):
         return True
 
 
-    def _actionGenericFormPost(self, sMode, fnLogicAction, oDataType, oFormType, sRedirectTo, fStrict=True):
+    def _actionGenericFormPost(self, sMode, fnLogicAction, oDataType, oFormType, sRedirectTo, fStrict = True):
         """
         Generic POST request handling from a WuiFormContentBase child.
 
@@ -845,13 +958,24 @@ class WuiDispatcherBase(object):
         oFormType is a WuiFormContentBase child class.
         fnLogicAction is a method taking a oDataType instance and uidAuthor as arguments.
         """
+        assert issubclass(oDataType, ModelDataBase);
+        from testmanager.webui.wuicontentbase import WuiFormContentBase;
+        assert issubclass(oFormType, WuiFormContentBase);
+
         #
         # Read and validate parameters.
         #
         oData = oDataType().initFromParams(oDisp = self, fStrict = fStrict);
+        sRedirectTo = self.getRedirectToParameter(sRedirectTo);
         self._checkForUnknownParameters();
         self._assertPostRequest();
-        dErrors = oData.validateAndConvert(self._oDb);
+        if sMode == WuiFormContentBase.ksMode_Add and  getattr(oData, 'kfIdAttrIsForForeign', False):
+            enmValidateFor = oData.ksValidateFor_AddForeignId;
+        elif sMode == WuiFormContentBase.ksMode_Add:
+            enmValidateFor = oData.ksValidateFor_Add;
+        else:
+            enmValidateFor = oData.ksValidateFor_Edit;
+        dErrors = oData.validateAndConvert(self._oDb, enmValidateFor);
         if len(dErrors) == 0:
             oData.convertFromParamNull();
 
@@ -863,6 +987,7 @@ class WuiDispatcherBase(object):
             except Exception as oXcpt:
                 self._oDb.rollback();
                 oForm = oFormType(oData, sMode, oDisp = self);
+                oForm.setRedirectTo(sRedirectTo);
                 sErrorMsg = str(oXcpt) if not config.g_kfDebugDbXcpt else '\n'.join(utils.getXcptInfo(4));
                 (self._sPageTitle, self._sPageBody) = oForm.showForm(sErrorMsg = sErrorMsg);
             else:
@@ -874,6 +999,7 @@ class WuiDispatcherBase(object):
                 self._sRedirectTo = sRedirectTo;
         else:
             oForm = oFormType(oData, sMode, oDisp = self);
+            oForm.setRedirectTo(sRedirectTo);
             (self._sPageTitle, self._sPageBody) = oForm.showForm(dErrors = dErrors);
         return True;
 
@@ -886,10 +1012,15 @@ class WuiDispatcherBase(object):
         oFormType is a WuiFormContentBase child class.
         sRedirAction is what action to redirect to on success.
         """
-        oLogic = oLogicType(self._oDb);
+        assert issubclass(oDataType, ModelDataBase);
+        assert issubclass(oLogicType, ModelLogicBase);
         from testmanager.webui.wuicontentbase import WuiFormContentBase;
+        assert issubclass(oFormType, WuiFormContentBase);
+
+        oLogic = oLogicType(self._oDb);
         return self._actionGenericFormPost(WuiFormContentBase.ksMode_Add, oLogic.addEntry, oDataType, oFormType,
                                            '?' + webutils.encodeUrlParams({self.ksParamAction: sRedirAction}), fStrict=fStrict)
+
     def _actionGenericFormEditPost(self, oDataType, oLogicType, oFormType, sRedirAction, fStrict = True):
         """
         Generic edit POST request handling from a WuiFormContentBase child.
@@ -899,8 +1030,12 @@ class WuiDispatcherBase(object):
         oFormType is a WuiFormContentBase child class.
         sRedirAction is what action to redirect to on success.
         """
-        oLogic = oLogicType(self._oDb);
+        assert issubclass(oDataType, ModelDataBase);
+        assert issubclass(oLogicType, ModelLogicBase);
         from testmanager.webui.wuicontentbase import WuiFormContentBase;
+        assert issubclass(oFormType, WuiFormContentBase);
+
+        oLogic = oLogicType(self._oDb);
         return self._actionGenericFormPost(WuiFormContentBase.ksMode_Edit, oLogic.editEntry, oDataType, oFormType,
                                            '?' + webutils.encodeUrlParams({self.ksParamAction: sRedirAction}),
                                            fStrict = fStrict);
@@ -960,7 +1095,7 @@ class WuiDispatcherBase(object):
         else:
             self._sAction = self.ksActionDefault;
 
-        if self._sAction not in self._dDispatch:
+        if isinstance(self._sAction, list) or  self._sAction not in self._dDispatch:
             raise WuiException('Unknown action "%s" requested' % (self._sAction,));
 
         #

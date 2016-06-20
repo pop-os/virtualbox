@@ -1947,11 +1947,8 @@ int pgmR3PhysRamZeroAll(PVM pVM)
         uint32_t iPage = pRam->cb >> PAGE_SHIFT;
         AssertMsg(((RTGCPHYS)iPage << PAGE_SHIFT) == pRam->cb, ("%RGp %RGp\n", (RTGCPHYS)iPage << PAGE_SHIFT, pRam->cb));
 
-#ifndef NO_RAM_RESET
-        if (!pVM->pgm.s.fRamPreAlloc)
-#else
-        if (0)
-#endif
+        if (   !pVM->pgm.s.fRamPreAlloc
+            && pVM->pgm.s.fZeroRamPagesOnReset)
         {
             /* Replace all RAM pages by ZERO pages. */
             while (iPage-- > 0)
@@ -2024,15 +2021,14 @@ int pgmR3PhysRamZeroAll(PVM pVM)
                                 /* no break */
 
                             case PGM_PAGE_STATE_ALLOCATED:
-                            {
-                                void *pvPage;
-                                rc = pgmPhysPageMap(pVM, pPage, pRam->GCPhys + ((RTGCPHYS)iPage << PAGE_SHIFT), &pvPage);
-                                AssertLogRelRCReturn(rc, rc);
-#ifndef NO_RAM_RESET
-                                ASMMemZeroPage(pvPage);
-#endif
+                                if (pVM->pgm.s.fZeroRamPagesOnReset)
+                                {
+                                    void *pvPage;
+                                    rc = pgmPhysPageMap(pVM, pPage, pRam->GCPhys + ((RTGCPHYS)iPage << PAGE_SHIFT), &pvPage);
+                                    AssertLogRelRCReturn(rc, rc);
+                                    ASMMemZeroPage(pvPage);
+                                }
                                 break;
-                            }
                         }
                         break;
 
@@ -3386,54 +3382,53 @@ static int pgmR3PhysRomRegister(PVM pVM, PPDMDEVINS pDevIns, RTGCPHYS GCPhys, RT
                     pRomNew->fFlags     = fFlags;
                     pRomNew->idSavedState = UINT8_MAX;
                     pRomNew->cbOriginal = cbBinary;
-#ifdef VBOX_STRICT
+                    pRomNew->pszDesc    = pszDesc;
                     pRomNew->pvOriginal = fFlags & PGMPHYS_ROM_FLAGS_PERMANENT_BINARY
                                         ? pvBinary : RTMemDup(pvBinary, cbBinary);
-#else
-                    pRomNew->pvOriginal = fFlags & PGMPHYS_ROM_FLAGS_PERMANENT_BINARY ? pvBinary : NULL;
-#endif
-                    pRomNew->pszDesc    = pszDesc;
-
-                    for (unsigned iPage = 0; iPage < cPages; iPage++)
+                    if (pRomNew->pvOriginal)
                     {
-                        PPGMROMPAGE pPage = &pRomNew->aPages[iPage];
-                        pPage->enmProt = PGMROMPROT_READ_ROM_WRITE_IGNORE;
-                        PGM_PAGE_INIT_ZERO(&pPage->Shadow, pVM, PGMPAGETYPE_ROM_SHADOW);
+                        for (unsigned iPage = 0; iPage < cPages; iPage++)
+                        {
+                            PPGMROMPAGE pPage = &pRomNew->aPages[iPage];
+                            pPage->enmProt = PGMROMPROT_READ_ROM_WRITE_IGNORE;
+                            PGM_PAGE_INIT_ZERO(&pPage->Shadow, pVM, PGMPAGETYPE_ROM_SHADOW);
+                        }
+
+                        /* update the page count stats for the shadow pages. */
+                        if (fFlags & PGMPHYS_ROM_FLAGS_SHADOWED)
+                        {
+                            pVM->pgm.s.cZeroPages += cPages;
+                            pVM->pgm.s.cAllPages  += cPages;
+                        }
+
+                        /*
+                         * Insert the ROM range, tell REM and return successfully.
+                         */
+                        pRomNew->pNextR3 = pRom;
+                        pRomNew->pNextR0 = pRom ? MMHyperCCToR0(pVM, pRom) : NIL_RTR0PTR;
+                        pRomNew->pNextRC = pRom ? MMHyperCCToRC(pVM, pRom) : NIL_RTRCPTR;
+
+                        if (pRomPrev)
+                        {
+                            pRomPrev->pNextR3 = pRomNew;
+                            pRomPrev->pNextR0 = MMHyperCCToR0(pVM, pRomNew);
+                            pRomPrev->pNextRC = MMHyperCCToRC(pVM, pRomNew);
+                        }
+                        else
+                        {
+                            pVM->pgm.s.pRomRangesR3 = pRomNew;
+                            pVM->pgm.s.pRomRangesR0 = MMHyperCCToR0(pVM, pRomNew);
+                            pVM->pgm.s.pRomRangesRC = MMHyperCCToRC(pVM, pRomNew);
+                        }
+
+                        pgmPhysInvalidatePageMapTLB(pVM);
+                        GMMR3AllocatePagesCleanup(pReq);
+                        return VINF_SUCCESS;
                     }
 
-                    /* update the page count stats for the shadow pages. */
-                    if (fFlags & PGMPHYS_ROM_FLAGS_SHADOWED)
-                    {
-                        pVM->pgm.s.cZeroPages += cPages;
-                        pVM->pgm.s.cAllPages  += cPages;
-                    }
-
-                    /*
-                     * Insert the ROM range, tell REM and return successfully.
-                     */
-                    pRomNew->pNextR3 = pRom;
-                    pRomNew->pNextR0 = pRom ? MMHyperCCToR0(pVM, pRom) : NIL_RTR0PTR;
-                    pRomNew->pNextRC = pRom ? MMHyperCCToRC(pVM, pRom) : NIL_RTRCPTR;
-
-                    if (pRomPrev)
-                    {
-                        pRomPrev->pNextR3 = pRomNew;
-                        pRomPrev->pNextR0 = MMHyperCCToR0(pVM, pRomNew);
-                        pRomPrev->pNextRC = MMHyperCCToRC(pVM, pRomNew);
-                    }
-                    else
-                    {
-                        pVM->pgm.s.pRomRangesR3 = pRomNew;
-                        pVM->pgm.s.pRomRangesR0 = MMHyperCCToR0(pVM, pRomNew);
-                        pVM->pgm.s.pRomRangesRC = MMHyperCCToRC(pVM, pRomNew);
-                    }
-
-                    pgmPhysInvalidatePageMapTLB(pVM);
-                    GMMR3AllocatePagesCleanup(pReq);
-                    return VINF_SUCCESS;
+                    /* bail out */
+                    rc = VERR_NO_MEMORY;
                 }
-
-                /* bail out */
 
                 int rc2 = PGMHandlerPhysicalDeregister(pVM, GCPhys);
                 AssertRC(rc2);
@@ -3572,14 +3567,17 @@ int pgmR3PhysRomReset(PVM pVM)
             }
         }
 
-#ifdef VBOX_STRICT
         /*
-         * Verify that the virgin page is unchanged if possible.
+         * Restore the original ROM pages after a saved state load.
+         * Also, in strict builds check that ROM pages remain unmodified.
          */
-        if (pRom->pvOriginal)
+#ifndef VBOX_STRICT
+        if (pVM->pgm.s.fRestoreRomPagesOnReset)
+#endif
         {
             size_t         cbSrcLeft = pRom->cbOriginal;
             uint8_t const *pbSrcPage = (uint8_t const *)pRom->pvOriginal;
+            uint32_t       cRestored = 0;
             for (uint32_t iPage = 0; iPage < cPages && cbSrcLeft > 0; iPage++, pbSrcPage += PAGE_SIZE)
             {
                 const RTGCPHYS GCPhys = pRom->GCPhys + (iPage << PAGE_SHIFT);
@@ -3590,21 +3588,27 @@ int pgmR3PhysRomReset(PVM pVM)
 
                 if (memcmp(pvDstPage, pbSrcPage, RT_MIN(cbSrcLeft, PAGE_SIZE)))
                 {
-# ifdef DEBUG_bird /* This is darn handy for EFI debugging w/ snapshots, should be made default later. */
-                    void *pvDstPageW;
-                    rc = pgmPhysPageMap(pVM, &pRom->aPages[iPage].Virgin, GCPhys, &pvDstPageW);
-                    AssertRCReturn(rc, rc);
-                    memcpy(pvDstPageW, pbSrcPage, RT_MIN(cbSrcLeft, PAGE_SIZE));
-# else
-                    LogRel(("pgmR3PhysRomReset: %RGp rom page changed (%s) - loaded saved state?\n",
-                            GCPhys, pRom->pszDesc));
-# endif
+                    if (pVM->pgm.s.fRestoreRomPagesOnReset)
+                    {
+                        void *pvDstPageW;
+                        rc = pgmPhysPageMap(pVM, &pRom->aPages[iPage].Virgin, GCPhys, &pvDstPageW);
+                        AssertLogRelRCReturn(rc, rc);
+                        memcpy(pvDstPageW, pbSrcPage, RT_MIN(cbSrcLeft, PAGE_SIZE));
+                        cRestored++;
+                    }
+                    else
+                        LogRel(("pgmR3PhysRomReset: %RGp: ROM page changed (%s)\n", GCPhys, pRom->pszDesc));
                 }
                 cbSrcLeft -= RT_MIN(cbSrcLeft, PAGE_SIZE);
             }
+            if (cRestored > 0)
+                LogRel(("PGM: ROM \"%s\": Reloaded %u of %u pages.\n", pRom->pszDesc, cRestored, cPages));
         }
-#endif
     }
+
+    /* Clear the ROM restore flag now as we only need to do this once after
+       loading saved state. */
+    pVM->pgm.s.fRestoreRomPagesOnReset = false;
 
     return VINF_SUCCESS;
 }
@@ -3619,7 +3623,6 @@ int pgmR3PhysRomReset(PVM pVM)
  */
 void pgmR3PhysRomTerm(PVM pVM)
 {
-#ifdef RT_STRICT
     /*
      * Free the heap copy of the original bits.
      */
@@ -3632,7 +3635,6 @@ void pgmR3PhysRomTerm(PVM pVM)
             pRom->pvOriginal = NULL;
         }
     }
-#endif
 }
 
 

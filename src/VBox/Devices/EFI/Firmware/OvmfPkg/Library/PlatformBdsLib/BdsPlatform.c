@@ -1,7 +1,7 @@
 /** @file
   Platform BDS customizations.
 
-  Copyright (c) 2004 - 2012, Intel Corporation. All rights reserved.<BR>
+  Copyright (c) 2004 - 2014, Intel Corporation. All rights reserved.<BR>
   This program and the accompanying materials
   are licensed and made available under the terms and conditions of the BSD License
   which accompanies this distribution.  The full text of the license may be found at
@@ -13,13 +13,10 @@
 **/
 
 #include "BdsPlatform.h"
+#include "QemuBootOrder.h"
 #ifdef VBOX
 #include "VBoxPkg.h"
-#include "DevEFI.h"
-#include "iprt/asm.h"
 #include "Library/PrintLib.h"
-/* Hmmm Uga Draw wasn't pointed in BDS, so perhaps it's totally dead */
-#include <Protocol/UgaDraw.h>
 #include <Guid/EventGroup.h> /* gEfiEventReadyToBootGuid */
 #endif
 
@@ -33,82 +30,6 @@ EFI_EVENT     mEfiDevPathEvent;
 VOID          *mEmuVariableEventReg;
 EFI_EVENT     mEmuVariableEvent;
 BOOLEAN       mDetectVgaOnly;
-
-#ifdef VBOX
-static EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL *TextOutputProtocol;
-static EFI_GRAPHICS_OUTPUT_PROTOCOL    *Gop;
-static EFI_UGA_DRAW_PROTOCOL           *Uga;
-
-/*
- *   @todo move this function to the library.
- */
-static UINT32
-GetVmVariable(UINT32 Variable, CHAR8* Buffer, UINT32 Size )
-{
-    UINT32 VarLen, i;
-
-
-    ASMOutU32(EFI_INFO_PORT, Variable);
-    VarLen = ASMInU32(EFI_INFO_PORT);
-
-    for (i=0; i < VarLen && i < Size; i++)
-    {
-        Buffer[i] = ASMInU8(EFI_INFO_PORT);
-    }
-
-    return VarLen;
-}
-
-static VOID
-EFIAPI
-VBoxConsoleSwitchMode (
-  IN EFI_EVENT                Event,
-  IN VOID                     *Context
-  )
-{
-    EFI_STATUS r = EFI_NOT_FOUND; /* Neither GOP nor UGA is found*/
-    EFI_TPL               OldTpl;
-    OldTpl = gBS->RaiseTPL (TPL_NOTIFY);
-    if (Gop)
-    {
-        UINT32 mode = 2;
-        GetVmVariable(EFI_INFO_INDEX_GOP_MODE, (CHAR8 *)&mode, sizeof(UINT32));
-        r = Gop->SetMode(Gop, mode);
-    }
-    else if (Uga)
-    {
-        UINT32 H = 1027;
-        UINT32 V = 768;
-        GetVmVariable(EFI_INFO_INDEX_UGA_HORIZONTAL_RESOLUTION, (CHAR8 *)&H, sizeof(UINT32));
-        GetVmVariable(EFI_INFO_INDEX_UGA_VERTICAL_RESOLUTION, (CHAR8 *)&V, sizeof(UINT32));
-        r = Uga->SetMode(Uga, H, V, 32, 60);
-    }
-
-    if(EFI_ERROR(r))
-        goto done;
-
-    r = TextOutputProtocol->SetMode(TextOutputProtocol, TextOutputProtocol->Mode->MaxMode);
-    if(EFI_ERROR(r))
-        goto done;
-    done:
-    gBS->RestoreTPL (OldTpl);
-    return;
-}
-
-EFI_STATUS
-EFIAPI
-VBoxConsoleInit()
-{
-    EFI_EVENT event;
-
-    gBS->LocateProtocol(&gEfiSimpleTextOutProtocolGuid, NULL, (VOID **)&TextOutputProtocol);
-    gBS->LocateProtocol(&gEfiUgaDrawProtocolGuid, NULL, (VOID **)&Uga);
-    gBS->LocateProtocol(&gEfiGraphicsOutputProtocolGuid, NULL, (VOID **)&Gop);
-    gBS->CreateEventEx(EVT_NOTIFY_SIGNAL, TPL_NOTIFY, VBoxConsoleSwitchMode, NULL, &gEfiEventReadyToBootGuid, &event);
-    return EFI_SUCCESS;
-}
-#endif /* VBOX */
-
 
 //
 // Type definitions
@@ -157,21 +78,6 @@ InstallDevicePathCallback (
   VOID
   );
 
-#ifndef VBOX
-STATIC
-VOID
-LoadVideoRom (
-  VOID
-  );
-
-
-STATIC
-EFI_STATUS
-PciRomLoadEfiDriversFromRomImage (
-  IN EFI_PHYSICAL_ADDRESS    Rom,
-  IN UINTN                   RomSize
-  );
-#endif
 //
 // BDS Platform Functions
 //
@@ -197,9 +103,6 @@ Returns:
 {
   DEBUG ((EFI_D_INFO, "PlatformBdsInit\n"));
   InstallDevicePathCallback ();
-#ifndef VBOX
-  LoadVideoRom ();
-#endif
 }
 
 
@@ -310,14 +213,16 @@ Returns:
   // Print Device Path
   //
   DevPathStr = DevicePathToStr(DevicePath);
-  DEBUG((
-    EFI_D_INFO,
-    "BdsPlatform.c+%d: COM%d DevPath: %s\n",
-    __LINE__,
-    gPnp16550ComPortDeviceNode.UID + 1,
-    DevPathStr
-    ));
-  FreePool(DevPathStr);
+  if (DevPathStr != NULL) {
+    DEBUG((
+      EFI_D_INFO,
+      "BdsPlatform.c+%d: COM%d DevPath: %s\n",
+      __LINE__,
+      gPnp16550ComPortDeviceNode.UID + 1,
+      DevPathStr
+      ));
+    FreePool(DevPathStr);
+  }
 
   BdsLibUpdateConsoleVariable (VarConsoleOut, DevicePath, NULL);
   BdsLibUpdateConsoleVariable (VarConsoleInp, DevicePath, NULL);
@@ -337,14 +242,16 @@ Returns:
   // Print Device Path
   //
   DevPathStr = DevicePathToStr(DevicePath);
-  DEBUG((
-    EFI_D_INFO,
-    "BdsPlatform.c+%d: COM%d DevPath: %s\n",
-    __LINE__,
-    gPnp16550ComPortDeviceNode.UID + 1,
-    DevPathStr
-    ));
-  FreePool(DevPathStr);
+  if (DevPathStr != NULL) {
+    DEBUG((
+      EFI_D_INFO,
+      "BdsPlatform.c+%d: COM%d DevPath: %s\n",
+      __LINE__,
+      gPnp16550ComPortDeviceNode.UID + 1,
+      DevPathStr
+      ));
+    FreePool(DevPathStr);
+  }
 
   BdsLibUpdateConsoleVariable (VarConsoleOut, DevicePath, NULL);
   BdsLibUpdateConsoleVariable (VarConsoleInp, DevicePath, NULL);
@@ -464,7 +371,8 @@ Returns:
   EFI_DEVICE_PATH_PROTOCOL  *DevicePath;
   EFI_DEVICE_PATH_PROTOCOL  *GopDevicePath;
 
-  DevicePath = NULL;
+  DevicePath    = NULL;
+  GopDevicePath = NULL;
   Status = gBS->HandleProtocol (
                   DeviceHandle,
                   &gEfiDevicePathProtocolGuid,
@@ -825,10 +733,10 @@ PciInitialization (
   // Bus 0, Device 1, Function 0 - PCI to ISA Bridge
   //
   PciWrite8 (PCI_LIB_ADDRESS (0, 1, 0, 0x3c), 0x00);
-  PciWrite8 (PCI_LIB_ADDRESS (0, 1, 0, 0x60), 0x0b);
-  PciWrite8 (PCI_LIB_ADDRESS (0, 1, 0, 0x61), 0x09);
-  PciWrite8 (PCI_LIB_ADDRESS (0, 1, 0, 0x62), 0x0b);
-  PciWrite8 (PCI_LIB_ADDRESS (0, 1, 0, 0x63), 0x09);
+  PciWrite8 (PCI_LIB_ADDRESS (0, 1, 0, 0x60), 0x0b); // LNKA routing target
+  PciWrite8 (PCI_LIB_ADDRESS (0, 1, 0, 0x61), 0x0b); // LNKB routing target
+  PciWrite8 (PCI_LIB_ADDRESS (0, 1, 0, 0x62), 0x0a); // LNKC routing target
+  PciWrite8 (PCI_LIB_ADDRESS (0, 1, 0, 0x63), 0x0a); // LNKD routing target
 
   //
   // Bus 0, Device 1, Function 1 - IDE Controller
@@ -839,8 +747,8 @@ PciInitialization (
   //
   // Bus 0, Device 1, Function 3 - Power Managment Controller
   //
-  PciWrite8 (PCI_LIB_ADDRESS (0, 1, 3, 0x3c), 0x0b);
-  PciWrite8 (PCI_LIB_ADDRESS (0, 1, 3, 0x3d), 0x01);
+  PciWrite8 (PCI_LIB_ADDRESS (0, 1, 3, 0x3c), 0x09);
+  PciWrite8 (PCI_LIB_ADDRESS (0, 1, 3, 0x3d), 0x01); // INTA
 
   //
   // Bus 0, Device 2, Function 0 - Video Controller
@@ -850,14 +758,26 @@ PciInitialization (
   //
   // Bus 0, Device 3, Function 0 - Network Controller
   //
-  PciWrite8 (PCI_LIB_ADDRESS (0, 3, 0, 0x3c), 0x0b);
-  PciWrite8 (PCI_LIB_ADDRESS (0, 3, 0, 0x3d), 0x01);
+  PciWrite8 (PCI_LIB_ADDRESS (0, 3, 0, 0x3c), 0x0a);
+  PciWrite8 (PCI_LIB_ADDRESS (0, 3, 0, 0x3d), 0x01); // INTA (-> LNKC)
 
   //
-  // Bus 0, Device 4, Function 0 - RAM Memory
+  // Bus 0, Device 5, Function 0 - RAM Memory
   //
-  PciWrite8 (PCI_LIB_ADDRESS (0, 4, 0, 0x3c), 0x09);
-  PciWrite8 (PCI_LIB_ADDRESS (0, 4, 0, 0x3d), 0x01);
+  PciWrite8 (PCI_LIB_ADDRESS (0, 5, 0, 0x3c), 0x0b);
+  PciWrite8 (PCI_LIB_ADDRESS (0, 5, 0, 0x3d), 0x01); // INTA (-> LNKA)
+}
+
+
+VOID
+AcpiInitialization (
+  VOID
+  )
+{
+  //
+  // Set ACPI SCI_EN bit in PMCNTRL
+  //
+  IoOr16 ((PciRead32 (PCI_LIB_ADDRESS (0, 1, 3, 0x40)) & ~BIT0) + 4, BIT0);
 }
 
 
@@ -888,12 +808,14 @@ ConnectRecursivelyIfPciMassStorage (
     // Print Device Path
     //
     DevPathStr = DevicePathToStr (DevicePath);
-    DEBUG((
-      EFI_D_INFO,
-      "Found Mass Storage device: %s\n",
-      DevPathStr
-      ));
-    FreePool(DevPathStr);
+    if (DevPathStr != NULL) {
+      DEBUG((
+        EFI_D_INFO,
+        "Found Mass Storage device: %s\n",
+        DevPathStr
+        ));
+      FreePool(DevPathStr);
+    }
 
     Status = gBS->ConnectController (Handle, NULL, NULL, TRUE);
     if (EFI_ERROR (Status)) {
@@ -1040,6 +962,7 @@ Returns:
   BdsLibConnectAll ();
 
   PciInitialization ();
+  AcpiInitialization ();
 
   //
   // Clear the logo after all devices are connected.
@@ -1174,11 +1097,16 @@ Returns:
 
   ConnectRootBridge ();
 
-  //
-  // Try to restore variables from the hard disk early so
-  // they can be used for the other BDS connect operations.
-  //
-  PlatformBdsRestoreNvVarsFromHardDisk ();
+  if (PcdGetBool (PcdOvmfFlashVariablesEnable)) {
+    DEBUG ((EFI_D_INFO, "PlatformBdsPolicyBehavior: not restoring NvVars "
+      "from disk since flash variables appear to be supported.\n"));
+  } else {
+    //
+    // Try to restore variables from the hard disk early so
+    // they can be used for the other BDS connect operations.
+    //
+    PlatformBdsRestoreNvVarsFromHardDisk ();
+  }
 
   //
   // Init the time out value
@@ -1233,6 +1161,11 @@ Returns:
   // Perform some platform specific connect sequence
   //
   PlatformBdsConnectSequence ();
+
+  //
+  // Process QEMU's -kernel command line option
+  //
+  TryRunningQemuKernel ();
 
   //
   // Give one chance to enter the setup if we
@@ -1340,26 +1273,12 @@ Returns:
 #endif
   BdsLibEnumerateAllBootOption (BootOptionList);
 
-
+  SetBootOrderFromQemu (BootOptionList);
   //
-  // Please uncomment above ConnectAll and EnumerateAll code and remove following first boot
-  // checking code in real production tip.
+  // The BootOrder variable may have changed, reload the in-memory list with
+  // it.
   //
-  // In BOOT_WITH_FULL_CONFIGURATION boot mode, should always connect every device
-  // and do enumerate all the default boot options. But in development system board, the boot mode
-  // cannot be BOOT_ASSUMING_NO_CONFIGURATION_CHANGES because the machine box
-  // is always open. So the following code only do the ConnectAll and EnumerateAll at first boot.
-  //
-  Status = BdsLibBuildOptionFromVar (BootOptionList, L"BootOrder");
-  VBoxLogFlowFuncMarkRC(Status);
-  if (EFI_ERROR(Status)) {
-    //
-    // If cannot find "BootOrder" variable,  it may be first boot.
-    // Try to connect all devices and enumerate all boot options here.
-    //
-    BdsLibConnectAll ();
-    BdsLibEnumerateAllBootOption (BootOptionList);
-  }
+  BdsLibBuildOptionFromVar (BootOptionList, L"BootOrder");
 
   //
   // To give the User a chance to enter Setup here, if user set TimeOut is 0.
@@ -1384,9 +1303,6 @@ Returns:
       break;
     }
   }
-#ifdef VBOX
-  VBoxConsoleInit();
-#endif
 
   //
   // Check whether the user input after the duration time has expired
@@ -1648,201 +1564,5 @@ LockKeyboards (
 {
     return EFI_UNSUPPORTED;
 }
-
-
-#ifndef VBOX
-STATIC
-VOID
-LoadVideoRom (
-  VOID
-  )
-{
-  PCI_DATA_STRUCTURE            *Pcir;
-  UINTN                         RomSize;
-
-  //
-  // The virtual machines sometimes load the video rom image
-  // directly at the legacy video BIOS location of C000:0000,
-  // and do not implement the PCI expansion ROM feature.
-  //
-  Pcir = (PCI_DATA_STRUCTURE *) (UINTN) 0xc0000;
-  RomSize = Pcir->ImageLength * 512;
-  PciRomLoadEfiDriversFromRomImage (0xc0000, RomSize);
-}
-
-
-STATIC
-EFI_STATUS
-PciRomLoadEfiDriversFromRomImage (
-  IN EFI_PHYSICAL_ADDRESS    Rom,
-  IN UINTN                   RomSize
-  )
-{
-  CHAR16                        *FileName;
-  EFI_PCI_EXPANSION_ROM_HEADER  *EfiRomHeader;
-  PCI_DATA_STRUCTURE            *Pcir;
-  UINTN                         ImageIndex;
-  UINTN                         RomOffset;
-  UINT32                        ImageSize;
-  UINT16                        ImageOffset;
-  EFI_HANDLE                    ImageHandle;
-  EFI_STATUS                    Status;
-  EFI_STATUS                    retStatus;
-  EFI_DEVICE_PATH_PROTOCOL      *FilePath;
-  BOOLEAN                       SkipImage;
-  UINT32                        DestinationSize;
-  UINT32                        ScratchSize;
-  UINT8                         *Scratch;
-  VOID                          *ImageBuffer;
-  VOID                          *DecompressedImageBuffer;
-  UINT32                        ImageLength;
-  EFI_DECOMPRESS_PROTOCOL       *Decompress;
-  UINT32                        InitializationSize;
-
-  VBoxLogFlowFuncEnter();
-  FileName = L"PciRomInMemory";
-
-  //FileName = L"PciRom Addr=0000000000000000";
-  //HexToString (&FileName[12], Rom, 16);
-
-  ImageIndex    = 0;
-  retStatus     = EFI_NOT_FOUND;
-  RomOffset  = (UINTN) Rom;
-
-  do {
-
-    EfiRomHeader = (EFI_PCI_EXPANSION_ROM_HEADER *) (UINTN) RomOffset;
-
-    if (EfiRomHeader->Signature != PCI_EXPANSION_ROM_HEADER_SIGNATURE) {
-      return retStatus;
-    }
-
-    //
-    // If the pointer to the PCI Data Structure is invalid, no further images can be located.
-    // The PCI Data Structure must be DWORD aligned.
-    //
-    if (EfiRomHeader->PcirOffset == 0 ||
-        (EfiRomHeader->PcirOffset & 3) != 0 ||
-        RomOffset - (UINTN)Rom + EfiRomHeader->PcirOffset + sizeof (PCI_DATA_STRUCTURE) > RomSize) {
-      break;
-    }
-    Pcir      = (PCI_DATA_STRUCTURE *) (UINTN) (RomOffset + EfiRomHeader->PcirOffset);
-    //
-    // If a valid signature is not present in the PCI Data Structure, no further images can be located.
-    //
-    if (Pcir->Signature != PCI_DATA_STRUCTURE_SIGNATURE) {
-      break;
-    }
-    ImageSize = Pcir->ImageLength * 512;
-    if (RomOffset - (UINTN)Rom + ImageSize > RomSize) {
-      break;
-    }
-
-    if ((Pcir->CodeType == PCI_CODE_TYPE_EFI_IMAGE) &&
-        (EfiRomHeader->EfiSignature == EFI_PCI_EXPANSION_ROM_HEADER_EFISIGNATURE) &&
-        ((EfiRomHeader->EfiSubsystem == EFI_IMAGE_SUBSYSTEM_EFI_BOOT_SERVICE_DRIVER) ||
-         (EfiRomHeader->EfiSubsystem == EFI_IMAGE_SUBSYSTEM_EFI_RUNTIME_DRIVER))) {
-
-      ImageOffset             = EfiRomHeader->EfiImageHeaderOffset;
-      InitializationSize      = EfiRomHeader->InitializationSize * 512;
-
-      if (InitializationSize <= ImageSize && ImageOffset < InitializationSize) {
-
-        ImageBuffer             = (VOID *) (UINTN) (RomOffset + ImageOffset);
-        ImageLength             = InitializationSize - ImageOffset;
-        DecompressedImageBuffer = NULL;
-
-        //
-        // decompress here if needed
-        //
-        SkipImage = FALSE;
-        if (EfiRomHeader->CompressionType > EFI_PCI_EXPANSION_ROM_HEADER_COMPRESSED) {
-          SkipImage = TRUE;
-        }
-
-        if (EfiRomHeader->CompressionType == EFI_PCI_EXPANSION_ROM_HEADER_COMPRESSED) {
-          Status = gBS->LocateProtocol (&gEfiDecompressProtocolGuid, NULL, (VOID **) &Decompress);
-          if (EFI_ERROR (Status)) {
-            SkipImage = TRUE;
-          } else {
-            SkipImage = TRUE;
-            Status = Decompress->GetInfo (
-                                  Decompress,
-                                  ImageBuffer,
-                                  ImageLength,
-                                  &DestinationSize,
-                                  &ScratchSize
-                                  );
-            if (!EFI_ERROR (Status)) {
-              DecompressedImageBuffer = NULL;
-              DecompressedImageBuffer = AllocatePool (DestinationSize);
-              if (DecompressedImageBuffer != NULL) {
-                Scratch = AllocatePool (ScratchSize);
-                if (Scratch != NULL) {
-                  Status = Decompress->Decompress (
-                                        Decompress,
-                                        ImageBuffer,
-                                        ImageLength,
-                                        DecompressedImageBuffer,
-                                        DestinationSize,
-                                        Scratch,
-                                        ScratchSize
-                                        );
-                  if (!EFI_ERROR (Status)) {
-                    ImageBuffer = DecompressedImageBuffer;
-                    ImageLength = DestinationSize;
-                    SkipImage   = FALSE;
-                  }
-
-                  gBS->FreePool (Scratch);
-                }
-              }
-            }
-          }
-        }
-
-        if (!SkipImage) {
-
-          //
-          // load image and start image
-          //
-
-          FilePath = FileDevicePath (NULL, FileName);
-
-          Status = gBS->LoadImage (
-                          FALSE,
-                          gImageHandle,
-                          FilePath,
-                          ImageBuffer,
-                          ImageLength,
-                          &ImageHandle
-                          );
-          if (!EFI_ERROR (Status)) {
-            Status = gBS->StartImage (ImageHandle, NULL, NULL);
-            if (!EFI_ERROR (Status)) {
-              retStatus = Status;
-            }
-          }
-          if (FilePath != NULL) {
-            gBS->FreePool (FilePath);
-          }
-        }
-
-        if (DecompressedImageBuffer != NULL) {
-          gBS->FreePool (DecompressedImageBuffer);
-        }
-
-      }
-    }
-
-    RomOffset = RomOffset + ImageSize;
-    ImageIndex++;
-  } while (((Pcir->Indicator & 0x80) == 0x00) && ((RomOffset - (UINTN) Rom) < RomSize));
-
-
-  VBoxLogFlowFuncLeaveRC(retStatus);
-  return retStatus;
-}
-#endif /* !VBOX */
 
 

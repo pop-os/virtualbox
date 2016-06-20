@@ -571,7 +571,7 @@ void UIMachineSettingsNetwork::sltOpenPortForwardingDlg()
 void UIMachineSettingsNetwork::prepareValidation()
 {
     /* Configure validation: */
-    connect(m_pMACEditor, SIGNAL(textEdited(const QString &)), m_pParent, SLOT(revalidate()));
+    connect(m_pMACEditor, SIGNAL(textChanged(const QString &)), m_pParent, SLOT(revalidate()));
 }
 
 void UIMachineSettingsNetwork::populateComboboxes()

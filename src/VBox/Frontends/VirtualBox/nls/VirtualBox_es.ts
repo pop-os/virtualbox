@@ -96,12 +96,12 @@
 <context>
     <name>QApplication</name>
     <message>
-        <source>This error means that the kernel driver was either not able to allocate enough memory or that some mapping operation failed.&lt;br/&gt;&lt;br/&gt;There are known problems with Linux 2.6.29. If you are running such a kernel, please edit /usr/src/vboxdrv-*/Makefile and enable &lt;i&gt;VBOX_USE_INSERT_PAGE = 1&lt;/i&gt;. After that, re-compile the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root.</source>
-        <translation type="obsolete">El controlador del kernel no pudo asignar suficiente memoria o alguna operación de mapeo falló.&lt;br/&gt;&lt;br/&gt;Existen problemas con el kernel Linux 2.6.29. Si usa dicha versión de kernel, edite /usr/src/vboxdrv-*/Makefile y habilite &lt;i&gt;VBOX_USE_INSERT_PAGE = 1&lt;/i&gt;. Después, recompile el módulo del kernel ejecutando&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt; como usuario root.</translation>
+        <source>This error means that the kernel driver was either not able to allocate enough memory or that some mapping operation failed.&lt;br/&gt;&lt;br/&gt;There are known problems with Linux 2.6.29. If you are running such a kernel, please edit /usr/src/vboxdrv-*/Makefile and enable &lt;i&gt;VBOX_USE_INSERT_PAGE = 1&lt;/i&gt;. After that, re-compile the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root.</source>
+        <translation type="obsolete">El controlador del kernel no pudo asignar suficiente memoria o alguna operación de mapeo falló.&lt;br/&gt;&lt;br/&gt;Existen problemas con el kernel Linux 2.6.29. Si usa dicha versión de kernel, edite /usr/src/vboxdrv-*/Makefile y habilite &lt;i&gt;VBOX_USE_INSERT_PAGE = 1&lt;/i&gt;. Después, recompile el módulo del kernel ejecutando&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt; como usuario root.</translation>
     </message>
     <message>
-        <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. Users of Ubuntu, Fedora or Mandriva should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
-        <translation type="obsolete">El controlador de VirtualBox del kernel Linux (vboxdrv) no se encuentra cargado o existe un problema de permisos con /dev/vboxdrv. Reconfigure el módulo del kernel ejecuntando &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt; como usuario root. Los usuarios de Ubuntu, Fedora o Mandriva deberían instalar el paquete DKMS primero. Este paquete monitoriza los cambios en el kernel y recompila el módulo vboxdrv de ser necesario.</translation>
+        <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. Users of Ubuntu, Fedora or Mandriva should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
+        <translation type="obsolete">El controlador de VirtualBox del kernel Linux (vboxdrv) no se encuentra cargado o existe un problema de permisos con /dev/vboxdrv. Reconfigure el módulo del kernel ejecuntando &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt; como usuario root. Los usuarios de Ubuntu, Fedora o Mandriva deberían instalar el paquete DKMS primero. Este paquete monitoriza los cambios en el kernel y recompila el módulo vboxdrv de ser necesario.</translation>
     </message>
     <message>
         <source>Make sure the kernel module has been loaded successfully.</source>
@@ -148,16 +148,16 @@
         <translation>Los módulos del kernel de VirtualBox no son compatibles con esta versión de VirtualBox. La instalación de VirtualBox aparentemente no fue correcta. Desinstalar completamente y reinstalar de nuevo VirtualBox podría solucionar el problema.</translation>
     </message>
     <message>
-        <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;may correct this. Make sure that you do not mix the OSE version and the PUEL version of VirtualBox.</source>
-        <translation>Los módulos del kernel de VirtualBox no son compatibles con esta versión de VirtualBox. La instalación de VirtualBox aparentemente no fue correcta. Ejecutar &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt; podría solucionar el problema. Asegúrese de no mezclar la versión OSE y la versión PUEL de VirtualBox.</translation>
+        <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;may correct this. Make sure that you do not mix the OSE version and the PUEL version of VirtualBox.</source>
+        <translation>Los módulos del kernel de VirtualBox no son compatibles con esta versión de VirtualBox. La instalación de VirtualBox aparentemente no fue correcta. Ejecutar &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt; podría solucionar el problema. Asegúrese de no mezclar la versión OSE y la versión PUEL de VirtualBox.</translation>
     </message>
     <message>
         <source>This error means that the kernel driver was either not able to allocate enough memory or that some mapping operation failed.</source>
         <translation>Este error significa que el controlador del kernel no fue capaz de reservar suficiente memoria o que alguna operación de asignación falló.</translation>
     </message>
     <message>
-        <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. If it is available in your distribution, you should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
-        <translation>El controlador del núcleo de Linux (vboxdrv) no está cargado o hay un problema de permisos con /dev/vboxdrv. Reinstale el módulo del núcleo ejecutando&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;«/sbin/rcvboxdrv setup»&lt;/font&gt;&lt;br/&gt;&lt;br/&gt; como root. Si está disponible en su distribución, debería instalar primero el paquete DKMS. Este paquete monitoriza los cambios del núcleo de Linux y recompila el módulo del núcleo si es necesario.    </translation>
+        <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. If it is available in your distribution, you should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
+        <translation>El controlador del núcleo de Linux (vboxdrv) no está cargado o hay un problema de permisos con /dev/vboxdrv. Reinstale el módulo del núcleo ejecutando&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;«/sbin/vboxconfig»&lt;/font&gt;&lt;br/&gt;&lt;br/&gt; como root. Si está disponible en su distribución, debería instalar primero el paquete DKMS. Este paquete monitoriza los cambios del núcleo de Linux y recompila el módulo del núcleo si es necesario.    </translation>
     </message>
     <message>
         <source>Frame Size: %1x%2, Frame Rate: %3fps, Bit Rate: %4kbps</source>
@@ -1523,8 +1523,8 @@
         <source>This virtual machine is password protected. Please enter the %n encryption password(s) below.</source>
         <comment>This text is never used with n == 0. Feel free to drop the %n where possible, we only included it because of problems with Qt Linguist (but the user can see how many passwords are in the list and doesn&apos;t need to be told).</comment>
         <translation>
-            <numerusform>Esta máquina virtual está protegida con contraseña. Inserte la contraseña de cifrado abajo.</numerusform>
-            <numerusform>Esta máquina virtual está protegida con contraseña. Inserte la contraseña de cifrado abajo.</numerusform>
+            <numerusform>Esta máquina virtual está protegida con contraseña. Inserte la contarseña de cifrado abajo.</numerusform>
+            <numerusform>Esta máquina virtual está protegida con contraseña. Inserte la contarseña de cifrado abajo.</numerusform>
         </translation>
     </message>
     <message>
@@ -3433,7 +3433,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>[Optical Drive]</source>
         <comment>details (storage)</comment>
-        <translation>[Unidad óptica]</translation>
+        <translation>[Uniada óptica]</translation>
     </message>
     <message>
         <source>USB Controller</source>
@@ -3773,7 +3773,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Machine Windows:</source>
-        <translation>Ventanas de máquina:</translation>
+        <translation>Vetanas de máquina:</translation>
     </message>
     <message>
         <source>&amp;Raise Window Under Mouse</source>
@@ -4620,7 +4620,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Holds the name for this network.</source>
-        <translation>Contiene el nombre para esta red.</translation>
+        <translation>Contiene el nombre de esta red.</translation>
     </message>
     <message>
         <source>Network &amp;CIDR:</source>
@@ -4714,11 +4714,11 @@ p, li { white-space: pre-wrap; }
     <name>UIGlobalSettingsProxy</name>
     <message>
         <source>When checked, VirtualBox will use the proxy settings supplied for tasks like downloading Guest Additions from the network or checking for updates.</source>
-        <translation type="obsolete">Seleccionado, VirtualBox usará la configuración proporcionada para tareas como descargar las «Guest Additions» de la red o comprobar las actualizaciones.</translation>
+        <translation>Seleccionado, VirtualBox usará la configuración proporcionada para tareas como descargar las «Guest Additions» de la red o comprobar las actualizaciones.</translation>
     </message>
     <message>
         <source>&amp;Enable Proxy</source>
-        <translation type="obsolete">&amp;Habilitar proxy</translation>
+        <translation>&amp;Habilitar proxy</translation>
     </message>
     <message>
         <source>Ho&amp;st:</source>
@@ -4775,30 +4775,6 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Holds the proxy port.</source>
         <translation>Contiene el puerto anfitrión de «proxy».</translation>
-    </message>
-    <message>
-        <source>When chosen, VirtualBox will try to auto-detect host proxy settings for tasks like downloading Guest Additions from the network or checking for updates.</source>
-        <translation>Seleccionado, VirtualBox intentará detectar las preferencias del proxy del anfitrión para tareas como descargar las «Guest Additions» de la red o para comprobar actualizaciones.</translation>
-    </message>
-    <message>
-        <source>&amp;Auto-detect Host Proxy Settings</source>
-        <translation>&amp;Autodetectar preferencias del proxy del anfitrión</translation>
-    </message>
-    <message>
-        <source>When chosen, VirtualBox will use direct Internet connection for tasks like downloading Guest Additions from the network or checking for updates.</source>
-        <translation>Seleccionado, VirtualBox usará una conexión directa para tareas como descargar las «Guest Additions» de la red o para comprobar actualizaciones.</translation>
-    </message>
-    <message>
-        <source>&amp;Direct Connection to the Internet</source>
-        <translation>Conexión &amp;directa a Internet</translation>
-    </message>
-    <message>
-        <source>When chosen, VirtualBox will use the proxy settings supplied for tasks like downloading Guest Additions from the network or checking for updates.</source>
-        <translation>Seleccionado, VirtualBox usará las preferencias de proxy proporcionadas para tareas como descargar las «Guest Additions» de la red o para comprobar actualizaciones.</translation>
-    </message>
-    <message>
-        <source>&amp;Manual Proxy Configuration</source>
-        <translation>Configuración de proxy &amp;manual</translation>
     </message>
 </context>
 <context>
@@ -7561,7 +7537,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Choose disk image...</source>
         <comment>This is used for hard disks, optical media and floppies</comment>
-        <translation>Seleccionar imagen de disco...</translation>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -10353,15 +10329,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Encryption password for &lt;nobr&gt;ID = &apos;%1&apos;&lt;/nobr&gt; is invalid.</source>
-        <translation>La contraseña de cifrado para &lt;nobr&gt;ID = &apos;%1&apos;&lt;/nobr&gt; es incorrecta.</translation>
-    </message>
-    <message>
-        <source>The current port forwarding rules are not valid. All of the host or guest address values should be correct or empty.</source>
-        <translation>Las reglas de reenvío de puertos no son válidas. Todos los valores de direcciones de anfitriones o invitados deben ser correctos o vacíos.</translation>
-    </message>
-    <message>
-        <source>The current port forwarding rules are not valid. None of the guest address values may be empty.</source>
-        <translation>Las reglas de reenvío de puertos actuales no son válidas. Ninguno de los valores de direcciones del invitado deberían ser vacíos.</translation>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -10573,46 +10541,6 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Unknown reason</source>
         <translation>Razón desconocida</translation>
-    </message>
-    <message>
-        <source>%1: %2</source>
-        <comment>Context description: Error description</comment>
-        <translation>%1: %2</translation>
-    </message>
-    <message>
-        <source>Unable to initialize HTTP library</source>
-        <translation>Incapad de inicializar la librería HTTP</translation>
-    </message>
-    <message>
-        <source>Connection refused</source>
-        <translation>Conexión rechazada</translation>
-    </message>
-    <message>
-        <source>Content moved</source>
-        <translation>Contenido movido</translation>
-    </message>
-    <message>
-        <source>Proxy not found</source>
-        <translation>Proxy no encontrado</translation>
-    </message>
-    <message>
-        <source>Url not found on the server</source>
-        <translation>URL no encontrada en el servidor</translation>
-    </message>
-</context>
-<context>
-    <name>UINetworkReplyPrivateThread</name>
-    <message>
-        <source>During proxy configuration</source>
-        <translation>Durante configuración de proxy</translation>
-    </message>
-    <message>
-        <source>During certificate downloading</source>
-        <translation>Durante descarga de certificado</translation>
-    </message>
-    <message>
-        <source>During network request</source>
-        <translation>Durante petición de red</translation>
     </message>
 </context>
 <context>
@@ -11721,7 +11649,7 @@ este paso y luego conectar los Discos Duros desde el diálogo de Configuración 
     </message>
     <message>
         <source>&lt;h3&gt;Welcome to VirtualBox!&lt;/h3&gt;&lt;p&gt;The left part of this window is  a list of all virtual machines on your computer. The list is empty now because you haven&apos;t created any virtual machines yet.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;In order to create a new virtual machine, press the &lt;b&gt;New&lt;/b&gt; button in the main tool bar located at the top of the window.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;%1&lt;/b&gt; key to get instant help, or visit &lt;a href=https://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for the latest information and news.&lt;/p&gt;</source>
-        <translation>&lt;h3&gt;¡Bienvenido a VirtualBox!&lt;/h3&gt;&lt;p&gt;La parte izquierda de esta ventana está destinada a mostrar la lista de máquinas virtuales de su computadora. Esta lista está vacía porque todavía no ha creado ninguna máquina virtual.&lt;img src=&quot;:/welcome.png&quot; align=&quot;right&quot;/&gt;&lt;/p&gt;&lt;p&gt;Para crear una nueva máquina virtual presione el botón &lt;b&gt;Nueva&lt;/b&gt; en la barra de herramientas principal localizada en la parte superior de la ventana.&lt;/p&gt;&lt;p&gt;Puede utilizar la tecla &lt;b&gt;%1&lt;/b&gt; para obtener ayuda o visitar &lt;a href=&quot;http://www.virtualbox.org&quot;&gt;www.virtualbox.org&lt;/a&gt; para las últimas novedades e información.&lt;/p&gt;</translation>
+        <translation>&lt;h3&gt;¡Bienvenido a VirtualBox!&lt;/h3&gt;&lt;p&gt;La parte izquierda de esta ventana está destinada a mostrar la lista de máquinas virtuales de su computadora. Esta lista está vacía porque todavía no ha creado ninguna máquina virtual.&lt;img src=&quot;:/welcome.png&quot; align=&quot;right&quot;/&gt;&lt;/p&gt;&lt;p&gt;Para crear una nueva máquina virtual presione el botón &lt;b&gt;Nueva&lt;/b&gt; en la barra de herramientas principal localizada en la parte superior de la ventana.&lt;/p&gt;&lt;p&gt;Puede utilizar la tecla &lt;b&gt;%1&lt;/b&gt; para obtener ayuda o visitar &lt;a href=&quot;http://www.virtualbox.org&quot;&gt;www.virtualbox.org&lt;/a&gt; para las útimas novedades e información.&lt;/p&gt;</translation>
     </message>
 </context>
 <context>
@@ -12091,7 +12019,7 @@ este paso y luego conectar los Discos Duros desde el diálogo de Configuración 
     </message>
     <message>
         <source>&lt;p&gt;Close the virtual machine windows but keep the virtual machine running.&lt;/p&gt;&lt;p&gt;You can use the VirtualBox Manager to return to running the virtual machine in a window.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Cerrar las ventanas de la máquina virtual pero mantener la máquina virtual corriendo.&lt;/p&gt;&lt;p&gt;Puede usar el Gestor de VirtualBox para volver a la ventana de la máquina virtual.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Cerrar las vetanas de la máquina virtual pero mantener la máquina virtual corriendo.&lt;/p&gt;&lt;p&gt;Puede usar el Gestor de VirtualBox para volver a la ventana de la máquina virtual.&lt;/p&gt;</translation>
     </message>
 </context>
 <context>
@@ -14521,7 +14449,7 @@ Versión %1</translation>
     </message>
 </context>
 <context>
-    <name>VBoxEmptyFileSelector</name>
+    <name>UIEmptyFilePathSelector</name>
     <message>
         <source>&amp;Choose...</source>
         <translation type="obsolete">&amp;Seleccionar...</translation>
@@ -14532,7 +14460,7 @@ Versión %1</translation>
     </message>
 </context>
 <context>
-    <name>VBoxFilePathSelectorWidget</name>
+    <name>UIFilePathSelector</name>
     <message>
         <source>&lt;reset to default&gt;</source>
         <translation>&lt;reinicializar a predeterminados&gt;</translation>

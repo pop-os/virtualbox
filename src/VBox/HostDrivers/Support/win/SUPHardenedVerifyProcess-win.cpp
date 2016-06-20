@@ -216,6 +216,7 @@ static const char *g_apszSupNtVpAllowedVmExes[] =
     "VBoxSDL.exe",
     "VBoxNetDHCP.exe",
     "VBoxNetNAT.exe",
+    "VBoxVMMPreload.exe",
 
     "tstMicro.exe",
     "tstPDMAsyncCompletion.exe",
@@ -562,7 +563,7 @@ static int supHardNtVpCheckSectionProtection(PSUPHNTVPSTATE pThis, PSUPHNTVPIMAG
 }
 
 
-static DECLINLINE(bool) supHardNtVpIsModuleNameMatch(PSUPHNTVPIMAGE pImage, const char *pszModule)
+DECLINLINE(bool) supHardNtVpIsModuleNameMatch(PSUPHNTVPIMAGE pImage, const char *pszModule)
 {
     if (pImage->fDll)
     {

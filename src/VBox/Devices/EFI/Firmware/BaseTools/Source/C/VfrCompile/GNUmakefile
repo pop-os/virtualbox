@@ -1,5 +1,5 @@
 ## @file
-# Windows makefile for 'VfrCompile' module build.
+# GNU/Linux makefile for 'VfrCompile' module build.
 #
 # Copyright (c) 2008 - 2010, Intel Corporation. All rights reserved.<BR>
 # This program and the accompanying materials
@@ -37,9 +37,9 @@ include $(MAKEROOT)/Makefiles/header.makefile
 APPLICATION = $(MAKEROOT)/bin/$(APPNAME)
 
 .PHONY:all
-all: $(MAKEROOT)/bin $(APPLICATION) 
+all: $(MAKEROOT)/bin $(APPLICATION)
 
-$(APPLICATION): $(OBJECTS) 
+$(APPLICATION): $(OBJECTS)
 	$(LINKER) -o $(APPLICATION) $(LFLAGS) $(OBJECTS) -L$(MAKEROOT)/libs $(LIBS)
 
 VfrCompiler.o: ../Include/Common/BuildVersion.h
@@ -53,10 +53,10 @@ VfrLexer.cpp VfrLexer.h: Pccts/dlg/dlg VfrParser.dlg
 	Pccts/dlg/dlg -C2 -i -CC -cl VfrLexer -o . VfrParser.dlg
 
 Pccts/antlr/antlr:
-	BIN_DIR='.' make -C Pccts/antlr
+	BIN_DIR='.' $(MAKE) -C Pccts/antlr
 
 Pccts/dlg/dlg:
-	BIN_DIR='.' make -C Pccts/dlg
+	BIN_DIR='.' $(MAKE) -C Pccts/dlg
 
 ATokenBuffer.o: Pccts/h/ATokenBuffer.cpp
 	$(CXX) -c $(VFR_CPPFLAGS) $(INC) $? -o $@
@@ -69,11 +69,11 @@ AParser.o: Pccts/h/AParser.cpp
 
 VfrSyntax.o: VfrSyntax.cpp
 	$(CXX) -c $(VFR_CPPFLAGS) $(INC) $? -o $@
-	
+
 clean: localClean
 
 localClean:
-	BIN_DIR='.' make -C Pccts/antlr clean
-	BIN_DIR='.' make -C Pccts/dlg clean
+	BIN_DIR='.' $(MAKE) -C Pccts/antlr clean
+	BIN_DIR='.' $(MAKE) -C Pccts/dlg clean
 	rm -f $(EXTRA_CLEAN_OBJECTS)
 

@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2010-2014 Oracle Corporation
+ * Copyright (C) 2010-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,9 +23,6 @@
 
 #include <VBox/vmm/cfgm.h>
 #include <VBox/com/array.h>
-
-
-#include "PCIDeviceAttachmentImpl.h"
 
 #include <map>
 #include <vector>
@@ -67,6 +64,7 @@ static const DeviceAssignmentRule aGenericRules[] =
     {"lsilogic",      0, 20, 0,  1},
     {"buslogic",      0, 21, 0,  1},
     {"lsilogicsas",   0, 22, 0,  1},
+    {"nvme",          0, 14, 0,  1},
 
     /* USB controllers */
     {"usb-ohci",      0,  6,  0, 0},
@@ -168,6 +166,13 @@ static const DeviceAssignmentRule aIch9Rules[] =
     {"lsilogicsas",   1, 29, 0,   0},
     {"lsilogicsas",   1, 30, 0,   0},
     {"lsilogicsas",   1, 31, 0,   0},
+    {"nvme",          1, 32, 0,   0},
+    {"nvme",          1, 33, 0,   0},
+    {"nvme",          1, 34, 0,   0},
+    {"nvme",          1, 35, 0,   0},
+    {"nvme",          1, 36, 0,   0},
+    {"nvme",          1, 37, 0,   0},
+    {"nvme",          1, 38, 0,   0},
 
     /* NICs */
     {"nic",           2,  0, 0,   0},
@@ -211,7 +216,8 @@ static const DeviceAliasRule aDeviceAliases[] =
     {"ahci",        "storage"},
     {"lsilogic",    "storage"},
     {"buslogic",    "storage"},
-    {"lsilogicsas", "storage"}
+    {"lsilogicsas", "storage"},
+    {"nvme",        "storage"}
 };
 
 struct BusAssignmentManager::State
@@ -243,10 +249,10 @@ struct BusAssignmentManager::State
         }
     };
 
-    typedef std::map <PCIBusAddress,PCIDeviceRecord > PCIMap;
+    typedef std::map<PCIBusAddress,PCIDeviceRecord>   PCIMap;
     typedef std::vector<PCIBusAddress>                PCIAddrList;
-    typedef std::vector<const DeviceAssignmentRule*>  PCIRulesList;
-    typedef std::map <PCIDeviceRecord,PCIAddrList >   ReversePCIMap;
+    typedef std::vector<const DeviceAssignmentRule *> PCIRulesList;
+    typedef std::map<PCIDeviceRecord,PCIAddrList>     ReversePCIMap;
 
     volatile int32_t cRefCnt;
     ChipsetType_T    mChipsetType;
@@ -268,7 +274,7 @@ struct BusAssignmentManager::State
 
     const char* findAlias(const char* pszName);
     void addMatchingRules(const char* pszName, PCIRulesList& aList);
-    void listAttachedPCIDevices(std::vector<ComPtr<IPCIDeviceAttachment> > &aAttached);
+    void listAttachedPCIDevices(std::vector<PCIDeviceInfo> &aAttached);
 };
 
 HRESULT BusAssignmentManager::State::init(ChipsetType_T chipsetType)
@@ -394,20 +400,18 @@ bool BusAssignmentManager::State::checkAvailable(PCIBusAddress& Address)
     return (it == mPCIMap.end());
 }
 
-void BusAssignmentManager::State::listAttachedPCIDevices(std::vector<ComPtr<IPCIDeviceAttachment> > &aAttached)
+void BusAssignmentManager::State::listAttachedPCIDevices(std::vector<PCIDeviceInfo> &aAttached)
 {
     aAttached.resize(mPCIMap.size());
 
     size_t i = 0;
-    ComObjPtr<PCIDeviceAttachment> dev;
+    PCIDeviceInfo dev;
     for (PCIMap::const_iterator it = mPCIMap.begin(); it !=  mPCIMap.end(); ++it, ++i)
     {
-        dev.createObject();
-        com::Bstr devname(it->second.szDevName);
-        dev->init(NULL, devname,
-                  it->second.HostAddress.valid() ? it->second.HostAddress.asLong() : -1,
-                  it->first.asLong(), it->second.HostAddress.valid());
-        dev.queryInterfaceTo(aAttached[i].asOutParam());
+        dev.strDeviceName = it->second.szDevName;
+        dev.guestAddress = it->first;
+        dev.hostAddress = it->second.HostAddress;
+        aAttached[i] = dev;
     }
 }
 
@@ -504,7 +508,7 @@ bool BusAssignmentManager::findPCIAddress(const char* pszDevName, int iInstance,
 {
     return pState->findPCIAddress(pszDevName, iInstance, Address);
 }
-void BusAssignmentManager::listAttachedPCIDevices(std::vector<ComPtr<IPCIDeviceAttachment> > &aAttached)
+void BusAssignmentManager::listAttachedPCIDevices(std::vector<PCIDeviceInfo> &aAttached)
 {
     pState->listAttachedPCIDevices(aAttached);
 }

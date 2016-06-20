@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1808,7 +1808,7 @@ HRESULT Display::setSeamlessMode(BOOL enabled)
         if (pVMMDevPort)
             pVMMDevPort->pfnRequestSeamlessChange(pVMMDevPort, !!enabled);
     }
-    mfSeamlessEnabled = enabled;
+    mfSeamlessEnabled = RT_BOOL(enabled);
 
 #if defined(VBOX_WITH_HGCM) && defined(VBOX_WITH_CROGL)
     if (!enabled)
@@ -2801,6 +2801,20 @@ HRESULT Display::querySourceBitmap(ULONG aScreenId,
 
     LogRelFlowFunc(("%Rhrc\n", hr));
     return hr;
+}
+
+HRESULT Display::getGuestScreenLayout(std::vector<ComPtr<IGuestScreenInfo> > &aGuestScreenLayout)
+{
+    NOREF(aGuestScreenLayout);
+    return E_NOTIMPL;
+}
+
+HRESULT Display::setScreenLayout(ScreenLayoutMode_T aScreenLayoutMode,
+                                    const std::vector<ComPtr<IGuestScreenInfo> > &aGuestScreenInfo)
+{
+    NOREF(aScreenLayoutMode);
+    NOREF(aGuestScreenInfo);
+    return E_NOTIMPL;
 }
 
 // wrapped IEventListener method

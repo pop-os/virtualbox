@@ -1,7 +1,7 @@
 /** @file
   ACPI Table Protocol Driver
 
-  Copyright (c) 2006 - 2010, Intel Corporation. All rights reserved.<BR>
+  Copyright (c) 2006 - 2013, Intel Corporation. All rights reserved.<BR>
   This program and the accompanying materials
   are licensed and made available under the terms and conditions of the BSD License
   which accompanies this distribution.  The full text of the license may be found at
@@ -107,15 +107,6 @@ typedef struct {
 #define EFI_ACPI_MAX_NUM_TABLES 20
 
 //
-// ACPI table information used to initialize tables.
-//
-#define EFI_ACPI_OEM_ID           "INTEL "
-#define EFI_ACPI_OEM_TABLE_ID     SIGNATURE_64('E', 'D', 'K', '2', ' ', ' ', ' ', ' ')
-#define EFI_ACPI_OEM_REVISION     0x00000002
-#define EFI_ACPI_CREATOR_ID       0x20202020
-#define EFI_ACPI_CREATOR_REVISION 0x01000013
-
-//
 // Protocol private structure definition
 //
 //
@@ -182,14 +173,14 @@ AcpiTableAcpiTableConstructor (
 
 /**
   Entry point of the ACPI table driver.
-  Creates and initializes an instance of the ACPI Table 
+  Creates and initializes an instance of the ACPI Table
   Protocol and installs it on a new handle.
 
   @param  ImageHandle   A handle for the image that is initializing this driver
   @param  SystemTable   A pointer to the EFI system table
 
   @return EFI_SUCCESS           Driver initialized successfully
-  @return EFI_LOAD_ERROR        Failed to Initialize or has been loaded 
+  @return EFI_LOAD_ERROR        Failed to Initialize or has been loaded
   @return EFI_OUT_OF_RESOURCES  Could not allocate needed resources
 
 **/
@@ -208,7 +199,7 @@ InitializeAcpiTableDxe (
 
   @param[in]  Handle      Table to find.
   @param[in]  TableList   Table list to search
-  @param[out] Table       Pointer to table found. 
+  @param[out] Table       Pointer to table found.
 
   @retval EFI_SUCCESS              The function completed successfully.
   @retval EFI_NOT_FOUND            No table found matching the handle specified.

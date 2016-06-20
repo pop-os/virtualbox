@@ -1,6 +1,6 @@
 /** @file
 
-  Copyright (c) 2006 - 2010, Intel Corporation. All rights reserved.<BR>
+  Copyright (c) 2006 - 2012, Intel Corporation. All rights reserved.<BR>
 
   This program and the accompanying materials
   are licensed and made available under the terms and conditions of the BSD License
@@ -30,15 +30,16 @@
 #include <Library/UefiRuntimeLib.h>
 #include <Library/UefiRuntimeServicesTableLib.h>
 #include <Library/ResetSystemLib.h>
+#include <Library/ReportStatusCodeLib.h>
 
 /**
   The driver's entry point.
 
   It initializes the Reset Architectural Protocol.
 
-  @param[in] ImageHandle  The firmware allocated handle for the EFI image.  
+  @param[in] ImageHandle  The firmware allocated handle for the EFI image.
   @param[in] SystemTable  A pointer to the EFI System Table.
-  
+
   @retval EFI_SUCCESS     The entry point is executed successfully.
   @retval other           Cannot install ResetArch protocol.
 
@@ -68,17 +69,6 @@ ResetSystem (
   IN EFI_STATUS       ResetStatus,
   IN UINTN            DataSize,
   IN VOID             *ResetData OPTIONAL
-  );
-
-/**
-  Reset system for capsule update.
-
-  @param[in] CapsuleDataPtr  Pointer to the capsule block descriptors.
-                            
-**/
-VOID
-CapsuleReset (
-  IN UINTN  CapsuleDataPtr
   );
 
 #endif

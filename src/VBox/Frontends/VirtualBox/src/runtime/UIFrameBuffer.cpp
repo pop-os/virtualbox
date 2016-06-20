@@ -59,16 +59,19 @@
 /* Other includes: */
 #include <math.h>
 
-#ifdef Q_WS_X11
+#ifdef VBOX_WS_X11
 /* X11 includes: */
 # include <QX11Info>
 # include <X11/Xlib.h>
-#endif /* Q_WS_X11 */
+# if QT_VERSION >= 0x050000
+#  undef Bool // Qt5 vs Xlib gift..
+# endif /* QT_VERSION >= 0x050000 */
+#endif /* VBOX_WS_X11 */
 
 
 /** IFramebuffer implementation used to maintain VM display video memory. */
 class ATL_NO_VTABLE UIFrameBufferPrivate : public QObject,
-                                           public CComObjectRootEx<CComMultiThreadModel>,
+                                           public ATL::CComObjectRootEx<ATL::CComMultiThreadModel>,
                                            VBOX_SCRIPTABLE_IMPL(IFramebuffer)
 {
     Q_OBJECT;
@@ -178,7 +181,7 @@ public:
     BEGIN_COM_MAP(UIFrameBufferPrivate)
         COM_INTERFACE_ENTRY(IFramebuffer)
         COM_INTERFACE_ENTRY2(IDispatch,IFramebuffer)
-        COM_INTERFACE_ENTRY_AGGREGATE(IID_IMarshal, m_pUnkMarshaler.p)
+        COM_INTERFACE_ENTRY_AGGREGATE(IID_IMarshal, m_pUnkMarshaler.m_p)
     END_COM_MAP()
 
     HRESULT FinalConstruct();
@@ -391,7 +394,7 @@ protected:
 private:
 
 #ifdef Q_OS_WIN
-     CComPtr <IUnknown> m_pUnkMarshaler;
+     ComPtr<IUnknown> m_pUnkMarshaler;
 #endif /* Q_OS_WIN */
      /** Identifier returned by AttachFramebuffer. Used in DetachFramebuffer. */
      QString m_strFramebufferId;
@@ -517,13 +520,10 @@ private:
 #endif /* VBOX_WITH_VIDEOHWACCEL */
 
 
-/* COM stuff: */
-#ifdef Q_WS_WIN
-static CComModule _Module;
-#else /* !Q_WS_WIN */
+#ifdef VBOX_WITH_XPCOM
 NS_DECL_CLASSINFO(UIFrameBufferPrivate)
 NS_IMPL_THREADSAFE_ISUPPORTS1_CI(UIFrameBufferPrivate, IFramebuffer)
-#endif /* !Q_WS_WIN */
+#endif /* VBOX_WITH_XPCOM */
 
 
 UIFrameBufferPrivate::UIFrameBufferPrivate()
@@ -558,7 +558,7 @@ HRESULT UIFrameBufferPrivate::init(UIMachineView *pMachineView)
     /* Cache window ID: */
     m_iWinId = (m_pMachineView && m_pMachineView->viewport()) ? (LONG64)m_pMachineView->viewport()->winId() : 0;
 
-#ifdef Q_WS_X11
+#ifdef VBOX_WS_X11
     /* Sync Qt and X11 Server (see xTracker #7547). */
     XSync(QX11Info::display(), false);
 #endif
@@ -579,7 +579,7 @@ HRESULT UIFrameBufferPrivate::init(UIMachineView *pMachineView)
     performRescale();
 
 #ifdef Q_OS_WIN
-    CoCreateFreeThreadedMarshaler(this, &m_pUnkMarshaler.p);
+    CoCreateFreeThreadedMarshaler(this, m_pUnkMarshaler.asOutParam());
 #endif /* Q_OS_WIN */
     return S_OK;
 }
@@ -607,7 +607,7 @@ void UIFrameBufferPrivate::setView(UIMachineView *pMachineView)
     /* Recache window ID: */
     m_iWinId = (m_pMachineView && m_pMachineView->viewport()) ? (LONG64)m_pMachineView->viewport()->winId() : 0;
 
-#ifdef Q_WS_X11
+#ifdef VBOX_WS_X11
     /* Sync Qt and X11 Server (see xTracker #7547). */
     XSync(QX11Info::display(), false);
 #endif
@@ -1378,6 +1378,15 @@ void UIFrameBufferPrivate::paintDefault(QPaintEvent *pEvent)
     /* Create painter: */
     QPainter painter(m_pMachineView->viewport());
 
+#ifdef VBOX_WS_MAC
+# if QT_VERSION >= 0x050000
+    /* Replace translucent background with black one: */
+    painter.setCompositionMode(QPainter::CompositionMode_Source);
+    painter.fillRect(paintRect, QColor(Qt::black));
+    painter.setCompositionMode(QPainter::CompositionMode_SourceAtop);
+# endif /* QT_VERSION >= 0x050000 */
+#endif /* VBOX_WS_MAC */
+
     /* Draw image rectangle: */
     drawImageRect(painter, sourceImage, paintRect,
                   m_pMachineView->contentsX(), m_pMachineView->contentsY(),
@@ -1446,15 +1455,17 @@ void UIFrameBufferPrivate::paintSeamless(QPaintEvent *pEvent)
     painter.setClipRegion(paintRegion);
     /* Set composition-mode to paint: */
     painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
+
 #if defined(VBOX_WITH_TRANSLUCENT_SEAMLESS)
-# if defined(Q_WS_WIN) || defined(Q_WS_X11)
+# if defined(VBOX_WS_WIN) || defined(VBOX_WS_X11) || QT_VERSION >= 0x050000
     /* Replace translucent background with black one: */
     painter.setCompositionMode(QPainter::CompositionMode_Source);
     painter.fillRect(paintRect, QColor(Qt::black));
     painter.setCompositionMode(QPainter::CompositionMode_SourceAtop);
-# endif /* Q_WS_WIN || Q_WS_X11 */
+# endif /* VBOX_WS_WIN || VBOX_WS_X11 || QT_VERSION >= 0x050000 */
 #endif /* VBOX_WITH_TRANSLUCENT_SEAMLESS */
-    /* Paint rectangle: */
+
+    /* Draw image rectangle: */
     drawImageRect(painter, sourceImage, paintRect,
                   m_pMachineView->contentsX(), m_pMachineView->contentsY(),
                   useUnscaledHiDPIOutput(), hiDPIOptimizationType(), backingScaleFactor());
@@ -1494,7 +1505,7 @@ void UIFrameBufferPrivate::eraseImageRect(QPainter &painter, const QRect &rect,
                                 (int)(rect.height() * dBackingScaleFactor));
         }
 
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
 # ifdef VBOX_GUI_WITH_HIDPI
         /* Should we
          * do not perform logical HiDPI scaling or
@@ -1505,7 +1516,7 @@ void UIFrameBufferPrivate::eraseImageRect(QPainter &painter, const QRect &rect,
             subPixmap.setDevicePixelRatio(dBackingScaleFactor);
         }
 # endif /* VBOX_GUI_WITH_HIDPI */
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
     }
 
     /* Which point we should draw corresponding sub-pixmap? */
@@ -1554,7 +1565,7 @@ void UIFrameBufferPrivate::drawImageRect(QPainter &painter, const QImage &image,
                                          Qt::IgnoreAspectRatio, Qt::FastTransformation);
         }
 
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
 # ifdef VBOX_GUI_WITH_HIDPI
         /* Should we
          * do not perform logical HiDPI scaling or
@@ -1565,7 +1576,7 @@ void UIFrameBufferPrivate::drawImageRect(QPainter &painter, const QImage &image,
             subPixmap.setDevicePixelRatio(dBackingScaleFactor);
         }
 # endif /* VBOX_GUI_WITH_HIDPI */
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
     }
 
     /* Which point we should draw corresponding sub-pixmap? */

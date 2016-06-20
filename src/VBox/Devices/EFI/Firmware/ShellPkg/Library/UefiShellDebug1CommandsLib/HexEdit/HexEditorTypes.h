@@ -1,6 +1,6 @@
 /** @file
   data types that are used by editor
-  
+
   Copyright (c) 2005 - 2011, Intel Corporation. All rights reserved. <BR>
   This program and the accompanying materials
   are licensed and made available under the terms and conditions of the BSD License
@@ -60,7 +60,7 @@ typedef struct {
 
 typedef union {
   HEFI_EDITOR_COLOR_ATTRIBUTES  Colors;
-  UINT8                         Data;
+  UINTN                         Data;
 } HEFI_EDITOR_COLOR_UNION;
 
 typedef struct {

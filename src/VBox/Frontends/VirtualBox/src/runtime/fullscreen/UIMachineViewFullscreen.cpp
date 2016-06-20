@@ -23,9 +23,9 @@
 # include <QApplication>
 # include <QMainWindow>
 # include <QTimer>
-# ifdef Q_WS_MAC
+# ifdef VBOX_WS_MAC
 #  include <QMenuBar>
-# endif /* Q_WS_MAC */
+# endif /* VBOX_WS_MAC */
 
 /* GUI includes: */
 # include "VBoxGlobal.h"
@@ -39,9 +39,9 @@
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
-#ifdef Q_WS_X11
+#ifdef VBOX_WS_X11
 # include <limits.h>
-#endif /* Q_WS_X11 */
+#endif /* VBOX_WS_X11 */
 
 
 UIMachineViewFullscreen::UIMachineViewFullscreen(  UIMachineWindow *pMachineWindow
@@ -58,12 +58,6 @@ UIMachineViewFullscreen::UIMachineViewFullscreen(  UIMachineWindow *pMachineWind
                     )
     , m_bIsGuestAutoresizeEnabled(actionPool()->action(UIActionIndexRT_M_View_T_GuestAutoresize)->isChecked())
 {
-}
-
-UIMachineViewFullscreen::~UIMachineViewFullscreen()
-{
-    /* Cleanup frame buffer: */
-    cleanupFrameBuffer();
 }
 
 void UIMachineViewFullscreen::sltAdditionsStateChanged()
@@ -136,7 +130,7 @@ void UIMachineViewFullscreen::setGuestAutoresizeEnabled(bool fEnabled)
     {
         m_bIsGuestAutoresizeEnabled = fEnabled;
 
-        if (uisession()->isGuestSupportsGraphics())
+        if (m_bIsGuestAutoresizeEnabled && uisession()->isGuestSupportsGraphics())
             sltPerformGuestResize();
     }
 }

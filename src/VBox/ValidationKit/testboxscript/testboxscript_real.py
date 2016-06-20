@@ -8,7 +8,7 @@ TestBox Script - main().
 
 __copyright__ = \
 """
-Copyright (C) 2012-2015 Oracle Corporation
+Copyright (C) 2012-2016 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -27,7 +27,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 102049 $"
+__version__ = "$Revision: 107937 $"
 
 
 # Standard python imports.
@@ -182,7 +182,7 @@ class TestBoxScript(object):
             if self._ddSignOnParams[sItem][self.FN] is not None:
                 self._ddSignOnParams[sItem][self.VALUE] = self._ddSignOnParams[sItem][self.FN]()
 
-        testboxcommons.log('Starting Test Box script (%s)' % __version__)
+        testboxcommons.log('Starting Test Box script (%s)' % (self._getScriptRev(),));
         testboxcommons.log('Test Manager URL: %s' % self._oOptions.sTestManagerUrl,)
         testboxcommons.log('Scratch root path: %s' % self._oOptions.sScratchRoot,)
         for sItem in self._ddSignOnParams:
@@ -589,7 +589,13 @@ class TestBoxScript(object):
         """
         The script (subversion) revision number.
         """
-        return __version__[11:-1].strip();
+        sRev = '@VBOX_SVN_REV@';
+        sRev = sRev.strip();            # just in case...
+        try:
+            _ = int(sRev);
+        except:
+            return __version__[11:-1].strip();
+        return sRev;
 
     def _getPythonHexVersion(self):
         """
@@ -689,6 +695,7 @@ class TestBoxScript(object):
                 if os.path.exists(sFullName):
                     raise Exception('Still exists after deletion, weird.');
             except Exception, oXcpt:
+                # pylint: disable=too-many-boolean-expressions
                 if    fUseTheForce is True \
                   and utils.getHostOs() not in ['win', 'os2'] \
                   and len(sFullName) >= 8 \
@@ -996,4 +1003,5 @@ class TestBoxScript(object):
 
 if __name__ == '__main__':
     sys.exit(TestBoxScript.main());
+
 

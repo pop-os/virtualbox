@@ -1,8 +1,8 @@
 /** @file
-  Provides the basic interfaces to abstract platform information regarding an 
-  IDE controller.  
+  Provides the basic interfaces to abstract platform information regarding an
+  IDE controller.
 
-  Copyright (c) 2006 - 2009, Intel Corporation. All rights reserved.<BR>
+  Copyright (c) 2006 - 2014, Intel Corporation. All rights reserved.<BR>
   This program and the accompanying materials
   are licensed and made available under the terms and conditions of the BSD License
   which accompanies this distribution.  The full text of the license may be found at
@@ -12,9 +12,9 @@
   WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 
   @par Revision Reference:
-  This Protocol is defined in UEFI Platform Initialization Specification 1.2 
+  This Protocol is defined in UEFI Platform Initialization Specification 1.2
   Volume 5: Standards
-  
+
 **/
 
 #ifndef __DISK_INFO_H__
@@ -62,12 +62,28 @@ typedef struct _EFI_DISK_INFO_PROTOCOL  EFI_DISK_INFO_PROTOCOL;
 ///
 #define EFI_DISK_INFO_AHCI_INTERFACE_GUID \
   { \
-    0x9e498932, 0x4abc, 0x45af, {0xa3, 0x4d, 0x2, 0x47, 0x78, 0x7b, 0xe7, 0xc6} \
+    0x9e498932, 0x4abc, 0x45af, {0xa3, 0x4d, 0x2, 0x47, 0x78, 0x7b, 0xe7, 0xc6 } \
+  }
+
+///
+/// Global ID for a NVME interface.  Used to fill in EFI_DISK_INFO_PROTOCOL.Interface
+///
+#define EFI_DISK_INFO_NVME_INTERFACE_GUID \
+  { \
+    0x3ab14680, 0x5d3f, 0x4a4d, {0xbc, 0xdc, 0xcc, 0x38, 0x0, 0x18, 0xc7, 0xf7 } \
+  }
+
+///
+/// Global ID for a UFS interface.  Used to fill in EFI_DISK_INFO_PROTOCOL.Interface
+///
+#define EFI_DISK_INFO_UFS_INTERFACE_GUID \
+  { \
+    0x4b3029cc, 0x6b98, 0x47fb, { 0xbc, 0x96, 0x76, 0xdc, 0xb8, 0x4, 0x41, 0xf0 } \
   }
 
 /**
   Provides inquiry information for the controller type.
-  
+
   This function is used by the IDE bus driver to get inquiry data.  Data format
   of Identify data is defined by the Interface GUID.
 
@@ -76,9 +92,9 @@ typedef struct _EFI_DISK_INFO_PROTOCOL  EFI_DISK_INFO_PROTOCOL;
   @param[in,out] InquiryDataSize   Pointer to the value for the inquiry data size.
 
   @retval EFI_SUCCESS            The command was accepted without any errors.
-  @retval EFI_NOT_FOUND          Device does not support this data class 
-  @retval EFI_DEVICE_ERROR       Error reading InquiryData from device 
-  @retval EFI_BUFFER_TOO_SMALL   InquiryDataSize not big enough 
+  @retval EFI_NOT_FOUND          Device does not support this data class
+  @retval EFI_DEVICE_ERROR       Error reading InquiryData from device
+  @retval EFI_BUFFER_TOO_SMALL   InquiryDataSize not big enough
 
 **/
 typedef
@@ -95,16 +111,16 @@ EFI_STATUS
   This function is used by the IDE bus driver to get identify data.  Data format
   of Identify data is defined by the Interface GUID.
 
-  @param[in]     This               Pointer to the EFI_DISK_INFO_PROTOCOL 
+  @param[in]     This               Pointer to the EFI_DISK_INFO_PROTOCOL
                                     instance.
   @param[in,out] IdentifyData       Pointer to a buffer for the identify data.
   @param[in,out] IdentifyDataSize   Pointer to the value for the identify data
                                     size.
 
   @retval EFI_SUCCESS            The command was accepted without any errors.
-  @retval EFI_NOT_FOUND          Device does not support this data class 
-  @retval EFI_DEVICE_ERROR       Error reading IdentifyData from device 
-  @retval EFI_BUFFER_TOO_SMALL   IdentifyDataSize not big enough 
+  @retval EFI_NOT_FOUND          Device does not support this data class
+  @retval EFI_DEVICE_ERROR       Error reading IdentifyData from device
+  @retval EFI_BUFFER_TOO_SMALL   IdentifyDataSize not big enough
 
 **/
 typedef
@@ -117,8 +133,8 @@ EFI_STATUS
 
 /**
   Provides sense data information for the controller type.
-  
-  This function is used by the IDE bus driver to get sense data. 
+
+  This function is used by the IDE bus driver to get sense data.
   Data format of Sense data is defined by the Interface GUID.
 
   @param[in]     This              Pointer to the EFI_DISK_INFO_PROTOCOL instance.
@@ -144,7 +160,7 @@ EFI_STATUS
 /**
   This function is used by the IDE bus driver to get controller information.
 
-  @param[in]  This         Pointer to the EFI_DISK_INFO_PROTOCOL instance. 
+  @param[in]  This         Pointer to the EFI_DISK_INFO_PROTOCOL instance.
   @param[out] IdeChannel   Pointer to the Ide Channel number.  Primary or secondary.
   @param[out] IdeDevice    Pointer to the Ide Device number.  Master or slave.
 
@@ -165,7 +181,7 @@ EFI_STATUS
 ///
 struct _EFI_DISK_INFO_PROTOCOL {
   ///
-  /// A GUID that defines the format of buffers for the other member functions 
+  /// A GUID that defines the format of buffers for the other member functions
   /// of this protocol.
   ///
   EFI_GUID                  Interface;
@@ -185,7 +201,7 @@ struct _EFI_DISK_INFO_PROTOCOL {
   ///
   EFI_DISK_INFO_SENSE_DATA  SenseData;
   ///
-  /// Specific controller. 
+  /// Specific controller.
   ///
   EFI_DISK_INFO_WHICH_IDE   WhichIde;
 };
@@ -196,5 +212,7 @@ extern EFI_GUID gEfiDiskInfoIdeInterfaceGuid;
 extern EFI_GUID gEfiDiskInfoScsiInterfaceGuid;
 extern EFI_GUID gEfiDiskInfoUsbInterfaceGuid;
 extern EFI_GUID gEfiDiskInfoAhciInterfaceGuid;
+extern EFI_GUID gEfiDiskInfoNvmeInterfaceGuid;
+extern EFI_GUID gEfiDiskInfoUfsInterfaceGuid;
 
 #endif

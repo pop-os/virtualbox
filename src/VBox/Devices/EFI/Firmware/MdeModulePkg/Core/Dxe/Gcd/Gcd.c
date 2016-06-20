@@ -3,7 +3,7 @@
   The GCD services are used to manage the memory and I/O regions that
   are accessible to the CPU that is executing the DXE core.
 
-Copyright (c) 2006 - 2011, Intel Corporation. All rights reserved.<BR>
+Copyright (c) 2006 - 2015, Intel Corporation. All rights reserved.<BR>
 This program and the accompanying materials
 are licensed and made available under the terms and conditions of the BSD License
 which accompanies this distribution.  The full text of the license may be found at
@@ -27,7 +27,8 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
                                        EFI_RESOURCE_ATTRIBUTE_EXECUTION_PROTECTED | \
                                        EFI_RESOURCE_ATTRIBUTE_16_BIT_IO           | \
                                        EFI_RESOURCE_ATTRIBUTE_32_BIT_IO           | \
-                                       EFI_RESOURCE_ATTRIBUTE_64_BIT_IO           )
+                                       EFI_RESOURCE_ATTRIBUTE_64_BIT_IO           | \
+                                       EFI_RESOURCE_ATTRIBUTE_PERSISTENT          )
 
 #define TESTED_MEMORY_ATTRIBUTES      (EFI_RESOURCE_ATTRIBUTE_PRESENT     | \
                                        EFI_RESOURCE_ATTRIBUTE_INITIALIZED | \
@@ -92,6 +93,7 @@ GCD_ATTRIBUTE_CONVERSION_ENTRY mAttributeConversionTable[] = {
   { EFI_RESOURCE_ATTRIBUTE_PRESENT,                 EFI_MEMORY_PRESENT,     FALSE },
   { EFI_RESOURCE_ATTRIBUTE_INITIALIZED,             EFI_MEMORY_INITIALIZED, FALSE },
   { EFI_RESOURCE_ATTRIBUTE_TESTED,                  EFI_MEMORY_TESTED,      FALSE },
+  { EFI_RESOURCE_ATTRIBUTE_PERSISTABLE,             EFI_MEMORY_NV,          TRUE  },
   { 0,                                              0,                      FALSE }
 };
 
@@ -103,6 +105,7 @@ GLOBAL_REMOVE_IF_UNREFERENCED CONST CHAR8 *mGcdMemoryTypeNames[] = {
   "Reserved ",  // EfiGcdMemoryTypeReserved
   "SystemMem",  // EfiGcdMemoryTypeSystemMemory
   "MMIO     ",  // EfiGcdMemoryTypeMemoryMappedIo
+  "PersistentMem",// EfiGcdMemoryTypePersistentMemory
   "Unknown  "   // EfiGcdMemoryTypeMaximum
 };
 
@@ -113,7 +116,7 @@ GLOBAL_REMOVE_IF_UNREFERENCED CONST CHAR8 *mGcdIoTypeNames[] = {
   "NonExist",  // EfiGcdIoTypeNonExistent
   "Reserved",  // EfiGcdIoTypeReserved
   "I/O     ",  // EfiGcdIoTypeIo
-  "Unknown "   // EfiGcdIoTypeMaximum 
+  "Unknown "   // EfiGcdIoTypeMaximum
 };
 
 ///
@@ -133,7 +136,7 @@ GLOBAL_REMOVE_IF_UNREFERENCED CONST CHAR8 *mGcdAllocationTypeNames[] = {
   PcdDebugPrintErrorLevel has the DEBUG_GCD bit set.
 
   @param  InitialMap  TRUE if the initial GCD Memory Map is being dumped.  Otherwise, FALSE.
-  
+
 **/
 VOID
 EFIAPI
@@ -146,9 +149,9 @@ CoreDumpGcdMemorySpaceMap (
     UINTN                            NumberOfDescriptors;
     EFI_GCD_MEMORY_SPACE_DESCRIPTOR  *MemorySpaceMap;
     UINTN                            Index;
-   
+
     Status = CoreGetMemorySpaceMap (&NumberOfDescriptors, &MemorySpaceMap);
-    ASSERT_EFI_ERROR (Status);
+    ASSERT (Status == EFI_SUCCESS && MemorySpaceMap != NULL);
 
     if (InitialMap) {
       DEBUG ((DEBUG_GCD, "GCD:Initial GCD Memory Space Map\n"));
@@ -156,11 +159,11 @@ CoreDumpGcdMemorySpaceMap (
     DEBUG ((DEBUG_GCD, "GCDMemType Range                             Capabilities     Attributes      \n"));
     DEBUG ((DEBUG_GCD, "========== ================================= ================ ================\n"));
     for (Index = 0; Index < NumberOfDescriptors; Index++) {
-      DEBUG ((DEBUG_GCD, "%a  %016lx-%016lx %016lx %016lx%c\n", 
+      DEBUG ((DEBUG_GCD, "%a  %016lx-%016lx %016lx %016lx%c\n",
         mGcdMemoryTypeNames[MIN (MemorySpaceMap[Index].GcdMemoryType, EfiGcdMemoryTypeMaximum)],
-        MemorySpaceMap[Index].BaseAddress, 
+        MemorySpaceMap[Index].BaseAddress,
         MemorySpaceMap[Index].BaseAddress + MemorySpaceMap[Index].Length - 1,
-        MemorySpaceMap[Index].Capabilities, 
+        MemorySpaceMap[Index].Capabilities,
         MemorySpaceMap[Index].Attributes,
         MemorySpaceMap[Index].ImageHandle == NULL ? ' ' : '*'
         ));
@@ -171,11 +174,11 @@ CoreDumpGcdMemorySpaceMap (
 }
 
 /**
-  Dump the entire contents if the GCD I/O Space Map using DEBUG() macros when 
+  Dump the entire contents if the GCD I/O Space Map using DEBUG() macros when
   PcdDebugPrintErrorLevel has the DEBUG_GCD bit set.
 
   @param  InitialMap  TRUE if the initial GCD I/O Map is being dumped.  Otherwise, FALSE.
-  
+
 **/
 VOID
 EFIAPI
@@ -188,20 +191,20 @@ CoreDumpGcdIoSpaceMap (
     UINTN                        NumberOfDescriptors;
     EFI_GCD_IO_SPACE_DESCRIPTOR  *IoSpaceMap;
     UINTN                        Index;
-    
+
     Status = CoreGetIoSpaceMap (&NumberOfDescriptors, &IoSpaceMap);
-    ASSERT_EFI_ERROR (Status);
-    
+    ASSERT (Status == EFI_SUCCESS && IoSpaceMap != NULL);
+
     if (InitialMap) {
       DEBUG ((DEBUG_GCD, "GCD:Initial GCD I/O Space Map\n"));
-    }  
-    
+    }
+
     DEBUG ((DEBUG_GCD, "GCDIoType  Range                            \n"));
     DEBUG ((DEBUG_GCD, "========== =================================\n"));
     for (Index = 0; Index < NumberOfDescriptors; Index++) {
-      DEBUG ((DEBUG_GCD, "%a   %016lx-%016lx%c\n", 
+      DEBUG ((DEBUG_GCD, "%a   %016lx-%016lx%c\n",
         mGcdIoTypeNames[MIN (IoSpaceMap[Index].GcdIoType, EfiGcdIoTypeMaximum)],
-        IoSpaceMap[Index].BaseAddress, 
+        IoSpaceMap[Index].BaseAddress,
         IoSpaceMap[Index].BaseAddress + IoSpaceMap[Index].Length - 1,
         IoSpaceMap[Index].ImageHandle == NULL ? ' ' : '*'
         ));
@@ -210,11 +213,11 @@ CoreDumpGcdIoSpaceMap (
     FreePool (IoSpaceMap);
   );
 }
-  
+
 /**
   Validate resource descriptor HOB's attributes.
 
-  If Attributes includes some memory resource's settings, it should include 
+  If Attributes includes some memory resource's settings, it should include
   the corresponding capabilites also.
 
   @param  Attributes  Resource descriptor HOB attributes.
@@ -231,6 +234,8 @@ CoreValidateResourceDescriptorHobAttributes (
           ((Attributes & EFI_RESOURCE_ATTRIBUTE_WRITE_PROTECTABLE) != 0));
   ASSERT (((Attributes & EFI_RESOURCE_ATTRIBUTE_EXECUTION_PROTECTED) == 0) ||
           ((Attributes & EFI_RESOURCE_ATTRIBUTE_EXECUTION_PROTECTABLE) != 0));
+  ASSERT (((Attributes & EFI_RESOURCE_ATTRIBUTE_PERSISTENT) == 0) ||
+          ((Attributes & EFI_RESOURCE_ATTRIBUTE_PERSISTABLE) != 0));
 }
 
 /**
@@ -798,7 +803,7 @@ CoreConvertSpace (
       }
       break;
     //
-    // Set attribute operations
+    // Set attributes operation
     //
     case GCD_SET_ATTRIBUTES_MEMORY_OPERATION:
       if ((Attributes & EFI_MEMORY_RUNTIME) != 0) {
@@ -808,6 +813,23 @@ CoreConvertSpace (
         }
       }
       if ((Entry->Capabilities & Attributes) != Attributes) {
+        Status = EFI_UNSUPPORTED;
+        goto Done;
+      }
+      break;
+    //
+    // Set capabilities operation
+    //
+    case GCD_SET_CAPABILITIES_MEMORY_OPERATION:
+      if ((BaseAddress & EFI_PAGE_MASK) != 0 || (Length & EFI_PAGE_MASK) != 0) {
+        Status = EFI_INVALID_PARAMETER;
+
+        goto Done;
+      }
+      //
+      // Current attributes must still be supported with new capabilities
+      //
+      if ((Capabilities & Entry->Attributes) != Entry->Attributes) {
         Status = EFI_UNSUPPORTED;
         goto Done;
       }
@@ -891,10 +913,16 @@ CoreConvertSpace (
       Entry->GcdIoType = EfiGcdIoTypeNonExistent;
       break;
     //
-    // Set attribute operations
+    // Set attributes operation
     //
     case GCD_SET_ATTRIBUTES_MEMORY_OPERATION:
       Entry->Attributes = Attributes;
+      break;
+    //
+    // Set capabilities operation
+    //
+    case GCD_SET_CAPABILITIES_MEMORY_OPERATION:
+      Entry->Capabilities = Capabilities;
       break;
     }
     Link = Link->ForwardLink;
@@ -1012,15 +1040,15 @@ CoreAllocateSpace (
   //
   // Make sure parameters are valid
   //
-  if (GcdAllocateType < 0 || GcdAllocateType >= EfiGcdMaxAllocateType) {
+  if ((UINT32)GcdAllocateType >= EfiGcdMaxAllocateType) {
     DEBUG ((DEBUG_GCD, "  Status = %r\n", EFI_INVALID_PARAMETER));
     return EFI_INVALID_PARAMETER;
   }
-  if (GcdMemoryType < 0 || GcdMemoryType >= EfiGcdMemoryTypeMaximum) {
+  if ((UINT32)GcdMemoryType >= EfiGcdMemoryTypeMaximum) {
     DEBUG ((DEBUG_GCD, "  Status = %r\n", EFI_INVALID_PARAMETER));
     return EFI_INVALID_PARAMETER;
   }
-  if (GcdIoType < 0 || GcdIoType >= EfiGcdIoTypeMaximum) {
+  if ((UINT32)GcdIoType >= EfiGcdIoTypeMaximum) {
     DEBUG ((DEBUG_GCD, "  Status = %r\n", EFI_INVALID_PARAMETER));
     return EFI_INVALID_PARAMETER;
   }
@@ -1222,7 +1250,7 @@ Done:
     DEBUG ((DEBUG_GCD, "  (BaseAddress = %016lx)", *BaseAddress));
   }
   DEBUG ((DEBUG_GCD, "\n"));
-  
+
   if ((Operation & GCD_MEMORY_SPACE_OPERATION) != 0) {
     CoreReleaseGcdMemoryLock ();
     CoreDumpGcdMemorySpaceMap (FALSE);
@@ -1309,7 +1337,7 @@ CoreAllocateMemorySpace (
   DEBUG ((DEBUG_GCD, "  Alignment       = %016lx\n", LShiftU64 (1, Alignment)));
   DEBUG ((DEBUG_GCD, "  ImageHandle     = %p\n", ImageHandle));
   DEBUG ((DEBUG_GCD, "  DeviceHandle    = %p\n", DeviceHandle));
-  
+
   return CoreAllocateSpace (
            GCD_ALLOCATE_MEMORY_OPERATION,
            GcdAllocateType,
@@ -1441,7 +1469,7 @@ CoreRemoveMemorySpace (
   )
 {
   DEBUG ((DEBUG_GCD, "GCD:RemoveMemorySpace(Base=%016lx,Length=%016lx)\n", BaseAddress, Length));
-  
+
   return CoreConvertSpace (GCD_REMOVE_MEMORY_OPERATION, (EFI_GCD_MEMORY_TYPE) 0, (EFI_GCD_IO_TYPE) 0, BaseAddress, Length, 0, 0);
 }
 
@@ -1530,7 +1558,7 @@ CoreGetMemorySpaceDescriptor (
   @param  Attributes             Specified attributes
 
   @retval EFI_SUCCESS           The attributes were set for the memory region.
-  @retval EFI_INVALID_PARAMETER Length is zero. 
+  @retval EFI_INVALID_PARAMETER Length is zero.
   @retval EFI_UNSUPPORTED       The processor does not support one or more bytes of the memory
                                 resource range specified by BaseAddress and Length.
   @retval EFI_UNSUPPORTED       The bit mask of attributes is not support for the memory resource
@@ -1555,6 +1583,45 @@ CoreSetMemorySpaceAttributes (
   DEBUG ((DEBUG_GCD, "  Attributes  = %016lx\n", Attributes));
 
   return CoreConvertSpace (GCD_SET_ATTRIBUTES_MEMORY_OPERATION, (EFI_GCD_MEMORY_TYPE) 0, (EFI_GCD_IO_TYPE) 0, BaseAddress, Length, 0, Attributes);
+}
+
+
+/**
+  Modifies the capabilities for a memory region in the global coherency domain of the
+  processor.
+
+  @param  BaseAddress      The physical address that is the start address of a memory region.
+  @param  Length           The size in bytes of the memory region.
+  @param  Capabilities     The bit mask of capabilities that the memory region supports.
+
+  @retval EFI_SUCCESS           The capabilities were set for the memory region.
+  @retval EFI_INVALID_PARAMETER Length is zero.
+  @retval EFI_UNSUPPORTED       The capabilities specified by Capabilities do not include the
+                                memory region attributes currently in use.
+  @retval EFI_ACCESS_DENIED     The capabilities for the memory resource range specified by
+                                BaseAddress and Length cannot be modified.
+  @retval EFI_OUT_OF_RESOURCES  There are not enough system resources to modify the capabilities
+                                of the memory resource range.
+**/
+EFI_STATUS
+EFIAPI
+CoreSetMemorySpaceCapabilities (
+  IN EFI_PHYSICAL_ADDRESS  BaseAddress,
+  IN UINT64                Length,
+  IN UINT64                Capabilities
+  )
+{
+  EFI_STATUS    Status;
+
+  DEBUG ((DEBUG_GCD, "GCD:CoreSetMemorySpaceCapabilities(Base=%016lx,Length=%016lx)\n", BaseAddress, Length));
+  DEBUG ((DEBUG_GCD, "  Capabilities  = %016lx\n", Capabilities));
+
+  Status = CoreConvertSpace (GCD_SET_CAPABILITIES_MEMORY_OPERATION, (EFI_GCD_MEMORY_TYPE) 0, (EFI_GCD_IO_TYPE) 0, BaseAddress, Length, Capabilities, 0);
+  if (!EFI_ERROR(Status)) {
+    CoreUpdateMemoryAttributes(BaseAddress, RShiftU64(Length, EFI_PAGE_SHIFT), Capabilities);
+  }
+
+  return Status;
 }
 
 
@@ -1648,7 +1715,7 @@ CoreAddIoSpace (
 {
   DEBUG ((DEBUG_GCD, "GCD:AddIoSpace(Base=%016lx,Length=%016lx)\n", BaseAddress, Length));
   DEBUG ((DEBUG_GCD, "  GcdIoType    = %a\n", mGcdIoTypeNames[MIN (GcdIoType, EfiGcdIoTypeMaximum)]));
-  
+
   //
   // Make sure parameters are valid
   //
@@ -1694,7 +1761,7 @@ CoreAllocateIoSpace (
   DEBUG ((DEBUG_GCD, "  Alignment       = %016lx\n", LShiftU64 (1, Alignment)));
   DEBUG ((DEBUG_GCD, "  ImageHandle     = %p\n", ImageHandle));
   DEBUG ((DEBUG_GCD, "  DeviceHandle    = %p\n", DeviceHandle));
-  
+
   return CoreAllocateSpace (
            GCD_ALLOCATE_IO_OPERATION,
            GcdAllocateType,
@@ -1750,7 +1817,7 @@ CoreRemoveIoSpace (
   )
 {
   DEBUG ((DEBUG_GCD, "GCD:RemoveIoSpace(Base=%016lx,Length=%016lx)\n", BaseAddress, Length));
-  
+
   return CoreConvertSpace (GCD_REMOVE_IO_OPERATION, (EFI_GCD_MEMORY_TYPE) 0, (EFI_GCD_IO_TYPE) 0, BaseAddress, Length, 0, 0);
 }
 
@@ -2001,15 +2068,15 @@ CoreInitializeMemoryServices (
   // Cache the PHIT HOB for later use
   //
   PhitHob = Hob.HandoffInformationTable;
-  
+
   if (PcdGet64(PcdLoadModuleAtFixAddressEnable) != 0) {
   	ReservedCodePageNumber = PcdGet32(PcdLoadFixAddressRuntimeCodePageNumber);
   	ReservedCodePageNumber += PcdGet32(PcdLoadFixAddressBootTimeCodePageNumber);
-   
+
   	//
-  	// cache the Top address for loading modules at Fixed Address 
+  	// cache the Top address for loading modules at Fixed Address
   	//
-    gLoadModuleAtFixAddressConfigurationTable.DxeCodeTopAddress = PhitHob->EfiMemoryTop 
+    gLoadModuleAtFixAddressConfigurationTable.DxeCodeTopAddress = PhitHob->EfiMemoryTop
                                                                    + EFI_PAGES_TO_SIZE(ReservedCodePageNumber);
   }
   //
@@ -2072,14 +2139,14 @@ CoreInitializeMemoryServices (
     Length      = PageAlignLength  (ResourceHob->PhysicalStart + ResourceHob->ResourceLength - BaseAddress);
     if (Length < MINIMUM_INITIAL_MEMORY_SIZE) {
       //
-      // If that range is not large enough to intialize the DXE Core, then 
+      // If that range is not large enough to intialize the DXE Core, then
       // Compute range between PHIT EfiFreeMemoryBottom and PHIT EfiFreeMemoryTop
       //
       BaseAddress = PageAlignAddress (PhitHob->EfiFreeMemoryBottom);
       Length      = PageAlignLength  (PhitHob->EfiFreeMemoryTop - BaseAddress);
       if (Length < MINIMUM_INITIAL_MEMORY_SIZE) {
         //
-        // If that range is not large enough to intialize the DXE Core, then 
+        // If that range is not large enough to intialize the DXE Core, then
         // Compute range between the start of the Resource Descriptor HOB and the start of the HOB List
         //
         BaseAddress = PageAlignAddress (ResourceHob->PhysicalStart);
@@ -2127,7 +2194,7 @@ CoreInitializeMemoryServices (
     if ((ResourceHob->PhysicalStart + ResourceHob->ResourceLength) > (EFI_PHYSICAL_ADDRESS)MAX_ADDRESS) {
       continue;
     }
-    
+
     //
     // Skip Resource Descriptor HOBs that are below a previously found Resource Descriptor HOB
     //
@@ -2143,20 +2210,20 @@ CoreInitializeMemoryServices (
     if (TestedMemoryLength < MINIMUM_INITIAL_MEMORY_SIZE) {
       continue;
     }
-    
+
     //
     // Save the Resource Descriptor HOB context that is large enough to initilize the DXE Core
     //
     MaxMemoryBaseAddress = TestedMemoryBaseAddress;
     MaxMemoryLength      = TestedMemoryLength;
-    MaxMemoryAttributes  = ResourceHob->ResourceAttribute; 
+    MaxMemoryAttributes  = ResourceHob->ResourceAttribute;
     HighAddress          = ResourceHob->PhysicalStart;
   }
 
   //
-  // If Length is not large enough to initialize the DXE Core or a Resource 
-  // Descriptor HOB was found above the PHIT HOB that is large enough to initialize 
-  // the DXE Core, then use the range described by the Resource Descriptor 
+  // If Length is not large enough to initialize the DXE Core or a Resource
+  // Descriptor HOB was found above the PHIT HOB that is large enough to initialize
+  // the DXE Core, then use the range described by the Resource Descriptor
   // HOB that was found above the PHIT HOB.
   //
   if ((Length < MINIMUM_INITIAL_MEMORY_SIZE) ||
@@ -2259,7 +2326,7 @@ CoreInitializeGcdServices (
   InsertHeadList (&mGcdMemorySpaceMap, &Entry->Link);
 
   CoreDumpGcdMemorySpaceMap (TRUE);
-  
+
   //
   // Initialize the GCD I/O Space Map
   //
@@ -2271,7 +2338,7 @@ CoreInitializeGcdServices (
   InsertHeadList (&mGcdIoSpaceMap, &Entry->Link);
 
   CoreDumpGcdIoSpaceMap (TRUE);
-  
+
   //
   // Walk the HOB list and add all resource descriptors to the GCD
   //
@@ -2294,6 +2361,9 @@ CoreInitializeGcdServices (
         }
         if ((ResourceHob->ResourceAttribute & MEMORY_ATTRIBUTE_MASK) == PRESENT_MEMORY_ATTRIBUTES) {
           GcdMemoryType = EfiGcdMemoryTypeReserved;
+        }
+        if ((ResourceHob->ResourceAttribute & EFI_RESOURCE_ATTRIBUTE_PERSISTENT) == EFI_RESOURCE_ATTRIBUTE_PERSISTENT) {
+          GcdMemoryType = EfiGcdMemoryTypePersistentMemory;
         }
         break;
       case EFI_RESOURCE_MEMORY_MAPPED_IO:

@@ -29,20 +29,24 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 102941 $"
+__version__ = "$Revision: 107847 $"
 # Standard python imports.
 import unittest;
 
 # Validation Kit imports.
-from common                         import constants;
-from testmanager                    import config;
-from testmanager.core.base          import ModelDataBase, ModelLogicBase, ModelDataBaseTestCase, TMExceptionBase, TMTooManyRows;
-from testmanager.core.testgroup     import TestGroupData
-from testmanager.core.build         import BuildDataEx
-from testmanager.core.testbox       import TestBoxData
-from testmanager.core.testcase      import TestCaseData
-from testmanager.core.schedgroup    import SchedGroupData
-from testmanager.core.systemlog     import SystemLogData, SystemLogLogic;
+from common                                 import constants;
+from testmanager                            import config;
+from testmanager.core.base                  import ModelDataBase, ModelLogicBase, ModelDataBaseTestCase, TMExceptionBase, \
+                                                   TMTooManyRows, TMRowNotFound;
+from testmanager.core.testgroup             import TestGroupData;
+from testmanager.core.build                 import BuildDataEx;
+from testmanager.core.failurereason         import FailureReasonLogic;
+from testmanager.core.testbox               import TestBoxData;
+from testmanager.core.testcase              import TestCaseData;
+from testmanager.core.schedgroup            import SchedGroupData;
+from testmanager.core.systemlog             import SystemLogData, SystemLogLogic;
+from testmanager.core.testresultfailures    import TestResultFailureDataEx;
+from testmanager.core.useraccount           import UserAccountLogic;
 
 
 class TestResultData(ModelDataBase):
@@ -109,7 +113,7 @@ class TestResultData(ModelDataBase):
         Return self. Raises exception if no row.
         """
         if aoRow is None:
-            raise TMExceptionBase('Test result record not found.')
+            raise TMRowNotFound('Test result record not found.')
 
         self.idTestResult       = aoRow[0]
         self.idTestResultParent = aoRow[1]
@@ -121,6 +125,21 @@ class TestResultData(ModelDataBase):
         self.enmStatus          = aoRow[7]
         self.iNestingDepth      = aoRow[8]
         return self;
+
+    def initFromDbWithId(self, oDb, idTestResult, tsNow = None, sPeriodBack = None):
+        """
+        Initialize from the database, given the ID of a row.
+        """
+        _ = tsNow;
+        _ = sPeriodBack;
+        oDb.execute('SELECT *\n'
+                    'FROM   TestResults\n'
+                    'WHERE  idTestResult = %s\n'
+                    , ( idTestResult,));
+        aoRow = oDb.fetchOne()
+        if aoRow is None:
+            raise TMRowNotFound('idTestResult=%s not found' % (idTestResult,));
+        return self.initFromDbRow(aoRow);
 
     def isFailure(self):
         """ Check if it's a real failure. """
@@ -142,9 +161,10 @@ class TestResultDataEx(TestResultData):
         self.oParent    = None; # idTestResultParent within the tree.
 
         self.aoChildren = [];   # TestResultDataEx;
-        self.aoValues   = [];   # TestResultValue;
-        self.aoMsgs     = [];   # TestResultMsg;
-        self.aoFiles    = [];   # TestResultFile;
+        self.aoValues   = [];   # TestResultValueDataEx;
+        self.aoMsgs     = [];   # TestResultMsgDataEx;
+        self.aoFiles    = [];   # TestResultFileDataEx;
+        self.oReason    = None; # TestResultReasonDataEx;
 
     def initFromDbRow(self, aoRow):
         """
@@ -162,11 +182,57 @@ class TestResultDataEx(TestResultData):
         self.aoValues   = [];
         self.aoMsgs     = [];
         self.aoFiles    = [];
+        self.oReason    = None;
 
         TestResultData.initFromDbRow(self, aoRow);
 
         self.sName = aoRow[9];
         return self;
+
+    def deepCountErrorContributers(self):
+        """
+        Counts how many test result instances actually contributed to cErrors.
+        """
+
+        # Check each child (if any).
+        cChanges = 0;
+        cChildErrors = 0;
+        for oChild in self.aoChildren:
+            if oChild.cErrors > 0:
+                cChildErrors += oChild.cErrors;
+                cChanges     += oChild.deepCountErrorContributers();
+
+        # Did we contribute as well?
+        if self.cErrors > cChildErrors:
+            cChanges += 1;
+        return cChanges;
+
+    def getListOfFailures(self):
+        """
+        Get a list of test results insances actually contributing to cErrors.
+
+        Returns a list of TestResultDataEx insance from this tree. (shared!)
+        """
+        # Check each child (if any).
+        aoRet = [];
+        cChildErrors = 0;
+        for oChild in self.aoChildren:
+            if oChild.cErrors > 0:
+                cChildErrors += oChild.cErrors;
+                aoRet.extend(oChild.getListOfFailures());
+
+        # Did we contribute as well?
+        if self.cErrors > cChildErrors:
+            aoRet.append(self);
+
+        return aoRet;
+
+    def getFullName(self):
+        """ Constructs the full name of this test result. """
+        if self.oParent is None:
+            return self.sName;
+        return self.oParent.getFullName() + ' / ' + self.sName;
+
 
 
 class TestResultValueData(ModelDataBase):
@@ -184,6 +250,8 @@ class TestResultValueData(ModelDataBase):
     ksParam_lValue              = 'TestResultValue_lValue';
     ksParam_iUnit               = 'TestResultValue_iUnit';
 
+    kasAllowNullAttributes      = [ 'idTestSet', ];
+
     def __init__(self):
         ModelDataBase.__init__(self)
         self.idTestResultValue  = None;
@@ -200,7 +268,7 @@ class TestResultValueData(ModelDataBase):
         Return self. Raises exception if no row.
         """
         if aoRow is None:
-            raise TMExceptionBase('Test result value record not found.')
+            raise TMRowNotFound('Test result value record not found.')
 
         self.idTestResultValue  = aoRow[0];
         self.idTestResult       = aoRow[1];
@@ -246,16 +314,22 @@ class TestResultMsgData(ModelDataBase):
 
     ksIdAttr    = 'idTestResultMsg';
 
-    ksParam_idTestResultMsg    = 'TestResultValue_idTestResultMsg';
-    ksParam_idTestResult       = 'TestResultValue_idTestResult';
-    ksParam_tsCreated          = 'TestResultValue_tsCreated';
-    ksParam_idStrMsg           = 'TestResultValue_idStrMsg';
-    ksParam_enmLevel           = 'TestResultValue_enmLevel';
+    ksParam_idTestResultMsg     = 'TestResultValue_idTestResultMsg';
+    ksParam_idTestResult        = 'TestResultValue_idTestResult';
+    ksParam_idTestSet           = 'TestResultValue_idTestSet';
+    ksParam_tsCreated           = 'TestResultValue_tsCreated';
+    ksParam_idStrMsg            = 'TestResultValue_idStrMsg';
+    ksParam_enmLevel            = 'TestResultValue_enmLevel';
+
+    kasAllowNullAttributes      = [ 'idTestSet', ];
+
+    kcDbColumns                 = 6
 
     def __init__(self):
         ModelDataBase.__init__(self)
         self.idTestResultMsg    = None;
         self.idTestResult       = None;
+        self.idTestSet          = None;
         self.tsCreated          = None;
         self.idStrMsg           = None;
         self.enmLevel           = None;
@@ -266,13 +340,14 @@ class TestResultMsgData(ModelDataBase):
         Return self. Raises exception if no row.
         """
         if aoRow is None:
-            raise TMExceptionBase('Test result value record not found.')
+            raise TMRowNotFound('Test result value record not found.')
 
         self.idTestResultMsg    = aoRow[0];
         self.idTestResult       = aoRow[1];
-        self.tsCreated          = aoRow[2];
-        self.idStrMsg           = aoRow[3];
-        self.enmLevel           = aoRow[4];
+        self.idTestSet          = aoRow[2];
+        self.tsCreated          = aoRow[3];
+        self.idStrMsg           = aoRow[4];
+        self.enmLevel           = aoRow[5];
         return self;
 
 class TestResultMsgDataEx(TestResultMsgData):
@@ -294,8 +369,9 @@ class TestResultMsgDataEx(TestResultMsgData):
         Return self. Raises exception if no row.
         """
         TestResultMsgData.initFromDbRow(self, aoRow);
-        self.sMsg = aoRow[5];
+        self.sMsg = aoRow[self.kcDbColumns];
         return self;
+
 
 class TestResultFileData(ModelDataBase):
     """
@@ -312,10 +388,40 @@ class TestResultFileData(ModelDataBase):
     ksParam_idStrKind           = 'TestResultFile_idStrKind';
     ksParam_idStrMime           = 'TestResultFile_idStrMime';
 
+    ## @name Kind of files.
+    ## @{
+    ksKind_LogReleaseVm         = 'log/release/vm';
+    ksKind_LogDebugVm           = 'log/debug/vm';
+    ksKind_LogReleaseSvc        = 'log/release/svc';
+    ksKind_LogRebugSvc          = 'log/debug/svc';
+    ksKind_LogReleaseClient     = 'log/release/client';
+    ksKind_LogDebugClient       = 'log/debug/client';
+    ksKind_LogInstaller         = 'log/installer';
+    ksKind_LogUninstaller       = 'log/uninstaller';
+    ksKind_LogGuestKernel       = 'log/guest/kernel';
+    ksKind_CrashReportVm        = 'crash/report/vm';
+    ksKind_CrashDumpVm          = 'crash/dump/vm';
+    ksKind_CrashReportSvc       = 'crash/report/svc';
+    ksKind_CrashDumpSvc         = 'crash/dump/svc';
+    ksKind_CrashReportClient    = 'crash/report/client';
+    ksKind_CrashDumpClient      = 'crash/dump/client';
+    ksKind_InfoCollection       = 'info/collection';
+    ksKind_InfoVgaText          = 'info/vgatext';
+    ksKind_MiscOther            = 'misc/other';
+    ksKind_ScreenshotFailure    = 'screenshot/failure';
+    ksKind_ScreenshotSuccesss   = 'screenshot/success';
+    #kSkind_ScreenCaptureFailure = 'screencapture/failure';
+    ## @}
+
+    kasAllowNullAttributes      = [ 'idTestSet', ];
+
+    kcDbColumns                 =  8
+
     def __init__(self):
         ModelDataBase.__init__(self)
         self.idTestResultFile   = None;
         self.idTestResult       = None;
+        self.idTestSet          = None;
         self.tsCreated          = None;
         self.idStrFile          = None;
         self.idStrDescription   = None;
@@ -328,15 +434,16 @@ class TestResultFileData(ModelDataBase):
         Return self. Raises exception if no row.
         """
         if aoRow is None:
-            raise TMExceptionBase('Test result file record not found.')
+            raise TMRowNotFound('Test result file record not found.')
 
         self.idTestResultFile   = aoRow[0];
         self.idTestResult       = aoRow[1];
-        self.tsCreated          = aoRow[2];
-        self.idStrFile          = aoRow[3];
-        self.idStrDescription   = aoRow[4];
-        self.idStrKind          = aoRow[5];
-        self.idStrMime          = aoRow[6];
+        self.idTestSet          = aoRow[2];
+        self.tsCreated          = aoRow[3];
+        self.idStrFile          = aoRow[4];
+        self.idStrDescription   = aoRow[5];
+        self.idStrKind          = aoRow[6];
+        self.idStrMime          = aoRow[7];
         return self;
 
 class TestResultFileDataEx(TestResultFileData):
@@ -364,10 +471,10 @@ class TestResultFileDataEx(TestResultFileData):
         Return self. Raises exception if no row.
         """
         TestResultFileData.initFromDbRow(self, aoRow);
-        self.sFile          = aoRow[7];
-        self.sDescription   = aoRow[8];
-        self.sKind          = aoRow[9];
-        self.sMime          = aoRow[10];
+        self.sFile          = aoRow[self.kcDbColumns];
+        self.sDescription   = aoRow[self.kcDbColumns + 1];
+        self.sKind          = aoRow[self.kcDbColumns + 2];
+        self.sMime          = aoRow[self.kcDbColumns + 3];
         return self;
 
     def initFakeMainLog(self, oTestSet):
@@ -407,10 +514,19 @@ class TestResultFileDataEx(TestResultFileData):
         return self.sMime;
 
 
+
 class TestResultListingData(ModelDataBase): # pylint: disable=R0902
     """
     Test case result data representation for table listing
     """
+
+    class FailureReasonListingData(object):
+        """ Failure reason listing data """
+        def __init__(self):
+            self.oFailureReason          = None;
+            self.oFailureReasonAssigner  = None;
+            self.tsFailureReasonAssigned = None;
+            self.sFailureReasonComment   = None;
 
     def __init__(self):
         """Initialize"""
@@ -448,17 +564,20 @@ class TestResultListingData(ModelDataBase): # pylint: disable=R0902
         self.sTestCaseName           = None
         self.sBaseCmd                = None
         self.sArgs                   = None
+        self.sSubName                = None;
 
         self.idBuildTestSuite        = None;
         self.iRevisionTestSuite      = None;
 
-    def initFromDbRow(self, aoRow):
+        self.aoFailureReasons        = [];
+
+    def initFromDbRowEx(self, aoRow, oFailureReasonLogic, oUserAccountLogic):
         """
         Reinitialize from a database query.
         Return self. Raises exception if no row.
         """
         if aoRow is None:
-            raise TMExceptionBase('Test result record not found.')
+            raise TMRowNotFound('Test result record not found.')
 
         self.idTestSet               = aoRow[0];
 
@@ -492,9 +611,25 @@ class TestResultListingData(ModelDataBase): # pylint: disable=R0902
         self.sTestCaseName           = aoRow[25];
         self.sBaseCmd                = aoRow[26];
         self.sArgs                   = aoRow[27];
+        self.sSubName                = aoRow[28];
 
-        self.idBuildTestSuite        = aoRow[28];
-        self.iRevisionTestSuite      = aoRow[29];
+        self.idBuildTestSuite        = aoRow[29];
+        self.iRevisionTestSuite      = aoRow[30];
+
+        self.aoFailureReasons         = [];
+        for i, _ in enumerate(aoRow[31]):
+            if   aoRow[31][i] is not None \
+              or aoRow[32][i] is not None \
+              or aoRow[33][i] is not None \
+              or aoRow[34][i] is not None:
+                oReason = self.FailureReasonListingData();
+                if aoRow[31][i] is not None:
+                    oReason.oFailureReason      = oFailureReasonLogic.cachedLookup(aoRow[31][i]);
+                if aoRow[32][i] is not None:
+                    oReason.oFailureReasonAssigner = oUserAccountLogic.cachedLookup(aoRow[32][i]);
+                oReason.tsFailureReasonAssigned = aoRow[33][i];
+                oReason.sFailureReasonComment   = aoRow[34][i];
+                self.aoFailureReasons.append(oReason);
 
         return self
 
@@ -502,6 +637,7 @@ class TestResultListingData(ModelDataBase): # pylint: disable=R0902
 class TestResultHangingOffence(TMExceptionBase):
     """Hanging offence committed by test case."""
     pass;
+
 
 class TestResultLogic(ModelLogicBase): # pylint: disable=R0903
     """
@@ -533,6 +669,7 @@ class TestResultLogic(ModelLogicBase): # pylint: disable=R0903
     ksResultsSortByTestBoxCpuRev        = 'ResultsSortByTestBoxCpuRev';
     ksResultsSortByTestBoxCpuFeatures   = 'ResultsSortByTestBoxCpuFeatures';
     ksResultsSortByTestCaseName         = 'ResultsSortByTestCaseName';
+    ksResultsSortByFailureReason        = 'ResultsSortByFailureReason';
     kasResultsSortBy = {
         ksResultsSortByRunningAndStart,
         ksResultsSortByBuildRevision,
@@ -546,6 +683,7 @@ class TestResultLogic(ModelLogicBase): # pylint: disable=R0903
         ksResultsSortByTestBoxCpuRev,
         ksResultsSortByTestBoxCpuFeatures,
         ksResultsSortByTestCaseName,
+        ksResultsSortByFailureReason,
     };
     ## Used by the WUI for generating the drop down.
     kaasResultsSortByTitles = (
@@ -561,12 +699,13 @@ class TestResultLogic(ModelLogicBase): # pylint: disable=R0903
         ( ksResultsSortByTestBoxCpuRev,         'CPU Vendor & Revision' ),
         ( ksResultsSortByTestBoxCpuFeatures,    'CPU Features' ),
         ( ksResultsSortByTestCaseName,          'Test Case Name' ),
+        ( ksResultsSortByFailureReason,         'Failure Reason' ),
     );
     ## @}
 
     ## Default sort by map.
     kdResultSortByMap = {
-        ksResultsSortByRunningAndStart:  ('', None, None, ''),
+        ksResultsSortByRunningAndStart:  ( '', None, None, '', '' ),
         ksResultsSortByBuildRevision: (
             # Sorting tables.
             ', Builds',
@@ -577,97 +716,100 @@ class TestResultLogic(ModelLogicBase): # pylint: disable=R0903
             # Start of ORDER BY statement.
             ' Builds.iRevision DESC',
             # Extra columns to fetch for the above ORDER BY to work in a SELECT DISTINCT statement.
-            ''  ),
+            '',
+            # Columns for the GROUP BY
+            ''),
         ksResultsSortByTestBoxName: (
             ', TestBoxes',
             ' AND TestSets.idGenTestBox = TestBoxes.idGenTestBox',
             ' TestBoxes.sName DESC',
-            '' ),
+            '', '' ),
         ksResultsSortByTestBoxOsArch: (
-            ', TestBoxes',
-            ' AND TestSets.idGenTestBox = TestBoxes.idGenTestBox',
-            ' TestBoxes.sOs, TestBoxes.sCpuArch',
-            ''  ),
+            ', TestBoxesWithStrings',
+            ' AND TestSets.idGenTestBox = TestBoxesWithStrings.idGenTestBox',
+            ' TestBoxesWithStrings.sOs, TestBoxesWithStrings.sCpuArch',
+            '', ''  ),
         ksResultsSortByTestBoxOs: (
-            ', TestBoxes',
-            ' AND TestSets.idGenTestBox = TestBoxes.idGenTestBox',
-            ' TestBoxes.sOs',
-            ''  ),
+            ', TestBoxesWithStrings',
+            ' AND TestSets.idGenTestBox = TestBoxesWithStrings.idGenTestBox',
+            ' TestBoxesWithStrings.sOs',
+            '', ''  ),
         ksResultsSortByTestBoxOsVersion: (
-            ', TestBoxes',
-            ' AND TestSets.idGenTestBox = TestBoxes.idGenTestBox',
-            ' TestBoxes.sOs, TestBoxes.sOsVersion DESC',
-            ''  ),
+            ', TestBoxesWithStrings',
+            ' AND TestSets.idGenTestBox = TestBoxesWithStrings.idGenTestBox',
+            ' TestBoxesWithStrings.sOs, TestBoxesWithStrings.sOsVersion DESC',
+            '', ''  ),
         ksResultsSortByTestBoxArch: (
-            ', TestBoxes',
-            ' AND TestSets.idGenTestBox = TestBoxes.idGenTestBox',
-            ' TestBoxes.sCpuArch',
-            ''  ),
+            ', TestBoxesWithStrings',
+            ' AND TestSets.idGenTestBox = TestBoxesWithStrings.idGenTestBox',
+            ' TestBoxesWithStrings.sCpuArch',
+            '', ''  ),
         ksResultsSortByTestBoxCpuVendor: (
-            ', TestBoxes',
-            ' AND TestSets.idGenTestBox = TestBoxes.idGenTestBox',
-            ' TestBoxes.sCpuVendor',
-            ''  ),
+            ', TestBoxesWithStrings',
+            ' AND TestSets.idGenTestBox = TestBoxesWithStrings.idGenTestBox',
+            ' TestBoxesWithStrings.sCpuVendor',
+            '', ''  ),
         ksResultsSortByTestBoxCpuName: (
-            ', TestBoxes',
-            ' AND TestSets.idGenTestBox = TestBoxes.idGenTestBox',
-            ' TestBoxes.sCpuVendor, TestBoxes.sCpuName',
-            ''  ),
+            ', TestBoxesWithStrings',
+            ' AND TestSets.idGenTestBox = TestBoxesWithStrings.idGenTestBox',
+            ' TestBoxesWithStrings.sCpuVendor, TestBoxesWithStrings.sCpuName',
+            '', ''  ),
         ksResultsSortByTestBoxCpuRev: (
-            ', TestBoxes',
-            ' AND TestSets.idGenTestBox = TestBoxes.idGenTestBox',
-            ' TestBoxes.sCpuVendor, TestBoxes.lCpuRevision DESC',
-            ', TestBoxes.lCpuRevision'  ),
+            ', TestBoxesWithStrings',
+            ' AND TestSets.idGenTestBox = TestBoxesWithStrings.idGenTestBox',
+            ' TestBoxesWithStrings.sCpuVendor, TestBoxesWithStrings.lCpuRevision DESC',
+            ', TestBoxesWithStrings.lCpuRevision',
+            ', TestBoxesWithStrings.lCpuRevision' ),
         ksResultsSortByTestBoxCpuFeatures: (
             ', TestBoxes',
             ' AND TestSets.idGenTestBox = TestBoxes.idGenTestBox',
             ' TestBoxes.fCpuHwVirt DESC, TestBoxes.fCpuNestedPaging DESC, TestBoxes.fCpu64BitGuest DESC, TestBoxes.cCpus DESC',
-            ', TestBoxes.cCpus' ),
+            '',
+            '' ),
         ksResultsSortByTestCaseName: (
             ', TestCases',
             ' AND TestSets.idGenTestCase = TestCases.idGenTestCase',
             ' TestCases.sName',
-            ''  ),
+            '', ''  ),
+        ksResultsSortByFailureReason: (
+            '', '',
+            'asSortByFailureReason ASC',
+            ', array_agg(FailureReasons.sShort ORDER BY TestResultFailures.idTestResult) AS asSortByFailureReason',
+            '' ),
     };
 
     kdResultGroupingMap = {
         ksResultsGroupingTypeNone: (
-            # Grouping tables;     # Grouping field;          # Grouping where addition.  # Sort by overrides.
-            'TestSets',            None,                      None,                       {}
+            # Grouping tables;
+            '',
+            # Grouping field;
+            None,
+            # Grouping where addition.
+            None,
+            # Sort by overrides.
+            {},
         ),
-        ksResultsGroupingTypeTestGroup:  ('TestSets',   'TestSets.idTestGroup',     None, {}),
-        ksResultsGroupingTypeTestBox:    ('TestSets',   'TestSets.idTestBox',       None, {}),
-        ksResultsGroupingTypeTestCase:   ('TestSets',   'TestSets.idTestCase',      None, {}),
+        ksResultsGroupingTypeTestGroup:  ('', 'TestSets.idTestGroup',     None,                      {},),
+        ksResultsGroupingTypeTestBox:    ('', 'TestSets.idTestBox',       None,                      {},),
+        ksResultsGroupingTypeTestCase:   ('', 'TestSets.idTestCase',      None,                      {},),
         ksResultsGroupingTypeBuildRev: (
-            'TestSets, Builds',
+            ', Builds',
             'Builds.iRevision',
             ' AND Builds.idBuild      = TestSets.idBuild'
             ' AND Builds.tsExpire     > TestSets.tsCreated'
             ' AND Builds.tsEffective <= TestSets.tsCreated',
             { ksResultsSortByBuildRevision: ( '', None,  ' Builds.iRevision DESC' ), }
         ),
-        ksResultsGroupingTypeSchedGroup: (
-            'TestSets, TestBoxes',
-            'TestBoxes.idSchedGroup',
-            ' AND TestSets.idGenTestBox = TestBoxes.idGenTestBox',
-            { ksResultsSortByTestBoxName:       ( '', None, ' TestBoxes.sName DESC', '' ),
-              ksResultsSortByTestBoxOsArch:     ( '', None, ' TestBoxes.sOs, TestBoxes.sCpuArch', ''  ),
-              ksResultsSortByTestBoxOs:         ( '', None,  ' TestBoxes.sOs', ''  ),
-              ksResultsSortByTestBoxOsVersion:  ( '', None, ' TestBoxes.sOs, TestBoxes.sOsVersion DESC', ''  ),
-              ksResultsSortByTestBoxArch:       ( '', None, ' TestBoxes.sCpuArch', ''  ),
-              ksResultsSortByTestBoxCpuVendor:  ( '', None, ' TestBoxes.sCpuVendor', ''  ),
-              ksResultsSortByTestBoxCpuName:    ( '', None, ' TestBoxes.sCpuVendor, TestBoxes.sCpuName', ''  ),
-              ksResultsSortByTestBoxCpuRev: (
-                  '', None,  ' TestBoxes.sCpuVendor, TestBoxes.lCpuRevision DESC', ', TestBoxes.lCpuRevision'  ),
-              ksResultsSortByTestBoxCpuFeatures: (
-                  ' TestBoxes.fCpuHwVirt DESC, TestBoxes.fCpuNestedPaging DESC, TestBoxes.fCpu64BitGuest DESC, '
-                  + 'TestBoxes.cCpus DESC',
-                  ', TestBoxes.cCpus' ), }
-        ),
+        ksResultsGroupingTypeSchedGroup: ( '', 'TestSets.idSchedGroup',   None,                      {},),
     };
 
 
-    def _getTimePeriodQueryPart(self, tsNow, sInterval):
+    def __init__(self, oDb):
+        ModelLogicBase.__init__(self, oDb)
+        self.oFailureReasonLogic = None;
+        self.oUserAccountLogic   = None;
+
+    def _getTimePeriodQueryPart(self, tsNow, sInterval, sExtraIndent = ''):
         """
         Get part of SQL query responsible for SELECT data within
         specified period of time.
@@ -677,20 +819,21 @@ class TestResultLogic(ModelLogicBase): # pylint: disable=R0903
         cMonthsMourningPeriod = 2;  # Stop reminding everyone about testboxes after 2 months.  (May also speed up the query.)
         if tsNow is None:
             sRet =        '(TestSets.tsDone IS NULL OR TestSets.tsDone >= (CURRENT_TIMESTAMP - \'%s\'::interval))\n' \
-                   '   AND TestSets.tsCreated >= (CURRENT_TIMESTAMP  - \'%s\'::interval - \'%u months\'::interval)\n' \
-                 % (sInterval, sInterval, cMonthsMourningPeriod);
+                   '%s   AND TestSets.tsCreated >= (CURRENT_TIMESTAMP  - \'%s\'::interval - \'%u months\'::interval)\n' \
+                 % ( sInterval,
+                     sExtraIndent, sInterval, cMonthsMourningPeriod);
         else:
             sTsNow = '\'%s\'::TIMESTAMP' % (tsNow,); # It's actually a string already. duh.
             sRet =        'TestSets.tsCreated <= %s\n' \
-                   '   AND TestSets.tsCreated >= (%s  - \'%s\'::interval - \'%u months\'::interval)\n' \
-                   '   AND (TestSets.tsDone IS NULL OR TestSets.tsDone >= (%s - \'%s\'::interval))\n' \
+                   '%s   AND TestSets.tsCreated >= (%s  - \'%s\'::interval - \'%u months\'::interval)\n' \
+                   '%s   AND (TestSets.tsDone IS NULL OR TestSets.tsDone >= (%s - \'%s\'::interval))\n' \
                  % ( sTsNow,
-                     sTsNow, sInterval, cMonthsMourningPeriod,
-                     sTsNow, sInterval );
+                     sExtraIndent, sTsNow, sInterval, cMonthsMourningPeriod,
+                     sExtraIndent, sTsNow, sInterval );
         return sRet
 
-    def fetchResultsForListing(self, iStart, cMaxRows, tsNow, sInterval, enmResultSortBy,
-                               enmResultsGroupingType, iResultsGroupingValue, fOnlyFailures):
+    def fetchResultsForListing(self, iStart, cMaxRows, tsNow, sInterval, enmResultSortBy, # pylint: disable=R0913
+                               enmResultsGroupingType, iResultsGroupingValue, fOnlyFailures, fOnlyNeedingReason):
         """
         Fetches TestResults table content.
 
@@ -714,9 +857,9 @@ class TestResultLogic(ModelLogicBase): # pylint: disable=R0903
             raise TMExceptionBase('Unknown sorting');
         sGroupingTables, sGroupingField, sGroupingCondition, dSortingOverrides = self.kdResultGroupingMap[enmResultsGroupingType];
         if enmResultSortBy in dSortingOverrides:
-            sSortingTables, sSortingWhere, sSortingOrderBy, sSortingColumns = dSortingOverrides[enmResultSortBy];
+            sSortTables, sSortWhere, sSortOrderBy, sSortColumns, sSortGroupBy = dSortingOverrides[enmResultSortBy];
         else:
-            sSortingTables, sSortingWhere, sSortingOrderBy, sSortingColumns = self.kdResultSortByMap[enmResultSortBy];
+            sSortTables, sSortWhere, sSortOrderBy, sSortColumns, sSortGroupBy = self.kdResultSortByMap[enmResultSortBy];
 
         #
         # Construct the query.
@@ -730,35 +873,34 @@ class TestResultLogic(ModelLogicBase): # pylint: disable=R0903
                   '       Builds.idBuild,\n' \
                   '       Builds.sVersion,\n' \
                   '       Builds.iRevision,\n' \
-                  '       TestBoxes.sOs,\n' \
-                  '       TestBoxes.sOsVersion,\n' \
-                  '       TestBoxes.sCpuArch,\n' \
-                  '       TestBoxes.sCpuVendor,\n' \
-                  '       TestBoxes.sCpuName,\n' \
-                  '       TestBoxes.cCpus,\n' \
-                  '       TestBoxes.fCpuHwVirt,\n' \
-                  '       TestBoxes.fCpuNestedPaging,\n' \
-                  '       TestBoxes.fCpu64BitGuest,\n' \
-                  '       TestBoxes.idTestBox,\n' \
-                  '       TestBoxes.sName,\n' \
+                  '       TestBoxesWithStrings.sOs,\n' \
+                  '       TestBoxesWithStrings.sOsVersion,\n' \
+                  '       TestBoxesWithStrings.sCpuArch,\n' \
+                  '       TestBoxesWithStrings.sCpuVendor,\n' \
+                  '       TestBoxesWithStrings.sCpuName,\n' \
+                  '       TestBoxesWithStrings.cCpus,\n' \
+                  '       TestBoxesWithStrings.fCpuHwVirt,\n' \
+                  '       TestBoxesWithStrings.fCpuNestedPaging,\n' \
+                  '       TestBoxesWithStrings.fCpu64BitGuest,\n' \
+                  '       TestBoxesWithStrings.idTestBox,\n' \
+                  '       TestBoxesWithStrings.sName,\n' \
                   '       TestResults.tsCreated,\n' \
-                  '       COALESCE(TestResults.tsElapsed, CURRENT_TIMESTAMP - TestResults.tsCreated),\n' \
+                  '       COALESCE(TestResults.tsElapsed, CURRENT_TIMESTAMP - TestResults.tsCreated) AS tsElapsedTestResult,\n' \
                   '       TestSets.enmStatus,\n' \
                   '       TestResults.cErrors,\n' \
                   '       TestCases.idTestCase,\n' \
                   '       TestCases.sName,\n' \
                   '       TestCases.sBaseCmd,\n' \
                   '       TestCaseArgs.sArgs,\n' \
+                  '       TestCaseArgs.sSubName,\n' \
                   '       TestSuiteBits.idBuild AS idBuildTestSuite,\n' \
                   '       TestSuiteBits.iRevision AS iRevisionTestSuite,\n' \
-                  '       (TestSets.tsDone IS NULL) SortRunningFirst' + sSortingColumns + '\n' \
-                  'FROM   BuildCategories,\n' \
-                  '       Builds,\n' \
-                  '       TestBoxes,\n' \
-                  '       TestResults,\n' \
-                  '       TestCases,\n' \
-                  '       TestCaseArgs,\n' \
-                  '       (  SELECT TestSets.idTestSet AS idTestSet,\n' \
+                  '       array_agg(TestResultFailures.idFailureReason ORDER BY TestResultFailures.idTestResult),\n' \
+                  '       array_agg(TestResultFailures.uidAuthor       ORDER BY TestResultFailures.idTestResult),\n' \
+                  '       array_agg(TestResultFailures.tsEffective     ORDER BY TestResultFailures.idTestResult),\n' \
+                  '       array_agg(TestResultFailures.sComment        ORDER BY TestResultFailures.idTestResult),\n' \
+                  '       (TestSets.tsDone IS NULL) SortRunningFirst' + sSortColumns + '\n' \
+                  'FROM   (  SELECT TestSets.idTestSet AS idTestSet,\n' \
                   '                 TestSets.tsDone AS tsDone,\n' \
                   '                 TestSets.tsCreated AS tsCreated,\n' \
                   '                 TestSets.enmStatus AS enmStatus,\n' \
@@ -767,38 +909,97 @@ class TestResultLogic(ModelLogicBase): # pylint: disable=R0903
                   '                 TestSets.idGenTestBox AS idGenTestBox,\n' \
                   '                 TestSets.idGenTestCase AS idGenTestCase,\n' \
                   '                 TestSets.idGenTestCaseArgs AS idGenTestCaseArgs\n' \
-                  '          FROM  ' + sGroupingTables + sSortingTables + '\n' \
-                  '          WHERE ' + self._getTimePeriodQueryPart(tsNow, sInterval);
-        if fOnlyFailures:
-            sQuery += '            AND TestSets.enmStatus != \'success\'::TestStatus_T' \
-                      '            AND TestSets.enmStatus != \'running\'::TestStatus_T';
+                  '          FROM  TestSets';
+        if fOnlyNeedingReason:
+            sQuery += '\n' \
+                      '          LEFT OUTER JOIN TestResultFailures\n' \
+                      '                       ON     TestSets.idTestSet          = TestResultFailures.idTestSet\n' \
+                      '                          AND TestResultFailures.tsExpire = \'infinity\'::TIMESTAMP';
+        sQuery += sGroupingTables.replace(',', ',\n                ');
+        sQuery += sSortTables.replace( ',', ',\n                ');
+        sQuery += '\n' \
+                  '          WHERE ' + self._getTimePeriodQueryPart(tsNow, sInterval, '         ');
+        if fOnlyFailures or fOnlyNeedingReason:
+            sQuery += '            AND TestSets.enmStatus != \'success\'::TestStatus_T\n' \
+                      '            AND TestSets.enmStatus != \'running\'::TestStatus_T\n';
+        if fOnlyNeedingReason:
+            sQuery += '            AND TestResultFailures.idTestSet IS NULL\n';
         if sGroupingField is not None:
             sQuery += '            AND %s = %d\n' % (sGroupingField, iResultsGroupingValue,);
         if sGroupingCondition is not None:
             sQuery += sGroupingCondition.replace(' AND ', '            AND ');
-        if sSortingWhere is not None:
-            sQuery += sSortingWhere.replace(' AND ', '            AND ');
+        if sSortWhere is not None:
+            sQuery += sSortWhere.replace(' AND ', '            AND ');
         sQuery += '          ORDER BY ';
-        if sSortingOrderBy is not None:
-            sQuery += sSortingOrderBy + ',\n                ';
+        if sSortOrderBy is not None and sSortOrderBy.find('FailureReason') < 0:
+            sQuery += sSortOrderBy + ',\n                ';
         sQuery += '(TestSets.tsDone IS NULL) DESC, TestSets.idTestSet DESC\n' \
                   '          LIMIT %s OFFSET %s\n' % (cMaxRows, iStart,);
 
+        # Note! INNER JOIN TestBoxesWithStrings performs miserable compared to LEFT OUTER JOIN. Doesn't matter for the result
+        #       because TestSets.idGenTestBox is a foreign key and unique in TestBoxes.  So, let's do what ever is faster.
         sQuery += '       ) AS TestSets\n' \
+                  '       LEFT OUTER JOIN TestBoxesWithStrings\n' \
+                  '                    ON TestSets.idGenTestBox     = TestBoxesWithStrings.idGenTestBox' \
                   '       LEFT OUTER JOIN Builds AS TestSuiteBits\n' \
                   '                    ON TestSets.idBuildTestSuite = TestSuiteBits.idBuild\n' \
-                  'WHERE  TestSets.idTestSet         = TestResults.idTestSet\n' \
+                  '       LEFT OUTER JOIN TestResultFailures\n' \
+                  '                    ON     TestSets.idTestSet          = TestResultFailures.idTestSet\n' \
+                  '                       AND TestResultFailures.tsExpire = \'infinity\'::TIMESTAMP';
+        if sSortOrderBy is not None and sSortOrderBy.find('FailureReason') >= 0:
+            sQuery += '\n' \
+                      '       LEFT OUTER JOIN FailureReasons\n' \
+                      '                    ON     TestResultFailures.idFailureReason = FailureReasons.idFailureReason\n' \
+                      '                       AND FailureReasons.tsExpire            = \'infinity\'::TIMESTAMP';
+        sQuery += ',\n' \
+                  '       BuildCategories,\n' \
+                  '       Builds,\n' \
+                  '       TestResults,\n' \
+                  '       TestCases,\n' \
+                  '       TestCaseArgs\n';
+        sQuery += 'WHERE  TestSets.idTestSet         = TestResults.idTestSet\n' \
                   '   AND TestResults.idTestResultParent is NULL\n' \
                   '   AND TestSets.idBuild           = Builds.idBuild\n' \
                   '   AND Builds.tsExpire            > TestSets.tsCreated\n' \
                   '   AND Builds.tsEffective        <= TestSets.tsCreated\n' \
                   '   AND Builds.idBuildCategory     = BuildCategories.idBuildCategory\n' \
-                  '   AND TestSets.idGenTestBox      = TestBoxes.idGenTestBox\n' \
                   '   AND TestSets.idGenTestCase     = TestCases.idGenTestCase\n' \
-                  '   AND TestSets.idGenTestCaseArgs = TestCaseArgs.idGenTestCaseArgs\n' \
-                  'ORDER BY ';
-        if sSortingOrderBy is not None:
-            sQuery += sSortingOrderBy + ',\n       ';
+                  '   AND TestSets.idGenTestCaseArgs = TestCaseArgs.idGenTestCaseArgs\n';
+        sQuery += 'GROUP BY TestSets.idTestSet,\n' \
+                  '         BuildCategories.idBuildCategory,\n' \
+                  '         BuildCategories.sProduct,\n' \
+                  '         BuildCategories.sRepository,\n' \
+                  '         BuildCategories.sBranch,\n' \
+                  '         BuildCategories.sType,\n' \
+                  '         Builds.idBuild,\n' \
+                  '         Builds.sVersion,\n' \
+                  '         Builds.iRevision,\n' \
+                  '         TestBoxesWithStrings.sOs,\n' \
+                  '         TestBoxesWithStrings.sOsVersion,\n' \
+                  '         TestBoxesWithStrings.sCpuArch,\n' \
+                  '         TestBoxesWithStrings.sCpuVendor,\n' \
+                  '         TestBoxesWithStrings.sCpuName,\n' \
+                  '         TestBoxesWithStrings.cCpus,\n' \
+                  '         TestBoxesWithStrings.fCpuHwVirt,\n' \
+                  '         TestBoxesWithStrings.fCpuNestedPaging,\n' \
+                  '         TestBoxesWithStrings.fCpu64BitGuest,\n' \
+                  '         TestBoxesWithStrings.idTestBox,\n' \
+                  '         TestBoxesWithStrings.sName,\n' \
+                  '         TestResults.tsCreated,\n' \
+                  '         tsElapsedTestResult,\n' \
+                  '         TestSets.enmStatus,\n' \
+                  '         TestResults.cErrors,\n' \
+                  '         TestCases.idTestCase,\n' \
+                  '         TestCases.sName,\n' \
+                  '         TestCases.sBaseCmd,\n' \
+                  '         TestCaseArgs.sArgs,\n' \
+                  '         TestCaseArgs.sSubName,\n' \
+                  '         TestSuiteBits.idBuild,\n' \
+                  '         TestSuiteBits.iRevision,\n' \
+                  '         SortRunningFirst' + sSortGroupBy + '\n';
+        sQuery += 'ORDER BY ';
+        if sSortOrderBy is not None:
+            sQuery += sSortOrderBy.replace('TestBoxes.', 'TestBoxesWithStrings.') + ',\n       ';
         sQuery += '(TestSets.tsDone IS NULL) DESC, TestSets.idTestSet DESC\n';
 
         #
@@ -806,13 +1007,53 @@ class TestResultLogic(ModelLogicBase): # pylint: disable=R0903
         #
         self._oDb.execute(sQuery);
 
+        if self.oFailureReasonLogic is None:
+            self.oFailureReasonLogic = FailureReasonLogic(self._oDb);
+        if self.oUserAccountLogic is None:
+            self.oUserAccountLogic = UserAccountLogic(self._oDb);
+
         aoRows = [];
         for aoRow in self._oDb.fetchAll():
-            aoRows.append(TestResultListingData().initFromDbRow(aoRow))
+            aoRows.append(TestResultListingData().initFromDbRowEx(aoRow, self.oFailureReasonLogic, self.oUserAccountLogic));
 
         return aoRows
 
-    def getEntriesCount(self, tsNow, sInterval, enmResultsGroupingType, iResultsGroupingValue, fOnlyFailures):
+
+    def fetchTimestampsForLogViewer(self, idTestSet):
+        """
+        Returns an ordered list with all the test result timestamps, both start
+        and end.
+
+        The log viewer create anchors in the log text so we can jump directly to
+        the log lines relevant for a test event.
+        """
+        self._oDb.execute('(\n'
+                          'SELECT tsCreated\n'
+                          'FROM   TestResults\n'
+                          'WHERE  idTestSet = %s\n'
+                          ') UNION (\n'
+                          'SELECT tsCreated + tsElapsed\n'
+                          'FROM   TestResults\n'
+                          'WHERE  idTestSet = %s\n'
+                          '   AND tsElapsed IS NOT NULL\n'
+                          ') UNION (\n'
+                          'SELECT TestResultFiles.tsCreated\n'
+                          'FROM   TestResultFiles\n'
+                          'WHERE  idTestSet = %s\n'
+                          ') UNION (\n'
+                          'SELECT tsCreated\n'
+                          'FROM   TestResultValues\n'
+                          'WHERE  idTestSet = %s\n'
+                          ') UNION (\n'
+                          'SELECT TestResultMsgs.tsCreated\n'
+                          'FROM   TestResultMsgs\n'
+                          'WHERE  idTestSet = %s\n'
+                          ') ORDER by 1'
+                          , ( idTestSet, idTestSet, idTestSet, idTestSet, idTestSet, ));
+        return [aoRow[0] for aoRow in self._oDb.fetchAll()];
+
+
+    def getEntriesCount(self, tsNow, sInterval, enmResultsGroupingType, iResultsGroupingValue, fOnlyFailures, fOnlyNeedingReason):
         """
         Get number of table records.
 
@@ -837,12 +1078,21 @@ class TestResultLogic(ModelLogicBase): # pylint: disable=R0903
         #
         # Construct the query.
         #
-        sQuery = 'SELECT COUNT(idTestSet)\n' \
-                 'FROM   ' + sGroupingTables + '\n' \
-                 'WHERE  ' + self._getTimePeriodQueryPart(tsNow, sInterval);
-        if fOnlyFailures:
-            sQuery += '   AND TestSets.enmStatus != \'success\'::TestStatus_T' \
-                      '   AND TestSets.enmStatus != \'running\'::TestStatus_T';
+        sQuery = 'SELECT COUNT(TestSets.idTestSet)\n' \
+                 'FROM   TestSets';
+        if fOnlyNeedingReason:
+            sQuery += '\n' \
+                      '       LEFT OUTER JOIN TestResultFailures\n' \
+                      '                    ON     TestSets.idTestSet          = TestResultFailures.idTestSet\n' \
+                      '                       AND TestResultFailures.tsExpire = \'infinity\'::TIMESTAMP';
+        sQuery += sGroupingTables.replace(',', ',\n       ');
+        sQuery += '\n' \
+                  'WHERE  ' + self._getTimePeriodQueryPart(tsNow, sInterval);
+        if fOnlyFailures or fOnlyNeedingReason:
+            sQuery += '   AND TestSets.enmStatus != \'success\'::TestStatus_T\n' \
+                      '   AND TestSets.enmStatus != \'running\'::TestStatus_T\n';
+        if fOnlyNeedingReason:
+            sQuery += '   AND TestResultFailures.idTestSet IS NULL\n';
         if sGroupingField is not None:
             sQuery += '   AND %s = %d\n' % (sGroupingField, iResultsGroupingValue,);
         if sGroupingCondition is not None:
@@ -866,13 +1116,10 @@ class TestResultLogic(ModelLogicBase): # pylint: disable=R0903
                           '   AND TestGroups.tsExpire    >  TestSets.tsCreated\n'
                           '   AND TestGroups.tsEffective <= TestSets.tsCreated'
                           '   AND ' + self._getTimePeriodQueryPart(tsNow, sPeriod))
-
         aaoRows = self._oDb.fetchAll()
         aoRet = []
         for aoRow in aaoRows:
-            ## @todo Need to take time into consideration. Will go belly up if we delete a testgroup.
             aoRet.append(TestGroupData().initFromDbRow(aoRow))
-
         return aoRet
 
     def getBuilds(self, tsNow, sPeriod):
@@ -888,12 +1135,10 @@ class TestResultLogic(ModelLogicBase): # pylint: disable=R0903
                           '     AND Builds.tsExpire        >  TestSets.tsCreated\n'
                           '     AND Builds.tsEffective     <= TestSets.tsCreated'
                           '     AND ' + self._getTimePeriodQueryPart(tsNow, sPeriod))
-
         aaoRows = self._oDb.fetchAll()
         aoRet = []
         for aoRow in aaoRows:
             aoRet.append(BuildDataEx().initFromDbRow(aoRow))
-
         return aoRet
 
     def getTestBoxes(self, tsNow, sPeriod):
@@ -901,28 +1146,21 @@ class TestResultLogic(ModelLogicBase): # pylint: disable=R0903
         Get list of uniq TestBoxData objects which
         found in all test results.
         """
-
-        ## @todo do all in one query.
-        self._oDb.execute('SELECT DISTINCT TestBoxes.idTestBox, TestBoxes.idGenTestBox\n'
-                          'FROM TestBoxes, TestSets\n'
-                          'WHERE TestSets.idGenTestBox = TestBoxes.idGenTestBox\n'
-                          '  AND ' + self._getTimePeriodQueryPart(tsNow, sPeriod) +
-                          'ORDER BY TestBoxes.idTestBox, TestBoxes.idGenTestBox DESC' );
-        idPrevTestBox = -1;
-        asIdGenTestBoxes = [];
-        for aoRow in self._oDb.fetchAll():
-            if aoRow[0] != idPrevTestBox:
-                idPrevTestBox = aoRow[0];
-                asIdGenTestBoxes.append(str(aoRow[1]));
-
+        # Note! INNER JOIN TestBoxesWithStrings performs miserable compared to LEFT OUTER JOIN. Doesn't matter for the result
+        #       because TestSets.idGenTestBox is a foreign key and unique in TestBoxes.  So, let's do what ever is faster.
+        self._oDb.execute('SELECT TestBoxesWithStrings.*\n'
+                          'FROM   ( SELECT idTestBox         AS idTestBox,\n'
+                          '                MAX(idGenTestBox) AS idGenTestBox\n'
+                          '         FROM   TestSets\n'
+                          '         WHERE  ' + self._getTimePeriodQueryPart(tsNow, sPeriod, '        ') +
+                          '         GROUP BY idTestBox\n'
+                          '       ) AS TestBoxIDs\n'
+                          '       LEFT OUTER JOIN TestBoxesWithStrings\n'
+                          '                    ON TestBoxesWithStrings.idGenTestBox = TestBoxIDs.idGenTestBox\n'
+                          'ORDER BY TestBoxesWithStrings.sName\n' );
         aoRet = []
-        if len(asIdGenTestBoxes) > 0:
-            self._oDb.execute('SELECT *\n'
-                              'FROM TestBoxes\n'
-                              'WHERE idGenTestBox IN (' + ','.join(asIdGenTestBoxes) + ')\n'
-                              'ORDER BY sName');
-            for aoRow in self._oDb.fetchAll():
-                aoRet.append(TestBoxData().initFromDbRow(aoRow));
+        for aoRow in self._oDb.fetchAll():
+            aoRet.append(TestBoxData().initFromDbRow(aoRow));
         return aoRet
 
     def getTestCases(self, tsNow, sPeriod):
@@ -931,23 +1169,20 @@ class TestResultLogic(ModelLogicBase): # pylint: disable=R0903
         specified result period.
         """
 
-        self._oDb.execute('SELECT DISTINCT TestCases.idTestCase, TestCases.idGenTestCase, TestSets.tsConfig\n'
-                          'FROM TestCases, TestSets\n'
-                          'WHERE TestSets.idTestCase   =  TestCases.idTestCase\n'
-                          '  AND TestCases.tsExpire    >  TestSets.tsCreated\n'
-                          '  AND TestCases.tsEffective <= TestSets.tsCreated\n'
-                          '  AND ' + self._getTimePeriodQueryPart(tsNow, sPeriod) +
-                          'ORDER BY TestCases.idTestCase, TestCases.idGenTestCase DESC\n');
+        # Using LEFT OUTER JOIN instead of INNER JOIN in case it performs better, doesn't matter for the result.
+        self._oDb.execute('SELECT TestCases.*\n'
+                          'FROM   ( SELECT idTestCase         AS idTestCase,\n'
+                          '                MAX(idGenTestCase) AS idGenTestCase\n'
+                          '         FROM   TestSets\n'
+                          '         WHERE  ' + self._getTimePeriodQueryPart(tsNow, sPeriod, '        ') +
+                          '         GROUP BY idTestCase\n'
+                          '       ) AS TestCasesIDs\n'
+                          '       LEFT OUTER JOIN TestCases ON TestCases.idGenTestCase = TestCasesIDs.idGenTestCase\n'
+                          'ORDER BY TestCases.sName\n' );
 
-        aaoRows        = self._oDb.fetchAll()
-        aoRet          = []
-        idPrevTestCase = -1;
-        for aoRow in aaoRows:
-            ## @todo reduce subqueries
-            if aoRow[0] != idPrevTestCase:
-                idPrevTestCase = aoRow[0];
-                aoRet.append(TestCaseData().initFromDbWithGenId(self._oDb, aoRow[1], aoRow[2]))
-
+        aoRet = [];
+        for aoRow in self._oDb.fetchAll():
+            aoRet.append(TestCaseData().initFromDbRow(aoRow));
         return aoRet
 
     def getSchedGroups(self, tsNow, sPeriod):
@@ -956,19 +1191,21 @@ class TestResultLogic(ModelLogicBase): # pylint: disable=R0903
         found in all test results.
         """
 
-        self._oDb.execute('SELECT DISTINCT TestBoxes.idSchedGroup\n'
-                          'FROM TestBoxes, TestSets\n'
-                          'WHERE TestSets.idGenTestBox =  TestBoxes.idGenTestBox\n'
-                          '  AND TestBoxes.tsExpire    >  TestSets.tsCreated\n'
-                          '  AND TestBoxes.tsEffective <= TestSets.tsCreated'
-                          '  AND ' + self._getTimePeriodQueryPart(tsNow, sPeriod))
-
-        aiRows = self._oDb.fetchAll()
+        self._oDb.execute('SELECT SchedGroups.*\n'
+                          'FROM   ( SELECT idSchedGroup,\n'
+                          '                MAX(TestSets.tsCreated) AS tsNow\n'
+                          '         FROM   TestSets\n'
+                          '         WHERE  ' + self._getTimePeriodQueryPart(tsNow, sPeriod, '         ') +
+                          '         GROUP BY idSchedGroup\n'
+                          '       ) AS SchedGroupIDs\n'
+                          '       INNER JOIN SchedGroups\n'
+                          '               ON SchedGroups.idSchedGroup = SchedGroupIDs.idSchedGroup\n'
+                          '              AND SchedGroups.tsExpire     > SchedGroupIDs.tsNow\n'
+                          '              AND SchedGroups.tsEffective <= SchedGroupIDs.tsNow\n'
+                          'ORDER BY SchedGroups.sName\n' );
         aoRet = []
-        for iRow in aiRows:
-            ## @todo reduce subqueries
-            aoRet.append(SchedGroupData().initFromDbWithId(self._oDb, iRow))
-
+        for aoRow in self._oDb.fetchAll():
+            aoRet.append(SchedGroupData().initFromDbRow(aoRow));
         return aoRet
 
     def getById(self, idTestResult):
@@ -982,7 +1219,7 @@ class TestResultLogic(ModelLogicBase): # pylint: disable=R0903
 
         aRows = self._oDb.fetchAll()
         if len(aRows) not in (0, 1):
-            raise TMExceptionBase('Found more than one test result with the same credentials. Database structure is corrupted.')
+            raise TMTooManyRows('Found more than one test result with the same credentials. Database structure is corrupted.')
         try:
             return TestResultData().initFromDbRow(aRows[0])
         except IndexError:
@@ -1013,7 +1250,10 @@ class TestResultLogic(ModelLogicBase): # pylint: disable=R0903
             '           WHERE  TestResultMsgs.idTestResult   = TestResults.idTestResult ) AS fHasMsgs,\n'
             '         EXISTS ( SELECT idTestResultFile\n'
             '           FROM   TestResultFiles\n'
-            '           WHERE  TestResultFiles.idTestResult  = TestResults.idTestResult ) AS fHasFiles\n'
+            '           WHERE  TestResultFiles.idTestResult  = TestResults.idTestResult ) AS fHasFiles,\n'
+            '         EXISTS ( SELECT idTestResult\n'
+            '           FROM   TestResultFailures\n'
+            '           WHERE  TestResultFailures.idTestResult = TestResults.idTestResult ) AS fHasReasons\n'
             'FROM     TestResults, TestResultStrTab\n'
             'WHERE    TestResults.idTestSet = %s\n'
             '     AND TestResults.idStrName = TestResultStrTab.idStr\n'
@@ -1029,7 +1269,7 @@ class TestResultLogic(ModelLogicBase): # pylint: disable=R0903
 
         aaoRows = self._oDb.fetchAll();
         if len(aaoRows) == 0:
-            raise TMExceptionBase('No test results for idTestSet=%d.' % (idTestSet,));
+            raise TMRowNotFound('No test results for idTestSet=%d.' % (idTestSet,));
 
         # Set up the root node first.
         aoRow = aaoRows[0];
@@ -1037,7 +1277,7 @@ class TestResultLogic(ModelLogicBase): # pylint: disable=R0903
         if oRoot.idTestResultParent is not None:
             raise self._oDb.integrityException('The root TestResult (#%s) has a parent (#%s)!'
                                                % (oRoot.idTestResult, oRoot.idTestResultParent));
-        self._fetchResultTreeNodeExtras(oRoot, aoRow[-3], aoRow[-2], aoRow[-1]);
+        self._fetchResultTreeNodeExtras(oRoot, aoRow[-4], aoRow[-3], aoRow[-2], aoRow[-1]);
 
         # The chilren (if any).
         dLookup = { oRoot.idTestResult: oRoot };
@@ -1045,7 +1285,7 @@ class TestResultLogic(ModelLogicBase): # pylint: disable=R0903
         for iRow in range(1, len(aaoRows)):
             aoRow = aaoRows[iRow];
             oCur = TestResultDataEx().initFromDbRow(aoRow);
-            self._fetchResultTreeNodeExtras(oCur, aoRow[-3], aoRow[-2], aoRow[-1]);
+            self._fetchResultTreeNodeExtras(oCur, aoRow[-4], aoRow[-3], aoRow[-2], aoRow[-1]);
 
             # Figure out and vet the parent.
             if oParent.idTestResult != oCur.idTestResultParent:
@@ -1064,14 +1304,15 @@ class TestResultLogic(ModelLogicBase): # pylint: disable=R0903
 
         return (oRoot, dLookup);
 
-    def _fetchResultTreeNodeExtras(self, oCurNode, fHasValues, fHasMsgs, fHasFiles):
+    def _fetchResultTreeNodeExtras(self, oCurNode, fHasValues, fHasMsgs, fHasFiles, fHasReasons):
         """
         fetchResultTree worker that fetches values, message and files for the
         specified node.
         """
-        assert(oCurNode.aoValues == []);
-        assert(oCurNode.aoMsgs   == []);
-        assert(oCurNode.aoFiles  == []);
+        assert(oCurNode.aoValues  == []);
+        assert(oCurNode.aoMsgs    == []);
+        assert(oCurNode.aoFiles   == []);
+        assert(oCurNode.oReason is None);
 
         if fHasValues:
             self._oDb.execute('SELECT   TestResultValues.*,\n'
@@ -1116,6 +1357,20 @@ class TestResultLogic(ModelLogicBase): # pylint: disable=R0903
             for aoRow in self._oDb.fetchAll():
                 oCurNode.aoFiles.append(TestResultFileDataEx().initFromDbRow(aoRow));
 
+        if fHasReasons or True:
+            if self.oFailureReasonLogic is None:
+                self.oFailureReasonLogic = FailureReasonLogic(self._oDb);
+            if self.oUserAccountLogic is None:
+                self.oUserAccountLogic = UserAccountLogic(self._oDb);
+            self._oDb.execute('SELECT   *\n'
+                              'FROM     TestResultFailures\n'
+                              'WHERE    idTestResult = %s\n'
+                              '     AND tsExpire = \'infinity\'::TIMESTAMP\n'
+                              , ( oCurNode.idTestResult, ));
+            if self._oDb.getRowCount() > 0:
+                oCurNode.oReason = TestResultFailureDataEx().initFromDbRowEx(self._oDb.fetchOne(), self.oFailureReasonLogic,
+                                                                             self.oUserAccountLogic);
+
         return True;
 
 
@@ -1138,7 +1393,7 @@ class TestResultLogic(ModelLogicBase): # pylint: disable=R0903
         #
         # First add a message.
         #
-        self._newFailureDetails(aoStack[0].idTestResult, sError, None);
+        self._newFailureDetails(aoStack[0].idTestResult, idTestSet, sError, None);
 
         #
         # The complete all open test results.
@@ -1183,7 +1438,7 @@ class TestResultLogic(ModelLogicBase): # pylint: disable=R0903
     def _stringifyStack(aoStack):
         """Returns a string rep of the stack."""
         sRet = '';
-        for i in range(len(aoStack)):
+        for i, _ in enumerate(aoStack):
             sRet += 'aoStack[%d]=%s\n' % (i, aoStack[i]);
         return sRet;
 
@@ -1201,7 +1456,7 @@ class TestResultLogic(ModelLogicBase): # pylint: disable=R0903
         for aoRow in self._oDb.fetchAll():
             aoStack.append(TestResultData().initFromDbRow(aoRow));
 
-        for i in range(len(aoStack)):
+        for i, _ in enumerate(aoStack):
             assert aoStack[i].iNestingDepth == len(aoStack) - i - 1, self._stringifyStack(aoStack);
 
         return aoStack;
@@ -1330,7 +1585,7 @@ class TestResultLogic(ModelLogicBase): # pylint: disable=R0903
         self._oDb.maybeCommit(fCommit);
         return True;
 
-    def _newFailureDetails(self, idTestResult, sText, dCounts, tsCreated = None, fCommit = False):
+    def _newFailureDetails(self, idTestResult, idTestSet, sText, dCounts, tsCreated = None, fCommit = False):
         """
         Creates a record detailing cause of failure.
         May raise exception on database error.
@@ -1361,18 +1616,20 @@ class TestResultLogic(ModelLogicBase): # pylint: disable=R0903
         if tsCreated is None:
             self._oDb.execute('INSERT INTO TestResultMsgs (\n'
                               '         idTestResult,\n'
+                              '         idTestSet,\n'
                               '         idStrMsg,\n'
                               '         enmLevel)\n'
-                              'VALUES ( %s, %s, %s)\n'
-                              , ( idTestResult, idStrMsg, 'failure',) );
+                              'VALUES ( %s, %s, %s, %s)\n'
+                              , ( idTestResult, idTestSet, idStrMsg, 'failure',) );
         else:
             self._oDb.execute('INSERT INTO TestResultMsgs (\n'
                               '         idTestResult,\n'
+                              '         idTestSet,\n'
                               '         tsCreated,\n'
                               '         idStrMsg,\n'
                               '         enmLevel)\n'
-                              'VALUES ( %s, TIMESTAMP WITH TIME ZONE %s, %s, %s)\n'
-                              , ( idTestResult, tsCreated, idStrMsg, 'failure',) );
+                              'VALUES ( %s, %s, TIMESTAMP WITH TIME ZONE %s, %s, %s)\n'
+                              , ( idTestResult, idTestSet, tsCreated, idStrMsg, 'failure',) );
 
         self._oDb.maybeCommit(fCommit);
         return True;
@@ -1438,12 +1695,12 @@ class TestResultLogic(ModelLogicBase): # pylint: disable=R0903
         self._oDb.maybeCommit(fCommit);
         return None;
 
-    def _doPopHint(self, aoStack, cStackEntries, dCounts):
+    def _doPopHint(self, aoStack, cStackEntries, dCounts, idTestSet):
         """ Executes a PopHint. """
         assert cStackEntries >= 0;
         while len(aoStack) > cStackEntries:
             if aoStack[0].enmStatus == TestResultData.ksTestStatus_Running:
-                self._newFailureDetails(aoStack[0].idTestResult, 'XML error: Missing </Test>', dCounts);
+                self._newFailureDetails(aoStack[0].idTestResult, idTestSet, 'XML error: Missing </Test>', dCounts);
                 self._completeTestResults(aoStack[0], tsDone = None, cErrors = 1,
                                           enmStatus = TestResultData.ksTestStatus_Failure, fCommit = True);
             aoStack.pop(0);
@@ -1472,7 +1729,7 @@ class TestResultLogic(ModelLogicBase): # pylint: disable=R0903
         for sAttr in [ 'value', ]:
             if sAttr in dAttribs:
                 try:
-                    _ = long(dAttribs[sAttr]);
+                    _ = long(dAttribs[sAttr]);  # pylint: disable=R0204
                 except:
                     return 'Element %s has an invalid %s attribute value: %s.' % (sName, sAttr, dAttribs[sAttr],);
 
@@ -1610,8 +1867,9 @@ class TestResultLogic(ModelLogicBase): # pylint: disable=R0903
                                dCounts = dCounts, fCommit = True);
 
         elif sName == 'FailureDetails':
-            self._newFailureDetails(idTestResult = aoStack[0].idTestResult, tsCreated = dAttribs['timestamp'],
-                                    sText = dAttribs['text'], dCounts = dCounts, fCommit = True);
+            self._newFailureDetails(idTestResult = aoStack[0].idTestResult, idTestSet = idTestSet,
+                                    tsCreated = dAttribs['timestamp'], sText = dAttribs['text'], dCounts = dCounts,
+                                    fCommit = True);
 
         elif sName == 'Passed':
             self._completeTestResults(aoStack[0], tsDone = dAttribs['timestamp'],
@@ -1646,7 +1904,7 @@ class TestResultLogic(ModelLogicBase): # pylint: disable=R0903
 
             iDesiredTestDepth = int(dAttribs['testdepth']);
             cStackEntries, iTestDepth = aaiHints.pop(0);
-            self._doPopHint(aoStack, cStackEntries, dCounts); # Fake the necessary '<End/></Test>' tags.
+            self._doPopHint(aoStack, cStackEntries, dCounts, idTestSet); # Fake the necessary '<End/></Test>' tags.
             if iDesiredTestDepth != iTestDepth:
                 return 'PopHint tag has different testdepth: %d, on stack %d.' % (iDesiredTestDepth, iTestDepth);
         else:
@@ -1744,7 +2002,7 @@ class TestResultLogic(ModelLogicBase): # pylint: disable=R0903
         elif sError is None and len(aaiHints) > 0:
             sError = 'Expected </PopHint> before the end of the XML section.'
         if len(aaiHints) > 0:
-            self._doPopHint(aoStack, aaiHints[-1][0], dCounts);
+            self._doPopHint(aoStack, aaiHints[-1][0], dCounts, idTestSet);
 
         #
         # Log the error.
@@ -1758,6 +2016,9 @@ class TestResultLogic(ModelLogicBase): # pylint: disable=R0903
                                                    sError, ),
                                                cHoursRepeat = 6, fCommit = True);
         return (sError, False);
+
+
+
 
 
 #

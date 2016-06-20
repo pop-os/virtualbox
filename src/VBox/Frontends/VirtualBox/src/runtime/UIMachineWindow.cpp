@@ -21,26 +21,26 @@
 
 /* Qt includes: */
 # include <QCloseEvent>
-# include <QTimer>
 # include <QProcess>
+# include <QTimer>
 
 /* GUI includes: */
 # include "VBoxGlobal.h"
+# include "UIConverter.h"
+# include "UIModalWindowManager.h"
+# include "UIExtraDataManager.h"
 # include "UIMessageCenter.h"
-# include "UIKeyboardHandler.h"
-# include "UIMachineWindow.h"
+# include "UISession.h"
 # include "UIMachineLogic.h"
-# include "UIMachineView.h"
+# include "UIMachineWindow.h"
 # include "UIMachineWindowNormal.h"
 # include "UIMachineWindowFullscreen.h"
 # include "UIMachineWindowSeamless.h"
 # include "UIMachineWindowScale.h"
+# include "UIMachineView.h"
+# include "UIKeyboardHandler.h"
 # include "UIMouseHandler.h"
-# include "UISession.h"
 # include "UIVMCloseDialog.h"
-# include "UIConverter.h"
-# include "UIModalWindowManager.h"
-# include "UIExtraDataManager.h"
 
 /* COM includes: */
 # include "CConsole.h"
@@ -55,9 +55,12 @@
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 /* External includes: */
-#ifdef Q_WS_X11
-# include <X11/Xlib.h>
-#endif /* Q_WS_X11 */
+#ifdef VBOX_WS_X11
+# if QT_VERSION < 0x050000
+#  include <X11/Xlib.h>
+# endif /* QT_VERSION < 0x050000 */
+#endif /* VBOX_WS_X11 */
+
 
 /* static */
 UIMachineWindow* UIMachineWindow::create(UIMachineLogic *pMachineLogic, ulong uScreenId)
@@ -111,11 +114,11 @@ void UIMachineWindow::prepare()
     /* Prepare status-bar: */
     prepareStatusBar();
 
-    /* Prepare machine-view: */
-    prepareMachineView();
-
     /* Prepare visual-state: */
     prepareVisualState();
+
+    /* Prepare machine-view: */
+    prepareMachineView();
 
     /* Prepare handlers: */
     prepareHandlers();
@@ -177,7 +180,7 @@ UIMachineWindow::UIMachineWindow(UIMachineLogic *pMachineLogic, ulong uScreenId)
     , m_pLeftSpacer(0)
     , m_pRightSpacer(0)
 {
-#ifndef Q_WS_MAC
+#ifndef VBOX_WS_MAC
     /* On Mac OS X window icon referenced in info.plist is used. */
 
     /* Set default window icon (will be changed to VM-specific icon little bit later): */
@@ -190,7 +193,7 @@ UIMachineWindow::UIMachineWindow(UIMachineLogic *pMachineLogic, ulong uScreenId)
     /* Or set default machine-window icon: */
     else
         setWindowIcon(vboxGlobal().vmGuestOSTypeIcon(machine().GetOSTypeId()));
-#endif /* !Q_WS_MAC */
+#endif /* !VBOX_WS_MAC */
 }
 
 UIActionPool* UIMachineWindow::actionPool() const
@@ -257,7 +260,8 @@ void UIMachineWindow::retranslateUi()
     updateAppearanceOf(UIVisualElement_WindowTitle);
 }
 
-#ifdef Q_WS_X11
+#ifdef VBOX_WS_X11
+# if QT_VERSION < 0x050000
 bool UIMachineWindow::x11Event(XEvent *pEvent)
 {
     // TODO: Is that really needed?
@@ -278,7 +282,8 @@ bool UIMachineWindow::x11Event(XEvent *pEvent)
     }
     return false;
 }
-#endif /* Q_WS_X11 */
+# endif /* QT_VERSION < 0x050000 */
+#endif /* VBOX_WS_X11 */
 
 void UIMachineWindow::showEvent(QShowEvent *pShowEvent)
 {
@@ -415,7 +420,7 @@ void UIMachineWindow::closeEvent(QCloseEvent *pCloseEvent)
         {
             /* Just close Runtime UI: */
             LogRel(("GUI: Request for close-action to detach GUI.\n"));
-            machineLogic()->closeRuntimeUI();
+            machineLogic()->detach();
             break;
         }
         case MachineCloseAction_SaveState:
@@ -552,10 +557,10 @@ void UIMachineWindow::updateAppearanceOf(int iElement)
         if (state != KMachineState_Null)
             strMachineName += " [" + gpConverter->toString(state) + "]";
         /* Unusual on the Mac. */
-#ifndef Q_WS_MAC
+#ifndef VBOX_WS_MAC
         const QString strUserProductName = uisession()->machineWindowNamePostfix();
         strMachineName += " - " + (strUserProductName.isEmpty() ? defaultWindowTitle() : strUserProductName);
-#endif /* !Q_WS_MAC */
+#endif /* !VBOX_WS_MAC */
         if (machine().GetMonitorCount() > 1)
             strMachineName += QString(" : %1").arg(m_uScreenId + 1);
         setWindowTitle(strMachineName);
@@ -585,7 +590,7 @@ Qt::Alignment UIMachineWindow::viewAlignment(UIVisualStateType visualStateType)
     return 0;
 }
 
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
 void UIMachineWindow::handleStandardWindowButtonCallback(StandardWindowButtonType enmButtonType, bool fWithOptionKey)
 {
     switch (enmButtonType)
@@ -620,13 +625,13 @@ void UIMachineWindow::handleNativeNotification(const QString &strNativeNotificat
 {
     /* Handle arrived notification: */
     LogRel(("GUI: UIMachineWindow::handleNativeNotification: Notification '%s' received\n",
-            strNativeNotificationName.toAscii().constData()));
+            strNativeNotificationName.toLatin1().constData()));
     AssertPtrReturnVoid(pWidget);
     if (UIMachineWindow *pMachineWindow = qobject_cast<UIMachineWindow*>(pWidget))
     {
         /* Redirect arrived notification: */
-        LogRel(("UIMachineWindow::handleNativeNotification: Redirecting '%s' notification to corresponding machine-window...\n",
-                strNativeNotificationName.toAscii().constData()));
+        LogRel2(("UIMachineWindow::handleNativeNotification: Redirecting '%s' notification to corresponding machine-window...\n",
+                 strNativeNotificationName.toLatin1().constData()));
         pMachineWindow->handleNativeNotification(strNativeNotificationName);
     }
 }
@@ -641,10 +646,10 @@ void UIMachineWindow::handleStandardWindowButtonCallback(StandardWindowButtonTyp
     if (UIMachineWindow *pMachineWindow = qobject_cast<UIMachineWindow*>(pWidget))
     {
         /* Redirect arrived callback: */
-        LogRel(("UIMachineWindow::handleStandardWindowButtonCallback: Redirecting callback for standard window button '%d' with option key '%d' to corresponding machine-window...\n",
-                (int)enmButtonType, (int)fWithOptionKey));
+        LogRel2(("UIMachineWindow::handleStandardWindowButtonCallback: Redirecting callback for standard window button '%d' with option key '%d' to corresponding machine-window...\n",
+                 (int)enmButtonType, (int)fWithOptionKey));
         pMachineWindow->handleStandardWindowButtonCallback(enmButtonType, fWithOptionKey);
     }
 }
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
 

@@ -3,14 +3,14 @@
 
   Placed on the video output device child handle that is actively displaying output.
 
-  Copyright (c) 2006 - 2008, Intel Corporation. All rights reserved.<BR>
-  This program and the accompanying materials                          
-  are licensed and made available under the terms and conditions of the BSD License         
-  which accompanies this distribution.  The full text of the license may be found at        
-  http://opensource.org/licenses/bsd-license.php                                            
+  Copyright (c) 2006 - 2012, Intel Corporation. All rights reserved.<BR>
+  This program and the accompanying materials
+  are licensed and made available under the terms and conditions of the BSD License
+  which accompanies this distribution.  The full text of the license may be found at
+  http://opensource.org/licenses/bsd-license.php
 
-  THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,                     
-  WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.             
+  THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,
+  WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 
 **/
 
@@ -41,7 +41,7 @@ typedef struct {
   /// information for an active video output device. This pointer is
   /// NULL if no EDID information is available for the video output
   /// device. The minimum size of a valid Edid buffer is 128 bytes.
-  /// EDID information is defined in the E-DID EEPROM
+  /// EDID information is defined in the E-EDID EEPROM
   /// specification published by VESA (www.vesa.org).
   ///
   UINT8    *Edid;

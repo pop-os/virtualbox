@@ -1,7 +1,7 @@
 ## @file
 # This file is used to be the c coding style checking of ECC tool
 #
-# Copyright (c) 2009 - 2010, Intel Corporation. All rights reserved.<BR>
+# Copyright (c) 2009 - 2014, Intel Corporation. All rights reserved.<BR>
 # This program and the accompanying materials
 # are licensed and made available under the terms and conditions of the BSD License
 # which accompanies this distribution.  The full text of the license may be found at
@@ -12,7 +12,7 @@
 #
 
 import sys
-import os
+import Common.LongFilePathOs as os
 import re
 import string
 import CodeFragmentCollector
@@ -2323,13 +2323,13 @@ def CheckFileHeaderDoxygenComments(FullFileName):
         if (len(CommentStrListTemp) <= 1):
             # For Mac
             CommentStrListTemp = CommentStr.split('\r')
-        # Skip the content before the file  header    
+        # Skip the content before the file  header
         for CommentLine in CommentStrListTemp:
             if CommentLine.strip().startswith('/** @file'):
                 FileStartFlag = True
             if FileStartFlag ==  True:
                 CommentStrList.append(CommentLine)
-                       
+
         ID = Result[1]
         Index = 0
         if CommentStrList and CommentStrList[0].strip().startswith('/** @file'):
@@ -2352,7 +2352,7 @@ def CheckFileHeaderDoxygenComments(FullFileName):
             if EccGlobalData.gConfig.HeaderCheckCFileCommentStartSpacesNum == '1' or EccGlobalData.gConfig.HeaderCheckAll == '1' or EccGlobalData.gConfig.CheckAll == '1':
                 if CommentLine.startswith('/** @file') == False and CommentLine.startswith('**/') == False and CommentLine.strip() and CommentLine.startswith('  ') == False:
                     PrintErrorMsg(ERROR_HEADER_CHECK_FILE, 'File header comment content should start with two spaces at each line', FileTable, ID)
-            
+
             CommentLine = CommentLine.strip()
             if CommentLine.startswith('Copyright'):
                 NoCopyrightFlag = False
@@ -2374,9 +2374,9 @@ def CheckFileHeaderDoxygenComments(FullFileName):
                     # Check whether C File header Comment's each reference at list should begin with a bullet character.
                     if EccGlobalData.gConfig.HeaderCheckCFileCommentReferenceFormat == '1' or EccGlobalData.gConfig.HeaderCheckAll == '1' or EccGlobalData.gConfig.CheckAll == '1':
                         if RefListFlag == True:
-                            if RefLine.strip() and RefLine.strip().startswith('**/') == False and RefLine.startswith('  -') == False:                            
-                                PrintErrorMsg(ERROR_HEADER_CHECK_FILE, 'Each reference on a separate line should begin with a bullet character ""-"" ', FileTable, ID)                    
-    
+                            if RefLine.strip() and RefLine.strip().startswith('**/') == False and RefLine.startswith('  -') == False:
+                                PrintErrorMsg(ERROR_HEADER_CHECK_FILE, 'Each reference on a separate line should begin with a bullet character ""-"" ', FileTable, ID)
+
     if NoHeaderCommentStartFlag:
         PrintErrorMsg(ERROR_DOXYGEN_CHECK_FILE_HEADER, 'File header comment should begin with ""/** @file""', FileTable, ID)
         return

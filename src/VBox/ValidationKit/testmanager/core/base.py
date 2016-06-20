@@ -27,7 +27,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 101410 $"
+__version__ = "$Revision: 107838 $"
 
 
 # Standard python imports.
@@ -52,9 +52,51 @@ class TMExceptionBase(Exception):
     """
     pass;
 
+
 class TMTooManyRows(TMExceptionBase):
     """
     Too many rows in the result.
+    Used by ModelLogicBase decendants.
+    """
+    pass;
+
+
+class TMRowNotFound(TMExceptionBase):
+    """
+    Database row not found.
+    Used by ModelLogicBase decendants.
+    """
+    pass;
+
+
+class TMRowAlreadyExists(TMExceptionBase):
+    """
+    Database row already exists (typically raised by addEntry).
+    Used by ModelLogicBase decendants.
+    """
+    pass;
+
+
+class TMInvalidData(TMExceptionBase):
+    """
+    Data validation failed.
+    Used by ModelLogicBase decendants.
+    """
+    pass;
+
+
+class TMRowInUse(TMExceptionBase):
+    """
+    Database row is in use and cannot be deleted.
+    Used by ModelLogicBase decendants.
+    """
+    pass;
+
+
+class TMInFligthCollision(TMExceptionBase):
+    """
+    Database update failed because someone else had already made changes to
+    the data there.
     Used by ModelLogicBase decendants.
     """
     pass;
@@ -81,6 +123,18 @@ class ModelDataBase(ModelBase): # pylint: disable=R0903
     # an empty array ([]) instead of None as database NULL value.
     kasAltArrayNull = [];
 
+    ## validate
+    ## @{
+    ksValidateFor_Add           = 'add';
+    ksValidateFor_AddForeignId  = 'add-foreign-id';
+    ksValidateFor_Edit          = 'edit';
+    ksValidateFor_Other         = 'other';
+    ## @}
+
+
+    ## List of internal attributes which should be ignored by
+    ## getDataAttributes and related machinery
+    kasInternalAttributes       = [];
 
     def __init__(self):
         ModelBase.__init__(self);
@@ -98,6 +152,8 @@ class ModelDataBase(ModelBase): # pylint: disable=R0903
         asAttrs = dir(self);
         for sAttr in asAttrs:
             if sAttr[0] == '_' or sAttr[0] == 'k':
+                continue;
+            if sAttr in self.kasInternalAttributes:
                 continue;
             oValue = getattr(self, sAttr);
             if callable(oValue):
@@ -124,7 +180,7 @@ class ModelDataBase(ModelBase): # pylint: disable=R0903
         """
         Returns the hungarian prefix of the given name.
         """
-        for i in range(len(sName)):
+        for i, _ in enumerate(sName):
             if sName[i] not in ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
                                 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z']:
                 assert re.search('^[A-Z][a-zA-Z0-9]*$', sName[i:]) is not None;
@@ -178,7 +234,7 @@ class ModelDataBase(ModelBase): # pylint: disable=R0903
         #
         elif isinstance(oValue, list) and len(oValue) > 0 and isinstance(oValue[0], ModelDataBase):
             oValue = copy.copy(oValue);
-            for i in range(len(oValue)):
+            for i, _ in enumerate(oValue):
                 assert isinstance(oValue[i], ModelDataBase);
                 oValue[i] = copy.copy(oValue[i]);
                 oValue[i].convertFromParamNull();
@@ -214,7 +270,7 @@ class ModelDataBase(ModelBase): # pylint: disable=R0903
         #
         elif isinstance(oValue, list) and len(oValue) > 0 and isinstance(oValue[0], ModelDataBase):
             oValue = copy.copy(oValue);
-            for i in range(len(oValue)):
+            for i, _ in enumerate(oValue):
                 assert isinstance(oValue[i], ModelDataBase);
                 oValue[i] = copy.copy(oValue[i]);
                 oValue[i].convertToParamNull();
@@ -273,7 +329,8 @@ class ModelDataBase(ModelBase): # pylint: disable=R0903
         elif sPrefix == 's':
             (oNewValue, sError) = self.validateStr( oValue, aoNilValues = aoNilValues, fAllowNull = fAllowNull,
                                                     cchMin = getattr(self, 'kcchMin_' + sAttr, 0),
-                                                    cchMax = getattr(self, 'kcchMax_' + sAttr, 4096));
+                                                    cchMax = getattr(self, 'kcchMax_' + sAttr, 4096),
+                                                    fAllowUnicodeSymbols = getattr(self, 'kfAllowUnicode_' + sAttr, False) );
         ## @todo al.
         elif sPrefix == 'aid':
             (oNewValue, sError) = self.validateListOfInts(oValue, aoNilValues = aoNilValues, fAllowNull = fAllowNull,
@@ -293,7 +350,7 @@ class ModelDataBase(ModelBase): # pylint: disable=R0903
         _ = sParam; _ = oDb;
         return (oNewValue, sError);
 
-    def _validateAndConvertWorker(self, asAllowNullAttributes, oDb):
+    def _validateAndConvertWorker(self, asAllowNullAttributes, oDb, enmValidateFor = ksValidateFor_Other):
         """
         Worker for implementing validateAndConvert().
         """
@@ -310,9 +367,26 @@ class ModelDataBase(ModelBase): # pylint: disable=R0903
                 setattr(self, sAttr, oNewValue);
             if sError is not None:
                 dErrors[sParam] = sError;
+
+        # Check the NULL requirements of the primary ID(s) for the 'add' and 'edit' actions.
+        if   enmValidateFor == ModelDataBase.ksValidateFor_Add \
+          or enmValidateFor == ModelDataBase.ksValidateFor_AddForeignId \
+          or enmValidateFor == ModelDataBase.ksValidateFor_Edit:
+            fMustBeNull = enmValidateFor == ModelDataBase.ksValidateFor_Add;
+            sAttr = getattr(self, 'ksIdAttr', None);
+            if sAttr is not None:
+                oValue = getattr(self, sAttr);
+                if self.isAttributeNull(sAttr, oValue) != fMustBeNull:
+                    sParam = getattr(self, 'ksParam_' + sAttr);
+                    sErrMsg = 'Must be NULL!' if fMustBeNull else 'Must not be NULL!'
+                    if sParam in dErrors:
+                        dErrors[sParam] += ' ' + sErrMsg;
+                    else:
+                        dErrors[sParam]  = sErrMsg;
+
         return dErrors;
 
-    def validateAndConvert(self, oDb):
+    def validateAndConvert(self, oDb, enmValidateFor = ksValidateFor_Other):
         """
         Validates the input and converts valid fields to their right type.
         Returns a dictionary with per field reports, only invalid fields will
@@ -326,7 +400,8 @@ class ModelDataBase(ModelBase): # pylint: disable=R0903
             kiMin_iAttr, kiMax_iAttr, klMin_lAttr, klMax_lAttr,
             kasValidValues_enmAttr, and kasAllowNullAttributes.
         """
-        return self._validateAndConvertWorker(getattr(self, 'kasAllowNullAttributes', list()), oDb);
+        return self._validateAndConvertWorker(getattr(self, 'kasAllowNullAttributes', list()), oDb,
+                                              enmValidateFor = enmValidateFor);
 
     def convertParamToAttribute(self, sAttr, sParam, oValue, oDisp, fStrict):
         """
@@ -337,23 +412,24 @@ class ModelDataBase(ModelBase): # pylint: disable=R0903
 
         Child classes can override to do special parameter conversion jobs.
         """
-        sPrefix = self.getHungarianPrefix(sAttr);
+        sPrefix       = self.getHungarianPrefix(sAttr);
         asValidValues = getattr(self, 'kasValidValues_' + sAttr, None);
+        fAllowNull    = sAttr in getattr(self, 'kasAllowNullAttributes', list());
         if fStrict:
             if sPrefix == 'f':
                 # HACK ALERT! Checkboxes are only present when checked, so we always have to provide a default.
                 oNewValue = oDisp.getStringParam(sParam, asValidValues, '0');
             elif sPrefix[0] == 'a':
-                # HACK ALERT! List are not present if empty.
+                # HACK ALERT! Lists are not present if empty.
                 oNewValue = oDisp.getListOfStrParams(sParam, []);
             else:
-                oNewValue = oDisp.getStringParam(sParam, asValidValues, None);
+                oNewValue = oDisp.getStringParam(sParam, asValidValues, None, fAllowNull = fAllowNull);
         else:
             if sPrefix[0] == 'a':
                 oNewValue = oDisp.getListOfStrParams(sParam, []);
             else:
                 assert oValue is not None, 'sAttr=%s' % (sAttr,);
-                oNewValue = oDisp.getStringParam(sParam, asValidValues, oValue);
+                oNewValue = oDisp.getStringParam(sParam, asValidValues, oValue, fAllowNull = fAllowNull);
         return oNewValue;
 
     def initFromParams(self, oDisp, fStrict = True):
@@ -400,16 +476,16 @@ class ModelDataBase(ModelBase): # pylint: disable=R0903
         #
         if isinstance(oValue1, list) and isinstance(oValue2, list):
             if len(oValue1) == len(oValue2):
-                for i in range(len(oValue1)):
+                for i, _ in enumerate(oValue1):
                     if   not isinstance(oValue1[i], ModelDataBase) \
-                      or type(oValue1) != type(oValue2):
+                      or type(oValue1) is not type(oValue2):
                         return False;
                     if not oValue1[i].isEqual(oValue2[i]):
                         return False;
                 return True;
 
         elif  isinstance(oValue1, ModelDataBase) \
-          and type(oValue1) == type(oValue2):
+          and type(oValue1) is type(oValue2):
             return oValue1[i].isEqual(oValue2[i]);
 
         _ = sAttr;
@@ -676,7 +752,7 @@ class ModelDataBase(ModelBase): # pylint: disable=R0903
         if len(asValues) > 0:
             oType = type(asValues[0]);
             for i in range(1, len(asValues)):
-                if type(asValues[i]) is not oType:
+                if type(asValues[i]) is not oType: # pylint: disable=unidiomatic-typecheck
                     return (asValues, 'Invalid entry data type ([0]=%s vs [%d]=%s).' % (oType, i, type(asValues[i])) );
 
         return (asValues, None);
@@ -717,7 +793,7 @@ class ModelDataBase(ModelBase): # pylint: disable=R0903
         (asValues, sError) = ModelDataBase.validateListOfSomething(asValues, aoNilValues, fAllowNull);
 
         if sError is None  and asValues not in aoNilValues  and  len(asValues) > 0:
-            for i in range(len(asValues)):
+            for i, _ in enumerate(asValues):
                 sValue = asValues[i];
 
                 sThisErr = '';
@@ -977,9 +1053,9 @@ class ModelDataBase(ModelBase): # pylint: disable=R0903
         def __init__(self, oDisp, sAttrFmt):
             self.oDisp    = oDisp;
             self.sAttrFmt = sAttrFmt;
-        def getStringParam(self, sName, asValidValues = None, sDefault = None):
+        def getStringParam(self, sName, asValidValues = None, sDefault = None, fAllowNull = False):
             """See WuiDispatcherBase.getStringParam."""
-            return self.oDisp.getStringParam(self.sAttrFmt % (sName,), asValidValues, sDefault);
+            return self.oDisp.getStringParam(self.sAttrFmt % (sName,), asValidValues, sDefault, fAllowNull = fAllowNull);
         def getListOfStrParams(self, sName, asDefaults = None):
             """See WuiDispatcherBase.getListOfStrParams."""
             return self.oDisp.getListOfStrParams(self.sAttrFmt % (sName,), asDefaults);
@@ -1057,8 +1133,8 @@ class ModelDataBaseTestCase(unittest.TestCase):
 
     def testInitFromParams(self):
         class DummyDisp(object):
-            def getStringParam(self, sName, asValidValues = None, sDefault = None):
-                _ = sName; _ = asValidValues;
+            def getStringParam(self, sName, asValidValues = None, sDefault = None, fAllowNull = False):
+                _ = sName; _ = asValidValues; _ = fAllowNull;
                 return sDefault;
             def getListOfStrParams(self, sName, asDefaults = None):
                 _ = sName;
@@ -1074,8 +1150,6 @@ class ModelDataBaseTestCase(unittest.TestCase):
     def testToString(self):
         for oSample in self.aoSamples:
             self.assertIsNotNone(oSample.toString());
-
-# pylint: enable=E1101,C0111,R0903
 
 
 class ModelLogicBase(ModelBase): # pylint: disable=R0903
@@ -1099,6 +1173,26 @@ class ModelLogicBase(ModelBase): # pylint: disable=R0903
         This should only be used for instantiating other ModelLogicBase children.
         """
         return self._oDb;
+
+    def _dbRowsToModelDataList(self, oModelDataType, aaoRows = None):
+        """
+        Helper for conerting a simple fetch into a list of ModelDataType python objects.
+
+        If aaoRows is None, we'll fetchAll from the database ourselves.
+
+        The oModelDataType must be a class derived from ModelDataBase and implement
+        the initFormDbRow method.
+
+        Returns a list of oModelDataType instances.
+        """
+        assert issubclass(oModelDataType, ModelDataBase);
+        aoRet = [];
+        if aaoRows is None:
+            aaoRows = self._oDb.fetchAll();
+        for aoRow in aaoRows:
+            aoRet.append(oModelDataType().initFromDbRow(aoRow));
+        return aoRet;
+
 
 
 class AttributeChangeEntry(object): # pylint: disable=R0903

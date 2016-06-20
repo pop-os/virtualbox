@@ -229,7 +229,7 @@ void QIMainDialog::keyPressEvent(QKeyEvent *pEvent)
             }
             break;
         }
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
         /* Special handling for Period key: */
         case Qt::Key_Period:
         {
@@ -240,7 +240,7 @@ void QIMainDialog::keyPressEvent(QKeyEvent *pEvent)
             }
             break;
         }
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
         /* Special handling for Return/Enter key: */
         case Qt::Key_Return:
         case Qt::Key_Enter:
@@ -317,7 +317,7 @@ bool QIMainDialog::eventFilter(QObject *pObject, QEvent *pEvent)
 QPushButton* QIMainDialog::searchDefaultButton() const
 {
     /* Search for the first default-button in the dialog: */
-    QList<QPushButton*> list = qFindChildren<QPushButton*>(this);
+    QList<QPushButton*> list = findChildren<QPushButton*>();
     foreach (QPushButton *pButton, list)
         if (pButton->isDefault() &&
             (pButton->parent() == centralWidget() ||

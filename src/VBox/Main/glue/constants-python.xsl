@@ -56,7 +56,7 @@ You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
 
-__version__ = "$Revision: 106598 $";
+__version__ = "$Revision: 106555 $";
 
 
 
@@ -89,7 +89,7 @@ class VirtualBoxReflectionInfo:
     __dValuesSym = {]]></xsl:text>
     <xsl:for-each select="//enum">
         <xsl:text>
-        '</xsl:text> <xsl:value-of select="@name"/> <xsl:text>': { </xsl:text>
+        '</xsl:text> <xsl:value-of select="@name"/> <xsl:text>': {</xsl:text>
         <xsl:for-each select="const">
             <xsl:text>
             '</xsl:text> <xsl:value-of select="@name"/> <xsl:text>': '</xsl:text>

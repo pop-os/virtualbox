@@ -76,16 +76,16 @@
         <translation>Die VirtualBox-Kernmodule passen nicht zu dieser Version von VirtualBox. Es wird empfohlen, VirtualBox komplett neu zu installieren.</translation>
     </message>
     <message>
-        <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;may correct this. Make sure that you do not mix the OSE version and the PUEL version of VirtualBox.</source>
-        <translation>Die VirtualBox-Kernmodule passen nicht zu dieser Version von VirtualBox. Die Installation von VirtualBox war möglicherweise nicht vollständig. Durch Ausführen von &lt;br/&gt;&lt;br/&gt;&lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt; sollte dieses Problem behoben werden. Bitte stellen Sie sicher, dass Sie die OSE-Version von VirtualBox nicht mit der PUEL-Version mischen.</translation>
+        <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;may correct this. Make sure that you do not mix the OSE version and the PUEL version of VirtualBox.</source>
+        <translation>Die VirtualBox-Kernmodule passen nicht zu dieser Version von VirtualBox. Die Installation von VirtualBox war möglicherweise nicht vollständig. Durch Ausführen von &lt;br/&gt;&lt;br/&gt;&lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt; sollte dieses Problem behoben werden. Bitte stellen Sie sicher, dass Sie die OSE-Version von VirtualBox nicht mit der PUEL-Version mischen.</translation>
     </message>
     <message>
         <source>This error means that the kernel driver was either not able to allocate enough memory or that some mapping operation failed.</source>
         <translation>Diese Fehlermeldung bedeutet, dass der Kerntreiber entweder nicht ausreichend Speicher anfordern konnte oder dass eine Mapping-Operation fehlgeschlagen ist.</translation>
     </message>
     <message>
-        <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. If it is available in your distribution, you should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
-        <translation>Der VirtualBox Kerntreiber für Linux (vboxdrv) ist entweder nicht geladen oder auf das Gerät /dev/vboxdrv konnte nicht zugegriffen werden. Richten Sie das Kernmodul neu ein, indem Sie&lt;br/&gt;&lt;br/&gt;&lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;mit Root-Rechten ausführen. Falls Sie eine Linux-Distribution von Ubuntu, Fedora oder Mandriva verweden, sollten Sie das Paket DKMS zuerst installieren. Dieses compiliert die Kernmodule nach einem Kernupgrade automatisch neu.</translation>
+        <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. If it is available in your distribution, you should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
+        <translation>Der VirtualBox Kerntreiber für Linux (vboxdrv) ist entweder nicht geladen oder auf das Gerät /dev/vboxdrv konnte nicht zugegriffen werden. Richten Sie das Kernmodul neu ein, indem Sie&lt;br/&gt;&lt;br/&gt;&lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;mit Root-Rechten ausführen. Falls Sie eine Linux-Distribution von Ubuntu, Fedora oder Mandriva verweden, sollten Sie das Paket DKMS zuerst installieren. Dieses compiliert die Kernmodule nach einem Kernupgrade automatisch neu.</translation>
     </message>
 </context>
 <context>
@@ -893,10 +893,6 @@
         <source>Power off selected virtual machines</source>
         <translation>Schaltet die ausgewählten virtuelle Maschinen aus</translation>
     </message>
-    <message>
-        <source>Disable Dock Icon Overlay</source>
-        <translation>Dock-Icon-Overlay ausschalten</translation>
-    </message>
 </context>
 <context>
     <name>UIAddDiskEncryptionPasswordDialog</name>
@@ -911,6 +907,11 @@
             <numerusform>Diese virtuelle Maschine ist passwortgeschützt. Bitte geben Sie das Passwort zum Entsperren ein.</numerusform>
             <numerusform></numerusform>
         </translation>
+    </message>
+    <message>
+        <source>Status</source>
+        <comment>password table field</comment>
+        <translation type="obsolete">Status</translation>
     </message>
     <message>
         <source>ID</source>
@@ -1143,8 +1144,8 @@
         <source>%n machine(s)</source>
         <comment>Group item tool-tip / Machine info</comment>
         <translation>
-            <numerusform>%n Maschine</numerusform>
-            <numerusform>%n Maschinen</numerusform>
+            <numerusform>% Maschine</numerusform>
+            <numerusform>% Maschinen</numerusform>
         </translation>
     </message>
     <message numerus="yes">
@@ -2237,6 +2238,14 @@
 <context>
     <name>UIGlobalSettingsProxy</name>
     <message>
+        <source>When checked, VirtualBox will use the proxy settings supplied for tasks like downloading Guest Additions from the network or checking for updates.</source>
+        <translation>Durch Aktivieren dieser Einstellung benutzt VirtualBox einen HTTP-Proxy für Aufgaben wie beispielsweise den Test auf neue VirtualBox-Versionen oder das Herunterladen der Gasterweiterungen.</translation>
+    </message>
+    <message>
+        <source>&amp;Enable Proxy</source>
+        <translation>Proxy &amp;aktivieren</translation>
+    </message>
+    <message>
         <source>Ho&amp;st:</source>
         <translation>Ho&amp;st:</translation>
     </message>
@@ -2259,30 +2268,6 @@
     <message>
         <source>Holds the proxy port.</source>
         <translation>Legt den Proxy-Port fest.</translation>
-    </message>
-    <message>
-        <source>When chosen, VirtualBox will try to auto-detect host proxy settings for tasks like downloading Guest Additions from the network or checking for updates.</source>
-        <translation>Versucht, die Proxy-Einstellungen des Hosts für den Test auf eine neue VirtualBox-Version oder für das Herunterladen der Gasterweiterungen automatisch zu erkennen.</translation>
-    </message>
-    <message>
-        <source>&amp;Auto-detect Host Proxy Settings</source>
-        <translation>&amp;Automatische Erkennung der Proxy-Einstellungen</translation>
-    </message>
-    <message>
-        <source>When chosen, VirtualBox will use direct Internet connection for tasks like downloading Guest Additions from the network or checking for updates.</source>
-        <translation>Kein Proxy wird für das Herunterladen der Gasterweiterungen oder für den Test auf eine neue VirtualBox-Version verwendet.</translation>
-    </message>
-    <message>
-        <source>&amp;Direct Connection to the Internet</source>
-        <translation>&amp;Direkte Internetverbindung</translation>
-    </message>
-    <message>
-        <source>When chosen, VirtualBox will use the proxy settings supplied for tasks like downloading Guest Additions from the network or checking for updates.</source>
-        <translation>Die gewählten Proxy-Einstellungen werden für das Herunterladen der Gasterweiterungen oder für die Überprüfung auf eine neue VirtualBox-Version verwendet.</translation>
-    </message>
-    <message>
-        <source>&amp;Manual Proxy Configuration</source>
-        <translation>&amp;Manuelle Proxy-Konfiguration</translation>
     </message>
 </context>
 <context>
@@ -5270,14 +5255,6 @@
         <source>Encryption password for &lt;nobr&gt;ID = &apos;%1&apos;&lt;/nobr&gt; is invalid.</source>
         <translation>Das Passwort für &lt;nobr&gt;ID = &apos;%1&apos;&lt;/nobr&gt; ist falsch.</translation>
     </message>
-    <message>
-        <source>The current port forwarding rules are not valid. All of the host or guest address values should be correct or empty.</source>
-        <translation>Die Regeln für die Port-Weiterleitung enthalten momentan Fehler. Alle Host- oder Gast-Adressen müssen entweder gültig oder leer sein.</translation>
-    </message>
-    <message>
-        <source>The current port forwarding rules are not valid. None of the guest address values may be empty.</source>
-        <translation>Die Regeln für die Port-Weiterleitung enthalten momentan Fehler. Keine der Gast-Adressen darf leer sein.</translation>
-    </message>
 </context>
 <context>
     <name>UIMiniToolBar</name>
@@ -5416,46 +5393,6 @@
     <message>
         <source>Unknown reason</source>
         <translation>Unbekannte Ursache</translation>
-    </message>
-    <message>
-        <source>%1: %2</source>
-        <comment>Context description: Error description</comment>
-        <translation></translation>
-    </message>
-    <message>
-        <source>Unable to initialize HTTP library</source>
-        <translation>Die HTTP-Bibliothek kann nicht initialisiert werden</translation>
-    </message>
-    <message>
-        <source>Connection refused</source>
-        <translation>Verbindung abgewiesen</translation>
-    </message>
-    <message>
-        <source>Content moved</source>
-        <translation>Inhalt verschoben</translation>
-    </message>
-    <message>
-        <source>Proxy not found</source>
-        <translation>Proxy nicht gefunden</translation>
-    </message>
-    <message>
-        <source>Url not found on the server</source>
-        <translation>URL auf dem Server nicht vorhanden</translation>
-    </message>
-</context>
-<context>
-    <name>UINetworkReplyPrivateThread</name>
-    <message>
-        <source>During proxy configuration</source>
-        <translation>während der Konfiguration des Proxy</translation>
-    </message>
-    <message>
-        <source>During certificate downloading</source>
-        <translation>während das Zertifikat heruntergeladen wurde</translation>
-    </message>
-    <message>
-        <source>During network request</source>
-        <translation>während der Netzwerkzugriffs</translation>
     </message>
 </context>
 <context>
@@ -6675,14 +6612,14 @@
     </message>
 </context>
 <context>
-    <name>VBoxEmptyFileSelector</name>
+    <name>UIEmptyFilePathSelector</name>
     <message>
         <source>Choose...</source>
         <translation>Schließen...</translation>
     </message>
 </context>
 <context>
-    <name>VBoxFilePathSelectorWidget</name>
+    <name>UIFilePathSelector</name>
     <message>
         <source>&lt;reset to default&gt;</source>
         <translation>&lt;Voreinstellung&gt;</translation>

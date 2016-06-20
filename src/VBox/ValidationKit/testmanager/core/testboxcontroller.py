@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 102941 $"
+__version__ = "$Revision: 107847 $"
 
 
 # Standard python imports.
@@ -272,19 +272,19 @@ class TestBoxController(object): # pylint: disable=R0903
         """
         Cleans up any old test set that may be left behind and changes the
         state to 'idle'.  See scenario #9:
-        file://../../docs/AutomaticTestingRevamp.html#cleaning-up-abandond-testcase
+        file://../../docs/AutomaticTestingRevamp.html#cleaning-up-abandoned-testcase
 
         Note. oStatusData.enmState is set to idle, but tsUpdated is not changed.
         """
 
-        # Cleanup any abandond test.
+        # Cleanup any abandoned test.
         if oStatusData.idTestSet is not None:
-            SystemLogLogic(oDb).addEntry(SystemLogData.ksEvent_TestSetAbandond,
+            SystemLogLogic(oDb).addEntry(SystemLogData.ksEvent_TestSetAbandoned,
                                          "idTestSet=%u idTestBox=%u enmState=%s %s"
                                          % (oStatusData.idTestSet, oStatusData.idTestBox,
                                             oStatusData.enmState, self._sAction),
                                          fCommit = False);
-            TestSetLogic(oDb).completeAsAbandond(oStatusData.idTestSet, fCommit = False);
+            TestSetLogic(oDb).completeAsAbandoned(oStatusData.idTestSet, fCommit = False);
             GlobalResourceLogic(oDb).freeGlobalResourcesByTestBox(self._idTestBox, fCommit = False);
 
         # Change to idle status
@@ -362,6 +362,7 @@ class TestBoxController(object): # pylint: disable=R0903
         fCpuNestedPaging    = self._getBoolParam(  constants.tbreq.SIGNON_PARAM_HAS_NESTED_PAGING);
         fCpu64BitGuest      = self._getBoolParam(  constants.tbreq.SIGNON_PARAM_HAS_64_BIT_GUEST, fDefValue = True);
         fChipsetIoMmu       = self._getBoolParam(  constants.tbreq.SIGNON_PARAM_HAS_IOMMU);
+        fRawMode            = self._getBoolParam(  constants.tbreq.SIGNON_PARAM_WITH_RAW_MODE, fDefValue = None);
         cMbMemory           = self._getLongParam(  constants.tbreq.SIGNON_PARAM_MEM_SIZE,     8, 1073741823); # 8MB..1PB
         cMbScratch          = self._getLongParam(  constants.tbreq.SIGNON_PARAM_SCRATCH_SIZE, 0, 1073741823); # 0..1PB
         sReport             = self._getStringParam(constants.tbreq.SIGNON_PARAM_REPORT, fStrip = True, sDefValue = '');   # new
@@ -394,6 +395,12 @@ class TestBoxController(object): # pylint: disable=R0903
         #
         # Update the row in TestBoxes if something changed.
         #
+        if oTestBox.cMbScratch is not None and oTestBox.cMbScratch != 0:
+            cPctScratchDiff = (cMbScratch - oTestBox.cMbScratch) * 100 / oTestBox.cMbScratch;
+        else:
+            cPctScratchDiff = 100;
+
+        # pylint: disable=R0916
         if   self._sTestBoxAddr != oTestBox.ip \
           or sOs                != oTestBox.sOs \
           or sOsVersion         != oTestBox.sOsVersion \
@@ -406,8 +413,9 @@ class TestBoxController(object): # pylint: disable=R0903
           or fCpuNestedPaging   != oTestBox.fCpuNestedPaging \
           or fCpu64BitGuest     != oTestBox.fCpu64BitGuest \
           or fChipsetIoMmu      != oTestBox.fChipsetIoMmu \
+          or fRawMode           != oTestBox.fRawMode \
           or cMbMemory          != oTestBox.cMbMemory \
-          or cMbScratch         != oTestBox.cMbScratch \
+          or abs(cPctScratchDiff) >= min(4 + cMbScratch / 10240, 12) \
           or sReport            != oTestBox.sReport \
           or iTestBoxScriptRev  != oTestBox.iTestBoxScriptRev \
           or iPythonHexVersion  != oTestBox.iPythonHexVersion:
@@ -425,6 +433,7 @@ class TestBoxController(object): # pylint: disable=R0903
                                          fCpuNestedPaging  = fCpuNestedPaging,
                                          fCpu64BitGuest    = fCpu64BitGuest,
                                          fChipsetIoMmu     = fChipsetIoMmu,
+                                         fRawMode          = fRawMode,
                                          cMbMemory         = cMbMemory,
                                          cMbScratch        = cMbScratch,
                                          sReport           = sReport,
@@ -558,10 +567,11 @@ class TestBoxController(object): # pylint: disable=R0903
         #
         # If idling and enabled try schedule a new task.
         #
-        if fIdle \
+        if    fIdle \
           and oTestBoxData.fEnabled \
+          and not TestSetLogic(oDb).isTestBoxExecutingToRapidly(oTestBoxData.idTestBox) \
           and oStatusData.enmState == TestBoxStatusData.ksTestBoxState_Idle: # (paranoia)
-            dResponse = SchedulerBase.scheduleNewTask(oDb, oTestBoxData, self._oSrvGlue.getBaseUrl());
+            dResponse = SchedulerBase.scheduleNewTask(oDb, oTestBoxData, oStatusData.iWorkItem, self._oSrvGlue.getBaseUrl());
             if dResponse is not None:
                 return self._writeResponse(dResponse);
 
@@ -701,12 +711,15 @@ class TestBoxController(object): # pylint: disable=R0903
                           'log/debug/client',
                           'log/installer',
                           'log/uninstaller',
+                          'log/guest/kernel',
                           'crash/report/vm',
                           'crash/dump/vm',
                           'crash/report/svc',
                           'crash/dump/svc',
                           'crash/report/client',
                           'crash/dump/client',
+                          'info/collection',
+                          'info/vgatext',
                           'misc/other',
                           'screenshot/failure',
                           'screenshot/success',

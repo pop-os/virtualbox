@@ -967,6 +967,8 @@ GVMMR0DECL(int) GVMMR0CreateVM(PSUPDRVSESSION pSession, uint32_t cCpus, PVM *ppV
                                             GVMMR0_USED_EXCLUSIVE_UNLOCK(pGVMM);
                                             gvmmR0CreateDestroyUnlock(pGVMM);
 
+                                            CPUMR0RegisterVCpuThread(&pVM->aCpus[0]);
+
                                             *ppVM = pVM;
                                             Log(("GVMMR0CreateVM: pVM=%p pVMR3=%p pGVM=%p hGVM=%d\n", pVM, pVM->pVMR3, pGVM, iHandle));
                                             return VINF_SUCCESS;
@@ -1246,6 +1248,8 @@ static DECLCALLBACK(void) gvmmR0HandleObjDestructor(void *pvObj, void *pvUser1, 
 {
     LogFlow(("gvmmR0HandleObjDestructor: %p %p %p\n", pvObj, pvUser1, pvUser2));
 
+    NOREF(pvObj);
+
     /*
      * Some quick, paranoid, input validation.
      */
@@ -1423,7 +1427,10 @@ GVMMR0DECL(int) GVMMR0RegisterVCpu(PVM pVM, VMCPUID idCpu)
 
     pVM->aCpus[idCpu].hNativeThreadR0 = pGVM->aCpus[idCpu].hEMT = RTThreadNativeSelf();
 
-    return VMMR0ThreadCtxHookCreateForEmt(&pVM->aCpus[idCpu]);
+    rc = VMMR0ThreadCtxHookCreateForEmt(&pVM->aCpus[idCpu]);
+    if (RT_SUCCESS(rc))
+        CPUMR0RegisterVCpuThread(&pVM->aCpus[idCpu]);
+    return rc;
 }
 
 
@@ -2652,7 +2659,7 @@ GVMMR0DECL(int) GVMMR0ResetStatistics(PCGVMMSTATS pStats, PSUPDRVSESSION pSessio
     /*
      * Enumerate the VMs and add the ones visible to the statistics.
      */
-    if (ASMMemIsAll8(&pStats->SchedSum, sizeof(pStats->SchedSum), 0))
+    if (!ASMMemIsZero(&pStats->SchedSum, sizeof(pStats->SchedSum)))
     {
         for (unsigned i = pGVMM->iUsedHead;
              i != NIL_GVM_HANDLE && i < RT_ELEMENTS(pGVMM->aHandles);

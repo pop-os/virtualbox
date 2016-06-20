@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2015 Oracle Corporation
+ * Copyright (C) 2006-2016 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -201,6 +201,9 @@ typedef struct DEVEFI
 
     /** I/O-APIC enabled? */
     uint8_t                 u8IOAPIC;
+
+    /** APIC mode to be set up by firmware. */
+    uint8_t                 u8APIC;
 
     /** Boot parameters passed to the firmware. */
     char                    szBootArgs[256];
@@ -688,6 +691,31 @@ static int nvramWriteVariableOpAdd(PDEVEFI pThis)
         pThis->NVRAM.u32Status = EFI_VARIABLE_OP_STATUS_ERROR;
         Log(("nvramWriteVariableOpAdd: Too many variabled.\n"));
     }
+
+    /*
+     * Log the value of bugcheck variables.
+     */
+    if (   (   pThis->NVRAM.VarOpBuf.cbValue == 4
+            || pThis->NVRAM.VarOpBuf.cbValue == 8)
+        && (   strcmp(pThis->NVRAM.VarOpBuf.szName, "BugCheckCode") == 0
+            || strcmp(pThis->NVRAM.VarOpBuf.szName, "BugCheckParameter0") == 0
+            || strcmp(pThis->NVRAM.VarOpBuf.szName, "BugCheckParameter1") == 0
+            || strcmp(pThis->NVRAM.VarOpBuf.szName, "BugCheckParameter2") == 0
+            || strcmp(pThis->NVRAM.VarOpBuf.szName, "BugCheckParameter3") == 0
+            || strcmp(pThis->NVRAM.VarOpBuf.szName, "BugCheckProgress")   == 0 ) )
+    {
+        if (pThis->NVRAM.VarOpBuf.cbValue == 4)
+            LogRel(("EFI: %RTuuid::'%s' = %#010RX32\n", &pThis->NVRAM.VarOpBuf.uuid, pThis->NVRAM.VarOpBuf.szName,
+                    RT_MAKE_U32_FROM_U8(pThis->NVRAM.VarOpBuf.abValue[0], pThis->NVRAM.VarOpBuf.abValue[1],
+                                        pThis->NVRAM.VarOpBuf.abValue[2], pThis->NVRAM.VarOpBuf.abValue[3])));
+        else
+            LogRel(("EFI: %RTuuid::'%s' = %#018RX64\n", &pThis->NVRAM.VarOpBuf.uuid, pThis->NVRAM.VarOpBuf.szName,
+                    RT_MAKE_U64_FROM_U8(pThis->NVRAM.VarOpBuf.abValue[0], pThis->NVRAM.VarOpBuf.abValue[1],
+                                        pThis->NVRAM.VarOpBuf.abValue[2], pThis->NVRAM.VarOpBuf.abValue[3],
+                                        pThis->NVRAM.VarOpBuf.abValue[4], pThis->NVRAM.VarOpBuf.abValue[5],
+                                        pThis->NVRAM.VarOpBuf.abValue[6], pThis->NVRAM.VarOpBuf.abValue[7])));
+    }
+
 
     LogFunc(("cVariables=%u u32Status=%#x\n", pThis->NVRAM.cVariables, pThis->NVRAM.u32Status));
     return VINF_SUCCESS;
@@ -2099,6 +2127,7 @@ static DECLCALLBACK(int)  efiConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
                               "NumCPUs\0"
                               "UUID\0"
                               "IOAPIC\0"
+                              "APIC\0"
                               "DmiBIOSFirmwareMajor\0"
                               "DmiBIOSFirmwareMinor\0"
                               "DmiBIOSReleaseDate\0"
@@ -2149,6 +2178,11 @@ static DECLCALLBACK(int)  efiConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
     if (RT_FAILURE (rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: Failed to read \"IOAPIC\""));
+
+    rc = CFGMR3QueryU8Def(pCfg, "APIC", &pThis->u8APIC, 1);
+    if (RT_FAILURE (rc))
+        return PDMDEV_SET_ERROR(pDevIns, rc,
+                                N_("Configuration error: Failed to read \"APIC\""));
 
     /*
      * Query the machine's UUID for SMBIOS/DMI use.

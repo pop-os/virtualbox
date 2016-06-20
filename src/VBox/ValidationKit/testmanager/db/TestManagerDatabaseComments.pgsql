@@ -157,6 +157,10 @@ COMMENT ON COLUMN BuildSources.iLastRevision IS
   'The last subversion tree revision to match, no upper limit if NULL.';
 
 
+COMMENT ON COLUMN BuildSources.cSecMaxAge IS
+  'The maximum age of the builds in seconds, unlimited if NULL.';
+
+
 COMMENT ON TABLE TestCases IS
   'Test case configuration.
 
@@ -314,6 +318,10 @@ TestCases.sBuildReqExpr field.';
 
 COMMENT ON COLUMN TestCaseArgs.cGangMembers IS
   'Number of testboxes required (gang scheduling).';
+
+
+COMMENT ON COLUMN TestCaseArgs.sSubName IS
+  'Optional variation sub-name.';
 
 
 COMMENT ON INDEX TestCaseArgsLookupIdx IS
@@ -498,6 +506,11 @@ This is for when we later desire different scheduling that the best
 effort stuff provided by the initial implementation.';
 
 
+COMMENT ON COLUMN SchedGroups.sComment IS
+  'The Validation Kit build source (@VALIDATIONKIT_ZIP@).
+Non-unique foreign key: BuildSources(idBuildSrc)';
+
+
 COMMENT ON TABLE SchedGroupMembers IS
   'N:M relationship between scheduling groups and test groups.
 
@@ -539,6 +552,46 @@ COMMENT ON COLUMN SchedGroupMembers.bmHourlySchedule IS
 there are no constraints.
 Each bit in the bitstring represents one hour, with bit 0 indicating the
 midnight hour on a monday.';
+
+
+COMMENT ON TABLE TestBoxStrTab IS
+  'String table for the test boxes.
+
+This is a string cache for all string members in TestBoxes except the name.
+The rational is to avoid duplicating large strings like sReport when the
+testbox reports a new cMbScratch value or the box when the test sheriff
+sends a reboot command or similar.
+
+At the time this table was introduced, we had 400558 TestBoxes rows,  where
+the SUM(LENGTH(sReport)) was 993MB.  There were really just 1066 distinct
+sReport values, with a total length of 0x3 MB.
+
+Nothing is ever deleted from this table.
+
+@note Should use a stored procedure to query/insert a string.
+
+
+TestBox stats prior to conversion:
+     SELECT COUNT(*) FROM TestBoxes:                     400558 rows
+     SELECT pg_total_relation_size(''TestBoxes''):      740794368 bytes (706 MB)
+     Average row cost:           740794368 / 400558 =      1849 bytes/row
+
+After conversion:
+     SELECT COUNT(*) FROM TestBoxes:                     400558 rows
+     SELECT pg_total_relation_size(''TestBoxes''):      144375808 bytes (138 MB)
+     SELECT COUNT(idStr) FROM TestBoxStrTab:               1292 rows
+     SELECT pg_total_relation_size(''TestBoxStrTab''):    5709824 bytes (5.5 MB)
+                  (144375808 + 5709824) / 740794368 =        20 %
+     Average row cost boxes:     144375808 / 400558 =       360 bytes/row
+     Average row cost strings:       5709824 / 1292 =      4420 bytes/row';
+
+
+COMMENT ON COLUMN TestBoxStrTab.sValue IS
+  'The string value.';
+
+
+COMMENT ON COLUMN TestBoxStrTab.tsCreated IS
+  'Creation time stamp.';
 
 
 COMMENT ON TYPE TestBoxCmd_T IS
@@ -594,11 +647,6 @@ COMMENT ON COLUMN TestBoxes.sName IS
 Usually similar to the DNS name.';
 
 
-COMMENT ON COLUMN TestBoxes.sDescription IS
-  'Optional testbox description.
-Intended for describing the box as well as making other relevant notes.';
-
-
 COMMENT ON COLUMN TestBoxes.fEnabled IS
   'Indicates whether this testbox is enabled.
 A testbox gets disabled when we''re doing maintenance, debugging a issue
@@ -610,20 +658,10 @@ COMMENT ON COLUMN TestBoxes.enmLomKind IS
   'The kind of lights-out-management.';
 
 
-COMMENT ON COLUMN TestBoxes.sOs IS
-  'Same abbrieviations as kBuild, see KBUILD_OSES.';
-
-
-COMMENT ON COLUMN TestBoxes.sOsVersion IS
-  'Informational, no fixed format.';
-
-
-COMMENT ON COLUMN TestBoxes.sCpuVendor IS
-  'Same as CPUID reports (GenuineIntel, AuthenticAMD, CentaurHauls, ...).';
-
-
-COMMENT ON COLUMN TestBoxes.sCpuArch IS
-  'Same as kBuild - x86, amd64, ... See KBUILD_ARCHES.';
+COMMENT ON COLUMN TestBoxes.lCpuRevision IS
+  'Number identifying the CPU family/model/stepping/whatever.
+For x86 and AMD64 type CPUs, this will on the following format:
+  (EffFamily << 24) | (EffModel << 8) | Stepping.';
 
 
 COMMENT ON COLUMN TestBoxes.cCpus IS
@@ -644,6 +682,10 @@ COMMENT ON COLUMN TestBoxes.fCpu64BitGuest IS
 
 COMMENT ON COLUMN TestBoxes.fChipsetIoMmu IS
   'Set if chipset with usable IOMMU (VT-d / AMD-Vi).';
+
+
+COMMENT ON COLUMN TestBoxes.fRawMode IS
+  'Set if the test box does raw-mode tests.';
 
 
 COMMENT ON COLUMN TestBoxes.cMbMemory IS
@@ -863,8 +905,12 @@ COMMENT ON COLUMN BuildCategories.sProduct IS
 The product name.  For instance ''VBox'' or ''VBoxTestSuite''.';
 
 
+COMMENT ON COLUMN BuildCategories.sRepository IS
+  'The version control repository name.';
+
+
 COMMENT ON COLUMN BuildCategories.sBranch IS
-  'The branch name.';
+  'The branch name (in the version control system).';
 
 
 COMMENT ON COLUMN BuildCategories.sType IS
@@ -947,6 +993,44 @@ The binaries have paths relative to the TESTBOX_PATH_BUILDS or full URLs.';
 
 COMMENT ON COLUMN Builds.fBinariesDeleted IS
   'Set when the binaries gets deleted by the build quota script.';
+
+
+COMMENT ON TABLE VcsRevisions IS
+  'This table is for translating build revisions into commit details.
+
+For graphs and test results, it would be useful to translate revisions into
+dates and maybe provide commit message and the committer.
+
+Data is entered exclusively thru one or more batch jobs, so no internal
+authorship needed.  Also, since we''re mirroring data from external sources
+here, the batch job is allowed to update/replace existing records.
+
+@todo We we could collect more info from the version control systems, if we
+      believe it''s useful and can be presented in a reasonable manner.
+      Getting a list of affected files would be simple (requires
+      a separate table with a M:1 relationship to this table), or try
+      associate a commit to a branch.';
+
+
+COMMENT ON COLUMN VcsRevisions.sRepository IS
+  'The version control tree name.';
+
+
+COMMENT ON COLUMN VcsRevisions.iRevision IS
+  'The version control tree revision number.';
+
+
+COMMENT ON COLUMN VcsRevisions.tsCreated IS
+  'When the revision was created (committed).';
+
+
+COMMENT ON COLUMN VcsRevisions.sAuthor IS
+  'The name of the committer.
+@note Not to be confused with uidAuthor and test manager users.';
+
+
+COMMENT ON COLUMN VcsRevisions.sMessage IS
+  'The commit message.';
 
 
 COMMENT ON TABLE TestResultStrTab IS
@@ -1139,6 +1223,14 @@ COMMENT ON INDEX TestSetsGangIdx IS
   'The test set of the gang leader, NULL if no gang involved.
 @note This is set by the gang leader as well, so that we can find all
       gang members by WHERE idTestSetGangLeader = :id.';
+
+
+COMMENT ON INDEX TestSetsDoneCreatedBuildCatIdx IS
+  'The TestSetsDoneCreatedBuildCatIdx is for testbox results, graph options and such.';
+
+
+COMMENT ON INDEX TestSetsGraphBoxIdx IS
+  'For graphs.';
 
 
 COMMENT ON TYPE TestBoxState_T IS

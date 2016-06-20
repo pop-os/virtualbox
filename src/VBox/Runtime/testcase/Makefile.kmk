@@ -52,6 +52,7 @@ PROGRAMS += \
 	tstRTCidr \
 	tstRTCritSect \
 	tstRTCritSectRw \
+	tstRTCrX509-1 \
 	tstRTCType \
 	tstRTDigest \
 	tstRTDigest-2 \
@@ -80,6 +81,7 @@ PROGRAMS += \
 	tstIprtMiniString \
 	tstLdr \
 	tstLdrLoad \
+	tstRTLocalIpc \
 	tstRTLdrVerifyPeImage \
 	tstRTList \
 	tstRTLockValidator \
@@ -135,17 +137,19 @@ PROGRAMS += \
 	tstTimer \
 	tstTimerLR \
 	tstRTTimeSpec \
+	tstRTUdp-1 \
 	tstUtf8 \
 	tstRTUuid \
 	tstRTCircBuf \
 	tstRTManifest \
 	tstRTUri \
 	tstVector \
-       tstRTZip
+	tstRTVfs \
+	tstRTZip \
+	tstRTJson
 
 PROGRAMS.win += \
 	tstRTCritSectW32 \
-	tstRTLocalIpc \
 	tstRTProcWait \
 	tstFileAppendWin-1 \
 	tstRTNtPath-1 \
@@ -254,6 +258,42 @@ tstRTCritSectRw_SOURCES = tstRTCritSectRw.cpp
 tstRTCritSectW32_TEMPLATE = VBOXR3TSTEXE
 tstRTCritSectW32_SOURCES = tstRTCritSect.cpp
 tstRTCritSectW32_DEFS = TRY_WIN32_CRIT
+
+tstRTCrX509-1_TEMPLATE      = VBOXR3TSTEXE
+tstRTCrX509-1_SOURCES       = tstRTCrX509-1.cpp
+tstRTCrX509-1_INCS          = $(tstRTCrX509-1_0_OUTDIR)
+tstRTCrX509-1_CLEAN         = $(tstRTCrX509-1_0_OUTDIR)/tstRTCrX509-1.h
+tstRTCrX509-1_INTERMEDIATES = $(tstRTCrX509-1_0_OUTDIR)/tstRTCrX509-1.h
+tstRTCrX509-1_VBOX_FILES := \
+	Pem_md4=$(PATH_SUB_CURRENT)/tstRTCrX509-md4.pem \
+	Pem_md5=$(PATH_SUB_CURRENT)/tstRTCrX509-md5.pem \
+	Pem_sha1=$(PATH_SUB_CURRENT)/tstRTCrX509-sha1.pem \
+	Pem_sha224=$(PATH_SUB_CURRENT)/tstRTCrX509-sha224.pem \
+	Pem_sha256=$(PATH_SUB_CURRENT)/tstRTCrX509-sha256.pem \
+	Pem_sha384=$(PATH_SUB_CURRENT)/tstRTCrX509-sha384.pem \
+	Pem_sha512=$(PATH_SUB_CURRENT)/tstRTCrX509-sha512.pem \
+	Pem_cert1=$(PATH_SUB_CURRENT)/tstRTCrX509-cert1.pem \
+       \
+	Der_md4=$(PATH_SUB_CURRENT)/tstRTCrX509-md4-cert.der \
+	Der_md5=$(PATH_SUB_CURRENT)/tstRTCrX509-md5-cert.der \
+	Der_sha1=$(PATH_SUB_CURRENT)/tstRTCrX509-sha1-cert.der \
+	Der_sha224=$(PATH_SUB_CURRENT)/tstRTCrX509-sha224-cert.der \
+	Der_sha256=$(PATH_SUB_CURRENT)/tstRTCrX509-sha256-cert.der \
+	Der_sha384=$(PATH_SUB_CURRENT)/tstRTCrX509-sha384-cert.der \
+	Der_sha512=$(PATH_SUB_CURRENT)/tstRTCrX509-sha512-cert.der \
+	Der_cert1=$(PATH_SUB_CURRENT)/tstRTCrX509-cert1.der \
+       $(NO_SUCH_VARIABLE)
+$$(tstRTCrX509-1_0_OUTDIR)/tstRTCrX509-1.h: \
+		$(foreach file,$(tstRTCrX509-1_VBOX_FILES),$(lastword  $(subst =,$(SP) ,$(file)))) \
+		$(VBOX_BIN2C) \
+		| $$(dir $$@)
+	$(RM) -f -- "$@"
+	$(foreach file,$(tstRTCrX509-1_VBOX_FILES) \
+	, $(NLTAB)$(VBOX_BIN2C) -ascii --append \
+		"$(firstword $(subst =,$(SP) ,$(file)))" \
+		"$(lastword  $(subst =,$(SP) ,$(file)))" \
+		"$@")
+
 
 tstRTCType_TEMPLATE = VBOXR3TSTEXE
 tstRTCType_SOURCES = tstRTCType.cpp
@@ -507,6 +547,8 @@ tstRTPoll_SOURCES  = tstRTPoll.cpp
 
 tstPrfRT_TEMPLATE = VBOXR3TSTEXE
 tstPrfRT_SOURCES = tstPrfRT.cpp
+tstPrfRT_SOURCES.x86 = tstRTPrfA.asm
+tstPrfRT_SOURCES.amd64 = tstRTPrfA.asm
 
 tstRTPrfIO_TEMPLATE = VBOXR3TSTEXE
 tstRTPrfIO_SOURCES = tstRTPrfIO.cpp
@@ -631,6 +673,9 @@ tstTSC_CXXFLAGS.linux += -O3
 tstRTUuid_TEMPLATE = VBOXR3TSTEXE
 tstRTUuid_SOURCES = tstRTUuid.cpp
 
+tstRTUdp-1_TEMPLATE = VBOXR3TSTEXE
+tstRTUdp-1_SOURCES = tstRTUdp-1.cpp
+
 tstUtf8_TEMPLATE = VBOXR3TSTEXE
 tstUtf8_SOURCES = tstUtf8.cpp
 
@@ -643,6 +688,9 @@ tstRTManifest_SOURCES = tstRTManifest.cpp
 tstRTUri_TEMPLATE = VBOXR3TSTEXE
 tstRTUri_SOURCES = tstRTUri.cpp
 
+tstRTVfs_TEMPLATE = VBOXR3TSTEXE
+tstRTVfs_SOURCES = tstRTVfs.cpp
+
 tstRTCoreDump_TEMPLACE = VBOXR3TSTEXE
 tstRTCoreDump_SOURCES = tstRTCoreDump.cpp
 
@@ -653,6 +701,8 @@ tstVector_SOURCES = tstVector.cpp
 tstRTZip_TEMPLATE = VBOXR3TSTEXE
 tstRTZip_SOURCES = tstRTZip.cpp
 
+tstRTJson_TEMPLATE = VBOXR3TSTEXE
+tstRTJson_SOURCES = tstRTJson.cpp
 
 #
 # Ring-0 testcases.

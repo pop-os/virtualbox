@@ -2,7 +2,7 @@
   This library is used to share code between UEFI network stack modules.
   It provides the helper routines to access UDP service. It is used by both DHCP and MTFTP.
 
-Copyright (c) 2006 - 2010, Intel Corporation. All rights reserved.<BR>
+Copyright (c) 2006 - 2012, Intel Corporation. All rights reserved.<BR>
 This program and the accompanying materials
 are licensed and made available under the terms and conditions of the BSD License
 which accompanies this distribution.  The full text of the license may be found at<BR>
@@ -49,7 +49,7 @@ typedef struct {
 
   This prototype is used by both receive and sending when calling
   UdpIoRecvDatagram() or UdpIoSendDatagram(). When receiving, Netbuf is allocated by the
-  UDP access point and released by the user. When sending, the user allocates the the NetBuf, 
+  UDP access point and released by the user. When sending, the user allocates the the NetBuf,
   which is then provided to the callback as a reference.
 
   @param[in] Packet       The packet received or sent.
@@ -97,7 +97,7 @@ typedef struct {
 /// This structure is used internally by UdpIo Library.
 ///
 /// Each transmit request is wrapped in an UDP_TX_TOKEN. Upon completion,
-/// the CallBack will be called. There can be several transmit requests. All transmit 
+/// the CallBack will be called. There can be several transmit requests. All transmit
 /// requests are linked in a list.
 ///
 
@@ -137,7 +137,7 @@ struct _UDP_IO {
   UINT8                     UdpVersion;
 
   //
-  // Handle used to create/destory UDP child
+  // Handle used to create/destroy UDP child
   //
   EFI_HANDLE                Controller;
   EFI_HANDLE                Image;

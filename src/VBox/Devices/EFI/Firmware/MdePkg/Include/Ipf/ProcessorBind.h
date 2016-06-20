@@ -1,8 +1,8 @@
 /** @file
   Processor or Compiler specific defines and types for Intel Itanium(TM) processors.
 
-Copyright (c) 2006 - 2010, Intel Corporation. All rights reserved.<BR>
-This program and the accompanying materials are licensed and made available 
+Copyright (c) 2006 - 2013, Intel Corporation. All rights reserved.<BR>
+This program and the accompanying materials are licensed and made available
 under the terms and conditions of the BSD License which accompanies this
 distribution.  The full text of the license may be found at
 http://opensource.org/licenses/bsd-license.php.
@@ -156,7 +156,7 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
   ///
   /// 1-byte signed value.
   ///
-  typedef char                INT8;
+  typedef signed char         INT8;
 #else
   ///
   /// 8-byte unsigned value.
@@ -203,7 +203,7 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
   ///
   /// 1-byte signed value.
   ///
-  typedef char                INT8;
+  typedef signed char         INT8;
 #endif
 
 ///
@@ -237,6 +237,12 @@ typedef INT64   INTN;
 #define MAX_ADDRESS   0xFFFFFFFFFFFFFFFFULL
 
 ///
+/// Maximum legal Itanium-based INTN and UINTN values.
+///
+#define MAX_INTN   ((INTN)0x7FFFFFFFFFFFFFFFULL)
+#define MAX_UINTN  ((UINTN)0xFFFFFFFFFFFFFFFFULL)
+
+///
 /// Per the Itanium Software Conventions and Runtime Architecture Guide,
 /// section 3.3.4, IPF stack must always be 16-byte aligned.
 ///
@@ -254,7 +260,7 @@ typedef INT64   INTN;
 #elif defined(_MSC_EXTENSIONS)
   ///
   /// Microsoft* compiler-specific method for EFIAPI calling convention.
-  /// 
+  ///
   #define EFIAPI __cdecl
 #else
   #define EFIAPI
@@ -286,18 +292,22 @@ typedef struct {
 
 /**
   Return the pointer to the first instruction of a function given a function pointer.
-  For Itanium processors, all function calls are made through a PLABEL, so a pointer to a function 
-  is actually a pointer to a PLABEL.  The pointer to the first instruction of the function 
-  is contained within the PLABEL.  This macro may be used to retrieve a pointer to the first 
-  instruction of a function independent of the CPU architecture being used.  This is very 
+  For Itanium processors, all function calls are made through a PLABEL, so a pointer to a function
+  is actually a pointer to a PLABEL.  The pointer to the first instruction of the function
+  is contained within the PLABEL.  This macro may be used to retrieve a pointer to the first
+  instruction of a function independent of the CPU architecture being used.  This is very
   useful when printing function addresses through DEBUG() macros.
-  
+
   @param  FunctionPointer   A pointer to a function.
 
   @return The pointer to the first instruction of a function given a function pointer.
-  
+
 **/
 #define FUNCTION_ENTRY_POINT(FunctionPointer) (VOID *)(UINTN)(((EFI_PLABEL *)(FunctionPointer))->EntryPoint)
+
+#ifndef __USER_LABEL_PREFIX__
+#define __USER_LABEL_PREFIX__
+#endif
 
 #endif
 

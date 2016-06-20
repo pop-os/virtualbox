@@ -21,24 +21,23 @@
 /* Qt includes: */
 #include <QObject>
 #include <QMap>
-#ifdef DEBUG
+#ifdef VBOX_GUI_WITH_EXTRADATA_MANAGER_UI
 # include <QPointer>
-#endif /* DEBUG */
+#endif /* VBOX_GUI_WITH_EXTRADATA_MANAGER_UI */
 
 /* GUI includes: */
 #include "UIExtraDataDefs.h"
 
-/* COM includes: */
-#include "CEventListener.h"
-
 /* Forward declarations: */
 class UIExtraDataEventHandler;
-#ifdef DEBUG
+#ifdef VBOX_GUI_WITH_EXTRADATA_MANAGER_UI
 class UIExtraDataManagerWindow;
-#endif /* DEBUG */
+#endif /* VBOX_GUI_WITH_EXTRADATA_MANAGER_UI */
 
-/* Type definitions: */
+/** Defines the map of extra data values. The index is an extra-data key. */
 typedef QMap<QString, QString> ExtraDataMap;
+/** Defines the map of extra data maps. The index is a UUID string. */
+typedef QMap<QString, ExtraDataMap> MapOfExtraDataMaps;
 
 /** Singleton QObject extension
   * providing GUI with corresponding extra-data values,
@@ -105,12 +104,12 @@ public:
     /** Static Extra-data Manager destructor. */
     static void destroy();
 
-#ifdef DEBUG
+#ifdef VBOX_GUI_WITH_EXTRADATA_MANAGER_UI
     /** Static show and raise API. */
     static void openWindow(QWidget *pCenterWidget);
-#endif /* DEBUG */
+#endif /* VBOX_GUI_WITH_EXTRADATA_MANAGER_UI */
 
-    /** @name General
+    /** @name Base
       * @{ */
         /** Returns whether Extra-data Manager cached the map with passed @a strID. */
         bool contains(const QString &strID) const { return m_data.contains(strID); }
@@ -135,10 +134,16 @@ public:
         void setExtraDataStringList(const QString &strKey, const QStringList &value, const QString &strID = GlobalID);
     /** @} */
 
+    /** @name General
+      * @{ */
+        /** Returns event handling type. */
+        EventHandlingType eventHandlingType();
+    /** @} */
+
     /** @name Messaging
       * @{ */
         /** Returns the list of supressed messages for the Message/Popup center frameworks. */
-        QStringList suppressedMessages();
+        QStringList suppressedMessages(const QString &strID = GlobalID);
         /** Defines the @a list of supressed messages for the Message/Popup center frameworks. */
         void setSuppressedMessages(const QStringList &list);
 
@@ -292,12 +297,12 @@ public:
         /** Returns whether this machine is fFirstTimeStarted. */
         void setMachineFirstTimeStarted(bool fFirstTimeStarted, const QString &strID);
 
-#ifndef Q_WS_MAC
+#ifndef VBOX_WS_MAC
         /** Except Mac OS X: Returns redefined machine-window icon names. */
         QStringList machineWindowIconNames(const QString &strID);
         /** Except Mac OS X: Returns redefined machine-window name postfix. */
         QString machineWindowNamePostfix(const QString &strID);
-#endif /* !Q_WS_MAC */
+#endif /* !VBOX_WS_MAC */
 
         /** Returns geometry for machine-window with @a uScreenIndex in @a visualStateType. */
         QRect machineWindowGeometry(UIVisualStateType visualStateType, ulong uScreenIndex, const QString &strID);
@@ -306,12 +311,12 @@ public:
         /** Defines @a geometry and @a fMaximized state for machine-window with @a uScreenIndex in @a visualStateType. */
         void setMachineWindowGeometry(UIVisualStateType visualStateType, ulong uScreenIndex, const QRect &geometry, bool fMaximized, const QString &strID);
 
-#ifndef Q_WS_MAC
+#ifndef VBOX_WS_MAC
         /** Returns whether Runtime UI menu-bar is enabled. */
         bool menuBarEnabled(const QString &strID);
         /** Defines whether Runtime UI menu-bar is @a fEnabled. */
         void setMenuBarEnabled(bool fEnabled, const QString &strID);
-#endif /* !Q_WS_MAC */
+#endif /* !VBOX_WS_MAC */
 
         /** Returns restricted Runtime UI menu types. */
         UIExtraDataMetaDefs::MenuType restrictedRuntimeMenuTypes(const QString &strID);
@@ -350,12 +355,12 @@ public:
         void setRestrictedRuntimeMenuDebuggerActionTypes(UIExtraDataMetaDefs::RuntimeMenuDebuggerActionType types, const QString &strID);
 #endif /* VBOX_WITH_DEBUGGER_GUI */
 
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
         /** Mac OS X: Returns restricted Runtime UI action types for Window menu. */
         UIExtraDataMetaDefs::MenuWindowActionType restrictedRuntimeMenuWindowActionTypes(const QString &strID);
         /** Mac OS X: Defines restricted Runtime UI action types for Window menu. */
         void setRestrictedRuntimeMenuWindowActionTypes(UIExtraDataMetaDefs::MenuWindowActionType types, const QString &strID);
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
 
         /** Returns restricted Runtime UI action types for Help menu. */
         UIExtraDataMetaDefs::MenuHelpActionType restrictedRuntimeMenuHelpActionTypes(const QString &strID);
@@ -370,10 +375,10 @@ public:
         /** Defines requested Runtime UI visual-state as @a visualState. */
         void setRequestedVisualState(UIVisualStateType visualState, const QString &strID);
 
-#ifdef Q_WS_X11
+#ifdef VBOX_WS_X11
         /** Returns whether legacy full-screen mode is requested. */
         bool legacyFullscreenModeRequested();
-#endif /* Q_WS_X11 */
+#endif /* VBOX_WS_X11 */
 
         /** Returns whether guest-screen auto-resize according machine-window size is enabled. */
         bool guestScreenAutoResizeEnabled(const QString &strID);
@@ -419,7 +424,7 @@ public:
         /** Returns Runtime UI HiDPI optimization type. */
         HiDPIOptimizationType hiDPIOptimizationType(const QString &strID);
 
-#ifndef Q_WS_MAC
+#ifndef VBOX_WS_MAC
         /** Returns whether mini-toolbar is enabled for full and seamless screens. */
         bool miniToolbarEnabled(const QString &strID);
         /** Defines whether mini-toolbar is @a fEnabled for full and seamless screens. */
@@ -434,7 +439,7 @@ public:
         Qt::AlignmentFlag miniToolbarAlignment(const QString &strID);
         /** Returns mini-toolbar @a alignment. */
         void setMiniToolbarAlignment(Qt::AlignmentFlag alignment, const QString &strID);
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
 
         /** Returns whether Runtime UI status-bar is enabled. */
         bool statusBarEnabled(const QString &strID);
@@ -451,7 +456,7 @@ public:
         /** Defines Runtime UI status-bar indicator order @a list. */
         void setStatusBarIndicatorOrder(const QList<IndicatorType> &list, const QString &strID);
 
-#ifdef Q_WS_MAC
+#ifdef VBOX_WS_MAC
         /** Mac OS X: Returns whether Dock icon should be updated at runtime. */
         bool realtimeDockIconUpdateEnabled(const QString &strID);
         /** Mac OS X: Defines whether Dock icon update should be fEnabled at runtime. */
@@ -466,7 +471,7 @@ public:
         bool dockIconDisableOverlay(const QString &strID);
         /** Mac OS X: Defines whether Dock icon overlay is @a fDisabled. */
         void setDockIconDisableOverlay(bool fDisabled, const QString &strID);
-#endif /* Q_WS_MAC */
+#endif /* VBOX_WS_MAC */
 
         /** Returns whether machine should pass CAD to guest. */
         bool passCADtoGuest(const QString &strID);
@@ -497,6 +502,11 @@ public:
         bool informationWindowShouldBeMaximized(const QString &strID);
         /** Defines information-window @a geometry and @a fMaximized state. */
         void setInformationWindowGeometry(const QRect &geometry, bool fMaximized, const QString &strID);
+
+        /** Returns information-window elements. */
+        QMap<InformationElementType, bool> informationWindowElements();
+        /** Defines information-window @a elements. */
+        void setInformationWindowElements(const QMap<InformationElementType, bool> &elements);
     /** @} */
 
     /** @name Virtual Machine: Close dialog
@@ -523,7 +533,7 @@ public:
     /** @} */
 #endif /* VBOX_WITH_DEBUGGER_GUI */
 
-#ifdef DEBUG
+#ifdef VBOX_GUI_WITH_EXTRADATA_MANAGER_UI
     /** @name VirtualBox: Extra-data Manager window
       * @{ */
         /** Returns Extra-data Manager geometry using @a pWidget as hint. */
@@ -538,7 +548,7 @@ public:
         /** Defines Extra-data Manager splitter @a hints. */
         void setExtraDataManagerSplitterHints(const QList<int> &hints);
     /** @} */
-#endif /* DEBUG */
+#endif /* VBOX_GUI_WITH_EXTRADATA_MANAGER_UI */
 
     /** @name Virtual Machine: Log dialog
       * @{ */
@@ -563,34 +573,42 @@ private:
     void prepareGlobalExtraDataMap();
     /** Prepare extra-data event-handler. */
     void prepareExtraDataEventHandler();
-    /** Prepare Main event-listener. */
-    void prepareMainEventListener();
-#ifdef DEBUG
+#ifdef VBOX_GUI_WITH_EXTRADATA_MANAGER_UI
     // /** Prepare window. */
     // void prepareWindow();
 
     /** Cleanup window. */
     void cleanupWindow();
-#endif /* DEBUG */
-    /** Cleanup Main event-listener. */
-    void cleanupMainEventListener();
-    // /** Cleanup extra-data event-handler. */
-    // void cleanupExtraDataEventHandler();
+#endif /* VBOX_GUI_WITH_EXTRADATA_MANAGER_UI */
+    /** Cleanup extra-data event-handler. */
+    void cleanupExtraDataEventHandler();
     // /** Cleanup extra-data map. */
     // void cleanupExtraDataMap();
     /** Cleanup Extra-data Manager. */
     void cleanup();
 
-#ifdef DEBUG
+#ifdef VBOX_GUI_WITH_EXTRADATA_MANAGER_UI
     /** Open window. */
     void open(QWidget *pCenterWidget);
-#endif /* DEBUG */
+#endif /* VBOX_GUI_WITH_EXTRADATA_MANAGER_UI */
 
+    /** Retrieves an extra-data key from both machine and global sources.
+      *
+      * If @a strID isn't #GlobalID, this will first check the extra-data associated
+      * with the machine given by @a strID then fallback on the global extra-data.
+      *
+      * @returns String value if found, null string if not.
+      * @param   strKey      The extra-data key to get.
+      * @param   strID       Machine UUID or #GlobalID.
+      * @param   strValue    Where to return the value when found. */
+    QString extraDataStringUnion(const QString &strKey, const QString &strID);
     /** Determines whether feature corresponding to passed @a strKey is allowed.
-      * If valid @a strID is set => applies to machine extra-data, otherwise => to global one. */
+      * If valid @a strID is set => applies to machine and global extra-data,
+      * otherwise => only to global one. */
     bool isFeatureAllowed(const QString &strKey, const QString &strID = GlobalID);
     /** Determines whether feature corresponding to passed @a strKey is restricted.
-      * If valid @a strID is set => applies to machine extra-data, otherwise => to global one. */
+      * If valid @a strID is set => applies to machine and global extra-data,
+      * otherwise => only to global one. */
     bool isFeatureRestricted(const QString &strKey, const QString &strID = GlobalID);
 
     /** Translates bool flag into 'allowed' value. */
@@ -605,18 +623,16 @@ private:
     /** Singleton Extra-data Manager instance. */
     static UIExtraDataManager *m_spInstance;
 
-    /** Holds main event-listener instance. */
-    CEventListener m_listener;
     /** Holds extra-data event-handler instance. */
     UIExtraDataEventHandler *m_pHandler;
 
     /** Holds extra-data map instance. */
-    QMap<QString, ExtraDataMap> m_data;
+    MapOfExtraDataMaps m_data;
 
-#ifdef DEBUG
+#ifdef VBOX_GUI_WITH_EXTRADATA_MANAGER_UI
     /** Holds Extra-data Manager window instance. */
     QPointer<UIExtraDataManagerWindow> m_pWindow;
-#endif /* DEBUG */
+#endif /* VBOX_GUI_WITH_EXTRADATA_MANAGER_UI */
 };
 
 /** Singleton Extra-data Manager 'official' name. */

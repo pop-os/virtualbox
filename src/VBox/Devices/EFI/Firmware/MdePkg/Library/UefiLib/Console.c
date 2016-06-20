@@ -1,14 +1,14 @@
 /** @file
   This module provide help function for displaying unicode string.
 
-  Copyright (c) 2006 - 2009, Intel Corporation. All rights reserved.<BR>
-  This program and the accompanying materials                          
-  are licensed and made available under the terms and conditions of the BSD License         
-  which accompanies this distribution.  The full text of the license may be found at        
-  http://opensource.org/licenses/bsd-license.php.                                            
+  Copyright (c) 2006 - 2013, Intel Corporation. All rights reserved.<BR>
+  This program and the accompanying materials
+  are licensed and made available under the terms and conditions of the BSD License
+  which accompanies this distribution.  The full text of the license may be found at
+  http://opensource.org/licenses/bsd-license.php.
 
-  THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,                     
-  WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.             
+  THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,
+  WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 
 **/
 
@@ -22,13 +22,16 @@ typedef struct {
   UINT32  Width;
 } UNICODE_WIDTH_ENTRY;
 
+#define NARROW_CHAR         0xFFF0
+#define WIDE_CHAR           0xFFF1
+
 GLOBAL_REMOVE_IF_UNREFERENCED CONST UNICODE_WIDTH_ENTRY mUnicodeWidthTable[] = {
   //
   // General script area
   //
   {(CHAR16)0x1FFF,  1},
   /*
-   * Merge the blocks and replace them with the above entry as they fall to 
+   * Merge the blocks and replace them with the above entry as they fall to
    * the same category and they are all narrow glyph. This will reduce search
    * time and table size. The merge will omit the reserved code.
    *
@@ -75,7 +78,7 @@ GLOBAL_REMOVE_IF_UNREFERENCED CONST UNICODE_WIDTH_ENTRY mUnicodeWidthTable[] = {
   //
   {(CHAR16)0x2FFF,  1},
   /*
-   * Merge the blocks and replace them with the above entry as they fall to 
+   * Merge the blocks and replace them with the above entry as they fall to
    * the same category and they are all narrow glyph. This will reduce search
    * time and table size. The merge will omit the reserved code.
    *
@@ -107,7 +110,7 @@ GLOBAL_REMOVE_IF_UNREFERENCED CONST UNICODE_WIDTH_ENTRY mUnicodeWidthTable[] = {
   //
   {(CHAR16)0x33FF,  2},
   /*
-   * Merge the blocks and replace them with the above entry as they fall to 
+   * Merge the blocks and replace them with the above entry as they fall to
    * the same category and they are all wide glyph. This will reduce search
    * time and table size. The merge will omit the reserved code.
    *
@@ -130,13 +133,13 @@ GLOBAL_REMOVE_IF_UNREFERENCED CONST UNICODE_WIDTH_ENTRY mUnicodeWidthTable[] = {
   //
   {(CHAR16)0x9FFF,  2},
   /*
-   * Merge the blocks and replace them with the above entry as they fall to 
+   * Merge the blocks and replace them with the above entry as they fall to
    * the same category and they are all wide glyph. This will reduce search
    * time and table size. The merge will omit the reserved code.
    *
    * Remove the above item if below is un-commented.
    *
-  {(CHAR16)0x4DFF,  0},       // Reserved. 0x3400-0x4DBF as CJK unified ideographs 
+  {(CHAR16)0x4DFF,  0},       // Reserved. 0x3400-0x4DBF as CJK unified ideographs
                       // extension A in ver3.0. 0x3400-0x4DFF
   {(CHAR16)0x9FFF,  2},       // CJK unified ideographs. 0x4E00-0x9FFF
   *
@@ -152,7 +155,7 @@ GLOBAL_REMOVE_IF_UNREFERENCED CONST UNICODE_WIDTH_ENTRY mUnicodeWidthTable[] = {
   //
   {(CHAR16)0xD7FF,  2},
   /*
-   * Merge the blocks and replace them with the above entry as they fall to 
+   * Merge the blocks and replace them with the above entry as they fall to
    * the same category and they are all wide glyph. This will reduce search
    * time and table size. The merge will omit the reserved code.
    *
@@ -248,18 +251,18 @@ GetGlyphWidth (
 /**
   Computes the display length of a Null-terminated Unicode String.
 
-  This function computes and returns the display length of the Null-terminated 
-  Unicode string specified by String.  If String is NULL then 0 is returned. If 
-  any of the widths of the Unicode characters in String can not be determined, 
-  then 0 is returned. The display width of String can be computed by summing the 
-  display widths of each Unicode character in String.  Unicode characters that 
-  are narrow glyphs have a width of 1, and Unicode characters that are width glyphs 
+  This function computes and returns the display length of the Null-terminated
+  Unicode string specified by String.  If String is NULL then 0 is returned. If
+  any of the widths of the Unicode characters in String can not be determined,
+  then 0 is returned. The display width of String can be computed by summing the
+  display widths of each Unicode character in String.  Unicode characters that
+  are narrow glyphs have a width of 1, and Unicode characters that are width glyphs
   have a width of 2.  If String is not aligned on a 16-bit boundary, then ASSERT().
 
   @param  String      A pointer to a Null-terminated Unicode string.
 
   @return The display length of the Null-terminated Unicode string specified by String.
-  
+
 **/
 UINTN
 EFIAPI
@@ -289,31 +292,115 @@ UnicodeStringDisplayLength (
 }
 
 /**
-  Draws a dialog box to the console output device specified by 
+  Count the storage space of a Unicode string.
+
+  This function handles the Unicode string with NARROW_CHAR
+  and WIDE_CHAR control characters. NARROW_HCAR and WIDE_CHAR
+  does not count in the resultant output. If a WIDE_CHAR is
+  hit, then 2 Unicode character will consume an output storage
+  space with size of CHAR16 till a NARROW_CHAR is hit.
+
+  @param String          The input string to be counted.
+  @param LimitLen        Whether need to limit the string length.
+  @param MaxWidth        The max length this function supported.
+  @param Offset          The max index of the string can be show out.
+
+  @return Storage space for the input string.
+
+**/
+UINTN
+UefiLibGetStringWidth (
+  IN  CHAR16               *String,
+  IN  BOOLEAN              LimitLen,
+  IN  UINTN                MaxWidth,
+  OUT UINTN                *Offset
+  )
+{
+  UINTN Index;
+  UINTN Count;
+  UINTN IncrementValue;
+
+  if (String == NULL) {
+    return 0;
+  }
+
+  Index           = 0;
+  Count           = 0;
+  IncrementValue  = 1;
+
+  do {
+    //
+    // Advance to the null-terminator or to the first width directive
+    //
+    for (;(String[Index] != NARROW_CHAR) && (String[Index] != WIDE_CHAR) && (String[Index] != 0); Index++) {
+      Count = Count + IncrementValue;
+
+      if (LimitLen && Count > MaxWidth) {
+        break;
+      }
+    }
+
+    //
+    // We hit the null-terminator, we now have a count
+    //
+    if (String[Index] == 0) {
+      break;
+    }
+
+    if (LimitLen && Count > MaxWidth) {
+      *Offset = Index;
+      break;
+    }
+
+    //
+    // We encountered a narrow directive - strip it from the size calculation since it doesn't get printed
+    // and also set the flag that determines what we increment by.(if narrow, increment by 1, if wide increment by 2)
+    //
+    if (String[Index] == NARROW_CHAR) {
+      //
+      // Skip to the next character
+      //
+      Index++;
+      IncrementValue = 1;
+    } else {
+      //
+      // Skip to the next character
+      //
+      Index++;
+      IncrementValue = 2;
+    }
+  } while (String[Index] != 0);
+
+  return Count * sizeof (CHAR16);
+}
+
+/**
+  Draws a dialog box to the console output device specified by
   ConOut defined in the EFI_SYSTEM_TABLE and waits for a keystroke
-  from the console input device specified by ConIn defined in the 
+  from the console input device specified by ConIn defined in the
   EFI_SYSTEM_TABLE.
 
   If there are no strings in the variable argument list, then ASSERT().
   If all the strings in the variable argument list are empty, then ASSERT().
 
   @param[in]   Attribute  Specifies the foreground and background color of the popup.
-  @param[out]  Key        A pointer to the EFI_KEY value of the key that was 
+  @param[out]  Key        A pointer to the EFI_KEY value of the key that was
                           pressed.  This is an optional parameter that may be NULL.
                           If it is NULL then no wait for a keypress will be performed.
   @param[in]  ...         The variable argument list that contains pointers to Null-
-                          terminated Unicode strings to display in the dialog box.  
+                          terminated Unicode strings to display in the dialog box.
                           The variable argument list is terminated by a NULL.
 
 **/
 VOID
 EFIAPI
 CreatePopUp (
-  IN  UINTN          Attribute,                
+  IN  UINTN          Attribute,
   OUT EFI_INPUT_KEY  *Key,      OPTIONAL
   ...
   )
 {
+  EFI_STATUS                       Status;
   VA_LIST                          Args;
   EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL  *ConOut;
   EFI_SIMPLE_TEXT_OUTPUT_MODE      SavedConsoleMode;
@@ -327,16 +414,17 @@ CreatePopUp (
   UINTN                            Length;
   CHAR16                           *Line;
   UINTN                            EventIndex;
+  CHAR16                           *TmpString;
 
   //
-  // Determine the length of the longest line in the popup and the the total 
+  // Determine the length of the longest line in the popup and the the total
   // number of lines in the popup
   //
   VA_START (Args, Key);
   MaxLength = 0;
   NumberOfLines = 0;
   while ((String = VA_ARG (Args, CHAR16 *)) != NULL) {
-    MaxLength = MAX (MaxLength, StrLen (String));
+    MaxLength = MAX (MaxLength, UefiLibGetStringWidth (String, FALSE, 0, NULL) / 2);
     NumberOfLines++;
   }
   VA_END (Args);
@@ -355,7 +443,7 @@ CreatePopUp (
   // Cache a pointer to the Simple Text Output Protocol in the EFI System Table
   //
   ConOut = gST->ConOut;
-  
+
   //
   // Save the current console cursor position and attributes
   //
@@ -395,7 +483,7 @@ CreatePopUp (
   ASSERT (Line != NULL);
 
   //
-  // Draw top of popup box   
+  // Draw top of popup box
   //
   SetMem16 (Line, (MaxLength + 2) * 2, BOXDRAW_HORIZONTAL);
   Line[0]             = BOXDRAW_DOWN_RIGHT;
@@ -409,24 +497,33 @@ CreatePopUp (
   //
   VA_START (Args, Key);
   while ((String = VA_ARG (Args, CHAR16 *)) != NULL && NumberOfLines > 0) {
-    Length = StrLen (String);
     SetMem16 (Line, (MaxLength + 2) * 2, L' ');
+    Line[0]             = BOXDRAW_VERTICAL;
+    Line[MaxLength + 1] = BOXDRAW_VERTICAL;
+    Line[MaxLength + 2] = L'\0';
+    ConOut->SetCursorPosition (ConOut, Column, Row);
+    ConOut->OutputString (ConOut, Line);
+    Length = UefiLibGetStringWidth (String, FALSE, 0, NULL) / 2;
     if (Length <= MaxLength) {
       //
       // Length <= MaxLength
       //
-      CopyMem (Line + 1 + (MaxLength - Length) / 2, String , Length * sizeof (CHAR16));
+      ConOut->SetCursorPosition (ConOut, Column + 1 + (MaxLength - Length) / 2, Row++);
+      ConOut->OutputString (ConOut, String);
     } else {
       //
       // Length > MaxLength
       //
-      CopyMem (Line + 1, String + (Length - MaxLength) / 2 , MaxLength * sizeof (CHAR16));
+      UefiLibGetStringWidth (String, TRUE, MaxLength, &Length);
+      TmpString = AllocateZeroPool ((Length + 1) * sizeof (CHAR16));
+      ASSERT (TmpString != NULL);
+      StrnCpy(TmpString, String, Length - 3);
+      StrCat (TmpString, L"...");
+
+      ConOut->SetCursorPosition (ConOut, Column + 1, Row++);
+      ConOut->OutputString (ConOut, TmpString);
+      FreePool (TmpString);
     }
-    Line[0]             = BOXDRAW_VERTICAL;
-    Line[MaxLength + 1] = BOXDRAW_VERTICAL;
-    Line[MaxLength + 2] = L'\0';
-    ConOut->SetCursorPosition (ConOut, Column, Row++);
-    ConOut->OutputString (ConOut, Line);
     NumberOfLines--;
   }
   VA_END (Args);
@@ -457,7 +554,19 @@ CreatePopUp (
   // Wait for a keystroke
   //
   if (Key != NULL) {
-    gBS->WaitForEvent (1, &gST->ConIn->WaitForKey, &EventIndex);
-    gST->ConIn->ReadKeyStroke (gST->ConIn, Key);
+    while (TRUE) {
+      Status = gST->ConIn->ReadKeyStroke (gST->ConIn, Key);
+      if (!EFI_ERROR (Status)) {
+        break;
+      }
+
+      //
+      // If we encounter error, continue to read another key in.
+      //
+      if (Status != EFI_NOT_READY) {
+        continue;
+      }
+      gBS->WaitForEvent (1, &gST->ConIn->WaitForKey, &EventIndex);
+    }
   }
 }

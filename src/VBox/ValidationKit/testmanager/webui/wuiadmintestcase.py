@@ -26,15 +26,32 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 100880 $"
+__version__ = "$Revision: 107799 $"
 
 
 # Validation Kit imports.
 from common                             import utils, webutils;
-from testmanager.webui.wuicontentbase   import WuiFormContentBase, WuiListContentBase, WuiTmLink, WuiRawHtml;
+from testmanager.webui.wuicontentbase   import WuiFormContentBase, WuiListContentBase, WuiContentBase, WuiTmLink, WuiRawHtml;
 from testmanager.core.db                import isDbTimestampInfinity;
 from testmanager.core.testcase          import TestCaseDataEx, TestCaseData, TestCaseDependencyLogic;
 from testmanager.core.globalresource    import GlobalResourceData, GlobalResourceLogic;
+
+
+
+class WuiTestCaseDetailsLink(WuiTmLink):
+    """  Test case details link by ID. """
+
+    def __init__(self, idTestCase, sName = WuiContentBase.ksShortDetailsLink, fBracketed = False, tsNow = None):
+        from testmanager.webui.wuiadmin import WuiAdmin;
+        dParams = {
+            WuiAdmin.ksParamAction:             WuiAdmin.ksActionTestCaseDetails,
+            TestCaseData.ksParam_idTestCase:    idTestCase,
+        };
+        if tsNow is not None:
+            dParams[WuiAdmin.ksParamEffectiveDate] = tsNow; ## ??
+        WuiTmLink.__init__(self, sName, WuiAdmin.ksScriptName, dParams, fBracketed = fBracketed);
+        self.idTestCase = idTestCase;
+
 
 class WuiTestCaseList(WuiListContentBase):
     """
@@ -46,13 +63,13 @@ class WuiTestCaseList(WuiListContentBase):
                                     sTitle = 'Test Cases', fnDPrint = fnDPrint, oDisp = oDisp);
         self._asColumnHeaders = \
         [
-            'Name', 'Active', 'Default Timeout', 'Base Command / Variations', 'Validation Kit Files',
-            'Test Case Prereqs', 'Global Resources', 'Actions'
+            'Name', 'Active', 'Timeout', 'Base Command / Variations', 'Validation Kit Files',
+            'Test Case Prereqs', 'Global Rsrces', 'Note', 'Actions'
         ];
         self._asColumnAttribs = \
         [
-            '', '', '', '', '',
-            'valign="top"', 'valign="top"', 'align="center"'
+            '', '', 'align="center"', '', '',
+            'valign="top"', 'valign="top"', 'align="center"', 'align="center"'
         ];
 
     def _formatListEntry(self, iEntry):
@@ -68,24 +85,39 @@ class WuiTestCaseList(WuiListContentBase):
 
         # Base command and variations.
         fNoGang = True;
+        fNoSubName = True;
+        fAllDefaultTimeouts = True;
         for oVar in oEntry.aoTestCaseArgs:
+            if fNoSubName and oVar.sSubName is not None and len(oVar.sSubName.strip()) > 0:
+                fNoSubName = False;
             if oVar.cGangMembers > 1:
                 fNoGang = False;
-                break;
+            if oVar.cSecTimeout is not None:
+                fAllDefaultTimeouts = False;
+
         sHtml  = '  <table class="tminnertbl" width=100%>\n' \
                  '    <tr>\n' \
-                 '      <th>';
+                 '      ';
+        if not fNoSubName:
+            sHtml += '<th class="tmtcasubname">Sub-name</th>';
         if not fNoGang:
-            sHtml += '<th>Gang Size</th>';
-        sHtml += 'Timeout</th><th>Additional Arguments</b></th>\n' \
+            sHtml += '<th class="tmtcagangsize">Gang Size</th>';
+        if not fAllDefaultTimeouts:
+            sHtml += '<th class="tmtcatimeout">Timeout</th>';
+        sHtml += '<th>Additional Arguments</b></th>\n' \
                  '    </tr>\n'
         for oTmp in oEntry.aoTestCaseArgs:
             sHtml += '<tr>';
+            if not fNoSubName:
+                sHtml += '<td>%s</td>' % (webutils.escapeElem(oTmp.sSubName) if oTmp.sSubName is not None else '');
             if not fNoGang:
                 sHtml += '<td>%d</td>' % (oTmp.cGangMembers,)
-            sHtml += '<td>%s</td><td>%s</td></tr>\n' \
-                   % ( utils.formatIntervalSeconds(oTmp.cSecTimeout) if oTmp.cSecTimeout is not None else 'Default',
-                       webutils.escapeElem(oTmp.sArgs.replace('-', u'\u2011')),)
+            if not fAllDefaultTimeouts:
+                sHtml += '<td>%s</td>' \
+                       % (utils.formatIntervalSeconds(oTmp.cSecTimeout) if oTmp.cSecTimeout is not None else 'Default',)
+            sHtml += u'<td>%s</td></tr>' \
+                % ( webutils.escapeElem(oTmp.sArgs.replace('-', u'\u2011')) if len(oTmp.sArgs) > 0 else u'\u2011',);
+            sHtml += '</tr>\n';
         sHtml += '  </table>'
 
         aoRet.append([oEntry.sBaseCmd.replace('-', u'\u2011'), WuiRawHtml(sHtml)]);
@@ -120,6 +152,9 @@ class WuiTestCaseList(WuiListContentBase):
         else:
             sHtml = '<ul class="tmshowall"><li class="tmshowall">None</li></ul>\n'
         aoRet.append(WuiRawHtml(sHtml));
+
+        # Comment (note).
+        aoRet.append(self._formatCommentCell(oEntry.sComment));
 
         # Show actions that can be taken.
         aoActions = [ WuiTmLink('Details', WuiAdmin.ksScriptName,
@@ -203,6 +238,8 @@ class WuiTestCase(WuiFormContentBase):
                     break;
             aoGlobalResrcDeps.append([oGlobalRsrc.idGlobalRsrc, fSelected, oGlobalRsrc.sName]);
         oForm.addListOfResources(TestCaseDataEx.ksParam_aoDepGlobalResources, aoGlobalResrcDeps, 'Depends on resources')
+
+        oForm.addMultilineText(TestCaseDataEx.ksParam_sComment, oData.sComment, 'Comment');
 
         oForm.addSubmit();
 

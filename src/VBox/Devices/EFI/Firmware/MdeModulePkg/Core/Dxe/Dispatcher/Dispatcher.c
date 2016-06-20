@@ -26,7 +26,7 @@
   Depex - Dependency Expresion.
   SOR   - Schedule On Request - Don't schedule if this bit is set.
 
-Copyright (c) 2006 - 2011, Intel Corporation. All rights reserved.<BR>
+Copyright (c) 2006 - 2014, Intel Corporation. All rights reserved.<BR>
 This program and the accompanying materials
 are licensed and made available under the terms and conditions of the BSD License
 which accompanies this distribution.  The full text of the license may be found at
@@ -90,7 +90,6 @@ typedef struct {
 } FV_FILEPATH_DEVICE_PATH;
 
 FV_FILEPATH_DEVICE_PATH mFvDevicePath;
-
 
 //
 // Function Prototypes
@@ -336,13 +335,13 @@ CoreSchedule (
       CoreReleaseDispatcherLock ();
 
       DEBUG ((DEBUG_DISPATCH, "Schedule FFS(%g) - EFI_SUCCESS\n", DriverName));
-      
+
       return EFI_SUCCESS;
     }
   }
-  
+
   DEBUG ((DEBUG_DISPATCH, "Schedule FFS(%g) - EFI_NOT_FOUND\n", DriverName));
-  
+
   return EFI_NOT_FOUND;
 }
 
@@ -438,7 +437,7 @@ CoreDispatcher (
   EFI_CORE_DRIVER_ENTRY           *DriverEntry;
   BOOLEAN                         ReadyToRun;
   EFI_EVENT                       DxeDispatchEvent;
-  
+
 
   if (gDispatcherRunning) {
     //
@@ -531,10 +530,10 @@ CoreDispatcher (
 
       CoreReleaseDispatcherLock ();
 
- 
+
       if (DriverEntry->IsFvImage) {
         //
-        // Produce a firmware volume block protocol for FvImage so it gets dispatched from. 
+        // Produce a firmware volume block protocol for FvImage so it gets dispatched from.
         //
         Status = CoreProcessFvImageFile (DriverEntry->Fv, DriverEntry->FvHandle, &DriverEntry->FileName);
       } else {
@@ -545,9 +544,9 @@ CoreDispatcher (
           sizeof (DriverEntry->ImageHandle)
           );
         ASSERT (DriverEntry->ImageHandle != NULL);
-  
+
         Status = CoreStartImage (DriverEntry->ImageHandle, NULL, NULL);
-  
+
         REPORT_STATUS_CODE_WITH_EXTENDED_DATA (
           EFI_PROGRESS_CODE,
           (EFI_SOFTWARE_DXE_CORE | EFI_SW_PC_INIT_END),
@@ -709,17 +708,17 @@ FvHasBeenProcessed (
 
 /**
   Remember that Fv protocol on FvHandle has had it's drivers placed on the
-  mDiscoveredList. This fucntion adds entries on the mFvHandleList if new 
+  mDiscoveredList. This fucntion adds entries on the mFvHandleList if new
   entry is different from one in mFvHandleList by checking FvImage Guid.
   Items are never removed/freed from the mFvHandleList.
 
   @param  FvHandle              The handle of a FV that has been processed
 
   @return A point to new added FvHandle entry. If FvHandle with the same FvImage guid
-          has been added, NULL will return. 
+          has been added, NULL will return.
 
 **/
-KNOWN_HANDLE * 
+KNOWN_HANDLE *
 FvIsBeingProcesssed (
   IN  EFI_HANDLE    FvHandle
   )
@@ -985,6 +984,7 @@ CoreProcessFvImageFile (
   UINTN                               BufferSize;
   EFI_FIRMWARE_VOLUME_HEADER          *FvHeader;
   UINT32                              FvAlignment;
+  EFI_DEVICE_PATH_PROTOCOL            *FvFileDevicePath;
 
   //
   // Read the first (and only the first) firmware volume section
@@ -1005,43 +1005,79 @@ CoreProcessFvImageFile (
                  &AuthenticationStatus
                  );
   if (!EFI_ERROR (Status)) {
+     //
+    // Evaluate the authentication status of the Firmware Volume through
+    // Security Architectural Protocol
+    //
+    if (gSecurity != NULL) {
+      FvFileDevicePath = CoreFvToDevicePath (Fv, FvHandle, DriverName);
+      Status = gSecurity->FileAuthenticationState (
+                            gSecurity,
+                            AuthenticationStatus,
+                            FvFileDevicePath
+                            );
+      if (FvFileDevicePath != NULL) {
+        FreePool (FvFileDevicePath);
+      }
+
+      if (Status != EFI_SUCCESS) {
+        //
+        // Security check failed. The firmware volume should not be used for any purpose.
+        //
+        if (Buffer != NULL) {
+          FreePool (Buffer);
+        }
+        return Status;
+      }
+    }
+
     //
     // FvImage should be at its required alignment.
     //
     FvHeader = (EFI_FIRMWARE_VOLUME_HEADER *) Buffer;
     //
-    // Get FvHeader alignment
+    // If EFI_FVB2_WEAK_ALIGNMENT is set in the volume header then the first byte of the volume
+    // can be aligned on any power-of-two boundary. A weakly aligned volume can not be moved from
+    // its initial linked location and maintain its alignment.
     //
-    FvAlignment = 1 << ((FvHeader->Attributes & EFI_FVB2_ALIGNMENT) >> 16);
-    //
-    // FvAlignment must be greater than or equal to 8 bytes of the minimum FFS alignment value. 
-    //
-    if (FvAlignment < 8) {
-      FvAlignment = 8;
+    if ((FvHeader->Attributes & EFI_FVB2_WEAK_ALIGNMENT) != EFI_FVB2_WEAK_ALIGNMENT) {
+      //
+      // Get FvHeader alignment
+      //
+      FvAlignment = 1 << ((FvHeader->Attributes & EFI_FVB2_ALIGNMENT) >> 16);
+      //
+      // FvAlignment must be greater than or equal to 8 bytes of the minimum FFS alignment value.
+      //
+      if (FvAlignment < 8) {
+        FvAlignment = 8;
+      }
+      //
+      // Allocate the aligned buffer for the FvImage.
+      //
+      AlignedBuffer = AllocateAlignedPages (EFI_SIZE_TO_PAGES (BufferSize), (UINTN) FvAlignment);
+      if (AlignedBuffer == NULL) {
+        FreePool (Buffer);
+        return EFI_OUT_OF_RESOURCES;
+      } else {
+        //
+        // Move FvImage into the aligned buffer and release the original buffer.
+        //
+        CopyMem (AlignedBuffer, Buffer, BufferSize);
+        FvHeader = (EFI_FIRMWARE_VOLUME_HEADER *) AlignedBuffer;
+        CoreFreePool (Buffer);
+        Buffer = NULL;
+      }
     }
     //
-    // Allocate the aligned buffer for the FvImage.
+    // Produce a FVB protocol for the file
     //
-    AlignedBuffer = AllocateAlignedPages (EFI_SIZE_TO_PAGES (BufferSize), (UINTN) FvAlignment);
-    if (AlignedBuffer == NULL) {
-      Status = EFI_OUT_OF_RESOURCES;
-    } else {
-      //
-      // Move FvImage into the aligned buffer and release the original buffer.
-      //
-      CopyMem (AlignedBuffer, Buffer, BufferSize);
-      CoreFreePool (Buffer);
-      Buffer = NULL;
-      //
-      // Produce a FVB protocol for the file
-      //
-      Status = ProduceFVBProtocolOnBuffer (
-                (EFI_PHYSICAL_ADDRESS) (UINTN) AlignedBuffer,
-                (UINT64)BufferSize,
-                FvHandle,
-                NULL
-                );
-    }
+    Status = ProduceFVBProtocolOnBuffer (
+              (EFI_PHYSICAL_ADDRESS) (UINTN) FvHeader,
+              (UINT64)BufferSize,
+              FvHandle,
+              AuthenticationStatus,
+              NULL
+              );
   }
 
   if (EFI_ERROR (Status)) {
@@ -1087,7 +1123,6 @@ CoreFwVolEventProtocolNotify (
 {
   EFI_STATUS                    Status;
   EFI_STATUS                    GetNextFileStatus;
-  EFI_STATUS                    SecurityStatus;
   EFI_FIRMWARE_VOLUME2_PROTOCOL *Fv;
   EFI_DEVICE_PATH_PROTOCOL      *FvDevicePath;
   EFI_HANDLE                    FvHandle;
@@ -1106,6 +1141,8 @@ CoreFwVolEventProtocolNotify (
   UINTN                         SizeOfBuffer;
   VOID                          *DepexBuffer;
   KNOWN_HANDLE                  *KnownHandle;
+
+  FvHandle = NULL;
 
   while (TRUE) {
     BufferSize = sizeof (EFI_HANDLE);
@@ -1136,7 +1173,7 @@ CoreFwVolEventProtocolNotify (
     KnownHandle = FvIsBeingProcesssed (FvHandle);
     if (KnownHandle == NULL) {
       //
-      // The FV with the same FV name guid has already been processed. 
+      // The FV with the same FV name guid has already been processed.
       // So lets skip it!
       //
       continue;
@@ -1157,24 +1194,6 @@ CoreFwVolEventProtocolNotify (
       // The Firmware volume doesn't have device path, can't be dispatched.
       //
       continue;
-    }
-
-    //
-    // Evaluate the authentication status of the Firmware Volume through
-    // Security Architectural Protocol
-    //
-    if (gSecurity != NULL) {
-      SecurityStatus = gSecurity->FileAuthenticationState (
-                                    gSecurity,
-                                    0,
-                                    FvDevicePath
-                                    );
-      if (SecurityStatus != EFI_SUCCESS) {
-        //
-        // Security check failed. The firmware volume should not be used for any purpose.
-        //
-        continue;
-      }
     }
 
     //
@@ -1289,7 +1308,7 @@ CoreFwVolEventProtocolNotify (
                            );
             if (EFI_ERROR (Status)) {
               //
-              // If no depex section, produce a firmware volume block protocol for it so it gets dispatched from. 
+              // If no depex section, produce a firmware volume block protocol for it so it gets dispatched from.
               //
               CoreProcessFvImageFile (Fv, FvHandle, &NameGuid);
             } else {
