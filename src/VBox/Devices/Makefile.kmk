@@ -883,7 +883,6 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
   VBoxDDRC_DEFS           = $(if $(VBOX_WITH_HGCM),VBOX_WITH_HGCM,)
   VBoxDDRC_INCS           = build
   VBoxDDRC_SOURCES        = \
-  	Audio/DevIchHda.cpp \
   	Bus/DevPCI.cpp \
   	Bus/DevPciIch9.cpp \
   	Bus/MsiCommon.cpp \
@@ -904,6 +903,10 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
   	Serial/DevSerial.cpp \
   	Parallel/DevParallel.cpp \
   	VMMDev/VMMDevTesting.cpp
+
+  VBoxDDRC_DEFS         += $(if $(VBOX_WITH_AUDIO_STABLE),VBOX_WITH_AUDIO_STABLE,)
+  VBoxDDRC_SOURCES      += \
+ 	$(VBOX_AUDIO_PATH_SOURCES)/DevIchHda.cpp
 
   ifdef VBOX_WITH_E1000
    VBoxDDRC_DEFS        += VBOX_WITH_E1000
@@ -1060,7 +1063,6 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
  VBoxDDR0_SDKS.win 	  = ReorderCompilerIncs $(VBOX_WINPSDK) $(VBOX_WINDDK)
  VBoxDDR0_SOURCES        = \
  	build/VBoxDDR0.cpp \
- 	Audio/DevIchHda.cpp \
  	Bus/DevPCI.cpp \
  	Bus/DevPciIch9.cpp \
  	Bus/MsiCommon.cpp \
@@ -1081,11 +1083,14 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
  	Serial/DevSerial.cpp \
  	Parallel/DevParallel.cpp \
  	VMMDev/VMMDevTesting.cpp \
- 	\
  	Network/DrvIntNet.cpp \
  	Network/DrvDedicatedNic.cpp
 
  VBoxDDR0_SOURCES.win += Parallel/DrvHostParallel.cpp
+
+ VBoxDDR0_DEFS          += $(if $(VBOX_WITH_AUDIO_STABLE),VBOX_WITH_AUDIO_STABLE,)
+ VBoxDDR0_SOURCES       += \
+ 	$(VBOX_AUDIO_PATH_SOURCES)/DevIchHda.cpp
 
  ifdef VBOX_WITH_E1000
   VBoxDDR0_DEFS         += VBOX_WITH_E1000
@@ -1210,10 +1215,8 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
   VBoxDD2RC_TEMPLATE       = VBoxRc
   VBoxDD2RC_INCS           = build
   VBoxDD2RC_SOURCES        = \
-  	PC/DevIoApic.cpp
-  ifndef VBOX_WITH_NEW_APIC
-   VBoxDD2RC_SOURCES += PC/DevAPIC.cpp
-  endif
+   	PC/DevIoApic.cpp \
+   	$(if $(VBOX_WITH_NEW_APIC),,PC/DevAPIC.cpp)
   if1of ($(VBOX_LDR_FMT32), pe lx)
    VBoxDD2RC_LIBS          = \
    	$(PATH_STAGE_LIB)/VMMRCBuiltin$(VBOX_SUFF_LIB) \
@@ -1231,10 +1234,8 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
  VBoxDD2R0_INCS           = build
  VBoxDD2R0_SOURCES        = \
  	build/VBoxDD2R0.cpp \
- 	PC/DevIoApic.cpp
- ifndef VBOX_WITH_NEW_APIC
-  VBoxDD2R0_SOURCES += PC/DevAPIC.cpp
- endif
+ 	$(if $(VBOX_WITH_NEW_IOAPIC),,PC/DevIoApic.cpp) \
+ 	$(if $(VBOX_WITH_NEW_APIC),,PC/DevAPIC.cpp)
  if1of ($(VBOX_LDR_FMT), pe lx)
   VBoxDD2R0_LIBS          = \
   	$(PATH_STAGE_LIB)/VMMR0Imp$(VBOX_SUFF_LIB) \

@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 107741 $"
+__version__ = "$Revision: 107845 $"
 
 
 # Standard python imports.
@@ -78,6 +78,7 @@ class TestSetData(ModelDataBase):
     ksParam_idBuildTestSuite    = 'TestSet_idBuildTestSuite';
     ksParam_idGenTestBox        = 'TestSet_idGenTestBox';
     ksParam_idTestBox           = 'TestSet_idTestBox';
+    ksParam_idSchedGroup        = 'TestSet_idSchedGroup';
     ksParam_idTestGroup         = 'TestSet_idTestGroup';
     ksParam_idGenTestCase       = 'TestSet_idGenTestCase';
     ksParam_idTestCase          = 'TestSet_idTestCase';
@@ -88,7 +89,7 @@ class TestSetData(ModelDataBase):
     ksParam_iGangMemberNo       = 'TestSet_iGangMemberNo';
     ksParam_idTestSetGangLeader = 'TestSet_idTestSetGangLeader';
 
-    kasAllowNullAttributes      = ['tsDone', 'idBuildTestSuite', 'idTestSetGangLeader' ];
+    kasAllowNullAttributes      = [ 'tsDone', 'idBuildTestSuite', 'idTestSetGangLeader' ];
     kasValidValues_enmStatus    = [
         ksTestStatus_Running,
         ksTestStatus_Success,
@@ -102,6 +103,8 @@ class TestSetData(ModelDataBase):
     kiMin_iGangMemberNo         = 0;
     kiMax_iGangMemberNo         = 1023;
 
+
+    kcDbColumns                 = 20;
 
     def __init__(self):
         ModelDataBase.__init__(self);
@@ -120,6 +123,7 @@ class TestSetData(ModelDataBase):
         self.idBuildTestSuite       = None;
         self.idGenTestBox           = None;
         self.idTestBox              = None;
+        self.idSchedGroup           = None;
         self.idTestGroup            = None;
         self.idGenTestCase          = None;
         self.idTestCase             = None;
@@ -149,15 +153,16 @@ class TestSetData(ModelDataBase):
         self.idBuildTestSuite       = aoRow[7];
         self.idGenTestBox           = aoRow[8];
         self.idTestBox              = aoRow[9];
-        self.idTestGroup            = aoRow[10];
-        self.idGenTestCase          = aoRow[11];
-        self.idTestCase             = aoRow[12];
-        self.idGenTestCaseArgs      = aoRow[13];
-        self.idTestCaseArgs         = aoRow[14];
-        self.idTestResult           = aoRow[15];
-        self.sBaseFilename          = aoRow[16];
-        self.iGangMemberNo          = aoRow[17];
-        self.idTestSetGangLeader    = aoRow[18];
+        self.idSchedGroup           = aoRow[10];
+        self.idTestGroup            = aoRow[11];
+        self.idGenTestCase          = aoRow[12];
+        self.idTestCase             = aoRow[13];
+        self.idGenTestCaseArgs      = aoRow[14];
+        self.idTestCaseArgs         = aoRow[15];
+        self.idTestResult           = aoRow[16];
+        self.sBaseFilename          = aoRow[17];
+        self.iGangMemberNo          = aoRow[18];
+        self.idTestSetGangLeader    = aoRow[19];
         return self;
 
 
@@ -380,9 +385,9 @@ class TestSetLogic(ModelLogicBase):
                                   '         cErrors   = cErrors + 1\n'
                                   'WHERE    idTestResult = %s\n'
                                   , (aoRow[0],));
-                self._oDb.execute('INSERT INTO TestResultMsgs (idTestResult, idStrMsg, enmLevel)\n'
-                                  'VALUES ( %s, %s, \'failure\'::TestResultMsgLevel_T)\n'
-                                  , (aoRow[0], idStr,));
+                self._oDb.execute('INSERT INTO TestResultMsgs (idTestResult, idTestSet, idStrMsg, enmLevel)\n'
+                                  'VALUES ( %s, %s, %s, \'failure\'::TestResultMsgLevel_T)\n'
+                                  , (aoRow[0], idTestSet, idStr,));
 
         #
         # If it's a success result, check it against error counters.
@@ -442,7 +447,7 @@ class TestSetLogic(ModelLogicBase):
         self._oDb.maybeCommit(fCommit);
         return oData.idTestSetGangLeader;
 
-    def completeAsAbandond(self, idTestSet, fCommit = False):
+    def completeAsAbandoned(self, idTestSet, fCommit = False):
         """
         Completes the testset as abandoned if necessary.
 
@@ -475,9 +480,9 @@ class TestSetLogic(ModelLogicBase):
                               , (idTestSet,));
 
             idStr = self.strTabString('The test was abandond by the testbox', fCommit = fCommit);
-            self._oDb.execute('INSERT INTO TestResultMsgs (idTestResult, idStrMsg, enmLevel)\n'
-                              'VALUES ( %s, %s, \'failure\'::TestResultMsgLevel_T)\n'
-                              , (oData.idTestResult, idStr,));
+            self._oDb.execute('INSERT INTO TestResultMsgs (idTestResult, idTestSet, idStrMsg, enmLevel)\n'
+                              'VALUES ( %s, %s, %s, \'failure\'::TestResultMsgLevel_T)\n'
+                              , (oData.idTestResult, idTestSet, idStr,));
 
         #
         # Complete the testset.
@@ -518,9 +523,9 @@ class TestSetLogic(ModelLogicBase):
                           , (idTestSet,));
 
         idStr = self.strTabString('Gang gathering timed out', fCommit = fCommit);
-        self._oDb.execute('INSERT INTO TestResultMsgs (idTestResult, idStrMsg, enmLevel)\n'
-                          'VALUES ( %s, %s, \'failure\'::TestResultMsgLevel_T)\n'
-                          , (oData.idTestResult, idStr,));
+        self._oDb.execute('INSERT INTO TestResultMsgs (idTestResult, idTestSet, idStrMsg, enmLevel)\n'
+                          'VALUES ( %s, %s, %s, \'failure\'::TestResultMsgLevel_T)\n'
+                          , (oData.idTestResult, idTestSet, idStr,));
 
         self._oDb.execute('UPDATE   TestSets\n'
                           'SET      enmStatus = \'failure\',\n'
@@ -601,9 +606,11 @@ class TestSetLogic(ModelLogicBase):
             if sName is None:
                 raise TMExceptionBase('Failed to find unique name for %s.' % (sOrgName,));
 
-        self._oDb.execute('INSERT INTO TestResultFiles(idTestResult, idStrFile, idStrDescription, idStrKind, idStrMime)\n'
-                          'VALUES (%s, %s, %s, %s, %s)\n'
+        self._oDb.execute('INSERT INTO TestResultFiles(idTestResult, idTestSet, idStrFile, idStrDescription,\n'
+                          '                            idStrKind, idStrMime)\n'
+                          'VALUES (%s, %s, %s, %s, %s, %s)\n'
                           , ( idTestResult,
+                              oTestSet.idTestSet,
                               self.strTabString(sName),
                               self.strTabString(sDesc),
                               self.strTabString(sKind),
@@ -620,12 +627,13 @@ class TestSetLogic(ModelLogicBase):
         """
         Returns an array of TestBoxData object representing the gang for the given testset.
         """
-        self._oDb.execute('SELECT   TestBoxes.*\n'
-                          'FROM     TestBoxes, TestSets\n'
+        self._oDb.execute('SELECT   TestBoxesWithStrings.*\n'
+                          'FROM     TestBoxesWithStrings,\n'
+                          '         TestSets'
                           'WHERE    TestSets.idTestSetGangLeader = %s\n'
-                          '     AND TestSets.idGenTestBox        = TestBoxes.idGenTestBox\n'
+                          '     AND TestSets.idGenTestBox        = TestBoxesWithStrings.idGenTestBox\n'
                           'ORDER BY iGangMemberNo ASC\n'
-                          , (idTestSetGangLeader,));
+                          , ( idTestSetGangLeader,));
         aaoRows = self._oDb.fetchAll();
         aoTestBoxes = [];
         for aoRow in aaoRows:
@@ -701,6 +709,32 @@ class TestSetLogic(ModelLogicBase):
         for aoRow in self._oDb.fetchAll():
             aoRet.append(TestSetData().initFromDbRow(aoRow));
         return aoRet;
+
+    def isTestBoxExecutingToRapidly(self, idTestBox):
+        """
+        Checks whether the specified test box is executing tests too rapidly.
+
+        The parameters defining too rapid execution are defined in config.py.
+
+        Returns True if it does, False if it doesn't.
+        May raise database problems.
+        """
+
+        self._oDb.execute('(\n'
+                          'SELECT   tsCreated\n'
+                          'FROM     TestSets\n'
+                          'WHERE    idTestBox = %s\n'
+                          '     AND tsCreated >= (CURRENT_TIMESTAMP - interval \'%s seconds\')\n'
+                          ') UNION (\n'
+                          'SELECT   tsCreated\n'
+                          'FROM     TestSets\n'
+                          'WHERE    idTestBox = %s\n'
+                          '     AND tsCreated >= (CURRENT_TIMESTAMP - interval \'%s seconds\')\n'
+                          '     AND enmStatus >= \'failure\'\n'
+                          ')'
+                          , ( idTestBox, config.g_kcSecMinSinceLastTask,
+                              idTestBox, config.g_kcSecMinSinceLastFailedTask, ));
+        return self._oDb.getRowCount() > 0;
 
 
     #

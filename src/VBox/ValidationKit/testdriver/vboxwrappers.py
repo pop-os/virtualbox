@@ -27,7 +27,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 107645 $"
+__version__ = "$Revision: 107908 $"
 
 
 # Standard Python imports.
@@ -1439,7 +1439,7 @@ class SessionWrapper(TdTaskBase):
             sHostName = ''
             try:
                 sHostName = socket.getfqdn()
-                if not '.' in sHostName:
+                if '.' not in sHostName:
                     # somewhat misconfigured system, needs expensive approach to guessing FQDN
                     for aAI in socket.getaddrinfo(sHostName, None):
                         sName, _ = socket.getnameinfo(aAI[4], 0)
@@ -1524,6 +1524,20 @@ class SessionWrapper(TdTaskBase):
             reporter.log('set the CPU count of "%s" to %s' % (self.sName, cCpus));
         self.oTstDrv.processPendingEvents();
         return fRc;
+
+    def getCpuCount(self):
+        """
+        Returns the number of CPUs.
+        Returns the number of CPUs on success and 0 on failure. Error information is logged.
+        """
+        cCpus = 0;
+        try:
+            cCpus = self.o.machine.CPUCount;
+        except:
+            reporter.errorXcpt('failed to get the CPU count of "%s"' % (self.sName,));
+
+        self.oTstDrv.processPendingEvents();
+        return cCpus;
 
     def ensureControllerAttached(self, sController):
         """
@@ -2399,6 +2413,66 @@ class SessionWrapper(TdTaskBase):
                     reporter.logXcpt('Unable to get the guest OS (%s) kernel log' % (sOsDetected,));
         return sOsKernelLog;
 
+    def queryDbgInfo(self, sItem, sArg = '', sDefault = None):
+        """
+        Simple wrapper around IMachineDebugger::info.
+
+        Returns string on success, sDefault on failure (logged).
+        """
+        try:
+            return self.o.console.debugger.info(sItem, sArg);
+        except:
+            reporter.logXcpt('Unable to query "%s" with arg "%s"' % (sItem, sArg,));
+        return sDefault;
+
+    def queryDbgInfoVgaText(self, sArg = 'all'):
+        """
+        Tries to get the 'info vgatext' output, provided we're in next mode.
+
+        Returns string containing text on success.
+        Returns None on failure or not text mode.
+        """
+        sVgaText = None;
+        try:
+            sVgaText = self.o.console.debugger.info('vgatext', sArg);
+            if sVgaText.startswith('Not in text mode!'):
+                sVgaText = None;
+        except:
+            reporter.logXcpt('Unable to query vgatext with arg "%s"' % (sArg,));
+        return sVgaText;
+
+    def queryDbgGuestStack(self, iCpu = 0):
+        """
+        Returns the guest stack for the given VCPU.
+
+        Returns string containing the guest stack for the selected VCPU on success.
+        Returns None on failure.
+        """
+
+        #
+        # Load all plugins first and try to detect the OS so we can
+        # get nicer stack traces.
+        #
+        try:
+            self.o.console.debugger.loadPlugIn('all');
+        except:
+            reporter.logXcpt('Unable to load debugger plugins');
+        else:
+            try:
+                sOsDetected = self.o.console.debugger.detectOS();
+                _ = sOsDetected;
+            except:
+                reporter.logXcpt('Failed to detect the guest OS');
+
+        sGuestStack = None;
+        try:
+            sGuestStack = self.o.console.debugger.dumpGuestStack(iCpu);
+        except:
+            reporter.logXcpt('Unable to query guest stack for CPU %s' % (iCpu, ));
+
+        return sGuestStack;
+
+
     #
     # Other methods.
     #
@@ -2546,7 +2620,7 @@ class SessionWrapper(TdTaskBase):
         # If the VM is configured with a NAT interface, connect to local host.
         fReversedSetup = False;
         fUseNatForTxs  = False;
-        if sIpAddr == None:
+        if sIpAddr is None:
             try:
                 oNic = self.oVM.getNetworkAdapter(0);
                 if oNic.attachmentType == vboxcon.NetworkAttachmentType_NAT:

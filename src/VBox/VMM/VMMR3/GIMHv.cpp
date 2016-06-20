@@ -20,7 +20,16 @@
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_GIM
+#include <VBox/vmm/gim.h>
+#include <VBox/vmm/cpum.h>
+#include <VBox/vmm/mm.h>
+#include <VBox/vmm/ssm.h>
+#include <VBox/vmm/hm.h>
+#include <VBox/vmm/pdmapi.h>
 #include "GIMInternal.h"
+#include <VBox/vmm/vm.h>
+
+#include <VBox/version.h>
 
 #include <iprt/assert.h>
 #include <iprt/err.h>
@@ -28,14 +37,6 @@
 #include <iprt/mem.h>
 #include <iprt/semaphore.h>
 #include <iprt/spinlock.h>
-
-#include <VBox/vmm/cpum.h>
-#include <VBox/vmm/mm.h>
-#include <VBox/vmm/ssm.h>
-#include <VBox/vmm/vm.h>
-#include <VBox/vmm/hm.h>
-#include <VBox/vmm/pdmapi.h>
-#include <VBox/version.h>
 #ifdef DEBUG_ramshankar
 # include <iprt/udp.h>
 #endif
@@ -1556,7 +1557,7 @@ VMMR3_INT_DECL(int) gimR3HvDebugWrite(PVM pVM, void *pvData, uint32_t cbWrite, u
                                  * Extract the UDP payload and pass it to the debugger and record the guest IP address.
                                  *
                                  * Hyper-V sends UDP debugger packets with source and destination port as 0 except in the
-                                 * aformentioned buggy case. The buggy packet case requires us to remember the ports and
+                                 * aforementioned buggy case. The buggy packet case requires us to remember the ports and
                                  * reply to them, otherwise the guest won't receive the replies we sent with port 0.
                                  */
                                 uint32_t const cbFrameHdr = sizeof(RTNETETHERHDR) + cbIpHdr + sizeof(RTNETUDP);
@@ -1711,6 +1712,8 @@ VMMR3_INT_DECL(int) gimR3HvHypercallPostDebugData(PVM pVM, int *prcHv)
         LogRelMax(10, ("GIM: HyperV: HvPostDebugData failed to update guest memory. rc=%Rrc\n", rc));
         rc = VERR_GIM_HYPERCALL_MEMORY_WRITE_FAILED;
     }
+    else
+        Assert(rc == VINF_SUCCESS);
 
     *prcHv = rcHv;
     return rc;
@@ -1790,6 +1793,8 @@ VMMR3_INT_DECL(int) gimR3HvHypercallRetrieveDebugData(PVM pVM, int *prcHv)
         LogRelMax(10, ("GIM: HyperV: HvRetrieveDebugData failed to update guest memory. rc=%Rrc\n", rc));
         rc = VERR_GIM_HYPERCALL_MEMORY_WRITE_FAILED;
     }
+    else
+        Assert(rc == VINF_SUCCESS);
 
     *prcHv = rcHv;
     return rc;

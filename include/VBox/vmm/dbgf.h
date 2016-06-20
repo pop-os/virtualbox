@@ -410,6 +410,10 @@ typedef enum DBGFEVENTTYPE
      * @todo not yet implemented.  */
     DBGFEVENT_MEMORY_ROM_WRITE,
 
+    /** Windows guest reported BSOD via hyperv MSRs. */
+    DBGFEVENT_BSOD_MSR,
+    /** Windows guest reported BSOD via EFI variables. */
+    DBGFEVENT_BSOD_EFI,
 
     /** End of valid event values. */
     DBGFEVENT_END,
@@ -523,7 +527,7 @@ VMMR3_INT_DECL(int)     DBGFR3Init(PVM pVM);
 VMMR3_INT_DECL(int)     DBGFR3Term(PVM pVM);
 VMMR3_INT_DECL(void)    DBGFR3PowerOff(PVM pVM);
 VMMR3_INT_DECL(void)    DBGFR3Relocate(PVM pVM, RTGCINTPTR offDelta);
-VMMR3_INT_DECL(int)     DBGFR3VMMForcedAction(PVM pVM);
+VMMR3_INT_DECL(int)     DBGFR3VMMForcedAction(PVM pVM, PVMCPU pVCpu);
 VMMR3_INT_DECL(VBOXSTRICTRC)    DBGFR3EventHandlePending(PVM pVM, PVMCPU pVCpu);
 VMMR3DECL(int)          DBGFR3Event(PVM pVM, DBGFEVENTTYPE enmEvent);
 VMMR3DECL(int)          DBGFR3EventSrc(PVM pVM, DBGFEVENTTYPE enmEvent, const char *pszFile, unsigned uLine,
@@ -939,6 +943,8 @@ typedef FNDBGFHANDLEREXT  *PFNDBGFHANDLEREXT;
  * @{ */
 /** The handler must run on the EMT. */
 #define DBGFINFO_FLAGS_RUN_ON_EMT       RT_BIT(0)
+/** Call on all EMTs when a specific isn't specified. */
+#define DBGFINFO_FLAGS_ALL_EMTS         RT_BIT(1)
 /** @} */
 
 VMMR3_INT_DECL(int) DBGFR3InfoRegisterDevice(PVM pVM, const char *pszName, const char *pszDesc, PFNDBGFHANDLERDEV pfnHandler, PPDMDEVINS pDevIns);
@@ -960,18 +966,43 @@ VMMR3_INT_DECL(int) DBGFR3InfoMulti(PVM pVM, const char *pszIncludePat, const ch
 /** @def DBGFR3_INFO_LOG
  * Display a piece of info writing to the log if enabled.
  *
+ * This is for execution on EMTs and will only show the items on the calling
+ * EMT.  This is to avoid deadlocking against other CPUs if a rendezvous is
+ * initiated in parallel to this call.  (Besides, nobody really wants or need
+ * info for the other EMTs when using this macro.)
+ *
  * @param   a_pVM       The shared VM handle.
+ * @param   a_pVCpu     The cross context per CPU structure of the calling EMT.
  * @param   a_pszName   The identifier of the info to display.
  * @param   a_pszArgs   Arguments to the info handler.
  */
 #ifdef LOG_ENABLED
-# define DBGFR3_INFO_LOG(a_pVM, a_pszName, a_pszArgs) \
+# define DBGFR3_INFO_LOG(a_pVM, a_pVCpu, a_pszName, a_pszArgs) \
+    do { \
+        if (LogIsEnabled()) \
+            DBGFR3InfoEx((a_pVM)->pUVM, (a_pVCpu)->idCpu, a_pszName, a_pszArgs, NULL); \
+    } while (0)
+#else
+# define DBGFR3_INFO_LOG(a_pVM, a_pVCpu, a_pszName, a_pszArgs) do { } while (0)
+#endif
+
+/** @def DBGFR3_INFO_LOG_SAFE
+ * Display a piece of info (rendezvous safe) writing to the log if enabled.
+ *
+ * @param   a_pVM       The shared VM handle.
+ * @param   a_pszName   The identifier of the info to display.
+ * @param   a_pszArgs   Arguments to the info handler.
+ *
+ * @remarks Use DBGFR3_INFO_LOG where ever possible!
+ */
+#ifdef LOG_ENABLED
+# define DBGFR3_INFO_LOG_SAFE(a_pVM, a_pszName, a_pszArgs) \
     do { \
         if (LogIsEnabled()) \
             DBGFR3Info((a_pVM)->pUVM, a_pszName, a_pszArgs, NULL); \
     } while (0)
 #else
-# define DBGFR3_INFO_LOG(a_pVM, a_pszName, a_pszArgs) do { } while (0)
+# define DBGFR3_INFO_LOG_SAFE(a_pVM, a_pszName, a_pszArgs) do { } while (0)
 #endif
 
 /**
@@ -2208,8 +2239,251 @@ VMMR3DECL(void) DBGFR3PlugInLoadAll(PUVM pUVM);
 VMMR3DECL(void) DBGFR3PlugInUnloadAll(PUVM pUVM);
 
 /** @} */
-#endif /* IN_RING3 */
 
+/** @defgroup grp_dbgf_types        The DBGF type system Interface.
+ * @{
+ */
+
+/** A few forward declarations. */
+/** Pointer to a type registration structure. */
+typedef struct DBGFTYPEREG *PDBGFTYPEREG;
+/** Pointer to a const type registration structure. */
+typedef const struct DBGFTYPEREG *PCDBGFTYPEREG;
+/** Pointer to a typed buffer. */
+typedef struct DBGFTYPEVAL *PDBGFTYPEVAL;
+
+/**
+ * DBGF built-in types.
+ */
+typedef enum DBGFTYPEBUILTIN
+{
+    /** The usual invalid first value. */
+    DBGFTYPEBUILTIN_INVALID,
+    /** Unsigned 8bit integer. */
+    DBGFTYPEBUILTIN_UINT8,
+    /** Signed 8bit integer. */
+    DBGFTYPEBUILTIN_INT8,
+    /** Unsigned 16bit integer. */
+    DBGFTYPEBUILTIN_UINT16,
+    /** Signed 16bit integer. */
+    DBGFTYPEBUILTIN_INT16,
+    /** Unsigned 32bit integer. */
+    DBGFTYPEBUILTIN_UINT32,
+    /** Signed 32bit integer. */
+    DBGFTYPEBUILTIN_INT32,
+    /** Unsigned 64bit integer. */
+    DBGFTYPEBUILTIN_UINT64,
+    /** Signed 64bit integer. */
+    DBGFTYPEBUILTIN_INT64,
+    /** 32bit Guest pointer */
+    DBGFTYPEBUILTIN_PTR32,
+    /** 64bit Guest pointer */
+    DBGFTYPEBUILTIN_PTR64,
+    /** Guest pointer - size depends on the guest bitness */
+    DBGFTYPEBUILTIN_PTR,
+    /** Type indicating a size, like size_t this can have different sizes
+     * on 32bit and 64bit systems */
+    DBGFTYPEBUILTIN_SIZE,
+    /** 32bit float. */
+    DBGFTYPEBUILTIN_FLOAT32,
+    /** 64bit float (also known as double). */
+    DBGFTYPEBUILTIN_FLOAT64,
+    /** Compund types like structs and unions. */
+    DBGFTYPEBUILTIN_COMPOUND,
+    /** The usual 32-bit hack. */
+    DBGFTYPEBUILTIN_32BIT_HACK = 0x7fffffff
+} DBGFTYPEBUILTIN;
+/** Pointer to a built-in type. */
+typedef DBGFTYPEBUILTIN *PDBGFTYPEBUILTIN;
+/** Pointer to a const built-in type. */
+typedef const DBGFTYPEBUILTIN *PCDBGFTYPEBUILTIN;
+
+/**
+ * DBGF type value buffer.
+ */
+typedef union DBGFTYPEVALBUF
+{
+    uint8_t          u8;
+    int8_t           i8;
+    uint16_t         u16;
+    int16_t          i16;
+    uint32_t         u32;
+    int32_t          i32;
+    uint64_t         u64;
+    int64_t          i64;
+    float            f32;
+    double           f64;
+    uint64_t         size; /* For the built-in size_t which can be either 32-bit or 64-bit. */
+    RTGCPTR          GCPtr;
+    /** For embedded structs. */
+    PDBGFTYPEVAL     pVal;
+} DBGFTYPEVALBUF;
+/** Pointer to a value. */
+typedef DBGFTYPEVALBUF *PDBGFTYPEVALBUF;
+
+/**
+ * DBGF type value entry.
+ */
+typedef struct DBGFTYPEVALENTRY
+{
+    /** DBGF built-in type. */
+    DBGFTYPEBUILTIN      enmType;
+    /** Size of the type. */
+    size_t              cbType;
+    /** Number of entries, for arrays this can be > 1. */
+    uint32_t             cEntries;
+    /** Value buffer, depends on whether this is an array. */
+    union
+    {
+        /** Single value. */
+        DBGFTYPEVALBUF   Val;
+        /** Pointer to the array of values. */
+        PDBGFTYPEVALBUF  pVal;
+    } Buf;
+} DBGFTYPEVALENTRY;
+/** Pointer to a type value entry. */
+typedef DBGFTYPEVALENTRY *PDBGFTYPEVALENTRY;
+/** Pointer to a const type value entry. */
+typedef const DBGFTYPEVALENTRY *PCDBGFTYPEVALENTRY;
+
+/**
+ * DBGF typed value.
+ */
+typedef struct DBGFTYPEVAL
+{
+    /** Pointer to the registration structure for this type. */
+    PCDBGFTYPEREG        pTypeReg;
+    /** Number of value entries. */
+    uint32_t             cEntries;
+    /** Variable sized array of value entries. */
+    DBGFTYPEVALENTRY     aEntries[1];
+} DBGFTYPEVAL;
+
+/**
+ * DBGF type variant.
+ */
+typedef enum DBGFTYPEVARIANT
+{
+    /** The usual invalid first value. */
+    DBGFTYPEVARIANT_INVALID,
+    /** A struct. */
+    DBGFTYPEVARIANT_STRUCT,
+    /** Union. */
+    DBGFTYPEVARIANT_UNION,
+    /** Alias for an existing type. */
+    DBGFTYPEVARIANT_ALIAS,
+    /** The usual 32-bit hack. */
+    DBGFTYPEVARIANT_32BIT_HACK = 0x7fffffff
+} DBGFTYPEVARIANT;
+
+/** @name DBGFTYPEREGMEMBER Flags.
+ * @{ */
+/** The member is an array with a fixed size. */
+# define DBGFTYPEREGMEMBER_F_ARRAY   RT_BIT_32(0)
+/** The member denotes a pointer. */
+# define DBGFTYPEREGMEMBER_F_POINTER RT_BIT_32(1)
+/** @} */
+
+/**
+ * DBGF type member.
+ */
+typedef struct DBGFTYPEREGMEMBER
+{
+    /** Name of the member. */
+    const char          *pszName;
+    /** Flags for this member, see DBGFTYPEREGMEMBER_F_XXX. */
+    uint32_t             fFlags;
+    /** Type identifier. */
+    const char          *pszType;
+    /** The number of elements in the array, only valid for arrays. */
+    uint32_t             cElements;
+} DBGFTYPEREGMEMBER;
+/** Pointer to a member. */
+typedef DBGFTYPEREGMEMBER *PDBGFTYPEREGMEMBER;
+/** Pointer to a const member. */
+typedef const DBGFTYPEREGMEMBER *PCDBGFTYPEREGMEMBER;
+
+/** @name DBGFTYPEREG Flags.
+ * @{ */
+/** The type is a packed structure. */
+# define DBGFTYPEREG_F_PACKED        RT_BIT_32(0)
+/** @} */
+
+/**
+ * New type registration structure.
+ */
+typedef struct DBGFTYPEREG
+{
+    /** Name of the type. */
+    const char          *pszType;
+    /** The type variant. */
+    DBGFTYPEVARIANT      enmVariant;
+    /** Some registration flags, see DBGFTYPEREG_F_XXX. */
+    uint32_t             fFlags;
+    /** Number of members this type has, only valid for structs or unions. */
+    uint32_t             cMembers;
+    /** Pointer to the member fields, only valid for structs or unions. */
+    PCDBGFTYPEREGMEMBER  paMembers;
+    /** Name of the aliased type for aliases. */
+    const char          *pszAliasedType;
+} DBGFTYPEREG;
+
+/**
+ * DBGF typed value dumper callback.
+ *
+ * @returns VBox status code. Any non VINF_SUCCESS status code will abort the dumping.
+ *
+ * @param   off             The byte offset of the entry from the start of the type.
+ * @param   pszField        The name of the field for the value.
+ * @param   iLvl            The current level.
+ * @param   enmType         The type enum.
+ * @param   cbType          Size of the type.
+ * @param   pValBuf         Pointer to the value buffer.
+ * @param   cValBufs        Number of value buffers (for arrays).
+ * @param   pvUser          Opaque user data.
+ */
+typedef DECLCALLBACK(int) FNDBGFR3TYPEVALDUMP(uint32_t off, const char *pszField, uint32_t iLvl,
+                                              DBGFTYPEBUILTIN enmType, size_t cbType,
+                                              PDBGFTYPEVALBUF pValBuf, uint32_t cValBufs,
+                                              void *pvUser);
+/** Pointer to a FNDBGFR3TYPEVALDUMP. */
+typedef FNDBGFR3TYPEVALDUMP *PFNDBGFR3TYPEVALDUMP;
+
+/**
+ * DBGF type information dumper callback.
+ *
+ * @returns VBox status code. Any non VINF_SUCCESS status code will abort the dumping.
+ *
+ * @param   off             The byte offset of the entry from the start of the type.
+ * @param   pszField        The name of the field for the value.
+ * @param   iLvl            The current level.
+ * @param   pszType         The type of the field.
+ * @param   fTypeFlags      Flags for this type, see DBGFTYPEREGMEMBER_F_XXX.
+ * @param   cElements       Number of for the field ( > 0 for arrays).
+ * @param   pvUser          Opaque user data.
+ */
+typedef DECLCALLBACK(int) FNDBGFR3TYPEDUMP(uint32_t off, const char *pszField, uint32_t iLvl,
+                                           const char *pszType, uint32_t fTypeFlags,
+                                           uint32_t cElements, void *pvUser);
+/** Pointer to a FNDBGFR3TYPEDUMP. */
+typedef FNDBGFR3TYPEDUMP *PFNDBGFR3TYPEDUMP;
+
+VMMR3DECL(int) DBGFR3TypeRegister(  PUVM pUVM, uint32_t cTypes, PCDBGFTYPEREG paTypes);
+VMMR3DECL(int) DBGFR3TypeDeregister(PUVM pUVM, const char *pszType);
+VMMR3DECL(int) DBGFR3TypeQueryReg(  PUVM pUVM, const char *pszType, PCDBGFTYPEREG *ppTypeReg);
+
+VMMR3DECL(int) DBGFR3TypeQuerySize( PUVM pUVM, const char *pszType, size_t *pcbType);
+VMMR3DECL(int) DBGFR3TypeSetSize(   PUVM pUVM, const char *pszType, size_t cbType);
+VMMR3DECL(int) DBGFR3TypeDumpEx(    PUVM pUVM, const char *pszType, uint32_t fFlags,
+                                    uint32_t cLvlMax, PFNDBGFR3TYPEDUMP pfnDump, void *pvUser);
+VMMR3DECL(int) DBGFR3TypeQueryValByType(PUVM pUVM, PCDBGFADDRESS pAddress, const char *pszType,
+                                        PDBGFTYPEVAL *ppVal);
+VMMR3DECL(void) DBGFR3TypeValFree(PDBGFTYPEVAL pVal);
+VMMR3DECL(int)  DBGFR3TypeValDumpEx(PUVM pUVM, PCDBGFADDRESS pAddress, const char *pszType, uint32_t fFlags,
+                                    uint32_t cLvlMax, FNDBGFR3TYPEVALDUMP pfnDump, void *pvUser);
+
+/** @} */
+#endif /* IN_RING3 */
 
 /** @} */
 

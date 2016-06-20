@@ -55,7 +55,7 @@ typedef USBDEVICELIST *PUSBDEVICELIST;
  * Initialize data members.
  */
 USBProxyBackendSolaris::USBProxyBackendSolaris()
-    : USBProxyBackend(), mUSBLibInitialized(false)
+    : USBProxyBackend(), mNotifyEventSem(NIL_RTSEMEVENT), mUSBLibInitialized(false)
 {
     LogFlowThisFunc(("\n"));
 }
@@ -88,7 +88,7 @@ int USBProxyBackendSolaris::init(USBProxyService *aUsbProxyService, const com::U
     rc = USBLibInit();
     if (RT_FAILURE(rc))
     {
-        RTSemEventDestroy(mNotifyEventSem);
+        /* mNotifyEventSem will be destroyed in uninit */
         return rc;
     }
 
@@ -124,8 +124,11 @@ void USBProxyBackendSolaris::uninit()
         mUSBLibInitialized = false;
     }
 
-    RTSemEventDestroy(mNotifyEventSem);
-    mNotifyEventSem = NULL;
+    if (mNotifyEventSem != NIL_RTSEMEVENT)
+    {
+        RTSemEventDestroy(mNotifyEventSem);
+        mNotifyEventSem = NIL_RTSEMEVENT;
+    }
 }
 
 

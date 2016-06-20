@@ -2487,9 +2487,9 @@ AudioAdapter::AudioAdapter() :
 /**
  * Check if all settings have default values.
  */
-bool AudioAdapter::areDefaultSettings() const
+bool AudioAdapter::areDefaultSettings(SettingsVersion_T sv) const
 {
-    return !fEnabled
+    return (sv <= SettingsVersion_v1_14 ? fEnabled : !fEnabled)
         && controllerType == AudioControllerType_AC97
         && codecType == AudioCodecType_STAC9700
         && driverType == MachineConfigFile::getHostDefaultAudioDriver()
@@ -5623,8 +5623,8 @@ void MachineConfigFile::buildHardwareXML(xml::ElementNode &elmParent,
         bool fEhciEnabled = false;
         xml::ElementNode *pelmUSB = pelmHardware->createChild("USBController");
 
-        for (USBControllerList::const_iterator it = hardwareMachine.usbSettings.llUSBControllers.begin();
-             it != hardwareMachine.usbSettings.llUSBControllers.end();
+        for (USBControllerList::const_iterator it = hw.usbSettings.llUSBControllers.begin();
+             it != hw.usbSettings.llUSBControllers.end();
              ++it)
         {
             const USBController &ctrl = *it;
@@ -5649,16 +5649,16 @@ void MachineConfigFile::buildHardwareXML(xml::ElementNode &elmParent,
     }
     else
     {
-        if (   hardwareMachine.usbSettings.llUSBControllers.size()
-            || hardwareMachine.usbSettings.llDeviceFilters.size())
+        if (   hw.usbSettings.llUSBControllers.size()
+            || hw.usbSettings.llDeviceFilters.size())
         {
             xml::ElementNode *pelmUSB = pelmHardware->createChild("USB");
-            if (hardwareMachine.usbSettings.llUSBControllers.size())
+            if (hw.usbSettings.llUSBControllers.size())
             {
                 xml::ElementNode *pelmCtrls = pelmUSB->createChild("Controllers");
 
-                for (USBControllerList::const_iterator it = hardwareMachine.usbSettings.llUSBControllers.begin();
-                     it != hardwareMachine.usbSettings.llUSBControllers.end();
+                for (USBControllerList::const_iterator it = hw.usbSettings.llUSBControllers.begin();
+                     it != hw.usbSettings.llUSBControllers.end();
                      ++it)
                 {
                     const USBController &ctrl = *it;
@@ -5685,7 +5685,7 @@ void MachineConfigFile::buildHardwareXML(xml::ElementNode &elmParent,
                 }
             }
 
-            if (hardwareMachine.usbSettings.llDeviceFilters.size())
+            if (hw.usbSettings.llDeviceFilters.size())
             {
                 xml::ElementNode *pelmFilters = pelmUSB->createChild("DeviceFilters");
                 buildUSBDeviceFilters(*pelmFilters, hw.usbSettings.llDeviceFilters, false /* fHostMode */);
@@ -5863,7 +5863,7 @@ void MachineConfigFile::buildHardwareXML(xml::ElementNode &elmParent,
         }
     }
 
-    if (!hw.audioAdapter.areDefaultSettings())
+    if (!hw.audioAdapter.areDefaultSettings(m->sv))
     {
         xml::ElementNode *pelmAudio = pelmHardware->createChild("AudioAdapter");
         if (hw.audioAdapter.controllerType != AudioControllerType_AC97)
@@ -5895,7 +5895,7 @@ void MachineConfigFile::buildHardwareXML(xml::ElementNode &elmParent,
             /* Only write out the setting for non-default AC'97 codec
              * and leave the rest alone.
              */
-    #if 0
+#if 0
             case AudioCodecType_SB16:
                 pcszCodec = "SB16";
                 break;
@@ -5905,7 +5905,7 @@ void MachineConfigFile::buildHardwareXML(xml::ElementNode &elmParent,
             case AudioCodecType_STAC9700:
                 pcszCodec = "STAC9700";
                 break;
-    #endif
+#endif
             case AudioCodecType_AD1980:
                 pcszCodec = "AD1980";
                 break;
@@ -5931,7 +5931,7 @@ void MachineConfigFile::buildHardwareXML(xml::ElementNode &elmParent,
         }
         pelmAudio->setAttribute("driver", pcszDriver);
 
-        if (hw.audioAdapter.fEnabled)
+        if (hw.audioAdapter.fEnabled || m->sv <= SettingsVersion_v1_14)
             pelmAudio->setAttribute("enabled", hw.audioAdapter.fEnabled);
 
         if (m->sv >= SettingsVersion_v1_15 && hw.audioAdapter.properties.size() > 0)
@@ -6103,7 +6103,7 @@ void MachineConfigFile::buildHardwareXML(xml::ElementNode &elmParent,
      * this is where it always should've been. What else than hardware are they? */
     xml::ElementNode &elmStorageParent = (m->sv > SettingsVersion_Future) ? *pelmHardware : elmParent;
     buildStorageControllersXML(elmStorageParent,
-                               hardwareMachine.storage,
+                               hw.storage,
                                !!(fl & BuildMachineXML_SkipRemovableMedia),
                                pllElementsWithUuidAttributes);
 }

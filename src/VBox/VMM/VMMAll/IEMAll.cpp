@@ -2560,7 +2560,7 @@ iemTaskSwitch(PIEMCPU         pIemCpu,
     bool const fIsNewTSS386 = (   uNewTSSType == X86_SEL_TYPE_SYS_386_TSS_AVAIL
                                || uNewTSSType == X86_SEL_TYPE_SYS_386_TSS_BUSY);
 
-    Log(("iemTaskSwitch: enmTaskSwitch=%u NewTSS=%#x fIsNewTSS386=%RTbool EIP=%#RGv uNextEip=%#RGv\n", enmTaskSwitch, SelTSS,
+    Log(("iemTaskSwitch: enmTaskSwitch=%u NewTSS=%#x fIsNewTSS386=%RTbool EIP=%#RX32 uNextEip=%#RX32\n", enmTaskSwitch, SelTSS,
          fIsNewTSS386, pCtx->eip, uNextEip));
 
     /* Update CR2 in case it's a page-fault. */
@@ -3245,7 +3245,7 @@ iemTaskSwitch(PIEMCPU         pIemCpu,
     /* Check the new EIP against the new CS limit. */
     if (pCtx->eip > pCtx->cs.u32Limit)
     {
-        Log(("iemHlpTaskSwitchLoadDataSelectorInProtMode: New EIP exceeds CS limit. uNewEIP=%#RGv CS limit=%u -> #GP(0)\n",
+        Log(("iemHlpTaskSwitchLoadDataSelectorInProtMode: New EIP exceeds CS limit. uNewEIP=%#RX32 CS limit=%u -> #GP(0)\n",
              pCtx->eip, pCtx->cs.u32Limit));
         /** @todo Intel says \#GP(EXT) for INT/XCPT, I couldn't figure out AMD yet. */
         return iemRaiseGeneralProtectionFault(pIemCpu, uExt);
@@ -3534,6 +3534,10 @@ iemRaiseXcptOrIntInProtMode(PIEMCPU     pIemCpu,
          * Start making changes.
          */
 
+        /* Set the new CPL so that stack accesses use it. */
+        uint8_t const uOldCpl = pIemCpu->uCpl;
+        pIemCpu->uCpl = uNewCpl;
+
         /* Create the stack frame. */
         RTPTRUNION uStackFrame;
         rcStrict = iemMemMap(pIemCpu, &uStackFrame.pv, cbStackFrame, UINT8_MAX,
@@ -3546,7 +3550,7 @@ iemRaiseXcptOrIntInProtMode(PIEMCPU     pIemCpu,
             if (fFlags & IEM_XCPT_FLAGS_ERR)
                 *uStackFrame.pu32++ = uErr;
             uStackFrame.pu32[0] = (fFlags & IEM_XCPT_FLAGS_T_SOFT_INT) ? pCtx->eip + cbInstr : pCtx->eip;
-            uStackFrame.pu32[1] = (pCtx->cs.Sel & ~X86_SEL_RPL) | pIemCpu->uCpl;
+            uStackFrame.pu32[1] = (pCtx->cs.Sel & ~X86_SEL_RPL) | uOldCpl;
             uStackFrame.pu32[2] = fEfl;
             uStackFrame.pu32[3] = pCtx->esp;
             uStackFrame.pu32[4] = pCtx->ss.Sel;
@@ -3564,7 +3568,7 @@ iemRaiseXcptOrIntInProtMode(PIEMCPU     pIemCpu,
             if (fFlags & IEM_XCPT_FLAGS_ERR)
                 *uStackFrame.pu16++ = uErr;
             uStackFrame.pu16[0] = (fFlags & IEM_XCPT_FLAGS_T_SOFT_INT) ? pCtx->ip + cbInstr : pCtx->ip;
-            uStackFrame.pu16[1] = (pCtx->cs.Sel & ~X86_SEL_RPL) | pIemCpu->uCpl;
+            uStackFrame.pu16[1] = (pCtx->cs.Sel & ~X86_SEL_RPL) | uOldCpl;
             uStackFrame.pu16[2] = fEfl;
             uStackFrame.pu16[3] = pCtx->sp;
             uStackFrame.pu16[4] = pCtx->ss.Sel;
@@ -3620,7 +3624,6 @@ iemRaiseXcptOrIntInProtMode(PIEMCPU     pIemCpu,
             pCtx->sp            = (uint16_t)(uNewEsp - cbStackFrame);
         else
             pCtx->rsp           = uNewEsp - cbStackFrame;
-        pIemCpu->uCpl           = uNewCpl;
 
         if (fEfl & X86_EFL_VM)
         {
@@ -3874,6 +3877,9 @@ iemRaiseXcptOrIntInLongMode(PIEMCPU     pIemCpu,
     /*
      * Start making changes.
      */
+    /* Set the new CPL so that stack accesses use it. */
+    uint8_t const uOldCpl = pIemCpu->uCpl;
+    pIemCpu->uCpl = uNewCpl;
 
     /* Create the stack frame. */
     uint32_t   cbStackFrame = sizeof(uint64_t) * (5 + !!(fFlags & IEM_XCPT_FLAGS_ERR));
@@ -3887,7 +3893,7 @@ iemRaiseXcptOrIntInLongMode(PIEMCPU     pIemCpu,
     if (fFlags & IEM_XCPT_FLAGS_ERR)
         *uStackFrame.pu64++ = uErr;
     uStackFrame.pu64[0] = fFlags & IEM_XCPT_FLAGS_T_SOFT_INT ? pCtx->rip + cbInstr : pCtx->rip;
-    uStackFrame.pu64[1] = (pCtx->cs.Sel & ~X86_SEL_RPL) | pIemCpu->uCpl; /* CPL paranoia */
+    uStackFrame.pu64[1] = (pCtx->cs.Sel & ~X86_SEL_RPL) | uOldCpl; /* CPL paranoia */
     uStackFrame.pu64[2] = fEfl;
     uStackFrame.pu64[3] = pCtx->rsp;
     uStackFrame.pu64[4] = pCtx->ss.Sel;
@@ -3912,7 +3918,7 @@ iemRaiseXcptOrIntInLongMode(PIEMCPU     pIemCpu,
      */
     /** @todo research/testcase: Figure out what VT-x and AMD-V loads into the
      *        hidden registers when interrupting 32-bit or 16-bit code! */
-    if (uNewCpl != pIemCpu->uCpl)
+    if (uNewCpl != uOldCpl)
     {
         pCtx->ss.Sel        = 0 | uNewCpl;
         pCtx->ss.ValidSel   = 0 | uNewCpl;
@@ -3929,7 +3935,6 @@ iemRaiseXcptOrIntInLongMode(PIEMCPU     pIemCpu,
     pCtx->cs.u64Base    = X86DESC_BASE(&DescCS.Legacy);
     pCtx->cs.Attr.u     = X86DESC_GET_HID_ATTR(&DescCS.Legacy);
     pCtx->rip           = uNewRip;
-    pIemCpu->uCpl       = uNewCpl;
 
     fEfl &= ~fEflToClear;
     IEMMISC_SET_EFL(pIemCpu, pCtx, fEfl);
@@ -8902,6 +8907,8 @@ IEM_STATIC VBOXSTRICTRC iemMemMarkSelDescAccessed(PIEMCPU pIemCpu, uint16_t uSel
     do { (a_u32Value) = pIemCpu->CTX_SUFF(pCtx)->CTX_SUFF(pXState)->x87.aXMM[(a_iXReg)].au32[0]; } while (0)
 #define IEM_MC_STORE_XREG_U128(a_iXReg, a_u128Value) \
     do { pIemCpu->CTX_SUFF(pCtx)->CTX_SUFF(pXState)->x87.aXMM[(a_iXReg)].xmm = (a_u128Value); } while (0)
+#define IEM_MC_STORE_XREG_U64(a_iXReg, a_u64Value) \
+    do { pIemCpu->CTX_SUFF(pCtx)->CTX_SUFF(pXState)->x87.aXMM[(a_iXReg)].au64[0] = (a_u64Value); } while (0)
 #define IEM_MC_STORE_XREG_U64_ZX_U128(a_iXReg, a_u64Value) \
     do { pIemCpu->CTX_SUFF(pCtx)->CTX_SUFF(pXState)->x87.aXMM[(a_iXReg)].au64[0] = (a_u64Value); \
          pIemCpu->CTX_SUFF(pCtx)->CTX_SUFF(pXState)->x87.aXMM[(a_iXReg)].au64[1] = 0; \
@@ -10919,7 +10926,7 @@ IEM_STATIC VBOXSTRICTRC iemExecVerificationModeCheck(PIEMCPU pIemCpu, VBOXSTRICT
 
         if (cDiffs != 0)
         {
-            DBGFR3Info(pVM->pUVM, "cpumguest", "verbose", NULL);
+            DBGFR3InfoEx(pVM->pUVM, pVCpu->idCpu, "cpumguest", "verbose", NULL);
             RTAssertMsg1(NULL, __LINE__, __FILE__, __FUNCTION__);
             RTAssertPanic();
             static bool volatile s_fEnterDebugger = true;
@@ -11102,7 +11109,7 @@ IEM_STATIC void iemLogCurInstr(PVMCPU pVCpu, PCPUMCTX pCtx, bool fSameCtx)
               szInstr));
 
         if (LogIs3Enabled())
-            DBGFR3Info(pVCpu->pVMR3->pUVM, "cpumguest", "verbose", NULL);
+            DBGFR3InfoEx(pVCpu->pVMR3->pUVM, pVCpu->idCpu, "cpumguest", "verbose", NULL);
     }
     else
 # endif

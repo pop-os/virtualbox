@@ -164,6 +164,14 @@ rm *.debug
 mv *.debug $RPM_BUILD_ROOT/usr/lib/debug/usr/lib/virtualbox
 %endif
 mv * $RPM_BUILD_ROOT/usr/lib/virtualbox
+if [ -f $RPM_BUILD_ROOT/usr/lib/virtualbox/libQt5CoreVBox.so.5 ]; then
+  $RPM_BUILD_ROOT/usr/lib/virtualbox/chrpath --keepgoing --replace /usr/lib/virtualbox \
+    $RPM_BUILD_ROOT/usr/lib/virtualbox/*.so.5 \
+    $RPM_BUILD_ROOT/usr/lib/virtualbox/plugins/platforms/*.so || true
+  echo "[Paths]" > $RPM_BUILD_ROOT/usr/lib/virtualbox/qt.conf
+  echo "Plugins = /usr/lib/virtualbox/plugins" >> $RPM_BUILD_ROOT/usr/lib/virtualbox/qt.conf
+  rm $RPM_BUILD_ROOT/usr/lib/virtualbox/chrpath
+fi
 ln -s ../VBoxVMM.so $RPM_BUILD_ROOT/usr/lib/virtualbox/components/VBoxVMM.so
 for i in VirtualBox VBoxHeadless VBoxNetDHCP VBoxNetNAT VBoxNetAdpCtl; do
   chmod 4511 $RPM_BUILD_ROOT/usr/lib/virtualbox/$i; done

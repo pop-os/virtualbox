@@ -1134,6 +1134,7 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
                      "                            [--property <name=[value]>]\n"
                      "                            [--compact]\n"
                      "                            [--resize <megabytes>|--resizebyte <bytes>]\n"
+                     "                            [--move <full path to a new location>]"
                      "\n", SEP);
 
     if (fCategory & USAGE_CLONEMEDIUM)
@@ -1277,6 +1278,7 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
         RTStrmPrintf(pStrm,
                            "%s debugvm %s         <uuid|vmname>\n"
                      "                            dumpvmcore --filename <name> |\n"
+                     "                            dumpgueststack [--cpu <id>]\n"
                      "                            info <item> [args] |\n"
                      "                            injectnmi |\n"
                      "                            log [--release|--debug] <settings> ...|\n"

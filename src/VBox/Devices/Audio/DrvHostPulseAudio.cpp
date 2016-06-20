@@ -771,6 +771,8 @@ static DECLCALLBACK(int) drvHostPulseAudioStreamCapture(PPDMIHOSTAUDIO pInterfac
         cbAvail += (pStrm->cbPeekBuf - pStrm->offPeekBuf);
     }
 
+    LogFlowFunc(("cbAvail=%zu\n", cbAvail));
+
     if (!cbAvail) /* No data? Bail out. */
     {
         if (pcSamplesCaptured)
@@ -852,9 +854,9 @@ static DECLCALLBACK(int) drvHostPulseAudioStreamCapture(PPDMIHOSTAUDIO pInterfac
     if (RT_SUCCESS(rc))
     {
         uint32_t cProcessed = 0;
-        if (cWrittenTotal)
+      /*  if (cWrittenTotal)
             rc = AudioMixBufMixToParent(&pStream->MixBuf, cWrittenTotal,
-                                        &cProcessed);
+                                        &cProcessed);*/
 
         if (pcSamplesCaptured)
             *pcSamplesCaptured = cWrittenTotal;
@@ -1416,6 +1418,8 @@ static DECLCALLBACK(PDMAUDIOSTRMSTS) drvHostPulseAudioStreamGetStatus(PPDMIHOSTA
     PDMAUDIOSTRMSTS strmSts  = PDMAUDIOSTRMSTS_FLAG_INITIALIZED
                              | PDMAUDIOSTRMSTS_FLAG_ENABLED;
 
+    pa_threaded_mainloop_lock(pThis->pMainLoop);
+
     pa_context_state_t ctxState = pa_context_get_state(pThis->pContext);
 
     if (   pa_context_get_state(pThis->pContext) == PA_CONTEXT_READY
@@ -1423,7 +1427,7 @@ static DECLCALLBACK(PDMAUDIOSTRMSTS) drvHostPulseAudioStreamGetStatus(PPDMIHOSTA
     {
         if (pStream->enmDir == PDMAUDIODIR_IN)
         {
-
+            strmSts |= PDMAUDIOSTRMSTS_FLAG_DATA_READABLE;
         }
         else
         {
@@ -1431,11 +1435,11 @@ static DECLCALLBACK(PDMAUDIOSTRMSTS) drvHostPulseAudioStreamGetStatus(PPDMIHOSTA
             LogFlowFunc(("cbSize=%zu\n", cbSize));
 
             if (cbSize >= pStrm->BufAttr.minreq)
-            {
                 strmSts |= PDMAUDIOSTRMSTS_FLAG_DATA_WRITABLE;
-            }
         }
     }
+
+    pa_threaded_mainloop_unlock(pThis->pMainLoop);
 
     return strmSts;
 }

@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 107741 $"
+__version__ = "$Revision: 107783 $"
 
 # Python imports.
 import datetime;
@@ -134,6 +134,24 @@ class WuiTestResult(WuiContentBase):
         return aoRows;
 
 
+    def _formatEventTimestampHtml(self, tsEvent, tsLog, idEvent, oTestSet):
+        """ Formats an event timestamp with a main log link. """
+        tsEvent = db.dbTimestampToZuluDatetime(tsEvent);
+        #sFormattedTimestamp = u'%04u\u2011%02u\u2011%02u\u00a0%02u:%02u:%02uZ' \
+        #                    % ( tsEvent.year, tsEvent.month, tsEvent.day,
+        #                        tsEvent.hour, tsEvent.minute, tsEvent.second,);
+        sFormattedTimestamp = u'%02u:%02u:%02uZ' \
+                            % ( tsEvent.hour, tsEvent.minute, tsEvent.second,);
+        sTitle              = u'#%u - %04u\u2011%02u\u2011%02u\u00a0%02u:%02u:%02u.%06uZ' \
+                            % ( idEvent, tsEvent.year, tsEvent.month, tsEvent.day,
+                                tsEvent.hour, tsEvent.minute, tsEvent.second, tsEvent.microsecond, );
+        tsLog = db.dbTimestampToZuluDatetime(tsLog);
+        sFragment = u'%02u_%02u_%02u_%06u' % ( tsLog.hour, tsLog.minute, tsLog.second, tsLog.microsecond);
+        return WuiTmLink(sFormattedTimestamp, '',
+                         { WuiMain.ksParamAction:             WuiMain.ksActionViewLog,
+                           WuiMain.ksParamLogSetId:           oTestSet.idTestSet,  },
+                         sFragmentId = sFragment, sTitle = sTitle, fBracketed = False, ).toHtml();
+
     def _recursivelyGenerateEvents(self, oTestResult, sParentName, sLineage, iRow,
                                    iFailure, oTestSet, iDepth):     # pylint: disable=R0914
         """
@@ -190,7 +208,8 @@ class WuiTestResult(WuiContentBase):
                      '  <td>%s</td>\n' \
                      ' </tr>\n' \
                    % ( 'tmodd' if iRow & 1 else 'tmeven', iDepth, oTestResult.enmStatus, oTestResult.idTestResult,
-                       oTestResult.idTestResult, webutils.escapeElem(self.formatTsShort(tsEvent)),
+                       oTestResult.idTestResult,
+                       self._formatEventTimestampHtml(tsEvent, oTestResult.tsCreated, oTestResult.idTestResult, oTestSet),
                        sElapsedGraph,
                        webutils.escapeElem(self.formatIntervalShort(oTestResult.tsElapsed)) if oTestResult.tsElapsed is not None
                                            else '',
@@ -211,7 +230,8 @@ class WuiTestResult(WuiContentBase):
                      '  <td></td>\n' \
                      ' </tr>\n' \
                    % ( 'tmodd' if iRow & 1 else 'tmeven', iDepth,
-                       webutils.escapeElem(self.formatTsShort(oTestResult.tsCreated)), ## @todo more timeline stuff later.
+                       self._formatEventTimestampHtml(oTestResult.tsCreated, oTestResult.tsCreated,
+                                                      oTestResult.idTestResult, oTestSet),
                        sDisplayName,
                        'running' if oTestResult.tsElapsed is None else '', );
             iRow += 1;
@@ -234,7 +254,7 @@ class WuiTestResult(WuiContentBase):
                          '  <td></td>\n' \
                          ' </tr>\n' \
                        % ( 'tmodd' if iRow & 1 else 'tmeven', iDepth,
-                           webutils.escapeElem(self.formatTsShort(oMsg.tsCreated)),
+                           self._formatEventTimestampHtml(oMsg.tsCreated, oMsg.tsCreated, oMsg.idTestResultMsg, oTestSet),
                            webutils.escapeElem(oMsg.enmLevel),
                            webutils.escapeElem(oMsg.sMsg), );
                 iRow += 1;
@@ -251,7 +271,7 @@ class WuiTestResult(WuiContentBase):
                          '  <td><input type="checkbox" name="%s" value="%s%s:%u" title="Include value in graph."></td>\n' \
                          ' </tr>\n' \
                        % ( 'tmodd' if iRow & 1 else 'tmeven', iDepth,
-                           webutils.escapeElem(self.formatTsShort(oValue.tsCreated)),
+                           self._formatEventTimestampHtml(oValue.tsCreated, oValue.tsCreated, oValue.idTestResultValue, oTestSet),
                            webutils.escapeElem(oValue.sName),
                            utils.formatNumber(oValue.lValue).replace(' ', '&nbsp;'),
                            webutils.escapeElem(oValue.sUnit),
@@ -300,12 +320,13 @@ class WuiTestResult(WuiContentBase):
                          '  <td></td>\n' \
                          ' </tr>\n' \
                        % ( 'tmodd' if iRow & 1 else 'tmeven', iDepth,
-                           webutils.escapeElem(self.formatTsShort(oFile.tsCreated)),
+                           self._formatEventTimestampHtml(oFile.tsCreated, oFile.tsCreated, oFile.idTestResultFile, oTestSet),
                            '\n'.join(oLink.toHtml() for oLink in aoLinks),);
                 iRow += 1;
 
             # Done?
             if oTestResult.tsElapsed is not None:
+                tsEvent = oTestResult.tsCreated + oTestResult.tsElapsed;
                 sHtml += ' <tr class="%s tmtbl-events-final tmtbl-events-lvl%s tmstatusrow-%s" id="E%d">\n' \
                          '  <td>%s</td>\n' \
                          '  <td>%s</td>\n' \
@@ -315,7 +336,7 @@ class WuiTestResult(WuiContentBase):
                          '  <td>%s</td>\n' \
                          ' </tr>\n' \
                        % ( 'tmodd' if iRow & 1 else 'tmeven', iDepth, oTestResult.enmStatus, oTestResult.idTestResult,
-                           webutils.escapeElem(self.formatTsShort(oTestResult.tsCreated + oTestResult.tsElapsed)),
+                           self._formatEventTimestampHtml(tsEvent, tsEvent, oTestResult.idTestResult, oTestSet),
                            sElapsedGraph,
                            webutils.escapeElem(self.formatIntervalShort(oTestResult.tsElapsed)),
                            sDisplayName,
@@ -837,25 +858,24 @@ class WuiGroupedResultList(WuiListContentBase):
             sTestCaseName = oEntry.sTestCaseName;
 
         # Reason:
-        oReason = None;
-        #assert (oEntry.oFailureReason is None) == (oEntry.tsFailureReasonAssigned is None);
-        if oEntry.oFailureReason is not None:
-            sReasonTitle  = 'Reason:  \t%s\n' % ( oEntry.oFailureReason.sShort, );
-            sReasonTitle += 'Category:\t%s\n' % ( oEntry.oFailureReason.oCategory.sShort, );
-            sReasonTitle += 'Assigned:\t%s\n' % ( self.formatTsShort(oEntry.tsFailureReasonAssigned), );
-            sReasonTitle += 'By User: \t%s\n' % ( oEntry.oFailureReasonAssigner.sUsername, );
-            if oEntry.sFailureReasonComment is not None and len(oEntry.sFailureReasonComment) > 0:
-                sReasonTitle += 'Comment: \t%s\n' % ( oEntry.sFailureReasonComment, );
-            if oEntry.oFailureReason.iTicket is not None and oEntry.oFailureReason.iTicket > 0:
-                sReasonTitle += 'xTracker:\t#%s\n' % ( oEntry.oFailureReason.iTicket, );
-            for i, sUrl in enumerate(oEntry.oFailureReason.asUrls):
+        aoReasons = [];
+        for oIt in oEntry.aoFailureReasons:
+            sReasonTitle  = 'Reason:  \t%s\n' % ( oIt.oFailureReason.sShort, );
+            sReasonTitle += 'Category:\t%s\n' % ( oIt.oFailureReason.oCategory.sShort, );
+            sReasonTitle += 'Assigned:\t%s\n' % ( self.formatTsShort(oIt.tsFailureReasonAssigned), );
+            sReasonTitle += 'By User: \t%s\n' % ( oIt.oFailureReasonAssigner.sUsername, );
+            if oIt.sFailureReasonComment is not None and len(oIt.sFailureReasonComment) > 0:
+                sReasonTitle += 'Comment: \t%s\n' % ( oIt.sFailureReasonComment, );
+            if oIt.oFailureReason.iTicket is not None and oIt.oFailureReason.iTicket > 0:
+                sReasonTitle += 'xTracker:\t#%s\n' % ( oIt.oFailureReason.iTicket, );
+            for i, sUrl in enumerate(oIt.oFailureReason.asUrls):
                 sUrl = sUrl.strip();
                 if len(sUrl) > 0:
                     sReasonTitle += 'URL#%u:  \t%s\n' % ( i, sUrl, );
-            oReason = WuiTmLink(oEntry.oFailureReason.sShort, WuiAdmin.ksScriptName,
-                                { WuiAdmin.ksParamAction: WuiAdmin.ksActionFailureReasonDetails,
-                                  FailureReasonData.ksParam_idFailureReason: oEntry.oFailureReason.idFailureReason },
-                                sTitle = sReasonTitle);
+            aoReasons.append(WuiTmLink(oIt.oFailureReason.sShort, WuiAdmin.ksScriptName,
+                                       { WuiAdmin.ksParamAction: WuiAdmin.ksActionFailureReasonDetails,
+                                         FailureReasonData.ksParam_idFailureReason: oIt.oFailureReason.idFailureReason },
+                                       sTitle = sReasonTitle));
 
         return [
             oEntry.tsCreated,
@@ -885,5 +905,5 @@ class WuiGroupedResultList(WuiListContentBase):
               WuiReportSummaryLink(ReportModelBase.ksSubTestCase, oEntry.idTestCase, fBracketed = False), ],
             oEntry.tsElapsed,
             aoTestSetLinks,
-            oReason
+            aoReasons
         ];

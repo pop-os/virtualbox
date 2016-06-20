@@ -16,7 +16,7 @@
 <refentry id="vboxmanage-debugvm" lang="en">
 
   <refentryinfo>
-    <pubdate>$Date: 2015-06-20 22:36:01 +0200 (Sat, 20 Jun 2015) $</pubdate>
+    <pubdate>$Date: 2016-06-13 13:50:22 +0200 (Mon, 13 Jun 2016) $</pubdate>
     <title>VBoxManage debugvm</title>
   </refentryinfo>
 
@@ -37,6 +37,12 @@
       <arg choice="req"><replaceable>uuid|vmname</replaceable></arg>
       <arg choice="plain">dumpvmcore</arg>
       <arg>--filename=<replaceable>name</replaceable></arg>
+    </cmdsynopsis>
+    <cmdsynopsis id="synopsis-vboxmanage-debugvm-dumpgueststack">
+      <command>VBoxManage debugvm</command>
+      <arg choice="req"><replaceable>uuid|vmname</replaceable></arg>
+      <arg choice="plain">dumpgueststack</arg>
+      <arg>--cpu=<replaceable>id</replaceable></arg>
     </cmdsynopsis>
     <cmdsynopsis id="synopsis-vboxmanage-debugvm-info">
       <command>VBoxManage debugvm</command>

@@ -1206,6 +1206,7 @@ ALIGN(16)
 %%cached_read32:
     dec     xCX
     mov     eax, [ss:xDX + VMCSCACHE.Read.aField + xCX * 4]
+    ; Note! This leaves the high 32 bits of the cache entry unmodified!!
     vmread  [ss:xDX + VMCSCACHE.Read.aFieldVal + xCX * 8], xAX
     cmp     xCX, 0
     jnz     %%cached_read32

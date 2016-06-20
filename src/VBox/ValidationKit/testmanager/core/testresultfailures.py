@@ -29,7 +29,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 107576 $"
+__version__ = "$Revision: 107788 $"
 # Standard python imports.
 import unittest;
 
@@ -131,14 +131,7 @@ class TestResultFailureDataEx(TestResultFailureData):
 
     def initFromDbRowEx(self, aoRow, oFailureReasonLogic, oUserAccountLogic):
         """
-        Reinitialize from a query like this:
-            SELECT   TestResultFiles.*,
-                     StrTabFile.sValue AS sFile,
-                     StrTabDesc.sValue AS sDescription
-                     StrTabKind.sValue AS sKind,
-                     StrTabMime.sValue AS sMime,
-            FROM ...
-
+        Reinitialize from a SELECT * FROM TestResultFailures.
         Return self. Raises exception if no row.
         """
         self.initFromDbRow(aoRow);

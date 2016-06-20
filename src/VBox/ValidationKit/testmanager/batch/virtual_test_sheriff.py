@@ -33,13 +33,16 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 107765 $"
+__version__ = "$Revision: 108004 $"
 
 
 # Standard python imports
 import sys;
 import os;
+import hashlib;
+import StringIO;
 from optparse import OptionParser;
+from PIL import Image;
 
 # Add Test Manager's modules path
 g_ksTestManagerDir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))));
@@ -182,6 +185,33 @@ class VirtualTestSheriffCaseFile(object):
             self.oSheriff.vprint('Error opening the "%s" log file: %s' % (oFile.sFile, oSizeOrError,));
         return sContent;
 
+    def getScreenshotSha256(self, oFile):
+        """
+        Tries to read the given screenshot file, uncompress it, and do SHA-2
+        on the raw pixels.
+        Returns SHA-2 digest string on success, None on failure.
+        """
+        (oFile, _, _) = self.oTestSet.openFile(oFile.sFile, 'rb');
+        try:
+            abImageFile = oFile.read();
+        except Exception as oXcpt:
+            self.oSheriff.vprint('Error reading the "%s" image file: %s' % (oFile.sFile, oXcpt,))
+        else:
+            try:
+                oImage = Image.open(StringIO.StringIO(abImageFile));
+            except Exception as oXcpt:
+                self.oSheriff.vprint('Error opening the "%s" image bytes using PIL.Image.open: %s' % (oFile.sFile, oXcpt,))
+            else:
+                try:
+                    oHash = hashlib.sha256();
+                    oHash.update(oImage.tostring());
+                except Exception as oXcpt:
+                    self.oSheriff.vprint('Error hashing the uncompressed image bytes for "%s": %s' % (oFile.sFile, oXcpt,))
+                else:
+                    return oHash.hexdigest();
+        return None;
+
+
 
     def isSingleTestFailure(self):
         """
@@ -238,7 +268,7 @@ class VirtualTestSheriff(object): # pylint: disable=R0903
 
         if self.oConfig.sLogFile is not None and len(self.oConfig.sLogFile) > 0:
             self.oLogFile = open(self.oConfig.sLogFile, "a");
-            self.oLogFile.write('VirtualTestSheriff: $Revision: 107765 $ \n');
+            self.oLogFile.write('VirtualTestSheriff: $Revision: 108004 $ \n');
 
 
     def eprint(self, sText):
@@ -376,12 +406,18 @@ class VirtualTestSheriff(object): # pylint: disable=R0903
 
     ## @name Failure reasons we know.
     ## @{
+    ktReason_BSOD_Recovery                             = ( 'BSOD',              'Recovery' );
+    ktReason_BSOD_Automatic_Repair                     = ( 'BSOD',              'Automatic Repair' );
     ktReason_Guru_Generic                              = ( 'Guru Meditations',  'Generic Guru Meditation' );
     ktReason_Guru_VERR_IEM_INSTR_NOT_IMPLEMENTED       = ( 'Guru Meditations',  'VERR_IEM_INSTR_NOT_IMPLEMENTED' );
     ktReason_Guru_VERR_IEM_ASPECT_NOT_IMPLEMENTED      = ( 'Guru Meditations',  'VERR_IEM_ASPECT_NOT_IMPLEMENTED' );
     ktReason_Guru_VERR_TRPM_DONT_PANIC                 = ( 'Guru Meditations',  'VERR_TRPM_DONT_PANIC' );
     ktReason_Guru_VERR_PGM_PHYS_PAGE_RESERVED          = ( 'Guru Meditations',  'VERR_PGM_PHYS_PAGE_RESERVED' );
+    ktReason_Guru_VERR_VMX_INVALID_GUEST_STATE         = ( 'Guru Meditations',  'VERR_VMX_INVALID_GUEST_STATE' );
     ktReason_Guru_VINF_EM_TRIPLE_FAULT                 = ( 'Guru Meditations',  'VINF_EM_TRIPLE_FAULT' );
+    ktReason_Host_Reboot_OSX_Watchdog_Timeout          = ( 'Host Reboot',       'OSX Watchdog Timeout' );
+    ktReason_Networking_Nonexistent_host_nic           = ( 'Networking',        'Nonexistent host networking interface' );
+    ktReason_Panic_MP_BIOS_IO_APIC                     = ( 'Panic',             'MP-BIOS/IO-APIC' );
     ktReason_XPCOM_Exit_Minus_11                       = ( 'API / (XP)COM',     'exit -11' );
     ktReason_XPCOM_VBoxSVC_Hang                        = ( 'API / (XP)COM',     'VBoxSVC hang' );
     ktReason_XPCOM_VBoxSVC_Hang_Plus_Heap_Corruption   = ( 'API / (XP)COM',     'VBoxSVC hang + heap corruption' );
@@ -451,7 +487,7 @@ class VirtualTestSheriff(object): # pylint: disable=R0903
         for idTestResult, tReason in dReasonForResultId.items():
             oFailureReason = self.oFailureReasonLogic.cachedLookupByNameAndCategory(tReason[1], tReason[0]);
             if oFailureReason is not None:
-                sComment = 'Set by $Revision: 107765 $' # Handy for reverting later.
+                sComment = 'Set by $Revision: 108004 $' # Handy for reverting later.
                 if idTestResult in dCommentForResultId:
                     sComment += ': ' + dCommentForResultId[idTestResult];
 
@@ -567,8 +603,9 @@ class VirtualTestSheriff(object): # pylint: disable=R0903
         aoFailedResults = oCaseFile.oTree.getListOfFailures();
         for oFailedResult in aoFailedResults:
             if oFailedResult is oCaseFile.oTree:
+                self.vprint('TODO: toplevel failure');
                 cRelevantOnes += 1
-            if oFailedResult.sName == 'Installing VirtualBox':
+            elif oFailedResult.sName == 'Installing VirtualBox':
                 self.vprint('TODO: Installation failure');
                 cRelevantOnes += 1
             elif oFailedResult.sName == 'Uninstalling VirtualBox':
@@ -576,13 +613,12 @@ class VirtualTestSheriff(object): # pylint: disable=R0903
                 cRelevantOnes += 1
             elif oFailedResult.oParent is not None:
                 # Get the 2nd level node because that's where we'll find the unit test name.
-                o2ndLevel = oFailedResult;
-                while o2ndLevel.oParent.oParent is not None:
-                    o2ndLevel = o2ndLevel.oParent;
+                while oFailedResult.oParent.oParent is not None:
+                    oFailedResult = oFailedResult.oParent;
 
                 # Only report a failure once.
-                if o2ndLevel.idTestResult not in oCaseFile.dReasonForResultId:
-                    sKey = o2ndLevel.sName;
+                if oFailedResult.idTestResult not in oCaseFile.dReasonForResultId:
+                    sKey = oFailedResult.sName;
                     if sKey.startswith('testcase/'):
                         sKey = sKey[9:];
                     if sKey in self.asUnitTestReasons:
@@ -604,18 +640,37 @@ class VirtualTestSheriff(object): # pylint: disable=R0903
         return False;
 
 
-    ## Thing we search a main or VM log for to figure out why something went bust.
+    ## Things we search a main or VM log for to figure out why something went bust.
     katSimpleMainAndVmLogReasons = [
-        # ( Whether to stop on hit, needle, reason tuple ),
-        ( False, 'GuruMeditation',                                  ktReason_Guru_Generic ),
-        ( False, 'Guru Meditation',                                 ktReason_Guru_Generic ),
-        ( True,  'VERR_IEM_INSTR_NOT_IMPLEMENTED',                  ktReason_Guru_VERR_IEM_INSTR_NOT_IMPLEMENTED ),
-        ( True,  'VERR_IEM_ASPECT_NOT_IMPLEMENTED',                 ktReason_Guru_VERR_IEM_ASPECT_NOT_IMPLEMENTED ),
-        ( True,  'VERR_TRPM_DONT_PANIC',                            ktReason_Guru_VERR_TRPM_DONT_PANIC ),
-        ( True,  'VERR_PGM_PHYS_PAGE_RESERVED',                     ktReason_Guru_VERR_PGM_PHYS_PAGE_RESERVED ),
-        ( True,  'VINF_EM_TRIPLE_FAULT',                            ktReason_Guru_VINF_EM_TRIPLE_FAULT ),
-        ( False, 'Exception: 0x800706be (Call to remote object failed (NS_ERROR_CALL_FAILED))',
-                                                                    ktReason_XPCOM_NS_ERROR_CALL_FAILED ),
+        # ( Whether to stop on hit, reason tuple, needle text. )
+        ( False, ktReason_Guru_Generic,                             'GuruMeditation' ),
+        ( False, ktReason_Guru_Generic,                             'Guru Meditation' ),
+        ( True,  ktReason_Guru_VERR_IEM_INSTR_NOT_IMPLEMENTED,      'VERR_IEM_INSTR_NOT_IMPLEMENTED' ),
+        ( True,  ktReason_Guru_VERR_IEM_ASPECT_NOT_IMPLEMENTED,     'VERR_IEM_ASPECT_NOT_IMPLEMENTED' ),
+        ( True,  ktReason_Guru_VERR_TRPM_DONT_PANIC,                'VERR_TRPM_DONT_PANIC' ),
+        ( True,  ktReason_Guru_VERR_PGM_PHYS_PAGE_RESERVED,         'VERR_PGM_PHYS_PAGE_RESERVED' ),
+        ( True,  ktReason_Guru_VERR_VMX_INVALID_GUEST_STATE,        'VERR_VMX_INVALID_GUEST_STATE' ),
+        ( True,  ktReason_Guru_VINF_EM_TRIPLE_FAULT,                'VINF_EM_TRIPLE_FAULT' ),
+        ( True,  ktReason_Networking_Nonexistent_host_nic,
+          'rc=E_FAIL text="Nonexistent host networking interface, name \'eth0\' (VERR_INTERNAL_ERROR)"' ),
+        ( True,  ktReason_Host_Reboot_OSX_Watchdog_Timeout,         ': "OSX Watchdog Timeout: ' ),
+        ( False, ktReason_XPCOM_NS_ERROR_CALL_FAILED,
+          'Exception: 0x800706be (Call to remote object failed (NS_ERROR_CALL_FAILED))' ),
+    ];
+
+    ## Things we search the _RIGHT_ _STRIPPED_ vgatext for.
+    katSimpleVgaTextReasons = [
+        # ( Whether to stop on hit, reason tuple, needle text. )
+        ( True,  ktReason_Panic_MP_BIOS_IO_APIC,
+          "..MP-BIOS bug: 8254 timer not connected to IO-APIC\n\n" ),
+    ];
+
+    ## Mapping screenshot/failure SHA-256 hashes to failure reasons.
+    katSimpleScreenshotHashReasons = [
+        # ( Whether to stop on hit, reason tuple, lowercased sha-256 of PIL.Image.tostring output )
+        ( True,  ktReason_BSOD_Recovery,                    '576f8e38d62b311cac7e3dc3436a0d0b9bd8cfd7fa9c43aafa95631520a45eac' ),
+        ( True,  ktReason_BSOD_Automatic_Repair,            'c6a72076cc619937a7a39cfe9915b36d94cee0d4e3ce5ce061485792dcee2749' ),
+        ( True,  ktReason_BSOD_Automatic_Repair,            '26c4d8a724ff2c5e1051f3d5b650dbda7b5fdee0aa3e3c6059797f7484a515df' ),
     ];
 
     def investigateVMResult(self, oCaseFile, oFailedResult, sResultLog):
@@ -627,13 +682,17 @@ class VirtualTestSheriff(object): # pylint: disable=R0903
             """
             Investigates the current set of VM related logs.
             """
-            self.dprint('investigateLogSet: %u chars result log, %u chars VM log, %u chars kernel log'
+            self.dprint('investigateLogSet: lengths: result log %u, VM log %u, kernel log %u, vga text %u, info text %u'
                         % ( len(sResultLog) if sResultLog is not None else 0,
                             len(sVMLog)     if sVMLog is not None else 0,
-                            len(sKrnlLog)   if sKrnlLog is not None else 0), );
+                            len(sKrnlLog)   if sKrnlLog is not None else 0,
+                            len(sVgaText)   if sVgaText is not None else 0,
+                            len(sInfoText)  if sInfoText is not None else 0, ));
             #self.dprint('main.log<<<\n%s\n<<<\n' % (sResultLog,));
             #self.dprint('vbox.log<<<\n%s\n<<<\n' % (sVMLog,));
             #self.dprint('krnl.log<<<\n%s\n<<<\n' % (sKrnlLog,));
+            #self.dprint('vgatext.txt<<<\n%s\n<<<\n' % (sVgaText,));
+            #self.dprint('info.txt<<<\n%s\n<<<\n' % (sInfoText,));
 
             # TODO: more
 
@@ -666,12 +725,31 @@ class VirtualTestSheriff(object): # pylint: disable=R0903
             # Loop thru the simple stuff.
             #
             fFoundSomething = False;
-            for fStopOnHit, sNeedle, tReason in self.katSimpleMainAndVmLogReasons:
+            for fStopOnHit, tReason, sNeedle in self.katSimpleMainAndVmLogReasons:
                 if sResultLog.find(sNeedle) > 0 or sVMLog.find(sNeedle) > 0:
                     oCaseFile.noteReasonForId(tReason, oFailedResult.idTestResult);
                     if fStopOnHit:
                         return True;
                     fFoundSomething = True;
+
+            # Continue with vga text.
+            if sVgaText is not None and len(sVgaText) > 0:
+                for fStopOnHit, tReason, sNeedle in self.katSimpleVgaTextReasons:
+                    if sVgaText.find(sNeedle) > 0:
+                        oCaseFile.noteReasonForId(tReason, oFailedResult.idTestResult);
+                        if fStopOnHit:
+                            return True;
+                        fFoundSomething = True;
+            _ = sInfoText;
+
+            # Continue with screen hashes.
+            if sScreenHash is not None:
+                for fStopOnHit, tReason, sHash in self.katSimpleScreenshotHashReasons:
+                    if sScreenHash == sHash:
+                        oCaseFile.noteReasonForId(tReason, oFailedResult.idTestResult);
+                        if fStopOnHit:
+                            return True;
+                        fFoundSomething = True;
 
             #
             # Check for repeated reboots...
@@ -685,19 +763,35 @@ class VirtualTestSheriff(object): # pylint: disable=R0903
 
         #
         # Check if we got any VM or/and kernel logs.  Treat them as sets in
-        # case we run multiple VMs here.
+        # case we run multiple VMs here (this is of course ASSUMING they
+        # appear in the order that terminateVmBySession uploads them).
         #
-        sVMLog   = None;
-        sKrnlLog = None;
+        sVMLog      = None;
+        sScreenHash = None;
+        sKrnlLog    = None;
+        sVgaText    = None;
+        sInfoText   = None;
         for oFile in oFailedResult.aoFiles:
             if oFile.sKind == TestResultFileData.ksKind_LogReleaseVm:
                 if sVMLog is not None:
                     if investigateLogSet() is True:
                         return True;
-                sKrnlLog = None;
-                sVMLog   = oCaseFile.getLogFile(oFile);
+                sKrnlLog    = None;
+                sScreenHash = None;
+                sVgaText    = None;
+                sInfoText   = None;
+                sVMLog      = oCaseFile.getLogFile(oFile);
             elif oFile.sKind == TestResultFileData.ksKind_LogGuestKernel:
-                sKrnlLog = oCaseFile.getLogFile(oFile);
+                sKrnlLog  = oCaseFile.getLogFile(oFile);
+            elif oFile.sKind == TestResultFileData.ksKind_InfoVgaText:
+                sVgaText  = '\n'.join([sLine.rstrip() for sLine in oCaseFile.getLogFile(oFile).split('\n')]);
+            elif oFile.sKind == TestResultFileData.ksKind_InfoCollection:
+                sInfoText = oCaseFile.getLogFile(oFile);
+            elif oFile.sKind == TestResultFileData.ksKind_ScreenshotFailure:
+                sScreenHash = oCaseFile.getScreenshotSha256(oFile);
+                if sScreenHash is not None:
+                    sScreenHash = sScreenHash.lower();
+                    self.vprint('%s  %s' % ( sScreenHash, oFile.sFile,));
         if sVMLog is not None and investigateLogSet() is True:
             return True;
 
@@ -760,7 +854,7 @@ class VirtualTestSheriff(object): # pylint: disable=R0903
 
             # Look for heap corruption without visible hang.
             if   sMainLog.find('*** glibc detected *** /') > 0 \
-              or sMainLog.find("-1073740940"): # STATUS_HEAP_CORRUPTION / 0xc0000374
+              or sMainLog.find("-1073740940") > 0: # STATUS_HEAP_CORRUPTION / 0xc0000374
                 oCaseFile.noteReason(self.ktReason_Unknown_Heap_Corruption);
                 return self.caseClosed(oCaseFile);
 

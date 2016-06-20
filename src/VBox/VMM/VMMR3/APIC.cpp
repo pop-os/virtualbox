@@ -35,20 +35,51 @@
 *   Defined Constants And Macros                                                                                                 *
 *********************************************************************************************************************************/
 /** The current APIC saved state version. */
-#define APIC_SAVED_STATE_VERSION             4
+#define APIC_SAVED_STATE_VERSION                  5
+/** VirtualBox 5.1 beta2 - pre fActiveLintX. */
+#define APIC_SAVED_STATE_VERSION_VBOX_51_BETA2    4
 /** The saved state version used by VirtualBox 5.0 and
  *  earlier.  */
-#define APIC_SAVED_STATE_VERSION_VBOX_50     3
+#define APIC_SAVED_STATE_VERSION_VBOX_50          3
 /** The saved state version used by VirtualBox v3 and earlier.
  * This does not include the config.  */
-#define APIC_SAVED_STATE_VERSION_VBOX_30     2
+#define APIC_SAVED_STATE_VERSION_VBOX_30          2
 /** Some ancient version... */
-#define APIC_SAVED_STATE_VERSION_ANCIENT     1
+#define APIC_SAVED_STATE_VERSION_ANCIENT          1
+
+#ifdef VBOX_WITH_STATISTICS
+# define X2APIC_MSRRANGE(a_uFirst, a_uLast, a_szName) \
+    { (a_uFirst), (a_uLast), kCpumMsrRdFn_Ia32X2ApicN, kCpumMsrWrFn_Ia32X2ApicN, 0, 0, 0, 0, 0, a_szName, { 0 }, { 0 }, { 0 }, { 0 } }
+#else
+# define X2APIC_MSRRANGE(a_uFirst, a_uLast, a_szName) \
+    { (a_uFirst), (a_uLast), kCpumMsrRdFn_Ia32X2ApicN, kCpumMsrWrFn_Ia32X2ApicN, 0, 0, 0, 0, 0, a_szName }
+#endif
 
 
 /*********************************************************************************************************************************
 *   Global Variables                                                                                                             *
 *********************************************************************************************************************************/
+/**
+ * Array of MSR ranges supported by the x2APIC.
+ */
+static CPUMMSRRANGE const g_aMsrRanges_x2Apic[] =
+{
+    X2APIC_MSRRANGE(MSR_IA32_X2APIC_ID,        MSR_IA32_X2APIC_VERSION,   "x2APIC range 0"),
+    X2APIC_MSRRANGE(MSR_IA32_X2APIC_VERSION,   MSR_IA32_X2APIC_TPR,       "x2APIC range 1"),
+    X2APIC_MSRRANGE(MSR_IA32_X2APIC_TPR,       MSR_IA32_X2APIC_TPR,       "x2APIC range 2"),
+    X2APIC_MSRRANGE(MSR_IA32_X2APIC_PPR,       MSR_IA32_X2APIC_EOI,       "x2APIC range 3"),
+    X2APIC_MSRRANGE(MSR_IA32_X2APIC_LDR,       MSR_IA32_X2APIC_LDR,       "x2APIC range 4"),
+    X2APIC_MSRRANGE(MSR_IA32_X2APIC_SVR,       MSR_IA32_X2APIC_SVR,       "x2APIC range 5"),
+    X2APIC_MSRRANGE(MSR_IA32_X2APIC_ISR0,      MSR_IA32_X2APIC_ISR7,      "x2APIC range 7"),
+    X2APIC_MSRRANGE(MSR_IA32_X2APIC_TMR0,      MSR_IA32_X2APIC_TMR7,      "x2APIC range 8"),
+    X2APIC_MSRRANGE(MSR_IA32_X2APIC_IRR0,      MSR_IA32_X2APIC_IRR7,      "x2APIC range 8"),
+    X2APIC_MSRRANGE(MSR_IA32_X2APIC_ESR,       MSR_IA32_X2APIC_ESR,       "x2APIC range 9"),
+    X2APIC_MSRRANGE(MSR_IA32_X2APIC_LVT_CMCI,  MSR_IA32_X2APIC_ICR,       "x2APIC range 10"),
+    X2APIC_MSRRANGE(MSR_IA32_X2APIC_LVT_TIMER, MSR_IA32_X2APIC_TIMER_CCR, "x2APIC range 11"),
+    X2APIC_MSRRANGE(MSR_IA32_X2APIC_TIMER_DCR, MSR_IA32_X2APIC_SELF_IPI,  "x2APIC range 12")
+};
+#undef X2APIC_MSRRANGE
+
 /** Saved state field descriptors for XAPICPAGE. */
 static const SSMFIELD g_aXApicPageFields[] =
 {
@@ -162,6 +193,10 @@ static void apicR3InitIpi(PVMCPU pVCpu)
     /*
      * See Intel spec. 10.4.7.3 "Local APIC State After an INIT Reset (Wait-for-SIPI State)"
      * and AMD spec 16.3.2 "APIC Registers".
+     *
+     * The reason we don't simply zero out the entire APIC page and only set the non-zero members
+     * is because there are some registers that are not touched by the INIT IPI (e.g. version)
+     * operation and this function is only a subset of the reset operation.
      */
     RT_ZERO(pXApicPage->irr);
     RT_ZERO(pXApicPage->irr);
@@ -212,6 +247,10 @@ static void apicR3InitIpi(PVMCPU pVCpu)
     PAPICCPU pApicCpu = VMCPU_TO_APICCPU(pVCpu);
     RT_BZERO(&pApicCpu->ApicPibLevel, sizeof(APICPIB));
     RT_BZERO(pApicCpu->pvApicPibR3,   sizeof(APICPIB));
+
+    /* Clear the interrupt line states for LINT0 and LINT1 pins. */
+    pApicCpu->fActiveLint0 = false;
+    pApicCpu->fActiveLint1 = false;
 }
 
 
@@ -400,11 +439,17 @@ static void apicR3DbgInfoPib(PCAPICPIB pApicPib, PCDBGFINFOHLP pHlp)
 /**
  * Dumps basic APIC state.
  *
- * @param   pVCpu   The cross context virtual CPU structure.
- * @param   pHlp    The debug output helper.
+ * @param   pVCpu       The cross context virtual CPU structure.
+ * @param   pHlp        The info helpers.
+ * @param   pszArgs     Arguments, ignored.
  */
-static void apicR3DbgInfoBasic(PVMCPU pVCpu, PCDBGFINFOHLP pHlp)
+static DECLCALLBACK(void) apicR3Info(PVM pVM, PCDBGFINFOHLP pHlp, const char *pszArgs)
 {
+    NOREF(pszArgs);
+    PVMCPU pVCpu = VMMGetCpu(pVM);
+    if (!pVCpu)
+        pVCpu = &pVM->aCpus[0];
+
     PCAPICCPU    pApicCpu    = VMCPU_TO_APICCPU(pVCpu);
     PCXAPICPAGE  pXApicPage  = VMCPU_TO_CXAPICPAGE(pVCpu);
     PCX2APICPAGE pX2ApicPage = VMCPU_TO_CX2APICPAGE(pVCpu);
@@ -494,7 +539,7 @@ static void apicR3DbgInfoBasic(PVMCPU pVCpu, PCDBGFINFOHLP pHlp)
  * @param   pVCpu   The cross context virtual CPU structure.
  * @param   pHlp    The debug output helper.
  */
-static void apicR3DbgInfoLvtTimer(PVMCPU pVCpu, PCDBGFINFOHLP pHlp)
+static void apicR3InfoLvtTimer(PVMCPU pVCpu, PCDBGFINFOHLP pHlp)
 {
     PCXAPICPAGE pXApicPage = VMCPU_TO_CXAPICPAGE(pVCpu);
     uint32_t const uLvtTimer = pXApicPage->lvt_timer.all.u32LvtTimer;
@@ -504,119 +549,232 @@ static void apicR3DbgInfoLvtTimer(PVMCPU pVCpu, PCDBGFINFOHLP pHlp)
     pHlp->pfnPrintf(pHlp, "  Masked           = %RTbool\n",  XAPIC_LVT_IS_MASKED(uLvtTimer));
     pHlp->pfnPrintf(pHlp, "  Timer Mode       = %#x (%s)\n", pXApicPage->lvt_timer.u.u2TimerMode,
                     apicGetTimerModeName((XAPICTIMERMODE)pXApicPage->lvt_timer.u.u2TimerMode));
-    pHlp->pfnPrintf(pHlp, "\n");
 }
 
 
 /**
- * Dumps APIC Local Vector Table (LVT) state.
+ * Dumps APIC Local Vector Table (LVT) information.
  *
- * @param   pVCpu   The cross context virtual CPU structure.
- * @param   pHlp    The debug output helper.
+ * @param   pVCpu       The cross context virtual CPU structure.
+ * @param   pHlp        The info helpers.
+ * @param   pszArgs     Arguments, ignored.
  */
-static void apicR3DbgInfoLvt(PVMCPU pVCpu, PCDBGFINFOHLP pHlp)
+static DECLCALLBACK(void) apicR3InfoLvt(PVM pVM, PCDBGFINFOHLP pHlp, const char *pszArgs)
 {
+    NOREF(pszArgs);
+    PVMCPU pVCpu = VMMGetCpu(pVM);
+    if (!pVCpu)
+        pVCpu = &pVM->aCpus[0];
+
     PCXAPICPAGE pXApicPage = VMCPU_TO_CXAPICPAGE(pVCpu);
 
-    apicR3DbgInfoLvtTimer(pVCpu, pHlp);
+    /*
+     * Delivery modes available in the LVT entries. They're different (more reserved stuff) from the
+     * ICR delivery modes and hence we don't use apicGetDeliveryMode but mostly because we want small,
+     * fixed-length strings to fit our formatting needs here.
+     */
+    static const char * const s_apszLvtDeliveryModes[] =
+    {
+        "Fixed ",
+        "Rsvd  ",
+        "SMI   ",
+        "Rsvd  ",
+        "NMI   ",
+        "INIT  ",
+        "Rsvd  ",
+        "ExtINT"
+    };
+    /* Delivery Status. */
+    static const char * const s_apszLvtDeliveryStatus[] =
+    {
+        "Idle",
+        "Pend"
+    };
+    const char *pszNotApplicable = "";
+
+    pHlp->pfnPrintf(pHlp, "VCPU[%u] APIC Local Vector Table (LVT):\n", pVCpu->idCpu);
+    pHlp->pfnPrintf(pHlp, "lvt     timermode  mask  trigger  rirr  polarity  dlvr_st  dlvr_mode   vector\n");
+    /* Timer. */
+    {
+        /* Timer modes. */
+        static const char * const s_apszLvtTimerModes[] =
+        {
+            "One-shot ",
+            "Periodic ",
+            "TSC-dline"
+        };
+        const uint32_t       uLvtTimer         = pXApicPage->lvt_timer.all.u32LvtTimer;
+        const XAPICTIMERMODE enmTimerMode      = XAPIC_LVT_GET_TIMER_MODE(uLvtTimer);
+        const char          *pszTimerMode      = s_apszLvtTimerModes[enmTimerMode];
+        const uint8_t        uMask             = XAPIC_LVT_IS_MASKED(uLvtTimer);
+        const uint8_t        uDeliveryStatus   = uLvtTimer & XAPIC_LVT_DELIVERY_STATUS;
+        const char          *pszDeliveryStatus = s_apszLvtDeliveryStatus[uDeliveryStatus];
+        const uint8_t        uVector           = XAPIC_LVT_GET_VECTOR(uLvtTimer);
+
+        pHlp->pfnPrintf(pHlp, "%-7s  %9s  %u     %5s     %1s   %8s    %4s     %6s    %3u (%#x)\n",
+                        "Timer",
+                        pszTimerMode,
+                        uMask,
+                        pszNotApplicable, /* TriggerMode */
+                        pszNotApplicable, /* Remote IRR */
+                        pszNotApplicable, /* Polarity */
+                        pszDeliveryStatus,
+                        pszNotApplicable, /* Delivery Mode */
+                        uVector,
+                        uVector);
+    }
 
 #if XAPIC_HARDWARE_VERSION == XAPIC_HARDWARE_VERSION_P4
-    uint32_t const uLvtThermal = pXApicPage->lvt_thermal.all.u32LvtThermal;
-    pHlp->pfnPrintf(pHlp, "LVT Thermal        = %#RX32)\n",  uLvtThermal);
-    pHlp->pfnPrintf(pHlp, "  Vector           = %u (%#x)\n", pXApicPage->lvt_thermal.u.u8Vector,
-                    pXApicPage->lvt_thermal.u.u8Vector);
-    pHlp->pfnPrintf(pHlp, "  Delivery Mode    = %#x (%s)\n", pXApicPage->lvt_thermal.u.u3DeliveryMode,
-                    apicGetDeliveryModeName((XAPICDELIVERYMODE)pXApicPage->lvt_thermal.u.u3DeliveryMode));
-    pHlp->pfnPrintf(pHlp, "  Delivery status  = %u\n",       pXApicPage->lvt_thermal.u.u1DeliveryStatus);
-    pHlp->pfnPrintf(pHlp, "  Masked           = %RTbool\n",  XAPIC_LVT_IS_MASKED(uLvtThermal));
-    pHlp->pfnPrintf(pHlp, "\n");
+    /* Thermal sensor. */
+    {
+        uint32_t const uLvtThermal = pXApicPage->lvt_thermal.all.u32LvtThermal;
+        const uint8_t           uMask             = XAPIC_LVT_IS_MASKED(uLvtThermal);
+        const uint8_t           uDeliveryStatus   = uLvtThermal & XAPIC_LVT_DELIVERY_STATUS;
+        const char             *pszDeliveryStatus = s_apszLvtDeliveryStatus[uDeliveryStatus];
+        const XAPICDELIVERYMODE enmDeliveryMode   = XAPIC_LVT_GET_DELIVERY_MODE(uLvtThermal);
+        const char             *pszDeliveryMode   = s_apszLvtDeliveryModes[enmDeliveryMode];
+        const uint8_t           uVector           = XAPIC_LVT_GET_VECTOR(uLvtThermal);
+
+        pHlp->pfnPrintf(pHlp, "%-7s  %9s  %u     %5s     %1s   %8s    %4s     %6s    %3u (%#x)\n",
+                        "Thermal",
+                        pszNotApplicable, /* Timer mode */
+                        uMask,
+                        pszNotApplicable, /* TriggerMode */
+                        pszNotApplicable, /* Remote IRR */
+                        pszNotApplicable, /* Polarity */
+                        pszDeliveryStatus,
+                        pszDeliveryMode,
+                        uVector,
+                        uVector);
+    }
 #endif
 
-    uint32_t const uLvtPerf = pXApicPage->lvt_perf.all.u32LvtPerf;
-    pHlp->pfnPrintf(pHlp, "LVT Perf           = %#RX32\n",   uLvtPerf);
-    pHlp->pfnPrintf(pHlp, "  Vector           = %u (%#x)\n", pXApicPage->lvt_perf.u.u8Vector, pXApicPage->lvt_perf.u.u8Vector);
-    pHlp->pfnPrintf(pHlp, "  Delivery Mode    = %#x (%s)\n", pXApicPage->lvt_perf.u.u3DeliveryMode,
-                    apicGetDeliveryModeName((XAPICDELIVERYMODE)pXApicPage->lvt_perf.u.u3DeliveryMode));
-    pHlp->pfnPrintf(pHlp, "  Delivery status  = %u\n",       pXApicPage->lvt_perf.u.u1DeliveryStatus);
-    pHlp->pfnPrintf(pHlp, "  Masked           = %RTbool\n",  XAPIC_LVT_IS_MASKED(uLvtPerf));
-    pHlp->pfnPrintf(pHlp, "\n");
+    /* Performance Monitor Counters. */
+    {
+        uint32_t const uLvtPerf = pXApicPage->lvt_thermal.all.u32LvtThermal;
+        const uint8_t           uMask             = XAPIC_LVT_IS_MASKED(uLvtPerf);
+        const uint8_t           uDeliveryStatus   = uLvtPerf & XAPIC_LVT_DELIVERY_STATUS;
+        const char             *pszDeliveryStatus = s_apszLvtDeliveryStatus[uDeliveryStatus];
+        const XAPICDELIVERYMODE enmDeliveryMode   = XAPIC_LVT_GET_DELIVERY_MODE(uLvtPerf);
+        const char             *pszDeliveryMode   = s_apszLvtDeliveryModes[enmDeliveryMode];
+        const uint8_t           uVector           = XAPIC_LVT_GET_VECTOR(uLvtPerf);
 
-    uint32_t const uLvtLint0 = pXApicPage->lvt_lint0.all.u32LvtLint0;
-    pHlp->pfnPrintf(pHlp, "LVT LINT0          = %#RX32\n",   uLvtLint0);
-    pHlp->pfnPrintf(pHlp, "  Vector           = %u (%#x)\n", pXApicPage->lvt_lint0.u.u8Vector, pXApicPage->lvt_lint0.u.u8Vector);
-    pHlp->pfnPrintf(pHlp, "  Delivery Mode    = %#x (%s)\n", pXApicPage->lvt_lint0.u.u3DeliveryMode,
-                    apicGetDeliveryModeName((XAPICDELIVERYMODE)pXApicPage->lvt_lint0.u.u3DeliveryMode));
-    pHlp->pfnPrintf(pHlp, "  Delivery status  = %u\n",       pXApicPage->lvt_lint0.u.u1DeliveryStatus);
-    pHlp->pfnPrintf(pHlp, "  Pin polarity     = %u\n",       pXApicPage->lvt_lint0.u.u1IntrPolarity);
-    pHlp->pfnPrintf(pHlp, "  Remote IRR       = %u\n",       pXApicPage->lvt_lint0.u.u1RemoteIrr);
-    pHlp->pfnPrintf(pHlp, "  Trigger Mode     = %u (%s)\n",  pXApicPage->lvt_lint0.u.u1TriggerMode,
-                    apicGetTriggerModeName((XAPICTRIGGERMODE)pXApicPage->lvt_lint0.u.u1TriggerMode));
-    pHlp->pfnPrintf(pHlp, "  Masked           = %RTbool\n",  XAPIC_LVT_IS_MASKED(uLvtLint0));
-    pHlp->pfnPrintf(pHlp, "\n");
+        pHlp->pfnPrintf(pHlp, "%-7s  %9s  %u     %5s     %1s   %8s    %4s     %6s    %3u (%#x)\n",
+                        "Perf",
+                        pszNotApplicable, /* Timer mode */
+                        uMask,
+                        pszNotApplicable, /* TriggerMode */
+                        pszNotApplicable, /* Remote IRR */
+                        pszNotApplicable, /* Polarity */
+                        pszDeliveryStatus,
+                        pszDeliveryMode,
+                        uVector,
+                        uVector);
+    }
 
-    uint32_t const uLvtLint1 = pXApicPage->lvt_lint1.all.u32LvtLint1;
-    pHlp->pfnPrintf(pHlp, "LVT LINT1          = %#RX32\n",   uLvtLint1);
-    pHlp->pfnPrintf(pHlp, "  Vector           = %u (%#x)\n", pXApicPage->lvt_lint1.u.u8Vector, pXApicPage->lvt_lint1.u.u8Vector);
-    pHlp->pfnPrintf(pHlp, "  Delivery Mode    = %#x (%s)\n", pXApicPage->lvt_lint1.u.u3DeliveryMode,
-                    apicGetDeliveryModeName((XAPICDELIVERYMODE)pXApicPage->lvt_lint1.u.u3DeliveryMode));
-    pHlp->pfnPrintf(pHlp, "  Delivery status  = %u\n",       pXApicPage->lvt_lint1.u.u1DeliveryStatus);
-    pHlp->pfnPrintf(pHlp, "  Pin polarity     = %u\n",       pXApicPage->lvt_lint1.u.u1IntrPolarity);
-    pHlp->pfnPrintf(pHlp, "  Remote IRR       = %u\n",       pXApicPage->lvt_lint1.u.u1RemoteIrr);
-    pHlp->pfnPrintf(pHlp, "  Trigger Mode     = %u (%s)\n",  pXApicPage->lvt_lint1.u.u1TriggerMode,
-                    apicGetTriggerModeName((XAPICTRIGGERMODE)pXApicPage->lvt_lint1.u.u1TriggerMode));
-    pHlp->pfnPrintf(pHlp, "  Masked           = %RTbool\n",  XAPIC_LVT_IS_MASKED(uLvtLint1));
-    pHlp->pfnPrintf(pHlp, "\n");
+    /* LINT0, LINT1. */
+    {
+        /* LINTx name. */
+        static const char * const s_apszLvtLint[] =
+        {
+            "LINT0",
+            "LINT1"
+        };
+        /* Trigger mode. */
+        static const char * const s_apszLvtTriggerModes[] =
+        {
+            "Edge ",
+            "Level"
+        };
+        /* Polarity. */
+        static const char * const s_apszLvtPolarity[] =
+        {
+            "ActiveHi",
+            "ActiveLo"
+        };
 
-    uint32_t const uLvtError = pXApicPage->lvt_error.all.u32LvtError;
-    pHlp->pfnPrintf(pHlp, "LVT Error          = %#RX32\n",   uLvtError);
-    pHlp->pfnPrintf(pHlp, "  Vector           = %u (%#x)\n", pXApicPage->lvt_error.u.u8Vector, pXApicPage->lvt_error.u.u8Vector);
-    pHlp->pfnPrintf(pHlp, "  Delivery status  = %u\n",       pXApicPage->lvt_error.u.u1DeliveryStatus);
-    pHlp->pfnPrintf(pHlp, "  Masked           = %RTbool\n",  XAPIC_LVT_IS_MASKED(uLvtError));
-    pHlp->pfnPrintf(pHlp, "\n");
+        uint32_t aLvtLint[2];
+        aLvtLint[0] = pXApicPage->lvt_lint0.all.u32LvtLint0;
+        aLvtLint[1] = pXApicPage->lvt_lint1.all.u32LvtLint1;
+        for (size_t i = 0; i < RT_ELEMENTS(aLvtLint); i++)
+        {
+            uint32_t const uLvtLint = aLvtLint[i];
+            const char             *pszLint           = s_apszLvtLint[i];
+            const uint8_t           uMask             = XAPIC_LVT_IS_MASKED(uLvtLint);
+            const XAPICTRIGGERMODE  enmTriggerMode    = XAPIC_LVT_GET_TRIGGER_MODE(uLvtLint);
+            const char             *pszTriggerMode    = s_apszLvtTriggerModes[enmTriggerMode];
+            const uint8_t           uRemoteIrr        = XAPIC_LVT_GET_REMOTE_IRR(uLvtLint);
+            const uint8_t           uPolarity         = XAPIC_LVT_GET_POLARITY(uLvtLint);
+            const char             *pszPolarity       = s_apszLvtPolarity[uPolarity];
+            const uint8_t           uDeliveryStatus   = uLvtLint & XAPIC_LVT_DELIVERY_STATUS;
+            const char             *pszDeliveryStatus = s_apszLvtDeliveryStatus[uDeliveryStatus];
+            const XAPICDELIVERYMODE enmDeliveryMode   = XAPIC_LVT_GET_DELIVERY_MODE(uLvtLint);
+            const char             *pszDeliveryMode   = s_apszLvtDeliveryModes[enmDeliveryMode];
+            const uint8_t           uVector           = XAPIC_LVT_GET_VECTOR(uLvtLint);
+
+            pHlp->pfnPrintf(pHlp, "%-7s  %9s  %u     %5s     %u   %8s    %4s     %6s    %3u (%#x)\n",
+                            pszLint,
+                            pszNotApplicable, /* Timer mode */
+                            uMask,
+                            pszTriggerMode,
+                            uRemoteIrr,
+                            pszPolarity,
+                            pszDeliveryStatus,
+                            pszDeliveryMode,
+                            uVector,
+                            uVector);
+        }
+    }
+
+    /* Error. */
+    {
+        uint32_t const uLvtError = pXApicPage->lvt_thermal.all.u32LvtThermal;
+        const uint8_t           uMask             = XAPIC_LVT_IS_MASKED(uLvtError);
+        const uint8_t           uDeliveryStatus   = uLvtError & XAPIC_LVT_DELIVERY_STATUS;
+        const char             *pszDeliveryStatus = s_apszLvtDeliveryStatus[uDeliveryStatus];
+        const XAPICDELIVERYMODE enmDeliveryMode   = XAPIC_LVT_GET_DELIVERY_MODE(uLvtError);
+        const char             *pszDeliveryMode   = s_apszLvtDeliveryModes[enmDeliveryMode];
+        const uint8_t           uVector           = XAPIC_LVT_GET_VECTOR(uLvtError);
+
+        pHlp->pfnPrintf(pHlp, "%-7s  %9s  %u     %5s     %1s   %8s    %4s     %6s    %3u (%#x)\n",
+                        "Error",
+                        pszNotApplicable, /* Timer mode */
+                        uMask,
+                        pszNotApplicable, /* TriggerMode */
+                        pszNotApplicable, /* Remote IRR */
+                        pszNotApplicable, /* Polarity */
+                        pszDeliveryStatus,
+                        pszDeliveryMode,
+                        uVector,
+                        uVector);
+    }
 }
 
 
 /**
- * Dumps APIC Timer state.
+ * Dumps the APIC timer information.
  *
- * @param   pVCpu   The cross context virtual CPU structure.
- * @param   pHlp    The debug output helper.
+ * @param   pVCpu       The cross context virtual CPU structure.
+ * @param   pHlp        The info helpers.
+ * @param   pszArgs     Arguments, ignored.
  */
-static void apicR3DbgInfoTimer(PVMCPU pVCpu, PCDBGFINFOHLP pHlp)
+static DECLCALLBACK(void) apicR3InfoTimer(PVM pVM, PCDBGFINFOHLP pHlp, const char *pszArgs)
 {
+    NOREF(pszArgs);
+    PVMCPU pVCpu = VMMGetCpu(pVM);
+    if (!pVCpu)
+        pVCpu = &pVM->aCpus[0];
+
     PCXAPICPAGE pXApicPage = VMCPU_TO_CXAPICPAGE(pVCpu);
     PCAPICCPU   pApicCpu   = VMCPU_TO_APICCPU(pVCpu);
 
-    pHlp->pfnPrintf(pHlp, "Local APIC timer:\n");
+    pHlp->pfnPrintf(pHlp, "VCPU[%u] Local APIC timer:\n", pVCpu->idCpu);
     pHlp->pfnPrintf(pHlp, "  ICR              = %#RX32\n", pXApicPage->timer_icr.u32InitialCount);
     pHlp->pfnPrintf(pHlp, "  CCR              = %#RX32\n", pXApicPage->timer_ccr.u32CurrentCount);
     pHlp->pfnPrintf(pHlp, "  DCR              = %#RX32\n", pXApicPage->timer_dcr.all.u32DivideValue);
     pHlp->pfnPrintf(pHlp, "    Timer shift    = %#x\n",    apicGetTimerShift(pXApicPage));
     pHlp->pfnPrintf(pHlp, "  Timer initial TS = %#RU64\n", pApicCpu->u64TimerInitial);
-    pHlp->pfnPrintf(pHlp, "\n");
-
-    apicR3DbgInfoLvtTimer(pVCpu, pHlp);
-}
-
-
-/**
- * @callback_method_impl{FNDBGFHANDLERDEV,
- *      Dumps the APIC state according to given argument for debugging purposes.}
- */
-static DECLCALLBACK(void) apicR3DbgInfo(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp, const char *pszArgs)
-{
-    PVM       pVM   = PDMDevHlpGetVM(pDevIns);
-    PVMCPU    pVCpu = VMMGetCpu(pVM);
-    Assert(pVCpu);
-
-    if (pszArgs == NULL || !*pszArgs || !strcmp(pszArgs, "basic"))
-        apicR3DbgInfoBasic(pVCpu, pHlp);
-    else if (!strcmp(pszArgs, "lvt"))
-        apicR3DbgInfoLvt(pVCpu, pHlp);
-    else if (!strcmp(pszArgs, "timer"))
-        apicR3DbgInfoTimer(pVCpu, pHlp);
-    else
-        pHlp->pfnPrintf(pHlp, "Invalid argument. Recognized arguments are 'basic', 'lvt', 'timer'\n");
+    apicR3InfoLvtTimer(pVCpu, pHlp);
 }
 
 
@@ -697,6 +855,7 @@ static void apicR3DumpState(PVMCPU pVCpu, const char *pszPrefix, uint32_t uVersi
     switch (uVersion)
     {
         case APIC_SAVED_STATE_VERSION:
+        case APIC_SAVED_STATE_VERSION_VBOX_51_BETA2:
         {
             /* The auxiliary state. */
             LogRel(("APIC%u: uApicBaseMsr             = %#RX64\n", pVCpu->idCpu, pApicCpu->uApicBaseMsr));
@@ -714,6 +873,10 @@ static void apicR3DumpState(PVMCPU pVCpu, const char *pszPrefix, uint32_t uVersi
             /* The PIBs. */
             LogRel(("APIC%u: Edge PIB : %.*Rhxs\n", pVCpu->idCpu, sizeof(APICPIB), pApicCpu->pvApicPibR3));
             LogRel(("APIC%u: Level PIB: %.*Rhxs\n", pVCpu->idCpu, sizeof(APICPIB), &pApicCpu->ApicPibLevel));
+
+            /* The LINT0, LINT1 interrupt line active states. */
+            LogRel(("APIC%u: fActiveLint0             = %RTbool\n", pVCpu->idCpu, pApicCpu->fActiveLint0));
+            LogRel(("APIC%u: fActiveLint1             = %RTbool\n", pVCpu->idCpu, pApicCpu->fActiveLint1));
 
             /* The APIC page. */
             LogRel(("APIC%u: APIC page: %.*Rhxs\n", pVCpu->idCpu, sizeof(XAPICPAGE), pApicCpu->pvApicPageR3));
@@ -989,6 +1152,10 @@ static DECLCALLBACK(int) apicR3SaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
         SSMR3PutU64(pSSM, pApicCpu->u64TimerInitial);
         TMR3TimerSave(pApicCpu->pTimerR3, pSSM);
 
+        /* Save the LINT0, LINT1 interrupt line states. */
+        SSMR3PutBool(pSSM, pApicCpu->fActiveLint0);
+        SSMR3PutBool(pSSM, pApicCpu->fActiveLint1);
+
 #if defined(APIC_FUZZY_SSM_COMPAT_TEST) || defined(DEBUG_ramshankar)
         apicR3DumpState(pVCpu, "Saved state", APIC_SAVED_STATE_VERSION);
 #endif
@@ -1019,6 +1186,7 @@ static DECLCALLBACK(int) apicR3LoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uin
 
     /* Weed out invalid versions. */
     if (   uVersion != APIC_SAVED_STATE_VERSION
+        && uVersion != APIC_SAVED_STATE_VERSION_VBOX_51_BETA2
         && uVersion != APIC_SAVED_STATE_VERSION_VBOX_50
         && uVersion != APIC_SAVED_STATE_VERSION_VBOX_30
         && uVersion != APIC_SAVED_STATE_VERSION_ANCIENT)
@@ -1042,7 +1210,8 @@ static DECLCALLBACK(int) apicR3LoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uin
         PVMCPU   pVCpu    = &pVM->aCpus[idCpu];
         PAPICCPU pApicCpu = VMCPU_TO_APICCPU(pVCpu);
 
-        if (uVersion == APIC_SAVED_STATE_VERSION)
+        if (   uVersion == APIC_SAVED_STATE_VERSION
+            || uVersion == APIC_SAVED_STATE_VERSION_VBOX_51_BETA2)
         {
             /* Load the auxiliary data. */
             SSMR3GetU64(pSSM, (uint64_t *)&pApicCpu->uApicBaseMsr);
@@ -1065,6 +1234,13 @@ static DECLCALLBACK(int) apicR3LoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uin
                 uint32_t const uInitialCount = pXApicPage->timer_icr.u32InitialCount;
                 uint8_t const  uTimerShift   = apicGetTimerShift(pXApicPage);
                 apicHintTimerFreq(pApicCpu, uInitialCount, uTimerShift);
+            }
+
+            /* Load the LINT0, LINT1 interrupt line states. */
+            if (uVersion > APIC_SAVED_STATE_VERSION_VBOX_51_BETA2)
+            {
+                SSMR3GetBool(pSSM, (bool *)&pApicCpu->fActiveLint0);
+                SSMR3GetBool(pSSM, (bool *)&pApicCpu->fActiveLint1);
             }
         }
         else
@@ -1499,9 +1675,18 @@ static DECLCALLBACK(int) apicR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFG
         }
 
         case APICMODE_X2APIC:
+        {
             pApic->enmOriginalMode = enmOriginalMode;
             CPUMSetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_X2APIC);
+
+            /* Insert all MSR ranges of the x2APIC. */
+            for (size_t i = 0; i < RT_ELEMENTS(g_aMsrRanges_x2Apic); i++)
+            {
+                rc = CPUMR3MsrRangesInsert(pVM, &g_aMsrRanges_x2Apic[i]);
+                AssertLogRelRCReturn(rc, rc);
+            }
             break;
+        }
 
         case APICMODE_XAPIC:
             pApic->enmOriginalMode = enmOriginalMode;
@@ -1639,10 +1824,15 @@ static DECLCALLBACK(int) apicR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFG
         return rc;
 
     /*
-     * Register debugger info callback.
+     * Register debugger info callbacks.
+     *
+     * We use separate callbacks rather than arguments so they can also be
+     * dumped in an automated fashion while collecting crash diagnostics and
+     * not just used during live debugging via the VM debugger.
      */
-    rc = PDMDevHlpDBGFInfoRegister(pDevIns, "apic", "Display local APIC state for current CPU. Recognizes "
-                                                    "'basic', 'lvt', 'timer' as arguments, defaults to 'basic'.", apicR3DbgInfo);
+    rc  = DBGFR3InfoRegisterInternalEx(pVM, "apic",      "Dumps APIC basic information.", apicR3Info,      DBGFINFO_FLAGS_ALL_EMTS);
+    rc |= DBGFR3InfoRegisterInternalEx(pVM, "apiclvt",   "Dumps APIC LVT information.",   apicR3InfoLvt,   DBGFINFO_FLAGS_ALL_EMTS);
+    rc |= DBGFR3InfoRegisterInternalEx(pVM, "apictimer", "Dumps APIC timer information.", apicR3InfoTimer, DBGFINFO_FLAGS_ALL_EMTS);
     AssertRCReturn(rc, rc);
 
 #ifdef VBOX_WITH_STATISTICS

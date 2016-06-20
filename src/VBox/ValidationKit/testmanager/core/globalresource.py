@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 107509 $"
+__version__ = "$Revision: 107799 $"
 
 
 # Standard python imports.
@@ -72,7 +72,7 @@ class GlobalResourceData(ModelDataBase):
 
     def initFromDbRow(self, aoRow):
         """
-        Reinitialize from a SELECT * FROM TestCases row.
+        Reinitialize from a SELECT * FROM GlobalResources row.
         Returns self. Raises exception if no row.
         """
         if aoRow is None:

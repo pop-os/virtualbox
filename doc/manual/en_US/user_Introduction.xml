@@ -397,12 +397,14 @@
 
     <itemizedlist>
       <listitem>
-        <para><emphasis role="bold">Windows</emphasis> hosts:<itemizedlist>
+        <para><emphasis role="bold">Windows</emphasis> hosts:<footnote>
+          <para>Support for 64-bit Windows was added with VirtualBox
+          1.5. Support for Windows XP was removed with VirtualBox 5.0.</para>
+          </footnote>
+          
+          <itemizedlist>
             <listitem>
-              <para>Windows Vista SP1 and later (32-bit and 64-bit<footnote>
-                  <para>Support for 64-bit Windows was added with VirtualBox
-                  1.5.</para>
-                </footnote>).</para>
+              <para>Windows Vista SP1 and later (32-bit and 64-bit)</para>
             </listitem>
 
             <listitem>
@@ -444,14 +446,12 @@
         <para><emphasis role="bold">Mac OS X</emphasis> hosts (64-bit):<footnote>
             <para>Preliminary Mac OS X support (beta stage) was added with
             VirtualBox 1.4, full support with 1.6. Mac OS X 10.4 (Tiger)
-            support was removed with VirtualBox 3.1. Mac OS X 10.7 (Lion)
-            and earlier was removed with VirtualBox 5.0.</para>
+            support was removed with VirtualBox 3.1. Support for Mac OS X 10.7 (Lion)
+            and earlier was removed with VirtualBox 5.0. Support for Mac OS X 10.8
+            (Mountain Lion) was removed with VirtualBox 5.1.</para>
           </footnote></para>
 
         <itemizedlist>
-          <listitem>
-            <para>10.8 (Mountain Lion)</para>
-          </listitem>
 
           <listitem>
             <para>10.9 (Mavericks)</para>
@@ -478,7 +478,7 @@
             1.4.</para>
           </footnote>). Among others, this includes:<itemizedlist>
             <listitem>
-              <para>Ubuntu 10.04 to 15.04</para>
+              <para>Ubuntu 10.04 to 16.04</para>
             </listitem>
 
             <listitem>
@@ -494,7 +494,7 @@
             </listitem>
 
             <listitem>
-              <para>Fedora Core / Fedora 6 to 22</para>
+              <para>Fedora Core / Fedora 6 to 24</para>
             </listitem>
 
             <listitem>
@@ -502,12 +502,9 @@
             </listitem>
 
             <listitem>
-              <para>openSUSE 11.4, 12.1, 12.2, 13.1</para>
+              <para>openSUSE 11.4 to 13.2</para>
             </listitem>
 
-            <listitem>
-              <para>Mandriva 2011</para>
-            </listitem>
           </itemizedlist></para>
 
         <para>It should be possible to use VirtualBox on most systems based on

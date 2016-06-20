@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 107576 $"
+__version__ = "$Revision: 107838 $"
 
 
 # Standard python imports.
@@ -99,6 +99,13 @@ def dbTimestampPythonNow():
     Gets the current python timestamp in a database compatible way.
     """
     return dbTimestampToZuluDatetime(datetime.datetime.utcnow());
+
+def dbTimestampMinusOneTick(oValue):
+    """
+    Returns a new timestamp that's one tick before the given one.
+    """
+    oValue = dbTimestampToZuluDatetime(oValue);
+    return oValue - datetime.timedelta(microseconds = 1);
 
 def isDbInterval(oValue):
     """

@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 107509 $"
+__version__ = "$Revision: 107844 $"
 
 
 # Standard python imports.
@@ -64,6 +64,7 @@ class SchedGroupMemberData(ModelDataBase):
     kiMin_iSchedPriority        = 0;
     kiMax_iSchedPriority        = 32;
 
+    kcDbColumns                 = 8
 
     def __init__(self):
         ModelDataBase.__init__(self);
@@ -124,7 +125,7 @@ class SchedGroupMemberDataEx(SchedGroupMemberData):
         Returns self. Raises exception if the row is None or otherwise invalid.
         """
         SchedGroupMemberData.initFromDbRow(self, aoRow);
-        self.oTestGroup = TestGroupData().initFromDbRow(aoRow[8:]);
+        self.oTestGroup = TestGroupData().initFromDbRow(aoRow[SchedGroupMemberData.kcDbColumns:]);
         return self;
 
     def getDataAttributes(self):
@@ -152,7 +153,7 @@ class SchedGroupData(ModelDataBase):
 
     ## @name TestBoxState_T
     # @{
-    ksScheduler_BestEffortContinousItegration   = 'bestEffortContinousItegration';
+    ksScheduler_BestEffortContinuousIntegration = 'bestEffortContinousItegration'; # sic*2
     ksScheduler_Reserved                        = 'reserved';
     ## @}
 
@@ -169,15 +170,18 @@ class SchedGroupData(ModelDataBase):
     ksParam_enmScheduler        = 'SchedGroup_enmScheduler';
     ksParam_idBuildSrc          = 'SchedGroup_idBuildSrc';
     ksParam_idBuildSrcTestSuite = 'SchedGroup_idBuildSrcTestSuite';
+    ksParam_sComment            = 'SchedGroup_sComment';
 
     kasAllowNullAttributes      = ['idSchedGroup', 'tsEffective', 'tsExpire', 'uidAuthor', 'sDescription',
-                                   'idBuildSrc', 'idBuildSrcTestSuite'];
-    kasValidValues_enmScheduler = [ksScheduler_BestEffortContinousItegration, ];
+                                   'idBuildSrc', 'idBuildSrcTestSuite', 'sComment' ];
+    kasValidValues_enmScheduler = [ ksScheduler_BestEffortContinuousIntegration, ];
+
+    kcDbColumns                 = 11;
 
     # Scheduler types
     kasSchedulerDesc            = \
     [
-        ( ksScheduler_BestEffortContinousItegration,  'Best-Effort-Continous-Itegration (BECI) scheduler.', ''),
+        ( ksScheduler_BestEffortContinuousIntegration,  'Best-Effort-Continuous-Integration (BECI) scheduler.', ''),
     ]
 
     def __init__(self):
@@ -194,9 +198,10 @@ class SchedGroupData(ModelDataBase):
         self.sName                   = None;
         self.sDescription            = None;
         self.fEnabled                = None;
-        self.enmScheduler            = SchedGroupData.ksScheduler_BestEffortContinousItegration;
+        self.enmScheduler            = SchedGroupData.ksScheduler_BestEffortContinuousIntegration;
         self.idBuildSrc              = None;
-        self.idBuildSrcTestSuite = None;
+        self.idBuildSrcTestSuite     = None;
+        self.sComment                = None;
 
     def initFromDbRow(self, aoRow):
         """
@@ -217,7 +222,8 @@ class SchedGroupData(ModelDataBase):
         self.fEnabled                = aoRow[6];
         self.enmScheduler            = aoRow[7];
         self.idBuildSrc              = aoRow[8];
-        self.idBuildSrcTestSuite = aoRow[9];
+        self.idBuildSrcTestSuite     = aoRow[9];
+        self.sComment                = aoRow[10];
         return self;
 
     def initFromDbWithId(self, oDb, idSchedGroup, tsNow = None, sPeriodBack = None):
@@ -252,13 +258,13 @@ class SchedGroupDataEx(SchedGroupData):
 
     def __init__(self):
         SchedGroupData.__init__(self);
-        self.aoMembers          = [];   # SchedGroupMemberDataEx.
+        self.aoMembers          = [];       # type: SchedGroupMemberDataEx
 
         # Two build sources for convenience sake.
-        self.oBuildSrc          = None;
-        self.oBuildSrcValidationKit = None;
+        self.oBuildSrc          = None;     # type: TestBoxData
+        self.oBuildSrcValidationKit = None; # type: TestBoxData
         # List of test boxes that uses this group for convenience.
-        self.aoTestBoxes        = None;
+        self.aoTestBoxes        = None;     # type: list[TestBoxData]
 
     def _initExtraMembersFromDb(self, oDb, tsNow = None, sPeriodBack = None):
         """
@@ -287,50 +293,29 @@ class SchedGroupDataEx(SchedGroupData):
         #
         # Test Boxes.
         #
-        ## @todo sPeriodBack!
-        if tsNow is None:
-            oDb.execute('SELECT *\n'
-                        'FROM   TestBoxes\n'
-                        'WHERE  TestBoxes.idSchedGroup = %s\n'
-                        '   AND TestBoxes.tsExpire     = \'infinity\'::TIMESTAMP\n'
-                        'ORDER BY TestBoxes.sName, TestBoxes.idTestBox\n'
-                        , (self.idSchedGroup,));
-        else:
-            oDb.execute('SELECT *\n'
-                        'FROM   TestBoxes\n'
-                        'WHERE  TestBoxes.idSchedGroup = %s\n'
-                        '   AND TestBoxes.tsExpire     > %s\n'
-                        '   AND TestBoxes.tsEffective  <= %s\n'
-                        'ORDER BY TestBoxes.sName, TestBoxes.idTestBox\n'
-                        , (self.idSchedGroup, tsNow, tsNow, tsNow, tsNow));
+        oDb.execute('SELECT TestBoxesWithStrings.*\n'
+                    'FROM   TestBoxesWithStrings,\n'
+                    '       TestBoxesInSchedGroups\n'
+                    'WHERE  TestBoxesInSchedGroups.idSchedGroup = %s\n'
+                    + self.formatSimpleNowAndPeriod(oDb, tsNow, sPeriodBack, sTablePrefix = 'TestBoxesInSchedGroups.') +
+                    '   AND TestBoxesWithStrings.idTestBox      = TestBoxesInSchedGroups.idTestBox\n'
+                    + self.formatSimpleNowAndPeriod(oDb, tsNow, sPeriodBack, sTablePrefix = 'TestBoxesWithStrings.') +
+                    'ORDER BY TestBoxesWithStrings.sName, TestBoxesWithStrings.idTestBox\n'
+                    , (self.idSchedGroup,));
         for aoRow in oDb.fetchAll():
             self.aoTestBoxes.append(TestBoxData().initFromDbRow(aoRow));
 
         #
         # Test groups.
         #
-        ## @todo sPeriodBack!
-        if tsNow is None:
-            oDb.execute('SELECT SchedGroupMembers.*, TestGroups.*\n'
-                        'FROM   SchedGroupMembers\n'
-                        'LEFT OUTER JOIN TestGroups ON (SchedGroupMembers.idTestGroup = TestGroups.idTestGroup)\n'
-                        'WHERE  SchedGroupMembers.idSchedGroup = %s\n'
-                        '   AND SchedGroupMembers.tsExpire     = \'infinity\'::TIMESTAMP\n'
-                        '   AND TestGroups.tsExpire            = \'infinity\'::TIMESTAMP\n'
-                        'ORDER BY SchedGroupMembers.idTestGroupPreReq, SchedGroupMembers.idTestGroup\n'
-                        , (self.idSchedGroup,));
-        else:
-            oDb.execute('SELECT SchedGroupMembers.*, TestGroups.*\n'
-                        'FROM   SchedGroupMembers\n'
-                        'LEFT OUTER JOIN TestGroups ON (SchedGroupMembers.idTestGroup = TestGroups.idTestGroup)\n'
-                        'WHERE  SchedGroupMembers.idSchedGroup = %s\n'
-                        '   AND SchedGroupMembers.tsExpire     > %s\n'
-                        '   AND SchedGroupMembers.tsEffective <= %s\n'
-                        '   AND TestGroups.tsExpire            > %s\n'
-                        '   AND TestGroups.tsEffective        <= %s\n'
-                        'ORDER BY SchedGroupMembers.idTestGroupPreReq, SchedGroupMembers.idTestGroup\n'
-                        , (self.idSchedGroup, tsNow, tsNow, tsNow, tsNow));
-
+        oDb.execute('SELECT SchedGroupMembers.*, TestGroups.*\n'
+                    'FROM   SchedGroupMembers\n'
+                    'LEFT OUTER JOIN TestGroups ON (SchedGroupMembers.idTestGroup = TestGroups.idTestGroup)\n'
+                    'WHERE  SchedGroupMembers.idSchedGroup = %s\n'
+                    + self.formatSimpleNowAndPeriod(oDb, tsNow, sPeriodBack, sTablePrefix = 'SchedGroupMembers.')
+                    + self.formatSimpleNowAndPeriod(oDb, tsNow, sPeriodBack, sTablePrefix = 'TestGroups.') +
+                    'ORDER BY SchedGroupMembers.idTestGroupPreReq, SchedGroupMembers.idTestGroup\n'
+                    , (self.idSchedGroup,));
         for aoRow in oDb.fetchAll():
             self.aoMembers.append(SchedGroupMemberDataEx().initFromDbRow(aoRow));
         return self;
@@ -495,16 +480,18 @@ class SchedGroupLogic(ModelLogicBase): # pylint: disable=R0903
                           '         fEnabled,\n'
                           '         enmScheduler,\n'
                           '         idBuildSrc,\n'
-                          '         idBuildSrcTestSuite)\n'
-                          'VALUES (%s, %s, %s, %s, %s, %s, %s)\n'
+                          '         idBuildSrcTestSuite,\n'
+                          '         sComment)\n'
+                          'VALUES (%s, %s, %s, %s, %s, %s, %s, %s)\n'
                           'RETURNING idSchedGroup\n'
-                          , (uidAuthor,
-                             oData.sName,
-                             oData.sDescription,
-                             oData.fEnabled,
-                             oData.enmScheduler,
-                             oData.idBuildSrc,
-                             oData.idBuildSrcTestSuite));
+                          , ( uidAuthor,
+                              oData.sName,
+                              oData.sDescription,
+                              oData.fEnabled,
+                              oData.enmScheduler,
+                              oData.idBuildSrc,
+                              oData.idBuildSrcTestSuite,
+                              oData.sComment ));
         idSchedGroup = self._oDb.fetchOne()[0];
         oData.idSchedGroup = idSchedGroup;
 
@@ -802,10 +789,11 @@ class SchedGroupLogic(ModelLogicBase): # pylint: disable=R0903
 
     def exists(self, sName):
         """Checks if a group with the given name exists."""
-        self._oDb.execute('SELECT *\n'
+        self._oDb.execute('SELECT idSchedGroup\n'
                           'FROM   SchedGroups\n'
                           'WHERE  tsExpire   = \'infinity\'::TIMESTAMP\n'
-                          '   AND sName = %s\n'
+                          '   AND sName      = %s\n'
+                          'LIMIT 1\n'
                           , (sName,));
         return self._oDb.getRowCount() > 0;
 
@@ -813,7 +801,7 @@ class SchedGroupLogic(ModelLogicBase): # pylint: disable=R0903
         """Get Scheduling Group data by idSchedGroup"""
         self._oDb.execute('SELECT   *\n'
                           'FROM     SchedGroups\n'
-                          'WHERE    tsExpire   = \'infinity\'::timestamp\n'
+                          'WHERE    tsExpire     = \'infinity\'::timestamp\n'
                           '  AND    idSchedGroup = %s;', (idSchedGroup,))
         aRows = self._oDb.fetchAll()
         if len(aRows) not in (0, 1):
@@ -824,17 +812,6 @@ class SchedGroupLogic(ModelLogicBase): # pylint: disable=R0903
         except IndexError:
             return None
 
-    def remove(self, uidAuthor, idScedGroup, fNeedCommit=True):
-        """Historize Scheduling Group record"""
-        self._oDb.execute('UPDATE SchedGroups\n'
-                          'SET    tsExpire     = CURRENT_TIMESTAMP,\n'
-                          '       uidAuthor    = %s\n'
-                          'WHERE  idSchedGroup = %s\n'
-                          '   AND tsExpire     = \'infinity\'::TIMESTAMP\n',
-                          (uidAuthor, idScedGroup))
-        if fNeedCommit:
-            self._oDb.commit()
-        return True
 
     #
     # Internal helpers.
@@ -877,8 +854,9 @@ class SchedGroupLogic(ModelLogicBase): # pylint: disable=R0903
                           '         fEnabled,\n'
                           '         enmScheduler,\n'
                           '         idBuildSrc,\n'
-                          '         idBuildSrcTestSuite )\n'
-                          'VALUES ( %s, %s, %s, %s, %s, %s, %s, %s, %s )\n'
+                          '         idBuildSrcTestSuite,\n'
+                          '         sComment )\n'
+                          'VALUES ( %s, %s, %s, %s, %s, %s, %s, %s, %s, %s )\n'
                           , ( uidAuthor,
                               tsEffective,
                               oData.idSchedGroup,
@@ -887,7 +865,8 @@ class SchedGroupLogic(ModelLogicBase): # pylint: disable=R0903
                               oData.fEnabled,
                               oData.enmScheduler,
                               oData.idBuildSrc,
-                              oData.idBuildSrcTestSuite, ));
+                              oData.idBuildSrcTestSuite,
+                              oData.sComment, ));
         return True;
 
     def _historizeEntry(self, idSchedGroup, tsExpire = None):

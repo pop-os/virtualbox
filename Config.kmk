@@ -220,7 +220,7 @@ VBOX_BUILD_PUBLISHER =
 # Note! The BETA[n],ALPHA[n],RC[n] indicators should be inserted before the
 #       publisher so that RTStrVersionCompare have a chance of comparing
 #       prerelease from different publishers correctly.
-VBOX_VERSION_STRING = $(VBOX_VERSION_STRING_RAW)_BETA1$(VBOX_BUILD_PUBLISHER)
+VBOX_VERSION_STRING = $(VBOX_VERSION_STRING_RAW)_BETA3$(VBOX_BUILD_PUBLISHER)
 # Just the BETA[n],ALPHA[n],RC[n] indicators. Set to empty string for release.
 VBOX_VERSION_PRERELEASE =
 
@@ -228,13 +228,13 @@ VBOX_VERSION_PRERELEASE =
 ifeq ($(int-mod $(VBOX_VERSION_BUILD),2),0)
   VBOX_RELEASE_EXACT_MATCH=1
   # Decide whether to use the stable (5.0) audio code or not.
-  VBOX_WITH_AUDIO_STABLE:=1
 endif
 ifneq ($(VBOX_RELEASE_EXACT_MATCH),)
  export VBOX_ADDITIONS_SH_MODE     = release
  export VBOX_DOCUMENTATION_SH_MODE = release
  export VBOX_EFI_SH_MODE           = release
  export VBOX_EXTPACKS_SH_MODE      = release
+ VBOX_WITH_AUDIO_STABLE           := 1
 endif
 
 # Some info on the vendor
@@ -433,13 +433,6 @@ VBOX_WITH_E1000 = 1
 VBOX_WITH_VIRTIO = 1
 # Enable new PS/2 mouse emulation.
 VBOX_WITH_NEW_PS2M = 1
-ifdef VBOX_WITH_AUDIO_STABLE
- VBOX_AUDIO_PATH_SOURCES=Audio_old
- VBOX_AUDIO_FILE_SUFFIX=_old
-else
- VBOX_AUDIO_PATH_SOURCES=Audio
- VBOX_AUDIO_FILE_SUFFIX=
-endif
 # Enable OSS audio support.
 VBOX_WITH_OSS = 1
 # Enable ALSA audio support.
@@ -1166,6 +1159,18 @@ ifdef VBOX_OSE
  VBOX_BRAND_GUI_VBOX_64PX_PNG        := $(PATH_ROOT)/src/VBox/Frontends/VirtualBox/images/OSE/VirtualBox_64px.png
  VBOX_BRAND_GUI_CUBE_42PX_PNG        := $(PATH_ROOT)/src/VBox/Frontends/VirtualBox/images/OSE/VirtualBox_cube_42px.png
  VBOX_BRAND_GUI_VBOX_SVG             := $(PATH_ROOT)/src/VBox/Artwork/OSE/virtualbox.svg
+endif
+
+#
+# Audio: Which code base to use.
+# This can be overriden in LocalConfig.kmk.
+#
+ifdef VBOX_WITH_AUDIO_STABLE
+ VBOX_AUDIO_PATH_SOURCES=Audio_old
+ VBOX_AUDIO_FILE_SUFFIX=_old
+else
+ VBOX_AUDIO_PATH_SOURCES=Audio
+ VBOX_AUDIO_FILE_SUFFIX=
 endif
 
 #
@@ -2632,6 +2637,7 @@ $(PATH_OUT)/DynamicConfig.kmk: \
 	$(QUIET)$(APPEND) '$@' 'VBOX_GCC_Wno-overlength-strings?= $(call VBOX_GCC_CHECK_CC,-Wno-overlength-strings,)'
 	$(QUIET)$(APPEND) '$@' 'VBOX_GCC_fno-stack-protector   ?= $(call VBOX_GCC_CHECK_CC,-fno-stack-protector,)'
 	$(QUIET)$(APPEND) '$@' 'VBOX_GCC_fno-dwarf2-cfi-asm    ?= $(call VBOX_GCC_CHECK_CC,-fno-dwarf2-cfi-asm,)'
+	$(QUIET)$(APPEND) '$@' 'VBOX_GCC_m64                   ?= $(call VBOX_GCC_CHECK_CC,-m64,)'
 	$(QUIET)$(APPEND) '$@' 'VBOX_GCC_no-pie                ?= $(call VBOX_GCC_CHECK_CC,-no-pie,)'
 	$(QUIET)$(APPEND) '$@' 'VBOX_GCC_fdiagnostics-show-option ?= $(call VBOX_GCC_CHECK_CC,-fdiagnostics-show-option,)'
 # Produce code optimized for the most common IA32/AMD64/EM64T processors. Introduced with gcc version 4.2.
@@ -4447,6 +4453,14 @@ TEMPLATE_VBoxR3Dll-x86_EXTENDS        = VBoxR3Dll
 TEMPLATE_VBoxR3Dll-x86_BLD_TRG_ARCH   = x86
 TEMPLATE_VBoxR3Dll-x86_DEFS           = $(filter-out HC_ARCH_BITS%,$(TEMPLATE_VBoxR3Dll_DEFS)) \
 	HC_ARCH_BITS=32 ARCH_BITS=32
+ifeq ($(KBUILD_TARGET),solaris)
+ ifdef VBOX_WITH_RUNPATH
+  TEMPLATE_VBoxR3Dll-x86_LDFLAGS = \
+	$(filter-out '$(VBOX_GCC_RPATH_OPT)$(VBOX_WITH_RUNPATH)',$(TEMPLATE_VBoxR3Dll_LDFLAGS)) \
+	'$(VBOX_GCC_RPATH_OPT)$(VBOX_PATH_APP_PRIVATE)' \
+	'$(VBOX_GCC_RPATH_OPT)$(VBOX_WITH_RUNPATH)'
+ endif
+endif
 
 
 #
@@ -4639,7 +4653,8 @@ ifeq ($(KBUILD_TARGET),win) # No CRT!
  TEMPLATE_VBOXR3HARDENEDEXE_LDFLAGS.win.amd64 = $(TEMPLATE_VBOXR3EXE_LDFLAGS.win.amd64) /entry:suplibHardenedWindowsMain
  TEMPLATE_VBOXR3HARDENEDEXE_LIBS.x86       = $(NOT_SUCH_VARIABLE)
  TEMPLATE_VBOXR3HARDENEDEXE_LIBS.amd64     = $(NOT_SUCH_VARIABLE)
-else ifn1of ($(KBUILD_TARGET), os2)
+else ifn1of ($(KBUILD_TARGET), os2 solaris)
+ # We want to keep the RPATH on Solaris to be able to find libgcc_1/libstdc++ within $(VBOX_WITH_RUNPATH)
  TEMPLATE_VBOXR3HARDENEDEXE_LDFLAGS       = $(filter-out '$(VBOX_GCC_RPATH_OPT)%,$(TEMPLATE_VBOXR3EXE_LDFLAGS))
  TEMPLATE_VBOXR3HARDENEDEXE_LDFLAGS.linux = $(filter-out $(VBOX_GCC_ORIGIN_OPT),$(TEMPLATE_VBOXR3EXE_LDFLAGS.linux))
 endif
@@ -5229,6 +5244,14 @@ TEMPLATE_VBoxMainComp-x86_LIBS = \
 	$(subst $(LIB_RUNTIME),$(VBOX_LIB_RUNTIME_X86),\
 	$(subst $(LIB_XPCOM),$(VBOX_LIB_XPCOM_X86),\
 	$(TEMPLATE_VBOXMAINCOMP_LIBS))))
+ifeq ($(KBUILD_TARGET),solaris)
+ ifdef VBOX_WITH_RUNPATH
+  TEMPLATE_VBoxMainComp-x86_LDFLAGS = \
+	$(filter-out '$(VBOX_GCC_RPATH_OPT)$(VBOX_WITH_RUNPATH)',$(TEMPLATE_VBOXMAINCOMP_LDFLAGS)) \
+	'$(VBOX_GCC_RPATH_OPT)$(VBOX_PATH_APP_PRIVATE)' \
+	'$(VBOX_GCC_RPATH_OPT)$(VBOX_WITH_RUNPATH)'
+ endif
+endif
 
 
 #
@@ -6523,7 +6546,7 @@ endif
 SVN                    ?= svn$(HOSTSUFF_EXE)
 VBOX_SVN_REV_KMK        = $(PATH_OUT)/revision.kmk
 ifndef VBOX_SVN_REV
- VBOX_SVN_REV_FALLBACK := $(patsubst %:,,  $Rev: 107766 $  )
+ VBOX_SVN_REV_FALLBACK := $(patsubst %:,,  $Rev: 108118 $  )
  VBOX_SVN_DEP          := $(firstword $(wildcard $(PATH_ROOT)/.svn/wc.db $(abspath $(PATH_ROOT)/../.svn/wc.db) $(abspath $(PATH_ROOT)/../../.svn/wc.db) $(PATH_ROOT)/.svn/entries))
  ifeq ($(which $(SVN)),)
   VBOX_SVN_DEP         :=

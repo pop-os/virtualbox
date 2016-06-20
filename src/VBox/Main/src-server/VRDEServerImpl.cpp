@@ -258,6 +258,19 @@ HRESULT VRDEServer::setEnabled(BOOL aEnabled)
         adep.release();
 
         rc = mParent->i_onVRDEServerChange(/* aRestart */ TRUE);
+        if (FAILED(rc))
+        {
+            /* Failed to enable/disable the server. Revert the internal state. */
+            adep.add();
+            if (SUCCEEDED(adep.rc()))
+            {
+                alock.acquire();
+                mData->fEnabled = !RT_BOOL(aEnabled);
+                alock.release();
+                mlock.acquire();
+                mParent->i_setModified(Machine::IsModified_VRDEServer);
+            }
+        }
     }
 
     return rc;

@@ -2,7 +2,7 @@
 # $Id: schedulerbeci.py $
 
 """
-Test Manager - Best-Effort-Continous-Itegration (BECI) scheduler.
+Test Manager - Best-Effort-Continuous-Integration (BECI) scheduler.
 """
 
 __copyright__ = \
@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 101453 $"
+__version__ = "$Revision: 107844 $"
 
 
 # Validation Kit imports.
@@ -35,7 +35,7 @@ from testmanager.core.schedulerbase  import SchedulerBase, SchedQueueData;
 
 class SchdulerBeci(SchedulerBase): # pylint: disable=R0903
     """
-    The best-effort-continous-itegration scheduler, BECI for short.
+    The best-effort-continuous-integration scheduler, BECI for short.
     """
 
     def __init__(self, oDb, oSchedGrpData, iVerbosity, tsSecStart):

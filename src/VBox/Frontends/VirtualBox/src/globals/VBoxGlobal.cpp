@@ -4706,6 +4706,9 @@ void VBoxGlobal::showUI()
             return QApplication::quit();
         }
 
+        /* Create/show selector-window: */
+        UISelectorWindow::create();
+
 #ifdef VBOX_BLEEDING_EDGE
         /* Show EXPERIMENTAL BUILD warning: */
         msgCenter().showExperimentalBuildWarning();
@@ -4718,9 +4721,6 @@ void VBoxGlobal::showUI()
             msgCenter().showBetaBuildWarning();
 # endif /* !DEBUG */
 #endif /* !VBOX_BLEEDING_EDGE */
-
-        /* Create/show selector-window: */
-        UISelectorWindow::create();
     }
     /* Show Runtime UI: */
     else
@@ -4848,7 +4848,22 @@ bool VBoxGlobal::launchMachine(CMachine &machine, LaunchMode enmLaunchMode /* = 
     /* Switch to machine window(s) if possible: */
     if (   machine.GetSessionState() == KSessionState_Locked /* precondition for CanShowConsoleWindow() */
         && machine.CanShowConsoleWindow())
-        return VBoxGlobal::switchToMachine(machine);
+    {
+        /* For the Selector UI: */
+        if (!isVMConsoleProcess())
+        {
+            /* Just switch to existing VM window: */
+            return VBoxGlobal::switchToMachine(machine);
+        }
+        /* For the Runtime UI: */
+        else
+        {
+            /* Only separate UI process can reach that place,
+             * switch to existing VM window and exit. */
+            VBoxGlobal::switchToMachine(machine);
+            return false;
+        }
+    }
 
     if (enmLaunchMode != LaunchMode_Separate)
     {

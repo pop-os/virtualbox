@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 100967 $"
+__version__ = "$Revision: 107795 $"
 
 
 ## @name Test Manager actions
@@ -74,7 +74,7 @@ SIGNON_PARAM_HAS_HW_VIRT        = 'HAS_HW_VIRT';
 SIGNON_PARAM_HAS_NESTED_PAGING  = 'HAS_NESTED_PAGING';
 SIGNON_PARAM_HAS_64_BIT_GUEST   = 'HAS_64_BIT_GUST';
 SIGNON_PARAM_HAS_IOMMU          = 'HAS_IOMMU';
-## TODO: SIGNON_PARAM_WITH_RAW_MODE
+SIGNON_PARAM_WITH_RAW_MODE      = 'WITH_RAW_MODE';
 SIGNON_PARAM_MEM_SIZE           = 'MEM_SIZE';
 SIGNON_PARAM_SCRATCH_SIZE       = 'SCRATCH_SIZE';
 SIGNON_PARAM_REPORT             = 'REPORT';

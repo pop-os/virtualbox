@@ -27,7 +27,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 107766 $"
+__version__ = "$Revision: 108087 $"
 
 
 # Standard Python imports.
@@ -1283,7 +1283,7 @@ class TestDriver(base.TestDriver):                                              
             reporter.log("sVer=%s" % (sVer,));          # Temporary - debugging hang somewhere after 'sys.path' log line above.
             if sVer.startswith("5.1"):
                 self.fpApiVer = 5.1;
-            if sVer.startswith("5.0") or (sVer.startswith("4.3.5") and len(sVer) == 6):
+            elif sVer.startswith("5.0") or (sVer.startswith("4.3.5") and len(sVer) == 6):
                 self.fpApiVer = 5.0;
             elif sVer.startswith("4.3") or (sVer.startswith("4.2.5") and len(sVer) == 6):
                 self.fpApiVer = 4.3;
@@ -2551,12 +2551,54 @@ class TestDriver(base.TestDriver):                                              
             if fRc is not True:
                 sLastScreenshotPath = None;
 
-        #
         # Query the OS kernel log from the debugger if appropriate/requested.
-        #
         sOsKernelLog = None;
         if self.fAlwaysUploadLogs or reporter.testErrorCount() > 0:
             sOsKernelLog = oSession.queryOsKernelLog();
+
+        # Do "info vgatext all" separately.
+        sVgaText = None;
+        if self.fAlwaysUploadLogs or reporter.testErrorCount() > 0:
+            sVgaText = oSession.queryDbgInfoVgaText();
+
+        # Various infos (do after kernel because of symbols).
+        asMiscInfos = [];
+        if self.fAlwaysUploadLogs or reporter.testErrorCount() > 0:
+            # Dump the guest stack for all CPUs.
+            cCpus = oSession.getCpuCount();
+            if cCpus > 1024: # disable for now
+                for iCpu in xrange(0, cCpus):
+                    sThis = oSession.queryDbgGuestStack(iCpu);
+                    if sThis is not None and len(sThis) > 0:
+                        asMiscInfos += [
+                            '================ start guest stack VCPU %s ================\n' % (iCpu,),
+                            sThis,
+                            '================ end guest stack VCPU %s ==================\n' % (iCpu,),
+                        ];
+
+            for sInfo, sArg in [ ('mode', 'all'),
+                                 ('fflags', ''),
+                                 ('cpumguest', 'verbose all'),
+                                 ('cpumguestinstr', 'symbol all'),
+                                 ('pic', ''),
+                                 ('apic', ''),
+                                 ('ioapic', ''),
+                                 ('pit', ''),
+                                 ('phys', ''),
+                                 ('clocks', ''),
+                                 ('timers', ''),
+                                 ('guestgdt', ''),
+                                 ('ldtguest', ''),
+                                ]:
+                sThis = oSession.queryDbgInfo(sInfo, sArg);
+                if sThis is not None and len(sThis) > 0:
+                    if sThis[-1] != '\n':
+                        sThis += '\n';
+                    asMiscInfos += [
+                        '================ start %s %s ================\n' % (sInfo, sArg),
+                        sThis,
+                        '================ end %s %s ==================\n' % (sInfo, sArg),
+                    ];
 
         #
         # Terminate the VM
@@ -2631,6 +2673,15 @@ class TestDriver(base.TestDriver):                                              
         # Add the guest OS log if it has been requested and taken successfully.
         if sOsKernelLog is not None:
             reporter.addLogString(sOsKernelLog, 'kernel.log', 'log/guest/kernel', 'Guest OS kernel log');
+
+        # Add "info vgatext all" if we've got it.
+        if sVgaText is not None:
+            reporter.addLogString(sVgaText, 'vgatext.txt', 'info/vgatext', 'info vgatext all');
+
+        # Add the "info xxxx" items if we've got any.
+        if len(asMiscInfos) > 0:
+            reporter.addLogString(u''.join(asMiscInfos), 'info.txt', 'info/collection', 'A bunch of info items.');
+
 
         return fRc;
 

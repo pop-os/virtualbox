@@ -67,10 +67,22 @@ typedef struct AUDMIXSTREAM
     PPDMAUDIOSTREAM         pStream;
 } AUDMIXSTREAM, *PAUDMIXSTREAM;
 
-/** No flags specified. */
-#define AUDMIXSINK_FLAG_NONE                  0
-/** Dirty flag. */
-#define AUDMIXSINK_FLAG_DIRTY                 RT_BIT(0)
+/** Defines an audio sink's current status. */
+#define AUDMIXSINKSTS uint32_t
+
+/** No status specified. */
+#define AUDMIXSINK_STS_NONE                  0
+/** The sink is active and running. */
+#define AUDMIXSINK_STS_RUNNING               RT_BIT(0)
+/** The sink is in a pending disable state. */
+#define AUDMIXSINK_STS_PENDING_DISABLE       RT_BIT(1)
+/** Dirty flag.
+ *  For output sinks this means that there is data in the
+ *  sink which has not been played yet.
+ *  For input sinks this means that there is data in the
+ *  sink which has been recorded but not transferred to the
+ *  destination yet. */
+#define AUDMIXSINK_STS_DIRTY                 RT_BIT(2)
 
 /**
  * Audio mixer sink direction.
@@ -104,6 +116,38 @@ typedef enum AUDMIXSINKCMD
 } AUDMIXSINKCMD;
 
 /**
+ * Structure for keeping audio input sink specifics.
+ * Do not use directly. Instead, use AUDMIXSINK.
+ */
+typedef struct AUDMIXSINKIN
+{
+#ifdef VBOX_AUDIO_MIXER_WITH_MIXBUF
+    /** This sink's mixing buffer, acting as
+     * a parent buffer for all streams this sink owns. */
+    PDMAUDIOMIXBUF MixBuf;
+#else
+    /** Number of bytes available to read from the sink. */
+    uint32_t       cbReadable;
+#endif
+} AUDMIXSINKIN;
+
+/**
+ * Structure for keeping audio output sink specifics.
+ * Do not use directly. Instead, use AUDMIXSINK.
+ */
+typedef struct AUDMIXSINKOUT
+{
+#ifdef VBOX_AUDIO_MIXER_WITH_MIXBUF
+    /** This sink's mixing buffer, acting as
+     * a parent buffer for all streams this sink owns. */
+    PDMAUDIOMIXBUF MixBuf;
+#else
+    /** Number of bytes available to write to the sink. */
+    uint32_t       cbWritable;
+#endif
+} AUDMIXSINKOUT;
+
+/**
  * Structure for maintaining an audio mixer sink.
  */
 typedef struct AUDMIXSINK
@@ -116,8 +160,14 @@ typedef struct AUDMIXSINK
     /** The sink direction, that is,
      *  if this sink handles input or output. */
     AUDMIXSINKDIR           enmDir;
-    /** Sink flags of type AUDMIXSINK_FLAG_. */
-    uint32_t                fFlags;
+    /** Union for input/output specifics. */
+    union
+    {
+        AUDMIXSINKIN        In;
+        AUDMIXSINKOUT       Out;
+    };
+    /** Sink status of type AUDMIXSINK_STS_XXX. */
+    AUDMIXSINKSTS           fStatus;
     /** The sink's PCM format. */
     PDMPCMPROPS             PCMProps;
     /** Number of streams assigned. */
@@ -127,14 +177,11 @@ typedef struct AUDMIXSINK
      *        mixer does not do any conversion. */
     /** @todo Use something faster -- vector maybe? */
     RTLISTANCHOR            lstStreams;
-#ifdef VBOX_AUDIO_MIXER_WITH_MIXBUF
-    /** This sink's mixing buffer, acting as
-     *  a parent buffer for all streams this sink owns. */
-    PDMAUDIOMIXBUF          MixBuf;
-#endif
     /** The volume of this sink. The volume always will
      *  be combined with the mixer's master volume. */
     PDMAUDIOVOLUME          Volume;
+    /** Timestamp (in ns) since last update. */
+    uint64_t                tsLastUpdatedNS;
 } AUDMIXSINK, *PAUDMIXSINK;
 
 /**
@@ -167,16 +214,18 @@ int AudioMixerSinkAddStream(PAUDMIXSINK pSink, PAUDMIXSTREAM pStream);
 int AudioMixerSinkCreateStream(PAUDMIXSINK pSink, PPDMIAUDIOCONNECTOR pConnector, PPDMAUDIOSTREAMCFG pCfg, uint32_t fFlags, PAUDMIXSTREAM *ppStream);
 int AudioMixerSinkCtl(PAUDMIXSINK pSink, AUDMIXSINKCMD enmCmd);
 void AudioMixerSinkDestroy(PAUDMIXSINK pSink);
+uint32_t AudioMixerSinkGetReadable(PAUDMIXSINK pSink);
+uint32_t AudioMixerSinkGetWritable(PAUDMIXSINK pSink);
 AUDMIXSINKDIR AudioMixerSinkGetDir(PAUDMIXSINK pSink);
 PAUDMIXSTREAM AudioMixerSinkGetStream(PAUDMIXSINK pSink, uint8_t uIndex);
+AUDMIXSINKSTS AudioMixerSinkGetStatus(PAUDMIXSINK pSink);
 uint8_t AudioMixerSinkGetStreamCount(PAUDMIXSINK pSink);
-bool AudioMixerSinkHasData(PAUDMIXSINK pSink);
 int AudioMixerSinkRead(PAUDMIXSINK pSink, AUDMIXOP enmOp, void *pvBuf, uint32_t cbBuf, uint32_t *pcbRead);
 void AudioMixerSinkRemoveStream(PAUDMIXSINK pSink, PAUDMIXSTREAM pStream);
 void AudioMixerSinkRemoveAllStreams(PAUDMIXSINK pSink);
 int AudioMixerSinkSetFormat(PAUDMIXSINK pSink, PPDMPCMPROPS pPCMProps);
 int AudioMixerSinkSetVolume(PAUDMIXSINK pSink, PPDMAUDIOVOLUME pVol);
-void AudioMixerSinkTimerUpdate(PAUDMIXSINK pSink, uint64_t cTimerTicks, uint64_t cTicksElapsed, uint32_t *pcbData);
+void AudioMixerSinkTimerUpdate(PAUDMIXSINK pSink, uint64_t cTimerTicks, uint64_t cTicksElapsed, uint32_t *pcbToProcess);
 int AudioMixerSinkWrite(PAUDMIXSINK pSink, AUDMIXOP enmOp, const void *pvBuf, uint32_t cbBuf, uint32_t *pcbWritten);
 int AudioMixerSinkUpdate(PAUDMIXSINK pSink);
 

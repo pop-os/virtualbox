@@ -172,7 +172,12 @@ typedef enum PDMAUDIOSTREAMLAYOUT
     PDMAUDIOSTREAMLAYOUT_NON_INTERLEAVED,
     /** Interleaved access, where the data can be
      *  mixed together with data of other audio streams. */
-    PDMAUDIOSTREAMLAYOUT_INTERLEAVED
+    PDMAUDIOSTREAMLAYOUT_INTERLEAVED,
+    /** Complex layout, which does not fit into the
+     *  interleaved / non-interleaved layouts. */
+    PDMAUDIOSTREAMLAYOUT_COMPLEX,
+    /** Hack to blow the type up to 32-bit. */
+    PDMAUDIOSTREAMLAYOUT_32BIT_HACK = 0x7fffffff
 } PDMAUDIOSTREAMLAYOUT, *PPDMAUDIOSTREAMLAYOUT;
 
 /** No stream channel data flags defined. */
@@ -500,19 +505,28 @@ typedef enum PDMAUDIOSTREAMCTX
     PDMAUDIOSTREAMCTX_GUEST
 } PDMAUDIOSTREAMCTX;
 
+/**
+ * Structure for keeping audio input stream specifics.
+ * Do not use directly. Instead, use PDMAUDIOSTREAM.
+ */
 typedef struct PDMAUDIOSTREAMIN
 {
-
 } PDMAUDIOSTREAMIN, *PPDMAUDIOSTREAMIN;
 
+/**
+ * Structure for keeping audio output stream specifics.
+ * Do not use directly. Instead, use PDMAUDIOSTREAM.
+ */
 typedef struct PDMAUDIOSTREAMOUT
 {
-
 } PDMAUDIOSTREAMOUT, *PPDMAUDIOSTREAMOUT;
 
 struct PDMAUDIOSTREAM;
 typedef PDMAUDIOSTREAM *PPDMAUDIOSTREAM;
 
+/**
+ * Structure for maintaining an nput/output audio stream.
+ */
 typedef struct PDMAUDIOSTREAM
 {
     /** List node. */
@@ -535,11 +549,12 @@ typedef struct PDMAUDIOSTREAM
     PDMAUDIODIR            enmDir;
     /** Context of this stream. */
     PDMAUDIOSTREAMCTX      enmCtx;
-    typedef union
+    /** Union for input/output specifics. */
+    union
     {
         PDMAUDIOSTREAMIN   In;
         PDMAUDIOSTREAMOUT  Out;
-    } InOut;
+    };
 } PDMAUDIOSTREAM, *PPDMAUDIOSTREAM;
 
 /** Pointer to a audio connector interface. */
@@ -696,7 +711,25 @@ typedef struct PDMIAUDIOCONNECTOR
     DECLR3CALLBACKMEMBER(int, pfnStreamIterate, (PPDMIAUDIOCONNECTOR pInterface, PPDMAUDIOSTREAM pStream));
 
     /**
-     * Retrieves the status of a specific audio stream.
+     * Returns the number of readable data (in bytes) of a specific audio input stream.
+     *
+     * @returns Number of readable data (in bytes).
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   pStream         Pointer to audio stream.
+     */
+    DECLR3CALLBACKMEMBER(uint32_t, pfnStreamGetReadable, (PPDMIAUDIOCONNECTOR pInterface, PPDMAUDIOSTREAM pStream));
+
+    /**
+     * Returns the number of writable data (in bytes) of a specific audio output stream.
+     *
+     * @returns Number of writable data (in bytes).
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   pStream         Pointer to audio stream.
+     */
+    DECLR3CALLBACKMEMBER(uint32_t, pfnStreamGetWritable, (PPDMIAUDIOCONNECTOR pInterface, PPDMAUDIOSTREAM pStream));
+
+    /**
+     * Returns the status of a specific audio stream.
      *
      * @returns Audio stream status
      * @param   pInterface      Pointer to the interface structure containing the called function pointer.
@@ -715,13 +748,22 @@ typedef struct PDMIAUDIOCONNECTOR
     DECLR3CALLBACKMEMBER(int, pfnStreamSetVolume, (PPDMIAUDIOCONNECTOR pInterface, PPDMAUDIOSTREAM pStream, PPDMAUDIOVOLUME pVol));
 
     /**
-     * Plays (transfers) all available audio samples of a an output stream via the connected host backend.
+     * Plays (transfers) available audio samples via the host backend. Only works with output streams.
      *
      * @returns VBox status code.
      * @param   pInterface           Pointer to the interface structure containing the called function pointer.
      * @param   pcSamplesPlayed      Number of samples played. Optional.
      */
     DECLR3CALLBACKMEMBER(int, pfnStreamPlay, (PPDMIAUDIOCONNECTOR pInterface, PPDMAUDIOSTREAM pStream, uint32_t *pcSamplesPlayed));
+
+    /**
+     * Captures (transfers) available audio samples from the host backend. Only works with input streams.
+     *
+     * @returns VBox status code.
+     * @param   pInterface           Pointer to the interface structure containing the called function pointer.
+     * @param   pcSamplesCaptured    Number of samples captured. Optional.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnStreamCapture, (PPDMIAUDIOCONNECTOR pInterface, PPDMAUDIOSTREAM pStream, uint32_t *pcSamplesCaptured));
 
 #ifdef VBOX_WITH_AUDIO_CALLBACKS
     DECLR3CALLBACKMEMBER(int, pfnRegisterCallbacks, (PPDMIAUDIOCONNECTOR pInterface, PPDMAUDIOCALLBACK paCallbacks, size_t cCallbacks));
@@ -731,7 +773,7 @@ typedef struct PDMIAUDIOCONNECTOR
 } PDMIAUDIOCONNECTOR;
 
 /** PDMIAUDIOCONNECTOR interface ID. */
-#define PDMIAUDIOCONNECTOR_IID                  "9C097435-3276-4D88-A49A-A4FE671D86F8"
+#define PDMIAUDIOCONNECTOR_IID                  "C850CCE0-C5F4-42AB-BFC5-BACB41A8284D"
 
 
 

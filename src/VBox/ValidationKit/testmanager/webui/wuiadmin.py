@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 107751 $"
+__version__ = "$Revision: 107959 $"
 
 
 # Standard python imports.
@@ -505,16 +505,11 @@ class WuiAdmin(WuiDispatcherBase):
                     if oTestBox.fEnabled != fEnable:
                         oTestBox.fEnabled = fEnable;
                         oLogic.editEntry(oTestBox, self._oCurUser.uid, fCommit = False);
-            elif sListAction == 'setgroup':
-                for oTestBox in aoTestBoxes:
-                    if oTestBox.idSchedGroup != idAction:
-                        oTestBox.idSchedGroup = idAction;
-                        oLogic.editEntry(oTestBox, self._oCurUser.uid, fCommit = False);
             else:
                 for oTestBox in aoTestBoxes:
                     if oTestBox.enmPendingCmd != sListAction:
-                        oTestBox.enmPendingCmd = sListAction;
-                        oLogic.editEntry(oTestBox, self._oCurUser.uid, fCommit = False);
+                        oLogic.setCommand(oTestBox.idTestBox, oTestBox.enmPendingCmd, sListAction, self._oCurUser.uid,
+                                          fCommit = False);
             self._oDb.commit();
 
         # Re-display the list.
@@ -525,33 +520,33 @@ class WuiAdmin(WuiDispatcherBase):
 
     def _actionTestBoxAdd(self):
         """ Action wrapper. """
-        from testmanager.core.testbox                  import TestBoxData;
+        from testmanager.core.testbox                  import TestBoxDataEx;
         from testmanager.webui.wuiadmintestbox         import WuiTestBox;
-        return self._actionGenericFormAdd(TestBoxData, WuiTestBox);
+        return self._actionGenericFormAdd(TestBoxDataEx, WuiTestBox);
 
     def _actionTestBoxAddPost(self):
         """ Action wrapper. """
-        from testmanager.core.testbox                  import TestBoxData, TestBoxLogic;
+        from testmanager.core.testbox                  import TestBoxDataEx, TestBoxLogic;
         from testmanager.webui.wuiadmintestbox         import WuiTestBox;
-        return self._actionGenericFormAddPost(TestBoxData, TestBoxLogic, WuiTestBox, self.ksActionTestBoxList);
+        return self._actionGenericFormAddPost(TestBoxDataEx, TestBoxLogic, WuiTestBox, self.ksActionTestBoxList);
 
     def _actionTestBoxDetails(self):
         """ Action wrapper. """
-        from testmanager.core.testbox                  import TestBoxData, TestBoxLogic;
+        from testmanager.core.testbox                  import TestBoxDataEx, TestBoxLogic;
         from testmanager.webui.wuiadmintestbox         import WuiTestBox;
-        return self._actionGenericFormDetails(TestBoxData, TestBoxLogic, WuiTestBox, 'idTestBox', 'idGenTestBox');
+        return self._actionGenericFormDetails(TestBoxDataEx, TestBoxLogic, WuiTestBox, 'idTestBox', 'idGenTestBox');
 
     def _actionTestBoxEdit(self):
         """ Action wrapper. """
-        from testmanager.core.testbox                  import TestBoxData;
+        from testmanager.core.testbox                  import TestBoxDataEx;
         from testmanager.webui.wuiadmintestbox         import WuiTestBox;
-        return self._actionGenericFormEdit(TestBoxData, WuiTestBox, TestBoxData.ksParam_idTestBox);
+        return self._actionGenericFormEdit(TestBoxDataEx, WuiTestBox, TestBoxDataEx.ksParam_idTestBox);
 
     def _actionTestBoxEditPost(self):
         """ Action wrapper. """
-        from testmanager.core.testbox                  import TestBoxData, TestBoxLogic;
+        from testmanager.core.testbox                  import TestBoxDataEx, TestBoxLogic;
         from testmanager.webui.wuiadmintestbox         import WuiTestBox;
-        return self._actionGenericFormEditPost(TestBoxData, TestBoxLogic,WuiTestBox, self.ksActionTestBoxList);
+        return self._actionGenericFormEditPost(TestBoxDataEx, TestBoxLogic,WuiTestBox, self.ksActionTestBoxList);
 
     def _actionTestBoxRemovePost(self):
         """ Action wrapper. """

@@ -2803,6 +2803,20 @@ HRESULT Display::querySourceBitmap(ULONG aScreenId,
     return hr;
 }
 
+HRESULT Display::getGuestScreenLayout(std::vector<ComPtr<IGuestScreenInfo> > &aGuestScreenLayout)
+{
+    NOREF(aGuestScreenLayout);
+    return E_NOTIMPL;
+}
+
+HRESULT Display::setScreenLayout(ScreenLayoutMode_T aScreenLayoutMode,
+                                    const std::vector<ComPtr<IGuestScreenInfo> > &aGuestScreenInfo)
+{
+    NOREF(aScreenLayoutMode);
+    NOREF(aGuestScreenInfo);
+    return E_NOTIMPL;
+}
+
 // wrapped IEventListener method
 HRESULT Display::handleEvent(const ComPtr<IEvent> &aEvent)
 {

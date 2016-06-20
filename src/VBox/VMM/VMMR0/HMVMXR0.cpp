@@ -3314,7 +3314,10 @@ DECLINLINE(int) hmR0VmxLoadGuestExitCtls(PVMCPU pVCpu, PCPUMCTX pMixedCtx)
         val |= VMX_VMCS_CTRL_EXIT_HOST_ADDR_SPACE_SIZE;
         Log4(("Load[%RU32]: VMX_VMCS_CTRL_EXIT_HOST_ADDR_SPACE_SIZE\n", pVCpu->idCpu));
 #else
-        if (CPUMIsGuestInLongModeEx(pMixedCtx))
+        Assert(   pVCpu->hm.s.vmx.pfnStartVM == VMXR0SwitcherStartVM64
+               || pVCpu->hm.s.vmx.pfnStartVM == VMXR0StartVM32);
+        /* Set the host address-space size based on the switcher, not guest state. See @bugref{8432}. */
+        if (pVCpu->hm.s.vmx.pfnStartVM == VMXR0SwitcherStartVM64)
         {
             /* The switcher returns to long mode, EFER is managed by the switcher. */
             val |= VMX_VMCS_CTRL_EXIT_HOST_ADDR_SPACE_SIZE;
@@ -4845,6 +4848,10 @@ static int hmR0VmxSetupVMRunHandler(PVMCPU pVCpu, PCPUMCTX pMixedCtx)
                                                  | HM_CHANGED_GUEST_EFER_MSR), ("flags=%#x\n", HMCPU_CF_VALUE(pVCpu)));
             }
             pVCpu->hm.s.vmx.pfnStartVM = VMXR0SwitcherStartVM64;
+
+            /* Mark that we've switched to 64-bit handler, we can't safely switch back to 32-bit for
+               the rest of the VM run (until VM reset). See @bugref{8432#c7}. */
+            pVCpu->hm.s.vmx.fSwitchedTo64on32 = true;
         }
 #else
         /* 64-bit host. */
@@ -4855,16 +4862,27 @@ static int hmR0VmxSetupVMRunHandler(PVMCPU pVCpu, PCPUMCTX pMixedCtx)
     {
         /* Guest is not in long mode, use the 32-bit handler. */
 #if HC_ARCH_BITS == 32
-        if (   pVCpu->hm.s.vmx.pfnStartVM != VMXR0StartVM32
-            && pVCpu->hm.s.vmx.pfnStartVM != NULL) /* Very first entry would have saved host-state already, ignore it. */
+        if (    pVCpu->hm.s.vmx.pfnStartVM != VMXR0StartVM32
+            && !pVCpu->hm.s.vmx.fSwitchedTo64on32   /* If set, guest mode change does not imply switcher change. */
+            &&  pVCpu->hm.s.vmx.pfnStartVM != NULL) /* Very first entry would have saved host-state already, ignore it. */
         {
             /* Currently, all mode changes sends us back to ring-3, so these should be set. See @bugref{6944}. */
             AssertMsg(HMCPU_CF_IS_SET(pVCpu,   HM_CHANGED_VMX_EXIT_CTLS
                                              | HM_CHANGED_VMX_ENTRY_CTLS
                                              | HM_CHANGED_GUEST_EFER_MSR), ("flags=%#x\n", HMCPU_CF_VALUE(pVCpu)));
         }
-#endif
+# ifdef VBOX_ENABLE_64_BITS_GUESTS
+        /* Keep using the 64-bit switcher even though we're in 32-bit because of bad Intel design. See @bugref{8432#c7}. */
+        if (!pVCpu->hm.s.vmx.fSwitchedTo64on32)
+            pVCpu->hm.s.vmx.pfnStartVM = VMXR0StartVM32;
+        else
+            Assert(pVCpu->hm.s.vmx.pfnStartVM == VMXR0SwitcherStartVM64);
+# else
         pVCpu->hm.s.vmx.pfnStartVM = VMXR0StartVM32;
+# endif
+#else
+        pVCpu->hm.s.vmx.pfnStartVM = VMXR0StartVM32;
+#endif
     }
     Assert(pVCpu->hm.s.vmx.pfnStartVM);
     return VINF_SUCCESS;
@@ -5658,8 +5676,6 @@ DECLINLINE(void) hmR0VmxSetPendingEvent(PVMCPU pVCpu, uint32_t u32IntInfo, uint3
     pVCpu->hm.s.Event.u32ErrCode        = u32ErrCode;
     pVCpu->hm.s.Event.cbInstr           = cbInstr;
     pVCpu->hm.s.Event.GCPtrFaultAddress = GCPtrFaultAddress;
-
-    STAM_COUNTER_INC(&pVCpu->hm.s.StatInjectPendingReflect);
 }
 
 
@@ -5818,6 +5834,7 @@ static VBOXSTRICTRC hmR0VmxCheckExitDueToEventDelivery(PVMCPU pVCpu, PCPUMCTX pM
                 }
 
                 /* If uExitVector is #PF, CR2 value will be updated from the VMCS if it's a guest #PF. See hmR0VmxExitXcptPF(). */
+                STAM_COUNTER_INC(&pVCpu->hm.s.StatInjectPendingReflect);
                 hmR0VmxSetPendingEvent(pVCpu, VMX_ENTRY_INT_INFO_FROM_EXIT_IDT_INFO(pVmxTransient->uIdtVectoringInfo),
                                        0 /* cbInstr */,  u32ErrCode, pMixedCtx->cr2);
                 rcStrict = VINF_SUCCESS;
@@ -5829,6 +5846,7 @@ static VBOXSTRICTRC hmR0VmxCheckExitDueToEventDelivery(PVMCPU pVCpu, PCPUMCTX pM
 
             case VMXREFLECTXCPT_DF:
             {
+                STAM_COUNTER_INC(&pVCpu->hm.s.StatInjectPendingReflect);
                 hmR0VmxSetPendingXcptDF(pVCpu, pMixedCtx);
                 rcStrict = VINF_HM_DOUBLE_FAULT;
                 Log4(("IDT: vcpu[%RU32] Pending vectoring #DF %#RX64 uIdtVector=%#x uExitVector=%#x\n", pVCpu->idCpu,
@@ -6735,7 +6753,11 @@ VMMR0_INT_DECL(int) HMR0EnsureCompleteBasicContext(PVMCPU pVCpu, PCPUMCTX pMixed
     /* Note! Since this is only applicable to VT-x, the implementation is placed
              in the VT-x part of the sources instead of the generic stuff. */
     if (pVCpu->CTX_SUFF(pVM)->hm.s.vmx.fSupported)
+    {
+        /* For now, imply that the caller might change everything too. */
+        HMCPU_CF_SET(pVCpu, HM_CHANGED_ALL_GUEST);
         return hmR0VmxSaveGuestState(pVCpu, pMixedCtx);
+    }
     return VINF_SUCCESS;
 }
 
@@ -6908,7 +6930,6 @@ static void hmR0VmxTrpmTrapToPendingEvent(PVMCPU pVCpu)
          u32IntInfo, enmTrpmEvent, cbInstr, uErrCode, GCPtrFaultAddress));
 
     hmR0VmxSetPendingEvent(pVCpu, u32IntInfo, cbInstr, uErrCode, GCPtrFaultAddress);
-    STAM_COUNTER_DEC(&pVCpu->hm.s.StatInjectPendingReflect);
 }
 
 
@@ -8421,8 +8442,8 @@ static VBOXSTRICTRC hmR0VmxLoadGuestStateOptimal(PVM pVM, PVMCPU pVCpu, PCPUMCTX
         { /* likely */}
         else
         {
-            AssertLogRelMsgFailedReturn(("hmR0VmxLoadGuestStateOptimal: hmR0VmxLoadGuestRip failed! rc=%Rrc\n",
-                                         VBOXSTRICTRC_VAL(rcStrict)), rcStrict);
+            AssertMsgFailedReturn(("hmR0VmxLoadGuestStateOptimal: hmR0VmxLoadGuestRip failed! rc=%Rrc\n",
+                                   VBOXSTRICTRC_VAL(rcStrict)), rcStrict);
         }
         STAM_COUNTER_INC(&pVCpu->hm.s.StatLoadMinimal);
     }
@@ -8433,8 +8454,8 @@ static VBOXSTRICTRC hmR0VmxLoadGuestStateOptimal(PVM pVM, PVMCPU pVCpu, PCPUMCTX
         { /* likely */}
         else
         {
-            AssertLogRelMsg(rcStrict == VINF_EM_RESCHEDULE_REM,
-                            ("hmR0VmxLoadGuestStateOptimal: hmR0VmxLoadGuestState failed! rc=%Rrc\n", VBOXSTRICTRC_VAL(rcStrict)));
+            AssertMsg(rcStrict == VINF_EM_RESCHEDULE_REM,
+                      ("hmR0VmxLoadGuestStateOptimal: hmR0VmxLoadGuestState failed! rc=%Rrc\n", VBOXSTRICTRC_VAL(rcStrict)));
             return rcStrict;
         }
         STAM_COUNTER_INC(&pVCpu->hm.s.StatLoadFull);
@@ -11163,6 +11184,22 @@ HMVMX_EXIT_DECL hmR0VmxExitXcptOrNmi(PVMCPU pVCpu, PCPUMCTX pMixedCtx, PVMXTRANS
             /* no break */
         case VMX_EXIT_INTERRUPTION_INFO_TYPE_HW_XCPT:
         {
+            /*
+             * If there's any exception caused as a result of event injection, go back to
+             * the interpreter. The page-fault case is complicated and we manually handle
+             * any currently pending event in hmR0VmxExitXcptPF. Nested #ACs are already
+             * handled in hmR0VmxCheckExitDueToEventDelivery.
+             */
+            if (!pVCpu->hm.s.Event.fPending)
+            { /* likely */ }
+            else if (   uVector != X86_XCPT_PF
+                     && uVector != X86_XCPT_AC)
+            {
+                STAM_COUNTER_INC(&pVCpu->hm.s.StatInjectPendingInterpret);
+                rc = VERR_EM_INTERPRETER;
+                break;
+            }
+
             switch (uVector)
             {
                 case X86_XCPT_PF: rc = hmR0VmxExitXcptPF(pVCpu, pMixedCtx, pVmxTransient);      break;
@@ -11436,6 +11473,7 @@ HMVMX_EXIT_DECL hmR0VmxExitVmcall(PVMCPU pVCpu, PCPUMCTX pMixedCtx, PVMXTRANSIEN
     HMVMX_VALIDATE_EXIT_HANDLER_PARAMS();
     STAM_COUNTER_INC(&pVCpu->hm.s.StatExitVmcall);
 
+    VBOXSTRICTRC rcStrict = VERR_VMX_IPE_3;
     if (pVCpu->hm.s.fHypercallsEnabled)
     {
 #if 0
@@ -11444,26 +11482,35 @@ HMVMX_EXIT_DECL hmR0VmxExitVmcall(PVMCPU pVCpu, PCPUMCTX pMixedCtx, PVMXTRANSIEN
         /* Aggressive state sync. for now. */
         int rc  = hmR0VmxSaveGuestRip(pVCpu, pMixedCtx);
         rc     |= hmR0VmxSaveGuestSegmentRegs(pVCpu, pMixedCtx);    /* For long-mode checks in gimKvmHypercall(). */
-#endif
-        rc     |= hmR0VmxAdvanceGuestRip(pVCpu, pMixedCtx, pVmxTransient);
         AssertRCReturn(rc, rc);
+#endif
 
-        /** @todo pre-increment RIP before hypercall will break when we have to implement
-         *  continuing hypercalls (e.g. Hyper-V). */
-        /** @todo r=bird: GIMHypercall will probably have to be able to return
-         *        informational status codes, so it should be made VBOXSTRICTRC. Not
-         *        doing that now because the status code handling isn't clean (i.e.
-         *        if you use RT_SUCCESS(rc) on the result of something, you don't
-         *        return rc in the success case, you return VINF_SUCCESS). */
-        rc = GIMHypercall(pVCpu, pMixedCtx);
-        /* If the hypercall changes anything other than guest general-purpose registers,
+        /* Perform the hypercall. */
+        rcStrict = GIMHypercall(pVCpu, pMixedCtx);
+        if (rcStrict == VINF_SUCCESS)
+        {
+            rc = hmR0VmxAdvanceGuestRip(pVCpu, pMixedCtx, pVmxTransient);
+            AssertRCReturn(rc, rc);
+        }
+        else
+            Assert(   rcStrict == VINF_GIM_R3_HYPERCALL
+                   || rcStrict == VINF_GIM_HYPERCALL_CONTINUING
+                   || RT_FAILURE(VBOXSTRICTRC_VAL(rcStrict)));
+
+        /* If the hypercall changes anything other than guest's general-purpose registers,
            we would need to reload the guest changed bits here before VM-entry. */
-        return rc;
+    }
+    else
+        Log4(("hmR0VmxExitVmcall: Hypercalls not enabled\n"));
+
+    /* If hypercalls are disabled or the hypercall failed for some reason, raise #UD and continue. */
+    if (RT_FAILURE(VBOXSTRICTRC_VAL(rcStrict)))
+    {
+        hmR0VmxSetPendingXcptUD(pVCpu, pMixedCtx);
+        rcStrict = VINF_SUCCESS;
     }
 
-    Log4(("hmR0VmxExitVmcall: Hypercalls not enabled\n"));
-    hmR0VmxSetPendingXcptUD(pVCpu, pMixedCtx);
-    return VINF_SUCCESS;
+    return rcStrict;
 }
 
 
@@ -12505,10 +12552,19 @@ HMVMX_EXIT_DECL hmR0VmxExitApicAccess(PVMCPU pVCpu, PCPUMCTX pMixedCtx, PVMXTRAN
 {
     HMVMX_VALIDATE_EXIT_HANDLER_PARAMS();
 
+    STAM_COUNTER_INC(&pVCpu->hm.s.StatExitApicAccess);
+
     /* If this VM-exit occurred while delivering an event through the guest IDT, handle it accordingly. */
     VBOXSTRICTRC rcStrict1 = hmR0VmxCheckExitDueToEventDelivery(pVCpu, pMixedCtx, pVmxTransient);
     if (RT_LIKELY(rcStrict1 == VINF_SUCCESS))
-    { /* likely */ }
+    {
+        /* For some crazy guest, if an event delivery causes an APIC-access VM-exit, go to instruction emulation. */
+        if (RT_UNLIKELY(pVCpu->hm.s.Event.fPending))
+        {
+            STAM_COUNTER_INC(&pVCpu->hm.s.StatInjectPendingInterpret);
+            return VERR_EM_INTERPRETER;
+        }
+    }
     else
     {
         if (rcStrict1 == VINF_HM_DOUBLE_FAULT)
@@ -12571,7 +12627,6 @@ HMVMX_EXIT_DECL hmR0VmxExitApicAccess(PVMCPU pVCpu, PCPUMCTX pMixedCtx, PVMXTRAN
             break;
     }
 
-    STAM_COUNTER_INC(&pVCpu->hm.s.StatExitApicAccess);
     if (rcStrict2 != VINF_SUCCESS)
         STAM_COUNTER_INC(&pVCpu->hm.s.StatSwitchApicAccessToR3);
     return rcStrict2;
@@ -12678,7 +12733,15 @@ HMVMX_EXIT_DECL hmR0VmxExitEptMisconfig(PVMCPU pVCpu, PCPUMCTX pMixedCtx, PVMXTR
     /* If this VM-exit occurred while delivering an event through the guest IDT, handle it accordingly. */
     VBOXSTRICTRC rcStrict1 = hmR0VmxCheckExitDueToEventDelivery(pVCpu, pMixedCtx, pVmxTransient);
     if (RT_LIKELY(rcStrict1 == VINF_SUCCESS))
-    { /* likely */ }
+    {
+        /* If event delivery causes an EPT misconfig (MMIO), go back to instruction emulation as otherwise
+           injecting the original pending event would most likely cause the same EPT misconfig VM-exit. */
+        if (RT_UNLIKELY(pVCpu->hm.s.Event.fPending))
+        {
+            STAM_COUNTER_INC(&pVCpu->hm.s.StatInjectPendingInterpret);
+            return VERR_EM_INTERPRETER;
+        }
+    }
     else
     {
         if (rcStrict1 == VINF_HM_DOUBLE_FAULT)
@@ -12736,7 +12799,11 @@ HMVMX_EXIT_DECL hmR0VmxExitEptViolation(PVMCPU pVCpu, PCPUMCTX pMixedCtx, PVMXTR
     /* If this VM-exit occurred while delivering an event through the guest IDT, handle it accordingly. */
     VBOXSTRICTRC rcStrict1 = hmR0VmxCheckExitDueToEventDelivery(pVCpu, pMixedCtx, pVmxTransient);
     if (RT_LIKELY(rcStrict1 == VINF_SUCCESS))
-    { /* likely */ }
+    {
+        /* In the unlikely case that the EPT violation happened as a result of delivering an event, log it. */
+        if (RT_UNLIKELY(pVCpu->hm.s.Event.fPending))
+            Log4(("EPT violation with an event pending u64IntInfo=%#RX64\n", pVCpu->hm.s.Event.u64IntInfo));
+    }
     else
     {
         if (rcStrict1 == VINF_HM_DOUBLE_FAULT)
@@ -13409,6 +13476,7 @@ static int hmR0VmxExitXcptPF(PVMCPU pVCpu, PCPUMCTX pMixedCtx, PVMXTRANSIENT pVm
     Log4(("#PF: rc=%Rrc\n", rc));
     if (rc == VINF_SUCCESS)
     {
+#if 0
         /* Successfully synced shadow pages tables or emulated an MMIO instruction. */
         /** @todo this isn't quite right, what if guest does lgdt with some MMIO
          *        memory? We don't update the whole state here... */
@@ -13416,6 +13484,14 @@ static int hmR0VmxExitXcptPF(PVMCPU pVCpu, PCPUMCTX pMixedCtx, PVMXTRANSIENT pVm
                             | HM_CHANGED_GUEST_RSP
                             | HM_CHANGED_GUEST_RFLAGS
                             | HM_CHANGED_VMX_GUEST_APIC_STATE);
+#else
+        /* This is typically a shadow page table sync or a MMIO instruction. But we
+         * may have emulated something like LTR or a far jump. Any part of the CPU
+         * context may have changed.
+         */
+        /** @todo take advantage of CPUM changed flags instead of brute forcing. */
+        HMCPU_CF_SET(pVCpu, HM_CHANGED_ALL_GUEST);
+#endif
         TRPMResetTrap(pVCpu);
         STAM_COUNTER_INC(&pVCpu->hm.s.StatExitShadowPF);
         return rc;

@@ -50,12 +50,14 @@
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_GIM
-#include <VBox/log.h>
-#include "GIMInternal.h"
-#include <VBox/vmm/vm.h>
+#include <VBox/vmm/gim.h>
 #include <VBox/vmm/hm.h>
 #include <VBox/vmm/ssm.h>
 #include <VBox/vmm/pdmdev.h>
+#include "GIMInternal.h"
+#include <VBox/vmm/vm.h>
+
+#include <VBox/log.h>
 
 #include <iprt/err.h>
 #include <iprt/semaphore.h>
@@ -433,8 +435,8 @@ VMMR3_INT_DECL(int) GIMR3DebugRead(PVM pVM, void *pvRead, size_t *pcbRead, PFNGI
     {
         if (ASMAtomicReadBool(&pDbg->fDbgRecvBufRead) == true)
         {
-            STAM_COUNTER_INC(&pVM->gim.s.StatDbgRecv);
-            STAM_COUNTER_ADD(&pVM->gim.s.StatDbgRecvBytes, pDbg->cbDbgRecvBufRead);
+            STAM_REL_COUNTER_INC(&pVM->gim.s.StatDbgRecv);
+            STAM_REL_COUNTER_ADD(&pVM->gim.s.StatDbgRecvBytes, pDbg->cbDbgRecvBufRead);
 
             memcpy(pvRead, pDbg->pvDbgRecvBuf, pDbg->cbDbgRecvBufRead);
             *pcbRead = pDbg->cbDbgRecvBufRead;
@@ -476,8 +478,8 @@ VMMR3_INT_DECL(int) GIMR3DebugWrite(PVM pVM, void *pvWrite, size_t *pcbWrite)
             if (   RT_SUCCESS(rc)
                 && *pcbWrite == cbWrite)
             {
-                STAM_COUNTER_INC(&pVM->gim.s.StatDbgXmit);
-                STAM_COUNTER_ADD(&pVM->gim.s.StatDbgXmitBytes, *pcbWrite);
+                STAM_REL_COUNTER_INC(&pVM->gim.s.StatDbgXmit);
+                STAM_REL_COUNTER_ADD(&pVM->gim.s.StatDbgXmitBytes, *pcbWrite);
             }
             return rc;
         }

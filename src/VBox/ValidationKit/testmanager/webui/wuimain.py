@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 107741 $"
+__version__ = "$Revision: 107792 $"
 
 # Standard Python imports.
 
@@ -973,7 +973,6 @@ class WuiMain(WuiDispatcherBase):
     def _actionTestResultFailureDoRemove(self):
         """ Action wrapper. """
         from testmanager.core.testresultfailures import TestResultFailureData, TestResultFailureLogic;
-        from testmanager.webui.wuitestresultfailure import WuiTestResultFailure;
         return self._actionGenericDoRemove(TestResultFailureLogic, TestResultFailureData.ksParam_idTestResult,
                                            self.ksActionResultsUnGrouped);
 
@@ -1016,13 +1015,16 @@ class WuiMain(WuiDispatcherBase):
 
         oTestSet = TestSetData().initFromDbWithId(self._oDb, idTestSet);
         if idLogFile == 0:
-            oTestFile = TestResultFileDataEx().initFakeMainLog(oTestSet);
+            oTestFile    = TestResultFileDataEx().initFakeMainLog(oTestSet);
+            aoTimestamps = TestResultLogic(self._oDb).fetchTimestampsForLogViewer(idTestSet);
         else:
-            oTestFile = TestSetLogic(self._oDb).getFile(idTestSet, idLogFile);
+            oTestFile    = TestSetLogic(self._oDb).getFile(idTestSet, idLogFile);
+            aoTimestamps = [];
         if oTestFile.sMime not in [ 'text/plain',]:
             raise WuiException('The log view does not display files of type: %s' % (oTestFile.sMime,));
 
-        oContent = WuiLogViewer(oTestSet, oTestFile, cbChunk, iChunk, oDisp = self, fnDPrint = self._oSrvGlue.dprint);
+        oContent = WuiLogViewer(oTestSet, oTestFile, cbChunk, iChunk, aoTimestamps,
+                                oDisp = self, fnDPrint = self._oSrvGlue.dprint);
         (self._sPageTitle, self._sPageBody) = oContent.show();
         return True;
 
