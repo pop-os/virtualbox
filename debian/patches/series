@@ -14,4 +14,3 @@
 32-disable-guest-version-check.patch
 35-libvdeplug-soname.patch
 36-fix-vnc-version-string.patch
-gcc-5.4.patch
