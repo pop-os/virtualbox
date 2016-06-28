@@ -6,6 +6,13 @@ virtualbox (5.1.0~BETA3-dfsg-1) UNRELEASED; urgency=medium
 
  -- Gianfranco Costamagna <locutusofborg@debian.org>  Mon, 30 May 2016 12:30:24 +0200
 
+virtualbox (5.0.24-dfsg-1) unstable; urgency=medium
+
+  * New upstream release, patch refresh.
+    - remove fix-build.patch: upstream
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 29 Jun 2016 00:51:47 +0200
+
 virtualbox (5.0.22-dfsg-3) unstable; urgency=high
 
   * Fix Ubuntu build (patch already accepted upstream)
