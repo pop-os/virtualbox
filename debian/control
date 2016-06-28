@@ -5,7 +5,7 @@ Maintainer: Debian Virtualbox Team <pkg-virtualbox-devel@lists.alioth.debian.org
 Uploaders: Ritesh Raj Sarraf <rrs@debian.org>,
            Gianfranco Costamagna <locutusofborg@debian.org>
 Build-Depends: bzip2,
-               debhelper (>= 9),
+               debhelper (>= 9.20160114~),
                default-jdk,
                dh-python,
                dh-systemd (>=1.5),
@@ -117,19 +117,6 @@ Description: x86 virtualization solution - base binaries
  or the virtualbox-source package is also required in order to compile the
  kernel modules needed for virtualbox. A graphical user interface for
  VirtualBox is provided by the package virtualbox-qt.
-
-Package: virtualbox-dbg
-Section: contrib/debug
-Priority: extra
-Architecture: amd64 i386
-Depends: virtualbox (= ${binary:Version}) | virtualbox-guest-utils (= ${binary:Version}),
-         ${misc:Depends}
-Description: x86 virtualization solution - debugging symbols
- VirtualBox is a free x86 virtualization solution allowing a wide range
- of x86 operating systems such as Windows, DOS, BSD or Linux to run on a
- Linux system.
- .
- This package provides the debugging symbols for VirtualBox.
 
 Package: virtualbox-dkms
 Section: contrib/kernel
